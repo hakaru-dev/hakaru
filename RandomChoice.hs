@@ -4,10 +4,13 @@ module RandomChoice where
 import System.Random
 import Mixture
 import Data.Maybe (fromMaybe)
-import Data.List (findIndex)
+import Data.List (findIndex, foldl')
+import Numeric.SpecFunctions
 import qualified Data.Vector.Unboxed as U
 import qualified Data.Map.Strict as M
 import qualified Data.Number.LogFloat as LF
+
+import Debug.Trace
 
 marsaglia :: (RandomGen g, Random a, Ord a, Floating a) => g -> ((a, a), g)
 marsaglia g0 = -- "Marsaglia polar method"
@@ -36,29 +39,13 @@ chooseIndex probs g0 =
                     (findIndex (p <=) (scanl1 (+) probs))
   in (k, g)
 
--- Borrowed from package math-functions
-factorial :: Int -> Double
-factorial n
-    | n < 0     = error "Statistics.Math.factorial: negative input"
-    | n <= 1    = 1
-    | n <= 170  = U.product $ U.map fromIntegral $ U.enumFromTo 2 n
-    | otherwise = 1 / 0
-
--- Borrowed from package math-functions
-lnFact :: Int -> Double
-lnFact n
-    | n <= 14   = log (factorial n)
-    | otherwise = (x - 0.5) * log x - x + 9.1893853320467e-1 + z / x
-    where x = fromIntegral (n + 1)
-          y = 1 / (x * x)
-          z = ((-(5.95238095238e-4 * y) + 7.936500793651e-4) * y -
-               2.7777777777778e-3) * y + 8.3333333333333e-2
-
 normal_rng :: (Real a, Floating a, Random a, RandomGen g) =>
               a -> a -> g -> (a, g)
 normal_rng mu sd g | sd > 0 = case marsaglia g of
                                 ((x, _), g1) -> (mu + sd * x, g1)
 normal_rng _ _ _ = error "normal: invalid parameters"
+
+lnFact = logFactorial
 
 -- Makes use of Atkinson's algorithm as described in:
 -- Monte Carlo Statistical Methods pg. 55
@@ -101,8 +88,47 @@ gamma_rng shape scale g | shape <  1.0  = (gvar2, g2)
 gamma_rng shape scale g = 
     let d = shape - 1/3
         c = recip $ sqrt $ 9*d
-        sqr x = x * x
-        cubic x = x * x * x
-    in undefined
+        -- Algorithm recommends inlining normal generator
+        n g = normal_rng 1 c g
+        (v, g2) = until (\x -> fst x > 0.0) (\ (_, g) -> normal_rng 1 c g) (n g)
+        x = (v - 1) / c
+        sqr = x * x
+        v3 = v * v * v
+        (u, g3) = randomR (0.0, 1.0) g2
+        accept  = u < 1.0 - 0.0331*(sqr*sqr) || log u < 0.5*sqr + d*(1.0 - v3 + log v3)
+    in case accept of
+         True -> (scale*d*v3, g3)
+         False -> gamma_rng shape scale g3
 
--- Algorithm recommends inlining normal generator
+gammaLogDensity x shape scale | x>= 0 && shape > 0 && scale > 0 =
+     scale * log shape - scale * x + (shape - 1) * log x - logGamma shape
+gammaLogDensity _ _ _ = log 0
+
+beta_rng :: (RandomGen g) => Double -> Double -> g -> (Double, g)
+-- Consider adding case for a <= 1 && b <= 1
+beta_rng a b g = let (ga, g1) = gamma_rng a 1 g
+                     (gb, g2) = gamma_rng b 1 g1
+                 in (ga / (ga + gb), g2)
+
+betaLogDensity x a b | x < 0 || x > 1 = error "beta: value must be between 0 and 1"
+betaLogDensity x a b | a <= 0 || b <= 0 = error "beta: parameters must be positve" 
+betaLogDensity x a b = (logGamma (a + b)
+                        - logGamma a
+                        - logGamma b
+                        + x * log (a - 1)
+                        + (1 - x) * log (b - 1))
+
+-- Consider having dirichlet return Vector
+-- Note: This is acutally symmetric dirichlet
+dirichlet_rng :: (RandomGen g) => Int ->  Double -> g -> ([Double], g)
+dirichlet_rng n a g = normalize (gammas g n)
+  where gammas g 0 = ([], 0, g)
+        gammas g n = let (xs, total, g1) = gammas g (n-1)
+                         ( x, g2) = gamma_rng a 1 g1 
+                     in ((x : xs), x+total, g2)
+        normalize (a, total, g) = (map (/ total) a, g)
+
+dirichletLogDensity x a | all (> 0) x = sum (zipWith logTerm x a) + logGamma (sum a)
+  where sum a = foldl' (+) 0 a
+        logTerm x a = (a-1) * log x - logGamma a
+dirichletLogDensity _ _ = error "dirichlet: all values must be between 0 and 1"
