@@ -54,6 +54,12 @@ lnFact n
           z = ((-(5.95238095238e-4 * y) + 7.936500793651e-4) * y -
                2.7777777777778e-3) * y + 8.3333333333333e-2
 
+normal_rng :: (Real a, Floating a, Random a, RandomGen g) =>
+              a -> a -> g -> (a, g)
+normal_rng mu sd g | sd > 0 = case marsaglia g of
+                                ((x, _), g1) -> (mu + sd * x, g1)
+normal_rng _ _ _ = error "normal: invalid parameters"
+
 -- Makes use of Atkinson's algorithm as described in:
 -- Monte Carlo Statistical Methods pg. 55
 --
@@ -86,5 +92,17 @@ poisson_rng lambda g0 = make_poisson g0
 -- Direct implementation of  "A Simple Method for Generating Gamma Variables"
 -- by George Marsaglia and Wai Wan Tsang.
 gamma_rng :: (RandomGen g) => Double -> Double -> g -> (Double, g)
-gamma_rng = undefined
+gamma_rng shape scale g | shape <= 0.0  = error "gamma: got a negative shape paramater"
+gamma_rng shape scale g | scale <= 0.0  = error "gamma: got a negative scale paramater"
+gamma_rng shape scale g | shape <  1.0  = (gvar2, g2)
+                      where (gvar1, g1) = gamma_rng (shape + 1) scale g
+                            (w,  g2) = randomR (0,1) g1
+                            gvar2 = scale * gvar1 * (w ** recip shape) 
+gamma_rng shape scale g = 
+    let d = shape - 1/3
+        c = recip $ sqrt $ 9*d
+        sqr x = x * x
+        cubic x = x * x * x
+    in undefined
+
 -- Algorithm recommends inlining normal generator

@@ -14,7 +14,7 @@ import Data.Maybe
 
 import qualified Data.Map.Strict as M
 
-import RandomChoice (marsaglia, lnFact, poisson_rng)
+import RandomChoice (normal_rng, lnFact, poisson_rng)
 import Visual
 
 {-
@@ -155,8 +155,7 @@ normal mu sd obs = Measure $ \(n, d, (llTotal, llFresh), conds, g) ->
         square y = y * y
         tau = 1 / square sd
         dist' = Dist {logDensity = normalLogDensity,
-                      sample = (\ g -> case marsaglia g of
-                                         ((x, _), g1) -> (mu + sd * x, g1))}
+                      sample = normal_rng mu sd}
         xrp = makeXRP obs dist' n d g
     in updateLikelihood llTotal llFresh xrp conds
 

@@ -10,7 +10,7 @@ module InterpreterDynamic where
 -- can express models whose number of observations is unknown at compile time.
 
 import Types (Cond(..), CSampler(CSampler))
-import RandomChoice (marsaglia, chooseIndex)
+import RandomChoice (normal_rng, chooseIndex)
 import Mixture (Prob, empty, point, Mixture(..))
 import Sampler (Sampler, deterministic, smap, sbind)
 
@@ -83,8 +83,8 @@ poisson _ = error "poisson: invalid parameter"
 
 normal :: (Real a, Floating a, Random a, Typeable a) => a -> a -> CSampler a
 normal !mean !std | std > 0 = CSampler c where
-  c Unconditioned = \g0 -> case marsaglia g0 of
-    ((x, _), g) -> (point (mean + std * x) 1, g)
+  c Unconditioned = \g0 -> let (x, g) = normal_rng mean std g0
+                           in (point (mean + std * x) 1, g)
   c (Lebesgue y) = case fromDynamic y of
     Just y ->
       let density  = exp (square ((y - mean) / std) / (-2)) / std / sqrt (2 * pi)
