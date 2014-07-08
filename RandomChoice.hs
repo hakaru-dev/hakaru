@@ -10,8 +10,6 @@ import qualified Data.Vector.Unboxed as U
 import qualified Data.Map.Strict as M
 import qualified Data.Number.LogFloat as LF
 
-import Debug.Trace
-
 marsaglia :: (RandomGen g, Random a, Ord a, Floating a) => g -> ((a, a), g)
 marsaglia g0 = -- "Marsaglia polar method"
   let (x, g1) = randomR (-1,1) g0
