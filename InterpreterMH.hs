@@ -14,7 +14,7 @@ import Data.Maybe
 
 import qualified Data.Map.Strict as M
 
-import RandomChoice (normal_rng, lnFact, poisson_rng)
+import RandomChoice
 import Visual
 
 {-
@@ -139,6 +139,20 @@ poisson l obs = Measure $ \(n, d, (llTotal, llFresh), conds, g) ->
         xrp = makeXRP obs dist' n d g
     in updateLikelihood llTotal llFresh xrp conds
 
+gamma :: Double -> Double -> Cond -> Measure Double
+gamma shape scale obs = Measure $ \(n, d, (llTotal, llFresh), conds, g) ->
+    let dist' = Dist {logDensity = gammaLogDensity shape scale,
+                      sample = gamma_rng shape scale}
+        xrp = makeXRP obs dist' n d g
+    in updateLikelihood llTotal llFresh xrp conds
+
+beta :: Double -> Double -> Cond -> Measure Double
+beta a b obs = Measure $ \(n, d, (llTotal, llFresh), conds, g) ->
+    let dist' = Dist {logDensity = betaLogDensity a b,
+                      sample = beta_rng a b}
+        xrp = makeXRP obs dist' n d g
+    in updateLikelihood llTotal llFresh xrp conds
+
 uniform :: Double -> Double -> Cond -> Measure Double
 uniform lo hi obs = Measure $ \(n, d, (llTotal,llFresh), conds, g) ->
     let uniformLogDensity lo hi x | lo <= x && x <= hi = log (recip (hi - lo))
@@ -150,12 +164,15 @@ uniform lo hi obs = Measure $ \(n, d, (llTotal,llFresh), conds, g) ->
 
 normal :: Double -> Double -> Cond -> Measure Double
 normal mu sd obs = Measure $ \(n, d, (llTotal, llFresh), conds, g) ->
-    let normalLogDensity x = (-tau * square (x - mu) +
-                              log (tau / pi / 2)) / 2
-        square y = y * y
-        tau = 1 / square sd
-        dist' = Dist {logDensity = normalLogDensity,
+    let dist' = Dist {logDensity = normalLogDensity mu sd,
                       sample = normal_rng mu sd}
+        xrp = makeXRP obs dist' n d g
+    in updateLikelihood llTotal llFresh xrp conds
+
+laplace :: Double -> Double -> Cond -> Measure Double
+laplace mu sd obs = Measure $ \(n, d, (llTotal, llFresh), conds, g) ->
+    let dist' = Dist {logDensity = laplaceLogDensity mu sd,
+                      sample = laplace_rng mu sd}
         xrp = makeXRP obs dist' n d g
     in updateLikelihood llTotal llFresh xrp conds
 

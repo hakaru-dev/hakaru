@@ -45,6 +45,11 @@ normal_rng mu sd g | sd > 0 = case marsaglia g of
                                 ((x, _), g1) -> (mu + sd * x, g1)
 normal_rng _ _ _ = error "normal: invalid parameters"
 
+normalLogDensity mu sd x = (-tau * square (x - mu)
+                            + log (tau / pi / 2)) / 2
+  where square y = y * y
+        tau = 1 / square sd
+
 lnFact = logFactorial
 
 -- Makes use of Atkinson's algorithm as described in:
@@ -100,7 +105,7 @@ gamma_rng shape scale g =
          True -> (scale*d*v3, g3)
          False -> gamma_rng shape scale g3
 
-gammaLogDensity x shape scale | x>= 0 && shape > 0 && scale > 0 =
+gammaLogDensity shape scale x | x>= 0 && shape > 0 && scale > 0 =
      scale * log shape - scale * x + (shape - 1) * log x - logGamma shape
 gammaLogDensity _ _ _ = log 0
 
@@ -110,13 +115,21 @@ beta_rng a b g = let (ga, g1) = gamma_rng a 1 g
                      (gb, g2) = gamma_rng b 1 g1
                  in (ga / (ga + gb), g2)
 
-betaLogDensity x a b | x < 0 || x > 1 = error "beta: value must be between 0 and 1"
-betaLogDensity x a b | a <= 0 || b <= 0 = error "beta: parameters must be positve" 
-betaLogDensity x a b = (logGamma (a + b)
+betaLogDensity a b x | x < 0 || x > 1 = error "beta: value must be between 0 and 1"
+betaLogDensity a b x | a <= 0 || b <= 0 = error "beta: parameters must be positve" 
+betaLogDensity a b x = (logGamma (a + b)
                         - logGamma a
                         - logGamma b
                         + x * log (a - 1)
                         + (1 - x) * log (b - 1))
+
+laplace_rng :: (RandomGen g) => Double -> Double -> g -> (Double, g)
+laplace_rng mu sd g = sample (randomR (0.0, 1.0) g)
+   where sample (u, g1) = case u < 0.5 of
+                            True  -> (mu + sd * log (u + u), g1)
+                            False -> (mu - sd * log (2.0 - u - u), g1)
+
+laplaceLogDensity mu sd x = - log (2 * sd) - abs (x - mu) / sd
 
 -- Consider having dirichlet return Vector
 -- Note: This is acutally symmetric dirichlet
@@ -128,7 +141,7 @@ dirichlet_rng n a g = normalize (gammas g n)
                      in ((x : xs), x+total, g2)
         normalize (a, total, g) = (map (/ total) a, g)
 
-dirichletLogDensity x a | all (> 0) x = sum (zipWith logTerm x a) + logGamma (sum a)
+dirichletLogDensity a x | all (> 0) x = sum (zipWith logTerm a x) + logGamma (sum a)
   where sum a = foldl' (+) 0 a
-        logTerm x a = (a-1) * log x - logGamma a
+        logTerm a x = (a-1) * log x - logGamma a
 dirichletLogDensity _ _ = error "dirichlet: all values must be between 0 and 1"
