@@ -1,15 +1,13 @@
 {-# LANGUAGE RankNTypes, NoMonomorphismRestriction, BangPatterns,
   DeriveDataTypeable, GADTs, ScopedTypeVariables,
   ExistentialQuantification, StandaloneDeriving #-}
+{-# OPTIONS -Wall #-}
 
 module InterpreterMH where
 
 import System.Random (RandomGen, StdGen, randomR, getStdGen)
-import System.IO
 
-import Control.Monad
 import Data.Dynamic
-import Data.Function (on)
 import Data.Maybe
 
 import qualified Data.Map.Strict as M
@@ -68,19 +66,19 @@ newtype Measure a = Measure {unMeasure :: (RandomGen g) =>
 -- g  is the random seed
 
 return_ :: a -> Measure a
-return_ x = Measure (\ (n, d, l, conds, g) -> (x, d, l, conds, g))
+return_ x = Measure (\ (_, d, l, conds, g) -> (x, d, l, conds, g))
 
 makeXRP :: (Typeable a, RandomGen g) => Cond -> Dist a
         -> Name -> Database -> g
         -> (a, Database, Likelihood, Likelihood, g)
 makeXRP obs dist' n db g =
     case M.lookup n db of
-      Just (xd, lb, b, ob) ->
+      Just (xd, lb, _, ob) ->
         let Just (xb, dist) = unXRP xd
-            (x,l) = case obs of
-                      Just xd ->
-                          let Just x = fromDynamic xd
-                          in (x, logDensity dist x)
+            (x,_) = case obs of
+                      Just yd ->
+                          let Just y = fromDynamic yd
+                          in (y, logDensity dist y)
                       Nothing -> (xb, lb)
             l' = logDensity dist' x
             d1 = M.insert n (XRP (x,dist),
@@ -91,11 +89,11 @@ makeXRP obs dist' n db g =
       Nothing ->
         let (xnew, l, g1) = case obs of
              Just xdnew ->
-                 let Just xnew = fromDynamic xdnew
-                 in (xnew, logDensity dist' xnew, g)
+                 let Just xnew2 = fromDynamic xdnew
+                 in (xnew2, logDensity dist' xnew2, g)
              Nothing ->
-                 (xnew, logDensity dist' xnew, g1)
-                where (xnew, g1) = sample dist' g
+                 (xnew, logDensity dist' xnew2, g2)
+                where (xnew2, g2) = sample dist' g
             d1 = M.insert n (XRP (xnew, dist'),
                              l,
                              True,
@@ -120,12 +118,12 @@ bernDist p = Dist {logDensity = (\ x -> log (if x then p else 1 - p)),
                                           (t, g') -> (t <= p, g'))}
 
 poissonDist :: Double -> Dist Int
-poissonDist l =
+poissonDist l' =
     let poissonLogDensity l x | l > 0 && x> 0 = (fromIntegral x)*(log l) - lnFact x - l
         poissonLogDensity l x | x==0 = -l
         poissonLogDensity _ _ = log 0 in
-     Dist {logDensity = poissonLogDensity l,
-               sample = poisson_rng l}
+     Dist {logDensity = poissonLogDensity l',
+               sample = poisson_rng l'}
 
 gammaDist :: (Double, Double) -> Dist Double
 gammaDist (shape, scale) = 
@@ -138,11 +136,11 @@ betaDist (a,b) =
               sample = beta_rng a b}
 
 uniformDist :: (Double, Double) -> Dist Double
-uniformDist (lo,hi) =
+uniformDist (l,h) =
     let uniformLogDensity lo hi x | lo <= x && x <= hi = log (recip (hi - lo))
-        uniformLogDensity _ _  x = log 0 in
-    Dist {logDensity = uniformLogDensity lo hi,
-              sample = (\ g -> randomR (lo, hi) g)}
+        uniformLogDensity _ _  _ = log 0 in
+    Dist {logDensity = uniformLogDensity l h,
+              sample = (\ g -> randomR (l, h) g)}
 
 normalDist :: (Double, Double) -> Dist Double
 normalDist (mu, sd) = 
@@ -156,13 +154,13 @@ laplaceDist (mu, sd) =
 
 categoricalDist :: (Eq a, Typeable a) => [(a, Double)] -> Dist a
 categoricalDist list =
-    let categoricalLogDensity list x = log $ fromMaybe 0 (lookup x list)
-        categoricalSample list g = (elem, g1)
+    let categoricalLogDensity lst x = log $ fromMaybe 0 (lookup x lst)
+        categoricalSample lst g = (el, g1)
            where
              (p, g1) = randomR (0, total) g
-             elem = fst $ head $ filter (\(_,p0) -> p <= p0) sumList
-             sumList = scanl1 (\acc (a, b) -> (a, b + snd(acc))) list
-             total = sum $ map snd list
+             el = fst $ head $ filter (\(_,p0) -> p <= p0) sumList
+             sumList = scanl1 (\acc (a, b) -> (a, b + snd(acc))) lst
+             total = sum $ map snd lst
     in Dist {logDensity = categoricalLogDensity list,
                  sample = categoricalSample list}
 
@@ -202,7 +200,7 @@ categorical :: (Eq a, Typeable a) => [(a,Double)]
 categorical = liftDistToMeas categoricalDist
 
 factor :: Likelihood -> Measure ()
-factor l = Measure $ \(n, d, (llTotal, llFresh), conds, g) ->
+factor l = Measure $ \(_, d, (llTotal, llFresh), conds, g) ->
    ((), d, (llTotal + l, llFresh), conds, g)
 
 resample :: RandomGen g => XRP -> g ->
@@ -233,7 +231,7 @@ instance Monad Measure where
 run :: Measure a -> [Cond] -> IO (a, Database, Likelihood)
 run (Measure prog) conds = do
   g <- getStdGen
-  let (v, d, ll, conds1, g') =
+  let (v, d, ll, _, _) =
           prog ([0], M.empty, (0,0), conds, g)
   return (v, d, fst ll)
 
@@ -241,10 +239,10 @@ traceUpdate :: RandomGen g => Measure a -> Database -> [Cond] -> g
             -> (a, Database, Likelihood, Likelihood, Likelihood, g)
 traceUpdate (Measure prog) d conds g = do
   let d1 = M.map (\ (x, l, _, ob) -> (x, l, False, ob)) d
-  let (v, d2, (llTotal, llFresh), conds1, g1) =
+  let (v, d2, (llTotal, llFresh), _, g1) =
           prog ([0], d1, (0,0), conds, g)
-  let (d3, stale_d) = M.partition (\ (_, _, v, _) -> v) d2
-  let llStale = M.foldl' (\ llStale (_,l,_,_) -> llStale + l)
+  let (d3, stale_d) = M.partition (\ (_, _, v', _) -> v') d2
+  let llStale = M.foldl' (\ llStale' (_,l,_,_) -> llStale' + l)
                 0 stale_d
   (v, d3, llTotal, llFresh, llStale, g1)
 
@@ -261,17 +259,17 @@ updateDB :: (RandomGen g) =>
          -> (Database, Likelihood, Likelihood, Likelihood, g)
 updateDB name db ob xd g = (db', l', fwd, rvs, g)
     where db' = M.insert name (x', l', True, ob) db
-          (x', l', fwd, rvs, g1) = resample xd g
+          (x', l', fwd, rvs, _) = resample xd g
 
 transition :: (Typeable a, RandomGen g) => Measure a -> [Cond]
            -> a -> Database -> Likelihood -> g -> [a]
 transition prog conds v db ll g =
   let dbSize = M.size db
       -- choose an unconditioned choice
-      (condDb, uncondDb) = M.partition (\ (_, _, _, ob) -> ob) db
+      (_, uncondDb) = M.partition (\ (_, _, _, ob4) -> ob4) db
       (choice, g1) = randomR (0, (M.size uncondDb) -1) g
-      (name, (xd, l, _, ob))  = M.elemAt choice uncondDb
-      (db', l', fwd, rvs, g2) = updateDB name db ob xd g1
+      (name, (xd, _, _, ob))  = M.elemAt choice uncondDb
+      (db', _, fwd, rvs, g2) = updateDB name db ob xd g1
       (v', db2, llTotal, llFresh, llStale, g3) = traceUpdate prog db' conds g2
       a = llTotal - ll
           + rvs - fwd
@@ -286,7 +284,7 @@ transition prog conds v db ll g =
 
 mcmc :: Typeable a => Measure a -> [Cond] -> IO [a]
 mcmc prog conds = do
-  (v, d, llTotal, llFresh, llStale, g) <- initialStep prog conds
+  (v, d, llTotal, _, _, g) <- initialStep prog conds
   return $ transition prog conds v d llTotal g
 
 test :: Measure Bool
@@ -303,6 +301,7 @@ main_run_test = run test [Just (toDyn (-2 :: Double))]
 main_test :: IO [Bool]
 main_test = mcmc test [Just (toDyn (-2 :: Double))]
 
+test_two_normals :: Measure Bool
 test_two_normals = unconditioned (bern 0.5) `bind` \coin ->
        ifThenElse coin (conditioned (normal 0 1))
                        (conditioned (normal 100 1)) `bind` \_ ->
@@ -316,4 +315,4 @@ main = do
   l <- mcmc (unconditioned
              (normal (dbl 1) (dbl 3)) `bind` \n ->
              return_ n) [] :: IO [Double]
-  viz 10000 ["normal"] (map (\ x -> [x]) l)
+  viz 10000 ["normal"] (map return l)
