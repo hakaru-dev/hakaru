@@ -63,10 +63,7 @@ points :: FilePath -> IO (M.Map EID (S.Seq Point))
 points path = do
   dat <- decodeFileStream path
   return $ M.fromListWith (flip (S.><))
-         [ (eid p, S.singleton p) | v <- dat, let p = toPoint v, valid v
-                                         -- p <- [q, updateEID (638 + eid q) q
-                                         --      , updateEID (638*2 + eid q) q]
-         ]
+         [ (eid p, S.singleton p) | v <- dat, let p = toPoint v, valid v ]
 
 instance Ord Point where
     compare p1 p2 = compare (timestamp p1) (timestamp p2)
@@ -98,10 +95,10 @@ information :: FilePath -> IO Info
 information path = do
   tmap <- tracklets path
   let build info ts =
-          let info' = foldl (\i -> updateKnown i . (,) False) info $ pairs ts
+          let info' = L.foldl' (\i -> updateKnown i . (,) False) info $ pairs ts
               (_,laterTracklets) = M.split (tStamps $ head ts) tmap
-              bar ts' newInfo t = foldl classify newInfo $ zip (repeat t) ts'
-              foo i ts' = foldl (bar ts') i ts
+              bar ts' newInfo t = L.foldl classify newInfo $ zip (repeat t) ts'
+              foo i ts' = L.foldl (bar ts') i ts
           in M.foldl foo info' laterTracklets
       info = M.foldl build (Info [] []) tmap
   return info 
@@ -115,6 +112,18 @@ link observed = do
   forM_ observed (\p -> conditioned $ transition p)
   return [w0,w1,w2]
 
+{-|
+  - The -1 in the first extrapolate call should really be -t2
+  - Doing that, however, returns empty mixtures.
+  - Another model is to use
+      logit $ w0 + (sum $ zipWith (*) [w1,w2] d)
+    and get rid of dist, fdist.
+  - This model would require recalculation of the parameters for 
+    w0, w1 and w2.
+  - This model takes longer to run, and for ease of testing the old
+    model has been kept for now.
+-}
+
 score :: [Double] -> TlPair -> Double
 score [w0,w1,w2] (tlet,tlet') = 
     let (t1,t2) = pairMap fromIntegral (endTime tlet , startTime tlet')
@@ -127,8 +136,6 @@ score [w0,w1,w2] (tlet,tlet') =
                (extrapolate (snd tlet) tmin)
         fdist = fromIntegral $ frame (fst tlet') - frame (snd tlet)
     in logit $ w0 + w1*dist + w2*fdist
-
--- logit $ w0 + (sum $ zipWith (*) [w1,w2] d)
 
 matching :: FilePath -> IO [(EID,EID)]
 matching path = do
@@ -153,7 +160,7 @@ output path pts tracks = do
   let addTracklet tId eId ls
                 = let t = F.toList.S.unstableSort.fromJust.M.lookup eId $ pts
                   in (map (Track . updateEID tId) t) ++ ls
-      gatherTracklets tId = foldr (addTracklet tId) []
+      gatherTracklets tId = L.foldr (addTracklet tId) []
       addTrack tId eIds ls = trackHeader tId : (gatherTracklets tId eIds) ++ ls
       bytestring = encode $ M.foldrWithKey addTrack [] tracks
   B.writeFile path bytestring
@@ -240,10 +247,7 @@ lineMap f (w,x,y,z) = (f w, f x, f y, f z)
 
 hungarian :: [TlPair] -> [Double] -> [(EID, EID)]
 hungarian unknowns weights
-    = let addId (t,u) s = Set.insert (tID t) $ Set.insert (tID u) s
-          ids = VU.fromList.Set.toList $ foldr addId Set.empty unknowns
-          getIx tlet = (+) 1 $ fromJust $ VU.elemIndex (tID tlet) ids
-          boundary comp (a,b) (c,d) = (comp a c, comp b d)
+    = let boundary comp (a,b) (c,d) = (comp a c, comp b d)
           f ((t,u),w) (ls,(lb,ub))
               = let ix@(tix,uix) = (getIx t, getIx u)
                     bounds = (boundary min lb ix, boundary max ub ix)
@@ -254,6 +258,9 @@ hungarian unknowns weights
                    in ((mi,mi),(ma,ma))
           arr = AU.accumArray (\o new -> new) 12 bounds alist
           (ixs,_) = hungarianMethodDouble arr
+          addId (t,u) s = Set.insert (tID t) $ Set.insert (tID u) s
+          ids = VU.fromList.Set.toList $ foldr addId Set.empty unknowns
+          getIx tlet = (+) 1 $ fromJust $ VU.elemIndex (tID tlet) ids
           getId ix = ids VU.! (ix - 1)
       in map (pairMap getId) ixs
 
