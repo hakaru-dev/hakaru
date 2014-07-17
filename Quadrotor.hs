@@ -16,6 +16,7 @@ import qualified Data.Number.LogFloat as LF
 import Mixture (Prob, empty, point, Mixture(..), mnull)
 import Types (Cond(..), CSampler)
 import InterpreterDynamic
+import Lambda (dbl)
 
 -- particle filtering
 onlineFiltering :: (Ord a, Show a) => 
@@ -46,16 +47,16 @@ prog_quadCopter :: Mixture (Double, Double, Double, Double) ->
                    Double -> 
                    Measure (Double, Double, Double, Double)
 prog_quadCopter prevMix initX initY timeElapsed = do
-  velocity <- conditioned (uniformC (lit (0 :: Double)) (lit (5 :: Double)))
-  steerAngle <- conditioned (uniformC (lit (-2 :: Double)) (lit (2 :: Double)))
+  velocity <- conditioned (uniformC (dbl 0) (dbl 5))
+  steerAngle <- conditioned (uniformC (dbl (-2)) (dbl 2))
   (x0, y0, dirX, dirY) <- if mnull prevMix then return (initX, initY, 0, 1)
   else unconditioned (categorical (M.toList(unMixture prevMix)))
   let orientX = dirX * cos (-1 * steerAngle) - dirY * sin (-1 * steerAngle)
   let orientY = dirY * cos (-1 * steerAngle) + dirX * sin (-1 * steerAngle)
-  x1 <- unconditioned (normal (x0 + orientX * velocity*timeElapsed) (lit (7 :: Double)))
-  y1 <- unconditioned (normal (y0 + orientY * velocity*timeElapsed) (lit (7 :: Double)))
-  _ <- conditioned (normal (x1 :: Double) (lit (1 :: Double)))
-  _ <- conditioned (normal (y1 :: Double) (lit (1 :: Double)))
+  x1 <- unconditioned (normal (x0 + orientX * velocity*timeElapsed) (dbl 7))
+  y1 <- unconditioned (normal (y0 + orientY * velocity*timeElapsed) (dbl 7))
+  _ <- conditioned (normal (x1 :: Double) (dbl 1))
+  _ <- conditioned (normal (y1 :: Double) (dbl 1))
   return (x1, y1, orientX, orientY)
 
 -- helper functions
