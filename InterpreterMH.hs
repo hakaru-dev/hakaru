@@ -33,12 +33,11 @@ data Dist a = Dist {logDensity :: a -> Likelihood,
                     sample :: forall g. RandomGen g => g -> (a, g)}
 deriving instance Typeable1 Dist
  
+-- and what does XRP stand for?
 data XRP = forall e. Typeable e => XRP (e, Dist e)
 
 unXRP :: Typeable a => XRP -> Maybe (a, Dist a)
 unXRP (XRP (e,f)) = cast (e,f)
-
-type Var a = Int
 
 type Likelihood = Double
 type Visited = Bool
@@ -66,10 +65,6 @@ newtype Measure a = Measure {unMeasure :: (RandomGen g) =>
 -- ll is likelihood of expression
 -- conds is the observed data
 -- g  is the random seed
-
-
-lit :: (Eq a, Typeable a) => a -> a
-lit = id
 
 return_ :: a -> Measure a
 return_ x = Measure (\ (n, d, l, conds, g) -> (x, d, l, conds, g))
@@ -114,71 +109,52 @@ updateLikelihood :: (Typeable a, RandomGen g) =>
 updateLikelihood llTotal llFresh (x,d,l,lf,g) conds =
     (x, d, (llTotal+l, llFresh+lf), conds, g)
 
-dirac :: (Eq a, Typeable a) => a -> Cond -> Measure a
-dirac theta obs = Measure $ \(n, d, (llTotal,llFresh), conds, g) ->
-    let dist' = Dist {logDensity = (\ x -> if x == theta then 0 else log 0),
-                      sample = (\ g -> (theta,g))}
-        xrp = makeXRP obs dist' n d g
-    in updateLikelihood llTotal llFresh xrp conds
+diracDist :: Eq a => a -> Dist a
+diracDist theta = Dist {logDensity = (\ x -> if x == theta then 0 else log 0),
+                            sample = (\ g -> (theta,g))}
 
-bern :: Double -> Cond -> Measure Bool
-bern p obs = Measure $ \(n, d, (llTotal, llFresh), conds, g) ->
-    let dist' = Dist {logDensity = (\ x -> log (if x then p else 1 - p)),
-                      sample = (\ g -> case randomR (0, 1) g of
-                                         (t, g') -> (t <= p, g'))}
-        xrp = makeXRP obs dist' n d g
-    in updateLikelihood llTotal llFresh xrp conds
+bernDist :: Double -> Dist Bool
+bernDist p = Dist {logDensity = (\ x -> log (if x then p else 1 - p)),
+                       sample = (\ g -> case randomR (0, 1) g of
+                                          (t, g') -> (t <= p, g'))}
 
-poisson :: Double -> Cond -> Measure Int
-poisson l obs = Measure $ \(n, d, (llTotal, llFresh), conds, g) ->
+poissonDist :: Double -> Dist Int
+poissonDist l =
     let poissonLogDensity l x | l > 0 && x> 0 = (fromIntegral x)*(log l) - lnFact x - l
         poissonLogDensity l x | x==0 = -l
-        poissonLogDensity _ _ = log 0
-        dist' = Dist {logDensity = poissonLogDensity l,
-                      sample = poisson_rng l}
-        xrp = makeXRP obs dist' n d g
-    in updateLikelihood llTotal llFresh xrp conds
+        poissonLogDensity _ _ = log 0 in
+     Dist {logDensity = poissonLogDensity l,
+               sample = poisson_rng l}
 
-gamma :: Double -> Double -> Cond -> Measure Double
-gamma shape scale obs = Measure $ \(n, d, (llTotal, llFresh), conds, g) ->
-    let dist' = Dist {logDensity = gammaLogDensity shape scale,
-                      sample = gamma_rng shape scale}
-        xrp = makeXRP obs dist' n d g
-    in updateLikelihood llTotal llFresh xrp conds
+gammaDist :: (Double, Double) -> Dist Double
+gammaDist (shape, scale) = 
+    Dist {logDensity = gammaLogDensity shape scale,
+              sample = gamma_rng shape scale}
 
-beta :: Double -> Double -> Cond -> Measure Double
-beta a b obs = Measure $ \(n, d, (llTotal, llFresh), conds, g) ->
-    let dist' = Dist {logDensity = betaLogDensity a b,
-                      sample = beta_rng a b}
-        xrp = makeXRP obs dist' n d g
-    in updateLikelihood llTotal llFresh xrp conds
+betaDist :: (Double, Double) -> Dist Double
+betaDist (a,b) = 
+    Dist {logDensity = betaLogDensity a b,
+              sample = beta_rng a b}
 
-uniform :: Double -> Double -> Cond -> Measure Double
-uniform lo hi obs = Measure $ \(n, d, (llTotal,llFresh), conds, g) ->
+uniformDist :: (Double, Double) -> Dist Double
+uniformDist (lo,hi) =
     let uniformLogDensity lo hi x | lo <= x && x <= hi = log (recip (hi - lo))
-        uniformLogDensity _ _  x = log 0
-        dist' = Dist {logDensity = uniformLogDensity lo hi,
-                      sample = (\ g -> randomR (lo, hi) g)}
-        xrp = makeXRP obs dist' n d g
-    in updateLikelihood llTotal llFresh xrp conds
+        uniformLogDensity _ _  x = log 0 in
+    Dist {logDensity = uniformLogDensity lo hi,
+              sample = (\ g -> randomR (lo, hi) g)}
 
-normal :: Double -> Double -> Cond -> Measure Double
-normal mu sd obs = Measure $ \(n, d, (llTotal, llFresh), conds, g) ->
-    let dist' = Dist {logDensity = normalLogDensity mu sd,
-                      sample = normal_rng mu sd}
-        xrp = makeXRP obs dist' n d g
-    in updateLikelihood llTotal llFresh xrp conds
+normalDist :: (Double, Double) -> Dist Double
+normalDist (mu, sd) = 
+    Dist {logDensity = normalLogDensity mu sd,
+              sample = normal_rng mu sd}
 
-laplace :: Double -> Double -> Cond -> Measure Double
-laplace mu sd obs = Measure $ \(n, d, (llTotal, llFresh), conds, g) ->
-    let dist' = Dist {logDensity = laplaceLogDensity mu sd,
-                      sample = laplace_rng mu sd}
-        xrp = makeXRP obs dist' n d g
-    in updateLikelihood llTotal llFresh xrp conds
+laplaceDist :: (Double, Double) -> Dist Double
+laplaceDist (mu, sd) = 
+    Dist {logDensity = laplaceLogDensity mu sd,
+              sample = laplace_rng mu sd}
 
-categorical :: (Eq a, Typeable a) => [(a,Double)] 
-            -> Cond -> Measure a
-categorical list obs = Measure $ \(n, d, (llTotal, llFresh), conds, g) ->
+categoricalDist :: (Eq a, Typeable a) => [(a, Double)] -> Dist a
+categoricalDist list =
     let categoricalLogDensity list x = log $ fromMaybe 0 (lookup x list)
         categoricalSample list g = (elem, g1)
            where
@@ -186,10 +162,43 @@ categorical list obs = Measure $ \(n, d, (llTotal, llFresh), conds, g) ->
              elem = fst $ head $ filter (\(_,p0) -> p <= p0) sumList
              sumList = scanl1 (\acc (a, b) -> (a, b + snd(acc))) list
              total = sum $ map snd list
-        dist' = Dist {logDensity = categoricalLogDensity list,
-                      sample = categoricalSample list}
+    in Dist {logDensity = categoricalLogDensity list,
+                 sample = categoricalSample list}
+
+-- and now lift all the distributions to measures
+liftDistToMeas :: Typeable b => (a -> Dist b) -> a -> Cond -> Measure b
+liftDistToMeas f x obs = Measure $ \(n, d, (llTotal,llFresh), conds, g) ->
+    let dist' = f x
         xrp = makeXRP obs dist' n d g
     in updateLikelihood llTotal llFresh xrp conds
+
+dirac :: (Eq a, Typeable a) => a -> Cond -> Measure a
+dirac = liftDistToMeas diracDist
+
+bern :: Double -> Cond -> Measure Bool
+bern = liftDistToMeas bernDist
+
+poisson :: Double -> Cond -> Measure Int
+poisson = liftDistToMeas poissonDist
+
+gamma :: Double -> Double -> Cond -> Measure Double
+gamma shape scale = liftDistToMeas gammaDist (shape, scale)
+
+beta :: Double -> Double -> Cond -> Measure Double
+beta a b = liftDistToMeas betaDist (a,b)
+
+uniform :: Double -> Double -> Cond -> Measure Double
+uniform lo hi = liftDistToMeas uniformDist (lo,hi)
+
+normal :: Double -> Double -> Cond -> Measure Double
+normal mu sd = liftDistToMeas normalDist (mu, sd)
+
+laplace :: Double -> Double -> Cond -> Measure Double
+laplace mu sd = liftDistToMeas laplaceDist (mu, sd)
+
+categorical :: (Eq a, Typeable a) => [(a,Double)] 
+            -> Cond -> Measure a
+categorical = liftDistToMeas categoricalDist
 
 factor :: Likelihood -> Measure ()
 factor l = Measure $ \(n, d, (llTotal, llFresh), conds, g) ->
@@ -218,7 +227,14 @@ unconditioned f = f Nothing
 
 instance Monad Measure where
   return = return_
-  (>>=)    = bind
+  (>>=)  = bind
+
+lit :: (Eq a, Typeable a) => a -> a
+lit = id
+
+-- raw lit is a pain to use.  These are nicer
+dbl :: Double -> Double
+dbl = lit
 
 lam :: (a -> b) -> (a -> b)
 lam f = f
@@ -293,13 +309,11 @@ mcmc prog conds = do
   return $ transition prog conds v d llTotal g
 
 test :: Measure Bool
-test = unconditioned (bern (lit (0.5 :: Double))) `bind`
+test = unconditioned (bern (dbl 0.5)) `bind`
        \c ->  ifThenElse c (conditioned
-                            (normal (lit (1 :: Double))
-                                    (lit (1 :: Double))))
+                            (normal (dbl 1) (dbl 1)))
                            (conditioned
-                            (uniform (lit (0 :: Double))
-                                     (lit (3 :: Double)))) `bind`
+                            (uniform (dbl 0) (dbl 0))) `bind`
               \_ -> return_ c
 
 main_run_test :: IO (Bool, Database, Likelihood)
@@ -319,8 +333,6 @@ main_test2 = mcmc test_two_normals [Just (toDyn (1 :: Double))]
 main :: IO ()
 main = do
   l <- mcmc (unconditioned
-             (normal
-              (lit (1.0 :: Double))
-              (lit (3.0 :: Double))) `bind` \n ->
+             (normal (dbl 1) (dbl 3)) `bind` \n ->
              return_ n) [] :: IO [Double]
   viz 10000 ["normal"] (map (\ x -> [x]) l)
