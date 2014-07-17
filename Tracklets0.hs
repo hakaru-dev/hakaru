@@ -95,7 +95,7 @@ information :: FilePath -> IO Info
 information path = do
   tmap <- tracklets path
   let build info ts =
-          let info' = L.foldl' (\i -> updateKnown i . (,) False) info $ pairs ts
+          let info' = L.foldl (\i -> updateKnown i . (,) False) info $ pairs ts
               (_,laterTracklets) = M.split (tStamps $ head ts) tmap
               bar ts' newInfo t = L.foldl classify newInfo $ zip (repeat t) ts'
               foo i ts' = L.foldl (bar ts') i ts
