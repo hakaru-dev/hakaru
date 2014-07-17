@@ -14,6 +14,7 @@ import Data.Maybe
 
 import qualified Data.Map.Strict as M
 
+import Lambda
 import RandomChoice
 import Visual
 
@@ -228,26 +229,6 @@ unconditioned f = f Nothing
 instance Monad Measure where
   return = return_
   (>>=)  = bind
-
-lit :: (Eq a, Typeable a) => a -> a
-lit = id
-
--- raw lit is a pain to use.  These are nicer
-dbl :: Double -> Double
-dbl = lit
-
-lam :: (a -> b) -> (a -> b)
-lam f = f
-
-app :: (a -> b) -> a -> b
-app f x = f x
-
-fix :: ((a -> b) -> (a -> b)) -> (a -> b)
-fix g = f where f = g f
-
-ifThenElse :: Bool -> a -> a -> a
-ifThenElse True  t _ = t
-ifThenElse False _ f = f
 
 run :: Measure a -> [Cond] -> IO (a, Database, Likelihood)
 run (Measure prog) conds = do

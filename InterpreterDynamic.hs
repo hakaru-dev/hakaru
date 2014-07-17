@@ -134,26 +134,6 @@ unconditioned (CSampler f) = Measure (\      conds  -> smap (\a->(a,conds)) (f U
 factor :: Prob -> Measure ()
 factor p = Measure (\conds -> deterministic (point ((), conds) p))
 
--- Our language also includes the usual goodies of a lambda calculus
-var :: a -> a
-var = id
-
-lit :: a -> a
-lit = id
-
-lam :: (a -> b) -> (a -> b)
-lam f = f
-
-app :: (a -> b) -> a -> b
-app f x = f x
-
-fix :: ((a -> b) -> (a -> b)) -> (a -> b)
-fix g = f where f = g f
-
-ifThenElse :: Bool -> a -> a -> a
-ifThenElse True  t _ = t
-ifThenElse False _ e = e
-
 -- Drivers for testing
 finish :: Mixture (a, [Cond]) -> Mixture a
 finish (Mixture m) = Mixture (M.mapKeysMonotonic (\(a,[]) -> a) m)
