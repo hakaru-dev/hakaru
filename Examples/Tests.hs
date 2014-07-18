@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, NoMonomorphismRestriction, BangPatterns #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Tests where
 

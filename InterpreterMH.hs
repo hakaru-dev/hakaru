@@ -33,7 +33,8 @@ data Dist a = Dist {logDensity :: a -> Likelihood,
 deriving instance Typeable1 Dist
  
 -- and what does XRP stand for?
-data XRP = forall e. Typeable e => XRP (e, Dist e)
+data XRP where
+  XRP :: Typeable e => (e, Dist e) -> XRP
 
 unXRP :: Typeable a => XRP -> Maybe (a, Dist a)
 unXRP (XRP (e,f)) = cast (e,f)
@@ -47,16 +48,8 @@ type Subloc = Int
 type Name = [Subloc]
 type Database = M.Map Name (XRP, Likelihood, Visited, Observed)
 newtype Measure a = Measure {unMeasure :: (RandomGen g) =>
-                              (Name
-                              ,Database
-                              ,(Likelihood, Likelihood)
-                              ,[Cond]
-                              ,g
-                           ) -> (a
-                                ,Database
-                                ,(Likelihood, Likelihood)
-                                ,[Cond]
-                                ,g)}
+  (Name, Database, (Likelihood, Likelihood), [Cond], g) ->
+  (a   , Database, (Likelihood, Likelihood), [Cond], g)}
   deriving (Typeable)
 
 -- n  is structural_name
