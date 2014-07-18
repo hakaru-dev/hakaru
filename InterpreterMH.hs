@@ -51,9 +51,26 @@ data Seen = Seen { xrp  :: XRP,
                    vis  :: Visited,
                    obsd :: Observed }
 type Database = M.Map Name Seen
+
+-- no idea what to call this, someone else can rename
+-- the g will be bound by Measure
+data Thing a g where
+  T :: { sname :: a,
+         ldb :: Database, -- ldb = local database
+         llh2 :: (Likelihood, Likelihood),
+         conds :: [Cond],
+         seed :: g } -> Thing a g
+
+prefix :: Subloc -> Thing Name g -> Thing Name g
+prefix n t = t {sname = n : sname t}
+
+upd_sname :: a -> Thing b g -> Thing a g
+upd_sname x t = t { sname = x}
+
 newtype Measure a = Measure {unMeasure :: (RandomGen g) =>
-  (Name, Database, (Likelihood, Likelihood), [Cond], g) ->
-  (a   , Database, (Likelihood, Likelihood), [Cond], g)}
+  Thing Name g -> Thing a g }
+--  (Name, Database, (Likelihood, Likelihood), [Cond], g) ->
+--  (a   , Database, (Likelihood, Likelihood), [Cond], g)}
   deriving (Typeable)
 
 -- n  is structural_name
@@ -63,7 +80,7 @@ newtype Measure a = Measure {unMeasure :: (RandomGen g) =>
 -- g  is the random seed
 
 return_ :: a -> Measure a
-return_ x = Measure (\ (_, d, l, conds, g) -> (x, d, l, conds, g))
+return_ x = Measure (upd_sname x)
 
 makeXRP :: (Typeable a, RandomGen g) => Cond -> Dist a
         -> Name -> Database -> g
@@ -91,13 +108,14 @@ makeXRP obs dist' n db g =
             d1 = M.insert n (Seen (XRP (xnew, dist')) l True (isJust obs)) db
         in (xnew, d1, l, l, g1)
 
+-- this is probably not the 'right' arguments to give here
 updateLikelihood :: (Typeable a, RandomGen g) => 
                     Likelihood -> Likelihood ->
                     (a, Database, Likelihood, Likelihood, g) ->
                     [Cond] ->
-                    (a, Database, (Likelihood, Likelihood), [Cond], g)
-updateLikelihood llTotal llFresh (x,d,l,lf,g) conds =
-    (x, d, (llTotal+l, llFresh+lf), conds, g)
+                    Thing a g
+updateLikelihood llTotal llFresh (x,d,l,lf,g) cds =
+    T x d (llTotal+l, llFresh+lf) cds g
 
 diracDist :: Eq a => a -> Dist a
 diracDist theta = Dist {logDensity = (\ x -> if x == theta then 0 else log 0),
@@ -158,9 +176,9 @@ categoricalDist list =
 -- and now lift all the distributions to measures
 liftDistToMeas :: Typeable b => (a -> Dist b) -> a -> Cond -> Measure b
 liftDistToMeas f x obs = Measure $ 
-  \(n, d, (llTotal,llFresh), conds, g) ->
+  \(T n d (llTotal,llFresh) cds g) ->
     let new_xrp = makeXRP obs (f x) n d g
-    in updateLikelihood llTotal llFresh new_xrp conds
+    in updateLikelihood llTotal llFresh new_xrp cds
 
 dirac :: (Eq a, Typeable a) => a -> Cond -> Measure a
 dirac = liftDistToMeas diracDist
@@ -191,8 +209,9 @@ categorical :: (Eq a, Typeable a) => [(a,Double)]
 categorical = liftDistToMeas categoricalDist
 
 factor :: Likelihood -> Measure ()
-factor l = Measure $ \(_, d, (llTotal, llFresh), conds, g) ->
-   ((), d, (llTotal + l, llFresh), conds, g)
+factor l = Measure $ \t -> 
+    let (llTotal, llFresh) = llh2 t in
+    t {sname = (), llh2 = (llTotal + l, llFresh) }
 
 resample :: RandomGen g => XRP -> g ->
             (XRP, Likelihood, Likelihood, Likelihood, g)
@@ -204,13 +223,13 @@ resample (XRP (x, dist)) g =
     in (XRP (x', dist), l', fwd, rvs, g1)
 
 bind :: Measure a -> (a -> Measure b) -> Measure b
-bind (Measure m) cont = Measure $ \ (n,d,ll,conds,g) ->
-    let (v, d1, ll1, conds1, g1) = m (0:n, d, ll, conds, g)
-    in unMeasure (cont v) (1:n, d1, ll1, conds1, g1)
+bind (Measure m) cont = Measure $ \ t ->
+    let t' = m (prefix 0 t)
+    in unMeasure (cont $ sname t') (upd_sname (1:sname t) t')
 
 conditioned :: (Cond -> Measure a) -> Measure a
-conditioned f = Measure $ \ (n,d,ll,cond:conds,g) ->
-    unMeasure (f cond) (n, d, ll, conds, g)
+conditioned f = Measure $ \ t@(T {conds = cond:cds}) ->
+    unMeasure (f cond) (t {conds = cds})
 
 unconditioned :: (Cond -> Measure a) -> Measure a
 unconditioned f = f Nothing
@@ -220,19 +239,17 @@ instance Monad Measure where
   (>>=)  = bind
 
 run :: Measure a -> [Cond] -> IO (a, Database, Likelihood)
-run (Measure prog) conds = do
+run (Measure prog) cds = do
   g <- getStdGen
-  let (v, d, ll, _, _) =
-          prog ([0], M.empty, (0,0), conds, g)
+  let T v d ll _ _ = prog (T [0] M.empty (0,0) cds g)
   return (v, d, fst ll)
 
 traceUpdate :: RandomGen g => Measure a -> Database -> [Cond] -> g
             -> (a, Database, Likelihood, Likelihood, Likelihood, g)
-traceUpdate (Measure prog) d conds g = do
+traceUpdate (Measure prog) d cds g = do
   -- let d1 = M.map (\ (x, l, _, ob) -> (x, l, False, ob)) d
   let d1 = M.map (\ s -> s { vis = False }) d
-  let (v, d2, (llTotal, llFresh), _, g1) =
-          prog ([0], d1, (0,0), conds, g)
+  let T v d2 (llTotal, llFresh) _ g1 = prog (T [0] d1 (0,0) cds g)
   let (d3, stale_d) = M.partition vis d2
   let llStale = M.foldl' (\ llStale' s -> llStale' + llhd s) 0 stale_d
   (v, d3, llTotal, llFresh, llStale, g1)
@@ -240,9 +257,9 @@ traceUpdate (Measure prog) d conds g = do
 initialStep :: Measure a -> [Cond] ->
                IO (a, Database,
                    Likelihood, Likelihood, Likelihood, StdGen)
-initialStep prog conds = do
+initialStep prog cds = do
   g <- getStdGen
-  return $ traceUpdate prog M.empty conds g
+  return $ traceUpdate prog M.empty cds g
 
 -- TODO: Make a way of passing user-provided proposal distributions
 updateDB :: (RandomGen g) => 
@@ -254,14 +271,14 @@ updateDB name db ob xd g = (db', l', fwd, rvs, g)
 
 transition :: (Typeable a, RandomGen g) => Measure a -> [Cond]
            -> a -> Database -> Likelihood -> g -> [a]
-transition prog conds v db ll g =
+transition prog cds v db ll g =
   let dbSize = M.size db
       -- choose an unconditioned choice
       (_, uncondDb) = M.partition obsd db
       (choice, g1) = randomR (0, (M.size uncondDb) -1) g
       (name, (Seen xd _ _ ob))  = M.elemAt choice uncondDb
       (db', _, fwd, rvs, g2) = updateDB name db ob xd g1
-      (v', db2, llTotal, llFresh, llStale, g3) = traceUpdate prog db' conds g2
+      (v', db2, llTotal, llFresh, llStale, g3) = traceUpdate prog db' cds g2
       a = llTotal - ll
           + rvs - fwd
           + log (fromIntegral dbSize) - log (fromIntegral $ M.size db2)
@@ -269,14 +286,14 @@ transition prog conds v db ll g =
       (u, g4) = randomR (0 :: Double, 1) g3 in
 
   if (log u < a) then
-      v' : (transition prog conds v' db2 llTotal g4)
+      v' : (transition prog cds v' db2 llTotal g4)
   else
-      v : (transition prog conds v db ll g4)
+      v : (transition prog cds v db ll g4)
 
 mcmc :: Typeable a => Measure a -> [Cond] -> IO [a]
-mcmc prog conds = do
-  (v, d, llTotal, _, _, g) <- initialStep prog conds
-  return $ transition prog conds v d llTotal g
+mcmc prog cds = do
+  (v, d, llTotal, _, _, g) <- initialStep prog cds
+  return $ transition prog cds v d llTotal g
 
 test :: Measure Bool
 test = unconditioned (bern (dbl 0.5)) `bind` \c ->
