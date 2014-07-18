@@ -69,8 +69,6 @@ upd_sname x t = t { sname = x}
 
 newtype Measure a = Measure {unMeasure :: (RandomGen g) =>
   Thing Name g -> Thing a g }
---  (Name, Database, (Likelihood, Likelihood), [Cond], g) ->
---  (a   , Database, (Likelihood, Likelihood), [Cond], g)}
   deriving (Typeable)
 
 -- n  is structural_name
@@ -82,9 +80,11 @@ newtype Measure a = Measure {unMeasure :: (RandomGen g) =>
 return_ :: a -> Measure a
 return_ x = Measure (upd_sname x)
 
+-- May as well make this return a Thing too
+--   (with Conds set to [])
 makeXRP :: (Typeable a, RandomGen g) => Cond -> Dist a
         -> Name -> Database -> g
-        -> (a, Database, Likelihood, Likelihood, g)
+        -> Thing a g
 makeXRP obs dist' n db g =
     case M.lookup n db of
       Just (Seen xd lb _ ob) ->
@@ -96,7 +96,7 @@ makeXRP obs dist' n db g =
                       Nothing -> (xb, lb)
             l' = logDensity dist' x
             d1 = M.insert n (Seen (XRP (x,dist)) l' True ob) db
-        in (x, d1, l', 0, g)
+        in T x d1 (l', 0) [] g
       Nothing ->
         let (xnew, l, g1) = case obs of
              Just xdnew ->
@@ -106,16 +106,14 @@ makeXRP obs dist' n db g =
                  (xnew, logDensity dist' xnew2, g2)
                 where (xnew2, g2) = sample dist' g
             d1 = M.insert n (Seen (XRP (xnew, dist')) l True (isJust obs)) db
-        in (xnew, d1, l, l, g1)
+        in T xnew d1 (l, l) [] g1
 
 -- this is probably not the 'right' arguments to give here
 updateLikelihood :: (Typeable a, RandomGen g) => 
-                    Likelihood -> Likelihood ->
-                    (a, Database, Likelihood, Likelihood, g) ->
-                    [Cond] ->
+                    Likelihood -> Likelihood -> Thing a g -> [Cond] ->
                     Thing a g
-updateLikelihood llTotal llFresh (x,d,l,lf,g) cds =
-    T x d (llTotal+l, llFresh+lf) cds g
+updateLikelihood llTotal llFresh t cds =
+  let (l,lf) = llh2 t in t { llh2 = (llTotal+l, llFresh+lf), conds = cds }
 
 diracDist :: Eq a => a -> Dist a
 diracDist theta = Dist {logDensity = (\ x -> if x == theta then 0 else log 0),
