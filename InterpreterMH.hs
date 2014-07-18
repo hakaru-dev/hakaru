@@ -46,7 +46,11 @@ type Cond = Maybe DistVal
 
 type Subloc = Int
 type Name = [Subloc]
-type Database = M.Map Name (XRP, Likelihood, Visited, Observed)
+data Seen = Seen { xrp  :: XRP, 
+                   llhd :: Likelihood, 
+                   vis  :: Visited,
+                   obsd :: Observed }
+type Database = M.Map Name Seen
 newtype Measure a = Measure {unMeasure :: (RandomGen g) =>
   (Name, Database, (Likelihood, Likelihood), [Cond], g) ->
   (a   , Database, (Likelihood, Likelihood), [Cond], g)}
@@ -66,7 +70,7 @@ makeXRP :: (Typeable a, RandomGen g) => Cond -> Dist a
         -> (a, Database, Likelihood, Likelihood, g)
 makeXRP obs dist' n db g =
     case M.lookup n db of
-      Just (xd, lb, _, ob) ->
+      Just (Seen xd lb _ ob) ->
         let Just (xb, dist) = unXRP xd
             (x,_) = case obs of
                       Just yd ->
@@ -74,10 +78,7 @@ makeXRP obs dist' n db g =
                           in (y, logDensity dist y)
                       Nothing -> (xb, lb)
             l' = logDensity dist' x
-            d1 = M.insert n (XRP (x,dist),
-                             l',
-                             True,
-                             ob) db
+            d1 = M.insert n (Seen (XRP (x,dist)) l' True ob) db
         in (x, d1, l', 0, g)
       Nothing ->
         let (xnew, l, g1) = case obs of
@@ -87,10 +88,7 @@ makeXRP obs dist' n db g =
              Nothing ->
                  (xnew, logDensity dist' xnew2, g2)
                 where (xnew2, g2) = sample dist' g
-            d1 = M.insert n (XRP (xnew, dist'),
-                             l,
-                             True,
-                             isJust obs) db
+            d1 = M.insert n (Seen (XRP (xnew, dist')) l True (isJust obs)) db
         in (xnew, d1, l, l, g1)
 
 updateLikelihood :: (Typeable a, RandomGen g) => 
@@ -159,10 +157,10 @@ categoricalDist list =
 
 -- and now lift all the distributions to measures
 liftDistToMeas :: Typeable b => (a -> Dist b) -> a -> Cond -> Measure b
-liftDistToMeas f x obs = Measure $ \(n, d, (llTotal,llFresh), conds, g) ->
-    let dist' = f x
-        xrp = makeXRP obs dist' n d g
-    in updateLikelihood llTotal llFresh xrp conds
+liftDistToMeas f x obs = Measure $ 
+  \(n, d, (llTotal,llFresh), conds, g) ->
+    let new_xrp = makeXRP obs (f x) n d g
+    in updateLikelihood llTotal llFresh new_xrp conds
 
 dirac :: (Eq a, Typeable a) => a -> Cond -> Measure a
 dirac = liftDistToMeas diracDist
@@ -231,12 +229,12 @@ run (Measure prog) conds = do
 traceUpdate :: RandomGen g => Measure a -> Database -> [Cond] -> g
             -> (a, Database, Likelihood, Likelihood, Likelihood, g)
 traceUpdate (Measure prog) d conds g = do
-  let d1 = M.map (\ (x, l, _, ob) -> (x, l, False, ob)) d
+  -- let d1 = M.map (\ (x, l, _, ob) -> (x, l, False, ob)) d
+  let d1 = M.map (\ s -> s { vis = False }) d
   let (v, d2, (llTotal, llFresh), _, g1) =
           prog ([0], d1, (0,0), conds, g)
-  let (d3, stale_d) = M.partition (\ (_, _, v', _) -> v') d2
-  let llStale = M.foldl' (\ llStale' (_,l,_,_) -> llStale' + l)
-                0 stale_d
+  let (d3, stale_d) = M.partition vis d2
+  let llStale = M.foldl' (\ llStale' s -> llStale' + llhd s) 0 stale_d
   (v, d3, llTotal, llFresh, llStale, g1)
 
 initialStep :: Measure a -> [Cond] ->
@@ -251,7 +249,7 @@ updateDB :: (RandomGen g) =>
             Name -> Database -> Observed -> XRP -> g
          -> (Database, Likelihood, Likelihood, Likelihood, g)
 updateDB name db ob xd g = (db', l', fwd, rvs, g)
-    where db' = M.insert name (x', l', True, ob) db
+    where db' = M.insert name (Seen x' l' True ob) db
           (x', l', fwd, rvs, _) = resample xd g
 
 transition :: (Typeable a, RandomGen g) => Measure a -> [Cond]
@@ -259,9 +257,9 @@ transition :: (Typeable a, RandomGen g) => Measure a -> [Cond]
 transition prog conds v db ll g =
   let dbSize = M.size db
       -- choose an unconditioned choice
-      (_, uncondDb) = M.partition (\ (_, _, _, ob4) -> ob4) db
+      (_, uncondDb) = M.partition obsd db
       (choice, g1) = randomR (0, (M.size uncondDb) -1) g
-      (name, (xd, _, _, ob))  = M.elemAt choice uncondDb
+      (name, (Seen xd _ _ ob))  = M.elemAt choice uncondDb
       (db', _, fwd, rvs, g2) = updateDB name db ob xd g1
       (v', db2, llTotal, llFresh, llStale, g3) = traceUpdate prog db' conds g2
       a = llTotal - ll
@@ -281,12 +279,10 @@ mcmc prog conds = do
   return $ transition prog conds v d llTotal g
 
 test :: Measure Bool
-test = unconditioned (bern (dbl 0.5)) `bind`
-       \c ->  ifThenElse c (conditioned
-                            (normal (dbl 1) (dbl 1)))
-                           (conditioned
-                            (uniform (dbl 0) (dbl 0))) `bind`
-              \_ -> return_ c
+test = unconditioned (bern (dbl 0.5)) `bind` \c ->
+       ifThenElse c (conditioned (normal (dbl 1) (dbl 1)))
+                    (conditioned (uniform (dbl 0) (dbl 0))) `bind` \_ ->
+       return_ c
 
 main_run_test :: IO (Bool, Database, Likelihood)
 main_run_test = run test [Just (toDyn (-2 :: Double))]
