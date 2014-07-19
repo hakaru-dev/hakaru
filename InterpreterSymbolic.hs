@@ -16,7 +16,7 @@ class Symbolic repr where
   bind	 		    :: repr (Measure a) -> (repr a -> repr (Measure a)) 
 	   		           -> repr (Measure a)
   ret 			    :: repr a -> repr (Measure a)
-  uniformD, uniformC, normal :: repr Double -> repr Double -> repr (Dist Double)
+  uniformD, uniform, normal :: repr Double -> repr Double -> repr (Dist Double)
   conditioned, unconditioned :: repr (Dist a) -> repr (Measure a)
 
 -- Printer (to Maple)
@@ -36,7 +36,7 @@ instance Symbolic Maple where
   bind m c 	= Maple $ \f h -> unMaple m True h ++ 
   		          unMaple (c (Maple $ \_ _ -> ("x" ++ show h))) (f) (succ h)
   		          ++ unMaple m False h 
-  uniformC e1 e2 = Maple $ \f h -> if f == True then  
+  uniform e1 e2  = Maple $ \f h -> if f == True then  
 		          show (1/((read (unMaple e2 f h) :: Double) - 
 		          (read (unMaple e1 f h) :: Double))) ++ " * Int (" 
 		          else ", x" ++ show h ++ "=" ++ unMaple e1 f h ++ ".." ++ 
@@ -58,17 +58,17 @@ instance Symbolic Maple where
 view e = unMaple e True 0
 
 -- TEST CASES
-exp1 = unconditioned (uniformC (real 1) (real 3)) `bind` \s ->
+exp1 = unconditioned (uniform (real 1) (real 3)) `bind` \s ->
        ret s
 
 -- Borel's Paradox Simplified
 exp2 = unconditioned (uniformD (real 1) (real 3)) `bind` \s ->
-       unconditioned (uniformC (real (-1)) (real 1)) `bind` \x ->
+       unconditioned (uniform  (real (-1)) (real 1)) `bind` \x ->
        let y = s `mul` x in ret y
 
 -- Borel's Paradox
 exp3 = unconditioned (uniformD (real 1) (real 2)) `bind` \s ->
-       unconditioned (uniformC (real (-1)) (real 1)) `bind` \x ->
+       unconditioned (uniform  (real (-1)) (real 1)) `bind` \x ->
        let y = (InterpreterSymbolic.sqrt ((real 1 ) `minus` 
 			   (InterpreterSymbolic.exp s (real 2)))) `mul`
 	           (InterpreterSymbolic.sin x) in ret y  

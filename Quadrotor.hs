@@ -47,8 +47,8 @@ prog_quadCopter :: Mixture (Double, Double, Double, Double) ->
                    Double -> 
                    Measure (Double, Double, Double, Double)
 prog_quadCopter prevMix initX initY timeElapsed = do
-  velocity <- conditioned (uniformC (dbl 0) (dbl 5))
-  steerAngle <- conditioned (uniformC (dbl (-2)) (dbl 2))
+  velocity <- conditioned (uniform (dbl 0) (dbl 5))
+  steerAngle <- conditioned (uniform (dbl (-2)) (dbl 2))
   (x0, y0, dirX, dirY) <- if mnull prevMix then return (initX, initY, 0, 1)
   else unconditioned (categorical (M.toList(unMixture prevMix)))
   let orientX = dirX * cos (-1 * steerAngle) - dirY * sin (-1 * steerAngle)

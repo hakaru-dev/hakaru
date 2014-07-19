@@ -42,16 +42,16 @@ bern theta | 0 <= theta && theta <= 1 = CSampler c where
   c _ = error "bern: got a non-discrete sampler"
 bern theta = error ("bernoulli: invalid parameter " ++ show theta)
 
-uniformC :: (Fractional a, Real a, Random a, Typeable a) => a -> a -> CSampler a
-uniformC lo hi | lo < hi = CSampler c where
+uniform :: (Fractional a, Real a, Random a, Typeable a) => a -> a -> CSampler a
+uniform lo hi | lo < hi = CSampler c where
   c Unconditioned = \g0 -> case randomR (lo,hi) g0 of
     (x, g) -> (point x 1, g)
   c (Lebesgue y) = case fromDynamic y of
     Just y -> deterministic (if lo < y && y < hi then point y density else empty)
-    Nothing -> error "uniformC: did not get data from dynamic source"
-  c _ = error "uniformC: got a discrete sampler"
+    Nothing -> error "uniform: did not get data from dynamic source"
+  c _ = error "uniform: got a discrete sampler"
   density = fromRational (toRational (recip (hi - lo)))
-uniformC _ _ = error "uniformC: invalid parameters"
+uniform _ _ = error "uniform: invalid parameters"
 
 uniformD :: (Ix a, Random a, Typeable a) => a -> a -> CSampler a
 uniformD lo hi | lo <= hi = CSampler c where

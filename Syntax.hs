@@ -135,7 +135,7 @@ instance Mochastic IS where
   categorical (IS xps)    = IS (IS.categorical xps)
   bern (IS p)             = IS (IS.bern p)
   normal (IS m) (IS s)    = IS (IS.normal m s)
-  uniform (IS lo) (IS hi) = IS (IS.uniformC lo hi)
+  uniform (IS lo) (IS hi) = IS (IS.uniform lo hi)
   poisson (IS l)          = IS (IS.poisson l)
 
 -- The Metropolis-Hastings semantics

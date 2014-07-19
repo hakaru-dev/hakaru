@@ -11,7 +11,7 @@ test :: Measure Bool
 test = do
   c <- unconditioned (bern 0.5)
   _ <- conditioned (ifThenElse c (normal (lit (1 :: Double)) (lit 1))
-                                 (uniformC (lit 0) (lit 3)))
+                                 (uniform (lit 0) (lit 3)))
   return c
 
 test_dup :: Measure (Bool, Bool)
@@ -44,7 +44,7 @@ loop_hmm !numLoops s = do
 
 test_carRoadModel :: Measure (Double, Double)
 test_carRoadModel = do
-  speed <- unconditioned (uniformC (lit (5::Double)) (lit (15::Double)))
+  speed <- unconditioned (uniform (lit (5::Double)) (lit (15::Double)))
   let z0 = lit 0 
   _ <- conditioned (normal (z0 :: Double) (lit 1))
   z1 <- unconditioned (normal (z0 + speed) (lit 1))
