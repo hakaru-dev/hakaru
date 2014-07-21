@@ -195,7 +195,7 @@ instance Monad Measure where
 run :: Measure a -> [Cond] -> IO (a, Database, Likelihood)
 run (Measure prog) cds = do
   g <- getStdGen
-  let (v, S d ll _ _) = (prog [0]) (S M.empty (0,0) cds g)
+  let (v, S d ll [] _) = (prog [0]) (S M.empty (0,0) cds g)
   return (v, d, fst ll)
 
 traceUpdate :: RandomGen g => Measure a -> Database -> [Cond] -> g
