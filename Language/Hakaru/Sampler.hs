@@ -1,10 +1,10 @@
 {-# LANGUAGE RankNTypes #-}
 {-# OPTIONS -W #-}
 
-module Sampler (Sampler, deterministic, sbind, smap) where
+module Language.Hakaru.Sampler (Sampler, deterministic, sbind, smap) where
 
-import Mixture (Mixture, mnull, empty, scale, point)
-import RandomChoice (choose)
+import Language.Hakaru.Mixture (Mixture, mnull, empty, scale, point)
+import Language.Hakaru.RandomChoice (choose)
 import System.Random (RandomGen)
 
 -- Sampling procedures that produce one sample

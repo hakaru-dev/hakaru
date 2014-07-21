@@ -1,7 +1,7 @@
 {-# LANGUAGE TypeFamilies, DataKinds, TypeOperators #-}
 {-# OPTIONS -W #-}
 
-module Util.HList where
+module Language.Hakaru.Util.HList where
 
 class TList (xs :: [*]) where
   data VList (xs :: [*]) :: *

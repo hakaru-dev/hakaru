@@ -1,4 +1,4 @@
-module Util.Coda where
+module Language.Hakaru.Util.Coda where
 
 import Statistics.Autocorrelation
 import qualified Data.Packed.Vector as V

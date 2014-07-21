@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Visual where
+module Language.Hakaru.Util.Visual where
 
 import System.IO
 import Control.Monad

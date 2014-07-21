@@ -2,10 +2,10 @@
 
 module Tests where
 
-import Types
+import Language.Hakaru.Types
 import Data.Dynamic
 import InterpreterDynamic as IS
-import InterpreterMH as MH
+import Language.Hakaru.Metropolis as MH
 
 -- Some example/test programs in our language
 test :: Measure Bool

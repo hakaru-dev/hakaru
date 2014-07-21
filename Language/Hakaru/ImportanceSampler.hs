@@ -1,7 +1,7 @@
 {-# LANGUAGE RankNTypes, NoMonomorphismRestriction, BangPatterns #-}
 {-# OPTIONS -W #-}
 
-module InterpreterDynamic where
+module Language.Hakaru.ImportanceSampler where
 
 -- This is an interpreter that's like Interpreter except conditioning is
 -- checked at run time rather than by static types.  In other words, we allow
@@ -9,10 +9,10 @@ module InterpreterDynamic where
 -- inputs.  In exchange, we get to make Measure an instance of Monad, and we
 -- can express models whose number of observations is unknown at compile time.
 
-import Types (Cond(..), CSampler(CSampler))
-import RandomChoice (normal_rng, chooseIndex)
-import Mixture (Prob, empty, point, Mixture(..))
-import Sampler (Sampler, deterministic, smap, sbind)
+import Language.Hakaru.Types (Cond(..), CSampler(CSampler))
+import Language.Hakaru.RandomChoice (normal_rng, chooseIndex)
+import Language.Hakaru.Mixture (Prob, empty, point, Mixture(..))
+import Language.Hakaru.Sampler (Sampler, deterministic, smap, sbind)
 
 import System.Random
 import Data.Monoid
@@ -149,7 +149,7 @@ sample_ :: (Ord a, Show a) => Measure a -> [Cond] -> IO [(a, Prob)]
 sample_ measure conds = do
   u <- once
   let x = mixToTuple (finish u)
-  xs <- unsafeInterleaveIO $ sample measure conds
+  xs <- unsafeInterleaveIO $ sample_ measure conds
   return (x : xs)
  where once = getStdRandom (unMeasure measure conds)
        mixToTuple = head . M.toList . unMixture

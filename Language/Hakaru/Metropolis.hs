@@ -3,7 +3,7 @@
   ExistentialQuantification, StandaloneDeriving #-}
 {-# OPTIONS -Wall #-}
 
-module InterpreterMH where
+module Language.Hakaru.Metropolis where
 
 import System.Random (RandomGen, StdGen, randomR, getStdGen)
 
@@ -12,9 +12,7 @@ import Data.Maybe
 
 import qualified Data.Map.Strict as M
 
-import Lambda
-import RandomChoice
-import Visual
+import Language.Hakaru.RandomChoice
 
 {-
 

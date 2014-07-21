@@ -1,7 +1,7 @@
 {-# LANGUAGE RankNTypes, BangPatterns #-}
 {-# OPTIONS -W #-}
 
-module Mixture (Prob, point, empty, scale,
+module Language.Hakaru.Mixture (Prob, point, empty, scale,
   Mixture(..), toList, mnull, mmap, cross, mode) where
 
 import Data.Monoid

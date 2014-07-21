@@ -1,5 +1,5 @@
 -- The lambda-calculus part of the language, which can be shared
-module Lambda(lit, dbl, lam, app, fix, ifThenElse) where
+module Language.Hakaru.Lambda(lit, dbl, lam, app, fix, ifThenElse) where
 
 import Data.Dynamic (Typeable)
 

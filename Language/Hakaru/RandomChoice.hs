@@ -1,8 +1,8 @@
 {-# LANGUAGE BangPatterns #-}
-module RandomChoice where
+module Language.Hakaru.RandomChoice where
 
 import System.Random
-import Mixture
+import Language.Hakaru.Mixture
 import Data.Maybe (fromMaybe)
 import Data.List (findIndex, foldl')
 import Numeric.SpecFunctions

@@ -1,7 +1,7 @@
 {-# LANGUAGE GADTs, TypeFamilies #-}
 {-# OPTIONS -W #-}
 
-module InterpreterSymbolic where
+module Language.Hakaru.Symbolic where
 
 data Prob
 data Measure a
@@ -69,9 +69,9 @@ exp2 = unconditioned (uniformD (real 1) (real 3)) `bind` \s ->
 -- Borel's Paradox
 exp3 = unconditioned (uniformD (real 1) (real 2)) `bind` \s ->
        unconditioned (uniform  (real (-1)) (real 1)) `bind` \x ->
-       let y = (InterpreterSymbolic.sqrt ((real 1 ) `minus` 
-			   (InterpreterSymbolic.exp s (real 2)))) `mul`
-	           (InterpreterSymbolic.sin x) in ret y  
+       let y = (Language.Hakaru.Symbolic.sqrt ((real 1 ) `minus` 
+			   (Language.Hakaru.Symbolic.exp s (real 2)))) `mul`
+	           (Language.Hakaru.sin x) in ret y  
 
 test = view exp1
 test2 = view exp2

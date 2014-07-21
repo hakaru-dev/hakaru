@@ -1,4 +1,4 @@
-module Util.Finite (Finite(..), enumEverything, enumCardinality, suchThat) where
+module Language.Hakaru.Util.Finite (Finite(..), enumEverything, enumCardinality, suchThat) where
 
 import Data.List (tails)
 import Data.Maybe (fromJust)

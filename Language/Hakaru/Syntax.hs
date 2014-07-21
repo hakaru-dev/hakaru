@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeFamilies, ConstraintKinds, GADTs, FlexibleContexts #-}
 
-module Syntax where
+module Language.Hakaru.Syntax where
 
 -- The syntax
 
@@ -12,14 +12,14 @@ import qualified Text.PrettyPrint as PP
 
 -- The importance-sampling semantics
 
-import Types (Cond, CSampler)
+import Language.Hakaru.Types (Cond, CSampler)
 import Data.Dynamic (Typeable)
 import qualified Data.Number.LogFloat as LF
-import qualified InterpreterDynamic as IS
+import qualified Language.Hakaru.ImportanceSampler as IS
 
 -- The Metropolis-Hastings semantics
 
-import qualified InterpreterMH as MH
+import qualified Language.Hakaru.Metropolis as MH
 
 -- The syntax
 

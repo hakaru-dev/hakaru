@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeOperators #-}
 
-module Util.Csv ((:::)((:::)), decodeFile, decodeGZipFile,
+module Language.Hakaru.Util.Csv ((:::)((:::)), decodeFile, decodeGZipFile,
                  decodeFileStream, decodeGZipFileStream) where
 
 import Data.Csv ( HasHeader(..), FromRecord(..), FromField(..)

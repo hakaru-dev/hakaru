@@ -1,9 +1,9 @@
 {-# LANGUAGE RankNTypes, BangPatterns #-}
 {-# OPTIONS -W #-}
 
-module Types where
+module Language.Hakaru.Types where
 
-import Sampler (Sampler)
+import Language.Hakaru.Sampler (Sampler)
 
 import Data.Dynamic
 

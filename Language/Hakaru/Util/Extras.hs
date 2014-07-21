@@ -5,7 +5,7 @@
   PRNGs from System.Random rather than from the random-fu package.
 -}
 
-module Util.Extras where
+module Language.Hakaru.Util.Extras where
 
 import qualified Data.Sequence as S
 import System.Random

@@ -11,7 +11,7 @@ import Data.Maybe (fromMaybe, isNothing)
 import Data.Monoid
 import qualified Data.Map as M
 import Text.PrettyPrint
-import Util.Pretty
+import Language.Hakaru.Util.Pretty
 
 type Prob = Double
 
