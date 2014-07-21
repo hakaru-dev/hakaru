@@ -4,7 +4,8 @@ module Tests where
 
 import Types
 import Data.Dynamic
-import InterpreterDynamic
+import InterpreterDynamic as IS
+import InterpreterMH as MH
 
 -- Some example/test programs in our language
 test :: Measure Bool
@@ -104,3 +105,38 @@ main_categorical = sample_ 10 test_categorical conds >>
            sample 1000 test_categorical conds >>=
            print 
   where conds = [Discrete (toDyn (True :: Bool))]
+
+
+test_multiple_conditions :: Measure Double
+test_multiple_conditions = do
+  b <- unconditioned (beta 1 1)
+  _ <- conditioned (bern b)
+  _ <- conditioned (bern b)
+  return b
+
+main_run_test :: IO (Bool, Database, Likelihood)
+main_run_test = run test [Just (toDyn (-2 :: Double))]
+
+main_test :: IO [Bool]
+main_test = mcmc test [Just (toDyn (-2 :: Double))]
+
+test_two_normals :: Measure Bool
+test_two_normals = unconditioned (bern 0.5) `bind` \coin ->
+       ifThenElse coin (conditioned (normal 0 1))
+                       (conditioned (normal 100 1)) `bind` \_ ->
+       return_ coin
+
+main_test2 :: IO [Bool]
+main_test2 = mcmc test_two_normals [Just (toDyn (1 :: Double))]
+
+test_viz :: IO ()
+main = do
+  l <- mcmc test_multiple_conditions [Just (toDyn True), Just (toDyn False)]
+  viz 10000 ["beta"] (map return l)
+
+test_viz_2 :: IO ()
+test_viz_2 = do
+  l <- mcmc (unconditioned
+             (normal 1 3) `bind` \n ->
+             return_ n) [] :: IO [Double]
+  viz 10000 ["normal"] (map return l)

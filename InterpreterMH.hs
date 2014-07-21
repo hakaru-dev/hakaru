@@ -255,42 +255,7 @@ mcmc prog cds = do
   (v, d, llTotal, _, _, g) <- initialStep prog cds
   return $ transition prog cds v d llTotal g
 
-test :: Measure Bool
-test = unconditioned (bern 0.5) `bind` \c ->
-       ifThenElse c (conditioned (normal 1 1))
-                    (conditioned (uniform 0 1)) `bind` \_ ->
-       return_ c
-
-test_multiple_conditions :: Measure Double
-test_multiple_conditions = do
-  b <- unconditioned (beta 1 1)
-  _ <- conditioned (bern b)
-  _ <- conditioned (bern b)
-  return b
-
-main_run_test :: IO (Bool, Database, Likelihood)
-main_run_test = run test [Just (toDyn (-2 :: Double))]
-
-main_test :: IO [Bool]
-main_test = mcmc test [Just (toDyn (-2 :: Double))]
-
-test_two_normals :: Measure Bool
-test_two_normals = unconditioned (bern 0.5) `bind` \coin ->
-       ifThenElse coin (conditioned (normal 0 1))
-                       (conditioned (normal 100 1)) `bind` \_ ->
-       return_ coin
-
-main_test2 :: IO [Bool]
-main_test2 = mcmc test_two_normals [Just (toDyn (1 :: Double))]
-
-main :: IO ()
-main = do
-  l <- mcmc test_multiple_conditions [Just (toDyn True), Just (toDyn False)]
-  viz 10000 ["beta"] (map return l)
-
-main_l :: IO ()
-main_l = do
-  l <- mcmc (unconditioned
-             (normal 1 3) `bind` \n ->
-             return_ n) [] :: IO [Double]
-  viz 10000 ["normal"] (map return l)
+sample_ :: Typeable a => Measure a -> [Cond] -> IO [(a, Double)]
+sample_ prog cds  = do 
+  (v, d, llTotal, _, _, g) <- initialStep prog cds
+  return $ map (\ x -> (x,1)) (transition prog cds v d llTotal g)
