@@ -20,6 +20,7 @@ import Data.Ix
 import Data.Dynamic
 import Data.List
 import Control.Monad
+import System.IO.Unsafe
 import qualified Data.Map.Strict as M
 
 import qualified Data.Number.LogFloat as LF
@@ -138,16 +139,20 @@ factor p = Measure (\conds -> deterministic (point ((), conds) p))
 finish :: Mixture (a, [Cond]) -> Mixture a
 finish (Mixture m) = Mixture (M.mapKeysMonotonic (\(a,[]) -> a) m)
 
-sample :: (Ord a) => Int -> Measure a -> [Cond] -> IO (Mixture a)
-sample !n measure conds = go n empty where
+empiricalMeasure :: (Ord a) => Int -> Measure a -> [Cond] -> IO (Mixture a)
+empiricalMeasure !n measure conds = go n empty where
   once = getStdRandom (unMeasure measure conds)
   go 0 m = return m
   go n m = once >>= \result -> go (n - 1) $! mappend m (finish result)
 
-sample_ :: (Ord a, Show a) => Int -> Measure a -> [Cond] -> IO ()
-sample_ !n measure conds = replicateM_ n (once >>= pr) where
-  once = getStdRandom (unMeasure measure conds)
-  pr   = print . finish
+sample_ :: (Ord a, Show a) => Measure a -> [Cond] -> IO [(a, Prob)]
+sample_ measure conds = do
+  u <- once
+  let x = mixToTuple (finish u)
+  xs <- unsafeInterleaveIO $ sample measure conds
+  return (x : xs)
+ where once = getStdRandom (unMeasure measure conds)
+       mixToTuple = head . M.toList . unMixture
 
 logit :: Floating a => a -> a
 logit !x = 1 / (1 + exp (- x))
