@@ -4,8 +4,9 @@ module Tests where
 
 import Language.Hakaru.Types
 import Data.Dynamic
-import InterpreterDynamic as IS
+import Language.Hakaru.ImportanceSampler as IS
 import Language.Hakaru.Metropolis as MH
+import Language.Hakaru.Util.Visual
 
 -- Some example/test programs in our language
 test :: Measure Bool
