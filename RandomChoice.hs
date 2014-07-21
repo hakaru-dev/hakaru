@@ -48,6 +48,15 @@ normalLogDensity mu sd x = (-tau * square (x - mu)
   where square y = y * y
         tau = 1 / square sd
 
+categoricalLogDensity list x = log $ fromMaybe 0 (lookup x list)
+categoricalSample list g = (elem', g1)
+    where
+      (p, g1) = randomR (0, total) g
+      elem' = fst $ head $ filter (\(_,p0) -> p <= p0) sumList
+      sumList = scanl1 (\acc (a, b) -> (a, b + snd(acc))) list
+      total = sum $ map snd list
+
+
 lnFact = logFactorial
 
 -- Makes use of Atkinson's algorithm as described in:
