@@ -56,7 +56,7 @@ type Database = M.Map Name DBEntry
 data SamplerState g where
   S :: { ldb :: Database, -- ldb = local database
          -- (total likelihood, total likelihood of XRPs newly introduced)
-         llh2 :: (Likelihood, Likelihood),
+         llh2 :: {-# UNPACK #-} !(Likelihood, Likelihood),
          cnds :: [Cond], -- conditions left to process
          seed :: g } -> SamplerState g
 
@@ -205,7 +205,7 @@ traceUpdate :: RandomGen g => Measure a -> Database -> [Cond] -> g
 traceUpdate (Measure prog) d cds g = do
   -- let d1 = M.map (\ (x, l, _, ob) -> (x, l, False, ob)) d
   let d1 = M.map (\ s -> s { vis = False }) d
-  let (v, S d2 (llTotal, llFresh) _ g1) = (prog [0]) (S d1 (0,0) cds g)
+  let (v, S d2 (llTotal, llFresh) [] g1) = (prog [0]) (S d1 (0,0) cds g)
   let (d3, stale_d) = M.partition vis d2
   let llStale = M.foldl' (\ llStale' s -> llStale' + llhd s) 0 stale_d
   (v, d3, llTotal, llFresh, llStale, g1)
@@ -256,7 +256,7 @@ mcmc prog cds = do
   return $ transition prog cds v d llTotal g
 
 test :: Measure Bool
-test = unconditioned (bern (dbl 0.5)) `bind` \c ->
+test = unconditioned (bern 0.5) `bind` \c ->
        ifThenElse c (conditioned (normal 1 1))
                     (conditioned (uniform 0 1)) `bind` \_ ->
        return_ c
@@ -264,8 +264,8 @@ test = unconditioned (bern (dbl 0.5)) `bind` \c ->
 test_multiple_conditions :: Measure Double
 test_multiple_conditions = do
   b <- unconditioned (beta 1 1)
-  conditioned (bern b)
-  conditioned (bern b)
+  _ <- conditioned (bern b)
+  _ <- conditioned (bern b)
   return b
 
 main_run_test :: IO (Bool, Database, Likelihood)
