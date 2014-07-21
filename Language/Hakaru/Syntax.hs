@@ -143,7 +143,7 @@ instance Mochastic IS where
 newtype MH a = MH (MH' a)
 type family MH' a
 type instance MH' (Measure a)  = MH.Measure (MH' a)
-type instance MH' (Dist a)     = MH.Cond -> MH.Measure (MH' a)
+type instance MH' (Dist a)     = MH.CSampler (MH' a)
 type instance MH' [a]          = [MH' a]
 type instance MH' (a, b)       = (MH' a, MH' b)
 type instance MH' (Either a b) = Either (MH' a) (MH' b)

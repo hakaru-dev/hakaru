@@ -1,16 +1,18 @@
 {-# LANGUAGE BangPatterns #-}
 
-module Tests where
+module Language.Hakaru.Examples.Tests where
 
-import Language.Hakaru.Types
 import Data.Dynamic
-import Language.Hakaru.ImportanceSampler as IS
-import Language.Hakaru.Metropolis as MH
+import Language.Hakaru.Types
+import qualified Language.Hakaru.ImportanceSampler as IS
+import qualified Language.Hakaru.Metropolis as MH
+
+import Language.Hakaru.Lambda
 import Language.Hakaru.Util.Visual
 
 -- Some example/test programs in our language
-test :: Measure Bool
-test = do
+test_mixture :: Measure Bool
+test_mixture = do
   c <- unconditioned (bern 0.5)
   _ <- conditioned (ifThenElse c (normal (lit (1 :: Double)) (lit 1))
                                  (uniform (lit 0) (lit 3)))
@@ -18,7 +20,7 @@ test = do
 
 test_dup :: Measure (Bool, Bool)
 test_dup = do
-  let c = unconditioned (bern 0.5)
+  let c = unconditioned (MH.bern 0.5)
   x <- c
   y <- c
   return (x,y)
@@ -67,33 +69,33 @@ test_categorical = do
   return rain
 
 -- printing test results
-main :: IO ()
-main = sample_ 3 test conds >>
+main_mixture :: IO ()
+main_mixture = IS.sample_ 3 test_mixture conds >>
        putChar '\n' >>
-       sample 1000 test conds >>=
+       IS.empiricalMeasure 1000 test_mixture conds >>=
        print
   where conds = [Lebesgue (toDyn (2 :: Double))]
 
 main_dbn :: IO ()
-main_dbn = sample_ 10 test_dbn conds >>
+main_dbn = IS.sample_ 10 test_dbn conds >>
            putChar '\n' >>
-           sample 1000 test_dbn conds >>=
+           IS.empiricalMeasure 1000 test_dbn conds >>=
            print 
   where conds = [Discrete (toDyn (True :: Bool)),
                  Discrete (toDyn (True :: Bool))]
 
 main_hmm :: IO ()
-main_hmm = sample_ 10 (test_hmm 2) conds >>
+main_hmm = IS.sample_ 10 (test_hmm 2) conds >>
            putChar '\n' >>
-           sample 1000 (test_hmm 2) conds >>=
+           IS.empiricalMeasure 1000 (test_hmm 2) conds >>=
            print 
   where conds = [Discrete (toDyn (True :: Bool)),
                  Discrete (toDyn (True :: Bool))]
 
 main_carRoadModel :: IO ()
-main_carRoadModel = sample_ 10 test_carRoadModel conds >>
+main_carRoadModel = IS.sample_ 10 test_carRoadModel conds >>
                     putChar '\n' >>
-                    sample 1000 test_carRoadModel conds >>=
+                    IS.empiricalMeasure 1000 test_carRoadModel conds >>=
                     print 
   where conds = [Lebesgue (toDyn (0 :: Double)),
                  Lebesgue (toDyn (11 :: Double)), 
@@ -101,43 +103,41 @@ main_carRoadModel = sample_ 10 test_carRoadModel conds >>
                  Lebesgue (toDyn (33 :: Double))]
 
 main_categorical :: IO ()
-main_categorical = sample_ 10 test_categorical conds >>
+main_categorical = IS.sample_ 10 test_categorical conds >>
            putChar '\n' >>
-           sample 1000 test_categorical conds >>=
+           IS.empiricalMeasure 1000 test_categorical conds >>=
            print 
   where conds = [Discrete (toDyn (True :: Bool))]
 
 
 test_multiple_conditions :: Measure Double
 test_multiple_conditions = do
-  b <- unconditioned (beta 1 1)
-  _ <- conditioned (bern b)
-  _ <- conditioned (bern b)
+  b <- unconditioned (MH.beta 1 1)
+  _ <- conditioned (MH.bern b)
+  _ <- conditioned (MH.bern b)
   return b
 
-main_run_test :: IO (Bool, Database, Likelihood)
-main_run_test = run test [Just (toDyn (-2 :: Double))]
+main_run_test :: IO (Bool, MH.Database, MH.Likelihood)
+main_run_test = MH.run test_mixture [Just (toDyn (-2 :: Double))]
 
 main_test :: IO [Bool]
-main_test = mcmc test [Just (toDyn (-2 :: Double))]
+main_test = MH.mcmc test_mixture [Just (toDyn (-2 :: Double))]
 
 test_two_normals :: Measure Bool
 test_two_normals = unconditioned (bern 0.5) `bind` \coin ->
        ifThenElse coin (conditioned (normal 0 1))
                        (conditioned (normal 100 1)) `bind` \_ ->
-       return_ coin
+       return coin
 
 main_test2 :: IO [Bool]
-main_test2 = mcmc test_two_normals [Just (toDyn (1 :: Double))]
+main_test2 = MH.mcmc test_two_normals [Just (toDyn (1 :: Double))]
 
 test_viz :: IO ()
-main = do
-  l <- mcmc test_multiple_conditions [Just (toDyn True), Just (toDyn False)]
+test_viz = do
+  l <- MH.mcmc test_multiple_conditions [Just (toDyn True), Just (toDyn False)]
   viz 10000 ["beta"] (map return l)
 
 test_viz_2 :: IO ()
 test_viz_2 = do
-  l <- mcmc (unconditioned
-             (normal 1 3) `bind` \n ->
-             return_ n) [] :: IO [Double]
+  l <- MH.mcmc (unconditioned (normal 1 3)) [] :: IO [Double]
   viz 10000 ["normal"] (map return l)
