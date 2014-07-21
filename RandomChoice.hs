@@ -117,7 +117,14 @@ gammaLogDensity shape scale x | x>= 0 && shape > 0 && scale > 0 =
 gammaLogDensity _ _ _ = log 0
 
 beta_rng :: (RandomGen g) => Double -> Double -> g -> (Double, g)
--- Consider adding case for a <= 1 && b <= 1
+beta_rng a b g | a <= 1.0 && b <= 1.0 =
+                 let (u, g1) = randomR (0.0, 1.0) g
+                     (v, g2) = randomR (0.0, 1.0) g1
+                     x = u ** (recip a)
+                     y = v ** (recip b)
+                 in  case (x+y) <= 1.0 of
+                       True -> (x / (x + y), g2)
+                       False -> beta_rng a b g2
 beta_rng a b g = let (ga, g1) = gamma_rng a 1 g
                      (gb, g2) = gamma_rng b 1 g1
                  in (ga / (ga + gb), g2)
@@ -127,8 +134,8 @@ betaLogDensity a b x | a <= 0 || b <= 0 = error "beta: parameters must be positv
 betaLogDensity a b x = (logGamma (a + b)
                         - logGamma a
                         - logGamma b
-                        + x * log (a - 1)
-                        + (1 - x) * log (b - 1))
+                        + (a - 1) * log x
+                        + (b - 1) * log (1 - x))
 
 laplace_rng :: (RandomGen g) => Double -> Double -> g -> (Double, g)
 laplace_rng mu sd g = sample (randomR (0.0, 1.0) g)
