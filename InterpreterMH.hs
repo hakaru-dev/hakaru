@@ -57,6 +57,7 @@ data SamplerState g where
   S :: { ldb :: Database, -- ldb = local database
          -- (total likelihood, total likelihood of XRPs newly introduced)
          llh2 :: (Likelihood, Likelihood),
+         cnds :: [Cond], -- conditions left to process
          seed :: g } -> SamplerState g
 
 type Sampler a = forall g. (RandomGen g) => SamplerState g -> (a, SamplerState g)
@@ -68,11 +69,14 @@ sreturn x s = (x, s)
 sbind :: Sampler a -> (a -> Sampler b) -> Sampler b
 sbind s k = \ st -> let (v, s') = s st in k v s'
 
-newtype Measure a = Measure {unMeasure :: Name -> [Cond] -> Sampler a }
+smap :: (a -> b) -> Sampler a -> Sampler b
+smap f s = sbind s (\a -> sreturn (f a))
+
+newtype Measure a = Measure {unMeasure :: Name -> Sampler a }
   deriving (Typeable)
 
 return_ :: a -> Measure a
-return_ x = Measure $ \ _ _ -> sreturn x
+return_ x = Measure $ \ _ -> sreturn x
 
 updateXRP :: Typeable a => Name -> Cond -> Dist a -> Sampler a
 updateXRP n obs dist' s@(S {ldb = db, seed = g}) =
@@ -86,7 +90,7 @@ updateXRP n obs dist' s@(S {ldb = db, seed = g}) =
                       Nothing -> (xb, lb)
             l' = logDensity dist' x
             d1 = M.insert n (DBEntry (XRP (x,dist)) l' True ob) db
-        in (x, S {ldb = d1,
+        in (x, s {ldb = d1,
                   llh2 = updateLikelihood l' 0 s,
                   seed = g})
       Nothing ->
@@ -98,7 +102,7 @@ updateXRP n obs dist' s@(S {ldb = db, seed = g}) =
                  let (xnew, g1) = sample dist' g
                  in (xnew, logDensity dist' xnew, g1)
             d1 = M.insert n (DBEntry (XRP (xnew2, dist')) l True (isJust obs)) db
-        in (xnew2, S {ldb = d1,
+        in (xnew2, s {ldb = d1,
                       llh2 = updateLikelihood l l s,
                       seed = g2})
 
@@ -170,20 +174,20 @@ categorical list = CSampler $ \ name obs ->
     in updateXRP name obs dist'
 
 factor :: Likelihood -> Measure ()
-factor l = Measure $ \ _ _ -> \ s ->
+factor l = Measure $ \ _ -> \ s ->
    let (llTotal, llFresh) = llh2 s
    in ((), s {llh2 = (llTotal + l, llFresh)})
 
 bind :: Measure a -> (a -> Measure b) -> Measure b
-bind (Measure m) cont = Measure $ \ n c ->
-    sbind (m (0:n) c) (\ a -> unMeasure (cont a) (1:n) c)
+bind (Measure m) cont = Measure $ \ n ->
+    sbind (m (0:n)) (\ a -> unMeasure (cont a) (1:n))
 
 conditioned :: CSampler a -> Measure a
-conditioned (CSampler f) = Measure $ \ n (cond:conds) -> 
-    f n cond
+conditioned (CSampler f) = Measure $ \ n -> 
+    \s@(S {cnds = cond:conds }) -> f n cond s{cnds = conds}
 
 unconditioned :: CSampler a -> Measure a
-unconditioned (CSampler f) = Measure $ \ n conds ->
+unconditioned (CSampler f) = Measure $ \ n ->
     f n Nothing
 
 instance Monad Measure where
@@ -193,7 +197,7 @@ instance Monad Measure where
 run :: Measure a -> [Cond] -> IO (a, Database, Likelihood)
 run (Measure prog) cds = do
   g <- getStdGen
-  let (v, S d ll _) = (prog [0] cds) (S M.empty (0,0) g)
+  let (v, S d ll _ _) = (prog [0]) (S M.empty (0,0) cds g)
   return (v, d, fst ll)
 
 traceUpdate :: RandomGen g => Measure a -> Database -> [Cond] -> g
@@ -201,7 +205,7 @@ traceUpdate :: RandomGen g => Measure a -> Database -> [Cond] -> g
 traceUpdate (Measure prog) d cds g = do
   -- let d1 = M.map (\ (x, l, _, ob) -> (x, l, False, ob)) d
   let d1 = M.map (\ s -> s { vis = False }) d
-  let (v, S d2 (llTotal, llFresh) g1) = (prog [0] cds) (S d1 (0,0) g)
+  let (v, S d2 (llTotal, llFresh) _ g1) = (prog [0]) (S d1 (0,0) cds g)
   let (d3, stale_d) = M.partition vis d2
   let llStale = M.foldl' (\ llStale' s -> llStale' + llhd s) 0 stale_d
   (v, d3, llTotal, llFresh, llStale, g1)
@@ -257,6 +261,13 @@ test = unconditioned (bern (dbl 0.5)) `bind` \c ->
                     (conditioned (uniform 0 1)) `bind` \_ ->
        return_ c
 
+test_multiple_conditions :: Measure Double
+test_multiple_conditions = do
+  b <- unconditioned (beta 1 1)
+  conditioned (bern b)
+  conditioned (bern b)
+  return b
+
 main_run_test :: IO (Bool, Database, Likelihood)
 main_run_test = run test [Just (toDyn (-2 :: Double))]
 
@@ -274,6 +285,11 @@ main_test2 = mcmc test_two_normals [Just (toDyn (1 :: Double))]
 
 main :: IO ()
 main = do
+  l <- mcmc test_multiple_conditions [Just (toDyn True), Just (toDyn False)]
+  viz 10000 ["beta"] (map return l)
+
+main_l :: IO ()
+main_l = do
   l <- mcmc (unconditioned
              (normal 1 3) `bind` \n ->
              return_ n) [] :: IO [Double]
