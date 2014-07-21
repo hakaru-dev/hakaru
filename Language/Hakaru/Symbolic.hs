@@ -6,6 +6,7 @@ module Language.Hakaru.Symbolic where
 data Prob
 data Measure a
 data Dist a
+data Exact
 
 -- Symbolic AST (from Syntax.hs)
 class RealComp repr where
@@ -58,7 +59,16 @@ infixPr s a b = a ++ s ++ b
 reify :: forall a. Read a => Pos -> VarCounter -> Maple a -> a
 reify f h e = (read (unMaple e f h) :: a)
 
+name :: String -> VarCounter -> String
+name s h = s ++ show h
+
+var :: String -> VarCounter -> Maple a
+var s h = Maple $ \_ _ -> name s h
+
 instance RealComp Maple where
+   -- serious problem here: all exact numbers will be printed as
+   -- floats, which will really hamper the use of Maple in any 
+   -- serious way.  This needs a rethink.
   real  = pure
   add   = liftA2 $ infixPr "+"
   minus = liftA2 $ infixPr "-"
@@ -74,7 +84,7 @@ instance BoolComp Maple where
 instance MeasMonad Maple where
   ret      = liftA1M $ mkPr "g"
   bind m c = Maple $ \f h -> unMaple m Front h ++ 
-                    unMaple (c (Maple $ \_ _ -> ("x" ++ show h))) (f) (succ h)
+                    unMaple (c $ var "x" h) f (succ h)
                     ++ unMaple m Back h 
 
 instance Distrib Maple where
@@ -82,19 +92,19 @@ instance Distrib Maple where
     where
       pr Front h = let rd a = reify Front h a :: Double in
                    show (1/((rd e2) - (rd e1))) ++ " * Int (" 
-      pr Back h  = ", x" ++ show h ++ "=" ++ unMaple e1 Back h ++ 
+      pr Back h  = ", " ++ (name "x" h) ++ "=" ++ unMaple e1 Back h ++ 
                     ".." ++ unMaple e2 Back h ++ ")"
   uniformD e1 e2 = Maple pr
     where
       pr Front h = let rd a = reify Front h a :: Double in
                    show (1/((rd e2) - (rd e1))) ++ " * Sum (" 
-      pr Back h  = ", x" ++ show h ++ "=" ++ unMaple e1 Back h ++ 
+      pr Back h  = ", " ++ (name "x" h) ++ "=" ++ unMaple e1 Back h ++ 
                     ".." ++ unMaple e2 Back h ++ ")"
   normal e1 e2 = Maple pr
     where
       pr Front h = "Int (PDF (Normal (" ++ unMaple e1 Front h ++ ", " ++
-                   unMaple e2 Front h ++ ", x" ++ show h ++ ") * "  
-      pr Back  h = ", x" ++ show h ++ "=" ++ unMaple e1 Back h ++ ".." ++ 
+                   unMaple e2 Front h ++ ", " ++ (name "x" h) ++ ") * "  
+      pr Back  h = ", " ++ (name "x" h) ++ "=" ++ unMaple e1 Back h ++ ".." ++ 
                    unMaple e2 Back h ++ ")"              
 
 instance Conditioning Maple where
