@@ -11,8 +11,7 @@ import Data.Dynamic
 import Data.Maybe
 
 import qualified Data.Map.Strict as M
-
-import Language.Hakaru.Distribution
+import qualified Language.Hakaru.Distribution as D
 
 {-
 
@@ -25,16 +24,12 @@ Shortcomings of this implementation
 -}
 
 type DistVal = Dynamic
-
-data Dist a = Dist {logDensity :: a -> Likelihood,
-                    sample :: forall g. RandomGen g => g -> (a, g)}
-deriving instance Typeable1 Dist
  
 -- and what does XRP stand for?
 data XRP where
-  XRP :: Typeable e => (e, Dist e) -> XRP
+  XRP :: Typeable e => (e, D.Dist e) -> XRP
 
-unXRP :: Typeable a => XRP -> Maybe (a, Dist a)
+unXRP :: Typeable a => XRP -> Maybe (a, D.Dist a)
 unXRP (XRP (e,f)) = cast (e,f)
 
 type Likelihood = Double
@@ -75,7 +70,7 @@ newtype Measure a = Measure {unMeasure :: Name -> Sampler a }
 return_ :: a -> Measure a
 return_ x = Measure $ \ _ -> sreturn x
 
-updateXRP :: Typeable a => Name -> Cond -> Dist a -> Sampler a
+updateXRP :: Typeable a => Name -> Cond -> D.Dist a -> Sampler a
 updateXRP n obs dist' s@(S {ldb = db, seed = g}) =
     case M.lookup n db of
       Just (DBEntry xd lb _ ob) ->
@@ -83,9 +78,9 @@ updateXRP n obs dist' s@(S {ldb = db, seed = g}) =
             (x,_) = case obs of
                       Just yd ->
                           let Just y = fromDynamic yd
-                          in (y, logDensity dist y)
+                          in (y, D.logDensity dist y)
                       Nothing -> (xb, lb)
-            l' = logDensity dist' x
+            l' = D.logDensity dist' x
             d1 = M.insert n (DBEntry (XRP (x,dist)) l' True ob) db
         in (x, s {ldb = d1,
                   llh2 = updateLikelihood l' 0 s,
@@ -94,10 +89,10 @@ updateXRP n obs dist' s@(S {ldb = db, seed = g}) =
         let (xnew2, l, g2) = case obs of
              Just xdnew ->
                  let Just xnew = fromDynamic xdnew
-                 in (xnew, logDensity dist' xnew, g)
+                 in (xnew, D.logDensity dist' xnew, g)
              Nothing ->
-                 let (xnew, g1) = sample dist' g
-                 in (xnew, logDensity dist' xnew, g1)
+                 let (xnew, g1) = D.sample dist' g
+                 in (xnew, D.logDensity dist' xnew, g1)
             d1 = M.insert n (DBEntry (XRP (xnew2, dist')) l True (isJust obs)) db
         in (xnew2, s {ldb = d1,
                       llh2 = updateLikelihood l l s,
@@ -109,51 +104,6 @@ updateLikelihood :: RandomGen g =>
 updateLikelihood llTotal llFresh s =
   let (l,lf) = llh2 s in (llTotal+l, llFresh+lf)
 
-dirac :: (Eq a, Typeable a) => a -> Dist a
-dirac theta = Dist {logDensity = (\ x -> if x == theta then 0 else log 0),
-                    sample = (\ g -> (theta,g))}
-
-bern :: Double -> Dist Bool
-bern p = Dist {logDensity = (\ x -> log (if x then p else 1 - p)),
-               sample = (\ g -> case randomR (0, 1) g of
-                                  (t, g') -> (t <= p, g'))}
-
-poisson :: Double -> Dist Int
-poisson l =
-    let poissonLogDensity l' x | l' > 0 && x> 0 = (fromIntegral x)*(log l') - lnFact x - l'
-        poissonLogDensity l' x | x==0 = -l'
-        poissonLogDensity _ _ = log 0
-    in Dist {logDensity = poissonLogDensity l,
-             sample = poisson_rng l}
-
-gamma :: Double -> Double -> Dist Double
-gamma shape scale = Dist {logDensity = gammaLogDensity shape scale,
-                          sample = gamma_rng shape scale}
-
-beta :: Double -> Double -> Dist Double
-beta a b = Dist {logDensity = betaLogDensity a b,
-                 sample = beta_rng a b}
-
-uniform :: Double -> Double -> Dist Double
-uniform lo hi =
-    let uniformLogDensity lo' hi' x | lo' <= x && x <= hi' = log (recip (hi' - lo'))
-        uniformLogDensity _ _ _ = log 0
-    in Dist {logDensity = uniformLogDensity lo hi,
-             sample = (\ g -> randomR (lo, hi) g)}
-
-normal :: Double -> Double -> Dist Double 
-normal mu sd = Dist {logDensity = normalLogDensity mu sd,
-                     sample = normal_rng mu sd}
-
-laplace :: Double -> Double -> Dist Double
-laplace mu sd = Dist {logDensity = laplaceLogDensity mu sd,
-                      sample = laplace_rng mu sd}
-
-categorical :: (Eq a, Typeable a) => [(a,Double)] 
-            -> Dist a
-categorical list = Dist {logDensity = categoricalLogDensity list,
-                         sample = categoricalSample list}
-
 factor :: Likelihood -> Measure ()
 factor l = Measure $ \ _ -> \ s ->
    let (llTotal, llFresh) = llh2 s
@@ -163,12 +113,12 @@ bind :: Measure a -> (a -> Measure b) -> Measure b
 bind (Measure m) cont = Measure $ \ n ->
     sbind (m (0:n)) (\ a -> unMeasure (cont a) (1:n))
 
-conditioned :: Typeable a => Dist a -> Measure a
+conditioned :: Typeable a => D.Dist a -> Measure a
 conditioned dist = Measure $ \ n -> 
     \s@(S {cnds = cond:conds }) ->
         updateXRP n cond dist s{cnds = conds}
 
-unconditioned :: Typeable a => Dist a -> Measure a
+unconditioned :: Typeable a => D.Dist a -> Measure a
 unconditioned dist = Measure $ \ n ->
     updateXRP n Nothing dist
 
@@ -203,9 +153,9 @@ initialStep prog cds = do
 resample :: RandomGen g => Name -> Database -> Observed -> XRP -> g ->
             (Database, Likelihood, Likelihood, Likelihood, g)
 resample name db ob (XRP (x, dist)) g =
-    let (x', g1) = sample dist g
-        fwd = logDensity dist x'
-        rvs = logDensity dist x
+    let (x', g1) = D.sample dist g
+        fwd = D.logDensity dist x'
+        rvs = D.logDensity dist x
         l' = fwd
         newEntry = DBEntry (XRP (x', dist)) l' True ob
         db' = M.insert name newEntry db
@@ -237,7 +187,7 @@ mcmc prog cds = do
   (v, d, llTotal, _, _, g) <- initialStep prog cds
   return $ transition prog cds v d llTotal g
 
-sample_ :: Typeable a => Measure a -> [Cond] -> IO [(a, Double)]
-sample_ prog cds  = do 
+sample :: Typeable a => Measure a -> [Cond] -> IO [(a, Double)]
+sample prog cds  = do 
   (v, d, llTotal, _, _, g) <- initialStep prog cds
   return $ map (\ x -> (x,1)) (transition prog cds v d llTotal g)
