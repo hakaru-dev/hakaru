@@ -10,7 +10,7 @@ module Language.Hakaru.ImportanceSampler where
 -- can express models whose number of observations is unknown at compile time.
 
 import Language.Hakaru.Types (Cond(..), CSampler(CSampler))
-import Language.Hakaru.RandomChoice (normal_rng, chooseIndex)
+import qualified Language.Hakaru.RandomChoice as RD
 import Language.Hakaru.Mixture (Prob, empty, point, Mixture(..))
 import Language.Hakaru.Sampler (Sampler, deterministic, smap, sbind)
 
@@ -64,11 +64,22 @@ uniformD lo hi | lo <= hi = CSampler c where
   density = recip (fromInteger (toInteger (rangeSize (lo,hi))))
 uniformD _ _ = error "uniformD: invalid parameters"
 
+beta :: Double -> Double -> CSampler Double
+beta a b = CSampler c where
+  c Unconditioned = \g0 -> case RD.beta_rng a b g0 of
+    (x, g) -> (point x 1, g)
+  c (Lebesgue y) = case fromDynamic y of
+    Just y -> deterministic (point y density)
+      where density = LF.logToLogFloat $ RD.betaLogDensity a b y
+    Nothing -> error "beta: did not get data from dynamic source"
+  c _ = error "beta: got a discrete sampler"
+beta _ _ = error "beta: invalid parameters"
+
 poisson :: (Integral a, Typeable a) => Double -> CSampler a
 poisson !l | 0 <= l = CSampler c where
   c Unconditioned = \g0 ->
     let probs = exp (-l) : zipWith (\k p -> p * l / k) [1..] probs
-        (k, g) = chooseIndex probs g0
+        (k, g) = RD.chooseIndex probs g0
     in (point (fromInteger (toInteger k)) 1, g)
   c (Discrete k) = case fromDynamic k of
     Just k ->
@@ -83,7 +94,7 @@ poisson _ = error "poisson: invalid parameter"
 
 normal :: (Real a, Floating a, Random a, Typeable a) => a -> a -> CSampler a
 normal !mean !std | std > 0 = CSampler c where
-  c Unconditioned = \g0 -> let (x, g) = normal_rng mean std g0
+  c Unconditioned = \g0 -> let (x, g) = RD.normal_rng mean std g0
                            in (point (mean + std * x) 1, g)
   c (Lebesgue y) = case fromDynamic y of
     Just y ->
