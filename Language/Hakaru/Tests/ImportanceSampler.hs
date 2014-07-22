@@ -4,9 +4,10 @@ module Language.Hakaru.Tests.ImportanceSampler where
 
 import Data.Dynamic
 import Language.Hakaru.Types
-import qualified Language.Hakaru.ImportanceSampler
-
 import Language.Hakaru.Lambda
+import Language.Hakaru.ImportanceSampler
+
+import Test.QuickCheck.Monadic
 
 -- Some example/test programs in our language
 prog_mixture :: Measure Bool

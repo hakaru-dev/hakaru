@@ -3,11 +3,12 @@
 module Language.Hakaru.Tests.Metropolis where
 
 import Data.Dynamic
-import qualified Language.Hakaru.Metropolis
 
 import Language.Hakaru.Lambda
+import Language.Hakaru.Metropolis
 import Language.Hakaru.Util.Visual
 
+import Test.QuickCheck.Monadic
 import Distribution.TestSuite.QuickCheck
 
 prog_mixture :: Measure Bool
