@@ -4,7 +4,7 @@
 module Language.Hakaru.Sampler (Sampler, deterministic, sbind, smap) where
 
 import Language.Hakaru.Mixture (Mixture, mnull, empty, scale, point)
-import Language.Hakaru.RandomChoice (choose)
+import Language.Hakaru.Distribution (choose)
 import System.Random (RandomGen)
 
 -- Sampling procedures that produce one sample

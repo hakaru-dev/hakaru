@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
-module Language.Hakaru.RandomChoice where
+module Language.Hakaru.Distribution where
 
 import System.Random
 import Language.Hakaru.Mixture

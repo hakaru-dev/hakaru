@@ -12,7 +12,7 @@ import Data.Maybe
 
 import qualified Data.Map.Strict as M
 
-import Language.Hakaru.RandomChoice
+import Language.Hakaru.Distribution
 
 {-
 
