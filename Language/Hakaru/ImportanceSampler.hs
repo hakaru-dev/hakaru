@@ -19,7 +19,6 @@ import Data.Monoid
 import Data.Ix
 import Data.Dynamic
 import Data.List
-import Control.Monad
 import System.IO.Unsafe
 import qualified Data.Map.Strict as M
 
