@@ -6,15 +6,15 @@
 -- NOTE: no support for beta, gamma, dirichlet distributions yet, hence
 --       some of these examples won't work
 
-import InterpreterDynamic
-import Types
-import Mixture
+module Examples.OptimizationTests where
+
+import Language.Hakaru.ImportanceSampler
+import Language.Hakaru.Types
+import Language.Hakaru.Mixture
 
 import Data.Dynamic
 import Control.Monad
 import qualified Data.Map.Strict as M
-
-beta = undefined
 
 -- Turn observe into constant
 

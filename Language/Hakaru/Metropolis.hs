@@ -59,7 +59,6 @@ data SamplerState g where
          seed :: g } -> SamplerState g
 
 type Sampler a = forall g. (RandomGen g) => SamplerState g -> (a, SamplerState g)
-newtype CSampler a = CSampler (Name -> Cond -> Sampler a)
 
 sreturn :: a -> Sampler a
 sreturn x s = (x, s)
@@ -110,66 +109,50 @@ updateLikelihood :: RandomGen g =>
 updateLikelihood llTotal llFresh s =
   let (l,lf) = llh2 s in (llTotal+l, llFresh+lf)
 
-dirac :: (Eq a, Typeable a) => a -> CSampler a
-dirac theta = CSampler $ \ name obs ->
-    let dist' = Dist {logDensity = (\ x -> if x == theta then 0 else log 0),
-                      sample = (\ g -> (theta,g))}
-    in updateXRP name obs dist'
+dirac :: (Eq a, Typeable a) => a -> Dist a
+dirac theta = Dist {logDensity = (\ x -> if x == theta then 0 else log 0),
+                    sample = (\ g -> (theta,g))}
 
-bern :: Double -> CSampler Bool
-bern p = CSampler $ \ name obs ->
-    let dist' = Dist {logDensity = (\ x -> log (if x then p else 1 - p)),
-                      sample = (\ g -> case randomR (0, 1) g of
-                                         (t, g') -> (t <= p, g'))}
-    in updateXRP name obs dist'
+bern :: Double -> Dist Bool
+bern p = Dist {logDensity = (\ x -> log (if x then p else 1 - p)),
+               sample = (\ g -> case randomR (0, 1) g of
+                                  (t, g') -> (t <= p, g'))}
 
-poisson :: Double -> CSampler Int
-poisson l = CSampler $ \ name obs ->
+poisson :: Double -> Dist Int
+poisson l =
     let poissonLogDensity l' x | l' > 0 && x> 0 = (fromIntegral x)*(log l') - lnFact x - l'
         poissonLogDensity l' x | x==0 = -l'
         poissonLogDensity _ _ = log 0
-        dist' = Dist {logDensity = poissonLogDensity l,
-                      sample = poisson_rng l}
-    in updateXRP name obs dist'
+    in Dist {logDensity = poissonLogDensity l,
+             sample = poisson_rng l}
 
-gamma :: Double -> Double -> CSampler Double
-gamma shape scale = CSampler $ \ name obs ->
-    let dist' = Dist {logDensity = gammaLogDensity shape scale,
-                      sample = gamma_rng shape scale}
-    in updateXRP name obs dist'
+gamma :: Double -> Double -> Dist Double
+gamma shape scale = Dist {logDensity = gammaLogDensity shape scale,
+                          sample = gamma_rng shape scale}
 
-beta :: Double -> Double -> CSampler Double
-beta a b = CSampler $ \ name obs ->
-    let dist' = Dist {logDensity = betaLogDensity a b,
-                      sample = beta_rng a b}
-    in updateXRP name obs dist'
+beta :: Double -> Double -> Dist Double
+beta a b = Dist {logDensity = betaLogDensity a b,
+                 sample = beta_rng a b}
 
-uniform :: Double -> Double -> CSampler Double
-uniform lo hi = CSampler $ \ name obs ->
+uniform :: Double -> Double -> Dist Double
+uniform lo hi =
     let uniformLogDensity lo' hi' x | lo' <= x && x <= hi' = log (recip (hi' - lo'))
         uniformLogDensity _ _ _ = log 0
-        dist' = Dist {logDensity = uniformLogDensity lo hi,
-                      sample = (\ g -> randomR (lo, hi) g)}
-    in updateXRP name obs dist'
+    in Dist {logDensity = uniformLogDensity lo hi,
+             sample = (\ g -> randomR (lo, hi) g)}
 
-normal :: Double -> Double -> CSampler Double 
-normal mu sd = CSampler $ \ name obs ->
-    let dist' = Dist {logDensity = normalLogDensity mu sd,
-                      sample = normal_rng mu sd}
-    in updateXRP name obs dist'
+normal :: Double -> Double -> Dist Double 
+normal mu sd = Dist {logDensity = normalLogDensity mu sd,
+                     sample = normal_rng mu sd}
 
-laplace :: Double -> Double -> CSampler Double
-laplace mu sd = CSampler $ \ name obs ->
-    let dist' = Dist {logDensity = laplaceLogDensity mu sd,
+laplace :: Double -> Double -> Dist Double
+laplace mu sd = Dist {logDensity = laplaceLogDensity mu sd,
                       sample = laplace_rng mu sd}
-    in updateXRP name obs dist'
 
 categorical :: (Eq a, Typeable a) => [(a,Double)] 
-            -> CSampler a
-categorical list = CSampler $ \ name obs ->
-    let dist' = Dist {logDensity = categoricalLogDensity list,
-                      sample = categoricalSample list}
-    in updateXRP name obs dist'
+            -> Dist a
+categorical list = Dist {logDensity = categoricalLogDensity list,
+                         sample = categoricalSample list}
 
 factor :: Likelihood -> Measure ()
 factor l = Measure $ \ _ -> \ s ->
@@ -180,13 +163,14 @@ bind :: Measure a -> (a -> Measure b) -> Measure b
 bind (Measure m) cont = Measure $ \ n ->
     sbind (m (0:n)) (\ a -> unMeasure (cont a) (1:n))
 
-conditioned :: CSampler a -> Measure a
-conditioned (CSampler f) = Measure $ \ n -> 
-    \s@(S {cnds = cond:conds }) -> f n cond s{cnds = conds}
+conditioned :: Typeable a => Dist a -> Measure a
+conditioned dist = Measure $ \ n -> 
+    \s@(S {cnds = cond:conds }) ->
+        updateXRP n cond dist s{cnds = conds}
 
-unconditioned :: CSampler a -> Measure a
-unconditioned (CSampler f) = Measure $ \ n ->
-    f n Nothing
+unconditioned :: Typeable a => Dist a -> Measure a
+unconditioned dist = Measure $ \ n ->
+    updateXRP n Nothing dist
 
 instance Monad Measure where
   return = return_
