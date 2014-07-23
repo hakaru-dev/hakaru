@@ -1,13 +1,16 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 module Language.Hakaru.Tests ( tests ) where
 
-import qualified Language.Hakaru.Tests.ImportanceSampler as IS
-import qualified Language.Hakaru.Tests.Metropolis as MH
+--import qualified Language.Hakaru.Tests.ImportanceSampler as IS
+--import qualified Language.Hakaru.Tests.Metropolis as MH
 
 import Distribution.TestSuite
 import Distribution.TestSuite.QuickCheck
 
-qtest = testProperty "STUB test" True
+eq :: Double -> Bool
+eq x = x == x
+
+qtest = testProperty "STUB test" eq
 
 tests :: IO [Test]
 tests = return [ qtest ]

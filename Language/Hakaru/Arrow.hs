@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeOperators #-}
 module Language.Hakaru.Arrow where
 
-import Language.Hakaru.Metropolis (CSampler)
+import Language.Hakaru.Distribution (Dist)
 
-type a ~~> b = a -> CSampler b
+type a ~~> b = a -> Dist b

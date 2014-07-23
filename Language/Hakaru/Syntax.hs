@@ -18,7 +18,7 @@ import qualified Data.Number.LogFloat as LF
 import qualified Language.Hakaru.ImportanceSampler as IS
 
 -- The Metropolis-Hastings semantics
-
+import qualified Language.Hakaru.Distribution as D
 import qualified Language.Hakaru.Metropolis as MH
 
 -- The syntax
@@ -52,7 +52,7 @@ class Mochastic repr where
   ret         :: repr a -> repr (Measure a)
   bind        :: repr (Measure a) -> (repr a -> repr (Measure b))
               -> repr (Measure b)
-  conditioned, unconditioned :: repr (Dist a) -> repr (Measure a)
+  conditioned, unconditioned :: (Type repr a) => repr (Dist a) -> repr (Measure a)
   factor      :: repr Prob -> repr (Measure ())
   dirac       :: (Type repr a) => repr a -> repr (Dist a)
   categorical :: (Type repr a) => repr [(a, Prob)] -> repr (Dist a)
@@ -143,7 +143,7 @@ instance Mochastic IS where
 newtype MH a = MH (MH' a)
 type family MH' a
 type instance MH' (Measure a)  = MH.Measure (MH' a)
-type instance MH' (Dist a)     = MH.CSampler (MH' a)
+type instance MH' (Dist a)     = D.Dist (MH' a)
 type instance MH' [a]          = [MH' a]
 type instance MH' (a, b)       = (MH' a, MH' b)
 type instance MH' (Either a b) = Either (MH' a) (MH' b)
@@ -177,9 +177,9 @@ instance Mochastic MH where
   conditioned (MH dist)   = MH (MH.conditioned dist)
   unconditioned (MH dist) = MH (MH.unconditioned dist)
   factor (MH p)           = MH (MH.factor p)
-  dirac (MH x)            = MH (MH.dirac x)
-  categorical (MH xps)    = MH (MH.categorical xps)
-  bern (MH p)             = MH (MH.bern p)
-  normal (MH m) (MH s)    = MH (MH.normal m s)
-  uniform (MH lo) (MH hi) = MH (MH.uniform lo hi)
-  poisson                 = error "poisson: not implemented for MH" -- TODO
+  dirac (MH x)            = MH (D.dirac x)
+  categorical (MH xps)    = MH (D.categorical xps)
+  bern (MH p)             = MH (D.bern p)
+  normal (MH m) (MH s)    = MH (D.normal m s)
+  uniform (MH lo) (MH hi) = MH (D.uniform lo hi)
+  poisson (MH l)          = MH (D.poisson l) 
