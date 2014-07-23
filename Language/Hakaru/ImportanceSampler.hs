@@ -65,7 +65,7 @@ uniformD lo hi | lo <= hi = CSampler c where
 uniformD _ _ = error "uniformD: invalid parameters"
 
 beta :: Double -> Double -> CSampler Double
-beta a b = CSampler c where
+beta a b | a > 0 && b > 0 = CSampler c where
   c Unconditioned = \g0 -> case D.beta_rng a b g0 of
     (x, g) -> (point x 1, g)
   c (Lebesgue y) = case fromDynamic y of
@@ -159,7 +159,7 @@ sample :: (Ord a, Show a) => Measure a -> [Cond] -> IO [(a, Prob)]
 sample measure conds = do
   u <- once
   let x = mixToTuple (finish u)
-  xs <- unsafeInterleaveIO $ sample_ measure conds
+  xs <- unsafeInterleaveIO $ sample measure conds
   return (x : xs)
  where once = getStdRandom (unMeasure measure conds)
        mixToTuple = head . M.toList . unMixture
