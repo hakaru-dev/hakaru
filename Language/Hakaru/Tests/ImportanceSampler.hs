@@ -18,7 +18,7 @@ prog_mixture = do
   return c
 
 test_mixture :: IO ()
-test_mixture = sample_ 3 prog_mixture conds >>
+test_mixture = sample prog_mixture conds >>
        putChar '\n' >>
        empiricalMeasure 1000 prog_mixture conds >>=
        print
@@ -41,7 +41,7 @@ prog_dbn = do
   return s2
 
 test_dbn :: IO ()
-test_dbn = sample_ 10 prog_dbn conds >>
+test_dbn = sample prog_dbn conds >>
            putChar '\n' >>
            empiricalMeasure 1000 prog_dbn conds >>=
            print 
@@ -61,7 +61,7 @@ loop_hmm !numLoops s = do
                       else return s
 
 test_hmm :: IO ()
-test_hmm = sample_ 10 (prog_hmm 2) conds >>
+test_hmm = sample (prog_hmm 2) conds >>
            putChar '\n' >>
            empiricalMeasure 1000 (prog_hmm 2) conds >>=
            print 
@@ -83,7 +83,7 @@ prog_carRoadModel = do
   return (z4, z3)
 
 test_carRoadModel :: IO ()
-test_carRoadModel = sample_ 10 prog_carRoadModel conds >>
+test_carRoadModel = sample prog_carRoadModel conds >>
                     putChar '\n' >>
                     empiricalMeasure 1000 prog_carRoadModel conds >>=
                     print 
@@ -103,7 +103,7 @@ prog_categorical = do
   return rain
 
 test_categorical :: IO ()
-test_categorical = sample_ 10 prog_categorical conds >>
+test_categorical = sample prog_categorical conds >>
            putChar '\n' >>
            empiricalMeasure 1000 prog_categorical conds >>=
            print 
