@@ -155,8 +155,8 @@ empiricalMeasure !n measure conds = go n empty where
   go 0 m = return m
   go n m = once >>= \result -> go (n - 1) $! mappend m (finish result)
 
-sample_ :: (Ord a, Show a) => Measure a -> [Cond] -> IO [(a, Prob)]
-sample_ measure conds = do
+sample :: (Ord a, Show a) => Measure a -> [Cond] -> IO [(a, Prob)]
+sample measure conds = do
   u <- once
   let x = mixToTuple (finish u)
   xs <- unsafeInterleaveIO $ sample_ measure conds
