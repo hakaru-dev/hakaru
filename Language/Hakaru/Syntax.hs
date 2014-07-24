@@ -150,7 +150,7 @@ type instance MH' (Either a b) = Either (MH' a) (MH' b)
 type instance MH' ()           = ()
 type instance MH' Bool         = Bool
 type instance MH' Double       = Double
-type instance MH' Prob         = MH.Likelihood
+type instance MH' Prob         = T.LogLikelihood
 type instance MH' Int          = Int
 
 instance Mochastic MH where
