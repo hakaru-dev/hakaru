@@ -2,6 +2,9 @@
 
 module Language.Hakaru.Syntax where
 
+-- We want to our own Real
+import           Prelude hiding (Real)
+
 -- The syntax
 
 import GHC.Exts (Constraint)
@@ -23,19 +26,20 @@ import qualified Language.Hakaru.Metropolis as MH
 
 -- The syntax
 
+data Real
 data Prob
 data Measure a
 data Dist a
 
 class Mochastic repr where
   type Type repr a :: Constraint
-  real        :: Double -> repr Double
+  real        :: Rational -> repr Real
   bool        :: Bool -> repr Bool
-  add, mul    :: repr Double -> repr Double -> repr Double
-  neg         :: repr Double -> repr Double
+  add, mul    :: repr Real -> repr Real -> repr Real
+  neg         :: repr Real -> repr Real
   neg         =  mul (real (-1))
   logFloat, logToLogFloat
-              :: repr Double -> repr Prob
+              :: repr Real -> repr Prob
   unbool      :: repr Bool -> repr c -> repr c
               -> repr c
   pair        :: repr a -> repr b -> repr (a, b)
@@ -55,24 +59,24 @@ class Mochastic repr where
   conditioned, unconditioned :: (Type repr a) => repr (Dist a) -> repr (Measure a)
   factor      :: repr Prob -> repr (Measure ())
   dirac       :: (Type repr a) => repr a -> repr (Dist a)
-  categorical :: (Type repr a) => repr [(a, Double)] -> repr (Dist a)
-  bern        :: (Type repr Bool) => repr Double -> repr (Dist Bool)
+  categorical :: (Type repr a) => repr [(a, Real)] -> repr (Dist a)
+  bern        :: (Type repr Bool) => repr Real -> repr (Dist Bool)
   bern p      =  categorical $
                  cons (pair (bool True) p) $
                  cons (pair (bool False) (add (real 1) (neg p))) $
                  nil
   normal, uniform
-              :: repr Double -> repr Double -> repr (Dist Double)
-  poisson     :: repr Double -> repr (Dist Int)
+              :: repr Real -> repr Real -> repr (Dist Real)
+  poisson     :: repr Real -> repr (Dist Int)
 
 -- TODO: The initial (AST) "semantics"
 -- (Hey Oleg, is there any better way to deal with the Type constraint, so that
 -- the AST constructor doesn't have to take a repr constructor argument?)
 
 data AST repr a where
-  Real :: Double -> AST repr Double
+  Real :: Rational -> AST repr Real
   Unbool :: AST repr Bool -> AST repr c -> AST repr c -> AST repr c
-  Categorical :: (Type repr a) => AST repr [(a, Double)] -> AST repr (Dist a)
+  Categorical :: (Type repr a) => AST repr [(a, Real)] -> AST repr (Dist a)
   -- ...
 
 instance (Mochastic repr) => Mochastic (AST repr) where
@@ -103,13 +107,13 @@ type instance IS' (a, b)       = (IS' a, IS' b)
 type instance IS' (Either a b) = Either (IS' a) (IS' b)
 type instance IS' ()           = ()
 type instance IS' Bool         = Bool
-type instance IS' Double       = Double
+type instance IS' Real         = Double
 type instance IS' Prob         = LF.LogFloat
 type instance IS' Int          = Int
 
 instance Mochastic IS where
   type Type IS a = (Eq (IS' a), Typeable (IS' a))
-  real                    = IS
+  real                    = IS . fromRational
   bool                    = IS
   add (IS x) (IS y)       = IS (x + y)
   mul (IS x) (IS y)       = IS (x * y)
@@ -149,13 +153,13 @@ type instance MH' (a, b)       = (MH' a, MH' b)
 type instance MH' (Either a b) = Either (MH' a) (MH' b)
 type instance MH' ()           = ()
 type instance MH' Bool         = Bool
-type instance MH' Double       = Double
+type instance MH' Real         = Double
 type instance MH' Prob         = T.LogLikelihood
 type instance MH' Int          = Int
 
 instance Mochastic MH where
   type Type MH a = (Eq (MH' a), Typeable (MH' a), Show (MH' a))
-  real                    = MH
+  real                    = MH . fromRational
   bool                    = MH
   add (MH x) (MH y)       = MH (x + y)
   mul (MH x) (MH y)       = MH (x * y)
