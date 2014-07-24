@@ -45,3 +45,14 @@ test_two_normals = mcmc prog_two_normals [Just (toDyn (Lebesgue 1 :: Density Dou
 
 test_normal :: IO [Double]
 test_normal = mcmc (unconditioned (normal 1 3)) []
+
+prog_joint =  do
+  bias <- unconditioned $ beta 1 1
+  coin <- unconditioned $ bern bias
+  return (bias, coin)
+
+prog_condition = condition prog_joint True
+
+test_condition :: IO [Double]
+test_condition = mcmc prog_condition []
+

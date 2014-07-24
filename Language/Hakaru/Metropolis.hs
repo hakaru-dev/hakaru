@@ -81,9 +81,10 @@ updateXRP n obs dist' s@(S {ldb = db, seed = g}) =
                       Nothing -> (xb, lb)
             l' = logDensity dist' x
             d1 = M.insert n (DBEntry (XRP (x,dist)) l' True ob) db
-        in (fromDensity x, s {ldb = d1,
-                  llh2 = updateLogLikelihood l' 0 s,
-                  seed = g})
+        in (fromDensity x,
+            s {ldb = d1,
+               llh2 = updateLogLikelihood l' 0 s,
+               seed = g})
       Nothing ->
         let (xnew2, l, g2) = case obs of
              Just xdnew ->
@@ -93,9 +94,10 @@ updateXRP n obs dist' s@(S {ldb = db, seed = g}) =
                  let (xnew, g1) = distSample dist' g
                  in (xnew, logDensity dist' xnew, g1)
             d1 = M.insert n (DBEntry (XRP (xnew2, dist')) l True (isJust obs)) db
-        in (fromDensity xnew2, s {ldb = d1,
-                      llh2 = updateLogLikelihood l l s,
-                      seed = g2})
+        in (fromDensity xnew2,
+            s {ldb = d1,
+               llh2 = updateLogLikelihood l l s,
+               seed = g2})
 
 updateLogLikelihood :: RandomGen g => 
                     LL -> LL -> SamplerState g ->
@@ -107,6 +109,12 @@ factor :: LL -> Measure ()
 factor l = Measure $ \ _ -> \ s ->
    let (llTotal, llFresh) = llh2 s
    in ((), s {llh2 = (llTotal + l, llFresh)})
+
+condition :: Eq b => Measure (a, b) -> b -> Measure a
+condition (Measure m) b' = Measure $ \ n ->
+    let comp a b s |  a /= b = s {llh2 = (log 0, 0)}
+        comp _ _ s =  s
+    in sbind (m n) (\ (a, b) s -> (a, comp b b' s))
 
 bind :: Measure a -> (a -> Measure b) -> Measure b
 bind (Measure m) cont = Measure $ \ n ->
