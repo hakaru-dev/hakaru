@@ -12,7 +12,7 @@ import qualified Text.PrettyPrint as PP
 
 -- The importance-sampling semantics
 
-import Language.Hakaru.Types (Cond, CSampler)
+import qualified Language.Hakaru.Types as T
 import Data.Dynamic (Typeable)
 import qualified Data.Number.LogFloat as LF
 import qualified Language.Hakaru.ImportanceSampler as IS
@@ -55,11 +55,11 @@ class Mochastic repr where
   conditioned, unconditioned :: (Type repr a) => repr (Dist a) -> repr (Measure a)
   factor      :: repr Prob -> repr (Measure ())
   dirac       :: (Type repr a) => repr a -> repr (Dist a)
-  categorical :: (Type repr a) => repr [(a, Prob)] -> repr (Dist a)
+  categorical :: (Type repr a) => repr [(a, Double)] -> repr (Dist a)
   bern        :: (Type repr Bool) => repr Double -> repr (Dist Bool)
   bern p      =  categorical $
-                 cons (pair (bool True) (logFloat p)) $
-                 cons (pair (bool False) (logFloat (add (real 1) (neg p)))) $
+                 cons (pair (bool True) p) $
+                 cons (pair (bool False) (add (real 1) (neg p))) $
                  nil
   normal, uniform
               :: repr Double -> repr Double -> repr (Dist Double)
@@ -72,7 +72,7 @@ class Mochastic repr where
 data AST repr a where
   Real :: Double -> AST repr Double
   Unbool :: AST repr Bool -> AST repr c -> AST repr c -> AST repr c
-  Categorical :: (Type repr a) => AST repr [(a, Prob)] -> AST repr (Dist a)
+  Categorical :: (Type repr a) => AST repr [(a, Double)] -> AST repr (Dist a)
   -- ...
 
 instance (Mochastic repr) => Mochastic (AST repr) where
@@ -97,7 +97,7 @@ newtype PP a = PP (Int -> PP.Doc)
 newtype IS a = IS (IS' a)
 type family IS' a
 type instance IS' (Measure a)  = IS.Measure (IS' a)
-type instance IS' (Dist a)     = CSampler (IS' a)
+type instance IS' (Dist a)     = T.Dist (IS' a)
 type instance IS' [a]          = [IS' a]
 type instance IS' (a, b)       = (IS' a, IS' b)
 type instance IS' (Either a b) = Either (IS' a) (IS' b)
@@ -131,19 +131,19 @@ instance Mochastic IS where
   conditioned (IS dist)   = IS (IS.conditioned dist)
   unconditioned (IS dist) = IS (IS.unconditioned dist)
   factor (IS p)           = IS (IS.factor p)
-  dirac (IS x)            = IS (IS.dirac x)
-  categorical (IS xps)    = IS (IS.categorical xps)
-  bern (IS p)             = IS (IS.bern p)
-  normal (IS m) (IS s)    = IS (IS.normal m s)
-  uniform (IS lo) (IS hi) = IS (IS.uniform lo hi)
-  poisson (IS l)          = IS (IS.poisson l)
+  dirac (IS x)            = IS (D.dirac x)
+  categorical (IS xps)    = IS (D.categorical xps)
+  bern (IS p)             = IS (D.bern p)
+  normal (IS m) (IS s)    = IS (D.normal m s)
+  uniform (IS lo) (IS hi) = IS (D.uniform lo hi)
+  poisson (IS l)          = IS (D.poisson l)
 
 -- The Metropolis-Hastings semantics
 
 newtype MH a = MH (MH' a)
 type family MH' a
 type instance MH' (Measure a)  = MH.Measure (MH' a)
-type instance MH' (Dist a)     = D.Dist (MH' a)
+type instance MH' (Dist a)     = T.Dist (MH' a)
 type instance MH' [a]          = [MH' a]
 type instance MH' (a, b)       = (MH' a, MH' b)
 type instance MH' (Either a b) = Either (MH' a) (MH' b)

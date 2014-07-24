@@ -11,7 +11,8 @@ import Data.Dynamic
 import Data.Maybe
 
 import qualified Data.Map.Strict as M
-import qualified Language.Hakaru.Distribution as D
+import Language.Hakaru.Types (Dist(..), Density(..),
+                              fromDensity, logDensity, distSample)
 
 {-
 
@@ -27,9 +28,9 @@ type DistVal = Dynamic
  
 -- and what does XRP stand for?
 data XRP where
-  XRP :: Typeable e => (e, D.Dist e) -> XRP
+  XRP :: Typeable e => (Density e, Dist e) -> XRP
 
-unXRP :: Typeable a => XRP -> Maybe (a, D.Dist a)
+unXRP :: Typeable a => XRP -> Maybe (Density a, Dist a)
 unXRP (XRP (e,f)) = cast (e,f)
 
 type Likelihood = Double
@@ -70,7 +71,7 @@ newtype Measure a = Measure {unMeasure :: Name -> Sampler a }
 return_ :: a -> Measure a
 return_ x = Measure $ \ _ -> sreturn x
 
-updateXRP :: Typeable a => Name -> Cond -> D.Dist a -> Sampler a
+updateXRP :: Typeable a => Name -> Cond -> Dist a -> Sampler a
 updateXRP n obs dist' s@(S {ldb = db, seed = g}) =
     case M.lookup n db of
       Just (DBEntry xd lb _ ob) ->
@@ -78,23 +79,23 @@ updateXRP n obs dist' s@(S {ldb = db, seed = g}) =
             (x,_) = case obs of
                       Just yd ->
                           let Just y = fromDynamic yd
-                          in (y, D.logDensity dist y)
+                          in (y, logDensity dist y)
                       Nothing -> (xb, lb)
-            l' = D.logDensity dist' x
+            l' = logDensity dist' x
             d1 = M.insert n (DBEntry (XRP (x,dist)) l' True ob) db
-        in (x, s {ldb = d1,
+        in (fromDensity x, s {ldb = d1,
                   llh2 = updateLikelihood l' 0 s,
                   seed = g})
       Nothing ->
         let (xnew2, l, g2) = case obs of
              Just xdnew ->
                  let Just xnew = fromDynamic xdnew
-                 in (xnew, D.logDensity dist' xnew, g)
+                 in (xnew, logDensity dist' xnew, g)
              Nothing ->
-                 let (xnew, g1) = D.distSample dist' g
-                 in (xnew, D.logDensity dist' xnew, g1)
+                 let (xnew, g1) = distSample dist' g
+                 in (xnew, logDensity dist' xnew, g1)
             d1 = M.insert n (DBEntry (XRP (xnew2, dist')) l True (isJust obs)) db
-        in (xnew2, s {ldb = d1,
+        in (fromDensity xnew2, s {ldb = d1,
                       llh2 = updateLikelihood l l s,
                       seed = g2})
 
@@ -113,12 +114,12 @@ bind :: Measure a -> (a -> Measure b) -> Measure b
 bind (Measure m) cont = Measure $ \ n ->
     sbind (m (0:n)) (\ a -> unMeasure (cont a) (1:n))
 
-conditioned :: Typeable a => D.Dist a -> Measure a
+conditioned :: Typeable a => Dist a -> Measure a
 conditioned dist = Measure $ \ n -> 
     \s@(S {cnds = cond:conds }) ->
         updateXRP n cond dist s{cnds = conds}
 
-unconditioned :: Typeable a => D.Dist a -> Measure a
+unconditioned :: Typeable a => Dist a -> Measure a
 unconditioned dist = Measure $ \ n ->
     updateXRP n Nothing dist
 
@@ -153,9 +154,9 @@ initialStep prog cds = do
 resample :: RandomGen g => Name -> Database -> Observed -> XRP -> g ->
             (Database, Likelihood, Likelihood, Likelihood, g)
 resample name db ob (XRP (x, dist)) g =
-    let (x', g1) = D.distSample dist g
-        fwd = D.logDensity dist x'
-        rvs = D.logDensity dist x
+    let (x', g1) = distSample dist g
+        fwd = logDensity dist x'
+        rvs = logDensity dist x
         l' = fwd
         newEntry = DBEntry (XRP (x', dist)) l' True ob
         db' = M.insert name newEntry db

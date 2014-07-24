@@ -1,11 +1,12 @@
-{-# LANGUAGE RankNTypes, StandaloneDeriving, BangPatterns,
-  DeriveDataTypeable, GADTs #-}
+{-# LANGUAGE RankNTypes, BangPatterns, GADTs #-}
 
 module Language.Hakaru.Distribution where
 
 import System.Random
 import Language.Hakaru.Mixture
+import Language.Hakaru.Types
 import Data.Dynamic
+import Data.Ix
 import Data.Maybe (fromMaybe)
 import Data.List (findIndex, foldl')
 import Numeric.SpecFunctions
@@ -13,26 +14,31 @@ import qualified Data.Vector.Unboxed as U
 import qualified Data.Map.Strict as M
 import qualified Data.Number.LogFloat as LF
 
-type LogLikelihood = Double
-data Dist a = Dist {logDensity :: a -> LogLikelihood,
-                    distSample :: forall g. RandomGen g => g -> (a, g)}
-deriving instance Typeable1 Dist
+mapFst f (a,b) = (f a, b)
 
 dirac :: (Eq a, Typeable a) => a -> Dist a
-dirac theta = Dist {logDensity = (\ x -> if x == theta then 0 else log 0),
-                    distSample = (\ g -> (theta,g))}
+dirac theta = Dist {logDensity = (\ (Discrete x) -> if x == theta then 0 else log 0),
+                    distSample = (\ g -> (Discrete theta,g))}
 
 bern :: Double -> Dist Bool
-bern p = Dist {logDensity = (\ x -> log (if x then p else 1 - p)),
+bern p = Dist {logDensity = (\ (Discrete x) -> log (if x then p else 1 - p)),
                distSample = (\ g -> case randomR (0, 1) g of
-                                  (t, g') -> (t <= p, g'))}
+                                  (t, g') -> (Discrete $ t <= p, g'))}
 
 uniform :: Double -> Double -> Dist Double
 uniform lo hi =
     let uniformLogDensity lo' hi' x | lo' <= x && x <= hi' = log (recip (hi' - lo'))
         uniformLogDensity _ _ _ = log 0
-    in Dist {logDensity = uniformLogDensity lo hi,
-             distSample = (\ g -> randomR (lo, hi) g)}
+    in Dist {logDensity = (\ (Lebesgue x) -> uniformLogDensity lo hi x),
+             distSample = (\ g -> mapFst Lebesgue $ randomR (lo, hi) g)}
+
+uniformD :: (Ix a, Random a, Typeable a) => a -> a -> Dist a
+uniformD lo hi =
+    let uniformLogDensity lo' hi' x | lo' <= x && x <= hi' = log density
+        uniformLogDensity _ _ _ = log 0
+        density = recip (fromInteger (toInteger (rangeSize (lo,hi))))
+    in Dist {logDensity = (\ (Discrete x) -> uniformLogDensity lo hi x),
+             distSample = (\ g -> mapFst Discrete $ randomR (lo, hi) g)}
 
 marsaglia :: (RandomGen g, Random a, Ord a, Floating a) => g -> ((a, a), g)
 marsaglia g0 = -- "Marsaglia polar method"
@@ -73,8 +79,8 @@ normalLogDensity mu sd x = (-tau * square (x - mu)
         tau = 1 / square sd
 
 normal :: Double -> Double -> Dist Double 
-normal mu sd = Dist {logDensity = normalLogDensity mu sd,
-                     distSample = normal_rng mu sd}
+normal mu sd = Dist {logDensity = normalLogDensity mu sd . fromLebesgue,
+                     distSample = mapFst Lebesgue . normal_rng mu sd}
 
 categoricalLogDensity list x = log $ fromMaybe 0 (lookup x list)
 categoricalSample list g = (elem', g1)
@@ -86,8 +92,8 @@ categoricalSample list g = (elem', g1)
 
 categorical :: (Eq a, Typeable a) => [(a,Double)] 
             -> Dist a
-categorical list = Dist {logDensity = categoricalLogDensity list,
-                         distSample = categoricalSample list}
+categorical list = Dist {logDensity = categoricalLogDensity list . fromDiscrete,
+                         distSample = mapFst Discrete . categoricalSample list}
 
 lnFact = logFactorial
 
@@ -117,6 +123,7 @@ poisson_rng lambda g0 = make_poisson g0
                             (us,v,k) | accept_region us v k -> (k, g2)
                             _        -> make_poisson g2
 
+         accept_region :: Double -> Double -> Int -> Bool
          accept_region us v k = log (v * arep / (a/(us*us)+b)) <=
                                 -lambda + (fromIntegral k)*lnlam - lnFact k
 
@@ -125,8 +132,8 @@ poisson l =
     let poissonLogDensity l' x | l' > 0 && x> 0 = (fromIntegral x)*(log l') - lnFact x - l'
         poissonLogDensity l' x | x==0 = -l'
         poissonLogDensity _ _ = log 0
-    in Dist {logDensity = poissonLogDensity l,
-             distSample = poisson_rng l}
+    in Dist {logDensity = poissonLogDensity l . fromDiscrete,
+             distSample = mapFst Discrete . poisson_rng l}
 
 -- Direct implementation of  "A Simple Method for Generating Gamma Variables"
 -- by George Marsaglia and Wai Wan Tsang.
@@ -157,8 +164,8 @@ gammaLogDensity shape scale x | x>= 0 && shape > 0 && scale > 0 =
 gammaLogDensity _ _ _ = log 0
 
 gamma :: Double -> Double -> Dist Double
-gamma shape scale = Dist {logDensity = gammaLogDensity shape scale,
-                          distSample = gamma_rng shape scale}
+gamma shape scale = Dist {logDensity = gammaLogDensity shape scale . fromLebesgue,
+                          distSample = mapFst Lebesgue . gamma_rng shape scale}
 
 beta_rng :: (RandomGen g) => Double -> Double -> g -> (Double, g)
 beta_rng a b g | a <= 1.0 && b <= 1.0 =
@@ -182,8 +189,8 @@ betaLogDensity a b x = (logGamma (a + b)
                         + (b - 1) * log (1 - x))
 
 beta :: Double -> Double -> Dist Double
-beta a b = Dist {logDensity = betaLogDensity a b,
-                 distSample = beta_rng a b}
+beta a b = Dist {logDensity = betaLogDensity a b . fromLebesgue,
+                 distSample = mapFst Lebesgue . beta_rng a b}
 
 laplace_rng :: (RandomGen g) => Double -> Double -> g -> (Double, g)
 laplace_rng mu sd g = sample (randomR (0.0, 1.0) g)
@@ -194,8 +201,8 @@ laplace_rng mu sd g = sample (randomR (0.0, 1.0) g)
 laplaceLogDensity mu sd x = - log (2 * sd) - abs (x - mu) / sd
 
 laplace :: Double -> Double -> Dist Double
-laplace mu sd = Dist {logDensity = laplaceLogDensity mu sd,
-                      distSample = laplace_rng mu sd}
+laplace mu sd = Dist {logDensity = laplaceLogDensity mu sd . fromLebesgue,
+                      distSample = mapFst Lebesgue . laplace_rng mu sd}
 
 -- Consider having dirichlet return Vector
 -- Note: This is acutally symmetric dirichlet
