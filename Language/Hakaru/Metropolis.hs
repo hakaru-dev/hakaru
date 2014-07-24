@@ -34,12 +34,13 @@ unXRP (XRP (e,f)) = cast (e,f)
 
 type Visited = Bool
 type Observed = Bool
+type LL = LogLikelihood
 
 type Subloc = Int
 type Name = [Subloc]
 data DBEntry = DBEntry {
       xrp  :: XRP, 
-      llhd :: LogLikelihood, 
+      llhd :: LL, 
       vis  :: Visited,
       observed :: Observed }
 type Database = M.Map Name DBEntry
@@ -47,7 +48,7 @@ type Database = M.Map Name DBEntry
 data SamplerState g where
   S :: { ldb :: Database, -- ldb = local database
          -- (total likelihood, total likelihood of XRPs newly introduced)
-         llh2 :: {-# UNPACK #-} !(LogLikelihood, LogLikelihood),
+         llh2 :: {-# UNPACK #-} !(LL, LL),
          cnds :: [Cond], -- conditions left to process
          seed :: g } -> SamplerState g
 
@@ -97,12 +98,12 @@ updateXRP n obs dist' s@(S {ldb = db, seed = g}) =
                       seed = g2})
 
 updateLogLikelihood :: RandomGen g => 
-                    LogLikelihood -> LogLikelihood -> SamplerState g ->
-                    (LogLikelihood, LogLikelihood)
+                    LL -> LL -> SamplerState g ->
+                    (LL, LL)
 updateLogLikelihood llTotal llFresh s =
   let (l,lf) = llh2 s in (llTotal+l, llFresh+lf)
 
-factor :: LogLikelihood -> Measure ()
+factor :: LL -> Measure ()
 factor l = Measure $ \ _ -> \ s ->
    let (llTotal, llFresh) = llh2 s
    in ((), s {llh2 = (llTotal + l, llFresh)})
@@ -124,14 +125,14 @@ instance Monad Measure where
   return = return_
   (>>=)  = bind
 
-run :: Measure a -> [Cond] -> IO (a, Database, LogLikelihood)
+run :: Measure a -> [Cond] -> IO (a, Database, LL)
 run (Measure prog) cds = do
   g <- getStdGen
   let (v, S d ll [] _) = (prog [0]) (S M.empty (0,0) cds g)
   return (v, d, fst ll)
 
 traceUpdate :: RandomGen g => Measure a -> Database -> [Cond] -> g
-            -> (a, Database, LogLikelihood, LogLikelihood, LogLikelihood, g)
+            -> (a, Database, LL, LL, LL, g)
 traceUpdate (Measure prog) d cds g = do
   -- let d1 = M.map (\ (x, l, _, ob) -> (x, l, False, ob)) d
   let d1 = M.map (\ s -> s { vis = False }) d
@@ -142,14 +143,14 @@ traceUpdate (Measure prog) d cds g = do
 
 initialStep :: Measure a -> [Cond] ->
                IO (a, Database,
-                   LogLikelihood, LogLikelihood, LogLikelihood, StdGen)
+                   LL, LL, LL, StdGen)
 initialStep prog cds = do
   g <- getStdGen
   return $ traceUpdate prog M.empty cds g
 
 -- TODO: Make a way of passing user-provided proposal distributions
 resample :: RandomGen g => Name -> Database -> Observed -> XRP -> g ->
-            (Database, LogLikelihood, LogLikelihood, LogLikelihood, g)
+            (Database, LL, LL, LL, g)
 resample name db ob (XRP (x, dist)) g =
     let (x', g1) = distSample dist g
         fwd = logDensity dist x'
@@ -160,7 +161,7 @@ resample name db ob (XRP (x, dist)) g =
     in (db', l', fwd, rvs, g1)
 
 transition :: (Typeable a, RandomGen g) => Measure a -> [Cond]
-           -> a -> Database -> LogLikelihood -> g -> [a]
+           -> a -> Database -> LL -> g -> [a]
 transition prog cds v db ll g =
   let dbSize = M.size db
       -- choose an unconditioned choice
