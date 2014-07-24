@@ -5,6 +5,7 @@ module Language.Hakaru.Tests.ImportanceSampler where
 import Data.Dynamic
 import Language.Hakaru.Types
 import Language.Hakaru.Lambda
+import Language.Hakaru.Distribution
 import Language.Hakaru.ImportanceSampler
 
 import Test.QuickCheck.Monadic
@@ -18,11 +19,12 @@ prog_mixture = do
   return c
 
 test_mixture :: IO ()
-test_mixture = sample prog_mixture conds >>
-       putChar '\n' >>
-       empiricalMeasure 1000 prog_mixture conds >>=
-       print
-  where conds = [Lebesgue (toDyn (2 :: Double))]
+test_mixture = sample prog_mixture conds >>=
+               print . take 10 >>
+               putChar '\n' >>
+               empiricalMeasure 1000 prog_mixture conds >>=
+               print
+  where conds = [Just (toDyn (Lebesgue 2 :: Density Double))]
 
 prog_dup :: Measure (Bool, Bool)
 prog_dup = do
@@ -41,12 +43,13 @@ prog_dbn = do
   return s2
 
 test_dbn :: IO ()
-test_dbn = sample prog_dbn conds >>
+test_dbn = sample prog_dbn conds >>=
+           print . take 10 >>
            putChar '\n' >>
            empiricalMeasure 1000 prog_dbn conds >>=
            print 
-  where conds = [Discrete (toDyn (True :: Bool)),
-                 Discrete (toDyn (True :: Bool))]
+  where conds = [Just (toDyn (Discrete True)),
+                 Just (toDyn (Discrete True))]
 
 prog_hmm :: Integer -> Measure Bool
 prog_hmm n = do
@@ -61,12 +64,13 @@ loop_hmm !numLoops s = do
                       else return s
 
 test_hmm :: IO ()
-test_hmm = sample (prog_hmm 2) conds >>
+test_hmm = sample (prog_hmm 2) conds >>=
+           print . take 10 >>
            putChar '\n' >>
            empiricalMeasure 1000 (prog_hmm 2) conds >>=
            print 
-  where conds = [Discrete (toDyn (True :: Bool)),
-                 Discrete (toDyn (True :: Bool))]
+  where conds = [Just (toDyn (Discrete True)),
+                 Just (toDyn (Discrete True))]
 
 prog_carRoadModel :: Measure (Double, Double)
 prog_carRoadModel = do
@@ -83,14 +87,15 @@ prog_carRoadModel = do
   return (z4, z3)
 
 test_carRoadModel :: IO ()
-test_carRoadModel = sample prog_carRoadModel conds >>
+test_carRoadModel = sample prog_carRoadModel conds >>=
+                    print . take 10 >>
                     putChar '\n' >>
                     empiricalMeasure 1000 prog_carRoadModel conds >>=
                     print 
-  where conds = [Lebesgue (toDyn (0 :: Double)),
-                 Lebesgue (toDyn (11 :: Double)), 
-                 Lebesgue (toDyn (19 :: Double)),
-                 Lebesgue (toDyn (33 :: Double))]
+  where conds = [Just (toDyn (Lebesgue 0  :: Density Double)),
+                 Just (toDyn (Lebesgue 11 :: Density Double)), 
+                 Just (toDyn (Lebesgue 19 :: Density Double)),
+                 Just (toDyn (Lebesgue 33 :: Density Double))]
 
 prog_categorical :: Measure Bool
 prog_categorical = do 
@@ -103,11 +108,12 @@ prog_categorical = do
   return rain
 
 test_categorical :: IO ()
-test_categorical = sample prog_categorical conds >>
-           putChar '\n' >>
-           empiricalMeasure 1000 prog_categorical conds >>=
-           print 
-  where conds = [Discrete (toDyn (True :: Bool))]
+test_categorical = sample prog_categorical conds >>=
+                   print . take 10 >>
+                   putChar '\n' >>
+                   empiricalMeasure 1000 prog_categorical conds >>=
+                   print 
+  where conds = [Just (toDyn (Discrete True))]
 
 prog_multiple_conditions :: Measure Double
 prog_multiple_conditions = do
