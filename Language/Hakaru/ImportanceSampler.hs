@@ -53,6 +53,13 @@ unconditioned dist = Measure (\      conds  -> smap (\a->(a,conds))
 factor :: Prob -> Measure ()
 factor p = Measure (\conds -> deterministic (point ((), conds) p))
 
+condition :: Eq b => Measure (a, b) -> b -> Measure a
+condition m b' =
+    Measure (\ conds -> 
+      sbind (unMeasure m conds)
+            (\ ((a,b), conds) ->
+                 deterministic (if b==b' then point (a,conds) 1 else empty)))
+
 -- Drivers for testing
 finish :: Mixture (a, [Cond]) -> Mixture a
 finish (Mixture m) = Mixture (M.mapKeysMonotonic (\(a,[]) -> a) m)
