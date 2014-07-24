@@ -91,7 +91,7 @@ updateXRP n obs dist' s@(S {ldb = db, seed = g}) =
                  let Just xnew = fromDynamic xdnew
                  in (xnew, D.logDensity dist' xnew, g)
              Nothing ->
-                 let (xnew, g1) = D.sample dist' g
+                 let (xnew, g1) = D.distSample dist' g
                  in (xnew, D.logDensity dist' xnew, g1)
             d1 = M.insert n (DBEntry (XRP (xnew2, dist')) l True (isJust obs)) db
         in (xnew2, s {ldb = d1,
@@ -153,7 +153,7 @@ initialStep prog cds = do
 resample :: RandomGen g => Name -> Database -> Observed -> XRP -> g ->
             (Database, Likelihood, Likelihood, Likelihood, g)
 resample name db ob (XRP (x, dist)) g =
-    let (x', g1) = D.sample dist g
+    let (x', g1) = D.distSample dist g
         fwd = D.logDensity dist x'
         rvs = D.logDensity dist x
         l' = fwd
