@@ -1,6 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 
-module Language.Hakaru.Tests.Metropolis where
+module Tests.Metropolis where
 
 import Data.Dynamic
 
