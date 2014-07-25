@@ -11,22 +11,23 @@ data Measure a
 data Dist a
 data Exact
 
+class IntComp repr where
+  int                  :: Integer -> repr Integer
+
+class BoolComp repr where
+  bool                 :: Bool -> repr Bool
+
 class RealComp repr where
   real                 :: Rational -> repr Real
   exp                  :: repr Real -> repr Real -> repr Real
   sqrt, cos, sin       :: repr Real -> repr Real
 
 -- polymorphic operations and integer powering
+-- probably should restrict 'a' to be some kind of numeric type?
 class SymbComp repr where
-  add, minus, mul :: repr Real -> repr Real -> repr Real
+  add, minus, mul :: repr a -> repr a -> repr a
   pow             :: repr Real -> repr Integer -> repr Real
   scale           :: repr Integer -> repr Real -> repr Real
-
-class IntComp repr where
-  int                  :: Integer -> repr Integer
-
-class BoolComp repr where
-  bool                 :: Bool -> repr Bool
 
 class MeasMonad repr where
   bind                 :: repr (Measure a) -> (repr a -> repr (Measure b)) 
@@ -81,6 +82,7 @@ d2m e = Maple $ unMaple e
 infixPr :: String -> (String -> String -> String)
 infixPr s a b = a ++ s ++ b
 
+-- This is quite scary.  Probably a mistake.
 reify :: forall a. Read a => Pos -> VarCounter -> Maple a -> a
 reify f h e = (read (unMaple e f h) :: a)
 
