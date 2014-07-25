@@ -8,6 +8,7 @@ import           Prelude hiding (Real)
 -- The syntax
 
 import GHC.Exts (Constraint)
+import Data.Dynamic (Typeable)
 
 -- TODO: The pretty-printing semantics
 
@@ -16,7 +17,6 @@ import qualified Text.PrettyPrint as PP
 -- The importance-sampling semantics
 
 import qualified Language.Hakaru.Types as T
-import Data.Dynamic (Typeable)
 import qualified Data.Number.LogFloat as LF
 import qualified Language.Hakaru.ImportanceSampler as IS
 
@@ -33,6 +33,7 @@ data Dist a
 
 class Mochastic repr where
   type Type repr a :: Constraint
+  type MEq repr a :: Constraint
   real        :: Rational -> repr Real
   bool        :: Bool -> repr Bool
   add, mul    :: repr Real -> repr Real -> repr Real
@@ -58,9 +59,9 @@ class Mochastic repr where
               -> repr (Measure b)
   conditioned, unconditioned :: (Type repr a) => repr (Dist a) -> repr (Measure a)
   factor      :: repr Prob -> repr (Measure ())
-  dirac       :: (Type repr a) => repr a -> repr (Dist a)
-  categorical :: (Type repr a) => repr [(a, Real)] -> repr (Dist a)
-  bern        :: (Type repr Bool) => repr Real -> repr (Dist Bool)
+  dirac       :: MEq repr a => repr a -> repr (Dist a)
+  categorical :: (MEq repr a) => repr [(a, Real)] -> repr (Dist a)
+  bern        :: (MEq repr Bool) => repr Real -> repr (Dist Bool)
   bern p      =  categorical $
                  cons (pair (bool True) p) $
                  cons (pair (bool False) (add (real 1) (neg p))) $
@@ -73,14 +74,15 @@ class Mochastic repr where
 -- (Hey Oleg, is there any better way to deal with the Type constraint, so that
 -- the AST constructor doesn't have to take a repr constructor argument?)
 
-data AST repr a where
+data AST (repr :: * -> *) a where
   Real :: Rational -> AST repr Real
   Unbool :: AST repr Bool -> AST repr c -> AST repr c -> AST repr c
-  Categorical :: (Type repr a) => AST repr [(a, Real)] -> AST repr (Dist a)
+  Categorical :: (MEq repr a) => AST repr [(a, Real)] -> AST repr (Dist a)
   -- ...
 
 instance (Mochastic repr) => Mochastic (AST repr) where
   type Type (AST repr) a = Type repr a
+  type MEq (AST repr) a = MEq repr a
   real = Real
   unbool = Unbool
   categorical = Categorical
@@ -112,7 +114,8 @@ type instance IS' Prob         = LF.LogFloat
 type instance IS' Int          = Int
 
 instance Mochastic IS where
-  type Type IS a = (Eq (IS' a), Typeable (IS' a))
+  type Type IS a = Typeable (IS' a)
+  type MEq IS a = Eq (IS' a)
   real                    = IS . fromRational
   bool                    = IS
   add (IS x) (IS y)       = IS (x + y)
@@ -158,7 +161,8 @@ type instance MH' Prob         = T.LogLikelihood
 type instance MH' Int          = Int
 
 instance Mochastic MH where
-  type Type MH a = (Eq (MH' a), Typeable (MH' a), Show (MH' a))
+  type Type MH a = (Typeable (MH' a))
+  type MEq MH a = (Eq (MH' a))
   real                    = MH . fromRational
   bool                    = MH
   add (MH x) (MH y)       = MH (x + y)
