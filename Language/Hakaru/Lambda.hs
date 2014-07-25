@@ -1,9 +1,7 @@
 -- The lambda-calculus part of the language, which can be shared
 module Language.Hakaru.Lambda(lit, dbl, lam, app, fix, ifThenElse) where
 
-import Data.Dynamic (Typeable)
-
-lit :: (Eq a, Typeable a) => a -> a
+lit :: (Eq a) => a -> a
 lit = id
 
 -- raw lit is a pain to use.  These are nicer
