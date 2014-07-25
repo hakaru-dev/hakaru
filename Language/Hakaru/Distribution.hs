@@ -1,22 +1,22 @@
 {-# LANGUAGE RankNTypes, BangPatterns, GADTs #-}
+{-# OPTIONS -Wall #-}
 
 module Language.Hakaru.Distribution where
 
 import System.Random
 import Language.Hakaru.Mixture
 import Language.Hakaru.Types
-import Data.Dynamic
 import Data.Ix
 import Data.Maybe (fromMaybe)
 import Data.List (findIndex, foldl')
 import Numeric.SpecFunctions
-import qualified Data.Vector.Unboxed as U
 import qualified Data.Map.Strict as M
 import qualified Data.Number.LogFloat as LF
 
+mapFst :: (t -> s) -> (t, u) -> (s, u)
 mapFst f (a,b) = (f a, b)
 
-dirac :: (Eq a, Typeable a) => a -> Dist a
+dirac :: (Eq a) => a -> Dist a
 dirac theta = Dist {logDensity = (\ (Discrete x) -> if x == theta then 0 else log 0),
                     distSample = (\ g -> (Discrete theta,g))}
 
@@ -32,7 +32,7 @@ uniform lo hi =
     in Dist {logDensity = (\ (Lebesgue x) -> uniformLogDensity lo hi x),
              distSample = (\ g -> mapFst Lebesgue $ randomR (lo, hi) g)}
 
-uniformD :: (Ix a, Random a, Typeable a) => a -> a -> Dist a
+uniformD :: (Ix a, Random a) => a -> a -> Dist a
 uniformD lo hi =
     let uniformLogDensity lo' hi' x | lo' <= x && x <= hi' = log density
         uniformLogDensity _ _ _ = log 0
@@ -73,6 +73,7 @@ normal_rng mu sd g | sd > 0 = case marsaglia g of
                                 ((x, _), g1) -> (mu + sd * x, g1)
 normal_rng _ _ _ = error "normal: invalid parameters"
 
+normalLogDensity :: Floating a => a -> a -> a -> a
 normalLogDensity mu sd x = (-tau * square (x - mu)
                             + log (tau / pi / 2)) / 2
   where square y = y * y
@@ -82,7 +83,10 @@ normal :: Double -> Double -> Dist Double
 normal mu sd = Dist {logDensity = normalLogDensity mu sd . fromLebesgue,
                      distSample = mapFst Lebesgue . normal_rng mu sd}
 
+categoricalLogDensity :: (Eq b, Floating a) => [(b, a)] -> b -> a
 categoricalLogDensity list x = log $ fromMaybe 0 (lookup x list)
+categoricalSample :: (Num b, Ord b, RandomGen g, Random b) =>
+    [(t,b)] -> g -> (t, g)
 categoricalSample list g = (elem', g1)
     where
       (p, g1) = randomR (0, total) g
@@ -90,11 +94,11 @@ categoricalSample list g = (elem', g1)
       sumList = scanl1 (\acc (a, b) -> (a, b + snd(acc))) list
       total = sum $ map snd list
 
-categorical :: (Eq a, Typeable a) => [(a,Double)] 
-            -> Dist a
+categorical :: Eq a => [(a,Double)] -> Dist a
 categorical list = Dist {logDensity = categoricalLogDensity list . fromDiscrete,
                          distSample = mapFst Discrete . categoricalSample list}
 
+lnFact :: Int -> Double
 lnFact = logFactorial
 
 -- Makes use of Atkinson's algorithm as described in:
@@ -116,12 +120,12 @@ poisson_rng lambda g0 = make_poisson g0
                               (v, g2) = randomR (0,1) g1
                               us = 0.5 - abs u
                               k = floor $ (2*a / us + b)*u + lambda + 0.43 in
-                          case (us, v, k) of
-                            (us,v,k) | us >= 0.07 && v <= vr -> (k, g2)
-                            (_,_, k) | k < 0 -> make_poisson g2
-                            (us,v,k) | us <= 0.013 && v > us -> make_poisson g2
-                            (us,v,k) | accept_region us v k -> (k, g2)
-                            _        -> make_poisson g2
+                          case () of
+                            () | us >= 0.07 && v <= vr -> (k, g2)
+                            () | k < 0 -> make_poisson g2
+                            () | us <= 0.013 && v > us -> make_poisson g2
+                            () | accept_region us v k -> (k, g2)
+                            _  -> make_poisson g2
 
          accept_region :: Double -> Double -> Int -> Bool
          accept_region us v k = log (v * arep / (a/(us*us)+b)) <=
@@ -138,34 +142,35 @@ poisson l =
 -- Direct implementation of  "A Simple Method for Generating Gamma Variables"
 -- by George Marsaglia and Wai Wan Tsang.
 gamma_rng :: (RandomGen g) => Double -> Double -> g -> (Double, g)
-gamma_rng shape scale g | shape <= 0.0  = error "gamma: got a negative shape paramater"
-gamma_rng shape scale g | scale <= 0.0  = error "gamma: got a negative scale paramater"
-gamma_rng shape scale g | shape <  1.0  = (gvar2, g2)
-                      where (gvar1, g1) = gamma_rng (shape + 1) scale g
+gamma_rng shape _   _ | shape <= 0.0  = error "gamma: got a negative shape paramater"
+gamma_rng _     scl _ | scl <= 0.0  = error "gamma: got a negative scale paramater"
+gamma_rng shape scl g | shape <  1.0  = (gvar2, g2)
+                      where (gvar1, g1) = gamma_rng (shape + 1) scl g
                             (w,  g2) = randomR (0,1) g1
-                            gvar2 = scale * gvar1 * (w ** recip shape) 
-gamma_rng shape scale g = 
+                            gvar2 = scl * gvar1 * (w ** recip shape) 
+gamma_rng shape scl g = 
     let d = shape - 1/3
         c = recip $ sqrt $ 9*d
         -- Algorithm recommends inlining normal generator
-        n g = normal_rng 1 c g
-        (v, g2) = until (\x -> fst x > 0.0) (\ (_, g) -> normal_rng 1 c g) (n g)
+        n = normal_rng 1 c
+        (v, g2) = until (\y -> fst y > 0.0) (\ (_, g') -> normal_rng 1 c g') (n g)
         x = (v - 1) / c
         sqr = x * x
         v3 = v * v * v
         (u, g3) = randomR (0.0, 1.0) g2
         accept  = u < 1.0 - 0.0331*(sqr*sqr) || log u < 0.5*sqr + d*(1.0 - v3 + log v3)
     in case accept of
-         True -> (scale*d*v3, g3)
-         False -> gamma_rng shape scale g3
+         True -> (scl*d*v3, g3)
+         False -> gamma_rng shape scl g3
 
-gammaLogDensity shape scale x | x>= 0 && shape > 0 && scale > 0 =
-     scale * log shape - scale * x + (shape - 1) * log x - logGamma shape
+gammaLogDensity :: Double -> Double -> Double -> Double
+gammaLogDensity shape scl x | x>= 0 && shape > 0 && scl > 0 =
+     scl * log shape - scl * x + (shape - 1) * log x - logGamma shape
 gammaLogDensity _ _ _ = log 0
 
 gamma :: Double -> Double -> Dist Double
-gamma shape scale = Dist {logDensity = gammaLogDensity shape scale . fromLebesgue,
-                          distSample = mapFst Lebesgue . gamma_rng shape scale}
+gamma shape scl = Dist {logDensity = gammaLogDensity shape scl . fromLebesgue,
+                          distSample = mapFst Lebesgue . gamma_rng shape scl}
 
 beta_rng :: (RandomGen g) => Double -> Double -> g -> (Double, g)
 beta_rng a b g | a <= 1.0 && b <= 1.0 =
@@ -180,8 +185,9 @@ beta_rng a b g = let (ga, g1) = gamma_rng a 1 g
                      (gb, g2) = gamma_rng b 1 g1
                  in (ga / (ga + gb), g2)
 
-betaLogDensity a b x | x < 0 || x > 1 = error "beta: value must be between 0 and 1"
-betaLogDensity a b x | a <= 0 || b <= 0 = error "beta: parameters must be positve" 
+betaLogDensity :: Double -> Double -> Double -> Double
+betaLogDensity _ _ x | x < 0 || x > 1 = error "beta: value must be between 0 and 1"
+betaLogDensity a b _ | a <= 0 || b <= 0 = error "beta: parameters must be positve" 
 betaLogDensity a b x = (logGamma (a + b)
                         - logGamma a
                         - logGamma b
@@ -198,6 +204,7 @@ laplace_rng mu sd g = sample (randomR (0.0, 1.0) g)
                             True  -> (mu + sd * log (u + u), g1)
                             False -> (mu - sd * log (2.0 - u - u), g1)
 
+laplaceLogDensity :: Floating a => a -> a -> a -> a
 laplaceLogDensity mu sd x = - log (2 * sd) - abs (x - mu) / sd
 
 laplace :: Double -> Double -> Dist Double
@@ -207,14 +214,15 @@ laplace mu sd = Dist {logDensity = laplaceLogDensity mu sd . fromLebesgue,
 -- Consider having dirichlet return Vector
 -- Note: This is acutally symmetric dirichlet
 dirichlet_rng :: (RandomGen g) => Int ->  Double -> g -> ([Double], g)
-dirichlet_rng n a g = normalize (gammas g n)
+dirichlet_rng n' a g' = normalize (gammas g' n')
   where gammas g 0 = ([], 0, g)
         gammas g n = let (xs, total, g1) = gammas g (n-1)
                          ( x, g2) = gamma_rng a 1 g1 
                      in ((x : xs), x+total, g2)
-        normalize (a, total, g) = (map (/ total) a, g)
+        normalize (b, total, h) = (map (/ total) b, h)
 
-dirichletLogDensity a x | all (> 0) x = sum (zipWith logTerm a x) + logGamma (sum a)
-  where sum a = foldl' (+) 0 a
-        logTerm a x = (a-1) * log x - logGamma a
+dirichletLogDensity :: [Double] -> [Double] -> Double
+dirichletLogDensity a x | all (> 0) x = sum' (zipWith logTerm a x) + logGamma (sum a)
+  where sum' = foldl' (+) 0
+        logTerm b y = (b-1) * log y - logGamma b
 dirichletLogDensity _ _ = error "dirichlet: all values must be between 0 and 1"
