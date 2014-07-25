@@ -31,14 +31,21 @@ data Prob
 data Measure a
 data Dist a
 
-class Mochastic repr where
-  type Type repr a :: Constraint
-  type MEq repr a :: Constraint
+-- a small core language which is easier to handle
+class BaseMochastic repr where
   real        :: Rational -> repr Real
   bool        :: Bool -> repr Bool
   add, mul    :: repr Real -> repr Real -> repr Real
   neg         :: repr Real -> repr Real
   neg         =  mul (real (-1))
+  ret         :: repr a -> repr (Measure a)
+  bind        :: repr (Measure a) -> (repr a -> repr (Measure b))
+              -> repr (Measure b)
+
+-- perhaps we should call this "Kitchen Sink Mochastic", KSM?
+class BaseMochastic repr => Mochastic repr where
+  type Type repr a :: Constraint
+  type MEq repr a :: Constraint
   logFloat, logToLogFloat
               :: repr Real -> repr Prob
   unbool      :: repr Bool -> repr c -> repr c
@@ -54,9 +61,6 @@ class Mochastic repr where
   cons        :: repr a -> repr [a] -> repr [a]
   unlist      :: repr [a] -> repr c -> (repr a -> repr [a] -> repr c)
               -> repr c
-  ret         :: repr a -> repr (Measure a)
-  bind        :: repr (Measure a) -> (repr a -> repr (Measure b))
-              -> repr (Measure b)
   conditioned, unconditioned :: (Type repr a) => repr (Dist a) -> repr (Measure a)
   factor      :: repr Prob -> repr (Measure ())
   dirac       :: MEq repr a => repr a -> repr (Dist a)
@@ -69,6 +73,7 @@ class Mochastic repr where
   normal, uniform
               :: repr Real -> repr Real -> repr (Dist Real)
   poisson     :: repr Real -> repr (Dist Int)
+  uniformD    :: repr Integer -> repr Integer -> repr (Dist Integer)
 
 -- TODO: The initial (AST) "semantics"
 -- (Hey Oleg, is there any better way to deal with the Type constraint, so that
@@ -76,14 +81,27 @@ class Mochastic repr where
 
 data AST (repr :: * -> *) a where
   Real :: Rational -> AST repr Real
+  Bool :: Bool -> AST repr Bool
   Unbool :: AST repr Bool -> AST repr c -> AST repr c -> AST repr c
+  Add :: AST repr Real -> AST repr Real -> AST repr Real
+  Mul :: AST repr Real -> AST repr Real -> AST repr Real
+  Ret :: AST repr a -> AST repr (Measure a)
+  Bind :: AST repr (Measure a) -> (AST repr a -> AST repr (Measure b)) ->
+          AST repr (Measure b)
   Categorical :: (MEq repr a) => AST repr [(a, Real)] -> AST repr (Dist a)
   -- ...
+
+instance BaseMochastic repr => BaseMochastic (AST repr) where
+  real = Real
+  bool = Bool
+  add  = Add
+  mul  = Mul
+  ret  = Ret
+  bind = Bind
 
 instance (Mochastic repr) => Mochastic (AST repr) where
   type Type (AST repr) a = Type repr a
   type MEq (AST repr) a = MEq repr a
-  real = Real
   unbool = Unbool
   categorical = Categorical
   -- ...
@@ -110,40 +128,44 @@ type instance IS' (Either a b) = Either (IS' a) (IS' b)
 type instance IS' ()           = ()
 type instance IS' Bool         = Bool
 type instance IS' Real         = Double
+type instance IS' Integer      = Integer
 type instance IS' Prob         = LF.LogFloat
 type instance IS' Int          = Int
 
-instance Mochastic IS where
-  type Type IS a = Typeable (IS' a)
-  type MEq IS a = Eq (IS' a)
+instance BaseMochastic IS where
   real                    = IS . fromRational
   bool                    = IS
   add (IS x) (IS y)       = IS (x + y)
   mul (IS x) (IS y)       = IS (x * y)
   neg (IS x)              = IS (-x)
-  logFloat (IS x)         = IS (LF.logFloat x)
-  logToLogFloat (IS x)    = IS (LF.logToLogFloat x)
-  unbool (IS b) x y       = if b then x else y
-  pair (IS x) (IS y)      = IS (x, y)
-  unpair (IS (x, y)) c    = c (IS x) (IS y)
-  inl (IS x)              = IS (Left x)
-  inr (IS x)              = IS (Right x)
-  uneither (IS e) c d     = either (c . IS) (d . IS) e
-  nil                     = IS []
-  cons (IS x) (IS xs)     = IS (x:xs)
-  unlist (IS []) n c      = n
-  unlist (IS (x:xs)) n c  = c (IS x) (IS xs)
   ret (IS x)              = IS (return x)
   bind (IS m) k           = IS (m >>= \x -> case k (IS x) of IS n -> n)
-  conditioned (IS dist)   = IS (IS.conditioned dist)
-  unconditioned (IS dist) = IS (IS.unconditioned dist)
-  factor (IS p)           = IS (IS.factor p)
-  dirac (IS x)            = IS (D.dirac x)
-  categorical (IS xps)    = IS (D.categorical xps)
-  bern (IS p)             = IS (D.bern p)
-  normal (IS m) (IS s)    = IS (D.normal m s)
-  uniform (IS lo) (IS hi) = IS (D.uniform lo hi)
-  poisson (IS l)          = IS (D.poisson l)
+
+instance Mochastic IS where
+  type Type IS a = Typeable (IS' a)
+  type MEq IS a = Eq (IS' a)
+  logFloat (IS x)          = IS (LF.logFloat x)
+  logToLogFloat (IS x)     = IS (LF.logToLogFloat x)
+  unbool (IS b) x y        = if b then x else y
+  pair (IS x) (IS y)       = IS (x, y)
+  unpair (IS (x, y)) c     = c (IS x) (IS y)
+  inl (IS x)               = IS (Left x)
+  inr (IS x)               = IS (Right x)
+  uneither (IS e) c d      = either (c . IS) (d . IS) e
+  nil                      = IS []
+  cons (IS x) (IS xs)      = IS (x:xs)
+  unlist (IS []) n _       = n
+  unlist (IS (x:xs)) _ c   = c (IS x) (IS xs)
+  conditioned (IS dist)    = IS (IS.conditioned dist)
+  unconditioned (IS dist)  = IS (IS.unconditioned dist)
+  factor (IS p)            = IS (IS.factor p)
+  dirac (IS x)             = IS (D.dirac x)
+  categorical (IS xps)     = IS (D.categorical xps)
+  bern (IS p)              = IS (D.bern p)
+  normal (IS m) (IS s)     = IS (D.normal m s)
+  uniform (IS lo) (IS hi)  = IS (D.uniform lo hi)
+  poisson (IS l)           = IS (D.poisson l)
+  uniformD (IS lo) (IS hi) = IS (D.uniformD lo hi)
 
 -- The Metropolis-Hastings semantics
 
@@ -156,38 +178,42 @@ type instance MH' (a, b)       = (MH' a, MH' b)
 type instance MH' (Either a b) = Either (MH' a) (MH' b)
 type instance MH' ()           = ()
 type instance MH' Bool         = Bool
+type instance MH' Integer      = Integer
 type instance MH' Real         = Double
 type instance MH' Prob         = T.LogLikelihood
 type instance MH' Int          = Int
 
-instance Mochastic MH where
-  type Type MH a = (Typeable (MH' a))
-  type MEq MH a = (Eq (MH' a))
+instance BaseMochastic MH where
   real                    = MH . fromRational
   bool                    = MH
   add (MH x) (MH y)       = MH (x + y)
   mul (MH x) (MH y)       = MH (x * y)
   neg (MH x)              = MH (-x)
-  logFloat (MH x)         = MH (LF.logFromLogFloat (LF.logFloat x))
-  logToLogFloat (MH x)    = MH (LF.logFromLogFloat (LF.logToLogFloat x))
-  unbool (MH b) x y       = if b then x else y
-  pair (MH x) (MH y)      = MH (x, y)
-  unpair (MH (x, y)) c    = c (MH x) (MH y)
-  inl (MH x)              = MH (Left x)
-  inr (MH x)              = MH (Right x)
-  uneither (MH e) c d     = either (c . MH) (d . MH) e
-  nil                     = MH []
-  cons (MH x) (MH xs)     = MH (x:xs)
-  unlist (MH []) n c      = n
-  unlist (MH (x:xs)) n c  = c (MH x) (MH xs)
   ret (MH x)              = MH (return x)
   bind (MH m) k           = MH (m >>= \x -> case k (MH x) of MH n -> n)
-  conditioned (MH dist)   = MH (MH.conditioned dist)
-  unconditioned (MH dist) = MH (MH.unconditioned dist)
-  factor (MH p)           = MH (MH.factor p)
-  dirac (MH x)            = MH (D.dirac x)
-  categorical (MH xps)    = MH (D.categorical xps)
-  bern (MH p)             = MH (D.bern p)
-  normal (MH m) (MH s)    = MH (D.normal m s)
-  uniform (MH lo) (MH hi) = MH (D.uniform lo hi)
-  poisson (MH l)          = MH (D.poisson l) 
+
+instance Mochastic MH where
+  type Type MH a = (Typeable (MH' a))
+  type MEq  MH a = (Eq (MH' a))
+  logFloat (MH x)          = MH (LF.logFromLogFloat (LF.logFloat x))
+  logToLogFloat (MH x)     = MH (LF.logFromLogFloat (LF.logToLogFloat x))
+  unbool (MH b) x y        = if b then x else y
+  pair (MH x) (MH y)       = MH (x, y)
+  unpair (MH (x, y)) c     = c (MH x) (MH y)
+  inl (MH x)               = MH (Left x)
+  inr (MH x)               = MH (Right x)
+  uneither (MH e) c d      = either (c . MH) (d . MH) e
+  nil                      = MH []
+  cons (MH x) (MH xs)      = MH (x:xs)
+  unlist (MH []) n c       = n
+  unlist (MH (x:xs)) n c   = c (MH x) (MH xs)
+  conditioned (MH dist)    = MH (MH.conditioned dist)
+  unconditioned (MH dist)  = MH (MH.unconditioned dist)
+  factor (MH p)            = MH (MH.factor p)
+  dirac (MH x)             = MH (D.dirac x)
+  categorical (MH xps)     = MH (D.categorical xps)
+  bern (MH p)              = MH (D.bern p)
+  normal (MH m) (MH s)     = MH (D.normal m s)
+  uniform (MH lo) (MH hi)  = MH (D.uniform lo hi)
+  poisson (MH l)           = MH (D.poisson l) 
+  uniformD (MH lo) (MH hi) = MH (D.uniformD lo hi)
