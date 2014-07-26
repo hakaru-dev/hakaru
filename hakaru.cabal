@@ -31,7 +31,6 @@ library
                        Language.Hakaru.Util.Extras,
                        Language.Hakaru.Util.Visual,
                        Language.Hakaru.Util.Coda
-  -- other-modules:       
   other-extensions:    RankNTypes, BangPatterns, GADTs, TypeFamilies, TypeOperators,
                        ConstraintKinds, FlexibleContexts, NoMonomorphismRestriction,
                        DeriveDataTypeable, ScopedTypeVariables, ExistentialQuantification,
@@ -59,10 +58,19 @@ library
                        parallel >=3.2 && <3.3
   -- hs-source-dirs:      
   default-language:    Haskell2010
+  ghc-options:         -Wall
 
-test-suite test-hakaru
+Test-suite hakaru-test
+    main-is            Tests.hs
     type:              detailed-0.9
-    test-module:       Language.Hakaru.Tests
-    build-depends:     base, Cabal >= 1.10, QuickCheck, cabal-test-quickcheck >= 0.1.2
+    test-module:       Tests.Tests
+    other-modules:     Tests.ImportanceSampler
+                       Tests.Metropolis
+    build-depends:     base, Cabal >= 1.10, QuickCheck, 
+                       random >=1.0 && <1.1,
+                       cabal-test-quickcheck >= 0.1.2,
+                       containers >=0.5 && <0.6,
+                       logfloat >=0.12 && <0.13,
+                       math-functions >=0.1 && <0.2
     default-language:  Haskell2010
 

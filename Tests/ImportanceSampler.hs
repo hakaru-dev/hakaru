@@ -1,6 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 
-module Language.Hakaru.Tests.ImportanceSampler where
+module Tests.ImportanceSampler where
 
 import Data.Dynamic
 import Language.Hakaru.Types

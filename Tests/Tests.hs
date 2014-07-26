@@ -1,8 +1,8 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
-module Language.Hakaru.Tests ( tests ) where
+module Tests.Tests ( tests ) where
 
---import qualified Language.Hakaru.Tests.ImportanceSampler as IS
---import qualified Language.Hakaru.Tests.Metropolis as MH
+import qualified Tests.ImportanceSampler as IS
+import qualified Tests.Metropolis as MH
 
 import Distribution.TestSuite
 import Distribution.TestSuite.QuickCheck
