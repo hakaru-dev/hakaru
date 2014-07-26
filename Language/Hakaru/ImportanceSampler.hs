@@ -28,7 +28,7 @@ bind :: Measure a -> (a -> Measure b) -> Measure b
 bind measure continuation =
   Measure (\conds ->
     sbind (unMeasure measure conds)
-          (\(a,conds) -> unMeasure (continuation a) conds))
+          (\(a,cds) -> unMeasure (continuation a) cds))
 
 instance Monad Measure where
   return x = Measure (\conds -> deterministic (point (x,conds) 1))
@@ -40,8 +40,8 @@ updateMixture (Just cond) dist =
       Just y  -> deterministic (point (fromDensity y) density)
           where density = LF.logToLogFloat $ logDensity dist y
       Nothing -> error "did not get data from dynamic source"
-updateMixture Nothing     dist = \g0 -> let (elem, g) = distSample dist g0
-                                        in  (point (fromDensity elem) 1, g)
+updateMixture Nothing     dist = \g0 -> let (e, g) = distSample dist g0
+                                        in  (point (fromDensity e) 1, g)
     
 
 conditioned, unconditioned :: Typeable a => Dist a -> Measure a
@@ -57,8 +57,8 @@ condition :: Eq b => Measure (a, b) -> b -> Measure a
 condition m b' =
     Measure (\ conds -> 
       sbind (unMeasure m conds)
-            (\ ((a,b), conds) ->
-                 deterministic (if b==b' then point (a,conds) 1 else empty)))
+            (\ ((a,b), cds) ->
+                 deterministic (if b==b' then point (a,cds) 1 else empty)))
 
 -- Drivers for testing
 finish :: Mixture (a, [Cond]) -> Mixture a
