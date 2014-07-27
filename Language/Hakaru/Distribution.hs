@@ -98,7 +98,7 @@ categorical :: Eq a => [(a,Double)] -> Dist a
 categorical list = Dist {logDensity = categoricalLogDensity list . fromDiscrete,
                          distSample = mapFst Discrete . categoricalSample list}
 
-lnFact :: Int -> Double
+lnFact :: Integer -> Double
 lnFact = logFactorial
 
 -- Makes use of Atkinson's algorithm as described in:
@@ -106,7 +106,7 @@ lnFact = logFactorial
 --
 -- Further discussion at:
 -- http://www.johndcook.com/blog/2010/06/14/generating-poisson-random-values/
-poisson_rng :: (RandomGen g) => Double -> g -> (Int, g)
+poisson_rng :: (RandomGen g) => Double -> g -> (Integer, g)
 poisson_rng lambda g0 = make_poisson g0
    where smu = sqrt lambda
          b  = 0.931 + 2.53*smu
@@ -115,7 +115,7 @@ poisson_rng lambda g0 = make_poisson g0
          arep  = 1.1239 + 1.1368/(b-3.4)
          lnlam = log lambda
 
-         make_poisson :: (RandomGen g) => g -> (Int,g)
+         make_poisson :: (RandomGen g) => g -> (Integer,g)
          make_poisson g = let (u, g1) = randomR (-0.5,0.5) g
                               (v, g2) = randomR (0,1) g1
                               us = 0.5 - abs u
@@ -127,11 +127,11 @@ poisson_rng lambda g0 = make_poisson g0
                             () | accept_region us v k -> (k, g2)
                             _  -> make_poisson g2
 
-         accept_region :: Double -> Double -> Int -> Bool
+         accept_region :: Double -> Double -> Integer -> Bool
          accept_region us v k = log (v * arep / (a/(us*us)+b)) <=
                                 -lambda + (fromIntegral k)*lnlam - lnFact k
 
-poisson :: Double -> Dist Int
+poisson :: Double -> Dist Integer
 poisson l =
     let poissonLogDensity l' x | l' > 0 && x> 0 = (fromIntegral x)*(log l') - lnFact x - l'
         poissonLogDensity l' x | x==0 = -l'
