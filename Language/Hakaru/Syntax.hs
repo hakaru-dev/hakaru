@@ -72,7 +72,7 @@ class BaseMochastic repr => Mochastic repr where
                  nil
   normal, uniform
               :: repr Real -> repr Real -> repr (Dist Real)
-  poisson     :: repr Real -> repr (Dist Int)
+  poisson     :: repr Real -> repr (Dist Integer)
   uniformD    :: repr Integer -> repr Integer -> repr (Dist Integer)
 
 -- TODO: The initial (AST) "semantics"
