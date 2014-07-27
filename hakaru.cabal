@@ -34,7 +34,7 @@ library
   other-extensions:    RankNTypes, BangPatterns, GADTs, TypeFamilies, TypeOperators,
                        ConstraintKinds, FlexibleContexts, NoMonomorphismRestriction,
                        DeriveDataTypeable, ScopedTypeVariables, ExistentialQuantification,
-                       StandaloneDeriving, OverloadedStrings, DataKinds,
+                       StandaloneDeriving, OverloadedStrings,
                        FlexibleInstances, RebindableSyntax
   build-depends:       base >=4.6 && <5.0,
                        random >=1.0 && <1.1,
@@ -65,6 +65,7 @@ Test-suite hakaru-test
     type:              detailed-0.9
     test-module:       Tests.Tests
     other-modules:     Tests.ImportanceSampler
+                       Language.Hakaru.Syntax
                        Tests.Metropolis
     build-depends:     base, Cabal >= 1.10, QuickCheck, 
                        random >=1.0 && <1.1,
