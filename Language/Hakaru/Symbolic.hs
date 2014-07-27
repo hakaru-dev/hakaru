@@ -139,7 +139,7 @@ instance MeasMonad Maple where
 
 instance Distrib Maple where
   uniform = binder (\e1 e2 -> Just $ 
-                     show (1/((read e2 :: Double) - (read e1)))) 
+                     show (1/((read e2 :: Rational) - (read e1 :: Rational)))) 
                    (\_ _ _ -> Nothing) "Int"
   uniformD = binder (\e1 e2 -> 
                       let d = (read e2 :: Integer) - (read e1) in
