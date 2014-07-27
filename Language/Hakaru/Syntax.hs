@@ -205,8 +205,8 @@ instance Mochastic MH where
   uneither (MH e) c d      = either (c . MH) (d . MH) e
   nil                      = MH []
   cons (MH x) (MH xs)      = MH (x:xs)
-  unlist (MH []) n c       = n
-  unlist (MH (x:xs)) n c   = c (MH x) (MH xs)
+  unlist (MH []) n _       = n
+  unlist (MH (x:xs)) _ c   = c (MH x) (MH xs)
   conditioned (MH dist)    = MH (MH.conditioned dist)
   unconditioned (MH dist)  = MH (MH.unconditioned dist)
   factor (MH p)            = MH (MH.factor p)
