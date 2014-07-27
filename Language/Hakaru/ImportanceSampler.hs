@@ -68,7 +68,7 @@ empiricalMeasure :: (Ord a) => Int -> Measure a -> [Cond] -> IO (Mixture a)
 empiricalMeasure !n measure conds = go n empty where
   once = getStdRandom (unMeasure measure conds)
   go 0 m = return m
-  go n m = once >>= \result -> go (n - 1) $! mappend m (finish result)
+  go k m = once >>= \result -> go (k - 1) $! mappend m (finish result)
 
 sample :: (Ord a, Show a) => Measure a -> [Cond] -> IO [(a, Prob)]
 sample measure conds = do
