@@ -61,7 +61,6 @@ library
   ghc-options:         -Wall
 
 Test-suite hakaru-test
-    main-is            Tests.hs
     type:              detailed-0.9
     test-module:       Tests.Tests
     other-modules:     Tests.ImportanceSampler
