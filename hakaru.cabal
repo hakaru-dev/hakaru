@@ -64,7 +64,6 @@ Test-suite hakaru-test
     type:              detailed-0.9
     test-module:       Tests.Tests
     other-modules:     Tests.ImportanceSampler
-                       Language.Hakaru.Syntax
                        Tests.Metropolis
     build-depends:     base, Cabal >= 1.10, QuickCheck, 
                        random >=1.0 && <1.1,
