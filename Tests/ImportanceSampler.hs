@@ -8,15 +8,10 @@ import Language.Hakaru.Lambda
 import Language.Hakaru.Distribution
 import Language.Hakaru.ImportanceSampler
 
-import Test.QuickCheck.Monadic
+-- import Test.QuickCheck.Monadic
+import Tests.Models
 
--- Some example/test programs in our language
-prog_mixture :: Measure Bool
-prog_mixture = do
-  c <- unconditioned (bern 0.5)
-  _ <- conditioned (ifThenElse c (normal (lit (1 :: Double)) (lit 1))
-                                 (uniform (lit 0) (lit 3)))
-  return c
+-- Some test programs in our language
 
 test_mixture :: IO ()
 test_mixture = sample prog_mixture conds >>=

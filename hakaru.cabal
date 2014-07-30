@@ -63,10 +63,15 @@ Test-suite hakaru-test
     type:              detailed-0.9
     test-module:       Tests.Tests
     other-modules:     Tests.ImportanceSampler
+                       Language.Hakaru.Syntax2
+                       Tests.Models
                        Tests.Metropolis
-    build-depends:     base, Cabal >= 1.10, QuickCheck, 
+    build-depends:     base, Cabal >= 1.10, 
+                       -- QuickCheck, 
+                       HUnit,
                        random >=1.0 && <1.1,
-                       cabal-test-quickcheck >= 0.1.2,
+                       --cabal-test-quickcheck >= 0.1.2,
+                       --cabal-test-hunit >= 0.1.0,
                        pretty >=1.1 && <1.2,
                        containers >=0.5 && <0.6,
                        logfloat >=0.12 && <0.13,
