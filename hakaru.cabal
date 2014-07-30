@@ -61,11 +61,10 @@ library
   ghc-options:         -Wall
 
 Test-suite hakaru-test
-    main-is            Tests.hs
     type:              detailed-0.9
     test-module:       Tests.Tests
     other-modules:     Tests.ImportanceSampler
-                       Language.Hakaru.Syntax
+                       Language.Hakaru.Syntax2
                        Tests.Models
                        Tests.Metropolis
     build-depends:     base, Cabal >= 1.10, 
