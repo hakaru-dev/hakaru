@@ -37,6 +37,7 @@ class Distrib d where
   dirac       :: Eq a => a -> d a
   categorical :: Eq a => [(a, Real d)] -> d a
   bern        :: Real d -> d Bool
+  beta        :: Real d -> Real d -> d Double
   normal, uniform :: Real d -> Real d -> d (Real d)
   poisson     :: Real d -> d Integer
   uniformD    :: Integer -> Integer -> d Integer
@@ -55,6 +56,7 @@ instance Distrib T.Dist where
   uniformD = D.uniformD
   normal = D.normal
   poisson = D.poisson
+  beta = D.beta
 
 -- The importance-sampling semantics
 instance Meas IS.Measure where
@@ -68,14 +70,6 @@ instance Meas MH.Measure where
   conditioned = MH.conditioned
   unconditioned = MH.unconditioned
 
--- if we want to forgo the (D m) constraint, need to decorate the
--- program a little more.
-prog_mixture :: (Meas m, D m ~ T.Dist) => m Bool
-prog_mixture = do
-  c <- unconditioned (bern 0.5)
-  _ <- conditioned (ifThenElse c (normal 1 1)
-                                 (uniform 0 3))
-  return c
 {-
 -- TODO: The pretty-printing semantics
 newtype PP a = PP (Int -> PP.Doc)

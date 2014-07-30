@@ -9,25 +9,12 @@ import Language.Hakaru.Lambda
 import Language.Hakaru.Metropolis
 import Language.Hakaru.Distribution (bern, normal, uniform, beta)
 
-import Test.QuickCheck.Monadic
-import Distribution.TestSuite.QuickCheck
-
-prog_mixture :: Measure Bool
-prog_mixture = do
-  c <- unconditioned (bern 0.5)
-  _ <- conditioned (ifThenElse c (normal  1 1)
-                                 (uniform 0 3))
-  return c
+-- import Test.QuickCheck.Monadic
+-- import Distribution.TestSuite.QuickCheck
+import Tests.Models
 
 test_mixture :: IO [Bool]
 test_mixture = mcmc prog_mixture [Just (toDyn (Lebesgue (-2) :: Density Double))]
-
-prog_multiple_conditions :: Measure Double
-prog_multiple_conditions = do
-  b <- unconditioned (beta 1 1)
-  _ <- conditioned (bern b)
-  _ <- conditioned (bern b)
-  return b
 
 test_multiple_conditions :: IO [Double]
 test_multiple_conditions = do
