@@ -2,12 +2,13 @@
 
 module Examples where
 
-import Types
+import Language.Hakaru.Types
 import Data.Dynamic
 import Control.Monad
 
-import InterpreterMH hiding (main)
-import Visual
+import Language.Hakaru.ImportanceSampler
+import Language.Hakaru.Distribution
+import Language.Hakaru.Lambda
 
 bayesian_polynomial_regression = undefined
 
@@ -25,7 +26,14 @@ latent_dirichelt_allocation = undefined
 
 categorical_mixture = undefined
 
-gaussian_mixture = undefined
+gaussian_mixture :: Measure [Double]
+gaussian_mixture = do
+  let makePoint = do
+        p <- unconditioned (beta 2 2)
+        b <- unconditioned (bern p)
+        unconditioned (ifThenElse b (normal (lit (1 :: Double)) (lit 1))
+                                    (normal (lit (5 :: Double)) (lit 1)))
+  replicateM 20 makePoint
 
 naive_bayes = undefined
 
