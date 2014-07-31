@@ -28,11 +28,13 @@ categorical_mixture = undefined
 
 gaussian_mixture :: Measure [Double]
 gaussian_mixture = do
-  let makePoint = do
-        p <- unconditioned (beta 2 2)
+  p <- unconditioned (beta 2 2)
+  m1:m2:_ <- replicateM 2 $ unconditioned (normal 0 10)
+  s1:s2:_ <- replicateM 2 $ unconditioned (uniform 0 1)
+  let makePoint = do        
         b <- unconditioned (bern p)
-        unconditioned (ifThenElse b (normal (lit (1 :: Double)) (lit 1))
-                                    (normal (lit (5 :: Double)) (lit 1)))
+        unconditioned (ifThenElse b (normal m1 s1)
+                                    (normal m2 s2))
   replicateM 20 makePoint
 
 naive_bayes = undefined
