@@ -1,6 +1,6 @@
 {-# LANGUAGE RankNTypes, DataKinds, NoMonomorphismRestriction, BangPatterns #-}
 
-module Examples where
+module Examples (test_gaussian_mixture) where
 
 import Language.Hakaru.Types
 import Data.Dynamic
@@ -36,6 +36,9 @@ gaussian_mixture = do
         unconditioned (ifThenElse b (normal m1 s1)
                                     (normal m2 s2))
   replicateM 20 makePoint
+
+test_gaussian_mixture :: IO ()
+test_gaussian_mixture = sample gaussian_mixture [] >>= print . take 1
 
 naive_bayes = undefined
 
