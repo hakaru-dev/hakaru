@@ -1,6 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses, TypeFamilies,
              FlexibleContexts, FlexibleInstances, DefaultSignatures,
              StandaloneDeriving, GeneralizedNewtypeDeriving #-}
+{-# OPTIONS -W #-}
 
 module Syntax3 where
 
@@ -10,6 +11,7 @@ import qualified Data.Number.LogFloat as LF
 import qualified System.Random.MWC as MWC
 import qualified Numeric.Integration.TanhSinh as TS
 import Control.Monad.Primitive (PrimState, PrimMonad)
+import Numeric.SpecFunctions (logBeta)
 
 -- A small probabilistic language with conditioning
 
@@ -39,15 +41,31 @@ class (Order repr Real, Floating (repr Real),
   unsafeProb :: repr Real -> repr Prob
   fromProb   :: repr Prob -> repr Real
 
+  pi_      :: repr Prob
+  pi_      =  unsafeProb pi
+  exp_     :: repr Real -> repr Prob
+  exp_     =  unsafeProb . exp
+  log_     :: repr Prob -> repr Real
+  log_     =  log . fromProb
+  sqrt_    :: repr Prob -> repr Prob
+  sqrt_ x  =  pow_ x (1/2)
+  pow_     :: repr Prob -> repr Real -> repr Prob
+  pow_ x y =  exp_ (log_ x * y)
+
+  betaFunc         ::                     repr Real -> repr Real -> repr Prob
+  default betaFunc :: (Integrate repr) => repr Real -> repr Real -> repr Prob
+  betaFunc a b = integrate 0 1 $ \x ->
+    pow_ (unsafeProb x) (a-1) * pow_ (unsafeProb (1-x)) (b-1)
+
 true, false :: (Base repr) => repr Bool_
 true  = inl unit
 false = inr unit
 
 fst_ :: (Base repr) => repr (a,b) -> repr a
-fst_ ab = unpair ab (\a b -> a)
+fst_ ab = unpair ab (\a _ -> a)
 
 snd_ :: (Base repr) => repr (a,b) -> repr b
-snd_ ab = unpair ab (\a b -> b)
+snd_ ab = unpair ab (\_ b -> b)
 
 if_ :: (Base repr) => repr Bool_ -> repr c -> repr c -> repr c
 if_ i t e = uneither i (\_ -> t) (\_ -> e)
@@ -64,6 +82,13 @@ class (Base repr) => Mochastic repr where
   lebesgue     :: repr (Measure Real)
   factor       :: repr Prob -> repr (Measure ())
 
+  uniform      :: repr Real -> repr Real -> repr (Measure Real)
+  uniform lo hi = lebesgue `bind` \x ->
+                  factor (if_ (and_ [less lo x, less x hi])
+                              (unsafeProb (recip (hi - lo)))
+                              0) `bind_`
+                  dirac x
+
 bind_ :: (Mochastic repr) => repr (Measure a) -> repr (Measure b) ->
                              repr (Measure b)
 m `bind_` n = m `bind` \_ -> n
@@ -72,12 +97,11 @@ liftM :: (Mochastic repr) => (repr a -> repr b) ->
                              repr (Measure a) -> repr (Measure b)
 liftM f m = m `bind` dirac . f
 
-uniform :: (Mochastic repr) => repr Real -> repr Real -> repr (Measure Real)
-uniform lo hi = lebesgue `bind` \x ->
-                factor (if_ (and_ [less lo x, less x hi])
-                            (unsafeProb (recip (hi - lo)))
-                            0) `bind_`
-                dirac x
+beta :: (Mochastic repr) => repr Real -> repr Real -> repr (Measure Real)
+beta a b = uniform 0 1 `bind` \x ->
+           factor (pow_ (unsafeProb x    ) (a-1) *
+                   pow_ (unsafeProb (1-x)) (b-1) / betaFunc a b) `bind_`
+           dirac x
 
 bern :: (Mochastic repr) => repr Real -> repr (Measure Bool_)
 bern p = uniform 0 1 `bind` \u -> dirac (less u p)
@@ -95,7 +119,8 @@ density :: (Disintegrate repr) => repr (Measure a) -> repr (Measure a) ->
 density ambient m = disintegrate ambient (liftM (`pair` unit) m)
 
 class (Base repr) => Integrate repr where
-  integrate :: (repr Real -> repr Prob) -> repr Prob
+  integrate :: repr Real -> repr Real -> (repr Real -> repr Prob) -> repr Prob
+  infinity, negativeInfinity :: repr Real
 
 class Lambda repr where
   lam :: (repr a -> repr b) -> repr (a -> b)
@@ -139,6 +164,9 @@ instance Base (Sample m) where
   uneither (Sample (Right b)) _ k = k (Sample b)
   unsafeProb (Sample x)           = Sample (LF.logFloat x)
   fromProb (Sample x)             = Sample (LF.fromLogFloat x)
+  exp_ (Sample x)                 = Sample (LF.logToLogFloat x)
+  log_ (Sample x)                 = Sample (LF.logFromLogFloat x)
+  betaFunc (Sample a) (Sample b)  = Sample (LF.logToLogFloat (logBeta a b))
 
 instance (PrimMonad m) => Mochastic (Sample m) where
   dirac (Sample a)                = Sample (\p _ -> return (a,p))
@@ -151,11 +179,26 @@ instance (PrimMonad m) => Mochastic (Sample m) where
                                       return (if b then n else l,
                                               p * LF.logToLogFloat n))
   factor (Sample q)               = Sample (\p _ -> return ((), p * q))
+  uniform (Sample lo) (Sample hi) = Sample (\p g -> do
+                                      x <- MWC.uniformR (lo, hi) g
+                                      return (x, p))
 
-instance Integrate (Sample m) where
-  integrate f = Sample $ LF.logFloat -- just for kicks -- imprecise
-              $ TS.result $ last $ TS.everywhere TS.parTrap
-              $ LF.fromLogFloat . unSample . f . Sample
+instance Integrate (Sample m) where -- just for kicks -- imprecise
+  integrate (Sample lo) (Sample hi)
+    | not (isInfinite lo) && not (isInfinite hi)
+    = int (\f -> TS.parTrap f lo hi)
+    | isInfinite lo && lo < 0 && isInfinite hi && 0 < hi
+    = int (TS.everywhere TS.parTrap)
+    | not (isInfinite lo) && isInfinite hi && 0 < hi
+    = int (\f -> TS.nonNegative TS.parTrap (f . (lo+)))
+    | isInfinite lo && lo < 0 && not (isInfinite hi)
+    = int (\f -> TS.nonNegative TS.parTrap (f . (hi-)))
+    | otherwise
+    = error ("Cannot integrate from " ++ show lo ++ " to " ++ show hi)
+    where int method f = Sample $ LF.logFloat $ TS.result $ last
+                       $ method $ LF.fromLogFloat . unSample . f . Sample
+  infinity         = Sample LF.infinity
+  negativeInfinity = Sample LF.negativeInfinity
 
 instance Lambda (Sample m) where
   lam f = Sample (unSample . f . Sample)
@@ -191,26 +234,37 @@ deriving instance (Num        (repr Prob)) => Num        (Expect repr Prob)
 deriving instance (Fractional (repr Prob)) => Fractional (Expect repr Prob)
 
 instance (Base repr) => Base (Expect repr) where
-  unit                       = Expect unit
-  pair (Expect a) (Expect b) = Expect (pair a b)
-  unpair (Expect ab) k       = Expect (unpair ab (\a b ->
-                               unExpect (k (Expect a) (Expect b))))
-  inl (Expect a)             = Expect (inl a)
-  inr (Expect b)             = Expect (inr b)
-  uneither (Expect ab) ka kb = Expect (uneither ab (unExpect . ka . Expect)
-                                                   (unExpect . kb . Expect))
-  unsafeProb                 = Expect . unsafeProb . unExpect
-  fromProb                   = Expect . fromProb   . unExpect
+  unit                           = Expect unit
+  pair (Expect a) (Expect b)     = Expect (pair a b)
+  unpair (Expect ab) k           = Expect (unpair ab (\a b ->
+                                   unExpect (k (Expect a) (Expect b))))
+  inl (Expect a)                 = Expect (inl a)
+  inr (Expect b)                 = Expect (inr b)
+  uneither (Expect ab) ka kb     = Expect (uneither ab (unExpect . ka . Expect)
+                                                       (unExpect . kb . Expect))
+  unsafeProb                     = Expect . unsafeProb . unExpect
+  fromProb                       = Expect . fromProb   . unExpect
+  pi_                            = Expect pi_
+  exp_                           = Expect . exp_  . unExpect
+  log_                           = Expect . log_  . unExpect
+  sqrt_                          = Expect . sqrt_ . unExpect
+  pow_ (Expect x) (Expect y)     = Expect (pow_ x y)
+  betaFunc (Expect a) (Expect b) = Expect (betaFunc a b)
 
 instance (Integrate repr) => Integrate (Expect repr) where
-  integrate f = Expect (integrate (unExpect . f . Expect))
+  integrate (Expect lo) (Expect hi) f =
+    Expect (integrate lo hi (unExpect . f . Expect))
+  infinity         = Expect infinity
+  negativeInfinity = Expect negativeInfinity
 
 instance (Integrate repr, Lambda repr) => Mochastic (Expect repr) where
   dirac (Expect a)  = Expect (lam (\c -> c `app` a))
   bind (Expect m) k = Expect (lam (\c -> m `app` lam (\a ->
                       unExpect (k (Expect a)) `app` c)))
-  lebesgue          = Expect (lam (integrate . app))
+  lebesgue          = Expect (lam (integrate negativeInfinity infinity . app))
   factor (Expect q) = Expect (lam (\c -> q * c `app` unit))
+  uniform (Expect lo) (Expect hi) = Expect (lam (\f ->
+    integrate lo hi (\x -> app f x / unsafeProb (hi - lo))))
 
 instance (Lambda repr) => Lambda (Expect repr) where
   lam f = Expect (lam (unExpect . f . Expect))
@@ -283,11 +337,17 @@ instance Base Maple where
                                   "," ++ continue kb ++ ")")
   unsafeProb (Maple x) = Maple x
   fromProb   (Maple x) = Maple x
+  sqrt_ = mapleFun1 "sqrt"
+  pow_ = mapleOp2 "^"
+  betaFunc (Maple a) (Maple b) = Maple (\i -> "Beta(" ++ a i ++
+                                                  "," ++ b i ++ ")")
 
 instance Integrate Maple where
-  integrate f = Maple (\i ->
+  integrate (Maple lo) (Maple hi) f = Maple (\i ->
     let (x, body) = mapleBind f i
-    in "int(" ++ body ++ "," ++ x ++ "=-infinity..infinity)")
+    in "int(" ++ body ++ "," ++ x ++ "=" ++ lo i ++ ".." ++ hi i ++ ")")
+  infinity         = Maple (\_ ->  "infinity")
+  negativeInfinity = Maple (\_ -> "-infinity")
 
 instance Lambda Maple where
   lam f = Maple (\i -> let (x, body) = mapleBind f i
@@ -297,4 +357,4 @@ instance Lambda Maple where
 -- Trivial example: importance sampling once from a uniform measure
 
 main :: IO ()
-main = MWC.withSystemRandom (MWC.asGenST (unSample (uniform 0 1) 1)) >>= print
+main = MWC.withSystemRandom (MWC.asGenST (unSample (beta 1 1) 1)) >>= print
