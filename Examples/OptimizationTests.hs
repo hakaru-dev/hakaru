@@ -10,7 +10,7 @@ module Examples.OptimizationTests where
 
 import Language.Hakaru.Types
 import Language.Hakaru.Distribution
-import Language.Hakaru.ImportanceSampler
+import Language.Hakaru.Metropolis
 
 import Data.Dynamic
 import Control.Monad
@@ -52,12 +52,12 @@ prog3_before = do coin1 <- unconditioned (bern 0.5)
                                            else bern 0.2
                   return coin2
 
-run3_before = sample 10 prog3_before []
+run3_before = sample prog3_before []
 
 prog3_after1 = do coin1 <- unconditioned (bern 0.5)
                   return coin1
 
-run3_after1  = sample 10 prog3_after1 []
+run3_after1  = sample prog3_after1 []
 
 prog3_after2 prev = do coin1 <- unconditioned $ categorical prev
                        coin2 <- unconditioned $ if coin1
@@ -67,7 +67,7 @@ prog3_after2 prev = do coin1 <- unconditioned $ categorical prev
 
 run3_after2 = do
   prev <- run3_after1
-  sample 10 (prog3_after2 prev) []
+  sample (prog3_after2 (take 10 prev)) []
 
 -- Transform loop through lifted inference
 
@@ -77,10 +77,10 @@ prog4_before = do bias <- unconditioned (beta 1 1)
                   replicateM flips (conditioned (bern bias))
                   return bias
 
-run4_before = sample 10 prog4_before $ replicate flips (Discrete (toDyn coin4))
+run4_before = sample prog4_before $ replicate flips (Just (toDyn (Discrete coin4)))
 
 prog4_after = do bias <- unconditioned (if coin4
                                         then beta (1 + flips) 1
                                         else beta 1 (1 + flips))
                  return bias
-run4_after = sample 10 prog4_after []
+run4_after = sample prog4_after []
