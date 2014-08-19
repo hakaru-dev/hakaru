@@ -70,7 +70,7 @@ empiricalMeasure !n measure conds = go n empty where
   go 0 m = return m
   go k m = once >>= \result -> go (k - 1) $! mappend m (finish result)
 
-sample :: (Ord a, Show a) => Measure a -> [Cond] -> IO [(a, Prob)]
+sample :: Measure a -> [Cond] -> IO [(a, Prob)]
 sample measure conds = do
   u <- once
   let x = mixToTuple (finish u)

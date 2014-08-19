@@ -8,9 +8,9 @@
 
 module Examples.OptimizationTests where
 
-import Language.Hakaru.ImportanceSampler
 import Language.Hakaru.Types
-import Language.Hakaru.Mixture
+import Language.Hakaru.Distribution
+import Language.Hakaru.ImportanceSampler
 
 import Data.Dynamic
 import Control.Monad
@@ -20,12 +20,12 @@ import qualified Data.Map.Strict as M
 
 prog1_before = return $ conditioned (normal 0 1) 
 
-run1_before  = sample 10 prog1_before conds
-  where conds = [Lebesgue (toDyn (4 :: Double))]
+run1_before  = sample prog1_before conds
+  where conds = [Just (toDyn (Lebesgue 4 :: Density Double))]
 
 prog1_after = return 4
 
-run1_after  = sample 10 prog1_after []
+run1_after  = sample prog1_after []
 
 -- Conjugacy rewrite
 
@@ -34,7 +34,7 @@ prog2_before = do bias <- unconditioned (beta 1 1)
                   coin <- conditioned (bern bias)
                   return (coin, bias)
 
-run2_before = sample 10 prog2_before [Discrete (toDyn coin2)] 
+run2_before = sample prog2_before [Just (toDyn (Discrete coin2))] 
 
 prog2_after = do coin <- conditioned (bern 0.5)
                  bias <- unconditioned (if coin2
@@ -42,7 +42,7 @@ prog2_after = do coin <- conditioned (bern 0.5)
                                         else beta 1 2)
                  return (coin, bias)
 
-run2_after = sample 10 prog2_after [Discrete (toDyn coin2)]
+run2_after = sample prog2_after [Just (toDyn (Discrete coin2))] 
 
 -- Transform Monte Carlo into Sequential Monte Carlo
 
@@ -59,7 +59,7 @@ prog3_after1 = do coin1 <- unconditioned (bern 0.5)
 
 run3_after1  = sample 10 prog3_after1 []
 
-prog3_after2 prev = do coin1 <- unconditioned $ categorical $ M.toList $ unMixture prev
+prog3_after2 prev = do coin1 <- unconditioned $ categorical prev
                        coin2 <- unconditioned $ if coin1
                                                 then bern 0.9
                                                 else bern 0.2
