@@ -31,17 +31,18 @@ run1_after  = sample 10 prog1_after []
 
 coin2 = True
 prog2_before = do bias <- unconditioned (beta 1 1)
-                  conditioned (bern bias)
-                  return bias
+                  coin <- conditioned (bern bias)
+                  return (coin, bias)
 
-run2_before = sample 10 prog2_before [Discrete (toDyn coin2)]
+run2_before = sample 10 prog2_before [Discrete (toDyn coin2)] 
 
-prog2_after = do bias <- unconditioned (if coin2
+prog2_after = do coin <- conditioned (bern 0.5)
+                 bias <- unconditioned (if coin2
                                         then beta 2 1
                                         else beta 1 2)
-                 return bias
+                 return (coin, bias)
 
-run2_after = sample 10 prog2_after []
+run2_after = sample 10 prog2_after [Discrete (toDyn coin2)]
 
 -- Transform Monte Carlo into Sequential Monte Carlo
 
