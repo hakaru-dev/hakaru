@@ -3,7 +3,7 @@
              StandaloneDeriving, GeneralizedNewtypeDeriving #-}
 {-# OPTIONS -W #-}
 
-module Syntax3 where
+module Language.Hakaru.Syntax3 where
 
 import Prelude hiding (Real)
 import Data.Ratio
@@ -171,8 +171,8 @@ instance Base (Sample m) where
 instance (PrimMonad m) => Mochastic (Sample m) where
   dirac (Sample a)                = Sample (\p _ -> return (a,p))
   bind (Sample m) k               = Sample (\p g -> do
-                                      (a,p) <- m p g
-                                      (unSample (k (Sample a)) $! p) g)
+                                      (a,p') <- m p g
+                                      (unSample (k (Sample a)) $! p') g)
   lebesgue                        = Sample (\p g -> do
                                       (u,b) <- MWC.uniform g
                                       let l = log u; n = negate l
@@ -277,6 +277,9 @@ newtype Maple a = Maple { unMaple :: Int -> String }
 mapleFun1 :: String -> Maple a -> Maple b
 mapleFun1 fn (Maple x) = Maple (\i -> fn ++ "(" ++ x i ++ ")")
 
+mapleFun2 :: String -> Maple a -> Maple b -> Maple c
+mapleFun2 fn (Maple x) (Maple y) = Maple (\i -> fn ++ "(" ++ x i ++ ", " ++ y i ++ ")")
+
 mapleOp2 :: String -> Maple a -> Maple b -> Maple c
 mapleOp2 fn (Maple x) (Maple y) = Maple (\i -> "(" ++ x i ++ fn ++ y i ++ ")")
 
@@ -324,10 +327,10 @@ instance Floating (Maple a) where
   acosh                       = mapleFun1 "acosh"
 
 instance Base Maple where
-  unit = Maple (\_ -> "[]")
-  pair (Maple a) (Maple b) = Maple (\i -> "[" ++ a i ++ "," ++ b i ++ "]")
-  unpair (Maple ab) k = k (Maple (\i -> ab i ++ "[1]"))
-                          (Maple (\i -> ab i ++ "[2]"))
+  unit = Maple (\_ -> "Unit")
+  pair = mapleFun2 "Pair"
+  unpair (Maple ab) k = k (Maple (\i -> "op(1, " ++ ab i ++ ")"))
+                          (Maple (\i -> "op(2, " ++ ab i ++ ")"))
   inl (Maple a) = Maple (\i -> "[true,"  ++ a i ++ "]")
   inr (Maple b) = Maple (\i -> "[false," ++ b i ++ "]")
   uneither (Maple ab) ka kb = Maple (\i ->
