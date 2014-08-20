@@ -12,9 +12,9 @@ giveLast samples = do s <- samples
 
 main = defaultMain [
    bcompare [
-     bench "is normal 10"  $ whnf giveLast (IS.sample (replicateM 10 (IS.unconditioned (normal 0 10))) [])
-   , bench "is normal 20"  $ whnf giveLast (IS.sample (replicateM 20 (IS.unconditioned (normal 0 10))) [])
-   , bench "mh normal 10"  $ whnf giveLast (MH.sample (replicateM 10 (MH.unconditioned (normal 0 10))) [])
-   , bench "mh normal 20"  $ whnf giveLast (MH.sample (replicateM 20 (MH.unconditioned (normal 0 10))) [])
+     bench "is normal 10"  $ whnfIO $ giveLast (IS.sample (replicateM 10 (IS.unconditioned (normal 0 10))) [])
+   , bench "is normal 20"  $ whnfIO $ giveLast (IS.sample (replicateM 20 (IS.unconditioned (normal 0 10))) [])
+   , bench "mh normal 10"  $ whnfIO $ giveLast (MH.sample (replicateM 10 (MH.unconditioned (normal 0 10))) [])
+   , bench "mh normal 20"  $ whnfIO $ giveLast (MH.sample (replicateM 20 (MH.unconditioned (normal 0 10))) [])
    ]
  ]
