@@ -52,7 +52,22 @@ hidden_markov_model = undefined
 
 matrix_factorization = undefined
 
-rvm = undefined
+type Point = [Double] -- datapoint type
+
+-- TODO: Rewrite using sparse matrix operations
+kernel :: Point -> Point -> Double
+kernel x x' = exp $ (* (-0.5)) $ sum $ map (\ (x,x') -> (x - x')*(x - x')) $ zip x x'
+
+-- TODO: Rewrite using sparse matrix operations
+predict :: [Double] -> Point -> [Point] -> Double
+predict w x train = sum $ map (\ (w_i, x_i) -> w_i * (kernel x x_i)) $ zip w train
+
+rvm x = do
+  a <- replicateM 20 $ unconditioned (gamma 1e-4 1e-4)
+  sigma <- unconditioned (gamma 1e-4 1e-4)
+  w <- mapM (\ a -> unconditioned (normal 0 (recip a))) a
+  y <- mapM (\x_i -> conditioned $ normal (predict w x_i x) sigma) x
+  return w
 
 item_response_theory = undefined
 
