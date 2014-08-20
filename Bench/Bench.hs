@@ -8,7 +8,7 @@ import qualified Language.Hakaru.ImportanceSampler as IS
 
 giveLast :: IO [(a,b)] -> IO (a,b)
 giveLast samples = do s <- samples
-                      return $ last (take 1000 s)
+                      return $ last (take 100 s)
 
 main = defaultMain [
    bcompare [
