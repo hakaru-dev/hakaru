@@ -25,7 +25,6 @@ Shortcomings of this implementation
 
 type DistVal = Dynamic
  
--- and what does XRP stand for?
 data XRP where
   XRP :: Typeable e => (Density e, Dist e) -> XRP
 
@@ -35,6 +34,11 @@ unXRP (XRP (e,f)) = cast (e,f)
 type Visited = Bool
 type Observed = Bool
 type LL = LogLikelihood
+
+-- The first component is the LogLikelihood of the trace
+-- The second is the LogLikelihood of the newly introduced
+-- choices. These are used to compute the acceptance ratio
+type LL2 = (LL,LL)
 
 type Subloc = Int
 type Name = [Subloc]
@@ -48,7 +52,7 @@ type Database = M.Map Name DBEntry
 data SamplerState g where
   S :: { ldb :: Database, -- ldb = local database
          -- (total likelihood, total likelihood of XRPs newly introduced)
-         llh2 :: {-# UNPACK #-} !(LL, LL),
+         llh2 :: {-# UNPACK #-} !LL2,
          cnds :: [Cond], -- conditions left to process
          seed :: g } -> SamplerState g
 
@@ -72,18 +76,13 @@ return_ x = Measure $ \ _ -> sreturn x
 updateXRP :: Typeable a => Name -> Cond -> Dist a -> Sampler a
 updateXRP n obs dist' s@(S {ldb = db, seed = g}) =
     case M.lookup n db of
-      Just (DBEntry xd lb _ ob) ->
-        let Just (xb, dist) = unXRP xd
-            (x,_) = case obs of
-                      Just yd ->
-                          let Just y = fromDynamic yd
-                          in (y, logDensity dist y)
-                      Nothing -> (xb, lb)
+      Just (DBEntry xd _ _ ob) ->
+        let Just (x, _) = unXRP xd
             l' = logDensity dist' x
-            d1 = M.insert n (DBEntry (XRP (x,dist)) l' True ob) db
+            d1 = M.insert n (DBEntry (XRP (x,dist')) l' True ob) db
         in (fromDensity x,
             s {ldb = d1,
-               llh2 = updateLogLikelihood l' 0 s,
+               llh2 = updateLogLikelihood (l',0) (llh2 s),
                seed = g})
       Nothing ->
         let (xnew2, l, g2) = case obs of
@@ -96,14 +95,11 @@ updateXRP n obs dist' s@(S {ldb = db, seed = g}) =
             d1 = M.insert n (DBEntry (XRP (xnew2, dist')) l True (isJust obs)) db
         in (fromDensity xnew2,
             s {ldb = d1,
-               llh2 = updateLogLikelihood l l s,
+               llh2 = updateLogLikelihood (l,l) (llh2 s),
                seed = g2})
 
-updateLogLikelihood :: RandomGen g => 
-                    LL -> LL -> SamplerState g ->
-                    (LL, LL)
-updateLogLikelihood llTotal llFresh s =
-  let (l,lf) = llh2 s in (llTotal+l, llFresh+lf)
+updateLogLikelihood :: LL2 -> LL2 -> LL2
+updateLogLikelihood (llTotal,llFresh) (l,lf) = (llTotal+l, llFresh+lf)
 
 factor :: LL -> Measure ()
 factor l = Measure $ \ _ -> \ s ->
