@@ -6,7 +6,7 @@ import Language.Hakaru.Distribution
 import qualified Language.Hakaru.Metropolis as MH
 import qualified Language.Hakaru.ImportanceSampler as IS
 
-giveLast :: IO [(a,b)] -> IO ()
+giveLast :: IO [(a,b)] -> IO (a,b)
 giveLast samples = do s <- samples
                       return $ last (take 1000 s)
 
