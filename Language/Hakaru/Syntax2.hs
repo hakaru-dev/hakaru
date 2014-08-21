@@ -10,7 +10,7 @@ import           Prelude hiding (Real)
 import Data.Dynamic (Typeable)
 
 -- The syntax
-import Language.Hakaru.Lambda
+-- import Language.Hakaru.Lambda
 import qualified Language.Hakaru.Distribution as D
 
 -- TODO: The pretty-printing semantics
