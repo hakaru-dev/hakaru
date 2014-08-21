@@ -9,7 +9,7 @@ import Data.Aeson
 import Data.List
 import qualified Data.Text as T
 import qualified Data.ByteString.Lazy.Char8 as B
-import qualified Data.ByteString.Char8 as BS
+--import qualified Data.ByteString.Char8 as BS
 
 plot :: Show a => [a] -> String -> IO ()
 plot samples filename = do
@@ -34,7 +34,7 @@ viz' n c cur name samples = do
   where
     total = "total_samples" .= n
     current_sample = "current_sample" .= cur
-    chunk = object (zipWith (\ name s -> T.pack name .= s)
+    chunk = object (zipWith (\ name' s -> T.pack name' .= s)
                             name
                             (transpose $ take c samples))
     batch = B.unpack $ encode
