@@ -9,6 +9,7 @@ import Prelude hiding (Real)
 import Data.Ratio
 import qualified Data.Number.LogFloat as LF
 import qualified System.Random.MWC as MWC
+import qualified System.Random.MWC.Distributions as MWCD
 import qualified Numeric.Integration.TanhSinh as TS
 import Control.Monad.Primitive (PrimState, PrimMonad)
 import Numeric.SpecFunctions (logBeta)
@@ -73,6 +74,7 @@ class (Base repr) => Mochastic repr where
   bind         :: repr (Measure a) -> (repr a -> repr (Measure b)) ->
                   repr (Measure b)
   lebesgue     :: repr (Measure Real)
+  normal       :: repr Real -> repr Prob -> repr (Measure Real)
   factor       :: repr Prob -> repr (Measure ())
 
   uniform      :: repr Real -> repr Real -> repr (Measure Real)
@@ -181,6 +183,9 @@ instance (PrimMonad m) => Mochastic (Sample m) where
   uniform (Sample lo) (Sample hi) = Sample (\p g -> do
                                       x <- MWC.uniformR (lo, hi) g
                                       return (x, p))
+  normal (Sample mu) (Sample sd) = Sample (\p g -> do
+                                      x <- MWCD.normal mu (LF.fromLogFloat sd) g
+                                      return (x, p) )
 
 instance Integrate (Sample m) where -- just for kicks -- imprecise
   integrate (Sample lo) (Sample hi)
@@ -268,6 +273,12 @@ instance (Integrate repr, Lambda repr) => Mochastic (Expect repr) where
   factor (Expect q) = Expect (lam (\c -> q * c `app` unit))
   uniform (Expect lo) (Expect hi) = Expect (lam (\f ->
     integrate lo hi (\x -> app f x / unsafeProb (hi - lo))))
+  normal (Expect mu) (Expect sd) =
+                       Expect (lam (\f -> 
+    integrate negativeInfinity infinity (\x -> 
+        let sd' = fromProb sd in
+        unsafeProb ((1 / (sd' * sqrt (2 * pi))) *
+        exp (- (x - mu) * (x - mu) / (2 * sd' * sd'))) * f `app` x ) ))
 
 instance (Lambda repr) => Lambda (Expect repr) where
   lam f = Expect (lam (unExpect . f . Expect))
@@ -364,10 +375,23 @@ instance Lambda Maple where
                        in "(" ++ x ++ "->" ++ body ++ ")")
   app (Maple rator) (Maple rand) = Maple (\i -> rator i ++ "(" ++ rand i ++ ")")
 
-tprog :: (Mochastic repr) => repr (Measure ())
-tprog = uniform 0 1 `bind` \x -> factor (unsafeProb x)
+-------------------------------------------------------------------------
+-- Tests.  These should all be moved elsewhere!
 
--- Trivial example: importance sampling once from a uniform measure
+-- In Maple, should 'evaluate' to "\c -> 1/2*c(Unit)"
+t1 :: (Mochastic repr) => repr (Measure ())
+t1 = uniform 0 1 `bind` \x -> factor (unsafeProb x)
 
-main :: IO ()
-main = MWC.withSystemRandom (MWC.asGenST (unSample (beta 1 1) 1)) >>= print
+t2 :: Mochastic repr => repr (Measure Real)
+t2 = beta 1 1
+t3 :: Mochastic repr => repr (Measure Real)
+t3 = normal 0 10
+t4 :: Mochastic repr => repr (Measure (Real, Bool))
+t4 = beta 1 1 `bind` \bias -> bern bias `bind` \coin -> dirac (pair bias coin)
+-- t5 is "the same" as t1.
+t5 :: Mochastic repr => repr (Measure ())
+t5 = dirac unit `bind` \_ -> factor (1/2)
+
+
+tester :: Expect Maple a -> String
+tester t = unMaple (unExpect t) 0
