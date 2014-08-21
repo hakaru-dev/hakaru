@@ -74,7 +74,6 @@ class (Base repr) => Mochastic repr where
   bind         :: repr (Measure a) -> (repr a -> repr (Measure b)) ->
                   repr (Measure b)
   lebesgue     :: repr (Measure Real)
-  normal       :: repr Real -> repr Prob -> repr (Measure Real)
   factor       :: repr Prob -> repr (Measure ())
 
   uniform      :: repr Real -> repr Real -> repr (Measure Real)
@@ -83,6 +82,11 @@ class (Base repr) => Mochastic repr where
                               (unsafeProb (recip (hi - lo)))
                               0) `bind_`
                   dirac x
+  normal       :: repr Real -> repr Prob -> repr (Measure Real)
+  normal mu sd = lebesgue `bind` \x -> factor (
+        (1 / (sd * sqrt_ (2 * pi_))) *
+        exp_ (- (x - mu) * (x - mu) / (fromProb (2 * sd * sd))) ) `bind_`
+        dirac x
 
 bind_ :: (Mochastic repr) => repr (Measure a) -> repr (Measure b) ->
                              repr (Measure b)
@@ -273,12 +277,6 @@ instance (Integrate repr, Lambda repr) => Mochastic (Expect repr) where
   factor (Expect q) = Expect (lam (\c -> q * c `app` unit))
   uniform (Expect lo) (Expect hi) = Expect (lam (\f ->
     integrate lo hi (\x -> app f x / unsafeProb (hi - lo))))
-  normal (Expect mu) (Expect sd) =
-                       Expect (lam (\f -> 
-    integrate negativeInfinity infinity (\x -> 
-        let sd' = fromProb sd in
-        unsafeProb ((1 / (sd' * sqrt (2 * pi))) *
-        exp (- (x - mu) * (x - mu) / (2 * sd' * sd'))) * f `app` x ) ))
 
 instance (Lambda repr) => Lambda (Expect repr) where
   lam f = Expect (lam (unExpect . f . Expect))
@@ -390,8 +388,14 @@ t4 :: Mochastic repr => repr (Measure (Real, Bool))
 t4 = beta 1 1 `bind` \bias -> bern bias `bind` \coin -> dirac (pair bias coin)
 -- t5 is "the same" as t1.
 t5 :: Mochastic repr => repr (Measure ())
-t5 = dirac unit `bind` \_ -> factor (1/2)
-
+t5 = factor (1/2) `bind_` dirac unit
 
 tester :: Expect Maple a -> String
 tester t = unMaple (unExpect t) 0
+
+-- this can sometimes be more convenient
+tester2 :: (Expect' c ~ (b -> a)) => Maple b -> Expect Maple c -> String
+tester2 c t = unMaple ((unExpect t) `app` c) 0
+
+p1 :: String
+p1 = tester2 (Maple (\_ -> "c")) t1
