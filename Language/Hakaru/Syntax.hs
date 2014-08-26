@@ -99,6 +99,7 @@ instance BaseMochastic repr => BaseMochastic (AST repr) where
   ret  = Ret
   bind = Bind
 
+{-
 instance (Mochastic repr) => Mochastic (AST repr) where
   type Type (AST repr) a = Type repr a
   type MEq (AST repr) a = MEq repr a
@@ -111,6 +112,8 @@ eval (Real x) = real x
 eval (Unbool b x y) = unbool (eval b) (eval x) (eval y)
 eval (Categorical xps) = categorical (eval xps)
 -- ...
+
+-}
 
 -- TODO: The pretty-printing semantics
 

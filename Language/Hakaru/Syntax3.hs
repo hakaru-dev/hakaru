@@ -9,6 +9,7 @@ import Prelude hiding (Real)
 import Data.Ratio
 import qualified Data.Number.LogFloat as LF
 import qualified System.Random.MWC as MWC
+import qualified System.Random.MWC.Distributions as MWCD
 import qualified Numeric.Integration.TanhSinh as TS
 import Control.Monad.Primitive (PrimState, PrimMonad)
 import Numeric.SpecFunctions (logBeta)
@@ -22,12 +23,8 @@ data Real
 data Prob -- meaning: non-negative real number
 data Measure a
 
-type Bool_ = Either () ()
-
 class Order repr a where
-  less :: repr a -> repr a -> repr Bool_
-  default less :: (Ord (repr a), Base repr) => repr a -> repr a -> repr Bool_
-  less x y = if x < y then true else false
+  less :: repr a -> repr a -> repr Bool
 
 class (Order repr Real, Floating (repr Real),
        Order repr Prob, Fractional (repr Prob)) => Base repr where
@@ -38,6 +35,10 @@ class (Order repr Real, Floating (repr Real),
   inr        :: repr b -> repr (Either a b)
   uneither   :: repr (Either a b) -> (repr a -> repr c) ->
                                      (repr b -> repr c) -> repr c
+
+  true, false :: repr Bool
+  if_ :: repr Bool -> repr c -> repr c -> repr c
+
   unsafeProb :: repr Real -> repr Prob
   fromProb   :: repr Prob -> repr Real
 
@@ -57,20 +58,13 @@ class (Order repr Real, Floating (repr Real),
   betaFunc a b = integrate 0 1 $ \x ->
     pow_ (unsafeProb x) (a-1) * pow_ (unsafeProb (1-x)) (b-1)
 
-true, false :: (Base repr) => repr Bool_
-true  = inl unit
-false = inr unit
-
 fst_ :: (Base repr) => repr (a,b) -> repr a
 fst_ ab = unpair ab (\a _ -> a)
 
 snd_ :: (Base repr) => repr (a,b) -> repr b
 snd_ ab = unpair ab (\_ b -> b)
 
-if_ :: (Base repr) => repr Bool_ -> repr c -> repr c -> repr c
-if_ i t e = uneither i (\_ -> t) (\_ -> e)
-
-and_ :: (Base repr) => [repr Bool_] -> repr Bool_
+and_ :: (Base repr) => [repr Bool] -> repr Bool
 and_ []     = true
 and_ [b]    = b
 and_ (b:bs) = if_ b (and_ bs) false
@@ -88,6 +82,11 @@ class (Base repr) => Mochastic repr where
                               (unsafeProb (recip (hi - lo)))
                               0) `bind_`
                   dirac x
+  normal       :: repr Real -> repr Prob -> repr (Measure Real)
+  normal mu sd = lebesgue `bind` \x -> factor (
+        (1 / (sd * sqrt_ (2 * pi_))) *
+        exp_ (- (x - mu) * (x - mu) / (fromProb (2 * sd * sd))) ) `bind_`
+        dirac x
 
 bind_ :: (Mochastic repr) => repr (Measure a) -> repr (Measure b) ->
                              repr (Measure b)
@@ -103,7 +102,7 @@ beta a b = uniform 0 1 `bind` \x ->
                    pow_ (unsafeProb (1-x)) (b-1) / betaFunc a b) `bind_`
            dirac x
 
-bern :: (Mochastic repr) => repr Real -> repr (Measure Bool_)
+bern :: (Mochastic repr) => repr Real -> repr (Measure Bool)
 bern p = uniform 0 1 `bind` \u -> dirac (less u p)
 
 class (Mochastic repr) => Disintegrate repr where
@@ -132,6 +131,7 @@ newtype Sample m a = Sample { unSample :: Sample' m a }
 type family Sample' (m :: * -> *) (a :: *)
 type instance Sample' m Real         = Double
 type instance Sample' m Prob         = LF.LogFloat
+type instance Sample' m Bool         = Bool
 type instance Sample' m ()           = ()
 type instance Sample' m (a, b)       = (Sample' m a, Sample' m b)
 type instance Sample' m (Either a b) = Either (Sample' m a) (Sample' m b)
@@ -139,7 +139,8 @@ type instance Sample' m (Measure a)  = LF.LogFloat -> MWC.Gen (PrimState m) ->
                                        m (Sample' m a, LF.LogFloat)
 type instance Sample' m (a -> b)     = Sample' m a -> Sample' m b
 
-instance Order (Sample m) Real
+instance Order (Sample m) Real where
+  less (Sample a) (Sample b) = Sample $ a < b
 
 deriving instance Eq         (Sample m Real)
 deriving instance Ord        (Sample m Real)
@@ -147,7 +148,8 @@ deriving instance Num        (Sample m Real)
 deriving instance Fractional (Sample m Real)
 deriving instance Floating   (Sample m Real)
 
-instance Order (Sample m) Prob
+instance Order (Sample m) Prob where
+  less (Sample a) (Sample b) = Sample $ a < b
 
 deriving instance Eq         (Sample m Prob)
 deriving instance Ord        (Sample m Prob)
@@ -162,6 +164,9 @@ instance Base (Sample m) where
   inr (Sample b)                  = Sample (Right b)
   uneither (Sample (Left  a)) k _ = k (Sample a)
   uneither (Sample (Right b)) _ k = k (Sample b)
+  true                            = Sample True
+  false                           = Sample False
+  if_ c a b                       = Sample (if unSample c then unSample a else unSample b)
   unsafeProb (Sample x)           = Sample (LF.logFloat x)
   fromProb (Sample x)             = Sample (LF.fromLogFloat x)
   exp_ (Sample x)                 = Sample (LF.logToLogFloat x)
@@ -182,6 +187,9 @@ instance (PrimMonad m) => Mochastic (Sample m) where
   uniform (Sample lo) (Sample hi) = Sample (\p g -> do
                                       x <- MWC.uniformR (lo, hi) g
                                       return (x, p))
+  normal (Sample mu) (Sample sd) = Sample (\p g -> do
+                                      x <- MWCD.normal mu (LF.fromLogFloat sd) g
+                                      return (x, p) )
 
 instance Integrate (Sample m) where -- just for kicks -- imprecise
   integrate (Sample lo) (Sample hi)
@@ -210,6 +218,7 @@ newtype Expect repr a = Expect { unExpect :: repr (Expect' a) }
 type family Expect' (a :: *)
 type instance Expect' Real         = Real
 type instance Expect' Prob         = Prob
+type instance Expect' Bool         = Bool
 type instance Expect' ()           = ()
 type instance Expect' (a, b)       = (Expect' a, Expect' b)
 type instance Expect' (Either a b) = Either (Expect' a) (Expect' b)
@@ -244,6 +253,9 @@ instance (Base repr) => Base (Expect repr) where
                                                        (unExpect . kb . Expect))
   unsafeProb                     = Expect . unsafeProb . unExpect
   fromProb                       = Expect . fromProb   . unExpect
+  true                           = Expect true
+  false                          = Expect false
+  if_ c a b                      = Expect (if_ (unExpect c) (unExpect a) (unExpect b))
   pi_                            = Expect pi_
   exp_                           = Expect . exp_  . unExpect
   log_                           = Expect . log_  . unExpect
@@ -288,8 +300,7 @@ mapleBind f i = (x, unMaple (f (Maple (\_ -> x))) (i + 1))
   where x = "x" ++ show i
 
 instance Order Maple a where
-  less (Maple x) (Maple y) = Maple (\i -> "piecewise((" ++ x i ++ "<" ++ y i ++
-                                          "), [true,[]], [false,[]])")
+  less = mapleOp2 "<"
 
 instance Num (Maple a) where
   (+)              = mapleOp2 "+"
@@ -331,15 +342,20 @@ instance Base Maple where
   pair = mapleFun2 "Pair"
   unpair (Maple ab) k = k (Maple (\i -> "op(1, " ++ ab i ++ ")"))
                           (Maple (\i -> "op(2, " ++ ab i ++ ")"))
-  inl (Maple a) = Maple (\i -> "[true,"  ++ a i ++ "]")
-  inr (Maple b) = Maple (\i -> "[false," ++ b i ++ "]")
+  inl (Maple a) = Maple (\i -> "Left("  ++ a i ++ ")")
+  inr (Maple b) = Maple (\i -> "Right(" ++ b i ++ ")")
   uneither (Maple ab) ka kb = Maple (\i ->
     let continue :: (Maple ab -> Maple c) -> String
-        continue k = unMaple (k (Maple (const (ab i ++ "[2]")))) i
-    in "piecewise(" ++ ab i ++ "[1]," ++ continue ka ++
-                                  "," ++ continue kb ++ ")")
+        continue k = unMaple (k (Maple (const (ab i ++ ")")))) i
+    in "`if`( op(0, " ++ ab i ++ ") = Left," ++ continue ka ++
+          "`if`( op(0, " ++ ab i ++ ") = Right," ++ continue kb ++
+                                  ", error \"expected Either but got something else\"))")
   unsafeProb (Maple x) = Maple x
   fromProb   (Maple x) = Maple x
+  true = Maple (\_ -> "true")
+  false = Maple (\_ -> "false")
+  if_ (Maple c) (Maple a) (Maple b) = Maple (\i ->
+    "piecewise(" ++ c i ++ ", " ++ a i ++ ", " ++ b i ++ ")")
   sqrt_ = mapleFun1 "sqrt"
   pow_ = mapleOp2 "^"
   betaFunc (Maple a) (Maple b) = Maple (\i -> "Beta(" ++ a i ++
@@ -357,7 +373,29 @@ instance Lambda Maple where
                        in "(" ++ x ++ "->" ++ body ++ ")")
   app (Maple rator) (Maple rand) = Maple (\i -> rator i ++ "(" ++ rand i ++ ")")
 
--- Trivial example: importance sampling once from a uniform measure
+-------------------------------------------------------------------------
+-- Tests.  These should all be moved elsewhere!
 
-main :: IO ()
-main = MWC.withSystemRandom (MWC.asGenST (unSample (beta 1 1) 1)) >>= print
+-- In Maple, should 'evaluate' to "\c -> 1/2*c(Unit)"
+t1 :: (Mochastic repr) => repr (Measure ())
+t1 = uniform 0 1 `bind` \x -> factor (unsafeProb x)
+
+t2 :: Mochastic repr => repr (Measure Real)
+t2 = beta 1 1
+t3 :: Mochastic repr => repr (Measure Real)
+t3 = normal 0 10
+t4 :: Mochastic repr => repr (Measure (Real, Bool))
+t4 = beta 1 1 `bind` \bias -> bern bias `bind` \coin -> dirac (pair bias coin)
+-- t5 is "the same" as t1.
+t5 :: Mochastic repr => repr (Measure ())
+t5 = factor (1/2) `bind_` dirac unit
+
+tester :: Expect Maple a -> String
+tester t = unMaple (unExpect t) 0
+
+-- this can sometimes be more convenient
+tester2 :: (Expect' c ~ (b -> a)) => Maple b -> Expect Maple c -> String
+tester2 c t = unMaple ((unExpect t) `app` c) 0
+
+p1 :: String
+p1 = tester2 (Maple (\_ -> "c")) t1
