@@ -153,10 +153,8 @@ gamma_rng shape scl g | shape <  1.0  = do gvar1 <- gamma_rng (shape + 1) scl g
 gamma_rng shape scl g = do
     let d = shape - 1/3
         c = recip $ sqrt $ 9*d
-        -- Algorithm recommends inlining normal generator
-        -- n = normal_rng 1 c
-    v <- iterateUntil (> 0.0) $ normal_rng 1 c g
-        -- (v, g2) = until (\y -> fst y > 0.0) (\ (_, g') -> normal_rng 1 c g') (n g)
+        n = normal_rng 1 c -- Algorithm recommends inlining normal generator
+    v <- iterateUntil (> 0.0) $ n g
     let x = (v - 1) / c
         sqr = x * x
         v3 = v * v * v
@@ -229,4 +227,3 @@ dirichletLogDensity a x | all (> 0) x = sum' (zipWith logTerm a x) + logGamma (s
   where sum' = foldl' (+) 0
         logTerm b y = (b-1) * log y - logGamma b
 dirichletLogDensity _ _ = error "dirichlet: all values must be between 0 and 1"
-
