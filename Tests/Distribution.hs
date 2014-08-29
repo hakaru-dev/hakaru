@@ -10,8 +10,7 @@ import Language.Hakaru.Util.Coda
 import Language.Hakaru.Distribution hiding (choose)
 
 import Test.QuickCheck
-import qualified Test.QuickCheck.Monadic as QM
-
+import Test.QuickCheck.Monadic as QM
 import Test.Framework.Providers.QuickCheck2 (testProperty)
 
 fromDiscreteToNum = fromIntegral . fromEnum . fromDiscrete
