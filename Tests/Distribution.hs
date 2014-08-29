@@ -25,7 +25,8 @@ quickArg = quickCheckWith stdArgs {maxSuccess = 2000} (\ x -> almostEqual tol x 
         tol = 1e-5
 
 qtest = [testProperty "checking beta" $ QM.monadicIO betaTest,
-         testProperty "checking bern" $ QM.monadicIO bernTest]
+         testProperty "checking bern" $ QM.monadicIO bernTest,
+         testProperty "checking poisson" $ QM.monadicIO poissonTest]
 
 betaTest = do
   Positive a <- QM.pick arbitrary
@@ -49,3 +50,14 @@ bernTest = do
    where tol   = 1e-1
          mu p  = p
          var p = p*(1-p)
+
+poissonTest = do
+   Positive lam <- QM.pick arbitrary
+   g <- QM.run $ MWC.create
+   samples <- QM.run $ replicateM 1000 $ distSample (poisson lam) g
+   let (mean, variance) = meanVariance (map (fromIntegral . fromDiscrete) samples)
+   QM.assert $ (almostEqual tol mean     (mu  lam)) && 
+               (almostEqual tol variance (var lam))
+   where tol     = 1e-1
+         mu  lam = lam
+         var lam = lam
