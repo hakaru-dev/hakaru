@@ -66,21 +66,26 @@ library
   ghc-options:         -Wall
 
 Test-suite hakaru-test
-    type:              detailed-0.9
-    test-module:       Tests.Tests
+    type:              exitcode-stdio-1.0
+    main-is:           Tests/Tests.hs
     other-modules:     Tests.ImportanceSampler,
                        Tests.Models,
                        Tests.Metropolis
     build-depends:     base, Cabal >= 1.10, 
-                       -- QuickCheck, 
+                       QuickCheck, 
                        HUnit,
+                       test-framework,
+                       test-framework-quickcheck2,
+                       test-framework-hunit,
                        random >=1.0 && <1.1,
-                       --cabal-test-quickcheck >= 0.1.2,
-                       --cabal-test-hunit >= 0.1.0,
                        pretty >=1.1 && <1.2,
                        containers >=0.5 && <0.6,
                        logfloat >=0.12 && <0.13,
-                       math-functions >=0.1 && <0.2
+                       math-functions >=0.1 && <0.2,
+                       statistics >=0.11 && <0.14,
+                       hmatrix >=0.16 && <0.17,
+                       vector >=0.10 && <0.11,
+                       hakaru >= 0.1.3
     default-language:  Haskell2010
 
 benchmark bench-all

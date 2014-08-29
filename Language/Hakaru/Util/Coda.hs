@@ -11,7 +11,7 @@ effectiveSampleSize samples = n / (1 + 2*(G.sum rho))
         cov = autocovariance vec
         rho = G.map (/ G.head cov) cov
 
-meanVariance :: [Double] -> (Double,Double)
+meanVariance :: Fractional a => [a] -> (a,a)
 meanVariance lst = (av,sigma2)
   where
     n   = fromIntegral $ length lst

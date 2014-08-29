@@ -1,29 +1,24 @@
-module Tests.Tests ( tests ) where
+module Main where
 
 import Prelude hiding (Real)
 
 import qualified Tests.ImportanceSampler as IS
 import qualified Tests.Metropolis as MH
+import qualified Tests.Distribution as D
 
 import Language.Hakaru.Syntax2
 import Language.Hakaru.Lambda
 import qualified Language.Hakaru.Types as T
 
-import Distribution.TestSuite as C
--- import Distribution.TestSuite.HUnit as H
+import Test.Framework (defaultMain, testGroup)
+import Test.Framework.Providers.HUnit
 
-tests :: IO [Test]
-tests = return [ 
-  test "foo" Pass,
-  test "bar" (Fail "oops!")
-  ]
+import Test.HUnit
 
-test :: String -> Result -> Test
-test name r = Test t where
-  t = TestInstance {
-      run = return (Finished r)
-    , name = name
-    , tags = []
-    , options = []
-    , setOption = \_ _ -> Right t
-  }
+tests = [
+        testGroup "Distribution checks" D.qtest,   
+        testCase "alwaysPass" (1 @?= 1)
+        --testCase "alwaysFail" (error "Fail!")
+    ]
+
+main = defaultMain tests
