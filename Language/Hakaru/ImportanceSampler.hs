@@ -13,7 +13,8 @@ import Language.Hakaru.Types
 import Language.Hakaru.Mixture (Prob, empty, point, Mixture(..))
 import Language.Hakaru.Sampler (Sampler, deterministic, smap, sbind)
 
-import System.Random
+import qualified System.Random.MWC as MWC
+import Control.Monad.Primitive
 import Data.Monoid
 import Data.Dynamic
 import System.IO.Unsafe
@@ -40,10 +41,9 @@ updateMixture (Just cond) dist =
       Just y  -> deterministic (point (fromDensity y) density)
           where density = LF.logToLogFloat $ logDensity dist y
       Nothing -> error "did not get data from dynamic source"
-updateMixture Nothing     dist = \g0 -> let (e, g) = distSample dist g0
-                                        in  (point (fromDensity e) 1, g)
+updateMixture Nothing     dist = \g -> do e <- distSample dist g
+                                          return $ point (fromDensity e) 1
     
-
 conditioned, unconditioned :: Typeable a => Dist a -> Measure a
 conditioned   dist = Measure (\(cond:conds) -> smap (\a->(a,conds))
                                                (updateMixture cond    dist))
@@ -64,21 +64,22 @@ condition m b' =
 finish :: Mixture (a, [Cond]) -> Mixture a
 finish (Mixture m) = Mixture (M.mapKeysMonotonic (\(a,[]) -> a) m)
 
-empiricalMeasure :: (Ord a) => Int -> Measure a -> [Cond] -> IO (Mixture a)
-empiricalMeasure !n measure conds = go n empty where
-  once = getStdRandom (unMeasure measure conds)
-  go 0 m = return m
-  go k m = once >>= \result -> go (k - 1) $! mappend m (finish result)
+empiricalMeasure :: (PrimMonad m, Ord a) => Int -> Measure a -> [Cond] -> m (Mixture a)
+empiricalMeasure !n measure conds = do
+  gen <- MWC.create
+  go n gen empty
+    where once = unMeasure measure conds
+          go 0 _ m = return m
+          go k g m = once g >>= \result -> go (k - 1) g $! mappend m (finish result)
 
-sample :: Measure a -> [Cond] -> IO [(a, Prob)]
-sample measure conds = do
-  u <- once
+sample :: Measure a -> [Cond] -> PRNG IO -> IO [(a, Prob)]
+sample measure conds gen = do
+  u <- once gen
   let x = mixToTuple (finish u)
-  xs <- unsafeInterleaveIO $ sample measure conds
+  xs <- unsafeInterleaveIO $ sample measure conds gen
   return (x : xs)
- where once = getStdRandom (unMeasure measure conds)
+ where once = unMeasure measure conds
        mixToTuple = head . M.toList . unMixture
 
 logit :: Floating a => a -> a
 logit !x = 1 / (1 + exp (- x))
-

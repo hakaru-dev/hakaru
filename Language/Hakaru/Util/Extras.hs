@@ -2,13 +2,13 @@
   Functions on lists and sequences.
   Some of the functions follow the style of Data.Random.Extras 
   (from the random-extras package), but are written for use with
-  PRNGs from System.Random rather than from the random-fu package.
+  PRNGs from the "mwc-random" package rather than from the "random-fu" package.
 -}
 
 module Language.Hakaru.Util.Extras where
 
 import qualified Data.Sequence as S
-import System.Random
+import qualified System.Random.MWC as MWC
 import Data.Maybe
 import qualified Data.Foldable as F
 
@@ -18,10 +18,9 @@ extract s i | S.null r = Nothing
     where (a, r) = S.splitAt i s 
           (b S.:< c) = S.viewl r
 
-randomExtract :: S.Seq a -> IO (Maybe (S.Seq a, a))
-randomExtract s = do
-  g <- newStdGen
-  let (i,_) = randomR (0, S.length s - 1) g
+randomExtract :: S.Seq a -> MWC.GenIO -> IO (Maybe (S.Seq a, a))
+randomExtract s g = do
+  i <- MWC.uniformR (0, S.length s - 1) g
   return $ extract s i
 
 {-| 
@@ -30,15 +29,17 @@ randomExtract s = do
 -}
 
 randomElems :: Ord a => S.Seq a -> Int -> IO (S.Seq a)
-randomElems = randomElemsTR S.empty
+randomElems s n = do 
+  g <- MWC.create
+  randomElemsTR S.empty s g n
 
-randomElemsTR :: Ord a => S.Seq a -> S.Seq a -> Int -> IO (S.Seq a)
-randomElemsTR ixs s n
+randomElemsTR :: Ord a => S.Seq a -> S.Seq a -> MWC.GenIO -> Int -> IO (S.Seq a)
+randomElemsTR ixs s g n
     | n == S.length s = return $ S.unstableSort s
-    | n == 1 = do (_,i) <- fmap fromJust (randomExtract s)
+    | n == 1 = do (_,i) <- fmap fromJust (randomExtract s g)
                   return.S.unstableSort $ i S.<| ixs
-    | otherwise = do (s',i) <- fmap fromJust (randomExtract s)
-                     (randomElemsTR $! (i S.<| ixs)) s' (n-1)
+    | otherwise = do (s',i) <- fmap fromJust (randomExtract s g)
+                     (randomElemsTR $! (i S.<| ixs)) s' g (n-1)
 
 {-|
   Chop a sequence at the given indices. 

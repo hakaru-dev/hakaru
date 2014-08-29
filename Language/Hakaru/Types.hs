@@ -1,10 +1,13 @@
-{-# LANGUAGE RankNTypes, BangPatterns, DeriveDataTypeable, StandaloneDeriving #-}
+{-# LANGUAGE RankNTypes, DeriveDataTypeable, StandaloneDeriving #-}
 {-# OPTIONS -W #-}
 
 module Language.Hakaru.Types where
 
 import Data.Dynamic
-import System.Random
+import Control.Monad.Primitive
+import qualified System.Random.MWC as MWC
+
+type PRNG m = MWC.Gen (PrimState m)
 
 -- Basic types for conditioning and conditioned sampler
 data Density a = Lebesgue !a | Discrete !a deriving Typeable
@@ -24,6 +27,5 @@ fromDensity (Lebesgue a) = a
 
 type LogLikelihood = Double
 data Dist a = Dist {logDensity :: Density a -> LogLikelihood,
-                    distSample :: forall g.
-                                  RandomGen g => g -> (Density a, g)}
+                    distSample :: (PrimMonad m) => PRNG m -> m (Density a)}
 deriving instance Typeable1 Dist

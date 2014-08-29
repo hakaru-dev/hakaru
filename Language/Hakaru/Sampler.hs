@@ -5,22 +5,24 @@ module Language.Hakaru.Sampler (Sampler, deterministic, sbind, smap) where
 
 import Language.Hakaru.Mixture (Mixture, mnull, empty, scale, point)
 import Language.Hakaru.Distribution (choose)
-import System.Random (RandomGen)
+import Language.Hakaru.Types
+import Control.Monad.Primitive
 
 -- Sampling procedures that produce one sample
 
-type Sampler a = forall g. (RandomGen g) => g -> (Mixture a, g)
+type Sampler a = PrimMonad m => PRNG m -> m (Mixture a)
 
 deterministic :: Mixture a -> Sampler a
-deterministic m g = (m, g)
+deterministic m _ = return m
 
 sbind :: Sampler a -> (a -> Sampler b) -> Sampler b
-sbind s k g0 =
-  case s g0 of { (m1, g1) ->
-    if mnull m1 then (empty, g1) else
-      case choose m1 g1 of { (a, v, g2) ->
-        case k a g2 of { (m2, g) ->
-          (scale v m2, g) } } }
+sbind s k g = do
+  m1 <- s g
+  if mnull m1 then 
+      return empty
+  else do (a, v) <- choose m1 g
+          m2 <- k a g
+          return (scale v m2)
 
 smap :: (a -> b) -> Sampler a -> Sampler b
 smap f s = sbind s (\a -> deterministic (point (f a) 1))

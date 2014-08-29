@@ -39,8 +39,8 @@ class Distrib d where
   bern        :: Real d -> d Bool
   beta        :: Real d -> Real d -> d Double
   normal, uniform :: Real d -> Real d -> d (Real d)
-  poisson     :: Real d -> d Integer
-  uniformD    :: Integer -> Integer -> d Integer
+  poisson     :: Real d -> d Int
+  uniformD    :: Int -> Int -> d Int
 
 -- Measures m 'over' distributions d
 class (Monad m) => Meas m where

@@ -72,8 +72,8 @@ class BaseMochastic repr => Mochastic repr where
                  nil
   normal, uniform
               :: repr Real -> repr Real -> repr (Dist Real)
-  poisson     :: repr Real -> repr (Dist Integer)
-  uniformD    :: repr Integer -> repr Integer -> repr (Dist Integer)
+  poisson     :: repr Real -> repr (Dist Int)
+  uniformD    :: repr Int-> repr Int -> repr (Dist Int)
 
 -- TODO: The initial (AST) "semantics"
 -- (Hey Oleg, is there any better way to deal with the Type constraint, so that
@@ -131,7 +131,7 @@ type instance IS' (Either a b) = Either (IS' a) (IS' b)
 type instance IS' ()           = ()
 type instance IS' Bool         = Bool
 type instance IS' Real         = Double
-type instance IS' Integer      = Integer
+-- type instance IS' Integer      = Integer
 type instance IS' Prob         = LF.LogFloat
 type instance IS' Int          = Int
 
@@ -181,7 +181,7 @@ type instance MH' (a, b)       = (MH' a, MH' b)
 type instance MH' (Either a b) = Either (MH' a) (MH' b)
 type instance MH' ()           = ()
 type instance MH' Bool         = Bool
-type instance MH' Integer      = Integer
+-- type instance MH' Integer      = Integer
 type instance MH' Real         = Double
 type instance MH' Prob         = T.LogLikelihood
 type instance MH' Int          = Int
