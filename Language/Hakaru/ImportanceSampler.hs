@@ -72,11 +72,12 @@ empiricalMeasure !n measure conds = do
           go 0 _ m = return m
           go k g m = once g >>= \result -> go (k - 1) g $! mappend m (finish result)
 
-sample :: Measure a -> [Cond] -> PRNG IO -> IO [(a, Prob)]
-sample measure conds gen = do
+sample :: Measure a -> [Cond] -> IO [(a, Prob)]
+sample measure conds = do
+  gen <- MWC.create
   u <- once gen
   let x = mixToTuple (finish u)
-  xs <- unsafeInterleaveIO $ sample measure conds gen
+  xs <- unsafeInterleaveIO $ sample measure conds 
   return (x : xs)
  where once = unMeasure measure conds
        mixToTuple = head . M.toList . unMixture
