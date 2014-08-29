@@ -6,12 +6,15 @@
 module Language.Hakaru.Metropolis where
 
 import qualified System.Random.MWC as MWC
+import Control.Monad
 import Control.Monad.Primitive
 import Data.Dynamic
 import Data.Maybe
 
 import qualified Data.Map.Strict as M
 import Language.Hakaru.Types
+
+import System.IO.Unsafe
 
 {-
 
@@ -160,8 +163,8 @@ resample name db ob (XRP (x, dist)) g =
            db' = M.insert name newEntry db
        return (db', l', fwd, rvs)
 
-transition :: (Typeable a, PrimMonad m) => Measure a -> [Cond]
-           -> a -> Database -> LL -> PRNG m -> m [a]
+transition :: (Typeable a) => Measure a -> [Cond]
+           -> a -> Database -> LL -> PRNG IO -> IO [a]
 transition prog cds v db ll g =
   do let dbSize = M.size db
          -- choose an unconditioned choice
@@ -176,9 +179,9 @@ transition prog cds v db ll g =
              + llStale - llFresh
      u <- MWC.uniformR (0 :: Double, 1) g
      if (log u < a) then
-         (transition prog cds v' db2 llTotal g) >>= return.((:) v')
+         liftM ((:) v') $ unsafeInterleaveIO (transition prog cds v' db2 llTotal g)
      else
-         (transition prog cds v db ll g) >>= return.((:) v)
+         liftM ((:) v) $ unsafeInterleaveIO (transition prog cds v db ll g)
 
 mcmc :: Typeable a => Measure a -> [Cond] -> IO [a]
 mcmc prog cds = do

@@ -3,7 +3,7 @@
 module Tests.Distribution where
 
 import Control.Monad
-import System.Random
+import qualified System.Random.MWC as MWC
 
 import Language.Hakaru.Types
 import Language.Hakaru.Util.Coda
@@ -30,7 +30,8 @@ qtest = [testProperty "checking beta" $ QM.monadicIO betaTest,
 betaTest = do
   Positive a <- QM.pick arbitrary
   Positive b <- QM.pick arbitrary
-  samples <- QM.run $ replicateM 1000 $ getStdRandom $ distSample (beta a b)
+  g <- QM.run $ MWC.create
+  samples <- QM.run $ replicateM 1000 $ distSample (beta a b) g
   let (mean, variance) = meanVariance (map fromLebesgue samples)
   QM.assert $ (almostEqual tol mean     (mu  a b)) && 
               (almostEqual tol variance (var a b))
@@ -40,7 +41,8 @@ betaTest = do
 
 bernTest = do
    p <- QM.pick $ choose (0, 1)
-   samples <- QM.run $ replicateM 1000 $ getStdRandom $ distSample (bern p)
+   g <- QM.run $ MWC.create
+   samples <- QM.run $ replicateM 1000 $ distSample (bern p) g
    let (mean, variance) = meanVariance (map fromDiscreteToNum samples)
    QM.assert $ (almostEqual tol mean     (mu  p)) && 
                (almostEqual tol variance (var p))

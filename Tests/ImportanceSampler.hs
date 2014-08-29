@@ -7,6 +7,7 @@ import Language.Hakaru.Types
 import Language.Hakaru.Lambda
 import Language.Hakaru.Distribution
 import Language.Hakaru.ImportanceSampler
+import qualified System.Random.MWC as MWC
 
 -- import Test.QuickCheck.Monadic
 import Tests.Models
@@ -14,7 +15,7 @@ import Tests.Models
 -- Some test programs in our language
 
 test_mixture :: IO ()
-test_mixture = sample prog_mixture conds >>=
+test_mixture = MWC.create >>= sample prog_mixture conds >>=
                print . take 10 >>
                putChar '\n' >>
                empiricalMeasure 1000 prog_mixture conds >>=
@@ -38,7 +39,7 @@ prog_dbn = do
   return s2
 
 test_dbn :: IO ()
-test_dbn = sample prog_dbn conds >>=
+test_dbn = MWC.create >>= sample prog_dbn conds >>=
            print . take 10 >>
            putChar '\n' >>
            empiricalMeasure 1000 prog_dbn conds >>=
@@ -59,7 +60,7 @@ loop_hmm !numLoops s = do
                       else return s
 
 test_hmm :: IO ()
-test_hmm = sample (prog_hmm 2) conds >>=
+test_hmm = MWC.create >>= sample (prog_hmm 2) conds >>=
            print . take 10 >>
            putChar '\n' >>
            empiricalMeasure 1000 (prog_hmm 2) conds >>=
@@ -82,7 +83,7 @@ prog_carRoadModel = do
   return (z4, z3)
 
 test_carRoadModel :: IO ()
-test_carRoadModel = sample prog_carRoadModel conds >>=
+test_carRoadModel = MWC.create >>= sample prog_carRoadModel conds >>=
                     print . take 10 >>
                     putChar '\n' >>
                     empiricalMeasure 1000 prog_carRoadModel conds >>=
@@ -103,7 +104,7 @@ prog_categorical = do
   return rain
 
 test_categorical :: IO ()
-test_categorical = sample prog_categorical conds >>=
+test_categorical = MWC.create >>= sample prog_categorical conds >>=
                    print . take 10 >>
                    putChar '\n' >>
                    empiricalMeasure 1000 prog_categorical conds >>=
