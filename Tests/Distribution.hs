@@ -27,6 +27,7 @@ quickArg = quickCheckWith stdArgs {maxSuccess = 2000} (\ x -> almostEqual tol x 
 
 qtest = [testProperty "checking beta" $ QM.monadicIO betaTest,
          testProperty "checking bern" $ QM.monadicIO bernTest,
+         testProperty "checking gamma" $ QM.monadicIO gammaTest,
          testProperty "checking normal" $ QM.monadicIO normalTest,
          testProperty "checking laplace" $ QM.monadicIO laplaceTest,
          testProperty "checking poisson" $ QM.monadicIO poissonTest]
@@ -90,3 +91,16 @@ laplaceTest = do
               (almostEqual tol variance (var sd))
   where tol = 1e-1
         var sd = 2*(sq sd)
+
+gammaTest = do
+  a <- QM.pick $ choose (1, 10)
+  b <- QM.pick $ choose (1, 10)
+  g <- QM.run $ MWC.create
+  samples <- QM.run $ replicateM 1000 $ distSample (gamma a b) g
+  let (mean, variance) = meanVariance (map fromLebesgue samples)
+  QM.assert $ (almostEqual tol mean     (mu  a b)) && 
+              (almostEqual tol variance (var a b))
+  where tol     = 1e-1
+        mu a b  = a * b
+        var a b = a * (b * b)
+
