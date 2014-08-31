@@ -16,8 +16,9 @@ import Test.Framework.Providers.QuickCheck2 (testProperty)
 fromDiscreteToNum = fromIntegral . fromEnum . fromDiscrete
 sq x = x * x
 
-almostEqual :: (Num a, Ord a) => a -> a -> a -> Bool
-almostEqual tol x y = abs (x - y) < tol
+almostEqual :: (Fractional a, Ord a) => a -> a -> a -> Bool
+almostEqual tol x y | abs (x - y) < tol = True
+almostEqual tol x y = (abs $ (x - y) / (x + y)) < tol
 
 quickArg :: IO ()
 quickArg = quickCheckWith stdArgs {maxSuccess = 2000} (\ x -> almostEqual tol x x)
@@ -26,6 +27,7 @@ quickArg = quickCheckWith stdArgs {maxSuccess = 2000} (\ x -> almostEqual tol x 
 
 qtest = [testProperty "checking beta" $ QM.monadicIO betaTest,
          testProperty "checking bern" $ QM.monadicIO bernTest,
+         testProperty "checking normal" $ QM.monadicIO normalTest,
          testProperty "checking poisson" $ QM.monadicIO poissonTest]
 
 betaTest = do
@@ -52,7 +54,7 @@ bernTest = do
          var p = p*(1-p)
 
 poissonTest = do
-   Positive lam <- QM.pick arbitrary
+   lam <- QM.pick (choose (1, 10))
    g <- QM.run $ MWC.create
    samples <- QM.run $ replicateM 1000 $ distSample (poisson lam) g
    let (mean, variance) = meanVariance (map (fromIntegral . fromDiscrete) samples)
@@ -61,3 +63,16 @@ poissonTest = do
    where tol     = 1e-1
          mu  lam = lam
          var lam = lam
+
+normalTest = do
+  mu <- QM.pick arbitrary
+  sd <- QM.pick $ choose (1, 10)
+  g <- QM.run $ MWC.create
+  let nsamples = floor (1000 * sd)  -- larger standard deviations need more samples
+                                    -- to be shown as correct
+  samples <- QM.run $ replicateM nsamples $ distSample (normal mu sd) g
+  let (mean, variance) = meanVariance (map fromLebesgue samples)
+  QM.assert $ (almostEqual tol mean     mu ) && 
+              (almostEqual tol variance (var sd))
+  where tol = 1e-1
+        var sd = sq sd
