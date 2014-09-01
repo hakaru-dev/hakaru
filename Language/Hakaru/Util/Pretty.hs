@@ -1,11 +1,11 @@
-module Util.Pretty (Pretty(..)) where
+module Language.Hakaru.Util.Pretty (Pretty(..)) where
 
 import Text.PrettyPrint
 import Text.Show.Functions
 import Data.Ratio (Ratio, numerator, denominator)
 import qualified Data.Map as M
 import qualified Data.Set as S
-import Util.Finite
+import Language.Hakaru.Util.Finite
 
 class (Show a) => Pretty a where
     pretty :: a -> Doc
