@@ -23,8 +23,15 @@ t5 := (x0->(x1->((1/2)*x1(Unit)))((x1->(x2->x2(Unit))(x0)))):
 read "SLO.mpl":
 
 # for now, just print the results to the screen
-SLO(t1);
-SLO(t2);
-SLO(t3);
-SLO(t4);
-SLO(t5);
+r1 := SLO(t1);
+r2 := SLO(t2);
+r3 := SLO(t3);
+r4 := SLO(t4);
+r5 := SLO(t5);
+
+# printlevel := 10;
+SLO:-AST(r1);
+SLO:-AST(r2);
+SLO:-AST(r3);
+SLO:-AST(r4);
+SLO:-AST(r5);
