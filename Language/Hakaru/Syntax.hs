@@ -3,7 +3,7 @@
              StandaloneDeriving, GeneralizedNewtypeDeriving #-}
 {-# OPTIONS -W #-}
 
-module Language.Hakaru.Syntax3 where
+module Language.Hakaru.Syntax where
 
 import Prelude hiding (Real)
 import Data.Ratio

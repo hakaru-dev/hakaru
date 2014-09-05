@@ -3,7 +3,7 @@
              StandaloneDeriving, GeneralizedNewtypeDeriving #-}
 {-# OPTIONS -W #-}
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax3
+import Language.Hakaru.Syntax
 
 -- In Maple, should 'evaluate' to "\c -> 1/2*c(Unit)"
 t1 :: (Mochastic repr) => repr (Measure ())
