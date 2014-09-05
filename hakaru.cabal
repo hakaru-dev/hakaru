@@ -22,7 +22,7 @@ library
                        Language.Hakaru.Arrow,
                        Language.Hakaru.Mixture,
                        Language.Hakaru.Sampler,
-                       Language.Hakaru.Syntax,
+                       -- Language.Hakaru.Syntax,
                        Language.Hakaru.Syntax2,
                        Language.Hakaru.Syntax3,
                        Language.Hakaru.ImportanceSampler,
