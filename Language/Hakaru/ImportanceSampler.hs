@@ -75,12 +75,14 @@ empiricalMeasure !n measure conds = do
 sample :: Measure a -> [Cond] -> IO [(a, Prob)]
 sample measure conds = do
   gen <- MWC.create
-  u <- once gen
-  let x = mixToTuple (finish u)
-  xs <- unsafeInterleaveIO $ sample measure conds 
-  return (x : xs)
+  unsafeInterleaveIO $ sampleNext gen
  where once = unMeasure measure conds
        mixToTuple = head . M.toList . unMixture
+       sampleNext g = do
+          u <- once g
+          let x = mixToTuple (finish u)
+          xs <- unsafeInterleaveIO $ sampleNext g
+          return (x : xs)
 
 logit :: Floating a => a -> a
 logit !x = 1 / (1 + exp (- x))
