@@ -26,8 +26,6 @@ Shortcomings of this implementation
 
 -}
 
-type DistVal = Dynamic
- 
 data XRP where
   XRP :: Typeable e => (Density e, Dist e) -> XRP
 
