@@ -187,7 +187,7 @@ beta_rng a b g = do ga <- gamma_rng a 1 g
                     return $ ga / (ga + gb)
 
 betaLogDensity :: Double -> Double -> Double -> Double
-betaLogDensity _ _ x | x < 0 || x > 1 = error "beta: value must be between 0 and 1"
+betaLogDensity _ _ x | x < 0 || x > 1 = error $ "beta: value must be between 0 and 1" ++ show x
 betaLogDensity a b _ | a <= 0 || b <= 0 = error "beta: parameters must be positve" 
 betaLogDensity a b x = (logGamma (a + b)
                         - logGamma a
