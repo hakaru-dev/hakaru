@@ -44,3 +44,16 @@ tester2 c t = unMaple ((unExpect t) `app` c) 0
 p1 :: String
 p1 = tester2 (Maple (\_ -> "c")) t1
 
+-- over time, this should be 'upgraded' to actually generate a proper
+-- Maple test file
+main :: IO ()
+main = do
+  print $ tester t1
+  print $ tester t2
+  print $ tester t3
+  print $ tester t4
+  print $ tester t5
+  print $ tester t6
+  print $ tester t7
+  print $ tester t8
+  print $ tester t9
