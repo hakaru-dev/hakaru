@@ -28,8 +28,11 @@ t6 = dirac 5
 t7 :: Mochastic repr => repr (Measure Real)
 t7 = uniform 0 1 `bind` \x -> factor (unsafeProb (x+1)) `bind_` dirac (x*x)
 
+-- For sampling efficiency (to keep importance weights at or close to 1),
+-- t8 below should read back to uses of "normal", not uses of "lebesgue"
+-- then "factor".  (For exact roundtripping, Maple "attributes" might help.)
 t8 :: Mochastic repr => repr (Measure (Real, Real))
-t8 = normal 0 10 `bind` \x -> normal 5 20 `bind` \y -> dirac (pair x y)
+t8 = normal 0 10 `bind` \x -> normal x 20 `bind` \y -> dirac (pair x y)
 
 t9 :: Mochastic repr => repr (Measure Real)
 t9 = lebesgue `bind` \x -> factor (if_ (and_ [less 3 x, less x 7]) (1/2) 0) `bind_` dirac x
