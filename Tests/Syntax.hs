@@ -2,7 +2,7 @@
              FlexibleContexts, FlexibleInstances, DefaultSignatures,
              StandaloneDeriving, GeneralizedNewtypeDeriving #-}
 {-# OPTIONS -W #-}
-import Prelude hiding (Real)
+import Prelude hiding (Real, repeat)
 import Language.Hakaru.Syntax
 
 pair1fst :: (Mochastic repr) => repr (Measure (Bool, Real))
@@ -14,6 +14,16 @@ pair1snd :: (Mochastic repr) => repr (Measure (Bool, Real))
 pair1snd =  bern 0.5 `bind` \coin ->
             if_ coin (beta 2 1) (beta 1 2) `bind` \bias ->
             dirac (pair coin bias)
+
+pair2fst :: (MochasticWithRepeat repr) => repr Real -> repr (Measure Real)
+pair2fst flips =  beta 1 1 `bind` \bias ->
+                  repeat flips (bern bias) `bind_`
+                  dirac bias
+
+pair2snd :: (MochasticWithRepeat repr) => repr Real -> repr (Measure Real)
+pair2snd flips =  bern 0.5 `bind` \coin ->
+                  if_ coin (beta (1+flips) 1) (beta 1 (1+flips)) `bind` \bias ->
+                  dirac bias
 
 -- In Maple, should 'evaluate' to "\c -> 1/2*c(Unit)"
 t1 :: (Mochastic repr) => repr (Measure ())
