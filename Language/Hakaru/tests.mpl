@@ -17,8 +17,10 @@ t4 := (x0->(x1->(x2->int((x2(x3)/(1-0)),x3=0..1))
 # t5 = factor (1/2) `bind_` dirac unit
 t5 := (x0->(x1->((1/2)*x1(Unit)))((x1->(x2->x2(Unit))(x0)))):
 
+# t6 = dirac 5
 t6 := (x0->x0(5));
 
+# t7 =  uniform 0 1 `bind` \x -> factor (unsafeProb (x+1)) `bind_` dirac (x*x)
 t7 := (x0->(x1->int((x1(x2)/(1-0)),x2=0..1))
            ((x1->(x2->(x3->((x1+1)*x3(Unit)))
                       ((x3->(x4->x4((x1*x1)))(x2))))(x0))));
