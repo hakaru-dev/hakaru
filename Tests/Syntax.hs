@@ -1,6 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses, TypeFamilies,
              FlexibleContexts, FlexibleInstances, DefaultSignatures,
-             StandaloneDeriving, GeneralizedNewtypeDeriving #-}
+             StandaloneDeriving, GeneralizedNewtypeDeriving,
+             Rank2Types #-}
 {-# OPTIONS -W #-}
 import Prelude hiding (Real, repeat)
 import Language.Hakaru.Syntax
@@ -14,6 +15,54 @@ pair1snd :: (Mochastic repr) => repr (Measure (Bool, Real))
 pair1snd =  bern 0.5 `bind` \coin ->
             if_ coin (beta 2 1) (beta 1 2) `bind` \bias ->
             dirac (pair coin bias)
+
+pair15fst :: (Mochastic repr) => repr (Measure ((Bool, Bool), Real))
+pair15fst =  beta 1 1 `bind` \bias ->
+             bern bias `bind` \coin1 ->
+             bern bias `bind` \coin2 ->
+             dirac (pair (pair coin1 coin2) bias)
+
+pair15snd :: (Mochastic repr) => repr (Measure ((Bool, Bool), Real))
+pair15snd =  bern 0.5 `bind` \coin1 ->
+             bern (if_ coin1 (2/3) (1/3)) `bind` \coin2 ->
+             beta (1 + f coin1 + f coin2)
+                  (1 + g coin1 + g coin2) `bind` \bias ->
+             dirac (pair (pair coin1 coin2) bias)
+  where f b = if_ b 1 0
+        g b = if_ b 0 1
+
+type Cont repr a = forall w. (a -> repr (Measure w)) -> repr (Measure w)
+
+pair18fst :: (Mochastic repr) => Int -> Cont repr ([repr Bool], repr Real)
+-- REQUIREMENT: pair15fst = pair18fst 2 (\([coin1,coin2],bias) -> dirac (pair (pair coin1 coin2) bias))
+pair18fst = undefined -- to be defined using replicateH
+
+pair18snd :: (Mochastic repr) => Int -> Cont repr ([repr Bool], repr Real)
+pair18snd = undefined -- to be defined using explicit recursion
+
+replicateH :: (Mochastic repr) => Int -> repr (Measure a) -> Cont repr [repr a]
+replicateH 0 _ k = k []
+replicateH n m k = m `bind` \x -> replicateH (n-1) m (\xs -> k (x:xs))
+
+twice :: (Mochastic repr) => repr (Measure a) -> Cont repr (repr a, repr a)
+twice m k = m `bind` \x ->
+            m `bind` \y ->
+            k (x, y)
+
+pair3fst, pair3snd, pair3trd :: (Mochastic repr) => repr Prob -> [repr Bool] -> repr (Measure ())
+pair3fst bias [b1,b2,b3] =
+  factor (if_ b1 bias (1-bias)) `bind_`
+  factor (if_ b2 bias (1-bias)) `bind_`
+  factor (if_ b3 bias (1-bias))
+pair3snd bias [b1,b2,b3] =
+  factor (if_ b1 bias (1-bias)
+        * if_ b2 bias (1-bias)
+        * if_ b3 bias (1-bias))
+pair3trd bias [b1,b2,b3] =
+  factor (pow_ bias     (if_ b1 1 0 + if_ b2 1 0 + if_ b3 1 0)
+        * pow_ (1-bias) (if_ b1 0 1 + if_ b2 0 1 + if_ b3 0 1))
+
+{- pair2fst,pair2snd doesn't work yet for lack of (1) repeat facility in Hakaru; (2) a generalization of said facility that makes non-iid choices -}
 
 pair2fst :: (MochasticWithRepeat repr) => repr Real -> repr (Measure Real)
 pair2fst flips =  beta 1 1 `bind` \bias ->
