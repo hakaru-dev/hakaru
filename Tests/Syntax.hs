@@ -5,6 +5,16 @@
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax
 
+pair1fst :: (Mochastic repr) => repr (Measure (Bool, Real))
+pair1fst =  beta 1 1 `bind` \bias ->
+            bern bias `bind` \coin ->
+            dirac (pair coin bias)
+
+pair1snd :: (Mochastic repr) => repr (Measure (Bool, Real))
+pair1snd =  bern 0.5 `bind` \coin ->
+            if_ coin (beta 2 1) (beta 1 2) `bind` \bias ->
+            dirac (pair coin bias)
+
 -- In Maple, should 'evaluate' to "\c -> 1/2*c(Unit)"
 t1 :: (Mochastic repr) => repr (Measure ())
 t1 = uniform 0 1 `bind` \x -> factor (unsafeProb x)
