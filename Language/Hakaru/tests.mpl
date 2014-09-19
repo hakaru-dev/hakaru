@@ -54,7 +54,7 @@ r7 := SLO(t7);
 r8 := SLO(t8);
 r9 := SLO(t9);
 
-# printlevel := 10;
+# printlevel := 30;
 SLO:-AST(r1);
 SLO:-AST(r2);
 SLO:-AST(r3);
