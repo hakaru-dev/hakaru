@@ -55,7 +55,7 @@ SLO := module ()
             error "polynomial in c:", ee
           end if;
         else
-          error "no binders, but still not a monomial?", ee
+          error "no binders, but still not a polynomial?", ee
         end if;
       else
         if type(e, 'specfunc'(anything, {'int','Int'})) then
@@ -70,8 +70,13 @@ SLO := module ()
           else
               Bind(Lebesgue(var=rng), ToAST(ee, cs))
           end if;
+        elif type(e, 'specfunc'(anything, {'sum','Sum'})) then
+            error "sums not handled yet"
         else
-          error "only integrals currently work", e
+          # mighty hack like only Maple allows.
+          fact := eval(e, {'int'=1, 'Int'=1, 'sum'=1, 'Sum'=1});
+          ee := normal(e/fact); # should ASSERT that ee is not a binder!
+          ToAST(subs(op(1,ee) = fact*op(1,ee), ee), cs)
         end if;
       end if;
     end if;
