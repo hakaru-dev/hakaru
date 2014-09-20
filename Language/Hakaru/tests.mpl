@@ -36,9 +36,8 @@ t8 := (x0->(x1->(x2->int(x2(x3),x3=-infinity..infinity))
                   ((x3->(x4->x4(Pair(x1, x3)))(x2))))(x0))));
 
 t9 := (x0->(x1->int(x1(x2),x2=-infinity..infinity))
-           ((x1->(x2->
-              (x3->(piecewise(piecewise((3<x1), (x1<7), false), (1/2), 0)*x3(Unit)))
-              ((x3->(x4->x4(x1))(x2))))(x0))));
+           ((x1->(x2->(x3->(piecewise(And((3<x1), (x1<7)), (1/2), 0)*x3(Unit)))
+                      ((x3->(x4->x4(x1))(x2))))(x0))));
 
 # for now, just read the code in.
 read "SLO.mpl":

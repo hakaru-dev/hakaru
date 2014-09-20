@@ -13,6 +13,7 @@ import qualified System.Random.MWC.Distributions as MWCD
 import qualified Numeric.Integration.TanhSinh as TS
 import Control.Monad.Primitive (PrimState, PrimMonad)
 import Numeric.SpecFunctions (logBeta)
+import Data.List (intersperse)
 
 -- A small probabilistic language with conditioning
 
@@ -37,6 +38,7 @@ class (Order repr Real, Floating (repr Real),
                                      (repr b -> repr c) -> repr c
 
   true, false :: repr Bool
+  and_ :: [ repr Bool ] -> repr Bool
   if_ :: repr Bool -> repr c -> repr c -> repr c
 
   unsafeProb :: repr Real -> repr Prob
@@ -64,11 +66,12 @@ fst_ ab = unpair ab (\a _ -> a)
 snd_ :: (Base repr) => repr (a,b) -> repr b
 snd_ ab = unpair ab (\_ b -> b)
 
+{- This does not work well in Maple.
 and_ :: (Base repr) => [repr Bool] -> repr Bool
 and_ []     = true
 and_ [b]    = b
 and_ (b:bs) = if_ b (and_ bs) false
-
+-}
 class (Base repr) => Mochastic repr where
   dirac        :: repr a -> repr (Measure a)
   bind         :: repr (Measure a) -> (repr a -> repr (Measure b)) ->
@@ -167,6 +170,7 @@ instance Base (Sample m) where
   true                            = Sample True
   false                           = Sample False
   if_ c a b                       = Sample (if unSample c then unSample a else unSample b)
+  and_ l                          = Sample (and $ map unSample l)
   unsafeProb (Sample x)           = Sample (LF.logFloat x)
   fromProb (Sample x)             = Sample (LF.fromLogFloat x)
   exp_ (Sample x)                 = Sample (LF.logToLogFloat x)
@@ -255,6 +259,7 @@ instance (Base repr) => Base (Expect repr) where
   fromProb                       = Expect . fromProb   . unExpect
   true                           = Expect true
   false                          = Expect false
+  and_ l                         = Expect (and_ $ map unExpect l)
   if_ c a b                      = Expect (if_ (unExpect c) (unExpect a) (unExpect b))
   pi_                            = Expect pi_
   exp_                           = Expect . exp_  . unExpect
@@ -354,6 +359,7 @@ instance Base Maple where
   fromProb   (Maple x) = Maple x
   true = Maple (\_ -> "true")
   false = Maple (\_ -> "false")
+  and_ l = Maple (\i -> "And(" ++ (concat $ intersperse ", " $ map (\x -> unMaple x i) l) ++ ")")
   if_ (Maple c) (Maple a) (Maple b) = Maple (\i ->
     "piecewise(" ++ c i ++ ", " ++ a i ++ ", " ++ b i ++ ")")
   sqrt_ = mapleFun1 "sqrt"
