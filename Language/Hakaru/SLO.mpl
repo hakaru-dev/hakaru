@@ -45,13 +45,17 @@ SLO := module ()
       binders := indets(e, specfunc(anything, {'int', 'Int', 'sum', 'Sum'}));
       if binders = {} then
         ee := subs(cs=x, e);
-        if type(ee, 'monomial'(anything,x)) then
+        if type(ee, 'polynom'(anything,x)) then
           d := degree(ee, x);
-          cof := coeff(ee, x, d); # pull off the constant
-          rest := ToAST(cs, cs, x);
-          `if`(cof=1, rest, Bind_(Factor(cof), rest))
+          cof := coeff(ee, x, d); # pull off the leading constant
+          if Testzero(cof*x^d - ee) then
+              rest := ToAST(cs, cs, x);
+              `if`(cof=1, rest, Bind_(Factor(cof), rest))
+          else
+            error "polynomial in c:", ee
+          end if;
         else
-          error "no binders, but still not a monomial?"
+          error "no binders, but still not a monomial?", ee
         end if;
       else
         if type(e, 'specfunc'(anything, {'int','Int'})) then
@@ -61,11 +65,13 @@ SLO := module ()
           if ee = c(var) then
               weight := (op(2,rng)-op(1,rng));
               `if`(weight=1, Uniform(rng), Bind_(Factor(weight), Uniform(rng)))
+          elif rng = -infinity..infinity then
+              Bind(Lebesgue(var), ToAST(ee, cs))
           else
-            error var, rng, ee, cs;
+              Bind(Lebesgue(var=rng), ToAST(ee, cs))
           end if;
         else
-          error "only integrals currently work"
+          error "only integrals currently work", e
         end if;
       end if;
     end if;
