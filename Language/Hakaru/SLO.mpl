@@ -1,7 +1,11 @@
 # SLO = Simplify Linear Operator.
 #
-#  This assumes that the input is the output of Language.Hakaru.Syntax3.tester
+#  This assumes that the input is the output of Language.Hakaru.Syntax.tester
 # No checking is done that this is actually the case.
+#
+# SLO : simplifier
+# AST : takes simplified form and transform to AST
+# Print: (ToDo) print an AST back to Haskell
 #
 
 SLO := module ()
