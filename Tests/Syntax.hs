@@ -64,18 +64,6 @@ pair3trd bias [b1,b2,b3] =
   factor (pow_ bias     (if_ b1 1 0 + if_ b2 1 0 + if_ b3 1 0)
         * pow_ (1-bias) (if_ b1 0 1 + if_ b2 0 1 + if_ b3 0 1))
 
-{- pair2fst,pair2snd doesn't work yet for lack of (1) repeat facility in Hakaru; (2) a generalization of said facility that makes non-iid choices -}
-
-pair2fst :: (MochasticWithRepeat repr) => repr Real -> repr (Measure Real)
-pair2fst flips =  beta 1 1 `bind` \bias ->
-                  repeat flips (bern bias) `bind_`
-                  dirac bias
-
-pair2snd :: (MochasticWithRepeat repr) => repr Real -> repr (Measure Real)
-pair2snd flips =  bern 0.5 `bind` \coin ->
-                  if_ coin (beta (1+flips) 1) (beta 1 (1+flips)) `bind` \bias ->
-		  dirac bias
-
 -- In Maple, should 'evaluate' to "\c -> 1/2*c(Unit)"
 t1 :: (Mochastic repr) => repr (Measure ())
 t1 = uniform 0 1 `bind` \x -> factor (unsafeProb x)

@@ -112,9 +112,6 @@ class (Mochastic repr) => Disintegrate repr where
   disintegrate :: repr (Measure a) -> repr (Measure (a,b)) ->
                   repr a -> repr (Measure b)
 
-class (Mochastic repr) => MochasticWithRepeat repr where
-  repeat :: repr Real -> repr (Measure a) -> repr (Measure [a])
-
 condition :: (Disintegrate repr) => repr (Measure (a,b)) ->
                                     repr a -> repr (Measure b)
 condition m = disintegrate (liftM fst_ m) m
