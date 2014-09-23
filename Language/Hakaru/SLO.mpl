@@ -52,8 +52,8 @@ SLO := module ()
         if type(ee, 'polynom'(anything,x)) then
           d := degree(ee, x);
           cof := coeff(ee, x, d); # pull off the leading constant
-          if Testzero(cof*x^d - ee) then
-              rest := ToAST(cs, cs, x);
+          if (d = 1) and Testzero(cof*x^d - ee) then
+              rest := ToAST(cs, cs);
               `if`(cof=1, rest, Bind_(Factor(cof), rest))
           else
             error "polynomial in c:", ee

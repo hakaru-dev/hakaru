@@ -6,6 +6,7 @@
 import Prelude hiding (Real, repeat)
 import Language.Hakaru.Syntax
 
+-- the next two are equivalent
 pair1fst :: (Mochastic repr) => repr (Measure (Bool, Real))
 pair1fst =  beta 1 1 `bind` \bias ->
             bern bias `bind` \coin ->
@@ -16,6 +17,7 @@ pair1snd =  bern 0.5 `bind` \coin ->
             if_ coin (beta 2 1) (beta 1 2) `bind` \bias ->
             dirac (pair coin bias)
 
+-- the next two are equivalent?
 pair15fst :: (Mochastic repr) => repr (Measure ((Bool, Bool), Real))
 pair15fst =  beta 1 1 `bind` \bias ->
              bern bias `bind` \coin1 ->
@@ -72,7 +74,7 @@ pair2fst flips =  beta 1 1 `bind` \bias ->
 pair2snd :: (MochasticWithRepeat repr) => repr Real -> repr (Measure Real)
 pair2snd flips =  bern 0.5 `bind` \coin ->
                   if_ coin (beta (1+flips) 1) (beta 1 (1+flips)) `bind` \bias ->
-                  dirac bias
+		  dirac bias
 
 -- In Maple, should 'evaluate' to "\c -> 1/2*c(Unit)"
 t1 :: (Mochastic repr) => repr (Measure ())
