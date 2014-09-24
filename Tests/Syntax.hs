@@ -6,41 +6,42 @@
 import Prelude hiding (Real, repeat)
 import Language.Hakaru.Syntax
 
--- the next two are equivalent
+-- pair1fst and pair1snd are equivalent
 pair1fst :: (Mochastic repr) => repr (Measure (Bool, Real))
 pair1fst =  beta 1 1 `bind` \bias ->
             bern bias `bind` \coin ->
             dirac (pair coin bias)
-
 pair1snd :: (Mochastic repr) => repr (Measure (Bool, Real))
-pair1snd =  bern 0.5 `bind` \coin ->
+pair1snd =  bern (1/2) `bind` \coin ->
             if_ coin (beta 2 1) (beta 1 2) `bind` \bias ->
             dirac (pair coin bias)
 
--- the next two are equivalent?
-pair15fst :: (Mochastic repr) => repr (Measure ((Bool, Bool), Real))
-pair15fst =  beta 1 1 `bind` \bias ->
-             bern bias `bind` \coin1 ->
-             bern bias `bind` \coin2 ->
-             dirac (pair (pair coin1 coin2) bias)
+-- pair2fst and pair2snd are equivalent
+pair2fst :: (Mochastic repr) => repr (Measure ((Bool, Bool), Real))
+pair2fst =  beta 1 1 `bind` \bias ->
+            bern bias `bind` \coin1 ->
+            bern bias `bind` \coin2 ->
+            dirac (pair (pair coin1 coin2) bias)
 
-pair15snd :: (Mochastic repr) => repr (Measure ((Bool, Bool), Real))
-pair15snd =  bern 0.5 `bind` \coin1 ->
-             bern (if_ coin1 (2/3) (1/3)) `bind` \coin2 ->
-             beta (1 + f coin1 + f coin2)
-                  (1 + g coin1 + g coin2) `bind` \bias ->
-             dirac (pair (pair coin1 coin2) bias)
+pair2snd :: (Mochastic repr) => repr (Measure ((Bool, Bool), Real))
+pair2snd =  bern (1/2) `bind` \coin1 ->
+            bern (if_ coin1 (2/3) (1/3)) `bind` \coin2 ->
+            beta (1 + f coin1 + f coin2)
+                 (1 + g coin1 + g coin2) `bind` \bias ->
+            dirac (pair (pair coin1 coin2) bias)
   where f b = if_ b 1 0
         g b = if_ b 0 1
 
 type Cont repr a = forall w. (a -> repr (Measure w)) -> repr (Measure w)
+{- This Cont monad is useful for generalizing pair2fst and pair2snd to an
+ - arbitrary number of coin flips. The generalization would look liks this:
 
-pair18fst :: (Mochastic repr) => Int -> Cont repr ([repr Bool], repr Real)
--- REQUIREMENT: pair15fst = pair18fst 2 (\([coin1,coin2],bias) -> dirac (pair (pair coin1 coin2) bias))
-pair18fst = undefined -- to be defined using replicateH
+pair2'fst :: (Mochastic repr) => Int -> Cont repr ([repr Bool], repr Real)
+-- REQUIREMENT: pair2fst = pair2'fst 2 (\([coin1,coin2],bias) -> dirac (pair (pair coin1 coin2) bias))
+pair2'fst = undefined -- to be defined using replicateH
 
-pair18snd :: (Mochastic repr) => Int -> Cont repr ([repr Bool], repr Real)
-pair18snd = undefined -- to be defined using explicit recursion
+pair2'snd :: (Mochastic repr) => Int -> Cont repr ([repr Bool], repr Real)
+pair2'snd = undefined -- to be defined using explicit recursion
 
 replicateH :: (Mochastic repr) => Int -> repr (Measure a) -> Cont repr [repr a]
 replicateH 0 _ k = k []
@@ -50,7 +51,9 @@ twice :: (Mochastic repr) => repr (Measure a) -> Cont repr (repr a, repr a)
 twice m k = m `bind` \x ->
             m `bind` \y ->
             k (x, y)
+-}
 
+-- pair3fst and pair3snd and pair3trd are equivalent
 pair3fst, pair3snd, pair3trd :: (Mochastic repr) => repr Prob -> [repr Bool] -> repr (Measure ())
 pair3fst bias [b1,b2,b3] =
   factor (if_ b1 bias (1-bias)) `bind_`
@@ -96,6 +99,18 @@ t8 = normal 0 10 `bind` \x -> normal x 20 `bind` \y -> dirac (pair x y)
 t9 :: Mochastic repr => repr (Measure Real)
 t9 = lebesgue `bind` \x -> factor (if_ (and_ [less 3 x, less x 7]) (1/2) 0) `bind_` dirac x
 
+t10 :: Mochastic repr => repr (Measure ())
+t10 = factor 0
+
+t11 :: Mochastic repr => repr (Measure ())
+t11 = factor 1
+
+t12 :: Mochastic repr => repr (Measure ())
+t12 = factor 2
+
+t13 :: Mochastic repr => repr (Measure Real)
+t13 = bern (3/5) `bind` \b -> dirac (if_ b 37 42)
+
 tester :: Expect Maple a -> String
 tester t = unMaple (unExpect t) 0
 
@@ -110,12 +125,16 @@ p1 = tester2 (Maple (\_ -> "c")) t1
 -- Maple test file
 main :: IO ()
 main = do
-  print $ tester t1
-  print $ tester t2
-  print $ tester t3
-  print $ tester t4
-  print $ tester t5
-  print $ tester t6
-  print $ tester t7
-  print $ tester t8
-  print $ tester t9
+  putStrLn $ tester t1
+  putStrLn $ tester t2
+  putStrLn $ tester t3
+  putStrLn $ tester t4
+  putStrLn $ tester t5
+  putStrLn $ tester t6
+  putStrLn $ tester t7
+  putStrLn $ tester t8
+  putStrLn $ tester t9
+  putStrLn $ tester t10
+  putStrLn $ tester t11
+  putStrLn $ tester t12
+  putStrLn $ tester t13

@@ -39,6 +39,11 @@ t9 := (x0->(x1->int(x1(x2),x2=-infinity..infinity))
            ((x1->(x2->(x3->(piecewise(And((3<x1), (x1<7)), (1/2), 0)*x3(Unit)))
                       ((x3->(x4->x4(x1))(x2))))(x0))));
 
+t10 := (x0->(0*x0(Unit)));
+t11 := (x0->(1*x0(Unit)));
+t12 := (x0->(2*x0(Unit)));
+t13 := (x0->(x1->(x2->int((x2(x3)/(1-0)),x3=0..1))((x2->(x3->x3((x2<(3/5))))(x1))))((x1->(x2->x2(piecewise(x1, 37, 42)))(x0))));
+
 # for now, just read the code in.
 read "SLO.mpl":
 
@@ -52,6 +57,10 @@ r6 := SLO(t6);
 r7 := SLO(t7);
 r8 := SLO(t8);
 r9 := SLO(t9);
+r10 := SLO(t10);
+r11 := SLO(t11);
+r12 := SLO(t12);
+r13 := SLO(t13);
 
 # printlevel := 30;
 SLO:-AST(r1);
@@ -63,3 +72,7 @@ SLO:-AST(r6);
 SLO:-AST(r7);
 SLO:-AST(r8);
 SLO:-AST(r9);
+SLO:-AST(r10);
+SLO:-AST(r11);
+SLO:-AST(r12);
+SLO:-AST(r13);
