@@ -46,6 +46,13 @@ t12 := (x0->(2*x0(Unit))):
 t13 := (x0->(x1->(x2->int((x2(x3)/(1-0)),x3=0..1))((x2->(x3->x3((x2<(3/5))))(x1))))((x1->piecewise(x1, x0(37), x0(42))))):
 t14 := (x0->(x1->(x2->int((x2(x3)/(1-0)),x3=0..1))((x2->(x3->x3((x2<(3/5))))(x1))))((x1->piecewise(x1, (x2->(x3->(x4->int((x4(x5)/(1-0)),x5=0..1))((x4->(x5->x5((x4<(3/5))))(x3))))((x3->(x4->piecewise(x3, x4(37), x4(42)))(x2))))(x0), (x2->(x3->(x4->int((x4(x5)/(1-0)),x5=0..1))((x4->(x5->x5((x4<(2/7))))(x3))))((x3->piecewise(x3, (x4->int((x4(x5)/(12-10)),x5=10..12))(x2), (x4->int((x4(x5)/(16-14)),x5=14..16))(x2)))))(x0))))):
 
+# Readback cases wanted for the forthcoming functional pearl on density
+# (it seems we want some hammer to float "piecewise"s outward and merge them)
+t15 := (x0->(x1->int(piecewise(((0/1)<(x0+(-exp((-x2))))),piecewise(((x0+(-exp((-x2))))<(1/1)),((1/1)*x1(Unit)),((0/1)*x1(Unit))),((0/1)*x1(Unit))),x2=0..1)))(t):
+t16 := (x0->(x1->int(piecewise(((0/1)<(x0+(-x2))),((1/(x0+(-x2)))*piecewise(((0/1)<(-log((x0+(-x2))))),piecewise(((-log((x0+(-x2))))<(1/1)),((1/1)*x1(Unit)),((0/1)*x1(Unit))),((0/1)*x1(Unit)))),((0/1)*piecewise(((0/1)<(-log((x0+(-x2))))),piecewise(((-log((x0+(-x2))))<(1/1)),((1/1)*x1(Unit)),((0/1)*x1(Unit))),((0/1)*x1(Unit))))),x2=0..1)))(t):
+t17 := (x0->(x1->int(int(piecewise(((0/1)<(1/(x2+x3))),((1/(x2+x3))*piecewise(((0/1)<(x0*(1/(x2+x3)))),piecewise(((x0*(1/(x2+x3)))<(1/1)),((1/1)*x1(Unit)),((0/1)*x1(Unit))),((0/1)*x1(Unit)))),((-(1/(x2+x3)))*piecewise(((0/1)<(x0*(1/(x2+x3)))),piecewise(((x0*(1/(x2+x3)))<(1/1)),((1/1)*x1(Unit)),((0/1)*x1(Unit))),((0/1)*x1(Unit))))),x3=0..1),x2=0..1)))(t):
+t18 := (x0->(x1->int(piecewise(((0/1)<(1/x2)),((1/x2)*int(piecewise(((0/1)<((x0*(1/x2))+(-x3))),piecewise((((x0*(1/x2))+(-x3))<(1/1)),((1/1)*x1(Unit)),((0/1)*x1(Unit))),((0/1)*x1(Unit))),x3=0..1)),((-(1/x2))*int(piecewise(((0/1)<((x0*(1/x2))+(-x3))),piecewise((((x0*(1/x2))+(-x3))<(1/1)),((1/1)*x1(Unit)),((0/1)*x1(Unit))),((0/1)*x1(Unit))),x3=0..1))),x2=0..1)))(t):
+
 # for now, just read the code in.
 read "SLO.mpl":
 
@@ -64,6 +71,10 @@ r11 := SLO(t11);
 r12 := SLO(t12);
 r13 := SLO(t13);
 r14 := SLO(t14);
+r15 := SLO(t15);
+r16 := SLO(t16);
+r17 := SLO(t17);
+r18 := SLO(t18);
 
 # printlevel := 30;
 SLO:-AST(r1);
@@ -80,3 +91,7 @@ SLO:-AST(r11);
 SLO:-AST(r12);
 SLO:-AST(r13);
 SLO:-AST(r14);
+SLO:-AST(r15);
+SLO:-AST(r16);
+SLO:-AST(r17);
+SLO:-AST(r18);
