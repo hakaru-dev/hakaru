@@ -11,9 +11,11 @@ import qualified Data.Number.LogFloat as LF
 import qualified System.Random.MWC as MWC
 import qualified System.Random.MWC.Distributions as MWCD
 import qualified Numeric.Integration.TanhSinh as TS
+import Control.Monad (liftM2)
 import Control.Monad.Primitive (PrimState, PrimMonad)
+import Control.Monad.Trans.Reader (ReaderT(ReaderT), runReaderT)
+import Control.Monad.Trans.Cont (Cont, cont, runCont)
 import Numeric.SpecFunctions (logBeta)
-import Data.List (intersperse)
 
 -- A small probabilistic language with conditioning
 
@@ -38,7 +40,6 @@ class (Order repr Real, Floating (repr Real),
                                      (repr b -> repr c) -> repr c
 
   true, false :: repr Bool
-  and_ :: [ repr Bool ] -> repr Bool
   if_ :: repr Bool -> repr c -> repr c -> repr c
 
   unsafeProb :: repr Real -> repr Prob
@@ -66,12 +67,11 @@ fst_ ab = unpair ab (\a _ -> a)
 snd_ :: (Base repr) => repr (a,b) -> repr b
 snd_ ab = unpair ab (\_ b -> b)
 
-{- This does not work well in Maple.
 and_ :: (Base repr) => [repr Bool] -> repr Bool
 and_ []     = true
 and_ [b]    = b
 and_ (b:bs) = if_ b (and_ bs) false
--}
+
 class (Base repr) => Mochastic repr where
   dirac        :: repr a -> repr (Measure a)
   bind         :: repr (Measure a) -> (repr a -> repr (Measure b)) ->
@@ -170,7 +170,6 @@ instance Base (Sample m) where
   true                            = Sample True
   false                           = Sample False
   if_ c a b                       = Sample (if unSample c then unSample a else unSample b)
-  and_ l                          = Sample (and $ map unSample l)
   unsafeProb (Sample x)           = Sample (LF.logFloat x)
   fromProb (Sample x)             = Sample (LF.fromLogFloat x)
   exp_ (Sample x)                 = Sample (LF.logToLogFloat x)
@@ -259,7 +258,6 @@ instance (Base repr) => Base (Expect repr) where
   fromProb                       = Expect . fromProb   . unExpect
   true                           = Expect true
   false                          = Expect false
-  and_ l                         = Expect (and_ $ map unExpect l)
   if_ c a b                      = Expect (if_ (unExpect c) (unExpect a) (unExpect b))
   pi_                            = Expect pi_
   exp_                           = Expect . exp_  . unExpect
@@ -289,19 +287,24 @@ instance (Lambda repr) => Lambda (Expect repr) where
 
 -- Maple printing interpretation
 
-newtype Maple a = Maple { unMaple :: Int -> String }
+newtype Maple a = Maple { unMaple :: ReaderT Int (Cont String) String }
+
+-- "piecewise" in Maple only works when the expression has numeric type.
+-- So "runMaple" should only be used when the expression has numeric type.
+runMaple :: Maple a -> Int -> String
+runMaple (Maple x) i = runCont (runReaderT x i) id
 
 mapleFun1 :: String -> Maple a -> Maple b
-mapleFun1 fn (Maple x) = Maple (\i -> fn ++ "(" ++ x i ++ ")")
+mapleFun1 fn (Maple x) = Maple (fmap (\x -> fn ++ "(" ++ x ++ ")") x)
 
 mapleFun2 :: String -> Maple a -> Maple b -> Maple c
-mapleFun2 fn (Maple x) (Maple y) = Maple (\i -> fn ++ "(" ++ x i ++ ", " ++ y i ++ ")")
+mapleFun2 fn (Maple x) (Maple y) = Maple (liftM2 (\x y -> fn ++ "(" ++ x ++ ", " ++ y ++ ")") x y)
 
 mapleOp2 :: String -> Maple a -> Maple b -> Maple c
-mapleOp2 fn (Maple x) (Maple y) = Maple (\i -> "(" ++ x i ++ fn ++ y i ++ ")")
+mapleOp2 fn (Maple x) (Maple y) = Maple (liftM2 (\x y -> "(" ++ x ++ fn ++ y ++ ")") x y)
 
 mapleBind :: (Maple a -> Maple b) -> Int -> (String, String)
-mapleBind f i = (x, unMaple (f (Maple (\_ -> x))) (i + 1))
+mapleBind f i = (x, runMaple (f (Maple (return x))) (i + 1))
   where x = "x" ++ show i
 
 instance Order Maple a where
@@ -311,24 +314,24 @@ instance Num (Maple a) where
   (+)              = mapleOp2 "+"
   (*)              = mapleOp2 "*"
   (-)              = mapleOp2 "-"
-  negate (Maple x) = Maple (\i -> "(-" ++ x i ++ ")")
+  negate (Maple x) = Maple (fmap (\x -> "(-" ++ x ++ ")") x)
   abs              = mapleFun1 "abs"
   signum           = mapleFun1 "signum"
-  fromInteger x    = Maple (\_ -> show x)
+  fromInteger x    = Maple (return (show x))
 
 instance Fractional (Maple a) where
   (/)            = mapleOp2 "/"
-  fromRational x = Maple (\_ -> "(" ++ show (numerator   x) ++
-                                "/" ++ show (denominator x) ++ ")")
+  fromRational x = Maple (return ("(" ++ show (numerator   x) ++
+                                  "/" ++ show (denominator x) ++ ")"))
 
 instance Floating (Maple a) where
-  pi                          = Maple (\_ -> "Pi")
+  pi                          = Maple (return "Pi")
   exp                         = mapleFun1 "exp"
   sqrt                        = mapleFun1 "sqrt"
   log                         = mapleFun1 "log"
   (**)                        = mapleOp2 "^"
-  logBase (Maple b) (Maple y) = Maple (\i -> "log[" ++ b i ++ "]" ++
-                                                "(" ++ y i ++ ")")
+  logBase (Maple b) (Maple y) = Maple (liftM2 (\b y -> "log[" ++ b ++ "]"
+                                                       ++ "(" ++ y ++ ")") b y)
   sin                         = mapleFun1 "sin"
   tan                         = mapleFun1 "tan"
   cos                         = mapleFun1 "cos"
@@ -343,39 +346,43 @@ instance Floating (Maple a) where
   acosh                       = mapleFun1 "acosh"
 
 instance Base Maple where
-  unit = Maple (\_ -> "Unit")
+  unit = Maple (return "Unit")
   pair = mapleFun2 "Pair"
-  unpair (Maple ab) k = k (Maple (\i -> "op(1, " ++ ab i ++ ")"))
-                          (Maple (\i -> "op(2, " ++ ab i ++ ")"))
-  inl (Maple a) = Maple (\i -> "Left("  ++ a i ++ ")")
-  inr (Maple b) = Maple (\i -> "Right(" ++ b i ++ ")")
-  uneither (Maple ab) ka kb = Maple (\i ->
-    let continue :: (Maple ab -> Maple c) -> String
-        continue k = unMaple (k (Maple (const (ab i ++ ")")))) i
-    in "`if`( op(0, " ++ ab i ++ ") = Left," ++ continue ka ++
-          "`if`( op(0, " ++ ab i ++ ") = Right," ++ continue kb ++
-                                  ", error \"expected Either but got something else\"))")
+  unpair (Maple ab) k = Maple (ab >>= \ab ->
+    let opab n = "op(" ++ show n ++ ", " ++ ab ++ ")" in
+    unMaple (k (Maple (return (opab 1))) (Maple (return (opab 2)))))
+  inl (Maple a) = Maple (fmap (\a -> "Left("  ++ a ++ ")") a)
+  inr (Maple b) = Maple (fmap (\b -> "Right(" ++ b ++ ")") b)
+  uneither (Maple ab) ka kb = Maple (ab >>= \ab ->
+    ReaderT $ \i -> cont $ \c ->
+    let opab n = "op(" ++ show n ++ ", " ++ ab ++ ")" in
+    let arm tag k = opab 0 ++ " = " ++ tag ++ ", " ++
+                    runCont (runReaderT (k (return (opab 1))) i) c in
+    "piecewise(" ++ arm "Left"  (unMaple . ka . Maple)
+         ++ ", " ++ arm "Right" (unMaple . kb . Maple) ++ ")")
   unsafeProb (Maple x) = Maple x
   fromProb   (Maple x) = Maple x
-  true = Maple (\_ -> "true")
-  false = Maple (\_ -> "false")
-  and_ l = Maple (\i -> "And(" ++ (concat $ intersperse ", " $ map (\x -> unMaple x i) l) ++ ")")
-  if_ (Maple c) (Maple a) (Maple b) = Maple (\i ->
-    "piecewise(" ++ c i ++ ", " ++ a i ++ ", " ++ b i ++ ")")
+  true  = Maple (return "true" )
+  false = Maple (return "false")
+  if_ (Maple cond) (Maple a) (Maple b) = Maple (cond >>= \cond ->
+    ReaderT $ \i -> cont $ \c ->
+    "piecewise(" ++ cond ++ ", " ++ runCont (runReaderT a i) c
+                         ++ ", " ++ runCont (runReaderT b i) c ++ ")")
   sqrt_ = mapleFun1 "sqrt"
   pow_ = mapleOp2 "^"
-  betaFunc (Maple a) (Maple b) = Maple (\i -> "Beta(" ++ a i ++
-                                                  "," ++ b i ++ ")")
+  betaFunc = mapleFun2 "Beta"
 
 instance Integrate Maple where
-  integrate (Maple lo) (Maple hi) f = Maple (\i ->
+  integrate (Maple lo) (Maple hi) f = Maple (lo >>= \lo -> hi >>= \hi ->
+    ReaderT $ \i -> return $
     let (x, body) = mapleBind f i
-    in "int(" ++ body ++ "," ++ x ++ "=" ++ lo i ++ ".." ++ hi i ++ ")")
-  infinity         = Maple (\_ ->  "infinity")
-  negativeInfinity = Maple (\_ -> "-infinity")
+    in "int(" ++ body ++ "," ++ x ++ "=" ++ lo ++ ".." ++ hi ++ ")")
+  infinity         = Maple (return  "infinity")
+  negativeInfinity = Maple (return "-infinity")
 
 instance Lambda Maple where
-  lam f = Maple (\i -> let (x, body) = mapleBind f i
-                       in "(" ++ x ++ "->" ++ body ++ ")")
-  app (Maple rator) (Maple rand) = Maple (\i -> rator i ++ "(" ++ rand i ++ ")")
+  lam f = Maple (ReaderT $ \i -> return $
+    let (x, body) = mapleBind f i in "(" ++ x ++ "->" ++ body ++ ")")
+  app (Maple rator) (Maple rand) =
+    Maple (liftM2 (\rator rand -> rator ++ "(" ++ rand ++ ")") rator rand)
 

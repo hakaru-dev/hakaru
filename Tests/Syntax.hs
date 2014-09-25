@@ -111,15 +111,20 @@ t12 = factor 2
 t13 :: Mochastic repr => repr (Measure Real)
 t13 = bern (3/5) `bind` \b -> dirac (if_ b 37 42)
 
+t14 :: Mochastic repr => repr (Measure Real)
+t14 = bern (3/5) `bind` \b ->
+      if_ b t13 (bern (2/7) `bind` \b' ->
+                 if_ b' (uniform 10 12) (uniform 14 16))
+
 tester :: Expect Maple a -> String
-tester t = unMaple (unExpect t) 0
+tester t = runMaple (unExpect t) 0
 
 -- this can sometimes be more convenient
 tester2 :: (Expect' c ~ (b -> a)) => Maple b -> Expect Maple c -> String
-tester2 c t = unMaple ((unExpect t) `app` c) 0
+tester2 c t = runMaple ((unExpect t) `app` c) 0
 
 p1 :: String
-p1 = tester2 (Maple (\_ -> "c")) t1
+p1 = tester2 (Maple (return "c")) t1
 
 -- over time, this should be 'upgraded' to actually generate a proper
 -- Maple test file
@@ -138,3 +143,4 @@ main = do
   putStrLn $ tester t11
   putStrLn $ tester t12
   putStrLn $ tester t13
+  putStrLn $ tester t14
