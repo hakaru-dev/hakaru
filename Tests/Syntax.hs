@@ -3,6 +3,9 @@
              StandaloneDeriving, GeneralizedNewtypeDeriving,
              Rank2Types #-}
 {-# OPTIONS -W #-}
+
+module Tests.Syntax where
+
 import Prelude hiding (Real, repeat)
 import Language.Hakaru.Syntax
 
@@ -59,13 +62,16 @@ pair3fst bias [b1,b2,b3] =
   factor (if_ b1 bias (1-bias)) `bind_`
   factor (if_ b2 bias (1-bias)) `bind_`
   factor (if_ b3 bias (1-bias))
+pair3fst _ _ = error "pair3fst: only implemented for 3 coin flips"
 pair3snd bias [b1,b2,b3] =
   factor (if_ b1 bias (1-bias)
         * if_ b2 bias (1-bias)
         * if_ b3 bias (1-bias))
+pair3snd _ _ = error "pair3fst: only implemented for 3 coin flips"
 pair3trd bias [b1,b2,b3] =
   factor (pow_ bias     (if_ b1 1 0 + if_ b2 1 0 + if_ b3 1 0)
         * pow_ (1-bias) (if_ b1 0 1 + if_ b2 0 1 + if_ b3 0 1))
+pair3trd _ _ = error "pair3fst: only implemented for 3 coin flips"
 
 -- In Maple, should 'evaluate' to "\c -> 1/2*c(Unit)"
 t1 :: (Mochastic repr) => repr (Measure ())
