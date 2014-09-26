@@ -25,8 +25,11 @@ SLO := module ()
   AST := proc(inp::anything)
     local cs;
     cs := indets(inp, 'specfunc'(anything,c));
-    # deal with 'bad' input first.
-    if nops(cs) = 0 then
+    # deal with trivial input first
+    if inp=0 then
+        0
+    # then deal with 'bad' input
+    elif nops(cs) = 0 then
       error "the constant", inp, " is not a measure."
     elif nops(cs) > 1 then 
       error "c occurs more than once - case not currently handled"
@@ -41,7 +44,10 @@ SLO := module ()
     local a0, a1, var, rng, ee, cof, d, rest, weight;
     if (e = cs) then
       return Return(op(cs))
-    # we might have done something odd, and there is no x anymore
+    # we might have recursively encountered a hidden 0
+    elif (e = 0) then
+       return 0
+    # we might have done something odd, and there is no x anymore (and not 0)
     elif type(e, 'numeric') then
       error "the constant", e, "is not a measure"
     # invariant: we depend on c
