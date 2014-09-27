@@ -9,13 +9,16 @@
 #
 
 SLO := module ()
-  export ModuleApply, AST, c; # very important: this c is "global".
-  local ToAST;
+  export ModuleApply, AST, simp, c; # very important: this c is "global".
+  local ToAST, t_binds, t_pw;
 
-  # right now, simplification means just evaluate!
+  t_binds := 'specfunc(anything, {int, Int, sum, Sum})';
+  t_pw := 'specfunc(anything, piecewise)';
+
   ModuleApply := proc(inp::anything) 
+    local e;
     try
-      inp(c);
+      simp(inp(c));
     catch "Wrong kind of parameters in piecewise":
       error "Bug in Hakaru -> Maple translation, piecewise used incorrectly.";
     end try;
@@ -54,7 +57,7 @@ SLO := module ()
       error "the constant", e, "is not a measure"
     # invariant: we depend on c
     else
-      binders := indets(e, specfunc(anything, {'int', 'Int', 'sum', 'Sum'}));
+      binders := indets(e, t_binds);
       if binders = {} then
         ee := subs(cs=x, e);
         if type(ee, 'polynom'(anything,x)) then
@@ -62,10 +65,12 @@ SLO := module ()
           cof := coeff(ee, x, d); # pull off the leading constant
           if (d = 1) and Testzero(cof*x^d - ee) then
               rest := ToAST(cs, cs);
-              `if`(cof=1, rest, Bind_(Factor(cof), rest))
+              `if`(cof=1, rest, Bind_(Factor(simplify(cof)), rest))
           else
             error "polynomial in c:", ee
           end if;
+        elif type(ee, t_pw) then
+          error "encountered piecewise, case not done yet"
         else
           error "no binders, but still not a polynomial?", ee
         end if;
@@ -85,12 +90,41 @@ SLO := module ()
         elif type(e, 'specfunc'(anything, {'sum','Sum'})) then
             error "sums not handled yet"
         else
-          # mighty hack like only Maple allows.
-          fact := eval(e, {'int'=1, 'Int'=1, 'sum'=1, 'Sum'=1});
-          ee := normal(e/fact); # should ASSERT that ee is not a binder!
-          ToAST(subs(op(1,ee) = fact*op(1,ee), ee), cs)
+            error "constants should have been pushed inside already", e
         end if;
       end if;
     end if;
   end proc;
+
+  # simp mostly pushes things in.
+  simp := proc(e) 
+    local a, b;
+    if type(e, `+`) then
+      map(simp, e)
+    elif type(e, `*`) then
+      a, b := selectremove(type, e, t_binds);
+      # now casesplit on what a is
+      if a=1 then  # no binders
+        a, b := selectremove(type, e, t_pw);
+        if a=1 then # and no piecewise either, just plain simplify
+          simplify(b)
+        elif type(a, `*`) then
+          error "do not know how to multiply 2 pw:", a
+        elif type(a, t_pw) then
+          # error "need to push ", b, "into a piecewise"
+          e
+        else
+          error "something weird happened:", a, " was supposed to be pw"
+        end if
+      elif type(a, `*`) then
+        error "product of 2 binders?!?", a
+      else
+        subsop(1=simp(b)*simp(op(1,a)), a)
+      end if
+    elif type(e, t_binds) then
+      subsop(1=simp(op(1,e)), e)
+    else
+      simplify(e)
+    end if;
+  end;
 end;
