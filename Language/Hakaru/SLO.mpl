@@ -10,7 +10,7 @@
 
 SLO := module ()
   export ModuleApply, AST, simp, c; # very important: this c is "global".
-  local ToAST, t_binds, t_pw;
+  local ToAST, t_binds, t_pw, into_pw, myprod;
 
   t_binds := 'specfunc(anything, {int, Int, sum, Sum})';
   t_pw := 'specfunc(anything, piecewise)';
@@ -98,7 +98,7 @@ SLO := module ()
 
   # simp mostly pushes things in.
   simp := proc(e) 
-    local a, b;
+    local a, b, d;
     if type(e, `+`) then
       map(simp, e)
     elif type(e, `*`) then
@@ -106,25 +106,57 @@ SLO := module ()
       # now casesplit on what a is
       if a=1 then  # no binders
         a, b := selectremove(type, e, t_pw);
-        if a=1 then # and no piecewise either, just plain simplify
-          simplify(b)
+        if a=1 then # and no piecewise either
+          d := expand(b); # probably need to write something less brutal
+          if b=d then # nothing happened
+            simplify(b)
+          else # this might be better
+            simp(d)
+          end if
         elif type(a, `*`) then
           error "do not know how to multiply 2 pw:", a
         elif type(a, t_pw) then
-          # error "need to push ", b, "into a piecewise"
-          e
+          into_pw(b, a)
         else
           error "something weird happened:", a, " was supposed to be pw"
         end if
       elif type(a, `*`) then
         error "product of 2 binders?!?", a
       else
-        subsop(1=simp(b)*simp(op(1,a)), a)
+        subsop(1=myprod(simp(b),simp(op(1,a))), a)
       end if
     elif type(e, t_binds) then
       subsop(1=simp(op(1,e)), e)
+    # need to go into pw even if there is no factor to push in
+    elif type(e, t_pw) then
+      into_pw(1, e)
     else
       simplify(e)
     end if;
   end;
+
+  into_pw := proc(fact, pw)
+    local n, f;
+
+    n := nops(pw);
+    f := proc(j)
+      if j=n then # last one is special, always a value
+        simp(myprod(fact, simp(op(j, pw))))
+      elif type(j,'odd') then # a condition
+        op(j, pw)
+      else # j even
+        simp(myprod(fact , simp(op(j, pw))))
+      end if;
+    end proc;
+    piecewise(seq(f(i),i=1..n))
+  end proc;
+
+  # myprod takes care of pushing a product inside a `+`
+  myprod := proc(a, b)
+    if type(b,`+`) then
+      map2(myprod, a, b)
+    else
+      a*b
+    end if;
+  end proc;
 end;

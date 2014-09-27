@@ -74,9 +74,11 @@ r14 := SLO(t14);
 r15 := SLO(t15);
 r16 := SLO(t16);
 r17 := SLO(t17);
+# old-school debugging is sometimes the fastest!
+# interface(prettyprint=0): printlevel := 50:
 r18 := SLO(t18);
+# printlevel := 1: interface(prettyprint=1):
 
-# printlevel := 30;
 SLO:-AST(r1);
 SLO:-AST(r2);
 SLO:-AST(r3);
