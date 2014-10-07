@@ -29,6 +29,23 @@ data Measure a
 class Order repr a where
   less :: repr a -> repr a -> repr Bool
 
+class (Num a, Num b) => Normalize a b where
+  normalize :: [a] -> (a, b, [b])
+  --  normalize xs == (x, y, ys)
+  --  ===>  all (0 <=) ys && sum ys == y && xs == map (x *) ys
+  --                               (therefore sum xs == x * y)
+
+instance Normalize Double Double where
+  normalize xs = (1, sum xs, xs)
+
+instance Normalize LF.LogFloat Double where
+  normalize []  = (0, 0, [])
+  normalize [x] = (x, 1, [1])
+  normalize xs  = (m, y, ys)
+    where m  = maximum xs
+          ys = [ LF.fromLogFloat (x/m) | x <- xs ]
+          y  = sum ys
+
 class (Order repr Real, Floating (repr Real),
        Order repr Prob, Fractional (repr Prob)) => Base repr where
   unit       :: repr ()
@@ -77,19 +94,20 @@ class (Base repr) => Mochastic repr where
   bind         :: repr (Measure a) -> (repr a -> repr (Measure b)) ->
                   repr (Measure b)
   lebesgue     :: repr (Measure Real)
-  factor       :: repr Prob -> repr (Measure ())
+  superpose    :: [(repr Prob, repr (Measure a))] -> repr (Measure a)
 
   uniform      :: repr Real -> repr Real -> repr (Measure Real)
   uniform lo hi = lebesgue `bind` \x ->
-                  factor (if_ (and_ [less lo x, less x hi])
-                              (unsafeProb (recip (hi - lo)))
-                              0) `bind_`
-                  dirac x
+                  if_ (and_ [less lo x, less x hi])
+                      (superpose [(recip (unsafeProb (hi - lo)), dirac x)])
+                      (superpose [])
   normal       :: repr Real -> repr Prob -> repr (Measure Real)
-  normal mu sd = lebesgue `bind` \x -> factor (
-        (1 / (sd * sqrt_ (2 * pi_))) *
-        exp_ (- (x - mu) * (x - mu) / (fromProb (2 * sd * sd))) ) `bind_`
-        dirac x
+  normal mu sd = lebesgue `bind` \x ->
+                 superpose [( exp_ (- (x - mu)^2 / fromProb (2 * pow_ sd 2))
+                               / sd / sqrt_ (2 * pi_)
+                            , dirac x )]
+  factor       :: repr Prob -> repr (Measure ())
+  factor p     = superpose [(p, dirac unit)]
 
 bind_ :: (Mochastic repr) => repr (Measure a) -> repr (Measure b) ->
                              repr (Measure b)
@@ -99,14 +117,14 @@ liftM :: (Mochastic repr) => (repr a -> repr b) ->
                              repr (Measure a) -> repr (Measure b)
 liftM f m = m `bind` dirac . f
 
-beta :: (Mochastic repr) => repr Real -> repr Real -> repr (Measure Real)
+beta :: (Mochastic repr) => repr Real -> repr Real -> repr (Measure Prob)
 beta a b = uniform 0 1 `bind` \x ->
-           factor (pow_ (unsafeProb x    ) (a-1) *
-                   pow_ (unsafeProb (1-x)) (b-1) / betaFunc a b) `bind_`
-           dirac x
+           superpose [( pow_ (unsafeProb x    ) (a-1) *
+                        pow_ (unsafeProb (1-x)) (b-1) / betaFunc a b
+                      , dirac (unsafeProb x) )]
 
-bern :: (Mochastic repr) => repr Real -> repr (Measure Bool)
-bern p = uniform 0 1 `bind` \u -> dirac (less u p)
+bern :: (Mochastic repr) => repr Prob -> repr (Measure Bool)
+bern p = superpose [(p, dirac true), (1-p, dirac false)]
 
 class (Mochastic repr) => Disintegrate repr where
   disintegrate :: repr (Measure a) -> repr (Measure (a,b)) ->
@@ -139,7 +157,7 @@ type instance Sample' m ()           = ()
 type instance Sample' m (a, b)       = (Sample' m a, Sample' m b)
 type instance Sample' m (Either a b) = Either (Sample' m a) (Sample' m b)
 type instance Sample' m (Measure a)  = LF.LogFloat -> MWC.Gen (PrimState m) ->
-                                       m (Sample' m a, LF.LogFloat)
+                                       m (Maybe (Sample' m a, LF.LogFloat))
 type instance Sample' m (a -> b)     = Sample' m a -> Sample' m b
 
 instance Order (Sample m) Real where
@@ -169,7 +187,7 @@ instance Base (Sample m) where
   uneither (Sample (Right b)) _ k = k (Sample b)
   true                            = Sample True
   false                           = Sample False
-  if_ c a b                       = Sample (if unSample c then unSample a else unSample b)
+  if_ (Sample c) a b              = if c then a else b
   unsafeProb (Sample x)           = Sample (LF.logFloat x)
   fromProb (Sample x)             = Sample (LF.fromLogFloat x)
   exp_ (Sample x)                 = Sample (LF.logToLogFloat x)
@@ -177,22 +195,34 @@ instance Base (Sample m) where
   betaFunc (Sample a) (Sample b)  = Sample (LF.logToLogFloat (logBeta a b))
 
 instance (PrimMonad m) => Mochastic (Sample m) where
-  dirac (Sample a)                = Sample (\p _ -> return (a,p))
-  bind (Sample m) k               = Sample (\p g -> do
-                                      (a,p') <- m p g
-                                      (unSample (k (Sample a)) $! p') g)
-  lebesgue                        = Sample (\p g -> do
-                                      (u,b) <- MWC.uniform g
-                                      let l = log u; n = negate l
-                                      return (if b then n else l,
-                                              p * LF.logToLogFloat n))
-  factor (Sample q)               = Sample (\p _ -> return ((), p * q))
+  dirac (Sample a) = Sample (\p _ ->
+    return (Just (a,p)))
+  bind (Sample m) k = Sample (\p g -> do
+    ap' <- m p g
+    case ap' of
+      Nothing     -> return Nothing
+      Just (a,p') -> (unSample (k (Sample a)) $! p') g)
+  lebesgue = Sample (\p g -> do
+    (u,b) <- MWC.uniform g
+    let l = log u
+        n = negate l
+    return (Just (if b then n else l,
+                  p * 2 * LF.logToLogFloat n)))
+  superpose [] = Sample (\_ _ -> return Nothing)
+  superpose [(Sample q, Sample m)] = Sample (\p g -> (m $! p * q) g)
+  superpose pms@((_, Sample m) : _) = Sample (\p g -> do
+    let (x,y,ys) = normalize (map (unSample . fst) pms)
+    if y <= (0::Double) then return Nothing else do
+      u <- MWC.uniformR (0, y) g
+      case [ m | (v,(_,m)) <- zip (scanl1 (+) ys) pms, u <= v ]
+        of Sample m : _ -> (m $! p * x) g
+           []           -> (m $! p * x) g)
   uniform (Sample lo) (Sample hi) = Sample (\p g -> do
-                                      x <- MWC.uniformR (lo, hi) g
-                                      return (x, p))
+    x <- MWC.uniformR (lo, hi) g
+    return (Just (x, p)))
   normal (Sample mu) (Sample sd) = Sample (\p g -> do
-                                      x <- MWCD.normal mu (LF.fromLogFloat sd) g
-                                      return (x, p) )
+    x <- MWCD.normal mu (LF.fromLogFloat sd) g
+    return (Just (x, p)))
 
 instance Integrate (Sample m) where -- just for kicks -- imprecise
   integrate (Sample lo) (Sample hi)
@@ -258,7 +288,7 @@ instance (Base repr) => Base (Expect repr) where
   fromProb                       = Expect . fromProb   . unExpect
   true                           = Expect true
   false                          = Expect false
-  if_ c a b                      = Expect (if_ (unExpect c) (unExpect a) (unExpect b))
+  if_ (Expect c) a b             = Expect (if_ c (unExpect a) (unExpect b))
   pi_                            = Expect pi_
   exp_                           = Expect . exp_  . unExpect
   log_                           = Expect . log_  . unExpect
@@ -277,7 +307,8 @@ instance (Integrate repr, Lambda repr) => Mochastic (Expect repr) where
   bind (Expect m) k = Expect (lam (\c -> m `app` lam (\a ->
                       unExpect (k (Expect a)) `app` c)))
   lebesgue          = Expect (lam (integrate negativeInfinity infinity . app))
-  factor (Expect q) = Expect (lam (\c -> q * c `app` unit))
+  superpose pms     = Expect (lam (\c -> sum [ p * app m c
+                                             | (Expect p, Expect m) <- pms ]))
   uniform (Expect lo) (Expect hi) = Expect (lam (\f ->
     integrate lo hi (\x -> app f x / unsafeProb (hi - lo))))
 

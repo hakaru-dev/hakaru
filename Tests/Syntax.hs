@@ -10,23 +10,23 @@ import Prelude hiding (Real, repeat)
 import Language.Hakaru.Syntax
 
 -- pair1fst and pair1snd are equivalent
-pair1fst :: (Mochastic repr) => repr (Measure (Bool, Real))
+pair1fst :: (Mochastic repr) => repr (Measure (Bool, Prob))
 pair1fst =  beta 1 1 `bind` \bias ->
             bern bias `bind` \coin ->
             dirac (pair coin bias)
-pair1snd :: (Mochastic repr) => repr (Measure (Bool, Real))
+pair1snd :: (Mochastic repr) => repr (Measure (Bool, Prob))
 pair1snd =  bern (1/2) `bind` \coin ->
             if_ coin (beta 2 1) (beta 1 2) `bind` \bias ->
             dirac (pair coin bias)
 
 -- pair2fst and pair2snd are equivalent
-pair2fst :: (Mochastic repr) => repr (Measure ((Bool, Bool), Real))
+pair2fst :: (Mochastic repr) => repr (Measure ((Bool, Bool), Prob))
 pair2fst =  beta 1 1 `bind` \bias ->
             bern bias `bind` \coin1 ->
             bern bias `bind` \coin2 ->
             dirac (pair (pair coin1 coin2) bias)
 
-pair2snd :: (Mochastic repr) => repr (Measure ((Bool, Bool), Real))
+pair2snd :: (Mochastic repr) => repr (Measure ((Bool, Bool), Prob))
 pair2snd =  bern (1/2) `bind` \coin1 ->
             bern (if_ coin1 (2/3) (1/3)) `bind` \coin2 ->
             beta (1 + f coin1 + f coin2)
@@ -77,13 +77,13 @@ pair3trd _ _ = error "pair3fst: only implemented for 3 coin flips"
 t1 :: (Mochastic repr) => repr (Measure ())
 t1 = uniform 0 1 `bind` \x -> factor (unsafeProb x)
 
-t2 :: Mochastic repr => repr (Measure Real)
+t2 :: Mochastic repr => repr (Measure Prob)
 t2 = beta 1 1
 
 t3 :: Mochastic repr => repr (Measure Real)
 t3 = normal 0 10
 
-t4 :: Mochastic repr => repr (Measure (Real, Bool))
+t4 :: Mochastic repr => repr (Measure (Prob, Bool))
 t4 = beta 1 1 `bind` \bias -> bern bias `bind` \coin -> dirac (pair bias coin)
 
 -- t5 is "the same" as t1.

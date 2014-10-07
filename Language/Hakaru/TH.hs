@@ -11,6 +11,10 @@ newtype THRepr a = THR { unTHRepr :: ExpQ }
 liftT :: Name -> [ExpQ] -> THRepr a
 liftT n es = THR (foldl appE (varE n) es)
 
+liftL :: [ExpQ] -> ExpQ
+liftL []     = varE '[]
+liftL (e:es) = varE '(:) `appE` e `appE` liftL es
+
 -- liftF takes a function on THRepr values and uses it to generate a lambda expression for acting on repr values.
 liftF :: (THRepr a -> THRepr b) -> ExpQ
 liftF f = do x <- newName "x"
@@ -90,9 +94,11 @@ instance Mochastic THRepr where
   dirac (THR e) = liftT 'dirac [e]
   bind (THR e) f = liftT 'bind [e, liftF f]
   lebesgue = liftT 'lebesgue []
-  factor (THR e) = liftT 'factor [e]
+  superpose pms = liftT 'superpose [liftL [ varE '(,) `appE` e `appE` e'
+                                          | (THR e, THR e') <- pms ]]
   uniform (THR e) (THR e') = liftT 'uniform [e, e']
   normal (THR e) (THR e') = liftT 'normal [e, e']
+  factor (THR e) = liftT 'factor [e]
 
 instance Disintegrate THRepr where
   disintegrate (THR e) (THR e') (THR e'') = liftT 'disintegrate [e, e', e'']
@@ -101,3 +107,5 @@ instance Lambda THRepr where
   lam f = liftT 'lam [liftF f]
   app (THR e) (THR e') = liftT 'app [e, e']
 
+show_code :: THRepr a -> IO ()
+show_code (THR cde) = runQ cde >>= putStrLn . pprint
