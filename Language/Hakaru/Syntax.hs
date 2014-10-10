@@ -16,6 +16,7 @@ import Control.Monad.Primitive (PrimState, PrimMonad)
 import Control.Monad.Trans.Reader (ReaderT(ReaderT), runReaderT)
 import Control.Monad.Trans.Cont (Cont, cont, runCont)
 import Numeric.SpecFunctions (logBeta)
+import Language.Hakaru.Util.Extras (normalize)
 
 -- A small probabilistic language with conditioning
 
@@ -28,23 +29,6 @@ data Measure a
 
 class Order repr a where
   less :: repr a -> repr a -> repr Bool
-
-class (Num a, Num b) => Normalize a b where
-  normalize :: [a] -> (a, b, [b])
-  --  normalize xs == (x, y, ys)
-  --  ===>  all (0 <=) ys && sum ys == y && xs == map (x *) ys
-  --                               (therefore sum xs == x * y)
-
-instance Normalize Double Double where
-  normalize xs = (1, sum xs, xs)
-
-instance Normalize LF.LogFloat Double where
-  normalize []  = (0, 0, [])
-  normalize [x] = (x, 1, [1])
-  normalize xs  = (m, y, ys)
-    where m  = maximum xs
-          ys = [ LF.fromLogFloat (x/m) | x <- xs ]
-          y  = sum ys
 
 class (Order repr Real, Floating (repr Real),
        Order repr Prob, Fractional (repr Prob)) => Base repr where
@@ -109,10 +93,14 @@ class (Base repr) => Mochastic repr where
   factor        :: repr Prob -> repr (Measure ())
   factor p      =  superpose [(p, dirac unit)]
   mix           :: [(repr Prob, repr (Measure a))] -> repr (Measure a)
+  mix []        =  errorEmpty
   mix pms       =  let total = sum (map fst pms)
                    in superpose [ (p/total, m) | (p,m) <- pms ]
   categorical   :: [(repr Prob, repr a)] -> repr (Measure a)
   categorical l =  mix [ (p, dirac x) | (p,x) <- l ]
+
+errorEmpty :: a
+errorEmpty = error "empty mixture makes no sense"
 
 bind_ :: (Mochastic repr) => repr (Measure a) -> repr (Measure b) ->
                              repr (Measure b)
@@ -129,7 +117,7 @@ beta a b = uniform 0 1 `bind` \x ->
                       , dirac (unsafeProb x) )]
 
 bern :: (Mochastic repr) => repr Prob -> repr (Measure Bool)
-bern p = superpose [(p, dirac true), (1-p, dirac false)]
+bern p = categorical [(p, true), (1-p, false)]
 
 class (Mochastic repr) => Disintegrate repr where
   disintegrate :: repr (Measure a) -> repr (Measure (a,b)) ->
@@ -217,7 +205,7 @@ instance (PrimMonad m) => Mochastic (Sample m) where
   superpose [(Sample q, Sample m)] = Sample (\p g -> (m $! p * q) g)
   superpose pms@((_, Sample m) : _) = Sample (\p g -> do
     let (x,y,ys) = normalize (map (unSample . fst) pms)
-    if y <= (0::Double) then return Nothing else do
+    if not (y > (0::Double)) then return Nothing else do
       u <- MWC.uniformR (0, y) g
       case [ m | (v,(_,m)) <- zip (scanl1 (+) ys) pms, u <= v ]
         of Sample m : _ -> (m $! p * x) g
@@ -228,11 +216,11 @@ instance (PrimMonad m) => Mochastic (Sample m) where
   normal (Sample mu) (Sample sd) = Sample (\p g -> do
     x <- MWCD.normal mu (LF.fromLogFloat sd) g
     return (Just (x, p)))
-  mix [] = Sample (\_ _ -> return Nothing)
+  mix [] = errorEmpty
   mix [(_, m)] = m
   mix pms@((_, Sample m) : _) = Sample (\p g -> do
     let (_,y,ys) = normalize (map (unSample . fst) pms)
-    if y <= (0::Double) then return Nothing else do
+    if not (y > (0::Double)) then errorEmpty else do
       u <- MWC.uniformR (0, y) g
       case [ m | (v,(_,m)) <- zip (scanl1 (+) ys) pms, u <= v ]
         of Sample m : _ -> (m $! p) g
@@ -340,13 +328,16 @@ runMaple :: Maple a -> Int -> String
 runMaple (Maple x) i = runCont (runReaderT x i) id
 
 mapleFun1 :: String -> Maple a -> Maple b
-mapleFun1 fn (Maple x) = Maple (fmap (\y -> fn ++ "(" ++ y ++ ")") x)
+mapleFun1 fn (Maple x) =
+  Maple (fmap (\y -> fn ++ "(" ++ y ++ ")") x)
 
 mapleFun2 :: String -> Maple a -> Maple b -> Maple c
-mapleFun2 fn (Maple x) (Maple y) = Maple (liftM2 (\w z -> fn ++ "(" ++ w ++ ", " ++ z ++ ")") x y)
+mapleFun2 fn (Maple x) (Maple y) =
+  Maple (liftM2 (\w z -> fn ++ "(" ++ w ++ ", " ++ z ++ ")") x y)
 
 mapleOp2 :: String -> Maple a -> Maple b -> Maple c
-mapleOp2 fn (Maple x) (Maple y) = Maple (liftM2 (\w z -> "(" ++ w ++ fn ++ z ++ ")") x y)
+mapleOp2 fn (Maple x) (Maple y) =
+  Maple (liftM2 (\w z -> "(" ++ w ++ fn ++ z ++ ")") x y)
 
 mapleBind :: (Maple a -> Maple b) -> Int -> (String, String)
 mapleBind f i = (x, runMaple (f (Maple (return x))) (i + 1))
@@ -370,25 +361,25 @@ instance Fractional (Maple a) where
                                   "/" ++ show (denominator x) ++ ")"))
 
 instance Floating (Maple a) where
-  pi                          = Maple (return "Pi")
-  exp                         = mapleFun1 "exp"
-  sqrt                        = mapleFun1 "sqrt"
-  log                         = mapleFun1 "log"
-  (**)                        = mapleOp2 "^"
-  logBase (Maple b) (Maple y) = Maple (liftM2 (\b' y' -> "log[" ++ b' ++ "]"
-                                                         ++ "(" ++ y' ++ ")") b y)
-  sin                         = mapleFun1 "sin"
-  tan                         = mapleFun1 "tan"
-  cos                         = mapleFun1 "cos"
-  asin                        = mapleFun1 "asin"
-  atan                        = mapleFun1 "atan"
-  acos                        = mapleFun1 "acos"
-  sinh                        = mapleFun1 "sinh"
-  tanh                        = mapleFun1 "tanh"
-  cosh                        = mapleFun1 "cosh"
-  asinh                       = mapleFun1 "asinh"
-  atanh                       = mapleFun1 "atanh"
-  acosh                       = mapleFun1 "acosh"
+  pi    = Maple (return "Pi")
+  exp   = mapleFun1 "exp"
+  sqrt  = mapleFun1 "sqrt"
+  log   = mapleFun1 "log"
+  (**)  = mapleOp2 "^"
+  logBase (Maple b) (Maple y) =
+    Maple (liftM2 (\b' y' -> "log[" ++ b' ++ "]" ++ "(" ++ y' ++ ")") b y)
+  sin   = mapleFun1 "sin"
+  tan   = mapleFun1 "tan"
+  cos   = mapleFun1 "cos"
+  asin  = mapleFun1 "asin"
+  atan  = mapleFun1 "atan"
+  acos  = mapleFun1 "acos"
+  sinh  = mapleFun1 "sinh"
+  tanh  = mapleFun1 "tanh"
+  cosh  = mapleFun1 "cosh"
+  asinh = mapleFun1 "asinh"
+  atanh = mapleFun1 "atanh"
+  acosh = mapleFun1 "acosh"
 
 instance Base Maple where
   unit = Maple (return "Unit")
