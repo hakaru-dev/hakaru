@@ -90,24 +90,27 @@ and_ [b]    = b
 and_ (b:bs) = if_ b (and_ bs) false
 
 class (Base repr) => Mochastic repr where
-  dirac        :: repr a -> repr (Measure a)
-  bind         :: repr (Measure a) -> (repr a -> repr (Measure b)) ->
-                  repr (Measure b)
-  lebesgue     :: repr (Measure Real)
-  superpose    :: [(repr Prob, repr (Measure a))] -> repr (Measure a)
+  dirac         :: repr a -> repr (Measure a)
+  bind          :: repr (Measure a) -> (repr a -> repr (Measure b)) ->
+                   repr (Measure b)
+  lebesgue      :: repr (Measure Real)
+  superpose     :: [(repr Prob, repr (Measure a))] -> repr (Measure a)
 
-  uniform      :: repr Real -> repr Real -> repr (Measure Real)
-  uniform lo hi = lebesgue `bind` \x ->
-                  if_ (and_ [less lo x, less x hi])
-                      (superpose [(recip (unsafeProb (hi - lo)), dirac x)])
-                      (superpose [])
-  normal       :: repr Real -> repr Prob -> repr (Measure Real)
-  normal mu sd = lebesgue `bind` \x ->
-                 superpose [( exp_ (- (x - mu)^2 / fromProb (2 * pow_ sd 2))
-                               / sd / sqrt_ (2 * pi_)
-                            , dirac x )]
-  factor       :: repr Prob -> repr (Measure ())
-  factor p     = superpose [(p, dirac unit)]
+  uniform       :: repr Real -> repr Real -> repr (Measure Real)
+  uniform lo hi =  lebesgue `bind` \x ->
+                   if_ (and_ [less lo x, less x hi])
+                       (superpose [(recip (unsafeProb (hi - lo)), dirac x)])
+                       (superpose [])
+  normal        :: repr Real -> repr Prob -> repr (Measure Real)
+  normal mu sd  =  lebesgue `bind` \x ->
+                   superpose [( exp_ (- (x - mu)^2 / fromProb (2 * pow_ sd 2))
+                                 / sd / sqrt_ (2 * pi_)
+                              , dirac x )]
+  factor        :: repr Prob -> repr (Measure ())
+  factor p      =  superpose [(p, dirac unit)]
+  mix           :: [(repr Prob, repr (Measure a))] -> repr (Measure a)
+  mix pms       =  let total = sum (map fst pms)
+                   in superpose [ (p/total, m) | (p,m) <- pms ]
 
 bind_ :: (Mochastic repr) => repr (Measure a) -> repr (Measure b) ->
                              repr (Measure b)
@@ -223,6 +226,15 @@ instance (PrimMonad m) => Mochastic (Sample m) where
   normal (Sample mu) (Sample sd) = Sample (\p g -> do
     x <- MWCD.normal mu (LF.fromLogFloat sd) g
     return (Just (x, p)))
+  mix [] = Sample (\_ _ -> return Nothing)
+  mix [(_, m)] = m
+  mix pms@((_, Sample m) : _) = Sample (\p g -> do
+    let (_,y,ys) = normalize (map (unSample . fst) pms)
+    if y <= (0::Double) then return Nothing else do
+      u <- MWC.uniformR (0, y) g
+      case [ m | (v,(_,m)) <- zip (scanl1 (+) ys) pms, u <= v ]
+        of Sample m : _ -> (m $! p) g
+           []           -> (m $! p) g)
 
 instance Integrate (Sample m) where -- just for kicks -- imprecise
   integrate (Sample lo) (Sample hi)

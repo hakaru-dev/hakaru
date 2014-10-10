@@ -99,6 +99,8 @@ instance Mochastic THRepr where
   uniform (THR e) (THR e') = liftT 'uniform [e, e']
   normal (THR e) (THR e') = liftT 'normal [e, e']
   factor (THR e) = liftT 'factor [e]
+  mix pms = liftT 'mix [liftL [ varE '(,) `appE` e `appE` e'
+                              | (THR e, THR e') <- pms ]]
 
 instance Disintegrate THRepr where
   disintegrate (THR e) (THR e') (THR e'') = liftT 'disintegrate [e, e', e'']
