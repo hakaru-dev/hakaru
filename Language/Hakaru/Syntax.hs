@@ -111,6 +111,8 @@ class (Base repr) => Mochastic repr where
   mix           :: [(repr Prob, repr (Measure a))] -> repr (Measure a)
   mix pms       =  let total = sum (map fst pms)
                    in superpose [ (p/total, m) | (p,m) <- pms ]
+  categorical   :: [(repr Prob, repr a)] -> repr (Measure a)
+  categorical l =  mix [ (p, dirac x) | (p,x) <- l ]
 
 bind_ :: (Mochastic repr) => repr (Measure a) -> repr (Measure b) ->
                              repr (Measure b)

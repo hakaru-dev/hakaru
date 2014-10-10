@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell, FlexibleInstances, MultiParamTypeClasses #-}
-module Language.Hakaru.TH (THRepr, unTHRepr) where
+module Language.Hakaru.TH (THRepr, unTHRepr, show_code) where
 
 import Prelude hiding (Real)
 
@@ -101,6 +101,8 @@ instance Mochastic THRepr where
   factor (THR e) = liftT 'factor [e]
   mix pms = liftT 'mix [liftL [ varE '(,) `appE` e `appE` e'
                               | (THR e, THR e') <- pms ]]
+  categorical l = liftT 'categorical [liftL [ varE '(,) `appE` e `appE` e'
+                                            | (THR e, THR e') <- l ]]
 
 instance Disintegrate THRepr where
   disintegrate (THR e) (THR e') (THR e'') = liftT 'disintegrate [e, e', e'']
