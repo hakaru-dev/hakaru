@@ -44,9 +44,12 @@ pair2'fst :: (Mochastic repr) => Int -> Cont repr ([repr Bool], repr Prob)
 pair2'fst n k = beta 1 1 `bind` \bias ->
                 replicateH n (bern bias) (\ coins -> k (coins, bias))
 
-
 pair2'snd :: (Mochastic repr) => Int -> Cont repr ([repr Bool], repr Prob)
-pair2'snd = undefined -- to be defined using explicit recursion
+pair2'snd = go 1 1 where
+  go a b 0 k = beta a b `bind` \bias -> k ([],bias)
+  go a b n k = bern (unsafeProb (a/(a+b))) `bind` \c ->
+               go (if_ c (a+1) a) (if_ c b (b+1)) (n-1) (\(cs,bias) ->
+               k (c:cs,bias))
 
 replicateH :: (Mochastic repr) => Int -> repr (Measure a) -> Cont repr [repr a]
 replicateH 0 _ k = k []
