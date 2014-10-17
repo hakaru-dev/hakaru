@@ -81,6 +81,14 @@ pair4fst = bern 0.5 `bind` \coin ->
 pair4snd :: (Mochastic repr) => repr (Measure Real)
 pair4snd = undefined
 
+-- makes a single mcmc transition given proposal target and current value
+mcmc :: repr (Measure a) -> repr (Measure a) -> repr a -> repr (Measure a)
+mcmc q p x =
+    p `bind` \ x' ->
+    density p q x  `bind_`
+    density q p x' `bind_`
+    dirac x'
+
 -- In Maple, should 'evaluate' to "\c -> 1/2*c(Unit)"
 t1 :: (Mochastic repr) => repr (Measure ())
 t1 = uniform 0 1 `bind` \x -> factor (unsafeProb x)
