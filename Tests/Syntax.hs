@@ -78,8 +78,16 @@ pair4fst :: (Mochastic repr) => repr (Measure Real)
 pair4fst = bern 0.5 `bind` \coin ->
            if_ coin (normal 0 1) (uniform 0 1)
 
-pair4snd :: (Mochastic repr) => repr (Measure Real)
-pair4snd = undefined
+pair4snd :: (Mochastic repr) => repr Bool -> repr Real -> repr (Measure Real)
+pair4snd coin x = 
+  bern (1/2) `bind` \resampleCoin ->
+  if_ resampleCoin
+      (bern (1/2) `bind` \coin' ->
+       dirac x) 
+      (if_ coin
+           (normal 3 2)
+           (uniform (-1) 1))
+   where densityCheck old new = undefined
 
 -- makes a single mcmc transition given proposal target and current value
 mcmc :: (Disintegrate repr) => repr (Measure a) -> repr (Measure a) -> repr a -> repr (Measure a)
