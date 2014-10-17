@@ -2,8 +2,8 @@
 module Language.Hakaru.TH (THRepr, unTHRepr, show_code) where
 
 import Prelude hiding (Real)
-
-import Language.Hakaru.Syntax
+import Language.Hakaru.Syntax (Real, Prob,
+       Order(..), Base(..), Mochastic(..), Disintegrate(..), Lambda(..))
 import Language.Haskell.TH
 
 newtype THRepr a = THR { unTHRepr :: ExpQ }
