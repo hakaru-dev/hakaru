@@ -97,6 +97,14 @@ mcmc q p x =
     density q p x' `bind_`
     dirac x'
 
+mcmc2 :: (Disintegrate repr) => (repr a -> repr (Measure a)) ->
+         repr (Measure a) -> repr a -> repr (Measure a)
+mcmc2 q p x =
+    p `bind` \ x' ->
+    density p (q x') x  `bind_`
+    density (q x) p x' `bind_`
+    dirac x'
+
 -- In Maple, should 'evaluate' to "\c -> 1/2*c(Unit)"
 t1 :: (Mochastic repr) => repr (Measure ())
 t1 = uniform 0 1 `bind` \x -> factor (unsafeProb x)
