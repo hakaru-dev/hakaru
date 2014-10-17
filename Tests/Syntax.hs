@@ -46,7 +46,7 @@ pair2'fst n k = beta 1 1 `bind` \bias ->
 
 
 pair2'snd :: (Mochastic repr) => Int -> Cont repr ([repr Bool], repr Prob)
-pair2'snd n k = undefined -- to be defined using explicit recursion
+pair2'snd = undefined -- to be defined using explicit recursion
 
 replicateH :: (Mochastic repr) => Int -> repr (Measure a) -> Cont repr [repr a]
 replicateH 0 _ k = k []
@@ -82,7 +82,7 @@ pair4snd :: (Mochastic repr) => repr (Measure Real)
 pair4snd = undefined
 
 -- makes a single mcmc transition given proposal target and current value
-mcmc :: repr (Measure a) -> repr (Measure a) -> repr a -> repr (Measure a)
+mcmc :: (Disintegrate repr) => repr (Measure a) -> repr (Measure a) -> repr a -> repr (Measure a)
 mcmc q p x =
     p `bind` \ x' ->
     density p q x  `bind_`
