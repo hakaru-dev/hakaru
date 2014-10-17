@@ -36,15 +36,17 @@ pair2snd =  bern (1/2) `bind` \coin1 ->
         g b = if_ b 0 1
 
 type Cont repr a = forall w. (a -> repr (Measure w)) -> repr (Measure w)
-{- This Cont monad is useful for generalizing pair2fst and pair2snd to an
- - arbitrary number of coin flips. The generalization would look liks this:
+-- This Cont monad is useful for generalizing pair2fst and pair2snd to an
+-- arbitrary number of coin flips. The generalization would look liks this:
 
-pair2'fst :: (Mochastic repr) => Int -> Cont repr ([repr Bool], repr Real)
+pair2'fst :: (Mochastic repr) => Int -> Cont repr ([repr Bool], repr Prob)
 -- REQUIREMENT: pair2fst = pair2'fst 2 (\([coin1,coin2],bias) -> dirac (pair (pair coin1 coin2) bias))
-pair2'fst = undefined -- to be defined using replicateH
+pair2'fst n k = beta 1 1 `bind` \bias ->
+                replicateH n (bern bias) (\ coins -> k (coins, bias))
 
-pair2'snd :: (Mochastic repr) => Int -> Cont repr ([repr Bool], repr Real)
-pair2'snd = undefined -- to be defined using explicit recursion
+
+pair2'snd :: (Mochastic repr) => Int -> Cont repr ([repr Bool], repr Prob)
+pair2'snd n k = undefined -- to be defined using explicit recursion
 
 replicateH :: (Mochastic repr) => Int -> repr (Measure a) -> Cont repr [repr a]
 replicateH 0 _ k = k []
@@ -54,7 +56,6 @@ twice :: (Mochastic repr) => repr (Measure a) -> Cont repr (repr a, repr a)
 twice m k = m `bind` \x ->
             m `bind` \y ->
             k (x, y)
--}
 
 -- pair3fst and pair3snd and pair3trd are equivalent
 pair3fst, pair3snd, pair3trd :: (Mochastic repr) => repr Prob -> [repr Bool] -> repr (Measure ())
@@ -72,6 +73,13 @@ pair3trd bias [b1,b2,b3] =
   factor (pow_ bias     (if_ b1 1 0 + if_ b2 1 0 + if_ b3 1 0)
         * pow_ (1-bias) (if_ b1 0 1 + if_ b2 0 1 + if_ b3 0 1))
 pair3trd _ _ = error "pair3fst: only implemented for 3 coin flips"
+
+pair4fst :: (Mochastic repr) => repr (Measure Real)
+pair4fst = bern 0.5 `bind` \coin ->
+           if_ coin (normal 0 1) (uniform 0 1)
+
+pair4snd :: (Mochastic repr) => repr (Measure Real)
+pair4snd = undefined
 
 -- In Maple, should 'evaluate' to "\c -> 1/2*c(Unit)"
 t1 :: (Mochastic repr) => repr (Measure ())
