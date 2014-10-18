@@ -78,32 +78,32 @@ pair3trd bias [b1,b2,b3] =
 pair3trd _ _ = error "pair3fst: only implemented for 3 coin flips"
 
 pair4fst :: (Mochastic repr) => repr (Measure Real)
-pair4fst = bern 0.5 `bind` \coin ->
+pair4fst = bern (1/2) `bind` \coin ->
            if_ coin (normal 0 1) (uniform 0 1)
 
-pair4snd :: (Mochastic repr) => repr Bool -> repr Real -> repr (Measure Real)
-pair4snd coin x = 
-  bern (1/2) `bind` \resampleCoin ->
-  if_ resampleCoin
-      (bern (1/2) `bind` \coin' ->
-       dirac x) 
-      (if_ coin
-           (normal 3 2)
-           (uniform (-1) 1))
-   where densityCheck old new = undefined
+pair4transition :: (Mochastic repr) => repr (Bool, Real) -> repr (Measure (Bool,Real))
+pair4transition state = bern (1/2) `bind` \resampleCoin ->
+                           if_ resampleCoin
+                           (bern (1/2) `bind` \coin' ->
+                            densityCheck (coin',x))
+                           (if_ coin
+                            (normal 3 2 `bind` \x -> densityCheck (coin, x))
+                            (uniform (-1) 1 `bind` \x -> densityCheck (coin, x)))
+    where densityCheck (coin', x') = case (log_ coin - log_ coin  > 0) of
+                                       True -> dirac (pair coin' x')
+                                       False -> state
+          nDensity = undefined
+          uDensity = undefined
+          coin = fst_ state
+          x = snd_ state
 
--- makes a single mcmc transition given proposal target and current value
-mcmc :: (Disintegrate repr) => repr (Measure a) -> repr (Measure a) -> repr a -> repr (Measure a)
-mcmc q p x =
-    p `bind` \ x' ->
-    density p q x  `bind_`
-    density q p x' `bind_`
-    dirac x'
+pair4'transition :: (Mochastic repr) => repr (Bool, Real) -> repr (Measure (Bool, Real))
+pair4'transition = undefined
 
-mcmc2 :: (Disintegrate repr) => (repr a -> repr (Measure a)) ->
+mcmc :: (Disintegrate repr) => (repr a -> repr (Measure a)) ->
          repr (Measure a) -> repr a -> repr (Measure a)
-mcmc2 q p x =
-    p `bind` \ x' ->
+mcmc q p x =
+    (q x) `bind` \ x' ->
     density p (q x') x  `bind_`
     density (q x) p x' `bind_`
     dirac x'
