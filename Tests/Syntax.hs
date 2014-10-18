@@ -1,13 +1,16 @@
-{-# LANGUAGE MultiParamTypeClasses, TypeFamilies,
-             FlexibleContexts, FlexibleInstances, DefaultSignatures,
-             StandaloneDeriving, GeneralizedNewtypeDeriving,
-             Rank2Types #-}
+{-# LANGUAGE TypeFamilies, Rank2Types #-}
 {-# OPTIONS -W #-}
 
 module Tests.Syntax where
 
-import Prelude hiding (Real, repeat)
-import Language.Hakaru.Syntax
+import Prelude hiding (Real)
+import Language.Hakaru.Syntax (Real, Prob, Measure,
+       Order(..), Base(..), and_,
+       Mochastic(..), bind_, beta, bern,
+       Disintegrate(..), density,
+       Lambda(..))
+import Language.Hakaru.Expect (Expect(unExpect), Expect')
+import Language.Hakaru.Maple (Maple(Maple), runMaple)
 
 -- pair1fst and pair1snd are equivalent
 pair1fst :: (Mochastic repr) => repr (Measure (Bool, Prob))
