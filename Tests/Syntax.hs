@@ -5,7 +5,7 @@ module Tests.Syntax where
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure,
-       Order(..), Base(..), and_,
+       Order(..), Base(..), and_, fst_, snd_,
        Mochastic(..), bind_, beta, bern,
        Disintegrate(..), density,
        Lambda(..))
@@ -84,7 +84,16 @@ pair4fst :: (Mochastic repr) => repr (Measure Real)
 pair4fst = bern (1/2) `bind` \coin ->
            if_ coin (normal 0 1) (uniform 0 1)
 
-pair4transition :: (Mochastic repr) => repr (Bool, Real) -> repr (Measure (Bool,Real))
+normalLogDensity :: repr Real -> repr Prob -> repr Real -> repr Real
+normalLogDensity = undefined
+
+uniformLogDensity :: repr Real -> repr Real -> repr Real -> repr Real
+uniformLogDensity = undefined
+
+bernLogDensity :: repr Prob -> repr Bool -> repr Real
+bernLogDensity = undefined
+
+pair4transition :: Mochastic repr => repr (Bool, Real) -> repr (Measure (Bool,Real))
 pair4transition state = bern (1/2) `bind` \resampleCoin ->
                            if_ resampleCoin
                            (bern (1/2) `bind` \coin' ->
@@ -92,11 +101,16 @@ pair4transition state = bern (1/2) `bind` \resampleCoin ->
                            (if_ coin
                             (normal 3 2 `bind` \x -> densityCheck (coin, x))
                             (uniform (-1) 1 `bind` \x -> densityCheck (coin, x)))
-    where densityCheck (coin', x') = case (log_ coin - log_ coin  > 0) of
-                                       True -> dirac (pair coin' x')
-                                       False -> state
-          nDensity = undefined
-          uDensity = undefined
+    where densityCheck (coin', x') = case (less (bernLogDensity (1/2) coin' +
+                                                 (if_ coin'
+                                                  (normalLogDensity 0 1 x')
+                                                  (uniformLogDensity 0 1 x')) -
+                                                 bernLogDensity (1/2) coin -
+                                                 (if_ coin
+                                                  (normalLogDensity 0 1 x)
+                                                  (uniformLogDensity 0 1 x))) 0) of
+                                       true -> dirac state
+                                       false -> dirac (pair coin' x')
           coin = fst_ state
           x = snd_ state
 
