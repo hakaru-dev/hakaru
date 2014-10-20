@@ -11,6 +11,10 @@ import Language.Hakaru.Syntax (Real, Prob, Measure,
        Lambda(..))
 import Language.Hakaru.Expect (Expect(unExpect), Expect')
 import Language.Hakaru.Maple (Maple(Maple), runMaple)
+import Language.Hakaru.Sample(Sample(unSample))
+
+import qualified Data.Number.LogFloat as LF
+import qualified System.Random.MWC as MWC
 
 -- pair1fst and pair1snd are equivalent
 pair1fst :: (Mochastic repr) => repr (Measure (Bool, Prob))
@@ -84,14 +88,19 @@ pair4fst :: (Mochastic repr) => repr (Measure Real)
 pair4fst = bern (1/2) `bind` \coin ->
            if_ coin (normal 0 1) (uniform 0 1)
 
-normalLogDensity :: repr Real -> repr Prob -> repr Real -> repr Real
-normalLogDensity = undefined
+normalLogDensity :: Mochastic repr => repr Real -> repr Prob -> repr Real -> repr Real
+normalLogDensity mu sd x = (-(fromProb tau) * square (x - mu)
+                            + log_ (tau / pi_ / 2)) / 2
+ where square y = y * y
+       tau = recip (square sd)
 
-uniformLogDensity :: repr Real -> repr Real -> repr Real -> repr Real
-uniformLogDensity = undefined
+uniformLogDensity :: Mochastic repr => repr Real -> repr Real -> repr Real -> repr Real
+uniformLogDensity lo hi x = if_ (and_ [less lo x, less x hi])
+                            (log_ (recip (unsafeProb (hi - lo))))
+                            (log_ 0)
 
-bernLogDensity :: repr Prob -> repr Bool -> repr Real
-bernLogDensity = undefined
+bernLogDensity :: Mochastic repr => repr Prob -> repr Bool -> repr Real
+bernLogDensity p x = log_ (if_ x p (1 - p))
 
 pair4transition :: Mochastic repr => repr (Bool, Real) -> repr (Measure (Bool,Real))
 pair4transition state = bern (1/2) `bind` \resampleCoin ->
@@ -101,21 +110,24 @@ pair4transition state = bern (1/2) `bind` \resampleCoin ->
                            (if_ coin
                             (normal 3 2 `bind` \x -> densityCheck (coin, x))
                             (uniform (-1) 1 `bind` \x -> densityCheck (coin, x)))
-    where densityCheck (coin', x') = case (less (bernLogDensity (1/2) coin' +
+    where densityCheck (coin', x') = if_ (less (bernLogDensity (1/2) coin' +
                                                  (if_ coin'
                                                   (normalLogDensity 0 1 x')
                                                   (uniformLogDensity 0 1 x')) -
                                                  bernLogDensity (1/2) coin -
                                                  (if_ coin
                                                   (normalLogDensity 0 1 x)
-                                                  (uniformLogDensity 0 1 x))) 0) of
-                                       true -> dirac state
-                                       false -> dirac (pair coin' x')
+                                                  (uniformLogDensity 0 1 x))) 0)
+                                       (dirac state)
+                                       (dirac (pair coin' x'))
           coin = fst_ state
           x = snd_ state
 
 pair4'transition :: (Mochastic repr) => repr (Bool, Real) -> repr (Measure (Bool, Real))
 pair4'transition = undefined
+
+transitionTest :: MWC.GenIO -> IO (Maybe ((Bool, Double), LF.LogFloat))
+transitionTest g = unSample (pair4transition (pair true 1)) 1 g
 
 mcmc :: (Disintegrate repr) => (repr a -> repr (Measure a)) ->
          repr (Measure a) -> repr a -> repr (Measure a)
