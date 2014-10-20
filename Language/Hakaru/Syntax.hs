@@ -123,8 +123,8 @@ condition :: (Disintegrate repr) => repr (Measure (a,b)) ->
 condition m = disintegrate (liftM fst_ m) m
 
 density :: (Disintegrate repr) => repr (Measure a) -> repr (Measure a) ->
-                                  repr a -> repr (Measure ())
-density ambient m = disintegrate ambient (liftM (`pair` unit) m)
+                                  repr a -> repr (Measure Real)
+density ambient m = disintegrate ambient (liftM (`pair` 1) m)
 
 class (Base repr) => Integrate repr where
   integrate :: repr Real -> repr Real -> (repr Real -> repr Prob) -> repr Prob
