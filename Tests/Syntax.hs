@@ -124,7 +124,22 @@ pair4transition state = bern (1/2) `bind` \resampleCoin ->
           x = snd_ state
 
 pair4'transition :: (Mochastic repr) => repr (Bool, Real) -> repr (Measure (Bool, Real))
-pair4'transition = undefined
+pair4'transition state = bern (1/2) `bind` \resampleCoin ->
+                           if_ resampleCoin
+                           (bern (1/2) `bind` \coin' ->
+                            updateState (pair coin' x) 0)
+                           (if_ coin
+                            (normal 3 2 `bind` \x' ->
+                                 updateState (pair coin x')
+                                   (normalLogDensity 0 1 x' - normalLogDensity 0 1 x))
+                            (uniform (-1) 1 `bind` \x' ->
+                                 updateState (pair coin x')
+                                   (uniformLogDensity 0 1 x' - uniformLogDensity 0 1 x)))
+    where updateState state' ratio = if_ (less ratio 0)
+                                     (dirac state)
+                                     (dirac state')
+          coin = fst_ state
+          x = snd_ state
 
 transitionTest :: MWC.GenIO -> IO (Maybe ((Bool, Double), LF.LogFloat))
 transitionTest g = unSample (pair4transition (pair true 1)) 1 g
