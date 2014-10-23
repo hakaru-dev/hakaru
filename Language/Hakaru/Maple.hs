@@ -99,6 +99,7 @@ instance Base Maple where
   sqrt_ = mapleFun1 "sqrt"
   pow_ = mapleOp2 "^"
   betaFunc = mapleFun2 "Beta"
+  fix = mapleFun1 "(proc (f) local x; x := f(x) end proc)" . lam
 
 instance Integrate Maple where
   integrate (Maple lo) (Maple hi) f = Maple (lo >>= \lo' -> hi >>= \hi' ->

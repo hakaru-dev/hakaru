@@ -41,6 +41,7 @@ instance Base THRepr where
   unsafeProb (THR e) = liftT 'unsafeProb [e]
   fromProb (THR e) = liftT 'fromProb [e]
   betaFunc (THR e) (THR e') = liftT 'betaFunc [e, e']
+  fix f = liftT 'fix [liftF f]
 
 instance Num (THRepr Real) where
   (THR e) + (THR e') = liftT '(+) [e, e']

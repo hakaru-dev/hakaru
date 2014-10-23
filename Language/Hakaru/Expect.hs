@@ -58,6 +58,7 @@ instance (Base repr) => Base (Expect repr) where
   sqrt_                          = Expect . sqrt_ . unExpect
   pow_ (Expect x) (Expect y)     = Expect (pow_ x y)
   betaFunc (Expect a) (Expect b) = Expect (betaFunc a b)
+  fix f                          = Expect (fix (unExpect . f . Expect))
 
 instance (Integrate repr) => Integrate (Expect repr) where
   integrate (Expect lo) (Expect hi) f =

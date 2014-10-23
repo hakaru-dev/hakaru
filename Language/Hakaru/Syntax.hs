@@ -53,6 +53,9 @@ class (Order repr Real, Floating (repr Real),
   betaFunc a b = integrate 0 1 $ \x ->
     pow_ (unsafeProb x) (a-1) * pow_ (unsafeProb (1-x)) (b-1)
 
+  fix :: (repr a -> repr a) -> repr a
+  fix f = x where x = f x
+
 fst_ :: (Base repr) => repr (a,b) -> repr a
 fst_ ab = unpair ab (\a _ -> a)
 
