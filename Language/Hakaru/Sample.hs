@@ -75,8 +75,7 @@ instance (PrimMonad m) => Mochastic (Sample m) where
     (u,b) <- MWC.uniform g
     let l = log u
         n = negate l
-    return (Just (if b then n else l,
-                  p * 2 * LF.logToLogFloat n)))
+    return (Just (if b then n else l, p * 2 * LF.logToLogFloat n)))
   superpose [] = Sample (\_ _ -> return Nothing)
   superpose [(Sample q, Sample m)] = Sample (\p g -> (m $! p * q) g)
   superpose pms@((_, Sample m) : _) = Sample (\p g -> do
