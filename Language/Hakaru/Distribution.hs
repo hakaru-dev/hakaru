@@ -11,7 +11,7 @@ import Language.Hakaru.Mixture
 import Language.Hakaru.Types
 import Data.Ix
 import Data.Maybe (fromMaybe)
-import Data.List (findIndex, foldl')
+import Data.List (findIndex, foldl', sort)
 import Numeric.SpecFunctions
 import qualified Data.Map.Strict as M
 import qualified Data.Number.LogFloat as LF
@@ -227,3 +227,17 @@ dirichletLogDensity a x | all (> 0) x = sum' (zipWith logTerm a x) + logGamma (s
   where sum' = foldl' (+) 0
         logTerm b y = (b-1) * log y - logGamma b
 dirichletLogDensity _ _ = error "dirichlet: all values must be between 0 and 1"
+
+dirichlet :: Int -> Double -> Dist [Double]
+dirichlet n a = Dist {logDensity = dirichletLogDensity (replicate n a) . fromLebesgue,
+                      distSample = (\ g -> liftM Lebesgue $ dirichlet_rng n a g)}
+
+multinomial_rng :: (PrimMonad m) => Int -> [Double] -> PRNG m -> m [Int]
+multinomial_rng n theta g = undefined                                                              
+
+multinomialLogDensity :: Int -> [Double] -> [Int] -> Double
+multinomialLogDensity n theta x = undefined
+
+multinomial :: Int -> [Double] -> Dist [Int]
+multinomial n theta = Dist {logDensity = multinomialLogDensity n theta . fromDiscrete,
+                            distSample = (\g -> liftM Discrete $ multinomial_rng n theta g)}
