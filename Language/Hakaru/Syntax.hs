@@ -2,7 +2,7 @@
 {-# OPTIONS -W #-}
 
 module Language.Hakaru.Syntax (Real, Prob, Measure, errorEmpty,
-       Order(..), Base(..), fst_, snd_, and_,
+       Order(..), Base(..), fst_, snd_, and_, min_, max_,
        Mochastic(..), bind_, liftM, liftM2, beta, bern,
        Disintegrate(..), condition, density,
        Integrate(..), Lambda(..)) where
@@ -66,6 +66,10 @@ and_ :: (Base repr) => [repr Bool] -> repr Bool
 and_ []     = true
 and_ [b]    = b
 and_ (b:bs) = if_ b (and_ bs) false
+
+min_, max_ :: (Order repr a, Base repr) => repr a -> repr a -> repr a
+min_ x y = if_ (less x y) x y
+max_ x y = if_ (less x y) y x
 
 class (Base repr) => Mochastic repr where
   dirac         :: repr a -> repr (Measure a)

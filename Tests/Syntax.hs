@@ -5,7 +5,7 @@ module Tests.Syntax where
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure,
-       Order(..), Base(..), and_, fst_, snd_,
+       Order(..), Base(..), and_, fst_, snd_, min_,
        Mochastic(..), bind_, beta, bern,
        Disintegrate(..), density,
        Lambda(..))
@@ -139,10 +139,8 @@ pair4'transition state = bern (1/2) `bind` \resampleCoin ->
                             (uniform (-1) 1 `bind` \x' ->
                                  updateState (pair coin x')
                                    (uniformLogDensity 0 1 x' - uniformLogDensity 0 1 x)))
-    where updateState state' ratio = uniform 0 1 `bind` \u ->
-                                       if_ (less (log_ (unsafeProb u)) ratio)
-                                       (dirac state)
-                                       (dirac state')
+    where updateState state' ratio = bern (min_ 1 (exp_ ratio)) `bind` \u ->
+                                       if_ u (dirac state') (dirac state)
           coin = fst_ state
           x = snd_ state
 
