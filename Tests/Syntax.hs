@@ -127,7 +127,11 @@ pair4'transition :: (Mochastic repr) => repr (Bool, Real) -> repr (Measure (Bool
 pair4'transition state = bern (1/2) `bind` \resampleCoin ->
                            if_ resampleCoin
                            (bern (1/2) `bind` \coin' ->
-                            updateState (pair coin' x) 0)
+                            (if_ coin'
+                             (updateState (pair coin' x) $
+                              uniformLogDensity 0 1 x - normalLogDensity 0 1 x)
+                             (updateState (pair coin' x) $
+                              normalLogDensity 0 1 x - uniformLogDensity 0 1 x)))
                            (if_ coin
                             (normal 3 2 `bind` \x' ->
                                  updateState (pair coin x')
@@ -135,9 +139,10 @@ pair4'transition state = bern (1/2) `bind` \resampleCoin ->
                             (uniform (-1) 1 `bind` \x' ->
                                  updateState (pair coin x')
                                    (uniformLogDensity 0 1 x' - uniformLogDensity 0 1 x)))
-    where updateState state' ratio = if_ (less ratio 0)
-                                     (dirac state)
-                                     (dirac state')
+    where updateState state' ratio = uniform 0 1 `bind` \u ->
+                                       if_ (less (log_ (unsafeProb u)) ratio)
+                                       (dirac state)
+                                       (dirac state')
           coin = fst_ state
           x = snd_ state
 
