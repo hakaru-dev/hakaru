@@ -1,16 +1,20 @@
-{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, ScopedTypeVariables #-}
 {-# OPTIONS -W #-}
 
-module Language.Hakaru.Maple (Maple(..), runMaple) where
+module Language.Hakaru.Maple (Maple(..), runMaple, closeLoop) where
 
 -- Maple printing interpretation
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Order(..), Base(..), Integrate(..), Lambda(..))
+import Language.Hakaru.Syntax (Order(..), Base(..), Integrate(..), Lambda(..),
+    Mochastic(..), Prob)
 import Data.Ratio
+import Data.Dynamic (Typeable)
 import Control.Monad (liftM2)
 import Control.Monad.Trans.Reader (ReaderT(ReaderT), runReaderT)
 import Control.Monad.Trans.Cont (Cont, cont, runCont)
+
+import Language.Haskell.Interpreter
 
 newtype Maple a = Maple { unMaple :: ReaderT Int (Cont String) String }
 
@@ -77,13 +81,16 @@ instance Base Maple where
   unit = Maple (return "Unit")
   pair = mapleFun2 "Pair"
   unpair (Maple ab) k = Maple (ab >>= \ab' ->
-    let opab n = "op(" ++ show n ++ ", " ++ ab' ++ ")" in
+    let opab :: Int -> String
+        opab n = "op(" ++ show n ++ ", " ++ ab' ++ ")" 
+    in
     unMaple (k (Maple (return (opab 1))) (Maple (return (opab 2)))))
   inl (Maple a) = Maple (fmap (\a' -> "Left("  ++ a' ++ ")") a)
   inr (Maple b) = Maple (fmap (\b' -> "Right(" ++ b' ++ ")") b)
   uneither (Maple ab) ka kb = Maple (ab >>= \ab' ->
     ReaderT $ \i -> cont $ \c ->
-    let opab n = "op(" ++ show n ++ ", " ++ ab' ++ ")" in
+    let opab :: Int -> String
+        opab n = "op(" ++ show n ++ ", " ++ ab' ++ ")" in
     let arm tag k = opab 0 ++ " = " ++ tag ++ ", " ++
                     runCont (runReaderT (k (return (opab 1))) i) c in
     "piecewise(" ++ arm "Left"  (unMaple . ka . Maple)
@@ -114,3 +121,16 @@ instance Lambda Maple where
     let (x, body) = mapleBind f i in "(" ++ x ++ "->" ++ body ++ ")")
   app (Maple rator) (Maple rand) =
     Maple (liftM2 (\rator' rand' -> rator' ++ "(" ++ rand' ++ ")") rator rand)
+
+-- and now for the other way around: take things that came from Maple
+-- (as strings), and interpret in Haskell.  This is probably not the best
+-- place for this code, since Maple is supposed to produce proper Haskell,
+-- but this is a start.
+ourContext :: MonadInterpreter m => m ()
+ourContext = setImports ["Prelude", "Data.Ratio"]
+
+-- Typeable repr is very scary!?
+closeLoop :: forall m repr.(Functor m, MonadInterpreter m, Mochastic repr,
+  Typeable repr) => 
+    String -> m (Either InterpreterError (repr Prob))
+closeLoop s = runInterpreter (ourContext >> interpret s (as :: repr Prob))

@@ -1,4 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleContexts, DefaultSignatures #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# OPTIONS -W #-}
 
 module Language.Hakaru.Syntax (Real, Prob, Measure, errorEmpty,
@@ -8,6 +9,7 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, errorEmpty,
        Integrate(..), Lambda(..)) where
 
 import Prelude hiding (Real)
+import Data.Dynamic (Typeable)
 
 -- A small probabilistic language with conditioning
 
@@ -15,7 +17,7 @@ infixl 1 `bind`, `bind_`
 infixl 9 `app`
 
 data Real
-data Prob -- meaning: non-negative real number
+data Prob deriving Typeable -- meaning: non-negative real number
 data Measure a
 
 class Order repr a where
