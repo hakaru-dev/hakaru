@@ -46,7 +46,7 @@ instance Base THRepr where
 
 instance Num (THRepr Real) where
   (THR e) + (THR e') = liftT '(+) [e, e']
-  (THR e) * (THR e') = liftT '(+) [e, e']
+  (THR e) * (THR e') = liftT '(*) [e, e']
   abs (THR e) = liftT 'abs [e]
   signum (THR e) = liftT 'signum [e]
   fromInteger n = liftT 'fromInteger [litE (IntegerL n)]
