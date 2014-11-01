@@ -28,6 +28,7 @@ liftF2 f = do x <- newName "x"
 instance Order THRepr a where
   less (THR e) (THR e') = liftT 'less [e, e']
 
+-- I am guessing that unpair and uneither are broken
 instance Base THRepr where
   unit = liftT 'unit []
   pair (THR e) (THR e') = liftT 'pair [e, e']
