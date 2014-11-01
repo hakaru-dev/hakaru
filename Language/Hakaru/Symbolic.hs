@@ -52,8 +52,8 @@ type instance MPL Integer  = Integer
 type instance MPL Bool     = Bool
 
 -- if it weren't for the constraints, we could/should use Applicative
-pure :: Show (MPL a) => MPL a -> Maple a
-pure x = Maple $ \_ _ -> show x
+liftC :: Show (MPL a) => MPL a -> Maple a
+liftC x = Maple $ \_ _ -> show x
 
 liftA1 :: (String -> String) -> Maple a -> Maple a
 liftA1 pr x = Maple $ \f h -> pr (unMaple x f h)
@@ -112,7 +112,7 @@ instance RealComp Maple where
    -- serious problem here: all exact numbers will be printed as
    -- floats, which will really hamper the use of Maple in any 
    -- serious way.  This needs a rethink.
-  real  = pure
+  real  = liftC
   exp   = liftA2 $ infixPr "^"
   sqrt  = liftA1 $ mkPr "sqrt"
   cos   = liftA1 $ mkPr "cos"
@@ -126,10 +126,10 @@ instance SymbComp Maple where
   scale = liftA2baa $ infixPr "*"
 
 instance IntComp Maple where
-  int  = pure
+  int  = liftC
 
 instance BoolComp Maple where
-  bool  = pure
+  bool  = liftC
 
 instance MeasMonad Maple where
   ret      = liftA1M $ mkPr "g"

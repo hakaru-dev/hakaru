@@ -6,6 +6,7 @@
 module Language.Hakaru.Metropolis where
 
 import qualified System.Random.MWC as MWC
+import Control.Applicative
 import Control.Monad
 import Control.Monad.Primitive
 import Data.Dynamic
@@ -69,6 +70,11 @@ sbind s k = \ st g -> do (v, s') <- s st g
 smap :: (a -> b) -> Sampler a -> Sampler b
 smap f s = sbind s (\a -> sreturn (f a))
 
+sapp :: (Sampler (a -> b)) -> Sampler a -> Sampler b
+sapp f s = \st g -> do (vf, s')  <- f st g
+                       (vs, s'') <- s s' g
+                       sreturn (vf vs) s'' g
+
 newtype Measure a = Measure {unMeasure :: Name -> Sampler a }
   deriving (Typeable)
 
@@ -116,6 +122,9 @@ bind :: Measure a -> (a -> Measure b) -> Measure b
 bind (Measure m) cont = Measure $ \ n ->
     sbind (m (0:n)) (\ a -> unMeasure (cont a) (1:n))
 
+app :: Measure (a -> b) -> Measure a -> Measure b
+app (Measure f) (Measure a) = Measure $ \n -> sapp (f n) (a n)
+
 conditioned :: Typeable a => Dist a -> Measure a
 conditioned dist = Measure $ \ n -> 
     \s@(S {cnds = cond:conds }) ->
@@ -124,6 +133,13 @@ conditioned dist = Measure $ \ n ->
 unconditioned :: Typeable a => Dist a -> Measure a
 unconditioned dist = Measure $ \ n ->
     updateXRP n Nothing dist
+
+instance Functor Measure where
+  fmap f (Measure x) = Measure $ \n -> smap f (x n)
+
+instance Applicative Measure where
+  pure = return_
+  (<*>) = app
 
 instance Monad Measure where
   return = return_

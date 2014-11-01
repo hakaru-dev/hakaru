@@ -234,7 +234,8 @@ dirichlet n a = Dist {logDensity = dirichletLogDensity (replicate n a) . fromLeb
 
 -- Consider making multinomial match categorical
 multinomial_rng :: (PrimMonad m) => Int -> [Double] -> PRNG m -> m [Int]
-multinomial_rng n theta g = undefined
+-- multinomial_rng n theta g = undefined
+multinomial_rng _ _ _ = undefined
 
 multinomialLogDensity :: Int -> [Double] -> [Int] -> Double
 multinomialLogDensity n theta' x' | n > 0 && sum x' == n && all (>0) x' && all (<n) x'
