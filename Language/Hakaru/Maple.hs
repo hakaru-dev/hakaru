@@ -1,4 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, ScopedTypeVariables #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# OPTIONS -W #-}
 
 module Language.Hakaru.Maple (Maple(..), runMaple, closeLoop) where
@@ -7,9 +8,9 @@ module Language.Hakaru.Maple (Maple(..), runMaple, closeLoop) where
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Order(..), Base(..), Integrate(..), Lambda(..),
-    Mochastic(..), Prob)
+    Prob)
 import Data.Ratio
-import Data.Dynamic (Typeable)
+-- import Data.Dynamic (Typeable)
 import Control.Monad (liftM2)
 import Control.Monad.Trans.Reader (ReaderT(ReaderT), runReaderT)
 import Control.Monad.Trans.Cont (Cont, cont, runCont)
@@ -129,8 +130,7 @@ instance Lambda Maple where
 ourContext :: MonadInterpreter m => m ()
 ourContext = setImports ["Prelude", "Data.Ratio"]
 
--- Typeable repr is very scary!?
-closeLoop :: forall m repr.(Functor m, MonadInterpreter m, Mochastic repr,
-  Typeable repr) => 
-    String -> m (Either InterpreterError (repr Prob))
-closeLoop s = runInterpreter (ourContext >> interpret s (as :: repr Prob))
+-- This is silly, as all we can read back in right now are fractions.
+-- But at least this much works!
+closeLoop :: String -> IO (Either InterpreterError (Ratio Integer))
+closeLoop s = runInterpreter (ourContext >> interpret s (as :: Ratio Integer))
