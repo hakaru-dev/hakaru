@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell, FlexibleInstances, MultiParamTypeClasses #-}
+{-# OPTIONS -Wall #-}
 module Language.Hakaru.TH (THRepr, unTHRepr, show_code) where
 
 import Prelude hiding (Real)
@@ -28,14 +29,13 @@ liftF2 f = do x <- newName "x"
 instance Order THRepr a where
   less (THR e) (THR e') = liftT 'less [e, e']
 
--- I am guessing that unpair and uneither are broken
 instance Base THRepr where
   unit = liftT 'unit []
   pair (THR e) (THR e') = liftT 'pair [e, e']
-  unpair (THR e) f = liftT 'unpair [liftF2 f]
+  unpair (THR e) f = liftT 'unpair [e, liftF2 f]
   inl (THR e) = liftT 'inl [e]
   inr (THR e) = liftT 'inr [e]
-  uneither (THR e) f g = liftT 'uneither [liftF f, liftF g]
+  uneither (THR e) f g = liftT 'uneither [e, liftF f, liftF g]
   true = liftT 'true []
   false = liftT 'false []
   if_ (THR b) (THR t) (THR e) = liftT 'if_ [b,t,e]
