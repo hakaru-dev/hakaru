@@ -1,5 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, ScopedTypeVariables #-}
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveDataTypeable, GADTs #-}
 {-# OPTIONS -W #-}
 
 module Language.Hakaru.Maple (Maple(..), runMaple, closeLoop) where
@@ -8,14 +8,14 @@ module Language.Hakaru.Maple (Maple(..), runMaple, closeLoop) where
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Order(..), Base(..), Integrate(..), Lambda(..),
-    Prob)
+    TypeOf(Sum, One), typeOf, typeOf1, typeOf2)
 import Data.Ratio
 -- import Data.Dynamic (Typeable)
 import Control.Monad (liftM2)
 import Control.Monad.Trans.Reader (ReaderT(ReaderT), runReaderT)
 import Control.Monad.Trans.Cont (Cont, cont, runCont)
 
-import Language.Haskell.Interpreter
+import Language.Haskell.Interpreter hiding (typeOf)
 
 newtype Maple a = Maple { unMaple :: ReaderT Int (Cont String) String }
 
@@ -86,24 +86,28 @@ instance Base Maple where
         opab n = "op(" ++ show n ++ ", " ++ ab' ++ ")" 
     in
     unMaple (k (Maple (return (opab 1))) (Maple (return (opab 2)))))
-  inl (Maple a) = Maple (fmap (\a' -> "Left("  ++ a' ++ ")") a)
-  inr (Maple b) = Maple (fmap (\b' -> "Right(" ++ b' ++ ")") b)
-  uneither (Maple ab) ka kb = Maple (ab >>= \ab' ->
+  inl (Maple a) = x
+    where x = case (typeOf x, typeOf1 x, typeOf2 x) of
+              (Sum, One, One) -> Maple (return "true")
+              _ -> Maple (fmap (\a' -> "Left("  ++ a' ++ ")") a)
+  inr (Maple b) = x
+    where x = case (typeOf x, typeOf1 x, typeOf2 x) of
+              (Sum, One, One) -> Maple (return "false")
+              _ -> Maple (fmap (\b' -> "Right(" ++ b' ++ ")") b)
+  uneither x@(Maple ab) ka kb = Maple (ab >>= \ab' ->
     ReaderT $ \i -> cont $ \c ->
-    let opab :: Int -> String
-        opab n = "op(" ++ show n ++ ", " ++ ab' ++ ")" in
-    let arm tag k = opab 0 ++ " = " ++ tag ++ ", " ++
-                    runCont (runReaderT (k (return (opab 1))) i) c in
-    "piecewise(" ++ arm "Left"  (unMaple . ka . Maple)
-         ++ ", " ++ arm "Right" (unMaple . kb . Maple) ++ ")")
+    case (typeOf x, typeOf1 x, typeOf2 x) of
+    (Sum, One, One) -> let arm k = runCont (runReaderT (unMaple (k unit)) i) c
+                       in "piecewise(" ++ ab' ++ ", " ++ arm ka
+                                              ++ ", " ++ arm kb ++ ")"
+    _ -> let opab :: Int -> String
+             opab n = "op(" ++ show n ++ ", " ++ ab' ++ ")" in
+         let arm tag k = opab 0 ++ " = " ++ tag ++ ", " ++
+                         runCont (runReaderT (k (return (opab 1))) i) c in
+         "piecewise(" ++ arm "Left"  (unMaple . ka . Maple)
+              ++ ", " ++ arm "Right" (unMaple . kb . Maple) ++ ")")
   unsafeProb (Maple x) = Maple x
   fromProb   (Maple x) = Maple x
-  true  = Maple (return "true" )
-  false = Maple (return "false")
-  if_ (Maple cond) (Maple a) (Maple b) = Maple (cond >>= \cond' ->
-    ReaderT $ \i -> cont $ \c ->
-    "piecewise(" ++ cond' ++ ", " ++ runCont (runReaderT a i) c
-                          ++ ", " ++ runCont (runReaderT b i) c ++ ")")
   sqrt_ = mapleFun1 "sqrt"
   pow_ = mapleOp2 "^"
   betaFunc = mapleFun2 "Beta"

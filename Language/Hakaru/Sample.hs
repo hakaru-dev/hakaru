@@ -21,7 +21,6 @@ newtype Sample m a = Sample { unSample :: Sample' m a }
 type family Sample' (m :: * -> *) (a :: *)
 type instance Sample' m Real         = Double
 type instance Sample' m Prob         = LF.LogFloat
-type instance Sample' m Bool         = Bool
 type instance Sample' m ()           = ()
 type instance Sample' m (a, b)       = (Sample' m a, Sample' m b)
 type instance Sample' m (Either a b) = Either (Sample' m a) (Sample' m b)
@@ -30,7 +29,7 @@ type instance Sample' m (Measure a)  = LF.LogFloat -> MWC.Gen (PrimState m) ->
 type instance Sample' m (a -> b)     = Sample' m a -> Sample' m b
 
 instance Order (Sample m) Real where
-  less (Sample a) (Sample b) = Sample $ a < b
+  less (Sample a) (Sample b) = Sample ((if a < b then Left else Right) ())
 
 deriving instance Eq         (Sample m Real)
 deriving instance Ord        (Sample m Real)
@@ -39,7 +38,7 @@ deriving instance Fractional (Sample m Real)
 deriving instance Floating   (Sample m Real)
 
 instance Order (Sample m) Prob where
-  less (Sample a) (Sample b) = Sample $ a < b
+  less (Sample a) (Sample b) = Sample ((if a < b then Left else Right) ())
 
 deriving instance Eq         (Sample m Prob)
 deriving instance Ord        (Sample m Prob)
@@ -54,9 +53,6 @@ instance Base (Sample m) where
   inr (Sample b)                  = Sample (Right b)
   uneither (Sample (Left  a)) k _ = k (Sample a)
   uneither (Sample (Right b)) _ k = k (Sample b)
-  true                            = Sample True
-  false                           = Sample False
-  if_ (Sample c) a b              = if c then a else b
   unsafeProb (Sample x)           = Sample (LF.logFloat x)
   fromProb (Sample x)             = Sample (LF.fromLogFloat x)
   exp_ (Sample x)                 = Sample (LF.logToLogFloat x)
