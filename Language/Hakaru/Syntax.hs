@@ -3,7 +3,7 @@
 {-# OPTIONS -W #-}
 
 module Language.Hakaru.Syntax (Real, Prob, Measure, errorEmpty,
-       Order(..), Base(..), fst_, snd_, and_, min_, max_,
+       Order(..), Base(..), fst_, snd_, and_, or_, min_, max_,
        Mochastic(..), bind_, liftM, liftM2, beta, bern,
        Disintegrate(..), condition, density,
        Integrate(..), Lambda(..)) where
