@@ -204,7 +204,7 @@ and_ []     = true
 and_ [b]    = b
 and_ (b:bs) = if_ b (and_ bs) false
 
-or_ :: (Base repr) => [repr Bool] -> repr Bool
+or_ :: (Base repr) => [repr Bool_] -> repr Bool_
 or_ []      = false
 or_ [b]     = b
 or_ (b:bs)  = if_ b true (or_ bs)
