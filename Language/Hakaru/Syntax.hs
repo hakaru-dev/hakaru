@@ -2,7 +2,7 @@
              DeriveDataTypeable, GADTs #-}
 {-# OPTIONS -W #-}
 
-module Language.Hakaru.Syntax (Real, Prob, Measure,
+module Language.Hakaru.Syntax (Real, Prob, Measure, Bool_,
        TypeOf(..), Type(..), typeOf, typeOf1, typeOf2,
        EqType(..), eqType, OrdType(..), ordType,
        errorEmpty,

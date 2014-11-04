@@ -11,11 +11,11 @@ import System.Random.MWC as MWC hiding (uniform)
 
 type Cont repr a = forall w. (a -> repr (Measure w)) -> repr (Measure w)
 
-replicateH :: (Mochastic repr) => Int -> repr (Measure a) -> Cont repr [repr a]
+replicateH :: (Type a, Mochastic repr) => Int -> repr (Measure a) -> Cont repr [repr a]
 replicateH 0 _ k = k []
 replicateH n m k = m `bind` \x -> replicateH (n-1) m (\xs -> k (x:xs))
 
-noisyOr :: (Mochastic repr) => repr Prob -> repr Bool -> repr Bool -> repr (Measure Bool)
+noisyOr :: (Mochastic repr) => repr Prob -> repr Bool_ -> repr Bool_ -> repr (Measure Bool_)
 noisyOr noise x y = if_ (or_ [x, y])
                     (bern (1 - noise))
                     (bern noise)
@@ -24,7 +24,7 @@ tester prog = do
   g <- MWC.create
   replicateM 10 (unSample prog 1 g)
 
-not :: repr Bool -> repr Bool
+not :: Base repr => repr Bool_ -> repr Bool_
 not a = if_ a false true
 
 -- Bayesian Linear Regression
@@ -44,7 +44,7 @@ linreg = normal 0 2 `bind` \w1 ->
 
 -- QMR
 
-qmr :: Mochastic repr => repr (Measure (Bool, Bool))
+qmr :: Mochastic repr => repr (Measure (Bool_, Bool_))
 qmr = 
  bern (1/40)   `bind` \cold ->
  bern (1/80)   `bind` \flu  ->
@@ -62,7 +62,7 @@ qmr =
 -- Network Analysis
 
 -- Friends who Smoke
-friendsWhoSmoke :: Mochastic repr => repr (Measure (Bool, Bool))
+friendsWhoSmoke :: Mochastic repr => repr (Measure (Bool_, Bool_))
 friendsWhoSmoke =
     bern (1/5) `bind` \smokes1 ->
     bern (1/5) `bind` \smokes2 ->
