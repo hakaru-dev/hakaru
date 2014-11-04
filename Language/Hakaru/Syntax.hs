@@ -69,6 +69,11 @@ and_ []     = true
 and_ [b]    = b
 and_ (b:bs) = if_ b (and_ bs) false
 
+or_ :: (Base repr) => [repr Bool] -> repr Bool
+or_ []      = false
+or_ [b]     = b
+or_ (b:bs)  = if_ b true (or_ bs)
+
 min_, max_ :: (Order repr a, Base repr) => repr a -> repr a -> repr a
 min_ x y = if_ (less x y) x y
 max_ x y = if_ (less x y) y x
