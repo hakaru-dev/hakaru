@@ -1,6 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleContexts, FlexibleInstances,
-    TypeFamilies, StandaloneDeriving, GeneralizedNewtypeDeriving #-}
-{-# OPTIONS -W #-}
+    TypeFamilies, StandaloneDeriving, GeneralizedNewtypeDeriving,
+    Rank2Types, GADTs #-}
+{-# OPTIONS -Wall #-}
 
 module Language.Hakaru.Expect (Expect(..), Expect') where
 
@@ -8,18 +9,32 @@ module Language.Hakaru.Expect (Expect(..), Expect') where
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure,
+       TypeOf(..), Type, typeOf1, typeOf2,
        Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..))
 
 newtype Expect repr a = Expect { unExpect :: repr (Expect' a) }
 type family Expect' (a :: *)
 type instance Expect' Real         = Real
 type instance Expect' Prob         = Prob
-type instance Expect' Bool         = Bool
 type instance Expect' ()           = ()
 type instance Expect' (a, b)       = (Expect' a, Expect' b)
 type instance Expect' (Either a b) = Either (Expect' a) (Expect' b)
 type instance Expect' (Measure a)  = (Expect' a -> Prob) -> Prob
 type instance Expect' (a -> b)     = (Expect' a -> Expect' b)
+
+typeExpect :: TypeOf t -> (Type (Expect' t) => w) -> w
+typeExpect Real   k = k
+typeExpect Prob   k = k
+typeExpect One    k = k
+typeExpect x@Meas k = typeExpect (typeOf2 x) k
+typeExpect x@Prod k = typeExpect (typeOf1 x) (typeExpect (typeOf2 x) k)
+typeExpect x@Sum  k = typeExpect (typeOf1 x) (typeExpect (typeOf2 x) k)
+typeExpect x@Fun  k = typeExpect (typeOf1 x) (typeExpect (typeOf2 x) k)
+
+typeExpectBoth :: (Type t1, Type t2) => a (f t1 t2)
+               -> ((Type (Expect' t1), Type (Expect' t2)) => repr (Expect' w))
+               -> Expect repr w
+typeExpectBoth a k = Expect (typeExpect (typeOf1 a) (typeExpect (typeOf2 a) k))
 
 instance (Order repr Real) => Order (Expect repr) Real where
   less (Expect x) (Expect y) = Expect (less x y)
@@ -40,18 +55,16 @@ deriving instance (Fractional (repr Prob)) => Fractional (Expect repr Prob)
 
 instance (Base repr) => Base (Expect repr) where
   unit                           = Expect unit
-  pair (Expect a) (Expect b)     = Expect (pair a b)
-  unpair (Expect ab) k           = Expect (unpair ab (\a b ->
+  pair (Expect a) (Expect b)     = x where x = typeExpectBoth x (pair a b)
+  unpair x@(Expect ab) k         = typeExpectBoth x (unpair ab (\a b ->
                                    unExpect (k (Expect a) (Expect b))))
-  inl (Expect a)                 = Expect (inl a)
-  inr (Expect b)                 = Expect (inr b)
-  uneither (Expect ab) ka kb     = Expect (uneither ab (unExpect . ka . Expect)
-                                                       (unExpect . kb . Expect))
+  inl (Expect a)                 = x where x = typeExpectBoth x (inl a)
+  inr (Expect b)                 = x where x = typeExpectBoth x (inr b)
+  uneither x@(Expect ab) ka kb   = typeExpectBoth x (uneither ab
+                                     (unExpect . ka . Expect)
+                                     (unExpect . kb . Expect))
   unsafeProb                     = Expect . unsafeProb . unExpect
   fromProb                       = Expect . fromProb   . unExpect
-  true                           = Expect true
-  false                          = Expect false
-  if_ (Expect c) a b             = Expect (if_ c (unExpect a) (unExpect b))
   pi_                            = Expect pi_
   exp_                           = Expect . exp_  . unExpect
   log_                           = Expect . log_  . unExpect
