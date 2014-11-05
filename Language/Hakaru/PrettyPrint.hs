@@ -1,4 +1,5 @@
-{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances,
+             DeriveDataTypeable, StandaloneDeriving #-}
 {-# OPTIONS -Wall #-}
 module Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint) where
 
@@ -7,8 +8,11 @@ module Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint) where
 import Language.Hakaru.Syntax
 import Language.Hakaru.Util.Pretty
 import Text.PrettyPrint hiding (parens)
+import Data.Typeable (Typeable1)
 
 newtype PrettyPrint a = PP ([String] -> Int -> [Doc])
+deriving instance Typeable1 PrettyPrint
+  -- beware GHC 7.8 https://ghc.haskell.org/trac/ghc/wiki/GhcKinds/PolyTypeable
 
 runPrettyPrint :: PrettyPrint a -> Doc
 runPrettyPrint (PP a) = sep (a [ 'x' : show i | i <- [0::Int ..] ] 0)

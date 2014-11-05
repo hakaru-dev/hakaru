@@ -10,10 +10,11 @@ import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Order(..), Base(..), Integrate(..), Lambda(..),
     TypeOf(Sum, One), typeOf, typeOf1, typeOf2)
 import Data.Ratio
--- import Data.Dynamic (Typeable)
+import Data.Typeable (Typeable1)
 import Control.Monad (liftM2)
 import Control.Monad.Trans.Reader (ReaderT(ReaderT), runReaderT)
 import Control.Monad.Trans.Cont (Cont, cont, runCont)
+import Language.Hakaru.PrettyPrint (runPrettyPrint) -- just for testing closeLoop
 
 import Language.Haskell.Interpreter hiding (typeOf)
 
@@ -132,9 +133,15 @@ instance Lambda Maple where
 -- place for this code, since Maple is supposed to produce proper Haskell,
 -- but this is a start.
 ourContext :: MonadInterpreter m => m ()
-ourContext = setImports ["Prelude", "Data.Ratio"]
+ourContext = do
+  let modules = ["Language.Hakaru.Syntax", "Language.Hakaru.PrettyPrint"]
+  loadModules modules
+  setImports ("Prelude" : modules)
 
 -- This is silly, as all we can read back in right now are fractions.
 -- But at least this much works!
-closeLoop :: String -> IO (Either InterpreterError (Ratio Integer))
-closeLoop s = runInterpreter (ourContext >> interpret s (as :: Ratio Integer))
+closeLoop :: (Typeable1 repr) => String -> IO (Either InterpreterError (repr ()))
+closeLoop s = runInterpreter (ourContext >> interpret s undefined)
+
+main :: IO () -- should print "(lam $ \x0 -> x0) `app` unit"
+main = fmap (either show show . fmap runPrettyPrint) (closeLoop "lam id `app` unit") >>= putStrLn
