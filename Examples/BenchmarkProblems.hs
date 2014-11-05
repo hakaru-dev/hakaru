@@ -25,7 +25,7 @@ tester prog = do
   replicateM 10 (unSample prog 1 g)
 
 xor :: Base repr => repr Bool_ -> repr Bool_ -> repr Bool_
-xor a b = or_ [and_ [a, not b], and_ [not a, b]] 
+xor a b = or_ [and_ [a, not_ b], and_ [not_ a, b]] 
 
 -- Bayesian Linear Regression
 linreg :: Mochastic repr => repr (Measure (Real, Real))
