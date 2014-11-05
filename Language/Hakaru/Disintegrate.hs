@@ -294,79 +294,6 @@ data Expr b u t where -- b = bound variables; u = used variables
   Closure  :: Expr Name Name (Measure t) -> [Binding Name u] ->
                                                  Expr b u (Measure t)
 
-instance (Eq' b, Eq' u) => Eq' (Expr b u) where
-  eq' Lebesgue     Lebesgue       = True
-  eq' (LitReal x)  (LitReal x')   = x == x'
-  eq' Pi           Pi             = True
-  eq' (Var u)      (Var u')       = eq' u u'
-  eq' (Exp e)      (Exp e')       = eq' e e'
-  eq' (Log e)      (Log e')       = eq' e e'
-  eq' (Neg e)      (Neg e')       = eq' e e'
-  eq' (Inv e)      (Inv e')       = eq' e e'
-  eq' (Add  e1 e2) (Add  e1' e2') = eq' e1 e1' && eq' e2 e2'
-  eq' (Mul  e1 e2) (Mul  e1' e2') = eq' e1 e1' && eq' e2 e2'
-  eq' (Less e1 e2) (Less e1' e2') = eq' e1 e1' && eq' e2 e2'
-  eq' (Weight e)   (Weight e')    = eq' e e'
-  eq' (Choice es)  (Choice es')   = eq'List es es'
-  eq' (Bind lhs rhs body) (Bind lhs' rhs' body') =
-    case eqType (typeOf lhs) (typeOf lhs') of
-      Just Refl -> eq' lhs lhs' && eq' rhs rhs' && eq' body body'
-      Nothing -> False
-  eq' (Dirac e1)   (Dirac e1')    = eq' e1 e1'
-  eq' (Pair e1 e2) (Pair e1' e2') = eq' e1 e1' && eq' e2 e2'
-  eq' (Inl e1)     (Inl e1')      = eq' e1 e1'
-  eq' (Inr e1)     (Inr e1')      = eq' e1 e1'
-  eq' Unit         Unit           = True
-  eq' (Closure e env) (Closure e' env') = eq' e e' && env == env'
-  eq' _ _ = False
-
-instance (Ord' b, Ord' u, Show' b, Show' u) => Ord' (Expr b u) where
-  ord' Lebesgue     Lebesgue       = EQ
-  ord' (LitReal x)  (LitReal x')   = compare x x'
-  ord' Pi           Pi             = EQ
-  ord' (Var u)      (Var u')       = ord' u u'
-  ord' (Exp e)      (Exp e')       = ord' e e'
-  ord' (Log e)      (Log e')       = ord' e e'
-  ord' (Neg e)      (Neg e')       = ord' e e'
-  ord' (Inv e)      (Inv e')       = ord' e e'
-  ord' (Add  e1 e2) (Add  e1' e2') = ord' e1 e1' `mappend` ord' e2 e2'
-  ord' (Mul  e1 e2) (Mul  e1' e2') = ord' e1 e1' `mappend` ord' e2 e2'
-  ord' (Less e1 e2) (Less e1' e2') = ord' e1 e1' `mappend` ord' e2 e2'
-  ord' (Weight e)   (Weight e')    = ord' e e'
-  ord' (Choice es)  (Choice es')   = ord'List es es'
-  ord' (Bind lhs rhs body) (Bind lhs' rhs' body') =
-    case ordType (typeOf lhs) (typeOf lhs') of
-      LT' -> LT
-      GT' -> GT
-      EQ' -> ord' lhs lhs' `mappend` ord' rhs rhs' `mappend` ord' body body'
-  ord' (Dirac e1)   (Dirac e1')    = ord' e1 e1'
-  ord' (Pair e1 e2) (Pair e1' e2') = ord' e1 e1' `mappend` ord' e2 e2'
-  ord' (Inl e1)     (Inl e1')      = ord' e1 e1'
-  ord' (Inr e1)     (Inr e1')      = ord' e1 e1'
-  ord' Unit         Unit           = EQ
-  ord' (Closure e env) (Closure e' env') = ord' e e' `mappend` compare env env'
-
-  -- TODO: generate the following and more, automatically from Expr definition
-  ord' (Var _)     (Log _)     = LT
-  ord' (Log _)     (Var _)     = GT
-  ord' (Var _)     (Add _ _)   = LT
-  ord' (Add _ _)   (Var _)     = GT
-  ord' (LitReal _) (Add _ _)   = LT
-  ord' (Add _ _)   (LitReal _) = GT
-  ord' (LitReal _) (Log _)     = LT
-  ord' (Log _)     (LitReal _) = GT
-  ord' (LitReal _) (Var _)     = LT
-  ord' (Var _)     (LitReal _) = GT
-  ord' Pi          (Add _ _)   = LT
-  ord' (Add _ _)   Pi          = GT
-  ord' Pi          (Log _)     = LT
-  ord' (Log _)     Pi          = GT
-  ord' Pi          (Var _)     = LT
-  ord' (Var _)     Pi          = GT
-  ord' e1 e2 = error (show (sep
-    [ text "Unimplemented (LT or GT) comparison between",
-      pretty' 0 e1, text "and", pretty' 0 e2 ]))
-
 instance (Show' b, Show' u) => Show' (Expr b u) where
   pretty' _ Lebesgue           = text "Lebesgue"
   pretty' p (LitReal x)        = text (showRatio p x "")
@@ -830,9 +757,7 @@ propagate (Closure _ _) _ Root _ = mempty
 run :: (Type t) => M (Expr Void Loc t) -> [Expr Loc Loc (Measure t)]
 run = run' 1
 
-data Node = LHS (Binding (Tree Loc) (Expr Void Loc))
-          | RHS (Binding Loc (Const ()))
-  deriving (Eq, Ord)
+data Node = LHS Int | RHS (Binding Loc (Const ())) deriving (Eq, Ord)
 
 run' :: (Type t) => Int -> M (Expr Void Loc t) -> [Expr Loc Loc (Measure t)]
 run' l m = unM (do e <- m
@@ -842,18 +767,18 @@ run' l m = unM (do e <- m
                    return (Dirac (ex e)))
                finish
                Heap{fresh = l, bound = []}
-  where finish e0 h = [determineClosures (foldl f e0 b)]
+  where finish e0 h = [determineClosures (foldl f e0 bindings)]
           where f e (Binding lhs rhs) = Bind lhs (Dirac (ex rhs)) e
-                b = [ Binding lhs rhs
-                    | ((), LHS (Binding lhs rhs), _) <- map v (topSort g) ]
+                bindings = [ node | (node, LHS _, _) <- map v (topSort g) ]
                 (g,v,_) = graphFromEdges (concat
-                  [ ((), LHS (Binding lhs e),
-                         foldMap' (\u -> [RHS (Binding u (Const ()))])
-                                  e)
-                  : foldMap' (\u -> [((), RHS (Binding u (Const ())),
-                                          [LHS (Binding lhs e)])])
+                  [ (Binding lhs e,
+                     LHS n,
+                     foldMap' (\u -> [RHS (Binding u (Const ()))]) e)
+                  : foldMap' (\u -> [(undefined,
+                                      RHS (Binding u (Const ())),
+                                      [LHS n])])
                              lhs
-                  | Binding lhs (Forced e) <- bound h ])
+                  | (n, Binding lhs (Forced e)) <- zip [0..] (bound h) ])
 
 traceHeap :: String -> M ()
 traceHeap label = M (\c h -> traceShow (text label <+> pretty h) (c () h))
