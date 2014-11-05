@@ -15,7 +15,7 @@ import Language.Hakaru.Maple (Maple(Maple), runMaple)
 import Language.Hakaru.Sample(Sample(unSample))
 import Language.Hakaru.Disintegrate hiding (Disintegrate(..))
 
-import Control.Monad (zipWithM_)
+import Control.Monad (zipWithM_, replicateM)
 import Control.Applicative (Const(Const))
 import Text.PrettyPrint (text, (<>), ($$), nest)
 
@@ -162,6 +162,15 @@ mcmc q p x =
     density (q x) p x' `bind_`
     dirac x'
 
+testDistWithSample :: IO [Maybe (Double, LF.LogFloat)]
+testDistWithSample = do
+  g <- MWC.create
+  let prog2 = (head prog) 1
+  replicateM 10 (unSample prog2 1 g)
+ where prog = runDisintegrate $ normal 0 1 `bind` \x ->
+                                normal x 1 `bind` \y ->
+                                dirac (pair y x)
+
 -- In Maple, should 'evaluate' to "\c -> 1/2*c(Unit)"
 t1 :: (Mochastic repr) => repr (Measure ())
 t1 = uniform 0 1 `bind` \x -> factor (unsafeProb x)
@@ -273,32 +282,32 @@ testDist (e,s) = do
   putStrLn ""
 
 
-tester :: Expect Maple a -> String
-tester t = runMaple (unExpect t) 0
+testMaple :: Expect Maple a -> String
+testMaple t = runMaple (unExpect t) 0
 
 -- this can sometimes be more convenient
-tester2 :: (Expect' c ~ (b -> a)) => Maple b -> Expect Maple c -> String
-tester2 c t = runMaple ((unExpect t) `app` c) 0
+testMaple2 :: (Expect' c ~ (b -> a)) => Maple b -> Expect Maple c -> String
+testMaple2 c t = runMaple ((unExpect t) `app` c) 0
 
 p1 :: String
-p1 = tester2 (Maple (return "c")) t1
+p1 = testMaple2 (Maple (return "c")) t1
 
 -- over time, this should be 'upgraded' to actually generate a proper
 -- Maple test file
 main :: IO ()
 main = do
-  putStrLn $ tester t1
-  putStrLn $ tester t2
-  putStrLn $ tester t3
-  putStrLn $ tester t4
-  putStrLn $ tester t5
-  putStrLn $ tester t6
-  putStrLn $ tester t7
-  putStrLn $ tester t8
-  putStrLn $ tester t9
-  putStrLn $ tester t10
-  putStrLn $ tester t11
-  putStrLn $ tester t12
-  putStrLn $ tester t13
-  putStrLn $ tester t14
+  putStrLn $ testMaple t1
+  putStrLn $ testMaple t2
+  putStrLn $ testMaple t3
+  putStrLn $ testMaple t4
+  putStrLn $ testMaple t5
+  putStrLn $ testMaple t6
+  putStrLn $ testMaple t7
+  putStrLn $ testMaple t8
+  putStrLn $ testMaple t9
+  putStrLn $ testMaple t10
+  putStrLn $ testMaple t11
+  putStrLn $ testMaple t12
+  putStrLn $ testMaple t13
+  putStrLn $ testMaple t14
   disintegrateTestRunner
