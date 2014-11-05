@@ -1,56 +1,37 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleContexts, FlexibleInstances,
              RankNTypes, GADTs, TypeFamilies, ScopedTypeVariables #-}
-{-# OPTIONS -Wall #-}
+{-# OPTIONS -Wall -fno-warn-incomplete-patterns #-}
 
-module Language.Hakaru.Disintegrate where
+module Language.Hakaru.Disintegrate (Disintegrate,
+       runDisintegrate, resetDisint, Disint',
+       Show'(..), Tree(..), Selector(..), Expr(..), Name, Loc, Void,
+       if', max_, stdRandom, run, disintegrate, emptyEnv) where
 
 import Prelude hiding (mapM, lookup, (!!), Real)
 import Data.Either (partitionEithers)
 import Data.Maybe (isJust, isNothing, fromMaybe)
 import Data.Monoid (Monoid (mempty, mappend, mconcat))
 import Data.Graph (graphFromEdges, topSort)
-import Data.Ratio (Ratio, numerator, denominator)
 import Data.List (tails)
 import qualified Data.Set as S
 import Control.Applicative (Applicative(pure, (<*>)), Const(Const),
         WrappedMonad(WrapMonad, unwrapMonad))
 import Control.Monad.Trans.RWS (runRWS, get, put, tell)
-import Control.Monad (mapM, liftM2, zipWithM_)
+import Control.Monad (mapM, liftM2)
 import Control.Monad.Trans.Cont (Cont, cont, runCont)
-import Language.Hakaru.Util.Pretty (Pretty (pretty))
+import Language.Hakaru.Util.Pretty (Pretty (pretty),
+        prettyPair, prettyParen, prettyFun, prettyOp, showRatio)
 import Text.PrettyPrint (Doc, text, char, int, comma, colon, semi, brackets,
-        parens, (<>), (<+>), ($$), nest, fsep, sep, punctuate, render)
+        parens, (<>), (<+>), nest, fsep, sep, punctuate, render)
 import Language.Hakaru.Syntax (Real, Prob, Measure, Type(..), TypeOf(..),
         typeOf, typeOf1, typeOf2, EqType(..), eqType, OrdType(..), ordType,
         Order(..), Base(..), Mochastic(..), liftM, snd_)
 
-------- Tracing and pretty-printing
+------- Tracing
 
 --import Debug.Trace (traceShow)
 traceShow :: (Show a) => a -> b -> b
 traceShow _ = id
-
-prettyPair :: Doc -> Doc -> Doc
-prettyPair a b = parens (sep (punctuate comma [a, b]))
-
-prettyParen :: Bool -> Doc -> Doc
-prettyParen True  = parens
-prettyParen False = id
-
-prettyFun :: Bool -> String -> Doc -> Doc
-prettyFun p f doc = prettyParen p (text f <+> nest (length f + 1) doc)
-
-prettyOp :: Bool -> String -> Doc -> Doc -> Doc
-prettyOp p op doc1 doc2 = prettyParen p (sep [doc1, text op <+> doc2])
-
-showRatio :: (Show a, Integral a) => Int -> Ratio a -> ShowS
-showRatio p r | num < 0    = showParen (p > 6)
-                           $ showChar '-' . showRatio 7 (-r)
-              | denom == 1 = showsPrec p num
-              | otherwise  = showParen (p > 7)
-                           $ showsPrec 8 num . showChar '/' . showsPrec 8 denom
-  where denom = denominator r
-        num   = numerator r
 
 ------- Lift common type-classes from kind * to kind "Type -> *"
 -- Variables are typed in environments, and locations are typed in heaps.

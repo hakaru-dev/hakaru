@@ -9,11 +9,11 @@ import Language.Hakaru.Syntax (Real, Prob, Measure,
        Mochastic(..), Disintegrate(), bind_, beta, bern,
        density, if_, true, Bool_,
        Lambda(..), Type(..))
-import Language.Hakaru.Util.Pretty (Pretty (pretty))
+import Language.Hakaru.Util.Pretty (Pretty (pretty), prettyPair)
 import Language.Hakaru.Expect (Expect(unExpect), Expect')
 import Language.Hakaru.Maple (Maple(Maple), runMaple)
 import Language.Hakaru.Sample(Sample(unSample))
-import Language.Hakaru.Disintegrate hiding (Disintegrate(..))
+import Language.Hakaru.Disintegrate hiding (Disintegrate)
 
 import Control.Monad (zipWithM_, replicateM)
 import Control.Applicative (Const(Const))
@@ -225,44 +225,44 @@ t14 = bern (3/5) `bind` \b ->
 disintegrateTestRunner :: IO ()
 disintegrateTestRunner = do
   testDist ( Bind (Leaf x) stdRandom
-       $ Bind (Leaf y) stdRandom
-       $ Dirac (Pair (Exp (Var x)) (Add (Var y) (Var x)))
-       , Fst Root )
+           $ Bind (Leaf y) stdRandom
+           $ Dirac (Pair (Exp (Var x)) (Add (Var y) (Var x)))
+           , Fst Root )
   testDist ( Bind (Leaf x) stdRandom
-       $ Bind (Leaf y) stdRandom
-       $ Dirac (Pair (Exp (Var x)) (Add (Var y) (Var x)))
-       , Snd Root )
+           $ Bind (Leaf y) stdRandom
+           $ Dirac (Pair (Exp (Var x)) (Add (Var y) (Var x)))
+           , Snd Root )
   testDist ( Bind (Leaf x) stdRandom
-       $ Bind (Leaf y) stdRandom
-       $ Bind (Leaf z) (max_ (Var x) (Var y))
-       $ Dirac (Pair (Var z) (Pair (Var x) (Var y)))
-       , Fst Root )
+           $ Bind (Leaf y) stdRandom
+           $ Bind (Leaf z) (max_ (Var x) (Var y))
+           $ Dirac (Pair (Var z) (Pair (Var x) (Var y)))
+           , Fst Root )
   testDist ( Bind (Leaf x) stdRandom
-       $ Dirac (Pair (Exp (Var x)) (Neg (Var x)))
-       , Fst Root )
+           $ Dirac (Pair (Exp (Var x)) (Neg (Var x)))
+           , Fst Root )
   testDist ( Bind (Leaf x) (Choice [stdRandom, stdRandom])
-       $ Bind (Leaf y) (Choice [stdRandom, stdRandom])
-       $ Bind (Leaf z) (Choice [stdRandom, stdRandom])
-       $ Dirac (Var x + Var y + Var z)
-       , Root)
+           $ Bind (Leaf y) (Choice [stdRandom, stdRandom])
+           $ Bind (Leaf z) (Choice [stdRandom, stdRandom])
+           $ Dirac (Var x + Var y + Var z)
+           , Root)
   testDist ( Bind (Leaf x) stdRandom
-       $ Bind (Leaf y) stdRandom
-       $ Dirac (Pair (Var x + Var y) (Var x - Var y))
-       , Fst Root )
+           $ Bind (Leaf y) stdRandom
+           $ Dirac (Pair (Var x + Var y) (Var x - Var y))
+           , Fst Root )
   testDist ( Bind (Leaf y) stdRandom
-       $ Bind (Leaf x) stdRandom
-       $ Dirac (Pair (Var x + Var y) (Bind (Leaf x) stdRandom (Dirac (Var y))))
-       , Fst Root )
+           $ Bind (Leaf x) stdRandom
+           $ Dirac (Pair (Var x + Var y) (Bind (Leaf x) stdRandom (Dirac (Var y))))
+           , Fst Root )
   testDist ( Bind (Leaf m) (Dirac (Bind (Leaf x) stdRandom (Dirac (Add 1 (Var x)))))
-       $ Bind (Leaf x) (Var m)
-       $ Bind (Leaf y) (Var m)
-       $ Dirac (Pair (Var x) (Var y))
-       , Fst Root )
+           $ Bind (Leaf x) (Var m)
+           $ Bind (Leaf y) (Var m)
+           $ Dirac (Pair (Var x) (Var y))
+           , Fst Root )
   testDist ( Bind (Leaf m) (Bind (Leaf x) stdRandom (Dirac (Dirac (Add 1 (Var x)))))
-       $ Bind (Leaf x) (Var m)
-       $ Bind (Leaf y) (Var m)
-       $ Dirac (Pair (Var x) (Var y))
-       , Fst Root )
+           $ Bind (Leaf x) (Var m)
+           $ Bind (Leaf y) (Var m)
+           $ Dirac (Pair (Var x) (Var y))
+           , Fst Root )
   where x, y, z :: Name Real
         x = Const "x"
         y = Const "y"
