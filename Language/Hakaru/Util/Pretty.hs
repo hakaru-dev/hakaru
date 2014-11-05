@@ -1,4 +1,5 @@
-module Language.Hakaru.Util.Pretty (Pretty(..)) where
+module Language.Hakaru.Util.Pretty (Pretty(..),
+       prettyPair, prettyParen, prettyFun, prettyOp, showRatio) where
 
 import Text.PrettyPrint
 import Text.Show.Functions
@@ -72,3 +73,25 @@ instance (Pretty a, Pretty b, Pretty c, Pretty d) => Pretty (a, b, c, d) where
     pretty (a, b, c, d) = tuple [pretty a, pretty b, pretty c, pretty d]
 instance (Pretty a, Pretty b, Pretty c, Pretty d, Pretty e) => Pretty (a, b, c, d, e) where
     pretty (a, b, c, d, e) = tuple [pretty a, pretty b, pretty c, pretty d, pretty e]
+
+prettyPair :: Doc -> Doc -> Doc
+prettyPair a b = parens (sep (punctuate comma [a, b]))
+
+prettyParen :: Bool -> Doc -> Doc
+prettyParen True  = parens
+prettyParen False = id
+
+prettyFun :: Bool -> String -> Doc -> Doc
+prettyFun p f doc = prettyParen p (text f <+> nest (length f + 1) doc)
+
+prettyOp :: Bool -> String -> Doc -> Doc -> Doc
+prettyOp p op doc1 doc2 = prettyParen p (sep [doc1, text op <+> doc2])
+
+showRatio :: (Show a, Integral a) => Int -> Ratio a -> ShowS
+showRatio p r | num < 0    = showParen (p > 6)
+                           $ showChar '-' . showRatio 7 (-r)
+              | denom == 1 = showsPrec p num
+              | otherwise  = showParen (p > 7)
+                           $ showsPrec 8 num . showChar '/' . showsPrec 8 denom
+  where denom = denominator r
+        num   = numerator r
