@@ -27,6 +27,9 @@ tester prog = do
 xor :: Base repr => repr Bool_ -> repr Bool_ -> repr Bool_
 xor a b = or_ [and_ [a, not_ b], and_ [not_ a, b]] 
 
+eq_ :: Base repr => repr Bool_ -> repr Bool_ -> repr Bool_
+eq_ a b = if_ a b (not_ b)
+
 -- Bayesian Linear Regression
 linreg :: Mochastic repr => repr (Measure (Real, Real))
 linreg = normal 0 2 `bind` \w1 ->
@@ -67,7 +70,7 @@ friendsWhoSmoke =
     bern (1/5) `bind` \smokes1 ->
     bern (1/5) `bind` \smokes2 ->
     bern (1/5) `bind` \smokes3 ->
-    (if_ (and_ [smokes1, smokes2])
+    (if_ (eq_ smokes1 smokes2)
          (factor 3)
          (factor 1)) `bind_`
     dirac (pair smokes1 smokes3)
