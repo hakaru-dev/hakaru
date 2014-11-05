@@ -24,9 +24,6 @@ tester prog = do
   g <- MWC.create
   replicateM 10 (unSample prog 1 g)
 
-not :: Base repr => repr Bool_ -> repr Bool_
-not a = if_ a false true
-
 xor :: Base repr => repr Bool_ -> repr Bool_ -> repr Bool_
 xor a b = or_ [and_ [a, not b], and_ [not a, b]] 
 
@@ -70,7 +67,7 @@ friendsWhoSmoke =
     bern (1/5) `bind` \smokes1 ->
     bern (1/5) `bind` \smokes2 ->
     bern (1/5) `bind` \smokes3 ->
-    (if_ (xor smokes1 smokes2)
+    (if_ (and_ [smokes1, smokes2])
          (factor 3)
          (factor 1)) `bind_`
     dirac (pair smokes1 smokes3)

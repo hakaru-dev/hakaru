@@ -6,7 +6,8 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Bool_,
        TypeOf(..), Type(..), typeOf, typeOf1, typeOf2,
        EqType(..), eqType, OrdType(..), ordType,
        errorEmpty,
-       Order(..), Base(..), true, false, if_, fst_, snd_, and_, or_, min_, max_,
+       Order(..), Base(..), true, false, if_, fst_, snd_,
+       and_, or_, not_, min_, max_,
        Mochastic(..), bind_, liftM, liftM2, beta, bern,
        Disintegrate(..), condition, density,
        Integrate(..), Lambda(..)) where
@@ -208,6 +209,9 @@ or_ :: (Base repr) => [repr Bool_] -> repr Bool_
 or_ []      = false
 or_ [b]     = b
 or_ (b:bs)  = if_ b true (or_ bs)
+
+not_ :: Base repr => repr Bool_ -> repr Bool_
+not_ a = if_ a false true
 
 min_, max_ :: (Order repr a, Base repr) => repr a -> repr a -> repr a
 min_ x y = if_ (less x y) x y
