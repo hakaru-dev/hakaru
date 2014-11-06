@@ -226,11 +226,11 @@ disintegrateTestRunner :: IO ()
 disintegrateTestRunner = do
   testDist ( Bind (Leaf x) stdRandom
            $ Bind (Leaf y) stdRandom
-           $ Dirac (Pair (Op1 Exp (Var x)) (Op2 Add (Var y) (Var x)))
+           $ Dirac (Pair (exp' (Var x)) (Op2 Add (Var y) (Var x)))
            , Fst Root )
   testDist ( Bind (Leaf x) stdRandom
            $ Bind (Leaf y) stdRandom
-           $ Dirac (Pair (Op1 Exp (Var x)) (Op2 Add (Var y) (Var x)))
+           $ Dirac (Pair (exp' (Var x)) (Op2 Add (Var y) (Var x)))
            , Snd Root )
   testDist ( Bind (Leaf x) stdRandom
            $ Bind (Leaf y) stdRandom
@@ -238,7 +238,7 @@ disintegrateTestRunner = do
            $ Dirac (Pair (Var z) (Pair (Var x) (Var y)))
            , Fst Root )
   testDist ( Bind (Leaf x) stdRandom
-           $ Dirac (Pair (Op1 Exp (Var x)) (Op1 Neg (Var x)))
+           $ Dirac (Pair (exp' (Var x)) (Op1 Neg (Var x)))
            , Fst Root )
   testDist ( Bind (Leaf x) (Choice [stdRandom, stdRandom])
            $ Bind (Leaf y) (Choice [stdRandom, stdRandom])
@@ -269,6 +269,8 @@ disintegrateTestRunner = do
         z = Const "z"
         m :: Name (Measure Real)
         m = Const "m"
+        exp' :: Expr Name Name Real -> Expr Name Name Real
+        exp' = Op1 Exp
 
 testDist :: (Type t, Type to) =>
             (Expr Name Name (Measure t), Selector to t) -> IO ()

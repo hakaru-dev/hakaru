@@ -5,7 +5,7 @@
 module Language.Hakaru.Syntax (Real, Prob, Measure, Bool_,
        TypeOf(..), Type(..), typeOf, typeOf1, typeOf2,
        typeMeas, typeProd, typeSum, typeFun,
-       EqType(..), eqType, OrdType(..), ordType,
+       EqType(..), eqType, OrdType(..), ordType, Fraction(..),
        errorEmpty,
        Order(..), Base(..), true, false, if_, fst_, snd_,
        and_, or_, not_, min_, max_,
@@ -161,6 +161,19 @@ ordType   Prob   Fun  = GT'
 ordType   Prob   One  = GT'
 ordType   Prob   Real = GT'
 ordType   Prob   Prob = EQ'
+
+class (Type a) => Fraction a where
+  fractionCase :: f Real -> f Prob -> f a
+  fractionRepr :: (Base repr) =>
+                  ((Order repr a, Fractional (repr a)) => f repr a) -> f repr a
+
+instance Fraction Real where
+  fractionCase k _ = k
+  fractionRepr k   = k
+
+instance Fraction Prob where
+  fractionCase _ k = k
+  fractionRepr k   = k
 
 ------- Terms
 

@@ -1,10 +1,8 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleContexts, FlexibleInstances,
-             RankNTypes, GADTs, TypeFamilies, StandaloneDeriving,
-             ScopedTypeVariables #-}
+             RankNTypes, GADTs, StandaloneDeriving #-}
 {-# OPTIONS -Wall -fno-warn-incomplete-patterns #-}
 
-module Language.Hakaru.Disintegrate (Disintegrate,
-       runDisintegrate, resetDisint, Disint',
+module Language.Hakaru.Disintegrate (Disintegrate, runDisintegrate, resetDisint,
        Eq'(..), eq'List, Ord'(..), ord'List, Show'(..), Tree(..), Selector(..),
        Op0(..), Op1(..), Op2(..), Expr(..), Name, Loc, Void,
        if', max_, stdRandom, run, disintegrate, emptyEnv) where
@@ -27,7 +25,7 @@ import Text.PrettyPrint (Doc, text, char, int, comma, colon, semi, brackets,
         parens, (<>), (<+>), nest, fsep, sep, punctuate, render)
 import Language.Hakaru.Syntax (Real, Prob, Measure, Bool_, Type(..), TypeOf(..),
         typeOf, typeOf1, typeOf2, typeMeas, typeProd, typeSum,
-        EqType(..), eqType, OrdType(..), ordType,
+        EqType(..), eqType, OrdType(..), ordType, Fraction(..),
         Order(..), Base(..), Mochastic(..), liftM, snd_)
 
 ------- Tracing
@@ -268,27 +266,31 @@ unique env = and [ isNothing (jmEq n1 n2)
 
 data Op0 t where
   Lebesgue :: Op0 (Measure Real)
-  Pi       :: Op0 Real
+  Pi       :: (Fraction t) => Op0 t
   Unit     :: Op0 ()
 
 data Op1 t1 t where
-  Exp    :: Op1 Real Real
-  Log    :: Op1 Real Real
-  Neg    :: Op1 Real Real
-  Inv    :: Op1 Real Real
-  Weight :: Op1 Real (Measure ())
+  Exp        :: (Fraction t) => Op1 Real t
+  Log        :: (Fraction t) => Op1 t Real
+  Neg        :: (Fraction t) => Op1 t t
+  Inv        :: (Fraction t) => Op1 t t
+  Weight     :: Op1 Prob (Measure ())
+  UnsafeProb :: Op1 Real Prob
+  FromProb   :: Op1 Prob Real
 
 typeOp1 :: Op1 t1 t -> ((Type t1) => w) -> w
-typeOp1 Exp    k = k
-typeOp1 Log    k = k
-typeOp1 Neg    k = k
-typeOp1 Inv    k = k
-typeOp1 Weight k = k
+typeOp1 Exp        k = k
+typeOp1 Log        k = k
+typeOp1 Neg        k = k
+typeOp1 Inv        k = k
+typeOp1 Weight     k = k
+typeOp1 UnsafeProb k = k
+typeOp1 FromProb   k = k
 
 data Op2 t1 t2 t where
-  Add  :: Op2 Real Real Real
-  Mul  :: Op2 Real Real Real
-  Less :: Op2 Real Real Bool_
+  Add  :: (Fraction t) => Op2 t t t
+  Mul  :: (Fraction t) => Op2 t t t
+  Less :: (Fraction t) => Op2 t t Bool_
 
 typeOp2 :: Op2 t1 t2 t -> ((Type t1, Type t2) => w) -> w
 typeOp2 Add  k = k
@@ -312,11 +314,19 @@ fixity Add  = (6, "+", LT)
 fixity Mul  = (7, "*", LT)
 fixity Less = (4, "<", EQ)
 
+data Dict t = Dict
+  { unsafeProbFraction :: forall b u. Expr b u t -> Expr b u Prob
+  , piFraction         :: forall repr. (Base repr) => repr t
+  , expFraction        :: forall repr. (Base repr) => repr Real -> repr t
+  , logFraction        :: forall repr. (Base repr) => repr t -> repr Real }
+dict :: (Fraction t) => Dict t
+dict = fractionCase (Dict (Op1 UnsafeProb) pi exp log) (Dict id pi_ exp_ log_)
+
 data Expr b u t where -- b = bound variables; u = used variables
   Op0     :: Op0 t ->                                     Expr b u t
   Op1     :: Op1 t1 t -> Expr b u t1 ->                   Expr b u t
   Op2     :: Op2 t1 t2 t -> Expr b u t1 -> Expr b u t2 -> Expr b u t
-  LitReal :: Rational ->                                  Expr b u Real
+  LitReal :: (Fraction t) => Rational ->                  Expr b u t
   Var     :: u t ->                                       Expr b u t
     -- TODO: Would "Type t =>" on Var obviate many other "Type t =>"s?
   Choice  :: [Expr b u (Measure t)] ->                    Expr b u (Measure t)
@@ -407,13 +417,14 @@ instance Foldable' (Expr b) where foldMap' = vars (\_ f -> f)
 stdRandom :: Expr Name Name (Measure Real)
 stdRandom = Bind (Leaf u) (Op0 Lebesgue)
                  (condLess 0 (Var u) (condLess (Var u) 1 (Dirac (Var u))))
-  where u = Const "u"
+  where u :: Name Real
+        u = Const "u"
 
-condLess :: Expr b u Real -> Expr b u Real ->
-            Expr b u (Measure t) -> Expr b u (Measure t)
+condLess :: (Fraction t) => Expr b u t -> Expr b u t ->
+            Expr b u (Measure t') -> Expr b u (Measure t')
 condLess e1 e2 = Bind (UnaryL Nil) (Dirac (Op2 Less e1 e2))
 
-weight :: Expr b u Real -> Expr b u (Measure t) -> Expr b u (Measure t)
+weight :: Expr b u Prob -> Expr b u (Measure t) -> Expr b u (Measure t)
 weight e = Bind Nil (Op1 Weight e)
 
 -- TODO: Add pure `case' construct
@@ -425,7 +436,7 @@ if' e et ee = Choice [ Bind (UnaryL Nil) (Dirac e) et
 max_ :: Expr b u Real -> Expr b u Real -> Expr b u (Measure Real)
 max_ e1 e2 = if' (Op2 Less e1 e2) (Dirac e2) (Dirac e1)
 
-instance Num (Expr b u Real) where
+instance (Fraction t) => Num (Expr b u t) where
   (+)         = Op2 Add
   (*)         = Op2 Mul
   negate      = Op1 Neg
@@ -435,7 +446,7 @@ instance Num (Expr b u Real) where
                 -- \x -> if_ (Less 0 x) 1 (if_ (Less x 0) (-1) 0)
   fromInteger = LitReal . fromInteger
 
-instance Fractional (Expr b u Real) where
+instance (Fraction t) => Fractional (Expr b u t) where
   recip        = Op1 Inv
   fromRational = LitReal
 
@@ -681,7 +692,7 @@ propagate (Op0 Lebesgue) _ _ _ = mempty
 propagate (Op0 Pi) _ _ _ = mempty
 propagate (Op0 Unit) _ _ _ = return (Op0 Unit)
 propagate (Op1 Exp e) env Root t = do
-  insert (condLess 0 (ex t) . weight (recip (ex t)))
+  insert (condLess 0 (ex t) . weight (recip (unsafeProbFraction dict (ex t))))
   fmap (Op1 Exp) (propagate e env Root (Op1 Log t))
 propagate (Op1 Log e) env Root t = do
   insert (weight (Op1 Exp (ex t)))
@@ -689,18 +700,24 @@ propagate (Op1 Log e) env Root t = do
 propagate (Op1 Neg e) env Root t =
   fmap negate (propagate e env Root (-t))
 propagate (Op1 Inv e) env Root t = do
-  insert (weight (recip (ex t * ex t)))
+  insert (weight (recip (unsafeProbFraction dict (ex t) ^ (2::Int))))
   fmap recip (propagate e env Root (recip t))
 propagate (Op1 Weight _) _ Root _ = mempty
+propagate (Op1 UnsafeProb e) env Root t =
+  fmap (Op1 UnsafeProb) (propagate e env Root (Op1 FromProb t))
+propagate (Op1 FromProb e) env Root t = do
+  insert (condLess 0 (ex t))
+  fmap (Op1 FromProb) (propagate e env Root (Op1 UnsafeProb t))
 propagate (Op2 Add e1 e2) env Root t = mappend (go e1 e2) (go e2 e1)
   where go e e' = do x1 <- evaluate e env Root
                      fmap (x1 +) (propagate e' env Root (t - x1))
 propagate (Op2 Mul e1 e2) env Root t = mappend (go e1 e2) (go e2 e1)
   where go e e' = do x1 <- evaluate e env Root
                      insert (Bind Nil (if' (Op2 Less 0 (ex x1))
-                                           (Op1 Weight (recip (ex x1)))
-                                           (Op1 Weight (recip (-(ex x1))))))
+                                           (use (ex x1))
+                                           (use (-(ex x1)))))
                      fmap (x1 *) (propagate e' env Root (t/x1))
+        use poz = Op1 Weight (recip (unsafeProbFraction dict poz))
 propagate (Op2 Less e1 e2) env Root t = do
   x1 <- evaluate e1 env Root
   x2 <- evaluate e2 env Root
@@ -814,34 +831,63 @@ determineClosures = bimap' id id $ \e env ->
 
 ------- Conversion to Hakaru
 
+newtype Nullary repr a = Nullary { unNullary :: repr a }
+newtype Unary   repr a = Unary   { unUnary   :: repr a -> repr a }
+newtype Binary  repr a = Binary  { unBinary  :: repr a -> repr a -> repr a }
+newtype Boolean repr a = Boolean { unBoolean :: repr a -> repr a -> repr Bool_ }
+
+nullary :: (Fraction a, Base repr) => ((Order repr a, Fractional (repr a)) =>
+           repr a) -> repr a
+unary   :: (Fraction a, Base repr) => ((Order repr a, Fractional (repr a)) =>
+           repr a -> repr a) -> repr a -> repr a
+binary  :: (Fraction a, Base repr) => ((Order repr a, Fractional (repr a)) =>
+           repr a -> repr a -> repr a) -> repr a -> repr a -> repr a
+boolean :: (Fraction a, Base repr) => ((Order repr a, Fractional (repr a)) =>
+           repr a -> repr a -> repr Bool_) -> repr a -> repr a -> repr Bool_
+
+nullary x = unNullary (fractionRepr (Nullary x))
+unary   x = unUnary   (fractionRepr (Unary   x))
+binary  x = unBinary  (fractionRepr (Binary  x))
+boolean x = unBoolean (fractionRepr (Boolean x))
+
 toHakaru :: (Eq' u, Show' u, Mochastic repr, Type t') =>
             Expr u u t' -> (forall t. Type t => u t -> repr t) -> repr t'
-toHakaru (Op0 Lebesgue)   _   = lebesgue
-toHakaru (Op0 Pi)         _   = pi
-toHakaru (Op0 Unit)       _   = unit
-toHakaru (Op1 Exp e)      env = exp (toHakaru e env)
-toHakaru (Op1 Log e)      env = log (toHakaru e env)
-toHakaru (Op1 Neg e)      env = negate (toHakaru e env)
-toHakaru (Op1 Inv e)      env = recip (toHakaru e env)
-toHakaru (Op1 Weight e)   env = factor (unsafeProb (toHakaru e env))
-toHakaru (Op2 Add e1 e2)  env = toHakaru e1 env + toHakaru e2 env
-toHakaru (Op2 Mul e1 e2)  env = toHakaru e1 env * toHakaru e2 env
-toHakaru (Op2 Less e1 e2) env = toHakaru e1 env `less` toHakaru e2 env
-toHakaru (LitReal x)      _   = fromRational x
-toHakaru (Var u)          env = env u
-toHakaru (Choice es)      env = superpose [ (1, toHakaru e env) | e <- es ]
-toHakaru e@(Bind lhs rhs body) env =
+toHakaru (Op0 Lebesgue)            _   = lebesgue
+toHakaru (Op0 Pi)                  _   = piFraction dict
+toHakaru (Op0 Unit)                _   = unit
+toHakaru (Op1 Exp e)               env = expFraction dict (toHakaru e  env)
+toHakaru (Op1 Log e)               env = logFraction dict (toHakaru e  env)
+toHakaru (Op1 Neg e)               env = unary negate     (toHakaru e  env)
+toHakaru (Op1 Inv e)               env = unary recip      (toHakaru e  env)
+toHakaru (Op1 Weight e)            env = factor           (toHakaru e  env)
+toHakaru (Op1 UnsafeProb e)        env = unsafeProb       (toHakaru e  env)
+toHakaru (Op1 FromProb e)          env = fromProb         (toHakaru e  env)
+toHakaru (Op2 Add e1 (Op1 Neg e2)) env = binary (-)       (toHakaru e1 env)
+                                                          (toHakaru e2 env)
+toHakaru (Op2 Add e1 e2)  env          = binary (+)       (toHakaru e1 env)
+                                                          (toHakaru e2 env)
+toHakaru (Op2 Mul e1 (Op1 Inv e2)) env = binary (/)       (toHakaru e1 env)
+                                                          (toHakaru e2 env)
+toHakaru (Op2 Mul e1 e2)           env = binary (*)       (toHakaru e1 env)
+                                                          (toHakaru e2 env)
+toHakaru (Op2 Less e1 e2)          env = boolean less     (toHakaru e1 env)
+                                                          (toHakaru e2 env)
+toHakaru (LitReal x)               _   = nullary (fromRational x)
+toHakaru (Var u)                   env = env u
+toHakaru (Choice es)               env = superpose [ (1, toHakaru e env)
+                                                   | e <- es ]
+toHakaru e@(Bind lhs rhs body)     env =
   toHakaru rhs env `bind` \x ->
   matchHakaru lhs x (\bindings ->
   if unique bindings
   then toHakaru body (\v -> fromMaybe (env v) (lookup bindings v))
   else error ("Duplicate variable in " ++ show' 0 e ""))
-toHakaru e@(Dirac e')   env = typeMeas e (dirac (toHakaru e' env))
-toHakaru e@(Pair e1 e2) env = typeProd e (pair  (toHakaru e1 env)
-                                                (toHakaru e2 env))
-toHakaru e@(Inl e')     env = typeSum  e (inl   (toHakaru e' env))
-toHakaru e@(Inr e')     env = typeSum  e (inr   (toHakaru e' env))
-toHakaru (Closure e env) f  = toHakaru e (f . (env !!))
+toHakaru e@(Dirac e')              env = typeMeas e (dirac (toHakaru e' env))
+toHakaru e@(Pair e1 e2)            env = typeProd e (pair  (toHakaru e1 env)
+                                                           (toHakaru e2 env))
+toHakaru e@(Inl e')                env = typeSum  e (inl   (toHakaru e' env))
+toHakaru e@(Inr e')                env = typeSum  e (inr   (toHakaru e' env))
+toHakaru (Closure e env) f             = toHakaru e (f . (env !!))
 
 matchHakaru :: (Type t, Mochastic repr) => Tree u t -> repr t ->
                ([Binding u repr] -> repr (Measure w)) -> repr (Measure w)
@@ -861,65 +907,43 @@ matchHakaru (Leaf u) x k = k [Binding u x]
 ------- Conversion from Hakaru
 
 newtype Disintegrate a = Disint
-  (forall w. Cont (Int -> Expr Loc Loc (Measure w)) (Expr Loc Loc (Disint' a)))
-type family Disint' (a :: *)
-type instance Disint' Real         = Real
-type instance Disint' Prob         = Real
-type instance Disint' ()           = ()
-type instance Disint' (a, b)       = (Disint' a, Disint' b)
-type instance Disint' (Either a b) = Either (Disint' a) (Disint' b)
-type instance Disint' (Measure a)  = Measure (Disint' a)
-type instance Disint' (a -> b)     = Disint' a -> Disint' b
+  (forall w. Cont (Int -> Expr Loc Loc (Measure w)) (Expr Loc Loc a))
 
-runDisintegrate :: forall a b repr. (Type a, Type b, Mochastic repr) =>
+runDisintegrate :: (Type a, Type b, Mochastic repr) =>
                    Disintegrate (Measure (a, b)) ->
-                   [repr (Disint' a) -> repr (Measure (Disint' b))]
+                   [repr a -> repr (Measure b)]
 runDisintegrate (Disint m) =
-  typeDisint (theType :: TypeOf a) $
-  typeDisint (theType :: TypeOf b) $
-  let nameOfLoc :: Loc t -> Name t
-      nameOfLoc (Const i) = Const ('x' : show i)
-      observed :: Loc (Disint' a)
+  let nameOfLoc (Const i) = Const ('x' : show i)
       observed = Const 0
-      e :: Expr Name Name (Measure (Disint' a, Disint' b))
       e = bimap' nameOfLoc nameOfLoc Closure (runCont m (\w _ -> w) 1)
   in [ \o -> liftM snd_ (toHakaru dis ([Binding observed o] !!))
      | dis <- run (disintegrate e emptyEnv (Fst Root) (Var observed)) ]
 
 unDisint :: Disintegrate a ->
-            (Expr Loc Loc (Disint' a) -> Int -> Expr Loc Loc (Measure w))
-                                      -> Int -> Expr Loc Loc (Measure w)
+            (Expr Loc Loc a -> Int -> Expr Loc Loc (Measure w))
+                            -> Int -> Expr Loc Loc (Measure w)
 unDisint (Disint m) = runCont m
 
-typeDisint :: TypeOf t -> (Type (Disint' t) => w) -> w
-typeDisint Real   k = k
-typeDisint Prob   k = k
-typeDisint One    k = k
-typeDisint x@Meas k = typeDisint (typeOf2 x) k
-typeDisint x@Prod k = typeDisint (typeOf1 x) (typeDisint (typeOf2 x) k)
-typeDisint x@Sum  k = typeDisint (typeOf1 x) (typeDisint (typeOf2 x) k)
-typeDisint x@Fun  k = typeDisint (typeOf1 x) (typeDisint (typeOf2 x) k)
-
 insertDisint :: (Type t) => Disintegrate t
-             -> (forall w. Type (Disint' t) => Expr Loc Loc (Disint' t) ->
-                  (Expr Loc Loc (Disint' a) -> Int -> Expr Loc Loc (Measure w))
-                                            -> Int -> Expr Loc Loc (Measure w))
+             -> (forall w. Expr Loc Loc t ->
+                  (Expr Loc Loc a -> Int -> Expr Loc Loc (Measure w))
+                                  -> Int -> Expr Loc Loc (Measure w))
              -> Disintegrate a
-insertDisint d@(Disint x) f = typeDisint (typeOf d) (Disint (x >>= cont . f))
+insertDisint (Disint x) f = Disint (x >>= cont . f)
 
 resetDisint :: (Type t) => Disintegrate t -> Disintegrate t
-resetDisint d = typeDisint (typeOf d) (Disint (cont (\c i ->
+resetDisint d = Disint (cont (\c i ->
   Bind (Leaf (Const i)) (unDisint d (\w _ -> Dirac w) i)
-       (c (Var (Const i)) (succ i)))))
+       (c (Var (Const i)) (succ i))))
 
-instance (Disint' t ~ Real) => Order Disintegrate t where
+instance (Fraction t) => Order Disintegrate t where
   less (Disint x) (Disint y) = Disint (fmap (Op2 Less) x <*> y)
 
-instance (Type t, Disint' t ~ Real) => Num (Disintegrate t) where
+instance (Fraction t) => Num (Disintegrate t) where
   Disint x + Disint y = Disint (fmap (+) x <*> y)
   Disint x * Disint y = Disint (fmap (*) x <*> y)
   negate (Disint x)   = Disint (fmap negate x)
-  abs x    = insertDisint x (\e c i ->
+  abs x = insertDisint x (\e c i ->
     Bind (Leaf (Const i))
          (if' (Op2 Less 0 e) (Dirac e) (Dirac (-e)))
          (c (Var (Const i)) (succ i)))
@@ -927,13 +951,13 @@ instance (Type t, Disint' t ~ Real) => Num (Disintegrate t) where
     Bind (Leaf (Const i))
          (if' (Op2 Less 0 e) (Dirac (1 `asTypeOf` e)) (Dirac (-1)))
          (c (Var (Const i)) (succ i)))
-  fromInteger x       = Disint (return (fromInteger x))
+  fromInteger x = Disint (return (fromInteger x))
 
-instance (Type t, Disint' t ~ Real) => Fractional (Disintegrate t) where
+instance (Fraction t) => Fractional (Disintegrate t) where
   recip (Disint x) = Disint (fmap recip x)
   fromRational x   = Disint (return (fromRational x))
 
-instance (Type t, Disint' t ~ Real) => Floating (Disintegrate t) where
+instance Floating (Disintegrate Real) where
   pi             = Disint (return (Op0 Pi))
   exp (Disint x) = Disint (fmap (Op1 Exp) x)
   log (Disint x) = Disint (fmap (Op1 Log) x)
@@ -949,8 +973,17 @@ instance (Type t, Disint' t ~ Real) => Floating (Disintegrate t) where
   atanh          = error "Disintegrate: atanh unimplemented"
 
 instance Base Disintegrate where
-  unit = Disint (return (Op0 Unit))
+  unit                       = Disint (return (Op0 Unit))
   pair (Disint x) (Disint y) = Disint (fmap Pair x <*> y)
+  inl (Disint x)             = Disint (fmap Inl x)
+  inr (Disint x)             = Disint (fmap Inr x)
+  unsafeProb (Disint x)      = Disint (fmap (Op1 UnsafeProb) x)
+  fromProb (Disint x)        = Disint (fmap (Op1 FromProb) x)
+  pi_                        = Disint (return (Op0 Pi))
+  exp_ (Disint x)            = Disint (fmap (Op1 Exp) x)
+  log_ (Disint x)            = Disint (fmap (Op1 Log) x)
+  betaFunc                   = error "Disintegrate: betaFunc unimplemented"
+
   unpair xy k = insertDisint xy (\e c i ->
     let x = Const i
         y = Const (i+1)
@@ -958,8 +991,7 @@ instance Base Disintegrate where
             (unDisint (k (Disint (return (Var x))) (Disint (return (Var y))))
                       c
                       (i+2)))
-  inl (Disint x) = Disint (fmap Inl x)
-  inr (Disint x) = Disint (fmap Inr x)
+
   uneither xy kx ky = insertDisint xy (\e c i ->
     Choice [ let x = Const i
              in Bind (UnaryL (Leaf x)) (Dirac e)
@@ -967,19 +999,16 @@ instance Base Disintegrate where
            , let y = Const i
              in Bind (UnaryR (Leaf y)) (Dirac e)
                      (unDisint (ky (Disint (return (Var y)))) c (i+1)) ])
-  unsafeProb (Disint x) = Disint x
-  fromProb (Disint x) = Disint x
-  betaFunc = error "Disintegrate: betaFunc unimplemented"
 
 instance Mochastic Disintegrate where
   dirac x = Disint (cont (\c i -> c (unDisint x (\w _ -> Dirac w) i) i))
-  bind d@(Disint x) k = typeDisint (typeOf2 d) (Disint (cont (\c i ->
+  bind (Disint x) k = Disint (cont (\c i ->
     c (Bind (Leaf (Const i))
             (runCont x (\w _ -> w) i)
             (unDisint (k (Disint (return (Var (Const i)))))
                       (\w _ -> w)
                       (i+1)))
-      i)))
+      i))
   lebesgue = Disint (return (Op0 Lebesgue))
   superpose pms = Disint (cont (\c i ->
     c (Choice
