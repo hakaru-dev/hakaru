@@ -1,6 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances,
              DeriveDataTypeable, StandaloneDeriving #-}
-{-# OPTIONS -Wall #-}
+{-# OPTIONS -Wall -fno-warn-warnings-deprecations #-}
 module Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint) where
 
 -- Pretty-printing interpretation
