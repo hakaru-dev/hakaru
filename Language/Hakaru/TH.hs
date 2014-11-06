@@ -4,7 +4,7 @@ module Language.Hakaru.TH (THRepr, unTHRepr, show_code) where
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob,
-       Order(..), Base(..), Mochastic(..), Disintegrate(..), Lambda(..))
+       Order(..), Base(..), Mochastic(..), Lambda(..))
 import Language.Haskell.TH
 
 newtype THRepr a = THR { unTHRepr :: ExpQ }
@@ -103,12 +103,10 @@ instance Mochastic THRepr where
   categorical l = liftT 'categorical [liftL [ varE '(,) `appE` e `appE` e'
                                             | (THR e, THR e') <- l ]]
 
-instance Disintegrate THRepr where
-  disintegrate (THR e) (THR e') (THR e'') = liftT 'disintegrate [e, e', e'']
-
 instance Lambda THRepr where
   lam f = liftT 'lam [liftF f]
   app (THR e) (THR e') = liftT 'app [e, e']
+  let_ (THR e) f = liftT 'let_ [e, liftF f]
 
 show_code :: THRepr a -> IO ()
 show_code (THR cde) = runQ cde >>= putStrLn . pprint
