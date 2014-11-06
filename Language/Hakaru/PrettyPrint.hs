@@ -29,20 +29,19 @@ apply2 f (PP a) (PP b) =
 apply3 f (PP a) (PP b) (PP c) =
   PP (\xs p -> [prettyFun (p > 10) f (sep [sep (d xs 11) | d <- [a,b,c]])])
 
+applyPairs :: String -> [(PrettyPrint a, PrettyPrint b)] -> PrettyPrint c
+applyPairs s pms = apply1 s (PP (\xs _ ->
+                    [brackets (nest 1 (sep (punctuate comma
+                       [ prettyPair (sep (p xs 0)) (sep (m xs 0))
+                       | (PP p, PP m) <- pms ])))]))
+
 adjustHead :: (Doc -> Doc) -> [Doc] -> [Doc]
 adjustHead f []     = [f empty]
 adjustHead f (d:ds) = f d : ds
 
-adjustLast :: (Doc -> Doc) -> [Doc] -> [Doc]
-adjustLast f []     = [f empty]
-adjustLast f [d]    = [f d]
-adjustLast f (d:ds) = d : adjustLast f ds
-
 parens :: Bool -> [Doc] -> [Doc]
-parens True  = adjustHead (char '(' <>)
-             . adjustLast (<> char ')')
-             . map (nest 1)
-parens False = id
+parens True  ds = [char '(' <> nest 1 (sep ds) <> char ')']
+parens False ds = ds
 
 fun1 :: (PrettyPrint a -> PrettyPrint b) -> PrettyPrint (a -> b)
 fun1 f = PP (\(x:xs) p ->
@@ -56,7 +55,7 @@ fun2 f = PP (\(x:x':xs) p ->
   parens (p > 10) (text ('\\' : x ++ ' ' : x' ++ " ->") : b xs 0))
 
 instance Order PrettyPrint a where
-  less = op 4 "<" 5 5
+  less = op 4 "`less`" 5 5
 
 instance Num (PrettyPrint a) where
   (+)           = op 6 "+" 6 7
@@ -117,10 +116,12 @@ instance Mochastic PrettyPrint where
                 $ adjustHead (sep (m xs 1) <+> text "`bind`" <+>)
                 $ k' xs 2)
   lebesgue      = PP (\_ _ -> [text "lebesgue"])
-  superpose pms = apply1 "superpose" (PP (\xs _ ->
-                    [brackets (nest 1 (sep (punctuate comma
-                       [ prettyPair (sep (p xs 0)) (sep (m xs 0))
-                       | (PP p, PP m) <- pms ])))]))
+  superpose     = applyPairs "superpose"
+  uniform       = apply2 "uniform"
+  normal        = apply2 "normal"
+  factor        = apply1 "factor"
+  mix           = applyPairs "mix"
+  categorical   = applyPairs "categorical"
 
 instance Integrate PrettyPrint where
   integrate a b f  = apply3 "integrate" a b (fun1 f)
@@ -128,9 +129,16 @@ instance Integrate PrettyPrint where
   negativeInfinity = PP (\_ _ -> [text "negativeInfinity"])
 
 instance Lambda PrettyPrint where
-  lam f = let PP f' = fun1 f in
-          PP (\xs p -> parens (p > 0) (adjustHead (text "lam $" <+>) (f' xs 0)))
-  app   = op 9 "`app`" 9 10
+  lam f         = let PP f' = fun1 f in
+                  PP (\xs p -> parens (p > 0)
+                             $ adjustHead (text "lam $" <+>)
+                             $ f' xs 0)
+  app           = op 9 "`app`" 9 10
+  let_ (PP a) f = let PP f' = fun1 f in
+                  PP (\xs p -> parens (p > 0)
+                             $ adjustHead (text "let_" <+> sep (a xs 11)
+                                                       <+> char '$' <+>)
+                             $ f' xs 0)
 
 op :: Int -> String -> Int -> Int ->
       PrettyPrint a -> PrettyPrint b -> PrettyPrint c

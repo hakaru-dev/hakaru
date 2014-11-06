@@ -5,15 +5,16 @@ module Tests.Syntax where
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure,
-       Order(..), Base(..), and_, fst_, snd_, min_,
-       Mochastic(..), Disintegrate(), bind_, beta, bern,
-       density, if_, true, Bool_,
-       Lambda(..), Type(..))
+       Order(..), Base(..), ununit, and_, fst_, snd_, min_,
+       Mochastic(..), bind_, beta, bern,
+       if_, true, Bool_,
+       Lambda(..), Integrate(..), Type(..))
 import Language.Hakaru.Util.Pretty (Pretty (pretty), prettyPair)
 import Language.Hakaru.Expect (Expect(unExpect), Expect')
 import Language.Hakaru.Maple (Maple(Maple), runMaple)
 import Language.Hakaru.Sample(Sample(unSample))
-import Language.Hakaru.Disintegrate hiding (Disintegrate)
+import Language.Hakaru.Disintegrate
+import Language.Hakaru.PrettyPrint (runPrettyPrint)
 
 import Control.Monad (zipWithM_, replicateM)
 import Control.Applicative (Const(Const))
@@ -153,21 +154,32 @@ pair4'transition state = bern (1/2) `bind` \resampleCoin ->
 transitionTest :: MWC.GenIO -> IO (Maybe ((Bool_, Double), LF.LogFloat))
 transitionTest g = unSample (pair4transition (pair true 1)) 1 g
 
-mcmc :: (Type a, Disintegrate repr) =>
-        (repr a -> repr (Measure a)) ->
-        repr (Measure a) -> repr a -> repr (Measure a)
-mcmc q p x =
-    (q x) `bind` \ x' ->
-    density p (q x') x  `bind_`
-    density (q x) p x' `bind_`
-    dirac x'
+mcmc :: (Type a, Mochastic repr, Integrate repr, Lambda repr, a ~ Expect' a) =>
+        (forall repr'. (Mochastic repr') => repr' a -> repr' (Measure a)) ->
+        (forall repr'. (Mochastic repr') => repr' (Measure a)) ->
+        repr (a -> Measure a)
+mcmc q p =
+  let_ (lam (dp unit)) $ \density_p ->
+  let_ (lam (\y -> lam (dq y))) $ \density_q ->
+  lam $ \x ->
+    q x `bind` \ x' ->
+    let_ (min_ 1 (density_p `app` x' / density_q `app` x `app` x' *
+                  density_q `app` x' `app` x / density_p `app` x)) $ \ratio ->
+    bern ratio `bind` \accept ->
+    dirac (if_ accept x' x)
+  where dp:_ = density (\dummy -> ununit dummy p)
+        dq:_ = density q
+
+testMcmc :: IO ()
+testMcmc = print (runPrettyPrint (mcmc (`normal` 1) (normal 0 5)))
 
 testDistWithSample :: IO [Maybe (Double, LF.LogFloat)]
 testDistWithSample = do
   g <- MWC.create
-  let prog2 = (head prog) 1
+  let prog2 = (head prog 0) 1
   replicateM 10 (unSample prog2 1 g)
- where prog = runDisintegrate $ normal 0 1 `bind` \x ->
+ where prog = runDisintegrate $ \env ->
+                                normal env 1 `bind` \x ->
                                 normal x 1 `bind` \y ->
                                 dirac (pair y x)
 
@@ -313,3 +325,87 @@ main = do
   putStrLn $ testMaple t13
   putStrLn $ testMaple t14
   disintegrateTestRunner
+
+testKernel :: Sample IO (Real -> Measure Real)
+testKernel =
+-- Below is the output of testMcmc as of 2014-11-05
+    let_ (lam $ \x0 ->
+          (lam $ \x1 ->
+           lam $ \x2 ->
+           lam $ \x3 ->
+           (lam $ \x4 ->
+            0
+            + 1
+              * (lam $ \x5 ->
+                 (lam $ \x6 ->
+                  0
+                  + exp_ (-(x2 - 0) * (x2 - 0) / fromProb (2 * exp_ (log_ 5 * 2)))
+                    / 5
+                    / exp_ (log_ (2 * pi_) * (1 / 2))
+                    * (lam $ \x7 -> x7 `app` unit) `app` x6)
+                 `app` (lam $ \x6 ->
+                        (lam $ \x7 ->
+                         (lam $ \x8 -> x8 `app` x2)
+                         `app` (lam $ \x8 ->
+                                (lam $ \x9 ->
+                                 (lam $ \x10 -> x10 `app` unit)
+                                 `app` (lam $ \x10 ->
+                                        (lam $ \x11 ->
+                                         (lam $ \x12 -> x12 `app` x2)
+                                         `app` (lam $ \x12 ->
+                                                (lam $ \x13 -> x13 `app` pair x2 x10) `app` x11))
+                                        `app` x9))
+                                `app` x7))
+                        `app` x5))
+                `app` x4)
+           `app` (lam $ \x4 ->
+                  (lam $ \x5 -> x5 `app` (x4 `unpair` \x6 x7 -> x7)) `app` x3))
+          `app` unit
+          `app` x0
+          `app` (lam $ \x1 -> 1)) $ \x0 ->
+    let_ (lam $ \x1 ->
+          lam $ \x2 ->
+          (lam $ \x3 ->
+           lam $ \x4 ->
+           lam $ \x5 ->
+           (lam $ \x6 ->
+            0
+            + 1
+              * (lam $ \x7 ->
+                 (lam $ \x8 ->
+                  0
+                  + exp_ (-(x4 - x3) * (x4 - x3) / fromProb (2 * exp_ (log_ 1 * 2)))
+                    / 1
+                    / exp_ (log_ (2 * pi_) * (1 / 2))
+                    * (lam $ \x9 -> x9 `app` unit) `app` x8)
+                 `app` (lam $ \x8 ->
+                        (lam $ \x9 ->
+                         (lam $ \x10 -> x10 `app` x4)
+                         `app` (lam $ \x10 ->
+                                (lam $ \x11 ->
+                                 (lam $ \x12 -> x12 `app` unit)
+                                 `app` (lam $ \x12 ->
+                                        (lam $ \x13 ->
+                                         (lam $ \x14 -> x14 `app` x4)
+                                         `app` (lam $ \x14 ->
+                                                (lam $ \x15 -> x15 `app` pair x4 x12) `app` x13))
+                                        `app` x11))
+                                `app` x9))
+                        `app` x7))
+                `app` x6)
+           `app` (lam $ \x6 ->
+                  (lam $ \x7 -> x7 `app` (x6 `unpair` \x8 x9 -> x9)) `app` x5))
+          `app` x1
+          `app` x2
+          `app` (lam $ \x3 -> 1)) $ \x1 ->
+    lam $ \x2 ->
+    normal x2 1 `bind` \x3 ->
+    let_ (uneither (1
+                    `less` x0 `app` x3 / x1 `app` x2 `app` x3 * x1 `app` x3 `app` x2
+                           / x0 `app` x2)
+                   (\x4 -> 1)
+                   (\x4 ->
+                    x0 `app` x3 / x1 `app` x2 `app` x3 * x1 `app` x3 `app` x2
+                    / x0 `app` x2)) $ \x4 ->
+    categorical [(x4, inl unit), (1 - x4, inr unit)] `bind` \x5 ->
+    dirac (uneither x5 (\x6 -> x3) (\x6 -> x2))

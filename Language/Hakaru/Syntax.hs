@@ -7,15 +7,15 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Bool_,
        typeMeas, typeProd, typeSum, typeFun,
        EqType(..), eqType, OrdType(..), ordType, Fraction(..),
        errorEmpty,
-       Order(..), Base(..), true, false, if_, fst_, snd_,
+       Order(..), Base(..), ununit, true, false, if_, fst_, snd_,
        and_, or_, not_, min_, max_,
        Mochastic(..), bind_, liftM, liftM2, beta, bern,
-       Disintegrate(..), condition, density,
        Integrate(..), Lambda(..)) where
 
 import Prelude hiding (Real)
 import Data.Dynamic (Typeable)
 
+infix  4 `less`
 infixl 1 `bind`, `bind_`
 infixl 9 `app`
 
@@ -213,6 +213,9 @@ class (Order repr Real, Floating (repr Real),
   fix :: (repr a -> repr a) -> repr a
   fix f = x where x = f x
 
+ununit :: repr () -> repr a -> repr a
+ununit _ e = e
+
 true, false :: (Base repr) => repr Bool_
 true  = inl unit
 false = inr unit
@@ -294,19 +297,6 @@ beta a b = uniform 0 1 `bind` \x ->
 bern :: (Mochastic repr) => repr Prob -> repr (Measure Bool_)
 bern p = categorical [(p, true), (1-p, false)]
 
-class (Mochastic repr) => Disintegrate repr where
-  disintegrate :: repr (Measure a) -> repr (Measure (a,b)) ->
-                  repr a -> repr (Measure b)
-
-condition :: (Disintegrate repr, Type a, Type b) =>
-             repr (Measure (a,b)) -> repr a -> repr (Measure b)
-condition m = disintegrate (liftM fst_ m) m
-
-density :: (Disintegrate repr, Type a) =>
-           repr (Measure a) -> repr (Measure a) ->
-           repr a -> repr (Measure Real)
-density ambient m = disintegrate ambient (liftM (`pair` 1) m)
-
 class (Base repr) => Integrate repr where
   integrate :: repr Real -> repr Real -> (repr Real -> repr Prob) -> repr Prob
   infinity, negativeInfinity :: repr Real
@@ -314,3 +304,5 @@ class (Base repr) => Integrate repr where
 class Lambda repr where
   lam :: (repr a -> repr b) -> repr (a -> b)
   app :: repr (a -> b) -> repr a -> repr b
+  let_ :: (Lambda repr) => repr a -> (repr a -> repr b) -> repr b
+  let_ x f = lam f `app` x

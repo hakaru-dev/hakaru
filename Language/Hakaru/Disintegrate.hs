@@ -2,7 +2,8 @@
              RankNTypes, GADTs, StandaloneDeriving #-}
 {-# OPTIONS -Wall -fno-warn-incomplete-patterns #-}
 
-module Language.Hakaru.Disintegrate (Disintegrate, runDisintegrate, resetDisint,
+module Language.Hakaru.Disintegrate (Disintegrate,
+       runDisintegrate, density, resetDisint,
        Eq'(..), eq'List, Ord'(..), ord'List, Show'(..), Tree(..), Selector(..),
        Op0(..), Op1(..), Op2(..), Expr(..), Name, Loc, Void,
        if', max_, stdRandom, run, disintegrate, emptyEnv) where
@@ -26,7 +27,9 @@ import Text.PrettyPrint (Doc, text, char, int, comma, colon, semi, brackets,
 import Language.Hakaru.Syntax (Real, Prob, Measure, Bool_, Type(..), TypeOf(..),
         typeOf, typeOf1, typeOf2, typeMeas, typeProd, typeSum,
         EqType(..), eqType, OrdType(..), ordType, Fraction(..),
-        Order(..), Base(..), Mochastic(..), liftM, snd_)
+        Order(..), Base(..), Mochastic(..), liftM, snd_,
+        Lambda(..), Integrate(..))
+import Language.Hakaru.Expect (Expect(unExpect), Expect')
 
 ------- Tracing
 
@@ -909,15 +912,27 @@ matchHakaru (Leaf u) x k = k [Binding u x]
 newtype Disintegrate a = Disint
   (forall w. Cont (Int -> Expr Loc Loc (Measure w)) (Expr Loc Loc a))
 
-runDisintegrate :: (Type a, Type b, Mochastic repr) =>
-                   Disintegrate (Measure (a, b)) ->
-                   [repr a -> repr (Measure b)]
-runDisintegrate (Disint m) =
-  let nameOfLoc (Const i) = Const ('x' : show i)
-      observed = Const 0
-      e = bimap' nameOfLoc nameOfLoc Closure (runCont m (\w _ -> w) 1)
-  in [ \o -> liftM snd_ (toHakaru dis ([Binding observed o] !!))
-     | dis <- run (disintegrate e emptyEnv (Fst Root) (Var observed)) ]
+runDisintegrate :: (Type env, Type a, Type b, Mochastic repr) =>
+                   (Disintegrate env -> Disintegrate (Measure (a, b))) ->
+                   [repr env -> repr a -> repr (Measure b)]
+runDisintegrate m =
+  case Const (-1) of { env -> case Const 0 of { observed ->
+  let nameOfLoc :: Loc t -> Name t
+      nameOfLoc (Const i) = Const ('x' : show i)
+      expr = bimap' nameOfLoc nameOfLoc Closure
+        $ unDisint (m (Disint (return (Var env)))) (\w _ -> w) 1
+  in [ \e o -> liftM snd_ (toHakaru dis ([Binding env e, Binding observed o] !!))
+     | dis <- run (disintegrate expr
+                                [Binding (nameOfLoc env) env]
+                                (Fst Root)
+                                (Var observed)) ] } }
+
+density :: (Type env, Type a, Integrate repr, Lambda repr) =>
+           (Disintegrate env -> Disintegrate (Measure a)) ->
+           [repr (Expect' env) -> repr (Expect' a) -> repr Prob]
+density m = [ \e o -> expectation `app` e `app` o `app` lam (\_ -> 1)
+            | f <- runDisintegrate (liftM (`pair` unit) . m)
+            , let expectation = unExpect (lam (\e -> lam (\o -> f e o))) ]
 
 unDisint :: Disintegrate a ->
             (Expr Loc Loc a -> Int -> Expr Loc Loc (Measure w))
