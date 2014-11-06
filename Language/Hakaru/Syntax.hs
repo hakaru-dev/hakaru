@@ -1,9 +1,10 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleContexts, DefaultSignatures,
-             DeriveDataTypeable, GADTs #-}
-{-# OPTIONS -W #-}
+             DeriveDataTypeable, GADTs, Rank2Types #-}
+{-# OPTIONS -Wall #-}
 
 module Language.Hakaru.Syntax (Real, Prob, Measure, Bool_,
        TypeOf(..), Type(..), typeOf, typeOf1, typeOf2,
+       typeMeas, typeProd, typeSum, typeFun,
        EqType(..), eqType, OrdType(..), ordType,
        errorEmpty,
        Order(..), Base(..), true, false, if_, fst_, snd_,
@@ -51,6 +52,18 @@ typeOf1 _ = theType
 
 typeOf2 :: (Type t2) => a (f t2) -> TypeOf t2
 typeOf2 _ = theType
+
+typeMeas :: (Type (Measure t)) => a (Measure t) -> ((Type t) => w) -> w
+typeMeas x k = case typeOf x of Meas -> k
+
+typeProd :: (Type (t1, t2)) => a (t1, t2) -> ((Type t1, Type t2) => w) -> w
+typeProd x k = case typeOf x of Prod -> k
+
+typeSum :: (Type (Either t1 t2)) => a (Either t1 t2) -> ((Type t1, Type t2) => w) -> w
+typeSum x k = case typeOf x of Sum -> k
+
+typeFun :: (Type (t1 -> t2)) => a (t1 -> t2) -> ((Type t1, Type t2) => w) -> w
+typeFun x k = case typeOf x of Fun -> k
 
 data EqType t t' where
   Refl :: EqType t t
@@ -231,7 +244,8 @@ class (Base repr) => Mochastic repr where
                        (superpose [])
   normal        :: repr Real -> repr Prob -> repr (Measure Real)
   normal mu sd  =  lebesgue `bind` \x ->
-                   superpose [( exp_ (- (x - mu)^2 / fromProb (2 * pow_ sd 2))
+                   superpose [( exp_ (- (x - mu)^(2::Int)
+                                      / fromProb (2 * pow_ sd 2))
                                  / sd / sqrt_ (2 * pi_)
                               , dirac x )]
   factor        :: repr Prob -> repr (Measure ())

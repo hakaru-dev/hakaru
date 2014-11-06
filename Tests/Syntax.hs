@@ -226,11 +226,11 @@ disintegrateTestRunner :: IO ()
 disintegrateTestRunner = do
   testDist ( Bind (Leaf x) stdRandom
            $ Bind (Leaf y) stdRandom
-           $ Dirac (Pair (Exp (Var x)) (Add (Var y) (Var x)))
+           $ Dirac (Pair (Op1 Exp (Var x)) (Op2 Add (Var y) (Var x)))
            , Fst Root )
   testDist ( Bind (Leaf x) stdRandom
            $ Bind (Leaf y) stdRandom
-           $ Dirac (Pair (Exp (Var x)) (Add (Var y) (Var x)))
+           $ Dirac (Pair (Op1 Exp (Var x)) (Op2 Add (Var y) (Var x)))
            , Snd Root )
   testDist ( Bind (Leaf x) stdRandom
            $ Bind (Leaf y) stdRandom
@@ -238,7 +238,7 @@ disintegrateTestRunner = do
            $ Dirac (Pair (Var z) (Pair (Var x) (Var y)))
            , Fst Root )
   testDist ( Bind (Leaf x) stdRandom
-           $ Dirac (Pair (Exp (Var x)) (Neg (Var x)))
+           $ Dirac (Pair (Op1 Exp (Var x)) (Op1 Neg (Var x)))
            , Fst Root )
   testDist ( Bind (Leaf x) (Choice [stdRandom, stdRandom])
            $ Bind (Leaf y) (Choice [stdRandom, stdRandom])
@@ -253,12 +253,12 @@ disintegrateTestRunner = do
            $ Bind (Leaf x) stdRandom
            $ Dirac (Pair (Var x + Var y) (Bind (Leaf x) stdRandom (Dirac (Var y))))
            , Fst Root )
-  testDist ( Bind (Leaf m) (Dirac (Bind (Leaf x) stdRandom (Dirac (Add 1 (Var x)))))
+  testDist ( Bind (Leaf m) (Dirac (Bind (Leaf x) stdRandom (Dirac (Op2 Add 1 (Var x)))))
            $ Bind (Leaf x) (Var m)
            $ Bind (Leaf y) (Var m)
            $ Dirac (Pair (Var x) (Var y))
            , Fst Root )
-  testDist ( Bind (Leaf m) (Bind (Leaf x) stdRandom (Dirac (Dirac (Add 1 (Var x)))))
+  testDist ( Bind (Leaf m) (Bind (Leaf x) stdRandom (Dirac (Dirac (Op2 Add 1 (Var x)))))
            $ Bind (Leaf x) (Var m)
            $ Bind (Leaf y) (Var m)
            $ Dirac (Pair (Var x) (Var y))
