@@ -33,8 +33,8 @@ nPoints = 6
 gaussianMixture :: Measure [Double]
 gaussianMixture = do
   p <- unconditioned (beta 2 2)
-  m1:m2:_ <- replicateM 2 $ unconditioned (normal 100 30)
-  s1:s2:_ <- replicateM 2 $ unconditioned (uniform 0 2)
+  [m1,m2] <- replicateM 2 $ unconditioned (normal 100 30)
+  [s1,s2] <- replicateM 2 $ unconditioned (uniform 0 2)
   let makePoint = do        
         b <- unconditioned (bern p)
         unconditioned (ifThenElse b (normal m1 s1)
