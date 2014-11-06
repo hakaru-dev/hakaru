@@ -5,7 +5,6 @@
 #
 # SLO : simplifier
 # AST : takes simplified form and transform to AST
-# Print: (ToDo) print an AST back to Haskell
 #
 
 SLO := module ()
@@ -46,7 +45,7 @@ SLO := module ()
 
   # recursive function which does the main translation
   ToAST := proc(e, cs::'specfunc'(anything,c))
-    local a0, a1, var, rng, ee, cof, d, rest, weight;
+    local a0, a1, var, rng, ee, cof, d, rest, weight, binders;
     if (e = cs) then
       return Return(op(cs))
     # we might have recursively encountered a hidden 0

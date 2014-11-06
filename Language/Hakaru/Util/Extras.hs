@@ -11,6 +11,7 @@ import qualified Data.Sequence as S
 import qualified System.Random.MWC as MWC
 import Data.Maybe
 import qualified Data.Foldable as F
+import qualified Data.Number.LogFloat as LF
 
 extract :: S.Seq a -> Int -> Maybe (S.Seq a, a)
 extract s i | S.null r = Nothing
@@ -77,3 +78,14 @@ pairs (x:xs) = (zip (repeat x) xs) ++ pairs xs
 
 l2Norm :: Floating a => [a] -> a
 l2Norm l = sqrt.sum $ zipWith (*) l l
+
+normalize :: [LF.LogFloat] -> (LF.LogFloat, Double, [Double])
+--  normalize xs == (x, y, ys)
+--  ===>  all (0 <=) ys && sum ys == y && xs == map (x *) ys
+--                               (therefore sum xs == x * y)
+normalize []  = (0, 0, [])
+normalize [x] = (x, 1, [1])
+normalize xs  = (m, y, ys)
+  where m  = maximum xs
+        ys = [ LF.fromLogFloat (x/m) | x <- xs ]
+        y  = sum ys

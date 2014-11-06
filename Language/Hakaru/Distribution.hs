@@ -227,3 +227,24 @@ dirichletLogDensity a x | all (> 0) x = sum' (zipWith logTerm a x) + logGamma (s
   where sum' = foldl' (+) 0
         logTerm b y = (b-1) * log y - logGamma b
 dirichletLogDensity _ _ = error "dirichlet: all values must be between 0 and 1"
+
+dirichlet :: Int -> Double -> Dist [Double]
+dirichlet n a = Dist {logDensity = dirichletLogDensity (replicate n a) . fromLebesgue,
+                      distSample = (\ g -> liftM Lebesgue $ dirichlet_rng n a g)}
+
+-- Consider making multinomial match categorical
+multinomial_rng :: (PrimMonad m) => Int -> [Double] -> PRNG m -> m [Int]
+-- multinomial_rng n theta g = undefined
+multinomial_rng _ _ _ = undefined
+
+multinomialLogDensity :: Int -> [Double] -> [Int] -> Double
+multinomialLogDensity n theta' x' | n > 0 && sum x' == n && all (>0) x' && all (<n) x'
+                                  = lnFact (fromIntegral n)
+                                  + sum [ fromIntegral x *
+                                          log theta - lnFact (fromIntegral x)
+                                          | (theta, x) <- zip theta' x']
+multinomialLogDensity _ _ _     = log 0
+
+multinomial :: Int -> [Double] -> Dist [Int]
+multinomial n theta = Dist {logDensity = multinomialLogDensity n theta . fromDiscrete,
+                            distSample = (\g -> liftM Discrete $ multinomial_rng n theta g)}
