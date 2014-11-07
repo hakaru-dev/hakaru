@@ -80,24 +80,26 @@ r16 := SLO(t16);
 r18 := SLO(t18);
 # printlevel := 1: interface(prettyprint=1):
 
-SLO:-AST(r1);
-SLO:-AST(r2);
-SLO:-AST(r3);
-SLO:-AST(r4);
-SLO:-AST(r5);
-SLO:-AST(r6);
-SLO:-AST(r7);
+a1 := SLO:-AST(r1);
+a2 := SLO:-AST(r2);
+a3 := SLO:-AST(r3);
+a4 := SLO:-AST(r4);
+a5 := SLO:-AST(r5);
+a6 := SLO:-AST(r6);
+a7 := SLO:-AST(r7);
 # SLO:-AST(r8);
-SLO:-AST(r9);
-SLO:-AST(r10);
-SLO:-AST(r11);
-SLO:-AST(r12);
-SLO:-AST(r13);
-SLO:-AST(r14);
-SLO:-AST(r15);
-SLO:-AST(r16);
-#SLO:-AST(r17);
-SLO:-AST(r18);
+a9 := SLO:-AST(r9);
+a10 := SLO:-AST(r10);
+a11 := SLO:-AST(r11);
+a12 := SLO:-AST(r12);
+a13 := SLO:-AST(r13);
+a14 := SLO:-AST(r14);
+a15 := SLO:-AST(r15);
+a16 := SLO:-AST(r16);
+# a17 := SLO:-AST(r17);
+a18 := SLO:-AST(r18);
 
 # And back.  Just pick and choose now
-Haskell(SLO:-AST(r1));
+Haskell(a1);
+#Haskell(a2);
+Haskell(SLO:-AST(SLO(t1)));

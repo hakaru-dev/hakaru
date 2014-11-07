@@ -5,7 +5,7 @@
 
 Haskell := module ()
   export ModuleApply;
-  local b, p, d,
+  local b, p, d, bi,
       parens, resolve;
   uses StringTools;
 
@@ -34,7 +34,7 @@ Haskell := module ()
 # things get silly with too much indentation, so for this table, we cheat
 d[_Inert_INTPOS] := proc(x) b:-appendf("%d",x) end;
 d[_Inert_RATIONAL] := proc(n,d) 
-  parens(proc() p(n); b:-append(" % "); p(d); end) 
+  parens(proc() p(n); b:-append(" / "); p(d); end) 
 end;
 d[_Inert_FUNCTION] := proc(f, s)
   local nm;
@@ -45,9 +45,20 @@ d[_Inert_FUNCTION] := proc(f, s)
     error "Haskell: cannot resolve function %1", f
   end if;
 end proc;
+# ignore a2 and subsequent things below
+d[_Inert_ASSIGNEDNAME] := proc(a1, a2)
+  if assigned(bi[a1]) then
+    bi[a1]()
+  else
+    error "Haskell: cannot resolve name %1", a1 
+  end if;
+end proc;
 
 # this is the table of known internal functions
 bi["Bind_"] := proc(a1, a2) p(a1); b:-append(" `bind_` "); p(a2) end;
+bi["Factor"] := proc(a) b:-append("(factor"); p(a); b:-append(")"); end;
+bi["Return"] := proc(a) b:-append("(dirac"); p(a); b:-append(")"); end;
+bi["Unit"] := proc() b:-append(" unit") end;
 
 # utility routines:
 # =================
@@ -57,8 +68,11 @@ bi["Bind_"] := proc(a1, a2) p(a1); b:-append(" `bind_` "); p(a2) end;
 
 # resolve name
   resolve := proc(inrt)
-    local s;
-    if typematch(inrt, specfunc(s::string, '_Inert_NAME')) then
+    local s, nm;
+    nm := eval(inrt, _Inert_ATTRIBUTE=NULL); # crude but effective
+    if typematch(nm, specfunc('s'::string, '_Inert_NAME')) then
+      s
+    elif typematch(nm, specfunc('s'::string, string, '_Inert_ASSIGNEDNAME')) then
       s
     else
       error "cannot resolve an %1", op(0,inrt);

@@ -8,6 +8,7 @@ module Language.Hakaru.Maple (Maple(..), runMaple, Any(..), closeLoop) where
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Order(..), Base(..), Integrate(..), Lambda(..),
+    Mochastic(..), Measure,
     TypeOf(Sum, One), typeOf, typeOf1, typeOf2)
 import Data.Ratio
 import Data.Typeable (Typeable1)
@@ -144,9 +145,18 @@ closeLoop :: (Typeable1 repr) => String -> IO (Either InterpreterError (repr ())
 closeLoop s = runInterpreter (ourContext >> interpret s undefined)
 
 newtype Any a = Any
-  { unAny :: forall repr. (Base repr, Lambda repr) => repr a }
+  { unAny :: forall repr. (Base repr, Lambda repr, Mochastic repr) => repr (Measure a) }
 deriving instance Typeable1 Any
   -- beware GHC 7.8 https://ghc.haskell.org/trac/ghc/wiki/GhcKinds/PolyTypeable
+
+pMaple :: String -> IO ()
+pMaple s = do
+  result <- closeLoop ("Any (" ++ s ++ ")")
+  case result of
+    Left err -> print err
+    Right a -> do
+      print (runPrettyPrint (unAny a))
+      -- putStrLn (runMaple (unAny a) 0)
 
 main :: IO () -- should print "(lam $ \x0 -> x0) `app` unit"
 main = do
@@ -155,4 +165,4 @@ main = do
     Left err -> print err
     Right a -> do
       print (runPrettyPrint (unAny a))
-      putStrLn (runMaple (unAny a) 0)
+      -- putStrLn (runMaple (unAny a) 0)
