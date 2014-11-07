@@ -6,6 +6,7 @@ import Prelude hiding (Real, not)
 import Control.Monad
 import Language.Hakaru.Syntax
 import Language.Hakaru.Sample
+import Language.Hakaru.Expect
 --import qualified Language.Hakaru.Metropolis as MH
 import System.Random.MWC as MWC hiding (uniform)
 
@@ -115,6 +116,12 @@ hiddenState = categorical [(1, 0),
                            (1, 1),
                            (1, 2),
                            (1, 3)]
+
+eTest :: (Integrate repr,
+          Lambda repr,
+          Mochastic repr) =>
+         Expect repr Real -> repr (Expect' (Measure Real))
+eTest n = unExpect (dirac n)
 
 -- Lifted inference
 n = 80 -- [10,20,40,80,160,320,640,1280,2560,5120]
