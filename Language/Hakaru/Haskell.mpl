@@ -1,17 +1,13 @@
 # Haskell -- this is a "to Haskell" 'printing' module.
 #
-# It will eventually have two exports:
-# 1. SLO - to print our AST representation of linear operators
-# 2. Expr - to print Maple expressions in Haskell, at least for those
-#           which are translateable in a straightforward manner.
+# A single export
+# This prints our AST representation of linear operators
 
 Haskell := module ()
-  export SLO, Expr;
+  export ModuleApply;
   local b, p, d,
-      parens;
+      parens, resolve;
   uses StringTools;
-
-  SLO := proc(ast) error "Haskell:-SLO not implemented yet" end;
 
   # this is to make things more efficient.  Note that it makes
   # things non-reentrant between Expr and p.
@@ -21,7 +17,7 @@ Haskell := module ()
   # which is to use the Inert form.  The flip-side of doing things
   # the right way would involve a proper pretty-printer, but that
   # can be added later easily enough.
-  Expr := proc(expr) 
+  ModuleApply := proc(expr) 
       b:-clear();
       p(ToInert(expr));
       b:-value();
@@ -31,7 +27,7 @@ Haskell := module ()
     if assigned(d[op(0,e)]) then
       d[op(0,e)](op(e))
     else
-      error "Haskell:-d %1 not implemented yet", op(0,e)
+      error "Haskell: %1 not implemented yet (%2)", op(0,e), e
     end if;
   end;
 
@@ -40,6 +36,32 @@ d[_Inert_INTPOS] := proc(x) b:-appendf("%d",x) end;
 d[_Inert_RATIONAL] := proc(n,d) 
   parens(proc() p(n); b:-append(" % "); p(d); end) 
 end;
+d[_Inert_FUNCTION] := proc(f, s)
+  local nm;
+  nm := resolve(f);
+  if assigned(bi[nm]) then
+    bi[nm](op(s))
+  else
+    error "Haskell: cannot resolve function %1", f
+  end if;
+end proc;
 
+# this is the table of known internal functions
+bi["Bind_"] := proc(a1, a2) p(a1); b:-append(" `bind_` "); p(a2) end;
+
+# utility routines:
+# =================
+
+# printing
   parens := proc(c) b:-append("("); c(); b:-append(")") end;
+
+# resolve name
+  resolve := proc(inrt)
+    local s;
+    if typematch(inrt, specfunc(s::string, '_Inert_NAME')) then
+      s
+    else
+      error "cannot resolve an %1", op(0,inrt);
+    end if;
+  end proc;
 end module:

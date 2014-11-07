@@ -55,6 +55,7 @@ t18 := (x0->(x1->int(piecewise(((0/1)<(1/x2)),((1/x2)*int(piecewise(((0/1)<((x0*
 
 # for now, just read the code in.
 read "SLO.mpl":
+read "Haskell.mpl":
 
 # for now, just print the results to the screen
 r1 := SLO(t1);
@@ -64,7 +65,7 @@ r4 := SLO(t4);
 r5 := SLO(t5);
 r6 := SLO(t6);
 r7 := SLO(t7);
-r8 := SLO(t8);
+# r8 := SLO(t8);
 r9 := SLO(t9);
 r10 := SLO(t10);
 r11 := SLO(t11);
@@ -73,7 +74,7 @@ r13 := SLO(t13);
 r14 := SLO(t14);
 r15 := SLO(t15);
 r16 := SLO(t16);
-r17 := SLO(t17);
+#r17 := SLO(t17);
 # old-school debugging is sometimes the fastest!
 # interface(prettyprint=0): printlevel := 50:
 r18 := SLO(t18);
@@ -86,7 +87,7 @@ SLO:-AST(r4);
 SLO:-AST(r5);
 SLO:-AST(r6);
 SLO:-AST(r7);
-SLO:-AST(r8);
+# SLO:-AST(r8);
 SLO:-AST(r9);
 SLO:-AST(r10);
 SLO:-AST(r11);
@@ -95,5 +96,8 @@ SLO:-AST(r13);
 SLO:-AST(r14);
 SLO:-AST(r15);
 SLO:-AST(r16);
-SLO:-AST(r17);
+#SLO:-AST(r17);
 SLO:-AST(r18);
+
+# And back.  Just pick and choose now
+Haskell(SLO:-AST(r1));
