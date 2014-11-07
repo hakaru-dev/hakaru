@@ -64,6 +64,15 @@ qmr =
 
 -- Network Analysis
 
+preferentialPrior :: Mochastic repr => repr (Measure Real)
+preferentialPrior = uniform 0 1
+
+numNodes          :: Mochastic repr => repr (Measure Prob)
+numNodes          = poisson 5   
+
+edgesPerNode      :: Mochastic repr => repr (Measure Prob)
+edgesPerNode      = poisson 3   
+
 -- Friends who Smoke
 friendsWhoSmoke :: Mochastic repr => repr (Measure (Bool_, Bool_))
 friendsWhoSmoke =
@@ -77,6 +86,29 @@ friendsWhoSmoke =
 
 -- Seismic event monitoring
 
+a1, b1, aN, bN, aS, bS :: Base repr => repr Prob
+
+a1 = 20; b1 = 2
+aN = 3;  bN = 2
+aF = 20; bF = 1
+aS = 2;  bS = 1
+
+uV, sigV, uB, sigB, uv, sigv :: Base repr => repr Prob
+uV = 5; sigV = 1
+uB = 2; sigB = 1
+uv = 1; sigv = 1
+
+uT = 0; lT = 1000; aT = 20; bT = 1
+uA = 0; lA = 1;    aA = 2;  bA = 1
+un = 0; ln = 1;    an = 2;  bn = 1
+
+logistic :: Base repr => repr Real -> repr Real -> repr Prob -> repr Prob
+logistic x v sig = 1 / (1 + exp_ (- (x - v) / fromProb sig))
+
+seismic :: Mochastic repr => repr (Measure Prob)
+seismic = gamma a1 b1 `bind` \l0 ->
+          dirac l0
+
 -- Recursive reasoning
 hiddenState :: Mochastic repr => repr (Measure Real)
 hiddenState = categorical [(1, 0),
@@ -85,5 +117,14 @@ hiddenState = categorical [(1, 0),
                            (1, 3)]
 
 -- Lifted inference
-n = [10,20,40,80,160,320,640,1280,2560,5120]
-k = [1,2,4,8,16,32,64]
+n = 80 -- [10,20,40,80,160,320,640,1280,2560,5120]
+k = 16 -- [1,2,4,8,16,32,64]
+
+liftedInference :: Mochastic repr => repr (Measure (Bool_, Prob))
+liftedInference = bern 0.01 `bind` \cause ->
+                  replicateH n (if_ cause (bern 0.6) (bern 0.05))
+                   (\ effects ->
+                    dirac $ 
+                    foldl (\ sum_ e ->
+                           sum_ + (if_ e 1 0)) 0 effects) `bind` \sum_ ->
+                  dirac (pair cause sum_)

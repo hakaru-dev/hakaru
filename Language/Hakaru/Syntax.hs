@@ -273,6 +273,13 @@ class (Base repr) => Mochastic repr where
   categorical   :: [(repr Prob, repr a)] -> repr (Measure a)
   categorical l =  mix [ (p, dirac x) | (p,x) <- l ]
 
+  poisson       :: repr Prob -> repr (Measure Prob)
+  poisson       =  undefined
+  gamma         :: repr Prob -> repr Prob -> repr (Measure Prob)
+  gamma         =  undefined
+  invgamma      :: repr Prob -> repr Prob -> repr (Measure Prob)
+  invgamma      =  undefined -- recip (gamma k (recip t))
+
 errorEmpty :: a
 errorEmpty = error "empty mixture makes no sense"
 
