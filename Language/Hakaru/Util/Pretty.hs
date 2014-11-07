@@ -2,7 +2,7 @@ module Language.Hakaru.Util.Pretty (Pretty(..),
        prettyPair, prettyParen, prettyFun, prettyOp, showRatio) where
 
 import Text.PrettyPrint
-import Text.Show.Functions
+import Text.Show.Functions () -- ick!
 import Data.Ratio (Ratio, numerator, denominator)
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -40,7 +40,7 @@ instance (Pretty a, Pretty b) => Pretty (Either a b) where
     pretty (Left  x) = text "Left"  <+> pretty x
     pretty (Right x) = text "Right" <+> pretty x
 
-instance (Finite a, Pretty a, Pretty b) => Pretty (a -> b)
+instance (CanonicallyFinite a, Pretty a, Pretty b) => Pretty (a -> b)
   where
     pretty f = braces $ nest 1 $ sep $ punctuate comma $
                [ hang (pretty x <> colon) 1 (pretty (f x)) | x <- everything ]
