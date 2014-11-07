@@ -1,8 +1,8 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, ScopedTypeVariables #-}
-{-# LANGUAGE DeriveDataTypeable, GADTs #-}
-{-# OPTIONS -W #-}
+{-# LANGUAGE DeriveDataTypeable, GADTs, Rank2Types, StandaloneDeriving #-}
+{-# OPTIONS -W -fno-warn-warnings-deprecations -fno-warn-unused-binds #-}
 
-module Language.Hakaru.Maple (Maple(..), runMaple, closeLoop) where
+module Language.Hakaru.Maple (Maple(..), runMaple, Any(..), closeLoop) where
 
 -- Maple printing interpretation
 
@@ -134,7 +134,7 @@ instance Lambda Maple where
 -- but this is a start.
 ourContext :: MonadInterpreter m => m ()
 ourContext = do
-  let modules = ["Language.Hakaru.Syntax", "Language.Hakaru.PrettyPrint"]
+  let modules = ["Language.Hakaru.Syntax", "Language.Hakaru.Maple"]
   loadModules modules
   setImports ("Prelude" : modules)
 
@@ -143,5 +143,16 @@ ourContext = do
 closeLoop :: (Typeable1 repr) => String -> IO (Either InterpreterError (repr ()))
 closeLoop s = runInterpreter (ourContext >> interpret s undefined)
 
+newtype Any a = Any
+  { unAny :: forall repr. (Base repr, Lambda repr) => repr a }
+deriving instance Typeable1 Any
+  -- beware GHC 7.8 https://ghc.haskell.org/trac/ghc/wiki/GhcKinds/PolyTypeable
+
 main :: IO () -- should print "(lam $ \x0 -> x0) `app` unit"
-main = fmap (either show show . fmap runPrettyPrint) (closeLoop "lam id `app` unit") >>= putStrLn
+main = do
+  result <- closeLoop "Any (lam id `app` unit)"
+  case result of
+    Left err -> print err
+    Right a -> do
+      print (runPrettyPrint (unAny a))
+      putStrLn (runMaple (unAny a) 0)
