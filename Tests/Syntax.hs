@@ -235,6 +235,17 @@ t14 = bern (3/5) `bind` \b ->
 t20 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure ())
 t20 = lam (\y -> uniform 0 1 `bind` \x -> factor (unsafeProb x * y))
 
+t21 :: (Mochastic repr, Integrate repr, Lambda repr) => repr (Real -> Measure Real)
+t21 = mcmc (`normal` 1) (normal 0 5)
+
+t22 :: Mochastic repr => repr (Measure ())
+t22 = bern (1/2) `bind_` dirac unit
+
+t23 :: Mochastic repr => repr (Measure (Bool_, Bool_))
+t23 = bern (1/2) `bind` \a ->
+	       bern (if_ a (9/10) (1/10)) `bind` \b ->
+	       bern (if_ a (9/10) (1/10)) `bind` \c ->
+	       dirac (pair b c)
 ------- Tests
 
 disintegrateTestRunner :: IO ()
@@ -329,6 +340,13 @@ main = do
   putStrLn $ testMaple t13 "t13"
   putStrLn $ testMaple t14 "t14"
   putStrLn $ testMaple t20 "t20"
+  putStrLn $ testMaple t21 "t21"
+  putStrLn $ testMaple t22 "t22"
+  putStrLn $ testMaple t23 "t23"
+
+-- this introduced too much noise in output, move it 
+main2 :: IO ()
+main2 = do
   disintegrateTestRunner
 
 testKernel :: Sample IO (Real -> Measure Real)
