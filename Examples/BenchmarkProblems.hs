@@ -7,6 +7,7 @@ import Control.Monad
 import Language.Hakaru.Syntax
 import Language.Hakaru.Sample
 import Language.Hakaru.Expect
+import Language.Hakaru.PrettyPrint
 --import qualified Language.Hakaru.Metropolis as MH
 import System.Random.MWC as MWC hiding (uniform)
 
@@ -60,6 +61,11 @@ qmr =
 -- Discrete-time HMM
 
 -- HDP-LDA
+
+y  = 1
+a0 = 1
+nu = 0.01
+w  = 10473
 
 -- pCFG
 
@@ -120,8 +126,8 @@ hiddenState = categorical [(1, 0),
 eTest :: (Integrate repr,
           Lambda repr,
           Mochastic repr) =>
-         Expect repr Real -> repr (Expect' (Measure Real))
-eTest n = unExpect (dirac n)
+         Expect repr Prob -> repr Prob
+eTest n = unExpect (dirac n) `app` lam id
 
 -- Lifted inference
 n = 80 -- [10,20,40,80,160,320,640,1280,2560,5120]
