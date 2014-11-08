@@ -1,7 +1,7 @@
 {-# LANGUAGE TypeFamilies, Rank2Types #-}
 {-# OPTIONS -W #-}
 
-module Tests.Syntax where
+-- module Tests.Syntax where
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure,
@@ -232,6 +232,9 @@ t14 = bern (3/5) `bind` \b ->
       if_ b t13 (bern (2/7) `bind` \b' ->
                  if_ b' (uniform 10 12) (uniform 14 16))
 
+t20 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure ())
+t20 = lam (\y -> uniform 0 1 `bind` \x -> factor (unsafeProb x * y))
+
 ------- Tests
 
 disintegrateTestRunner :: IO ()
@@ -296,8 +299,9 @@ testDist (e,s) = do
   putStrLn ""
 
 
-testMaple :: Expect Maple a -> String
-testMaple t = runMaple (unExpect t) 0
+testMaple :: Expect Maple a -> String -> String
+testMaple t pre = pre ++ " := " ++ res ++ ":"
+  where res = runMaple (unExpect t) 0
 
 -- this can sometimes be more convenient
 testMaple2 :: (Expect' c ~ (b -> a)) => Maple b -> Expect Maple c -> String
@@ -310,20 +314,21 @@ p1 = testMaple2 (Maple (return "c")) t1
 -- Maple test file
 main :: IO ()
 main = do
-  putStrLn $ testMaple t1
-  putStrLn $ testMaple t2
-  putStrLn $ testMaple t3
-  putStrLn $ testMaple t4
-  putStrLn $ testMaple t5
-  putStrLn $ testMaple t6
-  putStrLn $ testMaple t7
-  putStrLn $ testMaple t8
-  putStrLn $ testMaple t9
-  putStrLn $ testMaple t10
-  putStrLn $ testMaple t11
-  putStrLn $ testMaple t12
-  putStrLn $ testMaple t13
-  putStrLn $ testMaple t14
+  putStrLn $ testMaple t1 "t1"
+  putStrLn $ testMaple t2 "t2"
+  putStrLn $ testMaple t3 "t3"
+  putStrLn $ testMaple t4 "t4"
+  putStrLn $ testMaple t5 "t5"
+  putStrLn $ testMaple t6 "t6"
+  putStrLn $ testMaple t7 "t7"
+  putStrLn $ testMaple t8 "t8"
+  putStrLn $ testMaple t9 "t9"
+  putStrLn $ testMaple t10 "t10"
+  putStrLn $ testMaple t11 "t11"
+  putStrLn $ testMaple t12 "t12"
+  putStrLn $ testMaple t13 "t13"
+  putStrLn $ testMaple t14 "t14"
+  putStrLn $ testMaple t20 "t20"
   disintegrateTestRunner
 
 testKernel :: Sample IO (Real -> Measure Real)
