@@ -243,9 +243,9 @@ t22 = bern (1/2) `bind_` dirac unit
 
 t23 :: Mochastic repr => repr (Measure (Bool_, Bool_))
 t23 = bern (1/2) `bind` \a ->
-	       bern (if_ a (9/10) (1/10)) `bind` \b ->
-	       bern (if_ a (9/10) (1/10)) `bind` \c ->
-	       dirac (pair b c)
+               bern (if_ a (9/10) (1/10)) `bind` \b ->
+               bern (if_ a (9/10) (1/10)) `bind` \c ->
+               dirac (pair b c)
 
 ------- Tests
 
@@ -346,6 +346,7 @@ main = do
   putStrLn $ testMaple t23 "t23"
   putStrLn $ testMaple expr1 "expr1"
   putStrLn $ testMaple testKernel "testKernel"
+  putStrLn $ testMaple testKernel2 "testKernel2"
 
 -- this introduced too much noise in output, move it 
 main2 :: IO ()
@@ -441,3 +442,13 @@ testKernel =
                     / x0 `app` x2)) $ \x4 ->
     categorical [(x4, inl unit), (1 - x4, inr unit)] `bind` \x5 ->
     dirac (uneither x5 (\x6 -> x3) (\x6 -> x2))
+
+-- this should be equivalent to the above
+testKernel2 :: (Lambda repr, Mochastic repr) => repr (Real -> Measure Real)
+testKernel2 =
+  lam $ \x2 ->
+  normal x2 1 `bind` \x3 ->
+  let_ (uneither (1 `less` exp_(-1/50*(x3-x2)*(x3+x2)))
+                 (\x4 -> 1)
+                 (\x4 -> exp_(-1/50*(x3-x2)*(x3+x2)))) $ \x4 ->
+ categorical [(x4, x3), (1 - x4, x2)]
