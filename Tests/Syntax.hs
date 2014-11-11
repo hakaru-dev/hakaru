@@ -246,6 +246,9 @@ t23 = bern (1/2) `bind` \a ->
 	       bern (if_ a (9/10) (1/10)) `bind` \b ->
 	       bern (if_ a (9/10) (1/10)) `bind` \c ->
 	       dirac (pair b c)
+
+t24 :: (Integrate repr, Lambda repr, Mochastic repr) => repr (Real -> Measure Real)
+t24 =  (mcmc (`normal` 1) (normal 0 5))
 ------- Tests
 
 disintegrateTestRunner :: IO ()
@@ -343,6 +346,7 @@ main = do
   putStrLn $ testMaple t21 "t21"
   putStrLn $ testMaple t22 "t22"
   putStrLn $ testMaple t23 "t23"
+  putStrLn $ testMaple t24 "t24"
 
 -- this introduced too much noise in output, move it 
 main2 :: IO ()
