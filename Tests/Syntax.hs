@@ -345,6 +345,8 @@ main = do
   putStrLn $ testMaple t22 "t22"
   putStrLn $ testMaple t23 "t23"
   putStrLn $ testMaple expr1 "expr1"
+  putStrLn $ testMaple expr2 "expr2"
+  putStrLn $ testMaple expr4 "expr4"
   putStrLn $ testMaple testKernel "testKernel"
   putStrLn $ testMaple testKernel2 "testKernel2"
 
@@ -388,15 +390,10 @@ expr1 =  (lam $ \x0 ->
                   (lam $ \x5 -> x5 `app` (x4 `unpair` \x6 x7 -> x7)) `app` x3))
           `app` unit
           `app` x0
-          `app` (lam $ \x1 -> 1)) 
+          `app` (lam $ \x1 -> 1))
 
--- testKernel :: Sample IO (Real -> Measure Real)
-testKernel :: (Lambda repr, Num (repr Prob), Base repr, Mochastic repr) 
-    => repr (Real -> Measure Real)
-testKernel =
--- Below is the output of testMcmc as of 2014-11-05
-    let_ expr1 $ \x0 ->
-    let_ (lam $ \x1 ->
+expr2 :: (Mochastic repr, Lambda repr) => repr (Real -> Real -> Prob)
+expr2 = (lam $ \x1 ->
           lam $ \x2 ->
           (lam $ \x3 ->
            lam $ \x4 ->
@@ -430,16 +427,31 @@ testKernel =
                   (lam $ \x7 -> x7 `app` (x6 `unpair` \x8 x9 -> x9)) `app` x5))
           `app` x1
           `app` x2
-          `app` (lam $ \x3 -> 1)) $ \x1 ->
-    lam $ \x2 ->
-    normal x2 1 `bind` \x3 ->
-    let_ (uneither (1
+          `app` (lam $ \x3 -> 1))
+
+-- the one we need in testKernel
+expr3 :: (Mochastic repr, Lambda repr) => repr (d -> Prob) -> repr (d -> d -> Prob) -> repr d -> repr d -> repr Prob 
+expr3 x0 x1 x2 x3 = (uneither (1
                     `less` x0 `app` x3 / x1 `app` x2 `app` x3 * x1 `app` x3 `app` x2
                            / x0 `app` x2)
                    (\x4 -> 1)
                    (\x4 ->
                     x0 `app` x3 / x1 `app` x2 `app` x3 * x1 `app` x3 `app` x2
-                    / x0 `app` x2)) $ \x4 ->
+                    / x0 `app` x2))
+
+-- this is expr3 that we can send to Maple
+expr4 :: (Lambda repr, Mochastic repr) => repr ((d -> Prob) -> (d -> d -> Prob) -> d -> d -> Prob)
+expr4 = lam (\x0 -> lam (\x1 -> lam (\x2 -> lam (\x3 -> expr3 x0 x1 x2 x3))))
+
+-- testKernel :: Sample IO (Real -> Measure Real)
+testKernel :: (Lambda repr, Mochastic repr) => repr (Real -> Measure Real)
+testKernel =
+-- Below is the output of testMcmc as of 2014-11-05
+    let_ expr1 $ \x0 ->
+    let_ expr2 $ \x1 ->
+    lam $ \x2 ->
+    normal x2 1 `bind` \x3 ->
+    let_ (expr3 x0 x1 x2 x3) $ \x4 ->
     categorical [(x4, inl unit), (1 - x4, inr unit)] `bind` \x5 ->
     dirac (uneither x5 (\x6 -> x3) (\x6 -> x2))
 
