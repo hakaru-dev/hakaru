@@ -344,17 +344,17 @@ main = do
   putStrLn $ testMaple t21 "t21"
   putStrLn $ testMaple t22 "t22"
   putStrLn $ testMaple t23 "t23"
-  putStrLn $ testMaple t24 "t24"
+  putStrLn $ testMaple expr1 "expr1"
+  putStrLn $ testMaple testKernel "testKernel"
 
 -- this introduced too much noise in output, move it 
 main2 :: IO ()
 main2 = do
   disintegrateTestRunner
 
-testKernel :: Sample IO (Real -> Measure Real)
-testKernel =
--- Below is the output of testMcmc as of 2014-11-05
-    let_ (lam $ \x0 ->
+-- pull out some of the intermediate expressions for independent study
+expr1 :: (Lambda repr, Mochastic repr) => repr (Real -> Prob)
+expr1 =  (lam $ \x0 ->
           (lam $ \x1 ->
            lam $ \x2 ->
            lam $ \x3 ->
@@ -387,7 +387,14 @@ testKernel =
                   (lam $ \x5 -> x5 `app` (x4 `unpair` \x6 x7 -> x7)) `app` x3))
           `app` unit
           `app` x0
-          `app` (lam $ \x1 -> 1)) $ \x0 ->
+          `app` (lam $ \x1 -> 1)) 
+
+-- testKernel :: Sample IO (Real -> Measure Real)
+testKernel :: (Lambda repr, Num (repr Prob), Base repr, Mochastic repr) 
+    => repr (Real -> Measure Real)
+testKernel =
+-- Below is the output of testMcmc as of 2014-11-05
+    let_ expr1 $ \x0 ->
     let_ (lam $ \x1 ->
           lam $ \x2 ->
           (lam $ \x3 ->
