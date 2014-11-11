@@ -247,8 +247,6 @@ t23 = bern (1/2) `bind` \a ->
 	       bern (if_ a (9/10) (1/10)) `bind` \c ->
 	       dirac (pair b c)
 
-t24 :: (Integrate repr, Lambda repr, Mochastic repr) => repr (Real -> Measure Real)
-t24 =  (mcmc (`normal` 1) (normal 0 5))
 ------- Tests
 
 disintegrateTestRunner :: IO ()
