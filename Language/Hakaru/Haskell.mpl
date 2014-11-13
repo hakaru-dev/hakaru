@@ -6,7 +6,7 @@
 Haskell := module ()
   export ModuleApply;
   local b, p, d, bi,
-      parens, resolve;
+      parens, resolve, sp, ufunc, bfunc;
   uses StringTools;
 
   # this is to make things more efficient.  Note that it makes
@@ -56,15 +56,19 @@ end proc;
 
 # this is the table of known internal functions
 bi["Bind_"] := proc(a1, a2) p(a1); b:-append(" `bind_` "); p(a2) end;
-bi["Factor"] := proc(a) b:-append("(factor"); p(a); b:-append(")"); end;
-bi["Return"] := proc(a) b:-append("(dirac"); p(a); b:-append(")"); end;
+bi["Factor"] := ufunc("factor");
+bi["Return"] := unfunc("dirac");
 bi["Unit"] := proc() b:-append(" unit") end;
+bi["Uniform"] := bfunc("uniform");
 
 # utility routines:
 # =================
 
 # printing
+  sp := proc() b:-append(" ") end;
   parens := proc(c) b:-append("("); c(); b:-append(")") end;
+  ufunc := proc(f) proc(c) parens(proc() b:-append(f); p(c) end) end; end;
+  bfunc := f -> ((x,y) -> parens(proc() b:-append(f); sp(); p(x); sp(); p(y); end));
 
 # resolve name
   resolve := proc(inrt)

@@ -101,5 +101,5 @@ a18 := SLO:-AST(r18);
 
 # And back.  Just pick and choose now
 Haskell(a1);
-#Haskell(a2);
-Haskell(SLO:-AST(SLO(t1)));
+Haskell(a2);
+# Haskell(a3);

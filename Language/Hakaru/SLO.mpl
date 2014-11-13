@@ -80,11 +80,11 @@ SLO := module ()
           # recognize uniform
           if ee = c(var) then
               weight := (op(2,rng)-op(1,rng));
-              `if`(weight=1, Uniform(rng), Bind_(Factor(weight), Uniform(rng)))
+              `if`(weight=1, Uniform(op(rng)), Bind_(Factor(weight), Uniform(rng)))
           elif rng = -infinity..infinity then
-              Bind(Lebesgue(var), ToAST(ee, cs))
+              Bind(Lebesgue, var,ToAST(ee, cs))
           else
-              Bind(Lebesgue(var=rng), ToAST(ee, cs))
+              Bind(Lebesgue, var=rng, ToAST(ee, cs))
           end if;
         elif type(e, 'specfunc'(anything, {'sum','Sum'})) then
             error "sums not handled yet"
