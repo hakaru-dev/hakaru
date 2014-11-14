@@ -103,3 +103,13 @@ a18 := SLO:-AST(r18);
 Haskell(a1);
 Haskell(a2);
 Haskell(a3);
+# tricky, skip fo now
+# Haskell(a4);
+Haskell(a5);
+Haskell(a6);
+# Haskell(a7);
+# Haskell(a8);
+# Haskell(a9);
+Haskell(a10);
+Haskell(a11);
+Haskell(a12);
