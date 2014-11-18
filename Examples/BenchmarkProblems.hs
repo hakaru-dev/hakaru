@@ -2,11 +2,13 @@
 
 module Examples.BenchmarkProblems where
 
-import Prelude hiding (Real, not)
+import Prelude hiding (Real)
 import Control.Monad
+import Data.Char
 import Language.Hakaru.Syntax
 import Language.Hakaru.Sample
 import Language.Hakaru.Expect
+import Language.Hakaru.Disintegrate
 import Language.Hakaru.PrettyPrint
 --import qualified Language.Hakaru.Metropolis as MH
 import System.Random.MWC as MWC hiding (uniform)
@@ -32,8 +34,29 @@ xor a b = or_ [and_ [a, not_ b], and_ [not_ a, b]]
 eq_ :: Base repr => repr Bool_ -> repr Bool_ -> repr Bool_
 eq_ a b = if_ a b (not_ b)
 
+runExpect :: (Lambda repr) => Expect repr (Measure Prob) -> repr Prob
+runExpect (Expect m) = m `app` lam id
+
+make5Pair :: (Type a, Base repr) => [repr a] -> repr (a,(a,(a,(a,a))))
+make5Pair [x1,x2,x3,x4,x5] = pair x1
+                                (pair x2
+                                 (pair x3
+                                  (pair x4
+                                         x5)))
+
+make6Pair :: (Type a, Base repr) => [repr a] -> repr (a,(a,(a,(a,(a,a)))))
+make6Pair [x1,x2,x3,x4,x5,x6] = pair x1
+                                (pair x2
+                                 (pair x3
+                                  (pair x4
+                                   (pair x5
+                                         x6))))
+
+type Real5 = (Real, (Real, (Real, (Real, Real))))
+type Real6 = (Real, (Real, (Real, (Real, (Real, Real)))))
+
 -- Bayesian Linear Regression
-linreg :: Mochastic repr => repr (Measure (Real, Real))
+linreg :: Mochastic repr => repr (Measure (Real6, Real5))
 linreg = normal 0 2 `bind` \w1 ->
          normal 0 2 `bind` \w2 ->
          normal 0 2 `bind` \w3 ->
@@ -45,7 +68,13 @@ linreg = normal 0 2 `bind` \w1 ->
          normal (x2*w1 + x2*w2 + x2*w3 + x2*w4 + x2*w5) 1 `bind` \y2 ->
          uniform (-1) 1 `bind` \x3 ->
          normal (x3*w1 + x3*w2 + x3*w3 + x3*w4 + x3*w5) 1 `bind` \y3 ->
-         dirac (pair w4 w5)
+         dirac (pair (make6Pair [x1,x2,x3,y1,y2,y3]) (make5Pair [w1,w2,w3,w4,w5]))
+
+testLinreg = map (\ dist -> runPrettyPrint
+                            (dist unit (make6Pair [1,2,3,4,5,6]))) $
+             runDisintegrate (\ env -> linreg)
+
+testLinreg2 = map (length . filter (not . isSpace) . show) testLinreg
 
 -- QMR
 
@@ -127,7 +156,7 @@ eTest :: (Integrate repr,
           Lambda repr,
           Mochastic repr) =>
          Expect repr Prob -> repr Prob
-eTest n = unExpect (dirac n) `app` lam id
+eTest n = runExpect (dirac n)
 
 -- Lifted inference
 n = 80 -- [10,20,40,80,160,320,640,1280,2560,5120]

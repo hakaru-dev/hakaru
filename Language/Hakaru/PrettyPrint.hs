@@ -104,6 +104,7 @@ instance Base PrettyPrint where
   sqrt_             = apply1 "sqrt_"
   pow_              = apply2 "pow_"
   betaFunc          = apply2 "betaFunc"
+  gammaFunc         = apply1 "gammaFunc"
   fix f             = apply1 "fix" (fun1 f)
 
 instance Mochastic PrettyPrint where

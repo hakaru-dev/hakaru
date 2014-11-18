@@ -998,6 +998,7 @@ instance Base Disintegrate where
   exp_ (Disint x)            = Disint (fmap (Op1 Exp) x)
   log_ (Disint x)            = Disint (fmap (Op1 Log) x)
   betaFunc                   = error "Disintegrate: betaFunc unimplemented"
+  gammaFunc                  = error "Disintegrate: gammaFunc unimplemented"
 
   unpair xy k = insertDisint xy (\e c i ->
     let x = Const i
