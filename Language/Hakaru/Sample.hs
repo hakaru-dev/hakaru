@@ -11,7 +11,7 @@ import Language.Hakaru.Syntax (Real, Prob, Measure, errorEmpty,
        Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..))
 import Language.Hakaru.Util.Extras (normalize)
 import Control.Monad.Primitive (PrimState, PrimMonad)
-import Numeric.SpecFunctions (logBeta)
+import Numeric.SpecFunctions (logBeta, logGamma)
 import qualified Data.Number.LogFloat as LF
 import qualified Numeric.Integration.TanhSinh as TS
 import qualified System.Random.MWC as MWC
@@ -58,6 +58,7 @@ instance Base (Sample m) where
   exp_ (Sample x)                 = Sample (LF.logToLogFloat x)
   log_ (Sample x)                 = Sample (LF.logFromLogFloat x)
   betaFunc (Sample a) (Sample b)  = Sample (LF.logToLogFloat (logBeta a b))
+  gammaFunc (Sample n)            = Sample (LF.logToLogFloat (logGamma n))
 
 instance (PrimMonad m) => Mochastic (Sample m) where
   dirac (Sample a) = Sample (\p _ ->

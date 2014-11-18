@@ -210,6 +210,11 @@ class (Order repr Real, Floating (repr Real),
   betaFunc a b = integrate 0 1 $ \x ->
     pow_ (unsafeProb x) (a-1) * pow_ (unsafeProb (1-x)) (b-1)
 
+  gammaFunc         ::                     repr Real -> repr Prob
+  default gammaFunc :: (Integrate repr) => repr Real -> repr Prob
+  gammaFunc t = integrate 0 infinity $ \x ->
+    pow_ (unsafeProb x) (t-1) * exp_ (-t)
+
   fix :: (repr a -> repr a) -> repr a
   fix f = x where x = f x
 
@@ -274,7 +279,15 @@ class (Base repr) => Mochastic repr where
   categorical l =  mix [ (p, dirac x) | (p,x) <- l ]
 
   poisson       :: repr Prob -> repr (Measure Prob)
-  gamma         :: repr Prob -> repr Prob -> repr (Measure Prob)
+  gamma             :: repr Prob -> repr Prob -> repr (Measure Prob)
+  gamma shape scale = lebesgue `bind` \x ->
+                      superpose [(pow_ (unsafeProb x)
+                                       (fromProb (shape - 1)) *
+                                  exp_ (- (x / (fromProb scale)))
+                                  / (pow_ scale (fromProb shape) *
+                                          gammaFunc (fromProb shape)),
+                                 dirac (unsafeProb x))] 
+                      
   invgamma      :: repr Prob -> repr Prob -> repr (Measure Prob)
   invgamma k t  =  liftM recip (gamma k (recip t))
 
