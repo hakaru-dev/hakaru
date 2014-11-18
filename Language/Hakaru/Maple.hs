@@ -11,11 +11,14 @@ import Language.Hakaru.Syntax (Order(..), Base(..), Integrate(..), Lambda(..),
     Mochastic(..), Measure,
     TypeOf(Sum, One), typeOf, typeOf1, typeOf2)
 import Data.Ratio
-import Data.Typeable (Typeable1)
+import Data.Typeable (Typeable,Typeable1)
 import Control.Monad (liftM2)
 import Control.Monad.Trans.Reader (ReaderT(ReaderT), runReaderT)
 import Control.Monad.Trans.Cont (Cont, cont, runCont)
+
 import Language.Hakaru.PrettyPrint (runPrettyPrint) -- just for testing closeLoop
+import System.MapleSSH -- ditto
+import Language.Hakaru.Expect (Expect(unExpect))
 
 import Language.Haskell.Interpreter hiding (typeOf)
 
@@ -149,7 +152,7 @@ newtype Any a = Any
 deriving instance Typeable1 Any
   -- beware GHC 7.8 https://ghc.haskell.org/trac/ghc/wiki/GhcKinds/PolyTypeable
 
-pMaple :: String -> IO ()
+pMaple :: String -> IO () 
 pMaple s = do
   result <- closeLoop ("Any (" ++ s ++ ")")
   case result of
@@ -166,3 +169,15 @@ main = do
     Right a -> do
       print (runPrettyPrint (unAny a))
       -- putStrLn (runMaple (unAny a) 0)
+
+-- this WILL NOT WORK because 'maple' will not have the right libraries
+-- loaded.  This should be fixed in MapleSSH, not here.
+roundTrip :: (Typeable repr, Typeable a) => Expect Maple a -> IO (repr a)
+roundTrip e = do 
+    let expr = runMaple (unExpect e) 0
+    res <- maple ("Haskell(SLO:-AST(SLO(" ++ expr ++ ")));")
+    let cl s = runInterpreter (ourContext >> interpret s undefined)
+    result <- cl ("Any (" ++ res ++ ")")
+    case result of
+      Left err -> error $ show err
+      Right a -> return a

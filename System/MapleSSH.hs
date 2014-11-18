@@ -6,6 +6,7 @@ import Data.List
 import System.IO
 import System.Process
 
+ssh, server, mapleModule :: String
 ssh = "/usr/bin/ssh"
 server = "quarry.uits.indiana.edu"
 mapleModule = "maple/18"
@@ -35,13 +36,13 @@ withMaple :: ((String -> IO String) -> IO a) -> IO a
 withMaple k =
   do cmd <- newChan
      rsp <- newChan
-     (inH, outH, errH, pid) <- mkMaple
+     (inH, outH, _, _) <- mkMaple
      readUntil outH "#-->" -- wait for the first prompt from Maple
      tid <- forkIO . forever $
               do c <- readChan cmd
                  let c' = c ++ ";"
                  hPutStrLn inH c'
-                 readUntil outH c' -- discard local echo
+                 _ <- readUntil outH c' -- discard local echo
                  o <- fmap (unwords . words) $ readUntil outH "#-->"
                  writeChan rsp o
      r <- k $ \c -> do writeChan cmd c
@@ -49,7 +50,10 @@ withMaple k =
      killThread tid
      return r
 
+{-
+test :: IO ()
 test = withMaple $ \eval ->
         do x <- eval "1 + 1"
            y <- eval "2 * 2"
            print (x,y)
+-}
