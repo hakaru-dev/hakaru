@@ -241,6 +241,7 @@ t21 = mcmc (`normal` 1) (normal 0 5)
 t22 :: Mochastic repr => repr (Measure ())
 t22 = bern (1/2) `bind_` dirac unit
 
+-- was called bayesNet in Nov.06 msg by Ken for exact inference
 t23 :: Mochastic repr => repr (Measure (Bool_, Bool_))
 t23 = bern (1/2) `bind` \a ->
                bern (if_ a (9/10) (1/10)) `bind` \b ->
@@ -260,7 +261,14 @@ t25 = lam (\x -> lam (\y ->
 
 t26 :: (Base repr, Lambda repr, Integrate repr) => repr Prob
 t26 = unExpect t1 `app` lam (const 1)
-      
+
+t27 :: (Mochastic repr, Lambda repr) => [repr (Real -> Measure Real)]
+t27 = map (\d -> lam (d unit)) $ runDisintegrate 
+  (\env -> ununit env $ 
+    normal 0 1 `bind` \x -> 
+    normal x 1 `bind` \y -> 
+    dirac (pair y x))
+
 ------- Tests
 
 disintegrateTestRunner :: IO ()
@@ -361,6 +369,7 @@ main = do
   putStrLn $ testMaple t24 "t24"
   putStrLn $ testMaple t25 "t25"
   putStrLn $ testMaple t26 "t26"
+  putStrLn $ concat $ map (\x -> testMaple x "t27") t27
   putStrLn $ testMaple expr1 "expr1"
   putStrLn $ testMaple expr2 "expr2"
   putStrLn $ testMaple expr4 "expr4"
