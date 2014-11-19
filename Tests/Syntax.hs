@@ -247,6 +247,20 @@ t23 = bern (1/2) `bind` \a ->
                bern (if_ a (9/10) (1/10)) `bind` \c ->
                dirac (pair b c)
 
+t24 :: (Mochastic repr, Lambda repr) => repr (Prob -> Measure ())
+t24 = lam (\x ->
+      uniform 0 1 `bind` \y ->
+      uniform 0 1 `bind` \z ->
+      factor (x * exp_ (cos y) * unsafeProb z))
+
+t25 :: (Mochastic repr, Lambda repr) => repr (Prob -> Real -> Measure ())
+t25 = lam (\x -> lam (\y -> 
+    uniform 0 1 `bind` \z ->
+    factor (x * exp_ (cos y) * unsafeProb z)))
+
+t26 :: (Base repr, Lambda repr, Integrate repr) => repr Prob
+t26 = unExpect t1 `app` lam (const 1)
+      
 ------- Tests
 
 disintegrateTestRunner :: IO ()
@@ -344,6 +358,9 @@ main = do
   putStrLn $ testMaple t21 "t21"
   putStrLn $ testMaple t22 "t22"
   putStrLn $ testMaple t23 "t23"
+  putStrLn $ testMaple t24 "t24"
+  putStrLn $ testMaple t25 "t25"
+  putStrLn $ testMaple t26 "t26"
   putStrLn $ testMaple expr1 "expr1"
   putStrLn $ testMaple expr2 "expr2"
   putStrLn $ testMaple expr4 "expr4"
