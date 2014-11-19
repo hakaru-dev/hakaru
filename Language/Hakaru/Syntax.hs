@@ -279,15 +279,20 @@ class (Base repr) => Mochastic repr where
   categorical l =  mix [ (p, dirac x) | (p,x) <- l ]
 
   poisson       :: repr Prob -> repr (Measure Prob)
-  gamma             :: repr Prob -> repr Prob -> repr (Measure Prob)
-  gamma shape scale = lebesgue `bind` \x ->
-                      superpose [(pow_ (unsafeProb x)
-                                       (fromProb (shape - 1)) *
-                                  exp_ (- (x / (fromProb scale)))
-                                  / (pow_ scale (fromProb shape) *
-                                          gammaFunc (fromProb shape)),
-                                 dirac (unsafeProb x))] 
-                      
+  -- TODO: default implementation of poisson in terms of summation
+
+  gamma :: repr Prob -> repr Prob -> repr (Measure Prob)
+  gamma shape scale =
+    lebesgue `bind` \x ->
+    if_ (less 0 x)
+        (let x_ = unsafeProb x
+             shape_ = fromProb shape in
+         superpose [(pow_ x_ (fromProb (shape - 1))
+                    * exp_ (- fromProb (x_ / scale))
+                    / (pow_ scale shape_ * gammaFunc shape_),
+                    dirac (unsafeProb x))])
+        (superpose [])
+
   invgamma      :: repr Prob -> repr Prob -> repr (Measure Prob)
   invgamma k t  =  liftM recip (gamma k (recip t))
 
