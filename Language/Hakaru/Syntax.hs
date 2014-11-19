@@ -213,7 +213,7 @@ class (Order repr Real, Floating (repr Real),
   gammaFunc         ::                     repr Real -> repr Prob
   default gammaFunc :: (Integrate repr) => repr Real -> repr Prob
   gammaFunc t = integrate 0 infinity $ \x ->
-    pow_ (unsafeProb x) (t-1) * exp_ (-t)
+    pow_ (unsafeProb x) (t-1) * exp_ (-x)
 
   fix :: (repr a -> repr a) -> repr a
   fix f = x where x = f x
