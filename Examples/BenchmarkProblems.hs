@@ -70,8 +70,14 @@ linreg = normal 0 2 `bind` \w1 ->
          normal (x3*w1 + x3*w2 + x3*w3 + x3*w4 + x3*w5) 1 `bind` \y3 ->
          dirac (pair (make6Pair [x1,x2,x3,y1,y2,y3]) (make5Pair [w1,w2,w3,w4,w5]))
 
-testLinreg = map (\ dist -> runPrettyPrint
-                            (dist unit (make6Pair [1,2,3,4,5,6]))) $
+testLinreg = map (\ dist -> runPrettyPrint $
+                            lam $ \a ->
+                            lam $ \b ->
+                            lam $ \c ->
+                            lam $ \d ->
+                            lam $ \e ->
+                            lam $ \f ->
+                            dist unit (make6Pair [a,b,c,d,e,f])) $
              runDisintegrate (\ env -> linreg)
 
 testLinreg2 = map (length . filter (not . isSpace) . show) testLinreg
