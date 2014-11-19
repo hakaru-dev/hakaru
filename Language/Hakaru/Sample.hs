@@ -97,6 +97,7 @@ instance (PrimMonad m) => Mochastic (Sample m) where
       case [ m | (v,(_,m)) <- zip (scanl1 (+) ys) pms, u <= v ]
         of Sample m : _ -> (m $! p) g
            []           -> (m $! p) g)
+  -- TODO: override poisson, gamma, invgamma to sample more efficiently
 
 instance Integrate (Sample m) where -- just for kicks -- imprecise
   integrate (Sample lo) (Sample hi)

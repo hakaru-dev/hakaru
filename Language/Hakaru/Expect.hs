@@ -89,6 +89,8 @@ instance (Integrate repr, Lambda repr) => Mochastic (Expect repr) where
                                              | (Expect p, Expect m) <- pms ]))
   uniform (Expect lo) (Expect hi) = Expect (lam (\f ->
     integrate lo hi (\x -> app f x / unsafeProb (hi - lo))))
+  -- TODO: override poisson, gamma, invgamma to express that they do not
+  --       generate negative numbers
 
 instance (Lambda repr) => Lambda (Expect repr) where
   lam f = Expect (lam (unExpect . f . Expect))

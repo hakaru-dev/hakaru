@@ -103,6 +103,9 @@ instance Mochastic THRepr where
                               | (THR e, THR e') <- pms ]]
   categorical l = liftT 'categorical [liftL [ varE '(,) `appE` e `appE` e'
                                             | (THR e, THR e') <- l ]]
+  poisson (THR e) = liftT 'poisson [e]
+  gamma (THR e) (THR e') = liftT 'gamma [e, e']
+  invgamma (THR e) (THR e') = liftT 'invgamma [e, e']
 
 instance Lambda THRepr where
   lam f = liftT 'lam [liftF f]
