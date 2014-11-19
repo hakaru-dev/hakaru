@@ -10,7 +10,7 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Bool_,
        Order(..), Base(..), ununit, true, false, if_, fst_, snd_,
        and_, or_, not_, min_, max_,
        Mochastic(..), bind_, liftM, liftM2, beta, bern,
-       Integrate(..), Lambda(..)) where
+       Summate(..), Integrate(..), Lambda(..)) where
 
 import Prelude hiding (Real)
 import Data.Dynamic (Typeable)
@@ -205,6 +205,8 @@ class (Order repr Real, Floating (repr Real),
   pow_     :: repr Prob -> repr Real -> repr Prob
   pow_ x y =  exp_ (log_ x * y)
 
+  infinity, negativeInfinity :: repr Real
+
   betaFunc         ::                     repr Real -> repr Real -> repr Prob
   default betaFunc :: (Integrate repr) => repr Real -> repr Real -> repr Prob
   betaFunc a b = integrate 0 1 $ \x ->
@@ -256,6 +258,7 @@ class (Base repr) => Mochastic repr where
   bind          :: (Type a) => repr (Measure a) ->
                    (repr a -> repr (Measure b)) -> repr (Measure b)
   lebesgue      :: repr (Measure Real)
+  countInt      :: repr (Measure Real)
   superpose     :: [(repr Prob, repr (Measure a))] -> repr (Measure a)
 
   uniform       :: repr Real -> repr Real -> repr (Measure Real)
@@ -279,7 +282,7 @@ class (Base repr) => Mochastic repr where
   categorical l =  mix [ (p, dirac x) | (p,x) <- l ]
 
   poisson       :: repr Prob -> repr (Measure Prob)
-  -- TODO: default implementation of poisson in terms of summation
+  -- TODO: default implementation of poisson in terms of countInt
 
   gamma :: repr Prob -> repr Prob -> repr (Measure Prob)
   gamma shape scale =
@@ -320,9 +323,11 @@ beta a b = uniform 0 1 `bind` \x ->
 bern :: (Mochastic repr) => repr Prob -> repr (Measure Bool_)
 bern p = categorical [(p, true), (1-p, false)]
 
+class (Base repr) => Summate repr where
+  summate :: repr Real -> repr Real -> (repr Real -> repr Prob) -> repr Prob
+
 class (Base repr) => Integrate repr where
   integrate :: repr Real -> repr Real -> (repr Real -> repr Prob) -> repr Prob
-  infinity, negativeInfinity :: repr Real
 
 class Lambda repr where
   lam :: (repr a -> repr b) -> repr (a -> b)

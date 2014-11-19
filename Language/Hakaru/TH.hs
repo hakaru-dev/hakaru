@@ -38,6 +38,8 @@ instance Base THRepr where
   uneither (THR e) f g = liftT 'uneither [e, liftF f, liftF g]
   unsafeProb (THR e) = liftT 'unsafeProb [e]
   fromProb (THR e) = liftT 'fromProb [e]
+  infinity = liftT 'infinity []
+  negativeInfinity = liftT 'negativeInfinity []
   betaFunc (THR e) (THR e') = liftT 'betaFunc [e, e']
   gammaFunc (THR e) = liftT 'gammaFunc [e]
   fix f = liftT 'fix [liftF f]
@@ -94,6 +96,7 @@ instance Mochastic THRepr where
   dirac (THR e) = liftT 'dirac [e]
   bind (THR e) f = liftT 'bind [e, liftF f]
   lebesgue = liftT 'lebesgue []
+  countInt = liftT 'countInt []
   superpose pms = liftT 'superpose [liftL [ varE '(,) `appE` e `appE` e'
                                           | (THR e, THR e') <- pms ]]
   uniform (THR e) (THR e') = liftT 'uniform [e, e']

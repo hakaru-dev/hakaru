@@ -7,7 +7,8 @@ module Language.Hakaru.Maple (Maple(..), runMaple, Any(..), closeLoop) where
 -- Maple printing interpretation
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Order(..), Base(..), Integrate(..), Lambda(..),
+import Language.Hakaru.Syntax (Order(..), Base(..),
+    Summate(..), Integrate(..), Lambda(..),
     Mochastic(..), Measure,
     TypeOf(Sum, One), typeOf, typeOf1, typeOf2)
 import Data.Ratio
@@ -115,17 +116,23 @@ instance Base Maple where
   fromProb   (Maple x) = Maple x
   sqrt_ = mapleFun1 "sqrt"
   pow_ = mapleOp2 "^"
+  infinity         = Maple (return  "infinity")
+  negativeInfinity = Maple (return "-infinity")
   betaFunc = mapleFun2 "Beta"
   gammaFunc = mapleFun1 "Gamma"
   fix = mapleFun1 "(proc (f) local x; x := f(x) end proc)" . lam
+
+instance Summate Maple where
+  summate (Maple lo) (Maple hi) f = Maple (lo >>= \lo' -> hi >>= \hi' ->
+    ReaderT $ \i -> return $
+    let (x, body) = mapleBind f i
+    in "sum(" ++ body ++ "," ++ x ++ "=" ++ lo' ++ ".." ++ hi' ++ ")")
 
 instance Integrate Maple where
   integrate (Maple lo) (Maple hi) f = Maple (lo >>= \lo' -> hi >>= \hi' ->
     ReaderT $ \i -> return $
     let (x, body) = mapleBind f i
     in "int(" ++ body ++ "," ++ x ++ "=" ++ lo' ++ ".." ++ hi' ++ ")")
-  infinity         = Maple (return  "infinity")
-  negativeInfinity = Maple (return "-infinity")
 
 instance Lambda Maple where
   lam f = Maple (ReaderT $ \i -> return $

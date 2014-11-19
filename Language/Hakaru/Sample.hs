@@ -57,6 +57,8 @@ instance Base (Sample m) where
   fromProb (Sample x)             = Sample (LF.fromLogFloat x)
   exp_ (Sample x)                 = Sample (LF.logToLogFloat x)
   log_ (Sample x)                 = Sample (LF.logFromLogFloat x)
+  infinity                        = Sample LF.infinity
+  negativeInfinity                = Sample LF.negativeInfinity
   betaFunc (Sample a) (Sample b)  = Sample (LF.logToLogFloat (logBeta a b))
   gammaFunc (Sample n)            = Sample (LF.logToLogFloat (logGamma n))
 
@@ -73,6 +75,7 @@ instance (PrimMonad m) => Mochastic (Sample m) where
     let l = log u
         n = negate l
     return (Just (if b then n else l, p * 2 * LF.logToLogFloat n)))
+  -- TODO: implement countInt in terms of geometric or something
   superpose [] = Sample (\_ _ -> return Nothing)
   superpose [(Sample q, Sample m)] = Sample (\p g -> (m $! p * q) g)
   superpose pms@((_, Sample m) : _) = Sample (\p g -> do
@@ -113,8 +116,6 @@ instance Integrate (Sample m) where -- just for kicks -- imprecise
     = error ("Cannot integrate from " ++ show lo ++ " to " ++ show hi)
     where int method f = Sample $ LF.logFloat $ TS.result $ last
                        $ method $ LF.fromLogFloat . unSample . f . Sample
-  infinity         = Sample LF.infinity
-  negativeInfinity = Sample LF.negativeInfinity
 
 instance Lambda (Sample m) where
   lam f = Sample (unSample . f . Sample)

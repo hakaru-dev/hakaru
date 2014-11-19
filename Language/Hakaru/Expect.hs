@@ -10,7 +10,8 @@ module Language.Hakaru.Expect (Expect(..), Expect') where
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure,
        TypeOf(..), Type, typeOf1, typeOf2,
-       Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..))
+       Order(..), Base(..), Mochastic(..),
+       Summate(..), Integrate(..), Lambda(..))
 
 newtype Expect repr a = Expect { unExpect :: repr (Expect' a) }
 type family Expect' (a :: *)
@@ -70,21 +71,27 @@ instance (Base repr) => Base (Expect repr) where
   log_                           = Expect . log_  . unExpect
   sqrt_                          = Expect . sqrt_ . unExpect
   pow_ (Expect x) (Expect y)     = Expect (pow_ x y)
+  infinity                       = Expect infinity
+  negativeInfinity               = Expect negativeInfinity
   betaFunc (Expect a) (Expect b) = Expect (betaFunc a b)
   gammaFunc (Expect n)           = Expect (gammaFunc n)
   fix f                          = Expect (fix (unExpect . f . Expect))
 
+instance (Summate repr) => Summate (Expect repr) where
+  summate (Expect lo) (Expect hi) f =
+    Expect (summate lo hi (unExpect . f . Expect))
+
 instance (Integrate repr) => Integrate (Expect repr) where
   integrate (Expect lo) (Expect hi) f =
     Expect (integrate lo hi (unExpect . f . Expect))
-  infinity         = Expect infinity
-  negativeInfinity = Expect negativeInfinity
 
-instance (Integrate repr, Lambda repr) => Mochastic (Expect repr) where
+instance (Summate repr, Integrate repr, Lambda repr)
+      => Mochastic (Expect repr) where
   dirac (Expect a)  = Expect (lam (\c -> c `app` a))
   bind (Expect m) k = Expect (lam (\c -> m `app` lam (\a ->
                       unExpect (k (Expect a)) `app` c)))
   lebesgue          = Expect (lam (integrate negativeInfinity infinity . app))
+  countInt          = Expect (lam (summate   negativeInfinity infinity . app))
   superpose pms     = Expect (lam (\c -> sum [ p * app m c
                                              | (Expect p, Expect m) <- pms ]))
   uniform (Expect lo) (Expect hi) = Expect (lam (\f ->
