@@ -23,7 +23,7 @@ infixl 9 `app`
 
 data Real
 data Prob deriving Typeable -- meaning: non-negative real number
-data Measure a
+data Measure a deriving Typeable
 type Bool_ = Either () ()
 
 data TypeOf t where

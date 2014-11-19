@@ -12,7 +12,7 @@ server = "quarry.uits.indiana.edu"
 mapleModule = "maple/18"
 
 maple :: String -> IO String
-maple x = withMaple $ \eval -> eval x
+maple x = hPutStrLn stderr x >> (withMaple $ \eval -> eval x)
 
 mkMaple :: IO (Handle, Handle, Handle, ProcessHandle)
 mkMaple = do let commands = "module load -s " ++ mapleModule ++ "; maple -t"

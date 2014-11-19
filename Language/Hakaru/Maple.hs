@@ -1,15 +1,14 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, ScopedTypeVariables #-}
-{-# LANGUAGE DeriveDataTypeable, GADTs, Rank2Types, StandaloneDeriving #-}
+{-# LANGUAGE DeriveDataTypeable, GADTs, Rank2Types #-}
 {-# OPTIONS -W -fno-warn-warnings-deprecations -fno-warn-unused-binds #-}
 
-module Language.Hakaru.Maple (Maple(..), runMaple, Any(..), closeLoop) where
+module Language.Hakaru.Maple (Maple(..), runMaple, Any(..), closeLoop, roundTrip) where
 
 -- Maple printing interpretation
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Order(..), Base(..),
-    Summate(..), Integrate(..), Lambda(..),
-    Mochastic(..), Measure,
+    Summate(..), Integrate(..), Lambda(..), Mochastic(..),
     TypeOf(Sum, One), typeOf, typeOf1, typeOf2)
 import Data.Ratio
 import Data.Typeable (Typeable,Typeable1)
@@ -156,8 +155,8 @@ closeLoop :: (Typeable1 repr) => String -> IO (Either InterpreterError (repr ())
 closeLoop s = runInterpreter (ourContext >> interpret s undefined)
 
 newtype Any a = Any
-  { unAny :: forall repr. (Base repr, Lambda repr, Mochastic repr) => repr (Measure a) }
-deriving instance Typeable1 Any
+  { unAny :: forall repr. (Base repr, Lambda repr, Mochastic repr) => repr a }
+  deriving Typeable
   -- beware GHC 7.8 https://ghc.haskell.org/trac/ghc/wiki/GhcKinds/PolyTypeable
 
 pMaple :: String -> IO () 
@@ -180,10 +179,12 @@ main = do
 
 -- this WILL NOT WORK because 'maple' will not have the right libraries
 -- loaded.  This should be fixed in MapleSSH, not here.
-roundTrip :: (Typeable repr, Typeable a) => Expect Maple a -> IO (repr a)
+roundTrip :: (Typeable a) => Expect Maple a -> IO (Any a)
+  -- "a" should be like "Measure ()", not "Real -> Measure Real"
 roundTrip e = do 
     let expr = runMaple (unExpect e) 0
-    res <- maple ("Haskell(SLO:-AST(SLO(" ++ expr ++ ")));")
+    res <- return "(factor (1 / 2)) `bind_` (dirac unit)" `asTypeOf`
+           maple ("Haskell(SLO:-AST(SLO(" ++ expr ++ ")));")
     let cl s = runInterpreter (ourContext >> interpret s undefined)
     result <- cl ("Any (" ++ res ++ ")")
     case result of
