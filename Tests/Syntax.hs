@@ -8,7 +8,7 @@ import Language.Hakaru.Syntax (Real, Prob, Measure,
        Order(..), Base(..), ununit, and_, fst_, snd_, min_,
        Mochastic(..), bind_, beta, bern,
        if_, true, Bool_,
-       Lambda(..), Integrate(..), Type(..))
+       Lambda(..), Summate(..), Integrate(..), Type(..))
 import Language.Hakaru.Util.Pretty (Pretty (pretty), prettyPair)
 import Language.Hakaru.Expect (Expect(unExpect), Expect')
 import Language.Hakaru.Maple (Maple(Maple), runMaple)
@@ -154,7 +154,8 @@ pair4'transition state = bern (1/2) `bind` \resampleCoin ->
 transitionTest :: MWC.GenIO -> IO (Maybe ((Bool_, Double), LF.LogFloat))
 transitionTest g = unSample (pair4transition (pair true 1)) 1 g
 
-mcmc :: (Type a, Mochastic repr, Integrate repr, Lambda repr, a ~ Expect' a) =>
+mcmc :: (Mochastic repr, Summate repr, Integrate repr, Lambda repr,
+         Type a, a ~ Expect' a) =>
         (forall repr'. (Mochastic repr') => repr' a -> repr' (Measure a)) ->
         (forall repr'. (Mochastic repr') => repr' (Measure a)) ->
         repr (a -> Measure a)
@@ -235,7 +236,8 @@ t14 = bern (3/5) `bind` \b ->
 t20 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure ())
 t20 = lam (\y -> uniform 0 1 `bind` \x -> factor (unsafeProb x * y))
 
-t21 :: (Mochastic repr, Integrate repr, Lambda repr) => repr (Real -> Measure Real)
+t21 :: (Mochastic repr, Summate repr, Integrate repr, Lambda repr) =>
+       repr (Real -> Measure Real)
 t21 = mcmc (`normal` 1) (normal 0 5)
 
 t22 :: Mochastic repr => repr (Measure ())
@@ -259,7 +261,7 @@ t25 = lam (\x -> lam (\y ->
     uniform 0 1 `bind` \z ->
     factor (x * exp_ (cos y) * unsafeProb z)))
 
-t26 :: (Base repr, Lambda repr, Integrate repr) => repr Prob
+t26 :: (Base repr, Lambda repr, Summate repr, Integrate repr) => repr Prob
 t26 = unExpect t1 `app` lam (const 1)
 
 t27 :: (Mochastic repr, Lambda repr) => [repr (Real -> Measure Real)]

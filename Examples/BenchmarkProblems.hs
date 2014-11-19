@@ -152,7 +152,8 @@ hiddenState = categorical [(1, 0),
                            (1, 2),
                            (1, 3)]
 
-eTest :: (Integrate repr,
+eTest :: (Summate repr,
+          Integrate repr,
           Lambda repr,
           Mochastic repr) =>
          Expect repr Prob -> repr Prob

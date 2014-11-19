@@ -28,7 +28,7 @@ import Language.Hakaru.Syntax (Real, Prob, Measure, Bool_, Type(..), TypeOf(..),
         typeOf, typeOf1, typeOf2, typeMeas, typeProd, typeSum,
         EqType(..), eqType, OrdType(..), ordType, Fraction(..),
         Order(..), Base(..), Mochastic(..), liftM, snd_,
-        Lambda(..), Integrate(..))
+        Lambda(..), Summate(..), Integrate(..))
 import Language.Hakaru.Expect (Expect(unExpect), Expect')
 
 ------- Tracing
@@ -927,7 +927,7 @@ runDisintegrate m =
                                 (Fst Root)
                                 (Var observed)) ] } }
 
-density :: (Type env, Type a, Integrate repr, Lambda repr) =>
+density :: (Type env, Type a, Summate repr, Integrate repr, Lambda repr) =>
            (Disintegrate env -> Disintegrate (Measure a)) ->
            [repr (Expect' env) -> repr (Expect' a) -> repr Prob]
 density m = [ \e o -> expectation `app` e `app` o `app` lam (\_ -> 1)
@@ -997,6 +997,8 @@ instance Base Disintegrate where
   pi_                        = Disint (return (Op0 Pi))
   exp_ (Disint x)            = Disint (fmap (Op1 Exp) x)
   log_ (Disint x)            = Disint (fmap (Op1 Log) x)
+  infinity                   = error "Disintegrate: infinity unimplemented"
+  negativeInfinity           = error "Disintegrate: negativeInfinity unimplemented"
   betaFunc                   = error "Disintegrate: betaFunc unimplemented"
   gammaFunc                  = error "Disintegrate: gammaFunc unimplemented"
 
@@ -1026,6 +1028,7 @@ instance Mochastic Disintegrate where
                       (i+1)))
       i))
   lebesgue = Disint (return (Op0 Lebesgue))
+  countInt = error "Disintegrate: countInt unimplemented"
   superpose pms = Disint (cont (\c i ->
     c (Choice
        [ Bind Nil
