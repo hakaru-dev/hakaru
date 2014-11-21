@@ -11,7 +11,7 @@ import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure,
        Order(..), Base(..), Mochastic(..),
        Summate(..), Integrate(..), Lambda(..))
-import Data.Typeable (Typeable(typeOf), TypeRep,
+import Data.Typeable (Typeable, typeOf, TypeRep,
        typeRepTyCon, mkTyConApp, splitTyConApp, mkFunTy)
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -123,6 +123,7 @@ instance (Summate repr, Integrate repr, Lambda repr)
                                              | (Expect p, Expect m) <- pms ]))
   uniform (Expect lo) (Expect hi) = Expect (lam (\f ->
     integrate lo hi (\x -> app f x / unsafeProb (hi - lo))))
+  poisson = undefined
   -- TODO: override poisson, gamma, invgamma to express that they do not
   --       generate negative numbers
 
