@@ -21,16 +21,17 @@ import Control.Monad.Trans.RWS (runRWS, get, put, tell)
 import Control.Monad (mapM, liftM2)
 import Control.Monad.Trans.Cont (Cont, cont, runCont)
 import Language.Hakaru.Util.Pretty (Pretty (pretty),
-        prettyPair, prettyParen, prettyFun, prettyOp, showRatio)
-import Text.PrettyPrint (Doc, text, char, int, comma, semi, brackets,
+        prettyPair, prettyParen, prettyFun, prettyOp)
+import Text.PrettyPrint (Doc, text, char, int, integer, comma, semi, brackets,
         parens, (<>), (<+>), nest, fsep, sep, punctuate, render)
 import Language.Hakaru.Syntax (Real, Prob, Measure, Bool_,
-        EqType(Refl), Fraction(..),
+        EqType(Refl), Number(..), Fraction(..),
         Order(..), Base(..), Mochastic(..), liftM, snd_,
         Lambda(..), Summate(..), Integrate(..))
 import Language.Hakaru.Expect (Expect(unExpect), Expect')
 import Data.Typeable (Typeable)
 import Unsafe.Coerce (unsafeCoerce)
+import Data.Ratio (numerator, denominator)
 
 ------- Tracing
 
@@ -158,7 +159,8 @@ instance Show' (Selector to) where
   pretty' p (Unr s) = prettyFun (p > 10) "Unr" (pretty' 11 s)
   pretty' _ Root    = text "Root"
 
-locate :: (Eq a, Show a) => Const a to -> Tree (Const a) t -> Maybe (Selector to t)
+locate :: (Eq a, Show a) =>
+          Const a to -> Tree (Const a) t -> Maybe (Selector to t)
 locate x (Branch a b) =
   case (locate x a, locate x b) of
   (Just _ , Just _ ) -> error ("Duplicate " ++ case x of Const x' -> show x')
@@ -247,23 +249,26 @@ unique env = and [ x /= y | Binding (Const x) _ : bs <- tails env
 -- Boilerplate galore.
 
 data Op0 t where
-  Lebesgue :: Op0 (Measure Real)
-  Pi       :: (Fraction t) => Op0 t
-  Unit     :: Op0 ()
+  Lebesgue         :: Op0 (Measure Real)
+  Pi               :: (Fraction t) => Op0 t
+  Infinity         :: Op0 Real
+  NegativeInfinity :: Op0 Real
+  Unit             :: Op0 ()
 
 data Op1 t1 t where
   Exp        :: (Fraction t) => Op1 Real t
   Log        :: (Fraction t) => Op1 t Real
-  Neg        :: (Fraction t) => Op1 t t
+  Neg        :: (Number   t) => Op1 t t
   Inv        :: (Fraction t) => Op1 t t
   Weight     :: Op1 Prob (Measure ())
   UnsafeProb :: Op1 Real Prob
   FromProb   :: Op1 Prob Real
+  FromInt    :: Op1 Int  Real
 
 data Op2 t1 t2 t where
-  Add  :: (Fraction t) => Op2 t t t
-  Mul  :: (Fraction t) => Op2 t t t
-  Less :: (Fraction t) => Op2 t t Bool_
+  Add  :: (Number t) => Op2 t t t
+  Mul  :: (Number t) => Op2 t t t
+  Less :: (Number t) => Op2 t t Bool_
 
 deriving instance Eq (Op0 t)
 deriving instance Eq (Op1 t1 t)
@@ -294,7 +299,7 @@ data Expr b u t where -- b = bound variables; u = used variables
   Op0     :: Op0 t ->                                     Expr b u t
   Op1     :: Op1 t1 t -> Expr b u t1 ->                   Expr b u t
   Op2     :: Op2 t1 t2 t -> Expr b u t1 -> Expr b u t2 -> Expr b u t
-  LitReal :: (Fraction t) => Rational ->                  Expr b u t
+  Lit     :: (Number t) => Integer ->                     Expr b u t
   Var     :: u t ->                                       Expr b u t
   Choice  :: [Expr b u (Measure t)] ->                    Expr b u (Measure t)
   Bind    :: Tree b t -> Expr b u (Measure t) -> Expr b u (Measure t') ->
@@ -314,7 +319,7 @@ instance (Show' b, Show' u) => Show' (Expr b u) where
   pretty' p (Op2 o e1 e2)   = let (q, s, a) = fixity o in
     prettyOp (p > q) s (pretty' (if a == LT then q else succ q) e1)
                        (pretty' (if a == GT then q else succ q) e2)
-  pretty' p (LitReal x)     = text (showRatio p x "")
+  pretty' _ (Lit x)         = integer x
   pretty' p (Var u)         = pretty' p u
   pretty' _ (Choice es)     =
     brackets (nest 1 (fsep (punctuate comma (map (pretty' 0) es))))
@@ -338,10 +343,11 @@ bimap' :: (forall t. a t -> b t) ->
 bimap' _ _ _ (Op0 o)         = Op0 o
 bimap' f g h (Op1 o e)       = Op1 o (bimap' f g h e)
 bimap' f g h (Op2 o e1 e2)   = Op2 o (bimap' f g h e1) (bimap' f g h e2)
-bimap' _ _ _ (LitReal x)     = LitReal x
+bimap' _ _ _ (Lit x)         = Lit x
 bimap' _ g _ (Var    u)      = Var    (g u)
 bimap' f g h (Choice es)     = Choice (map (bimap' f g h) es)
-bimap' f g h (Bind l r e)    = Bind (fmap' f l) (bimap' f g h r) (bimap' f g h e)
+bimap' f g h (Bind l r e)    = Bind (fmap' f l) (bimap' f g h r)
+                                                (bimap' f g h e)
 bimap' f g h (Dirac e)       = Dirac (bimap' f g h e)
 bimap' f g h (Pair e1 e2)    = Pair  (bimap' f g h e1) (bimap' f g h e2)
 bimap' f g h (Inl e)         = Inl   (bimap' f g h e)
@@ -357,7 +363,7 @@ vars :: (Monoid m) =>
 vars _ _ (Op0 _)             = mempty
 vars b f (Op1 _ e)           = vars b f e
 vars b f (Op2 _ e1 e2)       = vars b f e1 `mappend` vars b f e2
-vars _ _ (LitReal _)         = mempty
+vars _ _ (Lit _)             = mempty
 vars _ f (Var u)             = f u
 vars b f (Choice es)         = mconcat (map (vars b f) es)
 vars b f (Bind lhs rhs body) = vars b f rhs `mappend` vars b (b lhs f) body
@@ -398,7 +404,7 @@ if' e et ee = Choice [ Bind (UnaryL Nil) (Dirac e) et
 max_ :: Expr b u Real -> Expr b u Real -> Expr b u (Measure Real)
 max_ e1 e2 = if' (Op2 Less e1 e2) (Dirac e2) (Dirac e1)
 
-instance (Fraction t) => Num (Expr b u t) where
+instance (Number t) => Num (Expr b u t) where
   (+)         = Op2 Add
   (*)         = Op2 Mul
   negate      = Op1 Neg
@@ -406,11 +412,11 @@ instance (Fraction t) => Num (Expr b u t) where
                 -- \x -> if_ (Less 0 x) x (-x)
   signum      = error "TODO: Add pure `case' construct"
                 -- \x -> if_ (Less 0 x) 1 (if_ (Less x 0) (-1) 0)
-  fromInteger = LitReal . fromInteger
+  fromInteger = Lit
 
 instance (Fraction t) => Fractional (Expr b u t) where
-  recip        = Op1 Inv
-  fromRational = LitReal
+  recip          = Op1 Inv
+  fromRational x = Lit (numerator x) / Lit (denominator x)
 
 ex :: Expr Void Loc t -> Expr Loc Loc t
 ex = bimap' exFalso id Closure
@@ -432,7 +438,8 @@ force :: (Expr Name Name (Measure t) -> Env -> a) ->
 force go _  (Delayed e env) = go e env
 force _  go (Forced e)      = go e ()
 
-data Heap = Heap { fresh :: Int, bound :: [Binding (Tree Loc) Thunk] } deriving (Show)
+data Heap = Heap { fresh :: Int, bound :: [Binding (Tree Loc) Thunk] }
+  deriving (Show)
 
 instance Pretty Heap where
   pretty h = text "Heap" <+> sep [pretty (fresh h), pretty (bound h)]
@@ -563,8 +570,7 @@ determine (Op0 Lebesgue) _ Root = do
   return (Var l)
 determine (Op1 Weight e) env Root = do
   x <- evaluate e env Root
-  case x of LitReal 1 -> return () -- trivial simplification
-            _ -> insert (weight (ex x))
+  insert (weight (ex x))
   return (Op0 Unit)
 determine e@(Var _) env s = do
   v <- evaluate e env Root
@@ -591,7 +597,7 @@ evaluate e@(Op1 Weight _) env Root = return (measure e env)
 evaluate (Op1 o e)     env _ = fmap   (Op1 o) (evaluate e  env Root)
 evaluate (Op2 o e1 e2) env _ = liftM2 (Op2 o) (evaluate e1 env Root)
                                               (evaluate e2 env Root)
-evaluate (LitReal x) _ Root = return (LitReal x)
+evaluate (Lit x) _ Root = return (Lit x)
 evaluate (Var v) env s = do
   let l = env ! v
   retrieval <- retrieve l
@@ -648,6 +654,8 @@ propagate e env s t
               False = undefined
 propagate (Op0 Lebesgue) _ _ _ = mempty
 propagate (Op0 Pi) _ _ _ = mempty
+propagate (Op0 Infinity) _ _ _ = mempty
+propagate (Op0 NegativeInfinity) _ _ _ = mempty
 propagate (Op0 Unit) _ _ _ = return (Op0 Unit)
 propagate (Op1 Exp e) env Root t = do
   insert (condLess 0 (ex t) . weight (recip (unsafeProbFraction dict (ex t))))
@@ -666,16 +674,14 @@ propagate (Op1 UnsafeProb e) env Root t =
 propagate (Op1 FromProb e) env Root t = do
   insert (condLess 0 (ex t))
   fmap (Op1 FromProb) (propagate e env Root (Op1 UnsafeProb t))
+propagate (Op1 FromInt _) _ Root _ = mempty
 propagate (Op2 Add e1 e2) env Root t = mappend (go e1 e2) (go e2 e1)
   where go e e' = do x1 <- evaluate e env Root
                      fmap (x1 +) (propagate e' env Root (t - x1))
-propagate (Op2 Mul e1 e2) env Root t = mappend (go e1 e2) (go e2 e1)
-  where go e e' = do x1 <- evaluate e env Root
-                     insert (Bind Nil (if' (Op2 Less 0 (ex x1))
-                                           (use (ex x1))
-                                           (use (-(ex x1)))))
-                     fmap (x1 *) (propagate e' env Root (t/x1))
-        use poz = Op1 Weight (recip (unsafeProbFraction dict poz))
+propagate (Op2 Mul e1 e2) env Root t = r e1 e2 env t where
+  PropagateMul r = numberCase propagateMulInt
+                              propagateMulFractions
+                              propagateMulFractions
 propagate (Op2 Less e1 e2) env Root t = do
   x1 <- evaluate e1 env Root
   x2 <- evaluate e2 env Root
@@ -684,7 +690,7 @@ propagate (Op2 Less e1 e2) env Root t = do
                           (Bind (UnaryR Nil) (Dirac (ex t)) ef)
              | et <- c (Inl (Op0 Unit)) h
              , ef <- c (Inr (Op0 Unit)) h ])
-propagate (LitReal _) _ Root _ = mempty
+propagate (Lit _) _ Root _ = mempty
 propagate (Var v) env s t = do
   let l = env ! v
   retrieval <- retrieve l
@@ -721,6 +727,20 @@ propagate (Inr e) env (Unr s) t =
   fmap Inr (propagate e env s t)
 propagate (Inr _) _   (Unl _) _ = reject
 propagate (Closure _ _) _ Root _ = mempty
+
+newtype PropagateMul env b u t = PropagateMul
+  (Expr b u t -> Expr b u t -> env -> Expr Void Loc t -> M (Expr Void Loc t))
+propagateMulInt :: (Delay env b u) => PropagateMul env b u Int
+propagateMulInt = PropagateMul (\_ _ _ _ -> mempty) -- TODO
+propagateMulFractions :: (Delay env b u, Fraction t) => PropagateMul env b u t
+propagateMulFractions = PropagateMul f
+  where f e1 e2 env t = mappend (go e1 e2 env t) (go e2 e1 env t)
+        go e e' env t = do x1 <- evaluate e env Root
+                           insert (Bind Nil (if' (Op2 Less 0 (ex x1))
+                                                 (use (ex x1))
+                                                 (use (-(ex x1)))))
+                           fmap (x1 *) (propagate e' env Root (t/x1))
+        use poz = Op1 Weight (recip (unsafeProbFraction dict poz))
 
 ------- To finish off evaluation or disintegration, we need to turn residual
 ------- heap entries into bindings and closures into monadic expressions
@@ -792,44 +812,53 @@ newtype Unary   repr a = Unary   { unUnary   :: repr a -> repr a }
 newtype Binary  repr a = Binary  { unBinary  :: repr a -> repr a -> repr a }
 newtype Boolean repr a = Boolean { unBoolean :: repr a -> repr a -> repr Bool_ }
 
-nullary :: (Fraction a, Base repr) => ((Order repr a, Fractional (repr a)) =>
+nullary :: (Number   a, Base repr) => ((Order repr a, Num (repr a)) =>
            repr a) -> repr a
+unaryN  :: (Number   a, Base repr) => ((Order repr a, Num (repr a)) =>
+           repr a -> repr a) -> repr a -> repr a
 unary   :: (Fraction a, Base repr) => ((Order repr a, Fractional (repr a)) =>
            repr a -> repr a) -> repr a -> repr a
+binaryN :: (Number   a, Base repr) => ((Order repr a, Num (repr a)) =>
+           repr a -> repr a -> repr a) -> repr a -> repr a -> repr a
 binary  :: (Fraction a, Base repr) => ((Order repr a, Fractional (repr a)) =>
            repr a -> repr a -> repr a) -> repr a -> repr a -> repr a
-boolean :: (Fraction a, Base repr) => ((Order repr a, Fractional (repr a)) =>
+boolean :: (Number   a, Base repr) => ((Order repr a, Num (repr a)) =>
            repr a -> repr a -> repr Bool_) -> repr a -> repr a -> repr Bool_
 
-nullary x = unNullary (fractionRepr (Nullary x))
+nullary x = unNullary (numberRepr   (Nullary x))
+unaryN  x = unUnary   (numberRepr   (Unary   x))
 unary   x = unUnary   (fractionRepr (Unary   x))
+binaryN x = unBinary  (numberRepr   (Binary  x))
 binary  x = unBinary  (fractionRepr (Binary  x))
-boolean x = unBoolean (fractionRepr (Boolean x))
+boolean x = unBoolean (numberRepr   (Boolean x))
 
 toHakaru :: (Eq a, Show' (Const a), Mochastic repr) =>
             Expr (Const a) (Const a) t' ->
             (forall t. Const a t -> repr t) -> repr t'
 toHakaru (Op0 Lebesgue)            _   = lebesgue
 toHakaru (Op0 Pi)                  _   = piFraction dict
+toHakaru (Op0 Infinity)            _   = infinity
+toHakaru (Op0 NegativeInfinity)    _   = negativeInfinity
 toHakaru (Op0 Unit)                _   = unit
 toHakaru (Op1 Exp e)               env = expFraction dict (toHakaru e  env)
 toHakaru (Op1 Log e)               env = logFraction dict (toHakaru e  env)
-toHakaru (Op1 Neg e)               env = unary negate     (toHakaru e  env)
+toHakaru (Op1 Neg e)               env = unaryN negate    (toHakaru e  env)
 toHakaru (Op1 Inv e)               env = unary recip      (toHakaru e  env)
 toHakaru (Op1 Weight e)            env = factor           (toHakaru e  env)
 toHakaru (Op1 UnsafeProb e)        env = unsafeProb       (toHakaru e  env)
 toHakaru (Op1 FromProb e)          env = fromProb         (toHakaru e  env)
-toHakaru (Op2 Add e1 (Op1 Neg e2)) env = binary (-)       (toHakaru e1 env)
+toHakaru (Op1 FromInt e)           env = fromInt          (toHakaru e  env)
+toHakaru (Op2 Add e1 (Op1 Neg e2)) env = binaryN (-)      (toHakaru e1 env)
                                                           (toHakaru e2 env)
-toHakaru (Op2 Add e1 e2)  env          = binary (+)       (toHakaru e1 env)
+toHakaru (Op2 Add e1 e2)  env          = binaryN (+)      (toHakaru e1 env)
                                                           (toHakaru e2 env)
 toHakaru (Op2 Mul e1 (Op1 Inv e2)) env = binary (/)       (toHakaru e1 env)
                                                           (toHakaru e2 env)
-toHakaru (Op2 Mul e1 e2)           env = binary (*)       (toHakaru e1 env)
+toHakaru (Op2 Mul e1 e2)           env = binaryN (*)      (toHakaru e1 env)
                                                           (toHakaru e2 env)
 toHakaru (Op2 Less e1 e2)          env = boolean less     (toHakaru e1 env)
                                                           (toHakaru e2 env)
-toHakaru (LitReal x)               _   = nullary (fromRational x)
+toHakaru (Lit x)                   _   = nullary (fromInteger x)
 toHakaru (Var u)                   env = env u
 toHakaru (Choice es)               env = superpose [ (1, toHakaru e env)
                                                    | e <- es ]
@@ -873,7 +902,8 @@ runDisintegrate m =
       nameOfLoc (Const i) = Const ('x' : show i)
       expr = bimap' nameOfLoc nameOfLoc Closure
         $ unDisint (m (Disint (return (Var env)))) (\w _ -> w) 1
-  in [ \e o -> liftM snd_ (toHakaru dis ([Binding env e, Binding observed o] !!))
+  in [ \e o -> liftM snd_
+                 (toHakaru dis ([Binding env e, Binding observed o] !!))
      | dis <- run (disintegrate expr
                                 [Binding (nameOfLoc env) env]
                                 (Fst Root)
@@ -903,10 +933,10 @@ resetDisint d = Disint (cont (\c i ->
   Bind (Leaf (Const i)) (unDisint d (\w _ -> Dirac w) i)
        (c (Var (Const i)) (succ i))))
 
-instance (Fraction t) => Order Disintegrate t where
+instance (Number t) => Order Disintegrate t where
   less (Disint x) (Disint y) = Disint (fmap (Op2 Less) x <*> y)
 
-instance (Fraction t) => Num (Disintegrate t) where
+instance (Number t) => Num (Disintegrate t) where
   Disint x + Disint y = Disint (fmap (+) x <*> y)
   Disint x * Disint y = Disint (fmap (*) x <*> y)
   negate (Disint x)   = Disint (fmap negate x)
@@ -946,11 +976,12 @@ instance Base Disintegrate where
   inr (Disint x)             = Disint (fmap Inr x)
   unsafeProb (Disint x)      = Disint (fmap (Op1 UnsafeProb) x)
   fromProb (Disint x)        = Disint (fmap (Op1 FromProb) x)
+  fromInt (Disint x)         = Disint (fmap (Op1 FromInt) x)
   pi_                        = Disint (return (Op0 Pi))
   exp_ (Disint x)            = Disint (fmap (Op1 Exp) x)
   log_ (Disint x)            = Disint (fmap (Op1 Log) x)
-  infinity                   = error "Disintegrate: infinity unimplemented"
-  negativeInfinity           = error "Disintegrate: negativeInfinity unimplemented"
+  infinity                   = Disint (return (Op0 Infinity))
+  negativeInfinity           = Disint (return (Op0 NegativeInfinity))
   betaFunc                   = error "Disintegrate: betaFunc unimplemented"
   gammaFunc                  = error "Disintegrate: gammaFunc unimplemented"
 

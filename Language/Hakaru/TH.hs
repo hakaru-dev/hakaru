@@ -3,7 +3,7 @@
 module Language.Hakaru.TH (THRepr, unTHRepr, show_code) where
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Real, Prob,
+import Language.Hakaru.Syntax (Number(..), Fraction(..), Real,
        Order(..), Base(..), Mochastic(..), Lambda(..))
 import Language.Haskell.TH
 
@@ -38,13 +38,14 @@ instance Base THRepr where
   uneither (THR e) f g = liftT 'uneither [e, liftF f, liftF g]
   unsafeProb (THR e) = liftT 'unsafeProb [e]
   fromProb (THR e) = liftT 'fromProb [e]
+  fromInt (THR e) = liftT 'fromInt [e]
   infinity = liftT 'infinity []
   negativeInfinity = liftT 'negativeInfinity []
   betaFunc (THR e) (THR e') = liftT 'betaFunc [e, e']
   gammaFunc (THR e) = liftT 'gammaFunc [e]
   fix f = liftT 'fix [liftF f]
 
-instance Num (THRepr Real) where
+instance (Number a) => Num (THRepr a) where
   (THR e) + (THR e') = liftT '(+) [e, e']
   (THR e) * (THR e') = liftT '(*) [e, e']
   abs (THR e) = liftT 'abs [e]
@@ -53,7 +54,7 @@ instance Num (THRepr Real) where
   negate (THR e) = liftT 'negate [e]
   (THR e) - (THR e') = liftT '(-) [e, e']
 
-instance Fractional (THRepr Real) where
+instance (Fraction a) => Fractional (THRepr a) where
   fromRational r = liftT 'fromRational [litE (RationalL r)]
   recip (THR e) = liftT 'recip [e]
   (THR e) / (THR e') = liftT '(/) [e, e']
@@ -77,20 +78,6 @@ instance Floating (THRepr Real) where
   asinh (THR e) = liftT 'asinh [e]
   acosh (THR e) = liftT 'acosh [e]
   atanh (THR e) = liftT 'atanh [e]
-
-instance Num (THRepr Prob) where
-  (THR e) + (THR e') = liftT '(+) [e, e']
-  (THR e) * (THR e') = liftT '(+) [e, e']
-  abs (THR e) = liftT 'abs [e]
-  signum (THR e) = liftT 'signum [e]
-  fromInteger n = liftT 'fromInteger [litE (IntegerL n)]
-  negate (THR e) = liftT 'negate [e]
-  (THR e) - (THR e') = liftT '(-) [e, e']
-
-instance Fractional (THRepr Prob) where
-  fromRational r = liftT 'fromRational [litE (RationalL r)]
-  recip (THR e) = liftT 'recip [e]
-  (THR e) / (THR e') = liftT '(/) [e, e']
 
 instance Mochastic THRepr where
   dirac (THR e) = liftT 'dirac [e]

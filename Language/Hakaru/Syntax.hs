@@ -3,7 +3,7 @@
 {-# OPTIONS -Wall #-}
 
 module Language.Hakaru.Syntax (Real, Prob, Measure, Bool_,
-       EqType(Refl), Fraction(..), ggcast, Uneither(Uneither),
+       EqType(Refl), Number(..), Fraction(..), ggcast, Uneither(Uneither),
        errorEmpty,
        Order(..), Base(..), ununit, true, false, if_, fst_, snd_,
        and_, or_, not_, min_, max_,
@@ -27,10 +27,27 @@ type Bool_ = Either () ()
 data EqType t t' where
   Refl :: EqType t t
 
-class (Typeable a) => Fraction a where
+class (Typeable a) => Number a where
+  numberCase :: f Int -> f Real -> f Prob -> f a
+  numberRepr :: (Base repr) =>
+                ((Order repr a, Num (repr a)) => f repr a) -> f repr a
+
+class (Number a) => Fraction a where
   fractionCase :: f Real -> f Prob -> f a
   fractionRepr :: (Base repr) =>
                   ((Order repr a, Fractional (repr a)) => f repr a) -> f repr a
+
+instance Number Int where
+  numberCase k _ _ = k
+  numberRepr k     = k
+
+instance Number Real where
+  numberCase _ k _ = k
+  numberRepr k     = k
+
+instance Number Prob where
+  numberCase _ _ k = k
+  numberRepr k     = k
 
 instance Fraction Real where
   fractionCase k _ = k
@@ -54,7 +71,8 @@ newtype Uneither repr a b = Uneither (forall c.
 class Order repr a where
   less :: repr a -> repr a -> repr Bool_
 
-class (Order repr Real, Floating (repr Real),
+class (Order repr Int , Num        (repr Int ),
+       Order repr Real, Floating   (repr Real),
        Order repr Prob, Fractional (repr Prob)) => Base repr where
   unit       :: repr ()
   pair       :: repr a -> repr b -> repr (a,b)
@@ -66,6 +84,7 @@ class (Order repr Real, Floating (repr Real),
 
   unsafeProb :: repr Real -> repr Prob
   fromProb   :: repr Prob -> repr Real
+  fromInt    :: repr Int  -> repr Real
 
   pi_      :: repr Prob
   pi_      =  unsafeProb pi
@@ -131,7 +150,7 @@ class (Base repr) => Mochastic repr where
   bind          :: repr (Measure a) ->
                    (repr a -> repr (Measure b)) -> repr (Measure b)
   lebesgue      :: repr (Measure Real)
-  countInt      :: repr (Measure Real)
+  countInt      :: repr (Measure Int)
   superpose     :: [(repr Prob, repr (Measure a))] -> repr (Measure a)
 
   uniform       :: repr Real -> repr Real -> repr (Measure Real)
@@ -154,7 +173,7 @@ class (Base repr) => Mochastic repr where
   categorical   :: [(repr Prob, repr a)] -> repr (Measure a)
   categorical l =  mix [ (p, dirac x) | (p,x) <- l ]
 
-  poisson       :: repr Prob -> repr (Measure Prob)
+  poisson       :: repr Prob -> repr (Measure Int)
   -- TODO: default implementation of poisson in terms of countInt
 
   gamma :: repr Prob -> repr Prob -> repr (Measure Prob)
@@ -197,7 +216,7 @@ bern :: (Mochastic repr) => repr Prob -> repr (Measure Bool_)
 bern p = categorical [(p, true), (1-p, false)]
 
 class (Base repr) => Summate repr where
-  summate :: repr Real -> repr Real -> (repr Real -> repr Prob) -> repr Prob
+  summate :: repr Real -> repr Real -> (repr Int -> repr Prob) -> repr Prob
 
 class (Base repr) => Integrate repr where
   integrate :: repr Real -> repr Real -> (repr Real -> repr Prob) -> repr Prob

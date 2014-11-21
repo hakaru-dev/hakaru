@@ -98,6 +98,7 @@ instance Base PrettyPrint where
   uneither xy kx ky = apply3 "uneither" xy (fun1 kx) (fun1 ky)
   unsafeProb        = apply1 "unsafeProb"
   fromProb          = apply1 "fromProb"
+  fromInt           = apply1 "fromInt"
   pi_               = PP (\_ _ -> [text "pi_"])
   exp_              = apply1 "exp_"
   log_              = apply1 "log_"

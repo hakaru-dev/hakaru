@@ -109,10 +109,10 @@ w  = 10473
 preferentialPrior :: Mochastic repr => repr (Measure Real)
 preferentialPrior = uniform 0 1
 
-numNodes          :: Mochastic repr => repr (Measure Prob)
+numNodes          :: Mochastic repr => repr (Measure Int)
 numNodes          = poisson 5   
 
-edgesPerNode      :: Mochastic repr => repr (Measure Prob)
+edgesPerNode      :: Mochastic repr => repr (Measure Int)
 edgesPerNode      = poisson 3   
 
 -- Friends who Smoke

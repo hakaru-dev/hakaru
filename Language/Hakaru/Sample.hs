@@ -19,6 +19,7 @@ import qualified System.Random.MWC.Distributions as MWCD
 
 newtype Sample m a = Sample { unSample :: Sample' m a }
 type family Sample' (m :: * -> *) (a :: *)
+type instance Sample' m Int          = Int
 type instance Sample' m Real         = Double
 type instance Sample' m Prob         = LF.LogFloat
 type instance Sample' m ()           = ()
@@ -45,6 +46,13 @@ deriving instance Ord        (Sample m Prob)
 deriving instance Num        (Sample m Prob)
 deriving instance Fractional (Sample m Prob)
 
+instance Order (Sample m) Int where
+  less (Sample a) (Sample b) = Sample ((if a < b then Left else Right) ())
+
+deriving instance Eq         (Sample m Int)
+deriving instance Ord        (Sample m Int)
+deriving instance Num        (Sample m Int)
+
 instance Base (Sample m) where
   unit                            = Sample ()
   pair (Sample a) (Sample b)      = Sample (a,b)
@@ -55,6 +63,7 @@ instance Base (Sample m) where
   uneither (Sample (Right b)) _ k = k (Sample b)
   unsafeProb (Sample x)           = Sample (LF.logFloat x)
   fromProb (Sample x)             = Sample (LF.fromLogFloat x)
+  fromInt (Sample x)              = Sample (fromIntegral x)
   exp_ (Sample x)                 = Sample (LF.logToLogFloat x)
   log_ (Sample x)                 = Sample (LF.logFromLogFloat x)
   infinity                        = Sample LF.infinity

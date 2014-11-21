@@ -117,6 +117,7 @@ instance Base Maple where
                              ++ ", " ++ arm kb ++ ")"))
   unsafeProb (Maple x) = Maple x
   fromProb   (Maple x) = Maple x
+  fromInt    (Maple x) = Maple x
   sqrt_ = mapleFun1 "sqrt"
   pow_ = mapleOp2 "^"
   infinity         = Maple (return  "infinity")

@@ -17,6 +17,8 @@ import Unsafe.Coerce (unsafeCoerce)
 
 newtype Expect repr a = Expect { unExpect :: repr (Expect' a) }
 type family Expect' (a :: *)
+-- This type family must be changed in lockstep with typeExpect below
+type instance Expect' Int          = Int
 type instance Expect' Real         = Real
 type instance Expect' Prob         = Prob
 type instance Expect' ()           = ()
@@ -32,11 +34,12 @@ typeExpect :: forall w t. (Typeable t) => t -> (Typeable (Expect' t) => w) -> w
 typeExpect dummy = unsafeTypeable (expect' (typeOf dummy)) where
   expect' :: TypeRep -> TypeRep
   expect' t
-    | t  `elem` [tReal, tProb, tUnit] = t
+    | t  `elem` [tInt, tReal, tProb, tUnit] = t
     | tc `elem` [tcProd, tcSum, tcFun] = mkTyConApp tc (map expect' ts)
     | tc == tcMeas = let [ta] = ts in mkFunTy (mkFunTy (expect' ta) tProb) tProb
     | otherwise = error ("typeExpect " ++ show t)
     where (tc,ts) = splitTyConApp t
+          tInt    = typeOf (undefined :: Int)
           tReal   = typeOf (undefined :: Real)
           tProb   = typeOf (undefined :: Prob)
           tUnit   = typeOf (undefined :: ())
@@ -70,6 +73,13 @@ deriving instance (Ord        (repr Prob)) => Ord        (Expect repr Prob)
 deriving instance (Num        (repr Prob)) => Num        (Expect repr Prob)
 deriving instance (Fractional (repr Prob)) => Fractional (Expect repr Prob)
 
+instance (Order repr Int) => Order (Expect repr) Int where
+  less (Expect x) (Expect y) = Expect (less x y)
+
+deriving instance (Eq  (repr Int)) => Eq  (Expect repr Int)
+deriving instance (Ord (repr Int)) => Ord (Expect repr Int)
+deriving instance (Num (repr Int)) => Num (Expect repr Int)
+
 instance (Base repr) => Base (Expect repr) where
   unit                           = Expect unit
   pair (Expect a) (Expect b)     = Expect (pair a b)
@@ -82,6 +92,7 @@ instance (Base repr) => Base (Expect repr) where
                                                   (unExpect . kb . Expect))
   unsafeProb                     = Expect . unsafeProb . unExpect
   fromProb                       = Expect . fromProb   . unExpect
+  fromInt                        = Expect . fromInt    . unExpect
   pi_                            = Expect pi_
   exp_                           = Expect . exp_  . unExpect
   log_                           = Expect . log_  . unExpect
