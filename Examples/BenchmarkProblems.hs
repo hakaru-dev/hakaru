@@ -15,7 +15,7 @@ import System.Random.MWC as MWC hiding (uniform)
 
 type Cont repr a = forall w. (a -> repr (Measure w)) -> repr (Measure w)
 
-replicateH :: (Type a, Mochastic repr) => Int -> repr (Measure a) -> Cont repr [repr a]
+replicateH :: (Mochastic repr) => Int -> repr (Measure a) -> Cont repr [repr a]
 replicateH 0 _ k = k []
 replicateH n m k = m `bind` \x -> replicateH (n-1) m (\xs -> k (x:xs))
 
@@ -37,14 +37,14 @@ eq_ a b = if_ a b (not_ b)
 runExpect :: (Lambda repr) => Expect repr (Measure Prob) -> repr Prob
 runExpect (Expect m) = m `app` lam id
 
-make5Pair :: (Type a, Base repr) => [repr a] -> repr (a,(a,(a,(a,a))))
+make5Pair :: (Base repr) => [repr a] -> repr (a,(a,(a,(a,a))))
 make5Pair [x1,x2,x3,x4,x5] = pair x1
                                 (pair x2
                                  (pair x3
                                   (pair x4
                                          x5)))
 
-make6Pair :: (Type a, Base repr) => [repr a] -> repr (a,(a,(a,(a,(a,a)))))
+make6Pair :: (Base repr) => [repr a] -> repr (a,(a,(a,(a,(a,a)))))
 make6Pair [x1,x2,x3,x4,x5,x6] = pair x1
                                 (pair x2
                                  (pair x3

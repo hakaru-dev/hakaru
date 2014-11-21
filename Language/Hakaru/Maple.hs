@@ -7,11 +7,11 @@ module Language.Hakaru.Maple (Maple(..), runMaple, Any(..), closeLoop, roundTrip
 -- Maple printing interpretation
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Order(..), Base(..),
-    Summate(..), Integrate(..), Lambda(..), Mochastic(..),
-    TypeOf(Sum, One), typeOf, typeOf1, typeOf2)
+import Language.Hakaru.Syntax (Bool_, ggcast, Uneither(Uneither),
+    Order(..), Base(..), Summate(..), Integrate(..), Lambda(..), Mochastic(..))
 import Data.Ratio
-import Data.Typeable (Typeable,Typeable1)
+import Data.Typeable (Typeable, Typeable1, gcast)
+import Data.Maybe (fromMaybe)
 import Control.Monad (liftM2)
 import Control.Monad.Trans.Reader (ReaderT(ReaderT), runReaderT)
 import Control.Monad.Trans.Cont (Cont, cont, runCont)
@@ -20,7 +20,7 @@ import Language.Hakaru.PrettyPrint (runPrettyPrint) -- just for testing closeLoo
 import System.MapleSSH -- ditto
 import Language.Hakaru.Expect (Expect(unExpect))
 
-import Language.Haskell.Interpreter hiding (typeOf)
+import Language.Haskell.Interpreter
 
 newtype Maple a = Maple { unMaple :: ReaderT Int (Cont String) String }
 
@@ -91,26 +91,30 @@ instance Base Maple where
         opab n = "op(" ++ show n ++ ", " ++ ab' ++ ")" 
     in
     unMaple (k (Maple (return (opab 1))) (Maple (return (opab 2)))))
-  inl (Maple a) = x
-    where x = case (typeOf x, typeOf1 x, typeOf2 x) of
-              (Sum, One, One) -> Maple (return "true")
-              _ -> Maple (fmap (\a' -> "Left("  ++ a' ++ ")") a)
-  inr (Maple b) = x
-    where x = case (typeOf x, typeOf1 x, typeOf2 x) of
-              (Sum, One, One) -> Maple (return "false")
-              _ -> Maple (fmap (\b' -> "Right(" ++ b' ++ ")") b)
-  uneither x@(Maple ab) ka kb = Maple (ab >>= \ab' ->
-    ReaderT $ \i -> cont $ \c ->
-    case (typeOf x, typeOf1 x, typeOf2 x) of
-    (Sum, One, One) -> let arm k = runCont (runReaderT (unMaple (k unit)) i) c
-                       in "piecewise(" ++ ab' ++ ", " ++ arm ka
-                                              ++ ", " ++ arm kb ++ ")"
-    _ -> let opab :: Int -> String
-             opab n = "op(" ++ show n ++ ", " ++ ab' ++ ")" in
-         let arm tag k = opab 0 ++ " = " ++ tag ++ ", " ++
-                         runCont (runReaderT (k (return (opab 1))) i) c in
-         "piecewise(" ++ arm "Left"  (unMaple . ka . Maple)
-              ++ ", " ++ arm "Right" (unMaple . kb . Maple) ++ ")")
+  inl (Maple a) = fromMaybe defaultCase (gcast booleanCase)
+    where defaultCase = Maple (fmap (\a' -> "Left("  ++ a' ++ ")") a)
+          booleanCase :: Maple Bool_
+          booleanCase = Maple (return "true")
+  inr (Maple b) = fromMaybe defaultCase (gcast booleanCase)
+    where defaultCase = Maple (fmap (\b' -> "Right(" ++ b' ++ ")") b)
+          booleanCase :: Maple Bool_
+          booleanCase = Maple (return "false")
+  uneither = r where
+    Uneither r = fromMaybe defaultCase (ggcast booleanCase)
+    defaultCase = Uneither (\(Maple ab) ka kb -> Maple (ab >>= \ab' ->
+      ReaderT $ \i -> cont $ \c ->
+      let opab :: Int -> String
+          opab n = "op(" ++ show n ++ ", " ++ ab' ++ ")" in
+      let arm tag k = opab 0 ++ " = " ++ tag ++ ", " ++
+                      runCont (runReaderT (k (return (opab 1))) i) c
+      in "piecewise(" ++ arm "Left"  (unMaple . ka . Maple)
+              ++ ", " ++ arm "Right" (unMaple . kb . Maple) ++ ")"))
+    booleanCase :: Uneither Maple () ()
+    booleanCase = Uneither (\(Maple ab) ka kb -> Maple (ab >>= \ab' ->
+      ReaderT $ \i -> cont $ \c ->
+      let arm k = runCont (runReaderT (unMaple (k unit)) i) c
+      in "piecewise(" ++ ab' ++ ", " ++ arm ka
+                             ++ ", " ++ arm kb ++ ")"))
   unsafeProb (Maple x) = Maple x
   fromProb   (Maple x) = Maple x
   sqrt_ = mapleFun1 "sqrt"

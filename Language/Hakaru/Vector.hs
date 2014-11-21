@@ -25,50 +25,43 @@ type instance Repeat' (S n) a = (a, Repeat' n a)
 type SameLength as b = Length' as ~ Length' (Repeat' (Length' as) b)
 
 class (as ~ Repeat' (Length' as) a) => Vector a as where
-  pure                   ::  a -> (a, as)
-  (<*>)                  ::  (SameLength as (a -> b), SameLength as b) =>
-                             Repeat (Length a as) (a -> b) ->
-                             (a, as) ->
-                             Repeat (Length a as) b
-  (<$>)                  ::  (SameLength as b) =>
-                             (a -> b) ->
-                             (a, as) ->
-                             Repeat (Length a as) b
-  traverse               ::  (A.Applicative f, SameLength as b) =>
-                             (a -> f b) -> (a, as) -> f (Repeat (Length a as) b)
-  typeNestedPair         ::  (Type a) => a -> as -> (Type as => w) -> w
-  toNestedPair'          ::  (Base repr, Type a) =>
-                             (Type as => repr (a, as) -> w) ->
-                             Repeat (Length a as) (repr a) ->
-                             w
-  fromNestedPair :: (Base repr, Type a) => repr (a, as) -> (Repeat (Length a as) (repr a) -> repr w) -> repr w
-  toList                 ::  (a, as) -> [a]
-  fromList               ::  [a] -> (a, as)
+  pure            :: a -> (a, as)
+  (<*>)           :: (SameLength as (a -> b), SameLength as b) =>
+                     Repeat (Length a as) (a -> b) ->
+                     (a, as) ->
+                     Repeat (Length a as) b
+  (<$>)           :: (SameLength as b) =>
+                     (a -> b) ->
+                     (a, as) ->
+                     Repeat (Length a as) b
+  traverse        :: (A.Applicative f, SameLength as b) =>
+                     (a -> f b) -> (a, as) -> f (Repeat (Length a as) b)
+  toNestedPair    :: Base repr => Repeat (Length a as) (repr a) -> repr (a, as)
+  fromNestedPair  :: Base repr => repr (a, as) ->
+                     (Repeat (Length a as) (repr a) -> repr w) -> repr w
+  toList          :: (a, as) -> [a]
+  fromList        :: [a] -> (a, as)
 
 instance Vector a () where
-  pure a                 =  (a, ())
-  (ab, ()) <*> (a, ())   =  (ab a, ())
-  ab <$> (a, ())         =  (ab a, ())
-  traverse f (a, ())     =  (\b -> (b,())) A.<$> f a
-  typeNestedPair _ _ k     =  k
-  toNestedPair' k (a, ()) =  k (pair a unit)
-  fromNestedPair repr_a_unit k = unpair repr_a_unit (\a _ -> k (a,()))
-  toList (a, ())         =  [a]
-  fromList (a : _)       =  (a, ())
+  pure a                        = (a, ())
+  (ab, ()) <*> (a, ())          = (ab a, ())
+  ab <$> (a, ())                = (ab a, ())
+  traverse f (a, ())            = (\b -> (b,())) A.<$> f a
+  toNestedPair (a, ())          = pair a unit
+  fromNestedPair repr_a_unit k  = unpair repr_a_unit (\a _ -> k (a,()))
+  toList (a, ())                = [a]
+  fromList (a : _)              = (a, ())
 
 instance (Vector a as) => Vector a (a, as) where
-  pure a                 =  (a, pure a)
-  (ab, abs) <*> (a, as)  =  (ab a, abs <*> as)
-  ab <$> (a, as)         =  (ab a, ab <$> as)
-  traverse f (a, as)     =  (,) A.<$> f a A.<*> traverse f as
-  typeNestedPair a ~(_,as) k = typeNestedPair a as k
-  toNestedPair' k (a, as) =  toNestedPair' (k . pair a) as
-  fromNestedPair repr_a_as k = typeNestedPair (undefined :: a) (undefined :: as) (unpair repr_a_as (\a repr_as -> fromNestedPair repr_as (\as -> k (a,as))))
-  toList (a, as)         =  a : toList as
-  fromList (a : as)      =  (a, fromList as)
-
-toNestedPair :: (Base repr, Type a, Vector a as) => Repeat (Length a as) (repr a) -> repr (a, as)
-toNestedPair = toNestedPair' id
+  pure a                        = (a, pure a)
+  (ab, abs) <*> (a, as)         = (ab a, abs <*> as)
+  ab <$> (a, as)                = (ab a, ab <$> as)
+  traverse f (a, as)            = (,) A.<$> f a A.<*> traverse f as
+  toNestedPair (a, as)          = pair a (toNestedPair as)
+  fromNestedPair repr_a_as k    = unpair repr_a_as (\a repr_as ->
+                                  fromNestedPair repr_as (\as -> k (a,as)))
+  toList (a, as)                = a : toList as
+  fromList (a : as)             = (a, fromList as)
 
 main :: IO ()
 main = do

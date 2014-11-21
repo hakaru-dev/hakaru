@@ -8,7 +8,7 @@ import Language.Hakaru.Syntax (Real, Prob, Measure,
        Order(..), Base(..), ununit, and_, fst_, snd_, min_,
        Mochastic(..), bind_, beta, bern,
        if_, true, Bool_,
-       Lambda(..), Summate(..), Integrate(..), Type(..))
+       Lambda(..), Summate(..), Integrate(..))
 import Language.Hakaru.Util.Pretty (Pretty (pretty), prettyPair)
 import Language.Hakaru.Expect (Expect(unExpect), Expect')
 import Language.Hakaru.Maple (Maple(Maple), runMaple)
@@ -65,11 +65,11 @@ pair2'snd = go 1 1 where
                go (if_ c (a+1) a) (if_ c b (b+1)) (n-1) (\(cs,bias) ->
                k (c:cs,bias))
 
-replicateH :: (Type a, Mochastic repr) => Int -> repr (Measure a) -> Cont repr [repr a]
+replicateH :: (Mochastic repr) => Int -> repr (Measure a) -> Cont repr [repr a]
 replicateH 0 _ k = k []
 replicateH n m k = m `bind` \x -> replicateH (n-1) m (\xs -> k (x:xs))
 
-twice :: (Type a, Mochastic repr) => repr (Measure a) -> Cont repr (repr a, repr a)
+twice :: (Mochastic repr) => repr (Measure a) -> Cont repr (repr a, repr a)
 twice m k = m `bind` \x ->
             m `bind` \y ->
             k (x, y)
@@ -155,7 +155,7 @@ transitionTest :: MWC.GenIO -> IO (Maybe ((Bool_, Double), LF.LogFloat))
 transitionTest g = unSample (pair4transition (pair true 1)) 1 g
 
 mcmc :: (Mochastic repr, Summate repr, Integrate repr, Lambda repr,
-         Type a, a ~ Expect' a) =>
+         a ~ Expect' a) =>
         (forall repr'. (Mochastic repr') => repr' a -> repr' (Measure a)) ->
         (forall repr'. (Mochastic repr') => repr' (Measure a)) ->
         repr (a -> Measure a)
@@ -323,8 +323,7 @@ disintegrateTestRunner = do
         exp' :: Expr Name Name Real -> Expr Name Name Real
         exp' = Op1 Exp
 
-testDist :: (Type t, Type to) =>
-            (Expr Name Name (Measure t), Selector to t) -> IO ()
+testDist :: (Expr Name Name (Measure t), Selector to t) -> IO ()
 testDist (e,s) = do
   print (prettyPair (pretty' 0 e) (pretty' 0 s))
   let es = run (disintegrate e emptyEnv s (Var (Const 0)))
