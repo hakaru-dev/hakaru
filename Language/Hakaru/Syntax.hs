@@ -148,7 +148,7 @@ max_ x y = if_ (less x y) y x
 fact :: Base repr => repr Int -> repr Int
 fact n = if_ (less 0 n)
          1
-         (fact (n -1))
+         n*(fact (n -1))
 
 class (Base repr) => Mochastic repr where
   dirac         :: repr a -> repr (Measure a)
