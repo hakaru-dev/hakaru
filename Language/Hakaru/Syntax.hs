@@ -179,7 +179,6 @@ class (Base repr) => Mochastic repr where
   categorical l =  mix [ (p, dirac x) | (p,x) <- l ]
 
   poisson       :: repr Prob -> repr (Measure Int)
-  -- TODO: default implementation of poisson in terms of countInt
   poisson l     =  countInt `bind` \x ->
                    if_ (and_ [less 0 x, less 0 l])
                        (superpose [((pow_ l (fromInt x)) /
