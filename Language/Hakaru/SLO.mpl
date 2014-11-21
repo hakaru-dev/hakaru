@@ -35,19 +35,17 @@ SLO := module ()
       error "the constant", inp, " is not a measure."
     elif type(inp, `+`) then
       map(AST, SUM(op(inp)))
-    elif nops(cs) > 1 then 
-      error "c occurs more than once - case not currently handled"
-    else # invariant: c occurs exactly once
-      cs := cs[1]; # the occurence of c
-      ToAST(inp, cs);
+    else 
+      ToAST(inp, {});
     end if;
   end proc;
 
   # recursive function which does the main translation
-  ToAST := proc(e, cs::'specfunc'(anything,c))
-    local a0, a1, var, rng, ee, cof, d, rest, weight, binders;
-    if (e = cs) then
-      return Return(op(cs))
+  ToAST := proc(e, ctx)
+    local a0, a1, var, vars, rng, ee, cof, d, ld, weight, binders,
+      v, subst, ivars, ff;
+    if type(e, specfunc(name, c)) then
+        return Return(op(e))
     # we might have recursively encountered a hidden 0
     elif (e = 0) then
        return 0
@@ -58,15 +56,27 @@ SLO := module ()
     else
       binders := indets(e, t_binds);
       if binders = {} then
-        ee := subs(cs=x, e);
-        if type(ee, 'polynom'(anything,x)) then
-          d := degree(ee, x);
-          cof := coeff(ee, x, d); # pull off the leading constant
-          if (d = 1) and Testzero(cof*x - ee) then
-              rest := ToAST(cs, cs);
-              `if`(cof=1, rest, Bind_(Factor(simplify(cof)), rest))
+        # this is a 'raw' measure, with no integrals
+        vars := indets(e, specfunc(anything, c));
+        subst := map(x-> x = op(0,x)[op(x)], vars);
+        ivars := map2(op, 2, subst);
+        ee := subs(subst, e);
+        if type(ee, 'polynom'(anything,ivars)) then
+          ee := collect(ee, ivars);
+          d := degree(ee, ivars);
+          ld := ldegree(ee, ivars);
+          cof := [coeffs(ee, ivars, 'v')]; # cof and v are lists
+          if (d = 1) and (ld = 1) then
+              # WM = Weight-Measure pair
+              ff := (x,y) -> WM(simplify(x), op(y));
+              Superpose(op(zip(ff, cof, v)));
+              # `if`(cof=1, rest, Bind_(Factor(simplify(cof)), rest))
           else
-            error "polynomial in c:", ee
+            if (ld = 0) then
+              error "non-zero constant encountered as a measure", ee
+            else
+              error "polynomial in c:", ee
+            end if;
           end if;
         elif type(ee, t_pw) then
           error "encountered piecewise, case not done yet"
@@ -82,9 +92,9 @@ SLO := module ()
               weight := (op(2,rng)-op(1,rng));
               `if`(weight=1, Uniform(op(rng)), Bind_(Factor(weight), Uniform(rng)))
           elif rng = -infinity..infinity then
-              Bind(Lebesgue, var,ToAST(ee, cs))
+              Bind(Lebesgue, var,ToAST(ee, ctx))
           else
-              Bind(Lebesgue, var=rng, ToAST(ee, cs))
+              Bind(Lebesgue, var=rng, ToAST(ee, ctx))
           end if;
         elif type(e, 'specfunc'(anything, {'sum','Sum'})) then
             error "sums not handled yet"

@@ -85,6 +85,9 @@ instance (PrimMonad m) => Mochastic (Sample m) where
         n = negate l
     return (Just (if b then n else l, p * 2 * LF.logToLogFloat n)))
   -- TODO: implement countInt in terms of geometric or something
+  countInt = Sample (\p g -> do
+    x <- MWC.uniform g
+    return (Just (x, p)))
   superpose [] = Sample (\_ _ -> return Nothing)
   superpose [(Sample q, Sample m)] = Sample (\p g -> (m $! p * q) g)
   superpose pms@((_, Sample m) : _) = Sample (\p g -> do
