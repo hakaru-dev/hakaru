@@ -15,7 +15,7 @@ import System.Random.MWC as MWC hiding (uniform)
 
 type Cont repr a = forall w. (a -> repr (Measure w)) -> repr (Measure w)
 
-replicateH :: (Type a, Mochastic repr) => Int -> repr (Measure a) -> Cont repr [repr a]
+replicateH :: (Mochastic repr) => Int -> repr (Measure a) -> Cont repr [repr a]
 replicateH 0 _ k = k []
 replicateH n m k = m `bind` \x -> replicateH (n-1) m (\xs -> k (x:xs))
 
@@ -37,14 +37,14 @@ eq_ a b = if_ a b (not_ b)
 runExpect :: (Lambda repr) => Expect repr (Measure Prob) -> repr Prob
 runExpect (Expect m) = m `app` lam id
 
-make5Pair :: (Type a, Base repr) => [repr a] -> repr (a,(a,(a,(a,a))))
+make5Pair :: (Base repr) => [repr a] -> repr (a,(a,(a,(a,a))))
 make5Pair [x1,x2,x3,x4,x5] = pair x1
                                 (pair x2
                                  (pair x3
                                   (pair x4
                                          x5)))
 
-make6Pair :: (Type a, Base repr) => [repr a] -> repr (a,(a,(a,(a,(a,a)))))
+make6Pair :: (Base repr) => [repr a] -> repr (a,(a,(a,(a,(a,a)))))
 make6Pair [x1,x2,x3,x4,x5,x6] = pair x1
                                 (pair x2
                                  (pair x3
@@ -70,8 +70,14 @@ linreg = normal 0 2 `bind` \w1 ->
          normal (x3*w1 + x3*w2 + x3*w3 + x3*w4 + x3*w5) 1 `bind` \y3 ->
          dirac (pair (make6Pair [x1,x2,x3,y1,y2,y3]) (make5Pair [w1,w2,w3,w4,w5]))
 
-testLinreg = map (\ dist -> runPrettyPrint
-                            (dist unit (make6Pair [1,2,3,4,5,6]))) $
+testLinreg = map (\ dist -> runPrettyPrint $
+                            lam $ \a ->
+                            lam $ \b ->
+                            lam $ \c ->
+                            lam $ \d ->
+                            lam $ \e ->
+                            lam $ \f ->
+                            dist unit (make6Pair [a,b,c,d,e,f])) $
              runDisintegrate (\ env -> linreg)
 
 testLinreg2 = map (length . filter (not . isSpace) . show) testLinreg
@@ -103,10 +109,10 @@ w  = 10473
 preferentialPrior :: Mochastic repr => repr (Measure Real)
 preferentialPrior = uniform 0 1
 
-numNodes          :: Mochastic repr => repr (Measure Prob)
+numNodes          :: Mochastic repr => repr (Measure Int)
 numNodes          = poisson 5   
 
-edgesPerNode      :: Mochastic repr => repr (Measure Prob)
+edgesPerNode      :: Mochastic repr => repr (Measure Int)
 edgesPerNode      = poisson 3   
 
 -- Friends who Smoke
@@ -152,7 +158,8 @@ hiddenState = categorical [(1, 0),
                            (1, 2),
                            (1, 3)]
 
-eTest :: (Integrate repr,
+eTest :: (Summate repr,
+          Integrate repr,
           Lambda repr,
           Mochastic repr) =>
          Expect repr Prob -> repr Prob

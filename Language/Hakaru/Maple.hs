@@ -1,17 +1,17 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, ScopedTypeVariables #-}
-{-# LANGUAGE DeriveDataTypeable, GADTs, Rank2Types, StandaloneDeriving #-}
+{-# LANGUAGE DeriveDataTypeable, GADTs, Rank2Types #-}
 {-# OPTIONS -W -fno-warn-warnings-deprecations -fno-warn-unused-binds #-}
 
-module Language.Hakaru.Maple (Maple(..), runMaple, Any(..), closeLoop) where
+module Language.Hakaru.Maple (Maple(..), runMaple, Any(..), closeLoop, roundTrip) where
 
 -- Maple printing interpretation
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Order(..), Base(..), Integrate(..), Lambda(..),
-    Mochastic(..), Measure,
-    TypeOf(Sum, One), typeOf, typeOf1, typeOf2)
+import Language.Hakaru.Syntax (Bool_, ggcast, Uneither(Uneither),
+    Order(..), Base(..), Summate(..), Integrate(..), Lambda(..), Mochastic(..))
 import Data.Ratio
-import Data.Typeable (Typeable,Typeable1)
+import Data.Typeable (Typeable, Typeable1, gcast)
+import Data.Maybe (fromMaybe)
 import Control.Monad (liftM2)
 import Control.Monad.Trans.Reader (ReaderT(ReaderT), runReaderT)
 import Control.Monad.Trans.Cont (Cont, cont, runCont)
@@ -20,7 +20,7 @@ import Language.Hakaru.PrettyPrint (runPrettyPrint) -- just for testing closeLoo
 import System.MapleSSH -- ditto
 import Language.Hakaru.Expect (Expect(unExpect))
 
-import Language.Haskell.Interpreter hiding (typeOf)
+import Language.Haskell.Interpreter
 
 newtype Maple a = Maple { unMaple :: ReaderT Int (Cont String) String }
 
@@ -91,41 +91,52 @@ instance Base Maple where
         opab n = "op(" ++ show n ++ ", " ++ ab' ++ ")" 
     in
     unMaple (k (Maple (return (opab 1))) (Maple (return (opab 2)))))
-  inl (Maple a) = x
-    where x = case (typeOf x, typeOf1 x, typeOf2 x) of
-              (Sum, One, One) -> Maple (return "true")
-              _ -> Maple (fmap (\a' -> "Left("  ++ a' ++ ")") a)
-  inr (Maple b) = x
-    where x = case (typeOf x, typeOf1 x, typeOf2 x) of
-              (Sum, One, One) -> Maple (return "false")
-              _ -> Maple (fmap (\b' -> "Right(" ++ b' ++ ")") b)
-  uneither x@(Maple ab) ka kb = Maple (ab >>= \ab' ->
-    ReaderT $ \i -> cont $ \c ->
-    case (typeOf x, typeOf1 x, typeOf2 x) of
-    (Sum, One, One) -> let arm k = runCont (runReaderT (unMaple (k unit)) i) c
-                       in "piecewise(" ++ ab' ++ ", " ++ arm ka
-                                              ++ ", " ++ arm kb ++ ")"
-    _ -> let opab :: Int -> String
-             opab n = "op(" ++ show n ++ ", " ++ ab' ++ ")" in
-         let arm tag k = opab 0 ++ " = " ++ tag ++ ", " ++
-                         runCont (runReaderT (k (return (opab 1))) i) c in
-         "piecewise(" ++ arm "Left"  (unMaple . ka . Maple)
-              ++ ", " ++ arm "Right" (unMaple . kb . Maple) ++ ")")
+  inl (Maple a) = fromMaybe defaultCase (gcast booleanCase)
+    where defaultCase = Maple (fmap (\a' -> "Left("  ++ a' ++ ")") a)
+          booleanCase :: Maple Bool_
+          booleanCase = Maple (return "true")
+  inr (Maple b) = fromMaybe defaultCase (gcast booleanCase)
+    where defaultCase = Maple (fmap (\b' -> "Right(" ++ b' ++ ")") b)
+          booleanCase :: Maple Bool_
+          booleanCase = Maple (return "false")
+  uneither = r where
+    Uneither r = fromMaybe defaultCase (ggcast booleanCase)
+    defaultCase = Uneither (\(Maple ab) ka kb -> Maple (ab >>= \ab' ->
+      ReaderT $ \i -> cont $ \c ->
+      let opab :: Int -> String
+          opab n = "op(" ++ show n ++ ", " ++ ab' ++ ")" in
+      let arm tag k = opab 0 ++ " = " ++ tag ++ ", " ++
+                      runCont (runReaderT (k (return (opab 1))) i) c
+      in "piecewise(" ++ arm "Left"  (unMaple . ka . Maple)
+              ++ ", " ++ arm "Right" (unMaple . kb . Maple) ++ ")"))
+    booleanCase :: Uneither Maple () ()
+    booleanCase = Uneither (\(Maple ab) ka kb -> Maple (ab >>= \ab' ->
+      ReaderT $ \i -> cont $ \c ->
+      let arm k = runCont (runReaderT (unMaple (k unit)) i) c
+      in "piecewise(" ++ ab' ++ ", " ++ arm ka
+                             ++ ", " ++ arm kb ++ ")"))
   unsafeProb (Maple x) = Maple x
   fromProb   (Maple x) = Maple x
+  fromInt    (Maple x) = Maple x
   sqrt_ = mapleFun1 "sqrt"
   pow_ = mapleOp2 "^"
+  infinity         = Maple (return  "infinity")
+  negativeInfinity = Maple (return "-infinity")
   betaFunc = mapleFun2 "Beta"
   gammaFunc = mapleFun1 "Gamma"
   fix = mapleFun1 "(proc (f) local x; x := f(x) end proc)" . lam
+
+instance Summate Maple where
+  summate (Maple lo) (Maple hi) f = Maple (lo >>= \lo' -> hi >>= \hi' ->
+    ReaderT $ \i -> return $
+    let (x, body) = mapleBind f i
+    in "sum(" ++ body ++ "," ++ x ++ "=" ++ lo' ++ ".." ++ hi' ++ ")")
 
 instance Integrate Maple where
   integrate (Maple lo) (Maple hi) f = Maple (lo >>= \lo' -> hi >>= \hi' ->
     ReaderT $ \i -> return $
     let (x, body) = mapleBind f i
     in "int(" ++ body ++ "," ++ x ++ "=" ++ lo' ++ ".." ++ hi' ++ ")")
-  infinity         = Maple (return  "infinity")
-  negativeInfinity = Maple (return "-infinity")
 
 instance Lambda Maple where
   lam f = Maple (ReaderT $ \i -> return $
@@ -149,8 +160,8 @@ closeLoop :: (Typeable1 repr) => String -> IO (Either InterpreterError (repr ())
 closeLoop s = runInterpreter (ourContext >> interpret s undefined)
 
 newtype Any a = Any
-  { unAny :: forall repr. (Base repr, Lambda repr, Mochastic repr) => repr (Measure a) }
-deriving instance Typeable1 Any
+  { unAny :: forall repr. (Base repr, Lambda repr, Mochastic repr) => repr a }
+  deriving Typeable
   -- beware GHC 7.8 https://ghc.haskell.org/trac/ghc/wiki/GhcKinds/PolyTypeable
 
 pMaple :: String -> IO () 
@@ -173,10 +184,12 @@ main = do
 
 -- this WILL NOT WORK because 'maple' will not have the right libraries
 -- loaded.  This should be fixed in MapleSSH, not here.
-roundTrip :: (Typeable repr, Typeable a) => Expect Maple a -> IO (repr a)
+roundTrip :: (Typeable a) => Expect Maple a -> IO (Any a)
+  -- "a" should be like "Measure ()", not "Real -> Measure Real"
 roundTrip e = do 
     let expr = runMaple (unExpect e) 0
-    res <- maple ("Haskell(SLO:-AST(SLO(" ++ expr ++ ")));")
+    res <- return "(factor (1 / 2)) `bind_` (dirac unit)" `asTypeOf`
+           maple ("Haskell(SLO:-AST(SLO(" ++ expr ++ ")));")
     let cl s = runInterpreter (ourContext >> interpret s undefined)
     result <- cl ("Any (" ++ res ++ ")")
     case result of

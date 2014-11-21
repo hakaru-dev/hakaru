@@ -8,7 +8,7 @@ import Language.Hakaru.Syntax (Real, Prob, Measure,
        Order(..), Base(..), ununit, and_, fst_, snd_, min_,
        Mochastic(..), bind_, beta, bern,
        if_, true, Bool_,
-       Lambda(..), Integrate(..), Type(..))
+       Lambda(..), Summate(..), Integrate(..))
 import Language.Hakaru.Util.Pretty (Pretty (pretty), prettyPair)
 import Language.Hakaru.Expect (Expect(unExpect), Expect')
 import Language.Hakaru.Maple (Maple(Maple), runMaple)
@@ -65,11 +65,11 @@ pair2'snd = go 1 1 where
                go (if_ c (a+1) a) (if_ c b (b+1)) (n-1) (\(cs,bias) ->
                k (c:cs,bias))
 
-replicateH :: (Type a, Mochastic repr) => Int -> repr (Measure a) -> Cont repr [repr a]
+replicateH :: (Mochastic repr) => Int -> repr (Measure a) -> Cont repr [repr a]
 replicateH 0 _ k = k []
 replicateH n m k = m `bind` \x -> replicateH (n-1) m (\xs -> k (x:xs))
 
-twice :: (Type a, Mochastic repr) => repr (Measure a) -> Cont repr (repr a, repr a)
+twice :: (Mochastic repr) => repr (Measure a) -> Cont repr (repr a, repr a)
 twice m k = m `bind` \x ->
             m `bind` \y ->
             k (x, y)
@@ -154,7 +154,8 @@ pair4'transition state = bern (1/2) `bind` \resampleCoin ->
 transitionTest :: MWC.GenIO -> IO (Maybe ((Bool_, Double), LF.LogFloat))
 transitionTest g = unSample (pair4transition (pair true 1)) 1 g
 
-mcmc :: (Type a, Mochastic repr, Integrate repr, Lambda repr, a ~ Expect' a) =>
+mcmc :: (Mochastic repr, Summate repr, Integrate repr, Lambda repr,
+         a ~ Expect' a) =>
         (forall repr'. (Mochastic repr') => repr' a -> repr' (Measure a)) ->
         (forall repr'. (Mochastic repr') => repr' (Measure a)) ->
         repr (a -> Measure a)
@@ -235,17 +236,40 @@ t14 = bern (3/5) `bind` \b ->
 t20 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure ())
 t20 = lam (\y -> uniform 0 1 `bind` \x -> factor (unsafeProb x * y))
 
-t21 :: (Mochastic repr, Integrate repr, Lambda repr) => repr (Real -> Measure Real)
+t21 :: (Mochastic repr, Summate repr, Integrate repr, Lambda repr) =>
+       repr (Real -> Measure Real)
 t21 = mcmc (`normal` 1) (normal 0 5)
 
 t22 :: Mochastic repr => repr (Measure ())
 t22 = bern (1/2) `bind_` dirac unit
 
+-- was called bayesNet in Nov.06 msg by Ken for exact inference
 t23 :: Mochastic repr => repr (Measure (Bool_, Bool_))
 t23 = bern (1/2) `bind` \a ->
                bern (if_ a (9/10) (1/10)) `bind` \b ->
                bern (if_ a (9/10) (1/10)) `bind` \c ->
                dirac (pair b c)
+
+t24 :: (Mochastic repr, Lambda repr) => repr (Prob -> Measure ())
+t24 = lam (\x ->
+      uniform 0 1 `bind` \y ->
+      uniform 0 1 `bind` \z ->
+      factor (x * exp_ (cos y) * unsafeProb z))
+
+t25 :: (Mochastic repr, Lambda repr) => repr (Prob -> Real -> Measure ())
+t25 = lam (\x -> lam (\y -> 
+    uniform 0 1 `bind` \z ->
+    factor (x * exp_ (cos y) * unsafeProb z)))
+
+t26 :: (Base repr, Lambda repr, Summate repr, Integrate repr) => repr Prob
+t26 = unExpect t1 `app` lam (const 1)
+
+t27 :: (Mochastic repr, Lambda repr) => [repr (Real -> Measure Real)]
+t27 = map (\d -> lam (d unit)) $ runDisintegrate 
+  (\env -> ununit env $ 
+    normal 0 1 `bind` \x -> 
+    normal x 1 `bind` \y -> 
+    dirac (pair y x))
 
 ------- Tests
 
@@ -299,8 +323,7 @@ disintegrateTestRunner = do
         exp' :: Expr Name Name Real -> Expr Name Name Real
         exp' = Op1 Exp
 
-testDist :: (Type t, Type to) =>
-            (Expr Name Name (Measure t), Selector to t) -> IO ()
+testDist :: (Expr Name Name (Measure t), Selector to t) -> IO ()
 testDist (e,s) = do
   print (prettyPair (pretty' 0 e) (pretty' 0 s))
   let es = run (disintegrate e emptyEnv s (Var (Const 0)))
@@ -344,6 +367,10 @@ main = do
   putStrLn $ testMaple t21 "t21"
   putStrLn $ testMaple t22 "t22"
   putStrLn $ testMaple t23 "t23"
+  putStrLn $ testMaple t24 "t24"
+  putStrLn $ testMaple t25 "t25"
+  putStrLn $ testMaple t26 "t26"
+  putStrLn $ concat $ map (\x -> testMaple x "t27") t27
   putStrLn $ testMaple expr1 "expr1"
   putStrLn $ testMaple expr2 "expr2"
   putStrLn $ testMaple expr4 "expr4"

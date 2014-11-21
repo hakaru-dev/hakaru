@@ -10,7 +10,7 @@ module Language.Hakaru.Disintegrate (Disintegrate,
 
 import Prelude hiding (mapM, lookup, (!!), Real)
 import Data.Either (partitionEithers)
-import Data.Maybe (isJust, isNothing, fromMaybe)
+import Data.Maybe (isJust, fromMaybe)
 import Data.Monoid (Monoid (mempty, mappend, mconcat))
 import Data.Graph (graphFromEdges, topSort)
 import Data.List (tails)
@@ -21,15 +21,17 @@ import Control.Monad.Trans.RWS (runRWS, get, put, tell)
 import Control.Monad (mapM, liftM2)
 import Control.Monad.Trans.Cont (Cont, cont, runCont)
 import Language.Hakaru.Util.Pretty (Pretty (pretty),
-        prettyPair, prettyParen, prettyFun, prettyOp, showRatio)
-import Text.PrettyPrint (Doc, text, char, int, comma, colon, semi, brackets,
+        prettyPair, prettyParen, prettyFun, prettyOp)
+import Text.PrettyPrint (Doc, text, char, int, integer, comma, semi, brackets,
         parens, (<>), (<+>), nest, fsep, sep, punctuate, render)
-import Language.Hakaru.Syntax (Real, Prob, Measure, Bool_, Type(..), TypeOf(..),
-        typeOf, typeOf1, typeOf2, typeMeas, typeProd, typeSum,
-        EqType(..), eqType, OrdType(..), ordType, Fraction(..),
+import Language.Hakaru.Syntax (Real, Prob, Measure, Bool_,
+        EqType(Refl), Number(..), Fraction(..),
         Order(..), Base(..), Mochastic(..), liftM, snd_,
-        Lambda(..), Integrate(..))
+        Lambda(..), Summate(..), Integrate(..))
 import Language.Hakaru.Expect (Expect(unExpect), Expect')
+import Data.Typeable (Typeable)
+import Unsafe.Coerce (unsafeCoerce)
+import Data.Ratio (numerator, denominator)
 
 ------- Tracing
 
@@ -37,12 +39,8 @@ import Language.Hakaru.Expect (Expect(unExpect), Expect')
 traceShow :: (Show a) => a -> b -> b
 traceShow _ = id
 
-------- Lift common type-classes from kind * to kind "Type -> *"
+------- Lift common type-classes from kind * to kind "HakaruType -> *"
 -- Variables are typed in environments, and locations are typed in heaps.
-
-jmEq :: (Type t1, Type t2, Eq' a) => a t1 -> a t2 -> Maybe (EqType t1 t2)
-jmEq x y = do Refl <- eqType (typeOf x) (typeOf y)
-              if eq' x y then Just Refl else Nothing
 
 class Eq' a where
   eq' :: a t -> a t -> Bool
@@ -72,34 +70,21 @@ class Functor' f where
   fmap' :: (forall t. a t -> b t) -> f a t' -> f b t'
 
 class Foldable' f where
-  foldMap' :: (Type t', Monoid m) => (forall t. (Type t) => a t -> m) ->
-              f a t' -> m
+  foldMap' :: (Monoid m) => (forall t. a t -> m) -> f a t' -> m
 
 class (Functor' f, Foldable' f) => Traversable' f where
-  traverse' :: (Type t', Applicative m) =>
-               (forall t. (Type t) => a t -> m (b t)) -> f a t' -> m (f b t')
-  mapM'     :: (Type t', Monad m) =>
-               (forall t. (Type t) => a t -> m (b t)) -> f a t' -> m (f b t')
+  traverse' :: (Applicative m) =>
+               (forall t. a t -> m (b t)) -> f a t' -> m (f b t')
+  mapM'     :: (Monad m) =>
+               (forall t. a t -> m (b t)) -> f a t' -> m (f b t')
   mapM' f = unwrapMonad . traverse' (WrapMonad . f)
-
-instance Show' TypeOf where
-  pretty' p x@Meas = prettyFun (p > 10) "Measure" (pretty' 11 (typeOf2 x))
-  pretty' _ x@Prod = prettyPair (pretty' 0 (typeOf1 x)) (pretty' 0 (typeOf2 x))
-  pretty' p x@Sum  = prettyFun (p > 10) "Either"
-                   $ sep [ pretty' 11 (typeOf1 x), pretty' 11 (typeOf2 x) ]
-  pretty' p x@Fun  = prettyParen (p > 0)
-                   $ sep [ pretty' 1 (typeOf1 x) <+> text "->",
-                           pretty' 0 (typeOf2 x) ]
-  pretty' _   One  = text "()"
-  pretty' _   Real = text "Real"
-  pretty' _   Prob = text "Prob"
 
 ------- Trees, which form the left-hand-sides of bindings
 
 data Tree a t where
   Branch :: Tree a t1 -> Tree a t2 -> Tree a (t1, t2)
-  UnaryL :: Tree a t1 -> Tree a (Either t1 t2)
-  UnaryR :: Tree a t2 -> Tree a (Either t1 t2)
+  UnaryL :: (Typeable t1, Typeable t2) => Tree a t1 -> Tree a (Either t1 t2)
+  UnaryR :: (Typeable t1, Typeable t2) => Tree a t2 -> Tree a (Either t1 t2)
   Nil    :: Tree a ()
   Leaf   :: a t -> Tree a t
 
@@ -143,19 +128,18 @@ instance Functor' Tree where
   fmap' f (Leaf a)     = Leaf (f a)
 
 instance Foldable' Tree where
-  foldMap' f x@(Branch a b) = typeProd x (foldMap' f a `mappend` foldMap' f b)
-  foldMap' f x@(UnaryL a)   = typeSum  x (foldMap' f a)
-  foldMap' f x@(UnaryR b)   = typeSum  x (foldMap' f b)
-  foldMap' _   Nil          = mempty
-  foldMap' f   (Leaf a)     = f a
+  foldMap' f (Branch a b) = foldMap' f a `mappend` foldMap' f b
+  foldMap' f (UnaryL a)   = foldMap' f a
+  foldMap' f (UnaryR b)   = foldMap' f b
+  foldMap' _ Nil          = mempty
+  foldMap' f (Leaf a)     = f a
 
 instance Traversable' Tree where
-  traverse' f x@(Branch a b) = typeProd x (fmap Branch (traverse' f a)
-                                                    <*> traverse' f b)
-  traverse' f x@(UnaryL a)   = typeSum  x (fmap UnaryL (traverse' f a))
-  traverse' f x@(UnaryR b)   = typeSum  x (fmap UnaryR (traverse' f b))
-  traverse' _   Nil          = pure Nil
-  traverse' f   (Leaf a)     = fmap Leaf (f a)
+  traverse' f (Branch a b) = fmap Branch (traverse' f a) <*> traverse' f b
+  traverse' f (UnaryL a)   = fmap UnaryL (traverse' f a)
+  traverse' f (UnaryR b)   = fmap UnaryR (traverse' f b)
+  traverse' _ Nil          = pure Nil
+  traverse' f (Leaf a)     = fmap Leaf (f a)
 
 ------- Selectors, which name a part of an algebraic data type to evaluate
 -- For example, evaluating at Root is evaluating to whnf.
@@ -175,19 +159,19 @@ instance Show' (Selector to) where
   pretty' p (Unr s) = prettyFun (p > 10) "Unr" (pretty' 11 s)
   pretty' _ Root    = text "Root"
 
-locate :: (Eq' a, Show' a, Type to, Type t) =>
-          a to -> Tree a t -> Maybe (Selector to t)
-locate x y@(Branch a b) =
-  typeProd y (case (locate x a, locate x b) of
-              (Just _ , Just _ ) -> error ("Duplicate " ++ show' 0 x "")
-              (Just s , Nothing) -> Just (Fst s)
-              (Nothing, Just s ) -> Just (Snd s)
-              (Nothing, Nothing) -> Nothing)
-locate x y@(UnaryL a) = typeSum y (fmap Unl (locate x a))
-locate x y@(UnaryR a) = typeSum y (fmap Unr (locate x a))
-locate _   Nil        = Nothing
-locate x   (Leaf a)   = do Refl <- jmEq x a
-                           Just Root
+locate :: (Eq a, Show a) =>
+          Const a to -> Tree (Const a) t -> Maybe (Selector to t)
+locate x (Branch a b) =
+  case (locate x a, locate x b) of
+  (Just _ , Just _ ) -> error ("Duplicate " ++ case x of Const x' -> show x')
+  (Just s , Nothing) -> Just (Fst s)
+  (Nothing, Just s ) -> Just (Snd s)
+  (Nothing, Nothing) -> Nothing
+locate x (UnaryL a) = fmap Unl (locate x a)
+locate x (UnaryR a) = fmap Unr (locate x a)
+locate _ Nil        = Nothing
+locate x (Leaf a)   = do Refl <- unsafeJmEq x a
+                         Just Root
 
 compose :: Selector t2 t3 -> Selector t1 t2 -> Selector t1 t3
 compose (Fst s1) s2 = Fst (compose s1 s2)
@@ -203,9 +187,12 @@ type Loc  = Const Int
 
 instance (Eq  a) => Eq'  (Const a) where eq'  (Const x) (Const y) = x == y
 instance (Ord a) => Ord' (Const a) where ord' (Const x) (Const y) = compare x y
-
 instance Show' Name where pretty' _ (Const n) = text n
 instance Show' Loc  where pretty' _ (Const l) = char '_' <> int l
+
+unsafeJmEq :: (Eq a) => Const a t1 -> Const a t2 -> Maybe (EqType t1 t2)
+unsafeJmEq (Const t1) (Const t2) = if t1 == t2 then Just (unsafeCoerce Refl)
+                                               else Nothing
 
 -- An empty type constructor to express the invariant that values (expressions
 -- produced by evaluation) never use Bind to bind any variables (locations):
@@ -223,26 +210,20 @@ instance Show' Void where show'   _ = exFalso
 ------- An entry in an environment or heap, containing run-time type information
 -- An existential quantifier over a product, similar to Coq's "exists2".
 
-data Binding a b where Binding :: (Type t) => a t -> b t -> Binding a b
+data Binding a b where Binding :: a t -> b t -> Binding a b
 
-instance (Eq' a, Eq' b) => Eq (Binding a b) where
-  Binding a b == Binding a' b' = case jmEq a a' of Just Refl -> eq' b b'
-                                                   Nothing   -> False
+instance (Eq a) => Eq (Binding (Const a) (Const ())) where
+  Binding (Const x) (Const ()) == Binding (Const y) (Const ()) = x == y
 
-instance (Ord' a, Ord' b) => Ord (Binding a b) where
-  Binding a b `compare` Binding a' b' =
-    case ordType (typeOf a) (typeOf a') of
-      LT' -> LT
-      GT' -> GT
-      EQ' -> ord' a a' `mappend` ord' b b'
+instance (Ord a) => Ord (Binding (Const a) (Const ())) where
+  compare (Binding (Const x) (Const ())) (Binding (Const y) (Const ())) =
+    compare x y
 
 instance (Show' a, Show' b) => Show (Binding a b) where
   showsPrec p = showsPrec p . pretty
 
 instance (Show' a, Show' b) => Pretty (Binding a b) where
-  pretty (Binding a b) =
-    prettyPair (pretty' 0 a <> colon <+> pretty' 1 (typeOf a))
-               (pretty' 0 b)
+  pretty (Binding a b) = prettyPair (pretty' 0 a) (pretty' 0 b)
 
 ------- Environments map names (input variables) to locations (output variables)
 
@@ -251,54 +232,43 @@ type Env = [Binding Name Loc]
 emptyEnv :: Env
 emptyEnv = []
 
-lookup :: (Type t, Eq' a) => [Binding a b] -> a t -> Maybe (b t)
+lookup :: (Eq a) => [Binding (Const a) b] -> Const a t -> Maybe (b t)
 lookup [] _ = Nothing
-lookup (Binding a b : bindings) a' = case jmEq a a' of
+lookup (Binding a b : bindings) a' = case unsafeJmEq a a' of
   Just Refl -> Just b
   Nothing   -> lookup bindings a'
 
-(!!) :: (Type t, Eq' a, Show' a) => [Binding a b] -> a t -> b t
+(!!) :: (Eq a, Show' (Const a)) => [Binding (Const a) b] -> Const a t -> b t
 env !! n = fromMaybe (error ("Unbound name " ++ show' 0 n "")) (lookup env n)
 
-unique :: (Eq' a) => [Binding a b] -> Bool
-unique env = and [ isNothing (jmEq n1 n2)
-                 | Binding n1 _ : bs <- tails env, Binding n2 _ <- bs ]
+unique :: (Eq a) => [Binding (Const a) b] -> Bool
+unique env = and [ x /= y | Binding (Const x) _ : bs <- tails env
+                          , Binding (Const y) _ <- bs ]
 
 ------- Mochastic expressions!
 -- Boilerplate galore.
 
 data Op0 t where
-  Lebesgue :: Op0 (Measure Real)
-  Pi       :: (Fraction t) => Op0 t
-  Unit     :: Op0 ()
+  Lebesgue         :: Op0 (Measure Real)
+  Pi               :: (Fraction t) => Op0 t
+  Infinity         :: Op0 Real
+  NegativeInfinity :: Op0 Real
+  Unit             :: Op0 ()
 
 data Op1 t1 t where
   Exp        :: (Fraction t) => Op1 Real t
   Log        :: (Fraction t) => Op1 t Real
-  Neg        :: (Fraction t) => Op1 t t
+  Neg        :: (Number   t) => Op1 t t
   Inv        :: (Fraction t) => Op1 t t
   Weight     :: Op1 Prob (Measure ())
   UnsafeProb :: Op1 Real Prob
   FromProb   :: Op1 Prob Real
-
-typeOp1 :: Op1 t1 t -> ((Type t1) => w) -> w
-typeOp1 Exp        k = k
-typeOp1 Log        k = k
-typeOp1 Neg        k = k
-typeOp1 Inv        k = k
-typeOp1 Weight     k = k
-typeOp1 UnsafeProb k = k
-typeOp1 FromProb   k = k
+  FromInt    :: Op1 Int  Real
 
 data Op2 t1 t2 t where
-  Add  :: (Fraction t) => Op2 t t t
-  Mul  :: (Fraction t) => Op2 t t t
-  Less :: (Fraction t) => Op2 t t Bool_
-
-typeOp2 :: Op2 t1 t2 t -> ((Type t1, Type t2) => w) -> w
-typeOp2 Add  k = k
-typeOp2 Mul  k = k
-typeOp2 Less k = k
+  Add  :: (Number t) => Op2 t t t
+  Mul  :: (Number t) => Op2 t t t
+  Less :: (Number t) => Op2 t t Bool_
 
 deriving instance Eq (Op0 t)
 deriving instance Eq (Op1 t1 t)
@@ -329,16 +299,15 @@ data Expr b u t where -- b = bound variables; u = used variables
   Op0     :: Op0 t ->                                     Expr b u t
   Op1     :: Op1 t1 t -> Expr b u t1 ->                   Expr b u t
   Op2     :: Op2 t1 t2 t -> Expr b u t1 -> Expr b u t2 -> Expr b u t
-  LitReal :: (Fraction t) => Rational ->                  Expr b u t
+  Lit     :: (Number t) => Integer ->                     Expr b u t
   Var     :: u t ->                                       Expr b u t
-    -- TODO: Would "Type t =>" on Var obviate many other "Type t =>"s?
   Choice  :: [Expr b u (Measure t)] ->                    Expr b u (Measure t)
-  Bind    :: (Type t) => Tree b t -> Expr b u (Measure t) ->
-                      Expr b u (Measure t') ->            Expr b u (Measure t')
+  Bind    :: Tree b t -> Expr b u (Measure t) -> Expr b u (Measure t') ->
+                                                          Expr b u (Measure t')
   Dirac   :: Expr b u t ->                                Expr b u (Measure t)
   Pair    :: Expr b u t -> Expr b u t' ->                 Expr b u (t, t')
-  Inl     :: Expr b u t ->                                Expr b u (Either t t')
-  Inr     :: Expr b u t ->                                Expr b u (Either t' t)
+  Inl     :: (Typeable t, Typeable t') => Expr b u t ->   Expr b u (Either t t')
+  Inr     :: (Typeable t, Typeable t') => Expr b u t ->   Expr b u (Either t' t)
   -- The Closure constructor below is for internal use
   -- and should not appear in the final output.
   Closure :: Expr Name Name (Measure t) -> [Binding Name u] ->
@@ -350,7 +319,7 @@ instance (Show' b, Show' u) => Show' (Expr b u) where
   pretty' p (Op2 o e1 e2)   = let (q, s, a) = fixity o in
     prettyOp (p > q) s (pretty' (if a == LT then q else succ q) e1)
                        (pretty' (if a == GT then q else succ q) e2)
-  pretty' p (LitReal x)     = text (showRatio p x "")
+  pretty' _ (Lit x)         = integer x
   pretty' p (Var u)         = pretty' p u
   pretty' _ (Choice es)     =
     brackets (nest 1 (fsep (punctuate comma (map (pretty' 0) es))))
@@ -366,50 +335,46 @@ instance (Show' b, Show' u) => Show' (Expr b u) where
   pretty' p (Closure e env) = prettyParen (p > 0)
                                 (sep [pretty' 0 e, text "@" <+> pretty env])
 
-bimap' :: (Type t') =>
-          (forall t. a t -> b t) ->
-          (forall t. (Type t) => c t -> d t) ->
-          (forall t. (Type t) => Expr Name Name (Measure t) ->
+bimap' :: (forall t. a t -> b t) ->
+          (forall t. c t -> d t) ->
+          (forall t. Expr Name Name (Measure t) ->
                      [Binding Name d] -> Expr b d (Measure t)) ->
           Expr a c t' -> Expr b d t'
-bimap' _ _ _ (Op0 o)        = Op0 o
-bimap' f g h (Op1 o e)      = typeOp1 o (Op1 o (bimap' f g h e))
-bimap' f g h (Op2 o e1 e2)  = typeOp2 o (Op2 o (bimap' f g h e1)
-                                               (bimap' f g h e2))
-bimap' _ _ _ (LitReal x)    = LitReal x
-bimap' _ g _ (Var    u)     = Var    (g u)
-bimap' f g h (Choice es)    = Choice (map (bimap' f g h) es)
-bimap' f g h (Bind l r e)   = Bind (fmap' f l)  (bimap' f g h r)
+bimap' _ _ _ (Op0 o)         = Op0 o
+bimap' f g h (Op1 o e)       = Op1 o (bimap' f g h e)
+bimap' f g h (Op2 o e1 e2)   = Op2 o (bimap' f g h e1) (bimap' f g h e2)
+bimap' _ _ _ (Lit x)         = Lit x
+bimap' _ g _ (Var    u)      = Var    (g u)
+bimap' f g h (Choice es)     = Choice (map (bimap' f g h) es)
+bimap' f g h (Bind l r e)    = Bind (fmap' f l) (bimap' f g h r)
                                                 (bimap' f g h e)
-bimap' f g h x@(Dirac e)    = typeMeas x (Dirac (bimap' f g h e))
-bimap' f g h x@(Pair e1 e2) = typeProd x (Pair  (bimap' f g h e1)
-                                                (bimap' f g h e2))
-bimap' f g h x@(Inl e)      = typeSum  x (Inl   (bimap' f g h e))
-bimap' f g h x@(Inr e)      = typeSum  x (Inr   (bimap' f g h e))
-bimap' _ g h x@(Closure e env) =
-  typeMeas x (h e [ Binding name (g u) | Binding name u <- env ])
+bimap' f g h (Dirac e)       = Dirac (bimap' f g h e)
+bimap' f g h (Pair e1 e2)    = Pair  (bimap' f g h e1) (bimap' f g h e2)
+bimap' f g h (Inl e)         = Inl   (bimap' f g h e)
+bimap' f g h (Inr e)         = Inr   (bimap' f g h e)
+bimap' _ g h (Closure e env) = h e [ Binding name (g u)
+                                   | Binding name u <- env ]
 
-vars :: (Type t, Monoid m) =>
-        (forall tb. (Type tb) => Tree b tb ->
-                    (forall tu. (Type tu) => u tu -> m) ->
-                    (forall tu. (Type tu) => u tu -> m)) ->
-        (forall tu. (Type tu) => u tu -> m) -> Expr b u t -> m
+vars :: (Monoid m) =>
+        (forall tb. Tree b tb ->
+                    (forall tu. u tu -> m) ->
+                    (forall tu. u tu -> m)) ->
+        (forall tu. u tu -> m) -> Expr b u t -> m
 vars _ _ (Op0 _)             = mempty
-vars b f (Op1 o e)           = typeOp1 o (vars b f e)
-vars b f (Op2 o e1 e2)       = typeOp2 o (vars b f e1 `mappend` vars b f e2)
-vars _ _ (LitReal _)         = mempty
+vars b f (Op1 _ e)           = vars b f e
+vars b f (Op2 _ e1 e2)       = vars b f e1 `mappend` vars b f e2
+vars _ _ (Lit _)             = mempty
 vars _ f (Var u)             = f u
 vars b f (Choice es)         = mconcat (map (vars b f) es)
 vars b f (Bind lhs rhs body) = vars b f rhs `mappend` vars b (b lhs f) body
-vars b f x@(Dirac e)         = typeMeas x (vars b f e)
-vars b f x@(Pair e1 e2)      = typeProd x (vars b f e1 `mappend` vars b f e2)
-vars b f x@(Inl e)           = typeSum  x (vars b f e)
-vars b f x@(Inr e)           = typeSum  x (vars b f e)
-vars _ f (Closure e env)     = vars hideUse (f . (env !!)) e
+vars b f (Dirac e)           = vars b f e
+vars b f (Pair e1 e2)        = vars b f e1 `mappend` vars b f e2
+vars b f (Inl e)             = vars b f e
+vars b f (Inr e)             = vars b f e
+vars _ f (Closure e env)     = vars hideUse (\u -> f (env !! u)) e
 
-hideUse :: (Type t', Monoid m) => Tree Name t' ->
-           (forall t. (Type t) => Name t -> m) ->
-           (forall t. (Type t) => Name t -> m)
+hideUse :: (Monoid m) => Tree Name t' ->
+           (forall t. Name t -> m) -> (forall t. Name t -> m)
 hideUse lhs = \f u -> if S.member (Binding u (Const ())) bs then mempty else f u
   where bs = foldMap' (\u -> S.singleton (Binding u (Const ()))) lhs
 
@@ -439,7 +404,7 @@ if' e et ee = Choice [ Bind (UnaryL Nil) (Dirac e) et
 max_ :: Expr b u Real -> Expr b u Real -> Expr b u (Measure Real)
 max_ e1 e2 = if' (Op2 Less e1 e2) (Dirac e2) (Dirac e1)
 
-instance (Fraction t) => Num (Expr b u t) where
+instance (Number t) => Num (Expr b u t) where
   (+)         = Op2 Add
   (*)         = Op2 Mul
   negate      = Op1 Neg
@@ -447,13 +412,13 @@ instance (Fraction t) => Num (Expr b u t) where
                 -- \x -> if_ (Less 0 x) x (-x)
   signum      = error "TODO: Add pure `case' construct"
                 -- \x -> if_ (Less 0 x) 1 (if_ (Less x 0) (-1) 0)
-  fromInteger = LitReal . fromInteger
+  fromInteger = Lit
 
 instance (Fraction t) => Fractional (Expr b u t) where
-  recip        = Op1 Inv
-  fromRational = LitReal
+  recip          = Op1 Inv
+  fromRational x = Lit (numerator x) / Lit (denominator x)
 
-ex :: (Type t) => Expr Void Loc t -> Expr Loc Loc t
+ex :: Expr Void Loc t -> Expr Loc Loc t
 ex = bimap' exFalso id Closure
 
 ------- The heap binds thunks to trees of locations
@@ -511,7 +476,7 @@ gensym = M (\c h -> c (Const (fresh h)) h{fresh = succ (fresh h)})
 ------- (Expr Name Name t) and output expressions (Expr Void Loc t)
 
 class (Pretty env, Show' u) => Use env u where
-  (!) :: (Type t) => env -> u t -> Loc t
+  (!) :: env -> u t -> Loc t
   close :: Expr Name Name (Measure t) -> [Binding Name u] -> env ->
            (Expr Name Name (Measure t), Env)
 
@@ -519,19 +484,18 @@ instance Use Env Name where
   (!) = (!!)
   close e env = (,) (rename env (\lhs rhs -> Bind lhs (Dirac rhs) e)) where
     rename :: [Binding Name Name] ->
-              (forall t. (Type t) => Tree Name t -> Expr Name Name t -> w) -> w
-    rename []                       k = k Nil (Op0 Unit)
-    rename (Binding a b : bindings) k = rename bindings (\lhs rhs ->
-                                        k (Branch (Leaf a) lhs)
-                                          (Pair (Var b) rhs))
+              (forall t. Tree Name t -> Expr Name Name t -> w) -> w
+    rename [] k = k Nil (Op0 Unit)
+    rename (Binding a b : bindings) k =
+      rename bindings (\lhs rhs -> k (Branch (Leaf a) lhs) (Pair (Var b) rhs))
 
 instance Use () Loc where
   _ ! l = l
   close e env () = (e, env)
 
 class (Use env u, Show' b) => Delay env b u where
-  delay    :: (Type t) => Expr b u t -> env -> M (Expr Void Loc t)
-  allocate :: (Type t) => Tree b t -> Expr b u (Measure t) -> env -> M env
+  delay    :: Expr b u t -> env -> M (Expr Void Loc t)
+  allocate :: Tree b t -> Expr b u (Measure t) -> env -> M env
   measure  :: Expr b u (Measure t) -> env -> Expr Void Loc (Measure t)
 
 instance Delay Env Name Name where
@@ -561,10 +525,9 @@ instance Delay () Void Loc where
 ------- Retrieving thunks from, and storing results in, the heap
 
 data Retrieval to where
-  Retrieval :: (Type t) => Selector to t -> Tree Loc t -> Thunk t ->
-               Retrieval to
+  Retrieval :: Selector to t -> Tree Loc t -> Thunk t -> Retrieval to
 
-retrieve :: (Type to) => Loc to -> M (Maybe (Retrieval to))
+retrieve :: Loc to -> M (Maybe (Retrieval to))
 retrieve loc = M (\c h ->
   case partitionEithers [ case locate loc lhs of
                                  Just s  -> Right (Retrieval s lhs thunk)
@@ -574,28 +537,28 @@ retrieve loc = M (\c h ->
     (left, [r]  ) -> c (Just r) h{bound=left}
     (_   , _:_:_) -> error ("Duplicate heap entry " ++ show' 0 loc ""))
 
-store :: (Type t) => Tree Loc t -> Expr Void Loc t -> M ()
-store x@(Branch t1 t2) (Pair e1 e2) = typeProd x (store t1 e1 >> store t2 e2)
-store x@(UnaryL t)     (Inl e)      = typeSum  x (store t e)
-store   (UnaryL _)     (Inr _)      = reject
-store x@(UnaryR t)     (Inr e)      = typeSum  x (store t e)
-store   (UnaryR _)     (Inl _)      = reject
-store   Nil            (Op0 Unit)   = return ()
-store   lhs            rhs          =
+store :: Tree Loc t -> Expr Void Loc t -> M ()
+store (Branch t1 t2) (Pair e1 e2) = store t1 e1 >> store t2 e2
+store (UnaryL t)     (Inl e)      = store t e
+store (UnaryL _)     (Inr _)      = reject
+store (UnaryR t)     (Inr e)      = store t e
+store (UnaryR _)     (Inl _)      = reject
+store Nil            (Op0 Unit)   = return ()
+store lhs            rhs          =
   M (\c h -> c () h{bound = Binding lhs (Forced rhs) : bound h})
 
-value :: (Type t) => Loc t -> M (Expr Void Loc t)
+value :: Loc t -> M (Expr Void Loc t)
 value l = M (\c h ->
   let err = error ("Location " ++ show' 0 l " unexpectedly not bound alone") in
   case [ entry | entry@(Binding lhs _) <- bound h, isJust (locate l lhs) ] of
     [Binding (Leaf l') (Forced rhs)] ->
-      case jmEq l l' of Just Refl -> c rhs h
-                        _ -> err
+      case unsafeJmEq l l' of Just Refl -> c rhs h
+                              _ -> err
     _ -> err)
 
 ------- Main evaluator
 
-determine :: (Delay env b u, Type t) => Expr b u (Measure t) ->
+determine :: (Delay env b u) => Expr b u (Measure t) ->
              env -> Selector to t -> M (Expr Void Loc t)
 determine e env s
   | traceShow (prettyFun False "determine"
@@ -607,8 +570,7 @@ determine (Op0 Lebesgue) _ Root = do
   return (Var l)
 determine (Op1 Weight e) env Root = do
   x <- evaluate e env Root
-  case x of LitReal 1 -> return () -- trivial simplification
-            _ -> insert (weight (ex x))
+  insert (weight (ex x))
   return (Op0 Unit)
 determine e@(Var _) env s = do
   v <- evaluate e env Root
@@ -624,7 +586,7 @@ determine (Bind lhs rhs body) env s = do
 determine (Dirac e) env s = evaluate e env s
 determine (Closure e' env') env s = uncurry determine (close e' env' env) s
 
-evaluate :: (Delay env b u, Type t) => Expr b u t ->
+evaluate :: (Delay env b u) => Expr b u t ->
             env -> Selector to t -> M (Expr Void Loc t)
 evaluate e env s
   | traceShow (prettyFun False "evaluate"
@@ -632,10 +594,10 @@ evaluate e env s
               False = undefined
 evaluate (Op0 o)       _   _ = return (Op0 o)
 evaluate e@(Op1 Weight _) env Root = return (measure e env)
-evaluate (Op1 o e)     env _ = typeOp1 o (fmap   (Op1 o) (evaluate e  env Root))
-evaluate (Op2 o e1 e2) env _ = typeOp2 o (liftM2 (Op2 o) (evaluate e1 env Root)
-                                                         (evaluate e2 env Root))
-evaluate (LitReal x) _ Root = return (LitReal x)
+evaluate (Op1 o e)     env _ = fmap   (Op1 o) (evaluate e  env Root)
+evaluate (Op2 o e1 e2) env _ = liftM2 (Op2 o) (evaluate e1 env Root)
+                                              (evaluate e2 env Root)
+evaluate (Lit x) _ Root = return (Lit x)
 evaluate (Var v) env s = do
   let l = env ! v
   retrieval <- retrieve l
@@ -647,24 +609,23 @@ evaluate (Var v) env s = do
 evaluate e@(Choice _)   env Root = return (measure e env)
 evaluate e@(Bind _ _ _) env Root = return (measure e env)
 evaluate e@(Dirac _)    env Root = return (measure e env)
-evaluate e@(Pair e1 e2) env Root =
-  typeProd e (liftM2 Pair (delay e1 env) (delay e2 env))
-evaluate e@(Pair e1 e2) env (Fst s) =
-  typeProd e (liftM2 Pair (evaluate e1 env s) (delay e2 env))
-evaluate e@(Pair e1 e2) env (Snd s) =
-  typeProd e (liftM2 Pair (delay e1 env) (evaluate e2 env s))
-evaluate e@(Inl e') env Root    = typeSum e (fmap Inl (delay e' env))
-evaluate e@(Inl e') env (Unl s) = typeSum e (fmap Inl (evaluate e' env s))
-evaluate   (Inl _)  _   (Unr _) = reject
-evaluate e@(Inr e') env Root    = typeSum e (fmap Inr (delay e' env))
-evaluate e@(Inr e') env (Unr s) = typeSum e (fmap Inr (evaluate e' env s))
-evaluate   (Inr _)  _   (Unl _) = reject
+evaluate (Pair e1 e2) env Root    = liftM2 Pair (delay e1 env) (delay e2 env)
+evaluate (Pair e1 e2) env (Fst s) = liftM2 Pair (evaluate e1 env s)
+                                                (delay e2 env)
+evaluate (Pair e1 e2) env (Snd s) = liftM2 Pair (delay e1 env)
+                                                (evaluate e2 env s)
+evaluate (Inl e')     env Root    = fmap Inl (delay e' env)
+evaluate (Inl e')     env (Unl s) = fmap Inl (evaluate e' env s)
+evaluate (Inl _)      _   (Unr _) = reject
+evaluate (Inr e')     env Root    = fmap Inr (delay e' env)
+evaluate (Inr e')     env (Unr s) = fmap Inr (evaluate e' env s)
+evaluate (Inr _)      _   (Unl _) = reject
 evaluate (Closure e' env') env Root =
   return (uncurry Closure (close e' env' env))
 
 ------- Main disintegrator
 
-disintegrate :: (Delay env b u, Type t, Type to) => Expr b u (Measure t) ->
+disintegrate :: (Delay env b u) => Expr b u (Measure t) ->
                 env -> Selector to t -> Expr Void Loc to -> M (Expr Void Loc t)
 disintegrate e env s t
   | traceShow (prettyFun False "disintegrate"
@@ -685,7 +646,7 @@ disintegrate (Dirac e) env s t = propagate e env s t
 disintegrate (Closure e' env') env s t =
   uncurry disintegrate (close e' env' env) s t
 
-propagate :: (Delay env b u, Type t, Type to) => Expr b u t ->
+propagate :: (Delay env b u) => Expr b u t ->
              env -> Selector to t -> Expr Void Loc to -> M (Expr Void Loc t)
 propagate e env s t
   | traceShow (prettyFun False "propagate"
@@ -693,6 +654,8 @@ propagate e env s t
               False = undefined
 propagate (Op0 Lebesgue) _ _ _ = mempty
 propagate (Op0 Pi) _ _ _ = mempty
+propagate (Op0 Infinity) _ _ _ = mempty
+propagate (Op0 NegativeInfinity) _ _ _ = mempty
 propagate (Op0 Unit) _ _ _ = return (Op0 Unit)
 propagate (Op1 Exp e) env Root t = do
   insert (condLess 0 (ex t) . weight (recip (unsafeProbFraction dict (ex t))))
@@ -711,16 +674,14 @@ propagate (Op1 UnsafeProb e) env Root t =
 propagate (Op1 FromProb e) env Root t = do
   insert (condLess 0 (ex t))
   fmap (Op1 FromProb) (propagate e env Root (Op1 UnsafeProb t))
+propagate (Op1 FromInt _) _ Root _ = mempty
 propagate (Op2 Add e1 e2) env Root t = mappend (go e1 e2) (go e2 e1)
   where go e e' = do x1 <- evaluate e env Root
                      fmap (x1 +) (propagate e' env Root (t - x1))
-propagate (Op2 Mul e1 e2) env Root t = mappend (go e1 e2) (go e2 e1)
-  where go e e' = do x1 <- evaluate e env Root
-                     insert (Bind Nil (if' (Op2 Less 0 (ex x1))
-                                           (use (ex x1))
-                                           (use (-(ex x1)))))
-                     fmap (x1 *) (propagate e' env Root (t/x1))
-        use poz = Op1 Weight (recip (unsafeProbFraction dict poz))
+propagate (Op2 Mul e1 e2) env Root t = r e1 e2 env t where
+  PropagateMul r = numberCase propagateMulInt
+                              propagateMulFractions
+                              propagateMulFractions
 propagate (Op2 Less e1 e2) env Root t = do
   x1 <- evaluate e1 env Root
   x2 <- evaluate e2 env Root
@@ -729,7 +690,7 @@ propagate (Op2 Less e1 e2) env Root t = do
                           (Bind (UnaryR Nil) (Dirac (ex t)) ef)
              | et <- c (Inl (Op0 Unit)) h
              , ef <- c (Inr (Op0 Unit)) h ])
-propagate (LitReal _) _ Root _ = mempty
+propagate (Lit _) _ Root _ = mempty
 propagate (Var v) env s t = do
   let l = env ! v
   retrieval <- retrieve l
@@ -741,41 +702,55 @@ propagate (Var v) env s t = do
 propagate (Choice _) _ Root _ = mempty
 propagate (Bind _ _ _) _ Root _ = mempty
 propagate (Dirac _) _ Root _ = mempty
-propagate e@(Pair e1 e2) env Root t = typeProd e (do
+propagate (Pair e1 e2) env Root t = do
   l1 <- gensym
   l2 <- gensym
   insert (Bind (Branch (Leaf l1) (Leaf l2)) (Dirac (ex t)))
   liftM2 Pair (propagate e1 env Root (Var l1))
-              (propagate e2 env Root (Var l2)))
-propagate e@(Pair e1 e2) env (Fst s) t =
-  typeProd e (liftM2 Pair (propagate e1 env s t) (delay e2 env))
-propagate e@(Pair e1 e2) env (Snd s) t =
-  typeProd e (liftM2 Pair (delay e1 env) (propagate e2 env s t))
-propagate e@(Inl e') env Root t = typeSum e (do
+              (propagate e2 env Root (Var l2))
+propagate (Pair e1 e2) env (Fst s) t =
+  liftM2 Pair (propagate e1 env s t) (delay e2 env)
+propagate (Pair e1 e2) env (Snd s) t =
+  liftM2 Pair (delay e1 env) (propagate e2 env s t)
+propagate (Inl e) env Root t = do
   l <- gensym
   insert (Bind (UnaryL (Leaf l)) (Dirac (ex t)))
-  fmap Inl (propagate e' env Root (Var l)))
-propagate e@(Inl e') env (Unl s) t =
-  typeSum e (fmap Inl (propagate e' env s t))
+  fmap Inl (propagate e env Root (Var l))
+propagate (Inl e) env (Unl s) t =
+  fmap Inl (propagate e env s t)
 propagate (Inl _) _   (Unr _) _ = reject
-propagate e@(Inr e') env Root t = typeSum e (do
+propagate (Inr e) env Root t = do
   l <- gensym
   insert (Bind (UnaryR (Leaf l)) (Dirac (ex t)))
-  fmap Inr (propagate e' env Root (Var l)))
-propagate e@(Inr e') env (Unr s) t =
-  typeSum e (fmap Inr (propagate e' env s t))
+  fmap Inr (propagate e env Root (Var l))
+propagate (Inr e) env (Unr s) t =
+  fmap Inr (propagate e env s t)
 propagate (Inr _) _   (Unl _) _ = reject
 propagate (Closure _ _) _ Root _ = mempty
+
+newtype PropagateMul env b u t = PropagateMul
+  (Expr b u t -> Expr b u t -> env -> Expr Void Loc t -> M (Expr Void Loc t))
+propagateMulInt :: (Delay env b u) => PropagateMul env b u Int
+propagateMulInt = PropagateMul (\_ _ _ _ -> mempty) -- TODO
+propagateMulFractions :: (Delay env b u, Fraction t) => PropagateMul env b u t
+propagateMulFractions = PropagateMul f
+  where f e1 e2 env t = mappend (go e1 e2 env t) (go e2 e1 env t)
+        go e e' env t = do x1 <- evaluate e env Root
+                           insert (Bind Nil (if' (Op2 Less 0 (ex x1))
+                                                 (use (ex x1))
+                                                 (use (-(ex x1)))))
+                           fmap (x1 *) (propagate e' env Root (t/x1))
+        use poz = Op1 Weight (recip (unsafeProbFraction dict poz))
 
 ------- To finish off evaluation or disintegration, we need to turn residual
 ------- heap entries into bindings and closures into monadic expressions
 
-run :: (Type t) => M (Expr Void Loc t) -> [Expr Loc Loc (Measure t)]
+run :: M (Expr Void Loc t) -> [Expr Loc Loc (Measure t)]
 run = run' 1
 
-data Node = LHS Int | RHS (Binding Loc (Const ())) deriving (Eq, Ord)
+data Node = LHS Int | RHS Int deriving (Eq, Ord)
 
-run' :: (Type t) => Int -> M (Expr Void Loc t) -> [Expr Loc Loc (Measure t)]
+run' :: Int -> M (Expr Void Loc t) -> [Expr Loc Loc (Measure t)]
 run' l m = unM (do e <- m
                    traceHeap "Before determineHeap:"
                    determineHeap
@@ -789,10 +764,8 @@ run' l m = unM (do e <- m
                 (g,v,_) = graphFromEdges (concat
                   [ (Binding lhs e,
                      LHS n,
-                     foldMap' (\u -> [RHS (Binding u (Const ()))]) e)
-                  : foldMap' (\u -> [(undefined,
-                                      RHS (Binding u (Const ())),
-                                      [LHS n])])
+                     foldMap' (\(Const loc) -> [RHS loc]) e)
+                  : foldMap' (\(Const loc) -> [(undefined, RHS loc, [LHS n])])
                              lhs
                   | (n, Binding lhs (Forced e)) <- zip [0..] (bound h) ])
 
@@ -800,7 +773,7 @@ traceHeap :: String -> M ()
 traceHeap label = M (\c h -> traceShow (text label <+> pretty h) (c () h))
 
 data RetrievalThunk where
-  RetrievalThunk :: (Type t) => Tree Loc t ->
+  RetrievalThunk :: Tree Loc t ->
                     Expr Name Name (Measure t) -> Env -> RetrievalThunk
 
 retrieveThunk :: [Binding (Tree Loc) Thunk] ->
@@ -824,10 +797,10 @@ instance (Ord a, Bounded a) => Monoid (Max a) where
   mappend (Max a) (Max b) = Max (max a b)
   mconcat = Max . maximum . map getMax
 
-determineClosures :: (Type t) => Expr Loc Loc t -> Expr Loc Loc t
+determineClosures :: Expr Loc Loc t -> Expr Loc Loc t
 determineClosures = bimap' id id $ \e env ->
   let f (Const n') = Max n'
-      n = succ (max 0 (getMax (vars hideUse (f . (env !!)) e)))
+      n = succ (max 0 (getMax (vars hideUse (\u -> f (env !! u)) e)))
       -- TODO: is the list below really always singleton?
       [result] = run' n (determine e env Root)
   in result
@@ -839,43 +812,53 @@ newtype Unary   repr a = Unary   { unUnary   :: repr a -> repr a }
 newtype Binary  repr a = Binary  { unBinary  :: repr a -> repr a -> repr a }
 newtype Boolean repr a = Boolean { unBoolean :: repr a -> repr a -> repr Bool_ }
 
-nullary :: (Fraction a, Base repr) => ((Order repr a, Fractional (repr a)) =>
+nullary :: (Number   a, Base repr) => ((Order repr a, Num (repr a)) =>
            repr a) -> repr a
+unaryN  :: (Number   a, Base repr) => ((Order repr a, Num (repr a)) =>
+           repr a -> repr a) -> repr a -> repr a
 unary   :: (Fraction a, Base repr) => ((Order repr a, Fractional (repr a)) =>
            repr a -> repr a) -> repr a -> repr a
+binaryN :: (Number   a, Base repr) => ((Order repr a, Num (repr a)) =>
+           repr a -> repr a -> repr a) -> repr a -> repr a -> repr a
 binary  :: (Fraction a, Base repr) => ((Order repr a, Fractional (repr a)) =>
            repr a -> repr a -> repr a) -> repr a -> repr a -> repr a
-boolean :: (Fraction a, Base repr) => ((Order repr a, Fractional (repr a)) =>
+boolean :: (Number   a, Base repr) => ((Order repr a, Num (repr a)) =>
            repr a -> repr a -> repr Bool_) -> repr a -> repr a -> repr Bool_
 
-nullary x = unNullary (fractionRepr (Nullary x))
+nullary x = unNullary (numberRepr   (Nullary x))
+unaryN  x = unUnary   (numberRepr   (Unary   x))
 unary   x = unUnary   (fractionRepr (Unary   x))
+binaryN x = unBinary  (numberRepr   (Binary  x))
 binary  x = unBinary  (fractionRepr (Binary  x))
-boolean x = unBoolean (fractionRepr (Boolean x))
+boolean x = unBoolean (numberRepr   (Boolean x))
 
-toHakaru :: (Eq' u, Show' u, Mochastic repr, Type t') =>
-            Expr u u t' -> (forall t. Type t => u t -> repr t) -> repr t'
+toHakaru :: (Eq a, Show' (Const a), Mochastic repr) =>
+            Expr (Const a) (Const a) t' ->
+            (forall t. Const a t -> repr t) -> repr t'
 toHakaru (Op0 Lebesgue)            _   = lebesgue
 toHakaru (Op0 Pi)                  _   = piFraction dict
+toHakaru (Op0 Infinity)            _   = infinity
+toHakaru (Op0 NegativeInfinity)    _   = negativeInfinity
 toHakaru (Op0 Unit)                _   = unit
 toHakaru (Op1 Exp e)               env = expFraction dict (toHakaru e  env)
 toHakaru (Op1 Log e)               env = logFraction dict (toHakaru e  env)
-toHakaru (Op1 Neg e)               env = unary negate     (toHakaru e  env)
+toHakaru (Op1 Neg e)               env = unaryN negate    (toHakaru e  env)
 toHakaru (Op1 Inv e)               env = unary recip      (toHakaru e  env)
 toHakaru (Op1 Weight e)            env = factor           (toHakaru e  env)
 toHakaru (Op1 UnsafeProb e)        env = unsafeProb       (toHakaru e  env)
 toHakaru (Op1 FromProb e)          env = fromProb         (toHakaru e  env)
-toHakaru (Op2 Add e1 (Op1 Neg e2)) env = binary (-)       (toHakaru e1 env)
+toHakaru (Op1 FromInt e)           env = fromInt          (toHakaru e  env)
+toHakaru (Op2 Add e1 (Op1 Neg e2)) env = binaryN (-)      (toHakaru e1 env)
                                                           (toHakaru e2 env)
-toHakaru (Op2 Add e1 e2)  env          = binary (+)       (toHakaru e1 env)
+toHakaru (Op2 Add e1 e2)  env          = binaryN (+)      (toHakaru e1 env)
                                                           (toHakaru e2 env)
 toHakaru (Op2 Mul e1 (Op1 Inv e2)) env = binary (/)       (toHakaru e1 env)
                                                           (toHakaru e2 env)
-toHakaru (Op2 Mul e1 e2)           env = binary (*)       (toHakaru e1 env)
+toHakaru (Op2 Mul e1 e2)           env = binaryN (*)      (toHakaru e1 env)
                                                           (toHakaru e2 env)
 toHakaru (Op2 Less e1 e2)          env = boolean less     (toHakaru e1 env)
                                                           (toHakaru e2 env)
-toHakaru (LitReal x)               _   = nullary (fromRational x)
+toHakaru (Lit x)                   _   = nullary (fromInteger x)
 toHakaru (Var u)                   env = env u
 toHakaru (Choice es)               env = superpose [ (1, toHakaru e env)
                                                    | e <- es ]
@@ -885,25 +868,23 @@ toHakaru e@(Bind lhs rhs body)     env =
   if unique bindings
   then toHakaru body (\v -> fromMaybe (env v) (lookup bindings v))
   else error ("Duplicate variable in " ++ show' 0 e ""))
-toHakaru e@(Dirac e')              env = typeMeas e (dirac (toHakaru e' env))
-toHakaru e@(Pair e1 e2)            env = typeProd e (pair  (toHakaru e1 env)
-                                                           (toHakaru e2 env))
-toHakaru e@(Inl e')                env = typeSum  e (inl   (toHakaru e' env))
-toHakaru e@(Inr e')                env = typeSum  e (inr   (toHakaru e' env))
+toHakaru (Dirac e)                 env = dirac (toHakaru e  env)
+toHakaru (Pair e1 e2)              env = pair  (toHakaru e1 env)
+                                               (toHakaru e2 env)
+toHakaru (Inl e)                   env = inl   (toHakaru e  env)
+toHakaru (Inr e)                   env = inr   (toHakaru e  env)
 toHakaru (Closure e env) f             = toHakaru e (f . (env !!))
 
-matchHakaru :: (Type t, Mochastic repr) => Tree u t -> repr t ->
+matchHakaru :: (Mochastic repr) => Tree u t -> repr t ->
                ([Binding u repr] -> repr (Measure w)) -> repr (Measure w)
 matchHakaru (Branch t1 t2) x k =
-  typeProd x (unpair x (\x1 x2 ->
-              matchHakaru t1 x1 (\b1 ->
-              matchHakaru t2 x2 (\b2 -> k (b1 ++ b2)))))
+  unpair x (\x1 x2 ->
+  matchHakaru t1 x1 (\b1 ->
+  matchHakaru t2 x2 (\b2 -> k (b1 ++ b2))))
 matchHakaru (UnaryL t') x k =
-  typeSum x (uneither x (\x' -> matchHakaru t' x' k)
-                        (\_ -> superpose []))
+  uneither x (\x' -> matchHakaru t' x' k) (\_ -> superpose [])
 matchHakaru (UnaryR t') x k =
-  typeSum x (uneither x (\_ -> superpose [])
-                        (\x' -> matchHakaru t' x' k))
+  uneither x (\_ -> superpose []) (\x' -> matchHakaru t' x' k)
 matchHakaru Nil _ k = k []
 matchHakaru (Leaf u) x k = k [Binding u x]
 
@@ -912,7 +893,7 @@ matchHakaru (Leaf u) x k = k [Binding u x]
 newtype Disintegrate a = Disint
   (forall w. Cont (Int -> Expr Loc Loc (Measure w)) (Expr Loc Loc a))
 
-runDisintegrate :: (Type env, Type a, Type b, Mochastic repr) =>
+runDisintegrate :: (Mochastic repr) =>
                    (Disintegrate env -> Disintegrate (Measure (a, b))) ->
                    [repr env -> repr a -> repr (Measure b)]
 runDisintegrate m =
@@ -921,13 +902,14 @@ runDisintegrate m =
       nameOfLoc (Const i) = Const ('x' : show i)
       expr = bimap' nameOfLoc nameOfLoc Closure
         $ unDisint (m (Disint (return (Var env)))) (\w _ -> w) 1
-  in [ \e o -> liftM snd_ (toHakaru dis ([Binding env e, Binding observed o] !!))
+  in [ \e o -> liftM snd_
+                 (toHakaru dis ([Binding env e, Binding observed o] !!))
      | dis <- run (disintegrate expr
                                 [Binding (nameOfLoc env) env]
                                 (Fst Root)
                                 (Var observed)) ] } }
 
-density :: (Type env, Type a, Integrate repr, Lambda repr) =>
+density :: (Summate repr, Integrate repr, Lambda repr) =>
            (Disintegrate env -> Disintegrate (Measure a)) ->
            [repr (Expect' env) -> repr (Expect' a) -> repr Prob]
 density m = [ \e o -> expectation `app` e `app` o `app` lam (\_ -> 1)
@@ -939,22 +921,22 @@ unDisint :: Disintegrate a ->
                             -> Int -> Expr Loc Loc (Measure w)
 unDisint (Disint m) = runCont m
 
-insertDisint :: (Type t) => Disintegrate t
+insertDisint :: Disintegrate t
              -> (forall w. Expr Loc Loc t ->
                   (Expr Loc Loc a -> Int -> Expr Loc Loc (Measure w))
                                   -> Int -> Expr Loc Loc (Measure w))
              -> Disintegrate a
 insertDisint (Disint x) f = Disint (x >>= cont . f)
 
-resetDisint :: (Type t) => Disintegrate t -> Disintegrate t
+resetDisint :: Disintegrate t -> Disintegrate t
 resetDisint d = Disint (cont (\c i ->
   Bind (Leaf (Const i)) (unDisint d (\w _ -> Dirac w) i)
        (c (Var (Const i)) (succ i))))
 
-instance (Fraction t) => Order Disintegrate t where
+instance (Number t) => Order Disintegrate t where
   less (Disint x) (Disint y) = Disint (fmap (Op2 Less) x <*> y)
 
-instance (Fraction t) => Num (Disintegrate t) where
+instance (Number t) => Num (Disintegrate t) where
   Disint x + Disint y = Disint (fmap (+) x <*> y)
   Disint x * Disint y = Disint (fmap (*) x <*> y)
   negate (Disint x)   = Disint (fmap negate x)
@@ -994,9 +976,12 @@ instance Base Disintegrate where
   inr (Disint x)             = Disint (fmap Inr x)
   unsafeProb (Disint x)      = Disint (fmap (Op1 UnsafeProb) x)
   fromProb (Disint x)        = Disint (fmap (Op1 FromProb) x)
+  fromInt (Disint x)         = Disint (fmap (Op1 FromInt) x)
   pi_                        = Disint (return (Op0 Pi))
   exp_ (Disint x)            = Disint (fmap (Op1 Exp) x)
   log_ (Disint x)            = Disint (fmap (Op1 Log) x)
+  infinity                   = Disint (return (Op0 Infinity))
+  negativeInfinity           = Disint (return (Op0 NegativeInfinity))
   betaFunc                   = error "Disintegrate: betaFunc unimplemented"
   gammaFunc                  = error "Disintegrate: gammaFunc unimplemented"
 
@@ -1026,6 +1011,7 @@ instance Mochastic Disintegrate where
                       (i+1)))
       i))
   lebesgue = Disint (return (Op0 Lebesgue))
+  countInt = error "Disintegrate: countInt unimplemented"
   superpose pms = Disint (cont (\c i ->
     c (Choice
        [ Bind Nil

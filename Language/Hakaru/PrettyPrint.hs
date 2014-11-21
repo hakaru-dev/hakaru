@@ -98,11 +98,14 @@ instance Base PrettyPrint where
   uneither xy kx ky = apply3 "uneither" xy (fun1 kx) (fun1 ky)
   unsafeProb        = apply1 "unsafeProb"
   fromProb          = apply1 "fromProb"
+  fromInt           = apply1 "fromInt"
   pi_               = PP (\_ _ -> [text "pi_"])
   exp_              = apply1 "exp_"
   log_              = apply1 "log_"
   sqrt_             = apply1 "sqrt_"
   pow_              = apply2 "pow_"
+  infinity          = PP (\_ _ -> [text "infinity"])
+  negativeInfinity  = PP (\_ _ -> [text "negativeInfinity"])
   betaFunc          = apply2 "betaFunc"
   gammaFunc         = apply1 "gammaFunc"
   fix f             = apply1 "fix" (fun1 f)
@@ -113,17 +116,22 @@ instance Mochastic PrettyPrint where
                 $ adjustHead (sep (m xs 1) <+> text "`bind`" <+>)
                 $ k' xs 2)
   lebesgue      = PP (\_ _ -> [text "lebesgue"])
+  countInt      = PP (\_ _ -> [text "countInt"])
   superpose     = applyPairs "superpose"
   uniform       = apply2 "uniform"
   normal        = apply2 "normal"
   factor        = apply1 "factor"
   mix           = applyPairs "mix"
   categorical   = applyPairs "categorical"
+  poisson       = apply1 "poisson"
+  gamma         = apply2 "gamma"
+  invgamma      = apply2 "invgamma"
+
+instance Summate PrettyPrint where
+  summate a b f = apply3 "summate" a b (fun1 f)
 
 instance Integrate PrettyPrint where
-  integrate a b f  = apply3 "integrate" a b (fun1 f)
-  infinity         = PP (\_ _ -> [text "infinity"])
-  negativeInfinity = PP (\_ _ -> [text "negativeInfinity"])
+  integrate a b f = apply3 "integrate" a b (fun1 f)
 
 instance Lambda PrettyPrint where
   lam f         = let PP f' = fun1 f in

@@ -19,6 +19,7 @@ import qualified System.Random.MWC.Distributions as MWCD
 
 newtype Sample m a = Sample { unSample :: Sample' m a }
 type family Sample' (m :: * -> *) (a :: *)
+type instance Sample' m Int          = Int
 type instance Sample' m Real         = Double
 type instance Sample' m Prob         = LF.LogFloat
 type instance Sample' m ()           = ()
@@ -45,6 +46,13 @@ deriving instance Ord        (Sample m Prob)
 deriving instance Num        (Sample m Prob)
 deriving instance Fractional (Sample m Prob)
 
+instance Order (Sample m) Int where
+  less (Sample a) (Sample b) = Sample ((if a < b then Left else Right) ())
+
+deriving instance Eq         (Sample m Int)
+deriving instance Ord        (Sample m Int)
+deriving instance Num        (Sample m Int)
+
 instance Base (Sample m) where
   unit                            = Sample ()
   pair (Sample a) (Sample b)      = Sample (a,b)
@@ -55,8 +63,11 @@ instance Base (Sample m) where
   uneither (Sample (Right b)) _ k = k (Sample b)
   unsafeProb (Sample x)           = Sample (LF.logFloat x)
   fromProb (Sample x)             = Sample (LF.fromLogFloat x)
+  fromInt (Sample x)              = Sample (fromIntegral x)
   exp_ (Sample x)                 = Sample (LF.logToLogFloat x)
   log_ (Sample x)                 = Sample (LF.logFromLogFloat x)
+  infinity                        = Sample LF.infinity
+  negativeInfinity                = Sample LF.negativeInfinity
   betaFunc (Sample a) (Sample b)  = Sample (LF.logToLogFloat (logBeta a b))
   gammaFunc (Sample n)            = Sample (LF.logToLogFloat (logGamma n))
 
@@ -73,6 +84,7 @@ instance (PrimMonad m) => Mochastic (Sample m) where
     let l = log u
         n = negate l
     return (Just (if b then n else l, p * 2 * LF.logToLogFloat n)))
+  -- TODO: implement countInt in terms of geometric or something
   superpose [] = Sample (\_ _ -> return Nothing)
   superpose [(Sample q, Sample m)] = Sample (\p g -> (m $! p * q) g)
   superpose pms@((_, Sample m) : _) = Sample (\p g -> do
@@ -97,6 +109,7 @@ instance (PrimMonad m) => Mochastic (Sample m) where
       case [ m | (v,(_,m)) <- zip (scanl1 (+) ys) pms, u <= v ]
         of Sample m : _ -> (m $! p) g
            []           -> (m $! p) g)
+  -- TODO: override poisson, gamma, invgamma to sample more efficiently
 
 instance Integrate (Sample m) where -- just for kicks -- imprecise
   integrate (Sample lo) (Sample hi)
@@ -112,8 +125,6 @@ instance Integrate (Sample m) where -- just for kicks -- imprecise
     = error ("Cannot integrate from " ++ show lo ++ " to " ++ show hi)
     where int method f = Sample $ LF.logFloat $ TS.result $ last
                        $ method $ LF.fromLogFloat . unSample . f . Sample
-  infinity         = Sample LF.infinity
-  negativeInfinity = Sample LF.negativeInfinity
 
 instance Lambda (Sample m) where
   lam f = Sample (unSample . f . Sample)
