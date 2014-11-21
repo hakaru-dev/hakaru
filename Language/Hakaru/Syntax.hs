@@ -145,11 +145,6 @@ min_, max_ :: (Order repr a, Base repr) => repr a -> repr a -> repr a
 min_ x y = if_ (less x y) x y
 max_ x y = if_ (less x y) y x
 
-fact :: Base repr => repr Int -> repr Int
-fact n = if_ (less 0 n)
-         1
-         n*(fact (n -1))
-
 class (Base repr) => Mochastic repr where
   dirac         :: repr a -> repr (Measure a)
   bind          :: repr (Measure a) ->
@@ -182,7 +177,7 @@ class (Base repr) => Mochastic repr where
   poisson l     =  countInt `bind` \x ->
                    if_ (and_ [less 0 x, less 0 l])
                        (superpose [((pow_ l (fromInt x)) /
-                                    (unsafeProb (fromInt (fact x))) *
+                                    (gammaFunc (fromInt x)) *
                                     (exp_ (- (fromInt x))), dirac x)])
                        (superpose [])
 
