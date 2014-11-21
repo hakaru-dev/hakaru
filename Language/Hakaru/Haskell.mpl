@@ -68,10 +68,8 @@ d[_Inert_POWER] := proc(a1,a2)
   parens(proc() p(a1); b:-append(" ^ "); p(a2) end);
 end;
 
-
 # this is the table of known internal functions
 bi["Bind_"] := proc(a1, a2) p(a1); b:-append(" `bind_` "); p(a2) end;
-bi["Factor"] := ufunc("factor");
 bi["Return"] := ufunc("dirac");
 bi["Unit"] := proc() b:-append("unit") end;
 bi["Uniform"] := bfunc("uniform ");
@@ -89,14 +87,34 @@ bi["Bind"] := proc(meas, rng, rest)
   end if;
   p(rest);
 end;
+
+bi["Superpose"] := proc() b:-append("superpose"); sp(); 
+  lbrack(); seqp([_passed]); rbrack();
+end;
+
+bi["WM"] := proc(w, m)
+  b:-append("("); p(w); b:-append(","); p(m); b:-append(")");
+end;
+
 # utility routines:
 # =================
 
 # printing
   sp := proc() b:-append(" ") end;
+  lbrack := proc() b:-append("[") end;
+  rbrack := proc() b:-append("]") end;
   parens := proc(c) b:-append("("); c(); b:-append(")") end;
   ufunc := proc(f) proc(c) parens(proc() b:-append(f); sp(); p(c) end) end; end;
   bfunc := f -> ((x,y) -> parens(proc() b:-append(f); sp(); p(x); sp(); p(y); end));
+  seqp := proc(l) 
+    if nops(l)=0 then error "empty sequence passed where non-empty expected";
+    elif nops(l)=1 then p(l[1]) 
+    else
+      p(l[1]);
+      p(", ");
+      seqp(l[2..-1]);
+    end if;
+  end proc;
 
 # resolve name
   resolve := proc(inrt)
