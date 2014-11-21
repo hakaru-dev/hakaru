@@ -150,9 +150,9 @@ instance Lambda Maple where
 -- but this is a start.
 ourContext :: MonadInterpreter m => m ()
 ourContext = do
-  let modules = ["Language.Hakaru.Syntax", "Language.Hakaru.Maple"]
+  let modules = ["Language.Hakaru.RoundTrip"]
   loadModules modules
-  setImports ("Prelude" : modules)
+  setImports (modules)
 
 -- This is silly, as all we can read back in right now are fractions.
 -- But at least this much works!
@@ -204,10 +204,10 @@ roundTrip e = do
       getArg = undefined
   hakaru <- roundTrip' 0 (getArg e) (runMaple (unExpect e) 0) (\slo -> do
     putStrLn ("To Maple: " ++ slo)
-    return "(factor (1 / 2)) `bind_` (dirac unit)" `asTypeOf`
-      -- this WILL NOT WORK because 'maple' will not have the right libraries
-      -- loaded.  This should be fixed in MapleSSH, not here.
-      maple ("Haskell(SLO:-AST(SLO(" ++ slo ++ ")));"))
+    hopeString <- maple ("Haskell(SLO:-AST(SLO(" ++ slo ++ ")));")
+    case (hopeString, last hopeString) of
+      ('"':s, '"') -> return (init s)
+      _ -> error ("roundTrip: " ++ hopeString))
   putStrLn ("From Maple: " ++ hakaru)
   let cl s = runInterpreter (ourContext >> interpret s undefined)
   result <- cl ("Any (" ++ hakaru ++ ")")
