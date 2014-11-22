@@ -193,8 +193,8 @@ class (Base repr) => Mochastic repr where
                     dirac (unsafeProb x))])
         (superpose [])
 
-  invgamma      :: repr Prob -> repr Prob -> repr (Measure Prob)
-  invgamma k t  =  liftM recip (gamma k (recip t))
+invgamma      :: repr Prob -> repr Prob -> repr (Measure Prob)
+invgamma k t  =  liftM recip (gamma k (recip t))
 
 errorEmpty :: a
 errorEmpty = error "empty mixture makes no sense"
