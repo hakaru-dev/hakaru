@@ -6,7 +6,7 @@
 Haskell := module ()
   export ModuleApply;
   local b, p, d, bi,
-      parens, resolve, sp, ufunc, bfunc;
+      parens, resolve, sp, ufunc, bfunc, lbrack, rbrack, seqp;
   uses StringTools;
 
   # this is to make things more efficient.  Note that it makes
@@ -61,8 +61,9 @@ d[_Inert_NAME] := proc(a1)
     b:-append(a1);
   end if;
 end proc;
-d[_Inert_PROD] := proc(a1,a2)
-  parens(proc() p(a1); b:-append(" * "); p(a2) end);
+# PROD is n-ary
+d[_Inert_PROD] := proc()
+  lparen(); seqp(" * ", [_passed]); rparen();
 end;
 d[_Inert_POWER] := proc(a1,a2)
   parens(proc() p(a1); b:-append(" ^ "); p(a2) end);
@@ -89,7 +90,7 @@ bi["Bind"] := proc(meas, rng, rest)
 end;
 
 bi["Superpose"] := proc() b:-append("superpose"); sp(); 
-  lbrack(); seqp([_passed]); rbrack();
+  lbrack(); seqp(", ", [_passed]); rbrack();
 end;
 
 bi["WM"] := proc(w, m)
@@ -103,16 +104,18 @@ end;
   sp := proc() b:-append(" ") end;
   lbrack := proc() b:-append("[") end;
   rbrack := proc() b:-append("]") end;
+  lparen := proc() b:-append("(") end;
+  rparen := proc() b:-append(")") end;
   parens := proc(c) b:-append("("); c(); b:-append(")") end;
   ufunc := proc(f) proc(c) parens(proc() b:-append(f); sp(); p(c) end) end; end;
   bfunc := f -> ((x,y) -> parens(proc() b:-append(f); sp(); p(x); sp(); p(y); end));
-  seqp := proc(l) 
+  seqp := proc(s, l) 
     if nops(l)=0 then error "empty sequence passed where non-empty expected";
     elif nops(l)=1 then p(l[1]) 
     else
       p(l[1]);
-      p(", ");
-      seqp(l[2..-1]);
+      b:-append(s);
+      seqp(s, l[2..-1]);
     end if;
   end proc;
 
@@ -120,12 +123,12 @@ end;
   resolve := proc(inrt)
     local s, nm;
     nm := eval(inrt, _Inert_ATTRIBUTE=NULL); # crude but effective
-    if typematch(nm, specfunc('s'::string, '_Inert_NAME')) then
+    if typematch(nm, specfunc('s'::'string', '_Inert_NAME')) then
       s
-    elif typematch(nm, specfunc('s'::string, string, '_Inert_ASSIGNEDNAME')) then
-      s
+    elif type(nm, specfunc('string', '_Inert_ASSIGNEDNAME')) then
+      op(1,nm)
     else
-      error "cannot resolve an %1", op(0,inrt);
+      error "cannot resolve an %1, namely %2", op(0,nm), nm;
     end if;
   end proc;
 end module:
