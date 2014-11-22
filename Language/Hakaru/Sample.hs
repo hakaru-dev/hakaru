@@ -82,12 +82,15 @@ instance (PrimMonad m) => Mochastic (Sample m) where
   lebesgue = Sample (\p g -> do
     (u,b) <- MWC.uniform g
     let l = log u
-        n = negate l
+        n = -l
     return (Just (if b then n else l, p * 2 * LF.logToLogFloat n)))
-  -- TODO: implement countInt in terms of geometric or something
   countInt = Sample (\p g -> do
-    x <- MWC.uniform g
-    return (Just (x, p)))
+    let success = LF.logToLogFloat (-14 :: Double)
+    let pow x y = LF.logToLogFloat (LF.logFromLogFloat x *
+                                    (fromIntegral y :: Double))
+    u <- MWCD.geometric0 (LF.fromLogFloat success) g
+    b <- MWC.uniform g
+    return (Just (if b then -1-u else u, p * 2 / pow (1-success) u / success)))
   superpose [] = Sample (\_ _ -> return Nothing)
   superpose [(Sample q, Sample m)] = Sample (\p g -> (m $! p * q) g)
   superpose pms@((_, Sample m) : _) = Sample (\p g -> do
