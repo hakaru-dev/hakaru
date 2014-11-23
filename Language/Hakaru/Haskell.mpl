@@ -72,6 +72,8 @@ end;
 # this is the table of known internal functions
 bi["Bind_"] := proc(a1, a2) p(a1); b:-append(" `bind_` "); p(a2) end;
 bi["Return"] := ufunc("dirac");
+bi["Factor"] := ufunc("factor");
+bi["UnsafeProb"] := ufunc("unsafeProb");
 bi["Unit"] := proc() b:-append("unit") end;
 bi["Uniform"] := bfunc("uniform ");
 bi["Lebesgue"] := proc() b:-append("lebesgue") end;

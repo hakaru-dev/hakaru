@@ -9,7 +9,7 @@
 
 SLO := module ()
   export ModuleApply, AST, simp, c; # very important: this c is "global".
-  local ToAST, t_binds, t_pw, into_pw, myprod;
+  local ToAST, t_binds, t_pw, into_pw, myprod, gensym, gs_counter;
 
   t_binds := 'specfunc(anything, {int, Int, sum, Sum})';
   t_pw := 'specfunc(anything, piecewise)';
@@ -43,7 +43,7 @@ SLO := module ()
   # recursive function which does the main translation
   ToAST := proc(e, ctx)
     local a0, a1, var, vars, rng, ee, cof, d, ld, weight, binders,
-      v, subst, ivars, ff;
+      v, subst, ivars, ff, newvar;
     if type(e, specfunc(name, c)) then
         return Return(op(e))
     # we might have recursively encountered a hidden 0
@@ -87,11 +87,14 @@ SLO := module ()
         if type(e, 'specfunc'(anything, {'int','Int'})) then
           var, rng := op(op(2,e));
           ee := op(1,e);
-          # recognize uniform
+          # recognize 'raw' uniform
           if ee = c(var) then
               weight := (op(2,rng)-op(1,rng));
-              `if`(weight=1, Uniform(op(rng)), Bind_(Factor(weight), Uniform(rng)))
+              newvar := gensym('yy');
+              rest := Bind(Uniform(op(rng)), newvar, Factor(UnsafeProb(newvar)));
+              `if`(weight=1, rest, Bind_(Factor(weight), rest));
           elif rng = -infinity..infinity then
+              # should recognize densities here
               Bind(Lebesgue, var,ToAST(ee, ctx))
           else
               Bind(Lebesgue, var=rng, ToAST(ee, ctx))
@@ -168,4 +171,7 @@ SLO := module ()
       a*b
     end if;
   end proc;
+
+  gs_counter := 0;
+  gensym := proc(x::name) gs_counter := gs_counter + 1; x || gs_counter; end proc;
 end;
