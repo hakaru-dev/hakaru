@@ -982,7 +982,6 @@ instance Base Disintegrate where
   log_ (Disint x)            = Disint (fmap (Op1 Log) x)
   infinity                   = Disint (return (Op0 Infinity))
   negativeInfinity           = Disint (return (Op0 NegativeInfinity))
-  betaFunc                   = error "Disintegrate: betaFunc unimplemented"
   gammaFunc                  = error "Disintegrate: gammaFunc unimplemented"
 
   unpair xy k = insertDisint xy (\e c i ->

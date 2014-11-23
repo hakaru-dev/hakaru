@@ -122,7 +122,6 @@ instance Base Maple where
   pow_ = mapleOp2 "^"
   infinity         = Maple (return  "infinity")
   negativeInfinity = Maple (return "-infinity")
-  betaFunc = mapleFun2 "Beta"
   gammaFunc = mapleFun1 "Gamma"
   fix = mapleFun1 "(proc (f) local x; x := f(x) end proc)" . lam
 

@@ -11,7 +11,7 @@ import Language.Hakaru.Syntax (Real, Prob, Measure, errorEmpty,
        Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..))
 import Language.Hakaru.Util.Extras (normalize)
 import Control.Monad.Primitive (PrimState, PrimMonad)
-import Numeric.SpecFunctions (logBeta, logGamma)
+import Numeric.SpecFunctions (logGamma)
 import qualified Data.Number.LogFloat as LF
 import qualified Numeric.Integration.TanhSinh as TS
 import qualified System.Random.MWC as MWC
@@ -68,7 +68,6 @@ instance Base (Sample m) where
   log_ (Sample x)                 = Sample (LF.logFromLogFloat x)
   infinity                        = Sample LF.infinity
   negativeInfinity                = Sample LF.negativeInfinity
-  betaFunc (Sample a) (Sample b)  = Sample (LF.logToLogFloat (logBeta a b))
   gammaFunc (Sample n)            = Sample (LF.logToLogFloat (logGamma n))
 
 instance (PrimMonad m) => Mochastic (Sample m) where
@@ -117,8 +116,8 @@ instance (PrimMonad m) => Mochastic (Sample m) where
            []           -> (m $! p) g)
   -- TODO: override poisson to sample more efficiently
   gamma (Sample shape) (Sample scale) = Sample (\p g -> do
-    x <- MWCD.gamma shape scale g
-    return (Just (x, p))
+    x <- MWCD.gamma (LF.fromLogFloat shape) (LF.fromLogFloat scale) g
+    return (Just (LF.logFloat x, p)))
 
 instance Integrate (Sample m) where -- just for kicks -- imprecise
   integrate (Sample lo) (Sample hi)

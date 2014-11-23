@@ -100,7 +100,6 @@ instance (Base repr) => Base (Expect repr) where
   pow_ (Expect x) (Expect y)     = Expect (pow_ x y)
   infinity                       = Expect infinity
   negativeInfinity               = Expect negativeInfinity
-  betaFunc (Expect a) (Expect b) = Expect (betaFunc a b)
   gammaFunc (Expect n)           = Expect (gammaFunc n)
   fix f                          = Expect (fix (unExpect . f . Expect))
 

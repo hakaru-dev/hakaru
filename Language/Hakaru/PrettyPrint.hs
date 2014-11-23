@@ -106,7 +106,6 @@ instance Base PrettyPrint where
   pow_              = apply2 "pow_"
   infinity          = PP (\_ _ -> [text "infinity"])
   negativeInfinity  = PP (\_ _ -> [text "negativeInfinity"])
-  betaFunc          = apply2 "betaFunc"
   gammaFunc         = apply1 "gammaFunc"
   fix f             = apply1 "fix" (fun1 f)
 
@@ -125,7 +124,6 @@ instance Mochastic PrettyPrint where
   categorical   = applyPairs "categorical"
   poisson       = apply1 "poisson"
   gamma         = apply2 "gamma"
-  invgamma      = apply2 "invgamma"
 
 instance Summate PrettyPrint where
   summate a b f = apply3 "summate" a b (fun1 f)

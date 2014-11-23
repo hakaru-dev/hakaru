@@ -41,7 +41,6 @@ instance Base THRepr where
   fromInt (THR e) = liftT 'fromInt [e]
   infinity = liftT 'infinity []
   negativeInfinity = liftT 'negativeInfinity []
-  betaFunc (THR e) (THR e') = liftT 'betaFunc [e, e']
   gammaFunc (THR e) = liftT 'gammaFunc [e]
   fix f = liftT 'fix [liftF f]
 
