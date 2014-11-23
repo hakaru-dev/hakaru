@@ -7,7 +7,7 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Bool_,
        errorEmpty,
        Order(..), Base(..), ununit, true, false, if_, fst_, snd_,
        and_, or_, not_, min_, max_,
-       Mochastic(..), bind_, liftM, liftM2, beta, bern,
+       Mochastic(..), bind_, liftM, liftM2, invgamma, beta, bern,
        Summate(..), Integrate(..), Lambda(..)) where
 
 import Prelude hiding (Real)
@@ -188,9 +188,6 @@ class (Base repr) => Mochastic repr where
                     dirac (unsafeProb x))])
         (superpose [])
 
-invgamma      :: Mochastic repr => repr Prob -> repr Prob -> repr (Measure Prob)
-invgamma k t  =  liftM recip (gamma k (recip t))
-
 errorEmpty :: a
 errorEmpty = error "empty mixture makes no sense"
 
@@ -205,6 +202,9 @@ liftM f m = m `bind` dirac . f
 liftM2 :: (Mochastic repr) => (repr a -> repr b -> repr c) ->
           repr (Measure a) -> repr (Measure b) -> repr (Measure c)
 liftM2 f m n = m `bind` \x -> n `bind` \y -> dirac (f x y)
+
+invgamma :: (Mochastic repr) => repr Prob -> repr Prob -> repr (Measure Prob)
+invgamma k t = liftM recip (gamma k (recip t))
 
 beta :: (Mochastic repr) => repr Prob -> repr Prob -> repr (Measure Prob)
 beta a b = gamma a 1 `bind` \x ->
