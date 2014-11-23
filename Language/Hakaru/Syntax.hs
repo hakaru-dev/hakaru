@@ -145,7 +145,7 @@ class (Base repr) => Mochastic repr where
   bind          :: repr (Measure a) ->
                    (repr a -> repr (Measure b)) -> repr (Measure b)
   lebesgue      :: repr (Measure Real)
-  countInt      :: repr (Measure Int)
+  counting      :: repr (Measure Int)
   superpose     :: [(repr Prob, repr (Measure a))] -> repr (Measure a)
 
   uniform       :: repr Real -> repr Real -> repr (Measure Real)
@@ -169,7 +169,7 @@ class (Base repr) => Mochastic repr where
   categorical l =  mix [ (p, dirac x) | (p,x) <- l ]
 
   poisson       :: repr Prob -> repr (Measure Int)
-  poisson l     =  countInt `bind` \x ->
+  poisson l     =  counting `bind` \x ->
                    if_ (and_ [not_ (less x 0), less 0 l])
                        (superpose [(pow_ l (fromInt x) /
                                     gammaFunc (fromInt x + 1) *

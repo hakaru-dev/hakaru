@@ -115,7 +115,7 @@ instance Mochastic PrettyPrint where
                 $ adjustHead (sep (m xs 1) <+> text "`bind`" <+>)
                 $ k' xs 2)
   lebesgue      = PP (\_ _ -> [text "lebesgue"])
-  countInt      = PP (\_ _ -> [text "countInt"])
+  counting      = PP (\_ _ -> [text "counting"])
   superpose     = applyPairs "superpose"
   uniform       = apply2 "uniform"
   normal        = apply2 "normal"
