@@ -99,6 +99,9 @@ bi["WM"] := proc(w, m)
   b:-append("("); p(w); b:-append(","); p(m); b:-append(")");
 end;
 
+# this is a hack, and will break once we go nested.
+bi["exp"] := ufunc("exp_");
+
 # utility routines:
 # =================
 
