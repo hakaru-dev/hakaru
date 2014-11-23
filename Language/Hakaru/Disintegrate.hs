@@ -250,6 +250,7 @@ unique env = and [ x /= y | Binding (Const x) _ : bs <- tails env
 
 data Op0 t where
   Lebesgue         :: Op0 (Measure Real)
+  Counting         :: Op0 (Measure Int)
   Pi               :: (Fraction t) => Op0 t
   Infinity         :: Op0 Real
   NegativeInfinity :: Op0 Real
@@ -568,6 +569,10 @@ determine (Op0 Lebesgue) _ Root = do
   l <- gensym
   insert (Bind (Leaf l) (Op0 Lebesgue))
   return (Var l)
+determine (Op0 Counting) _ Root = do
+  l <- gensym
+  insert (Bind (Leaf l) (Op0 Counting))
+  return (Var l)
 determine (Op1 Weight e) env Root = do
   x <- evaluate e env Root
   insert (weight (ex x))
@@ -632,6 +637,7 @@ disintegrate e env s t
                 (sep [pretty' 11 e, pretty env, pretty' 11 s, pretty' 11 t]))
               False = undefined
 disintegrate (Op0 Lebesgue) _ Root t = return t
+disintegrate (Op0 Counting) _ Root t = return t
 disintegrate e@(Op1 Weight _) env Root _ = determine e env Root
 disintegrate e@(Var _) env s t = do
   v <- evaluate e env Root
@@ -653,6 +659,7 @@ propagate e env s t
                 (sep [pretty' 11 e, pretty env, pretty' 11 s, pretty' 11 t]))
               False = undefined
 propagate (Op0 Lebesgue) _ _ _ = mempty
+propagate (Op0 Counting) _ _ _ = mempty
 propagate (Op0 Pi) _ _ _ = mempty
 propagate (Op0 Infinity) _ _ _ = mempty
 propagate (Op0 NegativeInfinity) _ _ _ = mempty
@@ -836,6 +843,7 @@ toHakaru :: (Eq a, Show' (Const a), Mochastic repr) =>
             Expr (Const a) (Const a) t' ->
             (forall t. Const a t -> repr t) -> repr t'
 toHakaru (Op0 Lebesgue)            _   = lebesgue
+toHakaru (Op0 Counting)            _   = counting
 toHakaru (Op0 Pi)                  _   = piFraction dict
 toHakaru (Op0 Infinity)            _   = infinity
 toHakaru (Op0 NegativeInfinity)    _   = negativeInfinity
@@ -1010,7 +1018,7 @@ instance Mochastic Disintegrate where
                       (i+1)))
       i))
   lebesgue = Disint (return (Op0 Lebesgue))
-  countInt = error "Disintegrate: countInt unimplemented"
+  counting = Disint (return (Op0 Counting))
   superpose pms = Disint (cont (\c i ->
     c (Choice
        [ Bind Nil
