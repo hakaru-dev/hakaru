@@ -271,6 +271,24 @@ t27 = map (\d -> lam (d unit)) $ runDisintegrate
     normal x 1 `bind` \y -> 
     dirac (pair y x))
 
+t28 :: Mochastic repr => repr (Measure Real)
+t28 = uniform 0 1
+
+t29 :: Mochastic repr => repr (Measure Real)
+t29 = uniform 0 1 `bind` \x -> dirac (exp x)
+
+t30 :: Mochastic repr => repr (Measure Prob)
+t30 = uniform 0 1 `bind` \x -> dirac (exp_ x)
+
+t31 :: Mochastic repr => repr (Measure Real)
+t31 = uniform (-1) 1
+
+t32 :: Mochastic repr => repr (Measure Real)
+t32 = uniform (-1) 1 `bind` \x -> dirac (exp x)
+
+t33 :: Mochastic repr => repr (Measure Prob)
+t33 = uniform (-1) 1 `bind` \x -> dirac (exp_ x)
+
 ------- Tests
 
 disintegrateTestRunner :: IO ()
@@ -371,6 +389,12 @@ main = do
   putStrLn $ testMaple t25 "t25"
   putStrLn $ testMaple t26 "t26"
   putStrLn $ concat $ map (\x -> testMaple x "t27") t27
+  putStrLn $ testMaple t28 "t28"
+  putStrLn $ testMaple t29 "t29"
+  putStrLn $ testMaple t30 "t30"
+  putStrLn $ testMaple t31 "t31"
+  putStrLn $ testMaple t32 "t32"
+  putStrLn $ testMaple t33 "t33"
   putStrLn $ testMaple expr1 "expr1"
   putStrLn $ testMaple expr2 "expr2"
   putStrLn $ testMaple expr4 "expr4"
