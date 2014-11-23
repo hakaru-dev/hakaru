@@ -289,6 +289,9 @@ t32 = uniform (-1) 1 `bind` \x -> dirac (exp x)
 t33 :: Mochastic repr => repr (Measure Prob)
 t33 = uniform (-1) 1 `bind` \x -> dirac (exp_ x)
 
+t34 :: Mochastic repr => repr (Measure Prob)
+t34 = dirac (if_ (less (2 `asTypeOf` log_ 1) 4) 3 5)
+
 ------- Tests
 
 disintegrateTestRunner :: IO ()
@@ -395,6 +398,7 @@ main = do
   putStrLn $ testMaple t31 "t31"
   putStrLn $ testMaple t32 "t32"
   putStrLn $ testMaple t33 "t33"
+  putStrLn $ testMaple t34 "t34"
   putStrLn $ testMaple expr1 "expr1"
   putStrLn $ testMaple expr2 "expr2"
   putStrLn $ testMaple expr4 "expr4"
