@@ -61,7 +61,7 @@ pair2'fst n k = beta 1 1 `bind` \bias ->
 pair2'snd :: (Mochastic repr) => Int -> Cont repr ([repr Bool_], repr Prob)
 pair2'snd = go 1 1 where
   go a b 0 k = beta a b `bind` \bias -> k ([],bias)
-  go a b n k = bern (unsafeProb (a/(a+b))) `bind` \c ->
+  go a b n k = bern (a/(a+b)) `bind` \c ->
                go (if_ c (a+1) a) (if_ c b (b+1)) (n-1) (\(cs,bias) ->
                k (c:cs,bias))
 
