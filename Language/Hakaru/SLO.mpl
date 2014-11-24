@@ -68,7 +68,7 @@ SLO := module ()
           cof := [coeffs(ee, ivars, 'v')]; # cof and v are lists
           if (d = 1) and (ld = 1) then
               # WM = Weight-Measure pair
-              ff := (x,y) -> WM(simplify(x), op(y));
+              ff := (x,y) -> WM(simplify(x), Return(op(y)));
               Superpose(op(zip(ff, cof, v)));
               # `if`(cof=1, rest, Bind_(Factor(simplify(cof)), rest))
           else
