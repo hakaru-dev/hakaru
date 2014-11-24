@@ -6,7 +6,8 @@
 Haskell := module ()
   export ModuleApply;
   local b, p, d, bi,
-      parens, resolve, sp, ufunc, bfunc, lbrack, rbrack, seqp;
+      parens, resolve, sp, ufunc, bfunc, lbrack, rbrack, seqp,
+      lparen, rparen;
   uses StringTools;
 
   # this is to make things more efficient.  Note that it makes
