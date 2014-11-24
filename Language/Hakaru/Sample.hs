@@ -10,6 +10,7 @@ import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure, errorEmpty,
        Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..))
 import Language.Hakaru.Util.Extras (normalize)
+import Language.Hakaru.Distribution (poisson_rng)
 import Control.Monad.Primitive (PrimState, PrimMonad)
 import Numeric.SpecFunctions (logGamma)
 import qualified Data.Number.LogFloat as LF
@@ -118,7 +119,10 @@ instance (PrimMonad m) => Mochastic (Sample m) where
   gamma (Sample shape) (Sample scale) = Sample (\p g -> do
     x <- MWCD.gamma (LF.fromLogFloat shape) (LF.fromLogFloat scale) g
     return (Just (LF.logFloat x, p)))
-
+  poisson (Sample l) = Sample (\ p g -> do
+    x <- poisson_rng (LF.fromLogFloat l) g
+    return (Just (x, p)))
+                               
 instance Integrate (Sample m) where -- just for kicks -- imprecise
   integrate (Sample lo) (Sample hi)
     | not (isInfinite lo) && not (isInfinite hi)
