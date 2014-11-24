@@ -7,7 +7,7 @@ import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure,
        Order(..), Base(..), ununit, and_, fst_, snd_, min_,
        Mochastic(..), bind_, beta, bern,
-       if_, true, Bool_,
+       if_, true, false, Bool_,
        Lambda(..), Summate(..), Integrate(..))
 import Language.Hakaru.Util.Pretty (Pretty (pretty), prettyPair)
 import Language.Hakaru.Expect (Expect(unExpect), Expect')
@@ -519,3 +519,31 @@ testKernel2 =
                  (\x4 -> 1)
                  (\x4 -> exp_(-1/50*(x3-x2)*(x3+x2)))) $ \x4 ->
  categorical [(x4, x3), (1 - x4, x2)]
+
+-- Jacques on 2014-11-18: "From an email of Oleg's, could someone please
+-- translate the following 3 programs into new Hakaru?"  The 3 programs below
+-- are equivalent.
+prog1s, prog2s, prog3s :: Mochastic repr => [repr Real -> repr (Measure Bool_)]
+prog1s = [ d unit
+         | d <- runDisintegrate $ \u ->
+                ununit u $
+                bern 0.5 `bind` \c ->
+                if_ c (normal 0 1)
+                      (uniform 10 20) `bind` \x ->
+                dirac (pair x c) ]
+prog2s = [ d unit
+         | d <- runDisintegrate $ \u ->
+                ununit u $
+                bern 0.5 `bind` \c ->
+                if_ c (normal 0 1)
+                      (dirac 10 `bind` \d ->
+                       uniform d 20) `bind` \x ->
+                dirac (pair x c) ]
+prog3s = [ d unit
+         | d <- runDisintegrate $ \u ->
+                ununit u $
+                bern 0.5 `bind` \c ->
+                if_ c (normal 0 1)
+                      (dirac false `bind` \e ->
+                       uniform (10 + if_ e 1 0) 20) `bind` \x ->
+                dirac (pair x c) ]
