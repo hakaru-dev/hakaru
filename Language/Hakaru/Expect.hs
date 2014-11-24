@@ -117,7 +117,7 @@ instance (Summate repr, Integrate repr, Lambda repr)
   bind (Expect m) k = Expect (lam (\c -> m `app` lam (\a ->
                       unExpect (k (Expect a)) `app` c)))
   lebesgue          = Expect (lam (integrate negativeInfinity infinity . app))
-  countInt          = Expect (lam (summate   negativeInfinity infinity . app))
+  counting          = Expect (lam (summate   negativeInfinity infinity . app))
   superpose pms     = Expect (lam (\c -> sum [ p * app m c
                                              | (Expect p, Expect m) <- pms ]))
   uniform (Expect lo) (Expect hi) = Expect (lam (\f ->

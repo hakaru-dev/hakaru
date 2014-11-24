@@ -83,8 +83,8 @@ instance (PrimMonad m) => Mochastic (Sample m) where
     let l = log u
         n = -l
     return (Just (if b then n else l, p * 2 * LF.logToLogFloat n)))
-  countInt = Sample (\p g -> do
-    let success = LF.logToLogFloat (-14 :: Double)
+  counting = Sample (\p g -> do
+    let success = LF.logToLogFloat (-3 :: Double)
     let pow x y = LF.logToLogFloat (LF.logFromLogFloat x *
                                     (fromIntegral y :: Double))
     u <- MWCD.geometric0 (LF.fromLogFloat success) g

@@ -30,7 +30,7 @@ envVars = do ssh    <- get "MAPLE_SSH"    defSSH
 maple :: String -> IO String
 maple x = do
     (ssh, user, server, mod) <- envVars
-    let commands = "module load -s " ++ mod ++ "; maple -q" -- quiet mode
+    let commands = "module load -s " ++ mod ++ "; maple -q -t" -- quiet mode
     (Just inH, Just outH, Nothing, p) <- createProcess (proc ssh ["-l" ++ user, server, commands])
                                          { std_in = CreatePipe, std_out = CreatePipe, close_fds = True }
     hPutStrLn inH $ x ++ ";"

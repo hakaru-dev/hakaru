@@ -10,7 +10,7 @@ import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Bool_, Measure, ggcast, Uneither(Uneither),
     Order(..), Base(..), Summate(..), Integrate(..), Lambda(..), Mochastic(..))
 import Data.Ratio
-import Data.Typeable (Typeable, Typeable1, gcast)
+import Data.Typeable (Typeable, Typeable1, typeOf, gcast)
 import Data.Maybe (fromMaybe)
 import Control.Monad (liftM2)
 import Control.Monad.Trans.Reader (ReaderT(ReaderT), runReaderT)
@@ -18,9 +18,10 @@ import Control.Monad.Trans.Cont (Cont, cont, runCont)
 
 import Language.Hakaru.PrettyPrint (runPrettyPrint) -- just for testing closeLoop
 import System.MapleSSH -- ditto
+import Text.Read (readEither)
 import Language.Hakaru.Expect (Expect(unExpect))
 
-import Language.Haskell.Interpreter
+import Language.Haskell.Interpreter hiding (typeOf)
 
 newtype Maple a = Maple { unMaple :: ReaderT Int (Cont String) String }
 
@@ -204,12 +205,13 @@ roundTrip e = do
   hakaru <- roundTrip' 0 (getArg e) (runMaple (unExpect e) 0) (\slo -> do
     putStrLn ("To Maple: " ++ slo)
     hopeString <- maple ("Haskell(SLO:-AST(SLO(" ++ slo ++ ")));")
-    case (hopeString, last hopeString) of
-      ('"':s, '"') -> return (init s)
-      _ -> error ("roundTrip: " ++ hopeString))
+    case readEither hopeString of
+      Right hakaru -> return hakaru
+      Left err -> error ("roundTrip: " ++ err ++ " for " ++ show hopeString))
   putStrLn ("From Maple: " ++ hakaru)
   let cl s = runInterpreter (ourContext >> interpret s undefined)
-  result <- cl ("Any (" ++ hakaru ++ ")")
+      typ = "" `asTypeOf` (" :: Any (" ++ show (typeOf (getArg e)) ++ ")")
+  result <- cl ("Any (" ++ hakaru ++ ")" ++ typ)
   case result of
     Left err -> error $ show err
     Right a -> return a

@@ -82,7 +82,7 @@ instance Mochastic THRepr where
   dirac (THR e) = liftT 'dirac [e]
   bind (THR e) f = liftT 'bind [e, liftF f]
   lebesgue = liftT 'lebesgue []
-  countInt = liftT 'countInt []
+  counting = liftT 'counting []
   superpose pms = liftT 'superpose [liftL [ varE '(,) `appE` e `appE` e'
                                           | (THR e, THR e') <- pms ]]
   uniform (THR e) (THR e') = liftT 'uniform [e, e']
@@ -94,7 +94,6 @@ instance Mochastic THRepr where
                                             | (THR e, THR e') <- l ]]
   poisson (THR e) = liftT 'poisson [e]
   gamma (THR e) (THR e') = liftT 'gamma [e, e']
-  invgamma (THR e) (THR e') = liftT 'invgamma [e, e']
 
 instance Lambda THRepr where
   lam f = liftT 'lam [liftF f]

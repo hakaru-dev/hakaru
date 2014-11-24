@@ -61,7 +61,7 @@ pair2'fst n k = beta 1 1 `bind` \bias ->
 pair2'snd :: (Mochastic repr) => Int -> Cont repr ([repr Bool_], repr Prob)
 pair2'snd = go 1 1 where
   go a b 0 k = beta a b `bind` \bias -> k ([],bias)
-  go a b n k = bern (unsafeProb (a/(a+b))) `bind` \c ->
+  go a b n k = bern (a/(a+b)) `bind` \c ->
                go (if_ c (a+1) a) (if_ c b (b+1)) (n-1) (\(cs,bias) ->
                k (c:cs,bias))
 
@@ -271,6 +271,27 @@ t27 = map (\d -> lam (d unit)) $ runDisintegrate
     normal x 1 `bind` \y -> 
     dirac (pair y x))
 
+t28 :: Mochastic repr => repr (Measure Real)
+t28 = uniform 0 1
+
+t29 :: Mochastic repr => repr (Measure Real)
+t29 = uniform 0 1 `bind` \x -> dirac (exp x)
+
+t30 :: Mochastic repr => repr (Measure Prob)
+t30 = uniform 0 1 `bind` \x -> dirac (exp_ x)
+
+t31 :: Mochastic repr => repr (Measure Real)
+t31 = uniform (-1) 1
+
+t32 :: Mochastic repr => repr (Measure Real)
+t32 = uniform (-1) 1 `bind` \x -> dirac (exp x)
+
+t33 :: Mochastic repr => repr (Measure Prob)
+t33 = uniform (-1) 1 `bind` \x -> dirac (exp_ x)
+
+t34 :: Mochastic repr => repr (Measure Prob)
+t34 = dirac (if_ (less (2 `asTypeOf` log_ 1) 4) 3 5)
+
 ------- Tests
 
 disintegrateTestRunner :: IO ()
@@ -371,6 +392,13 @@ main = do
   putStrLn $ testMaple t25 "t25"
   putStrLn $ testMaple t26 "t26"
   putStrLn $ concat $ map (\x -> testMaple x "t27") t27
+  putStrLn $ testMaple t28 "t28"
+  putStrLn $ testMaple t29 "t29"
+  putStrLn $ testMaple t30 "t30"
+  putStrLn $ testMaple t31 "t31"
+  putStrLn $ testMaple t32 "t32"
+  putStrLn $ testMaple t33 "t33"
+  putStrLn $ testMaple t34 "t34"
   putStrLn $ testMaple expr1 "expr1"
   putStrLn $ testMaple expr2 "expr2"
   putStrLn $ testMaple expr4 "expr4"
