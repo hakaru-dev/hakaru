@@ -25,7 +25,7 @@ import Language.Hakaru.Util.Pretty (Pretty (pretty),
 import Text.PrettyPrint (Doc, text, char, int, integer, comma, semi, brackets,
         parens, (<>), (<+>), nest, fsep, sep, punctuate, render)
 import Language.Hakaru.Syntax (Real, Prob, Measure, Bool_,
-        EqType(Refl), Number(..), Fraction(..),
+        EqType(Refl), Order_(..), Number(..), Fraction(..),
         Order(..), Base(..), Mochastic(..), liftM, snd_,
         Lambda(..), Summate(..), Integrate(..))
 import Language.Hakaru.Expect (Expect(unExpect), Expect')
@@ -271,6 +271,7 @@ data Op2 t1 t2 t where
   Add      :: (Number t) => Op2 t t t
   Mul      :: (Number t) => Op2 t t t
   Less     :: (Number t) => Op2 t t Bool_
+  Equal    :: (Number t) => Op2 t t Bool_
   BetaFunc :: Op2 Prob Prob Prob
 
 deriving instance Eq (Op0 t)
@@ -289,6 +290,7 @@ fixity :: Op2 t1 t2 t -> (Int, String, Ordering)
 fixity Add      = (6, "+", LT)
 fixity Mul      = (7, "*", LT)
 fixity Less     = (4, "<", EQ)
+fixity Equal    = (4, "=", EQ)
 fixity BetaFunc = (9, "`Beta`", EQ)
 
 data Dict t = Dict
@@ -392,7 +394,7 @@ stdRandom = Bind (Leaf u) (Op0 Lebesgue)
   where u :: Name Real
         u = Const "u"
 
-condLess :: (Fraction t) => Expr b u t -> Expr b u t ->
+condLess :: (Number t) => Expr b u t -> Expr b u t ->
             Expr b u (Measure t') -> Expr b u (Measure t')
 condLess e1 e2 = Bind (UnaryL Nil) (Dirac (Op2 Less e1 e2))
 
@@ -405,7 +407,7 @@ if' :: Expr b u Bool_ ->
 if' e et ee = Choice [ Bind (UnaryL Nil) (Dirac e) et
                      , Bind (UnaryR Nil) (Dirac e) ee ]
 
-max_ :: Expr b u Real -> Expr b u Real -> Expr b u (Measure Real)
+max_ :: (Number t) => Expr b u t -> Expr b u t -> Expr b u (Measure t)
 max_ e1 e2 = if' (Op2 Less e1 e2) (Dirac e2) (Dirac e1)
 
 instance (Number t) => Num (Expr b u t) where
@@ -693,14 +695,8 @@ propagate (Op2 Mul e1 e2) env Root t = r e1 e2 env t where
   PropagateMul r = numberCase propagateMulInt
                               propagateMulFractions
                               propagateMulFractions
-propagate (Op2 Less e1 e2) env Root t = do
-  x1 <- evaluate e1 env Root
-  x2 <- evaluate e2 env Root
-  let x = Op2 Less x1 x2
-  M (\c h -> [ if' (ex x) (Bind (UnaryL Nil) (Dirac (ex t)) et)
-                          (Bind (UnaryR Nil) (Dirac (ex t)) ef)
-             | et <- c (Inl (Op0 Unit)) h
-             , ef <- c (Inr (Op0 Unit)) h ])
+propagate e@(Op2 Less  _ _) env s t = propagateBool e env s t
+propagate e@(Op2 Equal _ _) env s t = propagateBool e env s t
 propagate (Op2 BetaFunc _ _) _ Root _ = mempty
 propagate (Lit _) _ Root _ = mempty
 propagate (Var v) env s t = do
@@ -739,6 +735,25 @@ propagate (Inr e) env (Unr s) t =
   fmap Inr (propagate e env s t)
 propagate (Inr _) _   (Unl _) _ = reject
 propagate (Closure _ _) _ Root _ = mempty
+
+propagateBool :: (Delay env b u) => Expr b u Bool_ ->
+                 env -> Selector to Bool_ -> Expr Void Loc to ->
+                 M (Expr Void Loc Bool_)
+propagateBool e env Root t = do
+  x <- evaluate e env Root
+  M (\c h -> let ets = c (Inl (Op0 Unit)) h
+                 efs = c (Inr (Op0 Unit)) h
+             in [ if' (ex x) (Bind (UnaryL Nil) (Dirac (ex t)) et)
+                             (Bind (UnaryR Nil) (Dirac (ex t)) ef)
+                | et <- ets, ef <- efs ])
+propagateBool e env (Unl Root) _ = do
+  x <- evaluate e env Root
+  insert (Bind (UnaryL Nil) (Dirac (ex x)))
+  return (Inl (Op0 Unit))
+propagateBool e env (Unr Root) _ = do
+  x <- evaluate e env Root
+  insert (Bind (UnaryR Nil) (Dirac (ex x)))
+  return (Inr (Op0 Unit))
 
 newtype PropagateMul env b u t = PropagateMul
   (Expr b u t -> Expr b u t -> env -> Expr Void Loc t -> M (Expr Void Loc t))
@@ -872,6 +887,8 @@ toHakaru (Op2 Mul e1 e2)           env = binaryN (*)      (toHakaru e1 env)
                                                           (toHakaru e2 env)
 toHakaru (Op2 Less e1 e2)          env = boolean less     (toHakaru e1 env)
                                                           (toHakaru e2 env)
+toHakaru (Op2 Equal e1 e2)         env = boolean equal    (toHakaru e1 env)
+                                                          (toHakaru e2 env)
 toHakaru (Op2 BetaFunc e1 e2)      env = betaFunc         (toHakaru e1 env)
                                                           (toHakaru e2 env)
 toHakaru (Lit x)                   _   = nullary (fromInteger x)
@@ -950,7 +967,8 @@ resetDisint d = Disint (cont (\c i ->
        (c (Var (Const i)) (succ i))))
 
 instance (Number t) => Order Disintegrate t where
-  less (Disint x) (Disint y) = Disint (fmap (Op2 Less) x <*> y)
+  less  (Disint x) (Disint y) = Disint (fmap (Op2 Less)  x <*> y)
+  equal (Disint x) (Disint y) = Disint (fmap (Op2 Equal) x <*> y)
 
 instance (Number t) => Num (Disintegrate t) where
   Disint x + Disint y = Disint (fmap (+) x <*> y)
