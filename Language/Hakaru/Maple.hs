@@ -123,7 +123,7 @@ instance Base Maple where
   pow_ = mapleOp2 "^"
   infinity         = Maple (return  "infinity")
   negativeInfinity = Maple (return "-infinity")
-  gammaFunc = mapleFun1 "Gamma"
+  gammaFunc = mapleFun1 "GAMMA"
   fix = mapleFun1 "(proc (f) local x; x := f(x) end proc)" . lam
 
 instance Summate Maple where
