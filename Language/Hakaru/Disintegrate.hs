@@ -265,11 +265,13 @@ data Op1 t1 t where
   UnsafeProb :: Op1 Real Prob
   FromProb   :: Op1 Prob Real
   FromInt    :: Op1 Int  Real
+  GammaFunc  :: Op1 Real Prob
 
 data Op2 t1 t2 t where
-  Add  :: (Number t) => Op2 t t t
-  Mul  :: (Number t) => Op2 t t t
-  Less :: (Number t) => Op2 t t Bool_
+  Add      :: (Number t) => Op2 t t t
+  Mul      :: (Number t) => Op2 t t t
+  Less     :: (Number t) => Op2 t t Bool_
+  BetaFunc :: Op2 Prob Prob Prob
 
 deriving instance Eq (Op0 t)
 deriving instance Eq (Op1 t1 t)
@@ -284,9 +286,10 @@ deriving instance Show (Op1 t1 t)
 deriving instance Show (Op2 t1 t2 t)
 
 fixity :: Op2 t1 t2 t -> (Int, String, Ordering)
-fixity Add  = (6, "+", LT)
-fixity Mul  = (7, "*", LT)
-fixity Less = (4, "<", EQ)
+fixity Add      = (6, "+", LT)
+fixity Mul      = (7, "*", LT)
+fixity Less     = (4, "<", EQ)
+fixity BetaFunc = (9, "`Beta`", EQ)
 
 data Dict t = Dict
   { unsafeProbFraction :: forall b u. Expr b u t -> Expr b u Prob
@@ -682,6 +685,7 @@ propagate (Op1 FromProb e) env Root t = do
   insert (condLess 0 (ex t))
   fmap (Op1 FromProb) (propagate e env Root (Op1 UnsafeProb t))
 propagate (Op1 FromInt _) _ Root _ = mempty
+propagate (Op1 GammaFunc _) _ Root _ = mempty
 propagate (Op2 Add e1 e2) env Root t = mappend (go e1 e2) (go e2 e1)
   where go e e' = do x1 <- evaluate e env Root
                      fmap (x1 +) (propagate e' env Root (t - x1))
@@ -697,6 +701,7 @@ propagate (Op2 Less e1 e2) env Root t = do
                           (Bind (UnaryR Nil) (Dirac (ex t)) ef)
              | et <- c (Inl (Op0 Unit)) h
              , ef <- c (Inr (Op0 Unit)) h ])
+propagate (Op2 BetaFunc _ _) _ Root _ = mempty
 propagate (Lit _) _ Root _ = mempty
 propagate (Var v) env s t = do
   let l = env ! v
@@ -856,6 +861,7 @@ toHakaru (Op1 Weight e)            env = factor           (toHakaru e  env)
 toHakaru (Op1 UnsafeProb e)        env = unsafeProb       (toHakaru e  env)
 toHakaru (Op1 FromProb e)          env = fromProb         (toHakaru e  env)
 toHakaru (Op1 FromInt e)           env = fromInt          (toHakaru e  env)
+toHakaru (Op1 GammaFunc e)         env = gammaFunc        (toHakaru e  env)
 toHakaru (Op2 Add e1 (Op1 Neg e2)) env = binaryN (-)      (toHakaru e1 env)
                                                           (toHakaru e2 env)
 toHakaru (Op2 Add e1 e2)  env          = binaryN (+)      (toHakaru e1 env)
@@ -865,6 +871,8 @@ toHakaru (Op2 Mul e1 (Op1 Inv e2)) env = binary (/)       (toHakaru e1 env)
 toHakaru (Op2 Mul e1 e2)           env = binaryN (*)      (toHakaru e1 env)
                                                           (toHakaru e2 env)
 toHakaru (Op2 Less e1 e2)          env = boolean less     (toHakaru e1 env)
+                                                          (toHakaru e2 env)
+toHakaru (Op2 BetaFunc e1 e2)      env = betaFunc         (toHakaru e1 env)
                                                           (toHakaru e2 env)
 toHakaru (Lit x)                   _   = nullary (fromInteger x)
 toHakaru (Var u)                   env = env u
@@ -978,19 +986,20 @@ instance Floating (Disintegrate Real) where
   atanh          = error "Disintegrate: atanh unimplemented"
 
 instance Base Disintegrate where
-  unit                       = Disint (return (Op0 Unit))
-  pair (Disint x) (Disint y) = Disint (fmap Pair x <*> y)
-  inl (Disint x)             = Disint (fmap Inl x)
-  inr (Disint x)             = Disint (fmap Inr x)
-  unsafeProb (Disint x)      = Disint (fmap (Op1 UnsafeProb) x)
-  fromProb (Disint x)        = Disint (fmap (Op1 FromProb) x)
-  fromInt (Disint x)         = Disint (fmap (Op1 FromInt) x)
-  pi_                        = Disint (return (Op0 Pi))
-  exp_ (Disint x)            = Disint (fmap (Op1 Exp) x)
-  log_ (Disint x)            = Disint (fmap (Op1 Log) x)
-  infinity                   = Disint (return (Op0 Infinity))
-  negativeInfinity           = Disint (return (Op0 NegativeInfinity))
-  gammaFunc                  = error "Disintegrate: gammaFunc unimplemented"
+  unit                           = Disint (return (Op0 Unit))
+  pair (Disint x) (Disint y)     = Disint (fmap Pair x <*> y)
+  inl (Disint x)                 = Disint (fmap Inl x)
+  inr (Disint x)                 = Disint (fmap Inr x)
+  unsafeProb (Disint x)          = Disint (fmap (Op1 UnsafeProb) x)
+  fromProb (Disint x)            = Disint (fmap (Op1 FromProb) x)
+  fromInt (Disint x)             = Disint (fmap (Op1 FromInt) x)
+  pi_                            = Disint (return (Op0 Pi))
+  exp_ (Disint x)                = Disint (fmap (Op1 Exp) x)
+  log_ (Disint x)                = Disint (fmap (Op1 Log) x)
+  infinity                       = Disint (return (Op0 Infinity))
+  negativeInfinity               = Disint (return (Op0 NegativeInfinity))
+  gammaFunc (Disint x)           = Disint (fmap (Op1 GammaFunc) x)
+  betaFunc (Disint a) (Disint b) = Disint (fmap (Op2 BetaFunc) a <*> b)
 
   unpair xy k = insertDisint xy (\e c i ->
     let x = Const i
