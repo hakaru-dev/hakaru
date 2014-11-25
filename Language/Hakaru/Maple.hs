@@ -6,8 +6,8 @@ module Language.Hakaru.Maple (Maple(..), runMaple, Any(..), closeLoop, roundTrip
 
 -- Maple printing interpretation
 
-import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Bool_, Measure, ggcast, Uneither(Uneither),
+import Language.Hakaru.Syntax (Bool_, Measure, Number(..),
+    ggcast, Uneither(Uneither),
     Order(..), Base(..), Summate(..), Integrate(..), Lambda(..), Mochastic(..))
 import Data.Ratio
 import Data.Typeable (Typeable, Typeable1, typeOf, gcast)
@@ -46,8 +46,9 @@ mapleBind :: (Maple a -> Maple b) -> Int -> (String, String)
 mapleBind f i = (x, runMaple (f (Maple (return x))) (i + 1))
   where x = "x" ++ show i
 
-instance Order Maple a where
-  less = mapleOp2 "<"
+instance (Number a) => Order Maple a where
+  less  = mapleOp2 "<"
+  equal = mapleOp2 "="
 
 instance Num (Maple a) where
   (+)              = mapleOp2 "+"

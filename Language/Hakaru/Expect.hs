@@ -57,7 +57,8 @@ typeExpectBoth _ k = Expect (typeExpect (undefined :: t1)
                             (typeExpect (undefined :: t2) k))
 
 instance (Order repr Real) => Order (Expect repr) Real where
-  less (Expect x) (Expect y) = Expect (less x y)
+  less  (Expect x) (Expect y) = Expect (less  x y)
+  equal (Expect x) (Expect y) = Expect (equal x y)
 
 deriving instance (Eq         (repr Real)) => Eq         (Expect repr Real)
 deriving instance (Ord        (repr Real)) => Ord        (Expect repr Real)
@@ -66,7 +67,8 @@ deriving instance (Fractional (repr Real)) => Fractional (Expect repr Real)
 deriving instance (Floating   (repr Real)) => Floating   (Expect repr Real)
 
 instance (Order repr Prob) => Order (Expect repr) Prob where
-  less (Expect x) (Expect y) = Expect (less x y)
+  less  (Expect x) (Expect y) = Expect (less  x y)
+  equal (Expect x) (Expect y) = Expect (equal x y)
 
 deriving instance (Eq         (repr Prob)) => Eq         (Expect repr Prob)
 deriving instance (Ord        (repr Prob)) => Ord        (Expect repr Prob)
@@ -74,7 +76,8 @@ deriving instance (Num        (repr Prob)) => Num        (Expect repr Prob)
 deriving instance (Fractional (repr Prob)) => Fractional (Expect repr Prob)
 
 instance (Order repr Int) => Order (Expect repr) Int where
-  less (Expect x) (Expect y) = Expect (less x y)
+  less  (Expect x) (Expect y) = Expect (less  x y)
+  equal (Expect x) (Expect y) = Expect (equal x y)
 
 deriving instance (Eq  (repr Int)) => Eq  (Expect repr Int)
 deriving instance (Ord (repr Int)) => Ord (Expect repr Int)

@@ -50,8 +50,9 @@ fun2 f = PP (\(x:x':xs) p ->
   let PP b = f (PP (\_ _ -> [text x])) (PP (\_ _ -> [text x'])) in
   parens (p > 10) (text ('\\' : x ++ ' ' : x' ++ " ->") : b xs 0))
 
-instance Order PrettyPrint a where
-  less = op 4 "`less`" 5 5
+instance (Number a) => Order PrettyPrint a where
+  less  = op 4 "`less`"  5 5
+  equal = op 4 "`equal`" 5 5
 
 instance Num (PrettyPrint a) where
   (+)           = op 6 "+" 6 7

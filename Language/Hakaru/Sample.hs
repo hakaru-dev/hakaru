@@ -7,7 +7,7 @@ module Language.Hakaru.Sample (Sample(..), Sample') where
 -- Importance sampling interpretation
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Real, Prob, Measure, errorEmpty,
+import Language.Hakaru.Syntax (Real, Prob, Bool_, Measure, errorEmpty,
        Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..))
 import Language.Hakaru.Util.Extras (normalize)
 import Language.Hakaru.Distribution (poisson_rng)
@@ -30,8 +30,13 @@ type instance Sample' m (Measure a)  = LF.LogFloat -> MWC.Gen (PrimState m) ->
                                        m (Maybe (Sample' m a, LF.LogFloat))
 type instance Sample' m (a -> b)     = Sample' m a -> Sample' m b
 
+bool_ :: Bool -> Sample m Bool_
+bool_ True  = Sample (Left  ())
+bool_ False = Sample (Right ())
+
 instance Order (Sample m) Real where
-  less (Sample a) (Sample b) = Sample ((if a < b then Left else Right) ())
+  less  (Sample a) (Sample b) = bool_ (a <  b)
+  equal (Sample a) (Sample b) = bool_ (a == b)
 
 deriving instance Eq         (Sample m Real)
 deriving instance Ord        (Sample m Real)
@@ -40,7 +45,8 @@ deriving instance Fractional (Sample m Real)
 deriving instance Floating   (Sample m Real)
 
 instance Order (Sample m) Prob where
-  less (Sample a) (Sample b) = Sample ((if a < b then Left else Right) ())
+  less  (Sample a) (Sample b) = bool_ (a <  b)
+  equal (Sample a) (Sample b) = bool_ (a == b)
 
 deriving instance Eq         (Sample m Prob)
 deriving instance Ord        (Sample m Prob)
@@ -48,7 +54,8 @@ deriving instance Num        (Sample m Prob)
 deriving instance Fractional (Sample m Prob)
 
 instance Order (Sample m) Int where
-  less (Sample a) (Sample b) = Sample ((if a < b then Left else Right) ())
+  less  (Sample a) (Sample b) = bool_ (a <  b)
+  equal (Sample a) (Sample b) = bool_ (a == b)
 
 deriving instance Eq         (Sample m Int)
 deriving instance Ord        (Sample m Int)

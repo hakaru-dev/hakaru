@@ -1,10 +1,10 @@
-{-# LANGUAGE TypeFamilies, Rank2Types #-}
+{-# LANGUAGE TypeFamilies, Rank2Types, FlexibleContexts #-}
 {-# OPTIONS -W #-}
 
 -- module Tests.Syntax where
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Real, Prob, Measure,
+import Language.Hakaru.Syntax (Real, Prob, Measure, Order_(..),
        Order(..), Base(..), ununit, and_, fst_, snd_, min_,
        Mochastic(..), bind_, beta, bern,
        if_, true, false, Bool_,
@@ -155,7 +155,7 @@ transitionTest :: MWC.GenIO -> IO (Maybe ((Bool_, Double), LF.LogFloat))
 transitionTest g = unSample (pair4transition (pair true 1)) 1 g
 
 mcmc :: (Mochastic repr, Summate repr, Integrate repr, Lambda repr,
-         a ~ Expect' a) =>
+         a ~ Expect' a, Order_ a) =>
         (forall repr'. (Mochastic repr') => repr' a -> repr' (Measure a)) ->
         (forall repr'. (Mochastic repr') => repr' (Measure a)) ->
         repr (a -> Measure a)

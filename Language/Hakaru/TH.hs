@@ -26,8 +26,9 @@ liftF2 f = do x <- newName "x"
               y <- newName "y"
               lamE [varP x, varP y] (unTHRepr (f (THR (varE x)) (THR (varE y))))
 
-instance Order THRepr a where
-  less (THR e) (THR e') = liftT 'less [e, e']
+instance (Number a) => Order THRepr a where
+  less  (THR e) (THR e') = liftT 'less  [e, e']
+  equal (THR e) (THR e') = liftT 'equal [e, e']
 
 instance Base THRepr where
   unit = liftT 'unit []

@@ -3,17 +3,18 @@
 {-# OPTIONS -Wall #-}
 
 module Language.Hakaru.Syntax (Real, Prob, Measure, Bool_,
-       EqType(Refl), Number(..), Fraction(..), ggcast, Uneither(Uneither),
+       EqType(Refl), Order_(..), Number(..), Fraction(..),
+       ggcast, Uneither(Uneither),
        errorEmpty,
        Order(..), Base(..), ununit, true, false, if_, fst_, snd_,
-       and_, or_, not_, min_, max_, Equal(..),
+       and_, or_, not_, min_, max_,
        Mochastic(..), bind_, liftM, liftM2, invgamma, beta, bern,
        Summate(..), Integrate(..), Lambda(..)) where
 
 import Prelude hiding (Real)
 import Data.Typeable (Typeable, gcast)
 
-infix  4 `less`, `equal`
+infix  4 `less`, `equal`, `less_`, `equal_`
 infixl 1 `bind`, `bind_`
 infixl 9 `app`
 
@@ -27,7 +28,39 @@ type Bool_ = Either () ()
 data EqType t t' where
   Refl :: EqType t t
 
-class (Typeable a) => Number a where
+class (Typeable a) => Order_ a where
+  less_, equal_  :: (Base repr              ) => repr a -> repr a -> repr Bool_
+  default less_  :: (Base repr, Order repr a) => repr a -> repr a -> repr Bool_
+  default equal_ :: (Base repr, Order repr a) => repr a -> repr a -> repr Bool_
+  less_  = less
+  equal_ = equal
+
+instance Order_ Int
+instance Order_ Real
+instance Order_ Prob
+
+instance Order_ () where
+  less_  _ _ = false
+  equal_ _ _ = true
+
+instance (Order_ a, Order_ b) => Order_ (a, b) where
+  less_  ab1 ab2 = unpair ab1 (\a1 b1 ->
+                   unpair ab2 (\a2 b2 ->
+                   or_ [less_ a1 a2, and_ [equal_ a1 a2, less_ b1 b2]]))
+  equal_ ab1 ab2 = unpair ab1 (\a1 b1 ->
+                   unpair ab2 (\a2 b2 ->
+                   and_ [equal_ a1 a2, equal_ b1 b2]))
+
+instance (Order_ a, Order_ b) => Order_ (Either a b) where
+  -- !!!Warning!!!  true `less_` false
+  less_  ab1 ab2 = uneither ab1
+                     (\a1 -> uneither ab2 (\a2 -> less_ a1 a2) (\_ -> true))
+                     (\b1 -> uneither ab2 (\_ -> false) (\b2 -> less_ b1 b2))
+  equal_ ab1 ab2 = uneither ab1
+                     (\a1 -> uneither ab2 (\a2 -> equal_ a1 a2) (\_ -> false))
+                     (\b1 -> uneither ab2 (\_ -> false) (\b2 -> equal_ b1 b2))
+
+class (Order_ a) => Number a where
   numberCase :: f Int -> f Real -> f Prob -> f a
   numberRepr :: (Base repr) =>
                 ((Order repr a, Num (repr a)) => f repr a) -> f repr a
@@ -68,8 +101,11 @@ newtype Uneither repr a b = Uneither (forall c.
 
 ------- Terms
 
-class Order repr a where
-  less :: repr a -> repr a -> repr Bool_
+class (Number a) => Order repr a where
+  less          ::                repr a -> repr a -> repr Bool_
+  equal         ::                repr a -> repr a -> repr Bool_
+  default equal :: (Base repr) => repr a -> repr a -> repr Bool_
+  equal a b = not_ (or_ [less a b, less b a])
 
 class (Order repr Int , Num        (repr Int ),
        Order repr Real, Floating   (repr Real),
@@ -138,29 +174,12 @@ or_ []      = false
 or_ [b]     = b
 or_ (b:bs)  = if_ b true (or_ bs)
 
-not_ :: Base repr => repr Bool_ -> repr Bool_
+not_ :: (Base repr) => repr Bool_ -> repr Bool_
 not_ a = if_ a false true
 
-min_, max_ :: (Order repr a, Base repr) => repr a -> repr a -> repr a
-min_ x y = if_ (less x y) x y
-max_ x y = if_ (less x y) y x
-
-class (Typeable a) => Equal a where
-  equal         :: (Base repr              ) => repr a -> repr a -> repr Bool_
-  default equal :: (Base repr, Order repr a) => repr a -> repr a -> repr Bool_
-  equal a b = not_ (or_ [less a b, less b a])
-
-instance Equal Int
-instance Equal Real
-instance Equal Prob
-instance Equal () where equal _ _ = true
-instance (Equal a, Equal b) => Equal (a, b) where
-  equal ab1 ab2 = unpair ab1 (\a1 b1 ->
-                  unpair ab2 (\a2 b2 -> and_ [equal a1 a2, equal b1 b2]))
-instance (Equal a, Equal b) => Equal (Either a b) where
-  equal ab1 ab2 = uneither ab1
-    (\a1 -> uneither ab2 (\a2 -> equal a1 a2) (\_ -> false))
-    (\b1 -> uneither ab2 (\_ -> false) (\b2 -> equal b1 b2))
+min_, max_ :: (Order_ a, Base repr) => repr a -> repr a -> repr a
+min_ x y = if_ (less_ x y) x y
+max_ x y = if_ (less_ x y) y x
 
 class (Base repr) => Mochastic repr where
   dirac         :: repr a -> repr (Measure a)
