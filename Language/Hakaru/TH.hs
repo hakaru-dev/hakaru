@@ -42,6 +42,7 @@ instance Base THRepr where
   infinity = liftT 'infinity []
   negativeInfinity = liftT 'negativeInfinity []
   gammaFunc (THR e) = liftT 'gammaFunc [e]
+  betaFunc (THR e) (THR e') = liftT 'betaFunc [e, e']
   fix f = liftT 'fix [liftF f]
 
 instance (Number a) => Num (THRepr a) where

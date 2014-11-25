@@ -101,6 +101,7 @@ instance (Base repr) => Base (Expect repr) where
   infinity                       = Expect infinity
   negativeInfinity               = Expect negativeInfinity
   gammaFunc (Expect n)           = Expect (gammaFunc n)
+  betaFunc (Expect a) (Expect b) = Expect (betaFunc a b)
   fix f                          = Expect (fix (unExpect . f . Expect))
 
 instance (Summate repr) => Summate (Expect repr) where

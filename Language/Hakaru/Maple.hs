@@ -124,6 +124,7 @@ instance Base Maple where
   infinity         = Maple (return  "infinity")
   negativeInfinity = Maple (return "-infinity")
   gammaFunc = mapleFun1 "GAMMA"
+  betaFunc = mapleFun2 "Beta"
   fix = mapleFun1 "(proc (f) local x; x := f(x) end proc)" . lam
 
 instance Summate Maple where

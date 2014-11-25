@@ -104,6 +104,11 @@ class (Order repr Int , Num        (repr Int ),
   gammaFunc t = integrate 0 infinity $ \x ->
     pow_ (unsafeProb x) (t-1) * exp_ (-x)
 
+  betaFunc         ::                     repr Prob -> repr Prob -> repr Prob
+  default betaFunc :: (Integrate repr) => repr Prob -> repr Prob -> repr Prob
+  betaFunc a b = integrate 0 1 $ \x -> pow_ (unsafeProb x    ) (fromProb a - 1)
+                                     * pow_ (unsafeProb (1-x)) (fromProb b - 1)
+
   fix :: (repr a -> repr a) -> repr a
   fix f = x where x = f x
 
@@ -207,9 +212,11 @@ invgamma :: (Mochastic repr) => repr Prob -> repr Prob -> repr (Measure Prob)
 invgamma k t = liftM recip (gamma k (recip t))
 
 beta :: (Mochastic repr) => repr Prob -> repr Prob -> repr (Measure Prob)
-beta a b = gamma a 1 `bind` \x ->
-           gamma b 1 `bind` \y ->
-           dirac (x / (x + y))
+beta a b = uniform 0 1 `bind` \x ->
+           superpose [( pow_ (unsafeProb x    ) (fromProb a - 1)
+                      * pow_ (unsafeProb (1-x)) (fromProb b - 1)
+                      / betaFunc a b
+                      , dirac (unsafeProb x) )]
 
 bern :: (Mochastic repr) => repr Prob -> repr (Measure Bool_)
 bern p = categorical [(p, true), (1-p, false)]

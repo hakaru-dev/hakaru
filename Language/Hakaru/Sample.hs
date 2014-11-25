@@ -12,7 +12,7 @@ import Language.Hakaru.Syntax (Real, Prob, Measure, errorEmpty,
 import Language.Hakaru.Util.Extras (normalize)
 import Language.Hakaru.Distribution (poisson_rng)
 import Control.Monad.Primitive (PrimState, PrimMonad)
-import Numeric.SpecFunctions (logGamma)
+import Numeric.SpecFunctions (logGamma, logBeta)
 import qualified Data.Number.LogFloat as LF
 import qualified Numeric.Integration.TanhSinh as TS
 import qualified System.Random.MWC as MWC
@@ -70,6 +70,8 @@ instance Base (Sample m) where
   infinity                        = Sample LF.infinity
   negativeInfinity                = Sample LF.negativeInfinity
   gammaFunc (Sample n)            = Sample (LF.logToLogFloat (logGamma n))
+  betaFunc (Sample a) (Sample b)  = Sample (LF.logToLogFloat (logBeta
+                                      (LF.fromLogFloat a) (LF.fromLogFloat b)))
 
 instance (PrimMonad m) => Mochastic (Sample m) where
   dirac (Sample a) = Sample (\p _ ->
@@ -115,14 +117,13 @@ instance (PrimMonad m) => Mochastic (Sample m) where
       case [ m | (v,(_,m)) <- zip (scanl1 (+) ys) pms, u <= v ]
         of Sample m : _ -> (m $! p) g
            []           -> (m $! p) g)
-  -- TODO: override poisson to sample more efficiently
   gamma (Sample shape) (Sample scale) = Sample (\p g -> do
     x <- MWCD.gamma (LF.fromLogFloat shape) (LF.fromLogFloat scale) g
     return (Just (LF.logFloat x, p)))
-  poisson (Sample l) = Sample (\ p g -> do
+  poisson (Sample l) = Sample (\p g -> do
     x <- poisson_rng (LF.fromLogFloat l) g
     return (Just (x, p)))
-                               
+
 instance Integrate (Sample m) where -- just for kicks -- imprecise
   integrate (Sample lo) (Sample hi)
     | not (isInfinite lo) && not (isInfinite hi)

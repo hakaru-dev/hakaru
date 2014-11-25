@@ -107,6 +107,7 @@ instance Base PrettyPrint where
   infinity          = PP (\_ _ -> [text "infinity"])
   negativeInfinity  = PP (\_ _ -> [text "negativeInfinity"])
   gammaFunc         = apply1 "gammaFunc"
+  betaFunc          = apply2 "betaFunc"
   fix f             = apply1 "fix" (fun1 f)
 
 instance Mochastic PrettyPrint where
