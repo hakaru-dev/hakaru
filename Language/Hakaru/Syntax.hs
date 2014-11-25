@@ -6,14 +6,14 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Bool_,
        EqType(Refl), Number(..), Fraction(..), ggcast, Uneither(Uneither),
        errorEmpty,
        Order(..), Base(..), ununit, true, false, if_, fst_, snd_,
-       and_, or_, not_, min_, max_,
+       and_, or_, not_, min_, max_, Equal(..),
        Mochastic(..), bind_, liftM, liftM2, invgamma, beta, bern,
        Summate(..), Integrate(..), Lambda(..)) where
 
 import Prelude hiding (Real)
 import Data.Typeable (Typeable, gcast)
 
-infix  4 `less`
+infix  4 `less`, `equal`
 infixl 1 `bind`, `bind_`
 infixl 9 `app`
 
@@ -144,6 +144,23 @@ not_ a = if_ a false true
 min_, max_ :: (Order repr a, Base repr) => repr a -> repr a -> repr a
 min_ x y = if_ (less x y) x y
 max_ x y = if_ (less x y) y x
+
+class (Typeable a) => Equal a where
+  equal         :: (Base repr              ) => repr a -> repr a -> repr Bool_
+  default equal :: (Base repr, Order repr a) => repr a -> repr a -> repr Bool_
+  equal a b = not_ (or_ [less a b, less b a])
+
+instance Equal Int
+instance Equal Real
+instance Equal Prob
+instance Equal () where equal _ _ = true
+instance (Equal a, Equal b) => Equal (a, b) where
+  equal ab1 ab2 = unpair ab1 (\a1 b1 ->
+                  unpair ab2 (\a2 b2 -> and_ [equal a1 a2, equal b1 b2]))
+instance (Equal a, Equal b) => Equal (Either a b) where
+  equal ab1 ab2 = uneither ab1
+    (\a1 -> uneither ab2 (\a2 -> equal a1 a2) (\_ -> false))
+    (\b1 -> uneither ab2 (\_ -> false) (\b2 -> equal b1 b2))
 
 class (Base repr) => Mochastic repr where
   dirac         :: repr a -> repr (Measure a)
