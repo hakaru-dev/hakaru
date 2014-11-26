@@ -136,8 +136,7 @@ poisson_rng lambda g' = make_poisson g'
 
 poisson :: Double -> Dist Int
 poisson l =
-    let poissonLogDensity l' x | l' > 0 && x> 0 = (fromIntegral x)*(log l') - lnFact x - l'
-        poissonLogDensity l' x | x==0 = -l'
+    let poissonLogDensity l' x | l' > 0 && x >= 0 = (fromIntegral x)*(log l') - lnFact x - l'
         poissonLogDensity _ _ = log 0
     in Dist {logDensity = poissonLogDensity l . fromDiscrete,
              distSample = (\g -> liftM Discrete $ poisson_rng l g)}
