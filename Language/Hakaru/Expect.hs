@@ -9,8 +9,7 @@ module Language.Hakaru.Expect (Expect(..), Expect', typeExpect) where
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure,
-       Order(..), Base(..), Mochastic(..),
-       Summate(..), Integrate(..), Lambda(..))
+       Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..))
 import Data.Typeable (Typeable, typeOf, TypeRep,
        typeRepTyCon, mkTyConApp, splitTyConApp, mkFunTy)
 import Unsafe.Coerce (unsafeCoerce)
@@ -107,15 +106,13 @@ instance (Base repr) => Base (Expect repr) where
   betaFunc (Expect a) (Expect b) = Expect (betaFunc a b)
   fix f                          = Expect (fix (unExpect . f . Expect))
 
-instance (Summate repr) => Summate (Expect repr) where
-  summate (Expect lo) (Expect hi) f =
-    Expect (summate lo hi (unExpect . f . Expect))
-
 instance (Integrate repr) => Integrate (Expect repr) where
   integrate (Expect lo) (Expect hi) f =
     Expect (integrate lo hi (unExpect . f . Expect))
+  summate (Expect lo) (Expect hi) f =
+    Expect (summate lo hi (unExpect . f . Expect))
 
-instance (Summate repr, Integrate repr, Lambda repr)
+instance (Integrate repr, Lambda repr)
       => Mochastic (Expect repr) where
   dirac (Expect a)  = Expect (lam (\c -> c `app` a))
   bind (Expect m) k = Expect (lam (\c -> m `app` lam (\a ->

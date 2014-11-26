@@ -6,9 +6,10 @@ module Language.Hakaru.Maple (Maple(..), runMaple, Any(..), closeLoop, roundTrip
 
 -- Maple printing interpretation
 
-import Language.Hakaru.Syntax (Bool_, Measure, Number(..),
+import Prelude hiding (Real)
+import Language.Hakaru.Syntax (Bool_, Real, Prob, Measure, Number(..),
     ggcast, Uneither(Uneither),
-    Order(..), Base(..), Summate(..), Integrate(..), Lambda(..), Mochastic(..))
+    Order(..), Base(..), Integrate(..), Lambda(..), Mochastic(..))
 import Data.Ratio
 import Data.Typeable (Typeable, Typeable1, typeOf, gcast)
 import Data.Maybe (fromMaybe)
@@ -128,17 +129,16 @@ instance Base Maple where
   betaFunc = mapleFun2 "Beta"
   fix = mapleFun1 "(proc (f) local x; x := f(x) end proc)" . lam
 
-instance Summate Maple where
-  summate (Maple lo) (Maple hi) f = Maple (lo >>= \lo' -> hi >>= \hi' ->
-    ReaderT $ \i -> return $
-    let (x, body) = mapleBind f i
-    in "sum(" ++ body ++ "," ++ x ++ "=" ++ lo' ++ ".." ++ hi' ++ ")")
-
 instance Integrate Maple where
-  integrate (Maple lo) (Maple hi) f = Maple (lo >>= \lo' -> hi >>= \hi' ->
-    ReaderT $ \i -> return $
-    let (x, body) = mapleBind f i
-    in "int(" ++ body ++ "," ++ x ++ "=" ++ lo' ++ ".." ++ hi' ++ ")")
+  integrate = quant "int"
+  summate   = quant "sum"
+
+quant :: String -> Maple Real -> Maple Real ->
+         (Maple a -> Maple Prob) -> Maple Prob
+quant q (Maple lo) (Maple hi) f = Maple (lo >>= \lo' -> hi >>= \hi' ->
+  ReaderT $ \i -> return $
+  let (x, body) = mapleBind f i
+  in q ++ "(" ++ body ++ "," ++ x ++ "=" ++ lo' ++ ".." ++ hi' ++ ")")
 
 instance Lambda Maple where
   lam f = Maple (ReaderT $ \i -> return $

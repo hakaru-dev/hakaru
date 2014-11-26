@@ -9,7 +9,7 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Bool_,
        Order(..), Base(..), ununit, true, false, if_, fst_, snd_,
        and_, or_, not_, min_, max_,
        Mochastic(..), bind_, liftM, liftM2, invgamma, beta, bern,
-       Summate(..), Integrate(..), Lambda(..)) where
+       Integrate(..), Lambda(..)) where
 
 import Prelude hiding (Real)
 import Data.Typeable (Typeable, gcast)
@@ -258,11 +258,9 @@ beta a b = uniform 0 1 `bind` \x ->
 bern :: (Mochastic repr) => repr Prob -> repr (Measure Bool_)
 bern p = categorical [(p, true), (1-p, false)]
 
-class (Base repr) => Summate repr where
-  summate :: repr Real -> repr Real -> (repr Int -> repr Prob) -> repr Prob
-
 class (Base repr) => Integrate repr where
   integrate :: repr Real -> repr Real -> (repr Real -> repr Prob) -> repr Prob
+  summate   :: repr Real -> repr Real -> (repr Int  -> repr Prob) -> repr Prob
 
 class Lambda repr where
   lam :: (repr a -> repr b) -> repr (a -> b)

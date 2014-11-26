@@ -127,11 +127,9 @@ instance Mochastic PrettyPrint where
   poisson       = apply1 "poisson"
   gamma         = apply2 "gamma"
 
-instance Summate PrettyPrint where
-  summate a b f = apply3 "summate" a b (fun1 f)
-
 instance Integrate PrettyPrint where
   integrate a b f = apply3 "integrate" a b (fun1 f)
+  summate   a b f = apply3 "summate"   a b (fun1 f)
 
 instance Lambda PrettyPrint where
   lam f         = let PP f' = fun1 f in

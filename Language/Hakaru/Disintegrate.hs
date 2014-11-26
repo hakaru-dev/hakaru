@@ -27,7 +27,7 @@ import Text.PrettyPrint (Doc, text, char, int, integer, comma, semi, brackets,
 import Language.Hakaru.Syntax (Real, Prob, Measure, Bool_,
         EqType(Refl), Order_(..), Number(..), Fraction(..),
         Order(..), Base(..), Mochastic(..), liftM, if_,
-        Lambda(..), Summate(..), Integrate(..))
+        Lambda(..), Integrate(..))
 import Language.Hakaru.Expect (Expect(unExpect), Expect')
 import Data.Typeable (Typeable)
 import Unsafe.Coerce (unsafeCoerce)
@@ -958,7 +958,7 @@ runDisintegrate m =
                                 (Fst Root)
                                 (Var aLoc)) ] } }
 
-density :: (Summate repr, Integrate repr, Lambda repr, Order_ a) =>
+density :: (Integrate repr, Lambda repr, Order_ a) =>
            (Disintegrate env -> Disintegrate (Measure a)) ->
            [repr (Expect' env) -> repr (Expect' a) -> repr Prob]
 density m = [ \e o -> expectation `app` e `app` o `app` lam (\_ -> 1)

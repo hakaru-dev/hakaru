@@ -131,7 +131,7 @@ instance (PrimMonad m) => Mochastic (Sample m) where
     x <- poisson_rng (LF.fromLogFloat l) g
     return (Just (x, p)))
 
-instance Integrate (Sample m) where -- just for kicks -- imprecise
+instance Integrate (Sample m) where -- just for kicks -- inaccurate
   integrate (Sample lo) (Sample hi)
     | not (isInfinite lo) && not (isInfinite hi)
     = int (\f -> TS.parTrap f lo hi)
@@ -145,6 +145,12 @@ instance Integrate (Sample m) where -- just for kicks -- imprecise
     = error ("Cannot integrate from " ++ show lo ++ " to " ++ show hi)
     where int method f = Sample $ LF.logFloat $ TS.result $ last
                        $ method $ LF.fromLogFloat . unSample . f . Sample
+  summate (Sample lo) (Sample hi) f = integrate (Sample lo') (Sample hi') f'
+    where lo' | isInfinite lo = lo
+              | otherwise     = fromInteger (ceiling lo)
+          hi' | isInfinite hi = hi
+              | otherwise     = fromInteger (floor hi + 1)
+          f' (Sample x) = f (Sample (fromInteger (floor x)))
 
 instance Lambda (Sample m) where
   lam f = Sample (unSample . f . Sample)
