@@ -91,7 +91,7 @@ instance Floating (PrettyPrint a) where
 instance Base PrettyPrint where
   unit              = PP (\_ _ -> [text "unit"])
   pair              = apply2 "pair"
-  unpair (PP xy) k  = let PP k' = fun2 k in PP (\xs p -> parens (p > 9)
+  unpair (PP xy) k  = let PP k' = fun2 k in PP (\xs p -> parens (p > 0)
                     $ adjustHead (sep (xy xs 9) <+> text "`unpair`" <+>)
                     $ k' xs 10)
   inl               = apply1 "inl"
@@ -113,7 +113,7 @@ instance Base PrettyPrint where
 
 instance Mochastic PrettyPrint where
   dirac         = apply1 "dirac"
-  bind (PP m) k = let PP k' = fun1 k in PP (\xs p -> parens (p > 1)
+  bind (PP m) k = let PP k' = fun1 k in PP (\xs p -> parens (p > 0)
                 $ adjustHead (sep (m xs 1) <+> text "`bind`" <+>)
                 $ k' xs 2)
   lebesgue      = PP (\_ _ -> [text "lebesgue"])
