@@ -46,13 +46,6 @@ t12 := (x0->(2*x0(Unit))):
 t13 := (x0->(x1->(x2->int((x2(x3)/(1-0)),x3=0..1))((x2->(x3->x3((x2<(3/5))))(x1))))((x1->piecewise(x1, x0(37), x0(42))))):
 t14 := (x0->(x1->(x2->int((x2(x3)/(1-0)),x3=0..1))((x2->(x3->x3((x2<(3/5))))(x1))))((x1->piecewise(x1, (x2->(x3->(x4->int((x4(x5)/(1-0)),x5=0..1))((x4->(x5->x5((x4<(3/5))))(x3))))((x3->(x4->piecewise(x3, x4(37), x4(42)))(x2))))(x0), (x2->(x3->(x4->int((x4(x5)/(1-0)),x5=0..1))((x4->(x5->x5((x4<(2/7))))(x3))))((x3->piecewise(x3, (x4->int((x4(x5)/(12-10)),x5=10..12))(x2), (x4->int((x4(x5)/(16-14)),x5=14..16))(x2)))))(x0))))):
 
-# Readback cases wanted for the forthcoming functional pearl on density
-# (it seems we want some hammer to float "piecewise"s outward and merge them)
-t15 := (x0->(x1->int(piecewise(((0/1)<(x0+(-exp((-x2))))),piecewise(((x0+(-exp((-x2))))<(1/1)),((1/1)*x1(Unit)),((0/1)*x1(Unit))),((0/1)*x1(Unit))),x2=0..1)))(t):
-t16 := (x0->(x1->int(piecewise(((0/1)<(x0+(-x2))),((1/(x0+(-x2)))*piecewise(((0/1)<(-log((x0+(-x2))))),piecewise(((-log((x0+(-x2))))<(1/1)),((1/1)*x1(Unit)),((0/1)*x1(Unit))),((0/1)*x1(Unit)))),((0/1)*piecewise(((0/1)<(-log((x0+(-x2))))),piecewise(((-log((x0+(-x2))))<(1/1)),((1/1)*x1(Unit)),((0/1)*x1(Unit))),((0/1)*x1(Unit))))),x2=0..1)))(t):
-t17 := (x0->(x1->int(int(piecewise(((0/1)<(1/(x2+x3))),((1/(x2+x3))*piecewise(((0/1)<(x0*(1/(x2+x3)))),piecewise(((x0*(1/(x2+x3)))<(1/1)),((1/1)*x1(Unit)),((0/1)*x1(Unit))),((0/1)*x1(Unit)))),((-(1/(x2+x3)))*piecewise(((0/1)<(x0*(1/(x2+x3)))),piecewise(((x0*(1/(x2+x3)))<(1/1)),((1/1)*x1(Unit)),((0/1)*x1(Unit))),((0/1)*x1(Unit))))),x3=0..1),x2=0..1)))(t):
-t18 := (x0->(x1->int(piecewise(((0/1)<(1/x2)),((1/x2)*int(piecewise(((0/1)<((x0*(1/x2))+(-x3))),piecewise((((x0*(1/x2))+(-x3))<(1/1)),((1/1)*x1(Unit)),((0/1)*x1(Unit))),((0/1)*x1(Unit))),x3=0..1)),((-(1/x2))*int(piecewise(((0/1)<((x0*(1/x2))+(-x3))),piecewise((((x0*(1/x2))+(-x3))<(1/1)),((1/1)*x1(Unit)),((0/1)*x1(Unit))),((0/1)*x1(Unit))),x3=0..1))),x2=0..1)))(t):
-
 testKernel := (x0->(x1->(x2->(x3->(x4->(x5->int(x5(x6),x6=-infinity..infinity))((x5->(x6->(0+(((exp((-(((x5-x2)*(x5-x2))/(2*(1^2)))))/1)/sqrt((2*Pi)))*(x7->x7(x5))(x6))))(x4))))((x4->piecewise((1<(((x0(x4)/x1(x2)(x4))*x1(x4)(x2))/x0(x2))), (x5->(x6->(x7->((0+((x5/((0+x5)+(1-x5)))*(x8->x8(true))(x7)))+(((1-x5)/((0+x5)+(1-x5)))*(x8->x8(false))(x7))))((x7->(x8->piecewise(x7, x8(x4), x8(x2)))(x6)))))(1)(x3), (x5->(x6->(x7->((0+((x5/((0+x5)+(1-x5)))*(x8->x8(true))(x7)))+(((1-x5)/((0+x5)+(1-x5)))*(x8->x8(false))(x7))))((x7->(x8->piecewise(x7, x8(x4), x8(x2)))(x6)))))((((x0(x4)/x1(x2)(x4))*x1(x4)(x2))/x0(x2)))(x3)))))))((x1->(x2->(x3->(x4->(x5->(x6->(0+(1*(x7->(x8->(0+(((exp((-(((x4-x3)*(x4-x3))/(2*exp((log(1)*2))))))/1)/exp((log((2*Pi))*(1/2))))*(x9->x9(Unit))(x8))))((x8->(x9->(x10->x10(x4))((x10->(x11->(x12->x12(Unit))((x12->(x13->(x14->x14(x4))((x14->(x15->x15(Pair(x4, x12)))(x13))))(x11))))(x9))))(x7))))(x6))))((x6->(x7->x7(op(2, x6)))(x5))))))(x1)(x2)((x3->1))))))((x0->(x1->(x2->(x3->(x4->(0+(1*(x5->(x6->(0+(((exp((-(((x2-0)*(x2-0))/(2*exp((log(5)*2))))))/5)/exp((log((2*Pi))*(1/2))))*(x7->x7(Unit))(x6))))((x6->(x7->(x8->x8(x2))((x8->(x9->(x10->x10(Unit))((x10->(x11->(x12->x12(x2))((x12->(x13->x13(Pair(x2, x10)))(x11))))(x9))))(x7))))(x5))))(x4))))((x4->(x5->x5(op(2, x4)))(x3))))))(Unit)(x0)((x1->1)))):
 # for now, just read the code in.
 read "SLO.mpl":
@@ -73,13 +66,6 @@ r11 := SLO(t11);
 r12 := SLO(t12);
 r13 := SLO(t13);
 r14 := SLO(t14);
-r15 := SLO(t15);
-r16 := SLO(t16);
-#r17 := SLO(t17);
-# old-school debugging is sometimes the fastest!
-# interface(prettyprint=0): printlevel := 50:
-r18 := SLO(t18);
-# printlevel := 1: interface(prettyprint=1):
 
 a1 := SLO:-AST(r1);
 a2 := SLO:-AST(r2);
@@ -95,10 +81,6 @@ a11 := SLO:-AST(r11);
 a12 := SLO:-AST(r12);
 a13 := SLO:-AST(r13);
 a14 := SLO:-AST(r14);
-a15 := SLO:-AST(r15);
-a16 := SLO:-AST(r16);
-# a17 := SLO:-AST(r17);
-a18 := SLO:-AST(r18);
 
 # And back.  Just pick and choose now
 Haskell(a1);
