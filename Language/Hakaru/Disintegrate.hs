@@ -26,7 +26,7 @@ import Text.PrettyPrint (Doc, text, char, int, integer, comma, semi, brackets,
         parens, (<>), (<+>), nest, fsep, sep, punctuate, render)
 import Language.Hakaru.Syntax (Real, Prob, Measure, Bool_,
         EqType(Refl), Order_(..), Number(..), Fraction(..),
-        Order(..), Base(..), Mochastic(..), liftM, snd_,
+        Order(..), Base(..), Mochastic(..), liftM, if_,
         Lambda(..), Summate(..), Integrate(..))
 import Language.Hakaru.Expect (Expect(unExpect), Expect')
 import Data.Typeable (Typeable)
@@ -611,7 +611,7 @@ evaluate (Lit x) _ Root = return (Lit x)
 evaluate (Var v) env s = do
   let l = env ! v
   retrieval <- retrieve l
-  case retrieval of Nothing -> return (Var l)
+  case retrieval of Nothing -> conjure s l
                     Just (Retrieval s' lhs thunk) -> do
                       rhs <- force determine evaluate thunk (compose s' s)
                       store lhs rhs
@@ -632,6 +632,20 @@ evaluate (Inr e')     env (Unr s) = fmap Inr (evaluate e' env s)
 evaluate (Inr _)      _   (Unl _) = reject
 evaluate (Closure e' env') env Root =
   return (uncurry Closure (close e' env' env))
+
+conjure :: Selector to t -> Loc t -> M (Expr Void Loc t)
+conjure Root l = return (Var l)
+conjure (Fst s) l = do
+  l1 <- gensym
+  l2 <- gensym
+  insert (Bind (Branch (Leaf l1) (Leaf l2)) (Dirac (Var l)))
+  fmap (`Pair` Var l2) (conjure s l1)
+conjure (Snd s) l = do
+  l1 <- gensym
+  l2 <- gensym
+  insert (Bind (Branch (Leaf l1) (Leaf l2)) (Dirac (Var l)))
+  fmap (Var l1 `Pair`) (conjure s l2)
+conjure _ _ = mempty
 
 ------- Main disintegrator
 
@@ -698,11 +712,11 @@ propagate (Op2 Mul e1 e2) env Root t = r e1 e2 env t where
 propagate e@(Op2 Less  _ _) env s t = propagateBool e env s t
 propagate e@(Op2 Equal _ _) env s t = propagateBool e env s t
 propagate (Op2 BetaFunc _ _) _ Root _ = mempty
-propagate (Lit _) _ Root _ = mempty
+propagate (Lit x) _ Root _ = return (Lit x) -- HACK! pretends dirac has density!
 propagate (Var v) env s t = do
   let l = env ! v
   retrieval <- retrieve l
-  case retrieval of Nothing -> mempty
+  case retrieval of Nothing -> conjure s l -- HACK! pretends dirac has density!
                     Just (Retrieval s' lhs thunk) -> do
                       rhs <- force disintegrate propagate thunk (compose s' s) t
                       store lhs rhs
@@ -926,23 +940,25 @@ matchHakaru (Leaf u) x k = k [Binding u x]
 newtype Disintegrate a = Disint
   (forall w. Cont (Int -> Expr Loc Loc (Measure w)) (Expr Loc Loc a))
 
-runDisintegrate :: (Mochastic repr) =>
+runDisintegrate :: (Mochastic repr, Order_ a) =>
                    (Disintegrate env -> Disintegrate (Measure (a, b))) ->
                    [repr env -> repr a -> repr (Measure b)]
 runDisintegrate m =
-  case Const (-1) of { env -> case Const 0 of { observed ->
+  case Const (-1) of { envLoc -> case Const 0 of { aLoc ->
   let nameOfLoc :: Loc t -> Name t
       nameOfLoc (Const i) = Const ('x' : show i)
       expr = bimap' nameOfLoc nameOfLoc Closure
-        $ unDisint (m (Disint (return (Var env)))) (\w _ -> w) 1
-  in [ \e o -> liftM snd_
-                 (toHakaru dis ([Binding env e, Binding observed o] !!))
+        $ unDisint (m (Disint (return (Var envLoc)))) (\w _ -> w) 1
+  in [ \env a -> toHakaru dis ([Binding envLoc env,
+                                Binding aLoc a] !!) `bind` \ab ->
+                 unpair ab (\a' b' ->
+                 if_ (equal_ a a') (dirac b') (superpose []))
      | dis <- run (disintegrate expr
-                                [Binding (nameOfLoc env) env]
+                                [Binding (nameOfLoc envLoc) envLoc]
                                 (Fst Root)
-                                (Var observed)) ] } }
+                                (Var aLoc)) ] } }
 
-density :: (Summate repr, Integrate repr, Lambda repr) =>
+density :: (Summate repr, Integrate repr, Lambda repr, Order_ a) =>
            (Disintegrate env -> Disintegrate (Measure a)) ->
            [repr (Expect' env) -> repr (Expect' a) -> repr Prob]
 density m = [ \e o -> expectation `app` e `app` o `app` lam (\_ -> 1)
