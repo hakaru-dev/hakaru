@@ -212,9 +212,10 @@ class (Base repr) => Mochastic repr where
   poisson       :: repr Prob -> repr (Measure Int)
   poisson l     =  counting `bind` \x ->
                    if_ (and_ [not_ (less x 0), less 0 l])
-                       (superpose [(pow_ l (fromInt x) /
-                                    gammaFunc (fromInt x + 1) *
-                                    exp_ (- fromInt x), dirac x)])
+                       (superpose [( pow_ l (fromInt x)
+                                   / gammaFunc (fromInt x + 1)
+                                   / exp_ (fromProb l)
+                                   , dirac x )])
                        (superpose [])
 
   gamma :: repr Prob -> repr Prob -> repr (Measure Prob)
