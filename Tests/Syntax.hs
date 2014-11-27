@@ -160,16 +160,14 @@ mcmc :: (Mochastic repr, Integrate repr, Lambda repr,
         (forall repr'. (Mochastic repr') => repr' (Measure a)) ->
         repr (a -> Measure a)
 mcmc q p =
-  let_ (lam (dp unit)) $ \density_p ->
-  let_ (lam (\y -> lam (dq y))) $ \density_q ->
+  let_ (lam (d unit)) $ \mu ->
   lam $ \x ->
-    q x `bind` \ x' ->
-    let_ (min_ 1 (density_p `app` x' / density_q `app` x `app` x' *
-                  density_q `app` x' `app` x / density_p `app` x)) $ \ratio ->
+    q x `bind` \x' ->
+    let_ (min_ 1 (mu `app` pair x' x / mu `app` pair x x')) $ \ratio ->
     bern ratio `bind` \accept ->
     dirac (if_ accept x' x)
-  where dp:_ = density (\dummy -> ununit dummy p)
-        dq:_ = density q
+  where d:_ = density (\dummy -> ununit dummy $
+                       p `bind` \x -> q x `bind` \y -> dirac (pair x y))
 
 testMcmc :: IO ()
 testMcmc = print (runPrettyPrint (mcmc (`normal` 1) (normal 0 5)))
