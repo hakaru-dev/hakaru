@@ -26,7 +26,7 @@ envVarsSSH = do
 
 process :: IO CreateProcess
 process = do
-    bin <- lookupEnv "MAPLE"
+    bin <- lookupEnv "LOCAL_MAPLE"
     case bin of
         Just b  -> return $ proc b ["-q", "-t"]
         Nothing -> 
