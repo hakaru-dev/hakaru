@@ -36,7 +36,7 @@ SLO := module ()
     elif type(inp, `+`) then
       map(AST, SUM(op(inp)))
     else 
-      ToAST(inp, {});
+      ToAST(inp, []);
     end if;
   end proc;
 
@@ -87,17 +87,32 @@ SLO := module ()
         if type(e, 'specfunc'(anything, {'int','Int'})) then
           var, rng := op(op(2,e));
           ee := op(1,e);
+          weight := (op(2,rng)-op(1,rng));
+          # process the rest, and then recognize
+          rest := ToAST(ee, [op(2,e), op(ctx)]);
           # recognize 'raw' uniform
-          if ee = c(var) then
-              weight := (op(2,rng)-op(1,rng));
+          if type(rest, specfunc(identical(var), 'Return')) then
               newvar := gensym('yy');
               rest := Uniform(op(rng));
-              `if`(weight=1, rest, Bind_(Factor(weight), rest));
+              `if`(weight=1, rest, Superpose(WM(weight, rest)));
           elif rng = -infinity..infinity then
               # should recognize densities here
-              Bind(Lebesgue, var,ToAST(ee, ctx))
-          else
-              Bind(Lebesgue, var=rng, ToAST(ee, ctx))
+              Bind(Lebesgue, var, rest)
+          elif type(rest, 'Superpose'('WM'(constant, anything))) then
+              # hack alert.  Will fix when I know how
+              if type(evalf(weight), 'complex'('numeric')) then
+                  # finite range.
+                  weight := op([1,1], rest) * weight;
+                  ee := op([1,2], rest);
+                  if ctx=[] and type(ee, Return(anything)) then
+                      Bind(Uniform(op(1, rng), op(2, rng)), var,
+                          Superpose(WM(weight, ee)))
+                  else
+                      error "almost uniform but not quite?", e
+                  end if;
+              else
+                  Bind(Lebesgue, var=rng, rest)
+              end if;
           end if;
         elif type(e, 'specfunc'(anything, {'sum','Sum'})) then
             error "sums not handled yet"
