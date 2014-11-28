@@ -2,10 +2,10 @@ module System.MapleSSH (maple) where
 
 import Data.Maybe(fromMaybe)
 import Data.Char(isSpace)
-import System.IO
-import System.Process
-import System.Environment
-import System.Exit
+import System.IO (hPutStrLn, hClose, hGetContents)
+import System.Process (proc, CreateProcess(..), StdStream(CreatePipe), createProcess, waitForProcess)
+import System.Environment (lookupEnv)
+import System.Exit (ExitCode(ExitSuccess))
 
 -- Default values for SSH environment variables
 defSSH, defUser, defServer, defModule :: String
