@@ -11,10 +11,11 @@ import Language.Hakaru.Syntax (Real, Prob, Measure, Order_(..),
        Lambda(..), Integrate(..))
 import Language.Hakaru.Util.Pretty (Pretty (pretty), prettyPair)
 import Language.Hakaru.Expect (Expect(unExpect), Expect')
-import Language.Hakaru.Maple (Maple(Maple), runMaple, roundTrip, Any(unAny))
+import Language.Hakaru.Maple (Maple(Maple), runMaple)
 import Language.Hakaru.Sample(Sample(unSample))
 import Language.Hakaru.Disintegrate
 import Language.Hakaru.PrettyPrint (runPrettyPrint)
+import Language.Hakaru.Simplify (Any(unAny), simplify)
 
 import Control.Monad (zipWithM_, replicateM)
 import Control.Applicative (Const(Const))
@@ -366,7 +367,7 @@ p1 = testMaple2 (Maple (return "c")) t1
 
 main :: IO ()
 main = do
-  p1 <- roundTrip t1
+  p1 <- simplify t1
   putStrLn $ render $ runPrettyPrint $ unAny p1
 
 -- over time, this should be 'upgraded' to actually generate a proper

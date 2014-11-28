@@ -1,28 +1,20 @@
-{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, ScopedTypeVariables #-}
-{-# LANGUAGE DeriveDataTypeable, GADTs, Rank2Types #-}
-{-# OPTIONS -W -fno-warn-warnings-deprecations -fno-warn-unused-binds #-}
+{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances #-}
+{-# OPTIONS -W #-}
 
-module Language.Hakaru.Maple (Maple(..), runMaple, Any(..), closeLoop, roundTrip, RoundTrip) where
+module Language.Hakaru.Maple (Maple(..), runMaple) where
 
 -- Maple printing interpretation
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Bool_, Real, Prob, Measure, Number(..),
+import Language.Hakaru.Syntax (Bool_, Real, Prob, Number(..),
     ggcast, Uneither(Uneither),
-    Order(..), Base(..), Integrate(..), Lambda(..), Mochastic(..))
+    Order(..), Base(..), Integrate(..), Lambda(..))
 import Data.Ratio
-import Data.Typeable (Typeable, Typeable1, typeOf, gcast)
+import Data.Typeable (gcast)
 import Data.Maybe (fromMaybe)
 import Control.Monad (liftM2)
 import Control.Monad.Trans.Reader (ReaderT(ReaderT), runReaderT)
 import Control.Monad.Trans.Cont (Cont, cont, runCont)
-
-import Language.Hakaru.PrettyPrint (runPrettyPrint) -- just for testing closeLoop
-import System.MapleSSH -- ditto
-import Text.Read (readEither)
-import Language.Hakaru.Expect (Expect(unExpect))
-
-import Language.Haskell.Interpreter hiding (typeOf)
 
 newtype Maple a = Maple { unMaple :: ReaderT Int (Cont String) String }
 
@@ -145,75 +137,3 @@ instance Lambda Maple where
     let (x, body) = mapleBind f i in "(" ++ x ++ "->" ++ body ++ ")")
   app (Maple rator) (Maple rand) =
     Maple (liftM2 (\rator' rand' -> rator' ++ "(" ++ rand' ++ ")") rator rand)
-
--- and now for the other way around: take things that came from Maple
--- (as strings), and interpret in Haskell.  This is probably not the best
--- place for this code, since Maple is supposed to produce proper Haskell,
--- but this is a start.
-ourContext :: MonadInterpreter m => m ()
-ourContext = do
-  let modules = ["Language.Hakaru.RoundTrip"]
-  loadModules modules
-  setImports (modules)
-
--- This is silly, as all we can read back in right now are fractions.
--- But at least this much works!
-closeLoop :: (Typeable1 repr) => String -> IO (Either InterpreterError (repr ()))
-closeLoop s = runInterpreter (ourContext >> interpret s undefined)
-
-newtype Any a = Any
-  { unAny :: forall repr. (Base repr, Lambda repr, Mochastic repr) => repr a }
-  deriving Typeable
-  -- beware GHC 7.8 https://ghc.haskell.org/trac/ghc/wiki/GhcKinds/PolyTypeable
-
-pMaple :: String -> IO () 
-pMaple s = do
-  result <- closeLoop ("Any (" ++ s ++ ")")
-  case result of
-    Left err -> print err
-    Right a -> do
-      print (runPrettyPrint (unAny a))
-      -- putStrLn (runMaple (unAny a) 0)
-
-main :: IO () -- should print "(lam $ \x0 -> x0) `app` unit"
-main = do
-  result <- closeLoop "Any (lam id `app` unit)"
-  case result of
-    Left err -> print err
-    Right a -> do
-      print (runPrettyPrint (unAny a))
-      -- putStrLn (runMaple (unAny a) 0)
-
-class (Typeable a) => RoundTrip a where
-  roundTrip' :: (Monad m) => Int -> a{-unused-} -> String ->
-                (String -> m String) -> m String
-
-instance (Typeable a) => RoundTrip (Measure a) where
-  -- The type "a" should not contain "Measure"
-  roundTrip' _ _ s k = k s
-
-instance (Typeable a, RoundTrip b) => RoundTrip (a -> b) where
-  -- The type "a" should not contain "Measure"
-  roundTrip' n dummy s k = do
-    let arrrg = "arrrg" ++ show n
-    maple <- roundTrip' (succ n) (undefined `asTypeOf` dummy undefined) s
-               (\maple -> k (maple ++ "(" ++ arrrg ++ ")"))
-    return ("lam $ \\" ++ arrrg ++ " -> " ++ maple)
-
-roundTrip :: (RoundTrip a) => Expect Maple a -> IO (Any a)
-roundTrip e = do
-  let getArg :: Expect Maple a -> a
-      getArg = undefined
-  hakaru <- roundTrip' 0 (getArg e) (runMaple (unExpect e) 0) (\slo -> do
-    putStrLn ("To Maple: " ++ slo)
-    hopeString <- maple ("Haskell(SLO:-AST(SLO(" ++ slo ++ ")));")
-    case readEither hopeString of
-      Right hakaru -> return hakaru
-      Left err -> error ("roundTrip: " ++ err ++ " for " ++ show hopeString))
-  putStrLn ("From Maple: " ++ hakaru)
-  let cl s = runInterpreter (ourContext >> interpret s undefined)
-      typ = "" `asTypeOf` (" :: Any (" ++ show (typeOf (getArg e)) ++ ")")
-  result <- cl ("Any (" ++ hakaru ++ ")" ++ typ)
-  case result of
-    Left err -> error $ show err
-    Right a -> return a
