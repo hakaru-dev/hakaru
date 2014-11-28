@@ -34,7 +34,7 @@ Haskell := module ()
 
 # things get silly with too much indentation, so for this table, we cheat
 d[_Inert_INTPOS] := proc(x) b:-appendf("%d",x) end;
-d[_Inert_INTNEG] := proc(x) b:-appendf("%d",-x) end;
+d[_Inert_INTNEG] := proc(x) b:-appendf("(%d)",-x) end;
 d[_Inert_RATIONAL] := proc(n,d) 
   parens(proc() p(n); b:-append(" / "); p(d); end) 
 end;
