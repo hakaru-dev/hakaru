@@ -30,6 +30,7 @@ library
                        Language.Hakaru.Lambda,
                        Language.Hakaru.Sample,
                        Language.Hakaru.Distribution,
+                       Language.Hakaru.Simplify,
                        Language.Hakaru.Util.Csv,
                        Language.Hakaru.Util.Extras,
                        Language.Hakaru.Util.Visual
@@ -86,8 +87,7 @@ library
   default-language:    Haskell2010
   ghc-options:         -Wall
 
-test-suite hakaru-test
-    type:              exitcode-stdio-1.0
+executable roundtrip_test
     main-is:           Tests/Syntax.hs
     build-depends:     base, Cabal >= 1.10, 
                        random >=1.0 && <1.3,
