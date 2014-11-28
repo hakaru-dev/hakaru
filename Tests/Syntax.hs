@@ -11,14 +11,14 @@ import Language.Hakaru.Syntax (Real, Prob, Measure, Order_(..),
        Lambda(..), Integrate(..))
 import Language.Hakaru.Util.Pretty (Pretty (pretty), prettyPair)
 import Language.Hakaru.Expect (Expect(unExpect), Expect')
-import Language.Hakaru.Maple (Maple(Maple), runMaple)
+import Language.Hakaru.Maple (Maple(Maple), runMaple, roundTrip, Any(unAny))
 import Language.Hakaru.Sample(Sample(unSample))
 import Language.Hakaru.Disintegrate
 import Language.Hakaru.PrettyPrint (runPrettyPrint)
 
 import Control.Monad (zipWithM_, replicateM)
 import Control.Applicative (Const(Const))
-import Text.PrettyPrint (text, (<>), ($$), nest)
+import Text.PrettyPrint (text, (<>), ($$), nest, render)
 
 import qualified Data.Number.LogFloat as LF
 import qualified System.Random.MWC as MWC
@@ -364,10 +364,15 @@ testMaple2 c t = runMaple ((unExpect t) `app` c) 0
 p1 :: String
 p1 = testMaple2 (Maple (return "c")) t1
 
--- over time, this should be 'upgraded' to actually generate a proper
--- Maple test file
 main :: IO ()
 main = do
+  p1 <- roundTrip t1
+  putStrLn $ render $ runPrettyPrint $ unAny p1
+
+-- over time, this should be 'upgraded' to actually generate a proper
+-- Maple test file
+main2 :: IO ()
+main2 = do
   putStrLn $ testMaple t1 "t1"
   putStrLn $ testMaple t2 "t2"
   putStrLn $ testMaple t3 "t3"
@@ -404,8 +409,8 @@ main = do
   putStrLn $ testMaple testKernel2 "testKernel2"
 
 -- this introduced too much noise in output, move it 
-main2 :: IO ()
-main2 = do
+main3 :: IO ()
+main3 = do
   disintegrateTestRunner
 
 -- pull out some of the intermediate expressions for independent study
