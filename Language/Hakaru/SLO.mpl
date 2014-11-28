@@ -43,7 +43,7 @@ SLO := module ()
   # recursive function which does the main translation
   ToAST := proc(e, ctx)
     local a0, a1, var, vars, rng, ee, cof, d, ld, weight, binders,
-      v, subst, ivars, ff, newvar;
+      v, subst, ivars, ff, newvar, rest;
     if type(e, specfunc(name, c)) then
         return Return(op(e))
     # we might have recursively encountered a hidden 0
@@ -55,11 +55,11 @@ SLO := module ()
     # invariant: we depend on c
     else
       binders := indets(e, t_binds);
+      vars := indets(e, specfunc(anything, c));
+      subst := map(x-> x = op(0,x)[op(x)], vars);
+      ivars := map2(op, 2, subst);
       if binders = {} then
         # this is a 'raw' measure, with no integrals
-        vars := indets(e, specfunc(anything, c));
-        subst := map(x-> x = op(0,x)[op(x)], vars);
-        ivars := map2(op, 2, subst);
         ee := subs(subst, e);
         if type(ee, 'polynom'(anything,ivars)) then
           ee := collect(ee, ivars);
@@ -91,7 +91,7 @@ SLO := module ()
           if ee = c(var) then
               weight := (op(2,rng)-op(1,rng));
               newvar := gensym('yy');
-              rest := Bind(Uniform(op(rng)), newvar, Factor(UnsafeProb(newvar)));
+              rest := Uniform(op(rng));
               `if`(weight=1, rest, Bind_(Factor(weight), rest));
           elif rng = -infinity..infinity then
               # should recognize densities here
