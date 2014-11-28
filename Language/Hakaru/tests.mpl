@@ -86,11 +86,11 @@ r11 := SLO(t11);
 r12 := SLO(t12);
 r13 := SLO(t13);
 r14 := SLO(t14);
-r15 := SLO(t15);
-r16 := SLO(t16);
-r17 := SLO(t17);
-r18 := SLO(t18);
-r19 := SLO(t19);
+#r15 := SLO(t15);
+#r16 := SLO(t16);
+#r17 := SLO(t17);
+#r18 := SLO(t18);
+#r19 := SLO(t19);
 r20 := SLO(t20);
 r21 := SLO(t21);
 r22 := SLO(t22);
@@ -121,6 +121,26 @@ a11 := SLO:-AST(r11);
 a12 := SLO:-AST(r12);
 a13 := SLO:-AST(r13);
 a14 := SLO:-AST(r14);
+#a15 := SLO:-AST(r15);
+#a16 := SLO:-AST(r16);
+#a17 := SLO:-AST(r17);
+#a18 := SLO:-AST(r18);
+#a19 := SLO:-AST(r19);
+a20 := SLO:-AST(r20);
+a21 := SLO:-AST(r21);
+a22 := SLO:-AST(r22);
+a23 := SLO:-AST(r23);
+a24 := SLO:-AST(r24);
+a25 := SLO:-AST(r25);
+a26 := SLO:-AST(r26);
+a27 := SLO:-AST(r27);
+a28 := SLO:-AST(r28);
+a29 := SLO:-AST(r29);
+a30 := SLO:-AST(r30);
+a31 := SLO:-AST(r31);
+a32 := SLO:-AST(r32);
+a33 := SLO:-AST(r33);
+a34 := SLO:-AST(r34);
 
 # And back.  Just pick and choose now
 Haskell(a1);
@@ -138,5 +158,11 @@ Haskell(a11);
 Haskell(a12);
 
 # t28 and t31 - no unsafeProb to latter
+Haskell(a28);
+Haskell(a31);
 # t29 and t30 - should not be same
+Haskell(a29);
+Haskell(a30);
 # t32 and t33 - should not be same
+Haskell(a32);
+Haskell(a33);
