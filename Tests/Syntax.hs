@@ -353,22 +353,21 @@ testDist (e,s) = do
             es
   putStrLn ""
 
-
 testMaple :: Expect Maple a -> String -> String
 testMaple t pre = pre ++ " := " ++ res ++ ":"
   where res = runMaple (unExpect t) 0
 
--- this can sometimes be more convenient
-testMaple2 :: (Expect' c ~ (b -> a)) => Maple b -> Expect Maple c -> String
-testMaple2 c t = runMaple ((unExpect t) `app` c) 0
-
-p1 :: String
-p1 = testMaple2 (Maple (return "c")) t1
-
 main :: IO ()
 main = do
-  p1 <- simplify t1
-  putStrLn $ render $ runPrettyPrint $ unAny p1
+  -- m ()
+  p1  <- simplify t1
+  -- m Real
+  p28 <- simplify t28
+  p31 <- simplify t31
+  ----
+  -- print them all
+  sequence_ $ fmap putStrLn $ map (render . runPrettyPrint . unAny) [p1]
+  sequence_ $ fmap putStrLn $ map (render . runPrettyPrint . unAny) [p28, p31]
 
 -- over time, this should be 'upgraded' to actually generate a proper
 -- Maple test file
