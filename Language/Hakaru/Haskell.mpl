@@ -67,6 +67,11 @@ d[_Inert_PROD] := proc()
   lparen(); seqp(" * ", [_passed]); rparen();
 end;
 d[_Inert_POWER] := proc(a1,a2)
+  # should be Int "^" Int
+  #        or Real "^^" Int
+  #        or Prob "^^" Int
+  #        or Real "**" Real
+  #        or Prob "`pow_`" Real
   parens(proc() p(a1); b:-append(" ^ "); p(a2) end);
 end;
 
