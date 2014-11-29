@@ -110,7 +110,7 @@ instance Base Maple where
       let arm k = runCont (runReaderT (unMaple (k unit)) i) c
       in "piecewise(" ++ ab' ++ ", " ++ arm ka
                              ++ ", " ++ arm kb ++ ")"))
-  unsafeProb (Maple x) = Maple x
+  unsafeProb = mapleFun1 "unsafeProb"
   fromProb   (Maple x) = Maple x
   fromInt    (Maple x) = Maple x
   sqrt_ = mapleFun1 "sqrt"

@@ -357,17 +357,23 @@ testMaple :: Expect Maple a -> String -> String
 testMaple t pre = pre ++ " := " ++ res ++ ":"
   where res = runMaple (unExpect t) 0
 
+printTests :: [Any a] -> IO ()
+printTests = sequence_ . fmap putStrLn . map (render . runPrettyPrint . unAny)
+
 main :: IO ()
 main = do
   -- m ()
   p1  <- simplify t1
   -- m Real
   p28 <- simplify t28
+  p29 <- simplify t29
+  p30 <- simplify t30
   p31 <- simplify t31
   ----
   -- print them all
-  sequence_ $ fmap putStrLn $ map (render . runPrettyPrint . unAny) [p1]
-  sequence_ $ fmap putStrLn $ map (render . runPrettyPrint . unAny) [p28, p31]
+  printTests [p1]
+  sequence_ $ fmap putStrLn $ map (render . runPrettyPrint . unAny) [p28, p29, p31]
+  printTests [p30]
 
 -- over time, this should be 'upgraded' to actually generate a proper
 -- Maple test file

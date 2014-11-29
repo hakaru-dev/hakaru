@@ -8,6 +8,7 @@
 #
 
 SLO := module ()
+  global unsafeProb; # sigh
   export ModuleApply, AST, simp, c; # very important: this c is "global".
   local ToAST, t_binds, t_pw, into_pw, myprod, gensym, gs_counter;
 
@@ -189,4 +190,10 @@ SLO := module ()
 
   gs_counter := 0;
   gensym := proc(x::name) gs_counter := gs_counter + 1; x || gs_counter; end proc;
+
+  # this has to be global?
+  unsafeProb := proc(v) 
+    if signum(0, v, 1) = 1 then v else 'unsafeProb'(v) end if;
+  end proc;
+
 end;

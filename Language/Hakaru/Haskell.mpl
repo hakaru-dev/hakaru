@@ -74,7 +74,7 @@ end;
 bi["Bind_"] := proc(a1, a2) p(a1); b:-append(" `bind_` "); p(a2) end;
 bi["Return"] := ufunc("dirac");
 bi["Factor"] := ufunc("factor");
-bi["UnsafeProb"] := ufunc("unsafeProb");
+bi["unsafeProb"] := ufunc("unsafeProb");
 bi["Unit"] := proc() b:-append("unit") end;
 bi["Uniform"] := bfunc("uniform ");
 bi["Lebesgue"] := proc() b:-append("lebesgue") end;
@@ -100,8 +100,7 @@ bi["WM"] := proc(w, m)
   b:-append("("); p(w); b:-append(","); p(m); b:-append(")");
 end;
 
-# this is a hack, and will break once we go nested.
-bi["exp"] := ufunc("exp_");
+bi["exp"] := ufunc("exp");
 
 # utility routines:
 # =================
