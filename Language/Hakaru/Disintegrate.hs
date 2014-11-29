@@ -261,6 +261,12 @@ data Op1 t1 t where
   Log        :: (Fraction t) => Op1 t Real
   Neg        :: (Number   t) => Op1 t t
   Inv        :: (Fraction t) => Op1 t t
+  Sin        :: Op1 Real Real
+  Cos        :: Op1 Real Real
+  Tan        :: Op1 Real Real
+  ASin       :: Op1 Real Real
+  ACos       :: Op1 Real Real
+  ATan       :: Op1 Real Real
   Weight     :: Op1 Prob (Measure ())
   UnsafeProb :: Op1 Real Prob
   FromProb   :: Op1 Prob Real
@@ -400,6 +406,9 @@ condLess e1 e2 = Bind (UnaryL Nil) (Dirac (Op2 Less e1 e2))
 
 weight :: Expr b u Prob -> Expr b u (Measure t) -> Expr b u (Measure t)
 weight e = Bind Nil (Op1 Weight e)
+
+power :: Expr b u Prob -> Expr b u Real -> Expr b u Prob
+power p r = Op1 Exp (Op1 Log p * r)
 
 -- TODO: Add pure `case' construct
 if' :: Expr b u Bool_ ->
@@ -692,8 +701,51 @@ propagate (Op1 Log e) env Root t = do
 propagate (Op1 Neg e) env Root t =
   fmap negate (propagate e env Root (-t))
 propagate (Op1 Inv e) env Root t = do
-  insert (weight (recip (unsafeProbFraction dict (ex t) ^ (2::Int))))
+  insert (weight (recip (unsafeProbFraction dict (ex t * ex t))))
   fmap recip (propagate e env Root (recip t))
+propagate (Op1 Sin e) env Root t = do
+  ln <- gensym
+  lt <- gensym
+  insert (condLess (-1) (ex t) .
+          condLess (ex t) 1 .
+          weight (power (Op1 UnsafeProb (1 - ex t * ex t)) (1/2)) .
+          Bind (Leaf ln) (Op0 Counting) .
+          Bind (Leaf lt) (Choice [ Dirac (Op1 FromInt (f (2 * Var ln)) * Op0 Pi
+                                          + g (Op1 ASin (ex t)))
+                                 | (f,g) <- [(id, id), ((1+), negate)] ]))
+  fmap (Op1 Sin) (propagate e env Root (Var lt))
+propagate (Op1 Cos e) env Root t = do
+  ln <- gensym
+  lt <- gensym
+  insert (condLess (-1) (ex t) .
+          condLess (ex t) 1 .
+          weight (power (Op1 UnsafeProb (1 - ex t * ex t)) (1/2)) .
+          Bind (Leaf ln) (Op0 Counting) .
+          Bind (Leaf lt) (Choice [ Dirac (Op1 FromInt (2 * Var ln) * Op0 Pi
+                                          + g (Op1 ACos (ex t)))
+                                 | g <- [id, negate] ]))
+  fmap (Op1 Cos) (propagate e env Root (Var lt))
+propagate (Op1 Tan e) env Root t = do
+  ln <- gensym
+  insert (weight (recip (Op1 UnsafeProb (1 + ex t * ex t))) .
+          Bind (Leaf ln) (Op0 Counting))
+  fmap (Op1 Tan) (propagate e env Root (Op1 FromInt (Var ln) * Op0 Pi
+                                        + Op1 ATan t))
+propagate (Op1 ASin e) env Root t = do
+  insert (condLess (- Op0 Pi / 2) (ex t) .
+          condLess (ex t) (Op0 Pi / 2) .
+          weight (Op1 UnsafeProb (Op1 Cos (ex t))))
+  fmap (Op1 ASin) (propagate e env Root (Op1 Sin t))
+propagate (Op1 ACos e) env Root t = do
+  insert (condLess 0 (ex t) .
+          condLess (ex t) (Op0 Pi) .
+          weight (Op1 UnsafeProb (Op1 Sin (ex t))))
+  fmap (Op1 ACos) (propagate e env Root (Op1 Cos t))
+propagate (Op1 ATan e) env Root t = do
+  insert (condLess (- Op0 Pi / 2) (ex t) .
+          condLess (ex t) (Op0 Pi / 2) .
+          weight (recip (Op1 UnsafeProb (Op1 Cos (ex t) * Op1 Cos (ex t)))))
+  fmap (Op1 ATan) (propagate e env Root (Op1 Tan t))
 propagate (Op1 Weight _) _ Root _ = mempty
 propagate (Op1 UnsafeProb e) env Root t =
   fmap (Op1 UnsafeProb) (propagate e env Root (Op1 FromProb t))
@@ -886,6 +938,12 @@ toHakaru (Op1 Exp e)               env = expFraction dict (toHakaru e  env)
 toHakaru (Op1 Log e)               env = logFraction dict (toHakaru e  env)
 toHakaru (Op1 Neg e)               env = unaryN negate    (toHakaru e  env)
 toHakaru (Op1 Inv e)               env = unary recip      (toHakaru e  env)
+toHakaru (Op1 Sin e)               env = sin              (toHakaru e  env)
+toHakaru (Op1 Cos e)               env = cos              (toHakaru e  env)
+toHakaru (Op1 Tan e)               env = tan              (toHakaru e  env)
+toHakaru (Op1 ASin e)              env = asin             (toHakaru e  env)
+toHakaru (Op1 ACos e)              env = acos             (toHakaru e  env)
+toHakaru (Op1 ATan e)              env = atan             (toHakaru e  env)
 toHakaru (Op1 Weight e)            env = factor           (toHakaru e  env)
 toHakaru (Op1 UnsafeProb e)        env = unsafeProb       (toHakaru e  env)
 toHakaru (Op1 FromProb e)          env = fromProb         (toHakaru e  env)
@@ -1005,19 +1063,21 @@ instance (Fraction t) => Fractional (Disintegrate t) where
   fromRational x   = Disint (return (fromRational x))
 
 instance Floating (Disintegrate Real) where
-  pi             = Disint (return (Op0 Pi))
-  exp (Disint x) = Disint (fmap (Op1 Exp) x)
-  log (Disint x) = Disint (fmap (Op1 Log) x)
-  sin            = error "Disintegrate: sin unimplemented"
-  cos            = error "Disintegrate: cos unimplemented"
-  sinh           = error "Disintegrate: sinh unimplemented"
-  cosh           = error "Disintegrate: cosh unimplemented"
-  asin           = error "Disintegrate: asin unimplemented"
-  acos           = error "Disintegrate: acos unimplemented"
-  atan           = error "Disintegrate: atan unimplemented"
-  asinh          = error "Disintegrate: asinh unimplemented"
-  acosh          = error "Disintegrate: acosh unimplemented"
-  atanh          = error "Disintegrate: atanh unimplemented"
+  pi              = Disint (return (Op0 Pi))
+  exp  (Disint x) = Disint (fmap (Op1 Exp) x)
+  log  (Disint x) = Disint (fmap (Op1 Log) x)
+  sin  (Disint x) = Disint (fmap (Op1 Sin) x)
+  cos  (Disint x) = Disint (fmap (Op1 Cos) x)
+  tan  (Disint x) = Disint (fmap (Op1 Tan) x)
+  asin (Disint x) = Disint (fmap (Op1 ASin) x)
+  acos (Disint x) = Disint (fmap (Op1 ACos) x)
+  atan (Disint x) = Disint (fmap (Op1 ATan) x)
+  sinh            = error "Disintegrate: sinh unimplemented"
+  cosh            = error "Disintegrate: cosh unimplemented"
+  tanh            = error "Disintegrate: tanh unimplemented"
+  asinh           = error "Disintegrate: asinh unimplemented"
+  acosh           = error "Disintegrate: acosh unimplemented"
+  atanh           = error "Disintegrate: atanh unimplemented"
 
 instance Base Disintegrate where
   unit                           = Disint (return (Op0 Unit))
