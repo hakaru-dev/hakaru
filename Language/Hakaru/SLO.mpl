@@ -8,7 +8,6 @@
 #
 
 SLO := module ()
-  global unsafeProb; # sigh
   export ModuleApply, AST, simp, c; # very important: this c is "global".
   local ToAST, t_binds, t_pw, into_pw, myprod, gensym, gs_counter;
 
@@ -68,10 +67,10 @@ SLO := module ()
           ld := ldegree(ee, ivars);
           cof := [coeffs(ee, ivars, 'v')]; # cof and v are lists
           if (d = 1) and (ld = 1) then
-              # WM = Weight-Measure pair
-              ff := (x,y) -> WM(simplify(x), Return(op(y)));
-              Superpose(op(zip(ff, cof, v)));
-              # `if`(cof=1, rest, Bind_(Factor(simplify(cof)), rest))
+            # WM = Weight-Measure pair
+            ff := (x,y) -> WM(simplify(x), Return(op(y)));
+            Superpose(op(zip(ff, cof, v)));
+            # `if`(cof=1, rest, Bind_(Factor(simplify(cof)), rest))
           else
             if (ld = 0) then
               error "non-zero constant encountered as a measure", ee
@@ -88,32 +87,30 @@ SLO := module ()
         if type(e, 'specfunc'(anything, {'int','Int'})) then
           var, rng := op(op(2,e));
           ee := op(1,e);
-          weight := (op(2,rng)-op(1,rng));
-          # process the rest, and then recognize
-          rest := ToAST(ee, [op(2,e), op(ctx)]);
-          # recognize 'raw' uniform
-          if type(rest, specfunc(identical(var), 'Return')) then
-              newvar := gensym('yy');
-              rest := Uniform(op(rng));
-              `if`(weight=1, rest, Superpose(WM(weight, rest)));
-          elif rng = -infinity..infinity then
-              # should recognize densities here
-              Bind(Lebesgue, var, rest)
-          elif type(rest, 'Superpose'('WM'(constant, anything))) then
-              # hack alert.  Will fix when I know how
-              if type(evalf(weight), 'complex'('numeric')) then
-                  # finite range.
-                  weight := op([1,1], rest) * weight;
-                  ee := op([1,2], rest);
-                  if ctx=[] and type(ee, Return(anything)) then
-                      Bind(Uniform(op(1, rng), op(2, rng)), var,
-                          Superpose(WM(weight, ee)))
-                  else
-                      error "almost uniform but not quite?", e
-                  end if;
+          weight := simplify(op(2,rng)-op(1,rng));
+          if type(weight, 'SymbolicInfinity') then
+            rest := ToAST(ee, [op(2,e), op(ctx)]);
+            # should recognize densities here
+            Bind(Lebesgue, var = rng, rest)
+          else
+            rest := ToAST(weight*ee, [op(2,e), op(ctx)]);
+            # process the rest, and then recognize
+            # recognize 'raw' uniform
+            if type(rest, specfunc(identical(var), 'Return')) then
+              Uniform(op(rng));
+            elif type(rest, 'Superpose'('WM'(anything, anything))) then
+              # finite range.
+              weight := simplify(op([1,1], rest));
+              ee := op([1,2], rest);
+              if ctx=[] and type(ee, Return(anything)) then
+                Bind(Uniform(op(1, rng), op(2, rng)), var,
+                    Superpose(WM(weight, simplify(ee))))
               else
-                  Bind(Lebesgue, var=rng, rest)
+                error "almost uniform but not quite?", e
               end if;
+            else
+              Bind(Lebesgue, var = rng, rest)
+            end if;
           end if;
         elif type(e, 'specfunc'(anything, {'sum','Sum'})) then
             error "sums not handled yet"
@@ -191,9 +188,15 @@ SLO := module ()
   gs_counter := 0;
   gensym := proc(x::name) gs_counter := gs_counter + 1; x || gs_counter; end proc;
 
-  # this has to be global?
-  unsafeProb := proc(v) 
-    if signum(0, v, 1) = 1 then v else 'unsafeProb'(v) end if;
-  end proc;
-
 end;
+
+# this has to be global!
+unsafeProb := proc(v) 
+  if signum(0, v, 1) = 1 then v else 'unsafeProb'(v) end if;
+end proc;
+
+# will get called with 'unsafeProb(...)'
+`simplify/unsafeProb` := proc(a) local b;
+  b := op(1,a);
+  if type(b, 'exp'(anything)) then exp_(op(1, b)) else a end if;
+end proc;
