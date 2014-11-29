@@ -11,7 +11,7 @@ import Language.Hakaru.Maple (Maple, runMaple)
 import Data.Typeable (Typeable, typeOf)
 import System.MapleSSH (maple)
 import Language.Haskell.Interpreter hiding (typeOf)
-import Text.Read (readEither)
+import Language.Hakaru.Util.Lex (readMapleString)
 
 ourContext :: MonadInterpreter m => m ()
 ourContext = do
@@ -56,9 +56,9 @@ simplify e = do
   hakaru <- simplify' 0 (getArg e) (runMaple (unExpect e) 0) (\slo -> do
     putStrLn ("To Maple: " ++ slo)
     hopeString <- maple ("Haskell(SLO:-AST(SLO(" ++ slo ++ ")));")
-    case readEither hopeString of
-      Right hakaru -> return hakaru
-      Left err -> error ("simplify: " ++ err ++ " for " ++ show hopeString))
+    case readMapleString hopeString of
+      Just hakaru -> return hakaru
+      Nothing -> error ("From Maple: " ++ hopeString))
   closeLoop ("Any (" ++ hakaru ++ ")")
 
 getArg :: f a -> a

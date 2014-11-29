@@ -11,7 +11,7 @@ import Language.Hakaru.Syntax (Real, Prob, Measure, Order_(..),
        Lambda(..), Integrate(..))
 import Language.Hakaru.Util.Pretty (Pretty (pretty), prettyPair)
 import Language.Hakaru.Expect (Expect(unExpect), Expect')
-import Language.Hakaru.Maple (Maple(Maple), runMaple)
+import Language.Hakaru.Maple (Maple, runMaple)
 import Language.Hakaru.Sample(Sample(unSample))
 import Language.Hakaru.Disintegrate
 import Language.Hakaru.PrettyPrint (runPrettyPrint)
@@ -290,6 +290,24 @@ t33 = uniform (-1) 1 `bind` \x -> dirac (exp_ x)
 
 t34 :: Mochastic repr => repr (Measure Prob)
 t34 = dirac (if_ (less (2 `asTypeOf` log_ 1) 4) 3 5)
+
+t35 :: (Lambda repr, Mochastic repr) => repr (Real -> Measure Prob)
+t35 = lam (\x -> dirac (if_ (less (x `asTypeOf` log_ 1) 4) 3 5))
+
+t36 :: (Lambda repr, Mochastic repr) => repr (Real -> Measure Real)
+t36 = lam (dirac . sqrt)
+
+t37 :: (Lambda repr, Mochastic repr) => repr (Real -> Measure Real)
+t37 = lam (dirac . recip)
+
+t38 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure Prob)
+t38 = lam (dirac . recip)
+
+t39 :: (Lambda repr, Mochastic repr) => repr (Real -> Measure Real)
+t39 = lam (dirac . log)
+
+t40 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure Real)
+t40 = lam (dirac . log_)
 
 ------- Tests
 
