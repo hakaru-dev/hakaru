@@ -101,6 +101,7 @@ bi["WM"] := proc(w, m)
 end;
 
 bi["exp"] := ufunc("exp");
+bi["exp_"] := ufunc("exp_");
 
 # utility routines:
 # =================
