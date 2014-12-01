@@ -1072,12 +1072,13 @@ instance Floating (Disintegrate Real) where
   asin (Disint x) = Disint (fmap (Op1 ASin) x)
   acos (Disint x) = Disint (fmap (Op1 ACos) x)
   atan (Disint x) = Disint (fmap (Op1 ATan) x)
-  sinh            = error "Disintegrate: sinh unimplemented"
-  cosh            = error "Disintegrate: cosh unimplemented"
-  tanh            = error "Disintegrate: tanh unimplemented"
-  asinh           = error "Disintegrate: asinh unimplemented"
-  acosh           = error "Disintegrate: acosh unimplemented"
-  atanh           = error "Disintegrate: atanh unimplemented"
+  -- TODO: Disintegrate {,a}{sin,cos,tan}h directly
+  sinh  x         = (exp x - exp (-x)) / 2
+  cosh  x         = (exp x + exp (-x)) / 2
+  tanh  x         = (exp x - exp (-x)) / (exp x + exp (-x))
+  asinh x         = log (x + sqrt (x * x + 1))
+  acosh x         = log (x + sqrt (x * x - 1))
+  atanh x         = log ((1 + x) / (1 - x)) / 2
 
 instance Base Disintegrate where
   unit                           = Disint (return (Op0 Unit))
