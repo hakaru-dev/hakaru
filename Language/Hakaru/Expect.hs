@@ -28,6 +28,8 @@ type instance Expect' (a -> b)     = (Expect' a -> Expect' b)
 
 unsafeTypeable :: forall w t. TypeRep -> (Typeable t => w) -> w
 unsafeTypeable rep = unsafeCoerce (\k -> k (const rep))
+-- TODO: on ghc 7.8, because the Typeable dictionary uses Proxy#,
+-- the "const" above needs to be removed to avoid a segfault!
 
 typeExpect :: forall w t. (Typeable t) => t -> (Typeable (Expect' t) => w) -> w
 typeExpect dummy = unsafeTypeable (expect' (typeOf dummy)) where
