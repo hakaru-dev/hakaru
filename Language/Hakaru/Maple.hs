@@ -61,22 +61,22 @@ instance Floating (Maple a) where
   pi    = Maple (return "Pi")
   exp   = mapleFun1 "exp"
   sqrt  = mapleFun1 "sqrt"
-  log   = mapleFun1 "log"
+  log   = mapleFun1 "ln"
   (**)  = mapleOp2 "^"
   logBase (Maple b) (Maple y) =
     Maple (liftM2 (\b' y' -> "log[" ++ b' ++ "]" ++ "(" ++ y' ++ ")") b y)
   sin   = mapleFun1 "sin"
   tan   = mapleFun1 "tan"
   cos   = mapleFun1 "cos"
-  asin  = mapleFun1 "asin"
-  atan  = mapleFun1 "atan"
-  acos  = mapleFun1 "acos"
+  asin  = mapleFun1 "arcsin"
+  atan  = mapleFun1 "arctan"
+  acos  = mapleFun1 "arccos"
   sinh  = mapleFun1 "sinh"
   tanh  = mapleFun1 "tanh"
   cosh  = mapleFun1 "cosh"
-  asinh = mapleFun1 "asinh"
-  atanh = mapleFun1 "atanh"
-  acosh = mapleFun1 "acosh"
+  asinh = mapleFun1 "arcsinh"
+  atanh = mapleFun1 "arctanh"
+  acosh = mapleFun1 "arccosh"
 
 instance Base Maple where
   unit = Maple (return "Unit")

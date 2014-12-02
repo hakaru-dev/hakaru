@@ -107,6 +107,7 @@ end;
 
 bi["exp"] := ufunc("exp");
 bi["exp_"] := ufunc("exp_");
+bi["ln"] := ufunc("ln");
 
 # utility routines:
 # =================
