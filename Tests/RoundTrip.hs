@@ -235,6 +235,11 @@ t39 = lam (dirac . log)
 t40 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure Real)
 t40 = lam (dirac . log_)
 
+t41 :: (Lambda repr, Integrate repr, Mochastic repr) => repr (Measure ((Prob -> Prob) -> Prob))
+t41 = dirac $ (unExpect (uniform 0 2 `bind` dirac . unsafeProb))
+
+t42 :: (Lambda repr, Integrate repr, Mochastic repr) => repr (Measure Prob)
+t42 = dirac $ (unExpect (uniform 0 2 `bind` dirac . unsafeProb) `app` lam id)
 
 mcmc :: (Mochastic repr, Integrate repr, Lambda repr,
          a ~ Expect' a, Order_ a) =>
