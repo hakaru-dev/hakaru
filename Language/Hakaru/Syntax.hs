@@ -8,14 +8,14 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Bool_,
        errorEmpty,
        Order(..), Base(..), ununit, true, false, if_, fst_, snd_,
        and_, or_, not_, min_, max_,
-       Mochastic(..), bind_, liftM, liftM2, invgamma, beta, bern,
+       Mochastic(..), bind_, pairBind, liftM, liftM2, invgamma, beta, bern,
        Integrate(..), Lambda(..)) where
 
 import Prelude hiding (Real)
 import Data.Typeable (Typeable, gcast)
 
 infix  4 `less`, `equal`, `less_`, `equal_`
-infixl 1 `bind`, `bind_`
+infixl 1 `bind`, `bind_`, `pairBind`
 infixl 9 `app`
 
 ------- Types
@@ -236,6 +236,10 @@ errorEmpty = error "empty mixture makes no sense"
 bind_ :: (Mochastic repr) => repr (Measure a) -> repr (Measure b) ->
                                                  repr (Measure b)
 m `bind_` n = m `bind` \_ -> n
+
+pairBind :: (Mochastic repr) => repr (Measure a) ->
+            (repr a -> repr (Measure b)) -> repr (Measure (a,b))
+m `pairBind` k = m `bind` \a -> k a `bind` \b -> dirac (pair a b)
 
 liftM :: (Mochastic repr) => (repr a -> repr b) ->
          repr (Measure a) -> repr (Measure b)
