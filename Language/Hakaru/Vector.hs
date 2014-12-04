@@ -36,8 +36,9 @@ class (as ~ Repeat' (Length' as) a) => Vector a as where
                      Repeat (Length a as) b
   traverse        :: (A.Applicative f, SameLength as b) =>
                      (a -> f b) -> (a, as) -> f (Repeat (Length a as) b)
-  toNestedPair    :: Base repr => Repeat (Length a as) (repr a) -> repr (a, as)
-  fromNestedPair  :: Base repr => repr (a, as) ->
+  toNestedPair    :: (SameLength as (repr a), Base repr) =>
+                     Repeat (Length a as) (repr a) -> repr (a, as)
+  fromNestedPair  :: (SameLength as (repr a), Base repr) => repr (a, as) ->
                      (Repeat (Length a as) (repr a) -> repr w) -> repr w
   toList          :: (a, as) -> [a]
   fromList        :: [a] -> (a, as)
