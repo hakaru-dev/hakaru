@@ -85,14 +85,22 @@ bi["Uniform"] := bfunc("uniform ");
 bi["Lebesgue"] := proc() b:-append("lebesgue") end;
 bi["Pi"] := proc() b:-append("pi_") end;
 
-bi["Bind"] := proc(meas, rng, rest)
+bi["Bind"] := proc(meas, var, rest)
+  local rng;
   p(meas);
   b:-append(" `bind` \\");
-  if type(rng, specfunc(anything,'_Inert_NAME')) then
-    b:-append(op(1,rng));
+  if type(var, specfunc(anything,'_Inert_NAME')) then
+    b:-append(op(1,var));
     b:-append(" -> ");
-  else
-    error "variable range in `bind` not yet handled";
+  else 
+    ASSERT(type(var, specfunc(anything, '_Inert_EQUATION')));
+    rng := FromInert(op(2,var));
+    if rng = -infinity .. infinity then
+      b:-append(op([1,1],var));
+      b:-append(" -> ");
+    else
+      error "variable range in `bind` not yet handled";
+    end if;
   end if;
   p(rest);
 end;
