@@ -9,7 +9,7 @@
 
 SLO := module ()
   export ModuleApply, AST, simp, c; # very important: this c is "global".
-  local ToAST, t_binds, t_pw, into_pw, myprod, gensym, gs_counter;
+  local ToAST, t_binds, t_pw, into_pw, myprod, gensym, gs_counter, do_pw;
 
   t_binds := 'specfunc(anything, {int, Int, sum, Sum})';
   t_pw := 'specfunc(anything, piecewise)';
@@ -79,7 +79,8 @@ SLO := module ()
             end if;
           end if;
         elif type(ee, t_pw) then
-          error "encountered piecewise, case not done yet"
+          # for now, don't simplify, just pass through
+          return do_pw([op(e)], ctx);
         else
           error "no binders, but still not a polynomial?", ee
         end if;
@@ -188,6 +189,15 @@ SLO := module ()
   gs_counter := 0;
   gensym := proc(x::name) gs_counter := gs_counter + 1; x || gs_counter; end proc;
 
+  do_pw := proc(l, ctx)
+    local len;
+    len := nops(l);
+    if len = 0 then 0
+    elif len = 1 then ToAST(l[1], ctx)
+    else # l>=2. Note how conditions go through straight
+      If(l[1], ToAST(l[2], ctx), do_pw(l[3..-1], ctx))
+    end if;
+  end;
 end;
 
 # this has to be global!
