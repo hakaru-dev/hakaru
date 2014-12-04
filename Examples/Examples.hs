@@ -39,7 +39,7 @@ gaussianMixture = do
         b <- unconditioned (bern p)
         unconditioned (ifThenElse b (normal m1 s1)
                                     (normal m2 s2))
-        replicateM nPoints makePoint
+  replicateM nPoints makePoint
 
 testGaussianMixture :: IO ()
 testGaussianMixture = 
