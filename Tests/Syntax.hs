@@ -1,28 +1,56 @@
 {-# LANGUAGE TypeFamilies, Rank2Types, FlexibleContexts #-}
 {-# OPTIONS -W #-}
 
--- module Tests.Syntax where
+module Tests.Syntax(allTests) where
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Real, Prob, Measure, Order_(..),
+import Language.Hakaru.Syntax (Real, Prob, Measure,
        Order(..), Base(..), ununit, and_, fst_, snd_, min_,
        Mochastic(..), bind_, beta, bern,
-       if_, true, false, Bool_,
-       Lambda(..), Integrate(..))
+       if_, true, false, Bool_)
 import Language.Hakaru.Util.Pretty (Pretty (pretty), prettyPair)
-import Language.Hakaru.Expect (Expect(unExpect), Expect')
-import Language.Hakaru.Maple (Maple, runMaple)
 import Language.Hakaru.Sample(Sample(unSample))
 import Language.Hakaru.Disintegrate
-import Language.Hakaru.PrettyPrint (runPrettyPrint)
-import Language.Hakaru.Simplify (Any(unAny), simplify)
 
 import Control.Monad (zipWithM_, replicateM)
 import Control.Applicative (Const(Const))
-import Text.PrettyPrint (text, (<>), ($$), nest, render)
+import Text.PrettyPrint (text, (<>), ($$), nest)
 
 import qualified Data.Number.LogFloat as LF
 import qualified System.Random.MWC as MWC
+
+import Test.HUnit
+import Tests.TestTools
+
+
+allTests :: Test
+allTests = test [
+    "pair1fst" ~: testS pair1fst,
+    "pair1snd" ~: testS pair1snd,
+    "pair2fst" ~: testS pair2fst,
+    "pair2snd" ~: testS pair2snd,
+    --"pair2'fst" ~: testS $ pair2'fst 10,
+    --"pair2'snd" ~: testS $ pair2'snd 10,
+    --"replicateH" ~: testS $ replicateH 10,
+    "pair3fst" ~: testS $ pair3fst 1 [true,true,true],
+    "pair3snd" ~: testS $ pair3snd 1 [true,true,true],
+    "pair3trd" ~: testS $ pair3trd 1 [true,true,true],
+    "pair4fst" ~: testS $ pair4fst,
+    "pair4transition" ~: testS $ pair4transition $ pair true 1,
+    "pair4'transition" ~: testS $ pair4'transition $ pair true 1,
+    "transitionTest" ~: ignore $ undefined,
+    "testDistWithSample" ~: do x <- testDistWithSample
+                               mapM_ assertJust x,
+    "prog1s" ~: ignore $ undefined,
+    "prog2s" ~: ignore $ undefined,
+    "prog3s" ~: ignore $ undefined
+    ]
+
+main :: IO ()
+main = do
+    runTestTT allTests
+    putStrLn "done"
+
 
 -- pair1fst and pair1snd are equivalent
 pair1fst :: (Mochastic repr) => repr (Measure (Bool_, Prob))

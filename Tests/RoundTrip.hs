@@ -1,5 +1,5 @@
 {-# LANGUAGE TypeFamilies, Rank2Types, FlexibleContexts #-}
-module Tests.RoundTrip where
+module Tests.RoundTrip(allTests) where
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax
@@ -11,27 +11,9 @@ import Language.Hakaru.PrettyPrint (runPrettyPrint)
 import Text.PrettyPrint (text, (<>), ($$), nest, render)
 
 import Test.HUnit
+import Tests.TestTools
 
 -- mikek: some tests are ignored because they crash ghci for me
-
--- for now just assert that we get a result and that no error is thrown
-assertResult :: String -> Assertion
-assertResult s = assertBool "no result" $ not $ null s
-
-testS :: (Simplify a) => Expect Maple a -> IO ()
-testS t = do
-    putStrLn "" -- format output better
-    p <- simplify t
-    let s = (render . runPrettyPrint . unAny) p
-    assertResult s
-
-testMaple :: Expect Maple a -> IO ()
-testMaple t = assertResult $ runMaple (unExpect t) 0
-
-ignore :: a -> Assertion
-ignore t = assertBool "ignored" False  -- ignoring a test reports as a failure
-
--- tests
 
 testMeasureUnit :: Test
 testMeasureUnit = test [
