@@ -62,6 +62,10 @@ d[_Inert_NAME] := proc(a1)
     b:-append(a1);
   end if;
 end proc;
+# SUM is n-ary
+d[_Inert_SUM] := proc()
+  lparen(); seqp(" + ", [_passed]); rparen();
+end;
 # PROD is n-ary
 d[_Inert_PROD] := proc()
   lparen(); seqp(" * ", [_passed]); rparen();
@@ -74,6 +78,9 @@ d[_Inert_POWER] := proc(a1,a2)
   #        or Prob "`pow_`" Real
   parens(proc() p(a1); b:-append(" ^ "); p(a2) end);
 end;
+d[_Inert_LESSTHAN] := proc(a1, a2)
+  lparen(); b:-append("less"); sp(); p(a1); sp(); p(a2); rparen();
+end proc;
 
 # this is the table of known internal functions
 bi["Bind_"] := proc(a1, a2) p(a1); b:-append(" `bind_` "); p(a2) end;
@@ -116,6 +123,26 @@ end;
 bi["exp"] := ufunc("exp");
 bi["exp_"] := ufunc("exp_");
 bi["ln"] := ufunc("ln");
+
+bi["If"] := proc()
+  ASSERT(_npassed>0);
+  if _npassed = 1 then p(_passed[1])
+  elif _npassed = 2 then
+    b:-append("if_ ");
+    p(_passed[1]);
+    sp();
+    lparen(); p(_passed[2]); rparen();
+    sp();
+    b:-append("0");
+  else
+    b:-append("if_ ");
+    p(_passed[1]);
+    sp();
+    lparen(); p(_passed[2]); rparen();
+    sp();
+    lparen(); thisproc(_passed[3..-1]); rparen();
+  end if;
+end;
 
 # utility routines:
 # =================

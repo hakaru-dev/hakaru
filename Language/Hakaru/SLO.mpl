@@ -62,14 +62,14 @@ SLO := module ()
         # this is a 'raw' measure, with no integrals
         ee := subs(subst, e);
         if type(ee, 'polynom'(anything,ivars)) then
-          ee := collect(ee, ivars);
+          ee := collect(ee, ivars, simplify);
           d := degree(ee, ivars);
           ld := ldegree(ee, ivars);
-          cof := [coeffs(ee, ivars, 'v')]; # cof and v are lists
+          cof := [coeffs(ee, ivars, 'v')]; # cof is a list, v expseq
           if (d = 1) and (ld = 1) then
             # WM = Weight-Measure pair
             ff := (x,y) -> WM(simplify(x), Return(op(y)));
-            Superpose(op(zip(ff, cof, v)));
+            Superpose(op(zip(ff, cof, [v])));
             # `if`(cof=1, rest, Bind_(Factor(simplify(cof)), rest))
           else
             if (ld = 0) then
@@ -79,8 +79,7 @@ SLO := module ()
             end if;
           end if;
         elif type(ee, t_pw) then
-          # for now, don't simplify, just pass through
-          return do_pw([op(e)], ctx);
+          return do_pw(map(simplify, [op(e)]), ctx);
         else
           error "no binders, but still not a polynomial?", ee
         end if;
@@ -195,7 +194,7 @@ SLO := module ()
     if len = 0 then 0
     elif len = 1 then ToAST(l[1], ctx)
     else # l>=2. Note how conditions go through straight
-      If(l[1], ToAST(l[2], ctx), do_pw(l[3..-1], ctx))
+      If(l[1], ToAST(l[2], ctx), thisproc(l[3..-1], ctx))
     end if;
   end;
 end;
