@@ -87,7 +87,7 @@ instance (Base repr, Order repr a, Known a, Ord (Knowledge a))
                 _ -> fromDynamic (less (toDynamic x) (toDynamic y))
   equal x y = case (toKnown x, toKnown y) of
                 (Just xK, Just yK) -> fromKnown (xK == yK)
-                _ -> fromDynamic (less (toDynamic x) (toDynamic y))
+                _ -> fromDynamic (equal (toDynamic x) (toDynamic y))
 
 instance (Base repr, Num (repr a),
           Known a, Eq (Knowledge a), Num (Knowledge a))
