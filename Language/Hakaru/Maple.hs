@@ -13,15 +13,14 @@ import Data.Ratio
 import Data.Typeable (gcast)
 import Data.Maybe (fromMaybe)
 import Control.Monad (liftM2)
-import Control.Monad.Trans.Reader (ReaderT(ReaderT), runReaderT)
-import Control.Monad.Trans.Cont (Cont, cont, runCont)
+import Control.Monad.Trans.Reader (Reader, reader, runReader)
 
-newtype Maple a = Maple { unMaple :: ReaderT Int (Cont String) String }
+newtype Maple a = Maple { unMaple :: Reader Int String }
 
 -- "piecewise" in Maple only works when the expression has numeric type.
 -- So "runMaple" should only be used when the expression has numeric type.
 runMaple :: Maple a -> Int -> String
-runMaple (Maple x) i = runCont (runReaderT x i) id
+runMaple (Maple x) = runReader x
 
 mapleFun1 :: String -> Maple a -> Maple b
 mapleFun1 fn (Maple x) =
@@ -97,19 +96,18 @@ instance Base Maple where
   uneither = r where
     Uneither r = fromMaybe defaultCase (ggcast booleanCase)
     defaultCase = Uneither (\(Maple ab) ka kb -> Maple (ab >>= \ab' ->
-      ReaderT $ \i -> cont $ \c ->
+      reader $ \i ->
       let opab :: Int -> String
           opab n = "op(" ++ show n ++ ", " ++ ab' ++ ")" in
-      let arm tag k = opab 0 ++ " = " ++ tag ++ ", " ++
-                      runCont (runReaderT (k (return (opab 1))) i) c
-      in "piecewise(" ++ arm "Left"  (unMaple . ka . Maple)
-              ++ ", " ++ arm "Right" (unMaple . kb . Maple) ++ ")"))
+      let arm k = runReader (unMaple (k (return (opab 1)))) i
+      in "if_(" ++ opab 0 ++ " = Left, " ++ arm (ka . Maple)
+                                 ++ ", " ++ arm (kb . Maple) ++ ")"))
     booleanCase :: Uneither Maple () ()
     booleanCase = Uneither (\(Maple ab) ka kb -> Maple (ab >>= \ab' ->
-      ReaderT $ \i -> cont $ \c ->
-      let arm k = runCont (runReaderT (unMaple (k unit)) i) c
-      in "piecewise(" ++ ab' ++ ", " ++ arm ka
-                             ++ ", " ++ arm kb ++ ")"))
+      reader $ \i ->
+      let arm k = runReader (unMaple (k unit)) i
+      in "if_(" ++ ab' ++ ", " ++ arm ka
+                       ++ ", " ++ arm kb ++ ")"))
   unsafeProb = mapleFun1 "unsafeProb"
   fromProb   (Maple x) = Maple x
   fromInt    (Maple x) = Maple x
@@ -128,12 +126,12 @@ instance Integrate Maple where
 quant :: String -> Maple Real -> Maple Real ->
          (Maple a -> Maple Prob) -> Maple Prob
 quant q (Maple lo) (Maple hi) f = Maple (lo >>= \lo' -> hi >>= \hi' ->
-  ReaderT $ \i -> return $
+  reader $ \i ->
   let (x, body) = mapleBind f i
   in q ++ "(" ++ body ++ "," ++ x ++ "=" ++ lo' ++ ".." ++ hi' ++ ")")
 
 instance Lambda Maple where
-  lam f = Maple (ReaderT $ \i -> return $
+  lam f = Maple (reader $ \i ->
     let (x, body) = mapleBind f i in "(" ++ x ++ "->" ++ body ++ ")")
   app (Maple rator) (Maple rand) =
     Maple (liftM2 (\rator' rand' -> rator' ++ "(" ++ rand' ++ ")") rator rand)
