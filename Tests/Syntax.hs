@@ -6,7 +6,7 @@ module Tests.Syntax(allTests) where
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure,
        Order(..), Base(..), ununit, and_, fst_, snd_, min_,
-       Mochastic(..), bind_, beta, bern,
+       Mochastic(..), Lambda(..), bind_, beta, bern, lam,
        if_, true, false, Bool_)
 import Language.Hakaru.Util.Pretty (Pretty (pretty), prettyPair)
 import Language.Hakaru.Sample(Sample(unSample))
@@ -41,6 +41,7 @@ allTests = test [
     "transitionTest" ~: ignore $ undefined,
     "testDistWithSample" ~: do x <- testDistWithSample
                                mapM_ assertJust x,
+    "testLinreg" ~: testS distLinreg,
     "prog1s" ~: ignore $ undefined,
     "prog2s" ~: ignore $ undefined,
     "prog3s" ~: ignore $ undefined
@@ -195,6 +196,40 @@ testDistWithSample = do
                                 normal x 1 `bind` \y ->
                                 dirac (pair y x)
 
+type Real5 = (Real, (Real, (Real, (Real, Real))))
+type Real6 = (Real, (Real, (Real, (Real, (Real, Real)))))
+
+make5Pair :: (Base repr) => [repr a] -> repr (a,(a,(a,(a,a))))
+make5Pair [x1,x2,x3,x4,x5] = pair x1
+                                (pair x2
+                                 (pair x3
+                                  (pair x4
+                                         x5)))
+
+make6Pair :: (Base repr) => [repr a] -> repr (a,(a,(a,(a,(a,a)))))
+make6Pair [x1,x2,x3,x4,x5,x6] = pair x1
+                                (pair x2
+                                 (pair x3
+                                  (pair x4
+                                   (pair x5
+                                         x6))))
+
+linreg :: Mochastic repr => repr (Measure (Real6, Real5))
+linreg = normal 0 2 `bind` \w1 ->
+         normal 0 2 `bind` \w2 ->
+         normal 0 2 `bind` \w3 ->
+         normal 0 2 `bind` \w4 ->
+         normal 0 2 `bind` \w5 ->
+         uniform (-1) 1 `bind` \x1 ->
+         uniform (-1) 1 `bind` \x2 ->
+         uniform (-1) 1 `bind` \x3 ->
+         uniform (-1) 1 `bind` \x4 ->
+         uniform (-1) 1 `bind` \x5 ->
+         normal (x1*w1 + x2*w2 + x3*w3 + x4*w4 + x5*w5) 1 `bind` \y ->
+         dirac (pair (make6Pair [x1,x2,x3,x4,x5,y]) (make5Pair [w1,w2,w3,w4,w5]))
+
+distLinreg :: (Lambda repr, Mochastic repr) => repr (Real6 -> (Measure Real5))
+distLinreg = lam $ \ x -> (runDisintegrate (\ env -> linreg) !! 0) unit x
 
 ------- Tests
 
