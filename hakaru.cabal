@@ -29,12 +29,18 @@ library
                        Language.Hakaru.Metropolis,
                        Language.Hakaru.Lambda,
                        Language.Hakaru.Sample,
+                       Language.Hakaru.Disintegrate,
                        Language.Hakaru.Distribution,
-                       Language.Hakaru.Simplify,
-                       Language.Hakaru.Util.Csv,
+                       Language.Hakaru.Simplify
+
+  other-modules:       Language.Hakaru.Util.Csv,
                        Language.Hakaru.Util.Extras,
-                       Language.Hakaru.Util.Visual
---                        Language.Hakaru.Util.Coda
+                       Language.Hakaru.Util.Finite,
+                       Language.Hakaru.Util.Lex,
+                       Language.Hakaru.Util.Pretty,
+                       Language.Hakaru.Util.Visual,
+                       System.MapleSSH
+
   other-extensions:    RankNTypes, BangPatterns, GADTs, TypeFamilies, TypeOperators,
                        ConstraintKinds, FlexibleContexts, NoMonomorphismRestriction,
                        DeriveDataTypeable, ScopedTypeVariables, ExistentialQuantification,
@@ -87,7 +93,8 @@ library
   default-language:    Haskell2010
   ghc-options:         -Wall
 
-executable roundtrip_test
+test-suite roundtrip_test
+    type:              exitcode-stdio-1.0
     main-is:           Tests/Syntax.hs
     build-depends:     base, Cabal >= 1.16, 
                        random >=1.0 && <1.3,
