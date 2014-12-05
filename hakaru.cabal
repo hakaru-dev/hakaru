@@ -58,7 +58,7 @@ library
 -- text used in LH.Util.Visual
 -- aeson used in LH.Util.Visual
 -- integration used in LH.Sample
-  build-depends:       base >=4.6 && <5.0,
+  build-depends:       base >=4.6 && <5.0, Cabal >= 1.16,
                        random >=1.0 && <1.3,
                        template-haskell >= 2.4 && < 3.0,
                        transformers >=0.3 && <0.5,
@@ -89,7 +89,7 @@ library
 
 executable roundtrip_test
     main-is:           Tests/Syntax.hs
-    build-depends:     base, Cabal >= 1.10, 
+    build-depends:     base, Cabal >= 1.16, 
                        random >=1.0 && <1.3,
                        transformers >=0.3 && <0.5,
                        containers >=0.5 && <0.6,
@@ -101,6 +101,7 @@ executable roundtrip_test
                        monad-loops >= 0.3.0.2,
                        hint >= 0.4.0.0 && < 0.5,
                        integration >= 0.2 && < 0.3,
+                       HUnit >= 1.2 && < 2.0,
                        process >= 1.1 && < 2.0
     default-language:  Haskell2010
     ghc-options:         -Wall
