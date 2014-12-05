@@ -1,16 +1,22 @@
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RankNTypes, TypeOperators, ScopedTypeVariables #-}
 
 module Examples.BenchmarkProblems where
 
 import Prelude hiding (Real)
 import Control.Monad
 import Data.Char
+import Data.Csv (encode)
+import Language.Hakaru.Util.Csv
+import qualified Data.Number.LogFloat as LF
+
 import Language.Hakaru.Syntax
 import Language.Hakaru.Sample
 import Language.Hakaru.Expect
 import Language.Hakaru.Disintegrate
 import Language.Hakaru.PrettyPrint
---import qualified Language.Hakaru.Metropolis as MH
+import Language.Hakaru.Simplify
+import qualified Language.Hakaru.Vector as LV
+
 import System.Random.MWC as MWC hiding (uniform)
 
 type Cont repr a = forall w. (a -> repr (Measure w)) -> repr (Measure w)
@@ -55,7 +61,14 @@ make6Pair [x1,x2,x3,x4,x5,x6] = pair x1
 type Real5 = (Real, (Real, (Real, (Real, Real))))
 type Real6 = (Real, (Real, (Real, (Real, (Real, Real)))))
 
+type Double5 = (Double, (Double, (Double, (Double, Double))))
+
 -- Bayesian Linear Regression
+readLinreg :: FilePath -> IO [[Double]]
+readLinreg problem1 = do
+   rows <- decodeFileStream problem1
+   return [[x1,x2,x3,x4,x5,y] | (i::String,x1,x2,x3,x4,x5,y) <- rows]
+
 linreg :: Mochastic repr => repr (Measure (Real6, Real5))
 linreg = normal 0 2 `bind` \w1 ->
          normal 0 2 `bind` \w2 ->
@@ -63,24 +76,26 @@ linreg = normal 0 2 `bind` \w1 ->
          normal 0 2 `bind` \w4 ->
          normal 0 2 `bind` \w5 ->
          uniform (-1) 1 `bind` \x1 ->
-         normal (x1*w1 + x1*w2 + x1*w3 + x1*w4 + x1*w5) 1 `bind` \y1 ->
          uniform (-1) 1 `bind` \x2 ->
-         normal (x2*w1 + x2*w2 + x2*w3 + x2*w4 + x2*w5) 1 `bind` \y2 ->
          uniform (-1) 1 `bind` \x3 ->
-         normal (x3*w1 + x3*w2 + x3*w3 + x3*w4 + x3*w5) 1 `bind` \y3 ->
-         dirac (pair (make6Pair [x1,x2,x3,y1,y2,y3]) (make5Pair [w1,w2,w3,w4,w5]))
+         uniform (-1) 1 `bind` \x4 ->
+         uniform (-1) 1 `bind` \x5 ->
+         normal (x1*w1 + x2*w2 + x3*w3 + x4*w4 + x5*w5) 1 `bind` \y ->
+         dirac (pair (make6Pair [x1,x2,x3,x4,x5,y]) (make5Pair [w1,w2,w3,w4,w5]))
 
-testLinreg = map (\ dist -> runPrettyPrint $
-                            lam $ \a ->
-                            lam $ \b ->
-                            lam $ \c ->
-                            lam $ \d ->
-                            lam $ \e ->
-                            lam $ \f ->
-                            dist unit (make6Pair [a,b,c,d,e,f])) $
-             runDisintegrate (\ env -> linreg)
+distLinreg :: (Lambda repr, Mochastic repr) => repr (Real6 -> (Measure Real5))
+distLinreg = lam $ \ x -> (runDisintegrate (\ env -> linreg) !! 0) unit x
 
-testLinreg2 = map (length . filter (not . isSpace) . show) testLinreg
+simpLinreg :: (Lambda repr, Mochastic repr) => IO (repr (Real6 -> (Measure Real5)))
+simpLinreg = Control.Monad.liftM unAny (simplify distLinreg)
+
+testLinreg :: IO (Maybe (Double5, LF.LogFloat))
+testLinreg = do
+  g <- MWC.create
+  rawData <- readLinreg "/home/zv/programming/research_projects/prob_prog_ppaml/ppaml_repo/problems/CP4-SmallProblems/small-problems-v2.0/problem-1-data.csv"
+  let [x1,x2,x3,x4,x5,y] = head rawData
+  --simplified <- simpLinreg
+  unSample distLinreg (x1,(x2,(x3,(x4,(x5,y))))) 1 g
 
 -- QMR
 
@@ -165,14 +180,19 @@ eTest :: (Integrate repr,
 eTest n = runExpect (dirac n)
 
 -- Lifted inference
-n = 80 -- [10,20,40,80,160,320,640,1280,2560,5120]
-k = 16 -- [1,2,4,8,16,32,64]
+n = 10 -- [10,20,40,80,160,320,640,1280,2560,5120]
 
-liftedInference :: Mochastic repr => repr (Measure (Bool_, Prob))
+k :: Base repr => repr Prob
+k = 2 -- [1,2,4,8,16,32,64]
+
+liftedInference :: Mochastic repr => repr (Measure (Prob, Bool_))
 liftedInference = bern 0.01 `bind` \cause ->
                   replicateH n (if_ cause (bern 0.6) (bern 0.05))
                    (\ effects ->
                     dirac $ 
                     foldl (\ sum_ e ->
                            sum_ + (if_ e 1 0)) 0 effects) `bind` \sum_ ->
-                  dirac (pair cause sum_)
+                  dirac (pair sum_ cause)
+
+testLiftedInference :: Mochastic repr => repr (Measure Bool_)
+testLiftedInference = (runDisintegrate (\ env -> liftedInference) !! 0) unit k
