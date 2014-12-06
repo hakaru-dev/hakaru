@@ -23,10 +23,10 @@ testMeasureUnit = test [
     "t11" ~: testS t11,
     "t12" ~: testS t12,
     "t20" ~: testS t20,
-    "t22" ~: ignore $ testS t22,
+    "t22" ~: testS t22,
     "t24" ~: testS t24,
     "t25" ~: testS t25
-    ] -- 9
+    ]
 
 testMeasureProb :: Test
 testMeasureProb = test [
@@ -34,19 +34,19 @@ testMeasureProb = test [
     "t26" ~: testMaple t26,
     "t30" ~: testS t30,
     "t33" ~: testS t33,
-    "t34" ~: ignore $ testS t34,
-    "t35" ~: ignore $ testS t35,
+    "t34" ~: testS t34,
+    "t35" ~: testS t35,
     "t38" ~: testS t38
-    ] -- 16
+    ]
 
 testMeasureReal :: Test
 testMeasureReal = test [
     "t3"  ~: testS t3,
     "t6"  ~: testS t6,
     "t7"  ~: testS t7,
-    "t9"  ~: ignore $ testS t9,
-    "t13" ~: ignore $ testS t13,
-    "t14" ~: ignore $ testS t14,
+    "t9"  ~: testS t9,
+    "t13" ~: testS t13,
+    "t14" ~: testS t14,
     "t21" ~: ignore $ testS t21,
     "t27" ~: sequence_ $ map testMaple t27,
     "t28" ~: testS t28,
@@ -61,9 +61,9 @@ testMeasureReal = test [
 
 testMeasurePair :: Test
 testMeasurePair = test [
-    "t4"  ~: ignore $ testS t4,
+    "t4"  ~: testS t4,
     "t8"  ~: testS t8,
-    "t23" ~: ignore $ testS t23
+    "t23" ~: testS t23
     ]
 
 testOther :: Test
