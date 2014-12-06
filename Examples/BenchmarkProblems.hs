@@ -181,12 +181,13 @@ eTest :: (Integrate repr,
 eTest n = runExpect (dirac n)
 
 -- Lifted inference
+n :: Int
 n = 10 -- [10,20,40,80,160,320,640,1280,2560,5120]
 
-k :: Base repr => repr Prob
+k :: Base repr => repr Int
 k = 2 -- [1,2,4,8,16,32,64]
 
-liftedInference :: Mochastic repr => repr (Measure (Prob, Bool_))
+liftedInference :: Mochastic repr => repr (Measure (Int, Bool_))
 liftedInference = bern 0.01 `bind` \cause ->
                   replicateH n (if_ cause (bern 0.6) (bern 0.05))
                    (\ effects ->
