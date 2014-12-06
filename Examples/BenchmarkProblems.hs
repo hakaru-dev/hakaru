@@ -14,6 +14,7 @@ import Language.Hakaru.Sample
 import Language.Hakaru.Expect
 import Language.Hakaru.Disintegrate
 import Language.Hakaru.PrettyPrint
+import Language.Hakaru.Partial
 import Language.Hakaru.Simplify
 import qualified Language.Hakaru.Vector as LV
 
@@ -84,7 +85,7 @@ linreg = normal 0 2 `bind` \w1 ->
          dirac (pair (make6Pair [x1,x2,x3,x4,x5,y]) (make5Pair [w1,w2,w3,w4,w5]))
 
 distLinreg :: (Lambda repr, Mochastic repr) => repr (Real6 -> (Measure Real5))
-distLinreg = lam $ \ x -> (runDisintegrate (\ env -> linreg) !! 0) unit x
+distLinreg = runPartial (lam $ \ x -> (runDisintegrate (\ env -> linreg) !! 0) unit x)
 
 simpLinreg :: (Lambda repr, Mochastic repr) => IO (repr (Real6 -> (Measure Real5)))
 simpLinreg = Control.Monad.liftM unAny (simplify distLinreg)
@@ -195,4 +196,4 @@ liftedInference = bern 0.01 `bind` \cause ->
                   dirac (pair sum_ cause)
 
 testLiftedInference :: Mochastic repr => repr (Measure Bool_)
-testLiftedInference = (runDisintegrate (\ env -> liftedInference) !! 0) unit k
+testLiftedInference = runPartial ((runDisintegrate (\ env -> liftedInference) !! 0) unit k)
