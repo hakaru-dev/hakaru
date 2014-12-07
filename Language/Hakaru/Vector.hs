@@ -3,7 +3,7 @@
              ConstraintKinds, DataKinds, Rank2Types, ScopedTypeVariables #-}
 
 module Language.Hakaru.Vector (Nat(..), Repeat, Vector(..),
-        sequenceA, mapM, sequence, mapAccum) where
+        sequenceA, mapM, sequence, mapAccum, iota) where
 
 import Prelude hiding (Real, mapM, sequence)
 import qualified Control.Applicative as A
