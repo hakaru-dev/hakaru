@@ -22,8 +22,8 @@ runPartial (Partial (Just d) _) = d
 runPartial (Partial Nothing  _) =
   error "Unbound variable at top level of partial evaluation"
 
-dynamic :: repr a -> Partial repr a
-dynamic = fromDynamic . Just
+dynamic :: Partial repr a -> Partial repr a
+dynamic = fromDynamic . toDynamic
 
 data family Static a :: (* -> *) -> *
 newtype instance Static Int          repr = SInt   Integer
