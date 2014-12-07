@@ -2,15 +2,25 @@
              TypeFamilies, RankNTypes #-}
 {-# OPTIONS -Wall #-}
 
-module Language.Hakaru.Partial (Partial, toDynamic, fromDynamic) where
+module Language.Hakaru.Partial (Partial, runPartial) where
 
 -- Rudimentary partial evaluation
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax
+import Language.Hakaru.Syntax hiding (liftM2)
 import Data.Ratio (denominator, numerator)
+import Data.Maybe (fromMaybe, isJust)
+import Control.Monad (liftM2)
 
-data Partial repr a = Partial (repr a) (Maybe (Static a repr))
+data Partial repr a = Partial
+  (Maybe (repr a))        -- "Nothing" means unbound
+                          -- (we use this value to check if a variable is used)
+  (Maybe (Static a repr)) -- "Nothing" means no static information available
+
+runPartial :: Partial repr a -> repr a
+runPartial (Partial (Just d) _) = d
+runPartial (Partial Nothing  _) =
+  error "Unbound variable at top level of partial evaluation"
 
 data family Static a :: (* -> *) -> *
 newtype instance Static Int          repr = SInt   Integer
@@ -46,24 +56,24 @@ instance Known Int where
   type Knowledge Int = Integer
   toKnown (Partial _ (Just (SInt x))) = Just x
   toKnown _ = Nothing
-  fromKnown x = Partial (fromInteger x) (Just (SInt x))
+  fromKnown x = Partial (Just (fromInteger x)) (Just (SInt x))
 
 instance Known Real where
   type Knowledge Real = Rational
   toKnown (Partial _ (Just (SReal x))) = Just x
   toKnown _ = Nothing
-  fromKnown x = Partial (fromRational x) (Just (SReal x))
+  fromKnown x = Partial (Just (fromRational x)) (Just (SReal x))
 
 instance Known Prob where
   type Knowledge Prob = Rational
   toKnown (Partial _ (Just (SProb x))) = Just x
   toKnown _ = Nothing
-  fromKnown x = Partial (fromRational x) (Just (SProb x))
+  fromKnown x = Partial (Just (fromRational x)) (Just (SProb x))
 
-toDynamic :: Partial repr a -> repr a
+toDynamic :: Partial repr a -> Maybe (repr a)
 toDynamic (Partial d _) = d
 
-fromDynamic :: repr a -> Partial repr a
+fromDynamic :: Maybe (repr a) -> Partial repr a
 fromDynamic d = Partial d Nothing
 
 unary :: (Base repr, Known a, Known b) => (Knowledge a -> Knowledge b) ->
@@ -71,7 +81,7 @@ unary :: (Base repr, Known a, Known b) => (Knowledge a -> Knowledge b) ->
                                           Partial repr a -> Partial repr b
 unary f1 f2 x = case toKnown x of
                   Just xK -> fromKnown (f1 xK)
-                  _       -> fromDynamic (f2 (toDynamic x))
+                  _       -> fromDynamic (fmap f2 (toDynamic x))
 
 integer :: Rational -> Maybe Integer
 integer x | denominator x == 1 = Just (numerator x)
@@ -84,10 +94,10 @@ instance (Base repr, Order repr a, Known a, Ord (Knowledge a))
          => Order (Partial repr) a where
   less  x y = case (toKnown x, toKnown y) of
                 (Just xK, Just yK) -> fromKnown (xK < yK)
-                _ -> fromDynamic (less (toDynamic x) (toDynamic y))
+                _ -> fromDynamic (liftM2 less (toDynamic x) (toDynamic y))
   equal x y = case (toKnown x, toKnown y) of
                 (Just xK, Just yK) -> fromKnown (xK == yK)
-                _ -> fromDynamic (equal (toDynamic x) (toDynamic y))
+                _ -> fromDynamic (liftM2 equal (toDynamic x) (toDynamic y))
 
 instance (Base repr, Num (repr a),
           Known a, Eq (Knowledge a), Num (Knowledge a))
@@ -96,19 +106,19 @@ instance (Base repr, Num (repr a),
             (Just xK, Just yK) -> fromKnown (xK + yK)
             (_      , Just 0 ) -> x
             (Just 0 , _      ) -> y
-            _                  -> fromDynamic (toDynamic x + toDynamic y)
+            _ -> fromDynamic (liftM2 (+) (toDynamic x) (toDynamic y))
   x * y = case (toKnown x, toKnown y) of
             (Just xK, Just yK) -> fromKnown (xK * yK)
             (_      , Just 1 ) -> x
             (Just 1 , _      ) -> y
             (_      , Just 0 ) -> 0
             (Just 0 , _      ) -> 0
-            _                  -> fromDynamic (toDynamic x * toDynamic y)
+            _ -> fromDynamic (liftM2 (*) (toDynamic x) (toDynamic y))
   x - y = case (toKnown x, toKnown y) of
             (Just xK, Just yK) -> fromKnown (xK - yK)
             (_      , Just 0 ) -> x
             (Just 0 , _      ) -> negate y
-            _                  -> fromDynamic (toDynamic x - toDynamic y)
+            _ -> fromDynamic (liftM2 (-) (toDynamic x) (toDynamic y))
   negate = unary negate negate
   abs    = unary abs    abs
   signum = unary signum signum
@@ -122,7 +132,7 @@ instance (Base repr, Fractional (repr a),
             (_      , Just 1 ) -> x
             (Just 1 , _      ) -> recip y
             (Just 0 , _      ) -> 0
-            _                  -> fromDynamic (toDynamic x / toDynamic y)
+            _ -> fromDynamic (liftM2 (/) (toDynamic x) (toDynamic y))
   recip = unary recip recip
   fromRational = fromKnown . fromRational
 
@@ -130,113 +140,155 @@ instance (Base repr, Floating (repr a), Known a, Knowledge a ~ Rational)
          => Floating (Partial repr a) where
   x ** y = case toKnown y >>= integer of
              Just yK -> x ^^ yK
-             _ -> fromDynamic (toDynamic x ** toDynamic y)
-  logBase x y = fromDynamic (logBase (toDynamic x) (toDynamic y))
+             _ -> fromDynamic (liftM2 (**) (toDynamic x) (toDynamic y))
+  logBase x y = fromDynamic (liftM2 logBase (toDynamic x) (toDynamic y))
   exp  x = case toKnown x of
              Just 0 -> 1
-             _      -> fromDynamic (exp  (toDynamic x))
+             _ -> fromDynamic (fmap exp  (toDynamic x))
   log  x = case toKnown x of
              Just 1 -> 0
-             _      -> fromDynamic (log  (toDynamic x))
+             _ -> fromDynamic (fmap log  (toDynamic x))
   sqrt x = case toKnown x of
              Just 0 -> 0
              Just 1 -> 1
-             _      -> fromDynamic (sqrt (toDynamic x))
-  pi    = fromDynamic pi
-  sin   = fromDynamic . sin   . toDynamic
-  cos   = fromDynamic . cos   . toDynamic
-  tan   = fromDynamic . tan   . toDynamic
-  asin  = fromDynamic . asin  . toDynamic
-  acos  = fromDynamic . acos  . toDynamic
-  atan  = fromDynamic . atan  . toDynamic
-  sinh  = fromDynamic . sinh  . toDynamic
-  cosh  = fromDynamic . cosh  . toDynamic
-  tanh  = fromDynamic . tanh  . toDynamic
-  asinh = fromDynamic . asinh . toDynamic
-  acosh = fromDynamic . acosh . toDynamic
-  atanh = fromDynamic . atanh . toDynamic
+             _ -> fromDynamic (fmap sqrt (toDynamic x))
+  pi    = fromDynamic (Just pi)
+  sin   = fromDynamic . fmap sin   . toDynamic
+  cos   = fromDynamic . fmap cos   . toDynamic
+  tan   = fromDynamic . fmap tan   . toDynamic
+  asin  = fromDynamic . fmap asin  . toDynamic
+  acos  = fromDynamic . fmap acos  . toDynamic
+  atan  = fromDynamic . fmap atan  . toDynamic
+  sinh  = fromDynamic . fmap sinh  . toDynamic
+  cosh  = fromDynamic . fmap cosh  . toDynamic
+  tanh  = fromDynamic . fmap tanh  . toDynamic
+  asinh = fromDynamic . fmap asinh . toDynamic
+  acosh = fromDynamic . fmap acosh . toDynamic
+  atanh = fromDynamic . fmap atanh . toDynamic
 
 instance (Base repr) => Base (Partial repr) where
-  unit = Partial unit (Just SUnit)
-  pair a b = Partial (pair (toDynamic a) (toDynamic b)) (Just (SPair a b))
+  unit = Partial (Just unit) (Just SUnit)
+  pair a b = Partial (liftM2 pair (toDynamic a) (toDynamic b))
+                     (Just (SPair a b))
   unpair (Partial _ (Just (SPair a b))) k = k a b
-  unpair ab k = fromDynamic (unpair (toDynamic ab)
-                (\a b -> toDynamic (k (fromDynamic a) (fromDynamic b))))
-  inl a = Partial (inl (toDynamic a)) (Just (SLeft  a))
-  inr a = Partial (inr (toDynamic a)) (Just (SRight a))
+  unpair ab k = if isJust (toDynamic skip) then skip else fromDynamic (do
+    _ <- toDynamic (k (fromDynamic (Just undefined))
+                      (fromDynamic (Just undefined)))
+    ab' <- toDynamic ab
+    let k' a b = fromMaybe (error "Partial unpair: k nonmonotonic!?")
+                           (toDynamic (k (fromDynamic (Just a))
+                                         (fromDynamic (Just b))))
+    Just (unpair ab' k'))
+    where skip = k (fromDynamic Nothing) (fromDynamic Nothing)
+  inl a = Partial (fmap inl (toDynamic a)) (Just (SLeft  a))
+  inr a = Partial (fmap inr (toDynamic a)) (Just (SRight a))
   uneither (Partial _ (Just (SLeft  a))) k _ = k a
   uneither (Partial _ (Just (SRight b))) _ k = k b
-  uneither ab ka kb = fromDynamic (uneither (toDynamic ab)
-                      (\a -> toDynamic (ka (fromDynamic a)))
-                      (\b -> toDynamic (kb (fromDynamic b))))
-  unsafeProb (Partial d s) = Partial (unsafeProb d)
+  uneither ab ka kb = fromDynamic (do
+    _ <- toDynamic (ka (fromDynamic (Just undefined)))
+    _ <- toDynamic (kb (fromDynamic (Just undefined)))
+    ab' <- toDynamic ab
+    let ka' a = fromMaybe (error "Partial uneither: ka nonmonotonic!?")
+                          (toDynamic (ka (fromDynamic (Just a))))
+        kb' b = fromMaybe (error "Partial uneither: kb nonmonotonic!?")
+                          (toDynamic (kb (fromDynamic (Just b))))
+    Just (uneither ab' ka' kb'))
+  unsafeProb (Partial d s) = Partial (fmap unsafeProb d)
                                      (fmap (\(SReal x) -> SProb x) s)
-  fromProb (Partial d s) = Partial (fromProb d)
+  fromProb (Partial d s) = Partial (fmap fromProb d)
                                    (fmap (\(SProb x) -> SReal x) s)
-  fromInt (Partial d s) = Partial (fromInt d)
+  fromInt (Partial d s) = Partial (fmap fromInt d)
                                   (fmap (\(SInt x) -> SReal (fromInteger x)) s)
-  pi_              = fromDynamic pi_
-  infinity         = fromDynamic infinity
-  negativeInfinity = fromDynamic negativeInfinity
+  pi_              = fromDynamic (Just pi_)
+  infinity         = fromDynamic (Just infinity)
+  negativeInfinity = fromDynamic (Just negativeInfinity)
   exp_  x = case toKnown x of
               Just 0 -> 1
-              _      -> fromDynamic (exp_  (toDynamic x))
+              _ -> fromDynamic (fmap exp_  (toDynamic x))
   log_  x = case toKnown x of
               Just 1 -> 0
-              _      -> fromDynamic (log_  (toDynamic x))
+              _ -> fromDynamic (fmap log_  (toDynamic x))
   sqrt_ x = case toKnown x of
               Just 0 -> 0
               Just 1 -> 1
-              _      -> fromDynamic (sqrt_ (toDynamic x))
+              _ -> fromDynamic (fmap sqrt_ (toDynamic x))
   pow_ x y = case toKnown y >>= integer of
                Just yK -> x ^^ yK
-               _ -> fromDynamic (toDynamic x `pow_` toDynamic y)
+               _ -> fromDynamic (liftM2 pow_ (toDynamic x) (toDynamic y))
   gammaFunc x = case toKnown x >>= integer of
                   Just xK | 1 <= xK && xK <= 10
                     -> fromKnown (gammaN xK)
-                  _ -> fromDynamic (gammaFunc (toDynamic x))
+                  _ -> fromDynamic (fmap gammaFunc (toDynamic x))
   betaFunc x y = case (toKnown x >>= integer, toKnown y >>= integer) of
                    (Just xK, Just yK) | 1 <= xK && xK <= 10 &&
                                         1 <= yK && yK <= 10
                      -> fromKnown (gammaN xK * gammaN yK / gammaN (xK + yK))
-                   _ -> fromDynamic (betaFunc (toDynamic x) (toDynamic y))
-  fix f = Partial (fix (toDynamic . f . fromDynamic)) s
+                   _ -> fromDynamic (liftM2 betaFunc (toDynamic x) (toDynamic y))
+  fix f = Partial d s
     where Partial _ s = f (fix f)
+          d = do _ <- toDynamic (f (fromDynamic (Just undefined)))
+                 let f' = fromMaybe (error "Partial fix: f nonmonotonic!?")
+                        . toDynamic . f . fromDynamic . Just
+                 Just (fix f')
 
 superpose' :: (Mochastic repr) =>
-              [(Partial repr Prob, repr (Measure a))] -> repr (Measure a)
+              [(Partial repr Prob, repr (Measure a))] ->
+              Maybe (repr (Measure a))
 superpose' pms = case filter (\(p,_) -> toKnown p /= Just 0) pms of
-                   [(p,m)] | toKnown p == Just 1 -> m
-                   pms' -> superpose [ (toDynamic p, m) | (p,m) <- pms' ]
+                   [(p,m)] | toKnown p == Just 1 -> Just m
+                   pms' -> fmap superpose
+                         $ sequence
+                         $ [ fmap (\p'->(p',m)) (toDynamic p) | (p,m) <- pms' ]
 
 toMeasure :: (Mochastic repr) => Partial repr (Measure a) -> M repr a
 toMeasure (Partial _ (Just (SMeasure f))) = f
-toMeasure (Partial m Nothing) =
-  \c -> [(1, m `bind` \x -> superpose' (c (fromDynamic x)))]
+toMeasure (Partial m Nothing) = \c ->
+  if all ((Just 0 ==) . toKnown . fst) (c (fromDynamic Nothing)) then [] else
+  case (m, superpose' (c (fromDynamic (Just undefined)))) of
+    (Just m', Just _) ->
+      let c' x = fromMaybe (error "Partial Measure: c nonmonotonic!?")
+                           (superpose' (c (fromDynamic (Just x))))
+      in [(1, m' `bind` c')]
+    _ -> [(fromDynamic Nothing, undefined)]
 
 fromMeasure :: (Mochastic repr) => M repr a -> Partial repr (Measure a)
-fromMeasure f = Partial (superpose' (f (\x -> [(1, dirac (toDynamic x))])))
-                        (Just (SMeasure f))
+fromMeasure f = Partial (superpose' (f c)) (Just (SMeasure f))
+  where c (Partial (Just x) _) = [(1, dirac x)]
+        c (Partial Nothing  _) = [(fromDynamic Nothing, undefined)]
 
 instance (Mochastic repr) => Mochastic (Partial repr) where
   dirac x       = fromMeasure (\c -> c x)
   bind m k      = fromMeasure (\c -> toMeasure m (\a -> toMeasure (k a) c))
-  lebesgue      = fromDynamic lebesgue
-  counting      = fromDynamic counting
+  lebesgue      = fromDynamic (Just lebesgue)
+  counting      = fromDynamic (Just counting)
   superpose pms = fromMeasure (\c -> [ (p*q,n) | (p,m) <- pms
                                                , (q,n) <- toMeasure m c ])
-  uniform lo hi = fromDynamic (uniform (toDynamic lo) (toDynamic hi))
-  normal  mu sd = fromDynamic (normal  (toDynamic mu) (toDynamic sd))
-  poisson l     = fromDynamic (poisson (toDynamic l))
-  gamma   sh sc = fromDynamic (gamma   (toDynamic sh) (toDynamic sc))
+  uniform lo hi = fromDynamic (liftM2 uniform (toDynamic lo) (toDynamic hi))
+  normal  mu sd = fromDynamic (liftM2 normal  (toDynamic mu) (toDynamic sd))
+  poisson l     = fromDynamic (fmap   poisson (toDynamic l))
+  gamma   sh sc = fromDynamic (liftM2 gamma   (toDynamic sh) (toDynamic sc))
 
 instance (Integrate repr) => Integrate (Partial repr) where
-  integrate lo hi f = fromDynamic (integrate (toDynamic lo) (toDynamic hi)
-                                             (toDynamic . f . fromDynamic))
-  summate   lo hi f = fromDynamic (summate   (toDynamic lo) (toDynamic hi)
-                                             (toDynamic . f . fromDynamic))
+  integrate lo hi f = fromDynamic (do
+    _ <- toDynamic (f (fromDynamic (Just undefined)))
+    lo' <- toDynamic lo
+    hi' <- toDynamic hi
+    let f' x = fromMaybe (error "Partial integrate: f nonmonotonic!?")
+                         (toDynamic (f (fromDynamic (Just x))))
+    Just (integrate lo' hi' f'))
+  summate lo hi f = fromDynamic (do
+    _ <- toDynamic (f (fromDynamic (Just undefined)))
+    lo' <- toDynamic lo
+    hi' <- toDynamic hi
+    let f' x = fromMaybe (error "Partial summate: f nonmonotonic!?")
+                         (toDynamic (f (fromDynamic (Just x))))
+    Just (summate lo' hi' f'))
 
 instance (Lambda repr) => Lambda (Partial repr) where
-  lam f = Partial (lam (toDynamic . f . fromDynamic)) (Just (SArrow f))
+  lam f = Partial d (Just (SArrow f))
+    where d = do _ <- toDynamic (f (fromDynamic (Just undefined)))
+                 let f' = fromMaybe (error "Partial lam: f nonmonotonic!?")
+                        . toDynamic . f . fromDynamic . Just
+                 Just (lam f')
   app (Partial _ (Just (SArrow f))) x = f x
-  app (Partial f _) (Partial x _) = fromDynamic (app f x)
+  app (Partial f _) (Partial x _) = fromDynamic (liftM2 app f x)

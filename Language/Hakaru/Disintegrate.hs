@@ -405,6 +405,8 @@ condLess :: (Number t) => Expr b u t -> Expr b u t ->
 condLess e1 e2 = Bind (UnaryL Nil) (Dirac (Op2 Less e1 e2))
 
 weight :: Expr b u Prob -> Expr b u (Measure t) -> Expr b u (Measure t)
+weight (Lit 0) = const (Choice []) -- simplification
+weight (Lit 1) = id -- simplification
 weight e = Bind Nil (Op1 Weight e)
 
 power :: Expr b u Prob -> Expr b u Real -> Expr b u Prob
@@ -480,9 +482,12 @@ instance Monoid (M a) where
 reject :: M a
 reject = M (\_ _ -> [Choice []])
 
-insert :: (forall w. Expr Loc Loc (Measure w) ->
-                     Expr Loc Loc (Measure w)) -> M ()
-insert f = M (\c h -> map f (c () h))
+insert :: (forall w. Expr Loc Loc (Measure w) -> Expr Loc Loc (Measure w)) ->
+          M ()
+insert f = M (\c h -> map f' (c () h))
+  where f' :: forall w. Expr Loc Loc (Measure w) -> Expr Loc Loc (Measure w)
+        f' e@(Choice []) = e -- simplification
+        f' e             = f e
 
 gensym :: M (Loc t)
 gensym = M (\c h -> c (Const (fresh h)) h{fresh = succ (fresh h)})
@@ -965,6 +970,7 @@ toHakaru (Op2 BetaFunc e1 e2)      env = betaFunc         (toHakaru e1 env)
                                                           (toHakaru e2 env)
 toHakaru (Lit x)                   _   = nullary (fromInteger x)
 toHakaru (Var u)                   env = env u
+toHakaru (Choice [e])              env = toHakaru e env -- simplification
 toHakaru (Choice es)               env = superpose [ (1, toHakaru e env)
                                                    | e <- es ]
 toHakaru e@(Bind lhs rhs body)     env =

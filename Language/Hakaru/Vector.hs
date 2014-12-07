@@ -1,16 +1,24 @@
-{-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleInstances,
+{-# LANGUAGE MultiParamTypeClasses, TypeFamilies,
+             FlexibleInstances, FlexibleContexts,
              ConstraintKinds, DataKinds, Rank2Types, ScopedTypeVariables #-}
 
-module Language.Hakaru.Vector (Nat(..), Repeat, Vector(..)) where
+module Language.Hakaru.Vector (Nat(..), Repeat, Vector(..),
+        sequenceA, mapM, sequence, mapAccum, iota) where
 
-import Prelude hiding (Real)
+import Prelude hiding (Real, mapM, sequence)
 import qualified Control.Applicative as A
 import Language.Hakaru.Syntax
 import Language.Hakaru.Sample (Sample(unSample))
+import Control.Applicative (WrappedMonad(..))
+import Control.Monad.State (runState, state)
 
 infixl 4 <*>, <$>
 
 data Nat = I | S Nat deriving (Eq, Ord, Show, Read)
+
+type TenPlus n = S (S (S (S (S (S (S (S (S (S n)))))))))
+type HundredPlus n = TenPlus (TenPlus (TenPlus (TenPlus (TenPlus
+                    (TenPlus (TenPlus (TenPlus (TenPlus (TenPlus n)))))))))
 
 type Length a as = Length' as
 type family   Length' as :: Nat
@@ -64,6 +72,29 @@ instance (Vector a as) => Vector a (a, as) where
   toList (a, as)                = a : toList as
   fromList (a : as)             = (a, fromList as)
 
+sequenceA :: (A.Applicative f, Vector (f a) fas, SameLength fas a) =>
+             (f a, fas) -> f (Repeat (Length (f a) fas) a)
+sequenceA = traverse id
+
+mapM :: (Vector a as, Monad m, SameLength as b) =>
+        (a -> m b) -> (a, as) -> m (Repeat (Length a as) b)
+mapM f = unwrapMonad . traverse (WrapMonad . f)
+
+sequence :: (Monad m, Vector (m a) mas, SameLength mas a) =>
+            (m a, mas) -> m (Repeat (Length (m a) mas) a)
+sequence = mapM id
+
+mapAccum :: (Vector x xs, SameLength xs y) =>
+            (acc -> x -> (acc, y)) -> acc -> (x, xs) ->
+            (acc, Repeat (Length x xs) y)
+mapAccum f acc xs = exch (runState (mapM f' xs) acc)
+  where exch (a,b) = (b,a)
+        f' = state . curry (exch . uncurry f . exch)
+
+iota :: (Enum y, Vector () xs, SameLength xs y) =>
+        y -> (y, Repeat (Length () xs) y)
+iota start = snd (mapAccum (\x () -> (succ x, x)) start (pure ()))
+
 main :: IO ()
 main = do
   print (unSample (toNestedPair ((+) <$>
@@ -75,3 +106,4 @@ main = do
                                   (\(a,(b,(c,()))) -> a + b + c)
                    :: Sample IO Real))
        -- 15.0
+  print (iota 10 :: Repeat (HundredPlus I) Int)

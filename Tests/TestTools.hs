@@ -46,5 +46,5 @@ runTestI (TestList ts) i = runTestTT $ ts !! i
 runTestN :: Test -> String -> IO Counts
 runTestN (TestList ts) l = case find hasLab ts of
                                 Just t -> runTestTT t
-                                Nothing -> runTestTT $ l ~: assertFailure $ "no test with label " ++ l
+                                Nothing -> error $ "no test with label " ++ l
                            where hasLab (TestLabel lab _) = lab == l
