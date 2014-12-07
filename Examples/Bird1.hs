@@ -73,7 +73,10 @@ readConds :: (Base repr) => FilePath ->
              IO (repr (Repeat NYear (Repeat NDay (Repeat NCell Int))))
 readConds observationsFile = do
   observations <- readObservations observationsFile
-  return undefined -- [ Discrete (toDyn o) | o <- elems observations ]
+  return $ toNestedPair $ (<$> iota 1) $ \year ->
+           toNestedPair $ (<$> iota 1) $ \day  ->
+           toNestedPair $ (<$> iota 1) $ \cell ->
+           fromIntegral $ observations ! (year, day, cell)
 
 newtype M repr a =
   M { unM :: forall w. (a -> repr (Measure w)) -> repr (Measure w) }
