@@ -2,7 +2,7 @@
              TypeFamilies, RankNTypes #-}
 {-# OPTIONS -Wall #-}
 
-module Language.Hakaru.Partial (Partial, runPartial) where
+module Language.Hakaru.Partial (Partial, runPartial, dynamic) where
 
 -- Rudimentary partial evaluation
 
@@ -21,6 +21,9 @@ runPartial :: Partial repr a -> repr a
 runPartial (Partial (Just d) _) = d
 runPartial (Partial Nothing  _) =
   error "Unbound variable at top level of partial evaluation"
+
+dynamic :: repr a -> Partial repr a
+dynamic = fromDynamic . Just
 
 data family Static a :: (* -> *) -> *
 newtype instance Static Int          repr = SInt   Integer
