@@ -76,7 +76,7 @@ partials :: (Mochastic repr) =>
             Partial repr Cell ->
             [(Partial repr Cell -> Partial repr (Measure Cell), Maybe Int)] ->
             repr (Measure ())
-partials from l = case span' 3 (isNothing . snd) l of
+partials from l = case span' 4 (isNothing . snd) l of
   (_, []) -> dirac unit
   (unobserved, (observed, observation) : rest) ->
     let bunch = foldl1 (\t c from -> t from `bind` c)
@@ -88,8 +88,9 @@ partials from l = case span' 3 (isNothing . snd) l of
                                    (dirac unit)
                                    (superpose []))
                    `bind_` partials (fromIntegral o) rest
-         Nothing -> runPartial bunch `bind` \to ->
-                    partials (dynamic to) rest
+         Nothing -> -- runPartial bunch `bind` \to ->
+                    -- partials (dynamic to) rest
+                    dirac unit
 
 birdYear :: (Mochastic repr) =>
             (Day -> Cell -> Cell -> Feature -> Double) ->
