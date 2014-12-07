@@ -17,6 +17,7 @@ import System.IO (stderr, hPutStrLn)
 import System.Environment (getArgs, getProgName)
 import System.Exit (exitFailure)
 import Data.Maybe (isNothing)
+import Data.Number.LogFloat (LogFloat, logFromLogFloat)
 import Data.Array.Unboxed
 import Control.Monad (replicateM_)
 
@@ -65,25 +66,32 @@ readObservations observationsFile = do
            | year:::day:::counts <- rows
            , (cell,count) <- zip [1..] counts ]
 
+span' :: Int -> (a -> Bool) -> [a] -> ([a], [a])
+span' _ _ xs@[]      = (xs, xs)
+span' n p xs@(x:xs')
+  | n > 0 && p x     = let (ys,zs) = span' (n-1) p xs' in (x:ys,zs)
+  | otherwise        = ([],xs)
+
 partials :: (Mochastic repr) =>
             Partial repr Cell ->
             [(Partial repr Cell -> Partial repr (Measure Cell), Maybe Int)] ->
             repr (Measure ())
-partials from l = case span (isNothing . snd) l of
+partials from l = case span' 3 (isNothing . snd) l of
   (_, []) -> dirac unit
-  (unobserved, (observed, Just observation) : rest) ->
-    let bunch = runPartial
-              $ foldr (\(t,Nothing) c from -> t from `bind` c)
-                      (\from -> observed from `bind` \to ->
-                                if_ (to `equal` fromIntegral observation)
-                                    (dirac unit)
-                                    (superpose []))
-                      unobserved
-                      from
-        r = partials (fromIntegral observation) rest
-    in bunch `bind_` r
+  (unobserved, (observed, observation) : rest) ->
+    let bunch = foldl1 (\t c from -> t from `bind` c)
+                       (map fst unobserved ++ [observed])
+                       from
+    in case observation of
+         Just o -> runPartial (bunch `bind` \to ->
+                               if_ (to `equal` fromIntegral o)
+                                   (dirac unit)
+                                   (superpose []))
+                   `bind_` partials (fromIntegral o) rest
+         Nothing -> runPartial bunch `bind` \to ->
+                    partials (dynamic to) rest
 
-birdYear :: (Mochastic repr, Lambda repr) =>
+birdYear :: (Mochastic repr) =>
             (Day -> Cell -> Cell -> Feature -> Double) ->
             (Day -> Cell -> Int) ->
             Repeat NFeature (repr Real) -> repr (Measure ())
@@ -114,18 +122,23 @@ birdYear features obs params =
   fromDouble :: (Base repr) => Double -> repr Real
   fromDouble = fromRational . toRational
 
-bird :: (Mochastic repr, Lambda repr) =>
+bird :: (Mochastic repr) =>
         UArray (Year, Day, Cell, Cell, Feature) Double ->
         UArray (Year, Day, Cell) Int ->
         repr (Measure (Repeat NFeature Real))
 bird features observations =
   mapC (\() c -> normal 0 10 `bind` c) (pure ()) $ \params ->
-  let g k year = let f day from to i =
-                       features ! (year, day, from, to, i)
-                     o day cell =
-                       observations ! (year, day, cell)
-                 in birdYear f o params `bind_` k
-  in foldl g (dirac (toNestedPair params)) [1..nyear]
+  let g year = let f day from to i =
+                     features ! (year, day, from, to, i)
+                   o day cell =
+                     observations ! (year, day, cell)
+               in birdYear f o params
+  in foldr bind_ (dirac (toNestedPair params)) (map g [1..nyear])
+
+pSample :: Maybe (Repeat NFeature Double, LogFloat) -> IO ()
+pSample Nothing = return ()
+pSample (Just (params, logProb)) =
+  print (toList params, logFromLogFloat logProb :: Double)
 
 main :: IO ()
 main = do
@@ -136,12 +149,11 @@ main = do
       features <- readFeatures featuresFile
       hPutStrLn stderr ("Reading " ++ observationsFile)
       observations <- readObservations observationsFile
-      hPutStrLn stderr "Building model"
+      hPutStrLn stderr "Sampling"
       let m = bird features observations
       -- writeFile "/tmp/m" (show (runPrettyPrint m))
       let s = unSample m 1
-      hPutStrLn stderr "Sampling"
-      withSystemRandom (\g -> replicateM_ 2000 (s g >>= maybe (return ()) print))
+      withSystemRandom (\g -> replicateM_ 2000 (s g >>= pSample))
     _ -> do
       progName <- getProgName
       hPutStrLn stderr ("Usage: " ++ progName ++ " \
