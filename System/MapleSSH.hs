@@ -8,20 +8,20 @@ import System.Environment (lookupEnv)
 import System.Exit (ExitCode(ExitSuccess))
 
 -- Default values for SSH environment variables
-defSSH, defUser, defServer, defModule :: String
-defSSH    = "/usr/bin/ssh"
-defUser   = "ppaml"
-defServer = "quarry.uits.indiana.edu"
-defModule = "maple/18"
+defSSH, defUser, defServer, defCommand :: String
+defSSH     = "/usr/bin/ssh"
+defUser    = "ppaml"
+defServer  = "quarry.uits.indiana.edu"
+defCommand = "module load -s maple/18; maple"
 
 
 envVarsSSH :: IO (String, String, String, String)
 envVarsSSH = do
-    ssh     <- get "MAPLE_SSH"    defSSH
-    user    <- get "MAPLE_USER"   defUser
-    server  <- get "MAPLE_SERVER" defServer
-    mpl_mod <- get "MAPLE_MODULE" defModule
-    return (ssh, user, server, mpl_mod)
+    ssh     <- get "MAPLE_SSH"     defSSH
+    user    <- get "MAPLE_USER"    defUser
+    server  <- get "MAPLE_SERVER"  defServer
+    command <- get "MAPLE_COMMAND" defCommand
+    return (ssh, user, server, command)
     where get name def = fmap (fromMaybe def) (lookupEnv name)
 
 process :: IO CreateProcess
@@ -30,8 +30,8 @@ process = do
     case bin of
         Just b  -> return $ proc b ["-q", "-t"]
         Nothing -> 
-          do (ssh, user, server, mpl_mod) <- envVarsSSH
-             let commands = "module load -s " ++ mpl_mod ++ "; maple -q -t" -- quiet mode
+          do (ssh, user, server, command) <- envVarsSSH
+             let commands = command ++ " -q -t" -- quiet mode
              return $ proc ssh ["-l" ++ user, server, commands]
 
 
