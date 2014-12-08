@@ -1,6 +1,7 @@
-{-# LANGUAGE Rank2Types, ScopedTypeVariables, DataKinds #-}
+{-# LANGUAGE Rank2Types, DataKinds #-}
+{-# OPTIONS -W #-}
 
-module Example.Bird1 where
+module Main (main) where
 
 -- Bird0 (one-bird model) in Hakaru 0.2
 
@@ -9,13 +10,16 @@ import Language.Hakaru.Util.Csv
 import Language.Hakaru.Syntax hiding (liftM)
 import Language.Hakaru.Vector hiding (mapM)
 import Language.Hakaru.Sample (unSample)
-import Language.Hakaru.Disintegrate (runDisintegrate)
+import Language.Hakaru.Partial (Partial, runPartial, dynamic)
+import Language.Hakaru.PrettyPrint (runPrettyPrint)
 import System.Random.MWC (withSystemRandom)
 import System.IO (stderr, hPutStrLn)
 import System.Environment (getArgs, getProgName)
 import System.Exit (exitFailure)
+import Data.Maybe (isNothing)
+import Data.Number.LogFloat (LogFloat, logFromLogFloat)
 import Data.Array.Unboxed
-import Control.Monad (liftM, replicateM, replicateM_)
+import Control.Monad (replicateM_)
 
 type Year    = Int
 type Day     = Int
@@ -28,22 +32,15 @@ type NFeature = S (S (S I))
 
 nyear :: Year
 nyear = 30
-type NYear = S (S (S (S (S (S (S (S (S (S (
-             S (S (S (S (S (S (S (S (S (S (
-             S (S (S (S (S (S (S (S (S I))))))))))))))))))))))))))))
 
 nday :: Day
 nday = 20
-type NDay = S (S (S (S (S (S (S (S (S (S (
-            S (S (S (S (S (S (S (S (S I))))))))))))))))))
 
 ncoord :: Cell
 ncoord = 4
 
 ncell :: Cell
 ncell = ncoord * ncoord
-type NCell = S (S (S (S (S (S (S (S (S (S (
-             S (S (S (S (S I))))))))))))))
 
 neighbors :: Cell -> [Cell]
 neighbors cell
@@ -69,79 +66,95 @@ readObservations observationsFile = do
            | year:::day:::counts <- rows
            , (cell,count) <- zip [1..] counts ]
 
-readConds :: (Base repr) => FilePath ->
-             IO (repr (Repeat NYear (Repeat NDay (Repeat NCell Int))))
-readConds observationsFile = do
-  observations <- readObservations observationsFile
-  return $ toNestedPair $ (<$> iota 1) $ \year ->
-           toNestedPair $ (<$> iota 1) $ \day  ->
-           toNestedPair $ (<$> iota 1) $ \cell ->
-           fromIntegral $ observations ! (year, day, cell)
+span' :: Int -> (a -> Bool) -> [a] -> ([a], [a])
+span' _ _ xs@[]      = (xs, xs)
+span' n p xs@(x:xs')
+  | n > 0 && p x     = let (ys,zs) = span' (n-1) p xs' in (x:ys,zs)
+  | otherwise        = ([],xs)
 
-newtype M repr a =
-  M { unM :: forall w. (a -> repr (Measure w)) -> repr (Measure w) }
+partials :: (Mochastic repr) =>
+            Partial repr Cell ->
+            [(Partial repr Cell -> Partial repr (Measure Cell), Maybe Int)] ->
+            repr (Measure ())
+partials from l = case span' 4 (isNothing . snd) l of
+  (_, []) -> dirac unit
+  (unobserved, (observed, observation) : rest) ->
+    let bunch = foldl1 (\t c from -> t from `bind` c)
+                       (map fst unobserved ++ [observed])
+                       from
+    in case observation of
+         Just o -> runPartial (bunch `bind` \to ->
+                               if_ (to `equal` fromIntegral o)
+                                   (dirac unit)
+                                   (superpose []))
+                   `bind_` partials (fromIntegral o) rest
+         Nothing -> -- runPartial bunch `bind` \to ->
+                    -- partials (dynamic to) rest
+                    dirac unit
 
-instance Monad (M repr) where
-  return a = M (\c -> c a)
-  m >>= k  = M (\c -> unM m (\a -> unM (k a) c))
-
-runM :: (Mochastic repr) => M repr (repr (Measure a)) -> repr (Measure a)
-runM m = unM m id
-
-lift :: (Mochastic repr) => repr (Measure a) -> M repr (repr a)
-lift m = M (bind m)
-
-birdYear :: forall repr. (Mochastic repr) =>
+birdYear :: (Mochastic repr) =>
             (Day -> Cell -> Cell -> Feature -> Double) ->
-            [repr Real] -> M repr (repr (Repeat NDay (Repeat NCell Int)))
-birdYear features params = liftM (toNestedPair . fromList) (go 1 1) where
-  go :: Day -> repr Cell -> M repr [repr (Repeat NCell Int)]
-  go day from = do counts <- observe from
-                   if day == nday then return [counts] else do
-                     to <- transition day from
-                     countss <- go (succ day) to
-                     return (counts:countss)
-  observe :: repr Cell -> M repr (repr (Repeat NCell Int))
-  observe cell = liftM (toNestedPair . fromList)
-               $ mapM (\c -> let nbird = if_ (cell `equal` fromIntegral c) 1 0
-                             in lift (poisson nbird))
-                      [1..ncell]
-  transition :: Day -> repr Cell -> M repr (repr Cell)
-  transition day from = lift (reflect from (\from -> categorical
+            (Day -> Cell -> Int) ->
+            Repeat NFeature (repr Real) -> repr (Measure ())
+birdYear features obs params =
+  partials 1
+           [ ( if day > 1 then transition params' (day - 1) else dirac
+             , observe (obs day) )
+           | day <- [1..nday] ]
+ where
+  params' = dynamic <$> params
+  observe :: (Cell -> Int) -> Maybe Int
+  observe o = case [ c | c <- [1..ncell], o c > 0 ] of
+                []  -> Nothing
+                [c] -> Just c
+                _   -> error "Birds observed in multiple cells at once!?"
+  transition :: (Mochastic repr) => Repeat NFeature (repr Real) ->
+                Day -> repr Cell -> repr (Measure Cell)
+  transition params day from = reflect from (\f -> categorical
     [ (exp_ score, fromIntegral to)
-    | to <- neighbors from
-    , let score = sum [ param * fromDouble (features day from to i)
-                      | (i,param) <- zip [1..] params ] ]))
-  reflect :: repr Cell -> (Cell -> repr a) -> repr a
+    | to <- neighbors f
+    , let score = sum $ toList
+                $ (\i param -> param * fromDouble (features day f to i))
+                  <$> iota 1 <*> params ])
+  reflect :: (Mochastic repr) => repr Cell -> (Cell -> repr a) -> repr a
   reflect cell f = loop 1 where
     loop c = if c == ncell then f c else
              if_ (cell `equal` fromIntegral c) (f c) (loop (succ c))
-  fromDouble :: Double -> repr Real
+  fromDouble :: (Base repr) => Double -> repr Real
   fromDouble = fromRational . toRational
 
 bird :: (Mochastic repr) =>
         UArray (Year, Day, Cell, Cell, Feature) Double ->
-        repr (Measure (Repeat NYear (Repeat NDay (Repeat NCell Int)),
-                       Repeat NFeature Real))
-bird features = runM $ do
-  params <- replicateM nfeature (lift (normal 0 10))
-  countsss <- mapM (\year -> let f day from to i =
-                                   features ! (year, day, from, to, i)
-                             in birdYear f params)
-                   [1..nyear]
-  return (dirac (pair (toNestedPair (fromList countsss))
-                      (toNestedPair (fromList params))))
+        UArray (Year, Day, Cell) Int ->
+        repr (Measure (Repeat NFeature Real))
+bird features observations =
+  mapC (\() c -> normal 0 10 `bind` c) (pure ()) $ \params ->
+  let g year = let f day from to i =
+                     features ! (year, day, from, to, i)
+                   o day cell =
+                     observations ! (year, day, cell)
+               in birdYear f o params
+  in foldr bind_ (dirac (toNestedPair params)) (map g [1..nyear])
+
+pSample :: Maybe (Repeat NFeature Double, LogFloat) -> IO ()
+pSample Nothing = return ()
+pSample (Just (params, logProb)) =
+  print (toList params, logFromLogFloat logProb :: Double)
 
 main :: IO ()
 main = do
   args <- getArgs
   case args of
     [featuresFile, observationsFile, _outputFile] -> do
+      hPutStrLn stderr ("Reading " ++ featuresFile)
       features <- readFeatures featuresFile
-      conds <- readConds observationsFile
-      let d = runDisintegrate (\env -> bird features)
-      let s = unSample (head d unit conds) 1
-      withSystemRandom (\g -> replicateM_ 20 (s g >>= print))
+      hPutStrLn stderr ("Reading " ++ observationsFile)
+      observations <- readObservations observationsFile
+      hPutStrLn stderr "Sampling"
+      let m = bird features observations
+      -- writeFile "/tmp/m" (show (runPrettyPrint m))
+      let s = unSample m 1
+      withSystemRandom (\g -> replicateM_ 2000 (s g >>= pSample))
     _ -> do
       progName <- getProgName
       hPutStrLn stderr ("Usage: " ++ progName ++ " \

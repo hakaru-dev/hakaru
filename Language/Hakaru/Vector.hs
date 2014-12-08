@@ -3,7 +3,7 @@
              ConstraintKinds, DataKinds, Rank2Types, ScopedTypeVariables #-}
 
 module Language.Hakaru.Vector (Nat(..), Repeat, Vector(..),
-        sequenceA, mapM, sequence, mapAccum, iota) where
+        sequenceA, mapM, sequence, mapAccum, iota, mapC) where
 
 import Prelude hiding (Real, mapM, sequence)
 import qualified Control.Applicative as A
@@ -11,6 +11,7 @@ import Language.Hakaru.Syntax
 import Language.Hakaru.Sample (Sample(unSample))
 import Control.Applicative (WrappedMonad(..))
 import Control.Monad.State (runState, state)
+import Control.Monad.Cont (runCont, cont)
 
 infixl 4 <*>, <$>
 
@@ -94,6 +95,10 @@ mapAccum f acc xs = exch (runState (mapM f' xs) acc)
 iota :: (Enum y, Vector () xs, SameLength xs y) =>
         y -> (y, Repeat (Length () xs) y)
 iota start = snd (mapAccum (\x () -> (succ x, x)) start (pure ()))
+
+mapC :: (Vector a as, SameLength as b) =>
+        (a -> (b -> w) -> w) -> (a, as) -> (Repeat (Length a as) b -> w) -> w
+mapC f = runCont . mapM (cont . f)
 
 main :: IO ()
 main = do

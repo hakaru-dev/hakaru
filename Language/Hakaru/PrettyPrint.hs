@@ -1,12 +1,15 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances #-}
 {-# OPTIONS -Wall #-}
-module Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint) where
+module Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode) where
 
 -- Pretty-printing interpretation
 
 import Language.Hakaru.Syntax
 import Language.Hakaru.Util.Pretty
 import Text.PrettyPrint hiding (parens)
+
+leftMode :: Doc -> String
+leftMode = renderStyle style{mode=LeftMode}
 
 newtype PrettyPrint a = PP ([String] -> Int -> [Doc])
 
