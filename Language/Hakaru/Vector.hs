@@ -111,4 +111,4 @@ main = do
                                   (\(a,(b,(c,()))) -> a + b + c)
                    :: Sample IO Real))
        -- 15.0
-  print (iota 10 :: Repeat (HundredPlus I) Int)
+  -- print (iota 10 :: Repeat (HundredPlus I) Int)
