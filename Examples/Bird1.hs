@@ -6,20 +6,22 @@ module Main (main) where
 -- Bird0 (one-bird model) in Hakaru 0.2
 
 import Prelude hiding (Real)
+import Data.Csv (encode)
+import qualified Data.ByteString.Lazy as B
 import Language.Hakaru.Util.Csv
 import Language.Hakaru.Syntax hiding (liftM)
 import Language.Hakaru.Vector hiding (mapM)
 import Language.Hakaru.Sample (unSample)
 import Language.Hakaru.Partial (Partial, runPartial, dynamic)
-import Language.Hakaru.PrettyPrint (runPrettyPrint)
-import System.Random.MWC (withSystemRandom)
+import Language.Hakaru.PrettyPrint (runPrettyPrint, leftMode)
+import System.Random.MWC (createSystemRandom)
 import System.IO (stderr, hPutStrLn)
 import System.Environment (getArgs, getProgName)
 import System.Exit (exitFailure)
+import Data.Ord (comparing)
 import Data.Maybe (isNothing)
 import Data.Number.LogFloat (LogFloat, logFromLogFloat)
 import Data.Array.Unboxed
-import Control.Monad (replicateM_)
 
 type Year    = Int
 type Day     = Int
@@ -75,7 +77,7 @@ span' n p xs@(x:xs')
 partials :: (Mochastic repr) =>
             Partial repr Cell ->
             [(Partial repr Cell -> Partial repr (Measure Cell), Maybe Int)] ->
-            repr (Measure ())
+            Partial repr (Measure ())
 partials from l = case span' 4 (isNothing . snd) l of
   (_, []) -> dirac unit
   (unobserved, (observed, observation) : rest) ->
@@ -83,26 +85,27 @@ partials from l = case span' 4 (isNothing . snd) l of
                        (map fst unobserved ++ [observed])
                        from
     in case observation of
-         Just o -> runPartial (bunch `bind` \to ->
-                               if_ (to `equal` fromIntegral o)
-                                   (dirac unit)
-                                   (superpose []))
-                   `bind_` partials (fromIntegral o) rest
-         Nothing -> -- runPartial bunch `bind` \to ->
-                    -- partials (dynamic to) rest
-                    dirac unit
+         Just o -> dynamic (bunch `bind` \to ->
+                            if_ (to `equal` fromIntegral o)
+                                (dirac unit)
+                                (superpose []))
+                   `bind_`
+                   dynamic (partials (fromIntegral o) rest)
+         Nothing -> dynamic bunch `bind` \to ->
+                    partials to rest
 
 birdYear :: (Mochastic repr) =>
             (Day -> Cell -> Cell -> Feature -> Double) ->
             (Day -> Cell -> Int) ->
-            Repeat NFeature (repr Real) -> repr (Measure ())
+            Repeat NFeature (Partial repr Real) ->
+            Partial repr (Measure ())
 birdYear features obs params =
+  dynamic $
   partials 1
-           [ ( if day > 1 then transition params' (day - 1) else dirac
+           [ ( if day > 1 then transition params (day - 1) else dirac
              , observe (obs day) )
            | day <- [1..nday] ]
  where
-  params' = dynamic <$> params
   observe :: (Cell -> Int) -> Maybe Int
   observe o = case [ c | c <- [1..ncell], o c > 0 ] of
                 []  -> Nothing
@@ -126,7 +129,7 @@ birdYear features obs params =
 bird :: (Mochastic repr) =>
         UArray (Year, Day, Cell, Cell, Feature) Double ->
         UArray (Year, Day, Cell) Int ->
-        repr (Measure (Repeat NFeature Real))
+        Partial repr (Measure (Repeat NFeature Real))
 bird features observations =
   mapC (\() c -> normal 0 10 `bind` c) (pure ()) $ \params ->
   let g year = let f day from to i =
@@ -141,20 +144,39 @@ pSample Nothing = return ()
 pSample (Just (params, logProb)) =
   print (toList params, logFromLogFloat logProb :: Double)
 
+streamingMaxBy :: (a -> a -> Ordering) -> IO a -> (a -> IO ()) -> IO ()
+streamingMaxBy cmp m better = do
+  let go cur = do new <- m
+                  if cur `cmp` new == LT
+                    then do better new
+                            go new
+                    else do go cur
+  cur <- m
+  better cur
+  go cur
+
 main :: IO ()
 main = do
   args <- getArgs
   case args of
-    [featuresFile, observationsFile, _outputFile] -> do
-      hPutStrLn stderr ("Reading " ++ featuresFile)
+    [featuresFile, observationsFile, outputFile] -> do
+      -- hPutStrLn stderr ("Reading " ++ featuresFile)
       features <- readFeatures featuresFile
-      hPutStrLn stderr ("Reading " ++ observationsFile)
+      -- hPutStrLn stderr ("Reading " ++ observationsFile)
       observations <- readObservations observationsFile
-      hPutStrLn stderr "Sampling"
-      let m = bird features observations
-      -- writeFile "/tmp/m" (show (runPrettyPrint m))
-      let s = unSample m 1
-      withSystemRandom (\g -> replicateM_ 2000 (s g >>= pSample))
+      -- hPutStrLn stderr "Sampling"
+      let m = runPartial (bird features observations)
+      -- writeFile "/tmp/m" (leftMode (runPrettyPrint m))
+      g <- createSystemRandom
+      let s = unSample m 1 g
+      streamingMaxBy (comparing (fmap snd)) s $ \sample ->
+        case sample of
+          Nothing -> return ()
+          Just (x,_p) ->
+            let params = toList x
+            in B.writeFile outputFile
+                (B.append (encode [[ "b" ++ show i | i <- [1..length params] ]])
+                          (encode [params]))
     _ -> do
       progName <- getProgName
       hPutStrLn stderr ("Usage: " ++ progName ++ " \
