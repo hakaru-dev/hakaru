@@ -26,8 +26,8 @@ fromNat (SD n) = 2 * fromNat n + 1
 toNat :: (Integral a) => a -> Nat
 toNat n | (d,m) == (0,1) = I
         | d <= 0         = error "toNat: must be positive"
-	| m == 0         = D (toNat d)
-	| m == 1         = SD (toNat d)
+        | m == 0         = D (toNat d)
+        | m == 1         = SD (toNat d)
   where (d,m) = divMod n 2
 
 type Nat123 = SD (SD (D (SD (SD (SD I)))))
@@ -73,41 +73,60 @@ toNestedPair = uncurry pair . toNestedPair'
 fromNestedPair :: (Vector a as, SameLength as (repr a), Base repr) =>
                   repr (a, as) ->
                   (Repeat (Length a as) (repr a) -> repr w) -> repr w
-fromNestedPair repr_aas k = unpair repr_aas (\repr_a repr_as ->
-                            fromNestedPair' repr_a repr_as k)
+fromNestedPair raas k = unpair raas (\ra ras -> fromNestedPair' ra ras k)
 
 fromList :: (Vector a as) => [a] -> (a, as)
 fromList = fst . fromList'
 
 instance Vector a () where
-  pure a                        = (a, ())
-  (ab, ()) <*> (a, ())          = (ab a, ())
-  ab <$> (a, ())                = (ab a, ())
-  traverse f (a, ())            = (\b -> (b,())) A.<$> f a
-  toNestedPair' (a, ())         = (a, unit)
-  fromNestedPair' repr_a _ k    = k (repr_a, ())
-  toList (a, ())                = [a]
-  fromList' (a : as)            = ((a, ()), as)
+  pure a                 = (a, ())
+  (ab, ()) <*> (a, ())   = (ab a, ())
+  ab <$> (a, ())         = (ab a, ())
+  traverse f (a, ())     = (\b -> (b,())) A.<$> f a
+  toNestedPair' (a, ())  = (a, unit)
+  fromNestedPair' ra _ k = k (ra, ())
+  toList (a, ())         = [a]
+  fromList' (a : as)     = ((a, ()), as)
 
 instance (Vector a as) => Vector a (as, (a, as)) where
-  pure a = case pure a of p@(a,p') -> (a, (p', p))
-  (ab, (abs, ababs)) <*> (a, (as, aas)) = case (ab,abs) <*> (a,as) of (b,bs) -> (b, (bs, ababs <*> aas))
-  ab <$> (a, (as, aas)) = case ab <$> (a,as) of (b,bs) -> (b, (bs, ab <$> aas))
-  traverse f (a, (as, aas)) = (\(b,bs) bbs -> (b,(bs,bbs))) A.<$> traverse f (a,as) A.<*> traverse f aas
-  toNestedPair' (a, (as, aas)) = case toNestedPair' (a, as) of (repr_a, repr_as) -> (repr_a, pair repr_as (toNestedPair aas))
-  fromNestedPair' repr_a repr_asaas k = unpair repr_asaas (\repr_as repr_aas -> fromNestedPair' repr_a repr_as (\(a, as) -> fromNestedPair repr_aas (\aas -> k (a, (as, aas)))))
-  toList (a, (as, aas)) = toList (a, as) ++ toList aas
-  fromList' l0 = case fromList' l0 of ((a, as), l1) -> case fromList' l1 of (aas, l) -> ((a, (as, aas)), l)
+  pure a                       = case pure a of p@(a,p') -> (a, (p', p))
+  (ab, (abs, ababs)) <*>
+   (a, ( as,   aas))           = case (ab,abs) <*> (a,as) of { (b,bs) ->
+                                 (b, (bs, ababs <*> aas)) }
+  ab <$> (a, (as, aas))        = case ab <$> (a,as) of { (b,bs) ->
+                                 (b, (bs, ab <$> aas)) }
+  traverse f (a, (as, aas))    = (\(b,bs) bbs -> (b,(bs,bbs)))
+                                   A.<$> traverse f (a,as)
+                                   A.<*> traverse f aas
+  toNestedPair' (a, (as, aas)) = case toNestedPair' (a, as) of { (ra, ras) ->
+                                 (ra, pair ras (toNestedPair aas)) }
+  fromNestedPair' ra rasaas k  = unpair rasaas (\ras raas ->
+                                 fromNestedPair' ra ras (\(a, as) ->
+                                 fromNestedPair raas (\aas ->
+                                 k (a, (as, aas)))))
+  toList (a, (as, aas))        = toList (a, as) ++ toList aas
+  fromList' l0                 = case fromList' l0 of { ((a, as), l1) ->
+                                 case fromList' l1 of { (aas, l) ->
+                                 ((a, (as, aas)), l) } }
 
 instance (Vector a as) => Vector a ((a, as), (a, as)) where
-  pure a = let p = pure a in (a, (p, p))
-  (ab, (ababs1, ababs2)) <*> (a, (aas1, aas2)) = (ab a, (ababs1 <*> aas1, ababs2 <*> aas2))
-  ab <$> (a, (aas1, aas2)) = (ab a, (ab <$> aas1, ab <$> aas2))
-  traverse f (a, (aas1, aas2)) = (,) A.<$> f a A.<*> ((,) A.<$> traverse f aas1 A.<*> traverse f aas2)
-  toNestedPair' (a, (aas1, aas2)) = (a, pair (toNestedPair aas1) (toNestedPair aas2))
-  fromNestedPair' repr_a repr_aasaas k = unpair repr_aasaas (\repr_aas1 repr_aas2 -> fromNestedPair repr_aas1 (\aas1 -> fromNestedPair repr_aas2 (\aas2 -> k (repr_a, (aas1, aas2)))))
-  toList (a, (aas1, aas2)) = a : toList aas1 ++ toList aas2
-  fromList' (a:l0) = case fromList' l0 of (aas1, l1) -> case fromList' l1 of (aas2, l) -> ((a, (aas1, aas2)), l)
+  pure a                          = let p = pure a in (a, (p, p))
+  (ab, (ababs1, ababs2)) <*>
+   (a, (  aas1,   aas2))          = (ab a, (ababs1 <*> aas1, ababs2 <*> aas2))
+  ab <$> (a, (aas1, aas2))        = (ab a, (ab <$> aas1, ab <$> aas2))
+  traverse f (a, (aas1, aas2))    = (,) A.<$> f a
+                                        A.<*> ((,) A.<$> traverse f aas1
+                                                   A.<*> traverse f aas2)
+  toNestedPair' (a, (aas1, aas2)) = (a, pair (toNestedPair aas1)
+                                             (toNestedPair aas2))
+  fromNestedPair' ra raasaas k    = unpair raasaas (\raas1 raas2 ->
+                                    fromNestedPair raas1 (\aas1 ->
+                                    fromNestedPair raas2 (\aas2 ->
+                                    k (ra, (aas1, aas2)))))
+  toList (a, (aas1, aas2))        = a : toList aas1 ++ toList aas2
+  fromList' (a:l0)                = case fromList' l0 of { (aas1, l1) ->
+                                    case fromList' l1 of { (aas2, l) ->
+                                    ((a, (aas1, aas2)), l) } }
 
 sequenceA :: (A.Applicative f, Vector (f a) fas, SameLength fas a) =>
              (f a, fas) -> f (Repeat (Length (f a) fas) a)
