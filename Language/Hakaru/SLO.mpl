@@ -114,6 +114,8 @@ SLO := module ()
           end if;
         elif type(e, 'specfunc'(anything, {'sum','Sum'})) then
             error "sums not handled yet"
+        elif type(e, t_pw) then
+          return do_pw(map(simplify, [op(e)]), ctx);
         else
             error "constants should have been pushed inside already", e
         end if;
@@ -201,13 +203,17 @@ end;
 
 # this has to be global!
 unsafeProb := proc(v) 
-  if signum(0, v, 1) = 1 then v else 'unsafeProb'(v) end if;
+  if type(v,'realcons') and signum(0, v, 1) = 1 then v else 'unsafeProb'(v) end if;
 end proc;
 
-# will get called with 'unsafeProb(...)'
-`simplify/unsafeProb` := proc(a) local b;
-  b := op(1,a);
-  if type(b, 'exp'(anything)) then exp_(op(1, b)) else a end if;
+# will get called on expressions containing 'unsafeProb'
+`simplify/unsafeProb` := proc(x) local sub, f;
+  sub := indets(x, 'specfunc'(anything, unsafeProb));
+  f := proc(a) local b;
+    b := op(1,a);
+    if type(b, 'exp'(anything)) then exp_(op(1, b)) else a end if;
+  end proc;
+  subs(map(y -> y = f(y), sub), x)
 end proc;
 
 # works, but could be made more robust
