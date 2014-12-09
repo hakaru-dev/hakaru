@@ -6,7 +6,7 @@
 Haskell := module ()
   export ModuleApply;
   local b, p, d, bi,
-      parens, resolve, sp, ufunc, bfunc, lbrack, rbrack, seqp,
+      parens, resolve, sp, comma, ufunc, bfunc, lbrack, rbrack, seqp,
       lparen, rparen;
   uses StringTools;
 
@@ -81,6 +81,14 @@ end;
 d[_Inert_LESSTHAN] := proc(a1, a2)
   lparen(); b:-append("less"); sp(); p(a1); sp(); p(a2); rparen();
 end proc;
+d[_Inert_LESSEQ] := proc(a1, a2)
+  lparen(); b:-append("or_"); sp(); lbrack(); 
+     b:-append("less_"); sp(); p(a1); sp(); p(a2); 
+     comma();
+     b:-append("equal_"); sp(); p(a1); sp(); p(a2); 
+     rbrack();
+  rparen();
+end proc;
 
 # this is the table of known internal functions
 bi["Bind_"] := proc(a1, a2) p(a1); b:-append(" `bind_` "); p(a2) end;
@@ -149,6 +157,7 @@ end;
 
 # printing
   sp := proc() b:-append(" ") end;
+  comma := proc() b:-append(",") end;
   lbrack := proc() b:-append("[") end;
   rbrack := proc() b:-append("]") end;
   lparen := proc() b:-append("(") end;
