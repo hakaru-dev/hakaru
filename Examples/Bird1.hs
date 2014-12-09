@@ -30,7 +30,7 @@ type Feature = Int
 
 nfeature :: Feature
 nfeature = 4
-type NFeature = S (S (S I))
+type NFeature = D (D I) -- toNat nfeature
 
 nyear :: Year
 nyear = 30
