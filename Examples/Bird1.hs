@@ -22,6 +22,7 @@ import Data.Ord (comparing)
 import Data.Maybe (isNothing)
 import Data.Number.LogFloat (LogFloat, logFromLogFloat)
 import Data.Array.Unboxed
+import Numeric (showFFloat)
 
 type Year    = Int
 type Day     = Int
@@ -127,22 +128,28 @@ birdYear features obs params =
   fromDouble = fromRational . toRational
 
 bird :: (Mochastic repr) =>
+        Year ->
         UArray (Year, Day, Cell, Cell, Feature) Double ->
         UArray (Year, Day, Cell) Int ->
         Partial repr (Measure (Repeat NFeature Real))
-bird features observations =
+bird nyear' features observations =
   mapC (\() c -> normal 0 10 `bind` c) (pure ()) $ \params ->
   let g year = let f day from to i =
                      features ! (year, day, from, to, i)
                    o day cell =
                      observations ! (year, day, cell)
                in birdYear f o params
-  in foldr bind_ (dirac (toNestedPair params)) (map g [1..nyear])
+  in foldr bind_ (dirac (toNestedPair params)) (map g [1..nyear'])
 
 pSample :: Maybe (Repeat NFeature Double, LogFloat) -> IO ()
 pSample Nothing = return ()
 pSample (Just (params, logProb)) =
   print (toList params, logFromLogFloat logProb :: Double)
+
+debugShow :: (Show a) => IO a -> IO a
+debugShow m = do x <- m
+                 hPutStrLn stderr (show x)
+                 return x
 
 streamingMaxBy :: (a -> a -> Ordering) -> IO a -> (a -> IO ()) -> IO ()
 streamingMaxBy cmp m better = do
@@ -159,29 +166,27 @@ main :: IO ()
 main = do
   args <- getArgs
   case args of
-    [featuresFile, observationsFile, outputFile] -> do
-      -- hPutStrLn stderr ("Reading " ++ featuresFile)
+    [paramFile, featuresFile, observationsFile, outputFile] -> do
+      nyear' <- fmap read (readFile paramFile)
       features <- readFeatures featuresFile
-      -- hPutStrLn stderr ("Reading " ++ observationsFile)
       observations <- readObservations observationsFile
-      -- hPutStrLn stderr "Sampling"
-      let m = runPartial (bird features observations)
+      let m = runPartial (bird nyear' features observations)
       -- writeFile "/tmp/m" (leftMode (runPrettyPrint m))
       g <- createSystemRandom
       let s = unSample m 1 g
-      streamingMaxBy (comparing (fmap snd)) s $ \sample ->
+      streamingMaxBy (comparing (fmap snd)) (debugShow s) $ \sample ->
         case sample of
           Nothing -> return ()
-          Just (x,_p) ->
-            let params = toList x
-            in B.writeFile outputFile
-                (B.append (encode [[ "b" ++ show i | i <- [1..length params] ]])
-                          (encode [params]))
+          Just (params,_prob) ->
+            B.writeFile outputFile $ encode $ map toList
+              [ (\i -> "b" ++ show i          ) <$> iota 1
+              , (\x -> showFFloat Nothing x "") <$> params ]
     _ -> do
       progName <- getProgName
       hPutStrLn stderr ("Usage: " ++ progName ++ " \
-        \<featuresFile> <observationsFile> <outputFile>")
+        \<paramFile> <featuresFile> <observationsFile> <outputFile>")
       hPutStrLn stderr ("Example: " ++ progName ++ " \\\n\
+        \\t\t<(echo 1) \\\n\
         \\t\tinput/dataset1/onebird_features.csv \\\n\
         \\t\tinput/dataset1/onebird-observations.csv \\\n\
         \\t\toutput/dataset1/estimated-parameters.csv")
