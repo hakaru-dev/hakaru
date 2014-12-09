@@ -17,7 +17,7 @@ SLO := module ()
   ModuleApply := proc(inp::anything) 
     local e;
     try
-      simp(inp(c));
+      simp(value(eval(inp(c), 'if_'=piecewise)));
     catch "Wrong kind of parameters in piecewise":
       error "Bug in Hakaru -> Maple translation, piecewise used incorrectly.";
     end try;
@@ -209,3 +209,6 @@ end proc;
   b := op(1,a);
   if type(b, 'exp'(anything)) then exp_(op(1, b)) else a end if;
 end proc;
+
+# works, but could be made more robust
+`evalapply/if_` := proc(f, t) if_(op(1,f), op(2,f)(t[1]), op(3,f)(t[1])) end;

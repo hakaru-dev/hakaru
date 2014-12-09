@@ -120,7 +120,7 @@ instance Base Maple where
   fix = mapleFun1 "(proc (f) local x; x := f(x) end proc)" . lam
 
 instance Integrate Maple where
-  integrate = quant "int"
+  integrate = quant "Int"
   summate   = quant "sum"
 
 quant :: String -> Maple Real -> Maple Real ->
