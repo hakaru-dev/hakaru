@@ -16,6 +16,8 @@ import Control.Monad.Cont (runCont, cont)
 
 infixl 4 <*>, <$>
 
+-- Type-level natural numbers (starting at 1, not 0)
+
 data Nat = I | D Nat | SD Nat deriving (Eq, Ord, Show, Read)
 
 fromNat :: (Num a) => Nat -> a
@@ -30,19 +32,29 @@ toNat n | (d,m) == (0,1) = I
         | m == 1         = SD (toNat d)
   where (d,m) = divMod n 2
 
-type Nat123 = SD (SD (D (SD (SD (SD I)))))
+type Nat123 = SD (SD (D (SD (SD (SD I))))) -- toNat 123
+
+-- Homogeneous vectors of a given type-level length
 
 type Length a as = Length' as
 type family   Length' as :: Nat
-type instance Length' ()                 = I
-type instance Length' (as     , (a, as)) = D  (Length' as)
-type instance Length' ((a, as), (a, as)) = SD (Length' as)
+type instance Length' ()                  = I
+type instance Length' (as, ((a, as), ())) = D  (Length' as)
+  --                       ^       ^^^^^
+  -- This is necessary to avoid "Conflicting family instance declarations"
+  -- between the type instance above and the type instance below in GHC 7.8.
+  -- As for why they should conflict, see
+  -- http://stackoverflow.com/questions/18369827/why-are-type-instances-a-a-and-a-a-a-conflicting-in-ghc-7-8
+  -- http://ghc.haskell.org/trac/ghc/ticket/8154
+type instance Length' ((a, as), (a, as))  = SD (Length' as)
 
 type Repeat n a = (a, Repeat' n a)
 type family   Repeat' (n :: Nat) a
 type instance Repeat' I      a = ()
-type instance Repeat' (D n)  a = (Repeat' n a, Repeat n a)
+type instance Repeat' (D n)  a = (Repeat' n a, (Repeat n a, ()))
 type instance Repeat' (SD n) a = (Repeat n a, Repeat n a)
+
+-- A theorem that GHC can only infer concrete instances of
 
 type SameLength as b = Length' as ~ Length' (Repeat' (Length' as) b)
 
@@ -88,26 +100,27 @@ instance Vector a () where
   toList (a, ())         = [a]
   fromList' (a : as)     = ((a, ()), as)
 
-instance (Vector a as) => Vector a (as, (a, as)) where
-  pure a                       = case pure a of p@(a,p') -> (a, (p', p))
-  (ab, (abs, ababs)) <*>
-   (a, ( as,   aas))           = case (ab,abs) <*> (a,as) of { (b,bs) ->
-                                 (b, (bs, ababs <*> aas)) }
-  ab <$> (a, (as, aas))        = case ab <$> (a,as) of { (b,bs) ->
-                                 (b, (bs, ab <$> aas)) }
-  traverse f (a, (as, aas))    = (\(b,bs) bbs -> (b,(bs,bbs)))
-                                   A.<$> traverse f (a,as)
-                                   A.<*> traverse f aas
-  toNestedPair' (a, (as, aas)) = case toNestedPair' (a, as) of { (ra, ras) ->
-                                 (ra, pair ras (toNestedPair aas)) }
-  fromNestedPair' ra rasaas k  = unpair rasaas (\ras raas ->
-                                 fromNestedPair' ra ras (\(a, as) ->
-                                 fromNestedPair raas (\aas ->
-                                 k (a, (as, aas)))))
-  toList (a, (as, aas))        = toList (a, as) ++ toList aas
-  fromList' l0                 = case fromList' l0 of { ((a, as), l1) ->
-                                 case fromList' l1 of { (aas, l) ->
-                                 ((a, (as, aas)), l) } }
+instance (Vector a as) => Vector a (as, ((a, as), ())) where
+  pure a                          = case pure a of p@(a,p') -> (a,(p',(p,())))
+  (ab,(abs,(ababs,()))) <*>      
+   (a,( as,(  aas,())))           = case (ab,abs) <*> (a,as) of { (b,bs) ->
+                                    (b, (bs, (ababs <*> aas, ()))) }
+  ab <$> (a,(as,(aas,())))        = case ab <$> (a,as) of { (b,bs) ->
+                                    (b, (bs, (ab <$> aas, ()))) }
+  traverse f (a,(as,(aas,())))    = (\(b,bs) bbs -> (b,(bs,(bbs,()))))
+                                      A.<$> traverse f (a,as)
+                                      A.<*> traverse f aas
+  toNestedPair' (a,(as,(aas,()))) = case toNestedPair' (a,as) of { (ra,ras) ->
+                                    (ra, pair ras (pair (toNestedPair aas)
+                                                        unit)) }
+  fromNestedPair' ra rasaasu k    = unpair rasaasu (\ras raasu ->
+                                    fromNestedPair' ra ras (\(a, as) ->
+                                    fromNestedPair (fst_ raasu) (\aas ->
+                                    k (a, (as, (aas, ()))))))
+  toList (a,(as,(aas,())))        = toList (a, as) ++ toList aas
+  fromList' l0                    = case fromList' l0 of { ((a, as), l1) ->
+                                    case fromList' l1 of { (aas, l) ->
+                                    ((a, (as, (aas, ()))), l) } }
 
 instance (Vector a as) => Vector a ((a, as), (a, as)) where
   pure a                          = let p = pure a in (a, (p, p))
