@@ -6,10 +6,10 @@ module Language.Hakaru.Vector (Nat(..), Repeat,
        Vector(..), toNestedPair, fromNestedPair, fromList,
        sequenceA, mapM, sequence, mapAccum, iota, mapC) where
 
-import Prelude hiding (Real, mapM, sequence)
+import Prelude hiding (Real, mapM, sequence, abs)
 import qualified Control.Applicative as A
 import Language.Hakaru.Syntax
-import Language.Hakaru.Sample (Sample(unSample))
+-- import Language.Hakaru.Sample (Sample(unSample))
 import Control.Applicative (WrappedMonad(..))
 import Control.Monad.State (runState, state)
 import Control.Monad.Cont (runCont, cont)
@@ -20,6 +20,7 @@ infixl 4 <*>, <$>
 
 data Nat = I | D Nat | SD Nat deriving (Eq, Ord, Show, Read)
 
+{-
 fromNat :: (Num a) => Nat -> a
 fromNat I      = 1
 fromNat (D n)  = 2 * fromNat n
@@ -32,7 +33,7 @@ toNat n | (d,m) == (0,1) = I
         | m == 1         = SD (toNat d)
   where (d,m) = divMod n 2
 
-type Nat123 = SD (SD (D (SD (SD (SD I))))) -- toNat 123
+  -}
 
 -- Homogeneous vectors of a given type-level length
 
@@ -99,9 +100,10 @@ instance Vector a () where
   fromNestedPair' ra _ k = k (ra, ())
   toList (a, ())         = [a]
   fromList' (a : as)     = ((a, ()), as)
+  fromList' []           = error "should not happen - fromList' of empty"
 
 instance (Vector a as) => Vector a ((as, (a, as)), ()) where
-  pure a                          = case pure a of p@(a,p') -> (a,((p',p),()))
+  pure a                          = case pure a of p@(b,p') -> (b,((p',p),()))
   (ab,((abs,ababs),())) <*>
    (a,(( as,  aas),()))           = case (ab,abs) <*> (a,as) of { (b,bs) ->
                                     (b, ((bs, ababs <*> aas), ())) }
@@ -140,6 +142,7 @@ instance (Vector a as) => Vector a ((a, as), (a, as)) where
   fromList' (a:l0)                = case fromList' l0 of { (aas1, l1) ->
                                     case fromList' l1 of { (aas2, l) ->
                                     ((a, (aas1, aas2)), l) } }
+  fromList' []                    = error "should not happen - fromList' of empty"
 
 sequenceA :: (A.Applicative f, Vector (f a) fas, SameLength fas a) =>
              (f a, fas) -> f (Repeat (Length (f a) fas) a)
@@ -168,6 +171,9 @@ mapC :: (Vector a as, SameLength as b) =>
         (a -> (b -> w) -> w) -> (a, as) -> (Repeat (Length a as) b -> w) -> w
 mapC f = runCont . mapM (cont . f)
 
+{-
+type Nat123 = SD (SD (D (SD (SD (SD I))))) -- toNat 123
+
 main :: IO ()
 main = do
   print (unSample (toNestedPair ((+) <$>
@@ -180,3 +186,4 @@ main = do
                    :: Sample IO Real))
        -- 15.0
   print (iota 10 :: Repeat Nat123 Int)
+  -}
