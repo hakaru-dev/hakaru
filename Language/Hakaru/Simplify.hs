@@ -47,9 +47,9 @@ instance (Typeable a, Simplify b) => Simplify (a -> b) where
   -- The type "a" should not contain "Measure"
   simplify' n dummy s k = do
     let arrrg = "arrrg" ++ show n
-    maple <- simplify' (succ n) (undefined `asTypeOf` dummy undefined) s
-               (\maple -> k (maple ++ "(" ++ arrrg ++ ")"))
-    return ("lam $ \\" ++ arrrg ++ " -> " ++ maple)
+    result <- simplify' (succ n) (undefined `asTypeOf` dummy undefined) s
+               (\mapleString -> k (mapleString ++ "(" ++ arrrg ++ ")"))
+    return ("lam $ \\" ++ arrrg ++ " -> " ++ result)
 
 simplify :: (Simplify a) => Expect Maple a -> IO (Any a)
 simplify e = do

@@ -106,9 +106,9 @@ instance (PrimMonad m) => Mochastic (Sample m) where
     let (x,y,ys) = normalize (map (unSample . fst) pms)
     if not (y > (0::Double)) then return Nothing else do
       u <- MWC.uniformR (0, y) g
-      case [ m | (v,(_,m)) <- zip (scanl1 (+) ys) pms, u <= v ]
-        of Sample m : _ -> (m $! p * x) g
-           []           -> (m $! p * x) g)
+      case [ m1 | (v,(_,m1)) <- zip (scanl1 (+) ys) pms, u <= v ]
+        of Sample m2 : _ -> (m2 $! p * x) g
+           []            -> (m $! p * x) g)
   uniform (Sample lo) (Sample hi) = Sample (\p g -> do
     x <- MWC.uniformR (lo, hi) g
     return (Just (x, p)))
@@ -121,9 +121,9 @@ instance (PrimMonad m) => Mochastic (Sample m) where
     let (_,y,ys) = normalize (map (unSample . fst) pms)
     if not (y > (0::Double)) then errorEmpty else do
       u <- MWC.uniformR (0, y) g
-      case [ m | (v,(_,m)) <- zip (scanl1 (+) ys) pms, u <= v ]
-        of Sample m : _ -> (m $! p) g
-           []           -> (m $! p) g)
+      case [ m1 | (v,(_,m1)) <- zip (scanl1 (+) ys) pms, u <= v ]
+        of Sample m2 : _ -> (m2 $! p) g
+           []            -> (m $! p) g)
   gamma (Sample shape) (Sample scale) = Sample (\p g -> do
     x <- MWCD.gamma (LF.fromLogFloat shape) (LF.fromLogFloat scale) g
     return (Just (LF.logFloat x, p)))
