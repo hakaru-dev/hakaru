@@ -49,7 +49,3 @@ maple cmd = do
 
 trim :: String -> String
 trim = dropWhile isSpace
-
-test :: IO ()
-test = do x <- maple "eval(SLO)"
-          print x
