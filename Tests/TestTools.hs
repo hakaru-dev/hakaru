@@ -1,6 +1,6 @@
 module Tests.TestTools where
 
-import Language.Hakaru.Expect (Expect(unExpect), Expect')
+import Language.Hakaru.Expect (Expect(unExpect))
 import Language.Hakaru.Maple (Maple, runMaple)
 import Language.Hakaru.Simplify (Simplify, Any(unAny), simplify)
 import Language.Hakaru.PrettyPrint (runPrettyPrint)
@@ -38,13 +38,21 @@ testMapleEqual t1 t2 = do
 ignore :: a -> Assertion
 ignore _ = assertFailure "ignored"  -- ignoring a test reports as a failure
 
--- Runs a single test from a TestList given its index
+-- Runs a single test from a list of tests given its index
 runTestI :: Test -> Int -> IO Counts
 runTestI (TestList ts) i = runTestTT $ ts !! i
+runTestI (TestCase _) _ = error "expecting a TestList, but got a TestCase"
+runTestI (TestLabel _ _) _ = error "expecting a TestList, but got a TestLabel"
+
+hasLab :: String -> Test -> Bool
+hasLab l (TestLabel lab _) = lab == l
+hasLab _ _ = False
 
 -- Runs a single test from a TestList given its label
 runTestN :: Test -> String -> IO Counts
-runTestN (TestList ts) l = case find hasLab ts of
-                                Just t -> runTestTT t
-                                Nothing -> error $ "no test with label " ++ l
-                           where hasLab (TestLabel lab _) = lab == l
+runTestN (TestList ts) l = 
+  case find (hasLab l) ts of
+    Just t -> runTestTT t
+    Nothing -> error $ "no test with label " ++ l
+runTestN (TestCase _) _ = error "expecting a TestList, but got a TestCase"
+runTestN (TestLabel _ _) _ = error "expecting a TestList, but got a TestLabel"

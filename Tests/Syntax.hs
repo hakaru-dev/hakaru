@@ -29,9 +29,9 @@ allTests = test [
     "pair1snd" ~: testS pair1snd,
     "pair2fst" ~: testS pair2fst,
     "pair2snd" ~: testS pair2snd,
-    --"pair2'fst" ~: testS $ pair2'fst 10,
-    --"pair2'snd" ~: testS $ pair2'snd 10,
-    --"replicateH" ~: testS $ replicateH 10,
+    -- "pair2'fst" ~: testS $ pair2'fst 10,
+    -- "pair2'snd" ~: testS $ pair2'snd 10,
+    -- "replicateH" ~: testS $ replicateH 10,
     "pair3fst" ~: testS $ pair3fst 1 [true,true,true],
     "pair3snd" ~: testS $ pair3snd 1 [true,true,true],
     "pair3trd" ~: testS $ pair3trd 1 [true,true,true],
@@ -46,11 +46,6 @@ allTests = test [
     "prog2s" ~: ignore $ undefined,
     "prog3s" ~: ignore $ undefined
     ]
-
-main :: IO ()
-main = do
-    runTestTT allTests
-    putStrLn "done"
 
 
 -- pair1fst and pair1snd are equivalent
@@ -79,6 +74,7 @@ pair2snd =  bern (1/2) `bind` \coin1 ->
   where f b = if_ b 1 0
         g b = if_ b 0 1
 
+{-
 type Cont repr a = forall w. (a -> repr (Measure w)) -> repr (Measure w)
 -- This Cont monad is useful for generalizing pair2fst and pair2snd to an
 -- arbitrary number of coin flips. The generalization would look liks this:
@@ -103,6 +99,7 @@ twice :: (Mochastic repr) => repr (Measure a) -> Cont repr (repr a, repr a)
 twice m k = m `bind` \x ->
             m `bind` \y ->
             k (x, y)
+-}
 
 -- pair3fst and pair3snd and pair3trd are equivalent
 pair3fst, pair3snd, pair3trd :: (Mochastic repr) => repr Prob -> [repr Bool_] -> repr (Measure ())
@@ -145,8 +142,8 @@ pair4transition state = bern (1/2) `bind` \resampleCoin ->
                            (bern (1/2) `bind` \coin' ->
                             densityCheck (coin',x))
                            (if_ coin
-                            (normal 3 2 `bind` \x -> densityCheck (coin, x))
-                            (uniform (-1) 1 `bind` \x -> densityCheck (coin, x)))
+                            (normal 3 2 `bind` \y -> densityCheck (coin, y))
+                            (uniform (-1) 1 `bind` \y -> densityCheck (coin, y)))
     where densityCheck (coin', x') = if_ (less (bernLogDensity (1/2) coin' +
                                                  (if_ coin'
                                                   (normalLogDensity 0 1 x')
@@ -181,10 +178,10 @@ pair4'transition state = bern (1/2) `bind` \resampleCoin ->
           coin = fst_ state
           x = snd_ state
 
+{-
 transitionTest :: MWC.GenIO -> IO (Maybe ((Bool_, Double), LF.LogFloat))
 transitionTest g = unSample (pair4transition (pair true 1)) 1 g
-
-
+-}
 
 testDistWithSample :: IO [Maybe (Double, LF.LogFloat)]
 testDistWithSample = do
@@ -199,15 +196,15 @@ testDistWithSample = do
 type Real5 = (Real, (Real, (Real, (Real, Real))))
 type Real6 = (Real, (Real, (Real, (Real, (Real, Real)))))
 
-make5Pair :: (Base repr) => [repr a] -> repr (a,(a,(a,(a,a))))
-make5Pair [x1,x2,x3,x4,x5] = pair x1
+make5Pair :: (Base repr) => repr a -> repr a -> repr a -> repr a -> repr a -> repr (a,(a,(a,(a,a))))
+make5Pair x1 x2 x3 x4 x5 = pair x1
                                 (pair x2
                                  (pair x3
                                   (pair x4
                                          x5)))
 
-make6Pair :: (Base repr) => [repr a] -> repr (a,(a,(a,(a,(a,a)))))
-make6Pair [x1,x2,x3,x4,x5,x6] = pair x1
+make6Pair :: (Base repr) => repr a -> repr a -> repr a -> repr a -> repr a -> repr a-> repr (a,(a,(a,(a,(a,a)))))
+make6Pair x1 x2 x3 x4 x5 x6 = pair x1
                                 (pair x2
                                  (pair x3
                                   (pair x4
@@ -226,13 +223,12 @@ linreg = normal 0 2 `bind` \w1 ->
          uniform (-1) 1 `bind` \x4 ->
          uniform (-1) 1 `bind` \x5 ->
          normal (x1*w1 + x2*w2 + x3*w3 + x4*w4 + x5*w5) 1 `bind` \y ->
-         dirac (pair (make6Pair [x1,x2,x3,x4,x5,y]) (make5Pair [w1,w2,w3,w4,w5]))
+         dirac (pair (make6Pair x1 x2 x3 x4 x5 y) (make5Pair w1 w2 w3 w4 w5))
 
 distLinreg :: (Lambda repr, Mochastic repr) => repr (Real6 -> (Measure Real5))
-distLinreg = lam $ \ x -> (runDisintegrate (\ env -> linreg) !! 0) unit x
+distLinreg = lam $ \ x -> (runDisintegrate (const linreg) !! 0) unit x
 
-------- Tests
-
+{- TODO: plug these in
 disintegrateTestRunner :: IO ()
 disintegrateTestRunner = do
   testDist ( Bind (Leaf x) stdRandom
@@ -294,12 +290,6 @@ testDist (e,s) = do
   putStrLn ""
 
 
--- this introduced too much noise in output, move it 
-main3 :: IO ()
-main3 = do
-  disintegrateTestRunner
-
-
 -- Jacques on 2014-11-18: "From an email of Oleg's, could someone please
 -- translate the following 3 programs into new Hakaru?"  The 3 programs below
 -- are equivalent.
@@ -327,3 +317,4 @@ prog3s = [ d unit
                       (dirac false `bind` \e ->
                        uniform (10 + if_ e 1 0) 20) `bind` \x ->
                 dirac (pair x c) ]
+-}
