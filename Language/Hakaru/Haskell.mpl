@@ -173,7 +173,7 @@ end;
   ufunc := proc(f) proc(c) parens(proc() b:-append(f); sp(); p(c) end) end; end;
   bfunc := f -> ((x,y) -> parens(proc() b:-append(f); sp(); p(x); sp(); p(y); end));
   seqp := proc(s, l) 
-    if nops(l)=0 then error "empty sequence passed where non-empty expected";
+    if nops(l)=0 then NULL
     elif nops(l)=1 then p(l[1]) 
     else
       p(l[1]);

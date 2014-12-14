@@ -29,7 +29,7 @@ SLO := module ()
     cs := indets(inp, 'specfunc'(anything,c));
     # deal with trivial input first
     if inp=0 then
-        0
+        Superpose()
     # then deal with 'bad' input
     elif nops(cs) = 0 then
       error "the constant", inp, " is not a measure."
