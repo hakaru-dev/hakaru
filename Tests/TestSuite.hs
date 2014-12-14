@@ -1,5 +1,7 @@
 -- module Tests.TestSuite(main) where
 
+import System.Exit (exitFailure)
+
 import qualified Tests.RoundTrip as RT
 import qualified Tests.Syntax as SY
 
@@ -15,5 +17,5 @@ allTests = test [
 
 main :: IO ()
 main = do
-    c <- runTestTT allTests
-    putStrLn $ showCounts c
+    Counts _ _ e f <- runTestTT allTests
+    if (e>0) || (f>0) then exitFailure else return ()

@@ -41,7 +41,7 @@ class (Typeable a) => Simplify a where
 
 instance (Typeable a) => Simplify (Measure a) where
   -- The type "a" should not contain "Measure"
-  simplify' _ a s k = do
+  simplify' _ _ s k = do
     result <- k s 
     -- return (result ++ " :: " ++ (show $ typeOf a))
     return result
