@@ -1,4 +1,4 @@
-module Tests.TestSuite where
+-- module Tests.TestSuite(main) where
 
 import qualified Tests.RoundTrip as RT
 import qualified Tests.Syntax as SY
@@ -13,8 +13,7 @@ allTests = test [
     SY.allTests
     ]
 
-
 main :: IO ()
 main = do
-    runTestTT allTests
-    putStrLn "done"
+    c <- runTestTT allTests
+    putStrLn $ showCounts c

@@ -5,10 +5,10 @@ import Prelude hiding (Real)
 import Language.Hakaru.Syntax
 import Language.Hakaru.Disintegrate
 import Language.Hakaru.Expect (Expect(unExpect), Expect')
-import Language.Hakaru.Maple (Maple, runMaple)
-import Language.Hakaru.Simplify (Simplify, Any(unAny), simplify)
+-- import Language.Hakaru.Maple (Maple, runMaple)
+-- import Language.Hakaru.Simplify (Simplify, Any(unAny), simplify)
 import Language.Hakaru.PrettyPrint (runPrettyPrint)
-import Text.PrettyPrint (text, (<>), ($$), nest, render)
+-- import Text.PrettyPrint (text, (<>), ($$), nest, render)
 
 import Test.HUnit
 import Tests.TestTools
@@ -84,12 +84,6 @@ allTests = test [
     testMeasurePair,
     testOther
     ]
-
-main :: IO ()
-main = do
-    runTestTT allTests
-    putStrLn "done"
-
 
 -- In Maple, should 'evaluate' to "\c -> 1/2*c(Unit)"
 t1 :: (Mochastic repr) => repr (Measure ())
