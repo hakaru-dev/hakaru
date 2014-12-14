@@ -76,7 +76,7 @@ d[_Inert_POWER] := proc(a1,a2)
   #        or Prob "^^" Int
   #        or Real "**" Real
   #        or Prob "`pow_`" Real
-  parens(proc() p(a1); b:-append(" ^ "); p(a2) end);
+  parens(proc() p(a1); b:-append(" ** "); p(a2) end);
 end;
 d[_Inert_LESSTHAN] := proc(a1, a2)
   lparen(); b:-append("less"); sp(); p(a1); sp(); p(a2); rparen();
@@ -124,13 +124,20 @@ bi["Superpose"] := proc() b:-append("superpose"); sp();
   lbrack(); seqp(", ", [_passed]); rbrack();
 end;
 
+# will always be called in the context of a superpose
 bi["WM"] := proc(w, m)
   b:-append("("); p(w); b:-append(","); p(m); b:-append(")");
 end;
 
+bi["Pair"] := proc(l, r)
+  b:-append("("); p(l); b:-append(","); p(r); b:-append(")");
+end;
+
 bi["exp"] := ufunc("exp");
 bi["exp_"] := ufunc("exp_");
-bi["ln"] := ufunc("ln");
+bi["ln"] := ufunc("log");
+bi["cos"] := ufunc("cos");
+bi["sin"] := ufunc("sin");
 
 bi["If"] := proc()
   ASSERT(_npassed>0);
