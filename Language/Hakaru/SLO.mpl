@@ -100,7 +100,7 @@ SLO := module ()
               # finite range.
               weight := simplify(op([1,1], rest));
               ee := op([1,2], rest);
-              if ctx=[] and type(ee, Return(anything)) then
+              if type(ee, Return(anything)) then
                 Bind(Uniform(op(1, rng), op(2, rng)), var,
                     Superpose(WM(weight, simplify(ee))))
               else
@@ -114,6 +114,8 @@ SLO := module ()
             error "sums not handled yet"
         elif type(e, t_pw) then
           return do_pw(map(simplify, [op(e)]), ctx);
+        elif type(e, `+`) then
+            error "sum of measures not implemented yet"
         else
             error "constants should have been pushed inside already", e
         end if;
