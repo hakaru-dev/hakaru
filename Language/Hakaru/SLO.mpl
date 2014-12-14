@@ -46,7 +46,7 @@ SLO := module ()
         return Return(op(e))
     # we might have recursively encountered a hidden 0
     elif (e = 0) then
-       return 0
+       return Superpose()
     # we might have done something odd, and there is no x anymore (and not 0)
     elif type(e, 'numeric') then
       error "the constant", e, "is not a measure"
@@ -104,7 +104,7 @@ SLO := module ()
                 Bind(Uniform(op(1, rng), op(2, rng)), var,
                     Superpose(WM(weight, simplify(ee))))
               else
-                error "almost uniform but not quite?", e
+                error "almost uniform but not quite?", ee
               end if;
             else
               Bind(Lebesgue, var = rng, rest)
@@ -188,10 +188,11 @@ SLO := module ()
   gs_counter := 0;
   gensym := proc(x::name) gs_counter := gs_counter + 1; x || gs_counter; end proc;
 
+  # this assumes we are doing pw of measures.
   do_pw := proc(l, ctx)
     local len;
     len := nops(l);
-    if len = 0 then 0
+    if len = 0 then Superpose()
     elif len = 1 then ToAST(l[1], ctx)
     else # l>=2. Note how conditions go through straight
       If(l[1], ToAST(l[2], ctx), thisproc(l[3..-1], ctx))
