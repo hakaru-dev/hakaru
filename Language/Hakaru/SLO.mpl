@@ -33,8 +33,6 @@ SLO := module ()
     # then deal with 'bad' input
     elif nops(cs) = 0 then
       error "the constant", inp, " is not a measure."
-    elif type(inp, `+`) then
-      map(AST, SUM(op(inp)))
     else 
       ToAST(inp, []);
     end if;
