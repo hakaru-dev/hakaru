@@ -92,7 +92,9 @@ SLO := module ()
             # should recognize densities here
             Bind(Lebesgue, var = rng, rest)
           else
-            rest := ToAST(weight*ee, [op(2,e), op(ctx)]);
+            v := simplify(weight*ee) 
+                 assuming var :: RealRange(op(1,rng), op(2,rng));
+            rest := ToAST(v, [op(2,e), op(ctx)]);
             # process the rest, and then recognize
             # recognize 'raw' uniform
             if type(rest, specfunc(identical(var), 'Return')) then
@@ -253,7 +255,13 @@ end proc;
   sub := indets(x, 'specfunc'(anything, unsafeProb));
   f := proc(a) local b;
     b := op(1,a);
-    if type(b, 'exp'(anything)) then exp_(op(1, b)) else a end if;
+    if type(b, 'exp'(anything)) then 
+      exp_(op(1, b)) 
+    elif signum(0, b, 1) = 1 then
+      b
+    else 
+      a 
+    end if;
   end proc;
   subs(map(y -> y = f(y), sub), x)
 end proc;
