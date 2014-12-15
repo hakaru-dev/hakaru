@@ -36,7 +36,8 @@ testMeasureProb = test [
     "t33" ~: testS t33,
     "t34" ~: testS t34,
     "t35" ~: testS t35,
-    "t38" ~: testS t38
+    "t38" ~: testS t38,
+    "t42" ~: testS t42
     ]
 
 testMeasureReal :: Test

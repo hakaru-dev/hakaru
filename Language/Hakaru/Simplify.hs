@@ -1,11 +1,14 @@
-{-# LANGUAGE DeriveDataTypeable, Rank2Types #-}
+{-# LANGUAGE DeriveDataTypeable, Rank2Types, ScopedTypeVariables #-}
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 {-# OPTIONS -W #-}
 
 module Language.Hakaru.Simplify (Any(..), closeLoop, simplify, Simplify) where
 
 -- Take strings from Maple and interpret them in Haskell (Hakaru)
 
-import Language.Hakaru.Syntax (Measure, Lambda(..), Mochastic(..))
+import Prelude hiding (Real)
+import Language.Hakaru.Syntax (Measure, Lambda(..), Mochastic(..), 
+  Prob, Real, Bool_)
 import Language.Hakaru.Expect (Expect, unExpect)
 import Language.Hakaru.Maple (Maple, runMaple)
 import Data.Typeable (Typeable, typeOf)
@@ -35,23 +38,45 @@ newtype Any a = Any
   deriving Typeable
   -- beware GHC 7.8 https://ghc.haskell.org/trac/ghc/wiki/GhcKinds/PolyTypeable
 
+class MapleableType a where
+  mapleType :: a{-unused-} -> String
+
+instance MapleableType () where mapleType _ = "Unit"
+instance MapleableType Real where mapleType _ = "Real"
+instance MapleableType Prob where mapleType _ = "Prob"
+instance MapleableType Bool_ where mapleType _ = "Bool_"
+
+instance (MapleableType a, MapleableType b) => MapleableType (a,b) where
+  mapleType _ = "Pair(" ++ mapleType (undefined :: a) ++ "," ++
+                           mapleType (undefined :: b) ++ ")"
+
+instance MapleableType a => MapleableType (Measure a) where
+  mapleType _ = "Measure(" ++ mapleType (undefined :: a ) ++ ")"
+
+instance (MapleableType a, MapleableType b) => MapleableType (a -> b) where
+  mapleType _ = "Arrow(" ++ mapleType (undefined :: a) ++ "," ++
+                            mapleType (undefined :: b) ++ ")"
+
 class (Typeable a) => Simplify a where
   simplify' :: (Monad m) => Int -> a{-unused-} -> String ->
                 (String -> m String) -> m String
 
-instance (Typeable a) => Simplify (Measure a) where
-  -- The type "a" should not contain "Measure"
-  simplify' _ _ s k = do
-    result <- k s 
-    -- return (result ++ " :: " ++ (show $ typeOf a))
-    return result
+mkTypeString :: MapleableType a => String -> a -> String
+mkTypeString s t = "Typed(" ++ s ++ ", " ++ mapleType t ++ ")"
 
-instance (Typeable a, Simplify b) => Simplify (a -> b) where
+instance (Typeable a, MapleableType a) => Simplify (Measure a) where
+  simplify' _ a s k = k $ mkTypeString s a
+
+instance (Typeable a, Simplify b, MapleableType a, MapleableType b) => 
+  Simplify (a -> b) where
   -- The type "a" should not contain "Measure"
   simplify' n dummy s k = do
     let arrrg = "arrrg" ++ show n
+    let tarrrg = mapleType (undefined :: a)
     result <- simplify' (succ n) (undefined `asTypeOf` dummy undefined) s
-               (\mapleString -> k (mapleString ++ "(" ++ arrrg ++ ")"))
+               (\mapleString -> k (mkTypeString 
+                 (mapleString ++ "(" ++ arrrg ++ " :: " ++ tarrrg ++ ")") 
+                 dummy ))
     return ("lam $ \\" ++ arrrg ++ " -> " ++ result)
 
 simplify :: (Simplify a) => Expect Maple a -> IO (Any a)

@@ -15,8 +15,9 @@ SLO := module ()
   t_binds := 'specfunc(anything, {int, Int, sum, Sum})';
   t_pw := 'specfunc(anything, piecewise)';
 
-  ModuleApply := proc(inp::anything) 
-    local e;
+  ModuleApply := proc(spec::Typed(anything,anything))
+    local inp;
+    inp := op(1,spec);
     try
       simp(value(eval(inp(c), 'if_'=piecewise)));
     catch "Wrong kind of parameters in piecewise":
@@ -245,26 +246,16 @@ SLO := module ()
   end proc;
 end;
 
-# this has to be global!
-unsafeProb := proc(v) 
-  if type(v,'realcons') and signum(0, v, 1) = 1 then v else 'unsafeProb'(v) end if;
-end proc;
-
-# will get called on expressions containing 'unsafeProb'
-`simplify/unsafeProb` := proc(x) local sub, f;
-  sub := indets(x, 'specfunc'(anything, unsafeProb));
-  f := proc(a) local b;
-    b := op(1,a);
-    if type(b, 'exp'(anything)) then 
-      exp_(op(1, b)) 
-    elif signum(0, b, 1) = 1 then
-      b
-    else 
-      a 
-    end if;
-  end proc;
-  subs(map(y -> y = f(y), sub), x)
-end proc;
-
 # works, but could be made more robust
 `evalapply/if_` := proc(f, t) if_(op(1,f), op(2,f)(t[1]), op(3,f)(t[1])) end;
+`evalapply/Typed` := proc(f, t)
+  Typed(op(1,f)(t[1]), op(2,f))
+end;
+
+Typed := proc(expr, typ)
+  if type(expr, specfunc(anything, Typed)) then 
+    'Typed'(op(1, expr), typ)
+  else
+    'Typed'(expr, typ)
+  end if;
+end proc;

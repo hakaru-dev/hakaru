@@ -108,7 +108,8 @@ instance Base Maple where
       let arm k = runReader (unMaple (k unit)) i
       in "if_(" ++ ab' ++ ", " ++ arm ka
                        ++ ", " ++ arm kb ++ ")"))
-  unsafeProb = mapleFun1 "unsafeProb"
+  -- unsafeProb = mapleFun1 "unsafeProb"
+  unsafeProb (Maple x) = Maple x
   fromProb   (Maple x) = Maple x
   fromInt    (Maple x) = Maple x
   sqrt_ = mapleFun1 "sqrt"

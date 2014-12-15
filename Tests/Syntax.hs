@@ -39,9 +39,9 @@ allTests = test [
     "pair4transition" ~: testS $ pair4transition $ pair true 1,
     "pair4'transition" ~: testS $ pair4'transition $ pair true 1,
     -- "transitionTest" ~: ignore $ transitionTest,
-    "testDistWithSample" ~: do x <- testDistWithSample
-                               mapM_ assertJust x,
-    "testLinreg" ~: testS distLinreg,
+    "testDistWithSample" ~: ignore $ do x <- testDistWithSample
+                                        mapM_ assertJust x,
+    "testLinreg" ~: ignore $ testS distLinreg,
     "prog1s" ~: map testS prog1s,
     "prog2s" ~: map testS prog2s,
     "prog3s" ~: map testS prog3s
