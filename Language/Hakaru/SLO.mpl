@@ -9,7 +9,8 @@
 
 SLO := module ()
   export ModuleApply, AST, simp, c; # very important: this c is "global".
-  local ToAST, t_binds, t_pw, into_pw, myprod, gensym, gs_counter, do_pw;
+  local ToAST, t_binds, t_pw, into_pw, myprod, gensym, gs_counter, do_pw,
+    superpose;
 
   t_binds := 'specfunc(anything, {int, Int, sum, Sum})';
   t_pw := 'specfunc(anything, piecewise)';
@@ -41,7 +42,7 @@ SLO := module ()
   # recursive function which does the main translation
   ToAST := proc(e, ctx)
     local a0, a1, var, vars, rng, ee, cof, d, ld, weight, binders,
-      v, subst, ivars, ff, newvar, rest;
+      v, subst, ivars, ff, newvar, rest, a, b;
     if type(e, specfunc(name, c)) then
         return Return(op(e))
     # we might have recursively encountered a hidden 0
@@ -111,19 +112,41 @@ SLO := module ()
             end if;
           end if;
         elif type(e, 'specfunc'(anything, {'sum','Sum'})) then
-            error "sums not handled yet"
+          error "sums not handled yet"
         elif type(e, t_pw) then
           return do_pw(map(simplify, [op(e)]), ctx);
         elif type(e, `+`) then
-            error "sum of measures not implemented yet"
+          superpose(map(ToAST, [op(e)], ctx));
+        elif type(e, `*`) then
+          # we have a binder in here somewhere
+          a, b := selectremove(type, e, t_binds);
+          # now casesplit on what a is
+## from here
+          if a=1 then  # no surface binders
+            a, b := selectremove(type, e, t_pw);
+            if a=1 then # and no piecewise either
+              error "buried binder: ", b
+            elif type(a, `*`) then
+              error "do not know how to multiply 2 pw:", a
+            elif type(a, t_pw) then
+              Superpose(WM(b, ToAST(a, ctx)))
+            else
+              error "something weird happened:", a, " was supposed to be pw"
+            end if
+          elif type(a, `*`) then
+            error "product of 2 binders?!?", a
+          else
+            Superpose(WM(b, ToAST(a, ctx)))
+          end if
+## to here
         else
-            error "constants should have been pushed inside already", e
+            error "Not sure what to do with a ", e
         end if;
       end if;
     end if;
   end proc;
 
-  # simp mostly pushes things in.
+  # simp mostly recurses and simplifies as it goes
   simp := proc(e) 
     local a, b, d;
     if type(e, `+`) then
@@ -150,7 +173,8 @@ SLO := module ()
       elif type(a, `*`) then
         error "product of 2 binders?!?", a
       else
-        subsop(1=myprod(simp(b),simp(op(1,a))), a)
+        simp(b)*simp(a)
+        # subsop(1=myprod(simp(b),simp(op(1,a))), a)
       end if
     elif type(e, t_binds) then
       subsop(1=simp(op(1,e)), e)
@@ -200,6 +224,23 @@ SLO := module ()
       If(l[1], ToAST(l[2], ctx), thisproc(l[3..-1], ctx))
     end if;
   end;
+
+  superpose := proc(l)
+    local t, i, j, idx;
+    t := table('sparse');
+    for i in l do
+      if type(i, specfunc(anything, Superpose)) then
+        for j in [op(i)] do
+          idx := op(2,j);
+          # yeah for indexing functions!
+          t[idx] := t[idx] + op(1,j);
+        end do;
+      else 
+        error "still don't know how to superpose ", i;
+      end if;
+    end do;
+    Superpose(seq(WM(t[op(i)], op(i)), i = [indices(t)]));
+  end proc;
 end;
 
 # this has to be global!

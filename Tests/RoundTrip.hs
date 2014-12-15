@@ -25,7 +25,7 @@ testMeasureUnit = test [
     "t20" ~: testS t20,
     "t22" ~: testS t22,
     "t24" ~: testS t24,
-    "t25" ~: testS t25
+    "t25" ~: ignore $ testS t25
     ]
 
 testMeasureProb :: Test
