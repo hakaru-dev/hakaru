@@ -133,6 +133,14 @@ bi["Pair"] := proc(l, r)
   b:-append("("); p(l); b:-append(","); p(r); b:-append(")");
 end;
 
+bi["Lambda"] := proc(nm, expr)
+  b:-append("lam (\\"); 
+  p(nm);
+  b:-append(" -> ");
+  p(expr); 
+  b:-append(")");
+end proc;
+
 bi["exp"] := ufunc("exp");
 bi["exp_"] := ufunc("exp_");
 bi["ln"] := ufunc("log");

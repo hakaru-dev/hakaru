@@ -11,7 +11,7 @@ SLO := module ()
   export ModuleApply, AST, simp, 
     c, arrrg; # very important: c and arrrg are "global".
   local ToAST, t_binds, t_pw, into_pw, myprod, gensym, gs_counter, do_pw,
-    superpose, mkWM, mkProb, getCtx, addCtx, instantiate;
+    superpose, mkWM, mkProb, getCtx, addCtx, instantiate, lambda_wrap;
 
   t_binds := 'specfunc(anything, {int, Int, sum, Sum})';
   t_pw := 'specfunc(anything, piecewise)';
@@ -35,10 +35,7 @@ SLO := module ()
     local res, ctx;
     res := ToAST(op(inp));
     ctx := op(2,inp);
-    if ctx:-gsize = 0 then res
-    else
-      error "\\lam functionality not done yet";
-    end if;
+    lambda_wrap(res, 0, ctx);
   end proc;
 
   getCtx := proc(typ, glob, ctr)
@@ -49,6 +46,17 @@ SLO := module ()
       getCtx(op(2,typ), glob, ctr+1)
     else 
       error "must have either Measure or Arrow, got", typ;
+    end if;
+  end proc;
+
+  lambda_wrap := proc(expr, cnt, ctx)
+    local var, sub;
+    if cnt = ctx:-gsize then
+      expr
+    else
+      var := cat(arrrg, cnt);
+      sub := arrrg[cnt] = var;
+      Lambda(var, lambda_wrap(subs(sub, expr), cnt+1, ctx));
     end if;
   end proc;
 
@@ -270,7 +278,7 @@ SLO := module ()
     elif type(w, 'specindex'(arrrg)) then
       typ := ctx:-gctx[op(1,w)];
       if typ = 'Prob' then w
-      else error "how can I make a Prob from ", w;
+      else error "how can I make a Prob from ", w, "of type ", typ;
       end if;
     else
       error "how do I make a Prob from ", w;
