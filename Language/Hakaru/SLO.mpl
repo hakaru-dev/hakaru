@@ -8,35 +8,47 @@
 #
 
 SLO := module ()
-  export ModuleApply, AST, simp, c; # very important: this c is "global".
+  export ModuleApply, AST, simp, 
+    c, arrrg; # very important: c and arrrg are "global".
   local ToAST, t_binds, t_pw, into_pw, myprod, gensym, gs_counter, do_pw,
-    superpose;
+    superpose, mkWM, mkProb, getCtx, addCtx, instantiate;
 
   t_binds := 'specfunc(anything, {int, Int, sum, Sum})';
   t_pw := 'specfunc(anything, piecewise)';
 
   ModuleApply := proc(spec::Typed(anything,anything))
-    local inp;
-    inp := op(1,spec);
+    local expr, typ, glob, gsiz, ctx, r, inp;
+    expr := op(1, spec);
+    typ := op(2, spec);
+    glob, gsiz := getCtx(typ, table(), 0);
+    inp := instantiate(expr, gsiz, 0);
+    r := Record('htyp' = typ, 'gctx' = glob, 'gsize' = gsiz, 'lctx' = []);
     try
-      simp(value(eval(inp(c), 'if_'=piecewise)));
+      HAST(simp(value(eval(inp(c), 'if_'=piecewise))), r);
     catch "Wrong kind of parameters in piecewise":
       error "Bug in Hakaru -> Maple translation, piecewise used incorrectly.";
     end try;
   end proc;
 
   # AST transforms the Maple to a representation of the mochastic AST
-  AST := proc(inp::anything)
-    local cs;
-    cs := indets(inp, 'specfunc'(anything,c));
-    # deal with trivial input first
-    if inp=0 then
-        Superpose()
-    # then deal with 'bad' input
-    elif nops(cs) = 0 then
-      error "the constant", inp, " is not a measure."
+  AST := proc(inp::HAST(anything, Context))
+    local res, ctx;
+    res := ToAST(op(inp));
+    ctx := op(2,inp);
+    if ctx:-gsize = 0 then res
+    else
+      error "\\lam functionality not done yet";
+    end if;
+  end proc;
+
+  getCtx := proc(typ, glob, ctr)
+    if type(typ, 'Measure'(anything)) then
+      glob, ctr
+    elif type(typ, 'Arrow'(anything, anything)) then
+      glob[ctr] := op(1,typ);
+      getCtx(op(2,typ), glob, ctr+1)
     else 
-      ToAST(inp, []);
+      error "must have either Measure or Arrow, got", typ;
     end if;
   end proc;
 
@@ -68,7 +80,7 @@ SLO := module ()
           cof := [coeffs(ee, ivars, 'v')]; # cof is a list, v expseq
           if (d = 1) and (ld = 1) then
             # WM = Weight-Measure pair
-            ff := (x,y) -> WM(simplify(x), Return(op(y)));
+            ff := (x,y) -> mkWM(simplify(x), Return(op(y)), ctx);
             Superpose(op(zip(ff, cof, [v])));
             # `if`(cof=1, rest, Bind_(Factor(simplify(cof)), rest))
           else
@@ -79,7 +91,7 @@ SLO := module ()
             end if;
           end if;
         elif type(ee, t_pw) then
-          return do_pw(map(simplify, [op(e)]), ctx);
+          return do_pw(map(simplify, [op(e)]), ctx, typ);
         else
           error "no binders, but still not a polynomial?", ee
         end if;
@@ -89,13 +101,13 @@ SLO := module ()
           ee := op(1,e);
           weight := simplify(op(2,rng)-op(1,rng));
           if type(weight, 'SymbolicInfinity') then
-            rest := ToAST(ee, [op(2,e), op(ctx)]);
+            rest := ToAST(ee, addCtx(op(2,e), ctx));
             # should recognize densities here
             Bind(Lebesgue, var = rng, rest)
           else
             v := simplify(weight*ee) 
                  assuming var :: RealRange(op(1,rng), op(2,rng));
-            rest := ToAST(v, [op(2,e), op(ctx)]);
+            rest := ToAST(v, addCtx(op(2,e), ctx));
             # process the rest, and then recognize
             # recognize 'raw' uniform
             if type(rest, specfunc(identical(var), 'Return')) then
@@ -106,7 +118,7 @@ SLO := module ()
               ee := op([1,2], rest);
               if type(ee, Return(anything)) then
                 Bind(Uniform(op(1, rng), op(2, rng)), var,
-                    Superpose(WM(weight, simplify(ee))))
+                    Superpose(mkWM(weight, simplify(ee), ctx)))
               else
                 error "almost uniform but not quite?", ee
               end if;
@@ -117,9 +129,9 @@ SLO := module ()
         elif type(e, 'specfunc'(anything, {'sum','Sum'})) then
           error "sums not handled yet"
         elif type(e, t_pw) then
-          return do_pw(map(simplify, [op(e)]), ctx);
+          return do_pw(map(simplify, [op(e)]), ctx, typ);
         elif type(e, `+`) then
-          superpose(map(ToAST, [op(e)], ctx));
+          superpose(map(ToAST, [op(e)], ctx), ctx);
         elif type(e, `*`) then
           # we have a binder in here somewhere
           a, b := selectremove(type, e, t_binds);
@@ -132,14 +144,14 @@ SLO := module ()
             elif type(a, `*`) then
               error "do not know how to multiply 2 pw:", a
             elif type(a, t_pw) then
-              Superpose(WM(b, ToAST(a, ctx)))
+              Superpose(mkWM(b, ToAST(a, ctx), ctx))
             else
               error "something weird happened:", a, " was supposed to be pw"
             end if
           elif type(a, `*`) then
             error "product of 2 binders?!?", a
           else
-            Superpose(WM(b, ToAST(a, ctx)))
+            Superpose(mkWM(b, ToAST(a, ctx), ctx))
           end if
 ## to here
         else
@@ -228,7 +240,7 @@ SLO := module ()
     end if;
   end;
 
-  superpose := proc(l)
+  superpose := proc(l, ctx)
     local t, i, j, idx;
     t := table('sparse');
     for i in l do
@@ -242,7 +254,42 @@ SLO := module ()
         error "still don't know how to superpose ", i;
       end if;
     end do;
-    Superpose(seq(WM(t[op(i)], op(i)), i = [indices(t)]));
+    Superpose(seq(mkWM(t[op(i)], op(i), ctx), i = [indices(t)]));
+  end proc;
+
+  mkWM := proc(w, m, ctx)
+    'WM'(mkProb(w, ctx), m);
+  end proc;
+
+  mkProb := proc(w, ctx)
+    local typ;
+    if type(w, 'realcons') and signum(0,w,1)=1 then 
+      w
+    elif type(w, `*`) then
+      map(mkProb, w, ctx)
+    elif type(w, 'specindex'(arrrg)) then
+      typ := ctx:-gctx[op(1,w)];
+      if typ = 'Prob' then w
+      else error "how can I make a Prob from ", w;
+      end if;
+    else
+      error "how do I make a Prob from ", w;
+    end if;
+  end proc;
+
+  # for adding to the local context:
+  addCtx := proc(a, r) local s;
+    s := Record(r); # copy
+    s:-lctx := [a, op(s:-lctx)];
+    s;
+  end proc;
+
+  instantiate := proc(e, gsiz, ctr)
+    if ctr = gsiz then
+      e
+    else
+      instantiate(e(arrrg[ctr]), gsiz, ctr+1)
+    end if;
   end proc;
 end;
 
@@ -259,3 +306,11 @@ Typed := proc(expr, typ)
     'Typed'(expr, typ)
   end if;
 end proc;
+
+# A Context contains 
+# - a (Maple-encoded) Hakaru type 'htyp' (H-types)
+# - a global context of var = H-types
+# - the size of the global context
+# - a local context of binders, var = range
+`type/Context` := 'record'('htyp', 'gctx', 'gsize', 'lctx');
+

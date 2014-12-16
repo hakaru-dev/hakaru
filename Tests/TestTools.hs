@@ -2,10 +2,11 @@ module Tests.TestTools where
 
 import Language.Hakaru.Expect (Expect(unExpect))
 import Language.Hakaru.Maple (Maple, runMaple)
-import Language.Hakaru.Simplify (Simplify, Any(unAny), simplify)
+import Language.Hakaru.Simplify (Any(unAny), simplify, MapleableType)
 import Language.Hakaru.PrettyPrint (runPrettyPrint)
 import Text.PrettyPrint (render)
 import Data.List
+import Data.Typeable (Typeable)
 
 import Test.HUnit
 
@@ -18,7 +19,7 @@ assertJust :: Maybe a -> Assertion
 assertJust (Just _) = assertBool "" True
 assertJust Nothing  = assertBool "expected Just but got Nothing" False
 
-testS :: (Simplify a) => Expect Maple a -> IO ()
+testS :: (MapleableType a, Typeable a) => Expect Maple a -> IO ()
 testS t = do
     putStrLn "" -- format output better
     p <- simplify t

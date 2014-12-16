@@ -2,7 +2,11 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 {-# OPTIONS -W #-}
 
-module Language.Hakaru.Simplify (Any(..), closeLoop, simplify, Simplify) where
+module Language.Hakaru.Simplify
+  ( Any(..)
+  , closeLoop
+  , simplify
+  , MapleableType) where
 
 -- Take strings from Maple and interpret them in Haskell (Hakaru)
 
@@ -57,36 +61,18 @@ instance (MapleableType a, MapleableType b) => MapleableType (a -> b) where
   mapleType _ = "Arrow(" ++ mapleType (undefined :: a) ++ "," ++
                             mapleType (undefined :: b) ++ ")"
 
-class (Typeable a) => Simplify a where
-  simplify' :: (Monad m) => Int -> a{-unused-} -> String ->
-                (String -> m String) -> m String
-
 mkTypeString :: MapleableType a => String -> a -> String
 mkTypeString s t = "Typed(" ++ s ++ ", " ++ mapleType t ++ ")"
 
-instance (Typeable a, MapleableType a) => Simplify (Measure a) where
-  simplify' _ a s k = k $ mkTypeString s a
-
-instance (Typeable a, Simplify b, MapleableType a, MapleableType b) => 
-  Simplify (a -> b) where
-  -- The type "a" should not contain "Measure"
-  simplify' n dummy s k = do
-    let arrrg = "arrrg" ++ show n
-    let tarrrg = mapleType (undefined :: a)
-    result <- simplify' (succ n) (undefined `asTypeOf` dummy undefined) s
-               (\mapleString -> k (mkTypeString 
-                 (mapleString ++ "(" ++ arrrg ++ " :: " ++ tarrrg ++ ")") 
-                 dummy ))
-    return ("lam $ \\" ++ arrrg ++ " -> " ++ result)
-
-simplify :: (Simplify a) => Expect Maple a -> IO (Any a)
+simplify :: (MapleableType a, Typeable a) => Expect Maple a -> IO (Any a)
 simplify e = do
-  hakaru <- simplify' 0 (getArg e) (runMaple (unExpect e) 0) (\slo -> do
+  let slo = mkTypeString (runMaple (unExpect e) 0) (getArg e)
+  hakaru <- do
     putStrLn ("To Maple: " ++ slo)
     hopeString <- maple ("Haskell(SLO:-AST(SLO(" ++ slo ++ ")));")
     case readMapleString hopeString of
       Just hakaru -> return hakaru
-      Nothing -> error ("From Maple: " ++ hopeString))
+      Nothing -> error ("From Maple: " ++ hopeString)
   closeLoop ("Any (" ++ hakaru ++ ")")
 
 getArg :: f a -> a
