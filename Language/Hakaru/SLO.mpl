@@ -269,6 +269,7 @@ SLO := module ()
     'WM'(mkProb(w, ctx), m);
   end proc;
 
+  # note that this could be called more than once.
   mkProb := proc(w, ctx)
     local typ;
     if type(w, 'realcons') and signum(0,w,1)=1 then 
@@ -280,6 +281,10 @@ SLO := module ()
       if typ = 'Prob' then w
       else error "how can I make a Prob from ", w, "of type ", typ;
       end if;
+    elif type(w, 'exp'(anything)) then
+      exp_(op(1,w));
+    elif type(w, 'exp_'(anything)) then
+      w
     else
       error "how do I make a Prob from ", w;
     end if;
