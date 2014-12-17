@@ -11,18 +11,20 @@ SLO := module ()
   export ModuleApply, AST, simp, 
     c, arrrg; # very important: c and arrrg are "global".
   local ToAST, t_binds, t_pw, into_pw, myprod, gensym, gs_counter, do_pw,
-    superpose, mkWM, mkProb, getCtx, addCtx, instantiate, lambda_wrap;
+    superpose, mkWM, mkProb, getCtx, addCtx, instantiate, lambda_wrap,
+    adjust_types, compute_domain;
 
   t_binds := 'specfunc(anything, {int, Int, sum, Sum})';
   t_pw := 'specfunc(anything, piecewise)';
 
   ModuleApply := proc(spec::Typed(anything,anything))
-    local expr, typ, glob, gsiz, ctx, r, inp;
+    local expr, typ, glob, gsiz, ctx, r, inp, meastyp;
     expr := op(1, spec);
     typ := op(2, spec);
-    glob, gsiz := getCtx(typ, table(), 0);
-    inp := instantiate(expr, gsiz, 0);
-    r := Record('htyp' = typ, 'gctx' = glob, 'gsize' = gsiz, 'lctx' = []);
+    glob, gsiz, meastyp := getCtx(typ, table(), 0);
+    r := Record('htyp' = typ, 'mtyp' = meastyp,
+                'gctx' = glob, 'gsize' = gsiz, 'lctx' = table());
+    inp := instantiate(expr, r, 0);
     try
       HAST(simp(value(eval(inp(c), 'if_'=piecewise))), r);
     catch "Wrong kind of parameters in piecewise":
@@ -35,12 +37,13 @@ SLO := module ()
     local res, ctx;
     res := ToAST(op(inp));
     ctx := op(2,inp);
+    res := adjust_types(res, ctx, table());
     lambda_wrap(res, 0, ctx);
   end proc;
 
   getCtx := proc(typ, glob, ctr)
     if type(typ, 'Measure'(anything)) then
-      glob, ctr
+      glob, ctr, op(1,typ)
     elif type(typ, 'Arrow'(anything, anything)) then
       glob[ctr] := op(1,typ);
       getCtx(op(2,typ), glob, ctr+1)
@@ -54,16 +57,17 @@ SLO := module ()
     if cnt = ctx:-gsize then
       expr
     else
-      var := cat(arrrg, cnt);
+      var := cat('yy', cnt);
       sub := arrrg[cnt] = var;
       Lambda(var, lambda_wrap(subs(sub, expr), cnt+1, ctx));
     end if;
   end proc;
 
   # recursive function which does the main translation
-  ToAST := proc(e, ctx)
+  ToAST := proc(inp, ctx)
     local a0, a1, var, vars, rng, ee, cof, d, ld, weight, binders,
-      v, subst, ivars, ff, newvar, rest, a, b;
+      v, subst, ivars, ff, newvar, rest, a, b, e;
+    e := inp; # make e mutable
     if type(e, specfunc(name, c)) then
         return Return(op(e))
     # we might have recursively encountered a hidden 0
@@ -106,6 +110,12 @@ SLO := module ()
       else
         if type(e, 'specfunc'(anything, {'int','Int'})) then
           var, rng := op(op(2,e));
+          if assigned(ctx:-lctx[var]) then
+            # must alpha-rename
+            newvar := gensym(_YY);
+            e := subs(var = newvar, e);
+            var := newvar;
+          end if;
           ee := op(1,e);
           weight := simplify(op(2,rng)-op(1,rng));
           if type(weight, 'SymbolicInfinity') then
@@ -119,7 +129,19 @@ SLO := module ()
             # process the rest, and then recognize
             # recognize 'raw' uniform
             if type(rest, specfunc(identical(var), 'Return')) then
-              Uniform(op(rng));
+              if ctx:-mtyp = 'Real' then
+                Uniform(op(rng));
+              elif ctx:-mtyp = 'Prob' then
+                if signum(0,op(1,rng),1) = 1 and
+                   signum(0,op(2,rng),1) = 1 then
+                  # someone will add the unsafeProb later
+                  Bind(Uniform(op(rng)), var, Return(var));
+                else
+                  error "uniform with a negative range cannot be a Prob";
+                end if;
+              else
+                error "uniform can only result in Real or Prob";
+              end if;
             elif type(rest, 'Superpose'('WM'(anything, anything))) then
               # finite range.
               weight := simplify(op([1,1], rest));
@@ -271,7 +293,7 @@ SLO := module ()
 
   # note that this could be called more than once.
   mkProb := proc(w, ctx)
-    local typ;
+    local typ, i, ww, var, rng, sub;
     if type(w, 'realcons') and signum(0,w,1)=1 then 
       w
     elif type(w, `*`) then
@@ -285,45 +307,151 @@ SLO := module ()
       exp_(op(1,w));
     elif type(w, 'exp_'(anything)) then
       w
+    elif type(w, 'unsafeProb'(anything)) then
+      w
     else
-      error "how do I make a Prob from ", w;
+      # use assumptions to figure out if we can 'do it'.
+      ww := w;
+      for i in [indices(ctx:-lctx, 'pairs')] do
+          var := gensym(_ZZ);
+          rng := rhs(i);
+          if rng = -infinity..infinity then
+            assume(var, real);
+          elif type(rng, anything .. identical(infinity)) then
+            assume(var >= op(1,rng));
+          elif type(rng, identical(-infinity) .. anything) then
+            assume(var <= op(2,rng));
+          else
+            assume(var, RealRange(op(1,rng), op(2,rng)));
+          end if;
+          sub := lhs(i) = var;
+          ww := subs(sub, ww);
+      end do;
+      if signum(0, ww, 1) = 1 then
+        unsafeProb(w)
+      else
+        error "how do I make a Prob from ", w, "in local ctx", eval(ctx:-lctx);
+      end if;
     end if;
   end proc;
 
-  # for adding to the local context:
-  addCtx := proc(a, r) local s;
-    s := Record(r); # copy
-    s:-lctx := [a, op(s:-lctx)];
-    s;
+  # for adding to the local context.  Make it imperative!
+  addCtx := proc(a, r) 
+    local var, typ;
+    var, typ := op(a);
+    if assigned(r:-lctx[var]) then
+      error "variable ", var, "seems to be used more than once in a binder"
+    end if;
+    r:-lctx[var] := typ;
+    r;
   end proc;
 
-  instantiate := proc(e, gsiz, ctr)
-    if ctr = gsiz then
+  instantiate := proc(e, r, ctr)
+    if ctr = r:-gsize then
       e
     else
-      instantiate(e(arrrg[ctr]), gsiz, ctr+1)
+      # only assume on Prob/Real, for now.
+      if r:-gctx[ctr] = 'Prob' then
+        assume(arrrg[ctr] >= 0);
+      elif r:-gctx[ctr] = 'Real' then
+        assume(arrrg[ctr], real);
+      end if;
+      instantiate(e(arrrg[ctr]), r, ctr+1)
+    end if;
+  end proc;
+
+  ####
+  # Fix-up the types using contextual information.
+# TODO: need to add unsafeProb around the Prob-typed input variables,
+# and then fix-up things like log.
+  adjust_types := proc(e, ctx, pathcond)
+    local ee, dom, opc, res;
+    if type(e, specfunc(anything, 'Superpose')) then
+      map(thisproc, e, ctx, pathcond)
+    elif type(e, 'WM'(anything, anything)) then
+      'WM'(mkProb(op(1,e), ctx), thisproc(op(2,e), ctx, pathcond));
+    elif type(e, 'Return'(anything)) then
+      if ctx:-mtyp = Unit and op(1,e) = Unit then
+        e
+      elif ctx:-mtyp = Prob then
+        ee := op(1,e);
+        res := mkProb(ee, ctx, pathcond);
+        'Return'(res);
+      elif ctx:-mtyp = Real then
+        ee := op(1,e);
+        if type(ee, 'realcons') then
+          e;
+        else
+          error "Real: ", e
+        end if;
+      else
+          error "type: ", ctx:-mtyp
+      end if;
+    elif type(e, 'Bind'(anything, name, anything)) then
+      dom := compute_domain(op(1,e));
+      if assigned(pathcond[op(2,e)]) then
+        opc := pathcond[op(2,e)];
+        pathcond[op(2,e)] := AndProp(opc, dom);
+      else
+        opc := NULL;
+        pathcond[op(2,e)] := dom;
+      end if;
+      res := 'Bind'(op(1,e), op(2,e), adjust_types(op(3,e), ctx, pathcond));
+      if opc=NULL then 
+        unassign(pathcond[op(2,e)]) 
+      else 
+        pathcond[op(2,e)] := opc;
+      end if;
+      res;
+    elif type(e, 'Bind'(identical(Lebesgue), name = range, anything)) then
+      dom := RealRange(op([2,2,1],e), op([2,2,2], e));
+      if assigned(pathcond[op(2,e)]) then
+        opc := pathcond[op(2,e)];
+        pathcond[op(2,e)] := AndProp(opc, dom);
+      else
+        opc := NULL;
+        pathcond[op(2,e)] := dom;
+      end if;
+      res := 'Bind'(op(1,e), op(2,e), adjust_types(op(3,e), ctx, pathcond));
+      if opc=NULL then 
+        unassign(pathcond[op(2,e)]) 
+      else 
+        pathcond[op(2,e)] := opc;
+      end if;
+      res;
+    elif type(e, 'If'(anything, anything, anything)) then
+      error "If:", e;
+    elif type(e, 'Uniform'(anything, anything)) then
+      e
+    else
+     error "adjust_types ", e;
+    end if;
+  end proc;
+
+  compute_domain := proc(e)
+    if type(e, 'Uniform'(anything, anything)) then
+      'RealRange'(op(e));
+    else
+      error "compute domain:", e;
     end if;
   end proc;
 end;
 
 # works, but could be made more robust
 `evalapply/if_` := proc(f, t) if_(op(1,f), op(2,f)(t[1]), op(3,f)(t[1])) end;
-`evalapply/Typed` := proc(f, t)
-  Typed(op(1,f)(t[1]), op(2,f))
-end;
-
-Typed := proc(expr, typ)
-  if type(expr, specfunc(anything, Typed)) then 
-    'Typed'(op(1, expr), typ)
-  else
-    'Typed'(expr, typ)
-  end if;
-end proc;
 
 # A Context contains 
 # - a (Maple-encoded) Hakaru type 'htyp' (H-types)
+# - a Measure type
 # - a global context of var = H-types
 # - the size of the global context
 # - a local context of binders, var = range
-`type/Context` := 'record'('htyp', 'gctx', 'gsize', 'lctx');
+`type/Context` := 'record'('htyp', 'mtyp', 'gctx', 'gsize', 'lctx');
 
+if_ := proc(cond, tc, ec)
+  if ec = false then And(cond, tc)
+  elif tc = true then Or(cond, ec)
+  else
+      'if_'(cond, tc, ec)
+  end if;
+end proc;

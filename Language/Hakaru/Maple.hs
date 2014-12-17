@@ -59,8 +59,8 @@ instance Fractional (Maple a) where
 instance Floating (Maple a) where
   pi    = Maple (return "Pi")
   exp   = mapleFun1 "exp"
-  sqrt  = mapleFun1 "sqrt"
-  log   = mapleFun1 "ln"
+  sqrt  = mapleFun1 "(x -> piecewise(x<0, undefined, sqrt(x)))"
+  log   = mapleFun1 "(x -> piecewise(x<0, undefined, ln(x)))"
   (**)  = mapleOp2 "^"
   logBase (Maple b) (Maple y) =
     Maple (liftM2 (\b' y' -> "log[" ++ b' ++ "]" ++ "(" ++ y' ++ ")") b y)

@@ -25,13 +25,13 @@ testMeasureUnit = test [
     "t20" ~: testS t20,
     "t22" ~: testS t22,
     "t24" ~: testS t24,
-    "t25" ~: ignore $ testS t25
+    "t25" ~: testS t25
     ]
 
 testMeasureProb :: Test
 testMeasureProb = test [
     "t2"  ~: testS t2,
-    "t26" ~: testMaple t26,
+    "t26" ~: ignore $ testMaple t26,
     "t30" ~: testS t30,
     "t33" ~: testS t33,
     "t34" ~: testS t34,

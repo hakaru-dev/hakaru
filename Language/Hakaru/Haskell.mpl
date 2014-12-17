@@ -18,8 +18,35 @@ Haskell := module ()
   # which is to use the Inert form.  The flip-side of doing things
   # the right way would involve a proper pretty-printer, but that
   # can be added later easily enough.
-  ModuleApply := proc(expr) 
+  ModuleApply := proc(e) 
+      local pows, expr;
+
       b:-clear();
+
+      expr := e;
+      # some last-minute patching; this will need hardened, 'anything' is 
+      # wrong.
+      pows := indets(expr, anything ^ identical(-1));
+      if pows <> {} then
+        expr := subs(map((x -> x = recip(op(1,x))), pows), expr);
+      end if;
+
+      pows := indets(expr, anything ^ integer);
+      if pows <> {} then
+        expr := subs(map((x -> x = IntPow(op(x))), pows), expr);
+      end if;
+
+      pows := indets(expr, anything ^ identical(1/2));
+      if pows <> {} then
+        expr := subs(map((x -> x = sqrt_(op(1,x))), pows), expr);
+      end if;
+
+      pows := indets(expr, anything ^ identical(-1/2));
+      if pows <> {} then
+        expr := subs(map((x -> x = recip(sqrt_(op(1,x)))), pows), expr);
+      end if;
+
+      # and now actually translate
       p(ToInert(expr));
       b:-value();
   end;
@@ -76,6 +103,8 @@ d[_Inert_POWER] := proc(a1,a2)
   #        or Prob "^^" Int
   #        or Real "**" Real
   #        or Prob "`pow_`" Real
+  #
+  # Note that the two cases for ^^, when the rhs is a literal, is now ok
   parens(proc() p(a1); b:-append(" ** "); p(a2) end);
 end;
 d[_Inert_LESSTHAN] := proc(a1, a2)
@@ -133,6 +162,10 @@ bi["Pair"] := proc(l, r)
   b:-append("("); p(l); b:-append(","); p(r); b:-append(")");
 end;
 
+bi["IntPow"] := proc(l, r)
+  b:-append("("); p(l); b:-append(" ^^ "); p(r); b:-append(")");
+end;
+
 bi["Lambda"] := proc(nm, expr)
   b:-append("lam (\\"); 
   p(nm);
@@ -143,6 +176,8 @@ end proc;
 
 bi["exp"] := ufunc("exp");
 bi["exp_"] := ufunc("exp_");
+bi["sqrt_"] := ufunc("sqrt_");
+bi["recip"] := ufunc("recip");
 bi["ln"] := ufunc("log");
 bi["cos"] := ufunc("cos");
 bi["sin"] := ufunc("sin");
