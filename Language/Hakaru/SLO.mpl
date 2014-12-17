@@ -11,8 +11,8 @@ SLO := module ()
   export ModuleApply, AST, simp, 
     c, arrrg; # very important: c and arrrg are "global".
   local ToAST, t_binds, t_pw, into_pw, myprod, gensym, gs_counter, do_pw,
-    superpose, mkWM, mkProb, getCtx, addCtx, instantiate, lambda_wrap,
-    adjust_types, compute_domain;
+    superpose, mkProb, getCtx, addCtx, instantiate, lambda_wrap,
+    adjust_types, compute_domain, check_real;
 
   t_binds := 'specfunc(anything, {int, Int, sum, Sum})';
   t_pw := 'specfunc(anything, piecewise)';
@@ -37,7 +37,7 @@ SLO := module ()
     local res, ctx;
     res := ToAST(op(inp));
     ctx := op(2,inp);
-    res := adjust_types(res, ctx, table());
+    res := adjust_types(res, ctx:-mtyp, ctx, table());
     lambda_wrap(res, 0, ctx);
   end proc;
 
@@ -92,7 +92,7 @@ SLO := module ()
           cof := [coeffs(ee, ivars, 'v')]; # cof is a list, v expseq
           if (d = 1) and (ld = 1) then
             # WM = Weight-Measure pair
-            ff := (x,y) -> mkWM(simplify(x), Return(op(y)), ctx);
+            ff := (x,y) -> 'WM'(simplify(x), Return(op(y)));
             Superpose(op(zip(ff, cof, [v])));
             # `if`(cof=1, rest, Bind_(Factor(simplify(cof)), rest))
           else
@@ -142,18 +142,9 @@ SLO := module ()
               else
                 error "uniform can only result in Real or Prob";
               end if;
-            elif type(rest, 'Superpose'('WM'(anything, anything))) then
-              # finite range.
-              weight := simplify(op([1,1], rest));
-              ee := op([1,2], rest);
-              if type(ee, Return(anything)) then
-                Bind(Uniform(op(1, rng), op(2, rng)), var,
-                    Superpose(mkWM(weight, simplify(ee), ctx)))
-              else
-                error "almost uniform but not quite?", ee
-              end if;
             else
-              Bind(Lebesgue, var = rng, rest)
+              # should really simplify rest
+              Bind(Uniform(op(1, rng), op(2, rng)), var, rest);
             end if;
           end if;
         elif type(e, 'specfunc'(anything, {'sum','Sum'})) then
@@ -161,7 +152,7 @@ SLO := module ()
         elif type(e, t_pw) then
           return do_pw(map(simplify, [op(e)]), ctx, typ);
         elif type(e, `+`) then
-          superpose(map(ToAST, [op(e)], ctx), ctx);
+          superpose(map(ToAST, [op(e)], ctx));
         elif type(e, `*`) then
           # we have a binder in here somewhere
           a, b := selectremove(type, e, t_binds);
@@ -174,14 +165,14 @@ SLO := module ()
             elif type(a, `*`) then
               error "do not know how to multiply 2 pw:", a
             elif type(a, t_pw) then
-              Superpose(mkWM(b, ToAST(a, ctx), ctx))
+              Superpose('WM'(b, ToAST(a, ctx)))
             else
               error "something weird happened:", a, " was supposed to be pw"
             end if
           elif type(a, `*`) then
             error "product of 2 binders?!?", a
           else
-            Superpose(mkWM(b, ToAST(a, ctx), ctx))
+            Superpose('WM'(b, ToAST(a, ctx)))
           end if
 ## to here
         else
@@ -270,7 +261,7 @@ SLO := module ()
     end if;
   end;
 
-  superpose := proc(l, ctx)
+  superpose := proc(l)
     local t, i, j, idx;
     t := table('sparse');
     for i in l do
@@ -284,14 +275,9 @@ SLO := module ()
         error "still don't know how to superpose ", i;
       end if;
     end do;
-    Superpose(seq(mkWM(t[op(i)], op(i), ctx), i = [indices(t)]));
+    Superpose(seq('WM'(t[op(i)], op(i)), i = [indices(t)]));
   end proc;
 
-  mkWM := proc(w, m, ctx)
-    'WM'(mkProb(w, ctx), m);
-  end proc;
-
-  # note that this could be called more than once.
   mkProb := proc(w, ctx)
     local typ, i, ww, var, rng, sub;
     if type(w, 'realcons') and signum(0,w,1)=1 then 
@@ -305,25 +291,17 @@ SLO := module ()
       end if;
     elif type(w, 'exp'(anything)) then
       exp_(op(1,w));
-    elif type(w, 'exp_'(anything)) then
-      w
+    # elif type(w, 'exp_'(anything)) then
+    #  w
     elif type(w, 'unsafeProb'(anything)) then
-      w
+      error "there should be no unsafeProb in", w
     else
       # use assumptions to figure out if we can 'do it'.
       ww := w;
       for i in [indices(ctx:-lctx, 'pairs')] do
           var := gensym(_ZZ);
           rng := rhs(i);
-          if rng = -infinity..infinity then
-            assume(var, real);
-          elif type(rng, anything .. identical(infinity)) then
-            assume(var >= op(1,rng));
-          elif type(rng, identical(-infinity) .. anything) then
-            assume(var <= op(2,rng));
-          else
-            assume(var, RealRange(op(1,rng), op(2,rng)));
-          end if;
+          assume(var, RealRange(op(1,rng), op(2,rng)));
           sub := lhs(i) = var;
           ww := subs(sub, ww);
       end do;
@@ -354,9 +332,28 @@ SLO := module ()
       if r:-gctx[ctr] = 'Prob' then
         assume(arrrg[ctr] >= 0);
       elif r:-gctx[ctr] = 'Real' then
-        assume(arrrg[ctr], real);
+        assume(arrrg[ctr], 'real');
       end if;
       instantiate(e(arrrg[ctr]), r, ctr+1)
+    end if;
+  end proc;
+
+  check_real := proc(e, ctx, pathcond)
+    local typ;
+    if type(e, 'realcons') then
+      e;
+    elif type(e, 'symbol') then
+      # 'symbol' means x_i, in pathcond
+      typ := pathcond[e];
+      if typ :: {'RealRange'(anything, anything), identical(real)} then
+        e
+      else
+        error "Real: ", e, eval(pathcond);
+      end if;
+    elif type(e, {'exp'(anything), anything^integer}) then
+      map(check_real, e, ctx, pathcond)
+    else
+      error "Real: ", e
     end if;
   end proc;
 
@@ -364,59 +361,63 @@ SLO := module ()
   # Fix-up the types using contextual information.
 # TODO: need to add unsafeProb around the Prob-typed input variables,
 # and then fix-up things like log.
-  adjust_types := proc(e, ctx, pathcond)
-    local ee, dom, opc, res;
+  adjust_types := proc(e, typ, ctx, pathcond)
+    local ee, dom, opc, res, var, left, right;
     if type(e, specfunc(anything, 'Superpose')) then
-      map(thisproc, e, ctx, pathcond)
+      map(thisproc, e, typ, ctx, pathcond)
     elif type(e, 'WM'(anything, anything)) then
-      'WM'(mkProb(op(1,e), ctx), thisproc(op(2,e), ctx, pathcond));
+      'WM'(mkProb(op(1,e), ctx), thisproc(op(2,e), typ, ctx, pathcond));
     elif type(e, 'Return'(anything)) then
-      if ctx:-mtyp = Unit and op(1,e) = Unit then
+      if typ = Unit and op(1,e) = Unit then
         e
-      elif ctx:-mtyp = Prob then
+      elif typ = Prob then
         ee := op(1,e);
         res := mkProb(ee, ctx, pathcond);
         'Return'(res);
-      elif ctx:-mtyp = Real then
-        ee := op(1,e);
-        if type(ee, 'realcons') then
-          e;
-        else
-          error "Real: ", e
-        end if;
+      elif typ = Real then
+        'Return'(check_real(op(1,e), ctx, pathcond));
+      elif typ :: Pair(anything, anything) and 
+           op(1,e) :: Pair(anything, anything) then
+        left  := adjust_types('Return'(op([1,1],e)), op(1,typ), ctx, pathcond);
+        right := adjust_types('Return'(op([1,2],e)), op(2,typ), ctx, pathcond);
+        'Return'(Pair(op(1,left), op(1,right)));
+      elif typ = Bool_ and member(op(1,e), {true,false}) then
+        e
       else
-          error "type: ", ctx:-mtyp
+         error "adjust_types Type:", typ;
       end if;
     elif type(e, 'Bind'(anything, name, anything)) then
       dom := compute_domain(op(1,e));
-      if assigned(pathcond[op(2,e)]) then
-        opc := pathcond[op(2,e)];
-        pathcond[op(2,e)] := AndProp(opc, dom);
+      var := op(2,e);
+      if assigned(pathcond[var]) then
+        opc := pathcond[var];
+        pathcond[var] := AndProp(opc, dom);
       else
         opc := NULL;
-        pathcond[op(2,e)] := dom;
+        pathcond[var] := dom;
       end if;
-      res := 'Bind'(op(1,e), op(2,e), adjust_types(op(3,e), ctx, pathcond));
+      res := 'Bind'(op(1,e), var, adjust_types(op(3,e), typ, ctx, pathcond));
       if opc=NULL then 
-        unassign(pathcond[op(2,e)]) 
+        pathcond[var] := 'pathcond[var]';
       else 
-        pathcond[op(2,e)] := opc;
+        pathcond[var] := opc;
       end if;
       res;
     elif type(e, 'Bind'(identical(Lebesgue), name = range, anything)) then
       dom := RealRange(op([2,2,1],e), op([2,2,2], e));
-      if assigned(pathcond[op(2,e)]) then
-        opc := pathcond[op(2,e)];
-        pathcond[op(2,e)] := AndProp(opc, dom);
+      var := op([2,1],e);
+      if assigned(pathcond[var]) then
+        opc := pathcond[var];
+        pathcond[var] := AndProp(opc, dom);
       else
         opc := NULL;
-        pathcond[op(2,e)] := dom;
+        pathcond[var] := dom;
       end if;
-      res := 'Bind'(op(1,e), op(2,e), adjust_types(op(3,e), ctx, pathcond));
+      res := 'Bind'(op(1,e), var, adjust_types(op(3,e), typ, ctx, pathcond));
       if opc=NULL then 
-        unassign(pathcond[op(2,e)]) 
+        pathcond[var] := 'pathcond[var]';
       else 
-        pathcond[op(2,e)] := opc;
+        pathcond[var] := opc;
       end if;
       res;
     elif type(e, 'If'(anything, anything, anything)) then
@@ -424,7 +425,7 @@ SLO := module ()
     elif type(e, 'Uniform'(anything, anything)) then
       e
     else
-     error "adjust_types ", e;
+     error "adjust_types ", e, typ;
     end if;
   end proc;
 

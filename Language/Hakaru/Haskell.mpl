@@ -158,9 +158,7 @@ bi["WM"] := proc(w, m)
   b:-append("("); p(w); b:-append(","); p(m); b:-append(")");
 end;
 
-bi["Pair"] := proc(l, r)
-  b:-append("("); p(l); b:-append(","); p(r); b:-append(")");
-end;
+bi["Pair"] := bfunc("pair");
 
 bi["IntPow"] := proc(l, r)
   b:-append("("); p(l); b:-append(" ^^ "); p(r); b:-append(")");
