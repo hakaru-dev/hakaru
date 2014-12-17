@@ -2,7 +2,7 @@
              FlexibleInstances, FlexibleContexts,
              ConstraintKinds, DataKinds #-}
 
-module Language.Hakaru.Vector (Nat(..), Repeat,
+module Language.Hakaru.Vector (Nat(..), fromNat, toNat, Repeat,
        Vector(..), toNestedPair, fromNestedPair, fromList,
        sequenceA, mapM, sequence, mapAccum, iota, mapC) where
 
@@ -20,7 +20,6 @@ infixl 4 <*>, <$>
 
 data Nat = I | D Nat | SD Nat deriving (Eq, Ord, Show, Read)
 
-{-
 fromNat :: (Num a) => Nat -> a
 fromNat I      = 1
 fromNat (D n)  = 2 * fromNat n
@@ -32,8 +31,6 @@ toNat n | (d,m) == (0,1) = I
         | m == 0         = D (toNat d)
         | m == 1         = SD (toNat d)
   where (d,m) = divMod n 2
-
-  -}
 
 -- Homogeneous vectors of a given type-level length
 
