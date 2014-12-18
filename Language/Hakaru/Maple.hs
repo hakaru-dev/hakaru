@@ -113,6 +113,7 @@ instance Base Maple where
   fromProb   (Maple x) = Maple x
   fromInt    (Maple x) = Maple x
   sqrt_ = mapleFun1 "sqrt"
+  log_ = mapleFun1 "ln" -- ok since it is fed >= 0 only
   pow_ = mapleOp2 "^"
   infinity         = Maple (return  "infinity")
   negativeInfinity = Maple (return "-infinity")

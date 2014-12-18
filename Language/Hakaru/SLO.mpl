@@ -12,13 +12,14 @@ SLO := module ()
     c, arrrg; # very important: c and arrrg are "global".
   local ToAST, t_binds, t_pw, into_pw, myprod, gensym, gs_counter, do_pw,
     superpose, mkProb, getCtx, addCtx, instantiate, lambda_wrap,
-    adjust_types, compute_domain, check_real;
+    adjust_types, compute_domain, check_real, analyze_cond, flip_rr,
+    MyHandler;
 
   t_binds := 'specfunc(anything, {int, Int, sum, Sum})';
   t_pw := 'specfunc(anything, piecewise)';
 
   ModuleApply := proc(spec::Typed(anything,anything))
-    local expr, typ, glob, gsiz, ctx, r, inp, meastyp;
+    local expr, typ, glob, gsiz, ctx, r, inp, meastyp, res;
     expr := op(1, spec);
     typ := op(2, spec);
     glob, gsiz, meastyp := getCtx(typ, table(), 0);
@@ -26,10 +27,14 @@ SLO := module ()
                 'gctx' = glob, 'gsize' = gsiz, 'lctx' = table());
     inp := instantiate(expr, r, 0);
     try
-      HAST(simp(value(eval(inp(c), 'if_'=piecewise))), r);
+      NumericEventHandler(division_by_zero = MyHandler);
+      res := HAST(simp(value(eval(inp(c), 'if_'=piecewise))), r);
     catch "Wrong kind of parameters in piecewise":
       error "Bug in Hakaru -> Maple translation, piecewise used incorrectly.";
+    finally :
+      NumericEventHandler(division_by_zero = default);
     end try;
+    res;
   end proc;
 
   # AST transforms the Maple to a representation of the mochastic AST
@@ -339,6 +344,8 @@ SLO := module ()
       typ := _EnvPathCond[e];
       if typ :: {'RealRange'(anything, anything), identical(real)} then
         e
+      elif e = 'undefined' then # ouch!
+        e
       else
         error "Real: ", e, eval(_EnvPathCond);
       end if;
@@ -395,7 +402,15 @@ SLO := module ()
       _EnvPathCond[var] := AndProp(_EnvPathCond[var], dom);
       'Bind'(op(1,e), var, adjust_types(op(3,e), typ, ctx));
     elif type(e, 'If'(anything, anything, anything)) then
-      error "If", e;
+      var, dom := analyze_cond(op(1,e));
+      ASSERT(dom::RealRange(anything,anything));
+      opc := _EnvPathCond[var];
+      _EnvPathCond[var] := AndProp(opc, dom);
+      left := adjust_types(op(2,e), typ, ctx);
+      dom := flip_rr(dom);
+      _EnvPathCond[var] := AndProp(opc, dom);
+      right := adjust_types(op(2,e), typ, ctx);
+      'If'(op(1,e), left, right);
     elif type(e, 'Uniform'(anything, anything)) then
       e
     else
@@ -409,6 +424,46 @@ SLO := module ()
     else
       error "compute domain:", e;
     end if;
+  end proc;
+
+  analyze_cond := proc(c)
+    local vars;
+    vars := remove(type, indets(c, 'name'), 'constant');
+    if nops(vars) > 1 then
+      error "analyze_cond: multivariate condtion! ", c;
+    else
+      # buried magic!
+      `property/ConvertRelation`(c);
+    end if;
+  end proc;
+
+  # rr = real cannot happen
+  flip_rr := proc(rr::RealRange(anything,anything))
+    local l, r;
+
+    if op(1,rr)=-infinity then
+      l := op(2,rr);
+      if l :: Open(anything) then
+        RealRange(op(1,l), infinity)
+      else
+        RealRange(Open(op(1,l)), infinity)
+      end if
+    elif op(2,rr)=infinity then
+      r := op(1,rr);
+      if r :: Open(anything) then
+        RealRange(-infinity, op(1,r))
+      else
+        RealRange(-infinity, Open(op(1,r)))
+      end if;
+    else
+      error "flip_rr", rr
+    end if;
+  end proc;
+
+  # while inside the evaluator, we want infinities
+  MyHandler := proc(operator, operands, default_value)
+    NumericStatus( division_by_zero = false);
+    if operator='ln' then -infinity else default_value end if;
   end proc;
 end;
 
