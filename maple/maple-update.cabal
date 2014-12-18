@@ -1,0 +1,19 @@
+
+-- documentation, see http://haskell.org/cabal/users-guide/
+
+name:                maple-update
+version:             0.1.0.0
+synopsis:            Update the maple arcive file on the server.
+-- description:         
+-- license:             
+-- copyright:
+category:            Testing
+build-type:          Simple
+-- extra-source-files:  
+cabal-version:       >=1.10
+
+executable maple-update
+  build-depends:       base >=4.6 && <4.8, process >= 1.1 && < 2.0
+  main-is:             MapleUpdate.hs
+  -- hs-source-dirs:      
+  default-language:    Haskell2010
