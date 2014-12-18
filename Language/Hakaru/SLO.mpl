@@ -37,7 +37,9 @@ SLO := module ()
     local res, ctx;
     res := ToAST(op(inp));
     ctx := op(2,inp);
-    res := adjust_types(res, ctx:-mtyp, ctx, table());
+    # environment variables plus indexing functions make tracking info easy!
+    _EnvPathCond := table(TopProp); 
+    res := adjust_types(res, ctx:-mtyp, ctx);
     lambda_wrap(res, 0, ctx);
   end proc;
 
@@ -325,33 +327,23 @@ SLO := module ()
   end proc;
 
   instantiate := proc(e, r, ctr)
-    if ctr = r:-gsize then
-      e
-    else
-      # only assume on Prob/Real, for now.
-      if r:-gctx[ctr] = 'Prob' then
-        assume(arrrg[ctr] >= 0);
-      elif r:-gctx[ctr] = 'Real' then
-        assume(arrrg[ctr], 'real');
-      end if;
-      instantiate(e(arrrg[ctr]), r, ctr+1)
-    end if;
+    if ctr = r:-gsize then e else instantiate(e(arrrg[ctr]), r, ctr+1) end if;
   end proc;
 
-  check_real := proc(e, ctx, pathcond)
+  check_real := proc(e, ctx)
     local typ;
     if type(e, 'realcons') then
       e;
     elif type(e, 'symbol') then
       # 'symbol' means x_i, in pathcond
-      typ := pathcond[e];
+      typ := _EnvPathCond[e];
       if typ :: {'RealRange'(anything, anything), identical(real)} then
         e
       else
-        error "Real: ", e, eval(pathcond);
+        error "Real: ", e, eval(_EnvPathCond);
       end if;
     elif type(e, {'exp'(anything), anything^integer}) then
-      map(check_real, e, ctx, pathcond)
+      map(check_real, e, ctx)
     else
       error "Real: ", e
     end if;
@@ -361,25 +353,29 @@ SLO := module ()
   # Fix-up the types using contextual information.
 # TODO: need to add unsafeProb around the Prob-typed input variables,
 # and then fix-up things like log.
-  adjust_types := proc(e, typ, ctx, pathcond)
+#
+# The right way to do this is really to do
+# - full 'type' inference of e
+# - full 'range-of-value' inference of e
+  adjust_types := proc(e, typ, ctx)
     local ee, dom, opc, res, var, left, right;
     if type(e, specfunc(anything, 'Superpose')) then
-      map(thisproc, e, typ, ctx, pathcond)
+      map(thisproc, e, typ, ctx)
     elif type(e, 'WM'(anything, anything)) then
-      'WM'(mkProb(op(1,e), ctx), thisproc(op(2,e), typ, ctx, pathcond));
+      'WM'(mkProb(op(1,e), ctx), thisproc(op(2,e), typ, ctx));
     elif type(e, 'Return'(anything)) then
       if typ = Unit and op(1,e) = Unit then
         e
       elif typ = Prob then
         ee := op(1,e);
-        res := mkProb(ee, ctx, pathcond);
+        res := mkProb(ee, ctx);
         'Return'(res);
       elif typ = Real then
-        'Return'(check_real(op(1,e), ctx, pathcond));
+        'Return'(check_real(op(1,e), ctx));
       elif typ :: Pair(anything, anything) and 
            op(1,e) :: Pair(anything, anything) then
-        left  := adjust_types('Return'(op([1,1],e)), op(1,typ), ctx, pathcond);
-        right := adjust_types('Return'(op([1,2],e)), op(2,typ), ctx, pathcond);
+        left  := adjust_types('Return'(op([1,1],e)), op(1,typ), ctx);
+        right := adjust_types('Return'(op([1,2],e)), op(2,typ), ctx);
         'Return'(Pair(op(1,left), op(1,right)));
       elif typ = Bool_ and member(op(1,e), {true,false}) then
         e
@@ -389,39 +385,17 @@ SLO := module ()
     elif type(e, 'Bind'(anything, name, anything)) then
       dom := compute_domain(op(1,e));
       var := op(2,e);
-      if assigned(pathcond[var]) then
-        opc := pathcond[var];
-        pathcond[var] := AndProp(opc, dom);
-      else
-        opc := NULL;
-        pathcond[var] := dom;
-      end if;
-      res := 'Bind'(op(1,e), var, adjust_types(op(3,e), typ, ctx, pathcond));
-      if opc=NULL then 
-        pathcond[var] := 'pathcond[var]';
-      else 
-        pathcond[var] := opc;
-      end if;
-      res;
+      # indexing function at work: if unassigned, get TopProp, which is id
+      _EnvPathCond[var] := AndProp(_EnvPathCond[var], dom);
+      'Bind'(op(1,e), var, adjust_types(op(3,e), typ, ctx));
     elif type(e, 'Bind'(identical(Lebesgue), name = range, anything)) then
       dom := RealRange(op([2,2,1],e), op([2,2,2], e));
       var := op([2,1],e);
-      if assigned(pathcond[var]) then
-        opc := pathcond[var];
-        pathcond[var] := AndProp(opc, dom);
-      else
-        opc := NULL;
-        pathcond[var] := dom;
-      end if;
-      res := 'Bind'(op(1,e), var, adjust_types(op(3,e), typ, ctx, pathcond));
-      if opc=NULL then 
-        pathcond[var] := 'pathcond[var]';
-      else 
-        pathcond[var] := opc;
-      end if;
-      res;
+      # indexing function at work: if unassigned, get TopProp, which is id
+      _EnvPathCond[var] := AndProp(_EnvPathCond[var], dom);
+      'Bind'(op(1,e), var, adjust_types(op(3,e), typ, ctx));
     elif type(e, 'If'(anything, anything, anything)) then
-      error "If:", e;
+      error "If", e;
     elif type(e, 'Uniform'(anything, anything)) then
       e
     else
@@ -456,3 +430,14 @@ if_ := proc(cond, tc, ec)
       'if_'(cond, tc, ec)
   end if;
 end proc;
+
+# like index/identity, but for properties
+`index/TopProp` := proc(Idx::list,Tbl::table,Entry::list)
+  if (nargs = 2) then
+    if assigned(Tbl[op(Idx)]) then Tbl[op(Idx)] else TopProp end if;
+  elif Entry = [TopProp] then
+    TopProp;
+  else
+    Tbl[op(Idx)] := op(Entry);
+  end if;
+end proc:
