@@ -403,13 +403,12 @@ SLO := module ()
       'Bind'(op(1,e), var, adjust_types(op(3,e), typ, ctx));
     elif type(e, 'If'(anything, anything, anything)) then
       var, dom := analyze_cond(op(1,e));
-      ASSERT(dom::RealRange(anything,anything));
       opc := _EnvPathCond[var];
       _EnvPathCond[var] := AndProp(opc, dom);
       left := adjust_types(op(2,e), typ, ctx);
       dom := flip_rr(dom);
       _EnvPathCond[var] := AndProp(opc, dom);
-      right := adjust_types(op(2,e), typ, ctx);
+      right := adjust_types(op(3,e), typ, ctx);
       'If'(op(1,e), left, right);
     elif type(e, 'Uniform'(anything, anything)) then
       e

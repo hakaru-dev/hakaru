@@ -129,6 +129,9 @@ bi["Uniform"] := bfunc("uniform ");
 bi["Lebesgue"] := proc() b:-append("lebesgue") end;
 bi["Pi"] := proc() b:-append("pi_") end;
 
+# be careful what you ask for!
+bi["undefined"] := proc() b:-append("42") end;
+
 bi["Bind"] := proc(meas, var, rest)
   local rng;
   p(meas);
