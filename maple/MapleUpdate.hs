@@ -9,29 +9,21 @@ import System.Exit
 
 
 -- the "-b -" option tells sftp to read commands from stdin
-sftp, ssh, user, serv :: String
-sftp = "sftp"
+ssh, user, serv :: String
 ssh  = "ssh"
 user = "ppaml"
 serv = "quarry.uits.indiana.edu"
 
 
-sftpCommands :: [String]
-sftpCommands = [
-  "pwd",
-  "mkdir maple",
-  "cd maple",
-  "put ../mochastic/Language/Hakaru/*.mpl .",
-  "put update-archive.mpl ."
-  ]
-
 sshCommands :: [String]
 sshCommands = [
-  "cd maple",
-  "maple update-archive.mpl",
-  "rm *.mpl",
+  "cd ppaml",
   "pwd",
-  "ls"
+  "git pull",
+  "cd mochastic/maple",
+  "pwd",
+  "maple update-archive.mpl",
+  "ls -l ppaml.mla"
   ]
 
 
@@ -51,7 +43,5 @@ run prog commands = do
 
 main :: IO ()
 main = do
-  result <- run sftp sftpCommands
-  putStrLn result
   result <- run ssh sshCommands
   putStrLn result
