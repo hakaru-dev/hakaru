@@ -57,7 +57,7 @@ SLO := module ()
       end if;
       t[lhs(i)] := rng;
     end do;
-    _EnvPathCond := t;
+    _EnvPathCond := eval(t);
     res := ToAST(op(inp));
     res := adjust_types(res, ctx:-mtyp, ctx);
     lambda_wrap(res, 0, ctx);
@@ -113,7 +113,6 @@ SLO := module ()
           ee := op(1,e);
           weight := simplify(op(2,rng)-op(1,rng));
           span := RealRange(op(1,rng), op(2,rng));
-          _EnvPathCond[var] := span;
           if type(weight, 'SymbolicInfinity') then
             rest := ToAST(ee, ctx);
             # should recognize densities here
@@ -274,7 +273,7 @@ SLO := module ()
   end proc;
 
   mkProb := proc(w, ctx)
-    local typ, i, ww, var, rng, sub;
+    local typ, i, ww, prop, res;
     if type(w, 'realcons') and signum(0,w,1)=1 then 
       w
     elif type(w, `*`) then
@@ -294,20 +293,10 @@ SLO := module ()
       elif typ = 'Real' then
         # we are going to need to cast.  Is it safe?
         # use assumptions to figure out if we can 'do it'.
-        ww := w;
-        for i in [indices(_EnvPathCond, 'pairs')] do
-            if lhs(i) :: integer then next end if;
-            var := gensym(_ZZ);
-            rng := rhs(i);
-            assume(var, RealRange(op(1,rng), op(2,rng)));
-            sub := lhs(i) = var;
-            ww := subs(sub, ww);
-        end do;
-        if signum(0, ww, 1) = 1 then
-          unsafeProb(w)
-        else
-          error "how can I cast", w, "in", eval(_EnvPathCond), "to a Prob?";
-        end if;
+        prop := map(x -> op(1,x) :: op(2, x), [indices(_EnvPathCond, 'pairs')]);
+        res := signum(0, w, 1) assuming op(prop);
+        unsafeProb(w)
+        if not (res = 1) then WARNING("cannot insure it will not crash") end if;
       else
         error "how do I make a Prob from ", w, "in", eval(_EnvPathCond)
       end if;
@@ -361,7 +350,9 @@ SLO := module ()
 
   infer_type := proc(e, ctx)
     local typ, l;
-    if type(e, 'symbol') then
+    if type(e, boolean) then
+      'Bool_'
+    elif type(e, 'symbol') then
       # if we have a type, use it
       if assigned(ctx:-gctx[e]) then return(ctx:-gctx[e]); end if;
 
@@ -426,7 +417,7 @@ SLO := module ()
 # - full 'type' inference of e
 # - full 'range-of-value' inference of e
   adjust_types := proc(e, typ, ctx)
-    local ee, dom, opc, res, var, left, right, inf_typ;
+    local ee, dom, opc, res, var, left, right, inf_typ, tab;
     if type(e, specfunc(anything, 'Superpose')) then
       map(thisproc, e, typ, ctx)
     elif type(e, 'WM'(anything, anything)) then
@@ -465,13 +456,18 @@ SLO := module ()
       dom := compute_domain(op(1,e));
       var := op(2,e);
       # indexing function at work: if unassigned, get TopProp, which is id
-      _EnvPathCond[var] := AndProp(_EnvPathCond[var], dom);
+      # but of course, LNED strikes, so we need to make copies ourselves
+      tab := table(eval(_EnvPathCond));
+      tab[var] := AndProp(tab[var], dom);
+      _EnvPathCond := tab;
       'Bind'(op(1,e), var, adjust_types(op(3,e), typ, ctx));
     elif type(e, 'Bind'(identical(Lebesgue), name = range, anything)) then
       dom := RealRange(op([2,2,1],e), op([2,2,2], e));
       var := op([2,1],e);
       # indexing function at work: if unassigned, get TopProp, which is id
-      _EnvPathCond[var] := AndProp(_EnvPathCond[var], dom);
+      tab := table(eval(_EnvPathCond));
+      tab[var] := AndProp(tab[var], dom);
+      _EnvPathCond := tab;
       'Bind'(op(1,e), var, adjust_types(op(3,e), typ, ctx));
     elif type(e, 'If'(anything, anything, anything)) then
       var, dom := analyze_cond(op(1,e));
