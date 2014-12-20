@@ -6,7 +6,7 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Bool_,
        EqType(Refl), Order_(..), Number(..), Fraction(..),
        ggcast, Uneither(Uneither),
        errorEmpty,
-       Order(..), Base(..), ununit, true, false, if_, fst_, snd_,
+       Order(..), Base(..), ununit, fst_, snd_,
        and_, or_, not_, min_, max_,
        Mochastic(..), bind_, pairBind, liftM, liftM2, invgamma, beta, bern,
        Integrate(..), Lambda(..)) where
@@ -22,7 +22,7 @@ infixl 9 `app`
 
 data Real      deriving Typeable
 data Prob      deriving Typeable -- meaning: non-negative real number
-data Bool_    
+data Bool_     deriving Typeable
 data Measure a deriving Typeable
 
 data EqType t t' where
