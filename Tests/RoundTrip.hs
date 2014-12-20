@@ -218,6 +218,16 @@ t41 = dirac $ (unExpect (uniform 0 2 `bind` dirac . unsafeProb))
 t42 :: (Lambda repr, Integrate repr, Mochastic repr) => repr (Measure Prob)
 t42 = dirac $ (unExpect (uniform 0 2 `bind` dirac . unsafeProb) `app` lam id)
 
+priorAsProposal :: Mochastic repr => repr (Measure (a,b)) -> repr (a,b) -> repr (Measure (a,b))
+priorAsProposal p x = bern (1/2) `bind` \c ->
+                      p `bind` \x' ->
+                      dirac (if_ c
+                             (pair (fst_ x ) (snd_ x'))
+                             (pair (fst_ x') (snd_ x )))   
+
+gibbsProposal :: Mochastic repr => repr (Measure (a,b)) -> repr (a,b) -> repr (Measure (a,b))
+gibbsProposal p x = undefined
+
 mcmc :: (Mochastic repr, Integrate repr, Lambda repr,
          a ~ Expect' a, Order_ a) =>
         (forall repr'. (Mochastic repr') => repr' a -> repr' (Measure a)) ->
@@ -314,12 +324,11 @@ expr2 = (lam $ \x1 ->
 
 -- the one we need in testKernel
 expr3 :: (Mochastic repr, Lambda repr) => repr (d -> Prob) -> repr (d -> d -> Prob) -> repr d -> repr d -> repr Prob
-expr3 x0 x1 x2 x3 = (uneither (1
+expr3 x0 x1 x2 x3 = (if_ (1
                     `less` x0 `app` x3 / x1 `app` x2 `app` x3 * x1 `app` x3 `app` x2
                            / x0 `app` x2)
-                   (\x4 -> 1)
-                   (\x4 ->
-                    x0 `app` x3 / x1 `app` x2 `app` x3 * x1 `app` x3 `app` x2
+                   1
+                   (x0 `app` x3 / x1 `app` x2 `app` x3 * x1 `app` x3 `app` x2
                     / x0 `app` x2))
 
 -- this is expr3 that we can send to Maple
@@ -343,7 +352,7 @@ testKernel2 :: (Lambda repr, Mochastic repr) => repr (Real -> Measure Real)
 testKernel2 =
   lam $ \x2 ->
   normal x2 1 `bind` \x3 ->
-  let_ (uneither (1 `less` exp_(-1/50*(x3-x2)*(x3+x2)))
-                 (\x4 -> 1)
-                 (\x4 -> exp_(-1/50*(x3-x2)*(x3+x2)))) $ \x4 ->
+  let_ (if_ (1 `less` exp_(-1/50*(x3-x2)*(x3+x2)))
+            1
+            (exp_(-1/50*(x3-x2)*(x3+x2)))) $ \x4 ->
  categorical [(x4, x3), (1 - x4, x2)]
