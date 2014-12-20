@@ -32,6 +32,7 @@ newtype instance Static Prob         repr = SProb  Rational
 newtype instance Static (a -> b)     repr = SArrow (Partial repr a ->
                                                     Partial repr b)
 data    instance Static ()           repr = SUnit
+data    instance Static Bool_        repr = STrue | SFalse
 data    instance Static (a, b)       repr = SPair  (Partial repr a)
                                                    (Partial repr b)
 data    instance Static (Either a b) repr = SLeft  (Partial repr a)
@@ -49,9 +50,9 @@ class Known a where
 
 instance Known Bool_ where
   type Knowledge Bool_ = Bool
-  toKnown (Partial _ (Just (SLeft  _))) = Just True
-  toKnown (Partial _ (Just (SRight _))) = Just False
-  toKnown _                             = Nothing
+  toKnown (Partial _ (Just STrue))  = Just True
+  toKnown (Partial _ (Just SFalse)) = Just False
+  toKnown _                         = Nothing
   fromKnown True  = true
   fromKnown False = false
 
@@ -196,6 +197,15 @@ instance (Base repr) => Base (Partial repr) where
         kb' b = fromMaybe (error "Partial uneither: kb nonmonotonic!?")
                           (toDynamic (kb (fromDynamic (Just b))))
     Just (uneither ab' ka' kb'))
+  true  = Partial (Just true)  (Just STrue)
+  false = Partial (Just false) (Just SFalse)
+  if_ (Partial _ (Just STrue)) et _ = et
+  if_ (Partial _ (Just SFalse)) _ ef = ef
+  if_ eb et ef = fromDynamic $
+                 let eb' = fromMaybe (error "No eb") (toDynamic eb)
+                     et' = fromMaybe (error "No et") (toDynamic et)
+                     ef' = fromMaybe (error "No ef") (toDynamic ef)
+                 in Just (if_ eb' et' ef')
   unsafeProb (Partial d s) = Partial (fmap unsafeProb d)
                                      (fmap (\(SReal x) -> SProb x) s)
   fromProb (Partial d s) = Partial (fmap fromProb d)

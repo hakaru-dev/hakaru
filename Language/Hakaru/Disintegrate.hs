@@ -86,6 +86,8 @@ data Tree a t where
   UnaryL :: (Typeable t1, Typeable t2) => Tree a t1 -> Tree a (Either t1 t2)
   UnaryR :: (Typeable t1, Typeable t2) => Tree a t2 -> Tree a (Either t1 t2)
   Nil    :: Tree a ()
+  BoolT  :: Tree a Bool_
+  BoolF  :: Tree a Bool_
   Leaf   :: a t -> Tree a t
 
 instance (Eq' a) => Eq' (Tree a) where
@@ -94,6 +96,8 @@ instance (Eq' a) => Eq' (Tree a) where
   eq' (UnaryR a)     (UnaryR b)     = eq' a b
   eq' Nil            Nil            = True
   eq' (Leaf a)       (Leaf b)       = eq' a b
+  eq' BoolT          BoolT          = True
+  eq' BoolF          BoolF          = True
   eq' _              _              = False
 
 instance (Ord' a) => Ord' (Tree a) where
@@ -255,6 +259,8 @@ data Op0 t where
   Infinity         :: Op0 Real
   NegativeInfinity :: Op0 Real
   Unit             :: Op0 ()
+  True_            :: Op0 Bool_
+  False_           :: Op0 Bool_
 
 data Op1 t1 t where
   Exp        :: (Fraction t) => Op1 Real t
@@ -402,7 +408,7 @@ stdRandom = Bind (Leaf u) (Op0 Lebesgue)
 
 condLess :: (Number t) => Expr b u t -> Expr b u t ->
             Expr b u (Measure t') -> Expr b u (Measure t')
-condLess e1 e2 = Bind (UnaryL Nil) (Dirac (Op2 Less e1 e2))
+condLess e1 e2 = Bind BoolT (Dirac (Op2 Less e1 e2))
 
 weight :: Expr b u Prob -> Expr b u (Measure t) -> Expr b u (Measure t)
 weight (Lit 0) = const (Choice []) -- simplification
@@ -415,8 +421,8 @@ power p r = Op1 Exp (Op1 Log p * r)
 -- TODO: Add pure `case' construct
 if' :: Expr b u Bool_ ->
        Expr b u (Measure t) -> Expr b u (Measure t) -> Expr b u (Measure t)
-if' e et ee = Choice [ Bind (UnaryL Nil) (Dirac e) et
-                     , Bind (UnaryR Nil) (Dirac e) ee ]
+if' e et ee = Choice [ Bind BoolT (Dirac e) et
+                     , Bind BoolF (Dirac e) ee ]
 
 max_ :: (Number t) => Expr b u t -> Expr b u t -> Expr b u (Measure t)
 max_ e1 e2 = if' (Op2 Less e1 e2) (Dirac e2) (Dirac e1)
@@ -697,6 +703,8 @@ propagate (Op0 Pi) _ _ _ = mempty
 propagate (Op0 Infinity) _ _ _ = mempty
 propagate (Op0 NegativeInfinity) _ _ _ = mempty
 propagate (Op0 Unit) _ _ _ = return (Op0 Unit)
+propagate (Op0 True_) _ _ _ = return (Op0 True_)
+propagate (Op0 False_) _ _ _ = return (Op0 False_)
 propagate (Op1 Exp e) env Root t = do
   insert (condLess 0 (ex t) . weight (recip (unsafeProbFraction dict (ex t))))
   fmap (Op1 Exp) (propagate e env Root (Op1 Log t))
@@ -812,19 +820,19 @@ propagateBool :: (Delay env b u) => Expr b u Bool_ ->
                  M (Expr Void Loc Bool_)
 propagateBool e env Root t = do
   x <- evaluate e env Root
-  M (\c h -> let ets = c (Inl (Op0 Unit)) h
-                 efs = c (Inr (Op0 Unit)) h
-             in [ if' (ex x) (Bind (UnaryL Nil) (Dirac (ex t)) et)
-                             (Bind (UnaryR Nil) (Dirac (ex t)) ef)
+  M (\c h -> let ets = c (Op0 True_) h
+                 efs = c (Op0 False_) h
+             in [ if' (ex x) (Bind BoolT (Dirac (ex t)) et)
+                             (Bind BoolF (Dirac (ex t)) ef)
                 | et <- ets, ef <- efs ])
-propagateBool e env (Unl Root) _ = do
-  x <- evaluate e env Root
-  insert (Bind (UnaryL Nil) (Dirac (ex x)))
-  return (Inl (Op0 Unit))
-propagateBool e env (Unr Root) _ = do
-  x <- evaluate e env Root
-  insert (Bind (UnaryR Nil) (Dirac (ex x)))
-  return (Inr (Op0 Unit))
+-- propagateBool e env (Unl Root) _ = do
+--   x <- evaluate e env Root
+--   insert (Bind (UnaryL Nil) (Dirac (ex x)))
+--   return (Inl (Op0 Unit))
+-- propagateBool e env (Unr Root) _ = do
+--   x <- evaluate e env Root
+--   insert (Bind (UnaryR Nil) (Dirac (ex x)))
+--   return (Inr (Op0 Unit))
 
 newtype PropagateMul env b u t = PropagateMul
   (Expr b u t -> Expr b u t -> env -> Expr Void Loc t -> M (Expr Void Loc t))
@@ -939,6 +947,8 @@ toHakaru (Op0 Pi)                  _   = piFraction dict
 toHakaru (Op0 Infinity)            _   = infinity
 toHakaru (Op0 NegativeInfinity)    _   = negativeInfinity
 toHakaru (Op0 Unit)                _   = unit
+toHakaru (Op0 True_)               _   = true
+toHakaru (Op0 False_)              _   = false
 toHakaru (Op1 Exp e)               env = expFraction dict (toHakaru e  env)
 toHakaru (Op1 Log e)               env = logFraction dict (toHakaru e  env)
 toHakaru (Op1 Neg e)               env = unaryN negate    (toHakaru e  env)
@@ -1091,6 +1101,8 @@ instance Base Disintegrate where
   pair (Disint x) (Disint y)     = Disint (fmap Pair x <*> y)
   inl (Disint x)                 = Disint (fmap Inl x)
   inr (Disint x)                 = Disint (fmap Inr x)
+  true                           = Disint (return (Op0 True_))
+  false                          = Disint (return (Op0 False_))
   unsafeProb (Disint x)          = Disint (fmap (Op1 UnsafeProb) x)
   fromProb (Disint x)            = Disint (fmap (Op1 FromProb) x)
   fromInt (Disint x)             = Disint (fmap (Op1 FromInt) x)
