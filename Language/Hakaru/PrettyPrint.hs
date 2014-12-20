@@ -100,6 +100,9 @@ instance Base PrettyPrint where
   inl               = apply1 "inl"
   inr               = apply1 "inr"
   uneither xy kx ky = apply3 "uneither" xy (fun1 kx) (fun1 ky)
+  true              = PP (\_ _ -> [text "true"])
+  false             = PP (\_ _ -> [text "false"])
+  if_               = apply3 "if_"
   unsafeProb        = apply1 "unsafeProb"
   fromProb          = apply1 "fromProb"
   fromInt           = apply1 "fromInt"
