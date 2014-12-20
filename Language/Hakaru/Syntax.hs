@@ -22,7 +22,7 @@ infixl 9 `app`
 
 data Real      deriving Typeable
 data Prob      deriving Typeable -- meaning: non-negative real number
-data Bool_    
+data Bool_     deriving Typeable   
 data Measure a deriving Typeable
 
 data EqType t t' where
