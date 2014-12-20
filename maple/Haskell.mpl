@@ -31,19 +31,23 @@ Haskell := module ()
         expr := subs(map((x -> x = recip(op(1,x))), pows), expr);
       end if;
 
+      # catch sqrt(2)
+      pows := select(x -> evalb(signum(op(1,x))=1), 
+               indets(expr, realcons ^ identical(1/2)));
+      if pows <> {} then
+        expr := subs(map((x -> x = sqrt_ (op(1,x))), pows), expr);
+      end if;
+
+      # catch 1/sqrt(Pi)
+      pows := select(x -> evalb(signum(op(1,x))=1), 
+               indets(expr, realcons ^ identical(-1/2)));
+      if pows <> {} then
+        expr := subs(map((x -> x = recip (sqrt_ (op(1,x)))), pows), expr);
+      end if;
+
       pows := indets(expr, anything ^ integer);
       if pows <> {} then
         expr := subs(map((x -> x = IntPow(op(x))), pows), expr);
-      end if;
-
-      pows := indets(expr, anything ^ identical(1/2));
-      if pows <> {} then
-        expr := subs(map((x -> x = sqrt_(op(1,x))), pows), expr);
-      end if;
-
-      pows := indets(expr, anything ^ identical(-1/2));
-      if pows <> {} then
-        expr := subs(map((x -> x = recip(sqrt_(op(1,x)))), pows), expr);
       end if;
 
       # and now actually translate
@@ -180,6 +184,7 @@ bi["exp_"] := ufunc("exp_");
 bi["sqrt_"] := ufunc("sqrt_");
 bi["recip"] := ufunc("recip");
 bi["ln"] := ufunc("log");
+bi["ln_"] := ufunc("log_");
 bi["cos"] := ufunc("cos");
 bi["sin"] := ufunc("sin");
 

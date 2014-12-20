@@ -9,11 +9,11 @@
 
 SLO := module ()
   export ModuleApply, AST, simp, 
-    c, arrrg; # very important: c and arrrg are "global".
+    c; # very important: c is "global".
   local ToAST, t_binds, t_pw, into_pw, myprod, gensym, gs_counter, do_pw,
-    superpose, mkProb, getCtx, addCtx, instantiate, lambda_wrap,
-    adjust_types, compute_domain, check_real, analyze_cond, flip_rr,
-    MyHandler;
+    superpose, mkProb, getCtx, instantiate, lambda_wrap,
+    adjust_types, compute_domain, analyze_cond, flip_rr,
+    MyHandler, formName, infer_type, join_type, join2type;
 
   t_binds := 'specfunc(anything, {int, Int, sum, Sum})';
   t_pw := 'specfunc(anything, piecewise)';
@@ -24,8 +24,8 @@ SLO := module ()
     typ := op(2, spec);
     glob, gsiz, meastyp := getCtx(typ, table(), 0);
     r := Record('htyp' = typ, 'mtyp' = meastyp,
-                'gctx' = glob, 'gsize' = gsiz, 'lctx' = table());
-    inp := instantiate(expr, r, 0);
+                'gctx' = glob, 'gsize' = gsiz);
+    inp := instantiate(expr, r, 0, typ);
     try
       NumericEventHandler(division_by_zero = MyHandler);
       res := HAST(simp(value(eval(inp(c), 'if_'=piecewise))), r);
@@ -38,48 +38,41 @@ SLO := module ()
   end proc;
 
   # AST transforms the Maple to a representation of the mochastic AST
+  # environment variables plus indexing functions make tracking info easy!
   AST := proc(inp::HAST(anything, Context))
-    local res, ctx;
-    res := ToAST(op(inp));
+    local res, ctx, t, i, rng;
+
     ctx := op(2,inp);
-    # environment variables plus indexing functions make tracking info easy!
-    _EnvPathCond := table(TopProp); 
+    t := table(TopProp);
+
+    # right at the start, put the global context in the 'path'.
+    for i in [indices(ctx:-gctx, 'pairs')] do 
+      if lhs(i)::integer then next end if;
+      if rhs(i) = 'Real' then rng := RealRange(-infinity, infinity)
+      elif rhs(i) = 'Prob' then rng := RealRange(0, infinity)
+      elif rhs(i) = 'Bool_' then rng := boolean
+      elif rhs(i) = 'Unit' then rng := Unit # ???
+      elif rhs(i) = 'Pair' then error "should not have Pair-valued var", i
+      else error "what do I do with", i;
+      end if;
+      t[lhs(i)] := rng;
+    end do;
+    _EnvPathCond := t;
+    res := ToAST(op(inp));
     res := adjust_types(res, ctx:-mtyp, ctx);
     lambda_wrap(res, 0, ctx);
-  end proc;
-
-  getCtx := proc(typ, glob, ctr)
-    if type(typ, 'Measure'(anything)) then
-      glob, ctr, op(1,typ)
-    elif type(typ, 'Arrow'(anything, anything)) then
-      glob[ctr] := op(1,typ);
-      getCtx(op(2,typ), glob, ctr+1)
-    else 
-      error "must have either Measure or Arrow, got", typ;
-    end if;
-  end proc;
-
-  lambda_wrap := proc(expr, cnt, ctx)
-    local var, sub;
-    if cnt = ctx:-gsize then
-      expr
-    else
-      var := cat('yy', cnt);
-      sub := arrrg[cnt] = var;
-      Lambda(var, lambda_wrap(subs(sub, expr), cnt+1, ctx));
-    end if;
   end proc;
 
   # recursive function which does the main translation
   ToAST := proc(inp, ctx)
     local a0, a1, var, vars, rng, ee, cof, d, ld, weight, binders,
-      v, subst, ivars, ff, newvar, rest, a, b, e;
+      v, subst, ivars, ff, newvar, rest, a, b, e, span;
     e := inp; # make e mutable
     if type(e, specfunc(name, c)) then
-        return Return(op(e))
+      return Return(op(e))
     # we might have recursively encountered a hidden 0
     elif (e = 0) then
-       return Superpose()
+      return Superpose()
     # we might have done something odd, and there is no x anymore (and not 0)
     elif type(e, 'numeric') then
       error "the constant", e, "is not a measure"
@@ -117,22 +110,17 @@ SLO := module ()
       else
         if type(e, 'specfunc'(anything, {'int','Int'})) then
           var, rng := op(op(2,e));
-          if assigned(ctx:-lctx[var]) then
-            # must alpha-rename
-            newvar := gensym(_YY);
-            e := subs(var = newvar, e);
-            var := newvar;
-          end if;
           ee := op(1,e);
           weight := simplify(op(2,rng)-op(1,rng));
+          span := RealRange(op(1,rng), op(2,rng));
+          _EnvPathCond[var] := span;
           if type(weight, 'SymbolicInfinity') then
-            rest := ToAST(ee, addCtx(op(2,e), ctx));
+            rest := ToAST(ee, ctx);
             # should recognize densities here
             Bind(Lebesgue, var = rng, rest)
           else
-            v := simplify(weight*ee) 
-                 assuming var :: RealRange(op(1,rng), op(2,rng));
-            rest := ToAST(v, addCtx(op(2,e), ctx));
+            v := simplify(weight*ee) assuming var :: span;
+            rest := ToAST(v, ctx);
             # process the rest, and then recognize
             # recognize 'raw' uniform
             if type(rest, specfunc(identical(var), 'Return')) then
@@ -291,71 +279,144 @@ SLO := module ()
       w
     elif type(w, `*`) then
       map(mkProb, w, ctx)
-    elif type(w, 'specindex'(arrrg)) then
-      typ := ctx:-gctx[op(1,w)];
-      if typ = 'Prob' then w
-      else error "how can I make a Prob from ", w, "of type ", typ;
-      end if;
     elif type(w, 'exp'(anything)) then
       exp_(op(1,w));
-    # elif type(w, 'exp_'(anything)) then
-    #  w
+    elif type(w, 'ln'(anything)) then
+      error "mkProb ln", w;
+    elif type(w, anything^fraction) then
+      error "mkProb fractional power", w;
     elif type(w, 'unsafeProb'(anything)) then
       error "there should be no unsafeProb in", w
     else
-      # use assumptions to figure out if we can 'do it'.
-      ww := w;
-      for i in [indices(ctx:-lctx, 'pairs')] do
-          var := gensym(_ZZ);
-          rng := rhs(i);
-          assume(var, RealRange(op(1,rng), op(2,rng)));
-          sub := lhs(i) = var;
-          ww := subs(sub, ww);
-      end do;
-      if signum(0, ww, 1) = 1 then
-        unsafeProb(w)
+      typ := infer_type(w, ctx);
+      if typ = 'Prob' then
+        w
+      elif typ = 'Real' then
+        # we are going to need to cast.  Is it safe?
+        # use assumptions to figure out if we can 'do it'.
+        ww := w;
+        for i in [indices(_EnvPathCond, 'pairs')] do
+            if lhs(i) :: integer then next end if;
+            var := gensym(_ZZ);
+            rng := rhs(i);
+            assume(var, RealRange(op(1,rng), op(2,rng)));
+            sub := lhs(i) = var;
+            ww := subs(sub, ww);
+        end do;
+        if signum(0, ww, 1) = 1 then
+          unsafeProb(w)
+        else
+          error "how can I cast", w, "in", eval(_EnvPathCond), "to a Prob?";
+        end if;
       else
-        error "how do I make a Prob from ", w, "in local ctx", eval(ctx:-lctx);
+        error "how do I make a Prob from ", w, "in", eval(_EnvPathCond)
       end if;
     end if;
   end proc;
 
-  # for adding to the local context.  Make it imperative!
-  addCtx := proc(a, r) 
-    local var, typ;
-    var, typ := op(a);
-    if assigned(r:-lctx[var]) then
-      error "variable ", var, "seems to be used more than once in a binder"
+  formName := proc(t)
+    if t = 'Real' then 'rr'
+    elif t = 'Prob' then 'pp'
+    else error "cannot form a name from", t
     end if;
-    r:-lctx[var] := typ;
-    r;
   end proc;
 
-  instantiate := proc(e, r, ctr)
-    if ctr = r:-gsize then e else instantiate(e(arrrg[ctr]), r, ctr+1) end if;
+  getCtx := proc(typ, glob, ctr)
+    local nm, t;
+    if type(typ, 'Measure'(anything)) then
+      glob, ctr, op(1,typ)
+    elif type(typ, 'Arrow'(anything, anything)) then
+      t := op(1,typ);
+      # put 'number = name' AND 'name = type' in table,
+      # where type is Real/Prob.
+      nm := cat(formName(t), ctr);
+      glob[ctr] := nm;
+      glob[nm] := t;
+      getCtx(op(2,typ), glob, ctr+1)
+    else 
+      error "must have either Measure or Arrow, got", typ;
+    end if;
   end proc;
 
-  check_real := proc(e, ctx)
-    local typ;
-    if type(e, 'realcons') then
-      e;
-    elif type(e, 'symbol') then
-      # 'symbol' means x_i, in pathcond
-      typ := _EnvPathCond[e];
-      if typ :: {'RealRange'(anything, anything), identical(real)} then
-        e
-      elif e = 'undefined' then # ouch!
-        e
-      else
-        error "Real: ", e, eval(_EnvPathCond);
-      end if;
-    elif type(e, {'exp'(anything), anything^integer}) then
-      map(check_real, e, ctx)
+  instantiate := proc(e, r, ctr, typ)
+    local t, nm;
+    if ctr = r:-gsize then 
+      e 
+    else 
+      t := op(1, typ);
+      nm := cat(formName(t), ctr);
+      instantiate(e(nm), r, ctr+1, op(2,typ)) 
+    end if;
+  end proc;
+
+  lambda_wrap := proc(expr, cnt, ctx)
+    local var, sub;
+    if cnt = ctx:-gsize then
+      expr
     else
-      error "Real: ", e
+      var := ctx:-gctx[cnt];
+      Lambda(var, lambda_wrap(expr, cnt+1, ctx));
     end if;
   end proc;
 
+  infer_type := proc(e, ctx)
+    local typ, l;
+    if type(e, 'symbol') then
+      # if we have a type, use it
+      if assigned(ctx:-gctx[e]) then return(ctx:-gctx[e]); end if;
+
+      # otherwise, really do infer it
+      typ := _EnvPathCond[e];
+      if typ :: {'RealRange'(anything, anything),
+                 identical(real), identical(TopProp)} then
+        'Real'
+      else
+        error "Impossible: an untyped free variable", e, "in global context",
+          eval(ctx:-gctx), "and local context", eval(_EnvPathCond)
+      end if;
+    elif signum(0,e,1) = 1 then
+      'Prob'
+    elif type(e, 'realcons') then
+      'Real'
+    elif type(e, boolean) then
+      'Bool_'
+    elif type(e, anything^integer) then
+      infer_type(op(1,e), ctx);
+    elif type(e, 'exp'(anything)) then
+      typ := infer_type(op(1,e), ctx); # need to make sure it is inferable
+      'Prob' # someone else will make sure to cast this correctly
+    elif type(e, anything^fraction) then
+      typ := infer_type(op(1,e), ctx); # need to make sure it is inferable
+      'Prob' # someone else will make sure to cast this correctly
+    elif type(e, 'ln'(anything)) then
+      typ := infer_type(op(1,e), ctx); # need to make sure it is inferable
+      'Real'
+    elif type(e, 'Pair'(anything, anything)) then
+      map(infer_type, e, ctx);
+    elif type(e, {`+`, `*`}) then
+      l := map(infer_type, [op(e)], ctx);
+      join_type(op(l));
+    else
+      error "how do I infer a type from", e;
+    end if;
+  end proc;
+
+  join2type := proc(a,b)
+    if a = b then a
+    elif a = 'Real' or b = 'Real' then 'Real'
+    else error "join2type of", a, b
+    end if;
+  end proc;
+
+  # could foldl, but this will work too
+  join_type := proc()
+    if _npassed < 2 then error "cannot happen"
+    elif _npassed = 2 then 
+      join2type(_passed[1], _passed[2])
+    else
+      join_type(join2type(_passed[1], _passed[2]), _passed[3..-1])
+    end if;
+  end proc;
   ####
   # Fix-up the types using contextual information.
 # TODO: need to add unsafeProb around the Prob-typed input variables,
@@ -365,20 +426,31 @@ SLO := module ()
 # - full 'type' inference of e
 # - full 'range-of-value' inference of e
   adjust_types := proc(e, typ, ctx)
-    local ee, dom, opc, res, var, left, right;
+    local ee, dom, opc, res, var, left, right, inf_typ;
     if type(e, specfunc(anything, 'Superpose')) then
       map(thisproc, e, typ, ctx)
     elif type(e, 'WM'(anything, anything)) then
       'WM'(mkProb(op(1,e), ctx), thisproc(op(2,e), typ, ctx));
     elif type(e, 'Return'(anything)) then
+      inf_typ := infer_type(op(1,e), ctx);
       if typ = Unit and op(1,e) = Unit then
         e
       elif typ = Prob then
         ee := op(1,e);
         res := mkProb(ee, ctx);
         'Return'(res);
-      elif typ = Real then
-        'Return'(check_real(op(1,e), ctx));
+      elif typ = Real and type(op(1,e), 'ln'(anything)) then
+        ee := op(1,e);
+        inf_typ := infer_type(op(1, ee), ctx);
+        if inf_typ = 'Prob' then
+          'Return'(ln_(op(1,ee)))
+        else
+          'Return'(ee);
+        end if;
+      # hmm, are things polymorphic enough that this is ok?
+      # might need 'fromProb' to be inserted?
+      elif typ = Real and member(inf_typ, {'Real', 'Prob'}) then
+        'Return'(op(1,e))
       elif typ :: Pair(anything, anything) and 
            op(1,e) :: Pair(anything, anything) then
         left  := adjust_types('Return'(op([1,1],e)), op(1,typ), ctx);
@@ -387,7 +459,7 @@ SLO := module ()
       elif typ = Bool_ and member(op(1,e), {true,false}) then
         e
       else
-         error "adjust_types Type:", typ;
+         error "adjust_types Type:", typ, inf_typ, e;
       end if;
     elif type(e, 'Bind'(anything, name, anything)) then
       dom := compute_domain(op(1,e));
@@ -475,7 +547,7 @@ end;
 # - a global context of var = H-types
 # - the size of the global context
 # - a local context of binders, var = range
-`type/Context` := 'record'('htyp', 'mtyp', 'gctx', 'gsize', 'lctx');
+`type/Context` := 'record'('htyp', 'mtyp', 'gctx', 'gsize');
 
 if_ := proc(cond, tc, ec)
   if ec = false then And(cond, tc)
