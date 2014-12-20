@@ -22,8 +22,8 @@ infixl 9 `app`
 
 data Real      deriving Typeable
 data Prob      deriving Typeable -- meaning: non-negative real number
+data Bool_    
 data Measure a deriving Typeable
-type Bool_ = Either () ()
 
 data EqType t t' where
   Refl :: EqType t t
@@ -117,6 +117,9 @@ class (Order repr Int , Num        (repr Int ),
   inr        :: (Typeable a, Typeable b) => repr b -> repr (Either a b)
   uneither   :: (Typeable a, Typeable b) => repr (Either a b) ->
                 (repr a -> repr c) -> (repr b -> repr c) -> repr c
+  true       :: repr Bool_
+  false      :: repr Bool_
+  if_        :: repr Bool_ -> repr c -> repr c -> repr c
 
   unsafeProb :: repr Real -> repr Prob
   fromProb   :: repr Prob -> repr Real
@@ -150,13 +153,6 @@ class (Order repr Int , Num        (repr Int ),
 
 ununit :: repr () -> repr a -> repr a
 ununit _ e = e
-
-true, false :: (Base repr) => repr Bool_
-true  = inl unit
-false = inr unit
-
-if_ :: (Base repr) => repr Bool_ -> repr c -> repr c -> repr c
-if_ e et ef = uneither e (const et) (const ef)
 
 fst_ :: (Base repr) => repr (a,b) -> repr a
 fst_ ab = unpair ab (\a _ -> a)

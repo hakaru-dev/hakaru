@@ -8,7 +8,7 @@ module Language.Hakaru.Expect (Expect(..), Expect', typeExpect) where
 -- Expectation interpretation
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Real, Prob, Measure,
+import Language.Hakaru.Syntax (Real, Prob, Bool_, Measure,
        Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..))
 import Data.Typeable (Typeable, typeOf, TypeRep,
        typeRepTyCon, mkTyConApp, splitTyConApp, mkFunTy)
@@ -20,6 +20,7 @@ type family Expect' (a :: *)
 type instance Expect' Int          = Int
 type instance Expect' Real         = Real
 type instance Expect' Prob         = Prob
+type instance Expect' Bool_        = Bool_
 type instance Expect' ()           = ()
 type instance Expect' (a, b)       = (Expect' a, Expect' b)
 type instance Expect' (Either a b) = Either (Expect' a) (Expect' b)
@@ -94,6 +95,9 @@ instance (Base repr) => Base (Expect repr) where
   uneither x@(Expect ab) ka kb   = typeExpectBoth x
                                      (uneither ab (unExpect . ka . Expect)
                                                   (unExpect . kb . Expect))
+  true                           = Expect true
+  false                          = Expect false
+  if_ eb (Expect et) (Expect ef) = Expect $ if_ (unExpect eb) et ef
   unsafeProb                     = Expect . unsafeProb . unExpect
   fromProb                       = Expect . fromProb   . unExpect
   fromInt                        = Expect . fromInt    . unExpect

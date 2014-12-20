@@ -6,12 +6,9 @@ module Language.Hakaru.Maple (Maple(..), runMaple) where
 -- Maple printing interpretation
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Bool_, Real, Prob, Number(..),
-    ggcast, Uneither(Uneither),
+import Language.Hakaru.Syntax (Real, Prob, Number(..),
     Order(..), Base(..), Integrate(..), Lambda(..))
 import Data.Ratio
-import Data.Typeable (gcast)
-import Data.Maybe (fromMaybe)
 import Control.Monad (liftM2)
 import Control.Monad.Trans.Reader (Reader, reader, runReader)
 
@@ -85,29 +82,24 @@ instance Base Maple where
         opab n = "op(" ++ show n ++ ", " ++ ab' ++ ")" 
     in
     unMaple (k (Maple (return (opab 1))) (Maple (return (opab 2)))))
-  inl (Maple a) = fromMaybe defaultCase (gcast booleanCase)
-    where defaultCase = Maple (fmap (\a' -> "Left("  ++ a' ++ ")") a)
-          booleanCase :: Maple Bool_
-          booleanCase = Maple (return "true")
-  inr (Maple b) = fromMaybe defaultCase (gcast booleanCase)
-    where defaultCase = Maple (fmap (\b' -> "Right(" ++ b' ++ ")") b)
-          booleanCase :: Maple Bool_
-          booleanCase = Maple (return "false")
-  uneither = r where
-    Uneither r = fromMaybe defaultCase (ggcast booleanCase)
-    defaultCase = Uneither (\(Maple ab) ka kb -> Maple (ab >>= \ab' ->
-      reader $ \i ->
-      let opab :: Int -> String
-          opab n = "op(" ++ show n ++ ", " ++ ab' ++ ")" in
-      let arm k = runReader (unMaple (k (return (opab 1)))) i
-      in "if_(" ++ opab 0 ++ " = Left, " ++ arm (ka . Maple)
-                                 ++ ", " ++ arm (kb . Maple) ++ ")"))
-    booleanCase :: Uneither Maple () ()
-    booleanCase = Uneither (\(Maple ab) ka kb -> Maple (ab >>= \ab' ->
-      reader $ \i ->
-      let arm k = runReader (unMaple (k unit)) i
-      in "if_(" ++ ab' ++ ", " ++ arm ka
-                       ++ ", " ++ arm kb ++ ")"))
+  inl (Maple a) = Maple (fmap (\a' -> "Left("  ++ a' ++ ")") a)
+  inr (Maple b) = Maple (fmap (\b' -> "Right(" ++ b' ++ ")") b)
+  uneither (Maple ab) ka kb
+    = Maple (ab >>= \ab' ->
+             reader $ \i ->
+             let opab :: Int -> String
+                 opab n = "op(" ++ show n ++ ", " ++ ab' ++ ")" in
+             let arm k = runReader (unMaple (k (return (opab 1)))) i
+             in "if_(" ++ opab 0 ++ " = Left, " ++ arm (ka . Maple)
+                                        ++ ", " ++ arm (kb . Maple) ++ ")")
+  true = Maple (return "true")
+  false = Maple (return "false")
+  if_ (Maple b) (Maple et) (Maple ef)
+    = Maple (b >>= \b' ->
+             et >>= \et' ->
+             ef >>= \ef' ->
+             return $ "if_(" ++ b' ++ ", " ++ et'
+                                   ++ ", " ++ ef' ++ ")")
   -- unsafeProb = mapleFun1 "unsafeProb"
   unsafeProb (Maple x) = Maple x
   fromProb   (Maple x) = Maple x
