@@ -44,6 +44,8 @@ eq_ a b = if_ a b (not_ b)
 runExpect :: (Lambda repr) => Expect repr (Measure Prob) -> repr Prob
 runExpect (Expect m) = m `app` lam id
 
+condition d = head (runDisintegrate (\ _ -> d)) unit
+
 make5Pair :: (Base repr) => [repr a] -> repr (a,(a,(a,(a,a))))
 make5Pair [x1,x2,x3,x4,x5] = pair x1
                                 (pair x2
