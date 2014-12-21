@@ -3,7 +3,7 @@
 {-# OPTIONS -Wall -fno-warn-incomplete-patterns #-}
 
 module Language.Hakaru.Disintegrate (Disintegrate,
-       runDisintegrate, density, resetDisint,
+       runDisintegrate, condition, density, resetDisint,
        Eq'(..), eq'List, Ord'(..), ord'List, Show'(..), Tree(..), Selector(..),
        Op0(..), Op1(..), Op2(..), Expr(..), Name, Loc, Void,
        if', max_, stdRandom, run, disintegrate, emptyEnv) where
@@ -1030,6 +1030,10 @@ runDisintegrate m =
                                 [Binding (nameOfLoc envLoc) envLoc]
                                 (Fst Root)
                                 (Var aLoc)) ] } }
+
+condition :: (Mochastic repr, Order_ a) => Disintegrate (Measure (a, b)) -> 
+                                 repr a -> repr (Measure b)
+condition d = head (runDisintegrate (\ _ -> d)) unit
 
 density :: (Integrate repr, Lambda repr, Order_ a) =>
            (Disintegrate env -> Disintegrate (Measure a)) ->
