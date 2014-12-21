@@ -187,6 +187,8 @@ bi["ln"] := ufunc("log");
 bi["ln_"] := ufunc("log_");
 bi["cos"] := ufunc("cos");
 bi["sin"] := ufunc("sin");
+bi["erf"] := ufunc("erfFunc");
+bi["erf_"] := ufunc("erfFunc_");
 
 bi["If"] := proc()
   ASSERT(_npassed>0);

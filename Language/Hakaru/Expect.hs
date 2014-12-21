@@ -13,6 +13,7 @@ import Language.Hakaru.Syntax (Real, Prob, Bool_, Measure,
 import Data.Typeable (Typeable, typeOf, TypeRep,
        typeRepTyCon, mkTyConApp, splitTyConApp, mkFunTy)
 import Unsafe.Coerce (unsafeCoerce)
+import Data.Number.Erf
 
 newtype Expect repr a = Expect { unExpect :: repr (Expect' a) }
 type family Expect' (a :: *)
@@ -85,6 +86,9 @@ deriving instance (Eq  (repr Int)) => Eq  (Expect repr Int)
 deriving instance (Ord (repr Int)) => Ord (Expect repr Int)
 deriving instance (Num (repr Int)) => Num (Expect repr Int)
 
+instance Erf (repr Real) => Erf (Expect repr Real) where
+  erf (Expect n) = Expect (erf n)
+
 instance (Base repr) => Base (Expect repr) where
   unit                           = Expect unit
   pair (Expect a) (Expect b)     = Expect (pair a b)
@@ -110,6 +114,8 @@ instance (Base repr) => Base (Expect repr) where
   negativeInfinity               = Expect negativeInfinity
   gammaFunc (Expect n)           = Expect (gammaFunc n)
   betaFunc (Expect a) (Expect b) = Expect (betaFunc a b)
+  erfFunc (Expect n)             = Expect (erfFunc n)
+  erfFunc_ (Expect n)            = Expect (erfFunc_ n)
   fix f                          = Expect (fix (unExpect . f . Expect))
 
 instance (Integrate repr) => Integrate (Expect repr) where

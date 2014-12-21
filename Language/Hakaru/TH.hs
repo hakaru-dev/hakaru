@@ -6,6 +6,7 @@ import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Number(..), Fraction(..), Real,
        Order(..), Base(..), Mochastic(..), Lambda(..))
 import Language.Haskell.TH
+import Data.Number.Erf
 
 newtype THRepr a = THR { unTHRepr :: ExpQ }
 
@@ -47,6 +48,8 @@ instance Base THRepr where
   negativeInfinity = liftT 'negativeInfinity []
   gammaFunc (THR e) = liftT 'gammaFunc [e]
   betaFunc (THR e) (THR e') = liftT 'betaFunc [e, e']
+  erfFunc (THR e) = liftT 'erfFunc [e]
+  erfFunc_ (THR e) = liftT 'erfFunc_ [e]
   fix f = liftT 'fix [liftF f]
 
 instance (Number a) => Num (THRepr a) where
@@ -82,6 +85,8 @@ instance Floating (THRepr Real) where
   asinh (THR e) = liftT 'asinh [e]
   acosh (THR e) = liftT 'acosh [e]
   atanh (THR e) = liftT 'atanh [e]
+
+instance Erf (THRepr Real) where
 
 instance Mochastic THRepr where
   dirac (THR e) = liftT 'dirac [e]

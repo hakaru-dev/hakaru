@@ -32,6 +32,7 @@ import Language.Hakaru.Expect (Expect(unExpect), Expect')
 import Data.Typeable (Typeable)
 import Unsafe.Coerce (unsafeCoerce)
 import Data.Ratio (numerator, denominator)
+import Data.Number.Erf (Erf(..))
 
 ------- Tracing
 
@@ -116,12 +117,15 @@ instance (Ord' a) => Ord' (Tree a) where
   ord' Nil            (Leaf _)       = LT
   ord' (Leaf _)       Nil            = GT
   ord' (Leaf a)       (Leaf b)       = ord' a b
+  -- the BoolT/BoolF cases need to be added here
 
 instance (Show' a) => Show' (Tree a) where
   pretty' _ (Branch a b) = prettyPair (pretty' 0 a) (pretty' 0 b)
   pretty' p (UnaryL a)   = prettyFun (p > 10) "L" (pretty' 11 a)
   pretty' p (UnaryR b)   = prettyFun (p > 10) "R" (pretty' 11 b)
   pretty' p (Leaf a)     = pretty' p a
+  pretty' _ BoolT        = text "true"
+  pretty' _ BoolF        = text "false"
   pretty' _ Nil          = text "()"
 
 instance Functor' Tree where
@@ -129,6 +133,8 @@ instance Functor' Tree where
   fmap' f (UnaryL a)   = UnaryL (fmap' f a)
   fmap' f (UnaryR b)   = UnaryR (fmap' f b)
   fmap' _ Nil          = Nil
+  fmap' _ BoolT        = BoolT
+  fmap' _ BoolF        = BoolF
   fmap' f (Leaf a)     = Leaf (f a)
 
 instance Foldable' Tree where
@@ -136,6 +142,8 @@ instance Foldable' Tree where
   foldMap' f (UnaryL a)   = foldMap' f a
   foldMap' f (UnaryR b)   = foldMap' f b
   foldMap' _ Nil          = mempty
+  foldMap' _ BoolT        = mempty
+  foldMap' _ BoolF        = mempty
   foldMap' f (Leaf a)     = f a
 
 instance Traversable' Tree where
@@ -143,6 +151,8 @@ instance Traversable' Tree where
   traverse' f (UnaryL a)   = fmap UnaryL (traverse' f a)
   traverse' f (UnaryR b)   = fmap UnaryR (traverse' f b)
   traverse' _ Nil          = pure Nil
+  traverse' _ BoolT        = pure BoolT
+  traverse' _ BoolF        = pure BoolF
   traverse' f (Leaf a)     = fmap Leaf (f a)
 
 ------- Selectors, which name a part of an algebraic data type to evaluate
@@ -174,6 +184,8 @@ locate x (Branch a b) =
 locate x (UnaryL a) = fmap Unl (locate x a)
 locate x (UnaryR a) = fmap Unr (locate x a)
 locate _ Nil        = Nothing
+locate _ BoolT      = Nothing
+locate _ BoolF      = Nothing
 locate x (Leaf a)   = do Refl <- unsafeJmEq x a
                          Just Root
 
@@ -278,6 +290,8 @@ data Op1 t1 t where
   FromProb   :: Op1 Prob Real
   FromInt    :: Op1 Int  Real
   GammaFunc  :: Op1 Real Prob
+  ErfFunc    :: Op1 Real Real
+  ErfFunc_   :: Op1 Prob Prob
 
 data Op2 t1 t2 t where
   Add      :: (Number t) => Op2 t t t
@@ -767,6 +781,8 @@ propagate (Op1 FromProb e) env Root t = do
   fmap (Op1 FromProb) (propagate e env Root (Op1 UnsafeProb t))
 propagate (Op1 FromInt _) _ Root _ = mempty
 propagate (Op1 GammaFunc _) _ Root _ = mempty
+propagate (Op1 ErfFunc _) _ Root _ = mempty
+propagate (Op1 ErfFunc_ _) _ Root _ = mempty
 propagate (Op2 Add e1 e2) env Root t = mappend (go e1 e2) (go e2 e1)
   where go e e' = do x1 <- evaluate e env Root
                      fmap (x1 +) (propagate e' env Root (t - x1))
@@ -964,6 +980,8 @@ toHakaru (Op1 UnsafeProb e)        env = unsafeProb       (toHakaru e  env)
 toHakaru (Op1 FromProb e)          env = fromProb         (toHakaru e  env)
 toHakaru (Op1 FromInt e)           env = fromInt          (toHakaru e  env)
 toHakaru (Op1 GammaFunc e)         env = gammaFunc        (toHakaru e  env)
+toHakaru (Op1 ErfFunc e)           env = erfFunc        (toHakaru e  env)
+toHakaru (Op1 ErfFunc_ e)          env = erfFunc_        (toHakaru e  env)
 toHakaru (Op2 Add e1 (Op1 Neg e2)) env = binaryN (-)      (toHakaru e1 env)
                                                           (toHakaru e2 env)
 toHakaru (Op2 Add e1 e2)  env          = binaryN (+)      (toHakaru e1 env)
@@ -1006,7 +1024,9 @@ matchHakaru (UnaryL t') x k =
   uneither x (\x' -> matchHakaru t' x' k) (\_ -> superpose [])
 matchHakaru (UnaryR t') x k =
   uneither x (\_ -> superpose []) (\x' -> matchHakaru t' x' k)
-matchHakaru Nil _ k = k []
+matchHakaru Nil   _ k = k []
+matchHakaru BoolT _ k = k []
+matchHakaru BoolF _ k = k []
 matchHakaru (Leaf u) x k = k [Binding u x]
 
 ------- Conversion from Hakaru
@@ -1096,6 +1116,9 @@ instance Floating (Disintegrate Real) where
   acosh x         = log (x + sqrt (x * x - 1))
   atanh x         = log ((1 + x) / (1 - x)) / 2
 
+instance Erf (Disintegrate Real) where
+  erf (Disint x)  = Disint (fmap (Op1 ErfFunc) x)
+
 instance Base Disintegrate where
   unit                           = Disint (return (Op0 Unit))
   pair (Disint x) (Disint y)     = Disint (fmap Pair x <*> y)
@@ -1113,6 +1136,8 @@ instance Base Disintegrate where
   negativeInfinity               = Disint (return (Op0 NegativeInfinity))
   gammaFunc (Disint x)           = Disint (fmap (Op1 GammaFunc) x)
   betaFunc (Disint a) (Disint b) = Disint (fmap (Op2 BetaFunc) a <*> b)
+  erfFunc (Disint x)             = Disint (fmap (Op1 ErfFunc) x)
+  erfFunc_ (Disint x)            = Disint (fmap (Op1 ErfFunc_) x) 
 
   unpair xy k = insertDisint xy (\e c i ->
     let x = Const i
@@ -1129,6 +1154,10 @@ instance Base Disintegrate where
            , let y = Const i
              in Bind (UnaryR (Leaf y)) (Dirac e)
                      (unDisint (ky (Disint (return (Var y)))) c (i+1)) ])
+
+  if_ cy ty ey = insertDisint cy (\e c i ->
+    Choice [ Bind BoolT (Dirac e) (unDisint ty c (i+1))
+           , Bind BoolF (Dirac e) (unDisint ey c (i+1)) ])
 
 instance Mochastic Disintegrate where
   dirac x = Disint (cont (\c i -> c (unDisint x (\w _ -> Dirac w) i) i))
