@@ -9,7 +9,7 @@ import Language.Hakaru.Syntax (Real, Prob, Measure,
        Mochastic(..), Lambda(..), bind_, beta, bern, lam,
        if_, true, false, Bool_)
 import Language.Hakaru.Util.Pretty (Pretty (pretty), prettyPair)
-import Language.Hakaru.Sample(Sample(unSample))
+-- import Language.Hakaru.Sample(Sample(unSample))
 import Language.Hakaru.Disintegrate
 
 import Control.Monad (zipWithM_, replicateM)
