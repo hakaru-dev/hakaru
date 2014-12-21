@@ -31,6 +31,7 @@ library
                        Language.Hakaru.Lambda,
                        Language.Hakaru.Sample,
                        Language.Hakaru.Disintegrate,
+                       Language.Hakaru.Partial,
                        Language.Hakaru.Distribution,
                        Language.Hakaru.Simplify,
                        Language.Hakaru.Vector,

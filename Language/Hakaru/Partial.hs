@@ -11,6 +11,7 @@ import Language.Hakaru.Syntax hiding (liftM2)
 import Data.Ratio (denominator, numerator)
 import Data.Maybe (fromMaybe, isJust)
 import Control.Monad (liftM2)
+import Data.Number.Erf (Erf(..))
 
 data Partial repr a = Partial
   (Maybe (repr a))        -- "Nothing" means unbound
@@ -170,6 +171,11 @@ instance (Base repr, Floating (repr a), Known a, Knowledge a ~ Rational)
   acosh = fromDynamic . fmap acosh . toDynamic
   atanh = fromDynamic . fmap atanh . toDynamic
 
+instance Base repr => Erf (Partial repr Real) where
+  erf x = case toKnown x of
+            Just 0 -> 1
+            _ -> fromDynamic (fmap erf (toDynamic x))
+
 instance (Base repr) => Base (Partial repr) where
   unit = Partial (Just unit) (Just SUnit)
   pair a b = Partial (liftM2 pair (toDynamic a) (toDynamic b))
@@ -237,6 +243,14 @@ instance (Base repr) => Base (Partial repr) where
                                         1 <= yK && yK <= 10
                      -> fromKnown (gammaN xK * gammaN yK / gammaN (xK + yK))
                    _ -> fromDynamic (liftM2 betaFunc (toDynamic x) (toDynamic y))
+  erfFunc x = case toKnown x >>= integer of
+                  Just 0 -> 1
+                  _ -> fromDynamic (fmap erfFunc (toDynamic x))
+
+  erfFunc_ x = case toKnown x >>= integer of
+                   Just 0 -> 1
+                   _ -> fromDynamic (fmap erfFunc_ (toDynamic x))
+
   fix f = Partial d s
     where Partial _ s = f (fix f)
           d = do _ <- toDynamic (f (fromDynamic (Just undefined)))
