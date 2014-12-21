@@ -4,15 +4,15 @@
 
 module Language.Hakaru.Syntax (Real, Prob, Measure, Bool_,
        EqType(Refl), Order_(..), Number(..), Fraction(..),
-       ggcast, Uneither(Uneither),
+       Uneither(Uneither),
        errorEmpty,
        Order(..), Base(..), ununit, fst_, snd_,
        and_, or_, not_, min_, max_,
        Mochastic(..), bind_, pairBind, liftM, liftM2, invgamma, beta, bern,
        Integrate(..), Lambda(..)) where
 
+import Data.Typeable (Typeable)    
 import Prelude hiding (Real)
-import Data.Typeable (Typeable, gcast)
 
 infix  4 `less`, `equal`, `less_`, `equal_`
 infixl 1 `bind`, `bind_`, `pairBind`
@@ -22,13 +22,13 @@ infixl 9 `app`
 
 data Real      deriving Typeable
 data Prob      deriving Typeable -- meaning: non-negative real number
-data Bool_     deriving Typeable   
+data Bool_     deriving Typeable
 data Measure a deriving Typeable
 
 data EqType t t' where
   Refl :: EqType t t
 
-class (Typeable a) => Order_ a where
+class Order_ a where
   less_, equal_  :: (Base repr              ) => repr a -> repr a -> repr Bool_
   default less_  :: (Base repr, Order repr a) => repr a -> repr a -> repr Bool_
   default equal_ :: (Base repr, Order repr a) => repr a -> repr a -> repr Bool_
@@ -90,12 +90,6 @@ instance Fraction Prob where
   fractionCase _ k = k
   fractionRepr k   = k
 
-newtype Flip f b a = Flip (f a b)
-ggcast :: (Typeable a, Typeable a', Typeable b, Typeable b') =>
-          f a b -> Maybe (f a' b')
-ggcast fab = do Flip fa'b <- gcast (Flip fab)
-                gcast fa'b
-
 newtype Uneither repr a b = Uneither (forall c.
   repr (Either a b) -> (repr a -> repr c) -> (repr b -> repr c) -> repr c)
 
@@ -113,9 +107,9 @@ class (Order repr Int , Num        (repr Int ),
   unit       :: repr ()
   pair       :: repr a -> repr b -> repr (a,b)
   unpair     :: repr (a,b) -> (repr a -> repr b -> repr c) -> repr c
-  inl        :: (Typeable a, Typeable b) => repr a -> repr (Either a b)
-  inr        :: (Typeable a, Typeable b) => repr b -> repr (Either a b)
-  uneither   :: (Typeable a, Typeable b) => repr (Either a b) ->
+  inl        :: repr a -> repr (Either a b)
+  inr        :: repr b -> repr (Either a b)
+  uneither   :: repr (Either a b) ->
                 (repr a -> repr c) -> (repr b -> repr c) -> repr c
   true       :: repr Bool_
   false      :: repr Bool_
