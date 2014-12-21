@@ -3,7 +3,7 @@
 {-# OPTIONS -Wall -fno-warn-incomplete-patterns #-}
 
 module Language.Hakaru.Disintegrate (Disintegrate,
-       runDisintegrate, density, resetDisint,
+       runDisintegrate, condition, density, resetDisint,
        Eq'(..), eq'List, Ord'(..), ord'List, Show'(..), Tree(..), Selector(..),
        Op0(..), Op1(..), Op2(..), Expr(..), Name, Loc, Void,
        if', max_, stdRandom, run, disintegrate, emptyEnv) where
@@ -29,7 +29,6 @@ import Language.Hakaru.Syntax (Real, Prob, Measure, Bool_,
         Order(..), Base(..), Mochastic(..), liftM, if_,
         Lambda(..), Integrate(..))
 import Language.Hakaru.Expect (Expect(unExpect), Expect')
-import Data.Typeable (Typeable)
 import Unsafe.Coerce (unsafeCoerce)
 import Data.Ratio (numerator, denominator)
 import Data.Number.Erf (Erf(..))
@@ -84,8 +83,8 @@ class (Functor' f, Foldable' f) => Traversable' f where
 
 data Tree a t where
   Branch :: Tree a t1 -> Tree a t2 -> Tree a (t1, t2)
-  UnaryL :: (Typeable t1, Typeable t2) => Tree a t1 -> Tree a (Either t1 t2)
-  UnaryR :: (Typeable t1, Typeable t2) => Tree a t2 -> Tree a (Either t1 t2)
+  UnaryL :: Tree a t1 -> Tree a (Either t1 t2)
+  UnaryR :: Tree a t2 -> Tree a (Either t1 t2)
   Nil    :: Tree a ()
   BoolT  :: Tree a Bool_
   BoolF  :: Tree a Bool_
@@ -338,8 +337,8 @@ data Expr b u t where -- b = bound variables; u = used variables
                                                           Expr b u (Measure t')
   Dirac   :: Expr b u t ->                                Expr b u (Measure t)
   Pair    :: Expr b u t -> Expr b u t' ->                 Expr b u (t, t')
-  Inl     :: (Typeable t, Typeable t') => Expr b u t ->   Expr b u (Either t t')
-  Inr     :: (Typeable t, Typeable t') => Expr b u t ->   Expr b u (Either t' t)
+  Inl     :: Expr b u t ->   Expr b u (Either t t')
+  Inr     :: Expr b u t ->   Expr b u (Either t' t)
   -- The Closure constructor below is for internal use
   -- and should not appear in the final output.
   Closure :: Expr Name Name (Measure t) -> [Binding Name u] ->
@@ -1051,6 +1050,10 @@ runDisintegrate m =
                                 [Binding (nameOfLoc envLoc) envLoc]
                                 (Fst Root)
                                 (Var aLoc)) ] } }
+
+condition :: (Mochastic repr, Order_ a) => Disintegrate (Measure (a, b)) -> 
+                                 repr a -> repr (Measure b)
+condition d = head (runDisintegrate (\ _ -> d)) unit
 
 density :: (Integrate repr, Lambda repr, Order_ a) =>
            (Disintegrate env -> Disintegrate (Measure a)) ->

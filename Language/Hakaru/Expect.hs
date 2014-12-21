@@ -3,16 +3,13 @@
     RankNTypes, ScopedTypeVariables #-}
 {-# OPTIONS -Wall #-}
 
-module Language.Hakaru.Expect (Expect(..), Expect', typeExpect) where
+module Language.Hakaru.Expect (Expect(..), Expect') where
 
 -- Expectation interpretation
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Bool_, Measure,
        Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..))
-import Data.Typeable (Typeable, typeOf, TypeRep,
-       typeRepTyCon, mkTyConApp, splitTyConApp, mkFunTy)
-import Unsafe.Coerce (unsafeCoerce)
 import Data.Number.Erf
 
 newtype Expect repr a = Expect { unExpect :: repr (Expect' a) }
@@ -28,36 +25,36 @@ type instance Expect' (Either a b) = Either (Expect' a) (Expect' b)
 type instance Expect' (Measure a)  = (Expect' a -> Prob) -> Prob
 type instance Expect' (a -> b)     = (Expect' a -> Expect' b)
 
-unsafeTypeable :: forall w t. TypeRep -> (Typeable t => w) -> w
-unsafeTypeable rep = unsafeCoerce (\k -> k (const rep))
--- TODO: on ghc 7.8, because the Typeable dictionary uses Proxy#,
--- the "const" above needs to be removed to avoid a segfault!
+-- unsafeTypeable :: forall w t. TypeRep -> (Typeable t => w) -> w
+-- unsafeTypeable rep = unsafeCoerce (\k -> k (const rep))
+-- -- TODO: on ghc 7.8, because the Typeable dictionary uses Proxy#,
+-- -- the "const" above needs to be removed to avoid a segfault!
 
-typeExpect :: forall w t. (Typeable t) => t -> (Typeable (Expect' t) => w) -> w
-typeExpect dummy = unsafeTypeable (expect' (typeOf dummy)) where
-  expect' :: TypeRep -> TypeRep
-  expect' t
-    | t  `elem` [tInt, tReal, tProb, tUnit] = t
-    | tc `elem` [tcProd, tcSum, tcFun] = mkTyConApp tc (map expect' ts)
-    | tc == tcMeas = let [ta] = ts in mkFunTy (mkFunTy (expect' ta) tProb) tProb
-    | otherwise = error ("typeExpect " ++ show t)
-    where (tc,ts) = splitTyConApp t
-          tInt    = typeOf (undefined :: Int)
-          tReal   = typeOf (undefined :: Real)
-          tProb   = typeOf (undefined :: Prob)
-          tUnit   = typeOf (undefined :: ())
-          tcProd  = typeRepTyCon (typeOf (undefined :: (,)    () ()))
-          tcSum   = typeRepTyCon (typeOf (undefined :: Either () ()))
-          tcFun   = typeRepTyCon (typeOf (undefined :: (->)   () ()))
-          tcMeas  = typeRepTyCon (typeOf (undefined :: Measure   ()))
+-- typeExpect :: forall w t. (Typeable t) => t -> (Typeable (Expect' t) => w) -> w
+-- typeExpect dummy = unsafeTypeable (expect' (typeOf dummy)) where
+--   expect' :: TypeRep -> TypeRep
+--   expect' t
+--     | t  `elem` [tInt, tReal, tProb, tUnit] = t
+--     | tc `elem` [tcProd, tcSum, tcFun] = mkTyConApp tc (map expect' ts)
+--     | tc == tcMeas = let [ta] = ts in mkFunTy (mkFunTy (expect' ta) tProb) tProb
+--     | otherwise = error ("typeExpect " ++ show t)
+--     where (tc,ts) = splitTyConApp t
+--           tInt    = typeOf (undefined :: Int)
+--           tReal   = typeOf (undefined :: Real)
+--           tProb   = typeOf (undefined :: Prob)
+--           tUnit   = typeOf (undefined :: ())
+--           tcProd  = typeRepTyCon (typeOf (undefined :: (,)    () ()))
+--           tcSum   = typeRepTyCon (typeOf (undefined :: Either () ()))
+--           tcFun   = typeRepTyCon (typeOf (undefined :: (->)   () ()))
+--           tcMeas  = typeRepTyCon (typeOf (undefined :: Measure   ()))
 
-typeExpectBoth :: forall t1 t2 a f repr w.
-                  (Typeable t1, Typeable t2) => a (f t1 t2) ->
-                  ((Typeable (Expect' t1), Typeable (Expect' t2)) =>
-                   repr (Expect' w)) ->
-                  Expect repr w
-typeExpectBoth _ k = Expect (typeExpect (undefined :: t1)
-                            (typeExpect (undefined :: t2) k))
+-- typeExpectBoth :: forall t1 t2 a f repr w.
+--                   (Typeable t1, Typeable t2) => a (f t1 t2) ->
+--                   ((Typeable (Expect' t1), Typeable (Expect' t2)) =>
+--                    repr (Expect' w)) ->
+--                   Expect repr w
+-- typeExpectBoth _ k = Expect (typeExpect (undefined :: t1)
+--                             (typeExpect (undefined :: t2) k))
 
 instance (Order repr Real) => Order (Expect repr) Real where
   less  (Expect x) (Expect y) = Expect (less  x y)
@@ -94,11 +91,10 @@ instance (Base repr) => Base (Expect repr) where
   pair (Expect a) (Expect b)     = Expect (pair a b)
   unpair (Expect ab) k           = Expect (unpair ab (\a b ->
                                    unExpect (k (Expect a) (Expect b))))
-  inl (Expect a)                 = x where x = typeExpectBoth x (inl a)
-  inr (Expect b)                 = x where x = typeExpectBoth x (inr b)
-  uneither x@(Expect ab) ka kb   = typeExpectBoth x
-                                     (uneither ab (unExpect . ka . Expect)
-                                                  (unExpect . kb . Expect))
+  inl (Expect a)                 = Expect $ inl a
+  inr (Expect b)                 = Expect $ inr b
+  uneither (Expect ab) ka kb     = Expect $ uneither ab (unExpect . ka . Expect)
+                                                        (unExpect . kb . Expect)
   true                           = Expect true
   false                          = Expect false
   if_ eb (Expect et) (Expect ef) = Expect $ if_ (unExpect eb) et ef

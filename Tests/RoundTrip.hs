@@ -225,8 +225,6 @@ priorAsProposal p x = bern (1/2) `bind` \c ->
                              (pair (fst_ x ) (snd_ x'))
                              (pair (fst_ x') (snd_ x )))   
 
-condition d = head (runDisintegrate (\ _ -> d)) unit
-
 gibbsProposal :: (Order_ a, Mochastic repr) =>
                  Disintegrate (Measure (a,b)) ->
                  repr (a,b) -> repr (Measure (a,b))

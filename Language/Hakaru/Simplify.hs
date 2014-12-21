@@ -18,6 +18,7 @@ import Language.Hakaru.Maple (Maple, runMaple)
 import Data.Typeable (Typeable, typeOf)
 import System.MapleSSH (maple)
 import Language.Haskell.Interpreter hiding (typeOf)
+    
 import Language.Hakaru.Util.Lex (readMapleString)
 
 ourContext :: MonadInterpreter m => m ()
