@@ -16,8 +16,8 @@ import Control.Monad (zipWithM_, replicateM)
 import Control.Applicative (Const(Const))
 import Text.PrettyPrint (text, (<>), ($$), nest)
 
-import qualified Data.Number.LogFloat as LF
-import qualified System.Random.MWC as MWC
+-- import qualified Data.Number.LogFloat as LF
+-- import qualified System.Random.MWC as MWC
 
 import Test.HUnit
 import Tests.TestTools
@@ -39,8 +39,8 @@ allTests = test [
     "pair4transition" ~: testS $ pair4transition $ pair true 1,
     "pair4'transition" ~: testS $ pair4'transition $ pair true 1,
     -- "transitionTest" ~: ignore $ transitionTest,
-    "testDistWithSample" ~: ignore $ do x <- testDistWithSample
-                                        mapM_ assertJust x,
+    --"testDistWithSample" ~: ignore $ do x <- testDistWithSample
+    --                                    mapM_ assertJust x,
     "testLinregSimp" ~: ignore $ testS linregSimp, -- too long?
     "testdistLinregSimp" ~: testS distLinregSimp,
     "testLinreg" ~: ignore $ testS distLinreg,
@@ -183,7 +183,6 @@ pair4'transition state = bern (1/2) `bind` \resampleCoin ->
 {-
 transitionTest :: MWC.GenIO -> IO (Maybe ((Bool_, Double), LF.LogFloat))
 transitionTest g = unSample (pair4transition (pair true 1)) 1 g
--}
 
 testDistWithSample :: IO [Maybe (Double, LF.LogFloat)]
 testDistWithSample = do
@@ -194,6 +193,7 @@ testDistWithSample = do
                                 normal env 1 `bind` \x ->
                                 normal x 1 `bind` \y ->
                                 dirac (pair y x)
+-}
 
 type Real5 = (Real, (Real, (Real, (Real, Real))))
 type Real6 = (Real, (Real, (Real, (Real, (Real, Real)))))
