@@ -12,7 +12,7 @@ SLO := module ()
     c; # very important: c is "global".
   local ToAST, t_binds, t_pw, into_pw, myprod, gensym, gs_counter, do_pw,
     superpose, mkProb, getCtx, instantiate, lambda_wrap,
-    adjust_types, compute_domain, analyze_cond, flip_rr,
+    adjust_types, compute_domain, analyze_cond, flip_rr, isPos,
     MyHandler, formName, infer_type, join_type, join2type;
 
   t_binds := 'specfunc(anything, {int, Int, sum, Sum})';
@@ -104,6 +104,8 @@ SLO := module ()
           end if;
         elif type(ee, t_pw) then
           return do_pw(map(simplify, [op(e)]), ctx, typ);
+        elif type(ee, `+`) then
+          superpose(map(ToAST, [op(e)], ctx));
         else
           error "no binders, but still not a polynomial?", ee
         end if;
@@ -120,26 +122,7 @@ SLO := module ()
           else
             v := simplify(weight*ee) assuming var :: span;
             rest := ToAST(v, ctx);
-            # process the rest, and then recognize
-            # recognize 'raw' uniform
-            if type(rest, specfunc(identical(var), 'Return')) then
-              if ctx:-mtyp = 'Real' then
-                Uniform(op(rng));
-              elif ctx:-mtyp = 'Prob' then
-                if signum(0,op(1,rng),1) = 1 and
-                   signum(0,op(2,rng),1) = 1 then
-                  # someone will add the unsafeProb later
-                  Bind(Uniform(op(rng)), var, Return(var));
-                else
-                  error "uniform with a negative range cannot be a Prob";
-                end if;
-              else
-                error "uniform can only result in Real or Prob";
-              end if;
-            else
-              # should really simplify rest
-              Bind(Uniform(op(1, rng), op(2, rng)), var, rest);
-            end if;
+            Bind(Uniform(op(rng)), var, rest);
           end if;
         elif type(e, 'specfunc'(anything, {'sum','Sum'})) then
           error "sums not handled yet"
@@ -273,34 +256,49 @@ SLO := module ()
   end proc;
 
   mkProb := proc(w, ctx)
-    local typ, i, ww, prop, res;
-    if type(w, 'realcons') and signum(0,w,1)=1 then 
-      w
-    elif type(w, `*`) then
+    local typ, i, ww, pos, rest;
+    if type(w, `*`) then
       map(mkProb, w, ctx)
     elif type(w, 'exp'(anything)) then
       exp_(op(1,w));
+    elif type(w, 'erf'(anything)) then
+      erf_(mkProb(op(1,w)));
     elif type(w, 'ln'(anything)) then
       error "mkProb ln", w;
     elif type(w, anything^fraction) then
-      error "mkProb fractional power", w;
+      typ := infer_type(op(1,w), ctx);
+      if typ = 'Prob' then w else mkProb(op(1,w), ctx) ^ op(2,w) end if;
     elif type(w, 'unsafeProb'(anything)) then
       error "there should be no unsafeProb in", w
+    elif type(w, `+`) then
+      ww := {op(w)};
+      pos, rest := selectremove(isPos, ww);
+      # locally positive?
+      if rest = {} then map(mkProb, w, ctx) 
+      else unsafeProb(w)
+      end if;
     else
       typ := infer_type(w, ctx);
       if typ = 'Prob' then
         w
       elif typ = 'Real' then
         # we are going to need to cast.  Is it safe?
-        # use assumptions to figure out if we can 'do it'.
-        prop := map(x -> op(1,x) :: op(2, x), [indices(_EnvPathCond, 'pairs')]);
-        res := signum(0, w, 1) assuming op(prop);
-        unsafeProb(w)
-        if not (res = 1) then WARNING("cannot insure it will not crash") end if;
+        if not isPos(w) then WARNING("cannot insure it will not crash") end if;
+        unsafeProb(w);
       else
         error "how do I make a Prob from ", w, "in", eval(_EnvPathCond)
       end if;
     end if;
+  end proc;
+
+  # use assumptions to figure out if we are actually positive, even
+  # when the types say otherwise
+  isPos := proc(w)
+    local prop, res;
+
+    prop := map(x -> op(1,x) :: op(2, x), [indices(_EnvPathCond, 'pairs')]);
+    res := signum(0, w, 1) assuming op(prop);
+    evalb(res = 1);
   end proc;
 
   formName := proc(t)
@@ -352,6 +350,22 @@ SLO := module ()
     local typ, l;
     if type(e, boolean) then
       'Bool_'
+    elif e = 'Pi' then Prob
+    elif e = 'Unit' then Unit
+    elif type(e, boolean) then
+      'Bool_'
+    elif type(e, anything^integer) then
+      infer_type(op(1,e), ctx);
+    elif type(e, 'exp'(anything)) then
+      typ := infer_type(op(1,e), ctx); # need to make sure it is inferable
+      'Real' # someone else will make sure to cast this correctly
+    elif type(e, anything^fraction) then
+      typ := infer_type(op(1,e), ctx); # need to make sure it is inferable
+      typ; # if it is <0, weird things will happen
+      # someone else will make sure to cast this correctly
+    elif type(e, 'ln'(anything)) then
+      typ := infer_type(op(1,e), ctx); # need to make sure it is inferable
+      'Real'
     elif type(e, 'symbol') then
       # if we have a type, use it
       if assigned(ctx:-gctx[e]) then return(ctx:-gctx[e]); end if;
@@ -365,22 +379,9 @@ SLO := module ()
         error "Impossible: an untyped free variable", e, "in global context",
           eval(ctx:-gctx), "and local context", eval(_EnvPathCond)
       end if;
-    elif signum(0,e,1) = 1 then
+    elif type(e, 'realcons') and signum(0,e,1) = 1 then
       'Prob'
     elif type(e, 'realcons') then
-      'Real'
-    elif type(e, boolean) then
-      'Bool_'
-    elif type(e, anything^integer) then
-      infer_type(op(1,e), ctx);
-    elif type(e, 'exp'(anything)) then
-      typ := infer_type(op(1,e), ctx); # need to make sure it is inferable
-      'Prob' # someone else will make sure to cast this correctly
-    elif type(e, anything^fraction) then
-      typ := infer_type(op(1,e), ctx); # need to make sure it is inferable
-      'Prob' # someone else will make sure to cast this correctly
-    elif type(e, 'ln'(anything)) then
-      typ := infer_type(op(1,e), ctx); # need to make sure it is inferable
       'Real'
     elif type(e, 'Pair'(anything, anything)) then
       map(infer_type, e, ctx);

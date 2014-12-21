@@ -23,7 +23,7 @@ Haskell := module ()
 
       b:-clear();
 
-      expr := e;
+      expr := eval(e, unsafeProb = (x -> unsafeProb(freeze(x))));
       # some last-minute patching; this will need hardened, 'anything' is 
       # wrong.
       pows := indets(expr, anything ^ identical(-1));
@@ -49,6 +49,7 @@ Haskell := module ()
       if pows <> {} then
         expr := subs(map((x -> x = IntPow(op(x))), pows), expr);
       end if;
+      expr := thaw(expr);
 
       # and now actually translate
       p(ToInert(expr));
@@ -89,6 +90,10 @@ end proc;
 d[_Inert_NAME] := proc(a1) 
   if assigned(bi[a1]) then
     bi[a1]()
+#  elif StringTools:-IsPrefix("rr", a1) then
+#    lparen(); b:-append("idr "); b:-append(a1); rparen();
+#  elif StringTools:-IsPrefix("pp", a1) then
+#    lparen(); b:-append("idp "); b:-append(a1); rparen();
   else
     b:-append(a1);
   end if;
@@ -171,9 +176,10 @@ bi["IntPow"] := proc(l, r)
   b:-append("("); p(l); b:-append(" ^^ "); p(r); b:-append(")");
 end;
 
-bi["Lambda"] := proc(nm, expr)
+bi["Lambda"] := proc(nm::_Inert_NAME(anything), expr)
   b:-append("lam (\\"); 
-  p(nm);
+  # p(nm);
+  b:-append(op(1,nm));
   b:-append(" -> ");
   p(expr); 
   b:-append(")");
