@@ -6,7 +6,7 @@ module Tests.Syntax(allTests) where
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure,
        Order(..), Base(..), ununit, and_, fst_, snd_, min_,
-       Mochastic(..), Lambda(..), bind_, beta, bern, lam,
+       Mochastic(..), Lambda(..), bind_, factor, beta, bern, lam,
        if_, true, false, Bool_)
 import Language.Hakaru.Util.Pretty (Pretty (pretty), prettyPair)
 -- import Language.Hakaru.Sample(Sample(unSample))
