@@ -3,7 +3,7 @@
     RankNTypes, ScopedTypeVariables #-}
 {-# OPTIONS -Wall #-}
 
-module Language.Hakaru.Expect (Expect(..), Expect') where
+module Language.Hakaru.Expect (Expect(..), Expect', total, normalize) where
 
 -- Expectation interpretation
 
@@ -113,3 +113,12 @@ instance (Integrate repr, Lambda repr)
 instance (Lambda repr) => Lambda (Expect repr) where
   lam f = Expect (lam (unExpect . f . Expect))
   app (Expect rator) (Expect rand) = Expect (app rator rand)
+
+total :: (Lambda repr, Base repr) => Expect repr (Measure a) -> repr Prob
+total m = unExpect m `app` lam (\_ -> 1)
+
+normalize :: (Integrate repr, Lambda repr, Mochastic repr) =>
+             (forall repr'. (Integrate repr, Lambda repr, Mochastic repr') =>
+                            repr' (Measure a)) ->
+             repr (Measure a)
+normalize m = superpose [(recip (total m), m)]
