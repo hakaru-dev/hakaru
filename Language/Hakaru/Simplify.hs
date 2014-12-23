@@ -65,7 +65,7 @@ simplify :: (MapleableType a, Typeable a) => Expect Maple a -> IO (Any a)
 simplify e = do
   let slo = mkTypeString (runMaple (unExpect e) 0) (getArg e)
   hakaru <- do
-    putStrLn ("To Maple: " ++ slo)
+    putStrLn ("\nTo Maple: " ++ slo)
     hopeString <- maple ("Haskell(SLO:-AST(SLO(" ++ slo ++ ")));")
     case readMapleString hopeString of
       Just hakaru -> return hakaru
