@@ -38,6 +38,9 @@ data    instance Static (a, b)       repr = SPair  (Partial repr a)
                                                    (Partial repr b)
 data    instance Static (Either a b) repr = SLeft  (Partial repr a)
                                           | SRight (Partial repr b)
+data    instance Static (List_ a)    repr = SNil
+                                          | SCons (Partial repr a)
+                                                  (Partial repr (List_ a))
 newtype instance Static (Measure a)  repr = SMeasure (M repr a)
 
 type M repr a =
@@ -203,6 +206,7 @@ instance (Base repr) => Base (Partial repr) where
         kb' b = fromMaybe (error "Partial uneither: kb nonmonotonic!?")
                           (toDynamic (kb (fromDynamic (Just b))))
     Just (uneither ab' ka' kb'))
+
   true  = Partial (Just true)  (Just STrue)
   false = Partial (Just false) (Just SFalse)
   if_ (Partial _ (Just STrue)) et _ = et
@@ -212,6 +216,21 @@ instance (Base repr) => Base (Partial repr) where
                      et' = fromMaybe (error "No et") (toDynamic et)
                      ef' = fromMaybe (error "No ef") (toDynamic ef)
                  in Just (if_ eb' et' ef')
+
+  nil         = Partial (Just nil) (Just SNil)
+  cons a as   = Partial (liftM2 cons (toDynamic a) (toDynamic as))
+                        (Just (SCons a as))
+  unlist (Partial _ (Just (SCons a as))) k = k a as
+  unlist as k = if isJust (toDynamic skip) then skip else fromDynamic (do
+    _ <- toDynamic (k (fromDynamic (Just undefined))
+                      (fromDynamic (Just undefined)))
+    as' <- toDynamic as
+    let k' a l = fromMaybe (error "Partial unlist: k nonmonotonic!?")
+                           (toDynamic (k (fromDynamic (Just a))
+                                         (fromDynamic (Just l))))
+    Just (unlist as' k'))
+    where skip = k (fromDynamic Nothing) (fromDynamic Nothing)
+                                             
   unsafeProb (Partial d s) = Partial (fmap unsafeProb d)
                                      (fmap (\(SReal x) -> SProb x) s)
   fromProb (Partial d s) = Partial (fmap fromProb d)
