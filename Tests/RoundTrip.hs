@@ -6,7 +6,7 @@ import Language.Hakaru.Syntax
 import Language.Hakaru.Disintegrate
 import Language.Hakaru.Expect (Expect(unExpect), Expect')
 -- import Language.Hakaru.Maple (Maple, runMaple)
--- import Language.Hakaru.Simplify (Simplify, Any(unAny), simplify)
+-- import Language.Hakaru.Simplify (Simplify, simplify)
 import Language.Hakaru.PrettyPrint (runPrettyPrint)
 -- import Text.PrettyPrint (text, (<>), ($$), nest, render)
 

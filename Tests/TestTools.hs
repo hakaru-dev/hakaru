@@ -2,7 +2,8 @@ module Tests.TestTools where
 
 import Language.Hakaru.Expect (Expect(unExpect))
 import Language.Hakaru.Maple (Maple, runMaple)
-import Language.Hakaru.Simplify (Any(unAny), simplify, MapleableType)
+import Language.Hakaru.Simplify (simplify, MapleableType)
+import Language.Hakaru.Any (Any(unAny))
 import Language.Hakaru.PrettyPrint (runPrettyPrint)
 import Text.PrettyPrint (render)
 import Data.List

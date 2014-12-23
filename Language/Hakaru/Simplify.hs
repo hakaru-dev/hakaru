@@ -1,10 +1,8 @@
-{-# LANGUAGE DeriveDataTypeable, Rank2Types, ScopedTypeVariables #-}
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE ScopedTypeVariables, TypeSynonymInstances, FlexibleInstances #-}
 {-# OPTIONS -W #-}
 
 module Language.Hakaru.Simplify
-  ( Any(..)
-  , closeLoop
+  ( closeLoop
   , simplify
   , MapleableType) where
 
@@ -15,6 +13,7 @@ import Language.Hakaru.Syntax (Measure, Lambda(..), Mochastic(..),
   Prob, Real, Bool_)
 import Language.Hakaru.Expect (Expect, unExpect)
 import Language.Hakaru.Maple (Maple, runMaple)
+import Language.Hakaru.Any (Any)
 import Data.Typeable (Typeable, typeOf)
 import System.MapleSSH (maple)
 import Language.Haskell.Interpreter hiding (typeOf)
@@ -37,11 +36,6 @@ closeLoop s = action where
       Right a -> return a
   s' :: String
   s' = s ++ " :: " ++ show (typeOf (getArg action))
-
-newtype Any a = Any
-  { unAny :: forall repr. (Lambda repr, Mochastic repr) => repr a }
-  deriving Typeable
-  -- beware GHC 7.8 https://ghc.haskell.org/trac/ghc/wiki/GhcKinds/PolyTypeable
 
 class MapleableType a where
   mapleType :: a{-unused-} -> String
