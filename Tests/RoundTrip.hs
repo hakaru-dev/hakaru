@@ -246,6 +246,14 @@ mcmc q p =
   where d:_ = density (\dummy -> ununit dummy $
                        p `bind` \x -> q x `bind` \y -> dirac (pair x y))
 
+testPriorProp :: (Integrate repr, Mochastic repr, Lambda repr) =>
+                 repr ((Real, Real) -> Measure (Real, Real))
+testPriorProp = mcmc (priorAsProposal norm) norm
+
+norm :: Mochastic repr => repr (Measure (Real, Real))
+norm = normal 0 1 `bind` \x ->
+     dirac (pair x x)
+
 testMcmc :: IO ()
 testMcmc = do
     let s = runPrettyPrint (mcmc (`normal` 1) (normal 0 5))
