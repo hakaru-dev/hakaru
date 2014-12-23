@@ -90,6 +90,7 @@ instance Base (Sample m) where
   betaFunc (Sample a) (Sample b)  = Sample (LF.logToLogFloat (logBeta
                                       (LF.fromLogFloat a) (LF.fromLogFloat b)))
   erfFunc (Sample a)              = Sample (erf a)
+  erfFunc_                        = unsafeProb . erfFunc . fromProb
 
 instance (PrimMonad m) => Mochastic (Sample m) where
   dirac (Sample a) = Sample (\p _ ->
