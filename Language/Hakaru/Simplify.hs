@@ -9,8 +9,7 @@ module Language.Hakaru.Simplify
 -- Take strings from Maple and interpret them in Haskell (Hakaru)
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Measure, Lambda(..), Mochastic(..), 
-  Prob, Real, Bool_)
+import Language.Hakaru.Syntax (Measure, Prob, Real, Bool_)
 import Language.Hakaru.Expect (Expect, unExpect)
 import Language.Hakaru.Maple (Maple, runMaple)
 import Language.Hakaru.Any (Any)
