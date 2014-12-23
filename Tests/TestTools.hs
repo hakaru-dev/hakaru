@@ -6,6 +6,7 @@ import Language.Hakaru.Simplify (simplify, MapleableType)
 import Language.Hakaru.Any (Any(unAny))
 import Language.Hakaru.PrettyPrint (runPrettyPrint)
 import Text.PrettyPrint (render)
+import Data.Maybe (isJust)
 import Data.List
 import Data.Typeable (Typeable)
 
@@ -13,12 +14,11 @@ import Test.HUnit
 
 
 -- assert that we get a result and that no error is thrown
-assertResult :: String -> Assertion
+assertResult :: [a] -> Assertion
 assertResult s = assertBool "no result" $ not $ null s
 
 assertJust :: Maybe a -> Assertion
-assertJust (Just _) = assertBool "" True
-assertJust Nothing  = assertBool "expected Just but got Nothing" False
+assertJust = assertBool "expected Just but got Nothing" . isJust
 
 testS :: (MapleableType a, Typeable a) => Expect Maple a -> IO ()
 testS t = do
