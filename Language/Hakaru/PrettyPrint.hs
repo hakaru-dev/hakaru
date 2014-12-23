@@ -107,6 +107,11 @@ instance Base PrettyPrint where
   true              = PP (\_ _ -> [text "true"])
   false             = PP (\_ _ -> [text "false"])
   if_               = apply3 "if_"
+  nil               = PP (\_ _ -> [text "nil"])
+  cons              = apply2 "cons"
+  unlist (PP as) k  = let PP k' = fun2 k in PP (\as' p -> parens (p > 0)
+                    $ adjustHead (sep (as as' 9) <+> text "`unlist`" <+>)
+                    $ k' as' 10)
   unsafeProb        = apply1 "unsafeProb"
   fromProb          = apply1 "fromProb"
   fromInt           = apply1 "fromInt"
