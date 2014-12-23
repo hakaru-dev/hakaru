@@ -26,7 +26,7 @@ import Text.PrettyPrint (Doc, text, char, int, integer, comma, semi, brackets,
         parens, (<>), (<+>), nest, fsep, sep, punctuate, render)
 import Language.Hakaru.Syntax (Real, Prob, Measure, Bool_,
         EqType(Refl), Order_(..), Number(..), Fraction(..),
-        Order(..), Base(..), Mochastic(..), liftM, if_,
+        Order(..), Base(..), Mochastic(..), factor, liftM, if_,
         Lambda(..), Integrate(..))
 import Language.Hakaru.Expect (Expect(unExpect), Expect')
 import Unsafe.Coerce (unsafeCoerce)
