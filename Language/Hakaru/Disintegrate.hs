@@ -2,8 +2,8 @@
              RankNTypes, GADTs, StandaloneDeriving #-}
 {-# OPTIONS -Wall -fno-warn-incomplete-patterns #-}
 
-module Language.Hakaru.Disintegrate (Disintegrate,
-       runDisintegrate, condition, density, resetDisint,
+module Language.Hakaru.Disintegrate (Disintegrate, Disintegration(..),
+       runDisintegrate, disintegrations, condition, density, resetDisint,
        Eq'(..), eq'List, Ord'(..), ord'List, Show'(..), Tree(..), Selector(..),
        Op0(..), Op1(..), Op2(..), Expr(..), Name, Loc, Void,
        if', max_, stdRandom, run, disintegrate, emptyEnv) where
@@ -1033,23 +1033,31 @@ matchHakaru (Leaf u) x k = k [Binding u x]
 newtype Disintegrate a = Disint
   (forall w. Cont (Int -> Expr Loc Loc (Measure w)) (Expr Loc Loc a))
 
-runDisintegrate :: (Mochastic repr, Order_ a) =>
+newtype Disintegration env a b = Disintegration
+  (forall repr. (Mochastic repr) => repr env -> repr a -> repr (Measure b))
+
+disintegrations :: (Order_ a) =>
                    (Disintegrate env -> Disintegrate (Measure (a, b))) ->
-                   [repr env -> repr a -> repr (Measure b)]
-runDisintegrate m =
+                   [Disintegration env a b]
+disintegrations m =
   case Const (-1) of { envLoc -> case Const 0 of { aLoc ->
   let nameOfLoc :: Loc t -> Name t
       nameOfLoc (Const i) = Const ('x' : show i)
       expr = bimap' nameOfLoc nameOfLoc Closure
         $ unDisint (m (Disint (return (Var envLoc)))) (\w _ -> w) 1
-  in [ \env a -> toHakaru dis ([Binding envLoc env,
-                                Binding aLoc a] !!) `bind` \ab ->
-                 unpair ab (\a' b' ->
-                 if_ (equal_ a a') (dirac b') (superpose []))
+  in [ Disintegration (\env a ->
+       toHakaru dis ([Binding envLoc env, Binding aLoc a] !!) `bind` \ab ->
+       unpair ab (\a' b' ->
+       if_ (equal_ a a') (dirac b') (superpose [])))
      | dis <- run (disintegrate expr
                                 [Binding (nameOfLoc envLoc) envLoc]
                                 (Fst Root)
                                 (Var aLoc)) ] } }
+
+runDisintegrate :: (Mochastic repr, Order_ a) =>
+                   (Disintegrate env -> Disintegrate (Measure (a, b))) ->
+                   [repr env -> repr a -> repr (Measure b)]
+runDisintegrate m = [ d | Disintegration d <- disintegrations m ]
 
 condition :: (Mochastic repr, Order_ a) => Disintegrate (Measure (a, b)) -> 
                                  repr a -> repr (Measure b)

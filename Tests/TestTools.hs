@@ -1,5 +1,9 @@
+{-# LANGUAGE Rank2Types #-}
+{-# OPTIONS -Wall #-}
+
 module Tests.TestTools where
 
+import Language.Hakaru.Syntax (Mochastic, Integrate, Lambda)
 import Language.Hakaru.Expect (Expect(unExpect))
 import Language.Hakaru.Maple (Maple, runMaple)
 import Language.Hakaru.Simplify (simplify, MapleableType)
@@ -20,7 +24,9 @@ assertResult s = assertBool "no result" $ not $ null s
 assertJust :: Maybe a -> Assertion
 assertJust = assertBool "expected Just but got Nothing" . isJust
 
-testS :: (MapleableType a, Typeable a) => Expect Maple a -> IO ()
+testS :: (MapleableType a, Typeable a)
+      => (forall repr. (Mochastic repr, Integrate repr, Lambda repr) => repr a)
+      -> IO ()
 testS t = do
     putStrLn "" -- format output better
     p <- simplify t
