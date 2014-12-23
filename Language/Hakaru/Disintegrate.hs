@@ -840,14 +840,6 @@ propagateBool e env Root t = do
              in [ if' (ex x) (Bind BoolT (Dirac (ex t)) et)
                              (Bind BoolF (Dirac (ex t)) ef)
                 | et <- ets, ef <- efs ])
--- propagateBool e env (Unl Root) _ = do
---   x <- evaluate e env Root
---   insert (Bind (UnaryL Nil) (Dirac (ex x)))
---   return (Inl (Op0 Unit))
--- propagateBool e env (Unr Root) _ = do
---   x <- evaluate e env Root
---   insert (Bind (UnaryR Nil) (Dirac (ex x)))
---   return (Inr (Op0 Unit))
 
 newtype PropagateMul env b u t = PropagateMul
   (Expr b u t -> Expr b u t -> env -> Expr Void Loc t -> M (Expr Void Loc t))

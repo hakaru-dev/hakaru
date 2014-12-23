@@ -104,6 +104,15 @@ instance Base Maple where
              ef >>= \ef' ->
              return $ "if_(" ++ b' ++ ", " ++ et'
                                    ++ ", " ++ ef' ++ ")")
+
+  nil = Maple (return "Nil")
+  cons = mapleFun2 "Cons"
+  unlist (Maple as) k = Maple (as >>= \as' ->
+    let opas :: Int -> String
+        opas n = "op(" ++ show n ++ ", " ++ as' ++ ")" 
+    in
+    unMaple (k (Maple (return (opas 1))) (Maple (return (opas 2)))))
+            
   -- unsafeProb = mapleFun1 "unsafeProb"
   unsafeProb (Maple x) = Maple x
   fromProb   (Maple x) = Maple x

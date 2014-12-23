@@ -7,7 +7,7 @@ module Language.Hakaru.Sample (Sample(..), Sample') where
 -- Importance sampling interpretation
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Real, Prob, Bool_, Measure, errorEmpty,
+import Language.Hakaru.Syntax (Real, Prob, List_, Bool_, Measure, errorEmpty,
        Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..))
 import Language.Hakaru.Util.Extras (normalize)
 import Language.Hakaru.Distribution (poisson_rng)
@@ -28,6 +28,7 @@ type instance Sample' m Bool_        = Bool
 type instance Sample' m ()           = ()
 type instance Sample' m (a, b)       = (Sample' m a, Sample' m b)
 type instance Sample' m (Either a b) = Either (Sample' m a) (Sample' m b)
+type instance Sample' m (List_ a)    = [Sample' m a]
 type instance Sample' m (Measure a)  = LF.LogFloat -> MWC.Gen (PrimState m) ->
                                        m (Maybe (Sample' m a, LF.LogFloat))
 type instance Sample' m (a -> b)     = Sample' m a -> Sample' m b
@@ -74,6 +75,10 @@ instance Base (Sample m) where
   false                           = Sample False
   if_ (Sample True) et _          = et
   if_ (Sample False) _ ef         = ef
+  nil                             = Sample []
+  cons (Sample a) (Sample as)     = Sample (a : as)
+  unlist (Sample []) _            = error "Attempt to unlist empty list"
+  unlist (Sample (a : as)) k      = k (Sample a) (Sample as)
   unsafeProb (Sample x)           = Sample (LF.logFloat x)
   fromProb (Sample x)             = Sample (LF.fromLogFloat x)
   fromInt (Sample x)              = Sample (fromIntegral x)
