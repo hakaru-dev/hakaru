@@ -2,7 +2,7 @@
              DeriveDataTypeable, GADTs, Rank2Types #-}
 {-# OPTIONS -Wall #-}
 
-module Language.Hakaru.Syntax (Real, Prob, List_, Measure, Bool_,
+module Language.Hakaru.Syntax (Real, Prob, Measure, Bool_,
        EqType(Refl), Order_(..), Number(..), Fraction(..),
        Uneither(Uneither),
        errorEmpty,
@@ -25,7 +25,6 @@ infixl 9 `app`
 data Real      deriving Typeable
 data Prob      deriving Typeable -- meaning: non-negative real number
 data Bool_     deriving Typeable
-data List_ a   deriving Typeable
 data Measure a deriving Typeable
 
 data EqType t t' where
@@ -121,10 +120,10 @@ class (Order repr Int , Num        (repr Int ),
   false      :: repr Bool_
   if_        :: repr Bool_ -> repr c -> repr c -> repr c
 
-  nil        :: repr (List_ a)
-  cons       :: repr a -> repr (List_ a) -> repr (List_ a)
-  unlist     :: repr (List_ a) ->
-                (repr a -> repr (List_ a) -> repr c) -> repr c
+  nil        :: repr [a]
+  cons       :: repr a -> repr [a] -> repr [a]
+  unlist     :: repr [a] ->
+                (repr a -> repr [a] -> repr c) -> repr c
 
   unsafeProb :: repr Real -> repr Prob
   fromProb   :: repr Prob -> repr Real
