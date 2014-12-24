@@ -283,7 +283,8 @@ runPriorProg = do
 
 norm :: Mochastic repr => repr (Measure (Real, Real))
 norm = normal 0 1 `bind` \x ->
-     dirac (pair x x)
+       normal x 1 `bind` \y ->`
+       dirac (pair x y)
 
 testMcmc :: IO ()
 testMcmc = do
