@@ -9,7 +9,7 @@ import qualified Data.Number.LogFloat as LF
 import Language.Hakaru.Syntax
 import Language.Hakaru.Disintegrate
 import Language.Hakaru.Sample
-import Language.Hakaru.Expect (Expect(unExpect), Expect')
+import Language.Hakaru.Expect (Expect(unExpect), Expect', normalize)
 -- import Language.Hakaru.Maple (Maple, runMaple)
 -- import Language.Hakaru.Simplify (Simplify, simplify)
 import Language.Hakaru.PrettyPrint (runPrettyPrint)
@@ -251,7 +251,7 @@ priorAsProposal p x = bern (1/2) `bind` \c ->
                              (pair (fst_ x ) (snd_ x'))
                              (pair (fst_ x') (snd_ x )))   
 
-gibbsProposal :: (Order_ a, Mochastic repr) =>
+gibbsProposal :: (Order_ a, Mochastic repr, Integrate repr, Lambda repr) =>
                  Disintegrate (Measure (a,b)) ->
                  repr (a,b) -> repr (Measure (a,b))
 gibbsProposal p x = condition p (fst_ x) `bind` \x2 ->
@@ -283,7 +283,7 @@ runPriorProg = do
 
 norm :: Mochastic repr => repr (Measure (Real, Real))
 norm = normal 0 1 `bind` \x ->
-       normal x 1 `bind` \y ->`
+       normal x 1 `bind` \y ->
        dirac (pair x y)
 
 testMcmc :: IO ()
