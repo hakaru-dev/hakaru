@@ -3,9 +3,9 @@
 
 module Language.Hakaru.RoundTrip 
   ( ()(..), (,)(..), Either(..), Num(..)
-  , Fractional(..), Floating(..), ($), Any(..), (^^)
+  , Fractional(..), Floating(..), ($), Any(Any), (^^)
   , module Language.Hakaru.Syntax) where
 
 import GHC.Tuple (()(..), (,)(..))
 import Language.Hakaru.Syntax
-import Language.Hakaru.Simplify (Any(..))
+import Language.Hakaru.Any (Any(Any))

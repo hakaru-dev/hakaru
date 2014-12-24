@@ -31,6 +31,7 @@ toNat n | (d,m) == (0,1) = I
         | m == 0         = D (toNat d)
         | m == 1         = SD (toNat d)
   where (d,m) = divMod n 2
+toNat _ = error "toNat: divMod behaved strangely"
 
 -- Homogeneous vectors of a given type-level length
 

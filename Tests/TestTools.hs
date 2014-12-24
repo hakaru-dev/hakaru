@@ -1,30 +1,57 @@
+{-# LANGUAGE Rank2Types #-}
+{-# OPTIONS -Wall #-}
+
 module Tests.TestTools where
 
+import Language.Hakaru.Syntax (Mochastic, Integrate, Lambda)
 import Language.Hakaru.Expect (Expect(unExpect))
 import Language.Hakaru.Maple (Maple, runMaple)
-import Language.Hakaru.Simplify (Any(unAny), simplify, MapleableType)
-import Language.Hakaru.PrettyPrint (runPrettyPrint)
-import Text.PrettyPrint (render)
+import Language.Hakaru.Simplify (simplify, MapleableType)
+import Language.Hakaru.Any (Any(unAny))
+import Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode)
+import Text.PrettyPrint (Doc)
+import Data.Maybe (isJust)
 import Data.List
 import Data.Typeable (Typeable)
+import Data.Function (on)
 
 import Test.HUnit
 
+newtype Result = Result Doc
+result :: PrettyPrint a -> Result
+result = Result . runPrettyPrint
+instance Eq Result where Result a == Result b = leftMode a == leftMode b
+instance Show Result where
+  showsPrec 0 (Result a) = showChar '\n' . showsPrec 0 a
+  showsPrec _ (Result a) =                 showsPrec 0 a
 
 -- assert that we get a result and that no error is thrown
-assertResult :: String -> Assertion
+assertResult :: [a] -> Assertion
 assertResult s = assertBool "no result" $ not $ null s
 
 assertJust :: Maybe a -> Assertion
-assertJust (Just _) = assertBool "" True
-assertJust Nothing  = assertBool "expected Just but got Nothing" False
+assertJust = assertBool "expected Just but got Nothing" . isJust
 
-testS :: (MapleableType a, Typeable a) => Expect Maple a -> IO ()
+type Testee a =
+  forall repr. (Mochastic repr, Integrate repr, Lambda repr) => repr a
+
+-- Assert that a given Hakaru program roundtrips (aka simplifies) without error
+testS :: (MapleableType a, Typeable a) => Testee a -> IO ()
 testS t = do
-    putStrLn "" -- format output better
+    putStr "<<<<<"
+    print (result t)
     p <- simplify t
-    let s = (render . runPrettyPrint . unAny) p
-    assertResult s
+    let s = result (unAny p)
+    putStr ">>>>>"
+    print s
+    assertResult (show s)
+
+-- Assert that all the given Hakaru programs simplify to the last
+testSS :: (MapleableType a, Typeable a) => [Expect Maple a] -> Testee a -> IO ()
+testSS ts t' =
+    mapM_ (\t -> do p <- simplify t
+                    (assertEqual "testSS" `on` result) t' (unAny p))
+          (t' : ts)
 
 testMaple :: Expect Maple a -> IO ()
 testMaple t = assertResult $ runMaple (unExpect t) 0

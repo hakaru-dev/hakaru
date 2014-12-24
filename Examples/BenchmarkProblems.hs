@@ -16,6 +16,7 @@ import Language.Hakaru.Disintegrate
 import Language.Hakaru.PrettyPrint
 import Language.Hakaru.Partial
 import Language.Hakaru.Simplify
+import Language.Hakaru.Any
 import qualified Language.Hakaru.Vector as LV
 
 import System.Random.MWC as MWC hiding (uniform)

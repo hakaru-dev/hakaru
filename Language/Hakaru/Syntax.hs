@@ -8,7 +8,8 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Bool_,
        errorEmpty,
        Order(..), Base(..), ununit, fst_, snd_,
        and_, or_, not_, min_, max_,
-       Mochastic(..), bind_, pairBind, liftM, liftM2, invgamma, beta, bern,
+       Mochastic(..), bind_, factor, pairBind, liftM, liftM2,
+       invgamma, beta, bern,
        Integrate(..), Lambda(..)) where
 
 import Data.Typeable (Typeable)    
@@ -202,8 +203,6 @@ class (Base repr) => Mochastic repr where
                                       / fromProb (2 * pow_ sd 2))
                                  / sd / sqrt_ (2 * pi_)
                               , dirac x )]
-  factor        :: repr Prob -> repr (Measure ())
-  factor p      =  superpose [(p, dirac unit)]
   mix           :: [(repr Prob, repr (Measure a))] -> repr (Measure a)
   mix []        =  errorEmpty
   mix pms       =  let total = sum (map fst pms)
@@ -238,6 +237,9 @@ errorEmpty = error "empty mixture makes no sense"
 bind_ :: (Mochastic repr) => repr (Measure a) -> repr (Measure b) ->
                                                  repr (Measure b)
 m `bind_` n = m `bind` \_ -> n
+
+factor :: (Mochastic repr) => repr Prob -> repr (Measure ())
+factor p = superpose [(p, dirac unit)]
 
 pairBind :: (Mochastic repr) => repr (Measure a) ->
             (repr a -> repr (Measure b)) -> repr (Measure (a,b))

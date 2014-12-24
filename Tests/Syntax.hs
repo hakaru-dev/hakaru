@@ -6,7 +6,7 @@ module Tests.Syntax(allTests) where
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure,
        Order(..), Base(..), ununit, and_, fst_, snd_, min_,
-       Mochastic(..), Lambda(..), bind_, beta, bern, lam,
+       Mochastic(..), Lambda(..), bind_, factor, beta, bern, lam,
        if_, true, false, Bool_)
 import Language.Hakaru.Util.Pretty (Pretty (pretty), prettyPair)
 -- import Language.Hakaru.Sample(Sample(unSample))
@@ -44,9 +44,9 @@ allTests = test [
     "testLinregSimp" ~: ignore $ testS linregSimp, -- too long?
     "testdistLinregSimp" ~: testS distLinregSimp,
     "testLinreg" ~: ignore $ testS distLinreg,
-    "prog1s" ~: map testS prog1s,
-    "prog2s" ~: map testS prog2s,
-    "prog3s" ~: map testS prog3s
+    "prog1s" ~: [ testS (lam (d unit)) | Disintegration d <- prog1s ],
+    "prog2s" ~: [ testS (lam (d unit)) | Disintegration d <- prog2s ],
+    "prog3s" ~: [ testS (lam (d unit)) | Disintegration d <- prog3s ]
     ]
 
 
@@ -307,31 +307,25 @@ testDist (e,s) = do
 -- Jacques on 2014-11-18: "From an email of Oleg's, could someone please
 -- translate the following 3 programs into new Hakaru?"  The 3 programs below
 -- are equivalent.
-prog1s, prog2s, prog3s :: (Mochastic repr, Lambda repr) => [repr (Real -> Measure Bool_)]
-prog1s = map lam 
-         [ d unit
-         | d <- runDisintegrate $ \u ->
-                ununit u $
-                bern 0.5 `bind` \c ->
-                if_ c (normal 0 1)
-                      (uniform 10 20) `bind` \x ->
-                dirac (pair x c) ]
+prog1s, prog2s, prog3s :: [Disintegration () Real Bool_]
+prog1s = disintegrations $ \u ->
+         ununit u $
+         bern 0.5 `bind` \c ->
+         if_ c (normal 0 1)
+               (uniform 10 20) `bind` \x ->
+         dirac (pair x c)
 
-prog2s = map lam
-         [ d unit
-         | d <- runDisintegrate $ \u ->
-                ununit u $
-                bern 0.5 `bind` \c ->
-                if_ c (normal 0 1)
-                      (dirac 10 `bind` \d ->
-                       uniform d 20) `bind` \x ->
-                dirac (pair x c) ]
-prog3s = map lam
-         [ d unit
-         | d <- runDisintegrate $ \u ->
-                ununit u $
-                bern 0.5 `bind` \c ->
-                if_ c (normal 0 1)
-                      (dirac false `bind` \e ->
-                       uniform (10 + if_ e 1 0) 20) `bind` \x ->
-                dirac (pair x c) ]
+prog2s = disintegrations $ \u ->
+         ununit u $
+         bern 0.5 `bind` \c ->
+         if_ c (normal 0 1)
+               (dirac 10 `bind` \d ->
+                uniform d 20) `bind` \x ->
+         dirac (pair x c)
+prog3s = disintegrations $ \u ->
+         ununit u $
+         bern 0.5 `bind` \c ->
+         if_ c (normal 0 1)
+               (dirac false `bind` \e ->
+                uniform (10 + if_ e 1 0) 20) `bind` \x ->
+         dirac (pair x c)

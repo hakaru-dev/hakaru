@@ -59,7 +59,7 @@ lexCharE =
          _    -> pfail
 
   lexNumeric =
-    do char 'x'
+    do _    <- char 'x'
        n    <- lexInteger16
        guard (n <= toInteger (ord maxBound))
        return (chr (fromInteger n))
