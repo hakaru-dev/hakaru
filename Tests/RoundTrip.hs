@@ -74,7 +74,8 @@ testMeasurePair = test [
 testOther :: Test
 testOther = test [
     "testMcmc" ~: testMcmc,
-    "testGibbs" ~: testSS [testGibbsProp] (lam $ \x -> normal x 1),
+    "testGibbs1" ~: testSS [testGibbsProp1] (lam $ \x -> normal x 1),
+    "testGibbs2" ~: testSS [testGibbsProp2] (lam $ \x -> normal (x/2) (sqrt_ (1/2))),
     "expr1" ~: testMaple expr1,
     "expr2" ~: testMaple expr2,
     "expr4" ~: testMaple expr4,
@@ -260,9 +261,13 @@ gibbsProposal p x = q x `bind` dirac
   where d:_ = disintegrations (const p)
         q x = normalize (\lift -> case d of Disintegration f -> f unit (lift x))
 
-testGibbsProp :: (Lambda repr, Mochastic repr, Integrate repr) =>
-                 repr (Real -> Measure Real)
-testGibbsProp = lam (gibbsProposal norm)
+testGibbsProp1 :: (Lambda repr, Mochastic repr, Integrate repr) =>
+                  repr (Real -> Measure Real)
+testGibbsProp1 = lam (gibbsProposal norm)
+
+testGibbsProp2 :: (Lambda repr, Mochastic repr, Integrate repr) =>
+                  repr (Real -> Measure Real)
+testGibbsProp2 = lam (gibbsProposal flipped_norm)
 
 mcmc :: (Mochastic repr, Integrate repr, Lambda repr,
          a ~ Expect' a, Order_ a) =>
@@ -292,6 +297,11 @@ norm :: Mochastic repr => repr (Measure (Real, Real))
 norm = normal 0 1 `bind` \x ->
        normal x 1 `bind` \y ->
        dirac (pair x y)
+
+flipped_norm :: Mochastic repr => repr (Measure (Real, Real))
+flipped_norm = normal 0 1 `bind` \x ->
+               normal x 1 `bind` \y ->
+               dirac (pair y x)
 
 testMcmc :: IO ()
 testMcmc = do
