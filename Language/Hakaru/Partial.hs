@@ -38,9 +38,9 @@ data    instance Static (a, b)       repr = SPair  (Partial repr a)
                                                    (Partial repr b)
 data    instance Static (Either a b) repr = SLeft  (Partial repr a)
                                           | SRight (Partial repr b)
-data    instance Static (List_ a)    repr = SNil
+data    instance Static [a]          repr = SNil
                                           | SCons (Partial repr a)
-                                                  (Partial repr (List_ a))
+                                                  (Partial repr [a])
 newtype instance Static (Measure a)  repr = SMeasure (M repr a)
 
 type M repr a =
