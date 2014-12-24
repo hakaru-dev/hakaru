@@ -38,11 +38,11 @@ type Testee a =
 -- Assert that a given Hakaru program roundtrips (aka simplifies) without error
 testS :: (MapleableType a, Typeable a) => Testee a -> IO ()
 testS t = do
+    putStr "<<<<<"
+    print (result t)
     p <- simplify t
     let s = result (unAny p)
-    putStrLn "<<<<<"
-    print (result t)
-    putStrLn ">>>>>"
+    putStr ">>>>>"
     print s
     assertResult (show s)
 
@@ -50,7 +50,7 @@ testS t = do
 testSS :: (MapleableType a, Typeable a) => [Expect Maple a] -> Testee a -> IO ()
 testSS ts t' =
     mapM_ (\t -> do p <- simplify t
-                    (assertEqual "testSS" `on` result) (unAny p) t')
+                    (assertEqual "testSS" `on` result) t' (unAny p))
           (t' : ts)
 
 testMaple :: Expect Maple a -> IO ()
