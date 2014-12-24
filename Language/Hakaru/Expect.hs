@@ -118,7 +118,7 @@ total :: (Lambda repr, Base repr) => Expect repr (Measure a) -> repr Prob
 total m = unExpect m `app` lam (\_ -> 1)
 
 normalize :: (Integrate repr, Lambda repr, Mochastic repr) =>
-             (forall repr'. (Integrate repr, Lambda repr, Mochastic repr') =>
+             (forall repr'. (Integrate repr', Lambda repr', Mochastic repr') =>
                             (forall b. (Expect' b ~ b) => repr b -> repr' b) ->
                             repr' (Measure a)) ->
              repr (Measure a)
