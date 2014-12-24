@@ -22,54 +22,53 @@ import Tests.TestTools
 
 testMeasureUnit :: Test
 testMeasureUnit = test [
-    "t1"  ~: testS t1,
-    "t5"  ~: testS t5,
-    "t10" ~: testS t10,
-    "t11" ~: testS t11,
-    "t12" ~: testS t12,
-    "t20" ~: testS t20,
-    "t22" ~: testS t22,
-    "t24" ~: testS t24,
-    "t25" ~: testS t25
+    "t1,t5"   ~: testSS [t1,t5] (factor (1/2)),
+    "t10"     ~: testSS [t10] (superpose []),
+    "t11,t22" ~: testSS [t11,t22] (dirac unit),
+    "t12"     ~: testSS [] t12,
+    "t20"     ~: testSS [t20] (lam (\y -> factor (y*(1/2)))),
+    "t24"     ~: testSS [t24] t24',
+    "t25"     ~: testSS [t25] t25'
     ]
 
 testMeasureProb :: Test
 testMeasureProb = test [
-    "t2"  ~: testS t2,
+    "t2"  ~: testSS [t2] (uniform 0 1 `bind` dirac . unsafeProb),
     "t26" ~: ignore $ testMaple t26,
-    "t30" ~: testS t30,
-    "t33" ~: testS t33,
-    "t34" ~: testS t34,
-    "t35" ~: testS t35,
-    "t38" ~: testS t38,
-    "t42" ~: testS t42
+    "t30" ~: testSS [] t30,
+    "t33" ~: testSS [] t33,
+    "t34" ~: testSS [t34] (dirac 3),
+    "t35" ~: testSS [t35] (lam (\x -> if_ (less x 4) (dirac 3) (dirac 5))),
+    "t38" ~: testSS [] t38,
+    "t42" ~: testSS [t42] (dirac 1)
     ]
 
 testMeasureReal :: Test
 testMeasureReal = test [
-    "t3"  ~: testS t3,
-    "t6"  ~: testS t6,
-    "t7"  ~: testS t7,
-    "t9"  ~: testS t9,
-    "t13" ~: testS t13,
-    "t14" ~: testS t14,
+    "t3"  ~: testSS [] t3,
+    "t6"  ~: testSS [] t6,
+    "t7"  ~: testSS [t7] t7',
+    "t7n" ~: testSS [t7n] t7n',
+    "t9"  ~: testSS [t9] (uniform 3 7 `bind` \x -> superpose [(2, dirac x)]),
+    "t13" ~: testSS [t13] t13',
+    "t14" ~: testSS [t14] t14',
     "t21" ~: ignore $ testS t21,
-    "t27" ~: sequence_ $ map testMaple t27,
-    "t28" ~: testS t28,
-    "t29" ~: testS t29,
-    "t31" ~: testS t31,
-    "t32" ~: testS t32,
-    "t36" ~: testS t36,
-    "t37" ~: testS t37,
-    "t39" ~: testS t39,
-    "t40" ~: testS t40
+    "t27" ~: testSS t27 t27',
+    "t28" ~: testSS [] t28,
+    "t29" ~: testSS [] t29,
+    "t31" ~: testSS [] t31,
+    "t32" ~: testSS [] t32,
+    "t36" ~: testSS [] t36,
+    "t37" ~: testSS [] t37,
+    "t39" ~: testSS [] t39,
+    "t40" ~: testSS [] t40
     ]
 
 testMeasurePair :: Test
 testMeasurePair = test [
     "t4"  ~: testS t4,
-    "t8"  ~: testS t8,
-    "t23" ~: testS t23
+    "t8"  ~: testSS [] t8,
+    "t23" ~: testSS [t23] t23'
     ]
 
 testOther :: Test
@@ -111,8 +110,11 @@ t5 = factor (1/2) `bind_` dirac unit
 t6 :: Mochastic repr => repr (Measure Real)
 t6 = dirac 5
 
-t7 :: Mochastic repr => repr (Measure Real)
-t7 = uniform 0 1 `bind` \x -> factor (unsafeProb (x+1)) `bind_` dirac (x*x)
+t7,t7',t7n,t7n' :: Mochastic repr => repr (Measure Real)
+t7   = uniform 0 1 `bind` \x -> factor (unsafeProb (x+1)) `bind_` dirac (x*x)
+t7'  = uniform 0 1 `bind` \x -> superpose [(unsafeProb x + 1, dirac (x*x))]
+t7n  = uniform (-1) 0 `bind` \x -> factor (unsafeProb (x+1)) `bind_` dirac (x*x)
+t7n' = uniform (-1) 0 `bind` \x -> superpose [(unsafeProb (x + 1), dirac (x*x))]
 
 -- For sampling efficiency (to keep importance weights at or close to 1),
 -- t8 below should read back to uses of "normal", not uses of "lebesgue"
@@ -132,13 +134,18 @@ t11 = factor 1
 t12 :: Mochastic repr => repr (Measure ())
 t12 = factor 2
 
-t13 :: Mochastic repr => repr (Measure Real)
+t13,t13' :: Mochastic repr => repr (Measure Real)
 t13 = bern (3/5) `bind` \b -> dirac (if_ b 37 42)
+t13' = superpose [(3/5, dirac 37), (2/5, dirac 42)]
 
-t14 :: Mochastic repr => repr (Measure Real)
+t14,t14' :: Mochastic repr => repr (Measure Real)
 t14 = bern (3/5) `bind` \b ->
       if_ b t13 (bern (2/7) `bind` \b' ->
                  if_ b' (uniform 10 12) (uniform 14 16))
+t14' = superpose [(4/35, uniform 10 12),
+                  (9/25, dirac 37),
+                  (2/7, uniform 14 16),
+                  (6/25, dirac 42)]
 
 t20 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure ())
 t20 = lam (\y -> uniform 0 1 `bind` \x -> factor (unsafeProb x * y))
@@ -151,22 +158,32 @@ t22 :: Mochastic repr => repr (Measure ())
 t22 = bern (1/2) `bind_` dirac unit
 
 -- was called bayesNet in Nov.06 msg by Ken for exact inference
-t23 :: Mochastic repr => repr (Measure (Bool_, Bool_))
+t23, t23' :: Mochastic repr => repr (Measure (Bool_, Bool_))
 t23 = bern (1/2) `bind` \a ->
                bern (if_ a (9/10) (1/10)) `bind` \b ->
                bern (if_ a (9/10) (1/10)) `bind` \c ->
                dirac (pair b c)
+t23' = superpose [(41/100, dirac (pair false false)),
+                  ( 9/100, dirac (pair false  true)),
+                  ( 9/100, dirac (pair  true false)),
+                  (41/100, dirac (pair  true  true))]
 
-t24 :: (Mochastic repr, Lambda repr) => repr (Prob -> Measure ())
+
+t24,t24' :: (Mochastic repr, Lambda repr) => repr (Prob -> Measure ())
 t24 = lam (\x ->
       uniform 0 1 `bind` \y ->
       uniform 0 1 `bind` \z ->
       factor (x * exp_ (cos y) * unsafeProb z))
+t24' = lam (\x ->
+      uniform 0 1 `bind` \y ->
+      factor (x * exp_ (cos y) * (1/2)))
 
-t25 :: (Mochastic repr, Lambda repr) => repr (Prob -> Real -> Measure ())
+t25,t25' :: (Mochastic repr, Lambda repr) => repr (Prob -> Real -> Measure ())
 t25 = lam (\x -> lam (\y ->
     uniform 0 1 `bind` \z ->
     factor (x * exp_ (cos y) * unsafeProb z)))
+t25' = lam (\x -> lam (\y ->
+    factor (x * exp_ (cos y) * (1/2))))
 
 t26 :: (Base repr, Lambda repr, Integrate repr) => repr Prob
 t26 = unExpect t1 `app` lam (const 1)
@@ -177,6 +194,10 @@ t27 = map (\d -> lam (d unit)) $ runDisintegrate
     normal 0 1 `bind` \x ->
     normal x 1 `bind` \y ->
     dirac (pair y x))
+t27' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure Real)
+t27' = lam (\y ->
+  superpose [( exp_ (y * y * ((-1)/4)) * recip (sqrt_ pi_) * (1/2)
+             , normal (y/2) (recip (sqrt_ 2)) )])
 
 t28 :: Mochastic repr => repr (Measure Real)
 t28 = uniform 0 1
