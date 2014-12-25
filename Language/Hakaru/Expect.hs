@@ -8,7 +8,7 @@ module Language.Hakaru.Expect (Expect(..), Expect', total, normalize) where
 -- Expectation interpretation
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Real, Prob, Bool_, Measure,
+import Language.Hakaru.Syntax (Real, Prob, Measure,
        Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..))
 import Data.Number.Erf
 
@@ -18,7 +18,7 @@ type family Expect' (a :: *)
 type instance Expect' Int          = Int
 type instance Expect' Real         = Real
 type instance Expect' Prob         = Prob
-type instance Expect' Bool_        = Bool_
+type instance Expect' Bool         = Bool
 type instance Expect' ()           = ()
 type instance Expect' (a, b)       = (Expect' a, Expect' b)
 type instance Expect' (Either a b) = Either (Expect' a) (Expect' b)

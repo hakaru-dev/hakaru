@@ -102,7 +102,7 @@ t2 = beta 1 1
 t3 :: Mochastic repr => repr (Measure Real)
 t3 = normal 0 10
 
-t4 :: Mochastic repr => repr (Measure (Prob, Bool_))
+t4 :: Mochastic repr => repr (Measure (Prob, Bool))
 t4 = beta 1 1 `bind` \bias -> bern bias `bind` \coin -> dirac (pair bias coin)
 
 -- t5 is "the same" as t1.
@@ -160,7 +160,7 @@ t22 :: Mochastic repr => repr (Measure ())
 t22 = bern (1/2) `bind_` dirac unit
 
 -- was called bayesNet in Nov.06 msg by Ken for exact inference
-t23, t23' :: Mochastic repr => repr (Measure (Bool_, Bool_))
+t23, t23' :: Mochastic repr => repr (Measure (Bool, Bool))
 t23 = bern (1/2) `bind` \a ->
                bern (if_ a (9/10) (1/10)) `bind` \b ->
                bern (if_ a (9/10) (1/10)) `bind` \c ->

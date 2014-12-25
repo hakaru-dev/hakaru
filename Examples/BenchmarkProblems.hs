@@ -27,7 +27,7 @@ replicateH :: (Mochastic repr) => Int -> repr (Measure a) -> Cont repr [repr a]
 replicateH 0 _ k = k []
 replicateH n m k = m `bind` \x -> replicateH (n-1) m (\xs -> k (x:xs))
 
-noisyOr :: (Mochastic repr) => repr Prob -> repr Bool_ -> repr Bool_ -> repr (Measure Bool_)
+noisyOr :: (Mochastic repr) => repr Prob -> repr Bool -> repr Bool -> repr (Measure Bool)
 noisyOr noise x y = if_ (or_ [x, y])
                     (bern (1 - noise))
                     (bern noise)
@@ -36,10 +36,10 @@ tester prog = do
   g <- MWC.create
   replicateM 10 (unSample prog 1 g)
 
-xor :: Base repr => repr Bool_ -> repr Bool_ -> repr Bool_
+xor :: Base repr => repr Bool -> repr Bool -> repr Bool
 xor a b = or_ [and_ [a, not_ b], and_ [not_ a, b]] 
 
-eq_ :: Base repr => repr Bool_ -> repr Bool_ -> repr Bool_
+eq_ :: Base repr => repr Bool -> repr Bool -> repr Bool
 eq_ a b = if_ a b (not_ b)
 
 runExpect :: (Lambda repr) => Expect repr (Measure Prob) -> repr Prob
@@ -103,7 +103,7 @@ testLinreg = do
 
 -- QMR
 
-qmr :: Mochastic repr => repr (Measure (Bool_, Bool_))
+qmr :: Mochastic repr => repr (Measure (Bool, Bool))
 qmr = 
  bern (1/40)   `bind` \cold ->
  bern (1/80)   `bind` \flu  ->
@@ -135,7 +135,7 @@ edgesPerNode      :: Mochastic repr => repr (Measure Int)
 edgesPerNode      = poisson 3   
 
 -- Friends who Smoke
-friendsWhoSmoke :: Mochastic repr => repr (Measure (Bool_, Bool_))
+friendsWhoSmoke :: Mochastic repr => repr (Measure (Bool, Bool))
 friendsWhoSmoke =
     bern (1/5) `bind` \smokes1 ->
     bern (1/5) `bind` \smokes2 ->
@@ -190,7 +190,7 @@ n = 10 -- [10,20,40,80,160,320,640,1280,2560,5120]
 k :: Base repr => repr Int
 k = 2 -- [1,2,4,8,16,32,64]
 
-liftedInference :: Mochastic repr => repr (Measure (Int, Bool_))
+liftedInference :: Mochastic repr => repr (Measure (Int, Bool))
 liftedInference = bern 0.01 `bind` \cause ->
                   replicateH n (if_ cause (bern 0.6) (bern 0.05))
                    (\ effects ->
@@ -199,5 +199,5 @@ liftedInference = bern 0.01 `bind` \cause ->
                            sum_ + (if_ e 1 0)) 0 effects) `bind` \sum_ ->
                   dirac (pair sum_ cause)
 
-testLiftedInference :: Mochastic repr => repr (Measure Bool_)
+testLiftedInference :: Mochastic repr => repr (Measure Bool)
 testLiftedInference = runPartial ((runDisintegrate (\ env -> liftedInference) !! 0) unit k)

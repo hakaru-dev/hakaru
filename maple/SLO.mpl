@@ -50,7 +50,7 @@ SLO := module ()
       if lhs(i)::integer then next end if;
       if rhs(i) = 'Real' then rng := RealRange(-infinity, infinity)
       elif rhs(i) = 'Prob' then rng := RealRange(0, infinity)
-      elif rhs(i) = 'Bool_' then rng := boolean
+      elif rhs(i) = 'Bool' then rng := boolean
       elif rhs(i) = 'Unit' then rng := Unit # ???
       elif rhs(i) = 'Pair' then error "should not have Pair-valued var", i
       else error "what do I do with", i;
@@ -349,11 +349,11 @@ SLO := module ()
   infer_type := proc(e, ctx)
     local typ, l;
     if type(e, boolean) then
-      'Bool_'
+      'Bool'
     elif e = 'Pi' then Prob
     elif e = 'Unit' then Unit
     elif type(e, boolean) then
-      'Bool_'
+      'Bool'
     elif type(e, anything^integer) then
       infer_type(op(1,e), ctx);
     elif type(e, 'exp'(anything)) then
@@ -448,7 +448,7 @@ SLO := module ()
         left  := adjust_types('Return'(op([1,1],e)), op(1,typ), ctx);
         right := adjust_types('Return'(op([1,2],e)), op(2,typ), ctx);
         'Return'(Pair(op(1,left), op(1,right)));
-      elif typ = Bool_ and member(op(1,e), {true,false}) then
+      elif typ = Bool and member(op(1,e), {true,false}) then
         e
       else
          error "adjust_types Type:", typ, inf_typ, e;
