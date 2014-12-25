@@ -33,7 +33,7 @@ newtype instance Static Prob         repr = SProb  Rational
 newtype instance Static (a -> b)     repr = SArrow (Partial repr a ->
                                                     Partial repr b)
 data    instance Static ()           repr = SUnit
-data    instance Static Bool_        repr = STrue | SFalse
+data    instance Static Bool         repr = STrue | SFalse
 data    instance Static (a, b)       repr = SPair  (Partial repr a)
                                                    (Partial repr b)
 data    instance Static (Either a b) repr = SLeft  (Partial repr a)
@@ -52,8 +52,8 @@ class Known a where
   toKnown   :: Partial repr a -> Maybe (Knowledge a)
   fromKnown :: (Base repr) => Knowledge a -> Partial repr a
 
-instance Known Bool_ where
-  type Knowledge Bool_ = Bool
+instance Known Bool where
+  type Knowledge Bool = Bool
   toKnown (Partial _ (Just STrue))  = Just True
   toKnown (Partial _ (Just SFalse)) = Just False
   toKnown _                         = Nothing

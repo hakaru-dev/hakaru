@@ -6,8 +6,7 @@ module Tests.Syntax(allTests) where
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure,
        Order(..), Base(..), ununit, and_, fst_, snd_, min_,
-       Mochastic(..), Lambda(..), bind_, factor, beta, bern, lam,
-       if_, true, false, Bool_)
+       Mochastic(..), Lambda(..), bind_, factor, beta, bern, lam)
 import Language.Hakaru.Util.Pretty (Pretty (pretty), prettyPair)
 -- import Language.Hakaru.Sample(Sample(unSample))
 import Language.Hakaru.Disintegrate
@@ -51,23 +50,23 @@ allTests = test [
 
 
 -- pair1fst and pair1snd are equivalent
-pair1fst :: (Mochastic repr) => repr (Measure (Bool_, Prob))
+pair1fst :: (Mochastic repr) => repr (Measure (Bool, Prob))
 pair1fst =  beta 1 1 `bind` \bias ->
             bern bias `bind` \coin ->
             dirac (pair coin bias)
-pair1snd :: (Mochastic repr) => repr (Measure (Bool_, Prob))
+pair1snd :: (Mochastic repr) => repr (Measure (Bool, Prob))
 pair1snd =  bern (1/2) `bind` \coin ->
             if_ coin (beta 2 1) (beta 1 2) `bind` \bias ->
             dirac (pair coin bias)
 
 -- pair2fst and pair2snd are equivalent
-pair2fst :: (Mochastic repr) => repr (Measure ((Bool_, Bool_), Prob))
+pair2fst :: (Mochastic repr) => repr (Measure ((Bool, Bool), Prob))
 pair2fst =  beta 1 1 `bind` \bias ->
             bern bias `bind` \coin1 ->
             bern bias `bind` \coin2 ->
             dirac (pair (pair coin1 coin2) bias)
 
-pair2snd :: (Mochastic repr) => repr (Measure ((Bool_, Bool_), Prob))
+pair2snd :: (Mochastic repr) => repr (Measure ((Bool, Bool), Prob))
 pair2snd =  bern (1/2) `bind` \coin1 ->
             bern (if_ coin1 (2/3) (1/3)) `bind` \coin2 ->
             beta (1 + f coin1 + f coin2)
@@ -81,12 +80,12 @@ type Cont repr a = forall w. (a -> repr (Measure w)) -> repr (Measure w)
 -- This Cont monad is useful for generalizing pair2fst and pair2snd to an
 -- arbitrary number of coin flips. The generalization would look liks this:
 
-pair2'fst :: (Mochastic repr) => Int -> Cont repr ([repr Bool_], repr Prob)
+pair2'fst :: (Mochastic repr) => Int -> Cont repr ([repr Bool], repr Prob)
 -- REQUIREMENT: pair2fst = pair2'fst 2 (\([coin1,coin2],bias) -> dirac (pair (pair coin1 coin2) bias))
 pair2'fst n k = beta 1 1 `bind` \bias ->
                 replicateH n (bern bias) (\ coins -> k (coins, bias))
 
-pair2'snd :: (Mochastic repr) => Int -> Cont repr ([repr Bool_], repr Prob)
+pair2'snd :: (Mochastic repr) => Int -> Cont repr ([repr Bool], repr Prob)
 pair2'snd = go 1 1 where
   go a b 0 k = beta a b `bind` \bias -> k ([],bias)
   go a b n k = bern (a/(a+b)) `bind` \c ->
@@ -104,7 +103,7 @@ twice m k = m `bind` \x ->
 -}
 
 -- pair3fst and pair3snd and pair3trd are equivalent
-pair3fst, pair3snd, pair3trd :: (Mochastic repr) => repr Prob -> [repr Bool_] -> repr (Measure ())
+pair3fst, pair3snd, pair3trd :: (Mochastic repr) => repr Prob -> [repr Bool] -> repr (Measure ())
 pair3fst bias [b1,b2,b3] =
   factor (if_ b1 bias (1-bias)) `bind_`
   factor (if_ b2 bias (1-bias)) `bind_`
@@ -135,10 +134,10 @@ uniformLogDensity lo hi x = if_ (and_ [less lo x, less x hi])
                             (log_ (recip (unsafeProb (hi - lo))))
                             (log_ 0)
 
-bernLogDensity :: Mochastic repr => repr Prob -> repr Bool_ -> repr Real
+bernLogDensity :: Mochastic repr => repr Prob -> repr Bool -> repr Real
 bernLogDensity p x = log_ (if_ x p (1 - p))
 
-pair4transition :: Mochastic repr => repr (Bool_, Real) -> repr (Measure (Bool_,Real))
+pair4transition :: Mochastic repr => repr (Bool, Real) -> repr (Measure (Bool,Real))
 pair4transition state = bern (1/2) `bind` \resampleCoin ->
                            if_ resampleCoin
                            (bern (1/2) `bind` \coin' ->
@@ -159,7 +158,7 @@ pair4transition state = bern (1/2) `bind` \resampleCoin ->
           coin = fst_ state
           x = snd_ state
 
-pair4'transition :: (Mochastic repr) => repr (Bool_, Real) -> repr (Measure (Bool_, Real))
+pair4'transition :: (Mochastic repr) => repr (Bool, Real) -> repr (Measure (Bool, Real))
 pair4'transition state = bern (1/2) `bind` \resampleCoin ->
                            if_ resampleCoin
                            (bern (1/2) `bind` \coin' ->
@@ -181,7 +180,7 @@ pair4'transition state = bern (1/2) `bind` \resampleCoin ->
           x = snd_ state
 
 {-
-transitionTest :: MWC.GenIO -> IO (Maybe ((Bool_, Double), LF.LogFloat))
+transitionTest :: MWC.GenIO -> IO (Maybe ((Bool, Double), LF.LogFloat))
 transitionTest g = unSample (pair4transition (pair true 1)) 1 g
 
 testDistWithSample :: IO [Maybe (Double, LF.LogFloat)]
@@ -307,7 +306,7 @@ testDist (e,s) = do
 -- Jacques on 2014-11-18: "From an email of Oleg's, could someone please
 -- translate the following 3 programs into new Hakaru?"  The 3 programs below
 -- are equivalent.
-prog1s, prog2s, prog3s :: [Disintegration () Real Bool_]
+prog1s, prog2s, prog3s :: [Disintegration () Real Bool]
 prog1s = disintegrations $ \u ->
          ununit u $
          bern 0.5 `bind` \c ->

@@ -9,8 +9,7 @@ module Language.Hakaru.Simplify
 -- Take strings from Maple and interpret them in Haskell (Hakaru)
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Measure, Lambda(..), Mochastic(..), 
-  Prob, Real, Bool_)
+import Language.Hakaru.Syntax (Measure, Prob, Real)
 import Language.Hakaru.Expect (Expect, unExpect)
 import Language.Hakaru.Maple (Maple, runMaple)
 import Language.Hakaru.Any (Any)
@@ -43,7 +42,7 @@ class MapleableType a where
 instance MapleableType () where mapleType _ = "Unit"
 instance MapleableType Real where mapleType _ = "Real"
 instance MapleableType Prob where mapleType _ = "Prob"
-instance MapleableType Bool_ where mapleType _ = "Bool_"
+instance MapleableType Bool where mapleType _ = "Bool"
 
 instance (MapleableType a, MapleableType b) => MapleableType (a,b) where
   mapleType _ = "Pair(" ++ mapleType (undefined :: a) ++ "," ++

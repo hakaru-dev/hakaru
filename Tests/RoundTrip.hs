@@ -11,7 +11,7 @@ import Language.Hakaru.Disintegrate
 import Language.Hakaru.Sample
 import Language.Hakaru.Expect (Expect(unExpect), Expect', normalize)
 -- import Language.Hakaru.Maple (Maple, runMaple)
--- import Language.Hakaru.Simplify (Simplify, simplify)
+-- import Language.Hakaru.Simplify (simplify)
 import Language.Hakaru.PrettyPrint (runPrettyPrint)
 -- import Text.PrettyPrint (text, (<>), ($$), nest, render)
 
@@ -74,6 +74,8 @@ testMeasurePair = test [
 testOther :: Test
 testOther = test [
     "testMcmc" ~: testMcmc,
+    "testGibbs1" ~: testSS [testGibbsProp1] (lam $ \x -> normal x 1),
+    "testGibbs2" ~: testSS [testGibbsProp2] (lam $ \x -> normal (x/2) (sqrt_ (1/2))),
     "expr1" ~: testMaple expr1,
     "expr2" ~: testMaple expr2,
     "expr4" ~: testMaple expr4,
@@ -100,7 +102,7 @@ t2 = beta 1 1
 t3 :: Mochastic repr => repr (Measure Real)
 t3 = normal 0 10
 
-t4 :: Mochastic repr => repr (Measure (Prob, Bool_))
+t4 :: Mochastic repr => repr (Measure (Prob, Bool))
 t4 = beta 1 1 `bind` \bias -> bern bias `bind` \coin -> dirac (pair bias coin)
 
 -- t5 is "the same" as t1.
@@ -158,7 +160,7 @@ t22 :: Mochastic repr => repr (Measure ())
 t22 = bern (1/2) `bind_` dirac unit
 
 -- was called bayesNet in Nov.06 msg by Ken for exact inference
-t23, t23' :: Mochastic repr => repr (Measure (Bool_, Bool_))
+t23, t23' :: Mochastic repr => repr (Measure (Bool, Bool))
 t23 = bern (1/2) `bind` \a ->
                bern (if_ a (9/10) (1/10)) `bind` \b ->
                bern (if_ a (9/10) (1/10)) `bind` \c ->
@@ -251,11 +253,21 @@ priorAsProposal p x = bern (1/2) `bind` \c ->
                              (pair (fst_ x ) (snd_ x'))
                              (pair (fst_ x') (snd_ x )))   
 
-gibbsProposal :: (Order_ a, Mochastic repr, Integrate repr, Lambda repr) =>
+gibbsProposal :: (Order_ a, Expect' a ~ a,
+                  Mochastic repr, Integrate repr, Lambda repr) =>
                  Disintegrate (Measure (a,b)) ->
-                 repr (a,b) -> repr (Measure (a,b))
-gibbsProposal p x = condition p (fst_ x) `bind` \x2 ->
-                    dirac (pair (fst_ x) x2)
+                 repr a -> repr (Measure b)
+gibbsProposal p x = q x `bind` dirac
+  where d:_ = disintegrations (const p)
+        q x = normalize (\lift -> case d of Disintegration f -> f unit (lift x))
+
+testGibbsProp1 :: (Lambda repr, Mochastic repr, Integrate repr) =>
+                  repr (Real -> Measure Real)
+testGibbsProp1 = lam (gibbsProposal norm)
+
+testGibbsProp2 :: (Lambda repr, Mochastic repr, Integrate repr) =>
+                  repr (Real -> Measure Real)
+testGibbsProp2 = lam (gibbsProposal flipped_norm)
 
 mcmc :: (Mochastic repr, Integrate repr, Lambda repr,
          a ~ Expect' a, Order_ a) =>
@@ -285,6 +297,11 @@ norm :: Mochastic repr => repr (Measure (Real, Real))
 norm = normal 0 1 `bind` \x ->
        normal x 1 `bind` \y ->
        dirac (pair x y)
+
+flipped_norm :: Mochastic repr => repr (Measure (Real, Real))
+flipped_norm = normal 0 1 `bind` \x ->
+               normal x 1 `bind` \y ->
+               dirac (pair y x)
 
 testMcmc :: IO ()
 testMcmc = do

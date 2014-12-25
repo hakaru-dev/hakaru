@@ -24,9 +24,9 @@ import Language.Hakaru.Util.Pretty (Pretty (pretty),
         prettyPair, prettyParen, prettyFun, prettyOp)
 import Text.PrettyPrint (Doc, text, char, int, integer, comma, semi, brackets,
         parens, (<>), (<+>), nest, fsep, sep, punctuate, render)
-import Language.Hakaru.Syntax (Real, Prob, Measure, Bool_,
+import Language.Hakaru.Syntax (Real, Prob, Measure,
         EqType(Refl), Order_(..), Number(..), Fraction(..),
-        Order(..), Base(..), Mochastic(..), factor, liftM, if_,
+        Order(..), Base(..), Mochastic(..), factor, liftM,
         Lambda(..), Integrate(..))
 import Language.Hakaru.Expect (Expect(unExpect), Expect')
 import Unsafe.Coerce (unsafeCoerce)
@@ -88,8 +88,8 @@ data Tree a t where
   LNil   :: Tree a [t]
   LCons  :: Tree a t -> Tree a [t] -> Tree a [t]
   Nil    :: Tree a ()
-  BoolT  :: Tree a Bool_
-  BoolF  :: Tree a Bool_
+  BoolT  :: Tree a Bool
+  BoolF  :: Tree a Bool
   Leaf   :: a t -> Tree a t
 
 instance (Eq' a) => Eq' (Tree a) where
@@ -298,8 +298,8 @@ data Op0 t where
   NegativeInfinity :: Op0 Real
   Unit             :: Op0 ()
   EmptyList        :: Op0 [t]
-  True_            :: Op0 Bool_
-  False_           :: Op0 Bool_
+  True_            :: Op0 Bool
+  False_           :: Op0 Bool
 
 data Op1 t1 t where
   Exp        :: (Fraction t) => Op1 Real t
@@ -323,8 +323,8 @@ data Op1 t1 t where
 data Op2 t1 t2 t where
   Add      :: (Number t) => Op2 t t t
   Mul      :: (Number t) => Op2 t t t
-  Less     :: (Number t) => Op2 t t Bool_
-  Equal    :: (Number t) => Op2 t t Bool_
+  Less     :: (Number t) => Op2 t t Bool
+  Equal    :: (Number t) => Op2 t t Bool
   BetaFunc :: Op2 Prob Prob Prob
 
 deriving instance Eq (Op0 t)
@@ -465,7 +465,7 @@ power :: Expr b u Prob -> Expr b u Real -> Expr b u Prob
 power p r = Op1 Exp (Op1 Log p * r)
 
 -- TODO: Add pure `case' construct
-if' :: Expr b u Bool_ ->
+if' :: Expr b u Bool ->
        Expr b u (Measure t) -> Expr b u (Measure t) -> Expr b u (Measure t)
 if' e et ee = Choice [ Bind BoolT (Dirac e) et
                      , Bind BoolF (Dirac e) ee ]
@@ -890,9 +890,9 @@ propagate (Cons a as) env (Cdr s) t =
   liftM2 Cons (delay a env) (propagate as env s t)
 propagate (Closure _ _) _ Root _ = mempty
 
-propagateBool :: (Delay env b u) => Expr b u Bool_ ->
-                 env -> Selector to Bool_ -> Expr Void Loc to ->
-                 M (Expr Void Loc Bool_)
+propagateBool :: (Delay env b u) => Expr b u Bool ->
+                 env -> Selector to Bool -> Expr Void Loc to ->
+                 M (Expr Void Loc Bool)
 propagateBool e env Root t = do
   x <- evaluate e env Root
   M (\c h -> let ets = c (Op0 True_) h
@@ -983,7 +983,7 @@ determineClosures = bimap' id id $ \e env ->
 newtype Nullary repr a = Nullary { unNullary :: repr a }
 newtype Unary   repr a = Unary   { unUnary   :: repr a -> repr a }
 newtype Binary  repr a = Binary  { unBinary  :: repr a -> repr a -> repr a }
-newtype Boolean repr a = Boolean { unBoolean :: repr a -> repr a -> repr Bool_ }
+newtype Boolean repr a = Boolean { unBoolean :: repr a -> repr a -> repr Bool }
 
 nullary :: (Number   a, Base repr) => ((Order repr a, Num (repr a)) =>
            repr a) -> repr a
@@ -996,7 +996,7 @@ binaryN :: (Number   a, Base repr) => ((Order repr a, Num (repr a)) =>
 binary  :: (Fraction a, Base repr) => ((Order repr a, Fractional (repr a)) =>
            repr a -> repr a -> repr a) -> repr a -> repr a -> repr a
 boolean :: (Number   a, Base repr) => ((Order repr a, Num (repr a)) =>
-           repr a -> repr a -> repr Bool_) -> repr a -> repr a -> repr Bool_
+           repr a -> repr a -> repr Bool) -> repr a -> repr a -> repr Bool
 
 nullary x = unNullary (numberRepr   (Nullary x))
 unaryN  x = unUnary   (numberRepr   (Unary   x))

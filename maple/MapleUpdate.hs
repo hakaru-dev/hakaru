@@ -8,7 +8,6 @@ import System.Exit
 -- upload files to server, build there, move archive?
 
 
--- the "-b -" option tells sftp to read commands from stdin
 ssh, user, serv :: String
 ssh  = "ssh"
 user = "ppaml"
@@ -17,11 +16,9 @@ serv = "quarry.uits.indiana.edu"
 
 sshCommands :: [String]
 sshCommands = [
-  "cd ppaml",
+  "cd hakaru/maple",
   "pwd",
   "git pull",
-  "cd mochastic/maple",
-  "pwd",
   "maple update-archive.mpl",
   "ls -l ppaml.mla"
   ]
