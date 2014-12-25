@@ -85,6 +85,8 @@ data Tree a t where
   Branch :: Tree a t1 -> Tree a t2 -> Tree a (t1, t2)
   UnaryL :: Tree a t1 -> Tree a (Either t1 t2)
   UnaryR :: Tree a t2 -> Tree a (Either t1 t2)
+  LNil   :: Tree a [t]
+  LCons  :: Tree a t -> Tree a [t] -> Tree a [t]
   Nil    :: Tree a ()
   BoolT  :: Tree a Bool_
   BoolF  :: Tree a Bool_
@@ -94,6 +96,8 @@ instance (Eq' a) => Eq' (Tree a) where
   eq' (Branch a1 b1) (Branch a2 b2) = eq' a1 a2 && eq' b1 b2
   eq' (UnaryL a)     (UnaryL b)     = eq' a b
   eq' (UnaryR a)     (UnaryR b)     = eq' a b
+  eq' LNil           LNil           = True
+  eq' (LCons a1 as1) (LCons a2 as2) = eq' a1 a2 && eq' as1 as2
   eq' Nil            Nil            = True
   eq' (Leaf a)       (Leaf b)       = eq' a b
   eq' BoolT          BoolT          = True
@@ -117,12 +121,16 @@ instance (Ord' a) => Ord' (Tree a) where
   ord' (Leaf _)       Nil            = GT
   ord' (Leaf a)       (Leaf b)       = ord' a b
   -- the BoolT/BoolF cases need to be added here
+  -- the LNil and LCons cases need to be added here
 
 instance (Show' a) => Show' (Tree a) where
   pretty' _ (Branch a b) = prettyPair (pretty' 0 a) (pretty' 0 b)
   pretty' p (UnaryL a)   = prettyFun (p > 10) "L" (pretty' 11 a)
   pretty' p (UnaryR b)   = prettyFun (p > 10) "R" (pretty' 11 b)
   pretty' p (Leaf a)     = pretty' p a
+  pretty' _ LNil         = text "[]"
+  pretty' p (LCons a as) = prettyFun (p > 10) "LCons" $
+                           pretty' 11 a <+> pretty' 11 as
   pretty' _ BoolT        = text "true"
   pretty' _ BoolF        = text "false"
   pretty' _ Nil          = text "()"
@@ -131,6 +139,8 @@ instance Functor' Tree where
   fmap' f (Branch a b) = fmap' f a `Branch` fmap' f b
   fmap' f (UnaryL a)   = UnaryL (fmap' f a)
   fmap' f (UnaryR b)   = UnaryR (fmap' f b)
+  fmap' _ LNil         = LNil
+  fmap' f (LCons a as) = LCons (fmap' f a) (fmap' f as)
   fmap' _ Nil          = Nil
   fmap' _ BoolT        = BoolT
   fmap' _ BoolF        = BoolF
@@ -140,6 +150,8 @@ instance Foldable' Tree where
   foldMap' f (Branch a b) = foldMap' f a `mappend` foldMap' f b
   foldMap' f (UnaryL a)   = foldMap' f a
   foldMap' f (UnaryR b)   = foldMap' f b
+  foldMap' _ LNil         = mempty
+  foldMap' f (LCons a as) = foldMap' f a `mappend` foldMap' f as
   foldMap' _ Nil          = mempty
   foldMap' _ BoolT        = mempty
   foldMap' _ BoolF        = mempty
@@ -149,6 +161,8 @@ instance Traversable' Tree where
   traverse' f (Branch a b) = fmap Branch (traverse' f a) <*> traverse' f b
   traverse' f (UnaryL a)   = fmap UnaryL (traverse' f a)
   traverse' f (UnaryR b)   = fmap UnaryR (traverse' f b)
+  traverse' _ LNil         = pure LNil
+  traverse' f (LCons a as) = fmap LCons (traverse' f a) <*> traverse' f as
   traverse' _ Nil          = pure Nil
   traverse' _ BoolT        = pure BoolT
   traverse' _ BoolF        = pure BoolF
@@ -159,15 +173,19 @@ instance Traversable' Tree where
 -- To take another example, disintegrating at Root is calculating density.
 
 data Selector to t where
-  Fst  :: Selector to t -> Selector to (t, t')
-  Snd  :: Selector to t -> Selector to (t', t)
-  Unl  :: Selector to t -> Selector to (Either t t')
-  Unr  :: Selector to t -> Selector to (Either t' t)
+  Fst  :: Selector to t   -> Selector to (t, t')
+  Snd  :: Selector to t   -> Selector to (t', t)
+  Car  :: Selector to t   -> Selector to [t]
+  Cdr  :: Selector to [t] -> Selector to [t]
+  Unl  :: Selector to t   -> Selector to (Either t t')
+  Unr  :: Selector to t   -> Selector to (Either t' t)
   Root :: Selector to to
 
 instance Show' (Selector to) where
   pretty' p (Fst s) = prettyFun (p > 10) "Fst" (pretty' 11 s)
   pretty' p (Snd s) = prettyFun (p > 10) "Snd" (pretty' 11 s)
+  pretty' p (Car s) = prettyFun (p > 10) "Car" (pretty' 11 s)
+  pretty' p (Cdr s) = prettyFun (p > 10) "Cdr" (pretty' 11 s)
   pretty' p (Unl s) = prettyFun (p > 10) "Unl" (pretty' 11 s)
   pretty' p (Unr s) = prettyFun (p > 10) "Unr" (pretty' 11 s)
   pretty' _ Root    = text "Root"
@@ -182,6 +200,13 @@ locate x (Branch a b) =
   (Nothing, Nothing) -> Nothing
 locate x (UnaryL a) = fmap Unl (locate x a)
 locate x (UnaryR a) = fmap Unr (locate x a)
+locate _ LNil    = Nothing
+locate x (LCons a as) =
+  case (locate x a, locate x as) of
+  (Just _ , Just _ ) -> error ("Duplicate " ++ case x of Const x' -> show x')
+  (Just s , Nothing) -> Just (Car s)
+  (Nothing, Just s ) -> Just (Cdr s)
+  (Nothing, Nothing) -> Nothing
 locate _ Nil        = Nothing
 locate _ BoolT      = Nothing
 locate _ BoolF      = Nothing
@@ -191,6 +216,8 @@ locate x (Leaf a)   = do Refl <- unsafeJmEq x a
 compose :: Selector t2 t3 -> Selector t1 t2 -> Selector t1 t3
 compose (Fst s1) s2 = Fst (compose s1 s2)
 compose (Snd s1) s2 = Snd (compose s1 s2)
+compose (Car s1) s2 = Car (compose s1 s2)
+compose (Cdr s1) s2 = Cdr (compose s1 s2)
 compose (Unl s1) s2 = Unl (compose s1 s2)
 compose (Unr s1) s2 = Unr (compose s1 s2)
 compose Root     s2 = s2
@@ -270,6 +297,7 @@ data Op0 t where
   Infinity         :: Op0 Real
   NegativeInfinity :: Op0 Real
   Unit             :: Op0 ()
+  EmptyList        :: Op0 [t]
   True_            :: Op0 Bool_
   False_           :: Op0 Bool_
 
@@ -337,8 +365,9 @@ data Expr b u t where -- b = bound variables; u = used variables
                                                           Expr b u (Measure t')
   Dirac   :: Expr b u t ->                                Expr b u (Measure t)
   Pair    :: Expr b u t -> Expr b u t' ->                 Expr b u (t, t')
-  Inl     :: Expr b u t ->   Expr b u (Either t t')
-  Inr     :: Expr b u t ->   Expr b u (Either t' t)
+  Inl     :: Expr b u t -> Expr b u (Either t t')
+  Inr     :: Expr b u t -> Expr b u (Either t' t)
+  Cons    :: Expr b u t -> Expr b u [t] ->                Expr b u [t]
   -- The Closure constructor below is for internal use
   -- and should not appear in the final output.
   Closure :: Expr Name Name (Measure t) -> [Binding Name u] ->
@@ -363,6 +392,8 @@ instance (Show' b, Show' u) => Show' (Expr b u) where
   pretty' _ (Pair e1 e2)    = prettyPair (pretty' 0 e1) (pretty' 0 e2)
   pretty' p (Inl e)         = prettyFun (p > 10) "L" (pretty' p e)
   pretty' p (Inr e)         = prettyFun (p > 10) "R" (pretty' p e)
+  pretty' p (Cons a as)     = prettyFun (p > 10) "Cons" $
+                              pretty' 11 a <+> pretty' 11 as
   pretty' p (Closure e env) = prettyParen (p > 0)
                                 (sep [pretty' 0 e, text "@" <+> pretty env])
 
@@ -381,6 +412,7 @@ bimap' f g h (Bind l r e)    = Bind (fmap' f l) (bimap' f g h r)
                                                 (bimap' f g h e)
 bimap' f g h (Dirac e)       = Dirac (bimap' f g h e)
 bimap' f g h (Pair e1 e2)    = Pair  (bimap' f g h e1) (bimap' f g h e2)
+bimap' f g h (Cons a as)     = Cons  (bimap' f g h a)  (bimap' f g h as)
 bimap' f g h (Inl e)         = Inl   (bimap' f g h e)
 bimap' f g h (Inr e)         = Inr   (bimap' f g h e)
 bimap' _ g h (Closure e env) = h e [ Binding name (g u)
@@ -400,6 +432,7 @@ vars b f (Choice es)         = mconcat (map (vars b f) es)
 vars b f (Bind lhs rhs body) = vars b f rhs `mappend` vars b (b lhs f) body
 vars b f (Dirac e)           = vars b f e
 vars b f (Pair e1 e2)        = vars b f e1 `mappend` vars b f e2
+vars b f (Cons a as)         = vars b f a  `mappend` vars b f as
 vars b f (Inl e)             = vars b f e
 vars b f (Inr e)             = vars b f e
 vars _ f (Closure e env)     = vars hideUse (\u -> f (env !! u)) e
@@ -583,6 +616,7 @@ store (UnaryL _)     (Inr _)      = reject
 store (UnaryR t)     (Inr e)      = store t e
 store (UnaryR _)     (Inl _)      = reject
 store Nil            (Op0 Unit)   = return ()
+store (LCons a as)   (Cons e es)  = store a e >> store as es
 store lhs            rhs          =
   M (\c h -> c () h{bound = Binding lhs (Forced rhs) : bound h})
 
@@ -663,6 +697,11 @@ evaluate (Inl _)      _   (Unr _) = reject
 evaluate (Inr e')     env Root    = fmap Inr (delay e' env)
 evaluate (Inr e')     env (Unr s) = fmap Inr (evaluate e' env s)
 evaluate (Inr _)      _   (Unl _) = reject
+evaluate (Cons a as)  env Root    = liftM2 Cons (delay a env) (delay as env)
+evaluate (Cons a as)  env (Car s) = liftM2 Cons (evaluate a env s)
+                                                (delay as env)
+evaluate (Cons a as)  env (Cdr s) = liftM2 Cons (delay a env)
+                                                (evaluate as env s)
 evaluate (Closure e' env') env Root =
   return (uncurry Closure (close e' env' env))
 
@@ -678,6 +717,16 @@ conjure (Snd s) l = do
   l2 <- gensym
   insert (Bind (Branch (Leaf l1) (Leaf l2)) (Dirac (Var l)))
   fmap (Var l1 `Pair`) (conjure s l2)
+conjure (Car s) l = do
+  l1 <- gensym
+  l2 <- gensym
+  insert (Bind (LCons (Leaf l1) (Leaf l2)) (Dirac (Var l)))
+  fmap (`Cons` Var l2) (conjure s l1)
+conjure (Cdr s) l = do
+  l1 <- gensym
+  l2 <- gensym
+  insert (Bind (LCons (Leaf l1) (Leaf l2)) (Dirac (Var l)))
+  fmap (Var l1 `Cons`) (conjure s l2)       
 conjure _ _ = mempty
 
 ------- Main disintegrator
@@ -716,6 +765,7 @@ propagate (Op0 Pi) _ _ _ = mempty
 propagate (Op0 Infinity) _ _ _ = mempty
 propagate (Op0 NegativeInfinity) _ _ _ = mempty
 propagate (Op0 Unit) _ _ _ = return (Op0 Unit)
+propagate (Op0 EmptyList) _ _ _ = return (Op0 EmptyList)
 propagate (Op0 True_) _ _ _ = return (Op0 True_)
 propagate (Op0 False_) _ _ _ = return (Op0 False_)
 propagate (Op1 Exp e) env Root t = do
@@ -828,6 +878,16 @@ propagate (Inr e) env Root t = do
 propagate (Inr e) env (Unr s) t =
   fmap Inr (propagate e env s t)
 propagate (Inr _) _   (Unl _) _ = reject
+propagate (Cons a as) env Root t = do
+  l1 <- gensym
+  l2 <- gensym
+  insert (Bind (LCons (Leaf l1) (Leaf l2)) (Dirac (ex t)))
+  liftM2 Cons (propagate a  env Root (Var l1))
+              (propagate as env Root (Var l2))
+propagate (Cons a as) env (Car s) t =
+  liftM2 Cons (propagate a env s t) (delay as env)
+propagate (Cons a as) env (Cdr s) t =
+  liftM2 Cons (delay a env) (propagate as env s t)
 propagate (Closure _ _) _ Root _ = mempty
 
 propagateBool :: (Delay env b u) => Expr b u Bool_ ->
@@ -954,6 +1014,7 @@ toHakaru (Op0 Pi)                  _   = piFraction dict
 toHakaru (Op0 Infinity)            _   = infinity
 toHakaru (Op0 NegativeInfinity)    _   = negativeInfinity
 toHakaru (Op0 Unit)                _   = unit
+toHakaru (Op0 EmptyList)           _   = nil
 toHakaru (Op0 True_)               _   = true
 toHakaru (Op0 False_)              _   = false
 toHakaru (Op1 Exp e)               env = expFraction dict (toHakaru e  env)
@@ -1003,6 +1064,8 @@ toHakaru (Pair e1 e2)              env = pair  (toHakaru e1 env)
                                                (toHakaru e2 env)
 toHakaru (Inl e)                   env = inl   (toHakaru e  env)
 toHakaru (Inr e)                   env = inr   (toHakaru e  env)
+toHakaru (Cons a as)               env = cons  (toHakaru a  env)
+                                               (toHakaru as env)
 toHakaru (Closure e env) f             = toHakaru e (f . (env !!))
 
 matchHakaru :: (Mochastic repr) => Tree u t -> repr t ->
@@ -1015,6 +1078,11 @@ matchHakaru (UnaryL t') x k =
   uneither x (\x' -> matchHakaru t' x' k) (\_ -> superpose [])
 matchHakaru (UnaryR t') x k =
   uneither x (\_ -> superpose []) (\x' -> matchHakaru t' x' k)
+matchHakaru LNil  _ k = k []
+matchHakaru (LCons a as) x k =
+  unlist x (\ a' as' ->
+  matchHakaru a  a'  (\b1 ->
+  matchHakaru as as' (\b2 -> k (b1 ++ b2))))
 matchHakaru Nil   _ k = k []
 matchHakaru BoolT _ k = k []
 matchHakaru BoolF _ k = k []
@@ -1125,6 +1193,8 @@ instance Erf (Disintegrate Real) where
 instance Base Disintegrate where
   unit                           = Disint (return (Op0 Unit))
   pair (Disint x) (Disint y)     = Disint (fmap Pair x <*> y)
+  nil                            = Disint (return (Op0 EmptyList))
+  cons (Disint a) (Disint as)    = Disint (fmap Cons a <*> as)
   inl (Disint x)                 = Disint (fmap Inl x)
   inr (Disint x)                 = Disint (fmap Inr x)
   true                           = Disint (return (Op0 True_))
@@ -1147,6 +1217,14 @@ instance Base Disintegrate where
         y = Const (i+1)
     in Bind (Branch (Leaf x) (Leaf y)) (Dirac e)
             (unDisint (k (Disint (return (Var x))) (Disint (return (Var y))))
+                      c
+                      (i+2)))
+
+  unlist aas k = insertDisint aas (\e c i ->
+    let a  = Const i
+        as = Const (i+1)
+    in Bind (LCons (Leaf a) (Leaf as)) (Dirac e)
+            (unDisint (k (Disint (return (Var a))) (Disint (return (Var as))))
                       c
                       (i+2)))
 
