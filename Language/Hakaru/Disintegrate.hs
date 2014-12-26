@@ -580,14 +580,17 @@ retrieve loc = M (\c h ->
     (_   , _:_:_) -> error ("Duplicate heap entry " ++ show' 0 loc ""))
 
 store :: Tree Loc t -> Expr Void Loc t -> M ()
-store (Branch t1 t2) (Pair e1 e2) = store t1 e1 >> store t2 e2
-store (UnaryL t)     (Inl e)      = store t e
-store (UnaryL _)     (Inr _)      = reject
-store (UnaryR t)     (Inr e)      = store t e
-store (UnaryR _)     (Inl _)      = reject
-store Nil            (Op0 Unit)   = return ()
-store (LCons a as)   (Cons e es)  = store a e >> store as es
-store lhs            rhs          =
+store (Branch t1 t2) (Pair e1 e2)    = store t1 e1 >> store t2 e2
+store (UnaryL t)     (Inl e)         = store t e
+store (UnaryL _)     (Inr _)         = reject
+store (UnaryR t)     (Inr e)         = store t e
+store (UnaryR _)     (Inl _)         = reject
+store Nil            (Op0 Unit)      = return ()
+store LNil           (Op0 EmptyList) = return ()
+store LNil           (Cons _ _)      = reject
+store (LCons a as)   (Cons e es)     = store a e >> store as es
+store (LCons _ _)    (Op0 EmptyList) = reject
+store lhs            rhs             =
   M (\c h -> c () h{bound = Binding lhs (Forced rhs) : bound h})
 
 value :: Loc t -> M (Expr Void Loc t)
@@ -1059,8 +1062,8 @@ matchHakaru (LCons a as) x k =
   matchHakaru a  a'  (\b1 ->
   matchHakaru as as' (\b2 -> k (b1 ++ b2))))
 matchHakaru Nil   _ k = k []
-matchHakaru BoolT _ k = k []
-matchHakaru BoolF _ k = k []
+matchHakaru BoolT x k = if_ x (k []) (superpose [])
+matchHakaru BoolF x k = if_ x (superpose []) (k [])
 matchHakaru (Leaf u) x k = k [Binding u x]
 
 ------- Conversion from Hakaru
