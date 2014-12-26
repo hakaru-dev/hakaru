@@ -43,7 +43,7 @@ instance Base THRepr where
   if_ (THR eb) (THR et) (THR ef) = liftT 'if_ [eb, et, ef]
   nil = liftT 'nil []
   cons (THR a) (THR as) = liftT 'cons [a, as]
-  unlist (THR as) k = liftT 'unlist [as, liftF2 k]
+  unlist (THR as) (THR kn) kc = liftT 'unlist [as, kn, liftF2 kc]
   unsafeProb (THR e) = liftT 'unsafeProb [e]
   fromProb (THR e) = liftT 'fromProb [e]
   fromInt (THR e) = liftT 'fromInt [e]

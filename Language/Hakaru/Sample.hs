@@ -77,8 +77,8 @@ instance Base (Sample m) where
   if_ (Sample False) _ ef         = ef
   nil                             = Sample []
   cons (Sample a) (Sample as)     = Sample (a : as)
-  unlist (Sample []) _            = error "Attempt to unlist empty list"
-  unlist (Sample (a : as)) k      = k (Sample a) (Sample as)
+  unlist (Sample []) k _          = k
+  unlist (Sample (a : as)) _ k    = k (Sample a) (Sample as)
   unsafeProb (Sample x)           = Sample (LF.logFloat x)
   fromProb (Sample x)             = Sample (LF.fromLogFloat x)
   fromInt (Sample x)              = Sample (fromIntegral x)

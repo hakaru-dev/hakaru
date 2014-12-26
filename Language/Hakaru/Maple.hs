@@ -83,7 +83,7 @@ instance Base Maple where
   pair = mapleFun2 "Pair"
   unpair (Maple ab) k = Maple (ab >>= \ab' ->
     let opab :: Int -> String
-        opab n = "op(" ++ show n ++ ", " ++ ab' ++ ")" 
+        opab n = "op(" ++ show n ++ ", " ++ ab' ++ ")"
     in
     unMaple (k (Maple (return (opab 1))) (Maple (return (opab 2)))))
   inl (Maple a) = Maple (fmap (\a' -> "Left("  ++ a' ++ ")") a)
@@ -92,28 +92,32 @@ instance Base Maple where
     = Maple (ab >>= \ab' ->
              reader $ \i ->
              let opab :: Int -> String
-                 opab n = "op(" ++ show n ++ ", " ++ ab' ++ ")" in
-             let arm k = runReader (unMaple (k (return (opab 1)))) i
+                 opab n = "op(" ++ show n ++ ", " ++ ab' ++ ")"
+                 arm k = runReader (unMaple (k (return (opab 1)))) i
              in "if_(" ++ opab 0 ++ " = Left, " ++ arm (ka . Maple)
                                         ++ ", " ++ arm (kb . Maple) ++ ")")
   true = Maple (return "true")
   false = Maple (return "false")
   if_ (Maple b) (Maple et) (Maple ef)
     = Maple (b >>= \b' ->
-             et >>= \et' ->
-             ef >>= \ef' ->
-             return $ "if_(" ++ b' ++ ", " ++ et'
-                                   ++ ", " ++ ef' ++ ")")
+             reader $ \i ->
+             "if_(" ++ b' ++ ", " ++ runReader et i
+                          ++ ", " ++ runReader ef i ++ ")")
 
   nil = Maple (return "Nil")
   cons = mapleFun2 "Cons"
-  unlist (Maple as) k = Maple (as >>= \as' ->
-    let opas :: Int -> String
-        opas n = "op(" ++ show n ++ ", " ++ as' ++ ")" 
-    in
-    unMaple (k (Maple (return (opas 1))) (Maple (return (opas 2)))))
-            
-  -- unsafeProb = mapleFun1 "unsafeProb"
+  unlist (Maple as) (Maple kn) kc
+    = Maple (as >>= \as' ->
+             reader $ \i ->
+             let opas :: Int -> String
+                 opas n = "op(" ++ show n ++ ", " ++ as' ++ ")"
+                 car = Maple (return (opas 1))
+                 cdr = Maple (return (opas 2))
+                 kc' = unMaple (kc car cdr)
+             in "if_(" ++ opas 0 ++ " = Nil, " ++ runReader kn i
+                                       ++ ", " ++ runReader kc' i
+                                       ++ ")")
+
   unsafeProb (Maple x) = Maple x
   fromProb   (Maple x) = Maple x
   fromInt    (Maple x) = Maple x

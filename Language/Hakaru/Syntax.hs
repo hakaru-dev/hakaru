@@ -121,7 +121,7 @@ class (Order repr Int , Num        (repr Int ),
 
   nil        :: repr [a]
   cons       :: repr a -> repr [a] -> repr [a]
-  unlist     :: repr [a] ->
+  unlist     :: repr [a] -> repr c ->
                 (repr a -> repr [a] -> repr c) -> repr c
 
   unsafeProb :: repr Real -> repr Prob

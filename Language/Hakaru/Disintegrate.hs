@@ -1078,9 +1078,10 @@ matchHakaru (UnaryL t') x k =
   uneither x (\x' -> matchHakaru t' x' k) (\_ -> superpose [])
 matchHakaru (UnaryR t') x k =
   uneither x (\_ -> superpose []) (\x' -> matchHakaru t' x' k)
-matchHakaru LNil  _ k = k []
+matchHakaru LNil x k =
+  unlist x (k []) (\_ _ -> superpose [])
 matchHakaru (LCons a as) x k =
-  unlist x (\ a' as' ->
+  unlist x (superpose []) (\a' as' ->
   matchHakaru a  a'  (\b1 ->
   matchHakaru as as' (\b2 -> k (b1 ++ b2))))
 matchHakaru Nil   _ k = k []
@@ -1220,13 +1221,15 @@ instance Base Disintegrate where
                       c
                       (i+2)))
 
-  unlist aas k = insertDisint aas (\e c i ->
-    let a  = Const i
-        as = Const (i+1)
-    in Bind (LCons (Leaf a) (Leaf as)) (Dirac e)
-            (unDisint (k (Disint (return (Var a))) (Disint (return (Var as))))
-                      c
-                      (i+2)))
+  unlist aas kn kc = insertDisint aas (\e c i ->
+    Choice [ Bind LNil (Dirac e) (unDisint kn c i)
+           , let a  = Const i
+                 as = Const (i+1)
+             in Bind (LCons (Leaf a) (Leaf as)) (Dirac e)
+                     (unDisint (kc (Disint (return (Var a)))
+		                   (Disint (return (Var as))))
+                               c
+                               (i+2)) ])
 
   uneither xy kx ky = insertDisint xy (\e c i ->
     Choice [ let x = Const i
