@@ -28,7 +28,7 @@ ourContext = do
 closeLoop :: (Typeable a) => String -> IO a
 closeLoop s = action where
   action = do
-    putStrLn ("To Haskell: " ++ s')
+    -- putStrLn ("To Haskell: " ++ s')
     result <- runInterpreter (ourContext >> interpret s' undefined)
     case result of
       Left err -> error (show err)
@@ -65,7 +65,7 @@ simplify :: (MapleableType a, Typeable a) => Expect Maple a -> IO (Any a)
 simplify e = do
   let slo = mkTypeString (runMaple (unExpect e) 0) (getArg e)
   hakaru <- do
-    putStrLn ("\nTo Maple: " ++ slo)
+    -- putStrLn ("\nTo Maple: " ++ slo)
     hopeString <- maple ("Haskell(SLO:-AST(SLO(" ++ slo ++ ")));")
     case readMapleString hopeString of
       Just hakaru -> return hakaru
