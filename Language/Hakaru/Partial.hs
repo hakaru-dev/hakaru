@@ -10,7 +10,7 @@ import Prelude hiding (Real)
 import Language.Hakaru.Syntax hiding (liftM2)
 import Data.Ratio (denominator, numerator)
 import Data.Maybe (fromMaybe, isJust)
-import Control.Monad (liftM2)
+import Control.Monad (liftM2, liftM3)
 import Data.Number.Erf (Erf(..))
 
 data Partial repr a = Partial
@@ -211,26 +211,25 @@ instance (Base repr) => Base (Partial repr) where
   false = Partial (Just false) (Just SFalse)
   if_ (Partial _ (Just STrue)) et _ = et
   if_ (Partial _ (Just SFalse)) _ ef = ef
-  if_ eb et ef = fromDynamic $
-                 let eb' = fromMaybe (error "No eb") (toDynamic eb)
-                     et' = fromMaybe (error "No et") (toDynamic et)
-                     ef' = fromMaybe (error "No ef") (toDynamic ef)
-                 in Just (if_ eb' et' ef')
+  if_ eb et ef = fromDynamic (liftM3 if_ (toDynamic eb)
+                                         (toDynamic et)
+                                         (toDynamic ef))
 
   nil         = Partial (Just nil) (Just SNil)
   cons a as   = Partial (liftM2 cons (toDynamic a) (toDynamic as))
                         (Just (SCons a as))
-  unlist (Partial _ (Just (SCons a as))) k = k a as
-  unlist as k = if isJust (toDynamic skip) then skip else fromDynamic (do
-    _ <- toDynamic (k (fromDynamic (Just undefined))
-                      (fromDynamic (Just undefined)))
+  unlist (Partial _ (Just SNil)) kn _ = kn
+  unlist (Partial _ (Just (SCons a as))) _ kc = kc a as
+  unlist as kn kc = fromDynamic (do
+    _ <- toDynamic (kc (fromDynamic (Just undefined))
+                       (fromDynamic (Just undefined)))
     as' <- toDynamic as
-    let k' a l = fromMaybe (error "Partial unlist: k nonmonotonic!?")
-                           (toDynamic (k (fromDynamic (Just a))
+    kn' <- toDynamic kn
+    let kc' a l = fromMaybe (error "Partial unlist: kc nonmonotonic!?")
+                           (toDynamic (kc (fromDynamic (Just a))
                                          (fromDynamic (Just l))))
-    Just (unlist as' k'))
-    where skip = k (fromDynamic Nothing) (fromDynamic Nothing)
-                                             
+    Just (unlist as' kn' kc'))
+
   unsafeProb (Partial d s) = Partial (fmap unsafeProb d)
                                      (fmap (\(SReal x) -> SProb x) s)
   fromProb (Partial d s) = Partial (fmap fromProb d)

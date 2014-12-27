@@ -71,8 +71,8 @@ instance (Base repr) => Base (Expect repr) where
 
   nil                            = Expect nil
   cons (Expect a) (Expect as)    = Expect $ cons a as
-  unlist (Expect as) k           = Expect (unlist as (\a' as' ->
-                                   unExpect (k (Expect a') (Expect as'))))
+  unlist (Expect as) kn kc       = Expect $ unlist as (unExpect kn) (\a' as' ->
+                                   unExpect (kc (Expect a') (Expect as')))
                                    
   unsafeProb                     = Expect . unsafeProb . unExpect
   fromProb                       = Expect . fromProb   . unExpect

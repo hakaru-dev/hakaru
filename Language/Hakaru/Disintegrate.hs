@@ -92,37 +92,6 @@ data Tree a t where
   BoolF  :: Tree a Bool
   Leaf   :: a t -> Tree a t
 
-instance (Eq' a) => Eq' (Tree a) where
-  eq' (Branch a1 b1) (Branch a2 b2) = eq' a1 a2 && eq' b1 b2
-  eq' (UnaryL a)     (UnaryL b)     = eq' a b
-  eq' (UnaryR a)     (UnaryR b)     = eq' a b
-  eq' LNil           LNil           = True
-  eq' (LCons a1 as1) (LCons a2 as2) = eq' a1 a2 && eq' as1 as2
-  eq' Nil            Nil            = True
-  eq' (Leaf a)       (Leaf b)       = eq' a b
-  eq' BoolT          BoolT          = True
-  eq' BoolF          BoolF          = True
-  eq' _              _              = False
-
-instance (Ord' a) => Ord' (Tree a) where
-  ord' (Branch a1 b1) (Branch a2 b2) = ord' a1 a2 `mappend` ord' b1 b2
-  ord' (Branch _ _)   (Leaf _)       = LT
-  ord' (Leaf _)       (Branch _ _)   = GT
-  ord' (UnaryL a)     (UnaryL b)     = ord' a b
-  ord' (UnaryR a)     (UnaryR b)     = ord' a b
-  ord' (UnaryL _)     (UnaryR _)     = LT
-  ord' (UnaryR _)     (UnaryL _)     = GT
-  ord' (UnaryL _)     (Leaf _)       = LT
-  ord' (UnaryR _)     (Leaf _)       = LT
-  ord' (Leaf _)       (UnaryL _)     = GT
-  ord' (Leaf _)       (UnaryR _)     = GT
-  ord' Nil            Nil            = EQ
-  ord' Nil            (Leaf _)       = LT
-  ord' (Leaf _)       Nil            = GT
-  ord' (Leaf a)       (Leaf b)       = ord' a b
-  -- the BoolT/BoolF cases need to be added here
-  -- the LNil and LCons cases need to be added here
-
 instance (Show' a) => Show' (Tree a) where
   pretty' _ (Branch a b) = prettyPair (pretty' 0 a) (pretty' 0 b)
   pretty' p (UnaryL a)   = prettyFun (p > 10) "L" (pretty' 11 a)
@@ -317,8 +286,7 @@ data Op1 t1 t where
   FromProb   :: Op1 Prob Real
   FromInt    :: Op1 Int  Real
   GammaFunc  :: Op1 Real Prob
-  ErfFunc    :: Op1 Real Real
-  ErfFunc_   :: Op1 Prob Prob
+  ErfFunc    :: (Fraction t) => Op1 t t
 
 data Op2 t1 t2 t where
   Add      :: (Number t) => Op2 t t t
@@ -350,9 +318,11 @@ data Dict t = Dict
   { unsafeProbFraction :: forall b u. Expr b u t -> Expr b u Prob
   , piFraction         :: forall repr. (Base repr) => repr t
   , expFraction        :: forall repr. (Base repr) => repr Real -> repr t
-  , logFraction        :: forall repr. (Base repr) => repr t -> repr Real }
+  , logFraction        :: forall repr. (Base repr) => repr t -> repr Real
+  , erfFraction        :: forall repr. (Base repr) => repr t -> repr t }
 dict :: (Fraction t) => Dict t
-dict = fractionCase (Dict (Op1 UnsafeProb) pi exp log) (Dict id pi_ exp_ log_)
+dict = fractionCase (Dict (Op1 UnsafeProb) pi exp log erfFunc)
+                    (Dict id pi_ exp_ log_ erfFunc_)
 
 data Expr b u t where -- b = bound variables; u = used variables
   Op0     :: Op0 t ->                                     Expr b u t
@@ -365,8 +335,8 @@ data Expr b u t where -- b = bound variables; u = used variables
                                                           Expr b u (Measure t')
   Dirac   :: Expr b u t ->                                Expr b u (Measure t)
   Pair    :: Expr b u t -> Expr b u t' ->                 Expr b u (t, t')
-  Inl     :: Expr b u t -> Expr b u (Either t t')
-  Inr     :: Expr b u t -> Expr b u (Either t' t)
+  Inl     :: Expr b u t ->                                Expr b u (Either t t')
+  Inr     :: Expr b u t ->                                Expr b u (Either t' t)
   Cons    :: Expr b u t -> Expr b u [t] ->                Expr b u [t]
   -- The Closure constructor below is for internal use
   -- and should not appear in the final output.
@@ -610,14 +580,17 @@ retrieve loc = M (\c h ->
     (_   , _:_:_) -> error ("Duplicate heap entry " ++ show' 0 loc ""))
 
 store :: Tree Loc t -> Expr Void Loc t -> M ()
-store (Branch t1 t2) (Pair e1 e2) = store t1 e1 >> store t2 e2
-store (UnaryL t)     (Inl e)      = store t e
-store (UnaryL _)     (Inr _)      = reject
-store (UnaryR t)     (Inr e)      = store t e
-store (UnaryR _)     (Inl _)      = reject
-store Nil            (Op0 Unit)   = return ()
-store (LCons a as)   (Cons e es)  = store a e >> store as es
-store lhs            rhs          =
+store (Branch t1 t2) (Pair e1 e2)    = store t1 e1 >> store t2 e2
+store (UnaryL t)     (Inl e)         = store t e
+store (UnaryL _)     (Inr _)         = reject
+store (UnaryR t)     (Inr e)         = store t e
+store (UnaryR _)     (Inl _)         = reject
+store Nil            (Op0 Unit)      = return ()
+store LNil           (Op0 EmptyList) = return ()
+store LNil           (Cons _ _)      = reject
+store (LCons a as)   (Cons e es)     = store a e >> store as es
+store (LCons _ _)    (Op0 EmptyList) = reject
+store lhs            rhs             =
   M (\c h -> c () h{bound = Binding lhs (Forced rhs) : bound h})
 
 value :: Loc t -> M (Expr Void Loc t)
@@ -726,7 +699,7 @@ conjure (Cdr s) l = do
   l1 <- gensym
   l2 <- gensym
   insert (Bind (LCons (Leaf l1) (Leaf l2)) (Dirac (Var l)))
-  fmap (Var l1 `Cons`) (conjure s l2)       
+  fmap (Var l1 `Cons`) (conjure s l2)
 conjure _ _ = mempty
 
 ------- Main disintegrator
@@ -765,9 +738,15 @@ propagate (Op0 Pi) _ _ _ = mempty
 propagate (Op0 Infinity) _ _ _ = mempty
 propagate (Op0 NegativeInfinity) _ _ _ = mempty
 propagate (Op0 Unit) _ _ _ = return (Op0 Unit)
-propagate (Op0 EmptyList) _ _ _ = return (Op0 EmptyList)
-propagate (Op0 True_) _ _ _ = return (Op0 True_)
-propagate (Op0 False_) _ _ _ = return (Op0 False_)
+propagate (Op0 EmptyList) _ Root t = do
+  insert (Bind LNil (Dirac (ex t)))
+  return (Op0 EmptyList)
+propagate (Op0 True_) _ Root t = do
+  insert (Bind BoolT (Dirac (ex t)))
+  return (Op0 True_)
+propagate (Op0 False_) _ Root t = do
+  insert (Bind BoolF (Dirac (ex t)))
+  return (Op0 False_)
 propagate (Op1 Exp e) env Root t = do
   insert (condLess 0 (ex t) . weight (recip (unsafeProbFraction dict (ex t))))
   fmap (Op1 Exp) (propagate e env Root (Op1 Log t))
@@ -830,8 +809,7 @@ propagate (Op1 FromProb e) env Root t = do
   fmap (Op1 FromProb) (propagate e env Root (Op1 UnsafeProb t))
 propagate (Op1 FromInt _) _ Root _ = mempty
 propagate (Op1 GammaFunc _) _ Root _ = mempty
-propagate (Op1 ErfFunc _) _ Root _ = mempty
-propagate (Op1 ErfFunc_ _) _ Root _ = mempty
+propagate (Op1 ErfFunc _) _ Root _ = mempty -- need InvErf to disintegrate Erf
 propagate (Op2 Add e1 e2) env Root t = mappend (go e1 e2) (go e2 e1)
   where go e e' = do x1 <- evaluate e env Root
                      fmap (x1 +) (propagate e' env Root (t - x1))
@@ -1032,8 +1010,7 @@ toHakaru (Op1 UnsafeProb e)        env = unsafeProb       (toHakaru e  env)
 toHakaru (Op1 FromProb e)          env = fromProb         (toHakaru e  env)
 toHakaru (Op1 FromInt e)           env = fromInt          (toHakaru e  env)
 toHakaru (Op1 GammaFunc e)         env = gammaFunc        (toHakaru e  env)
-toHakaru (Op1 ErfFunc e)           env = erfFunc        (toHakaru e  env)
-toHakaru (Op1 ErfFunc_ e)          env = erfFunc_        (toHakaru e  env)
+toHakaru (Op1 ErfFunc e)           env = erfFraction dict (toHakaru e  env)
 toHakaru (Op2 Add e1 (Op1 Neg e2)) env = binaryN (-)      (toHakaru e1 env)
                                                           (toHakaru e2 env)
 toHakaru (Op2 Add e1 e2)  env          = binaryN (+)      (toHakaru e1 env)
@@ -1078,14 +1055,15 @@ matchHakaru (UnaryL t') x k =
   uneither x (\x' -> matchHakaru t' x' k) (\_ -> superpose [])
 matchHakaru (UnaryR t') x k =
   uneither x (\_ -> superpose []) (\x' -> matchHakaru t' x' k)
-matchHakaru LNil  _ k = k []
+matchHakaru LNil x k =
+  unlist x (k []) (\_ _ -> superpose [])
 matchHakaru (LCons a as) x k =
-  unlist x (\ a' as' ->
+  unlist x (superpose []) (\a' as' ->
   matchHakaru a  a'  (\b1 ->
   matchHakaru as as' (\b2 -> k (b1 ++ b2))))
 matchHakaru Nil   _ k = k []
-matchHakaru BoolT _ k = k []
-matchHakaru BoolF _ k = k []
+matchHakaru BoolT x k = if_ x (k []) (superpose [])
+matchHakaru BoolF x k = if_ x (superpose []) (k [])
 matchHakaru (Leaf u) x k = k [Binding u x]
 
 ------- Conversion from Hakaru
@@ -1119,7 +1097,7 @@ runDisintegrate :: (Mochastic repr, Order_ a) =>
                    [repr env -> repr a -> repr (Measure b)]
 runDisintegrate m = [ d | Disintegration d <- disintegrations m ]
 
-condition :: (Mochastic repr, Order_ a) => Disintegrate (Measure (a, b)) -> 
+condition :: (Mochastic repr, Order_ a) => Disintegrate (Measure (a, b)) ->
                                  repr a -> repr (Measure b)
 condition d = head (runDisintegrate (\ _ -> d)) unit
 
@@ -1210,7 +1188,7 @@ instance Base Disintegrate where
   gammaFunc (Disint x)           = Disint (fmap (Op1 GammaFunc) x)
   betaFunc (Disint a) (Disint b) = Disint (fmap (Op2 BetaFunc) a <*> b)
   erfFunc (Disint x)             = Disint (fmap (Op1 ErfFunc) x)
-  erfFunc_ (Disint x)            = Disint (fmap (Op1 ErfFunc_) x) 
+  erfFunc_ (Disint x)            = Disint (fmap (Op1 ErfFunc) x)
 
   unpair xy k = insertDisint xy (\e c i ->
     let x = Const i
@@ -1220,13 +1198,15 @@ instance Base Disintegrate where
                       c
                       (i+2)))
 
-  unlist aas k = insertDisint aas (\e c i ->
-    let a  = Const i
-        as = Const (i+1)
-    in Bind (LCons (Leaf a) (Leaf as)) (Dirac e)
-            (unDisint (k (Disint (return (Var a))) (Disint (return (Var as))))
-                      c
-                      (i+2)))
+  unlist aas kn kc = insertDisint aas (\e c i ->
+    Choice [ Bind LNil (Dirac e) (unDisint kn c i)
+           , let a  = Const i
+                 as = Const (i+1)
+             in Bind (LCons (Leaf a) (Leaf as)) (Dirac e)
+                     (unDisint (kc (Disint (return (Var a)))
+		                   (Disint (return (Var as))))
+                               c
+                               (i+2)) ])
 
   uneither xy kx ky = insertDisint xy (\e c i ->
     Choice [ let x = Const i
@@ -1237,8 +1217,8 @@ instance Base Disintegrate where
                      (unDisint (ky (Disint (return (Var y)))) c (i+1)) ])
 
   if_ cy ty ey = insertDisint cy (\e c i ->
-    Choice [ Bind BoolT (Dirac e) (unDisint ty c (i+1))
-           , Bind BoolF (Dirac e) (unDisint ey c (i+1)) ])
+    Choice [ Bind BoolT (Dirac e) (unDisint ty c i)
+           , Bind BoolF (Dirac e) (unDisint ey c i) ])
 
 instance Mochastic Disintegrate where
   dirac x = Disint (cont (\c i -> c (unDisint x (\w _ -> Dirac w) i) i))
