@@ -4,6 +4,7 @@
 module Language.Hakaru.Simplify
   ( closeLoop
   , simplify
+  , toMaple
   , MapleableType) where
 
 -- Take strings from Maple and interpret them in Haskell (Hakaru)
@@ -74,3 +75,6 @@ simplify e = do
 
 getArg :: f a -> a
 getArg = undefined
+
+toMaple :: (MapleableType a, Typeable a) => Expect Maple a -> String
+toMaple e = mkTypeString (runMaple (unExpect e) 0) (getArg e)
