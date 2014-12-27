@@ -46,7 +46,7 @@ testS t = do
     print s
     assertResult (show s)
 
--- Assert that all the given Hakaru programs simplify to the last
+-- Assert that all the given Hakaru programs simplify to the given one
 testSS :: (MapleableType a, Typeable a) => [Expect Maple a] -> Testee a -> IO ()
 testSS ts t' =
     mapM_ (\t -> do p <- simplify t
