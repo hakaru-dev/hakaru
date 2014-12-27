@@ -171,6 +171,7 @@ bi["WM"] := proc(w, m)
 end;
 
 bi["Pair"] := bfunc("pair");
+bi["NormalD"] := bfunc("normal");
 
 bi["IntPow"] := proc(l, r)
   b:-append("("); p(l); b:-append(" ^^ "); p(r); b:-append(")");
