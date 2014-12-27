@@ -3,12 +3,12 @@ module Tests.RoundTrip(allTests) where
 
 import Prelude hiding (Real)
 
-import qualified System.Random.MWC as MWC
-import qualified Data.Number.LogFloat as LF
+-- import qualified System.Random.MWC as MWC
+-- import qualified Data.Number.LogFloat as LF
 
 import Language.Hakaru.Syntax
 import Language.Hakaru.Disintegrate
-import Language.Hakaru.Sample
+-- import Language.Hakaru.Sample
 import Language.Hakaru.Expect (Expect(unExpect), Expect', normalize)
 -- import Language.Hakaru.Maple (Maple, runMaple)
 -- import Language.Hakaru.Simplify (simplify)
@@ -288,10 +288,12 @@ testPriorProp :: (Integrate repr, Mochastic repr, Lambda repr) =>
                  repr ((Real, Real) -> Measure (Real, Real))
 testPriorProp = mcmc (priorAsProposal norm) norm
 
+{-
 runPriorProg :: IO (Maybe ((Double,Double), LF.LogFloat))
 runPriorProg = do
    g <- MWC.create
    unSample (app testPriorProp (pair 1 1)) 1 g
+-}
 
 norm :: Mochastic repr => repr (Measure (Real, Real))
 norm = normal 0 1 `bind` \x ->
