@@ -75,7 +75,7 @@ testOther :: Test
 testOther = test [
     "testMcmc" ~: testMcmc,
     "testGibbs1" ~: testSS [testGibbsProp1] (lam $ \x -> normal x 1),
-    "testGibbs2" ~: testSS [testGibbsProp2] (lam $ \x -> normal (x/2) (sqrt_ (1/2))),
+    "testGibbs2" ~: testSS [testGibbsProp2] (lam $ \x -> normal (x/2) ((1/2) * sqrt_ 2)),
     "expr1" ~: testMaple expr1,
     "expr2" ~: testMaple expr2,
     "expr4" ~: testMaple expr4,
@@ -144,10 +144,12 @@ t14,t14' :: Mochastic repr => repr (Measure Real)
 t14 = bern (3/5) `bind` \b ->
       if_ b t13 (bern (2/7) `bind` \b' ->
                  if_ b' (uniform 10 12) (uniform 14 16))
-t14' = superpose [(4/35, uniform 10 12),
+t14' = superpose [
                   (9/25, dirac 37),
-                  (2/7, uniform 14 16),
-                  (6/25, dirac 42)]
+                  (6/25, dirac 42),
+                  (4/35, uniform 10 12),
+                  (2/7, uniform 14 16)
+                 ]
 
 t20 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure ())
 t20 = lam (\y -> uniform 0 1 `bind` \x -> factor (unsafeProb x * y))
@@ -198,8 +200,8 @@ t27 = map (\d -> lam (d unit)) $ runDisintegrate
     dirac (pair y x))
 t27' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure Real)
 t27' = lam (\y ->
-  superpose [( exp_ (y * y * ((-1)/4)) * recip (sqrt_ pi_) * (1/2)
-             , normal (y/2) (recip (sqrt_ 2)) )])
+  superpose [( recip (sqrt_ pi_) * exp_ (y * y * ((-1)/4)) * (1/2)
+             , normal (y * (1/2)) ((sqrt_ 2) * (1/2)) )])
 
 t28 :: Mochastic repr => repr (Measure Real)
 t28 = uniform 0 1
