@@ -52,7 +52,7 @@ testMeasureReal = test [
     "t9"  ~: testSS [t9] (uniform 3 7 `bind` \x -> superpose [(2, dirac x)]),
     "t13" ~: testSS [t13] t13',
     "t14" ~: testSS [t14] t14',
-    "t21" ~: ignore $ testS t21,
+    "t21" ~: testS t21,
     "t27" ~: testSS t27 t27',
     "t28" ~: testSS [] t28,
     "t29" ~: testSS [] t29,
@@ -75,7 +75,7 @@ testOther :: Test
 testOther = test [
     "testMcmc" ~: testMcmc,
     "testGibbs1" ~: testSS [testGibbsProp1] (lam $ \x -> normal x 1),
-    "testGibbs2" ~: testSS [testGibbsProp2] (lam $ \x -> normal (x/2) ((1/2) * sqrt_ 2)),
+    "testGibbs2" ~: testSS [testGibbsProp2] (lam $ \x -> normal (x * (1/2)) (sqrt_ 2 * (1/2))),
     "expr1" ~: testMaple expr1,
     "expr2" ~: testMaple expr2,
     "expr4" ~: testMaple expr4,
@@ -167,11 +167,10 @@ t23 = bern (1/2) `bind` \a ->
                bern (if_ a (9/10) (1/10)) `bind` \b ->
                bern (if_ a (9/10) (1/10)) `bind` \c ->
                dirac (pair b c)
-t23' = superpose [(41/100, dirac (pair false false)),
-                  ( 9/100, dirac (pair false  true)),
-                  ( 9/100, dirac (pair  true false)),
-                  (41/100, dirac (pair  true  true))]
-
+t23' = superpose [(41/100, dirac (pair true true)),
+                  ( 9/100, dirac (pair true false)),
+                  ( 9/100, dirac (pair false true)),
+                  (41/100, dirac (pair false false))]
 
 t24,t24' :: (Mochastic repr, Lambda repr) => repr (Prob -> Measure ())
 t24 = lam (\x ->
