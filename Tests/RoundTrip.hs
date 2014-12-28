@@ -62,7 +62,7 @@ testMeasureReal = test [
 
 testMeasurePair :: Test
 testMeasurePair = test [
-    "t4"            ~: testS t4,
+    "t4"            ~: testSS [t4] t4',
     "t8"            ~: testSS [] t8,
     "t23"           ~: testSS [t23] t23',
     "testPriorProp" ~: testS testPriorProp
@@ -101,6 +101,11 @@ t3 = normal 0 10
 
 t4 :: Mochastic repr => repr (Measure (Prob, Bool))
 t4 = beta 1 1 `bind` \bias -> bern bias `bind` \coin -> dirac (pair bias coin)
+
+t4' :: Mochastic repr => repr (Measure (Prob, Bool))
+t4' = (uniform  0 1) `bind` \x3 -> 
+      superpose [((unsafeProb x3)               ,(dirac (pair (unsafeProb x3) true))), 
+                 ((unsafeProb (1 + (x3 * (-1)))),(dirac (pair (unsafeProb x3) false)))]
 
 -- t5 is "the same" as t1.
 t5 :: Mochastic repr => repr (Measure ())
