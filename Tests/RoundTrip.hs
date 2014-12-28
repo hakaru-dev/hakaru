@@ -1,14 +1,10 @@
 {-# LANGUAGE TypeFamilies, Rank2Types, FlexibleContexts #-}
-module Tests.RoundTrip(allTests) where
+module Tests.RoundTrip (allTests, testPriorProp) where
 
 import Prelude hiding (Real)
 
--- import qualified System.Random.MWC as MWC
--- import qualified Data.Number.LogFloat as LF
-
 import Language.Hakaru.Syntax
 import Language.Hakaru.Disintegrate
--- import Language.Hakaru.Sample
 import Language.Hakaru.Expect (Expect(unExpect), Expect', normalize)
 -- import Language.Hakaru.Maple (Maple, runMaple)
 -- import Language.Hakaru.Simplify (simplify)
@@ -66,9 +62,10 @@ testMeasureReal = test [
 
 testMeasurePair :: Test
 testMeasurePair = test [
-    "t4"  ~: testS t4,
-    "t8"  ~: testSS [] t8,
-    "t23" ~: testSS [t23] t23'
+    "t4"            ~: testS t4,
+    "t8"            ~: testSS [] t8,
+    "t23"           ~: testSS [t23] t23',
+    "testPriorProp" ~: testS testPriorProp
     ]
 
 testOther :: Test
@@ -288,13 +285,6 @@ mcmc q p =
 testPriorProp :: (Integrate repr, Mochastic repr, Lambda repr) =>
                  repr ((Real, Real) -> Measure (Real, Real))
 testPriorProp = mcmc (priorAsProposal norm) norm
-
-{-
-runPriorProg :: IO (Maybe ((Double,Double), LF.LogFloat))
-runPriorProg = do
-   g <- MWC.create
-   unSample (app testPriorProp (pair 1 1)) 1 g
--}
 
 norm :: Mochastic repr => repr (Measure (Real, Real))
 norm = normal 0 1 `bind` \x ->
