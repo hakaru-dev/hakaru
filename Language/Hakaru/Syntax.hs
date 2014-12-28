@@ -2,13 +2,14 @@
              DeriveDataTypeable, GADTs, Rank2Types #-}
 {-# OPTIONS -Wall #-}
 
-module Language.Hakaru.Syntax (Real, Prob, Measure, Bool_,
+module Language.Hakaru.Syntax (Real, Prob, Measure,
        EqType(Refl), Order_(..), Number(..), Fraction(..),
        Uneither(Uneither),
        errorEmpty,
        Order(..), Base(..), ununit, fst_, snd_,
        and_, or_, not_, min_, max_,
-       Mochastic(..), bind_, pairBind, liftM, liftM2, invgamma, beta, bern,
+       Mochastic(..), bind_, factor, pairBind, liftM, liftM2,
+       invgamma, beta, bern,
        Integrate(..), Lambda(..)) where
 
 import Data.Typeable (Typeable)    
@@ -23,16 +24,15 @@ infixl 9 `app`
 
 data Real      deriving Typeable
 data Prob      deriving Typeable -- meaning: non-negative real number
-data Bool_     deriving Typeable
 data Measure a deriving Typeable
 
 data EqType t t' where
   Refl :: EqType t t
 
 class Order_ a where
-  less_, equal_  :: (Base repr              ) => repr a -> repr a -> repr Bool_
-  default less_  :: (Base repr, Order repr a) => repr a -> repr a -> repr Bool_
-  default equal_ :: (Base repr, Order repr a) => repr a -> repr a -> repr Bool_
+  less_, equal_  :: (Base repr              ) => repr a -> repr a -> repr Bool
+  default less_  :: (Base repr, Order repr a) => repr a -> repr a -> repr Bool
+  default equal_ :: (Base repr, Order repr a) => repr a -> repr a -> repr Bool
   less_  = less
   equal_ = equal
 
@@ -97,9 +97,9 @@ newtype Uneither repr a b = Uneither (forall c.
 ------- Terms
 
 class (Number a) => Order repr a where
-  less          ::                repr a -> repr a -> repr Bool_
-  equal         ::                repr a -> repr a -> repr Bool_
-  default equal :: (Base repr) => repr a -> repr a -> repr Bool_
+  less          ::                repr a -> repr a -> repr Bool
+  equal         ::                repr a -> repr a -> repr Bool
+  default equal :: (Base repr) => repr a -> repr a -> repr Bool
   equal a b = not_ (or_ [less a b, less b a])
 
 class (Order repr Int , Num        (repr Int ),
@@ -115,9 +115,14 @@ class (Order repr Int , Num        (repr Int ),
   inr        :: repr b -> repr (Either a b)
   uneither   :: repr (Either a b) ->
                 (repr a -> repr c) -> (repr b -> repr c) -> repr c
-  true       :: repr Bool_
-  false      :: repr Bool_
-  if_        :: repr Bool_ -> repr c -> repr c -> repr c
+  true       :: repr Bool
+  false      :: repr Bool
+  if_        :: repr Bool -> repr c -> repr c -> repr c
+
+  nil        :: repr [a]
+  cons       :: repr a -> repr [a] -> repr [a]
+  unlist     :: repr [a] -> repr c ->
+                (repr a -> repr [a] -> repr c) -> repr c
 
   unsafeProb :: repr Real -> repr Prob
   fromProb   :: repr Prob -> repr Real
@@ -161,17 +166,17 @@ fst_ ab = unpair ab (\a _ -> a)
 snd_ :: (Base repr) => repr (a,b) -> repr b
 snd_ ab = unpair ab (\_ b -> b)
 
-and_ :: (Base repr) => [repr Bool_] -> repr Bool_
+and_ :: (Base repr) => [repr Bool] -> repr Bool
 and_ []     = true
 and_ [b]    = b
 and_ (b:bs) = if_ b (and_ bs) false
 
-or_ :: (Base repr) => [repr Bool_] -> repr Bool_
+or_ :: (Base repr) => [repr Bool] -> repr Bool
 or_ []      = false
 or_ [b]     = b
 or_ (b:bs)  = if_ b true (or_ bs)
 
-not_ :: (Base repr) => repr Bool_ -> repr Bool_
+not_ :: (Base repr) => repr Bool -> repr Bool
 not_ a = if_ a false true
 
 min_, max_ :: (Order_ a, Base repr) => repr a -> repr a -> repr a
@@ -197,8 +202,6 @@ class (Base repr) => Mochastic repr where
                                       / fromProb (2 * pow_ sd 2))
                                  / sd / sqrt_ (2 * pi_)
                               , dirac x )]
-  factor        :: repr Prob -> repr (Measure ())
-  factor p      =  superpose [(p, dirac unit)]
   mix           :: [(repr Prob, repr (Measure a))] -> repr (Measure a)
   mix []        =  errorEmpty
   mix pms       =  let total = sum (map fst pms)
@@ -234,6 +237,9 @@ bind_ :: (Mochastic repr) => repr (Measure a) -> repr (Measure b) ->
                                                  repr (Measure b)
 m `bind_` n = m `bind` \_ -> n
 
+factor :: (Mochastic repr) => repr Prob -> repr (Measure ())
+factor p = superpose [(p, dirac unit)]
+
 pairBind :: (Mochastic repr) => repr (Measure a) ->
             (repr a -> repr (Measure b)) -> repr (Measure (a,b))
 m `pairBind` k = m `bind` \a -> k a `bind` \b -> dirac (pair a b)
@@ -256,7 +262,7 @@ beta a b = uniform 0 1 `bind` \x ->
                       / betaFunc a b
                       , dirac (unsafeProb x) )]
 
-bern :: (Mochastic repr) => repr Prob -> repr (Measure Bool_)
+bern :: (Mochastic repr) => repr Prob -> repr (Measure Bool)
 bern p = categorical [(p, true), (1-p, false)]
 
 class (Base repr) => Integrate repr where

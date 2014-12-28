@@ -41,6 +41,9 @@ instance Base THRepr where
   true = liftT 'true []
   false = liftT 'false []
   if_ (THR eb) (THR et) (THR ef) = liftT 'if_ [eb, et, ef]
+  nil = liftT 'nil []
+  cons (THR a) (THR as) = liftT 'cons [a, as]
+  unlist (THR as) (THR kn) kc = liftT 'unlist [as, kn, liftF2 kc]
   unsafeProb (THR e) = liftT 'unsafeProb [e]
   fromProb (THR e) = liftT 'fromProb [e]
   fromInt (THR e) = liftT 'fromInt [e]
@@ -97,7 +100,6 @@ instance Mochastic THRepr where
                                           | (THR e, THR e') <- pms ]]
   uniform (THR e) (THR e') = liftT 'uniform [e, e']
   normal (THR e) (THR e') = liftT 'normal [e, e']
-  factor (THR e) = liftT 'factor [e]
   mix pms = liftT 'mix [liftL [ varE '(,) `appE` e `appE` e'
                               | (THR e, THR e') <- pms ]]
   categorical l = liftT 'categorical [liftL [ varE '(,) `appE` e `appE` e'

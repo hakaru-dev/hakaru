@@ -3,12 +3,12 @@
     RankNTypes, ScopedTypeVariables #-}
 {-# OPTIONS -Wall #-}
 
-module Language.Hakaru.Expect (Expect(..), Expect') where
+module Language.Hakaru.Expect (Expect(..), Expect', total, normalize) where
 
 -- Expectation interpretation
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Real, Prob, Bool_, Measure,
+import Language.Hakaru.Syntax (Real, Prob, Measure,
        Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..))
 import Data.Number.Erf
 
@@ -18,43 +18,13 @@ type family Expect' (a :: *)
 type instance Expect' Int          = Int
 type instance Expect' Real         = Real
 type instance Expect' Prob         = Prob
-type instance Expect' Bool_        = Bool_
+type instance Expect' Bool         = Bool
 type instance Expect' ()           = ()
 type instance Expect' (a, b)       = (Expect' a, Expect' b)
 type instance Expect' (Either a b) = Either (Expect' a) (Expect' b)
+type instance Expect' [a]          = [Expect' a]
 type instance Expect' (Measure a)  = (Expect' a -> Prob) -> Prob
 type instance Expect' (a -> b)     = (Expect' a -> Expect' b)
-
--- unsafeTypeable :: forall w t. TypeRep -> (Typeable t => w) -> w
--- unsafeTypeable rep = unsafeCoerce (\k -> k (const rep))
--- -- TODO: on ghc 7.8, because the Typeable dictionary uses Proxy#,
--- -- the "const" above needs to be removed to avoid a segfault!
-
--- typeExpect :: forall w t. (Typeable t) => t -> (Typeable (Expect' t) => w) -> w
--- typeExpect dummy = unsafeTypeable (expect' (typeOf dummy)) where
---   expect' :: TypeRep -> TypeRep
---   expect' t
---     | t  `elem` [tInt, tReal, tProb, tUnit] = t
---     | tc `elem` [tcProd, tcSum, tcFun] = mkTyConApp tc (map expect' ts)
---     | tc == tcMeas = let [ta] = ts in mkFunTy (mkFunTy (expect' ta) tProb) tProb
---     | otherwise = error ("typeExpect " ++ show t)
---     where (tc,ts) = splitTyConApp t
---           tInt    = typeOf (undefined :: Int)
---           tReal   = typeOf (undefined :: Real)
---           tProb   = typeOf (undefined :: Prob)
---           tUnit   = typeOf (undefined :: ())
---           tcProd  = typeRepTyCon (typeOf (undefined :: (,)    () ()))
---           tcSum   = typeRepTyCon (typeOf (undefined :: Either () ()))
---           tcFun   = typeRepTyCon (typeOf (undefined :: (->)   () ()))
---           tcMeas  = typeRepTyCon (typeOf (undefined :: Measure   ()))
-
--- typeExpectBoth :: forall t1 t2 a f repr w.
---                   (Typeable t1, Typeable t2) => a (f t1 t2) ->
---                   ((Typeable (Expect' t1), Typeable (Expect' t2)) =>
---                    repr (Expect' w)) ->
---                   Expect repr w
--- typeExpectBoth _ k = Expect (typeExpect (undefined :: t1)
---                             (typeExpect (undefined :: t2) k))
 
 instance (Order repr Real) => Order (Expect repr) Real where
   less  (Expect x) (Expect y) = Expect (less  x y)
@@ -98,6 +68,12 @@ instance (Base repr) => Base (Expect repr) where
   true                           = Expect true
   false                          = Expect false
   if_ eb (Expect et) (Expect ef) = Expect $ if_ (unExpect eb) et ef
+
+  nil                            = Expect nil
+  cons (Expect a) (Expect as)    = Expect $ cons a as
+  unlist (Expect as) kn kc       = Expect $ unlist as (unExpect kn) (\a' as' ->
+                                   unExpect (kc (Expect a') (Expect as')))
+                                   
   unsafeProb                     = Expect . unsafeProb . unExpect
   fromProb                       = Expect . fromProb   . unExpect
   fromInt                        = Expect . fromInt    . unExpect
@@ -137,3 +113,13 @@ instance (Integrate repr, Lambda repr)
 instance (Lambda repr) => Lambda (Expect repr) where
   lam f = Expect (lam (unExpect . f . Expect))
   app (Expect rator) (Expect rand) = Expect (app rator rand)
+
+total :: (Lambda repr, Base repr) => Expect repr (Measure a) -> repr Prob
+total m = unExpect m `app` lam (\_ -> 1)
+
+normalize :: (Integrate repr, Lambda repr, Mochastic repr) =>
+             (forall repr'. (Integrate repr', Lambda repr', Mochastic repr') =>
+                            (forall b. (Expect' b ~ b) => repr b -> repr' b) ->
+                            repr' (Measure a)) ->
+             repr (Measure a)
+normalize m = superpose [(recip (total (m Expect)), m id)]

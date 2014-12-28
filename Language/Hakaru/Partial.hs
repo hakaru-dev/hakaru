@@ -10,7 +10,7 @@ import Prelude hiding (Real)
 import Language.Hakaru.Syntax hiding (liftM2)
 import Data.Ratio (denominator, numerator)
 import Data.Maybe (fromMaybe, isJust)
-import Control.Monad (liftM2)
+import Control.Monad (liftM2, liftM3)
 import Data.Number.Erf (Erf(..))
 
 data Partial repr a = Partial
@@ -33,11 +33,14 @@ newtype instance Static Prob         repr = SProb  Rational
 newtype instance Static (a -> b)     repr = SArrow (Partial repr a ->
                                                     Partial repr b)
 data    instance Static ()           repr = SUnit
-data    instance Static Bool_        repr = STrue | SFalse
+data    instance Static Bool         repr = STrue | SFalse
 data    instance Static (a, b)       repr = SPair  (Partial repr a)
                                                    (Partial repr b)
 data    instance Static (Either a b) repr = SLeft  (Partial repr a)
                                           | SRight (Partial repr b)
+data    instance Static [a]          repr = SNil
+                                          | SCons (Partial repr a)
+                                                  (Partial repr [a])
 newtype instance Static (Measure a)  repr = SMeasure (M repr a)
 
 type M repr a =
@@ -49,8 +52,8 @@ class Known a where
   toKnown   :: Partial repr a -> Maybe (Knowledge a)
   fromKnown :: (Base repr) => Knowledge a -> Partial repr a
 
-instance Known Bool_ where
-  type Knowledge Bool_ = Bool
+instance Known Bool where
+  type Knowledge Bool = Bool
   toKnown (Partial _ (Just STrue))  = Just True
   toKnown (Partial _ (Just SFalse)) = Just False
   toKnown _                         = Nothing
@@ -203,15 +206,30 @@ instance (Base repr) => Base (Partial repr) where
         kb' b = fromMaybe (error "Partial uneither: kb nonmonotonic!?")
                           (toDynamic (kb (fromDynamic (Just b))))
     Just (uneither ab' ka' kb'))
+
   true  = Partial (Just true)  (Just STrue)
   false = Partial (Just false) (Just SFalse)
   if_ (Partial _ (Just STrue)) et _ = et
   if_ (Partial _ (Just SFalse)) _ ef = ef
-  if_ eb et ef = fromDynamic $
-                 let eb' = fromMaybe (error "No eb") (toDynamic eb)
-                     et' = fromMaybe (error "No et") (toDynamic et)
-                     ef' = fromMaybe (error "No ef") (toDynamic ef)
-                 in Just (if_ eb' et' ef')
+  if_ eb et ef = fromDynamic (liftM3 if_ (toDynamic eb)
+                                         (toDynamic et)
+                                         (toDynamic ef))
+
+  nil         = Partial (Just nil) (Just SNil)
+  cons a as   = Partial (liftM2 cons (toDynamic a) (toDynamic as))
+                        (Just (SCons a as))
+  unlist (Partial _ (Just SNil)) kn _ = kn
+  unlist (Partial _ (Just (SCons a as))) _ kc = kc a as
+  unlist as kn kc = fromDynamic (do
+    _ <- toDynamic (kc (fromDynamic (Just undefined))
+                       (fromDynamic (Just undefined)))
+    as' <- toDynamic as
+    kn' <- toDynamic kn
+    let kc' a l = fromMaybe (error "Partial unlist: kc nonmonotonic!?")
+                           (toDynamic (kc (fromDynamic (Just a))
+                                         (fromDynamic (Just l))))
+    Just (unlist as' kn' kc'))
+
   unsafeProb (Partial d s) = Partial (fmap unsafeProb d)
                                      (fmap (\(SReal x) -> SProb x) s)
   fromProb (Partial d s) = Partial (fmap fromProb d)

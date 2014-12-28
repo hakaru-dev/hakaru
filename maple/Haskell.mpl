@@ -19,7 +19,7 @@ Haskell := module ()
   # the right way would involve a proper pretty-printer, but that
   # can be added later easily enough.
   ModuleApply := proc(e) 
-      local pows, expr;
+      local rts, pows, expr;
 
       b:-clear();
 
@@ -31,12 +31,13 @@ Haskell := module ()
         expr := subs(map((x -> x = recip(op(1,x))), pows), expr);
       end if;
 
-      # catch sqrt(2)
-      pows := select(x -> evalb(signum(op(1,x))=1), 
-               indets(expr, realcons ^ identical(1/2)));
+      # catch sqrt(2) and other sqrt calls
+      rts := indets(expr, anything ^ identical(1/2));
+      pows, rts := selectremove(x -> evalb(signum(op(1,x))=1), rts);
       if pows <> {} then
         expr := subs(map((x -> x = sqrt_ (op(1,x))), pows), expr);
       end if;
+      expr := subs(map((x -> x = Sqrt(op(1,x))), rts), expr);
 
       # catch 1/sqrt(Pi)
       pows := select(x -> evalb(signum(op(1,x))=1), 
@@ -171,6 +172,7 @@ bi["WM"] := proc(w, m)
 end;
 
 bi["Pair"] := bfunc("pair");
+bi["NormalD"] := bfunc("normal");
 
 bi["IntPow"] := proc(l, r)
   b:-append("("); p(l); b:-append(" ^^ "); p(r); b:-append(")");
@@ -188,6 +190,7 @@ end proc;
 bi["exp"] := ufunc("exp");
 bi["exp_"] := ufunc("exp_");
 bi["sqrt_"] := ufunc("sqrt_");
+bi["Sqrt"] := ufunc("sqrt");
 bi["recip"] := ufunc("recip");
 bi["ln"] := ufunc("log");
 bi["ln_"] := ufunc("log_");

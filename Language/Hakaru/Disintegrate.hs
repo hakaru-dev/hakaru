@@ -2,8 +2,8 @@
              RankNTypes, GADTs, StandaloneDeriving #-}
 {-# OPTIONS -Wall -fno-warn-incomplete-patterns #-}
 
-module Language.Hakaru.Disintegrate (Disintegrate,
-       runDisintegrate, condition, density, resetDisint,
+module Language.Hakaru.Disintegrate (Disintegrate, Disintegration(..),
+       runDisintegrate, disintegrations, condition, density, resetDisint,
        Eq'(..), eq'List, Ord'(..), ord'List, Show'(..), Tree(..), Selector(..),
        Op0(..), Op1(..), Op2(..), Expr(..), Name, Loc, Void,
        if', max_, stdRandom, run, disintegrate, emptyEnv) where
@@ -24,9 +24,9 @@ import Language.Hakaru.Util.Pretty (Pretty (pretty),
         prettyPair, prettyParen, prettyFun, prettyOp)
 import Text.PrettyPrint (Doc, text, char, int, integer, comma, semi, brackets,
         parens, (<>), (<+>), nest, fsep, sep, punctuate, render)
-import Language.Hakaru.Syntax (Real, Prob, Measure, Bool_,
+import Language.Hakaru.Syntax (Real, Prob, Measure,
         EqType(Refl), Order_(..), Number(..), Fraction(..),
-        Order(..), Base(..), Mochastic(..), liftM, if_,
+        Order(..), Base(..), Mochastic(..), factor, liftM,
         Lambda(..), Integrate(..))
 import Language.Hakaru.Expect (Expect(unExpect), Expect')
 import Unsafe.Coerce (unsafeCoerce)
@@ -85,44 +85,21 @@ data Tree a t where
   Branch :: Tree a t1 -> Tree a t2 -> Tree a (t1, t2)
   UnaryL :: Tree a t1 -> Tree a (Either t1 t2)
   UnaryR :: Tree a t2 -> Tree a (Either t1 t2)
+  LNil   :: Tree a [t]
+  LCons  :: Tree a t -> Tree a [t] -> Tree a [t]
   Nil    :: Tree a ()
-  BoolT  :: Tree a Bool_
-  BoolF  :: Tree a Bool_
+  BoolT  :: Tree a Bool
+  BoolF  :: Tree a Bool
   Leaf   :: a t -> Tree a t
-
-instance (Eq' a) => Eq' (Tree a) where
-  eq' (Branch a1 b1) (Branch a2 b2) = eq' a1 a2 && eq' b1 b2
-  eq' (UnaryL a)     (UnaryL b)     = eq' a b
-  eq' (UnaryR a)     (UnaryR b)     = eq' a b
-  eq' Nil            Nil            = True
-  eq' (Leaf a)       (Leaf b)       = eq' a b
-  eq' BoolT          BoolT          = True
-  eq' BoolF          BoolF          = True
-  eq' _              _              = False
-
-instance (Ord' a) => Ord' (Tree a) where
-  ord' (Branch a1 b1) (Branch a2 b2) = ord' a1 a2 `mappend` ord' b1 b2
-  ord' (Branch _ _)   (Leaf _)       = LT
-  ord' (Leaf _)       (Branch _ _)   = GT
-  ord' (UnaryL a)     (UnaryL b)     = ord' a b
-  ord' (UnaryR a)     (UnaryR b)     = ord' a b
-  ord' (UnaryL _)     (UnaryR _)     = LT
-  ord' (UnaryR _)     (UnaryL _)     = GT
-  ord' (UnaryL _)     (Leaf _)       = LT
-  ord' (UnaryR _)     (Leaf _)       = LT
-  ord' (Leaf _)       (UnaryL _)     = GT
-  ord' (Leaf _)       (UnaryR _)     = GT
-  ord' Nil            Nil            = EQ
-  ord' Nil            (Leaf _)       = LT
-  ord' (Leaf _)       Nil            = GT
-  ord' (Leaf a)       (Leaf b)       = ord' a b
-  -- the BoolT/BoolF cases need to be added here
 
 instance (Show' a) => Show' (Tree a) where
   pretty' _ (Branch a b) = prettyPair (pretty' 0 a) (pretty' 0 b)
   pretty' p (UnaryL a)   = prettyFun (p > 10) "L" (pretty' 11 a)
   pretty' p (UnaryR b)   = prettyFun (p > 10) "R" (pretty' 11 b)
   pretty' p (Leaf a)     = pretty' p a
+  pretty' _ LNil         = text "[]"
+  pretty' p (LCons a as) = prettyFun (p > 10) "LCons" $
+                           pretty' 11 a <+> pretty' 11 as
   pretty' _ BoolT        = text "true"
   pretty' _ BoolF        = text "false"
   pretty' _ Nil          = text "()"
@@ -131,6 +108,8 @@ instance Functor' Tree where
   fmap' f (Branch a b) = fmap' f a `Branch` fmap' f b
   fmap' f (UnaryL a)   = UnaryL (fmap' f a)
   fmap' f (UnaryR b)   = UnaryR (fmap' f b)
+  fmap' _ LNil         = LNil
+  fmap' f (LCons a as) = LCons (fmap' f a) (fmap' f as)
   fmap' _ Nil          = Nil
   fmap' _ BoolT        = BoolT
   fmap' _ BoolF        = BoolF
@@ -140,6 +119,8 @@ instance Foldable' Tree where
   foldMap' f (Branch a b) = foldMap' f a `mappend` foldMap' f b
   foldMap' f (UnaryL a)   = foldMap' f a
   foldMap' f (UnaryR b)   = foldMap' f b
+  foldMap' _ LNil         = mempty
+  foldMap' f (LCons a as) = foldMap' f a `mappend` foldMap' f as
   foldMap' _ Nil          = mempty
   foldMap' _ BoolT        = mempty
   foldMap' _ BoolF        = mempty
@@ -149,6 +130,8 @@ instance Traversable' Tree where
   traverse' f (Branch a b) = fmap Branch (traverse' f a) <*> traverse' f b
   traverse' f (UnaryL a)   = fmap UnaryL (traverse' f a)
   traverse' f (UnaryR b)   = fmap UnaryR (traverse' f b)
+  traverse' _ LNil         = pure LNil
+  traverse' f (LCons a as) = fmap LCons (traverse' f a) <*> traverse' f as
   traverse' _ Nil          = pure Nil
   traverse' _ BoolT        = pure BoolT
   traverse' _ BoolF        = pure BoolF
@@ -159,15 +142,19 @@ instance Traversable' Tree where
 -- To take another example, disintegrating at Root is calculating density.
 
 data Selector to t where
-  Fst  :: Selector to t -> Selector to (t, t')
-  Snd  :: Selector to t -> Selector to (t', t)
-  Unl  :: Selector to t -> Selector to (Either t t')
-  Unr  :: Selector to t -> Selector to (Either t' t)
+  Fst  :: Selector to t   -> Selector to (t, t')
+  Snd  :: Selector to t   -> Selector to (t', t)
+  Car  :: Selector to t   -> Selector to [t]
+  Cdr  :: Selector to [t] -> Selector to [t]
+  Unl  :: Selector to t   -> Selector to (Either t t')
+  Unr  :: Selector to t   -> Selector to (Either t' t)
   Root :: Selector to to
 
 instance Show' (Selector to) where
   pretty' p (Fst s) = prettyFun (p > 10) "Fst" (pretty' 11 s)
   pretty' p (Snd s) = prettyFun (p > 10) "Snd" (pretty' 11 s)
+  pretty' p (Car s) = prettyFun (p > 10) "Car" (pretty' 11 s)
+  pretty' p (Cdr s) = prettyFun (p > 10) "Cdr" (pretty' 11 s)
   pretty' p (Unl s) = prettyFun (p > 10) "Unl" (pretty' 11 s)
   pretty' p (Unr s) = prettyFun (p > 10) "Unr" (pretty' 11 s)
   pretty' _ Root    = text "Root"
@@ -182,6 +169,13 @@ locate x (Branch a b) =
   (Nothing, Nothing) -> Nothing
 locate x (UnaryL a) = fmap Unl (locate x a)
 locate x (UnaryR a) = fmap Unr (locate x a)
+locate _ LNil    = Nothing
+locate x (LCons a as) =
+  case (locate x a, locate x as) of
+  (Just _ , Just _ ) -> error ("Duplicate " ++ case x of Const x' -> show x')
+  (Just s , Nothing) -> Just (Car s)
+  (Nothing, Just s ) -> Just (Cdr s)
+  (Nothing, Nothing) -> Nothing
 locate _ Nil        = Nothing
 locate _ BoolT      = Nothing
 locate _ BoolF      = Nothing
@@ -191,6 +185,8 @@ locate x (Leaf a)   = do Refl <- unsafeJmEq x a
 compose :: Selector t2 t3 -> Selector t1 t2 -> Selector t1 t3
 compose (Fst s1) s2 = Fst (compose s1 s2)
 compose (Snd s1) s2 = Snd (compose s1 s2)
+compose (Car s1) s2 = Car (compose s1 s2)
+compose (Cdr s1) s2 = Cdr (compose s1 s2)
 compose (Unl s1) s2 = Unl (compose s1 s2)
 compose (Unr s1) s2 = Unr (compose s1 s2)
 compose Root     s2 = s2
@@ -270,8 +266,9 @@ data Op0 t where
   Infinity         :: Op0 Real
   NegativeInfinity :: Op0 Real
   Unit             :: Op0 ()
-  True_            :: Op0 Bool_
-  False_           :: Op0 Bool_
+  EmptyList        :: Op0 [t]
+  True_            :: Op0 Bool
+  False_           :: Op0 Bool
 
 data Op1 t1 t where
   Exp        :: (Fraction t) => Op1 Real t
@@ -289,14 +286,13 @@ data Op1 t1 t where
   FromProb   :: Op1 Prob Real
   FromInt    :: Op1 Int  Real
   GammaFunc  :: Op1 Real Prob
-  ErfFunc    :: Op1 Real Real
-  ErfFunc_   :: Op1 Prob Prob
+  ErfFunc    :: (Fraction t) => Op1 t t
 
 data Op2 t1 t2 t where
   Add      :: (Number t) => Op2 t t t
   Mul      :: (Number t) => Op2 t t t
-  Less     :: (Number t) => Op2 t t Bool_
-  Equal    :: (Number t) => Op2 t t Bool_
+  Less     :: (Number t) => Op2 t t Bool
+  Equal    :: (Number t) => Op2 t t Bool
   BetaFunc :: Op2 Prob Prob Prob
 
 deriving instance Eq (Op0 t)
@@ -322,9 +318,11 @@ data Dict t = Dict
   { unsafeProbFraction :: forall b u. Expr b u t -> Expr b u Prob
   , piFraction         :: forall repr. (Base repr) => repr t
   , expFraction        :: forall repr. (Base repr) => repr Real -> repr t
-  , logFraction        :: forall repr. (Base repr) => repr t -> repr Real }
+  , logFraction        :: forall repr. (Base repr) => repr t -> repr Real
+  , erfFraction        :: forall repr. (Base repr) => repr t -> repr t }
 dict :: (Fraction t) => Dict t
-dict = fractionCase (Dict (Op1 UnsafeProb) pi exp log) (Dict id pi_ exp_ log_)
+dict = fractionCase (Dict (Op1 UnsafeProb) pi exp log erfFunc)
+                    (Dict id pi_ exp_ log_ erfFunc_)
 
 data Expr b u t where -- b = bound variables; u = used variables
   Op0     :: Op0 t ->                                     Expr b u t
@@ -337,8 +335,9 @@ data Expr b u t where -- b = bound variables; u = used variables
                                                           Expr b u (Measure t')
   Dirac   :: Expr b u t ->                                Expr b u (Measure t)
   Pair    :: Expr b u t -> Expr b u t' ->                 Expr b u (t, t')
-  Inl     :: Expr b u t ->   Expr b u (Either t t')
-  Inr     :: Expr b u t ->   Expr b u (Either t' t)
+  Inl     :: Expr b u t ->                                Expr b u (Either t t')
+  Inr     :: Expr b u t ->                                Expr b u (Either t' t)
+  Cons    :: Expr b u t -> Expr b u [t] ->                Expr b u [t]
   -- The Closure constructor below is for internal use
   -- and should not appear in the final output.
   Closure :: Expr Name Name (Measure t) -> [Binding Name u] ->
@@ -363,6 +362,8 @@ instance (Show' b, Show' u) => Show' (Expr b u) where
   pretty' _ (Pair e1 e2)    = prettyPair (pretty' 0 e1) (pretty' 0 e2)
   pretty' p (Inl e)         = prettyFun (p > 10) "L" (pretty' p e)
   pretty' p (Inr e)         = prettyFun (p > 10) "R" (pretty' p e)
+  pretty' p (Cons a as)     = prettyFun (p > 10) "Cons" $
+                              pretty' 11 a <+> pretty' 11 as
   pretty' p (Closure e env) = prettyParen (p > 0)
                                 (sep [pretty' 0 e, text "@" <+> pretty env])
 
@@ -381,6 +382,7 @@ bimap' f g h (Bind l r e)    = Bind (fmap' f l) (bimap' f g h r)
                                                 (bimap' f g h e)
 bimap' f g h (Dirac e)       = Dirac (bimap' f g h e)
 bimap' f g h (Pair e1 e2)    = Pair  (bimap' f g h e1) (bimap' f g h e2)
+bimap' f g h (Cons a as)     = Cons  (bimap' f g h a)  (bimap' f g h as)
 bimap' f g h (Inl e)         = Inl   (bimap' f g h e)
 bimap' f g h (Inr e)         = Inr   (bimap' f g h e)
 bimap' _ g h (Closure e env) = h e [ Binding name (g u)
@@ -400,6 +402,7 @@ vars b f (Choice es)         = mconcat (map (vars b f) es)
 vars b f (Bind lhs rhs body) = vars b f rhs `mappend` vars b (b lhs f) body
 vars b f (Dirac e)           = vars b f e
 vars b f (Pair e1 e2)        = vars b f e1 `mappend` vars b f e2
+vars b f (Cons a as)         = vars b f a  `mappend` vars b f as
 vars b f (Inl e)             = vars b f e
 vars b f (Inr e)             = vars b f e
 vars _ f (Closure e env)     = vars hideUse (\u -> f (env !! u)) e
@@ -432,7 +435,7 @@ power :: Expr b u Prob -> Expr b u Real -> Expr b u Prob
 power p r = Op1 Exp (Op1 Log p * r)
 
 -- TODO: Add pure `case' construct
-if' :: Expr b u Bool_ ->
+if' :: Expr b u Bool ->
        Expr b u (Measure t) -> Expr b u (Measure t) -> Expr b u (Measure t)
 if' e et ee = Choice [ Bind BoolT (Dirac e) et
                      , Bind BoolF (Dirac e) ee ]
@@ -577,13 +580,17 @@ retrieve loc = M (\c h ->
     (_   , _:_:_) -> error ("Duplicate heap entry " ++ show' 0 loc ""))
 
 store :: Tree Loc t -> Expr Void Loc t -> M ()
-store (Branch t1 t2) (Pair e1 e2) = store t1 e1 >> store t2 e2
-store (UnaryL t)     (Inl e)      = store t e
-store (UnaryL _)     (Inr _)      = reject
-store (UnaryR t)     (Inr e)      = store t e
-store (UnaryR _)     (Inl _)      = reject
-store Nil            (Op0 Unit)   = return ()
-store lhs            rhs          =
+store (Branch t1 t2) (Pair e1 e2)    = store t1 e1 >> store t2 e2
+store (UnaryL t)     (Inl e)         = store t e
+store (UnaryL _)     (Inr _)         = reject
+store (UnaryR t)     (Inr e)         = store t e
+store (UnaryR _)     (Inl _)         = reject
+store Nil            (Op0 Unit)      = return ()
+store LNil           (Op0 EmptyList) = return ()
+store LNil           (Cons _ _)      = reject
+store (LCons a as)   (Cons e es)     = store a e >> store as es
+store (LCons _ _)    (Op0 EmptyList) = reject
+store lhs            rhs             =
   M (\c h -> c () h{bound = Binding lhs (Forced rhs) : bound h})
 
 value :: Loc t -> M (Expr Void Loc t)
@@ -663,6 +670,11 @@ evaluate (Inl _)      _   (Unr _) = reject
 evaluate (Inr e')     env Root    = fmap Inr (delay e' env)
 evaluate (Inr e')     env (Unr s) = fmap Inr (evaluate e' env s)
 evaluate (Inr _)      _   (Unl _) = reject
+evaluate (Cons a as)  env Root    = liftM2 Cons (delay a env) (delay as env)
+evaluate (Cons a as)  env (Car s) = liftM2 Cons (evaluate a env s)
+                                                (delay as env)
+evaluate (Cons a as)  env (Cdr s) = liftM2 Cons (delay a env)
+                                                (evaluate as env s)
 evaluate (Closure e' env') env Root =
   return (uncurry Closure (close e' env' env))
 
@@ -678,6 +690,16 @@ conjure (Snd s) l = do
   l2 <- gensym
   insert (Bind (Branch (Leaf l1) (Leaf l2)) (Dirac (Var l)))
   fmap (Var l1 `Pair`) (conjure s l2)
+conjure (Car s) l = do
+  l1 <- gensym
+  l2 <- gensym
+  insert (Bind (LCons (Leaf l1) (Leaf l2)) (Dirac (Var l)))
+  fmap (`Cons` Var l2) (conjure s l1)
+conjure (Cdr s) l = do
+  l1 <- gensym
+  l2 <- gensym
+  insert (Bind (LCons (Leaf l1) (Leaf l2)) (Dirac (Var l)))
+  fmap (Var l1 `Cons`) (conjure s l2)
 conjure _ _ = mempty
 
 ------- Main disintegrator
@@ -716,8 +738,15 @@ propagate (Op0 Pi) _ _ _ = mempty
 propagate (Op0 Infinity) _ _ _ = mempty
 propagate (Op0 NegativeInfinity) _ _ _ = mempty
 propagate (Op0 Unit) _ _ _ = return (Op0 Unit)
-propagate (Op0 True_) _ _ _ = return (Op0 True_)
-propagate (Op0 False_) _ _ _ = return (Op0 False_)
+propagate (Op0 EmptyList) _ Root t = do
+  insert (Bind LNil (Dirac (ex t)))
+  return (Op0 EmptyList)
+propagate (Op0 True_) _ Root t = do
+  insert (Bind BoolT (Dirac (ex t)))
+  return (Op0 True_)
+propagate (Op0 False_) _ Root t = do
+  insert (Bind BoolF (Dirac (ex t)))
+  return (Op0 False_)
 propagate (Op1 Exp e) env Root t = do
   insert (condLess 0 (ex t) . weight (recip (unsafeProbFraction dict (ex t))))
   fmap (Op1 Exp) (propagate e env Root (Op1 Log t))
@@ -780,8 +809,7 @@ propagate (Op1 FromProb e) env Root t = do
   fmap (Op1 FromProb) (propagate e env Root (Op1 UnsafeProb t))
 propagate (Op1 FromInt _) _ Root _ = mempty
 propagate (Op1 GammaFunc _) _ Root _ = mempty
-propagate (Op1 ErfFunc _) _ Root _ = mempty
-propagate (Op1 ErfFunc_ _) _ Root _ = mempty
+propagate (Op1 ErfFunc _) _ Root _ = mempty -- need InvErf to disintegrate Erf
 propagate (Op2 Add e1 e2) env Root t = mappend (go e1 e2) (go e2 e1)
   where go e e' = do x1 <- evaluate e env Root
                      fmap (x1 +) (propagate e' env Root (t - x1))
@@ -828,11 +856,21 @@ propagate (Inr e) env Root t = do
 propagate (Inr e) env (Unr s) t =
   fmap Inr (propagate e env s t)
 propagate (Inr _) _   (Unl _) _ = reject
+propagate (Cons a as) env Root t = do
+  l1 <- gensym
+  l2 <- gensym
+  insert (Bind (LCons (Leaf l1) (Leaf l2)) (Dirac (ex t)))
+  liftM2 Cons (propagate a  env Root (Var l1))
+              (propagate as env Root (Var l2))
+propagate (Cons a as) env (Car s) t =
+  liftM2 Cons (propagate a env s t) (delay as env)
+propagate (Cons a as) env (Cdr s) t =
+  liftM2 Cons (delay a env) (propagate as env s t)
 propagate (Closure _ _) _ Root _ = mempty
 
-propagateBool :: (Delay env b u) => Expr b u Bool_ ->
-                 env -> Selector to Bool_ -> Expr Void Loc to ->
-                 M (Expr Void Loc Bool_)
+propagateBool :: (Delay env b u) => Expr b u Bool ->
+                 env -> Selector to Bool -> Expr Void Loc to ->
+                 M (Expr Void Loc Bool)
 propagateBool e env Root t = do
   x <- evaluate e env Root
   M (\c h -> let ets = c (Op0 True_) h
@@ -840,14 +878,6 @@ propagateBool e env Root t = do
              in [ if' (ex x) (Bind BoolT (Dirac (ex t)) et)
                              (Bind BoolF (Dirac (ex t)) ef)
                 | et <- ets, ef <- efs ])
--- propagateBool e env (Unl Root) _ = do
---   x <- evaluate e env Root
---   insert (Bind (UnaryL Nil) (Dirac (ex x)))
---   return (Inl (Op0 Unit))
--- propagateBool e env (Unr Root) _ = do
---   x <- evaluate e env Root
---   insert (Bind (UnaryR Nil) (Dirac (ex x)))
---   return (Inr (Op0 Unit))
 
 newtype PropagateMul env b u t = PropagateMul
   (Expr b u t -> Expr b u t -> env -> Expr Void Loc t -> M (Expr Void Loc t))
@@ -931,7 +961,7 @@ determineClosures = bimap' id id $ \e env ->
 newtype Nullary repr a = Nullary { unNullary :: repr a }
 newtype Unary   repr a = Unary   { unUnary   :: repr a -> repr a }
 newtype Binary  repr a = Binary  { unBinary  :: repr a -> repr a -> repr a }
-newtype Boolean repr a = Boolean { unBoolean :: repr a -> repr a -> repr Bool_ }
+newtype Boolean repr a = Boolean { unBoolean :: repr a -> repr a -> repr Bool }
 
 nullary :: (Number   a, Base repr) => ((Order repr a, Num (repr a)) =>
            repr a) -> repr a
@@ -944,7 +974,7 @@ binaryN :: (Number   a, Base repr) => ((Order repr a, Num (repr a)) =>
 binary  :: (Fraction a, Base repr) => ((Order repr a, Fractional (repr a)) =>
            repr a -> repr a -> repr a) -> repr a -> repr a -> repr a
 boolean :: (Number   a, Base repr) => ((Order repr a, Num (repr a)) =>
-           repr a -> repr a -> repr Bool_) -> repr a -> repr a -> repr Bool_
+           repr a -> repr a -> repr Bool) -> repr a -> repr a -> repr Bool
 
 nullary x = unNullary (numberRepr   (Nullary x))
 unaryN  x = unUnary   (numberRepr   (Unary   x))
@@ -962,6 +992,7 @@ toHakaru (Op0 Pi)                  _   = piFraction dict
 toHakaru (Op0 Infinity)            _   = infinity
 toHakaru (Op0 NegativeInfinity)    _   = negativeInfinity
 toHakaru (Op0 Unit)                _   = unit
+toHakaru (Op0 EmptyList)           _   = nil
 toHakaru (Op0 True_)               _   = true
 toHakaru (Op0 False_)              _   = false
 toHakaru (Op1 Exp e)               env = expFraction dict (toHakaru e  env)
@@ -979,8 +1010,7 @@ toHakaru (Op1 UnsafeProb e)        env = unsafeProb       (toHakaru e  env)
 toHakaru (Op1 FromProb e)          env = fromProb         (toHakaru e  env)
 toHakaru (Op1 FromInt e)           env = fromInt          (toHakaru e  env)
 toHakaru (Op1 GammaFunc e)         env = gammaFunc        (toHakaru e  env)
-toHakaru (Op1 ErfFunc e)           env = erfFunc        (toHakaru e  env)
-toHakaru (Op1 ErfFunc_ e)          env = erfFunc_        (toHakaru e  env)
+toHakaru (Op1 ErfFunc e)           env = erfFraction dict (toHakaru e  env)
 toHakaru (Op2 Add e1 (Op1 Neg e2)) env = binaryN (-)      (toHakaru e1 env)
                                                           (toHakaru e2 env)
 toHakaru (Op2 Add e1 e2)  env          = binaryN (+)      (toHakaru e1 env)
@@ -1011,6 +1041,8 @@ toHakaru (Pair e1 e2)              env = pair  (toHakaru e1 env)
                                                (toHakaru e2 env)
 toHakaru (Inl e)                   env = inl   (toHakaru e  env)
 toHakaru (Inr e)                   env = inr   (toHakaru e  env)
+toHakaru (Cons a as)               env = cons  (toHakaru a  env)
+                                               (toHakaru as env)
 toHakaru (Closure e env) f             = toHakaru e (f . (env !!))
 
 matchHakaru :: (Mochastic repr) => Tree u t -> repr t ->
@@ -1023,9 +1055,15 @@ matchHakaru (UnaryL t') x k =
   uneither x (\x' -> matchHakaru t' x' k) (\_ -> superpose [])
 matchHakaru (UnaryR t') x k =
   uneither x (\_ -> superpose []) (\x' -> matchHakaru t' x' k)
+matchHakaru LNil x k =
+  unlist x (k []) (\_ _ -> superpose [])
+matchHakaru (LCons a as) x k =
+  unlist x (superpose []) (\a' as' ->
+  matchHakaru a  a'  (\b1 ->
+  matchHakaru as as' (\b2 -> k (b1 ++ b2))))
 matchHakaru Nil   _ k = k []
-matchHakaru BoolT _ k = k []
-matchHakaru BoolF _ k = k []
+matchHakaru BoolT x k = if_ x (k []) (superpose [])
+matchHakaru BoolF x k = if_ x (superpose []) (k [])
 matchHakaru (Leaf u) x k = k [Binding u x]
 
 ------- Conversion from Hakaru
@@ -1033,25 +1071,33 @@ matchHakaru (Leaf u) x k = k [Binding u x]
 newtype Disintegrate a = Disint
   (forall w. Cont (Int -> Expr Loc Loc (Measure w)) (Expr Loc Loc a))
 
-runDisintegrate :: (Mochastic repr, Order_ a) =>
+newtype Disintegration env a b = Disintegration
+  (forall repr. (Mochastic repr) => repr env -> repr a -> repr (Measure b))
+
+disintegrations :: (Order_ a) =>
                    (Disintegrate env -> Disintegrate (Measure (a, b))) ->
-                   [repr env -> repr a -> repr (Measure b)]
-runDisintegrate m =
+                   [Disintegration env a b]
+disintegrations m =
   case Const (-1) of { envLoc -> case Const 0 of { aLoc ->
   let nameOfLoc :: Loc t -> Name t
       nameOfLoc (Const i) = Const ('x' : show i)
       expr = bimap' nameOfLoc nameOfLoc Closure
         $ unDisint (m (Disint (return (Var envLoc)))) (\w _ -> w) 1
-  in [ \env a -> toHakaru dis ([Binding envLoc env,
-                                Binding aLoc a] !!) `bind` \ab ->
-                 unpair ab (\a' b' ->
-                 if_ (equal_ a a') (dirac b') (superpose []))
+  in [ Disintegration (\env a ->
+       toHakaru dis ([Binding envLoc env, Binding aLoc a] !!) `bind` \ab ->
+       unpair ab (\a' b' ->
+       if_ (equal_ a a') (dirac b') (superpose [])))
      | dis <- run (disintegrate expr
                                 [Binding (nameOfLoc envLoc) envLoc]
                                 (Fst Root)
                                 (Var aLoc)) ] } }
 
-condition :: (Mochastic repr, Order_ a) => Disintegrate (Measure (a, b)) -> 
+runDisintegrate :: (Mochastic repr, Order_ a) =>
+                   (Disintegrate env -> Disintegrate (Measure (a, b))) ->
+                   [repr env -> repr a -> repr (Measure b)]
+runDisintegrate m = [ d | Disintegration d <- disintegrations m ]
+
+condition :: (Mochastic repr, Order_ a) => Disintegrate (Measure (a, b)) ->
                                  repr a -> repr (Measure b)
 condition d = head (runDisintegrate (\ _ -> d)) unit
 
@@ -1125,6 +1171,8 @@ instance Erf (Disintegrate Real) where
 instance Base Disintegrate where
   unit                           = Disint (return (Op0 Unit))
   pair (Disint x) (Disint y)     = Disint (fmap Pair x <*> y)
+  nil                            = Disint (return (Op0 EmptyList))
+  cons (Disint a) (Disint as)    = Disint (fmap Cons a <*> as)
   inl (Disint x)                 = Disint (fmap Inl x)
   inr (Disint x)                 = Disint (fmap Inr x)
   true                           = Disint (return (Op0 True_))
@@ -1140,7 +1188,7 @@ instance Base Disintegrate where
   gammaFunc (Disint x)           = Disint (fmap (Op1 GammaFunc) x)
   betaFunc (Disint a) (Disint b) = Disint (fmap (Op2 BetaFunc) a <*> b)
   erfFunc (Disint x)             = Disint (fmap (Op1 ErfFunc) x)
-  erfFunc_ (Disint x)            = Disint (fmap (Op1 ErfFunc_) x) 
+  erfFunc_ (Disint x)            = Disint (fmap (Op1 ErfFunc) x)
 
   unpair xy k = insertDisint xy (\e c i ->
     let x = Const i
@@ -1149,6 +1197,16 @@ instance Base Disintegrate where
             (unDisint (k (Disint (return (Var x))) (Disint (return (Var y))))
                       c
                       (i+2)))
+
+  unlist aas kn kc = insertDisint aas (\e c i ->
+    Choice [ Bind LNil (Dirac e) (unDisint kn c i)
+           , let a  = Const i
+                 as = Const (i+1)
+             in Bind (LCons (Leaf a) (Leaf as)) (Dirac e)
+                     (unDisint (kc (Disint (return (Var a)))
+		                   (Disint (return (Var as))))
+                               c
+                               (i+2)) ])
 
   uneither xy kx ky = insertDisint xy (\e c i ->
     Choice [ let x = Const i
@@ -1159,8 +1217,8 @@ instance Base Disintegrate where
                      (unDisint (ky (Disint (return (Var y)))) c (i+1)) ])
 
   if_ cy ty ey = insertDisint cy (\e c i ->
-    Choice [ Bind BoolT (Dirac e) (unDisint ty c (i+1))
-           , Bind BoolF (Dirac e) (unDisint ey c (i+1)) ])
+    Choice [ Bind BoolT (Dirac e) (unDisint ty c i)
+           , Bind BoolF (Dirac e) (unDisint ey c i) ])
 
 instance Mochastic Disintegrate where
   dirac x = Disint (cont (\c i -> c (unDisint x (\w _ -> Dirac w) i) i))

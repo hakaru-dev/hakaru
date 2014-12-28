@@ -13,7 +13,10 @@ SLO := module ()
   local ToAST, t_binds, t_pw, into_pw, myprod, gensym, gs_counter, do_pw,
     superpose, mkProb, getCtx, instantiate, lambda_wrap,
     adjust_types, compute_domain, analyze_cond, flip_rr, isPos,
-    MyHandler, formName, infer_type, join_type, join2type;
+    MyHandler, formName, infer_type, join_type, join2type, 
+    simp_AST, simp_sup, simp_bind, simp_if, simp_WM, into_sup,
+    comp, comp2,
+    mkRealDensity, recognize_density, density;
 
   t_binds := 'specfunc(anything, {int, Int, sum, Sum})';
   t_pw := 'specfunc(anything, piecewise)';
@@ -47,18 +50,19 @@ SLO := module ()
 
     # right at the start, put the global context in the 'path'.
     for i in [indices(ctx:-gctx, 'pairs')] do 
-      if rhs(i) = 'Real' then t[lhs(i)] := RealRange(-infinity, infinity)
-      elif rhs(i) = 'Prob' then t[lhs(i)] := RealRange(0, infinity)
-      elif rhs(i) = 'Bool_' then t[lhs(i)] := boolean
-      elif rhs(i) = 'Unit' then t[lhs(i)] := Unit # ???
-      elif rhs(i) :: 'Pair'(anything, anything) then 
-        error "there should not be Pairs in the context", i
+      if lhs(i)::integer then next end if;
+      if rhs(i) = 'Real' then rng := RealRange(-infinity, infinity)
+      elif rhs(i) = 'Prob' then rng := RealRange(0, infinity)
+      elif rhs(i) = 'Bool' then rng := boolean
+      elif rhs(i) = 'Unit' then rng := Unit # ???
+      elif rhs(i) = 'Pair' then error "should not have Pair-valued var", i
       else error "what do I do with", i;
       end if;
-      t[lhs(i)] := 
+      t[lhs(i)] := rng;
     end do;
     _EnvPathCond := eval(t);
     res := ToAST(op(inp));
+    res := simp_AST(res);
     res := adjust_types(res, ctx:-mtyp, ctx);
     lambda_wrap(res, 0, ctx);
   end proc;
@@ -94,7 +98,6 @@ SLO := module ()
             # WM = Weight-Measure pair
             ff := (x,y) -> 'WM'(simplify(x), Return(op(y)));
             Superpose(op(zip(ff, cof, [v])));
-            # `if`(cof=1, rest, Bind_(Factor(simplify(cof)), rest))
           else
             if (ld = 0) then
               error "non-zero constant encountered as a measure", ee
@@ -103,7 +106,7 @@ SLO := module ()
             end if;
           end if;
         elif type(ee, t_pw) then
-          return do_pw(map(simplify, [op(e)]), ctx, typ);
+          return do_pw(map(simplify, [op(e)]), ctx, BottomProp);
         elif type(ee, `+`) then
           superpose(map(ToAST, [op(e)], ctx));
         else
@@ -117,8 +120,12 @@ SLO := module ()
           span := RealRange(op(1,rng), op(2,rng));
           if type(weight, 'SymbolicInfinity') then
             rest := ToAST(ee, ctx);
-            # should recognize densities here
-            Bind(Lebesgue, var = rng, rest)
+            if rng = -infinity..infinity then
+              mkRealDensity(rest, var)
+            else
+              # recognize densities on partial range here
+              Bind(Lebesgue, var = rng, rest)
+            end if;
           else
             v := simplify(weight*ee) assuming var :: span;
             rest := ToAST(v, ctx);
@@ -127,7 +134,7 @@ SLO := module ()
         elif type(e, 'specfunc'(anything, {'sum','Sum'})) then
           error "sums not handled yet"
         elif type(e, t_pw) then
-          return do_pw(map(simplify, [op(e)]), ctx, typ);
+          return do_pw(map(simplify, [op(e)]), ctx, BottomProp);
         elif type(e, `+`) then
           superpose(map(ToAST, [op(e)], ctx));
         elif type(e, `*`) then
@@ -228,13 +235,19 @@ SLO := module ()
   gensym := proc(x::name) gs_counter := gs_counter + 1; x || gs_counter; end proc;
 
   # this assumes we are doing pw of measures.
-  do_pw := proc(l, ctx)
-    local len;
+  # this assumes that the pw is univariate
+  do_pw := proc(l, ctx, prop)
+    local len, rel, prop_ctx, this, var;
     len := nops(l);
     if len = 0 then Superpose()
     elif len = 1 then ToAST(l[1], ctx)
-    else # l>=2. Note how conditions go through straight
-      If(l[1], ToAST(l[2], ctx), thisproc(l[3..-1], ctx))
+    else # len>2.
+      var, rel := analyze_cond(l[1]);
+      prop_ctx := OrProp(prop, rel);
+      if len=2 then
+        if prop_ctx='real' then return ToAST(l[2], ctx) end if;
+      end if; 
+      If(l[1], ToAST(l[2], ctx), thisproc(l[3..-1], ctx, prop_ctx))
     end if;
   end;
 
@@ -245,7 +258,7 @@ SLO := module ()
       if type(i, specfunc(anything, Superpose)) then
         for j in [op(i)] do
           idx := op(2,j);
-          # yeah for indexing functions!
+          # yay for indexing functions!
           t[idx] := t[idx] + op(1,j);
         end do;
       else 
@@ -318,7 +331,7 @@ SLO := module ()
   getCtx := proc(typ, glob, globNum, ctr)
     local nm, t, nctr;
     if type(typ, 'Measure'(anything)) then
-      glob, globNum, ctr, op(1,typ)
+      glob, globNum, ctr, typ
     elif type(typ, 'Arrow'(anything, anything)) then
       t := op(1,typ);
       # put name = type' in table,
@@ -354,13 +367,13 @@ SLO := module ()
   end proc;
 
   infer_type := proc(e, ctx)
-    local typ, l;
+    local typ, l, res;
     if type(e, boolean) then
-      'Bool_'
+      'Bool'
     elif e = 'Pi' then Prob
     elif e = 'Unit' then Unit
     elif type(e, boolean) then
-      'Bool_'
+      'Bool'
     elif type(e, anything^integer) then
       infer_type(op(1,e), ctx);
     elif type(e, 'exp'(anything)) then
@@ -395,6 +408,29 @@ SLO := module ()
     elif type(e, {`+`, `*`}) then
       l := map(infer_type, [op(e)], ctx);
       join_type(op(l));
+    elif type(e, specfunc(anything, 'piecewise')) then
+      typ := NULL;
+      for l from 1 to nops(e) do
+        if l::odd and l<nops(e) then
+          next;
+        else # last or e:: evan
+          typ := typ, infer_type(op(l, e), ctx)
+        end if;
+      end do;
+      join_type(typ);
+    elif type(e, {specfunc(anything, 'NormalD')}) then
+      Measure(Real)
+    elif type(e, specfunc(anything, 'Superpose')) then
+      res := map(infer_type, {op(e)}, ctx);
+      if nops(res) = 1 then
+        res[1]
+      else
+        error "superpose with multiple types", e
+      end if;
+    elif type(e, specfunc(anything, 'WM')) then
+      infer_type(op(2, e), ctx)
+    elif type(e, specfunc(anything, 'Uniform')) then
+      Measure(Real)
     else
       error "how do I infer a type from", e;
     end if;
@@ -425,21 +461,22 @@ SLO := module ()
 # - full 'type' inference of e
 # - full 'range-of-value' inference of e
   adjust_types := proc(e, typ, ctx)
-    local ee, dom, opc, res, var, left, right, inf_typ, 
-          tab, tab_left, tab_right;
+    local ee, dom, opc, res, var, left, right, inf_typ, tab, typ2,
+          tab_left, tab_right;
     if type(e, specfunc(anything, 'Superpose')) then
       map(thisproc, e, typ, ctx)
     elif type(e, 'WM'(anything, anything)) then
       'WM'(mkProb(op(1,e), ctx), thisproc(op(2,e), typ, ctx));
-    elif type(e, 'Return'(anything)) then
+    elif type(e, 'Return'(anything)) and type(typ, 'Measure'(anything)) then
+      typ2 := op(1, typ);
       inf_typ := infer_type(op(1,e), ctx);
-      if typ = Unit and op(1,e) = Unit then
+      if typ2 = Unit and op(1,e) = Unit then
         e
-      elif typ = Prob then
+      elif typ2 = Prob then
         ee := op(1,e);
         res := mkProb(ee, ctx);
         'Return'(res);
-      elif typ = Real and type(op(1,e), 'ln'(anything)) then
+      elif typ2 = Real and type(op(1,e), 'ln'(anything)) then
         ee := op(1,e);
         inf_typ := infer_type(op(1, ee), ctx);
         if inf_typ = 'Prob' then
@@ -449,14 +486,14 @@ SLO := module ()
         end if;
       # hmm, are things polymorphic enough that this is ok?
       # might need 'fromProb' to be inserted?
-      elif typ = Real and member(inf_typ, {'Real', 'Prob'}) then
+      elif typ2 = Real and member(inf_typ, {'Real', 'Prob'}) then
         'Return'(op(1,e))
-      elif typ :: Pair(anything, anything) and 
+      elif typ2 :: Pair(anything, anything) and 
            op(1,e) :: Pair(anything, anything) then
-        left  := adjust_types('Return'(op([1,1],e)), op(1,typ), ctx);
-        right := adjust_types('Return'(op([1,2],e)), op(2,typ), ctx);
+        left  := adjust_types('Return'(op([1,1],e)), Measure(op(1,typ2)), ctx);
+        right := adjust_types('Return'(op([1,2],e)), Measure(op(2,typ2)), ctx);
         'Return'(Pair(op(1,left), op(1,right)));
-      elif typ = Bool_ and member(op(1,e), {true,false}) then
+      elif typ2 = Bool and member(op(1,e), {true,false}) then
         e
       else
          error "adjust_types Type:", typ, inf_typ, e;
@@ -464,12 +501,15 @@ SLO := module ()
     elif type(e, 'Bind'(anything, name, anything)) then
       dom := compute_domain(op(1,e));
       var := op(2,e);
+      inf_typ := infer_type(op(1,e), ctx);
       # indexing function at work: if unassigned, get TopProp, which is id
       # but of course, LNED strikes, so we need to make copies ourselves
       tab := table(eval(_EnvPathCond));
       tab[var] := AndProp(tab[var], dom);
       _EnvPathCond := tab;
-      'Bind'(op(1,e), var, adjust_types(op(3,e), typ, ctx));
+      # need to adjust types on first op, to its own type, as that may require
+      # tweaking which functions are used
+      'Bind'(adjust_types(op(1,e), inf_typ, ctx), var, adjust_types(op(3,e), typ, ctx));
     elif type(e, 'Bind'(identical(Lebesgue), name = range, anything)) then
       dom := RealRange(op([2,2,1],e), op([2,2,2], e));
       var := op([2,1],e);
@@ -491,16 +531,35 @@ SLO := module ()
       _EnvPathCond := tab_right;
       right := adjust_types(op(3,e), typ, ctx);
       'If'(op(1,e), left, right);
-    elif type(e, 'Uniform'(anything, anything)) then
+    elif type(e, 'Uniform'(anything, anything)) and typ = 'Measure(Real)' then
       e
+    elif type(e, 'Uniform'(anything, anything)) and typ = 'Measure(Prob)' then
+      var := gensym('pp');
+      Bind(e, var, Return(unsafeProb(var)))
+    elif type(e, 'NormalD'(anything, anything)) and typ = 'Measure(Real)' then
+      NormalD(op(1,e), mkProb(op(2, e), ctx))
     else
      error "adjust_types ", e, typ;
     end if;
   end proc;
 
   compute_domain := proc(e)
+    local res;
     if type(e, 'Uniform'(anything, anything)) then
       'RealRange'(op(e));
+    elif type(e, identical('Lebesgue')) or type(e, specfunc(anything, 'NormalD')) then
+      'real'
+    elif type(e, specfunc(anything, 'Superpose')) then
+      if nops(e)=1 then 
+        compute_domain(op([1,2],e))
+      else
+        res := map((x -> compute_domain(op(2,x))), {op(e)});
+        if nops(res)=1 then
+          res[1]
+        else
+          error "expression e", e, "has multiple domain", res
+        end if;
+      end if;
     else
       error "compute domain:", e;
     end if;
@@ -544,6 +603,144 @@ SLO := module ()
   MyHandler := proc(operator, operands, default_value)
     NumericStatus( division_by_zero = false);
     if operator='ln' then -infinity else default_value end if;
+  end proc;
+
+  # simplify ASTs (before they have been 'fixed' to be type-correct)
+  simp_AST := proc(ast)
+    local res;
+
+    # first, simplify Bind
+    res := ast;
+    res := eval(res, 'Bind' = simp_bind);
+
+    # second, simplify (and sort) Superpose
+    res := eval(res, 'Superpose' = simp_sup);
+
+    # third, remove 'undefined' branches of If
+    res := eval(res, 'If' = simp_if);
+
+    res;
+  end proc;
+
+  # dirac < uniform < bind
+  comp2 := proc(x,y)
+    if x::Return(anything) then
+      if y::Return(anything) then
+	if op(1,x)::numeric and op(1,y)::numeric then
+	  evalb(op(1,x) < op(1,y))
+	else
+	  evalb(length(op(1,x)) < length(op(1,y)))
+	end if
+      else
+	true
+      end if
+    elif x::Uniform(numeric, numeric) then
+      if y::Uniform(numeric, numeric) then
+	evalb(op(1,x) < op(1,y))
+      else 
+	evalb(not (y::Return(anything)))
+      end if
+    elif x::specfunc(anything, Bind) then  
+      if y::specfunc(anything, Bind) then
+	comp2(op(3, x), op(3, y))
+      else
+	evalb(not(y::Return(anything) or y::Uniform(numeric, numeric)));
+      end if
+    else
+      error "cannot compare", x, y
+    end if;
+  end proc;
+  comp := proc(x, y) comp2(op(2,x), op(2,y)) end;
+
+  # helper routines for simplifying ASTs
+  simp_sup := proc()
+    local l;
+    if _npassed = 0 then 'Superpose'()
+    elif _npassed=1 and type(_passed[1], 'WM'(identical(1), anything)) then
+      op(2, _passed[1])
+    else
+      l := map(simp_WM, [args]);
+      if not (l = [args]) then 
+        l := simp_sup(op(l)); 
+        if l :: specfunc(anything, 'Superpose') then
+          simp_sup(op(l))
+        else
+          l
+        end if;
+      else
+        Superpose(op(sort(l, comp)))
+      end if;
+    end if;
+  end proc;
+
+  simp_WM := proc(wm)
+    local w,m;
+    w, m := op(wm);
+    if type(m, specfunc(anything, 'Superpose')) then
+       'WM'(1, simp_sup(op(map(into_sup, m, w))));
+    else
+      'WM'(w,m)
+    end if;
+  end;
+
+  into_sup := proc(wm, w) 'WM'(simplify(w*op(1,wm)), op(2,wm)) end proc;
+
+  simp_bind := proc(w, var, meas)
+    if meas = Return(var) then w else 'Bind'(w, var, meas) end if;
+  end proc;
+
+  simp_if := proc(cond, tb, eb)
+    if tb = Return(undefined) then 
+      eb
+    elif tb = eb then
+      eb
+    else
+      'If'(cond, tb, eb)
+    end if;
+  end;
+
+  # density recognizer
+  recognize_density := proc(dens, var)
+    local de, init, diffop, Dx, a0, a1, scale, at0, mu, sigma;
+    de := gfun[holexprtodiffeq](dens, f(var));
+    init, de := selectremove(type, de, `=`);
+    if nops(init)=1 and nops(de)=1 then
+      init := rhs(init[1]);
+      de := de[1];
+      diffop := DEtools[de2diffop](de, f(var), [Dx, var]);
+      if degree(diffop, Dx) = 1 then
+	a0 := coeff(diffop, Dx, 0);
+	a1 := coeff(diffop, Dx, 1);
+	if degree(a0, var) = 1 and degree(a1, var) = 0 then
+          scale := coeff(a0, var, 1);
+          mu := -coeff(a0, var, 0)/scale;
+          sigma := sqrt(coeff(a1, var, 0)/scale);
+          at0 := simplify(eval(init/density[NormalD](mu, sigma, 0)));
+          return simp_sup('WM'(at0, NormalD(mu,sigma)));
+	end if;
+      end if;
+    end if;
+    NULL;
+  end proc;
+
+  mkRealDensity := proc(dens, var)
+    local res;
+    if dens :: specfunc(anything, 'Superpose') then
+      simp_sup(op(map(thisproc, dens, var)));
+    elif dens :: specfunc(anything, 'WM') then
+      res := recognize_density(op(1,dens), var);
+      if res<>NULL then
+        'WM'(1, Bind(res, var, op(2,dens)))
+      else
+        'WM'(1, Bind(Lebesgue, var, simp_sup(dens)))
+      end if;
+    else
+      Bind(Lebesgue, var, dens)
+    end if
+  end proc;
+
+  density[NormalD] := proc(mu, sigma, x) 
+    1/sigma/sqrt(2)/sqrt(Pi)*exp(-(x-mu)^2/2/sigma^2)
   end proc;
 end;
 
