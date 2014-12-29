@@ -38,12 +38,12 @@ type Testee a =
 -- Assert that a given Hakaru program roundtrips (aka simplifies) without error
 testS :: (MapleableType a, Typeable a) => Testee a -> IO ()
 testS t = do
-    putStr "<<<<<"
-    print (result t)
+--    putStr "<<<<<"
+--    print (result t)
     p <- simplify t
     let s = result (unAny p)
-    putStr ">>>>>"
-    print s
+--    putStr ">>>>>"
+--    print s
     assertResult (show s)
 
 -- Assert that all the given Hakaru programs simplify to the given one
