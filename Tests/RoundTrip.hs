@@ -24,7 +24,9 @@ testMeasureUnit = test [
     "t12"     ~: testSS [] t12,
     "t20"     ~: testSS [t20] (lam (\y -> factor (y*(1/2)))),
     "t24"     ~: testSS [t24] t24',
-    "t25"     ~: testSS [t25] t25'
+    "t25"     ~: testSS [t25] t25',
+    "t44Add"  ~: testSS [t44Add] t44Add',
+    "t44Mul"  ~: testSS [t44Mul] t44Mul'
     ]
 
 testMeasureProb :: Test
@@ -57,7 +59,8 @@ testMeasureReal = test [
     "t36" ~: testSS [] t36,
     "t37" ~: testSS [] t37,
     "t39" ~: testSS [] t39,
-    "t40" ~: testSS [] t40
+    "t40" ~: testSS [] t40,
+    "t43" ~: testSS [t43, t43'] t43''
     ]
 
 testMeasurePair :: Test
@@ -65,7 +68,9 @@ testMeasurePair = test [
     "t4"            ~: testSS [t4] t4',
     "t8"            ~: testSS [] t8,
     "t23"           ~: testSS [t23] t23',
-    "testPriorProp" ~: testS testPriorProp
+    "testPriorProp" ~: testS testPriorProp,
+    "norm"          ~: testSS [] norm,
+    "flipped_norm"  ~: testSS [] flipped_norm
     ]
 
 testOther :: Test
@@ -248,6 +253,17 @@ t41 = dirac $ (unExpect (uniform 0 2 `bind` dirac . unsafeProb))
 
 t42 :: (Lambda repr, Integrate repr, Mochastic repr) => repr (Measure Prob)
 t42 = dirac $ (unExpect (uniform 0 2 `bind` dirac . unsafeProb) `app` lam id)
+
+t43, t43', t43'' :: (Lambda repr, Mochastic repr) => repr (Bool -> Measure Real)
+t43   = lam $ \b -> if_ b (uniform 0 1) (beta 1 1 `bind` dirac . fromProb)
+t43'  = lam $ \b -> if_ b (uniform 0 1) (uniform 0 1)
+t43'' = lam $ \_ -> uniform 0 1
+
+t44Add, t44Add', t44Mul, t44Mul' :: (Lambda repr, Mochastic repr) => repr (Real -> Real -> Measure ())
+t44Add  = lam $ \x -> lam $ \y -> factor (unsafeProb (x * x + y * y))
+t44Add' = lam $ \x -> lam $ \y -> factor (unsafeProb (x **2 + y **2))
+t44Mul  = lam $ \x -> lam $ \y -> factor (unsafeProb (x * x * y * y))
+t44Mul' = lam $ \x -> lam $ \y -> factor (unsafeProb (x **2) * unsafeProb (y **2))
 
 priorAsProposal :: Mochastic repr => repr (Measure (a,b)) -> repr (a,b) -> repr (Measure (a,b))
 priorAsProposal p x = bern (1/2) `bind` \c ->
