@@ -12,7 +12,6 @@ import Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode)
 import Text.PrettyPrint (Doc)
 import Data.Maybe (isJust)
 import Data.List
-import Data.Typeable (Typeable)
 import Data.Function (on)
 
 import Test.HUnit
@@ -36,7 +35,7 @@ type Testee a =
   forall repr. (Mochastic repr, Integrate repr, Lambda repr) => repr a
 
 -- Assert that a given Hakaru program roundtrips (aka simplifies) without error
-testS :: (MapleableType a, Typeable a) => Testee a -> IO ()
+testS :: (MapleableType a) => Testee a -> Assertion
 testS t = do
 --    putStr "<<<<<"
 --    print (result t)
@@ -47,7 +46,7 @@ testS t = do
     assertResult (show s)
 
 -- Assert that all the given Hakaru programs simplify to the given one
-testSS :: (MapleableType a, Typeable a) => [Expect Maple a] -> Testee a -> IO ()
+testSS :: (MapleableType a) => [Expect Maple a] -> Testee a -> Assertion
 testSS ts t' =
     mapM_ (\t -> do p <- simplify t
                     (assertEqual "testSS" `on` result) t' (unAny p))
