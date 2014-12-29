@@ -15,7 +15,7 @@ SLO := module ()
     adjust_types, compute_domain, analyze_cond, flip_rr, isPos,
     MyHandler, getBinderForm, infer_type, join_type, join2type, 
     simp_AST, simp_sup, simp_bind, simp_if, simp_WM, into_sup,
-    comp, comp2,
+    comp, comp2, comp_algeb, comp_WM,
     mkRealDensity, recognize_density, density;
 
   t_binds := 'specfunc(anything, {int, Int, sum, Sum})';
@@ -307,8 +307,7 @@ SLO := module ()
   end proc;
 
   fill_table := proc(t, nm, typ)
-      if nm::integer then NULL # yep, do nothing
-      elif nm::name then
+      if nm::name then
         if typ = 'Real' then 
           t[nm] := RealRange(-infinity, infinity)
         elif typ = 'Prob' then 
@@ -332,29 +331,29 @@ SLO := module ()
       end if;
   end proc;
 
-  getBinderForm := proc(t, n)
-    local left, right, nn;
-    if t = 'Real' then cat('rr', n), n+1
-    elif t = 'Prob' then cat('pp', n), n+1
+  getBinderForm := proc(t)
+    local left, right;
+    if t = 'Real' then gensym('rr')
+    elif t = 'Prob' then gensym('pp')
     elif t :: Pair(anything, anything) then
-      left, nn := getBinderForm(op(1,t), n);
-      right, nn := getBinderForm(op(2,t), nn);
-      Pair(left, right), nn;
-    elif t = 'Bool_' then cat('bb', n), n+1
+      left := getBinderForm(op(1,t));
+      right := getBinderForm(op(2,t));
+      Pair(left, right);
+    elif t = 'Bool_' then gensym('bb')
     else
       error "Tring to forma a name from a", t
     end if;
   end proc;
 
   getCtx := proc(typ, glob, globNum, ctr)
-    local nm, t, nctr;
+    local nm, t;
     if type(typ, 'Arrow'(anything, anything)) then
       t := op(1,typ);
       # 'nm' is a name-filled type structure, not necessarily a name
-      nm, nctr := getBinderForm(t, ctr);
+      nm := getBinderForm(t);
       globNum[ctr] := nm;
       glob[nm] := t;
-      getCtx(op(2,typ), glob, globNum, nctr)
+      getCtx(op(2,typ), glob, globNum, ctr+1)
     elif type(typ, 'Measure'(anything)) then
       glob, globNum, ctr, typ
     else 
@@ -362,14 +361,13 @@ SLO := module ()
     end if;
   end proc;
 
-  instantiate := proc(e, r, ctr, typ)
-    local t, nm, nctr;
-    if ctr = r:-gsize then 
+  instantiate := proc(e, ctx, ctr, typ)
+    local nm;
+    if ctr = ctx:-gsize then 
       e 
     else 
-      t := op(1, typ);
-      nm, nctr := getBinderForm(t, ctr);
-      instantiate(e(nm), r, nctr, op(2,typ)) 
+      nm := ctx:-gnum[ctr];
+      instantiate(e(nm), ctx, ctr + 1, op(2,typ)) 
     end if;
   end proc;
 
@@ -564,7 +562,7 @@ SLO := module ()
     local res;
     if type(e, 'Uniform'(anything, anything)) then
       'RealRange'(op(e));
-    elif type(e, identical('Lebesgue')) or type(e, specfunc(anything, 'NormalD')) then
+    elif type(e, {identical('Lebesgue'), specfunc(anything, 'NormalD')}) then
       'real'
     elif type(e, specfunc(anything, 'Superpose')) then
       if nops(e)=1 then 
@@ -640,42 +638,52 @@ SLO := module ()
   end proc;
 
   # dirac < uniform < NormalD < bind < Superpose
-  # returns true on equality
+  # returns false on equality
   comp2 := proc(x,y)
     if x::Return(anything) then
       if y::Return(anything) then
 	if op(1,x)::numeric and op(1,y)::numeric then
-	  evalb(op(1,x) <= op(1,y))
+	  evalb(op(1,x) < op(1,y))
 	else
-	  evalb(length(op(1,x)) <= length(op(1,y)))
+	  evalb(length(op(1,x)) < length(op(1,y)))
 	end if
       else
 	true
       end if
     elif x::Uniform(numeric, numeric) then
       if y::Uniform(numeric, numeric) then
-	evalb(op(1,x) <= op(1,y))
+	evalb(op(1,x) < op(1,y))
       else 
-	evalb(not (y::Return(anything)))
+	evalb(not member(op(0,y), {Return}))
       end if
     elif x::specfunc(anything, Bind) then  
       if y::specfunc(anything, Bind) then
 	comp2(op(3, x), op(3, y))
       else
-	evalb(not(y::Return(anything) or y::Uniform(numeric, numeric)));
+	evalb(not member(op(0,y), {Return, Uniform}));
       end if
+    elif x::specfunc(anything, NormalD) then
+      if y::specfunc(anything, NormalD) then
+        `and`(op(zip(comp_WM, [op(x)], [op(y)])))
+      else
+	evalb(not member(op(0,y), {Return, Uniform, NormalD}));
+      end if;
     elif x::specfunc(anything, Superpose) then  
       if y::specfunc(anything, Superpose) then
-        `or`(op(zip(comp2, [op(x)], [op(y)])))
+        `and`(op(zip(comp_WM, [op(x)], [op(y)])))
       else
-	evalb(not(y::Return(anything) or 
-                  y::Uniform(numeric, numeric) or
-                  y::specfunc(anything, Superpose)));
+	evalb(not member(op(0,y), {Return, Uniform, NormalD, Superpose}));
       end if;
     else
       error "cannot compare", x, y
     end if;
   end proc;
+
+  comp_WM := proc(x,y) comp2(op(2,x), op(2,y)) end proc;
+
+  comp_algeb := proc(x,y)
+  end proc;
+
   comp := proc(x, y) comp2(op(2,x), op(2,y)) end;
 
   # helper routines for simplifying ASTs
@@ -694,7 +702,7 @@ SLO := module ()
           l
         end if;
       else
-        Superpose(op(sort(l, comp)))
+        Superpose(op(sort(l, 'strict'=comp)))
       end if;
     end if;
   end proc;

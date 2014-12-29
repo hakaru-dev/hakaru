@@ -7,7 +7,7 @@ Haskell := module ()
   export ModuleApply;
   local b, p, d, bi,
       parens, resolve, sp, comma, ufunc, bfunc, lbrack, rbrack, seqp,
-      lparen, rparen;
+      lparen, rparen, pattern, pat, pi;
   uses StringTools;
 
   # this is to make things more efficient.  Note that it makes
@@ -65,6 +65,14 @@ Haskell := module ()
     end if;
   end;
 
+  pattern := proc(e)
+    if assigned(pat[op(0,e)]) then
+      pat[op(0,e)](op(e))
+    else
+      error "Haskell: pattern %1 not implemented yet (%2)", op(0,e), e
+    end if;
+  end;
+
 # things get silly with too much indentation, so for this table, we cheat
 d[_Inert_INTPOS] := proc(x) b:-appendf("%d",x) end;
 d[_Inert_INTNEG] := proc(x) b:-appendf("(%d)",-x) end;
@@ -91,10 +99,6 @@ end proc;
 d[_Inert_NAME] := proc(a1) 
   if assigned(bi[a1]) then
     bi[a1]()
-#  elif StringTools:-IsPrefix("rr", a1) then
-#    lparen(); b:-append("idr "); b:-append(a1); rparen();
-#  elif StringTools:-IsPrefix("pp", a1) then
-#    lparen(); b:-append("idp "); b:-append(a1); rparen();
   else
     b:-append(a1);
   end if;
@@ -178,10 +182,10 @@ bi["IntPow"] := proc(l, r)
   b:-append("("); p(l); b:-append(" ^^ "); p(r); b:-append(")");
 end;
 
-bi["Lambda"] := proc(nm::_Inert_NAME(anything), expr)
+bi["Lambda"] := proc(nm, expr)
   b:-append("lam (\\"); 
-  # p(nm);
-  b:-append(op(1,nm));
+  pattern(nm);
+  # b:-append(op(1,nm));
   b:-append(" -> ");
   p(expr); 
   b:-append(")");
@@ -218,6 +222,19 @@ bi["If"] := proc()
     lparen(); thisproc(_passed[3..-1]); rparen();
   end if;
 end;
+
+# And now for the patterns:
+pat[_Inert_NAME] := d[_Inert_NAME];
+pat[_Inert_ASSIGNEDNAME] := d[_Inert_ASSIGNEDNAME];
+pat[_Inert_FUNCTION] := proc(f, s)
+  local nm;
+  nm := resolve(f);
+  if assigned(pi[nm]) then
+    pi[nm](op(s))
+  else
+    error "Haskell: cannot find constructor %1", f
+  end if;
+end proc;
 
 # utility routines:
 # =================
