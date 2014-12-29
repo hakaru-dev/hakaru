@@ -333,6 +333,7 @@ SLO := module ()
       right := getBinderForm(op(2,t));
       Pair(left, right);
     elif t = 'Bool' then gensym('bb')
+    elif t = 'Unit' then Unit
     else
       error "Tring to forma a name from a", t
     end if;
