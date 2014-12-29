@@ -275,13 +275,6 @@ SLO := module ()
       if typ = 'Prob' then w else mkProb(op(1,w), ctx) ^ op(2,w) end if;
     elif type(w, 'unsafeProb'(anything)) then
       error "there should be no unsafeProb in", w
-    elif type(w, `+`) then
-      ww := {op(w)};
-      pos, rest := selectremove(isPos, ww);
-      # locally positive?
-      if rest = {} then map(mkProb, w, ctx) 
-      else unsafeProb(w)
-      end if;
     else
       typ := infer_type(w, ctx);
       if typ = 'Prob' then
