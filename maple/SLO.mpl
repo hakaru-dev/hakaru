@@ -11,9 +11,9 @@ SLO := module ()
   export ModuleApply, AST, simp, 
     c; # very important: c is "global".
   local ToAST, t_binds, t_pw, into_pw, myprod, gensym, gs_counter, do_pw,
-    superpose, mkProb, getCtx, instantiate, lambda_wrap,
+    superpose, mkProb, getCtx, instantiate, lambda_wrap, fill_table,
     adjust_types, compute_domain, analyze_cond, flip_rr, isPos,
-    MyHandler, formName, infer_type, join_type, join2type, 
+    MyHandler, getBinderForm, infer_type, join_type, join2type, 
     simp_AST, simp_sup, simp_bind, simp_if, simp_WM, into_sup,
     comp, comp2,
     mkRealDensity, recognize_density, density;
@@ -50,15 +50,7 @@ SLO := module ()
 
     # right at the start, put the global context in the 'path'.
     for i in [indices(ctx:-gctx, 'pairs')] do 
-      if lhs(i)::integer then next end if;
-      if rhs(i) = 'Real' then rng := RealRange(-infinity, infinity)
-      elif rhs(i) = 'Prob' then rng := RealRange(0, infinity)
-      elif rhs(i) = 'Bool' then rng := boolean
-      elif rhs(i) = 'Unit' then rng := Unit # ???
-      elif rhs(i) = 'Pair' then error "should not have Pair-valued var", i
-      else error "what do I do with", i;
-      end if;
-      t[lhs(i)] := rng;
+      fill_table(t, lhs(i), rhs(i));
     end do;
     _EnvPathCond := eval(t);
     res := ToAST(op(inp));
@@ -98,12 +90,12 @@ SLO := module ()
             # WM = Weight-Measure pair
             ff := (x,y) -> 'WM'(simplify(x), Return(op(y)));
             Superpose(op(zip(ff, cof, [v])));
+          elif (ee=0) then # collect/simplify could have revealed this
+            Superpose()
+          elif (ld = 0) then
+            error "non-zero constant encountered as a measure", ee
           else
-            if (ld = 0) then
-              error "non-zero constant encountered as a measure", ee
-            else
-              error "polynomial in c:", ee
-            end if;
+            error "polynomial in c:", ee
           end if;
         elif type(ee, t_pw) then
           return do_pw(map(simplify, [op(e)]), ctx, BottomProp);
@@ -314,13 +306,39 @@ SLO := module ()
     evalb(res = 1);
   end proc;
 
-  formName := proc(t, n)
+  fill_table := proc(t, nm, typ)
+      if nm::integer then NULL # yep, do nothing
+      elif nm::name then
+        if typ = 'Real' then 
+          t[nm] := RealRange(-infinity, infinity)
+        elif typ = 'Prob' then 
+          t[nm] := RealRange(0, infinity)
+        elif typ = 'Bool' then 
+          t[nm] := boolean
+        elif typ = 'Unit' then 
+          t[nm] := Unit # ???
+        else 
+          error "Real/Prob/Bool/Unit are the only base types:", typ;
+        end if;
+      elif typ :: 'Pair'(anything, anything) then 
+        fill_table(t, op(1, nm), op(1, typ));
+        fill_table(t, op(2, nm), op(2, typ));
+      elif typ :: 'Measure'(anything) then
+        error "cannot handle first-class measure types yet"
+      elif typ :: 'Arrow'(anything,anything) then
+        error "cannot handle first-class -> types yet"
+      else
+        error "I don't know type", typ;
+      end if;
+  end proc;
+
+  getBinderForm := proc(t, n)
     local left, right, nn;
     if t = 'Real' then cat('rr', n), n+1
     elif t = 'Prob' then cat('pp', n), n+1
     elif t :: Pair(anything, anything) then
-      left, nn := formName(op(1,t), n);
-      right, nn := formName(op(2,t), nn);
+      left, nn := getBinderForm(op(1,t), n);
+      right, nn := getBinderForm(op(2,t), nn);
       Pair(left, right), nn;
     elif t = 'Bool_' then cat('bb', n), n+1
     else
@@ -330,16 +348,15 @@ SLO := module ()
 
   getCtx := proc(typ, glob, globNum, ctr)
     local nm, t, nctr;
-    if type(typ, 'Measure'(anything)) then
-      glob, globNum, ctr, typ
-    elif type(typ, 'Arrow'(anything, anything)) then
+    if type(typ, 'Arrow'(anything, anything)) then
       t := op(1,typ);
-      # put name = type' in table,
-      # where type is Real/Prob.
-      nm, nctr := formName(t, ctr);
+      # 'nm' is a name-filled type structure, not necessarily a name
+      nm, nctr := getBinderForm(t, ctr);
       globNum[ctr] := nm;
       glob[nm] := t;
       getCtx(op(2,typ), glob, globNum, nctr)
+    elif type(typ, 'Measure'(anything)) then
+      glob, globNum, ctr, typ
     else 
       error "must have either Measure or Arrow, got", typ;
     end if;
@@ -351,7 +368,7 @@ SLO := module ()
       e 
     else 
       t := op(1, typ);
-      nm, nctr := formName(t, ctr);
+      nm, nctr := getBinderForm(t, ctr);
       instantiate(e(nm), r, nctr, op(2,typ)) 
     end if;
   end proc;
@@ -622,21 +639,22 @@ SLO := module ()
     res;
   end proc;
 
-  # dirac < uniform < bind
+  # dirac < uniform < NormalD < bind < Superpose
+  # returns true on equality
   comp2 := proc(x,y)
     if x::Return(anything) then
       if y::Return(anything) then
 	if op(1,x)::numeric and op(1,y)::numeric then
-	  evalb(op(1,x) < op(1,y))
+	  evalb(op(1,x) <= op(1,y))
 	else
-	  evalb(length(op(1,x)) < length(op(1,y)))
+	  evalb(length(op(1,x)) <= length(op(1,y)))
 	end if
       else
 	true
       end if
     elif x::Uniform(numeric, numeric) then
       if y::Uniform(numeric, numeric) then
-	evalb(op(1,x) < op(1,y))
+	evalb(op(1,x) <= op(1,y))
       else 
 	evalb(not (y::Return(anything)))
       end if
@@ -646,6 +664,14 @@ SLO := module ()
       else
 	evalb(not(y::Return(anything) or y::Uniform(numeric, numeric)));
       end if
+    elif x::specfunc(anything, Superpose) then  
+      if y::specfunc(anything, Superpose) then
+        `or`(op(zip(comp2, [op(x)], [op(y)])))
+      else
+	evalb(not(y::Return(anything) or 
+                  y::Uniform(numeric, numeric) or
+                  y::specfunc(anything, Superpose)));
+      end if;
     else
       error "cannot compare", x, y
     end if;
@@ -752,16 +778,8 @@ end;
 # - a Measure type
 # - a global context of var = H-types
 # - a global numbering context for var names
-# - the size of the global context
+# - the size of the global context (in # of variables)
 `type/Context` := 'record'('htyp', 'mtyp', 'gctx', 'gnum', 'gsize');
-
-if_ := proc(cond, tc, ec)
-  if ec = false then And(cond, tc)
-  elif tc = true then Or(cond, ec)
-  else
-      'if_'(cond, tc, ec)
-  end if;
-end proc;
 
 # like index/identity, but for properties
 `index/TopProp` := proc(Idx::list,Tbl::table,Entry::list)
