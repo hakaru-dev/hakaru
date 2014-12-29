@@ -3,7 +3,8 @@
 
 module Tests.TestTools where
 
-import Language.Hakaru.Syntax (Mochastic, Integrate, Lambda)
+import Language.Hakaru.Syntax (Measure, Mochastic, Integrate, Lambda(lam), Order_)
+import Language.Hakaru.Disintegrate (Disintegrate, Disintegration(Disintegration), disintegrations)
 import Language.Hakaru.Expect (Expect(unExpect))
 import Language.Hakaru.Maple (Maple, runMaple)
 import Language.Hakaru.Simplify (simplify, MapleableType)
@@ -51,6 +52,13 @@ testSS ts t' =
     mapM_ (\t -> do p <- simplify t
                     (assertEqual "testSS" `on` result) t' (unAny p))
           (t' : ts)
+
+testD :: (MapleableType env, MapleableType a, MapleableType b, Order_ a) =>
+         (Disintegrate env -> Disintegrate (Measure (a,b))) -> IO ()
+testD f = do
+    let ds = disintegrations f
+    assertResult ds
+    mapM_ (\(Disintegration d) -> testS (lam (\env -> lam (\a -> d env a)))) ds
 
 testMaple :: Expect Maple a -> IO ()
 testMaple t = assertResult $ runMaple (unExpect t) 0
