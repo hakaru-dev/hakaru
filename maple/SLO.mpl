@@ -335,7 +335,7 @@ SLO := module ()
     elif t = 'Bool' then gensym('bb')
     elif t = 'Unit' then Unit
     else
-      error "Tring to forma a name from a", t
+      error "Trying to form a name from a", t
     end if;
   end proc;
 
