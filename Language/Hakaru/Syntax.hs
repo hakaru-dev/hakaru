@@ -6,7 +6,7 @@ module Language.Hakaru.Syntax (Real, Prob, Measure,
        EqType(Refl), Order_(..), Number(..), Fraction(..),
        Uneither(Uneither),
        errorEmpty,
-       Order(..), Base(..), ununit, fst_, snd_,
+       Order(..), Base(..), ununit, fst_, snd_, swap_,
        and_, or_, not_, min_, max_,
        Mochastic(..), bind_, factor, pairBind, liftM, liftM2,
        invgamma, beta, bern,
@@ -165,6 +165,9 @@ fst_ ab = unpair ab (\a _ -> a)
 
 snd_ :: (Base repr) => repr (a,b) -> repr b
 snd_ ab = unpair ab (\_ b -> b)
+
+swap_ :: (Base repr) => repr (a,b) -> repr (b,a)
+swap_ ab = unpair ab (flip pair)
 
 and_ :: (Base repr) => [repr Bool] -> repr Bool
 and_ []     = true
