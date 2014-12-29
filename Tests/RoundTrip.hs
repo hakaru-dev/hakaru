@@ -57,7 +57,8 @@ testMeasureReal = test [
     "t36" ~: testSS [] t36,
     "t37" ~: testSS [] t37,
     "t39" ~: testSS [] t39,
-    "t40" ~: testSS [] t40
+    "t40" ~: testSS [] t40,
+    "t43" ~: testSS [t43, t43'] t43''
     ]
 
 testMeasurePair :: Test
@@ -248,6 +249,11 @@ t41 = dirac $ (unExpect (uniform 0 2 `bind` dirac . unsafeProb))
 
 t42 :: (Lambda repr, Integrate repr, Mochastic repr) => repr (Measure Prob)
 t42 = dirac $ (unExpect (uniform 0 2 `bind` dirac . unsafeProb) `app` lam id)
+
+t43, t43', t43'' :: (Lambda repr, Mochastic repr) => repr (Bool -> Measure Real)
+t43   = lam $ \b -> if_ b (uniform 0 1) (beta 1 1 `bind` dirac . fromProb)
+t43'  = lam $ \b -> if_ b (uniform 0 1) (uniform 0 1)
+t43'' = lam $ \_ -> uniform 0 1
 
 priorAsProposal :: Mochastic repr => repr (Measure (a,b)) -> repr (a,b) -> repr (Measure (a,b))
 priorAsProposal p x = bern (1/2) `bind` \c ->
