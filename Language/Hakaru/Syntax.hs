@@ -44,6 +44,10 @@ instance Order_ () where
   less_  _ _ = false
   equal_ _ _ = true
 
+instance Order_ Bool where
+  less_  x y = if_ x false y
+  equal_ x y = if_ x y (not_ y)
+
 instance (Order_ a, Order_ b) => Order_ (a, b) where
   less_  ab1 ab2 = unpair ab1 (\a1 b1 ->
                    unpair ab2 (\a2 b2 ->
@@ -53,7 +57,6 @@ instance (Order_ a, Order_ b) => Order_ (a, b) where
                    and_ [equal_ a1 a2, equal_ b1 b2]))
 
 instance (Order_ a, Order_ b) => Order_ (Either a b) where
-  -- !!!Warning!!!  true `less_` false
   less_  ab1 ab2 = uneither ab1
                      (\a1 -> uneither ab2 (\a2 -> less_ a1 a2) (\_ -> true))
                      (\b1 -> uneither ab2 (\_ -> false) (\b2 -> less_ b1 b2))
