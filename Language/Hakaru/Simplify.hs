@@ -5,7 +5,7 @@ module Language.Hakaru.Simplify
   ( closeLoop
   , simplify
   , toMaple
-  , MapleableType) where
+  , Simplifiable) where
 
 -- Take strings from Maple and interpret them in Haskell (Hakaru)
 
@@ -17,7 +17,7 @@ import Language.Hakaru.Any (Any)
 import Data.Typeable (Typeable, typeOf)
 import System.MapleSSH (maple)
 import Language.Haskell.Interpreter hiding (typeOf)
-    
+
 import Language.Hakaru.Util.Lex (readMapleString)
 
 ourContext :: MonadInterpreter m => m ()
@@ -37,32 +37,32 @@ closeLoop s = action where
   s' :: String
   s' = s ++ " :: " ++ show (typeOf (getArg action))
 
-class (Typeable a) => MapleableType a where
+class (Typeable a) => Simplifiable a where
   mapleType :: a{-unused-} -> String
 
-instance MapleableType () where mapleType _ = "Unit"
-instance MapleableType Real where mapleType _ = "Real"
-instance MapleableType Prob where mapleType _ = "Prob"
-instance MapleableType Bool where mapleType _ = "Bool"
+instance Simplifiable () where mapleType _ = "Unit"
+instance Simplifiable Real where mapleType _ = "Real"
+instance Simplifiable Prob where mapleType _ = "Prob"
+instance Simplifiable Bool where mapleType _ = "Bool"
 
-instance (MapleableType a, MapleableType b) => MapleableType (a,b) where
+instance (Simplifiable a, Simplifiable b) => Simplifiable (a,b) where
   mapleType _ = "Pair(" ++ mapleType (undefined :: a) ++ "," ++
                            mapleType (undefined :: b) ++ ")"
 
-instance MapleableType a => MapleableType [a] where
+instance Simplifiable a => Simplifiable [a] where
   mapleType _ = "List(" ++ mapleType (undefined :: a) ++ ")"
-                                     
-instance MapleableType a => MapleableType (Measure a) where
+
+instance Simplifiable a => Simplifiable (Measure a) where
   mapleType _ = "Measure(" ++ mapleType (undefined :: a) ++ ")"
 
-instance (MapleableType a, MapleableType b) => MapleableType (a -> b) where
+instance (Simplifiable a, Simplifiable b) => Simplifiable (a -> b) where
   mapleType _ = "Arrow(" ++ mapleType (undefined :: a) ++ "," ++
                             mapleType (undefined :: b) ++ ")"
 
-mkTypeString :: MapleableType a => String -> a -> String
+mkTypeString :: (Simplifiable a) => String -> a -> String
 mkTypeString s t = "Typed(" ++ s ++ ", " ++ mapleType t ++ ")"
 
-simplify :: (MapleableType a) => Expect Maple a -> IO (Any a)
+simplify :: (Simplifiable a) => Expect Maple a -> IO (Any a)
 simplify e = do
   let slo = toMaple e
   hakaru <- do
@@ -76,5 +76,5 @@ simplify e = do
 getArg :: f a -> a
 getArg = undefined
 
-toMaple :: (MapleableType a) => Expect Maple a -> String
+toMaple :: (Simplifiable a) => Expect Maple a -> String
 toMaple e = mkTypeString (runMaple (unExpect e) 0) (getArg e)
