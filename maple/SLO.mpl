@@ -22,12 +22,12 @@ SLO := module ()
   t_pw := 'specfunc(anything, piecewise)';
 
   ModuleApply := proc(spec::Typed(anything,anything))
-    local expr, typ, glob, gsiz, ctx, r, inp, meastyp, res;
+    local expr, typ, glob, gsiz, ctx, r, inp, meastyp, res, gnumbering;
     expr := op(1, spec);
     typ := op(2, spec);
-    glob, gsiz, meastyp := getCtx(typ, table(), 0);
+    glob, gnumbering, gsiz, meastyp := getCtx(typ, table(), table(), 0);
     r := Record('htyp' = typ, 'mtyp' = meastyp,
-                'gctx' = glob, 'gsize' = gsiz);
+                'gctx' = glob, 'gnum' = gnumbering, 'gsize' = gsiz);
     inp := instantiate(expr, r, 0, typ);
     try
       NumericEventHandler(division_by_zero = MyHandler);
@@ -314,38 +314,45 @@ SLO := module ()
     evalb(res = 1);
   end proc;
 
-  formName := proc(t)
-    if t = 'Real' then 'rr'
-    elif t = 'Prob' then 'pp'
-    else error "cannot form a name from", t
+  formName := proc(t, n)
+    local left, right, nn;
+    if t = 'Real' then cat('rr', n), n+1
+    elif t = 'Prob' then cat('pp', n), n+1
+    elif t :: Pair(anything, anything) then
+      left, nn := formName(op(1,t), n);
+      right, nn := formName(op(2,t), nn);
+      Pair(left, right), nn;
+    elif t = 'Bool_' then cat('bb', n), n+1
+    else
+      error "Tring to forma a name from a", t
     end if;
   end proc;
 
-  getCtx := proc(typ, glob, ctr)
-    local nm, t;
+  getCtx := proc(typ, glob, globNum, ctr)
+    local nm, t, nctr;
     if type(typ, 'Measure'(anything)) then
-      glob, ctr, typ
+      glob, globNum, ctr, typ
     elif type(typ, 'Arrow'(anything, anything)) then
       t := op(1,typ);
-      # put 'number = name' AND 'name = type' in table,
+      # put name = type' in table,
       # where type is Real/Prob.
-      nm := cat(formName(t), ctr);
-      glob[ctr] := nm;
+      nm, nctr := formName(t, ctr);
+      globNum[ctr] := nm;
       glob[nm] := t;
-      getCtx(op(2,typ), glob, ctr+1)
+      getCtx(op(2,typ), glob, globNum, nctr)
     else 
       error "must have either Measure or Arrow, got", typ;
     end if;
   end proc;
 
   instantiate := proc(e, r, ctr, typ)
-    local t, nm;
+    local t, nm, nctr;
     if ctr = r:-gsize then 
       e 
     else 
       t := op(1, typ);
-      nm := cat(formName(t), ctr);
-      instantiate(e(nm), r, ctr+1, op(2,typ)) 
+      nm, nctr := formName(t, ctr);
+      instantiate(e(nm), r, nctr, op(2,typ)) 
     end if;
   end proc;
 
@@ -354,7 +361,7 @@ SLO := module ()
     if cnt = ctx:-gsize then
       expr
     else
-      var := ctx:-gctx[cnt];
+      var := ctx:-gnum[cnt];
       Lambda(var, lambda_wrap(expr, cnt+1, ctx));
     end if;
   end proc;
@@ -454,7 +461,8 @@ SLO := module ()
 # - full 'type' inference of e
 # - full 'range-of-value' inference of e
   adjust_types := proc(e, typ, ctx)
-    local ee, dom, opc, res, var, left, right, inf_typ, tab, typ2;
+    local ee, dom, opc, res, var, left, right, inf_typ, tab, typ2,
+          tab_left, tab_right;
     if type(e, specfunc(anything, 'Superpose')) then
       map(thisproc, e, typ, ctx)
     elif type(e, 'WM'(anything, anything)) then
@@ -513,10 +521,14 @@ SLO := module ()
     elif type(e, 'If'(anything, anything, anything)) then
       var, dom := analyze_cond(op(1,e));
       opc := _EnvPathCond[var];
-      _EnvPathCond[var] := AndProp(opc, dom);
+      tab_left := table(eval(_EnvPathCond));
+      tab_right := table(eval(_EnvPathCond));
+      tab_left[var] := AndProp(opc, dom);
+      _EnvPathCond := tab_left;
       left := adjust_types(op(2,e), typ, ctx);
       dom := flip_rr(dom);
-      _EnvPathCond[var] := AndProp(opc, dom);
+      tab_right[var] := AndProp(opc, dom);
+      _EnvPathCond := tab_right;
       right := adjust_types(op(3,e), typ, ctx);
       'If'(op(1,e), left, right);
     elif type(e, 'Uniform'(anything, anything)) and typ = 'Measure(Real)' then
@@ -739,9 +751,9 @@ end;
 # - a (Maple-encoded) Hakaru type 'htyp' (H-types)
 # - a Measure type
 # - a global context of var = H-types
+# - a global numbering context for var names
 # - the size of the global context
-# - a local context of binders, var = range
-`type/Context` := 'record'('htyp', 'mtyp', 'gctx', 'gsize');
+`type/Context` := 'record'('htyp', 'mtyp', 'gctx', 'gnum', 'gsize');
 
 if_ := proc(cond, tc, ec)
   if ec = false then And(cond, tc)
