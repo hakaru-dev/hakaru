@@ -774,6 +774,14 @@ end;
 # works, but could be made more robust
 `evalapply/if_` := proc(f, t) if_(op(1,f), op(2,f)(t[1]), op(3,f)(t[1])) end;
 
+# piecewise is horrible, so this hack takes care of some of it
+if_ := proc(cond, tb, eb)
+  if cond::name then 
+    if_(cond = true, tb, eb)
+  else
+    'if_'(cond, tb, eb)
+  end if;
+end proc;
 # A Context contains 
 # - a (Maple-encoded) Hakaru type 'htyp' (H-types)
 # - a Measure type

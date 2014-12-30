@@ -14,8 +14,6 @@ import Language.Hakaru.PrettyPrint (runPrettyPrint)
 import Test.HUnit
 import Tests.TestTools
 
--- mikek: some tests are ignored because they crash ghci for me
-
 testMeasureUnit :: Test
 testMeasureUnit = test [
     "t1,t5"   ~: testSS [t1,t5] (factor (1/2)),
@@ -68,9 +66,9 @@ testMeasurePair = test [
     "t4"            ~: testSS [t4] t4',
     "t8"            ~: testSS [] t8,
     "t23"           ~: testSS [t23] t23',
-    "testPriorProp" ~: testS testPriorProp,
     "norm"          ~: testSS [] norm,
-    "flipped_norm"  ~: testSS [] flipped_norm
+    "flipped_norm"  ~: testSS [] flipped_norm,
+    "testPriorProp" ~: testS testPriorProp
     ]
 
 testOther :: Test
@@ -119,9 +117,9 @@ t5 = factor (1/2) `bind_` dirac unit
 t6 :: Mochastic repr => repr (Measure Real)
 t6 = dirac 5
 
-t7,t7',t7n,t7n' :: Mochastic repr => repr (Measure Real)
+t7,t7', t7n,t7n' :: Mochastic repr => repr (Measure Real)
 t7   = uniform 0 1 `bind` \x -> factor (unsafeProb (x+1)) `bind_` dirac (x*x)
-t7'  = uniform 0 1 `bind` \x -> superpose [(unsafeProb x + 1, dirac (x*x))]
+t7'  = uniform 0 1 `bind` \x -> superpose [(unsafeProb (x+1), dirac (x*x))]
 t7n  = uniform (-1) 0 `bind` \x -> factor (unsafeProb (x+1)) `bind_` dirac (x*x)
 t7n' = uniform (-1) 0 `bind` \x -> superpose [(unsafeProb (x + 1), dirac (x*x))]
 
