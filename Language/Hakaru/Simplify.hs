@@ -37,7 +37,7 @@ closeLoop s = action where
   s' :: String
   s' = s ++ " :: " ++ show (typeOf (getArg action))
 
-class MapleableType a where
+class (Typeable a) => MapleableType a where
   mapleType :: a{-unused-} -> String
 
 instance MapleableType () where mapleType _ = "Unit"
@@ -62,7 +62,7 @@ instance (MapleableType a, MapleableType b) => MapleableType (a -> b) where
 mkTypeString :: MapleableType a => String -> a -> String
 mkTypeString s t = "Typed(" ++ s ++ ", " ++ mapleType t ++ ")"
 
-simplify :: (MapleableType a, Typeable a) => Expect Maple a -> IO (Any a)
+simplify :: (MapleableType a) => Expect Maple a -> IO (Any a)
 simplify e = do
   let slo = toMaple e
   hakaru <- do
@@ -76,5 +76,5 @@ simplify e = do
 getArg :: f a -> a
 getArg = undefined
 
-toMaple :: (MapleableType a, Typeable a) => Expect Maple a -> String
+toMaple :: (MapleableType a) => Expect Maple a -> String
 toMaple e = mkTypeString (runMaple (unExpect e) 0) (getArg e)

@@ -5,8 +5,8 @@ module Tests.Syntax(allTests) where
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure,
-       Order(..), Base(..), ununit, and_, fst_, snd_, min_,
-       Mochastic(..), Lambda(..), bind_, factor, beta, bern, lam)
+       Order(..), Base(..), ununit, and_, fst_, snd_, swap_, min_,
+       Mochastic(..), Lambda(..), bind_, liftM, factor, beta, bern, lam)
 import Language.Hakaru.Util.Pretty (Pretty (pretty), prettyPair)
 -- import Language.Hakaru.Sample(Sample(unSample))
 import Language.Hakaru.Disintegrate
@@ -43,9 +43,11 @@ allTests = test [
     "testLinregSimp" ~: ignore $ testS linregSimp, -- too long?
     "testdistLinregSimp" ~: testS distLinregSimp,
     "testLinreg" ~: ignore $ testS distLinreg,
-    "prog1s" ~: [ testS (lam (d unit)) | Disintegration d <- prog1s ],
-    "prog2s" ~: [ testS (lam (d unit)) | Disintegration d <- prog2s ],
-    "prog3s" ~: [ testS (lam (d unit)) | Disintegration d <- prog3s ]
+    "prog1s" ~: testD prog1s,
+    "prog2s" ~: testD prog2s,
+    "prog3s" ~: testD prog3s,
+    "pair1fstD" ~: testD (\u -> ununit u $ pair1fst),
+    "pair1fstDswap" ~: testD (\u -> ununit u $ liftM swap_ pair1fst)
     ]
 
 
@@ -306,22 +308,21 @@ testDist (e,s) = do
 -- Jacques on 2014-11-18: "From an email of Oleg's, could someone please
 -- translate the following 3 programs into new Hakaru?"  The 3 programs below
 -- are equivalent.
-prog1s, prog2s, prog3s :: [Disintegration () Real Bool]
-prog1s = disintegrations $ \u ->
+prog1s, prog2s, prog3s :: (Mochastic repr) => repr () -> repr (Measure (Real, Bool))
+prog1s u =
          ununit u $
          bern 0.5 `bind` \c ->
          if_ c (normal 0 1)
                (uniform 10 20) `bind` \x ->
          dirac (pair x c)
-
-prog2s = disintegrations $ \u ->
+prog2s u =
          ununit u $
          bern 0.5 `bind` \c ->
          if_ c (normal 0 1)
                (dirac 10 `bind` \d ->
                 uniform d 20) `bind` \x ->
          dirac (pair x c)
-prog3s = disintegrations $ \u ->
+prog3s u =
          ununit u $
          bern 0.5 `bind` \c ->
          if_ c (normal 0 1)

@@ -67,7 +67,7 @@ testMeasurePair = test [
     "t8"            ~: testSS [] t8,
     "t23"           ~: testSS [t23] t23',
     "norm"          ~: testSS [] norm,
-    "flipped_norm"  ~: testSS [] flipped_norm,
+    "flipped_norm"  ~: testSS [liftM swap_ norm] flipped_norm,
     "testPriorProp" ~: testS testPriorProp
     ]
 
@@ -284,7 +284,7 @@ testGibbsProp1 = lam (gibbsProposal norm)
 
 testGibbsProp2 :: (Lambda repr, Mochastic repr, Integrate repr) =>
                   repr (Real -> Measure Real)
-testGibbsProp2 = lam (gibbsProposal flipped_norm)
+testGibbsProp2 = lam (gibbsProposal (liftM swap_ norm))
 
 mcmc :: (Mochastic repr, Integrate repr, Lambda repr,
          a ~ Expect' a, Order_ a) =>
