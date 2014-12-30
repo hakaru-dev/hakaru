@@ -408,15 +408,15 @@ SLO := module ()
         error "Impossible: an untyped free variable", e, "in global context",
           eval(ctx:-gctx), "and local context", eval(_EnvPathCond)
       end if;
-    elif type(e, 'realcons') and signum(0,e,1) = 1 then
-      'Prob'
-    elif type(e, 'realcons') then
-      'Real'
     elif type(e, 'Pair'(anything, anything)) then
       map(infer_type, e, ctx);
     elif type(e, {`+`, `*`}) then
       l := map(infer_type, [op(e)], ctx);
       join_type(op(l));
+    elif type(e, 'realcons') and signum(0,e,1) = 1 then
+      'Prob'
+    elif type(e, 'realcons') then
+      'Real'
     elif type(e, specfunc(anything, 'piecewise')) then
       typ := NULL;
       for l from 1 to nops(e) do
