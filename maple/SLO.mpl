@@ -10,12 +10,13 @@
 SLO := module ()
   export ModuleApply, AST, simp, 
     c; # very important: c is "global".
-  local ToAST, t_binds, t_pw, into_pw, myprod, gensym, gs_counter, do_pw,
-    superpose, mkProb, getCtx, instantiate, lambda_wrap, fill_table,
+  local ToAST, t_binds, t_pw, into_pw_prod, into_pw_plus, myprod, do_pw,
+    mkProb, getCtx, instantiate, lambda_wrap, fill_table,
     adjust_types, compute_domain, analyze_cond, flip_rr, isPos,
+    adjust_superpose,
     MyHandler, getBinderForm, infer_type, join_type, join2type, 
-    simp_AST, simp_sup, simp_bind, simp_if, simp_WM, into_sup,
-    comp, comp2, comp_algeb, comp_WM,
+    simp_sup, simp_if, into_sup, simp_rel,
+    comp2, comp_algeb,
     mkRealDensity, recognize_density, density;
 
   t_binds := 'specfunc(anything, {int, Int, sum, Sum})';
@@ -54,8 +55,8 @@ SLO := module ()
     end do;
     _EnvPathCond := eval(t);
     res := ToAST(op(inp));
-    res := simp_AST(res);
     res := adjust_types(res, ctx:-mtyp, ctx);
+    res := adjust_superpose(res);
     lambda_wrap(res, 0, ctx);
   end proc;
 
@@ -87,8 +88,7 @@ SLO := module ()
           ld := ldegree(ee, ivars);
           cof := [coeffs(ee, ivars, 'v')]; # cof is a list, v expseq
           if (d = 1) and (ld = 1) then
-            # WM = Weight-Measure pair
-            ff := (x,y) -> 'WM'(simplify(x), Return(op(y)));
+            ff := (x,y) -> WeightedM(simplify(x), Return(op(y)));
             Superpose(op(zip(ff, cof, [v])));
           elif (ee=0) then # collect/simplify could have revealed this
             Superpose()
@@ -100,7 +100,7 @@ SLO := module ()
         elif type(ee, t_pw) then
           return do_pw(map(simplify, [op(e)]), ctx, BottomProp);
         elif type(ee, `+`) then
-          superpose(map(ToAST, [op(e)], ctx));
+          Superpose(op(map(ToAST, [op(e)], ctx)));
         else
           error "no binders, but still not a polynomial?", ee
         end if;
@@ -128,7 +128,7 @@ SLO := module ()
         elif type(e, t_pw) then
           return do_pw(map(simplify, [op(e)]), ctx, BottomProp);
         elif type(e, `+`) then
-          superpose(map(ToAST, [op(e)], ctx));
+          Superpose(op(map(ToAST, [op(e)], ctx)));
         elif type(e, `*`) then
           # we have a binder in here somewhere
           a, b := selectremove(type, e, t_binds);
@@ -141,14 +141,14 @@ SLO := module ()
             elif type(a, `*`) then
               error "do not know how to multiply 2 pw:", a
             elif type(a, t_pw) then
-              Superpose('WM'(b, ToAST(a, ctx)))
+              WeightedM(b, ToAST(a, ctx))
             else
               error "something weird happened:", a, " was supposed to be pw"
             end if
           elif type(a, `*`) then
             error "product of 2 binders?!?", a
           else
-            Superpose('WM'(b, ToAST(a, ctx)))
+            WeightedM(b, ToAST(a, ctx))
           end if
 ## to here
         else
@@ -160,45 +160,70 @@ SLO := module ()
 
   # simp mostly recurses and simplifies as it goes
   simp := proc(e) 
-    local a, b, d;
+    local a, b, d, res;
     if type(e, `+`) then
-      map(simp, e)
+      # first push constants in
+      res := map(simp, e);
+      # only worry about + of pw
+      a, b := selectremove(type, e, t_pw);
+      if a = 0 then # none to worry about
+        res
+      else
+        if type(a,`+`) then
+          error "multiple piecewises to be added", a
+        else
+          into_pw_plus(b, a)
+        end if;
+      end if;
     elif type(e, `*`) then
       a, b := selectremove(type, e, t_binds);
       # now casesplit on what a is
       if a=1 then  # no binders
         a, b := selectremove(type, e, t_pw);
-        if a=1 then # and no piecewise either
-          d := expand(b); # probably need to write something less brutal
-          if b=d then # nothing happened
-            simplify(b)
-          else # this might be better
-            simp(d)
-          end if
+        if a=1 then # and no piecewise at this level, deeper?
+          map(simp, b); # b is a `*`
         elif type(a, `*`) then
           error "do not know how to multiply 2 pw:", a
         elif type(a, t_pw) then
-          into_pw(b, a)
+          into_pw_prod(b, a)
         else
           error "something weird happened:", a, " was supposed to be pw"
         end if
       elif type(a, `*`) then
         error "product of 2 binders?!?", a
       else
-        simp(b)*simp(a)
-        # subsop(1=myprod(simp(b),simp(op(1,a))), a)
+        # simp(b)*simp(a)
+        subsop(1=myprod(simp(b),simp(op(1,a))), a)
       end if
     elif type(e, t_binds) then
       subsop(1=simp(op(1,e)), e)
     # need to go into pw even if there is no factor to push in
     elif type(e, t_pw) then
-      into_pw(1, e)
+      into_pw_prod(1, e); # because this simplifies too
+    elif type(e, anything ^ anything) then
+      simp(op(1,e)) ^ simp(op(2,e))
     else
       simplify(e)
     end if;
   end;
 
-  into_pw := proc(fact, pw)
+  into_pw_plus := proc(ss, pw)
+    local n, f;
+
+    n := nops(pw);
+    f := proc(j)
+      if j=n then # last one is special, always a value
+        simp(fact + simp(op(j, pw)))
+      elif type(j,'odd') then # a condition
+        simp_rel( op(j, pw) )
+      else # j even
+        simp(fact + simp(op(j, pw)))
+      end if;
+    end proc;
+    piecewise(seq(f(i),i=1..n))
+  end proc;
+
+  into_pw_prod := proc(fact, pw)
     local n, f;
 
     n := nops(pw);
@@ -206,12 +231,24 @@ SLO := module ()
       if j=n then # last one is special, always a value
         simp(myprod(fact, simp(op(j, pw))))
       elif type(j,'odd') then # a condition
-        op(j, pw)
+        simp_rel( op(j, pw) )
       else # j even
         simp(myprod(fact , simp(op(j, pw))))
       end if;
     end proc;
     piecewise(seq(f(i),i=1..n))
+  end proc;
+
+  simp_rel := proc(r)
+    if r::name then 
+      r
+    elif r::{`<`,`<=`,`=`,`<>`} then
+      map(simp_rel, r)
+    elif r::specfunc(anything, {And, Or, Not}) then
+      map(simp_rel, r)
+    else
+      simplify(r)
+    end;
   end proc;
 
   # myprod takes care of pushing a product inside a `+`
@@ -223,8 +260,6 @@ SLO := module ()
     end if;
   end proc;
 
-  gs_counter := 0;
-  gensym := proc(x::name) gs_counter := gs_counter + 1; x || gs_counter; end proc;
 
   # this assumes we are doing pw of measures.
   # this assumes that the pw is univariate
@@ -243,27 +278,39 @@ SLO := module ()
     end if;
   end;
 
-  superpose := proc(l)
-    local t, i, j, idx;
-    t := table('sparse');
-    for i in l do
-      if type(i, specfunc(anything, Superpose)) then
-        for j in [op(i)] do
-          idx := op(2,j);
-          # yay for indexing functions!
-          t[idx] := t[idx] + op(1,j);
-        end do;
-      else 
-        error "still don't know how to superpose ", i;
-      end if;
-    end do;
-    Superpose(seq('WM'(t[op(i)], op(i)), i = [indices(t)]));
-  end proc;
-
   mkProb := proc(w, ctx)
-    local typ, i, ww, pos, rest;
+    local typ, pb, rl, pos, rest;
     if type(w, `*`) then
-      map(mkProb, w, ctx)
+      pb, rl := selectremove(x->evalb(infer_type(x,ctx)=Prob), w);
+      # all parts are Prob
+      if rl = 1 then
+        pb 
+      else
+        # if there are multiple Real parts
+        if type(rl, `*`) then
+          pos, rest := selectremove(isPos, rl);
+          # deal with pos part right away:
+          pos := pb * maptype(`*`, mkProb, pos, ctx);
+          if rest = 1 then
+            pos
+          else
+            # make sure the rest really is positive
+            if not isPos(rest) then WARNING("cannot insure it will not crash") end if;
+            if pos = 1 then
+              unsafeProb(rest); # res it the whole thing, don't recurse!
+            else
+              pos * mkProb(rest, ctx)
+            end if;
+          end if;
+        else # otherwise rl is a single thing
+          if not isPos(rl) then WARNING("cannot insure it will not crash") end if;
+          if pb = 1 then
+            unsafeProb(rl); # rl is the whole thing, don't recurse!
+          else
+            pb * mkProb(rl, ctx); # go ahead
+          end if;
+        end if;
+      end if;
     elif type(w, 'exp'(anything)) then
       exp_(op(1,w));
     elif type(w, 'erf'(anything)) then
@@ -385,7 +432,7 @@ SLO := module ()
       'Bool'
     elif type(e, anything^integer) then
       infer_type(op(1,e), ctx);
-    elif type(e, 'exp'(anything)) then
+    elif type(e, {'exp'(anything), 'cos'(anything), 'sin'(anything)}) then
       typ := infer_type(op(1,e), ctx); # need to make sure it is inferable
       'Real' # someone else will make sure to cast this correctly
     elif type(e, anything^fraction) then
@@ -434,11 +481,15 @@ SLO := module ()
       if nops(res) = 1 then
         res[1]
       else
-        error "superpose with multiple types", e
+        error "Superpose with multiple types", e
       end if;
-    elif type(e, specfunc(anything, 'WM')) then
+    elif type(e, specfunc(anything, 'WeightedM')) then
       infer_type(op(2, e), ctx)
     elif type(e, specfunc(anything, 'Uniform')) then
+      Measure(Real)
+    elif type(e, 'Bind'(anything, name, anything)) then
+      Measure(Real)
+    elif type(e, 'Bind'(anything, name = range, anything)) then
       Measure(Real)
     else
       error "how do I infer a type from", e;
@@ -474,8 +525,8 @@ SLO := module ()
           tab_left, tab_right;
     if type(e, specfunc(anything, 'Superpose')) then
       map(thisproc, e, typ, ctx)
-    elif type(e, 'WM'(anything, anything)) then
-      'WM'(mkProb(op(1,e), ctx), thisproc(op(2,e), typ, ctx));
+    elif type(e, 'WeightedM'(anything, anything)) then
+      WeightedM(mkProb(op(1,e), ctx), thisproc(op(2,e), typ, ctx));
     elif type(e, 'Return'(anything)) and type(typ, 'Measure'(anything)) then
       typ2 := op(1, typ);
       inf_typ := infer_type(op(1,e), ctx);
@@ -518,7 +569,7 @@ SLO := module ()
       _EnvPathCond := tab;
       # need to adjust types on first op, to its own type, as that may require
       # tweaking which functions are used
-      'Bind'(adjust_types(op(1,e), inf_typ, ctx), var, adjust_types(op(3,e), typ, ctx));
+      Bind(adjust_types(op(1,e), inf_typ, ctx), var, adjust_types(op(3,e), typ, ctx));
     elif type(e, 'Bind'(identical(Lebesgue), name = range, anything)) then
       dom := RealRange(op([2,2,1],e), op([2,2,2], e));
       var := op([2,1],e);
@@ -526,7 +577,7 @@ SLO := module ()
       tab := table(eval(_EnvPathCond));
       tab[var] := AndProp(tab[var], dom);
       _EnvPathCond := tab;
-      'Bind'(op(1,e), var, adjust_types(op(3,e), typ, ctx));
+      Bind(op(1,e), var, adjust_types(op(3,e), typ, ctx));
     elif type(e, 'If'(anything, anything, anything)) then
       var, dom := analyze_cond(op(1,e));
       opc := _EnvPathCond[var];
@@ -539,7 +590,7 @@ SLO := module ()
       tab_right[var] := AndProp(opc, dom);
       _EnvPathCond := tab_right;
       right := adjust_types(op(3,e), typ, ctx);
-      'If'(op(1,e), left, right);
+      If(op(1,e), left, right);
     elif type(e, 'Uniform'(anything, anything)) and typ = 'Measure(Real)' then
       e
     elif type(e, 'Uniform'(anything, anything)) and typ = 'Measure(Prob)' then
@@ -569,6 +620,10 @@ SLO := module ()
           error "expression e", e, "has multiple domain", res
         end if;
       end if;
+    elif type(e, 'Bind'(anything, name, anything)) then
+      'real'
+    elif type(e, 'Bind'(anything, name = range, anything)) then
+      RealRange(op([2,2,1], e), op([2,2,2], e))
     else
       error "compute domain:", e;
     end if;
@@ -614,24 +669,7 @@ SLO := module ()
     if operator='ln' then -infinity else default_value end if;
   end proc;
 
-  # simplify ASTs (before they have been 'fixed' to be type-correct)
-  simp_AST := proc(ast)
-    local res;
-
-    # first, simplify Bind
-    res := ast;
-    res := eval(res, 'Bind' = simp_bind);
-
-    # second, simplify (and sort) Superpose
-    res := eval(res, 'Superpose' = simp_sup);
-
-    # third, remove 'undefined' branches of If
-    res := eval(res, 'If' = simp_if);
-
-    res;
-  end proc;
-
-  # dirac < uniform < NormalD < bind < Superpose
+  # dirac < uniform < NormalD < bind < WeightedM
   # returns false on equality
   comp2 := proc(x,y)
     if x::Return(anything) then
@@ -650,82 +688,54 @@ SLO := module ()
       else 
 	evalb(not member(op(0,y), {Return}))
       end if
-    elif x::specfunc(anything, Bind) then  
-      if y::specfunc(anything, Bind) then
-	comp2(op(3, x), op(3, y))
-      else
-	evalb(not member(op(0,y), {Return, Uniform}));
-      end if
     elif x::specfunc(anything, NormalD) then
       if y::specfunc(anything, NormalD) then
-        `and`(op(zip(comp_WM, [op(x)], [op(y)])))
+        `and`(op(zip(comp_algeb, [op(x)], [op(y)])))
+      else
+	evalb(not member(op(0,y), {Return, Uniform}));
+      end if;
+    elif x::specfunc(anything, 'Bind') then  
+      if y::specfunc(anything, 'Bind') then
+	comp2(op(3, x), op(3, y))
       else
 	evalb(not member(op(0,y), {Return, Uniform, NormalD}));
-      end if;
-    elif x::specfunc(anything, Superpose) then  
-      if y::specfunc(anything, Superpose) then
-        `and`(op(zip(comp_WM, [op(x)], [op(y)])))
+      end if
+    elif x::specfunc(anything, 'WeightedM') then  
+      if y::specfunc(anything, 'WeightedM') then
+        comp2(op(2, x), op(2, y))
       else
-	evalb(not member(op(0,y), {Return, Uniform, NormalD, Superpose}));
+	evalb(not member(op(0,y), '{Return, Uniform, NormalD, WeightedM}'));
       end if;
     else
       error "cannot compare", x, y
     end if;
   end proc;
 
-  comp_WM := proc(x,y) comp2(op(2,x), op(2,y)) end proc;
-
-  comp_algeb := proc(x,y)
+  comp_algeb := proc(x, y)
+    if x::numeric and y::numeric then
+      evalb( x < y )
+    else # just cheat
+      evalb( length(x) < length(y) )
+    end if;
   end proc;
 
-  comp := proc(x, y) comp2(op(2,x), op(2,y)) end;
-
-  # helper routines for simplifying ASTs
+  # helper routines for tweaking ASTs
   simp_sup := proc()
-    local l;
-    if _npassed = 0 then 'Superpose'()
-    elif _npassed=1 and type(_passed[1], 'WM'(identical(1), anything)) then
-      op(2, _passed[1])
-    else
-      l := map(simp_WM, [args]);
-      if not (l = [args]) then 
-        l := simp_sup(op(l)); 
-        if l :: specfunc(anything, 'Superpose') then
-          simp_sup(op(l))
-        else
-          l
-        end if;
-      else
-        Superpose(op(sort(l, 'strict'=comp)))
-      end if;
-    end if;
+    SUPERPOSE(op(sort([_passed], 'strict'=comp2)))
   end proc;
 
-  simp_WM := proc(wm)
-    local w,m;
-    w, m := op(wm);
-    if type(m, specfunc(anything, 'Superpose')) then
-       'WM'(1, simp_sup(op(map(into_sup, m, w))));
-    else
-      'WM'(w,m)
-    end if;
-  end;
+  into_sup := proc(wm, w) WeightedM(simplify(w*op(1,wm)), op(2,wm)) end proc;
 
-  into_sup := proc(wm, w) 'WM'(simplify(w*op(1,wm)), op(2,wm)) end proc;
-
-  simp_bind := proc(w, var, meas)
-    if meas = Return(var) then w else 'Bind'(w, var, meas) end if;
+  # sort, then fix things up to make printing easier
+  adjust_superpose := proc(e)
+    local f;
+    f := proc()
+      'SUPERPOSE'(seq(`if`(op(0,_passed[i])='WeightedM',
+                          'WM'(op(_passed[i])), 
+                          'WM'(1,_passed[i])), i=1.._npassed))
+    end proc;
+    eval(eval(e, Superpose=simp_sup), SUPERPOSE = f);
   end proc;
-
-  simp_if := proc(cond, tb, eb)
-    if tb = Return(undefined) then 
-      eb
-    elif tb = eb then
-      eb
-    else
-      'If'(cond, tb, eb)
-    end if;
-  end;
 
   # density recognizer
   recognize_density := proc(dens, var)
@@ -744,7 +754,7 @@ SLO := module ()
           mu := -coeff(a0, var, 0)/scale;
           sigma := sqrt(coeff(a1, var, 0)/scale);
           at0 := simplify(eval(init/density[NormalD](mu, sigma, 0)));
-          return simp_sup('WM'(at0, NormalD(mu,sigma)));
+          return WeightedM(at0, NormalD(mu,sigma));
 	end if;
       end if;
     end if;
@@ -754,14 +764,17 @@ SLO := module ()
   mkRealDensity := proc(dens, var)
     local res;
     if dens :: specfunc(anything, 'Superpose') then
-      simp_sup(op(map(thisproc, dens, var)));
-    elif dens :: specfunc(anything, 'WM') then
+      Superpose(op(map(thisproc, dens, var)));
+    elif dens :: specfunc(anything, 'WeightedM') then
       res := recognize_density(op(1,dens), var);
       if res<>NULL then
-        'WM'(1, Bind(res, var, op(2,dens)))
+        Bind(res, var, op(2,dens))
       else
-        'WM'(1, Bind(Lebesgue, var, simp_sup(dens)))
+        Bind(Lebesgue, var, dens)
       end if;
+    elif dens :: specfunc(anything, 'Bind') then
+      # uses associatibity of >>=
+      Bind(mkRealDensity(op(1, dens), var), op(2, dens), op(3,dens))
     else
       Bind(Lebesgue, var, dens)
     end if
@@ -783,6 +796,86 @@ if_ := proc(cond, tb, eb)
     'if_'(cond, tb, eb)
   end if;
 end proc;
+
+WeightedM := proc(w, m)
+  if w=1 then 
+    m
+  elif type(m, specfunc(anything, 'Superpose')) then
+    Superpose(op(map(into_sup, m, w)));
+  else
+    'WeightedM'(w,m)
+  end if;
+end;
+
+Superpose := proc()
+  local wm, bind, bindrr, i, j, bb, res, l;
+
+  bb := proc(t, k, no_rng)
+    local bds, var;
+    bds := t[op(k)];
+    var := gensym('xx');
+    if bds::`+` then
+      if no_rng then
+        bds := map(x -> subs(op(2,x)=var, x), [op(bds)]); # rename uniformly
+        Bind(k[1], var, Superpose(op(map2(op, 3, bds))))
+      else
+        bds := map(x -> subs(op([2,1],x)=var, x), [op(bds)]); # rename uniformly
+        Bind(k[1], var = k[2], Superpose(op(map2(op, 3, bds))))
+      end if;
+    else
+      bds
+    end if;
+  end proc;
+  if _npassed = 1 then
+    _passed[1]
+  else
+    wm := table('sparse'); bind := table('sparse'); bindrr := table('sparse');
+    l := map(x -> `if`(op(0,x)='Superpose', op(x), x), [_passed]);
+    for i in l do
+      if i::'WeightedM'(anything, anything) then
+        wm[op(2,i)] := wm[op(2,i)] + op(1,i); 
+      elif i::'Return'(anything) then
+        wm[i] := wm[i] + 1;
+      elif i::'Bind'(anything, name, anything) then
+        bind[op(1,i)] := bind[op(1,i)] + i;
+      elif i::'Bind'(anything, name = range, anything) then
+        bindrr[op(1,i), op([2,2],i)] := bindrr[op(1,i), op([2,2], i)] + i;
+      elif i::specfunc(anything, 'If') then
+        wm[i] := wm[i] + 1;
+      else
+        error "how do I superpose", i;
+      end if;
+    end do;
+    res := [
+      seq(WeightedM(wm[j], j), j = [indices(wm, 'nolist')]),
+      seq(bb(bind,j,true), j = [indices(bind)]),
+      seq(bb(bindrr,j,false), j = [indices(bindrr)])];
+    if nops(res)=1 then res[1] else 'Superpose'(op(res)) end if;
+  end if;
+end proc;
+
+Bind := proc(w, var, meas)
+  if var::name and meas = Return(var) then 
+    w 
+  elif meas :: 'WeightedM'(anything, 'Return'(identical(var))) then
+    WeightedM(op(1,meas), w)
+  else 
+    'Bind'(w, var, meas) 
+  end if;
+end proc;
+
+If := proc(cond, tb, eb)
+  if tb = Return(undefined) then 
+    eb
+  elif eb = Return(undefined) then
+    tb
+  elif tb = eb then
+    eb
+  else
+    'If'(cond, tb, eb)
+  end if;
+end;
+
 # A Context contains 
 # - a (Maple-encoded) Hakaru type 'htyp' (H-types)
 # - a Measure type
@@ -801,3 +894,13 @@ end proc;
     Tbl[op(Idx)] := op(Entry);
   end if;
 end proc:
+
+gensym := module()
+  export ModuleApply;
+  local gs_counter;
+  gs_counter := 0;
+  ModuleApply := proc(x::name) 
+    gs_counter := gs_counter + 1; 
+    x || gs_counter; 
+  end proc;
+end module;
