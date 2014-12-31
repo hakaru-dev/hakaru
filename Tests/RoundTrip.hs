@@ -30,7 +30,7 @@ testMeasureUnit = test [
 testMeasureProb :: Test
 testMeasureProb = test [
     "t2"  ~: testSS [t2] (uniform 0 1 `bind` dirac . unsafeProb),
-    "t26" ~: ignore $ testMaple t26,
+    "t26" ~: ignore $ testS t26,
     "t30" ~: testSS [] t30,
     "t33" ~: testSS [] t33,
     "t34" ~: testSS [t34] (dirac 3),
@@ -45,7 +45,7 @@ testMeasureReal = test [
     "t6"  ~: testSS [] t6,
     "t7"  ~: testSS [t7] t7',
     "t7n" ~: testSS [t7n] t7n',
-    "t9"  ~: testSS [t9] (uniform 3 7 `bind` \x -> superpose [(2, dirac x)]),
+    "t9"  ~: testSS [t9] (superpose [(2, uniform 3 7)]),
     "t13" ~: testSS [t13] t13',
     "t14" ~: testSS [t14] t14',
     "t21" ~: testS t21,
@@ -73,14 +73,10 @@ testMeasurePair = test [
 
 testOther :: Test
 testOther = test [
-    "testMcmc" ~: testMcmc,
     "testGibbs1" ~: testSS [testGibbsProp1] (lam $ \x -> normal x 1),
     "testGibbs2" ~: testSS [testGibbsProp2] (lam $ \x -> normal (x * (1/2)) (sqrt_ 2 * (1/2))),
-    "expr1" ~: testMaple expr1,
-    "expr2" ~: testMaple expr2,
-    "expr4" ~: testMaple expr4,
-    "testKernel" ~: testMaple testKernel,
-    "testKernel2" ~: testMaple testKernel2
+    "testKernel" ~: testS testKernel,
+    "testKernel2" ~: testS testKernel2
     ]
 
 allTests :: Test
@@ -125,7 +121,7 @@ t7n' = uniform (-1) 0 `bind` \x -> superpose [(unsafeProb (x + 1), dirac (x*x))]
 
 -- For sampling efficiency (to keep importance weights at or close to 1),
 -- t8 below should read back to uses of "normal", not uses of "lebesgue"
--- then "factor".  (For exact roundtripping, Maple "attributes" might help.)
+-- then "factor".
 t8 :: Mochastic repr => repr (Measure (Real, Real))
 t8 = normal 0 10 `bind` \x -> normal x 20 `bind` \y -> dirac (pair x y)
 
@@ -314,11 +310,6 @@ flipped_norm :: Mochastic repr => repr (Measure (Real, Real))
 flipped_norm = normal 0 1 `bind` \x ->
                normal x 1 `bind` \y ->
                dirac (pair y x)
-
-testMcmc :: IO ()
-testMcmc = do
-    let s = runPrettyPrint (mcmc (`normal` 1) (normal 0 5))
-    assertResult $ show s
 
 -- pull out some of the intermediate expressions for independent study
 expr1 :: (Lambda repr, Mochastic repr) => repr (Real -> Prob)

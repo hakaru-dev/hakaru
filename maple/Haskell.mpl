@@ -166,13 +166,20 @@ bi["Bind"] := proc(meas, var, rest)
   p(rest);
 end;
 
-bi["Superpose"] := proc() b:-append("superpose"); sp(); 
+bi["SUPERPOSE"] := proc() b:-append("superpose"); sp(); 
   lbrack(); seqp(", ", [_passed]); rbrack();
 end;
 
 # will always be called in the context of a superpose
 bi["WM"] := proc(w, m)
   b:-append("("); p(w); b:-append(","); p(m); b:-append(")");
+end;
+
+# this is a stand-alone superpose
+bi["WeightedM"] := proc(w, m)
+  b:-append("superpose"); sp(); lbrack();
+  b:-append("("); p(w); b:-append(","); p(m); b:-append(")");
+  rbrack();
 end;
 
 bi["Pair"] := bfunc("pair");
