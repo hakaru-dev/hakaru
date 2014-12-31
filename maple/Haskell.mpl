@@ -7,7 +7,7 @@ Haskell := module ()
   export ModuleApply;
   local b, p, d, bi,
       parens, resolve, sp, comma, ufunc, bfunc, lbrack, rbrack, seqp,
-      lparen, rparen, pattern, pat, pi;
+      lparen, rparen;
   uses StringTools;
 
   # this is to make things more efficient.  Note that it makes
@@ -62,14 +62,6 @@ Haskell := module ()
       d[op(0,e)](op(e))
     else
       error "Haskell: %1 not implemented yet (%2)", op(0,e), e
-    end if;
-  end;
-
-  pattern := proc(e)
-    if assigned(pat[op(0,e)]) then
-      pat[op(0,e)](op(e))
-    else
-      error "Haskell: pattern %1 not implemented yet (%2)", op(0,e), e
     end if;
   end;
 
@@ -189,10 +181,10 @@ bi["IntPow"] := proc(l, r)
   b:-append("("); p(l); b:-append(" ^^ "); p(r); b:-append(")");
 end;
 
+# nm should be a name!
 bi["Lambda"] := proc(nm, expr)
   b:-append("lam (\\"); 
-  pattern(nm);
-  # b:-append(op(1,nm));
+  b:-append(op(1,nm));
   b:-append(" -> ");
   p(expr); 
   b:-append(")");
@@ -229,19 +221,6 @@ bi["If"] := proc()
     lparen(); thisproc(_passed[3..-1]); rparen();
   end if;
 end;
-
-# And now for the patterns:
-pat[_Inert_NAME] := d[_Inert_NAME];
-pat[_Inert_ASSIGNEDNAME] := d[_Inert_ASSIGNEDNAME];
-pat[_Inert_FUNCTION] := proc(f, s)
-  local nm;
-  nm := resolve(f);
-  if assigned(pi[nm]) then
-    pi[nm](op(s))
-  else
-    error "Haskell: cannot find constructor %1", f
-  end if;
-end proc;
 
 # utility routines:
 # =================

@@ -413,7 +413,7 @@ SLO := module ()
       right := getBinderForm(op(2,t));
       Pair(left, right);
     elif t = 'Bool' then gensym('bb')
-    elif t = 'Unit' then Unit
+    elif t = 'Unit' then gensym('uu') # we really do need a name!
     else
       error "Trying to form a name from a", t
     end if;
@@ -451,7 +451,11 @@ SLO := module ()
       expr
     else
       var := ctx:-gnum[cnt];
-      Lambda(var, lambda_wrap(expr, cnt+1, ctx));
+      if type(var, 'name') then
+        Lambda(var, lambda_wrap(expr, cnt+1, ctx));
+      else
+        error "cannot yet lambda_wrap a", var
+      end if;
     end if;
   end proc;
 
