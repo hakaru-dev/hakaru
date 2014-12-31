@@ -14,9 +14,10 @@ SLO := module ()
     mkProb, getCtx, instantiate, lambda_wrap, fill_table,
     adjust_types, compute_domain, analyze_cond, flip_rr, isPos,
     adjust_superpose,
+    add_pw,
     MyHandler, getBinderForm, infer_type, join_type, join2type, 
     simp_sup, simp_if, into_sup, simp_rel,
-    comp2, comp_algeb,
+    comp2, comp_algeb, compare, comp_list,
     mkRealDensity, recognize_density, density;
 
   t_binds := 'specfunc(anything, {int, Int, sum, Sum})';
@@ -171,7 +172,7 @@ SLO := module ()
         res
       else
         if type(a,`+`) then
-          error "multiple piecewises to be added", a
+          add_pw([op(a)]);
         else
           into_pw_plus(b, a)
         end if;
@@ -243,6 +244,10 @@ SLO := module ()
       end if;
     end proc;
     piecewise(seq(f(i),i=1..n))
+  end proc;
+
+  add_pw := proc(l)
+    error "multiple piecewises to be added", l
   end proc;
 
   simp_rel := proc(r)
@@ -675,16 +680,13 @@ SLO := module ()
     if operator='ln' then -infinity else default_value end if;
   end proc;
 
-  # dirac < uniform < NormalD < bind < WeightedM
+  # dirac < uniform < NormalD < bind < WeightedM < SUPERPOSE
   # returns false on equality
   comp2 := proc(x,y)
-    if x::Return(anything) then
+    if evalb(x=y) then false
+    elif x::Return(anything) then
       if y::Return(anything) then
-	if op(1,x)::numeric and op(1,y)::numeric then
-	  evalb(op(1,x) < op(1,y))
-	else
-	  evalb(length(op(1,x)) < length(op(1,y)))
-	end if
+        comp_algeb(op(1,x), op(1,y))
       else
 	true
       end if
@@ -696,7 +698,7 @@ SLO := module ()
       end if
     elif x::specfunc(anything, NormalD) then
       if y::specfunc(anything, NormalD) then
-        `and`(op(zip(comp_algeb, [op(x)], [op(y)])))
+        comp_list(zip( compare, [op(x)], [op(y)]));
       else
 	evalb(not member(op(0,y), {Return, Uniform}));
       end if;
@@ -720,8 +722,34 @@ SLO := module ()
   comp_algeb := proc(x, y)
     if x::numeric and y::numeric then
       evalb( x < y )
+    elif {op(0,x), op(0,y)} = {Pair} then
+      comp_list(zip( compare, [op(x)], [op(y)]));
     else # just cheat
       evalb( length(x) < length(y) )
+    end if;
+  end proc;
+
+  comp_list := proc(l)
+    if nops(l)=0 then 
+      false
+    elif l[1]=LESS then
+      true
+    elif l[1]=GREATER then
+      false
+    else
+      comp_list(l[2..-1])
+    end if;
+  end proc;
+
+  compare := proc(x, y)
+    if evalb(x=y) then
+      EQUAL
+    elif comp_algeb(x,y) then
+      LESS
+    elif comp_algeb(y,x) then
+      GREATER
+    else
+      EQUAL # can this happen?
     end if;
   end proc;
 

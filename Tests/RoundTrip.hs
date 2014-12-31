@@ -169,8 +169,8 @@ t23 = bern (1/2) `bind` \a ->
                bern (if_ a (9/10) (1/10)) `bind` \c ->
                dirac (pair b c)
 t23' = superpose [(41/100, dirac (pair true true)),
-                  ( 9/100, dirac (pair false true)),
                   ( 9/100, dirac (pair true false)),
+                  ( 9/100, dirac (pair false true)),
                   (41/100, dirac (pair false false))]
 
 t24,t24' :: (Mochastic repr, Lambda repr) => repr (Prob -> Measure ())
