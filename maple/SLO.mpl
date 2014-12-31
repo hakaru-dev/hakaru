@@ -8,14 +8,14 @@
 #
 
 SLO := module ()
-  export ModuleApply, AST, simp, 
+  export ModuleApply, AST, simp,
     c; # very important: c is "global".
   local ToAST, t_binds, t_pw, into_pw_prod, into_pw_plus, myprod, do_pw,
     mkProb, getCtx, instantiate, lambda_wrap, fill_table,
     adjust_types, compute_domain, analyze_cond, flip_rr, isPos,
     adjust_superpose,
-    add_pw,
-    MyHandler, getBinderForm, infer_type, join_type, join2type, 
+    add_pw, get_bp, merge_pw,
+    MyHandler, getBinderForm, infer_type, join_type, join2type,
     simp_sup, simp_if, into_sup, simp_rel,
     comp2, comp_algeb, compare, comp_list,
     mkRealDensity, recognize_density, density;
@@ -51,7 +51,7 @@ SLO := module ()
     t := table(TopProp);
 
     # right at the start, put the global context in the 'path'.
-    for i in [indices(ctx:-gctx, 'pairs')] do 
+    for i in [indices(ctx:-gctx, 'pairs')] do
       fill_table(t, lhs(i), rhs(i));
     end do;
     _EnvPathCond := eval(t);
@@ -160,7 +160,7 @@ SLO := module ()
   end proc;
 
   # simp mostly recurses and simplifies as it goes
-  simp := proc(e) 
+  simp := proc(e)
     local a, b, d, res;
     if type(e, `+`) then
       # first push constants in
@@ -247,11 +247,33 @@ SLO := module ()
   end proc;
 
   add_pw := proc(l)
-    error "multiple piecewises to be added", l
+    local breakpoints, sbp;
+
+    breakpoints := map(get_bp, l);
+    sbp := convert(breakpoints, 'set');
+    if nops(sbp)=1 then
+      merge_pw(l,'add');
+    else
+      error "multiple piecewises to be added with different breakpoints", l
+    end if;
+  end proc;
+
+  merge_pw := proc(l, f)
+    local i, n;
+    n := nops(l[1]);
+    piecewise(seq(`if`(i::odd and i<n, 
+                      op(i,l[1]), 
+                      f(op(i,j),j=l)), i=1..n))
+  end proc;
+
+  get_bp := proc(pw::specfunc(anything, piecewise))
+    local i, n;
+    n := nops(pw);
+    [seq(`if`(i::odd and i<n, op(i,pw), NULL), i=1..n)]
   end proc;
 
   simp_rel := proc(r)
-    if r::name then 
+    if r::name then
       r
     elif r::{`<`,`<=`,`=`,`<>`} then
       map(simp_rel, r)
@@ -284,7 +306,7 @@ SLO := module ()
       prop_ctx := OrProp(prop, rel);
       if len=2 then
         if prop_ctx='real' then return ToAST(l[2], ctx) end if;
-      end if; 
+      end if;
       If(l[1], ToAST(l[2], ctx), thisproc(l[3..-1], ctx, prop_ctx))
     end if;
   end;
@@ -295,7 +317,7 @@ SLO := module ()
       pb, rl := selectremove(x->evalb(infer_type(x,ctx)=Prob), w);
       # all parts are Prob
       if rl = 1 then
-        pb 
+        pb
       else
         # if there are multiple Real parts
         if type(rl, `*`) then
@@ -359,18 +381,18 @@ SLO := module ()
 
   fill_table := proc(t, nm, typ)
       if nm::name then
-        if typ = 'Real' then 
+        if typ = 'Real' then
           t[nm] := RealRange(-infinity, infinity)
-        elif typ = 'Prob' then 
+        elif typ = 'Prob' then
           t[nm] := RealRange(0, infinity)
-        elif typ = 'Bool' then 
+        elif typ = 'Bool' then
           t[nm] := boolean
-        elif typ = 'Unit' then 
+        elif typ = 'Unit' then
           # Do nothing, this does not need remembered
-        else 
+        else
           error "Real/Prob/Bool/Unit are the only base types:", typ;
         end if;
-      elif typ :: 'Pair'(anything, anything) then 
+      elif typ :: 'Pair'(anything, anything) then
         fill_table(t, op(1, nm), op(1, typ));
         fill_table(t, op(2, nm), op(2, typ));
       elif typ :: 'Measure'(anything) then
@@ -408,18 +430,18 @@ SLO := module ()
       getCtx(op(2,typ), glob, globNum, ctr+1)
     elif type(typ, 'Measure'(anything)) then
       glob, globNum, ctr, typ
-    else 
+    else
       error "must have either Measure or Arrow, got", typ;
     end if;
   end proc;
 
   instantiate := proc(e, ctx, ctr, typ)
     local nm;
-    if ctr = ctx:-gsize then 
-      e 
-    else 
+    if ctr = ctx:-gsize then
+      e
+    else
       nm := ctx:-gnum[ctr];
-      instantiate(e(nm), ctx, ctr + 1, op(2,typ)) 
+      instantiate(e(nm), ctx, ctr + 1, op(2,typ))
     end if;
   end proc;
 
@@ -517,7 +539,7 @@ SLO := module ()
   # could foldl, but this will work too
   join_type := proc()
     if _npassed < 2 then error "cannot happen"
-    elif _npassed = 2 then 
+    elif _npassed = 2 then
       join2type(_passed[1], _passed[2])
     else
       join_type(join2type(_passed[1], _passed[2]), _passed[3..-1])
@@ -559,7 +581,7 @@ SLO := module ()
       # might need 'fromProb' to be inserted?
       elif typ2 = Real and member(inf_typ, {'Real', 'Prob'}) then
         'Return'(op(1,e))
-      elif typ2 :: Pair(anything, anything) and 
+      elif typ2 :: Pair(anything, anything) and
            op(1,e) :: Pair(anything, anything) then
         left  := adjust_types('Return'(op([1,1],e)), Measure(op(1,typ2)), ctx);
         right := adjust_types('Return'(op([1,2],e)), Measure(op(2,typ2)), ctx);
@@ -621,7 +643,7 @@ SLO := module ()
     elif type(e, {identical('Lebesgue'), specfunc(anything, 'NormalD')}) then
       'real'
     elif type(e, specfunc(anything, 'Superpose')) then
-      if nops(e)=1 then 
+      if nops(e)=1 then
         compute_domain(op([1,2],e))
       else
         res := map((x -> compute_domain(op(2,x))), {op(e)});
@@ -693,26 +715,32 @@ SLO := module ()
     elif x::Uniform(numeric, numeric) then
       if y::Uniform(numeric, numeric) then
 	evalb(op(1,x) < op(1,y))
-      else 
-	evalb(not member(op(0,y), {Return}))
+      else
+	evalb(not member(op(0,y), '{Return}'))
       end if
     elif x::specfunc(anything, NormalD) then
       if y::specfunc(anything, NormalD) then
         comp_list(zip( compare, [op(x)], [op(y)]));
       else
-	evalb(not member(op(0,y), {Return, Uniform}));
+	evalb(not member(op(0,y), '{Return, Uniform}'));
       end if;
-    elif x::specfunc(anything, 'Bind') then  
+    elif x::specfunc(anything, 'Bind') then
       if y::specfunc(anything, 'Bind') then
 	comp2(op(3, x), op(3, y))
       else
-	evalb(not member(op(0,y), {Return, Uniform, NormalD}));
+	evalb(not member(op(0,y), '{Return, Uniform, NormalD}'));
       end if
-    elif x::specfunc(anything, 'WeightedM') then  
+    elif x::specfunc(anything, 'WeightedM') then
       if y::specfunc(anything, 'WeightedM') then
         comp2(op(2, x), op(2, y))
       else
 	evalb(not member(op(0,y), '{Return, Uniform, NormalD, WeightedM}'));
+      end if;
+    elif x::specfunc(anything, 'SUPERPOSE') then
+      if y::specfunc(anything, 'SUPERPOSE') then
+        error "cannot compare 2 SUPERPOSE", x, y
+      else
+	evalb(not member(op(0,y), '{Return, Uniform, NormalD, WeightedM, SUPERPOSE}'));
       end if;
     else
       error "cannot compare", x, y
@@ -730,7 +758,7 @@ SLO := module ()
   end proc;
 
   comp_list := proc(l)
-    if nops(l)=0 then 
+    if nops(l)=0 then
       false
     elif l[1]=LESS then
       true
@@ -765,7 +793,7 @@ SLO := module ()
     local f;
     f := proc()
       'SUPERPOSE'(seq(`if`(op(0,_passed[i])='WeightedM',
-                          'WM'(op(_passed[i])), 
+                          'WM'(op(_passed[i])),
                           'WM'(1,_passed[i])), i=1.._npassed))
     end proc;
     eval(eval(e, Superpose=simp_sup), SUPERPOSE = f);
@@ -814,7 +842,7 @@ SLO := module ()
     end if
   end proc;
 
-  density[NormalD] := proc(mu, sigma, x) 
+  density[NormalD] := proc(mu, sigma, x)
     1/sigma/sqrt(2)/sqrt(Pi)*exp(-(x-mu)^2/2/sigma^2)
   end proc;
 end;
@@ -824,7 +852,7 @@ end;
 
 # piecewise is horrible, so this hack takes care of some of it
 if_ := proc(cond, tb, eb)
-  if cond::name then 
+  if cond::name then
     if_(cond = true, tb, eb)
   else
     'if_'(cond, tb, eb)
@@ -832,7 +860,7 @@ if_ := proc(cond, tb, eb)
 end proc;
 
 WeightedM := proc(w, m)
-  if w=1 then 
+  if w=1 then
     m
   elif type(m, specfunc(anything, 'Superpose')) then
     Superpose(op(map(into_sup, m, w)));
@@ -867,7 +895,7 @@ Superpose := proc()
     l := map(x -> `if`(op(0,x)='Superpose', op(x), x), [_passed]);
     for i in l do
       if i::'WeightedM'(anything, anything) then
-        wm[op(2,i)] := wm[op(2,i)] + op(1,i); 
+        wm[op(2,i)] := wm[op(2,i)] + op(1,i);
       elif i::'Return'(anything) then
         wm[i] := wm[i] + 1;
       elif i::'Bind'(anything, name, anything) then
@@ -889,17 +917,17 @@ Superpose := proc()
 end proc;
 
 Bind := proc(w, var, meas)
-  if var::name and meas = Return(var) then 
-    w 
+  if var::name and meas = Return(var) then
+    w
   elif meas :: 'WeightedM'(anything, 'Return'(identical(var))) then
     WeightedM(op(1,meas), w)
-  else 
-    'Bind'(w, var, meas) 
+  else
+    'Bind'(w, var, meas)
   end if;
 end proc;
 
 If := proc(cond, tb, eb)
-  if tb = Return(undefined) then 
+  if tb = Return(undefined) then
     eb
   elif eb = Return(undefined) then
     tb
@@ -910,7 +938,7 @@ If := proc(cond, tb, eb)
   end if;
 end;
 
-# A Context contains 
+# A Context contains
 # - a (Maple-encoded) Hakaru type 'htyp' (H-types)
 # - a Measure type
 # - a global context of var = H-types
@@ -933,8 +961,8 @@ gensym := module()
   export ModuleApply;
   local gs_counter;
   gs_counter := 0;
-  ModuleApply := proc(x::name) 
-    gs_counter := gs_counter + 1; 
-    x || gs_counter; 
+  ModuleApply := proc(x::name)
+    gs_counter := gs_counter + 1;
+    x || gs_counter;
   end proc;
 end module;
