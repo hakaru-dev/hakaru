@@ -24,8 +24,7 @@ import Tests.TestTools
 
 allTests :: Test
 allTests = test [
-    "pair1fst" ~: testS pair1fst,
-    "pair1snd" ~: testS pair1snd,
+    "pair1fst/snd" ~: testSS [pair1fst, pair1snd] pair1same,
     "pair2fst" ~: testS pair2fst,
     "pair2snd" ~: testS pair2snd,
     -- "pair2'fst" ~: testS $ pair2'fst 10,
@@ -60,6 +59,11 @@ pair1snd :: (Mochastic repr) => repr (Measure (Bool, Prob))
 pair1snd =  bern (1/2) `bind` \coin ->
             if_ coin (beta 2 1) (beta 1 2) `bind` \bias ->
             dirac (pair coin bias)
+
+pair1same :: (Mochastic repr) => repr (Measure (Bool, Prob))
+pair1same = (uniform  0 1) `bind` \x3 -> 
+  superpose [((unsafeProb x3),(dirac (pair true (unsafeProb x3)))),
+             ((unsafeProb (1+(x3*(-1)))),(dirac (pair false (unsafeProb x3))))]
 
 -- pair2fst and pair2snd are equivalent
 pair2fst :: (Mochastic repr) => repr (Measure ((Bool, Bool), Prob))
