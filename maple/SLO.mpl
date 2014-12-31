@@ -165,7 +165,8 @@ SLO := module ()
       # first push constants in
       res := map(simp, e);
       # only worry about + of pw
-      a, b := selectremove(type, e, t_pw);
+      if not type(res, `+`) then return simp(res) end if; # it happens!
+      a, b := selectremove(type, res, t_pw);
       if a = 0 then # none to worry about
         res
       else
@@ -185,7 +186,12 @@ SLO := module ()
         elif type(a, `*`) then
           error "do not know how to multiply 2 pw:", a
         elif type(a, t_pw) then
-          into_pw_prod(b, a)
+          res := simplify(a);
+          if type(res, t_pw) then
+            into_pw_prod(b, res)
+          else
+            simp(b)*simp(res)
+          end if;
         else
           error "something weird happened:", a, " was supposed to be pw"
         end if
@@ -213,11 +219,11 @@ SLO := module ()
     n := nops(pw);
     f := proc(j)
       if j=n then # last one is special, always a value
-        simp(fact + simp(op(j, pw)))
+        simp(ss + simp(op(j, pw)))
       elif type(j,'odd') then # a condition
         simp_rel( op(j, pw) )
       else # j even
-        simp(fact + simp(op(j, pw)))
+        simp(ss + simp(op(j, pw)))
       end if;
     end proc;
     piecewise(seq(f(i),i=1..n))
@@ -355,7 +361,7 @@ SLO := module ()
         elif typ = 'Bool' then 
           t[nm] := boolean
         elif typ = 'Unit' then 
-          t[nm] := Unit # ???
+          # Do nothing, this does not need remembered
         else 
           error "Real/Prob/Bool/Unit are the only base types:", typ;
         end if;
