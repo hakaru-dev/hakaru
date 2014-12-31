@@ -7,7 +7,7 @@ import Language.Hakaru.Syntax (Measure, Mochastic, Integrate, Lambda(lam), Order
 import Language.Hakaru.Disintegrate (Disintegrate, Disintegration(Disintegration), disintegrations)
 import Language.Hakaru.Expect (Expect(unExpect))
 import Language.Hakaru.Maple (Maple, runMaple)
-import Language.Hakaru.Simplify (simplify, MapleableType)
+import Language.Hakaru.Simplify (simplify, Simplifiable)
 import Language.Hakaru.Any (Any(unAny))
 import Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode)
 import Text.PrettyPrint (Doc)
@@ -36,7 +36,7 @@ type Testee a =
   forall repr. (Mochastic repr, Integrate repr, Lambda repr) => repr a
 
 -- Assert that a given Hakaru program roundtrips (aka simplifies) without error
-testS :: (MapleableType a) => Testee a -> Assertion
+testS :: (Simplifiable a) => Testee a -> Assertion
 testS t = do
 --    putStr "<<<<<"
 --    print (result t)
@@ -47,13 +47,13 @@ testS t = do
     assertResult (show s)
 
 -- Assert that all the given Hakaru programs simplify to the given one
-testSS :: (MapleableType a) => [Expect Maple a] -> Testee a -> Assertion
+testSS :: (Simplifiable a) => [Expect Maple a] -> Testee a -> Assertion
 testSS ts t' =
     mapM_ (\t -> do p <- simplify t
                     (assertEqual "testSS" `on` result) t' (unAny p))
           (t' : ts)
 
-testD :: (MapleableType env, MapleableType a, MapleableType b, Order_ a) =>
+testD :: (Simplifiable env, Simplifiable a, Simplifiable b, Order_ a) =>
          (Disintegrate env -> Disintegrate (Measure (a,b))) -> IO ()
 testD f = do
     let ds = disintegrations f
@@ -85,7 +85,7 @@ hasLab _ _ = False
 
 -- Runs a single test from a TestList given its label
 runTestN :: Test -> String -> IO Counts
-runTestN (TestList ts) l = 
+runTestN (TestList ts) l =
   case find (hasLab l) ts of
     Just t -> runTestTT t
     Nothing -> error $ "no test with label " ++ l
