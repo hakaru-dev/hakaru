@@ -302,12 +302,19 @@ SLO := module ()
     if len = 0 then Superpose()
     elif len = 1 then ToAST(l[1], ctx)
     else # len>2.
-      var, rel := analyze_cond(l[1]);
-      prop_ctx := OrProp(prop, rel);
-      if len=2 then
-        if prop_ctx='real' then return ToAST(l[2], ctx) end if;
+      # special case
+      if type(l[1], name = identical(true)) and len = 3 then
+        var := op(1, l[1]);
+        If(var, ToAST(eval(l[2], var=true), ctx),
+                 ToAST(eval(l[3], var=false), ctx));
+      else
+        var, rel := analyze_cond(l[1]);
+        prop_ctx := OrProp(prop, rel);
+        if len=2 then
+          if prop_ctx='real' then return ToAST(l[2], ctx) end if;
+        end if;
+        If(l[1], ToAST(l[2], ctx), thisproc(l[3..-1], ctx, prop_ctx))
       end if;
-      If(l[1], ToAST(l[2], ctx), thisproc(l[3..-1], ctx, prop_ctx))
     end if;
   end;
 
@@ -352,12 +359,16 @@ SLO := module ()
       error "mkProb ln", w;
     elif type(w, anything^fraction) then
       typ := infer_type(op(1,w), ctx);
-      if typ = 'Prob' then w else mkProb(op(1,w), ctx) ^ op(2,w) end if;
+      if member(typ,{'Prob','Number'}) then 
+        w 
+      else 
+        mkProb(op(1,w), ctx) ^ op(2,w) 
+      end if;
     elif type(w, 'unsafeProb'(anything)) then
       error "there should be no unsafeProb in", w
     else
       typ := infer_type(w, ctx);
-      if typ = 'Prob' then
+      if member(typ, {'Prob', 'Number'}) then
         w
       elif typ = 'Real' then
         # we are going to need to cast.  Is it safe?
@@ -465,6 +476,7 @@ SLO := module ()
       'Bool'
     elif e = 'Pi' then Prob
     elif e = 'Unit' then Unit
+    elif e = 'Lebesgue' then Measure(Real)
     elif type(e, boolean) then
       'Bool'
     elif type(e, anything^integer) then
@@ -473,9 +485,11 @@ SLO := module ()
       typ := infer_type(op(1,e), ctx); # need to make sure it is inferable
       'Real' # someone else will make sure to cast this correctly
     elif type(e, anything^fraction) then
-      typ := infer_type(op(1,e), ctx); # need to make sure it is inferable
-      typ; # if it is <0, weird things will happen
+      infer_type(op(1,e), ctx); # need to make sure it is inferable
+      # if it is <0, weird things will happen
       # someone else will make sure to cast this correctly
+    elif type(e, 'erf'(anything)) then # erf is polymorphic!
+      infer_type(op(1,e))
     elif type(e, 'ln'(anything)) then
       typ := infer_type(op(1,e), ctx); # need to make sure it is inferable
       'Real'
@@ -497,10 +511,8 @@ SLO := module ()
     elif type(e, {`+`, `*`}) then
       l := map(infer_type, [op(e)], ctx);
       join_type(op(l));
-    elif type(e, 'realcons') and signum(0,e,1) = 1 then
-      'Prob'
-    elif type(e, 'realcons') then
-      'Real'
+    elif type(e, {'integer', 'fraction'}) then
+      Number # constants are polymorphic!
     elif type(e, specfunc(anything, 'piecewise')) then
       typ := NULL;
       for l from 1 to nops(e) do
@@ -535,7 +547,8 @@ SLO := module ()
 
   join2type := proc(a,b)
     if a = b then a
-    elif a = 'Real' or b = 'Real' then 'Real'
+    elif a = 'Number' then b
+    elif a = 'Real' or b = 'Real' then 'Real' # we'll need to patch
     else error "join2type of", a, b
     end if;
   end proc;
@@ -581,9 +594,7 @@ SLO := module ()
         else
           'Return'(ee);
         end if;
-      # hmm, are things polymorphic enough that this is ok?
-      # might need 'fromProb' to be inserted?
-      elif typ2 = Real and member(inf_typ, {'Real', 'Prob'}) then
+      elif typ2 = Real and member(inf_typ, {'Real', 'Number'}) then
         'Return'(op(1,e))
       elif typ2 :: Pair(anything, anything) and
            op(1,e) :: Pair(anything, anything) then
@@ -595,6 +606,12 @@ SLO := module ()
       else
          error "adjust_types Type:", typ, inf_typ, e;
       end if;
+    elif type(e, 'Bind'(identical(Lebesgue), name, anything)) then
+      var := op(2,e);
+      tab := table(eval(_EnvPathCond));
+      tab[var] := AndProp(tab[var], real);
+      _EnvPathCond := tab;
+      Bind(Lebesgue, var, adjust_types(op(3,e), typ, ctx));
     elif type(e, 'Bind'(anything, name, anything)) then
       dom := compute_domain(op(1,e));
       var := op(2,e);
@@ -615,6 +632,12 @@ SLO := module ()
       tab[var] := AndProp(tab[var], dom);
       _EnvPathCond := tab;
       Bind(op(1,e), var, adjust_types(op(3,e), typ, ctx));
+    elif type(e, 'If'(name, anything, anything)) then
+      # special case
+      var := op(1,e);
+      left := adjust_types(eval(op(2,e), var=true), typ, ctx);
+      right := adjust_types(eval(op(3,e), var=false), typ, ctx);
+      If(var, left, right);
     elif type(e, 'If'(anything, anything, anything)) then
       var, dom := analyze_cond(op(1,e));
       opc := _EnvPathCond[var];
@@ -671,6 +694,8 @@ SLO := module ()
     vars := remove(type, indets(c, 'name'), 'constant');
     if nops(vars) > 1 then
       error "analyze_cond: multivariate condtion! ", c;
+    elif type(c, name = identical(true)) then
+      error "analyze_cond: should not be called with a boolean variable";
     else
       # buried magic!
       `property/ConvertRelation`(c);
@@ -923,7 +948,8 @@ end proc;
 Bind := proc(w, var, meas)
   if var::name and meas = Return(var) then
     w
-  elif meas :: 'WeightedM'(anything, 'Return'(identical(var))) then
+  elif meas :: 'WeightedM'(anything, 'Return'(identical(var))) and
+    not depends(op(1, meas), var) then
     WeightedM(op(1,meas), w)
   else
     'Bind'(w, var, meas)
@@ -931,12 +957,18 @@ Bind := proc(w, var, meas)
 end proc;
 
 If := proc(cond, tb, eb)
-  if tb = Return(undefined) then
+  if cond = true then
+    tb
+  elif cond = false then
+    eb
+  elif tb = Return(undefined) then
     eb
   elif eb = Return(undefined) then
     tb
   elif tb = eb then
     eb
+  elif type(cond, anything = identical(true)) then
+    If(op(1,cond), tb, eb)
   else
     'If'(cond, tb, eb)
   end if;
