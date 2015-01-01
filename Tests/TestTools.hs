@@ -7,7 +7,7 @@ import Language.Hakaru.Syntax (Measure, Mochastic, Integrate, Lambda(lam), Order
 import Language.Hakaru.Disintegrate (Disintegrate, Disintegration(Disintegration), disintegrations)
 import Language.Hakaru.Expect (Expect(unExpect))
 import Language.Hakaru.Maple (Maple, runMaple)
-import Language.Hakaru.Simplify (simplify, Simplifiable)
+import Language.Hakaru.Simplify (simplify, Simplifiable, toMaple)
 import Language.Hakaru.Any (Any(unAny))
 import Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode)
 import Text.PrettyPrint (Doc)
@@ -59,6 +59,13 @@ testD f = do
     let ds = disintegrations f
     assertResult ds
     mapM_ (\(Disintegration d) -> testS (lam (\env -> lam (\a -> d env a)))) ds
+
+toMapleD :: (Simplifiable env, Simplifiable a, Simplifiable b, Order_ a) =>
+         (Disintegrate env -> Disintegrate (Measure (a,b))) -> IO ()
+toMapleD f = do
+    let ds = disintegrations f
+    mapM_ (\(Disintegration d) -> (putStrLn.toMaple) 
+                                  (lam (\env -> lam (\a -> d env a)))) ds
 
 testMaple :: Expect Maple a -> IO ()
 testMaple t = assertResult $ runMaple (unExpect t) 0
