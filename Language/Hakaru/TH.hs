@@ -3,10 +3,9 @@
 module Language.Hakaru.TH (THRepr, unTHRepr, show_code) where
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Number(..), Fraction(..), Real,
+import Language.Hakaru.Syntax (Number(..), Fraction(..),
        Order(..), Base(..), Mochastic(..), Lambda(..))
 import Language.Haskell.TH
-import Data.Number.Erf
 
 newtype THRepr a = THR { unTHRepr :: ExpQ }
 
@@ -49,10 +48,10 @@ instance Base THRepr where
   fromInt (THR e) = liftT 'fromInt [e]
   infinity = liftT 'infinity []
   negativeInfinity = liftT 'negativeInfinity []
+  erf (THR e) = liftT 'erf [e]
+  erf_ (THR e) = liftT 'erf_ [e]
   gammaFunc (THR e) = liftT 'gammaFunc [e]
   betaFunc (THR e) (THR e') = liftT 'betaFunc [e, e']
-  erfFunc (THR e) = liftT 'erfFunc [e]
-  erfFunc_ (THR e) = liftT 'erfFunc_ [e]
   fix f = liftT 'fix [liftF f]
 
 instance (Number a) => Num (THRepr a) where
@@ -69,7 +68,7 @@ instance (Fraction a) => Fractional (THRepr a) where
   recip (THR e) = liftT 'recip [e]
   (THR e) / (THR e') = liftT '(/) [e, e']
 
-instance Floating (THRepr Real) where
+instance (Fraction a) => Floating (THRepr a) where
   pi = liftT 'pi []
   exp (THR e) = liftT 'exp [e]
   log (THR e) = liftT 'log [e]
@@ -88,8 +87,6 @@ instance Floating (THRepr Real) where
   asinh (THR e) = liftT 'asinh [e]
   acosh (THR e) = liftT 'acosh [e]
   atanh (THR e) = liftT 'atanh [e]
-
-instance Erf (THRepr Real) where
 
 instance Mochastic THRepr where
   dirac (THR e) = liftT 'dirac [e]

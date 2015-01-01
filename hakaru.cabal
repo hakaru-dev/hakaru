@@ -32,6 +32,7 @@ library
                        Language.Hakaru.Sample,
                        Language.Hakaru.Disintegrate,
                        Language.Hakaru.Partial,
+                       Language.Hakaru.PrettyPrint,
                        Language.Hakaru.Distribution,
                        Language.Hakaru.Simplify,
                        Language.Hakaru.Any,
@@ -59,7 +60,7 @@ library
 -- template-haskell used in LH.TH
 -- pretty used in LH.PrettyPrint
 -- transformer used in LH.Maple
--- math-functions used in LH.Distributions
+-- math-functions used in LH.Distributions (and in Maple)
 -- monad-loops used in LH.Distributions
 -- vector used in LH.Util.Csv
 -- bytestring used in LH.Util.Csv
@@ -68,7 +69,6 @@ library
 -- text used in LH.Util.Visual
 -- aeson used in LH.Util.Visual
 -- integration used in LH.Sample
--- erf is used in Maple !
 -- ghc-prim is used in LH.RoundTrip
   build-depends:       base >=4.6 && <5.0, 
                        Cabal >= 1.16,
@@ -98,7 +98,6 @@ library
                        hint >= 0.4.0.0 && < 0.5,
                        process >= 1.1 && < 2.0,
                        HUnit >= 1.2 && < 2.0,
-                       erf >= 2.0 && < 3.0,
                        mtl >= 2.1
   -- hs-source-dirs:      
   default-language:    Haskell2010
@@ -122,7 +121,6 @@ test-suite roundtrip_test
                        hint >= 0.4.0.0 && < 0.5,
                        integration >= 0.2 && < 0.3,
                        HUnit >= 1.2 && < 2.0,
-                       erf >= 2.0 && < 3.0,
                        process >= 1.1 && < 2.0
     default-language:  Haskell2010
     ghc-options:         -Wall

@@ -12,7 +12,6 @@ import Data.Ratio
 import Control.Monad (liftM2)
 import Control.Monad.Trans.Reader (ReaderT(ReaderT), runReaderT)
 import Control.Monad.Trans.Cont (Cont, cont, runCont)
-import Data.Number.Erf
 import Data.Function (on)
 
 -- Jacques wrote on December 16 that "the condition of a piecewise can be
@@ -89,9 +88,6 @@ instance Floating (Maple a) where
   atanh = mapleFun1 "arctanh"
   acosh = mapleFun1 "arccosh"
 
-instance Erf (Maple a) where
-  erf = mapleFun1 "erf"
-
 instance Base Maple where
   unit = Maple (return "Unit")
   pair = mapleFun2 "Pair"
@@ -144,9 +140,9 @@ instance Base Maple where
   pow_      = mapleOp2 "^"
   gammaFunc = mapleFun1 "GAMMA"
   betaFunc  = mapleFun2 "Beta"
-  erfFunc   = mapleFun1 "erf"
-  erfFunc_  = mapleFun1 "erf"
   fix       = mapleFun1 "(proc (f) local x; x := f(x) end proc)" . lam
+  erf       = mapleFun1 "erf"
+  erf_      = mapleFun1 "erf"
 
 instance Integrate Maple where
   integrate = quant "Int"

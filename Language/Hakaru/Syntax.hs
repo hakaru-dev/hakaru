@@ -14,7 +14,6 @@ module Language.Hakaru.Syntax (Real, Prob, Measure,
 
 import Data.Typeable (Typeable)    
 import Prelude hiding (Real)
-import Data.Number.Erf
 
 infix  4 `less`, `equal`, `less_`, `equal_`
 infixl 1 `bind`, `bind_`, `pairBind`
@@ -108,9 +107,7 @@ class (Number a) => Order repr a where
 class (Order repr Int , Num        (repr Int ),
        Order repr Real, Floating   (repr Real),
        Order repr Prob, 
-       Fractional (repr Real),
-       Fractional (repr Prob),
-       Erf (repr Real)) => Base repr where
+       Fractional (repr Real), Fractional (repr Prob)) => Base repr where
   unit       :: repr ()
   pair       :: repr a -> repr b -> repr (a,b)
   unpair     :: repr (a,b) -> (repr a -> repr b -> repr c) -> repr c
@@ -135,6 +132,9 @@ class (Order repr Int , Num        (repr Int ),
   pi_      =  unsafeProb pi
   exp_     :: repr Real -> repr Prob
   exp_     =  unsafeProb . exp
+  erf      :: repr Real -> repr Real
+  erf_     :: repr Prob -> repr Prob
+  erf_     =  unsafeProb . erf . fromProb
   log_     :: repr Prob -> repr Real
   log_     =  log . fromProb
   sqrt_    :: repr Prob -> repr Prob
@@ -153,9 +153,6 @@ class (Order repr Int , Num        (repr Int ),
   default betaFunc :: (Integrate repr) => repr Prob -> repr Prob -> repr Prob
   betaFunc a b = integrate 0 1 $ \x -> pow_ (unsafeProb x    ) (fromProb a - 1)
                                      * pow_ (unsafeProb (1-x)) (fromProb b - 1)
-
-  erfFunc  :: repr Real -> repr Real
-  erfFunc_ :: repr Prob -> repr Prob
 
   fix :: (repr a -> repr a) -> repr a
   fix f = x where x = f x

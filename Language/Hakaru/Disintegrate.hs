@@ -31,7 +31,6 @@ import Language.Hakaru.Syntax (Real, Prob, Measure,
 import Language.Hakaru.Expect (Expect(unExpect), Expect')
 import Unsafe.Coerce (unsafeCoerce)
 import Data.Ratio (numerator, denominator)
-import Data.Number.Erf (Erf(..))
 
 ------- Tracing
 
@@ -286,7 +285,7 @@ data Op1 t1 t where
   FromProb   :: Op1 Prob Real
   FromInt    :: Op1 Int  Real
   GammaFunc  :: Op1 Real Prob
-  ErfFunc    :: (Fraction t) => Op1 t t
+  Erf        :: (Fraction t) => Op1 t t
 
 data Op2 t1 t2 t where
   Add      :: (Number t) => Op2 t t t
@@ -318,11 +317,10 @@ data Dict t = Dict
   { unsafeProbFraction :: forall b u. Expr b u t -> Expr b u Prob
   , piFraction         :: forall repr. (Base repr) => repr t
   , expFraction        :: forall repr. (Base repr) => repr Real -> repr t
-  , logFraction        :: forall repr. (Base repr) => repr t -> repr Real
-  , erfFraction        :: forall repr. (Base repr) => repr t -> repr t }
+  , logFraction        :: forall repr. (Base repr) => repr t -> repr Real }
 dict :: (Fraction t) => Dict t
-dict = fractionCase (Dict (Op1 UnsafeProb) pi exp log erfFunc)
-                    (Dict id pi_ exp_ log_ erfFunc_)
+dict = fractionCase (Dict (Op1 UnsafeProb) pi exp log)
+                    (Dict id pi_ exp_ log_)
 
 data Expr b u t where -- b = bound variables; u = used variables
   Op0     :: Op0 t ->                                     Expr b u t
@@ -809,7 +807,7 @@ propagate (Op1 FromProb e) env Root t = do
   fmap (Op1 FromProb) (propagate e env Root (Op1 UnsafeProb t))
 propagate (Op1 FromInt _) _ Root _ = mempty
 propagate (Op1 GammaFunc _) _ Root _ = mempty
-propagate (Op1 ErfFunc _) _ Root _ = mempty -- need InvErf to disintegrate Erf
+propagate (Op1 Erf _) _ Root _ = mempty -- need InvErf to disintegrate Erf
 propagate (Op2 Add e1 e2) env Root t = mappend (go e1 e2) (go e2 e1)
   where go e e' = do x1 <- evaluate e env Root
                      fmap (x1 +) (propagate e' env Root (t - x1))
@@ -1010,7 +1008,6 @@ toHakaru (Op1 UnsafeProb e)        env = unsafeProb       (toHakaru e  env)
 toHakaru (Op1 FromProb e)          env = fromProb         (toHakaru e  env)
 toHakaru (Op1 FromInt e)           env = fromInt          (toHakaru e  env)
 toHakaru (Op1 GammaFunc e)         env = gammaFunc        (toHakaru e  env)
-toHakaru (Op1 ErfFunc e)           env = erfFraction dict (toHakaru e  env)
 toHakaru (Op2 Add e1 (Op1 Neg e2)) env = binaryN (-)      (toHakaru e1 env)
                                                           (toHakaru e2 env)
 toHakaru (Op2 Add e1 e2)  env          = binaryN (+)      (toHakaru e1 env)
@@ -1165,9 +1162,6 @@ instance Floating (Disintegrate Real) where
   acosh x         = log (x + sqrt (x * x - 1))
   atanh x         = log ((1 + x) / (1 - x)) / 2
 
-instance Erf (Disintegrate Real) where
-  erf (Disint x)  = Disint (fmap (Op1 ErfFunc) x)
-
 instance Base Disintegrate where
   unit                           = Disint (return (Op0 Unit))
   pair (Disint x) (Disint y)     = Disint (fmap Pair x <*> y)
@@ -1182,13 +1176,12 @@ instance Base Disintegrate where
   fromInt (Disint x)             = Disint (fmap (Op1 FromInt) x)
   pi_                            = Disint (return (Op0 Pi))
   exp_ (Disint x)                = Disint (fmap (Op1 Exp) x)
+  erf (Disint x)                 = Disint (fmap (Op1 Erf) x)
   log_ (Disint x)                = Disint (fmap (Op1 Log) x)
   infinity                       = Disint (return (Op0 Infinity))
   negativeInfinity               = Disint (return (Op0 NegativeInfinity))
   gammaFunc (Disint x)           = Disint (fmap (Op1 GammaFunc) x)
   betaFunc (Disint a) (Disint b) = Disint (fmap (Op2 BetaFunc) a <*> b)
-  erfFunc (Disint x)             = Disint (fmap (Op1 ErfFunc) x)
-  erfFunc_ (Disint x)            = Disint (fmap (Op1 ErfFunc) x)
 
   unpair xy k = insertDisint xy (\e c i ->
     let x = Const i

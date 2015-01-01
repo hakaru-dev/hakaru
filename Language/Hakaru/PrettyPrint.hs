@@ -7,7 +7,6 @@ module Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode) where
 import Language.Hakaru.Syntax
 import Language.Hakaru.Util.Pretty
 import Text.PrettyPrint hiding (parens)
-import Data.Number.Erf (Erf(..))
 
 leftMode :: Doc -> String
 leftMode = renderStyle style{mode=LeftMode}
@@ -92,9 +91,6 @@ instance Floating (PrettyPrint a) where
   atanh   = apply1 "atanh"
   acosh   = apply1 "acosh"
 
-instance Erf (PrettyPrint a) where
-  erf     = apply1 "erf"
-
 instance Base PrettyPrint where
   unit              = PP (\_ _ -> [text "unit"])
   pair              = apply2 "pair"
@@ -115,6 +111,8 @@ instance Base PrettyPrint where
   fromInt           = apply1 "fromInt"
   pi_               = PP (\_ _ -> [text "pi_"])
   exp_              = apply1 "exp_"
+  erf               = apply1 "erf"
+  erf_              = apply1 "erf_"
   log_              = apply1 "log_"
   sqrt_             = apply1 "sqrt_"
   pow_              = apply2 "pow_"
@@ -122,8 +120,6 @@ instance Base PrettyPrint where
   negativeInfinity  = PP (\_ _ -> [text "negativeInfinity"])
   gammaFunc         = apply1 "gammaFunc"
   betaFunc          = apply2 "betaFunc"
-  erfFunc           = apply1 "erfFunc"
-  erfFunc_          = apply1 "erfFunc_"
   fix f             = apply1 "fix" (fun1 f)
 
 instance Mochastic PrettyPrint where

@@ -488,8 +488,9 @@ SLO := module ()
       infer_type(op(1,e), ctx); # need to make sure it is inferable
       # if it is <0, weird things will happen
       # someone else will make sure to cast this correctly
-    elif type(e, 'erf'(anything)) then # erf is polymorphic!
-      infer_type(op(1,e))
+    elif type(e, 'erf'(anything)) then
+      infer_type(op(1,e), ctx); # erf is Real, erf_ is Prob
+      'Real'
     elif type(e, 'ln'(anything)) then
       typ := infer_type(op(1,e), ctx); # need to make sure it is inferable
       'Real'

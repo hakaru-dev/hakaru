@@ -10,7 +10,6 @@ module Language.Hakaru.Expect (Expect(..), Expect', total, normalize) where
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure,
        Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..))
-import Data.Number.Erf
 
 newtype Expect repr a = Expect { unExpect :: repr (Expect' a) }
 type family Expect' (a :: *)
@@ -44,6 +43,8 @@ deriving instance (Eq         (repr Prob)) => Eq         (Expect repr Prob)
 deriving instance (Ord        (repr Prob)) => Ord        (Expect repr Prob)
 deriving instance (Num        (repr Prob)) => Num        (Expect repr Prob)
 deriving instance (Fractional (repr Prob)) => Fractional (Expect repr Prob)
+-- hack alert!  But this is no worse than (-1) :: Prob...
+deriving instance (Floating   (repr Prob)) => Floating   (Expect repr Prob)
 
 instance (Order repr Int) => Order (Expect repr) Int where
   less  (Expect x) (Expect y) = Expect (less  x y)
@@ -52,9 +53,6 @@ instance (Order repr Int) => Order (Expect repr) Int where
 deriving instance (Eq  (repr Int)) => Eq  (Expect repr Int)
 deriving instance (Ord (repr Int)) => Ord (Expect repr Int)
 deriving instance (Num (repr Int)) => Num (Expect repr Int)
-
-instance Erf (repr Real) => Erf (Expect repr Real) where
-  erf (Expect n) = Expect (erf n)
 
 instance (Base repr) => Base (Expect repr) where
   unit                           = Expect unit
@@ -81,13 +79,13 @@ instance (Base repr) => Base (Expect repr) where
   exp_                           = Expect . exp_  . unExpect
   log_                           = Expect . log_  . unExpect
   sqrt_                          = Expect . sqrt_ . unExpect
+  erf                            = Expect . erf   . unExpect
+  erf_                           = Expect . erf_  . unExpect
   pow_ (Expect x) (Expect y)     = Expect (pow_ x y)
   infinity                       = Expect infinity
   negativeInfinity               = Expect negativeInfinity
   gammaFunc (Expect n)           = Expect (gammaFunc n)
   betaFunc (Expect a) (Expect b) = Expect (betaFunc a b)
-  erfFunc (Expect n)             = Expect (erfFunc n)
-  erfFunc_ (Expect n)            = Expect (erfFunc_ n)
   fix f                          = Expect (fix (unExpect . f . Expect))
 
 instance (Integrate repr) => Integrate (Expect repr) where

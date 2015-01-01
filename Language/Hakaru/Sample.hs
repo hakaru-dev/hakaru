@@ -13,11 +13,11 @@ import Language.Hakaru.Util.Extras (normalize)
 import Language.Hakaru.Distribution (poisson_rng)
 import Control.Monad.Primitive (PrimState, PrimMonad)
 import Numeric.SpecFunctions (logGamma, logBeta)
+import qualified Numeric.SpecFunctions as SF
 import qualified Data.Number.LogFloat as LF
 import qualified Numeric.Integration.TanhSinh as TS
 import qualified System.Random.MWC as MWC
 import qualified System.Random.MWC.Distributions as MWCD
-import Data.Number.Erf (Erf(..))
 
 newtype Sample m a = Sample { unSample :: Sample' m a }
 type family Sample' (m :: * -> *) (a :: *)
@@ -60,9 +60,6 @@ deriving instance Eq         (Sample m Int)
 deriving instance Ord        (Sample m Int)
 deriving instance Num        (Sample m Int)
 
-instance Erf (Sample m Real) where
-  erf (Sample x)  = Sample (erf x)
-
 instance Base (Sample m) where
   unit                            = Sample ()
   pair (Sample a) (Sample b)      = Sample (a,b)
@@ -83,14 +80,13 @@ instance Base (Sample m) where
   fromProb (Sample x)             = Sample (LF.fromLogFloat x)
   fromInt (Sample x)              = Sample (fromIntegral x)
   exp_ (Sample x)                 = Sample (LF.logToLogFloat x)
+  erf  (Sample x)                 = Sample (SF.erf x)
   log_ (Sample x)                 = Sample (LF.logFromLogFloat x)
   infinity                        = Sample LF.infinity
   negativeInfinity                = Sample LF.negativeInfinity
   gammaFunc (Sample n)            = Sample (LF.logToLogFloat (logGamma n))
   betaFunc (Sample a) (Sample b)  = Sample (LF.logToLogFloat (logBeta
                                       (LF.fromLogFloat a) (LF.fromLogFloat b)))
-  erfFunc (Sample a)              = Sample (erf a)
-  erfFunc_                        = unsafeProb . erfFunc . fromProb
 
 instance (PrimMonad m) => Mochastic (Sample m) where
   dirac (Sample a) = Sample (\p _ ->
