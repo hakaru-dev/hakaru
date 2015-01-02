@@ -15,5 +15,5 @@ LibraryTools:-Save(`Superpose`, lib):
 LibraryTools:-Save(`Bind`, lib):
 LibraryTools:-Save(`If`, lib):
 LibraryTools:-Save('`type/Context`', lib):
-LibraryTools:-Save(`index/TopProp`, lib):
+#LibraryTools:-Save(`index/TopProp`, lib):
 LibraryTools:-Save(`gensym`, lib):

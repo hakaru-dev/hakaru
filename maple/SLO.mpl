@@ -11,8 +11,8 @@ SLO := module ()
   export ModuleApply, AST, simp,
     c; # very important: c is "global".
   local ToAST, t_binds, t_pw, into_pw_prod, into_pw_plus, myprod, do_pw,
-    mkProb, getCtx, instantiate, lambda_wrap, fill_table,
-    adjust_types, compute_domain, analyze_cond, flip_rr, isPos,
+    mkProb, getCtx, instantiate, lambda_wrap, fill_table, toProp,
+    adjust_types, compute_domain, analyze_cond, flip_cond, isPos,
     adjust_superpose,
     add_pw, get_bp, merge_pw,
     MyHandler, getBinderForm, infer_type, join_type, join2type,
@@ -27,7 +27,7 @@ SLO := module ()
     local expr, typ, glob, gsiz, ctx, r, inp, meastyp, res, gnumbering;
     expr := op(1, spec);
     typ := op(2, spec);
-    glob, gnumbering, gsiz, meastyp := getCtx(typ, table(), table(), 0);
+    glob, gnumbering, gsiz, meastyp := getCtx(typ, {}, table(), 0);
     r := Record('htyp' = typ, 'mtyp' = meastyp,
                 'gctx' = glob, 'gnum' = gnumbering, 'gsize' = gsiz);
     inp := instantiate(expr, r, 0, typ);
@@ -48,13 +48,9 @@ SLO := module ()
     local res, ctx, t, i, rng;
 
     ctx := op(2,inp);
-    t := table(TopProp);
 
     # right at the start, put the global context in the 'path'.
-    for i in [indices(ctx:-gctx, 'pairs')] do
-      fill_table(t, lhs(i), rhs(i));
-    end do;
-    _EnvPathCond := eval(t);
+    _EnvPathCond := map(toProp, ctx:-gctx);
     res := ToAST(op(inp));
     res := adjust_types(res, ctx:-mtyp, ctx);
     res := adjust_superpose(res);
@@ -73,7 +69,7 @@ SLO := module ()
       return Superpose()
     # we might have done something odd, and there is no x anymore (and not 0)
     elif type(e, 'numeric') then
-      error "the constant", e, "is not a measure"
+      error "the constant %1 is not a measure", e
     # invariant: we depend on c
     else
       binders := indets(e, t_binds);
@@ -94,16 +90,16 @@ SLO := module ()
           elif (ee=0) then # collect/simplify could have revealed this
             Superpose()
           elif (ld = 0) then
-            error "non-zero constant encountered as a measure", ee
+            error "non-zero constant (%1) encountered as a measure", ee
           else
-            error "polynomial in c:", ee
+            error "polynomial in c: %1", ee
           end if;
         elif type(ee, t_pw) then
-          return do_pw(map(simplify, [op(e)]), ctx, BottomProp);
+          return do_pw(map(simplify, [op(e)]), ctx);
         elif type(ee, `+`) then
           Superpose(op(map(ToAST, [op(e)], ctx)));
         else
-          error "no binders, but still not a polynomial?", ee
+          error "(%1) has no binders, but is still not a polynomial?", ee
         end if;
       else
         if type(e, 'specfunc'(anything, {'int','Int'})) then
@@ -127,7 +123,7 @@ SLO := module ()
         elif type(e, 'specfunc'(anything, {'sum','Sum'})) then
           error "sums not handled yet"
         elif type(e, t_pw) then
-          return do_pw(map(simplify, [op(e)]), ctx, BottomProp);
+          return do_pw(map(simplify, [op(e)]), ctx);
         elif type(e, `+`) then
           Superpose(op(map(ToAST, [op(e)], ctx)));
         elif type(e, `*`) then
@@ -138,22 +134,22 @@ SLO := module ()
           if a=1 then  # no surface binders
             a, b := selectremove(type, e, t_pw);
             if a=1 then # and no piecewise either
-              error "buried binder: ", b
+              error "buried binder: %1", b
             elif type(a, `*`) then
-              error "do not know how to multiply 2 pw:", a
+              error "do not know how to multiply 2 pw: %1", a
             elif type(a, t_pw) then
               WeightedM(b, ToAST(a, ctx))
             else
-              error "something weird happened:", a, " was supposed to be pw"
+              error "something weird happened: (%1) was supposed to be pw", a
             end if
           elif type(a, `*`) then
-            error "product of 2 binders?!?", a
+            error "product of 2 binders?!?: %1", a
           else
             WeightedM(b, ToAST(a, ctx))
           end if
 ## to here
         else
-            error "Not sure what to do with a ", e
+            error "Not sure what to do with %1", e
         end if;
       end if;
     end if;
@@ -185,7 +181,7 @@ SLO := module ()
         if a=1 then # and no piecewise at this level, deeper?
           map(simp, b); # b is a `*`
         elif type(a, `*`) then
-          error "do not know how to multiply 2 pw:", a
+          error "do not know how to multiply 2 pw: %1", a
         elif type(a, t_pw) then
           res := simplify(a);
           if type(res, t_pw) then
@@ -194,10 +190,10 @@ SLO := module ()
             simp(b)*simp(res)
           end if;
         else
-          error "something weird happened:", a, " was supposed to be pw"
+          error "something weird happened: (a) was supposed to be pw", a
         end if
       elif type(a, `*`) then
-        error "product of 2 binders?!?", a
+        error "product of 2 binders?!?: %1", a
       else
         # simp(b)*simp(a)
         subsop(1=myprod(simp(b),simp(op(1,a))), a)
@@ -254,7 +250,7 @@ SLO := module ()
     if nops(sbp)=1 then
       merge_pw(l,'add');
     else
-      error "multiple piecewises to be added with different breakpoints", l
+      error "multiple piecewises to be added with different breakpoints %1", l
     end if;
   end proc;
 
@@ -295,25 +291,27 @@ SLO := module ()
 
 
   # this assumes we are doing pw of measures.
-  # this assumes that the pw is univariate
-  do_pw := proc(l, ctx, prop)
+  do_pw := proc(l, ctx)
     local len, rel, prop_ctx, this, var;
     len := nops(l);
     if len = 0 then Superpose()
     elif len = 1 then ToAST(l[1], ctx)
     else # len>2.
-      # special case
+      # special case - boolean
       if type(l[1], name = identical(true)) and len = 3 then
         var := op(1, l[1]);
         If(var, ToAST(eval(l[2], var=true), ctx),
                  ToAST(eval(l[3], var=false), ctx));
-      else
-        var, rel := analyze_cond(l[1]);
-        prop_ctx := OrProp(prop, rel);
-        if len=2 then
-          if prop_ctx='real' then return ToAST(l[2], ctx) end if;
+      # special case - Either
+      elif type(l[1], name = identical(Left)) and len = 3 then
+        if op(1,l[1]) = Right then
+          ToAST(l[3], ctx)
+        else
+          error "Checking if %1 = Left ?", op(1,l[1]);
         end if;
-        If(l[1], ToAST(l[2], ctx), thisproc(l[3..-1], ctx, prop_ctx))
+      else
+        # should analyze and simplify things depending on cond
+        If(l[1], ToAST(l[2], ctx), thisproc(l[3..-1], ctx))
       end if;
     end if;
   end;
@@ -356,7 +354,7 @@ SLO := module ()
     elif type(w, 'erf'(anything)) then
       erf_(mkProb(op(1,w)));
     elif type(w, 'ln'(anything)) then
-      error "mkProb ln", w;
+      error "mkProb ln: %1", w;
     elif type(w, anything^fraction) then
       typ := infer_type(op(1,w), ctx);
       if member(typ,{'Prob','Number'}) then 
@@ -365,7 +363,7 @@ SLO := module ()
         mkProb(op(1,w), ctx) ^ op(2,w) 
       end if;
     elif type(w, 'unsafeProb'(anything)) then
-      error "there should be no unsafeProb in", w
+      error "there should be no unsafeProb in %1", w
     else
       typ := infer_type(w, ctx);
       if member(typ, {'Prob', 'Number'}) then
@@ -375,7 +373,7 @@ SLO := module ()
         if not isPos(w) then WARNING("cannot insure it will not crash") end if;
         unsafeProb(w);
       else
-        error "how do I make a Prob from ", w, "in", eval(_EnvPathCond)
+        error "how do I make a Prob from %1 in %2", w, eval(_EnvPathCond)
       end if;
     end if;
   end proc;
@@ -383,36 +381,50 @@ SLO := module ()
   # use assumptions to figure out if we are actually positive, even
   # when the types say otherwise
   isPos := proc(w)
-    local prop, res;
+    local res;
 
-    prop := map(x -> op(1,x) :: op(2, x), [indices(_EnvPathCond, 'pairs')]);
-    res := signum(0, w, 1) assuming op(prop);
+    res := signum(0, w, 1) assuming op(_EnvPathCond);
     evalb(res = 1);
   end proc;
 
-  fill_table := proc(t, nm, typ)
-      if nm::name then
-        if typ = 'Real' then
-          t[nm] := RealRange(-infinity, infinity)
-        elif typ = 'Prob' then
-          t[nm] := RealRange(0, infinity)
-        elif typ = 'Bool' then
-          t[nm] := boolean
-        elif typ = 'Unit' then
-          # Do nothing, this does not need remembered
-        else
-          error "Real/Prob/Bool/Unit are the only base types:", typ;
-        end if;
-      elif typ :: 'Pair'(anything, anything) then
-        fill_table(t, op(1, nm), op(1, typ));
-        fill_table(t, op(2, nm), op(2, typ));
-      elif typ :: 'Measure'(anything) then
-        error "cannot handle first-class measure types yet"
-      elif typ :: 'Arrow'(anything,anything) then
-        error "cannot handle first-class -> types yet"
+  toProp := proc(x)
+    if type(x,`=`) then op(1,x) :: toProp(op(2,x))
+    elif type(x, 'symbol') then
+      if x = 'Real' then 'real'
+      elif x = 'Prob' then RealRange(0,infinity)
+      elif x = 'Bool' then boolean
+      elif x = 'Unit' then identical(Unit)
       else
-        error "I don't know type", typ;
+        error "Unknown base type %1", x
       end if;
+    else
+      error "How can I make a property from %1", x;
+    end if;
+  end proc;
+
+  fill_table := proc(t, nm, typ)
+    if nm::name then
+      if typ = 'Real' then
+        t[nm] := RealRange(-infinity, infinity)
+      elif typ = 'Prob' then
+        t[nm] := RealRange(0, infinity)
+      elif typ = 'Bool' then
+        t[nm] := boolean
+      elif typ = 'Unit' then
+        # Do nothing, this does not need remembered
+      else
+        error "Real/Prob/Bool/Unit are the only base types: %1", typ;
+      end if;
+    elif typ :: 'Pair'(anything, anything) then
+      fill_table(t, op(1, nm), op(1, typ));
+      fill_table(t, op(2, nm), op(2, typ));
+    elif typ :: 'Measure'(anything) then
+      error "cannot handle first-class measure types yet"
+    elif typ :: 'Arrow'(anything,anything) then
+      error "cannot handle first-class -> types yet"
+    else
+      error "I don't know type %1", typ;
+    end if;
   end proc;
 
   getBinderForm := proc(t)
@@ -426,7 +438,7 @@ SLO := module ()
     elif t = 'Bool' then gensym('bb')
     elif t = 'Unit' then gensym('uu') # we really do need a name!
     else
-      error "Trying to form a name from a", t
+      error "Trying to form a name from a %1", t
     end if;
   end proc;
 
@@ -437,12 +449,11 @@ SLO := module ()
       # 'nm' is a name-filled type structure, not necessarily a name
       nm := getBinderForm(t);
       globNum[ctr] := nm;
-      glob[nm] := t;
-      getCtx(op(2,typ), glob, globNum, ctr+1)
+      getCtx(op(2,typ), glob union {nm = t}, globNum, ctr+1)
     elif type(typ, 'Measure'(anything)) then
       glob, globNum, ctr, typ
     else
-      error "must have either Measure or Arrow, got", typ;
+      error "must have either Measure or Arrow, got %1", typ;
     end if;
   end proc;
 
@@ -465,7 +476,7 @@ SLO := module ()
       if type(var, 'name') then
         Lambda(var, lambda_wrap(expr, cnt+1, ctx));
       else
-        error "cannot yet lambda_wrap a", var
+        error "cannot yet lambda_wrap a %1", var
       end if;
     end if;
   end proc;
@@ -495,17 +506,23 @@ SLO := module ()
       typ := infer_type(op(1,e), ctx); # need to make sure it is inferable
       'Real'
     elif type(e, 'symbol') then
-      # if we have a type, use it
-      if assigned(ctx:-gctx[e]) then return(ctx:-gctx[e]); end if;
-
-      # otherwise, really do infer it
-      typ := _EnvPathCond[e];
-      if typ :: {'RealRange'(anything, anything),
-                 identical(real), identical(TopProp)} then
-        'Real'
-      else
-        error "Impossible: an untyped free variable", e, "in global context",
-          eval(ctx:-gctx), "and local context", eval(_EnvPathCond)
+      # first look in the global context
+      res := select(type, ctx:-gctx, identical(e) = anything);
+      if nops(res)=1 then 
+        op([1,2], res)
+      else # then in the current path
+        res := select(type, _EnvPathCond, identical(e) :: anything);
+        if nops(res)=1 then 
+          typ := op([1,2], res);
+          if type(typ, {'RealRange'(anything, anything), identical(real)}) then
+            'Real'
+          else
+            typ
+          end if;
+        else
+          error "Impossible: an untyped free variable %1 in local context %2",
+            e, eval(_EnvPathCond)
+        end if;
       end if;
     elif type(e, 'Pair'(anything, anything)) then
       map(infer_type, e, ctx);
@@ -531,7 +548,7 @@ SLO := module ()
       if nops(res) = 1 then
         res[1]
       else
-        error "Superpose with multiple types", e
+        error "Superpose with multiple types %1", e
       end if;
     elif type(e, specfunc(anything, 'WeightedM')) then
       infer_type(op(2, e), ctx)
@@ -542,7 +559,7 @@ SLO := module ()
     elif type(e, 'Bind'(anything, name = range, anything)) then
       Measure(Real)
     else
-      error "how do I infer a type from", e;
+      error "how do I infer a type from %1", e;
     end if;
   end proc;
 
@@ -550,13 +567,13 @@ SLO := module ()
     if a = b then a
     elif a = 'Number' then b
     elif a = 'Real' or b = 'Real' then 'Real' # we'll need to patch
-    else error "join2type of", a, b
+    else error "join2type of %1, %2", a, b
     end if;
   end proc;
 
   # could foldl, but this will work too
   join_type := proc()
-    if _npassed < 2 then error "cannot happen"
+    if _npassed < 2 then error "join_type: cannot happen, nargs<2"
     elif _npassed = 2 then
       join2type(_passed[1], _passed[2])
     else
@@ -572,8 +589,7 @@ SLO := module ()
 # - full 'type' inference of e
 # - full 'range-of-value' inference of e
   adjust_types := proc(e, typ, ctx)
-    local ee, dom, opc, res, var, left, right, inf_typ, tab, typ2,
-          tab_left, tab_right;
+    local ee, dom, opc, res, var, left, right, inf_typ, typ2, cond, fcond;
     if type(e, specfunc(anything, 'Superpose')) then
       map(thisproc, e, typ, ctx)
     elif type(e, 'WeightedM'(anything, anything)) then
@@ -605,33 +621,24 @@ SLO := module ()
       elif typ2 = Bool and member(op(1,e), {true,false}) then
         e
       else
-         error "adjust_types Type:", typ, inf_typ, e;
+         error "adjust_types with type %1, inf_typ %2, for %3", typ, inf_typ, e;
       end if;
     elif type(e, 'Bind'(identical(Lebesgue), name, anything)) then
       var := op(2,e);
-      tab := table(eval(_EnvPathCond));
-      tab[var] := AndProp(tab[var], real);
-      _EnvPathCond := tab;
+      _EnvPathCond := _EnvPathCond union {var :: real};
       Bind(Lebesgue, var, adjust_types(op(3,e), typ, ctx));
     elif type(e, 'Bind'(anything, name, anything)) then
       dom := compute_domain(op(1,e));
       var := op(2,e);
       inf_typ := infer_type(op(1,e), ctx);
-      # indexing function at work: if unassigned, get TopProp, which is id
-      # but of course, LNED strikes, so we need to make copies ourselves
-      tab := table(eval(_EnvPathCond));
-      tab[var] := AndProp(tab[var], dom);
-      _EnvPathCond := tab;
+      _EnvPathCond := _EnvPathCond union {var :: dom};
       # need to adjust types on first op, to its own type, as that may require
       # tweaking which functions are used
       Bind(adjust_types(op(1,e), inf_typ, ctx), var, adjust_types(op(3,e), typ, ctx));
     elif type(e, 'Bind'(identical(Lebesgue), name = range, anything)) then
       dom := RealRange(op([2,2,1],e), op([2,2,2], e));
       var := op([2,1],e);
-      # indexing function at work: if unassigned, get TopProp, which is id
-      tab := table(eval(_EnvPathCond));
-      tab[var] := AndProp(tab[var], dom);
-      _EnvPathCond := tab;
+      _EnvPathCond := _EnvPathCond union {var :: dom};
       Bind(op(1,e), var, adjust_types(op(3,e), typ, ctx));
     elif type(e, 'If'(name, anything, anything)) then
       # special case
@@ -640,18 +647,14 @@ SLO := module ()
       right := adjust_types(eval(op(3,e), var=false), typ, ctx);
       If(var, left, right);
     elif type(e, 'If'(anything, anything, anything)) then
-      var, dom := analyze_cond(op(1,e));
-      opc := _EnvPathCond[var];
-      tab_left := table(eval(_EnvPathCond));
-      tab_right := table(eval(_EnvPathCond));
-      tab_left[var] := AndProp(opc, dom);
-      _EnvPathCond := tab_left;
+      cond := op(1,e);
+      opc := _EnvPathCond;
+      _EnvPathCond := opc union {cond};
       left := adjust_types(op(2,e), typ, ctx);
-      dom := flip_rr(dom);
-      tab_right[var] := AndProp(opc, dom);
-      _EnvPathCond := tab_right;
+      fcond := flip_cond(cond);
+      _EnvPathCond := opc union {fcond};
       right := adjust_types(op(3,e), typ, ctx);
-      If(op(1,e), left, right);
+      If(cond, left, right);
     elif type(e, 'Uniform'(anything, anything)) and typ = 'Measure(Real)' then
       e
     elif type(e, 'Uniform'(anything, anything)) and typ = 'Measure(Prob)' then
@@ -660,7 +663,7 @@ SLO := module ()
     elif type(e, 'NormalD'(anything, anything)) and typ = 'Measure(Real)' then
       NormalD(op(1,e), mkProb(op(2, e), ctx))
     else
-     error "adjust_types ", e, typ;
+     error "adjust_types of %1 at type %2", e, typ;
     end if;
   end proc;
 
@@ -671,58 +674,36 @@ SLO := module ()
     elif type(e, {identical('Lebesgue'), specfunc(anything, 'NormalD')}) then
       'real'
     elif type(e, specfunc(anything, 'Superpose')) then
-      if nops(e)=1 then
-        compute_domain(op([1,2],e))
+      res := map((x -> compute_domain(op(2,x))), {op(e)});
+      if nops(res)=1 then
+        res[1]
       else
-        res := map((x -> compute_domain(op(2,x))), {op(e)});
-        if nops(res)=1 then
-          res[1]
-        else
-          error "expression e", e, "has multiple domain", res
-        end if;
+        error "expression %1 has multiple domain: %2", e, res
       end if;
     elif type(e, 'Bind'(anything, name, anything)) then
       'real'
     elif type(e, 'Bind'(anything, name = range, anything)) then
       RealRange(op([2,2,1], e), op([2,2,2], e))
     else
-      error "compute domain:", e;
+      error "compute domain: %1", e;
     end if;
   end proc;
 
-  analyze_cond := proc(c)
-    local vars;
-    vars := remove(type, indets(c, 'name'), 'constant');
-    if nops(vars) > 1 then
-      error "analyze_cond: multivariate condtion! ", c;
-    elif type(c, name = identical(true)) then
-      error "analyze_cond: should not be called with a boolean variable";
+  # returns something of the right shape for assume
+  analyze_cond := proc(c,ctx)
+    if type(c, name = identical(true)) then
+      error "analyze_cond should not be called with a boolean variable";
     else
-      # buried magic!
-      `property/ConvertRelation`(c);
+      c
     end if;
   end proc;
 
-  # rr = real cannot happen
-  flip_rr := proc(rr::RealRange(anything,anything))
-    local l, r;
-
-    if op(1,rr)=-infinity then
-      l := op(2,rr);
-      if l :: Open(anything) then
-        RealRange(op(1,l), infinity)
-      else
-        RealRange(Open(op(1,l)), infinity)
-      end if
-    elif op(2,rr)=infinity then
-      r := op(1,rr);
-      if r :: Open(anything) then
-        RealRange(-infinity, op(1,r))
-      else
-        RealRange(-infinity, Open(op(1,r)))
-      end if;
+  flip_cond := proc(cond)
+    if type(cond, `<`) then op(2,cond) <= op(1,cond)
+    elif type(cond, `<=`) then op(2,cond) < op(1,cond)
+    elif type(cond, `=`) then op(1,cond) <> op(2,cond)
     else
-      error "flip_rr", rr
+      error "Don't know how to deal with condition %1", cond
     end if;
   end proc;
 
@@ -768,12 +749,12 @@ SLO := module ()
       end if;
     elif x::specfunc(anything, 'SUPERPOSE') then
       if y::specfunc(anything, 'SUPERPOSE') then
-        error "cannot compare 2 SUPERPOSE", x, y
+        error "cannot compare 2 SUPERPOSE %1, %2", x, y
       else
 	evalb(not member(op(0,y), '{Return, Uniform, NormalD, WeightedM, SUPERPOSE}'));
       end if;
     else
-      error "cannot compare", x, y
+      error "cannot compare: %1, %2", x, y
     end if;
   end proc;
 
@@ -854,10 +835,8 @@ SLO := module ()
   end proc;
 
   mkRealDensity := proc(dens, var)
-    local res;
-    if dens :: specfunc(anything, 'Superpose') then
-      Superpose(op(map(thisproc, dens, var)));
-    elif dens :: specfunc(anything, 'WeightedM') then
+    local res, new_dens;
+    if dens :: specfunc(anything, 'WeightedM') then
       res := recognize_density(op(1,dens), var);
       if res<>NULL then
         Bind(res, var, op(2,dens))
@@ -865,8 +844,10 @@ SLO := module ()
         Bind(Lebesgue, var, dens)
       end if;
     elif dens :: specfunc(anything, 'Bind') then
+      new_dens := mkRealDensity(op(1, dens), var);
       # uses associatibity of >>=
-      Bind(mkRealDensity(op(1, dens), var), op(2, dens), op(3,dens))
+      Bind(op(1, new_dens), op(2, new_dens), 
+        Bind(op(3, new_dens), op(2, dens), op(3, dens)));
     else
       Bind(Lebesgue, var, dens)
     end if
@@ -935,7 +916,7 @@ Superpose := proc()
       elif i::specfunc(anything, 'If') then
         wm[i] := wm[i] + 1;
       else
-        error "how do I superpose", i;
+        error "how do I superpose %1", i;
       end if;
     end do;
     res := [
@@ -982,17 +963,6 @@ end;
 # - a global numbering context for var names
 # - the size of the global context (in # of variables)
 `type/Context` := 'record'('htyp', 'mtyp', 'gctx', 'gnum', 'gsize');
-
-# like index/identity, but for properties
-`index/TopProp` := proc(Idx::list,Tbl::table,Entry::list)
-  if (nargs = 2) then
-    if assigned(Tbl[op(Idx)]) then Tbl[op(Idx)] else TopProp end if;
-  elif Entry = [TopProp] then
-    TopProp;
-  else
-    Tbl[op(Idx)] := op(Entry);
-  end if;
-end proc:
 
 gensym := module()
   export ModuleApply;
