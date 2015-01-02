@@ -8,11 +8,11 @@
 #
 
 SLO := module ()
-  export ModuleApply, AST, simp,
+  export ModuleApply, AST, simp, flip_cond,
     c; # very important: c is "global".
   local ToAST, t_binds, t_pw, into_pw_prod, into_pw_plus, myprod, do_pw,
     mkProb, getCtx, instantiate, lambda_wrap, fill_table, toProp,
-    adjust_types, compute_domain, analyze_cond, flip_cond, isPos,
+    adjust_types, compute_domain, analyze_cond, isPos,
     adjust_superpose,
     add_pw, get_bp, merge_pw,
     MyHandler, getBinderForm, infer_type, join_type, join2type,
@@ -667,6 +667,15 @@ SLO := module ()
     end if;
   end proc;
 
+  flip_cond := proc(cond)
+    if type(cond, `<`) then op(2,cond) <= op(1,cond)
+    elif type(cond, `<=`) then op(2,cond) < op(1,cond)
+    elif type(cond, `=`) then op(1,cond) <> op(2,cond)
+    else
+      error "Don't know how to deal with condition %1", cond
+    end if;
+  end proc;
+
   compute_domain := proc(e)
     local res;
     if type(e, 'Uniform'(anything, anything)) then
@@ -695,15 +704,6 @@ SLO := module ()
       error "analyze_cond should not be called with a boolean variable";
     else
       c
-    end if;
-  end proc;
-
-  flip_cond := proc(cond)
-    if type(cond, `<`) then op(2,cond) <= op(1,cond)
-    elif type(cond, `<=`) then op(2,cond) < op(1,cond)
-    elif type(cond, `=`) then op(1,cond) <> op(2,cond)
-    else
-      error "Don't know how to deal with condition %1", cond
     end if;
   end proc;
 
@@ -913,7 +913,7 @@ Superpose := proc()
         bind[op(1,i)] := bind[op(1,i)] + i;
       elif i::'Bind'(anything, name = range, anything) then
         bindrr[op(1,i), op([2,2],i)] := bindrr[op(1,i), op([2,2], i)] + i;
-      elif i::specfunc(anything, 'If') then
+      elif i::specfunc(anything, 'SLO:-If') then
         wm[i] := wm[i] + 1;
       else
         error "how do I superpose %1", i;
@@ -939,12 +939,35 @@ Bind := proc(w, var, meas)
 end proc;
 
 If := proc(cond, tb, eb)
+  local fcond, new_cond, rest_cond, t1, t2;
   if cond = true then
     tb
   elif cond = false then
     eb
-  elif tb = Return(undefined) then
-    eb
+  elif tb = 'Return'(undefined) then
+    # must 'patch things up' if we had a nested If
+    if op(0,eb) = 'If' then
+      fcond := SLO:-flip_cond(cond);
+      new_cond := op(1,eb) and fcond;
+      rest_cond := SLO:-flip_cond(op(1,eb)) and fcond;
+      # note: if t1 is unsat, this might FAIL
+      t1 := coulditbe(new_cond) assuming op(_EnvPathCond);
+      try 
+        assume(rest_cond); # weird way to catch unsat!
+        t2 := true;
+      catch "the assumed property", "contradictory assumptions":
+        t2 := false;
+      end try;
+      if not t1 then
+        error "Why is %1 unsatisfiable?", new_cond;
+      elif t2 then
+        eb
+      else
+        op(2,eb)
+      end if;
+    else
+      eb
+    end if;
   elif eb = Return(undefined) then
     tb
   elif tb = eb then
