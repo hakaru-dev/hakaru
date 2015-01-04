@@ -317,10 +317,11 @@ data Dict t = Dict
   { unsafeProbFraction :: forall b u. Expr b u t -> Expr b u Prob
   , piFraction         :: forall repr. (Base repr) => repr t
   , expFraction        :: forall repr. (Base repr) => repr Real -> repr t
-  , logFraction        :: forall repr. (Base repr) => repr t -> repr Real }
+  , logFraction        :: forall repr. (Base repr) => repr t -> repr Real
+  , erfFraction        :: forall repr. (Base repr) => repr t -> repr t }
 dict :: (Fraction t) => Dict t
-dict = fractionCase (Dict (Op1 UnsafeProb) pi exp log)
-                    (Dict id pi_ exp_ log_)
+dict = fractionCase (Dict (Op1 UnsafeProb) pi exp log erf)
+                    (Dict id pi_ exp_ log_ erf_)
 
 data Expr b u t where -- b = bound variables; u = used variables
   Op0     :: Op0 t ->                                     Expr b u t
@@ -1008,6 +1009,7 @@ toHakaru (Op1 UnsafeProb e)        env = unsafeProb       (toHakaru e  env)
 toHakaru (Op1 FromProb e)          env = fromProb         (toHakaru e  env)
 toHakaru (Op1 FromInt e)           env = fromInt          (toHakaru e  env)
 toHakaru (Op1 GammaFunc e)         env = gammaFunc        (toHakaru e  env)
+toHakaru (Op1 Erf e)               env = erfFraction dict (toHakaru e  env)
 toHakaru (Op2 Add e1 (Op1 Neg e2)) env = binaryN (-)      (toHakaru e1 env)
                                                           (toHakaru e2 env)
 toHakaru (Op2 Add e1 e2)  env          = binaryN (+)      (toHakaru e1 env)
@@ -1177,6 +1179,7 @@ instance Base Disintegrate where
   pi_                            = Disint (return (Op0 Pi))
   exp_ (Disint x)                = Disint (fmap (Op1 Exp) x)
   erf (Disint x)                 = Disint (fmap (Op1 Erf) x)
+  erf_ (Disint x)                = Disint (fmap (Op1 Erf) x)
   log_ (Disint x)                = Disint (fmap (Op1 Log) x)
   infinity                       = Disint (return (Op0 Infinity))
   negativeInfinity               = Disint (return (Op0 NegativeInfinity))
@@ -1197,7 +1200,7 @@ instance Base Disintegrate where
                  as = Const (i+1)
              in Bind (LCons (Leaf a) (Leaf as)) (Dirac e)
                      (unDisint (kc (Disint (return (Var a)))
-		                   (Disint (return (Var as))))
+                                   (Disint (return (Var as))))
                                c
                                (i+2)) ])
 
