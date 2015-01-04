@@ -43,8 +43,6 @@ deriving instance (Eq         (repr Prob)) => Eq         (Expect repr Prob)
 deriving instance (Ord        (repr Prob)) => Ord        (Expect repr Prob)
 deriving instance (Num        (repr Prob)) => Num        (Expect repr Prob)
 deriving instance (Fractional (repr Prob)) => Fractional (Expect repr Prob)
--- hack alert!  But this is no worse than (-1) :: Prob...
-deriving instance (Floating   (repr Prob)) => Floating   (Expect repr Prob)
 
 instance (Order repr Int) => Order (Expect repr) Int where
   less  (Expect x) (Expect y) = Expect (less  x y)
