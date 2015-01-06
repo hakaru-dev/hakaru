@@ -11,12 +11,14 @@ SLO := module ()
   export ModuleApply, AST, simp, flip_cond,
     c; # very important: c is "global".
   local ToAST, t_binds, t_pw, into_pw_prod, into_pw_plus, myprod, do_pw,
+    into_pw_pow,
     mkProb, getCtx, instantiate, lambda_wrap, fill_table, toProp,
+    twiddle, myint,
     adjust_types, compute_domain, analyze_cond, isPos,
     adjust_superpose,
-    add_pw, get_bp, merge_pw,
+    get_breakcond, merge_pw,
     MyHandler, getBinderForm, infer_type, join_type, join2type,
-    simp_sup, simp_if, into_sup, simp_rel,
+    simp_sup, simp_if, into_sup, simp_rel, simp_old,
     comp2, comp_algeb, compare, comp_list,
     mkRealDensity, recognize_density, density;
 
@@ -33,7 +35,7 @@ SLO := module ()
     inp := instantiate(expr, r, 0, typ);
     try
       NumericEventHandler(division_by_zero = MyHandler);
-      res := HAST(simp(value(eval(inp(c), 'if_'=piecewise))), r);
+      res := HAST(simp(eval(simp(eval(inp(c), 'if_'=piecewise)), Int=myint)), r);
     catch "Wrong kind of parameters in piecewise":
       error "Bug in Hakaru -> Maple translation, piecewise used incorrectly.";
     finally :
@@ -109,12 +111,7 @@ SLO := module ()
           span := RealRange(op(1,rng), op(2,rng));
           if type(weight, 'SymbolicInfinity') then
             rest := ToAST(ee, ctx);
-            if rng = -infinity..infinity then
-              mkRealDensity(rest, var)
-            else
-              # recognize densities on partial range here
-              Bind(Lebesgue, var = rng, rest)
-            end if;
+            mkRealDensity(rest, var, rng)
           else
             v := simplify(weight*ee) assuming var :: span;
             rest := ToAST(v, ctx);
@@ -123,7 +120,7 @@ SLO := module ()
         elif type(e, 'specfunc'(anything, {'sum','Sum'})) then
           error "sums not handled yet"
         elif type(e, t_pw) then
-          return do_pw(map(simplify, [op(e)]), ctx);
+          return do_pw([op(e)], ctx);
         elif type(e, `+`) then
           Superpose(op(map(ToAST, [op(e)], ctx)));
         elif type(e, `*`) then
@@ -149,66 +146,93 @@ SLO := module ()
           end if
 ## to here
         else
-            error "Not sure what to do with %1", e
+          error "Not sure what to do with %1", e
         end if;
       end if;
     end if;
   end proc;
 
-  # simp mostly recurses and simplifies as it goes
   simp := proc(e)
-    local a, b, d, res;
-    if type(e, `+`) then
-      # first push constants in
-      res := map(simp, e);
-      # only worry about + of pw
-      if not type(res, `+`) then return simp(res) end if; # it happens!
-      a, b := selectremove(type, res, t_pw);
-      if a = 0 then # none to worry about
-        res
-      else
-        if type(a,`+`) then
-          add_pw([op(a)]);
-        else
-          into_pw_plus(b, a)
-        end if;
-      end if;
-    elif type(e, `*`) then
-      a, b := selectremove(type, e, t_binds);
-      # now casesplit on what a is
-      if a=1 then  # no binders
-        a, b := selectremove(type, e, t_pw);
-        if a=1 then # and no piecewise at this level, deeper?
-          map(simp, b); # b is a `*`
-        elif type(a, `*`) then
-          error "do not know how to multiply 2 pw: %1", a
-        elif type(a, t_pw) then
-          res := simplify(a);
-          if type(res, t_pw) then
-            into_pw_prod(b, res)
-          else
-            simp(b)*simp(res)
-          end if;
-        else
-          error "something weird happened: (a) was supposed to be pw", a
-        end if
-      elif type(a, `*`) then
-        error "product of 2 binders?!?: %1", a
-      else
-        # simp(b)*simp(a)
-        subsop(1=myprod(simp(b),simp(op(1,a))), a)
-      end if
-    elif type(e, t_binds) then
-      subsop(1=simp(op(1,e)), e)
-    # need to go into pw even if there is no factor to push in
-    elif type(e, t_pw) then
-      into_pw_prod(1, e); # because this simplifies too
-    elif type(e, anything ^ anything) then
-      simp(op(1,e)) ^ simp(op(2,e))
-    else
-      simplify(e)
+    option remember, system;
+    local binds, pw, subst, csubst, ee, vars, all_vars, num, den, push_in, i,
+      cs, simp_poly, simp_prod;
+
+    cs := indets(e, specfunc(anything, c));
+    csubst := map(x -> x = simplify(value(x)), cs);
+    ee := eval(e, csubst);
+    if not type(csubst, set(specfunc(anything, c) = specfunc(anything,c))) then
+      return simp(ee)
     end if;
-  end;
+
+    binds := indets(ee, t_binds);
+    pw := indets(ee, t_pw);
+
+    subst := map(x->x = freeze(x), binds union pw);
+    ee := subs(subst union csubst, ee); # simultaneous substitution
+    vars := [op(map(rhs, subst))]; # order does not matter; only subst
+    all_vars := [op(vars),op(convert(cs,list))];
+    
+    push_in := proc(c, v)
+      local actual, cof;
+      cof := c;
+      if degree(v, vars)>1 then error "product?" end if;
+      if v=1 then return cof end if;
+      actual := thaw(v);
+      if type(actual, t_binds) then
+        op(0,actual)(simp(cof*op(1,actual)), op(2,actual))
+      elif type(actual, t_pw) then
+        actual := simplify(actual); # might get rid of pw!
+        `if`(actual::t_pw, into_pw_prod(cof, actual), cof*actual);
+      else
+        error "how can (%1) not be a binder, pw or c?", v
+      end if;
+    end proc;
+
+    simp_poly := proc(p)
+      local coef_q, vars_q, q;
+      q := collect(p, all_vars , 'distributed', simplify);
+      coef_q := [coeffs(q, vars, 'vars_q')];
+      vars_q := [vars_q];
+      # need to 'push in' additive constants?
+      # need to merge things too
+      add(i,i=zip(push_in, coef_q, vars_q));
+    end proc;
+
+    simp_prod := proc(p)
+      local den, num;
+      den, num := selectremove(type, p, anything ^ negint);
+      den := 1/den;
+      if degree(den, all_vars)>=1 then
+        den := simp_poly(den);
+      else
+        num := num / den; # no need to make this fancy
+        den := 1;
+      end if;
+
+      num := simp_poly(num);
+      num/den;
+    end proc;
+
+    # keep some of the structure intact
+    if type(ee, `*`) then
+      ee := simp_prod(ee);
+    else
+      if type(ee, polynom(anything, vars)) then
+        ee := simp_poly(ee);
+      elif type(ee, ratpoly(anything, vars)) then
+        ee := normal(ee);
+        if type(ee, `*`) then
+          ee := simp_prod(ee);
+        else
+          ee := simp_poly(numer(ee))/simp_poly(denom(ee));
+        end if;
+      else
+        error "ee (%1) should be ratpoly in (%2)", ee, vars;
+      end if;
+    end if;
+
+    ee;
+  end proc;
 
   into_pw_plus := proc(ss, pw)
     local n, f;
@@ -236,33 +260,69 @@ SLO := module ()
       elif type(j,'odd') then # a condition
         simp_rel( op(j, pw) )
       else # j even
-        simp(myprod(fact , simp(op(j, pw))))
+        simp(myprod(simp(fact) , simp(op(j, pw))))
       end if;
     end proc;
     piecewise(seq(f(i),i=1..n))
   end proc;
 
-  add_pw := proc(l)
-    local breakpoints, sbp;
+  into_pw_pow := proc(expon, pw)
+    local n, f;
 
-    breakpoints := map(get_bp, l);
-    sbp := convert(breakpoints, 'set');
-    if nops(sbp)=1 then
-      merge_pw(l,'add');
+    n := nops(pw);
+    f := proc(j)
+      if j=n then # last one is special, always a value
+        simp(op(j, pw)^expon)
+      elif type(j,'odd') then # a condition
+        simp_rel( op(j, pw) )
+      else # j even
+        simp(op(j, pw)^expon)
+      end if;
+    end proc;
+    piecewise(seq(f(i),i=1..n))
+  end proc;
+
+  # myprod takes care of pushing a product inside a `+`
+  myprod := proc(a, b)
+    if type(b,`+`) then
+      map2(myprod, a, b)
     else
-      error "multiple piecewises to be added with different breakpoints %1", l
+      simp(a*b)
+    end if;
+  end proc;
+
+  # a hack to make equations symmetric.  Session-dependent, but that's fine.
+  twiddle := proc(x)
+    if type(x,`=`) then
+      if addressof(lhs(x)) > addressof(rhs(x)) then
+        rhs(x) = lhs(x)
+      else
+        x
+      end if;
+    elif type(x,'list') then
+      map(twiddle, x)
+    else
+      x
     end if;
   end proc;
 
   merge_pw := proc(l, f)
-    local i, n;
+    local breakpoints, sbp, i, n, res;
+
+    breakpoints := map(get_breakcond, l);
+    sbp := map(twiddle, convert(breakpoints, 'set'));
     n := nops(l[1]);
-    piecewise(seq(`if`(i::odd and i<n, 
-                      op(i,l[1]), 
-                      f(op(i,j),j=l)), i=1..n))
+    if nops(sbp)=1 then
+      res := piecewise(seq(`if`(i::odd and i<n, 
+                               op(i,l[1]), 
+                               f(op(i,j),j=l)), i=1..n));
+      simp(res);
+    else
+      error "multiple piecewises with different breakpoints %1", l
+    end if;
   end proc;
 
-  get_bp := proc(pw::specfunc(anything, piecewise))
+  get_breakcond := proc(pw::specfunc(anything, piecewise))
     local i, n;
     n := nops(pw);
     [seq(`if`(i::odd and i<n, op(i,pw), NULL), i=1..n)]
@@ -272,21 +332,17 @@ SLO := module ()
     if r::name then
       r
     elif r::{`<`,`<=`,`=`,`<>`} then
-      map(simp_rel, r)
+      # special case
+      if r = ('Right' = 'Left') then
+        false
+      else
+        map(simp_rel, r)
+      end if;
     elif r::specfunc(anything, {And, Or, Not}) then
       map(simp_rel, r)
     else
-      simplify(r)
+      simp(r)
     end;
-  end proc;
-
-  # myprod takes care of pushing a product inside a `+`
-  myprod := proc(a, b)
-    if type(b,`+`) then
-      map2(myprod, a, b)
-    else
-      a*b
-    end if;
   end proc;
 
 
@@ -333,7 +389,7 @@ SLO := module ()
             pos
           else
             # make sure the rest really is positive
-            if not isPos(rest) then WARNING("cannot insure it will not crash") end if;
+            # if not isPos(rest) then WARNING("cannot insure it will not crash") end if;
             if pos = 1 then
               unsafeProb(rest); # res it the whole thing, don't recurse!
             else
@@ -341,7 +397,7 @@ SLO := module ()
             end if;
           end if;
         else # otherwise rl is a single thing
-          if not isPos(rl) then WARNING("cannot insure it will not crash") end if;
+          # if not isPos(rl) then WARNING("cannot insure it will not crash") end if;
           if pb = 1 then
             unsafeProb(rl); # rl is the whole thing, don't recurse!
           else
@@ -370,7 +426,7 @@ SLO := module ()
         w
       elif typ = 'Real' then
         # we are going to need to cast.  Is it safe?
-        if not isPos(w) then WARNING("cannot insure it will not crash") end if;
+        # if not isPos(w) then WARNING("cannot insure it will not crash") end if;
         unsafeProb(w);
       else
         error "how do I make a Prob from %1 in %2", w, eval(_EnvPathCond)
@@ -381,14 +437,15 @@ SLO := module ()
   # use assumptions to figure out if we are actually positive, even
   # when the types say otherwise
   isPos := proc(w)
-    local res;
+    local res, cond;
 
-    res := signum(0, w, 1) assuming op(_EnvPathCond);
+    cond := map(x -> op(1,x) :: op(2, x), _EnvPathCond);
+    res := signum(0, w, 1) assuming op(cond);
     evalb(res = 1);
   end proc;
 
   toProp := proc(x)
-    if type(x,`=`) then op(1,x) :: toProp(op(2,x))
+    if type(x,`=`) then op(1,x) = toProp(op(2,x))
     elif type(x, 'symbol') then
       if x = 'Real' then 'real'
       elif x = 'Prob' then RealRange(0,infinity)
@@ -488,6 +545,7 @@ SLO := module ()
     elif e = 'Pi' then Prob
     elif e = 'Unit' then Unit
     elif e = 'Lebesgue' then Measure(Real)
+    elif e = 'undefined' then Real
     elif type(e, boolean) then
       'Bool'
     elif type(e, anything^integer) then
@@ -511,7 +569,7 @@ SLO := module ()
       if nops(res)=1 then 
         op([1,2], res)
       else # then in the current path
-        res := select(type, _EnvPathCond, identical(e) :: anything);
+        res := select(type, _EnvPathCond, 'identical(e) = anything');
         if nops(res)=1 then 
           typ := op([1,2], res);
           if type(typ, {'RealRange'(anything, anything), identical(real)}) then
@@ -520,8 +578,8 @@ SLO := module ()
             typ
           end if;
         else
-          error "Impossible: an untyped free variable %1 in local context %2",
-            e, eval(_EnvPathCond)
+          error "Impossible: an untyped free variable %1 in local context %2, got (%3)",
+            e, eval(_EnvPathCond), res
         end if;
       end if;
     elif type(e, 'Pair'(anything, anything)) then
@@ -625,21 +683,29 @@ SLO := module ()
       end if;
     elif type(e, 'Bind'(identical(Lebesgue), name, anything)) then
       var := op(2,e);
-      _EnvPathCond := _EnvPathCond union {var :: real};
+      _EnvPathCond := _EnvPathCond union {var = real};
       Bind(Lebesgue, var, adjust_types(op(3,e), typ, ctx));
+    elif type(e, 'Bind'(identical(Lebesgue), name = range, anything)) then
+      dom := RealRange(op([2,2,1],e), op([2,2,2], e));
+      var := op([2,1],e);
+      _EnvPathCond := _EnvPathCond union {var = dom};
+      Bind(op(1,e), op(2,e), adjust_types(op(3,e), typ, ctx));
+    elif type(e, 'Bind'(anything, name = range, anything)) then
+      dom := compute_domain(op(1,e));
+      var := op([2,1],e);
+      inf_typ := infer_type(op(1,e), ctx);
+      _EnvPathCond := _EnvPathCond union {var = dom};
+      # need to adjust types on first op, to its own type, as that may require
+      # tweaking which functions are used
+      Bind(adjust_types(op(1,e), inf_typ, ctx), op(2,e), adjust_types(op(3,e), typ, ctx));
     elif type(e, 'Bind'(anything, name, anything)) then
       dom := compute_domain(op(1,e));
       var := op(2,e);
       inf_typ := infer_type(op(1,e), ctx);
-      _EnvPathCond := _EnvPathCond union {var :: dom};
+      _EnvPathCond := _EnvPathCond union {var = dom};
       # need to adjust types on first op, to its own type, as that may require
       # tweaking which functions are used
-      Bind(adjust_types(op(1,e), inf_typ, ctx), var, adjust_types(op(3,e), typ, ctx));
-    elif type(e, 'Bind'(identical(Lebesgue), name = range, anything)) then
-      dom := RealRange(op([2,2,1],e), op([2,2,2], e));
-      var := op([2,1],e);
-      _EnvPathCond := _EnvPathCond union {var :: dom};
-      Bind(op(1,e), var, adjust_types(op(3,e), typ, ctx));
+      Bind(adjust_types(op(1,e), inf_typ, ctx), op(2,e), adjust_types(op(3,e), typ, ctx));
     elif type(e, 'If'(name, anything, anything)) then
       # special case
       var := op(1,e);
@@ -834,27 +900,50 @@ SLO := module ()
     NULL;
   end proc;
 
-  mkRealDensity := proc(dens, var)
+  mkRealDensity := proc(dens, var, rng)
     local res, new_dens;
     if dens :: specfunc(anything, 'WeightedM') then
       res := recognize_density(op(1,dens), var);
       if res<>NULL then
-        Bind(res, var, op(2,dens))
+        Bind(res, var = rng, op(2,dens))
       else
-        Bind(Lebesgue, var, dens)
+        Bind(Lebesgue, var = rng, dens)
       end if;
     elif dens :: specfunc(anything, 'Bind') then
-      new_dens := mkRealDensity(op(1, dens), var);
+      new_dens := mkRealDensity(op(1, dens), var, rng);
       # uses associatibity of >>=
       Bind(op(1, new_dens), op(2, new_dens), 
         Bind(op(3, new_dens), op(2, dens), op(3, dens)));
+#    elif dens :: specfunc(anything, 'If') then
+# TODO - call recognize_density directly
+#      Bind(Lebesgue, var, 
+#        'If'(op(1, dens), mkRealDensity(op(2,dens), var),
+#                          mkRealDensity(op(3,dens), var)))
     else
-      Bind(Lebesgue, var, dens)
+      Bind(Lebesgue, var = rng, dens)
     end if
   end proc;
 
   density[NormalD] := proc(mu, sigma, x)
     1/sigma/sqrt(2)/sqrt(Pi)*exp(-(x-mu)^2/2/sigma^2)
+  end proc;
+
+#############
+# more hacks to get around Maple weaknesses
+  myint := proc(expr, b)
+    local var, inds;
+    var := op(1,b);
+    inds := indets(expr, specfunc(anything,c));
+    inds := select(depends, inds, var);
+    if inds={} then 
+      int(expr, b) 
+    elif type(expr, specfunc(anything, 'piecewise')) then
+      # what is really needed here is to 'copy'
+      # PiecewiseTools:-IntImplementation:-Definite
+      int(expr, b) 
+    else 
+      Int(expr, b) 
+    end if;
   end proc;
 end;
 
@@ -913,7 +1002,7 @@ Superpose := proc()
         bind[op(1,i)] := bind[op(1,i)] + i;
       elif i::'Bind'(anything, name = range, anything) then
         bindrr[op(1,i), op([2,2],i)] := bindrr[op(1,i), op([2,2], i)] + i;
-      elif i::specfunc(anything, 'SLO:-If') then
+      elif i::specfunc(anything, 'If') then
         wm[i] := wm[i] + 1;
       else
         error "how do I superpose %1", i;
@@ -930,50 +1019,58 @@ end proc;
 Bind := proc(w, var, meas)
   if var::name and meas = Return(var) then
     w
-  elif meas :: 'WeightedM'(anything, 'Return'(identical(var))) and
+  elif var::name and 
+    meas :: 'WeightedM'(anything, 'Return'(identical(var))) and
     not depends(op(1, meas), var) then
     WeightedM(op(1,meas), w)
+  elif var::`=` and op(2,var) = (-infinity)..infinity then
+    Bind(w, op(1,var), meas)
   else
     'Bind'(w, var, meas)
   end if;
 end proc;
 
 If := proc(cond, tb, eb)
-  local fcond, new_cond, rest_cond, t1, t2;
+  local patch_eb;
+  patch_eb := proc(eb)
+    local fcond, new_cond, rest_cond, t1, t2;
+
+    fcond := SLO:-flip_cond(cond);
+    new_cond := AndProp(op(1,eb), fcond);
+    rest_cond := AndProp(SLO:-flip_cond(op(1,eb)), fcond);
+    # note: if t1 is unsat, this might FAIL
+    t1 := coulditbe(new_cond) 
+        assuming op(map(x -> op(1,x) :: op(2,x), _EnvPathCond));
+    try 
+      assume(rest_cond); # weird way to catch unsat!
+      t2 := true;
+    catch "the assumed property", "contradictory assumptions":
+      t2 := false;
+    end try;
+    if t1=false then
+      error "Why is %1 unsatisfiable?", new_cond;
+    elif t2 then
+      eb
+    else
+      op(2,eb)
+    end if;
+  end proc;
+
   if cond = true then
     tb
   elif cond = false then
     eb
   elif tb = 'Return'(undefined) then
     # must 'patch things up' if we had a nested If
-    if op(0,eb) = 'If' then
-      fcond := SLO:-flip_cond(cond);
-      new_cond := op(1,eb) and fcond;
-      rest_cond := SLO:-flip_cond(op(1,eb)) and fcond;
-      # note: if t1 is unsat, this might FAIL
-      t1 := coulditbe(new_cond) assuming op(_EnvPathCond);
-      try 
-        assume(rest_cond); # weird way to catch unsat!
-        t2 := true;
-      catch "the assumed property", "contradictory assumptions":
-        t2 := false;
-      end try;
-      if not t1 then
-        error "Why is %1 unsatisfiable?", new_cond;
-      elif t2 then
-        eb
-      else
-        op(2,eb)
-      end if;
-    else
-      eb
-    end if;
+    `if`(op(0,eb) = 'If', patch_eb(eb), eb);
   elif eb = Return(undefined) then
     tb
   elif tb = eb then
     eb
   elif type(cond, anything = identical(true)) then
     If(op(1,cond), tb, eb)
+  elif op(0,eb) = 'If' and op(3,eb)=Superpose() then
+    'If'(cond, tb, patch_eb(eb))
   else
     'If'(cond, tb, eb)
   end if;
