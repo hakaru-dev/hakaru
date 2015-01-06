@@ -1,15 +1,17 @@
-{-# LANGUAGE ScopedTypeVariables, TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE ScopedTypeVariables, TypeSynonymInstances, FlexibleInstances, DeriveDataTypeable #-}
 {-# OPTIONS -W #-}
 
 module Language.Hakaru.Simplify
   ( closeLoop
   , simplify
   , toMaple
-  , Simplifiable) where
+  , Simplifiable
+  , SimplifyException(MapleException,InterpreterException)) where
 
 -- Take strings from Maple and interpret them in Haskell (Hakaru)
 
 import Prelude hiding (Real)
+import Control.Exception
 import Language.Hakaru.Syntax (Measure, Prob, Real)
 import Language.Hakaru.Expect (Expect, unExpect)
 import Language.Hakaru.Maple (Maple, runMaple)
@@ -19,6 +21,13 @@ import System.MapleSSH (maple)
 import Language.Haskell.Interpreter hiding (typeOf)
 
 import Language.Hakaru.Util.Lex (readMapleString)
+
+
+data SimplifyException = MapleException String String
+                       | InterpreterException String
+                       deriving (Show, Typeable)
+instance Exception SimplifyException
+
 
 ourContext :: MonadInterpreter m => m ()
 ourContext = do
@@ -32,7 +41,7 @@ closeLoop s = action where
     -- putStrLn ("To Haskell: " ++ s')
     result <- runInterpreter (ourContext >> interpret s' undefined)
     case result of
-      Left err -> error (show err)
+      Left err -> throw $ InterpreterException $ show err
       Right a -> return a
   s' :: String
   s' = s ++ " :: " ++ show (typeOf (getArg action))
@@ -70,7 +79,7 @@ simplify e = do
     hopeString <- maple ("Haskell(SLO:-AST(SLO(" ++ slo ++ ")));")
     case readMapleString hopeString of
       Just hakaru -> return hakaru
-      Nothing -> error ("From Maple: " ++ hopeString)
+      Nothing -> throw $ MapleException slo hopeString
   closeLoop ("Any (" ++ hakaru ++ ")")
 
 getArg :: f a -> a

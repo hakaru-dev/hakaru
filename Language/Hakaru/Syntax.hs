@@ -106,8 +106,7 @@ class (Number a) => Order repr a where
 
 class (Order repr Int , Num        (repr Int ),
        Order repr Real, Floating   (repr Real),
-       Order repr Prob, 
-       Fractional (repr Real), Fractional (repr Prob)) => Base repr where
+       Order repr Prob, Fractional (repr Prob)) => Base repr where
   unit       :: repr ()
   pair       :: repr a -> repr b -> repr (a,b)
   unpair     :: repr (a,b) -> (repr a -> repr b -> repr c) -> repr c

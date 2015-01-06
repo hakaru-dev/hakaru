@@ -1,4 +1,4 @@
-{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE Rank2Types, ScopedTypeVariables, DeriveDataTypeable #-}
 {-# OPTIONS -Wall #-}
 
 module Tests.TestTools where
@@ -7,13 +7,15 @@ import Language.Hakaru.Syntax (Measure, Mochastic, Integrate, Lambda(lam), Order
 import Language.Hakaru.Disintegrate (Disintegrate, Disintegration(Disintegration), disintegrations)
 import Language.Hakaru.Expect (Expect(unExpect))
 import Language.Hakaru.Maple (Maple, runMaple)
-import Language.Hakaru.Simplify (simplify, Simplifiable, toMaple)
+import Language.Hakaru.Simplify (simplify, Simplifiable, toMaple, SimplifyException(MapleException))
 import Language.Hakaru.Any (Any(unAny))
 import Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode)
 import Text.PrettyPrint (Doc)
 import Data.Maybe (isJust)
 import Data.List
 import Data.Function (on)
+import Data.Typeable (Typeable)
+import Control.Exception
 
 import Test.HUnit
 
@@ -24,6 +26,13 @@ instance Eq Result where Result a == Result b = leftMode a == leftMode b
 instance Show Result where
   showsPrec 0 (Result a) = showChar '\n' . showsPrec 0 a
   showsPrec _ (Result a) =                 showsPrec 0 a
+
+data TestException = TestSimplifyException String String String -- (hakaru, toMaple, fromMaple)
+                     deriving Typeable
+instance Exception TestException
+instance Show TestException where
+  show (TestSimplifyException prettyHakaru toM fromM) =
+    "TestSimplifyException\n**Hakaru**\n" ++ prettyHakaru ++ "\n\n**To Maple**\n" ++ toM ++ "\n\n**From Maple**\n" ++ fromM
 
 -- assert that we get a result and that no error is thrown
 assertResult :: [a] -> Assertion
@@ -38,20 +47,24 @@ type Testee a =
 -- Assert that a given Hakaru program roundtrips (aka simplifies) without error
 testS :: (Simplifiable a) => Testee a -> Assertion
 testS t = do
---    putStr "<<<<<"
---    print (result t)
-    p <- simplify t
+    p <- simplify t `catch` handleSimplify t
     let s = result (unAny p)
---    putStr ">>>>>"
---    print s
     assertResult (show s)
+
 
 -- Assert that all the given Hakaru programs simplify to the given one
 testSS :: (Simplifiable a) => [Expect Maple a] -> Testee a -> Assertion
 testSS ts t' =
-    mapM_ (\t -> do p <- simplify t
+    mapM_ (\t -> do p <- simplify t --`catch` handleSimplify t
                     (assertEqual "testSS" `on` result) t' (unAny p))
           (t' : ts)
+
+
+handleSimplify :: PrettyPrint a -> SimplifyException -> IO (Any a)
+handleSimplify t (MapleException toMaple fromMaple) = do let pp = show $ result t
+                                                         throw $ TestSimplifyException pp toMaple fromMaple
+handleSimplify _ e = throw e
+
 
 testD :: (Simplifiable env, Simplifiable a, Simplifiable b, Order_ a) =>
          (Disintegrate env -> Disintegrate (Measure (a,b))) -> IO ()
