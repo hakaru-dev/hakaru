@@ -58,7 +58,10 @@ testMeasureReal = test [
     "t37" ~: testSS [] t37,
     "t39" ~: testSS [] t39,
     "t40" ~: testSS [] t40,
-    "t43" ~: testSS [t43, t43'] t43''
+    "t43" ~: testSS [t43, t43'] t43'',
+    "t45" ~: testS t45,
+    "t46" ~: testS t46,
+    "t47" ~: testS t47
     ]
 
 testMeasurePair :: Test
@@ -258,6 +261,18 @@ t44Add  = lam $ \x -> lam $ \y -> factor (unsafeProb (x * x + y * y))
 t44Add' = lam $ \x -> lam $ \y -> factor (unsafeProb (x **2 + y **2))
 t44Mul  = lam $ \x -> lam $ \y -> factor (unsafeProb (x * x * y * y))
 t44Mul' = lam $ \x -> lam $ \y -> factor (unsafeProb (x **2) * unsafeProb (y **2))
+
+-- t45, t46, t47 are all equivalent. Which one is best?
+t45 :: (Mochastic repr) => repr (Measure Real)
+t45 = normal 4 5 `bind` \x -> if_ (less x 3) (dirac (x*x)) (dirac (x-1))
+
+t46 :: (Mochastic repr) => repr (Measure Real)
+t46 = normal 4 5 `bind` \x -> dirac (if_ (less x 3) (x*x) (x-1))
+
+t47 :: (Mochastic repr) => repr (Measure Real)
+t47 = 
+  superpose [(1, (normal 4 5 `bind` \x -> if_ (less x 3) (dirac (x*x)) (dirac 0))),
+             (1, (normal 4 5 `bind` \x -> if_ (less x 3) (dirac 0) (dirac (x-1))))]
 
 priorAsProposal :: Mochastic repr => repr (Measure (a,b)) -> repr (a,b) -> repr (Measure (a,b))
 priorAsProposal p x = bern (1/2) `bind` \c ->
