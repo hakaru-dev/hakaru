@@ -103,8 +103,27 @@ sqr a = unsafeProb $ a * a  -- pow_ (unsafeProb a) 2
 
 let_' :: (Mochastic repr)
          => repr a -> (repr a -> repr (Measure b)) -> repr (Measure b)
-let_' = bind . dirac    
-    
+let_' = bind . dirac
+
+toHList :: (Base repr) => [repr a] -> repr [a]
+toHList [] = nil
+toHList (a : as) = cons a (toHList as)
+
+map_ :: (Base repr) => (repr a -> repr b) -> repr [a] -> repr [b]
+map_ f ls = unlist ls nil k
+    where k a as = cons (f a) (map_ f as)
+
+zipWith_ :: (Base repr) => (repr a -> repr b -> repr c)
+         -> repr [a] -> repr [b] -> repr [c]
+zipWith_ f al bl = unlist al nil k
+    where k  a as = unlist bl nil (k' a as)
+          k' a as b bs = cons (f a b) (zipWith_ f as bs)
+
+foldl_ :: (Base repr) => (repr b -> repr a -> repr b)
+       -> repr b -> repr [a] -> repr b
+foldl_ f acc ls = unlist ls acc k
+    where k a as = foldl_ f (f acc a) as
+          
 type GPS = H.Real
 type ZRad = H.Real -- The observed radial distance to a beacon
 type Angle = H.Real -- Radians
@@ -115,7 +134,7 @@ type DimH = H.Real
 type DimA = H.Real
 type DimB = H.Real
 
--- simulate :: (Mochastic repr) => Simulator repr One
+-- simulate :: (Mochastic repr) => Simulator repr
 simulate dimL dimH dimA dimB
          blons blats
          old_lon old_lat old_phi
@@ -132,22 +151,25 @@ simulate dimL dimH dimA dimB
     normal calc_lat ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \noisy_lat ->
     normal calc_phi ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \noisy_phi ->
 
-    fromNestedPair (toNestedPair $ (-) noisy_lon <$> blons) $ \lon_ds ->
-    fromNestedPair (toNestedPair $ (-) noisy_lat <$> blats) $ \lat_ds ->
+    let_' (map_ ((-) noisy_lon) blons) $ \lon_ds ->
+    let_' (map_ ((-) noisy_lat) blats) $ \lat_ds ->
         
-    fromNestedPair (toNestedPair $
-                    sqrt_ <$> ((+) <$> (sqr <$> lon_ds)
-                                   <*> (sqr <$> lat_ds))) $ \calc_zrads ->
-    fromNestedPair (toNestedPair $
-                    (\r -> cIntensity / (pow_ r 2)) -- inverse-square
-                    <$> calc_zrads) $ \calc_zints ->
-    fromNestedPair (toNestedPair $
-                    (\r -> atan r - calc_phi) -- + pi/2
-                    <$> ((/) <$> lat_ds <*> lon_ds) ) $ \calc_zbetas ->
-    
-    perturbReads (\l -> normal (fromProb l) cBeacon) calc_zrads `bind` \noisy_zrads ->
-    perturbReads (\l -> normal (fromProb l) cBeacon) calc_zints `bind` \noisy_zints ->
-    perturbReads (\l -> normal l cBeacon) calc_zbetas `bind` \noisy_zbetas ->
+    let_' (map_ sqrt_ (zipWith_ (+) (map_ sqr lon_ds)
+                                    (map_ sqr lat_ds))) $ \calc_zrads ->
+    -- inverse-square for intensities 
+    let_' (map_ (\r -> cIntensity / (pow_ r 2)) calc_zrads) $ \calc_zints ->
+    -- let_' (map (\r -> atan r - calc_phi)  -- removed a "+ pi/2" term
+    --            ((/) A.<$> lat_ds A.<*> lon_ds)) $ \calc_zbetas ->
+
+    -- let_' (map (\l -> normal (fromProb l) cBeacon) calc_zrads) $ \noisy_zrads ->
+
+    -- let_' (map (\l -> normal (fromProb l) cBeacon) calc_zints) $ \noisy_zints ->
+
+    -- let_' (map (\l -> normal l cBeacon) calc_zbetas) $ \noisy_zbetas ->
+
+    -- perturbReads (\l -> normal (fromProb l) cBeacon) calc_zrads `bind` \noisy_zrads ->
+    -- perturbReads (\l -> normal (fromProb l) cBeacon) calc_zints `bind` \noisy_zints ->
+    -- perturbReads (\l -> normal l cBeacon) calc_zbetas `bind` \noisy_zbetas ->
 
     -- fromNestedPair noisy_zrads $ \zrad_reprs ->
     -- fromNestedPair noisy_zbetas $ \zbeta_reprs ->
@@ -175,10 +197,10 @@ testLaser :: IO ()
 testLaser = do
   let base :: (Base repr) => Repeat Eleven (repr H.Real)
       base =  HV.pure 10 -- HV.fromList $ replicate shortrange (10::Double)
-      reads :: (Base repr) => Repeat Two (repr H.Real)
-      reads = HV.fromList [30,40]
-      betas :: (Base repr) => Repeat Two (repr H.Real)
-      betas = HV.fromList [7,9]
+      reads :: (Base repr) => [repr H.Real]
+      reads = [30,40]
+      betas :: (Base repr) => [repr H.Real]
+      betas = [7,9]
       result :: Repeat Eleven (Sample IO H.Real)
       result = laserAssigns base reads betas
 
@@ -208,7 +230,7 @@ withinLaser n b = and_ [ lessOrEq (convert (n-0.5)) tb2
           convert = tan . toRadian . ((/) 4)
 
 laserAssigns base reads betas =
-    let combined = zip (toList reads) (toList betas)
+    let combined = zip reads betas
         addBeacon (r,b) (m,i) = if_ (withinLaser (fromIntegral $ i-180) b) r m
         build pd (r,b) = map (addBeacon (r,b)) (zip pd [1::Int,2..])
     in fromList $ F.foldl' build (toList base) combined
@@ -232,6 +254,9 @@ type Nine = SD Four
 type Ten = D Five
 type Eleven = SD Five
 type ThreeSixtyOne = SD (D (D (SD (D Eleven))))
+
+pR fn ls = let ls' = map fn ls
+           in CM.sequence ls'
 
 perturbReads fn ls = let ls' = fn <$> ls
                      in extractMeasure ls'
@@ -288,11 +313,11 @@ type StepHk n = DimL -> DimH -> DimA -> DimB
               -> Vel -> Angle -> DelTime
               -> Measure StateHk
                         
-type Simulator repr n = repr DimL -> repr DimH -> repr DimA -> repr DimB
-                      -> Repeat n (repr GPS) -> Repeat n (repr GPS)
-                      -> repr GPS -> repr GPS -> repr Angle
-                      -> repr Vel -> repr Angle -> repr DelTime
-                      -> repr (Measure StateHk)
+type Simulator repr = repr DimL -> repr DimH -> repr DimA -> repr DimB
+                    -> [repr GPS] -> [repr GPS]
+                    -> repr GPS -> repr GPS -> repr Angle
+                    -> repr Vel -> repr Angle -> repr DelTime
+                    -> repr (Measure StateHk)
 
 type Generator = V.Vector Sensor -> Int
                -> V.Vector Control -> Int
@@ -332,28 +357,28 @@ gen pt g sensors si controls ci particle
   newprms >>= \(nci,nve,nal) -> gen pt g sensors (si+1) controls nci particle
                                     (PM cvlon cvlat cphi nve nal tcurr)
                              
-generate :: PathType -> IO ()
-generate pt = do
-  g <- MWC.createSystemRandom
-  (Init l h a b phi ilt iln) <- initialVals pt
-  controls <- controlData pt
-  sensors <- sensorData pt
-  let lamExp1 :: (Mochastic repr, Lambda repr) => repr (StepHk One)
-      lamExp1 = lamExp ()
-      lamExp () = lam $ \dl -> lam $ \dh -> lam $ \da -> lam $ \db -> 
-               lam $ \bx -> lam $ \by ->
-               lam $ \old_lon -> lam $ \old_lat -> lam $ \old_phi ->
-               lam $ \old_ve -> lam $ \old_alpha -> lam $ \delT ->
-               fromNestedPair bx $ \blons ->
-               fromNestedPair by $ \blats ->
-               simulate dl dh da db blons blats
-                         old_lon old_lat old_phi
-                         old_ve old_alpha delT
-      particle1 :: Particle
-      particle1 = (unSample lamExp1) l h a b (1,()) (2,())
-      lamExp2 :: (Mochastic repr, Lambda repr) => repr (StepHk Two)
-      lamExp2 = lamExp ()
-  gen pt g sensors 0 controls 0 particle1 (PM iln ilt phi 0 0 0)
+-- generate :: PathType -> IO ()
+-- generate pt = do
+--   g <- MWC.createSystemRandom
+--   (Init l h a b phi ilt iln) <- initialVals pt
+--   controls <- controlData pt
+--   sensors <- sensorData pt
+--   let lamExp1 :: (Mochastic repr, Lambda repr) => repr (StepHk One)
+--       lamExp1 = lamExp ()
+--       lamExp () = lam $ \dl -> lam $ \dh -> lam $ \da -> lam $ \db -> 
+--                lam $ \bx -> lam $ \by ->
+--                lam $ \old_lon -> lam $ \old_lat -> lam $ \old_phi ->
+--                lam $ \old_ve -> lam $ \old_alpha -> lam $ \delT ->
+--                fromNestedPair bx $ \blons ->
+--                fromNestedPair by $ \blats ->
+--                simulate dl dh da db blons blats
+--                          old_lon old_lat old_phi
+--                          old_ve old_alpha delT
+--       particle1 :: Particle
+--       particle1 = (unSample lamExp1) l h a b (1,()) (2,())
+--       lamExp2 :: (Mochastic repr, Lambda repr) => repr (StepHk Two)
+--       lamExp2 = lamExp ()
+--   gen pt g sensors 0 controls 0 particle1 (PM iln ilt phi 0 0 0)
 
 plotPoint :: PathType -> Double -> Double -> IO ()
 plotPoint pt lon lat = do
