@@ -195,8 +195,7 @@ testLaser = do
       reads = cons 30 (cons 40 nil)
       betas :: (Base repr) => repr [H.Real]
       betas = cons 7 (cons 9 nil)
-      result :: (Base repr) => repr (Repeat Eleven H.Real)
-                -- Repeat Eleven (Sample IO H.Real)
+      result :: Sample IO (Repeat Eleven H.Real)
       result = laserAssigns base shortrange reads betas
 
       sim :: Sample IO (Measure (Repeat Eleven H.Real))
@@ -215,7 +214,7 @@ testLaser = do
             -- fromNestedPair as $ \betas_reprs ->
                 
             -- dirac $ toNestedPair (laserAssigns base_reprs reads_reprs betas_reprs)
-  print "Hello" -- (unSample $ toNestedPair result)
+  print (unSample result)
 
 withinLaser n b = and_ [ lessOrEq (convert (n-0.5)) tb2
                        , less tb2 (convert (n+0.5)) ]           
@@ -231,13 +230,6 @@ laserAssigns base n reads betas =
         build pd rb = fromNestedPair pd $ \p -> toNestedPair
                       ((addBeacon rb) <$> ((,) <$> p <*> (iota n))) --[1::Int,2..])
     in foldl_ build base combined
-
--- testAssigns base reads betas =
---     let combined = zip reads betas
---         addBeacon (r,b) i m = if b > (fromIntegral (2*i))
---                               then r else m
---         build pd (r,b) = S.mapWithIndex (addBeacon (r,b)) pd
---     in fromSeq $ F.foldl' build (toSeq base) combined
 
 type One = I
 type Two = D One
