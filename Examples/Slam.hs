@@ -186,7 +186,9 @@ simulate dimL dimH dimA dimB
     --  laserAssigns (normal muZRads sigmaZRads) zrad_reprs noisy_zbetas)
     -- `bind` \laser_zrads ->
 
-    extractMeasure (HV.pure (normal muZRads sigmaZRads)) `bind` \zrad_measures ->
+    extractMeasure (HV.pure (normal muZRads sigmaZRads)) `bind` \zrad_base ->
+    let_' (laserAssigns zrad_base shortrange noisy_zrads noisy_zbetas) $ \zrad_reads ->
+    
     -- fromNestedPair zrad_measures $ \base_zrads ->
     -- let_' (toNestedPair (laserAssigns base_zrads zrad_reprs zbeta_reprs)) $
     --       \laser_zrads -> 
@@ -194,13 +196,14 @@ simulate dimL dimH dimA dimB
     -- perturbReads (const $ normal 40 1) (HV.pure ()) `bind` \rpad ->
     perturbReads (const $ normal 400 1) (HV.pure ()) `bind` \ipad ->
 
-    dirac $ pair (pair zrad_measures ipad)
+    dirac $ pair (pair zrad_reads ipad)
                  (pair noisy_phi (pair noisy_lon noisy_lat))
 
 testLaser :: IO ()
 testLaser = do
-  let base :: (Base repr) => Repeat Eleven (repr H.Real)
-      base =  HV.pure 10 -- HV.fromList $ replicate shortrange (10::Double)
+  let base :: (Base repr) => repr (Repeat Eleven H.Real)
+      -- HV.fromList $ replicate shortrange (10::Double)
+      base =  toNestedPair (HV.pure 10)
       reads :: (Base repr) => repr [H.Real]
       reads = cons 30 (cons 40 nil)
       betas :: (Base repr) => repr [H.Real]
@@ -240,7 +243,7 @@ laserAssigns base n reads betas =
                              if_ (withinLaser (fromIntegral $ i-180) b) r m
         build pd rb = fromNestedPair pd $ \p -> toNestedPair
                       ((addBeacon rb) <$> ((,) <$> p <*> (iota n))) --[1::Int,2..])
-    in foldl_ build (toNestedPair base) combined
+    in foldl_ build base combined
 
 -- testAssigns base reads betas =
 --     let combined = zip reads betas
