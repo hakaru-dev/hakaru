@@ -311,7 +311,7 @@ type StepHk n = DimL -> DimH -> DimA -> DimB
               -> Measure StateHk
                         
 type Simulator repr = repr DimL -> repr DimH -> repr DimA -> repr DimB
-                    -> [repr GPS] -> [repr GPS]
+                    -> repr [GPS] -> repr [GPS]
                     -> repr GPS -> repr GPS -> repr Angle
                     -> repr Vel -> repr Angle -> repr DelTime
                     -> repr (Measure StateHk)
