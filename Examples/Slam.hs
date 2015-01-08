@@ -98,6 +98,12 @@ muZRads = 40
 sigmaZRads :: (Base repr) => repr Prob
 sigmaZRads = 1
 
+muZInts :: (Base repr) => repr H.Real
+muZInts = 40
+
+sigmaZInts :: (Base repr) => repr Prob
+sigmaZInts = 1
+
 sqr :: (Base repr) => repr H.Real -> repr Prob
 sqr a = unsafeProb $ a * a  -- pow_ (unsafeProb a) 2
 
@@ -188,15 +194,18 @@ simulate dimL dimH dimA dimB
 
     extractMeasure (HV.pure (normal muZRads sigmaZRads)) `bind` \zrad_base ->
     let_' (laserAssigns zrad_base shortrange noisy_zrads noisy_zbetas) $ \zrad_reads ->
-    
+
+    extractMeasure (HV.pure (normal muZInts sigmaZInts)) `bind` \zint_base ->
+    let_' (laserAssigns zint_base shortrange noisy_zints noisy_zbetas) $ \zint_reads ->
+        
     -- fromNestedPair zrad_measures $ \base_zrads ->
     -- let_' (toNestedPair (laserAssigns base_zrads zrad_reprs zbeta_reprs)) $
     --       \laser_zrads -> 
 
     -- perturbReads (const $ normal 40 1) (HV.pure ()) `bind` \rpad ->
-    perturbReads (const $ normal 400 1) (HV.pure ()) `bind` \ipad ->
+    -- perturbReads (const $ normal 400 1) (HV.pure ()) `bind` \ipad ->
 
-    dirac $ pair (pair zrad_reads ipad)
+    dirac $ pair (pair zrad_reads zrad_reads)
                  (pair noisy_phi (pair noisy_lon noisy_lat))
 
 testLaser :: IO ()
