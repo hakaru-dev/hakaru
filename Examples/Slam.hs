@@ -189,7 +189,6 @@ simulate dimL dimH dimA dimB
 testLaser :: IO ()
 testLaser = do
   let base :: (Base repr) => repr (Repeat Eleven H.Real)
-      -- HV.fromList $ replicate shortrange (10::Double)
       base =  toNestedPair (HV.pure 10)
       reads :: (Base repr) => repr [H.Real]
       reads = cons 30 (cons 40 nil)
@@ -197,23 +196,6 @@ testLaser = do
       betas = cons 7 (cons 9 nil)
       result :: Sample IO (Repeat Eleven H.Real)
       result = laserAssigns base shortrange reads betas
-
-      sim :: Sample IO (Measure (Repeat Eleven H.Real))
-      sim = extractMeasure (HV.pure (normal 0 1)) `bind` \bs ->
-            fromNestedPair bs $ \base_reprs ->
-            -- dirac $ toNestedPair base_reprs
-                
-            perturbReads (\r -> normal r 2) (HV.fromList [30,40]) `bind` \rs ->
-            fromNestedPair rs $ \read_reprs ->
-
-            dirac $ toNestedPair ((+) <$> base_reprs <*> read_reprs)
-
-            -- fromNestedPair rs $ \reads_reprs ->
-                
-            -- perturbReads (\r -> normal r 1) (HV.fromList [7,9]) `bind` \as ->
-            -- fromNestedPair as $ \betas_reprs ->
-                
-            -- dirac $ toNestedPair (laserAssigns base_reprs reads_reprs betas_reprs)
   print (unSample result)
 
 withinLaser n b = and_ [ lessOrEq (convert (n-0.5)) tb2
