@@ -123,6 +123,12 @@ foldl_ :: (Base repr) => (repr b -> repr a -> repr b)
        -> repr b -> repr [a] -> repr b
 foldl_ f acc ls = unlist ls acc k
     where k a as = foldl_ f (f acc a) as
+
+sequence' :: (Mochastic repr) => repr [Measure a] -> repr (Measure [a])
+sequence' ls = unlist ls (dirac nil) k
+    where k ma mas = bind ma $ \a ->
+                     bind (sequence' mas) $ \as ->
+                     dirac (cons a as)
           
 type GPS = H.Real
 type ZRad = H.Real -- The observed radial distance to a beacon
@@ -158,14 +164,12 @@ simulate dimL dimH dimA dimB
                                     (map_ sqr lat_ds))) $ \calc_zrads ->
     -- inverse-square for intensities 
     let_' (map_ (\r -> cIntensity / (pow_ r 2)) calc_zrads) $ \calc_zints ->
-    -- let_' (map (\r -> atan r - calc_phi)  -- removed a "+ pi/2" term
-    --            ((/) A.<$> lat_ds A.<*> lon_ds)) $ \calc_zbetas ->
+    let_' (map_ (\r -> atan r - calc_phi)  -- removed a "+ pi/2" term
+                (zipWith_ (/) lat_ds lon_ds)) $ \calc_zbetas ->
 
-    -- let_' (map (\l -> normal (fromProb l) cBeacon) calc_zrads) $ \noisy_zrads ->
-
-    -- let_' (map (\l -> normal (fromProb l) cBeacon) calc_zints) $ \noisy_zints ->
-
-    -- let_' (map (\l -> normal l cBeacon) calc_zbetas) $ \noisy_zbetas ->
+    perturb (\l -> normal (fromProb l) cBeacon) calc_zrads `bind` \noisy_zrads ->
+    perturb (\l -> normal (fromProb l) cBeacon) calc_zints `bind` \noisy_zints ->
+    perturb (\l -> normal l cBeacon) calc_zbetas `bind` \noisy_zbetas ->
 
     -- perturbReads (\l -> normal (fromProb l) cBeacon) calc_zrads `bind` \noisy_zrads ->
     -- perturbReads (\l -> normal (fromProb l) cBeacon) calc_zints `bind` \noisy_zints ->
@@ -197,12 +201,13 @@ testLaser :: IO ()
 testLaser = do
   let base :: (Base repr) => Repeat Eleven (repr H.Real)
       base =  HV.pure 10 -- HV.fromList $ replicate shortrange (10::Double)
-      reads :: (Base repr) => [repr H.Real]
-      reads = [30,40]
-      betas :: (Base repr) => [repr H.Real]
-      betas = [7,9]
-      result :: Repeat Eleven (Sample IO H.Real)
-      result = laserAssigns base reads betas
+      reads :: (Base repr) => repr [H.Real]
+      reads = cons 30 (cons 40 nil)
+      betas :: (Base repr) => repr [H.Real]
+      betas = cons 7 (cons 9 nil)
+      result :: (Base repr) => repr (Repeat Eleven H.Real)
+                -- Repeat Eleven (Sample IO H.Real)
+      result = laserAssigns base shortrange reads betas
 
       sim :: Sample IO (Measure (Repeat Eleven H.Real))
       sim = extractMeasure (HV.pure (normal 0 1)) `bind` \bs ->
@@ -220,7 +225,7 @@ testLaser = do
             -- fromNestedPair as $ \betas_reprs ->
                 
             -- dirac $ toNestedPair (laserAssigns base_reprs reads_reprs betas_reprs)
-  print (unSample $ toNestedPair result)
+  print "Hello" -- (unSample $ toNestedPair result)
 
 withinLaser n b = and_ [ lessOrEq (convert (n-0.5)) tb2
                        , less tb2 (convert (n+0.5)) ]           
@@ -229,11 +234,13 @@ withinLaser n b = and_ [ lessOrEq (convert (n-0.5)) tb2
           toRadian d = d*pi/180
           convert = tan . toRadian . ((/) 4)
 
-laserAssigns base reads betas =
-    let combined = zip reads betas
-        addBeacon (r,b) (m,i) = if_ (withinLaser (fromIntegral $ i-180) b) r m
-        build pd (r,b) = map (addBeacon (r,b)) (zip pd [1::Int,2..])
-    in fromList $ F.foldl' build (toList base) combined
+laserAssigns base n reads betas =
+    let combined = zipWith_ pair reads betas
+        addBeacon rb (m,i) = unpair rb $ \r b ->
+                             if_ (withinLaser (fromIntegral $ i-180) b) r m
+        build pd rb = fromNestedPair pd $ \p -> toNestedPair
+                      ((addBeacon rb) <$> ((,) <$> p <*> (iota n))) --[1::Int,2..])
+    in foldl_ build (toNestedPair base) combined
 
 -- testAssigns base reads betas =
 --     let combined = zip reads betas
@@ -255,8 +262,8 @@ type Ten = D Five
 type Eleven = SD Five
 type ThreeSixtyOne = SD (D (D (SD (D Eleven))))
 
-pR fn ls = let ls' = map fn ls
-           in CM.sequence ls'
+perturb fn ls = let ls' = map_ fn ls
+                in sequence' ls'
 
 perturbReads fn ls = let ls' = fn <$> ls
                      in extractMeasure ls'
