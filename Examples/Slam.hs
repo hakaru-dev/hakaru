@@ -177,35 +177,13 @@ simulate dimL dimH dimA dimB
     perturb (\l -> normal (fromProb l) cBeacon) calc_zints `bind` \noisy_zints ->
     perturb (\l -> normal l cBeacon) calc_zbetas `bind` \noisy_zbetas ->
 
-    -- perturbReads (\l -> normal (fromProb l) cBeacon) calc_zrads `bind` \noisy_zrads ->
-    -- perturbReads (\l -> normal (fromProb l) cBeacon) calc_zints `bind` \noisy_zints ->
-    -- perturbReads (\l -> normal l cBeacon) calc_zbetas `bind` \noisy_zbetas ->
-
-    -- fromNestedPair noisy_zrads $ \zrad_reprs ->
-    -- fromNestedPair noisy_zbetas $ \zbeta_reprs ->
-
-    -- perturbReads (\(b,a) -> if (withinLaser a 50) then dirac 5 else normal 40 1)
-    --              (HV.fromList $ replicate shortrange (False,6::Double))
-    --              `bind` \take11 ->
-
-    -- (extractMeasure $
-    --  laserAssigns (normal muZRads sigmaZRads) zrad_reprs noisy_zbetas)
-    -- `bind` \laser_zrads ->
-
     extractMeasure (HV.pure (normal muZRads sigmaZRads)) `bind` \zrad_base ->
     let_' (laserAssigns zrad_base shortrange noisy_zrads noisy_zbetas) $ \zrad_reads ->
 
     extractMeasure (HV.pure (normal muZInts sigmaZInts)) `bind` \zint_base ->
     let_' (laserAssigns zint_base shortrange noisy_zints noisy_zbetas) $ \zint_reads ->
         
-    -- fromNestedPair zrad_measures $ \base_zrads ->
-    -- let_' (toNestedPair (laserAssigns base_zrads zrad_reprs zbeta_reprs)) $
-    --       \laser_zrads -> 
-
-    -- perturbReads (const $ normal 40 1) (HV.pure ()) `bind` \rpad ->
-    -- perturbReads (const $ normal 400 1) (HV.pure ()) `bind` \ipad ->
-
-    dirac $ pair (pair zrad_reads zrad_reads)
+    dirac $ pair (pair zrad_reads zint_reads)
                  (pair noisy_phi (pair noisy_lon noisy_lat))
 
 testLaser :: IO ()
