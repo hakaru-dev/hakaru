@@ -51,7 +51,6 @@ testS t = do
     let s = result (unAny p)
     assertResult (show s)
 
-
 -- Assert that all the given Hakaru programs simplify to the given one
 testSS :: (Simplifiable a) => [Expect Maple a] -> Testee a -> Assertion
 testSS ts t' =
@@ -59,12 +58,11 @@ testSS ts t' =
                     (assertEqual "testSS" `on` result) t' (unAny p))
           (t' : ts)
 
-
 handleSimplify :: PrettyPrint a -> SimplifyException -> IO (Any a)
-handleSimplify t (MapleException toMaple fromMaple) = do let pp = show $ result t
-                                                         throw $ TestSimplifyException pp toMaple fromMaple
+handleSimplify t (MapleException toMaple fromMaple) = 
+  do let pp = show $ result t 
+     throw $ TestSimplifyException pp toMaple fromMaple
 handleSimplify _ e = throw e
-
 
 testD :: (Simplifiable env, Simplifiable a, Simplifiable b, Order_ a) =>
          (Disintegrate env -> Disintegrate (Measure (a,b))) -> IO ()
