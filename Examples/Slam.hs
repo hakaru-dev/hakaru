@@ -237,21 +237,6 @@ extractMeasure ls' = let mls' = cont . bind <$> ls'
                          rseq = runCont seq'
                      in rseq (dirac . toNestedPair)
 
--- | Extending Vector so that we can convert to and from Sequences
--- class (Vector a as) => FromToSeq a as where
---     toSeq :: (a, as) -> S.Seq a
---     fromSeq :: S.Seq a -> (a, as)
-
--- instance FromToSeq a () where
---     toSeq (a, ())  = S.singleton a
---     fromSeq aseq   = let (a S.:< _) = S.viewl aseq
---                      in (a, ())
-
--- instance (FromToSeq a as) => FromToSeq a (a, as) where
---     toSeq (a, as)  = a S.<| (toSeq as)
---     fromSeq aseq   = let (a S.:< as) = S.viewl aseq
---                      in (a, fromSeq as)
-
 shortrange :: Int
 shortrange = 11
 
