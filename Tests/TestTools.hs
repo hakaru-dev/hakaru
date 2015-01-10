@@ -59,9 +59,9 @@ testSS ts t' =
           (t' : ts)
 
 handleSimplify :: PrettyPrint a -> SimplifyException -> IO (Any a)
-handleSimplify t (MapleException toMaple fromMaple) = 
+handleSimplify t (MapleException toMaple_ fromMaple) = 
   do let pp = show $ result t 
-     throw $ TestSimplifyException pp toMaple fromMaple
+     throw $ TestSimplifyException pp toMaple_ fromMaple
 handleSimplify _ e = throw e
 
 testD :: (Simplifiable env, Simplifiable a, Simplifiable b, Order_ a) =>
