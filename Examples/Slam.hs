@@ -246,16 +246,6 @@ type Len = D Eleven
 type StateHk = ( (Repeat Len H.Real, Repeat Len H.Real)
                , (Angle, (GPS, GPS)) )
 
-type StateHs = ( (Repeat Len Double, Repeat Len Double)
-               , (Double, (Double, Double)) )
-
-type TestState n = Repeat n H.Real                              
-
-type HsInputs n = Repeat n Double -> Repeat n Double -- ^ beacon lons, beacon lats
-                -> Double -> Double -> Double -- ^ vehLon, vehLat, phi
-                -> Double -> Double -> Double -- ^ vel, alpha, __timestamp__
-                -> IO ()
-
 data Params = PM { vlon :: Double
                  , vlat :: Double
                  , phi :: Double
@@ -270,9 +260,10 @@ type StepHk n = DimL -> DimH -> DimA -> DimB
               -> Measure StateHk
                         
 type Simulator repr = repr DimL -> repr DimH -> repr DimA -> repr DimB
-                    -> repr [GPS] -> repr [GPS]
-                    -> repr GPS -> repr GPS -> repr Angle
-                    -> repr Vel -> repr Angle -> repr DelTime
+                    -> repr [GPS] -> repr [GPS] -- ^ beacon lons, beacon lats
+                    -> repr GPS -> repr GPS -> repr Angle -- ^ vehLon, vehLat, phi
+                    -> repr Vel -> repr Angle -- ^ vel, alpha
+                    -> repr DelTime           -- ^ timestamp
                     -> repr (Measure StateHk)
 
 type Generator = V.Vector Sensor -> Int
