@@ -60,7 +60,84 @@ import qualified Data.ByteString.Lazy as B
 -- 1. GPSLon, GPSLat
 -- 2. phi : world angle
 -- 3. (x_i, y_i) : world coords (lon, lat) of each object i in the map
-                
+                         
+type One = I
+type Two = D One
+type Three = SD One
+type Four = D Two
+type Five = SD Two
+type Six = D Three
+type Seven = SD Three
+type Eight = D Four
+type Nine = SD Four
+type Ten = D Five
+type Eleven = SD Five
+type ThreeSixtyOne = SD (D (D (SD (D Eleven))))             
+
+type Len = Eleven    
+shortrange :: Int
+shortrange = 11
+
+type GPS = H.Real
+type ZRad = H.Real -- The observed radial distance to a beacon
+type Angle = H.Real -- Radians
+type Vel = H.Real    
+type DelTime = H.Real
+type DimL = H.Real
+type DimH = H.Real
+type DimA = H.Real
+type DimB = H.Real
+             
+type State = ( (Repeat Len H.Real, Repeat Len H.Real) -- ^ (rads, intensities)
+             , (Angle, (GPS, GPS)) )
+
+type Simulator repr = repr DimL -> repr DimH -> repr DimA -> repr DimB
+                    -> repr [GPS] -> repr [GPS] -- ^ beacon lons, beacon lats
+                    -> repr GPS -> repr GPS -> repr Angle -- ^ vehLon, vehLat, phi
+                    -> repr Vel -> repr Angle -- ^ vel, alpha
+                    -> repr DelTime           -- ^ timestamp
+                    -> repr (Measure State)    
+
+simulate :: (Mochastic repr) => Simulator repr
+simulate dimL dimH dimA dimB
+         blons blats
+         old_lon old_lat old_phi
+         old_ve old_alpha delT =
+
+    let_' (old_ve / (1 - (tan old_alpha)*dimH/dimL)) $ \old_vc ->
+    let_' (calcLon dimA dimB dimL old_lon delT old_vc old_phi old_alpha) $
+              \calc_lon ->
+    let_' (calcLat dimA dimB dimL old_lat delT old_vc old_phi old_alpha) $
+              \calc_lat ->
+    let_' (old_phi + delT*old_vc*(tan old_alpha) / dimL) $ \calc_phi ->
+    
+    normal calc_lon ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \noisy_lon ->
+    normal calc_lat ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \noisy_lat ->
+    normal calc_phi ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \noisy_phi ->
+
+    let_' (map_ ((-) noisy_lon) blons) $ \lon_ds ->
+    let_' (map_ ((-) noisy_lat) blats) $ \lat_ds ->
+        
+    let_' (map_ sqrt_ (zipWith_ (+) (map_ sqr lon_ds)
+                                    (map_ sqr lat_ds))) $ \calc_zrads ->
+    -- inverse-square for intensities 
+    let_' (map_ (\r -> cIntensity / (pow_ r 2)) calc_zrads) $ \calc_zints ->
+    let_' (map_ (\r -> atan r - calc_phi)  -- removed a "+ pi/2" term
+                (zipWith_ (/) lat_ds lon_ds)) $ \calc_zbetas ->
+
+    perturb (\l -> normal (fromProb l) cBeacon) calc_zrads `bind` \noisy_zrads ->
+    perturb (\l -> normal (fromProb l) cBeacon) calc_zints `bind` \noisy_zints ->
+    perturb (\l -> normal l cBeacon) calc_zbetas `bind` \noisy_zbetas ->
+
+    extractMeasure (HV.pure (normal muZRads sigmaZRads)) `bind` \zrad_base ->
+    let_' (laserAssigns zrad_base shortrange noisy_zrads noisy_zbetas) $ \zrad_reads ->
+
+    extractMeasure (HV.pure (normal muZInts sigmaZInts)) `bind` \zint_base ->
+    let_' (laserAssigns zint_base shortrange noisy_zints noisy_zbetas) $ \zint_reads ->
+        
+    dirac $ pair (pair zrad_reads zint_reads)
+                 (pair noisy_phi (pair noisy_lon noisy_lat))
+
 calcLon :: (Base repr) => repr DimA -> repr DimB -> repr DimL
         -> repr GPS                 -- ^ old_lon
         -> repr DelTime -> repr Vel -- ^ delT, old_vc
@@ -135,56 +212,25 @@ sequence' ls = unlist ls (dirac nil) k
     where k ma mas = bind ma $ \a ->
                      bind (sequence' mas) $ \as ->
                      dirac (cons a as)
-          
-type GPS = H.Real
-type ZRad = H.Real -- The observed radial distance to a beacon
-type Angle = H.Real -- Radians
-type Vel = H.Real    
-type DelTime = H.Real
-type DimL = H.Real
-type DimH = H.Real
-type DimA = H.Real
-type DimB = H.Real
+                 
+withinLaser n b = and_ [ lessOrEq (convert (n-0.5)) tb2
+                       , less tb2 (convert (n+0.5)) ]           
+    where lessOrEq a b = or_ [less a b, equal a b]
+          tb2 = tan (b/2)
+          toRadian d = d*pi/180
+          convert = tan . toRadian . ((/) 4)
 
--- simulate :: (Mochastic repr) => Simulator repr
-simulate dimL dimH dimA dimB
-         blons blats
-         old_lon old_lat old_phi
-         old_ve old_alpha delT =
-
-    let_' (old_ve / (1 - (tan old_alpha)*dimH/dimL)) $ \old_vc ->
-    let_' (calcLon dimA dimB dimL old_lon delT old_vc old_phi old_alpha) $
-              \calc_lon ->
-    let_' (calcLat dimA dimB dimL old_lat delT old_vc old_phi old_alpha) $
-              \calc_lat ->
-    let_' (old_phi + delT*old_vc*(tan old_alpha) / dimL) $ \calc_phi ->
-    
-    normal calc_lon ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \noisy_lon ->
-    normal calc_lat ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \noisy_lat ->
-    normal calc_phi ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \noisy_phi ->
-
-    let_' (map_ ((-) noisy_lon) blons) $ \lon_ds ->
-    let_' (map_ ((-) noisy_lat) blats) $ \lat_ds ->
-        
-    let_' (map_ sqrt_ (zipWith_ (+) (map_ sqr lon_ds)
-                                    (map_ sqr lat_ds))) $ \calc_zrads ->
-    -- inverse-square for intensities 
-    let_' (map_ (\r -> cIntensity / (pow_ r 2)) calc_zrads) $ \calc_zints ->
-    let_' (map_ (\r -> atan r - calc_phi)  -- removed a "+ pi/2" term
-                (zipWith_ (/) lat_ds lon_ds)) $ \calc_zbetas ->
-
-    perturb (\l -> normal (fromProb l) cBeacon) calc_zrads `bind` \noisy_zrads ->
-    perturb (\l -> normal (fromProb l) cBeacon) calc_zints `bind` \noisy_zints ->
-    perturb (\l -> normal l cBeacon) calc_zbetas `bind` \noisy_zbetas ->
-
-    extractMeasure (HV.pure (normal muZRads sigmaZRads)) `bind` \zrad_base ->
-    let_' (laserAssigns zrad_base shortrange noisy_zrads noisy_zbetas) $ \zrad_reads ->
-
-    extractMeasure (HV.pure (normal muZInts sigmaZInts)) `bind` \zint_base ->
-    let_' (laserAssigns zint_base shortrange noisy_zints noisy_zbetas) $ \zint_reads ->
-        
-    dirac $ pair (pair zrad_reads zint_reads)
-                 (pair noisy_phi (pair noisy_lon noisy_lat))
+-- | Insert sensor readings (radial distance or intensity)
+-- from a list containing one reading for each beacon (reads; variable length)
+-- into the correct indices (i.e., angles derived from betas) within
+-- a hakaru vector of "noisy" readings (base; length = 361)
+laserAssigns base n reads betas =
+    let combined = zipWith_ pair reads betas
+        addBeacon rb (m,i) = unpair rb $ \r b ->
+                             if_ (withinLaser (fromIntegral $ i-180) b) r m
+        build pd rb = fromNestedPair pd $ \p -> toNestedPair
+                      ((addBeacon rb) <$> ((,) <$> p <*> (iota n))) --[1::Int,2..])
+    in foldl_ build base combined
 
 testLaser :: IO ()
 testLaser = do
@@ -196,86 +242,75 @@ testLaser = do
       betas = cons 7 (cons 9 nil)
       result :: Sample IO (Repeat Eleven H.Real)
       result = laserAssigns base shortrange reads betas
-  print (unSample result)
+  print (unSample result)       
 
-withinLaser n b = and_ [ lessOrEq (convert (n-0.5)) tb2
-                       , less tb2 (convert (n+0.5)) ]           
-    where lessOrEq a b = or_ [less a b, equal a b]
-          tb2 = tan (b/2)
-          toRadian d = d*pi/180
-          convert = tan . toRadian . ((/) 4)
-
-laserAssigns base n reads betas =
-    let combined = zipWith_ pair reads betas
-        addBeacon rb (m,i) = unpair rb $ \r b ->
-                             if_ (withinLaser (fromIntegral $ i-180) b) r m
-        build pd rb = fromNestedPair pd $ \p -> toNestedPair
-                      ((addBeacon rb) <$> ((,) <$> p <*> (iota n))) --[1::Int,2..])
-    in foldl_ build base combined
-
-type One = I
-type Two = D One
-type Three = SD One
-type Four = D Two
-type Five = SD Two
-type Six = D Three
-type Seven = SD Three
-type Eight = D Four
-type Nine = SD Four
-type Ten = D Five
-type Eleven = SD Five
-type ThreeSixtyOne = SD (D (D (SD (D Eleven))))
-
+-- | Add random noise to a hakaru list of elements
+perturb :: Mochastic repr => (repr a -> repr (Measure a1))
+        -> repr [a] -> repr (Measure [a1])
 perturb fn ls = let ls' = map_ fn ls
                 in sequence' ls'
 
+-- | Add random noise to a hakaru vector (nested tuple) of elements
 perturbReads fn ls = let ls' = fn <$> ls
                      in extractMeasure ls'
 
+-- | Conversion helper
+-- from: repr (Vector (Measure a))
+-- to:   repr (Measure (Vector a))
+-- Vector means Language.Hakaru.Vector, i.e., nested tuple
 extractMeasure ls' = let mls' = cont . bind <$> ls'
                          seq' = HV.sequence mls'
                          rseq = runCont seq'
                      in rseq (dirac . toNestedPair)
 
-shortrange :: Int
-shortrange = 11
+type Step = DimL -> DimH -> DimA -> DimB
+          -> [GPS] -> [GPS]
+          -> GPS -> GPS -> Angle
+          -> Vel -> Angle
+          -> DelTime
+          -> Measure State
 
-type Len = D Eleven
-
-                 -- ^ (rads, intensities)
-type State = ( (Repeat Len H.Real, Repeat Len H.Real)
-               , (Angle, (GPS, GPS)) )
+type Particle = Sample' IO ( GPS -> GPS -> Angle
+                             -> Vel -> Angle
+                             -> DelTime
+                             -> Measure State )
+                                    
+generate :: PathType -> IO ()
+generate pt = do
+  g <- MWC.createSystemRandom
+  (Init l h a b phi ilt iln) <- initialVals pt
+  controls <- controlData pt
+  sensors <- sensorData pt
+             
+  let lamExp :: (Mochastic repr, Lambda repr) => repr Step
+      lamExp = lam $ \dl -> lam $ \dh -> lam $ \da -> lam $ \db -> 
+               lam $ \blons -> lam $ \blats ->
+               lam $ \old_lon -> lam $ \old_lat -> lam $ \old_phi ->
+               lam $ \old_ve -> lam $ \old_alpha -> lam $ \delT ->
+               simulate dl dh da db blons blats
+                        old_lon old_lat old_phi
+                        old_ve old_alpha delT
+                               
+      particle1 :: Particle
+      particle1 = (unSample lamExp) l h a b [1] [2]
+                  
+      particle2 :: Particle
+      particle2 = (unSample lamExp) l h a b [1,3] [2,4]
+                  
+  gen pt g sensors 0 controls 0 particle1 (PM iln ilt phi 0 0 0)
 
 data Params = PM { vlon :: Double
                  , vlat :: Double
                  , phi :: Double
                  , vel :: Double
                  , alpha :: Double
-                 , tm :: Double }
-
-type Step n = DimL -> DimH -> DimA -> DimB
-              -> Repeat n GPS -> Repeat n GPS
-              -> GPS -> GPS -> Angle
-              -> Vel -> Angle
-              -> DelTime
-              -> Measure State
-                        
-type Simulator repr = repr DimL -> repr DimH -> repr DimA -> repr DimB
-                    -> repr [GPS] -> repr [GPS] -- ^ beacon lons, beacon lats
-                    -> repr GPS -> repr GPS -> repr Angle -- ^ vehLon, vehLat, phi
-                    -> repr Vel -> repr Angle -- ^ vel, alpha
-                    -> repr DelTime           -- ^ timestamp
-                    -> repr (Measure State)
+                 , tm :: Double }          
 
 type Generator = V.Vector Sensor -> Int
                -> V.Vector Control -> Int
                -> Particle
                -> Params
-               -> IO ()
-                  
-type Particle = Sample' IO ( GPS -> GPS -> Angle
-                             -> Vel -> Angle -> DelTime
-                             -> Measure State )
+               -> IO ()                  
 
 type Rand = MWC.Gen (PrimState IO)
     
@@ -303,30 +338,7 @@ gen pt g sensors si controls ci particle
                           return (ci, old_ve, old_alpha)
                   _ -> error "Invalid sensor ID (must be 1, 2 or 3)"
   newprms >>= \(nci,nve,nal) -> gen pt g sensors (si+1) controls nci particle
-                                    (PM cvlon cvlat cphi nve nal tcurr)
-                             
--- generate :: PathType -> IO ()
--- generate pt = do
---   g <- MWC.createSystemRandom
---   (Init l h a b phi ilt iln) <- initialVals pt
---   controls <- controlData pt
---   sensors <- sensorData pt
---   let lamExp1 :: (Mochastic repr, Lambda repr) => repr (Step One)
---       lamExp1 = lamExp ()
---       lamExp () = lam $ \dl -> lam $ \dh -> lam $ \da -> lam $ \db -> 
---                lam $ \bx -> lam $ \by ->
---                lam $ \old_lon -> lam $ \old_lat -> lam $ \old_phi ->
---                lam $ \old_ve -> lam $ \old_alpha -> lam $ \delT ->
---                fromNestedPair bx $ \blons ->
---                fromNestedPair by $ \blats ->
---                simulate dl dh da db blons blats
---                          old_lon old_lat old_phi
---                          old_ve old_alpha delT
---       particle1 :: Particle
---       particle1 = (unSample lamExp1) l h a b (1,()) (2,())
---       lamExp2 :: (Mochastic repr, Lambda repr) => repr (Step Two)
---       lamExp2 = lamExp ()
---   gen pt g sensors 0 controls 0 particle1 (PM iln ilt phi 0 0 0)
+                                    (PM cvlon cvlat cphi nve nal tcurr)      
 
 plotPoint :: PathType -> Double -> Double -> IO ()
 plotPoint pt lon lat = do
