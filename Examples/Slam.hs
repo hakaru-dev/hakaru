@@ -243,7 +243,7 @@ shortrange = 11
 type Len = D Eleven
 
                  -- ^ (rads, intensities)
-type StateHk = ( (Repeat Len H.Real, Repeat Len H.Real)
+type State = ( (Repeat Len H.Real, Repeat Len H.Real)
                , (Angle, (GPS, GPS)) )
 
 data Params = PM { vlon :: Double
@@ -253,18 +253,19 @@ data Params = PM { vlon :: Double
                  , alpha :: Double
                  , tm :: Double }
 
-type StepHk n = DimL -> DimH -> DimA -> DimB
+type Step n = DimL -> DimH -> DimA -> DimB
               -> Repeat n GPS -> Repeat n GPS
               -> GPS -> GPS -> Angle
-              -> Vel -> Angle -> DelTime
-              -> Measure StateHk
+              -> Vel -> Angle
+              -> DelTime
+              -> Measure State
                         
 type Simulator repr = repr DimL -> repr DimH -> repr DimA -> repr DimB
                     -> repr [GPS] -> repr [GPS] -- ^ beacon lons, beacon lats
                     -> repr GPS -> repr GPS -> repr Angle -- ^ vehLon, vehLat, phi
                     -> repr Vel -> repr Angle -- ^ vel, alpha
                     -> repr DelTime           -- ^ timestamp
-                    -> repr (Measure StateHk)
+                    -> repr (Measure State)
 
 type Generator = V.Vector Sensor -> Int
                -> V.Vector Control -> Int
@@ -274,7 +275,7 @@ type Generator = V.Vector Sensor -> Int
                   
 type Particle = Sample' IO ( GPS -> GPS -> Angle
                              -> Vel -> Angle -> DelTime
-                             -> Measure StateHk )
+                             -> Measure State )
 
 type Rand = MWC.Gen (PrimState IO)
     
@@ -310,7 +311,7 @@ gen pt g sensors si controls ci particle
 --   (Init l h a b phi ilt iln) <- initialVals pt
 --   controls <- controlData pt
 --   sensors <- sensorData pt
---   let lamExp1 :: (Mochastic repr, Lambda repr) => repr (StepHk One)
+--   let lamExp1 :: (Mochastic repr, Lambda repr) => repr (Step One)
 --       lamExp1 = lamExp ()
 --       lamExp () = lam $ \dl -> lam $ \dh -> lam $ \da -> lam $ \db -> 
 --                lam $ \bx -> lam $ \by ->
@@ -323,7 +324,7 @@ gen pt g sensors si controls ci particle
 --                          old_ve old_alpha delT
 --       particle1 :: Particle
 --       particle1 = (unSample lamExp1) l h a b (1,()) (2,())
---       lamExp2 :: (Mochastic repr, Lambda repr) => repr (StepHk Two)
+--       lamExp2 :: (Mochastic repr, Lambda repr) => repr (Step Two)
 --       lamExp2 = lamExp ()
 --   gen pt g sensors 0 controls 0 particle1 (PM iln ilt phi 0 0 0)
 
