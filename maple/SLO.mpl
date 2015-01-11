@@ -437,15 +437,14 @@ SLO := module ()
   # use assumptions to figure out if we are actually positive, even
   # when the types say otherwise
   isPos := proc(w)
-    local res, cond;
+    local res;
 
-    cond := map(x -> op(1,x) :: op(2, x), _EnvPathCond);
-    res := signum(0, w, 1) assuming op(cond);
+    res := signum(0, w, 1) assuming op(_EnvPathCond);
     evalb(res = 1);
   end proc;
 
   toProp := proc(x)
-    if type(x,`=`) then op(1,x) = toProp(op(2,x))
+    if type(x,`=`) then `::`(op(1,x),toProp(op(2,x)))
     elif type(x, 'symbol') then
       if x = 'Real' then 'real'
       elif x = 'Prob' then RealRange(0,infinity)
@@ -569,7 +568,7 @@ SLO := module ()
       if nops(res)=1 then 
         op([1,2], res)
       else # then in the current path
-        res := select(type, _EnvPathCond, 'identical(e) = anything');
+        res := select(type, _EnvPathCond, 'identical'(e) :: 'anything');
         if nops(res)=1 then 
           typ := op([1,2], res);
           if type(typ, {'RealRange'(anything, anything), identical(real)}) then
@@ -683,18 +682,18 @@ SLO := module ()
       end if;
     elif type(e, 'Bind'(identical(Lebesgue), name, anything)) then
       var := op(2,e);
-      _EnvPathCond := _EnvPathCond union {var = real};
+      _EnvPathCond := _EnvPathCond union {var :: real};
       Bind(Lebesgue, var, adjust_types(op(3,e), typ, ctx));
     elif type(e, 'Bind'(identical(Lebesgue), name = range, anything)) then
       dom := RealRange(op([2,2,1],e), op([2,2,2], e));
       var := op([2,1],e);
-      _EnvPathCond := _EnvPathCond union {var = dom};
+      _EnvPathCond := _EnvPathCond union {var :: dom};
       Bind(op(1,e), op(2,e), adjust_types(op(3,e), typ, ctx));
     elif type(e, 'Bind'(anything, name = range, anything)) then
       dom := compute_domain(op(1,e));
       var := op([2,1],e);
       inf_typ := infer_type(op(1,e), ctx);
-      _EnvPathCond := _EnvPathCond union {var = dom};
+      _EnvPathCond := _EnvPathCond union {var :: dom};
       # need to adjust types on first op, to its own type, as that may require
       # tweaking which functions are used
       Bind(adjust_types(op(1,e), inf_typ, ctx), op(2,e), adjust_types(op(3,e), typ, ctx));
@@ -702,7 +701,7 @@ SLO := module ()
       dom := compute_domain(op(1,e));
       var := op(2,e);
       inf_typ := infer_type(op(1,e), ctx);
-      _EnvPathCond := _EnvPathCond union {var = dom};
+      _EnvPathCond := _EnvPathCond union {var :: dom};
       # need to adjust types on first op, to its own type, as that may require
       # tweaking which functions are used
       Bind(adjust_types(op(1,e), inf_typ, ctx), op(2,e), adjust_types(op(3,e), typ, ctx));
@@ -1039,12 +1038,13 @@ If := proc(cond, tb, eb)
     new_cond := AndProp(op(1,eb), fcond);
     rest_cond := AndProp(SLO:-flip_cond(op(1,eb)), fcond);
     # note: if t1 is unsat, this might FAIL
-    t1 := coulditbe(new_cond) 
-        assuming op(map(x -> op(1,x) :: op(2,x), _EnvPathCond));
+    t1 := coulditbe(new_cond) assuming op(_EnvPathCond);
     try 
-      assume(rest_cond); # weird way to catch unsat!
+      # assume(rest_cond); # weird way to catch unsat!
+      coulditbe(rest_cond) assuming rest_cond;
       t2 := true;
-    catch "the assumed property", "contradictory assumptions":
+    catch "when calling '%1'. Received: 'contradictory assumptions'":
+    # catch "the assumed property", "contradictory assumptions":
       t2 := false;
     end try;
     if t1=false then
