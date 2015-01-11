@@ -7,7 +7,8 @@ Haskell := module ()
   export ModuleApply;
   local b, p, d, bi,
       parens, resolve, sp, comma, ufunc, bfunc, lbrack, rbrack, seqp,
-      lparen, rparen;
+      lparen, rparen,
+      fix_binds;
   uses StringTools;
 
   # this is to make things more efficient.  Note that it makes
@@ -19,7 +20,7 @@ Haskell := module ()
   # the right way would involve a proper pretty-printer, but that
   # can be added later easily enough.
   ModuleApply := proc(e) 
-      local rts, pows, expr;
+      local rts, pows, expr, binds;
 
       b:-clear();
 
@@ -51,6 +52,10 @@ Haskell := module ()
         expr := subs(map((x -> x = IntPow(op(x))), pows), expr);
       end if;
       expr := thaw(expr);
+
+      # deal with Domain hack in Bind
+      binds := indets(expr, 'Bind'(anything, name = `..`, anything));
+      expr := subs(map(fix_binds, binds), expr);
 
       # and now actually translate
       p(ToInert(expr));
@@ -256,4 +261,23 @@ end;
       error "cannot resolve an %1, namely %2", op(0,nm), nm;
     end if;
   end proc;
+
+# patching routines.  ToDo: better design.
+  fix_binds := proc(bind)
+    local var, rng, meas, rest, lower, upper;
+    (var, rng) := op(op(2,bind));
+    meas := op(1,bind);
+    rest := op(3,bind);
+    if rng = -infinity..infinity then
+      bind = 'Bind'(meas, var, rest)
+    elif typematch(rng, identical(-infinity) .. (upper::Non(infinity))) then
+      bind = 'Bind'(meas, var, If(upper <= var, rest, SUPERPOSE()))
+    elif typematch(rng, (lower::Non(infinity)) .. identical(infinity)) then
+      bind = 'Bind'(meas, var, If(var >= lower, rest, SUPERPOSE()))
+    else # both finite
+      (lower, upper) := op(rng);
+      bind = 'Bind'(meas, var, If(var < lower, SUPERPOSE(),
+                                 If(upper <= var, rest, Superpose())))
+    end if;
+  end
 end module:
