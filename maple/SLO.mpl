@@ -12,7 +12,7 @@ SLO := module ()
     c; # very important: c is "global".
   local ToAST, t_binds, t_pw, into_pw_prod, into_pw_plus, myprod, do_pw,
     into_pw_pow,
-    mkProb, getCtx, instantiate, lambda_wrap, fill_table, toProp,
+    mkProb, getCtx, instantiate, lambda_wrap, fill_table, toProp, HTypeToProp,
     twiddle, myint,
     adjust_types, compute_domain, analyze_cond, isPos,
     adjust_superpose,
@@ -443,16 +443,27 @@ SLO := module ()
     evalb(res = 1);
   end proc;
 
-  toProp := proc(x)
-    if type(x,`=`) then `::`(op(1,x),toProp(op(2,x)))
-    elif type(x, 'symbol') then
-      if x = 'Real' then 'real'
-      elif x = 'Prob' then RealRange(0,infinity)
-      elif x = 'Bool' then boolean
-      elif x = 'Unit' then identical(Unit)
+  toProp := proc(x::`=`)
+    local nm, typ, rest;
+    nm := op(1,x);
+    (typ, rest) := HTypeToProp(op(2,x));
+    nm :: typ, op(rest)
+  end proc;
+
+  HTypeToProp := proc(x)
+    local left, right, r1, r2;
+    if type(x, 'symbol') then
+      if x = 'Real' then 'real', {}
+      elif x = 'Prob' then RealRange(0,infinity), {}
+      elif x = 'Bool' then boolean, {}
+      elif x = 'Unit' then identical(Unit), {}
       else
         error "Unknown base type %1", x
       end if;
+    elif x :: Pair(anything, anything) then
+      (left, r1) := thisproc(op(1,x)); 
+      (right, r2) := thisproc(op(2,x));
+      Pair(left, right), r1 union r2
     else
       error "How can I make a property from %1", x;
     end if;
