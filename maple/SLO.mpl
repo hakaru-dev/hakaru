@@ -460,6 +460,7 @@ SLO := module ()
       else
         error "Unknown base type %1", x
       end if;
+    # this is still not quite good enough, refine!
     elif x :: Pair(anything, anything) then
       (left, r1) := thisproc(op(1,x)); 
       (right, r2) := thisproc(op(2,x));
