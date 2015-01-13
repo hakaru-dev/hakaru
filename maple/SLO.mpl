@@ -12,7 +12,7 @@ SLO := module ()
     c; # very important: c is "global".
   local ToAST, t_binds, t_pw, into_pw_prod, into_pw_plus, myprod, do_pw,
     into_pw_pow,
-    mkProb, getCtx, instantiate, lambda_wrap, fill_table, toProp, HTypeToProp,
+    mkProb, getCtx, instantiate, lambda_wrap, fill_table, toProp,
     twiddle, myint,
     adjust_types, compute_domain, analyze_cond, isPos,
     adjust_superpose,
@@ -52,7 +52,7 @@ SLO := module ()
     ctx := op(2,inp);
 
     # right at the start, put the global context in the 'path'.
-    _EnvPathCond := map(toProp, ctx:-gctx);
+    _EnvPathCond := `union`(op(map(toProp, ctx:-gctx)));
     res := ToAST(op(inp));
     res := adjust_types(res, ctx:-mtyp, ctx);
     res := adjust_superpose(res);
@@ -444,30 +444,27 @@ SLO := module ()
   end proc;
 
   toProp := proc(x::`=`)
-    local nm, typ, rest;
-    nm := op(1,x);
-    (typ, rest) := HTypeToProp(op(2,x));
-    nm :: typ, op(rest)
-  end proc;
+    local nm, typ, prop, rest, left, right, r1, r2;
+    (nm, typ) := op(x);
 
-  HTypeToProp := proc(x)
-    local left, right, r1, r2;
-    if type(x, 'symbol') then
-      if x = 'Real' then 'real', {}
-      elif x = 'Prob' then RealRange(0,infinity), {}
-      elif x = 'Bool' then boolean, {}
-      elif x = 'Unit' then identical(Unit), {}
+    if type(typ, 'symbol') then
+      if typ = 'Real' then (prop, rest) := 'real', {};
+      elif typ = 'Prob' then (prop, rest) := RealRange(0,infinity), {};
+      elif typ = 'Bool' then (prop, rest) := boolean, {};
+      elif typ = 'Unit' then (prop, rest) := identical(Unit), {};
       else
         error "Unknown base type %1", x
       end if;
-    # this is still not quite good enough, refine!
-    elif x :: Pair(anything, anything) then
-      (left, r1) := thisproc(op(1,x)); 
-      (right, r2) := thisproc(op(2,x));
-      Pair(left, right), r1 union r2
+    elif nm :: Pair(anything, anything) and 
+         typ :: Pair(anything, anything) then
+      (left, r1) := thisproc(op(1, nm) = op(1,typ));
+      (right, r2) := thisproc(op(2, nm) = op(2,typ));
+      (prop, rest) := Pair(op([1,2],left), op([1,2],right)), 
+                     (`union`(r1, r2, left, right));
     else
       error "How can I make a property from %1", x;
     end if;
+    {nm :: prop}, rest
   end proc;
 
   fill_table := proc(t, nm, typ)
@@ -536,13 +533,19 @@ SLO := module ()
   end proc;
 
   lambda_wrap := proc(expr, cnt, ctx)
-    local var, sub;
+    local var, ee, newvar;
     if cnt = ctx:-gsize then
       expr
     else
       var := ctx:-gnum[cnt];
       if type(var, 'name') then
         Lambda(var, lambda_wrap(expr, cnt+1, ctx));
+      # cheat, for now
+      elif type(var, Pair(name, name)) then
+        newvar := gensym('pr');
+        ee := subs({var = newvar, op(1,var)=Fst(newvar), op(2,var)=Snd(newvar)},
+             expr);
+        Lambda(newvar, lambda_wrap(ee, cnt+1, ctx));
       else
         error "cannot yet lambda_wrap a %1", var
       end if;

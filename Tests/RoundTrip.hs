@@ -69,6 +69,7 @@ testMeasurePair = test [
     "t4"            ~: testSS [t4] t4',
     "t8"            ~: testSS [] t8,
     "t23"           ~: testSS [t23] t23',
+    "t48"           ~: testS t48,
     "norm"          ~: testSS [] norm,
     "flipped_norm"  ~: testSS [liftM swap_ norm] flipped_norm,
     "testPriorProp" ~: testS testPriorProp
@@ -274,6 +275,9 @@ t47 =
   superpose [(1, (normal 4 5 `bind` \x -> if_ (less x 3) (dirac (x*x)) (dirac 0))),
              (1, (normal 4 5 `bind` \x -> if_ (less x 3) (dirac 0) (dirac (x-1))))]
 
+t48 :: (Mochastic repr, Lambda repr) => repr ((Real, Real) -> (Measure Real))
+t48 = lam (\x -> uniform (-5) 7 `bind` \w -> dirac ((fst_ x + snd_ x) * w))
+
 priorAsProposal :: Mochastic repr => repr (Measure (a,b)) -> repr (a,b) -> repr (Measure (a,b))
 priorAsProposal p x = bern (1/2) `bind` \c ->
                       p `bind` \x' ->
@@ -408,10 +412,6 @@ expr3 x0 x1 x2 x3 = (if_ (1
                    1
                    (x0 `app` x3 / x1 `app` x2 `app` x3 * x1 `app` x3 `app` x2
                     / x0 `app` x2))
-
--- this is expr3 that we can send to Maple
-expr4 :: (Lambda repr, Mochastic repr) => repr ((d -> Prob) -> (d -> d -> Prob) -> d -> d -> Prob)
-expr4 = lam (\x0 -> lam (\x1 -> lam (\x2 -> lam (\x3 -> expr3 x0 x1 x2 x3))))
 
 -- testKernel :: Sample IO (Real -> Measure Real)
 testKernel :: (Lambda repr, Mochastic repr) => repr (Real -> Measure Real)
