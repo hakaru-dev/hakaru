@@ -793,7 +793,7 @@ SLO := module ()
     if operator='ln' then -infinity else default_value end if;
   end proc;
 
-  # dirac < uniform < NormalD < bind < WeightedM < SUPERPOSE
+  # dirac < uniform < NormalD < bind < WeightedM < If < SUPERPOSE
   # returns false on equality
   comp2 := proc(x,y)
     if evalb(x=y) then false
@@ -827,11 +827,17 @@ SLO := module ()
       else
 	evalb(not member(op(0,y), '{Return, Uniform, NormalD, WeightedM}'));
       end if;
+    elif x::specfunc(anything, 'If') then
+      if y::specfunc(anything, 'If') then
+        error "cannot compare 2 If(s) %1, %2", x, y
+      else
+	evalb(not member(op(0,y), '{Return, Uniform, NormalD, WeightedM, If}'));
+      end if;
     elif x::specfunc(anything, 'SUPERPOSE') then
       if y::specfunc(anything, 'SUPERPOSE') then
         error "cannot compare 2 SUPERPOSE %1, %2", x, y
       else
-	evalb(not member(op(0,y), '{Return, Uniform, NormalD, WeightedM, SUPERPOSE}'));
+	evalb(not member(op(0,y), '{Return, Uniform, NormalD, WeightedM, If, SUPERPOSE}'));
       end if;
     else
       error "cannot compare: %1, %2", x, y
