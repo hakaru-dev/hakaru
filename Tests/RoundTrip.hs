@@ -330,6 +330,12 @@ flipped_norm = normal 0 1 `bind` \x ->
                normal x 1 `bind` \y ->
                dirac (pair y x)
 
+two_coins :: (Mochastic repr, Lambda repr) => repr (Measure [Real])
+two_coins = bern (1/2) `bind` \x ->
+            dirac $ (if_ x
+                     (cons 1 nil)
+                     (cons 1 (cons 2 nil)))
+
 -- pull out some of the intermediate expressions for independent study
 expr1 :: (Lambda repr, Mochastic repr) => repr (Real -> Prob)
 expr1 =  (lam $ \x0 ->
