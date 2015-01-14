@@ -12,8 +12,9 @@ defSSH, defUser, defServer, defCommand :: String
 defSSH     = "/usr/bin/ssh"
 defUser    = "ppaml"
 defServer  = "karst.uits.iu.edu"
-defCommand = "module load -s maple/18; maple"
-
+defCommand = "maple"
+-- On the server side, ~/.modules should load maple/18, and ~/.mapleinit
+-- should point to ~/hakaru/maple (updated by hakaru/maple/MapleUpdate.hs)
 
 envVarsSSH :: IO (String, String, String, String)
 envVarsSSH = do
