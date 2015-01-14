@@ -11,7 +11,7 @@ import System.Exit (ExitCode(ExitSuccess))
 defSSH, defUser, defServer, defCommand :: String
 defSSH     = "/usr/bin/ssh"
 defUser    = "ppaml"
-defServer  = "quarry.uits.indiana.edu"
+defServer  = "karst.uits.iu.edu"
 defCommand = "module load -s maple/18; maple"
 
 
