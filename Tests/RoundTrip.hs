@@ -82,8 +82,7 @@ testOther = test [
     "testGibbs2" ~: testSS [testGibbsProp2] (lam $ \x -> normal ((snd_ x) * (1/2))
                                                                 (sqrt_ 2 * (1/2))
                                              `bind` \y -> dirac (pair y (snd_ x))),
-    "testKernel" ~: testS testKernel,
-    "testKernel2" ~: testS testKernel2
+    "testKernel" ~: testSS [testKernel] testKernel2
     ]
 
 allTests :: Test
@@ -302,7 +301,7 @@ testGibbsProp1 = lam (gibbsProposal norm)
 
 testGibbsProp2 :: (Lambda repr, Mochastic repr, Integrate repr) =>
                   repr ((Real, Real) -> Measure (Real, Real))
-testGibbsProp2 = lam (liftM swap_ . gibbsProposal (liftM swap_ norm))
+testGibbsProp2 = lam (liftM swap_ . gibbsProposal (liftM swap_ norm) . swap_)
 
 mcmc :: (Mochastic repr, Integrate repr, Lambda repr,
          a ~ Expect' a, Order_ a) =>
