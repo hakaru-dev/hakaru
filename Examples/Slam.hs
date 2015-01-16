@@ -290,6 +290,7 @@ generate pt = do
   (Init l h a b phi ilt iln) <- initialVals pt
   controls <- controlData pt
   sensors <- sensorData pt
+  trueBeacons <- obstacles pt
              
   let lamExp :: (Mochastic repr, Lambda repr) => repr Step
       lamExp = lam $ \dl -> lam $ \dh -> lam $ \da -> lam $ \db -> 
@@ -305,15 +306,19 @@ generate pt = do
                   
       particle2 :: Particle
       particle2 = (unSample lamExp) l h a b [1,3] [2,4]
+
+      trueParticle :: Particle
+      trueParticle = (unSample lamExp) l h a b
+                     (map lon trueBeacons) (map lat trueBeacons)
                   
-  gen pt g sensors 0 controls 0 particle1 (PM iln ilt phi 0 0 0)
+  gen pt g sensors 0 controls 0 trueParticle (PM iln ilt phi 0 0 0)
 
 data Params = PM { vlon :: Double
                  , vlat :: Double
                  , phi :: Double
                  , vel :: Double
                  , alpha :: Double
-                 , tm :: Double }          
+                 , tm :: Double }         
 
 type Generator = V.Vector Sensor -> Int
                -> V.Vector Control -> Int
@@ -326,9 +331,8 @@ type Rand = MWC.Gen (PrimState IO)
 gen :: PathType -> Rand -> Generator
 gen pt g sensors si controls ci particle
     (PM old_vlon old_vlat old_phi old_ve old_alpha tprev)
-    = do
-  unless (si >= V.length sensors) $ do
-  return ()
+    | si >= V.length sensors = putStrLn "Finished reading input_sensor"
+    | otherwise = do
   let (Sensor tcurr snum) = sensors V.! si
   s <- fmap (\(Just (s,1)) -> s) $
        particle old_vlon old_vlat old_phi old_ve old_alpha (tcurr-tprev) 1 g
@@ -347,7 +351,7 @@ gen pt g sensors si controls ci particle
                           return (ci, old_ve, old_alpha)
                   _ -> error "Invalid sensor ID (must be 1, 2 or 3)"
   newprms >>= \(nci,nve,nal) -> gen pt g sensors (si+1) controls nci particle
-                                    (PM cvlon cvlat cphi nve nal tcurr)      
+                                (PM cvlon cvlat cphi nve nal tcurr)      
 
 plotPoint :: PathType -> Double -> Double -> IO ()
 plotPoint pt lon lat = do
@@ -520,3 +524,21 @@ testIO pt = do
   putStrLn "-------- Here are some controls -----------"
   print $ V.slice 0 20 controls
 
+-- | True beacon positions (from eval_data/eval_obstacles.csv for each path type)
+-- This is for simulation purposes only!
+-- Not to be used during inference
+data Obstacle = Obstacle {lat :: Double, lon :: Double}
+
+instance FromRecord Obstacle where
+    parseRecord v
+        | V.length v == 2 = Obstacle A.<$> v .! 0 A.<*> v .! 1
+        | otherwise = fail "wrong number of fields in eval_obstacles"
+
+evalDir :: PathType -> FilePath
+evalDir pathtype = automobileData ++ pathtype ++ "/eval_data/"
+
+obstacles :: PathType -> IO [Obstacle]
+obstacles ptype = do
+  let evalObs = evalDir ptype ++ "eval_obstacles.csv"
+  doesFileExist evalObs >>= flip unless (noFileBye evalObs)
+  decodeFileStream evalObs
