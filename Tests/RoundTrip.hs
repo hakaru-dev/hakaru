@@ -79,9 +79,9 @@ testOther :: Test
 testOther = test [
     "testGibbs1" ~: testSS [testGibbsProp1] (lam $ \x -> normal (fst_ x) 1 
                                              `bind` \y -> dirac (pair (fst_ x) y)),
-    "testGibbs2" ~: testSS [testGibbsProp2] (lam $ \x -> normal ((fst_ x) * (1/2))
+    "testGibbs2" ~: testSS [testGibbsProp2] (lam $ \x -> normal ((snd_ x) * (1/2))
                                                                 (sqrt_ 2 * (1/2))
-                                             `bind` \y -> dirac (pair (fst_ x) y)),
+                                             `bind` \y -> dirac (pair y (snd_ x))),
     "testKernel" ~: testS testKernel,
     "testKernel2" ~: testS testKernel2
     ]
