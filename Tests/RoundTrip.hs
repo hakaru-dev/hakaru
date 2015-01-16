@@ -77,6 +77,8 @@ testMeasurePair = test [
 
 testOther :: Test
 testOther = test [
+    "testGibbs0" ~: testSS [testGibbsProp0] (lam $ \x -> normal (x * (1/2))
+                                                                (sqrt_ 2 * (1/2))),
     "testGibbs1" ~: testSS [testGibbsProp1] (lam $ \x -> normal (fst_ x) 1 
                                              `bind` \y -> dirac (pair (fst_ x) y)),
     "testGibbs2" ~: testSS [testGibbsProp2] (lam $ \x -> normal ((snd_ x) * (1/2))
@@ -294,6 +296,10 @@ gibbsProposal :: (Order_ a, Expect' a ~ a,
 gibbsProposal p x = q (fst_ x) `bind` \x' -> dirac (pair (fst_ x) x')
   where d:_ = disintegrations (const p)
         q x = normalize (\lift -> case d of Disintegration f -> f unit (lift x))
+
+testGibbsProp0 :: (Lambda repr, Mochastic repr, Integrate repr) =>
+                  repr (Real -> Measure Real)
+testGibbsProp0 = lam (\y -> liftM snd_ (gibbsProposal (liftM swap_ norm) (pair y 0)))
 
 testGibbsProp1 :: (Lambda repr, Mochastic repr, Integrate repr) =>
                   repr ((Real, Real) -> Measure (Real, Real))
