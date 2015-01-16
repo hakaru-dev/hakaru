@@ -176,7 +176,6 @@ SLO := module ()
     push_in := proc(c, v)
       local actual, cof;
       cof := c;
-      if degree(v, vars)>1 then error "product?" end if;
       if v=1 then return cof end if;
       actual := thaw(v);
       if type(actual, t_binds) then
@@ -184,19 +183,52 @@ SLO := module ()
       elif type(actual, t_pw) then
         actual := simplify(actual); # might get rid of pw!
         `if`(actual::t_pw, into_pw_prod(cof, actual), cof*actual);
+      elif degree(v, vars)>1 then 
+        if type(actual, '`*`'(t_pw)) then
+          into_pw_prod(cof, merge_pw([op(actual)], mul));
+        else
+          error "product? (%1)", actual
+        end if;
       else
         error "how can (%1) not be a binder, pw or c?", v
       end if;
     end proc;
 
     simp_poly := proc(p)
-      local coef_q, vars_q, q;
+      local coef_q, vars_q, q, c0, res, heads;
       q := collect(p, all_vars , 'distributed', simplify);
+      if ldegree(q, vars)<1 then
+        # need to 'push in' an additive constants
+        c0 := tcoeff(q, vars);
+        q := q - c0; # this should work because of the collect
+      else
+        c0 := 0;
+      end if;
+      if q=0 then return c0; end if;
       coef_q := [coeffs(q, vars, 'vars_q')];
       vars_q := [vars_q];
-      # need to 'push in' additive constants?
       # need to merge things too
-      add(i,i=zip(push_in, coef_q, vars_q));
+      res := add(i,i=zip(push_in, coef_q, vars_q));
+      if nops(coef_q) > 1 then
+        # error "need to merge, not done yet (%1)", res
+        # should try to merge here
+        heads := map2(op, 0, {op(res)}); # res::`+`
+        if heads = {piecewise} then
+          res := merge_pw([op(res)], add);
+        end if;
+        c0+res
+      elif not (c0 = 0) then
+        if type(res, t_binds) then
+          subsop(1=simp(c0+op(1,res)), res)
+        elif type(res, t_pw) then
+          into_pw_plus(c0, res)
+        else
+          error "Expected a pw or binder, got (%1)", res
+        end if;
+      else # c0 = 0
+        res;
+      end if;
+
     end proc;
 
     simp_prod := proc(p)
@@ -204,14 +236,19 @@ SLO := module ()
       den, num := selectremove(type, p, anything ^ negint);
       den := 1/den;
       if degree(den, all_vars)>=1 then
+        num := simp_poly(num);
         den := simp_poly(den);
+        if den::t_pw then
+          den := into_pw_pow(-1, den);
+          simp(num*den); # this should not loop!
+        else
+          num/den; # integrals in denominator
+        end if;
       else
         num := num / den; # no need to make this fancy
-        den := 1;
+        simp_poly(num);
       end if;
 
-      num := simp_poly(num);
-      num/den;
     end proc;
 
     # keep some of the structure intact
@@ -294,8 +331,29 @@ SLO := module ()
 
   # a hack to make equations symmetric.  Session-dependent, but that's fine.
   twiddle := proc(x)
+    local l;
     if type(x,`=`) then
-      if addressof(lhs(x)) > addressof(rhs(x)) then
+      if rhs(x) = 0 then
+        try
+          if lhs(x)::`+` and nops(lhs(x))=2 then
+            l := lhs(x);
+            # Heuristic, as l may not be polynomial
+            if sign(op(1,l))=-1 then
+              twiddle(op(2,l) = -op(1,l))
+            elif sign(op(2,l)) = -1 then
+              twiddle(op(1,l) = -op(2,l))
+            elif addressof(op(1,l)) > addressof(op(2,l)) then
+              twiddle(op(2,l) = -op(1,l))
+            else
+              twiddle(op(1,l) = -op(2,l))
+            end if;
+          else
+            x
+          end if;
+        catch:
+          x
+        end try;
+      elif addressof(lhs(x)) > addressof(rhs(x)) then
         rhs(x) = lhs(x)
       else
         x
@@ -307,11 +365,11 @@ SLO := module ()
     end if;
   end proc;
 
-  merge_pw := proc(l, f)
+  merge_pw := proc(l::list, f)
     local breakpoints, sbp, i, n, res;
 
-    breakpoints := map(get_breakcond, l);
-    sbp := map(twiddle, convert(breakpoints, 'set'));
+    breakpoints := convert(map(get_breakcond, l), 'set');
+    sbp := map(twiddle, breakpoints);
     n := nops(l[1]);
     if nops(sbp)=1 then
       res := piecewise(seq(`if`(i::odd and i<n, 
