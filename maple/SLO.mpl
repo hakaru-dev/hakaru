@@ -12,7 +12,8 @@ SLO := module ()
     c; # very important: c is "global".
   local ToAST, t_binds, t_pw, into_pw_prod, into_pw_plus, myprod, do_pw,
     into_pw_pow,
-    mkProb, getCtx, instantiate, lambda_wrap, fill_table, toProp,
+    mkProb, getCtx, instantiate, lambda_wrap, find_paths,
+    fill_table, toProp,
     twiddle, myint,
     adjust_types, compute_domain, analyze_cond, isPos,
     adjust_superpose,
@@ -532,8 +533,21 @@ SLO := module ()
     end if;
   end proc;
 
+  # note that the 'nm' is a path, not necessarily of type name
+  find_paths := proc(struct, nm)
+    local lv, rv, lsubs, rsubs;
+    if struct::Pair(anything, anything) then
+      (lv, rv) := op(struct);
+      lsubs := `if`(lv::name, {lv = Fst(nm)}, find_paths(lv, Fst(nm)));
+      rsubs := `if`(rv::name, {rv = Snd(nm)}, find_paths(rv, Snd(nm)));
+      lsubs union rsubs
+    else
+      error "expected nested tuple of names, got (%1)", struct;
+    end if;
+  end proc;
+
   lambda_wrap := proc(expr, cnt, ctx)
-    local var, ee, newvar;
+    local var, ee, newvar, name_subst;
     if cnt = ctx:-gsize then
       expr
     else
@@ -541,10 +555,10 @@ SLO := module ()
       if type(var, 'name') then
         Lambda(var, lambda_wrap(expr, cnt+1, ctx));
       # cheat, for now
-      elif type(var, Pair(name, name)) then
+      elif type(var, Pair(anything, anything)) then
         newvar := gensym('pr');
-        ee := subs({var = newvar, op(1,var)=Fst(newvar), op(2,var)=Snd(newvar)},
-             expr);
+        name_subst := find_paths(var, newvar);
+        ee := subs({var = newvar} union name_subst, expr);
         Lambda(newvar, lambda_wrap(ee, cnt+1, ctx));
       else
         error "cannot yet lambda_wrap a %1", var
