@@ -77,6 +77,9 @@ testMeasurePair = test [
 
 testOther :: Test
 testOther = test [
+    "testBetaConj" ~: testSS [testBetaConj] (superpose [(1/2, beta 2 1)]),
+    "testGibbs0" ~: testSS [testGibbsProp0] (lam $ \x -> normal (x * (1/2))
+                                                                (sqrt_ 2 * (1/2))),
     "testGibbs1" ~: testSS [testGibbsProp1] (lam $ \x -> normal (fst_ x) 1 
                                              `bind` \y -> dirac (pair (fst_ x) y)),
     "testGibbs2" ~: testSS [testGibbsProp2] (lam $ \x -> normal ((snd_ x) * (1/2))
@@ -111,6 +114,12 @@ t4' :: Mochastic repr => repr (Measure (Prob, Bool))
 t4' = (uniform  0 1) `bind` \x3 -> 
       superpose [((unsafeProb x3)               ,(dirac (pair (unsafeProb x3) true))), 
                  ((unsafeProb (1 + (x3 * (-1)))),(dirac (pair (unsafeProb x3) false)))]
+
+-- testBetaConj is like t4, but we condition on the coin coming up true,
+-- so a different sampling procedure for the bias is called for.
+testBetaConj :: (Mochastic repr) => repr (Measure Prob)
+testBetaConj = d unit true
+  where d:_ = runDisintegrate (\env -> ununit env $ liftM swap_ t4)
 
 -- t5 is "the same" as t1.
 t5 :: Mochastic repr => repr (Measure ())
@@ -297,6 +306,10 @@ gibbsProposal :: (Order_ a, Expect' a ~ a,
 gibbsProposal p x = q (fst_ x) `bind` \x' -> dirac (pair (fst_ x) x')
   where d:_ = disintegrations (const p)
         q x = normalize (\lift -> case d of Disintegration f -> f unit (lift x))
+
+testGibbsProp0 :: (Lambda repr, Mochastic repr, Integrate repr) =>
+                  repr (Real -> Measure Real)
+testGibbsProp0 = lam (\y -> liftM snd_ (gibbsProposal (liftM swap_ norm) (pair y 0)))
 
 testGibbsProp1 :: (Lambda repr, Mochastic repr, Integrate repr) =>
                   repr ((Real, Real) -> Measure (Real, Real))
