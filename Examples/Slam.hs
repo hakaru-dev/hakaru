@@ -74,13 +74,17 @@ type Ten = D Five
 type Eleven = SD Five
 type ThreeSixtyOne = SD (D (D (SD (D Eleven))))             
 
-type Len = Eleven    
-shortrange :: Int
-shortrange = 11
+range :: Int
+range = 361
 
+shortrange :: Int
+shortrange = 11             
+type Len = Eleven
+    
+type ZRad = H.Real  -- ^ Observed radial distance to a beacon
+type ZInt = H.Real  -- ^ Observed light intensity (reflected) from a beacon
 type GPS = H.Real
-type ZRad = H.Real -- The observed radial distance to a beacon
-type Angle = H.Real -- Radians
+type Angle = H.Real -- ^ In radians
 type Vel = H.Real    
 type DelTime = H.Real
 type DimL = H.Real
@@ -88,7 +92,7 @@ type DimH = H.Real
 type DimA = H.Real
 type DimB = H.Real
              
-type State = ( (Repeat Len H.Real, Repeat Len H.Real) -- ^ (rads, intensities)
+type State = ( (Repeat Len ZRad, Repeat Len ZInt)
              , (Angle, (GPS, GPS)) )
 
 type Simulator repr = repr DimL -> repr DimH -> repr DimA -> repr DimB
@@ -211,25 +215,30 @@ sequence' :: (Mochastic repr) => repr [Measure a] -> repr (Measure [a])
 sequence' ls = unlist ls (dirac nil) k
     where k ma mas = bind ma $ \a ->
                      bind (sequence' mas) $ \as ->
-                     dirac (cons a as)
+                     dirac (cons a as)                           
                  
 withinLaser n b = and_ [ lessOrEq (convert (n-0.5)) tb2
                        , less tb2 (convert (n+0.5)) ]           
     where lessOrEq a b = or_ [less a b, equal a b]
           tb2 = tan (b/2)
           toRadian d = d*pi/180
-          convert = tan . toRadian . ((/) 4)
+          ratio = fromRational $ fromIntegral range / fromIntegral shortrange
+          convert = tan . toRadian . ((/) 4) . ((*) ratio)
 
 -- | Insert sensor readings (radial distance or intensity)
 -- from a list containing one reading for each beacon (reads; variable length)
 -- into the correct indices (i.e., angles derived from betas) within
--- a hakaru vector of "noisy" readings (base; length = 361)
+-- a hakaru vector of "noisy" readings (base; length = (short)range)
+laserAssigns :: (Base repr) => repr (Repeat Len H.Real) -> Int
+             -> repr [H.Real] -> repr [H.Real]
+             -> repr (Repeat Len H.Real)
 laserAssigns base n reads betas =
     let combined = zipWith_ pair reads betas
+        laserNum i = fromRational $ fromIntegral i - (fromIntegral (n-1) / 2)
         addBeacon rb (m,i) = unpair rb $ \r b ->
-                             if_ (withinLaser (fromIntegral $ i-180) b) r m
+                             if_ (withinLaser (laserNum i) b) r m
         build pd rb = fromNestedPair pd $ \p -> toNestedPair
-                      ((addBeacon rb) <$> ((,) <$> p <*> (iota n))) --[1::Int,2..])
+                      ((addBeacon rb) <$> ((,) <$> p <*> (iota 0))) --[0::Int,1..])
     in foldl_ build base combined
 
 testLaser :: IO ()
@@ -242,7 +251,7 @@ testLaser = do
       betas = cons 7 (cons 9 nil)
       result :: Sample IO (Repeat Eleven H.Real)
       result = laserAssigns base shortrange reads betas
-  print (unSample result)       
+  print (unSample result)
 
 -- | Add random noise to a hakaru list of elements
 perturb :: Mochastic repr => (repr a -> repr (Measure a1))
@@ -323,7 +332,7 @@ gen pt g sensors si controls ci particle
   let (Sensor tcurr snum) = sensors V.! si
   s <- fmap (\(Just (s,1)) -> s) $
        particle old_vlon old_vlat old_phi old_ve old_alpha (tcurr-tprev) 1 g
-  let (cblons, cblats) = fst s
+  let (czrads, czints) = fst s
       (cphi, (cvlon,cvlat)) = snd s
       newprms = case snum of
                   1 -> do putStrLn "writing to simulated_slam_out_path"
@@ -452,9 +461,6 @@ initialVals ptype = do
 data Laser = L { timestamp :: Double
                , zrads :: V.Vector Double
                , intensities :: V.Vector Double }
-
-range :: Int
-range = 361
 
 instance FromRecord Laser where
     parseRecord v
