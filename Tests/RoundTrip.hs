@@ -302,7 +302,7 @@ testGibbsProp1 = lam (gibbsProposal norm)
 
 testGibbsProp2 :: (Lambda repr, Mochastic repr, Integrate repr) =>
                   repr ((Real, Real) -> Measure (Real, Real))
-testGibbsProp2 = lam (gibbsProposal (liftM swap_ norm))
+testGibbsProp2 = lam (liftM swap_ . gibbsProposal (liftM swap_ norm))
 
 mcmc :: (Mochastic repr, Integrate repr, Lambda repr,
          a ~ Expect' a, Order_ a) =>
