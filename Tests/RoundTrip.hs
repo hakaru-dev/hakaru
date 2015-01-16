@@ -77,8 +77,11 @@ testMeasurePair = test [
 
 testOther :: Test
 testOther = test [
-    "testGibbs1" ~: testSS [testGibbsProp1] (lam $ \x -> normal x 1),
-    "testGibbs2" ~: testSS [testGibbsProp2] (lam $ \x -> normal (x * (1/2)) (sqrt_ 2 * (1/2))),
+    "testGibbs1" ~: testSS [testGibbsProp1] (lam $ \x -> normal (fst_ x) 1 
+                                             `bind` \y -> dirac (pair (fst_ x) y)),
+    "testGibbs2" ~: testSS [testGibbsProp2] (lam $ \x -> normal ((snd_ x) * (1/2))
+                                                                (sqrt_ 2 * (1/2))
+                                             `bind` \y -> dirac (pair y (snd_ x))),
     "testKernel" ~: testS testKernel,
     "testKernel2" ~: testS testKernel2
     ]
@@ -288,18 +291,18 @@ priorAsProposal p x = bern (1/2) `bind` \c ->
 gibbsProposal :: (Order_ a, Expect' a ~ a,
                   Mochastic repr, Integrate repr, Lambda repr) =>
                  Disintegrate (Measure (a,b)) ->
-                 repr a -> repr (Measure b)
-gibbsProposal p x = q x `bind` dirac
+                 repr (a, b) -> repr (Measure (a, b))
+gibbsProposal p x = q (fst_ x) `bind` \x' -> dirac (pair (fst_ x) x')
   where d:_ = disintegrations (const p)
         q x = normalize (\lift -> case d of Disintegration f -> f unit (lift x))
 
 testGibbsProp1 :: (Lambda repr, Mochastic repr, Integrate repr) =>
-                  repr (Real -> Measure Real)
+                  repr ((Real, Real) -> Measure (Real, Real))
 testGibbsProp1 = lam (gibbsProposal norm)
 
 testGibbsProp2 :: (Lambda repr, Mochastic repr, Integrate repr) =>
-                  repr (Real -> Measure Real)
-testGibbsProp2 = lam (gibbsProposal (liftM swap_ norm))
+                  repr ((Real, Real) -> Measure (Real, Real))
+testGibbsProp2 = lam (liftM swap_ . gibbsProposal (liftM swap_ norm))
 
 mcmc :: (Mochastic repr, Integrate repr, Lambda repr,
          a ~ Expect' a, Order_ a) =>
