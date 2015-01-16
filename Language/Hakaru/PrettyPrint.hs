@@ -136,6 +136,7 @@ instance Mochastic PrettyPrint where
   categorical   = applyPairs "categorical"
   poisson       = apply1 "poisson"
   gamma         = apply2 "gamma"
+  beta          = apply2 "beta"
 
 instance Integrate PrettyPrint where
   integrate a b f = apply3 "integrate" a b (fun1 f)

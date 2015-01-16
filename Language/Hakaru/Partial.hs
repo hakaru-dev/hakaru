@@ -304,6 +304,7 @@ instance (Mochastic repr) => Mochastic (Partial repr) where
   normal  mu sd = fromDynamic (liftM2 normal  (toDynamic mu) (toDynamic sd))
   poisson l     = fromDynamic (fmap   poisson (toDynamic l))
   gamma   sh sc = fromDynamic (liftM2 gamma   (toDynamic sh) (toDynamic sc))
+  beta    a  b  = fromDynamic (liftM2 beta    (toDynamic a ) (toDynamic b ))
 
 instance (Integrate repr) => Integrate (Partial repr) where
   integrate lo hi f = fromDynamic (do

@@ -132,12 +132,13 @@ instance (PrimMonad m) => Mochastic (Sample m) where
       case [ m1 | (v,(_,m1)) <- zip (scanl1 (+) ys) pms, u <= v ]
         of Sample m2 : _ -> (m2 $! p) g
            []            -> (m $! p) g)
-  gamma (Sample shape) (Sample scale) = Sample (\p g -> do
-    x <- MWCD.gamma (LF.fromLogFloat shape) (LF.fromLogFloat scale) g
-    return (Just (LF.logFloat x, p)))
   poisson (Sample l) = Sample (\p g -> do
     x <- poisson_rng (LF.fromLogFloat l) g
     return (Just (x, p)))
+  gamma (Sample shape) (Sample scale) = Sample (\p g -> do
+    x <- MWCD.gamma (LF.fromLogFloat shape) (LF.fromLogFloat scale) g
+    return (Just (LF.logFloat x, p)))
+  beta a b = gamma a 1 `bind` \x -> gamma b 1 `bind` \y -> dirac (x / (x + y))
 
 instance Integrate (Sample m) where -- just for kicks -- inaccurate
   integrate (Sample lo) (Sample hi)

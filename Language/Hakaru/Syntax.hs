@@ -9,7 +9,7 @@ module Language.Hakaru.Syntax (Real, Prob, Measure,
        Order(..), Base(..), ununit, fst_, snd_, swap_,
        and_, or_, not_, min_, max_,
        Mochastic(..), bind_, factor, pairBind, liftM, liftM2,
-       invgamma, beta, bern,
+       invgamma, bern,
        Integrate(..), Lambda(..)) where
 
 import Data.Typeable (Typeable)    
@@ -232,6 +232,13 @@ class (Base repr) => Mochastic repr where
                     dirac (unsafeProb x))])
         (superpose [])
 
+  beta :: repr Prob -> repr Prob -> repr (Measure Prob)
+  beta a b = uniform 0 1 `bind` \x ->
+             superpose [( pow_ (unsafeProb x    ) (fromProb a - 1)
+                        * pow_ (unsafeProb (1-x)) (fromProb b - 1)
+                        / betaFunc a b
+                        , dirac (unsafeProb x) )]
+
 errorEmpty :: a
 errorEmpty = error "empty mixture makes no sense"
 
@@ -256,13 +263,6 @@ liftM2 f m n = m `bind` \x -> n `bind` \y -> dirac (f x y)
 
 invgamma :: (Mochastic repr) => repr Prob -> repr Prob -> repr (Measure Prob)
 invgamma k t = liftM recip (gamma k (recip t))
-
-beta :: (Mochastic repr) => repr Prob -> repr Prob -> repr (Measure Prob)
-beta a b = uniform 0 1 `bind` \x ->
-           superpose [( pow_ (unsafeProb x    ) (fromProb a - 1)
-                      * pow_ (unsafeProb (1-x)) (fromProb b - 1)
-                      / betaFunc a b
-                      , dirac (unsafeProb x) )]
 
 bern :: (Mochastic repr) => repr Prob -> repr (Measure Bool)
 bern p = categorical [(p, true), (1-p, false)]
