@@ -30,7 +30,7 @@ testMeasureUnit = test [
 testMeasureProb :: Test
 testMeasureProb = test [
     "t2"  ~: testSS [t2] (uniform 0 1 `bind` dirac . unsafeProb),
---    "t26" ~: $ testS t26,
+    "t26" ~: testSS [t26] (dirac (1/2)),
     "t30" ~: testSS [] t30,
     "t33" ~: testSS [] t33,
     "t34" ~: testSS [t34] (dirac 3),
@@ -204,11 +204,8 @@ t25 = lam (\x -> lam (\y ->
 t25' = lam (\x -> lam (\y ->
     factor (x * exp_ (cos y) * (1/2))))
 
-{- This is not going to pass for a long time, right now it contributes too
-   much noise, just comment it out.  We can certainly come back to it later.
-t26 :: (Base repr, Lambda repr, Integrate repr) => repr Prob
-t26 = unExpect t1 `app` lam (const 1)
--}
+t26 :: (Mochastic repr, Lambda repr, Integrate repr) => repr (Measure Prob)
+t26 = dirac (unExpect t1 `app` lam (const 1))
 
 t27 :: (Mochastic repr, Lambda repr) => [repr (Real -> Measure Real)]
 t27 = map (\d -> lam (d unit)) $ runDisintegrate
