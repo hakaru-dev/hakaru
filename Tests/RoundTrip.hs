@@ -72,7 +72,9 @@ testMeasurePair = test [
     "t48"           ~: testS t48,
     "norm"          ~: testSS [] norm,
     "flipped_norm"  ~: testSS [liftM swap_ norm] flipped_norm,
-    "priorProp"     ~: testS (lam (priorAsProposal norm)),
+    "priorProp"     ~: testSS [lam (priorAsProposal norm)]
+                              (lam $ \x -> superpose [(1/2, normal 0 1         `bind` \y -> dirac (pair y (snd_ x))),
+                                                      (1/2, normal 0 (sqrt_ 2) `bind` \y -> dirac (pair (fst_ x) y))]),
     "mhPriorProp"   ~: testS (mh (priorAsProposal norm) norm),
     "testPriorProp" ~: testS testPriorProp
     ]
