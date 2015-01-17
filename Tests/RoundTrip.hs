@@ -316,20 +316,31 @@ testGibbsProp2 :: (Lambda repr, Mochastic repr, Integrate repr) =>
                   repr ((Real, Real) -> Measure (Real, Real))
 testGibbsProp2 = lam (liftM swap_ . gibbsProposal (liftM swap_ norm) . swap_)
 
+mcmc' :: (Mochastic repr, Integrate repr, Lambda repr,
+          a ~ Expect' a, Order_ a) =>
+         (forall repr'. (Mochastic repr') => repr' a -> repr' (Measure a)) ->
+         (forall repr'. (Mochastic repr') => repr' (Measure a)) ->
+         repr (a -> Measure (Prob, a))
+mcmc' q p =
+  let_ (lam (d unit)) $ \mu ->
+  lam $ \x ->
+    q x `bind` \x' ->
+    dirac (pair (mu `app` pair x' x / mu `app` pair x x') x')
+  where d:_ = density (\dummy -> ununit dummy $
+                       p `bind` \x -> q x `bind` \y -> dirac (pair x y))
+
 mcmc :: (Mochastic repr, Integrate repr, Lambda repr,
          a ~ Expect' a, Order_ a) =>
         (forall repr'. (Mochastic repr') => repr' a -> repr' (Measure a)) ->
         (forall repr'. (Mochastic repr') => repr' (Measure a)) ->
         repr (a -> Measure a)
 mcmc q p =
-  let_ (lam (d unit)) $ \mu ->
+  let_ (mcmc' q p) $ \f ->
   lam $ \x ->
-    q x `bind` \x' ->
-    let_ (min_ 1 (mu `app` pair x' x / mu `app` pair x x')) $ \ratio ->
-    bern ratio `bind` \accept ->
+    app f x `bind` \ratio_x' ->
+    unpair ratio_x' $ \ratio x' ->
+    bern (min_ 1 ratio) `bind` \accept ->
     dirac (if_ accept x' x)
-  where d:_ = density (\dummy -> ununit dummy $
-                       p `bind` \x -> q x `bind` \y -> dirac (pair x y))
 
 testPriorProp :: (Integrate repr, Mochastic repr, Lambda repr) =>
                  repr ((Real, Real) -> Measure (Real, Real))
