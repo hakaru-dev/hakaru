@@ -72,6 +72,8 @@ testMeasurePair = test [
     "t48"           ~: testS t48,
     "norm"          ~: testSS [] norm,
     "flipped_norm"  ~: testSS [liftM swap_ norm] flipped_norm,
+    "priorProp"     ~: testS (lam (priorAsProposal norm)),
+    "mhPriorProp"   ~: testS (mh (priorAsProposal norm) norm),
     "testPriorProp" ~: testS testPriorProp
     ]
 
@@ -316,12 +318,12 @@ testGibbsProp2 :: (Lambda repr, Mochastic repr, Integrate repr) =>
                   repr ((Real, Real) -> Measure (Real, Real))
 testGibbsProp2 = lam (liftM swap_ . gibbsProposal (liftM swap_ norm) . swap_)
 
-mcmc' :: (Mochastic repr, Integrate repr, Lambda repr,
-          a ~ Expect' a, Order_ a) =>
-         (forall repr'. (Mochastic repr') => repr' a -> repr' (Measure a)) ->
-         (forall repr'. (Mochastic repr') => repr' (Measure a)) ->
-         repr (a -> Measure (Prob, a))
-mcmc' q p =
+mh :: (Mochastic repr, Integrate repr, Lambda repr,
+       a ~ Expect' a, Order_ a) =>
+      (forall repr'. (Mochastic repr') => repr' a -> repr' (Measure a)) ->
+      (forall repr'. (Mochastic repr') => repr' (Measure a)) ->
+      repr (a -> Measure (Prob, a))
+mh q p =
   let_ (lam (d unit)) $ \mu ->
   lam $ \x ->
     q x `bind` \x' ->
@@ -335,7 +337,7 @@ mcmc :: (Mochastic repr, Integrate repr, Lambda repr,
         (forall repr'. (Mochastic repr') => repr' (Measure a)) ->
         repr (a -> Measure a)
 mcmc q p =
-  let_ (mcmc' q p) $ \f ->
+  let_ (mh q p) $ \f ->
   lam $ \x ->
     app f x `bind` \ratio_x' ->
     unpair ratio_x' $ \ratio x' ->
