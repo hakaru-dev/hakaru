@@ -19,7 +19,7 @@ SLO := module ()
     adjust_superpose,
     get_breakcond, merge_pw,
     MyHandler, getBinderForm, infer_type, join_type, join2type,
-    simp_sup, simp_if, into_sup, simp_rel, simp_old,
+    simp_sup, simp_if, into_sup, simp_rel, simp_pw,
     comp2, comp_algeb, compare, comp_list,
     mkRealDensity, recognize_density, density;
 
@@ -285,7 +285,7 @@ SLO := module ()
         simp(ss + simp(op(j, pw)))
       end if;
     end proc;
-    piecewise(seq(f(i),i=1..n))
+    simp_pw(piecewise(seq(f(i),i=1..n)))
   end proc;
 
   into_pw_prod := proc(fact, pw)
@@ -301,7 +301,7 @@ SLO := module ()
         simp(myprod(simp(fact) , simp(op(j, pw))))
       end if;
     end proc;
-    piecewise(seq(f(i),i=1..n))
+    simp_pw(piecewise(seq(f(i),i=1..n)))
   end proc;
 
   into_pw_pow := proc(expon, pw)
@@ -317,7 +317,7 @@ SLO := module ()
         simp(op(j, pw)^expon)
       end if;
     end proc;
-    piecewise(seq(f(i),i=1..n))
+    simp_pw(piecewise(seq(f(i),i=1..n)))
   end proc;
 
   # myprod takes care of pushing a product inside a `+`
@@ -372,9 +372,9 @@ SLO := module ()
     sbp := map(twiddle, breakpoints);
     n := nops(l[1]);
     if nops(sbp)=1 then
-      res := piecewise(seq(`if`(i::odd and i<n, 
-                               op(i,l[1]), 
-                               f(op(i,j),j=l)), i=1..n));
+      res := simp_pw(piecewise(seq(`if`(i::odd and i<n, 
+                                   op(i,l[1]), 
+                                   f(op(i,j),j=l)), i=1..n)));
       simp(res);
     else
       error "multiple piecewises with different breakpoints %1", l
@@ -404,6 +404,27 @@ SLO := module ()
     end;
   end proc;
 
+  # this just takes the = conditions and applies them
+  simp_pw := proc(pw)
+    local n, rest, aa, f;
+    n := floor(nops(pw)/2);
+    rest := evalb(2*n < nops(pw));
+    f := proc(cond, piece)
+      if cond::(name = anything) then
+        cond, eval(piece, cond)
+      elif cond::(anything = name) then
+        cond, eval(piece, op(2,cond) = op(1,cond))
+      else
+        cond, piece
+      end if
+    end proc;
+    aa := seq(f(op(2*i+1,pw), op(2*i+2,pw)), i = 0..n-1);
+    if rest then
+      piecewise(aa, op(-1,pw))
+    else
+      piecewise(aa)
+    end if;
+  end proc;
 
   # this assumes we are doing pw of measures.
   do_pw := proc(l, ctx)
