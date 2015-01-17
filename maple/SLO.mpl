@@ -715,7 +715,7 @@ SLO := module ()
       'Bool'
     elif type(e, anything^integer) then
       infer_type(op(1,e), ctx);
-    elif type(e, {'exp'(anything), 'cos'(anything), 'sin'(anything)}) then
+    elif type(e, specfunc(anything, {'exp', 'sin','cos','GAMMA'})) then
       typ := infer_type(op(1,e), ctx); # need to make sure it is inferable
       'Real' # someone else will make sure to cast this correctly
     elif type(e, anything^fraction) then
@@ -933,6 +933,8 @@ SLO := module ()
       'real'
     elif type(e, 'Bind'(anything, name = range, anything)) then
       RealRange(op([2,2,1], e), op([2,2,2], e))
+    elif type(e, 'WeightedM'(anything, anything)) then
+      compute_domain(op(2,e))
     else
       error "compute domain: %1", e;
     end if;
@@ -1059,7 +1061,7 @@ SLO := module ()
 
   # density recognizer
   recognize_density := proc(dens, var)
-    local de, init, diffop, Dx, a0, a1, scale, at0, mu, sigma;
+    local de, init, diffop, Dx, a0, a1, scale, at0, mu, sigma, a, b;
     de := gfun[holexprtodiffeq](dens, f(var));
     init, de := selectremove(type, de, `=`);
     if nops(init)=1 and nops(de)=1 then

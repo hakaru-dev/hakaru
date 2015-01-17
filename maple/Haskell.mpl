@@ -208,6 +208,7 @@ bi["ln_"] := ufunc("log_");
 bi["cos"] := ufunc("cos");
 bi["sin"] := ufunc("sin");
 bi["erf"] := ufunc("erf");
+bi["GAMMA"] := ufunc("gamma");
 
 bi["If"] := proc()
   ASSERT(_npassed>0);
