@@ -999,15 +999,20 @@ SLO := module ()
       de := de[1];
       diffop := DEtools[de2diffop](de, f(var), [Dx, var]);
       if degree(diffop, Dx) = 1 then
-	a0 := coeff(diffop, Dx, 0);
-	a1 := coeff(diffop, Dx, 1);
-	if degree(a0, var) = 1 and degree(a1, var) = 0 then
+        a0 := coeff(diffop, Dx, 0);
+        a1 := coeff(diffop, Dx, 1);
+        if degree(a0, var) = 1 and degree(a1, var) = 0 then
           scale := coeff(a0, var, 1);
           mu := -coeff(a0, var, 0)/scale;
           sigma := sqrt(coeff(a1, var, 0)/scale);
           at0 := simplify(eval(init/density[NormalD](mu, sigma, 0)));
           return WeightedM(at0, NormalD(mu,sigma));
-	end if;
+        elif degree(a0,var)=1 and degree(a1,var)=2 and normal(var^2-var - a1)=0 then
+          a := coeff(a0, var, 0) + 1;
+          b := -coeff(a0, var, 1) - a + 2;
+          # BetaD(a, b)
+          NULL;
+        end if;
       end if;
     end if;
     NULL;
