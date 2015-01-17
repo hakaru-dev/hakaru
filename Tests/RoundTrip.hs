@@ -36,7 +36,8 @@ testMeasureProb = test [
     "t34" ~: testSS [t34] (dirac 3),
     "t35" ~: testSS [t35] (lam (\x -> if_ (less x 4) (dirac 3) (dirac 5))),
     "t38" ~: testSS [] t38,
-    "t42" ~: testSS [t42] (dirac 1)
+    "t42" ~: testSS [t42] (dirac 1),
+    "t49" ~: testS t49
     ]
 
 testMeasureReal :: Test
@@ -292,6 +293,9 @@ t47 =
 
 t48 :: (Mochastic repr, Lambda repr) => repr ((Real, Real) -> (Measure Real))
 t48 = lam (\x -> uniform (-5) 7 `bind` \w -> dirac ((fst_ x + snd_ x) * w))
+
+t49 :: (Mochastic repr) => repr (Measure Prob)
+t49 = gamma 0.01 0.01
 
 priorAsProposal :: Mochastic repr => repr (Measure (a,b)) -> repr (a,b) -> repr (Measure (a,b))
 priorAsProposal p x = bern (1/2) `bind` \c ->
