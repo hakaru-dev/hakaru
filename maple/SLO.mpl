@@ -10,21 +10,23 @@
 SLO := module ()
   export ModuleApply, AST, simp, flip_cond,
     c; # very important: c is "global".
-  local ToAST, t_binds, t_pw, into_pw_prod, into_pw_plus, myprod, do_pw,
-    into_pw_pow,
+  local ToAST, t_binds, t_pw, t_rel,
+    into_pw_prod, into_pw_plus, myprod, do_pw, into_pw_pow,
     mkProb, getCtx, instantiate, lambda_wrap, find_paths,
     fill_table, toProp,
-    twiddle, myint,
+    twiddle, myint, myint_pw,
     adjust_types, compute_domain, analyze_cond, isPos,
     adjust_superpose,
     get_breakcond, merge_pw,
     MyHandler, getBinderForm, infer_type, join_type, join2type,
-    simp_sup, simp_if, into_sup, simp_rel, simp_pw,
+    simp_sup, simp_if, into_sup, simp_rel, 
+    simp_pw, simp_pw_equal, simp_pw3,
     comp2, comp_algeb, compare, comp_list,
     mkRealDensity, recognize_density, density;
 
   t_binds := 'specfunc(anything, {int, Int, sum, Sum})';
   t_pw := 'specfunc(anything, piecewise)';
+  t_rel := {`<`,`<=`,`=`,`<>`};
 
   ModuleApply := proc(spec::Typed(anything,anything))
     local expr, typ, glob, gsiz, ctx, r, inp, meastyp, res, gnumbering;
@@ -35,6 +37,8 @@ SLO := module ()
                 'gctx' = glob, 'gnum' = gnumbering, 'gsize' = gsiz);
     inp := instantiate(expr, r, 0, typ);
     try
+      # be context sensitive for this pass too:
+      _EnvBinders := {};
       NumericEventHandler(division_by_zero = MyHandler);
       res := HAST(simp(eval(simp(eval(inp(c), 'if_'=piecewise)), Int=myint)), r);
     catch "Wrong kind of parameters in piecewise":
@@ -179,6 +183,7 @@ SLO := module ()
       if v=1 then return cof end if;
       actual := thaw(v);
       if type(actual, t_binds) then
+        _EnvBinders := _EnvBinders union {op([2,1], actual)};
         op(0,actual)(simp(cof*op(1,actual)), op(2,actual))
       elif type(actual, t_pw) then
         actual := simplify(actual); # might get rid of pw!
@@ -198,7 +203,7 @@ SLO := module ()
       local coef_q, vars_q, q, c0, res, heads;
       q := collect(p, all_vars , 'distributed', simplify);
       if ldegree(q, vars)<1 then
-        # need to 'push in' an additive constants
+        # need to 'push in' additive constant sometimes
         c0 := tcoeff(q, vars);
         q := q - c0; # this should work because of the collect
       else
@@ -210,16 +215,15 @@ SLO := module ()
       # need to merge things too
       res := add(i,i=zip(push_in, coef_q, vars_q));
       if nops(coef_q) > 1 then
-        # error "need to merge, not done yet (%1)", res
-        # should try to merge here
         heads := map2(op, 0, {op(res)}); # res::`+`
         if heads = {piecewise} then
           res := merge_pw([op(res)], add);
         end if;
         c0+res
       elif not (c0 = 0) then
+        # don't push additive constants into (usually infinite!) integrals
         if type(res, t_binds) then
-          subsop(1=simp(c0+op(1,res)), res)
+          c0+res;
         elif type(res, t_pw) then
           into_pw_plus(c0, res)
         else
@@ -390,7 +394,7 @@ SLO := module ()
   simp_rel := proc(r)
     if r::name then
       r
-    elif r::{`<`,`<=`,`=`,`<>`} then
+    elif r::t_rel then
       # special case
       if r = ('Right' = 'Left') then
         false
@@ -404,25 +408,79 @@ SLO := module ()
     end;
   end proc;
 
-  # this just takes the = conditions and applies them
-  simp_pw := proc(pw)
+  # takes the = conditions and applies & simplifies them
+  simp_pw_equal := proc(pw)
     local n, rest, aa, f;
     n := floor(nops(pw)/2);
     rest := evalb(2*n < nops(pw));
     f := proc(cond, piece)
-      if cond::(name = anything) then
-        cond, eval(piece, cond)
+      if cond::(name = name) then
+        if member(op(1,cond), _EnvBinders) or 
+           member(op(2,cond), _EnvBinders) then
+          NULL
+        else
+          cond, eval(piece, cond)
+        end if
+      elif cond::(name = anything) then
+        if member(op(1,cond), _EnvBinders) then
+          NULL
+        else
+          cond, eval(piece, cond)
+        end if;
       elif cond::(anything = name) then
-        cond, eval(piece, op(2,cond) = op(1,cond))
+        if member(op(2,cond), _EnvBinders) then
+          NULL
+        else
+          cond, eval(piece, op(2,cond) = op(1,cond))
+        end if
       else
         cond, piece
       end if
     end proc;
     aa := seq(f(op(2*i+1,pw), op(2*i+2,pw)), i = 0..n-1);
-    if rest then
-      piecewise(aa, op(-1,pw))
+    if aa=NULL then
+      if rest then 
+        op(-1, pw) 
+      else 
+        error "pw will all false conditions (%1)", pw
+      end if
     else
-      piecewise(aa)
+      `if`(rest, piecewise(aa, op(-1,pw)), piecewise(aa));
+    end if;
+  end proc;
+
+  # also takes pw conditions and distributes them, for n = 1
+  simp_pw := proc(pw)
+    local res, cond, l, r, b1, b2, b3, rel, new_cond;
+    res := simp_pw_equal(pw);
+    if nops(res)=3 then
+      cond := op(1,res);
+      if cond::t_rel and (op(1,cond)::t_pw or op(2,cond)::t_pw) then
+        l := op(1, cond);
+        r := op(2, cond);
+        if (l::t_pw) and (r::t_pw) then
+          error "double-pw condition (%1)", cond;
+        end if;
+        if l::t_pw then
+          rel := x -> op(0,cond)(x,r);
+          b1 := rel(op(2,l));
+          b2 := op(1,l);
+          b3 := rel(op(3,l));
+          new_cond := Or(And(b2, b1), And(flip_cond(b2), b3));
+          piecewise(new_cond, op(2, res), op(3, res))
+        else
+          rel := x -> op(0,cond)(l,x);
+          b1 := rel(op(2,r));
+          b2 := op(1,r);
+          b3 := rel(op(3,r));
+          new_cond := Or(And(b2, b1), And(flip_cond(b2), b3));
+          piecewise(new_cond, op(2, res), op(3, res))
+        end if;
+      else
+        res
+      end if;
+    else
+      res
     end if;
   end proc;
 
@@ -844,6 +902,15 @@ SLO := module ()
     if type(cond, `<`) then op(2,cond) <= op(1,cond)
     elif type(cond, `<=`) then op(2,cond) < op(1,cond)
     elif type(cond, `=`) then op(1,cond) <> op(2,cond)
+    elif type(cond, `<>`) then op(1,cond) = op(2,cond)
+    elif cond::specfunc(anything, 'And') and nops(cond)=2 then
+      Or(flip_cond(op(1,cond)), flip_cond(op(2,cond)))
+    elif cond::specfunc(anything, 'Or') and nops(cond)=2 then
+      And(flip_cond(op(1,cond)), flip_cond(op(2,cond)))
+    elif cond::specfunc(anything, 'Not') then
+      op(1,cond)
+    elif cond::name then
+      'Not'(cond)
     else
       error "Don't know how to deal with condition %1", cond
     end if;
@@ -922,7 +989,8 @@ SLO := module ()
       end if;
     elif x::specfunc(anything, 'If') then
       if y::specfunc(anything, 'If') then
-        error "cannot compare 2 If(s) %1, %2", x, y
+        # cheat!
+        evalb( length(x) < length(y) )
       else
 	evalb(not member(op(0,y), '{Return, Uniform, NormalD, WeightedM, If}'));
       end if;
@@ -1054,13 +1122,50 @@ SLO := module ()
     inds := indets(expr, specfunc(anything,c));
     inds := select(depends, inds, var);
     if inds={} then 
-      int(expr, b) 
-    elif type(expr, specfunc(anything, 'piecewise')) then
+      if type(expr, t_binds) then
+        subsop(1=myint(op(1,expr),b), expr)
+      else
+        int(expr, b) 
+      end if;
+    elif type(expr, t_pw) then
       # what is really needed here is to 'copy'
       # PiecewiseTools:-IntImplementation:-Definite
-      int(expr, b) 
+      myint_pw(expr, b)
+    elif type(expr, t_binds) then
+      # go in?
+      Int(expr, b) 
     else 
       Int(expr, b) 
+    end if;
+  end proc;
+
+  # need to deal better with other boundaries
+  myint_pw := proc(expr, b :: name = identical(-infinity..infinity))
+    local rels, n, rest, i, res, var, lower, cond;
+    n := floor(nops(expr)/2);
+    rels := [seq(op(2*i-1, expr), i=1..n)];
+    rest := evalb(2*n < nops(expr));
+    if type(rels, list({`<`, `<=`})) and indets(rels) = {op(1,b)} then
+      res := 0; lower := -infinity; var := op(1,b);
+      for i from 1 to n do
+        cond := op(2*i-1, expr);
+        if cond::{identical(var) < anything, identical(var) <= anything} then
+          res := res + myint(op(2*i, expr), var = lower .. op(2,cond));
+          lower := op(2,cond);
+        elif cond::{anything < identical(var), anything <= identical(var)} then
+          res := res + myint(op(2*i, expr), var = op(1,cond) .. infinity);
+          lower := infinity;
+        else
+          error "cannot handle condition (%1) while integrating pw", cond;
+        end if;
+      end do;
+      if rest then
+        if lower = infinity then error "What the hey?" end if;
+        res := res + myint(op(-1, expr), lower..infinity);
+      end if;
+      res
+    else
+      Int(expr, b)
     end if;
   end proc;
 end;
