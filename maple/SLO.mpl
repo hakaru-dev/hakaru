@@ -11,7 +11,7 @@ SLO := module ()
   export ModuleApply, AST, simp, flip_cond,
     c; # very important: c is "global".
   local ToAST, t_binds, t_pw, t_rel,
-    into_pw_prod, into_pw_plus, myprod, do_pw, into_pw_pow,
+    into_pw, myprod, do_pw,
     mkProb, getCtx, instantiate, lambda_wrap, find_paths,
     fill_table, toProp,
     twiddle, myint, myint_pw,
@@ -160,10 +160,12 @@ SLO := module ()
   simp := proc(e)
     option remember, system;
     local binds, pw, subst, csubst, ee, vars, all_vars, num, den, push_in, i,
-      cs, simp_poly, simp_prod;
+      cs, simp_poly, simp_prod, simp_npw;
 
+    simp_npw := zz -> `if`(op(1,zz)::t_pw, into_pw(SLO:-c,op(1,zz)), zz);
+    if e=undefined or e::numeric then return e end if;
     cs := indets(e, specfunc(anything, c));
-    csubst := map(x -> x = simplify(value(x)), cs);
+    csubst := map(x -> x = simp_npw(map(simp, value(x))), cs);
     ee := eval(e, csubst);
     if not type(csubst, set(specfunc(anything, c) = specfunc(anything,c))) then
       return simp(ee)
@@ -187,10 +189,10 @@ SLO := module ()
         op(0,actual)(simp(cof*op(1,actual)), op(2,actual))
       elif type(actual, t_pw) then
         actual := simplify(actual); # might get rid of pw!
-        `if`(actual::t_pw, into_pw_prod(cof, actual), cof*actual);
+        `if`(actual::t_pw, into_pw((x -> cof * x), actual), cof*actual);
       elif degree(v, vars)>1 then 
         if type(actual, '`*`'(t_pw)) then
-          into_pw_prod(cof, merge_pw([op(actual)], mul));
+          into_pw((x -> cof * x), merge_pw([op(actual)], mul));
         else
           error "product? (%1)", actual
         end if;
@@ -225,7 +227,7 @@ SLO := module ()
         if type(res, t_binds) then
           c0+res;
         elif type(res, t_pw) then
-          into_pw_plus(c0, res)
+          into_pw((x -> c0 + x), res)
         else
           error "Expected a pw or binder, got (%1)", res
         end if;
@@ -243,7 +245,7 @@ SLO := module ()
         num := simp_poly(num);
         den := simp_poly(den);
         if den::t_pw then
-          den := into_pw_pow(-1, den);
+          den := into_pw((x -> 1/x), den);
           simp(num*den); # this should not loop!
         else
           num/den; # integrals in denominator
@@ -258,67 +260,40 @@ SLO := module ()
     # keep some of the structure intact
     if type(ee, `*`) then
       ee := simp_prod(ee);
-    else
-      if type(ee, polynom(anything, vars)) then
-        ee := simp_poly(ee);
-      elif type(ee, ratpoly(anything, vars)) then
-        ee := normal(ee);
-        if type(ee, `*`) then
-          ee := simp_prod(ee);
-        else
-          ee := simp_poly(numer(ee))/simp_poly(denom(ee));
-        end if;
+    elif type(ee, polynom(anything, vars)) then
+      ee := simp_poly(ee);
+    elif type(ee, ratpoly(anything, vars)) then
+      ee := normal(ee);
+      if type(ee, `*`) then
+        ee := simp_prod(ee);
       else
-        error "ee (%1) should be ratpoly in (%2)", ee, vars;
+        ee := simp_poly(numer(ee))/simp_poly(denom(ee));
       end if;
+    elif type(ee, 'Pair'(anything, anything)) then
+      ee := map(x -> simp(thaw(x)), ee);
+      if op(1,ee)::t_pw then
+        ee := into_pw((x -> Pair(x, op(2,ee))), op(1,ee))
+      elif op(2,ee)::t_pw then
+        ee := into_pw((x -> Pair(op(1,ee), x)), op(2,ee))
+      end if;
+    else
+      error "ee (%1) should be ratpoly in (%2)", ee, vars;
     end if;
 
     ee;
   end proc;
 
-  into_pw_plus := proc(ss, pw)
+  into_pw := proc(g, pw)
     local n, f;
 
     n := nops(pw);
     f := proc(j)
       if j=n then # last one is special, always a value
-        simp(ss + simp(op(j, pw)))
+        simp(g(simp(op(j, pw))))
       elif type(j,'odd') then # a condition
         simp_rel( op(j, pw) )
       else # j even
-        simp(ss + simp(op(j, pw)))
-      end if;
-    end proc;
-    simp_pw(piecewise(seq(f(i),i=1..n)))
-  end proc;
-
-  into_pw_prod := proc(fact, pw)
-    local n, f;
-
-    n := nops(pw);
-    f := proc(j)
-      if j=n then # last one is special, always a value
-        simp(myprod(fact, simp(op(j, pw))))
-      elif type(j,'odd') then # a condition
-        simp_rel( op(j, pw) )
-      else # j even
-        simp(myprod(simp(fact) , simp(op(j, pw))))
-      end if;
-    end proc;
-    simp_pw(piecewise(seq(f(i),i=1..n)))
-  end proc;
-
-  into_pw_pow := proc(expon, pw)
-    local n, f;
-
-    n := nops(pw);
-    f := proc(j)
-      if j=n then # last one is special, always a value
-        simp(op(j, pw)^expon)
-      elif type(j,'odd') then # a condition
-        simp_rel( op(j, pw) )
-      else # j even
-        simp(op(j, pw)^expon)
+        simp(g(simp(op(j, pw))))
       end if;
     end proc;
     simp_pw(piecewise(seq(f(i),i=1..n)))
@@ -715,9 +690,12 @@ SLO := module ()
       'Bool'
     elif type(e, anything^integer) then
       infer_type(op(1,e), ctx);
-    elif type(e, specfunc(anything, {'exp', 'sin','cos','GAMMA'})) then
+    elif type(e, specfunc(anything, {'exp', 'sin','cos'})) then
       typ := infer_type(op(1,e), ctx); # need to make sure it is inferable
       'Real' # someone else will make sure to cast this correctly
+    elif type(e, specfunc(anything, {'GAMMA' })) then
+      typ := infer_type(op(1,e), ctx); # need to make sure it is inferable
+      'Prob'
     elif type(e, anything^fraction) then
       infer_type(op(1,e), ctx); # need to make sure it is inferable
       # if it is <0, weird things will happen
@@ -1120,6 +1098,7 @@ SLO := module ()
 # more hacks to get around Maple weaknesses
   myint := proc(expr, b)
     local var, inds;
+    _EnvBinders := _EnvBinders union {op(1,b)};
     var := op(1,b);
     inds := indets(expr, specfunc(anything,c));
     inds := select(depends, inds, var);
