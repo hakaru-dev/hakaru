@@ -329,26 +329,28 @@ mh :: (Mochastic repr, Integrate repr, Lambda repr,
       (forall repr'. (Mochastic repr') => repr' a -> repr' (Measure a)) ->
       (forall repr'. (Mochastic repr') => repr' (Measure a)) ->
       repr (a -> Measure (Prob, a))
-mh q p =
+mh proposal target =
   let_ (lam (d unit)) $ \mu ->
-  lam $ \x ->
-    q x `bind` \x' ->
-    dirac (pair (mu `app` pair x' x / mu `app` pair x x') x')
+  lam $ \old ->
+    proposal old `bind` \new ->
+    dirac (pair (mu `app` pair new old / mu `app` pair old new) new)
   where d:_ = density (\dummy -> ununit dummy $
-                       p `bind` \x -> q x `bind` \y -> dirac (pair x y))
+                       target `bind` \old ->
+                       proposal old `bind` \new ->
+                       dirac (pair old new))
 
 mcmc :: (Mochastic repr, Integrate repr, Lambda repr,
          a ~ Expect' a, Order_ a) =>
         (forall repr'. (Mochastic repr') => repr' a -> repr' (Measure a)) ->
         (forall repr'. (Mochastic repr') => repr' (Measure a)) ->
         repr (a -> Measure a)
-mcmc q p =
-  let_ (mh q p) $ \f ->
-  lam $ \x ->
-    app f x `bind` \ratio_x' ->
-    unpair ratio_x' $ \ratio x' ->
+mcmc proposal target =
+  let_ (mh proposal target) $ \f ->
+  lam $ \old ->
+    app f old `bind` \ratio_new ->
+    unpair ratio_new $ \ratio new ->
     bern (min_ 1 ratio) `bind` \accept ->
-    dirac (if_ accept x' x)
+    dirac (if_ accept new old)
 
 testPriorProp :: (Integrate repr, Mochastic repr, Lambda repr) =>
                  repr ((Real, Real) -> Measure (Real, Real))
