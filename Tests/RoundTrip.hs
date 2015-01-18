@@ -76,7 +76,20 @@ testMeasurePair = test [
     "priorProp"     ~: testSS [lam (priorAsProposal norm)]
                               (lam $ \x -> superpose [(1/2, normal 0 1         `bind` \y -> dirac (pair y (snd_ x))),
                                                       (1/2, normal 0 (sqrt_ 2) `bind` \y -> dirac (pair (fst_ x) y))]),
-    "mhPriorProp"   ~: testS (mh (priorAsProposal norm) norm),
+    "mhPriorProp"   ~: testSS [mh (priorAsProposal norm) norm]
+                              (lam $ \old ->
+                               superpose [(1 / 2,
+                                           normal 0 1 `bind` \x1 ->
+                                           dirac (pair (pair x1 (snd_ old))
+                                                       (exp_ ((x1 * (-1) + fst_ old)
+                                                              * (fst_ old + snd_ old * (-2) + x1)
+                                                              * (1 / 2))))),
+                                          (1 / 2,
+                                           normal 0 (sqrt_ 2) `bind` \x1 ->
+                                           dirac (pair (pair (fst_ old) x1)
+                                                       (exp_ ((x1 * (-1) + snd_ old)
+                                                              * (snd_ old * (-1) + fst_ old * 4 + x1 * (-1))
+                                                              * ((-1) / 4)))))]),
     "testPriorProp" ~: testS testPriorProp
     ]
 
@@ -328,12 +341,12 @@ mh :: (Mochastic repr, Integrate repr, Lambda repr,
        a ~ Expect' a, Order_ a) =>
       (forall repr'. (Mochastic repr') => repr' a -> repr' (Measure a)) ->
       (forall repr'. (Mochastic repr') => repr' (Measure a)) ->
-      repr (a -> Measure (Prob, a))
+      repr (a -> Measure (a, Prob))
 mh proposal target =
   let_ (lam (d unit)) $ \mu ->
   lam $ \old ->
     proposal old `bind` \new ->
-    dirac (pair (mu `app` pair new old / mu `app` pair old new) new)
+    dirac (pair new (mu `app` pair new old / mu `app` pair old new))
   where d:_ = density (\dummy -> ununit dummy $
                        target `bind` \old ->
                        proposal old `bind` \new ->
@@ -347,8 +360,8 @@ mcmc :: (Mochastic repr, Integrate repr, Lambda repr,
 mcmc proposal target =
   let_ (mh proposal target) $ \f ->
   lam $ \old ->
-    app f old `bind` \ratio_new ->
-    unpair ratio_new $ \ratio new ->
+    app f old `bind` \new_ratio ->
+    unpair new_ratio $ \new ratio ->
     bern (min_ 1 ratio) `bind` \accept ->
     dirac (if_ accept new old)
 
