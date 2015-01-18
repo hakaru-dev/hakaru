@@ -1229,6 +1229,8 @@ Bind := proc(w, var, meas)
     WeightedM(op(1,meas), w)
   elif var::`=` and op(2,var) = (-infinity)..infinity then
     Bind(w, op(1,var), meas)
+  elif w :: 'WeightedM'(anything, anything) then
+    WeightedM(op(1,w), Bind(op(2,w), var, meas));
   else
     'Bind'(w, var, meas)
   end if;
