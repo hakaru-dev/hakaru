@@ -524,13 +524,15 @@ SLO := module ()
       erf_(mkProb(op(1,w)));
     elif type(w, 'ln'(anything)) then
       error "mkProb ln: %1", w;
-    elif type(w, anything^fraction) then
+    elif type(w, anything^{identical(1/2), identical(-1/2)}) then
       typ := infer_type(op(1,w), ctx);
       if member(typ,{'Prob','Number'}) then 
         w 
       else 
         mkProb(op(1,w), ctx) ^ op(2,w) 
       end if;
+    elif type(w, anything^fraction) then # won't be sqrt
+      unsafeProb(w);
     elif type(w, 'unsafeProb'(anything)) then
       error "there should be no unsafeProb in %1", w
     else
