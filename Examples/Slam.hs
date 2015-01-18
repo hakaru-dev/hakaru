@@ -28,7 +28,8 @@ import Control.Monad.Primitive (PrimState, PrimMonad)
 import Text.Printf    
 import System.Exit    
 import System.Directory
-import System.Environment    
+import System.Environment
+import System.FilePath
 import Language.Hakaru.Util.Csv (decodeFileStream)
 import Data.Csv
 import qualified Control.Applicative as A
@@ -226,7 +227,7 @@ withinLaser n b = and_ [ lessOrEq (convert (n-0.5)) tb2
           convert = tan . toRadian . ((/) 4) . ((*) ratio)
 
 -- | Insert sensor readings (radial distance or intensity)
--- from a list containing one reading for each beacon (reads; variable length)
+-- from a list containing one reading for each beacon (reads; length = n)
 -- into the correct indices (i.e., angles derived from betas) within
 -- a hakaru vector of "noisy" readings (base; length = (short)range)
 laserAssigns :: (Base repr) => repr (Repeat Len H.Real) -> Int
@@ -238,20 +239,8 @@ laserAssigns base n reads betas =
         addBeacon rb (m,i) = unpair rb $ \r b ->
                              if_ (withinLaser (laserNum i) b) r m
         build pd rb = fromNestedPair pd $ \p -> toNestedPair
-                      ((addBeacon rb) <$> ((,) <$> p <*> (iota 0))) --[0::Int,1..])
+                      ((addBeacon rb) <$> ((,) <$> p <*> (iota 0)))
     in foldl_ build base combined
-
-testLaser :: IO ()
-testLaser = do
-  let base :: (Base repr) => repr (Repeat Eleven H.Real)
-      base =  toNestedPair (HV.pure 10)
-      reads :: (Base repr) => repr [H.Real]
-      reads = cons 30 (cons 40 nil)
-      betas :: (Base repr) => repr [H.Real]
-      betas = cons 7 (cons 9 nil)
-      result :: Sample IO (Repeat Eleven H.Real)
-      result = laserAssigns base shortrange reads betas
-  print (unSample result)
 
 -- | Add random noise to a hakaru list of elements
 perturb :: Mochastic repr => (repr a -> repr (Measure a1))
@@ -284,13 +273,13 @@ type Particle = Sample' IO ( GPS -> GPS -> Angle
                              -> DelTime
                              -> Measure State )
                                     
-generate :: PathType -> IO ()
-generate pt = do
+generate :: FilePath -> FilePath -> Maybe FilePath -> IO ()
+generate input output eval = do
   g <- MWC.createSystemRandom
-  (Init l h a b phi ilt iln) <- initialVals pt
-  controls <- controlData pt
-  sensors <- sensorData pt
-  trueBeacons <- obstacles pt
+  (Init l h a b phi ilt iln) <- initialVals input
+  controls <- controlData input
+  sensors <- sensorData input
+  (lons, lats) <- genBeacons g eval
              
   let lamExp :: (Mochastic repr, Lambda repr) => repr Step
       lamExp = lam $ \dl -> lam $ \dh -> lam $ \da -> lam $ \db -> 
@@ -308,10 +297,18 @@ generate pt = do
       particle2 = (unSample lamExp) l h a b [1,3] [2,4]
 
       trueParticle :: Particle
-      trueParticle = (unSample lamExp) l h a b
-                     (map lon trueBeacons) (map lat trueBeacons)
+      trueParticle = (unSample lamExp) l h a b lons lats
                   
-  gen pt g sensors 0 controls 0 trueParticle (PM iln ilt phi 0 0 0)
+  gen output g sensors 0 controls 0 trueParticle (PM iln ilt phi 0 0 0)
+
+type Rand = MWC.Gen (PrimState IO)
+      
+genBeacons :: Rand -> Maybe FilePath
+           -> IO ([Double],[Double]) -- ^ longitudes, latitudes
+genBeacons g Nothing         = return ([1,3],[2,4])
+genBeacons g (Just evalPath) = do
+  trueBeacons <- obstacles evalPath
+  return (map lon trueBeacons , map lat trueBeacons)
 
 data Params = PM { vlon :: Double
                  , vlat :: Double
@@ -325,22 +322,20 @@ type Generator = V.Vector Sensor -> Int
                -> Particle
                -> Params
                -> IO ()                  
-
-type Rand = MWC.Gen (PrimState IO)
     
-gen :: PathType -> Rand -> Generator
-gen pt g sensors si controls ci particle
+gen :: FilePath -> Rand -> Generator
+gen out g sensors si controls ci particle
     (PM old_vlon old_vlat old_phi old_ve old_alpha tprev)
     | si >= V.length sensors = putStrLn "Finished reading input_sensor"
     | otherwise = do
   let (Sensor tcurr snum) = sensors V.! si
   s <- fmap (\(Just (s,1)) -> s) $
        particle old_vlon old_vlat old_phi old_ve old_alpha (tcurr-tprev) 1 g
-  let (czrads, czints) = fst s
+  let (czrads, czints) = (\(a,b) -> (toList a, toList b)) $ fst s
       (cphi, (cvlon,cvlat)) = snd s
       newprms = case snum of
                   1 -> do putStrLn "writing to simulated_slam_out_path"
-                          plotPoint pt cvlon cvlat
+                          plotPoint out cvlon cvlat
                           return (ci, old_ve, old_alpha)
                   2 -> do when (ci >= V.length controls) $
                                error "input_control has fewer data than\
@@ -348,52 +343,43 @@ gen pt g sensors si controls ci particle
                           let (Control _ nv nalph) = controls V.! ci
                           return (ci+1, nv, nalph)
                   3 -> do putStrLn "writing to simulated_input_laser"
+                          plotReads out czrads czints
                           return (ci, old_ve, old_alpha)
                   _ -> error "Invalid sensor ID (must be 1, 2 or 3)"
-  newprms >>= \(nci,nve,nal) -> gen pt g sensors (si+1) controls nci particle
-                                (PM cvlon cvlat cphi nve nal tcurr)      
+  newprms >>= \(nci,nve,nal) -> gen out g sensors (si+1) controls nci particle
+                                (PM cvlon cvlat cphi nve nal tcurr)
 
-plotPoint :: PathType -> Double -> Double -> IO ()
-plotPoint pt lon lat = do
-  dExist <- doesDirectoryExist (outputDir pt)
-  unless dExist $ createDirectory (outputDir pt)
-  let fp = outputDir pt ++ pt ++ "_path.txt"
+plotPoint :: FilePath -> Double -> Double -> IO ()
+plotPoint out lon lat = do
+  dExist <- doesDirectoryExist out
+  unless dExist $ createDirectory out
+  let fp = out </> "slam_out_path.txt"
   appendFile fp $ show lon ++ "," ++ show lat ++ "\n"
 
--- pt :: PathType
--- pt = "4_circle"
+plotReads :: FilePath -> [Double] -> [Double] -> IO ()
+plotReads out rads ints = do
+  dExist <- doesDirectoryExist out
+  unless dExist $ createDirectory out
+  let file = out </> "slam_simulated_laser.txt"
+  go file (rads ++ ints)
+    where go fp []     = appendFile fp "\n"
+          go fp [l]    = appendFile fp (show l)
+          go fp (l:ls) = appendFile fp ((show l) ++ ",") >> go fp ls
 
 main :: IO ()
-main = usageExit -- do
-  -- args <- getArgs
-  -- case args of
-  --   [] -> usageExit
-  --   [ty] -> if not (elem ty ptypes)
-  --           then usageExit
-  --           else generate ty
-
-ptypes :: [String]
-ptypes = ["1_straight","2_bend","3_curvy","4_circle","5_eight","6_loop","7_random"]
+main = do
+  args <- getArgs
+  case args of
+    [input, output]       -> generate input output Nothing
+    [input, output, eval] -> generate input output (Just eval)
+    _ -> usageExit
     
 usageExit :: IO ()
 usageExit = do
   pname <- getProgName
   putStrLn (usage pname) >> exitSuccess
-      where usage pname = "Usage : " ++ pname ++ " path_type\n"
-                          ++ "path_type must be one of: \n"
-                          ++ show ptypes
-                             
-testHV :: IO ()
-testHV = do
-  let myList :: Repeat Three (Sample IO (H.Real, H.Real))
-      myList = (\(a,b) -> pair a b) <$> HV.fromList [(1,2), (3,4), (5,6)]
-  print (unSample $ toNestedPair myList)
-  -- print myList
-  print (unSample (toNestedPair ((+) <$>
-                                 fromList [1,2,3] <*>
-                                 fromList [100,200,300])
-                   :: Sample IO (Repeat Three H.Real)))
-
+      where usage pname = "Usage: " ++ pname ++ " input_dir output_dir [eval_dir]\n"
+                
 -- | Unsure what environment to use; using unit env for now
 -- evolve :: Mochastic repr => Beacons Disintegrate
 --        -> Disintegrate GPS -> Disintegrate GPS -> Disintegrate Angle 
@@ -435,25 +421,13 @@ instance FromRecord Initial where
                             v .! 5 A.<*>
                             v .! 6
         | otherwise = fail "wrong number of fields in input_properties"
-                      
-type PathType = String
     
-automobileData :: FilePath
-automobileData = "./data/automobile/"
-
--- | Implicit that PathType = FilePath = String
-inputDir :: PathType -> FilePath
-inputDir pathtype = automobileData ++ pathtype ++ "/input/"
-
-outputDir :: PathType -> FilePath
-outputDir pathtype = automobileData ++ pathtype ++ "/output/"
-
 noFileBye :: FilePath -> IO ()
 noFileBye fp = putStrLn ("Could not find " ++ fp) >> exitFailure
 
-initialVals :: PathType -> IO Initial
-initialVals ptype = do
-  let input = inputDir ptype ++ "input_properties.csv"
+initialVals :: FilePath -> IO Initial
+initialVals inpath = do
+  let input = inpath </> "input_properties.csv"
   doesFileExist input >>= flip unless (noFileBye input)
   bytestr <- B.readFile input
   case decode HasHeader bytestr of
@@ -474,9 +448,9 @@ instance FromRecord Laser where
               A.<*> parseRecord (V.slice (range+1) range v)
         | otherwise = fail "wrong number of fields in input_laser"
 
-laserReadings :: PathType -> IO (V.Vector Laser)
-laserReadings ptype = do
-  let input = inputDir ptype ++ "input_laser.csv"
+laserReadings :: FilePath -> IO (V.Vector Laser)
+laserReadings inpath = do
+  let input = inpath </> "input_laser.csv"
   doesFileExist input >>= flip unless (noFileBye input)
   fmap V.fromList $ decodeFileStream input                        
 
@@ -487,14 +461,11 @@ instance FromRecord Sensor where
         | V.length v == 2 = Sensor A.<$> v .! 0 A.<*> v .! 1
         | otherwise = fail "wrong number of fields in input_sensor"
 
-sensorData :: PathType -> IO (V.Vector Sensor)
-sensorData ptype = do
-  let input = inputDir ptype ++ "input_sensor.csv"
+sensorData :: FilePath -> IO (V.Vector Sensor)
+sensorData inpath = do
+  let input = inpath </> "input_sensor.csv"
   doesFileExist input >>= flip unless (noFileBye input)
   fmap V.fromList $ decodeFileStream input
-
-isMovement :: Int -> Bool
-isMovement = (==) 2
 
 data Control = Control { contime :: Double
                        , velocity :: Double
@@ -505,24 +476,11 @@ instance FromRecord Control where
         | V.length v == 3 = Control A.<$> v .! 0 A.<*> v .! 1 A.<*> v .! 2
         | otherwise = fail "wrong number of fields in input_control"
 
-controlData :: PathType -> IO (V.Vector Control)
-controlData ptype = do
-  let input = inputDir ptype ++ "input_control.csv"
+controlData :: FilePath -> IO (V.Vector Control)
+controlData inpath = do
+  let input = inpath </> "input_control.csv"
   doesFileExist input >>= flip unless (noFileBye input)
-  fmap V.fromList $ decodeFileStream input
-             
-testIO :: PathType -> IO ()
-testIO pt = do
-  -- initialVals "test" >>= print
-  laserReads <- laserReadings pt
-  print . (V.slice 330 31) . zrads $ laserReads V.! 50
-  V.mapM_ ((printf "%.6f\n") . timestamp) $ V.take 10 laserReads
-  sensors <- sensorData pt 
-  putStrLn "-------- Here are some sensors -----------"
-  print $ V.slice 0 20 sensors
-  controls <- controlData pt 
-  putStrLn "-------- Here are some controls -----------"
-  print $ V.slice 0 20 controls
+  fmap V.fromList $ decodeFileStream input       
 
 -- | True beacon positions (from eval_data/eval_obstacles.csv for each path type)
 -- This is for simulation purposes only!
@@ -534,11 +492,59 @@ instance FromRecord Obstacle where
         | V.length v == 2 = Obstacle A.<$> v .! 0 A.<*> v .! 1
         | otherwise = fail "wrong number of fields in eval_obstacles"
 
-evalDir :: PathType -> FilePath
-evalDir pathtype = automobileData ++ pathtype ++ "/eval_data/"
-
-obstacles :: PathType -> IO [Obstacle]
-obstacles ptype = do
-  let evalObs = evalDir ptype ++ "eval_obstacles.csv"
+obstacles :: FilePath -> IO [Obstacle]
+obstacles evalPath = do
+  let evalObs = evalPath </> "eval_obstacles.csv"
   doesFileExist evalObs >>= flip unless (noFileBye evalObs)
   decodeFileStream evalObs
+
+
+                   
+--------------------------------------------------------------------------------
+--                               MISC MINI-TESTS                              --
+--------------------------------------------------------------------------------
+
+
+testIO :: FilePath -> IO ()
+testIO inpath = do
+  -- initialVals "test" >>= print
+  laserReads <- laserReadings inpath
+  print . (V.slice 330 31) . zrads $ laserReads V.! 50
+  V.mapM_ ((printf "%.6f\n") . timestamp) $ V.take 10 laserReads
+  sensors <- sensorData inpath
+  putStrLn "-------- Here are some sensors -----------"
+  print $ V.slice 0 20 sensors
+  controls <- controlData inpath
+  putStrLn "-------- Here are some controls -----------"
+  print $ V.slice 0 20 controls
+
+testHV :: IO ()
+testHV = do
+  let myList :: Repeat Three (Sample IO (H.Real, H.Real))
+      myList = (\(a,b) -> pair a b) <$> HV.fromList [(1,2), (3,4), (5,6)]
+  print (unSample $ toNestedPair myList)
+  -- print myList
+  print (unSample (toNestedPair ((+) <$>
+                                 fromList [1,2,3] <*>
+                                 fromList [100,200,300])
+                   :: Sample IO (Repeat Three H.Real)))
+        
+vecTest :: IO ()
+vecTest = do
+  let a :: Repeat ThreeSixtyOne Int
+      a = iota 0
+      b = toList a
+  print b
+
+testLaser :: IO ()
+testLaser = do
+  let base :: (Base repr) => repr (Repeat Eleven H.Real)
+      base =  toNestedPair (HV.pure 10)
+      reads :: (Base repr) => repr [H.Real]
+      reads = cons 30 (cons 40 nil)
+      betas :: (Base repr) => repr [H.Real]
+      betas = cons 7 (cons 9 nil)
+      result :: Sample IO (Repeat Eleven H.Real)
+      result = laserAssigns base shortrange reads betas
+  print (unSample result)
+        
