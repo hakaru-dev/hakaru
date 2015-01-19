@@ -363,7 +363,7 @@ plotReads out rads ints = do
   let file = out </> "slam_simulated_laser.txt"
   go file (rads ++ ints)
     where go fp []     = appendFile fp "\n"
-          go fp [l]    = appendFile fp (show l)
+          go fp [l]    = appendFile fp ((show l) ++ "\n")
           go fp (l:ls) = appendFile fp ((show l) ++ ",") >> go fp ls
 
 main :: IO ()
