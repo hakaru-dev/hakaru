@@ -197,9 +197,6 @@ sopPretty (ctr :* _) (Z x) = (\(PP a) -> PP a) (prodPretty ctr x)
 sopPretty (_ :* ctrs) (S x) = (\(PP a) -> PP a) (sopPretty ctrs x)
 sopPretty Nil _ = error "sopPretty: Type error"
 
-singTail :: Sing (x ': xs) -> Sing xs 
-singTail SCons = sing 
-
 ppFun :: SingI xs => NFn PrettyPrint o xs -> PrettyPrint o 
 ppFun fun = PP $ \vs i -> let PP q = go sing fun vs in q vs i where 
   go :: Sing xs -> NFn PrettyPrint o xs -> [String] -> PrettyPrint o  
