@@ -14,11 +14,7 @@
   , RankNTypes 
   #-}
 
-module Language.Hakaru.Embed
-  ( module Language.Hakaru.Syntax
-  -- , module Generics.SOP 
-  , module Language.Hakaru.Embed 
-  ) where 
+module Language.Hakaru.Embed where
 
 import Language.Hakaru.Syntax
 import Prelude hiding (Real (..))

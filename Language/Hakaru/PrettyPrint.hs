@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, ScopedTypeVariables, TypeFamilies #-}
+{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, GADTs, ScopedTypeVariables, TypeFamilies #-}
 {-# OPTIONS -Wall #-}
 module Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode) where
 

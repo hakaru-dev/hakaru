@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, ScopedTypeVariables, TypeFamilies #-}
+{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, ScopedTypeVariables, GADTs, TypeFamilies #-}
 {-# OPTIONS -W #-}
 
 module Language.Hakaru.Maple (Maple(..), runMaple) where
@@ -15,7 +15,7 @@ import Control.Monad.Trans.Cont (Cont, cont, runCont)
 import Data.List (intercalate)
 import Data.Function (on)
 import Generics.SOP hiding (fn) 
-import Language.Hakaru.Embed hiding (liftM, liftM2) 
+import Language.Hakaru.Embed
 
 -- Jacques wrote on December 16 that "the condition of a piecewise can be
 -- 1. a relation (i.e. <, <=, =, ::, in)
