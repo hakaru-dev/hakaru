@@ -299,7 +299,7 @@ type Rand = MWC.Gen (PrimState IO)
       
 genBeacons :: Rand -> Maybe FilePath
            -> IO ([Double],[Double]) -- ^ longitudes, latitudes
-genBeacons g Nothing         = return ([1,3],[2,4])
+genBeacons _ Nothing         = return ([1,3],[2,4])
 genBeacons g (Just evalPath) = do
   trueBeacons <- obstacles evalPath
   return (map lon trueBeacons , map lat trueBeacons)
