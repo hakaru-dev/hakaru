@@ -18,6 +18,8 @@ import qualified Data.Number.LogFloat as LF
 import qualified Numeric.Integration.TanhSinh as TS
 import qualified System.Random.MWC as MWC
 import qualified System.Random.MWC.Distributions as MWCD
+import Language.Hakaru.Embed
+import Generics.SOP (NS(..), NP(..))
 
 newtype Sample m a = Sample { unSample :: Sample' m a }
 type family Sample' (m :: * -> *) (a :: *)
@@ -164,3 +166,14 @@ instance Integrate (Sample m) where -- just for kicks -- inaccurate
 instance Lambda (Sample m) where
   lam f = Sample (unSample . f . Sample)
   app (Sample rator) (Sample rand) = Sample (rator rand)
+
+
+type instance Sample' m (NS (NP t) a) = NS (NP t) a 
+
+instance Embed (Sample m) where 
+  type Ctx (Sample m) t = (Sample' m t ~ HRep (Sample m) t)
+  hRep (Sample x) = Sample x 
+  unHRep (Sample x) = Sample x 
+
+  sop' _ x = Sample x 
+  case' _ (Sample x) f = apNAry x f 
