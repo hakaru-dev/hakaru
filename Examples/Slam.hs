@@ -290,16 +290,10 @@ generate input output eval = do
                         old_lon old_lat old_phi
                         old_ve old_alpha delT
                                
-      particle1 :: Particle
-      particle1 = (unSample lamExp) l h a b [1] [2]
+      particle :: Particle
+      particle = (unSample lamExp) l h a b lons lats
                   
-      particle2 :: Particle
-      particle2 = (unSample lamExp) l h a b [1,3] [2,4]
-
-      trueParticle :: Particle
-      trueParticle = (unSample lamExp) l h a b lons lats
-                  
-  gen output g sensors 0 controls 0 trueParticle (PM iln ilt phi 0 0 0)
+  gen output g sensors 0 controls 0 particle (PM iln ilt phi 0 0 0)
 
 type Rand = MWC.Gen (PrimState IO)
       
