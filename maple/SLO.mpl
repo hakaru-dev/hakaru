@@ -1039,7 +1039,21 @@ SLO := module ()
     eval(eval(e, Superpose=simp_sup), SUPERPOSE = f);
   end proc;
 
-  # density recognizer
+  get_de := proc(dens, var)
+    local de, init, diffop;
+    de := gfun[holexprtodiffeq](dens, f(var));
+    init, de := selectremove(type, de, `=`);
+    if nops(init)=1 and nops(de)=1 then
+      init := rhs(init[1]);
+      de := de[1];
+      diffop := DEtools[de2diffop](de, f(var), [Dx, var]);
+      Diffop(diffop, init)
+    else
+      Nothing
+    end if;
+  end proc;
+
+  # density recognizer for reals
   recognize_density := proc(dens, var)
     local de, init, diffop, Dx, a0, a1, scale, at0, mu, sigma, a, b;
     de := gfun[holexprtodiffeq](dens, f(var));
@@ -1057,11 +1071,11 @@ SLO := module ()
           sigma := sqrt(coeff(a1, var, 0)/scale);
           at0 := simplify(eval(init/density[NormalD](mu, sigma, 0)));
           return WeightedM(at0, NormalD(mu,sigma));
-        elif degree(a0,var)=1 and degree(a1,var)=2 and normal(var^2-var - a1)=0 then
-          a := coeff(a0, var, 0) + 1;
-          b := -coeff(a0, var, 1) - a + 2;
-          # BetaD(a, b)
-          NULL;
+#        elif degree(a0,var)=1 and degree(a1,var)=2 and normal(var^2-var - a1)=0 then
+#          a := coeff(a0, var, 0) + 1;
+#          b := -coeff(a0, var, 1) - a + 2;
+#          at0 := simplify(eval(init/density[BetaD](a, b, 0)));
+#          return WeightedM(at0, BetaD(a,b));
         end if;
       end if;
     end if;
@@ -1082,11 +1096,6 @@ SLO := module ()
       # uses associatibity of >>=
       Bind(op(1, new_dens), op(2, new_dens), 
         Bind(op(3, new_dens), op(2, dens), op(3, dens)));
-#    elif dens :: specfunc(anything, 'If') then
-# TODO - call recognize_density directly
-#      Bind(Lebesgue, var, 
-#        'If'(op(1, dens), mkRealDensity(op(2,dens), var),
-#                          mkRealDensity(op(3,dens), var)))
     else
       Bind(Lebesgue, var = rng, dens)
     end if
@@ -1094,6 +1103,9 @@ SLO := module ()
 
   density[NormalD] := proc(mu, sigma, x)
     1/sigma/sqrt(2)/sqrt(Pi)*exp(-(x-mu)^2/2/sigma^2)
+  end proc;
+  density[BetaD] := proc(a, b, x)
+    x^(a-1)*(1-x)^(b-1)/Beta(a,b)
   end proc;
 
 #############
