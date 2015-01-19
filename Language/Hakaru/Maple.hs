@@ -1,7 +1,7 @@
-{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, ScopedTypeVariables, TypeFamilies #-}
 {-# OPTIONS -W #-}
 
-module Language.Hakaru.Maple where -- (Maple(..), runMaple) where
+module Language.Hakaru.Maple (Maple(..), runMaple) where
 
 -- Maple printing interpretation
 

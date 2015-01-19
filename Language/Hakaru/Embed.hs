@@ -6,6 +6,12 @@
   , StandaloneDeriving
   , InstanceSigs 
   , UndecidableInstances
+  , DataKinds
+  , TypeOperators
+  , TypeFamilies
+  , ConstraintKinds 
+  , GADTs
+  , RankNTypes 
   #-}
 
 module Language.Hakaru.Embed
