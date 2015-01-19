@@ -127,7 +127,8 @@ simulate dimL dimH dimA dimB
                                     (map_ sqr lat_ds))) $ \calc_zrads ->
     -- inverse-square for intensities 
     let_' (map_ (\r -> cIntensity / (pow_ r 2)) calc_zrads) $ \calc_zints ->
-    let_' (map_ (\r -> atan r - calc_phi)  -- removed a "+ pi/2" term
+    -- removed a "+ pi/2" term: it is present as (i - (n-1)/2) in laserAssigns
+    let_' (map_ (\r -> atan r - calc_phi)
                 (zipWith_ (/) lat_ds lon_ds)) $ \calc_zbetas ->
 
     perturb (\l -> normal (fromProb l) cBeacon) calc_zrads `bind` \noisy_zrads ->
@@ -388,7 +389,7 @@ evolve env =
              simulate l h a b
                       blons blats
                       vlon vlat phi
-                      vel alpha del ]                         
+                      vel alpha del ]
 
 main :: IO ()
 main = do
