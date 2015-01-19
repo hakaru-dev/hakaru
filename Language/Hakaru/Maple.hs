@@ -1,7 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances #-}
 {-# OPTIONS -W #-}
 
-module Language.Hakaru.Maple (Maple(..), runMaple) where
+module Language.Hakaru.Maple where -- (Maple(..), runMaple) where
 
 -- Maple printing interpretation
 
@@ -12,7 +12,10 @@ import Data.Ratio
 import Control.Monad (liftM2)
 import Control.Monad.Trans.Reader (ReaderT(ReaderT), runReaderT)
 import Control.Monad.Trans.Cont (Cont, cont, runCont)
+import Data.List (intercalate)
 import Data.Function (on)
+import Generics.SOP hiding (fn) 
+import Language.Hakaru.Embed hiding (liftM, liftM2) 
 
 -- Jacques wrote on December 16 that "the condition of a piecewise can be
 -- 1. a relation (i.e. <, <=, =, ::, in)
@@ -160,3 +163,34 @@ instance Lambda Maple where
     let (x, body) = mapleBind f i in "(" ++ x ++ "->" ++ body ++ ")")
   app (Maple rator) (Maple rand) =
     Maple (liftM2 (\rator' rand' -> rator' ++ "(" ++ rand' ++ ")") rator rand)
+
+
+constructor :: String -> [Maple a] -> Maple b
+constructor fn xs = Maple $ do 
+  ms <- fmap (intercalate ",") $ sequence (map (unMaple . resetMaple) xs)
+  return ("`" ++ fn ++ "`(" ++ ms ++ ")")
+  
+prodMaple' :: forall xs a . ConstructorInfo xs -> [Maple a] -> Maple (NP Maple xs)
+prodMaple' (Infix nm _ _) (x:y:_) = constructor nm [x,y] 
+prodMaple' (Infix {}) _ = error "prodMaple': wrong number of values"
+prodMaple' (Constructor ctr) q = constructor ctr (take (lengthSing (Proxy :: Proxy xs)) q)
+prodMaple' (Record ctr _ ) q   = constructor ctr (take (lengthSing (Proxy :: Proxy xs)) q)
+
+prodMaple :: forall xs . ConstructorInfo xs -> NP Maple xs -> Maple (NP Maple xs)
+prodMaple c xs = case ciSing c of Dict -> prodMaple' c (unprod (Maple . unMaple) xs)
+
+sopMaple :: NP ConstructorInfo xss -> NS (NP Maple) xss -> Maple (NS (NP Maple) xss)
+sopMaple (ctr :* _) (Z x) = (Maple . unMaple) (prodMaple ctr x) 
+sopMaple (_ :* ctrs) (S x) = (Maple . unMaple) (sopMaple ctrs x)
+sopMaple Nil _ = error "sopMaple: Type error"
+
+op' :: Int -> Maple a -> Maple b 
+op' n (Maple ab) = Maple (ab >>= \ab' ->
+  return $ "op(" ++ show n ++ ", " ++ ab' ++ ")")
+
+unprodMaple :: SingI xs => Maple (NP Maple xs) -> NFn Maple o xs -> Maple o
+unprodMaple a b = go sing a b 1 where 
+  go :: Sing xs -> Maple (NP Maple xs) -> NFn Maple o xs -> Int -> Maple o 
+  go SNil _ (NFn f) _ = f
+  go s@SCons (Maple v) (NFn f) i = go (singTail s) (Maple v) (NFn (f (op' i (Maple v)))) (i+1) 
+

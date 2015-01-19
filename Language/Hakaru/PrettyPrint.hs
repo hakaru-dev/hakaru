@@ -7,6 +7,9 @@ module Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode) where
 import Language.Hakaru.Syntax
 import Language.Hakaru.Util.Pretty
 import Text.PrettyPrint hiding (parens)
+import qualified Text.PrettyPrint as Text 
+import Language.Hakaru.Embed
+import Generics.SOP 
 
 leftMode :: Doc -> String
 leftMode = renderStyle style{mode=LeftMode}
@@ -158,3 +161,75 @@ op :: Int -> String -> Int -> Int ->
       PrettyPrint a -> PrettyPrint b -> PrettyPrint c
 op p0 s p1 p2 (PP a) (PP b) =
   PP (\xs p -> [prettyOp (p > p0) s (sep (a xs p1)) (sep (b xs p2))])
+
+string :: String -> PrettyPrint a
+string s = PP $ \_ _ -> [text s] 
+
+sepStr :: String ->
+      PrettyPrint a -> PrettyPrint b -> PrettyPrint c
+sepStr str (PP a) (PP b) = PP $ \vs i -> [ sep (a vs i) <> text str <> sep (b vs i) ]
+
+unpp :: SingI xs => NP PrettyPrint xs -> [ PrettyPrint a ]
+unpp = unprod (\(PP a) -> PP a)
+
+sepBy :: PrettyPrint t -> [PrettyPrint q] -> PrettyPrint a
+sepBy (PP s) xs = PP $ \vs i -> punctuate (sep $ s vs i) (map sep $ map (\(PP f) -> f vs i) xs)
+
+constructor :: (Doc -> Doc) -> String -> PrettyPrint t -> PrettyPrint a
+constructor f str (PP a) = PP (\vs i -> [ text str <+> f (sep (a vs i)) ])
+
+-- Less type safe variant of below 
+ppProd' :: forall xs a . ConstructorInfo xs -> [PrettyPrint a] -> PrettyPrint (NP PrettyPrint xs)
+ppProd' (Infix nm _ fxt) (x:y:_) = op fxt nm fxt (fxt + 1) x y
+ppProd' (Constructor ctr) q = 
+  constructor Text.parens ctr (sepBy (string ",") (take (lengthSing (Proxy :: Proxy xs)) q))
+ppProd' (Record ctr recs) q = constructor braces ctr (sepBy (string ",") q0) where
+  q0 = zipWith (\r  -> sepStr " = " (string r) ) 
+               (unprod (\(FieldInfo x) -> x) recs) 
+               q
+ppProd' _ _ = error "ppProd': wrong number of variables"
+
+prodPretty :: ConstructorInfo xs -> NP PrettyPrint xs -> PrettyPrint (NP PrettyPrint xs)
+prodPretty p q = case ciSing p of Dict -> ppProd' p (unpp q)
+
+sopPretty :: NP ConstructorInfo xss -> NS (NP PrettyPrint) xss -> PrettyPrint (NS (NP PrettyPrint) xss)
+sopPretty (ctr :* _) (Z x) = (\(PP a) -> PP a) (prodPretty ctr x) 
+sopPretty (_ :* ctrs) (S x) = (\(PP a) -> PP a) (sopPretty ctrs x)
+sopPretty Nil _ = error "sopPretty: Type error"
+
+ppFun :: SingI xs => NFn PrettyPrint o xs -> PrettyPrint o 
+ppFun fun = PP $ \vs i -> let PP q = go sing fun vs in q vs i where 
+  go :: Sing xs -> NFn PrettyPrint o xs -> [String] -> PrettyPrint o  
+  go SNil (NFn f) _ = f 
+  go s@SCons (NFn f) (v:vs) = go (singTail s) (NFn (f (string v))) vs 
+  go _ (NFn _) [] = error "ppFun: no more vars"
+
+casePretty :: DatatypeInfo xss -> PrettyPrint (NS (NP PrettyPrint) xss) -> NP (NFn PrettyPrint o) xss -> PrettyPrint o
+casePretty di (PP v) f = PP $ \vs z ->  
+  let ci = ctrInfo di 
+
+      cases :: NP ConstructorInfo xss -> NP (NFn PrettyPrint o) xss -> [PrettyPrint a]
+      cases Nil Nil = []
+      cases (i :* is) (x :* xs) = case ciSing i of Dict -> (\(PP a) -> PP a) (ppFun x) : cases is xs
+      cases _ _ = error "casePretty: Type error"
+
+      vars = map string vs 
+
+      pats :: NP ConstructorInfo xss -> [PrettyPrint a] 
+      pats Nil = []
+      pats (x :* xs) = (\(PP a) -> PP a) (ppProd' x vars) : pats xs where 
+
+  in (text "case" <+> Text.parens (sep (v vs z)) <+> text "of") : 
+     punctuate (text ";") (zipWith (\(PP a) (PP b) -> (sep $ a vs z) <+> text "->" <+> (sep $ b vs z))
+                                   (pats ci) 
+                                   (cases ci f)
+                          )
+
+instance Embed PrettyPrint where 
+  type Ctx PrettyPrint t = ()
+
+  hRep (PP a) = PP a 
+  unHRep (PP a) = PP a 
+
+  sop' p = sopPretty (ctrInfo (datatypeInfo p))
+  case' = casePretty . datatypeInfo

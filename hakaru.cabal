@@ -37,7 +37,8 @@ library
                        Language.Hakaru.Simplify,
                        Language.Hakaru.Any,
                        Language.Hakaru.Vector,
-                       Language.Hakaru.Util.Csv
+                       Language.Hakaru.Util.Csv,
+                       Language.Hakaru.Embed
 
   other-modules:       Language.Hakaru.Util.Extras,
                        Language.Hakaru.Util.Finite,
@@ -98,7 +99,8 @@ library
                        hint >= 0.4.0.0 && < 0.5,
                        process >= 1.1 && < 2.0,
                        HUnit >= 1.2 && < 2.0,
-                       mtl >= 2.1
+                       mtl >= 2.1,
+                       generics-sop >= 0.1.0 
   -- hs-source-dirs:      
   default-language:    Haskell2010
   ghc-options:         -Wall
