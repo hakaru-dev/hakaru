@@ -84,3 +84,11 @@ unprod f = hcollapse . hliftA (K . f)
 
 singTail :: Sing (x ': xs) -> Sing xs 
 singTail SCons = sing 
+
+ctrNames :: DatatypeInfo xss -> [ConstructorName]
+ctrNames d = case diSing d of Dict -> unprod ctrName (ctrInfo d)
+
+ctrName :: ConstructorInfo x -> ConstructorName
+ctrName (Constructor x) = x
+ctrName (Infix x _ _) = x
+ctrName (Record x _) = x 

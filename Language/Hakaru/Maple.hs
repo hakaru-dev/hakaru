@@ -188,9 +188,37 @@ op' :: Int -> Maple a -> Maple b
 op' n (Maple ab) = Maple (ab >>= \ab' ->
   return $ "op(" ++ show n ++ ", " ++ ab' ++ ")")
 
-unprodMaple :: SingI xs => Maple (NP Maple xs) -> NFn Maple o xs -> Maple o
-unprodMaple a b = go sing a b 1 where 
+unprodMaple :: SingI xs => NFn Maple o xs -> Maple (NP Maple xs) -> Maple o
+unprodMaple b a = go sing a b 1 where 
   go :: Sing xs -> Maple (NP Maple xs) -> NFn Maple o xs -> Int -> Maple o 
   go SNil _ (NFn f) _ = f
   go s@SCons (Maple v) (NFn f) i = go (singTail s) (Maple v) (NFn (f (op' i (Maple v)))) (i+1) 
+
+unConstructor ctr (Maple ab) ka kb
+    = Maple (ab >>= \ab' ->
+             ReaderT $ \i -> cont $ \c ->
+             let op :: Int -> String
+                 op n = "op(" ++ show n ++ ", " ++ ab' ++ ")"
+                 arm k = runCont (runReaderT (unMaple (k (return (op 1)))) i) c
+             in "if_(" ++ op 0 ++ " = `" ++ ctr ++ "`, " ++ arm (ka . Maple)
+                                        ++ ", " ++ arm (kb . Maple) ++ ")")
+
+caseMaple :: Int -> NP ConstructorInfo xss -> NP (NFn Maple o) xss -> Maple (NS (NP Maple) xss) -> Maple o 
+caseMaple _ Nil Nil _ = Maple $ return "error \"Datatypes with no constructors or type error\""
+caseMaple i (ctr :* ctrs) (f :* fs) m = 
+  case ciSing ctr of 
+    Dict -> unConstructor (ctrName ctr) m (unprodMaple f) (caseMaple (i+1) ctrs fs)
+caseMaple _ _ _ _ = error "caseMaple: type error"
+
+instance Embed Maple where 
+  type Ctx Maple t = ()
+  
+  hRep (Maple x) = Maple x
+  unHRep (Maple x) = Maple x
+                   
+  sop' p xs = sopMaple (ctrInfo (datatypeInfo p)) xs 
+  case' p r f = 
+    let di = datatypeInfo p in 
+    case diSing di of 
+      Dict -> caseMaple 1 (ctrInfo di) f r 
 
