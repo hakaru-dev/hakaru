@@ -39,7 +39,7 @@ allTests = test [
     -- "transitionTest" ~: ignore $ transitionTest,
     --"testDistWithSample" ~: ignore $ do x <- testDistWithSample
     --                                    mapM_ assertJust x,
-    "testLinregSimp" ~: ignore $ testS linregSimp, -- too long?
+    "testLinregSimp" ~: testSS [linregSimp] linregSimp',
     "testdistLinregSimp" ~: testS distLinregSimp,
     "testLinreg" ~: ignore $ testS distLinreg,
     "prog1s" ~: testD prog1s,
@@ -218,7 +218,7 @@ make6Pair x1 x2 x3 x4 x5 x6 = pair x1
                                    (pair x5
                                          x6))))
 
-linregSimp :: Mochastic repr => repr (Measure ((Real,Real), Real))
+linregSimp, linregSimp' :: Mochastic repr => repr (Measure ((Real,Real), Real))
 linregSimp = 
          normal 0 2 `bind` \w ->
          uniform (-1) 1 `bind` \x ->
@@ -226,6 +226,11 @@ linregSimp =
          uniform (-1) 1 `bind` \x3 ->
          uniform (-1) 1 `bind` \x4 ->
          uniform (-1) 1 `bind` \x5 ->
+         normal (x*w) 1 `bind` \y ->
+         dirac (pair (pair x y) w)
+linregSimp' =
+         normal 0 2 `bind` \w ->
+         uniform (-1) 1 `bind` \x ->
          normal (x*w) 1 `bind` \y ->
          dirac (pair (pair x y) w)
 
