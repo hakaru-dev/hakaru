@@ -366,6 +366,36 @@ plotReads out rads ints = do
           go fp [l]    = appendFile fp ((show l) ++ "\n")
           go fp (l:ls) = appendFile fp ((show l) ++ ",") >> go fp ls
 
+type Env = (DimL,
+            (DimH,
+             (DimA,
+              (DimB,
+               ([GPS], ([GPS],
+                        (GPS, (GPS, (Angle,
+                                     (Vel, (Angle, DelTime)))))))))))
+    
+evolve :: (Mochastic repr) => repr Env
+       -> [ repr (Repeat Len ZRad, Repeat Len ZInt)
+            -> repr (Measure (Angle, (GPS, GPS))) ]
+evolve env =
+    [ d env
+      | d <- runDisintegrate $ \ e0  ->
+             unpair e0  $ \l     e1  ->
+             unpair e1  $ \h     e2  ->
+             unpair e2  $ \a     e3  ->
+             unpair e3  $ \b     e4  ->
+             unpair e4  $ \blons e5  ->
+             unpair e5  $ \blats e6  ->
+             unpair e6  $ \vlon  e7  ->
+             unpair e7  $ \vlat  e8  ->
+             unpair e8  $ \phi   e9  ->
+             unpair e9  $ \vel   e10 ->
+             unpair e10 $ \alpha del ->
+             simulate l h a b
+                      blons blats
+                      vlon vlat phi
+                      vel alpha del ]                         
+
 main :: IO ()
 main = do
   args <- getArgs
@@ -379,24 +409,8 @@ usageExit = do
   pname <- getProgName
   putStrLn (usage pname) >> exitSuccess
       where usage pname = "Usage: " ++ pname ++ " input_dir output_dir [eval_dir]\n"
-                
--- | Unsure what environment to use; using unit env for now
--- evolve :: Mochastic repr => Beacons Disintegrate
---        -> Disintegrate GPS -> Disintegrate GPS -> Disintegrate Angle 
---        -> Disintegrate Vel -> Disintegrate Angle -> Disintegrate DelTime
---        -> [ repr (Angle,ZRad) -> repr (Measure (Angle,(GPS,GPS))) ]
--- evolve bxy old_lon old_lat old_phi old_ve old_alpha delT =
---     [ d unit
---       | d <- runDisintegrate $ \u ->
---              ununit u $
---              simulate_old bxy old_lon old_lat old_phi old_ve old_alpha delT ]    
 
-
--- tb = let p = S.fromList [1,1,1,1,1,1,1]
---          a = S.fromList [7,8]
---          i = S.fromList [4,6]
---      in builder a i p
-
+                          
 --------------------------------------------------------------------------------
 --                                DATA IO                                     --
 --------------------------------------------------------------------------------
