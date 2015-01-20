@@ -11,7 +11,7 @@ import System.Exit
 ssh, user, serv :: String
 ssh  = "ssh"
 user = "ppaml"
-serv = "quarry.uits.indiana.edu"
+serv = "karst.uits.iu.edu"
 
 
 sshCommands :: [String]

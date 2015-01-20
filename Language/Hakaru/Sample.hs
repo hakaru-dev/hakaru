@@ -18,6 +18,8 @@ import qualified Data.Number.LogFloat as LF
 import qualified Numeric.Integration.TanhSinh as TS
 import qualified System.Random.MWC as MWC
 import qualified System.Random.MWC.Distributions as MWCD
+import Language.Hakaru.Embed
+import Generics.SOP (NS(..), NP(..))
 
 newtype Sample m a = Sample { unSample :: Sample' m a }
 type family Sample' (m :: * -> *) (a :: *)
@@ -132,12 +134,13 @@ instance (PrimMonad m) => Mochastic (Sample m) where
       case [ m1 | (v,(_,m1)) <- zip (scanl1 (+) ys) pms, u <= v ]
         of Sample m2 : _ -> (m2 $! p) g
            []            -> (m $! p) g)
-  gamma (Sample shape) (Sample scale) = Sample (\p g -> do
-    x <- MWCD.gamma (LF.fromLogFloat shape) (LF.fromLogFloat scale) g
-    return (Just (LF.logFloat x, p)))
   poisson (Sample l) = Sample (\p g -> do
     x <- poisson_rng (LF.fromLogFloat l) g
     return (Just (x, p)))
+  gamma (Sample shape) (Sample scale) = Sample (\p g -> do
+    x <- MWCD.gamma (LF.fromLogFloat shape) (LF.fromLogFloat scale) g
+    return (Just (LF.logFloat x, p)))
+  beta a b = gamma a 1 `bind` \x -> gamma b 1 `bind` \y -> dirac (x / (x + y))
 
 instance Integrate (Sample m) where -- just for kicks -- inaccurate
   integrate (Sample lo) (Sample hi)
@@ -163,3 +166,14 @@ instance Integrate (Sample m) where -- just for kicks -- inaccurate
 instance Lambda (Sample m) where
   lam f = Sample (unSample . f . Sample)
   app (Sample rator) (Sample rand) = Sample (rator rand)
+
+
+type instance Sample' m (NS (NP t) a) = NS (NP t) a 
+
+instance Embed (Sample m) where 
+  type Ctx (Sample m) t = (Sample' m t ~ HRep (Sample m) t)
+  hRep (Sample x) = Sample x 
+  unHRep (Sample x) = Sample x 
+
+  sop' _ x = Sample x 
+  case' _ (Sample x) f = apNAry x f 

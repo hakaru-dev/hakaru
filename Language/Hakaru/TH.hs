@@ -103,6 +103,7 @@ instance Mochastic THRepr where
                                             | (THR e, THR e') <- l ]]
   poisson (THR e) = liftT 'poisson [e]
   gamma (THR e) (THR e') = liftT 'gamma [e, e']
+  beta (THR e) (THR e') = liftT 'beta [e, e']
 
 instance Lambda THRepr where
   lam f = liftT 'lam [liftF f]

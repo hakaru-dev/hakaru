@@ -2,3 +2,5 @@ dist
 .cabal-sandbox
 cabal.sandbox.config
 maple/ppaml.mla
+*.o
+*.hi
