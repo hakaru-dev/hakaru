@@ -72,6 +72,8 @@ testMeasurePair = test [
     "t23"           ~: testSS [t23] t23',
     "t48"           ~: testS t48,
     "norm"          ~: testSS [] norm,
+    "norm_nox"      ~: testSS [norm_nox] (normal 0 (sqrt_ 2)),
+    "norm_noy"      ~: testSS [norm_noy] (normal 0 1),
     "flipped_norm"  ~: testSS [liftM swap_ norm] flipped_norm,
     "priorProp"     ~: testSS [lam (priorAsProposal norm)]
                               (lam $ \x -> superpose [(1/2, normal 0 1         `bind` \y -> dirac (pair y (snd_ x))),
@@ -373,6 +375,16 @@ norm :: Mochastic repr => repr (Measure (Real, Real))
 norm = normal 0 1 `bind` \x ->
        normal x 1 `bind` \y ->
        dirac (pair x y)
+
+norm_nox :: Mochastic repr => repr (Measure Real)
+norm_nox = normal 0 1 `bind` \x ->
+           normal x 1 `bind` \y ->
+           dirac y
+
+norm_noy :: Mochastic repr => repr (Measure Real)
+norm_noy = normal 0 1 `bind` \x ->
+           normal x 1 `bind` \y ->
+           dirac x
 
 flipped_norm :: Mochastic repr => repr (Measure (Real, Real))
 flipped_norm = normal 0 1 `bind` \x ->
