@@ -154,7 +154,8 @@ SLO := module ()
 
   simp := proc(e)
     option remember, system;
-    local binds, pw, subst, csubst, ee, vars, all_vars, num, den, push_in, i,
+    local binds, pw, subst, csubst, substb, substp, ee, 
+      vbinds, vpw, vars, all_vars, num, den, push_in, i,
       cs, simp_poly, simp_prod;
 
     cs := indets(e, specfunc(anything, c));
@@ -167,9 +168,13 @@ SLO := module ()
     binds := indets(ee, t_binds);
     pw := indets(ee, t_pw);
 
-    subst := map(x->x = freeze(x), binds union pw);
+    substb := map(x-> x = freeze(x), binds);
+    substp := map(x-> x = freeze(x), pw);
+    subst := substb union substp;
     ee := subs(subst union csubst, ee); # simultaneous substitution
-    vars := [op(map(rhs, subst))]; # order does not matter; only subst
+    vbinds := map(rhs, substb);
+    vpw := map(rhs, substp);
+    vars := [op(vbinds union vpw)]; # order does not matter; only subst
     all_vars := [op(vars),op(convert(cs,list))];
     
     push_in := proc(c, v)
@@ -182,7 +187,7 @@ SLO := module ()
         op(0,actual)(simp(cof*op(1,actual)), op(2,actual))
       elif type(actual, t_pw) then
         actual := simplify(actual); # might get rid of pw!
-        `if`(actual::t_pw, into_pw_prod(cof, actual), cof*actual);
+        `if`(actual::t_pw, into_pw_prod(cof, actual), simp(cof*actual));
       else
         error "how can (%1) not be a binder, pw or c?", v
       end if;
