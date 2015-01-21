@@ -1,5 +1,5 @@
 {-# LANGUAGE TypeFamilies, Rank2Types, FlexibleContexts #-}
-module Tests.RoundTrip (allTests, testPriorProp) where
+module Tests.RoundTrip (allTests) where
 
 import Prelude hiding (Real)
 
@@ -80,21 +80,8 @@ testMeasurePair = test [
     "priorProp"     ~: testSS [lam (priorAsProposal norm)]
                               (lam $ \x -> superpose [(1/2, normal 0 1         `bind` \y -> dirac (pair y (snd_ x))),
                                                       (1/2, normal 0 (sqrt_ 2) `bind` \y -> dirac (pair (fst_ x) y))]),
-    "mhPriorProp"   ~: testSS [mh (priorAsProposal norm) norm]
-                              (lam $ \old ->
-                               superpose [(1 / 2,
-                                           normal 0 1 `bind` \x1 ->
-                                           dirac (pair (pair x1 (snd_ old))
-                                                       (exp_ ((x1 * (-1) + fst_ old)
-                                                              * (fst_ old + snd_ old * (-2) + x1)
-                                                              * (1 / 2))))),
-                                          (1 / 2,
-                                           normal 0 (sqrt_ 2) `bind` \x1 ->
-                                           dirac (pair (pair (fst_ old) x1)
-                                                       (exp_ ((x1 * (-1) + snd_ old)
-                                                              * (snd_ old * (-1) + fst_ old * 4 + x1 * (-1))
-                                                              * ((-1) / 4)))))]),
-    "testPriorProp" ~: testS testPriorProp
+    "mhPriorProp"   ~: testSS [testMHPriorProp] testPriorProp',
+    "unif2"         ~: testS unif2
     ]
 
 testOther :: Test
@@ -380,9 +367,30 @@ mcmc proposal target =
     bern (min_ 1 ratio) `bind` \accept ->
     dirac (if_ accept new old)
 
-testPriorProp :: (Integrate repr, Mochastic repr, Lambda repr) =>
+testMCMCPriorProp :: (Integrate repr, Mochastic repr, Lambda repr) =>
                  repr ((Real, Real) -> Measure (Real, Real))
-testPriorProp = mcmc (priorAsProposal norm) norm
+testMCMCPriorProp = mcmc (priorAsProposal norm) norm
+
+testMHPriorProp :: (Integrate repr, Mochastic repr, Lambda repr) =>
+                 repr ((Real, Real) -> Measure ((Real, Real), Prob))
+testMHPriorProp = mh (priorAsProposal norm) norm
+
+testPriorProp' :: (Integrate repr, Mochastic repr, Lambda repr) =>
+                 repr ((Real, Real) -> Measure ((Real, Real), Prob))
+testPriorProp' = 
+      (lam $ \old ->
+       superpose [(1 / 2,
+		   normal 0 1 `bind` \x1 ->
+		   dirac (pair (pair x1 (snd_ old))
+			       (exp_ ((x1 * (-1) + fst_ old)
+				      * (fst_ old + snd_ old * (-2) + x1)
+				      * (1 / 2))))),
+		  (1 / 2,
+		   normal 0 (sqrt_ 2) `bind` \x1 ->
+		   dirac (pair (pair (fst_ old) x1)
+			       (exp_ ((x1 * (-1) + snd_ old)
+				      * (snd_ old * (-1) + fst_ old * 4 + x1 * (-1))
+				      * ((-1) / 4)))))])
 
 norm :: Mochastic repr => repr (Measure (Real, Real))
 norm = normal 0 1 `bind` \x ->
@@ -403,6 +411,11 @@ flipped_norm :: Mochastic repr => repr (Measure (Real, Real))
 flipped_norm = normal 0 1 `bind` \x ->
                normal x 1 `bind` \y ->
                dirac (pair y x)
+
+unif2 :: Mochastic repr => repr (Measure (Real, Real))
+unif2 = uniform (-1) 1 `bind` \x ->
+        uniform (x-1) (x+1) `bind` \y ->
+        dirac (pair x y)
 
 two_coins :: (Mochastic repr, Lambda repr) => repr (Measure [Real])
 two_coins = bern (1/2) `bind` \x ->
