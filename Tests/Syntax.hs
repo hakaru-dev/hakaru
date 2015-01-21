@@ -46,7 +46,8 @@ allTests = test [
     "prog2s" ~: testD prog2s,
     "prog3s" ~: testD prog3s,
     "pair1fstD" ~: testD (\u -> ununit u $ pair1fst),
-    "pair1fstDswap" ~: testD (\u -> ununit u $ liftM swap_ pair1fst)
+    "pair1fstDswap" ~: testD (\u -> ununit u $ liftM swap_ pair1fst),
+    "gamalonDis" ~: testS gamalonDis
     ]
 
 
