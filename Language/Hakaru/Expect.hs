@@ -1,6 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleContexts, FlexibleInstances,
     TypeFamilies, StandaloneDeriving, GeneralizedNewtypeDeriving,
-    RankNTypes, ScopedTypeVariables #-}
+    RankNTypes, ScopedTypeVariables, UndecidableInstances, TypeOperators, DataKinds #-}
 {-# OPTIONS -Wall #-}
 
 module Language.Hakaru.Expect (Expect(..), Expect', total, normalize) where
@@ -10,6 +10,10 @@ module Language.Hakaru.Expect (Expect(..), Expect', total, normalize) where
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure,
        Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..))
+import Generics.SOP hiding (fn) 
+import Language.Hakaru.Embed
+import Language.Hakaru.Maple 
+import GHC.Prim (Any)
 
 newtype Expect repr a = Expect { unExpect :: repr (Expect' a) }
 type family Expect' (a :: *)
@@ -119,3 +123,37 @@ normalize :: (Integrate repr, Lambda repr, Mochastic repr) =>
                             repr' (Measure a)) ->
              repr (Measure a)
 normalize m = superpose [(recip (total (m Expect)), m id)]
+
+-- 'r' will only ever be 'Expect repr' 
+type instance Expect' (NS (NP r) a) = NS (NP r) a 
+type instance Expect' Any = HRep (Expect Maple) Any 
+
+instance Embed (Expect Maple) where 
+  type Ctx (Expect Maple) t = (Expect' t ~ HRep (Expect Maple) t)
+
+  hRep (Expect x) = Expect x 
+  unHRep (Expect x) = Expect x 
+
+  sop' p x = 
+    case diSing (datatypeInfo p) of 
+      Dict -> Expect $ Maple $ unMaple $ sop' p (unSOP (hliftA toM (SOP x)))
+        where toM :: Expect Maple a -> Maple a 
+              toM (Expect (Maple a)) = Maple a 
+
+  case' p (Expect (Maple x)) fn = 
+    case diSing (datatypeInfo p) of
+      Dict -> Expect (Maple $ unMaple $ case' p (Maple x) (funMs sing fn))
+        where funM :: Sing xs -> NFn (Expect Maple) o xs -> NFn Maple o xs 
+              funM SNil (NFn (Expect (Maple f))) = NFn (Maple f)
+              funM s@SCons ((NFn f) :: NFn (Expect Maple) o (x ': xs)) = NFn $ \(Maple a) -> 
+                let 
+                 r :: NFn (Expect Maple) o xs -> NAryFun Maple o xs 
+                 r = unFn . funM (singTail s) 
+                in r $ NFn $ f $ Expect $ Maple a  
+
+              funMs :: Sing xss -> NP (NFn (Expect Maple) o) xss -> NP (NFn Maple o) xss 
+              funMs SNil Nil = Nil
+              funMs SCons (a :* as) = funM sing a :* funMs sing as
+              funMs _ _ = error "typeError: funMS" 
+
+                     
