@@ -69,7 +69,7 @@ SLO := module ()
   # recursive function which does the main translation
   ToAST := proc(inp, ctx)
     local a0, a1, var, vars, rng, ee, cof, d, ld, weight, binders,
-      v, subst, ivars, ff, newvar, rest, a, b, e, span;
+      v, subst, ivars, ff, newvar, rest, a, b, e;
     e := inp; # make e mutable
     if type(e, specfunc(name, c)) then
       return Return(op(e))
@@ -115,12 +115,12 @@ SLO := module ()
           var, rng := op(op(2,e));
           ee := op(1,e);
           weight := simplify(op(2,rng)-op(1,rng));
-          span := RealRange(op(1,rng), op(2,rng));
           if type(weight, 'SymbolicInfinity') then
             rest := ToAST(ee, ctx);
             mkRealDensity(rest, var, rng)
           else
-            v := simplify(weight*ee) assuming var :: span;
+            # span := RealRange(op(1,rng), op(2,rng));
+            v := simplify(weight*ee) assuming AndProp(op(1,rng)<var, var<op(2,rng));
             rest := ToAST(v, ctx);
             # Bind(Uniform(op(rng)), var, rest);
             mkRealDensity(rest, var, rng)
