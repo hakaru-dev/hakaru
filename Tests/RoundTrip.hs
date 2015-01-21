@@ -4,7 +4,7 @@ module Tests.RoundTrip (allTests) where
 import Prelude hiding (Real)
 
 import Language.Hakaru.Syntax
-import Language.Hakaru.Disintegrate
+import Language.Hakaru.Disintegrate hiding (max_)
 import Language.Hakaru.Expect (Expect(unExpect), Expect', normalize)
 -- import Language.Hakaru.Maple (Maple, runMaple)
 -- import Language.Hakaru.Simplify (simplify)
@@ -308,6 +308,12 @@ t50 = uniform 1 3 `bind` \x ->
 t51 :: (Mochastic repr) => repr (Measure Real)
 t51 = uniform (-1) 1 `bind` \x ->
       normal x 1
+
+t52 :: (Mochastic repr) => repr (Measure (Real, (Real, Real)))
+t52 = uniform 0 1 `bind` \x ->
+      uniform 0 1 `bind` \y ->
+      dirac (pair (max_ x y)
+                  (pair x y))
 
 priorAsProposal :: Mochastic repr => repr (Measure (a,b)) -> repr (a,b) -> repr (Measure (a,b))
 priorAsProposal p x = bern (1/2) `bind` \c ->
