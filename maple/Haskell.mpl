@@ -20,11 +20,14 @@ Haskell := module ()
   # the right way would involve a proper pretty-printer, but that
   # can be added later easily enough.
   ModuleApply := proc(e) 
-      local rts, pows, expr, binds;
+      local rts, pows, expr, binds, unsafes;
 
       b:-clear();
 
-      expr := eval(e, unsafeProb = (x -> unsafeProb(freeze(x))));
+      unsafes := indets(e, specfunc(anything, 'unsafeProb'));
+      expr := subs(map((x -> x = unsafeProb(freeze(op(1,x)))), unsafes), e);
+      # expr := eval(e, unsafeProb = (x -> unsafeProb(freeze(x))));
+
       # some last-minute patching; this will need hardened, 'anything' is 
       # wrong.
       pows := indets(expr, anything ^ identical(-1));
@@ -184,6 +187,7 @@ end;
 
 bi["Pair"] := bfunc("pair");
 bi["NormalD"] := bfunc("normal");
+bi["BetaD"] := bfunc("beta");
 
 bi["IntPow"] := proc(l, r)
   b:-append("("); p(l); b:-append(" ^^ "); p(r); b:-append(")");
