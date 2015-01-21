@@ -62,7 +62,8 @@ testMeasureReal = test [
     "t43" ~: testSS [t43, t43'] t43'',
     "t45" ~: testS t45,
     "t46" ~: testS t46,
-    "t47" ~: testS t47
+    "t47" ~: testS t47,
+    "t50" ~: testS t50
     ]
 
 testMeasurePair :: Test
@@ -311,6 +312,10 @@ t48 = lam (\x -> uniform (-5) 7 `bind` \w -> dirac ((fst_ x + snd_ x) * w))
 
 t49 :: (Mochastic repr) => repr (Measure Prob)
 t49 = gamma 0.01 0.01
+
+t50 :: (Mochastic repr) => repr (Measure Real)
+t50 = uniform 1 3 `bind` \x ->
+      normal 1 (unsafeProb x)
 
 priorAsProposal :: Mochastic repr => repr (Measure (a,b)) -> repr (a,b) -> repr (Measure (a,b))
 priorAsProposal p x = bern (1/2) `bind` \c ->
