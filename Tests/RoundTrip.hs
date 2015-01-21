@@ -329,7 +329,10 @@ gibbsProposal p x = q (fst_ x) `bind` \x' -> dirac (pair (fst_ x) x')
 
 testGibbsProp0 :: (Lambda repr, Mochastic repr, Integrate repr) =>
                   repr (Real -> Measure Real)
-testGibbsProp0 = lam (\y -> liftM snd_ (gibbsProposal (liftM swap_ norm) (pair y 0)))
+testGibbsProp0 = lam $ \x ->
+                 normalize $ \lift ->
+                 case d of Disintegration f -> f unit (lift x)
+  where d:_ = disintegrations (const flipped_norm)
 
 testGibbsProp1 :: (Lambda repr, Mochastic repr, Integrate repr) =>
                   repr ((Real, Real) -> Measure (Real, Real))
