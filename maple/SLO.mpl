@@ -13,7 +13,7 @@ SLO := module ()
   local ToAST, t_binds, t_pw, t_rel,
     into_pw, myprod, do_pw,
     mkProb, getCtx, instantiate, lambda_wrap, find_paths,
-    fill_table, toProp,
+    fill_table, toProp, toType,
     twiddle, myint, myint_pw,
     adjust_types, compute_domain, analyze_cond, isPos,
     adjust_superpose,
@@ -22,7 +22,7 @@ SLO := module ()
     simp_sup, simp_if, into_sup, simp_rel, 
     simp_pw, simp_pw_equal, simp_pw3,
     comp2, comp_algeb, compare, comp_list,
-    mkRealDensity, recognize_density, density;
+    get_de, mkRealDensity, recognize_density, recognize_density_01, density;
 
   t_binds := 'specfunc(anything, {int, Int, sum, Sum})';
   t_pw := 'specfunc(anything, piecewise)';
@@ -56,7 +56,9 @@ SLO := module ()
 
     ctx := op(2,inp);
 
-    # right at the start, put the global context in the 'path'.
+    # right at the start, put the global context in scope.
+    _EnvBinders := map2(op, 1, ctx:-gctx);
+    _EnvTypes := `union`(op(map(toType, ctx:-gctx)));
     _EnvPathCond := `union`(op(map(toProp, ctx:-gctx)));
     res := ToAST(op(inp));
     res := adjust_types(res, ctx:-mtyp, ctx);
@@ -120,7 +122,8 @@ SLO := module ()
           else
             v := simplify(weight*ee) assuming var :: span;
             rest := ToAST(v, ctx);
-            Bind(Uniform(op(rng)), var, rest);
+            # Bind(Uniform(op(rng)), var, rest);
+            mkRealDensity(rest, var, rng)
           end if;
         elif type(e, 'specfunc'(anything, {'sum','Sum'})) then
           error "sums not handled yet"
@@ -159,7 +162,8 @@ SLO := module ()
 
   simp := proc(e)
     option remember, system;
-    local binds, pw, subst, csubst, ee, vars, all_vars, num, den, push_in, i,
+    local binds, pw, substb, substp, subst, csubst, vbinds, vpw,
+      ee, vars, all_vars, num, den, push_in, i,
       cs, simp_poly, simp_prod, simp_npw;
 
     simp_npw := zz -> `if`(op(1,zz)::t_pw, into_pw(SLO:-c,op(1,zz)), zz);
@@ -548,7 +552,7 @@ SLO := module ()
         # if not isPos(w) then WARNING("cannot insure it will not crash") end if;
         unsafeProb(w);
       else
-        error "how do I make a Prob from %1 in %2", w, eval(_EnvPathCond)
+        error "how do I make a Prob from %1 in %2", w, eval(_EnvTypes)
       end if;
     end if;
   end proc;
@@ -584,6 +588,23 @@ SLO := module ()
       error "How can I make a property from %1", x;
     end if;
     {nm :: prop}, rest
+  end proc;
+
+  toType := proc(x::`=`)
+    local nm, typ, prop, rest, r1, r2;
+    (nm, typ) := op(x);
+
+    if type(typ, 'symbol') then
+      rest := {nm::typ}
+    elif nm :: Pair(anything, anything) and 
+         typ :: Pair(anything, anything) then
+      r1 := thisproc(op(1, nm) = op(1,typ));
+      r2 := thisproc(op(2, nm) = op(2,typ));
+      rest := `union`(r1, r2);
+    else
+      error "How can I make a property from %1", x;
+    end if;
+    rest
   end proc;
 
   fill_table := proc(t, nm, typ)
@@ -718,17 +739,17 @@ SLO := module ()
       if nops(res)=1 then 
         op([1,2], res)
       else # then in the current path
-        res := select(type, _EnvPathCond, 'identical'(e) :: 'anything');
+        res := select(type, _EnvTypes, 'identical'(e) :: 'anything');
         if nops(res)=1 then 
           typ := op([1,2], res);
-          if type(typ, {'RealRange'(anything, anything), identical(real)}) then
-            'Real'
-          else
+          #if type(typ, {'RealRange'(anything, anything), identical(real)}) then
+          #  if signum(0,op(1,typ),0)=1 then 'Prob' else 'Real' end if
+          #else
             typ
-          end if;
+          #end if;
         else
           error "Impossible: an untyped free variable %1 in local context %2, got (%3)",
-            e, eval(_EnvPathCond), res
+            e, eval(_EnvTypes), res
         end if;
       end if;
     elif type(e, 'Pair'(anything, anything)) then
@@ -761,6 +782,8 @@ SLO := module ()
       infer_type(op(2, e), ctx)
     elif type(e, specfunc(anything, 'Uniform')) then
       Measure(Real)
+    elif type(e, specfunc(anything, 'BetaD')) then
+      Measure(Prob)
     elif type(e, 'Bind'(anything, name, anything)) then
       Measure(Real)
     elif type(e, 'Bind'(anything, name = range, anything)) then
@@ -773,6 +796,7 @@ SLO := module ()
   join2type := proc(a,b)
     if a = b then a
     elif a = 'Number' then b
+    elif b = 'Number' then a
     elif a = 'Real' or b = 'Real' then 'Real' # we'll need to patch
     else error "join2type of %1, %2", a, b
     end if;
@@ -832,17 +856,20 @@ SLO := module ()
       end if;
     elif type(e, 'Bind'(identical(Lebesgue), name, anything)) then
       var := op(2,e);
+      _EnvTypes := _EnvTypes union {var :: Real};
       _EnvPathCond := _EnvPathCond union {var :: real};
       Bind(Lebesgue, var, adjust_types(op(3,e), typ, ctx));
     elif type(e, 'Bind'(identical(Lebesgue), name = range, anything)) then
       dom := RealRange(op([2,2,1],e), op([2,2,2], e));
       var := op([2,1],e);
+      _EnvTypes := _EnvTypes union {var :: Real};
       _EnvPathCond := _EnvPathCond union {var :: dom};
       Bind(op(1,e), op(2,e), adjust_types(op(3,e), typ, ctx));
     elif type(e, 'Bind'(anything, name = range, anything)) then
       dom := compute_domain(op(1,e));
       var := op([2,1],e);
-      inf_typ := infer_type(op(1,e), ctx);
+      inf_typ := infer_type(op(1,e), ctx); # should assert Measure(..)
+      _EnvTypes := _EnvTypes union {var :: op(1,inf_typ)};
       _EnvPathCond := _EnvPathCond union {var :: dom};
       # need to adjust types on first op, to its own type, as that may require
       # tweaking which functions are used
@@ -850,7 +877,8 @@ SLO := module ()
     elif type(e, 'Bind'(anything, name, anything)) then
       dom := compute_domain(op(1,e));
       var := op(2,e);
-      inf_typ := infer_type(op(1,e), ctx);
+      inf_typ := infer_type(op(1,e), ctx); # should assert Measure(..)
+      _EnvTypes := _EnvTypes union {var :: op(1,inf_typ)};
       _EnvPathCond := _EnvPathCond union {var :: dom};
       # need to adjust types on first op, to its own type, as that may require
       # tweaking which functions are used
@@ -875,6 +903,8 @@ SLO := module ()
     elif type(e, 'Uniform'(anything, anything)) and typ = 'Measure(Prob)' then
       var := gensym('pp');
       Bind(e, var, Return(unsafeProb(var)))
+    elif type(e, 'BetaD'(anything, anything)) and typ = 'Measure(Prob)' then
+      BetaD(mkProb(op(1,e), ctx), mkProb(op(2,e), ctx))
     elif type(e, 'NormalD'(anything, anything)) and typ = 'Measure(Real)' then
       NormalD(op(1,e), mkProb(op(2, e), ctx))
     else
@@ -904,6 +934,8 @@ SLO := module ()
     local res;
     if type(e, 'Uniform'(anything, anything)) then
       'RealRange'(op(e));
+    elif type(e, 'BetaD'(anything, anything)) then
+      'RealRange'(0,1);
     elif type(e, {identical('Lebesgue'), specfunc(anything, 'NormalD')}) then
       'real'
     elif type(e, specfunc(anything, 'Superpose')) then
@@ -1043,53 +1075,101 @@ SLO := module ()
     eval(eval(e, Superpose=simp_sup), SUPERPOSE = f);
   end proc;
 
-  get_de := proc(dens, var)
+  get_de := proc(dens, var, Dx)
     local de, init, diffop;
-    de := gfun[holexprtodiffeq](dens, f(var));
-    init, de := selectremove(type, de, `=`);
-    if nops(init)=1 and nops(de)=1 then
-      init := rhs(init[1]);
-      de := de[1];
-      diffop := DEtools[de2diffop](de, f(var), [Dx, var]);
-      Diffop(diffop, init)
-    else
-      Nothing
-    end if;
+    try
+      de := gfun[holexprtodiffeq](dens, f(var));
+      if not (de = NULL) and not (de :: set) then
+        de := gfun[diffeqtohomdiffeq](de, f(var));
+      end if;
+      if de::set then
+        init, de := selectremove(type, de, `=`);
+        if nops(de)=1 then
+          de := de[1];
+          diffop := DEtools[de2diffop](de, f(var), [Dx, var]);
+          return Diffop(diffop, init)
+        end if;
+      end if;
+    catch: # do nothing
+    end try;
+    Nothing
   end proc;
 
   # density recognizer for reals
-  recognize_density := proc(dens, var)
-    local de, init, diffop, Dx, a0, a1, scale, at0, mu, sigma, a, b;
-    de := gfun[holexprtodiffeq](dens, f(var));
-    init, de := selectremove(type, de, `=`);
-    if nops(init)=1 and nops(de)=1 then
-      init := rhs(init[1]);
-      de := de[1];
-      diffop := DEtools[de2diffop](de, f(var), [Dx, var]);
-      if degree(diffop, Dx) = 1 then
-        a0 := coeff(diffop, Dx, 0);
-        a1 := coeff(diffop, Dx, 1);
-        if degree(a0, var) = 1 and degree(a1, var) = 0 then
-          scale := coeff(a0, var, 1);
-          mu := -coeff(a0, var, 0)/scale;
-          sigma := sqrt(coeff(a1, var, 0)/scale);
-          at0 := simplify(eval(init/density[NormalD](mu, sigma, 0)));
-          return WeightedM(at0, NormalD(mu,sigma));
-#        elif degree(a0,var)=1 and degree(a1,var)=2 and normal(var^2-var - a1)=0 then
-#          a := coeff(a0, var, 0) + 1;
-#          b := -coeff(a0, var, 1) - a + 2;
-#          at0 := simplify(eval(init/density[BetaD](a, b, 0)));
-#          return WeightedM(at0, BetaD(a,b));
-        end if;
+  recognize_density := proc(diffop, init, Dx, var)
+    local a0, a1, scale, at0, mu, sigma, ii;
+    if degree(diffop, Dx) = 1 then
+      a0 := coeff(diffop, Dx, 0);
+      a1 := coeff(diffop, Dx, 1);
+      if degree(a0, var) = 1 and degree(a1, var) = 0 and nops(init) = 1 then
+        ii := rhs(init[1]);
+        scale := coeff(a0, var, 1);
+        mu := -coeff(a0, var, 0)/scale;
+        sigma := sqrt(coeff(a1, var, 0)/scale);
+        at0 := simplify(eval(ii/density[NormalD](mu, sigma)(0)));
+        return WeightedM(at0, NormalD(mu,sigma));
       end if;
     end if;
     NULL;
   end proc;
 
+  # density recognizer for 0..1
+  recognize_density_01 := proc(full_diffop, init, Dx, var)
+    local a0, a1, scale, at0, a, b, c0, ii, constraints, sol, diffop;
+
+    # throw away the content, it does not help us!
+    diffop := primpart(full_diffop, Dx);
+    if degree(diffop, Dx) = 1 then
+      ii := map(convert, init, 'diff');
+      a0 := coeff(diffop, Dx, 0);
+      a1 := coeff(diffop, Dx, 1);
+      if degree(a0,var)=1 and degree(a1,var)=2 and normal(var^2-var - a1)=0 then
+        a := coeff(a0, var, 0) + 1;
+        b := -coeff(a0, var, 1) - a + 2;
+        constraints := eval(ii, f = (x -> c0*density[BetaD](a,b)(x)));
+        sol := solve(constraints, c0);
+        return WeightedM(eval(c0, sol), BetaD(a,b));
+      # degenerate case with b=1
+      elif degree(a0,var)=0 and degree(a1,var)=1 and normal(var + a1)=0 then
+        a := coeff(a0, var, 0) + 1;
+        constraints := eval(ii, f = (x -> c0*density[BetaD](a,1)(x)));
+        sol := solve(constraints, c0);
+        return WeightedM(eval(c0, sol), BetaD(a,1));
+      # degenerate case with a=1
+      elif degree(a0,var)=0 and degree(a1,var)=1 and normal(a1 - (var-1))=0 then
+        b := -(coeff(a0, var, 0) - 1);
+        constraints := eval(ii, f = (x -> c0*density[BetaD](1,b)(x)));
+        sol := solve(constraints, c0);
+        return WeightedM(eval(c0, sol), BetaD(1,b));
+      # degenerate case with a=1, presented differently
+      elif degree(a0,var)=0 and degree(a1,var)=1 and normal(a1 + (var-1))=0 then
+        b := (coeff(a0, var, 0) + 1);
+        constraints := eval(ii, f = (x -> c0*density[BetaD](1,b)(x)));
+        sol := solve(constraints, c0);
+        return WeightedM(eval(c0, sol), BetaD(1,b));
+      end if;
+    end if;
+    NULL;
+  end proc;
+
+
   mkRealDensity := proc(dens, var, rng)
-    local res, new_dens;
+    local de, res, new_dens, Dx, diffop, init;
     if dens :: specfunc(anything, 'WeightedM') then
-      res := recognize_density(op(1,dens), var);
+      res := NULL;
+      # no matter what, get the de.  
+      # TODO: might want to switch from var=0 sometimes
+      de := get_de(op(1,dens),var,Dx);
+      if de::specfunc(anything, 'Diffop') then
+        (diffop, init) := op(de);
+        # dispatch on rng
+        if rng = -infinity..infinity then
+          res := recognize_density(diffop, init, Dx, var);
+        elif rng = 0..1 then
+          res := recognize_density_01(diffop, init, Dx, var);
+        end if;
+      end if;
+
       if res<>NULL then
         Bind(res, var = rng, op(2,dens))
       else
@@ -1100,17 +1180,19 @@ SLO := module ()
       # uses associatibity of >>=
       Bind(op(1, new_dens), op(2, new_dens), 
         Bind(op(3, new_dens), op(2, dens), op(3, dens)));
+    elif dens :: specfunc(anything, 'Return') then
+      Bind(Uniform(op(1,rng), op(2,rng)), var, dens)
     else
       Bind(Lebesgue, var = rng, dens)
     end if
   end proc;
 
-  density[NormalD] := proc(mu, sigma, x)
+  density[NormalD] := proc(mu, sigma) proc(x)
     1/sigma/sqrt(2)/sqrt(Pi)*exp(-(x-mu)^2/2/sigma^2)
-  end proc;
-  density[BetaD] := proc(a, b, x)
+  end proc end proc;
+  density[BetaD] := proc(a, b) proc(x)
     x^(a-1)*(1-x)^(b-1)/Beta(a,b)
-  end proc;
+  end proc end proc;
 
 #############
 # more hacks to get around Maple weaknesses
@@ -1186,6 +1268,8 @@ WeightedM := proc(w, m)
     m
   elif type(m, specfunc(anything, 'Superpose')) then
     Superpose(op(map(into_sup, m, w)));
+  elif type(m, specfunc(anything, 'WeightedM')) then
+    WeightedM(w*op(1,m), op(2,m))
   else
     'WeightedM'(w,m)
   end if;
@@ -1241,12 +1325,22 @@ end proc;
 Bind := proc(w, var, meas)
   if var::name and meas = Return(var) then
     w
-  elif var::name and 
-    meas :: 'WeightedM'(anything, 'Return'(identical(var))) and
+#  elif var::name and 
+#    meas :: 'WeightedM'(anything, 'Return'(identical(var))) and
+#    not depends(op(1, meas), var) then
+#    WeightedM(op(1,meas), w)
+  elif var::name and meas :: 'WeightedM'(anything, anything) and
     not depends(op(1, meas), var) then
-    WeightedM(op(1,meas), w)
+    WeightedM(op(1,meas), Bind(w, var, op(2,meas)))
+  elif var::name and meas :: 'Return'(identical(var)) then
+    w
   elif var::`=` and op(2,var) = (-infinity)..infinity then
     Bind(w, op(1,var), meas)
+  elif var::`=` and op(2,var) = 0..1 and w::specfunc(anything,'BetaD') then
+    Bind(w, op(1,var), meas)
+  elif w='Lebesgue' and var::`=` and not(op([2,1],var) :: SymbolicInfinity)
+        and not(op([2,2],var) :: SymbolicInfinity) then
+    Bind(Uniform(op([2,1],var), op([2,2],var)), op(1,var), meas)
   elif w :: 'WeightedM'(anything, anything) then
     WeightedM(op(1,w), Bind(op(2,w), var, meas));
   else
