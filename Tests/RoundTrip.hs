@@ -63,7 +63,8 @@ testMeasureReal = test [
     "t45" ~: testS t45,
     "t46" ~: testS t46,
     "t47" ~: testS t47,
-    "t50" ~: testS t50
+    "t50" ~: testS t50,
+    "t51" ~: testS t51
     ]
 
 testMeasurePair :: Test
@@ -316,6 +317,10 @@ t49 = gamma 0.01 0.01
 t50 :: (Mochastic repr) => repr (Measure Real)
 t50 = uniform 1 3 `bind` \x ->
       normal 1 (unsafeProb x)
+
+t51 :: (Mochastic repr) => repr (Measure Real)
+t51 = uniform (-1) 1 `bind` \x ->
+      normal x 1
 
 priorAsProposal :: Mochastic repr => repr (Measure (a,b)) -> repr (a,b) -> repr (Measure (a,b))
 priorAsProposal p x = bern (1/2) `bind` \c ->
