@@ -425,18 +425,20 @@ SLO := module ()
       if rest then 
         op(-1, pw) 
       else 
-        error "pw will all false conditions (%1)", pw
+        error "pw with all false conditions (%1)", pw
       end if
     else
       `if`(rest, piecewise(aa, op(-1,pw)), piecewise(aa));
     end if;
   end proc;
 
-  # also takes pw conditions and distributes them, for n = 1
+  # - takes pw conditions and distributes them, for n = 1
+  # - simplifies simple cases of nested pw
   simp_pw := proc(pw)
     local res, cond, l, r, b1, b2, b3, rel, new_cond;
     res := simp_pw_equal(pw);
     if nops(res)=3 then
+      # distribute conditions
       cond := op(1,res);
       if cond::t_rel and (op(1,cond)::t_pw or op(2,cond)::t_pw) then
         l := op(1, cond);
@@ -450,21 +452,24 @@ SLO := module ()
           b2 := op(1,l);
           b3 := rel(op(3,l));
           new_cond := Or(And(b2, b1), And(flip_cond(b2), b3));
-          piecewise(new_cond, op(2, res), op(3, res))
+          res := piecewise(new_cond, op(2, res), op(3, res))
         else
           rel := x -> op(0,cond)(l,x);
           b1 := rel(op(2,r));
           b2 := op(1,r);
           b3 := rel(op(3,r));
           new_cond := Or(And(b2, b1), And(flip_cond(b2), b3));
-          piecewise(new_cond, op(2, res), op(3, res))
+          res := piecewise(new_cond, op(2, res), op(3, res))
         end if;
-      else
-        res
       end if;
-    else
-      res
+
+      # simplify simple nested cases
+      if res::t_pw and op(2,res)::t_pw and nops(op(2,res))=3 and
+         normal(op([2,3],res) - op(3,res)) = 0 then
+          res := piecewise(And(op(1,res),op([2,1],res)), op([2,2],res), op(3,res));
+      end if;
     end if;
+    res;
   end proc;
 
   # this assumes we are doing pw of measures.
