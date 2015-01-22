@@ -163,9 +163,7 @@ typeFamInstance :: Name -- ^ Ty
                 -> Name -- ^ T
                 -> Type -- ^ Ty' 
                 -> Q Dec 
-typeFamInstance tyFam tAuxs ty tyF = undefined
-{-do 
+typeFamInstance tyFam tAuxs ty tyF = do
   (tyR, _) <- tyReal ty 
   t <- [t| NS (NP $(return tyF)) (Code $(return tyR)) |]
-  return $ TySynInstD tyFam (TySynEqn (tAuxs ++ [ tyR ]) t)
--}
+  return $ TySynInstD tyFam (tAuxs ++ [ tyR ]) t
