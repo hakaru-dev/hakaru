@@ -188,6 +188,7 @@ end;
 bi["Pair"] := bfunc("pair");
 bi["NormalD"] := bfunc("normal");
 bi["BetaD"] := bfunc("beta");
+bi["GammaD"] := bfunc("gamma");
 
 bi["IntPow"] := proc(l, r)
   b:-append("("); p(l); b:-append(" ^^ "); p(r); b:-append(")");

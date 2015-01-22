@@ -22,7 +22,10 @@ SLO := module ()
     simp_sup, simp_if, into_sup, simp_rel, 
     simp_pw, simp_pw_equal, simp_pw3,
     comp2, comp_algeb, compare, comp_list,
-    get_de, mkRealDensity, recognize_density, recognize_density_01, density;
+
+    # density recognisation routines
+    get_de, mkRealDensity, recognize_density, recognize_density_01, 
+    recognize_density_0inf, density;
 
   t_binds := 'specfunc(anything, {int, Int, sum, Sum})';
   t_pw := 'specfunc(anything, piecewise)';
@@ -791,7 +794,7 @@ SLO := module ()
       infer_type(op(2, e), ctx)
     elif type(e, specfunc(anything, 'Uniform')) then
       Measure(Real)
-    elif type(e, specfunc(anything, 'BetaD')) then
+    elif type(e, specfunc(anything, {'BetaD', 'GammaD'})) then
       Measure(Prob)
     elif type(e, 'Bind'(anything, name, anything)) then
       Measure(Real)
@@ -914,6 +917,8 @@ SLO := module ()
       Bind(e, var, Return(unsafeProb(var)))
     elif type(e, 'BetaD'(anything, anything)) and typ = 'Measure(Prob)' then
       BetaD(mkProb(op(1,e), ctx), mkProb(op(2,e), ctx))
+    elif type(e, 'GammaD'(anything, anything)) and typ = 'Measure(Prob)' then
+      GammaD(mkProb(op(1,e), ctx), mkProb(op(2,e), ctx))
     elif type(e, 'NormalD'(anything, anything)) and typ = 'Measure(Real)' then
       NormalD(op(1,e), mkProb(op(2, e), ctx))
     else
@@ -943,8 +948,8 @@ SLO := module ()
     local res;
     if type(e, 'Uniform'(anything, anything)) then
       'RealRange'(op(e));
-    elif type(e, 'BetaD'(anything, anything)) then
-      'RealRange'(0,1);
+    elif type(e, 'GammaD'(anything, anything)) then
+      'RealRange'(0,infinity);
     elif type(e, {identical('Lebesgue'), specfunc(anything, 'NormalD')}) then
       'real'
     elif type(e, specfunc(anything, 'Superpose')) then
@@ -1098,6 +1103,9 @@ SLO := module ()
           diffop := DEtools[de2diffop](de, f(var), [Dx, var]);
           return Diffop(diffop, init)
         end if;
+      elif not (de = NULL) then # no initial cond needed
+        diffop := DEtools[de2diffop](de, f(var), [Dx, var]);
+        return Diffop(diffop, {});
       end if;
     catch: # do nothing
     end try;
@@ -1161,6 +1169,24 @@ SLO := module ()
     NULL;
   end proc;
 
+  # density recognizer for 0..infinity
+  # warning: Maple's gamma distribution swaps its parameters wrt Hakaru's!
+  recognize_density_0inf := proc(diffop, init, Dx, var)
+    local a0, a1, scale, at0, b, c;
+    if degree(diffop, Dx) = 1 then
+      a0 := coeff(diffop, Dx, 0);
+      a1 := coeff(diffop, Dx, 1);
+      if degree(a0, var) = 1 and degree(a1, var) = 1 then
+        if coeff(a1,var,0)= 0 then
+          scale := coeff(a0,var,1);
+          b := coeff(a1, var, 1)/scale;
+          c := (b-(coeff(a0,var,0)/scale))/b;
+          return GammaD(c, b);
+        end if;
+      end if;
+    end if;
+    NULL;
+  end proc;
 
   mkRealDensity := proc(dens, var, rng)
     local de, res, new_dens, Dx, diffop, init;
@@ -1176,6 +1202,8 @@ SLO := module ()
           res := recognize_density(diffop, init, Dx, var);
         elif rng = 0..1 then
           res := recognize_density_01(diffop, init, Dx, var);
+        elif rng = 0..infinity then
+          res := recognize_density_0inf(diffop, init, Dx, var);
         end if;
       end if;
 
@@ -1201,6 +1229,9 @@ SLO := module ()
   end proc end proc;
   density[BetaD] := proc(a, b) proc(x)
     x^(a-1)*(1-x)^(b-1)/Beta(a,b)
+  end proc end proc;
+  density[GammaD] := proc(a, b) proc(x)
+    (x/k)^(theta-1)*exp(-x/k)/k/GAMMA(theta);
   end proc end proc;
 
 #############
@@ -1346,6 +1377,8 @@ Bind := proc(w, var, meas)
   elif var::`=` and op(2,var) = (-infinity)..infinity then
     Bind(w, op(1,var), meas)
   elif var::`=` and op(2,var) = 0..1 and w::specfunc(anything,'BetaD') then
+    Bind(w, op(1,var), meas)
+  elif var::`=` and op(2,var) = 0..infinity and w::specfunc(anything,'GammaD') then
     Bind(w, op(1,var), meas)
   elif w='Lebesgue' and var::`=` and not(op([2,1],var) :: SymbolicInfinity)
         and not(op([2,2],var) :: SymbolicInfinity) then
