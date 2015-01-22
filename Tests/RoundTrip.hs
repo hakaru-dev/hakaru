@@ -63,6 +63,7 @@ testMeasureReal = test [
     "t45" ~: testSS [t46,t47] t45,
     "t50" ~: testS t50,
     "t51" ~: testS t51
+    -- "two_coins" ~: testS two_coins -- needs support for lists
     ]
 
 testMeasurePair :: Test
@@ -71,6 +72,7 @@ testMeasurePair = test [
     "t8"            ~: testSS [] t8,
     "t23"           ~: testSS [t23] t23',
     "t48"           ~: testS t48,
+    "t52"           ~: testS t52,
     "norm"          ~: testSS [] norm,
     "norm_nox"      ~: testSS [norm_nox] (normal 0 (sqrt_ 2)),
     "norm_noy"      ~: testSS [norm_noy] (normal 0 1),
@@ -79,7 +81,9 @@ testMeasurePair = test [
                               (lam $ \x -> superpose [(1/2, normal 0 1         `bind` \y -> dirac (pair y (snd_ x))),
                                                       (1/2, normal 0 (sqrt_ 2) `bind` \y -> dirac (pair (fst_ x) y))]),
     "mhPriorProp"   ~: testSS [testMHPriorProp] testPriorProp',
-    "unif2"         ~: testS unif2
+    "unif2"         ~: testS unif2,
+    "testGibbsPropUnif" ~: testS testGibbsPropUnif,
+    "testMCMCPriorProp" ~: testS testMCMCPriorProp
     ]
 
 testOther :: Test
@@ -264,6 +268,8 @@ t39 = lam (dirac . log)
 t40 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure Real)
 t40 = lam (dirac . log_)
 
+-- this is not plugged in as it requires dealing with first-class functions, 
+-- which is not implemented
 t41 :: (Lambda repr, Integrate repr, Mochastic repr) => repr (Measure ((Prob -> Prob) -> Prob))
 t41 = dirac $ (unExpect (uniform 0 2 `bind` dirac . unsafeProb))
 
