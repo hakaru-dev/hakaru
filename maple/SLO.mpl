@@ -167,7 +167,7 @@ SLO := module ()
       cs, simp_poly, simp_prod, simp_npw;
 
     simp_npw := zz -> `if`(op(1,zz)::t_pw, into_pw(SLO:-c,op(1,zz)), zz);
-    if e=undefined or e::numeric then return e end if;
+    if e=undefined or e::numeric or e::SymbolicInfinity then return e end if;
     cs := indets(e, specfunc(anything, c));
     csubst := map(x -> x = simp_npw(map(simp, value(x))), cs);
     ee := eval(e, csubst);
@@ -188,7 +188,7 @@ SLO := module ()
     all_vars := [op(vars),op(convert(cs,list))];
     
     push_in := proc(c, v)
-      local actual, cof;
+      local actual, cof, ii, rest, res;
       cof := c;
       if v=1 then return cof end if;
       actual := thaw(v);
@@ -200,9 +200,12 @@ SLO := module ()
         `if`(actual::t_pw, into_pw((x -> cof * x), actual), cof*actual);
       elif degree(v, vars)>1 then 
         if type(actual, '`*`'(t_pw)) then
-          into_pw((x -> cof * x), merge_pw([op(actual)], mul));
+          res := merge_pw([op(actual)], mul);
+          `if`(res::t_pw, into_pw((x->cof*x), res), cof*res);
         else
-          error "product? (%1)", actual
+          (ii, rest) := selectremove(type, actual, t_binds);
+          if ii::`*` then error "product? (%1)", ii; end if;
+          simp(subsop(1=op(1,ii)*rest, ii));
         end if;
       else
         error "how can (%1) not be a binder, pw or c?", v
@@ -364,7 +367,8 @@ SLO := module ()
                                    f(op(i,j),j=l)), i=1..n)));
       simp(res);
     else
-      error "multiple piecewises with different breakpoints %1", l
+      #error "multiple piecewises with different breakpoints %1", l
+      f(i,i=l)
     end if;
   end proc;
 
