@@ -47,7 +47,9 @@ allTests = test [
     "prog3s" ~: testD prog3s,
     "pair1fstD" ~: testD (\u -> ununit u $ pair1fst),
     "pair1fstDswap" ~: testD (\u -> ununit u $ liftM swap_ pair1fst),
-    "gamalonDis" ~: testS gamalonDis
+    "gamalonDis" ~: testS gamalonDis,
+    "borelishSub" ~: testSS [borelishSub] (uniform 0 1),
+    "borelishDiv" ~: testSS [borelishDiv] (superpose [(1/2, liftM fromProb (beta 2 1))])
     ]
 
 
@@ -359,3 +361,14 @@ gamalon abcd_xy =
     uniform (a * x + b * y - 1) (a * x + b * y + 1) `bind` \x' ->
     uniform (c * x + d * y - 1) (c * x + d * y + 1) `bind` \y' ->
     dirac (pair x' y')
+
+borelish :: (Mochastic repr) =>
+            (repr Real -> repr Real -> repr a) -> repr (Measure (a, Real))
+borelish compare =
+    uniform 0 1 `bind` \x ->
+    uniform 0 1 `bind` \y ->
+    dirac (pair (compare x y) x)
+
+borelishSub, borelishDiv :: (Mochastic repr) => repr (Measure Real)
+borelishSub = head (runDisintegrate (const (borelish (-)))) unit 0
+borelishDiv = head (runDisintegrate (const (borelish (/)))) unit 1
