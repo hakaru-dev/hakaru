@@ -60,9 +60,7 @@ testMeasureReal = test [
     "t39" ~: testSS [] t39,
     "t40" ~: testSS [] t40,
     "t43" ~: testSS [t43, t43'] t43'',
-    "t45" ~: testS t45,
-    "t46" ~: testS t46,
-    "t47" ~: testS t47,
+    "t45" ~: testSS [t46,t47] t45,
     "t50" ~: testS t50,
     "t51" ~: testS t51
     ]
