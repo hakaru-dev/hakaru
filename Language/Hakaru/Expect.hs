@@ -1,5 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleContexts, FlexibleInstances,
-    TypeFamilies, StandaloneDeriving, GeneralizedNewtypeDeriving,
+    TypeFamilies, StandaloneDeriving, GeneralizedNewtypeDeriving, GADTs,
     RankNTypes, ScopedTypeVariables, UndecidableInstances, TypeOperators, DataKinds #-}
 {-# OPTIONS -Wall #-}
 
