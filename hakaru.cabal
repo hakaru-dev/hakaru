@@ -127,6 +127,7 @@ test-suite roundtrip_test
                        HUnit >= 1.2 && < 2.0,
                        process >= 1.1 && < 2.0,
                        tagged >= 0.7 && < 1.0,
+                       template-haskell >= 2.4 && < 3.0,
                        generics-sop >= 0.1.0 
     default-language:  Haskell2010
     ghc-options:         -Wall

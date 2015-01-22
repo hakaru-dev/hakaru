@@ -4,6 +4,7 @@ import System.Exit (exitFailure)
 
 import qualified Tests.RoundTrip as RT
 import qualified Tests.Syntax as SY
+import qualified Tests.Embed as E
 
 import Test.HUnit
 
@@ -12,7 +13,8 @@ import Test.HUnit
 allTests :: Test
 allTests = test [
     RT.allTests,
-    SY.allTests
+    SY.allTests,
+    E.allTests 
     ]
 
 main :: IO ()
