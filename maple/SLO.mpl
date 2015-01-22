@@ -917,6 +917,8 @@ SLO := module ()
       Bind(e, var, Return(unsafeProb(var)))
     elif type(e, 'BetaD'(anything, anything)) and typ = 'Measure(Prob)' then
       BetaD(mkProb(op(1,e), ctx), mkProb(op(2,e), ctx))
+    elif type(e, 'BetaD'(anything, anything)) and typ = 'Measure(Real)' then
+      fromProb(BetaD(mkProb(op(1,e), ctx), mkProb(op(2,e), ctx)))
     elif type(e, 'GammaD'(anything, anything)) and typ = 'Measure(Prob)' then
       GammaD(mkProb(op(1,e), ctx), mkProb(op(2,e), ctx))
     elif type(e, 'NormalD'(anything, anything)) and typ = 'Measure(Real)' then
@@ -950,6 +952,8 @@ SLO := module ()
       'RealRange'(op(e));
     elif type(e, 'GammaD'(anything, anything)) then
       'RealRange'(0,infinity);
+    elif type(e, 'BetaD'(anything, anything)) then
+      'RealRange'(0,1);
     elif type(e, {identical('Lebesgue'), specfunc(anything, 'NormalD')}) then
       'real'
     elif type(e, specfunc(anything, 'Superpose')) then
