@@ -8,7 +8,7 @@ module Language.Hakaru.Syntax (Real, Prob, Measure,
        errorEmpty,
        Order(..), Base(..), ununit, fst_, snd_, swap_,
        and_, or_, not_, min_, max_,
-       Mochastic(..), bind_, factor, pairBind, liftM, liftM2,
+       Mochastic(..), bind_, factor, bindx, liftM, liftM2,
        invgamma, bern,
        Integrate(..), Lambda(..)) where
 
@@ -16,7 +16,7 @@ import Data.Typeable (Typeable)
 import Prelude hiding (Real)
 
 infix  4 `less`, `equal`, `less_`, `equal_`
-infixl 1 `bind`, `bind_`, `pairBind`
+infixl 1 `bind`, `bind_`, `bindx`
 infixl 9 `app`
 
 ------- Types
@@ -267,9 +267,9 @@ m `bind_` n = m `bind` \_ -> n
 factor :: (Mochastic repr) => repr Prob -> repr (Measure ())
 factor p = superpose [(p, dirac unit)]
 
-pairBind :: (Mochastic repr) => repr (Measure a) ->
-            (repr a -> repr (Measure b)) -> repr (Measure (a,b))
-m `pairBind` k = m `bind` \a -> k a `bind` \b -> dirac (pair a b)
+bindx :: (Mochastic repr) => repr (Measure a) ->
+         (repr a -> repr (Measure b)) -> repr (Measure (a,b))
+m `bindx` k = m `bind` \a -> k a `bind` \b -> dirac (pair a b)
 
 liftM :: (Mochastic repr) => (repr a -> repr b) ->
          repr (Measure a) -> repr (Measure b)
