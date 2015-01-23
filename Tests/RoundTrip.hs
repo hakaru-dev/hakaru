@@ -88,7 +88,8 @@ testMeasurePair = test [
 
 testOther :: Test
 testOther = test [
-    "testBetaConj" ~: testSS [testBetaConj] (superpose [(1/2, beta 2 1)]),
+    "beta1"      ~: testSS [testBetaConj] (superpose [(1/2, beta 2 1)]),
+    "beta2"      ~: testSS [testBetaConj'] (beta 2 1),
     "testGibbs0" ~: testSS [testGibbsProp0] (lam $ \x -> normal (x * (1/2))
                                                                 (sqrt_ 2 * (1/2))),
     "testGibbs1" ~: testSS [testGibbsProp1] (lam $ \x -> normal (fst_ x) 1 
@@ -131,6 +132,10 @@ t4' = (uniform  0 1) `bind` \x3 ->
 testBetaConj :: (Mochastic repr) => repr (Measure Prob)
 testBetaConj = d unit true
   where d:_ = runDisintegrate (\env -> ununit env $ liftM swap_ t4)
+
+testBetaConj' :: (Mochastic repr, Integrate repr, Lambda repr) => repr (Measure Prob)
+testBetaConj' = normalize (\ lift -> case d of Disintegration f -> f unit (lift true))
+  where d:_ = disintegrations (const $ liftM swap_ t4)
 
 -- t5 is "the same" as t1.
 t5 :: Mochastic repr => repr (Measure ())
