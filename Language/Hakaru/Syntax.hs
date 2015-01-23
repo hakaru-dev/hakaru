@@ -252,10 +252,12 @@ class (Base repr) => Mochastic repr where
   dp :: repr Prob -> repr (Measure a) -> repr (Measure (Measure a))
   dp =  error "dp unimplemented"
 
-  iid :: repr (Vector (     Measure  a   )) -> repr (     Measure (Vector a   ))
-  hmm :: repr (Vector (s -> Measure (a,s))) -> repr (s -> Measure (Vector a, s))
-  iid =  error "iid unimplemented"
-  hmm =  error "hmm unimplemented"
+  plate :: repr (Vector (     Measure         a   )) ->
+           repr (             Measure (Vector a   ))
+  chain :: repr (Vector (s -> Measure        (a,s))) ->
+           repr (        s -> Measure (Vector a, s))
+  plate =  error "plate unimplemented"
+  chain =  error "chain unimplemented"
 
 errorEmpty :: a
 errorEmpty = error "empty mixture makes no sense"
