@@ -24,6 +24,7 @@ infixl 9 `app`
 data Real      deriving Typeable
 data Prob      deriving Typeable -- meaning: non-negative real number
 data Measure a deriving Typeable
+data Vector a  deriving Typeable
 
 data EqType t t' where
   Refl :: EqType t t
@@ -153,6 +154,15 @@ class (Order repr Int , Num        (repr Int ),
   betaFunc a b = integrate 0 1 $ \x -> pow_ (unsafeProb x    ) (fromProb a - 1)
                                      * pow_ (unsafeProb (1-x)) (fromProb b - 1)
 
+  vector           :: repr Int -> repr Int ->
+                      (repr Int -> repr a) -> repr (Vector a)
+  index            :: repr (Vector a) -> repr Int -> repr a
+  loBound, hiBound :: repr (Vector a) -> repr Int
+  vector           =  error "vector unimplemented"
+  index            =  error "index unimplemented"
+  loBound          =  error "loBound unimplemented"
+  hiBound          =  error "hiBound unimplemented"
+
   fix :: (repr a -> repr a) -> repr a
   fix f = x where x = f x
 
@@ -238,6 +248,14 @@ class (Base repr) => Mochastic repr where
                         * pow_ (unsafeProb (1-x)) (fromProb b - 1)
                         / betaFunc a b
                         , dirac (unsafeProb x) )]
+
+  dp :: repr Prob -> repr (Measure a) -> repr (Measure (Measure a))
+  dp =  error "dp unimplemented"
+
+  iid :: repr (Vector (     Measure  a   )) -> repr (     Measure (Vector a   ))
+  hmm :: repr (Vector (s -> Measure (a,s))) -> repr (s -> Measure (Vector a, s))
+  iid =  error "iid unimplemented"
+  hmm =  error "hmm unimplemented"
 
 errorEmpty :: a
 errorEmpty = error "empty mixture makes no sense"
