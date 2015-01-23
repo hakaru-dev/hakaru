@@ -226,7 +226,7 @@ withinLaser n b = and_ [ lessOrEq (convert (n-0.5)) tb2
           toRadian d = d*pi/180
           ratio = fromRational $ fromIntegral range / fromIntegral shortrange
           convert = tan . toRadian . ((/) 4) . ((*) ratio)
-
+ 
 -- | Insert sensor readings (radial distance or intensity)
 -- from a list containing one reading for each beacon (reads; length = n)
 -- into the correct indices (i.e., angles derived from betas) within
@@ -269,6 +269,15 @@ type Step = DimL -> DimH -> DimA -> DimB
           -> DelTime
           -> Measure State
 
+simLasers :: (Mochastic repr, Lambda repr) => repr Step
+simLasers = lam $ \dl -> lam $ \dh -> lam $ \da -> lam $ \db -> 
+            lam $ \blons -> lam $ \blats ->
+            lam $ \old_lon -> lam $ \old_lat -> lam $ \old_phi ->
+            lam $ \old_ve -> lam $ \old_alpha -> lam $ \delT ->
+            simulate dl dh da db blons blats
+                     old_lon old_lat old_phi
+                     old_ve old_alpha delT
+
 type Particle = Sample' IO ( GPS -> GPS -> Angle
                              -> Vel -> Angle
                              -> DelTime
@@ -282,19 +291,10 @@ generate input output eval = do
   sensors <- sensorData input
   (lons, lats) <- genBeacons g eval
              
-  let lamExp :: (Mochastic repr, Lambda repr) => repr Step
-      lamExp = lam $ \dl -> lam $ \dh -> lam $ \da -> lam $ \db -> 
-               lam $ \blons -> lam $ \blats ->
-               lam $ \old_lon -> lam $ \old_lat -> lam $ \old_phi ->
-               lam $ \old_ve -> lam $ \old_alpha -> lam $ \delT ->
-               simulate dl dh da db blons blats
-                        old_lon old_lat old_phi
-                        old_ve old_alpha delT
-                               
-      particle :: Particle
-      particle = (unSample lamExp) l h a b lons lats
+  let particle :: Particle
+      particle = (unSample simLasers) l h a b lons lats
                   
-  gen output g sensors 0 controls 0 particle (PM iln ilt phi 0 0 0)
+  gen output g sensors 0 controls 0 particle (PM iln ilt phi 0 0 0)      
 
 type Rand = MWC.Gen (PrimState IO)
       
@@ -310,13 +310,13 @@ data Params = PM { vlon :: Double
                  , phi :: Double
                  , vel :: Double
                  , alpha :: Double
-                 , tm :: Double }         
+                 , tm :: Double }
 
 type Generator = V.Vector Sensor -> Int
                -> V.Vector Control -> Int
                -> Particle
                -> Params
-               -> IO ()                  
+               -> IO ()        
     
 gen :: FilePath -> Rand -> Generator
 gen out g sensors si controls ci particle
@@ -390,6 +390,18 @@ evolve env =
                       blons blats
                       vlon vlat phi
                       vel alpha del ]
+
+type Runner = V.Vector Sensor -> Int
+            -> V.Vector Control -> Int
+            -> V.Vector Laser -> Int
+            -> Params
+            -> IO ()
+    
+runner :: FilePath -> Rand -> Initial -> Runner
+runner out g (Init l h a b ph lt ln)
+       sensors si controls ci lasers li
+       (PM old_vlon old_vlat old_phi old_ve old_alpha tprev)
+    = undefined
 
 main :: IO ()
 main = do
