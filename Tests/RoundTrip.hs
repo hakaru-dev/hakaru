@@ -377,7 +377,7 @@ mh proposal target =
   lam $ \old ->
     proposal old `bind` \new ->
     dirac (pair new (mu `app` pair new old / mu `app` pair old new))
-  where d:_ = density (const (bindx target proposal))
+  where d:_ = density (\dummy -> ununit dummy $ bindx target proposal)
 
 mcmc :: (Mochastic repr, Integrate repr, Lambda repr,
          a ~ Expect' a, Order_ a) =>
