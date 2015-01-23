@@ -10,6 +10,7 @@ import Language.Hakaru.Syntax (Real, Prob, Measure,
 import Language.Hakaru.Util.Pretty (Pretty (pretty), prettyPair)
 -- import Language.Hakaru.Sample(Sample(unSample))
 import Language.Hakaru.Disintegrate
+import Language.Hakaru.Any (Any(Any))
 
 import Control.Monad (zipWithM_, replicateM)
 import Control.Applicative (Const(Const))
@@ -42,14 +43,14 @@ allTests = test [
     "testLinregSimp" ~: testSS [linregSimp] linregSimp',
     "testdistLinregSimp" ~: testS distLinregSimp,
     "testLinreg" ~: ignore $ testS distLinreg,
-    "prog1s" ~: testD prog1s,
-    "prog2s" ~: testD prog2s,
-    "prog3s" ~: testD prog3s,
-    "pair1fstD" ~: testD (\u -> ununit u $ pair1fst),
-    "pair1fstDswap" ~: testD (\u -> ununit u $ liftM swap_ pair1fst),
+    "prog1s" ~: testD prog1s [],
+    "prog2s" ~: testD prog2s [],
+    "prog3s" ~: testD prog3s [],
+    "pair1fstD" ~: testD (\u -> ununit u $ pair1fst) [],
+    "pair1fstDswap" ~: testD (\u -> ununit u $ liftM swap_ pair1fst) [],
     "gamalonDis" ~: testS gamalonDis,
-    "borelishSub" ~: testSS [borelishSub] (uniform 0 1),
-    "borelishDiv" ~: testSS [borelishDiv] (superpose [(1/2, liftM fromProb (beta 2 1))])
+    "borelishSub" ~: testD (const (borelish (-))) [(unit, 0, Any (uniform 0 1))],
+    "borelishDiv" ~: testD (const (borelish (/))) [(unit, 1, Any (superpose [(1/2, liftM fromProb (beta 2 1))]))],
     ]
 
 
@@ -369,6 +370,3 @@ borelish compare =
     uniform 0 1 `bind` \y ->
     dirac (pair (compare x y) x)
 
-borelishSub, borelishDiv :: (Mochastic repr) => repr (Measure Real)
-borelishSub = head (runDisintegrate (const (borelish (-)))) unit 0
-borelishDiv = head (runDisintegrate (const (borelish (/)))) unit 1

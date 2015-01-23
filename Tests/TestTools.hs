@@ -3,12 +3,12 @@
 
 module Tests.TestTools where
 
-import Language.Hakaru.Syntax (Measure, Mochastic, Integrate, Lambda(lam), Order_)
+import Language.Hakaru.Syntax (Measure, Lambda(lam), Order_)
 import Language.Hakaru.Disintegrate (Disintegrate, Disintegration(Disintegration), disintegrations)
 import Language.Hakaru.Expect (Expect(unExpect))
 import Language.Hakaru.Maple (Maple, runMaple)
 import Language.Hakaru.Simplify (simplify, Simplifiable, toMaple, SimplifyException(MapleException))
-import Language.Hakaru.Any (Any(unAny))
+import Language.Hakaru.Any (Any(unAny), Any')
 import Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode)
 import Text.PrettyPrint (Doc)
 import Data.Maybe (isJust)
@@ -41,18 +41,15 @@ assertResult s = assertBool "no result" $ not $ null s
 assertJust :: Maybe a -> Assertion
 assertJust = assertBool "expected Just but got Nothing" . isJust
 
-type Testee a =
-  forall repr. (Mochastic repr, Integrate repr, Lambda repr) => repr a
-
 -- Assert that a given Hakaru program roundtrips (aka simplifies) without error
-testS :: (Simplifiable a) => Testee a -> Assertion
+testS :: (Simplifiable a) => Any' a -> Assertion
 testS t = do
     p <- simplify t `catch` handleSimplify t
     let s = result (unAny p)
     assertResult (show s)
 
 -- Assert that all the given Hakaru programs simplify to the given one
-testSS :: (Simplifiable a) => [Expect Maple a] -> Testee a -> Assertion
+testSS :: (Simplifiable a) => [Expect Maple a] -> Any' a -> Assertion
 testSS ts t' =
     mapM_ (\t -> do p <- simplify t --`catch` handleSimplify t
                     (assertEqual "testSS" `on` result) t' (unAny p))
@@ -65,11 +62,13 @@ handleSimplify t (MapleException toMaple_ fromMaple) =
 handleSimplify _ e = throw e
 
 testD :: (Simplifiable env, Simplifiable a, Simplifiable b, Order_ a) =>
-         (Disintegrate env -> Disintegrate (Measure (a,b))) -> IO ()
-testD f = do
+         (Disintegrate env -> Disintegrate (Measure (a,b))) ->
+         [(Expect Maple env, Expect Maple a, Any (Measure b))] -> Assertion
+testD f slices = do
     let ds = disintegrations f
     assertResult ds
     mapM_ (\(Disintegration d) -> testS (lam (\env -> lam (\a -> d env a)))) ds
+    mapM_ (\(env,a,t') -> testSS [ d env a | Disintegration d <- ds ] (unAny t')) slices
 
 toMapleD :: (Simplifiable env, Simplifiable a, Simplifiable b, Order_ a) =>
          (Disintegrate env -> Disintegrate (Measure (a,b))) -> IO ()
