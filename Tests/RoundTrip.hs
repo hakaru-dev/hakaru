@@ -8,7 +8,7 @@ import Language.Hakaru.Disintegrate hiding (max_)
 import Language.Hakaru.Expect (Expect(unExpect), Expect', normalize)
 -- import Language.Hakaru.Maple (Maple, runMaple)
 -- import Language.Hakaru.Simplify (simplify)
-import Language.Hakaru.PrettyPrint (runPrettyPrint)
+-- import Language.Hakaru.PrettyPrint (runPrettyPrint)
 -- import Text.PrettyPrint (text, (<>), ($$), nest, render)
 
 import Test.HUnit
@@ -37,7 +37,7 @@ testMeasureProb = test [
     "t35" ~: testSS [t35] (lam (\x -> if_ (less x 4) (dirac 3) (dirac 5))),
     "t38" ~: testSS [] t38,
     "t42" ~: testSS [t42] (dirac 1),
-    "t49" ~: testS t49
+    "t49" ~: testSS [] t49
     ]
 
 testMeasureReal :: Test
@@ -60,11 +60,10 @@ testMeasureReal = test [
     "t39" ~: testSS [] t39,
     "t40" ~: testSS [] t40,
     "t43" ~: testSS [t43, t43'] t43'',
-    "t45" ~: testS t45,
-    "t46" ~: testS t46,
-    "t47" ~: testS t47,
+    "t45" ~: testSS [t46,t47] t45,
     "t50" ~: testS t50,
     "t51" ~: testS t51
+    -- "two_coins" ~: testS two_coins -- needs support for lists
     ]
 
 testMeasurePair :: Test
@@ -73,6 +72,7 @@ testMeasurePair = test [
     "t8"            ~: testSS [] t8,
     "t23"           ~: testSS [t23] t23',
     "t48"           ~: testS t48,
+    "t52"           ~: testS t52,
     "norm"          ~: testSS [] norm,
     "norm_nox"      ~: testSS [norm_nox] (normal 0 (sqrt_ 2)),
     "norm_noy"      ~: testSS [norm_noy] (normal 0 1),
@@ -81,7 +81,9 @@ testMeasurePair = test [
                               (lam $ \x -> superpose [(1/2, normal 0 1         `bind` \y -> dirac (pair y (snd_ x))),
                                                       (1/2, normal 0 (sqrt_ 2) `bind` \y -> dirac (pair (fst_ x) y))]),
     "mhPriorProp"   ~: testSS [testMHPriorProp] testPriorProp',
-    "unif2"         ~: testS unif2
+    "unif2"         ~: testS unif2,
+    "testGibbsPropUnif" ~: testS testGibbsPropUnif,
+    "testMCMCPriorProp" ~: testS testMCMCPriorProp
     ]
 
 testOther :: Test
@@ -266,6 +268,8 @@ t39 = lam (dirac . log)
 t40 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure Real)
 t40 = lam (dirac . log_)
 
+-- this is not plugged in as it requires dealing with first-class functions, 
+-- which is not implemented
 t41 :: (Lambda repr, Integrate repr, Mochastic repr) => repr (Measure ((Prob -> Prob) -> Prob))
 t41 = dirac $ (unExpect (uniform 0 2 `bind` dirac . unsafeProb))
 
@@ -278,7 +282,7 @@ t43'  = lam $ \b -> if_ b (uniform 0 1) (uniform 0 1)
 t43'' = lam $ \_ -> uniform 0 1
 
 t44Add, t44Add', t44Mul, t44Mul' :: (Lambda repr, Mochastic repr) => repr (Real -> Real -> Measure ())
-t44Add  = lam $ \x -> lam $ \y -> factor (unsafeProb (x * x + y * y))
+t44Add  = lam $ \x -> lam $ \y -> factor (unsafeProb (x * x) + unsafeProb (y * y))
 t44Add' = lam $ \x -> lam $ \y -> factor (unsafeProb (x ** 2 + y ** 2))
 t44Mul  = lam $ \x -> lam $ \y -> factor (unsafeProb (x * x * y * y))
 t44Mul' = lam $ \x -> lam $ \y -> factor (unsafeProb (x ** 2) * unsafeProb (y ** 2))
@@ -299,7 +303,7 @@ t48 :: (Mochastic repr, Lambda repr) => repr ((Real, Real) -> (Measure Real))
 t48 = lam (\x -> uniform (-5) 7 `bind` \w -> dirac ((fst_ x + snd_ x) * w))
 
 t49 :: (Mochastic repr) => repr (Measure Prob)
-t49 = gamma 0.01 0.01
+t49 = gamma 0.01 0.35
 
 t50 :: (Mochastic repr) => repr (Measure Real)
 t50 = uniform 1 3 `bind` \x ->
@@ -337,13 +341,31 @@ testGibbsProp0 = lam $ \x ->
                  case d of Disintegration f -> f unit (lift x)
   where d:_ = disintegrations (const flipped_norm)
 
+onFst :: (Lambda repr) => (t -> repr a -> repr b) -> t -> repr (a -> b)
+onFst tr f = lam (tr f)
+
+onSnd :: (Mochastic repr, Mochastic repr1, Lambda repr) =>
+               (repr1 (Measure (b1, a1))
+                -> repr (b2, a2) -> repr (Measure (a, b)))
+               -> repr1 (Measure (a1, b1)) -> repr ((a2, b2) -> Measure (b, a))
+onSnd tr f = lam (liftM swap_ . tr (liftM swap_ f) . swap_)
+
 testGibbsProp1 :: (Lambda repr, Mochastic repr, Integrate repr) =>
                   repr ((Real, Real) -> Measure (Real, Real))
-testGibbsProp1 = lam (gibbsProposal norm)
+-- testGibbsProp1 = lam (gibbsProposal norm)
+testGibbsProp1 = onFst gibbsProposal norm
 
 testGibbsProp2 :: (Lambda repr, Mochastic repr, Integrate repr) =>
                   repr ((Real, Real) -> Measure (Real, Real))
-testGibbsProp2 = lam (liftM swap_ . gibbsProposal (liftM swap_ norm) . swap_)
+-- testGibbsProp2 = lam (liftM swap_ . gibbsProposal (liftM swap_ norm) . swap_)
+testGibbsProp2 = onSnd gibbsProposal norm
+
+testGibbsPropUnif :: (Lambda repr, Mochastic repr, Integrate repr) =>
+                  repr (Real -> Measure Real)
+testGibbsPropUnif = lam $ \x ->
+                    normalize $ \lift ->
+                    case d of Disintegration f -> f unit (lift x)
+  where d:_ = disintegrations (const (liftM swap_ unif2))
 
 mh :: (Mochastic repr, Integrate repr, Lambda repr,
        a ~ Expect' a, Order_ a) =>
