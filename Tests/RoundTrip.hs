@@ -318,6 +318,7 @@ t51 :: (Mochastic repr) => repr (Measure Real)
 t51 = uniform (-1) 1 `bind` \x ->
       normal x 1
 
+-- Example 1: from Pollard's Conditioning as Disintegration
 t52 :: (Mochastic repr) => repr (Measure (Real, (Real, Real)))
 t52 = uniform 0 1 `bind` \x ->
       uniform 0 1 `bind` \y ->
