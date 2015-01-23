@@ -8,7 +8,7 @@ module Language.Hakaru.Syntax (Real, Prob, Measure,
        errorEmpty,
        Order(..), Base(..), ununit, fst_, snd_, swap_,
        and_, or_, not_, min_, max_,
-       Mochastic(..), bind_, factor, pairBind, liftM, liftM2,
+       Mochastic(..), bind_, factor, bindx, liftM, liftM2,
        invgamma, bern,
        Integrate(..), Lambda(..)) where
 
@@ -16,7 +16,7 @@ import Data.Typeable (Typeable)
 import Prelude hiding (Real)
 
 infix  4 `less`, `equal`, `less_`, `equal_`
-infixl 1 `bind`, `bind_`, `pairBind`
+infixl 1 `bind`, `bind_`, `bindx`
 infixl 9 `app`
 
 ------- Types
@@ -24,6 +24,7 @@ infixl 9 `app`
 data Real      deriving Typeable
 data Prob      deriving Typeable -- meaning: non-negative real number
 data Measure a deriving Typeable
+data Vector a  deriving Typeable
 
 data EqType t t' where
   Refl :: EqType t t
@@ -153,6 +154,15 @@ class (Order repr Int , Num        (repr Int ),
   betaFunc a b = integrate 0 1 $ \x -> pow_ (unsafeProb x    ) (fromProb a - 1)
                                      * pow_ (unsafeProb (1-x)) (fromProb b - 1)
 
+  vector           :: repr Int -> repr Int ->
+                      (repr Int -> repr a) -> repr (Vector a)
+  index            :: repr (Vector a) -> repr Int -> repr a
+  loBound, hiBound :: repr (Vector a) -> repr Int
+  vector           =  error "vector unimplemented"
+  index            =  error "index unimplemented"
+  loBound          =  error "loBound unimplemented"
+  hiBound          =  error "hiBound unimplemented"
+
   fix :: (repr a -> repr a) -> repr a
   fix f = x where x = f x
 
@@ -239,6 +249,16 @@ class (Base repr) => Mochastic repr where
                         / betaFunc a b
                         , dirac (unsafeProb x) )]
 
+  dp :: repr Prob -> repr (Measure a) -> repr (Measure (Measure a))
+  dp =  error "dp unimplemented"
+
+  plate :: repr (Vector (     Measure         a   )) ->
+           repr (             Measure (Vector a   ))
+  chain :: repr (Vector (s -> Measure        (a,s))) ->
+           repr (        s -> Measure (Vector a, s))
+  plate =  error "plate unimplemented"
+  chain =  error "chain unimplemented"
+
 errorEmpty :: a
 errorEmpty = error "empty mixture makes no sense"
 
@@ -249,9 +269,9 @@ m `bind_` n = m `bind` \_ -> n
 factor :: (Mochastic repr) => repr Prob -> repr (Measure ())
 factor p = superpose [(p, dirac unit)]
 
-pairBind :: (Mochastic repr) => repr (Measure a) ->
-            (repr a -> repr (Measure b)) -> repr (Measure (a,b))
-m `pairBind` k = m `bind` \a -> k a `bind` \b -> dirac (pair a b)
+bindx :: (Mochastic repr) => repr (Measure a) ->
+         (repr a -> repr (Measure b)) -> repr (Measure (a,b))
+m `bindx` k = m `bind` \a -> k a `bind` \b -> dirac (pair a b)
 
 liftM :: (Mochastic repr) => (repr a -> repr b) ->
          repr (Measure a) -> repr (Measure b)

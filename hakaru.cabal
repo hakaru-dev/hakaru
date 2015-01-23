@@ -71,6 +71,7 @@ library
 -- aeson used in LH.Util.Visual
 -- integration used in LH.Sample
 -- ghc-prim is used in LH.RoundTrip
+-- tagged is used in LH.Embed
   build-depends:       base >=4.6 && <5.0, 
                        Cabal >= 1.16,
                        ghc-prim >= 0.3 && < 0.4,
@@ -100,6 +101,7 @@ library
                        process >= 1.1 && < 2.0,
                        HUnit >= 1.2 && < 2.0,
                        mtl >= 2.1,
+                       tagged >= 0.7 && < 1.0,
                        generics-sop >= 0.1.0 
   -- hs-source-dirs:      
   default-language:    Haskell2010
@@ -123,7 +125,10 @@ test-suite roundtrip_test
                        hint >= 0.4.0.0 && < 0.5,
                        integration >= 0.2 && < 0.3,
                        HUnit >= 1.2 && < 2.0,
-                       process >= 1.1 && < 2.0
+                       process >= 1.1 && < 2.0,
+                       tagged >= 0.7 && < 1.0,
+                       template-haskell >= 2.4 && < 3.0,
+                       generics-sop >= 0.1.0 
     default-language:  Haskell2010
     ghc-options:         -Wall
 

@@ -19,7 +19,9 @@ import qualified Numeric.Integration.TanhSinh as TS
 import qualified System.Random.MWC as MWC
 import qualified System.Random.MWC.Distributions as MWCD
 import Language.Hakaru.Embed
-import Generics.SOP (NS(..), NP(..))
+import Generics.SOP (NS(..), NP(..), Generic(..))
+import GHC.Prim (Any)
+import Data.Proxy 
 
 newtype Sample m a = Sample { unSample :: Sample' m a }
 type family Sample' (m :: * -> *) (a :: *)
@@ -169,9 +171,11 @@ instance Lambda (Sample m) where
 
 
 type instance Sample' m (NS (NP t) a) = NS (NP t) a 
+type instance Sample' m Any = HRep (Sample m) Any 
 
 instance Embed (Sample m) where 
   type Ctx (Sample m) t = (Sample' m t ~ HRep (Sample m) t)
+
   hRep (Sample x) = Sample x 
   unHRep (Sample x) = Sample x 
 

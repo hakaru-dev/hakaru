@@ -20,11 +20,14 @@ Haskell := module ()
   # the right way would involve a proper pretty-printer, but that
   # can be added later easily enough.
   ModuleApply := proc(e) 
-      local rts, pows, expr, binds;
+      local rts, pows, expr, binds, unsafes;
 
       b:-clear();
 
-      expr := eval(e, unsafeProb = (x -> unsafeProb(freeze(x))));
+      unsafes := indets(e, specfunc(anything, 'unsafeProb'));
+      expr := subs(map((x -> x = unsafeProb(freeze(op(1,x)))), unsafes), e);
+      # expr := eval(e, unsafeProb = (x -> unsafeProb(freeze(x))));
+
       # some last-minute patching; this will need hardened, 'anything' is 
       # wrong.
       pows := indets(expr, anything ^ identical(-1));
@@ -135,6 +138,7 @@ bi["Bind_"] := proc(a1, a2) p(a1); b:-append(" `bind_` "); p(a2) end;
 bi["Return"] := ufunc("dirac");
 bi["Factor"] := ufunc("factor");
 bi["unsafeProb"] := ufunc("unsafeProb");
+bi["fromProb"] := ufunc("fromProb");
 bi["Unit"] := proc() b:-append("unit") end;
 bi["Uniform"] := bfunc("uniform ");
 bi["Lebesgue"] := proc() b:-append("lebesgue") end;
@@ -166,6 +170,10 @@ bi["Bind"] := proc(meas, var, rest)
   p(rest);
 end;
 
+bi["And"] := proc() b:-append("and_"); sp(); 
+  lbrack(); seqp(", ", [_passed]); rbrack();
+end;
+
 bi["SUPERPOSE"] := proc() b:-append("superpose"); sp(); 
   lbrack(); seqp(", ", [_passed]); rbrack();
 end;
@@ -184,6 +192,8 @@ end;
 
 bi["Pair"] := bfunc("pair");
 bi["NormalD"] := bfunc("normal");
+bi["BetaD"] := bfunc("beta");
+bi["GammaD"] := bfunc("gamma");
 
 bi["IntPow"] := proc(l, r)
   b:-append("("); p(l); b:-append(" ^^ "); p(r); b:-append(")");

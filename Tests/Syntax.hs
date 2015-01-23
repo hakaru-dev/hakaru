@@ -6,7 +6,7 @@ module Tests.Syntax(allTests) where
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure,
        Order(..), Base(..), ununit, and_, fst_, snd_, swap_, min_,
-       Mochastic(..), Lambda(..), bind_, liftM, factor, beta, bern, lam)
+       Mochastic(..), Lambda(..), Integrate(..), bind_, liftM, factor, beta, bern, lam)
 import Language.Hakaru.Util.Pretty (Pretty (pretty), prettyPair)
 -- import Language.Hakaru.Sample(Sample(unSample))
 import Language.Hakaru.Disintegrate
@@ -46,7 +46,10 @@ allTests = test [
     "prog2s" ~: testD prog2s,
     "prog3s" ~: testD prog3s,
     "pair1fstD" ~: testD (\u -> ununit u $ pair1fst),
-    "pair1fstDswap" ~: testD (\u -> ununit u $ liftM swap_ pair1fst)
+    "pair1fstDswap" ~: testD (\u -> ununit u $ liftM swap_ pair1fst),
+    "gamalonDis" ~: testS gamalonDis,
+    "borelishSub" ~: testSS [borelishSub] (uniform 0 1),
+    "borelishDiv" ~: testSS [borelishDiv] (superpose [(1/2, liftM fromProb (beta 2 1))])
     ]
 
 
@@ -338,3 +341,34 @@ prog3s u =
                (dirac false `bind` \e ->
                 uniform (10 + if_ e 1 0) 20) `bind` \x ->
          dirac (pair x c)
+
+gamalonDis -- Simplify me! 2015-01-20 meeting
+  :: (Lambda repr, Mochastic repr, Integrate repr) =>
+     repr ((((Real, Real), (Real, Real)), (Real, Real)) -> (Real, Real) -> Measure Prob)
+gamalonDis = lam $ \abcd_xy -> lam $ \x'y' ->
+             dirac (head (density gamalon) abcd_xy x'y')
+
+gamalon
+  :: (Mochastic repr) =>
+     repr (((Real, Real), (Real, Real)), (Real, Real)) ->
+     repr (Measure (Real, Real))
+gamalon abcd_xy =
+    unpair abcd_xy $ \abcd xy ->
+    unpair abcd $ \ab cd ->
+    unpair ab $ \a b ->
+    unpair cd $ \c d ->
+    unpair xy $ \x y ->
+    uniform (a * x + b * y - 1) (a * x + b * y + 1) `bind` \x' ->
+    uniform (c * x + d * y - 1) (c * x + d * y + 1) `bind` \y' ->
+    dirac (pair x' y')
+
+borelish :: (Mochastic repr) =>
+            (repr Real -> repr Real -> repr a) -> repr (Measure (a, Real))
+borelish compare =
+    uniform 0 1 `bind` \x ->
+    uniform 0 1 `bind` \y ->
+    dirac (pair (compare x y) x)
+
+borelishSub, borelishDiv :: (Mochastic repr) => repr (Measure Real)
+borelishSub = head (runDisintegrate (const (borelish (-)))) unit 0
+borelishDiv = head (runDisintegrate (const (borelish (/)))) unit 1
