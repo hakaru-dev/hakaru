@@ -51,6 +51,7 @@ allTests = test [
     "gamalonDis" ~: testS gamalonDis,
     "borelishSub" ~: testD (const (borelish (-))) [(unit, 0, Any (uniform 0 1))],
     "borelishDiv" ~: testD (const (borelish (/))) [(unit, 1, Any (superpose [(1/2, liftM fromProb (beta 2 1))]))],
+    "culpepper" ~: testD (const culpepper) [(unit, 0, Any (superpose [(1/8, dirac true), (1/8, dirac false)]))]
     ]
 
 
@@ -370,3 +371,7 @@ borelish compare =
     uniform 0 1 `bind` \y ->
     dirac (pair (compare x y) x)
 
+culpepper :: (Mochastic repr) => repr (Measure (Real, Bool))
+culpepper = bern 0.5 `bind` \a ->
+            if_ a (uniform (-2) 2) (liftM (2*) (uniform (-1) 1)) `bind` \b ->
+            dirac (pair b a)
