@@ -1,5 +1,6 @@
 {-# LANGUAGE 
-    DeriveGeneric
+    CPP
+  , DeriveGeneric
   , ScopedTypeVariables
   , PolyKinds 
   , DeriveFunctor 
@@ -166,4 +167,15 @@ typeFamInstance :: Name -- ^ Ty
 typeFamInstance tyFam tAuxs ty tyF = do
   (tyR, _) <- tyReal ty 
   t <- [t| NS (NP $(return tyF)) (Code $(return tyR)) |]
-  return $ TySynInstD tyFam (tAuxs ++ [ tyR ]) t
+  return $ tySynInstantiate tyFam (tAuxs ++ [ tyR ]) t
+  where
+    tySynInstantiate fam ts r =
+#if MIN_VERSION_template_haskell (2,9,0)
+      -- GHC >= 7.8
+      TySynInstD fam $ TySynEqn ts r
+#elif MIN_VERSION_template_haskell (2,7,0)
+      -- GHC >= 7.6 && < 7.8
+      TySynInstD fam ts r
+#else
+#error "don't know how to compile for template-haskell < 2.7"
+#endif
