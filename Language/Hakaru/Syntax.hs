@@ -302,9 +302,9 @@ laplace loc scale = exponential 1 `bind` \v ->
                     dirac $ loc + z*(fromProb $ scale*sqrt_(2*v))
 
 student :: (Mochastic repr) => repr Real -> repr Prob -> repr (Measure Real)
-student loc v = normal 0 1 `bind` \z ->
+student loc v = normal loc 1 `bind` \z ->
                 chi2 v `bind` \df ->
-                dirac $ (z+loc)*(fromProb $ sqrt_ (v/df))
+                dirac $ z*(fromProb $ sqrt_ (v/df))
 
 bern :: (Mochastic repr) => repr Prob -> repr (Measure Bool)
 bern p = categorical [(p, true), (1-p, false)]
