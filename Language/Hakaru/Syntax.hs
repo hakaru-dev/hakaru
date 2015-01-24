@@ -9,7 +9,8 @@ module Language.Hakaru.Syntax (Real, Prob, Measure,
        Order(..), Base(..), ununit, fst_, snd_, swap_,
        and_, or_, not_, min_, max_,
        Mochastic(..), bind_, factor, bindx, liftM, liftM2,
-       invgamma, bern,
+       invgamma, exponential, chi2, bern,
+       cauchy, laplace, student,
        Integrate(..), Lambda(..)) where
 
 import Data.Typeable (Typeable)    
@@ -283,6 +284,27 @@ liftM2 f m n = m `bind` \x -> n `bind` \y -> dirac (f x y)
 
 invgamma :: (Mochastic repr) => repr Prob -> repr Prob -> repr (Measure Prob)
 invgamma k t = liftM recip (gamma k (recip t))
+
+exponential :: (Mochastic repr) => repr Prob -> repr (Measure Prob)
+exponential l = gamma 1 l
+
+chi2 :: (Mochastic repr) => repr Prob -> repr (Measure Prob)
+chi2 v = gamma (v/2) 2
+
+cauchy :: (Mochastic repr) => repr Real -> repr Prob -> repr (Measure Real)
+cauchy loc scale = normal 0 1 `bind` \x ->
+                   normal 0 1 `bind` \y ->
+                   dirac $ loc + (fromProb scale)*(x/y)
+
+laplace :: (Mochastic repr) => repr Real -> repr Prob -> repr (Measure Real)
+laplace loc scale = exponential 1 `bind` \v ->
+                    normal 0 1 `bind` \z ->
+                    dirac $ loc + z*(fromProb $ scale*sqrt_(2*v))
+
+student :: (Mochastic repr) => repr Real -> repr Prob -> repr (Measure Real)
+student loc v = normal 0 1 `bind` \z ->
+                chi2 v `bind` \df ->
+                dirac $ (z+loc)*(fromProb $ sqrt_ (v/df))
 
 bern :: (Mochastic repr) => repr Prob -> repr (Measure Bool)
 bern p = categorical [(p, true), (1-p, false)]
