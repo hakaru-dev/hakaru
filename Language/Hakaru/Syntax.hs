@@ -10,7 +10,7 @@ module Language.Hakaru.Syntax (Real, Prob, Measure,
        and_, or_, not_, min_, max_,
        Mochastic(..), bind_, factor, bindx, liftM, liftM2,
        invgamma, exponential, chi2, bern,
-       cauchy, laplace, student,
+       cauchy, laplace, student, weibull,
        Integrate(..), Lambda(..)) where
 
 import Data.Typeable (Typeable)    
@@ -305,6 +305,10 @@ student :: (Mochastic repr) => repr Real -> repr Prob -> repr (Measure Real)
 student loc v = normal loc 1 `bind` \z ->
                 chi2 v `bind` \df ->
                 dirac $ z*(fromProb $ sqrt_ (v/df))
+
+weibull :: (Mochastic repr) => repr Prob -> repr Prob -> repr (Measure Prob)
+weibull b k = exponential 1 `bind` \x ->
+              dirac $ b*(pow_ x (fromProb $ recip k))
 
 bern :: (Mochastic repr) => repr Prob -> repr (Measure Bool)
 bern p = categorical [(p, true), (1-p, false)]
