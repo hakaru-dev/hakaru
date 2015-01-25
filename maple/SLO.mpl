@@ -1264,29 +1264,30 @@ SLO := module ()
     end if;
   end proc;
 
-  # need to deal better with other boundaries
-  myint_pw := proc(expr, b :: name = identical(-infinity..infinity))
-    local rels, n, rest, i, res, var, lower, cond;
+  # if the boundaries are not 'natural' for the piecewise, things might go weird
+  myint_pw := proc(expr, b :: name = `..`)
+    local rels, n, rest, i, res, var, lower, upper, cond;
     n := floor(nops(expr)/2);
     rels := [seq(op(2*i-1, expr), i=1..n)];
     rest := evalb(2*n < nops(expr));
-    if type(rels, list({`<`, `<=`})) and indets(rels) = {op(1,b)} then
-      res := 0; lower := -infinity; var := op(1,b);
+    upper := op([2,2],b);
+    if type(rels, list({`<`, `<=`})) then # and indets(rels) = {op(1,b)} then
+      res := 0; lower := op([2,1], b); var := op(1,b);
       for i from 1 to n do
         cond := op(2*i-1, expr);
         if cond::{identical(var) < anything, identical(var) <= anything} then
           res := res + myint(op(2*i, expr), var = lower .. op(2,cond));
           lower := op(2,cond);
         elif cond::{anything < identical(var), anything <= identical(var)} then
-          res := res + myint(op(2*i, expr), var = op(1,cond) .. infinity);
-          lower := infinity;
+          res := res + myint(op(2*i, expr), var = op(1,cond) .. upper);
+          lower := upper;
         else
           error "cannot handle condition (%1) while integrating pw", cond;
         end if;
       end do;
       if rest then
-        if lower = infinity then error "What the hey?" end if;
-        res := res + myint(op(-1, expr), lower..infinity);
+        if lower = upper then error "What the hey?" end if;
+        res := res + myint(op(-1, expr), lower..upper);
       end if;
       res
     else
