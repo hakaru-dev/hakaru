@@ -742,6 +742,9 @@ SLO := module ()
     elif type(e, 'erf'(anything)) then
       infer_type(op(1,e), ctx); # erf is Real, erf_ is Prob
       'Real'
+    elif type(e, 'Ei'(posint, anything)) then
+      infer_type(op(1,e), ctx);
+      'Real'
     elif type(e, 'ln'(anything)) then
       typ := infer_type(op(1,e), ctx); # need to make sure it is inferable
       'Real'
@@ -1187,6 +1190,12 @@ SLO := module ()
           c := (b-(coeff(a0,var,0)/scale))/b;
           return GammaD(c, b);
         end if;
+      # and Hakaru uses the 'alternate' definition of exponential...
+      # TODO: take care of initial condition too
+      elif degree(a0,var) = 0 and degree(a1, var) = 0 then
+        scale := coeff(a1, var, 0);
+        b := coeff(a0, var, 0)/scale;
+        return GammaD(1,1/b);
       end if;
     end if;
     NULL;
@@ -1280,14 +1289,14 @@ SLO := module ()
           lower := op(2,cond);
         elif cond::{anything < identical(var), anything <= identical(var)} then
           res := res + myint(op(2*i, expr), var = op(1,cond) .. upper);
-          lower := upper;
+          upper := op(1,cond);
         else
           error "cannot handle condition (%1) while integrating pw", cond;
         end if;
       end do;
       if rest then
         if lower = upper then error "What the hey?" end if;
-        res := res + myint(op(-1, expr), lower..upper);
+        res := res + myint(op(-1, expr), var = lower..upper);
       end if;
       res
     else
