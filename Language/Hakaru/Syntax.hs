@@ -12,7 +12,6 @@ module Language.Hakaru.Syntax (Real, Prob, Measure,
        Mochastic(..), bind_, factor, bindx, liftM, liftM2,
        invgamma, exponential, chi2, bern,
        cauchy, laplace, student, weibull,
-       sumVec,
        Integrate(..), Lambda(..)) where
 
 import Data.Typeable (Typeable)    
