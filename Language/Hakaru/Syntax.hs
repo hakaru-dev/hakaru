@@ -8,15 +8,16 @@ module Language.Hakaru.Syntax (Real, Prob, Measure,
        errorEmpty,
        Order(..), Base(..), ununit, fst_, snd_, swap_,
        and_, or_, not_, min_, max_,
-       Mochastic(..), bind_, factor, pairBind, liftM, liftM2,
-       invgamma, bern,
+       Mochastic(..), bind_, factor, bindx, liftM, liftM2,
+       invgamma, exponential, chi2, bern,
+       cauchy, laplace, student, weibull,
        Integrate(..), Lambda(..)) where
 
 import Data.Typeable (Typeable)    
 import Prelude hiding (Real)
 
 infix  4 `less`, `equal`, `less_`, `equal_`
-infixl 1 `bind`, `bind_`, `pairBind`
+infixl 1 `bind`, `bind_`, `bindx`
 infixl 9 `app`
 
 ------- Types
@@ -24,6 +25,7 @@ infixl 9 `app`
 data Real      deriving Typeable
 data Prob      deriving Typeable -- meaning: non-negative real number
 data Measure a deriving Typeable
+data Vector a  deriving Typeable
 
 data EqType t t' where
   Refl :: EqType t t
@@ -153,6 +155,15 @@ class (Order repr Int , Num        (repr Int ),
   betaFunc a b = integrate 0 1 $ \x -> pow_ (unsafeProb x    ) (fromProb a - 1)
                                      * pow_ (unsafeProb (1-x)) (fromProb b - 1)
 
+  vector           :: repr Int -> repr Int ->
+                      (repr Int -> repr a) -> repr (Vector a)
+  index            :: repr (Vector a) -> repr Int -> repr a
+  loBound, hiBound :: repr (Vector a) -> repr Int
+  vector           =  error "vector unimplemented"
+  index            =  error "index unimplemented"
+  loBound          =  error "loBound unimplemented"
+  hiBound          =  error "hiBound unimplemented"
+
   fix :: (repr a -> repr a) -> repr a
   fix f = x where x = f x
 
@@ -184,6 +195,10 @@ not_ a = if_ a false true
 min_, max_ :: (Order_ a, Base repr) => repr a -> repr a -> repr a
 min_ x y = if_ (less_ x y) x y
 max_ x y = if_ (less_ x y) y x
+
+sumVec :: Integrate repr => repr (Vector a) ->
+                            (repr Int -> repr Prob) -> repr Prob
+sumVec x = summate (fromInt $ loBound x) (fromInt $ hiBound x)
 
 class (Base repr) => Mochastic repr where
   dirac         :: repr a -> repr (Measure a)
@@ -239,6 +254,16 @@ class (Base repr) => Mochastic repr where
                         / betaFunc a b
                         , dirac (unsafeProb x) )]
 
+  dp :: repr Prob -> repr (Measure a) -> repr (Measure (Measure a))
+  dp =  error "dp unimplemented"
+
+  plate :: repr (Vector (     Measure         a   )) ->
+           repr (             Measure (Vector a   ))
+  chain :: repr (Vector (s -> Measure        (a,s))) ->
+           repr (        s -> Measure (Vector a, s))
+  plate =  error "plate unimplemented"
+  chain =  error "chain unimplemented"
+
 errorEmpty :: a
 errorEmpty = error "empty mixture makes no sense"
 
@@ -249,9 +274,9 @@ m `bind_` n = m `bind` \_ -> n
 factor :: (Mochastic repr) => repr Prob -> repr (Measure ())
 factor p = superpose [(p, dirac unit)]
 
-pairBind :: (Mochastic repr) => repr (Measure a) ->
-            (repr a -> repr (Measure b)) -> repr (Measure (a,b))
-m `pairBind` k = m `bind` \a -> k a `bind` \b -> dirac (pair a b)
+bindx :: (Mochastic repr) => repr (Measure a) ->
+         (repr a -> repr (Measure b)) -> repr (Measure (a,b))
+m `bindx` k = m `bind` \a -> k a `bind` \b -> dirac (pair a b)
 
 liftM :: (Mochastic repr) => (repr a -> repr b) ->
          repr (Measure a) -> repr (Measure b)
@@ -263,6 +288,31 @@ liftM2 f m n = m `bind` \x -> n `bind` \y -> dirac (f x y)
 
 invgamma :: (Mochastic repr) => repr Prob -> repr Prob -> repr (Measure Prob)
 invgamma k t = liftM recip (gamma k (recip t))
+
+exponential :: (Mochastic repr) => repr Prob -> repr (Measure Prob)
+exponential l = gamma 1 l
+
+chi2 :: (Mochastic repr) => repr Prob -> repr (Measure Prob)
+chi2 v = gamma (v/2) 2
+
+cauchy :: (Mochastic repr) => repr Real -> repr Prob -> repr (Measure Real)
+cauchy loc scale = normal 0 1 `bind` \x ->
+                   normal 0 1 `bind` \y ->
+                   dirac $ loc + (fromProb scale)*(x/y)
+
+laplace :: (Mochastic repr) => repr Real -> repr Prob -> repr (Measure Real)
+laplace loc scale = exponential 1 `bind` \v ->
+                    normal 0 1 `bind` \z ->
+                    dirac $ loc + z*(fromProb $ scale*sqrt_(2*v))
+
+student :: (Mochastic repr) => repr Real -> repr Prob -> repr (Measure Real)
+student loc v = normal loc 1 `bind` \z ->
+                chi2 v `bind` \df ->
+                dirac $ z*(fromProb $ sqrt_ (v/df))
+
+weibull :: (Mochastic repr) => repr Prob -> repr Prob -> repr (Measure Prob)
+weibull b k = exponential 1 `bind` \x ->
+              dirac $ b*(pow_ x (fromProb $ recip k))
 
 bern :: (Mochastic repr) => repr Prob -> repr (Measure Bool)
 bern p = categorical [(p, true), (1-p, false)]
