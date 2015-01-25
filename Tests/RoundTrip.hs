@@ -62,7 +62,8 @@ testMeasureReal = test [
     "t43" ~: testSS [t43, t43'] t43'',
     "t45" ~: testSS [t46,t47] t45,
     "t50" ~: testS t50,
-    "t51" ~: testS t51
+    "t51" ~: testS t51,
+    "testexponential" ~: testS testexponential
     -- "two_coins" ~: testS two_coins -- needs support for lists
     ]
 
@@ -72,7 +73,7 @@ testMeasurePair = test [
     "t8"            ~: testSS [] t8,
     "t23"           ~: testSS [t23] t23',
     "t48"           ~: testS t48,
-    "t52"           ~: testS t52,
+    "t52"           ~: testSS [t52] t52',
     "norm"          ~: testSS [] norm,
     "norm_nox"      ~: testSS [norm_nox] (normal 0 (sqrt_ 2)),
     "norm_noy"      ~: testSS [norm_noy] (normal 0 1),
@@ -319,12 +320,23 @@ t51 = uniform (-1) 1 `bind` \x ->
       normal x 1
 
 -- Example 1: from Pollard's Conditioning as Disintegration
-t52 :: (Mochastic repr) => repr (Measure (Real, (Real, Real)))
+t52, t52' :: (Mochastic repr) => repr (Measure (Real, (Real, Real)))
 t52 = uniform 0 1 `bind` \x ->
       uniform 0 1 `bind` \y ->
       dirac (pair (max_ x y)
                   (pair x y))
+t52' = uniform 0 1 `bind` \x2 -> 
+       superpose [((unsafeProb (1 + (x2 * (-1)))),(uniform  x2 1) `bind` \x4 -> (dirac (pair x4 (pair x2 x4)))), 
+                  ((unsafeProb x2),(uniform  0 x2) `bind` \x4 -> (dirac (pair x2 (pair x2 x4))))]
 
+-- Testing round-tripping of some other distributions
+testexponential :: Mochastic repr => repr (Measure Prob)
+testexponential = exponential (1/3)
+
+testCauchy :: Mochastic repr => repr (Measure Real)
+testCauchy = cauchy 5 3
+
+-- And now some actual ML-related tests
 priorAsProposal :: Mochastic repr => repr (Measure (a,b)) -> repr (a,b) -> repr (Measure (a,b))
 priorAsProposal p x = bern (1/2) `bind` \c ->
                       p `bind` \x' ->
