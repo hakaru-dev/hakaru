@@ -272,7 +272,6 @@ type Returns a = DimL -> DimH -> DimA -> DimB
                -> a
     
 type SimLaser  = Returns (Measure State)
-type ReadLaser = Returns (LaserReads -> Measure VehicleCoords)
 
 simLasers :: (Mochastic repr, Lambda repr) => repr SimLaser
 simLasers = lam $ \dl -> lam $ \dh -> lam $ \da -> lam $ \db -> 
@@ -288,7 +287,26 @@ sampleState (l,h,a,b,blons,blats) prms tcurr g =
     fmap (\(Just (s,1)) -> s) $
          (unSample simLasers) l h a b blons blats
                               vlon vlat phi ve alpha (tcurr-tprev) 1 g
-    where (PM _ _ _ vlon vlat phi ve alpha tprev) = prms
+    where (PM _ _ _ vlon vlat phi ve alpha tprev) = prms    
+
+genBeacons :: Rand -> Maybe FilePath
+           -> IO ([Double],[Double])     -- ^ longitudes, latitudes
+genBeacons _ Nothing         = return ([1,3],[2,4])
+genBeacons g (Just evalPath) = do
+  trueBeacons <- obstacles evalPath
+  return (map lon trueBeacons , map lat trueBeacons)
+                                    
+generate :: FilePath -> FilePath -> Maybe FilePath -> IO ()
+generate input output eval = do
+  g <- MWC.createSystemRandom
+  (Init l h a b phi ilt iln) <- initialVals input
+  controls <- controlData input
+  sensors <- sensorData input
+  (lons, lats) <- genBeacons g eval
+                  
+  gen output g (l,h,a,b,lons,lats) (PM sensors controls [] iln ilt phi 0 0 0)
+
+type Rand = MWC.Gen (PrimState IO)
 
 type Particle = (Double, Double, Double, Double, [Double], [Double])
 
@@ -305,56 +323,9 @@ data Params = PM { sensors :: [Sensor]
                  , phi :: Double
                  , vel :: Double
                  , alpha :: Double
-                 , tm :: Double }
-
-genBeacons :: Rand -> Maybe FilePath
-           -> IO ([Double],[Double]) -- ^ longitudes, latitudes
-genBeacons _ Nothing         = return ([1,3],[2,4])
-genBeacons g (Just evalPath) = do
-  trueBeacons <- obstacles evalPath
-  return (map lon trueBeacons , map lat trueBeacons)
-                                    
-generate :: FilePath -> FilePath -> Maybe FilePath -> IO ()
-generate input output eval = do
-  g <- MWC.createSystemRandom
-  (Init l h a b phi ilt iln) <- initialVals input
-  controls <- controlData input
-  sensors <- sensorData input
-  (lons, lats) <- genBeacons g eval
-                  
-  gen output g (l,h,a,b,lons,lats) (PM sensors controls [] iln ilt phi 0 0 0)
-
-type Rand = MWC.Gen (PrimState IO)     
-
+                 , tm :: Double }    
+    
 type Generator = Particle -> Params -> IO ()
-                  
--- gen' :: FilePath -> Rand -> Generator
--- gen' out g sensors controls prtcl@(l,h,a,b,blons,blats)
---      (PM si ci li old_vlon old_vlat old_phi old_ve old_alpha tprev)
---     | si >= V.length sensors = putStrLn "Finished reading input_sensor"
---     | otherwise = do
---   let (Sensor tcurr snum) = sensors V.! si
---   s <- fmap (\(Just (s,1)) -> s) $
---        (unSample simLasers) l h a b blons blats
---                             old_vlon old_vlat old_phi
---                             old_ve old_alpha (tcurr-tprev) 1 g
---   let (czrads, czints) = (\(a,b) -> (toList a, toList b)) $ fst s
---       (cphi, (cvlon,cvlat)) = snd s
---       newprms = case snum of
---                   1 -> do putStrLn "writing to simulated_slam_out_path"
---                           plotPoint out cvlon cvlat
---                           return (ci, old_ve, old_alpha)
---                   2 -> do when (ci >= V.length controls) $
---                                error "input_control has fewer data than\
---                                      \it should according to input_sensor"
---                           let (Control _ nv nalph) = controls V.! ci
---                           return (ci+1, nv, nalph)
---                   3 -> do putStrLn "writing to simulated_input_laser"
---                           plotReads out czrads czints
---                           return (ci, old_ve, old_alpha)
---                   _ -> error "Invalid sensor ID (must be 1, 2 or 3)"
---   newprms >>= \(nci,nve,nal) -> gen' out g sensors controls prtcl
---                                 (PM (si+1) nci li cvlon cvlat cphi nve nal tcurr)
 
 gen :: FilePath -> Rand -> Generator
 gen out g prtcl params = go params
@@ -435,26 +406,61 @@ evolve env =
                       vlon vlat phi
                       vel alpha del ]
 
-type Runner = V.Vector Sensor -> Int
-            -> V.Vector Control -> Int
-            -> V.Vector Laser -> Int
-            -> Particle
-            -> Params
-            -> IO ()
-    
--- runner :: FilePath -> Rand -> Initial -> Runner
--- runner out g (Init l h a b ph lt ln)
---        sensors si controls ci lasers li
---        prtcl@(l,h,a,b,blons,blats)
---        (PM old_vlon old_vlat old_phi old_ve old_alpha tprev)
---     | si >= V.length sensors = putStrLn "Finished reading input_sensor"
---     | otherwise = do
---   let (Sensor tcurr snum) = sensors V.! si
---   case snum of
---     1 -> do 
---             putStrLn "writing to simulated_slam_out_path"
---             plotPoint out cvlon cvlat
---             return (ci, old_ve, old_alpha)
+type ReadLaser = Returns (LaserReads -> Measure VehicleCoords)
+
+readLasers :: (Mochastic repr, Lambda repr) =>
+              repr (Env -> LaserReads -> Measure VehicleCoords)
+readLasers = lam $ \env -> lam $ \lrs -> head (evolve env) lrs
+
+sampleCoords (l,h,a,b,blons,blats) prms lreads tcurr g =
+    fmap (\(Just (s,1)) -> s) $
+         (unSample readLasers)
+         (l,(h,(a,(b,(blons,(blats,(vlon,(vlat,(phi,(ve,(alpha,tcurr-tprev)))))))))))
+         lreads 1 g
+    where (PM _ _ _ vlon vlat phi ve alpha tprev) = prms
+
+runner :: FilePath -> FilePath -> Maybe FilePath -> IO ()
+runner input output eval = do
+  g <- MWC.createSystemRandom
+  (Init l h a b phi ilt iln) <- initialVals input
+  controls <- controlData input
+  sensors <- sensorData input
+  lasers <- laserReadings input
+  (lons, lats) <- genBeacons g eval
+
+  runn output g (l,h,a,b,lons,lats)
+       (PM sensors controls lasers iln ilt phi 0 0 0)
+
+runn :: FilePath -> Rand -> Generator
+runn out g prtcl params = go params
+    where go prms | null $ sensors prms = putStrLn "Finished reading input_sensor"
+                  | otherwise = do
+            let (Sensor tcurr snum) = head $ sensors prms
+            case snum of
+              1 -> do (_,coords) <- sampleState prtcl prms tcurr g
+                      putStrLn "writing to simulated_slam_out_path"
+                      plotPoint out coords
+                      go $ updateParams prms coords tcurr
+              2 -> do when (null $ controls prms) $
+                           error "input_control has fewer data than\
+                                 \it should according to input_sensor"
+                      (_,coords) <- sampleState prtcl prms tcurr g
+                      let prms' = updateParams prms coords tcurr
+                          (Control _ nv nalph) = head $ controls prms
+                      go $ prms' { controls = tail (controls prms)
+                                 , vel = nv
+                                 , alpha = nalph }
+              3 -> do -- ((zr,zi), coords) <- sampleState prtcl prms tcurr g
+                      when (null $ lasers prms) $
+                           error "input_laser has fewer data than\
+                                 \it should according to input_sensor"
+                      let (L _ zr zi) = head (lasers prms)
+                      coords <- sampleCoords prtcl prms (zr,zi) tcurr g
+                      putStrLn "writing to simulated_input_laser"
+                      plotReads out (toList zr) (toList zi)
+                      let prms' = updateParams prms coords tcurr
+                      go $ prms' { lasers = tail (lasers prms) }
+              _ -> error "Invalid sensor ID (must be 1, 2 or 3)"
 
 main :: IO ()
 main = do
