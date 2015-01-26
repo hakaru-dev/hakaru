@@ -450,14 +450,12 @@ runn out g prtcl params = go params
                       go $ prms' { controls = tail (controls prms)
                                  , vel = nv
                                  , alpha = nalph }
-              3 -> do -- ((zr,zi), coords) <- sampleState prtcl prms tcurr g
-                      when (null $ lasers prms) $
+              3 -> do when (null $ lasers prms) $
                            error "input_laser has fewer data than\
                                  \it should according to input_sensor"
                       let (L _ zr zi) = head (lasers prms)
-                      coords <- sampleCoords prtcl prms (zr,zi) tcurr g
-                      putStrLn "writing to simulated_input_laser"
-                      plotReads out (toList zr) (toList zi)
+                          lreads = (fromList zr, fromList zi)
+                      coords <- sampleCoords prtcl prms lreads tcurr g
                       let prms' = updateParams prms coords tcurr
                       go $ prms' { lasers = tail (lasers prms) }
               _ -> error "Invalid sensor ID (must be 1, 2 or 3)"
@@ -517,8 +515,8 @@ initialVals inpath = do
                else fail "wrong number of rows in input_properties"
 
 data Laser = L { timestamp :: Double
-               , zrads :: V.Vector Double
-               , intensities :: V.Vector Double }
+               , zrads :: [Double]
+               , intensities :: [Double] }
 
 instance FromRecord Laser where
     parseRecord v
@@ -590,7 +588,7 @@ testIO inpath = do
   -- initialVals "test" >>= print
   laserReads <- laserReadings inpath
   let laserVector = V.fromList laserReads
-  print . (V.slice 330 31) . zrads $ laserVector V.! 50
+  print . (V.slice 330 31) . V.fromList . zrads $ laserVector V.! 50
   V.mapM_ ((printf "%.6f\n") . timestamp) $ V.take 10 laserVector
   sensors <- sensorData inpath
   putStrLn "-------- Here are some sensors -----------"
