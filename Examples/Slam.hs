@@ -92,9 +92,11 @@ type DimL = H.Real
 type DimH = H.Real
 type DimA = H.Real
 type DimB = H.Real
-             
-type State = ( (Repeat Len ZRad, Repeat Len ZInt)
-             , (Angle, (GPS, GPS)) )
+
+type LaserReads = (Repeat Len ZRad, Repeat Len ZInt)
+type VehicleCoords = (Angle, (GPS, GPS))    
+
+type State = (LaserReads, VehicleCoords)
 
 type Simulator repr = repr DimL -> repr DimH -> repr DimA -> repr DimB
                     -> repr [GPS] -> repr [GPS] -- ^ beacon lons, beacon lats
@@ -262,14 +264,17 @@ extractMeasure ls' = let mls' = cont . bind <$> ls'
                          rseq = runCont seq'
                      in rseq (dirac . toNestedPair)
 
-type Step = DimL -> DimH -> DimA -> DimB
-          -> [GPS] -> [GPS]
-          -> GPS -> GPS -> Angle
-          -> Vel -> Angle
-          -> DelTime
-          -> Measure State
+type Returns a = DimL -> DimH -> DimA -> DimB
+               -> [GPS] -> [GPS]
+               -> GPS -> GPS -> Angle
+               -> Vel -> Angle
+               -> DelTime
+               -> a
+    
+type SimLaser  = Returns (Measure State)
+type ReadLaser = Returns (LaserReads -> Measure VehicleCoords)
 
-simLasers :: (Mochastic repr, Lambda repr) => repr Step
+simLasers :: (Mochastic repr, Lambda repr) => repr SimLaser
 simLasers = lam $ \dl -> lam $ \dh -> lam $ \da -> lam $ \db -> 
             lam $ \blons -> lam $ \blats ->
             lam $ \old_lon -> lam $ \old_lat -> lam $ \old_phi ->
@@ -278,10 +283,36 @@ simLasers = lam $ \dl -> lam $ \dh -> lam $ \da -> lam $ \db ->
                      old_lon old_lat old_phi
                      old_ve old_alpha delT
 
-type Particle = Sample' IO ( GPS -> GPS -> Angle
-                             -> Vel -> Angle
-                             -> DelTime
-                             -> Measure State )
+-- sampleState :: Particle -> Params -> Double -> Rand -> IO State
+sampleState (l,h,a,b,blons,blats) prms tcurr g =
+    fmap (\(Just (s,1)) -> s) $
+         (unSample simLasers) l h a b blons blats
+                              vlon vlat phi ve alpha (tcurr-tprev) 1 g
+    where (PM _ _ _ vlon vlat phi ve alpha tprev) = prms
+
+type Particle = (Double, Double, Double, Double, [Double], [Double])
+
+-- Sample' IO ( GPS -> GPS -> Angle
+--                          -> Vel -> Angle
+--                          -> DelTime
+--                          -> Measure State )
+
+data Params = PM { sensors :: [Sensor]
+                 , controls :: [Control]
+                 , lasers :: [Laser]
+                 , vlon :: Double
+                 , vlat :: Double
+                 , phi :: Double
+                 , vel :: Double
+                 , alpha :: Double
+                 , tm :: Double }
+
+genBeacons :: Rand -> Maybe FilePath
+           -> IO ([Double],[Double]) -- ^ longitudes, latitudes
+genBeacons _ Nothing         = return ([1,3],[2,4])
+genBeacons g (Just evalPath) = do
+  trueBeacons <- obstacles evalPath
+  return (map lon trueBeacons , map lat trueBeacons)
                                     
 generate :: FilePath -> FilePath -> Maybe FilePath -> IO ()
 generate input output eval = do
@@ -290,62 +321,76 @@ generate input output eval = do
   controls <- controlData input
   sensors <- sensorData input
   (lons, lats) <- genBeacons g eval
-             
-  let particle :: Particle
-      particle = (unSample simLasers) l h a b lons lats
                   
-  gen output g sensors 0 controls 0 particle (PM iln ilt phi 0 0 0)      
+  gen output g (l,h,a,b,lons,lats) (PM sensors controls [] iln ilt phi 0 0 0)
 
-type Rand = MWC.Gen (PrimState IO)
-      
-genBeacons :: Rand -> Maybe FilePath
-           -> IO ([Double],[Double]) -- ^ longitudes, latitudes
-genBeacons _ Nothing         = return ([1,3],[2,4])
-genBeacons g (Just evalPath) = do
-  trueBeacons <- obstacles evalPath
-  return (map lon trueBeacons , map lat trueBeacons)
+type Rand = MWC.Gen (PrimState IO)     
 
-data Params = PM { vlon :: Double
-                 , vlat :: Double
-                 , phi :: Double
-                 , vel :: Double
-                 , alpha :: Double
-                 , tm :: Double }
+type Generator = Particle -> Params -> IO ()
+                  
+-- gen' :: FilePath -> Rand -> Generator
+-- gen' out g sensors controls prtcl@(l,h,a,b,blons,blats)
+--      (PM si ci li old_vlon old_vlat old_phi old_ve old_alpha tprev)
+--     | si >= V.length sensors = putStrLn "Finished reading input_sensor"
+--     | otherwise = do
+--   let (Sensor tcurr snum) = sensors V.! si
+--   s <- fmap (\(Just (s,1)) -> s) $
+--        (unSample simLasers) l h a b blons blats
+--                             old_vlon old_vlat old_phi
+--                             old_ve old_alpha (tcurr-tprev) 1 g
+--   let (czrads, czints) = (\(a,b) -> (toList a, toList b)) $ fst s
+--       (cphi, (cvlon,cvlat)) = snd s
+--       newprms = case snum of
+--                   1 -> do putStrLn "writing to simulated_slam_out_path"
+--                           plotPoint out cvlon cvlat
+--                           return (ci, old_ve, old_alpha)
+--                   2 -> do when (ci >= V.length controls) $
+--                                error "input_control has fewer data than\
+--                                      \it should according to input_sensor"
+--                           let (Control _ nv nalph) = controls V.! ci
+--                           return (ci+1, nv, nalph)
+--                   3 -> do putStrLn "writing to simulated_input_laser"
+--                           plotReads out czrads czints
+--                           return (ci, old_ve, old_alpha)
+--                   _ -> error "Invalid sensor ID (must be 1, 2 or 3)"
+--   newprms >>= \(nci,nve,nal) -> gen' out g sensors controls prtcl
+--                                 (PM (si+1) nci li cvlon cvlat cphi nve nal tcurr)
 
-type Generator = V.Vector Sensor -> Int
-               -> V.Vector Control -> Int
-               -> Particle
-               -> Params
-               -> IO ()        
-    
 gen :: FilePath -> Rand -> Generator
-gen out g sensors si controls ci particle
-    (PM old_vlon old_vlat old_phi old_ve old_alpha tprev)
-    | si >= V.length sensors = putStrLn "Finished reading input_sensor"
-    | otherwise = do
-  let (Sensor tcurr snum) = sensors V.! si
-  s <- fmap (\(Just (s,1)) -> s) $
-       particle old_vlon old_vlat old_phi old_ve old_alpha (tcurr-tprev) 1 g
-  let (czrads, czints) = (\(a,b) -> (toList a, toList b)) $ fst s
-      (cphi, (cvlon,cvlat)) = snd s
-      newprms = case snum of
-                  1 -> do putStrLn "writing to simulated_slam_out_path"
-                          plotPoint out cvlon cvlat
-                          return (ci, old_ve, old_alpha)
-                  2 -> do when (ci >= V.length controls) $
-                               error "input_control has fewer data than\
-                                     \it should according to input_sensor"
-                          let (Control _ nv nalph) = controls V.! ci
-                          return (ci+1, nv, nalph)
-                  3 -> do putStrLn "writing to simulated_input_laser"
-                          plotReads out czrads czints
-                          return (ci, old_ve, old_alpha)
-                  _ -> error "Invalid sensor ID (must be 1, 2 or 3)"
-  newprms >>= \(nci,nve,nal) -> gen out g sensors (si+1) controls nci particle
-                                (PM cvlon cvlat cphi nve nal tcurr)
+gen out g prtcl params = go params
+    where go prms | null $ sensors prms = putStrLn "Finished reading input_sensor"
+                  | otherwise = do
+            let (Sensor tcurr snum) = head $ sensors prms
+            case snum of
+              1 -> do (_,coords) <- sampleState prtcl prms tcurr g
+                      putStrLn "writing to simulated_slam_out_path"
+                      plotPoint out coords
+                      go $ updateParams prms coords tcurr
+              2 -> do when (null $ controls prms) $
+                           error "input_control has fewer data than\
+                                 \it should according to input_sensor"
+                      (_,coords) <- sampleState prtcl prms tcurr g
+                      let prms' = updateParams prms coords tcurr
+                          (Control _ nv nalph) = head $ controls prms
+                      go $ prms' { controls = tail (controls prms)
+                                 , vel = nv
+                                 , alpha = nalph }
+              3 -> do ((zr,zi), coords) <- sampleState prtcl prms tcurr g
+                      putStrLn "writing to simulated_input_laser"
+                      plotReads out (toList zr) (toList zi)
+                      go $ updateParams prms coords tcurr
+              _ -> error "Invalid sensor ID (must be 1, 2 or 3)"
 
-plotPoint :: FilePath -> Double -> Double -> IO ()
-plotPoint out lon lat = do
+updateParams :: Params -> (Double,(Double,Double)) -> Double -> Params
+updateParams prms (cphi,(cvlon,cvlat)) tcurr =
+    prms { sensors = tail (sensors prms)
+         , vlon = cvlon
+         , vlat = cvlat
+         , phi = cphi
+         , tm = tcurr }
+                                
+plotPoint :: FilePath -> (Double,(Double,Double)) -> IO ()
+plotPoint out (_,(lon,lat)) = do
   dExist <- doesDirectoryExist out
   unless dExist $ createDirectory out
   let fp = out </> "slam_out_path.txt"
@@ -370,8 +415,7 @@ type Env = (DimL,
                                      (Vel, (Angle, DelTime)))))))))))
     
 evolve :: (Mochastic repr) => repr Env
-       -> [ repr (Repeat Len ZRad, Repeat Len ZInt)
-            -> repr (Measure (Angle, (GPS, GPS))) ]
+       -> [ repr LaserReads -> repr (Measure VehicleCoords) ]
 evolve env =
     [ d env
       | d <- runDisintegrate $ \ e0  ->
@@ -394,14 +438,23 @@ evolve env =
 type Runner = V.Vector Sensor -> Int
             -> V.Vector Control -> Int
             -> V.Vector Laser -> Int
+            -> Particle
             -> Params
             -> IO ()
     
-runner :: FilePath -> Rand -> Initial -> Runner
-runner out g (Init l h a b ph lt ln)
-       sensors si controls ci lasers li
-       (PM old_vlon old_vlat old_phi old_ve old_alpha tprev)
-    = undefined
+-- runner :: FilePath -> Rand -> Initial -> Runner
+-- runner out g (Init l h a b ph lt ln)
+--        sensors si controls ci lasers li
+--        prtcl@(l,h,a,b,blons,blats)
+--        (PM old_vlon old_vlat old_phi old_ve old_alpha tprev)
+--     | si >= V.length sensors = putStrLn "Finished reading input_sensor"
+--     | otherwise = do
+--   let (Sensor tcurr snum) = sensors V.! si
+--   case snum of
+--     1 -> do 
+--             putStrLn "writing to simulated_slam_out_path"
+--             plotPoint out cvlon cvlat
+--             return (ci, old_ve, old_alpha)
 
 main :: IO ()
 main = do
@@ -469,11 +522,11 @@ instance FromRecord Laser where
               A.<*> parseRecord (V.slice (range+1) range v)
         | otherwise = fail "wrong number of fields in input_laser"
 
-laserReadings :: FilePath -> IO (V.Vector Laser)
+laserReadings :: FilePath -> IO [Laser]
 laserReadings inpath = do
   let input = inpath </> "input_laser.csv"
   doesFileExist input >>= flip unless (noFileBye input)
-  fmap V.fromList $ decodeFileStream input                        
+  decodeFileStream input                        
 
 data Sensor = Sensor {sensetime :: Double, sensorID :: Int} deriving (Show)
 
@@ -482,11 +535,11 @@ instance FromRecord Sensor where
         | V.length v == 2 = Sensor A.<$> v .! 0 A.<*> v .! 1
         | otherwise = fail "wrong number of fields in input_sensor"
 
-sensorData :: FilePath -> IO (V.Vector Sensor)
+sensorData :: FilePath -> IO [Sensor]
 sensorData inpath = do
   let input = inpath </> "input_sensor.csv"
   doesFileExist input >>= flip unless (noFileBye input)
-  fmap V.fromList $ decodeFileStream input
+  decodeFileStream input
 
 data Control = Control { contime :: Double
                        , velocity :: Double
@@ -497,11 +550,11 @@ instance FromRecord Control where
         | V.length v == 3 = Control A.<$> v .! 0 A.<*> v .! 1 A.<*> v .! 2
         | otherwise = fail "wrong number of fields in input_control"
 
-controlData :: FilePath -> IO (V.Vector Control)
+controlData :: FilePath -> IO [Control]
 controlData inpath = do
   let input = inpath </> "input_control.csv"
   doesFileExist input >>= flip unless (noFileBye input)
-  fmap V.fromList $ decodeFileStream input       
+  decodeFileStream input       
 
 -- | True beacon positions (from eval_data/eval_obstacles.csv for each path type)
 -- This is for simulation purposes only!
@@ -530,14 +583,15 @@ testIO :: FilePath -> IO ()
 testIO inpath = do
   -- initialVals "test" >>= print
   laserReads <- laserReadings inpath
-  print . (V.slice 330 31) . zrads $ laserReads V.! 50
-  V.mapM_ ((printf "%.6f\n") . timestamp) $ V.take 10 laserReads
+  let laserVector = V.fromList laserReads
+  print . (V.slice 330 31) . zrads $ laserVector V.! 50
+  V.mapM_ ((printf "%.6f\n") . timestamp) $ V.take 10 laserVector
   sensors <- sensorData inpath
   putStrLn "-------- Here are some sensors -----------"
-  print $ V.slice 0 20 sensors
+  print $ V.slice 0 20 (V.fromList sensors)
   controls <- controlData inpath
   putStrLn "-------- Here are some controls -----------"
-  print $ V.slice 0 20 controls
+  print $ V.slice 0 20 (V.fromList controls)
 
 testHV :: IO ()
 testHV = do
