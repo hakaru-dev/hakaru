@@ -105,6 +105,10 @@ type Simulator repr = repr DimL -> repr DimH -> repr DimA -> repr DimB
                     -> repr DelTime           -- ^ timestamp
                     -> repr (Measure State)    
 
+--------------------------------------------------------------------------------
+--                                MODEL                                       --
+--------------------------------------------------------------------------------
+                       
 simulate :: (Mochastic repr) => Simulator repr
 simulate dimL dimH dimA dimB
          blons blats
@@ -264,56 +268,20 @@ extractMeasure ls' = let mls' = cont . bind <$> ls'
                          rseq = runCont seq'
                      in rseq (dirac . toNestedPair)
 
-type Returns a = DimL -> DimH -> DimA -> DimB
-               -> [GPS] -> [GPS]
-               -> GPS -> GPS -> Angle
-               -> Vel -> Angle
-               -> DelTime
-               -> a
-    
-type SimLaser  = Returns (Measure State)
-
-simLasers :: (Mochastic repr, Lambda repr) => repr SimLaser
-simLasers = lam $ \dl -> lam $ \dh -> lam $ \da -> lam $ \db -> 
-            lam $ \blons -> lam $ \blats ->
-            lam $ \old_lon -> lam $ \old_lat -> lam $ \old_phi ->
-            lam $ \old_ve -> lam $ \old_alpha -> lam $ \delT ->
-            simulate dl dh da db blons blats
-                     old_lon old_lat old_phi
-                     old_ve old_alpha delT
-
--- sampleState :: Particle -> Params -> Double -> Rand -> IO State
-sampleState (l,h,a,b,blons,blats) prms tcurr g =
-    fmap (\(Just (s,1)) -> s) $
-         (unSample simLasers) l h a b blons blats
-                              vlon vlat phi ve alpha (tcurr-tprev) 1 g
-    where (PM _ _ _ vlon vlat phi ve alpha tprev) = prms    
+--------------------------------------------------------------------------------
+--                               SIMULATIONS                                  --
+--------------------------------------------------------------------------------                                                
 
 genBeacons :: Rand -> Maybe FilePath
            -> IO ([Double],[Double])     -- ^ longitudes, latitudes
 genBeacons _ Nothing         = return ([1,3],[2,4])
 genBeacons g (Just evalPath) = do
   trueBeacons <- obstacles evalPath
-  return (map lon trueBeacons , map lat trueBeacons)
-                                    
-generate :: FilePath -> FilePath -> Maybe FilePath -> IO ()
-generate input output eval = do
-  g <- MWC.createSystemRandom
-  (Init l h a b phi ilt iln) <- initialVals input
-  controls <- controlData input
-  sensors <- sensorData input
-  (lons, lats) <- genBeacons g eval
-                  
-  gen output g (l,h,a,b,lons,lats) (PM sensors controls [] iln ilt phi 0 0 0)
+  return (map lon trueBeacons , map lat trueBeacons)                                    
 
 type Rand = MWC.Gen (PrimState IO)
 
 type Particle = (Double, Double, Double, Double, [Double], [Double])
-
--- Sample' IO ( GPS -> GPS -> Angle
---                          -> Vel -> Angle
---                          -> DelTime
---                          -> Measure State )
 
 data Params = PM { sensors :: [Sensor]
                  , controls :: [Control]
@@ -326,6 +294,20 @@ data Params = PM { sensors :: [Sensor]
                  , tm :: Double }    
     
 type Generator = Particle -> Params -> IO ()
+
+------------------
+--  UNCONDITIONED
+------------------
+
+generate :: FilePath -> FilePath -> Maybe FilePath -> IO ()
+generate input output eval = do
+  g <- MWC.createSystemRandom
+  (Init l h a b phi ilt iln) <- initialVals input
+  controls <- controlData input
+  sensors <- sensorData input
+  (lons, lats) <- genBeacons g eval
+                  
+  gen output g (l,h,a,b,lons,lats) (PM sensors controls [] iln ilt phi 0 0 0)    
 
 gen :: FilePath -> Rand -> Generator
 gen out g prtcl params = go params
@@ -352,6 +334,29 @@ gen out g prtcl params = go params
                       go $ updateParams prms coords tcurr
               _ -> error "Invalid sensor ID (must be 1, 2 or 3)"
 
+type SimLaser = DimL -> DimH -> DimA -> DimB
+               -> [GPS] -> [GPS]
+               -> GPS -> GPS -> Angle
+               -> Vel -> Angle
+               -> DelTime
+               -> Measure State
+
+simLasers :: (Mochastic repr, Lambda repr) => repr SimLaser
+simLasers = lam $ \dl -> lam $ \dh -> lam $ \da -> lam $ \db -> 
+            lam $ \blons -> lam $ \blats ->
+            lam $ \old_lon -> lam $ \old_lat -> lam $ \old_phi ->
+            lam $ \old_ve -> lam $ \old_alpha -> lam $ \delT ->
+            simulate dl dh da db blons blats
+                     old_lon old_lat old_phi
+                     old_ve old_alpha delT
+
+-- sampleState :: Particle -> Params -> Double -> Rand -> IO State
+sampleState (l,h,a,b,blons,blats) prms tcurr g =
+    fmap (\(Just (s,1)) -> s) $
+         (unSample simLasers) l h a b blons blats
+                              vlon vlat phi ve alpha (tcurr-tprev) 1 g
+    where (PM _ _ _ vlon vlat phi ve alpha tprev) = prms        
+                   
 updateParams :: Params -> (Double,(Double,Double)) -> Double -> Params
 updateParams prms (cphi,(cvlon,cvlat)) tcurr =
     prms { sensors = tail (sensors prms)
@@ -377,47 +382,9 @@ plotReads out rads ints = do
           go fp [l]    = appendFile fp ((show l) ++ "\n")
           go fp (l:ls) = appendFile fp ((show l) ++ ",") >> go fp ls
 
-type Env = (DimL,
-            (DimH,
-             (DimA,
-              (DimB,
-               ([GPS], ([GPS],
-                        (GPS, (GPS, (Angle,
-                                     (Vel, (Angle, DelTime)))))))))))
-    
-evolve :: (Mochastic repr) => repr Env
-       -> [ repr LaserReads -> repr (Measure VehicleCoords) ]
-evolve env =
-    [ d env
-      | d <- runDisintegrate $ \ e0  ->
-             unpair e0  $ \l     e1  ->
-             unpair e1  $ \h     e2  ->
-             unpair e2  $ \a     e3  ->
-             unpair e3  $ \b     e4  ->
-             unpair e4  $ \blons e5  ->
-             unpair e5  $ \blats e6  ->
-             unpair e6  $ \vlon  e7  ->
-             unpair e7  $ \vlat  e8  ->
-             unpair e8  $ \phi   e9  ->
-             unpair e9  $ \vel   e10 ->
-             unpair e10 $ \alpha del ->
-             simulate l h a b
-                      blons blats
-                      vlon vlat phi
-                      vel alpha del ]
-
-type ReadLaser = Returns (LaserReads -> Measure VehicleCoords)
-
-readLasers :: (Mochastic repr, Lambda repr) =>
-              repr (Env -> LaserReads -> Measure VehicleCoords)
-readLasers = lam $ \env -> lam $ \lrs -> head (evolve env) lrs
-
-sampleCoords (l,h,a,b,blons,blats) prms lreads tcurr g =
-    fmap (\(Just (s,1)) -> s) $
-         (unSample readLasers)
-         (l,(h,(a,(b,(blons,(blats,(vlon,(vlat,(phi,(ve,(alpha,tcurr-tprev)))))))))))
-         lreads 1 g
-    where (PM _ _ _ vlon vlat phi ve alpha tprev) = prms
+----------------------------------
+--  CONDITIONED ON LASER READINGS
+----------------------------------
 
 runner :: FilePath -> FilePath -> Maybe FilePath -> IO ()
 runner input output eval = do
@@ -459,6 +426,50 @@ runn out g prtcl params = go params
                       let prms' = updateParams prms coords tcurr
                       go $ prms' { lasers = tail (lasers prms) }
               _ -> error "Invalid sensor ID (must be 1, 2 or 3)"
+
+type Env = (DimL,
+            (DimH,
+             (DimA,
+              (DimB,
+               ([GPS], ([GPS],
+                        (GPS, (GPS, (Angle,
+                                     (Vel, (Angle, DelTime)))))))))))
+    
+evolve :: (Mochastic repr) => repr Env
+       -> [ repr LaserReads -> repr (Measure VehicleCoords) ]
+evolve env =
+    [ d env
+      | d <- runDisintegrate $ \ e0  ->
+             unpair e0  $ \l     e1  ->
+             unpair e1  $ \h     e2  ->
+             unpair e2  $ \a     e3  ->
+             unpair e3  $ \b     e4  ->
+             unpair e4  $ \blons e5  ->
+             unpair e5  $ \blats e6  ->
+             unpair e6  $ \vlon  e7  ->
+             unpair e7  $ \vlat  e8  ->
+             unpair e8  $ \phi   e9  ->
+             unpair e9  $ \vel   e10 ->
+             unpair e10 $ \alpha del ->
+             simulate l h a b
+                      blons blats
+                      vlon vlat phi
+                      vel alpha del ]
+
+readLasers :: (Mochastic repr, Lambda repr) =>
+              repr (Env -> LaserReads -> Measure VehicleCoords)
+readLasers = lam $ \env -> lam $ \lrs -> head (evolve env) lrs
+
+sampleCoords (l,h,a,b,blons,blats) prms lreads tcurr g =
+    fmap (\(Just (s,1)) -> s) $
+         (unSample readLasers)
+         (l,(h,(a,(b,(blons,(blats,(vlon,(vlat,(phi,(ve,(alpha,tcurr-tprev)))))))))))
+         lreads 1 g
+    where (PM _ _ _ vlon vlat phi ve alpha tprev) = prms
+
+--------------------------------------------------------------------------------
+--                                MAIN                                        --
+--------------------------------------------------------------------------------                                                    
 
 main :: IO ()
 main = do
