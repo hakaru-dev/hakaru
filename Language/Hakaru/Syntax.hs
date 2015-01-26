@@ -8,8 +8,10 @@ module Language.Hakaru.Syntax (Real, Prob, Measure,
        errorEmpty,
        Order(..), Base(..), ununit, fst_, snd_, swap_,
        and_, or_, not_, min_, max_,
+       sumVec,
        Mochastic(..), bind_, factor, bindx, liftM, liftM2,
-       invgamma, bern,
+       invgamma, exponential, chi2, bern,
+       cauchy, laplace, student, weibull,
        Integrate(..), Lambda(..)) where
 
 import Data.Typeable (Typeable)    
@@ -195,6 +197,10 @@ min_, max_ :: (Order_ a, Base repr) => repr a -> repr a -> repr a
 min_ x y = if_ (less_ x y) x y
 max_ x y = if_ (less_ x y) y x
 
+sumVec :: Integrate repr => repr (Vector a) ->
+                            (repr Int -> repr Prob) -> repr Prob
+sumVec x = summate (fromInt $ loBound x) (fromInt $ hiBound x)
+
 class (Base repr) => Mochastic repr where
   dirac         :: repr a -> repr (Measure a)
   bind          :: repr (Measure a) ->
@@ -283,6 +289,31 @@ liftM2 f m n = m `bind` \x -> n `bind` \y -> dirac (f x y)
 
 invgamma :: (Mochastic repr) => repr Prob -> repr Prob -> repr (Measure Prob)
 invgamma k t = liftM recip (gamma k (recip t))
+
+exponential :: (Mochastic repr) => repr Prob -> repr (Measure Prob)
+exponential l = gamma 1 l
+
+chi2 :: (Mochastic repr) => repr Prob -> repr (Measure Prob)
+chi2 v = gamma (v/2) 2
+
+cauchy :: (Mochastic repr) => repr Real -> repr Prob -> repr (Measure Real)
+cauchy loc scale = normal 0 1 `bind` \x ->
+                   normal 0 1 `bind` \y ->
+                   dirac $ loc + (fromProb scale)*(x/y)
+
+laplace :: (Mochastic repr) => repr Real -> repr Prob -> repr (Measure Real)
+laplace loc scale = exponential 1 `bind` \v ->
+                    normal 0 1 `bind` \z ->
+                    dirac $ loc + z*(fromProb $ scale*sqrt_(2*v))
+
+student :: (Mochastic repr) => repr Real -> repr Prob -> repr (Measure Real)
+student loc v = normal loc 1 `bind` \z ->
+                chi2 v `bind` \df ->
+                dirac $ z*(fromProb $ sqrt_ (v/df))
+
+weibull :: (Mochastic repr) => repr Prob -> repr Prob -> repr (Measure Prob)
+weibull b k = exponential 1 `bind` \x ->
+              dirac $ b*(pow_ x (fromProb $ recip k))
 
 bern :: (Mochastic repr) => repr Prob -> repr (Measure Bool)
 bern p = categorical [(p, true), (1-p, false)]
