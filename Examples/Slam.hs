@@ -109,8 +109,8 @@ type Simulator repr = repr DimL -> repr DimH -> repr DimA -> repr DimB
 --                                MODEL                                       --
 --------------------------------------------------------------------------------
                        
-simulate :: (Mochastic repr) => Simulator repr
-simulate dimL dimH dimA dimB
+simulate :: (Mochastic repr) => Int -> Simulator repr
+simulate n dimL dimH dimA dimB
          blons blats
          old_lon old_lat old_phi
          old_ve old_alpha delT =
@@ -204,9 +204,10 @@ toHList :: (Base repr) => [repr a] -> repr [a]
 toHList [] = nil
 toHList (a : as) = cons a (toHList as)
 
-map_ :: (Base repr) => (repr a -> repr b) -> repr [a] -> repr [b]
-map_ f ls = unlist ls nil k
-    where k a as = cons (f a) (map_ f as)
+map_ :: (Base repr) => Int -> (repr a -> repr b) -> repr [a] -> repr [b]
+map_ 0 _ _  = nil
+map_ n f ls = unlist ls nil k
+    where k a as = cons (f a) (map_ (n-1) f as)
 
 zipWith_ :: (Base repr) => (repr a -> repr b -> repr c)
          -> repr [a] -> repr [b] -> repr [c]
@@ -234,7 +235,7 @@ withinLaser n b = and_ [ lessOrEq (convert (n-0.5)) tb2
           convert = tan . toRadian . ((/) 4) . ((*) ratio)
  
 -- | Insert sensor readings (radial distance or intensity)
--- from a list containing one reading for each beacon (reads; length = n)
+-- from a list containing one reading for each beacon (reads; variable length)
 -- into the correct indices (i.e., angles derived from betas) within
 -- a hakaru vector of "noisy" readings (base; length = (short)range)
 laserAssigns :: (Base repr) => repr (Repeat Len H.Real) -> Int
@@ -270,18 +271,12 @@ extractMeasure ls' = let mls' = cont . bind <$> ls'
 
 --------------------------------------------------------------------------------
 --                               SIMULATIONS                                  --
---------------------------------------------------------------------------------                                                
-
-genBeacons :: Rand -> Maybe FilePath
-           -> IO ([Double],[Double])     -- ^ longitudes, latitudes
-genBeacons _ Nothing         = return ([1,3],[2,4])
-genBeacons g (Just evalPath) = do
-  trueBeacons <- obstacles evalPath
-  return (map lon trueBeacons , map lat trueBeacons)                                    
+--------------------------------------------------------------------------------
 
 type Rand = MWC.Gen (PrimState IO)
 
-type Particle = (Double, Double, Double, Double, [Double], [Double])
+type Particle = ( Double, Double, Double, Double -- ^ l,h,a,b
+                , [Double], [Double] )           -- ^ beacon lons, b-lats
 
 data Params = PM { sensors :: [Sensor]
                  , controls :: [Control]
@@ -294,6 +289,28 @@ data Params = PM { sensors :: [Sensor]
                  , tm :: Double }    
     
 type Generator = Particle -> Params -> IO ()
+
+-- | Returns the pair (longitudes, latitudes)
+genBeacons :: Rand -> Maybe FilePath -> IO ([Double],[Double])
+genBeacons _ Nothing         = return ([1,3],[2,4])
+genBeacons g (Just evalPath) = do
+  trueBeacons <- obstacles evalPath
+  return (map lon trueBeacons , map lat trueBeacons)
+
+updateParams :: Params -> (Double,(Double,Double)) -> Double -> Params
+updateParams prms (cphi,(cvlon,cvlat)) tcurr =
+    prms { sensors = tail (sensors prms)
+         , vlon = cvlon
+         , vlat = cvlat
+         , phi = cphi
+         , tm = tcurr }
+                                
+plotPoint :: FilePath -> (Double,(Double,Double)) -> IO ()
+plotPoint out (_,(lon,lat)) = do
+  dExist <- doesDirectoryExist out
+  unless dExist $ createDirectory out
+  let fp = out </> "slam_out_path.txt"
+  appendFile fp $ show lon ++ "," ++ show lat ++ "\n"    
 
 ------------------
 --  UNCONDITIONED
@@ -341,36 +358,22 @@ type SimLaser = DimL -> DimH -> DimA -> DimB
                -> DelTime
                -> Measure State
 
-simLasers :: (Mochastic repr, Lambda repr) => repr SimLaser
-simLasers = lam $ \dl -> lam $ \dh -> lam $ \da -> lam $ \db -> 
-            lam $ \blons -> lam $ \blats ->
-            lam $ \old_lon -> lam $ \old_lat -> lam $ \old_phi ->
-            lam $ \old_ve -> lam $ \old_alpha -> lam $ \delT ->
-            simulate dl dh da db blons blats
-                     old_lon old_lat old_phi
-                     old_ve old_alpha delT
+simLasers :: (Mochastic repr, Lambda repr) => Int -> repr SimLaser
+simLasers n = lam $ \dl -> lam $ \dh -> lam $ \da -> lam $ \db -> 
+              lam $ \blons -> lam $ \blats ->
+              lam $ \old_lon -> lam $ \old_lat -> lam $ \old_phi ->
+              lam $ \old_ve -> lam $ \old_alpha -> lam $ \delT ->
+              simulate n dl dh da db blons blats
+                       old_lon old_lat old_phi
+                       old_ve old_alpha delT
 
 -- sampleState :: Particle -> Params -> Double -> Rand -> IO State
 sampleState (l,h,a,b,blons,blats) prms tcurr g =
     fmap (\(Just (s,1)) -> s) $
-         (unSample simLasers) l h a b blons blats
-                              vlon vlat phi ve alpha (tcurr-tprev) 1 g
-    where (PM _ _ _ vlon vlat phi ve alpha tprev) = prms        
-                   
-updateParams :: Params -> (Double,(Double,Double)) -> Double -> Params
-updateParams prms (cphi,(cvlon,cvlat)) tcurr =
-    prms { sensors = tail (sensors prms)
-         , vlon = cvlon
-         , vlat = cvlat
-         , phi = cphi
-         , tm = tcurr }
-                                
-plotPoint :: FilePath -> (Double,(Double,Double)) -> IO ()
-plotPoint out (_,(lon,lat)) = do
-  dExist <- doesDirectoryExist out
-  unless dExist $ createDirectory out
-  let fp = out </> "slam_out_path.txt"
-  appendFile fp $ show lon ++ "," ++ show lat ++ "\n"
+         (unSample $ simLasers (length blons))
+         l h a b blons blats
+         vlon vlat phi ve alpha (tcurr-tprev) 1 g
+    where (PM _ _ _ vlon vlat phi ve alpha tprev) = prms
 
 plotReads :: FilePath -> [Double] -> [Double] -> IO ()
 plotReads out rads ints = do
@@ -405,7 +408,7 @@ runn out g prtcl params = go params
             let (Sensor tcurr snum) = head $ sensors prms
             case snum of
               1 -> do (_,coords) <- sampleState prtcl prms tcurr g
-                      putStrLn "writing to simulated_slam_out_path"
+                      putStrLn "writing to slam_out_path"
                       plotPoint out coords
                       go $ updateParams prms coords tcurr
               2 -> do when (null $ controls prms) $
@@ -435,9 +438,9 @@ type Env = (DimL,
                         (GPS, (GPS, (Angle,
                                      (Vel, (Angle, DelTime)))))))))))
     
-evolve :: (Mochastic repr) => repr Env
+evolve :: (Mochastic repr) => Int -> repr Env
        -> [ repr LaserReads -> repr (Measure VehicleCoords) ]
-evolve env =
+evolve n env =
     [ d env
       | d <- runDisintegrate $ \ e0  ->
              unpair e0  $ \l     e1  ->
@@ -451,25 +454,25 @@ evolve env =
              unpair e8  $ \phi   e9  ->
              unpair e9  $ \vel   e10 ->
              unpair e10 $ \alpha del ->
-             simulate l h a b
+             simulate n l h a b
                       blons blats
                       vlon vlat phi
                       vel alpha del ]
 
-readLasers :: (Mochastic repr, Lambda repr) =>
-              repr (Env -> LaserReads -> Measure VehicleCoords)
-readLasers = lam $ \env -> lam $ \lrs -> head (evolve env) lrs
+readLasers :: (Mochastic repr, Lambda repr) => Int
+           -> repr (Env -> LaserReads -> Measure VehicleCoords)
+readLasers n = lam $ \env -> lam $ \lrs -> head (evolve n env) lrs
 
 sampleCoords (l,h,a,b,blons,blats) prms lreads tcurr g =
     fmap (\(Just (s,1)) -> s) $
-         (unSample readLasers)
+         (unSample $ readLasers (length blons))
          (l,(h,(a,(b,(blons,(blats,(vlon,(vlat,(phi,(ve,(alpha,tcurr-tprev)))))))))))
          lreads 1 g
     where (PM _ _ _ vlon vlat phi ve alpha tprev) = prms
 
 --------------------------------------------------------------------------------
 --                                MAIN                                        --
---------------------------------------------------------------------------------                                                    
+--------------------------------------------------------------------------------
 
 main :: IO ()
 main = do
