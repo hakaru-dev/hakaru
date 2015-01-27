@@ -198,8 +198,10 @@ min_ x y = if_ (less_ x y) x y
 max_ x y = if_ (less_ x y) y x
 
 sumVec :: Integrate repr => repr (Vector a) ->
-                            (repr Int -> repr Prob) -> repr Prob
-sumVec x = summate (fromInt $ loBound x) (fromInt $ hiBound x)
+                            (repr a -> repr Prob) -> repr Prob
+sumVec x f = summate (fromInt $ loBound x)
+                     (fromInt $ hiBound x)
+                     (\ i -> f (index x i))
 
 class (Base repr) => Mochastic repr where
   dirac         :: repr a -> repr (Measure a)
