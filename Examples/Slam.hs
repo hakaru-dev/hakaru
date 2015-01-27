@@ -122,33 +122,33 @@ simulate n dimL dimH dimA dimB
               \calc_lat ->
     let_' (old_phi + delT*old_vc*(tan old_alpha) / dimL) $ \calc_phi ->
     
-    normal calc_lon ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \noisy_lon ->
-    normal calc_lat ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \noisy_lat ->
-    normal calc_phi ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \noisy_phi ->
+    normal calc_lon ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \vlon ->
+    normal calc_lat ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \vlat ->
+    normal calc_phi ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \vphi ->
 
-    let_' (map_ ((-) noisy_lon) blons) $ \lon_ds ->
-    let_' (map_ ((-) noisy_lat) blats) $ \lat_ds ->
+    let_' (map_ n ((-) vlon) blons) $ \lon_ds ->
+    let_' (map_ n ((-) vlat) blats) $ \lat_ds ->
         
-    let_' (map_ sqrt_ (zipWith_ (+) (map_ sqr lon_ds)
-                                    (map_ sqr lat_ds))) $ \calc_zrads ->
+    let_' (map_ n sqrt_ (zipWith_ n (+) (map_ n sqr lon_ds)
+                                        (map_ n sqr lat_ds))) $ \calc_zrads ->
     -- inverse-square for intensities 
-    let_' (map_ (\r -> cIntensity / (pow_ r 2)) calc_zrads) $ \calc_zints ->
+    let_' (map_ n (\r -> cIntensity / (pow_ r 2)) calc_zrads) $ \calc_zints ->
     -- removed a "+ pi/2" term: it is present as (i - (n-1)/2) in laserAssigns
-    let_' (map_ (\r -> atan r - calc_phi)
-                (zipWith_ (/) lat_ds lon_ds)) $ \calc_zbetas ->
+    let_' (map_ n (\r -> atan r - calc_phi)
+                  (zipWith_ n (/) lat_ds lon_ds)) $ \calc_zbetas ->
 
-    perturb (\l -> normal (fromProb l) cBeacon) calc_zrads `bind` \noisy_zrads ->
-    perturb (\l -> normal (fromProb l) cBeacon) calc_zints `bind` \noisy_zints ->
-    perturb (\l -> normal l cBeacon) calc_zbetas `bind` \noisy_zbetas ->
+    perturb n (\l -> normal (fromProb l) cBeacon) calc_zrads `bind` \zrads ->
+    perturb n (\l -> normal (fromProb l) cBeacon) calc_zints `bind` \zints ->
+    perturb n (\l -> normal l cBeacon) calc_zbetas `bind` \zbetas ->
 
-    extractMeasure (HV.pure (normal muZRads sigmaZRads)) `bind` \zrad_base ->
-    let_' (laserAssigns zrad_base shortrange noisy_zrads noisy_zbetas) $ \zrad_reads ->
+    extractMeasure (HV.pure (normal muZRads sigmaZRads)) `bind` \baseR ->
+    let_' (laserAssigns shortrange n baseR zrads zbetas) $ \lasersR ->
 
-    extractMeasure (HV.pure (normal muZInts sigmaZInts)) `bind` \zint_base ->
-    let_' (laserAssigns zint_base shortrange noisy_zints noisy_zbetas) $ \zint_reads ->
-        
-    dirac $ pair (pair zrad_reads zint_reads)
-                 (pair noisy_phi (pair noisy_lon noisy_lat))
+    extractMeasure (HV.pure (normal muZInts sigmaZInts)) `bind` \baseI ->
+    let_' (laserAssigns shortrange n baseI zints zbetas) $ \lasersI ->
+    
+    dirac $ pair (pair lasersR lasersI)
+                 (pair vphi (pair vlon vlat))
 
 calcLon :: (Base repr) => repr DimA -> repr DimB -> repr DimL
         -> repr GPS                 -- ^ old_lon
@@ -209,21 +209,24 @@ map_ 0 _ _  = nil
 map_ n f ls = unlist ls nil k
     where k a as = cons (f a) (map_ (n-1) f as)
 
-zipWith_ :: (Base repr) => (repr a -> repr b -> repr c)
+zipWith_ :: (Base repr) => Int -> (repr a -> repr b -> repr c)
          -> repr [a] -> repr [b] -> repr [c]
-zipWith_ f al bl = unlist al nil k
+zipWith_ 0 _ _  _  = nil
+zipWith_ n f al bl = unlist al nil k
     where k  a as = unlist bl nil (k' a as)
-          k' a as b bs = cons (f a b) (zipWith_ f as bs)
+          k' a as b bs = cons (f a b) (zipWith_ (n-1) f as bs)
 
-foldl_ :: (Base repr) => (repr b -> repr a -> repr b)
+foldl_ :: (Base repr) => Int -> (repr b -> repr a -> repr b)
        -> repr b -> repr [a] -> repr b
-foldl_ f acc ls = unlist ls acc k
-    where k a as = foldl_ f (f acc a) as
+foldl_ 0 _ acc _  = acc
+foldl_ n f acc ls = unlist ls acc k
+    where k a as = foldl_ (n-1) f (f acc a) as
 
-sequence' :: (Mochastic repr) => repr [Measure a] -> repr (Measure [a])
-sequence' ls = unlist ls (dirac nil) k
+sequence' :: (Mochastic repr) => Int -> repr [Measure a] -> repr (Measure [a])
+sequence' 0 _  = dirac nil
+sequence' n ls = unlist ls (dirac nil) k
     where k ma mas = bind ma $ \a ->
-                     bind (sequence' mas) $ \as ->
+                     bind (sequence' (n-1) mas) $ \as ->
                      dirac (cons a as)                           
                  
 withinLaser n b = and_ [ lessOrEq (convert (n-0.5)) tb2
@@ -235,26 +238,27 @@ withinLaser n b = and_ [ lessOrEq (convert (n-0.5)) tb2
           convert = tan . toRadian . ((/) 4) . ((*) ratio)
  
 -- | Insert sensor readings (radial distance or intensity)
--- from a list containing one reading for each beacon (reads; variable length)
--- into the correct indices (i.e., angles derived from betas) within
--- a hakaru vector of "noisy" readings (base; length = (short)range)
-laserAssigns :: (Base repr) => repr (Repeat Len H.Real) -> Int
+-- from a list containing one reading for each beacon (reads; length = nb)
+-- into the correct indices (i.e., angles derived from betas; length = nb)
+-- within a hakaru vector of "noisy" readings (base; length = nl)
+laserAssigns :: (Base repr) => Int -> Int -- ^ numlasers, numbeacons
+             -> repr (Repeat Len H.Real)
              -> repr [H.Real] -> repr [H.Real]
              -> repr (Repeat Len H.Real)
-laserAssigns base n reads betas =
-    let combined = zipWith_ pair reads betas
-        laserNum i = fromRational $ fromIntegral i - (fromIntegral (n-1) / 2)
+laserAssigns nl nb base reads betas =
+    let combined = zipWith_ nb pair reads betas
+        laserNum i = fromRational $ fromIntegral i - (fromIntegral (nl-1) / 2)
         addBeacon rb (m,i) = unpair rb $ \r b ->
                              if_ (withinLaser (laserNum i) b) r m
         build pd rb = fromNestedPair pd $ \p -> toNestedPair
                       ((addBeacon rb) <$> ((,) <$> p <*> (iota 0)))
-    in foldl_ build base combined
+    in foldl_ nb build base combined
 
 -- | Add random noise to a hakaru list of elements
-perturb :: Mochastic repr => (repr a -> repr (Measure a1))
+perturb :: Mochastic repr => Int -> (repr a -> repr (Measure a1))
         -> repr [a] -> repr (Measure [a1])
-perturb fn ls = let ls' = map_ fn ls
-                in sequence' ls'
+perturb n fn ls = let ls' = map_ n fn ls
+                  in sequence' n ls'
 
 -- | Add random noise to a hakaru vector (nested tuple) of elements
 perturbReads fn ls = let ls' = fn <$> ls
@@ -638,6 +642,6 @@ testLaser = do
       betas :: (Base repr) => repr [H.Real]
       betas = cons 7 (cons 9 nil)
       result :: Sample IO (Repeat Eleven H.Real)
-      result = laserAssigns base shortrange reads betas
+      result = laserAssigns shortrange 2 base reads betas
   print (unSample result)
         
