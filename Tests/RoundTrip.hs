@@ -5,7 +5,7 @@ import Prelude hiding (Real)
 
 import Language.Hakaru.Syntax
 import Language.Hakaru.Disintegrate hiding (max_)
-import Language.Hakaru.Expect (Expect(unExpect), Expect', normalize)
+import Language.Hakaru.Expect (Expect(..), Expect', total, normalize)
 -- import Language.Hakaru.Maple (Maple, runMaple)
 -- import Language.Hakaru.Simplify (simplify)
 -- import Language.Hakaru.PrettyPrint (runPrettyPrint)
@@ -134,8 +134,8 @@ testBetaConj = d unit true
   where d:_ = runDisintegrate (\env -> ununit env $ liftM swap_ t4)
 
 testBetaConj' :: (Mochastic repr, Integrate repr, Lambda repr) => repr (Measure Prob)
-testBetaConj' = normalize (\ lift -> case d of Disintegration f -> f unit (lift true))
-  where d:_ = disintegrations (const $ liftM swap_ t4)
+testBetaConj' = normalize (d unit true)
+  where d:_ = runDisintegrate (const $ liftM swap_ t4)
 
 -- t5 is "the same" as t1.
 t5 :: Mochastic repr => repr (Measure ())
@@ -221,7 +221,7 @@ t25' = lam (\x -> lam (\y ->
     factor (x * exp_ (cos y) * (1/2))))
 
 t26 :: (Mochastic repr, Lambda repr, Integrate repr) => repr (Measure Prob)
-t26 = dirac (unExpect t1 `app` lam (const 1))
+t26 = dirac (total t1)
 
 t27 :: (Mochastic repr, Lambda repr) => [repr (Real -> Measure Real)]
 t27 = map (\d -> lam (d unit)) $ runDisintegrate
@@ -276,10 +276,10 @@ t40 = lam (dirac . log_)
 -- this is not plugged in as it requires dealing with first-class functions, 
 -- which is not implemented
 t41 :: (Lambda repr, Integrate repr, Mochastic repr) => repr (Measure ((Prob -> Prob) -> Prob))
-t41 = dirac $ (unExpect (uniform 0 2 `bind` dirac . unsafeProb))
+t41 = dirac $ snd_ $ unExpect $ uniform 0 2 `bind` dirac . unsafeProb
 
 t42 :: (Lambda repr, Integrate repr, Mochastic repr) => repr (Measure Prob)
-t42 = dirac $ (unExpect (uniform 0 2 `bind` dirac . unsafeProb) `app` lam id)
+t42 = dirac $ total $ uniform 0 2 `bind` dirac . unsafeProb
 
 t43, t43', t43'' :: (Lambda repr, Mochastic repr) => repr (Bool -> Measure Real)
 t43   = lam $ \b -> if_ b (uniform 0 1) (beta 1 1 `bind` dirac . fromProb)
@@ -332,20 +332,18 @@ priorAsProposal p x = bern (1/2) `bind` \c ->
                              (pair (fst_ x ) (snd_ x'))
                              (pair (fst_ x') (snd_ x )))   
 
-gibbsProposal :: (Order_ a, Expect' a ~ a,
+gibbsProposal :: (Order_ a, Expect' a ~ a, Expect' b ~ b,
                   Mochastic repr, Integrate repr, Lambda repr) =>
                  Disintegrate (Measure (a,b)) ->
                  repr (a, b) -> repr (Measure (a, b))
 gibbsProposal p x = q (fst_ x) `bind` \x' -> dirac (pair (fst_ x) x')
-  where d:_ = disintegrations (const p)
-        q x = normalize (\lift -> case d of Disintegration f -> f unit (lift x))
+  where d:_ = runDisintegrate (const p)
+        q x = normalize (d unit (Expect x))
 
 testGibbsProp0 :: (Lambda repr, Mochastic repr, Integrate repr) =>
                   repr (Real -> Measure Real)
-testGibbsProp0 = lam $ \x ->
-                 normalize $ \lift ->
-                 case d of Disintegration f -> f unit (lift x)
-  where d:_ = disintegrations (const flipped_norm)
+testGibbsProp0 = lam $ \x -> normalize (d unit (Expect x))
+  where d:_ = runDisintegrate (const flipped_norm)
 
 onFst :: (Lambda repr) => (t -> repr a -> repr b) -> t -> repr (a -> b)
 onFst tr f = lam (tr f)
@@ -368,10 +366,8 @@ testGibbsProp2 = onSnd gibbsProposal norm
 
 testGibbsPropUnif :: (Lambda repr, Mochastic repr, Integrate repr) =>
                   repr (Real -> Measure Real)
-testGibbsPropUnif = lam $ \x ->
-                    normalize $ \lift ->
-                    case d of Disintegration f -> f unit (lift x)
-  where d:_ = disintegrations (const (liftM swap_ unif2))
+testGibbsPropUnif = lam $ \x -> normalize (d unit (Expect x))
+  where d:_ = runDisintegrate (const (liftM swap_ unif2))
 
 mh :: (Mochastic repr, Integrate repr, Lambda repr,
        a ~ Expect' a, Order_ a) =>

@@ -7,14 +7,13 @@ module Language.Hakaru.Maple (Maple(..), runMaple) where
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Number(..),
-    Order(..), Base(..), Integrate(..), Lambda(..))
+    Order(..), Base(..), Integrate(..), Lambda(..), Mochastic(..))
 import Data.Ratio
 import Control.Monad (liftM2)
 import Control.Monad.Trans.Reader (ReaderT(ReaderT), runReaderT)
 import Control.Monad.Trans.Cont (Cont, cont, runCont)
 import Data.List (intercalate)
-import Data.Function (on)
-import Generics.SOP hiding (fn) 
+import Generics.SOP hiding (fn)
 import Language.Hakaru.Embed
 
 -- Jacques wrote on December 16 that "the condition of a piecewise can be
@@ -24,29 +23,22 @@ import Language.Hakaru.Embed
 -- and that's it.  Anything else will throw a hard error."
 -- We try to satisfy this condition in Maple Bool here---------vvvvvv
 newtype Maple a = Maple { unMaple :: ReaderT Int (Cont String) String }
--- So "runMaple" and "resetMaple" should not be used on Maple Bool.
+-- So "runMaple" should not be used on Maple Bool.
 
 runMaple :: Maple a -> Int -> String
 runMaple (Maple x) i = runCont (runReaderT x i) id
 
-resetMaple :: Maple a -> Maple a
-resetMaple x = Maple (ReaderT (return . runMaple x))
-
 mapleFun1 :: String -> Maple a -> Maple b
-mapleFun1 fn x =
-  Maple (fmap (\y -> fn ++ "(" ++ y ++ ")") (unMaple (resetMaple x)))
+mapleFun1 fn x = Maple (ReaderT $ \i -> return $
+  fn ++ "(" ++ runMaple x i ++ ")")
 
 mapleFun2 :: String -> Maple a -> Maple b -> Maple c
-mapleFun2 fn x y =
-  Maple (liftM2 (\w z -> fn ++ "(" ++ w ++ ", " ++ z ++ ")")
-                (unMaple (resetMaple x))
-                (unMaple (resetMaple y)))
+mapleFun2 fn x y = Maple (ReaderT $ \i -> return $
+  fn ++ "(" ++ runMaple x i ++ ", " ++ runMaple y i ++ ")")
 
 mapleOp2 :: String -> Maple a -> Maple b -> Maple c
-mapleOp2 fn x y =
-  Maple (liftM2 (\w z -> "(" ++ w ++ fn ++ z ++ ")")
-                (unMaple (resetMaple x))
-                (unMaple (resetMaple y)))
+mapleOp2 fn x y = Maple (ReaderT $ \i -> return $
+  "(" ++ runMaple x i ++ fn ++ runMaple y i ++ ")")
 
 mapleBind :: (Maple a -> Maple b) -> Int -> (String, String)
 mapleBind f i = (x, runMaple (f (Maple (return x))) (i + 1))
@@ -60,7 +52,7 @@ instance Num (Maple a) where
   (+)           = mapleOp2 "+"
   (*)           = mapleOp2 "*"
   (-)           = mapleOp2 "-"
-  negate        = Maple . fmap (\u -> "(-" ++ u ++ ")") . unMaple . resetMaple
+  negate x      = Maple (ReaderT $ \i -> return $ "(-" ++ runMaple x i ++ ")")
   abs           = mapleFun1 "abs"
   signum        = mapleFun1 "signum"
   fromInteger x = Maple (return (show x))
@@ -76,8 +68,8 @@ instance Floating (Maple a) where
   sqrt  = mapleFun1 "(x -> piecewise(x<0, undefined, sqrt(x)))"
   log   = mapleFun1 "(x -> piecewise(x<0, undefined, ln(x)))"
   (**)  = mapleOp2 "^"
-  logBase = (\b y -> Maple (liftM2 f b y)) `on` (unMaple . resetMaple)
-    where f b y = "log[" ++ b ++ "]" ++ "(" ++ y ++ ")"
+  logBase b y = Maple (ReaderT $ \i -> return $
+    "log[" ++ runMaple b i ++ "](" ++ runMaple y i ++ ")")
   sin   = mapleFun1 "sin"
   tan   = mapleFun1 "tan"
   cos   = mapleFun1 "cos"
@@ -164,14 +156,27 @@ instance Lambda Maple where
   app (Maple rator) (Maple rand) =
     Maple (liftM2 (\rator' rand' -> rator' ++ "(" ++ rand' ++ ")") rator rand)
 
+instance Mochastic Maple where
+  -- Maple doesn't currently understand this input (though one day it might).
+  -- This instance is currently here because Expect produces dual output and
+  -- we want "instance Mochastic (Expect Maple)".
+  dirac = mapleFun1 "Return"
+  m `bind` k = Maple (ReaderT $ \i -> return $
+    let (x, body) = mapleBind k i
+    in "Bind(" ++ runMaple m i ++ "," ++ x ++ "," ++ body ++ ")")
+  lebesgue = Maple (return "Lebesgue")
+  counting = Maple (return "Counting")
+  superpose pms = Maple (ReaderT $ \i -> return $
+    let pms' = [ "WeightedM(" ++ runMaple p i ++ "," ++ runMaple m i ++ ")"
+               | (p,m) <- pms ]
+    in "Superpose(" ++ intercalate "," pms' ++ ")")
 
 constructor :: String -> [Maple a] -> Maple b
-constructor fn xs = Maple $ do 
-  ms <- fmap (intercalate ",") $ sequence (map (unMaple . resetMaple) xs)
-  return ("`" ++ fn ++ "`(" ++ ms ++ ")")
-  
+constructor fn xs = Maple (ReaderT $ \i -> return $
+  "`" ++ fn ++ "`(" ++ intercalate "," [ runMaple x i | x <- xs ] ++ ")")
+
 prodMaple' :: forall xs a . ConstructorInfo xs -> [Maple a] -> Maple (NP Maple xs)
-prodMaple' (Infix nm _ _) (x:y:_) = constructor nm [x,y] 
+prodMaple' (Infix nm _ _) (x:y:_) = constructor nm [x,y]
 prodMaple' (Infix {}) _ = error "prodMaple': wrong number of values"
 prodMaple' (Constructor ctr) q = constructor ctr (take (lengthSing (Proxy :: Proxy xs)) q)
 prodMaple' (Record ctr _ ) q   = constructor ctr (take (lengthSing (Proxy :: Proxy xs)) q)
@@ -180,19 +185,19 @@ prodMaple :: forall xs . ConstructorInfo xs -> NP Maple xs -> Maple (NP Maple xs
 prodMaple c xs = case ciSing c of Dict -> prodMaple' c (unprod (Maple . unMaple) xs)
 
 sopMaple :: NP ConstructorInfo xss -> NS (NP Maple) xss -> Maple (NS (NP Maple) xss)
-sopMaple (ctr :* _) (Z x) = (Maple . unMaple) (prodMaple ctr x) 
+sopMaple (ctr :* _) (Z x) = (Maple . unMaple) (prodMaple ctr x)
 sopMaple (_ :* ctrs) (S x) = (Maple . unMaple) (sopMaple ctrs x)
 sopMaple Nil _ = error "sopMaple: Type error"
 
-op' :: Int -> Maple a -> Maple b 
+op' :: Int -> Maple a -> Maple b
 op' n (Maple ab) = Maple (ab >>= \ab' ->
   return $ "op(" ++ show n ++ ", " ++ ab' ++ ")")
 
 unprodMaple :: SingI xs => NFn Maple o xs -> Maple (NP Maple xs) -> Maple o
-unprodMaple b a = go sing a b 1 where 
-  go :: Sing xs -> Maple (NP Maple xs) -> NFn Maple o xs -> Int -> Maple o 
+unprodMaple b a = go sing a b 1 where
+  go :: Sing xs -> Maple (NP Maple xs) -> NFn Maple o xs -> Int -> Maple o
   go SNil _ (NFn f) _ = f
-  go s@SCons (Maple v) (NFn f) i = go (singTail s) (Maple v) (NFn (f (op' i (Maple v)))) (i+1) 
+  go s@SCons (Maple v) (NFn f) i = go (singTail s) (Maple v) (NFn (f (op' i (Maple v)))) (i+1)
 
 unConstructor :: String
               -> Maple t
@@ -206,28 +211,28 @@ unConstructor ctr (Maple ab) ka kb
              let op :: Int -> String
                  op n = "op(" ++ show n ++ ", " ++ ab' ++ ")"
 
-                 arm :: (Maple a -> Maple b) -> String 
-                 arm k = runCont (runReaderT (unMaple $ k (Maple ab)) i) c 
+                 arm :: (Maple a -> Maple b) -> String
+                 arm k = runCont (runReaderT (unMaple $ k (Maple ab)) i) c
 
-             in "if_(" ++ op 0 ++ " = `" ++ ctr ++ "`, " ++ arm ka 
+             in "if_(" ++ op 0 ++ " = `" ++ ctr ++ "`, " ++ arm ka
                                         ++ ", " ++ arm kb ++ ")")
 
-caseMaple :: Int -> NP ConstructorInfo xss -> NP (NFn Maple o) xss -> Maple (NS (NP Maple) xss) -> Maple o 
+caseMaple :: Int -> NP ConstructorInfo xss -> NP (NFn Maple o) xss -> Maple (NS (NP Maple) xss) -> Maple o
 caseMaple _ Nil Nil _ = Maple $ return "Error(\"Datatypes with no constructors or type error\")"
-caseMaple i (ctr :* ctrs) (f :* fs) m = 
-  case ciSing ctr of 
+caseMaple i (ctr :* ctrs) (f :* fs) m =
+  case ciSing ctr of
     Dict -> unConstructor (ctrName ctr) m (unprodMaple f) (caseMaple (i+1) ctrs fs)
 caseMaple _ _ _ _ = error "caseMaple: type error"
 
-instance Embed Maple where 
+instance Embed Maple where
   type Ctx Maple t = ()
-  
+
   hRep (Maple x) = Maple x
   unHRep (Maple x) = Maple x
-                   
-  sop' p xs = sopMaple (ctrInfo (datatypeInfo p)) xs 
-  case' p r f = 
-    let di = datatypeInfo p in 
-    case diSing di of 
-      Dict -> caseMaple 1 (ctrInfo di) f r 
+
+  sop' p xs = sopMaple (ctrInfo (datatypeInfo p)) xs
+  case' p r f =
+    let di = datatypeInfo p in
+    case diSing di of
+      Dict -> caseMaple 1 (ctrInfo di) f r
 
