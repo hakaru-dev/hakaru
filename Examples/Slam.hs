@@ -482,8 +482,8 @@ main :: IO ()
 main = do
   args <- getArgs
   case args of
-    [input, output]       -> generate input output Nothing
-    [input, output, eval] -> generate input output (Just eval)
+    [input, output]       -> runner input output Nothing
+    [input, output, eval] -> runner input output (Just eval)
     _ -> usageExit
     
 usageExit :: IO ()
@@ -491,12 +491,10 @@ usageExit = do
   pname <- getProgName
   putStrLn (usage pname) >> exitSuccess
       where usage pname = "Usage: " ++ pname ++ " input_dir output_dir [eval_dir]\n"
-
                           
 --------------------------------------------------------------------------------
 --                                DATA IO                                     --
 --------------------------------------------------------------------------------
-
 
 data Initial = Init { l :: Double
                     , h :: Double
@@ -593,13 +591,10 @@ obstacles evalPath = do
   let evalObs = evalPath </> "eval_obstacles.csv"
   doesFileExist evalObs >>= flip unless (noFileBye evalObs)
   decodeFileStream evalObs
-
-
                    
 --------------------------------------------------------------------------------
 --                               MISC MINI-TESTS                              --
 --------------------------------------------------------------------------------
-
 
 testIO :: FilePath -> IO ()
 testIO inpath = do
