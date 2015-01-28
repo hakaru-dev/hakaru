@@ -8,7 +8,7 @@ Warning: this code is alpha and experimental.
 Installation
 ------------
 
-Hakaru has multiple components to build it by default run
+Hakaru has multiple components. To build it by default run
 
     cabal update
     cabal install -j --only-dependencies
