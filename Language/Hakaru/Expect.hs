@@ -103,9 +103,11 @@ instance (Mochastic repr, Integrate repr, Lambda repr)
   dirac (Expect a) = Expect $ pair
     (dirac a)
     (lam (\c -> c `app` a))
-  bind (Expect m) k = Expect $ unpair m $ \m1 m2 -> pair
-    (bind m1 (fst_ . unExpect . k . Expect))
-    (lam (\c -> m2 `app` lam (\a -> snd_ (unExpect (k (Expect a))) `app` c)))
+  bind (Expect m) k =
+    Expect $ let_ (lam (unExpect . k . Expect)) $ \k' ->
+             unpair m $ \m1 m2 ->
+             pair (bind m1 (fst_ . app k'))
+                  (lam (\c -> m2 `app` lam (\a -> snd_ (app k' a) `app` c)))
   lebesgue = Expect $ pair
     lebesgue
     (lam (integrate negativeInfinity infinity . app))
