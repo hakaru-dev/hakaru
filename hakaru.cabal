@@ -17,7 +17,6 @@ cabal-version:       >=1.16
 
 library
   exposed-modules:     Language.Hakaru.Types,
-                       Language.Hakaru.Symbolic,
                        Language.Hakaru.Arrow,
                        Language.Hakaru.Mixture,
                        Language.Hakaru.Sampler,
