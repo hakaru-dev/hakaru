@@ -740,6 +740,8 @@ propagate (Op0 Unit) _ _ _ = return (Op0 Unit)
 propagate (Op0 EmptyList) _ Root t = do
   insert (Bind LNil (Dirac (ex t)))
   return (Op0 EmptyList)
+propagate (Op0 EmptyList) _ (Car _) _ = reject
+propagate (Op0 EmptyList) _ (Cdr _) _ = reject
 propagate (Op0 True_) _ Root t = do
   insert (Bind BoolT (Dirac (ex t)))
   return (Op0 True_)
