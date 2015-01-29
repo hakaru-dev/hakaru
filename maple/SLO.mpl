@@ -1264,7 +1264,11 @@ SLO := module ()
     elif type(expr, t_pw) then
       # what is really needed here is to 'copy'
       # PiecewiseTools:-IntImplementation:-Definite
-      myint_pw(expr, b)
+      try
+        myint_pw(expr, b)
+      catch "cannot handle condition":
+        Int(expr, b)
+      end try;
     elif type(expr, t_binds) then
       # go in?
       Int(expr, b) 
