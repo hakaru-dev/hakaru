@@ -28,7 +28,7 @@ import Language.Hakaru.Syntax (Real, Prob, Measure,
         EqType(Refl), Order_(..), Number(..), Fraction(..),
         Order(..), Base(..), Mochastic(..), factor, liftM,
         Lambda(..), Integrate(..))
-import Language.Hakaru.Expect (Expect(unExpect), Expect')
+import Language.Hakaru.Expect (Expect(Expect), Expect', total)
 import Unsafe.Coerce (unsafeCoerce)
 import Data.Ratio (numerator, denominator)
 
@@ -1100,12 +1100,11 @@ condition :: (Mochastic repr, Order_ a) => Disintegrate (Measure (a, b)) ->
                                  repr a -> repr (Measure b)
 condition d = head (runDisintegrate (\ _ -> d)) unit
 
-density :: (Integrate repr, Lambda repr, Order_ a) =>
+density :: (Integrate repr, Mochastic repr, Lambda repr, Order_ a) =>
            (Disintegrate env -> Disintegrate (Measure a)) ->
            [repr (Expect' env) -> repr (Expect' a) -> repr Prob]
-density m = [ \e o -> expectation `app` e `app` o `app` lam (\_ -> 1)
-            | f <- runDisintegrate (liftM (`pair` unit) . m)
-            , let expectation = unExpect (lam (\e -> lam (\o -> f e o))) ]
+density m = [ \e o -> total (f (Expect e) (Expect o))
+            | f <- runDisintegrate (liftM (`pair` unit) . m) ]
 
 unDisint :: Disintegrate a ->
             (Expr Loc Loc a -> Int -> Expr Loc Loc (Measure w))

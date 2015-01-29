@@ -9,7 +9,8 @@ module Language.Hakaru.Expect (Expect(..), Expect', total, normalize) where
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure,
-       Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..))
+       Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..),
+       fst_, snd_)
 import Generics.SOP hiding (fn) 
 import Language.Hakaru.Embed
 import Language.Hakaru.Maple 
@@ -26,7 +27,8 @@ type instance Expect' ()           = ()
 type instance Expect' (a, b)       = (Expect' a, Expect' b)
 type instance Expect' (Either a b) = Either (Expect' a) (Expect' b)
 type instance Expect' [a]          = [Expect' a]
-type instance Expect' (Measure a)  = (Expect' a -> Prob) -> Prob
+type instance Expect' (Measure a)  = (Measure (Expect' a),
+                                      (Expect' a -> Prob) -> Prob)
 type instance Expect' (a -> b)     = (Expect' a -> Expect' b)
 
 instance (Order repr Real) => Order (Expect repr) Real where
@@ -96,17 +98,26 @@ instance (Integrate repr) => Integrate (Expect repr) where
   summate (Expect lo) (Expect hi) f =
     Expect (summate lo hi (unExpect . f . Expect))
 
-instance (Integrate repr, Lambda repr)
+instance (Mochastic repr, Integrate repr, Lambda repr)
       => Mochastic (Expect repr) where
-  dirac (Expect a)  = Expect (lam (\c -> c `app` a))
-  bind (Expect m) k = Expect (lam (\c -> m `app` lam (\a ->
-                      unExpect (k (Expect a)) `app` c)))
-  lebesgue          = Expect (lam (integrate negativeInfinity infinity . app))
-  counting          = Expect (lam (summate   negativeInfinity infinity . app))
-  superpose pms     = Expect (lam (\c -> sum [ p * app m c
-                                             | (Expect p, Expect m) <- pms ]))
-  uniform (Expect lo) (Expect hi) = Expect (lam (\f ->
-    integrate lo hi (\x -> app f x / unsafeProb (hi - lo))))
+  dirac (Expect a) = Expect $ pair
+    (dirac a)
+    (lam (\c -> c `app` a))
+  bind (Expect m) k = Expect $ unpair m $ \m1 m2 -> pair
+    (bind m1 (fst_ . unExpect . k . Expect))
+    (lam (\c -> m2 `app` lam (\a -> snd_ (unExpect (k (Expect a))) `app` c)))
+  lebesgue = Expect $ pair
+    lebesgue
+    (lam (integrate negativeInfinity infinity . app))
+  counting = Expect $ pair
+    counting
+    (lam (summate   negativeInfinity infinity . app))
+  superpose pms = Expect $ pair
+    (superpose [ (p, fst_ m) | (Expect p, Expect m) <- pms ])
+    (lam (\c -> sum [ p * app (snd_ m) c | (Expect p, Expect m) <- pms ]))
+  uniform (Expect lo) (Expect hi) = Expect $ pair
+    (uniform lo hi)
+    (lam (\f -> integrate lo hi (\x -> app f x / unsafeProb (hi - lo))))
   -- TODO: override poisson, gamma, invgamma to express that they do not
   --       generate negative numbers
 
@@ -115,14 +126,12 @@ instance (Lambda repr) => Lambda (Expect repr) where
   app (Expect rator) (Expect rand) = Expect (app rator rand)
 
 total :: (Lambda repr, Base repr) => Expect repr (Measure a) -> repr Prob
-total m = unExpect m `app` lam (\_ -> 1)
+total (Expect m) = unpair m (\_ m2 -> m2 `app` lam (\_ -> 1))
 
 normalize :: (Integrate repr, Lambda repr, Mochastic repr) =>
-             (forall repr'. (Integrate repr', Lambda repr', Mochastic repr') =>
-                            (forall b. (Expect' b ~ b) => repr b -> repr' b) ->
-                            repr' (Measure a)) ->
-             repr (Measure a)
-normalize m = superpose [(recip (total (m Expect)), m id)]
+             Expect repr (Measure a) -> repr (Measure (Expect' a))
+normalize (Expect m) = unpair m (\m1 m2 ->
+  superpose [(recip (m2 `app` lam (\_ -> 1)), m1)])
 
 -- 'r' will only ever be 'Expect repr' 
 type instance Expect' (NS (NP r) a) = NS (NP r) a 

@@ -95,7 +95,7 @@ instance Floating (PrettyPrint a) where
   acosh   = apply1 "acosh"
 
 instance Base PrettyPrint where
-  unit              = PP (\_ _ -> [text "unit"])
+  unit              = string "unit"
   pair              = apply2 "pair"
   unpair (PP xy) k  = let PP k' = fun2 k in PP (\xs p -> parens (p > 0)
                     $ adjustHead (sep (xy xs 9) <+> text "`unpair`" <+>)
@@ -103,24 +103,24 @@ instance Base PrettyPrint where
   inl               = apply1 "inl"
   inr               = apply1 "inr"
   uneither xy kx ky = apply3 "uneither" xy (fun1 kx) (fun1 ky)
-  true              = PP (\_ _ -> [text "true"])
-  false             = PP (\_ _ -> [text "false"])
+  true              = string "true"
+  false             = string "false"
   if_               = apply3 "if_"
-  nil               = PP (\_ _ -> [text "nil"])
+  nil               = string "nil"
   cons              = apply2 "cons"
   unlist as kn kc   = apply3 "unlist" as kn (fun2 kc)
   unsafeProb        = apply1 "unsafeProb"
   fromProb          = apply1 "fromProb"
   fromInt           = apply1 "fromInt"
-  pi_               = PP (\_ _ -> [text "pi_"])
+  pi_               = string "pi_"
   exp_              = apply1 "exp_"
   erf               = apply1 "erf"
   erf_              = apply1 "erf_"
   log_              = apply1 "log_"
   sqrt_             = apply1 "sqrt_"
   pow_              = apply2 "pow_"
-  infinity          = PP (\_ _ -> [text "infinity"])
-  negativeInfinity  = PP (\_ _ -> [text "negativeInfinity"])
+  infinity          = string "infinity"
+  negativeInfinity  = string "negativeInfinity"
   gammaFunc         = apply1 "gammaFunc"
   betaFunc          = apply2 "betaFunc"
   fix f             = apply1 "fix" (fun1 f)
@@ -130,8 +130,8 @@ instance Mochastic PrettyPrint where
   bind (PP m) k = let PP k' = fun1 k in PP (\xs p -> parens (p > 0)
                 $ adjustHead (sep (m xs 1) <+> text "`bind`" <+>)
                 $ k' xs 2)
-  lebesgue      = PP (\_ _ -> [text "lebesgue"])
-  counting      = PP (\_ _ -> [text "counting"])
+  lebesgue      = string "lebesgue"
+  counting      = string "counting"
   superpose     = applyPairs "superpose"
   uniform       = apply2 "uniform"
   normal        = apply2 "normal"
