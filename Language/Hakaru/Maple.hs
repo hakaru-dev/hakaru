@@ -143,10 +143,9 @@ instance Integrate Maple where
 
 quant :: String -> Maple Real -> Maple Real ->
          (Maple a -> Maple Prob) -> Maple Prob
-quant q (Maple lo) (Maple hi) f = Maple (lo >>= \lo' -> hi >>= \hi' ->
-  ReaderT $ \i -> return $
-  let (x, body) = mapleBind f i
-  in q ++ "(" ++ body ++ "," ++ x ++ "=" ++ lo' ++ ".." ++ hi' ++ ")")
+quant q lo hi f = mapleFun2 ("(proc (r,c) local x; "++q++"(c(x),x=r) end proc)")
+                            (mapleOp2 ".." lo hi)
+			    (lam f)
 
 instance Lambda Maple where
   lam f = Maple (ReaderT $ \i -> return $
