@@ -8,7 +8,7 @@ module Language.Hakaru.Vector (Nat(..), fromNat, toNat, Repeat,
 
 import Prelude hiding (Real, mapM, sequence, abs)
 import qualified Control.Applicative as A
-import Language.Hakaru.Syntax
+import Language.Hakaru.Syntax hiding (Vector)
 -- import Language.Hakaru.Sample (Sample(unSample))
 import Control.Applicative (WrappedMonad(..))
 import Control.Monad.State (runState, state)
