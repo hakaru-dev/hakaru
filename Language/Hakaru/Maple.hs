@@ -152,7 +152,8 @@ instance Lambda Maple where
   lam f = Maple (ReaderT $ \i -> return $
     let (x, body) = mapleBind f i in "(" ++ x ++ "->" ++ body ++ ")")
   app (Maple rator) (Maple rand) =
-    Maple (liftM2 (\rator' rand' -> rator' ++ "(" ++ rand' ++ ")") rator rand)
+    Maple (liftM2 (\rator' rand' -> 
+        "(" ++ rator' ++ "(" ++ rand' ++ "))") rator rand)
 
 instance Mochastic Maple where
   -- Maple doesn't currently understand this input (though one day it might).
