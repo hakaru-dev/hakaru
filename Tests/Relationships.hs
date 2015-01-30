@@ -12,7 +12,8 @@ testRelationships :: Test
 testRelationships = test [
     "t1"   ~: testSS [t1] (lam (\mu -> (lam (\sigma -> normal 0 1)))),
     "t2"   ~: testSS [t2] (lam (\beta -> chi2 (2*beta))),
-    "t3"   ~: testSS [t3] (lam (\alpha -> (lam (\beta -> chi2 (2*beta)))))
+    "t3"   ~: testSS [t3] (lam (\alpha -> (lam (\beta -> chi2 (2*beta))))),
+    "t4"   ~: testSS [t4] (lam (\a -> lam (\b -> lam (\t -> beta a b))))
     ]
 
 allTests :: Test
@@ -28,3 +29,6 @@ t2 = (lam (\beta -> gamma 2 beta))
 
 t3 :: (Lambda repr, Mochastic repr) => repr (Prob -> Prob -> Measure Prob)
 t3 = lam (\alpha -> (lam (\beta -> gamma alpha beta `bind` \x -> dirac (2 * x / alpha))))
+
+t4 :: (Lambda repr, Mochastic repr) => repr (Prob -> Prob -> Prob -> Measure Prob)
+t4 = lam (\a -> lam (\b -> lam (\t -> gamma a t `bind` \x1 -> gamma b t `bind` \x2 -> dirac (x1/(x1+x2)))))
