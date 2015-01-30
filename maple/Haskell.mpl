@@ -103,6 +103,9 @@ d[_Inert_NAME] := proc(a1)
     b:-append(a1);
   end if;
 end proc;
+d[_Inert_LOCALNAME] := proc(s,n)
+  b:-append(cat(s,n))
+end proc;
 # SUM is n-ary
 d[_Inert_SUM] := proc()
   lparen(); seqp(" + ", [_passed]); rparen();
@@ -156,6 +159,9 @@ bi["Bind"] := proc(meas, var, rest)
   b:-append(" `bind` \\");
   if type(var, specfunc(anything,'_Inert_NAME')) then
     b:-append(op(1,var));
+    b:-append(" -> ");
+  elif type(var, specfunc(anything,'_Inert_LOCALNAME')) then
+    b:-append(cat(op(1,var),op(2,var)));
     b:-append(" -> ");
   else 
     ASSERT(type(var, specfunc(anything, '_Inert_EQUATION')));
