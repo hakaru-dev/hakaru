@@ -3,7 +3,7 @@
 module Examples.BenchmarkProblems where
 
 import Prelude hiding (Real)
-import Control.Monad
+import qualified Control.Monad
 import Data.Char
 import Data.Csv (encode)
 import Language.Hakaru.Util.Csv
@@ -34,7 +34,7 @@ noisyOr noise x y = if_ (or_ [x, y])
 
 tester prog = do
   g <- MWC.create
-  replicateM 10 (unSample prog 1 g)
+  Control.Monad.replicateM 10 (unSample prog 1 g)
 
 xor :: Base repr => repr Bool -> repr Bool -> repr Bool
 xor a b = or_ [and_ [a, not_ b], and_ [not_ a, b]] 
@@ -42,7 +42,7 @@ xor a b = or_ [and_ [a, not_ b], and_ [not_ a, b]]
 eq_ :: Base repr => repr Bool -> repr Bool -> repr Bool
 eq_ a b = if_ a b (not_ b)
 
-runExpect :: (Lambda repr) => Expect repr (Measure Prob) -> repr Prob
+--runExpect :: (Lambda repr) => Expect repr (Measure Prob) -> repr Prob
 runExpect (Expect m) = m `app` lam id
 
 condition d = head (runDisintegrate (\ _ -> d)) unit
@@ -90,7 +90,7 @@ linreg = normal 0 2 `bind` \w1 ->
 distLinreg :: (Lambda repr, Mochastic repr) => repr (Real6 -> (Measure Real5))
 distLinreg = runPartial (lam $ \ x -> (runDisintegrate (\ env -> linreg) !! 0) unit x)
 
-simpLinreg :: (Lambda repr, Mochastic repr) => IO (repr (Real6 -> (Measure Real5)))
+simpLinreg :: (Lambda repr, Integrate repr, Mochastic repr) => IO (repr (Real6 -> (Measure Real5)))
 simpLinreg = Control.Monad.liftM unAny (simplify distLinreg)
 
 testLinreg :: IO (Maybe (Double5, LF.LogFloat))
@@ -114,12 +114,39 @@ qmr =
 
 -- Discrete-time HMM
 
+symDirichlet :: (Mochastic repr) => Int -> repr Prob -> [repr (Measure Prob)]
+symDirichlet n a = map (liftM2 (/) total) d
+   where d = replicate n (gamma a 1)
+         total = foldr (liftM2 (+)) (dirac 0) d
+
+symDirichlet2 :: (Mochastic repr) => Int -> repr Prob -> repr ([Measure Prob])
+symDirichlet2 0 a = nil 
+symDirichlet2 n a = cons (gamma a 1) (symDirichlet2 (n - 1) a)
+
+symDirichlet3 :: (Mochastic repr) => Int -> repr Prob -> repr (Measure [Prob])
+symDirichlet3 0 a = dirac nil 
+symDirichlet3 n a = gamma a 1 `bind` \x ->
+                    symDirichlet3 (n - 1) a `bind` \xs ->
+                    dirac (cons x xs)
+
+symDirichlet4 :: (Mochastic repr) => repr Int -> repr Prob -> repr (Vector (Measure Prob))
+symDirichlet4 n a = vector 0 n (\_ -> gamma a 1)
+
+symDirichlet5 :: (Mochastic repr) => repr Int -> repr Prob -> repr (Measure (Vector Prob))
+symDirichlet5 n a = plate $ symDirichlet4 n a
+
+hmm = undefined
+hmmVec = undefined
+
 -- HDP-LDA
 
 y  = 1
 a0 = 1
 nu = 0.01
 w  = 10473
+
+lda = undefined
+ldaVec = undefined
 
 -- pCFG
 
@@ -177,11 +204,11 @@ hiddenState = categorical [(1, 0),
                            (1, 2),
                            (1, 3)]
 
-eTest :: (Integrate repr,
-          Lambda repr,
-          Mochastic repr) =>
-         Expect repr Prob -> repr Prob
-eTest n = runExpect (dirac n)
+-- eTest :: (Integrate repr,
+--           Lambda repr,
+--           Mochastic repr) =>
+--          Expect repr Prob -> repr Prob
+-- eTest n = runExpect (dirac n)
 
 -- Lifted inference
 n :: Int

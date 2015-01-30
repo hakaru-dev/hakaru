@@ -2,7 +2,7 @@
              DeriveDataTypeable, GADTs, Rank2Types #-}
 {-# OPTIONS -Wall #-}
 
-module Language.Hakaru.Syntax (Real, Prob, Measure,
+module Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        EqType(Refl), Order_(..), Number(..), Fraction(..),
        Uneither(Uneither),
        errorEmpty,
