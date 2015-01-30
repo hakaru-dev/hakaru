@@ -43,7 +43,7 @@ SLO := module ()
       # be context sensitive for this pass too:
       _EnvBinders := {};
       NumericEventHandler(division_by_zero = MyHandler);
-      res := HAST(simp(eval(simp(eval(snd(inp(c)), 'if_'=piecewise)), Int=myint)), r);
+      res := HAST(simp(eval(simp(eval(snd(inp)(c), 'if_'=piecewise)), Int=myint)), r);
     catch "Wrong kind of parameters in piecewise":
       error "Bug in Hakaru -> Maple translation, piecewise used incorrectly.";
     finally :
