@@ -43,7 +43,7 @@ SLO := module ()
       # be context sensitive for this pass too:
       _EnvBinders := {};
       NumericEventHandler(division_by_zero = MyHandler);
-      res := HAST(simp(eval(simp(eval(op(2,inp)(c), 'if_'=piecewise)), Int=myint)), r);
+      res := HAST(simp(eval(simp(eval(snd(inp(c)), 'if_'=piecewise)), Int=myint)), r);
     catch "Wrong kind of parameters in piecewise":
       error "Bug in Hakaru -> Maple translation, piecewise used incorrectly.";
     finally :
@@ -742,6 +742,9 @@ SLO := module ()
     elif type(e, 'erf'(anything)) then
       infer_type(op(1,e), ctx); # erf is Real, erf_ is Prob
       'Real'
+    elif type(e, 'Ei'(posint, anything)) then
+      infer_type(op(1,e), ctx);
+      'Real'
     elif type(e, 'ln'(anything)) then
       typ := infer_type(op(1,e), ctx); # need to make sure it is inferable
       'Real'
@@ -1187,6 +1190,12 @@ SLO := module ()
           c := (b-(coeff(a0,var,0)/scale))/b;
           return GammaD(c, b);
         end if;
+      # and Hakaru uses the 'alternate' definition of exponential...
+      # TODO: take care of initial condition too
+      elif degree(a0,var) = 0 and degree(a1, var) = 0 then
+        scale := coeff(a1, var, 0);
+        b := coeff(a0, var, 0)/scale;
+        return GammaD(1,1/b);
       end if;
     end if;
     NULL;
@@ -1255,7 +1264,11 @@ SLO := module ()
     elif type(expr, t_pw) then
       # what is really needed here is to 'copy'
       # PiecewiseTools:-IntImplementation:-Definite
-      myint_pw(expr, b)
+      try
+        myint_pw(expr, b)
+      catch "cannot handle condition":
+        Int(expr, b)
+      end try;
     elif type(expr, t_binds) then
       # go in?
       Int(expr, b) 
@@ -1280,14 +1293,14 @@ SLO := module ()
           lower := op(2,cond);
         elif cond::{anything < identical(var), anything <= identical(var)} then
           res := res + myint(op(2*i, expr), var = op(1,cond) .. upper);
-          lower := upper;
+          upper := op(1,cond);
         else
           error "cannot handle condition (%1) while integrating pw", cond;
         end if;
       end do;
       if rest then
         if lower = upper then error "What the hey?" end if;
-        res := res + myint(op(-1, expr), lower..upper);
+        res := res + myint(op(-1, expr), var = lower..upper);
       end if;
       res
     else
@@ -1298,6 +1311,27 @@ end;
 
 # works, but could be made more robust
 `evalapply/if_` := proc(f, t) if_(op(1,f), op(2,f)(t[1]), op(3,f)(t[1])) end;
+`evalapply/Pair` := proc(f, t) Pair(op(1,f)(t[1]), op(2,f)(t[1])) end;
+
+fst := proc(e)
+  if e::Pair(anything, anything) then
+    op(1,e)
+  elif e::specfunc(anything, if_) then
+    if_(op(1,e), fst(op(2,e)), fst(op(3,e)))
+  else
+    'fst'(e)
+  end if;
+end proc;
+
+snd := proc(e)
+  if e::Pair(anything, anything) then
+    op(2,e)
+  elif e::specfunc(anything, if_) then
+    if_(op(1,e), snd(op(2,e)), snd(op(3,e)))
+  else
+    'snd'(e)
+  end if;
+end proc;
 
 # piecewise is horrible, so this hack takes care of some of it
 if_ := proc(cond, tb, eb)
