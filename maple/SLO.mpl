@@ -1150,27 +1150,43 @@ SLO := module ()
       if degree(a0,var)=1 and degree(a1,var)=2 and normal(var^2-var - a1)=0 then
         a := coeff(a0, var, 0) + 1;
         b := -coeff(a0, var, 1) - a + 2;
-        constraints := eval(ii, f = (x -> c0*density[BetaD](a,b)(x)));
-        sol := solve(constraints, c0);
-        return WeightedM(eval(c0, sol), BetaD(a,b));
+        if init = {} then
+          return BetaD(a,b);
+        else
+          constraints := eval(ii, f = (x -> c0*density[BetaD](a,b)(x)));
+          sol := solve(constraints, c0);
+          return WeightedM(eval(c0, sol), BetaD(a,b));
+        end if;
       # degenerate case with b=1
       elif degree(a0,var)=0 and degree(a1,var)=1 and normal(var + a1)=0 then
         a := coeff(a0, var, 0) + 1;
-        constraints := eval(ii, f = (x -> c0*density[BetaD](a,1)(x)));
-        sol := solve(constraints, c0);
-        return WeightedM(eval(c0, sol), BetaD(a,1));
+        if init = {} then
+          return BetaD(a,1);
+        else
+          constraints := eval(ii, f = (x -> c0*density[BetaD](a,1)(x)));
+          sol := solve(constraints, c0);
+          return WeightedM(eval(c0, sol), BetaD(a,1));
+        end if;
       # degenerate case with a=1
       elif degree(a0,var)=0 and degree(a1,var)=1 and normal(a1 - (var-1))=0 then
         b := -(coeff(a0, var, 0) - 1);
-        constraints := eval(ii, f = (x -> c0*density[BetaD](1,b)(x)));
-        sol := solve(constraints, c0);
-        return WeightedM(eval(c0, sol), BetaD(1,b));
+        if init = {} then
+          return BetaD(1,b);
+        else
+          constraints := eval(ii, f = (x -> c0*density[BetaD](1,b)(x)));
+          sol := solve(constraints, c0);
+          return WeightedM(eval(c0, sol), BetaD(1,b));
+        end if
       # degenerate case with a=1, presented differently
       elif degree(a0,var)=0 and degree(a1,var)=1 and normal(a1 + (var-1))=0 then
         b := (coeff(a0, var, 0) + 1);
-        constraints := eval(ii, f = (x -> c0*density[BetaD](1,b)(x)));
-        sol := solve(constraints, c0);
-        return WeightedM(eval(c0, sol), BetaD(1,b));
+        if init = {} then
+          return BetaD(1,b);
+        else
+          constraints := eval(ii, f = (x -> c0*density[BetaD](1,b)(x)));
+          sol := solve(constraints, c0);
+          return WeightedM(eval(c0, sol), BetaD(1,b));
+        end if;
       end if;
     end if;
     NULL;
