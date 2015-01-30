@@ -12,11 +12,11 @@ import Test.HUnit
 -- master test suite
 
 allTests :: Test
-allTests = test [
-    RT.allTests,
-    SY.allTests,
-    RE.allTests
---    E.allTests 
+allTests = test
+  [ RT.allTests
+  , SY.allTests
+  , RE.allTests
+--  , E.allTests
     ]
 
 main :: IO ()
