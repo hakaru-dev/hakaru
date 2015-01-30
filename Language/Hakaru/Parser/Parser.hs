@@ -110,6 +110,14 @@ floating = do
   n <- float
   return $ Double (n*sign)
 
+inf_ :: Parser UExpr
+inf_ = do
+  s <- option '+' (oneOf "+-")
+  reserved "inf";
+  return $ case s of
+             '-' -> NegInfinity
+             '+' -> Infinity
+
 var :: Parser UExpr
 var = do
   x <- identifier
@@ -127,6 +135,7 @@ pairs = do
 
 op_factor :: Parser UExpr
 op_factor = try floating
+            <|> try inf_
             <|> try unit_
             <|> try int
             <|> try bool
