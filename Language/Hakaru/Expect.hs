@@ -98,11 +98,29 @@ instance (Integrate repr) => Integrate (Expect repr) where
   summate (Expect lo) (Expect hi) f =
     Expect (summate lo hi (unExpect . f . Expect))
 
+reflectPair :: (Lambda repr) =>
+               (a -> (a -> repr w) -> repr w) ->
+               (b -> (b -> repr w) -> repr w) ->
+               (a,b) -> ((a,b) -> repr w) -> repr w
+reflectPair ra rb (a,b) c = ra a (\a' -> rb b (\b' -> c (a',b')))
+
+reflectList :: (Lambda repr) =>
+               (a -> (a -> repr w) -> repr w) ->
+               [a] -> ([a] -> repr w) -> repr w
+reflectList ra []     c = c []
+reflectList ra (a:as) c = ra a (\a' -> reflectList ra as (\as' -> c (a':as')))
+
+reflect :: (Lambda repr) =>
+           [(Expect repr a, Expect repr b)] ->
+           ([(repr (Expect' a), repr (Expect' b))] -> repr w) -> repr w
+reflect abs = reflectList (reflectPair let_ let_)
+                [ (a,b) | (Expect a, Expect b) <- abs ]
+
 instance (Mochastic repr, Integrate repr, Lambda repr)
       => Mochastic (Expect repr) where
-  dirac (Expect a) = Expect $ pair
-    (dirac a)
-    (lam (\c -> c `app` a))
+  dirac (Expect a) = Expect $ let_ a $ \a' -> pair
+    (dirac a')
+    (lam (\c -> c `app` a'))
   bind (Expect m) k =
     Expect $ let_ (lam (unExpect . k . Expect)) $ \k' ->
              unpair m $ \m1 m2 ->
@@ -114,9 +132,9 @@ instance (Mochastic repr, Integrate repr, Lambda repr)
   counting = Expect $ pair
     counting
     (lam (summate   negativeInfinity infinity . app))
-  superpose pms = Expect $ pair
-    (superpose [ (p, fst_ m) | (Expect p, Expect m) <- pms ])
-    (lam (\c -> sum [ p * app (snd_ m) c | (Expect p, Expect m) <- pms ]))
+  superpose pms = Expect $ reflect pms $ \pms -> pair
+    (superpose [ (p, fst_ m) | (p, m) <- pms ])
+    (lam (\c -> sum [ p * app (snd_ m) c | (p, m) <- pms ]))
   uniform (Expect lo) (Expect hi) = Expect $ pair
     (uniform lo hi)
     (lam (\f -> integrate lo hi (\x -> app f x / unsafeProb (hi - lo))))
@@ -125,14 +143,14 @@ instance (Mochastic repr, Integrate repr, Lambda repr)
     (lam (\c -> integrate negativeInfinity infinity (\x ->
      exp_ (- (x - mu)^(2::Int) / fromProb (2 * pow_ sd 2))
      / sd / sqrt_ (2 * pi_) * app c x)))
-  mix pms = Expect $ pair
-    (mix [ (p, fst_ m) | (Expect p, Expect m) <- pms ])
-    (lam (\c -> sum [ p * app (snd_ m) c | (Expect p, Expect m) <- pms ]
-                / sum [ p | (Expect p, _) <- pms ]))
-  categorical pxs = Expect $ pair
-    (categorical [ (p, x) | (Expect p, Expect x) <- pxs ])
-    (lam (\c -> sum [ p * app c x | (Expect p, Expect x) <- pxs ]
-                / sum [ p | (Expect p, _) <- pxs ]))
+  mix pms = Expect $ reflect pms $ \pms -> pair
+    (mix [ (p, fst_ m) | (p, m) <- pms ])
+    (lam (\c -> sum [ p * app (snd_ m) c | (p, m) <- pms ]
+                / sum [ p | (p, _) <- pms ]))
+  categorical pxs = Expect $ reflect pxs $ \pxs -> pair
+    (categorical [ (p, x) | (p, x) <- pxs ])
+    (lam (\c -> sum [ p * app c x | (p, x) <- pxs ]
+                / sum [ p | (p, _) <- pxs ]))
   poisson (Expect l) = Expect $ pair
     (poisson l)
     (lam (\c -> flip (if_ (less 0 l)) 0 (summate 0 infinity (\x ->
