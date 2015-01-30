@@ -43,7 +43,7 @@ SLO := module ()
       # be context sensitive for this pass too:
       _EnvBinders := {};
       NumericEventHandler(division_by_zero = MyHandler);
-      res := HAST(simp(eval(simp(eval(op(2,inp)(c), 'if_'=piecewise)), Int=myint)), r);
+      res := HAST(simp(eval(simp(eval(snd(inp(c)), 'if_'=piecewise)), Int=myint)), r);
     catch "Wrong kind of parameters in piecewise":
       error "Bug in Hakaru -> Maple translation, piecewise used incorrectly.";
     finally :
@@ -1311,6 +1311,27 @@ end;
 
 # works, but could be made more robust
 `evalapply/if_` := proc(f, t) if_(op(1,f), op(2,f)(t[1]), op(3,f)(t[1])) end;
+`evalapply/Pair` := proc(f, t) Pair(op(1,f)(t[1]), op(2,f)(t[1])) end;
+
+fst := proc(e)
+  if e::Pair(anything, anything) then
+    op(1,e)
+  elif e::specfunc(anything, if_) then
+    if_(op(1,e), fst(op(2,e)), fst(op(3,e)))
+  else
+    'fst'(e)
+  end if;
+end proc;
+
+snd := proc(e)
+  if e::Pair(anything, anything) then
+    op(2,e)
+  elif e::specfunc(anything, if_) then
+    if_(op(1,e), snd(op(2,e)), snd(op(3,e)))
+  else
+    'snd'(e)
+  end if;
+end proc;
 
 # piecewise is horrible, so this hack takes care of some of it
 if_ := proc(cond, tb, eb)
