@@ -89,10 +89,8 @@ instance Base Maple where
   -- unpair, uneither, and unlist duplicate their first argument.
   -- Does this duplication blow up our Maple output?
   unpair (Maple ab) k = Maple (ab >>= \ab' ->
-    let op :: Int -> String
-        op n = "op(" ++ show n ++ ", " ++ ab' ++ ")"
-    in
-    unMaple (k (Maple (return (op 1))) (Maple (return (op 2)))))
+    unMaple (k (Maple (return ("fst(" ++ ab' ++ ")"))) 
+               (Maple (return ("snd(" ++ ab' ++ ")")))))
   inl (Maple a) = Maple (fmap (\a' -> "Left("  ++ a' ++ ")") a)
   inr (Maple b) = Maple (fmap (\b' -> "Right(" ++ b' ++ ")") b)
   uneither (Maple ab) ka kb
