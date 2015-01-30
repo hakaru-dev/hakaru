@@ -1,0 +1,2 @@
+x <~ uniform(0,1)
+return x
