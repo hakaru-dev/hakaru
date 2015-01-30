@@ -49,7 +49,7 @@ testMeasureReal = test
   , "t9"  ~: testSS [t9] (superpose [(2, uniform 3 7)])
   , "t13" ~: testSS [t13] t13'
   , "t14" ~: testSS [t14] t14'
---  , "t21" ~: testS t21
+  , "t21" ~: testS t21
   , "t27" ~: testSS t27 t27'
   , "t28" ~: testSS [] t28
   , "t29" ~: testSS [] t29
