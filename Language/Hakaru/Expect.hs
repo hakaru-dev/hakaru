@@ -11,9 +11,9 @@ import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure,
        Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..),
        fst_, snd_)
-import Generics.SOP hiding (fn) 
+import Generics.SOP hiding (fn, shape)
 import Language.Hakaru.Embed
-import Language.Hakaru.Maple 
+import Language.Hakaru.Maple
 import GHC.Prim (Any)
 
 newtype Expect repr a = Expect { unExpect :: repr (Expect' a) }
@@ -75,7 +75,7 @@ instance (Base repr) => Base (Expect repr) where
   cons (Expect a) (Expect as)    = Expect $ cons a as
   unlist (Expect as) kn kc       = Expect $ unlist as (unExpect kn) (\a' as' ->
                                    unExpect (kc (Expect a') (Expect as')))
-                                   
+
   unsafeProb                     = Expect . unsafeProb . unExpect
   fromProb                       = Expect . fromProb   . unExpect
   fromInt                        = Expect . fromInt    . unExpect
@@ -103,9 +103,11 @@ instance (Mochastic repr, Integrate repr, Lambda repr)
   dirac (Expect a) = Expect $ pair
     (dirac a)
     (lam (\c -> c `app` a))
-  bind (Expect m) k = Expect $ unpair m $ \m1 m2 -> pair
-    (bind m1 (fst_ . unExpect . k . Expect))
-    (lam (\c -> m2 `app` lam (\a -> snd_ (unExpect (k (Expect a))) `app` c)))
+  bind (Expect m) k =
+    Expect $ let_ (lam (unExpect . k . Expect)) $ \k' ->
+             unpair m $ \m1 m2 ->
+             pair (bind m1 (fst_ . app k'))
+                  (lam (\c -> m2 `app` lam (\a -> snd_ (app k' a) `app` c)))
   lebesgue = Expect $ pair
     lebesgue
     (lam (integrate negativeInfinity infinity . app))
@@ -118,8 +120,36 @@ instance (Mochastic repr, Integrate repr, Lambda repr)
   uniform (Expect lo) (Expect hi) = Expect $ pair
     (uniform lo hi)
     (lam (\f -> integrate lo hi (\x -> app f x / unsafeProb (hi - lo))))
-  -- TODO: override poisson, gamma, invgamma to express that they do not
-  --       generate negative numbers
+  normal (Expect mu) (Expect sd) = Expect $ pair
+    (normal mu sd)
+    (lam (\c -> integrate negativeInfinity infinity (\x ->
+     exp_ (- (x - mu)^(2::Int) / fromProb (2 * pow_ sd 2))
+     / sd / sqrt_ (2 * pi_) * app c x)))
+  mix pms = Expect $ pair
+    (mix [ (p, fst_ m) | (Expect p, Expect m) <- pms ])
+    (lam (\c -> sum [ p * app (snd_ m) c | (Expect p, Expect m) <- pms ]
+                / sum [ p | (Expect p, _) <- pms ]))
+  categorical pxs = Expect $ pair
+    (categorical [ (p, x) | (Expect p, Expect x) <- pxs ])
+    (lam (\c -> sum [ p * app c x | (Expect p, Expect x) <- pxs ]
+                / sum [ p | (Expect p, _) <- pxs ]))
+  poisson (Expect l) = Expect $ pair
+    (poisson l)
+    (lam (\c -> flip (if_ (less 0 l)) 0 (summate 0 infinity (\x ->
+     pow_ l (fromInt x) / gammaFunc (fromInt x + 1) / exp_ (fromProb l)
+     * app c x))))
+  gamma (Expect shape) (Expect scale) = Expect $ pair
+    (gamma shape scale)
+    (lam (\c -> integrate 0 infinity (\x ->
+     let x_ = unsafeProb x
+         shape_ = fromProb shape in
+     (pow_ x_ (fromProb (shape - 1)) * exp_ (- fromProb (x_ / scale))
+      / (pow_ scale shape_ * gammaFunc shape_) * app c (unsafeProb x)))))
+  beta (Expect a) (Expect b) = Expect $ pair
+    (beta a b)
+    (lam (\c -> integrate 0 1 (\x -> pow_ (unsafeProb x    ) (fromProb a - 1)
+                                   * pow_ (unsafeProb (1-x)) (fromProb b - 1)
+                                   / betaFunc a b * app c (unsafeProb x))))
 
 instance (Lambda repr) => Lambda (Expect repr) where
   lam f = Expect (lam (unExpect . f . Expect))
@@ -133,36 +163,36 @@ normalize :: (Integrate repr, Lambda repr, Mochastic repr) =>
 normalize (Expect m) = unpair m (\m1 m2 ->
   superpose [(recip (m2 `app` lam (\_ -> 1)), m1)])
 
--- 'r' will only ever be 'Expect repr' 
-type instance Expect' (NS (NP r) a) = NS (NP r) a 
-type instance Expect' Any = HRep (Expect Maple) Any 
+-- 'r' will only ever be 'Expect repr'
+type instance Expect' (NS (NP r) a) = NS (NP r) a
+type instance Expect' Any = HRep (Expect Maple) Any
 
-instance Embed (Expect Maple) where 
+instance Embed (Expect Maple) where
   type Ctx (Expect Maple) t = (Expect' t ~ HRep (Expect Maple) t)
 
-  hRep (Expect x) = Expect x 
-  unHRep (Expect x) = Expect x 
+  hRep (Expect x) = Expect x
+  unHRep (Expect x) = Expect x
 
-  sop' p x = 
-    case diSing (datatypeInfo p) of 
+  sop' p x =
+    case diSing (datatypeInfo p) of
       Dict -> Expect $ Maple $ unMaple $ sop' p (unSOP (hliftA toM (SOP x)))
-        where toM :: Expect Maple a -> Maple a 
-              toM (Expect (Maple a)) = Maple a 
+        where toM :: Expect Maple a -> Maple a
+              toM (Expect (Maple a)) = Maple a
 
-  case' p (Expect (Maple x)) fn = 
+  case' p (Expect (Maple x)) fn =
     case diSing (datatypeInfo p) of
       Dict -> Expect (Maple $ unMaple $ case' p (Maple x) (funMs sing fn))
-        where funM :: Sing xs -> NFn (Expect Maple) o xs -> NFn Maple o xs 
+        where funM :: Sing xs -> NFn (Expect Maple) o xs -> NFn Maple o xs
               funM SNil (NFn (Expect (Maple f))) = NFn (Maple f)
-              funM s@SCons ((NFn f) :: NFn (Expect Maple) o (x ': xs)) = NFn $ \(Maple a) -> 
-                let 
-                 r :: NFn (Expect Maple) o xs -> NAryFun Maple o xs 
-                 r = unFn . funM (singTail s) 
-                in r $ NFn $ f $ Expect $ Maple a  
+              funM s@SCons ((NFn f) :: NFn (Expect Maple) o (x ': xs)) = NFn $ \(Maple a) ->
+                let
+                 r :: NFn (Expect Maple) o xs -> NAryFun Maple o xs
+                 r = unFn . funM (singTail s)
+                in r $ NFn $ f $ Expect $ Maple a
 
-              funMs :: Sing xss -> NP (NFn (Expect Maple) o) xss -> NP (NFn Maple o) xss 
+              funMs :: Sing xss -> NP (NFn (Expect Maple) o) xss -> NP (NFn Maple o) xss
               funMs SNil Nil = Nil
               funMs SCons (a :* as) = funM sing a :* funMs sing as
-              funMs _ _ = error "typeError: funMS" 
+              funMs _ _ = error "typeError: funMS"
 
-                     
+
