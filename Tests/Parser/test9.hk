@@ -1,2 +1,3 @@
 x <~ uniform(0,1)
-return x
+y <~ normal(x, 1)
+return y
