@@ -74,6 +74,7 @@ testMeasurePair = test [
     "t23"           ~: testSS [t23] t23',
     "t48"           ~: testS t48,
     "t52"           ~: testSS [t52] t52',
+    "dup"           ~: testSS [dup (normal 0 1)] (liftM2 pair (normal 0 1) (normal 0 1)),
     "norm"          ~: testSS [] norm,
     "norm_nox"      ~: testSS [norm_nox] (normal 0 (sqrt_ 2)),
     "norm_noy"      ~: testSS [norm_noy] (normal 0 1),
@@ -430,6 +431,9 @@ testPriorProp' =
 			       (exp_ ((x1 * (-1) + snd_ old)
 				      * (snd_ old * (-1) + fst_ old * 4 + x1 * (-1))
 				      * ((-1) / 4)))))])
+
+dup :: (Lambda repr, Mochastic repr) => repr (Measure a) -> repr (Measure (a,a))
+dup m = let_ m (\m' -> liftM2 pair m' m')
 
 norm :: Mochastic repr => repr (Measure (Real, Real))
 norm = normal 0 1 `bind` \x ->
