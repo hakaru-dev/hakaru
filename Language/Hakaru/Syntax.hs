@@ -9,7 +9,7 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        Order(..), Base(..), ununit, fst_, snd_, swap_,
        and_, or_, not_, min_, max_,
        sumVec,
-       Mochastic(..), bind_, factor, bindx, liftM, liftM2,
+       Mochastic(..), bind_, factor, weight, bindx, liftM, liftM2,
        invgamma, exponential, chi2, bern,
        cauchy, laplace, student, weibull,
        Integrate(..), Lambda(..)) where
@@ -269,7 +269,10 @@ bind_ :: (Mochastic repr) => repr (Measure a) -> repr (Measure b) ->
 m `bind_` n = m `bind` \_ -> n
 
 factor :: (Mochastic repr) => repr Prob -> repr (Measure ())
-factor p = superpose [(p, dirac unit)]
+factor p = weight p (dirac unit)
+
+weight :: (Mochastic repr) => repr Prob -> repr (Measure w) -> repr (Measure w)
+weight p m = superpose [(p, m)]
 
 bindx :: (Mochastic repr) => repr (Measure a) ->
          (repr a -> repr (Measure b)) -> repr (Measure (a,b))
