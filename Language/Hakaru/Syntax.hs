@@ -197,11 +197,6 @@ min_, max_ :: (Order_ a, Base repr) => repr a -> repr a -> repr a
 min_ x y = if_ (less_ x y) x y
 max_ x y = if_ (less_ x y) y x
 
-sumVec :: Integrate repr => repr (Vector Prob) -> repr Prob
-sumVec x = summate (fromInt $ loBound x)
-                   (fromInt $ hiBound x)
-                   (\ i -> index x i)
-
 class (Base repr) => Mochastic repr where
   dirac         :: repr a -> repr (Measure a)
   bind          :: repr (Measure a) ->
@@ -322,6 +317,14 @@ bern p = categorical [(p, true), (1-p, false)]
 class (Base repr) => Integrate repr where
   integrate :: repr Real -> repr Real -> (repr Real -> repr Prob) -> repr Prob
   summate   :: repr Real -> repr Real -> (repr Int  -> repr Prob) -> repr Prob
+
+sumVec :: Integrate repr => repr (Vector Prob) -> repr Prob
+sumVec x = summate (fromInt $ loBound x)
+                   (fromInt $ hiBound x)
+                   (\ i -> index x i)
+
+dirichlet :: Mochastic repr => repr (Vector Prob) -> repr (Measure (Vector Prob))
+dirichlet a = undefined
 
 class Lambda repr where
   lam :: (repr a -> repr b) -> repr (a -> b)
