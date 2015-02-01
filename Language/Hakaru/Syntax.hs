@@ -341,11 +341,15 @@ sumVec x = summate (fromInt $ loBound x)
                    (fromInt $ hiBound x)
                    (\ i -> index x i)
 
+unNormedDirichlet :: Mochastic repr =>
+                     repr (Vector Prob) -> repr (Measure (Vector Prob))
+unNormedDirichlet a = plate $ vector (loBound a)
+                                     (hiBound a)
+                                     (\ i -> gamma (index a i) 1)
+
 dirichlet :: (Lambda repr, Mochastic repr, Integrate repr) =>
               repr (Vector Prob) -> repr (Measure (Vector Prob))
-dirichlet a = (plate $ vector (loBound a)
-                             (hiBound a)
-                             (\ i -> gamma (index a i) 1)) `bind` \xs ->
+dirichlet a = unNormedDirichlet a `bind` \xs ->
               let_ (sumVec xs) (\normalized ->
               dirac $ vector (loBound xs)
                              (hiBound xs)
