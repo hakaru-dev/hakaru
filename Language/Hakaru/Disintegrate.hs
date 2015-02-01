@@ -25,7 +25,8 @@ import Language.Hakaru.Util.Pretty (Pretty (pretty),
 import Text.PrettyPrint (Doc, text, char, int, integer, comma, semi, brackets,
         parens, (<>), (<+>), nest, fsep, sep, punctuate, render)
 import Language.Hakaru.Syntax (Real, Prob, Measure,
-        EqType(Refl), Order_(..), Number(..), Fraction(..),
+        EqType(Refl), Order_(..), Number(..),
+        Fraction(fractionCase, fractionRepr),
         Order(..), Base(..), Mochastic(..), factor, liftM,
         Lambda(..), Integrate(..))
 import Language.Hakaru.Expect (Expect(Expect), Expect', total)

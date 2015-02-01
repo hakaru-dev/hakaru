@@ -75,6 +75,11 @@ class (Number a) => Fraction a where
   fractionCase :: f Real -> f Prob -> f a
   fractionRepr :: (Base repr) =>
                   ((Order repr a, Fractional (repr a)) => f repr a) -> f repr a
+  unsafeProbFraction :: (Base repr) => repr a -> repr Prob
+  piFraction         :: (Base repr) => repr a
+  expFraction        :: (Base repr) => repr Real -> repr a
+  logFraction        :: (Base repr) => repr a -> repr Real
+  erfFraction        :: (Base repr) => repr a -> repr a
 
 instance Number Int where
   numberCase k _ _ = k
@@ -91,10 +96,20 @@ instance Number Prob where
 instance Fraction Real where
   fractionCase k _ = k
   fractionRepr k   = k
+  unsafeProbFraction = unsafeProb
+  piFraction         = pi
+  expFraction        = exp
+  logFraction        = log
+  erfFraction        = erf
 
 instance Fraction Prob where
   fractionCase _ k = k
   fractionRepr k   = k
+  unsafeProbFraction = id
+  piFraction         = pi_
+  expFraction        = exp_
+  logFraction        = log_
+  erfFraction        = erf_
 
 newtype Uneither repr a b = Uneither (forall c.
   repr (Either a b) -> (repr a -> repr c) -> (repr b -> repr c) -> repr c)
