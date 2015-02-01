@@ -8,7 +8,7 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        errorEmpty,
        Order(..), Base(..), ununit, fst_, snd_, swap_,
        and_, or_, not_, min_, max_,
-       sumVec, dirichlet,
+       sumVec, normalizeVector, dirichlet,
        Mochastic(..), bind_, factor, weight, bindx, liftM, liftM2,
        invgamma, exponential, chi2, bern,
        cauchy, laplace, student, weibull,
@@ -347,13 +347,17 @@ unNormedDirichlet a = plate $ vector (loBound a)
                                      (hiBound a)
                                      (\ i -> gamma (index a i) 1)
 
+normalizeVector :: (Integrate repr, Lambda repr) =>
+                    repr (Vector Prob) -> repr (Vector Prob)
+normalizeVector x = let_ (sumVec x) (\ normalized ->
+                    vector (loBound x)
+                           (hiBound x)
+                           (\ i -> index x i / normalized))
+
 dirichlet :: (Lambda repr, Mochastic repr, Integrate repr) =>
               repr (Vector Prob) -> repr (Measure (Vector Prob))
 dirichlet a = unNormedDirichlet a `bind` \xs ->
-              let_ (sumVec xs) (\normalized ->
-              dirac $ vector (loBound xs)
-                             (hiBound xs)
-                             (\ i -> index xs i / normalized))
+              dirac (normalizeVector xs)
 
 class Lambda repr where
   lam :: (repr a -> repr b) -> repr (a -> b)
