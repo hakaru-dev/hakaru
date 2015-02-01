@@ -8,7 +8,7 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        errorEmpty,
        Order(..), Base(..), ununit, fst_, snd_, swap_,
        and_, or_, not_, min_, max_,
-       sumVec,
+       sumVec, dirichlet,
        Mochastic(..), bind_, factor, weight, bindx, liftM, liftM2,
        invgamma, exponential, chi2, bern,
        cauchy, laplace, student, weibull,
@@ -342,7 +342,7 @@ sumVec x = summate (fromInt $ loBound x)
                    (\ i -> index x i)
 
 dirichlet :: Mochastic repr => repr (Vector Prob) -> repr (Measure (Vector Prob))
-dirichlet a = undefined
+dirichlet a = plate $ vector (loBound a) (hiBound a) (\ i -> gamma (index a i) 1)
 
 class Lambda repr where
   lam :: (repr a -> repr b) -> repr (a -> b)
