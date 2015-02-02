@@ -12,7 +12,7 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        Mochastic(..), bind_, factor, weight, bindx, liftM, liftM2,
        invgamma, exponential, chi2, bern,
        cauchy, laplace, student, weibull,
-       Integrate(..), Lambda(..)) where
+       Integrate(..), Lambda(..), Lub(..)) where
 
 import Data.Typeable (Typeable)    
 import Prelude hiding (Real)
@@ -364,3 +364,7 @@ class Lambda repr where
   app :: repr (a -> b) -> repr a -> repr b
   let_ :: (Lambda repr) => repr a -> (repr a -> repr b) -> repr b
   let_ x f = lam f `app` x
+
+class Lub repr where
+  lub :: repr a -> repr a -> repr a
+  bot :: repr a
