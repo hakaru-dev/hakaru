@@ -1,5 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances,
-    TypeFamilies, StandaloneDeriving, GeneralizedNewtypeDeriving #-}
+    TypeFamilies, StandaloneDeriving, GeneralizedNewtypeDeriving, 
+    AllowAmbiguousTypes
+    #-}
 {-# OPTIONS -W #-}
 
 module Language.Hakaru.Sample (Sample(..), Sample') where
@@ -20,6 +22,8 @@ import qualified System.Random.MWC as MWC
 import qualified System.Random.MWC.Distributions as MWCD
 import qualified Data.Vector as V
 import Data.Maybe (fromJust, isNothing)
+import Control.Monad.State
+import Control.Monad.Trans.Maybe    
 import Language.Hakaru.Embed
 import Generics.SOP (NS(..), NP(..), Generic(..))
 import GHC.Prim (Any)
@@ -35,10 +39,12 @@ type instance Sample' m ()           = ()
 type instance Sample' m (a, b)       = (Sample' m a, Sample' m b)
 type instance Sample' m (Either a b) = Either (Sample' m a) (Sample' m b)
 type instance Sample' m [a]          = [Sample' m a]
-type instance Sample' m (Vector a)   = (Int, Int, V.Vector (Sample' m a))
 type instance Sample' m (Measure a)  = LF.LogFloat -> MWC.Gen (PrimState m) ->
                                        m (Maybe (Sample' m a, LF.LogFloat))
 type instance Sample' m (a -> b)     = Sample' m a -> Sample' m b
+
+data Vec a = Vec {low :: Int, high :: Int, vec :: V.Vector a}
+type instance Sample' m (Vector a)   = Vec (Sample' m a)
 
 instance Order (Sample m) Real where
   less  (Sample a) (Sample b) = Sample (a <  b)
@@ -94,13 +100,13 @@ instance Base (Sample m) where
   gammaFunc (Sample n)            = Sample (LF.logToLogFloat (logGamma n))
   betaFunc (Sample a) (Sample b)  = Sample (LF.logToLogFloat (logBeta
                                        (LF.fromLogFloat a) (LF.fromLogFloat b)))
-  vector (Sample lo) (Sample hi) f    = let g i = unSample (f (Sample $ lo + i))
-                                        in Sample (lo, hi, V.generate (hi-lo+1) g)
-  index (Sample (lo,hi,v)) (Sample i) = if (i < lo || i > hi)
-                                        then error "index out of bounds"
-                                        else Sample $ v V.! (i-lo)
-  loBound (Sample (lo,_,_))           = Sample lo
-  hiBound (Sample (_,hi,_))           = Sample hi
+  vector (Sample lo) (Sample hi) f = let g i = unSample (f (Sample $ lo + i))
+                                     in Sample (Vec lo hi (V.generate (hi-lo+1) g))
+  index (Sample v) (Sample i) = if (i < low v || i > high v)
+                                then error "index out of bounds"
+                                else Sample $ vec v V.! (i - low v)
+  loBound (Sample v)          = Sample (low v)
+  hiBound (Sample v)          = Sample (high v)
 
 instance (PrimMonad m) => Mochastic (Sample m) where
   dirac (Sample a) = Sample (\p _ ->
@@ -153,13 +159,33 @@ instance (PrimMonad m) => Mochastic (Sample m) where
     x <- MWCD.gamma (LF.fromLogFloat shape) (LF.fromLogFloat scale) g
     return (Just (LF.logFloat x, p)))
   beta a b = gamma a 1 `bind` \x -> gamma b 1 `bind` \y -> dirac (x / (x + y))
-  plate (Sample (lo,hi,v)) = Sample (\p g -> do
-    samples <- V.sequence $ V.map (\m -> m p g) v
-    if V.any isNothing samples then return Nothing
-    else do let (v', ps) = V.unzip . V.map fromJust $ samples
-            return $ Just ((lo, hi, v'), V.product ps))
-  
+  plate (Sample v) = Sample (\p g -> do
+    samples <- runMaybeT $ V.mapM (\m -> MaybeT $ m 1 g) (vec v)
+    case samples of
+      Nothing -> return Nothing
+      Just v' -> do let (v'', ps) = V.unzip v'
+                    return $ Just (v{vec = v''}, p * V.product ps))
 
+  -- chain (Sample (lo,hi,v)) = Sample (\s ->
+  --   let convert = runStateT . V.sequence . V.map StateT
+  --       m p g = do
+  --         let f' f s' = do
+  --                 next <- f s' p g
+  --                 case next of
+  --                   Nothing -> return (Nothing, s')
+  --                   Just ((a,s''),p') -> return (Just (a,p'), s'')
+  --             v' = V.map f' v
+  --   in m)
+
+  -- sample <- (f v) s p g
+  -- case sample of
+  --   Nothing -> return Nothing
+  --   Just ((v',s'),p') -> return $ Just ( ((lo,hi,v'), s') , p' )  
+
+-- mychain :: V.Vector (Sample' m (s -> Measure (a,s)))
+--         -> Sample' m s -> Sample' m (Measure (V.Vector a, s))
+-- mychain v = runStateT . V.sequence . V.map StateT $ v
+  
 instance Integrate (Sample m) where -- just for kicks -- inaccurate
   integrate (Sample lo) (Sample hi)
     | not (isInfinite lo) && not (isInfinite hi)
