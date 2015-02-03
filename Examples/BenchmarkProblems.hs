@@ -114,26 +114,24 @@ qmr =
 
 -- Discrete-time HMM
 
-symDirichlet :: (Mochastic repr) => Int -> repr Prob -> [repr (Measure Prob)]
-symDirichlet n a = map (liftM2 (/) total) d
-   where d = replicate n (gamma a 1)
-         total = foldr (liftM2 (+)) (dirac 0) d
+map_ :: Lambda repr => repr (a -> b) -> repr [a] -> repr [b]
+map_ f xs = undefined
 
-symDirichlet2 :: (Mochastic repr) => Int -> repr Prob -> repr ([Measure Prob])
-symDirichlet2 0 a = nil 
-symDirichlet2 n a = cons (gamma a 1) (symDirichlet2 (n - 1) a)
+symDirichlet :: (Lambda repr, Mochastic repr) =>
+                 Int -> repr Prob -> repr (Measure [Prob])
+symDirichlet n a = symDirichlet' n a `bind` \p ->
+                   unpair p (\ xs total ->
+                   dirac (map_ (lam $ \x -> x / total) xs))
+  where symDirichlet' 0 a = dirac $ pair nil 0 
+        symDirichlet' n a = gamma a 1 `bind` \x ->
+                            symDirichlet' (n - 1) a `bind` \p ->
+                            unpair p (\ xs total ->
+                            (dirac $ pair (cons x xs) (x + total)))
 
-symDirichlet3 :: (Mochastic repr) => Int -> repr Prob -> repr (Measure [Prob])
-symDirichlet3 0 a = dirac nil 
-symDirichlet3 n a = gamma a 1 `bind` \x ->
-                    symDirichlet3 (n - 1) a `bind` \xs ->
-                    dirac (cons x xs)
-
-symDirichlet4 :: (Mochastic repr) => repr Int -> repr Prob -> repr (Vector (Measure Prob))
-symDirichlet4 n a = vector 0 n (\_ -> gamma a 1)
-
-symDirichlet5 :: (Mochastic repr) => repr Int -> repr Prob -> repr (Measure (Vector Prob))
-symDirichlet5 n a = plate $ symDirichlet4 n a
+symDirichlet2 :: (Lambda repr, Integrate repr, Mochastic repr) =>
+                  repr Int -> repr Prob -> repr (Measure (Vector Prob))
+symDirichlet2 n a = (plate $ vector 0 n (\_ -> gamma a 1)) `bind` \xs ->
+                    dirac (normalizeVector xs)
 
 hmm = undefined
 hmmVec = undefined
@@ -178,8 +176,7 @@ a1, b1, aN, bN, aS, bS :: Base repr => repr Prob
 
 a1 = 20; b1 = 2
 aN = 3;  bN = 2
-aF = 20; bF = 1
-aS = 2;  bS = 1
+aF = 20; bF = 1; aS = 2; bS = 1
 
 uV, sigV, uB, sigB, uv, sigv :: Base repr => repr Prob
 uV = 5; sigV = 1

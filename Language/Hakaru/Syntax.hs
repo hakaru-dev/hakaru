@@ -8,11 +8,11 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        errorEmpty,
        Order(..), Base(..), ununit, fst_, snd_, swap_,
        and_, or_, not_, min_, max_,
-       sumVec, dirichlet,
+       sumVec, normalizeVector, dirichlet,
        Mochastic(..), bind_, factor, weight, bindx, liftM, liftM2,
        invgamma, exponential, chi2, bern,
        cauchy, laplace, student, weibull,
-       Integrate(..), Lambda(..)) where
+       Integrate(..), Lambda(..), Lub(..)) where
 
 import Data.Typeable (Typeable)    
 import Prelude hiding (Real)
@@ -341,18 +341,30 @@ sumVec x = summate (fromInt $ loBound x)
                    (fromInt $ hiBound x)
                    (\ i -> index x i)
 
+unNormedDirichlet :: Mochastic repr =>
+                     repr (Vector Prob) -> repr (Measure (Vector Prob))
+unNormedDirichlet a = plate $ vector (loBound a)
+                                     (hiBound a)
+                                     (\ i -> gamma (index a i) 1)
+
+normalizeVector :: (Integrate repr, Lambda repr) =>
+                    repr (Vector Prob) -> repr (Vector Prob)
+normalizeVector x = let_ (sumVec x) (\ normalized ->
+                    vector (loBound x)
+                           (hiBound x)
+                           (\ i -> index x i / normalized))
+
 dirichlet :: (Lambda repr, Mochastic repr, Integrate repr) =>
               repr (Vector Prob) -> repr (Measure (Vector Prob))
-dirichlet a = (plate $ vector (loBound a)
-                             (hiBound a)
-                             (\ i -> gamma (index a i) 1)) `bind` \xs ->
-              let_ (sumVec xs) (\normalized ->
-              dirac $ vector (loBound xs)
-                             (hiBound xs)
-                             (\ i -> index xs i / normalized))
+dirichlet a = unNormedDirichlet a `bind` \xs ->
+              dirac (normalizeVector xs)
 
 class Lambda repr where
   lam :: (repr a -> repr b) -> repr (a -> b)
   app :: repr (a -> b) -> repr a -> repr b
   let_ :: (Lambda repr) => repr a -> (repr a -> repr b) -> repr b
   let_ x f = lam f `app` x
+
+class Lub repr where
+  lub :: repr a -> repr a -> repr a
+  bot :: repr a
