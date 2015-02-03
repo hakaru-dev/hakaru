@@ -18,6 +18,7 @@ import qualified Data.Number.LogFloat as LF
 import qualified Numeric.Integration.TanhSinh as TS
 import qualified System.Random.MWC as MWC
 import qualified System.Random.MWC.Distributions as MWCD
+import qualified Data.Vector as V
 import Language.Hakaru.Embed
 import Generics.SOP (NS(..), NP(..), Generic(..))
 import GHC.Prim (Any)
