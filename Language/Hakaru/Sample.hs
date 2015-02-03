@@ -7,7 +7,7 @@ module Language.Hakaru.Sample (Sample(..), Sample') where
 -- Importance sampling interpretation
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Real, Prob, Measure, errorEmpty,
+import Language.Hakaru.Syntax (Real, Prob, Measure, Vector, errorEmpty,
        Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..))
 import Language.Hakaru.Util.Extras (normalize)
 import Language.Hakaru.Distribution (poisson_rng)
@@ -34,6 +34,7 @@ type instance Sample' m ()           = ()
 type instance Sample' m (a, b)       = (Sample' m a, Sample' m b)
 type instance Sample' m (Either a b) = Either (Sample' m a) (Sample' m b)
 type instance Sample' m [a]          = [Sample' m a]
+type instance Sample' m (Vector a)   = (Int, Int, V.Vector (Sample' m a))
 type instance Sample' m (Measure a)  = LF.LogFloat -> MWC.Gen (PrimState m) ->
                                        m (Maybe (Sample' m a, LF.LogFloat))
 type instance Sample' m (a -> b)     = Sample' m a -> Sample' m b
@@ -91,7 +92,14 @@ instance Base (Sample m) where
   negativeInfinity                = Sample LF.negativeInfinity
   gammaFunc (Sample n)            = Sample (LF.logToLogFloat (logGamma n))
   betaFunc (Sample a) (Sample b)  = Sample (LF.logToLogFloat (logBeta
-                                      (LF.fromLogFloat a) (LF.fromLogFloat b)))
+                                       (LF.fromLogFloat a) (LF.fromLogFloat b)))
+  vector (Sample lo) (Sample hi) f    = let g i = unSample (f (Sample $ lo + i))
+                                        in Sample (lo, hi, V.generate (hi-lo+1) g)
+  index (Sample (lo,hi,v)) (Sample i) = if (i < lo || i > hi)
+                                        then error "index out of bounds"
+                                        else Sample $ v V.! (i-lo)
+  loBound (Sample (lo,_,_))           = Sample lo
+  hiBound (Sample (_,hi,_))           = Sample hi
 
 instance (PrimMonad m) => Mochastic (Sample m) where
   dirac (Sample a) = Sample (\p _ ->
