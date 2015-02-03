@@ -8,7 +8,7 @@ module Language.Hakaru.Expect (Expect(..), Expect', total, normalize) where
 -- Expectation interpretation
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Real, Prob, Measure,
+import Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..),
        fst_, snd_)
 import Generics.SOP hiding (fn, shape)
@@ -27,6 +27,7 @@ type instance Expect' ()           = ()
 type instance Expect' (a, b)       = (Expect' a, Expect' b)
 type instance Expect' (Either a b) = Either (Expect' a) (Expect' b)
 type instance Expect' [a]          = [Expect' a]
+type instance Expect' (Vector a)   = Vector (Expect' a)
 type instance Expect' (Measure a)  = (Measure (Expect' a),
                                       (Expect' a -> Prob) -> Prob)
 type instance Expect' (a -> b)     = (Expect' a -> Expect' b)
