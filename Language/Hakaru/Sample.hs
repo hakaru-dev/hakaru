@@ -19,6 +19,7 @@ import qualified Numeric.Integration.TanhSinh as TS
 import qualified System.Random.MWC as MWC
 import qualified System.Random.MWC.Distributions as MWCD
 import qualified Data.Vector as V
+import Data.Maybe (fromJust, isNothing)
 import Language.Hakaru.Embed
 import Generics.SOP (NS(..), NP(..), Generic(..))
 import GHC.Prim (Any)
@@ -152,6 +153,12 @@ instance (PrimMonad m) => Mochastic (Sample m) where
     x <- MWCD.gamma (LF.fromLogFloat shape) (LF.fromLogFloat scale) g
     return (Just (LF.logFloat x, p)))
   beta a b = gamma a 1 `bind` \x -> gamma b 1 `bind` \y -> dirac (x / (x + y))
+  plate (Sample (lo,hi,v)) = Sample (\p g -> do
+    samples <- V.sequence $ V.map (\m -> m p g) v
+    if V.any isNothing samples then return Nothing
+    else do let (v', ps) = V.unzip . V.map fromJust $ samples
+            return $ Just ((lo, hi, v'), V.product ps))
+  
 
 instance Integrate (Sample m) where -- just for kicks -- inaccurate
   integrate (Sample lo) (Sample hi)
