@@ -38,7 +38,7 @@ type instance Sample' m (Measure a)  = LF.LogFloat -> MWC.Gen (PrimState m) ->
                                        m (Maybe (Sample' m a, LF.LogFloat))
 type instance Sample' m (a -> b)     = Sample' m a -> Sample' m b
 
-data Vec a = Vec {low :: Int, high :: Int, vec :: V.Vector a}
+data Vec a = Vec {low :: Int, high :: Int, vec :: V.Vector a} deriving (Show)
 type instance Sample' m (Vector a)   = Vec (Sample' m a)
 
 instance Order (Sample m) Real where
