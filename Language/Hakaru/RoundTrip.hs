@@ -2,7 +2,7 @@
 -- as Hakaru code.  It exports just the names that those strings may use.
 
 module Language.Hakaru.RoundTrip 
-  ( ()(..), (,)(..), Either(..), Bool(..), Num(..)
+  ( ()(..), (,)(..), Either(..), Bool(..), Int(..), Num(..)
   , Fractional(..), Floating(..), ($), Any(Any), (^^)
   , module Language.Hakaru.Syntax) where
 
