@@ -1,7 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances,
-    TypeFamilies, StandaloneDeriving, GeneralizedNewtypeDeriving, 
-    AllowAmbiguousTypes
-    #-}
+    TypeFamilies, StandaloneDeriving, GeneralizedNewtypeDeriving #-}
 {-# OPTIONS -W #-}
 
 module Language.Hakaru.Sample (Sample(..), Sample') where
