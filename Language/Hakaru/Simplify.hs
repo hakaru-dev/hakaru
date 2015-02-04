@@ -12,7 +12,7 @@ module Language.Hakaru.Simplify
 
 import Prelude hiding (Real)
 import Control.Exception
-import Language.Hakaru.Syntax (Measure, Prob, Real)
+import Language.Hakaru.Syntax (Measure, Vector, Prob, Real)
 import Language.Hakaru.Expect (Expect, unExpect)
 import Language.Hakaru.Maple (Maple, runMaple)
 import Language.Hakaru.Any (Any)
@@ -50,6 +50,7 @@ class (Typeable a) => Simplifiable a where
   mapleType :: a{-unused-} -> String
 
 instance Simplifiable () where mapleType _ = "Unit"
+instance Simplifiable Int where mapleType _ = "Int"
 instance Simplifiable Real where mapleType _ = "Real"
 instance Simplifiable Prob where mapleType _ = "Prob"
 instance Simplifiable Bool where mapleType _ = "Bool"
@@ -63,6 +64,9 @@ instance Simplifiable a => Simplifiable [a] where
 
 instance Simplifiable a => Simplifiable (Measure a) where
   mapleType _ = "Measure(" ++ mapleType (undefined :: a) ++ ")"
+
+instance Simplifiable a => Simplifiable (Vector a) where
+  mapleType _ = "Vector(" ++ mapleType (undefined :: a) ++ ")"
 
 instance (Simplifiable a, Simplifiable b) => Simplifiable (a -> b) where
   mapleType _ = "Arrow(" ++ mapleType (undefined :: a) ++ "," ++

@@ -13,7 +13,6 @@ import Control.Monad (liftM2)
 import Control.Monad.Trans.Reader (ReaderT(ReaderT), runReaderT)
 import Control.Monad.Trans.Cont (Cont, cont, runCont)
 import Data.List (intercalate)
-import Generics.SOP hiding (fn)
 import Language.Hakaru.Embed
 
 -- Jacques wrote on December 16 that "the condition of a piecewise can be
@@ -169,33 +168,35 @@ instance Mochastic Maple where
                | (p,m) <- pms ]
     in "Superpose(" ++ intercalate "," pms' ++ ")")
 
-constructor :: String -> [Maple a] -> Maple b
-constructor fn xs = Maple (ReaderT $ \i -> return $
-  "`" ++ fn ++ "`(" ++ intercalate "," [ runMaple x i | x <- xs ] ++ ")")
 
-prodMaple' :: forall xs a . ConstructorInfo xs -> [Maple a] -> Maple (NP Maple xs)
-prodMaple' (Infix nm _ _) (x:y:_) = constructor nm [x,y]
+constructor :: String -> [Maple a] -> Maple b
+constructor fn xs = Maple $ ReaderT $ \i -> return $ 
+  let ms = intercalate "," (map (flip runMaple i) xs) in 
+   ("`" ++ fn ++ "`(" ++ ms ++ ")")
+  
+prodMaple' :: forall xs a . SingI xs => ConstructorInfo (Shape xs) -> [Maple a] -> Maple (NP Maple xs) 
+prodMaple' (Infix nm _ _) (x:y:_) = constructor nm [x,y] 
 prodMaple' (Infix {}) _ = error "prodMaple': wrong number of values"
 prodMaple' (Constructor ctr) q = constructor ctr (take (lengthSing (Proxy :: Proxy xs)) q)
 prodMaple' (Record ctr _ ) q   = constructor ctr (take (lengthSing (Proxy :: Proxy xs)) q)
 
-prodMaple :: forall xs . ConstructorInfo xs -> NP Maple xs -> Maple (NP Maple xs)
-prodMaple c xs = case ciSing c of Dict -> prodMaple' c (unprod (Maple . unMaple) xs)
+prodMaple :: SingI xs => ConstructorInfo (Shape xs) -> NP Maple xs -> Maple (NP Maple xs)
+prodMaple c xs = prodMaple' c (unprod (Maple . unMaple) xs)
 
-sopMaple :: NP ConstructorInfo xss -> NS (NP Maple) xss -> Maple (NS (NP Maple) xss)
-sopMaple (ctr :* _) (Z x) = (Maple . unMaple) (prodMaple ctr x)
-sopMaple (_ :* ctrs) (S x) = (Maple . unMaple) (sopMaple ctrs x)
-sopMaple Nil _ = error "sopMaple: Type error"
+sopMaple :: forall xss . Sing xss -> NP ConstructorInfo (Shape xss) -> NS (NP Maple) xss -> Maple ()
+sopMaple SCons (ctr :* _) (Z x) = (Maple . unMaple) (prodMaple ctr x) 
+sopMaple s@SCons (_ :* ctrs) (S x) = (Maple . unMaple) (sopMaple (singTail s) ctrs x)
+sopMaple _ _ _ = error "sopMaple: Type error"
 
-op' :: Int -> Maple a -> Maple b
+op' :: Int -> Maple a -> Maple b 
 op' n (Maple ab) = Maple (ab >>= \ab' ->
   return $ "op(" ++ show n ++ ", " ++ ab' ++ ")")
 
 unprodMaple :: SingI xs => NFn Maple o xs -> Maple (NP Maple xs) -> Maple o
-unprodMaple b a = go sing a b 1 where
-  go :: Sing xs -> Maple (NP Maple xs) -> NFn Maple o xs -> Int -> Maple o
+unprodMaple b a = go sing a b 1 where 
+  go :: Sing xs -> Maple (NP Maple xs) -> NFn Maple o xs -> Int -> Maple o 
   go SNil _ (NFn f) _ = f
-  go s@SCons (Maple v) (NFn f) i = go (singTail s) (Maple v) (NFn (f (op' i (Maple v)))) (i+1)
+  go s@SCons (Maple v) (NFn f) i = go (singTail s) (Maple v) (NFn (f (op' i (Maple v)))) (i+1) 
 
 unConstructor :: String
               -> Maple t
@@ -209,28 +210,21 @@ unConstructor ctr (Maple ab) ka kb
              let op :: Int -> String
                  op n = "op(" ++ show n ++ ", " ++ ab' ++ ")"
 
-                 arm :: (Maple a -> Maple b) -> String
-                 arm k = runCont (runReaderT (unMaple $ k (Maple ab)) i) c
+                 arm :: (Maple a -> Maple b) -> String 
+                 arm k = runCont (runReaderT (unMaple $ k (Maple ab)) i) c 
 
-             in "if_(" ++ op 0 ++ " = `" ++ ctr ++ "`, " ++ arm ka
+             in "if_(" ++ op 0 ++ " = `" ++ ctr ++ "`, " ++ arm ka 
                                         ++ ", " ++ arm kb ++ ")")
 
-caseMaple :: Int -> NP ConstructorInfo xss -> NP (NFn Maple o) xss -> Maple (NS (NP Maple) xss) -> Maple o
+caseMaple :: forall xss o . SingI xss 
+          => Int -> NP ConstructorInfo (Shape xss) -> NP (NFn Maple o) xss -> Maple (NS (NP Maple) xss) -> Maple o 
 caseMaple _ Nil Nil _ = Maple $ return "Error(\"Datatypes with no constructors or type error\")"
-caseMaple i (ctr :* ctrs) (f :* fs) m =
-  case ciSing ctr of
-    Dict -> unConstructor (ctrName ctr) m (unprodMaple f) (caseMaple (i+1) ctrs fs)
+caseMaple i (ctr :* ctrs) (f :* fs) m = 
+  case sing :: Sing xss of 
+    SCons -> unConstructor (ctrName ctr) m (unprodMaple f) (caseMaple (i+1) ctrs fs)
+    _     -> error "caseMaple: type error"
 caseMaple _ _ _ _ = error "caseMaple: type error"
 
-instance Embed Maple where
-  type Ctx Maple t = ()
-
-  hRep (Maple x) = Maple x
-  unHRep (Maple x) = Maple x
-
-  sop' p xs = sopMaple (ctrInfo (datatypeInfo p)) xs
-  case' p r f =
-    let di = datatypeInfo p in
-    case diSing di of
-      Dict -> caseMaple 1 (ctrInfo di) f r
-
+instance Embed Maple where 
+  sop' p xs = (\(Maple x) -> Maple x) (sopMaple sing (ctrInfo (datatypeInfo p)) xs)
+  case' p (Maple x) f = caseMaple 1 (ctrInfo (datatypeInfo p)) f (Maple x) 

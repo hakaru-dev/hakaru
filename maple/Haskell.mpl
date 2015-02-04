@@ -231,14 +231,14 @@ bi["If"] := proc()
   if _npassed = 1 then p(_passed[1])
   elif _npassed = 2 then
     b:-append("if_ ");
-    p(_passed[1]);
+    lparen(); p(_passed[1]); rparen();
     sp();
     lparen(); p(_passed[2]); rparen();
     sp();
     b:-append("0");
   else
     b:-append("if_ ");
-    p(_passed[1]);
+    lparen(); p(_passed[1]); rparen();
     sp();
     lparen(); p(_passed[2]); rparen();
     sp();
