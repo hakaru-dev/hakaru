@@ -1,6 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleContexts, FlexibleInstances,
     TypeFamilies, StandaloneDeriving, GeneralizedNewtypeDeriving, GADTs,
-    RankNTypes, ScopedTypeVariables, UndecidableInstances, TypeOperators, DataKinds #-}
+    RankNTypes, ScopedTypeVariables, UndecidableInstances, TypeOperators, DataKinds, ConstraintKinds #-}
 {-# OPTIONS -Wall #-}
 
 module Language.Hakaru.Expect (Expect(..), Expect', total, normalize) where
