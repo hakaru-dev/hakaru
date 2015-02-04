@@ -9,7 +9,7 @@ import Language.Hakaru.Util.Pretty
 import Text.PrettyPrint hiding (parens)
 import qualified Text.PrettyPrint as Text 
 import Language.Hakaru.Embed
-import Generics.SOP 
+import qualified Generics.SOP as SOP
 
 leftMode :: Doc -> String
 leftMode = renderStyle style{mode=LeftMode}
@@ -179,7 +179,7 @@ constructor :: (Doc -> Doc) -> String -> PrettyPrint t -> PrettyPrint a
 constructor f str (PP a) = PP (\vs i -> [ text str <+> f (sep (a vs i)) ])
 
 -- Less type safe variant of below 
-ppProd' :: forall xs a . ConstructorInfo xs -> [PrettyPrint a] -> PrettyPrint (NP PrettyPrint xs)
+ppProd' :: forall xs a . ConstructorInfo xs -> [PrettyPrint a] -> PrettyPrint ()
 ppProd' (Infix nm _ fxt) (x:y:_) = op fxt nm fxt (fxt + 1) x y
 ppProd' (Constructor ctr) q = 
   constructor Text.parens ctr (sepBy (string ",") (take (lengthSing (Proxy :: Proxy xs)) q))
@@ -189,13 +189,13 @@ ppProd' (Record ctr recs) q = constructor braces ctr (sepBy (string ",") q0) whe
                q
 ppProd' _ _ = error "ppProd': wrong number of variables"
 
-prodPretty :: ConstructorInfo xs -> NP PrettyPrint xs -> PrettyPrint (NP PrettyPrint xs)
-prodPretty p q = case ciSing p of Dict -> ppProd' p (unpp q)
+prodPretty :: forall xs . SingI xs => ConstructorInfo (Shape xs) -> NP PrettyPrint xs -> PrettyPrint (NP PrettyPrint xs)
+prodPretty p q = (\(PP a) -> PP a) (ppProd' p (unpp q))
 
-sopPretty :: NP ConstructorInfo xss -> NS (NP PrettyPrint) xss -> PrettyPrint (NS (NP PrettyPrint) xss)
-sopPretty (ctr :* _) (Z x) = (\(PP a) -> PP a) (prodPretty ctr x) 
-sopPretty (_ :* ctrs) (S x) = (\(PP a) -> PP a) (sopPretty ctrs x)
-sopPretty Nil _ = error "sopPretty: Type error"
+sopPretty :: Sing xss -> NP ConstructorInfo (Shape xss) -> NS (NP PrettyPrint) xss -> PrettyPrint (NS (NP PrettyPrint) xss)
+sopPretty SCons (ctr :* _) (Z x) = (\(PP a) -> PP a) (prodPretty ctr x) 
+sopPretty s@SCons (_ :* ctrs) (S x) = (\(PP a) -> PP a) (sopPretty (singTail s) ctrs x)
+sopPretty _ _ _ = error "sopPretty: Type error"
 
 ppFun :: SingI xs => NFn PrettyPrint o xs -> PrettyPrint o 
 ppFun fun = PP $ \vs i -> let PP q = go sing fun vs in q vs i where 
@@ -204,32 +204,30 @@ ppFun fun = PP $ \vs i -> let PP q = go sing fun vs in q vs i where
   go s@SCons (NFn f) (v:vs) = go (singTail s) (NFn (f (string v))) vs 
   go _ (NFn _) [] = error "ppFun: no more vars"
 
-casePretty :: DatatypeInfo xss -> PrettyPrint (NS (NP PrettyPrint) xss) -> NP (NFn PrettyPrint o) xss -> PrettyPrint o
+
+casePretty :: SingI xss 
+           => DatatypeInfo (Shape xss) -> PrettyPrint (NS (NP PrettyPrint) xss) -> NP (NFn PrettyPrint o) xss -> PrettyPrint o
 casePretty di (PP v) f = PP $ \vs z ->  
   let ci = ctrInfo di 
 
-      cases :: NP ConstructorInfo xss -> NP (NFn PrettyPrint o) xss -> [PrettyPrint a]
-      cases Nil Nil = []
-      cases (i :* is) (x :* xs) = case ciSing i of Dict -> (\(PP a) -> PP a) (ppFun x) : cases is xs
-      cases _ _ = error "casePretty: Type error"
+      cases :: Sing xss -> NP ConstructorInfo (Shape xss) -> NP (NFn PrettyPrint o) xss -> [PrettyPrint a]
+      cases SNil Nil Nil = []
+      cases s@SCons (_ :* is) (x :* xs) = (\(PP a) -> PP a) (ppFun x) : cases (singTail s)  is xs
+      cases _ _ _ = error "casePretty: Type error"
+
+      pats :: forall xss a . NP ConstructorInfo xss -> [PrettyPrint a] 
+      pats Nil = []
+      pats (x :* xs) = (\(PP a) -> PP a) (ppProd' x vars) : pats xs 
 
       vars = map string vs 
-
-      pats :: NP ConstructorInfo xss -> [PrettyPrint a] 
-      pats Nil = []
-      pats (x :* xs) = (\(PP a) -> PP a) (ppProd' x vars) : pats xs where 
 
   in (text "case" <+> Text.parens (sep (v vs z)) <+> text "of") : 
      punctuate (text ";") (zipWith (\(PP a) (PP b) -> (sep $ a vs z) <+> text "->" <+> (sep $ b vs z))
                                    (pats ci) 
-                                   (cases ci f)
+                                   (cases sing ci f)
                           )
 
 instance Embed PrettyPrint where 
-  type Ctx PrettyPrint t = ()
+  sop' p x = case sopPretty sing (ctrInfo (datatypeInfo p)) x of PP a -> PP a 
 
-  hRep (PP a) = PP a 
-  unHRep (PP a) = PP a 
-
-  sop' p = sopPretty (ctrInfo (datatypeInfo p))
-  case' = casePretty . datatypeInfo
+  case' p (PP x) f = case casePretty (datatypeInfo p) (PP x) f of PP a -> PP a

@@ -10,11 +10,9 @@ module Language.Hakaru.Expect (Expect(..), Expect', total, normalize) where
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..),
-       fst_, snd_)
-import Generics.SOP hiding (fn, shape)
+       fst_, snd_, ununit)
+import qualified Generics.SOP as SOP 
 import Language.Hakaru.Embed
-import Language.Hakaru.Maple
-import GHC.Prim (Any)
 
 newtype Expect repr a = Expect { unExpect :: repr (Expect' a) }
 type family Expect' (a :: *)
@@ -182,36 +180,49 @@ normalize :: (Integrate repr, Lambda repr, Mochastic repr) =>
 normalize (Expect m) = unpair m (\m1 m2 ->
   superpose [(recip (m2 `app` lam (\_ -> 1)), m1)])
 
--- 'r' will only ever be 'Expect repr'
-type instance Expect' (NS (NP r) a) = NS (NP r) a
-type instance Expect' Any = HRep (Expect Maple) Any
 
-instance Embed (Expect Maple) where
-  type Ctx (Expect Maple) t = (Expect' t ~ HRep (Expect Maple) t)
+type family ListToTy (a :: [*]) :: * 
+type instance ListToTy '[] = () 
+type instance ListToTy (x ': xs) = (Expect' x, ListToTy xs) 
 
-  hRep (Expect x) = Expect x
-  unHRep (Expect x) = Expect x
+type family ListToTy2 (a :: [[*]]) :: * 
+type instance ListToTy2 '[] = Void 
+type instance ListToTy2 (x ': xs) = Either (ListToTy x) (ListToTy2 xs) 
 
-  sop' p x =
-    case diSing (datatypeInfo p) of
-      Dict -> Expect $ Maple $ unMaple $ sop' p (unSOP (hliftA toM (SOP x)))
-        where toM :: Expect Maple a -> Maple a
-              toM (Expect (Maple a)) = Maple a
+type instance Expect' Void = Void 
+type instance Expect' (HRep t) = ListToTy2 (Code t) 
 
-  case' p (Expect (Maple x)) fn =
-    case diSing (datatypeInfo p) of
-      Dict -> Expect (Maple $ unMaple $ case' p (Maple x) (funMs sing fn))
-        where funM :: Sing xs -> NFn (Expect Maple) o xs -> NFn Maple o xs
-              funM SNil (NFn (Expect (Maple f))) = NFn (Maple f)
-              funM s@SCons ((NFn f) :: NFn (Expect Maple) o (x ': xs)) = NFn $ \(Maple a) ->
-                let
-                 r :: NFn (Expect Maple) o xs -> NAryFun Maple o xs
-                 r = unFn . funM (singTail s)
-                in r $ NFn $ f $ Expect $ Maple a
+{- This should probably be in Base -}
+data Void 
+absurd :: Base r => r Void -> r a 
+absurd = error "absurd"
 
-              funMs :: Sing xss -> NP (NFn (Expect Maple) o) xss -> NP (NFn Maple o) xss
-              funMs SNil Nil = Nil
-              funMs SCons (a :* as) = funM sing a :* funMs sing as
-              funMs _ _ = error "typeError: funMS"
+prodExpect :: Base r => NP (Expect r) xs -> r (ListToTy xs)
+prodExpect Nil = unit
+prodExpect (Expect x :* xs) = pair x (prodExpect xs) 
 
+sopExpect :: Base r => NS (NP (Expect r)) xss -> r (ListToTy2 xss)
+sopExpect (Z t) = inl (prodExpect t)
+sopExpect (S (t :: NS (NP (Expect r)) xss')  ) = inr (sopExpect t :: r (ListToTy2 xss'))
 
+caseExpect1 :: forall r xs o . Base r => NP Proxy xs -> r (ListToTy xs) -> NFn (Expect r) o xs -> r (Expect' o)
+caseExpect1 Nil x (NFn (Expect y)) = ununit x y
+caseExpect1 ((_t :: Proxy x) :* (ts :: NP Proxy xs1)) x (NFn y) = unpair x (\a b -> q1 b (NFn (y (Expect a)))) where 
+
+  q1 :: r (ListToTy xs1) -> NFn (Expect r) o xs1 -> r (Expect' o)
+  q1 = caseExpect1 ts 
+
+singNP :: forall xs . SingI xs => NP Proxy xs 
+singNP = case sing :: Sing xs of 
+           SNil -> Nil
+           SCons -> Proxy :* singNP  
+
+caseExpect :: forall r o xss . (Base r, SOP.All SingI xss) 
+           => r (ListToTy2 xss) -> NP (NFn (Expect r) o) xss -> r (Expect' o)
+caseExpect x Nil = absurd x 
+caseExpect x ((t :: NFn (Expect r) o xs) :* (ts :: NP (NFn (Expect r) o) xss')) = 
+  uneither x (\a -> caseExpect1 singNP a t) (\a -> caseExpect a ts)
+           
+instance Base r => Embed (Expect r) where 
+  sop' _ a = Expect (sopExpect a)
+  case' _ (Expect a) f = Expect (caseExpect a f)

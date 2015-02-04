@@ -95,7 +95,7 @@ ciInfoShape (Record n x) = case singShape (sing :: Sing xs) of
 
 
 -- 't' is really just a "label" - 't' and 'Code t' are completely unrelated.
-class (SingI (Code t), SingI (Shape (Code t))) => Embeddable (t :: *) where 
+class (SingI (Code t), SingI (Shape (Code t)), All SingI (Code t)) => Embeddable (t :: *) where 
   type Code t :: [[*]]
   datatypeInfo :: Proxy t -> DatatypeInfo (Shape (Code t))
   default datatypeInfo :: (HasDatatypeInfo t, Shape (SOP.Code t) ~ Shape (Code t)) 
@@ -149,6 +149,9 @@ unprod f = hcollapse . hliftA (K . f)
 
 singTail :: Sing (x ': xs) -> Sing xs 
 singTail SCons = sing 
+
+singHead :: Sing (x ': xs) -> Sing x
+singHead SCons = sing 
 
 ctrNames :: DatatypeInfo xss -> [ConstructorName]
 ctrNames d = case diSing d of Dict -> unprod ctrName (ctrInfo d)

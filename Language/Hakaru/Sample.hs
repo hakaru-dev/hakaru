@@ -21,9 +21,6 @@ import qualified System.Random.MWC.Distributions as MWCD
 import qualified Data.Vector as V
 import Data.Maybe (fromJust, isNothing)
 import Language.Hakaru.Embed
-import Generics.SOP (NS(..), NP(..), Generic(..))
-import GHC.Prim (Any)
-import Data.Proxy 
 
 newtype Sample m a = Sample { unSample :: Sample' m a }
 type family Sample' (m :: * -> *) (a :: *)
@@ -186,14 +183,8 @@ instance Lambda (Sample m) where
   app (Sample rator) (Sample rand) = Sample (rator rand)
 
 
-type instance Sample' m (NS (NP t) a) = NS (NP t) a 
-type instance Sample' m Any = HRep (Sample m) Any 
+type instance Sample' m (HRep t) = NS (NP (Sample m)) (Code t)
 
 instance Embed (Sample m) where 
-  type Ctx (Sample m) t = (Sample' m t ~ HRep (Sample m) t)
-
-  hRep (Sample x) = Sample x 
-  unHRep (Sample x) = Sample x 
-
   sop' _ x = Sample x 
   case' _ (Sample x) f = apNAry x f 
