@@ -163,26 +163,12 @@ instance (PrimMonad m) => Mochastic (Sample m) where
     samples <- V.mapM (\m -> MaybeT $ m 1 g) (vec v)
     let (v', ps) = V.unzip samples
     return (v{vec = v'}, p * V.product ps))
-                                     
-  -- chain (Sample (lo,hi,v)) = Sample (\s ->
-  --   let convert = runStateT . V.sequence . V.map StateT
-  --       m p g = do
-  --         let f' f s' = do
-  --                 next <- f s' p g
-  --                 case next of
-  --                   Nothing -> return (Nothing, s')
-  --                   Just ((a,s''),p') -> return (Just (a,p'), s'')
-  --             v' = V.map f' v
-  --   in m)
-
-  -- sample <- (f v) s p g
-  -- case sample of
-  --   Nothing -> return Nothing
-  --   Just ((v',s'),p') -> return $ Just ( ((lo,hi,v'), s') , p' )  
-
--- mychain :: V.Vector (Sample' m (s -> Measure (a,s)))
---         -> Sample' m s -> Sample' m (Measure (V.Vector a, s))
--- mychain v = runStateT . V.sequence . V.map StateT $ v
+  chain (Sample v) = Sample (\s p g -> runMaybeT $ do
+    let convert f = StateT $ \s -> do ((a,s'),p') <- MaybeT (f s 1 g)
+                                      return ((a,p'),s')
+    (samples, sout) <- runStateT (V.mapM convert (vec v)) s
+    let (v', ps) = V.unzip samples
+    return ((v{vec = v'}, sout), p * V.product ps))                                     
   
 instance Integrate (Sample m) where -- just for kicks -- inaccurate
   integrate (Sample lo) (Sample hi)
