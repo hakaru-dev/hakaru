@@ -366,5 +366,5 @@ class Lambda repr where
   let_ x f = lam f `app` x
 
 class Lub repr where
-  lub :: repr a -> repr a -> repr a
-  bot :: repr a
+  lub :: repr a -> repr a -> repr a -- two ways to compute the same thing
+  bot :: repr a -- no way to compute anything (left and right identity for lub)
