@@ -159,13 +159,11 @@ instance (PrimMonad m) => Mochastic (Sample m) where
     x <- MWCD.gamma (LF.fromLogFloat shape) (LF.fromLogFloat scale) g
     return (Just (LF.logFloat x, p)))
   beta a b = gamma a 1 `bind` \x -> gamma b 1 `bind` \y -> dirac (x / (x + y))
-  plate (Sample v) = Sample (\p g -> do
-    samples <- runMaybeT $ V.mapM (\m -> MaybeT $ m 1 g) (vec v)
-    case samples of
-      Nothing -> return Nothing
-      Just v' -> do let (v'', ps) = V.unzip v'
-                    return $ Just (v{vec = v''}, p * V.product ps))
-
+  plate (Sample v) = Sample (\p g -> runMaybeT $ do
+    samples <- V.mapM (\m -> MaybeT $ m 1 g) (vec v)
+    let (v', ps) = V.unzip samples
+    return (v{vec = v'}, p * V.product ps))
+                                     
   -- chain (Sample (lo,hi,v)) = Sample (\s ->
   --   let convert = runStateT . V.sequence . V.map StateT
   --       m p g = do
