@@ -1,14 +1,17 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleContexts, FlexibleInstances,
-             Rank2Types, GADTs, KindSignatures, LambdaCase #-}
+             Rank2Types, GADTs, TypeFamilies, LambdaCase #-}
 {-# OPTIONS -Wall #-}
 
 module Language.Hakaru.Lazy where
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure, Number, Fraction(..),
-       EqType(Refl), Order(..), Base(..), Mochastic(..), bind_, weight,
+       EqType(Refl), Order(..), Base(..), Mochastic(..), weight, equal_,
        Lambda(..), Lub(..))
-import Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint)
+import Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode)
+import Language.Hakaru.Simplify (Simplifiable, closeLoop, simplify)
+import Language.Hakaru.Any (Any(unAny))
+import Data.Typeable (Typeable)
 import Text.PrettyPrint (Doc)
 import Control.Monad (liftM, liftM2)
 import Data.Maybe (isNothing)
@@ -25,6 +28,8 @@ uneither' ab c = uneither ab (c . Left) (c . Right)
 
 newtype M s repr a = M { unM :: forall w.
   (a -> Heap s repr -> repr (Measure w)) -> Heap s repr -> repr (Measure w) }
+  -- TODO: Replace "repr (Measure w)" by "[([repr Prob], repr (Measure w))]"
+  -- to optimize away "superpose [(1,...)]" and "superpose []"
 
 instance Monad (M s repr) where
   return a = M (\c -> c a)
@@ -81,16 +86,35 @@ evaluate z = forward z >>= \case
   Inl x     -> liftM inl (evaluate x)
   Inr y     -> liftM inr (evaluate y)
   Value a   -> return a
-  Measure x -> evaluateM x
+  Measure x -> do determineHeap
+                  -- because the heap is duplicated below, we better get rid
+                  -- of Bind and Iftrue and Iffalse and Weight in the heap,
+                  -- and that's what determineHeap does.
+                  M (\c h -> c (unM (do a <- evaluate x
+                                        determineHeap
+                                        return (dirac a))
+                                    const
+                                    h)
+                               h)
 
 runLazy :: (Mochastic repr, Lub repr) =>
            (forall s. Lazy s repr (Measure a)) -> repr (Measure a)
-runLazy m = unM (do a <- evaluate m
-                    determineHeap
-                    return a)
-                (\a _ -> a)
-                Heap{fresh=0,bound=[]}
-  where determineHeap = return () -- TODO
+runLazy m = unM (evaluate m) const Heap{fresh=0,bound=[]}
+
+determineHeap :: (Mochastic repr) => M s repr ()
+determineHeap = pop >>= \case
+  Nothing -> return ()
+  Just b -> determineHeap >> case b of
+    Bind   l   y -> forward  y >>= update l
+    Iftrue     y -> evaluate y >>= \x -> insert_ (cond   x)
+    Iffalse    y -> evaluate y >>= \x -> insert_ (condN  x)
+    Weight     y -> evaluate y >>= \x -> insert_ (weight x)
+    Let    _   _ -> store b
+    Unpair _ _ _ -> store b
+    Uninl  _   _ -> store b
+    Uninr  _   _ -> store b
+  where pop = M (\c h -> case bound h of []   -> c Nothing h
+                                         b:bs -> c (Just b) h{bound=bs})
 
 data Heap s repr = Heap
   { fresh :: Int
@@ -114,6 +138,7 @@ data Binding s repr where
   Uninr   :: Loc s b ->            Lazy s repr (Either a b) -> Binding s repr
   Iftrue  ::                       Lazy s repr Bool         -> Binding s repr
   Iffalse ::                       Lazy s repr Bool         -> Binding s repr
+  Weight  ::                       Lazy s repr Prob         -> Binding s repr
 
 store :: Binding s repr -> M s repr ()
 store entry = M (\c h@Heap{bound=b} -> c () h{bound = entry : b})
@@ -128,23 +153,6 @@ memo :: (Mochastic repr, Lub repr) => Lazy s repr a -> M s repr (Lazy s repr a)
 memo m = do l <- gensym
             store (Bind l m)
             return (lazyLoc l)
-
--- Calling evaluate or evaluateM is only safe at the top level (i.e., runLazy)
--- or after heap is determined.  Symptoms of this danger include the heap being
--- discarded and duplicated below.  Fixing this danger requires impure code
--- generation.
-evaluateM :: (Mochastic repr) => Lazy s repr a -> M s repr (repr (Measure a))
-evaluateM x = M (\c ->
-  let loop m   Heap{bound = []  } = m -- discarding the heap!
-      loop m h@Heap{bound = b:bs} = case b of
-        Bind   _   y -> unM (evaluateM y) (loop . (`bind_` m)) h{bound=bs}
-        Iftrue     y -> unM (evaluate  y) (loop . (`cond ` m)) h{bound=bs}
-        Iffalse    y -> unM (evaluate  y) (loop . (`condN` m)) h{bound=bs}
-        Let    _   _ -> loop m h{bound=bs}
-        Unpair _ _ _ -> loop m h{bound=bs}
-        Uninl  _   _ -> loop m h{bound=bs}
-        Uninr  _   _ -> loop m h{bound=bs}
-  in \h -> c (unM (evaluate x) (loop . dirac) h) h) -- duplicating the heap!
 
 data Retrieval s repr a where
   RBind  :: Lazy s repr a ->                Retrieval s repr a
@@ -168,6 +176,7 @@ locate l (Uninl  l1    rhs) = fmap (\Refl -> RInl rhs) (jmEq l l1)
 locate l (Uninr  l2    rhs) = fmap (\Refl -> RInr rhs) (jmEq l l2)
 locate _ (Iftrue       _  ) = Nothing
 locate _ (Iffalse      _  ) = Nothing
+locate _ (Weight       _  ) = Nothing
 
 retrieve :: Loc s a -> (Retrieval s repr a -> M s repr w) -> M s repr w
 retrieve l k = M (\c h ->
@@ -352,6 +361,10 @@ instance (Mochastic repr, Lub repr) => Floating (Lazy s repr Real) where
     (liftM (Value . exp) (evaluate x))
     (\t -> do insert_ (cond (less 0 t) . weight (recip (unsafeProb t)))
               backward x (log t))
+  log x = bidirectional
+    (liftM (Value . log) (evaluate x))
+    (\t -> do insert_ (weight (exp_ t))
+              backward x (exp t))
   -- TODO fill in other methods
 
 instance (Mochastic repr, Lub repr) => Base (Lazy s repr) where
@@ -363,18 +376,18 @@ instance (Mochastic repr, Lub repr) => Base (Lazy s repr) where
                                return (k (lazyLoc l1) (lazyLoc l2)))
   inl a             = lazy (return (Inl a))
   inr b             = lazy (return (Inr b))
-  uneither ab ka kb = superpose' [(1, join (do l <- gensym
-                                               store (Uninl l ab)
-                                               return (ka (lazyLoc l)))),
-                                  (1, join (do l <- gensym
-                                               store (Uninr l ab)
-                                               return (kb (lazyLoc l))))]
+  uneither ab ka kb = choice [join (do l <- gensym
+                                       store (Uninl l ab)
+                                       return (ka (lazyLoc l))),
+                              join (do l <- gensym
+                                       store (Uninr l ab)
+                                       return (kb (lazyLoc l)))]
   true              = scalar0 true
   false             = scalar0 false
-  if_ b t f         = superpose' [(1, join (do store (Iftrue b)
-                                               return t)),
-                                  (1, join (do store (Iffalse b)
-                                               return f))]
+  if_ b t f         = choice [join (do store (Iftrue b)
+                                       return t),
+                              join (do store (Iffalse b)
+                                       return f)]
   unsafeProb x = bidirectional
     (liftM (Value . unsafeProb) (evaluate x))
     (\t -> backward x (fromProb t))
@@ -384,6 +397,14 @@ instance (Mochastic repr, Lub repr) => Base (Lazy s repr) where
               backward x (unsafeProb t))
   fromInt = scalar1 fromInt
   pi_ = scalar0 pi_
+  exp_ x = bidirectional
+    (liftM (Value . exp_) (evaluate x))
+    (\t -> do insert_ (weight (recip t))
+              backward x (log_ t))
+  log_ x = bidirectional
+    (liftM (Value . log_) (evaluate x))
+    (\t -> do insert_ (weight (exp_ t))
+              backward x (exp_ t))
   -- TODO fill in other methods
   erf = scalar1 erf -- need InvErf to disintegrate Erf
   erf_ = scalar1 erf_ -- need InvErf to disintegrate Erf
@@ -400,10 +421,10 @@ unMeasure :: (Mochastic repr, Lub repr) =>
 unMeasure (Measure m) = m
 unMeasure (Value m) = lazy (liftM Value (lift m))
 
-superpose' :: (Mochastic repr) => [(repr Prob, Lazy s repr a)] -> Lazy s repr a
-superpose' pms = Lazy
-  (      M (\c h -> superpose [ (p, unM (forward  m  ) c h) | (p,m) <- pms ]))
-  (\t -> M (\c h -> superpose [ (p, unM (backward m t) c h) | (p,m) <- pms ]))
+choice :: (Mochastic repr) => [Lazy s repr a] -> Lazy s repr a
+choice ms = Lazy
+  (      M (\c h -> superpose [ (1, unM (forward  m  ) c h) | m <- ms ]))
+  (\t -> M (\c h -> superpose [ (1, unM (backward m t) c h) | m <- ms ]))
 
 instance (Mochastic repr, Lub repr) => Mochastic (Lazy s repr) where
   dirac x   = measure $ x
@@ -413,18 +434,62 @@ instance (Mochastic repr, Lub repr) => Mochastic (Lazy s repr) where
                                       (const (return ()))
   counting  = measure $ bidirectional (liftM Value (lift counting))
                                       (const (return ()))
-  superpose = lazy . liftM (Measure . superpose') . mapM f
-    where f (p,m) = liftM2 (,) (evaluate p) (liftM unMeasure (forward m))
+  superpose pms = measure $ choice [ join $ do store (Weight p)
+                                               liftM unMeasure (forward m)
+                                   | (p,m) <- pms ]
   -- TODO fill in other methods
 
-disintegrate :: (Number a, Mochastic repr, Lub repr) => Lazy s repr a ->
-                Lazy s repr (Measure (a,b)) -> Lazy s repr (Measure b)
-disintegrate x m = lazy $ do
-  y <- evaluate x
-  return $ Measure $ join $ do
-    Pair a b <- forward m >>= forward . unMeasure
-    backward a y
-    return b
+class Backward ab a where
+  backward_ :: (Mochastic repr, Lub repr) =>
+               Lazy s repr ab -> Lazy s repr a -> M s repr ()
 
-try :: (Number a) => (forall s. Lazy s PrettyPrint (Measure (a,b))) -> Doc
-try m = runPrettyPrint (lam (\t -> runLazy (disintegrate (scalar0 t) m)))
+instance Backward a () where
+  backward_ _ _ = return ()
+
+instance Backward Bool Bool where
+  backward_ a x = store (Iftrue (equal_ a x))
+
+instance Backward Int Int where
+  backward_ a x = evaluate x >>= backward a
+
+instance Backward Real Real where
+  backward_ a x = evaluate x >>= backward a
+
+instance Backward Prob Prob where
+  backward_ a x = evaluate x >>= backward a
+
+instance (Backward ab1 a1, Backward ab2 a2) =>
+         Backward (ab1,ab2) (a1,a2) where
+  backward_ ab xy = forward body >> return ()
+    where body = unpair ab $ \a b ->
+                 unpair xy $ \x y ->
+                 lazy (do backward_ a x
+                          backward_ b y
+                          return (Value unit))
+
+instance (Backward ab1 a1, Backward ab2 a2) =>
+         Backward (Either ab1 ab2) (Either a1 a2) where
+  backward_ ab xy = forward body >> return ()
+    where body = uneither ab (\a -> uneither xy (\x -> lazy (backward_ a x >> return (Value unit)))
+                                                (\_ -> join reject))
+                             (\b -> uneither xy (\_ -> join reject)
+                                                (\y -> lazy (backward_ b y >> return (Value unit))))
+
+disintegrate :: (Mochastic repr, Lub repr, Backward ab a) =>
+                Lazy s repr (Measure ab) ->
+                Lazy s repr a -> Lazy s repr (Measure ab)
+disintegrate m x = measure $ join $ do
+  m' <- forward m
+  a <- memo (unMeasure m')
+  backward_ a x
+  return a
+
+try :: (forall s. Lazy s PrettyPrint (Measure (Real, b))) ->
+       PrettyPrint (Real -> Measure (Real, b))
+try m = lam (\t -> runLazy (disintegrate m (pair (scalar0 t `asTypeOf` log_ 0) unit)))
+
+recover :: (Typeable a) => PrettyPrint a -> IO (Any a)
+recover hakaru = closeLoop ("Any (" ++ leftMode (runPrettyPrint hakaru) ++ ")")
+
+simp :: (Simplifiable a) => Any a -> IO Doc
+simp = fmap (runPrettyPrint . unAny) . simplify . unAny
