@@ -1,6 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances,
     TypeFamilies, StandaloneDeriving, GeneralizedNewtypeDeriving #-}
-{-# OPTIONS -W #-}
+{-# OPTIONS -Wall #-}
 
 module Language.Hakaru.Sample (Sample(..), Sample') where
 
@@ -19,7 +19,6 @@ import qualified Numeric.Integration.TanhSinh as TS
 import qualified System.Random.MWC as MWC
 import qualified System.Random.MWC.Distributions as MWCD
 import qualified Data.Vector as V
-import Data.Maybe (fromJust, isNothing)
 import Control.Monad.State
 import Control.Monad.Trans.Maybe    
 import Language.Hakaru.Embed
@@ -159,8 +158,8 @@ instance (PrimMonad m) => Mochastic (Sample m) where
     let (v', ps) = V.unzip samples
     return (v{vec = v'}, p * V.product ps))
   chain (Sample v) = Sample (\s p g -> runMaybeT $ do
-    let convert f = StateT $ \s -> do ((a,s'),p') <- MaybeT (f s 1 g)
-                                      return ((a,p'),s')
+    let convert f = StateT $ \s' -> do ((a,s''),p') <- MaybeT (f s' 1 g)
+                                       return ((a,p'),s'')
     (samples, sout) <- runStateT (V.mapM convert (vec v)) s
     let (v', ps) = V.unzip samples
     return ((v{vec = v'}, sout), p * V.product ps))                                     
