@@ -157,11 +157,11 @@ instance Mochastic Maple where
   -- Maple doesn't currently understand this input (though one day it might).
   -- This instance is currently here because Expect produces dual output and
   -- we want "instance Mochastic (Expect Maple)".
-  dirac _ = Maple (return "Measure")
-  bind _ _ = Maple (return "Measure")
-  lebesgue = Maple (return "Measure")
-  counting = Maple (return "Measure")
-  superpose _ = Maple (return "Measure")
+  dirac _     = Maple (return "measure")
+  bind _ _    = Maple (return "measure")
+  lebesgue    = Maple (return "measure")
+  counting    = Maple (return "measure")
+  superpose _ = Maple (return "measure")
 {-
   dirac = mapleFun1 "Return"
   m `bind` k = Maple (ReaderT $ \i -> return $
