@@ -98,7 +98,7 @@ testOther = test [
     "beta2"      ~: testSS [testBetaConj'] (beta 2 1),
     "testGibbs0" ~: testSS [testGibbsProp0] (lam $ \x -> normal (x * (1/2))
                                                                 (sqrt_ 2 * (1/2))),
-    "testGibbs1" ~: testSS [testGibbsProp1] (lam $ \x -> normal (fst_ x) 1 
+    "testGibbs1" ~: testSS [testGibbsProp1] (lam $ \x -> normal (fst_ x) 1
                                              `bind` \y -> dirac (pair (fst_ x) y)),
     "testGibbs2" ~: testSS [testGibbsProp2] (lam $ \x -> normal ((snd_ x) * (1/2))
                                                                 (sqrt_ 2 * (1/2))
@@ -107,7 +107,7 @@ testOther = test [
     ]
 
 allTests :: Test
-allTests = test 
+allTests = test
   [ testMeasureUnit
   , testMeasureProb
   , testMeasureReal
@@ -129,8 +129,8 @@ t4 :: Mochastic repr => repr (Measure (Prob, Bool))
 t4 = beta 1 1 `bind` \bias -> bern bias `bind` \coin -> dirac (pair bias coin)
 
 t4' :: Mochastic repr => repr (Measure (Prob, Bool))
-t4' = (uniform  0 1) `bind` \x3 -> 
-      superpose [((unsafeProb x3)               ,(dirac (pair (unsafeProb x3) true))), 
+t4' = (uniform  0 1) `bind` \x3 ->
+      superpose [((unsafeProb x3)               ,(dirac (pair (unsafeProb x3) true))),
                  ((unsafeProb (1 + (x3 * (-1)))),(dirac (pair (unsafeProb x3) false)))]
 
 -- testBetaConj is like t4, but we condition on the coin coming up true,
@@ -279,7 +279,7 @@ t39 = lam (dirac . log)
 t40 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure Real)
 t40 = lam (dirac . log_)
 
--- this is not plugged in as it requires dealing with first-class functions, 
+-- this is not plugged in as it requires dealing with first-class functions,
 -- which is not implemented
 t41 :: (Lambda repr, Integrate repr, Mochastic repr) => repr (Measure ((Prob -> Prob) -> Prob))
 t41 = dirac $ snd_ $ unExpect $ uniform 0 2 `bind` dirac . unsafeProb
@@ -306,7 +306,7 @@ t46 :: (Mochastic repr) => repr (Measure Real)
 t46 = normal 4 5 `bind` \x -> dirac (if_ (less x 3) (x*x) (x-1))
 
 t47 :: (Mochastic repr) => repr (Measure Real)
-t47 = 
+t47 =
   superpose [(1, (normal 4 5 `bind` \x -> if_ (less x 3) (dirac (x*x)) (dirac 0))),
              (1, (normal 4 5 `bind` \x -> if_ (less x 3) (dirac 0) (dirac (x-1))))]
 
@@ -330,8 +330,8 @@ t52 = uniform 0 1 `bind` \x ->
       uniform 0 1 `bind` \y ->
       dirac (pair (max_ x y)
                   (pair x y))
-t52' = uniform 0 1 `bind` \x2 -> 
-       superpose [((unsafeProb (1 + (x2 * (-1)))),(uniform  x2 1) `bind` \x4 -> (dirac (pair x4 (pair x2 x4)))), 
+t52' = uniform 0 1 `bind` \x2 ->
+       superpose [((unsafeProb (1 + (x2 * (-1)))),(uniform  x2 1) `bind` \x4 -> (dirac (pair x4 (pair x2 x4)))),
                   ((unsafeProb x2),(uniform  0 x2) `bind` \x4 -> (dirac (pair x2 (pair x2 x4))))]
 
 t53, t53', t53'' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
@@ -361,8 +361,8 @@ t54 =
        dirac x1 `bind` \x3 ->
        dirac (x2 `less` x3)) `bind` \x2 ->
       if_ x2
-	  (dirac x1 `bind` \x3 -> dirac (recip x3))
-	  (dirac 0)) `bind` \x2 ->
+          (dirac x1 `bind` \x3 -> dirac (recip x3))
+          (dirac 0)) `bind` \x2 ->
      factor (unsafeProb x2)) `bind` \x2 ->
     (dirac x1 `bind` \x3 -> dirac (log x3)) `bind` \x3 ->
     (dirac x3 `bind` \x4 -> dirac (-x4)) `bind` \x4 ->
@@ -370,11 +370,11 @@ t54 =
       dirac x4 `bind` \x6 ->
       dirac (x5 `less` x6)) `bind` \x5 ->
      if_ x5
-	 ((dirac x4 `bind` \x6 ->
-	   dirac 1 `bind` \x7 ->
-	   dirac (x6 `less` x7)) `bind` \x6 ->
-	  if_ x6 (dirac 1) (dirac 0))
-	 (dirac 0)) `bind` \x5 ->
+         ((dirac x4 `bind` \x6 ->
+           dirac 1 `bind` \x7 ->
+           dirac (x6 `less` x7)) `bind` \x6 ->
+          if_ x6 (dirac 1) (dirac 0))
+         (dirac 0)) `bind` \x5 ->
     factor (unsafeProb x5)
 
 t55, t55' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
@@ -427,7 +427,7 @@ priorAsProposal p x = bern (1/2) `bind` \c ->
                       p `bind` \x' ->
                       dirac (if_ c
                              (pair (fst_ x ) (snd_ x'))
-                             (pair (fst_ x') (snd_ x )))   
+                             (pair (fst_ x') (snd_ x )))
 
 gibbsProposal :: (Order_ a, Expect' a ~ a, Expect' b ~ b,
                   Mochastic repr, Integrate repr, Lambda repr) =>
@@ -501,20 +501,20 @@ testMHPriorProp = mh (priorAsProposal norm) norm
 
 testPriorProp' :: (Integrate repr, Mochastic repr, Lambda repr) =>
                  repr ((Real, Real) -> Measure ((Real, Real), Prob))
-testPriorProp' = 
+testPriorProp' =
       (lam $ \old ->
        superpose [(1 / 2,
-		   normal 0 1 `bind` \x1 ->
-		   dirac (pair (pair x1 (snd_ old))
-			       (exp_ ((x1 * (-1) + fst_ old)
-				      * (fst_ old + snd_ old * (-2) + x1)
-				      * (1 / 2))))),
-		  (1 / 2,
-		   normal 0 (sqrt_ 2) `bind` \x1 ->
-		   dirac (pair (pair (fst_ old) x1)
-			       (exp_ ((x1 * (-1) + snd_ old)
-				      * (snd_ old * (-1) + fst_ old * 4 + x1 * (-1))
-				      * ((-1) / 4)))))])
+                   normal 0 1 `bind` \x1 ->
+                   dirac (pair (pair x1 (snd_ old))
+                               (exp_ ((x1 * (-1) + fst_ old)
+                                      * (fst_ old + snd_ old * (-2) + x1)
+                                      * (1 / 2))))),
+                  (1 / 2,
+                   normal 0 (sqrt_ 2) `bind` \x1 ->
+                   dirac (pair (pair (fst_ old) x1)
+                               (exp_ ((x1 * (-1) + snd_ old)
+                                      * (snd_ old * (-1) + fst_ old * 4 + x1 * (-1))
+                                      * ((-1) / 4)))))])
 
 dup :: (Lambda repr, Mochastic repr) => repr (Measure a) -> repr (Measure (a,a))
 dup m = let_ m (\m' -> liftM2 pair m' m')
