@@ -948,7 +948,8 @@ newtype Max a = Max { getMax :: a }
 instance (Ord a, Bounded a) => Monoid (Max a) where
   mempty = Max minBound
   mappend (Max a) (Max b) = Max (max a b)
-  mconcat = Max . maximum . map getMax
+  mconcat [] = mempty
+  mconcat xs = Max (maximum (map getMax xs))
 
 determineClosures :: Expr Loc Loc t -> Expr Loc Loc t
 determineClosures = bimap' id id $ \e env ->
