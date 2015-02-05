@@ -24,7 +24,8 @@ testMeasureUnit = test [
     "t24"     ~: testSS [t24] t24',
     "t25"     ~: testSS [t25] t25',
     "t44Add"  ~: testSS [t44Add] t44Add',
-    "t44Mul"  ~: testSS [t44Mul] t44Mul'
+    "t44Mul"  ~: testSS [t44Mul] t44Mul',
+    "t53"     ~: testSS [t53,t53'] t53''
     ]
 
 testMeasureProb :: Test
@@ -329,6 +330,23 @@ t52 = uniform 0 1 `bind` \x ->
 t52' = uniform 0 1 `bind` \x2 -> 
        superpose [((unsafeProb (1 + (x2 * (-1)))),(uniform  x2 1) `bind` \x4 -> (dirac (pair x4 (pair x2 x4)))), 
                   ((unsafeProb x2),(uniform  0 x2) `bind` \x4 -> (dirac (pair x2 (pair x2 x4))))]
+
+t53, t53', t53'' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
+t53 =
+  lam $ \x ->
+  superpose [(1, superpose [(1, if_ (0 `less` x)
+                                    (if_ (x `less` 1) (dirac unit) (superpose []))
+                                    (superpose []))]),
+             (1, if_ false (dirac unit) (superpose []))]
+t53' =
+  lam $ \x ->
+  superpose [(1, if_ (0 `less` x)
+                     (if_ (x `less` 1) (dirac unit) (superpose []))
+                     (superpose [])),
+             (1, if_ false (dirac unit) (superpose []))]
+t53'' =
+  lam $ \x ->
+  if_ (and_ [less 0 x, less x 1]) (dirac unit) (superpose [])
 
 -- Testing round-tripping of some other distributions
 testexponential :: Mochastic repr => repr (Measure Prob)
