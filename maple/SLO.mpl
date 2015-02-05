@@ -389,7 +389,11 @@ SLO := module ()
       if r = ('Right' = 'Left') then
         false
       else
-        map(simp_rel, r)
+        if lhs(r) = undefined or rhs(r) = undefined then
+          false
+        else
+          map(simp, r); # let map take care of which operator it is
+        end if;
       end if;
     elif r::specfunc(anything, {And, Or, Not}) then
       map(simp_rel, r)
@@ -444,6 +448,12 @@ SLO := module ()
   simp_pw := proc(pw)
     local res, cond, l, r, b1, b2, b3, rel, new_cond;
     res := simp_pw_equal(pw);
+    if nops(res)=4 then
+      b1 := flip_cond(op(1,res));
+      if b1 = op(3,res) then
+        res := piecewise(op(1,res), op(2, res), op(4,res));
+      end if
+    end if;
     if nops(res)=3 then
       # distribute conditions
       cond := op(1,res);
