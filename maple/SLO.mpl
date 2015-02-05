@@ -1247,7 +1247,7 @@ SLO := module ()
           # need to fix up initial conditions
           if res <> NULL then
             (c,d) := op(res);
-            new_dens := op(1,dens)/density[GammaD](d,c)(var);
+            new_dens := op(1,dens)/density[GammaD](c,d)(var);
             new_dens := simplify(new_dens) assuming op(_EnvPathCond),var>0;
             if depends(new_dens,var) then
               error "mkRealDensity problem";
@@ -1280,7 +1280,8 @@ SLO := module ()
   density[BetaD] := proc(a, b) proc(x)
     x^(a-1)*(1-x)^(b-1)/Beta(a,b)
   end proc end proc;
-  density[GammaD] := proc(k, theta) proc(x)
+  # Hakaru uses the alternate definition of gamma, so the args are backwards
+  density[GammaD] := proc(theta,k) proc(x)
     x^(theta-1)/k^(theta-1)*exp(-x/k)/k/GAMMA(theta);
   end proc end proc;
 
