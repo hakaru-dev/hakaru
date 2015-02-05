@@ -25,7 +25,8 @@ testMeasureUnit = test [
     "t25"     ~: testSS [t25] t25',
     "t44Add"  ~: testSS [t44Add] t44Add',
     "t44Mul"  ~: testSS [t44Mul] t44Mul',
-    "t53"     ~: testSS [t53,t53'] t53''
+    "t53"     ~: testSS [t53,t53'] t53'',
+    "t54"     ~: testS t54
     ]
 
 testMeasureProb :: Test
@@ -347,6 +348,32 @@ t53' =
 t53'' =
   lam $ \x ->
   if_ (and_ [less 0 x, less x 1]) (dirac unit) (superpose [])
+
+t54 :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
+t54 =
+    lam $ \x0 ->
+    (dirac x0 `bind` \x1 ->
+     (uniform 0 1 `bind` \x2 -> dirac (-x2)) `bind` \x2 ->
+     dirac (x1 + x2)) `bind` \x1 ->
+    (((dirac 0 `bind` \x2 ->
+       dirac x1 `bind` \x3 ->
+       dirac (x2 `less` x3)) `bind` \x2 ->
+      if_ x2
+	  (dirac x1 `bind` \x3 -> dirac (recip x3))
+	  (dirac 0)) `bind` \x2 ->
+     factor (unsafeProb x2)) `bind` \x2 ->
+    (dirac x1 `bind` \x3 -> dirac (log x3)) `bind` \x3 ->
+    (dirac x3 `bind` \x4 -> dirac (-x4)) `bind` \x4 ->
+    ((dirac 0 `bind` \x5 ->
+      dirac x4 `bind` \x6 ->
+      dirac (x5 `less` x6)) `bind` \x5 ->
+     if_ x5
+	 ((dirac x4 `bind` \x6 ->
+	   dirac 1 `bind` \x7 ->
+	   dirac (x6 `less` x7)) `bind` \x6 ->
+	  if_ x6 (dirac 1) (dirac 0))
+	 (dirac 0)) `bind` \x5 ->
+    factor (unsafeProb x5)
 
 -- Testing round-tripping of some other distributions
 testexponential :: Mochastic repr => repr (Measure Prob)
