@@ -1406,7 +1406,9 @@ Superpose := proc()
       elif i::specfunc(anything, 'If') then
         wm[i] := wm[i] + 1;
       else
-        error "how do I superpose %1", i;
+        # error "how do I superpose %1", i;
+        # rather than error out, just pass it through
+        wm[i] := wm[i] + 1;
       end if;
     end do;
     res := [
