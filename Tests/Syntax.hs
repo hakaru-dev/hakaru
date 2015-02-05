@@ -5,11 +5,12 @@ module Tests.Syntax(allTests) where
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure,
-       Order(..), Base(..), ununit, and_, fst_, snd_, swap_, min_,
-       Mochastic(..), Lambda(..), Integrate(..), bind_, liftM, factor, beta, bern, lam)
+       Order(..), Base(..), ununit, and_, fst_, snd_, swap_, min_, max_,
+       Mochastic(..), Lambda(..), Integrate(..), bind_, liftM, liftM2, factor, beta, bern)
 import Language.Hakaru.Util.Pretty (Pretty (pretty), prettyPair)
 -- import Language.Hakaru.Sample(Sample(unSample))
-import Language.Hakaru.Disintegrate
+import Language.Hakaru.Disintegrate hiding (max_)
+import qualified Language.Hakaru.Disintegrate as D
 import Language.Hakaru.Any (Any(Any))
 
 import Control.Monad (zipWithM_, replicateM)
@@ -51,7 +52,19 @@ allTests = test [
     "gamalonDis" ~: testS gamalonDis,
     "borelishSub" ~: testD (const (borelish (-))) [(unit, 0, Any (uniform 0 1))],
     "borelishDiv" ~: testD (const (borelish (/))) [(unit, 1, Any (superpose [(1/2, liftM fromProb (beta 2 1))]))],
-    "culpepper" ~: testD (const culpepper) [(unit, 0, Any (superpose [(1/8, dirac true), (1/8, dirac false)]))]
+    "culpepper" ~: testD (const culpepper) [(unit, 0, Any (superpose [(1/8, dirac true), (1/8, dirac false)]))],
+    "density1" ~: testD (\u -> ununit u $ liftM (`pair` unit) $ uniform 0 1 `bind` \x -> uniform 0 1 `bind` \y -> dirac (x + exp (-y))) [],
+    "density2" ~: testD (\u -> ununit u $ liftM (`pair` unit) $ liftM2 (*) (uniform 0 1) $ liftM2 (+) (uniform 0 1) (uniform 0 1)) [],
+    "density3" ~: testD (\u -> ununit u $ liftM (`pair` unit) $ mix [(7, liftM (\x -> x - 1/2 + 0) (uniform 0 1)), (3, liftM (\x -> (x - 1/2) * 10) (uniform 0 1))]) [],
+    "disintegrate1" ~: testD (\u -> ununit u $ uniform 0 1 `bind` \x -> uniform 0 1 `bind` \y -> dirac (pair (exp x) (y + x))) [],
+    "disintegrate2" ~: testD (\u -> ununit u $ uniform 0 1 `bind` \x -> uniform 0 1 `bind` \y -> dirac (pair (y + x) (exp x))) [],
+    "disintegrate3" ~: testD (\u -> ununit u $ uniform 0 1 `bind` \x -> uniform 0 1 `bind` \y -> dirac (pair (max_ x y) (pair x y))) [],
+    "disintegrate4" ~: testD (\u -> ununit u $ uniform 0 1 `bind` \x -> dirac (pair (exp x) (-x))) [],
+    "disintegrate5" ~: testD (\u -> ununit u $ liftM (`pair` unit) $ let m = superpose (replicate 2 (1, uniform 0 1)) in let add = liftM2 (+) in add (add m m) m) [],
+    "disintegrate6" ~: testD (\u -> ununit u $ uniform 0 1 `bind` \x -> uniform 0 1 `bind` \y -> dirac (pair (x+y) (x-y))) [],
+    "disintegrate7" ~: testD (\u -> ununit u $ uniform 0 1 `bind` \y -> uniform 0 1 `bind` \x -> dirac (pair (x+y) (uniform 0 1 `bind_` dirac y))) [],
+    "disintegrate8" ~: testD (\u -> ununit u $ dirac (uniform 0 1 `bind` \x -> dirac (1+x)) `bind` \m -> m `bind` \x -> m `bind` \y -> dirac (pair x y)) [],
+    "disintegrate9" ~: testD (\u -> ununit u $ (uniform 0 1 `bind` \x -> dirac (dirac (1+x))) `bind` \m -> m `bind` \x -> m `bind` \y -> dirac (pair x y)) []
     ]
 
 
@@ -271,7 +284,7 @@ disintegrateTestRunner = do
            , Snd Root )
   testDist ( Bind (Leaf x) stdRandom
            $ Bind (Leaf y) stdRandom
-           $ Bind (Leaf z) (max_ (Var x) (Var y))
+           $ Bind (Leaf z) (D.max_ (Var x) (Var y))
            $ Dirac (Pair (Var z) (Pair (Var x) (Var y)))
            , Fst Root )
   testDist ( Bind (Leaf x) stdRandom
