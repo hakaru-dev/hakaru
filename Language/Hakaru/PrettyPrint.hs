@@ -1,5 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, GADTs, ScopedTypeVariables, TypeFamilies #-}
-{-# OPTIONS -Wall #-}
+{-# OPTIONS -Wall -Werror #-}
 module Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode) where
 
 -- Pretty-printing interpretation
@@ -9,7 +9,7 @@ import Language.Hakaru.Util.Pretty
 import Text.PrettyPrint hiding (parens)
 import qualified Text.PrettyPrint as Text 
 import Language.Hakaru.Embed
-import qualified Generics.SOP as SOP
+-- import qualified Generics.SOP as SOP
 
 leftMode :: Doc -> String
 leftMode = renderStyle style{mode=LeftMode}

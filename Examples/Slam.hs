@@ -59,103 +59,103 @@ import qualified Data.ByteString.Lazy as B
 -----------
 -- 1. GPSLon, GPSLat
 -- 2. phi : world angle
--- 3. (x_i, y_i) : world coords (lon, lat) of each object i in the map                         
+-- 3. (x_i, y_i) : world coords (lon, lat) of each object i in the map
 
 range :: Int
 range = 361
 
-shortrange :: Int
-shortrange = 11             
-    
 type ZRad = H.Real  -- ^ Observed radial distance to a beacon
 type ZInt = H.Real  -- ^ Observed light intensity (reflected) from a beacon
 type GPS = H.Real
 type Angle = H.Real -- ^ In radians
 type Vel = H.Real    
 type DelTime = H.Real
-type DimL = H.Real
-type DimH = H.Real
-type DimA = H.Real
-type DimB = H.Real
+    
+type Dims = Vector H.Real -- ^ <l,h,a,b>
+
+dimL, dimH, dimA, dimB :: (Base repr) => repr Dims -> repr H.Real
+dimL v = H.index v 0
+dimH v = H.index v 1
+dimA v = H.index v 2
+dimB v = H.index v 3
 
 type LaserReads = (Vector ZRad, Vector ZInt)
 type VehicleCoords = (Angle, (GPS, GPS))    
 
 type State = (LaserReads, VehicleCoords)
 
-type Simulator repr = repr DimL -> repr DimH -> repr DimA -> repr DimB
-                    -> repr [GPS] -> repr [GPS] -- ^ beacon lons, beacon lats
+type Simulator repr = repr Dims
+                    -> repr (Vector GPS) -- ^ beacon lons
+                    -> repr (Vector GPS) -- ^ beacon lats
                     -> repr GPS -> repr GPS -> repr Angle -- ^ vehLon, vehLat, phi
                     -> repr Vel -> repr Angle -- ^ vel, alpha
                     -> repr DelTime           -- ^ timestamp
-                    -> repr (Measure State)    
+                    -> repr (Measure State)
 
 --------------------------------------------------------------------------------
 --                                MODEL                                       --
 --------------------------------------------------------------------------------
                        
-simulate :: (Mochastic repr) => Int -> Simulator repr
-simulate n dimL dimH dimA dimB
-         blons blats
+simulate :: (Mochastic repr) => Simulator repr
+simulate ds blons blats
          old_lon old_lat old_phi
          old_ve old_alpha delT =
 
-    let_' (old_ve / (1 - (tan old_alpha)*dimH/dimL)) $ \old_vc ->
-    let_' (calcLon dimA dimB dimL old_lon delT old_vc old_phi old_alpha) $
+    let_' (old_ve / (1 - (tan old_alpha)*(dimH ds)/(dimL ds))) $ \old_vc ->
+    let_' (calcLon ds old_lon delT old_vc old_phi old_alpha) $
               \calc_lon ->
-    let_' (calcLat dimA dimB dimL old_lat delT old_vc old_phi old_alpha) $
+    let_' (calcLat ds old_lat delT old_vc old_phi old_alpha) $
               \calc_lat ->
-    let_' (old_phi + delT*old_vc*(tan old_alpha) / dimL) $ \calc_phi ->
+    let_' (old_phi + delT*old_vc*(tan old_alpha) / (dimL ds)) $ \calc_phi ->
     
-    normal calc_lon ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \vlon ->
-    normal calc_lat ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \vlat ->
-    normal calc_phi ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \vphi ->
+    normal calc_lon ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \lon ->
+    normal calc_lat ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \lat ->
+    normal calc_phi ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \phi ->
 
-    let_' (map_ n ((-) vlon) blons) $ \lon_ds ->
-    let_' (map_ n ((-) vlat) blats) $ \lat_ds ->
+    let_' (vmap ((-) lon) blons) $ \lon_ds ->
+    let_' (vmap ((-) lat) blats) $ \lat_ds ->
         
-    let_' (map_ n sqrt_ (zipWith_ n (+) (map_ n sqr lon_ds)
-                                        (map_ n sqr lat_ds))) $ \calc_zrads ->
+    let_' (vmap sqrt_ (vZipWith (+) (vmap sqr lon_ds)
+                                    (vmap sqr lat_ds))) $ \calc_zrads ->
     -- inverse-square for intensities 
-    let_' (map_ n (\r -> cIntensity / (pow_ r 2)) calc_zrads) $ \calc_zints ->
+    let_' (vmap (\r -> cIntensity / (pow_ r 2)) calc_zrads) $ \calc_zints ->
     -- removed a "+ pi/2" term: it is present as (i - (n-1)/2) in laserAssigns
-    let_' (map_ n (\r -> atan r - calc_phi)
-                  (zipWith_ n (/) lat_ds lon_ds)) $ \calc_zbetas ->
+    let_' (vmap (\r -> atan r - calc_phi)
+                (vZipWith (/) lat_ds lon_ds)) $ \calc_zbetas ->
 
-    perturb n (\l -> normal (fromProb l) cBeacon) calc_zrads `bind` \zrads ->
-    perturb n (\l -> normal (fromProb l) cBeacon) calc_zints `bind` \zints ->
-    perturb n (\l -> normal l cBeacon) calc_zbetas `bind` \zbetas ->
+    normalNoise cBeacon (vmap fromProb calc_zrads) `bind` \zrads ->
+    normalNoise cBeacon (vmap fromProb calc_zints) `bind` \zints ->        
+    normalNoise cBeacon calc_zbetas `bind` \zbetas ->
 
     plate (vector 0 360 (const (normal muZRads sigmaZRads))) `bind` \baseR ->
-    let_' (laserAssigns n baseR zrads zbetas) $ \lasersR ->
+    let_' (laserAssigns zrads zbetas baseR) $ \lasersR ->
         
     plate (vector 0 360 (const (normal muZInts sigmaZInts))) `bind` \baseI ->
-    let_' (laserAssigns n baseI zints zbetas) $ \lasersI ->
+    let_' (laserAssigns zints zbetas baseI) $ \lasersI ->
     
-    dirac $ pair (pair lasersR lasersI)
-                 (pair vphi (pair vlon vlat))
+    dirac $ pair (pair lasersR lasersI) (pair phi (pair lon lat))          
 
-calcLon :: (Base repr) => repr DimA -> repr DimB -> repr DimL
+calcLon :: (Base repr) => repr Dims
         -> repr GPS                 -- ^ old_lon
         -> repr DelTime -> repr Vel -- ^ delT, old_vc
         -> repr Angle -> repr Angle -- ^ old_phi, old_alpha
         -> repr GPS
-calcLon dimA dimB dimL old_lon delT old_vc old_phi old_alpha =
+calcLon ds old_lon delT old_vc old_phi old_alpha =
     old_lon + delT * (old_vc*(cos old_phi)
                       - (old_vc
-                         * (dimA*(sin old_phi) + dimB*(cos old_phi))
-                         * (tan old_alpha) / dimL))
+                         * ((dimA ds)*(sin old_phi) + (dimB ds)*(cos old_phi))
+                         * (tan old_alpha) / (dimL ds)))
 
-calcLat :: (Base repr) => repr DimA -> repr DimB -> repr DimL
+calcLat :: (Base repr) => repr Dims
         -> repr GPS                 -- ^ old_lat
         -> repr DelTime -> repr Vel -- ^ delT, old_vc
         -> repr Angle -> repr Angle -- ^ old_phi, old_alpha
         -> repr GPS
-calcLat dimA dimB dimL old_lat delT old_vc old_phi old_alpha =
+calcLat ds old_lat delT old_vc old_phi old_alpha =
     old_lat + delT * (old_vc*(sin old_phi)
                       - (old_vc
-                         * (dimA*(cos old_phi) + dimB*(sin old_phi))
-                         * (tan old_alpha) / dimL))
+                         * ((dimA ds)*(cos old_phi) + (dimB ds)*(sin old_phi))
+                         * (tan old_alpha) / (dimL ds)))
     
 cVehicle :: (Base repr) => repr Prob
 cVehicle = 0.42
@@ -184,36 +184,7 @@ sqr a = unsafeProb $ a * a  -- pow_ (unsafeProb a) 2
 let_' :: (Mochastic repr)
          => repr a -> (repr a -> repr (Measure b)) -> repr (Measure b)
 let_' = bind . dirac
-
-toHList :: (Base repr) => [repr a] -> repr [a]
-toHList [] = nil
-toHList (a : as) = cons a (toHList as)
-
-map_ :: (Base repr) => Int -> (repr a -> repr b) -> repr [a] -> repr [b]
-map_ 0 _ _  = nil
-map_ n f ls = unlist ls nil k
-    where k a as = cons (f a) (map_ (n-1) f as)
-
-zipWith_ :: (Base repr) => Int -> (repr a -> repr b -> repr c)
-         -> repr [a] -> repr [b] -> repr [c]
-zipWith_ 0 _ _  _  = nil
-zipWith_ n f al bl = unlist al nil k
-    where k  a as = unlist bl nil (k' a as)
-          k' a as b bs = cons (f a b) (zipWith_ (n-1) f as bs)
-
-foldl_ :: (Base repr) => Int -> (repr b -> repr a -> repr b)
-       -> repr b -> repr [a] -> repr b
-foldl_ 0 _ acc _  = acc
-foldl_ n f acc ls = unlist ls acc k
-    where k a as = foldl_ (n-1) f (f acc a) as
-
-sequence' :: (Mochastic repr) => Int -> repr [Measure a] -> repr (Measure [a])
-sequence' 0 _  = dirac nil
-sequence' n ls = unlist ls (dirac nil) k
-    where k ma mas = bind ma $ \a ->
-                     bind (sequence' (n-1) mas) $ \as ->
-                     dirac (cons a as)                                            
- 
+                           
 withinLaser :: (Base repr) => repr Int -> repr H.Real -> repr Bool
 withinLaser n b = and_ [ lessOrEq (convert (fromInt n - 0.5)) tb2
                        , less tb2 (convert (fromInt n + 0.5)) ]
@@ -222,22 +193,20 @@ withinLaser n b = and_ [ lessOrEq (convert (fromInt n - 0.5)) tb2
           toRadian d = d*pi/180
           convert = tan . toRadian . ((/) 4)
 
-laserAssigns :: (Base repr) => Int -- ^ numbeacons
-              -> repr (Vector H.Real)
-              -> repr [H.Real] -> repr [H.Real]
-              -> repr (Vector H.Real)
-laserAssigns nb base reads betas =
-    let combined = zipWith_ nb pair reads betas
-        addBeacon rb i m = unpair rb $ \r b ->
-                           if_ (withinLaser (i-180) b) r m
+laserAssigns :: (Base repr) => repr (Vector H.Real) -> repr (Vector H.Real)
+             -> repr (Vector H.Real) -- ^ length = range
+             -> repr (Vector H.Real)
+laserAssigns reads betas base =
+    let combine r b = vector 0 1 (\i -> if_ (equal_ i 0) r b)
+        combined = vZipWith combine reads betas
+        addBeacon rb i m = if_ (withinLaser (i-180) (H.index rb 1))
+                           (H.index rb 0) m
         build pd rb = mapWithIndex (addBeacon rb) pd
-    in foldl_ nb build base combined
+    in reduce build base combined
 
--- | Add random noise to a hakaru list of elements
-perturb :: Mochastic repr => Int -> (repr a -> repr (Measure a1))
-        -> repr [a] -> repr (Measure [a1])
-perturb n fn ls = let ls' = map_ n fn ls
-                  in sequence' n ls'
+normalNoise :: (Mochastic repr) => repr Prob -> repr (Vector H.Real)
+            -> repr (Measure (Vector H.Real))
+normalNoise sd v = plate (vmap (`normal` sd) v)
 
 --------------------------------------------------------------------------------
 --                               SIMULATIONS                                  --
@@ -245,8 +214,9 @@ perturb n fn ls = let ls' = map_ n fn ls
 
 type Rand = MWC.Gen (PrimState IO)
 
-type Particle = ( Double, Double, Double, Double -- ^ l,h,a,b
-                , [Double], [Double] )           -- ^ beacon lons, b-lats
+data Particle = PL { dims :: Vec Double  -- ^ l,h,a,b
+                   , bLats :: Vec Double
+                   , bLons :: Vec Double }
 
 data Params = PM { sensors :: [Sensor]
                  , controls :: [Control]
@@ -261,11 +231,14 @@ data Params = PM { sensors :: [Sensor]
 type Generator = Particle -> Params -> IO ()
 
 -- | Returns the pair (longitudes, latitudes)
-genBeacons :: Rand -> Maybe FilePath -> IO ([Double],[Double])
-genBeacons _ Nothing         = return ([1,3],[2,4])
+genBeacons :: Rand -> Maybe FilePath -> IO (Vec Double, Vec Double)
+genBeacons _ Nothing         = return ( Vec 0 1 (V.fromList [1,3])
+                                      , Vec 0 1 (V.fromList [2,4]) )
 genBeacons g (Just evalPath) = do
   trueBeacons <- obstacles evalPath
-  return (map lon trueBeacons , map lat trueBeacons)
+  let len = V.length trueBeacons
+  return ( Vec 0 (len-1) (V.map lon trueBeacons)
+         , Vec 0 (len-1) (V.map lat trueBeacons) )
 
 updateParams :: Params -> (Double,(Double,Double)) -> Double -> Params
 updateParams prms (cphi,(cvlon,cvlat)) tcurr =
@@ -280,7 +253,10 @@ plotPoint out (_,(lon,lat)) = do
   dExist <- doesDirectoryExist out
   unless dExist $ createDirectory out
   let fp = out </> "slam_out_path.txt"
-  appendFile fp $ show lon ++ "," ++ show lat ++ "\n"    
+  appendFile fp $ show lon ++ "," ++ show lat ++ "\n"
+
+makeDims :: V.Vector Double -> Vec Double
+makeDims = Vec 0 3
 
 ------------------
 --  UNCONDITIONED
@@ -289,12 +265,13 @@ plotPoint out (_,(lon,lat)) = do
 generate :: FilePath -> FilePath -> Maybe FilePath -> IO ()
 generate input output eval = do
   g <- MWC.createSystemRandom
-  (Init l h a b phi ilt iln) <- initialVals input
+  (Init ds phi ilt iln) <- initialVals input
   controls <- controlData input
   sensors <- sensorData input
   (lons, lats) <- genBeacons g eval
                   
-  gen output g (l,h,a,b,lons,lats) (PM sensors controls [] iln ilt phi 0 0 0)    
+  gen output g (PL (makeDims ds) lons lats)
+               (PM sensors controls [] iln ilt phi 0 0 0)
 
 gen :: FilePath -> Rand -> Generator
 gen out g prtcl params = go params
@@ -317,42 +294,40 @@ gen out g prtcl params = go params
                                  , alpha = nalph }
               3 -> do ((zr,zi), coords) <- sampleState prtcl prms tcurr g
                       putStrLn "writing to simulated_input_laser"
-                      plotReads out (V.toList $ vec zr) (V.toList $ vec zi)
+                      plotReads out (vec zr) (vec zi)
                       go $ updateParams prms coords tcurr
               _ -> error "Invalid sensor ID (must be 1, 2 or 3)"
 
-type SimLaser = DimL -> DimH -> DimA -> DimB
-               -> [GPS] -> [GPS]
-               -> GPS -> GPS -> Angle
-               -> Vel -> Angle
-               -> DelTime
-               -> Measure State
+type SimLaser = Dims -> Vector GPS -> Vector GPS
+              -> GPS -> GPS -> Angle
+              -> Vel -> Angle
+              -> DelTime
+              -> Measure State
 
-simLasers :: (Mochastic repr, Lambda repr) => Int -> repr SimLaser
-simLasers n = lam $ \dl -> lam $ \dh -> lam $ \da -> lam $ \db -> 
-              lam $ \blons -> lam $ \blats ->
-              lam $ \old_lon -> lam $ \old_lat -> lam $ \old_phi ->
-              lam $ \old_ve -> lam $ \old_alpha -> lam $ \delT ->
-              simulate n dl dh da db blons blats
-                       old_lon old_lat old_phi
-                       old_ve old_alpha delT
+simLasers :: (Mochastic repr, Lambda repr) => repr SimLaser
+simLasers = lam $ \ds -> lam $ \blons -> lam $ \blats ->
+            lam $ \old_lon -> lam $ \old_lat -> lam $ \old_phi ->
+            lam $ \old_ve -> lam $ \old_alpha -> lam $ \delT ->
+            simulate ds blons blats
+                     old_lon old_lat old_phi
+                     old_ve old_alpha delT
                               
 sampleState :: Particle -> Params -> Double -> Rand
             -> IO ( (Vec Double, Vec Double)
                   , (Double, (Double, Double)) )
-sampleState (l,h,a,b,blons,blats) prms tcurr g =
+sampleState prtcl prms tcurr g =
     fmap (\(Just (s,1)) -> s) $
-         (unSample $ simLasers (length blons))
-         l h a b blons blats
+         (unSample $ simLasers) ds blons blats
          vlon vlat phi ve alpha (tcurr-tprev) 1 g
-    where (PM _ _ _ vlon vlat phi ve alpha tprev) = prms
+    where (PL ds blons blats) = prtcl
+          (PM _ _ _ vlon vlat phi ve alpha tprev) = prms
 
-plotReads :: FilePath -> [Double] -> [Double] -> IO ()
+plotReads :: FilePath -> V.Vector Double -> V.Vector Double -> IO ()
 plotReads out rads ints = do
   dExist <- doesDirectoryExist out
   unless dExist $ createDirectory out
   let file = out </> "slam_simulated_laser.txt"
-  go file (rads ++ ints)
+  go file (V.toList $ rads V.++ ints)
     where go fp []     = appendFile fp "\n"
           go fp [l]    = appendFile fp ((show l) ++ "\n")
           go fp (l:ls) = appendFile fp ((show l) ++ ",") >> go fp ls
@@ -364,14 +339,14 @@ plotReads out rads ints = do
 runner :: FilePath -> FilePath -> Maybe FilePath -> IO ()
 runner input output eval = do
   g <- MWC.createSystemRandom
-  (Init l h a b phi ilt iln) <- initialVals input
+  (Init ds phi ilt iln) <- initialVals input
   controls <- controlData input
   sensors <- sensorData input
   lasers <- laserReadings input
   (lons, lats) <- genBeacons g eval
 
-  runn output g (l,h,a,b,lons,lats)
-       (PM sensors controls lasers iln ilt phi 0 0 0)
+  runn output g (PL (makeDims ds) lons lats)
+                (PM sensors controls lasers iln ilt phi 0 0 0)
 
 runn :: FilePath -> Rand -> Generator
 runn out g prtcl params = go params
@@ -403,45 +378,39 @@ runn out g prtcl params = go params
                       go $ prms' { lasers = tail (lasers prms) }
               _ -> error "Invalid sensor ID (must be 1, 2 or 3)"
 
-type Env = (DimL,
-            (DimH,
-             (DimA,
-              (DimB,
-               ([GPS], ([GPS],
-                        (GPS, (GPS, (Angle,
-                                     (Vel, (Angle, DelTime)))))))))))
-    
-evolve :: (Mochastic repr) => Int -> repr Env
+type Env = (Dims,
+            (Vector GPS, (Vector GPS,
+              (GPS, (GPS, (Angle,
+                           (Vel, (Angle, DelTime))))))))
+
+evolve :: (Mochastic repr) => repr Env
        -> [ repr LaserReads -> repr (Measure VehicleCoords) ]
-evolve n env =
+evolve env =
     [ d env
       | d <- runDisintegrate $ \ e0  ->
-             unpair e0  $ \l     e1  ->
-             unpair e1  $ \h     e2  ->
-             unpair e2  $ \a     e3  ->
-             unpair e3  $ \b     e4  ->
-             unpair e4  $ \blons e5  ->
-             unpair e5  $ \blats e6  ->
-             unpair e6  $ \vlon  e7  ->
-             unpair e7  $ \vlat  e8  ->
-             unpair e8  $ \phi   e9  ->
-             unpair e9  $ \vel   e10 ->
-             unpair e10 $ \alpha del ->
-             simulate n l h a b
-                      blons blats
+             unpair e0  $ \ds    e1  ->
+             unpair e1  $ \blons e2  ->
+             unpair e2  $ \blats e3  ->
+             unpair e3  $ \vlon  e4  ->
+             unpair e4  $ \vlat  e5  ->
+             unpair e5  $ \phi   e6  ->
+             unpair e6  $ \vel   e7  ->
+             unpair e7  $ \alpha del ->
+             simulate ds blons blats
                       vlon vlat phi
                       vel alpha del ]
 
-readLasers :: (Mochastic repr, Lambda repr) => Int
-           -> repr (Env -> LaserReads -> Measure VehicleCoords)
-readLasers n = lam $ \env -> lam $ \lrs -> head (evolve n env) lrs
+readLasers :: (Mochastic repr, Lambda repr) =>
+              repr (Env -> LaserReads -> Measure VehicleCoords)
+readLasers = lam $ \env -> lam $ \lrs -> head (evolve env) lrs
 
-sampleCoords (l,h,a,b,blons,blats) prms lreads tcurr g =
+sampleCoords prtcl prms lreads tcurr g =
     fmap (\(Just (s,1)) -> s) $
-         (unSample $ readLasers (length blons))
-         (l,(h,(a,(b,(blons,(blats,(vlon,(vlat,(phi,(ve,(alpha,tcurr-tprev)))))))))))
+         (unSample $ readLasers)
+         (ds,(blons,(blats,(vlon,(vlat,(phi,(ve,(alpha,tcurr-tprev))))))))
          lreads 1 g
-    where (PM _ _ _ vlon vlat phi ve alpha tprev) = prms
+    where (PL ds blons blats) = prtcl
+          (PM _ _ _ vlon vlat phi ve alpha tprev) = prms
 
 --------------------------------------------------------------------------------
 --                                MAIN                                        --
@@ -465,24 +434,17 @@ usageExit = do
 --                                DATA IO                                     --
 --------------------------------------------------------------------------------
 
-data Initial = Init { l :: Double
-                    , h :: Double
-                    , a :: Double
-                    , b :: Double
+data Initial = Init { dimensions :: V.Vector Double -- ^ l,h,a,b
                     , initPhi :: Double
                     , initLat :: Double
                     , initLon :: Double } deriving Show
 
 instance FromRecord Initial where
     parseRecord v
-        | V.length v == 7 = Init   A.<$>
-                            v .! 0 A.<*>
-                            v .! 1 A.<*>
-                            v .! 2 A.<*>
-                            v .! 3 A.<*>
-                            v .! 4 A.<*>
-                            v .! 5 A.<*>
-                            v .! 6
+        | V.length v == 7 = Init A.<$> parseRecord (V.slice 0 4 v)
+                                 A.<*> v .! 4
+                                 A.<*> v .! 5
+                                 A.<*> v .! 6
         | otherwise = fail "wrong number of fields in input_properties"
     
 noFileBye :: FilePath -> IO ()
@@ -555,11 +517,11 @@ instance FromRecord Obstacle where
         | V.length v == 2 = Obstacle A.<$> v .! 0 A.<*> v .! 1
         | otherwise = fail "wrong number of fields in eval_obstacles"
 
-obstacles :: FilePath -> IO [Obstacle]
+obstacles :: FilePath -> IO (V.Vector Obstacle)
 obstacles evalPath = do
   let evalObs = evalPath </> "eval_obstacles.csv"
   doesFileExist evalObs >>= flip unless (noFileBye evalObs)
-  decodeFileStream evalObs
+  fmap V.fromList $ decodeFileStream evalObs
                    
 --------------------------------------------------------------------------------
 --                               MISC MINI-TESTS                              --

@@ -1,6 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleContexts, DefaultSignatures,
              DeriveDataTypeable, GADTs, Rank2Types #-}
-{-# OPTIONS -Wall #-}
+{-# OPTIONS -Wall -Werror #-}
 
 module Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        EqType(Refl), Order_(..), Number(..), Fraction(..),
@@ -68,8 +68,8 @@ instance (Order_ a, Order_ b) => Order_ (Either a b) where
                      (\b1 -> uneither ab2 (\_ -> false) (\b2 -> equal_ b1 b2))
 
 instance (Order_ a) => Order_ (Vector a) where
-  less_ v1 v2 = undefined
-  equal_ v1 v2 = undefined
+  less_ _ _ = undefined
+  equal_ _ _ = undefined
 
 class (Order_ a) => Number a where
   numberCase :: f Int -> f Real -> f Prob -> f a
