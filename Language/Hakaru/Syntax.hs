@@ -180,11 +180,14 @@ class (Order repr Int , Num        (repr Int ),
                       (repr Int -> repr a) -> repr (Vector a)
   index            :: repr (Vector a) -> repr Int -> repr a
   loBound, hiBound :: repr (Vector a) -> repr Int
+  reduce           :: (repr a -> repr a -> repr a) ->
+                      repr a -> repr (Vector a) -> repr a
   vector           =  error "vector unimplemented"
   index            =  error "index unimplemented"
   loBound          =  error "loBound unimplemented"
   hiBound          =  error "hiBound unimplemented"
-
+  reduce           =  error "reduce unimplemented"
+  
   fix :: (repr a -> repr a) -> repr a
   fix f = x where x = f x
 
@@ -375,8 +378,7 @@ mapWithIndex f v = vector (loBound v) (hiBound v)
 vmap :: (Base repr) => (repr a -> repr b)
      -> repr (Vector a) -> repr (Vector b)
 vmap f = mapWithIndex (const f)
-
-         
+        
 -- | Assume (without checking) that the bounds of the two
 -- vectors are the same
 vZipWith :: (Base repr) => (repr a -> repr b -> repr c)
@@ -386,7 +388,7 @@ vZipWith f v1 v2 = vector (loBound v1) (hiBound v1)
 
 vZip :: (Base repr) => repr (Vector a) -> repr (Vector b)
      -> repr (Vector (a,b))
-vZip = vZipWith pair                   
+vZip = vZipWith pair
 
 class Lambda repr where
   lam :: (repr a -> repr b) -> repr (a -> b)
