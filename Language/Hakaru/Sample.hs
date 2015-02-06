@@ -2,7 +2,7 @@
     TypeFamilies, StandaloneDeriving, GeneralizedNewtypeDeriving #-}
 {-# OPTIONS -W #-}
 
-module Language.Hakaru.Sample (Sample(..), Sample') where
+module Language.Hakaru.Sample (Sample(..), Sample', Vec(..)) where
 
 -- Importance sampling interpretation
 

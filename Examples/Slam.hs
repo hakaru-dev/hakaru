@@ -17,8 +17,7 @@ import Control.Monad as CM
 import Language.Hakaru.Syntax as H
 import Language.Hakaru.Disintegrate
 import qualified System.Random.MWC as MWC
-import Language.Hakaru.Sample    
-import Language.Hakaru.Vector as HV
+import Language.Hakaru.Sample
 import Control.Monad.Cont (runCont, cont)
 import qualified Data.Sequence as S
 import qualified Data.Foldable as F
@@ -60,27 +59,13 @@ import qualified Data.ByteString.Lazy as B
 -----------
 -- 1. GPSLon, GPSLat
 -- 2. phi : world angle
--- 3. (x_i, y_i) : world coords (lon, lat) of each object i in the map
-                         
-type One = I
-type Two = D One
-type Three = SD One
-type Four = D Two
-type Five = SD Two
-type Six = D Three
-type Seven = SD Three
-type Eight = D Four
-type Nine = SD Four
-type Ten = D Five
-type Eleven = SD Five
-type ThreeSixtyOne = SD (D (D (SD (D Eleven))))             
+-- 3. (x_i, y_i) : world coords (lon, lat) of each object i in the map                         
 
 range :: Int
 range = 361
 
 shortrange :: Int
 shortrange = 11             
-type Len = Eleven
     
 type ZRad = H.Real  -- ^ Observed radial distance to a beacon
 type ZInt = H.Real  -- ^ Observed light intensity (reflected) from a beacon
@@ -93,7 +78,7 @@ type DimH = H.Real
 type DimA = H.Real
 type DimB = H.Real
 
-type LaserReads = (Repeat Len ZRad, Repeat Len ZInt)
+type LaserReads = (Vector ZRad, Vector ZInt)
 type VehicleCoords = (Angle, (GPS, GPS))    
 
 type State = (LaserReads, VehicleCoords)
@@ -141,11 +126,11 @@ simulate n dimL dimH dimA dimB
     perturb n (\l -> normal (fromProb l) cBeacon) calc_zints `bind` \zints ->
     perturb n (\l -> normal l cBeacon) calc_zbetas `bind` \zbetas ->
 
-    extractMeasure (HV.pure (normal muZRads sigmaZRads)) `bind` \baseR ->
-    let_' (laserAssigns shortrange n baseR zrads zbetas) $ \lasersR ->
-
-    extractMeasure (HV.pure (normal muZInts sigmaZInts)) `bind` \baseI ->
-    let_' (laserAssigns shortrange n baseI zints zbetas) $ \lasersI ->
+    plate (vector 0 360 (const (normal muZRads sigmaZRads))) `bind` \baseR ->
+    let_' (laserAssigns n baseR zrads zbetas) $ \lasersR ->
+        
+    plate (vector 0 360 (const (normal muZInts sigmaZInts))) `bind` \baseI ->
+    let_' (laserAssigns n baseI zints zbetas) $ \lasersI ->
     
     dirac $ pair (pair lasersR lasersI)
                  (pair vphi (pair vlon vlat))
@@ -227,31 +212,25 @@ sequence' 0 _  = dirac nil
 sequence' n ls = unlist ls (dirac nil) k
     where k ma mas = bind ma $ \a ->
                      bind (sequence' (n-1) mas) $ \as ->
-                     dirac (cons a as)                           
-                 
-withinLaser n b = and_ [ lessOrEq (convert (n-0.5)) tb2
-                       , less tb2 (convert (n+0.5)) ]           
+                     dirac (cons a as)                                            
+ 
+withinLaser :: (Base repr) => repr Int -> repr H.Real -> repr Bool
+withinLaser n b = and_ [ lessOrEq (convert (fromInt n - 0.5)) tb2
+                       , less tb2 (convert (fromInt n + 0.5)) ]
     where lessOrEq a b = or_ [less a b, equal a b]
           tb2 = tan (b/2)
           toRadian d = d*pi/180
-          ratio = fromRational $ fromIntegral range / fromIntegral shortrange
-          convert = tan . toRadian . ((/) 4) . ((*) ratio)
- 
--- | Insert sensor readings (radial distance or intensity)
--- from a list containing one reading for each beacon (reads; length = nb)
--- into the correct indices (i.e., angles derived from betas; length = nb)
--- within a hakaru vector of "noisy" readings (base; length = nl)
-laserAssigns :: (Base repr) => Int -> Int -- ^ numlasers, numbeacons
-             -> repr (Repeat Len H.Real)
-             -> repr [H.Real] -> repr [H.Real]
-             -> repr (Repeat Len H.Real)
-laserAssigns nl nb base reads betas =
+          convert = tan . toRadian . ((/) 4)
+
+laserAssigns :: (Base repr) => Int -- ^ numbeacons
+              -> repr (Vector H.Real)
+              -> repr [H.Real] -> repr [H.Real]
+              -> repr (Vector H.Real)
+laserAssigns nb base reads betas =
     let combined = zipWith_ nb pair reads betas
-        laserNum i = fromRational $ fromIntegral i - (fromIntegral (nl-1) / 2)
-        addBeacon rb (m,i) = unpair rb $ \r b ->
-                             if_ (withinLaser (laserNum i) b) r m
-        build pd rb = fromNestedPair pd $ \p -> toNestedPair
-                      ((addBeacon rb) <$> ((,) <$> p <*> (iota 0)))
+        addBeacon rb i m = unpair rb $ \r b ->
+                           if_ (withinLaser (i-180) b) r m
+        build pd rb = mapWithIndex (addBeacon rb) pd
     in foldl_ nb build base combined
 
 -- | Add random noise to a hakaru list of elements
@@ -260,18 +239,26 @@ perturb :: Mochastic repr => Int -> (repr a -> repr (Measure a1))
 perturb n fn ls = let ls' = map_ n fn ls
                   in sequence' n ls'
 
--- | Add random noise to a hakaru vector (nested tuple) of elements
-perturbReads fn ls = let ls' = fn <$> ls
-                     in extractMeasure ls'
+mapWithIndex :: (Base repr) => (repr Int -> repr a -> repr b)
+             -> repr (Vector a) -> repr (Vector b)
+mapWithIndex f v = vector (loBound v) (hiBound v)
+                   (\i -> f i (H.index v i))
 
--- | Conversion helper
--- from: repr (Vector (Measure a))
--- to:   repr (Measure (Vector a))
--- Vector means Language.Hakaru.Vector, i.e., nested tuple
-extractMeasure ls' = let mls' = cont . bind <$> ls'
-                         seq' = HV.sequence mls'
-                         rseq = runCont seq'
-                     in rseq (dirac . toNestedPair)
+vmap :: (Base repr) => (repr a -> repr b)
+     -> repr (Vector a) -> repr (Vector b)
+vmap f = mapWithIndex (const f)
+
+vZipWith :: (Base repr) => (repr a -> repr b -> repr c)
+         -> repr (Vector a) -> repr (Vector b) -> repr (Vector c)
+vZipWith f v1 v2 = vector (loBound v1) (hiBound v1)
+                   (\i -> f (H.index v1 i) (H.index v2 i))
+
+vZip :: (Base repr) => repr (Vector a) -> repr (Vector b)
+     -> repr (Vector (a,b))
+vZip = vZipWith pair
+
+vLength :: (Base repr) => repr (Vector a) -> repr Int
+vLength v = hiBound v - loBound v + 1
 
 --------------------------------------------------------------------------------
 --                               SIMULATIONS                                  --
@@ -351,7 +338,7 @@ gen out g prtcl params = go params
                                  , alpha = nalph }
               3 -> do ((zr,zi), coords) <- sampleState prtcl prms tcurr g
                       putStrLn "writing to simulated_input_laser"
-                      plotReads out (toList zr) (toList zi)
+                      plotReads out (V.toList $ vec zr) (V.toList $ vec zi)
                       go $ updateParams prms coords tcurr
               _ -> error "Invalid sensor ID (must be 1, 2 or 3)"
 
@@ -370,8 +357,10 @@ simLasers n = lam $ \dl -> lam $ \dh -> lam $ \da -> lam $ \db ->
               simulate n dl dh da db blons blats
                        old_lon old_lat old_phi
                        old_ve old_alpha delT
-
--- sampleState :: Particle -> Params -> Double -> Rand -> IO State
+                              
+sampleState :: Particle -> Params -> Double -> Rand
+            -> IO ( (Vec Double, Vec Double)
+                  , (Double, (Double, Double)) )
 sampleState (l,h,a,b,blons,blats) prms tcurr g =
     fmap (\(Just (s,1)) -> s) $
          (unSample $ simLasers (length blons))
@@ -428,7 +417,8 @@ runn out g prtcl params = go params
                            error "input_laser has fewer data than\
                                  \it should according to input_sensor"
                       let (L _ zr zi) = head (lasers prms)
-                          lreads = (fromList zr, fromList zi)
+                          makeLasers l = Vec 0 360 (V.fromList l)
+                          lreads = (makeLasers zr, makeLasers zi)
                       coords <- sampleCoords prtcl prms lreads tcurr g
                       let prms' = updateParams prms coords tcurr
                       go $ prms' { lasers = tail (lasers prms) }
@@ -609,34 +599,6 @@ testIO inpath = do
   controls <- controlData inpath
   putStrLn "-------- Here are some controls -----------"
   print $ V.slice 0 20 (V.fromList controls)
-
-testHV :: IO ()
-testHV = do
-  let myList :: Repeat Three (Sample IO (H.Real, H.Real))
-      myList = (\(a,b) -> pair a b) <$> HV.fromList [(1,2), (3,4), (5,6)]
-  print (unSample $ toNestedPair myList)
-  -- print myList
-  print (unSample (toNestedPair ((+) <$>
-                                 fromList [1,2,3] <*>
-                                 fromList [100,200,300])
-                   :: Sample IO (Repeat Three H.Real)))
         
-vecTest :: IO ()
-vecTest = do
-  let a :: Repeat ThreeSixtyOne Int
-      a = iota 0
-      b = toList a
-  print b
-
-testLaser :: IO ()
-testLaser = do
-  let base :: (Base repr) => repr (Repeat Eleven H.Real)
-      base =  toNestedPair (HV.pure 10)
-      reads :: (Base repr) => repr [H.Real]
-      reads = cons 30 (cons 40 nil)
-      betas :: (Base repr) => repr [H.Real]
-      betas = cons 7 (cons 9 nil)
-      result :: Sample IO (Repeat Eleven H.Real)
-      result = laserAssigns shortrange 2 base reads betas
-  print (unSample result)
-        
+hakvec :: (Mochastic repr) => repr (Measure (Vector H.Real))
+hakvec = plate $ vector 10 20 (const (normal 0 1))

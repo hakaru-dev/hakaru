@@ -66,6 +66,10 @@ instance (Order_ a, Order_ b) => Order_ (Either a b) where
                      (\a1 -> uneither ab2 (\a2 -> equal_ a1 a2) (\_ -> false))
                      (\b1 -> uneither ab2 (\_ -> false) (\b2 -> equal_ b1 b2))
 
+instance (Order_ a) => Order_ (Vector a) where
+  less_ v1 v2 = undefined
+  equal_ v1 v2 = undefined
+
 class (Order_ a) => Number a where
   numberCase :: f Int -> f Real -> f Prob -> f a
   numberRepr :: (Base repr) =>
@@ -353,6 +357,9 @@ normalizeVector x = let_ (sumVec x) (\ normalized ->
                     vector (loBound x)
                            (hiBound x)
                            (\ i -> index x i / normalized))
+
+vlength :: (Base repr) => repr (Vector a) -> repr Int
+vlength v = hiBound v - loBound v + 1
 
 dirichlet :: (Lambda repr, Mochastic repr, Integrate repr) =>
               repr (Vector Prob) -> repr (Measure (Vector Prob))
