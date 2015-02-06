@@ -181,35 +181,6 @@ sqr a = unsafeProb $ a * a  -- pow_ (unsafeProb a) 2
 let_' :: (Mochastic repr)
          => repr a -> (repr a -> repr (Measure b)) -> repr (Measure b)
 let_' = bind . dirac
-
-toHList :: (Base repr) => [repr a] -> repr [a]
-toHList [] = nil
-toHList (a : as) = cons a (toHList as)
-
-map_ :: (Base repr) => Int -> (repr a -> repr b) -> repr [a] -> repr [b]
-map_ 0 _ _  = nil
-map_ n f ls = unlist ls nil k
-    where k a as = cons (f a) (map_ (n-1) f as)
-
-zipWith_ :: (Base repr) => Int -> (repr a -> repr b -> repr c)
-         -> repr [a] -> repr [b] -> repr [c]
-zipWith_ 0 _ _  _  = nil
-zipWith_ n f al bl = unlist al nil k
-    where k  a as = unlist bl nil (k' a as)
-          k' a as b bs = cons (f a b) (zipWith_ (n-1) f as bs)
-
-foldl_ :: (Base repr) => Int -> (repr b -> repr a -> repr b)
-       -> repr b -> repr [a] -> repr b
-foldl_ 0 _ acc _  = acc
-foldl_ n f acc ls = unlist ls acc k
-    where k a as = foldl_ (n-1) f (f acc a) as
-
-sequence' :: (Mochastic repr) => Int -> repr [Measure a] -> repr (Measure [a])
-sequence' 0 _  = dirac nil
-sequence' n ls = unlist ls (dirac nil) k
-    where k ma mas = bind ma $ \a ->
-                     bind (sequence' (n-1) mas) $ \as ->
-                     dirac (cons a as)        
                            
 withinLaser :: (Base repr) => repr Int -> repr H.Real -> repr Bool
 withinLaser n b = and_ [ lessOrEq (convert (fromInt n - 0.5)) tb2
@@ -232,12 +203,6 @@ laserAssigns reads betas base =
 vFoldl :: (Base repr) => (repr a -> repr b -> repr a)
        -> repr a -> repr (Vector b) -> repr a
 vFoldl = undefined
-
--- | Add random noise to a hakaru list of elements
-perturb :: Mochastic repr => Int -> (repr a -> repr (Measure a1))
-        -> repr [a] -> repr (Measure [a1])
-perturb n fn ls = let ls' = map_ n fn ls
-                  in sequence' n ls'
 
 normalNoise :: (Mochastic repr) => repr Prob -> repr (Vector H.Real)
             -> repr (Measure (Vector H.Real))
