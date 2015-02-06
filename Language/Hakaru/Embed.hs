@@ -23,7 +23,7 @@
 module Language.Hakaru.Embed (
     module Language.Hakaru.Embed 
   , NP(..), NS(..), SingI(..), ConstructorInfo(..)
-  , Sing(..), DatatypeInfo(..), FieldInfo(..), Proxy(..), lengthSing
+  , Sing(..), DatatypeInfo(..), FieldInfo(..), Proxy(..), lengthSing, (:~:)(..)
   ) where
 
 import Language.Hakaru.Syntax
@@ -145,8 +145,8 @@ class (Base repr) => Embed (repr :: * -> *) where
 
    -}
 
-  hRep :: Embeddable t => repr (SOP xss) -> repr (HRep t)
-  unHRep :: Embeddable t => repr (HRep t) -> repr (SOP xss)
+  hRep :: (HakaruType xss, Embeddable t) => repr (SOP xss) -> repr (HRep t)
+  unHRep :: (HakaruType xss, Embeddable t) => repr (HRep t) -> repr (SOP xss)
 
   -- A "safer" variant, but the Nothing case will become 'error' at use sites
   -- anyways, so it probably isn't useful. 

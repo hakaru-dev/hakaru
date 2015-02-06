@@ -1,7 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleContexts, FlexibleInstances,
     TypeFamilies, StandaloneDeriving, GeneralizedNewtypeDeriving, GADTs,
-    RankNTypes, ScopedTypeVariables, UndecidableInstances, TypeOperators, DataKinds #-}
-{-# LANGUAGE PolyKinds #-} 
+    RankNTypes, ScopedTypeVariables, UndecidableInstances, TypeOperators, DataKinds, InstanceSigs #-}
 {-# OPTIONS -Wall #-}
 
 module Language.Hakaru.Expect (Expect(..), Expect', total, normalize) where
@@ -242,6 +241,8 @@ type instance MapExpect'2 (x ': xs) = MapExpect' x ': MapExpect'2 xs
 type instance Expect' (HRep t) = HRep t 
 type instance Expect' (SOP xss) = SOP (MapExpect'2 xss) 
 
+expectHType :: HSing xss -> Dict (HakaruType (MapExpect'2 xss))
+expectHType = error "todo" 
 
 instance Embed r => Embed (Expect r) where 
   _Nil = Expect _Nil
@@ -254,8 +255,16 @@ instance Embed r => Embed (Expect r) where
 
   caseSum (Expect x) caseZ caseS = Expect (caseSum x (unExpect . caseZ . Expect) (unExpect . caseS . Expect))
 
-  hRep (Expect x) = Expect (hRep x) 
-  unHRep (Expect x) = Expect (unHRep x) 
+
+  hRep :: forall xss t . (HakaruType xss, Embeddable t) 
+       => Expect r (SOP xss) -> Expect r (HRep t)
+
+  hRep (Expect x) = case expectHType (hsing :: HSing xss) of Dict -> Expect (hRep x) 
+
+  unHRep :: forall t xss . (HakaruType xss, Embeddable t) 
+         => Expect r (HRep t) -> Expect r  (SOP xss)
+
+  unHRep (Expect x) = case expectHType (hsing :: HSing xss) of Dict -> Expect (unHRep x) 
  
   tag (Expect x) = Expect (tag x) 
 

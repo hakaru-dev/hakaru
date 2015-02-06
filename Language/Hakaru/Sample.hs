@@ -1,5 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances,
-    TypeFamilies, StandaloneDeriving, GeneralizedNewtypeDeriving, GADTs #-}
+    TypeFamilies, StandaloneDeriving, GeneralizedNewtypeDeriving, GADTs, RankNTypes, InstanceSigs #-}
 {-# OPTIONS -W #-}
 
 module Language.Hakaru.Sample (Sample(..), Sample') where
@@ -195,4 +195,23 @@ instance Embed (Sample m) where
   caseProd (Sample (Z (x :* xs))) f = Sample (unSample $ f x (Sample (Z xs)))
   caseProd (Sample (S _)) _ = error "type error"
 
-  -- hRep (Sample x) = Sample x 
+  _Z (Sample (Z x)) = Sample (Z x) 
+  _Z (Sample (S _)) = error "type error" 
+
+  _S (Sample x) = Sample (S x) 
+
+  caseSum (Sample (Z x)) cS cZ = cS (Sample (Z x))
+  caseSum (Sample (S x)) cS cZ = cZ (Sample x) 
+
+  hRep :: forall (xss :: [[*]]) t. (HakaruType xss, Embeddable t)
+       => Sample m (SOP xss) -> Sample m (HRep t)
+  hRep (Sample x) = case eqHType2 :: Maybe (xss :~: Code t) of 
+                      Just Refl -> Sample x 
+                      Nothing   -> error "Embed{Sample}: hRep (types don't match)"
+
+  unHRep :: forall t (xss :: [[*]]).
+                  (HakaruType xss, Embeddable t) =>
+                  Sample m (HRep t) -> Sample m (SOP xss)
+  unHRep (Sample x) = case eqHType2 :: Maybe (xss :~: Code t) of 
+                      Just Refl -> Sample x 
+                      Nothing   -> error "Embed{Sample}: hRep (types don't match)"
