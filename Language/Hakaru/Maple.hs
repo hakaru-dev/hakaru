@@ -157,6 +157,12 @@ instance Mochastic Maple where
   -- Maple doesn't currently understand this input (though one day it might).
   -- This instance is currently here because Expect produces dual output and
   -- we want "instance Mochastic (Expect Maple)".
+  dirac _     = Maple (return "measure")
+  bind _ _    = Maple (return "measure")
+  lebesgue    = Maple (return "measure")
+  counting    = Maple (return "measure")
+  superpose _ = Maple (return "measure")
+{-
   dirac = mapleFun1 "Return"
   m `bind` k = Maple (ReaderT $ \i -> return $
     let (x, body) = mapleBind k i
@@ -167,6 +173,7 @@ instance Mochastic Maple where
     let pms' = [ "WeightedM(" ++ runMaple p i ++ "," ++ runMaple m i ++ ")"
                | (p,m) <- pms ]
     in "Superpose(" ++ intercalate "," pms' ++ ")")
+-}
 
 
 constructor :: String -> [Maple a] -> Maple b
