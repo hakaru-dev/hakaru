@@ -9,6 +9,7 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        Order(..), Base(..), ununit, fst_, snd_, swap_,
        and_, or_, not_, min_, max_,
        sumVec, normalizeVector, dirichlet,
+       vlength, mapWithIndex, vmap, vZipWith, vZip,
        Mochastic(..), bind_, factor, weight, bindx, liftM, liftM2,
        invgamma, exponential, chi2, bern,
        cauchy, laplace, student, weibull,
@@ -358,13 +359,34 @@ normalizeVector x = let_ (sumVec x) (\ normalized ->
                            (hiBound x)
                            (\ i -> index x i / normalized))
 
-vlength :: (Base repr) => repr (Vector a) -> repr Int
-vlength v = hiBound v - loBound v + 1
-
 dirichlet :: (Lambda repr, Mochastic repr, Integrate repr) =>
               repr (Vector Prob) -> repr (Measure (Vector Prob))
 dirichlet a = unNormedDirichlet a `bind` \xs ->
-              dirac (normalizeVector xs)
+              dirac (normalizeVector xs)                    
+
+vlength :: (Base repr) => repr (Vector a) -> repr Int
+vlength v = hiBound v - loBound v + 1
+
+mapWithIndex :: (Base repr) => (repr Int -> repr a -> repr b)
+             -> repr (Vector a) -> repr (Vector b)
+mapWithIndex f v = vector (loBound v) (hiBound v)
+                   (\i -> f i (index v i))
+
+vmap :: (Base repr) => (repr a -> repr b)
+     -> repr (Vector a) -> repr (Vector b)
+vmap f = mapWithIndex (const f)
+
+         
+-- | Assume (without checking) that the bounds of the two
+-- vectors are the same
+vZipWith :: (Base repr) => (repr a -> repr b -> repr c)
+         -> repr (Vector a) -> repr (Vector b) -> repr (Vector c)
+vZipWith f v1 v2 = vector (loBound v1) (hiBound v1)
+                   (\i -> f (index v1 i) (index v2 i))
+
+vZip :: (Base repr) => repr (Vector a) -> repr (Vector b)
+     -> repr (Vector (a,b))
+vZip = vZipWith pair                   
 
 class Lambda repr where
   lam :: (repr a -> repr b) -> repr (a -> b)

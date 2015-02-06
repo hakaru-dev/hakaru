@@ -239,27 +239,6 @@ perturb :: Mochastic repr => Int -> (repr a -> repr (Measure a1))
 perturb n fn ls = let ls' = map_ n fn ls
                   in sequence' n ls'
 
-mapWithIndex :: (Base repr) => (repr Int -> repr a -> repr b)
-             -> repr (Vector a) -> repr (Vector b)
-mapWithIndex f v = vector (loBound v) (hiBound v)
-                   (\i -> f i (H.index v i))
-
-vmap :: (Base repr) => (repr a -> repr b)
-     -> repr (Vector a) -> repr (Vector b)
-vmap f = mapWithIndex (const f)
-
-vZipWith :: (Base repr) => (repr a -> repr b -> repr c)
-         -> repr (Vector a) -> repr (Vector b) -> repr (Vector c)
-vZipWith f v1 v2 = vector (loBound v1) (hiBound v1)
-                   (\i -> f (H.index v1 i) (H.index v2 i))
-
-vZip :: (Base repr) => repr (Vector a) -> repr (Vector b)
-     -> repr (Vector (a,b))
-vZip = vZipWith pair
-
-vLength :: (Base repr) => repr (Vector a) -> repr Int
-vLength v = hiBound v - loBound v + 1
-
 --------------------------------------------------------------------------------
 --                               SIMULATIONS                                  --
 --------------------------------------------------------------------------------
