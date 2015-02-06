@@ -198,13 +198,13 @@ data (a :: k) :~: (b :: k) where Refl :: a :~: a
 #endif
 
 
-eqHType :: forall (a :: *) b . (HakaruType a, HakaruType b) => Maybe (a :~: b) 
+eqHType :: forall (a :: *) (b :: *) . (HakaruType a, HakaruType b) => Maybe (a :~: b) 
 eqHType = error "todo"
 
-eqHType1 :: forall (a :: [*]) b . (HakaruType a, HakaruType b) => Maybe (a :~: b)
+eqHType1 :: forall (a :: [*]) (b :: [*]) . (HakaruType a, HakaruType b) => Maybe (a :~: b)
 eqHType1 = error "todo"
 
-eqHType2 :: forall (a :: [[*]]) b . (HakaruType a, HakaruType b) => Maybe (a :~: b)
+eqHType2 :: forall (a :: [[*]]) (b :: [[*]]) . (HakaruType a, HakaruType b) => Maybe (a :~: b)
 eqHType2 = error "todo"
 
 data family HSing (a :: k)
@@ -224,8 +224,11 @@ class HakaruType (a :: k) where
 instance HakaruType Prob where hsing = HProb 
 instance HakaruType Real where hsing = HReal 
 
-instance HakaruType '[] where hsing = HNil 
-instance (HakaruType x, HakaruType xs) => HakaruType (x ': xs) where hsing = HCons hsing hsing
+instance HakaruType ('[] :: [*]) where hsing = HNil 
+instance HakaruType ('[] :: [[*]]) where hsing = HNil 
+
+instance (HakaruType x, HakaruType xs) => HakaruType (x ': xs :: [*]) where hsing = HCons hsing hsing
+instance (HakaruType x, HakaruType xs) => HakaruType (x ': xs :: [[*]]) where hsing = HCons hsing hsing
 
 
 -- eqHType :: (HakaruType a, HakaruType b) => Maybe (a :~: b)
