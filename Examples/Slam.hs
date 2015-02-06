@@ -197,15 +197,12 @@ laserAssigns :: (Base repr) => repr (Vector H.Real) -> repr (Vector H.Real)
              -> repr (Vector H.Real) -- ^ length = range
              -> repr (Vector H.Real)
 laserAssigns reads betas base =
-    let combined = vZipWith pair reads betas
-        addBeacon rb i m = unpair rb $ \r b ->
-                           if_ (withinLaser (i-180) b) r m
+    let combine r b = vector 0 1 (\i -> if_ (equal_ i 0) r b)
+        combined = vZipWith combine reads betas
+        addBeacon rb i m = if_ (withinLaser (i-180) (H.index rb 1))
+                           (H.index rb 0) m
         build pd rb = mapWithIndex (addBeacon rb) pd
-    in vFoldl build base combined
-
-vFoldl :: (Base repr) => (repr a -> repr b -> repr a)
-       -> repr a -> repr (Vector b) -> repr a
-vFoldl = undefined
+    in reduce build base combined
 
 normalNoise :: (Mochastic repr) => repr Prob -> repr (Vector H.Real)
             -> repr (Measure (Vector H.Real))
