@@ -80,14 +80,22 @@ dimA v = H.index v 2
 dimB v = H.index v 3
 
 type LaserReads = (Vector ZRad, Vector ZInt)
-type VehicleCoords = (Angle, (GPS, GPS))    
 
-type State = (LaserReads, VehicleCoords)
+type Coords = (Angle, (GPS, GPS)) -- ^ phi, vehLon, vehLat
+
+vPhi :: (Base repr) => repr Coords -> repr Angle
+vPhi cds = unpair cds $ \p _ -> p
+
+vLon, vLat :: (Base repr) => repr Coords -> repr GPS
+vLon cds = unpair cds $ \_ ll -> unpair ll $ \lon _ -> lon
+vLat cds = unpair cds $ \_ ll -> unpair ll $ \_ lat -> lat
+
+type State = (LaserReads, Coords)
 
 type Simulator repr = repr Dims
                     -> repr (Vector GPS) -- ^ beacon lons
                     -> repr (Vector GPS) -- ^ beacon lats
-                    -> repr GPS -> repr GPS -> repr Angle -- ^ vehLon, vehLat, phi
+                    -> repr Coords
                     -> repr Vel -> repr Angle -- ^ vel, alpha
                     -> repr DelTime           -- ^ timestamp
                     -> repr (Measure State)
@@ -97,16 +105,13 @@ type Simulator repr = repr Dims
 --------------------------------------------------------------------------------
                        
 simulate :: (Mochastic repr) => Simulator repr
-simulate ds blons blats
-         old_lon old_lat old_phi
+simulate ds blons blats cds
          old_ve old_alpha delT =
 
     let_' (old_ve / (1 - (tan old_alpha)*(dimH ds)/(dimL ds))) $ \old_vc ->
-    let_' (calcLon ds old_lon delT old_vc old_phi old_alpha) $
-              \calc_lon ->
-    let_' (calcLat ds old_lat delT old_vc old_phi old_alpha) $
-              \calc_lat ->
-    let_' (old_phi + delT*old_vc*(tan old_alpha) / (dimL ds)) $ \calc_phi ->
+    let_' (calcLon ds cds delT old_vc old_alpha) $ \calc_lon ->
+    let_' (calcLat ds cds delT old_vc old_alpha) $ \calc_lat ->
+    let_' ((vPhi cds) + delT*old_vc*(tan old_alpha) / (dimL ds)) $ \calc_phi ->
     
     normal calc_lon ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \lon ->
     normal calc_lat ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \lat ->
@@ -136,26 +141,30 @@ simulate ds blons blats
     dirac $ pair (pair lasersR lasersI) (pair phi (pair lon lat))          
 
 calcLon :: (Base repr) => repr Dims
-        -> repr GPS                 -- ^ old_lon
+        -> repr Coords
         -> repr DelTime -> repr Vel -- ^ delT, old_vc
-        -> repr Angle -> repr Angle -- ^ old_phi, old_alpha
+        -> repr Angle -- ^ old_alpha
         -> repr GPS
-calcLon ds old_lon delT old_vc old_phi old_alpha =
-    old_lon + delT * (old_vc*(cos old_phi)
-                      - (old_vc
-                         * ((dimA ds)*(sin old_phi) + (dimB ds)*(cos old_phi))
-                         * (tan old_alpha) / (dimL ds)))
+calcLon ds cds delT old_vc old_alpha =
+    let oldPhi = vPhi cds
+    in (vLon cds) + delT
+           * (old_vc*(cos oldPhi)
+              - (old_vc
+                 * ((dimA ds)*(sin oldPhi) + (dimB ds)*(cos oldPhi))
+                 * (tan old_alpha) / (dimL ds)))
 
 calcLat :: (Base repr) => repr Dims
-        -> repr GPS                 -- ^ old_lat
+        -> repr Coords
         -> repr DelTime -> repr Vel -- ^ delT, old_vc
-        -> repr Angle -> repr Angle -- ^ old_phi, old_alpha
+        -> repr Angle -- ^ old_alpha
         -> repr GPS
-calcLat ds old_lat delT old_vc old_phi old_alpha =
-    old_lat + delT * (old_vc*(sin old_phi)
-                      - (old_vc
-                         * ((dimA ds)*(cos old_phi) + (dimB ds)*(sin old_phi))
-                         * (tan old_alpha) / (dimL ds)))
+calcLat ds cds delT old_vc old_alpha =
+    let oldPhi = vPhi cds
+    in (vLat cds) + delT
+           * (old_vc*(sin oldPhi)
+              - (old_vc
+                 * ((dimA ds)*(cos oldPhi) + (dimB ds)*(sin oldPhi))
+                 * (tan old_alpha) / (dimL ds)))
     
 cVehicle :: (Base repr) => repr Prob
 cVehicle = 0.42
@@ -221,9 +230,7 @@ data Particle = PL { dims :: Vec Double  -- ^ l,h,a,b
 data Params = PM { sensors :: [Sensor]
                  , controls :: [Control]
                  , lasers :: [Laser]
-                 , vlon :: Double
-                 , vlat :: Double
-                 , phi :: Double
+                 , coords :: (Double,(Double,Double)) -- ^ phi, lon, lat
                  , vel :: Double
                  , alpha :: Double
                  , tm :: Double }    
@@ -241,11 +248,9 @@ genBeacons g (Just evalPath) = do
          , Vec 0 (len-1) (V.map lat trueBeacons) )
 
 updateParams :: Params -> (Double,(Double,Double)) -> Double -> Params
-updateParams prms (cphi,(cvlon,cvlat)) tcurr =
+updateParams prms cds tcurr =
     prms { sensors = tail (sensors prms)
-         , vlon = cvlon
-         , vlat = cvlat
-         , phi = cphi
+         , coords = cds
          , tm = tcurr }
                                 
 plotPoint :: FilePath -> (Double,(Double,Double)) -> IO ()
@@ -271,7 +276,7 @@ generate input output eval = do
   (lons, lats) <- genBeacons g eval
                   
   gen output g (PL (makeDims ds) lons lats)
-               (PM sensors controls [] iln ilt phi 0 0 0)
+               (PM sensors controls [] (iln,(ilt,phi)) 0 0 0)
 
 gen :: FilePath -> Rand -> Generator
 gen out g prtcl params = go params
@@ -299,18 +304,15 @@ gen out g prtcl params = go params
               _ -> error "Invalid sensor ID (must be 1, 2 or 3)"
 
 type SimLaser = Dims -> Vector GPS -> Vector GPS
-              -> GPS -> GPS -> Angle
+              -> Coords
               -> Vel -> Angle
               -> DelTime
               -> Measure State
 
 simLasers :: (Mochastic repr, Lambda repr) => repr SimLaser
 simLasers = lam $ \ds -> lam $ \blons -> lam $ \blats ->
-            lam $ \old_lon -> lam $ \old_lat -> lam $ \old_phi ->
-            lam $ \old_ve -> lam $ \old_alpha -> lam $ \delT ->
-            simulate ds blons blats
-                     old_lon old_lat old_phi
-                     old_ve old_alpha delT
+            lam $ \cds -> lam $ \old_ve -> lam $ \old_alpha ->
+            lam $ \delT -> simulate ds blons blats cds old_ve old_alpha delT
                               
 sampleState :: Particle -> Params -> Double -> Rand
             -> IO ( (Vec Double, Vec Double)
@@ -318,9 +320,9 @@ sampleState :: Particle -> Params -> Double -> Rand
 sampleState prtcl prms tcurr g =
     fmap (\(Just (s,1)) -> s) $
          (unSample $ simLasers) ds blons blats
-         vlon vlat phi ve alpha (tcurr-tprev) 1 g
+         cds ve alpha (tcurr-tprev) 1 g
     where (PL ds blons blats) = prtcl
-          (PM _ _ _ vlon vlat phi ve alpha tprev) = prms
+          (PM _ _ _ cds ve alpha tprev) = prms
 
 plotReads :: FilePath -> V.Vector Double -> V.Vector Double -> IO ()
 plotReads out rads ints = do
@@ -346,7 +348,7 @@ runner input output eval = do
   (lons, lats) <- genBeacons g eval
 
   runn output g (PL (makeDims ds) lons lats)
-                (PM sensors controls lasers iln ilt phi 0 0 0)
+                (PM sensors controls lasers (iln,(ilt,phi)) 0 0 0)
 
 runn :: FilePath -> Rand -> Generator
 runn out g prtcl params = go params
@@ -378,39 +380,34 @@ runn out g prtcl params = go params
                       go $ prms' { lasers = tail (lasers prms) }
               _ -> error "Invalid sensor ID (must be 1, 2 or 3)"
 
-type Env = (Dims,
-            (Vector GPS, (Vector GPS,
-              (GPS, (GPS, (Angle,
-                           (Vel, (Angle, DelTime))))))))
+type Env = (Dims, (Vector GPS, (Vector GPS,
+            (Coords, (Vel, (Angle, DelTime))))))
 
 evolve :: (Mochastic repr) => repr Env
-       -> [ repr LaserReads -> repr (Measure VehicleCoords) ]
+       -> [ repr LaserReads -> repr (Measure Coords) ]
 evolve env =
     [ d env
       | d <- runDisintegrate $ \ e0  ->
              unpair e0  $ \ds    e1  ->
              unpair e1  $ \blons e2  ->
              unpair e2  $ \blats e3  ->
-             unpair e3  $ \vlon  e4  ->
-             unpair e4  $ \vlat  e5  ->
-             unpair e5  $ \phi   e6  ->
-             unpair e6  $ \vel   e7  ->
-             unpair e7  $ \alpha del ->
+             unpair e3  $ \cds   e4  ->
+             unpair e4  $ \vel   e5  ->
+             unpair e5  $ \alpha del ->
              simulate ds blons blats
-                      vlon vlat phi
-                      vel alpha del ]
+                      cds vel alpha del ]
 
 readLasers :: (Mochastic repr, Lambda repr) =>
-              repr (Env -> LaserReads -> Measure VehicleCoords)
+              repr (Env -> LaserReads -> Measure Coords)
 readLasers = lam $ \env -> lam $ \lrs -> head (evolve env) lrs
 
 sampleCoords prtcl prms lreads tcurr g =
     fmap (\(Just (s,1)) -> s) $
          (unSample $ readLasers)
-         (ds,(blons,(blats,(vlon,(vlat,(phi,(ve,(alpha,tcurr-tprev))))))))
+         (ds,(blons,(blats,(cds,(ve,(alpha,tcurr-tprev))))))
          lreads 1 g
     where (PL ds blons blats) = prtcl
-          (PM _ _ _ vlon vlat phi ve alpha tprev) = prms
+          (PM _ _ _ cds ve alpha tprev) = prms
 
 --------------------------------------------------------------------------------
 --                                MAIN                                        --
