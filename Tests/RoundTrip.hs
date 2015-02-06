@@ -28,7 +28,9 @@ testMeasureUnit = test [
     "t53"     ~: testSS [t53,t53'] t53'',
     "t54"     ~: testS t54,
     "t55"     ~: testSS [t55] t55',
-    "t56"     ~: testSS [t56,t56'] t56''
+    "t56"     ~: testSS [t56,t56'] t56'',
+    "t57"     ~: testSS [t57] t57',
+    "t58"     ~: testSS [t58] t58'
     ]
 
 testMeasureProb :: Test
@@ -413,6 +415,27 @@ t56'' =
     if_ (less t 1) (factor (unsafeProb t)) $
     if_ (less t 2) (factor (unsafeProb (2+t*(-1)))) $
     superpose []
+
+t57, t57' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
+t57 = lam $ \t -> superpose
+  [(1, if_ (less t 1) (dirac unit) (superpose [])),
+   (1, if_ (less 0 t) (dirac unit) (superpose []))]
+t57' = lam $ \t -> if_ (t `less` 1)
+                       (if_ (0 `less` t) (weight 2 (dirac unit)) (dirac unit))
+                       (dirac unit)
+
+t58, t58' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
+t58 = lam $ \t -> superpose
+  [(1, if_ (and_ [less 0 t, less t 2]) (dirac unit) (superpose [])),
+   (1, if_ (and_ [less 1 t, less t 3]) (dirac unit) (superpose []))]
+t58' = lam $ \t ->
+  if_ (if_ (0 `less` t) (t `less` 2) false)
+      (if_ (if_ (1 `less` t) (t `less` 3) false)
+           (weight 2 (dirac unit))
+           (dirac unit))
+      (if_ (if_ (1 `less` t) (t `less` 3) false)
+           (dirac unit)
+           (superpose []))
 
 -- Testing round-tripping of some other distributions
 testexponential :: Mochastic repr => repr (Measure Prob)
