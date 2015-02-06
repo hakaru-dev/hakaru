@@ -109,8 +109,8 @@ simulate ds blons blats cds
          old_ve old_alpha delT =
 
     let_' (old_ve / (1 - (tan old_alpha)*(dimH ds)/(dimL ds))) $ \old_vc ->
-    let_' (calcLon ds cds delT old_vc old_alpha) $ \calc_lon ->
-    let_' (calcLat ds cds delT old_vc old_alpha) $ \calc_lat ->
+    let_' (newPos 0 ds cds delT old_vc old_alpha) $ \calc_lon ->
+    let_' (newPos 1 ds cds delT old_vc old_alpha) $ \calc_lat ->
     let_' ((vPhi cds) + delT*old_vc*(tan old_alpha) / (dimL ds)) $ \calc_phi ->
     
     normal calc_lon ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \lon ->
@@ -138,33 +138,21 @@ simulate ds blons blats cds
     plate (vector 0 360 (const (normal muZInts sigmaZInts))) `bind` \baseI ->
     let_' (laserAssigns zints zbetas baseI) $ \lasersI ->
     
-    dirac $ pair (pair lasersR lasersI) (pair phi (pair lon lat))          
+    dirac $ pair (pair lasersR lasersI) (pair phi (pair lon lat))
 
-calcLon :: (Base repr) => repr Dims
-        -> repr Coords
-        -> repr DelTime -> repr Vel -- ^ delT, old_vc
-        -> repr Angle -- ^ old_alpha
-        -> repr GPS
-calcLon ds cds delT old_vc old_alpha =
-    let oldPhi = vPhi cds
-    in (vLon cds) + delT
-           * (old_vc*(cos oldPhi)
-              - (old_vc
-                 * ((dimA ds)*(sin oldPhi) + (dimB ds)*(cos oldPhi))
-                 * (tan old_alpha) / (dimL ds)))
-
-calcLat :: (Base repr) => repr Dims
-        -> repr Coords
-        -> repr DelTime -> repr Vel -- ^ delT, old_vc
-        -> repr Angle -- ^ old_alpha
-        -> repr GPS
-calcLat ds cds delT old_vc old_alpha =
-    let oldPhi = vPhi cds
-    in (vLat cds) + delT
-           * (old_vc*(sin oldPhi)
-              - (old_vc
-                 * ((dimA ds)*(cos oldPhi) + (dimB ds)*(sin oldPhi))
-                 * (tan old_alpha) / (dimL ds)))
+newPos :: (Base repr) => repr Int
+       -> repr Dims -> repr Coords
+       -> repr DelTime -> repr Vel -- ^ delT, old_vc
+       -> repr Angle -- ^ old_alpha
+       -> repr GPS
+newPos i ds cds delT old_vc old_alpha =
+    oldPos + delT * (old_vc*(fb oldPhi)
+                     - (old_vc * mag * (tan old_alpha) / (dimL ds)))
+    where oldPos = if_ (equal_ i 0) (vLon cds) (vLat cds)
+          oldPhi = vPhi cds
+          fa p = if_ (equal_ i 0) (sin p) (cos p)
+          fb p = if_ (equal_ i 0) (cos p) (sin p)
+          mag = (dimA ds)*(fa oldPhi) + (dimB ds)*(fb oldPhi)
     
 cVehicle :: (Base repr) => repr Prob
 cVehicle = 0.42
