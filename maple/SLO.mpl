@@ -42,6 +42,7 @@ SLO := module ()
     try
       # be context sensitive for this pass too:
       _EnvBinders := {};
+      _EnvPathCond := `union`(op(map(toProp, glob)));
       NumericEventHandler(division_by_zero = MyHandler);
       res := HAST(simp(eval(simp(eval(snd(inp)(c), 'if_'=piecewise)), Int=myint)), r);
     catch "Wrong kind of parameters in piecewise":
@@ -389,7 +390,11 @@ SLO := module ()
       if r = ('Right' = 'Left') then
         false
       else
-        map(simp_rel, r)
+        if lhs(r) = undefined or rhs(r) = undefined then
+          false
+        else
+          map(simp, r); # let map take care of which operator it is
+        end if;
       end if;
     elif r::specfunc(anything, {And, Or, Not}) then
       map(simp_rel, r)
@@ -444,6 +449,12 @@ SLO := module ()
   simp_pw := proc(pw)
     local res, cond, l, r, b1, b2, b3, rel, new_cond;
     res := simp_pw_equal(pw);
+    if nops(res)=4 then
+      b1 := flip_cond(op(1,res));
+      if b1 = op(3,res) then
+        res := piecewise(op(1,res), op(2, res), op(4,res));
+      end if
+    end if;
     if nops(res)=3 then
       # distribute conditions
       cond := op(1,res);
@@ -1110,9 +1121,9 @@ SLO := module ()
           diffop := DEtools[de2diffop](de, f(var), [Dx, var]);
           return Diffop(diffop, init)
         end if;
-      elif not (de = NULL) then # no initial cond needed
+      elif not (de = NULL) then # no initial condition returned
         diffop := DEtools[de2diffop](de, f(var), [Dx, var]);
-        return Diffop(diffop, {});
+        return Diffop(diffop, {}); # should be {f(0)=0} ?
       end if;
     catch: # do nothing
     end try;
@@ -1218,7 +1229,7 @@ SLO := module ()
   end proc;
 
   mkRealDensity := proc(dens, var, rng)
-    local de, res, new_dens, Dx, diffop, init;
+    local de, res, new_dens, Dx, diffop, init, c, d; 
     if dens :: specfunc(anything, 'WeightedM') then
       res := NULL;
       # no matter what, get the de.  
@@ -1228,11 +1239,21 @@ SLO := module ()
         (diffop, init) := op(de);
         # dispatch on rng
         if rng = -infinity..infinity then
-          res := recognize_density(diffop, init, Dx, var);
+          res := recognize_density(diffop, init, Dx, var) assuming op(_EnvPathCond), var::real;
         elif rng = 0..1 then
-          res := recognize_density_01(diffop, init, Dx, var);
+          res := recognize_density_01(diffop, init, Dx, var) assuming op(_EnvPathCond), var::RealRange(0,1);
         elif rng = 0..infinity then
-          res := recognize_density_0inf(diffop, init, Dx, var);
+          res := recognize_density_0inf(diffop, init, Dx, var) assuming op(_EnvPathCond), var>0;
+          # need to fix up initial conditions
+          if res <> NULL then
+            (c,d) := op(res);
+            new_dens := op(1,dens)/density[GammaD](c,d)(var);
+            new_dens := simplify(new_dens) assuming op(_EnvPathCond),var>0;
+            if depends(new_dens,var) then
+              error "mkRealDensity problem";
+            end if;
+            res := WeightedM(new_dens, res);
+          end if;
         end if;
       end if;
 
@@ -1259,8 +1280,9 @@ SLO := module ()
   density[BetaD] := proc(a, b) proc(x)
     x^(a-1)*(1-x)^(b-1)/Beta(a,b)
   end proc end proc;
-  density[GammaD] := proc(a, b) proc(x)
-    (x/k)^(theta-1)*exp(-x/k)/k/GAMMA(theta);
+  # Hakaru uses the alternate definition of gamma, so the args are backwards
+  density[GammaD] := proc(theta,k) proc(x)
+    x^(theta-1)/k^(theta-1)*exp(-x/k)/k/GAMMA(theta);
   end proc end proc;
 
 #############
@@ -1406,7 +1428,9 @@ Superpose := proc()
       elif i::specfunc(anything, 'If') then
         wm[i] := wm[i] + 1;
       else
-        error "how do I superpose %1", i;
+        # error "how do I superpose %1", i;
+        # rather than error out, just pass it through
+        wm[i] := wm[i] + 1;
       end if;
     end do;
     res := [

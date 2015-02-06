@@ -481,5 +481,5 @@ try m = lam (\t -> runLazy (disintegrate (pair (scalar0 t) unit) m))
 recover :: (Typeable a) => PrettyPrint a -> IO (Any a)
 recover hakaru = closeLoop ("Any (" ++ leftMode (runPrettyPrint hakaru) ++ ")")
 
-simp :: (Simplifiable a) => Any a -> IO Doc
-simp = fmap (runPrettyPrint . unAny) . simplify . unAny
+simp :: (Simplifiable a) => Any a -> IO (Any a)
+simp = simplify . unAny

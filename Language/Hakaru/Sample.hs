@@ -1,9 +1,12 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances,
     TypeFamilies, StandaloneDeriving, GeneralizedNewtypeDeriving, 
-    GADTs, RankNTypes, InstanceSigs, DataKinds, TypeOperators #-}
-{-# OPTIONS -W #-}
+    GADTs, RankNTypes, InstanceSigs, DataKinds, TypeOperators, PolyKinds #-}
 
-module Language.Hakaru.Sample (Sample(..), Sample') where
+{-# LANGUAGE ScopedTypeVariables #-}
+
+{-# OPTIONS -Wall #-}
+
+module Language.Hakaru.Sample (Sample(..), Sample', Vec(..)) where
 
 -- Importance sampling interpretation
 
@@ -20,7 +23,8 @@ import qualified Numeric.Integration.TanhSinh as TS
 import qualified System.Random.MWC as MWC
 import qualified System.Random.MWC.Distributions as MWCD
 import qualified Data.Vector as V
-import Data.Maybe (fromJust, isNothing)
+import Control.Monad.State
+import Control.Monad.Trans.Maybe    
 import Language.Hakaru.Embed
 
 newtype Sample m a = Sample { unSample :: Sample' m a }
@@ -33,10 +37,12 @@ type instance Sample' m ()           = ()
 type instance Sample' m (a, b)       = (Sample' m a, Sample' m b)
 type instance Sample' m (Either a b) = Either (Sample' m a) (Sample' m b)
 type instance Sample' m [a]          = [Sample' m a]
-type instance Sample' m (Vector a)   = (Int, Int, V.Vector (Sample' m a))
 type instance Sample' m (Measure a)  = LF.LogFloat -> MWC.Gen (PrimState m) ->
                                        m (Maybe (Sample' m a, LF.LogFloat))
 type instance Sample' m (a -> b)     = Sample' m a -> Sample' m b
+
+data Vec a = Vec {low :: Int, high :: Int, vec :: V.Vector a} deriving (Show)
+type instance Sample' m (Vector a)   = Vec (Sample' m a)
 
 instance Order (Sample m) Real where
   less  (Sample a) (Sample b) = Sample (a <  b)
@@ -92,13 +98,12 @@ instance Base (Sample m) where
   gammaFunc (Sample n)            = Sample (LF.logToLogFloat (logGamma n))
   betaFunc (Sample a) (Sample b)  = Sample (LF.logToLogFloat (logBeta
                                        (LF.fromLogFloat a) (LF.fromLogFloat b)))
-  vector (Sample lo) (Sample hi) f    = let g i = unSample (f (Sample $ lo + i))
-                                        in Sample (lo, hi, V.generate (hi-lo+1) g)
-  index (Sample (lo,hi,v)) (Sample i) = if (i < lo || i > hi)
-                                        then error "index out of bounds"
-                                        else Sample $ v V.! (i-lo)
-  loBound (Sample (lo,_,_))           = Sample lo
-  hiBound (Sample (_,hi,_))           = Sample hi
+  vector (Sample lo) (Sample hi) f = let g i = unSample (f (Sample $ lo + i))
+                                     in Sample (Vec lo hi (V.generate (hi-lo+1) g))
+  index (Sample v) (Sample i) = Sample $ vec v V.! (i - low v)
+  loBound (Sample v)      = Sample (low v)
+  hiBound (Sample v)      = Sample (high v)
+  reduce f a (Sample v)   = V.foldl' (\acc b -> f acc (Sample b)) a (vec v)
 
 instance (PrimMonad m) => Mochastic (Sample m) where
   dirac (Sample a) = Sample (\p _ ->
@@ -151,13 +156,17 @@ instance (PrimMonad m) => Mochastic (Sample m) where
     x <- MWCD.gamma (LF.fromLogFloat shape) (LF.fromLogFloat scale) g
     return (Just (LF.logFloat x, p)))
   beta a b = gamma a 1 `bind` \x -> gamma b 1 `bind` \y -> dirac (x / (x + y))
-  plate (Sample (lo,hi,v)) = Sample (\p g -> do
-    samples <- V.sequence $ V.map (\m -> m p g) v
-    if V.any isNothing samples then return Nothing
-    else do let (v', ps) = V.unzip . V.map fromJust $ samples
-            return $ Just ((lo, hi, v'), V.product ps))
+  plate (Sample v) = Sample (\p g -> runMaybeT $ do
+    samples <- V.mapM (\m -> MaybeT $ m 1 g) (vec v)
+    let (v', ps) = V.unzip samples
+    return (v{vec = v'}, p * V.product ps))
+  chain (Sample v) = Sample (\s p g -> runMaybeT $ do
+    let convert f = StateT $ \s' -> do ((a,s''),p') <- MaybeT (f s' 1 g)
+                                       return ((a,p'),s'')
+    (samples, sout) <- runStateT (V.mapM convert (vec v)) s
+    let (v', ps) = V.unzip samples
+    return ((v{vec = v'}, sout), p * V.product ps))                                     
   
-
 instance Integrate (Sample m) where -- just for kicks -- inaccurate
   integrate (Sample lo) (Sample hi)
     | not (isInfinite lo) && not (isInfinite hi)
@@ -190,12 +199,12 @@ type instance Sample' m (SOP xss) = NS (NP (Sample m)) xss
 
 
 
--- hRepEmbed :: forall (xss :: [[*]]) t m . (HakaruType xss, Embeddable t)
---      => Sample m (SOP xss) -> Sample m (HRep t)
--- hRepEmbed (Sample x) = 
---   case eqHType2 :: Maybe (xss :~: (Code t :: [[*]])) of 
---     Just Refl -> Sample x 
---     Nothing   -> error "Embed{Sample}: hRep (types don't match)"
+hRepEmbed :: forall (xss :: [[*]]) t m . (HakaruType xss, Embeddable t)
+     => Sample m (SOP xss) -> Sample m (HRep t)
+hRepEmbed (Sample x) = 
+  case eqHType2 :: Maybe (xss :~: (Code t :: [[*]])) of 
+    Just Refl -> Sample x 
+    Nothing   -> error "Embed{Sample}: hRep (types don't match)"
 
 instance Embed (Sample m) where 
   _Nil = Sample (Z Nil) 
