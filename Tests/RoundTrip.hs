@@ -36,7 +36,7 @@ testMeasureUnit = test [
 testMeasureProb :: Test
 testMeasureProb = test [
     "t2"  ~: testSS [t2] (uniform 0 1 `bind` dirac . unsafeProb),
-    "t26" ~: testSS [t26] (dirac (1/2)),
+    "t26" ~: testSS [t26] (dirac $ fromRational (1/2)),
     "t30" ~: testSS [] t30,
     "t33" ~: testSS [] t33,
     "t34" ~: testSS [t34] (dirac 3),

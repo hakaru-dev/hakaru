@@ -77,7 +77,8 @@ Haskell := module ()
 d[_Inert_INTPOS] := proc(x) b:-appendf("%d",x) end;
 d[_Inert_INTNEG] := proc(x) b:-appendf("(%d)",-x) end;
 d[_Inert_RATIONAL] := proc(n,d) 
-  parens(proc() p(n); b:-append(" / "); p(d); end) 
+  parens(proc() b:-append("fromRational "); 
+                lparen(); p(n); b:-append(" / "); p(d); rparen(); end) 
 end;
 d[_Inert_FUNCTION] := proc(f, s)
   local nm;
