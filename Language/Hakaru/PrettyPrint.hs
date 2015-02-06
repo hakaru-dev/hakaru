@@ -165,6 +165,7 @@ op p0 s p1 p2 (PP a) (PP b) =
 string :: String -> PrettyPrint a
 string s = PP $ \_ _ -> [text s] 
 
+{-
 sepStr :: String ->
       PrettyPrint a -> PrettyPrint b -> PrettyPrint c
 sepStr str (PP a) (PP b) = PP $ \vs i -> [ sep (a vs i) <> text str <> sep (b vs i) ]
@@ -231,3 +232,4 @@ instance Embed PrettyPrint where
   sop' p x = case sopPretty sing (ctrInfo (datatypeInfo p)) x of PP a -> PP a 
 
   case' p (PP x) f = case casePretty (datatypeInfo p) (PP x) f of PP a -> PP a
+-}

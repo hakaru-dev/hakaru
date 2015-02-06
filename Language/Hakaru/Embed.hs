@@ -17,6 +17,7 @@
   , TemplateHaskell  
   , DefaultSignatures
   , FlexibleContexts
+  , DeriveDataTypeable
   #-}
 
 module Language.Hakaru.Embed (
@@ -29,13 +30,14 @@ import Language.Hakaru.Syntax
 import Prelude hiding (Real (..))
 import Data.Proxy
 import Control.Applicative
-import Generics.SOP hiding (Code, Rep, datatypeInfo, Shape)
+import Generics.SOP hiding (Code, Rep, datatypeInfo, Shape, SOP)
 import qualified Generics.SOP as SOP 
 import qualified GHC.Generics as GHC 
 import GHC.Exts (Constraint)
 -- import qualified Language.Haskell.TH as TH
 -- import Language.Haskell.TH (Name, Q, Dec(..), Type(..), Info (..), TyVarBndr(..), reify, TySynEqn(..))
 import Language.Haskell.TH 
+import Data.Typeable
 
 
 
@@ -47,6 +49,9 @@ newtype NFn r o x = NFn { unFn :: NAryFun r o x }
 
 -- HRep = Hakaru Representation 
 data HRep (t :: *) 
+
+-- SOP xs = Sum of products of Hakaru tyeps 
+data SOP (xs :: [[*]]) -- xs :: [[HakaruType]]
 
 type family Shape (xs :: [k]) :: [k]  
 type instance Shape '[] = '[]
@@ -93,24 +98,100 @@ ciInfoShape (Infix c a f) = Infix c a f
 ciInfoShape (Record n x) = case singShape (sing :: Sing xs) of 
                              Dict -> Record n (npfiInfoShape x)
 
+type EmbeddableConstraint t = 
+  (SingI (Code t), SingI (Shape (Code t)), All SingI (Code t), HakaruType (Code t), Typeable t) 
 
 -- 't' is really just a "label" - 't' and 'Code t' are completely unrelated.
-class (SingI (Code t), SingI (Shape (Code t)), All SingI (Code t)) => Embeddable (t :: *) where 
+class EmbeddableConstraint t => Embeddable (t :: *) where 
   type Code t :: [[*]]
   datatypeInfo :: Proxy t -> DatatypeInfo (Shape (Code t))
   default datatypeInfo :: (HasDatatypeInfo t, Shape (SOP.Code t) ~ Shape (Code t)) 
                        => Proxy t -> DatatypeInfo (Shape (Code t))
   datatypeInfo p = diInfoShape $ SOP.datatypeInfo p
 
-class (Base repr) => Embed (repr :: * -> *) where
-  sop' :: (Embeddable t) => Proxy t -> NS (NP repr) (Code t) -> repr (HRep t) 
-  case' :: (Embeddable t) => Proxy t -> repr (HRep t) -> NP (NFn repr o) (Code t) -> repr o
-  
-sop :: (Embed repr, Embeddable t) => NS (NP repr) (Code t) -> repr (HRep t)
-sop = sop' Proxy 
 
-case_ :: (Embed repr, Embeddable t) => repr (HRep t) -> NP (NFn repr o) (Code t) -> repr o
-case_ = case' Proxy
+class (Base repr) => Embed (repr :: * -> *) where
+  -- unit 
+  _Nil :: repr (SOP '[ '[] ]) 
+  
+  -- pair 
+  _Cons :: repr x -> repr (SOP '[ xs ]) -> repr (SOP '[ x ': xs ])
+  
+  -- unpair 
+  caseProd :: repr (SOP '[ x ': xs ]) -> (repr x -> repr (SOP '[ xs ]) -> repr o) -> repr o 
+
+  -- inl 
+  _Z :: repr (SOP '[ xs ]) -> repr (SOP (xs ': xss))
+
+  -- inr 
+  _S :: repr (SOP xss) -> repr (SOP (xs ': xss))
+
+  -- uneither
+  caseSum :: repr (SOP (xs ': xss)) 
+          -> (repr (SOP '[ xs ]) -> repr o) 
+          -> (repr (SOP xss) -> repr o) 
+          -> repr o 
+
+  {- 
+     "tag" and "unTag". The type we really want is 
+       hRep :: r (SOP (Code t)) -> r (HRep t)
+     The problem is that 'Code' is really a function of the type *and* the repr,
+     but if we include that in the type system, we have a constraint (or type family application)
+     which mentions the 'repr', so it may not be able to exist inside existential type constructors.
+     And the implemenation of 'Code (Expect r) t' is not obvious to me. 
+
+     For representations which are not phantom types, like Disintegrate and Sample, it may
+     be the case that this needs decidable equality on the finite(?) subset of *
+     which we know as "Hakaru types". See 'eqHType' below. 
+
+   -}
+
+  hRep :: Embeddable t => repr (SOP xss) -> repr (HRep t)
+  unHRep :: Embeddable t => repr (HRep t) -> repr (SOP xss)
+
+  -- A "safer" variant, but the Nothing case will become 'error' at use sites
+  -- anyways, so it probably isn't useful. 
+  hRepS :: Embeddable t => Sing xss -> Maybe (repr (SOP xss) -> repr (HRep t))
+  unHRepS :: Embeddable t => Sing xss -> Maybe (repr (HRep t) -> repr (SOP xss))
+
+  -- A truely "safe" variant, but doesn't permit recursive types, ie, the
+  -- following produces an "infinite type" error:
+  --   type Code [a] = '[ '[] , '[ a, Tag [a] (Code [a]) ]] 
+  -- Also, the only valid (valid in the sense that tagging arbitrary values with
+  -- abitrary types probably isn't useful) use of 'tag' is in 'sopTag' below,
+  -- which constrains xss ~ Code t. But putting this constraint here would leave 
+  -- us in the exact same position as 'hRep :: r (SOP (Code t)) -> r (HRep t)'.
+  tag :: Embeddable t => repr (SOP xss) -> repr (Tag t xss)
+  untag :: Embeddable t => repr (Tag t xss) -> repr (SOP xss) 
+
+data Tag (t :: *) (xss :: [[*]])
+
+
+sop' :: Embed repr => NS (NP repr) xss -> repr (SOP xss) 
+sop' (Z t) = _Z (prodG t) 
+sop' (S t) = _S (sop' t) 
+
+case' :: (All SingI xss, Embed repr) => repr (SOP xss) -> NP (NFn repr o) xss -> repr o 
+case' _ Nil = error "Datatype with no constructors" 
+case' x (f :* fs) = caseSum x (\h -> caseProdG sing h f) (\t -> case' t fs)
+
+sop :: (Embeddable t, Embed repr) => NS (NP repr) (Code t) -> repr (HRep t)
+sop x = hRep (sop' x)
+
+case_ :: (Embeddable t, Embed repr) => repr (HRep t) -> NP (NFn repr o) (Code t) -> repr o 
+case_ x f = case' (unHRep x) f 
+
+sopTag :: (Embeddable t, Embed repr) => NS (NP repr) (Code t) -> repr (Tag t (Code t))
+sopTag x = tag (sop' x)
+
+
+prodG :: Embed r => NP r xs -> r (SOP '[ xs ]) 
+prodG Nil = _Nil 
+prodG (x :* xs) = _Cons x (prodG xs) 
+
+caseProdG :: Embed r => Sing xs -> r (SOP '[ xs ]) -> NFn r o xs -> r o 
+caseProdG SNil _ (NFn x) = x 
+caseProdG s@SCons a (NFn f) = caseProd a (\x xs -> caseProdG (singTail s) xs (NFn $ f x))
 
 
 apNAry' :: NP f xs -> NAryFun f o xs -> f o 

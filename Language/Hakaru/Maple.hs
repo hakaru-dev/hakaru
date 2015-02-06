@@ -168,7 +168,7 @@ instance Mochastic Maple where
                | (p,m) <- pms ]
     in "Superpose(" ++ intercalate "," pms' ++ ")")
 
-
+{-
 constructor :: String -> [Maple a] -> Maple b
 constructor fn xs = Maple $ ReaderT $ \i -> return $ 
   let ms = intercalate "," (map (flip runMaple i) xs) in 
@@ -228,3 +228,4 @@ caseMaple _ _ _ _ = error "caseMaple: type error"
 instance Embed Maple where 
   sop' p xs = (\(Maple x) -> Maple x) (sopMaple sing (ctrInfo (datatypeInfo p)) xs)
   case' p (Maple x) f = caseMaple 1 (ctrInfo (datatypeInfo p)) f (Maple x) 
+-}

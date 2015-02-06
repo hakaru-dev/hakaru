@@ -184,7 +184,21 @@ instance Lambda (Sample m) where
 
 
 type instance Sample' m (HRep t) = NS (NP (Sample m)) (Code t)
+type instance Sample' m (SOP xss) = NS (NP (Sample m)) xss 
 
 instance Embed (Sample m) where 
-  sop' _ x = Sample x 
-  case' _ (Sample x) f = apNAry x f 
+  _Nil = Sample (Z Nil) 
+
+  _Cons x (Sample (Z xs)) = Sample (Z (x :* xs)) 
+  _Cons x (Sample (S _ )) = error "type error" 
+
+  caseProd (Sample (Z (x :* xs))) f = Sample (unSample $ f x (Sample (Z xs)))
+  caseProd (Sample (S _)) _ = error "type error"
+
+
+
+  hRep (Sample x) = Sample x 
+
+
+--   sop' _ x = Sample x 
+--   case' _ (Sample x) f = apNAry x f 
