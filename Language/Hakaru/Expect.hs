@@ -1,9 +1,11 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleContexts, FlexibleInstances,
     TypeFamilies, StandaloneDeriving, GeneralizedNewtypeDeriving, GADTs,
     RankNTypes, ScopedTypeVariables, UndecidableInstances, TypeOperators, DataKinds, InstanceSigs #-}
+{-# LANGUAGE DeriveGeneric, DeriveDataTypeable #-}
 {-# OPTIONS -Wall #-}
 
-module Language.Hakaru.Expect (Expect(..), Expect', total, normalize) where
+module Language.Hakaru.Expect where
+-- module Language.Hakaru.Expect (Expect(..), Expect', total, normalize) where
 
 -- Expectation interpretation
 
@@ -12,6 +14,9 @@ import Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..),
        fst_, snd_, ununit)
 import qualified Generics.SOP as SOP
+import Generics.SOP (HasDatatypeInfo, Generic)
+import GHC.Generics (Generic)
+import Data.Typeable 
 import Language.Hakaru.Embed
 
 newtype Expect repr a = Expect { unExpect :: repr (Expect' a) }
@@ -241,8 +246,27 @@ type instance MapExpect'2 (x ': xs) = MapExpect' x ': MapExpect'2 xs
 type instance Expect' (HRep t) = HRep t 
 type instance Expect' (SOP xss) = SOP (MapExpect'2 xss) 
 
-expectHType :: HSing xss -> Dict (HakaruType (MapExpect'2 xss))
-expectHType = error "todo" 
+dictPair :: Dict p -> Dict q -> ((p, q) => x) -> x 
+dictPair Dict Dict x = x 
+
+expectHType :: HSing x -> Dict (HakaruType (Expect' x))
+expectHType HReal = Dict
+expectHType HProb = Dict 
+expectHType (HMeasure a) = case expectHType a of Dict -> Dict 
+expectHType (HArr a b) = dictPair (expectHType a) (expectHType b) Dict 
+expectHType (HPair a b) = dictPair (expectHType a) (expectHType b) Dict 
+
+expectHType1 :: HSing xs -> Dict (HakaruType (MapExpect' xs))
+expectHType1 HNil = Dict 
+expectHType1 (HCons x xs) = 
+  case (expectHType x, expectHType1 xs) of 
+    (Dict, Dict) -> Dict
+
+expectHType2 :: HSing xss -> Dict (HakaruType (MapExpect'2 xss))
+expectHType2 HNil = Dict 
+expectHType2 (HCons x xs) = 
+  case (expectHType1 x, expectHType2 xs) of 
+    (Dict, Dict) -> Dict
 
 instance Embed r => Embed (Expect r) where 
   _Nil = Expect _Nil
@@ -256,16 +280,43 @@ instance Embed r => Embed (Expect r) where
   caseSum (Expect x) caseZ caseS = Expect (caseSum x (unExpect . caseZ . Expect) (unExpect . caseS . Expect))
 
 
-  hRep :: forall xss t . (HakaruType xss, Embeddable t) 
-       => Expect r (SOP xss) -> Expect r (HRep t)
+  -- hRep :: forall xss t . (HakaruType xss, Embeddable t) 
+  --      => Expect r (SOP xss) -> Expect r (HRep t)
 
-  hRep (Expect x) = case expectHType (hsing :: HSing xss) of Dict -> Expect (hRep x) 
+  -- hRep (Expect x) = Expect _ 
+
+
+  -- hRep (Expect x) = case expectHType2 (hsing :: HSing xss) of Dict -> Expect (hRep x) 
 
   unHRep :: forall t xss . (HakaruType xss, Embeddable t) 
          => Expect r (HRep t) -> Expect r  (SOP xss)
 
-  unHRep (Expect x) = case expectHType (hsing :: HSing xss) of Dict -> Expect (unHRep x) 
+  unHRep (Expect x) = case expectHType2 (hsing :: HSing xss) of Dict -> Expect (unHRep x) 
  
   tag (Expect x) = Expect (tag x) 
 
 type instance Expect' (Tag t xss) = Tag t (MapExpect'2 xss)  
+
+
+
+data P2 a b = P2 a b deriving (GHC.Generics.Generic)
+instance Generics.SOP.Generic (P2 a b)
+instance HasDatatypeInfo (P2 a b) 
+deriving instance Typeable P2 
+
+instance (Typeable a, Typeable b, HakaruType a, HakaruType b) => Embeddable (P2 a b) where 
+  type Code (P2 a b) = '[ '[a, b]]
+
+  -- datatypeInfo = SOP.datatypeInfo 
+
+
+fstP2 (x :: repr (HRep (P2 a b))) = case_ x (NFn (\a _ -> a) :* Nil)
+
+sndP2 (x :: repr (HRep (P2 a b))) = case_ x (NFn (\_ a -> a) :* Nil)
+
+p2 a b = sop (Z $ a :* b :* Nil) 
+
+
+-- test0 :: 
+-- test0 = p2 (dirac 1) (dirac 2)
+

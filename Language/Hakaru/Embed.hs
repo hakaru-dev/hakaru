@@ -26,7 +26,7 @@ module Language.Hakaru.Embed (
   , Sing(..), DatatypeInfo(..), FieldInfo(..), Proxy(..), lengthSing, (:~:)(..)
   ) where
 
-import Language.Hakaru.Syntax
+import Language.Hakaru.Syntax hiding (EqType(..))
 import Prelude hiding (Real (..))
 import Data.Proxy
 import Control.Applicative
@@ -148,11 +148,6 @@ class (Base repr) => Embed (repr :: * -> *) where
   hRep :: (HakaruType xss, Embeddable t) => repr (SOP xss) -> repr (HRep t)
   unHRep :: (HakaruType xss, Embeddable t) => repr (HRep t) -> repr (SOP xss)
 
-  -- A "safer" variant, but the Nothing case will become 'error' at use sites
-  -- anyways, so it probably isn't useful. 
-  hRepS :: Embeddable t => Sing xss -> Maybe (repr (SOP xss) -> repr (HRep t))
-  unHRepS :: Embeddable t => Sing xss -> Maybe (repr (HRep t) -> repr (SOP xss))
-
   -- A truely "safe" variant, but doesn't permit recursive types, ie, the
   -- following produces an "infinite type" error:
   --   type Code [a] = '[ '[] , '[ a, Tag [a] (Code [a]) ]] 
@@ -177,11 +172,18 @@ case' x (f :* fs) = caseSum x (\h -> caseProdG sing h f) (\t -> case' t fs)
 sop :: (Embeddable t, Embed repr) => NS (NP repr) (Code t) -> repr (HRep t)
 sop x = hRep (sop' x)
 
+-- sop2 :: (Embeddable t, Embed repr) => NS (NP repr) (Code t) -> repr (SOP (Code t))
+-- sop2 x = sop' x
+
 case_ :: (Embeddable t, Embed repr) => repr (HRep t) -> NP (NFn repr o) (Code t) -> repr o 
 case_ x f = case' (unHRep x) f 
 
 sopTag :: (Embeddable t, Embed repr) => NS (NP repr) (Code t) -> repr (Tag t (Code t))
 sopTag x = tag (sop' x)
+
+
+-- instance Embeddable [a] where 
+--   type Code [a] = '[ '[] , '[ a, SOP (Code [a]) ]] 
 
 
 -- The simplest solution for eqHType is to just use Typeable. But for that
@@ -198,20 +200,40 @@ data (a :: k) :~: (b :: k) where Refl :: a :~: a
 #endif
 
 
-eqHType :: forall (a :: *) (b :: *) . (HakaruType a, HakaruType b) => Maybe (a :~: b) 
-eqHType = error "todo"
+eqHType :: forall (a :: *) (b :: *) . HSing a -> HSing b -> Maybe (a :~: b) 
+eqHType HProb HProb = Just Refl
+eqHType HReal HReal = Just Refl
+eqHType (HMeasure a) (HMeasure b) = 
+  case eqHType a b of 
+    Just Refl -> Just Refl 
+    _ -> Nothing 
 
-eqHType1 :: forall (a :: [*]) (b :: [*]) . (HakaruType a, HakaruType b) => Maybe (a :~: b)
-eqHType1 = error "todo"
+eqHType _ _ = Nothing 
 
-eqHType2 :: forall (a :: [[*]]) (b :: [[*]]) . (HakaruType a, HakaruType b) => Maybe (a :~: b)
-eqHType2 = error "todo"
+eqHType1 :: forall (a :: [*]) (b :: [*]) . HSing a -> HSing b -> Maybe (a :~: b)
+eqHType1 HNil HNil = Just Refl 
+eqHType1 (HCons x xs) (HCons y ys) = 
+  case (eqHType x y, eqHType1 xs ys) of 
+    (Just Refl, Just Refl) -> Just Refl 
+    _ -> Nothing 
+eqHType1 _ _ = Nothing 
+
+eqHType2 :: forall (a :: [[*]]) (b :: [[*]]) . HSing a -> HSing b -> Maybe (a :~: b)
+eqHType2 HNil HNil = Just Refl 
+eqHType2 (HCons x xs) (HCons y ys) = 
+  case (eqHType1 x y, eqHType2 xs ys) of 
+    (Just Refl, Just Refl) -> Just Refl 
+    _ -> Nothing 
+eqHType2 _ _ = Nothing 
 
 data family HSing (a :: k)
 
 data instance HSing (a :: *) where 
   HProb :: HSing Prob 
   HReal :: HSing Real 
+  HMeasure :: HSing a -> HSing (Measure a)
+  HArr :: HSing a -> HSing b -> HSing (a -> b)
+  HPair :: HSing a -> HSing b -> HSing (a,b)
   -- etc .. 
 
 data instance HSing (a :: [k]) where 
@@ -223,6 +245,9 @@ class HakaruType (a :: k) where
 
 instance HakaruType Prob where hsing = HProb 
 instance HakaruType Real where hsing = HReal 
+instance HakaruType a => HakaruType (Measure a) where hsing = HMeasure hsing 
+instance (HakaruType a, HakaruType b) => HakaruType (a -> b) where hsing = HArr hsing hsing
+instance (HakaruType a, HakaruType b) => HakaruType (a , b) where hsing = HPair hsing hsing 
 
 instance HakaruType ('[] :: [*]) where hsing = HNil 
 instance HakaruType ('[] :: [[*]]) where hsing = HNil 

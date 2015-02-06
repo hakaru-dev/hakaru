@@ -7,8 +7,8 @@ module Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode) where
 import Language.Hakaru.Syntax
 import Language.Hakaru.Util.Pretty
 import Text.PrettyPrint hiding (parens)
-import qualified Text.PrettyPrint as Text 
-import Language.Hakaru.Embed
+-- import qualified Text.PrettyPrint as Text 
+-- import Language.Hakaru.Embed
 -- import qualified Generics.SOP as SOP
 
 leftMode :: Doc -> String
