@@ -40,7 +40,6 @@ import Language.Haskell.TH
 import Data.Typeable
 
 
-
 type family NAryFun (r :: * -> *) o (xs :: [*])  :: * 
 type instance NAryFun r o '[]  = r o 
 type instance NAryFun r o (x ': xs) = r x -> NAryFun r o xs 
@@ -183,6 +182,69 @@ case_ x f = case' (unHRep x) f
 
 sopTag :: (Embeddable t, Embed repr) => NS (NP repr) (Code t) -> repr (Tag t (Code t))
 sopTag x = tag (sop' x)
+
+
+-- The simplest solution for eqHType is to just use Typeable. But for that
+-- to work, we need polykinded Typeable (GHC 7.8), and having 
+-- instance Typeable '[]
+-- can expose unsafeCoerce (https://ghc.haskell.org/trac/ghc/ticket/9858)
+-- The less simple (and terribly inefficient) solution is to use 
+-- singletons and produce a real proof that two types are equal
+
+
+#if __GLASGOW_HASKELL__ < 708
+   -- Before 7.8, :~: isn't in Data.Typeable 
+data (a :: k) :~: (b :: k) where Refl :: a :~: a 
+#endif
+
+
+eqHType :: forall (a :: *) b . (HakaruType a, HakaruType b) => Maybe (a :~: b) 
+eqHType = error "todo"
+
+eqHType1 :: forall (a :: [*]) b . (HakaruType a, HakaruType b) => Maybe (a :~: b)
+eqHType1 = error "todo"
+
+eqHType2 :: forall (a :: [[*]]) b . (HakaruType a, HakaruType b) => Maybe (a :~: b)
+eqHType2 = error "todo"
+
+data family HSing (a :: k)
+
+data instance HSing (a :: *) where 
+  HProb :: HSing Prob 
+  HReal :: HSing Real 
+  -- etc .. 
+
+data instance HSing (a :: [k]) where 
+  HNil  :: HSing '[]
+  HCons :: HSing x -> HSing xs -> HSing (x ': xs)
+ 
+class HakaruType (a :: k) where 
+  hsing :: HSing a 
+
+instance HakaruType Prob where hsing = HProb 
+instance HakaruType Real where hsing = HReal 
+
+instance HakaruType '[] where hsing = HNil 
+instance (HakaruType x, HakaruType xs) => HakaruType (x ': xs) where hsing = HCons hsing hsing
+
+
+-- eqHType :: (HakaruType a, HakaruType b) => Maybe (a :~: b)
+-- eqHType = eqT
+
+-- class Typeable a => HakaruType (a :: k) where 
+
+-- instance HakaruType Prob 
+-- instance HakaruType Real 
+-- -- etc 
+
+-- deriving instance Typeable '[]
+-- instance HakaruType ('[] :: [*])
+-- instance HakaruType ('[] :: [[*]])
+-- -- etc 
+
+-- deriving instance Typeable HRep 
+-- instance (Typeable t, Embeddable t) => HakaruType (HRep t)
+
 
 
 prodG :: Embed r => NP r xs -> r (SOP '[ xs ]) 

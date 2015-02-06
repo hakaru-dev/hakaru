@@ -1,5 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances,
-    TypeFamilies, StandaloneDeriving, GeneralizedNewtypeDeriving #-}
+    TypeFamilies, StandaloneDeriving, GeneralizedNewtypeDeriving, GADTs #-}
 {-# OPTIONS -W #-}
 
 module Language.Hakaru.Sample (Sample(..), Sample') where
@@ -195,10 +195,4 @@ instance Embed (Sample m) where
   caseProd (Sample (Z (x :* xs))) f = Sample (unSample $ f x (Sample (Z xs)))
   caseProd (Sample (S _)) _ = error "type error"
 
-
-
-  hRep (Sample x) = Sample x 
-
-
---   sop' _ x = Sample x 
---   case' _ (Sample x) f = apNAry x f 
+  -- hRep (Sample x) = Sample x 
