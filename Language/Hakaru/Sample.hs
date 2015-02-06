@@ -2,7 +2,7 @@
     TypeFamilies, StandaloneDeriving, GeneralizedNewtypeDeriving #-}
 {-# OPTIONS -Wall #-}
 
-module Language.Hakaru.Sample (Sample(..), Sample') where
+module Language.Hakaru.Sample (Sample(..), Sample', Vec(..)) where
 
 -- Importance sampling interpretation
 
@@ -96,11 +96,10 @@ instance Base (Sample m) where
                                        (LF.fromLogFloat a) (LF.fromLogFloat b)))
   vector (Sample lo) (Sample hi) f = let g i = unSample (f (Sample $ lo + i))
                                      in Sample (Vec lo hi (V.generate (hi-lo+1) g))
-  index (Sample v) (Sample i) = if (i < low v || i > high v)
-                                then error "index out of bounds"
-                                else Sample $ vec v V.! (i - low v)
-  loBound (Sample v)          = Sample (low v)
-  hiBound (Sample v)          = Sample (high v)
+  index (Sample v) (Sample i) = Sample $ vec v V.! (i - low v)
+  loBound (Sample v)      = Sample (low v)
+  hiBound (Sample v)      = Sample (high v)
+  reduce f a (Sample v)   = V.foldl' (\acc b -> f acc (Sample b)) a (vec v)
 
 instance (PrimMonad m) => Mochastic (Sample m) where
   dirac (Sample a) = Sample (\p _ ->
