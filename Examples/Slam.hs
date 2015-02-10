@@ -5,10 +5,11 @@
 -- {-# OPTIONS_GHC -ftype-function-depth=400 #-}
 -- {-# OPTIONS_GHC -fcontext-stack=400 #-}
 
--- | Relevant paper: 
--- Jose Guivant, Eduardo Nebot, and Stephan Baiker. Autonomous navigation and map 
--- building using laser range sensors in outdoor applications. 
--- Journal of Robotic Systems, 17(10):565–583, Oct. 2000.
+-- | References:
+--
+-- [1] Jose Guivant, Eduardo Nebot, and Stephan Baiker. Autonomous navigation and map 
+--     building using laser range sensors in outdoor applications. 
+--     Journal of Robotic Systems, 17(10):565–583, Oct. 2000.
 
 module Slam where
 
@@ -70,8 +71,13 @@ type GPS = H.Real
 type Angle = H.Real -- ^ In radians
 type Vel = H.Real    
 type DelTime = H.Real
-    
-type Dims = Vector H.Real -- ^ <l,h,a,b>
+
+-- | Dimensions of the vehicle
+-- L = distance between front and rear axles
+-- H = distance between center of back left wheel and center of rear axle
+-- a = distance between rear axle and front-based laser
+-- b = width offset of the front-based laser
+type Dims = Vector H.Real -- ^ <L,H,a,b>
 
 dimL, dimH, dimA, dimB :: (Base repr) => repr Dims -> repr H.Real
 dimL v = H.index v 0
@@ -81,7 +87,7 @@ dimB v = H.index v 3
 
 type LaserReads = (Vector ZRad, Vector ZInt)
 
-type Coords = (Angle, (GPS, GPS)) -- ^ phi, vehLon, vehLat
+type Coords = (Angle, (GPS, GPS)) -- ^ phi (world angle), vehLon, vehLat
 
 vPhi :: (Base repr) => repr Coords -> repr Angle
 vPhi cds = unpair cds $ \p _ -> p
@@ -108,10 +114,9 @@ simulate :: (Mochastic repr) => Simulator repr
 simulate ds blons blats cds
          old_ve old_alpha delT =
 
-    let_' (old_ve / (1 - (tan old_alpha)*(dimH ds)/(dimL ds))) $ \old_vc ->
-    let_' (newPos 0 ds cds delT old_vc old_alpha) $ \calc_lon ->
-    let_' (newPos 1 ds cds delT old_vc old_alpha) $ \calc_lat ->
-    let_' ((vPhi cds) + delT*old_vc*(tan old_alpha) / (dimL ds)) $ \calc_phi ->
+    let_' (wheelToAxle old_ve old_alpha ds) $ \old_vc ->
+    unpair (newPos ds cds delT old_vc old_alpha) $ \calc_lon calc_lat ->
+    let_' (newPhi cds delT old_vc old_alpha ds) $ \calc_phi ->
     
     normal calc_lon ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \lon ->
     normal calc_lat ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \lat ->
@@ -119,12 +124,15 @@ simulate ds blons blats cds
 
     let_' (vmap ((-) lon) blons) $ \lon_ds ->
     let_' (vmap ((-) lat) blats) $ \lat_ds ->
-        
+
+    -- Equation 10 from [1]
     let_' (vmap sqrt_ (vZipWith (+) (vmap sqr lon_ds)
                                     (vmap sqr lat_ds))) $ \calc_zrads ->
     -- inverse-square for intensities 
     let_' (vmap (\r -> cIntensity / (pow_ r 2)) calc_zrads) $ \calc_zints ->
-    -- removed a "+ pi/2" term: it is present as (i - (n-1)/2) in laserAssigns
+
+    -- Equation 10 from [1]    
+    -- Note: removed a "+ pi/2" term: it is present as (i - 180) in laserAssigns
     let_' (vmap (\r -> atan r - calc_phi)
                 (vZipWith (/) lat_ds lon_ds)) $ \calc_zbetas ->
 
@@ -132,27 +140,46 @@ simulate ds blons blats cds
     normalNoise cBeacon (vmap fromProb calc_zints) `bind` \zints ->        
     normalNoise cBeacon calc_zbetas `bind` \zbetas ->
 
+    -- Make a base noisy vector of laser distance readings
     plate (vector 0 360 (const (normal muZRads sigmaZRads))) `bind` \baseR ->
-    let_' (laserAssigns zrads zbetas baseR) $ \lasersR ->
-        
+    -- Make a base noisy vector of laser intensity readings
     plate (vector 0 360 (const (normal muZInts sigmaZInts))) `bind` \baseI ->
+        
+    -- Fill base vectors with actual readings at correct angle positions
+    let_' (laserAssigns zrads zbetas baseR) $ \lasersR ->
     let_' (laserAssigns zints zbetas baseI) $ \lasersI ->
     
     dirac $ pair (pair lasersR lasersI) (pair phi (pair lon lat))
 
-newPos :: (Base repr) => repr Int
-       -> repr Dims -> repr Coords
-       -> repr DelTime -> repr Vel -- ^ delT, old_vc
-       -> repr Angle -- ^ old_alpha
-       -> repr GPS
-newPos i ds cds delT old_vc old_alpha =
-    oldPos + delT * (old_vc*(fb oldPhi)
-                     - (old_vc * mag * (tan old_alpha) / (dimL ds)))
-    where oldPos = if_ (equal_ i 0) (vLon cds) (vLat cds)
-          oldPhi = vPhi cds
-          fa p = if_ (equal_ i 0) (sin p) (cos p)
-          fb p = if_ (equal_ i 0) (cos p) (sin p)
-          mag = (dimA ds)*(fa oldPhi) + (dimB ds)*(fb oldPhi)
+-- | Translate velocity
+-- from back left wheel (where the velocity encoder is present)
+-- to the center of the rear axle
+-- Equation 6 from [1]
+wheelToAxle :: (Base repr) => repr Vel -> repr Angle -> repr Dims -> repr Vel
+wheelToAxle ve alpha ds = ve / (1 - (tan alpha)*(dimH ds)/(dimL ds))
+
+-- | Equation 7 (corrected) from [1]
+newPos :: (Base repr) => repr Dims -> repr Coords
+       -> repr DelTime -> repr Vel -> repr Angle
+       -> repr (GPS,GPS)
+newPos ds cds delT vc alpha = pair lonPos latPos
+    where phi = vPhi cds
+                
+          (x0,y0) = (vLon cds, vLat cds)
+          lonPos = x0 + delT*lonVel
+          latPos = y0 + delT*latVel
+                   
+          lonVel = vc*(cos phi) - axleToLaser lonMag
+          latVel = vc*(sin phi) + axleToLaser latMag
+
+          axleToLaser mag = vc * mag * (tan alpha) / (dimL ds)
+          lonMag = (dimA ds)*(sin phi) + (dimB ds)*(cos phi)
+          latMag = (dimA ds)*(cos phi) - (dimB ds)*(sin phi)
+
+-- | Equation 7 (corrected) from [1]                   
+newPhi :: (Base repr) => repr Coords -> repr DelTime
+       -> repr Vel -> repr Angle -> repr Dims -> repr Angle
+newPhi cds delT vc alpha ds = (vPhi cds) + delT*vc*(tan alpha) / (dimL ds)
     
 cVehicle :: (Base repr) => repr Prob
 cVehicle = 0.42
@@ -181,16 +208,17 @@ sqr a = unsafeProb $ a * a  -- pow_ (unsafeProb a) 2
 let_' :: (Mochastic repr)
          => repr a -> (repr a -> repr (Measure b)) -> repr (Measure b)
 let_' = bind . dirac
-                           
-withinLaser :: (Base repr) => repr Int -> repr H.Real -> repr Bool
-withinLaser n b = and_ [ lessOrEq (convert (fromInt n - 0.5)) tb2
-                       , less tb2 (convert (fromInt n + 0.5)) ]
-    where lessOrEq a b = or_ [less a b, equal a b]
-          tb2 = tan (b/2)
-          toRadian d = d*pi/180
-          convert = tan . toRadian . ((/) 4)
 
-laserAssigns :: (Base repr) => repr (Vector H.Real) -> repr (Vector H.Real)
+normalNoise :: (Mochastic repr) => repr Prob -> repr (Vector H.Real)
+            -> repr (Measure (Vector H.Real))
+normalNoise sd v = plate (vmap (`normal` sd) v)        
+                           
+-- | Insert sensor readings (radial distance or intensity)
+-- from a vector containing one reading for each beacon (reads)
+-- into the correct indices (i.e., angles derived from betas) within
+-- a hakaru vector of "noisy" readings (base; length = range)
+laserAssigns :: (Base repr) => repr (Vector H.Real) 
+             -> repr (Vector H.Real)
              -> repr (Vector H.Real) -- ^ length = range
              -> repr (Vector H.Real)
 laserAssigns reads betas base =
@@ -201,9 +229,13 @@ laserAssigns reads betas base =
         build pd rb = mapWithIndex (addBeacon rb) pd
     in reduce build base combined
 
-normalNoise :: (Mochastic repr) => repr Prob -> repr (Vector H.Real)
-            -> repr (Measure (Vector H.Real))
-normalNoise sd v = plate (vmap (`normal` sd) v)
+withinLaser :: (Base repr) => repr Int -> repr H.Real -> repr Bool
+withinLaser n b = and_ [ lessOrEq (convert (fromInt n - 0.5)) tb2
+                       , less tb2 (convert (fromInt n + 0.5)) ]
+    where lessOrEq a b = or_ [less a b, equal a b]
+          tb2 = tan (b/2)
+          toRadian d = d*pi/180
+          convert = tan . toRadian . ((/) 4)                           
 
 --------------------------------------------------------------------------------
 --                               SIMULATIONS                                  --
