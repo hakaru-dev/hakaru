@@ -21,6 +21,7 @@ SLO := module ()
     MyHandler, getBinderForm, infer_type, join_type, join2type,
     simp_sup, simp_if, into_sup, simp_rel, 
     simp_pw, simp_pw_equal, simp_pw3,
+    simp_props,
     comp2, comp_algeb, compare, comp_list,
 
     # density recognisation routines
@@ -226,6 +227,7 @@ SLO := module ()
       else
         c0 := 0;
       end if;
+      if q = undefined then return undefined end if;
       if q=0 then return c0; end if;
       coef_q := [coeffs(q, vars, 'vars_q')];
       vars_q := [vars_q];
@@ -846,7 +848,7 @@ SLO := module ()
 # - full 'type' inference of e
 # - full 'range-of-value' inference of e
   adjust_types := proc(e, typ, ctx)
-    local ee, dom, opc, res, var, left, right, inf_typ, typ2, cond, fcond;
+    local ee, dom, opc, res, var, left, right, inf_typ, typ2, cond, fcond, cl;
     if type(e, specfunc(anything, 'Superpose')) then
       map(thisproc, e, typ, ctx)
     elif type(e, 'WeightedM'(anything, anything)) then
@@ -917,13 +919,28 @@ SLO := module ()
       If(var, left, right);
     elif type(e, 'If'(anything, anything, anything)) then
       cond := op(1,e);
-      opc := _EnvPathCond;
-      _EnvPathCond := opc union {cond};
-      left := adjust_types(op(2,e), typ, ctx);
       fcond := flip_cond(cond);
-      _EnvPathCond := opc union {fcond};
-      right := adjust_types(op(3,e), typ, ctx);
-      If(cond, left, right);
+      opc := _EnvPathCond;
+      cl := simp_cond(opc union {cond});
+      if cl = false then  # cond is unsat
+        cl := simp_cond(opc union {fcond});
+        if cl = false then # so is fcond, oh my!
+          error "_EnvPathCond (%1) itself is unsat!", _EnvPathCond;
+        end if;
+        _EnvPathCond := cl;
+        adjust_types(op(3,e), typ, ctx);
+      else
+        _EnvPathCond := cl;
+        left := adjust_types(op(2,e), typ, ctx);
+        cl := simp_cond(opc union {fcond});
+        if cl = false then # fcond is unsat, just return left
+          return left;
+        else
+          _EnvPathCond := cl;
+          right := adjust_types(op(3,e), typ, ctx);
+          If(cond, left, right);
+        end if;
+      end if;
     elif type(e, 'Uniform'(anything, anything)) and typ = 'Measure(Real)' then
       e
     elif type(e, 'Uniform'(anything, anything)) and typ = 'Measure(Prob)' then
@@ -1092,6 +1109,19 @@ SLO := module ()
   # helper routines for tweaking ASTs
   simp_sup := proc()
     SUPERPOSE(op(sort([_passed], 'strict'=comp2)))
+  end proc;
+
+  # weird routine to catch unsat, which means a condition list implies false
+  simp_props := proc(pl)
+    local res;
+    try 
+      coulditbe(pl) assuming pl;
+      res := pl;
+    catch "when calling '%1'. Received: 'contradictory assumptions'":
+    # catch "the assumed property", "contradictory assumptions":
+      res := false;
+    end try;
+    res;
   end proc;
 
   into_sup := proc(wm, w) WeightedM(simplify(w*op(1,wm)), op(2,wm)) end proc;
