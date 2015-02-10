@@ -16,7 +16,11 @@ testRelationships = test [
     "t4"   ~: testSS [t4] (lam (\a -> lam (\b -> lam (\t -> beta a b)))),
     "t7"   ~: testSS [t7] (normal 0 1 `bind` \x1 ->
                            normal 0 1 `bind` \x2 ->
-                           dirac (x1 * recip x2))
+                           dirac (x1 * recip x2)),
+    "t8"   ~: testSS [t8] (lam (\a -> (lam (\alpha ->
+                           (normal 0 1 `bind` \x1 ->
+                           normal 0 1 `bind` \x2 ->
+                           dirac (a + (fromProb alpha) * (x1 / x2)))))))
     ]
 
 allTests :: Test
@@ -44,3 +48,6 @@ t4 = lam (\a -> lam (\b -> lam (\t ->
 
 t7 :: (Mochastic repr) => repr (Measure Real)
 t7 = cauchy 0 1
+
+t8 :: (Lambda repr, Mochastic repr) => repr (Real -> Prob -> Measure Real)
+t8 = (lam (\a -> (lam (\alpha -> cauchy a alpha))))
