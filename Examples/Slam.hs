@@ -115,8 +115,7 @@ simulate ds blons blats cds
          old_ve old_alpha delT =
 
     let_' (wheelToAxle old_ve old_alpha ds) $ \old_vc ->
-    let_' (newPos true ds cds delT old_vc old_alpha) $ \calc_lon ->
-    let_' (newPos false ds cds delT old_vc old_alpha) $ \calc_lat ->
+    unpair (newPos ds cds delT old_vc old_alpha) $ \calc_lon calc_lat ->
     let_' (newPhi cds delT old_vc old_alpha ds) $ \calc_phi ->
     
     normal calc_lon ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \lon ->
@@ -147,28 +146,30 @@ simulate ds blons blats cds
     dirac $ pair (pair lasersR lasersI) (pair phi (pair lon lat))
 
 -- | Translate velocity
--- from back left wheel (where the vel encoder is present)
+-- from back left wheel (where the velocity encoder is present)
 -- to the center of the rear axle
 wheelToAxle :: (Base repr) => repr Vel -> repr Angle -> repr Dims -> repr Vel
 wheelToAxle ve alpha ds = ve / (1 - (tan alpha)*(dimH ds)/(dimL ds))
 
--- | "True" means longitude, "False" means latitude
-newPos :: (Base repr) => repr Bool
-       -> repr Dims -> repr Coords
-       -> repr DelTime -> repr Vel -- ^ delT, old_vc
-       -> repr Angle -- ^ old_alpha
-       -> repr GPS
-newPos lb ds cds delT old_vc old_alpha =
-    oldPos + delT * (old_vc*(fb oldPhi)
-                     - (old_vc * mag * (tan old_alpha) / (dimL ds)))
-    where oldPos = if_ lb (vLon cds) (vLat cds)
-          oldPhi = vPhi cds
-          fa p = if_ lb (sin p) (cos p)
-          fb p = if_ lb (cos p) (sin p)
-          mag = (dimA ds)*(fa oldPhi) + (dimB ds)*(fb oldPhi)
+newPos :: (Base repr) => repr Dims -> repr Coords
+       -> repr DelTime -> repr Vel -> repr Angle
+       -> repr (GPS,GPS)
+newPos ds cds delT vc alpha = pair lonPos latPos
+    where phi = vPhi cds
+                
+          (x0,y0) = (vLon cds, vLat cds)
+          lonPos = x0 + delT*lonVel
+          latPos = y0 + delT*latVel
+                   
+          lonVel = vc*(cos phi) - axleToLaser lonMag
+          latVel = vc*(sin phi) + axleToLaser latMag
+
+          axleToLaser mag = vc * mag * (tan alpha) / (dimL ds)
+          lonMag = (dimA ds)*(sin phi) + (dimB ds)*(cos phi)
+          latMag = (dimA ds)*(cos phi) - (dimB ds)*(sin phi)
 
 newPhi :: (Base repr) => repr Coords -> repr DelTime
-       -> repr Vel -> repr Angle -> repr Angle -> repr Dims
+       -> repr Vel -> repr Angle -> repr Dims -> repr Angle
 newPhi cds delT vc alpha ds = (vPhi cds) + delT*vc*(tan alpha) / (dimL ds)
     
 cVehicle :: (Base repr) => repr Prob
