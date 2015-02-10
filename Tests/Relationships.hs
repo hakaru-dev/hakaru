@@ -13,7 +13,10 @@ testRelationships = test [
     "t1"   ~: testSS [t1] (lam (\mu -> (lam (\sigma -> normal 0 1)))),
     "t2"   ~: testSS [t2] (lam (\beta -> gamma beta 2)),
     "t3"   ~: testSS [t3, t3'] (lam (\_ -> (lam (\beta -> gamma 2 beta)))),
-    "t4"   ~: testSS [t4] (lam (\a -> lam (\b -> lam (\t -> beta a b))))
+    "t4"   ~: testSS [t4] (lam (\a -> lam (\b -> lam (\t -> beta a b)))),
+    "t7"   ~: testSS [t7] (normal 0 1 `bind` \x1 ->
+                           normal 0 1 `bind` \x2 ->
+                           dirac (x1 * recip x2))
     ]
 
 allTests :: Test
@@ -38,3 +41,6 @@ t4 = lam (\a -> lam (\b -> lam (\t ->
   gamma a t `bind` \x1 -> 
   gamma b t `bind` \x2 -> 
   dirac (x1/(x1+x2)))))
+
+t7 :: (Mochastic repr) => repr (Measure Real)
+t7 = cauchy 0 1
