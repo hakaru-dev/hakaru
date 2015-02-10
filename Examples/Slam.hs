@@ -140,10 +140,13 @@ simulate ds blons blats cds
     normalNoise cBeacon (vmap fromProb calc_zints) `bind` \zints ->        
     normalNoise cBeacon calc_zbetas `bind` \zbetas ->
 
+    -- Make a base noisy vector of laser distance readings
     plate (vector 0 360 (const (normal muZRads sigmaZRads))) `bind` \baseR ->
-    let_' (laserAssigns zrads zbetas baseR) $ \lasersR ->
-        
+    -- Make a base noisy vector of laser intensity readings
     plate (vector 0 360 (const (normal muZInts sigmaZInts))) `bind` \baseI ->
+        
+    -- Fill base vectors with actual readings at correct angle positions
+    let_' (laserAssigns zrads zbetas baseR) $ \lasersR ->
     let_' (laserAssigns zints zbetas baseI) $ \lasersI ->
     
     dirac $ pair (pair lasersR lasersI) (pair phi (pair lon lat))
@@ -205,16 +208,17 @@ sqr a = unsafeProb $ a * a  -- pow_ (unsafeProb a) 2
 let_' :: (Mochastic repr)
          => repr a -> (repr a -> repr (Measure b)) -> repr (Measure b)
 let_' = bind . dirac
-                           
-withinLaser :: (Base repr) => repr Int -> repr H.Real -> repr Bool
-withinLaser n b = and_ [ lessOrEq (convert (fromInt n - 0.5)) tb2
-                       , less tb2 (convert (fromInt n + 0.5)) ]
-    where lessOrEq a b = or_ [less a b, equal a b]
-          tb2 = tan (b/2)
-          toRadian d = d*pi/180
-          convert = tan . toRadian . ((/) 4)
 
-laserAssigns :: (Base repr) => repr (Vector H.Real) -> repr (Vector H.Real)
+normalNoise :: (Mochastic repr) => repr Prob -> repr (Vector H.Real)
+            -> repr (Measure (Vector H.Real))
+normalNoise sd v = plate (vmap (`normal` sd) v)        
+                           
+-- | Insert sensor readings (radial distance or intensity)
+-- from a vector containing one reading for each beacon (reads)
+-- into the correct indices (i.e., angles derived from betas) within
+-- a hakaru vector of "noisy" readings (base; length = range)
+laserAssigns :: (Base repr) => repr (Vector H.Real) 
+             -> repr (Vector H.Real)
              -> repr (Vector H.Real) -- ^ length = range
              -> repr (Vector H.Real)
 laserAssigns reads betas base =
@@ -225,9 +229,13 @@ laserAssigns reads betas base =
         build pd rb = mapWithIndex (addBeacon rb) pd
     in reduce build base combined
 
-normalNoise :: (Mochastic repr) => repr Prob -> repr (Vector H.Real)
-            -> repr (Measure (Vector H.Real))
-normalNoise sd v = plate (vmap (`normal` sd) v)
+withinLaser :: (Base repr) => repr Int -> repr H.Real -> repr Bool
+withinLaser n b = and_ [ lessOrEq (convert (fromInt n - 0.5)) tb2
+                       , less tb2 (convert (fromInt n + 0.5)) ]
+    where lessOrEq a b = or_ [less a b, equal a b]
+          tb2 = tan (b/2)
+          toRadian d = d*pi/180
+          convert = tan . toRadian . ((/) 4)                           
 
 --------------------------------------------------------------------------------
 --                               SIMULATIONS                                  --
