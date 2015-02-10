@@ -12,7 +12,8 @@ allTests = test [ "testUnrolling" ~: testUnrolling
                 , "testUnity"     ~: testUnity
                 , "testInside"    ~: testInside
                 , "testPull"      ~: testPull
-                , "testConj"      ~: testConj ]
+                , "testConj"      ~: testConj
+                , "testPlateDirac"~: testPlateDirac ]
 
 -- Test unrolling short product measures
 testUnrolling :: Assertion
@@ -77,3 +78,10 @@ posterior :: (Mochastic repr, Integrate repr, Lambda repr) =>
               repr (Vector Prob) -> repr Int -> repr (Measure (Vector Prob))
 posterior as coin =
   dirichlet (mapWithIndex (\i a -> a + if_ (equal coin i) 1 0) as)
+
+-- A plate full of diracs is a pure vector
+testPlateDirac :: Assertion
+testPlateDirac = testSS [plateDirac] plateDirac'
+plateDirac, plateDirac' :: (Mochastic repr) => repr (Measure (Vector Real))
+plateDirac = plate (vector 1 10 (dirac . fromInt))
+plateDirac' = dirac (vector 1 10 fromInt)
