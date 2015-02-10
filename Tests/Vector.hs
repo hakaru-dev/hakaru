@@ -63,10 +63,6 @@ instance Integrate Disintegrate -- UNDEFINED
 instance Lambda Disintegrate -- UNDEFINED
 categorical' :: (Mochastic repr) => repr (Vector (Prob, a)) -> repr (Measure a)
 categorical' = error "Vector categorical undefined"
-mapWithIndex :: (Base repr) => (repr Int -> repr a -> repr b) ->
-                               repr (Vector a) -> repr (Vector b)
-mapWithIndex f v = vector (loBound v) (hiBound v)
-                          (\i -> f i (index v i))
 num :: (Base repr) => repr (Vector a) -> repr (Vector (a, Int))
 num = mapWithIndex (flip pair)
 joint :: (Mochastic repr, Integrate repr, Lambda repr) =>
