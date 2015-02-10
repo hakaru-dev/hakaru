@@ -117,7 +117,7 @@ simulate ds blons blats cds
     let_' (wheelToAxle old_ve old_alpha ds) $ \old_vc ->
     let_' (newPos true ds cds delT old_vc old_alpha) $ \calc_lon ->
     let_' (newPos false ds cds delT old_vc old_alpha) $ \calc_lat ->
-    let_' ((vPhi cds) + delT*old_vc*(tan old_alpha) / (dimL ds)) $ \calc_phi ->
+    let_' (newPhi cds delT old_vc old_alpha ds) $ \calc_phi ->
     
     normal calc_lon ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \lon ->
     normal calc_lat ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \lat ->
@@ -152,6 +152,7 @@ simulate ds blons blats cds
 wheelToAxle :: (Base repr) => repr Vel -> repr Angle -> repr Dims -> repr Vel
 wheelToAxle ve alpha ds = ve / (1 - (tan alpha)*(dimH ds)/(dimL ds))
 
+-- | "True" means longitude, "False" means latitude
 newPos :: (Base repr) => repr Bool
        -> repr Dims -> repr Coords
        -> repr DelTime -> repr Vel -- ^ delT, old_vc
@@ -165,6 +166,10 @@ newPos lb ds cds delT old_vc old_alpha =
           fa p = if_ lb (sin p) (cos p)
           fb p = if_ lb (cos p) (sin p)
           mag = (dimA ds)*(fa oldPhi) + (dimB ds)*(fb oldPhi)
+
+newPhi :: (Base repr) => repr Coords -> repr DelTime
+       -> repr Vel -> repr Angle -> repr Angle -> repr Dims
+newPhi cds delT vc alpha ds = (vPhi cds) + delT*vc*(tan alpha) / (dimL ds)
     
 cVehicle :: (Base repr) => repr Prob
 cVehicle = 0.42
