@@ -109,8 +109,8 @@ simulate ds blons blats cds
          old_ve old_alpha delT =
 
     let_' (old_ve / (1 - (tan old_alpha)*(dimH ds)/(dimL ds))) $ \old_vc ->
-    let_' (newPos 0 ds cds delT old_vc old_alpha) $ \calc_lon ->
-    let_' (newPos 1 ds cds delT old_vc old_alpha) $ \calc_lat ->
+    let_' (newPos true ds cds delT old_vc old_alpha) $ \calc_lon ->
+    let_' (newPos false ds cds delT old_vc old_alpha) $ \calc_lat ->
     let_' ((vPhi cds) + delT*old_vc*(tan old_alpha) / (dimL ds)) $ \calc_phi ->
     
     normal calc_lon ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \lon ->
@@ -140,18 +140,18 @@ simulate ds blons blats cds
     
     dirac $ pair (pair lasersR lasersI) (pair phi (pair lon lat))
 
-newPos :: (Base repr) => repr Int
+newPos :: (Base repr) => repr Bool
        -> repr Dims -> repr Coords
        -> repr DelTime -> repr Vel -- ^ delT, old_vc
        -> repr Angle -- ^ old_alpha
        -> repr GPS
-newPos i ds cds delT old_vc old_alpha =
+newPos lb ds cds delT old_vc old_alpha =
     oldPos + delT * (old_vc*(fb oldPhi)
                      - (old_vc * mag * (tan old_alpha) / (dimL ds)))
-    where oldPos = if_ (equal_ i 0) (vLon cds) (vLat cds)
+    where oldPos = if_ lb (vLon cds) (vLat cds)
           oldPhi = vPhi cds
-          fa p = if_ (equal_ i 0) (sin p) (cos p)
-          fb p = if_ (equal_ i 0) (cos p) (sin p)
+          fa p = if_ lb (sin p) (cos p)
+          fb p = if_ lb (cos p) (sin p)
           mag = (dimA ds)*(fa oldPhi) + (dimB ds)*(fb oldPhi)
     
 cVehicle :: (Base repr) => repr Prob
