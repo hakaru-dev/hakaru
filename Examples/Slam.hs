@@ -124,12 +124,15 @@ simulate ds blons blats cds
 
     let_' (vmap ((-) lon) blons) $ \lon_ds ->
     let_' (vmap ((-) lat) blats) $ \lat_ds ->
-        
+
+    -- Equation 10 from [1]
     let_' (vmap sqrt_ (vZipWith (+) (vmap sqr lon_ds)
                                     (vmap sqr lat_ds))) $ \calc_zrads ->
     -- inverse-square for intensities 
     let_' (vmap (\r -> cIntensity / (pow_ r 2)) calc_zrads) $ \calc_zints ->
-    -- removed a "+ pi/2" term: it is present as (i - (n-1)/2) in laserAssigns
+
+    -- Equation 10 from [1]    
+    -- Note: removed a "+ pi/2" term: it is present as (i - 180) in laserAssigns
     let_' (vmap (\r -> atan r - calc_phi)
                 (vZipWith (/) lat_ds lon_ds)) $ \calc_zbetas ->
 
@@ -148,9 +151,11 @@ simulate ds blons blats cds
 -- | Translate velocity
 -- from back left wheel (where the velocity encoder is present)
 -- to the center of the rear axle
+-- Equation 6 from [1]
 wheelToAxle :: (Base repr) => repr Vel -> repr Angle -> repr Dims -> repr Vel
 wheelToAxle ve alpha ds = ve / (1 - (tan alpha)*(dimH ds)/(dimL ds))
 
+-- | Equation 7 (corrected) from [1]
 newPos :: (Base repr) => repr Dims -> repr Coords
        -> repr DelTime -> repr Vel -> repr Angle
        -> repr (GPS,GPS)
@@ -168,6 +173,7 @@ newPos ds cds delT vc alpha = pair lonPos latPos
           lonMag = (dimA ds)*(sin phi) + (dimB ds)*(cos phi)
           latMag = (dimA ds)*(cos phi) - (dimB ds)*(sin phi)
 
+-- | Equation 7 (corrected) from [1]                   
 newPhi :: (Base repr) => repr Coords -> repr DelTime
        -> repr Vel -> repr Angle -> repr Dims -> repr Angle
 newPhi cds delT vc alpha ds = (vPhi cds) + delT*vc*(tan alpha) / (dimL ds)
