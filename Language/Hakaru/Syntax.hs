@@ -279,10 +279,29 @@ class (Base repr) => Mochastic repr where
 
   plate :: repr (Vector (     Measure         a   )) ->
            repr (             Measure (Vector a   ))
-  chain :: repr (Vector (s -> Measure        (a,s))) ->
+  chain :: (Lambda repr) =>
+           repr (Vector (s -> Measure        (a,s))) ->
            repr (        s -> Measure (Vector a, s))
-  plate =  error "plate unimplemented"
-  chain =  error "chain unimplemented"
+  plate v = uneither (reduce r z (mapWithIndex m v))
+                     (\_ -> dirac (undefined {- TODO: empty vector -}))
+                     id
+    where r x y = uneither x (\_ -> y) $ \x' ->
+                  uneither y (\_ -> x) $ \y' ->
+                  inr (liftM2 vconcat x' y')
+          z     = inl unit
+          m i a = inr (liftM (vector i i . const) a)
+  chain v = uneither (reduce r z (mapWithIndex m v))
+                     (\_ -> lam (\s -> dirac (pair (undefined {- TODO: empty vector -}) s)))
+                     id
+    where r x y = uneither x (\_ -> y) $ \x' ->
+                  uneither y (\_ -> x) $ \y' ->
+                  inr (lam (\s -> app x' s `bind` \v1s1 ->
+                                  unpair v1s1 $ \v1 s1 ->
+                                  app y' s1 `bind` \v2s2 ->
+                                  unpair v2s2 $ \v2 s2 ->
+                                  dirac (pair (vconcat v1 v2) s2)))
+          z     = inl unit
+          m i a = inr (lam (\s -> liftM (\as -> unpair as (pair . vector i i . const)) (app a s)))
 
 errorEmpty :: a
 errorEmpty = error "empty mixture makes no sense"
@@ -369,6 +388,10 @@ dirichlet a = unNormedDirichlet a `bind` \xs ->
 
 vlength :: (Base repr) => repr (Vector a) -> repr Int
 vlength v = hiBound v - loBound v + 1
+
+vconcat :: (Base repr) => repr (Vector a) -> repr (Vector a) -> repr (Vector a)
+vconcat v1 v2 = vector (loBound v1) (hiBound v2)
+  (\i -> index (if_ (less i (loBound v2)) v1 v2) i)
 
 mapWithIndex :: (Base repr) => (repr Int -> repr a -> repr b)
              -> repr (Vector a) -> repr (Vector b)
