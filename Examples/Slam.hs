@@ -263,6 +263,8 @@ data Params = PM { sensors :: [Sensor]
     
 type Generator = Particle -> Params -> IO ()
 
+data Gen = Conditioned | Unconditioned deriving Eq
+
 -- | Returns the pair (longitudes, latitudes)
 genBeacons :: Rand -> Maybe FilePath -> IO (Vec Double, Vec Double)
 genBeacons _ Nothing         = return ( Vec 0 1 (V.fromList [1,3])
@@ -289,23 +291,20 @@ plotPoint out (_,(lon,lat)) = do
 makeDims :: V.Vector Double -> Vec Double
 makeDims = Vec 0 3           
 
-------------------
---  UNCONDITIONED
-------------------
-
-generate :: FilePath -> FilePath -> Maybe FilePath -> IO ()
-generate input output eval = do
+generate :: Gen -> FilePath -> FilePath -> Maybe FilePath -> IO ()
+generate c input output eval = do
   g <- MWC.createSystemRandom
   (Init ds phi ilt iln) <- initialVals input
   controls <- controlData input
   sensors <- sensorData input
+  lasers <- if c==Unconditioned then return [] else laserReadings input
   (lons, lats) <- genBeacons g eval
                   
-  gen output g (PL (makeDims ds) lons lats)
-               (PM sensors controls [] (iln,(ilt,phi)) (0,0) 0)
+  gen c output g (PL (makeDims ds) lons lats)
+                 (PM sensors controls lasers (iln,(ilt,phi)) (0,0) 0)
 
-gen :: FilePath -> Rand -> Generator
-gen out g prtcl params = go params
+gen :: Gen -> FilePath -> Rand -> Generator
+gen c out g prtcl params = go params
     where go prms | null $ sensors prms = putStrLn "Finished reading input_sensor"
                   | otherwise = do
             let (Sensor tcurr snum) = head $ sensors prms
@@ -322,11 +321,27 @@ gen out g prtcl params = go params
                           (Control _ nv nalph) = head $ controls prms
                       go $ prms' { controls = tail (controls prms)
                                  , steer = (nv, nalph) }
-              3 -> do ((zr,zi), coords) <- sampleState prtcl prms tcurr g
-                      putStrLn "writing to simulated_input_laser"
-                      plotReads out (vec zr) (vec zi)
-                      go $ updateParams prms coords tcurr
+              3 -> case c of
+                     Unconditioned -> 
+                         do ((zr,zi), coords) <- sampleState prtcl prms tcurr g
+                            putStrLn "writing to simulated_input_laser"
+                            plotReads out (vec zr) (vec zi)
+                            go $ updateParams prms coords tcurr
+                     Conditioned ->
+                         do when (null $ lasers prms) $
+                                 error "input_laser has fewer data than\
+                                       \it should according to input_sensor"
+                            let (L _ zr zi) = head (lasers prms)
+                                makeLasers l = Vec 0 360 (V.fromList l)
+                                lreads = (makeLasers zr, makeLasers zi)
+                            coords <- sampleCoords prtcl prms lreads tcurr g
+                            let prms' = updateParams prms coords tcurr
+                            go $ prms' { lasers = tail (lasers prms) }
               _ -> error "Invalid sensor ID (must be 1, 2 or 3)"
+
+------------------
+--  UNCONDITIONED
+------------------                   
 
 type SimLaser = Dims -> Vector GPS -> Vector GPS
               -> Coords -> Steering -> DelTime
@@ -359,47 +374,6 @@ plotReads out rads ints = do
 ----------------------------------
 --  CONDITIONED ON LASER READINGS
 ----------------------------------
-
-runner :: FilePath -> FilePath -> Maybe FilePath -> IO ()
-runner input output eval = do
-  g <- MWC.createSystemRandom
-  (Init ds phi ilt iln) <- initialVals input
-  controls <- controlData input
-  sensors <- sensorData input
-  lasers <- laserReadings input
-  (lons, lats) <- genBeacons g eval
-
-  runn output g (PL (makeDims ds) lons lats)
-                (PM sensors controls lasers (iln,(ilt,phi)) (0,0) 0)
-
-runn :: FilePath -> Rand -> Generator
-runn out g prtcl params = go params
-    where go prms | null $ sensors prms = putStrLn "Finished reading input_sensor"
-                  | otherwise = do
-            let (Sensor tcurr snum) = head $ sensors prms
-            case snum of
-              1 -> do (_,coords) <- sampleState prtcl prms tcurr g
-                      putStrLn "writing to slam_out_path"
-                      plotPoint out coords
-                      go $ updateParams prms coords tcurr
-              2 -> do when (null $ controls prms) $
-                           error "input_control has fewer data than\
-                                 \it should according to input_sensor"
-                      (_,coords) <- sampleState prtcl prms tcurr g
-                      let prms' = updateParams prms coords tcurr
-                          (Control _ nv nalph) = head $ controls prms
-                      go $ prms' { controls = tail (controls prms)
-                                 , steer = (nv, nalph) }
-              3 -> do when (null $ lasers prms) $
-                           error "input_laser has fewer data than\
-                                 \it should according to input_sensor"
-                      let (L _ zr zi) = head (lasers prms)
-                          makeLasers l = Vec 0 360 (V.fromList l)
-                          lreads = (makeLasers zr, makeLasers zi)
-                      coords <- sampleCoords prtcl prms lreads tcurr g
-                      let prms' = updateParams prms coords tcurr
-                      go $ prms' { lasers = tail (lasers prms) }
-              _ -> error "Invalid sensor ID (must be 1, 2 or 3)"
 
 type Env = (Dims, (Vector GPS, (Vector GPS, (Coords, (Steering, DelTime)))))
 
@@ -435,8 +409,8 @@ main :: IO ()
 main = do
   args <- getArgs
   case args of
-    [input, output]       -> runner input output Nothing
-    [input, output, eval] -> runner input output (Just eval)
+    [input, output]       -> generate Conditioned input output Nothing
+    [input, output, eval] -> generate Conditioned input output (Just eval)
     _ -> usageExit
     
 usageExit :: IO ()
