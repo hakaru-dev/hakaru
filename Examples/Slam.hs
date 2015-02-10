@@ -5,10 +5,11 @@
 -- {-# OPTIONS_GHC -ftype-function-depth=400 #-}
 -- {-# OPTIONS_GHC -fcontext-stack=400 #-}
 
--- | Relevant paper: 
--- Jose Guivant, Eduardo Nebot, and Stephan Baiker. Autonomous navigation and map 
--- building using laser range sensors in outdoor applications. 
--- Journal of Robotic Systems, 17(10):565–583, Oct. 2000.
+-- | References:
+--
+-- [1] Jose Guivant, Eduardo Nebot, and Stephan Baiker. Autonomous navigation and map 
+--     building using laser range sensors in outdoor applications. 
+--     Journal of Robotic Systems, 17(10):565–583, Oct. 2000.
 
 module Slam where
 
@@ -70,8 +71,13 @@ type GPS = H.Real
 type Angle = H.Real -- ^ In radians
 type Vel = H.Real    
 type DelTime = H.Real
-    
-type Dims = Vector H.Real -- ^ <l,h,a,b>
+
+-- | Dimensions of the vehicle
+-- L = distance between front and rear axles
+-- H = distance between center of back left wheel and center of rear axle
+-- a = distance between rear axle and front-based laser
+-- b = width offset of the front-based laser
+type Dims = Vector H.Real -- ^ <L,H,a,b>
 
 dimL, dimH, dimA, dimB :: (Base repr) => repr Dims -> repr H.Real
 dimL v = H.index v 0
@@ -81,7 +87,7 @@ dimB v = H.index v 3
 
 type LaserReads = (Vector ZRad, Vector ZInt)
 
-type Coords = (Angle, (GPS, GPS)) -- ^ phi, vehLon, vehLat
+type Coords = (Angle, (GPS, GPS)) -- ^ phi (world angle), vehLon, vehLat
 
 vPhi :: (Base repr) => repr Coords -> repr Angle
 vPhi cds = unpair cds $ \p _ -> p
@@ -108,7 +114,7 @@ simulate :: (Mochastic repr) => Simulator repr
 simulate ds blons blats cds
          old_ve old_alpha delT =
 
-    let_' (old_ve / (1 - (tan old_alpha)*(dimH ds)/(dimL ds))) $ \old_vc ->
+    let_' (wheelToAxle old_ve old_alpha ds) $ \old_vc ->
     let_' (newPos true ds cds delT old_vc old_alpha) $ \calc_lon ->
     let_' (newPos false ds cds delT old_vc old_alpha) $ \calc_lat ->
     let_' ((vPhi cds) + delT*old_vc*(tan old_alpha) / (dimL ds)) $ \calc_phi ->
@@ -139,6 +145,12 @@ simulate ds blons blats cds
     let_' (laserAssigns zints zbetas baseI) $ \lasersI ->
     
     dirac $ pair (pair lasersR lasersI) (pair phi (pair lon lat))
+
+-- | Translate velocity
+-- from back left wheel (where the vel encoder is present)
+-- to the center of the rear axle
+wheelToAxle :: (Base repr) => repr Vel -> repr Angle -> repr Dims -> repr Vel
+wheelToAxle ve alpha ds = ve / (1 - (tan alpha)*(dimH ds)/(dimL ds))
 
 newPos :: (Base repr) => repr Bool
        -> repr Dims -> repr Coords
