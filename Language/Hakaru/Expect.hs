@@ -1,11 +1,9 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleContexts, FlexibleInstances,
     TypeFamilies, StandaloneDeriving, GeneralizedNewtypeDeriving, GADTs,
     RankNTypes, ScopedTypeVariables, UndecidableInstances, TypeOperators, DataKinds, InstanceSigs #-}
-{-# LANGUAGE DeriveGeneric, DeriveDataTypeable #-}
 {-# OPTIONS -Wall #-}
 
-module Language.Hakaru.Expect where
--- module Language.Hakaru.Expect (Expect(..), Expect', total, normalize) where
+module Language.Hakaru.Expect (Expect(..), Expect', total, normalize) where
 
 -- Expectation interpretation
 
@@ -246,9 +244,6 @@ type instance MapExpect'2 (x ': xs) = MapExpect' x ': MapExpect'2 xs
 type instance Expect' (HRep t) = HRep t 
 type instance Expect' (SOP xss) = SOP (MapExpect'2 xss) 
 
-dictPair :: Dict p -> Dict q -> ((p, q) => x) -> x 
-dictPair Dict Dict x = x 
-
 expectHType :: HSing x -> Dict (HakaruType (Expect' x))
 expectHType HReal = Dict
 expectHType HProb = Dict 
@@ -268,6 +263,8 @@ expectHType2 (HCons x xs) =
   case (expectHType1 x, expectHType2 xs) of 
     (Dict, Dict) -> Dict
 
+type instance Expect' (Tag t xss) = Tag t (MapExpect'2 xss)  
+
 instance Embed r => Embed (Expect r) where 
   _Nil = Expect _Nil
   _Cons (Expect x) (Expect xs) = Expect (_Cons x xs) 
@@ -279,44 +276,8 @@ instance Embed r => Embed (Expect r) where
 
   caseSum (Expect x) caseZ caseS = Expect (caseSum x (unExpect . caseZ . Expect) (unExpect . caseS . Expect))
 
-
-  -- hRep :: forall xss t . (HakaruType xss, Embeddable t) 
-  --      => Expect r (SOP xss) -> Expect r (HRep t)
-
-  -- hRep (Expect x) = Expect _ 
-
-
-  -- hRep (Expect x) = case expectHType2 (hsing :: HSing xss) of Dict -> Expect (hRep x) 
-
-  unHRep :: forall t xss . (HakaruType xss, Embeddable t) 
-         => Expect r (HRep t) -> Expect r  (SOP xss)
-
-  unHRep (Expect x) = case expectHType2 (hsing :: HSing xss) of Dict -> Expect (unHRep x) 
- 
+  untag (Expect x) = Expect (untag x) 
   tag (Expect x) = Expect (tag x) 
 
-type instance Expect' (Tag t xss) = Tag t (MapExpect'2 xss)  
 
-
-
-data P2 a b = P2 a b deriving (GHC.Generics.Generic)
-instance Generics.SOP.Generic (P2 a b)
-instance HasDatatypeInfo (P2 a b) 
-deriving instance Typeable P2 
-
-instance (Typeable a, Typeable b, HakaruType a, HakaruType b) => Embeddable (P2 a b) where 
-  type Code (P2 a b) = '[ '[a, b]]
-
-  -- datatypeInfo = SOP.datatypeInfo 
-
-
-fstP2 (x :: repr (HRep (P2 a b))) = case_ x (NFn (\a _ -> a) :* Nil)
-
-sndP2 (x :: repr (HRep (P2 a b))) = case_ x (NFn (\_ a -> a) :* Nil)
-
-p2 a b = sop (Z $ a :* b :* Nil) 
-
-
--- test0 :: 
--- test0 = p2 (dirac 1) (dirac 2)
 

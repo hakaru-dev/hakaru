@@ -145,8 +145,8 @@ class (Base repr) => Embed (repr :: * -> *) where
 
    -}
 
-  hRep :: (HakaruType xss, Embeddable t) => repr (SOP xss) -> repr (HRep t)
-  unHRep :: (HakaruType xss, Embeddable t) => repr (HRep t) -> repr (SOP xss)
+  -- hRep :: (HakaruType xss, Embeddable t) => repr (SOP xss) -> repr (HRep t)
+  -- unHRep :: (HakaruType xss, Embeddable t) => repr (HRep t) -> repr (SOP xss)
 
   -- A truely "safe" variant, but doesn't permit recursive types, ie, the
   -- following produces an "infinite type" error:
@@ -169,17 +169,20 @@ case' :: (All SingI xss, Embed repr) => repr (SOP xss) -> NP (NFn repr o) xss ->
 case' _ Nil = error "Datatype with no constructors" 
 case' x (f :* fs) = caseSum x (\h -> caseProdG sing h f) (\t -> case' t fs)
 
-sop :: (Embeddable t, Embed repr) => NS (NP repr) (Code t) -> repr (HRep t)
-sop x = hRep (sop' x)
+-- sop :: (Embeddable t, Embed repr) => NS (NP repr) (Code t) -> repr (HRep t)
+-- sop x = hRep (sop' x)
 
--- sop2 :: (Embeddable t, Embed repr) => NS (NP repr) (Code t) -> repr (SOP (Code t))
--- sop2 x = sop' x
+-- -- sop2 :: (Embeddable t, Embed repr) => NS (NP repr) (Code t) -> repr (SOP (Code t))
+-- -- sop2 x = sop' x
 
-case_ :: (Embeddable t, Embed repr) => repr (HRep t) -> NP (NFn repr o) (Code t) -> repr o 
-case_ x f = case' (unHRep x) f 
+-- case_ :: (Embeddable t, Embed repr) => repr (HRep t) -> NP (NFn repr o) (Code t) -> repr o 
+-- case_ x f = case' (unHRep x) f 
 
 sopTag :: (Embeddable t, Embed repr) => NS (NP repr) (Code t) -> repr (Tag t (Code t))
 sopTag x = tag (sop' x)
+
+caseTag :: (Embeddable t, Embed repr) => repr (Tag t (Code t)) -> NP (NFn repr o) (Code t) -> repr o 
+caseTag x f = case' (untag x) f 
 
 
 -- instance Embeddable [a] where 
@@ -332,6 +335,8 @@ ctrName (Constructor x) = x
 ctrName (Infix x _ _) = x
 ctrName (Record x _) = x 
 
+dictPair :: Dict p -> Dict q -> ((p, q) => x) -> x 
+dictPair Dict Dict x = x 
 
 -- Template Haskell
 

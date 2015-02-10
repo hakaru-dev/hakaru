@@ -194,25 +194,8 @@ instance Lambda (Sample m) where
 
 
 type instance Sample' m (HRep t) = NS (NP (Sample m)) (Code t)
+type instance Sample' m (Tag t xss) = NS (NP (Sample m)) xss
 type instance Sample' m (SOP xss) = NS (NP (Sample m)) xss 
-
-
-
-
-hRepSample :: forall (xss :: [[*]]) t m . (HakaruType xss, Embeddable t)
-     => Sample m (SOP xss) -> Sample m (HRep t)
-hRepSample (Sample x) = 
-  case eqHType2 hsing hsing :: Maybe (xss :~: (Code t :: [[*]])) of 
-    Just Refl -> Sample x 
-    Nothing   -> error "Embed{Sample}: hRep (types don't match)"
-
-
-unhRepSample :: forall (xss :: [[*]]) t m . (HakaruType xss, Embeddable t)
-     => Sample m (HRep t) ->  Sample m (SOP xss) 
-unhRepSample (Sample x) = 
-  case eqHType2 hsing hsing :: Maybe (xss :~: (Code t :: [[*]])) of 
-    Just Refl -> Sample x 
-    Nothing   -> error "Embed{Sample}: unHRep (types don't match)"
 
 instance Embed (Sample m) where 
   _Nil = Sample (Z Nil) 
@@ -231,18 +214,5 @@ instance Embed (Sample m) where
   caseSum (Sample (Z x)) cS cZ = cS (Sample (Z x))
   caseSum (Sample (S x)) cS cZ = cZ (Sample x) 
 
-  hRep = hRepSample
-  unHRep = unhRepSample
-
-  -- hRep :: forall (xss :: [[*]]) t. (HakaruType xss, Embeddable t)
-  --      => Sample m (SOP xss) -> Sample m (HRep t)
-  -- hRep (Sample x) = case eqHType2 :: Maybe (xss :~: Code t) of 
-  --                     Just Refl -> Sample x 
-  --                     Nothing   -> error "Embed{Sample}: hRep (types don't match)"
-
-  -- unHRep :: forall t (xss :: [[*]]).
-  --                 (HakaruType xss, Embeddable t) =>
-  --                 Sample m (HRep t) -> Sample m (SOP xss)
-  -- unHRep (Sample x) = case eqHType2 :: Maybe (xss :~: Code t) of 
-  --                     Just Refl -> Sample x 
-  --                     Nothing   -> error "Embed{Sample}: hRep (types don't match)"
+  tag (Sample x) = Sample x 
+  untag (Sample x) = Sample x 
