@@ -9,7 +9,7 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        Order(..), Base(..), ununit, fst_, snd_, swap_,
        and_, or_, not_, min_, max_,
        sumVec, normalizeVector, dirichlet,
-       vlength, mapWithIndex, vmap, vZipWith, vZip,
+       vlength, mapWithIndex, mapV, vZipWith, vZip,
        Mochastic(..), bind_, factor, weight, bindx, liftM, liftM2,
        invgamma, exponential, chi2, bern,
        cauchy, laplace, student, weibull,
@@ -400,9 +400,9 @@ mapWithIndex :: (Base repr) => (repr Int -> repr a -> repr b)
 mapWithIndex f v = vector (loBound v) (hiBound v)
                    (\i -> f i (index v i))
 
-vmap :: (Base repr) => (repr a -> repr b)
+mapV :: (Base repr) => (repr a -> repr b)
      -> repr (Vector a) -> repr (Vector b)
-vmap f = mapWithIndex (const f)
+mapV f = mapWithIndex (const f)
         
 -- | Assume (without checking) that the bounds of the two
 -- vectors are the same

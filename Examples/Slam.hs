@@ -126,18 +126,18 @@ simulate ds blons blats cds steerE delT =
     unpair (newPos ds cds steerC delT) $ \calc_lon calc_lat ->
     let_' (newPhi ds cds steerC delT) $ \calc_phi ->
     
-    let_' (vmap ((-) calc_lon) blons) $ \lon_ds ->
-    let_' (vmap ((-) calc_lat) blats) $ \lat_ds ->
+    let_' (mapV ((-) calc_lon) blons) $ \lon_ds ->
+    let_' (mapV ((-) calc_lat) blats) $ \lat_ds ->
 
     -- Equation 10 from [1]
-    let_' (vmap sqrt_ (vZipWith (+) (vmap sqr lon_ds)
-                                    (vmap sqr lat_ds))) $ \calc_zrads ->
+    let_' (mapV sqrt_ (vZipWith (+) (mapV sqr lon_ds)
+                                    (mapV sqr lat_ds))) $ \calc_zrads ->
     -- inverse-square for intensities 
-    let_' (vmap (\r -> cIntensity / (pow_ r 2)) calc_zrads) $ \calc_zints ->
+    let_' (mapV (\r -> cIntensity / (pow_ r 2)) calc_zrads) $ \calc_zints ->
 
     -- Equation 10 from [1]    
     -- Note: removed a "+ pi/2" term: it is present as (i - 180) in laserAssigns
-    let_' (vmap (\r -> atan r - calc_phi)
+    let_' (mapV (\r -> atan r - calc_phi)
                 (vZipWith (/) lat_ds lon_ds)) $ \calc_zbetas ->
 
     -- | Add some noise
@@ -147,8 +147,8 @@ simulate ds blons blats cds steerE delT =
         
     normalNoise cBeacon calc_zbetas `bind` \zbetas ->
 
-    makeLasers (vmap fromProb calc_zrads) zbetas muZRads cBeacon `bind` \lasersR ->
-    makeLasers (vmap fromProb calc_zints) zbetas muZInts cBeacon `bind` \lasersI ->
+    makeLasers (mapV fromProb calc_zrads) zbetas muZRads cBeacon `bind` \lasersR ->
+    makeLasers (mapV fromProb calc_zints) zbetas muZInts cBeacon `bind` \lasersI ->
     
     dirac $ pair (pair lasersR lasersI) (pair phi (pair lon lat))
 
@@ -209,7 +209,7 @@ let_' = bind . dirac
 
 normalNoise :: (Mochastic repr) => repr Prob -> repr (Vector H.Real)
             -> repr (Measure (Vector H.Real))
-normalNoise sd v = plate (vmap (`normal` sd) v)        
+normalNoise sd v = plate (mapV (`normal` sd) v)        
                            
 -- | Make a vector of laser readings (length 361)
 -- The vector contains values from "reads" at positions from "betas"
