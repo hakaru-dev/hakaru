@@ -1,5 +1,9 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances,
-    TypeFamilies, StandaloneDeriving, GeneralizedNewtypeDeriving #-}
+    TypeFamilies, StandaloneDeriving, GeneralizedNewtypeDeriving, 
+    GADTs, RankNTypes, InstanceSigs, DataKinds, TypeOperators, PolyKinds #-}
+
+{-# LANGUAGE ScopedTypeVariables #-}
+
 {-# OPTIONS -Wall #-}
 
 module Language.Hakaru.Sample (Sample(..), Sample', Vec(..)) where
@@ -190,7 +194,25 @@ instance Lambda (Sample m) where
 
 
 type instance Sample' m (HRep t) = NS (NP (Sample m)) (Code t)
+type instance Sample' m (Tag t xss) = NS (NP (Sample m)) xss
+type instance Sample' m (SOP xss) = NS (NP (Sample m)) xss 
 
 instance Embed (Sample m) where 
-  sop' _ x = Sample x 
-  case' _ (Sample x) f = apNAry x f 
+  _Nil = Sample (Z Nil) 
+
+  _Cons x (Sample (Z xs)) = Sample (Z (x :* xs)) 
+  _Cons x (Sample (S _ )) = error "type error" 
+
+  caseProd (Sample (Z (x :* xs))) f = Sample (unSample $ f x (Sample (Z xs)))
+  caseProd (Sample (S _)) _ = error "type error"
+
+  _Z (Sample (Z x)) = Sample (Z x) 
+  _Z (Sample (S _)) = error "type error" 
+
+  _S (Sample x) = Sample (S x) 
+
+  caseSum (Sample (Z x)) cS cZ = cS (Sample (Z x))
+  caseSum (Sample (S x)) cS cZ = cZ (Sample x) 
+
+  tag (Sample x) = Sample x 
+  untag (Sample x) = Sample x 

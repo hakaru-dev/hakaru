@@ -17,26 +17,27 @@
   , TemplateHaskell  
   , DefaultSignatures
   , FlexibleContexts
+  , DeriveDataTypeable
   #-}
 
 module Language.Hakaru.Embed (
     module Language.Hakaru.Embed 
   , NP(..), NS(..), SingI(..), ConstructorInfo(..)
-  , Sing(..), DatatypeInfo(..), FieldInfo(..), Proxy(..), lengthSing
+  , Sing(..), DatatypeInfo(..), FieldInfo(..), Proxy(..), lengthSing, (:~:)(..)
   ) where
 
-import Language.Hakaru.Syntax
+import Language.Hakaru.Syntax hiding (EqType(..))
 import Prelude hiding (Real (..))
 import Data.Proxy
 import Control.Applicative
-import Generics.SOP hiding (Code, Rep, datatypeInfo, Shape)
+import Generics.SOP hiding (Code, Rep, datatypeInfo, Shape, SOP)
 import qualified Generics.SOP as SOP 
 import qualified GHC.Generics as GHC 
 import GHC.Exts (Constraint)
 -- import qualified Language.Haskell.TH as TH
 -- import Language.Haskell.TH (Name, Q, Dec(..), Type(..), Info (..), TyVarBndr(..), reify, TySynEqn(..))
 import Language.Haskell.TH 
-
+import Data.Typeable
 
 
 type family NAryFun (r :: * -> *) o (xs :: [*])  :: * 
@@ -47,6 +48,9 @@ newtype NFn r o x = NFn { unFn :: NAryFun r o x }
 
 -- HRep = Hakaru Representation 
 data HRep (t :: *) 
+
+-- SOP xs = Sum of products of Hakaru tyeps 
+data SOP (xs :: [[*]]) -- xs :: [[HakaruType]]
 
 type family Shape (xs :: [k]) :: [k]  
 type instance Shape '[] = '[]
@@ -93,24 +97,194 @@ ciInfoShape (Infix c a f) = Infix c a f
 ciInfoShape (Record n x) = case singShape (sing :: Sing xs) of 
                              Dict -> Record n (npfiInfoShape x)
 
+type EmbeddableConstraint t = 
+  (SingI (Code t), SingI (Shape (Code t)), All SingI (Code t), HakaruType (Code t), Typeable t) 
 
 -- 't' is really just a "label" - 't' and 'Code t' are completely unrelated.
-class (SingI (Code t), SingI (Shape (Code t)), All SingI (Code t)) => Embeddable (t :: *) where 
+class EmbeddableConstraint t => Embeddable (t :: *) where 
   type Code t :: [[*]]
   datatypeInfo :: Proxy t -> DatatypeInfo (Shape (Code t))
   default datatypeInfo :: (HasDatatypeInfo t, Shape (SOP.Code t) ~ Shape (Code t)) 
                        => Proxy t -> DatatypeInfo (Shape (Code t))
   datatypeInfo p = diInfoShape $ SOP.datatypeInfo p
 
-class (Base repr) => Embed (repr :: * -> *) where
-  sop' :: (Embeddable t) => Proxy t -> NS (NP repr) (Code t) -> repr (HRep t) 
-  case' :: (Embeddable t) => Proxy t -> repr (HRep t) -> NP (NFn repr o) (Code t) -> repr o
-  
-sop :: (Embed repr, Embeddable t) => NS (NP repr) (Code t) -> repr (HRep t)
-sop = sop' Proxy 
 
-case_ :: (Embed repr, Embeddable t) => repr (HRep t) -> NP (NFn repr o) (Code t) -> repr o
-case_ = case' Proxy
+class (Base repr) => Embed (repr :: * -> *) where
+  -- unit 
+  _Nil :: repr (SOP '[ '[] ]) 
+  
+  -- pair 
+  _Cons :: repr x -> repr (SOP '[ xs ]) -> repr (SOP '[ x ': xs ])
+  
+  -- unpair 
+  caseProd :: repr (SOP '[ x ': xs ]) -> (repr x -> repr (SOP '[ xs ]) -> repr o) -> repr o 
+
+  -- inl 
+  _Z :: repr (SOP '[ xs ]) -> repr (SOP (xs ': xss))
+
+  -- inr 
+  _S :: repr (SOP xss) -> repr (SOP (xs ': xss))
+
+  -- uneither
+  caseSum :: repr (SOP (xs ': xss)) 
+          -> (repr (SOP '[ xs ]) -> repr o) 
+          -> (repr (SOP xss) -> repr o) 
+          -> repr o 
+
+  {- 
+     "tag" and "unTag". The type we really want is 
+       hRep :: r (SOP (Code t)) -> r (HRep t)
+     The problem is that 'Code' is really a function of the type *and* the repr,
+     but if we include that in the type system, we have a constraint (or type family application)
+     which mentions the 'repr', so it may not be able to exist inside existential type constructors.
+     And the implemenation of 'Code (Expect r) t' is not obvious to me. 
+
+     For representations which are not phantom types, like Disintegrate and Sample, it may
+     be the case that this needs decidable equality on the finite(?) subset of *
+     which we know as "Hakaru types". See 'eqHType' below. 
+
+   -}
+
+  -- hRep :: (HakaruType xss, Embeddable t) => repr (SOP xss) -> repr (HRep t)
+  -- unHRep :: (HakaruType xss, Embeddable t) => repr (HRep t) -> repr (SOP xss)
+
+  -- A truely "safe" variant, but doesn't permit recursive types, ie, the
+  -- following produces an "infinite type" error:
+  --   type Code [a] = '[ '[] , '[ a, Tag [a] (Code [a]) ]] 
+  -- Also, the only valid (valid in the sense that tagging arbitrary values with
+  -- abitrary types probably isn't useful) use of 'tag' is in 'sopTag' below,
+  -- which constrains xss ~ Code t. But putting this constraint here would leave 
+  -- us in the exact same position as 'hRep :: r (SOP (Code t)) -> r (HRep t)'.
+  tag :: Embeddable t => repr (SOP xss) -> repr (Tag t xss)
+  untag :: Embeddable t => repr (Tag t xss) -> repr (SOP xss) 
+
+data Tag (t :: *) (xss :: [[*]])
+
+
+sop' :: Embed repr => NS (NP repr) xss -> repr (SOP xss) 
+sop' (Z t) = _Z (prodG t) 
+sop' (S t) = _S (sop' t) 
+
+case' :: (All SingI xss, Embed repr) => repr (SOP xss) -> NP (NFn repr o) xss -> repr o 
+case' _ Nil = error "Datatype with no constructors" 
+case' x (f :* fs) = caseSum x (\h -> caseProdG sing h f) (\t -> case' t fs)
+
+-- sop :: (Embeddable t, Embed repr) => NS (NP repr) (Code t) -> repr (HRep t)
+-- sop x = hRep (sop' x)
+
+-- -- sop2 :: (Embeddable t, Embed repr) => NS (NP repr) (Code t) -> repr (SOP (Code t))
+-- -- sop2 x = sop' x
+
+-- case_ :: (Embeddable t, Embed repr) => repr (HRep t) -> NP (NFn repr o) (Code t) -> repr o 
+-- case_ x f = case' (unHRep x) f 
+
+sopTag :: (Embeddable t, Embed repr) => NS (NP repr) (Code t) -> repr (Tag t (Code t))
+sopTag x = tag (sop' x)
+
+caseTag :: (Embeddable t, Embed repr) => repr (Tag t (Code t)) -> NP (NFn repr o) (Code t) -> repr o 
+caseTag x f = case' (untag x) f 
+
+
+-- instance Embeddable [a] where 
+--   type Code [a] = '[ '[] , '[ a, SOP (Code [a]) ]] 
+
+
+-- The simplest solution for eqHType is to just use Typeable. But for that
+-- to work, we need polykinded Typeable (GHC 7.8), and having 
+-- instance Typeable '[]
+-- can expose unsafeCoerce (https://ghc.haskell.org/trac/ghc/ticket/9858)
+-- The less simple (and terribly inefficient) solution is to use 
+-- singletons and produce a real proof that two types are equal
+
+
+#if __GLASGOW_HASKELL__ < 708
+   -- Before 7.8, :~: isn't in Data.Typeable 
+data (a :: k) :~: (b :: k) where Refl :: a :~: a 
+#endif
+
+
+eqHType :: forall (a :: *) (b :: *) . HSing a -> HSing b -> Maybe (a :~: b) 
+eqHType HProb HProb = Just Refl
+eqHType HReal HReal = Just Refl
+eqHType (HMeasure a) (HMeasure b) = 
+  case eqHType a b of 
+    Just Refl -> Just Refl 
+    _ -> Nothing 
+
+eqHType _ _ = Nothing 
+
+eqHType1 :: forall (a :: [*]) (b :: [*]) . HSing a -> HSing b -> Maybe (a :~: b)
+eqHType1 HNil HNil = Just Refl 
+eqHType1 (HCons x xs) (HCons y ys) = 
+  case (eqHType x y, eqHType1 xs ys) of 
+    (Just Refl, Just Refl) -> Just Refl 
+    _ -> Nothing 
+eqHType1 _ _ = Nothing 
+
+eqHType2 :: forall (a :: [[*]]) (b :: [[*]]) . HSing a -> HSing b -> Maybe (a :~: b)
+eqHType2 HNil HNil = Just Refl 
+eqHType2 (HCons x xs) (HCons y ys) = 
+  case (eqHType1 x y, eqHType2 xs ys) of 
+    (Just Refl, Just Refl) -> Just Refl 
+    _ -> Nothing 
+eqHType2 _ _ = Nothing 
+
+data family HSing (a :: k)
+
+data instance HSing (a :: *) where 
+  HProb :: HSing Prob 
+  HReal :: HSing Real 
+  HMeasure :: HSing a -> HSing (Measure a)
+  HArr :: HSing a -> HSing b -> HSing (a -> b)
+  HPair :: HSing a -> HSing b -> HSing (a,b)
+  -- etc .. 
+
+data instance HSing (a :: [k]) where 
+  HNil  :: HSing '[]
+  HCons :: HSing x -> HSing xs -> HSing (x ': xs)
+ 
+class HakaruType (a :: k) where 
+  hsing :: HSing a 
+
+instance HakaruType Prob where hsing = HProb 
+instance HakaruType Real where hsing = HReal 
+instance HakaruType a => HakaruType (Measure a) where hsing = HMeasure hsing 
+instance (HakaruType a, HakaruType b) => HakaruType (a -> b) where hsing = HArr hsing hsing
+instance (HakaruType a, HakaruType b) => HakaruType (a , b) where hsing = HPair hsing hsing 
+
+instance HakaruType ('[] :: [*]) where hsing = HNil 
+instance HakaruType ('[] :: [[*]]) where hsing = HNil 
+
+instance (HakaruType x, HakaruType xs) => HakaruType (x ': xs :: [*]) where hsing = HCons hsing hsing
+instance (HakaruType x, HakaruType xs) => HakaruType (x ': xs :: [[*]]) where hsing = HCons hsing hsing
+
+
+-- eqHType :: (HakaruType a, HakaruType b) => Maybe (a :~: b)
+-- eqHType = eqT
+
+-- class Typeable a => HakaruType (a :: k) where 
+
+-- instance HakaruType Prob 
+-- instance HakaruType Real 
+-- -- etc 
+
+-- deriving instance Typeable '[]
+-- instance HakaruType ('[] :: [*])
+-- instance HakaruType ('[] :: [[*]])
+-- -- etc 
+
+-- deriving instance Typeable HRep 
+-- instance (Typeable t, Embeddable t) => HakaruType (HRep t)
+
+
+
+prodG :: Embed r => NP r xs -> r (SOP '[ xs ]) 
+prodG Nil = _Nil 
+prodG (x :* xs) = _Cons x (prodG xs) 
+
+caseProdG :: Embed r => Sing xs -> r (SOP '[ xs ]) -> NFn r o xs -> r o 
+caseProdG SNil _ (NFn x) = x 
+caseProdG s@SCons a (NFn f) = caseProd a (\x xs -> caseProdG (singTail s) xs (NFn $ f x))
 
 
 apNAry' :: NP f xs -> NAryFun f o xs -> f o 
@@ -161,6 +335,8 @@ ctrName (Constructor x) = x
 ctrName (Infix x _ _) = x
 ctrName (Record x _) = x 
 
+dictPair :: Dict p -> Dict q -> ((p, q) => x) -> x 
+dictPair Dict Dict x = x 
 
 -- Template Haskell
 
