@@ -100,6 +100,7 @@ instance Base (Sample m) where
                                        (LF.fromLogFloat a) (LF.fromLogFloat b)))
   vector (Sample lo) (Sample hi) f = let g i = unSample (f (Sample $ lo + i))
                                      in Sample (Vec lo hi (V.generate (hi-lo+1) g))
+  empty                            = Sample $ Vec 0 (-1) V.empty
   index  (Sample v)  (Sample i)    = Sample $ vec v V.! (i - low v)
   loBound    (Sample v) = Sample (low v)
   hiBound    (Sample v) = Sample (high v)

@@ -588,6 +588,7 @@ instance (Mochastic repr, Lub repr) => Base (Lazy s repr) where
   cons a b          = lazy (return (Cons a b))
   unlist ab ka kb   = join (liftM (maybe ka (uncurry kb)) (unlistM ab))
   vector lo hi f    = lazy (return (Vector lo hi f))
+  empty             = scalar0 empty
   loBound v         = join $ forward v >>= \case
                       Value v' -> return (scalar0 (loBound v'))
                       Vector i _ _ -> return i

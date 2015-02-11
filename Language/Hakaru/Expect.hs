@@ -94,6 +94,7 @@ instance (Base repr) => Base (Expect repr) where
   betaFunc (Expect a) (Expect b) = Expect (betaFunc a b)
 
   vector (Expect l) (Expect h) f = Expect (vector l h (unExpect . f . Expect))
+  empty                          = Expect empty
   index (Expect v) (Expect i)    = Expect (index v i)
   loBound (Expect v)             = Expect (loBound v)
   hiBound (Expect v)             = Expect (hiBound v)

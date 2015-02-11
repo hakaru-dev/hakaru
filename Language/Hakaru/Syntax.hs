@@ -27,7 +27,7 @@ infixl 9 `app`
 data Real      deriving Typeable
 data Prob      deriving Typeable -- meaning: non-negative real number
 data Measure a deriving Typeable
-data Vector a  deriving Typeable
+data Vector a  deriving Typeable -- TODO: rename to something like Array
 
 data EqType t t' where
   Refl :: EqType t t
@@ -178,11 +178,13 @@ class (Order repr Int , Num        (repr Int ),
 
   vector           :: repr Int -> repr Int ->
                       (repr Int -> repr a) -> repr (Vector a)
+  empty            :: repr (Vector a)
   index            :: repr (Vector a) -> repr Int -> repr a
   loBound, hiBound :: repr (Vector a) -> repr Int
   reduce           :: (repr a -> repr a -> repr a) ->
                       repr a -> repr (Vector a) -> repr a
   vector           =  error "vector unimplemented"
+  empty            =  error "empty unimplemented"
   index            =  error "index unimplemented"
   loBound          =  error "loBound unimplemented"
   hiBound          =  error "hiBound unimplemented"
@@ -282,26 +284,19 @@ class (Base repr) => Mochastic repr where
   chain :: (Lambda repr) =>
            repr (Vector (s -> Measure        (a,s))) ->
            repr (        s -> Measure (Vector a, s))
-  plate v = uneither (reduce r z (mapWithIndex m v))
-                     (\_ -> dirac (undefined {- TODO: empty vector -}))
-                     id
-    where r x y = uneither x (\_ -> y) $ \x' ->
-                  uneither y (\_ -> x) $ \y' ->
-                  inr (liftM2 vconcat x' y')
-          z     = inl unit
-          m i a = inr (liftM (vector i i . const) a)
-  chain v = uneither (reduce r z (mapWithIndex m v))
-                     (\_ -> lam (\s -> dirac (pair (undefined {- TODO: empty vector -}) s)))
-                     id
-    where r x y = uneither x (\_ -> y) $ \x' ->
-                  uneither y (\_ -> x) $ \y' ->
-                  inr (lam (\s -> app x' s `bind` \v1s1 ->
-                                  unpair v1s1 $ \v1 s1 ->
-                                  app y' s1 `bind` \v2s2 ->
-                                  unpair v2s2 $ \v2 s2 ->
-                                  dirac (pair (vconcat v1 v2) s2)))
-          z     = inl unit
-          m i a = inr (lam (\s -> liftM (\as -> unpair as (pair . vector i i . const)) (app a s)))
+  plate v = reduce r z (mapWithIndex m v)
+    where r     = liftM2 vconcat
+          z     = dirac empty
+          m i a = liftM (vector i i . const) a
+  chain v = reduce r z (mapWithIndex m v)
+    where r x y = lam (\s -> app x s `bind` \v1s1 ->
+                             unpair v1s1 $ \v1 s1 ->
+                             app y s1 `bind` \v2s2 ->
+                             unpair v2s2 $ \v2 s2 ->
+                             dirac (pair (vconcat v1 v2) s2))
+          z     = lam (\s -> dirac (pair empty s))
+          m i a = lam (\s -> liftM (`unpair` pair . vector i i . const)
+                                   (app a s))
 
 errorEmpty :: a
 errorEmpty = error "empty mixture makes no sense"
@@ -390,8 +385,10 @@ vlength :: (Base repr) => repr (Vector a) -> repr Int
 vlength v = hiBound v - loBound v + 1
 
 vconcat :: (Base repr) => repr (Vector a) -> repr (Vector a) -> repr (Vector a)
-vconcat v1 v2 = vector (loBound v1) (hiBound v2)
-  (\i -> index (if_ (less i (loBound v2)) v1 v2) i)
+vconcat v1 v2 = vector (loBound v1) (hiBound v1 + vlength v2)
+  (\i -> if_ (less (hiBound v1) i)
+             (index v2 (i - hiBound v1 - 1 + loBound v2))
+             (index v1 i))
 
 mapWithIndex :: (Base repr) => (repr Int -> repr a -> repr b)
              -> repr (Vector a) -> repr (Vector b)

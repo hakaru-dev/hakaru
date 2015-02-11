@@ -6,7 +6,7 @@ module Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode) where
 
 import Language.Hakaru.Syntax
 import Language.Hakaru.Util.Pretty
-import Text.PrettyPrint hiding (parens)
+import Text.PrettyPrint hiding (parens, empty)
 -- import qualified Text.PrettyPrint as Text 
 -- import Language.Hakaru.Embed
 -- import qualified Generics.SOP as SOP
@@ -38,7 +38,7 @@ applyPairs s pms = apply1 s (PP (\xs _ ->
                        | (PP p, PP m) <- pms ])))]))
 
 adjustHead :: (Doc -> Doc) -> [Doc] -> [Doc]
-adjustHead f []     = [f empty]
+adjustHead f []     = [f (sep [])]
 adjustHead f (d:ds) = f d : ds
 
 parens :: Bool -> [Doc] -> [Doc]
@@ -124,6 +124,7 @@ instance Base PrettyPrint where
   gammaFunc         = apply1 "gammaFunc"
   betaFunc          = apply2 "betaFunc"
   vector l h f      = apply3 "vector" l h (fun1 f)
+  empty             = string "empty"
   index             = apply2 "index"
   loBound           = apply1 "loBound"
   hiBound           = apply1 "hiBound"
