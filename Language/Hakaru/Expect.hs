@@ -92,6 +92,14 @@ instance (Base repr) => Base (Expect repr) where
   negativeInfinity               = Expect negativeInfinity
   gammaFunc (Expect n)           = Expect (gammaFunc n)
   betaFunc (Expect a) (Expect b) = Expect (betaFunc a b)
+
+  vector (Expect l) (Expect h) f = Expect (vector l h (unExpect . f . Expect))
+  index (Expect v) (Expect i)    = Expect (index v i)
+  loBound (Expect v)             = Expect (loBound v)
+  hiBound (Expect v)             = Expect (hiBound v)
+  reduce r (Expect z) (Expect v) = Expect (reduce r' z v)
+    where r' a b = unExpect (r (Expect a) (Expect b))
+
   fix f                          = Expect (fix (unExpect . f . Expect))
 
 instance (Integrate repr) => Integrate (Expect repr) where

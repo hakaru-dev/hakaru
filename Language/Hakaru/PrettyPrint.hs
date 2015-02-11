@@ -123,6 +123,11 @@ instance Base PrettyPrint where
   negativeInfinity  = string "negativeInfinity"
   gammaFunc         = apply1 "gammaFunc"
   betaFunc          = apply2 "betaFunc"
+  vector l h f      = apply3 "vector" l h (fun1 f)
+  index             = apply2 "index"
+  loBound           = apply1 "loBound"
+  hiBound           = apply1 "hiBound"
+  reduce f          = apply3 "reduce" (fun2 f)
   fix f             = apply1 "fix" (fun1 f)
 
 instance Mochastic PrettyPrint where
@@ -140,6 +145,9 @@ instance Mochastic PrettyPrint where
   poisson       = apply1 "poisson"
   gamma         = apply2 "gamma"
   beta          = apply2 "beta"
+  dp            = apply2 "dp"
+  chain         = apply1 "chain"
+  plate         = apply1 "plate"
 
 instance Integrate PrettyPrint where
   integrate a b f = apply3 "integrate" a b (fun1 f)
