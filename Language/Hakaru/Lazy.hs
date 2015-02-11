@@ -17,12 +17,6 @@ import Data.Maybe (isNothing)
 import Data.Function (on)
 import Unsafe.Coerce (unsafeCoerce)
 
-finally :: (Monad m) => (a -> m ()) -> a -> m a
-finally k a = k a >> return a
-
-unpair' :: (Base repr) => repr (a,b) -> ((repr a, repr b) -> repr c) -> repr c
-unpair' x c = unpair x (curry c)
-
 ifTrue, ifFalse :: (Mochastic repr) => repr Bool ->
                    repr (Measure w) -> repr (Measure w)
 ifTrue  x m = if_ x m (superpose [])
@@ -107,7 +101,6 @@ data Whnf s (repr :: * -> *) a where
   Vector  :: Lazy s repr Int -> Lazy s repr Int ->
              (Lazy s repr Int -> Lazy s repr a) -> Whnf s repr (Vector a)
   Plate   :: Loc (Vector s) a ->                   Whnf s repr (Vector a)
-  -- TODO: can we refunctionalize away the Plate constructor?
 
 determine :: (Lub repr) => Lazy s repr a -> M s repr (Whnf s repr a)
 determine z = forward z >>= \case
@@ -135,9 +128,11 @@ evaluate z = forward z >>= \case
   Value a      -> return a
   Measure x    -> liftM (evaluateMeasure x) duplicateHeap
   Vector l h f -> evaluateVector l h [] f
-  Plate l      -> retrieve locateV l $ \case
-    RVLet v          -> finally (store . VLet l) v
-    RVBind table rhs -> evaluatePlate table rhs >>= finally (store . VLet l)
+  Plate l      -> let process (RVLet v)          = return v
+                      process (RVBind table rhs) = evaluatePlate table rhs
+                  in retrieve locateV l (\retrieval -> do v <- process retrieval
+                                                          store (VLet l v)
+                                                          return v)
 
 duplicateHeap :: (Mochastic repr, Lub repr) => M s repr (Heap s repr)
 duplicateHeap = do determineHeap
@@ -357,12 +352,12 @@ fwdLoc l = retrieve locate l (\retrieval -> do result <- process retrieval
     process (RLet    rhs) = return rhs
     process (RFst l2 rhs) = forward rhs >>= \case
                             Pair a b -> store (Bind l2 b) >> forward a
-                            Value ab -> do (a, b) <- insert (unpair' ab)
+                            Value ab -> do (a,b) <- insert (unpair ab . curry)
                                            update l2 (Value b)
                                            return (Value a)
     process (RSnd l1 rhs) = forward rhs >>= \case
                             Pair a b -> store (Bind l1 a) >> forward b
-                            Value ab -> do (a, b) <- insert (unpair' ab)
+                            Value ab -> do (a,b) <- insert (unpair ab . curry)
                                            update l1 (Value a)
                                            return (Value b)
     process (RInl    rhs) = forward rhs >>= \case
