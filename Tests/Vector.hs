@@ -27,6 +27,15 @@ unrolled = uniform 0 2 `bind` \x2 ->
            uniform 0 5 `bind` \x5 ->
            dirac (unsafeProb (x2 + x3 + x4 + x5))
 
+-- Test that normalizing a vector makes its sum 1
+testNorm1, testNorm2 :: Assertion
+testNorm1 = testSS [liftM (sumVec . normalizeVector) (plate (vector 2 5 (\i ->
+                    liftM unsafeProb (uniform 0 (fromInt i)))))]
+                   (dirac 1)
+testNorm2 = testSS [liftM sumVec (dirichlet (vector 2 5 (\i ->
+                    unsafeProb (fromInt i))))]
+                   (dirac 1)
+
 -- Test that the product of probability measures is a probability measure
 testUnity :: Assertion
 testUnity = testSS [unity] count
