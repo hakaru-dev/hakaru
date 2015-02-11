@@ -666,7 +666,7 @@ testKernel =
     normal x2 1 `bind` \x3 ->
     let_ (expr3 x0 x1 x2 x3) $ \x4 ->
     bern x4 `bind` \x5 ->
-    dirac (uneither x5 (\x6 -> x3) (\x6 -> x2))
+    dirac (if_ x5 x3 x2)
 
 -- this should be equivalent to the above
 testKernel2 :: (Lambda repr, Mochastic repr) => repr (Real -> Measure Real)
