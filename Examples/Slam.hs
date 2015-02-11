@@ -140,29 +140,20 @@ simulate ds blons blats cds steerE delT =
     let_' (vmap (\r -> atan r - calc_phi)
                 (vZipWith (/) lat_ds lon_ds)) $ \calc_zbetas ->
 
-    -- | Add some noises
+    -- | Add some noise
     normal calc_lon ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \lon ->
     normal calc_lat ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \lat ->
     normal calc_phi ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \phi ->
-
-    normalNoise cBeacon (vmap fromProb calc_zrads) `bind` \zrads ->
-    normalNoise cBeacon (vmap fromProb calc_zints) `bind` \zints ->        
+        
     normalNoise cBeacon calc_zbetas `bind` \zbetas ->
 
-    -- Make a base noisy vector of laser distance readings
-    plate (vector 0 360 (const (normal muZRads sigmaZRads))) `bind` \baseR ->
-    -- Make a base noisy vector of laser intensity readings
-    plate (vector 0 360 (const (normal muZInts sigmaZInts))) `bind` \baseI ->
-        
-    -- Fill base vectors with actual readings at correct angle positions
-    let_' (laserAssigns zrads zbetas baseR) $ \lasersR ->
-    let_' (laserAssigns zints zbetas baseI) $ \lasersI ->
+    makeLasers (vmap fromProb calc_zrads) zbetas muZRads cBeacon `bind` \lasersR ->
+    makeLasers (vmap fromProb calc_zints) zbetas muZInts cBeacon `bind` \lasersI ->
     
     dirac $ pair (pair lasersR lasersI) (pair phi (pair lon lat))
 
--- | Translate velocity
--- from back left wheel (where the velocity encoder is present)
--- to the center of the rear axle
+-- | Translate velocity from back left wheel (where the velocity
+-- encoder is present) to the center of the rear axle
 -- Equation 6 from [1]
 wheelToAxle :: (Base repr) => repr Steering -> repr Dims -> repr Vel
 wheelToAxle s ds = (vel s) / (1 - (tan (alpha s))*(dimH ds)/(dimL ds))
@@ -220,21 +211,18 @@ normalNoise :: (Mochastic repr) => repr Prob -> repr (Vector H.Real)
             -> repr (Measure (Vector H.Real))
 normalNoise sd v = plate (vmap (`normal` sd) v)        
                            
--- | Insert sensor readings (radial distance or intensity)
--- from a vector containing one reading for each beacon (reads)
--- into the correct indices (i.e., angles derived from betas) within
--- a hakaru vector of "noisy" readings (base; length = range)
-laserAssigns :: (Base repr) => repr (Vector H.Real) 
+-- | Make a vector of laser readings (length 361)
+-- The vector contains values from "reads" at positions from "betas"
+-- Normal noise is then added to the vector
+makeLasers :: (Mochastic repr) => repr (Vector H.Real) 
              -> repr (Vector H.Real)
-             -> repr (Vector H.Real) -- ^ length = range
-             -> repr (Vector H.Real)
-laserAssigns reads betas base =
-    let combine r b = vector 0 1 (\i -> if_ (equal_ i 0) r b)
+             -> repr H.Real -> repr Prob
+             -> repr (Measure (Vector H.Real))
+makeLasers reads betas mu sd =
+    let base = vector 0 360 (const mu)
+        combine r b = vector 0 360 (\i -> if_ (withinLaser (i-180) b) (r-mu) 0)
         combined = vZipWith combine reads betas
-        addBeacon rb i m = if_ (withinLaser (i-180) (H.index rb 1))
-                           (H.index rb 0) m
-        build pd rb = mapWithIndex (addBeacon rb) pd
-    in reduce build base combined
+    in normalNoise sd (reduce (vZipWith (+)) base combined)
 
 withinLaser :: (Base repr) => repr Int -> repr H.Real -> repr Bool
 withinLaser n b = and_ [ lessOrEq (convert (fromInt n - 0.5)) tb2
