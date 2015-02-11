@@ -142,8 +142,8 @@ instance Mochastic PrettyPrint where
   superpose pms = applyPairs "superpose" pms
   uniform       = apply2 "uniform"
   normal        = apply2 "normal"
-  mix           = applyPairs "mix"
-  categorical   = applyPairs "categorical"
+  mix           = apply1 "mix"
+  categorical   = apply1 "categorical"
   poisson       = apply1 "poisson"
   gamma         = apply2 "gamma"
   beta          = apply2 "beta"

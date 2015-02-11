@@ -241,12 +241,8 @@ class (Base repr) => Mochastic repr where
                                       / fromProb (2 * pow_ sd 2))
                                  / sd / sqrt_ (2 * pi_)
                               , dirac x )]
-  mix           :: [(repr Prob, repr (Measure a))] -> repr (Measure a)
-  mix []        =  errorEmpty
-  mix pms       =  let total = sum (map fst pms)
-                   in superpose [ (p/total, m) | (p,m) <- pms ]
-  categorical   :: [(repr Prob, repr a)] -> repr (Measure a)
-  categorical l =  mix [ (p, dirac x) | (p,x) <- l ]
+  mix           :: repr (Vector (Prob, (Measure a))) -> repr (Measure a)
+  categorical   :: repr (Vector (Prob, a)) -> repr (Measure a)
 
   poisson       :: repr Prob -> repr (Measure Int)
   poisson l     =  counting `bind` \x ->
@@ -311,6 +307,15 @@ factor p = weight p (dirac unit)
 weight :: (Mochastic repr) => repr Prob -> repr (Measure w) -> repr (Measure w)
 weight p m = superpose [(p, m)]
 
+mix' :: (Mochastic repr) => [(repr Prob, repr (Measure a))] -> repr (Measure a)
+mix' []        =  errorEmpty
+mix' pms       =  let total = sum (map fst pms)
+                  in superpose [ (p/total, m) | (p,m) <- pms ]
+
+categorical' :: (Mochastic repr) =>[(repr Prob, repr a)] -> repr (Measure a)
+categorical' l =  mix' [ (p, dirac x) | (p,x) <- l ]
+
+
 bindx :: (Mochastic repr) => repr (Measure a) ->
          (repr a -> repr (Measure b)) -> repr (Measure (a,b))
 m `bindx` k = m `bind` \a -> k a `bind` \b -> dirac (pair a b)
@@ -352,7 +357,7 @@ weibull b k = exponential 1 `bind` \x ->
               dirac $ b*(pow_ x (fromProb $ recip k))
 
 bern :: (Mochastic repr) => repr Prob -> repr (Measure Bool)
-bern p = categorical [(p, true), (1-p, false)]
+bern p = categorical' [(p, true), (1-p, false)]
 
 class (Base repr) => Integrate repr where
   integrate :: repr Real -> repr Real -> (repr Real -> repr Prob) -> repr Prob
