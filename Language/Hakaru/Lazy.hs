@@ -20,17 +20,29 @@ import Unsafe.Coerce (unsafeCoerce)
 finally :: (Monad m) => (a -> m ()) -> a -> m a
 finally k a = k a >> return a
 
-unpair' :: (Base repr) =>
-           repr (a,b) -> ((repr a, repr b) -> repr c) -> repr c
-unpair' ab c = unpair ab (curry c)
+unpair' :: (Base repr) => repr (a,b) -> ((repr a, repr b) -> repr c) -> repr c
+unpair' x c = unpair x (curry c)
 
-uneither' :: (Base repr) =>
-             repr (Either a b) -> (Either (repr a) (repr b) -> repr c) -> repr c
-uneither' ab c = uneither ab (c . Left) (c . Right)
+ifTrue, ifFalse :: (Mochastic repr) => repr Bool ->
+                   repr (Measure w) -> repr (Measure w)
+ifTrue  x m = if_ x m (superpose [])
+ifFalse x m = if_ x (superpose []) m
 
-unlist' :: (Base repr) =>
-           repr [a] -> (Maybe (repr a, repr [a]) -> repr c) -> repr c
-unlist' ab c = unlist ab (c Nothing) (curry (c . Just))
+uninl :: (Mochastic repr) => repr (Either a b) ->
+         (repr a -> repr (Measure w)) -> repr (Measure w)
+uninl x c = uneither x c (\_ -> superpose [])
+
+uninr :: (Mochastic repr) => repr (Either a b) ->
+         (repr b -> repr (Measure w)) -> repr (Measure w)
+uninr x c = uneither x (\_ -> superpose []) c
+
+unnil :: (Mochastic repr) => repr [a] ->
+         repr (Measure w) -> repr (Measure w)
+unnil x m = unlist x m (\_ _ -> superpose [])
+
+uncons :: (Mochastic repr) => repr [a] ->
+          ((repr a, repr [a]) -> repr (Measure w)) -> repr (Measure w)
+uncons x c = unlist x (superpose []) (curry c)
 
 data M s repr a
   = Return a
@@ -68,11 +80,6 @@ insert_ f = insert (\m -> f (m ()))
 lift :: (Mochastic repr) => repr (Measure a) -> M s repr (repr a)
 lift m = insert (bind m)
 
-cond, condN :: (Mochastic repr) => repr Bool -> repr (Measure w) ->
-                                                repr (Measure w)
-cond  b m = if_ b m (superpose [])
-condN b m = if_ b (superpose []) m
-
 data Lazy s (repr :: * -> *) a = Lazy
   { forward  :: M s repr (Whnf s repr a)
   , backward :: {- Number a => -} repr a -> M s repr () }
@@ -97,7 +104,10 @@ data Whnf s (repr :: * -> *) a where
   Cons    :: Lazy s repr a -> Lazy s repr [a] ->   Whnf s repr [a]
   Value   :: repr a ->                             Whnf s repr a
   Measure :: Lazy s repr a ->                      Whnf s repr (Measure a)
-  Vector  :: Loc s (Vector a) ->                   Whnf s repr (Vector a)
+  Vector  :: Lazy s repr Int -> Lazy s repr Int ->
+             (Lazy s repr Int -> Lazy s repr a) -> Whnf s repr (Vector a)
+  Plate   :: Loc (Vector s) a ->                   Whnf s repr (Vector a)
+  -- TODO: can we refunctionalize away the Plate constructor?
 
 determine :: (Lub repr) => Lazy s repr a -> M s repr (Whnf s repr a)
 determine z = forward z >>= \case
@@ -107,22 +117,27 @@ determine z = forward z >>= \case
   Inr y        -> liftM (Inr . lazy . return) (determine y)
   Cons x y     -> liftM2 Cons (liftM (lazy . return) (determine x))
                               (liftM (lazy . return) (determine y))
+  Vector l h f -> liftM2 (\l' h' -> Vector l' h' f)
+                         (liftM (lazy . return) (determine l))
+                         (liftM (lazy . return) (determine h))
   w            -> return w
 
 evaluate :: (Mochastic repr, Lub repr) =>
             Lazy s repr a -> M s repr (repr a)
 evaluate z = forward z >>= \case
-  Pair x y  -> liftM2 pair (evaluate x) (evaluate y)
-  True_     -> return true
-  False_    -> return false
-  Inl x     -> liftM inl (evaluate x)
-  Inr y     -> liftM inr (evaluate y)
-  Nil       -> return nil
-  Cons x y  -> liftM2 cons (evaluate x) (evaluate y)
-  Value a   -> return a
-  Measure x -> liftM (evaluateMeasure x) duplicateHeap
-  v@(Vector _) -> retrieveVector v return $ \l lo hi table f ->
-                  evaluateVector lo hi table f >>= finally (update l . Value)
+  Pair x y     -> liftM2 pair (evaluate x) (evaluate y)
+  True_        -> return true
+  False_       -> return false
+  Inl x        -> liftM inl (evaluate x)
+  Inr y        -> liftM inr (evaluate y)
+  Nil          -> return nil
+  Cons x y     -> liftM2 cons (evaluate x) (evaluate y)
+  Value a      -> return a
+  Measure x    -> liftM (evaluateMeasure x) duplicateHeap
+  Vector l h f -> evaluateVector l h [] f
+  Plate l      -> retrieve locateV l $ \case
+    RVLet v          -> finally (store . VLet l) v
+    RVBind table rhs -> evaluatePlate table rhs >>= finally (store . VLet l)
 
 duplicateHeap :: (Mochastic repr, Lub repr) => M s repr (Heap s repr)
 duplicateHeap = do determineHeap
@@ -141,18 +156,35 @@ evaluateMeasure z = unM (do a <- evaluate z
 
 evaluateVector :: (Mochastic repr, Lub repr) =>
                   Lazy s repr Int -> Lazy s repr Int ->
-                  [(Lazy s repr Int, Lazy s repr b)] ->
-                  (Lazy s repr Int -> Lazy s repr b) ->
-                  M s repr (repr (Vector b))
+                  [(Lazy s repr Int, Lazy s repr a)] ->
+                  (Lazy s repr Int -> Lazy s repr a) ->
+                  M s repr (repr (Vector a))
 evaluateVector lo hi table f = do
   lo' <- evaluate lo
   hi' <- evaluate hi
-  table' <- mapM (\(j,y) -> liftM2 (,) (evaluate j) (evaluate y)) table
+  table' <- evaluatePairs table
   heap <- duplicateHeap
-  let g = foldr (\(j,y) c i -> if_ (equal i j) (dirac y) (c i))
-                (\i -> evaluateMeasure (f (scalar0 i)) heap)
-                table'
-  lift (plate (vector lo' hi' g))
+  let g i = evaluateMeasure (f (scalar0 i)) heap
+  lift (plate (vector lo' hi' (override table' g)))
+
+evaluatePlate :: (Mochastic repr, Lub repr) =>
+                 [(Lazy s repr Int, Lazy s repr a)] ->
+                 Lazy s repr (Vector (Measure a)) ->
+                 M s repr (repr (Vector a))
+evaluatePlate table rhs = do
+  lo' <- evaluate (loBound rhs)
+  hi' <- evaluate (hiBound rhs)
+  table' <- evaluatePairs table
+  vm <- evaluate rhs
+  lift (plate (vector lo' hi' (override table' (index vm))))
+
+evaluatePairs :: (Mochastic repr, Lub repr) =>
+                 [(Lazy s repr a, Lazy s repr b)] -> M s repr [(repr a, repr b)]
+evaluatePairs = mapM (\(a,b) -> liftM2 (,) (evaluate a) (evaluate b))
+
+override :: (Mochastic repr) => [(repr Int, repr a)] ->
+            (repr Int -> repr (Measure a)) -> (repr Int -> repr (Measure a))
+override table f = foldr (\(j,y) c i -> if_ (equal i j) (dirac y) (c i)) f table
 
 runLazy :: (Mochastic repr, Lub repr) =>
            (forall s. Lazy s repr (Measure a)) -> repr (Measure a)
@@ -172,6 +204,9 @@ jmEq (Loc a) (Loc b) | a == b    = Just (unsafeCoerce Refl)
 gensym :: M s repr (Loc s a)
 gensym = M (\c h@Heap{fresh=f} -> c (Loc f) h{fresh = succ f})
 
+gensymVector :: M s repr (Loc (Vector s) a)
+gensymVector = M (\c h@Heap{fresh=f} -> c (Loc f) h{fresh = succ f})
+
 data Binding s repr where
   Bind    :: Loc s a ->              Lazy s repr a            -> Binding s repr
   Let     :: Loc s a ->              Whnf s repr a            -> Binding s repr
@@ -183,9 +218,9 @@ data Binding s repr where
   Unnil   ::                         Lazy s repr [a]          -> Binding s repr
   Uncons  :: Loc s a -> Loc s [a] -> Lazy s repr [a]          -> Binding s repr
   Weight  ::                         Lazy s repr Prob         -> Binding s repr
-  VBind   :: Loc s (Vector b) -> Lazy s repr Int -> Lazy s repr Int ->
-                           [(Lazy s repr Int, Lazy s repr b)] ->
-                           (Lazy s repr Int -> Lazy s repr b) -> Binding s repr
+  VBind   :: Loc (Vector s) a -> [(Lazy s repr Int, Lazy s repr a)] ->
+                             Lazy s repr (Vector (Measure a)) -> Binding s repr
+  VLet    :: Loc (Vector s) a -> repr (Vector a)              -> Binding s repr
 
 store :: Binding s repr -> M s repr ()
 store entry = M (\c h -> c () h{bound = entry : bound h})
@@ -194,51 +229,60 @@ update :: Loc s a -> Whnf s repr a -> M s repr ()
 update l result = store (Let l result)
 
 determineHeap :: (Mochastic repr, Lub repr) => M s repr ()
-determineHeap = pop >>= \case
-  Nothing -> return ()
-  Just entry -> determineHeap >> case entry of
-    Bind   l   rhs -> determine rhs >>= update l
-    Iftrue     rhs -> forward rhs >>= \case
-                      True_   -> return ()
-                      False_  -> reject
-                      Value x -> insert_ (cond   x)
-    Iffalse    rhs -> forward rhs >>= \case
-                      False_  -> return ()
-                      True_   -> reject
-                      Value x -> insert_ (condN  x)
-    Uninl  l   rhs -> forward rhs >>= \case
-                      Inl a    -> determine a >>= update l
-                      Inr _    -> reject
-                      Value ab -> insert (uneither' ab) >>= \case
-                                    Left  a -> update l (Value a)
-                                    Right _ -> reject
-    Uninr  l   rhs -> forward rhs >>= \case
-                      Inr a    -> determine a >>= update l
-                      Inl _    -> reject
-                      Value ab -> insert (uneither' ab) >>= \case
-                                    Right a -> update l (Value a)
-                                    Left  _ -> reject
-    Unnil      rhs -> forward rhs >>= \case
-                      Nil      -> return ()
-                      Cons _ _ -> reject
-                      Value ab -> insert (unlist' ab) >>= \case
-                                    Nothing -> return ()
-                                    Just _  -> reject
-    Uncons l r rhs -> forward rhs >>= \case
-                      Nil      -> return ()
-                      Cons a b -> determine a >>= update l >>
-                                  determine b >>= update r
-                      Value ab -> insert (unlist' ab) >>= \case
-                                    Just (x,y) -> update l (Value x) >>
-                                                  update r (Value y)
-                                    Nothing    -> reject
-    Weight     rhs -> forward rhs >>= \(Value x) -> insert_ (weight x)
-    Let    _   _   -> store entry
-    Unpair _ _ _   -> store entry
-    VBind l lo hi table f -> evaluateVector lo hi table f >>= update l . Value
-  where pop = M (\c h -> case bound h of
+determineHeap = pop >>= \case Nothing -> return ()
+                              Just entry -> do entries <- process entry
+                                               determineHeap
+                                               mapM_ store entries
+  where
+    pop = M (\c h -> case bound h of
           []            -> c Nothing      h
           entry:entries -> c (Just entry) h{bound=entries})
+    process entry = case entry of
+      Bind   l      rhs -> do x <- determine rhs
+                              return [Let l x]
+      Iftrue        rhs -> forward rhs >>= \case
+                           True_   -> return []
+                           False_  -> reject
+                           Value x -> do insert_ (ifTrue x)
+                                         return []
+      Iffalse       rhs -> forward rhs >>= \case
+                           False_  -> return []
+                           True_   -> reject
+                           Value x -> do insert_ (ifFalse x)
+                                         return []
+      Uninl  l      rhs -> forward rhs >>= \case
+                           Inl a    -> do x <- determine a
+                                          return [Let l x]
+                           Inr _    -> reject
+                           Value ab -> do a <- insert (uninl ab)
+                                          return [Let l (Value a)]
+      Uninr  l      rhs -> forward rhs >>= \case
+                           Inr a    -> do x <- determine a
+                                          return [Let l x]
+                           Inl _    -> reject
+                           Value ab -> do a <- insert (uninr ab)
+                                          return [Let l (Value a)]
+      Unnil         rhs -> forward rhs >>= \case
+                           Nil      -> return []
+                           Cons _ _ -> reject
+                           Value ab -> do insert_ (unnil ab)
+                                          return []
+      Uncons l r    rhs -> forward rhs >>= \case
+                           Cons a b -> do x <- determine a
+                                          y <- determine b
+                                          return [Let l x, Let r y]
+                           Nil      -> reject
+                           Value ab -> do (x,y) <- insert (uncons ab)
+                                          return [Let l (Value x),
+                                                  Let r (Value y)]
+      Weight        rhs -> do Value x <- forward rhs
+                              insert_ (weight x)
+                              return []
+      VBind l table rhs -> do v <- evaluatePlate table rhs
+                              return [VLet l v]
+      Let    _      _   -> return [entry]
+      Unpair _ _    _   -> return [entry]
+      VLet   _      _   -> return [entry]
 
 data Retrieval s repr a where
   RBind  :: Lazy s repr a ->                    Retrieval s repr a
@@ -249,9 +293,11 @@ data Retrieval s repr a where
   RInr   :: Lazy s repr (Either a b) ->         Retrieval s repr b
   RCar   :: Loc s [a] -> Lazy s repr [a] ->     Retrieval s repr a
   RCdr   :: Loc s a   -> Lazy s repr [a] ->     Retrieval s repr [a]
-  RVBind :: Lazy s repr Int -> Lazy s repr Int ->
-            [(Lazy s repr Int, Lazy s repr b)] ->
-            (Lazy s repr Int -> Lazy s repr b) -> Retrieval s repr (Vector b)
+
+data VRetrieval s repr a where
+  RVBind :: [(Lazy s repr Int, Lazy s repr a)] ->
+            Lazy s repr (Vector (Measure a)) -> VRetrieval s repr a
+  RVLet  :: repr (Vector a)                  -> VRetrieval s repr a
 
 locate :: Loc s a -> Binding s repr -> Maybe (Retrieval s repr a)
 locate l (Bind   l1    rhs) =  fmap (\Refl -> RBind   rhs) (jmEq l l1)
@@ -268,38 +314,31 @@ locate _ (Unnil        _  ) = Nothing
 locate _ (Iftrue       _  ) = Nothing
 locate _ (Iffalse      _  ) = Nothing
 locate _ (Weight       _  ) = Nothing
-locate l (VBind l1 lo hi table f) = fmap (\Refl -> RVBind lo hi table f)
-                                         (jmEq l l1)
+locate _ (VBind  _ _   _  ) = Nothing
+locate _ (VLet   _     _  ) = Nothing
 
 unique :: String -> Maybe a -> Maybe a -> Maybe a
 unique e   (Just _) (Just _) = error e
 unique _ a@(Just _) Nothing  = a
 unique _   Nothing  a        = a
 
-retrieve :: Loc s a -> (Retrieval s repr a -> M s repr w) -> M s repr w
-retrieve l k = M (\c h ->
+locateV :: Loc (Vector s) a -> Binding s repr -> Maybe (VRetrieval s repr a)
+locateV l (VBind l1 table rhs) = fmap (\Refl -> RVBind table rhs) (jmEq l l1)
+locateV l (VLet  l1       rhs) = fmap (\Refl -> RVLet        rhs) (jmEq l l1)
+locateV _ _                    = Nothing
+
+retrieve :: (Show loc) =>
+            (loc -> Binding s repr -> Maybe retrieval) ->
+            loc -> (retrieval -> M s repr w) -> M s repr w
+retrieve look l k = M (\c h ->
   let loop []        _     = error ("Unbound location " ++ show l)
-      loop (b:older) newer = case locate l b of
+      loop (b:older) newer = case look l b of
         Nothing -> loop older (b:newer)
-        Just r | all (isNothing . locate l) older ->
+        Just r | all (isNothing . look l) older ->
           unM (k r) (\w h' -> c w h'{bound = reverse newer ++ bound h'})
                     h{bound = older}
         _ -> error ("Duplicate heap entry " ++ show l)
   in loop (bound h) [])
-
-retrieveVector :: Whnf s repr (Vector b) ->
-                  (repr (Vector b) -> M s repr w) ->
-                  (Loc s (Vector b) ->
-                   Lazy s repr Int -> Lazy s repr Int ->
-                   [(Lazy s repr Int, Lazy s repr b)] ->
-                   (Lazy s repr Int -> Lazy s repr b) -> M s repr w) ->
-                  M s repr w
-retrieveVector (Value v) k _ = k v
-retrieveVector (Vector l) kValue kRVBind = retrieve l $ \case
-  RLet v -> do result <- retrieveVector v kValue kRVBind
-               update l v
-               return result
-  RVBind lo hi table f -> kRVBind l lo hi table f
 
 memo :: (Mochastic repr, Lub repr) => Lazy s repr a -> M s repr (Lazy s repr a)
 memo m = do l <- gensym
@@ -310,82 +349,71 @@ lazyLoc :: (Mochastic repr, Lub repr) => Loc s a -> Lazy s repr a
 lazyLoc l = Lazy (fwdLoc l) (bwdLoc l)
 
 fwdLoc :: (Mochastic repr) => Loc s a -> M s repr (Whnf s repr a)
-fwdLoc l = retrieve l $ \case
-  RBind rhs -> forward rhs >>= finally (update l)
-  RLet rhs -> finally (update l) rhs
-  RFst l2 rhs -> forward rhs >>= \case
-    Pair a b -> do store (Bind l2 b)
-                   forward a >>= finally (update l)
-    Value ab -> do (a, b) <- insert (unpair' ab)
-                   update l2 (Value b)
-                   finally (update l) (Value a)
-  RSnd l1 rhs -> forward rhs >>= \case
-    Pair a b -> do store (Bind l1 a)
-                   forward b >>= finally (update l)
-    Value ab -> do (a, b) <- insert (unpair' ab)
-                   update l1 (Value a)
-                   finally (update l) (Value b)
-  RInl rhs -> forward rhs >>= \case
-    Inl a    -> forward a >>= finally (update l)
-    Inr _    -> reject
-    Value ab -> insert (uneither' ab) >>= \case
-                  Left  a -> finally (update l) (Value a)
-                  Right _ -> reject
-  RInr rhs -> forward rhs >>= \case
-    Inr b    -> forward b >>= finally (update l)
-    Inl _    -> reject
-    Value ab -> insert (uneither' ab) >>= \case
-                  Right a -> finally (update l) (Value a)
-                  Left  _ -> reject
-  RCar l2 rhs -> forward rhs >>= \case
-    Nil      -> reject
-    Cons a b -> do store (Bind l2 b)
-                   forward a >>= finally (update l)
-    Value ab -> insert (unlist' ab) >>= \case
-                  Nothing    -> reject
-                  Just (a,b) -> do update l2 (Value b)
-                                   finally (update l) (Value a)
-  RCdr l1 rhs -> forward rhs >>= \case
-    Nil      -> reject
-    Cons a b -> do store (Bind l1 a)
-                   forward b >>= finally (update l)
-    Value ab -> insert (unlist' ab) >>= \case
-                  Nothing    -> reject
-                  Just (a,b) -> do update l1 (Value a)
-                                   finally (update l) (Value b)
-  RVBind _ _ _ _ -> return (Vector l)
+fwdLoc l = retrieve locate l (\retrieval -> do result <- process retrieval
+                                               update l result
+                                               return result)
+  where
+    process (RBind   rhs) = forward rhs
+    process (RLet    rhs) = return rhs
+    process (RFst l2 rhs) = forward rhs >>= \case
+                            Pair a b -> store (Bind l2 b) >> forward a
+                            Value ab -> do (a, b) <- insert (unpair' ab)
+                                           update l2 (Value b)
+                                           return (Value a)
+    process (RSnd l1 rhs) = forward rhs >>= \case
+                            Pair a b -> store (Bind l1 a) >> forward b
+                            Value ab -> do (a, b) <- insert (unpair' ab)
+                                           update l1 (Value a)
+                                           return (Value b)
+    process (RInl    rhs) = forward rhs >>= \case
+                            Inl a    -> forward a
+                            Inr _    -> reject
+                            Value ab -> liftM Value (insert (uninl ab))
+    process (RInr    rhs) = forward rhs >>= \case
+                            Inr b    -> forward b
+                            Inl _    -> reject
+                            Value ab -> liftM Value (insert (uninr ab))
+    process (RCar l2 rhs) = forward rhs >>= \case
+                            Nil      -> reject
+                            Cons a b -> store (Bind l2 b) >> forward a
+                            Value ab -> do (a,b) <- insert (uncons ab)
+                                           update l2 (Value b)
+                                           return (Value a)
+    process (RCdr l1 rhs) = forward rhs >>= \case
+                            Nil      -> reject
+                            Cons a b -> store (Bind l1 a) >> forward b
+                            Value ab -> do (a,b) <- insert (uncons ab)
+                                           update l1 (Value a)
+                                           return (Value b)
 
 bwdLoc :: (Mochastic repr, Lub repr) => Loc s a -> repr a -> M s repr ()
-bwdLoc l t = retrieve l $ \case
-  RBind rhs -> backward rhs t >> update l (Value t)
-  RLet _ -> bot
-  RFst l2 rhs -> forward rhs >>= \case
-    Pair a b -> do store (Bind l2 b)
-                   backward a t >> update l (Value t)
-    Value _ -> bot
-  RSnd l1 rhs -> forward rhs >>= \case
-    Pair a b -> do store (Bind l1 a)
-                   backward b t >> update l (Value t)
-    Value _ -> bot
-  RInl rhs -> forward rhs >>= \case
-    Inl a   -> backward a t >> update l (Value t)
-    Inr _   -> reject
-    Value _ -> bot
-  RInr rhs -> forward rhs >>= \case
-    Inr b   -> backward b t >> update l (Value t)
-    Inl _   -> reject
-    Value _ -> bot
-  RCar l2 rhs -> forward rhs >>= \case
-    Nil      -> reject
-    Cons a b -> do store (Bind l2 b)
-                   backward a t >> update l (Value t)
-    Value _  -> bot
-  RCdr l1 rhs -> forward rhs >>= \case
-    Nil      -> reject
-    Cons a b -> do store (Bind l1 a)
-                   backward b t >> update l (Value t)
-    Value _  -> bot
-  RVBind _ _ _ _ -> bot
+bwdLoc l t = retrieve locate l (\retrieval -> do process retrieval
+                                                 update l (Value t))
+  where
+    process (RBind   rhs) = backward rhs t
+    process (RLet    _  ) = bot
+    process (RFst l2 rhs) = forward rhs >>= \case
+                            Pair a b -> store (Bind l2 b) >> backward a t
+                            Value _  -> bot
+    process (RSnd l1 rhs) = forward rhs >>= \case
+                            Pair a b -> store (Bind l1 a) >> backward b t
+                            Value _  -> bot
+    process (RInl    rhs) = forward rhs >>= \case
+                            Inl a    -> backward a t
+                            Inr _    -> reject
+                            Value _  -> bot
+    process (RInr    rhs) = forward rhs >>= \case
+                            Inr b    -> backward b t
+                            Inl _    -> reject
+                            Value _  -> bot
+    process (RCar l2 rhs) = forward rhs >>= \case
+                            Nil      -> reject
+                            Cons a b -> store (Bind l2 b) >> backward a t
+                            Value _  -> bot
+    process (RCdr l1 rhs) = forward rhs >>= \case
+                            Nil      -> reject
+                            Cons a b -> store (Bind l1 a) >> backward b t
+                            Value _  -> bot
 
 scalar0 :: (Lub repr) => repr a -> Lazy s repr a
 scalar0 op = lazy (return (Value op))
@@ -429,7 +457,7 @@ abz :: (Mochastic repr, Lub repr, Num (repr a), Order repr a) =>
 abz x = Lazy
   (liftM (Value . abs) (evaluate x))
   (\t -> lift (if_ (less 0 t) (superpose [(1, dirac t), (1, dirac (-t))])
-                              (cond (equal 0 t) (dirac 0)))
+                              (ifTrue (equal 0 t) (dirac 0)))
          >>= backward x)
 
 mul :: (Mochastic repr, Lub repr,
@@ -461,11 +489,11 @@ instance (Mochastic repr, Lub repr) => Num (Lazy s repr Int) where
   signum x = Lazy
     (liftM (Value . signum) (evaluate x))
     (\t -> do n <- lift counting
-              insert_ (cond (equal (signum n) t))
+              insert_ (ifTrue (equal (signum n) t))
               backward x n)
   fromInteger x = Lazy
     (return (Value (fromInteger x)))
-    (\t -> insert_ (cond (equal (fromInteger x) t)))
+    (\t -> insert_ (ifTrue (equal (fromInteger x) t)))
 
 instance (Mochastic repr, Lub repr) => Num (Lazy s repr Real) where
   (+) = add
@@ -502,7 +530,7 @@ instance (Mochastic repr, Lub repr) =>
   pi = scalar0 pi
   exp x = Lazy
     (liftM (Value . exp) (evaluate x))
-    (\t -> do insert_ (cond (less 0 t) . weight (recip (unsafeProb t)))
+    (\t -> do insert_ (ifTrue (less 0 t) . weight (recip (unsafeProb t)))
               backward x (log t))
   log x = Lazy
     (liftM (Value . log) (evaluate x))
@@ -559,35 +587,45 @@ instance (Mochastic repr, Lub repr) => Base (Lazy s repr) where
   nil               = lazy (return Nil)
   cons a b          = lazy (return (Cons a b))
   unlist ab ka kb   = join (liftM (maybe ka (uncurry kb)) (unlistM ab))
-  vector lo hi f    = lazy (do l <- gensym
-                               store (VBind l lo hi [] f)
-                               return (Vector l))
-  loBound v         = join (forward v >>= \w -> retrieveVector w
-                        (\v' -> return (scalar0 (loBound v')))
-                        (\l lo hi table f ->
-                         store (VBind l lo hi table f) >> return lo))
-  hiBound v         = join (forward v >>= \w -> retrieveVector w
-                        (\v' -> return (scalar0 (hiBound v')))
-                        (\l lo hi table f ->
-                         store (VBind l lo hi table f) >> return hi))
-  index v i         = join (forward v >>= \w -> retrieveVector w
-                        (\v' -> liftM (scalar0 . index v') (evaluate i))
-                        (\l lo hi table f ->
-                         choice $ do sequence_ [ store (Iffalse (equal i j))
-                                               | (j,_) <- table ]
-                                     x <- memo (f i)
-                                     store (VBind l lo hi ((i,x):table) f)
-                                     return x
-                                : [ do store (Iftrue (equal i j))
-                                       store (VBind l lo hi table f)
-                                       return y
-                                  | (j,y) <- table ]))
+  vector lo hi f    = lazy (return (Vector lo hi f))
+  loBound v         = join $ forward v >>= \case
+                      Value v' -> return (scalar0 (loBound v'))
+                      Vector i _ _ -> return i
+                      Plate l -> retrieve locateV l $ \case
+                        RVLet v' -> do store (VLet l v')
+                                       return (scalar0 (loBound v'))
+                        RVBind table rhs -> do store (VBind l table rhs)
+                                               return (loBound rhs)
+  hiBound v         = join $ forward v >>= \case
+                      Value v' -> return (scalar0 (hiBound v'))
+                      Vector _ i _ -> return i
+                      Plate l -> retrieve locateV l $ \case
+                        RVLet v' -> do store (VLet l v')
+                                       return (scalar0 (hiBound v'))
+                        RVBind table rhs -> do store (VBind l table rhs)
+                                               return (hiBound rhs)
+  index v i         = join $ forward v >>= \case
+                      Value v' -> liftM (scalar0 . index v') (evaluate i)
+                      Vector _ _ f -> return (f i)
+                      Plate l -> retrieve locateV l $ \case
+                        RVLet v' -> do store (VLet l v')
+                                       liftM (scalar0 . index v') (evaluate i)
+                        RVBind table rhs -> choice
+                          $ do sequence_ [ store (Iffalse (equal i j))
+                                         | (j,_) <- table ]
+                               x <- forward (index rhs i) >>= memo . unMeasure
+                               store (VBind l ((i,x):table) rhs)
+                               return x
+                          : [ do store (Iftrue (equal i j))
+                                 store (VBind l table rhs)
+                                 return y
+                            | (j,y) <- table ]
   unsafeProb x = Lazy
     (liftM (Value . unsafeProb) (evaluate x))
     (\t -> backward x (fromProb t))
   fromProb x = Lazy
     (liftM (Value . fromProb) (evaluate x))
-    (\t -> do insert_ (cond (less 0 t))
+    (\t -> do insert_ (ifTrue (less 0 t))
               backward x (unsafeProb t))
   fromInt = scalar1 fromInt
   pi_ = scalar0 pi_
@@ -627,11 +665,9 @@ instance (Mochastic repr, Lub repr) =>
   superpose pms = measure $ join $ choice
     [ store (Weight p) >> liftM unMeasure (forward m) | (p,m) <- pms ]
   -- TODO fill in other methods
-  plate v       = measure $ lazy $ do
-    let f i = join (liftM unMeasure (forward (index v i)))
-    l' <- gensym
-    store (VBind l' (loBound v) (hiBound v) [] f)
-    return (Vector l')
+  plate v       = measure $ join $ do l <- gensymVector
+                                      store (VBind l [] v)
+                                      return (lazy (return (Plate l)))
 
 class Backward ab a where
   backward_ :: (Mochastic repr, Lub repr) =>
@@ -676,6 +712,8 @@ instance (Backward ab a) => Backward [ab] [a] where
                          (Just (a,b), Just (x,y)) -> do backward_ a x
                                                         backward_ b y
                          _                        -> reject
+
+-- TODO: Conditioning on an observed _vector_
 
 disintegrate :: (Mochastic repr, Lub repr, Backward ab a) =>
                 Lazy s repr a ->
