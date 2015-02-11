@@ -12,7 +12,8 @@ allTests = test [ "testUnrolling" ~: testUnrolling
                 , "testUnity"     ~: testUnity
                 , "testInside"    ~: testInside
                 , "testPull"      ~: testPull
-                , "testConj"      ~: testConj ]
+                , "testConj"      ~: testConj
+                , "testPlateDirac"~: testPlateDirac ]
 
 -- Test unrolling short product measures
 testUnrolling :: Assertion
@@ -62,10 +63,6 @@ instance Integrate Disintegrate -- UNDEFINED
 instance Lambda Disintegrate -- UNDEFINED
 categorical' :: (Mochastic repr) => repr (Vector (Prob, a)) -> repr (Measure a)
 categorical' = error "Vector categorical undefined"
-mapWithIndex :: (Base repr) => (repr Int -> repr a -> repr b) ->
-                               repr (Vector a) -> repr (Vector b)
-mapWithIndex f v = vector (loBound v) (hiBound v)
-                          (\i -> f i (index v i))
 num :: (Base repr) => repr (Vector a) -> repr (Vector (a, Int))
 num = mapWithIndex (flip pair)
 joint :: (Mochastic repr, Integrate repr, Lambda repr) =>
@@ -77,3 +74,10 @@ posterior :: (Mochastic repr, Integrate repr, Lambda repr) =>
               repr (Vector Prob) -> repr Int -> repr (Measure (Vector Prob))
 posterior as coin =
   dirichlet (mapWithIndex (\i a -> a + if_ (equal coin i) 1 0) as)
+
+-- A plate full of diracs is a pure vector
+testPlateDirac :: Assertion
+testPlateDirac = testSS [plateDirac] plateDirac'
+plateDirac, plateDirac' :: (Mochastic repr) => repr (Measure (Vector Real))
+plateDirac = plate (vector 1 10 (dirac . fromInt))
+plateDirac' = dirac (vector 1 10 fromInt)
