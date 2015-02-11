@@ -138,7 +138,8 @@ instance Mochastic PrettyPrint where
                 $ k' xs 2)
   lebesgue      = string "lebesgue"
   counting      = string "counting"
-  superpose     = applyPairs "superpose"
+  superpose [(p,m)] = apply2 "weight" p m
+  superpose pms = applyPairs "superpose" pms
   uniform       = apply2 "uniform"
   normal        = apply2 "normal"
   mix           = applyPairs "mix"
