@@ -221,8 +221,8 @@ makeLasers :: (Mochastic repr) => repr (Vector H.Real)
 makeLasers reads betas mu sd =
     let base = vector 0 360 (const mu)
         combine r b = vector 0 360 (\i -> if_ (withinLaser (i-180) b) (r-mu) 0)
-        combined = vZipWith combine reads betas
-    in normalNoise sd (reduce (vZipWith (+)) base combined)
+        combined = zipWithV combine reads betas
+    in normalNoise sd (reduce (zipWithV (+)) base combined)
 
 withinLaser :: (Base repr) => repr Int -> repr H.Real -> repr Bool
 withinLaser n b = and_ [ lessOrEq (convert (fromInt n - 0.5)) tb2

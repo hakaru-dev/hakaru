@@ -9,7 +9,7 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        Order(..), Base(..), ununit, fst_, snd_, swap_,
        and_, or_, not_, min_, max_,
        sumVec, normalizeVector, dirichlet,
-       vlength, mapWithIndex, mapV, vZipWith, vZip,
+       vlength, mapWithIndex, mapV, zipWithV, zipV,
        Mochastic(..), bind_, factor, weight, bindx, liftM, liftM2,
        invgamma, exponential, chi2, bern,
        cauchy, laplace, student, weibull,
@@ -406,14 +406,14 @@ mapV f = mapWithIndex (const f)
         
 -- | Assume (without checking) that the bounds of the two
 -- vectors are the same
-vZipWith :: (Base repr) => (repr a -> repr b -> repr c)
+zipWithV :: (Base repr) => (repr a -> repr b -> repr c)
          -> repr (Vector a) -> repr (Vector b) -> repr (Vector c)
-vZipWith f v1 v2 = vector (loBound v1) (hiBound v1)
+zipWithV f v1 v2 = vector (loBound v1) (hiBound v1)
                    (\i -> f (index v1 i) (index v2 i))
 
-vZip :: (Base repr) => repr (Vector a) -> repr (Vector b)
+zipV :: (Base repr) => repr (Vector a) -> repr (Vector b)
      -> repr (Vector (a,b))
-vZip = vZipWith pair
+zipV = zipWithV pair
 
 class Lambda repr where
   lam :: (repr a -> repr b) -> repr (a -> b)
