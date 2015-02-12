@@ -80,7 +80,7 @@ simplify e = do
   let slo = toMaple e
   hakaru <- do
     -- putStrLn ("\nTo Maple: " ++ slo)
-    hopeString <- maple ("timelimit(30,Haskell(SLO:-AST(SLO(" ++ slo ++ "))));")
+    hopeString <- maple ("timelimit(5,Haskell(SLO:-AST(SLO(" ++ slo ++ "))));")
     case readMapleString hopeString of
       Just hakaru -> return hakaru
       Nothing -> throw $ MapleException slo hopeString
