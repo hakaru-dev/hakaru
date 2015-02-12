@@ -220,6 +220,7 @@ SLO := module ()
     simp_poly := proc(p)
       local coef_q, vars_q, q, c0, res, heads;
       q := collect(p, all_vars , 'distributed', simplify);
+      if not type(q, polynom(anything, vars)) then return q end if;
       if ldegree(q, vars)<1 then
         # need to 'push in' additive constant sometimes
         c0 := tcoeff(q, vars);
@@ -1115,7 +1116,7 @@ SLO := module ()
   simp_props := proc(pl)
     local res;
     try 
-      coulditbe(pl) assuming pl;
+      coulditbe(pl) assuming op(pl);
       res := pl;
     catch "when calling '%1'. Received: 'contradictory assumptions'":
     # catch "the assumed property", "contradictory assumptions":
