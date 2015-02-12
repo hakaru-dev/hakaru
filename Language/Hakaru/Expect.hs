@@ -155,13 +155,13 @@ instance (Mochastic repr, Integrate repr, Lambda repr)
      exp_ (- (x - mu)^(2::Int) / fromProb (2 * pow_ sd 2))
      / sd / sqrt_ (2 * pi_) * app c x)))
   mix (Expect pms) = Expect $ pair
-    (mix undefined)
+    (mix (mapV (\ pm -> unpair pm (\ p m -> pair p (fst_ m))) pms))
     (lam (\c -> sumVec (mapV (\ pm -> unpair pm (\ p m ->  p * app (snd_ m) c)) pms)
                 / sumVec (mapV fst_ pms)))
   categorical (Expect pxs) = Expect $ pair
     (categorical pxs)
-    (lam (\c -> sumVec (vmap (\pm -> unpair pm (\ p x ->  p * app c x)) pxs)
-                / sumVec (vmap fst_ pxs)))
+    (lam (\c -> sumVec (mapV (\pm -> unpair pm (\ p x ->  p * app c x)) pxs)
+                / sumVec (mapV fst_ pxs)))
   poisson (Expect l) = Expect $ pair
     (poisson l)
     (lam (\c -> flip (if_ (less 0 l)) 0 (summate 0 infinity (\x ->
