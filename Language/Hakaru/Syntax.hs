@@ -14,6 +14,7 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        categorical',mix',
        invgamma, exponential, chi2, bern,
        cauchy, laplace, student, weibull,
+       binomial,
        Integrate(..), Lambda(..), Lub(..)) where
 
 import Data.Typeable (Typeable)    
@@ -368,6 +369,12 @@ sumVec :: Integrate repr => repr (Vector Prob) -> repr Prob
 sumVec x = summate (fromInt $ loBound x)
                    (fromInt $ hiBound x)
                    (\ i -> index x i)
+
+binomial :: (Mochastic repr, Integrate repr) =>
+            repr Int -> repr Prob -> repr (Measure Prob)
+binomial n p = (plate $ vector 1 n (\ _ -> bern p `bind` \x ->
+                                   dirac $ if_ x 1 0)) `bind` \trials ->
+               dirac (sumVec trials)
 
 unNormedDirichlet :: Mochastic repr =>
                      repr (Vector Prob) -> repr (Measure (Vector Prob))
