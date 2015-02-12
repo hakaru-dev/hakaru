@@ -397,8 +397,8 @@ main :: IO ()
 main = do
   args <- getArgs
   case args of
-    [input, output]       -> generate Conditioned input output Nothing
-    [input, output, eval] -> generate Conditioned input output (Just eval)
+    [input, output]       -> generate Unconditioned input output Nothing
+    [input, output, eval] -> generate Unconditioned input output (Just eval)
     _ -> usageExit
     
 usageExit :: IO ()
