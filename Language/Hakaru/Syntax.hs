@@ -282,7 +282,7 @@ class (Base repr) => Mochastic repr where
            repr (Vector (s -> Measure        (a,s))) ->
            repr (        s -> Measure (Vector a, s))
   plate v = reduce r z (mapWithIndex m v)
-    where r     = liftM2 vconcat
+    where r     = liftM2 concatV
           z     = dirac empty
           m i a = liftM (vector i i . const) a
   chain v = reduce r z (mapWithIndex m v)
@@ -290,7 +290,7 @@ class (Base repr) => Mochastic repr where
                              unpair v1s1 $ \v1 s1 ->
                              app y s1 `bind` \v2s2 ->
                              unpair v2s2 $ \v2 s2 ->
-                             dirac (pair (vconcat v1 v2) s2))
+                             dirac (pair (concatV v1 v2) s2))
           z     = lam (\s -> dirac (pair empty s))
           m i a = lam (\s -> liftM (`unpair` pair . vector i i . const)
                                    (app a s))
@@ -391,7 +391,7 @@ lengthV :: (Base repr) => repr (Vector a) -> repr Int
 lengthV v = hiBound v - loBound v + 1
 
 concatV :: (Base repr) => repr (Vector a) -> repr (Vector a) -> repr (Vector a)
-concatV v1 v2 = vector (loBound v1) (hiBound v1 + vlength v2)
+concatV v1 v2 = vector (loBound v1) (hiBound v1 + lengthV v2)
   (\i -> if_ (less (hiBound v1) i)
              (index v2 (i - hiBound v1 - 1 + loBound v2))
              (index v1 i))
