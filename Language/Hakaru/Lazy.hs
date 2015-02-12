@@ -2,7 +2,8 @@
              Rank2Types, GADTs, KindSignatures, LambdaCase #-}
 {-# OPTIONS -Wall #-}
 
-module Language.Hakaru.Lazy where
+module Language.Hakaru.Lazy (Lazy, runLazy, Backward, disintegrate,
+       scalar0, try, recover, simp) where
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
@@ -42,8 +43,6 @@ data M s repr a
   = Return a
   | M (forall w. (a -> Heap s repr -> repr (Measure w))
                     -> Heap s repr -> repr (Measure w))
-  -- TODO: Replace "repr (Measure w)" by "[([repr Prob], repr (Measure w))]"
-  -- to optimize away "superpose [(1,...)]" and "superpose []"
 
 unM :: M s repr a -> forall w. (a -> Heap s repr -> repr (Measure w))
                                   -> Heap s repr -> repr (Measure w)
@@ -660,7 +659,7 @@ instance (Mochastic repr, Lub repr) =>
                                  (const (return ()))
   superpose pms = measure $ join $ choice
     [ store (Weight p) >> liftM unMeasure (forward m) | (p,m) <- pms ]
-  -- TODO fill in other methods
+  -- TODO fill in other methods (in particular, chain)
   plate v       = measure $ join $ do l <- gensymVector
                                       store (VBind l [] v)
                                       return (lazy (return (Plate l)))
@@ -710,6 +709,8 @@ instance (Backward ab a) => Backward [ab] [a] where
                          _                        -> reject
 
 -- TODO: Conditioning on an observed _vector_
+
+-- TODO: instance Lambda, instance Integrate, instance Lub
 
 disintegrate :: (Mochastic repr, Lub repr, Backward ab a) =>
                 Lazy s repr a ->
