@@ -11,6 +11,7 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        sumVec, normalizeVector, dirichlet,
        lengthV, mapWithIndex, mapV, zipWithV, zipV,
        Mochastic(..), bind_, factor, weight, bindx, liftM, liftM2,
+       categorical',mix',
        invgamma, exponential, chi2, bern,
        cauchy, laplace, student, weibull,
        Integrate(..), Lambda(..), Lub(..)) where
