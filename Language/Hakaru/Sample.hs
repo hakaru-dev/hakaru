@@ -1,5 +1,9 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances,
-    TypeFamilies, StandaloneDeriving, GeneralizedNewtypeDeriving #-}
+    TypeFamilies, StandaloneDeriving, GeneralizedNewtypeDeriving, 
+    GADTs, RankNTypes, InstanceSigs, DataKinds, TypeOperators, PolyKinds #-}
+
+{-# LANGUAGE ScopedTypeVariables #-}
+
 {-# OPTIONS -Wall #-}
 
 module Language.Hakaru.Sample (Sample(..), Sample', Vec(..)) where
@@ -96,6 +100,7 @@ instance Base (Sample m) where
                                        (LF.fromLogFloat a) (LF.fromLogFloat b)))
   vector (Sample lo) (Sample hi) f = let g i = unSample (f (Sample $ lo + i))
                                      in Sample (Vec lo hi (V.generate (hi-lo+1) g))
+  empty                            = Sample $ Vec 0 (-1) V.empty
   index  (Sample v)  (Sample i)    = Sample $ vec v V.! (i - low v)
   loBound    (Sample v) = Sample (low v)
   hiBound    (Sample v) = Sample (high v)
@@ -136,15 +141,15 @@ instance (PrimMonad m) => Mochastic (Sample m) where
   normal (Sample mu) (Sample sd) = Sample (\p g -> do
     x <- MWCD.normal mu (LF.fromLogFloat sd) g
     return (Just (x, p)))
-  mix [] = errorEmpty
-  mix [(_, m)] = m
-  mix pms@((_, Sample m) : _) = Sample (\p g -> do
-    let (_,y,ys) = normalize (map (unSample . fst) pms)
-    if not (y > (0::Double)) then errorEmpty else do
-      u <- MWC.uniformR (0, y) g
-      case [ m1 | (v,(_,m1)) <- zip (scanl1 (+) ys) pms, u <= v ]
-        of Sample m2 : _ -> (m2 $! p) g
-           []            -> (m $! p) g)
+  -- mix [] = errorEmpty
+  -- mix [(_, m)] = m
+  -- mix pms@((_, Sample m) : _) = Sample (\p g -> do
+  --   let (_,y,ys) = normalize (map (unSample . fst) pms)
+  --   if not (y > (0::Double)) then errorEmpty else do
+  --     u <- MWC.uniformR (0, y) g
+  --     case [ m1 | (v,(_,m1)) <- zip (scanl1 (+) ys) pms, u <= v ]
+  --       of Sample m2 : _ -> (m2 $! p) g
+  --          []            -> (m $! p) g)
   poisson (Sample l) = Sample (\p g -> do
     x <- poisson_rng (LF.fromLogFloat l) g
     return (Just (x, p)))
@@ -190,7 +195,25 @@ instance Lambda (Sample m) where
 
 
 type instance Sample' m (HRep t) = NS (NP (Sample m)) (Code t)
+type instance Sample' m (Tag t xss) = NS (NP (Sample m)) xss
+type instance Sample' m (SOP xss) = NS (NP (Sample m)) xss 
 
 instance Embed (Sample m) where 
-  sop' _ x = Sample x 
-  case' _ (Sample x) f = apNAry x f 
+  _Nil = Sample (Z Nil) 
+
+  _Cons x (Sample (Z xs)) = Sample (Z (x :* xs)) 
+  _Cons x (Sample (S _ )) = error "type error" 
+
+  caseProd (Sample (Z (x :* xs))) f = Sample (unSample $ f x (Sample (Z xs)))
+  caseProd (Sample (S _)) _ = error "type error"
+
+  _Z (Sample (Z x)) = Sample (Z x) 
+  _Z (Sample (S _)) = error "type error" 
+
+  _S (Sample x) = Sample (S x) 
+
+  caseSum (Sample (Z x)) cS cZ = cS (Sample (Z x))
+  caseSum (Sample (S x)) cS cZ = cZ (Sample x) 
+
+  tag (Sample x) = Sample x 
+  untag (Sample x) = Sample x 
