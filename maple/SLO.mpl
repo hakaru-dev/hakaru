@@ -452,6 +452,7 @@ SLO := module ()
   simp_pw := proc(pw)
     local res, cond, l, r, b1, b2, b3, rel, new_cond;
     res := simp_pw_equal(pw);
+    if not res::t_pw then return res end if;
     if nops(res)=4 then
       b1 := flip_cond(op(1,res));
       if b1 = op(3,res) then
