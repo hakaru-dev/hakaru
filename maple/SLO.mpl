@@ -13,7 +13,7 @@ SLO := module ()
   local ToAST, t_binds, t_pw, t_rel,
     into_pw, myprod, do_pw,
     mkProb, getCtx, instantiate, lambda_wrap, find_paths,
-    fill_table, toProp, toType,
+    fill_table, toProp, toType, condToProp,
     twiddle, myint, myint_pw,
     adjust_types, compute_domain, analyze_cond, isPos,
     adjust_superpose,
@@ -220,7 +220,7 @@ SLO := module ()
     simp_poly := proc(p)
       local coef_q, vars_q, q, c0, res, heads;
       q := collect(p, all_vars , 'distributed', simplify);
-      if not type(q, polynom(anything, vars)) then return q end if;
+      if not type(q, polynom(anything, vars)) then return thaw(q) end if;
       if ldegree(q, vars)<1 then
         # need to 'push in' additive constant sometimes
         c0 := tcoeff(q, vars);
@@ -616,6 +616,10 @@ SLO := module ()
     {nm :: prop}, rest
   end proc;
 
+  condToProp := proc(cond)
+    eval(cond,{And=AndProp, Or=OrProp})
+  end proc;
+
   toType := proc(x::`=`)
     local nm, typ, prop, rest, r1, r2;
     (nm, typ) := op(x);
@@ -922,9 +926,9 @@ SLO := module ()
       cond := op(1,e);
       fcond := flip_cond(cond);
       opc := _EnvPathCond;
-      cl := simp_cond(opc union {cond});
+      cl := simp_props(opc union {cond});
       if cl = false then  # cond is unsat
-        cl := simp_cond(opc union {fcond});
+        cl := simp_props(opc union {fcond});
         if cl = false then # so is fcond, oh my!
           error "_EnvPathCond (%1) itself is unsat!", _EnvPathCond;
         end if;
@@ -933,7 +937,7 @@ SLO := module ()
       else
         _EnvPathCond := cl;
         left := adjust_types(op(2,e), typ, ctx);
-        cl := simp_cond(opc union {fcond});
+        cl := simp_props(opc union {fcond});
         if cl = false then # fcond is unsat, just return left
           return left;
         else
@@ -1113,10 +1117,12 @@ SLO := module ()
   end proc;
 
   # weird routine to catch unsat, which means a condition list implies false
-  simp_props := proc(pl)
-    local res;
+  simp_props := proc(p)
+    local res, X, pl;
+    pl := map(condToProp, p);
     try 
-      coulditbe(pl) assuming op(pl);
+      # dummy query for unsat only
+      coulditbe(X>0) assuming op(pl);
       res := pl;
     catch "when calling '%1'. Received: 'contradictory assumptions'":
     # catch "the assumed property", "contradictory assumptions":
