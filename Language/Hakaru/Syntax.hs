@@ -9,12 +9,12 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        Order(..), Base(..), ununit, fst_, snd_, swap_,
        and_, or_, not_, min_, max_,
        sumVec, normalizeVector, dirichlet,
-       lengthV, mapWithIndex, mapV, zipWithV, zipV,
+       lengthV, mapWithIndex, mapV, zipWithV, zipV, incV,
        Mochastic(..), bind_, factor, weight, bindx, liftM, liftM2,
        categorical',mix',
        invgamma, exponential, chi2, bern,
        cauchy, laplace, student, weibull,
-       binomial,
+       binomial, multinomial,
        Integrate(..), Lambda(..), Lub(..)) where
 
 import Data.Typeable (Typeable)    
@@ -375,6 +375,16 @@ binomial n p = (plate $ vector 1 n (\ _ -> bern p `bind` \x ->
                                    dirac $ if_ x 1 0)) `bind` \trials ->
                dirac (reduce (+) 0 trials)
 
+updateVector :: Base repr =>
+                repr (Vector a) -> repr Int -> repr a -> repr (Vector a)
+updateVector v i a = vector (loBound v)
+                            (hiBound v)
+                            (\ i' -> if_ (equal i i') a (index v i'))
+
+multinomial :: (Mochastic repr) =>
+               repr (Vector Prob) -> repr (Measure (Vector Prob))
+multinomial v = plate (mapV dirac $ updateVector v 0 1)
+
 unNormedDirichlet :: Mochastic repr =>
                      repr (Vector Prob) -> repr (Measure (Vector Prob))
 unNormedDirichlet a = plate $ vector (loBound a)
@@ -392,6 +402,9 @@ dirichlet :: (Lambda repr, Mochastic repr, Integrate repr) =>
               repr (Vector Prob) -> repr (Measure (Vector Prob))
 dirichlet a = unNormedDirichlet a `bind` \xs ->
               dirac (normalizeVector xs)                    
+
+incV :: Base repr => repr (Vector a) -> repr (Vector Int)
+incV v = vector (loBound v) (hiBound v) id
 
 lengthV :: (Base repr) => repr (Vector a) -> repr Int
 lengthV v = hiBound v - loBound v + 1
