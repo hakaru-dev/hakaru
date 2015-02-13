@@ -126,43 +126,34 @@ simulate ds blons blats cds steerE delT =
     unpair (newPos ds cds steerC delT) $ \calc_lon calc_lat ->
     let_' (newPhi ds cds steerC delT) $ \calc_phi ->
     
-    let_' (vmap ((-) calc_lon) blons) $ \lon_ds ->
-    let_' (vmap ((-) calc_lat) blats) $ \lat_ds ->
+    let_' (mapV ((-) calc_lon) blons) $ \lon_ds ->
+    let_' (mapV ((-) calc_lat) blats) $ \lat_ds ->
 
     -- Equation 10 from [1]
-    let_' (vmap sqrt_ (vZipWith (+) (vmap sqr lon_ds)
-                                    (vmap sqr lat_ds))) $ \calc_zrads ->
+    let_' (mapV sqrt_ (vZipWith (+) (mapV sqr lon_ds)
+                                    (mapV sqr lat_ds))) $ \calc_zrads ->
     -- inverse-square for intensities 
-    let_' (vmap (\r -> cIntensity / (pow_ r 2)) calc_zrads) $ \calc_zints ->
+    let_' (mapV (\r -> cIntensity / (pow_ r 2)) calc_zrads) $ \calc_zints ->
 
     -- Equation 10 from [1]    
     -- Note: removed a "+ pi/2" term: it is present as (i - 180) in laserAssigns
-    let_' (vmap (\r -> atan r - calc_phi)
+    let_' (mapV (\r -> atan r - calc_phi)
                 (vZipWith (/) lat_ds lon_ds)) $ \calc_zbetas ->
 
-    -- | Add some noises
+    -- | Add some noise
     normal calc_lon ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \lon ->
     normal calc_lat ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \lat ->
     normal calc_phi ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \phi ->
-
-    normalNoise cBeacon (vmap fromProb calc_zrads) `bind` \zrads ->
-    normalNoise cBeacon (vmap fromProb calc_zints) `bind` \zints ->        
+        
     normalNoise cBeacon calc_zbetas `bind` \zbetas ->
 
-    -- Make a base noisy vector of laser distance readings
-    plate (vector 0 360 (const (normal muZRads sigmaZRads))) `bind` \baseR ->
-    -- Make a base noisy vector of laser intensity readings
-    plate (vector 0 360 (const (normal muZInts sigmaZInts))) `bind` \baseI ->
-        
-    -- Fill base vectors with actual readings at correct angle positions
-    let_' (laserAssigns zrads zbetas baseR) $ \lasersR ->
-    let_' (laserAssigns zints zbetas baseI) $ \lasersI ->
+    makeLasers (mapV fromProb calc_zrads) zbetas muZRads cBeacon `bind` \lasersR ->
+    makeLasers (mapV fromProb calc_zints) zbetas muZInts cBeacon `bind` \lasersI ->
     
     dirac $ pair (pair lasersR lasersI) (pair phi (pair lon lat))
 
--- | Translate velocity
--- from back left wheel (where the velocity encoder is present)
--- to the center of the rear axle
+-- | Translate velocity from back left wheel (where the velocity
+-- encoder is present) to the center of the rear axle
 -- Equation 6 from [1]
 wheelToAxle :: (Base repr) => repr Steering -> repr Dims -> repr Vel
 wheelToAxle s ds = (vel s) / (1 - (tan (alpha s))*(dimH ds)/(dimL ds))
@@ -218,23 +209,20 @@ let_' = bind . dirac
 
 normalNoise :: (Mochastic repr) => repr Prob -> repr (Vector H.Real)
             -> repr (Measure (Vector H.Real))
-normalNoise sd v = plate (vmap (`normal` sd) v)        
+normalNoise sd v = plate (mapV (`normal` sd) v)        
                            
--- | Insert sensor readings (radial distance or intensity)
--- from a vector containing one reading for each beacon (reads)
--- into the correct indices (i.e., angles derived from betas) within
--- a hakaru vector of "noisy" readings (base; length = range)
-laserAssigns :: (Base repr) => repr (Vector H.Real) 
+-- | Make a vector of laser readings (length 361)
+-- The vector contains values from "reads" at positions from "betas"
+-- Normal noise is then added to the vector
+makeLasers :: (Mochastic repr) => repr (Vector H.Real) 
              -> repr (Vector H.Real)
-             -> repr (Vector H.Real) -- ^ length = range
-             -> repr (Vector H.Real)
-laserAssigns reads betas base =
-    let combine r b = vector 0 1 (\i -> if_ (equal_ i 0) r b)
-        combined = vZipWith combine reads betas
-        addBeacon rb i m = if_ (withinLaser (i-180) (H.index rb 1))
-                           (H.index rb 0) m
-        build pd rb = mapWithIndex (addBeacon rb) pd
-    in reduce build base combined
+             -> repr H.Real -> repr Prob
+             -> repr (Measure (Vector H.Real))
+makeLasers reads betas mu sd =
+    let base = vector 0 360 (const mu)
+        combine r b = vector 0 360 (\i -> if_ (withinLaser (i-180) b) (r-mu) 0)
+        combined = zipWithV combine reads betas
+    in normalNoise sd (reduce (zipWithV (+)) base combined)
 
 withinLaser :: (Base repr) => repr Int -> repr H.Real -> repr Bool
 withinLaser n b = and_ [ lessOrEq (convert (fromInt n - 0.5)) tb2
@@ -409,8 +397,8 @@ main :: IO ()
 main = do
   args <- getArgs
   case args of
-    [input, output]       -> generate Conditioned input output Nothing
-    [input, output, eval] -> generate Conditioned input output (Just eval)
+    [input, output]       -> generate Unconditioned input output Nothing
+    [input, output, eval] -> generate Unconditioned input output (Just eval)
     _ -> usageExit
     
 usageExit :: IO ()
