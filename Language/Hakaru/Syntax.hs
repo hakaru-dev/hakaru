@@ -243,8 +243,7 @@ class (Base repr) => Mochastic repr where
                                       / fromProb (2 * pow_ sd 2))
                                  / sd / sqrt_ (2 * pi_)
                               , dirac x )]
-  mix           :: repr (Vector (Prob, (Measure a))) -> repr (Measure a)
-  categorical   :: repr (Vector (Prob, a)) -> repr (Measure a)
+  categorical   :: repr (Vector Prob) -> repr (Measure Int)
 
   poisson       :: repr Prob -> repr (Measure Int)
   poisson l     =  counting `bind` \x ->
@@ -370,7 +369,7 @@ sumVec x = summate (fromInt $ loBound x)
                    (fromInt $ hiBound x)
                    (\ i -> index x i)
 
-binomial :: (Mochastic repr, Integrate repr) =>
+binomial :: (Mochastic repr) =>
             repr Int -> repr Prob -> repr (Measure Int)
 binomial n p = (plate $ vector 1 n (\ _ -> bern p `bind` \x ->
                                    dirac $ if_ x 1 0)) `bind` \trials ->
