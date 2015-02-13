@@ -141,15 +141,6 @@ instance (PrimMonad m) => Mochastic (Sample m) where
   normal (Sample mu) (Sample sd) = Sample (\p g -> do
     x <- MWCD.normal mu (LF.fromLogFloat sd) g
     return (Just (x, p)))
-  -- mix [] = errorEmpty
-  -- mix [(_, m)] = m
-  -- mix pms@((_, Sample m) : _) = Sample (\p g -> do
-  --   let (_,y,ys) = normalize (map (unSample . fst) pms)
-  --   if not (y > (0::Double)) then errorEmpty else do
-  --     u <- MWC.uniformR (0, y) g
-  --     case [ m1 | (v,(_,m1)) <- zip (scanl1 (+) ys) pms, u <= v ]
-  --       of Sample m2 : _ -> (m2 $! p) g
-  --          []            -> (m $! p) g)
   categorical (Sample v) = Sample (\ p g -> do
     let l = vec v
     let total = V.sum (V.map (LF.fromLogFloat . fst) l)
