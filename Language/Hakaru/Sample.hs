@@ -150,6 +150,17 @@ instance (PrimMonad m) => Mochastic (Sample m) where
   --     case [ m1 | (v,(_,m1)) <- zip (scanl1 (+) ys) pms, u <= v ]
   --       of Sample m2 : _ -> (m2 $! p) g
   --          []            -> (m $! p) g)
+  categorical (Sample v) = Sample (\ p g -> do
+    let l = vec v
+    let total = V.sum (V.map (LF.fromLogFloat . fst) l)
+    let weights = V.scanl1 (+) (V.map (LF.fromLogFloat . fst) l)
+    let choices = V.map snd l
+    if not (total > (0 :: Double)) then errorEmpty else do
+       u <- MWC.uniformR (0, total) g
+       let x = V.head (V.dropWhile (\ (v,_) -> u > v) (V.zip weights choices))
+       return (Just (snd x, p))
+    )
+
   poisson (Sample l) = Sample (\p g -> do
     x <- poisson_rng (LF.fromLogFloat l) g
     return (Just (x, p)))
