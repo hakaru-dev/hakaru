@@ -143,9 +143,9 @@ instance (PrimMonad m) => Mochastic (Sample m) where
     return (Just (x, p)))
   categorical (Sample v) = Sample (\ p g -> do
     let l = vec v
-    let total = V.sum (V.map (LF.fromLogFloat . fst) l)
-    let weights = V.scanl1 (+) (V.map (LF.fromLogFloat . fst) l)
-    let choices = V.map snd l
+    let total = V.sum (V.map LF.fromLogFloat l)
+    let weights = V.scanl1 (+) (V.map LF.fromLogFloat l)
+    let choices = V.generate (V.length l) id
     if not (total > (0 :: Double)) then errorEmpty else do
        u <- MWC.uniformR (0, total) g
        let x = V.head (V.dropWhile (\ (v,_) -> u > v) (V.zip weights choices))

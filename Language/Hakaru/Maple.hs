@@ -174,7 +174,6 @@ instance Mochastic Maple where
   lebesgue      = Maple (return "measure")
   counting      = Maple (return "measure")
   superpose _   = Maple (return "measure")
-  mix _         = Maple (return "measure")
   categorical _ = Maple (return "measure")
 {-
   dirac = mapleFun1 "Return"
