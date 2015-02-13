@@ -381,9 +381,12 @@ updateVector v i a = vector (loBound v)
                             (hiBound v)
                             (\ i' -> if_ (equal i i') a (index v i'))
 
-multinomial :: (Mochastic repr) =>
-               repr (Vector Prob) -> repr (Measure (Vector Prob))
-multinomial v = plate (mapV dirac $ updateVector v 0 1)
+multinomial :: (Mochastic repr) => Int -> repr (Vector Prob)
+                                -> repr (Measure (Vector Prob))
+multinomial 0 v = plate (constV v (dirac 0)) 
+multinomial n v = multinomial (n-1) v `bind` \x ->
+                  categorical v `bind` \i ->
+                  plate (mapV dirac $ updateVector x i (1 + index x i))
 
 unNormedDirichlet :: Mochastic repr =>
                      repr (Vector Prob) -> repr (Measure (Vector Prob))
@@ -405,6 +408,9 @@ dirichlet a = unNormedDirichlet a `bind` \xs ->
 
 incV :: Base repr => repr (Vector a) -> repr (Vector Int)
 incV v = vector (loBound v) (hiBound v) id
+
+constV :: Base repr => repr (Vector a) -> repr b -> repr (Vector b)
+constV v c = vector (loBound v) (hiBound v) (const c)
 
 lengthV :: (Base repr) => repr (Vector a) -> repr Int
 lengthV v = hiBound v - loBound v + 1
