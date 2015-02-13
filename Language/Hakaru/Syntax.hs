@@ -371,10 +371,10 @@ sumVec x = summate (fromInt $ loBound x)
                    (\ i -> index x i)
 
 binomial :: (Mochastic repr, Integrate repr) =>
-            repr Int -> repr Prob -> repr (Measure Prob)
+            repr Int -> repr Prob -> repr (Measure Int)
 binomial n p = (plate $ vector 1 n (\ _ -> bern p `bind` \x ->
                                    dirac $ if_ x 1 0)) `bind` \trials ->
-               dirac (sumVec trials)
+               dirac (reduce (+) 0 trials)
 
 unNormedDirichlet :: Mochastic repr =>
                      repr (Vector Prob) -> repr (Measure (Vector Prob))

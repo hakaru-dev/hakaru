@@ -2,12 +2,14 @@
              Rank2Types, GADTs, KindSignatures, LambdaCase #-}
 {-# OPTIONS -Wall #-}
 
-module Language.Hakaru.Lazy where
+module Language.Hakaru.Lazy (Lazy, runLazy, Backward, disintegrate,
+       scalar0, try, recover, simp) where
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        Number, Fraction(..), EqType(Refl), Order(..), Base(..),
        Mochastic(..), weight, equal_, Lambda(..), Lub(..))
+import Language.Hakaru.Compose
 import Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode)
 import Language.Hakaru.Simplify (Simplifiable, closeLoop, simplify)
 import Language.Hakaru.Any (Any(unAny))
@@ -42,8 +44,6 @@ data M s repr a
   = Return a
   | M (forall w. (a -> Heap s repr -> repr (Measure w))
                     -> Heap s repr -> repr (Measure w))
-  -- TODO: Replace "repr (Measure w)" by "[([repr Prob], repr (Measure w))]"
-  -- to optimize away "superpose [(1,...)]" and "superpose []"
 
 unM :: M s repr a -> forall w. (a -> Heap s repr -> repr (Measure w))
                                   -> Heap s repr -> repr (Measure w)
@@ -660,7 +660,7 @@ instance (Mochastic repr, Lub repr) =>
                                  (const (return ()))
   superpose pms = measure $ join $ choice
     [ store (Weight p) >> liftM unMeasure (forward m) | (p,m) <- pms ]
-  -- TODO fill in other methods
+  -- TODO fill in other methods (in particular, chain)
   plate v       = measure $ join $ do l <- gensymVector
                                       store (VBind l [] v)
                                       return (lazy (return (Plate l)))
@@ -711,15 +711,17 @@ instance (Backward ab a) => Backward [ab] [a] where
 
 -- TODO: Conditioning on an observed _vector_
 
+-- TODO: instance Lambda, instance Integrate, instance Lub
+
 disintegrate :: (Mochastic repr, Lub repr, Backward ab a) =>
                 Lazy s repr a ->
                 Lazy s repr (Measure ab) -> Lazy s repr (Measure ab)
 disintegrate x m = measure $ join $ (forward m >>= memo . unMeasure >>= \a ->
                                      backward_ a x >> return a)
 
-try :: (forall s. Lazy s PrettyPrint (Measure (Real, b))) ->
-       PrettyPrint (Real -> Measure (Real, b))
-try m = lam (\t -> runLazy (disintegrate (pair (scalar0 t) unit) m))
+try :: (forall s t. Lazy s (Compose [] t PrettyPrint) (Measure (Real, b))) ->
+       [PrettyPrint (Real -> Measure (Real, b))]
+try m = runCompose (lam (\t -> runLazy (disintegrate (pair (scalar0 t) unit) m)))
 
 recover :: (Typeable a) => PrettyPrint a -> IO (Any a)
 recover hakaru = closeLoop ("Any (" ++ leftMode (runPrettyPrint hakaru) ++ ")")
