@@ -9,6 +9,7 @@ import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        Number, Fraction(..), EqType(Refl), Order(..), Base(..),
        Mochastic(..), weight, equal_, Lambda(..), Lub(..))
+import Language.Hakaru.Compose
 import Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode)
 import Language.Hakaru.Simplify (Simplifiable, closeLoop, simplify)
 import Language.Hakaru.Any (Any(unAny))
@@ -718,9 +719,9 @@ disintegrate :: (Mochastic repr, Lub repr, Backward ab a) =>
 disintegrate x m = measure $ join $ (forward m >>= memo . unMeasure >>= \a ->
                                      backward_ a x >> return a)
 
-try :: (forall s. Lazy s PrettyPrint (Measure (Real, b))) ->
-       PrettyPrint (Real -> Measure (Real, b))
-try m = lam (\t -> runLazy (disintegrate (pair (scalar0 t) unit) m))
+try :: (forall s t. Lazy s (Compose [] t PrettyPrint) (Measure (Real, b))) ->
+       [PrettyPrint (Real -> Measure (Real, b))]
+try m = runCompose (lam (\t -> runLazy (disintegrate (pair (scalar0 t) unit) m)))
 
 recover :: (Typeable a) => PrettyPrint a -> IO (Any a)
 recover hakaru = closeLoop ("Any (" ++ leftMode (runPrettyPrint hakaru) ++ ")")

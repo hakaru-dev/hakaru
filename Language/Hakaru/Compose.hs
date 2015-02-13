@@ -1,7 +1,7 @@
 {-# LANGUAGE Rank2Types, ExistentialQuantification, MultiParamTypeClasses, FlexibleInstances, FlexibleContexts #-}
 {-# OPTIONS -Wall #-}
 
-module Language.Hakaru.Compose where
+module Language.Hakaru.Compose (Compose, liftCompose, runCompose) where
 
 import Language.Hakaru.Syntax
 import Control.Applicative hiding (empty)
@@ -172,3 +172,7 @@ instance (Lambda repr, Applicative f) => Lambda (Compose f s repr) where
 instance (Lub f) => Lub (Compose f s repr) where
   bot                                 = Compose (C (\_ -> bot))
   lub (Compose (C x)) (Compose (C y)) = Compose (C (\n -> lub (x n) (y n)))
+
+instance Lub [] where
+  bot = []
+  lub = (++)
