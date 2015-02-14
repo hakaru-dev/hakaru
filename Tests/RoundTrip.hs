@@ -417,7 +417,7 @@ t56'' =
     lam $ \t ->
     if_ (less t 0) (superpose []) $
     if_ (less t 1) (factor (unsafeProb t)) $
-    if_ (less t 2) (factor (unsafeProb (2+t*(-1)))) $
+    if_ (less t 2) (factor (unsafeProb (2 + t*(-1)))) $
     superpose []
 
 t57, t57' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
