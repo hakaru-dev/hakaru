@@ -4,6 +4,7 @@ import System.Exit (exitFailure)
 
 import qualified Tests.RoundTrip as RT
 import qualified Tests.Syntax as SY
+import qualified Tests.Vector as TV
 import qualified Tests.Relationships as RE
 -- import qualified Tests.Embed as E
 
@@ -16,6 +17,7 @@ allTests = test
   [ RT.allTests
   , SY.allTests
   , RE.allTests
+  , TV.allTests
 --  , E.allTests
     ]
 
