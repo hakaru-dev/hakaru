@@ -387,9 +387,9 @@ t55, t55' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
 t55  = lam $ \t -> uniform 0 1 `bind` \x ->
                    if_ (less x t) (dirac unit) $
                    superpose []
-t55' = lam $ \t -> if_ (less 1 t) (dirac unit) $
-                   if_ (less 0 t) (factor (unsafeProb t)) $
-                   superpose []
+t55' = lam $ \t -> if_ (less t 0) (superpose []) $
+                   if_ (less t 1) (factor (unsafeProb t)) $
+                   dirac unit
 
 t56, t56', t56'' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
 t56 =

@@ -1,7 +1,6 @@
 As of Fri Feb. 13th, the failures are as follows:
 
 RoundTrip:
-t55 - differences in how piecewise are laid out (in non-trivial ways)
 t56 - same as t55
 t57 - same as t55
 t49 - still a pretty-printing issue?
@@ -40,3 +39,4 @@ density1 - Or(..) is an invalid property
 disintegrate2 - Or(..) is an invalid property
 disintegrate6 - Or(..) is an invalid property
 mhPriorProp - [Huge!] Error, Don't know how to deal with condition 1/4.
+t55 - differences in how piecewise are laid out (in non-trivial ways)

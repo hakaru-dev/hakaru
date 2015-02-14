@@ -363,7 +363,7 @@ SLO := module ()
   end proc;
 
   merge_pw := proc(l::list, f)
-    local breakpoints, sbp, i, n, res;
+    local breakpoints, sbp, i, n, res, npw;
 
     breakpoints := convert(map(get_breakcond, l), 'set');
     sbp := map(twiddle, breakpoints);
@@ -375,7 +375,16 @@ SLO := module ()
       simp(res);
     else
       #error "multiple piecewises with different breakpoints %1", l
-      f(i,i=l)
+      # try with Heaviside
+      res := f(i,i=l);
+      try
+        _EnvUseHeavisideAsUnitStep := true;
+        npw := simplify(convert(res, 'Heaviside'));
+        npw := frontend(convert, [npw], [{`+`,`*`}, {Heaviside, Dirac}], piecewise);
+      catch "give the main variable as a second argument":
+        npw := res;
+      end try;
+      npw 
     end if;
   end proc;
 
