@@ -70,11 +70,10 @@ testConj = testSS
   where d:_ = runDisintegrate joint
 instance Integrate Disintegrate -- UNDEFINED
 instance Lambda Disintegrate -- UNDEFINED
-num v = mapV (unsafeProb . fromInt) (incV v)
 joint :: (Mochastic repr, Integrate repr, Lambda repr) =>
          repr (Vector Prob) -> repr (Measure (Int, Vector Prob))
 joint as = dirichlet as `bind` \bias ->
-           categorical (num bias) `bind` \coin ->
+           categorical bias `bind` \coin ->
            dirac (pair coin bias)
 posterior :: (Mochastic repr, Integrate repr, Lambda repr) =>
               repr (Vector Prob) -> repr Int -> repr (Measure (Vector Prob))
