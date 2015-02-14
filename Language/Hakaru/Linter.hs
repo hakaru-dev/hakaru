@@ -79,8 +79,7 @@ instance Mochastic Linter where
     superpose          = applyPairs
     uniform            = apply2
     normal             = apply2
-    mix                = applyPairs
-    categorical        = applyPairs
+    categorical        = apply1
     poisson            = apply1
     gamma              = apply2
     beta               = apply2

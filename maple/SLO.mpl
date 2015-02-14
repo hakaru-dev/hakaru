@@ -8,7 +8,7 @@
 #
 
 SLO := module ()
-  export ModuleApply, AST, simp, flip_cond,
+  export ModuleApply, AST, simp, flip_cond, condToProp,
     c; # very important: c is "global".
   local ToAST, t_binds, t_pw, t_rel,
     into_pw, myprod, do_pw,
@@ -21,6 +21,7 @@ SLO := module ()
     MyHandler, getBinderForm, infer_type, join_type, join2type,
     simp_sup, simp_if, into_sup, simp_rel, 
     simp_pw, simp_pw_equal, simp_pw3,
+    simp_props,
     comp2, comp_algeb, compare, comp_list,
 
     # density recognisation routines
@@ -219,6 +220,7 @@ SLO := module ()
     simp_poly := proc(p)
       local coef_q, vars_q, q, c0, res, heads;
       q := collect(p, all_vars , 'distributed', simplify);
+      if not type(q, polynom(anything, vars)) then return thaw(q) end if;
       if ldegree(q, vars)<1 then
         # need to 'push in' additive constant sometimes
         c0 := tcoeff(q, vars);
@@ -226,6 +228,7 @@ SLO := module ()
       else
         c0 := 0;
       end if;
+      if q = undefined then return undefined end if;
       if q=0 then return c0; end if;
       coef_q := [coeffs(q, vars, 'vars_q')];
       vars_q := [vars_q];
@@ -449,6 +452,7 @@ SLO := module ()
   simp_pw := proc(pw)
     local res, cond, l, r, b1, b2, b3, rel, new_cond;
     res := simp_pw_equal(pw);
+    if not res::t_pw then return res end if;
     if nops(res)=4 then
       b1 := flip_cond(op(1,res));
       if b1 = op(3,res) then
@@ -611,6 +615,10 @@ SLO := module ()
       error "How can I make a property from %1", x;
     end if;
     {nm :: prop}, rest
+  end proc;
+
+  condToProp := proc(cond)
+    eval(cond,{And=AndProp, Or=OrProp})
   end proc;
 
   toType := proc(x::`=`)
@@ -846,7 +854,7 @@ SLO := module ()
 # - full 'type' inference of e
 # - full 'range-of-value' inference of e
   adjust_types := proc(e, typ, ctx)
-    local ee, dom, opc, res, var, left, right, inf_typ, typ2, cond, fcond;
+    local ee, dom, opc, res, var, left, right, inf_typ, typ2, cond, fcond, cl;
     if type(e, specfunc(anything, 'Superpose')) then
       map(thisproc, e, typ, ctx)
     elif type(e, 'WeightedM'(anything, anything)) then
@@ -917,13 +925,28 @@ SLO := module ()
       If(var, left, right);
     elif type(e, 'If'(anything, anything, anything)) then
       cond := op(1,e);
-      opc := _EnvPathCond;
-      _EnvPathCond := opc union {cond};
-      left := adjust_types(op(2,e), typ, ctx);
       fcond := flip_cond(cond);
-      _EnvPathCond := opc union {fcond};
-      right := adjust_types(op(3,e), typ, ctx);
-      If(cond, left, right);
+      opc := _EnvPathCond;
+      cl := simp_props(opc union {cond});
+      if cl = false then  # cond is unsat
+        cl := simp_props(opc union {fcond});
+        if cl = false then # so is fcond, oh my!
+          error "_EnvPathCond (%1) itself is unsat!", _EnvPathCond;
+        end if;
+        _EnvPathCond := cl;
+        adjust_types(op(3,e), typ, ctx);
+      else
+        _EnvPathCond := cl;
+        left := adjust_types(op(2,e), typ, ctx);
+        cl := simp_props(opc union {fcond});
+        if cl = false then # fcond is unsat, just return left
+          return left;
+        else
+          _EnvPathCond := cl;
+          right := adjust_types(op(3,e), typ, ctx);
+          If(cond, left, right);
+        end if;
+      end if;
     elif type(e, 'Uniform'(anything, anything)) and typ = 'Measure(Real)' then
       e
     elif type(e, 'Uniform'(anything, anything)) and typ = 'Measure(Prob)' then
@@ -1092,6 +1115,24 @@ SLO := module ()
   # helper routines for tweaking ASTs
   simp_sup := proc()
     SUPERPOSE(op(sort([_passed], 'strict'=comp2)))
+  end proc;
+
+  # weird routine to catch unsat, which means a condition list implies false
+  simp_props := proc(p)
+    local res, X, pl, ii;
+    pl := map(condToProp, p);
+    ii := remove(type, indets(pl, 'name'), constant);
+    try 
+      # dummy query for unsat only
+      coulditbe(X(op(ii)) > 0) assuming op(pl);
+      res := pl;
+    catch "when calling '%1'. Received: 'contradictory assumptions'":
+    # catch "the assumed property", "contradictory assumptions":
+      res := false;
+    catch "when calling": # all other errors
+      res := pl;
+    end try;
+    res;
   end proc;
 
   into_sup := proc(wm, w) WeightedM(simplify(w*op(1,wm)), op(2,wm)) end proc;
@@ -1475,18 +1516,11 @@ If := proc(cond, tb, eb)
     local fcond, new_cond, rest_cond, t1, t2;
 
     fcond := SLO:-flip_cond(cond);
-    new_cond := AndProp(op(1,eb), fcond);
-    rest_cond := AndProp(SLO:-flip_cond(op(1,eb)), fcond);
-    # note: if t1 is unsat, this might FAIL
+    new_cond := And(op(1,eb), fcond);
+    rest_cond := And(SLO:-flip_cond(op(1,eb)), fcond);
     t1 := coulditbe(new_cond) assuming op(_EnvPathCond);
-    try 
-      # assume(rest_cond); # weird way to catch unsat!
-      coulditbe(rest_cond) assuming rest_cond;
-      t2 := true;
-    catch "when calling '%1'. Received: 'contradictory assumptions'":
-    # catch "the assumed property", "contradictory assumptions":
-      t2 := false;
-    end try;
+    t2 := simplify(piecewise(rest_cond, 1, 0));
+    t2 := not (evalb(t2=0));
     if t1=false then
       error "Why is %1 unsatisfiable?", new_cond;
     elif t2 then

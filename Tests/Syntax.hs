@@ -57,7 +57,7 @@ allTests = test [
                                    (fromRational (1/8), dirac false)]))],
     "density1" ~: testD (\u -> ununit u $ liftM (`pair` unit) $ uniform 0 1 `bind` \x -> uniform 0 1 `bind` \y -> dirac (x + exp (-y))) [],
     "density2" ~: testD (\u -> ununit u $ liftM (`pair` unit) $ liftM2 (*) (uniform 0 1) $ liftM2 (+) (uniform 0 1) (uniform 0 1)) [],
-    "density3" ~: testD (\u -> ununit u $ liftM (`pair` unit) $ mix [(7, liftM (\x -> x - 1/2 + 0) (uniform 0 1)), (3, liftM (\x -> (x - 1/2) * 10) (uniform 0 1))]) [],
+    -- "density3" ~: testD (\u -> ununit u $ liftM (`pair` unit) $ mix [(7, liftM (\x -> x - 1/2 + 0) (uniform 0 1)), (3, liftM (\x -> (x - 1/2) * 10) (uniform 0 1))]) [],
     "disintegrate1" ~: testD (\u -> ununit u $ uniform 0 1 `bind` \x -> uniform 0 1 `bind` \y -> dirac (pair (exp x) (y + x))) [],
     "disintegrate2" ~: testD (\u -> ununit u $ uniform 0 1 `bind` \x -> uniform 0 1 `bind` \y -> dirac (pair (y + x) (exp x))) [],
     "disintegrate3" ~: testD (\u -> ununit u $ uniform 0 1 `bind` \x -> uniform 0 1 `bind` \y -> dirac (pair (max_ x y) (pair x y))) [],

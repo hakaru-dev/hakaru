@@ -669,8 +669,8 @@ testKernel =
     lam $ \x2 ->
     normal x2 1 `bind` \x3 ->
     let_ (expr3 x0 x1 x2 x3) $ \x4 ->
-    categorical [(x4, inl unit), (1 - x4, inr unit)] `bind` \x5 ->
-    dirac (uneither x5 (\x6 -> x3) (\x6 -> x2))
+    bern x4 `bind` \x5 ->
+    dirac (if_ x5 x3 x2)
 
 -- this should be equivalent to the above
 testKernel2 :: (Lambda repr, Mochastic repr) => repr (Real -> Measure Real)
@@ -680,4 +680,5 @@ testKernel2 =
   let_ (if_ (1 `less` exp_(-1/50*(x3-x2)*(x3+x2)))
             1
             (exp_(-1/50*(x3-x2)*(x3+x2)))) $ \x4 ->
- categorical [(x4, x3), (1 - x4, x2)]
+ bern x4 `bind` \x5 ->
+ dirac $ if_ x5 x3 x2

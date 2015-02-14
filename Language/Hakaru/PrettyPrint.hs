@@ -6,7 +6,7 @@ module Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode) where
 
 import Language.Hakaru.Syntax
 import Language.Hakaru.Util.Pretty
-import Text.PrettyPrint hiding (parens)
+import Text.PrettyPrint hiding (parens, empty)
 -- import qualified Text.PrettyPrint as Text 
 -- import Language.Hakaru.Embed
 -- import qualified Generics.SOP as SOP
@@ -38,7 +38,7 @@ applyPairs s pms = apply1 s (PP (\xs _ ->
                        | (PP p, PP m) <- pms ])))]))
 
 adjustHead :: (Doc -> Doc) -> [Doc] -> [Doc]
-adjustHead f []     = [f empty]
+adjustHead f []     = [f (sep [])]
 adjustHead f (d:ds) = f d : ds
 
 parens :: Bool -> [Doc] -> [Doc]
@@ -75,7 +75,7 @@ instance Fractional (PrettyPrint a) where
   fromRational n = PP (\_ p -> [text (showRatio p n "")])
 
 instance Floating (PrettyPrint a) where
-  pi      = PP (\_ _ -> [text "pi"])
+  pi      = string "pi"
   exp     = apply1 "exp"
   sqrt    = apply1 "sqrt"
   log     = apply1 "log"
@@ -123,6 +123,12 @@ instance Base PrettyPrint where
   negativeInfinity  = string "negativeInfinity"
   gammaFunc         = apply1 "gammaFunc"
   betaFunc          = apply2 "betaFunc"
+  vector l h f      = apply3 "vector" l h (fun1 f)
+  empty             = string "empty"
+  index             = apply2 "index"
+  loBound           = apply1 "loBound"
+  hiBound           = apply1 "hiBound"
+  reduce f          = apply3 "reduce" (fun2 f)
   fix f             = apply1 "fix" (fun1 f)
 
 instance Mochastic PrettyPrint where
@@ -132,14 +138,17 @@ instance Mochastic PrettyPrint where
                 $ k' xs 2)
   lebesgue      = string "lebesgue"
   counting      = string "counting"
-  superpose     = applyPairs "superpose"
+  superpose [(p,m)] = apply2 "weight" p m
+  superpose pms = applyPairs "superpose" pms
   uniform       = apply2 "uniform"
   normal        = apply2 "normal"
-  mix           = applyPairs "mix"
-  categorical   = applyPairs "categorical"
+  categorical   = apply1 "categorical"
   poisson       = apply1 "poisson"
   gamma         = apply2 "gamma"
   beta          = apply2 "beta"
+  dp            = apply2 "dp"
+  chain         = apply1 "chain"
+  plate         = apply1 "plate"
 
 instance Integrate PrettyPrint where
   integrate a b f = apply3 "integrate" a b (fun1 f)
@@ -179,14 +188,14 @@ sepBy (PP s) xs = PP $ \vs i -> punctuate (sep $ s vs i) (map sep $ map (\(PP f)
 constructor :: (Doc -> Doc) -> String -> PrettyPrint t -> PrettyPrint a
 constructor f str (PP a) = PP (\vs i -> [ text str <+> f (sep (a vs i)) ])
 
--- Less type safe variant of below 
+-- Less type safe variant of below
 ppProd' :: forall xs a . ConstructorInfo xs -> [PrettyPrint a] -> PrettyPrint ()
 ppProd' (Infix nm _ fxt) (x:y:_) = op fxt nm fxt (fxt + 1) x y
-ppProd' (Constructor ctr) q = 
+ppProd' (Constructor ctr) q =
   constructor Text.parens ctr (sepBy (string ",") (take (lengthSing (Proxy :: Proxy xs)) q))
 ppProd' (Record ctr recs) q = constructor braces ctr (sepBy (string ",") q0) where
-  q0 = zipWith (\r  -> sepStr " = " (string r) ) 
-               (unprod (\(FieldInfo x) -> x) recs) 
+  q0 = zipWith (\r  -> sepStr " = " (string r) )
+               (unprod (\(FieldInfo x) -> x) recs)
                q
 ppProd' _ _ = error "ppProd': wrong number of variables"
 
@@ -194,42 +203,42 @@ prodPretty :: forall xs . SingI xs => ConstructorInfo (Shape xs) -> NP PrettyPri
 prodPretty p q = (\(PP a) -> PP a) (ppProd' p (unpp q))
 
 sopPretty :: Sing xss -> NP ConstructorInfo (Shape xss) -> NS (NP PrettyPrint) xss -> PrettyPrint (NS (NP PrettyPrint) xss)
-sopPretty SCons (ctr :* _) (Z x) = (\(PP a) -> PP a) (prodPretty ctr x) 
+sopPretty SCons (ctr :* _) (Z x) = (\(PP a) -> PP a) (prodPretty ctr x)
 sopPretty s@SCons (_ :* ctrs) (S x) = (\(PP a) -> PP a) (sopPretty (singTail s) ctrs x)
 sopPretty _ _ _ = error "sopPretty: Type error"
 
-ppFun :: SingI xs => NFn PrettyPrint o xs -> PrettyPrint o 
-ppFun fun = PP $ \vs i -> let PP q = go sing fun vs in q vs i where 
-  go :: Sing xs -> NFn PrettyPrint o xs -> [String] -> PrettyPrint o  
-  go SNil (NFn f) _ = f 
-  go s@SCons (NFn f) (v:vs) = go (singTail s) (NFn (f (string v))) vs 
+ppFun :: SingI xs => NFn PrettyPrint o xs -> PrettyPrint o
+ppFun fun = PP $ \vs i -> let PP q = go sing fun vs in q vs i where
+  go :: Sing xs -> NFn PrettyPrint o xs -> [String] -> PrettyPrint o
+  go SNil (NFn f) _ = f
+  go s@SCons (NFn f) (v:vs) = go (singTail s) (NFn (f (string v))) vs
   go _ (NFn _) [] = error "ppFun: no more vars"
 
 
-casePretty :: SingI xss 
+casePretty :: SingI xss
            => DatatypeInfo (Shape xss) -> PrettyPrint (NS (NP PrettyPrint) xss) -> NP (NFn PrettyPrint o) xss -> PrettyPrint o
-casePretty di (PP v) f = PP $ \vs z ->  
-  let ci = ctrInfo di 
+casePretty di (PP v) f = PP $ \vs z ->
+  let ci = ctrInfo di
 
       cases :: Sing xss -> NP ConstructorInfo (Shape xss) -> NP (NFn PrettyPrint o) xss -> [PrettyPrint a]
       cases SNil Nil Nil = []
       cases s@SCons (_ :* is) (x :* xs) = (\(PP a) -> PP a) (ppFun x) : cases (singTail s)  is xs
       cases _ _ _ = error "casePretty: Type error"
 
-      pats :: forall xss a . NP ConstructorInfo xss -> [PrettyPrint a] 
+      pats :: forall xss a . NP ConstructorInfo xss -> [PrettyPrint a]
       pats Nil = []
-      pats (x :* xs) = (\(PP a) -> PP a) (ppProd' x vars) : pats xs 
+      pats (x :* xs) = (\(PP a) -> PP a) (ppProd' x vars) : pats xs
 
-      vars = map string vs 
+      vars = map string vs
 
-  in (text "case" <+> Text.parens (sep (v vs z)) <+> text "of") : 
+  in (text "case" <+> Text.parens (sep (v vs z)) <+> text "of") :
      punctuate (text ";") (zipWith (\(PP a) (PP b) -> (sep $ a vs z) <+> text "->" <+> (sep $ b vs z))
-                                   (pats ci) 
+                                   (pats ci)
                                    (cases sing ci f)
                           )
 
-instance Embed PrettyPrint where 
-  sop' p x = case sopPretty sing (ctrInfo (datatypeInfo p)) x of PP a -> PP a 
+instance Embed PrettyPrint where
+  sop' p x = case sopPretty sing (ctrInfo (datatypeInfo p)) x of PP a -> PP a
 
   case' p (PP x) f = case casePretty (datatypeInfo p) (PP x) f of PP a -> PP a
 -}
