@@ -16,11 +16,11 @@ import Tests.TestTools
 
 testMeasureUnit :: Test
 testMeasureUnit = test [
-    "t1,t5"   ~: testSS [t1,t5] (factor (1/2)),
+    "t1,t5"   ~: testSS [t1,t5] (factor $ fromRational (1/2)),
     "t10"     ~: testSS [t10] (superpose []),
     "t11,t22" ~: testSS [t11,t22] (dirac unit),
     "t12"     ~: testSS [] t12,
-    "t20"     ~: testSS [t20] (lam (\y -> factor (y*(1/2)))),
+    "t20"     ~: testSS [t20] (lam (\y -> factor (y* fromRational (1/2)))),
     "t24"     ~: testSS [t24] t24',
     "t25"     ~: testSS [t25] t25',
     "t44Add"  ~: testSS [t44Add] t44Add',
@@ -86,8 +86,8 @@ testMeasurePair = test [
     "norm_noy"      ~: testSS [norm_noy] (normal 0 1),
     "flipped_norm"  ~: testSS [liftM swap_ norm] flipped_norm,
     "priorProp"     ~: testSS [lam (priorAsProposal norm)]
-                              (lam $ \x -> superpose [(1/2, normal 0 1         `bind` \y -> dirac (pair y (snd_ x))),
-                                                      (1/2, normal 0 (sqrt_ 2) `bind` \y -> dirac (pair (fst_ x) y))]),
+                              (lam $ \x -> superpose [(fromRational (1/2), normal 0 1         `bind` \y -> dirac (pair y (snd_ x))),
+                                                      (fromRational (1/2), normal 0 (sqrt_ 2) `bind` \y -> dirac (pair (fst_ x) y))]),
     "mhPriorProp"   ~: testSS [testMHPriorProp] testPriorProp',
     "unif2"         ~: testS unif2,
     "testGibbsPropUnif" ~: testS testGibbsPropUnif
@@ -96,14 +96,14 @@ testMeasurePair = test [
 
 testOther :: Test
 testOther = test [
-    "beta1"      ~: testSS [testBetaConj] (superpose [(1/2, beta 2 1)]),
+    "beta1"      ~: testSS [testBetaConj] (superpose [(fromRational (1/2), beta 2 1)]),
     "beta2"      ~: testSS [testBetaConj'] (beta 2 1),
-    "testGibbs0" ~: testSS [testGibbsProp0] (lam $ \x -> normal (x * (1/2))
-                                                                (sqrt_ 2 * (1/2))),
+    "testGibbs0" ~: testSS [testGibbsProp0] (lam $ \x -> normal (x * fromRational (1/2))
+                                                                (sqrt_ 2 * fromRational (1/2))),
     "testGibbs1" ~: testSS [testGibbsProp1] (lam $ \x -> normal (fst_ x) 1
                                              `bind` \y -> dirac (pair (fst_ x) y)),
-    "testGibbs2" ~: testSS [testGibbsProp2] (lam $ \x -> normal ((snd_ x) * (1/2))
-                                                                (sqrt_ 2 * (1/2))
+    "testGibbs2" ~: testSS [testGibbsProp2] (lam $ \x -> normal ((snd_ x) * fromRational (1/2))
+                                                                (sqrt_ 2 * fromRational (1/2))
                                              `bind` \y -> dirac (pair y (snd_ x))),
     "testKernel" ~: testSS [testKernel] testKernel2
     ]
@@ -165,7 +165,9 @@ t8 :: Mochastic repr => repr (Measure (Real, Real))
 t8 = normal 0 10 `bind` \x -> normal x 20 `bind` \y -> dirac (pair x y)
 
 t9 :: Mochastic repr => repr (Measure Real)
-t9 = lebesgue `bind` \x -> factor (if_ (and_ [less 3 x, less x 7]) (1/2) 0) `bind_` dirac x
+t9 = lebesgue `bind` \x -> 
+     factor (if_ (and_ [less 3 x, less x 7]) (fromRational (1/2)) 0) `bind_` 
+     dirac x
 
 t10 :: Mochastic repr => repr (Measure ())
 t10 = factor 0
@@ -178,18 +180,19 @@ t12 = factor 2
 
 t13,t13' :: Mochastic repr => repr (Measure Real)
 t13 = bern (3/5) `bind` \b -> dirac (if_ b 37 42)
-t13' = superpose [(3/5, dirac 37), (2/5, dirac 42)]
+t13' = superpose [(fromRational (3/5), dirac 37), 
+                  (fromRational (2/5), dirac 42)]
 
 t14,t14' :: Mochastic repr => repr (Measure Real)
 t14 = bern (3/5) `bind` \b ->
       if_ b t13 (bern (2/7) `bind` \b' ->
                  if_ b' (uniform 10 12) (uniform 14 16))
-t14' = superpose [
-                  (9/25, dirac 37),
-                  (6/25, dirac 42),
-                  (4/35, uniform 10 12),
-                  (2/7, uniform 14 16)
-                 ]
+t14' = superpose 
+  [ (fromRational (9/25), dirac 37)
+  , (fromRational (6/25), dirac 42)
+  , (fromRational (4/35), uniform 10 12)
+  , (fromRational (2/7) , uniform 14 16)
+  ]
 
 t20 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure ())
 t20 = lam (\y -> uniform 0 1 `bind` \x -> factor (unsafeProb x * y))
@@ -207,10 +210,10 @@ t23 = bern (1/2) `bind` \a ->
                bern (if_ a (9/10) (1/10)) `bind` \b ->
                bern (if_ a (9/10) (1/10)) `bind` \c ->
                dirac (pair b c)
-t23' = superpose [(41/100, dirac (pair true true)),
-                  ( 9/100, dirac (pair true false)),
-                  ( 9/100, dirac (pair false true)),
-                  (41/100, dirac (pair false false))]
+t23' = superpose [(fromRational (41/100), dirac (pair true true)),
+                  (fromRational ( 9/100), dirac (pair true false)),
+                  (fromRational ( 9/100), dirac (pair false true)),
+                  (fromRational (41/100), dirac (pair false false))]
 
 t24,t24' :: (Mochastic repr, Lambda repr) => repr (Prob -> Measure ())
 t24 = lam (\x ->
@@ -219,14 +222,14 @@ t24 = lam (\x ->
       factor (x * exp_ (cos y) * unsafeProb z))
 t24' = lam (\x ->
       uniform 0 1 `bind` \y ->
-      factor (x * exp_ (cos y) * (1/2)))
+      factor (x * exp_ (cos y) * fromRational (1/2)))
 
 t25,t25' :: (Mochastic repr, Lambda repr) => repr (Prob -> Real -> Measure ())
 t25 = lam (\x -> lam (\y ->
     uniform 0 1 `bind` \z ->
     factor (x * exp_ (cos y) * unsafeProb z)))
 t25' = lam (\x -> lam (\y ->
-    factor (x * exp_ (cos y) * (1/2))))
+    factor (x * exp_ (cos y) * fromRational (1/2))))
 
 t26 :: (Mochastic repr, Lambda repr, Integrate repr) => repr (Measure Prob)
 t26 = dirac (total t1)
@@ -239,8 +242,9 @@ t27 = map (\d -> lam (d unit)) $ runDisintegrate
     dirac (pair y x))
 t27' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure Real)
 t27' = lam (\y ->
-  superpose [( recip (sqrt_ pi_) * exp_ (y * y * ((-1)/4)) * (1/2)
-             , normal (y * (1/2)) ((sqrt_ 2) * (1/2)) )])
+  superpose 
+    [( recip (sqrt_ pi_) * exp_ (y * y * fromRational (-1/4)) * fromRational (1/2)
+    , normal (y * fromRational (1/2)) ((sqrt_ 2) * fromRational (1/2)) )])
 
 t28 :: Mochastic repr => repr (Measure Real)
 t28 = uniform 0 1
@@ -526,18 +530,18 @@ testPriorProp' :: (Integrate repr, Mochastic repr, Lambda repr) =>
                  repr ((Real, Real) -> Measure ((Real, Real), Prob))
 testPriorProp' =
       (lam $ \old ->
-       superpose [(1 / 2,
+       superpose [(fromRational (1/2),
                    normal 0 1 `bind` \x1 ->
                    dirac (pair (pair x1 (snd_ old))
                                (exp_ ((x1 * (-1) + fst_ old)
                                       * (fst_ old + snd_ old * (-2) + x1)
-                                      * (1 / 2))))),
-                  (1 / 2,
+                                      * fromRational (1 / 2))))),
+                  (fromRational (1/2),
                    normal 0 (sqrt_ 2) `bind` \x1 ->
                    dirac (pair (pair (fst_ old) x1)
                                (exp_ ((x1 * (-1) + snd_ old)
                                       * (snd_ old * (-1) + fst_ old * 4 + x1 * (-1))
-                                      * ((-1) / 4)))))])
+                                      * fromRational (-1/4)))))])
 
 dup :: (Lambda repr, Mochastic repr) => repr (Measure a) -> repr (Measure (a,a))
 dup m = let_ m (\m' -> liftM2 pair m' m')
