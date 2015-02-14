@@ -300,6 +300,7 @@ instance (Mochastic repr) => Mochastic (Partial repr) where
   counting      = fromDynamic (Just counting)
   superpose pms = fromMeasure (\c -> [ (p*q,n) | (p,m) <- pms
                                                , (q,n) <- toMeasure m c ])
+  categorical l = fromDynamic (fmap   categorical (toDynamic l))
   uniform lo hi = fromDynamic (liftM2 uniform (toDynamic lo) (toDynamic hi))
   normal  mu sd = fromDynamic (liftM2 normal  (toDynamic mu) (toDynamic sd))
   poisson l     = fromDynamic (fmap   poisson (toDynamic l))
