@@ -70,8 +70,7 @@ testConj = testSS
   where d:_ = runDisintegrate joint
 instance Integrate Disintegrate -- UNDEFINED
 instance Lambda Disintegrate -- UNDEFINED
-num :: (Base repr) => repr (Vector a) -> repr (Vector (a, Int))
-num = mapWithIndex (flip pair)
+num v = mapV (unsafeProb . fromInt) (incV v)
 joint :: (Mochastic repr, Integrate repr, Lambda repr) =>
          repr (Vector Prob) -> repr (Measure (Int, Vector Prob))
 joint as = dirichlet as `bind` \bias ->
