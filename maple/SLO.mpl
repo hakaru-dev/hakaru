@@ -8,12 +8,12 @@
 #
 
 SLO := module ()
-  export ModuleApply, AST, simp, flip_cond,
+  export ModuleApply, AST, simp, flip_cond, condToProp,
     c; # very important: c is "global".
   local ToAST, t_binds, t_pw, t_rel,
     into_pw, myprod, do_pw,
     mkProb, getCtx, instantiate, lambda_wrap, find_paths,
-    fill_table, toProp, toType, condToProp,
+    fill_table, toProp, toType,
     twiddle, myint, myint_pw,
     adjust_types, compute_domain, analyze_cond, isPos,
     adjust_superpose,
@@ -1119,15 +1119,18 @@ SLO := module ()
 
   # weird routine to catch unsat, which means a condition list implies false
   simp_props := proc(p)
-    local res, X, pl;
+    local res, X, pl, ii;
     pl := map(condToProp, p);
+    ii := remove(type, indets(pl, 'name'), constant);
     try 
       # dummy query for unsat only
-      coulditbe(X>0) assuming op(pl);
+      coulditbe(X(op(ii)) > 0) assuming op(pl);
       res := pl;
     catch "when calling '%1'. Received: 'contradictory assumptions'":
     # catch "the assumed property", "contradictory assumptions":
       res := false;
+    catch "when calling": # all other errors
+      res := pl;
     end try;
     res;
   end proc;
@@ -1513,18 +1516,11 @@ If := proc(cond, tb, eb)
     local fcond, new_cond, rest_cond, t1, t2;
 
     fcond := SLO:-flip_cond(cond);
-    new_cond := AndProp(op(1,eb), fcond);
-    rest_cond := AndProp(SLO:-flip_cond(op(1,eb)), fcond);
-    # note: if t1 is unsat, this might FAIL
+    new_cond := And(op(1,eb), fcond);
+    rest_cond := And(SLO:-flip_cond(op(1,eb)), fcond);
     t1 := coulditbe(new_cond) assuming op(_EnvPathCond);
-    try 
-      # assume(rest_cond); # weird way to catch unsat!
-      coulditbe(rest_cond) assuming rest_cond;
-      t2 := true;
-    catch "when calling '%1'. Received: 'contradictory assumptions'":
-    # catch "the assumed property", "contradictory assumptions":
-      t2 := false;
-    end try;
+    t2 := simplify(piecewise(rest_cond, 1, 0));
+    t2 := not (evalb(t2=0));
     if t1=false then
       error "Why is %1 unsatisfiable?", new_cond;
     elif t2 then

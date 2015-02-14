@@ -13,7 +13,8 @@ testKernel - failure in recognition of density (and categorical)
 Syntax:
 pair1fst/snd - beta instead of list/categorical
 testLinreg - ignored
-borelishDiv - Or(x <=0, 1<=x, 1/rr2*x <= 0, 1<= 1/rr2*x) is an invalid property
+gamalonDis - time expired (5s)
+borelishDiv - "Why is And(And(0<x,x<1),1/x <= 0) unsatisfiable?"
 culpepper - expected superpose of 2 things, got just 1.  testD bug?
 density2 - time expired
 disintegrate1 - (x+ln(`freeze/R32`)) should be a ratpoly in ([`freeze/R32`])
@@ -35,7 +36,6 @@ density3 - Or( x<= 0, 1<=x, rr2 <> 10*x-5) is an invalid property
 disintegrate4 - (in simp_poly) cannot determine if this expression is true or false: FAIL < 1
 t54 - Or(...) is an invalid property
 t52 - order difference in list parameters
-gamalonDis - Or(..) is an invalid property
 density1 - Or(..) is an invalid property
 disintegrate2 - Or(..) is an invalid property
 disintegrate6 - Or(..) is an invalid property
