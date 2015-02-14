@@ -9,12 +9,12 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        Order(..), Base(..), ununit, fst_, snd_, swap_,
        and_, or_, not_, min_, max_,
        sumVec, normalizeVector, dirichlet,
-       lengthV, mapWithIndex, mapV, zipWithV, zipV,
+       lengthV, mapWithIndex, mapV, zipWithV, zipV, incV,
        Mochastic(..), bind_, factor, weight, bindx, liftM, liftM2,
        categorical',mix',
        invgamma, exponential, chi2, bern,
        cauchy, laplace, student, weibull,
-       binomial,
+       binomial, multinomial,
        Integrate(..), Lambda(..), Lub(..)) where
 
 import Data.Typeable (Typeable)    
@@ -243,8 +243,7 @@ class (Base repr) => Mochastic repr where
                                       / fromProb (2 * pow_ sd 2))
                                  / sd / sqrt_ (2 * pi_)
                               , dirac x )]
-  mix           :: repr (Vector (Prob, (Measure a))) -> repr (Measure a)
-  categorical   :: repr (Vector (Prob, a)) -> repr (Measure a)
+  categorical   :: repr (Vector Prob) -> repr (Measure Int)
 
   poisson       :: repr Prob -> repr (Measure Int)
   poisson l     =  counting `bind` \x ->
@@ -370,11 +369,24 @@ sumVec x = summate (fromInt $ loBound x)
                    (fromInt $ hiBound x)
                    (\ i -> index x i)
 
-binomial :: (Mochastic repr, Integrate repr) =>
+binomial :: (Mochastic repr) =>
             repr Int -> repr Prob -> repr (Measure Int)
 binomial n p = (plate $ vector 1 n (\ _ -> bern p `bind` \x ->
                                    dirac $ if_ x 1 0)) `bind` \trials ->
                dirac (reduce (+) 0 trials)
+
+updateVector :: Base repr =>
+                repr (Vector a) -> repr Int -> repr a -> repr (Vector a)
+updateVector v i a = vector (loBound v)
+                            (hiBound v)
+                            (\ i' -> if_ (equal i i') a (index v i'))
+
+multinomial :: (Mochastic repr) => Int -> repr (Vector Prob)
+                                -> repr (Measure (Vector Prob))
+multinomial 0 v = plate (constV v (dirac 0)) 
+multinomial n v = multinomial (n-1) v `bind` \x ->
+                  categorical v `bind` \i ->
+                  plate (mapV dirac $ updateVector x i (1 + index x i))
 
 unNormedDirichlet :: Mochastic repr =>
                      repr (Vector Prob) -> repr (Measure (Vector Prob))
@@ -393,6 +405,12 @@ dirichlet :: (Lambda repr, Mochastic repr, Integrate repr) =>
               repr (Vector Prob) -> repr (Measure (Vector Prob))
 dirichlet a = unNormedDirichlet a `bind` \xs ->
               dirac (normalizeVector xs)                    
+
+incV :: Base repr => repr (Vector a) -> repr (Vector Int)
+incV v = vector (loBound v) (hiBound v) id
+
+constV :: Base repr => repr (Vector a) -> repr b -> repr (Vector b)
+constV v c = vector (loBound v) (hiBound v) (const c)
 
 lengthV :: (Base repr) => repr (Vector a) -> repr Int
 lengthV v = hiBound v - loBound v + 1
