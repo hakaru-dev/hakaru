@@ -136,8 +136,8 @@ instance Base Maple where
   erf       = mapleFun1 "erf"
   erf_      = mapleFun1 "erf"
 
-  vector    = quant "VECTOR"
-  empty     = Maple (return "VECTOR(undefined,n=0..-1)")
+  vector    = quant "MVECTOR"
+  empty     = Maple (return "MVECTOR(undefined,n=0..-1)")
   index     = mapleFun2 "index"
   loBound   = mapleFun1 "loBound"
   hiBound   = mapleFun1 "hiBound"
