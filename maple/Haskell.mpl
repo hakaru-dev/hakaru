@@ -60,6 +60,10 @@ Haskell := module ()
       binds := indets(expr, 'Bind'(anything, name = `..`, anything));
       expr := subs(map(fix_binds, binds), expr);
 
+      # insert factor instead of weight when possible
+      expr := subsindets(expr, 'WeightedM'(anything, identical(Return(Unit))),
+          proc(x) 'Factor'(op(1, x)) end proc);
+
       # and now actually translate
       p(ToInert(expr));
       b:-value();
@@ -129,12 +133,10 @@ d[_Inert_LESSTHAN] := proc(a1, a2)
   lparen(); b:-append("less"); sp(); p(a1); sp(); p(a2); rparen();
 end proc;
 d[_Inert_LESSEQ] := proc(a1, a2)
-  lparen(); b:-append("or_"); sp(); lbrack(); 
-     b:-append("less_"); sp(); p(a1); sp(); p(a2); 
-     comma();
-     b:-append("equal_"); sp(); p(a1); sp(); p(a2); 
-     rbrack();
-  rparen();
+  lparen(); b:-append("lesseq"); sp(); p(a1); sp(); p(a2); rparen();
+end proc;
+d[_Inert_EQUATION] := proc(a1, a2)
+  lparen(); b:-append("equal"); sp(); p(a1); sp(); p(a2); rparen();
 end proc;
 
 # this is the table of known internal functions
@@ -180,6 +182,10 @@ end;
 bi["And"] := proc() b:-append("and_"); sp(); 
   lbrack(); seqp(", ", [_passed]); rbrack();
 end;
+bi["Or"] := proc() b:-append("or_"); sp(); 
+  lbrack(); seqp(", ", [_passed]); rbrack();
+end;
+
 
 bi["SUPERPOSE"] := proc() b:-append("superpose"); sp(); 
   lbrack(); seqp(", ", [_passed]); rbrack();
