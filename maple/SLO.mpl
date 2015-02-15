@@ -1297,9 +1297,7 @@ SLO := module ()
       if de::specfunc(anything, 'Diffop') then
         (diffop, init) := op(de);
         # dispatch on rng
-        if rng = -infinity..infinity then
-          res := recognize_density(diffop, init, Dx, var) assuming op(_EnvPathCond), var::real;
-        elif rng = 0..1 then
+        if rng = 0..1 then
           res := recognize_density_01(diffop, init, Dx, var) assuming op(_EnvPathCond), var::RealRange(0,1);
         elif rng = 0..infinity then
           res := recognize_density_0inf(diffop, init, Dx, var) assuming op(_EnvPathCond), var>0;
@@ -1313,6 +1311,8 @@ SLO := module ()
             end if;
             res := WeightedM(new_dens, res);
           end if;
+        else # actually use 'real' recognizer in all these cases
+          res := recognize_density(diffop, init, Dx, var) assuming op(_EnvPathCond), var::real;
         end if;
       end if;
 
@@ -1463,8 +1463,9 @@ WeightedM := proc(w, m)
   end if;
 end;
 
-Superpose := proc()
-  local wm, bind, bindrr, i, j, bb, res, l;
+Superpose := module()
+  export ModuleApply;
+  local bb;
 
   bb := proc(t, k, no_rng)
     local bds, var;
@@ -1482,35 +1483,38 @@ Superpose := proc()
       bds
     end if;
   end proc;
-  if _npassed = 1 then
-    _passed[1]
-  else
-    wm := table('sparse'); bind := table('sparse'); bindrr := table('sparse');
-    l := map(x -> `if`(op(0,x)='Superpose', op(x), x), [_passed]);
-    for i in l do
-      if i::'WeightedM'(anything, anything) then
-        wm[op(2,i)] := wm[op(2,i)] + op(1,i);
-      elif i::'Return'(anything) then
-        wm[i] := wm[i] + 1;
-      elif i::'Bind'(anything, name, anything) then
-        bind[op(1,i)] := bind[op(1,i)] + i;
-      elif i::'Bind'(anything, name = range, anything) then
-        bindrr[op(1,i), op([2,2],i)] := bindrr[op(1,i), op([2,2], i)] + i;
-      elif i::specfunc(anything, 'If') then
-        wm[i] := wm[i] + 1;
-      else
-        # error "how do I superpose %1", i;
-        # rather than error out, just pass it through
-        wm[i] := wm[i] + 1;
-      end if;
-    end do;
-    res := [
-      seq(WeightedM(wm[j], j), j = [indices(wm, 'nolist')]),
-      seq(bb(bind,j,true), j = [indices(bind)]),
-      seq(bb(bindrr,j,false), j = [indices(bindrr)])];
-    if nops(res)=1 then res[1] else 'Superpose'(op(res)) end if;
-  end if;
-end proc;
+  ModuleApply := proc()
+    local wm, bind, bindrr, i, j, res, l;
+    if _npassed = 1 then
+      _passed[1]
+    else
+      wm := table('sparse'); bind := table('sparse'); bindrr := table('sparse');
+      l := map(x -> `if`(op(0,x)='Superpose', op(x), x), [_passed]);
+      for i in l do
+        if i::'WeightedM'(anything, anything) then
+          wm[op(2,i)] := wm[op(2,i)] + op(1,i);
+        elif i::'Return'(anything) then
+          wm[i] := wm[i] + 1;
+        elif i::'Bind'(anything, name, anything) then
+          bind[op(1,i)] := bind[op(1,i)] + i;
+        elif i::'Bind'(anything, name = range, anything) then
+          bindrr[op(1,i), op([2,2],i)] := bindrr[op(1,i), op([2,2], i)] + i;
+        elif i::specfunc(anything, 'If') then
+          wm[i] := wm[i] + 1;
+        else
+          # error "how do I superpose %1", i;
+          # rather than error out, just pass it through
+          wm[i] := wm[i] + 1;
+        end if;
+      end do;
+      res := [
+        seq(WeightedM(wm[j], j), j = [indices(wm, 'nolist')]),
+        seq(bb(bind,j,true), j = [indices(bind)]),
+        seq(bb(bindrr,j,false), j = [indices(bindrr)])];
+      if nops(res)=1 then res[1] else 'Superpose'(op(res)) end if;
+    end if;
+  end proc;
+end module;
 
 Bind := proc(w, var, meas)
   if var::name and meas = Return(var) then
