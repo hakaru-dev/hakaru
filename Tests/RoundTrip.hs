@@ -70,6 +70,7 @@ testMeasureReal = test
   , "t50" ~: testS t50
   , "t51" ~: testS t51
   , "testexponential" ~: testS testexponential
+  , "testcauchy" ~: testS testCauchy
     -- "two_coins" ~: testS two_coins -- needs support for lists
     ]
 
@@ -369,7 +370,7 @@ t54 =
       if_ x2
           (dirac x1 `bind` \x3 -> dirac (recip x3))
           (dirac 0)) `bind` \x2 ->
-     factor (unsafeProb x2)) `bind` \x2 ->
+     factor (unsafeProb x2)) `bind_`
     (dirac x1 `bind` \x3 -> dirac (log x3)) `bind` \x3 ->
     (dirac x3 `bind` \x4 -> dirac (-x4)) `bind` \x4 ->
     ((dirac 0 `bind` \x5 ->
@@ -415,18 +416,17 @@ t56' =
         (superpose [])
 t56'' =
     lam $ \t ->
-    if_ (less t 0) (superpose []) $
-    if_ (less t 1) (factor (unsafeProb t)) $
-    if_ (less t 2) (factor (unsafeProb (2 + t*(-1)))) $
+    if_ (lesseq t 0) (superpose []) $
+    if_ (lesseq t 1) (factor (unsafeProb t)) $
+    if_ (lesseq t 2) (factor (unsafeProb (2 + t*(-1)))) $
     superpose []
 
 t57, t57' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
 t57 = lam $ \t -> superpose
   [(1, if_ (less t 1) (dirac unit) (superpose [])),
    (1, if_ (less 0 t) (dirac unit) (superpose []))]
-t57' = lam $ \t -> if_ (t `less` 1)
-                       (if_ (0 `less` t) (weight 2 (dirac unit)) (dirac unit))
-                       (dirac unit)
+t57' = lam $ \t -> 
+  if_ (and_ [(t `less` 1), (0 `less` t)]) (factor 2) (dirac unit)
 
 t58, t58' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
 t58 = lam $ \t -> superpose
@@ -462,7 +462,7 @@ gibbsProposal :: (Order_ a, Expect' a ~ a, Expect' b ~ b,
                  repr (a, b) -> repr (Measure (a, b))
 gibbsProposal p x = q (fst_ x) `bind` \x' -> dirac (pair (fst_ x) x')
   where d:_ = runDisintegrate (const p)
-        q x = normalize (d unit (Expect x))
+        q y = normalize (d unit (Expect y))
 
 testGibbsProp0 :: (Lambda repr, Mochastic repr, Integrate repr) =>
                   repr (Real -> Measure Real)
@@ -558,7 +558,7 @@ norm_nox = normal 0 1 `bind` \x ->
 
 norm_noy :: Mochastic repr => repr (Measure Real)
 norm_noy = normal 0 1 `bind` \x ->
-           normal x 1 `bind` \y ->
+           normal x 1 `bind_`
            dirac x
 
 flipped_norm :: Mochastic repr => repr (Measure (Real, Real))
@@ -580,7 +580,7 @@ two_coins = bern (1/2) `bind` \x ->
 -- pull out some of the intermediate expressions for independent study
 expr1 :: (Lambda repr, Mochastic repr) => repr (Real -> Prob)
 expr1 =  (lam $ \x0 ->
-          (lam $ \x1 ->
+          (lam $ \_ ->
            lam $ \x2 ->
            lam $ \x3 ->
            (lam $ \x4 ->
@@ -593,26 +593,26 @@ expr1 =  (lam $ \x0 ->
                     / 5
                     / exp_ (log_ (2 * pi_) * (1 / 2))
                     * (lam $ \x7 -> x7 `app` unit) `app` x6)
-                 `app` (lam $ \x6 ->
+                 `app` (lam $ \_ ->
                         (lam $ \x7 ->
                          (lam $ \x8 -> x8 `app` x2)
-                         `app` (lam $ \x8 ->
+                         `app` (lam $ \_ ->
                                 (lam $ \x9 ->
                                  (lam $ \x10 -> x10 `app` unit)
                                  `app` (lam $ \x10 ->
                                         (lam $ \x11 ->
                                          (lam $ \x12 -> x12 `app` x2)
-                                         `app` (lam $ \x12 ->
+                                         `app` (lam $ \_ ->
                                                 (lam $ \x13 -> x13 `app` pair x2 x10) `app` x11))
                                         `app` x9))
                                 `app` x7))
                         `app` x5))
                 `app` x4)
            `app` (lam $ \x4 ->
-                  (lam $ \x5 -> x5 `app` (x4 `unpair` \x6 x7 -> x7)) `app` x3))
+                  (lam $ \x5 -> x5 `app` (x4 `unpair` \_ x7 -> x7)) `app` x3))
           `app` unit
           `app` x0
-          `app` (lam $ \x1 -> 1))
+          `app` (lam $ \_ -> 1))
 
 expr2 :: (Mochastic repr, Lambda repr) => repr (Real -> Real -> Prob)
 expr2 = (lam $ \x1 ->
@@ -630,26 +630,26 @@ expr2 = (lam $ \x1 ->
                     / 1
                     / exp_ (log_ (2 * pi_) * (1 / 2))
                     * (lam $ \x9 -> x9 `app` unit) `app` x8)
-                 `app` (lam $ \x8 ->
+                 `app` (lam $ \_ ->
                         (lam $ \x9 ->
                          (lam $ \x10 -> x10 `app` x4)
-                         `app` (lam $ \x10 ->
+                         `app` (lam $ \_ ->
                                 (lam $ \x11 ->
                                  (lam $ \x12 -> x12 `app` unit)
                                  `app` (lam $ \x12 ->
                                         (lam $ \x13 ->
                                          (lam $ \x14 -> x14 `app` x4)
-                                         `app` (lam $ \x14 ->
+                                         `app` (lam $ \_ ->
                                                 (lam $ \x15 -> x15 `app` pair x4 x12) `app` x13))
                                         `app` x11))
                                 `app` x9))
                         `app` x7))
                 `app` x6)
            `app` (lam $ \x6 ->
-                  (lam $ \x7 -> x7 `app` (x6 `unpair` \x8 x9 -> x9)) `app` x5))
+                  (lam $ \x7 -> x7 `app` (x6 `unpair` \_ x9 -> x9)) `app` x5))
           `app` x1
           `app` x2
-          `app` (lam $ \x3 -> 1))
+          `app` (lam $ \_ -> 1))
 
 -- the one we need in testKernel
 expr3 :: (Mochastic repr, Lambda repr) => repr (d -> Prob) -> repr (d -> d -> Prob) -> repr d -> repr d -> repr Prob
