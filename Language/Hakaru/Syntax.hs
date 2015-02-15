@@ -7,7 +7,7 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        Uneither(Uneither),
        errorEmpty,
        Order(..), Base(..), ununit, fst_, snd_, swap_,
-       and_, or_, not_, min_, max_,
+       and_, or_, not_, min_, max_, lesseq,
        sumVec, normalizeVector, dirichlet,
        lengthV, mapWithIndex, mapV, zipWithV, zipV, incV,
        Mochastic(..), bind_, factor, weight, bindx, liftM, liftM2,
@@ -223,6 +223,9 @@ not_ a = if_ a false true
 min_, max_ :: (Order_ a, Base repr) => repr a -> repr a -> repr a
 min_ x y = if_ (less_ x y) x y
 max_ x y = if_ (less_ x y) y x
+
+lesseq :: (Order repr a, Base repr) => repr a -> repr a -> repr Bool
+lesseq x y = or_ [(less x y) , (equal x y)]
 
 class (Base repr) => Mochastic repr where
   dirac         :: repr a -> repr (Measure a)
