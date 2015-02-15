@@ -15,6 +15,7 @@ SLO := module ()
     mkProb, getCtx, instantiate, lambda_wrap, find_paths,
     fill_table, toProp, toType,
     twiddle, myint, myint_pw,
+    fix_Heaviside,
     adjust_types, compute_domain, analyze_cond, isPos,
     adjust_superpose,
     get_breakcond, merge_pw,
@@ -362,6 +363,10 @@ SLO := module ()
     end if;
   end proc;
 
+  fix_Heaviside := proc(e)
+    frontend(convert, [e], [{`+`,`*`}, '{Heaviside, Dirac}'], 'piecewise');
+  end proc;
+
   merge_pw := proc(l::list, f)
     local breakpoints, sbp, i, n, res, npw;
 
@@ -380,7 +385,7 @@ SLO := module ()
       try
         _EnvUseHeavisideAsUnitStep := true;
         npw := simplify(convert(res, 'Heaviside'));
-        npw := frontend(convert, [npw], [{`+`,`*`}, {Heaviside, Dirac}], piecewise);
+        npw := fix_Heaviside(npw);
       catch "give the main variable as a second argument":
         npw := res;
       end try;
@@ -498,6 +503,10 @@ SLO := module ()
       if res::t_pw and op(2,res)::t_pw and nops(op(2,res))=3 and
          normal(op([2,3],res) - op(3,res)) = 0 then
           res := piecewise(And(op(1,res),op([2,1],res)), op([2,2],res), op(3,res));
+      end if;
+      if res::t_pw and op(3,res)::t_pw and nops(op(3,res))=3 and
+         normal(op([3,2],res) - op(2,res)) = 0 then
+          res := piecewise(Or(op(1,res),op([3,1],res)), op(2,res), op([3,3],res));
       end if;
     end if;
     res;
@@ -1338,7 +1347,7 @@ SLO := module ()
 #############
 # more hacks to get around Maple weaknesses
   myint := proc(expr, b)
-    local var, inds;
+    local var, inds, res, res0, res1;
     _EnvBinders := _EnvBinders union {op(1,b)};
     var := op(1,b);
     inds := indets(expr, specfunc(anything,c));
@@ -1347,7 +1356,19 @@ SLO := module ()
       if type(expr, t_binds) then
         subsop(1=myint(op(1,expr),b), expr)
       else
-        int(expr, b) 
+        res0 := int(expr, b);
+        if type(res0, t_binds) and op(2,res0)=b then # didn't work, try harder
+          _EnvUseHeavisideAsUnitStep := true;
+          res1 := int(convert(expr, Heaviside), b);
+          if not type(res1, t_binds) then # success!
+            res := fix_Heaviside(res1);
+          else 
+            res := res0;
+          end if;
+        else
+          res := res0;
+        end if;
+        res;
       end if;
     elif type(expr, t_pw) then
       # what is really needed here is to 'copy'
