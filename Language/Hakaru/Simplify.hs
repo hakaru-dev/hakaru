@@ -66,7 +66,7 @@ instance Simplifiable a => Simplifiable (Measure a) where
   mapleType _ = "Measure(" ++ mapleType (undefined :: a) ++ ")"
 
 instance Simplifiable a => Simplifiable (Vector a) where
-  mapleType _ = "Vector(" ++ mapleType (undefined :: a) ++ ")"
+  mapleType _ = "MVector(" ++ mapleType (undefined :: a) ++ ")"
 
 instance (Simplifiable a, Simplifiable b) => Simplifiable (a -> b) where
   mapleType _ = "Arrow(" ++ mapleType (undefined :: a) ++ "," ++
