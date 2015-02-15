@@ -304,7 +304,7 @@ end;
     else # both finite
       (lower, upper) := op(rng);
       bind = 'Bind'(meas, var, If(var < lower, SUPERPOSE(),
-                                 If(upper <= var, rest, Superpose())))
+                                 If(upper <= var, rest, SUPERPOSE())))
     end if;
   end
 end module:
