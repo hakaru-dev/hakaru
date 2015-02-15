@@ -29,11 +29,11 @@ module Language.Hakaru.Embed (
 import Language.Hakaru.Syntax hiding (EqType(..))
 import Prelude hiding (Real (..))
 import Data.Proxy
-import Control.Applicative
+-- import Control.Applicative
 import Generics.SOP hiding (Code, Rep, datatypeInfo, Shape, SOP)
 import qualified Generics.SOP as SOP 
-import qualified GHC.Generics as GHC 
-import GHC.Exts (Constraint)
+-- import qualified GHC.Generics as GHC 
+-- import GHC.Exts (Constraint)
 -- import qualified Language.Haskell.TH as TH
 -- import Language.Haskell.TH (Name, Q, Dec(..), Type(..), Info (..), TyVarBndr(..), reify, TySynEqn(..))
 import Language.Haskell.TH 
