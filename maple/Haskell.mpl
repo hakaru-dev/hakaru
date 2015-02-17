@@ -60,6 +60,10 @@ Haskell := module ()
       binds := indets(expr, 'Bind'(anything, name = `..`, anything));
       expr := subs(map(fix_binds, binds), expr);
 
+      # insert factor instead of weight when possible
+      expr := subsindets(expr, 'WeightedM'(anything, identical(Return(Unit))),
+          proc(x) 'Factor'(op(1, x)) end proc);
+
       # and now actually translate
       p(ToInert(expr));
       b:-value();
@@ -77,7 +81,8 @@ Haskell := module ()
 d[_Inert_INTPOS] := proc(x) b:-appendf("%d",x) end;
 d[_Inert_INTNEG] := proc(x) b:-appendf("(%d)",-x) end;
 d[_Inert_RATIONAL] := proc(n,d) 
-  parens(proc() p(n); b:-append(" / "); p(d); end) 
+  parens(proc() b:-append("fromRational "); 
+                lparen(); p(n); b:-append(" / "); p(d); rparen(); end) 
 end;
 d[_Inert_FUNCTION] := proc(f, s)
   local nm;
@@ -128,12 +133,10 @@ d[_Inert_LESSTHAN] := proc(a1, a2)
   lparen(); b:-append("less"); sp(); p(a1); sp(); p(a2); rparen();
 end proc;
 d[_Inert_LESSEQ] := proc(a1, a2)
-  lparen(); b:-append("or_"); sp(); lbrack(); 
-     b:-append("less_"); sp(); p(a1); sp(); p(a2); 
-     comma();
-     b:-append("equal_"); sp(); p(a1); sp(); p(a2); 
-     rbrack();
-  rparen();
+  lparen(); b:-append("lesseq"); sp(); p(a1); sp(); p(a2); rparen();
+end proc;
+d[_Inert_EQUATION] := proc(a1, a2)
+  lparen(); b:-append("equal"); sp(); p(a1); sp(); p(a2); rparen();
 end proc;
 
 # this is the table of known internal functions
@@ -179,6 +182,10 @@ end;
 bi["And"] := proc() b:-append("and_"); sp(); 
   lbrack(); seqp(", ", [_passed]); rbrack();
 end;
+bi["Or"] := proc() b:-append("or_"); sp(); 
+  lbrack(); seqp(", ", [_passed]); rbrack();
+end;
+
 
 bi["SUPERPOSE"] := proc() b:-append("superpose"); sp(); 
   lbrack(); seqp(", ", [_passed]); rbrack();
@@ -297,7 +304,7 @@ end;
     else # both finite
       (lower, upper) := op(rng);
       bind = 'Bind'(meas, var, If(var < lower, SUPERPOSE(),
-                                 If(upper <= var, rest, Superpose())))
+                                 If(upper <= var, rest, SUPERPOSE())))
     end if;
   end
 end module:

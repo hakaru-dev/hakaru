@@ -27,11 +27,20 @@ unrolled = uniform 0 2 `bind` \x2 ->
            uniform 0 5 `bind` \x5 ->
            dirac (unsafeProb (x2 + x3 + x4 + x5))
 
+-- Test that normalizing a vector makes its sum 1
+testNorm1, testNorm2 :: Assertion
+testNorm1 = testSS [liftM (sumVec . normalizeVector) (plate (vector 2 5 (\i ->
+                    liftM unsafeProb (uniform 0 (fromInt i)))))]
+                   (dirac 1)
+testNorm2 = testSS [liftM sumVec (dirichlet (vector 2 5 (\i ->
+                    unsafeProb (fromInt i))))]
+                   (dirac 1)
+
 -- Test that the product of probability measures is a probability measure
 testUnity :: Assertion
 testUnity = testSS [unity] count
 count, unity :: (Mochastic repr) => repr (Measure Int)
-count = categorical [(1, 20), (1, 30), (1, 40)]
+count = categorical' [(1, 20), (1, 30), (1, 40)]
 unity = count `bind` \n ->
         plate (vector 1 n (\i -> bern (recip (unsafeProb (fromInt i))))) `bind_`
         dirac n
@@ -61,14 +70,10 @@ testConj = testSS
   where d:_ = runDisintegrate joint
 instance Integrate Disintegrate -- UNDEFINED
 instance Lambda Disintegrate -- UNDEFINED
-categorical' :: (Mochastic repr) => repr (Vector (Prob, a)) -> repr (Measure a)
-categorical' = error "Vector categorical undefined"
-num :: (Base repr) => repr (Vector a) -> repr (Vector (a, Int))
-num = mapWithIndex (flip pair)
 joint :: (Mochastic repr, Integrate repr, Lambda repr) =>
          repr (Vector Prob) -> repr (Measure (Int, Vector Prob))
 joint as = dirichlet as `bind` \bias ->
-           categorical' (num bias) `bind` \coin ->
+           categorical bias `bind` \coin ->
            dirac (pair coin bias)
 posterior :: (Mochastic repr, Integrate repr, Lambda repr) =>
               repr (Vector Prob) -> repr Int -> repr (Measure (Vector Prob))

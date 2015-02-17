@@ -95,15 +95,22 @@ vPhi cds = unpair cds $ \p _ -> p
 vLon, vLat :: (Base repr) => repr Coords -> repr GPS
 vLon cds = unpair cds $ \_ ll -> unpair ll $ \lon _ -> lon
 vLat cds = unpair cds $ \_ ll -> unpair ll $ \_ lat -> lat
+           
+type Steering = (Vel, Angle) -- ^ vel, alpha
 
+vel :: (Base repr) => repr Steering -> repr Vel
+vel steer = unpair steer $ \v _ -> v
+
+alpha :: (Base repr) => repr Steering -> repr Angle
+alpha steer = unpair steer $ \_ a -> a
+    
 type State = (LaserReads, Coords)
 
 type Simulator repr = repr Dims
                     -> repr (Vector GPS) -- ^ beacon lons
                     -> repr (Vector GPS) -- ^ beacon lats
-                    -> repr Coords
-                    -> repr Vel -> repr Angle -- ^ vel, alpha
-                    -> repr DelTime           -- ^ timestamp
+                    -> repr Coords -> repr Steering
+                    -> repr DelTime      -- ^ timestamp
                     -> repr (Measure State)
 
 --------------------------------------------------------------------------------
@@ -111,75 +118,66 @@ type Simulator repr = repr Dims
 --------------------------------------------------------------------------------
                        
 simulate :: (Mochastic repr) => Simulator repr
-simulate ds blons blats cds
-         old_ve old_alpha delT =
+simulate ds blons blats cds steerE delT =
 
-    let_' (wheelToAxle old_ve old_alpha ds) $ \old_vc ->
-    unpair (newPos ds cds delT old_vc old_alpha) $ \calc_lon calc_lat ->
-    let_' (newPhi cds delT old_vc old_alpha ds) $ \calc_phi ->
+    let_' (wheelToAxle steerE ds) $ \vc ->
+    let_' (pair vc (alpha steerE)) $ \steerC ->
+        
+    unpair (newPos ds cds steerC delT) $ \calc_lon calc_lat ->
+    let_' (newPhi ds cds steerC delT) $ \calc_phi ->
     
-    normal calc_lon ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \lon ->
-    normal calc_lat ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \lat ->
-    normal calc_phi ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \phi ->
-
-    let_' (vmap ((-) lon) blons) $ \lon_ds ->
-    let_' (vmap ((-) lat) blats) $ \lat_ds ->
+    let_' (mapV ((-) calc_lon) blons) $ \lon_ds ->
+    let_' (mapV ((-) calc_lat) blats) $ \lat_ds ->
 
     -- Equation 10 from [1]
-    let_' (vmap sqrt_ (vZipWith (+) (vmap sqr lon_ds)
-                                    (vmap sqr lat_ds))) $ \calc_zrads ->
+    let_' (mapV sqrt_ (vZipWith (+) (mapV sqr lon_ds)
+                                    (mapV sqr lat_ds))) $ \calc_zrads ->
     -- inverse-square for intensities 
-    let_' (vmap (\r -> cIntensity / (pow_ r 2)) calc_zrads) $ \calc_zints ->
+    let_' (mapV (\r -> cIntensity / (pow_ r 2)) calc_zrads) $ \calc_zints ->
 
     -- Equation 10 from [1]    
     -- Note: removed a "+ pi/2" term: it is present as (i - 180) in laserAssigns
-    let_' (vmap (\r -> atan r - calc_phi)
+    let_' (mapV (\r -> atan r - calc_phi)
                 (vZipWith (/) lat_ds lon_ds)) $ \calc_zbetas ->
 
-    normalNoise cBeacon (vmap fromProb calc_zrads) `bind` \zrads ->
-    normalNoise cBeacon (vmap fromProb calc_zints) `bind` \zints ->        
+    -- | Add some noise
+    normal calc_lon ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \lon ->
+    normal calc_lat ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \lat ->
+    normal calc_phi ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \phi ->
+        
     normalNoise cBeacon calc_zbetas `bind` \zbetas ->
 
-    -- Make a base noisy vector of laser distance readings
-    plate (vector 0 360 (const (normal muZRads sigmaZRads))) `bind` \baseR ->
-    -- Make a base noisy vector of laser intensity readings
-    plate (vector 0 360 (const (normal muZInts sigmaZInts))) `bind` \baseI ->
-        
-    -- Fill base vectors with actual readings at correct angle positions
-    let_' (laserAssigns zrads zbetas baseR) $ \lasersR ->
-    let_' (laserAssigns zints zbetas baseI) $ \lasersI ->
+    makeLasers (mapV fromProb calc_zrads) zbetas muZRads cBeacon `bind` \lasersR ->
+    makeLasers (mapV fromProb calc_zints) zbetas muZInts cBeacon `bind` \lasersI ->
     
     dirac $ pair (pair lasersR lasersI) (pair phi (pair lon lat))
 
--- | Translate velocity
--- from back left wheel (where the velocity encoder is present)
--- to the center of the rear axle
+-- | Translate velocity from back left wheel (where the velocity
+-- encoder is present) to the center of the rear axle
 -- Equation 6 from [1]
-wheelToAxle :: (Base repr) => repr Vel -> repr Angle -> repr Dims -> repr Vel
-wheelToAxle ve alpha ds = ve / (1 - (tan alpha)*(dimH ds)/(dimL ds))
+wheelToAxle :: (Base repr) => repr Steering -> repr Dims -> repr Vel
+wheelToAxle s ds = (vel s) / (1 - (tan (alpha s))*(dimH ds)/(dimL ds))
 
 -- | Equation 7 (corrected) from [1]
 newPos :: (Base repr) => repr Dims -> repr Coords
-       -> repr DelTime -> repr Vel -> repr Angle
+       -> repr Steering -> repr DelTime 
        -> repr (GPS,GPS)
-newPos ds cds delT vc alpha = pair lonPos latPos
-    where phi = vPhi cds
-                
-          (x0,y0) = (vLon cds, vLat cds)
-          lonPos = x0 + delT*lonVel
-          latPos = y0 + delT*latVel
+newPos ds cds s delT = pair lonPos latPos
+    where lonPos = (vLon cds) + delT*lonVel
+          latPos = (vLat cds) + delT*latVel
                    
-          lonVel = vc*(cos phi) - axleToLaser lonMag
-          latVel = vc*(sin phi) + axleToLaser latMag
+          lonVel = (vel s)*(cos phi) - axleToLaser lonMag
+          latVel = (vel s)*(sin phi) + axleToLaser latMag
 
-          axleToLaser mag = vc * mag * (tan alpha) / (dimL ds)
+          phi = vPhi cds
+          axleToLaser mag = (vel s) * mag * (tan (alpha s)) / (dimL ds)
           lonMag = (dimA ds)*(sin phi) + (dimB ds)*(cos phi)
           latMag = (dimA ds)*(cos phi) - (dimB ds)*(sin phi)
 
 -- | Equation 7 (corrected) from [1]                   
-newPhi :: (Base repr) => repr Coords -> repr DelTime
-       -> repr Vel -> repr Angle -> repr Dims -> repr Angle
-newPhi cds delT vc alpha ds = (vPhi cds) + delT*vc*(tan alpha) / (dimL ds)
+newPhi :: (Base repr) => repr Dims -> repr Coords
+       -> repr Steering -> repr DelTime -> repr Angle
+newPhi ds cds s delT = (vPhi cds) + delT*(vel s)*(tan (alpha s)) / (dimL ds)
     
 cVehicle :: (Base repr) => repr Prob
 cVehicle = 0.42
@@ -211,23 +209,20 @@ let_' = bind . dirac
 
 normalNoise :: (Mochastic repr) => repr Prob -> repr (Vector H.Real)
             -> repr (Measure (Vector H.Real))
-normalNoise sd v = plate (vmap (`normal` sd) v)        
+normalNoise sd v = plate (mapV (`normal` sd) v)        
                            
--- | Insert sensor readings (radial distance or intensity)
--- from a vector containing one reading for each beacon (reads)
--- into the correct indices (i.e., angles derived from betas) within
--- a hakaru vector of "noisy" readings (base; length = range)
-laserAssigns :: (Base repr) => repr (Vector H.Real) 
+-- | Make a vector of laser readings (length 361)
+-- The vector contains values from "reads" at positions from "betas"
+-- Normal noise is then added to the vector
+makeLasers :: (Mochastic repr) => repr (Vector H.Real) 
              -> repr (Vector H.Real)
-             -> repr (Vector H.Real) -- ^ length = range
-             -> repr (Vector H.Real)
-laserAssigns reads betas base =
-    let combine r b = vector 0 1 (\i -> if_ (equal_ i 0) r b)
-        combined = vZipWith combine reads betas
-        addBeacon rb i m = if_ (withinLaser (i-180) (H.index rb 1))
-                           (H.index rb 0) m
-        build pd rb = mapWithIndex (addBeacon rb) pd
-    in reduce build base combined
+             -> repr H.Real -> repr Prob
+             -> repr (Measure (Vector H.Real))
+makeLasers reads betas mu sd =
+    let base = vector 0 360 (const mu)
+        combine r b = vector 0 360 (\i -> if_ (withinLaser (i-180) b) (r-mu) 0)
+        combined = zipWithV combine reads betas
+    in normalNoise sd (reduce (zipWithV (+)) base combined)
 
 withinLaser :: (Base repr) => repr Int -> repr H.Real -> repr Bool
 withinLaser n b = and_ [ lessOrEq (convert (fromInt n - 0.5)) tb2
@@ -251,11 +246,12 @@ data Params = PM { sensors :: [Sensor]
                  , controls :: [Control]
                  , lasers :: [Laser]
                  , coords :: (Double,(Double,Double)) -- ^ phi, lon, lat
-                 , vel :: Double
-                 , alpha :: Double
+                 , steer :: (Double,Double)           -- ^ vel, alpha
                  , tm :: Double }    
     
 type Generator = Particle -> Params -> IO ()
+
+data Gen = Conditioned | Unconditioned deriving Eq
 
 -- | Returns the pair (longitudes, latitudes)
 genBeacons :: Rand -> Maybe FilePath -> IO (Vec Double, Vec Double)
@@ -281,25 +277,22 @@ plotPoint out (_,(lon,lat)) = do
   appendFile fp $ show lon ++ "," ++ show lat ++ "\n"
 
 makeDims :: V.Vector Double -> Vec Double
-makeDims = Vec 0 3
+makeDims = Vec 0 3           
 
-------------------
---  UNCONDITIONED
-------------------
-
-generate :: FilePath -> FilePath -> Maybe FilePath -> IO ()
-generate input output eval = do
+generate :: Gen -> FilePath -> FilePath -> Maybe FilePath -> IO ()
+generate c input output eval = do
   g <- MWC.createSystemRandom
   (Init ds phi ilt iln) <- initialVals input
   controls <- controlData input
   sensors <- sensorData input
+  lasers <- if c==Unconditioned then return [] else laserReadings input
   (lons, lats) <- genBeacons g eval
                   
-  gen output g (PL (makeDims ds) lons lats)
-               (PM sensors controls [] (iln,(ilt,phi)) 0 0 0)
+  gen c output g (PL (makeDims ds) lons lats)
+                 (PM sensors controls lasers (iln,(ilt,phi)) (0,0) 0)
 
-gen :: FilePath -> Rand -> Generator
-gen out g prtcl params = go params
+gen :: Gen -> FilePath -> Rand -> Generator
+gen c out g prtcl params = go params
     where go prms | null $ sensors prms = putStrLn "Finished reading input_sensor"
                   | otherwise = do
             let (Sensor tcurr snum) = head $ sensors prms
@@ -315,34 +308,46 @@ gen out g prtcl params = go params
                       let prms' = updateParams prms coords tcurr
                           (Control _ nv nalph) = head $ controls prms
                       go $ prms' { controls = tail (controls prms)
-                                 , vel = nv
-                                 , alpha = nalph }
-              3 -> do ((zr,zi), coords) <- sampleState prtcl prms tcurr g
-                      putStrLn "writing to simulated_input_laser"
-                      plotReads out (vec zr) (vec zi)
-                      go $ updateParams prms coords tcurr
+                                 , steer = (nv, nalph) }
+              3 -> case c of
+                     Unconditioned -> 
+                         do ((zr,zi), coords) <- sampleState prtcl prms tcurr g
+                            putStrLn "writing to simulated_input_laser"
+                            plotReads out (vec zr) (vec zi)
+                            go $ updateParams prms coords tcurr
+                     Conditioned ->
+                         do when (null $ lasers prms) $
+                                 error "input_laser has fewer data than\
+                                       \it should according to input_sensor"
+                            let (L _ zr zi) = head (lasers prms)
+                                makeLasers l = Vec 0 360 (V.fromList l)
+                                lreads = (makeLasers zr, makeLasers zi)
+                            coords <- sampleCoords prtcl prms lreads tcurr g
+                            let prms' = updateParams prms coords tcurr
+                            go $ prms' { lasers = tail (lasers prms) }
               _ -> error "Invalid sensor ID (must be 1, 2 or 3)"
 
+------------------
+--  UNCONDITIONED
+------------------                   
+
 type SimLaser = Dims -> Vector GPS -> Vector GPS
-              -> Coords
-              -> Vel -> Angle
-              -> DelTime
+              -> Coords -> Steering -> DelTime
               -> Measure State
 
 simLasers :: (Mochastic repr, Lambda repr) => repr SimLaser
 simLasers = lam $ \ds -> lam $ \blons -> lam $ \blats ->
-            lam $ \cds -> lam $ \old_ve -> lam $ \old_alpha ->
-            lam $ \delT -> simulate ds blons blats cds old_ve old_alpha delT
+            lam $ \cds -> lam $ \s -> lam $ \delT ->
+            simulate ds blons blats cds s delT
                               
 sampleState :: Particle -> Params -> Double -> Rand
             -> IO ( (Vec Double, Vec Double)
                   , (Double, (Double, Double)) )
 sampleState prtcl prms tcurr g =
     fmap (\(Just (s,1)) -> s) $
-         (unSample $ simLasers) ds blons blats
-         cds ve alpha (tcurr-tprev) 1 g
+         (unSample $ simLasers) ds blons blats cds s (tcurr-tprev) 1 g
     where (PL ds blons blats) = prtcl
-          (PM _ _ _ cds ve alpha tprev) = prms
+          (PM _ _ _ cds s tprev) = prms
 
 plotReads :: FilePath -> V.Vector Double -> V.Vector Double -> IO ()
 plotReads out rads ints = do
@@ -358,50 +363,7 @@ plotReads out rads ints = do
 --  CONDITIONED ON LASER READINGS
 ----------------------------------
 
-runner :: FilePath -> FilePath -> Maybe FilePath -> IO ()
-runner input output eval = do
-  g <- MWC.createSystemRandom
-  (Init ds phi ilt iln) <- initialVals input
-  controls <- controlData input
-  sensors <- sensorData input
-  lasers <- laserReadings input
-  (lons, lats) <- genBeacons g eval
-
-  runn output g (PL (makeDims ds) lons lats)
-                (PM sensors controls lasers (iln,(ilt,phi)) 0 0 0)
-
-runn :: FilePath -> Rand -> Generator
-runn out g prtcl params = go params
-    where go prms | null $ sensors prms = putStrLn "Finished reading input_sensor"
-                  | otherwise = do
-            let (Sensor tcurr snum) = head $ sensors prms
-            case snum of
-              1 -> do (_,coords) <- sampleState prtcl prms tcurr g
-                      putStrLn "writing to slam_out_path"
-                      plotPoint out coords
-                      go $ updateParams prms coords tcurr
-              2 -> do when (null $ controls prms) $
-                           error "input_control has fewer data than\
-                                 \it should according to input_sensor"
-                      (_,coords) <- sampleState prtcl prms tcurr g
-                      let prms' = updateParams prms coords tcurr
-                          (Control _ nv nalph) = head $ controls prms
-                      go $ prms' { controls = tail (controls prms)
-                                 , vel = nv
-                                 , alpha = nalph }
-              3 -> do when (null $ lasers prms) $
-                           error "input_laser has fewer data than\
-                                 \it should according to input_sensor"
-                      let (L _ zr zi) = head (lasers prms)
-                          makeLasers l = Vec 0 360 (V.fromList l)
-                          lreads = (makeLasers zr, makeLasers zi)
-                      coords <- sampleCoords prtcl prms lreads tcurr g
-                      let prms' = updateParams prms coords tcurr
-                      go $ prms' { lasers = tail (lasers prms) }
-              _ -> error "Invalid sensor ID (must be 1, 2 or 3)"
-
-type Env = (Dims, (Vector GPS, (Vector GPS,
-            (Coords, (Vel, (Angle, DelTime))))))
+type Env = (Dims, (Vector GPS, (Vector GPS, (Coords, (Steering, DelTime)))))
 
 evolve :: (Mochastic repr) => repr Env
        -> [ repr LaserReads -> repr (Measure Coords) ]
@@ -412,10 +374,8 @@ evolve env =
              unpair e1  $ \blons e2  ->
              unpair e2  $ \blats e3  ->
              unpair e3  $ \cds   e4  ->
-             unpair e4  $ \vel   e5  ->
-             unpair e5  $ \alpha del ->
-             simulate ds blons blats
-                      cds vel alpha del ]
+             unpair e4  $ \s   delT  ->
+             simulate ds blons blats cds s delT ]
 
 readLasers :: (Mochastic repr, Lambda repr) =>
               repr (Env -> LaserReads -> Measure Coords)
@@ -424,10 +384,10 @@ readLasers = lam $ \env -> lam $ \lrs -> head (evolve env) lrs
 sampleCoords prtcl prms lreads tcurr g =
     fmap (\(Just (s,1)) -> s) $
          (unSample $ readLasers)
-         (ds,(blons,(blats,(cds,(ve,(alpha,tcurr-tprev))))))
+         (ds,(blons,(blats,(cds,(s,tcurr-tprev)))))
          lreads 1 g
     where (PL ds blons blats) = prtcl
-          (PM _ _ _ cds ve alpha tprev) = prms
+          (PM _ _ _ cds s tprev) = prms
 
 --------------------------------------------------------------------------------
 --                                MAIN                                        --
@@ -437,8 +397,8 @@ main :: IO ()
 main = do
   args <- getArgs
   case args of
-    [input, output]       -> runner input output Nothing
-    [input, output, eval] -> runner input output (Just eval)
+    [input, output]       -> generate Unconditioned input output Nothing
+    [input, output, eval] -> generate Unconditioned input output (Just eval)
     _ -> usageExit
     
 usageExit :: IO ()

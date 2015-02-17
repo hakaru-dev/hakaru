@@ -10,11 +10,11 @@ module Language.Hakaru.Expect (Expect(..), Expect', total, normalize) where
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..),
-       fst_, snd_, ununit)
-import qualified Generics.SOP as SOP
-import Generics.SOP (HasDatatypeInfo, Generic)
-import GHC.Generics (Generic)
-import Data.Typeable 
+       fst_, snd_, sumVec, mapV, zipWithV, incV)
+-- import qualified Generics.SOP as SOP
+-- import Generics.SOP (HasDatatypeInfo, Generic)
+-- import GHC.Generics (Generic)
+-- import Data.Typeable
 import Language.Hakaru.Embed
 
 newtype Expect repr a = Expect { unExpect :: repr (Expect' a) }
@@ -92,6 +92,15 @@ instance (Base repr) => Base (Expect repr) where
   negativeInfinity               = Expect negativeInfinity
   gammaFunc (Expect n)           = Expect (gammaFunc n)
   betaFunc (Expect a) (Expect b) = Expect (betaFunc a b)
+
+  vector (Expect l) (Expect h) f = Expect (vector l h (unExpect . f . Expect))
+  empty                          = Expect empty
+  index (Expect v) (Expect i)    = Expect (index v i)
+  loBound (Expect v)             = Expect (loBound v)
+  hiBound (Expect v)             = Expect (hiBound v)
+  reduce r (Expect z) (Expect v) = Expect (reduce r' z v)
+    where r' a b = unExpect (r (Expect a) (Expect b))
+
   fix f                          = Expect (fix (unExpect . f . Expect))
 
 instance (Integrate repr) => Integrate (Expect repr) where
@@ -109,14 +118,14 @@ reflectPair ra rb (a,b) c = ra a (\a' -> rb b (\b' -> c (a',b')))
 reflectList :: (Lambda repr) =>
                (a -> (a -> repr w) -> repr w) ->
                [a] -> ([a] -> repr w) -> repr w
-reflectList ra []     c = c []
+reflectList _  []     c = c []
 reflectList ra (a:as) c = ra a (\a' -> reflectList ra as (\as' -> c (a':as')))
 
 reflect :: (Lambda repr) =>
            [(Expect repr a, Expect repr b)] ->
            ([(repr (Expect' a), repr (Expect' b))] -> repr w) -> repr w
-reflect abs = reflectList (reflectPair let_ let_)
-                [ (a,b) | (Expect a, Expect b) <- abs ]
+reflect ab_s = reflectList (reflectPair let_ let_)
+                 [ (a,b) | (Expect a, Expect b) <- ab_s ]
 
 instance (Mochastic repr, Integrate repr, Lambda repr)
       => Mochastic (Expect repr) where
@@ -145,14 +154,10 @@ instance (Mochastic repr, Integrate repr, Lambda repr)
     (lam (\c -> integrate negativeInfinity infinity (\x ->
      exp_ (- (x - mu)^(2::Int) / fromProb (2 * pow_ sd 2))
      / sd / sqrt_ (2 * pi_) * app c x)))
-  mix pms = Expect $ reflect pms $ \pms -> pair
-    (mix [ (p, fst_ m) | (p, m) <- pms ])
-    (lam (\c -> sum [ p * app (snd_ m) c | (p, m) <- pms ]
-                / sum [ p | (p, _) <- pms ]))
-  categorical pxs = Expect $ reflect pxs $ \pxs -> pair
-    (categorical [ (p, x) | (p, x) <- pxs ])
-    (lam (\c -> sum [ p * app c x | (p, x) <- pxs ]
-                / sum [ p | (p, _) <- pxs ]))
+  categorical (Expect pxs) = Expect $ pair
+    (categorical pxs)
+    (lam (\c -> sumVec (zipWithV (\ p x ->  p * app c x) pxs (incV pxs))
+                / sumVec pxs))
   poisson (Expect l) = Expect $ pair
     (poisson l)
     (lam (\c -> flip (if_ (less 0 l)) 0 (summate 0 infinity (\x ->
@@ -184,25 +189,25 @@ normalize (Expect m) = unpair m (\m1 m2 ->
   superpose [(recip (m2 `app` lam (\_ -> 1)), m1)])
 
 
--- type family ListToTy (a :: [*]) :: * 
--- type instance ListToTy '[] = () 
--- type instance ListToTy (x ': xs) = (Expect' x, ListToTy xs) 
+-- type family ListToTy (a :: [*]) :: *
+-- type instance ListToTy '[] = ()
+-- type instance ListToTy (x ': xs) = (Expect' x, ListToTy xs)
 
--- type family ListToTy2 (a :: [[*]]) :: * 
--- type instance ListToTy2 '[] = Void 
--- type instance ListToTy2 (x ': xs) = Either (ListToTy x) (ListToTy2 xs) 
+-- type family ListToTy2 (a :: [[*]]) :: *
+-- type instance ListToTy2 '[] = Void
+-- type instance ListToTy2 (x ': xs) = Either (ListToTy x) (ListToTy2 xs)
 
--- type instance Expect' Void = Void 
--- type instance Expect' (HRep t) = ListToTy2 (Code t) 
+-- type instance Expect' Void = Void
+-- type instance Expect' (HRep t) = ListToTy2 (Code t)
 
 -- {- This should probably be in Base -}
--- data Void 
--- absurd :: Base r => r Void -> r a 
+-- data Void
+-- absurd :: Base r => r Void -> r a
 -- absurd = error "absurd"
 
 -- prodExpect :: Base r => NP (Expect r) xs -> r (ListToTy xs)
 -- prodExpect Nil = unit
--- prodExpect (Expect x :* xs) = pair x (prodExpect xs) 
+-- prodExpect (Expect x :* xs) = pair x (prodExpect xs)
 
 -- sopExpect :: Base r => NS (NP (Expect r)) xss -> r (ListToTy2 xss)
 -- sopExpect (Z t) = inl (prodExpect t)
@@ -210,23 +215,23 @@ normalize (Expect m) = unpair m (\m1 m2 ->
 
 -- caseExpect1 :: forall r xs o . Base r => NP Proxy xs -> r (ListToTy xs) -> NFn (Expect r) o xs -> r (Expect' o)
 -- caseExpect1 Nil x (NFn (Expect y)) = ununit x y
--- caseExpect1 ((_t :: Proxy x) :* (ts :: NP Proxy xs1)) x (NFn y) = unpair x (\a b -> q1 b (NFn (y (Expect a)))) where 
+-- caseExpect1 ((_t :: Proxy x) :* (ts :: NP Proxy xs1)) x (NFn y) = unpair x (\a b -> q1 b (NFn (y (Expect a)))) where
 
 --   q1 :: r (ListToTy xs1) -> NFn (Expect r) o xs1 -> r (Expect' o)
---   q1 = caseExpect1 ts 
+--   q1 = caseExpect1 ts
 
--- singNP :: forall xs . SingI xs => NP Proxy xs 
--- singNP = case sing :: Sing xs of 
+-- singNP :: forall xs . SingI xs => NP Proxy xs
+-- singNP = case sing :: Sing xs of
 --            SNil -> Nil
---            SCons -> Proxy :* singNP  
+--            SCons -> Proxy :* singNP
 
--- caseExpect :: forall r o xss . (Base r, SOP.All SingI xss) 
+-- caseExpect :: forall r o xss . (Base r, SOP.All SingI xss)
 --            => r (ListToTy2 xss) -> NP (NFn (Expect r) o) xss -> r (Expect' o)
--- caseExpect x Nil = absurd x 
--- caseExpect x ((t :: NFn (Expect r) o xs) :* (ts :: NP (NFn (Expect r) o) xss')) = 
+-- caseExpect x Nil = absurd x
+-- caseExpect x ((t :: NFn (Expect r) o xs) :* (ts :: NP (NFn (Expect r) o) xss')) =
 --   uneither x (\a -> caseExpect1 singNP a t) (\a -> caseExpect a ts)
-           
--- instance Base r => Embed (Expect r) where 
+
+-- instance Base r => Embed (Expect r) where
 --   sop' _ a = Expect (sopExpect a)
 --   case' _ (Expect a) f = Expect (caseExpect a f)
 
@@ -237,47 +242,47 @@ type instance MapExpect' '[] = '[]
 type instance MapExpect' (x ': xs) = (Expect' x ': MapExpect' xs)
 
 type family MapExpect'2 (a :: [[*]]) :: [[*]]
-type instance MapExpect'2 '[] = '[] 
+type instance MapExpect'2 '[] = '[]
 type instance MapExpect'2 (x ': xs) = MapExpect' x ': MapExpect'2 xs
 
--- type instance Expect' Void = Void 
-type instance Expect' (HRep t) = HRep t 
-type instance Expect' (SOP xss) = SOP (MapExpect'2 xss) 
+-- type instance Expect' Void = Void
+type instance Expect' (HRep t) = HRep t
+type instance Expect' (SOP xss) = SOP (MapExpect'2 xss)
 
 expectHType :: HSing x -> Dict (HakaruType (Expect' x))
 expectHType HReal = Dict
-expectHType HProb = Dict 
-expectHType (HMeasure a) = case expectHType a of Dict -> Dict 
-expectHType (HArr a b) = dictPair (expectHType a) (expectHType b) Dict 
-expectHType (HPair a b) = dictPair (expectHType a) (expectHType b) Dict 
+expectHType HProb = Dict
+expectHType (HMeasure a) = case expectHType a of Dict -> Dict
+expectHType (HArr a b) = dictPair (expectHType a) (expectHType b) Dict
+expectHType (HPair a b) = dictPair (expectHType a) (expectHType b) Dict
 
 expectHType1 :: HSing xs -> Dict (HakaruType (MapExpect' xs))
-expectHType1 HNil = Dict 
-expectHType1 (HCons x xs) = 
-  case (expectHType x, expectHType1 xs) of 
+expectHType1 HNil = Dict
+expectHType1 (HCons x xs) =
+  case (expectHType x, expectHType1 xs) of
     (Dict, Dict) -> Dict
 
 expectHType2 :: HSing xss -> Dict (HakaruType (MapExpect'2 xss))
-expectHType2 HNil = Dict 
-expectHType2 (HCons x xs) = 
-  case (expectHType1 x, expectHType2 xs) of 
+expectHType2 HNil = Dict
+expectHType2 (HCons x xs) =
+  case (expectHType1 x, expectHType2 xs) of
     (Dict, Dict) -> Dict
 
-type instance Expect' (Tag t xss) = Tag t (MapExpect'2 xss)  
+type instance Expect' (Tag t xss) = Tag t (MapExpect'2 xss)
 
-instance Embed r => Embed (Expect r) where 
+instance Embed r => Embed (Expect r) where
   _Nil = Expect _Nil
-  _Cons (Expect x) (Expect xs) = Expect (_Cons x xs) 
+  _Cons (Expect x) (Expect xs) = Expect (_Cons x xs)
 
   caseProd (Expect x) f = Expect (caseProd x (\y ys -> unExpect $ f (Expect y) (Expect ys)))
-  
-  _Z (Expect x) = Expect (_Z x) 
-  _S (Expect x) = Expect (_S x) 
+
+  _Z (Expect x) = Expect (_Z x)
+  _S (Expect x) = Expect (_S x)
 
   caseSum (Expect x) caseZ caseS = Expect (caseSum x (unExpect . caseZ . Expect) (unExpect . caseS . Expect))
 
-  untag (Expect x) = Expect (untag x) 
-  tag (Expect x) = Expect (tag x) 
+  untag (Expect x) = Expect (untag x)
+  tag (Expect x) = Expect (tag x)
 
 
 

@@ -7,12 +7,14 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        Uneither(Uneither),
        errorEmpty,
        Order(..), Base(..), ununit, fst_, snd_, swap_,
-       and_, or_, not_, min_, max_,
+       and_, or_, not_, min_, max_, lesseq,
        sumVec, normalizeVector, dirichlet,
-       vlength, mapWithIndex, vmap, vZipWith, vZip,
+       lengthV, mapWithIndex, mapV, zipWithV, zipV, incV,
        Mochastic(..), bind_, factor, weight, bindx, liftM, liftM2,
+       categorical',mix',
        invgamma, exponential, chi2, bern,
        cauchy, laplace, student, weibull,
+       binomial, multinomial,
        Integrate(..), Lambda(..), Lub(..)) where
 
 import Data.Typeable (Typeable)    
@@ -27,7 +29,7 @@ infixl 9 `app`
 data Real      deriving Typeable
 data Prob      deriving Typeable -- meaning: non-negative real number
 data Measure a deriving Typeable
-data Vector a  deriving Typeable
+data Vector a  deriving Typeable -- TODO: rename to something like Array
 
 data EqType t t' where
   Refl :: EqType t t
@@ -178,11 +180,13 @@ class (Order repr Int , Num        (repr Int ),
 
   vector           :: repr Int -> repr Int ->
                       (repr Int -> repr a) -> repr (Vector a)
+  empty            :: repr (Vector a)
   index            :: repr (Vector a) -> repr Int -> repr a
   loBound, hiBound :: repr (Vector a) -> repr Int
   reduce           :: (repr a -> repr a -> repr a) ->
                       repr a -> repr (Vector a) -> repr a
   vector           =  error "vector unimplemented"
+  empty            =  error "empty unimplemented"
   index            =  error "index unimplemented"
   loBound          =  error "loBound unimplemented"
   hiBound          =  error "hiBound unimplemented"
@@ -220,6 +224,9 @@ min_, max_ :: (Order_ a, Base repr) => repr a -> repr a -> repr a
 min_ x y = if_ (less_ x y) x y
 max_ x y = if_ (less_ x y) y x
 
+lesseq :: (Order repr a, Base repr) => repr a -> repr a -> repr Bool
+lesseq x y = or_ [(less x y) , (equal x y)]
+
 class (Base repr) => Mochastic repr where
   dirac         :: repr a -> repr (Measure a)
   bind          :: repr (Measure a) ->
@@ -239,12 +246,7 @@ class (Base repr) => Mochastic repr where
                                       / fromProb (2 * pow_ sd 2))
                                  / sd / sqrt_ (2 * pi_)
                               , dirac x )]
-  mix           :: [(repr Prob, repr (Measure a))] -> repr (Measure a)
-  mix []        =  errorEmpty
-  mix pms       =  let total = sum (map fst pms)
-                   in superpose [ (p/total, m) | (p,m) <- pms ]
-  categorical   :: [(repr Prob, repr a)] -> repr (Measure a)
-  categorical l =  mix [ (p, dirac x) | (p,x) <- l ]
+  categorical   :: repr (Vector Prob) -> repr (Measure Int)
 
   poisson       :: repr Prob -> repr (Measure Int)
   poisson l     =  counting `bind` \x ->
@@ -282,26 +284,19 @@ class (Base repr) => Mochastic repr where
   chain :: (Lambda repr) =>
            repr (Vector (s -> Measure        (a,s))) ->
            repr (        s -> Measure (Vector a, s))
-  plate v = uneither (reduce r z (mapWithIndex m v))
-                     (\_ -> dirac (undefined {- TODO: empty vector -}))
-                     id
-    where r x y = uneither x (\_ -> y) $ \x' ->
-                  uneither y (\_ -> x) $ \y' ->
-                  inr (liftM2 vconcat x' y')
-          z     = inl unit
-          m i a = inr (liftM (vector i i . const) a)
-  chain v = uneither (reduce r z (mapWithIndex m v))
-                     (\_ -> lam (\s -> dirac (pair (undefined {- TODO: empty vector -}) s)))
-                     id
-    where r x y = uneither x (\_ -> y) $ \x' ->
-                  uneither y (\_ -> x) $ \y' ->
-                  inr (lam (\s -> app x' s `bind` \v1s1 ->
-                                  unpair v1s1 $ \v1 s1 ->
-                                  app y' s1 `bind` \v2s2 ->
-                                  unpair v2s2 $ \v2 s2 ->
-                                  dirac (pair (vconcat v1 v2) s2)))
-          z     = inl unit
-          m i a = inr (lam (\s -> liftM (\as -> unpair as (pair . vector i i . const)) (app a s)))
+  plate v = reduce r z (mapWithIndex m v)
+    where r     = liftM2 concatV
+          z     = dirac empty
+          m i a = liftM (vector i i . const) a
+  chain v = reduce r z (mapWithIndex m v)
+    where r x y = lam (\s -> app x s `bind` \v1s1 ->
+                             unpair v1s1 $ \v1 s1 ->
+                             app y s1 `bind` \v2s2 ->
+                             unpair v2s2 $ \v2 s2 ->
+                             dirac (pair (concatV v1 v2) s2))
+          z     = lam (\s -> dirac (pair empty s))
+          m i a = lam (\s -> liftM (`unpair` pair . vector i i . const)
+                                   (app a s))
 
 errorEmpty :: a
 errorEmpty = error "empty mixture makes no sense"
@@ -315,6 +310,15 @@ factor p = weight p (dirac unit)
 
 weight :: (Mochastic repr) => repr Prob -> repr (Measure w) -> repr (Measure w)
 weight p m = superpose [(p, m)]
+
+mix' :: (Mochastic repr) => [(repr Prob, repr (Measure a))] -> repr (Measure a)
+mix' []        =  errorEmpty
+mix' pms       =  let total = sum (map fst pms)
+                  in superpose [ (p/total, m) | (p,m) <- pms ]
+
+categorical' :: (Mochastic repr) =>[(repr Prob, repr a)] -> repr (Measure a)
+categorical' l =  mix' [ (p, dirac x) | (p,x) <- l ]
+
 
 bindx :: (Mochastic repr) => repr (Measure a) ->
          (repr a -> repr (Measure b)) -> repr (Measure (a,b))
@@ -357,7 +361,7 @@ weibull b k = exponential 1 `bind` \x ->
               dirac $ b*(pow_ x (fromProb $ recip k))
 
 bern :: (Mochastic repr) => repr Prob -> repr (Measure Bool)
-bern p = categorical [(p, true), (1-p, false)]
+bern p = categorical' [(p, true), (1-p, false)]
 
 class (Base repr) => Integrate repr where
   integrate :: repr Real -> repr Real -> (repr Real -> repr Prob) -> repr Prob
@@ -367,6 +371,25 @@ sumVec :: Integrate repr => repr (Vector Prob) -> repr Prob
 sumVec x = summate (fromInt $ loBound x)
                    (fromInt $ hiBound x)
                    (\ i -> index x i)
+
+binomial :: (Mochastic repr) =>
+            repr Int -> repr Prob -> repr (Measure Int)
+binomial n p = (plate $ vector 1 n (\ _ -> bern p `bind` \x ->
+                                   dirac $ if_ x 1 0)) `bind` \trials ->
+               dirac (reduce (+) 0 trials)
+
+updateVector :: Base repr =>
+                repr (Vector a) -> repr Int -> repr a -> repr (Vector a)
+updateVector v i a = vector (loBound v)
+                            (hiBound v)
+                            (\ i' -> if_ (equal i i') a (index v i'))
+
+multinomial :: (Mochastic repr) => Int -> repr (Vector Prob)
+                                -> repr (Measure (Vector Prob))
+multinomial 0 v = plate (constV v (dirac 0)) 
+multinomial n v = multinomial (n-1) v `bind` \x ->
+                  categorical v `bind` \i ->
+                  plate (mapV dirac $ updateVector x i (1 + index x i))
 
 unNormedDirichlet :: Mochastic repr =>
                      repr (Vector Prob) -> repr (Measure (Vector Prob))
@@ -386,32 +409,40 @@ dirichlet :: (Lambda repr, Mochastic repr, Integrate repr) =>
 dirichlet a = unNormedDirichlet a `bind` \xs ->
               dirac (normalizeVector xs)                    
 
-vlength :: (Base repr) => repr (Vector a) -> repr Int
-vlength v = hiBound v - loBound v + 1
+incV :: Base repr => repr (Vector a) -> repr (Vector Int)
+incV v = vector (loBound v) (hiBound v) id
 
-vconcat :: (Base repr) => repr (Vector a) -> repr (Vector a) -> repr (Vector a)
-vconcat v1 v2 = vector (loBound v1) (hiBound v2)
-  (\i -> index (if_ (less i (loBound v2)) v1 v2) i)
+constV :: Base repr => repr (Vector a) -> repr b -> repr (Vector b)
+constV v c = vector (loBound v) (hiBound v) (const c)
+
+lengthV :: (Base repr) => repr (Vector a) -> repr Int
+lengthV v = hiBound v - loBound v + 1
+
+concatV :: (Base repr) => repr (Vector a) -> repr (Vector a) -> repr (Vector a)
+concatV v1 v2 = vector (loBound v1) (hiBound v1 + lengthV v2)
+  (\i -> if_ (less (hiBound v1) i)
+             (index v2 (i - hiBound v1 - 1 + loBound v2))
+             (index v1 i))
 
 mapWithIndex :: (Base repr) => (repr Int -> repr a -> repr b)
              -> repr (Vector a) -> repr (Vector b)
 mapWithIndex f v = vector (loBound v) (hiBound v)
                    (\i -> f i (index v i))
 
-vmap :: (Base repr) => (repr a -> repr b)
+mapV :: (Base repr) => (repr a -> repr b)
      -> repr (Vector a) -> repr (Vector b)
-vmap f = mapWithIndex (const f)
+mapV f = mapWithIndex (const f)
         
 -- | Assume (without checking) that the bounds of the two
 -- vectors are the same
-vZipWith :: (Base repr) => (repr a -> repr b -> repr c)
+zipWithV :: (Base repr) => (repr a -> repr b -> repr c)
          -> repr (Vector a) -> repr (Vector b) -> repr (Vector c)
-vZipWith f v1 v2 = vector (loBound v1) (hiBound v1)
+zipWithV f v1 v2 = vector (loBound v1) (hiBound v1)
                    (\i -> f (index v1 i) (index v2 i))
 
-vZip :: (Base repr) => repr (Vector a) -> repr (Vector b)
+zipV :: (Base repr) => repr (Vector a) -> repr (Vector b)
      -> repr (Vector (a,b))
-vZip = vZipWith pair
+zipV = zipWithV pair
 
 class Lambda repr where
   lam :: (repr a -> repr b) -> repr (a -> b)

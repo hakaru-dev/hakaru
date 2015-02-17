@@ -1,32 +1,25 @@
-As of Sun Feb.8th, the failures are as follows:
+As of Fri Feb. 13th, the failures are as follows:
 
 RoundTrip:
-t55 - differences in how piecewise are laid out
-t56 - same kind as t55, but I would argue what is returned now is better than what is 'wanted'
-t57 - same as t56
-t49 - still a pretty-printing issue?
-t21 - 'contradictory assumptions' from assuming not caught
+t56 - very minor difference in display of conditions
+t57 - very minor difference in display of conditions
 t45 - pw/domain interaction with density recognition
 t50 - Maple returns Ei in result, which does not exist in Hakaru
-t52 - order difference in list parameters
-mhPriorProp - [Huge!] Error, Don't know how to deal with condition 1/4.
 testGibbsPropUnif - [Huger!]  Issue with product of piecewise not being handled properly
 testKernel - failure in recognition of density (and categorical)
 
 Syntax:
 pair1fst/snd - beta instead of list/categorical
 testLinreg - ignored
-borelishDiv - Or(x <=0, 1<=x, 1/rr2*x <= 0, 1<= 1/rr2*x) is an invalid property
+gamalonDis - time expired (5s)
+borelishDiv - "Why is And(And(0<x,x<1),1/x <= 0) unsatisfiable?"
 culpepper - expected superpose of 2 things, got just 1.  testD bug?
-density1 - Error, (in simp_poly) Expected pw or binder, got (undefined)
-density2 - 'contradictory assumptions' from assuming not caught
-density3 - Or( x<= 0, 1<=x, rr2 <> 10*x-5) is an invalid propert
-disintegrate1 - Expected a pw or a binder, got (undefined)
+density2 - time expired
+disintegrate1 - (x+ln(`freeze/R32`)) should be a ratpoly in ([`freeze/R32`])
 disintegrate3 - weird stuff: rr2+infinity, nested piecewise
-disintegrate4 - (in simp_poly) cannot determine if this expression is true or false: FAIL < 1
 disintegrate5 - [Enormous] time expired
 disintegrate7 - (collect/series) invalid input: too many and/or wrong types of arguments passed to series/infinity; first unused argument is infinity
-disintegrate9 - _Inert_EQUATIOM is not implemented yet
+disintegrate9 - _Inert_EQUATION is not implemented yet
 
 Relationships:
 t1 - Prob vs Real
@@ -34,3 +27,16 @@ t2 - error in ordering of arguments to GammaD
 t3 - no simplification because change of variables not implemented
 t4 - no simplification because change of variables not implemented
 
+==============
+Used to fail but are now fixed:
+t21 - 'contradictory assumptions' from assuming not caught
+density3 - Or( x<= 0, 1<=x, rr2 <> 10*x-5) is an invalid property
+disintegrate4 - (in simp_poly) cannot determine if this expression is true or false: FAIL < 1
+t54 - Or(...) is an invalid property
+t52 - order difference in list parameters
+density1 - Or(..) is an invalid property
+disintegrate2 - Or(..) is an invalid property
+disintegrate6 - Or(..) is an invalid property
+mhPriorProp - [Huge!] Error, Don't know how to deal with condition 1/4.
+t55 - differences in how piecewise are laid out (in non-trivial ways)
+t49 - still a pretty-printing issue?

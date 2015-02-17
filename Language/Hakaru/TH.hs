@@ -97,10 +97,6 @@ instance Mochastic THRepr where
                                           | (THR e, THR e') <- pms ]]
   uniform (THR e) (THR e') = liftT 'uniform [e, e']
   normal (THR e) (THR e') = liftT 'normal [e, e']
-  mix pms = liftT 'mix [liftL [ varE '(,) `appE` e `appE` e'
-                              | (THR e, THR e') <- pms ]]
-  categorical l = liftT 'categorical [liftL [ varE '(,) `appE` e `appE` e'
-                                            | (THR e, THR e') <- l ]]
   poisson (THR e) = liftT 'poisson [e]
   gamma (THR e) (THR e') = liftT 'gamma [e, e']
   beta (THR e) (THR e') = liftT 'beta [e, e']

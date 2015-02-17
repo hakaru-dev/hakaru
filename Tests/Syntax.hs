@@ -52,10 +52,12 @@ allTests = test [
     "gamalonDis" ~: testS gamalonDis,
     "borelishSub" ~: testD (const (borelish (-))) [(unit, 0, Any (uniform 0 1))],
     "borelishDiv" ~: testD (const (borelish (/))) [(unit, 1, Any (superpose [(1/2, liftM fromProb (beta 2 1))]))],
-    "culpepper" ~: testD (const culpepper) [(unit, 0, Any (superpose [(1/8, dirac true), (1/8, dirac false)]))],
+    "culpepper" ~: testD (const culpepper) 
+        [(unit, 0, Any (superpose [(fromRational (1/8), dirac true), 
+                                   (fromRational (1/8), dirac false)]))],
     "density1" ~: testD (\u -> ununit u $ liftM (`pair` unit) $ uniform 0 1 `bind` \x -> uniform 0 1 `bind` \y -> dirac (x + exp (-y))) [],
     "density2" ~: testD (\u -> ununit u $ liftM (`pair` unit) $ liftM2 (*) (uniform 0 1) $ liftM2 (+) (uniform 0 1) (uniform 0 1)) [],
-    "density3" ~: testD (\u -> ununit u $ liftM (`pair` unit) $ mix [(7, liftM (\x -> x - 1/2 + 0) (uniform 0 1)), (3, liftM (\x -> (x - 1/2) * 10) (uniform 0 1))]) [],
+    -- "density3" ~: testD (\u -> ununit u $ liftM (`pair` unit) $ mix [(7, liftM (\x -> x - 1/2 + 0) (uniform 0 1)), (3, liftM (\x -> (x - 1/2) * 10) (uniform 0 1))]) [],
     "disintegrate1" ~: testD (\u -> ununit u $ uniform 0 1 `bind` \x -> uniform 0 1 `bind` \y -> dirac (pair (exp x) (y + x))) [],
     "disintegrate2" ~: testD (\u -> ununit u $ uniform 0 1 `bind` \x -> uniform 0 1 `bind` \y -> dirac (pair (y + x) (exp x))) [],
     "disintegrate3" ~: testD (\u -> ununit u $ uniform 0 1 `bind` \x -> uniform 0 1 `bind` \y -> dirac (pair (max_ x y) (pair x y))) [],
@@ -79,9 +81,10 @@ pair1snd =  bern (1/2) `bind` \coin ->
             dirac (pair coin bias)
 
 pair1same :: (Mochastic repr) => repr (Measure (Bool, Prob))
-pair1same = (uniform  0 1) `bind` \x3 -> 
-  superpose [((unsafeProb x3),(dirac (pair true (unsafeProb x3)))),
-             ((unsafeProb (1+(x3*(-1)))),(dirac (pair false (unsafeProb x3))))]
+pair1same = superpose [
+  ( fromRational (1/2), beta 2 1 `bind` \x -> dirac (pair true x) ) ,
+  ( fromRational (1/2), beta 1 2 `bind` \x -> dirac (pair false x) ) ]
+  
 
 -- pair2fst and pair2snd are equivalent
 pair2fst :: (Mochastic repr) => repr (Measure ((Bool, Bool), Prob))

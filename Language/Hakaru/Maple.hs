@@ -6,14 +6,14 @@ module Language.Hakaru.Maple (Maple(..), runMaple) where
 -- Maple printing interpretation
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Real, Prob, Number(..),
+import Language.Hakaru.Syntax (Number(..),
     Order(..), Base(..), Integrate(..), Lambda(..), Mochastic(..))
 import Data.Ratio
 import Control.Monad (liftM2)
 import Control.Monad.Trans.Reader (ReaderT(ReaderT), runReaderT)
 import Control.Monad.Trans.Cont (Cont, cont, runCont)
-import Data.List (intercalate)
-import Language.Hakaru.Embed
+-- import Data.List (intercalate)
+-- import Language.Hakaru.Embed
 
 -- Jacques wrote on December 16 that "the condition of a piecewise can be
 -- 1. a relation (i.e. <, <=, =, ::, in)
@@ -136,12 +136,24 @@ instance Base Maple where
   erf       = mapleFun1 "erf"
   erf_      = mapleFun1 "erf"
 
+  vector    = quant "MVECTOR"
+  empty     = Maple (return "MVECTOR(undefined,n=0..-1)")
+  index     = mapleFun2 "index"
+  loBound   = mapleFun1 "loBound"
+  hiBound   = mapleFun1 "hiBound"
+  reduce r z v = Maple (ReaderT $ \i -> return $
+    "Reduce((" ++ (let x = "x" ++ show i
+                       y = "x" ++ show (i+1)
+                   in x ++ "->" ++ y ++ "->" ++
+                      runMaple (r (Maple (return x)) (Maple (return y))) (i+2))
+               ++ "), " ++ runMaple z i ++ ", " ++ runMaple v i ++ ")")
+
 instance Integrate Maple where
   integrate = quant "Int"
   summate   = quant "sum"
 
-quant :: String -> Maple Real -> Maple Real ->
-         (Maple a -> Maple Prob) -> Maple Prob
+quant :: String -> Maple b -> Maple b ->
+         (Maple a -> Maple c) -> Maple d
 quant q lo hi f = mapleFun2 ("(proc (r,c) local x; "++q++"(c(x),x=r) end proc)")
                             (mapleOp2 ".." lo hi)
 			    (lam f)
@@ -157,11 +169,12 @@ instance Mochastic Maple where
   -- Maple doesn't currently understand this input (though one day it might).
   -- This instance is currently here because Expect produces dual output and
   -- we want "instance Mochastic (Expect Maple)".
-  dirac _     = Maple (return "measure")
-  bind _ _    = Maple (return "measure")
-  lebesgue    = Maple (return "measure")
-  counting    = Maple (return "measure")
-  superpose _ = Maple (return "measure")
+  dirac _       = Maple (return "measure")
+  bind _ _      = Maple (return "measure")
+  lebesgue      = Maple (return "measure")
+  counting      = Maple (return "measure")
+  superpose _   = Maple (return "measure")
+  categorical _ = Maple (return "measure")
 {-
   dirac = mapleFun1 "Return"
   m `bind` k = Maple (ReaderT $ \i -> return $

@@ -16,11 +16,11 @@ import Tests.TestTools
 
 testMeasureUnit :: Test
 testMeasureUnit = test [
-    "t1,t5"   ~: testSS [t1,t5] (factor (1/2)),
+    "t1,t5"   ~: testSS [t1,t5] (factor $ fromRational (1/2)),
     "t10"     ~: testSS [t10] (superpose []),
     "t11,t22" ~: testSS [t11,t22] (dirac unit),
     "t12"     ~: testSS [] t12,
-    "t20"     ~: testSS [t20] (lam (\y -> factor (y*(1/2)))),
+    "t20"     ~: testSS [t20] (lam (\y -> factor (y* fromRational (1/2)))),
     "t24"     ~: testSS [t24] t24',
     "t25"     ~: testSS [t25] t25',
     "t44Add"  ~: testSS [t44Add] t44Add',
@@ -30,20 +30,25 @@ testMeasureUnit = test [
     "t55"     ~: testSS [t55] t55',
     "t56"     ~: testSS [t56,t56'] t56'',
     "t57"     ~: testSS [t57] t57',
-    "t58"     ~: testSS [t58] t58'
+    "t58"     ~: testSS [t58] t58',
+    "t59"     ~: testS t59,
+    "t60"     ~: testSS [t60,t60'] t60'',
+    "t62"     ~: testSS [t62] t62',
+    "t63"     ~: testSS [t63] t63'
     ]
 
 testMeasureProb :: Test
 testMeasureProb = test [
     "t2"  ~: testSS [t2] (uniform 0 1 `bind` dirac . unsafeProb),
-    "t26" ~: testSS [t26] (dirac (1/2)),
+    "t26" ~: testSS [t26] (dirac $ fromRational (1/2)),
     "t30" ~: testSS [] t30,
     "t33" ~: testSS [] t33,
     "t34" ~: testSS [t34] (dirac 3),
     "t35" ~: testSS [t35] (lam (\x -> if_ (less x 4) (dirac 3) (dirac 5))),
     "t38" ~: testSS [] t38,
     "t42" ~: testSS [t42] (dirac 1),
-    "t49" ~: testSS [] t49
+    "t49" ~: testSS [] t49,
+    "t61" ~: testSS [t61] t61'
     ]
 
 testMeasureReal :: Test
@@ -70,6 +75,7 @@ testMeasureReal = test
   , "t50" ~: testS t50
   , "t51" ~: testS t51
   , "testexponential" ~: testS testexponential
+  , "testcauchy" ~: testS testCauchy
     -- "two_coins" ~: testS two_coins -- needs support for lists
     ]
 
@@ -86,8 +92,8 @@ testMeasurePair = test [
     "norm_noy"      ~: testSS [norm_noy] (normal 0 1),
     "flipped_norm"  ~: testSS [liftM swap_ norm] flipped_norm,
     "priorProp"     ~: testSS [lam (priorAsProposal norm)]
-                              (lam $ \x -> superpose [(1/2, normal 0 1         `bind` \y -> dirac (pair y (snd_ x))),
-                                                      (1/2, normal 0 (sqrt_ 2) `bind` \y -> dirac (pair (fst_ x) y))]),
+                              (lam $ \x -> superpose [(fromRational (1/2), normal 0 1         `bind` \y -> dirac (pair y (snd_ x))),
+                                                      (fromRational (1/2), normal 0 (sqrt_ 2) `bind` \y -> dirac (pair (fst_ x) y))]),
     "mhPriorProp"   ~: testSS [testMHPriorProp] testPriorProp',
     "unif2"         ~: testS unif2,
     "testGibbsPropUnif" ~: testS testGibbsPropUnif
@@ -96,14 +102,14 @@ testMeasurePair = test [
 
 testOther :: Test
 testOther = test [
-    "beta1"      ~: testSS [testBetaConj] (superpose [(1/2, beta 2 1)]),
+    "beta1"      ~: testSS [testBetaConj] (superpose [(fromRational (1/2), beta 2 1)]),
     "beta2"      ~: testSS [testBetaConj'] (beta 2 1),
-    "testGibbs0" ~: testSS [testGibbsProp0] (lam $ \x -> normal (x * (1/2))
-                                                                (sqrt_ 2 * (1/2))),
+    "testGibbs0" ~: testSS [testGibbsProp0] (lam $ \x -> normal (x * fromRational (1/2))
+                                                                (sqrt_ 2 * fromRational (1/2))),
     "testGibbs1" ~: testSS [testGibbsProp1] (lam $ \x -> normal (fst_ x) 1
                                              `bind` \y -> dirac (pair (fst_ x) y)),
-    "testGibbs2" ~: testSS [testGibbsProp2] (lam $ \x -> normal ((snd_ x) * (1/2))
-                                                                (sqrt_ 2 * (1/2))
+    "testGibbs2" ~: testSS [testGibbsProp2] (lam $ \x -> normal ((snd_ x) * fromRational (1/2))
+                                                                (sqrt_ 2 * fromRational (1/2))
                                              `bind` \y -> dirac (pair y (snd_ x))),
     "testKernel" ~: testSS [testKernel] testKernel2
     ]
@@ -165,7 +171,9 @@ t8 :: Mochastic repr => repr (Measure (Real, Real))
 t8 = normal 0 10 `bind` \x -> normal x 20 `bind` \y -> dirac (pair x y)
 
 t9 :: Mochastic repr => repr (Measure Real)
-t9 = lebesgue `bind` \x -> factor (if_ (and_ [less 3 x, less x 7]) (1/2) 0) `bind_` dirac x
+t9 = lebesgue `bind` \x -> 
+     factor (if_ (and_ [less 3 x, less x 7]) (fromRational (1/2)) 0) `bind_` 
+     dirac x
 
 t10 :: Mochastic repr => repr (Measure ())
 t10 = factor 0
@@ -178,18 +186,19 @@ t12 = factor 2
 
 t13,t13' :: Mochastic repr => repr (Measure Real)
 t13 = bern (3/5) `bind` \b -> dirac (if_ b 37 42)
-t13' = superpose [(3/5, dirac 37), (2/5, dirac 42)]
+t13' = superpose [(fromRational (3/5), dirac 37), 
+                  (fromRational (2/5), dirac 42)]
 
 t14,t14' :: Mochastic repr => repr (Measure Real)
 t14 = bern (3/5) `bind` \b ->
       if_ b t13 (bern (2/7) `bind` \b' ->
                  if_ b' (uniform 10 12) (uniform 14 16))
-t14' = superpose [
-                  (9/25, dirac 37),
-                  (6/25, dirac 42),
-                  (4/35, uniform 10 12),
-                  (2/7, uniform 14 16)
-                 ]
+t14' = superpose 
+  [ (fromRational (9/25), dirac 37)
+  , (fromRational (6/25), dirac 42)
+  , (fromRational (4/35), uniform 10 12)
+  , (fromRational (2/7) , uniform 14 16)
+  ]
 
 t20 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure ())
 t20 = lam (\y -> uniform 0 1 `bind` \x -> factor (unsafeProb x * y))
@@ -207,10 +216,10 @@ t23 = bern (1/2) `bind` \a ->
                bern (if_ a (9/10) (1/10)) `bind` \b ->
                bern (if_ a (9/10) (1/10)) `bind` \c ->
                dirac (pair b c)
-t23' = superpose [(41/100, dirac (pair true true)),
-                  ( 9/100, dirac (pair true false)),
-                  ( 9/100, dirac (pair false true)),
-                  (41/100, dirac (pair false false))]
+t23' = superpose [(fromRational (41/100), dirac (pair true true)),
+                  (fromRational ( 9/100), dirac (pair true false)),
+                  (fromRational ( 9/100), dirac (pair false true)),
+                  (fromRational (41/100), dirac (pair false false))]
 
 t24,t24' :: (Mochastic repr, Lambda repr) => repr (Prob -> Measure ())
 t24 = lam (\x ->
@@ -219,14 +228,14 @@ t24 = lam (\x ->
       factor (x * exp_ (cos y) * unsafeProb z))
 t24' = lam (\x ->
       uniform 0 1 `bind` \y ->
-      factor (x * exp_ (cos y) * (1/2)))
+      factor (x * exp_ (cos y) * fromRational (1/2)))
 
 t25,t25' :: (Mochastic repr, Lambda repr) => repr (Prob -> Real -> Measure ())
 t25 = lam (\x -> lam (\y ->
     uniform 0 1 `bind` \z ->
     factor (x * exp_ (cos y) * unsafeProb z)))
 t25' = lam (\x -> lam (\y ->
-    factor (x * exp_ (cos y) * (1/2))))
+    factor (x * exp_ (cos y) * fromRational (1/2))))
 
 t26 :: (Mochastic repr, Lambda repr, Integrate repr) => repr (Measure Prob)
 t26 = dirac (total t1)
@@ -239,8 +248,9 @@ t27 = map (\d -> lam (d unit)) $ runDisintegrate
     dirac (pair y x))
 t27' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure Real)
 t27' = lam (\y ->
-  superpose [( recip (sqrt_ pi_) * exp_ (y * y * ((-1)/4)) * (1/2)
-             , normal (y * (1/2)) ((sqrt_ 2) * (1/2)) )])
+  superpose 
+    [( recip (sqrt_ pi_) * exp_ (y * y * fromRational (-1/4)) * fromRational (1/2)
+    , normal (y * fromRational (1/2)) ((sqrt_ 2) * fromRational (1/2)) )])
 
 t28 :: Mochastic repr => repr (Measure Real)
 t28 = uniform 0 1
@@ -365,7 +375,7 @@ t54 =
       if_ x2
           (dirac x1 `bind` \x3 -> dirac (recip x3))
           (dirac 0)) `bind` \x2 ->
-     factor (unsafeProb x2)) `bind` \x2 ->
+     factor (unsafeProb x2)) `bind_`
     (dirac x1 `bind` \x3 -> dirac (log x3)) `bind` \x3 ->
     (dirac x3 `bind` \x4 -> dirac (-x4)) `bind` \x4 ->
     ((dirac 0 `bind` \x5 ->
@@ -383,9 +393,9 @@ t55, t55' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
 t55  = lam $ \t -> uniform 0 1 `bind` \x ->
                    if_ (less x t) (dirac unit) $
                    superpose []
-t55' = lam $ \t -> if_ (less 1 t) (dirac unit) $
-                   if_ (less 0 t) (factor (unsafeProb t)) $
-                   superpose []
+t55' = lam $ \t -> if_ (less t 0) (superpose []) $
+                   if_ (less t 1) (factor (unsafeProb t)) $
+                   dirac unit
 
 t56, t56', t56'' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
 t56 =
@@ -411,18 +421,17 @@ t56' =
         (superpose [])
 t56'' =
     lam $ \t ->
-    if_ (less t 0) (superpose []) $
-    if_ (less t 1) (factor (unsafeProb t)) $
-    if_ (less t 2) (factor (unsafeProb (2+t*(-1)))) $
+    if_ (lesseq t 0) (superpose []) $
+    if_ (lesseq t 1) (factor (unsafeProb t)) $
+    if_ (lesseq t 2) (factor (unsafeProb (2 + t*(-1)))) $
     superpose []
 
 t57, t57' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
 t57 = lam $ \t -> superpose
   [(1, if_ (less t 1) (dirac unit) (superpose [])),
    (1, if_ (less 0 t) (dirac unit) (superpose []))]
-t57' = lam $ \t -> if_ (t `less` 1)
-                       (if_ (0 `less` t) (weight 2 (dirac unit)) (dirac unit))
-                       (dirac unit)
+t57' = lam $ \t -> 
+  if_ (and_ [(t `less` 1), (0 `less` t)]) (factor 2) (dirac unit)
 
 t58, t58' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
 t58 = lam $ \t -> superpose
@@ -436,6 +445,114 @@ t58' = lam $ \t ->
       (if_ (if_ (1 `less` t) (t `less` 3) false)
            (dirac unit)
            (superpose []))
+
+t59 :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
+t59 =
+    lam $ \x0 ->
+    ((uniform 0 1 `bind` \x1 -> dirac (recip x1)) `bind` \x1 ->
+     (((dirac 0 `bind` \x2 ->
+        dirac x1 `bind` \x3 ->
+        dirac (x2 `less` x3)) `bind` \x2 ->
+       if_ x2
+           (dirac x1)
+           (dirac x1 `bind` \x3 -> dirac (-x3))) `bind` \x2 ->
+      weight (unsafeProb x2) (dirac unit)) `bind` \x2 ->
+     dirac x0 `bind` \x3 ->
+     dirac x1 `bind` \x4 ->
+     dirac (x3 * x4)) `bind` \x1 ->
+    (dirac x1 `bind` \x2 ->
+     (uniform 0 1 `bind` \x3 -> dirac (-x3)) `bind` \x3 ->
+     dirac (x2 + x3)) `bind` \x2 ->
+    ((dirac 0 `bind` \x3 ->
+      dirac x2 `bind` \x4 ->
+      dirac (x3 `less` x4)) `bind` \x3 ->
+     if_ x3
+         ((dirac x2 `bind` \x4 ->
+           dirac 1 `bind` \x5 ->
+           dirac (x4 `less` x5)) `bind` \x4 ->
+          if_ x4 (dirac 1) (dirac 0))
+         (dirac 0)) `bind` \x3 ->
+    weight (unsafeProb x3) (dirac unit)
+
+t60,t60',t60'' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
+t60 =
+    lam $ \x0 ->
+    (((uniform 0 1 `bind` \x1 ->
+       uniform 0 1 `bind` \x2 ->
+       dirac (x1 + x2)) `bind` \x1 ->
+      dirac (recip x1)) `bind` \x1 ->
+     (((dirac 0 `bind` \x2 ->
+        dirac x1 `bind` \x3 ->
+        dirac (x2 `less` x3)) `bind` \x2 ->
+       if_ x2
+           (dirac x1)
+           (dirac x1 `bind` \x3 -> dirac (-x3))) `bind` \x2 ->
+      weight (unsafeProb x2) (dirac unit)) `bind` \x2 ->
+     dirac x0 `bind` \x3 ->
+     dirac x1 `bind` \x4 ->
+     dirac (x3 * x4)) `bind` \x1 ->
+    ((dirac 0 `bind` \x2 ->
+      dirac x1 `bind` \x3 ->
+      dirac (x2 `less` x3)) `bind` \x2 ->
+     if_ x2
+         ((dirac x1 `bind` \x3 ->
+           dirac 1 `bind` \x4 ->
+           dirac (x3 `less` x4)) `bind` \x3 ->
+          if_ x3 (dirac 1) (dirac 0))
+         (dirac 0)) `bind` \x2 ->
+    weight (unsafeProb x2) (dirac unit)
+t60' =
+    lam $ \x0 ->
+    uniform 0 1 `bind` \x1 ->
+    uniform 0 1 `bind` \x2 ->
+    if_ (if_ (0 `less` x0 * recip (x2 + x1))
+             (x0 * recip (x2 + x1) `less` 1)
+             false)
+        (weight (unsafeProb ((x2 + x1) ** (-1))) (dirac unit))
+        (superpose [])
+t60'' =
+    lam $ \x0 ->
+    uniform 0 1 `bind` \x1 ->
+    uniform 0 1 `bind` \x2 ->
+    if_ (if_ (0 `less` x0 * recip (x2 + x1))
+             (x0 * recip (x2 + x1) `less` 1)
+             false)
+        (weight (recip (unsafeProb (x2 + x1))) (dirac unit))
+        (superpose [])
+
+t61, t61' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure Prob)
+t61 = lam $ \x -> if_ (less x 0) (dirac 0) $ dirac $ unsafeProb $ recip x
+t61'= lam $ \x -> if_ (less x 0) (dirac 0) $ dirac $ recip $ unsafeProb x
+
+-- "Special case" of t56
+t62, t62' :: (Mochastic repr, Lambda repr) => repr (Real -> Real -> Measure ())
+t62 = lam $ \t ->
+      lam $ \x ->
+      uniform 0 1 `bind` \y ->
+      if_ (and_ [0 `less` (t/x-y), (t/x-y) `less` 1])
+	  (dirac unit)
+	  (superpose [])
+t62'= lam $ \t ->
+      lam $ \x ->
+      if_ (lesseq (t/x) 0) (superpose []) $
+      if_ (lesseq (t/x) 1) (factor (unsafeProb (t/x))) $
+      if_ (lesseq (t/x) 2) (factor (unsafeProb (2-t/x))) $
+      superpose []
+
+-- "Scalar multiple" of t62
+t63, t63' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
+t63 = lam $ \t ->
+      uniform 0 1 `bind` \x ->
+      uniform 0 1 `bind` \y ->
+      if_ (and_ [0 `less` (t/x-y), (t/x-y) `less` 1])
+          (factor (recip (unsafeProb x)))
+          (superpose [])
+t63'= lam $ \t ->
+      uniform 0 1 `bind` \x ->
+      if_ (lesseq (t/x) 0) (superpose []) $
+      if_ (lesseq (t/x) 1) (factor (unsafeProb (t/x) / unsafeProb x)) $
+      if_ (lesseq (t/x) 2) (factor (unsafeProb (2-t/x) / unsafeProb x)) $
+      superpose []
 
 -- Testing round-tripping of some other distributions
 testexponential :: Mochastic repr => repr (Measure Prob)
@@ -458,7 +575,7 @@ gibbsProposal :: (Order_ a, Expect' a ~ a, Expect' b ~ b,
                  repr (a, b) -> repr (Measure (a, b))
 gibbsProposal p x = q (fst_ x) `bind` \x' -> dirac (pair (fst_ x) x')
   where d:_ = runDisintegrate (const p)
-        q x = normalize (d unit (Expect x))
+        q y = normalize (d unit (Expect y))
 
 testGibbsProp0 :: (Lambda repr, Mochastic repr, Integrate repr) =>
                   repr (Real -> Measure Real)
@@ -526,18 +643,18 @@ testPriorProp' :: (Integrate repr, Mochastic repr, Lambda repr) =>
                  repr ((Real, Real) -> Measure ((Real, Real), Prob))
 testPriorProp' =
       (lam $ \old ->
-       superpose [(1 / 2,
+       superpose [(fromRational (1/2),
                    normal 0 1 `bind` \x1 ->
                    dirac (pair (pair x1 (snd_ old))
                                (exp_ ((x1 * (-1) + fst_ old)
                                       * (fst_ old + snd_ old * (-2) + x1)
-                                      * (1 / 2))))),
-                  (1 / 2,
+                                      * fromRational (1 / 2))))),
+                  (fromRational (1/2),
                    normal 0 (sqrt_ 2) `bind` \x1 ->
                    dirac (pair (pair (fst_ old) x1)
                                (exp_ ((x1 * (-1) + snd_ old)
                                       * (snd_ old * (-1) + fst_ old * 4 + x1 * (-1))
-                                      * ((-1) / 4)))))])
+                                      * fromRational (-1/4)))))])
 
 dup :: (Lambda repr, Mochastic repr) => repr (Measure a) -> repr (Measure (a,a))
 dup m = let_ m (\m' -> liftM2 pair m' m')
@@ -554,7 +671,7 @@ norm_nox = normal 0 1 `bind` \x ->
 
 norm_noy :: Mochastic repr => repr (Measure Real)
 norm_noy = normal 0 1 `bind` \x ->
-           normal x 1 `bind` \y ->
+           normal x 1 `bind_`
            dirac x
 
 flipped_norm :: Mochastic repr => repr (Measure (Real, Real))
@@ -576,7 +693,7 @@ two_coins = bern (1/2) `bind` \x ->
 -- pull out some of the intermediate expressions for independent study
 expr1 :: (Lambda repr, Mochastic repr) => repr (Real -> Prob)
 expr1 =  (lam $ \x0 ->
-          (lam $ \x1 ->
+          (lam $ \_ ->
            lam $ \x2 ->
            lam $ \x3 ->
            (lam $ \x4 ->
@@ -589,26 +706,26 @@ expr1 =  (lam $ \x0 ->
                     / 5
                     / exp_ (log_ (2 * pi_) * (1 / 2))
                     * (lam $ \x7 -> x7 `app` unit) `app` x6)
-                 `app` (lam $ \x6 ->
+                 `app` (lam $ \_ ->
                         (lam $ \x7 ->
                          (lam $ \x8 -> x8 `app` x2)
-                         `app` (lam $ \x8 ->
+                         `app` (lam $ \_ ->
                                 (lam $ \x9 ->
                                  (lam $ \x10 -> x10 `app` unit)
                                  `app` (lam $ \x10 ->
                                         (lam $ \x11 ->
                                          (lam $ \x12 -> x12 `app` x2)
-                                         `app` (lam $ \x12 ->
+                                         `app` (lam $ \_ ->
                                                 (lam $ \x13 -> x13 `app` pair x2 x10) `app` x11))
                                         `app` x9))
                                 `app` x7))
                         `app` x5))
                 `app` x4)
            `app` (lam $ \x4 ->
-                  (lam $ \x5 -> x5 `app` (x4 `unpair` \x6 x7 -> x7)) `app` x3))
+                  (lam $ \x5 -> x5 `app` (x4 `unpair` \_ x7 -> x7)) `app` x3))
           `app` unit
           `app` x0
-          `app` (lam $ \x1 -> 1))
+          `app` (lam $ \_ -> 1))
 
 expr2 :: (Mochastic repr, Lambda repr) => repr (Real -> Real -> Prob)
 expr2 = (lam $ \x1 ->
@@ -626,26 +743,26 @@ expr2 = (lam $ \x1 ->
                     / 1
                     / exp_ (log_ (2 * pi_) * (1 / 2))
                     * (lam $ \x9 -> x9 `app` unit) `app` x8)
-                 `app` (lam $ \x8 ->
+                 `app` (lam $ \_ ->
                         (lam $ \x9 ->
                          (lam $ \x10 -> x10 `app` x4)
-                         `app` (lam $ \x10 ->
+                         `app` (lam $ \_ ->
                                 (lam $ \x11 ->
                                  (lam $ \x12 -> x12 `app` unit)
                                  `app` (lam $ \x12 ->
                                         (lam $ \x13 ->
                                          (lam $ \x14 -> x14 `app` x4)
-                                         `app` (lam $ \x14 ->
+                                         `app` (lam $ \_ ->
                                                 (lam $ \x15 -> x15 `app` pair x4 x12) `app` x13))
                                         `app` x11))
                                 `app` x9))
                         `app` x7))
                 `app` x6)
            `app` (lam $ \x6 ->
-                  (lam $ \x7 -> x7 `app` (x6 `unpair` \x8 x9 -> x9)) `app` x5))
+                  (lam $ \x7 -> x7 `app` (x6 `unpair` \_ x9 -> x9)) `app` x5))
           `app` x1
           `app` x2
-          `app` (lam $ \x3 -> 1))
+          `app` (lam $ \_ -> 1))
 
 -- the one we need in testKernel
 expr3 :: (Mochastic repr, Lambda repr) => repr (d -> Prob) -> repr (d -> d -> Prob) -> repr d -> repr d -> repr Prob
@@ -665,8 +782,8 @@ testKernel =
     lam $ \x2 ->
     normal x2 1 `bind` \x3 ->
     let_ (expr3 x0 x1 x2 x3) $ \x4 ->
-    categorical [(x4, inl unit), (1 - x4, inr unit)] `bind` \x5 ->
-    dirac (uneither x5 (\x6 -> x3) (\x6 -> x2))
+    bern x4 `bind` \x5 ->
+    dirac (if_ x5 x3 x2)
 
 -- this should be equivalent to the above
 testKernel2 :: (Lambda repr, Mochastic repr) => repr (Real -> Measure Real)
@@ -676,4 +793,5 @@ testKernel2 =
   let_ (if_ (1 `less` exp_(-1/50*(x3-x2)*(x3+x2)))
             1
             (exp_(-1/50*(x3-x2)*(x3+x2)))) $ \x4 ->
- categorical [(x4, x3), (1 - x4, x2)]
+ bern x4 `bind` \x5 ->
+ dirac $ if_ x5 x3 x2

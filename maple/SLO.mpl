@@ -8,19 +8,21 @@
 #
 
 SLO := module ()
-  export ModuleApply, AST, simp, flip_cond,
+  export ModuleApply, AST, simp, flip_cond, condToProp,
     c; # very important: c is "global".
   local ToAST, t_binds, t_pw, t_rel,
     into_pw, myprod, do_pw,
     mkProb, getCtx, instantiate, lambda_wrap, find_paths,
     fill_table, toProp, toType,
     twiddle, myint, myint_pw,
+    fix_Heaviside,
     adjust_types, compute_domain, analyze_cond, isPos,
     adjust_superpose,
     get_breakcond, merge_pw,
     MyHandler, getBinderForm, infer_type, join_type, join2type,
     simp_sup, simp_if, into_sup, simp_rel, 
     simp_pw, simp_pw_equal, simp_pw3,
+    simp_props,
     comp2, comp_algeb, compare, comp_list,
 
     # density recognisation routines
@@ -219,6 +221,7 @@ SLO := module ()
     simp_poly := proc(p)
       local coef_q, vars_q, q, c0, res, heads;
       q := collect(p, all_vars , 'distributed', simplify);
+      if not type(q, polynom(anything, vars)) then return thaw(q) end if;
       if ldegree(q, vars)<1 then
         # need to 'push in' additive constant sometimes
         c0 := tcoeff(q, vars);
@@ -226,6 +229,7 @@ SLO := module ()
       else
         c0 := 0;
       end if;
+      if q = undefined then return undefined end if;
       if q=0 then return c0; end if;
       coef_q := [coeffs(q, vars, 'vars_q')];
       vars_q := [vars_q];
@@ -359,8 +363,16 @@ SLO := module ()
     end if;
   end proc;
 
+  fix_Heaviside := proc(e, ee)
+    try
+      frontend(convert, [e], [{`+`,`*`}, '{Heaviside, Dirac}'], 'piecewise');
+    catch "give the main variable as a second argument":
+      ee
+    end try;
+  end proc;
+
   merge_pw := proc(l::list, f)
-    local breakpoints, sbp, i, n, res;
+    local breakpoints, sbp, i, n, res, npw;
 
     breakpoints := convert(map(get_breakcond, l), 'set');
     sbp := map(twiddle, breakpoints);
@@ -372,7 +384,16 @@ SLO := module ()
       simp(res);
     else
       #error "multiple piecewises with different breakpoints %1", l
-      f(i,i=l)
+      # try with Heaviside
+      res := f(i,i=l);
+      try
+        _EnvUseHeavisideAsUnitStep := true;
+        npw := simplify(convert(res, 'Heaviside'));
+        npw := fix_Heaviside(npw, res);
+      catch "give the main variable as a second argument":
+        npw := res;
+      end try;
+      npw 
     end if;
   end proc;
 
@@ -449,6 +470,7 @@ SLO := module ()
   simp_pw := proc(pw)
     local res, cond, l, r, b1, b2, b3, rel, new_cond;
     res := simp_pw_equal(pw);
+    if not res::t_pw then return res end if;
     if nops(res)=4 then
       b1 := flip_cond(op(1,res));
       if b1 = op(3,res) then
@@ -485,6 +507,10 @@ SLO := module ()
       if res::t_pw and op(2,res)::t_pw and nops(op(2,res))=3 and
          normal(op([2,3],res) - op(3,res)) = 0 then
           res := piecewise(And(op(1,res),op([2,1],res)), op([2,2],res), op(3,res));
+      end if;
+      if res::t_pw and op(3,res)::t_pw and nops(op(3,res))=3 and
+         normal(op([3,2],res) - op(2,res)) = 0 then
+          res := piecewise(Or(op(1,res),op([3,1],res)), op(2,res), op([3,3],res));
       end if;
     end if;
     res;
@@ -562,6 +588,13 @@ SLO := module ()
       else 
         mkProb(op(1,w), ctx) ^ op(2,w) 
       end if;
+    elif type(w, anything^negint) then
+      typ := infer_type(op(1,w), ctx);
+      if member(typ,{Prob, Number}) then
+        op(1,w)^op(2,w)
+      else
+        unsafeProb(op(1,w))^op(2,w)
+      end if;
     elif type(w, anything^fraction) then # won't be sqrt
       unsafeProb(w);
     elif type(w, 'unsafeProb'(anything)) then
@@ -611,6 +644,10 @@ SLO := module ()
       error "How can I make a property from %1", x;
     end if;
     {nm :: prop}, rest
+  end proc;
+
+  condToProp := proc(cond)
+    eval(cond,{And=AndProp, Or=OrProp})
   end proc;
 
   toType := proc(x::`=`)
@@ -846,7 +883,7 @@ SLO := module ()
 # - full 'type' inference of e
 # - full 'range-of-value' inference of e
   adjust_types := proc(e, typ, ctx)
-    local ee, dom, opc, res, var, left, right, inf_typ, typ2, cond, fcond;
+    local ee, dom, opc, res, var, left, right, inf_typ, typ2, cond, fcond, cl;
     if type(e, specfunc(anything, 'Superpose')) then
       map(thisproc, e, typ, ctx)
     elif type(e, 'WeightedM'(anything, anything)) then
@@ -917,13 +954,28 @@ SLO := module ()
       If(var, left, right);
     elif type(e, 'If'(anything, anything, anything)) then
       cond := op(1,e);
-      opc := _EnvPathCond;
-      _EnvPathCond := opc union {cond};
-      left := adjust_types(op(2,e), typ, ctx);
       fcond := flip_cond(cond);
-      _EnvPathCond := opc union {fcond};
-      right := adjust_types(op(3,e), typ, ctx);
-      If(cond, left, right);
+      opc := _EnvPathCond;
+      cl := simp_props(opc union {cond});
+      if cl = false then  # cond is unsat
+        cl := simp_props(opc union {fcond});
+        if cl = false then # so is fcond, oh my!
+          error "_EnvPathCond (%1) itself is unsat!", _EnvPathCond;
+        end if;
+        _EnvPathCond := cl;
+        adjust_types(op(3,e), typ, ctx);
+      else
+        _EnvPathCond := cl;
+        left := adjust_types(op(2,e), typ, ctx);
+        cl := simp_props(opc union {fcond});
+        if cl = false then # fcond is unsat, just return left
+          return left;
+        else
+          _EnvPathCond := cl;
+          right := adjust_types(op(3,e), typ, ctx);
+          If(cond, left, right);
+        end if;
+      end if;
     elif type(e, 'Uniform'(anything, anything)) and typ = 'Measure(Real)' then
       e
     elif type(e, 'Uniform'(anything, anything)) and typ = 'Measure(Prob)' then
@@ -1094,6 +1146,24 @@ SLO := module ()
     SUPERPOSE(op(sort([_passed], 'strict'=comp2)))
   end proc;
 
+  # weird routine to catch unsat, which means a condition list implies false
+  simp_props := proc(p)
+    local res, X, pl, ii;
+    pl := map(condToProp, p);
+    ii := remove(type, indets(pl, 'name'), constant);
+    try 
+      # dummy query for unsat only
+      coulditbe(X(op(ii)) > 0) assuming op(pl);
+      res := pl;
+    catch "when calling '%1'. Received: 'contradictory assumptions'":
+    # catch "the assumed property", "contradictory assumptions":
+      res := false;
+    catch "when calling": # all other errors
+      res := pl;
+    end try;
+    res;
+  end proc;
+
   into_sup := proc(wm, w) WeightedM(simplify(w*op(1,wm)), op(2,wm)) end proc;
 
   # sort, then fix things up to make printing easier
@@ -1238,9 +1308,7 @@ SLO := module ()
       if de::specfunc(anything, 'Diffop') then
         (diffop, init) := op(de);
         # dispatch on rng
-        if rng = -infinity..infinity then
-          res := recognize_density(diffop, init, Dx, var) assuming op(_EnvPathCond), var::real;
-        elif rng = 0..1 then
+        if rng = 0..1 then
           res := recognize_density_01(diffop, init, Dx, var) assuming op(_EnvPathCond), var::RealRange(0,1);
         elif rng = 0..infinity then
           res := recognize_density_0inf(diffop, init, Dx, var) assuming op(_EnvPathCond), var>0;
@@ -1254,6 +1322,8 @@ SLO := module ()
             end if;
             res := WeightedM(new_dens, res);
           end if;
+        else # actually use 'real' recognizer in all these cases
+          res := recognize_density(diffop, init, Dx, var) assuming op(_EnvPathCond), var::real;
         end if;
       end if;
 
@@ -1288,7 +1358,7 @@ SLO := module ()
 #############
 # more hacks to get around Maple weaknesses
   myint := proc(expr, b)
-    local var, inds;
+    local var, inds, res, res0, res1;
     _EnvBinders := _EnvBinders union {op(1,b)};
     var := op(1,b);
     inds := indets(expr, specfunc(anything,c));
@@ -1297,7 +1367,19 @@ SLO := module ()
       if type(expr, t_binds) then
         subsop(1=myint(op(1,expr),b), expr)
       else
-        int(expr, b) 
+        res0 := int(expr, b);
+        if type(res0, t_binds) and op(2,res0)=b then # didn't work, try harder
+          _EnvUseHeavisideAsUnitStep := true;
+          res1 := int(convert(expr, Heaviside), b);
+          if not type(res1, t_binds) then # success!
+            res := fix_Heaviside(res1, res0);
+          else 
+            res := res0;
+          end if;
+        else
+          res := res0;
+        end if;
+        res;
       end if;
     elif type(expr, t_pw) then
       # what is really needed here is to 'copy'
@@ -1392,8 +1474,9 @@ WeightedM := proc(w, m)
   end if;
 end;
 
-Superpose := proc()
-  local wm, bind, bindrr, i, j, bb, res, l;
+Superpose := module()
+  export ModuleApply;
+  local bb;
 
   bb := proc(t, k, no_rng)
     local bds, var;
@@ -1411,35 +1494,38 @@ Superpose := proc()
       bds
     end if;
   end proc;
-  if _npassed = 1 then
-    _passed[1]
-  else
-    wm := table('sparse'); bind := table('sparse'); bindrr := table('sparse');
-    l := map(x -> `if`(op(0,x)='Superpose', op(x), x), [_passed]);
-    for i in l do
-      if i::'WeightedM'(anything, anything) then
-        wm[op(2,i)] := wm[op(2,i)] + op(1,i);
-      elif i::'Return'(anything) then
-        wm[i] := wm[i] + 1;
-      elif i::'Bind'(anything, name, anything) then
-        bind[op(1,i)] := bind[op(1,i)] + i;
-      elif i::'Bind'(anything, name = range, anything) then
-        bindrr[op(1,i), op([2,2],i)] := bindrr[op(1,i), op([2,2], i)] + i;
-      elif i::specfunc(anything, 'If') then
-        wm[i] := wm[i] + 1;
-      else
-        # error "how do I superpose %1", i;
-        # rather than error out, just pass it through
-        wm[i] := wm[i] + 1;
-      end if;
-    end do;
-    res := [
-      seq(WeightedM(wm[j], j), j = [indices(wm, 'nolist')]),
-      seq(bb(bind,j,true), j = [indices(bind)]),
-      seq(bb(bindrr,j,false), j = [indices(bindrr)])];
-    if nops(res)=1 then res[1] else 'Superpose'(op(res)) end if;
-  end if;
-end proc;
+  ModuleApply := proc()
+    local wm, bind, bindrr, i, j, res, l;
+    if _npassed = 1 then
+      _passed[1]
+    else
+      wm := table('sparse'); bind := table('sparse'); bindrr := table('sparse');
+      l := map(x -> `if`(op(0,x)='Superpose', op(x), x), [_passed]);
+      for i in l do
+        if i::'WeightedM'(anything, anything) then
+          wm[op(2,i)] := wm[op(2,i)] + op(1,i);
+        elif i::'Return'(anything) then
+          wm[i] := wm[i] + 1;
+        elif i::'Bind'(anything, name, anything) then
+          bind[op(1,i)] := bind[op(1,i)] + i;
+        elif i::'Bind'(anything, name = range, anything) then
+          bindrr[op(1,i), op([2,2],i)] := bindrr[op(1,i), op([2,2], i)] + i;
+        elif i::specfunc(anything, 'If') then
+          wm[i] := wm[i] + 1;
+        else
+          # error "how do I superpose %1", i;
+          # rather than error out, just pass it through
+          wm[i] := wm[i] + 1;
+        end if;
+      end do;
+      res := [
+        seq(WeightedM(wm[j], j), j = [indices(wm, 'nolist')]),
+        seq(bb(bind,j,true), j = [indices(bind)]),
+        seq(bb(bindrr,j,false), j = [indices(bindrr)])];
+      if nops(res)=1 then res[1] else 'Superpose'(op(res)) end if;
+    end if;
+  end proc;
+end module;
 
 Bind := proc(w, var, meas)
   if var::name and meas = Return(var) then
@@ -1475,18 +1561,11 @@ If := proc(cond, tb, eb)
     local fcond, new_cond, rest_cond, t1, t2;
 
     fcond := SLO:-flip_cond(cond);
-    new_cond := AndProp(op(1,eb), fcond);
-    rest_cond := AndProp(SLO:-flip_cond(op(1,eb)), fcond);
-    # note: if t1 is unsat, this might FAIL
+    new_cond := And(op(1,eb), fcond);
+    rest_cond := And(SLO:-flip_cond(op(1,eb)), fcond);
     t1 := coulditbe(new_cond) assuming op(_EnvPathCond);
-    try 
-      # assume(rest_cond); # weird way to catch unsat!
-      coulditbe(rest_cond) assuming rest_cond;
-      t2 := true;
-    catch "when calling '%1'. Received: 'contradictory assumptions'":
-    # catch "the assumed property", "contradictory assumptions":
-      t2 := false;
-    end try;
+    t2 := simplify(piecewise(rest_cond, 1, 0));
+    t2 := not (evalb(t2=0));
     if t1=false then
       error "Why is %1 unsatisfiable?", new_cond;
     elif t2 then
