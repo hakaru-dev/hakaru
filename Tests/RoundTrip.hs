@@ -32,7 +32,9 @@ testMeasureUnit = test [
     "t57"     ~: testSS [t57] t57',
     "t58"     ~: testSS [t58] t58',
     "t59"     ~: testS t59,
-    "t60"     ~: testSS [t60,t60'] t60''
+    "t60"     ~: testSS [t60,t60'] t60'',
+    "t62"     ~: testSS [t62] t62',
+    "t63"     ~: testSS [t63] t63'
     ]
 
 testMeasureProb :: Test
@@ -46,7 +48,7 @@ testMeasureProb = test [
     "t38" ~: testSS [] t38,
     "t42" ~: testSS [t42] (dirac 1),
     "t49" ~: testSS [] t49,
-    "t61" ~: testSS [t61] (lam $ \x -> if_ (less x 0) (dirac 0) $ dirac $ recip $ unsafeProb x)
+    "t61" ~: testSS [t61] t61'
     ]
 
 testMeasureReal :: Test
@@ -518,8 +520,39 @@ t60'' =
         (weight (recip (unsafeProb (x2 + x1))) (dirac unit))
         (superpose [])
 
-t61 :: (Mochastic repr, Lambda repr) => repr (Real -> Measure Prob)
+t61, t61' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure Prob)
 t61 = lam $ \x -> if_ (less x 0) (dirac 0) $ dirac $ unsafeProb $ recip x
+t61'= lam $ \x -> if_ (less x 0) (dirac 0) $ dirac $ recip $ unsafeProb x
+
+-- "Special case" of t56
+t62, t62' :: (Mochastic repr, Lambda repr) => repr (Real -> Real -> Measure ())
+t62 = lam $ \t ->
+      lam $ \x ->
+      uniform 0 1 `bind` \y ->
+      if_ (and_ [0 `less` (t/x-y), (t/x-y) `less` 1])
+	  (dirac unit)
+	  (superpose [])
+t62'= lam $ \t ->
+      lam $ \x ->
+      if_ (lesseq (t/x) 0) (superpose []) $
+      if_ (lesseq (t/x) 1) (factor (unsafeProb (t/x))) $
+      if_ (lesseq (t/x) 2) (factor (unsafeProb (2-t/x))) $
+      superpose []
+
+-- "Scalar multiple" of t62
+t63, t63' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
+t63 = lam $ \t ->
+      uniform 0 1 `bind` \x ->
+      uniform 0 1 `bind` \y ->
+      if_ (and_ [0 `less` (t/x-y), (t/x-y) `less` 1])
+          (factor (recip (unsafeProb x)))
+          (superpose [])
+t63'= lam $ \t ->
+      uniform 0 1 `bind` \x ->
+      if_ (lesseq (t/x) 0) (superpose []) $
+      if_ (lesseq (t/x) 1) (factor (unsafeProb (t/x) / unsafeProb x)) $
+      if_ (lesseq (t/x) 2) (factor (unsafeProb (2-t/x) / unsafeProb x)) $
+      superpose []
 
 -- Testing round-tripping of some other distributions
 testexponential :: Mochastic repr => repr (Measure Prob)
