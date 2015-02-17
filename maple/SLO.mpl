@@ -363,8 +363,12 @@ SLO := module ()
     end if;
   end proc;
 
-  fix_Heaviside := proc(e)
-    frontend(convert, [e], [{`+`,`*`}, '{Heaviside, Dirac}'], 'piecewise');
+  fix_Heaviside := proc(e, ee)
+    try
+      frontend(convert, [e], [{`+`,`*`}, '{Heaviside, Dirac}'], 'piecewise');
+    catch "give the main variable as a second argument":
+      ee
+    end try;
   end proc;
 
   merge_pw := proc(l::list, f)
@@ -385,7 +389,7 @@ SLO := module ()
       try
         _EnvUseHeavisideAsUnitStep := true;
         npw := simplify(convert(res, 'Heaviside'));
-        npw := fix_Heaviside(npw);
+        npw := fix_Heaviside(npw, res);
       catch "give the main variable as a second argument":
         npw := res;
       end try;
@@ -1361,7 +1365,7 @@ SLO := module ()
           _EnvUseHeavisideAsUnitStep := true;
           res1 := int(convert(expr, Heaviside), b);
           if not type(res1, t_binds) then # success!
-            res := fix_Heaviside(res1);
+            res := fix_Heaviside(res1, res0);
           else 
             res := res0;
           end if;
