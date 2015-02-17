@@ -588,6 +588,13 @@ SLO := module ()
       else 
         mkProb(op(1,w), ctx) ^ op(2,w) 
       end if;
+    elif type(w, anything^negint) then
+      typ := infer_type(op(1,w), ctx);
+      if member(typ,{Prob, Number}) then
+        op(1,w)^op(2,w)
+      else
+        unsafeProb(op(1,w))^op(2,w)
+      end if;
     elif type(w, anything^fraction) then # won't be sqrt
       unsafeProb(w);
     elif type(w, 'unsafeProb'(anything)) then
