@@ -46,8 +46,7 @@ testMeasureProb = test [
     "t38" ~: testSS [] t38,
     "t42" ~: testSS [t42] (dirac 1),
     "t49" ~: testSS [] t49,
-    "t61" ~: testSS [lam $ \x -> if_ (less x 0) (dirac 0) $ dirac $ unsafeProb $ recip x]
-                    (lam $ \x -> if_ (less x 0) (dirac 0) $ dirac $ recip $ unsafeProb x)
+    "t61" ~: testSS [t61] (lam $ \x -> if_ (less x 0) (dirac 0) $ dirac $ recip $ unsafeProb x)
     ]
 
 testMeasureReal :: Test
@@ -518,6 +517,9 @@ t60'' =
              false)
         (weight (recip (unsafeProb (x2 + x1))) (dirac unit))
         (superpose [])
+
+t61 :: (Mochastic repr, Lambda repr) => repr (Real -> Measure Prob)
+t61 = lam $ \x -> if_ (less x 0) (dirac 0) $ dirac $ unsafeProb $ recip x
 
 -- Testing round-tripping of some other distributions
 testexponential :: Mochastic repr => repr (Measure Prob)
