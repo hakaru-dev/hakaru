@@ -195,11 +195,11 @@ seismic = gamma a1 b1 `bind` \l0 ->
           dirac l0
 
 -- Recursive reasoning
-hiddenState :: Mochastic repr => repr (Measure Real)
-hiddenState = categorical [(1, 0),
-                           (1, 1),
-                           (1, 2),
-                           (1, 3)]
+--  hiddenState :: Mochastic repr => repr (Measure Real)
+--  hiddenState = categorical [(1, 0),
+--                             (1, 1),
+--                             (1, 2),
+--                             (1, 3)]
 
 -- eTest :: (Integrate repr,
 --           Lambda repr,
