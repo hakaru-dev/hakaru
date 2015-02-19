@@ -14,7 +14,7 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        categorical',mix',
        invgamma, exponential, chi2, bern,
        cauchy, laplace, student, weibull,
-       binomial, multinomial,
+       binomial, multinomial, multinomial',
        Integrate(..), Lambda(..), Lub(..)) where
 
 import Data.Typeable (Typeable)    
@@ -391,6 +391,14 @@ multinomial n v = multinomial (n-1) v `bind` \x ->
                   categorical v `bind` \i ->
                   plate (mapV dirac $ updateVector x i (1 + index x i))
 
+multinomial' :: (Mochastic repr) => repr Int -> repr (Vector Prob) ->
+                                    repr (Measure (Vector Prob))
+multinomial' n v = reduce (liftM2 $ zipWithV (+))
+                          (dirac $ constV v 0)
+                          (vector 0 (n-1) (\ _ ->
+                           categorical v `bind` \i ->
+                           dirac (unitV v i)))
+
 unNormedDirichlet :: Mochastic repr =>
                      repr (Vector Prob) -> repr (Measure (Vector Prob))
 unNormedDirichlet a = plate $ vector (loBound a)
@@ -414,6 +422,10 @@ incV v = vector (loBound v) (hiBound v) id
 
 constV :: Base repr => repr (Vector a) -> repr b -> repr (Vector b)
 constV v c = vector (loBound v) (hiBound v) (const c)
+
+unitV :: Base repr => repr (Vector a) -> repr Int -> repr (Vector Prob)
+unitV v i = vector (loBound v) (hiBound v)
+            (\ i' -> if_ (equal i i') 1 0)
 
 lengthV :: (Base repr) => repr (Vector a) -> repr Int
 lengthV v = hiBound v - loBound v + 1
