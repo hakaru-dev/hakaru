@@ -14,7 +14,7 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        categorical',mix',
        invgamma, exponential, chi2, bern,
        cauchy, laplace, student, weibull,
-       binomial, multinomial, multinomial',
+       binomial, multinomial,
        Integrate(..), Lambda(..), Lub(..)) where
 
 import Data.Typeable (Typeable)    
@@ -378,22 +378,9 @@ binomial n p = (plate $ vector 1 n (\ _ -> bern p `bind` \x ->
                                    dirac $ if_ x 1 0)) `bind` \trials ->
                dirac (reduce (+) 0 trials)
 
-updateVector :: Base repr =>
-                repr (Vector a) -> repr Int -> repr a -> repr (Vector a)
-updateVector v i a = vector (loBound v)
-                            (hiBound v)
-                            (\ i' -> if_ (equal i i') a (index v i'))
-
-multinomial :: (Mochastic repr) => Int -> repr (Vector Prob)
-                                -> repr (Measure (Vector Prob))
-multinomial 0 v = plate (constV v (dirac 0)) 
-multinomial n v = multinomial (n-1) v `bind` \x ->
-                  categorical v `bind` \i ->
-                  plate (mapV dirac $ updateVector x i (1 + index x i))
-
-multinomial' :: (Mochastic repr) => repr Int -> repr (Vector Prob) ->
+multinomial :: (Mochastic repr) => repr Int -> repr (Vector Prob) ->
                                     repr (Measure (Vector Prob))
-multinomial' n v = reduce (liftM2 $ zipWithV (+))
+multinomial n v = reduce (liftM2 $ zipWithV (+))
                           (dirac $ constV v 0)
                           (vector 0 (n-1) (\ _ ->
                            categorical v `bind` \i ->
