@@ -9,7 +9,7 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        Order(..), Base(..), ununit, fst_, snd_, swap_,
        and_, or_, not_, min_, max_, lesseq,
        sumVec, normalizeVector, dirichlet,
-       lengthV, mapWithIndex, mapV, zipWithV, zipV, incV,
+       lengthV, mapWithIndex, mapV, zipWithV, zipV, incV, rangeV,
        Mochastic(..), bind_, factor, weight, bindx, liftM, liftM2,
        categorical',mix',
        invgamma, exponential, chi2, bern,
@@ -406,6 +406,9 @@ dirichlet a = unNormedDirichlet a `bind` \xs ->
 
 incV :: Base repr => repr (Vector a) -> repr (Vector Int)
 incV v = vector (loBound v) (hiBound v) id
+
+rangeV :: Base repr => repr Int -> repr (Vector Int)
+rangeV n = vector 0 n id
 
 constV :: Base repr => repr (Vector a) -> repr b -> repr (Vector b)
 constV v c = vector (loBound v) (hiBound v) (const c)

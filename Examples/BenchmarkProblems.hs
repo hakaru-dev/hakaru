@@ -9,6 +9,8 @@ import Data.Csv (encode)
 import Language.Hakaru.Util.Csv
 import qualified Data.Number.LogFloat as LF
 
+import qualified Data.Vector as V
+
 import Language.Hakaru.Syntax
 import Language.Hakaru.Sample
 import Language.Hakaru.Expect
@@ -195,11 +197,8 @@ seismic = gamma a1 b1 `bind` \l0 ->
           dirac l0
 
 -- Recursive reasoning
---  hiddenState :: Mochastic repr => repr (Measure Real)
---  hiddenState = categorical [(1, 0),
---                             (1, 1),
---                             (1, 2),
---                             (1, 3)]
+hiddenState :: Mochastic repr => repr (Measure Int)
+hiddenState = categorical (mapV (unsafeProb . fromInt) $ rangeV 3)
 
 -- eTest :: (Integrate repr,
 --           Lambda repr,
