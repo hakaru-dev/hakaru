@@ -200,6 +200,18 @@ seismic = gamma a1 b1 `bind` \l0 ->
 hiddenState :: Mochastic repr => repr (Measure Int)
 hiddenState = categorical (mapV (unsafeProb . fromInt) $ rangeV 3)
 
+sampleV :: (Lambda repr, Mochastic repr) =>
+            repr (Int -> Vector Real -> Measure (Vector Int))
+sampleV = lam (\ n ->
+          lam (\ x -> plate (vector 0 n (\ i ->
+                             categorical (mapV unsafeProb x)))))
+
+runSampleV :: Int -> IO (Maybe (Vec Int, LF.LogFloat)) 
+runSampleV n = do
+   let v = Vec 0 2 (V.fromList [0.4, 0.3, 0.2])
+   g <- MWC.create
+   unSample sampleV n v 1 g
+
 -- eTest :: (Integrate repr,
 --           Lambda repr,
 --           Mochastic repr) =>
