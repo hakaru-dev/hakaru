@@ -148,7 +148,7 @@ instance (PrimMonad m) => Mochastic (Sample m) where
     let choices = V.generate (V.length l) id
     if not (total > (0 :: Double)) then errorEmpty else do
        u <- MWC.uniformR (0, total) g
-       let x = V.head (V.dropWhile (\ (v,_) -> u > v) (V.zip weights choices))
+       let x = V.head (V.dropWhile (\ (v',_) -> u > v') (V.zip weights choices))
        return (Just (snd x, p))
     )
 
@@ -203,7 +203,7 @@ instance Embed (Sample m) where
   _Nil = Sample (Z Nil) 
 
   _Cons x (Sample (Z xs)) = Sample (Z (x :* xs)) 
-  _Cons x (Sample (S _ )) = error "type error" 
+  _Cons _ (Sample (S _ )) = error "type error" 
 
   caseProd (Sample (Z (x :* xs))) f = Sample (unSample $ f x (Sample (Z xs)))
   caseProd (Sample (S _)) _ = error "type error"
@@ -213,8 +213,8 @@ instance Embed (Sample m) where
 
   _S (Sample x) = Sample (S x) 
 
-  caseSum (Sample (Z x)) cS cZ = cS (Sample (Z x))
-  caseSum (Sample (S x)) cS cZ = cZ (Sample x) 
+  caseSum (Sample (Z x)) cS _  = cS (Sample (Z x))
+  caseSum (Sample (S x)) _  cZ = cZ (Sample x) 
 
   tag (Sample x) = Sample x 
   untag (Sample x) = Sample x 

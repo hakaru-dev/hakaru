@@ -95,11 +95,11 @@ instance Base Maple where
   uneither (Maple ab) ka kb
     = Maple (ab >>= \ab' ->
              ReaderT $ \i -> cont $ \c ->
-             let op :: Int -> String
-                 op n = "op(" ++ show n ++ ", " ++ ab' ++ ")"
-                 arm k = runCont (runReaderT (unMaple (k (return (op 1)))) i) c
-             in "if_(" ++ op 0 ++ " = Left, " ++ arm (ka . Maple)
-                                        ++ ", " ++ arm (kb . Maple) ++ ")")
+             let opS :: Int -> String
+                 opS n = "op(" ++ show n ++ ", " ++ ab' ++ ")"
+                 arm k = runCont (runReaderT (unMaple (k (return (opS 1)))) i) c
+             in "if_(" ++ opS 0 ++ " = Left, " ++ arm (ka . Maple)
+                                       ++ ", " ++ arm (kb . Maple) ++ ")")
   true = Maple (return "true")
   false = Maple (return "false")
   if_ (Maple b) (Maple et) (Maple ef)
@@ -113,14 +113,14 @@ instance Base Maple where
   unlist (Maple as) (Maple kn) kc
     = Maple (as >>= \as' ->
              ReaderT $ \i -> cont $ \c ->
-             let op :: Int -> String
-                 op n = "op(" ++ show n ++ ", " ++ as' ++ ")"
-                 car = Maple (return (op 1))
-                 cdr = Maple (return (op 2))
+             let opS :: Int -> String
+                 opS n = "op(" ++ show n ++ ", " ++ as' ++ ")"
+                 car = Maple (return (opS 1))
+                 cdr = Maple (return (opS 2))
                  kc' = unMaple (kc car cdr)
-             in "if_(" ++ op 0 ++ " = Nil, " ++ runCont (runReaderT kn i) c
-                                     ++ ", " ++ runCont (runReaderT kc' i) c
-                                     ++ ")")
+             in "if_(" ++ opS 0 ++ " = Nil, " ++ runCont (runReaderT kn i) c
+                                      ++ ", " ++ runCont (runReaderT kc' i) c
+                                      ++ ")")
 
   unsafeProb (Maple x) = Maple x
   fromProb   (Maple x) = Maple x
