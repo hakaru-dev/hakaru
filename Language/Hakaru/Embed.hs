@@ -29,7 +29,8 @@ module Language.Hakaru.Embed (
 import Language.Hakaru.Syntax hiding (EqType(..))
 import Prelude hiding (Real (..))
 import Data.Proxy 
-import Language.Haskell.TH 
+import Language.Haskell.TH.Syntax
+import Language.Haskell.TH
 import Generics.SOP (NS(..), NP(..), All, All2) 
 
 type family NAryFun (r :: * -> *) o (xs :: [*])  :: * 
@@ -183,9 +184,10 @@ toDec (DataDecl cx n tv cs der) = DataD cx n tv cs der
 
 -- When datatypes are put in a [d|..|] quasiquote, the resulting names have
 -- numbers appended with them. Get rid of those numbers for use with
--- datatypeInfo. TODO 
+-- datatypeInfo. 
 realName :: Name -> String 
-realName = show 
+realName (Name (OccName n) (NameU {})) = n
+realName x = show x
 
 -- Produce Embeddable code given the name of a datatype.
 embeddable :: Name -> Q [Dec]
@@ -209,10 +211,11 @@ deriveEmbeddableG d@(DataDecl {}) = do
   diInfo <- deriveDatatypeInfo d
   ctrs   <- deriveCtrs d
   accsrs <- deriveAccessors d
+  htype  <- deriveHakaruType d
   return $ 
     (InstanceD [] (ConT (mkName "Embeddable") `AppT` tyReal d)
                           (deriveCode d : diInfo)
-    ) : ctrs ++ accsrs
+    ) : htype ++ ctrs ++ accsrs
 
 deriveDatatypeInfo :: DataDecl -> Q [Dec]
 deriveDatatypeInfo (DataDecl _cx n _tv cs _der) = do 
@@ -238,10 +241,19 @@ deriveCtrInfo (ForallC {}) = error "Deriving Embeddable not supported for types 
 deriveCtrs, deriveAccessors, deriveHakaruType :: DataDecl -> Q [Dec]
 
 -- Deriving "constructor functions". TODO
-deriveCtrs _ = return []
+deriveCtrs d@(DataDecl _cx _n _tv cs _der) = 
+  fmap concat $ sequence (zipWith (deriveCtr $ tyReal d) [0..] cs)
+
+-- For the given constructor of the form `C a0 a1 .. an :: T b0 b1 .. bn`, produce a function like 
+--   mkC :: Embed r => r a0 -> r a1 -> r a2 -> .. -> .. r an -> r (HTypeRep (T b0 b1 .. bn))
+--   mkC a0 a1 .. an = sop (S $ S .. S $ Z (a0 :* a1 :* .. :* an :* Nil))
+deriveCtr :: Type -> Int -> Con -> Q [Dec] 
+deriveCtr _ _ _ = return []
 
 -- Deriving accessor functions for datatypes which are records and have a single
 -- constructor. TODO
+-- deriveAccessors (DataDecl _cx _n _tv [ RecC cn rcs ] _der = return . (:[]) $ 
+--   FunD (mkName $ mkHakaruNameFn $ realName cn) [  ]
 deriveAccessors _ = return [] 
 
 type HTypeRep t = Tag t (Code t) 
@@ -255,7 +267,7 @@ mkHakaruNameTy :: String -> String
 mkHakaruNameTy = ("H" ++ )
 
 mkHakaruNameFn :: String -> String 
-mkHakaruNameFn = id -- ("h" ++ )
+mkHakaruNameFn = ("mkH" ++ )
 
 -- Produces the Code type instance for the given type. 
 deriveCode :: DataDecl -> Dec 
