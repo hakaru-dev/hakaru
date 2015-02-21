@@ -15,7 +15,7 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        invgamma, exponential, chi2, bern,
        cauchy, laplace, student, weibull,
        binomial, multinomial,
-       Integrate(..), Lambda(..), Lub(..)) where
+       Integrate(..), Lambda(..), lam2, lam3, app2, app3, Lub(..)) where
 
 import Data.Typeable (Typeable)    
 import Prelude hiding (Real)
@@ -451,6 +451,35 @@ class Lambda repr where
   app :: repr (a -> b) -> repr a -> repr b
   let_ :: (Lambda repr) => repr a -> (repr a -> repr b) -> repr b
   let_ x f = lam f `app` x
+
+lam2 :: Lambda r => (r a -> r b -> r c) -> r (a -> b -> c)
+lam2 f = lam (lam . f)
+
+lam3 :: Lambda r => (r a -> r b -> r c -> r d) -> r (a -> b -> c -> d)
+lam3 f = lam (lam2 . f)
+
+app2 :: Lambda r => r (a -> b -> c) -> (r a -> r b -> r c)
+app2 f = app . app f
+
+app3 :: Lambda r => r (a -> b -> c -> d) -> (r a -> r b -> r c -> r d)
+app3 f = app2 . app f
+
+{- Almost useful, but things like 'lam3 = lamK' won't work because 'r' could be
+a function type.
+
+class Lambda r => LambdaK a r b | a b -> r where
+  lamK :: a -> r b
+  appK :: r b -> a
+
+instance (a ~ r b, Lambda r) => LambdaK a r b where
+  lamK = id
+  appK = id
+
+instance (a ~ a', r ~ r', LambdaK rs r as, Lambda r)
+      => LambdaK (r' a' -> rs) r (a -> as) where
+  lamK f = lam (lamK . f)
+  appK f = appK . app f
+-}
 
 class Lub repr where
   lub :: repr a -> repr a -> repr a -- two ways to compute the same thing
