@@ -10,7 +10,7 @@ module Language.Hakaru.Expect (Expect(..), Expect', total, normalize) where
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..),
-       fst_, snd_, sumVec, mapV, zipWithV, incV)
+       fst_, snd_, sumVec, zipWithV, incV)
 -- import qualified Generics.SOP as SOP
 -- import Generics.SOP (HasDatatypeInfo, Generic)
 -- import GHC.Generics (Generic)
