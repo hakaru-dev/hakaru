@@ -22,14 +22,13 @@
 
 module Language.Hakaru.Embed (
     module Language.Hakaru.Embed,
-    NS(..), NP(..), All, All2 
+    NS(..), NP(..), All, All2, Proxy(..)
   ) where
 
 import Language.Hakaru.Syntax hiding (EqType(..))
 import Prelude hiding (Real (..))
 import Data.Proxy 
 import Language.Haskell.TH 
-import Data.Typeable
 import Generics.SOP (NS(..), NP(..), All, All2) 
 
 type family NAryFun (r :: * -> *) o (xs :: [*])  :: * 

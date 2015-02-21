@@ -196,7 +196,6 @@ instance Lambda (Sample m) where
   app (Sample rator) (Sample rand) = Sample (rator rand)
 
 
-type instance Sample' m (HRep t) = NS (NP (Sample m)) (Code t)
 type instance Sample' m (Tag t xss) = NS (NP (Sample m)) xss
 type instance Sample' m (SOP xss) = NS (NP (Sample m)) xss 
 
