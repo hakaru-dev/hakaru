@@ -18,7 +18,7 @@ allTests = test
   , SY.allTests
   , RE.allTests
   , TV.allTests
---  , E.allTests
+  , E.allTests
     ]
 
 main :: IO ()
