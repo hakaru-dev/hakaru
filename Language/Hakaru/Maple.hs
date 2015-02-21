@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, ScopedTypeVariables, GADTs, TypeFamilies #-}
+{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, ScopedTypeVariables, GADTs, TypeFamilies, InstanceSigs #-}
 {-# OPTIONS -W #-}
 
 module Language.Hakaru.Maple (Maple(..), runMaple) where
@@ -13,7 +13,7 @@ import Control.Monad (liftM2)
 import Control.Monad.Trans.Reader (ReaderT(ReaderT), runReaderT)
 import Control.Monad.Trans.Cont (Cont, cont, runCont)
 -- import Data.List (intercalate)
--- import Language.Hakaru.Embed
+import Language.Hakaru.Embed
 
 -- Jacques wrote on December 16 that "the condition of a piecewise can be
 -- 1. a relation (i.e. <, <=, =, ::, in)
@@ -156,7 +156,7 @@ quant :: String -> Maple b -> Maple b ->
          (Maple a -> Maple c) -> Maple d
 quant q lo hi f = mapleFun2 ("(proc (r,c) local x; "++q++"(c(x),x=r) end proc)")
                             (mapleOp2 ".." lo hi)
-			    (lam f)
+                            (lam f)
 
 instance Lambda Maple where
   lam f = Maple (ReaderT $ \i -> return $
@@ -188,64 +188,26 @@ instance Mochastic Maple where
     in "Superpose(" ++ intercalate "," pms' ++ ")")
 -}
 
-{-
-constructor :: String -> [Maple a] -> Maple b
-constructor fn xs = Maple $ ReaderT $ \i -> return $ 
-  let ms = intercalate "," (map (flip runMaple i) xs) in 
-   ("`" ++ fn ++ "`(" ++ ms ++ ")")
-  
-prodMaple' :: forall xs a . SingI xs => ConstructorInfo (Shape xs) -> [Maple a] -> Maple (NP Maple xs) 
-prodMaple' (Infix nm _ _) (x:y:_) = constructor nm [x,y] 
-prodMaple' (Infix {}) _ = error "prodMaple': wrong number of values"
-prodMaple' (Constructor ctr) q = constructor ctr (take (lengthSing (Proxy :: Proxy xs)) q)
-prodMaple' (Record ctr _ ) q   = constructor ctr (take (lengthSing (Proxy :: Proxy xs)) q)
+op :: Int -> Maple a -> Maple b 
+op n (Maple x) = Maple $ x >>= \x' -> return ("op(" ++ show n ++ ", " ++ x' ++ ")")
 
-prodMaple :: SingI xs => ConstructorInfo (Shape xs) -> NP Maple xs -> Maple (NP Maple xs)
-prodMaple c xs = prodMaple' c (unprod (Maple . unMaple) xs)
+reMaple :: Maple a -> Maple b
+reMaple (Maple a) = Maple a 
 
-sopMaple :: forall xss . Sing xss -> NP ConstructorInfo (Shape xss) -> NS (NP Maple) xss -> Maple ()
-sopMaple SCons (ctr :* _) (Z x) = (Maple . unMaple) (prodMaple ctr x) 
-sopMaple s@SCons (_ :* ctrs) (S x) = (Maple . unMaple) (sopMaple (singTail s) ctrs x)
-sopMaple _ _ _ = error "sopMaple: Type error"
-
-op' :: Int -> Maple a -> Maple b 
-op' n (Maple ab) = Maple (ab >>= \ab' ->
-  return $ "op(" ++ show n ++ ", " ++ ab' ++ ")")
-
-unprodMaple :: SingI xs => NFn Maple o xs -> Maple (NP Maple xs) -> Maple o
-unprodMaple b a = go sing a b 1 where 
-  go :: Sing xs -> Maple (NP Maple xs) -> NFn Maple o xs -> Int -> Maple o 
-  go SNil _ (NFn f) _ = f
-  go s@SCons (Maple v) (NFn f) i = go (singTail s) (Maple v) (NFn (f (op' i (Maple v)))) (i+1) 
-
-unConstructor :: String
-              -> Maple t
-              -> (Maple a2 -> Maple a1)
-              -> (Maple a3 -> Maple a1)
-              -> Maple a
-
-unConstructor ctr (Maple ab) ka kb
-    = Maple (ab >>= \ab' ->
-             ReaderT $ \i -> cont $ \c ->
-             let op :: Int -> String
-                 op n = "op(" ++ show n ++ ", " ++ ab' ++ ")"
-
-                 arm :: (Maple a -> Maple b) -> String 
-                 arm k = runCont (runReaderT (unMaple $ k (Maple ab)) i) c 
-
-             in "if_(" ++ op 0 ++ " = `" ++ ctr ++ "`, " ++ arm ka 
-                                        ++ ", " ++ arm kb ++ ")")
-
-caseMaple :: forall xss o . SingI xss 
-          => Int -> NP ConstructorInfo (Shape xss) -> NP (NFn Maple o) xss -> Maple (NS (NP Maple) xss) -> Maple o 
-caseMaple _ Nil Nil _ = Maple $ return "Error(\"Datatypes with no constructors or type error\")"
-caseMaple i (ctr :* ctrs) (f :* fs) m = 
-  case sing :: Sing xss of 
-    SCons -> unConstructor (ctrName ctr) m (unprodMaple f) (caseMaple (i+1) ctrs fs)
-    _     -> error "caseMaple: type error"
-caseMaple _ _ _ _ = error "caseMaple: type error"
-
+-- This temporary implementatio just uses binary sums and products.  It still
+-- isn't obvious how we want to eventually "tell Maple" about our Tagged
+-- datatypes.
 instance Embed Maple where 
-  sop' p xs = (\(Maple x) -> Maple x) (sopMaple sing (ctrInfo (datatypeInfo p)) xs)
-  case' p (Maple x) f = caseMaple 1 (ctrInfo (datatypeInfo p)) f (Maple x) 
--}
+  _Nil = reMaple unit 
+  _Cons x xs = reMaple (pair x xs) 
+
+  _Z = reMaple . inl 
+  _S = reMaple . inr 
+
+  tag :: forall xss t . (Embeddable t) => Maple (SOP xss) -> Maple (Tag t xss)
+  tag = mapleFun2 "Tag" (Maple $ return $ datatypeName $ datatypeInfo (Proxy :: Proxy t)) 
+
+  caseProd x f = unpair (reMaple x) f 
+  caseSum x f g = uneither (reMaple x) f g 
+
+  untag = op 1 
