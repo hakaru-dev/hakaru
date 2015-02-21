@@ -21,24 +21,16 @@
   #-}
 
 module Language.Hakaru.Embed (
-    module Language.Hakaru.Embed 
-  , NP(..), NS(..), SingI(..), ConstructorInfo(..)
-  , Sing(..), DatatypeInfo(..), FieldInfo(..), Proxy(..), lengthSing, (:~:)(..)
+    module Language.Hakaru.Embed,
+    NS(..), NP(..), All, All2 
   ) where
 
 import Language.Hakaru.Syntax hiding (EqType(..))
 import Prelude hiding (Real (..))
-import Data.Proxy
--- import Control.Applicative
-import Generics.SOP hiding (Code, Rep, datatypeInfo, Shape, SOP)
-import qualified Generics.SOP as SOP 
--- import qualified GHC.Generics as GHC 
--- import GHC.Exts (Constraint)
--- import qualified Language.Haskell.TH as TH
--- import Language.Haskell.TH (Name, Q, Dec(..), Type(..), Info (..), TyVarBndr(..), reify, TySynEqn(..))
+import Data.Proxy 
 import Language.Haskell.TH 
 import Data.Typeable
-
+import Generics.SOP (NS(..), NP(..), All, All2) 
 
 type family NAryFun (r :: * -> *) o (xs :: [*])  :: * 
 type instance NAryFun r o '[]  = r o 
@@ -46,68 +38,55 @@ type instance NAryFun r o (x ': xs) = r x -> NAryFun r o xs
 
 newtype NFn r o x = NFn { unFn :: NAryFun r o x } 
 
--- HRep = Hakaru Representation 
-data HRep (t :: *) 
+-- Sum of products tagged with a Haskell type 
+data Tag (t :: *) (xs :: [[*]])
 
 -- SOP xs = Sum of products of Hakaru tyeps 
 data SOP (xs :: [[*]]) -- xs :: [[HakaruType]]
 
-type family Shape (xs :: [k]) :: [k]  
-type instance Shape '[] = '[]
-type instance Shape (x ': xs) = (Shape x ': Shape xs) 
-type instance Shape (x ': xs) = (() ': Shape xs) 
+-- Datatype info, like in Generics.SOP but without all the ugly dictionaries.
+data DatatypeInfo xss = DatatypeInfo 
+  { datatypeName :: String 
+  , ctrInfo :: NP ConstructorInfo xss 
+  } deriving (Eq, Ord, Show) 
 
-{-
--- This bunch of hideous boilerplate is because we want to avoid unsafeCoerce
--- (but it really is safe here)! All of "DataTypeInfo" and the like only pattern
--- match on the *shape* of the contents, not the actual types, so the following
--- is safe:
-diToShape :: DatatypeInfo xss -> DatatypeInfo (Shape xss) 
-diToShape = unsafeCoerce
-diFromShape :: DatatypeInfo (Shape xss) -> DatatypeInfo xss
-diFromShape = unsafeCoerce
--}
+data ConstructorInfo xs = ConstructorInfo 
+  { ctrName :: String 
+  , fieldInfo :: Maybe (NP FieldInfo xs)
+  } deriving (Eq, Ord, Show) 
 
-singShape :: forall (xs :: [*]) . Sing xs -> Dict (SingI (Shape xs))
-singShape SNil = Dict 
-singShape s@SCons = case singShape (singTail s) of Dict -> Dict 
+data FieldInfo x = FieldInfo { fieldName :: String } deriving (Eq, Ord, Show) 
 
-singShape' :: forall (xs :: [[*]]) . Sing xs -> Dict (SingI (Shape xs))
-singShape' SNil = Dict 
-singShape' s@SCons = 
-  case singShape' (singTail s) of { Dict -> 
-  case singShape  (singHead s) of { Dict -> Dict }}
+-- Singletons for lists. Like in Generics.SOP but again without the ugly
+-- dictionary passing.
+data family Sing (a :: k)
 
-diInfoShape :: DatatypeInfo xss -> DatatypeInfo (Shape xss) 
-diInfoShape (ADT x y xs) = ADT x y (npciInfoShape xs)
-diInfoShape (Newtype x y xs) = Newtype x y (ciInfoShape xs)  
+data instance Sing (xs :: [k]) where
+  SNil  :: Sing '[]
+  SCons :: Sing x -> Sing xs -> Sing (x ': xs)
 
-npciInfoShape :: NP ConstructorInfo xss -> NP ConstructorInfo (Shape xss)
-npciInfoShape Nil = Nil 
-npciInfoShape (x :* xs) = ciInfoShape x :* npciInfoShape xs 
+data instance Sing (x :: *) where
+  SStar :: Sing (x :: *)
 
-npfiInfoShape :: NP FieldInfo xss -> NP FieldInfo (Shape xss)
-npfiInfoShape Nil = Nil
-npfiInfoShape (FieldInfo x :* xs) = FieldInfo x :* npfiInfoShape xs 
+class SingI (a :: k) where
+  sing :: Sing a
 
-ciInfoShape :: forall xs . ConstructorInfo xs -> ConstructorInfo (Shape xs)
-ciInfoShape (Constructor n) = case singShape (sing :: Sing xs) of 
-                                Dict -> Constructor n 
-ciInfoShape (Infix c a f) = Infix c a f 
-ciInfoShape (Record n x) = case singShape (sing :: Sing xs) of 
-                             Dict -> Record n (npfiInfoShape x)
+instance SingI (x :: *) where
+  sing = SStar
+
+instance SingI '[] where
+  sing = SNil
+
+instance (SingI x, SingI xs) => SingI (x ': xs) where
+  sing = SCons sing sing 
 
 type EmbeddableConstraint t = 
-  (SingI (Code t), SingI (Shape (Code t)), All SingI (Code t), HakaruType (Code t), Typeable t) 
+  (SingI (Code t), All SingI (Code t), All2 SingI (Code t)) 
 
 -- 't' is really just a "label" - 't' and 'Code t' are completely unrelated.
 class EmbeddableConstraint t => Embeddable (t :: *) where 
   type Code t :: [[*]]
-  datatypeInfo :: Proxy t -> DatatypeInfo (Shape (Code t))
-  default datatypeInfo :: (HasDatatypeInfo t, Shape (SOP.Code t) ~ Shape (Code t)) 
-                       => Proxy t -> DatatypeInfo (Shape (Code t))
-  datatypeInfo p = diInfoShape $ SOP.datatypeInfo p
-
+  datatypeInfo :: Proxy t -> DatatypeInfo (Code t)
 
 class (Base repr) => Embed (repr :: * -> *) where
   -- unit 
@@ -131,35 +110,26 @@ class (Base repr) => Embed (repr :: * -> *) where
           -> (repr (SOP xss) -> repr o) 
           -> repr o 
 
-  {- 
-     "tag" and "unTag". The type we really want is 
-       hRep :: r (SOP (Code t)) -> r (HRep t)
-     The problem is that 'Code' is really a function of the type *and* the repr,
-     but if we include that in the type system, we have a constraint (or type family application)
-     which mentions the 'repr', so it may not be able to exist inside existential type constructors.
-     And the implemenation of 'Code (Expect r) t' is not obvious to me. 
-
-     For representations which are not phantom types, like Disintegrate and Sample, it may
-     be the case that this needs decidable equality on the finite(?) subset of *
-     which we know as "Hakaru types". See 'eqHType' below. 
-
-   -}
-
-  -- hRep :: (HakaruType xss, Embeddable t) => repr (SOP xss) -> repr (HRep t)
-  -- unHRep :: (HakaruType xss, Embeddable t) => repr (HRep t) -> repr (SOP xss)
-
-  -- A truely "safe" variant, but doesn't permit recursive types, ie, the
+  -- Doesn't permit recursive types, ie, the
   -- following produces an "infinite type" error:
   --   type Code [a] = '[ '[] , '[ a, Tag [a] (Code [a]) ]] 
   -- Also, the only valid (valid in the sense that tagging arbitrary values with
-  -- abitrary types probably isn't useful) use of 'tag' is in 'sopTag' below,
+  -- abitrary types probably isn't useful) use of 'tag' is in 'sop' below,
   -- which constrains xss ~ Code t. But putting this constraint here would leave 
   -- us in the exact same position as 'hRep :: r (SOP (Code t)) -> r (HRep t)'.
   tag :: Embeddable t => repr (SOP xss) -> repr (Tag t xss)
   untag :: Embeddable t => repr (Tag t xss) -> repr (SOP xss) 
 
-data Tag (t :: *) (xss :: [[*]])
 
+-- Sum of products and case in terms of basic functions 
+
+prodG :: Embed r => NP r xs -> r (SOP '[ xs ]) 
+prodG Nil = _Nil 
+prodG (x :* xs) = _Cons x (prodG xs) 
+
+caseProdG :: Embed r => Sing xs -> r (SOP '[ xs ]) -> NFn r o xs -> r o 
+caseProdG SNil _ (NFn x) = x 
+caseProdG (SCons _ t) a (NFn f) = caseProd a (\x xs -> caseProdG t xs (NFn $ f x))
 
 sop' :: Embed repr => NS (NP repr) xss -> repr (SOP xss) 
 sop' (Z t) = _Z (prodG t) 
@@ -169,25 +139,157 @@ case' :: (All SingI xss, Embed repr) => repr (SOP xss) -> NP (NFn repr o) xss ->
 case' _ Nil = error "Datatype with no constructors" 
 case' x (f :* fs) = caseSum x (\h -> caseProdG sing h f) (\t -> case' t fs)
 
--- sop :: (Embeddable t, Embed repr) => NS (NP repr) (Code t) -> repr (HRep t)
--- sop x = hRep (sop' x)
+sop :: (Embeddable t, Embed repr) => NS (NP repr) (Code t) -> repr (Tag t (Code t))
+sop x = tag (sop' x)
 
--- -- sop2 :: (Embeddable t, Embed repr) => NS (NP repr) (Code t) -> repr (SOP (Code t))
--- -- sop2 x = sop' x
+case_ :: (Embeddable t, Embed repr) => repr (Tag t (Code t)) -> NP (NFn repr o) (Code t) -> repr o
+case_ x f = case' (untag  x) f 
 
--- case_ :: (Embeddable t, Embed repr) => repr (HRep t) -> NP (NFn repr o) (Code t) -> repr o 
--- case_ x f = case' (unHRep x) f 
+-- Possible useful for implementations like Sample
+apNAry' :: NP f xs -> NAryFun f o xs -> f o 
+apNAry' Nil z = z
+apNAry' (x :* xs) f = apNAry' xs (f x) 
 
-sopTag :: (Embeddable t, Embed repr) => NS (NP repr) (Code t) -> repr (Tag t (Code t))
-sopTag x = tag (sop' x)
+apNAry :: NS (NP f) xss -> NP (NFn f o) xss -> f o
+apNAry (Z x) (NFn f :* _) = apNAry' x f 
+apNAry (S x) (_ :* fs) = apNAry x fs 
+apNAry _ Nil = error "type error" 
+{-
+apNAry (Z _) Nil = error "type error" 
+apNAry (S _) Nil = error "type error" 
+-}
 
-caseTag :: (Embeddable t, Embed repr) => repr (Tag t (Code t)) -> NP (NFn repr o) (Code t) -> repr o 
-caseTag x f = case' (untag x) f 
+-- Template Haskell
+
+data DataDecl = DataDecl Cxt Name [TyVarBndr] [Con] [Name]
+
+tyReal :: DataDecl -> Type 
+tyReal (DataDecl _ n tv _ _ ) = foldl AppT (ConT n) $ map (VarT . bndrName) tv
+
+reifyDataDecl :: Name -> Q (Maybe DataDecl) 
+reifyDataDecl ty = do  
+  info <- reify ty 
+  return $ case info of 
+    TyConI t -> maybeDataDecl t 
+    _ -> Nothing 
+
+maybeDataDecl :: Dec -> Maybe DataDecl 
+maybeDataDecl (DataD    cx n tv cs der) = Just $ DataDecl cx n tv cs  der
+maybeDataDecl (NewtypeD cx n tv c  der) = Just $ DataDecl cx n tv [c] der
+maybeDataDecl _ = Nothing
+
+toDec :: DataDecl -> Dec
+toDec (DataDecl cx n tv cs der) = DataD cx n tv cs der
+
+-- When datatypes are put in a [d|..|] quasiquote, the resulting names have
+-- numbers appended with them. Get rid of those numbers for use with
+-- datatypeInfo. TODO 
+realName :: Name -> String 
+realName = show 
+
+-- Produce Embeddable code given the name of a datatype.
+embeddable :: Name -> Q [Dec]
+embeddable n = do 
+  mbTy <- reifyDataDecl n 
+  case mbTy of 
+    Nothing -> error "Supplied name not a plain datatype."
+    Just q  -> deriveEmbeddableG q 
+
+-- Produce Embeddable code given given a splice corresponding to a datatype.
+-- embeddable' [d| data Bool = True | False |]
+embeddable' :: Q [Dec] -> Q [Dec]
+embeddable' decsQ = do 
+  decsQ >>= \decs -> 
+    case decs of 
+      [dec] | Just d <- maybeDataDecl dec -> fmap (dec :) (deriveEmbeddableG d)
+      _ -> error "embeddable': supplied declarations not a single plain datatype declaration."
+
+deriveEmbeddableG :: DataDecl -> Q [Dec] 
+deriveEmbeddableG d@(DataDecl {}) = do 
+  diInfo <- deriveDatatypeInfo d
+  ctrs   <- deriveCtrs d
+  accsrs <- deriveAccessors d
+  return $ 
+    (InstanceD [] (ConT (mkName "Embeddable") `AppT` tyReal d)
+                          (deriveCode d : diInfo)
+    ) : ctrs ++ accsrs
+
+deriveDatatypeInfo :: DataDecl -> Q [Dec]
+deriveDatatypeInfo (DataDecl _cx n _tv cs _der) = do 
+  let diExp = foldr (\x xs -> [| $x :* $xs |]) [|Nil|] (map deriveCtrInfo cs)
+  [d| datatypeInfo _ = DatatypeInfo  $(stringE $ realName n) $diExp |]
+
+-- A value of type ConstructorInfo for the given constructor 
+deriveCtrInfo :: Con -> Q Exp 
+deriveCtrInfo (NormalC n _) = 
+  [| ConstructorInfo $(stringE $ realName n) Nothing |]
+deriveCtrInfo (RecC n nms) = [| ConstructorInfo 
+  $(stringE $ realName n) 
+  (Just $(foldr (\(x,_,_) xs -> [| $(stringE $ realName x) :* $xs |]) [|Nil|] nms)) 
+  |]
+deriveCtrInfo (InfixC  _ n _) = 
+  [| ConstructorInfo $(stringE $ realName n) Nothing |]
+deriveCtrInfo (ForallC {}) = error "Deriving Embeddable not supported for types with foralls."
+
+deriveCtrs, deriveAccessors, deriveHakaruType :: DataDecl -> Q [Dec]
+
+-- Deriving "constructor functions". TODO
+deriveCtrs _ = return []
+
+-- Deriving accessor functions for datatypes which are records and have a single
+-- constructor. TODO
+deriveAccessors _ = return [] 
+
+type HTypeRep t = Tag t (Code t) 
+
+-- Derive the Hakaru type synoym for the coressponding type. 
+deriveHakaruType d@(DataDecl _cx n tv _cs _der) = return . (:[]) $ 
+  TySynD (mkName $ mkHakaruNameTy $ realName n) tv (ConT (mkName "HTypeRep") `AppT` tyReal d)
+
+-- This should probably be in some sort of configuration 
+mkHakaruNameTy :: String -> String 
+mkHakaruNameTy = ("H" ++ )
+
+mkHakaruNameFn :: String -> String 
+mkHakaruNameFn = id -- ("h" ++ )
+
+-- Produces the Code type instance for the given type. 
+deriveCode :: DataDecl -> Dec 
+deriveCode d@(DataDecl _cx _n _tv cs _der) = 
+  tySynInstanceD (mkName "Code") [tyReal d] . typeListLit . map typeListLit . map codeCon $ cs 
+ 
+-- We never care about a kind 
+bndrName :: TyVarBndr -> Name
+bndrName (PlainTV n) = n
+bndrName (KindedTV n _) = n
+
+-- The "Code" for type 't' for one of its constructors. 
+codeCon :: Con -> [Type] 
+codeCon (NormalC _ tys)     = map snd tys 
+codeCon (RecC    _ tys)     = map (\(_,_,x) -> x) tys 
+codeCon (InfixC  ty0 _ ty1) = map snd [ty0, ty1] 
+codeCon (ForallC {}) = error "Deriving Embeddable not supported for types with foralls."
+
+-- Produces a type list literal from the given types.
+typeListLit :: [Type] -> Type 
+typeListLit = foldr (\x xs -> (PromotedConsT `AppT` x) `AppT` xs) PromotedNilT
+
+tySynInstanceD :: Name -> [Type] -> Type -> Dec 
+tySynInstanceD fam ts r = 
+#if __GLASGOW_HASKELL__ >= 708
+      -- GHC >= 7.8
+      TySynInstD fam $ TySynEqn ts r
+#elif __GLASGOW_HASKELL__ >= 706
+      -- GHC >= 7.6 && < 7.8
+      TySynInstD fam ts r
+#else
+#error "don't know how to compile for template-haskell < 2.7 (aka GHC < 7.6)"
+#endif
 
 
--- instance Embeddable [a] where 
---   type Code [a] = '[ '[] , '[ a, SOP (Code [a]) ]] 
 
+
+{- Temporary home for this code which may useful in the future 
 
 -- The simplest solution for eqHType is to just use Typeable. But for that
 -- to work, we need polykinded Typeable (GHC 7.8), and having 
@@ -196,12 +298,7 @@ caseTag x f = case' (untag x) f
 -- The less simple (and terribly inefficient) solution is to use 
 -- singletons and produce a real proof that two types are equal
 
-
-#if __GLASGOW_HASKELL__ < 708
-   -- Before 7.8, :~: isn't in Data.Typeable 
 data (a :: k) :~: (b :: k) where Refl :: a :~: a 
-#endif
-
 
 eqHType :: forall (a :: *) (b :: *) . HSing a -> HSing b -> Maybe (a :~: b) 
 eqHType HProb HProb = Just Refl
@@ -257,185 +354,4 @@ instance HakaruType ('[] :: [[*]]) where hsing = HNil
 
 instance (HakaruType x, HakaruType xs) => HakaruType (x ': xs :: [*]) where hsing = HCons hsing hsing
 instance (HakaruType x, HakaruType xs) => HakaruType (x ': xs :: [[*]]) where hsing = HCons hsing hsing
-
-
--- eqHType :: (HakaruType a, HakaruType b) => Maybe (a :~: b)
--- eqHType = eqT
-
--- class Typeable a => HakaruType (a :: k) where 
-
--- instance HakaruType Prob 
--- instance HakaruType Real 
--- -- etc 
-
--- deriving instance Typeable '[]
--- instance HakaruType ('[] :: [*])
--- instance HakaruType ('[] :: [[*]])
--- -- etc 
-
--- deriving instance Typeable HRep 
--- instance (Typeable t, Embeddable t) => HakaruType (HRep t)
-
-
-
-prodG :: Embed r => NP r xs -> r (SOP '[ xs ]) 
-prodG Nil = _Nil 
-prodG (x :* xs) = _Cons x (prodG xs) 
-
-caseProdG :: Embed r => Sing xs -> r (SOP '[ xs ]) -> NFn r o xs -> r o 
-caseProdG SNil _ (NFn x) = x 
-caseProdG s@SCons a (NFn f) = caseProd a (\x xs -> caseProdG (singTail s) xs (NFn $ f x))
-
-
-apNAry' :: NP f xs -> NAryFun f o xs -> f o 
-apNAry' Nil z = z
-apNAry' (x :* xs) f = apNAry' xs (f x) 
-
-apNAry :: NS (NP f) xss -> NP (NFn f o) xss -> f o
-apNAry (Z x) (NFn f :* _) = apNAry' x f 
-apNAry (S x) (_ :* fs) = apNAry x fs 
-apNAry _ Nil = error "type error" 
-{-
-apNAry (Z _) Nil = error "type error" 
-apNAry (S _) Nil = error "type error" 
 -}
-
-ctrInfo :: DatatypeInfo xss -> NP ConstructorInfo xss 
-ctrInfo (ADT _ _ c) = c
-ctrInfo (Newtype _ _ c) = c :* Nil
-
-data Dict p where Dict :: p => Dict p
-
-ciSing :: ConstructorInfo xs -> Dict (SingI xs) 
-ciSing (Infix {}) = Dict  
-ciSing (Constructor {}) = Dict 
-ciSing (Record {}) = Dict 
-
-diSing :: DatatypeInfo xss -> Dict (SingI xss)
-diSing (ADT _ _ cts) = go cts where 
-  go :: NP ConstructorInfo xss -> Dict (SingI xss) 
-  go Nil = Dict 
-  go (x :* xs) = case (go xs, ciSing x) of (Dict, Dict) -> Dict  
-diSing (Newtype {}) = Dict 
-
-unprod :: (HCollapse h, HAp h, SingI xs) => (forall a . f a -> b) -> h f xs -> CollapseTo h b
-unprod f = hcollapse . hliftA (K . f)
-
-singTail :: Sing (x ': xs) -> Sing xs 
-singTail SCons = sing 
-
-singHead :: Sing (x ': xs) -> Sing x
-singHead SCons = sing 
-
-ctrNames :: DatatypeInfo xss -> [ConstructorName]
-ctrNames d = case diSing d of Dict -> unprod ctrName (ctrInfo d)
-
-ctrName :: ConstructorInfo x -> ConstructorName
-ctrName (Constructor x) = x
-ctrName (Infix x _ _) = x
-ctrName (Record x _) = x 
-
-dictPair :: Dict p -> Dict q -> ((p, q) => x) -> x 
-dictPair Dict Dict x = x 
-
--- Template Haskell
-
-data DataDecl = DataDecl Cxt Name [TyVarBndr] [Con] [Name]
-
-tyReal :: DataDecl -> Type 
-tyReal (DataDecl _ n tv _ _ ) = foldl AppT (ConT n) $ map (VarT . bndrName) tv
-
-reifyDataDecl :: Name -> Q (Maybe DataDecl) 
-reifyDataDecl ty = do  
-  info <- reify ty 
-  return $ case info of 
-    TyConI t -> maybeDataDecl t 
-    _ -> Nothing 
-
-maybeDataDecl :: Dec -> Maybe DataDecl 
-maybeDataDecl (DataD    cx n tv cs der) = Just $ DataDecl cx n tv cs  der
-maybeDataDecl (NewtypeD cx n tv c  der) = Just $ DataDecl cx n tv [c] der
-maybeDataDecl _ = Nothing
-
-toDec :: DataDecl -> Dec
-toDec (DataDecl cx n tv cs der) = DataD cx n tv cs der
-
-deriveEmbeddableG :: DataDecl -> [Dec] 
-deriveEmbeddableG ty =   
-  [ emptyInstance ty (mkName "Generics.SOP.Generic")
-  , emptyInstance ty (mkName "Generics.SOP.HasDatatypeInfo")
-  , deriveCode ty 
-  ]
-
-deriveEmbeddable :: Name -> Q [Dec] 
-deriveEmbeddable ty = do 
-  d <- reifyDataDecl ty 
-  return $ maybe (error "tyReal: supplied name not a plain datatype") deriveEmbeddableG d 
-  
--- Same as above, but takes a splice containing the datatype.
--- ` deriveEmbeddable' [d| data X ... |] `. 
-deriveEmbeddable' :: Q [Dec] -> Q [Dec] 
-deriveEmbeddable' decsQ = do 
-  let replaceDeriving (DataDecl cx n tv cs _) = DataDecl cx n tv cs [mkName "GHC.Generics.Generic"] in 
-    decsQ >>= \decs -> return $ 
-      case decs of 
-        [dec] | Just d <- maybeDataDecl dec -> toDec (replaceDeriving d) : deriveEmbeddableG d 
-        _ -> error "deriveEmbeddable': supplied declarations not a single datatype declaration."
-
-bndrName :: TyVarBndr -> Name
-bndrName (PlainTV n) = n
-bndrName (KindedTV n _) = n
-
--- Generates an `instance C (T a0 a1 .. an)`, where a0 .. an are fresh.
-emptyInstance :: DataDecl -- ^ Type 
-              -> Name     -- ^ Type class name
-              -> Dec  
-emptyInstance ty cl = InstanceD [] (AppT (ConT cl) (tyReal ty)) []
-
--- Produces the Code type instance for the given type. 
-deriveCode :: DataDecl -> Dec 
-deriveCode d@(DataDecl _cx _n _tv cs _der) = 
-  let tyR = tyReal d
-      mkCode  = typeListLit . map typeListLit . codeCons tyR 
-      inst ts = InstanceD [] (AppT embeddableCl tyR) [tySynInstanceD (mkName "Code") [tyR] ts]
-   in inst $ mkCode cs 
- 
--- The "Code" for type 't' for one of its constructors. 
-codeCon :: Type -> Con -> [Type] 
-codeCon ty (NormalC _ tys)     = map (recType ty . snd) tys 
-codeCon ty (RecC    _ tys)     = map (\(_,_,x) -> recType ty x) tys 
-codeCon ty (InfixC  ty0 _ ty1) = map (recType ty . snd) [ty0, ty1] 
-codeCon _ (ForallC {}) = error "Deriving Embeddable not supported for types with existential constructors."
-  
--- Same as above, but for all constructors.
-codeCons :: Type -> [Con] -> [[Type]] 
-codeCons ty = map (codeCon ty) 
-
--- If the first and the second types are the same, return HRep applied to that
--- type. Else, return the 2nd type.
-recType :: Type -> Type -> Type 
-recType ty t | t == ty   = hrepCon `AppT` ty 
-             | otherwise = t
-
--- Produces a type list literal from the given types.
-typeListLit :: [Type] -> Type 
-typeListLit = foldr (\x xs -> (PromotedConsT `AppT` x) `AppT` xs) PromotedNilT
-
--- Various names  
-hrepCon :: Type 
-hrepCon = ConT (mkName "Language.Hakaru.Embed.HRep")
-
-embeddableCl :: Type
-embeddableCl = ConT (mkName "Language.Hakaru.Embed.Embeddable")
-
-tySynInstanceD :: Name -> [Type] -> Type -> Dec 
-tySynInstanceD fam ts r = 
-#if __GLASGOW_HASKELL__ >= 708
-      -- GHC >= 7.8
-      TySynInstD fam $ TySynEqn ts r
-#elif __GLASGOW_HASKELL__ >= 706
-      -- GHC >= 7.6 && < 7.8
-      TySynInstD fam ts r
-#else
-#error "don't know how to compile for template-haskell < 2.7 (aka GHC < 7.6)"
-#endif
