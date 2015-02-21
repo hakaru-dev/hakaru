@@ -18,6 +18,7 @@
   , DefaultSignatures
   , FlexibleContexts
   , DeriveDataTypeable
+  , FlexibleInstances
   #-}
 
 module Language.Hakaru.Embed (
@@ -216,7 +217,11 @@ deriveEmbeddableG d@(DataDecl {}) = do
 deriveDatatypeInfo :: DataDecl -> Q [Dec]
 deriveDatatypeInfo (DataDecl _cx n _tv cs _der) = do 
   let diExp = foldr (\x xs -> [| $x :* $xs |]) [|Nil|] (map deriveCtrInfo cs)
-  [d| datatypeInfo _ = DatatypeInfo  $(stringE $ realName n) $diExp |]
+  diExp' <- [| DatatypeInfo  $(stringE $ realName n) $diExp |]
+  return [FunD (mkName "datatypeInfo") [Clause [WildP] (NormalB diExp') []]]
+
+  -- [d| datatypeInfo _ = DatatypeInfo  $(stringE $ realName n) $diExp |]
+  -- This doesnt' work on GHC 7.6 complaining about 'datatypeInfo not in scope'
 
 -- A value of type ConstructorInfo for the given constructor 
 deriveCtrInfo :: Con -> Q Exp 
