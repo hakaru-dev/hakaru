@@ -10,6 +10,7 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        and_, or_, not_, min_, max_, lesseq,
        sumVec, normalizeVector, dirichlet,
        lengthV, mapWithIndex, mapV, zipWithV, zipV, incV, rangeV,
+       fromList_, concatV,
        Mochastic(..), bind_, factor, weight, bindx, liftM, liftM2,
        categorical',mix',
        invgamma, exponential, chi2, bern,
@@ -403,6 +404,11 @@ dirichlet :: (Lambda repr, Mochastic repr, Integrate repr) =>
               repr (Vector Prob) -> repr (Measure (Vector Prob))
 dirichlet a = unNormedDirichlet a `bind` \xs ->
               dirac (normalizeVector xs)                    
+
+fromList_ :: Base repr => [repr a] -> repr (Vector a)
+fromList_ []  = empty
+fromList_ [x] = vector 0 0 (const x)
+fromList_ (x:xs) = concatV (vector 0 0 (const x)) (fromList_ xs)
 
 incV :: Base repr => repr (Vector a) -> repr (Vector Int)
 incV v = vector (loBound v) (hiBound v) id
