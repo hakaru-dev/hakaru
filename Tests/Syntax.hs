@@ -6,7 +6,7 @@ module Tests.Syntax(allTests) where
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure,
        Order(..), Base(..), ununit, and_, fst_, snd_, swap_, min_, max_,
-       Mochastic(..), Lambda(..), Integrate(..), bind_, liftM, liftM2, factor, beta, bern)
+       Mochastic(..), Lambda(..), Integrate(..), bind_, liftM, liftM2, factor, beta, bern, exponential)
 import Language.Hakaru.Util.Pretty (Pretty (pretty), prettyPair)
 import Language.Hakaru.Disintegrate hiding (max_)
 import qualified Language.Hakaru.Disintegrate as D
@@ -389,3 +389,14 @@ culpepper :: (Mochastic repr) => repr (Measure (Real, Bool))
 culpepper = bern 0.5 `bind` \a ->
             if_ a (uniform (-2) 2) (liftM (2*) (uniform (-1) 1)) `bind` \b ->
             dirac (pair b a)
+
+walk :: (Mochastic repr) =>
+        repr Prob -> repr Real -> repr (Measure (Real, Int))
+walk remaining location
+  = exponential 1 `bind` \elapsed ->
+    if_ (less elapsed remaining)
+        (normal location 1 `bind` \location' ->
+         walk (remaining - elapsed) location' `bind` \p ->
+         unpair p $ \location'' steps ->
+         dirac (pair location'' (steps + 1)))
+        (dirac (pair location 0))
