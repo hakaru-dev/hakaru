@@ -34,7 +34,8 @@ testMeasureUnit = test [
     "t59"     ~: testS t59,
     "t60"     ~: testSS [t60,t60'] t60'',
     "t62"     ~: testSS [t62] t62',
-    "t63"     ~: testSS [t63] t63'
+    "t63"     ~: testSS [t63] t63',
+    "t64"     ~: testSS [t64,t64'] t64''
     ]
 
 testMeasureProb :: Test
@@ -553,6 +554,46 @@ t63'= lam $ \t ->
       if_ (lesseq (t/x) 1) (factor (unsafeProb (t/x) / unsafeProb x)) $
       if_ (lesseq (t/x) 2) (factor (unsafeProb (2-t/x) / unsafeProb x)) $
       superpose []
+
+-- Density calculation for (Exp (Log StdRandom)) and StdRandom
+t64, t64', t64'' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
+t64 = lam $ \x0 ->
+      (((dirac 0 `bind` \x1 ->
+         dirac x0 `bind` \x2 ->
+         dirac (x1 `less` x2)) `bind` \x1 ->
+        if_ x1
+            (dirac x0 `bind` \x2 -> dirac (recip x2))
+            (dirac 0)) `bind` \x1 ->
+       weight (unsafeProb x1) (dirac unit)) `bind` \x1 ->
+      (dirac x0 `bind` \x2 -> dirac (log x2)) `bind` \x2 ->
+      ((dirac x2 `bind` \x3 -> dirac (exp x3)) `bind` \x3 ->
+       weight (unsafeProb x3) (dirac unit)) `bind` \x3 ->
+      (dirac x2 `bind` \x4 -> dirac (exp x4)) `bind` \x4 ->
+      ((dirac 0 `bind` \x5 ->
+        dirac x4 `bind` \x6 ->
+        dirac (x5 `less` x6)) `bind` \x5 ->
+       if_ x5
+           ((dirac x4 `bind` \x6 ->
+             dirac 1 `bind` \x7 ->
+             dirac (x6 `less` x7)) `bind` \x6 ->
+            if_ x6 (dirac 1) (dirac 0))
+           (dirac 0)) `bind` \x5 ->
+      weight (unsafeProb x5) (dirac unit)
+t64' =lam $ \x0 ->
+      ((dirac 0 `bind` \x1 ->
+        dirac x0 `bind` \x2 ->
+        dirac (x1 `less` x2)) `bind` \x1 ->
+       if_ x1
+           ((dirac x0 `bind` \x2 ->
+             dirac 1 `bind` \x3 ->
+             dirac (x2 `less` x3)) `bind` \x2 ->
+            if_ x2 (dirac 1) (dirac 0))
+           (dirac 0)) `bind` \x1 ->
+      weight (unsafeProb x1) (dirac unit)
+t64''=lam $ \x0 ->
+      if_ (and_ [0 `less` x0, x0 `less` 1])
+          (dirac unit)
+          (superpose [])
 
 -- Testing round-tripping of some other distributions
 testexponential :: Mochastic repr => repr (Measure Prob)
