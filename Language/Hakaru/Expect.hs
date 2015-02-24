@@ -10,7 +10,7 @@ module Language.Hakaru.Expect (Expect(..), Expect', total, normalize) where
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..),
-       fst_, snd_, sumVec, mapV, zipWithV, incV)
+       fst_, snd_, sumVec, zipWithV, incV)
 -- import qualified Generics.SOP as SOP
 -- import Generics.SOP (HasDatatypeInfo, Generic)
 -- import GHC.Generics (Generic)
@@ -188,55 +188,6 @@ normalize :: (Integrate repr, Lambda repr, Mochastic repr) =>
 normalize (Expect m) = unpair m (\m1 m2 ->
   superpose [(recip (m2 `app` lam (\_ -> 1)), m1)])
 
-
--- type family ListToTy (a :: [*]) :: *
--- type instance ListToTy '[] = ()
--- type instance ListToTy (x ': xs) = (Expect' x, ListToTy xs)
-
--- type family ListToTy2 (a :: [[*]]) :: *
--- type instance ListToTy2 '[] = Void
--- type instance ListToTy2 (x ': xs) = Either (ListToTy x) (ListToTy2 xs)
-
--- type instance Expect' Void = Void
--- type instance Expect' (HRep t) = ListToTy2 (Code t)
-
--- {- This should probably be in Base -}
--- data Void
--- absurd :: Base r => r Void -> r a
--- absurd = error "absurd"
-
--- prodExpect :: Base r => NP (Expect r) xs -> r (ListToTy xs)
--- prodExpect Nil = unit
--- prodExpect (Expect x :* xs) = pair x (prodExpect xs)
-
--- sopExpect :: Base r => NS (NP (Expect r)) xss -> r (ListToTy2 xss)
--- sopExpect (Z t) = inl (prodExpect t)
--- sopExpect (S (t :: NS (NP (Expect r)) xss')  ) = inr (sopExpect t :: r (ListToTy2 xss'))
-
--- caseExpect1 :: forall r xs o . Base r => NP Proxy xs -> r (ListToTy xs) -> NFn (Expect r) o xs -> r (Expect' o)
--- caseExpect1 Nil x (NFn (Expect y)) = ununit x y
--- caseExpect1 ((_t :: Proxy x) :* (ts :: NP Proxy xs1)) x (NFn y) = unpair x (\a b -> q1 b (NFn (y (Expect a)))) where
-
---   q1 :: r (ListToTy xs1) -> NFn (Expect r) o xs1 -> r (Expect' o)
---   q1 = caseExpect1 ts
-
--- singNP :: forall xs . SingI xs => NP Proxy xs
--- singNP = case sing :: Sing xs of
---            SNil -> Nil
---            SCons -> Proxy :* singNP
-
--- caseExpect :: forall r o xss . (Base r, SOP.All SingI xss)
---            => r (ListToTy2 xss) -> NP (NFn (Expect r) o) xss -> r (Expect' o)
--- caseExpect x Nil = absurd x
--- caseExpect x ((t :: NFn (Expect r) o xs) :* (ts :: NP (NFn (Expect r) o) xss')) =
---   uneither x (\a -> caseExpect1 singNP a t) (\a -> caseExpect a ts)
-
--- instance Base r => Embed (Expect r) where
---   sop' _ a = Expect (sopExpect a)
---   case' _ (Expect a) f = Expect (caseExpect a f)
-
-
-
 type family MapExpect' (a :: [*]) :: [*]
 type instance MapExpect' '[] = '[]
 type instance MapExpect' (x ': xs) = (Expect' x ': MapExpect' xs)
@@ -246,27 +197,8 @@ type instance MapExpect'2 '[] = '[]
 type instance MapExpect'2 (x ': xs) = MapExpect' x ': MapExpect'2 xs
 
 -- type instance Expect' Void = Void
-type instance Expect' (HRep t) = HRep t
 type instance Expect' (SOP xss) = SOP (MapExpect'2 xss)
-
-expectHType :: HSing x -> Dict (HakaruType (Expect' x))
-expectHType HReal = Dict
-expectHType HProb = Dict
-expectHType (HMeasure a) = case expectHType a of Dict -> Dict
-expectHType (HArr a b) = dictPair (expectHType a) (expectHType b) Dict
-expectHType (HPair a b) = dictPair (expectHType a) (expectHType b) Dict
-
-expectHType1 :: HSing xs -> Dict (HakaruType (MapExpect' xs))
-expectHType1 HNil = Dict
-expectHType1 (HCons x xs) =
-  case (expectHType x, expectHType1 xs) of
-    (Dict, Dict) -> Dict
-
-expectHType2 :: HSing xss -> Dict (HakaruType (MapExpect'2 xss))
-expectHType2 HNil = Dict
-expectHType2 (HCons x xs) =
-  case (expectHType1 x, expectHType2 xs) of
-    (Dict, Dict) -> Dict
+type instance Expect' (Tag t xss) = Tag t (MapExpect'2 xss)
 
 type instance Expect' (Tag t xss) = Tag t (MapExpect'2 xss)
 
@@ -283,6 +215,3 @@ instance Embed r => Embed (Expect r) where
 
   untag (Expect x) = Expect (untag x)
   tag (Expect x) = Expect (tag x)
-
-
-

@@ -456,7 +456,7 @@ t59 =
        if_ x2
            (dirac x1)
            (dirac x1 `bind` \x3 -> dirac (-x3))) `bind` \x2 ->
-      weight (unsafeProb x2) (dirac unit)) `bind` \x2 ->
+      weight (unsafeProb x2) (dirac unit)) `bind` \_ ->
      dirac x0 `bind` \x3 ->
      dirac x1 `bind` \x4 ->
      dirac (x3 * x4)) `bind` \x1 ->
@@ -487,7 +487,7 @@ t60 =
        if_ x2
            (dirac x1)
            (dirac x1 `bind` \x3 -> dirac (-x3))) `bind` \x2 ->
-      weight (unsafeProb x2) (dirac unit)) `bind` \x2 ->
+      weight (unsafeProb x2) (dirac unit)) `bind` \_ ->
      dirac x0 `bind` \x3 ->
      dirac x1 `bind` \x4 ->
      dirac (x3 * x4)) `bind` \x1 ->

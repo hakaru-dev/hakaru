@@ -9,13 +9,14 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        Order(..), Base(..), ununit, fst_, snd_, swap_,
        and_, or_, not_, min_, max_, lesseq,
        sumVec, normalizeVector, dirichlet,
-       lengthV, mapWithIndex, mapV, zipWithV, zipV, incV,
+       lengthV, mapWithIndex, mapV, zipWithV, zipV, incV, rangeV,
+       fromList_, concatV,
        Mochastic(..), bind_, factor, weight, bindx, liftM, liftM2,
        categorical',mix',
        invgamma, exponential, chi2, bern,
        cauchy, laplace, student, weibull,
        binomial, multinomial,
-       Integrate(..), Lambda(..), Lub(..)) where
+       Integrate(..), Lambda(..), lam2, lam3, app2, app3, Lub(..)) where
 
 import Data.Typeable (Typeable)    
 import Prelude hiding (Real)
@@ -378,18 +379,13 @@ binomial n p = (plate $ vector 1 n (\ _ -> bern p `bind` \x ->
                                    dirac $ if_ x 1 0)) `bind` \trials ->
                dirac (reduce (+) 0 trials)
 
-updateVector :: Base repr =>
-                repr (Vector a) -> repr Int -> repr a -> repr (Vector a)
-updateVector v i a = vector (loBound v)
-                            (hiBound v)
-                            (\ i' -> if_ (equal i i') a (index v i'))
-
-multinomial :: (Mochastic repr) => Int -> repr (Vector Prob)
-                                -> repr (Measure (Vector Prob))
-multinomial 0 v = plate (constV v (dirac 0)) 
-multinomial n v = multinomial (n-1) v `bind` \x ->
-                  categorical v `bind` \i ->
-                  plate (mapV dirac $ updateVector x i (1 + index x i))
+multinomial :: (Mochastic repr) => repr Int -> repr (Vector Prob) ->
+                                    repr (Measure (Vector Prob))
+multinomial n v = reduce (liftM2 $ zipWithV (+))
+                          (dirac $ constV v 0)
+                          (vector 0 (n-1) (\ _ ->
+                           categorical v `bind` \i ->
+                           dirac (unitV v i)))
 
 unNormedDirichlet :: Mochastic repr =>
                      repr (Vector Prob) -> repr (Measure (Vector Prob))
@@ -409,11 +405,23 @@ dirichlet :: (Lambda repr, Mochastic repr, Integrate repr) =>
 dirichlet a = unNormedDirichlet a `bind` \xs ->
               dirac (normalizeVector xs)                    
 
+fromList_ :: Base repr => [repr a] -> repr (Vector a)
+fromList_ []  = empty
+fromList_ [x] = vector 0 0 (const x)
+fromList_ (x:xs) = concatV (vector 0 0 (const x)) (fromList_ xs)
+
 incV :: Base repr => repr (Vector a) -> repr (Vector Int)
 incV v = vector (loBound v) (hiBound v) id
 
+rangeV :: Base repr => repr Int -> repr (Vector Int)
+rangeV n = vector 0 n id
+
 constV :: Base repr => repr (Vector a) -> repr b -> repr (Vector b)
 constV v c = vector (loBound v) (hiBound v) (const c)
+
+unitV :: Base repr => repr (Vector a) -> repr Int -> repr (Vector Prob)
+unitV v i = vector (loBound v) (hiBound v)
+            (\ i' -> if_ (equal i i') 1 0)
 
 lengthV :: (Base repr) => repr (Vector a) -> repr Int
 lengthV v = hiBound v - loBound v + 1
@@ -449,6 +457,35 @@ class Lambda repr where
   app :: repr (a -> b) -> repr a -> repr b
   let_ :: (Lambda repr) => repr a -> (repr a -> repr b) -> repr b
   let_ x f = lam f `app` x
+
+lam2 :: Lambda r => (r a -> r b -> r c) -> r (a -> b -> c)
+lam2 f = lam (lam . f)
+
+lam3 :: Lambda r => (r a -> r b -> r c -> r d) -> r (a -> b -> c -> d)
+lam3 f = lam (lam2 . f)
+
+app2 :: Lambda r => r (a -> b -> c) -> (r a -> r b -> r c)
+app2 f = app . app f
+
+app3 :: Lambda r => r (a -> b -> c -> d) -> (r a -> r b -> r c -> r d)
+app3 f = app2 . app f
+
+{- Almost useful, but things like 'lam3 = lamK' won't work because 'r' could be
+a function type.
+
+class Lambda r => LambdaK a r b | a b -> r where
+  lamK :: a -> r b
+  appK :: r b -> a
+
+instance (a ~ r b, Lambda r) => LambdaK a r b where
+  lamK = id
+  appK = id
+
+instance (a ~ a', r ~ r', LambdaK rs r as, Lambda r)
+      => LambdaK (r' a' -> rs) r (a -> as) where
+  lamK f = lam (lamK . f)
+  appK f = appK . app f
+-}
 
 class Lub repr where
   lub :: repr a -> repr a -> repr a -- two ways to compute the same thing
