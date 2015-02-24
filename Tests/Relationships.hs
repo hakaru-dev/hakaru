@@ -22,7 +22,8 @@ testRelationships = test [
     "t8"   ~: testSS [t8] (lam (\a -> (lam (\alpha ->
                            (normal 0 1 `bind` \x1 ->
                            normal 0 1 `bind` \x2 ->
-                           dirac (a + (fromProb alpha) * (x1 / x2)))))))
+                           dirac (a + (fromProb alpha) * (x1 / x2))))))),
+    "t10"   ~: testSS [t10] (uniform 0 1 `bind` \x -> dirac (unsafeProb x))
     ]
 
 allTests :: Test
@@ -63,3 +64,6 @@ t7 = cauchy 0 1
 
 t8 :: (Lambda repr, Mochastic repr) => repr (Real -> Prob -> Measure Real)
 t8 = (lam (\a -> (lam (\alpha -> cauchy a alpha))))
+
+t10 :: (Mochastic repr) => repr (Measure Prob)
+t10 = beta 1 1
