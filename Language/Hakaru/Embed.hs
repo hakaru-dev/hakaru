@@ -243,7 +243,7 @@ deriveCtrInfo (NormalC n _) =
   [| ConstructorInfo $(stringE $ realName n) Nothing |]
 deriveCtrInfo (RecC n nms) = [| ConstructorInfo 
   $(stringE $ realName n) 
-  (Just $(foldr (\(x,_,_) xs -> [| $(stringE $ realName x) :* $xs |]) [|Nil|] nms)) 
+  (Just $(foldr (\(x,_,_) xs -> [| FieldInfo $(stringE $ realName x) :* $xs |]) [|Nil|] nms)) 
   |]
 deriveCtrInfo (InfixC  _ n _) = 
   [| ConstructorInfo $(stringE $ realName n) Nothing |]
@@ -258,15 +258,13 @@ deriveCtrs d@(DataDecl _cx _n _tv cs _der) =
 -- For the given constructor of the form `C a0 a1 .. an :: T b0 b1 .. bn`, produce a function like 
 --   mkC :: Embed r => r a0 -> r a1 -> r a2 -> .. -> .. r an -> r (HTypeRep (T b0 b1 .. bn))
 --   mkC a0 a1 .. an = sop (S $ S .. S $ Z (a0 :* a1 :* .. :* an :* Nil))
--- Generating the type signature is necessary because the function itself would be polymorphic
--- in any datatype with the same Code, which is precisely what the don't want.
--- Another possibility is to use sopTagged.
+-- TODO: generate type signatures
 deriveCtr :: Type -> Int -> Con -> [Type] -> Q [Dec] 
 deriveCtr ty conIndex con tyArgs = do 
   vars <- replicateM (length tyArgs) (newName "a")
   funB <- [| sop $(ns conIndex (np $ map varE vars)) |]
 
-  return [ FunD (mkName $ mkHakaruNameFn $ show $ conName con) 
+  return [ FunD (mkName $ mkHakaruNameFn $ realName $ conName con) 
                 [ Clause (map VarP vars) (NormalB funB) [] ]
          ]
 
@@ -278,19 +276,19 @@ np = foldr (\x xs -> [| $x :* $xs |]) [| Nil |]
 ns :: Int -> ExpQ -> ExpQ 
 ns i e = iterate (\x -> [| S $x |]) [| Z $e |] !! i 
 
+-- Name of a constructor 
 conName :: Con -> Name
 conName (NormalC n _)   = n
 conName (RecC    n _)   = n
 conName (InfixC  _ n _) = n
 conName (ForallC _ _ c) = conName c
 
-
 -- Deriving accessor functions for datatypes which are records and have a single
 -- constructor. For a datatype `data D t0 t1 .. tn = C { r0 :: x0, r1 :: x1, .. , rn :: xn }`
 -- produce the functions 
 --   rkH :: Embed r => r (HTypeRep (D t0 t1 .. tn)) -> r xk
 --   rkH x = case_ x (NFn (\x0 x1 .. xn -> xk) :* Nil)
--- for k in [0..n]
+-- for k in [0..n]. TODO: generate type signatures
 deriveAccessors (DataDecl _cx _n _tv [ RecC cn rcs ] _der) = 
   concat <$> mapM (deriveAccessorK cn (map (\(n,_,_) -> n) rcs)) [0 .. length rcs - 1] 
 
@@ -303,7 +301,14 @@ deriveAccessorK ctr recs k = do
   vars   <- replicateM (length recs) (newName "a")
   let getK = LamE (map VarP vars) (VarE (vars !! k))
 
-  funB   <- [| case_ $(varE valueN) (NFn $(return getK) :* Nil) |]
+  let funB = VarE (mkName "case_") `AppE` 
+              VarE valueN `AppE` 
+              ((ConE (mkName ":*")) `AppE` 
+               (ConE (mkName "NFn") `AppE` getK) `AppE` 
+               (ConE (mkName "Nil")))
+             
+  -- funB   <- [| case_ $(varE valueN) (NFn $(return getK) :* Nil) |]
+  -- Also doesn't work on 7.6 
 
   return [ FunD (mkName $ mkHakaruNameRec $ realName $ recs !! k) 
                 [ Clause [VarP valueN] (NormalB funB) [] ] 
