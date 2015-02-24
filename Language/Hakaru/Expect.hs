@@ -179,6 +179,7 @@ instance (Mochastic repr, Integrate repr, Lambda repr)
 instance (Lambda repr) => Lambda (Expect repr) where
   lam f = Expect (lam (unExpect . f . Expect))
   app (Expect rator) (Expect rand) = Expect (app rator rand)
+  let_ (Expect rhs) f = Expect (let_ rhs (unExpect . f . Expect))
 
 total :: (Lambda repr, Base repr) => Expect repr (Measure a) -> repr Prob
 total (Expect m) = unpair m (\_ m2 -> m2 `app` lam (\_ -> 1))
