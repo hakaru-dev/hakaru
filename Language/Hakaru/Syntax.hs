@@ -35,7 +35,7 @@ data Vector a  deriving Typeable -- TODO: rename to something like Array
 data EqType t t' where
   Refl :: EqType t t
 
-class Order_ a where
+class (Typeable a) => Order_ a where
   less_, equal_  :: (Base repr              ) => repr a -> repr a -> repr Bool
   default less_  :: (Base repr, Order repr a) => repr a -> repr a -> repr Bool
   default equal_ :: (Base repr, Order repr a) => repr a -> repr a -> repr Bool
