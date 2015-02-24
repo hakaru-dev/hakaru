@@ -23,11 +23,11 @@ testRelationships = test [
                            (normal 0 1 `bind` \x1 ->
                            normal 0 1 `bind` \x2 ->
                            dirac (a + (fromProb alpha) * (x1 / x2))))))),
-    "t10"   ~: testSS [t10] (uniform 0 1 `bind` \x -> dirac (unsafeProb x)),
-    "t11"   ~: testSS [t11] (lam (\a1 -> (lam (\a2 ->
-                             gamma 1 (unsafeProb a1) `bind` \x1 ->
-                             gamma 1 a2 `bind` \x2 ->
-                             dirac ((fromProb (x1-x2)))))))
+    "t10"  ~: testSS [t10] (uniform 0 1 `bind` \x -> dirac (unsafeProb x)),
+    "t11"  ~: testSS [t11] (lam (\a1 -> (lam (\a2 ->
+                            gamma 1 (unsafeProb a1) `bind` \x1 ->
+                            gamma 1 a2 `bind` \x2 ->
+                            dirac ((fromProb (x1-x2)))))))
     ]
 
 allTests :: Test
@@ -49,9 +49,9 @@ t3' = (lam (\_ -> (lam (\bet -> chi2 (2*bet)))))
 
 t4 :: (Lambda repr, Mochastic repr) => repr (Prob -> Prob -> Prob -> Measure Prob)
 t4 = lam (\a -> lam (\b -> lam (\t -> 
-  gamma a t `bind` \x1 -> 
-  gamma b t `bind` \x2 -> 
-  dirac (x1/(x1+x2)))))
+    gamma a t `bind` \x1 ->
+    gamma b t `bind` \x2 ->
+    dirac (x1/(x1+x2)))))
 
 t5 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure Prob)
 t5 = lam (\alpha -> uniform 0 1 `bind` \x -> dirac (-alpha * unsafeProb(log_ (unsafeProb x))))
