@@ -11,6 +11,7 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        sumVec, normalizeVector, dirichlet,
        lengthV, mapWithIndex, mapV, zipWithV, zipV, incV, rangeV,
        fromList_, concatV,
+       reflect',
        Mochastic(..), bind_, factor, weight, bindx, liftM, liftM2,
        categorical',mix',
        invgamma, exponential, chi2, bern,
@@ -332,6 +333,10 @@ liftM f m = m `bind` dirac . f
 liftM2 :: (Mochastic repr) => (repr a -> repr b -> repr c) ->
           repr (Measure a) -> repr (Measure b) -> repr (Measure c)
 liftM2 f m n = m `bind` \x -> n `bind` \y -> dirac (f x y)
+
+reflect' :: (Lambda repr, Mochastic repr) =>
+            repr (Vector (Vector Prob)) -> repr (Int -> Measure Int)
+reflect' m = lam (\ x -> categorical (index m x))
 
 invgamma :: (Mochastic repr) => repr Prob -> repr Prob -> repr (Measure Prob)
 invgamma k t = liftM recip (gamma k (recip t))
