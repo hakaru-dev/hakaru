@@ -44,8 +44,23 @@ xor a b = or_ [and_ [a, not_ b], and_ [not_ a, b]]
 eq_ :: Base repr => repr Bool -> repr Bool -> repr Bool
 eq_ a b = if_ a b (not_ b)
 
---runExpect :: (Lambda repr) => Expect repr (Measure Prob) -> repr Prob
-runExpect (Expect m) = m `app` lam id
+runExpect :: (Lambda repr, Base repr) =>
+              Expect repr (Measure Prob) -> repr Prob
+runExpect (Expect m) = unpair m (\ m1 m2 -> m2 `app` lam id)
+
+reflect' :: (Lambda repr, Mochastic repr) =>
+            repr (Vector (Vector Prob)) -> repr (Int -> Measure Int)
+reflect' m = lam (\ x -> categorical (index m x))
+
+reify' :: (Lambda repr, Mochastic repr, Integrate repr) => repr Int -> repr Int ->
+          Expect repr (Int -> Measure Int) -> repr (Vector (Vector Prob))
+reify' lo hi (Expect m) =
+    vector lo hi (\ s  ->
+    vector lo hi (\ s' ->
+    unpair (app m s)
+      (\ m1 m2 ->
+        (app m2 $ lam
+             (\x -> if_ (equal_ x s') 1 0)))))
 
 condition d = head (runDisintegrate (\ _ -> d)) unit
 
