@@ -35,7 +35,8 @@ testMeasureUnit = test [
     "t60"     ~: testSS [t60,t60'] t60'',
     "t62"     ~: testSS [t62] t62',
     "t63"     ~: testSS [t63] t63',
-    "t64"     ~: testSS [t64,t64'] t64''
+    "t64"     ~: testSS [t64,t64'] t64'',
+    "t65"     ~: testSS [t65] t65'
     ]
 
 testMeasureProb :: Test
@@ -531,8 +532,8 @@ t62 = lam $ \t ->
       lam $ \x ->
       uniform 0 1 `bind` \y ->
       if_ (and_ [0 `less` (t/x-y), (t/x-y) `less` 1])
-	  (dirac unit)
-	  (superpose [])
+          (dirac unit)
+          (superpose [])
 t62'= lam $ \t ->
       lam $ \x ->
       if_ (lesseq (t/x) 0) (superpose []) $
@@ -594,6 +595,24 @@ t64''=lam $ \x0 ->
       if_ (and_ [0 `less` x0, x0 `less` 1])
           (dirac unit)
           (superpose [])
+
+-- Density calculation for (Add StdRandom (Exp (Neg StdRandom))).
+-- Maple can integrate this but we don't simplify it for some reason.
+t65, t65' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
+t65 = lam $ \t -> uniform 0 1 `bind` \x ->
+      if_ (0 `less` t-x)
+          (let_ (unsafeProb (t-x)) $ \t_x ->
+           weight (recip t_x)
+                  (if_ (and_ [0 `less` -log_ t_x, -log_ t_x `less` 1])
+                       (dirac unit)
+                       (superpose [])))
+          (superpose [])
+t65' = lam $ \t ->
+       if_ (t `less` exp (-1)) (superpose [])
+     $ if_ (t `less` 1) (factor (unsafeProb (log t + 1)))
+     $ if_ (t `less` 1 + exp (-1)) (dirac unit)
+     $ if_ (t `less` 2) (factor (unsafeProb (log (t + (-1)) * (-1))))
+     $ superpose []
 
 -- Testing round-tripping of some other distributions
 testexponential :: Mochastic repr => repr (Measure Prob)
