@@ -52,7 +52,7 @@ reflect' :: (Lambda repr, Mochastic repr) =>
             repr (Vector (Vector Prob)) -> repr (Int -> Measure Int)
 reflect' m = lam (\ x -> categorical (index m x))
 
-reify' :: (Lambda repr, Mochastic repr, Integrate repr) => repr Int -> repr Int ->
+reify' :: (Lambda repr, Mochastic repr) => repr Int -> repr Int ->
           Expect repr (Int -> Measure Int) -> repr (Vector (Vector Prob))
 reify' lo hi (Expect m) =
     vector lo hi (\ s  ->
