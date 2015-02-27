@@ -133,8 +133,8 @@ instance (PrimMonad m) => Mochastic (Sample m) where
     if not (y > (0::Double)) then return Nothing else do
       u <- MWC.uniformR (0, y) g
       case [ m1 | (v,(_,m1)) <- zip (scanl1 (+) ys) pms, u <= v ]
-        of Sample m2 : _ -> (m2 $! p * x) g
-           []            -> (m $! p * x) g)
+        of Sample m2 : _ -> (m2 $! p * x * LF.logFloat y) g
+           []            -> (m $! p * x * LF.logFloat y) g)
   uniform (Sample lo) (Sample hi) = Sample (\p g -> do
     x <- MWC.uniformR (lo, hi) g
     return (Just (x, p)))
