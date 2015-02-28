@@ -87,23 +87,22 @@ dimH v = H.index v 1
 dimA v = H.index v 2
 dimB v = H.index v 3
 
-embeddable' [d| data LaserReads = LaserReads { lZRad :: Vector ZRad, lZInt :: Vector ZInt } |]
+embeddable [d| data LaserReads = LaserReads { lZRad :: Vector ZRad, lZInt :: Vector ZInt } |]
 
-embeddable' [d| data Coords = Coord { vPhi :: Angle, vehLon :: GPS, vehLat :: GPS } |] 
+embeddable [d| data Coords = Coord { vPhi :: Angle, vehLon :: GPS, vehLat :: GPS } |] 
   -- ^ phi (world angle), vehLon, vehLat
 
-embeddable' [d| data Steering = Steering { vel :: Vel, alpha :: Angle } |]
+embeddable [d| data Steering = Steering { vel :: Vel, alpha :: Angle } |]
   -- ^ vel, alpha
 
--- Note that this is HLaserReads instead of LaserReads (likewise for HCoords) 
-embeddable' [d| data State = State { laserReads :: HLaserReads, coords :: HCoords } |] 
+embeddable [d| data State = State { s_laserReads :: LaserReads, s_coords :: Coords } |] 
 
 type Simulator repr = repr Dims
                     -> repr (Vector GPS) -- ^ beacon lons
                     -> repr (Vector GPS) -- ^ beacon lats
-                    -> repr HCoords -> repr HSteering
+                    -> repr Coords -> repr Steering
                     -> repr DelTime      -- ^ timestamp
-                    -> repr (Measure HState)
+                    -> repr (Measure State)
 
 --------------------------------------------------------------------------------
 --                                MODEL                                       --
@@ -113,7 +112,7 @@ simulate :: (Embed repr, Mochastic repr) => Simulator repr
 simulate ds blons blats cds steerE delT =
 
     let_' (wheelToAxle steerE ds) $ \vc ->
-    let_' (mkHSteering vc (alphaH steerE)) $ \steerC ->
+    let_' (steering vc (alpha steerE)) $ \steerC ->
         
     unpair (newPos ds cds steerC delT) $ \calc_lon calc_lat ->
     let_' (newPhi ds cds steerC delT) $ \calc_phi ->
@@ -143,35 +142,35 @@ simulate ds blons blats cds steerE delT =
     makeLasers (mapV fromProb calc_zints) zbetas muZInts cBeacon `bind` \lasersI ->
     
     -- dirac $ pair (pair lasersR lasersI) (pair phi (pair lon lat))
-    dirac $ mkHState (mkHLaserReads lasersR lasersI) (mkHCoord phi lon lat)
+    dirac $ state (laserReads lasersR lasersI) (coord phi lon lat)
 
 -- | Translate velocity from back left wheel (where the velocity
 -- encoder is present) to the center of the rear axle
 -- Equation 6 from [1]
-wheelToAxle :: (Embed repr) => repr HSteering -> repr Dims -> repr Vel
-wheelToAxle s ds = (velH s) / (1 - (tan (alphaH s))*(dimH ds)/(dimL ds))
+wheelToAxle :: (Embed repr) => repr Steering -> repr Dims -> repr Vel
+wheelToAxle s ds = (vel s) / (1 - (tan (alpha s))*(dimH ds)/(dimL ds))
 
 -- | Equation 7 (corrected) from [1]
-newPos :: (Embed repr) => repr Dims -> repr HCoords
-       -> repr HSteering -> repr DelTime 
+newPos :: (Embed repr) => repr Dims -> repr Coords
+       -> repr Steering -> repr DelTime 
        -> repr (GPS,GPS)
 newPos ds cds s delT = pair lonPos latPos
 
-    where lonPos = (vehLonH cds) + delT*lonVel
-          latPos = (vehLatH cds) + delT*latVel
+    where lonPos = (vehLon cds) + delT*lonVel
+          latPos = (vehLat cds) + delT*latVel
                    
-          lonVel = (velH s)*(cos phi) - axleToLaser lonMag
-          latVel = (velH s)*(sin phi) + axleToLaser latMag
+          lonVel = (vel s)*(cos phi) - axleToLaser lonMag
+          latVel = (vel s)*(sin phi) + axleToLaser latMag
 
-          phi = vPhiH cds
-          axleToLaser mag = (velH s) * mag * (tan (alphaH s)) / (dimL ds)
+          phi = vPhi cds
+          axleToLaser mag = (vel s) * mag * (tan (alpha s)) / (dimL ds)
           lonMag = (dimA ds)*(sin phi) + (dimB ds)*(cos phi)
           latMag = (dimA ds)*(cos phi) - (dimB ds)*(sin phi)
 
 -- | Equation 7 (corrected) from [1]                   
-newPhi :: (Embed repr) => repr Dims -> repr HCoords
-       -> repr HSteering -> repr DelTime -> repr Angle
-newPhi ds cds s delT = (vPhiH cds) + delT*(velH s)*(tan (alphaH s)) / (dimL ds)
+newPhi :: (Embed repr) => repr Dims -> repr Coords
+       -> repr Steering -> repr DelTime -> repr Angle
+newPhi ds cds s delT = (vPhi cds) + delT*(vel s)*(tan (alpha s)) / (dimL ds)
     
 cVehicle :: (Base repr) => repr Prob
 cVehicle = 0.42
