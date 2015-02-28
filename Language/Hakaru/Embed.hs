@@ -174,14 +174,14 @@ apNAry (S _) Nil = error "type error"
 
 -- Template Haskell
 
-data DataDecl = DataDecl Cxt Name [TyVarBndr] [Con] [Name]
+data DataDecl = DataDecl Name [TyVarBndr] [Con]
 
 
 tyReal' :: (String -> String) -> DataDecl -> Type 
-tyReal' f (DataDecl _ n tv _ _ ) = foldl AppT (ConT . mkName . f . realName $ n) $ map (VarT . bndrName) tv
+tyReal' f (DataDecl n tv _ ) = foldl AppT (ConT . mkName . f . realName $ n) $ map (VarT . bndrName) tv
 
 tyReal :: DataDecl -> Type 
-tyReal (DataDecl _ n tv _ _ ) = foldl AppT (ConT n) $ map (VarT . bndrName) tv
+tyReal = tyReal' id 
 
 reifyDataDecl :: Name -> Q (Maybe DataDecl) 
 reifyDataDecl ty = do  
@@ -191,17 +191,14 @@ reifyDataDecl ty = do
     _ -> Nothing 
 
 maybeDataDecl :: Dec -> Maybe DataDecl 
-maybeDataDecl (DataD    cx n tv cs der) = Just $ DataDecl cx n tv cs  der
-maybeDataDecl (NewtypeD cx n tv c  der) = Just $ DataDecl cx n tv [c] der
+maybeDataDecl (DataD    _ n tv cs _) = Just $ DataDecl n tv cs  
+maybeDataDecl (NewtypeD _ n tv c  _) = Just $ DataDecl n tv [c] 
 maybeDataDecl _ = Nothing
 
 -- Give a datatype `D x0 x1 .. xn = ...`, produce a datatype
 --   data D_Haskell x0 x1 .. xn 
 toEmptyDec :: DataDecl -> Dec
-toEmptyDec (DataDecl cx n tv cs der) = DataD [] (mkName $ realName n ++ "_Haskell") tv [] []
-
--- withName :: (String -> String) -> DataDecl -> DataDecl  
--- withName f (DataDecl cx n tv cs der) = DataDecl cx (mkName . f . realName $ n) tv cs der
+toEmptyDec (DataDecl n tv cs) = DataD [] (mkName $ realName n ++ "_Haskell") tv [] []
 
 -- When datatypes are put in a [d|..|] quasiquote, the resulting names have
 -- numbers appended with them. Get rid of those numbers for use with
@@ -211,18 +208,18 @@ realName (Name (OccName n) (NameU {})) = n
 realName x = show x
 
 realNameDecl :: DataDecl -> DataDecl 
-realNameDecl (DataDecl cx n tv cs der) = DataDecl cx (mkName $ realName n) tv cs der
+realNameDecl (DataDecl n tv cs) = DataDecl (mkName $ realName n) tv cs 
 
 -- Produce Embeddable code given given a splice corresponding to a datatype.
--- embeddable' cfg [d| data Bool = True | False |]
-embeddable' :: Config -> Q [Dec] -> Q [Dec]
-embeddable' cfg decsQ = do 
+-- embeddableWith cfg [d| data Bool = True | False |]
+embeddableWith :: Config -> Q [Dec] -> Q [Dec]
+embeddableWith cfg decsQ = do 
   decsQ >>= \decs -> 
     case decs of 
       [dec] | Just d <- maybeDataDecl dec -> fmap (toEmptyDec d :) (deriveEmbeddableG cfg d)
       _ -> error "embeddable': supplied declarations not a single plain datatype declaration."
 
-embeddable = embeddable' defaultConfig
+embeddable = embeddableWith defaultConfig
 
 deriveEmbeddableG :: Config -> DataDecl -> Q [Dec] 
 deriveEmbeddableG cfg d' = do 
@@ -237,9 +234,8 @@ deriveEmbeddableG cfg d' = do
     ) : htype ++ ctrs ++ accsrs
 
 deriveDatatypeInfo :: DataDecl -> Q [Dec]
-deriveDatatypeInfo (DataDecl _cx n _tv cs _der) = do 
-  let diExp = foldr (\x xs -> [| $x :* $xs |]) [|Nil|] (map deriveCtrInfo cs)
-  diExp' <- [| DatatypeInfo  $(stringE $ realName n) $diExp |]
+deriveDatatypeInfo (DataDecl n _tv cs) = do 
+  diExp' <- [| DatatypeInfo  $(stringE $ realName n) $(np (map deriveCtrInfo cs)) |]
   return [FunD (mkName "datatypeInfo") [Clause [WildP] (NormalB diExp') []]]
 
   -- [d| datatypeInfo _ = DatatypeInfo  $(stringE $ realName n) $diExp |]
@@ -259,21 +255,23 @@ deriveCtrInfo (ForallC {}) = error "Deriving Embeddable not supported for types 
 
 deriveCtrs, deriveAccessors, deriveHakaruType :: Config -> DataDecl -> Q [Dec]
 
--- Deriving "constructor functions". 
-deriveCtrs cfg d@(DataDecl _cx _n _tv cs _der) = 
-  fmap concat $ sequence (zipWith3 (deriveCtr cfg (tyReal d)) [0..] cs (codeCons d))
-
--- For the given constructor of the form `C a0 a1 .. an :: T b0 b1 .. bn`, produce a function like 
---   mkC :: Embed r => r a0 -> r a1 -> r a2 -> .. -> .. r an -> r (HTypeRep (T b0 b1 .. bn))
+-- For the given datatype, for each constructor of the form `C a0 a1 .. an :: T b0 b1 .. bn`, 
+-- produce a function like 
+--   mkC :: Embed r => r a0 -> r a1 -> r a2 -> .. -> r an -> r (HTypeRep (T b0 b1 .. bn))
 --   mkC a0 a1 .. an = sop (S $ S .. S $ Z (a0 :* a1 :* .. :* an :* Nil))
 -- TODO: generate type signatures
-deriveCtr :: Config -> Type -> Int -> Con -> [Type] -> Q [Dec] 
-deriveCtr cfg ty conIndex con tyArgs = do 
-  vars <- replicateM (length tyArgs) (newName "a")
-  funB <- [| sop $(ns conIndex (np $ map varE vars)) |]
-  return [ FunD (mkName $ validateFnName $ mkHakaruFn cfg $ realName $ conName con) 
-                [ Clause (map VarP vars) (NormalB funB) [] ]
-         ]
+deriveCtrs cfg d@(DataDecl _n _tv cs) = 
+  fmap concat $ sequence (zipWith3 deriveCtr [0..] cs (codeCons d))
+   where 
+     ty = tyReal' id d 
+
+     deriveCtr :: Int -> Con -> [Type] -> Q [Dec] 
+     deriveCtr conIndex con tyArgs = do 
+       vars <- replicateM (length tyArgs) (newName "a")
+       funB <- [| sop $(ns conIndex (np $ map varE vars)) |]
+       return [ FunD (mkName $ validateFnName $ mkHakaruFn cfg $ realName $ conName con) 
+                     [ Clause (map VarP vars) (NormalB funB) [] ]
+              ]
 
 -- NAry product of a list of expressions
 np :: [ExpQ] -> ExpQ
@@ -296,36 +294,48 @@ conName (ForallC _ _ c) = conName c
 --   rkH :: Embed r => r (HTypeRep (D t0 t1 .. tn)) -> r xk
 --   rkH x = case_ x (NFn (\x0 x1 .. xn -> xk) :* Nil)
 -- for k in [0..n]. TODO: generate type signatures
-deriveAccessors cfg (DataDecl _cx _n _tv [ RecC cn rcs ] _der) = 
-  concat <$> mapM (deriveAccessorK cfg cn (map (\(n,_,_) -> n) rcs)) [0 .. length rcs - 1] 
+deriveAccessors cfg (DataDecl _n _tv [ RecC cn rcs ]) = 
+  concat <$> mapM deriveAccessorK [0 .. q - 1] 
+    where 
+      ctr = cn 
+      recs = map (\(n,_,_) -> n) rcs
+      q = length recs
+
+      deriveAccessorK :: Int -> Q [Dec]
+      deriveAccessorK k = do 
+        valueN <- newName "x"
+      
+        vars   <- replicateM q (newName "a")
+        let getK = LamE (map VarP vars) (VarE (vars !! k))
+      
+        -- let funB = VarE (mkName "case_") `AppE` 
+        --             VarE valueN `AppE` 
+        --             ((ConE (mkName ":*")) `AppE` 
+        --              (ConE (mkName "NFn") `AppE` getK) `AppE` 
+        --              (ConE (mkName "Nil")))
+                   
+        -- funB   <- [| case_ $(varE valueN) (NFn $(return getK) :* Nil) |]
+        -- Also doesn't work on 7.6 
+
+        let funB' = ConE 'NFn `AppE` getK 
+
+        funB   <- [| case_ $(varE valueN) ($(return funB') :* Nil) |]
+      
+        return [ FunD (mkName $ validateFnName $ mkHakaruRec cfg $ realName $ recs !! k) 
+                      [ Clause [VarP valueN] (NormalB funB) [] ] 
+               ]
 
 deriveAccessors _ _ = return [] 
 
-deriveAccessorK :: Config -> Name -> [Name] -> Int -> Q [Dec]
-deriveAccessorK cfg ctr recs k = do 
-  valueN <- newName "x"
 
-  vars   <- replicateM (length recs) (newName "a")
-  let getK = LamE (map VarP vars) (VarE (vars !! k))
-
-  let funB = VarE (mkName "case_") `AppE` 
-              VarE valueN `AppE` 
-              ((ConE (mkName ":*")) `AppE` 
-               (ConE (mkName "NFn") `AppE` getK) `AppE` 
-               (ConE (mkName "Nil")))
-             
-  -- funB   <- [| case_ $(varE valueN) (NFn $(return getK) :* Nil) |]
-  -- Also doesn't work on 7.6 
-
-  return [ FunD (mkName $ validateFnName $ mkHakaruRec cfg $ realName $ recs !! k) 
-                [ Clause [VarP valueN] (NormalB funB) [] ] 
-         ]
-  
 type HTypeRep t = Tag t (Code t) 
 
 -- Derive the Hakaru type synoym for the coressponding type. 
-deriveHakaruType cfg d@(DataDecl _cx n tv _cs _der) = return . (:[]) $ 
-  TySynD (mkName $ mkHakaruTy cfg $ realName n) tv (ConT (mkName "HTypeRep") `AppT` tyReal' (++ "_Haskell") d)
+deriveHakaruType cfg d@(DataDecl n tv _cs) = return  
+  [ TySynD (mkName $ mkHakaruTy cfg $ realName n) 
+           tv 
+           (ConT (mkName "HTypeRep") `AppT` tyReal' (++ "_Haskell") d)
+  ]
 
 data Config = Config { mkHakaruTy, mkHakaruFn, mkHakaruRec :: String -> String } 
 
@@ -344,7 +354,7 @@ deriveCode d =
   tySynInstanceD (mkName "Code") [tyReal' (++ "_Haskell") d] . typeListLit . map typeListLit . codeCons $ d
 
 codeCons :: DataDecl -> [[Type]]
-codeCons (DataDecl _cx _n _tv cs _der) = map codeCon cs
+codeCons (DataDecl _n _tv cs) = map codeCon cs
  
 -- We never care about a kind 
 bndrName :: TyVarBndr -> Name
@@ -361,6 +371,9 @@ codeCon (ForallC {}) = error "Deriving Embeddable not supported for types with f
 -- Produces a type list literal from the given types.
 typeListLit :: [Type] -> Type 
 typeListLit = foldr (\x xs -> (PromotedConsT `AppT` x) `AppT` xs) PromotedNilT
+
+typeListLit' :: [TypeQ] -> TypeQ
+typeListLit' = foldr (\x xs -> [t| $x ': $xs |]) [t| '[] |] 
 
 tySynInstanceD :: Name -> [Type] -> Type -> Dec 
 tySynInstanceD fam ts r = 
