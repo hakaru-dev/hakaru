@@ -44,9 +44,9 @@ import Language.Hakaru.Any (Any(unAny))
 --           (t' : ts)
 
 
-embeddable' [d| data BoolProb = BoolProb Bool Prob |] 
+embeddable [d| data BoolProb = BoolProb Bool Prob |] 
 
-embeddable' [d| data Real5 = Real5 { r1, r2, r3, r4, r5 :: Real} |]
+embeddable [d| data Real5 = Real5 { r1, r2, r3, r4, r5 :: Real} |]
 
 --  deriving (GHC.Generic, Typeable)
 -- $(deriveEmbed ''BoolProb)

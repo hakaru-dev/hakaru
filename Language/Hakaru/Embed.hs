@@ -198,7 +198,7 @@ maybeDataDecl _ = Nothing
 -- Give a datatype `D x0 x1 .. xn = ...`, produce a datatype
 --   data D_Haskell x0 x1 .. xn 
 toEmptyDec :: DataDecl -> Dec
-toEmptyDec (DataDecl n tv cs) = DataD [] (mkName $ realName n ++ "_Haskell") tv [] []
+toEmptyDec (DataDecl n tv _) = DataD [] (mkName $ realName n ++ "_Haskell") tv [] []
 
 -- When datatypes are put in a [d|..|] quasiquote, the resulting names have
 -- numbers appended with them. Get rid of those numbers for use with
@@ -229,7 +229,7 @@ deriveEmbeddableG cfg d' = do
   accsrs <- deriveAccessors cfg d
   htype  <- deriveHakaruType cfg d
   return $ 
-    (InstanceD [] (ConT (mkName "Embeddable") `AppT` tyReal' (++"_Haskell") d)
+    (InstanceD [] (ConT (''Embeddable) `AppT` tyReal' (++"_Haskell") d)
                           (deriveCode d : diInfo)
     ) : htype ++ ctrs ++ accsrs
 
@@ -259,19 +259,33 @@ deriveCtrs, deriveAccessors, deriveHakaruType :: Config -> DataDecl -> Q [Dec]
 -- produce a function like 
 --   mkC :: Embed r => r a0 -> r a1 -> r a2 -> .. -> r an -> r (HTypeRep (T b0 b1 .. bn))
 --   mkC a0 a1 .. an = sop (S $ S .. S $ Z (a0 :* a1 :* .. :* an :* Nil))
--- TODO: generate type signatures
 deriveCtrs cfg d@(DataDecl _n _tv cs) = 
   fmap concat $ sequence (zipWith3 deriveCtr [0..] cs (codeCons d))
    where 
      ty = tyReal' id d 
+     hTy = hakaruType d 
 
      deriveCtr :: Int -> Con -> [Type] -> Q [Dec] 
      deriveCtr conIndex con tyArgs = do 
        vars <- replicateM (length tyArgs) (newName "a")
        funB <- [| sop $(ns conIndex (np $ map varE vars)) |]
-       return [ FunD (mkName $ validateFnName $ mkHakaruFn cfg $ realName $ conName con) 
-                     [ Clause (map VarP vars) (NormalB funB) [] ]
+
+       reprTV <- newName "repr" 
+       let funSig = ForallT (PlainTV reprTV : _tv) 
+                            [ClassP ''Embed [reprVar]] 
+                            (curryType $ map (AppT reprVar) $ tyArgs ++ [hTy])
+
+           reprVar = VarT reprTV
+
+           funName = mkName $ validateFnName $ mkHakaruFn cfg $ realName $ conName con
+
+       return [ FunD funName [ Clause (map VarP vars) (NormalB funB) [] ]
+              , SigD funName funSig 
               ]
+
+-- Given a list [x0, x1 .. xn], produce the type x0 -> x1 -> .. -> xn 
+curryType :: [Type] -> Type
+curryType = foldr1 (\x xs -> ArrowT `AppT` x `AppT` xs) 
 
 -- NAry product of a list of expressions
 np :: [ExpQ] -> ExpQ
@@ -294,35 +308,35 @@ conName (ForallC _ _ c) = conName c
 --   rkH :: Embed r => r (HTypeRep (D t0 t1 .. tn)) -> r xk
 --   rkH x = case_ x (NFn (\x0 x1 .. xn -> xk) :* Nil)
 -- for k in [0..n]. TODO: generate type signatures
-deriveAccessors cfg (DataDecl _n _tv [ RecC cn rcs ]) = 
+deriveAccessors cfg d@(DataDecl _n _tv [ RecC cn rcs ]) = 
   concat <$> mapM deriveAccessorK [0 .. q - 1] 
     where 
       ctr = cn 
       recs = map (\(n,_,_) -> n) rcs
       q = length recs
+      hTy = hakaruType d 
+      conTys = codeCon (RecC cn rcs) 
 
       deriveAccessorK :: Int -> Q [Dec]
       deriveAccessorK k = do 
         valueN <- newName "x"
-      
         vars   <- replicateM q (newName "a")
+        reprTV <- newName "repr" 
+
         let getK = LamE (map VarP vars) (VarE (vars !! k))
-      
-        -- let funB = VarE (mkName "case_") `AppE` 
-        --             VarE valueN `AppE` 
-        --             ((ConE (mkName ":*")) `AppE` 
-        --              (ConE (mkName "NFn") `AppE` getK) `AppE` 
-        --              (ConE (mkName "Nil")))
-                   
-        -- funB   <- [| case_ $(varE valueN) (NFn $(return getK) :* Nil) |]
-        -- Also doesn't work on 7.6 
+            funName = mkName $ validateFnName $ mkHakaruRec cfg $ realName $ recs !! k
+            reprVar = VarT reprTV 
 
-        let funB' = ConE 'NFn `AppE` getK 
+            funSig = ForallT (PlainTV reprTV : _tv) 
+                             [ClassP ''Embed [reprVar]] 
+                             (curryType $ map (AppT reprVar) $ [hTy, conTys !! k])
 
-        funB   <- [| case_ $(varE valueN) ($(return funB') :* Nil) |]
+        funB   <- [| case_ $(varE valueN) 
+                     $(return $ ConE '(:*) `AppE` (ConE 'NFn `AppE` getK) `AppE` ConE 'Nil)
+                  |]
       
-        return [ FunD (mkName $ validateFnName $ mkHakaruRec cfg $ realName $ recs !! k) 
-                      [ Clause [VarP valueN] (NormalB funB) [] ] 
+        return [ FunD funName [ Clause [VarP valueN] (NormalB funB) [] ]
+               , SigD funName funSig 
                ]
 
 deriveAccessors _ _ = return [] 
@@ -330,12 +344,15 @@ deriveAccessors _ _ = return []
 
 type HTypeRep t = Tag t (Code t) 
 
--- Derive the Hakaru type synoym for the coressponding type. 
-deriveHakaruType cfg d@(DataDecl n tv _cs) = return  
+-- Derive the Hakaru type synoym for the coressponding type.
+deriveHakaruType cfg d@(DataDecl n tv _cs) = return 
   [ TySynD (mkName $ mkHakaruTy cfg $ realName n) 
            tv 
-           (ConT (mkName "HTypeRep") `AppT` tyReal' (++ "_Haskell") d)
-  ]
+           (hakaruType d)
+  ] 
+
+hakaruType :: DataDecl -> Type 
+hakaruType d = ConT (''HTypeRep) `AppT` tyReal' (++ "_Haskell") d
 
 data Config = Config { mkHakaruTy, mkHakaruFn, mkHakaruRec :: String -> String } 
 
@@ -351,7 +368,7 @@ validateFnName cs = '_' : cs
 -- Produces the Code type instance for the given type. 
 deriveCode :: DataDecl -> Dec 
 deriveCode d = 
-  tySynInstanceD (mkName "Code") [tyReal' (++ "_Haskell") d] . typeListLit . map typeListLit . codeCons $ d
+  tySynInstanceD (''Code) [tyReal' (++ "_Haskell") d] . typeListLit . map typeListLit . codeCons $ d
 
 codeCons :: DataDecl -> [[Type]]
 codeCons (DataDecl _n _tv cs) = map codeCon cs
