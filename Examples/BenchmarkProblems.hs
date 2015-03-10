@@ -133,9 +133,6 @@ qmr =
 
 -- Discrete-time HMM
 
-unzipV :: Base repr => repr (Vector (a,b)) -> (repr (Vector a), repr (Vector b))
-unzipV v = undefined
-
 symDirichlet :: (Lambda repr, Integrate repr, Mochastic repr) =>
                 repr Int -> repr Prob -> repr (Measure (Vector Prob))
 symDirichlet n a = (plate $ vector 0 n (\_ -> gamma a 1)) `bind` \xs ->

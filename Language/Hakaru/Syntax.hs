@@ -432,6 +432,9 @@ concatV v1 v2 = vector (loBound v1) (hiBound v1 + lengthV v2)
              (index v2 (i - hiBound v1 - 1 + loBound v2))
              (index v1 i))
 
+unzipV :: Base repr => repr (Vector (a,b)) -> repr (Vector a, Vector b)
+unzipV v = pair (mapV fst_ v) (mapV snd_ v)
+
 mapWithIndex :: (Base repr) => (repr Int -> repr a -> repr b)
              -> repr (Vector a) -> repr (Vector b)
 mapWithIndex f v = vector (loBound v) (hiBound v)
