@@ -48,9 +48,9 @@ runExpect :: (Lambda repr, Base repr) =>
               Expect repr (Measure Prob) -> repr Prob
 runExpect (Expect m) = unpair m (\ m1 m2 -> m2 `app` lam id)
 
-reflect' :: (Lambda repr, Mochastic repr) =>
-            repr (Vector (Vector Prob)) -> repr (Int -> Measure Int)
-reflect' m = lam (\ x -> categorical (index m x))
+reflect' :: (Lambda repr, Mochastic repr, Integrate repr) =>
+            repr (Vector (Vector Prob)) -> Expect repr (Int -> Measure Int)
+reflect' m = lam (\ x -> categorical (index (Expect m) x))
 
 reify' :: (Lambda repr, Mochastic repr) => repr Int -> repr Int ->
           Expect repr (Int -> Measure Int) -> repr (Vector (Vector Prob))
@@ -168,17 +168,17 @@ hmm = app (chain (vector 0 20
       dirac (fst_ x)
 
 step  :: (Lambda repr, Integrate repr, Mochastic repr) =>
-          Expect repr (Vector (Vector Prob)) ->
-          Expect repr (Int -> Measure Int) ->
-          repr (Vector (Vector Prob))
-step m1 m2 = reify' 0 4 (lam $ \x -> app (reflect' m1) x `bind` app m2)
+         Expect repr (Int -> Measure Int) ->
+         Expect repr (Int -> Measure Int) ->
+         Expect repr (Int -> Measure Int)
+step m1 m2 = reflect' (reify' 0 4 (lam $ \x -> app m1 x `bind` app m2))
 
--- forwardBackward :: Mochastic repr => repr (Int -> Measure Int) ->
---                    repr (Measure Int) -> repr (Int -> Measure Int)
--- forwardBackward = reduce step (reflect' dirac)
---                   (vector 0 20 (\_ -> lam $ \s ->
---                                        transition s `bind` \s' ->
---                                        emission s'))
+forwardBackward :: (Lambda repr, Integrate repr, Mochastic repr) =>
+                   Expect repr (Int -> Measure Int)
+forwardBackward = reduce step (lam dirac)
+                  (vector 0 20 (\_ -> lam $ \s ->
+                                transition s `bind` \s' ->
+                                emission s'))
 
 -- HDP-LDA
 
