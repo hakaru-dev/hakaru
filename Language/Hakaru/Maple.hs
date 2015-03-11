@@ -139,8 +139,7 @@ instance Base Maple where
   vector    = quant "MVECTOR"
   empty     = Maple (return "MVECTOR(undefined,n=0..-1)")
   index     = mapleFun2 "index"
-  loBound   = mapleFun1 "loBound"
-  hiBound   = mapleFun1 "hiBound"
+  size      = mapleFun1 "size"
   reduce r z v = Maple (ReaderT $ \i -> return $
     "Reduce((" ++ (let x = "x" ++ show i
                        y = "x" ++ show (i+1)
