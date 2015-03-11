@@ -41,7 +41,7 @@ type instance Sample' m (Measure a)  = LF.LogFloat -> MWC.Gen (PrimState m) ->
                                        m (Maybe (Sample' m a, LF.LogFloat))
 type instance Sample' m (a -> b)     = Sample' m a -> Sample' m b
 
-data Vec a = Vec {low :: Int, high :: Int, vec :: V.Vector a} deriving (Show)
+data Vec a = Vec {len :: Int, vec :: V.Vector a} deriving (Show)
 type instance Sample' m (Vector a)   = Vec (Sample' m a)
 
 instance Order (Sample m) Real where
@@ -98,12 +98,11 @@ instance Base (Sample m) where
   gammaFunc (Sample n)            = Sample (LF.logToLogFloat (logGamma n))
   betaFunc (Sample a) (Sample b)  = Sample (LF.logToLogFloat (logBeta
                                        (LF.fromLogFloat a) (LF.fromLogFloat b)))
-  vector (Sample lo) (Sample hi) f = let g i = unSample (f (Sample $ lo + i))
-                                     in Sample (Vec lo hi (V.generate (hi-lo+1) g))
-  empty                            = Sample $ Vec 0 (-1) V.empty
-  index  (Sample v)  (Sample i)    = Sample $ vec v V.! (i - low v)
-  loBound    (Sample v) = Sample (low v)
-  hiBound    (Sample v) = Sample (high v)
+  vector (Sample l) f             = let g i = unSample (f (Sample i))
+                                    in Sample (Vec l (V.generate l g))
+  empty                           = Sample $ Vec 0 V.empty
+  index  (Sample v)  (Sample i)   = Sample $ vec v V.! i
+  size   (Sample v) = Sample (len v)
   reduce f a (Sample v) = V.foldl' (\acc b -> f acc (Sample b)) a (vec v)
 
 instance (PrimMonad m) => Mochastic (Sample m) where
