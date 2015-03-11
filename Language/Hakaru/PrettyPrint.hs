@@ -124,8 +124,7 @@ instance Base PrettyPrint where
   vector l h f      = apply3 "vector" l h (fun1 f)
   empty             = string "empty"
   index             = apply2 "index"
-  loBound           = apply1 "loBound"
-  hiBound           = apply1 "hiBound"
+  size              = apply1 "size"
   reduce f          = apply3 "reduce" (fun2 f)
   fix f             = apply1 "fix" (fun1 f)
 
