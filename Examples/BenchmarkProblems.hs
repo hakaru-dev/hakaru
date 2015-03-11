@@ -52,6 +52,10 @@ reflect' :: (Lambda repr, Mochastic repr, Integrate repr) =>
             repr (Vector (Vector Prob)) -> Expect repr (Int -> Measure Int)
 reflect' m = lam (\ x -> categorical (index (Expect m) x))
 
+reflectV :: (Lambda repr, Integrate repr, Mochastic repr) =>
+             repr (Vector Prob) -> Expect repr (Measure Int)
+reflectV m = categorical (Expect m)
+
 reify' :: (Lambda repr, Mochastic repr) => repr Int -> repr Int ->
           Expect repr (Int -> Measure Int) -> repr (Vector (Vector Prob))
 reify' lo hi (Expect m) =
@@ -61,6 +65,15 @@ reify' lo hi (Expect m) =
       (\ m1 m2 ->
         (app m2 $ lam
              (\x -> if_ (equal_ x s') 1 0)))))
+
+reifyV :: (Lambda repr, Mochastic repr) => repr Int -> repr Int ->
+           Expect repr (Measure Int) -> repr (Vector Prob)
+reifyV lo hi (Expect m) =
+    vector lo hi (\ s' ->
+    unpair m
+      (\ m1 m2 ->
+        (app m2 $ lam
+             (\x -> if_ (equal_ x s') 1 0))))
 
 condition d = head (runDisintegrate (\ _ -> d)) unit
 
@@ -168,8 +181,9 @@ step  :: (Lambda repr, Integrate repr, Mochastic repr) =>
          Expect repr (Int -> Measure Int) ->
          Expect repr (Int -> Measure Int) ->
          Expect repr (Int -> Measure Int)
-step m1 m2 = reflect' (reify' 0 4 (lam $ \x -> app m1 x `bind` app m2))
+step m1 m2 = lam $ \x -> reflectV (reifyV 0 4 (app m1 x `bind` app m2))
 
+-- P (s_20 = x | s_0 = y)
 forwardBackward :: (Lambda repr, Integrate repr, Mochastic repr) =>
                    Expect repr (Int -> Measure Int)
 forwardBackward = reduce step (lam dirac)
