@@ -153,8 +153,8 @@ instance Integrate Maple where
 
 quant :: String -> Maple b -> Maple b ->
          (Maple a -> Maple c) -> Maple d
-quant q lo hi f = mapleFun2 ("(proc (r,c) local x; "++q++"(c(x),x=r) end proc)")
-                            (mapleOp2 ".." lo hi)
+quant q l f = mapleFun2 ("(proc (r,c) local x; "++q++"(c(x),x=r) end proc)")
+                            (mapleOp2 ".." 0 hi)
                             (lam f)
 
 instance Lambda Maple where

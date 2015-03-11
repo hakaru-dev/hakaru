@@ -121,7 +121,7 @@ instance Base PrettyPrint where
   negativeInfinity  = string "negativeInfinity"
   gammaFunc         = apply1 "gammaFunc"
   betaFunc          = apply2 "betaFunc"
-  vector l h f      = apply3 "vector" l h (fun1 f)
+  vector l f        = apply2 "vector" l (fun1 f)
   empty             = string "empty"
   index             = apply2 "index"
   size              = apply1 "size"
