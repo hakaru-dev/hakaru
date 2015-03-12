@@ -5,7 +5,7 @@ type Name = String
 
 -- Base/Integrate/Lambda/Order/Num/Floating/Fractional repr
 -- Does not include pi_, exp_, erf_, log_, sqrt_ or
---                  vector, index, loBound, hiBound
+--                  vector, index, size
 data UExpr =
     Unit |
     Var Name |

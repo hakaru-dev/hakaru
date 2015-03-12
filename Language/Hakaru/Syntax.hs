@@ -9,8 +9,8 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        Order(..), Base(..), ununit, fst_, snd_, swap_,
        and_, or_, not_, min_, max_, lesseq,
        sumVec, normalizeVector, dirichlet,
-       lengthV, mapWithIndex, mapV, zipWithV, zipV, incV, rangeV,
-       fromList_, concatV,
+       mapWithIndex, mapV, zipWithV, zipV, incV, rangeV,
+       fromList_, concatV, unzipV,
        Mochastic(..), bind_, factor, weight, bindx, liftM, liftM2,
        categorical',mix',
        invgamma, exponential, chi2, bern,
@@ -179,18 +179,16 @@ class (Order repr Int , Num        (repr Int ),
   betaFunc a b = integrate 0 1 $ \x -> pow_ (unsafeProb x    ) (fromProb a - 1)
                                      * pow_ (unsafeProb (1-x)) (fromProb b - 1)
 
-  vector           :: repr Int -> repr Int ->
-                      (repr Int -> repr a) -> repr (Vector a)
+  vector           :: repr Int -> (repr Int -> repr a) -> repr (Vector a)
   empty            :: repr (Vector a)
   index            :: repr (Vector a) -> repr Int -> repr a
-  loBound, hiBound :: repr (Vector a) -> repr Int
+  size             :: repr (Vector a) -> repr Int
   reduce           :: (repr a -> repr a -> repr a) ->
                       repr a -> repr (Vector a) -> repr a
   vector           =  error "vector unimplemented"
   empty            =  error "empty unimplemented"
   index            =  error "index unimplemented"
-  loBound          =  error "loBound unimplemented"
-  hiBound          =  error "hiBound unimplemented"
+  size             =  error "size unimplemented"
   reduce           =  error "reduce unimplemented"
   
   fix :: (repr a -> repr a) -> repr a
@@ -285,18 +283,18 @@ class (Base repr) => Mochastic repr where
   chain :: (Lambda repr) =>
            repr (Vector (s -> Measure        (a,s))) ->
            repr (        s -> Measure (Vector a, s))
-  plate v = reduce r z (mapWithIndex m v)
+  plate v = reduce r z (mapV m v)
     where r     = liftM2 concatV
           z     = dirac empty
-          m i a = liftM (vector i i . const) a
-  chain v = reduce r z (mapWithIndex m v)
+          m a = liftM (vector 1 . const) a
+  chain v = reduce r z (mapV m v)
     where r x y = lam (\s -> app x s `bind` \v1s1 ->
                              unpair v1s1 $ \v1 s1 ->
                              app y s1 `bind` \v2s2 ->
                              unpair v2s2 $ \v2 s2 ->
                              dirac (pair (concatV v1 v2) s2))
           z     = lam (\s -> dirac (pair empty s))
-          m i a = lam (\s -> liftM (`unpair` pair . vector i i . const)
+          m a = lam (\s -> liftM (`unpair` pair . vector 1 . const)
                                    (app a s))
 
 errorEmpty :: a
@@ -369,35 +367,32 @@ class (Base repr) => Integrate repr where
   summate   :: repr Real -> repr Real -> (repr Int  -> repr Prob) -> repr Prob
 
 sumVec :: Integrate repr => repr (Vector Prob) -> repr Prob
-sumVec x = summate (fromInt $ loBound x)
-                   (fromInt $ hiBound x)
-                   (\ i -> index x i)
+sumVec x = summate 0 (fromInt $ size x - 1)
+           (\ i -> index x i)
 
 binomial :: (Mochastic repr) =>
             repr Int -> repr Prob -> repr (Measure Int)
-binomial n p = (plate $ vector 1 n (\ _ -> bern p `bind` \x ->
-                                   dirac $ if_ x 1 0)) `bind` \trials ->
+binomial n p = (plate $ vector n (\ _ -> bern p `bind` \x ->
+                                  dirac $ if_ x 1 0)) `bind` \trials ->
                dirac (reduce (+) 0 trials)
 
 multinomial :: (Mochastic repr) => repr Int -> repr (Vector Prob) ->
                                     repr (Measure (Vector Prob))
 multinomial n v = reduce (liftM2 $ zipWithV (+))
                           (dirac $ constV v 0)
-                          (vector 0 (n-1) (\ _ ->
+                          (vector n (\ _ ->
                            categorical v `bind` \i ->
                            dirac (unitV v i)))
 
 unNormedDirichlet :: Mochastic repr =>
                      repr (Vector Prob) -> repr (Measure (Vector Prob))
-unNormedDirichlet a = plate $ vector (loBound a)
-                                     (hiBound a)
+unNormedDirichlet a = plate $ vector (size a)
                                      (\ i -> gamma (index a i) 1)
 
 normalizeVector :: (Integrate repr, Lambda repr) =>
                     repr (Vector Prob) -> repr (Vector Prob)
 normalizeVector x = let_ (sumVec x) (\ normalized ->
-                    vector (loBound x)
-                           (hiBound x)
+                    vector (size x)
                            (\ i -> index x i / normalized))
 
 dirichlet :: (Lambda repr, Mochastic repr, Integrate repr) =>
@@ -407,34 +402,34 @@ dirichlet a = unNormedDirichlet a `bind` \xs ->
 
 fromList_ :: Base repr => [repr a] -> repr (Vector a)
 fromList_ []  = empty
-fromList_ [x] = vector 0 0 (const x)
-fromList_ (x:xs) = concatV (vector 0 0 (const x)) (fromList_ xs)
+fromList_ [x] = vector 1 (const x)
+fromList_ (x:xs) = concatV (vector 1 (const x)) (fromList_ xs)
 
 incV :: Base repr => repr (Vector a) -> repr (Vector Int)
-incV v = vector (loBound v) (hiBound v) id
+incV v = vector (size v) id
 
 rangeV :: Base repr => repr Int -> repr (Vector Int)
-rangeV n = vector 0 n id
+rangeV n = vector n id
 
 constV :: Base repr => repr (Vector a) -> repr b -> repr (Vector b)
-constV v c = vector (loBound v) (hiBound v) (const c)
+constV v c = vector (size v) (const c)
 
 unitV :: Base repr => repr (Vector a) -> repr Int -> repr (Vector Prob)
-unitV v i = vector (loBound v) (hiBound v)
+unitV v i = vector (size v)
             (\ i' -> if_ (equal i i') 1 0)
 
-lengthV :: (Base repr) => repr (Vector a) -> repr Int
-lengthV v = hiBound v - loBound v + 1
-
 concatV :: (Base repr) => repr (Vector a) -> repr (Vector a) -> repr (Vector a)
-concatV v1 v2 = vector (loBound v1) (hiBound v1 + lengthV v2)
-  (\i -> if_ (less (hiBound v1) i)
-             (index v2 (i - hiBound v1 - 1 + loBound v2))
+concatV v1 v2 = vector (size v1 + size v2)
+  (\i -> if_ (less (size v1) i)
+             (index v2 (i - size v1))
              (index v1 i))
+
+unzipV :: Base repr => repr (Vector (a,b)) -> repr (Vector a, Vector b)
+unzipV v = pair (mapV fst_ v) (mapV snd_ v)
 
 mapWithIndex :: (Base repr) => (repr Int -> repr a -> repr b)
              -> repr (Vector a) -> repr (Vector b)
-mapWithIndex f v = vector (loBound v) (hiBound v)
+mapWithIndex f v = vector (size v)
                    (\i -> f i (index v i))
 
 mapV :: (Base repr) => (repr a -> repr b)
@@ -445,7 +440,7 @@ mapV f = mapWithIndex (const f)
 -- vectors are the same
 zipWithV :: (Base repr) => (repr a -> repr b -> repr c)
          -> repr (Vector a) -> repr (Vector b) -> repr (Vector c)
-zipWithV f v1 v2 = vector (loBound v1) (hiBound v1)
+zipWithV f v1 v2 = vector (size v1)
                    (\i -> f (index v1 i) (index v2 i))
 
 zipV :: (Base repr) => repr (Vector a) -> repr (Vector b)

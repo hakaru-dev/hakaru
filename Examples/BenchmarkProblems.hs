@@ -48,9 +48,13 @@ runExpect :: (Lambda repr, Base repr) =>
               Expect repr (Measure Prob) -> repr Prob
 runExpect (Expect m) = unpair m (\ m1 m2 -> m2 `app` lam id)
 
-reflect' :: (Lambda repr, Mochastic repr) =>
-            repr (Vector (Vector Prob)) -> repr (Int -> Measure Int)
-reflect' m = lam (\ x -> categorical (index m x))
+reflect' :: (Lambda repr, Mochastic repr, Integrate repr) =>
+            repr (Vector (Vector Prob)) -> Expect repr (Int -> Measure Int)
+reflect' m = lam (\ x -> categorical (index (Expect m) x))
+
+reflectV :: (Lambda repr, Integrate repr, Mochastic repr) =>
+             repr (Vector Prob) -> Expect repr (Measure Int)
+reflectV m = categorical (Expect m)
 
 reify' :: (Lambda repr, Mochastic repr) => repr Int -> repr Int ->
           Expect repr (Int -> Measure Int) -> repr (Vector (Vector Prob))
@@ -62,7 +66,18 @@ reify' lo hi (Expect m) =
         (app m2 $ lam
              (\x -> if_ (equal_ x s') 1 0)))))
 
+reifyV :: (Lambda repr, Mochastic repr) => repr Int -> repr Int ->
+           Expect repr (Measure Int) -> repr (Vector Prob)
+reifyV lo hi (Expect m) =
+    vector lo hi (\ s' ->
+    unpair m
+      (\ m1 m2 ->
+        (app m2 $ lam
+             (\x -> if_ (equal_ x s') 1 0))))
+
 condition d = head (runDisintegrate (\ _ -> d)) unit
+
+-- CP4 Problem 1
 
 make5Pair :: (Base repr) => [repr a] -> repr (a,(a,(a,(a,a))))
 make5Pair [x1,x2,x3,x4,x5] = pair x1
@@ -113,7 +128,7 @@ simpLinreg = Control.Monad.liftM unAny (simplify distLinreg)
 testLinreg :: IO (Maybe (Double5, LF.LogFloat))
 testLinreg = do
   g <- MWC.create
-  rawData <- readLinreg "/home/zv/programming/research_projects/prob_prog_ppaml/ppaml_repo/problems/CP4-SmallProblems/small-problems-v2.0/problem-1-data.csv"
+  rawData <- readLinreg "CP4-SmallProblems/small-problems-v2.0/problem-1-data.csv"
   let [x1,x2,x3,x4,x5,y] = head rawData
   --simplified <- simpLinreg
   unSample distLinreg (x1,(x2,(x3,(x4,(x5,y))))) 1 g
@@ -131,27 +146,50 @@ qmr =
 
 -- Discrete-time HMM
 
-map_ :: Lambda repr => repr (a -> b) -> repr [a] -> repr [b]
-map_ f xs = undefined
+symDirichlet :: (Lambda repr, Integrate repr, Mochastic repr) =>
+                repr Int -> repr Prob -> repr (Measure (Vector Prob))
+symDirichlet n a = (plate $ vector 0 n (\_ -> gamma a 1)) `bind` \xs ->
+                   dirac (normalizeVector xs)
 
-symDirichlet :: (Lambda repr, Mochastic repr) =>
-                 Int -> repr Prob -> repr (Measure [Prob])
-symDirichlet n a = symDirichlet' n a `bind` \p ->
-                   unpair p (\ xs total ->
-                   dirac (map_ (lam $ \x -> x / total) xs))
-  where symDirichlet' 0 a = dirac $ pair nil 0 
-        symDirichlet' n a = gamma a 1 `bind` \x ->
-                            symDirichlet' (n - 1) a `bind` \p ->
-                            unpair p (\ xs total ->
-                            (dirac $ pair (cons x xs) (x + total)))
+start :: Base repr => repr Int
+start = 0
 
-symDirichlet2 :: (Lambda repr, Integrate repr, Mochastic repr) =>
-                  repr Int -> repr Prob -> repr (Measure (Vector Prob))
-symDirichlet2 n a = (plate $ vector 0 n (\_ -> gamma a 1)) `bind` \xs ->
-                    dirac (normalizeVector xs)
+transition :: Mochastic repr => repr Int -> repr (Measure Int)
+transition s = categorical
+               (vector 0 4 (\ i ->
+                 if_ (equal_ i s) 1
+                  (if_ (or_ [equal_ i (s+1), equal_ i (s-4)])
+                   1
+                   (if_ (or_ [equal_ i (s+2), equal_ i (s-3)])
+                    1 0))))
 
-hmm = undefined
-hmmVec = undefined
+emission   :: Mochastic repr => repr Int -> repr (Measure Int)
+emission s =  categorical
+              (vector 0 4 (\ i ->
+                if_ (equal_ i s) 0.6 0.1))
+
+hmm :: (Lambda repr, Mochastic repr) => repr (Measure (Vector (Int, Int)))
+hmm = app (chain (vector 0 20
+                  (\ _ -> lam $ \s ->
+                   transition s `bind` \s' ->
+                   emission s' `bind` \o ->
+                   dirac $ pair (pair s' o) s'
+                  ))) start `bind` \x ->
+      dirac (fst_ x)
+
+step  :: (Lambda repr, Integrate repr, Mochastic repr) =>
+         Expect repr (Int -> Measure Int) ->
+         Expect repr (Int -> Measure Int) ->
+         Expect repr (Int -> Measure Int)
+step m1 m2 = lam $ \x -> reflectV (reifyV 0 4 (app m1 x `bind` app m2))
+
+-- P (s_20 = x | s_0 = y)
+forwardBackward :: (Lambda repr, Integrate repr, Mochastic repr) =>
+                   Expect repr (Int -> Measure Int)
+forwardBackward = reduce step (lam dirac)
+                  (vector 0 20 (\_ -> lam $ \s ->
+                                transition s `bind` \s' ->
+                                emission s'))
 
 -- HDP-LDA
 

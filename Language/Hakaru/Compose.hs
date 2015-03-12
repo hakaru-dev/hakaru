@@ -136,11 +136,10 @@ instance (Base repr, Applicative f) => Base (Compose f s repr) where
   negativeInfinity = compose0 negativeInfinity
   gammaFunc        = compose1 gammaFunc
   betaFunc         = compose2 betaFunc
-  vector l h f     = Compose (liftA3 vector (fun0 l) (fun0 h) (fun1 f))
+  vector l f       = Compose (liftA2 vector (fun0 l) (fun1 f))
   empty            = compose0 empty
   index            = compose2 index
-  loBound          = compose1 loBound
-  hiBound          = compose1 hiBound
+  size             = compose1 size
   reduce r z v     = Compose (liftA3 reduce (fun2 r) (fun0 z) (fun0 v))
   fix f            = Compose (fmap fix (fun1 f))
 

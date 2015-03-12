@@ -98,7 +98,7 @@ data Whnf s (repr :: * -> *) a where
   Cons    :: Lazy s repr a -> Lazy s repr [a] ->   Whnf s repr [a]
   Value   :: repr a ->                             Whnf s repr a
   Measure :: Lazy s repr a ->                      Whnf s repr (Measure a)
-  Vector  :: Lazy s repr Int -> Lazy s repr Int ->
+  Vector  :: Lazy s repr Int ->
              (Lazy s repr Int -> Lazy s repr a) -> Whnf s repr (Vector a)
   Plate   :: Loc (Vector s) a ->                   Whnf s repr (Vector a)
 
@@ -110,9 +110,8 @@ determine z = forward z >>= \case
   Inr y        -> liftM (Inr . lazy . return) (determine y)
   Cons x y     -> liftM2 Cons (liftM (lazy . return) (determine x))
                               (liftM (lazy . return) (determine y))
-  Vector l h f -> liftM2 (\l' h' -> Vector l' h' f)
-                         (liftM (lazy . return) (determine l))
-                         (liftM (lazy . return) (determine h))
+  Vector s f   -> liftM (\s' -> Vector s' f)
+                  (liftM (lazy . return) (determine s))
   w            -> return w
 
 evaluate :: (Mochastic repr, Lub repr) =>
@@ -127,7 +126,7 @@ evaluate z = forward z >>= \case
   Cons x y     -> liftM2 cons (evaluate x) (evaluate y)
   Value a      -> return a
   Measure x    -> liftM (evaluateMeasure x) duplicateHeap
-  Vector l h f -> evaluateVector l h [] f
+  Vector s f   -> evaluateVector s [] f
   Plate l      -> let process (RVLet v)          = return v
                       process (RVBind table rhs) = evaluatePlate table rhs
                   in retrieve locateV l (\retrieval -> do v <- process retrieval
@@ -150,28 +149,26 @@ evaluateMeasure z = unM (do a <- evaluate z
                         const
 
 evaluateVector :: (Mochastic repr, Lub repr) =>
-                  Lazy s repr Int -> Lazy s repr Int ->
+                  Lazy s repr Int ->
                   [(Lazy s repr Int, Lazy s repr a)] ->
                   (Lazy s repr Int -> Lazy s repr a) ->
                   M s repr (repr (Vector a))
-evaluateVector lo hi table f = do
-  lo' <- evaluate lo
-  hi' <- evaluate hi
+evaluateVector s table f = do
+  s' <- evaluate s
   table' <- evaluatePairs table
   heap <- duplicateHeap
   let g i = evaluateMeasure (f (scalar0 i)) heap
-  lift (plate (vector lo' hi' (override table' g)))
+  lift (plate (vector s' (override table' g)))
 
 evaluatePlate :: (Mochastic repr, Lub repr) =>
                  [(Lazy s repr Int, Lazy s repr a)] ->
                  Lazy s repr (Vector (Measure a)) ->
                  M s repr (repr (Vector a))
 evaluatePlate table rhs = do
-  lo' <- evaluate (loBound rhs)
-  hi' <- evaluate (hiBound rhs)
+  size'  <- evaluate (size rhs)
   table' <- evaluatePairs table
   vm <- evaluate rhs
-  lift (plate (vector lo' hi' (override table' (index vm))))
+  lift (plate (vector size' (override table' (index vm))))
 
 evaluatePairs :: (Mochastic repr, Lub repr) =>
                  [(Lazy s repr a, Lazy s repr b)] -> M s repr [(repr a, repr b)]
@@ -582,27 +579,21 @@ instance (Mochastic repr, Lub repr) => Base (Lazy s repr) where
   nil               = lazy (return Nil)
   cons a b          = lazy (return (Cons a b))
   unlist ab ka kb   = join (liftM (maybe ka (uncurry kb)) (unlistM ab))
-  vector lo hi f    = lazy (return (Vector lo hi f))
+  vector s f        = lazy (return (Vector s f))
   empty             = scalar0 empty
-  loBound v         = join $ forward v >>= \case
-                      Value v' -> return (scalar0 (loBound v'))
-                      Vector i _ _ -> return i
+
+  size v            = join $ forward v >>= \case
+                      Value v' -> return (scalar0 (size v'))
+                      Vector s _ -> return s
                       Plate l -> retrieve locateV l $ \case
                         RVLet v' -> do store (VLet l v')
-                                       return (scalar0 (loBound v'))
+                                       return (scalar0 (size v'))
                         RVBind table rhs -> do store (VBind l table rhs)
-                                               return (loBound rhs)
-  hiBound v         = join $ forward v >>= \case
-                      Value v' -> return (scalar0 (hiBound v'))
-                      Vector _ i _ -> return i
-                      Plate l -> retrieve locateV l $ \case
-                        RVLet v' -> do store (VLet l v')
-                                       return (scalar0 (hiBound v'))
-                        RVBind table rhs -> do store (VBind l table rhs)
-                                               return (hiBound rhs)
+                                               return (size rhs)
+ 
   index v i         = join $ forward v >>= \case
                       Value v' -> liftM (scalar0 . index v') (evaluate i)
-                      Vector _ _ f -> return (f i)
+                      Vector _ f -> return (f i)
                       Plate l -> retrieve locateV l $ \case
                         RVLet v' -> do store (VLet l v')
                                        liftM (scalar0 . index v') (evaluate i)

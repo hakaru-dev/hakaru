@@ -93,11 +93,10 @@ instance (Base repr) => Base (Expect repr) where
   gammaFunc (Expect n)           = Expect (gammaFunc n)
   betaFunc (Expect a) (Expect b) = Expect (betaFunc a b)
 
-  vector (Expect l) (Expect h) f = Expect (vector l h (unExpect . f . Expect))
+  vector (Expect l) f            = Expect (vector l (unExpect . f . Expect))
   empty                          = Expect empty
   index (Expect v) (Expect i)    = Expect (index v i)
-  loBound (Expect v)             = Expect (loBound v)
-  hiBound (Expect v)             = Expect (hiBound v)
+  size  (Expect v)               = Expect (size v)
   reduce r (Expect z) (Expect v) = Expect (reduce r' z v)
     where r' a b = unExpect (r (Expect a) (Expect b))
 
