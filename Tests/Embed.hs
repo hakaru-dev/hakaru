@@ -28,58 +28,44 @@ import Tests.TestTools
 import Language.Hakaru.Any (Any(unAny))
 
 -- Variant of testSS for Embeddable a 
--- type TesteeEmbed a =
---   forall repr. (Mochastic repr, Integrate repr, Lambda repr, Embed repr) => repr a
+type TesteeEmbed a =
+  forall repr. (Mochastic repr, Integrate repr, Lambda repr, Embed repr) => repr a
 
--- testSE :: (Simplifiable a) => TesteeEmbed a -> Assertion
--- testSE t = do
---     p <- simplify t `catch` handleSimplify t
---     let s = result (unAny p)
---     assertResult (show s)
+testSE :: (Simplifiable a) => TesteeEmbed a -> Assertion
+testSE t = do
+    p <- simplify t `catch` handleSimplify t
+    let s = result (unAny p)
+    assertResult (show s)
 
--- testSSE :: (Simplifiable a) => [Expect Maple a] -> TesteeEmbed a -> Assertion
--- testSSE ts t' =
---     mapM_ (\t -> do p <- simplify t --`catch` handleSimplify t
---                     (assertEqual "testSS" `on` result) t' (unAny p))
---           (t' : ts)
-
+testSSE :: (Simplifiable a) => [Expect Maple a] -> TesteeEmbed a -> Assertion
+testSSE ts t' =
+    mapM_ (\t -> do p <- simplify t --`catch` handleSimplify t
+                    (assertEqual "testSS" `on` result) t' (unAny p))
+          (t' : ts)
 
 embeddable [d| data BoolProb = BoolProb Bool Prob |] 
 
 embeddable [d| data Real5 = Real5 { r1, r2, r3, r4, r5 :: Real} |]
 
---  deriving (GHC.Generic, Typeable)
--- $(deriveEmbed ''BoolProb)
-
--- data P2 a b = P2 a b deriving (GHC.Generic, Typeable)
--- $(deriveEmbed ''P2)
-
--- fstP2 :: Embed repr => repr (P2 a b) -> repr a 
--- fstP2 x = case_ x (NFn (\a _ -> a) :* Nil)
-
--- sndP2 :: Embed repr => repr (P2 a b) -> repr b 
--- sndP2 x = case_ x (NFn (\_ a -> a) :* Nil)
-
--- p2 :: Embed repr => repr a -> repr b -> repr (P2 a b)
--- p2 a b = sop (Z $ a :* b :* Nil)
+embeddable [d| data P2 a b = P2 { p2_fst :: a, p2_snd :: b } |]
 
 -- Test must come after Template Haskell splices
 
 allTests :: Test
-allTests = error "TODO: write tests" 
--- allTests = test 
---   [
---     "pair-elim" ~: testSSE [t1] (uniform 1 2)
---   -- , "P2-elim" ~: testSSE [t0] (uniform 1 2)  
---   ]
+-- allTests = error "TODO: write tests" 
+allTests = test 
+  [
+    "pair-elim" ~: testSSE [t1] (uniform 1 2)
+  , "P2-elim" ~: testSSE [t0] (uniform 1 2)  
+  ]
 
--- t0 :: forall repr . (Mochastic repr, Embed repr) => repr (Measure Real)
--- t0 = case_ (p2 1 2) (NFn uniform :* Nil)
+t0 :: forall repr . (Mochastic repr, Embed repr) => repr (Measure Real)
+t0 = case_ (p2 1 2) (NFn uniform :* Nil)
 
--- t1 :: forall repr . (Mochastic repr) => repr (Measure Real)
--- t1 = unpair (pair 1 2) uniform 
+t1 :: forall repr . (Mochastic repr) => repr (Measure Real)
+t1 = unpair (pair 1 2) uniform 
 
--- norm :: (Embed repr, Mochastic repr) => repr (Measure (P2 Real Real))
--- norm = normal 0 1 `bind` \x ->
---        normal x 1 `bind` \y ->
---        dirac (p2 x y)
+norm :: (Embed repr, Mochastic repr) => repr (Measure (P2 Real Real))
+norm = normal 0 1 `bind` \x ->
+       normal x 1 `bind` \y ->
+       dirac (p2 x y)

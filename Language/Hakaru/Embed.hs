@@ -174,9 +174,14 @@ apNAry (S _) Nil = error "type error"
 
 -- Template Haskell
 
+-- The TH syntax tree contains a lot of extra information we don't care
+-- about. This contains the name of the datatype, the type variables it binds,
+-- and a list of consructors for this type.
 data DataDecl = DataDecl Name [TyVarBndr] [Con]
 
-
+-- Given the function f and a datatype, produce the type representing the
+-- datatype fully applied to its type variables, with the name of the datatype
+-- modified by the given function.
 tyReal' :: (String -> String) -> DataDecl -> Type 
 tyReal' f (DataDecl n tv _ ) = foldl AppT (ConT . mkName . f . realName $ n) $ map (VarT . bndrName) tv
 
@@ -216,18 +221,18 @@ embeddableWith :: Config -> Q [Dec] -> Q [Dec]
 embeddableWith cfg decsQ = do 
   decsQ >>= \decs -> 
     case decs of 
-      [dec] | Just d <- maybeDataDecl dec -> fmap (toEmptyDec d :) (deriveEmbeddableG cfg d)
+      [dec] | Just d <- maybeDataDecl dec -> fmap (toEmptyDec d :) (deriveEmbeddable cfg d)
       _ -> error "embeddable': supplied declarations not a single plain datatype declaration."
 
 embeddable = embeddableWith defaultConfig
 
-deriveEmbeddableG :: Config -> DataDecl -> Q [Dec] 
-deriveEmbeddableG cfg d' = do 
+deriveEmbeddable :: Config -> DataDecl -> Q [Dec] 
+deriveEmbeddable cfg d' = do 
   let d = realNameDecl d' 
   diInfo <- deriveDatatypeInfo d
-  ctrs   <- deriveCtrs cfg d
-  accsrs <- deriveAccessors cfg d
-  htype  <- deriveHakaruType cfg d
+  ctrs   <- if mkCtrs    cfg then deriveCtrs       cfg d else return [] 
+  accsrs <- if mkRecFuns cfg then deriveAccessors  cfg d else return [] 
+  htype  <- if mkTySyn   cfg then deriveHakaruType cfg d else return [] 
   return $ 
     (InstanceD [] (ConT (''Embeddable) `AppT` tyReal' (++"_Haskell") d)
                           (deriveCode d : diInfo)
@@ -237,9 +242,6 @@ deriveDatatypeInfo :: DataDecl -> Q [Dec]
 deriveDatatypeInfo (DataDecl n _tv cs) = do 
   diExp' <- [| DatatypeInfo  $(stringE $ realName n) $(np (map deriveCtrInfo cs)) |]
   return [FunD (mkName "datatypeInfo") [Clause [WildP] (NormalB diExp') []]]
-
-  -- [d| datatypeInfo _ = DatatypeInfo  $(stringE $ realName n) $diExp |]
-  -- This doesnt' work on GHC 7.6 complaining about 'datatypeInfo not in scope'
 
 -- A value of type ConstructorInfo for the given constructor 
 deriveCtrInfo :: Con -> Q Exp 
@@ -307,7 +309,7 @@ conName (ForallC _ _ c) = conName c
 -- produce the functions 
 --   rkH :: Embed r => r (HTypeRep (D t0 t1 .. tn)) -> r xk
 --   rkH x = case_ x (NFn (\x0 x1 .. xn -> xk) :* Nil)
--- for k in [0..n]. TODO: generate type signatures
+-- for k in [0..n]. 
 deriveAccessors cfg d@(DataDecl _n _tv [ RecC cn rcs ]) = 
   concat <$> mapM deriveAccessorK [0 .. q - 1] 
     where 
@@ -354,10 +356,16 @@ deriveHakaruType cfg d@(DataDecl n tv _cs) = return
 hakaruType :: DataDecl -> Type 
 hakaruType d = ConT (''HTypeRep) `AppT` tyReal' (++ "_Haskell") d
 
-data Config = Config { mkHakaruTy, mkHakaruFn, mkHakaruRec :: String -> String } 
+data Config = Config 
+  { mkHakaruTy, mkHakaruFn, mkHakaruRec :: String -> String
+  , mkCtrs, mkRecFuns, mkTySyn :: Bool
+  } 
 
 defaultConfig :: Config 
-defaultConfig = Config { mkHakaruTy = id, mkHakaruFn = id, mkHakaruRec = id }
+defaultConfig = Config 
+  { mkHakaruTy = id, mkHakaruFn = id, mkHakaruRec = id 
+  , mkCtrs = True, mkRecFuns = True, mkTySyn = True 
+  }
 
 -- Produce a valid function name from a constructor name. 
 validateFnName :: String -> String 
