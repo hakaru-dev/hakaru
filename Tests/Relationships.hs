@@ -27,7 +27,10 @@ testRelationships = test [
     "t11"  ~: testSS [t11] (lam (\a1 -> (lam (\a2 ->
                             gamma 1 (unsafeProb a1) `bind` \x1 ->
                             gamma 1 a2 `bind` \x2 ->
-                            dirac ((fromProb (x1-x2)))))))
+                            dirac ((fromProb (x1-x2))))))),
+
+    -- sum of n exponential(b) random variables is a gamma(n, b) random variable
+    "t12"   ~: testSS [t12] (lam (\b -> gamma 2 b))
     ]
 
 allTests :: Test
@@ -74,3 +77,9 @@ t10 = beta 1 1
 
 t11 :: (Lambda repr, Mochastic repr) => repr (Real -> Prob -> Measure Real)
 t11 = lam (\a1 -> (lam (\a2 -> laplace a1 a2)))
+
+t12 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure Prob)
+t12 = lam (\b ->
+    exponential b `bind` \x1 ->
+    exponential b `bind` \x2 ->
+    dirac (x1+x2))
