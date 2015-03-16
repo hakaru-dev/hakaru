@@ -57,6 +57,7 @@ allTests = test
   [
     "pair-elim" ~: testSSE [t1] (uniform 1 2)
   , "P2-elim" ~: testSSE [t0] (uniform 1 2)  
+  , "P2-id" ~: testSSE [t3] t3 
   ]
 
 t0 :: forall repr . (Mochastic repr, Embed repr) => repr (Measure Real)
@@ -64,6 +65,9 @@ t0 = case_ (p2 1 2) (NFn uniform :* Nil)
 
 t1 :: forall repr . (Mochastic repr) => repr (Measure Real)
 t1 = unpair (pair 1 2) uniform 
+
+t3 :: (Mochastic repr, Embed repr) => repr (Measure (P2 Int Real))
+t3 = dirac (p2 1 2)
 
 norm :: (Embed repr, Mochastic repr) => repr (Measure (P2 Real Real))
 norm = normal 0 1 `bind` \x ->

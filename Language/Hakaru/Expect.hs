@@ -213,5 +213,7 @@ instance Embed r => Embed (Expect r) where
 
   caseSum (Expect x) caseZ caseS = Expect (caseSum x (unExpect . caseZ . Expect) (unExpect . caseS . Expect))
 
+  voidSOP (Expect x) = Expect (voidSOP x) 
+
   untag (Expect x) = Expect (untag x)
   tag (Expect x) = Expect (tag x)

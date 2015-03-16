@@ -28,6 +28,7 @@ module Language.Hakaru.Embed (
 
 import Language.Hakaru.Syntax hiding (EqType(..))
 import Prelude hiding (Real (..))
+import Data.List (intercalate, isPrefixOf)
 import Data.Proxy 
 import Language.Haskell.TH.Syntax
 import Language.Haskell.TH
@@ -35,15 +36,13 @@ import Generics.SOP (NS(..), NP(..), All, All2)
 import Control.Monad (replicateM)
 import Control.Applicative
 import Data.Char 
+import Data.Typeable 
 
 type family NAryFun (r :: * -> *) o (xs :: [*])  :: * 
 type instance NAryFun r o '[]  = r o 
 type instance NAryFun r o (x ': xs) = r x -> NAryFun r o xs 
 
 newtype NFn r o x = NFn { unFn :: NAryFun r o x } 
-
--- Sum of products tagged with a Haskell type 
-data Tag (t :: *) (xs :: [[*]])
 
 -- SOP xs = Sum of products of Hakaru tyeps 
 data SOP (xs :: [[*]]) -- xs :: [[HakaruType]]
@@ -84,11 +83,81 @@ instance SingI '[] where
 instance (SingI x, SingI xs) => SingI (x ': xs) where
   sing = SCons sing sing 
 
+-- Sum of products tagged with a Haskell type 
+data Tag (t :: *) (xs :: [[*]]) 
+
+#if __GLASGOW_HASKELL__ >= 708
+
+deriving instance Typeable '[]
+deriving instance Typeable '(:)
+deriving instance Typeable Tag 
+
+#else
+
+-- This needs to be done by hand before ghc 7.8 because Typeable is not
+-- polykinded
+
+instance (Typeable t, All2 Typeable xss, SingI xss) => Typeable (Tag t xss) where 
+  typeOf _ = mkTyConApp tagTyCon [ typeOf (undefined :: t) 
+                                 , typeRepSing2 (sing :: Sing xss)
+                                 ] 
+
+nilTyCon, consTyCon, tagTyCon :: TyCon 
+nilTyCon = mkTyCon3 "ghc-prim" "GHC.Types" "[]"
+consTyCon = mkTyCon3 "ghc-prim" "GHC.Types" ":"
+tagTyCon = mkTyCon3 "hakaru" "Language.Hakaru.Embed" "Tag" 
+
+typeRep :: forall a proxy . Typeable a => proxy a -> TypeRep 
+typeRep _ = typeOf (undefined :: a) 
+
+typeRepSing1 :: All Typeable xs => Sing xs -> TypeRep 
+typeRepSing1 SNil = mkTyConApp nilTyCon []
+typeRepSing1 (SCons x xs) = mkTyConApp consTyCon [ typeRep x, typeRepSing1 xs ]
+
+typeRepSing2 :: All2 Typeable xss => Sing xss -> TypeRep 
+typeRepSing2 SNil = mkTyConApp nilTyCon []
+typeRepSing2 (SCons x xs) = mkTyConApp consTyCon [ typeRepSing1 x, typeRepSing2 xs ]
+
+#endif
+
+replace :: forall a. Eq a => [a] -> [a] -> [a] -> [a]
+replace str with = go where 
+  n = length str 
+  go [] = [] 
+  go s@(x:xs) | str `isPrefixOf` s = let (_,b) = splitAt n s in with ++ go b
+              | otherwise          = x : go xs 
+    
+
+hakaruTypeName :: forall t . Typeable t => Proxy t -> String 
+hakaruTypeName _ = replace "_Haskell" "" $ show (typeRep (Proxy :: Proxy t))
+
+mapleTypeTag :: forall t xss . (SingI xss, All2 Typeable xss, Typeable t) => Tag t xss -> String 
+mapleTypeTag _ = concat 
+  [ "Tagged(`" 
+  , hakaruTypeName (Proxy :: Proxy t)
+  , "`,"
+  , typeList . map typeList $ go2 (sing :: Sing xss)
+  , ")"
+  ]
+
+     where 
+    
+      typeList xs = "[" ++ intercalate "," xs ++ "]" 
+    
+      go2 :: All2 Typeable xs => Sing xs -> [[String]]
+      go2 SNil = []
+      go2 (SCons x xs) = go1 x : go2 xs 
+    
+      go1 :: All Typeable xs => Sing xs -> [String]
+      go1 SNil = []
+      go1 (SCons x xs) = show (typeRep x) : go1 xs 
+
+
 type EmbeddableConstraint t = 
   (SingI (Code t), All SingI (Code t), All2 SingI (Code t)) 
 
 -- 't' is really just a "label" - 't' and 'Code t' are completely unrelated.
-class EmbeddableConstraint t => Embeddable (t :: *) where 
+class (EmbeddableConstraint t) => Embeddable (t :: *) where 
   type Code t :: [[*]]
   datatypeInfo :: Proxy t -> DatatypeInfo (Code t)
 
@@ -113,6 +182,10 @@ class (Base repr) => Embed (repr :: * -> *) where
           -> (repr (SOP '[ xs ]) -> repr o) 
           -> (repr (SOP xss) -> repr o) 
           -> repr o 
+
+  -- void
+  voidSOP :: repr (SOP '[]) -> repr a
+  voidSOP _ = error "Datatype with no constructors"
 
   -- Doesn't permit recursive types, ie, the
   -- following produces an "infinite type" error:
@@ -139,9 +212,9 @@ sop' :: Embed repr => NS (NP repr) xss -> repr (SOP xss)
 sop' (Z t) = _Z (prodG t) 
 sop' (S t) = _S (sop' t) 
 
-case' :: (All SingI xss, Embed repr) => repr (SOP xss) -> NP (NFn repr o) xss -> repr o 
-case' _ Nil = error "Datatype with no constructors" 
-case' x (f :* fs) = caseSum x (\h -> caseProdG sing h f) (\t -> case' t fs)
+case' :: (All SingI xss, Embed repr) => repr (SOP xss) -> NP (NFn repr o) xss -> repr o
+case' x (f :* fs) = caseSum x (\h -> caseProdG sing h f) (\t -> case' t fs) 
+case' x Nil = voidSOP x 
 
 sop :: (Embeddable t, Embed repr) => NS (NP repr) (Code t) -> repr (Tag t (Code t))
 sop x = tag (sop' x)
@@ -201,9 +274,10 @@ maybeDataDecl (NewtypeD _ n tv c  _) = Just $ DataDecl n tv [c]
 maybeDataDecl _ = Nothing
 
 -- Give a datatype `D x0 x1 .. xn = ...`, produce a datatype
---   data D_Haskell x0 x1 .. xn 
+--   data D_Haskell x0 x1 .. xn deriving Typeable 
 toEmptyDec :: DataDecl -> Dec
-toEmptyDec (DataDecl n tv _) = DataD [] (mkName $ realName n ++ "_Haskell") tv [] []
+toEmptyDec (DataDecl n tv _) = 
+  DataD [] (mkName $ realName n ++ "_Haskell") tv [] [''Typeable]
 
 -- When datatypes are put in a [d|..|] quasiquote, the resulting names have
 -- numbers appended with them. Get rid of those numbers for use with
@@ -221,13 +295,13 @@ embeddableWith :: Config -> Q [Dec] -> Q [Dec]
 embeddableWith cfg decsQ = do 
   decsQ >>= \decs -> 
     case decs of 
-      [dec] | Just d <- maybeDataDecl dec -> fmap (toEmptyDec d :) (deriveEmbeddable cfg d)
+      [dec] | Just d <- maybeDataDecl dec -> fmap (toEmptyDec d :) (deriveEmbeddable cfg d) 
       _ -> error "embeddable': supplied declarations not a single plain datatype declaration."
 
 embeddable = embeddableWith defaultConfig
 
 deriveEmbeddable :: Config -> DataDecl -> Q [Dec] 
-deriveEmbeddable cfg d' = do 
+deriveEmbeddable cfg d'@(DataDecl _ tvs _) = do 
   let d = realNameDecl d' 
   diInfo <- deriveDatatypeInfo d
   ctrs   <- if mkCtrs    cfg then deriveCtrs       cfg d else return [] 
@@ -480,4 +554,39 @@ instance HakaruType ('[] :: [[*]]) where hsing = HNil
 
 instance (HakaruType x, HakaruType xs) => HakaruType (x ': xs :: [*]) where hsing = HCons hsing hsing
 instance (HakaruType x, HakaruType xs) => HakaruType (x ': xs :: [[*]]) where hsing = HCons hsing hsing
+-}
+
+
+{-
+
+data P2_Haskell (a_aZFo :: *) (b_aZFp :: *)
+instance Embeddable (P2_Haskell a_aZFo b_aZFp) where
+  type Code (P2_Haskell a_aZFo b_aZFp) = '[ '[ a_aZFo, b_aZFp]]
+  datatypeInfo _
+    = DatatypeInfo
+        "P2"
+        ((ConstructorInfo
+            "P2"
+            (Just ((FieldInfo "p2_fst") :* ((FieldInfo "p2_snd") :* Nil))))
+         :* Nil)
+type P2 a_aZFo b_aZFp = HTypeRep (P2_Haskell a_aZFo b_aZFp)
+
+pair2 a_aZFq a_aZFr = sop (Z (a_aZFq :* (a_aZFr :* Nil)))
+pair2 ::
+  forall repr_aZFs a_aZFo b_aZFp. Embed repr_aZFs =>
+  repr_aZFs a_aZFo
+  -> repr_aZFs b_aZFp
+     -> repr_aZFs (HTypeRep (P2_Haskell a_aZFo b_aZFp))
+
+p2_fst x_aZFt
+  = case_ x_aZFt ((:*) (NFn (\ a_aZFu a_aZFv -> a_aZFu)) Nil)
+p2_fst ::
+  forall repr_aZFw a_aZFo b_aZFp. Embed repr_aZFw =>
+  repr_aZFw (HTypeRep (P2_Haskell a_aZFo b_aZFp)) -> repr_aZFw a_aZFo
+p2_snd x_aZFx
+  = case_ x_aZFx ((:*) (NFn (\ a_aZFy a_aZFz -> a_aZFz)) Nil)
+p2_snd ::
+  forall repr_aZFA a_aZFo b_aZFp. Embed repr_aZFA =>
+  repr_aZFA (HTypeRep (P2_Haskell a_aZFo b_aZFp)) -> repr_aZFA b_aZFp
+
 -}
