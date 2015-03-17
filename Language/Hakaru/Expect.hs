@@ -153,10 +153,12 @@ instance (Mochastic repr, Integrate repr, Lambda repr)
     (lam (\c -> integrate negativeInfinity infinity (\x ->
      exp_ (- (x - mu)^(2::Int) / fromProb (2 * pow_ sd 2))
      / sd / sqrt_ (2 * pi_) * app c x)))
-  categorical (Expect pxs) = Expect $ pair
-    (categorical pxs)
-    (lam (\c -> summateV (mapWithIndex (\i p -> p * app c i) pxs)
-                / summateV pxs))
+  categorical (Expect ps) = Expect $ pair
+    (categorical ps)
+    (lam (\c -> let_ (summateV ps) $ \total ->
+                if_ (less 0 total)
+                    (summateV (mapWithIndex (\i p -> p * app c i) ps) / total)
+                    0))
   poisson (Expect l) = Expect $ pair
     (poisson l)
     (lam (\c -> flip (if_ (less 0 l)) 0 (summate 0 infinity (\x ->

@@ -4,7 +4,6 @@
 
 module Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        EqType(Refl), Order_(..), lesseq, Number(..), Fraction(..),
-       errorEmpty,
        Order(..), Base(..), ununit, fst_, snd_, swap_,
        and_, or_, not_, min_, max_,
        summateV, sumV, normalizeV, dirichlet,
@@ -290,9 +289,6 @@ class (Base repr) => Mochastic repr where
           z     = lam (\s -> dirac (pair empty s))
           m a   = lam (\s -> liftM (`unpair` pair . vector 1 . const)
                                    (app a s))
-
-errorEmpty :: a
-errorEmpty = error "empty mixture makes no sense"
 
 bind_ :: (Mochastic repr) => repr (Measure a) -> repr (Measure b) ->
                                                  repr (Measure b)

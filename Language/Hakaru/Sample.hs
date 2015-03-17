@@ -11,7 +11,7 @@ module Language.Hakaru.Sample (Sample(..), Sample') where
 -- Importance sampling interpretation
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Real, Prob, Measure, Vector, errorEmpty,
+import Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..))
 import Language.Hakaru.Util.Extras (normalize, normalizeVector)
 import Language.Hakaru.Distribution (poisson_rng)
@@ -141,7 +141,7 @@ instance (PrimMonad m) => Mochastic (Sample m) where
     return (Just (x, p)))
   categorical (Sample v) = Sample (\p g -> do
     let (_,y,ys) = normalizeVector v
-    if not (y > (0::Double)) then errorEmpty else do
+    if not (y > (0::Double)) then return Nothing else do
       u <- MWC.uniformR (0, y) g
       return (Just (fromMaybe 0 (V.findIndex (u <=) (V.scanl1' (+) ys)), p)))
 
