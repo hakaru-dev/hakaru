@@ -19,7 +19,7 @@ allTests = test [ "testUnrolling" ~: testUnrolling
 testUnrolling :: Assertion
 testUnrolling = testSS [rolled] unrolled
 rolled, unrolled :: (Mochastic repr, Integrate repr) => repr (Measure Prob)
-rolled = liftM sumVec (plate (vector 3 (\i ->
+rolled = liftM summateV (plate (vector 3 (\i ->
          liftM unsafeProb (uniform 0 (fromInt i)))))
 unrolled = uniform 0 2 `bind` \x2 ->
            uniform 0 3 `bind` \x3 ->
@@ -29,10 +29,10 @@ unrolled = uniform 0 2 `bind` \x2 ->
 
 -- Test that normalizing a vector makes its sum 1
 testNorm1, testNorm2 :: Assertion
-testNorm1 = testSS [liftM (sumVec . normalizeVector) (plate (vector 3 (\i ->
+testNorm1 = testSS [liftM (summateV . normalizeV) (plate (vector 3 (\i ->
                     liftM unsafeProb (uniform 0 (fromInt i)))))]
                    (dirac 1)
-testNorm2 = testSS [liftM sumVec (dirichlet (vector 3 (\i ->
+testNorm2 = testSS [liftM summateV (dirichlet (vector 3 (\i ->
                     unsafeProb (fromInt i))))]
                    (dirac 1)
 
@@ -40,7 +40,7 @@ testNorm2 = testSS [liftM sumVec (dirichlet (vector 3 (\i ->
 testUnity :: Assertion
 testUnity = testSS [unity] count
 count, unity :: (Mochastic repr) => repr (Measure Int)
-count = categorical' [(1, 20), (1, 30), (1, 40)]
+count = categorical (vector 3 (\_ -> 1)) `bind` \i -> dirac (i * 10 + 20)
 unity = count `bind` \n ->
         plate (vector n (\i -> bern (recip (unsafeProb (fromInt i))))) `bind_`
         dirac n

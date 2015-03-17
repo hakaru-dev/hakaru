@@ -130,7 +130,7 @@ simulate ds blons blats cds steerE delT =
     let_' (mapV ((-) calc_lat) blats) $ \lat_ds ->
 
     -- Equation 10 from [1]
-    let_' (mapV sqrt_ (vZipWith (+) (mapV sqr lon_ds)
+    let_' (mapV sqrt_ (zipWithV (+) (mapV sqr lon_ds)
                                     (mapV sqr lat_ds))) $ \calc_zrads ->
     -- inverse-square for intensities 
     let_' (mapV (\r -> cIntensity / (pow_ r 2)) calc_zrads) $ \calc_zints ->
@@ -138,7 +138,7 @@ simulate ds blons blats cds steerE delT =
     -- Equation 10 from [1]    
     -- Note: removed a "+ pi/2" term: it is present as (i - 180) in laserAssigns
     let_' (mapV (\r -> atan r - calc_phi)
-                (vZipWith (/) lat_ds lon_ds)) $ \calc_zbetas ->
+                (zipWithV (/) lat_ds lon_ds)) $ \calc_zbetas ->
 
     -- | Add some noise
     normal calc_lon ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \lon ->
@@ -219,8 +219,8 @@ makeLasers :: (Mochastic repr) => repr (Vector H.Real)
              -> repr H.Real -> repr Prob
              -> repr (Measure (Vector H.Real))
 makeLasers reads betas mu sd =
-    let base = vector 0 360 (const mu)
-        combine r b = vector 0 360 (\i -> if_ (withinLaser (i-180) b) (r-mu) 0)
+    let base = vector 361 (const mu)
+        combine r b = vector 361 (\i -> if_ (withinLaser (i-180) b) (r-mu) 0)
         combined = zipWithV combine reads betas
     in normalNoise sd (reduce (zipWithV (+)) base combined)
 
@@ -238,9 +238,9 @@ withinLaser n b = and_ [ lessOrEq (convert (fromInt n - 0.5)) tb2
 
 type Rand = MWC.Gen (PrimState IO)
 
-data Particle = PL { dims :: Vec Double  -- ^ l,h,a,b
-                   , bLats :: Vec Double
-                   , bLons :: Vec Double }
+data Particle = PL { dims :: V.Vector Double  -- ^ l,h,a,b
+                   , bLats :: V.Vector Double
+                   , bLons :: V.Vector Double }
 
 data Params = PM { sensors :: [Sensor]
                  , controls :: [Control]
@@ -254,14 +254,13 @@ type Generator = Particle -> Params -> IO ()
 data Gen = Conditioned | Unconditioned deriving Eq
 
 -- | Returns the pair (longitudes, latitudes)
-genBeacons :: Rand -> Maybe FilePath -> IO (Vec Double, Vec Double)
-genBeacons _ Nothing         = return ( Vec 0 1 (V.fromList [1,3])
-                                      , Vec 0 1 (V.fromList [2,4]) )
+genBeacons :: Rand -> Maybe FilePath -> IO (V.Vector Double, V.Vector Double)
+genBeacons _ Nothing         = return ( V.fromList [1,3]
+                                      , V.fromList [2,4] )
 genBeacons g (Just evalPath) = do
   trueBeacons <- obstacles evalPath
-  let len = V.length trueBeacons
-  return ( Vec 0 (len-1) (V.map lon trueBeacons)
-         , Vec 0 (len-1) (V.map lat trueBeacons) )
+  return ( V.map lon trueBeacons
+         , V.map lat trueBeacons )
 
 updateParams :: Params -> (Double,(Double,Double)) -> Double -> Params
 updateParams prms cds tcurr =
@@ -276,19 +275,16 @@ plotPoint out (_,(lon,lat)) = do
   let fp = out </> "slam_out_path.txt"
   appendFile fp $ show lon ++ "," ++ show lat ++ "\n"
 
-makeDims :: V.Vector Double -> Vec Double
-makeDims = Vec 0 3           
-
 generate :: Gen -> FilePath -> FilePath -> Maybe FilePath -> IO ()
 generate c input output eval = do
   g <- MWC.createSystemRandom
-  (Init ds phi ilt iln) <- initialVals input
+  Init ds phi ilt iln <- initialVals input
   controls <- controlData input
   sensors <- sensorData input
   lasers <- if c==Unconditioned then return [] else laserReadings input
   (lons, lats) <- genBeacons g eval
                   
-  gen c output g (PL (makeDims ds) lons lats)
+  gen c output g (PL ds lons lats)
                  (PM sensors controls lasers (iln,(ilt,phi)) (0,0) 0)
 
 gen :: Gen -> FilePath -> Rand -> Generator
@@ -313,15 +309,14 @@ gen c out g prtcl params = go params
                      Unconditioned -> 
                          do ((zr,zi), coords) <- sampleState prtcl prms tcurr g
                             putStrLn "writing to simulated_input_laser"
-                            plotReads out (vec zr) (vec zi)
+                            plotReads out zr zi
                             go $ updateParams prms coords tcurr
                      Conditioned ->
                          do when (null $ lasers prms) $
                                  error "input_laser has fewer data than\
                                        \it should according to input_sensor"
-                            let (L _ zr zi) = head (lasers prms)
-                                makeLasers l = Vec 0 360 (V.fromList l)
-                                lreads = (makeLasers zr, makeLasers zi)
+                            let L _ zr zi = head (lasers prms)
+                                lreads = (V.fromList zr, V.fromList zi)
                             coords <- sampleCoords prtcl prms lreads tcurr g
                             let prms' = updateParams prms coords tcurr
                             go $ prms' { lasers = tail (lasers prms) }
@@ -341,7 +336,7 @@ simLasers = lam $ \ds -> lam $ \blons -> lam $ \blats ->
             simulate ds blons blats cds s delT
                               
 sampleState :: Particle -> Params -> Double -> Rand
-            -> IO ( (Vec Double, Vec Double)
+            -> IO ( (V.Vector Double, V.Vector Double)
                   , (Double, (Double, Double)) )
 sampleState prtcl prms tcurr g =
     fmap (\(Just (s,1)) -> s) $
@@ -519,4 +514,4 @@ testIO inpath = do
   print $ V.slice 0 20 (V.fromList controls)
         
 hakvec :: (Mochastic repr) => repr (Measure (Vector H.Real))
-hakvec = plate $ vector 10 20 (const (normal 0 1))
+hakvec = plate $ vector 11 (const (normal 0 1))

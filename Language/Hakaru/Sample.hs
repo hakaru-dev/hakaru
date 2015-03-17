@@ -1,19 +1,19 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances,
-    TypeFamilies, StandaloneDeriving, GeneralizedNewtypeDeriving, 
+    TypeFamilies, StandaloneDeriving, GeneralizedNewtypeDeriving,
     GADTs, RankNTypes, InstanceSigs, DataKinds, TypeOperators, PolyKinds #-}
 
 {-# LANGUAGE ScopedTypeVariables #-}
 
 {-# OPTIONS -Wall #-}
 
-module Language.Hakaru.Sample (Sample(..), Sample', Vec(..)) where
+module Language.Hakaru.Sample (Sample(..), Sample') where
 
 -- Importance sampling interpretation
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Real, Prob, Measure, Vector, errorEmpty,
+import Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..))
-import Language.Hakaru.Util.Extras (normalize)
+import Language.Hakaru.Util.Extras (normalize, normalizeVector)
 import Language.Hakaru.Distribution (poisson_rng)
 import Control.Monad.Primitive (PrimState, PrimMonad)
 import Numeric.SpecFunctions (logGamma, logBeta)
@@ -23,8 +23,9 @@ import qualified Numeric.Integration.TanhSinh as TS
 import qualified System.Random.MWC as MWC
 import qualified System.Random.MWC.Distributions as MWCD
 import qualified Data.Vector as V
+import Data.Maybe (fromMaybe)
 import Control.Monad.State
-import Control.Monad.Trans.Maybe    
+import Control.Monad.Trans.Maybe
 import Language.Hakaru.Embed
 
 newtype Sample m a = Sample { unSample :: Sample' m a }
@@ -40,9 +41,7 @@ type instance Sample' m [a]          = [Sample' m a]
 type instance Sample' m (Measure a)  = LF.LogFloat -> MWC.Gen (PrimState m) ->
                                        m (Maybe (Sample' m a, LF.LogFloat))
 type instance Sample' m (a -> b)     = Sample' m a -> Sample' m b
-
-data Vec a = Vec {len :: Int, vec :: V.Vector a} deriving (Show)
-type instance Sample' m (Vector a)   = Vec (Sample' m a)
+type instance Sample' m (Vector a)   = V.Vector (Sample' m a)
 
 instance Order (Sample m) Real where
   less  (Sample a) (Sample b) = Sample (a <  b)
@@ -99,11 +98,11 @@ instance Base (Sample m) where
   betaFunc (Sample a) (Sample b)  = Sample (LF.logToLogFloat (logBeta
                                        (LF.fromLogFloat a) (LF.fromLogFloat b)))
   vector (Sample l) f             = let g i = unSample (f (Sample i))
-                                    in Sample (Vec l (V.generate l g))
-  empty                           = Sample $ Vec 0 V.empty
-  index  (Sample v)  (Sample i)   = Sample $ vec v V.! i
-  size   (Sample v) = Sample (len v)
-  reduce f a (Sample v) = V.foldl' (\acc b -> f acc (Sample b)) a (vec v)
+                                    in Sample (V.generate l g)
+  empty                           = Sample V.empty
+  index  (Sample v) (Sample i)    = Sample (v V.! i)
+  size   (Sample v)               = Sample (V.length v)
+  reduce f a (Sample v)           = V.foldl' (\acc b -> f acc (Sample b)) a v
 
 instance (PrimMonad m) => Mochastic (Sample m) where
   dirac (Sample a) = Sample (\p _ ->
@@ -140,16 +139,11 @@ instance (PrimMonad m) => Mochastic (Sample m) where
   normal (Sample mu) (Sample sd) = Sample (\p g -> do
     x <- MWCD.normal mu (LF.fromLogFloat sd) g
     return (Just (x, p)))
-  categorical (Sample v) = Sample (\ p g -> do
-    let l = vec v
-    let total = V.sum (V.map LF.fromLogFloat l)
-    let weights = V.scanl1 (+) (V.map LF.fromLogFloat l)
-    let choices = V.generate (V.length l) id
-    if not (total > (0 :: Double)) then errorEmpty else do
-       u <- MWC.uniformR (0, total) g
-       let x = V.head (V.dropWhile (\ (v',_) -> u > v') (V.zip weights choices))
-       return (Just (snd x, p))
-    )
+  categorical (Sample v) = Sample (\p g -> do
+    let (_,y,ys) = normalizeVector v
+    if not (y > (0::Double)) then return Nothing else do
+      u <- MWC.uniformR (0, y) g
+      return (Just (fromMaybe 0 (V.findIndex (u <=) (V.scanl1' (+) ys)), p)))
 
   poisson (Sample l) = Sample (\p g -> do
     x <- poisson_rng (LF.fromLogFloat l) g
@@ -159,16 +153,16 @@ instance (PrimMonad m) => Mochastic (Sample m) where
     return (Just (LF.logFloat x, p)))
   beta a b = gamma a 1 `bind` \x -> gamma b 1 `bind` \y -> dirac (x / (x + y))
   plate (Sample v) = Sample (\p g -> runMaybeT $ do
-    samples <- V.mapM (\m -> MaybeT $ m 1 g) (vec v)
+    samples <- V.mapM (\m -> MaybeT $ m 1 g) v
     let (v', ps) = V.unzip samples
-    return (v{vec = v'}, p * V.product ps))
+    return (v', p * V.product ps))
   chain (Sample v) = Sample (\s p g -> runMaybeT $ do
     let convert f = StateT $ \s' -> do ((a,s''),p') <- MaybeT (f s' 1 g)
                                        return ((a,p'),s'')
-    (samples, sout) <- runStateT (V.mapM convert (vec v)) s
+    (samples, sout) <- runStateT (V.mapM convert v) s
     let (v', ps) = V.unzip samples
-    return ((v{vec = v'}, sout), p * V.product ps))                                     
-  
+    return ((v', sout), p * V.product ps))
+
 instance Integrate (Sample m) where -- just for kicks -- inaccurate
   integrate (Sample lo) (Sample hi)
     | not (isInfinite lo) && not (isInfinite hi)
@@ -196,24 +190,24 @@ instance Lambda (Sample m) where
 
 
 type instance Sample' m (Tag t xss) = NS (NP (Sample m)) xss
-type instance Sample' m (SOP xss) = NS (NP (Sample m)) xss 
+type instance Sample' m (SOP xss) = NS (NP (Sample m)) xss
 
-instance Embed (Sample m) where 
-  _Nil = Sample (Z Nil) 
+instance Embed (Sample m) where
+  _Nil = Sample (Z Nil)
 
-  _Cons x (Sample (Z xs)) = Sample (Z (x :* xs)) 
-  _Cons _ (Sample (S _ )) = error "type error" 
+  _Cons x (Sample (Z xs)) = Sample (Z (x :* xs))
+  _Cons _ (Sample (S _ )) = error "type error"
 
   caseProd (Sample (Z (x :* xs))) f = Sample (unSample $ f x (Sample (Z xs)))
   caseProd (Sample (S _)) _ = error "type error"
 
-  _Z (Sample (Z x)) = Sample (Z x) 
-  _Z (Sample (S _)) = error "type error" 
+  _Z (Sample (Z x)) = Sample (Z x)
+  _Z (Sample (S _)) = error "type error"
 
-  _S (Sample x) = Sample (S x) 
+  _S (Sample x) = Sample (S x)
 
   caseSum (Sample (Z x)) cS _  = cS (Sample (Z x))
-  caseSum (Sample (S x)) _  cZ = cZ (Sample x) 
+  caseSum (Sample (S x)) _  cZ = cZ (Sample x)
 
-  tag (Sample x) = Sample x 
-  untag (Sample x) = Sample x 
+  tag (Sample x) = Sample x
+  untag (Sample x) = Sample x
