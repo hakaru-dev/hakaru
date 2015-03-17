@@ -31,7 +31,9 @@ testRelationships = test [
                             dirac ((fromProb (x1-x2))))))),
 
     -- sum of n exponential(b) random variables is a gamma(n, b) random variable
-    "t12"   ~: testSS [t12] (lam (\b -> gamma 2 b))
+    "t12"   ~: testSS [t12] (lam (\b -> gamma 2 b)),
+    --  Weibull(1, b) random variable is an exponential random variable with mean b
+    "t13"   ~: testSS [t13] (lam (\b -> exponential (recip b)))
     ]
 
 allTests :: Test
@@ -87,3 +89,6 @@ t12 = lam (\b ->
     exponential b `bind` \x1 ->
     exponential b `bind` \x2 ->
     dirac (x1+x2))
+
+t13 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure Prob)
+t13 = lam (\b -> weibull 1 b)
