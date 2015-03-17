@@ -39,7 +39,7 @@ tester prog = do
   Control.Monad.replicateM 10 (unSample prog 1 g)
 
 xor :: Base repr => repr Bool -> repr Bool -> repr Bool
-xor a b = or_ [and_ [a, not_ b], and_ [not_ a, b]] 
+xor a b = or_ [and_ [a, not_ b], and_ [not_ a, b]]
 
 eq_ :: Base repr => repr Bool -> repr Bool -> repr Bool
 eq_ a b = if_ a b (not_ b)
@@ -136,7 +136,7 @@ testLinreg = do
 -- QMR
 
 qmr :: Mochastic repr => repr (Measure (Bool, Bool))
-qmr = 
+qmr =
  bern (1/40)   `bind` \cold ->
  bern (1/80)   `bind` \flu  ->
  bern (1/1200) `bind` \ebola ->
@@ -148,8 +148,7 @@ qmr =
 
 symDirichlet :: (Lambda repr, Integrate repr, Mochastic repr) =>
                 repr Int -> repr Prob -> repr (Measure (Vector Prob))
-symDirichlet n a = (plate $ vector 0 n (\_ -> gamma a 1)) `bind` \xs ->
-                   dirac (normalizeVector xs)
+symDirichlet n a = liftM normalizeV (plate (constV n (gamma a 1)))
 
 start :: Base repr => repr Int
 start = 0
@@ -202,14 +201,14 @@ ldaVec = undefined
 
 sampleV :: (Lambda repr, Mochastic repr) =>
             repr (Int -> Vector Real -> Measure (Vector Int))
-sampleV = lam (\ n ->
-          lam (\ x -> plate (vector 0 n (\ i ->
-                             categorical (mapV unsafeProb x)))))
+sampleV = lam (\n ->
+          lam (\x -> plate (vector 0 n (\i ->
+                            categorical (mapV unsafeProb x)))))
 
 vocab :: V.Vector String
 vocab = V.fromList ["sports", "food", "lifestyle"]
 
-runSampleV :: Int -> IO (V.Vector String) --(Maybe (Vec Int, LF.LogFloat)) 
+runSampleV :: Int -> IO (V.Vector String) --(Maybe (Vec Int, LF.LogFloat))
 runSampleV n = do
    let v = V.fromList [0.4, 0.3, 0.2]
    g <- MWC.create
@@ -224,10 +223,10 @@ preferentialPrior :: Mochastic repr => repr (Measure Real)
 preferentialPrior = uniform 0 1
 
 numNodes          :: Mochastic repr => repr (Measure Int)
-numNodes          = poisson 5   
+numNodes          = poisson 5
 
 edgesPerNode      :: Mochastic repr => repr (Measure Int)
-edgesPerNode      = poisson 3   
+edgesPerNode      = poisson 3
 
 -- Friends who Smoke
 friendsWhoSmoke :: Mochastic repr => repr (Measure (Bool, Bool))
@@ -285,7 +284,7 @@ liftedInference :: Mochastic repr => repr (Measure (Int, Bool))
 liftedInference = bern 0.01 `bind` \cause ->
                   replicateH n (if_ cause (bern 0.6) (bern 0.05))
                    (\ effects ->
-                    dirac $ 
+                    dirac $
                     foldl (\ sum_ e ->
                            sum_ + (if_ e 1 0)) 0 effects) `bind` \sum_ ->
                   dirac (pair sum_ cause)

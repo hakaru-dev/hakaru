@@ -130,7 +130,7 @@ simulate ds blons blats cds steerE delT =
     let_' (mapV ((-) calc_lat) blats) $ \lat_ds ->
 
     -- Equation 10 from [1]
-    let_' (mapV sqrt_ (vZipWith (+) (mapV sqr lon_ds)
+    let_' (mapV sqrt_ (zipWithV (+) (mapV sqr lon_ds)
                                     (mapV sqr lat_ds))) $ \calc_zrads ->
     -- inverse-square for intensities 
     let_' (mapV (\r -> cIntensity / (pow_ r 2)) calc_zrads) $ \calc_zints ->
@@ -138,7 +138,7 @@ simulate ds blons blats cds steerE delT =
     -- Equation 10 from [1]    
     -- Note: removed a "+ pi/2" term: it is present as (i - 180) in laserAssigns
     let_' (mapV (\r -> atan r - calc_phi)
-                (vZipWith (/) lat_ds lon_ds)) $ \calc_zbetas ->
+                (zipWithV (/) lat_ds lon_ds)) $ \calc_zbetas ->
 
     -- | Add some noise
     normal calc_lon ((*) cVehicle . sqrt_ . unsafeProb $ delT) `bind` \lon ->
@@ -219,8 +219,8 @@ makeLasers :: (Mochastic repr) => repr (Vector H.Real)
              -> repr H.Real -> repr Prob
              -> repr (Measure (Vector H.Real))
 makeLasers reads betas mu sd =
-    let base = vector 0 360 (const mu)
-        combine r b = vector 0 360 (\i -> if_ (withinLaser (i-180) b) (r-mu) 0)
+    let base = vector 361 (const mu)
+        combine r b = vector 361 (\i -> if_ (withinLaser (i-180) b) (r-mu) 0)
         combined = zipWithV combine reads betas
     in normalNoise sd (reduce (zipWithV (+)) base combined)
 
@@ -278,7 +278,7 @@ plotPoint out (_,(lon,lat)) = do
 generate :: Gen -> FilePath -> FilePath -> Maybe FilePath -> IO ()
 generate c input output eval = do
   g <- MWC.createSystemRandom
-  (Init ds phi ilt iln) <- initialVals input
+  Init ds phi ilt iln <- initialVals input
   controls <- controlData input
   sensors <- sensorData input
   lasers <- if c==Unconditioned then return [] else laserReadings input
@@ -514,4 +514,4 @@ testIO inpath = do
   print $ V.slice 0 20 (V.fromList controls)
         
 hakvec :: (Mochastic repr) => repr (Measure (Vector H.Real))
-hakvec = plate $ vector 10 20 (const (normal 0 1))
+hakvec = plate $ vector 11 (const (normal 0 1))

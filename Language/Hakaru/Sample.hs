@@ -1,5 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances,
-    TypeFamilies, StandaloneDeriving, GeneralizedNewtypeDeriving, 
+    TypeFamilies, StandaloneDeriving, GeneralizedNewtypeDeriving,
     GADTs, RankNTypes, InstanceSigs, DataKinds, TypeOperators, PolyKinds #-}
 
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -13,7 +13,7 @@ module Language.Hakaru.Sample (Sample(..), Sample') where
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure, Vector, errorEmpty,
        Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..))
-import Language.Hakaru.Util.Extras (normalize)
+import Language.Hakaru.Util.Extras (normalize, normalizeVector)
 import Language.Hakaru.Distribution (poisson_rng)
 import Control.Monad.Primitive (PrimState, PrimMonad)
 import Numeric.SpecFunctions (logGamma, logBeta)
@@ -23,8 +23,9 @@ import qualified Numeric.Integration.TanhSinh as TS
 import qualified System.Random.MWC as MWC
 import qualified System.Random.MWC.Distributions as MWCD
 import qualified Data.Vector as V
+import Data.Maybe (fromMaybe)
 import Control.Monad.State
-import Control.Monad.Trans.Maybe    
+import Control.Monad.Trans.Maybe
 import Language.Hakaru.Embed
 
 newtype Sample m a = Sample { unSample :: Sample' m a }
@@ -138,16 +139,11 @@ instance (PrimMonad m) => Mochastic (Sample m) where
   normal (Sample mu) (Sample sd) = Sample (\p g -> do
     x <- MWCD.normal mu (LF.fromLogFloat sd) g
     return (Just (x, p)))
-  categorical (Sample v) = Sample (\ p g -> do
-    let l = vec v
-    let total = V.sum (V.map LF.fromLogFloat l)
-    let weights = V.scanl1 (+) (V.map LF.fromLogFloat l)
-    let choices = V.generate (V.length l) id
-    if not (total > (0 :: Double)) then errorEmpty else do
-       u <- MWC.uniformR (0, total) g
-       let x = V.head (V.dropWhile (\ (v',_) -> u > v') (V.zip weights choices))
-       return (Just (snd x, p))
-    )
+  categorical (Sample v) = Sample (\p g -> do
+    let (_,y,ys) = normalizeVector v
+    if not (y > (0::Double)) then errorEmpty else do
+      u <- MWC.uniformR (0, y) g
+      return (Just (fromMaybe 0 (V.findIndex (u <=) (V.scanl1' (+) ys)), p)))
 
   poisson (Sample l) = Sample (\p g -> do
     x <- poisson_rng (LF.fromLogFloat l) g
@@ -194,24 +190,24 @@ instance Lambda (Sample m) where
 
 
 type instance Sample' m (Tag t xss) = NS (NP (Sample m)) xss
-type instance Sample' m (SOP xss) = NS (NP (Sample m)) xss 
+type instance Sample' m (SOP xss) = NS (NP (Sample m)) xss
 
-instance Embed (Sample m) where 
-  _Nil = Sample (Z Nil) 
+instance Embed (Sample m) where
+  _Nil = Sample (Z Nil)
 
-  _Cons x (Sample (Z xs)) = Sample (Z (x :* xs)) 
-  _Cons _ (Sample (S _ )) = error "type error" 
+  _Cons x (Sample (Z xs)) = Sample (Z (x :* xs))
+  _Cons _ (Sample (S _ )) = error "type error"
 
   caseProd (Sample (Z (x :* xs))) f = Sample (unSample $ f x (Sample (Z xs)))
   caseProd (Sample (S _)) _ = error "type error"
 
-  _Z (Sample (Z x)) = Sample (Z x) 
-  _Z (Sample (S _)) = error "type error" 
+  _Z (Sample (Z x)) = Sample (Z x)
+  _Z (Sample (S _)) = error "type error"
 
-  _S (Sample x) = Sample (S x) 
+  _S (Sample x) = Sample (S x)
 
   caseSum (Sample (Z x)) cS _  = cS (Sample (Z x))
-  caseSum (Sample (S x)) _  cZ = cZ (Sample x) 
+  caseSum (Sample (S x)) _  cZ = cZ (Sample x)
 
-  tag (Sample x) = Sample x 
-  untag (Sample x) = Sample x 
+  tag (Sample x) = Sample x
+  untag (Sample x) = Sample x
