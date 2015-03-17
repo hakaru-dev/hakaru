@@ -238,9 +238,9 @@ withinLaser n b = and_ [ lessOrEq (convert (fromInt n - 0.5)) tb2
 
 type Rand = MWC.Gen (PrimState IO)
 
-data Particle = PL { dims :: Vec Double  -- ^ l,h,a,b
-                   , bLats :: Vec Double
-                   , bLons :: Vec Double }
+data Particle = PL { dims :: V.Vector Double  -- ^ l,h,a,b
+                   , bLats :: V.Vector Double
+                   , bLons :: V.Vector Double }
 
 data Params = PM { sensors :: [Sensor]
                  , controls :: [Control]
@@ -254,14 +254,13 @@ type Generator = Particle -> Params -> IO ()
 data Gen = Conditioned | Unconditioned deriving Eq
 
 -- | Returns the pair (longitudes, latitudes)
-genBeacons :: Rand -> Maybe FilePath -> IO (Vec Double, Vec Double)
-genBeacons _ Nothing         = return ( Vec 0 1 (V.fromList [1,3])
-                                      , Vec 0 1 (V.fromList [2,4]) )
+genBeacons :: Rand -> Maybe FilePath -> IO (V.Vector Double, V.Vector Double)
+genBeacons _ Nothing         = return ( V.fromList [1,3]
+                                      , V.fromList [2,4] )
 genBeacons g (Just evalPath) = do
   trueBeacons <- obstacles evalPath
-  let len = V.length trueBeacons
-  return ( Vec 0 (len-1) (V.map lon trueBeacons)
-         , Vec 0 (len-1) (V.map lat trueBeacons) )
+  return ( V.map lon trueBeacons
+         , V.map lat trueBeacons )
 
 updateParams :: Params -> (Double,(Double,Double)) -> Double -> Params
 updateParams prms cds tcurr =
@@ -276,9 +275,6 @@ plotPoint out (_,(lon,lat)) = do
   let fp = out </> "slam_out_path.txt"
   appendFile fp $ show lon ++ "," ++ show lat ++ "\n"
 
-makeDims :: V.Vector Double -> Vec Double
-makeDims = Vec 0 3           
-
 generate :: Gen -> FilePath -> FilePath -> Maybe FilePath -> IO ()
 generate c input output eval = do
   g <- MWC.createSystemRandom
@@ -288,7 +284,7 @@ generate c input output eval = do
   lasers <- if c==Unconditioned then return [] else laserReadings input
   (lons, lats) <- genBeacons g eval
                   
-  gen c output g (PL (makeDims ds) lons lats)
+  gen c output g (PL ds lons lats)
                  (PM sensors controls lasers (iln,(ilt,phi)) (0,0) 0)
 
 gen :: Gen -> FilePath -> Rand -> Generator
@@ -313,15 +309,14 @@ gen c out g prtcl params = go params
                      Unconditioned -> 
                          do ((zr,zi), coords) <- sampleState prtcl prms tcurr g
                             putStrLn "writing to simulated_input_laser"
-                            plotReads out (vec zr) (vec zi)
+                            plotReads out zr zi
                             go $ updateParams prms coords tcurr
                      Conditioned ->
                          do when (null $ lasers prms) $
                                  error "input_laser has fewer data than\
                                        \it should according to input_sensor"
-                            let (L _ zr zi) = head (lasers prms)
-                                makeLasers l = Vec 0 360 (V.fromList l)
-                                lreads = (makeLasers zr, makeLasers zi)
+                            let L _ zr zi = head (lasers prms)
+                                lreads = (V.fromList zr, V.fromList zi)
                             coords <- sampleCoords prtcl prms lreads tcurr g
                             let prms' = updateParams prms coords tcurr
                             go $ prms' { lasers = tail (lasers prms) }
@@ -341,7 +336,7 @@ simLasers = lam $ \ds -> lam $ \blons -> lam $ \blats ->
             simulate ds blons blats cds s delT
                               
 sampleState :: Particle -> Params -> Double -> Rand
-            -> IO ( (Vec Double, Vec Double)
+            -> IO ( (V.Vector Double, V.Vector Double)
                   , (Double, (Double, Double)) )
 sampleState prtcl prms tcurr g =
     fmap (\(Just (s,1)) -> s) $

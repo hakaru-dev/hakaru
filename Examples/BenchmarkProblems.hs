@@ -211,10 +211,10 @@ vocab = V.fromList ["sports", "food", "lifestyle"]
 
 runSampleV :: Int -> IO (V.Vector String) --(Maybe (Vec Int, LF.LogFloat)) 
 runSampleV n = do
-   let v = Vec 0 2 (V.fromList [0.4, 0.3, 0.2])
+   let v = V.fromList [0.4, 0.3, 0.2]
    g <- MWC.create
    Just (v',_) <- unSample sampleV n v 1 g
-   return $ V.map (vocab V.!) (vec v')
+   return $ V.map (vocab V.!) v'
 
 -- pCFG
 

@@ -6,7 +6,7 @@
 
 {-# OPTIONS -Wall #-}
 
-module Language.Hakaru.Sample (Sample(..), Sample', Vec(..)) where
+module Language.Hakaru.Sample (Sample(..), Sample') where
 
 -- Importance sampling interpretation
 
@@ -40,9 +40,7 @@ type instance Sample' m [a]          = [Sample' m a]
 type instance Sample' m (Measure a)  = LF.LogFloat -> MWC.Gen (PrimState m) ->
                                        m (Maybe (Sample' m a, LF.LogFloat))
 type instance Sample' m (a -> b)     = Sample' m a -> Sample' m b
-
-data Vec a = Vec {len :: Int, vec :: V.Vector a} deriving (Show)
-type instance Sample' m (Vector a)   = Vec (Sample' m a)
+type instance Sample' m (Vector a)   = V.Vector (Sample' m a)
 
 instance Order (Sample m) Real where
   less  (Sample a) (Sample b) = Sample (a <  b)
@@ -99,11 +97,11 @@ instance Base (Sample m) where
   betaFunc (Sample a) (Sample b)  = Sample (LF.logToLogFloat (logBeta
                                        (LF.fromLogFloat a) (LF.fromLogFloat b)))
   vector (Sample l) f             = let g i = unSample (f (Sample i))
-                                    in Sample (Vec l (V.generate l g))
-  empty                           = Sample $ Vec 0 V.empty
-  index  (Sample v)  (Sample i)   = Sample $ vec v V.! i
-  size   (Sample v) = Sample (len v)
-  reduce f a (Sample v) = V.foldl' (\acc b -> f acc (Sample b)) a (vec v)
+                                    in Sample (V.generate l g)
+  empty                           = Sample V.empty
+  index  (Sample v) (Sample i)    = Sample (v V.! i)
+  size   (Sample v)               = Sample (V.length v)
+  reduce f a (Sample v)           = V.foldl' (\acc b -> f acc (Sample b)) a v
 
 instance (PrimMonad m) => Mochastic (Sample m) where
   dirac (Sample a) = Sample (\p _ ->
@@ -159,16 +157,16 @@ instance (PrimMonad m) => Mochastic (Sample m) where
     return (Just (LF.logFloat x, p)))
   beta a b = gamma a 1 `bind` \x -> gamma b 1 `bind` \y -> dirac (x / (x + y))
   plate (Sample v) = Sample (\p g -> runMaybeT $ do
-    samples <- V.mapM (\m -> MaybeT $ m 1 g) (vec v)
+    samples <- V.mapM (\m -> MaybeT $ m 1 g) v
     let (v', ps) = V.unzip samples
-    return (v{vec = v'}, p * V.product ps))
+    return (v', p * V.product ps))
   chain (Sample v) = Sample (\s p g -> runMaybeT $ do
     let convert f = StateT $ \s' -> do ((a,s''),p') <- MaybeT (f s' 1 g)
                                        return ((a,p'),s'')
-    (samples, sout) <- runStateT (V.mapM convert (vec v)) s
+    (samples, sout) <- runStateT (V.mapM convert v) s
     let (v', ps) = V.unzip samples
-    return ((v{vec = v'}, sout), p * V.product ps))                                     
-  
+    return ((v', sout), p * V.product ps))
+
 instance Integrate (Sample m) where -- just for kicks -- inaccurate
   integrate (Sample lo) (Sample hi)
     | not (isInfinite lo) && not (isInfinite hi)
