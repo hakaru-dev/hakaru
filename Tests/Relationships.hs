@@ -33,7 +33,10 @@ testRelationships = test [
     -- sum of n exponential(b) random variables is a gamma(n, b) random variable
     "t12"   ~: testSS [t12] (lam (\b -> gamma 2 b)),
     --  Weibull(1, b) random variable is an exponential random variable with mean b
-    "t13"   ~: testSS [t13] (lam (\b -> exponential (recip b)))
+    "t13"   ~: testSS [t13] (lam (\b -> exponential (recip b))),
+    -- If X is a standard normal random variable and U is a chi-squared random variable with v degrees of freedom,
+    -- then X/sqrt(U/v) is a Student's t(v) random variable
+    "t14"   ~: testSS [t14] (lam (\v -> student 0 v))
     ]
 
 allTests :: Test
@@ -92,3 +95,8 @@ t12 = lam (\b ->
 
 t13 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure Prob)
 t13 = lam (\b -> weibull 1 b)
+
+t14 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure Real)
+t14 = lam (\v -> normal 0 1 `bind` \x ->
+    chi2 v `bind` \u ->
+    dirac (x/fromProb(sqrt_(u/v))))
