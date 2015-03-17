@@ -142,9 +142,9 @@ instance (Mochastic repr, Integrate repr, Lambda repr)
   counting = Expect $ pair
     counting
     (lam (summate   negativeInfinity infinity . app))
-  superpose pms = Expect $ reflect pms $ \pms -> pair
-    (superpose [ (p, fst_ m) | (p, m) <- pms ])
-    (lam (\c -> sum [ p * app (snd_ m) c | (p, m) <- pms ]))
+  superpose pms = Expect $ reflect pms $ \pms' -> pair
+    (superpose [ (p, fst_ m) | (p, m) <- pms' ])
+    (lam (\c -> sum [ p * app (snd_ m) c | (p, m) <- pms' ]))
   uniform (Expect lo) (Expect hi) = Expect $ pair
     (uniform lo hi)
     (lam (\f -> integrate lo hi (\x -> app f x / unsafeProb (hi - lo))))
@@ -155,9 +155,9 @@ instance (Mochastic repr, Integrate repr, Lambda repr)
      / sd / sqrt_ (2 * pi_) * app c x)))
   categorical (Expect ps) = Expect $ pair
     (categorical ps)
-    (lam (\c -> let_ (summateV ps) $ \total ->
-                if_ (less 0 total)
-                    (summateV (mapWithIndex (\i p -> p * app c i) ps) / total)
+    (lam (\c -> let_ (summateV ps) $ \tot ->
+                if_ (less 0 tot)
+                    (summateV (mapWithIndex (\i p -> p * app c i) ps) / tot)
                     0))
   poisson (Expect l) = Expect $ pair
     (poisson l)
