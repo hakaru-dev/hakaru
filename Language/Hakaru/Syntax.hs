@@ -420,9 +420,9 @@ unitV v i = vector (size v)
 
 concatV :: (Base repr) => repr (Vector a) -> repr (Vector a) -> repr (Vector a)
 concatV v1 v2 = vector (size v1 + size v2)
-  (\i -> if_ (less (size v1) i)
-             (index v2 (i - size v1))
-             (index v1 i))
+                       (\i -> if_ (less i (size v1))
+                                  (index v1 i)
+                                  (index v2 (i - size v1)))
 
 unzipV :: Base repr => repr (Vector (a,b)) -> repr (Vector a, Vector b)
 unzipV v = pair (mapV fst_ v) (mapV snd_ v)
