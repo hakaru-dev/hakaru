@@ -10,7 +10,7 @@ module Language.Hakaru.Expect (Expect(..), Expect', total, normalize) where
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..),
-       fst_, snd_, sumVec, zipWithV, incV)
+       fst_, snd_, summateV, mapWithIndex)
 -- import qualified Generics.SOP as SOP
 -- import Generics.SOP (HasDatatypeInfo, Generic)
 -- import GHC.Generics (Generic)
@@ -142,9 +142,9 @@ instance (Mochastic repr, Integrate repr, Lambda repr)
   counting = Expect $ pair
     counting
     (lam (summate   negativeInfinity infinity . app))
-  superpose pms = Expect $ reflect pms $ \pms -> pair
-    (superpose [ (p, fst_ m) | (p, m) <- pms ])
-    (lam (\c -> sum [ p * app (snd_ m) c | (p, m) <- pms ]))
+  superpose pms = Expect $ reflect pms $ \pms' -> pair
+    (superpose [ (p, fst_ m) | (p, m) <- pms' ])
+    (lam (\c -> sum [ p * app (snd_ m) c | (p, m) <- pms' ]))
   uniform (Expect lo) (Expect hi) = Expect $ pair
     (uniform lo hi)
     (lam (\f -> integrate lo hi (\x -> app f x / unsafeProb (hi - lo))))
@@ -153,10 +153,12 @@ instance (Mochastic repr, Integrate repr, Lambda repr)
     (lam (\c -> integrate negativeInfinity infinity (\x ->
      exp_ (- (x - mu)^(2::Int) / fromProb (2 * pow_ sd 2))
      / sd / sqrt_ (2 * pi_) * app c x)))
-  categorical (Expect pxs) = Expect $ pair
-    (categorical pxs)
-    (lam (\c -> sumVec (zipWithV (\ p x ->  p * app c x) pxs (incV pxs))
-                / sumVec pxs))
+  categorical (Expect ps) = Expect $ pair
+    (categorical ps)
+    (lam (\c -> let_ (summateV ps) $ \tot ->
+                if_ (less 0 tot)
+                    (summateV (mapWithIndex (\i p -> p * app c i) ps) / tot)
+                    0))
   poisson (Expect l) = Expect $ pair
     (poisson l)
     (lam (\c -> flip (if_ (less 0 l)) 0 (summate 0 infinity (\x ->

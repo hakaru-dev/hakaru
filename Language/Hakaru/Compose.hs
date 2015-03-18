@@ -144,20 +144,20 @@ instance (Base repr, Applicative f) => Base (Compose f s repr) where
   fix f            = Compose (fmap fix (fun1 f))
 
 instance (Mochastic repr, Applicative f) => Mochastic (Compose f s repr) where
-  dirac     = compose1 dirac
-  bind m k  = Compose (liftA2 bind (fun0 m) (fun1 k))
-  lebesgue  = compose0 lebesgue
-  counting  = compose0 counting
-  superpose = Compose . fmap superpose
-                      . traverse (\(Compose p, Compose m) -> liftA2 (,) p m)
-  uniform   = compose2 uniform
-  normal    = compose2 normal
-  -- TODO define mix and categorical
-  poisson   = compose1 poisson
-  gamma     = compose2 gamma
-  beta      = compose2 beta
-  dp        = compose2 dp
-  plate     = compose1 plate
+  dirac       = compose1 dirac
+  bind m k    = Compose (liftA2 bind (fun0 m) (fun1 k))
+  lebesgue    = compose0 lebesgue
+  counting    = compose0 counting
+  superpose   = Compose . fmap superpose
+                        . traverse (\(Compose p, Compose m) -> liftA2 (,) p m)
+  categorical = compose1 categorical
+  uniform     = compose2 uniform
+  normal      = compose2 normal
+  poisson     = compose1 poisson
+  gamma       = compose2 gamma
+  beta        = compose2 beta
+  dp          = compose2 dp
+  plate       = compose1 plate
   -- TODO define chain
 
 instance (Integrate repr, Applicative f) => Integrate (Compose f s repr) where

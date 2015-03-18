@@ -31,7 +31,16 @@ testRelationships = test [
                             dirac ((fromProb (x1-x2))))))),
 
     -- sum of n exponential(b) random variables is a gamma(n, b) random variable
-    "t12"   ~: testSS [t12] (lam (\b -> gamma 2 b))
+    "t12"   ~: testSS [t12] (lam (\b -> gamma 2 b)),
+
+    --  Weibull(1, b) random variable is an exponential random variable with mean b
+    "t13"   ~: testSS [t13] (lam (\b -> exponential (recip b))),
+
+    -- If X is a standard normal random variable and U is a chi-squared random variable with v degrees of freedom,
+    -- then X/sqrt(U/v) is a Student's t(v) random variable
+    "t14"   ~: testSS [t14] (lam (\v -> student 0 v)),
+
+    "t15"   ~: testSS [t15] (lam (\k -> (lam (\t -> gamma k t))))
     ]
 
 allTests :: Test
@@ -40,16 +49,20 @@ allTests = test [
     ]
 
 t1 :: (Lambda repr, Mochastic repr) => repr (Real -> Prob -> Measure Real)
-t1 = lam (\mu -> (lam (\sigma -> normal mu sigma `bind` \x -> dirac ((x - mu) / (fromProb sigma)))))
+t1 = lam (\mu -> (lam (\sigma ->
+    normal mu sigma `bind` \x ->
+    dirac ((x - mu) / (fromProb sigma)))))
 
 t2 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure Prob)
 t2 = lam (\b -> chi2 (2*b))
 
 t3 :: (Lambda repr, Mochastic repr) => repr (Prob -> Prob -> Measure Prob)
-t3 = lam (\alpha -> (lam (\bet -> gamma alpha bet `bind` \x -> dirac (2 * x / alpha))))
+t3 = lam (\alpha -> (lam (\bet ->
+    gamma alpha bet `bind` \x ->
+    dirac (2 * x / alpha))))
 
 t3' :: (Lambda repr, Mochastic repr) => repr (Prob -> Prob -> Measure Prob)
-t3' = (lam (\_ -> (lam (\bet -> chi2 (2*bet)))))
+t3' = lam (\_ -> (lam (\bet -> chi2 (2*bet))))
 
 t4 :: (Lambda repr, Mochastic repr) => repr (Prob -> Prob -> Prob -> Measure Prob)
 t4 = lam (\a -> lam (\b -> lam (\t -> 
@@ -58,10 +71,14 @@ t4 = lam (\a -> lam (\b -> lam (\t ->
     dirac (x1/(x1+x2)))))
 
 t5 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure Prob)
-t5 = lam (\alpha -> uniform 0 1 `bind` \x -> dirac (-alpha * unsafeProb(log_ (unsafeProb x))))
+t5 = lam (\alpha ->
+    uniform 0 1 `bind` \x ->
+    dirac (-alpha * unsafeProb(log_ (unsafeProb x))))
 
 t5' :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure Prob)
-t5' = lam (\alpha -> laplace (fromProb alpha) alpha `bind` \x -> dirac (abs (unsafeProb x)))
+t5' = lam (\alpha ->
+    laplace (fromProb alpha) alpha `bind` \x ->
+    dirac (abs (unsafeProb x)))
 
 -- Untestable right now with mu -> infinity, maybe later?
 --t6 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure Real)
@@ -87,3 +104,16 @@ t12 = lam (\b ->
     exponential b `bind` \x1 ->
     exponential b `bind` \x2 ->
     dirac (x1+x2))
+
+t13 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure Prob)
+t13 = lam (\b -> weibull 1 b)
+
+t14 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure Real)
+t14 = lam (\v -> normal 0 1 `bind` \x ->
+    chi2 v `bind` \u ->
+    dirac (x/fromProb(sqrt_(u/v))))
+
+t15 :: (Lambda repr, Mochastic repr) => repr (Prob -> Prob -> Measure Prob)
+t15 = lam (\k -> (lam (\t ->
+    invgamma k (recip t) `bind` \x ->
+    dirac (recip x))))
