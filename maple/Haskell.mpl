@@ -154,8 +154,10 @@ bi["Snd"] := ufunc("snd_");
 
 # SOP functions
 bi["Tag"] := ufunc("tag");
-bi["Left"] := ufunc("left");
-bi["Right"] := ufunc("right");
+bi["Zero"] := ufunc("_Z");
+bi["Succ"] := ufunc("_S");
+bi["Cons"] := bfunc("_Cons");
+bi["Nil"] := proc() b:-append("_Nil") end;
 
 
 # be careful what you ask for!

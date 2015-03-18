@@ -43,7 +43,7 @@ instance Exception SimplifyException
 ourContext :: MonadInterpreter m => m ()
 ourContext = do
   let modules = ["Language.Hakaru.RoundTrip"]
- 
+
   loadModules modules
 
   -- "Tag" requires DataKinds to use type list syntax 
@@ -63,11 +63,7 @@ closeLoop s = action where
       Right a -> return a
 
   s' :: String
-  s' = s ++ " :: " ++ r (show (typeOf (getArg action)))
-
-  -- Ugly hack because Typeable renders type level lists without respecting
-  -- valid Haskell syntax.
-  r = replace ":" "'(:)" . replace "[]" "'[]"
+  s' = s ++ " :: " ++ show (typeOf (getArg action))
 
 class (Typeable a) => Simplifiable a where
   mapleType :: a{-unused-} -> String

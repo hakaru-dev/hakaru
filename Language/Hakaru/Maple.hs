@@ -193,27 +193,31 @@ op n (Maple x) = Maple $ x >>= \x' -> return ("op(" ++ show n ++ ", " ++ x' ++ "
 reMaple :: Maple a -> Maple b
 reMaple (Maple a) = Maple a 
 
--- This temporary implementatio just uses binary sums and products.  It still
--- isn't obvious how we want to eventually "tell Maple" about our Tagged
--- datatypes.
 instance Embed Maple where 
-  _Nil = reMaple unit 
-  _Cons x xs = reMaple (pair x xs) 
+  _Nil = Maple (return "Nil")
+  _Cons = mapleFun2 "Cons"
 
-  _Z = reMaple . inl 
-  _S = reMaple . inr 
+  _Z = mapleFun1 "Zero"
+  _S = mapleFun1 "Succ"
 
   voidSOP _ = Maple . return $ "HakaruError (`Datatype with no constructors`)"
 
   tag :: forall xss t . (Embeddable t) => Maple (SOP xss) -> Maple (Tag t xss)
-
   tag = mapleFun1 "Tag" 
 
   -- tag = flip (mapleFun2 "Tag") 
   --            (Maple $ return $ "Unknown")
              -- (Maple $ return $ hakaruTypeName (Proxy :: Proxy t)) 
 
-  caseProd x f = unpair (reMaple x) f 
-  caseSum x f g = uneither (reMaple x) f g 
+  caseProd x f = f (op 1 x) (op 2 x)
+
+  caseSum (Maple ab) ka kb
+    = Maple (ab >>= \ab' ->
+             ReaderT $ \i -> cont $ \c ->
+             let opS :: Int -> String
+                 opS n = "op(" ++ show n ++ ", " ++ ab' ++ ")"
+                 arm k = runCont (runReaderT (unMaple (k (return (opS 1)))) i) c
+             in "if_(" ++ opS 0 ++ " = Zero, " ++ arm (ka . Maple)
+                                       ++ ", " ++ arm (kb . Maple) ++ ")")
 
   untag = op 1 

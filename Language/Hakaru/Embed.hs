@@ -120,6 +120,8 @@ typeRepSing2 (SCons x xs) = mkTyConApp consTyCon [ typeRepSing1 x, typeRepSing2 
 
 #endif
 
+type Cons x xs = x ': xs 
+
 replace :: forall a. Eq a => [a] -> [a] -> [a] -> [a]
 replace str with = go where 
   n = length str 

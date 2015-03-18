@@ -863,9 +863,9 @@ SLO := module ()
 
   infer_type_prod := proc(e, ctx)
     local t0, ts;
-    if e = 'Unit' then
+    if e = 'Nil' then
       [];
-    elif op(0,e) = 'Pair' then
+    elif op(0,e) = 'Cons' then
       t0 := infer_type(op(1,e), ctx);
       ts := infer_type_prod (op(2,e), ctx);
       [t0, op(ts)];
@@ -875,9 +875,9 @@ SLO := module ()
 
   infer_type_sop := proc(e, ctx)
     local k, t;
-    if op(0,e) = 'Left' then
+    if op(0,e) = 'Zero' then
       (0, infer_type_prod (op(1,e), ctx));
-    elif op(0,e) = 'Right' then
+    elif op(0,e) = 'Succ' then
       k, t := infer_type_sop (op(1,e), ctx);
       (k+1, t);
     else error "infer_type_sop: %1 is not a sum of product type", e
