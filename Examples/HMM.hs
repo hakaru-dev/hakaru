@@ -23,7 +23,8 @@ type Table = Vector (Vector Prob)
 
 reflect :: (Mochastic repr, Lambda repr, Integrate repr) =>
            repr Table -> Expect repr (Int -> Measure Int)
-reflect m = lam (\i -> categorical (index (Expect m) i))
+reflect m = lam (\i -> let v = index (Expect m) i
+                       in weight (summateV v) (categorical v))
 
 reify :: (Mochastic repr, Lambda repr, Integrate repr) =>
          repr Int -> repr Int ->
