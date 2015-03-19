@@ -10,6 +10,9 @@ import Control.Monad (replicateM)
 import Data.Number.LogFloat (LogFloat)
 
 -- Kleisli composition
+-- bindo f g = \x -> do y <- f x
+--                      z <- g y
+--                      return z
 
 bindo :: (Mochastic repr, Lambda repr) =>
          repr (a -> Measure b) ->
