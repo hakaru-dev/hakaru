@@ -15,7 +15,17 @@ leftMode = renderStyle style{mode=LeftMode}
 newtype PrettyPrint a = PP ([String] -> Int -> [Doc])
 
 runPrettyPrint :: PrettyPrint a -> Doc
-runPrettyPrint (PP a) = sep (a [ 'x' : show i | i <- [0::Int ..] ] 0)
+runPrettyPrint pp = runPrettyPrintPrec pp 0
+
+runPrettyPrintPrec :: PrettyPrint a -> Int -> Doc
+runPrettyPrintPrec (PP a) p = sep (a [ 'x' : show i | i <- [0::Int ..] ] p)
+
+instance Show (PrettyPrint a) where
+  show        = show        . runPrettyPrint
+  showsPrec p = showsPrec p . (`runPrettyPrintPrec` 0)
+
+instance Pretty (PrettyPrint a) where
+  pretty = runPrettyPrint
 
 apply1 :: String -> PrettyPrint a -> PrettyPrint b
 apply2 :: String -> PrettyPrint a -> PrettyPrint b -> PrettyPrint c
