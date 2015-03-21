@@ -47,7 +47,19 @@ testRelationships = test [
     "t17"   ~: testSS [t17] (lam (\mu -> lam (\sigma ->
                              normal mu (sqrt_ (pow_ sigma 2 + 1))))),
     "t18"   ~: testSS [t18] (lam (\a1 -> lam (\a2 ->
-                             normal 0 (sqrt_ (pow_ a1 2 + pow_ a2 2)))))
+                             normal 0 (sqrt_ (pow_ a1 2 + pow_ a2 2))))),
+
+    -- Convolution property
+    "t19"   ~: testSS [t19] (lam (\n1 -> lam (\n2 -> lam (\p ->
+                             binomial (n1 + n2) p)))),
+    "t20"   ~: testSS [t20] (lam (\n -> lam (\p ->
+                             binomial n p))),
+    "t21"   ~: testSS [t21] (lam (\l1 -> lam (\l2 ->
+                             poisson (l1 + l2)))),
+    "t22"   ~: testSS [t22] (lam (\a1 -> lam (\a2 -> lam (\b ->
+                             gamma (a1 + a2) b)))),
+    "t23"   ~: testSS [t23] (lam (\n -> lam (\t ->
+                             gamma n t)))
     ]
 
 allTests :: Test
@@ -140,3 +152,31 @@ t18 :: (Lambda repr, Mochastic repr) => repr (Prob -> Prob -> Measure Real)
 t18 = lam (\a1 -> (lam (\a2 ->
     normal 0 1 `bind` \x ->
     dirac ((fromProb a1) * x + (fromProb a2) * x))))
+
+t19 :: (Lambda repr, Mochastic repr) => repr (Int -> Int -> Prob -> Measure Int)
+t19 = lam (\n1 -> lam (\n2 -> lam (\p ->
+    binomial n1 p `bind` \x1 ->
+    binomial n2 p `bind` \x2 ->
+    dirac (x1 + x2))))
+
+t20 :: (Lambda repr, Mochastic repr) => repr (Int -> Prob -> Measure Int)
+t20 = lam (\n -> lam (\p ->
+    bern p `bind` \x ->
+    dirac (n * (if_ x 1 0))))
+
+t21 :: (Lambda repr, Mochastic repr) => repr (Prob -> Prob -> Measure Int)
+t21 = lam (\l1 -> lam (\l2 ->
+    poisson l1 `bind` \x1 ->
+    poisson l2 `bind` \x2 ->
+    dirac (x1 + x2)))
+
+t22 :: (Lambda repr, Mochastic repr) => repr (Prob -> Prob -> Prob -> Measure Prob)
+t22 = lam (\a1 -> lam (\a2 -> lam (\b ->
+    gamma a1 b `bind` \x1 ->
+    gamma a2 b `bind` \x2 ->
+    dirac (x1 + x2))))
+
+t23 :: (Lambda repr, Mochastic repr) => repr (Prob -> Prob -> Measure Prob)
+t23 = lam (\n -> lam (\t ->
+    exponential t `bind` \x ->
+    dirac (n * x)))
