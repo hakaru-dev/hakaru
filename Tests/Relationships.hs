@@ -40,7 +40,14 @@ testRelationships = test [
     -- then X/sqrt(U/v) is a Student's t(v) random variable
     "t14"   ~: testSS [t14] (lam (\v -> student 0 v)),
 
-    "t15"   ~: testSS [t15] (lam (\k -> (lam (\t -> gamma k t))))
+    "t15"   ~: testSS [t15] (lam (\k -> (lam (\t -> gamma k t)))),
+
+    -- Linear combination property
+    "t16"   ~: testSS [t16] (normal 0 (sqrt_ 2)),
+    "t17"   ~: testSS [t17] (lam (\mu -> lam (\sigma ->
+                             normal mu (sqrt_ (pow_ sigma 2 + 1))))),
+    "t18"   ~: testSS [t18] (lam (\a1 -> lam (\a2 ->
+                             normal 0 (sqrt_ (pow_ a1 2 + pow_ a2 2)))))
     ]
 
 allTests :: Test
@@ -117,3 +124,19 @@ t15 :: (Lambda repr, Mochastic repr) => repr (Prob -> Prob -> Measure Prob)
 t15 = lam (\k -> (lam (\t ->
     invgamma k (recip t) `bind` \x ->
     dirac (recip x))))
+
+t16 :: (Mochastic repr) => repr (Measure Real)
+t16 = normal 0 1 `bind` \x1 ->
+    normal 0 1 `bind` \x2 ->
+    dirac (x1+x2)
+
+t17 :: (Lambda repr, Mochastic repr) => repr (Real -> Prob -> Measure Real)
+t17 = lam (\mu -> (lam (\sigma ->
+    normal 0 1 `bind` \x1 ->
+    normal mu sigma `bind` \x2 ->
+    dirac (x1+x2))))
+
+t18 :: (Lambda repr, Mochastic repr) => repr (Prob -> Prob -> Measure Real)
+t18 = lam (\a1 -> (lam (\a2 ->
+    normal 0 1 `bind` \x ->
+    dirac ((fromProb a1) * x + (fromProb a2) * x))))
