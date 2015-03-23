@@ -50,7 +50,8 @@ testMeasureProb = test [
     "t38" ~: testSS [] t38,
     "t42" ~: testSS [t42] (dirac 1),
     "t49" ~: testSS [] t49,
-    "t61" ~: testSS [t61] t61'
+    "t61" ~: testSS [t61] t61',
+    "t66" ~: testSS [] t66
     ]
 
 testMeasureReal :: Test
@@ -59,6 +60,7 @@ testMeasureReal = test
   , "t6"  ~: testSS [] t6
   , "t7"  ~: testSS [t7] t7'
   , "t7n" ~: testSS [t7n] t7n'
+  , "t8'" ~: testSS [t8'] (lam $ \s1 -> lam $ \s2 -> normal 0 (sqrt_ (s1 ^ 2 + s2 ^ 2)))
   , "t9"  ~: testSS [t9] (superpose [(2, uniform 3 7)])
   , "t13" ~: testSS [t13] t13'
   , "t14" ~: testSS [t14] t14'
@@ -171,6 +173,12 @@ t7n' = uniform (-1) 0 `bind` \x -> superpose [(unsafeProb (x + 1), dirac (x*x))]
 -- then "factor".
 t8 :: Mochastic repr => repr (Measure (Real, Real))
 t8 = normal 0 10 `bind` \x -> normal x 20 `bind` \y -> dirac (pair x y)
+
+-- Normal is conjugate to normal
+t8' :: (Lambda repr, Mochastic repr) => repr (Prob -> Prob -> Measure Real)
+t8' = lam $ \s1 ->
+      lam $ \s2 ->
+      normal 0 s1 `bind` \x -> normal x s2
 
 t9 :: Mochastic repr => repr (Measure Real)
 t9 = lebesgue `bind` \x -> 
@@ -613,6 +621,9 @@ t65' = lam $ \t ->
      $ if_ (t `less` 1 + exp (-1)) (dirac unit)
      $ if_ (t `less` 2) (factor (unsafeProb (log (t + (-1)) * (-1))))
      $ superpose []
+
+t66 :: (Mochastic repr) => repr (Measure Prob)
+t66 = dirac (sqrt_ (3 + sqrt_ 3))
 
 -- Testing round-tripping of some other distributions
 testexponential :: Mochastic repr => repr (Measure Prob)
