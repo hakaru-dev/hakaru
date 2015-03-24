@@ -5,6 +5,11 @@ import Prelude hiding (Real)
 import Language.Hakaru.Syntax
 import Language.Hakaru.Expect (Expect(..))
 import Language.Hakaru.Sample (Sample(..))
+
+import Language.Hakaru.Simplify
+import Language.Hakaru.Any
+import Language.Hakaru.Maple
+
 import System.Random.MWC (withSystemRandom)
 import Control.Monad (replicateM)
 import Data.Number.LogFloat (LogFloat)
@@ -150,3 +155,11 @@ transitionContinuous s = normal s 1
 -- is something like "lam (\s -> weight (? * exp_ (? * (s - ?) ^ 2))
 --                                      (normal (? * s + ?) ?))"
 -- in which each ? is a real number.
+
+bindo'' :: (Simplifiable a, Simplifiable b, Simplifiable c) =>
+           Expect Maple (a -> Measure b) ->
+           Expect Maple (b -> Measure c) ->
+           IO (Expect Maple (a -> Measure c))
+bindo'' m n = do 
+   p <- simplify (bindo m n)
+   return (unAny p)
