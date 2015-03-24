@@ -98,8 +98,8 @@ data Hnf s (repr :: * -> *) a where
   Nil     ::                                       Hnf s repr [a]
   Cons    :: Lazy s repr a -> Lazy s repr [a] ->   Hnf s repr [a]
   Int     :: Integer ->                            Hnf s repr Int
-  -- TODO: Real :: Rational -> Hnf s repr Real -- constant propagation
-  -- TODO: Prob :: Rational -> Hnf s repr Prob -- constant propagation
+  Real    :: Rational ->  {-constant propagation-} Hnf s repr Real
+  Prob    :: Rational ->  {-constant propagation-} Hnf s repr Prob
   Value   :: repr a ->                             Hnf s repr a
   Measure :: Lazy s repr a ->                      Hnf s repr (Measure a)
   Vector  :: Lazy s repr Int ->
@@ -127,8 +127,10 @@ evaluate z = forward z >>= \case
   Inr y        -> liftM inr (evaluate y)
   Nil          -> return nil
   Cons x y     -> liftM2 cons (evaluate x) (evaluate y)
-  Value a      -> return a
   Int n        -> return (fromInteger n)
+  Real r       -> return (fromRational r)
+  Prob r       -> return (fromRational r)
+  Value a      -> return a
   Measure x    -> liftM (evaluateMeasure x) duplicateHeap
   Vector s f   -> evaluateVector s [] f
   Plate l      -> let process (RVLet v)          = return v
