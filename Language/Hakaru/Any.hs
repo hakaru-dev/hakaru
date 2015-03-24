@@ -4,6 +4,7 @@
 module Language.Hakaru.Any (Any(Any, unAny), Any') where
 
 import Language.Hakaru.Syntax (Lambda, Mochastic, Integrate)
+import Language.Hakaru.Embed (Embed) 
 import Language.Hakaru.PrettyPrint (PrettyPrint)
 import Language.Hakaru.Util.Pretty (Pretty(pretty))
 import Data.Typeable (Typeable)
@@ -23,4 +24,4 @@ instance Pretty (Any a) where
   pretty      (Any a) = pretty      (asPrettyPrint a)
 
 type Any' a =
-  forall repr. (Mochastic repr, Integrate repr, Lambda repr) => repr a
+  forall repr. (Mochastic repr, Integrate repr, Lambda repr, Embed repr) => repr a

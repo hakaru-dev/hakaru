@@ -27,6 +27,8 @@ import Test.HUnit
 import Tests.TestTools
 import Language.Hakaru.Any (Any(unAny))
 
+import Tests.EmbedDatatypes 
+
 -- Variant of testSS for Embeddable a 
 type TesteeEmbed a =
   forall repr. (Mochastic repr, Integrate repr, Lambda repr, Embed repr) => repr a
@@ -42,14 +44,6 @@ testSSE ts t' =
     mapM_ (\t -> do p <- simplify t --`catch` handleSimplify t
                     (assertEqual "testSS" `on` result) t' (unAny p))
           (t' : ts)
-
-embeddable [d| data BoolProb = BoolProb Bool Prob |] 
-
-embeddable [d| data Real5 = Real5 { r1, r2, r3, r4, r5 :: Real} |]
-
-embeddable [d| data P2 a b = P2 { p2_fst :: a, p2_snd :: b } |]
-
--- Test must come after Template Haskell splices
 
 allTests :: Test
 -- allTests = error "TODO: write tests" 

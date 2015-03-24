@@ -76,10 +76,10 @@ lift :: (Mochastic repr) => repr (Measure a) -> M s repr (repr a)
 lift m = insert (bind m)
 
 data Lazy s (repr :: * -> *) a = Lazy
-  { forward  :: M s repr (Whnf s repr a)
+  { forward  :: M s repr (Hnf s repr a)
   , backward :: (Number a) => repr a -> M s repr () }
 
-lazy :: (Lub repr) => M s repr (Whnf s repr a) -> Lazy s repr a
+lazy :: (Lub repr) => M s repr (Hnf s repr a) -> Lazy s repr a
 lazy m = Lazy m (const bot)
 
 join :: M s repr (Lazy s repr a) -> Lazy s repr a
@@ -89,25 +89,24 @@ instance (Lub repr) => Lub (Lazy s repr) where
   bot = Lazy bot (const bot)
   lub (Lazy f1 b1) (Lazy f2 b2) = Lazy (lub f1 f2) (\t -> lub (b1 t) (b2 t))
 
--- TODO: Rename Whnf to Hnf, because the W adds no information
-data Whnf s (repr :: * -> *) a where
-  Pair    :: Lazy s repr a -> Lazy s repr b ->     Whnf s repr (a,b)
-  True_   ::                                       Whnf s repr Bool
-  False_  ::                                       Whnf s repr Bool
-  Inl     :: Lazy s repr a ->                      Whnf s repr (Either a b)
-  Inr     :: Lazy s repr b ->                      Whnf s repr (Either a b)
-  Nil     ::                                       Whnf s repr [a]
-  Cons    :: Lazy s repr a -> Lazy s repr [a] ->   Whnf s repr [a]
-  Int     :: Integer ->                            Whnf s repr Int
-  -- TODO: Real :: Rational -> Whnf s repr Real -- constant propagation
-  -- TODO: Prob :: Rational -> Whnf s repr Prob -- constant propagation
-  Value   :: repr a ->                             Whnf s repr a
-  Measure :: Lazy s repr a ->                      Whnf s repr (Measure a)
+data Hnf s (repr :: * -> *) a where
+  Pair    :: Lazy s repr a -> Lazy s repr b ->     Hnf s repr (a,b)
+  True_   ::                                       Hnf s repr Bool
+  False_  ::                                       Hnf s repr Bool
+  Inl     :: Lazy s repr a ->                      Hnf s repr (Either a b)
+  Inr     :: Lazy s repr b ->                      Hnf s repr (Either a b)
+  Nil     ::                                       Hnf s repr [a]
+  Cons    :: Lazy s repr a -> Lazy s repr [a] ->   Hnf s repr [a]
+  Int     :: Integer ->                            Hnf s repr Int
+  Real    :: Rational ->  {-constant propagation-} Hnf s repr Real
+  Prob    :: Rational ->  {-constant propagation-} Hnf s repr Prob
+  Value   :: repr a ->                             Hnf s repr a
+  Measure :: Lazy s repr a ->                      Hnf s repr (Measure a)
   Vector  :: Lazy s repr Int ->
-             (Lazy s repr Int -> Lazy s repr a) -> Whnf s repr (Vector a)
-  Plate   :: Loc (Vector s) a ->                   Whnf s repr (Vector a)
+             (Lazy s repr Int -> Lazy s repr a) -> Hnf s repr (Vector a)
+  Plate   :: Loc (Vector s) a ->                   Hnf s repr (Vector a)
 
-determine :: (Lub repr) => Lazy s repr a -> M s repr (Whnf s repr a)
+determine :: (Lub repr) => Lazy s repr a -> M s repr (Hnf s repr a)
 determine z = forward z >>= \case
   Pair x y     -> liftM2 Pair (liftM (lazy . return) (determine x))
                               (liftM (lazy . return) (determine y))
@@ -128,8 +127,10 @@ evaluate z = forward z >>= \case
   Inr y        -> liftM inr (evaluate y)
   Nil          -> return nil
   Cons x y     -> liftM2 cons (evaluate x) (evaluate y)
-  Value a      -> return a
   Int n        -> return (fromInteger n)
+  Real r       -> return (fromRational r)
+  Prob r       -> return (fromRational r)
+  Value a      -> return a
   Measure x    -> liftM (evaluateMeasure x) duplicateHeap
   Vector s f   -> evaluateVector s [] f
   Plate l      -> let process (RVLet v)          = return v
@@ -206,7 +207,7 @@ gensymVector = M (\c h@Heap{fresh=f} -> c (Loc f) h{fresh = succ f})
 
 data Binding s repr where
   Bind    :: Loc s a ->              Lazy s repr a            -> Binding s repr
-  Let     :: Loc s a ->              Whnf s repr a            -> Binding s repr
+  Let     :: Loc s a ->              Hnf s repr a             -> Binding s repr
   Unpair  :: Loc s a -> Loc s b ->   Lazy s repr (a,b)        -> Binding s repr
   Iftrue  ::                         Lazy s repr Bool         -> Binding s repr
   Iffalse ::                         Lazy s repr Bool         -> Binding s repr
@@ -222,7 +223,7 @@ data Binding s repr where
 store :: Binding s repr -> M s repr ()
 store entry = M (\c h -> c () h{bound = entry : bound h})
 
-update :: Loc s a -> Whnf s repr a -> M s repr ()
+update :: Loc s a -> Hnf s repr a -> M s repr ()
 update l result = store (Let l result)
 
 determineHeap :: (Mochastic repr, Lub repr) => M s repr ()
@@ -283,7 +284,7 @@ determineHeap = pop >>= \case Nothing -> return ()
 
 data Retrieval s repr a where
   RBind  :: Lazy s repr a ->                    Retrieval s repr a
-  RLet   :: Whnf s repr a ->                    Retrieval s repr a
+  RLet   :: Hnf s repr a ->                     Retrieval s repr a
   RFst   :: Loc s b -> Lazy s repr (a,b) ->     Retrieval s repr a
   RSnd   :: Loc s a -> Lazy s repr (a,b) ->     Retrieval s repr b
   RInl   :: Lazy s repr (Either a b) ->         Retrieval s repr a
@@ -345,7 +346,7 @@ memo m = do l <- gensym
 lazyLoc :: (Mochastic repr, Lub repr) => Loc s a -> Lazy s repr a
 lazyLoc l = Lazy (fwdLoc l) (bwdLoc l)
 
-fwdLoc :: (Mochastic repr) => Loc s a -> M s repr (Whnf s repr a)
+fwdLoc :: (Mochastic repr) => Loc s a -> M s repr (Hnf s repr a)
 fwdLoc l = retrieve locate l (\retrieval -> do result <- process retrieval
                                                update l result
                                                return result)
@@ -653,7 +654,7 @@ measure :: (Lub repr) => Lazy s repr a -> Lazy s repr (Measure a)
 measure = lazy . return . Measure
 
 unMeasure :: (Mochastic repr, Lub repr) =>
-             Whnf s repr (Measure a) -> Lazy s repr a
+             Hnf s repr (Measure a) -> Lazy s repr a
 unMeasure (Measure m) = m
 unMeasure (Value m) = lazy (liftM Value (lift m))
 

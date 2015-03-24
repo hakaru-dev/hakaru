@@ -1,5 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables, TypeSynonymInstances, FlexibleInstances, DeriveDataTypeable #-}
-{-# LANGUAGE UndecidableInstances, ConstraintKinds #-}
+{-# LANGUAGE UndecidableInstances, ConstraintKinds, CPP #-}
 {-# OPTIONS -W #-}
 
 module Language.Hakaru.Simplify
@@ -22,6 +22,10 @@ import Data.Typeable (Typeable, typeOf)
 import System.MapleSSH (maple)
 import Language.Haskell.Interpreter hiding (typeOf)
 
+#ifdef PATCHED_HINT
+import Language.Haskell.Interpreter (unsafeInterpret)
+#endif 
+
 import Language.Hakaru.Util.Lex (readMapleString)
 
 
@@ -42,7 +46,7 @@ instance Exception SimplifyException
 
 ourContext :: MonadInterpreter m => m ()
 ourContext = do
-  let modules = ["Language.Hakaru.RoundTrip"]
+  let modules = ["Language.Hakaru.RoundTrip", "Tests.EmbedDatatypes" ]
 
   loadModules modules
 
@@ -52,8 +56,23 @@ ourContext = do
 
   setImports modules
 
+closeLoop :: forall a . (Typeable a) => String -> IO a
 
-closeLoop :: (Typeable a) => String -> IO a
+#ifdef PATCHED_HINT 
+closeLoop s = action where
+  action = do
+    result <- runInterpreter (ourContext >> unsafeInterpret s' typeStr)
+    case result of
+      Left err -> throw $ InterpreterException $ unlines ["Error when interpretting", s', show err]
+      Right a -> return a
+
+  s' = s ++ " :: " ++ typeStr 
+
+  r = replace ":" "Cons" . replace "[]" "Nil"
+  typeStr = r (show exprType) 
+  exprType = typeOf (getArg action)
+
+#else
 closeLoop s = action where
   action = do
     -- putStrLn ("To Haskell: " ++ s')
@@ -64,6 +83,7 @@ closeLoop s = action where
 
   s' :: String
   s' = s ++ " :: " ++ show (typeOf (getArg action))
+#endif 
 
 class (Typeable a) => Simplifiable a where
   mapleType :: a{-unused-} -> String

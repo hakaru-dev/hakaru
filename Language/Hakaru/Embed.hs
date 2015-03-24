@@ -86,11 +86,17 @@ instance (SingI x, SingI xs) => SingI (x ': xs) where
 -- Sum of products tagged with a Haskell type 
 data Tag (t :: *) (xs :: [[*]]) 
 
+nilTyCon, consTyCon, tagTyCon :: TyCon 
+
 #if __GLASGOW_HASKELL__ >= 708
 
 deriving instance Typeable '[]
 deriving instance Typeable '(:)
 deriving instance Typeable Tag 
+
+nilTyCon = typeRepTyCon (typeRep (Proxy :: Proxy '[]))
+consTyCon = typeRepTyCon (typeRep (Proxy :: Proxy '(:) ))
+tagTyCon = typeRepTyCon (typeRep (Proxy :: Proxy (Tag () '[ ]) ))
 
 #else
 
@@ -102,7 +108,6 @@ instance (Typeable t, All2 Typeable xss, SingI xss) => Typeable (Tag t xss) wher
                                  , typeRepSing2 (sing :: Sing xss)
                                  ] 
 
-nilTyCon, consTyCon, tagTyCon :: TyCon 
 nilTyCon = mkTyCon3 "ghc-prim" "GHC.Types" "[]"
 consTyCon = mkTyCon3 "ghc-prim" "GHC.Types" ":"
 tagTyCon = mkTyCon3 "hakaru" "Language.Hakaru.Embed" "Tag" 
@@ -120,7 +125,8 @@ typeRepSing2 (SCons x xs) = mkTyConApp consTyCon [ typeRepSing1 x, typeRepSing2 
 
 #endif
 
-type Cons x xs = x ': xs 
+type Cons (x :: k) (xs :: [k]) = x ': xs 
+type Nil = ('[] :: [k])
 
 replace :: forall a. Eq a => [a] -> [a] -> [a] -> [a]
 replace str with = go where 
