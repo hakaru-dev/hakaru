@@ -74,7 +74,7 @@ reflect'' m =
 --         (lam (\c -> s * app (snd_ cv) c )) )
 -- where we "ran" the single-item list comprehension and single-term sum.
 
--- We now need that reify a b (reflect m) ~~ m
+-- We now need to verify that reify a b (reflect m) ~~ m
 -- where "magically", a and b are just right for m.
 -- In other words, we must have that
 -- 1. a == size m - 1
@@ -100,39 +100,164 @@ rr a b m =
          pair (superpose [ (s, fst_ cv) ]) 
               (lam (\c -> s * app (snd_ cv) c )))
 -- is in fact an identity function (for m).
--- Assumption #1: app (unExpect (lam (\k -> f))) i) ~~ f [ k <- Expect i ]
---    note that i :: repr Int, k :: Expect repr Int
--- Assumption #2: unExpect is just an unWrap [something Haskell guarantees]
+
+-- Assumption #1: app (lam f) x ~~ f x
+-- Assumption #2: snd_ (pair a b) ~~ b
+-- [and may as well] fst_ (pair a b) ~~ a
+--
+-- Perform these as rewrites with lam f = m', x = i, to get
+
+rr1 :: (Mochastic repr, Lambda repr, Integrate repr) =>
+  repr Int -> repr Int -> repr Table -> repr Table
+rr1 a b m = 
+  vector a (\i ->
+  vector b  (\j ->
+    let v = index m i in
+    let s = summate 0 (fromInt (size v - 1)) (index v) in
+    let cv = pair (categorical v)
+           (lam (\c -> let_ (summate 0 (fromInt (size v - 1)) (index v)) $ \tot ->
+                       if_ (less 0 tot)
+                           (let vv = (mapWithIndex (\i' p -> p * app c i') v) in
+                                 summate 0 (fromInt (size vv - 1)) (index vv) / tot)
+                           0)) in
+    app (lam (\c -> s * app (snd_ cv) c)) (lam (\j' -> if_ (equal j j') 1 0)) ) )
+
+-- Now do the app@lam on the last line.  Also simplify the "snd_ cv", but keep the let
+
+rr2 :: (Mochastic repr, Lambda repr, Integrate repr) =>
+  repr Int -> repr Int -> repr Table -> repr Table
+rr2 a b m = 
+  vector a (\i ->
+  vector b  (\j ->
+    let v = index m i in
+    let s = summate 0 (fromInt (size v - 1)) (index v) in
+    let cc = (lam (\c -> let_ (summate 0 (fromInt (size v - 1)) (index v)) $ \tot ->
+                         if_ (less 0 tot)
+                             (let vv = (mapWithIndex (\i' p -> p * app c i') v) in
+                                   summate 0 (fromInt (size vv - 1)) (index vv) / tot)
+                             0)) in
+    s * app cc (lam (\j' -> if_ (equal j j') 1 0)) ) )
+
+-- now inline the "app cc" part, but let bind the body for less messyness
+rr3 :: (Mochastic repr, Lambda repr, Integrate repr) =>
+  repr Int -> repr Int -> repr Table -> repr Table
+rr3 a b m = 
+  vector a (\i ->
+  vector b  (\j ->
+    let v = index m i in
+    let s = summate 0 (fromInt (size v - 1)) (index v) in
+    let charf = lam (\j' -> if_ (equal j j') 1 0) in
+    let rest = let_ (summate 0 (fromInt (size v - 1)) (index v)) $ \tot ->
+                   if_ (less 0 tot)
+                       (let vv = (mapWithIndex (\i' p -> p * app charf i') v) in
+                             summate 0 (fromInt (size vv - 1)) (index vv) / tot)
+                       0 in
+    s * rest ) )
+
+-- inline mapWithIndex; beta-reduce result
+rr4 :: (Mochastic repr, Lambda repr, Integrate repr) =>
+  repr Int -> repr Int -> repr Table -> repr Table
+rr4 a b m = 
+  vector a (\i ->
+  vector b  (\j ->
+    let v = index m i in
+    let s = summate 0 (fromInt (size v - 1)) (index v) in
+    let charf = lam (\j' -> if_ (equal j j') 1 0) in
+    let rest = let_ (summate 0 (fromInt (size v - 1)) (index v)) $ \tot ->
+                   if_ (less 0 tot)
+                       (let vv = vector (size v) (\k -> (index v k) * (app charf k)) in
+                             summate 0 (fromInt (size vv - 1)) (index vv) / tot)
+                       0 in
+    s * rest ) )
+
+-- inline "app charf k"; 
+-- Assumption #3: x * if_ cond a b ~~ if_ cond (a * x) (b * x)
+-- Assumption #4: 0 * x ~~ 0
+-- Assumption #5: 1 * x ~~ x
+
+rr5 :: (Mochastic repr, Lambda repr, Integrate repr) =>
+  repr Int -> repr Int -> repr Table -> repr Table
+rr5 a b m = 
+  vector a (\i ->
+  vector b  (\j ->
+    let v = index m i in
+    let s = summate 0 (fromInt (size v - 1)) (index v) in
+    let rest = let_ (summate 0 (fromInt (size v - 1)) (index v)) $ \tot ->
+                   if_ (less 0 tot)
+                       (let vv = vector (size v) (\k -> (if_ (equal j k) (index v k) 0)) in
+                             summate 0 (fromInt (size vv - 1)) (index vv) / tot)
+                       0 in
+    s * rest ) )
+
+-- Note how vv is only defined at j = k.  
+-- Assumption #6: summate transforms a vector in the the sum of its non-zero parts
+
+rr6 :: (Mochastic repr, Lambda repr, Integrate repr) =>
+  repr Int -> repr Int -> repr Table -> repr Table
+rr6 a b m = 
+  vector a (\i ->
+  vector b  (\j ->
+    let v = index m i in
+    let s = summate 0 (fromInt (size v - 1)) (index v) in
+    let rest = let_ (summate 0 (fromInt (size v - 1)) (index v)) $ \tot ->
+                   if_ (less 0 tot)
+                       (index v j / tot)
+                       0 in
+    s * rest ) )
+
+-- Note how s and tot are in fact the same.
+-- Assumption #7: let_ x f ~~ f x
+
+rr6 :: (Mochastic repr, Lambda repr, Integrate repr) =>
+  repr Int -> repr Int -> repr Table -> repr Table
+rr6 a b m = 
+  vector a (\i ->
+  vector b  (\j ->
+    let v = index m i in
+    let s = summate 0 (fromInt (size v - 1)) (index v) in
+    let rest = if_ (less 0 s) (index v j / s) 0 in
+    s * rest ) )
+
+-- Assumption #8: size v - 1 == a
+-- inline "let rest" and push multiplication in
+rr7 :: (Mochastic repr, Lambda repr, Integrate repr) =>
+  repr Int -> repr Int -> repr Table -> repr Table
+rr7 a b m = 
+  vector a (\i ->
+  vector b  (\j ->
+    let v = index m i in
+    let s = summate 0 (fromInt (size v - 1)) (index v) in
+    if_ (less 0 s) (s * index v j / s) 0 ) )
+
+-- Assumption #9: x * y / x ~~ y if x <> 0
+rr7 :: (Mochastic repr, Lambda repr, Integrate repr) =>
+  repr Int -> repr Int -> repr Table -> repr Table
+rr7 a b m = 
+  vector a (\i ->
+  vector b  (\j ->
+    let v = index m i in
+    let s = summate 0 (fromInt (size v - 1)) (index v) in
+    if_ (less 0 s) (index v j) 0 ) )
+
+-- Assumption #10: Prob >= 0.  Which has for corrollary
+-- Cor: s == 0 iff forall 0 <= j <= size v -1. index v j ==0.
+-- Thus, in fact, if_ (less 0 s) (index v j) 0 == index v j regardless.
+
+rr8 :: (Mochastic repr, Lambda repr, Integrate repr) =>
+  repr Int -> repr Int -> repr Table -> repr Table
+rr8 a b m = 
+  vector a (\i ->
+  vector b  (\j ->
+    let v = index m i in
+    index v j ) )
+
+-- Assumption #11: vector a (\i -> vector b (\j -> index (index m i) j)) == m
+-- (also known as tabulate-lookup in Agda)
+rr9 :: (Mochastic repr, Lambda repr, Integrate repr) =>
+  repr Int -> repr Int -> repr Table -> repr Table
+rr9 a b m =  m
 
 {-
--- so we can inline and get something which does not typecheck, namely:
--- rr' a b m = 
---   vector a (\i ->
---   vector b  (\j ->
---   app (let v = index (Expect m) (Expect i) in
---        let s = summate 0 (fromInt (size v - 1)) (index v) in
---        (superpose [(s, categorical v)])) (lam (\j' -> if_ (equal j j') 1 0))))
---
--- The problem is that the above wants the superpose to be of type
---  repr0 ((Int -> b0) -> a0)
--- but it is in fact
---  repr0 (Measure Int)
--- So this exposes the deep details of Expect, namely that
--- Expect' (Measure q) = (Measure (Expect' q), (Expect' q -> Prob) -> Prob)
-
--- This means that snd_ (Expect m) 'acts like' a function, and the app above
--- feeds an argument to it.  So
--- let v = index (Expect m) (Expect i) in
--- acts like
--- let v = index (m (lam (\j' -> if_ (equal j j') 1 0))) (Expect i)
--- Assumption #4: app (index (Expect m) (Expect i)) c ~~ index m (app c i)
---
--- HOWEVER, m is not the only measure expression in the above!  So are
--- superpose and categorical.  So they also need to be 'fed' a "c".
---
--- Assumption #5: app (lam (\k -> b)) i ~~ b i
---
--- which now gives
 --------------------------------------------------------------------------------
 
 -- Model: A one-dimensional random walk among 20 discrete states (numbered
