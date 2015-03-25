@@ -21,12 +21,14 @@ import Language.Hakaru.Any (Any)
 import Data.Typeable (Typeable, typeOf)
 import System.MapleSSH (maple)
 import Language.Haskell.Interpreter hiding (typeOf)
+import Language.Haskell.Interpreter.Unsafe 
 
 #ifdef PATCHED_HINT
 import Language.Haskell.Interpreter (unsafeInterpret)
 #endif 
 
 import Language.Hakaru.Util.Lex (readMapleString)
+import Language.Hakaru.Paths
 
 
 data SimplifyException = MapleException String String
@@ -43,12 +45,19 @@ instance Show SimplifyException where
 
 instance Exception SimplifyException
 
+ourGHCOptions = case sandboxPackageDB of 
+                  Nothing -> [] 
+                  Just xs -> "-no-user-package-db" : map ("-package-db " ++) xs 
+
+ourSearchPath = [ hakaruRoot ] 
 
 ourContext :: MonadInterpreter m => m ()
 ourContext = do
-  let modules = ["Language.Hakaru.RoundTrip", "Tests.EmbedDatatypes" ]
+  let modules = [ "Tests.Imports", "Tests.EmbedDatatypes" ]
 
-  loadModules modules
+  set [ searchPath := ourSearchPath ]
+
+  loadModules modules 
 
   -- "Tag" requires DataKinds to use type list syntax 
   exts <- get languageExtensions
@@ -61,7 +70,7 @@ closeLoop :: forall a . (Typeable a) => String -> IO a
 #ifdef PATCHED_HINT 
 closeLoop s = action where
   action = do
-    result <- runInterpreter (ourContext >> unsafeInterpret s' typeStr)
+    result <- unsafeRunInterpreterWithArgs ourGHCOptions (ourContext >> unsafeInterpret s' typeStr)
     case result of
       Left err -> throw $ InterpreterException $ unlines ["Error when interpretting", s', show err]
       Right a -> return a
@@ -76,7 +85,7 @@ closeLoop s = action where
 closeLoop s = action where
   action = do
     -- putStrLn ("To Haskell: " ++ s')
-    result <- runInterpreter (ourContext >> interpret s' undefined)
+    result <- unsafeRunInterpreterWithArgs ourGHCOptions (ourContext >> interpret s' undefined)
     case result of
       Left err -> throw $ InterpreterException $ unlines ["Error when interpretting", s', show err]
       Right a -> return a

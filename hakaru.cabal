@@ -11,7 +11,7 @@ author:              The Hakaru Team
 maintainer:          ppaml@indiana.edu
 -- copyright:           
 category:            Language
-build-type:          Simple
+build-type:          Custom 
 -- extra-source-files:  
 cabal-version:       >=1.16
 
@@ -48,6 +48,7 @@ library
                        Language.Hakaru.Util.Lex,
                        Language.Hakaru.Util.Pretty,
                        Language.Hakaru.Util.Visual,
+                       Language.Hakaru.Paths,  
                        System.MapleSSH
 
   other-extensions:    RankNTypes, BangPatterns, GADTs, TypeFamilies, TypeOperators,
