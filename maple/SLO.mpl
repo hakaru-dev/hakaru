@@ -41,6 +41,9 @@ SLO := module ()
     r := Record('htyp' = typ, 'mtyp' = meastyp,
                 'gctx' = glob, 'gnum' = gnumbering, 'gsize' = gsiz);
     inp := instantiate(expr, r, 0, typ);
+
+    # global option
+    _EnvUseHeavisideAsUnitStep := true;
     try
       # be context sensitive for this pass too:
       _EnvBinders := {};
@@ -61,6 +64,9 @@ SLO := module ()
     local res, ctx, t, i, rng;
 
     ctx := op(2,inp);
+
+    # global option
+    _EnvUseHeavisideAsUnitStep := true;
 
     # right at the start, put the global context in scope.
     _EnvBinders := map2(op, 1, ctx:-gctx);
@@ -387,7 +393,6 @@ SLO := module ()
       # try with Heaviside
       res := f(i,i=l);
       try
-        _EnvUseHeavisideAsUnitStep := true;
         npw := simplify(convert(res, 'Heaviside'));
         npw := fix_Heaviside(npw, res);
       catch "give the main variable as a second argument":
@@ -477,7 +482,10 @@ SLO := module ()
         res := piecewise(op(1,res), op(2, res), op(4,res));
       end if
     end if;
+
     if nops(res)=3 then
+      # trivial case
+      if normal(op(2,res)-op(3,res))=0 then return op(2,res) end if;
       # distribute conditions
       cond := op(1,res);
       if cond::t_rel and (op(1,cond)::t_pw or op(2,cond)::t_pw) then
@@ -506,12 +514,20 @@ SLO := module ()
       # simplify simple nested cases
       if res::t_pw and op(2,res)::t_pw and nops(op(2,res))=3 and
          normal(op([2,3],res) - op(3,res)) = 0 then
-          res := piecewise(And(op(1,res),op([2,1],res)), op([2,2],res), op(3,res));
+          res := simp_pw(piecewise(And(op(1,res),op([2,1],res)), op([2,2],res), op(3,res)));
       end if;
       if res::t_pw and op(3,res)::t_pw and nops(op(3,res))=3 and
          normal(op([3,2],res) - op(2,res)) = 0 then
-          res := piecewise(Or(op(1,res),op([3,1],res)), op(2,res), op([3,3],res));
+          res := simp_pw(piecewise(Or(op(1,res),op([3,1],res)), op(2,res), op([3,3],res)));
       end if;
+      if res::t_pw and op(3,res)::t_pw and nops(op(3,res))=3 and
+         normal(op([3,3],res) - op(2,res)) = 0 then
+          res := simp_pw(piecewise(And(op([3,1],res), flip_cond(op(1,res))), op(2,res), op([3,3],res)));
+      end if;
+    elif nops(res)=6 and op(2,res)=op(6,res) then
+      # case of an if-else that has been complicated -- merge
+      res := simp_pw(piecewise(And(flip_cond(op(1,res)), op(3,res)), 
+                               op(4,res), op(2,res)));
     end if;
     res;
   end proc;
@@ -611,6 +627,10 @@ SLO := module ()
         error "how do I make a Prob from %1 in %2", w, eval(_EnvTypes)
       end if;
     end if;
+  end proc;
+
+  mkReal := proc(w, ctx)
+    error "don't know how to make (%1) real", w;
   end proc;
 
   # use assumptions to figure out if we are actually positive, even
@@ -860,7 +880,8 @@ SLO := module ()
     if a = b then a
     elif a = 'Number' then b
     elif b = 'Number' then a
-    elif a = 'Real' or b = 'Real' then 'Real' # we'll need to patch
+    elif (a = 'Real' and b = 'Prob') or 
+         (b = 'Real' and a = 'Prob') then 'Mixed' # we'll need to patch
     else error "join2type of %1, %2", a, b
     end if;
   end proc;
@@ -907,6 +928,8 @@ SLO := module ()
         end if;
       elif typ2 = Real and member(inf_typ, {'Real', 'Number'}) then
         'Return'(op(1,e))
+      elif typ2 = Real and inf_typ = 'Mixed' then
+        'Return'(mkReal(op(1,e), ctx));
       elif typ2 :: Pair(anything, anything) and
            op(1,e) :: Pair(anything, anything) then
         left  := adjust_types('Return'(op([1,1],e)), Measure(op(1,typ2)), ctx);
@@ -929,20 +952,20 @@ SLO := module ()
       _EnvPathCond := _EnvPathCond union {var :: dom};
       Bind(op(1,e), op(2,e), adjust_types(op(3,e), typ, ctx));
     elif type(e, 'Bind'(anything, name = range, anything)) then
-      dom := compute_domain(op(1,e));
+      dom := compute_domain(op(1,e), var);
       var := op([2,1],e);
       inf_typ := infer_type(op(1,e), ctx); # should assert Measure(..)
       _EnvTypes := _EnvTypes union {var :: op(1,inf_typ)};
-      _EnvPathCond := _EnvPathCond union {var :: dom};
+      _EnvPathCond := _EnvPathCond union {dom};
       # need to adjust types on first op, to its own type, as that may require
       # tweaking which functions are used
       Bind(adjust_types(op(1,e), inf_typ, ctx), op(2,e), adjust_types(op(3,e), typ, ctx));
     elif type(e, 'Bind'(anything, name, anything)) then
-      dom := compute_domain(op(1,e));
+      dom := compute_domain(op(1,e), var);
       var := op(2,e);
       inf_typ := infer_type(op(1,e), ctx); # should assert Measure(..)
       _EnvTypes := _EnvTypes union {var :: op(1,inf_typ)};
-      _EnvPathCond := _EnvPathCond union {var :: dom};
+      _EnvPathCond := _EnvPathCond union {dom};
       # need to adjust types on first op, to its own type, as that may require
       # tweaking which functions are used
       Bind(adjust_types(op(1,e), inf_typ, ctx), op(2,e), adjust_types(op(3,e), typ, ctx));
@@ -984,7 +1007,9 @@ SLO := module ()
     elif type(e, 'BetaD'(anything, anything)) and typ = 'Measure(Prob)' then
       BetaD(mkProb(op(1,e), ctx), mkProb(op(2,e), ctx))
     elif type(e, 'BetaD'(anything, anything)) and typ = 'Measure(Real)' then
-      fromProb(BetaD(mkProb(op(1,e), ctx), mkProb(op(2,e), ctx)))
+      var := gensym('pp');
+      res := BetaD(mkProb(op(1,e), ctx), mkProb(op(2,e), ctx));
+      Bind(res, var, Return(fromProb(var)))
     elif type(e, 'GammaD'(anything, anything)) and typ = 'Measure(Prob)' then
       GammaD(mkProb(op(1,e), ctx), mkProb(op(2,e), ctx))
     elif type(e, 'NormalD'(anything, anything)) and typ = 'Measure(Real)' then
@@ -1012,27 +1037,28 @@ SLO := module ()
     end if;
   end proc;
 
-  compute_domain := proc(e)
+  compute_domain := proc(e, v)
     local res;
     if type(e, 'Uniform'(anything, anything)) then
-      'RealRange'(op(e));
+      # 'RealRange'(op(e));
+      AndProp(v>=op(1,e), v<=op(2,e));
     elif type(e, 'GammaD'(anything, anything)) then
-      'RealRange'(0,infinity);
+      v::'RealRange'(0,infinity);
     elif type(e, 'BetaD'(anything, anything)) then
-      'RealRange'(0,1);
+      v::'RealRange'(0,1);
     elif type(e, {identical('Lebesgue'), specfunc(anything, 'NormalD')}) then
-      'real'
+      v::'real'
     elif type(e, specfunc(anything, 'Superpose')) then
-      res := map((x -> compute_domain(op(2,x))), {op(e)});
+      res := map((x -> compute_domain(op(2,x),v)), {op(e)});
       if nops(res)=1 then
         res[1]
       else
         error "expression %1 has multiple domain: %2", e, res
       end if;
     elif type(e, 'Bind'(anything, name, anything)) then
-      'real'
+      v::'real'
     elif type(e, 'Bind'(anything, name = range, anything)) then
-      RealRange(op([2,2,1], e), op([2,2,2], e))
+      v::RealRange(op([2,2,1], e), op([2,2,2], e))
     elif type(e, 'WeightedM'(anything, anything)) then
       compute_domain(op(2,e))
     else
@@ -1369,7 +1395,6 @@ SLO := module ()
       else
         res0 := int(expr, b);
         if type(res0, t_binds) and op(2,res0)=b then # didn't work, try harder
-          _EnvUseHeavisideAsUnitStep := true;
           res1 := int(convert(expr, Heaviside), b);
           if not type(res1, t_binds) then # success!
             res := fix_Heaviside(res1, res0);
@@ -1423,7 +1448,14 @@ SLO := module ()
         res := res + myint(op(-1, expr), var = lower..upper);
       end if;
       res
-    else
+    elif length(expr) < 200 then # what have we got to lose?
+      res := int(convert(expr, Heaviside), b);
+      if not (indets(res, specfunc(anything, '{Dirac,Heaviside}')) = {}) then
+        fix_Heaviside(res, Int(expr,b))
+      else
+        res
+      end if;
+    else # well, too much time!
       Int(expr, b)
     end if;
   end proc;
@@ -1555,45 +1587,60 @@ Bind := proc(w, var, meas)
   end if;
 end proc;
 
-If := proc(cond, tb, eb)
+If := module()
+  export ModuleApply;
   local patch_eb;
-  patch_eb := proc(eb)
-    local fcond, new_cond, rest_cond, t1, t2;
 
-    fcond := SLO:-flip_cond(cond);
-    new_cond := And(op(1,eb), fcond);
-    rest_cond := And(SLO:-flip_cond(op(1,eb)), fcond);
+  patch_eb := proc(eb2, cond2)
+    local fcond, new_cond, rest_cond, t1, t2, rest;
+
+    fcond := SLO:-flip_cond(cond2);
+    new_cond := And(op(1,eb2), fcond);
+    rest_cond := And(SLO:-flip_cond(op(1,eb2)), fcond);
     t1 := coulditbe(new_cond) assuming op(_EnvPathCond);
     t2 := simplify(piecewise(rest_cond, 1, 0));
     t2 := not (evalb(t2=0));
     if t1=false then
-      error "Why is %1 unsatisfiable?", new_cond;
+      rest := op(3,eb2);
+      if op(0,rest) = 'If' then
+        If(And(op(1,rest), rest_cond), op(2, rest), op(3, rest))
+      else
+        rest
+      end if;
     elif t2 then
-      eb
+      eb2
     else
-      op(2,eb)
+      op(2,eb2)
     end if;
   end proc;
 
-  if cond = true then
-    tb
-  elif cond = false then
-    eb
-  elif tb = 'Return'(undefined) then
-    # must 'patch things up' if we had a nested If
-    `if`(op(0,eb) = 'If', patch_eb(eb), eb);
-  elif eb = Return(undefined) then
-    tb
-  elif tb = eb then
-    eb
-  elif type(cond, anything = identical(true)) then
-    If(op(1,cond), tb, eb)
-  elif op(0,eb) = 'If' and op(3,eb)=Superpose() then
-    'If'(cond, tb, patch_eb(eb))
-  else
-    'If'(cond, tb, eb)
-  end if;
-end;
+  ModuleApply := proc(cond, tb, eb)
+    local new_eb;
+    if cond = true then
+      tb
+    elif cond = false then
+      eb
+    elif tb = 'Return'(undefined) then
+      # must 'patch things up' if we had a nested If
+      `if`(op(0,eb) = 'If', patch_eb(eb, cond), eb);
+    elif eb = Return(undefined) then
+      tb
+    elif tb = eb then
+      eb
+    elif type(cond, anything = identical(true)) then
+      If(op(1,cond), tb, eb)
+    elif op(0,eb) = 'If' and op(3,eb)=Superpose() then
+      new_eb := patch_eb(eb, cond);
+      if normal(new_eb-eb) = 0 then
+        'If'(cond, tb, new_eb)
+      else
+        If(cond, tb, new_eb)
+      end if;
+    else
+      'If'(cond, tb, eb)
+    end if;
+  end proc;
+end module;
 
 # A Context contains
 # - a (Maple-encoded) Hakaru type 'htyp' (H-types)
