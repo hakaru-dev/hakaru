@@ -9,17 +9,6 @@ import Prelude hiding (Real)
 import Language.Hakaru.Syntax
 import Language.Hakaru.Expect (Expect(..))
 
--- Kleisli composition
--- bindo f g = \x -> do y <- f x
---                      z <- g y
---                      return z
-
-bindo :: (Mochastic repr, Lambda repr) =>
-         repr (a -> Measure b) ->
-         repr (b -> Measure c) ->
-         repr (a -> Measure c)
-bindo f g = lam (\x -> app f x `bind` app g)
-
 -- Conditional probability tables (ignore Expect and unExpect on first reading)
 
 type Table = Vector (Vector Prob)
@@ -257,7 +246,47 @@ rr11 :: (Mochastic repr, Lambda repr, Integrate repr) =>
   repr Int -> repr Int -> repr Table -> repr Table
 rr11 _ _ m =  m
 
-{-
+--------------------------------------------------------------------------------
+--
+-- Suggestion for alternate model for reify/reflect
+
+type LinearOperator a = (a -> Prob) -> Prob
+
+reflectOp :: (Mochastic repr, Lambda repr, Integrate repr) =>
+           repr Table -> repr (Int -> LinearOperator Int)
+reflectOp m = 
+  lam (\i -> let v = index m i in
+    lam (\c -> summateV (vector (size v) (\k -> (index v k) * (app c i)))))
+    
+reifyOp :: (Mochastic repr, Lambda repr, Integrate repr) =>
+         repr Int -> repr Int ->
+         repr (Int -> LinearOperator Int) -> repr Table
+reifyOp domainSize rangeSize m =
+  vector domainSize (\i ->
+  vector rangeSize  (\j ->
+  app (app m i) (lam (\j' -> if_ (equal j j') 1 0))))
+
+bindOp :: (Lambda repr) => repr (a -> LinearOperator b) ->
+  repr (b -> LinearOperator c) -> repr (a -> LinearOperator c)
+bindOp f g = lam (\a -> lam (\c -> 
+  (app (app f a) (lam (\b -> app (app g b) c)))))
+
+bindOp' :: (Mochastic repr, Lambda repr, Integrate repr) =>
+  repr Table -> repr Table -> repr Table
+bindOp' m n = reifyOp 20 20 (bindOp (reflectOp m) (reflectOp n))
+--------------------------------------------------------------------------------
+
+-- Kleisli composition
+-- bindo f g = \x -> do y <- f x
+--                      z <- g y
+--                      return z
+
+bindo :: (Mochastic repr, Lambda repr) =>
+         repr (a -> Measure b) ->
+         repr (b -> Measure c) ->
+         repr (a -> Measure c)
+bindo f g = lam (\x -> app f x `bind` app g)
+
 --------------------------------------------------------------------------------
 
 -- Model: A one-dimensional random walk among 20 discrete states (numbered
@@ -265,6 +294,7 @@ rr11 _ _ m =  m
 -- Query: Given that the state is less than 8 at time 6,
 --        what's the posterior distribution over states at time 12?
 
+{-
 type Time  = Int
 type State = Int
 
