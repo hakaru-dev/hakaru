@@ -208,9 +208,9 @@ rr6 a b m =
 -- Note how s and tot are in fact the same.
 -- Assumption #7: let_ x f ~~ f x
 
-rr6 :: (Mochastic repr, Lambda repr, Integrate repr) =>
+rr7 :: (Mochastic repr, Lambda repr, Integrate repr) =>
   repr Int -> repr Int -> repr Table -> repr Table
-rr6 a b m = 
+rr7 a b m = 
   vector a (\i ->
   vector b  (\j ->
     let v = index m i in
@@ -220,9 +220,9 @@ rr6 a b m =
 
 -- Assumption #8: size v - 1 == a
 -- inline "let rest" and push multiplication in
-rr7 :: (Mochastic repr, Lambda repr, Integrate repr) =>
+rr8 :: (Mochastic repr, Lambda repr, Integrate repr) =>
   repr Int -> repr Int -> repr Table -> repr Table
-rr7 a b m = 
+rr8 a b m = 
   vector a (\i ->
   vector b  (\j ->
     let v = index m i in
@@ -230,9 +230,9 @@ rr7 a b m =
     if_ (less 0 s) (s * index v j / s) 0 ) )
 
 -- Assumption #9: x * y / x ~~ y if x <> 0
-rr7 :: (Mochastic repr, Lambda repr, Integrate repr) =>
+rr9 :: (Mochastic repr, Lambda repr, Integrate repr) =>
   repr Int -> repr Int -> repr Table -> repr Table
-rr7 a b m = 
+rr9 a b m = 
   vector a (\i ->
   vector b  (\j ->
     let v = index m i in
@@ -243,9 +243,9 @@ rr7 a b m =
 -- Cor: s == 0 iff forall 0 <= j <= size v -1. index v j ==0.
 -- Thus, in fact, if_ (less 0 s) (index v j) 0 == index v j regardless.
 
-rr8 :: (Mochastic repr, Lambda repr, Integrate repr) =>
+rr10 :: (Mochastic repr, Lambda repr, Integrate repr) =>
   repr Int -> repr Int -> repr Table -> repr Table
-rr8 a b m = 
+rr10 a b m = 
   vector a (\i ->
   vector b  (\j ->
     let v = index m i in
@@ -253,9 +253,9 @@ rr8 a b m =
 
 -- Assumption #11: vector a (\i -> vector b (\j -> index (index m i) j)) == m
 -- (also known as tabulate-lookup in Agda)
-rr9 :: (Mochastic repr, Lambda repr, Integrate repr) =>
+rr11 :: (Mochastic repr, Lambda repr, Integrate repr) =>
   repr Int -> repr Int -> repr Table -> repr Table
-rr9 a b m =  m
+rr11 _ _ m =  m
 
 {-
 --------------------------------------------------------------------------------
