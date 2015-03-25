@@ -110,7 +110,7 @@ library
 
   if flag(patchedHint)
     CPP-Options: -DPATCHED_HINT
-    build-depends: hint-patched >= 0.4.0.0 && < 0.5
+    build-depends: hint-exts >= 0.4.0.0 && < 0.5
   else 
     build-depends: hint >= 0.4.0.0 && < 0.5
     
@@ -146,7 +146,7 @@ test-suite roundtrip_test
 
     if flag(patchedHint)
       CPP-Options: -DPATCHED_HINT
-      build-depends: hint-patched >= 0.4.0.0 && < 0.5
+      build-depends: hint-exts >= 0.4.0.0 && < 0.5
     else 
       build-depends: hint >= 0.4.0.0 && < 0.5
 
