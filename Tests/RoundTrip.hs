@@ -32,7 +32,11 @@ testMeasureUnit = test [
     "t57"     ~: testSS [t57] t57',
     "t58"     ~: testSS [t58] t58',
     "t59"     ~: testS t59,
-    "t60"     ~: testSS [t60,t60'] t60''
+    "t60"     ~: testSS [t60,t60'] t60'',
+    "t62"     ~: testSS [t62] t62',
+    "t63"     ~: testSS [t63] t63',
+    "t64"     ~: testSS [t64,t64'] t64'',
+    "t65"     ~: testSS [t65] t65'
     ]
 
 testMeasureProb :: Test
@@ -46,7 +50,8 @@ testMeasureProb = test [
     "t38" ~: testSS [] t38,
     "t42" ~: testSS [t42] (dirac 1),
     "t49" ~: testSS [] t49,
-    "t61" ~: testSS [t61] (lam $ \x -> if_ (less x 0) (dirac 0) $ dirac $ recip $ unsafeProb x)
+    "t61" ~: testSS [t61] t61',
+    "t66" ~: testSS [] t66
     ]
 
 testMeasureReal :: Test
@@ -55,6 +60,7 @@ testMeasureReal = test
   , "t6"  ~: testSS [] t6
   , "t7"  ~: testSS [t7] t7'
   , "t7n" ~: testSS [t7n] t7n'
+  , "t8'" ~: testSS [t8'] (lam $ \s1 -> lam $ \s2 -> normal 0 (sqrt_ (s1 ^ 2 + s2 ^ 2)))
   , "t9"  ~: testSS [t9] (superpose [(2, uniform 3 7)])
   , "t13" ~: testSS [t13] t13'
   , "t14" ~: testSS [t14] t14'
@@ -167,6 +173,12 @@ t7n' = uniform (-1) 0 `bind` \x -> superpose [(unsafeProb (x + 1), dirac (x*x))]
 -- then "factor".
 t8 :: Mochastic repr => repr (Measure (Real, Real))
 t8 = normal 0 10 `bind` \x -> normal x 20 `bind` \y -> dirac (pair x y)
+
+-- Normal is conjugate to normal
+t8' :: (Lambda repr, Mochastic repr) => repr (Prob -> Prob -> Measure Real)
+t8' = lam $ \s1 ->
+      lam $ \s2 ->
+      normal 0 s1 `bind` \x -> normal x s2
 
 t9 :: Mochastic repr => repr (Measure Real)
 t9 = lebesgue `bind` \x -> 
@@ -454,7 +466,7 @@ t59 =
        if_ x2
            (dirac x1)
            (dirac x1 `bind` \x3 -> dirac (-x3))) `bind` \x2 ->
-      weight (unsafeProb x2) (dirac unit)) `bind` \x2 ->
+      weight (unsafeProb x2) (dirac unit)) `bind` \_ ->
      dirac x0 `bind` \x3 ->
      dirac x1 `bind` \x4 ->
      dirac (x3 * x4)) `bind` \x1 ->
@@ -485,7 +497,7 @@ t60 =
        if_ x2
            (dirac x1)
            (dirac x1 `bind` \x3 -> dirac (-x3))) `bind` \x2 ->
-      weight (unsafeProb x2) (dirac unit)) `bind` \x2 ->
+      weight (unsafeProb x2) (dirac unit)) `bind` \_ ->
      dirac x0 `bind` \x3 ->
      dirac x1 `bind` \x4 ->
      dirac (x3 * x4)) `bind` \x1 ->
@@ -518,8 +530,100 @@ t60'' =
         (weight (recip (unsafeProb (x2 + x1))) (dirac unit))
         (superpose [])
 
-t61 :: (Mochastic repr, Lambda repr) => repr (Real -> Measure Prob)
+t61, t61' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure Prob)
 t61 = lam $ \x -> if_ (less x 0) (dirac 0) $ dirac $ unsafeProb $ recip x
+t61'= lam $ \x -> if_ (less x 0) (dirac 0) $ dirac $ recip $ unsafeProb x
+
+-- "Special case" of t56
+t62, t62' :: (Mochastic repr, Lambda repr) => repr (Real -> Real -> Measure ())
+t62 = lam $ \t ->
+      lam $ \x ->
+      uniform 0 1 `bind` \y ->
+      if_ (and_ [0 `less` (t/x-y), (t/x-y) `less` 1])
+          (dirac unit)
+          (superpose [])
+t62'= lam $ \t ->
+      lam $ \x ->
+      if_ (lesseq (t/x) 0) (superpose []) $
+      if_ (lesseq (t/x) 1) (factor (unsafeProb (t/x))) $
+      if_ (lesseq (t/x) 2) (factor (unsafeProb (2-t/x))) $
+      superpose []
+
+-- "Scalar multiple" of t62
+t63, t63' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
+t63 = lam $ \t ->
+      uniform 0 1 `bind` \x ->
+      uniform 0 1 `bind` \y ->
+      if_ (and_ [0 `less` (t/x-y), (t/x-y) `less` 1])
+          (factor (recip (unsafeProb x)))
+          (superpose [])
+t63'= lam $ \t ->
+      uniform 0 1 `bind` \x ->
+      if_ (lesseq (t/x) 0) (superpose []) $
+      if_ (lesseq (t/x) 1) (factor (unsafeProb (t/x) / unsafeProb x)) $
+      if_ (lesseq (t/x) 2) (factor (unsafeProb (2-t/x) / unsafeProb x)) $
+      superpose []
+
+-- Density calculation for (Exp (Log StdRandom)) and StdRandom
+t64, t64', t64'' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
+t64 = lam $ \x0 ->
+      (((dirac 0 `bind` \x1 ->
+         dirac x0 `bind` \x2 ->
+         dirac (x1 `less` x2)) `bind` \x1 ->
+        if_ x1
+            (dirac x0 `bind` \x2 -> dirac (recip x2))
+            (dirac 0)) `bind` \x1 ->
+       weight (unsafeProb x1) (dirac unit)) `bind` \x1 ->
+      (dirac x0 `bind` \x2 -> dirac (log x2)) `bind` \x2 ->
+      ((dirac x2 `bind` \x3 -> dirac (exp x3)) `bind` \x3 ->
+       weight (unsafeProb x3) (dirac unit)) `bind` \x3 ->
+      (dirac x2 `bind` \x4 -> dirac (exp x4)) `bind` \x4 ->
+      ((dirac 0 `bind` \x5 ->
+        dirac x4 `bind` \x6 ->
+        dirac (x5 `less` x6)) `bind` \x5 ->
+       if_ x5
+           ((dirac x4 `bind` \x6 ->
+             dirac 1 `bind` \x7 ->
+             dirac (x6 `less` x7)) `bind` \x6 ->
+            if_ x6 (dirac 1) (dirac 0))
+           (dirac 0)) `bind` \x5 ->
+      weight (unsafeProb x5) (dirac unit)
+t64' =lam $ \x0 ->
+      ((dirac 0 `bind` \x1 ->
+        dirac x0 `bind` \x2 ->
+        dirac (x1 `less` x2)) `bind` \x1 ->
+       if_ x1
+           ((dirac x0 `bind` \x2 ->
+             dirac 1 `bind` \x3 ->
+             dirac (x2 `less` x3)) `bind` \x2 ->
+            if_ x2 (dirac 1) (dirac 0))
+           (dirac 0)) `bind` \x1 ->
+      weight (unsafeProb x1) (dirac unit)
+t64''=lam $ \x0 ->
+      if_ (and_ [0 `less` x0, x0 `less` 1])
+          (dirac unit)
+          (superpose [])
+
+-- Density calculation for (Add StdRandom (Exp (Neg StdRandom))).
+-- Maple can integrate this but we don't simplify it for some reason.
+t65, t65' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
+t65 = lam $ \t -> uniform 0 1 `bind` \x ->
+      if_ (0 `less` t-x)
+          (let_ (unsafeProb (t-x)) $ \t_x ->
+           weight (recip t_x)
+                  (if_ (and_ [0 `less` -log_ t_x, -log_ t_x `less` 1])
+                       (dirac unit)
+                       (superpose [])))
+          (superpose [])
+t65' = lam $ \t ->
+       if_ (t `less` exp (-1)) (superpose [])
+     $ if_ (t `less` 1) (factor (unsafeProb (log t + 1)))
+     $ if_ (t `less` 1 + exp (-1)) (dirac unit)
+     $ if_ (t `less` 2) (factor (unsafeProb (log (t + (-1)) * (-1))))
+     $ superpose []
+
+t66 :: (Mochastic repr) => repr (Measure Prob)
+t66 = dirac (sqrt_ (3 + sqrt_ 3))
 
 -- Testing round-tripping of some other distributions
 testexponential :: Mochastic repr => repr (Measure Prob)

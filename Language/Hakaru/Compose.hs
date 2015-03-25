@@ -136,29 +136,28 @@ instance (Base repr, Applicative f) => Base (Compose f s repr) where
   negativeInfinity = compose0 negativeInfinity
   gammaFunc        = compose1 gammaFunc
   betaFunc         = compose2 betaFunc
-  vector l h f     = Compose (liftA3 vector (fun0 l) (fun0 h) (fun1 f))
+  vector l f       = Compose (liftA2 vector (fun0 l) (fun1 f))
   empty            = compose0 empty
   index            = compose2 index
-  loBound          = compose1 loBound
-  hiBound          = compose1 hiBound
+  size             = compose1 size
   reduce r z v     = Compose (liftA3 reduce (fun2 r) (fun0 z) (fun0 v))
   fix f            = Compose (fmap fix (fun1 f))
 
 instance (Mochastic repr, Applicative f) => Mochastic (Compose f s repr) where
-  dirac     = compose1 dirac
-  bind m k  = Compose (liftA2 bind (fun0 m) (fun1 k))
-  lebesgue  = compose0 lebesgue
-  counting  = compose0 counting
-  superpose = Compose . fmap superpose
-                      . traverse (\(Compose p, Compose m) -> liftA2 (,) p m)
-  uniform   = compose2 uniform
-  normal    = compose2 normal
-  -- TODO define mix and categorical
-  poisson   = compose1 poisson
-  gamma     = compose2 gamma
-  beta      = compose2 beta
-  dp        = compose2 dp
-  plate     = compose1 plate
+  dirac       = compose1 dirac
+  bind m k    = Compose (liftA2 bind (fun0 m) (fun1 k))
+  lebesgue    = compose0 lebesgue
+  counting    = compose0 counting
+  superpose   = Compose . fmap superpose
+                        . traverse (\(Compose p, Compose m) -> liftA2 (,) p m)
+  categorical = compose1 categorical
+  uniform     = compose2 uniform
+  normal      = compose2 normal
+  poisson     = compose1 poisson
+  gamma       = compose2 gamma
+  beta        = compose2 beta
+  dp          = compose2 dp
+  plate       = compose1 plate
   -- TODO define chain
 
 instance (Integrate repr, Applicative f) => Integrate (Compose f s repr) where

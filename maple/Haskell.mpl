@@ -19,7 +19,7 @@ Haskell := module ()
   # which is to use the Inert form.  The flip-side of doing things
   # the right way would involve a proper pretty-printer, but that
   # can be added later easily enough.
-  ModuleApply := proc(e) 
+  ModuleApply := proc(e)
       local rts, pows, expr, binds, unsafes;
 
       b:-clear();
@@ -28,7 +28,7 @@ Haskell := module ()
       expr := subs(map((x -> x = unsafeProb(freeze(op(1,x)))), unsafes), e);
       # expr := eval(e, unsafeProb = (x -> unsafeProb(freeze(x))));
 
-      # some last-minute patching; this will need hardened, 'anything' is 
+      # some last-minute patching; this will need hardened, 'anything' is
       # wrong.
       pows := indets(expr, anything ^ identical(-1));
       if pows <> {} then
@@ -44,7 +44,7 @@ Haskell := module ()
       expr := subs(map((x -> x = Sqrt(op(1,x))), rts), expr);
 
       # catch 1/sqrt(Pi)
-      pows := select(x -> evalb(signum(op(1,x))=1), 
+      pows := select(x -> evalb(signum(op(1,x))=1),
                indets(expr, realcons ^ identical(-1/2)));
       if pows <> {} then
         expr := subs(map((x -> x = recip (sqrt_ (op(1,x)))), pows), expr);
@@ -80,9 +80,9 @@ Haskell := module ()
 # things get silly with too much indentation, so for this table, we cheat
 d[_Inert_INTPOS] := proc(x) b:-appendf("%d",x) end;
 d[_Inert_INTNEG] := proc(x) b:-appendf("(%d)",-x) end;
-d[_Inert_RATIONAL] := proc(n,d) 
-  parens(proc() b:-append("fromRational "); 
-                lparen(); p(n); b:-append(" / "); p(d); rparen(); end) 
+d[_Inert_RATIONAL] := proc(n,d)
+  parens(proc() b:-append("fromRational ");
+                lparen(); p(n); b:-append(" / "); p(d); rparen(); end)
 end;
 d[_Inert_FUNCTION] := proc(f, s)
   local nm;
@@ -101,7 +101,7 @@ d[_Inert_ASSIGNEDNAME] := proc(a1, a2)
     b:-append(a1);
   end if;
 end proc;
-d[_Inert_NAME] := proc(a1) 
+d[_Inert_NAME] := proc(a1)
   if assigned(bi[a1]) then
     bi[a1]()
   else
@@ -152,6 +152,13 @@ bi["Pi"] := proc() b:-append("pi_") end;
 bi["Fst"] := ufunc("fst_");
 bi["Snd"] := ufunc("snd_");
 
+# SOP functions
+bi["Tag"] := ufunc("tag");
+bi["Zero"] := ufunc("_Z");
+bi["Succ"] := ufunc("_S");
+bi["Cons"] := bfunc("_Cons");
+bi["Nil"] := proc() b:-append("_Nil") end;
+
 
 # be careful what you ask for!
 bi["undefined"] := proc() b:-append("42") end;
@@ -166,7 +173,7 @@ bi["Bind"] := proc(meas, var, rest)
   elif type(var, specfunc(anything,'_Inert_LOCALNAME')) then
     b:-append(cat(op(1,var),op(2,var)));
     b:-append(" -> ");
-  else 
+  else
     ASSERT(type(var, specfunc(anything, '_Inert_EQUATION')));
     rng := FromInert(op(2,var));
     if rng = -infinity .. infinity then
@@ -179,15 +186,15 @@ bi["Bind"] := proc(meas, var, rest)
   p(rest);
 end;
 
-bi["And"] := proc() b:-append("and_"); sp(); 
+bi["And"] := proc() b:-append("and_"); sp();
   lbrack(); seqp(", ", [_passed]); rbrack();
 end;
-bi["Or"] := proc() b:-append("or_"); sp(); 
+bi["Or"] := proc() b:-append("or_"); sp();
   lbrack(); seqp(", ", [_passed]); rbrack();
 end;
 
 
-bi["SUPERPOSE"] := proc() b:-append("superpose"); sp(); 
+bi["SUPERPOSE"] := proc() b:-append("superpose"); sp();
   lbrack(); seqp(", ", [_passed]); rbrack();
 end;
 
@@ -214,10 +221,10 @@ end;
 
 # nm should be a name!
 bi["Lambda"] := proc(nm, expr)
-  b:-append("lam (\\"); 
+  b:-append("lam (\\");
   b:-append(op(1,nm));
   b:-append(" -> ");
-  p(expr); 
+  p(expr);
   b:-append(")");
 end proc;
 
@@ -266,9 +273,9 @@ end;
   parens := proc(c) b:-append("("); c(); b:-append(")") end;
   ufunc := proc(f) proc(c) parens(proc() b:-append(f); sp(); p(c) end) end; end;
   bfunc := f -> ((x,y) -> parens(proc() b:-append(f); sp(); p(x); sp(); p(y); end));
-  seqp := proc(s, l) 
+  seqp := proc(s, l)
     if nops(l)=0 then NULL
-    elif nops(l)=1 then p(l[1]) 
+    elif nops(l)=1 then p(l[1])
     else
       p(l[1]);
       b:-append(s);

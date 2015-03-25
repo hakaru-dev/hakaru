@@ -20,13 +20,13 @@ SLO := module ()
     adjust_superpose,
     get_breakcond, merge_pw,
     MyHandler, getBinderForm, infer_type, join_type, join2type,
-    simp_sup, simp_if, into_sup, simp_rel, 
+    simp_sup, simp_if, into_sup, simp_rel,
     simp_pw, simp_pw_equal, simp_pw3,
     simp_props,
     comp2, comp_algeb, compare, comp_list,
 
     # density recognisation routines
-    get_de, mkRealDensity, recognize_density, recognize_density_01, 
+    get_de, mkRealDensity, recognize_density, recognize_density_01,
     recognize_density_0inf, density;
 
   t_binds := 'specfunc(anything, {int, Int, sum, Sum})';
@@ -198,7 +198,7 @@ SLO := module ()
     vpw := map(rhs, substp);
     vars := [op(vbinds union vpw)]; # order does not matter; only subst
     all_vars := [op(vars),op(convert(cs,list))];
-    
+
     push_in := proc(c, v)
       local actual, cof, ii, rest, res;
       cof := c;
@@ -210,7 +210,7 @@ SLO := module ()
       elif type(actual, t_pw) then
         actual := simplify(actual); # might get rid of pw!
         `if`(actual::t_pw, into_pw((x -> cof * x), actual), cof*actual);
-      elif degree(v, vars)>1 then 
+      elif degree(v, vars)>1 then
         if type(actual, '`*`'(t_pw)) then
           res := merge_pw([op(actual)], mul);
           `if`(res::t_pw, into_pw((x->cof*x), res), cof*res);
@@ -384,8 +384,8 @@ SLO := module ()
     sbp := map(twiddle, breakpoints);
     n := nops(l[1]);
     if nops(sbp)=1 then
-      res := simp_pw(piecewise(seq(`if`(i::odd and i<n, 
-                                   op(i,l[1]), 
+      res := simp_pw(piecewise(seq(`if`(i::odd and i<n,
+                                   op(i,l[1]),
                                    f(op(i,j),j=l)), i=1..n)));
       simp(res);
     else
@@ -398,7 +398,7 @@ SLO := module ()
       catch "give the main variable as a second argument":
         npw := res;
       end try;
-      npw 
+      npw
     end if;
   end proc;
 
@@ -436,7 +436,7 @@ SLO := module ()
     rest := evalb(2*n < nops(pw));
     f := proc(cond, piece)
       if cond::(name = name) then
-        if member(op(1,cond), _EnvBinders) or 
+        if member(op(1,cond), _EnvBinders) or
            member(op(2,cond), _EnvBinders) then
           NULL
         else
@@ -460,9 +460,9 @@ SLO := module ()
     end proc;
     aa := seq(f(op(2*i+1,pw), op(2*i+2,pw)), i = 0..n-1);
     if aa=NULL then
-      if rest then 
-        op(-1, pw) 
-      else 
+      if rest then
+        op(-1, pw)
+      else
         error "pw with all false conditions (%1)", pw
       end if
     else
@@ -599,10 +599,10 @@ SLO := module ()
       error "mkProb ln: %1", w;
     elif type(w, anything^{identical(1/2), identical(-1/2)}) then
       typ := infer_type(op(1,w), ctx);
-      if member(typ,{'Prob','Number'}) then 
-        w 
-      else 
-        mkProb(op(1,w), ctx) ^ op(2,w) 
+      if member(typ,{'Prob','Number'}) then
+        w
+      else
+        mkProb(op(1,w), ctx) ^ op(2,w)
       end if;
     elif type(w, anything^negint) then
       typ := infer_type(op(1,w), ctx);
@@ -654,11 +654,11 @@ SLO := module ()
       else
         error "Unknown base type %1", x
       end if;
-    elif nm :: Pair(anything, anything) and 
+    elif nm :: Pair(anything, anything) and
          typ :: Pair(anything, anything) then
       (left, r1) := thisproc(op(1, nm) = op(1,typ));
       (right, r2) := thisproc(op(2, nm) = op(2,typ));
-      (prop, rest) := Pair(op([1,2],left), op([1,2],right)), 
+      (prop, rest) := Pair(op([1,2],left), op([1,2],right)),
                      (`union`(r1, r2, left, right));
     else
       error "How can I make a property from %1", x;
@@ -676,7 +676,7 @@ SLO := module ()
 
     if type(typ, 'symbol') then
       rest := {nm::typ}
-    elif nm :: Pair(anything, anything) and 
+    elif nm :: Pair(anything, anything) and
          typ :: Pair(anything, anything) then
       r1 := thisproc(op(1, nm) = op(1,typ));
       r2 := thisproc(op(2, nm) = op(2,typ));
@@ -819,11 +819,11 @@ SLO := module ()
     elif type(e, 'symbol') then
       # first look in the global context
       res := select(type, ctx:-gctx, identical(e) = anything);
-      if nops(res)=1 then 
+      if nops(res)=1 then
         op([1,2], res)
       else # then in the current path
         res := select(type, _EnvTypes, 'identical'(e) :: 'anything');
-        if nops(res)=1 then 
+        if nops(res)=1 then
           typ := op([1,2], res);
           #if type(typ, {'RealRange'(anything, anything), identical(real)}) then
           #  if signum(0,op(1,typ),0)=1 then 'Prob' else 'Real' end if
@@ -871,10 +871,55 @@ SLO := module ()
       Measure(Real)
     elif type(e, 'Bind'(anything, name = range, anything)) then
       Measure(Real)
+    elif type(e, 'Tag'(anything)) then
+
+      (k, t) := infer_type_sop(op(1,e), ctx);
+      Tag(k, t);
+
     else
       error "how do I infer a type from %1", e;
     end if;
   end proc;
+
+  infer_type_prod := proc(e, ctx)
+    local t0, ts;
+    if e = 'Nil' then
+      [];
+    elif op(0,e) = 'Cons' then
+      t0 := infer_type(op(1,e), ctx);
+      ts := infer_type_prod (op(2,e), ctx);
+      [t0, op(ts)];
+    else error "infer_type_prod: %1 is not a product type", e
+    end if;
+  end proc;
+
+  infer_type_sop := proc(e, ctx)
+    local k, t;
+    if op(0,e) = 'Zero' then
+      (0, infer_type_prod (op(1,e), ctx));
+    elif op(0,e) = 'Succ' then
+      k, t := infer_type_sop (op(1,e), ctx);
+      (k+1, t);
+    else error "infer_type_sop: %1 is not a sum of product type", e
+    end if;
+  end proc;
+
+  check_sop_type := proc(inferredType, actualType)
+
+    compatible_types := proc(inf, act)
+      if inf = 'Number' then
+        member(act, {'Int', 'Real', 'Prob'})
+      else
+        inf = act
+      end if;
+    end proc;
+
+    (k, t) := op(inferredType);
+    sopType := op(2, actualType);
+
+    `and` (op (zip (compatible_types, t, op(k+1,sopType))))
+  end proc;
+
 
   join2type := proc(a,b)
     if a = b then a
@@ -937,6 +982,12 @@ SLO := module ()
         'Return'(Pair(op(1,left), op(1,right)));
       elif typ2 = Bool and member(op(1,e), {true,false}) then
         e
+      elif type(typ2, 'Tagged'(anything, anything)) then
+        if check_sop_type(inf_typ, typ2) then
+          e
+        else
+          error "Type check failed in Tagged (adjust_types); type{%1} inf_type{%2} expr{%3}", typ2, inf_typ, e;
+        end if;
       else
          error "adjust_types with type %1, inf_typ %2, for %3", typ, inf_typ, e;
       end if;
@@ -1177,7 +1228,7 @@ SLO := module ()
     local res, X, pl, ii;
     pl := map(condToProp, p);
     ii := remove(type, indets(pl, 'name'), constant);
-    try 
+    try
       # dummy query for unsat only
       coulditbe(X(op(ii)) > 0) assuming op(pl);
       res := pl;
@@ -1325,10 +1376,10 @@ SLO := module ()
   end proc;
 
   mkRealDensity := proc(dens, var, rng)
-    local de, res, new_dens, Dx, diffop, init, c, d; 
+    local de, res, new_dens, Dx, diffop, init, c, d;
     if dens :: specfunc(anything, 'WeightedM') then
       res := NULL;
-      # no matter what, get the de.  
+      # no matter what, get the de.
       # TODO: might want to switch from var=0 sometimes
       de := get_de(op(1,dens),var,Dx);
       if de::specfunc(anything, 'Diffop') then
@@ -1361,7 +1412,7 @@ SLO := module ()
     elif dens :: specfunc(anything, 'Bind') then
       new_dens := mkRealDensity(op(1, dens), var, rng);
       # uses associatibity of >>=
-      Bind(op(1, new_dens), op(2, new_dens), 
+      Bind(op(1, new_dens), op(2, new_dens),
         Bind(op(3, new_dens), op(2, dens), op(3, dens)));
     elif dens :: specfunc(anything, 'Return') then
       Bind(Uniform(op(1,rng), op(2,rng)), var, dens)
@@ -1389,7 +1440,7 @@ SLO := module ()
     var := op(1,b);
     inds := indets(expr, specfunc(anything,c));
     inds := select(depends, inds, var);
-    if inds={} then 
+    if inds={} then
       if type(expr, t_binds) then
         subsop(1=myint(op(1,expr),b), expr)
       else
@@ -1398,7 +1449,7 @@ SLO := module ()
           res1 := int(convert(expr, Heaviside), b);
           if not type(res1, t_binds) then # success!
             res := fix_Heaviside(res1, res0);
-          else 
+          else
             res := res0;
           end if;
         else
@@ -1416,9 +1467,9 @@ SLO := module ()
       end try;
     elif type(expr, t_binds) then
       # go in?
-      Int(expr, b) 
-    else 
-      Int(expr, b) 
+      Int(expr, b)
+    else
+      Int(expr, b)
     end if;
   end proc;
 
@@ -1562,7 +1613,7 @@ end module;
 Bind := proc(w, var, meas)
   if var::name and meas = Return(var) then
     w
-#  elif var::name and 
+#  elif var::name and
 #    meas :: 'WeightedM'(anything, 'Return'(identical(var))) and
 #    not depends(op(1, meas), var) then
 #    WeightedM(op(1,meas), w)

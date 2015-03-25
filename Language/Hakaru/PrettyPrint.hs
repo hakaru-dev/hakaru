@@ -7,9 +7,7 @@ module Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode) where
 import Language.Hakaru.Syntax
 import Language.Hakaru.Util.Pretty
 import Text.PrettyPrint hiding (parens, empty)
--- import qualified Text.PrettyPrint as Text 
--- import Language.Hakaru.Embed
--- import qualified Generics.SOP as SOP
+import Language.Hakaru.Embed
 
 leftMode :: Doc -> String
 leftMode = renderStyle style{mode=LeftMode}
@@ -17,7 +15,17 @@ leftMode = renderStyle style{mode=LeftMode}
 newtype PrettyPrint a = PP ([String] -> Int -> [Doc])
 
 runPrettyPrint :: PrettyPrint a -> Doc
-runPrettyPrint (PP a) = sep (a [ 'x' : show i | i <- [0::Int ..] ] 0)
+runPrettyPrint pp = runPrettyPrintPrec pp 0
+
+runPrettyPrintPrec :: PrettyPrint a -> Int -> Doc
+runPrettyPrintPrec (PP a) p = sep (a [ 'x' : show i | i <- [0::Int ..] ] p)
+
+instance Show (PrettyPrint a) where
+  show        = show        . runPrettyPrint
+  showsPrec p = showsPrec p . (`runPrettyPrintPrec` 0)
+
+instance Pretty (PrettyPrint a) where
+  pretty = runPrettyPrint
 
 apply1 :: String -> PrettyPrint a -> PrettyPrint b
 apply2 :: String -> PrettyPrint a -> PrettyPrint b -> PrettyPrint c
@@ -123,11 +131,10 @@ instance Base PrettyPrint where
   negativeInfinity  = string "negativeInfinity"
   gammaFunc         = apply1 "gammaFunc"
   betaFunc          = apply2 "betaFunc"
-  vector l h f      = apply3 "vector" l h (fun1 f)
+  vector l f        = apply2 "vector" l (fun1 f)
   empty             = string "empty"
   index             = apply2 "index"
-  loBound           = apply1 "loBound"
-  hiBound           = apply1 "hiBound"
+  size              = apply1 "size"
   reduce f          = apply3 "reduce" (fun2 f)
   fix f             = apply1 "fix" (fun1 f)
 
@@ -174,71 +181,12 @@ op p0 s p1 p2 (PP a) (PP b) =
 string :: String -> PrettyPrint a
 string s = PP $ \_ _ -> [text s] 
 
-{-
-sepStr :: String ->
-      PrettyPrint a -> PrettyPrint b -> PrettyPrint c
-sepStr str (PP a) (PP b) = PP $ \vs i -> [ sep (a vs i) <> text str <> sep (b vs i) ]
-
-unpp :: SingI xs => NP PrettyPrint xs -> [ PrettyPrint a ]
-unpp = unprod (\(PP a) -> PP a)
-
-sepBy :: PrettyPrint t -> [PrettyPrint q] -> PrettyPrint a
-sepBy (PP s) xs = PP $ \vs i -> punctuate (sep $ s vs i) (map sep $ map (\(PP f) -> f vs i) xs)
-
-constructor :: (Doc -> Doc) -> String -> PrettyPrint t -> PrettyPrint a
-constructor f str (PP a) = PP (\vs i -> [ text str <+> f (sep (a vs i)) ])
-
--- Less type safe variant of below
-ppProd' :: forall xs a . ConstructorInfo xs -> [PrettyPrint a] -> PrettyPrint ()
-ppProd' (Infix nm _ fxt) (x:y:_) = op fxt nm fxt (fxt + 1) x y
-ppProd' (Constructor ctr) q =
-  constructor Text.parens ctr (sepBy (string ",") (take (lengthSing (Proxy :: Proxy xs)) q))
-ppProd' (Record ctr recs) q = constructor braces ctr (sepBy (string ",") q0) where
-  q0 = zipWith (\r  -> sepStr " = " (string r) )
-               (unprod (\(FieldInfo x) -> x) recs)
-               q
-ppProd' _ _ = error "ppProd': wrong number of variables"
-
-prodPretty :: forall xs . SingI xs => ConstructorInfo (Shape xs) -> NP PrettyPrint xs -> PrettyPrint (NP PrettyPrint xs)
-prodPretty p q = (\(PP a) -> PP a) (ppProd' p (unpp q))
-
-sopPretty :: Sing xss -> NP ConstructorInfo (Shape xss) -> NS (NP PrettyPrint) xss -> PrettyPrint (NS (NP PrettyPrint) xss)
-sopPretty SCons (ctr :* _) (Z x) = (\(PP a) -> PP a) (prodPretty ctr x)
-sopPretty s@SCons (_ :* ctrs) (S x) = (\(PP a) -> PP a) (sopPretty (singTail s) ctrs x)
-sopPretty _ _ _ = error "sopPretty: Type error"
-
-ppFun :: SingI xs => NFn PrettyPrint o xs -> PrettyPrint o
-ppFun fun = PP $ \vs i -> let PP q = go sing fun vs in q vs i where
-  go :: Sing xs -> NFn PrettyPrint o xs -> [String] -> PrettyPrint o
-  go SNil (NFn f) _ = f
-  go s@SCons (NFn f) (v:vs) = go (singTail s) (NFn (f (string v))) vs
-  go _ (NFn _) [] = error "ppFun: no more vars"
-
-
-casePretty :: SingI xss
-           => DatatypeInfo (Shape xss) -> PrettyPrint (NS (NP PrettyPrint) xss) -> NP (NFn PrettyPrint o) xss -> PrettyPrint o
-casePretty di (PP v) f = PP $ \vs z ->
-  let ci = ctrInfo di
-
-      cases :: Sing xss -> NP ConstructorInfo (Shape xss) -> NP (NFn PrettyPrint o) xss -> [PrettyPrint a]
-      cases SNil Nil Nil = []
-      cases s@SCons (_ :* is) (x :* xs) = (\(PP a) -> PP a) (ppFun x) : cases (singTail s)  is xs
-      cases _ _ _ = error "casePretty: Type error"
-
-      pats :: forall xss a . NP ConstructorInfo xss -> [PrettyPrint a]
-      pats Nil = []
-      pats (x :* xs) = (\(PP a) -> PP a) (ppProd' x vars) : pats xs
-
-      vars = map string vs
-
-  in (text "case" <+> Text.parens (sep (v vs z)) <+> text "of") :
-     punctuate (text ";") (zipWith (\(PP a) (PP b) -> (sep $ a vs z) <+> text "->" <+> (sep $ b vs z))
-                                   (pats ci)
-                                   (cases sing ci f)
-                          )
-
-instance Embed PrettyPrint where
-  sop' p x = case sopPretty sing (ctrInfo (datatypeInfo p)) x of PP a -> PP a
-
-  case' p (PP x) f = case casePretty (datatypeInfo p) (PP x) f of PP a -> PP a
--}
+instance Embed PrettyPrint where 
+  _Nil = string "_Nil"
+  _Cons = apply2 "_Cons" 
+  _Z = apply1 "_Z" 
+  _S = apply1 "_S" 
+  caseProd x f = apply2 "caseProd" x (lam2 f) 
+  caseSum x f g = apply3 "caseSum" x (lam f) (lam g) 
+  tag = apply1 "tag"
+  untag = apply1 "untag" 

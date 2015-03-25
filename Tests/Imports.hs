@@ -1,7 +1,7 @@
 -- This internal module is used by Language.Hakaru.Simplify to parse strings
 -- as Hakaru code.  It exports just the names that those strings may use.
 
-module Language.Hakaru.RoundTrip 
+module Tests.Imports
   ( ()(..), (,)(..), Either(..), Bool(..), Int, Num(..)
   , Fractional(..), Floating(..), ($), Any(Any), (^^)
   , module Language.Hakaru.Syntax

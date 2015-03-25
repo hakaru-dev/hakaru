@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, ScopedTypeVariables, GADTs, TypeFamilies #-}
+{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, ScopedTypeVariables, GADTs, TypeFamilies, InstanceSigs #-}
 {-# OPTIONS -W #-}
 
 module Language.Hakaru.Maple (Maple(..), runMaple) where
@@ -13,7 +13,7 @@ import Control.Monad (liftM2)
 import Control.Monad.Trans.Reader (ReaderT(ReaderT), runReaderT)
 import Control.Monad.Trans.Cont (Cont, cont, runCont)
 -- import Data.List (intercalate)
--- import Language.Hakaru.Embed
+import Language.Hakaru.Embed
 
 -- Jacques wrote on December 16 that "the condition of a piecewise can be
 -- 1. a relation (i.e. <, <=, =, ::, in)
@@ -95,11 +95,11 @@ instance Base Maple where
   uneither (Maple ab) ka kb
     = Maple (ab >>= \ab' ->
              ReaderT $ \i -> cont $ \c ->
-             let op :: Int -> String
-                 op n = "op(" ++ show n ++ ", " ++ ab' ++ ")"
-                 arm k = runCont (runReaderT (unMaple (k (return (op 1)))) i) c
-             in "if_(" ++ op 0 ++ " = Left, " ++ arm (ka . Maple)
-                                        ++ ", " ++ arm (kb . Maple) ++ ")")
+             let opS :: Int -> String
+                 opS n = "op(" ++ show n ++ ", " ++ ab' ++ ")"
+                 arm k = runCont (runReaderT (unMaple (k (return (opS 1)))) i) c
+             in "if_(" ++ opS 0 ++ " = Left, " ++ arm (ka . Maple)
+                                       ++ ", " ++ arm (kb . Maple) ++ ")")
   true = Maple (return "true")
   false = Maple (return "false")
   if_ (Maple b) (Maple et) (Maple ef)
@@ -113,14 +113,14 @@ instance Base Maple where
   unlist (Maple as) (Maple kn) kc
     = Maple (as >>= \as' ->
              ReaderT $ \i -> cont $ \c ->
-             let op :: Int -> String
-                 op n = "op(" ++ show n ++ ", " ++ as' ++ ")"
-                 car = Maple (return (op 1))
-                 cdr = Maple (return (op 2))
+             let opS :: Int -> String
+                 opS n = "op(" ++ show n ++ ", " ++ as' ++ ")"
+                 car = Maple (return (opS 1))
+                 cdr = Maple (return (opS 2))
                  kc' = unMaple (kc car cdr)
-             in "if_(" ++ op 0 ++ " = Nil, " ++ runCont (runReaderT kn i) c
-                                     ++ ", " ++ runCont (runReaderT kc' i) c
-                                     ++ ")")
+             in "if_(" ++ opS 0 ++ " = Nil, " ++ runCont (runReaderT kn i) c
+                                      ++ ", " ++ runCont (runReaderT kc' i) c
+                                      ++ ")")
 
   unsafeProb (Maple x) = Maple x
   fromProb   (Maple x) = Maple x
@@ -136,11 +136,10 @@ instance Base Maple where
   erf       = mapleFun1 "erf"
   erf_      = mapleFun1 "erf"
 
-  vector    = quant "MVECTOR"
+  vector    = quant "MVECTOR" 0
   empty     = Maple (return "MVECTOR(undefined,n=0..-1)")
   index     = mapleFun2 "index"
-  loBound   = mapleFun1 "loBound"
-  hiBound   = mapleFun1 "hiBound"
+  size      = mapleFun1 "size"
   reduce r z v = Maple (ReaderT $ \i -> return $
     "Reduce((" ++ (let x = "x" ++ show i
                        y = "x" ++ show (i+1)
@@ -156,7 +155,7 @@ quant :: String -> Maple b -> Maple b ->
          (Maple a -> Maple c) -> Maple d
 quant q lo hi f = mapleFun2 ("(proc (r,c) local x; "++q++"(c(x),x=r) end proc)")
                             (mapleOp2 ".." lo hi)
-			    (lam f)
+                            (lam f)
 
 instance Lambda Maple where
   lam f = Maple (ReaderT $ \i -> return $
@@ -188,64 +187,37 @@ instance Mochastic Maple where
     in "Superpose(" ++ intercalate "," pms' ++ ")")
 -}
 
-{-
-constructor :: String -> [Maple a] -> Maple b
-constructor fn xs = Maple $ ReaderT $ \i -> return $ 
-  let ms = intercalate "," (map (flip runMaple i) xs) in 
-   ("`" ++ fn ++ "`(" ++ ms ++ ")")
-  
-prodMaple' :: forall xs a . SingI xs => ConstructorInfo (Shape xs) -> [Maple a] -> Maple (NP Maple xs) 
-prodMaple' (Infix nm _ _) (x:y:_) = constructor nm [x,y] 
-prodMaple' (Infix {}) _ = error "prodMaple': wrong number of values"
-prodMaple' (Constructor ctr) q = constructor ctr (take (lengthSing (Proxy :: Proxy xs)) q)
-prodMaple' (Record ctr _ ) q   = constructor ctr (take (lengthSing (Proxy :: Proxy xs)) q)
+op :: Int -> Maple a -> Maple b 
+op n (Maple x) = Maple $ x >>= \x' -> return ("op(" ++ show n ++ ", " ++ x' ++ ")")
 
-prodMaple :: SingI xs => ConstructorInfo (Shape xs) -> NP Maple xs -> Maple (NP Maple xs)
-prodMaple c xs = prodMaple' c (unprod (Maple . unMaple) xs)
-
-sopMaple :: forall xss . Sing xss -> NP ConstructorInfo (Shape xss) -> NS (NP Maple) xss -> Maple ()
-sopMaple SCons (ctr :* _) (Z x) = (Maple . unMaple) (prodMaple ctr x) 
-sopMaple s@SCons (_ :* ctrs) (S x) = (Maple . unMaple) (sopMaple (singTail s) ctrs x)
-sopMaple _ _ _ = error "sopMaple: Type error"
-
-op' :: Int -> Maple a -> Maple b 
-op' n (Maple ab) = Maple (ab >>= \ab' ->
-  return $ "op(" ++ show n ++ ", " ++ ab' ++ ")")
-
-unprodMaple :: SingI xs => NFn Maple o xs -> Maple (NP Maple xs) -> Maple o
-unprodMaple b a = go sing a b 1 where 
-  go :: Sing xs -> Maple (NP Maple xs) -> NFn Maple o xs -> Int -> Maple o 
-  go SNil _ (NFn f) _ = f
-  go s@SCons (Maple v) (NFn f) i = go (singTail s) (Maple v) (NFn (f (op' i (Maple v)))) (i+1) 
-
-unConstructor :: String
-              -> Maple t
-              -> (Maple a2 -> Maple a1)
-              -> (Maple a3 -> Maple a1)
-              -> Maple a
-
-unConstructor ctr (Maple ab) ka kb
-    = Maple (ab >>= \ab' ->
-             ReaderT $ \i -> cont $ \c ->
-             let op :: Int -> String
-                 op n = "op(" ++ show n ++ ", " ++ ab' ++ ")"
-
-                 arm :: (Maple a -> Maple b) -> String 
-                 arm k = runCont (runReaderT (unMaple $ k (Maple ab)) i) c 
-
-             in "if_(" ++ op 0 ++ " = `" ++ ctr ++ "`, " ++ arm ka 
-                                        ++ ", " ++ arm kb ++ ")")
-
-caseMaple :: forall xss o . SingI xss 
-          => Int -> NP ConstructorInfo (Shape xss) -> NP (NFn Maple o) xss -> Maple (NS (NP Maple) xss) -> Maple o 
-caseMaple _ Nil Nil _ = Maple $ return "Error(\"Datatypes with no constructors or type error\")"
-caseMaple i (ctr :* ctrs) (f :* fs) m = 
-  case sing :: Sing xss of 
-    SCons -> unConstructor (ctrName ctr) m (unprodMaple f) (caseMaple (i+1) ctrs fs)
-    _     -> error "caseMaple: type error"
-caseMaple _ _ _ _ = error "caseMaple: type error"
+reMaple :: Maple a -> Maple b
+reMaple (Maple a) = Maple a 
 
 instance Embed Maple where 
-  sop' p xs = (\(Maple x) -> Maple x) (sopMaple sing (ctrInfo (datatypeInfo p)) xs)
-  case' p (Maple x) f = caseMaple 1 (ctrInfo (datatypeInfo p)) f (Maple x) 
--}
+  _Nil = Maple (return "Nil")
+  _Cons = mapleFun2 "Cons"
+
+  _Z = mapleFun1 "Zero"
+  _S = mapleFun1 "Succ"
+
+  voidSOP _ = Maple . return $ "HakaruError (`Datatype with no constructors`)"
+
+  tag :: forall xss t . (Embeddable t) => Maple (SOP xss) -> Maple (Tag t xss)
+  tag = mapleFun1 "Tag" 
+
+  -- tag = flip (mapleFun2 "Tag") 
+  --            (Maple $ return $ "Unknown")
+             -- (Maple $ return $ hakaruTypeName (Proxy :: Proxy t)) 
+
+  caseProd x f = f (op 1 x) (op 2 x)
+
+  caseSum (Maple ab) ka kb
+    = Maple (ab >>= \ab' ->
+             ReaderT $ \i -> cont $ \c ->
+             let opS :: Int -> String
+                 opS n = "op(" ++ show n ++ ", " ++ ab' ++ ")"
+                 arm k = runCont (runReaderT (unMaple (k (return (opS 1)))) i) c
+             in "if_(" ++ opS 0 ++ " = Zero, " ++ arm (ka . Maple)
+                                       ++ ", " ++ arm (kb . Maple) ++ ")")
+
+  untag = op 1 

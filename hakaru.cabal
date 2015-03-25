@@ -11,9 +11,13 @@ author:              The Hakaru Team
 maintainer:          ppaml@indiana.edu
 -- copyright:           
 category:            Language
-build-type:          Simple
+build-type:          Custom 
 -- extra-source-files:  
 cabal-version:       >=1.16
+
+Flag patchedHint
+    Default:     False
+    Description: Using the patched version of Hint. 
 
 library
   exposed-modules:     Language.Hakaru.Types,
@@ -44,6 +48,7 @@ library
                        Language.Hakaru.Util.Lex,
                        Language.Hakaru.Util.Pretty,
                        Language.Hakaru.Util.Visual,
+                       Language.Hakaru.Paths,  
                        System.MapleSSH
 
   other-extensions:    RankNTypes, BangPatterns, GADTs, TypeFamilies, TypeOperators,
@@ -96,12 +101,20 @@ library
                        primitive >= 0.5 && < 0.6,
 --                       parallel >=3.2 && <3.3,
                        monad-loops >= 0.3.0.2,
-                       hint >= 0.4.0.0 && < 0.5,
                        process >= 1.1 && < 2.0,
                        HUnit >= 1.2 && < 2.0,
                        mtl >= 2.1,
                        tagged >= 0.7 && < 1.0,
                        generics-sop >= 0.1.0 
+
+
+  if flag(patchedHint)
+    CPP-Options: -DPATCHED_HINT
+    build-depends: hint-patched >= 0.4.0.0 && < 0.5
+  else 
+    build-depends: hint >= 0.4.0.0 && < 0.5
+    
+
   -- hs-source-dirs:      
   default-language:    Haskell2010
   ghc-options:         -Wall
@@ -121,13 +134,22 @@ test-suite roundtrip_test
                        mwc-random >=0.13 && <0.14,
                        math-functions >=0.1 && <0.2,
                        monad-loops >= 0.3.0.2,
-                       hint >= 0.4.0.0 && < 0.5,
                        integration >= 0.2 && < 0.3,
                        HUnit >= 1.2 && < 2.0,
                        process >= 1.1 && < 2.0,
                        tagged >= 0.7 && < 1.0,
                        template-haskell >= 2.4 && < 3.0,
-                       generics-sop >= 0.1.0 
+                       generics-sop >= 0.1.0,
+                       mtl >= 2.1,
+                       vector >=0.10 && <0.11
+
+
+    if flag(patchedHint)
+      CPP-Options: -DPATCHED_HINT
+      build-depends: hint-patched >= 0.4.0.0 && < 0.5
+    else 
+      build-depends: hint >= 0.4.0.0 && < 0.5
+
     default-language:  Haskell2010
     ghc-options:         -Wall
 

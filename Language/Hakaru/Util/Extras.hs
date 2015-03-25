@@ -12,6 +12,7 @@ import qualified System.Random.MWC as MWC
 import Data.Maybe
 import qualified Data.Foldable as F
 import qualified Data.Number.LogFloat as LF
+import qualified Data.Vector as V
 
 extract :: S.Seq a -> Int -> Maybe (S.Seq a, a)
 extract s i | S.null r = Nothing
@@ -79,7 +80,8 @@ pairs (x:xs) = (zip (repeat x) xs) ++ pairs xs
 l2Norm :: Floating a => [a] -> a
 l2Norm l = sqrt.sum $ zipWith (*) l l
 
-normalize :: [LF.LogFloat] -> (LF.LogFloat, Double, [Double])
+normalize :: [LF.LogFloat] ->
+             (LF.LogFloat, Double, [Double])
 --  normalize xs == (x, y, ys)
 --  ===>  all (0 <=) ys && sum ys == y && xs == map (x *) ys
 --                               (therefore sum xs == x * y)
@@ -89,3 +91,13 @@ normalize xs  = (m, y, ys)
   where m  = maximum xs
         ys = [ LF.fromLogFloat (x/m) | x <- xs ]
         y  = sum ys
+
+normalizeVector :: V.Vector LF.LogFloat ->
+                   (LF.LogFloat, Double, V.Vector Double)
+normalizeVector xs = case V.length xs of
+  0 -> (0, 0, V.empty)
+  1 -> (V.unsafeHead xs, 1, V.singleton 1)
+  _ -> let m  = V.maximum xs
+           ys = V.map (\x -> LF.fromLogFloat (x/m)) xs
+           y  = V.sum ys
+       in (m, y, ys)

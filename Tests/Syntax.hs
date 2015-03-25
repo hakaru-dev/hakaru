@@ -6,19 +6,15 @@ module Tests.Syntax(allTests) where
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure,
        Order(..), Base(..), ununit, and_, fst_, snd_, swap_, min_, max_,
-       Mochastic(..), Lambda(..), Integrate(..), bind_, liftM, liftM2, factor, beta, bern)
+       Mochastic(..), Lambda(..), Integrate(..), bind_, liftM, liftM2, factor, beta, bern, exponential)
 import Language.Hakaru.Util.Pretty (Pretty (pretty), prettyPair)
--- import Language.Hakaru.Sample(Sample(unSample))
 import Language.Hakaru.Disintegrate hiding (max_)
 import qualified Language.Hakaru.Disintegrate as D
 import Language.Hakaru.Any (Any(Any))
 
-import Control.Monad (zipWithM_, replicateM)
+import Control.Monad (zipWithM_)
 import Control.Applicative (Const(Const))
 import Text.PrettyPrint (text, (<>), ($$), nest)
-
--- import qualified Data.Number.LogFloat as LF
--- import qualified System.Random.MWC as MWC
 
 import Test.HUnit
 import Tests.TestTools
@@ -243,10 +239,10 @@ linregSimp, linregSimp' :: Mochastic repr => repr (Measure ((Real,Real), Real))
 linregSimp = 
          normal 0 2 `bind` \w ->
          uniform (-1) 1 `bind` \x ->
-         uniform (-1) 1 `bind` \x2 ->
-         uniform (-1) 1 `bind` \x3 ->
-         uniform (-1) 1 `bind` \x4 ->
-         uniform (-1) 1 `bind` \x5 ->
+         uniform (-1) 1 `bind` \_ ->
+         uniform (-1) 1 `bind` \_ ->
+         uniform (-1) 1 `bind` \_ ->
+         uniform (-1) 1 `bind` \_ ->
          normal (x*w) 1 `bind` \y ->
          dirac (pair (pair x y) w)
 linregSimp' =
@@ -275,6 +271,7 @@ linreg = normal 0 2 `bind` \w1 ->
 distLinreg :: (Lambda repr, Mochastic repr) => repr (Real6 -> (Measure Real5))
 distLinreg = lam $ \ x -> (runDisintegrate (const linreg) !! 0) unit x
 
+{-
 disintegrateTestRunner :: IO ()
 disintegrateTestRunner = do
   testDist ( Bind (Leaf x) stdRandom
@@ -334,6 +331,7 @@ testDist (e,s) = do
             [1::Int ..]
             es
   putStrLn ""
+-}
 
 -- Jacques on 2014-11-18: "From an email of Oleg's, could someone please
 -- translate the following 3 programs into new Hakaru?"  The 3 programs below
@@ -391,3 +389,14 @@ culpepper :: (Mochastic repr) => repr (Measure (Real, Bool))
 culpepper = bern 0.5 `bind` \a ->
             if_ a (uniform (-2) 2) (liftM (2*) (uniform (-1) 1)) `bind` \b ->
             dirac (pair b a)
+
+walk :: (Mochastic repr) =>
+        repr Prob -> repr Real -> repr (Measure (Real, Int))
+walk remaining location
+  = exponential 1 `bind` \elapsed ->
+    if_ (less elapsed remaining)
+        (normal location 1 `bind` \location' ->
+         walk (remaining - elapsed) location' `bind` \p ->
+         unpair p $ \location'' steps ->
+         dirac (pair location'' (steps + 1)))
+        (dirac (pair location 0))
