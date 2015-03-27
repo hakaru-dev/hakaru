@@ -28,7 +28,7 @@ module Language.Hakaru.Embed (
 
 import Language.Hakaru.Syntax hiding (EqType(..))
 import Prelude hiding (Real (..))
-import Data.List (intercalate, isPrefixOf)
+import Data.List (intercalate, isPrefixOf, intersperse)
 import Data.Proxy 
 import Language.Haskell.TH.Syntax
 import Language.Haskell.TH
@@ -135,32 +135,6 @@ replace str with = go where
   go s@(x:xs) | str `isPrefixOf` s = let (_,b) = splitAt n s in with ++ go b
               | otherwise          = x : go xs 
     
-
-hakaruTypeName :: forall t . Typeable t => Proxy t -> String 
-hakaruTypeName _ = replace "_Haskell" "" $ show (typeRep (Proxy :: Proxy t))
-
-mapleTypeTag :: forall t xss . (SingI xss, All2 Typeable xss, Typeable t) => Tag t xss -> String 
-mapleTypeTag _ = concat 
-  [ "Tagged(`" 
-  , hakaruTypeName (Proxy :: Proxy t)
-  , "`,"
-  , typeList . map typeList $ go2 (sing :: Sing xss)
-  , ")"
-  ]
-
-     where 
-    
-      typeList xs = "[" ++ intercalate "," xs ++ "]" 
-    
-      go2 :: All2 Typeable xs => Sing xs -> [[String]]
-      go2 SNil = []
-      go2 (SCons x xs) = go1 x : go2 xs 
-    
-      go1 :: All Typeable xs => Sing xs -> [String]
-      go1 SNil = []
-      go1 (SCons x xs) = show (typeRep x) : go1 xs 
-
-
 type EmbeddableConstraint t = 
   (SingI (Code t), All SingI (Code t), All2 SingI (Code t)) 
 
@@ -169,6 +143,15 @@ class (EmbeddableConstraint t) => Embeddable (t :: *) where
   type Code t :: [[*]]
   datatypeInfo :: Proxy t -> DatatypeInfo (Code t)
 
+-- Like Simplifiable in Language.Hakaru.Simplify, but `t' itself should not be
+-- Simplifiable because it is not a Hakaru type - its type is only needed in the
+-- context of `Tag t (Code t)'. This cannot be part of Embeddable itself because
+-- it needs Simplifiable constraints on its type arguements, which should not be
+-- required until `simplify' is actually called (ie, we don't want this
+-- constraint while we are just building an expression in Haskell). 
+class Embeddable t => SimplEmbed t where 
+  mapleTypeEmbed :: t -> String 
+  
 class (Base repr) => Embed (repr :: * -> *) where
   -- unit 
   _Nil :: repr (SOP '[ '[] ]) 
@@ -322,10 +305,31 @@ deriveEmbeddable cfg d'@(DataDecl _ tvs _) = do
   accsrs <- guarded mkRecFuns  deriveAccessors
   htype  <- guarded mkTySyn    deriveHakaruType
   spcFns <- guarded mkSpecFuns deriveTypeSpecFuns
+  simpl  <- deriveSimpl cfg d 
   return $ 
     (InstanceD [] (ConT (''Embeddable) `AppT` tyReal' (++"_Haskell") d)
                           (deriveCode d : diInfo)
-    ) : htype ++ ctrs ++ accsrs ++ spcFns
+    ) : htype ++ ctrs ++ accsrs ++ spcFns ++ simpl 
+
+-- Create a SimplEmbed instance for the given type.
+deriveSimpl :: Config -> DataDecl -> Q [Dec]
+deriveSimpl _ d@(DataDecl nm tvs cs) = do 
+  let tvsNames = map bndrName tvs 
+      tvs' = map VarT tvsNames
+      ctx = map (ClassP (mkName "Simplifiable") . (:[])) tvs' 
+      mkArg n = do 
+        x <- [| undefined :: $(varT n) |]
+        return $ VarE (mkName "mapleType") `AppE` x 
+
+
+  funB <- [|  $(stringE (realName nm))
+              ++ "(" ++ concat $(listE $ intersperse [| "," |] (map mkArg tvsNames))
+              ++ ")"
+          |]
+
+  return [InstanceD ctx (ConT (''SimplEmbed) `AppT` tyReal' (++"_Haskell") d) 
+                    [FunD (mkName "mapleTypeEmbed") [Clause [WildP] (NormalB funB) []] ]
+         ]
 
 deriveDatatypeInfo :: DataDecl -> Q [Dec]
 deriveDatatypeInfo (DataDecl n _tv cs) = do 

@@ -1,10 +1,19 @@
-{-# LANGUAGE TemplateHaskell, DeriveDataTypeable, QuasiQuotes, DataKinds, TypeFamilies, RankNTypes #-}
+{-# LANGUAGE 
+    TemplateHaskell
+  , DeriveDataTypeable
+  , QuasiQuotes
+  , DataKinds
+  , TypeFamilies
+  , RankNTypes
+  , ScopedTypeVariables
+  #-}
 {-# OPTIONS -ddump-splices -fno-warn-missing-signatures -W #-}
 
 module Tests.EmbedDatatypes where 
 
 import Language.Hakaru.Embed
 import Language.Hakaru.Syntax 
+import Language.Hakaru.Simplify
 import Prelude hiding (Real) 
 
 embeddable [d| data BoolProb = BoolProb Bool Prob |] 
