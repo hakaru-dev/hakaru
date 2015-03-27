@@ -725,8 +725,8 @@ instance (Backward ab xy) => Backward [ab] [xy] where
 disintegrate :: (Mochastic repr, Lub repr, Backward ab a) =>
                 Lazy s repr a ->
                 Lazy s repr (Measure ab) -> Lazy s repr (Measure ab)
-disintegrate x m = measure $ join $ (forward m >>= memo . unMeasure >>= \ab ->
-                                     backward_ ab x >> return ab)
+disintegrate a m = measure $ join $ (forward m >>= memo . unMeasure >>= \ab ->
+                                     backward_ ab a >> return ab)
 
 --------------------------------------------------------------------------------
 -- Utilities for testing
