@@ -28,7 +28,7 @@ module Language.Hakaru.Embed (
 
 import Language.Hakaru.Syntax hiding (EqType(..))
 import Prelude hiding (Real (..))
-import Data.List (intercalate, isPrefixOf)
+import Data.List (intercalate, isPrefixOf, intersperse)
 import Data.Proxy 
 import Language.Haskell.TH.Syntax
 import Language.Haskell.TH
@@ -135,32 +135,6 @@ replace str with = go where
   go s@(x:xs) | str `isPrefixOf` s = let (_,b) = splitAt n s in with ++ go b
               | otherwise          = x : go xs 
     
-
-hakaruTypeName :: forall t . Typeable t => Proxy t -> String 
-hakaruTypeName _ = replace "_Haskell" "" $ show (typeRep (Proxy :: Proxy t))
-
-mapleTypeTag :: forall t xss . (SingI xss, All2 Typeable xss, Typeable t) => Tag t xss -> String 
-mapleTypeTag _ = concat 
-  [ "Tagged(`" 
-  , hakaruTypeName (Proxy :: Proxy t)
-  , "`,"
-  , typeList . map typeList $ go2 (sing :: Sing xss)
-  , ")"
-  ]
-
-     where 
-    
-      typeList xs = "[" ++ intercalate "," xs ++ "]" 
-    
-      go2 :: All2 Typeable xs => Sing xs -> [[String]]
-      go2 SNil = []
-      go2 (SCons x xs) = go1 x : go2 xs 
-    
-      go1 :: All Typeable xs => Sing xs -> [String]
-      go1 SNil = []
-      go1 (SCons x xs) = show (typeRep x) : go1 xs 
-
-
 type EmbeddableConstraint t = 
   (SingI (Code t), All SingI (Code t), All2 SingI (Code t)) 
 
@@ -169,6 +143,15 @@ class (EmbeddableConstraint t) => Embeddable (t :: *) where
   type Code t :: [[*]]
   datatypeInfo :: Proxy t -> DatatypeInfo (Code t)
 
+-- Like Simplifiable in Language.Hakaru.Simplify, but `t' itself should not be
+-- Simplifiable because it is not a Hakaru type - its type is only needed in the
+-- context of `Tag t (Code t)'. This cannot be part of Embeddable itself because
+-- it needs Simplifiable constraints on its type arguements, which should not be
+-- required until `simplify' is actually called (ie, we don't want this
+-- constraint while we are just building an expression in Haskell). 
+class Embeddable t => SimplEmbed t where 
+  mapleTypeEmbed :: t -> String 
+  
 class (Base repr) => Embed (repr :: * -> *) where
   -- unit 
   _Nil :: repr (SOP '[ '[] ]) 
@@ -269,6 +252,11 @@ tyReal' f (DataDecl n tv _ ) = foldl AppT (ConT . mkName . f . realName $ n) $ m
 tyReal :: DataDecl -> Type 
 tyReal = tyReal' id 
 
+tyRealFresh :: DataDecl -> Q Type
+tyRealFresh (DataDecl n tv _ ) = do 
+  vars <- map VarT <$> replicateM (length tv) (newName "v")
+  return $ foldl AppT (ConT . mkName . realName $ n) vars 
+
 reifyDataDecl :: Name -> Q (Maybe DataDecl) 
 reifyDataDecl ty = do  
   info <- reify ty 
@@ -311,14 +299,37 @@ embeddable = embeddableWith defaultConfig
 deriveEmbeddable :: Config -> DataDecl -> Q [Dec] 
 deriveEmbeddable cfg d'@(DataDecl _ tvs _) = do 
   let d = realNameDecl d' 
+      guarded check deriv = if check cfg then deriv cfg d else return [] 
   diInfo <- deriveDatatypeInfo d
-  ctrs   <- if mkCtrs    cfg then deriveCtrs       cfg d else return [] 
-  accsrs <- if mkRecFuns cfg then deriveAccessors  cfg d else return [] 
-  htype  <- if mkTySyn   cfg then deriveHakaruType cfg d else return [] 
+  ctrs   <- guarded mkCtrs     deriveCtrs
+  accsrs <- guarded mkRecFuns  deriveAccessors
+  htype  <- guarded mkTySyn    deriveHakaruType
+  spcFns <- guarded mkSpecFuns deriveTypeSpecFuns
+  simpl  <- deriveSimpl cfg d 
   return $ 
     (InstanceD [] (ConT (''Embeddable) `AppT` tyReal' (++"_Haskell") d)
                           (deriveCode d : diInfo)
-    ) : htype ++ ctrs ++ accsrs
+    ) : htype ++ ctrs ++ accsrs ++ spcFns ++ simpl 
+
+-- Create a SimplEmbed instance for the given type.
+deriveSimpl :: Config -> DataDecl -> Q [Dec]
+deriveSimpl _ d@(DataDecl nm tvs cs) = do 
+  let tvsNames = map bndrName tvs 
+      tvs' = map VarT tvsNames
+      ctx = map (ClassP (mkName "Simplifiable") . (:[])) tvs' 
+      mkArg n = do 
+        x <- [| undefined :: $(varT n) |]
+        return $ VarE (mkName "mapleType") `AppE` x 
+
+
+  funB <- [|  $(stringE (realName nm))
+              ++ "(" ++ concat $(listE $ intersperse [| "," |] (map mkArg tvsNames))
+              ++ ")"
+          |]
+
+  return [InstanceD ctx (ConT (''SimplEmbed) `AppT` tyReal' (++"_Haskell") d) 
+                    [FunD (mkName "mapleTypeEmbed") [Clause [WildP] (NormalB funB) []] ]
+         ]
 
 deriveDatatypeInfo :: DataDecl -> Q [Dec]
 deriveDatatypeInfo (DataDecl n _tv cs) = do 
@@ -337,7 +348,7 @@ deriveCtrInfo (InfixC  _ n _) =
   [| ConstructorInfo $(stringE $ realName n) Nothing |]
 deriveCtrInfo (ForallC {}) = error "Deriving Embeddable not supported for types with foralls."
 
-deriveCtrs, deriveAccessors, deriveHakaruType :: Config -> DataDecl -> Q [Dec]
+deriveCtrs, deriveAccessors, deriveHakaruType, deriveTypeSpecFuns :: Config -> DataDecl -> Q [Dec]
 
 -- For the given datatype, for each constructor of the form `C a0 a1 .. an :: T b0 b1 .. bn`, 
 -- produce a function like 
@@ -366,6 +377,25 @@ deriveCtrs cfg d@(DataDecl _n _tv cs) =
        return [ FunD funName [ Clause (map VarP vars) (NormalB funB) [] ]
               , SigD funName funSig 
               ]
+
+-- Produce functions which are identical to sop and case_ but whose type is specific
+-- to the given datatype. For a datatype `data D x0 x1 .. xn = ...`, generate
+--   mkD x = sopProxy (Proxy :: Proxy (HTypeRep (D x0 x1 .. xn))) x 
+--   unD x = caseProxy (Proxy :: Proxy (HTypeRep (D x0 x1 .. xn))) x
+-- A binding is generated on the LHS to avoid monomorphism restriction.
+-- These functions serve to make programmer errors less likely (as opposed to
+-- using sop and case_ directly).
+deriveTypeSpecFuns cfg d@(DataDecl nm tv _) = do
+  let ty = ForallT tv [] (ConT ''Proxy `AppT` tyReal' (++"_Haskell") d)
+        
+      mkFn funName calledFun = do 
+        a <- newName "a" 
+        b <- [| $(varE $ mkName calledFun) (Proxy :: $(return ty)) $(varE a) |]
+        return (FunD (mkName funName) [ Clause [VarP a] (NormalB b) []] )
+
+  sequence $ zipWith (\q -> mkFn (validateFnName $ q cfg $ show nm)) 
+                     [mkCaseFun, mkSOPFun] 
+                     ["caseProxy", "sopProxy"] 
 
 -- Given a list [x0, x1 .. xn], produce the type x0 -> x1 -> .. -> xn 
 curryType :: [Type] -> Type
@@ -404,10 +434,11 @@ deriveAccessors cfg d@(DataDecl _n _tv [ RecC cn rcs ]) =
       deriveAccessorK :: Int -> Q [Dec]
       deriveAccessorK k = do 
         valueN <- newName "x"
-        vars   <- replicateM q (newName "a")
+        var    <- newName "a"
         reprTV <- newName "repr" 
 
-        let getK = LamE (map VarP vars) (VarE (vars !! k))
+        let getK = LamE (replicate k WildP ++ [VarP var] ++ replicate (q-k-1) WildP) 
+                        (VarE var)
             funName = mkName $ validateFnName $ mkHakaruRec cfg $ realName $ recs !! k
             reprVar = VarT reprTV 
 
@@ -439,14 +470,15 @@ hakaruType :: DataDecl -> Type
 hakaruType d = ConT (''HTypeRep) `AppT` tyReal' (++ "_Haskell") d
 
 data Config = Config 
-  { mkHakaruTy, mkHakaruFn, mkHakaruRec :: String -> String
-  , mkCtrs, mkRecFuns, mkTySyn :: Bool
+  { mkHakaruTy, mkHakaruFn, mkHakaruRec, mkSOPFun, mkCaseFun :: String -> String
+  , mkCtrs, mkRecFuns, mkTySyn, mkSpecFuns :: Bool
   } 
 
 defaultConfig :: Config 
 defaultConfig = Config 
   { mkHakaruTy = id, mkHakaruFn = id, mkHakaruRec = id 
-  , mkCtrs = True, mkRecFuns = True, mkTySyn = True 
+  , mkSOPFun = ("mk" ++), mkCaseFun = ("un" ++)
+  , mkCtrs = True, mkRecFuns = True, mkTySyn = True, mkSpecFuns = True
   }
 
 -- Produce a valid function name from a constructor name. 
