@@ -190,8 +190,8 @@ instance Mochastic Maple where
 op :: Int -> Maple a -> Maple b 
 op n (Maple x) = Maple $ x >>= \x' -> return ("op(" ++ show n ++ ", " ++ x' ++ ")")
 
-reMaple :: Maple a -> Maple b
-reMaple (Maple a) = Maple a 
+-- reMaple :: Maple a -> Maple b
+-- reMaple (Maple a) = Maple a 
 
 instance Embed Maple where 
   _Nil = Maple (return "Nil")
@@ -219,4 +219,4 @@ instance Embed Maple where
              in "if_(" ++ opS 0 ++ " = Zero, " ++ arm (ka . Maple)
                                        ++ ", " ++ arm (kb . Maple) ++ ")")
 
-  untag = op 1 
+  untag = op 2 

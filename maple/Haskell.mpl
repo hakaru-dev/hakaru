@@ -153,7 +153,7 @@ bi["Fst"] := ufunc("fst_");
 bi["Snd"] := ufunc("snd_");
 
 # SOP functions
-bi["Tag"] := ufunc("tag");
+bi["Tag"] := proc(a,b) ufunc("tag")(b); end proc;
 bi["Zero"] := ufunc("_Z");
 bi["Succ"] := ufunc("_S");
 bi["Cons"] := bfunc("_Cons");

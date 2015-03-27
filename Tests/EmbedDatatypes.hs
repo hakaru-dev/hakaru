@@ -7,7 +7,11 @@
   , RankNTypes
   , ScopedTypeVariables
   #-}
-{-# OPTIONS -ddump-splices -fno-warn-missing-signatures -W #-}
+{-# OPTIONS -fno-warn-missing-signatures -W #-}
+
+-- This option causes the compilation of this module to dump the derived
+-- code. For some reason, hint believes that this is a compiler error and quits.
+-- {-# OPTIONS -ddump-splices #-}
 
 module Tests.EmbedDatatypes where 
 
