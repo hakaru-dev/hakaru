@@ -203,11 +203,10 @@ instance Embed Maple where
   voidSOP _ = Maple . return $ "HakaruError (`Datatype with no constructors`)"
 
   tag :: forall xss t . (Embeddable t) => Maple (SOP xss) -> Maple (Tag t xss)
-  tag = mapleFun1 "Tag" 
+  -- tag = mapleFun1 "Tag" 
 
-  -- tag = flip (mapleFun2 "Tag") 
-  --            (Maple $ return $ "Unknown")
-             -- (Maple $ return $ hakaruTypeName (Proxy :: Proxy t)) 
+  tag = mapleFun2 "Tag"
+         (Maple $ return $ datatypeName $ datatypeInfo (Proxy :: Proxy t))
 
   caseProd x f = f (op 1 x) (op 2 x)
 

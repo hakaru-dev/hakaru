@@ -25,3 +25,4 @@ embeddable [d| data P2 a b = P2 { p2_fst :: a, p2_snd :: b } |]
 embeddableWith (defaultConfig { mkCaseFun = const "if'" })
   [d| data Boolean = True_ | False_ |]
 
+embeddable [d| data P3 a b c = P3 {xx :: P2 a b, yy :: c} |]
