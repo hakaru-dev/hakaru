@@ -756,7 +756,7 @@ main = do
       test2 = try (normal 0 1 `bind` \x ->
                    plate (vector 10 (\i -> normal x (unsafeProb (fromInt i) + 1))) `bind` \ys ->
 		   dirac (pair (pair (index ys 3) (index ys 4)) x))
-  return                  test1 >>= print . pretty
-  mapM (recover >=> simp) test1 >>= print . pretty
-  return                  test2 >>= print . pretty
-  return                  test2 >>= writeFile "/tmp/test2.hk" . show . pretty
+  return                  test1 >>= print
+  mapM (recover >=> simp) test1 >>= print
+  return                  test2 >>= print
+  return                  test2 >>= writeFile "/tmp/test2.hk" . show
