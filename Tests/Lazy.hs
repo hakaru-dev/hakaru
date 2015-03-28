@@ -10,39 +10,29 @@ import Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        Number, Fraction(..), EqType(Refl), Order(..), Base(..),
        Mochastic(..), weight, equal_, Lambda(..), Lub(..))
 import Language.Hakaru.Compose
-import Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode)    
+import Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode)
+import Language.Hakaru.Simplify (Simplifiable, closeLoop, simplify)
 import Tests.TestTools
 
 import Data.Typeable (Typeable)    
 import Test.HUnit
+import Control.Monad ((>=>))
+import Data.Function (on)
+import Data.List (elem)    
 
--- allTests :: Test
--- allTests = test ["t1" ~: t1]
+condSimp :: (Backward a a, Typeable a, Typeable b,
+             Simplifiable a, Simplifiable b, Simplifiable env) =>
+            (forall s t.
+             LazyCompose s t PrettyPrint env
+             -> LazyCompose s t PrettyPrint (Measure (a,b)))
+         -> IO [Any (env -> (a -> Measure (a, b)))]
+condSimp = mapM (recover >=> simp) . try
 
-t1 = assertEqual "" 3 4
-
-condT :: (Backward a a, Typeable a, Typeable b) =>
-         (forall s t. Lazy s (Compose [] t PrettyPrint) (Measure (a, b)))
-      -> IO [Any (a -> Measure (a, b))]
-condT = mapM convert . try
-    where convert t = (recover t)
-
--- cond' :: [Any (a -> Measure (a, b))] -> IO [Any' (a -> Measure (a, b))]
--- cond' ls = return $ map unAny ls
-
-    -- mapM (unAny . recover) . try
-
-atLeastOne :: (Eq (repr a)) => repr a -> [repr a] -> Assertion
-atLeastOne t ts' = assertBool "no correct disintegration" $
-                   or (map ((==) t) ts')
-
--- assertEach :: [Any' a] -> [Any' a] -> Assertion
--- assertEach ts ts' = 
+exists :: PrettyPrint a -> [PrettyPrint a] -> Assertion
+exists t ts' = assertBool "no correct disintegration" $
+               elem (result t) (map result ts')
                  
--- t1 :: repr (Measure (Real,Real))
--- t1 = try (normal 0 1 `bind` \x ->
---           normal x 1 `bind` \y ->
---           dirac (pair y x))
-
--- main :: IO ()
--- main = runTestTT allTests >> return ()
+t1 :: (Mochastic repr) => repr (Measure (Real,Real))
+t1 = normal 0 1 `bind` \x ->
+     normal x 1 `bind` \y ->
+     dirac (pair y x)
