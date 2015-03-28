@@ -871,10 +871,10 @@ SLO := module ()
       Measure(Real)
     elif type(e, 'Bind'(anything, name = range, anything)) then
       Measure(Real)
-    elif type(e, 'Tag'(anything)) then
+    elif type(e, 'Tag'(anything, anything)) then
 
-      (k, t) := infer_type_sop(op(1,e), ctx);
-      Tag(k, t);
+      (k, t) := infer_type_sop(op(2,e), ctx);
+      TagMaple(k, t);
 
     else
       error "how do I infer a type from %1", e;
@@ -1519,14 +1519,13 @@ end;
 
 # Disabled until Pair is removed in Hakaru
 
-# Pair := proc(a,b) Tag(Zero(Cons(a, Cons(b, Nil )))) end proc;
+# Pair := proc(a,b) Tag(P2, Zero(Cons(a, Cons(b, Nil )))) end proc;
 
 # `type/Nil` := proc(val) evalb(val = 'Nil') end proc;
 
 # `type/Pair` := proc(val, t0, t1)
-#   type(val, Tag(Zero(Cons(t0, Cons (t1, Nil )))))
+#   type(val, Tag(identical(P2), Zero(Cons(t0, Cons (t1, Nil )))))
 # end proc;
-
 
 # PairType := proc(a,b) Tagged(P2(a,b), [[ a,b ]]); end proc;
 

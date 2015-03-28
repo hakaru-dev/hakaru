@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable, Rank2Types #-}
-{-# OPTIONS -Wall #-}
+{-# OPTIONS -Wall -Werror #-}
 
 module Language.Hakaru.Any (Any(Any, unAny), Any') where
 
@@ -19,6 +19,7 @@ asPrettyPrint = id
 instance Show (Any a) where
   show        (Any a) = show        (asPrettyPrint a)
   showsPrec p (Any a) = showsPrec p (asPrettyPrint a)
+  showList    as      = showList    [asPrettyPrint a | Any a <- as]
 
 instance Pretty (Any a) where
   pretty      (Any a) = pretty      (asPrettyPrint a)

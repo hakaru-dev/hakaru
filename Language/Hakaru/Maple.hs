@@ -190,8 +190,8 @@ instance Mochastic Maple where
 op :: Int -> Maple a -> Maple b 
 op n (Maple x) = Maple $ x >>= \x' -> return ("op(" ++ show n ++ ", " ++ x' ++ ")")
 
-reMaple :: Maple a -> Maple b
-reMaple (Maple a) = Maple a 
+-- reMaple :: Maple a -> Maple b
+-- reMaple (Maple a) = Maple a 
 
 instance Embed Maple where 
   _Nil = Maple (return "Nil")
@@ -203,11 +203,10 @@ instance Embed Maple where
   voidSOP _ = Maple . return $ "HakaruError (`Datatype with no constructors`)"
 
   tag :: forall xss t . (Embeddable t) => Maple (SOP xss) -> Maple (Tag t xss)
-  tag = mapleFun1 "Tag" 
+  -- tag = mapleFun1 "Tag" 
 
-  -- tag = flip (mapleFun2 "Tag") 
-  --            (Maple $ return $ "Unknown")
-             -- (Maple $ return $ hakaruTypeName (Proxy :: Proxy t)) 
+  tag = mapleFun2 "Tag"
+         (Maple $ return $ datatypeName $ datatypeInfo (Proxy :: Proxy t))
 
   caseProd x f = f (op 1 x) (op 2 x)
 
@@ -220,4 +219,4 @@ instance Embed Maple where
              in "if_(" ++ opS 0 ++ " = Zero, " ++ arm (ka . Maple)
                                        ++ ", " ++ arm (kb . Maple) ++ ")")
 
-  untag = op 1 
+  untag = op 2 

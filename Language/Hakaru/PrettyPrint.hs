@@ -21,8 +21,9 @@ runPrettyPrintPrec :: PrettyPrint a -> Int -> Doc
 runPrettyPrintPrec (PP a) p = sep (a [ 'x' : show i | i <- [0::Int ..] ] p)
 
 instance Show (PrettyPrint a) where
-  show        = show        . runPrettyPrint
-  showsPrec p = showsPrec p . (`runPrettyPrintPrec` 0)
+  show        = show        . pretty
+  showsPrec p = showsPrec p . (`runPrettyPrintPrec` p)
+  showList    = showsPrec 0 . pretty
 
 instance Pretty (PrettyPrint a) where
   pretty = runPrettyPrint

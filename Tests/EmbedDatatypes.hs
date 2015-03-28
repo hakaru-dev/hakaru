@@ -7,7 +7,11 @@
   , RankNTypes
   , ScopedTypeVariables
   #-}
-{-# OPTIONS -ddump-splices -fno-warn-missing-signatures -W #-}
+{-# OPTIONS -fno-warn-missing-signatures -W #-}
+
+-- This option causes the compilation of this module to dump the derived
+-- code. For some reason, hint believes that this is a compiler error and quits.
+-- {-# OPTIONS -ddump-splices #-}
 
 module Tests.EmbedDatatypes where 
 
@@ -25,3 +29,4 @@ embeddable [d| data P2 a b = P2 { p2_fst :: a, p2_snd :: b } |]
 embeddableWith (defaultConfig { mkCaseFun = const "if'" })
   [d| data Boolean = True_ | False_ |]
 
+embeddable [d| data P3 a b c = P3 {xx :: P2 a b, yy :: c} |]
