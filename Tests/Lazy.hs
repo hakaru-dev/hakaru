@@ -21,11 +21,10 @@ import Control.Monad ((>=>))
 import Data.Function (on)
 import Data.List (elem)
 import Control.Exception (catch)
-
-type LazyCompose s t repr a = Lazy s (Compose [] t repr) a
     
 type Cond repr env ab =
-    forall s t. LazyCompose s t repr env -> LazyCompose s t repr ab
+    forall s t. Lazy s (Compose [] t repr) env
+        -> Lazy s (Compose [] t repr) ab
 
 try :: (Mochastic repr, Lambda repr, Backward a a) =>
        Cond repr env (Measure (a,b))
@@ -38,9 +37,6 @@ try m = runCompose
 
 recover :: (Typeable a) => PrettyPrint a -> IO (Any a)
 recover hakaru = closeLoop ("Any (" ++ leftMode (runPrettyPrint hakaru) ++ ")")
-
-simp :: (Simplifiable a) => Any a -> IO (Any a)
-simp = simplify . unAny
 
 testS' :: (Simplifiable a) => Any a -> Assertion
 testS' t = do
