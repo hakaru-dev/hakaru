@@ -5,26 +5,30 @@ module Tests.Lazy where
 import Prelude hiding (Real)
 
 import Language.Hakaru.Lazy
-import Language.Hakaru.Any (Any(unAny), Any')
-import Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
-       Number, Fraction(..), EqType(Refl), Order(..), Base(..),
-       Mochastic(..), weight, equal_, Lambda(..), Lub(..))
+import Language.Hakaru.Any (Any(Any, unAny))
+import Language.Hakaru.Syntax (Real, Measure, Base(..),
+                               Mochastic(..), Lambda(..))
 import Language.Hakaru.Compose
 import Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode)
 import Language.Hakaru.Simplify (Simplifiable, closeLoop, simplify)
-import Tests.TestTools
+import Language.Hakaru.Expect (Expect)
+import Language.Hakaru.Maple (Maple)
+import Tests.TestTools    
 
 import Data.Typeable (Typeable)    
 import Test.HUnit
 import Control.Monad ((>=>))
 import Data.Function (on)
 import Data.List (elem)
+import Control.Exception (catch)
 
 type LazyCompose s t repr a = Lazy s (Compose [] t repr) a
+    
+type Cond repr env ab =
+    forall s t. LazyCompose s t repr env -> LazyCompose s t repr ab
 
 try :: (Mochastic repr, Lambda repr, Backward a a) =>
-       (forall s t.
-        LazyCompose s t repr env -> LazyCompose s t repr (Measure (a,b)))
+       Cond repr env (Measure (a,b))
     -> [repr (env -> (a -> Measure (a, b)))]
 try m = runCompose
       $ lam $ \env ->
@@ -38,14 +42,24 @@ recover hakaru = closeLoop ("Any (" ++ leftMode (runPrettyPrint hakaru) ++ ")")
 simp :: (Simplifiable a) => Any a -> IO (Any a)
 simp = simplify . unAny
 
-condSimp :: (Backward a a, Typeable a, Typeable b,
-             Simplifiable a, Simplifiable b, Simplifiable env) =>
-            (forall s t.
-             LazyCompose s t PrettyPrint env
-             -> LazyCompose s t PrettyPrint (Measure (a,b)))
-         -> IO [Any (env -> (a -> Measure (a, b)))]
-condSimp = mapM (recover >=> simp) . try
+testS' :: (Simplifiable a) => Any a -> Assertion
+testS' t = do
+    p <- simplify (unAny t) `catch` handleSimplify (unAny t)
+    let s = result (unAny p)
+    assertResult (show s)
 
+testL :: (Backward a a, Typeable a, Typeable b,
+         Simplifiable a, Simplifiable b, Simplifiable env) => 
+         Cond PrettyPrint env (Measure (a,b))
+      -> [(Expect Maple env, Expect Maple a, Any (Measure (a, b)))]
+      -> Assertion
+testL f slices = do
+  ds <- mapM recover (try f)
+  assertResult ds
+  mapM_ testS' ds
+  mapM_ (\(env,a,t') ->
+         testSS [(app (app (unAny d) env) a) | d <- ds] (unAny t')) slices
+         
 exists :: PrettyPrint a -> [PrettyPrint a] -> Assertion
 exists t ts' = assertBool "no correct disintegration" $
                elem (result t) (map result ts')

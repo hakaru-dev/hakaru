@@ -727,5 +727,3 @@ disintegrate :: (Mochastic repr, Lub repr, Backward ab a) =>
                 Lazy s repr (Measure ab) -> Lazy s repr (Measure ab)
 disintegrate a m = measure $ join $ (forward m >>= memo . unMeasure >>= \ab ->
                                      backward_ ab a >> return ab)
-
-
