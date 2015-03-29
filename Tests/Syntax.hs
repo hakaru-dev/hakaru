@@ -52,17 +52,8 @@ allTests = test [
         [(unit, 0, Any (superpose [(fromRational (1/8), dirac true), 
                                    (fromRational (1/8), dirac false)]))],
     "density1" ~: testD (\u -> ununit u $ liftM (`pair` unit) $ uniform 0 1 `bind` \x -> uniform 0 1 `bind` \y -> dirac (x + exp (-y))) [],
-    "density2" ~: testD (\u -> ununit u $ liftM (`pair` unit) $ liftM2 (*) (uniform 0 1) $ liftM2 (+) (uniform 0 1) (uniform 0 1)) [],
+    "density2" ~: testD (\u -> ununit u $ liftM (`pair` unit) $ liftM2 (*) (uniform 0 1) $ liftM2 (+) (uniform 0 1) (uniform 0 1)) []
     -- "density3" ~: testD (\u -> ununit u $ liftM (`pair` unit) $ mix [(7, liftM (\x -> x - 1/2 + 0) (uniform 0 1)), (3, liftM (\x -> (x - 1/2) * 10) (uniform 0 1))]) [],
-    "disintegrate1" ~: testD (\u -> ununit u $ uniform 0 1 `bind` \x -> uniform 0 1 `bind` \y -> dirac (pair (exp x) (y + x))) [],
-    "disintegrate2" ~: testD (\u -> ununit u $ uniform 0 1 `bind` \x -> uniform 0 1 `bind` \y -> dirac (pair (y + x) (exp x))) [],
-    "disintegrate3" ~: testD (\u -> ununit u $ uniform 0 1 `bind` \x -> uniform 0 1 `bind` \y -> dirac (pair (max_ x y) (pair x y))) [],
-    "disintegrate4" ~: testD (\u -> ununit u $ uniform 0 1 `bind` \x -> dirac (pair (exp x) (-x))) [],
-    "disintegrate5" ~: testD (\u -> ununit u $ liftM (`pair` unit) $ let m = superpose (replicate 2 (1, uniform 0 1)) in let add = liftM2 (+) in add (add m m) m) [],
-    "disintegrate6" ~: testD (\u -> ununit u $ uniform 0 1 `bind` \x -> uniform 0 1 `bind` \y -> dirac (pair (x+y) (x-y))) [],
-    "disintegrate7" ~: testD (\u -> ununit u $ uniform 0 1 `bind` \y -> uniform 0 1 `bind` \x -> dirac (pair (x+y) (uniform 0 1 `bind_` dirac y))) [],
-    "disintegrate8" ~: testD (\u -> ununit u $ dirac (uniform 0 1 `bind` \x -> dirac (1+x)) `bind` \m -> m `bind` \x -> m `bind` \y -> dirac (pair x y)) [],
-    "disintegrate9" ~: testD (\u -> ununit u $ (uniform 0 1 `bind` \x -> dirac (dirac (1+x))) `bind` \m -> m `bind` \x -> m `bind` \y -> dirac (pair x y)) []
     ]
 
 

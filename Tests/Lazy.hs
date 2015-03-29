@@ -7,6 +7,7 @@ import Prelude hiding (Real)
 import Language.Hakaru.Lazy
 import Language.Hakaru.Any (Any(Any, unAny))
 import Language.Hakaru.Syntax (Real, Measure, Base(..),
+                               ununit, max_, liftM, liftM2, bind_,
                                Mochastic(..), Lambda(..))
 import Language.Hakaru.Compose
 import Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode)
@@ -59,21 +60,84 @@ testL f slices = do
 exists :: PrettyPrint a -> [PrettyPrint a] -> Assertion
 exists t ts' = assertBool "no correct disintegration" $
                elem (result t) (map result ts')
+
+allTests :: Test
+allTests = test [ "t0"  ~: testL t0 []
+                , "t1"  ~: testL t1 []
+                , "t2"  ~: testL t2 []
+                , "t3"  ~: testL t3 []
+                , "t4"  ~: testL t4 []
+                , "t5"  ~: testL t5 []
+                , "t6"  ~: testL t6 []
+                , "t7"  ~: testL t7 []
+                , "t8"  ~: testL t8 []
+                , "t9"  ~: testL t9 []
+                , "t10" ~: testL t10 [] ]
                  
-t1 :: (Mochastic repr) => repr (Measure (Real,Real))
-t1 = normal 0 1 `bind` \x ->
+t0 :: (Mochastic repr) => Cond repr () (Measure (Real,Real))
+t0 = \u -> ununit u $
+     normal 0 1 `bind` \x ->
      normal x 1 `bind` \y ->
      dirac (pair y x)
 
--- main :: IO ()
--- main = do
---   let test1 = try (normal 0 1 `bind` \x ->
---                    normal x 1 `bind` \y ->
---                    dirac (pair y x))
---       test2 = try (normal 0 1 `bind` \x ->
---                    plate (vector 10 (\i -> normal x (unsafeProb (fromInt i) + 1))) `bind` \ys ->
--- 		   dirac (pair (pair (index ys 3) (index ys 4)) x))
---   return                  test1 >>= print . pretty
---   mapM (recover >=> simp) test1 >>= print . pretty
---   return                  test2 >>= print . pretty
---   return                  test2 >>= writeFile "/tmp/test2.hk" . show . pretty
+t1 :: (Mochastic repr) => Cond repr () (Measure (Real,Real)) 
+t1 = \u -> ununit u $
+     uniform 0 1 `bind` \x ->
+     uniform 0 1 `bind` \y ->
+     dirac (pair (exp x) (y + x))
+
+t2 :: (Mochastic repr) => Cond repr () (Measure (Real,Real))
+t2 = \u -> ununit u $
+     uniform 0 1 `bind` \x ->
+     uniform 0 1 `bind` \y ->
+     dirac (pair (y + x) (exp x))
+
+t3 :: (Mochastic repr) => Cond repr () (Measure (Real, (Real,Real)))
+t3 = \u -> ununit u $
+     uniform 0 1 `bind` \x ->
+     uniform 0 1 `bind` \y ->
+     dirac (pair (max_ x y) (pair x y))
+
+t4 :: (Mochastic repr) => Cond repr () (Measure (Real,Real))
+t4 = \u -> ununit u $
+     uniform 0 1 `bind` \x ->
+     dirac (pair (exp x) (-x))
+
+t5 :: (Mochastic repr) => Cond repr () (Measure (Real,()))
+t5 = \u -> ununit u $
+     liftM (`pair` unit) $
+     let m = superpose (replicate 2 (1, uniform 0 1))
+     in let add = liftM2 (+)
+        in add (add m m) m
+
+t6 :: (Mochastic repr) => Cond repr () (Measure (Real,Real))
+t6 = \u -> ununit u $
+     uniform 0 1 `bind` \x ->
+     uniform 0 1 `bind` \y ->
+     dirac (pair (x+y) (x-y))
+
+t7 :: (Mochastic repr) => Cond repr () (Measure (Real,(Measure Real)))
+t7 = \u -> ununit u $
+     uniform 0 1 `bind` \y ->
+     uniform 0 1 `bind` \x ->
+     dirac (pair (x+y) (uniform 0 1 `bind_` dirac y))
+
+t8 :: (Mochastic repr) => Cond repr () (Measure (Real,Real))
+t8 = \u -> ununit u $
+     dirac (uniform 0 1 `bind` \x -> dirac (1+x)) `bind` \m ->
+     m `bind` \x ->
+     m `bind` \y ->
+     dirac (pair x y)
+
+t9 :: (Mochastic repr) => Cond repr () (Measure (Real,Real))
+t9 = \u -> ununit u $
+     (uniform 0 1 `bind` \x -> dirac (dirac (1+x))) `bind` \m ->
+     m `bind` \x ->
+     m `bind` \y ->
+     dirac (pair x y)
+
+t10 :: (Mochastic repr) => Cond repr () (Measure ((Real,Real), Real))
+t10 = \u -> ununit u $
+      normal 0 1 `bind` \x ->
+      plate (vector 10 (\i -> normal x (unsafeProb (fromInt i) + 1))) `bind` \ys ->
+      dirac (pair (pair (index ys 3) (index ys 4)) x)
