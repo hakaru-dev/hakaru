@@ -6,8 +6,9 @@ import Prelude hiding (Real)
 
 import Language.Hakaru.Lazy
 import Language.Hakaru.Any (Any(Any, unAny))
-import Language.Hakaru.Syntax (Real, Measure, Base(..),
+import Language.Hakaru.Syntax (Real, Prob, Measure, Base(..),
                                ununit, max_, liftM, liftM2, bind_,
+                               swap_, snd_, bern, 
                                Mochastic(..), Lambda(..))
 import Language.Hakaru.Compose
 import Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode)
@@ -29,11 +30,11 @@ type Cond repr env ab =
 
 try :: (Mochastic repr, Lambda repr, Backward a a) =>
        Cond repr env (Measure (a,b))
-    -> [repr (env -> (a -> Measure (a, b)))]
+    -> [repr (env -> (a -> Measure b))]
 try m = runCompose
       $ lam $ \env ->
       lam $ \t -> runLazy
-      -- $ liftM snd_
+      $ liftM snd_
       $ disintegrate (pair (scalar0 t) unit) (m (scalar0 env))
 
 recover :: (Typeable a) => PrettyPrint a -> IO (Any a)
@@ -48,7 +49,7 @@ testS' t = do
 testL :: (Backward a a, Typeable a, Typeable b,
          Simplifiable a, Simplifiable b, Simplifiable env) => 
          Cond PrettyPrint env (Measure (a,b))
-      -> [(Expect Maple env, Expect Maple a, Any (Measure (a, b)))]
+      -> [(Expect Maple env, Expect Maple a, Any (Measure b))]
       -> Assertion
 testL f slices = do
   ds <- mapM recover (try f)
@@ -62,7 +63,24 @@ exists t ts' = assertBool "no correct disintegration" $
                elem (result t) (map result ts')
 
 allTests :: Test
-allTests = test [ "t0"  ~: testL t0 []
+allTests = test [ "prog1s" ~: testL prog1s []
+                , "prog2s" ~: testL prog2s []
+                , "prog3s" ~: testL prog3s []
+                , "pair1fst" ~: testL pair1fst []
+                , "pair1fstSwap" ~: testL pair1fstSwap []
+                , "borelishSub" ~: testL borelishSub
+                                    [(unit, 0, Any (uniform 0 1))]
+                , "borelishDiv" ~: testL borelishDiv
+                                    [(unit, 1, Any
+                                      (superpose [(1/2, liftM fromProb (beta 2 1))]))]
+                , "culpepper" ~: testL (const culpepper)
+                                  [(unit, 0, Any
+                                    (superpose [(fromRational (1/8), dirac true)
+                                               ,(fromRational (1/8), dirac false)]))]
+                , "density1" ~: testL density1 []
+                , "density2" ~: testL density2 []
+                -- , "density3" ~: testL density3 []
+                , "t0"  ~: testL t0 []
                 , "t1"  ~: testL t1 []
                 , "t2"  ~: testL t2 []
                 , "t3"  ~: testL t3 []
@@ -73,6 +91,79 @@ allTests = test [ "t0"  ~: testL t0 []
                 , "t8"  ~: testL t8 []
                 , "t9"  ~: testL t9 []
                 , "t10" ~: testL t10 [] ]
+
+-- Jacques on 2014-11-18: "From an email of Oleg's, could someone please
+-- translate the following 3 programs into new Hakaru?"  The 3 programs below
+-- are equivalent.
+prog1s, prog2s, prog3s :: (Mochastic repr) =>
+                          Cond repr () (Measure (Real, Bool))
+prog1s = \u -> ununit u $
+         bern 0.5 `bind` \c ->
+         if_ c (normal 0 1)
+               (uniform 10 20) `bind` \x ->
+         dirac (pair x c)
+prog2s = \u -> ununit u $
+         bern 0.5 `bind` \c ->
+         if_ c (normal 0 1)
+               (dirac 10 `bind` \d ->
+                uniform d 20) `bind` \x ->
+         dirac (pair x c)
+prog3s = \u -> ununit u $
+         bern 0.5 `bind` \c ->
+         if_ c (normal 0 1)
+               (dirac false `bind` \e ->
+                uniform (10 + if_ e 1 0) 20) `bind` \x ->
+         dirac (pair x c)               
+
+pair1fst :: (Mochastic repr) => Cond repr () (Measure (Bool, Prob))
+pair1fst = \u -> ununit u $
+           beta 1 1 `bind` \bias ->
+           bern bias `bind` \coin ->
+           dirac (pair coin bias)
+
+pair1fstSwap :: (Mochastic repr) => Cond repr () (Measure (Prob, Bool))
+pair1fstSwap = \u -> ununit u $
+               liftM swap_ $
+               beta 1 1 `bind` \bias ->
+               bern bias `bind` \coin ->
+               dirac (pair coin bias)
+
+borelishSub :: (Mochastic repr) => Cond repr () (Measure (Real,Real))
+borelishSub = const (borelish (-))
+
+borelishDiv :: (Mochastic repr) => Cond repr () (Measure (Real,Real))
+borelishDiv = const (borelish (/))
+
+borelish :: (Mochastic repr) =>
+            (repr Real -> repr Real -> repr a) -> repr (Measure (a, Real))
+borelish compare =
+    uniform 0 1 `bind` \x ->
+    uniform 0 1 `bind` \y ->
+    dirac (pair (compare x y) x)
+
+culpepper :: (Mochastic repr) => repr (Measure (Real, Bool))
+culpepper = bern 0.5 `bind` \a ->
+            if_ a (uniform (-2) 2) (liftM (2*) (uniform (-1) 1)) `bind` \b ->
+            dirac (pair b a)
+
+density1 :: (Mochastic repr) => Cond repr () (Measure (Real,()))
+density1 = \u -> ununit u $
+           liftM (`pair` unit) $
+           uniform 0 1 `bind` \x ->
+           uniform 0 1 `bind` \y ->
+           dirac (x + exp (-y))
+
+density2 :: (Mochastic repr) => Cond repr () (Measure (Real,()))
+density2 = \u -> ununit u $
+           liftM (`pair` unit) $
+           liftM2 (*) (uniform 0 1) $
+           liftM2 (+) (uniform 0 1) (uniform 0 1)
+
+-- density3 :: (Mochastic repr) => Cond repr () (Measure (Real,()))
+-- density3 = \u -> ununit u $
+--            liftM (`pair` unit) $
+--            mix [(7, liftM (\x -> x - 1/2 + 0) (uniform 0 1)),
+--                 (3, liftM (\x -> (x - 1/2) * 10) (uniform 0 1))]
                  
 t0 :: (Mochastic repr) => Cond repr () (Measure (Real,Real))
 t0 = \u -> ununit u $
@@ -140,4 +231,4 @@ t10 :: (Mochastic repr) => Cond repr () (Measure ((Real,Real), Real))
 t10 = \u -> ununit u $
       normal 0 1 `bind` \x ->
       plate (vector 10 (\i -> normal x (unsafeProb (fromInt i) + 1))) `bind` \ys ->
-      dirac (pair (pair (index ys 3) (index ys 4)) x)
+      dirac (pair (pair (index ys 3) (index ys 4)) x)            
