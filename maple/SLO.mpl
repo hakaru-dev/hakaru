@@ -13,6 +13,7 @@ SLO := module ()
   local ToAST, t_binds, t_pw, t_rel,
     into_pw, myprod, do_pw,
     mkProb, getCtx, instantiate, lambda_wrap, find_paths,
+    mkReal,
     fill_table, toProp, toType,
     twiddle, myint, myint_pw,
     fix_Heaviside,
@@ -20,6 +21,7 @@ SLO := module ()
     adjust_superpose,
     get_breakcond, merge_pw,
     MyHandler, getBinderForm, infer_type, join_type, join2type,
+    infer_type_prod, infer_type_sop, check_sop_type,
     simp_sup, simp_if, into_sup, simp_rel,
     simp_pw, simp_pw_equal, simp_pw3,
     simp_props,
@@ -789,7 +791,7 @@ SLO := module ()
   end proc;
 
   infer_type := proc(e, ctx)
-    local typ, l, res;
+    local typ, l, res, k, t;
     if type(e, boolean) then
       'Bool'
     elif e = 'Pi' then Prob
@@ -908,6 +910,7 @@ SLO := module ()
   end proc;
 
   check_sop_type := proc(inferredType, actualType)
+    local compatible_types, k, t, sopType;
 
     compatible_types := proc(inf, act)
       if inf = 'Number' then
