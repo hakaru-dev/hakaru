@@ -164,6 +164,17 @@ density2 = \u -> ununit u $
 --            liftM (`pair` unit) $
 --            mix [(7, liftM (\x -> x - 1/2 + 0) (uniform 0 1)),
 --                 (3, liftM (\x -> (x - 1/2) * 10) (uniform 0 1))]
+
+zeroDiv :: (Mochastic repr) => Cond repr () (Measure (Real,Real))
+zeroDiv = \u -> ununit u $
+          normal 0 1 `bind` \x ->
+          normal x (0 / 2) `bind` \y ->
+          dirac (pair x y)
+
+zeroPlus :: (Mochastic repr) => Cond repr () (Measure ((),Real))
+zeroPlus = \u -> ununit u $
+           normal 0 1 `bind` \x ->
+           dirac (pair unit (x + 0))
                  
 t0 :: (Mochastic repr) => Cond repr () (Measure (Real,Real))
 t0 = \u -> ununit u $
@@ -231,4 +242,6 @@ t10 :: (Mochastic repr) => Cond repr () (Measure ((Real,Real), Real))
 t10 = \u -> ununit u $
       normal 0 1 `bind` \x ->
       plate (vector 10 (\i -> normal x (unsafeProb (fromInt i) + 1))) `bind` \ys ->
-      dirac (pair (pair (index ys 3) (index ys 4)) x)            
+      dirac (pair (pair (index ys 3) (index ys 4)) x)
+
+            
