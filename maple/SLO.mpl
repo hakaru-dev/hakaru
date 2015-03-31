@@ -33,6 +33,7 @@ SLO := module ()
   t_pw := 'specfunc(anything, piecewise)';
   t_rel := {`<`,`<=`,`=`,`<>`};
 
+  # SLO output goes into AST
   ModuleApply := proc(spec::Typed(anything,anything))
     local expr, typ, glob, gsiz, ctx, r, inp, meastyp, res, gnumbering;
     expr := op(1, spec);
@@ -49,6 +50,8 @@ SLO := module ()
       _EnvBinders := {};
       _EnvPathCond := `union`(op(map(toProp, glob)));
       NumericEventHandler(division_by_zero = MyHandler);
+      # simp first applied so piecewise is effective,
+      # then again in case eval "undoes" work of first simp call
       res := HAST(simp(eval(simp(eval(snd(inp)(c), 'if_'=piecewise)), Int=myint)), r);
     catch "Wrong kind of parameters in piecewise":
       error "Bug in Hakaru -> Maple translation, piecewise used incorrectly.";
