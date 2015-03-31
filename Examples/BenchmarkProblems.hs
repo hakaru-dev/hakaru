@@ -19,6 +19,8 @@ import Language.Hakaru.PrettyPrint
 import Language.Hakaru.Partial
 import Language.Hakaru.Simplify
 import Language.Hakaru.Any
+import Language.Hakaru.Embed
+
 import qualified Language.Hakaru.Vector as LV
 
 import System.Random.MWC as MWC hiding (uniform)
@@ -58,18 +60,18 @@ reflectV m = categorical (Expect m)
 
 reify' :: (Lambda repr, Mochastic repr) => repr Int -> repr Int ->
           Expect repr (Int -> Measure Int) -> repr (Vector (Vector Prob))
-reify' lo hi (Expect m) =
-    vector lo hi (\ s  ->
-    vector lo hi (\ s' ->
+reify' size1 size2 (Expect m) =
+    vector size1 (\ s  ->
+    vector size2 (\ s' ->
     unpair (app m s)
       (\ m1 m2 ->
         (app m2 $ lam
              (\x -> if_ (equal_ x s') 1 0)))))
 
-reifyV :: (Lambda repr, Mochastic repr) => repr Int -> repr Int ->
+reifyV :: (Lambda repr, Mochastic repr) => repr Int ->
            Expect repr (Measure Int) -> repr (Vector Prob)
-reifyV lo hi (Expect m) =
-    vector lo hi (\ s' ->
+reifyV s1 (Expect m) =
+    vector s1 (\ s' ->
     unpair m
       (\ m1 m2 ->
         (app m2 $ lam
@@ -122,7 +124,8 @@ linreg = normal 0 2 `bind` \w1 ->
 distLinreg :: (Lambda repr, Mochastic repr) => repr (Real6 -> (Measure Real5))
 distLinreg = runPartial (lam $ \ x -> (runDisintegrate (\ env -> linreg) !! 0) unit x)
 
-simpLinreg :: (Lambda repr, Integrate repr, Mochastic repr) => IO (repr (Real6 -> (Measure Real5)))
+simpLinreg :: (Embed repr, Lambda repr, Integrate repr, Mochastic repr) =>
+              IO (repr (Real6 -> (Measure Real5)))
 simpLinreg = Control.Monad.liftM unAny (simplify distLinreg)
 
 testLinreg :: IO (Maybe (Double5, LF.LogFloat))
@@ -155,7 +158,7 @@ start = 0
 
 transition :: Mochastic repr => repr Int -> repr (Measure Int)
 transition s = categorical
-               (vector 0 4 (\ i ->
+               (vector 5 (\ i ->
                  if_ (equal_ i s) 1
                   (if_ (or_ [equal_ i (s+1), equal_ i (s-4)])
                    1
@@ -164,29 +167,29 @@ transition s = categorical
 
 emission   :: Mochastic repr => repr Int -> repr (Measure Int)
 emission s =  categorical
-              (vector 0 4 (\ i ->
+              (vector 5 (\ i ->
                 if_ (equal_ i s) 0.6 0.1))
 
-hmm :: (Lambda repr, Mochastic repr) => repr (Measure (Vector (Int, Int)))
-hmm = app (chain (vector 0 20
+hmm :: (Lambda repr, Mochastic repr) => repr (Measure (Vector Int, Vector Int))
+hmm = app (chain (vector 20
                   (\ _ -> lam $ \s ->
                    transition s `bind` \s' ->
                    emission s' `bind` \o ->
                    dirac $ pair (pair s' o) s'
                   ))) start `bind` \x ->
-      dirac (fst_ x)
+      dirac (unzipV (fst_ x))
 
 step  :: (Lambda repr, Integrate repr, Mochastic repr) =>
          Expect repr (Int -> Measure Int) ->
          Expect repr (Int -> Measure Int) ->
          Expect repr (Int -> Measure Int)
-step m1 m2 = lam $ \x -> reflectV (reifyV 0 4 (app m1 x `bind` app m2))
+step m1 m2 = lam $ \x -> reflectV (reifyV 5 (app m1 x `bind` app m2))
 
 -- P (s_20 = x | s_0 = y)
 forwardBackward :: (Lambda repr, Integrate repr, Mochastic repr) =>
                    Expect repr (Int -> Measure Int)
 forwardBackward = reduce step (lam dirac)
-                  (vector 0 20 (\_ -> lam $ \s ->
+                  (vector 20 (\_ -> lam $ \s ->
                                 transition s `bind` \s' ->
                                 emission s'))
 
@@ -202,7 +205,7 @@ ldaVec = undefined
 sampleV :: (Lambda repr, Mochastic repr) =>
             repr (Int -> Vector Real -> Measure (Vector Int))
 sampleV = lam (\n ->
-          lam (\x -> plate (vector 0 n (\i ->
+          lam (\x -> plate (vector n (\i ->
                             categorical (mapV unsafeProb x)))))
 
 vocab :: V.Vector String
