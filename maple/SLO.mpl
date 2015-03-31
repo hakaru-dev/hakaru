@@ -604,7 +604,9 @@ SLO := module ()
       error "mkProb ln: %1", w;
     elif type(w, anything^{identical(1/2), identical(-1/2)}) then
       typ := infer_type(op(1,w), ctx);
-      if member(typ,{'Prob','Number'}) then
+      if typ = 'Prob' then
+        sqrt_(op(1,w))
+      elif typ = 'Number' then # is this right?
         w
       else
         mkProb(op(1,w), ctx) ^ op(2,w)
@@ -1448,7 +1450,7 @@ SLO := module ()
     inds := select(depends, inds, var);
     if inds={} then
       if type(expr, t_binds) then
-        subsop(1=myint(op(1,expr),b), expr)
+        subsop(1=myint(op(1,expr),b), expr) assuming op(_EnvPathCond);
       else
         res0 := int(expr, b);
         if type(res0, t_binds) and op(2,res0)=b then # didn't work, try harder
