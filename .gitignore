@@ -2,5 +2,6 @@ dist
 .cabal-sandbox
 cabal.sandbox.config
 maple/ppaml.mla
+Language/Hakaru/Paths.hs
 *.o
 *.hi
