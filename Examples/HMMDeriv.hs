@@ -1,4 +1,5 @@
 {-# OPTIONS -Wall #-}
+{-# LANGUAGE TypeFamilies #-} -- just for a single type constraint!
 -- Simplified copy of Example.HMM.  The whole point here is to go from the
 -- straightforward definition to a "simpler" one, step-by-step, where we
 -- justify each step fully.
@@ -7,7 +8,7 @@ module Examples.HMMDeriv where
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax
-import Language.Hakaru.Expect (Expect(..))
+import Language.Hakaru.Expect (Expect(..),Expect')
 
 -- Conditional probability tables (ignore Expect and unExpect on first reading)
 
@@ -274,6 +275,10 @@ bindOp f g = lam (\a -> lam (\c ->
 bindOp' :: (Mochastic repr, Lambda repr, Integrate repr) =>
   repr Table -> repr Table -> repr Table
 bindOp' m n = reifyOp 20 20 (bindOp (reflectOp m) (reflectOp n))
+
+fromM :: (a ~ Expect' a, Mochastic repr) => Expect repr (Measure a) -> repr (LinearOperator a)
+fromM m = snd_ (unExpect m)
+
 --------------------------------------------------------------------------------
 
 -- Kleisli composition
