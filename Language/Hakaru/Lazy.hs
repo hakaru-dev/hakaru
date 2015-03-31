@@ -442,17 +442,15 @@ instance (Lub repr, Mochastic repr, Order repr a) => Order (Lazy s repr) a where
 
 add :: (Mochastic repr, Lub repr, Num (repr a), Number a) =>
        Lazy s repr a -> Lazy s repr a -> Lazy s repr a
-add x y = Lazy
-  ((liftM2 ((Value.) . (+)) `on` evaluate) x y)
-  (\t -> lub (forward x >>= \(Value r) -> backward y (t - r))
-             (forward y >>= \(Value r) -> backward x (t - r)))
+add x y = scalar2 (+) x y
+          { backward = (\t -> lub (evaluate x >>= \r -> backward y (t - r))
+                                  (evaluate y >>= \r -> backward x (t - r))) }
 
 sub :: (Mochastic repr, Lub repr, Num (repr a), Number a) =>
        Lazy s repr a -> Lazy s repr a -> Lazy s repr a
-sub x y = Lazy
-  ((liftM2 ((Value.) . (-)) `on` evaluate) x y)
-  (\t -> lub (forward x >>= \(Value r) -> backward y (r - t))
-             (forward y >>= \(Value r) -> backward x (r + t)))
+sub x y = scalar2 (-) x y
+          { backward = (\t -> lub (evaluate x >>= \r -> backward y (r - t))
+                                  (evaluate y >>= \r -> backward x (r + t))) }
 
 neg :: (Mochastic repr, Lub repr, Num (repr a), Number a) =>
        Lazy s repr a -> Lazy s repr a
@@ -471,14 +469,14 @@ abz x = Lazy
 mul :: (Mochastic repr, Lub repr,
         Fraction a, Fractional (repr a)) =>
        Lazy s repr a -> Lazy s repr a -> Lazy s repr a
-mul x y = Lazy
-  ((liftM2 ((Value.) . (*)) `on` evaluate) x y)
-  (\t -> lub (do Value r <- forward x
-                 insert_ (weight (recip (unsafeProbFraction (abs r))))
-                 backward y (t / r))
-             (do Value r <- forward y
-                 insert_ (weight (recip (unsafeProbFraction (abs r))))
-                 backward x (t / r)))
+mul x y = scalar2 (*) x y
+          { backward =
+            (\t -> lub (do r <- evaluate x
+                           insert_ (weight (recip (unsafeProbFraction (abs r))))
+                           backward y (t / r))
+                       (do r <- evaluate y
+                           insert_ (weight (recip (unsafeProbFraction (abs r))))
+                           backward x (t / r))) }
 
 inv :: (Mochastic repr, Lub repr,
         Fraction a, Fractional (repr a)) =>
