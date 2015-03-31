@@ -40,31 +40,7 @@ allTests = test [
     "testLinregSimp" ~: testSS [linregSimp] linregSimp',
     "testdistLinregSimp" ~: testS distLinregSimp,
     "testLinreg" ~: ignore $ testS distLinreg,
-    "prog1s" ~: testD prog1s [],
-    "prog2s" ~: testD prog2s [],
-    "prog3s" ~: testD prog3s [],
-    "pair1fstD" ~: testD (\u -> ununit u $ pair1fst) [],
-    "pair1fstDswap" ~: testD (\u -> ununit u $ liftM swap_ pair1fst) [],
-    "gamalonDis" ~: testS gamalonDis,
-    "borelishSub" ~: testD (const (borelish (-))) [(unit, 0, Any (uniform 0 1))],
-    "borelishDiv" ~: testD (const (borelish (/))) [(unit, 1, Any (superpose [(1/2, liftM fromProb (beta 2 1))]))],
-    "culpepper" ~: testD (const culpepper) 
-        [(unit, 0, Any (superpose [(fromRational (1/8), dirac true), 
-                                   (fromRational (1/8), dirac false)]))],
-    "density1" ~: testD (\u -> ununit u $ liftM (`pair` unit) $ uniform 0 1 `bind` \x -> uniform 0 1 `bind` \y -> dirac (x + exp (-y))) [],
-    "density2" ~: testD (\u -> ununit u $ liftM (`pair` unit) $ liftM2 (*) (uniform 0 1) $ liftM2 (+) (uniform 0 1) (uniform 0 1)) [],
-    -- "density3" ~: testD (\u -> ununit u $ liftM (`pair` unit) $ mix [(7, liftM (\x -> x - 1/2 + 0) (uniform 0 1)), (3, liftM (\x -> (x - 1/2) * 10) (uniform 0 1))]) [],
-    "disintegrate1" ~: testD (\u -> ununit u $ uniform 0 1 `bind` \x -> uniform 0 1 `bind` \y -> dirac (pair (exp x) (y + x))) [],
-    "disintegrate2" ~: testD (\u -> ununit u $ uniform 0 1 `bind` \x -> uniform 0 1 `bind` \y -> dirac (pair (y + x) (exp x))) [],
-    "disintegrate3" ~: testD (\u -> ununit u $ uniform 0 1 `bind` \x -> uniform 0 1 `bind` \y -> dirac (pair (max_ x y) (pair x y))) [],
-    "disintegrate4" ~: testD (\u -> ununit u $ uniform 0 1 `bind` \x -> dirac (pair (exp x) (-x))) [],
-    "disintegrate5" ~: testD (\u -> ununit u $ liftM (`pair` unit) $ let m = superpose (replicate 2 (1, uniform 0 1)) in let add = liftM2 (+) in add (add m m) m) [],
-    "disintegrate6" ~: testD (\u -> ununit u $ uniform 0 1 `bind` \x -> uniform 0 1 `bind` \y -> dirac (pair (x+y) (x-y))) [],
-    "disintegrate7" ~: testD (\u -> ununit u $ uniform 0 1 `bind` \y -> uniform 0 1 `bind` \x -> dirac (pair (x+y) (uniform 0 1 `bind_` dirac y))) [],
-    "disintegrate8" ~: testD (\u -> ununit u $ dirac (uniform 0 1 `bind` \x -> dirac (1+x)) `bind` \m -> m `bind` \x -> m `bind` \y -> dirac (pair x y)) [],
-    "disintegrate9" ~: testD (\u -> ununit u $ (uniform 0 1 `bind` \x -> dirac (dirac (1+x))) `bind` \m -> m `bind` \x -> m `bind` \y -> dirac (pair x y)) []
-    ]
-
+    "gamalonDis" ~: testS gamalonDis ]
 
 -- pair1fst and pair1snd are equivalent
 pair1fst :: (Mochastic repr) => repr (Measure (Bool, Prob))
@@ -333,31 +309,6 @@ testDist (e,s) = do
   putStrLn ""
 -}
 
--- Jacques on 2014-11-18: "From an email of Oleg's, could someone please
--- translate the following 3 programs into new Hakaru?"  The 3 programs below
--- are equivalent.
-prog1s, prog2s, prog3s :: (Mochastic repr) => repr () -> repr (Measure (Real, Bool))
-prog1s u =
-         ununit u $
-         bern 0.5 `bind` \c ->
-         if_ c (normal 0 1)
-               (uniform 10 20) `bind` \x ->
-         dirac (pair x c)
-prog2s u =
-         ununit u $
-         bern 0.5 `bind` \c ->
-         if_ c (normal 0 1)
-               (dirac 10 `bind` \d ->
-                uniform d 20) `bind` \x ->
-         dirac (pair x c)
-prog3s u =
-         ununit u $
-         bern 0.5 `bind` \c ->
-         if_ c (normal 0 1)
-               (dirac false `bind` \e ->
-                uniform (10 + if_ e 1 0) 20) `bind` \x ->
-         dirac (pair x c)
-
 gamalonDis -- Simplify me! 2015-01-20 meeting
   :: (Lambda repr, Mochastic repr, Integrate repr) =>
      repr ((((Real, Real), (Real, Real)), (Real, Real)) -> (Real, Real) -> Measure Prob)
@@ -377,18 +328,6 @@ gamalon abcd_xy =
     uniform (a * x + b * y - 1) (a * x + b * y + 1) `bind` \x' ->
     uniform (c * x + d * y - 1) (c * x + d * y + 1) `bind` \y' ->
     dirac (pair x' y')
-
-borelish :: (Mochastic repr) =>
-            (repr Real -> repr Real -> repr a) -> repr (Measure (a, Real))
-borelish compare =
-    uniform 0 1 `bind` \x ->
-    uniform 0 1 `bind` \y ->
-    dirac (pair (compare x y) x)
-
-culpepper :: (Mochastic repr) => repr (Measure (Real, Bool))
-culpepper = bern 0.5 `bind` \a ->
-            if_ a (uniform (-2) 2) (liftM (2*) (uniform (-1) 1)) `bind` \b ->
-            dirac (pair b a)
 
 walk :: (Mochastic repr) =>
         repr Prob -> repr Real -> repr (Measure (Real, Int))

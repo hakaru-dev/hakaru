@@ -1,12 +1,12 @@
 {-# LANGUAGE ScopedTypeVariables, TypeSynonymInstances, FlexibleInstances, DeriveDataTypeable #-}
-{-# LANGUAGE UndecidableInstances, ConstraintKinds, CPP #-}
+{-# LANGUAGE UndecidableInstances, ConstraintKinds, CPP, GADTs #-}
 {-# OPTIONS -W #-}
 
 module Language.Hakaru.Simplify
   ( closeLoop
   , simplify
   , toMaple
-  , Simplifiable
+  , Simplifiable(mapleType)
   , SimplifyException(MapleException,InterpreterException)) where
 
 -- Take strings from Maple and interpret them in Haskell (Hakaru)
@@ -19,6 +19,7 @@ import Language.Hakaru.Embed
 import Language.Hakaru.Maple (Maple, runMaple)
 import Language.Hakaru.Any (Any)
 import Data.Typeable (Typeable, typeOf)
+import Data.List (intercalate)
 import System.MapleSSH (maple)
 import Language.Haskell.Interpreter hiding (typeOf)
 import Language.Haskell.Interpreter.Unsafe 
@@ -120,8 +121,28 @@ instance (Simplifiable a, Simplifiable b) => Simplifiable (a -> b) where
   mapleType _ = "Arrow(" ++ mapleType (undefined :: a) ++ "," ++
                             mapleType (undefined :: b) ++ ")"
 
-instance (SingI xss, All2 Typeable xss, Typeable t, Typeable (Tag t xss)) => Simplifiable (Tag t xss) where 
-  mapleType = mapleTypeTag 
+instance (SingI xss, All2 Simplifiable xss, SimplEmbed t, Typeable (Tag t xss)) => Simplifiable (Tag t xss) where 
+  mapleType _ = concat
+    [ "Tagged(" 
+    , mapleTypeEmbed (undefined :: t) 
+    , ","
+    , typeList . map typeList . go2 $ (sing :: Sing xss)
+    , ")"
+    ]
+    
+    where 
+      argOf :: f x -> x 
+      argOf _ = undefined
+ 
+      typeList xs = "[" ++ intercalate "," xs ++ "]" 
+    
+      go2 :: All2 Simplifiable xs => Sing xs -> [[String]]
+      go2 SNil = []
+      go2 (SCons x xs) = go1 x : go2 xs 
+    
+      go1 :: All Simplifiable xs => Sing xs -> [String]
+      go1 SNil = []
+      go1 (SCons x xs) = mapleType (argOf x) : go1 xs 
 
 mkTypeString :: (Simplifiable a) => String -> a -> String
 mkTypeString s t = "Typed(" ++ s ++ ", " ++ mapleType t ++ ")"

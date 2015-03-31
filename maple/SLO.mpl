@@ -526,7 +526,7 @@ SLO := module ()
       end if;
     elif nops(res)=6 and op(2,res)=op(6,res) then
       # case of an if-else that has been complicated -- merge
-      res := simp_pw(piecewise(And(flip_cond(op(1,res)), op(3,res)), 
+      res := simp_pw(piecewise(And(flip_cond(op(1,res)), op(3,res)),
                                op(4,res), op(2,res)));
     end if;
     res;
@@ -871,10 +871,10 @@ SLO := module ()
       Measure(Real)
     elif type(e, 'Bind'(anything, name = range, anything)) then
       Measure(Real)
-    elif type(e, 'Tag'(anything)) then
+    elif type(e, 'Tag'(anything, anything)) then
 
-      (k, t) := infer_type_sop(op(1,e), ctx);
-      Tag(k, t);
+      (k, t) := infer_type_sop(op(2,e), ctx);
+      TagMaple(k, t);
 
     else
       error "how do I infer a type from %1", e;
@@ -925,7 +925,7 @@ SLO := module ()
     if a = b then a
     elif a = 'Number' then b
     elif b = 'Number' then a
-    elif (a = 'Real' and b = 'Prob') or 
+    elif (a = 'Real' and b = 'Prob') or
          (b = 'Real' and a = 'Prob') then 'Mixed' # we'll need to patch
     else error "join2type of %1, %2", a, b
     end if;
@@ -1515,6 +1515,24 @@ end;
 # works, but could be made more robust
 `evalapply/if_` := proc(f, t) if_(op(1,f), op(2,f)(t[1]), op(3,f)(t[1])) end;
 `evalapply/Pair` := proc(f, t) Pair(op(1,f)(t[1]), op(2,f)(t[1])) end;
+
+
+# Disabled until Pair is removed in Hakaru
+
+# Pair := proc(a,b) Tag(P2, Zero(Cons(a, Cons(b, Nil )))) end proc;
+
+# `type/Nil` := proc(val) evalb(val = 'Nil') end proc;
+
+# `type/Pair` := proc(val, t0, t1)
+#   type(val, Tag(identical(P2), Zero(Cons(t0, Cons (t1, Nil )))))
+# end proc;
+
+# PairType := proc(a,b) Tagged(P2(a,b), [[ a,b ]]); end proc;
+
+# `type/PairType` := proc(val, t0, t1)
+#   type(val, Tagged(P2(t0, t1), [[ t0, t1 ]] ));
+# end proc;
+
 
 fst := proc(e)
   if e::Pair(anything, anything) then

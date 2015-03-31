@@ -3,7 +3,7 @@
 {-# OPTIONS -Wall #-}
 
 module Language.Hakaru.Lazy (Lazy, runLazy, Backward, disintegrate,
-       scalar0, try, recover, simp) where
+       scalar0) where
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
@@ -693,15 +693,15 @@ instance Backward Real Real where
 instance Backward Prob Prob where
   backward_ a x = evaluate x >>= backward a
 
-instance (Backward ab1 a1, Backward ab2 a2) =>
-         Backward (ab1,ab2) (a1,a2) where
+instance (Backward a x, Backward b y) =>
+         Backward (a,b) (x,y) where
   backward_ ab xy = do (a,b) <- unpairM ab
                        (x,y) <- unpairM xy
                        backward_ a x
                        backward_ b y
 
-instance (Backward ab1 a1, Backward ab2 a2) =>
-         Backward (Either ab1 ab2) (Either a1 a2) where
+instance (Backward a x, Backward b y) =>
+         Backward (Either a b) (Either x y) where
   backward_ ab xy = do a_b <- uneitherM ab
                        x_y <- uneitherM xy
                        case (a_b, x_y) of
@@ -709,7 +709,7 @@ instance (Backward ab1 a1, Backward ab2 a2) =>
                          (Right b, Right y) -> backward_ b y
                          _                  -> reject
 
-instance (Backward ab a) => Backward [ab] [a] where
+instance (Backward ab xy) => Backward [ab] [xy] where
   backward_ ab xy = do a_b <- unlistM ab
                        x_y <- unlistM xy
                        case (a_b, x_y) of
@@ -725,34 +725,5 @@ instance (Backward ab a) => Backward [ab] [a] where
 disintegrate :: (Mochastic repr, Lub repr, Backward ab a) =>
                 Lazy s repr a ->
                 Lazy s repr (Measure ab) -> Lazy s repr (Measure ab)
-disintegrate x m = measure $ join $ (forward m >>= memo . unMeasure >>= \a ->
-                                     backward_ a x >> return a)
-
---------------------------------------------------------------------------------
--- Utilities for testing
-
-try :: (Backward a a) =>
-       (forall s t. Lazy s (Compose [] t PrettyPrint) (Measure (a, b))) ->
-       [PrettyPrint (a -> Measure (a, b))]
-try m = runCompose
-      $ lam $ \t -> runLazy
-      $ disintegrate (pair (scalar0 t) unit) m
-
-recover :: (Typeable a) => PrettyPrint a -> IO (Any a)
-recover hakaru = closeLoop ("Any (" ++ leftMode (runPrettyPrint hakaru) ++ ")")
-
-simp :: (Simplifiable a) => Any a -> IO (Any a)
-simp = simplify . unAny
-
-main :: IO ()
-main = do
-  let test1 = try (normal 0 1 `bind` \x ->
-                   normal x 1 `bind` \y ->
-                   dirac (pair y x))
-      test2 = try (normal 0 1 `bind` \x ->
-                   plate (vector 10 (\i -> normal x (unsafeProb (fromInt i) + 1))) `bind` \ys ->
-		   dirac (pair (pair (index ys 3) (index ys 4)) x))
-  return                  test1 >>= print . pretty
-  mapM (recover >=> simp) test1 >>= print . pretty
-  return                  test2 >>= print . pretty
-  return                  test2 >>= writeFile "/tmp/test2.hk" . show . pretty
+disintegrate a m = measure $ join $ (forward m >>= memo . unMeasure >>= \ab ->
+                                     backward_ ab a >> return ab)
