@@ -179,39 +179,6 @@ hmm = app (chain (vector 20
                   ))) start `bind` \x ->
       dirac (unzipV (fst_ x))
 
-mh :: (Mochastic repr, Integrate repr, Lambda repr,
-       a ~ Expect' a, Order_ a) =>
-      (forall repr'. (Mochastic repr') => repr' a -> repr' (Measure a)) ->
-      (forall repr'. (Mochastic repr') => repr' (Measure a)) ->
-      repr (a -> Measure (a, Prob))
-mh proposal target =
-  let_ (lam (d unit)) $ \mu ->
-  lam $ \old ->
-    proposal old `bind` \new ->
-    dirac (pair new (mu `app` pair new old / mu `app` pair old new))
-  where d:_ = density (\dummy -> ununit dummy $ bindx target proposal)
-
-mcmc :: (Mochastic repr, Integrate repr, Lambda repr,
-         a ~ Expect' a, Order_ a) =>
-        (forall repr'. (Mochastic repr') => repr' a -> repr' (Measure a)) ->
-        (forall repr'. (Mochastic repr') => repr' (Measure a)) ->
-        repr (a -> Measure a)
-mcmc proposal target =
-  let_ (mh proposal target) $ \f ->
-  lam $ \old ->
-    app f old `bind` \new_ratio ->
-    unpair new_ratio $ \new ratio ->
-    bern (min_ 1 ratio) `bind` \accept ->
-    dirac (if_ accept new old)
-
-dummyProp :: Mochastic repr => repr a -> repr (Measure a)
-dummyProp = dirac
-
--- True type doesn't have pairs due to disintegrate
-roadmapProg1 :: (Mochastic repr, Integrate repr, Lambda repr) =>
-                repr ((Vector Int, Vector Int) -> Measure (Vector Int, Vector Int))
-roadmapProg1 = mcmc dummyProp hmm
-
 step  :: (Lambda repr, Integrate repr, Mochastic repr) =>
          Expect repr (Int -> Measure Int) ->
          Expect repr (Int -> Measure Int) ->
