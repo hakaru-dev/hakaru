@@ -180,7 +180,7 @@ rr5 a b m =
     s * rest ) )
 
 -- Note how vv is only defined at j = k.  
--- Assumption #6: summate transforms a vector in the the sum of its non-zero parts
+-- Assumption #6: summate transforms a vector into the sum of its non-zero parts
 
 rr6 :: (Mochastic repr, Lambda repr, Integrate repr) =>
   repr Int -> repr Int -> repr Table -> repr Table
