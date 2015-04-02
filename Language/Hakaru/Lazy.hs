@@ -442,13 +442,13 @@ instance (Lub repr, Mochastic repr, Order repr a) => Order (Lazy s repr) a where
 
 add :: (Mochastic repr, Lub repr, Num (repr a), Number a) =>
        Lazy s repr a -> Lazy s repr a -> Lazy s repr a
-add x y = scalar2 (+) x y
+add x y = (scalar2 (+) x y)
           { backward = (\t -> lub (evaluate x >>= \r -> backward y (t - r))
-                                  (evaluate y >>= \r -> backward x (t - r))) }
+                                  (evaluate y >>= \r -> backward x (t - r)) ) }
 
 sub :: (Mochastic repr, Lub repr, Num (repr a), Number a) =>
        Lazy s repr a -> Lazy s repr a -> Lazy s repr a
-sub x y = scalar2 (-) x y
+sub x y = (scalar2 (-) x y)
           { backward = (\t -> lub (evaluate x >>= \r -> backward y (r - t))
                                   (evaluate y >>= \r -> backward x (r + t))) }
 
@@ -469,7 +469,7 @@ abz x = Lazy
 mul :: (Mochastic repr, Lub repr,
         Fraction a, Fractional (repr a)) =>
        Lazy s repr a -> Lazy s repr a -> Lazy s repr a
-mul x y = scalar2 (*) x y
+mul x y = (scalar2 (*) x y)
           { backward =
             (\t -> lub (do r <- evaluate x
                            insert_ (weight (recip (unsafeProbFraction (abs r))))
@@ -477,7 +477,7 @@ mul x y = scalar2 (*) x y
                        (do r <- evaluate y
                            insert_ (weight (recip (unsafeProbFraction (abs r))))
                            backward x (t / r))) }
-
+ 
 inv :: (Mochastic repr, Lub repr,
         Fraction a, Fractional (repr a)) =>
        Lazy s repr a -> Lazy s repr a
