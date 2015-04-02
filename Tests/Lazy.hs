@@ -74,9 +74,9 @@ allTests :: Test
 allTests = test [ "zeroDiv" ~: testL zeroDiv [(unit, 0, Any $ dirac 0)]
                 , "zeroPlusFst" ~: testL zeroPlusFst [(unit, 2, Any $ dirac 2)]
                 , "zeroPlusSnd" ~: testL zeroPlusSnd [(unit, unit, Any $ dirac 0)]
-                , "prog1s" ~: testL prog1s []
-                , "prog2s" ~: testL prog2s []
-                , "prog3s" ~: testL prog3s []
+                -- , "prog1s" ~: testL prog1s []
+                -- , "prog2s" ~: testL prog2s []
+                -- , "prog3s" ~: testL prog3s []
                 -- , "pair1fst" ~: testL pair1fst []
                 -- , "pair1fstSwap" ~: testL pair1fstSwap []
                 -- , "borelishSub" ~: testL borelishSub
