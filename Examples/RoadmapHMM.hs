@@ -54,3 +54,15 @@ roadmapProg1 = transMat `bind` \trans ->
                    dirac $ pair o s'
                   ))) start `bind` \x ->
                dirac (pair (fst_ x) (pair trans emit))
+
+roadmapProg2 :: (Integrate repr, Lambda repr, Mochastic repr) =>
+                repr (Vector Int) -> repr (Measure (Table, Table))
+roadmapProg2 o = transMat `bind` \trans ->
+                 emitMat `bind`  \emit  ->
+                 app (chain (vector 20
+                  (\ i -> lam $ \s ->
+                   transition trans s `bind` \s' ->
+                   factor (index (index emit s') (index o i)) `bind` \d ->
+                   dirac $ pair d s'
+                  ))) start `bind` \x ->
+                 dirac (pair trans emit)
