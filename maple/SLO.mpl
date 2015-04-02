@@ -13,6 +13,7 @@ SLO := module ()
   local ToAST, t_binds, t_pw, t_rel,
     into_pw, myprod, do_pw,
     mkProb, getCtx, instantiate, lambda_wrap, find_paths,
+    mkReal,
     fill_table, toProp, toType,
     twiddle, myint, myint_pw,
     fix_Heaviside,
@@ -20,6 +21,7 @@ SLO := module ()
     adjust_superpose,
     get_breakcond, merge_pw,
     MyHandler, getBinderForm, infer_type, join_type, join2type,
+    infer_type_prod, infer_type_sop, check_sop_type,
     simp_sup, simp_if, into_sup, simp_rel,
     simp_pw, simp_pw_equal, simp_pw3,
     simp_props,
@@ -33,6 +35,7 @@ SLO := module ()
   t_pw := 'specfunc(anything, piecewise)';
   t_rel := {`<`,`<=`,`=`,`<>`};
 
+  # SLO output goes into AST
   ModuleApply := proc(spec::Typed(anything,anything))
     local expr, typ, glob, gsiz, ctx, r, inp, meastyp, res, gnumbering;
     expr := op(1, spec);
@@ -49,6 +52,8 @@ SLO := module ()
       _EnvBinders := {};
       _EnvPathCond := `union`(op(map(toProp, glob)));
       NumericEventHandler(division_by_zero = MyHandler);
+      # simp first applied so piecewise is effective,
+      # then again in case eval "undoes" work of first simp call
       res := HAST(simp(eval(simp(eval(snd(inp)(c), 'if_'=piecewise)), Int=myint)), r);
     catch "Wrong kind of parameters in piecewise":
       error "Bug in Hakaru -> Maple translation, piecewise used incorrectly.";
@@ -599,7 +604,9 @@ SLO := module ()
       error "mkProb ln: %1", w;
     elif type(w, anything^{identical(1/2), identical(-1/2)}) then
       typ := infer_type(op(1,w), ctx);
-      if member(typ,{'Prob','Number'}) then
+      if typ = 'Prob' then
+        sqrt_(op(1,w))
+      elif typ = 'Number' then # is this right?
         w
       else
         mkProb(op(1,w), ctx) ^ op(2,w)
@@ -786,7 +793,7 @@ SLO := module ()
   end proc;
 
   infer_type := proc(e, ctx)
-    local typ, l, res;
+    local typ, l, res, k, t;
     if type(e, boolean) then
       'Bool'
     elif e = 'Pi' then Prob
@@ -905,6 +912,7 @@ SLO := module ()
   end proc;
 
   check_sop_type := proc(inferredType, actualType)
+    local compatible_types, k, t, sopType;
 
     compatible_types := proc(inf, act)
       if inf = 'Number' then
@@ -1442,7 +1450,7 @@ SLO := module ()
     inds := select(depends, inds, var);
     if inds={} then
       if type(expr, t_binds) then
-        subsop(1=myint(op(1,expr),b), expr)
+        subsop(1=myint(op(1,expr),b), expr) assuming op(_EnvPathCond);
       else
         res0 := int(expr, b);
         if type(res0, t_binds) and op(2,res0)=b then # didn't work, try harder

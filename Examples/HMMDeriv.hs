@@ -299,7 +299,6 @@ bindo f g = lam (\x -> app f x `bind` app g)
 -- Query: Given that the state is less than 8 at time 6,
 --        what's the posterior distribution over states at time 12?
 
-{-
 type Time  = Int
 type State = Int
 
@@ -324,6 +323,77 @@ transition :: (Mochastic repr) => repr State -> repr (Measure State)
 transition s = categorical (vector 20 (\s' ->
                if_ (and_ [less (s-2) s', less s' (s+2)]) 1 0))
 
+-- Transformation #1: Inline the definition of "chain" in terms of "reduce"
+-- from Language.Hakaru.Syntax into hmm.  Note that the type "s" is "State"
+-- and the type "a" is "()".
+
+hmm1 :: (Mochastic repr, Lambda repr) => repr (Measure State)
+hmm1 = liftM snd_ (app (reduce r z $
+                        mapV m $
+                        vector (12+1) $ \t ->
+                        lam $ \s ->
+                        emission t s `bind_`
+                        transition s `bind` \s' ->
+                        dirac (pair unit s'))
+                      10)
+    where r x y = lam (\s -> app x s `bind` \v1s1 ->
+                             unpair v1s1 $ \v1 s1 ->
+                             app y s1 `bind` \v2s2 ->
+                             unpair v2s2 $ \v2 s2 ->
+                             dirac (pair (concatV v1 v2) s2))
+          z     = lam (\s -> dirac (pair empty s))
+          m a   = lam (\s -> liftM (`unpair` pair . vector 1 . const)
+                                   (app a s))
+
+-- Transformation #2: Expand "mapV m $ ..." above using the
+-- definitions of "mapV" and "liftM", the monad laws, and the
+-- assumptions
+--  app (lam f) x ~~ f x
+--  size (vector n f) ~~ n
+--  index (vector n f) i ~~ f i
+--  unpair (pair x y) f ~~ f x y
+
+hmm2 :: (Mochastic repr, Lambda repr) => repr (Measure State)
+hmm2 = liftM snd_ (app (reduce r z $
+                        vector (12+1) $ \t ->
+                        lam $ \s ->
+                        emission t s `bind_`
+                        transition s `bind` \s' ->
+                        dirac (pair (vector 1 (const unit)) s'))
+                      10)
+    where r x y = lam (\s -> app x s `bind` \v1s1 ->
+                             unpair v1s1 $ \v1 s1 ->
+                             app y s1 `bind` \v2s2 ->
+                             unpair v2s2 $ \v2 s2 ->
+                             dirac (pair (concatV v1 v2) s2))
+          z     = lam (\s -> dirac (pair empty s))
+
+-- Transformation #3: note that every value above of type
+--  (Vector (), State)
+-- has the form
+--  (pair (vector n (const unit)) s)
+-- for some n and s.  (In particular, we can show
+--  concatV (vector n1 (const unit)) (vector n2 (const unit))
+--  ~~ vector (n1+n2) (const unit)
+-- from the definition of "concatV".)  And we never use the n, so
+-- let's represent (pair (vector n (const unit)) s) by simply "s".
+
+hmm3 :: (Mochastic repr, Lambda repr) => repr (Measure State)
+hmm3 = app (reduce r z $
+            vector (12+1) $ \t ->
+            lam $ \s ->
+            emission t s `bind_`
+            transition s `bind` \s' ->
+            dirac s')
+          10
+    where r x y = lam (\s -> app x s `bind` \s1 ->
+                             app y s1 `bind` \s2 ->
+                             dirac s2)
+          z     = lam (\s -> dirac s)
+
+-- Transformation #4: By the monad laws and eta-reduction, "r" above
+-- is exactly "bindo", and "z" is exactly "lam dirac".  So hmm ~~ hmm'
+
 -- Using the default implementation of "chain" in terms of "reduce",
 -- and eliminating the "unit"s, we can simplify "hmm" to
 
@@ -339,6 +409,7 @@ chain' :: (Mochastic repr, Lambda repr) =>
           repr (Vector (a -> Measure a)) -> repr (a -> Measure a)
 chain' = reduce bindo (lam dirac)
 
+{-
 -- in which the type of reduced elements is "State -> Measure State".
 -- To compute this exactly in polynomial time, we just need to represent these
 -- elements as tables instead.  That is, we observe that all our values of type
