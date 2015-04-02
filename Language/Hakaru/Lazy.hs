@@ -19,6 +19,7 @@ import Control.Monad (liftM, liftM2, (>=>))
 import Data.Maybe (isNothing)
 import Data.Function (on)
 import Unsafe.Coerce (unsafeCoerce)
+import Debug.Trace    
 
 ifTrue, ifFalse :: (Mochastic repr) => repr Bool ->
                    repr (Measure w) -> repr (Measure w)
@@ -127,9 +128,9 @@ evaluate z = forward z >>= \case
   Inr y        -> liftM inr (evaluate y)
   Nil          -> return nil
   Cons x y     -> liftM2 cons (evaluate x) (evaluate y)
-  Int n        -> return (fromInteger n)
-  Real r       -> return (fromRational r)
-  Prob r       -> return (fromRational r)
+  Int n        -> traceShow n $ return (fromInteger n)
+  Real r       -> traceShow r $ return (fromRational r)
+  Prob r       -> traceShow r $ return (fromRational r)
   Value a      -> return a
   Measure x    -> liftM (evaluateMeasure x) duplicateHeap
   Vector s f   -> evaluateVector s [] f
@@ -273,14 +274,18 @@ determineHeap = pop >>= \case Nothing -> return ()
                            Value ab -> do (x,y) <- insert (uncons ab)
                                           return [Let l (Value x),
                                                   Let r (Value y)]
-      Weight        rhs -> do Value x <- forward rhs
-                              insert_ (weight x)
+      Weight        rhs -> do x <- forward rhs
+                              insert_ (weight (foo x))
                               return []
       VBind l table rhs -> do v <- evaluatePlate table rhs
                               return [VLet l v]
       Let    _      _   -> return [entry]
       Unpair _ _    _   -> return [entry]
       VLet   _      _   -> return [entry]
+
+foo :: (Fractional (repr Prob)) => Hnf s repr Prob -> repr Prob
+foo (Value r) = r
+foo (Prob r) = fromRational r
 
 data Retrieval s repr a where
   RBind  :: Lazy s repr a ->                    Retrieval s repr a
@@ -442,13 +447,13 @@ instance (Lub repr, Mochastic repr, Order repr a) => Order (Lazy s repr) a where
 
 add :: (Mochastic repr, Lub repr, Num (repr a), Number a) =>
        Lazy s repr a -> Lazy s repr a -> Lazy s repr a
-add x y = scalar2 (+) x y
+add x y = (scalar2 (+) x y)
           { backward = (\t -> lub (evaluate x >>= \r -> backward y (t - r))
-                                  (evaluate y >>= \r -> backward x (t - r))) }
+                                  (evaluate y >>= \r -> backward x (t - r)) ) }
 
 sub :: (Mochastic repr, Lub repr, Num (repr a), Number a) =>
        Lazy s repr a -> Lazy s repr a -> Lazy s repr a
-sub x y = scalar2 (-) x y
+sub x y = (scalar2 (-) x y)
           { backward = (\t -> lub (evaluate x >>= \r -> backward y (r - t))
                                   (evaluate y >>= \r -> backward x (r + t))) }
 
@@ -469,7 +474,7 @@ abz x = Lazy
 mul :: (Mochastic repr, Lub repr,
         Fraction a, Fractional (repr a)) =>
        Lazy s repr a -> Lazy s repr a -> Lazy s repr a
-mul x y = scalar2 (*) x y
+mul x y = (scalar2 (*) x y)
           { backward =
             (\t -> lub (do r <- evaluate x
                            insert_ (weight (recip (unsafeProbFraction (abs r))))
@@ -477,7 +482,7 @@ mul x y = scalar2 (*) x y
                        (do r <- evaluate y
                            insert_ (weight (recip (unsafeProbFraction (abs r))))
                            backward x (t / r))) }
-
+ 
 inv :: (Mochastic repr, Lub repr,
         Fraction a, Fractional (repr a)) =>
        Lazy s repr a -> Lazy s repr a
