@@ -80,22 +80,20 @@ ourContext = do
   setImports modules
 
 closeLoop :: (Typeable a) => String -> IO a
-closeLoop s = do
-  result <- unsafeRunInterpreterWithArgs ourGHCOptions (ourContext >> action)
-  case result of Left err -> throw (InterpreterException err s')
-                 Right a -> return a
-  where
-    action =
+closeLoop s = action where
+  action = do
+    result <- unsafeRunInterpreterWithArgs ourGHCOptions $ ourContext >>
 #ifdef PATCHED_HINT
-      unsafeInterpret s' typeStr
+                unsafeInterpret s' typeStr
 #else
-      interpret s' undefined
+                interpret s' undefined
 #endif
-    s', typeStr :: String
-    s' = s ++ " :: " ++ typeStr
-    typeStr = replace ":" "Cons"
-            $ replace "[]" "Nil"
-            $ show (typeOf (getArg action))
+    case result of Left err -> throw (InterpreterException err s')
+                   Right a -> return a
+  s' = s ++ " :: " ++ typeStr
+  typeStr = replace ":" "Cons"
+          $ replace "[]" "Nil"
+          $ show (typeOf (getArg action))
 
 class (Typeable a) => Simplifiable a where
   mapleType :: a{-unused-} -> String
