@@ -22,12 +22,16 @@ import Data.Typeable (Typeable, typeOf)
 import Data.List (intercalate)
 import Data.List.Utils (replace)
 import System.MapleSSH (maple)
-import Language.Haskell.Interpreter hiding (typeOf)
-import Language.Haskell.Interpreter.Unsafe 
-
+import Language.Haskell.Interpreter.Unsafe (unsafeRunInterpreterWithArgs)
+import Language.Haskell.Interpreter (
 #ifdef PATCHED_HINT
-import Language.Haskell.Interpreter (unsafeInterpret)
+    unsafeInterpret,
+#else
+    interpret,
 #endif 
+    InterpreterError, MonadInterpreter, set, get, OptionVal((:=)),
+    searchPath, languageExtensions, Extension(UnknownExtension),
+    loadModules, setImports)
 
 import Language.Hakaru.Util.Lex (readMapleString)
 import Language.Hakaru.Paths
@@ -67,34 +71,23 @@ ourContext = do
 
   setImports modules
 
-closeLoop :: forall a . (Typeable a) => String -> IO a
-
-#ifdef PATCHED_HINT 
-closeLoop s = action where
-  action = do
-    result <- unsafeRunInterpreterWithArgs ourGHCOptions (ourContext >> unsafeInterpret s' typeStr)
-    case result of
-      Left err -> throw $ InterpreterException $ unlines ["Error when interpretting", s', show err]
-      Right a -> return a
-
-  s' = s ++ " :: " ++ typeStr 
-
-  r = replace ":" "Cons" . replace "[]" "Nil"
-  typeStr = r (show exprType) 
-  exprType = typeOf (getArg action)
-
+closeLoop :: (Typeable a) => String -> IO a
+closeLoop s = do
+  result <- unsafeRunInterpreterWithArgs ourGHCOptions (ourContext >> action)
+  case result of Left err -> throw (InterpreterException err s')
+                 Right a -> return a
+  where
+    action =
+#ifdef PATCHED_HINT
+      unsafeInterpret s' typeStr
 #else
-closeLoop s = action where
-  action = do
-    -- putStrLn ("To Haskell: " ++ s')
-    result <- unsafeRunInterpreterWithArgs ourGHCOptions (ourContext >> interpret s' undefined)
-    case result of
-      Left err -> throw $ InterpreterException $ unlines ["Error when interpretting", s', show err]
-      Right a -> return a
-
-  s' :: String
-  s' = s ++ " :: " ++ show (typeOf (getArg action))
-#endif 
+      interpret s' undefined
+#endif
+    s', typeStr :: String
+    s' = s ++ " :: " ++ typeStr
+    typeStr = replace ":" "Cons"
+            $ replace "[]" "Nil"
+            $ show (typeOf (getArg action))
 
 class (Typeable a) => Simplifiable a where
   mapleType :: a{-unused-} -> String
