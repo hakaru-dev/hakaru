@@ -37,6 +37,7 @@ library
                        Language.Hakaru.Partial,
                        Language.Hakaru.PrettyPrint,
                        Language.Hakaru.Distribution,
+                       Language.Hakaru.Simplifiable,
                        Language.Hakaru.Simplify,
                        Language.Hakaru.Any,
                        Language.Hakaru.Vector,

@@ -1,12 +1,14 @@
-{-# LANGUAGE DeriveDataTypeable, Rank2Types #-}
+{-# LANGUAGE DeriveDataTypeable, Rank2Types, ExistentialQuantification #-}
 {-# OPTIONS -Wall -Werror #-}
 
-module Language.Hakaru.Any (Any(Any, unAny), Any') where
+module Language.Hakaru.Any (Any(Any, unAny), Any',
+  AnySimplifiable(AnySimplifiable, unAnySimplifiable)) where
 
 import Language.Hakaru.Syntax (Lambda, Mochastic, Integrate)
 import Language.Hakaru.Embed (Embed) 
 import Language.Hakaru.PrettyPrint (PrettyPrint)
 import Language.Hakaru.Util.Pretty (Pretty(pretty))
+import Language.Hakaru.Simplifiable (Simplifiable)
 import Data.Typeable (Typeable)
 
 newtype Any a = Any { unAny :: Any' a }
@@ -26,3 +28,7 @@ instance Pretty (Any a) where
 
 type Any' a =
   forall repr. (Mochastic repr, Integrate repr, Lambda repr, Embed repr) => repr a
+
+data AnySimplifiable = forall a. (Simplifiable a) =>
+                       AnySimplifiable { unAnySimplifiable :: Any' a }
+  deriving Typeable

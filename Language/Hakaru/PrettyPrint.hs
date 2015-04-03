@@ -1,6 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, GADTs, ScopedTypeVariables, TypeFamilies #-}
 {-# OPTIONS -Wall -Werror #-}
-module Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode) where
+module Language.Hakaru.PrettyPrint (PrettyPrint,
+  runPrettyPrint, runPrettyPrintPrec, runPrettyPrintNamesPrec, leftMode) where
 
 -- Pretty-printing interpretation
 
@@ -8,6 +9,7 @@ import Language.Hakaru.Syntax
 import Language.Hakaru.Util.Pretty
 import Text.PrettyPrint hiding (parens, empty)
 import Language.Hakaru.Embed
+import Data.List ((\\))
 
 leftMode :: Doc -> String
 leftMode = renderStyle style{mode=LeftMode}
@@ -18,7 +20,15 @@ runPrettyPrint :: PrettyPrint a -> Doc
 runPrettyPrint pp = runPrettyPrintPrec pp 0
 
 runPrettyPrintPrec :: PrettyPrint a -> Int -> Doc
-runPrettyPrintPrec (PP a) p = sep (a [ 'x' : show i | i <- [0::Int ..] ] p)
+runPrettyPrintPrec (PP a) p = sep (a defaultNames p)
+
+runPrettyPrintNamesPrec :: PrettyPrint a -> [String] -> Int -> Doc
+runPrettyPrintNamesPrec (PP a) customNames p =
+  sep $ drop (length customNames)
+      $ a (customNames ++ (defaultNames \\ customNames)) p
+
+defaultNames :: [String]
+defaultNames = [ 'x' : show i | i <- [0::Int ..] ]
 
 instance Show (PrettyPrint a) where
   show        = show        . pretty
