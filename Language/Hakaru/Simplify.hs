@@ -20,6 +20,7 @@ import Language.Hakaru.Maple (Maple, runMaple)
 import Language.Hakaru.Any (Any)
 import Data.Typeable (Typeable, typeOf)
 import Data.List (intercalate)
+import Data.List.Utils (replace)
 import System.MapleSSH (maple)
 import Language.Haskell.Interpreter hiding (typeOf)
 import Language.Haskell.Interpreter.Unsafe 
