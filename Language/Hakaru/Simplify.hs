@@ -7,7 +7,8 @@ module Language.Hakaru.Simplify
   , simplify
   , toMaple
   , Simplifiable(mapleType)
-  , SimplifyException(MapleException,InterpreterException)) where
+  , MapleException(MapleException)
+  , InterpreterException(InterpreterException) ) where
 
 -- Take strings from Maple and interpret them in Haskell (Hakaru)
 
@@ -36,20 +37,27 @@ import Language.Haskell.Interpreter (
 import Language.Hakaru.Util.Lex (readMapleString)
 import Language.Hakaru.Paths
 
-
-data SimplifyException = MapleException String String
-                       | InterpreterException String
-                       deriving (Typeable)
-                       -- deriving (Show, Typeable)
+data MapleException       = MapleException String String
+  deriving Typeable
+data InterpreterException = InterpreterException InterpreterError String
+  deriving Typeable
 
 -- Maple prints errors with "cursors" (^) which point to the specific position
 -- of the error on the line above. The derived show instance doesn't preserve
 -- positioning of the cursor. 
-instance Show SimplifyException where 
-  show (MapleException a b) = "MapleException: \n" ++ a ++ "\n" ++ b
-  show (InterpreterException a) = "InterpreterException: \n" ++ a
+instance Show MapleException where
+  show (MapleException toMaple fromMaple)
+    = "MapleException:\n" ++ fromMaple ++
+      "\nfrom sending to Maple:\n" ++ toMaple
 
-instance Exception SimplifyException
+instance Show InterpreterException where
+  show (InterpreterException err cause)
+    = "InterpreterException:\n" ++ show err ++
+      "\nwhile interpreting:\n" ++ cause
+
+instance Exception MapleException
+
+instance Exception InterpreterException
 
 ourGHCOptions = case sandboxPackageDB of 
                   Nothing -> [] 
