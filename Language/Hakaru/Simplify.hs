@@ -7,7 +7,8 @@ module Language.Hakaru.Simplify
   , simplify
   , toMaple
   , Simplifiable(mapleType)
-  , SimplifyException(MapleException,InterpreterException)) where
+  , MapleException(MapleException)
+  , InterpreterException(InterpreterException) ) where
 
 -- Take strings from Maple and interpret them in Haskell (Hakaru)
 
@@ -20,31 +21,43 @@ import Language.Hakaru.Maple (Maple, runMaple)
 import Language.Hakaru.Any (Any)
 import Data.Typeable (Typeable, typeOf)
 import Data.List (intercalate)
+import Data.List.Utils (replace)
 import System.MapleSSH (maple)
-import Language.Haskell.Interpreter hiding (typeOf)
-import Language.Haskell.Interpreter.Unsafe 
-
+import Language.Haskell.Interpreter.Unsafe (unsafeRunInterpreterWithArgs)
+import Language.Haskell.Interpreter (
 #ifdef PATCHED_HINT
-import Language.Haskell.Interpreter (unsafeInterpret)
+    unsafeInterpret,
+#else
+    interpret,
 #endif 
+    InterpreterError, MonadInterpreter, set, get, OptionVal((:=)),
+    searchPath, languageExtensions, Extension(UnknownExtension),
+    loadModules, setImports)
 
 import Language.Hakaru.Util.Lex (readMapleString)
 import Language.Hakaru.Paths
 
-
-data SimplifyException = MapleException String String
-                       | InterpreterException String
-                       deriving (Typeable)
-                       -- deriving (Show, Typeable)
+data MapleException       = MapleException String String
+  deriving Typeable
+data InterpreterException = InterpreterException InterpreterError String
+  deriving Typeable
 
 -- Maple prints errors with "cursors" (^) which point to the specific position
 -- of the error on the line above. The derived show instance doesn't preserve
 -- positioning of the cursor. 
-instance Show SimplifyException where 
-  show (MapleException a b) = "MapleException: \n" ++ a ++ "\n" ++ b
-  show (InterpreterException a) = "InterpreterException: \n" ++ a
+instance Show MapleException where
+  show (MapleException toMaple fromMaple)
+    = "MapleException:\n" ++ fromMaple ++
+      "\nfrom sending to Maple:\n" ++ toMaple
 
-instance Exception SimplifyException
+instance Show InterpreterException where
+  show (InterpreterException err cause)
+    = "InterpreterException:\n" ++ show err ++
+      "\nwhile interpreting:\n" ++ cause
+
+instance Exception MapleException
+
+instance Exception InterpreterException
 
 ourGHCOptions = case sandboxPackageDB of 
                   Nothing -> [] 
@@ -66,34 +79,23 @@ ourContext = do
 
   setImports modules
 
-closeLoop :: forall a . (Typeable a) => String -> IO a
-
-#ifdef PATCHED_HINT 
-closeLoop s = action where
-  action = do
-    result <- unsafeRunInterpreterWithArgs ourGHCOptions (ourContext >> unsafeInterpret s' typeStr)
-    case result of
-      Left err -> throw $ InterpreterException $ unlines ["Error when interpretting", s', show err]
-      Right a -> return a
-
-  s' = s ++ " :: " ++ typeStr 
-
-  r = replace ":" "Cons" . replace "[]" "Nil"
-  typeStr = r (show exprType) 
-  exprType = typeOf (getArg action)
-
+closeLoop :: (Typeable a) => String -> IO a
+closeLoop s = do
+  result <- unsafeRunInterpreterWithArgs ourGHCOptions (ourContext >> action)
+  case result of Left err -> throw (InterpreterException err s')
+                 Right a -> return a
+  where
+    action =
+#ifdef PATCHED_HINT
+      unsafeInterpret s' typeStr
 #else
-closeLoop s = action where
-  action = do
-    -- putStrLn ("To Haskell: " ++ s')
-    result <- unsafeRunInterpreterWithArgs ourGHCOptions (ourContext >> interpret s' undefined)
-    case result of
-      Left err -> throw $ InterpreterException $ unlines ["Error when interpretting", s', show err]
-      Right a -> return a
-
-  s' :: String
-  s' = s ++ " :: " ++ show (typeOf (getArg action))
-#endif 
+      interpret s' undefined
+#endif
+    s', typeStr :: String
+    s' = s ++ " :: " ++ typeStr
+    typeStr = replace ":" "Cons"
+            $ replace "[]" "Nil"
+            $ show (typeOf (getArg action))
 
 class (Typeable a) => Simplifiable a where
   mapleType :: a{-unused-} -> String
@@ -151,8 +153,7 @@ simplify :: (Simplifiable a) => Expect Maple a -> IO (Any a)
 simplify e = do
   let slo = toMaple e
   hakaru <- do
-    -- putStrLn ("\nTo Maple: " ++ slo)
-    hopeString <- maple ("timelimit(5,Haskell(SLO:-AST(SLO(" ++ slo ++ "))));")
+    hopeString <- maple ("timelimit(15,Haskell(SLO:-AST(SLO(" ++ slo ++ "))));")
     case readMapleString hopeString of
       Just hakaru -> return hakaru
       Nothing -> throw $ MapleException slo hopeString
