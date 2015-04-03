@@ -7,7 +7,7 @@ import Language.Hakaru.Syntax (Measure, Lambda(lam), Order_)
 import Language.Hakaru.Disintegrate (Disintegrate, Disintegration(Disintegration), disintegrations)
 import Language.Hakaru.Expect (Expect(unExpect))
 import Language.Hakaru.Maple (Maple, runMaple)
-import Language.Hakaru.Simplify (simplify, Simplifiable, toMaple, SimplifyException(MapleException))
+import Language.Hakaru.Simplify (simplify, Simplifiable, toMaple)
 import Language.Hakaru.Any (Any(unAny), Any')
 import Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode)
 import Text.PrettyPrint (Doc)
@@ -27,12 +27,12 @@ instance Show Result where
   showsPrec 0 (Result a) = showChar '\n' . showsPrec 0 a
   showsPrec _ (Result a) =                 showsPrec 0 a
 
-data TestException = TestSimplifyException String String String -- (hakaru, toMaple, fromMaple)
+data TestException = TestSimplifyException String SomeException
                      deriving Typeable
 instance Exception TestException
 instance Show TestException where
-  show (TestSimplifyException prettyHakaru toM fromM) =
-    "TestSimplifyException\n**Hakaru**\n" ++ prettyHakaru ++ "\n\n**To Maple**\n" ++ toM ++ "\n\n**From Maple**\n" ++ fromM
+  show (TestSimplifyException prettyHakaru e) =
+    show e ++ "\nwhile simplifying Hakaru:\n" ++ prettyHakaru
 
 -- assert that we get a result and that no error is thrown
 assertResult :: [a] -> Assertion
@@ -55,11 +55,8 @@ testSS ts t' =
                     (assertEqual "testSS" `on` result) t' (unAny p))
           (t' : ts)
 
-handleSimplify :: PrettyPrint a -> SimplifyException -> IO (Any a)
-handleSimplify t (MapleException toMaple_ fromMaple) = 
-  do let pp = show $ result t 
-     throw $ TestSimplifyException pp toMaple_ fromMaple
-handleSimplify _ e = throw e
+handleSimplify :: PrettyPrint a -> SomeException -> IO (Any a)
+handleSimplify t e = throw (TestSimplifyException (show t) e)
 
 testD :: (Simplifiable env, Simplifiable a, Simplifiable b, Order_ a) =>
          (Disintegrate env -> Disintegrate (Measure (a,b))) ->
