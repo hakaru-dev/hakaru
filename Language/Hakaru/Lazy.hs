@@ -582,6 +582,12 @@ unlistM ab = choice [do store (Unnil ab)
                         store (Uncons l1 l2 ab)
                         return (Just (lazyLoc l1, lazyLoc l2))]
 
+-- vectorM :: (Mochastic repr, Lub repr) => Lazy s repr (Vector a) ->
+--            M s repr (Lazy s repr (Vector a))
+-- vectorM (Lazy (Return (Vector i f)) _) = Return (vector i f)
+-- vectorM ab = do l <- gensymVector
+--                 store (VLet l )
+
 instance (Mochastic repr, Lub repr) => Base (Lazy s repr) where
   unit              = scalar0 unit
   pair a b          = lazy (return (Pair a b))
@@ -717,7 +723,9 @@ instance (Backward ab xy) => Backward [ab] [xy] where
                          _                        -> reject
 
 -- TODO: Conditioning on an observed _vector_
-
+-- instance (Backward ab xy) => Backward (Vector ab) (Vector xy) where
+--     backward_ ab xy = undefined
+    
 -- TODO: instance Lambda, instance Integrate, instance Lub
 
 disintegrate :: (Mochastic repr, Lub repr, Backward ab a) =>
