@@ -440,34 +440,44 @@ instance (Lub repr, Mochastic repr, Order repr a) => Order (Lazy s repr) a where
   less  = comparison (<)  less
   equal = comparison (==) equal
 
-zero :: (Number a) => Hnf s repr a -> Bool
-zero (Int 0) = True
-zero (Real 0) = True
-zero (Prob 0) = True
-zero _ = False          
+isZero :: (Number a) => Hnf s repr a -> Bool
+isZero (Int 0) = True
+isZero (Real 0) = True
+isZero (Prob 0) = True
+isZero _ = False
 
-add :: (Mochastic repr, Lub repr, Num (repr a), Number a)  => 
+add :: (Mochastic repr, Lub repr, Num (repr a), Number a) => 
        Lazy s repr a -> Lazy s repr a -> Lazy s repr a
 add x y = Lazy
           (do fx <- forward x
               fy <- forward y
               let redo = forward (scalar2 (+) x y)
               case (fx,fy) of
-                (Value _ , s) -> do (if zero s then return fx else redo)
-                (s, Value _)  -> do (if zero s then return fy else redo)
                 (Int a,  Int b)  -> return (Int (a+b))
                 (Real a, Real b) -> return (Real (a+b))
                 (Prob a, Prob b) -> return (Prob (a+b))
-                _                -> redo)
+                (Value _, s) -> do (if isZero s then return fx else redo)
+                (s, Value _) -> do (if isZero s then return fy else redo)
+                _            -> redo)
+          (\t -> lub (evaluate x >>= \r -> backward y (t - r))
+                     (evaluate y >>= \r -> backward x (t - r)))
+
+sub :: (Mochastic repr, Lub repr, Num (repr a), Number a) => 
+       Lazy s repr a -> Lazy s repr a -> Lazy s repr a
+sub x y = Lazy
+          (do fx <- forward x
+              fy <- forward y
+              let redo = forward (scalar2 (-) x y)
+              case (fx,fy) of                
+                (Int a,  Int b)  -> return (Int (a-b))
+                (Real a, Real b) -> return (Real (a-b))
+                (Prob a, Prob b) -> return (Prob (a-b))
+                (Value _, s) -> do (if isZero s then return fx else redo)
+                (s, Value _) -> do (if isZero s then return fy else redo)
+                _            -> redo)
           (\t -> lub (evaluate x >>= \r -> backward y (r - t))
                      (evaluate y >>= \r -> backward x (r + t)))
-
-sub :: (Mochastic repr, Lub repr, Num (repr a), Number a) =>
-       Lazy s repr a -> Lazy s repr a -> Lazy s repr a
-sub x y = (scalar2 (-) x y)
-          { backward = (\t -> lub (evaluate x >>= \r -> backward y (r - t))
-                                  (evaluate y >>= \r -> backward x (r + t))) }
-
+          
 neg :: (Mochastic repr, Lub repr, Num (repr a), Number a) =>
        Lazy s repr a -> Lazy s repr a
 neg x = Lazy
@@ -482,17 +492,33 @@ abz x = Lazy
                               (ifTrue (equal 0 t) (dirac 0)))
          >>= backward x)
 
-mul :: (Mochastic repr, Lub repr,
-        Fraction a, Fractional (repr a)) =>
+isOne :: (Number a) => Hnf s repr a -> Bool
+isOne (Int 1) = True
+isOne (Real 1) = True
+isOne (Prob 1) = True
+isOne _ = False
+
+mul :: (Mochastic repr, Lub repr, Fractional (repr a), Fraction a) =>
        Lazy s repr a -> Lazy s repr a -> Lazy s repr a
-mul x y = (scalar2 (*) x y)
-          { backward =
-            (\t -> lub (do r <- evaluate x
-                           insert_ (weight (recip (unsafeProbFraction (abs r))))
-                           backward y (t / r))
-                       (do r <- evaluate y
-                           insert_ (weight (recip (unsafeProbFraction (abs r))))
-                           backward x (t / r))) }
+mul x y = Lazy
+          (do fx <- forward x
+              fy <- forward y
+              let redo = forward (scalar2 (*) x y)
+              case (fx,fy) of
+                (Int a,  Int b)  -> return (Int (a*b))
+                (Real a, Real b) -> return (Real (a*b))
+                (Prob a, Prob b) -> return (Prob (a*b))
+                (Value _, s) -> do (if isZero s then return s
+                                    else if isOne s then return fx else redo)
+                (s, Value _) -> do (if isZero s then return s
+                                    else if isOne s then return fy else redo)
+                _            -> redo)
+          (\t -> lub (do r <- evaluate x
+                         insert_ (weight (recip (unsafeProbFraction (abs r))))
+                         backward y (t / r))
+                     (do r <- evaluate y
+                         insert_ (weight (recip (unsafeProbFraction (abs r))))
+                         backward x (t / r)))
  
 inv :: (Mochastic repr, Lub repr,
         Fraction a, Fractional (repr a)) =>
