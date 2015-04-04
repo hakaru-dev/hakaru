@@ -1,56 +1,72 @@
-{-# LANGUAGE ScopedTypeVariables, TypeSynonymInstances, FlexibleInstances, DeriveDataTypeable #-}
-{-# LANGUAGE UndecidableInstances, ConstraintKinds, CPP, GADTs #-}
-{-# OPTIONS -W #-}
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, DeriveDataTypeable, CPP #-}
+{-# OPTIONS -Wall #-}
 
 module Language.Hakaru.Simplify
   ( closeLoop
   , simplify
   , toMaple
+  , openLoop
+  , main
   , Simplifiable(mapleType)
-  , SimplifyException(MapleException,InterpreterException)) where
+  , MapleException(MapleException)
+  , InterpreterException(InterpreterException) ) where
 
 -- Take strings from Maple and interpret them in Haskell (Hakaru)
 
-import Prelude hiding (Real)
 import Control.Exception
-import Language.Hakaru.Syntax (Measure, Vector, Prob, Real)
+import Language.Hakaru.Simplifiable (Simplifiable(mapleType))
 import Language.Hakaru.Expect (Expect, unExpect)
-import Language.Hakaru.Embed 
 import Language.Hakaru.Maple (Maple, runMaple)
-import Language.Hakaru.Any (Any)
+import Language.Hakaru.Any (Any(Any), AnySimplifiable(AnySimplifiable))
+import Language.Hakaru.PrettyPrint (runPrettyPrintNamesPrec)
+import System.IO (stderr, hPrint, hPutStrLn)
 import Data.Typeable (Typeable, typeOf)
-import Data.List (intercalate)
+import Data.List (tails, stripPrefix)
+import Data.List.Utils (replace)
+import Data.Char (isSpace)
 import System.MapleSSH (maple)
-import Language.Haskell.Interpreter hiding (typeOf)
-import Language.Haskell.Interpreter.Unsafe 
-
+import Language.Haskell.Interpreter.Unsafe (unsafeRunInterpreterWithArgs)
+import Language.Haskell.Interpreter (
 #ifdef PATCHED_HINT
-import Language.Haskell.Interpreter (unsafeInterpret)
-#endif 
+    unsafeInterpret,
+#else
+    interpret,
+#endif
+    InterpreterError(WontCompile), GhcError(GhcError),
+    MonadInterpreter, set, get, OptionVal((:=)),
+    searchPath, languageExtensions, Extension(UnknownExtension),
+    loadModules, setImports)
 
 import Language.Hakaru.Util.Lex (readMapleString)
 import Language.Hakaru.Paths
 
-
-data SimplifyException = MapleException String String
-                       | InterpreterException String
-                       deriving (Typeable)
-                       -- deriving (Show, Typeable)
+data MapleException       = MapleException String String
+  deriving Typeable
+data InterpreterException = InterpreterException InterpreterError String
+  deriving Typeable
 
 -- Maple prints errors with "cursors" (^) which point to the specific position
 -- of the error on the line above. The derived show instance doesn't preserve
--- positioning of the cursor. 
-instance Show SimplifyException where 
-  show (MapleException a b) = "MapleException: \n" ++ a ++ "\n" ++ b
-  show (InterpreterException a) = "InterpreterException: \n" ++ a
+-- positioning of the cursor.
+instance Show MapleException where
+  show (MapleException toMaple_ fromMaple)
+    = "MapleException:\n" ++ fromMaple ++
+      "\nafter sending to Maple:\n" ++ toMaple_
 
-instance Exception SimplifyException
+instance Show InterpreterException where
+  show (InterpreterException err cause)
+    = "InterpreterException:\n" ++ show err ++
+      "\nwhile interpreting:\n" ++ cause
 
-ourGHCOptions = case sandboxPackageDB of 
-                  Nothing -> [] 
-                  Just xs -> "-no-user-package-db" : map ("-package-db " ++) xs 
+instance Exception MapleException
 
-ourSearchPath = [ hakaruRoot ] 
+instance Exception InterpreterException
+
+ourGHCOptions, ourSearchPath :: [String]
+ourGHCOptions = case sandboxPackageDB of
+                  Nothing -> []
+                  Just xs -> "-no-user-package-db" : map ("-package-db " ++) xs
+ourSearchPath = [ hakaruRoot ]
 
 ourContext :: MonadInterpreter m => m ()
 ourContext = do
@@ -58,108 +74,89 @@ ourContext = do
 
   set [ searchPath := ourSearchPath ]
 
-  loadModules modules 
+  loadModules modules
 
-  -- "Tag" requires DataKinds to use type list syntax 
+  -- "Tag" requires DataKinds to use type list syntax
   exts <- get languageExtensions
-  set [ languageExtensions := (UnknownExtension "DataKinds" : exts) ] 
+  set [ languageExtensions := (UnknownExtension "DataKinds" : exts) ]
 
   setImports modules
 
-closeLoop :: forall a . (Typeable a) => String -> IO a
-
-#ifdef PATCHED_HINT 
+closeLoop :: (Typeable a) => String -> IO a
 closeLoop s = action where
   action = do
-    result <- unsafeRunInterpreterWithArgs ourGHCOptions (ourContext >> unsafeInterpret s' typeStr)
-    case result of
-      Left err -> throw $ InterpreterException $ unlines ["Error when interpretting", s', show err]
-      Right a -> return a
-
-  s' = s ++ " :: " ++ typeStr 
-
-  r = replace ":" "Cons" . replace "[]" "Nil"
-  typeStr = r (show exprType) 
-  exprType = typeOf (getArg action)
-
+    result <- unsafeRunInterpreterWithArgs ourGHCOptions $ ourContext >>
+#ifdef PATCHED_HINT
+                unsafeInterpret s' typeStr
 #else
-closeLoop s = action where
-  action = do
-    -- putStrLn ("To Haskell: " ++ s')
-    result <- unsafeRunInterpreterWithArgs ourGHCOptions (ourContext >> interpret s' undefined)
-    case result of
-      Left err -> throw $ InterpreterException $ unlines ["Error when interpretting", s', show err]
-      Right a -> return a
-
-  s' :: String
-  s' = s ++ " :: " ++ show (typeOf (getArg action))
-#endif 
-
-class (Typeable a) => Simplifiable a where
-  mapleType :: a{-unused-} -> String
-
-instance Simplifiable () where mapleType _ = "Unit"
-instance Simplifiable Int where mapleType _ = "Int"
-instance Simplifiable Real where mapleType _ = "Real"
-instance Simplifiable Prob where mapleType _ = "Prob"
-instance Simplifiable Bool where mapleType _ = "Bool"
-
-instance (Simplifiable a, Simplifiable b) => Simplifiable (a,b) where
-  mapleType _ = "Pair(" ++ mapleType (undefined :: a) ++ "," ++
-                           mapleType (undefined :: b) ++ ")"
-
-instance Simplifiable a => Simplifiable [a] where
-  mapleType _ = "List(" ++ mapleType (undefined :: a) ++ ")"
-
-instance Simplifiable a => Simplifiable (Measure a) where
-  mapleType _ = "Measure(" ++ mapleType (undefined :: a) ++ ")"
-
-instance Simplifiable a => Simplifiable (Vector a) where
-  mapleType _ = "MVector(" ++ mapleType (undefined :: a) ++ ")"
-
-instance (Simplifiable a, Simplifiable b) => Simplifiable (a -> b) where
-  mapleType _ = "Arrow(" ++ mapleType (undefined :: a) ++ "," ++
-                            mapleType (undefined :: b) ++ ")"
-
-instance (SingI xss, All2 Simplifiable xss, SimplEmbed t, Typeable (Tag t xss)) => Simplifiable (Tag t xss) where 
-  mapleType _ = concat
-    [ "Tagged(" 
-    , mapleTypeEmbed (undefined :: t) 
-    , ","
-    , typeList . map typeList . go2 $ (sing :: Sing xss)
-    , ")"
-    ]
-    
-    where 
-      argOf :: f x -> x 
-      argOf _ = undefined
- 
-      typeList xs = "[" ++ intercalate "," xs ++ "]" 
-    
-      go2 :: All2 Simplifiable xs => Sing xs -> [[String]]
-      go2 SNil = []
-      go2 (SCons x xs) = go1 x : go2 xs 
-    
-      go1 :: All Simplifiable xs => Sing xs -> [String]
-      go1 SNil = []
-      go1 (SCons x xs) = mapleType (argOf x) : go1 xs 
+                interpret s' undefined
+#endif
+    case result of Left err -> throw (InterpreterException err s')
+                   Right a -> return a
+  s' = s ++ " :: " ++ typeStr
+  typeStr = replace ":" "Cons"
+          $ replace "[]" "Nil"
+          $ show (typeOf (getArg action))
 
 mkTypeString :: (Simplifiable a) => String -> a -> String
 mkTypeString s t = "Typed(" ++ s ++ ", " ++ mapleType t ++ ")"
 
 simplify :: (Simplifiable a) => Expect Maple a -> IO (Any a)
 simplify e = do
-  let slo = toMaple e
-  hakaru <- do
-    -- putStrLn ("\nTo Maple: " ++ slo)
-    hopeString <- maple ("timelimit(5,Haskell(SLO:-AST(SLO(" ++ slo ++ "))));")
-    case readMapleString hopeString of
-      Just hakaru -> return hakaru
-      Nothing -> throw $ MapleException slo hopeString
+  hakaru <- simplify' e
   closeLoop ("Any (" ++ hakaru ++ ")")
+
+simplify' :: (Simplifiable a) => Expect Maple a -> IO String
+simplify' e = do
+  let slo = toMaple e
+  hopeString <- maple ("timelimit(15,Haskell(SLO:-AST(SLO(" ++ slo ++ "))));")
+  case readMapleString hopeString of
+    Just hakaru -> return hakaru
+    Nothing -> throw (MapleException slo hopeString)
 
 getArg :: f a -> a
 getArg = undefined
 
 toMaple :: (Simplifiable a) => Expect Maple a -> String
 toMaple e = mkTypeString (runMaple (unExpect e) 0) (getArg e)
+
+main :: IO ()
+main = action `catch` handler1 `catch` handler0 where
+  action :: IO ()
+  action = do s <- readFile "/tmp/t" -- getContents
+              let (before, middle, after) = trim s
+              middle' <- simplifyAny middle
+              putStr (before ++ middle' ++ after)
+  handler1 ::  InterpreterError -> IO ()
+  handler1 (WontCompile es) = sequence_ [ hPutStrLn stderr msg
+                                        | GhcError msg <- es ]
+  handler1 exception = throw exception
+  handler0 :: SomeException -> IO ()
+  handler0 = hPrint stderr
+
+trim :: String -> (String, String, String)
+trim s = let (before, s') = span isSpace s
+             (after', middle') = span isSpace (reverse s')
+         in (before, reverse middle', reverse after')
+
+simplifyAny :: String -> IO String
+simplifyAny s = do
+  (names, AnySimplifiable e) <- openLoop [] s
+  Any e' <- simplify e
+  return (show (runPrettyPrintNamesPrec e' names 0))
+
+openLoop :: [String] -> String -> IO ([String], AnySimplifiable)
+openLoop names s =
+  fmap ((,) names) (closeLoop ("AnySimplifiable (" ++ s ++ ")")) `catch` h
+  where
+    h :: InterpreterException -> IO ([String], AnySimplifiable)
+    h (InterpreterException (WontCompile es) _)
+      | not (null unbound) && not (any (`elem` names) unbound)
+      = openLoop (unbound ++ names) (unlines header ++ s)
+      where unbound = [ init msg''
+                      | GhcError msg <- es
+                      , msg' <- tails msg
+                      , Just msg'' <- [stripPrefix ": Not in scope: `" msg']
+                      , last msg'' == '\'' ]
+            header = [ "lam $ \\" ++ name ++ " ->" | name <- unbound ]
+    h (InterpreterException exception _) = throw exception

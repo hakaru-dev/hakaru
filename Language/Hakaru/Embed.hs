@@ -128,13 +128,6 @@ typeRepSing2 (SCons x xs) = mkTyConApp consTyCon [ typeRepSing1 x, typeRepSing2 
 type Cons (x :: k) (xs :: [k]) = x ': xs 
 type Nil = ('[] :: [k])
 
-replace :: forall a. Eq a => [a] -> [a] -> [a] -> [a]
-replace str with = go where 
-  n = length str 
-  go [] = [] 
-  go s@(x:xs) | str `isPrefixOf` s = let (_,b) = splitAt n s in with ++ go b
-              | otherwise          = x : go xs 
-    
 type EmbeddableConstraint t = 
   (SingI (Code t), All SingI (Code t), All2 SingI (Code t)) 
 
