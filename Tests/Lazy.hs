@@ -35,7 +35,7 @@ try m = runCompose
       $ lam $ \env ->
       lam $ \t -> runLazy
       $ liftM snd_
-      $ disintegrate (pair (scalar0 t) unit) (m (scalar0 env))
+      $ disintegrate (pair (lazy $ scalar0 t) unit) (m (lazy $ scalar0 env))
 
 recover :: (Typeable a) => PrettyPrint a -> IO (Any a)
 recover hakaru = closeLoop ("Any (" ++ leftMode (runPrettyPrint hakaru) ++ ")")
