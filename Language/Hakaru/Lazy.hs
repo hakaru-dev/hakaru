@@ -477,6 +477,28 @@ sub x y = Lazy
                 _            -> redo)
           (\t -> lub (evaluate x >>= \r -> backward y (r - t))
                      (evaluate y >>= \r -> backward x (r + t)))
+
+isOne :: (Number a) => Hnf s repr a -> Bool
+isOne (Int 1) = True
+isOne (Real 1) = True
+isOne (Prob 1) = True
+isOne _ = False
+
+mul :: (Mochastic repr, Lub repr, Num (repr a), Number a) => 
+       Lazy s repr a -> Lazy s repr a -> Lazy s repr a
+mul x y = lazy
+          (do fx <- forward x
+              fy <- forward y
+              let redo = scalar2 (*) x y
+              case (fx,fy) of
+                (Int a,  Int b)  -> return (Int (a*b))
+                (Real a, Real b) -> return (Real (a*b))
+                (Prob a, Prob b) -> return (Prob (a*b))
+                (Value _, s) -> do (if isZero s then return s
+                                    else if isOne s then return fx else redo)
+                (s, Value _) -> do (if isZero s then return s
+                                    else if isOne s then return fy else redo)
+                _            -> redo)          
           
 neg :: (Mochastic repr, Lub repr, Num (repr a), Number a) =>
        Lazy s repr a -> Lazy s repr a
@@ -502,36 +524,17 @@ abz x = Lazy
                                     (ifTrue (equal 0 t) (dirac 0)))
                >>= backward x)
 
-isOne :: (Number a) => Hnf s repr a -> Bool
-isOne (Int 1) = True
-isOne (Real 1) = True
-isOne (Prob 1) = True
-isOne _ = False
-
-mul :: (Mochastic repr, Lub repr, Fractional (repr a), Fraction a) =>
-       Lazy s repr a -> Lazy s repr a -> Lazy s repr a
-mul x y = Lazy
-          (do fx <- forward x
-              fy <- forward y
-              let redo = scalar2 (*) x y
-              case (fx,fy) of
-                (Int a,  Int b)  -> return (Int (a*b))
-                (Real a, Real b) -> return (Real (a*b))
-                (Prob a, Prob b) -> return (Prob (a*b))
-                (Value _, s) -> do (if isZero s then return s
-                                    else if isOne s then return fx else redo)
-                (s, Value _) -> do (if isZero s then return s
-                                    else if isOne s then return fy else redo)
-                _            -> redo)
-          (\t -> lub (do r <- evaluate x
-                         insert_ (weight (recip (unsafeProbFraction (abs r))))
-                         backward y (t / r))
-                     (do r <- evaluate y
-                         insert_ (weight (recip (unsafeProbFraction (abs r))))
-                         backward x (t / r)))
+sign :: (Mochastic repr, Lub repr, Num (repr a), Number a) =>
+        Lazy s repr a -> Lazy s repr a
+sign x = lazy
+         (do fx <- forward x
+             case fx of
+               Int a  -> return (Int (signum a))
+               Real a -> return (Real (signum a))
+               Prob a -> return (Prob (signum a))
+               _      -> scalar1 signum x)
  
-inv :: (Mochastic repr, Lub repr,
-        Fraction a, Fractional (repr a)) =>
+inv :: (Mochastic repr, Lub repr, Fraction a, Fractional (repr a)) =>
        Lazy s repr a -> Lazy s repr a
 inv x = Lazy
         (do fx <- forward x
@@ -546,35 +549,55 @@ instance (Mochastic repr, Lub repr) => Num (Lazy s repr Int) where
   -- TODO: constant propagation for statically known integers
   (+) = add
   (-) = sub
-  (*) = (lazy.) . scalar2 (*) -- TODO backward multiplication for Int
+  x * y = (mul x y)
+    { backward = (\t ->
+        lub (do r <- evaluate x
+                n <- lift counting
+                insert_ (ifTrue (equal (r * n) t))
+                backward y n)
+            (do r <- evaluate y
+                n <- lift counting
+                insert_ (ifTrue (equal (n * r) t))
+                backward x n)) }
   negate = neg
   abs = abz
-  signum x = Lazy
-    (liftM (\case Int   a -> Int   (signum a)
-                  Value a -> Value (signum a))
-           (forward x))
-    (\t -> do n <- lift counting
-              insert_ (ifTrue (equal (signum n) t))
-              backward x n)
+  signum x = (sign x)
+             { backward = (\t -> do n <- lift counting
+                                    insert_ (ifTrue (equal (signum n) t))
+                                    backward x n) }
   fromInteger n = Lazy (return (Int n))
                        (\t -> insert_ (ifTrue (equal (fromInteger n) t)))
 
 instance (Mochastic repr, Lub repr) => Num (Lazy s repr Real) where
   (+) = add
   (-) = sub
-  (*) = mul
+  x * y = (mul x y)
+    { backward = (\t ->
+        lub (do r <- evaluate x
+                insert_ (weight (recip (unsafeProbFraction (abs r))))
+                backward y (t / r))
+            (do r <- evaluate y
+                insert_ (weight (recip (unsafeProbFraction (abs r))))
+                backward x (t / r))) }
   negate = neg
   abs = abz
-  signum = lazy . scalar1 signum
+  signum = sign
   fromInteger n = lazy (return (Real (fromInteger n)))
 
 instance (Mochastic repr, Lub repr) => Num (Lazy s repr Prob) where
   (+) = add  
   (-) = sub
-  (*) = mul
+  x * y = (mul x y)
+    { backward = (\t ->
+        lub (do r <- evaluate x
+                insert_ (weight (recip (unsafeProbFraction (abs r))))
+                backward y (t / r))
+            (do r <- evaluate y
+                insert_ (weight (recip (unsafeProbFraction (abs r))))
+                backward x (t / r))) }
   negate = neg
   abs = abz
-  signum = lazy . scalar1 signum
+  signum = sign
   fromInteger n = lazy (return (Prob (fromInteger n)))
 
 instance (Mochastic repr, Lub repr) =>
