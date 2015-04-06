@@ -110,15 +110,15 @@ roadmapProg3 o = transMat `bind` \trans ->
                  dirac (pair trans emit)
 
 mcmc' :: (Lambda repr, Integrate repr, Mochastic repr) =>
-     repr a -> repr a -> repr (Measure a)
-mcmc' old new =
-  let_ (density' new / density' old) $ \ratio ->
+         repr (Vector Int) -> repr a -> repr a -> repr (Measure a)
+mcmc' o old new =
+  let_ (density' o new / density' o old) $ \ratio ->
     bern (min_ 1 ratio) `bind` \accept ->
     dirac (if_ accept new old)
 
 density' :: (Lambda repr, Integrate repr, Mochastic repr) =>
-            repr a -> repr Prob
-density' a = undefined
+            repr (Vector Int) -> repr a -> repr Prob
+density' o a = undefined
 
 resampleRow :: (Lambda repr, Integrate repr, Mochastic repr) =>
                repr Table -> repr (Measure Table)
@@ -140,4 +140,4 @@ roadmapProg4  :: (Integrate repr, Lambda repr, Mochastic repr) =>
 roadmapProg4 o s  = unpair s (\ trans emit ->
                               resampleRow trans `bind` \trans' ->
                               resampleRow emit  `bind` \emit' ->
-                              mcmc' (pair trans emit) (pair trans' emit'))
+                              mcmc' o (pair trans emit) (pair trans' emit'))
