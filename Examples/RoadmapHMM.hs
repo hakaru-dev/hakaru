@@ -109,40 +109,35 @@ roadmapProg3 o = transMat `bind` \trans ->
                  start `bind` \x ->
                  dirac (pair trans emit)
 
-mcmc' :: (Lambda repr, Integrate repr, Mochastic repr, Order_ a) =>
-     repr (Expect' a) -> repr (Expect' a) -> repr (Measure a) ->
-     repr (Measure (Expect' a))
-mcmc' old new target =
-  let_ (density' target new / density' target old) $ \ratio ->
+mcmc' :: (Lambda repr, Integrate repr, Mochastic repr) =>
+     repr a -> repr a -> repr (Measure a)
+mcmc' old new =
+  let_ (density' new / density' old) $ \ratio ->
     bern (min_ 1 ratio) `bind` \accept ->
     dirac (if_ accept new old)
 
-density' :: (Lambda repr, Integrate repr, Mochastic repr, Order_ a) =>
-            repr (Measure a) -> repr (Expect' a) -> repr Prob
-density' m a = undefined
+density' :: (Lambda repr, Integrate repr, Mochastic repr) =>
+            repr a -> repr Prob
+density' a = undefined
+
+resampleRow :: (Lambda repr, Integrate repr, Mochastic repr) =>
+               repr Table -> repr (Measure Table)
+resampleRow t = symDirichlet (size t) 1 `bind`
+                categorical `bind` \ri ->
+                let_ (index t ri) (\row ->
+                symDirichlet (size row) 1 `bind` \row' ->
+                dirac $ vector (size t) (\ i ->
+                                         if_ (equal_ i ri)
+                                         row'
+                                         (index t i)))
 
 -- Resample a row of both the emission and transmission matrices
 
 roadmapProg4  :: (Integrate repr, Lambda repr, Mochastic repr) =>
-                Expect repr (Vector Int) ->
-                Expect repr (Table, Table) ->
-                Expect repr (Measure (Table, Table))
+                repr (Vector Int) ->
+                repr (Table, Table) ->
+                repr (Measure (Table, Table))
 roadmapProg4 o s  = unpair s (\ trans emit ->
-                            symDirichlet (size trans) 1 `bind` \td ->
-                            symDirichlet (size emit)  1 `bind` \ed ->
-                            categorical td `bind` \ti ->
-                            categorical ed `bind` \ei ->
-                            let_ (index trans ti) (\trow ->
-                            symDirichlet (size trow) 1 `bind` \trow' ->
-                            let_ (vector (size trans) (\i ->
-                                                 if_ (equal_ i ti)
-                                                 trow'
-                                                 (index trans i))) (\ trans' ->
-                            let_ (index emit ei) (\erow ->
-                            symDirichlet (size erow) 1 `bind` \erow' ->
-                            let_ (vector (size emit) (\i ->
-                                                 if_ (equal_ i ei)
-                                                 erow'
-                                                 (index emit i))) (\ emit' ->
-                            mcmc' (pair trans emit) (pair trans' emit')
-                                  (roadmapProg3 o))))))
+                              resampleRow trans `bind` \trans' ->
+                              resampleRow emit  `bind` \emit' ->
+                              mcmc' (pair trans emit) (pair trans' emit'))
