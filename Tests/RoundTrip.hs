@@ -79,6 +79,7 @@ testMeasureReal = test
   , "t45" ~: testSS [t46,t47] t45
   , "t50" ~: testS t50
   , "t51" ~: testS t51
+  , "t68" ~: testS t68
   , "testexponential" ~: testS testexponential
   , "testcauchy" ~: testS testCauchy
     -- "two_coins" ~: testS two_coins -- needs support for lists
@@ -628,6 +629,26 @@ t66 = dirac (sqrt_ (3 + sqrt_ 3))
 
 t67 :: (Lambda repr, Mochastic repr) => repr (Prob -> Real -> Measure Prob)
 t67 = lam $ \p -> lam $ \r -> dirac (exp_ (r * fromProb p))
+
+t68 :: (Lambda repr, Mochastic repr) => repr (Prob -> Prob -> Real -> Measure Real)
+t68 = lam $ \x4 ->
+      lam $ \x5 ->
+      lam $ \x1 ->
+      lebesgue `bind` \x2 ->
+      lebesgue `bind` \x3 ->
+      weight (exp_ (-(x2 - x3) * (x2 - x3)
+                     * recip (fromProb (2 * exp_ (log_ x4 * 2))))
+              * recip x4
+              * recip (exp_ (log_ (2 * pi_) * (1 / 2))))
+             (weight (exp_ (-(x1 - x3) * (x1 - x3)
+                             * recip (fromProb (2 * exp_ (log_ x5 * 2))))
+                      * recip x5
+                      * recip (exp_ (log_ (2 * pi_) * (1 / 2))))
+                     (weight (exp_ (-x3 * x3
+                                     * recip (fromProb (2 * exp_ (log_ x4 * 2))))
+                              * recip x4
+                              * recip (exp_ (log_ (2 * pi_) * (1 / 2))))
+                             (dirac x2)))
 
 -- Testing round-tripping of some other distributions
 testexponential :: Mochastic repr => repr (Measure Prob)
