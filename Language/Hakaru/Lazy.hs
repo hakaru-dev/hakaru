@@ -546,7 +546,6 @@ inv x = Lazy
                   backward x (recip t))
 
 instance (Mochastic repr, Lub repr) => Num (Lazy s repr Int) where
-  -- TODO: constant propagation for statically known integers
   (+) = add
   (-) = sub
   x * y = (mul x y)
