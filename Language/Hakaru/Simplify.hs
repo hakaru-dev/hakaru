@@ -54,6 +54,9 @@ instance Show MapleException where
       "\nafter sending to Maple:\n" ++ toMaple_
 
 instance Show InterpreterException where
+  show (InterpreterException (WontCompile es) cause)
+    = "InterpreterException:\n" ++ unlines [ msg | GhcError msg <- es ] ++
+      "\nwhile interpreting:\n" ++ cause
   show (InterpreterException err cause)
     = "InterpreterException:\n" ++ show err ++
       "\nwhile interpreting:\n" ++ cause
