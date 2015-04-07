@@ -156,7 +156,10 @@ instance Mochastic PrettyPrint where
                 $ k' xs 2)
   lebesgue      = string "lebesgue"
   counting      = string "counting"
-  superpose [(p,m)] = apply2 "weight" p m
+  superpose [(PP pp, PP m)] = PP (\xs p -> parens (p > 0)
+                                         $ text "weight" <+> sep (pp xs 11)
+                                                         <+> char '$'
+                                         : m xs 0)
   superpose pms = applyPairs "superpose" pms
   uniform       = apply2 "uniform"
   normal        = apply2 "normal"
