@@ -51,7 +51,8 @@ testMeasureProb = test [
     "t42" ~: testSS [t42] (dirac 1),
     "t49" ~: testSS [] t49,
     "t61" ~: testSS [t61] t61',
-    "t66" ~: testSS [] t66
+    "t66" ~: testSS [] t66,
+    "t67" ~: testSS [] t67
     ]
 
 testMeasureReal :: Test
@@ -624,6 +625,9 @@ t65' = lam $ \t ->
 
 t66 :: (Mochastic repr) => repr (Measure Prob)
 t66 = dirac (sqrt_ (3 + sqrt_ 3))
+
+t67 :: (Lambda repr, Mochastic repr) => repr (Prob -> Real -> Measure Prob)
+t67 = lam $ \p -> lam $ \r -> dirac (exp_ (r * fromProb p))
 
 -- Testing round-tripping of some other distributions
 testexponential :: Mochastic repr => repr (Measure Prob)
