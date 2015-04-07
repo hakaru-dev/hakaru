@@ -11,7 +11,7 @@ import Language.Hakaru.Syntax
 import Language.Hakaru.Sample
 import Language.Hakaru.Expect
 import Language.Hakaru.Embed
-
+import Language.Hakaru.Disintegrate
 
 -- To keep things concrete we will assume 5 latent states, 3 observed states
 -- and a sequence of 20 transitions. We know we start in latent state 0.
@@ -108,3 +108,36 @@ roadmapProg3 o = transMat `bind` \trans ->
                                         dirac s')))
                  start `bind` \x ->
                  dirac (pair trans emit)
+
+mcmc' :: (Lambda repr, Integrate repr, Mochastic repr) =>
+         repr (Vector Int) -> repr a -> repr a -> repr (Measure a)
+mcmc' o old new =
+  let_ (density' o new / density' o old) $ \ratio ->
+    bern (min_ 1 ratio) `bind` \accept ->
+    dirac (if_ accept new old)
+
+density' :: (Lambda repr, Integrate repr, Mochastic repr) =>
+            repr (Vector Int) -> repr a -> repr Prob
+density' o a = undefined
+
+resampleRow :: (Lambda repr, Integrate repr, Mochastic repr) =>
+               repr Table -> repr (Measure Table)
+resampleRow t = symDirichlet (size t) 1 `bind`
+                categorical `bind` \ri ->
+                let_ (index t ri) (\row ->
+                symDirichlet (size row) 1 `bind` \row' ->
+                dirac $ vector (size t) (\ i ->
+                                         if_ (equal_ i ri)
+                                         row'
+                                         (index t i)))
+
+-- Resample a row of both the emission and transmission matrices
+
+roadmapProg4  :: (Integrate repr, Lambda repr, Mochastic repr) =>
+                repr (Vector Int) ->
+                repr (Table, Table) ->
+                repr (Measure (Table, Table))
+roadmapProg4 o s  = unpair s (\ trans emit ->
+                              resampleRow trans `bind` \trans' ->
+                              resampleRow emit  `bind` \emit' ->
+                              mcmc' o (pair trans emit) (pair trans' emit'))
