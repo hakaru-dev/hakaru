@@ -80,6 +80,7 @@ testMeasureReal = test
   , "t50" ~: testS t50
   , "t51" ~: testS t51
   , "t68" ~: testS t68
+  , "t68'" ~: testS t68'
   , "testexponential" ~: testS testexponential
   , "testcauchy" ~: testS testCauchy
     -- "two_coins" ~: testS two_coins -- needs support for lists
@@ -649,6 +650,9 @@ t68 = lam $ \x4 ->
                               * recip x4
                               * recip (exp_ (log_ (2 * pi_) * (1 / 2))))
                              (dirac x2)))
+
+t68' :: (Lambda repr, Mochastic repr) => repr (Prob -> Real -> Measure Real)
+t68' = lam $ \noise -> app (app t68 noise) noise
 
 -- Testing round-tripping of some other distributions
 testexponential :: Mochastic repr => repr (Measure Prob)
