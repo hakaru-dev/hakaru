@@ -12,12 +12,9 @@ t64 - some internal change has made a '42' come out as a weight.
    this feels like a new bug
 t65 - completely different result now -- looks like an integral no
   longer computes.
-t27 - fromProb (-1/4) !!! [bug in type inference somewhere]
 t45 - pw/domain interaction with density recognition
 t50 - Maple returns Ei in result, which does not exist in Hakaru
-t68 - type inference problem
 t52 - ordering, same kind of issue as t60
-mhPriorProp - ordering
 testKernel - failure in recognition of density (and categorical)
 
 Syntax:
@@ -37,6 +34,7 @@ t12 - no simplification because change of variables not implemented
 t13 - type inference case missing
 t14 - type inference bug?
 t16 - hmm, nested integral of normal which should have worked!
+t17 - ordering
 t18 - ordering
 t19 - bug (new symptom)
 t20 - bug (likely same as t19)
