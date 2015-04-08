@@ -144,7 +144,8 @@ test-suite roundtrip_test
                        template-haskell >= 2.4 && < 3.0,
                        generics-sop >= 0.1.0,
                        mtl >= 2.1,
-                       vector >=0.10 && <0.11
+                       vector >=0.10 && <0.11,
+                       MissingH >= 0.18.6
 
 
     if flag(patchedHint)
