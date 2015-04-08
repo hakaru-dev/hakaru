@@ -23,7 +23,7 @@ SLO := module ()
     MyHandler, getBinderForm, infer_type, join_type, join2type,
     infer_type_prod, infer_type_sop, check_sop_type,
     simp_sup, simp_if, into_sup, simp_rel,
-    simp_pw, simp_pw_equal, simp_pw3,
+    simp_pw, simp_pw_equal, simp_pw3, simp_Or,
     simp_props,
     comp2, comp_algeb, compare, comp_list,
 
@@ -54,7 +54,11 @@ SLO := module ()
       NumericEventHandler(division_by_zero = MyHandler);
       # simp first applied so piecewise is effective,
       # then again in case eval "undoes" work of first simp call
-      res := HAST(simp(eval(simp(eval(snd(inp)(c), 'if_'=piecewise)), Int=myint)), r);
+      res := snd(inp(c));
+      res := eval(res, 'if_'=piecewise);
+      res := simp(res);
+      res := eval(res, Int=myint);
+      res := HAST(simp(res), r);
     catch "Wrong kind of parameters in piecewise":
       error "Bug in Hakaru -> Maple translation, piecewise used incorrectly.";
     finally :
@@ -434,6 +438,18 @@ SLO := module ()
     end;
   end proc;
 
+  simp_Or := proc(a,b)
+    if type(a, anything = anything) and type(b, anything < anything)
+      and op(1,a) = op(1,b) and op(2,a) = op(2, b) then
+      op(1,a) <= op(2,a)
+    elif type(b, anything = anything) and type(a, anything < anything)
+      and op(1,a) = op(1,b) and op(2,a) = op(2, b) then
+      op(1,a) <= op(2,a)
+    else
+      Or(a,b)
+    end if;
+  end proc;
+
   # takes the = conditions and applies & simplifies them
   simp_pw_equal := proc(pw)
     local n, rest, aa, f;
@@ -523,7 +539,8 @@ SLO := module ()
       end if;
       if res::t_pw and op(3,res)::t_pw and nops(op(3,res))=3 and
          normal(op([3,2],res) - op(2,res)) = 0 then
-          res := simp_pw(piecewise(Or(op(1,res),op([3,1],res)), op(2,res), op([3,3],res)));
+          b1 := simp_Or(op(1,res),op([3,1],res));
+          res := simp_pw(piecewise(b1, op(2,res), op([3,3],res)));
       end if;
       if res::t_pw and op(3,res)::t_pw and nops(op(3,res))=3 and
          normal(op([3,3],res) - op(2,res)) = 0 then
@@ -597,7 +614,7 @@ SLO := module ()
         end if;
       end if;
     elif type(w, 'exp'(anything)) then
-      exp_(op(1,w));
+      exp_(mkReal(op(1,w), ctx));
     elif type(w, 'erf'(anything)) then
       erf_(mkProb(op(1,w)));
     elif type(w, 'ln'(anything)) then
@@ -637,7 +654,25 @@ SLO := module ()
   end proc;
 
   mkReal := proc(w, ctx)
-    error "don't know how to make (%1) real", w;
+    local prob, rl, typ;
+    if w::`*` then
+      rl, prob := selectremove(x->evalb(infer_type(x,ctx)=Real), w);
+      # all parts are Real
+      if prob = 1 then
+        rl
+      else
+        rl * fromProb(prob)
+      end if;
+    elif type(w, 'specfunc'(anything, {cos, sin, exp,erf})) then
+      map(mkReal, w, ctx)
+    else
+      typ := infer_type(w, ctx);
+      if member(typ ,{'Real', 'Number'}) then
+        w
+      else
+        error "don't know how to make (%1) real", w;
+      end if;
+    end if;
   end proc;
 
   # use assumptions to figure out if we are actually positive, even
@@ -1452,9 +1487,9 @@ SLO := module ()
       if type(expr, t_binds) then
         subsop(1=myint(op(1,expr),b), expr) assuming op(_EnvPathCond);
       else
-        res0 := int(expr, b);
+        res0 := int(expr, b) assuming op(_EnvPathCond);
         if type(res0, t_binds) and op(2,res0)=b then # didn't work, try harder
-          res1 := int(convert(expr, Heaviside), b);
+          res1 := int(convert(expr, Heaviside), b) assuming op(_EnvPathCond);
           if not type(res1, t_binds) then # success!
             res := fix_Heaviside(res1, res0);
           else
