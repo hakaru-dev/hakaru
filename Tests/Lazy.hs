@@ -14,8 +14,9 @@ import Language.Hakaru.Compose
 import Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode)
 import Language.Hakaru.Simplify (Simplifiable, closeLoop, simplify)
 import Language.Hakaru.Expect (Expect)
-import Language.Hakaru.Maple (Maple)
-import Tests.TestTools    
+import Language.Hakaru.Maple (Maple)    
+import Tests.TestTools
+import qualified Examples.EasierRoadmap as RM
 
 import Data.Typeable (Typeable)    
 import Test.HUnit
@@ -68,7 +69,8 @@ exists t ts' = assertBool "no correct disintegration" $
 main :: IO ()
 main = do
   -- runTestTT allTests >> return ()
-  print . map runPrettyPrint $ try zeroPlusFst
+  -- print . map runPrettyPrint $ try zeroPlusFst
+  print . map runPrettyPrint $ try easierRoadmapProg1
 
 allTests :: Test
 allTests = test [ "zeroDiv" ~: testL zeroDiv [(unit, 0, Any $ dirac 0)]
@@ -103,6 +105,10 @@ allTests = test [ "zeroDiv" ~: testL zeroDiv [(unit, 0, Any $ dirac 0)]
                 -- , "t9"  ~: testL t9 []
                 -- , "t10" ~: testL t10 []
                 ]
+
+easierRoadmapProg1 :: (Mochastic repr) =>
+                      Cond repr () (Measure ((Real, Real), (Prob, Prob)))
+easierRoadmapProg1 = \u -> ununit u $ RM.easierRoadmapProg1
 
 zeroDiv :: (Mochastic repr) => Cond repr () (Measure (Real,Real))
 zeroDiv = \u -> ununit u $
