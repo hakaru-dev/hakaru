@@ -20,8 +20,9 @@ Haskell := module ()
   # the right way would involve a proper pretty-printer, but that
   # can be added later easily enough.
   ModuleApply := proc(e)
-      local rts, pows, expr, binds, unsafes;
+      local rts, pows, expr, binds, unsafes, isPos;
 
+      isPos := proc(y) evalb(signum(0, eval(y,sqrt_=sqrt),1)=1) end;
       b:-clear();
 
       unsafes := indets(e, specfunc(anything, 'unsafeProb'));
@@ -36,12 +37,10 @@ Haskell := module ()
       end if;
 
       # catch sqrt(2) and other sqrt calls
-      rts := indets(expr, anything ^ identical(1/2));
-      pows, rts := selectremove(x -> evalb(signum(op(1,x))=1), rts);
-      if pows <> {} then
-        expr := subs(map((x -> x = sqrt_ (op(1,x))), pows), expr);
-      end if;
-      expr := subs(map((x -> x = Sqrt(op(1,x))), rts), expr);
+      expr := subsindets(expr, satisfies(isPos)^identical(1/2),
+               (x -> sqrt_(op(1,x))));
+      expr := subsindets(expr, anything^identical(1/2), 
+               (x -> Sqrt(op(1,x))));
 
       # catch 1/sqrt(Pi)
       pows := select(x -> evalb(signum(op(1,x))=1),
