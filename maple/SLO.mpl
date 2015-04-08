@@ -584,6 +584,8 @@ SLO := module ()
     local typ, pb, rl, pos, rest;
     if type(w, `*`) then
       pb, rl := selectremove(x->evalb(infer_type(x,ctx)=Prob), w);
+      # have to adjust pb anyways, in case of sqrt, etc.
+      pb := maptype(`*`, mkProb, pb, ctx);
       # all parts are Prob
       if rl = 1 then
         pb
@@ -622,7 +624,7 @@ SLO := module ()
     elif type(w, anything^{identical(1/2), identical(-1/2)}) then
       typ := infer_type(op(1,w), ctx);
       if typ = 'Prob' then
-        sqrt_(op(1,w))
+        `if`(op(2,w)=1/2, sqrt_, recip@sqrt_)(op(1,w))
       elif typ = 'Number' then # is this right?
         w
       else
@@ -656,7 +658,8 @@ SLO := module ()
   mkReal := proc(w, ctx)
     local prob, rl, typ;
     if w::`*` then
-      rl, prob := selectremove(x->evalb(infer_type(x,ctx)=Real), w);
+      rl, prob := selectremove(
+          x->evalb(member(infer_type(x,ctx),{Real,Number})), w);
       # all parts are Real
       if prob = 1 then
         rl
@@ -828,6 +831,7 @@ SLO := module ()
   end proc;
 
   infer_type := proc(e, ctx)
+    option remember, system;
     local typ, l, res, k, t;
     if type(e, boolean) then
       'Bool'
@@ -1107,7 +1111,7 @@ SLO := module ()
     elif type(e, 'GammaD'(anything, anything)) and typ = 'Measure(Prob)' then
       GammaD(mkProb(op(1,e), ctx), mkProb(op(2,e), ctx))
     elif type(e, 'NormalD'(anything, anything)) and typ = 'Measure(Real)' then
-      NormalD(op(1,e), mkProb(op(2, e), ctx))
+      NormalD(mkReal(op(1,e),ctx), mkProb(op(2, e), ctx))
     else
      error "adjust_types of %1 at type %2", e, typ;
     end if;
