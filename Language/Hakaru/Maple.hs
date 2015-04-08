@@ -139,7 +139,7 @@ instance Base Maple where
   vector    = quant "MVECTOR" 0
   empty     = Maple (return "MVECTOR(undefined,n=0..-1)")
   index     = mapleFun2 "index"
-  size      = mapleFun1 "size"
+  size      = mapleFun1 "size" -- should probably be "LinearAlgebra[Dimension]"
   reduce r z v = Maple (ReaderT $ \i -> return $
     "Reduce((" ++ (let x = "x" ++ show i
                        y = "x" ++ show (i+1)
@@ -151,11 +151,18 @@ instance Integrate Maple where
   integrate = quant "Int"
   summate   = quant "sum"
 
+-- use gensym rather than escaped locals.
+-- put lo and hi in directly, instead of passing them in.
+-- put the body in directly too, but still use a thunk for gensym
 quant :: String -> Maple b -> Maple b ->
          (Maple a -> Maple c) -> Maple d
-quant q lo hi f = mapleFun2 ("(proc (r,c) local x; "++q++"(c(x),x=r) end proc)")
-                            (mapleOp2 ".." lo hi)
-                            (lam f)
+quant q lo hi f = 
+  Maple (ReaderT $ \i -> return $ 
+    let lo' = runMaple lo i in
+    let hi' = runMaple hi i in
+    let body = runMaple (f (Maple (return "x"))) (i + 1) in
+    "(proc () local x; x := gensym(`h`);" ++
+        q ++ "(" ++ body ++",x=" ++ lo' ++ ".." ++ hi' ++") end proc)()")
 
 instance Lambda Maple where
   lam f = Maple (ReaderT $ \i -> return $
