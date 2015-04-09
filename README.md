@@ -27,7 +27,7 @@ of Hakaru's program simplifier run
 Installation - Windows
 ------------
 
-It possible to use hakaru on Windows, there are some possible concerns. Due to a
+It is possible to use Hakaru on Windows; there are some possible concerns. Due to a
 [ghc bug](https://ghc.haskell.org/trac/ghc/ticket/3242), one of the dependencies
 (logfloat) must be installed separately:
   
@@ -45,7 +45,7 @@ the following will work in a command prompt:
 
     cd hakaru\maple 
     cmaple update-archive.mpl
-    echo libname := "C:\\<path to hakaru>\\hakaru\\maple",libname: > test.out
+    echo libname := "C:\\<path to hakaru>\\hakaru\\maple",libname: > "C:\<path to maple>\lib\maple.ini"
 
 Note the escaped backslashes.
 
