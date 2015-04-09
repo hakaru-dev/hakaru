@@ -8,12 +8,18 @@ import Tests.TestTools
 import Test.HUnit
 
 allTests :: Test
-allTests = test [ "testUnrolling" ~: testUnrolling
+allTests = test [ "testReduce"    ~: testReduce
+                , "testUnrolling" ~: testUnrolling
                 , "testUnity"     ~: testUnity
                 , "testInside"    ~: testInside
                 , "testPull"      ~: testPull
                 , "testConj"      ~: testConj
                 , "testPlateDirac"~: testPlateDirac ]
+
+-- Test partial evaluation of reduce
+testReduce :: Assertion
+testReduce = testSS [lam $ \n -> dirac (sumV (vector 4 (n+)))]
+                    (lam $ \n -> dirac (6 + n * 4))
 
 -- Test unrolling short product measures
 testUnrolling :: Assertion
