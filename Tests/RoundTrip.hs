@@ -52,7 +52,9 @@ testMeasureProb = test [
     "t49" ~: testSS [] t49,
     "t61" ~: testSS [t61] t61',
     "t66" ~: testSS [] t66,
-    "t67" ~: testSS [] t67
+    "t67" ~: testSS [] t67,
+    "t69x" ~: testSS [t69x] (dirac 1.5),
+    "t69y" ~: testSS [t69x] (dirac 3.5)
     ]
 
 testMeasureReal :: Test
@@ -653,6 +655,10 @@ t68 = lam $ \x4 ->
 
 t68' :: (Lambda repr, Mochastic repr) => repr (Prob -> Real -> Measure Real)
 t68' = lam $ \noise -> app (app t68 noise) noise
+
+t69x, t69y :: (Lambda repr, Mochastic repr, Integrate repr) => repr (Measure Prob)
+t69x = dirac (integrate 1 2 (\x -> integrate 3 4 (\y -> unsafeProb x)))
+t69y = dirac (integrate 1 2 (\x -> integrate 3 4 (\y -> unsafeProb y)))
 
 -- Testing round-tripping of some other distributions
 testexponential :: Mochastic repr => repr (Measure Prob)
