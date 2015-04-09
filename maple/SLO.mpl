@@ -696,6 +696,7 @@ SLO := module ()
       elif typ = 'Prob' then (prop, rest) := RealRange(0,infinity), {};
       elif typ = 'Bool' then (prop, rest) := boolean, {};
       elif typ = 'Unit' then (prop, rest) := identical(Unit), {};
+      elif typ = 'Int' then (prop, rest) := 'integer', {};
       else
         error "Unknown base type %1", x
       end if;
@@ -742,8 +743,10 @@ SLO := module ()
         t[nm] := boolean
       elif typ = 'Unit' then
         # Do nothing, this does not need remembered
+      elif type = 'Int' then
+        t[nm] := 'integer'
       else
-        error "Real/Prob/Bool/Unit are the only base types: %1", typ;
+        error "Real/Prob/Bool/Int/Unit are the only base types: %1", typ;
       end if;
     elif typ :: 'Pair'(anything, anything) then
       fill_table(t, op(1, nm), op(1, typ));
@@ -767,6 +770,7 @@ SLO := module ()
       Pair(left, right);
     elif t = 'Bool' then gensym('bb')
     elif t = 'Unit' then gensym('uu') # we really do need a name!
+    elif t = 'Int' then gensym('ii')
     else
       error "Trying to form a name from a %1", t
     end if;
@@ -1028,6 +1032,8 @@ SLO := module ()
         right := adjust_types('Return'(op([1,2],e)), Measure(op(2,typ2)), ctx);
         'Return'(Pair(op(1,left), op(1,right)));
       elif typ2 = Bool and member(op(1,e), {true,false}) then
+        e
+      elif typ2 = Int and inf_typ = Int then
         e
       elif type(typ2, 'Tagged'(anything, anything)) then
         if check_sop_type(inf_typ, typ2) then
@@ -1775,3 +1781,18 @@ gensym := module()
     x || gs_counter;
   end proc;
 end module;
+
+MVECTOR := proc(expr, bnd :: name = integer .. integer)
+  local j;
+  j := op(1,bnd);
+  Vector(op([2,2], bnd), unapply(eval(expr, j = j-1), j));
+end proc;
+
+Reduce := proc(f, i, v)
+  local accum, j;
+  accum := i;
+  for j from 1 to LinearAlgebra[Dimension](v) do
+    accum := f(accum)(v[j]);
+  end do;
+  accum;
+end proc;
