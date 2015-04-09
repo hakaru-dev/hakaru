@@ -71,21 +71,24 @@ tryPretty :: (Backward a a) =>
 tryPretty = print . map runPrettyPrint . try
 
 main :: IO ()
-main = runTestTT important >> return ()
+main = -- tryPretty zeroAddReal
+    runTestTT important >> return ()
 
 -- 2015-04-09
 --------------------------------------------------------------------------------
 important :: Test
-important = test [ "easier1" ~: testL easierRoadmapProg1 []
+important = test [ "zeroAddInt" ~: testL zeroAddInt [(unit, 0, Any $ dirac 3)]
+                 , "zeroAddReal" ~: testL zeroAddReal [(unit, 0, Any $ dirac 3)]
+                 , "easierRoadmapProg1" ~: testL easierRoadmapProg1 []
                  ]
 --------------------------------------------------------------------------------
             
 allTests :: Test
-allTests = test [ "easier1" ~: testL easierRoadmapProg1 []
+allTests = test [ "easierRoadmapProg1" ~: testL easierRoadmapProg1 []
                 , "normalFB1" ~: testL normalFB1 []
                 , "normalFB2" ~: testL normalFB2 []
                 , "zeroDiv" ~: testL zeroDiv [(unit, 0, Any $ dirac 0)]
-                , "zeroPlusFst" ~: testL zeroPlusFst [(unit, 2, Any $ dirac 2)]
+                , "zeroAddInt" ~: testL zeroAddInt [(unit, 2, Any $ dirac 2)]
                 , "zeroPlusSnd" ~: testL zeroPlusSnd [(unit, unit, Any $ dirac 0)]
                 , "prog1s" ~: testL prog1s []
                 , "prog2s" ~: testL prog2s []
@@ -139,15 +142,20 @@ zeroDiv = \u -> ununit u $
           -- normal x (0 / 2) `bind` \y ->
           dirac (pair x (0 / x))
 
-zeroPlusFst :: (Mochastic repr) => Cond repr () (Measure (Int,Int))
-zeroPlusFst = \u -> ununit u $
-              counting `bind` \x ->
-              dirac (pair (0+x) 3)
+zeroAddInt :: (Mochastic repr) => Cond repr () (Measure (Int,Int))
+zeroAddInt = \u -> ununit u $
+             counting `bind` \x ->
+             dirac (pair (0+x) 3)
+
+zeroAddReal :: (Mochastic repr) => Cond repr () (Measure (Real,Real))
+zeroAddReal = \u -> ununit u $
+              lebesgue `bind` \x ->
+              dirac (pair (0+x) 3)                    
 
 zeroPlusSnd :: (Mochastic repr) => Cond repr () (Measure ((),Real))
 zeroPlusSnd = \u -> ununit u $
               normal 0 1 `bind` \x ->
-              dirac (pair unit (0 + x))
+              dirac (pair unit (0 + x))                   
 
 -- Jacques on 2014-11-18: "From an email of Oleg's, could someone please
 -- translate the following 3 programs into new Hakaru?"  The 3 programs below
