@@ -66,47 +66,55 @@ exists :: PrettyPrint a -> [PrettyPrint a] -> Assertion
 exists t ts' = assertBool "no correct disintegration" $
                elem (result t) (map result ts')
 
-main :: IO ()
-main = do
-  runTestTT allTests >> return ()
-  -- print . map runPrettyPrint $ try zeroPlusFst
-  -- print . map runPrettyPrint $ try easierRoadmapProg1
-  -- print . map runPrettyPrint $ try normalUnif1
-  -- print . map runPrettyPrint $ try normalUnif2
+tryPretty :: (Backward a a) =>
+             Cond PrettyPrint env (Measure (a,b)) -> IO ()
+tryPretty = print . map runPrettyPrint . try
 
+main :: IO ()
+main = runTestTT important >> return ()
+
+-- 2015-04-09
+--------------------------------------------------------------------------------
+important :: Test
+important = test [ "easier1" ~: testL easierRoadmapProg1 []
+                 ]
+--------------------------------------------------------------------------------
+            
 allTests :: Test
-allTests = test [ -- "zeroDiv" ~: testL zeroDiv [(unit, 0, Any $ dirac 0)]
-                -- , "zeroPlusFst" ~: testL zeroPlusFst [(unit, 2, Any $ dirac 2)]
-                -- , "zeroPlusSnd" ~: testL zeroPlusSnd [(unit, unit, Any $ dirac 0)]
-                  "easy" ~: testL easierRoadmapProg1 []
-                -- , "prog1s" ~: testL prog1s []
-                -- , "prog2s" ~: testL prog2s []
-                -- , "prog3s" ~: testL prog3s []
-                -- , "pair1fst" ~: testL pair1fst []
-                -- , "pair1fstSwap" ~: testL pair1fstSwap []
-                -- , "borelishSub" ~: testL borelishSub
-                --                     [(unit, 0, Any (uniform 0 1))]
-                -- , "borelishDiv" ~: testL borelishDiv
-                --                     [(unit, 1, Any
-                --                       (superpose [(1/2, liftM fromProb (beta 2 1))]))]
-                -- , "culpepper" ~: testL (const culpepper)
-                --                   [(unit, 0, Any
-                --                     (superpose [(fromRational (1/8), dirac true)
-                --                                ,(fromRational (1/8), dirac false)]))]
-                -- , "density1" ~: testL density1 []
-                -- , "density2" ~: testL density2 []
+allTests = test [ "easier1" ~: testL easierRoadmapProg1 []
+                , "normalFB1" ~: testL normalFB1 []
+                , "normalFB2" ~: testL normalFB2 []
+                , "zeroDiv" ~: testL zeroDiv [(unit, 0, Any $ dirac 0)]
+                , "zeroPlusFst" ~: testL zeroPlusFst [(unit, 2, Any $ dirac 2)]
+                , "zeroPlusSnd" ~: testL zeroPlusSnd [(unit, unit, Any $ dirac 0)]
+                , "prog1s" ~: testL prog1s []
+                , "prog2s" ~: testL prog2s []
+                , "prog3s" ~: testL prog3s []
+                , "pair1fst" ~: testL pair1fst []
+                , "pair1fstSwap" ~: testL pair1fstSwap []
+                , "borelishSub" ~: testL borelishSub
+                                    [(unit, 0, Any (uniform 0 1))]
+                , "borelishDiv" ~: testL borelishDiv
+                                    [(unit, 1, Any
+                                      (superpose [(1/2, liftM fromProb (beta 2 1))]))]
+                , "culpepper" ~: testL (const culpepper)
+                                  [(unit, 0, Any
+                                    (superpose [(fromRational (1/8), dirac true)
+                                               ,(fromRational (1/8), dirac false)]))]
+                , "density1" ~: testL density1 []
+                , "density2" ~: testL density2 []
                 -- , "density3" ~: testL density3 []
-                -- , "t0"  ~: testL t0 []
-                -- , "t1"  ~: testL t1 []
-                -- , "t2"  ~: testL t2 []
-                -- , "t3"  ~: testL t3 []
-                -- , "t4"  ~: testL t4 []
-                -- , "t5"  ~: testL t5 []
-                -- , "t6"  ~: testL t6 []
-                -- , "t7"  ~: testL t7 []
-                -- , "t8"  ~: testL t8 []
-                -- , "t9"  ~: testL t9 []
-                -- , "t10" ~: testL t10 []
+                , "t0"  ~: testL t0 []
+                , "t1"  ~: testL t1 []
+                , "t2"  ~: testL t2 []
+                , "t3"  ~: testL t3 []
+                , "t4"  ~: testL t4 []
+                , "t5"  ~: testL t5 []
+                , "t6"  ~: testL t6 []
+                , "t7"  ~: testL t7 []
+                , "t8"  ~: testL t8 []
+                , "t9"  ~: testL t9 []
+                , "t10" ~: testL t10 []
                 ]
 
 normalFB1 :: (Mochastic repr) => Cond repr () (Measure (Real, ()))
