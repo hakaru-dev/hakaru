@@ -45,7 +45,7 @@ the following will work in a command prompt:
 
     cd hakaru\maple 
     cmaple update-archive.mpl
-    echo libname := "C:\\<path to hakaru>\\hakaru\\maple",libname: > test.out
+    echo libname := "C:\\<path to hakaru>\\hakaru\\maple",libname: > "C:\<path to maple>\lib\maple.ini"
 
 Note the escaped backslashes.
 
