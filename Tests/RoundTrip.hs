@@ -54,7 +54,7 @@ testMeasureProb = test [
     "t66" ~: testSS [] t66,
     "t67" ~: testSS [] t67,
     "t69x" ~: testSS [t69x] (dirac 1.5),
-    "t69y" ~: testSS [t69x] (dirac 3.5)
+    "t69y" ~: testSS [t69y] (dirac 3.5)
     ]
 
 testMeasureReal :: Test
