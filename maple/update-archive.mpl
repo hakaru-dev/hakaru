@@ -20,3 +20,6 @@ LibraryTools:-Save(`If`, lib):
 LibraryTools:-Save('`type/Context`', lib):
 #LibraryTools:-Save(`index/TopProp`, lib):
 LibraryTools:-Save(`gensym`, lib):
+LibraryTools:-Save(`MVECTOR`, lib):
+LibraryTools:-Save(`Reduce`, lib):
+LibraryTools:-Save(`vindex`, lib):

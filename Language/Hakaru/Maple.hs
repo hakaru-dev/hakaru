@@ -138,8 +138,8 @@ instance Base Maple where
 
   vector    = quant "MVECTOR" 0
   empty     = Maple (return "MVECTOR(undefined,n=0..0)")
-  index     = mapleFun2 "index"
-  size      = mapleFun1 "size" -- should probably be "LinearAlgebra[Dimension]"
+  index     = mapleFun2 "vindex"
+  size      = mapleFun1 "LinearAlgebra[Dimension]"
   reduce r z v = Maple (ReaderT $ \i -> return $
     "Reduce((" ++ (let x = "x" ++ show i
                        y = "x" ++ show (i+1)
