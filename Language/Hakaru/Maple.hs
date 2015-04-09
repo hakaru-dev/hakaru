@@ -160,9 +160,9 @@ quant q lo hi f =
   Maple (ReaderT $ \i -> return $ 
     let lo' = runMaple lo i in
     let hi' = runMaple hi i in
-    let body = runMaple (f (Maple (return "x"))) (i + 1) in
-    "(proc () local x; x := gensym(`h`);" ++
-        q ++ "(" ++ body ++",x=" ++ lo' ++ ".." ++ hi' ++") end proc)()")
+    let (x, body) = mapleBind f i in
+    "(proc () local "++x++"; "++x++" := gensym(`h`);" ++
+        q ++ "(" ++ body ++","++x++"=" ++ lo' ++ ".." ++ hi' ++") end proc)()")
 
 instance Lambda Maple where
   lam f = Maple (ReaderT $ \i -> return $
