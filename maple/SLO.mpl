@@ -1495,7 +1495,7 @@ SLO := module ()
     inds := select(depends, inds, var);
     if inds={} then
       if type(expr, t_binds) then
-        subsop(1=myint(op(1,expr),b), expr) assuming op(_EnvPathCond);
+        res := subsop(1=myint(op(1,expr),b), expr) assuming op(_EnvPathCond);
       else
         res0 := int(expr, b) assuming op(_EnvPathCond);
         if type(res0, t_binds) and op(2,res0)=b then # didn't work, try harder
@@ -1508,21 +1508,25 @@ SLO := module ()
         else
           res := res0;
         end if;
-        res;
       end if;
     elif type(expr, t_pw) then
       # what is really needed here is to 'copy'
       # PiecewiseTools:-IntImplementation:-Definite
       try
-        myint_pw(expr, b)
+        res := myint_pw(expr, b)
       catch "cannot handle condition":
-        Int(expr, b)
+        res := Int(expr, b)
       end try;
     elif type(expr, t_binds) then
       # go in?
-      Int(expr, b)
+      res := Int(expr, b)
     else
-      Int(expr, b)
+      res := Int(expr, b)
+    end if;
+    if has(res, 'csgn') then 
+      simplify(res) assuming op(_EnvPathCond)
+    else
+      res
     end if;
   end proc;
 
@@ -1792,7 +1796,9 @@ Reduce := proc(f, i, v)
   local accum, j;
   accum := i;
   for j from 1 to LinearAlgebra[Dimension](v) do
-    accum := f(accum)(v[j]);
+    accum := f(v[j])(accum);
   end do;
   accum;
 end proc;
+
+vindex := proc(v,i) if i::integer then v[i] else 'index'(v,i) end if end proc;
