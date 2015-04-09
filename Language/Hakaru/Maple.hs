@@ -137,7 +137,7 @@ instance Base Maple where
   erf_      = mapleFun1 "erf"
 
   vector    = quant "MVECTOR" 0
-  empty     = Maple (return "MVECTOR(undefined,n=0..-1)")
+  empty     = Maple (return "MVECTOR(undefined,n=0..0)")
   index     = mapleFun2 "index"
   size      = mapleFun1 "size" -- should probably be "LinearAlgebra[Dimension]"
   reduce r z v = Maple (ReaderT $ \i -> return $
