@@ -23,7 +23,7 @@ SLO := module ()
     MyHandler, getBinderForm, infer_type, join_type, join2type,
     infer_type_prod, infer_type_sop, check_sop_type,
     simp_sup, simp_if, into_sup, simp_rel,
-    simp_pw, simp_pw_equal, simp_pw3,
+    simp_pw, simp_pw_equal, simp_pw3, simp_Or,
     simp_props,
     comp2, comp_algeb, compare, comp_list,
 
@@ -54,7 +54,11 @@ SLO := module ()
       NumericEventHandler(division_by_zero = MyHandler);
       # simp first applied so piecewise is effective,
       # then again in case eval "undoes" work of first simp call
-      res := HAST(simp(eval(simp(eval(snd(inp)(c), 'if_'=piecewise)), Int=myint)), r);
+      res := snd(inp(c));
+      res := eval(res, 'if_'=piecewise);
+      res := simp(res);
+      res := eval(res, Int=myint);
+      res := HAST(simp(res), r);
     catch "Wrong kind of parameters in piecewise":
       error "Bug in Hakaru -> Maple translation, piecewise used incorrectly.";
     finally :
@@ -434,6 +438,18 @@ SLO := module ()
     end;
   end proc;
 
+  simp_Or := proc(a,b)
+    if type(a, anything = anything) and type(b, anything < anything)
+      and op(1,a) = op(1,b) and op(2,a) = op(2, b) then
+      op(1,a) <= op(2,a)
+    elif type(b, anything = anything) and type(a, anything < anything)
+      and op(1,a) = op(1,b) and op(2,a) = op(2, b) then
+      op(1,a) <= op(2,a)
+    else
+      Or(a,b)
+    end if;
+  end proc;
+
   # takes the = conditions and applies & simplifies them
   simp_pw_equal := proc(pw)
     local n, rest, aa, f;
@@ -523,7 +539,8 @@ SLO := module ()
       end if;
       if res::t_pw and op(3,res)::t_pw and nops(op(3,res))=3 and
          normal(op([3,2],res) - op(2,res)) = 0 then
-          res := simp_pw(piecewise(Or(op(1,res),op([3,1],res)), op(2,res), op([3,3],res)));
+          b1 := simp_Or(op(1,res),op([3,1],res));
+          res := simp_pw(piecewise(b1, op(2,res), op([3,3],res)));
       end if;
       if res::t_pw and op(3,res)::t_pw and nops(op(3,res))=3 and
          normal(op([3,3],res) - op(2,res)) = 0 then
@@ -567,6 +584,8 @@ SLO := module ()
     local typ, pb, rl, pos, rest;
     if type(w, `*`) then
       pb, rl := selectremove(x->evalb(infer_type(x,ctx)=Prob), w);
+      # have to adjust pb anyways, in case of sqrt, etc.
+      pb := maptype(`*`, mkProb, pb, ctx);
       # all parts are Prob
       if rl = 1 then
         pb
@@ -597,7 +616,7 @@ SLO := module ()
         end if;
       end if;
     elif type(w, 'exp'(anything)) then
-      exp_(op(1,w));
+      exp_(mkReal(op(1,w), ctx));
     elif type(w, 'erf'(anything)) then
       erf_(mkProb(op(1,w)));
     elif type(w, 'ln'(anything)) then
@@ -605,7 +624,7 @@ SLO := module ()
     elif type(w, anything^{identical(1/2), identical(-1/2)}) then
       typ := infer_type(op(1,w), ctx);
       if typ = 'Prob' then
-        sqrt_(op(1,w))
+        `if`(op(2,w)=1/2, sqrt_, recip@sqrt_)(op(1,w))
       elif typ = 'Number' then # is this right?
         w
       else
@@ -637,7 +656,26 @@ SLO := module ()
   end proc;
 
   mkReal := proc(w, ctx)
-    error "don't know how to make (%1) real", w;
+    local prob, rl, typ;
+    if w::`*` then
+      rl, prob := selectremove(
+          x->evalb(member(infer_type(x,ctx),{Real,Number})), w);
+      # all parts are Real
+      if prob = 1 then
+        rl
+      else
+        rl * fromProb(prob)
+      end if;
+    elif type(w, 'specfunc'(anything, {cos, sin, exp,erf})) then
+      map(mkReal, w, ctx)
+    else
+      typ := infer_type(w, ctx);
+      if member(typ ,{'Real', 'Number'}) then
+        w
+      else
+        error "don't know how to make (%1) real", w;
+      end if;
+    end if;
   end proc;
 
   # use assumptions to figure out if we are actually positive, even
@@ -658,6 +696,7 @@ SLO := module ()
       elif typ = 'Prob' then (prop, rest) := RealRange(0,infinity), {};
       elif typ = 'Bool' then (prop, rest) := boolean, {};
       elif typ = 'Unit' then (prop, rest) := identical(Unit), {};
+      elif typ = 'Int' then (prop, rest) := 'integer', {};
       else
         error "Unknown base type %1", x
       end if;
@@ -704,8 +743,10 @@ SLO := module ()
         t[nm] := boolean
       elif typ = 'Unit' then
         # Do nothing, this does not need remembered
+      elif type = 'Int' then
+        t[nm] := 'integer'
       else
-        error "Real/Prob/Bool/Unit are the only base types: %1", typ;
+        error "Real/Prob/Bool/Int/Unit are the only base types: %1", typ;
       end if;
     elif typ :: 'Pair'(anything, anything) then
       fill_table(t, op(1, nm), op(1, typ));
@@ -729,6 +770,7 @@ SLO := module ()
       Pair(left, right);
     elif t = 'Bool' then gensym('bb')
     elif t = 'Unit' then gensym('uu') # we really do need a name!
+    elif t = 'Int' then gensym('ii')
     else
       error "Trying to form a name from a %1", t
     end if;
@@ -793,6 +835,7 @@ SLO := module ()
   end proc;
 
   infer_type := proc(e, ctx)
+    option remember, system;
     local typ, l, res, k, t;
     if type(e, boolean) then
       'Bool'
@@ -990,6 +1033,8 @@ SLO := module ()
         'Return'(Pair(op(1,left), op(1,right)));
       elif typ2 = Bool and member(op(1,e), {true,false}) then
         e
+      elif typ2 = Int and inf_typ = Int then
+        e
       elif type(typ2, 'Tagged'(anything, anything)) then
         if check_sop_type(inf_typ, typ2) then
           e
@@ -1072,7 +1117,7 @@ SLO := module ()
     elif type(e, 'GammaD'(anything, anything)) and typ = 'Measure(Prob)' then
       GammaD(mkProb(op(1,e), ctx), mkProb(op(2,e), ctx))
     elif type(e, 'NormalD'(anything, anything)) and typ = 'Measure(Real)' then
-      NormalD(op(1,e), mkProb(op(2, e), ctx))
+      NormalD(mkReal(op(1,e),ctx), mkProb(op(2, e), ctx))
     else
      error "adjust_types of %1 at type %2", e, typ;
     end if;
@@ -1450,11 +1495,11 @@ SLO := module ()
     inds := select(depends, inds, var);
     if inds={} then
       if type(expr, t_binds) then
-        subsop(1=myint(op(1,expr),b), expr) assuming op(_EnvPathCond);
+        res := subsop(1=myint(op(1,expr),b), expr) assuming op(_EnvPathCond);
       else
-        res0 := int(expr, b);
+        res0 := int(expr, b) assuming op(_EnvPathCond);
         if type(res0, t_binds) and op(2,res0)=b then # didn't work, try harder
-          res1 := int(convert(expr, Heaviside), b);
+          res1 := int(convert(expr, Heaviside), b) assuming op(_EnvPathCond);
           if not type(res1, t_binds) then # success!
             res := fix_Heaviside(res1, res0);
           else
@@ -1463,21 +1508,25 @@ SLO := module ()
         else
           res := res0;
         end if;
-        res;
       end if;
     elif type(expr, t_pw) then
       # what is really needed here is to 'copy'
       # PiecewiseTools:-IntImplementation:-Definite
       try
-        myint_pw(expr, b)
+        res := myint_pw(expr, b)
       catch "cannot handle condition":
-        Int(expr, b)
+        res := Int(expr, b)
       end try;
     elif type(expr, t_binds) then
       # go in?
-      Int(expr, b)
+      res := Int(expr, b)
     else
-      Int(expr, b)
+      res := Int(expr, b)
+    end if;
+    if has(res, 'csgn') then 
+      simplify(res) assuming op(_EnvPathCond)
+    else
+      res
     end if;
   end proc;
 
@@ -1736,3 +1785,20 @@ gensym := module()
     x || gs_counter;
   end proc;
 end module;
+
+MVECTOR := proc(expr, bnd :: name = integer .. integer)
+  local j;
+  j := op(1,bnd);
+  Vector(op([2,2], bnd), unapply(eval(expr, j = j-1), j));
+end proc;
+
+Reduce := proc(f, i, v)
+  local accum, j;
+  accum := i;
+  for j from 1 to LinearAlgebra[Dimension](v) do
+    accum := f(v[j])(accum);
+  end do;
+  accum;
+end proc;
+
+vindex := proc(v,i) if i::integer then v[i] else 'index'(v,i) end if end proc;

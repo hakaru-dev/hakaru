@@ -1,42 +1,49 @@
-As of Fri Feb. 13th, the failures are as follows:
+As of Wed. April. 8th, the failures are as follows:
 
 RoundTrip:
-t56 - very minor difference in display of conditions
-t57 - very minor difference in display of conditions
+t56 - minor difference in display of conditions
+t57 - minor difference in display of conditions
+t60 - x1 + x2 <> x2 + x1 !!!  [testing by comparing pretty-printing is
+  fragile, and was bound to show up in this way]
+t62 - (x0 / x1) vs (x0 * recip x1) vs x1 ** (-1)
+t63 - integration succeeds, but outputs all sorts of functions that
+  cannot currently be handlded, resulting in a hard error.
+t64 - some internal change has made a '42' come out as a weight.
+   this feels like a new bug
+t65 - completely different result now -- looks like an integral no
+  longer computes.
 t45 - pw/domain interaction with density recognition
 t50 - Maple returns Ei in result, which does not exist in Hakaru
-testGibbsPropUnif - [Huger!]  Issue with product of piecewise not being handled properly
+t52 - ordering, same kind of issue as t60
 testKernel - failure in recognition of density (and categorical)
 
 Syntax:
 pair1fst/snd - beta instead of list/categorical
 testLinreg - ignored
-gamalonDis - time expired (5s)
-borelishDiv - "Why is And(And(0<x,x<1),1/x <= 0) unsatisfiable?"
-culpepper - expected superpose of 2 things, got just 1.  testD bug?
-density2 - time expired
-disintegrate1 - (x+ln(`freeze/R32`)) should be a ratpoly in ([`freeze/R32`])
-disintegrate3 - weird stuff: rr2+infinity, nested piecewise
-disintegrate5 - [Enormous] time expired
-disintegrate7 - (collect/series) invalid input: too many and/or wrong types of arguments passed to series/infinity; first unused argument is infinity
-disintegrate9 - _Inert_EQUATION is not implemented yet
+gamalonDis - time expired (15s)
 
 Relationships:
-t1 - Prob vs Real
-t2 - error in ordering of arguments to GammaD
+t1 - no simplification because change of variables not implemented
 t3 - no simplification because change of variables not implemented
 t4 - no simplification because change of variables not implemented
+t5 - no simplification because change of variables not implemented
+t8 - join on Mixed, Real [bug]
+t9 - Measure(Int) issue [because Int is not yet handled]
+t11 - type inference issue (hard to debug because of x-x)
+t12 - no simplification because change of variables not implemented
+t13 - type inference case missing
+t14 - type inference bug?
+t16 - hmm, nested integral of normal which should have worked!
+t17 - ordering
+t18 - ordering
+t19 - bug (new symptom)
+t20 - bug (likely same as t19)
+t21 - sums not handled yet
+t22 - something was not normalized properly
+t23 - no simplification because change of variables not implemented
 
-==============
-Used to fail but are now fixed:
-t21 - 'contradictory assumptions' from assuming not caught
-density3 - Or( x<= 0, 1<=x, rr2 <> 10*x-5) is an invalid property
-disintegrate4 - (in simp_poly) cannot determine if this expression is true or false: FAIL < 1
-t54 - Or(...) is an invalid property
-t52 - order difference in list parameters
-density1 - Or(..) is an invalid property
-disintegrate2 - Or(..) is an invalid property
-disintegrate6 - Or(..) is an invalid property
-mhPriorProp - [Huge!] Error, Don't know how to deal with condition 1/4.
-t55 - differences in how piecewise are laid out (in non-trivial ways)
-t49 - still a pretty-printing issue?
+Vector:
+(nothing is really expected to work here)
+
+Embed:
+P2-id: parse error?
