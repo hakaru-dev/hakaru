@@ -83,6 +83,29 @@ testMeasureReal = test
   , "t51" ~: testS t51
   , "t68" ~: testS t68
   , "t68'" ~: testS t68'
+  , "t70a" ~: testSS [t70a] (uniform 1 3)
+  , "t71a" ~: testSS [t71a] (uniform 1 3)
+  , "t72a" ~: testSS [t72a] (weight 0.5 $ uniform 1 2)
+  , "t73a" ~: testSS [t73a] (superpose [])
+  , "t74a" ~: testSS [t74a] (superpose [])
+  , "t70b" ~: testSS [t70b] (superpose [])
+  , "t71b" ~: testSS [t71b] (superpose [])
+  , "t72b" ~: testSS [t72b] (weight 0.5 $ uniform 2 3)
+  , "t73b" ~: testSS [t73b] (uniform 1 3)
+  , "t74b" ~: testSS [t74b] (uniform 1 3)
+  , "t70c" ~: testSS [t70c] (uniform 1 3)
+  , "t71c" ~: testSS [t71c] (uniform 1 3)
+  , "t72c" ~: testSS [t72c] (weight 0.5 $ uniform 1 2)
+  , "t73c" ~: testSS [t73c] (superpose [])
+  , "t74c" ~: testSS [t74c] (superpose [])
+  , "t70d" ~: testSS [t70d] (superpose [])
+  , "t71d" ~: testSS [t71d] (superpose [])
+  , "t72d" ~: testSS [t72d] (weight 0.5 $ uniform 2 3)
+  , "t73d" ~: testSS [t73d] (uniform 1 3)
+  , "t74d" ~: testSS [t74d] (uniform 1 3)
+  , "lebesgue1" ~: testSS [] (lebesgue `bind` \x -> if_ (less 42 x) (dirac x) (superpose []))
+  , "lebesgue2" ~: testSS [] (lebesgue `bind` \x -> if_ (less x 42) (dirac x) (superpose []))
+  , "lebesgue3" ~: testSS [lebesgue `bind` \x -> if_ (and_ [less x 42, less 40 x]) (dirac x) (superpose [])] (weight 2 $ uniform 40 42)
   , "testexponential" ~: testS testexponential
   , "testcauchy" ~: testS testCauchy
     -- "two_coins" ~: testS two_coins -- needs support for lists
@@ -659,6 +682,34 @@ t68' = lam $ \noise -> app (app t68 noise) noise
 t69x, t69y :: (Lambda repr, Mochastic repr, Integrate repr) => repr (Measure Prob)
 t69x = dirac (integrate 1 2 (\x -> integrate 3 4 (\y -> unsafeProb x)))
 t69y = dirac (integrate 1 2 (\x -> integrate 3 4 (\y -> unsafeProb y)))
+
+t70a, t71a, t72a, t73a, t74a :: (Mochastic repr) => repr (Measure Real)
+t70a = uniform 1 3 `bind` \x -> if_ (less 4 x) (superpose []) (dirac x)
+t71a = uniform 1 3 `bind` \x -> if_ (less 3 x) (superpose []) (dirac x)
+t72a = uniform 1 3 `bind` \x -> if_ (less 2 x) (superpose []) (dirac x)
+t73a = uniform 1 3 `bind` \x -> if_ (less 1 x) (superpose []) (dirac x)
+t74a = uniform 1 3 `bind` \x -> if_ (less 0 x) (superpose []) (dirac x)
+
+t70b, t71b, t72b, t73b, t74b :: (Mochastic repr) => repr (Measure Real)
+t70b = uniform 1 3 `bind` \x -> if_ (less 4 x) (dirac x) (superpose [])
+t71b = uniform 1 3 `bind` \x -> if_ (less 3 x) (dirac x) (superpose [])
+t72b = uniform 1 3 `bind` \x -> if_ (less 2 x) (dirac x) (superpose [])
+t73b = uniform 1 3 `bind` \x -> if_ (less 1 x) (dirac x) (superpose [])
+t74b = uniform 1 3 `bind` \x -> if_ (less 0 x) (dirac x) (superpose [])
+
+t70c, t71c, t72c, t73c, t74c :: (Mochastic repr) => repr (Measure Real)
+t70c = uniform 1 3 `bind` \x -> if_ (less x 4) (dirac x) (superpose [])
+t71c = uniform 1 3 `bind` \x -> if_ (less x 3) (dirac x) (superpose [])
+t72c = uniform 1 3 `bind` \x -> if_ (less x 2) (dirac x) (superpose [])
+t73c = uniform 1 3 `bind` \x -> if_ (less x 1) (dirac x) (superpose [])
+t74c = uniform 1 3 `bind` \x -> if_ (less x 0) (dirac x) (superpose [])
+
+t70d, t71d, t72d, t73d, t74d :: (Mochastic repr) => repr (Measure Real)
+t70d = uniform 1 3 `bind` \x -> if_ (less x 4) (superpose []) (dirac x)
+t71d = uniform 1 3 `bind` \x -> if_ (less x 3) (superpose []) (dirac x)
+t72d = uniform 1 3 `bind` \x -> if_ (less x 2) (superpose []) (dirac x)
+t73d = uniform 1 3 `bind` \x -> if_ (less x 1) (superpose []) (dirac x)
+t74d = uniform 1 3 `bind` \x -> if_ (less x 0) (superpose []) (dirac x)
 
 -- Testing round-tripping of some other distributions
 testexponential :: Mochastic repr => repr (Measure Prob)
