@@ -68,14 +68,17 @@ exists t ts' = assertBool "no correct disintegration" $
 
 main :: IO ()
 main = do
-  -- runTestTT allTests >> return ()
+  runTestTT allTests >> return ()
   -- print . map runPrettyPrint $ try zeroPlusFst
-  print . map runPrettyPrint $ try easierRoadmapProg1
+  -- print . map runPrettyPrint $ try easierRoadmapProg1
+  -- print . map runPrettyPrint $ try normalUnif1
+  -- print . map runPrettyPrint $ try normalUnif2
 
 allTests :: Test
-allTests = test [ "zeroDiv" ~: testL zeroDiv [(unit, 0, Any $ dirac 0)]
-                , "zeroPlusFst" ~: testL zeroPlusFst [(unit, 2, Any $ dirac 2)]
-                , "zeroPlusSnd" ~: testL zeroPlusSnd [(unit, unit, Any $ dirac 0)]
+allTests = test [ -- "zeroDiv" ~: testL zeroDiv [(unit, 0, Any $ dirac 0)]
+                -- , "zeroPlusFst" ~: testL zeroPlusFst [(unit, 2, Any $ dirac 2)]
+                -- , "zeroPlusSnd" ~: testL zeroPlusSnd [(unit, unit, Any $ dirac 0)]
+                  "easy" ~: testL easierRoadmapProg1 []
                 -- , "prog1s" ~: testL prog1s []
                 -- , "prog2s" ~: testL prog2s []
                 -- , "prog3s" ~: testL prog3s []
@@ -105,6 +108,18 @@ allTests = test [ "zeroDiv" ~: testL zeroDiv [(unit, 0, Any $ dirac 0)]
                 -- , "t9"  ~: testL t9 []
                 -- , "t10" ~: testL t10 []
                 ]
+
+normalFB1 :: (Mochastic repr) => Cond repr () (Measure (Real, ()))
+normalFB1 = \u -> ununit u $
+            normal 0 1 `bind` \x ->
+            normal x 1 `bind` \y ->
+            dirac (pair ((y + y) + x) unit)
+
+normalFB2 :: (Mochastic repr) => Cond repr () (Measure (Real, ()))
+normalFB2 = \u -> ununit u $
+            normal 0 1 `bind` \x ->
+            normal x 1 `bind` \y ->
+            dirac (pair (y + x) unit)
 
 easierRoadmapProg1 :: (Mochastic repr) =>
                       Cond repr () (Measure ((Real, Real), (Prob, Prob)))
