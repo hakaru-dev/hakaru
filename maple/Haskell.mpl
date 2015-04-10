@@ -147,6 +147,7 @@ bi["fromProb"] := ufunc("fromProb");
 bi["Unit"] := proc() b:-append("unit") end;
 bi["Uniform"] := bfunc("uniform ");
 bi["Lebesgue"] := proc() b:-append("lebesgue") end;
+bi["Counting"] := proc() b:-append("counting") end;
 bi["Pi"] := proc() b:-append("pi_") end;
 bi["Fst"] := ufunc("fst_");
 bi["Snd"] := ufunc("snd_");

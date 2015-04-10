@@ -147,7 +147,18 @@ SLO := module ()
             mkRealDensity(rest, var, rng)
           end if;
         elif type(e, 'specfunc'(anything, {'sum','Sum'})) then
-          error "sums not handled yet"
+          var, rng := op(op(2,e));
+          ee := op(1,e);
+          weight := simplify(op(2,rng)-op(1,rng));
+          if type(weight, 'SymbolicInfinity') then
+            rest := ToAST(ee, ctx);
+            Bind(Counting, var = rng, rest)
+          else
+            # span := RealRange(op(1,rng), op(2,rng));
+            v := simplify(weight*ee) assuming AndProp(op(1,rng)<var, var<op(2,rng));
+            rest := ToAST(v, ctx);
+            Bind(Counting, var = rng, rest)
+          end if;
         elif type(e, t_pw) then
           return do_pw([op(e)], ctx);
         elif type(e, `+`) then
@@ -843,6 +854,7 @@ SLO := module ()
     elif e = 'Pi' then Prob
     elif e = 'Unit' then Unit
     elif e = 'Lebesgue' then Measure(Real)
+    elif e = 'Counting' then Measure(Int)
     elif e = 'undefined' then Real
     elif type(e, boolean) then
       'Bool'
@@ -1130,6 +1142,8 @@ SLO := module ()
       GammaD(mkProb(op(1,e), ctx), mkProb(op(2,e), ctx))
     elif type(e, 'NormalD'(anything, anything)) and typ = 'Measure(Real)' then
       NormalD(mkReal(op(1,e),ctx), mkProb(op(2, e), ctx))
+    elif e = 'Counting' and typ = 'Measure(Int)' then
+      Counting
     else
      error "adjust_types of %1 at type %2", e, typ;
     end if;
@@ -1177,6 +1191,8 @@ SLO := module ()
       v::RealRange(op([2,2,1], e), op([2,2,2], e))
     elif type(e, 'WeightedM'(anything, anything)) then
       compute_domain(op(2,e))
+    elif e = 'Counting' then
+      v::'Integer'
     else
       error "compute domain: %1", e;
     end if;
