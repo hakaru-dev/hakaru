@@ -17,6 +17,7 @@ import Language.Hakaru.Disintegrate
 -- and a sequence of 20 transitions. We know we start in latent state 0.
 
 type Table = Vector (Vector Prob)
+type MCState = (Table,Table)
 
 symDirichlet :: (Lambda repr, Integrate repr, Mochastic repr) =>
                 repr Int -> repr Prob -> repr (Measure (Vector Prob))
@@ -105,20 +106,25 @@ roadmapProg3 o = transMat `bind` \trans ->
                                         factor (index
                                                 (index emit s')
                                                 (index o (Expect i))) `bind` \d ->
-                                        dirac s')))
-                 start `bind` \x ->
+                                        dirac s'))) start `bind` \x ->
                  dirac (pair trans emit)
 
 mcmc' :: (Lambda repr, Integrate repr, Mochastic repr) =>
-         repr (Vector Int) -> repr a -> repr a -> repr (Measure a)
+         repr (Vector Int) -> repr MCState -> repr MCState ->
+         repr (Measure MCState)
 mcmc' o old new =
-  let_ (density' o new / density' o old) $ \ratio ->
+  let_ (densProg o new / densProg o old) $ \ratio ->
     bern (min_ 1 ratio) `bind` \accept ->
     dirac (if_ accept new old)
 
-density' :: (Lambda repr, Integrate repr, Mochastic repr) =>
-            repr (Vector Int) -> repr a -> repr Prob
-density' o a = undefined
+-- Assumes prior came from symmetric dirichlet with alpha=1
+densTable :: Mochastic repr => repr Table -> repr Prob
+densTable t = reduce (*) 1 $ vector (size t)
+              (\i -> gammaFunc $ fromInt $ size (index t i))
+            
+densProg :: (Lambda repr, Integrate repr, Mochastic repr) =>
+            repr (Vector Int) -> repr MCState -> repr Prob
+densProg o x = undefined
 
 resampleRow :: (Lambda repr, Integrate repr, Mochastic repr) =>
                repr Table -> repr (Measure Table)
@@ -134,10 +140,11 @@ resampleRow t = symDirichlet (size t) 1 `bind`
 -- Resample a row of both the emission and transmission matrices
 
 roadmapProg4  :: (Integrate repr, Lambda repr, Mochastic repr) =>
-                repr (Vector Int) ->
-                repr (Table, Table) ->
-                repr (Measure (Table, Table))
-roadmapProg4 o s  = unpair s (\ trans emit ->
-                              resampleRow trans `bind` \trans' ->
-                              resampleRow emit  `bind` \emit' ->
-                              mcmc' o (pair trans emit) (pair trans' emit'))
+                Expect repr (Vector Int) ->
+                Expect repr MCState ->
+                Expect repr (Measure MCState)
+roadmapProg4 o x = unpair x (\ trans emit ->
+                   resampleRow trans `bind` \trans' ->
+                   resampleRow emit  `bind` \emit' ->
+                   mcmc' o (pair trans  emit)
+                           (pair trans' emit'))
