@@ -1,0 +1,35 @@
+Below, we document the flow of the maple code, as a sequence of transformations.
+
+
+1. pre-process, analyse and simplify [SLO]
+2. convert to measure [SLO:-AST]
+3. translate to Hakaru [Haskell]
+
+In more detail:
+1. pre-process, analyse and simplify
+Language: as per Language/Hakaru/Maple.hs
+Format: Typed( expr, typ )
+  where expr is a valid Maple expression, translated from a Hakaru expr
+  and typ is a [non-meaningful but valid] Maple expression translated from
+    the type of a Hakaru expression
+a. analyse type to count number of fresh names needed; remember types.
+b. instantiate parameters in expr to fresh names.  Call result 'inp'.
+   ASSUMPTION: result is now of type Measure(something) as a LO
+c. create a "PathCondition" with the types of the parameters instantiated
+  with "properties"
+d. set ln(0) to -infinity and 1/0 to +infinity
+e. instantiate LO inp to the arbitrary function 'c'
+f. change if_ to piecewise
+g. simplify [see below for specification]
+h. try to compute (some of the) integrals to closed-form [see MyInt below]
+i. simplify
+j. return result
+
+2. convert to measure [SLO:-AST]
+
+3. translate to Hakaru [Haskell]
+
+====
+4. simplify
+
+5. MyInt
