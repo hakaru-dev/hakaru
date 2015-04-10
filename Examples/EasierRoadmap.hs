@@ -51,8 +51,10 @@ easierRoadmapProg4 =
   unpair ntne $ \nt ne ->
   bern (1/2) `bind` \b ->
   bind (if_ b
-        (uniform 3 8 `bind` \nt' -> dirac (pair (unsafeProb nt') ne))
-        (uniform 1 4 `bind` \ne' -> dirac (pair nt (unsafeProb ne')))) (\ntne' ->
+        (uniform 3 8 `bind` \nt' ->
+         dirac $ pair (unsafeProb nt') ne)
+        (uniform 1 4 `bind` \ne' ->
+         dirac $ pair nt (unsafeProb ne'))) (\ntne' ->
   (bern $ min_ 1 (easyDens ntne' / easyDens ntne)) `bind` \accept ->
   dirac $ if_ accept ntne' ntne)
  where easyDens = undefined
