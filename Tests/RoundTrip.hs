@@ -143,6 +143,7 @@ testOther = test [
     "testGibbs2" ~: testSS [testGibbsProp2] (lam $ \x -> normal ((snd_ x) * fromRational (1/2))
                                                                 (sqrt_ 2 * fromRational (1/2))
                                              `bind` \y -> dirac (pair y (snd_ x))),
+    "testRoadmapProg1" ~: testS rmProg1,
     "testKernel" ~: testSS [testKernel] testKernel2
     ]
 
@@ -952,3 +953,59 @@ testKernel2 =
             (exp_(-1/50*(x3-x2)*(x3+x2)))) $ \x4 ->
  bern x4 `bind` \x5 ->
  dirac $ if_ x5 x3 x2
+
+-- this comes from Tests/Lazy easierRoadmapProg1.  It is the
+-- program post-disintegrate, as passed to Maple to simplify
+rmProg1 :: (Lambda repr, Mochastic repr) => 
+  repr (() -> (Real, Real) -> Measure (Prob, Prob))
+rmProg1 = 
+  lam $ \x0 ->
+  lam $ \x1 ->
+  x1 `unpair` \x2 x3 ->
+  weight 1 $
+  weight 1 $
+  superpose [(1,
+            weight 1 $
+            lebesgue `bind` \x4 ->
+            superpose [(1,
+                        weight 1 $
+                        lebesgue `bind` \x5 ->
+                        weight 1 $
+                        lebesgue `bind` \x6 ->
+                        weight (exp_ (-(x3 - x6) * (x3 - x6)
+                                       * recip (fromProb (2 * exp_ (log_ (unsafeProb x5) * 2))))
+                                * recip (unsafeProb x5)
+                                * recip (exp_ (log_ (2 * pi_) * (1 / 2)))) $
+                        weight 1 $
+                        lebesgue `bind` \x7 ->
+                        weight (exp_ (-(x6 - x7) * (x6 - x7)
+                                       * recip (fromProb (2 * exp_ (log_ (unsafeProb x4) * 2))))
+                                * recip (unsafeProb x4)
+                                * recip (exp_ (log_ (2 * pi_) * (1 / 2)))) $
+                        weight (exp_ (-(x2 - x7) * (x2 - x7)
+                                       * recip (fromProb (2 * exp_ (log_ (unsafeProb x5) * 2))))
+                                * recip (unsafeProb x5)
+                                * recip (exp_ (log_ (2 * pi_) * (1 / 2)))) $
+                        weight (exp_ (-x7 * x7
+                                       * recip (fromProb (2 * exp_ (log_ (unsafeProb x4) * 2))))
+                                * recip (unsafeProb x4)
+                                * recip (exp_ (log_ (2 * pi_) * (1 / 2)))) $
+                        weight (recip (unsafeProb 3)) $
+                        superpose [(1,
+                                    if_ (x5 `less` 4)
+                                        (if_ (1 `less` x5)
+                                             (weight (recip (unsafeProb 5)) $
+                                              superpose [(1,
+                                                          if_ (x4 `less` 8)
+                                                              (if_ (3 `less` x4)
+                                                                   (dirac (pair (unsafeProb x4)
+                                                                                (unsafeProb x5)))
+                                                                   (superpose []))
+                                                              (superpose [])),
+                                                         (1, superpose [])])
+                                             (superpose []))
+                                        (superpose [])),
+                                   (1, superpose [])]),
+                       (1, superpose [])]),
+           (1, superpose [])]
+
