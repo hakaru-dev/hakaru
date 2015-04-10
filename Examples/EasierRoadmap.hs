@@ -48,13 +48,15 @@ easierRoadmapProg4 ::
 easierRoadmapProg4 = 
   lam2 $ \m1m2 ntne ->
   unpair m1m2 $ \m1 m2 ->
-  unpair ntne $ \nt ne ->
+  unpair ntne $ \noiseTOld noiseEOld ->
   bern (1/2) `bind` \b ->
   bind (if_ b
-        (uniform 3 8 `bind` \nt' ->
-         dirac $ pair (unsafeProb nt') ne)
-        (uniform 1 4 `bind` \ne' ->
-         dirac $ pair nt (unsafeProb ne'))) (\ntne' ->
+        (uniform 3 8 `bind` \noiseT' ->
+         let_ (unsafeProb noiseT') $ \noiseT ->
+         dirac $ pair noiseT noiseEOld)
+        (uniform 1 4 `bind` \noiseE' ->
+         let_ (unsafeProb noiseE') $ \noiseE ->
+         dirac $ pair noiseTOld noiseE)) (\ntne' ->
   (bern $ min_ 1 (easyDens ntne' / easyDens ntne)) `bind` \accept ->
   dirac $ if_ accept ntne' ntne)
  where easyDens = undefined
