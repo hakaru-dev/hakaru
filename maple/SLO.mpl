@@ -643,9 +643,10 @@ SLO := module ()
       error "there should be no unsafeProb in %1", w
     else
       typ := infer_type(w, ctx);
-      if member(typ, {'Prob', 'Number'}) then
+      # Number is a cheat, as it might be negative!
+      if member(typ, {'Prob', 'Nat', 'Number'}) then
         w
-      elif typ = 'Real' then
+      elif typ = 'Real' or type = 'Integer' then
         # we are going to need to cast.  Is it safe?
         # if not isPos(w) then WARNING("cannot insure it will not crash") end if;
         unsafeProb(w);
@@ -670,7 +671,7 @@ SLO := module ()
       map(mkReal, w, ctx)
     else
       typ := infer_type(w, ctx);
-      if member(typ ,{'Real', 'Number'}) then
+      if member(typ ,{'Real', 'Number', 'Integer', 'Nat'}) then
         w
       else
         error "don't know how to make (%1) real", w;
@@ -890,7 +891,11 @@ SLO := module ()
     elif type(e, {`+`, `*`}) then
       l := map(infer_type, [op(e)], ctx);
       join_type(op(l));
-    elif type(e, {'integer', 'fraction'}) then
+    elif type(e, 'nonnegint') then
+      Nat; # need to track >=0 as well as Integer
+    elif type(e, 'integer') then
+      Integer; # need to track integer specifically; polymorphism handled elsewhere
+    elif type(e, 'fraction') then
       Number # constants are polymorphic!
     elif type(e, specfunc(anything, 'piecewise')) then
       typ := NULL;
@@ -959,7 +964,7 @@ SLO := module ()
 
     compatible_types := proc(inf, act)
       if inf = 'Number' then
-        member(act, {'Int', 'Real', 'Prob'})
+        member(act, {'Nat', 'Integer', 'Real', 'Prob'})
       else
         inf = act
       end if;
@@ -976,8 +981,15 @@ SLO := module ()
     if a = b then a
     elif a = 'Number' then b
     elif b = 'Number' then a
-    elif (a = 'Real' and b = 'Prob') or
-         (b = 'Real' and a = 'Prob') then 'Mixed' # we'll need to patch
+    elif a = 'Mixed' or b = 'Mixed' then 'Mixed'
+    elif (member(a, {'Real', 'Integer'}) and b = 'Prob') or
+         (member(b, {'Real', 'Integer'}) and a = 'Prob') then 'Mixed' # we'll need to patch
+    elif (a = 'Real' and member(b, {'Nat', 'Integer'})) or
+         (b = 'Real' and member(a, {'Nat', 'Integer'})) then 'Real'
+    elif (a = 'Prob' and b = 'Nat') or
+         (b = 'Prob' and a = 'Nat') then 'Prob'
+    elif (a = 'Nat' and b = 'Integer') or
+         (b = 'Nat' and a = 'Integer') then 'Integer'
     else error "join2type of %1, %2", a, b
     end if;
   end proc;
@@ -1022,7 +1034,7 @@ SLO := module ()
         else
           'Return'(ee);
         end if;
-      elif typ2 = Real and member(inf_typ, {'Real', 'Number'}) then
+      elif typ2 = Real and member(inf_typ, {'Real', 'Number', 'Nat', 'Integer'}) then
         'Return'(op(1,e))
       elif typ2 = Real and inf_typ = 'Mixed' then
         'Return'(mkReal(op(1,e), ctx));
@@ -1033,7 +1045,7 @@ SLO := module ()
         'Return'(Pair(op(1,left), op(1,right)));
       elif typ2 = Bool and member(op(1,e), {true,false}) then
         e
-      elif typ2 = Int and inf_typ = Int then
+      elif typ2 = Int and member(inf_typ, {'Integer','Nat'}) then
         e
       elif type(typ2, 'Tagged'(anything, anything)) then
         if check_sop_type(inf_typ, typ2) then
