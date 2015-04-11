@@ -1,8 +1,8 @@
 As of Wed. April. 8th, the failures are as follows:
 
 RoundTrip:
-t56 - minor difference in display of conditions
-t57 - minor difference in display of conditions
+t56 - difference in display of conditions
+t57 - difference in display of conditions
 t60 - x1 + x2 <> x2 + x1 !!!  [testing by comparing pretty-printing is
   fragile, and was bound to show up in this way]
 t62 - (x0 / x1) vs (x0 * recip x1) vs x1 ** (-1)
@@ -11,14 +11,18 @@ t63 - integration succeeds, but outputs all sorts of functions that
 t64 - some internal change has made a '42' come out as a weight.
    this feels like a new bug
 t65 - completely different result now -- looks like an integral no
-  longer computes.
+  longer computes. (uniform 0 1)
 t45 - pw/domain interaction with density recognition
 t50 - Maple returns Ei in result, which does not exist in Hakaru
-t52 - ordering, same kind of issue as t60
+lebesgue2 -- wrong order!!!
+t52 - "cannot determine if this expression is true or false: h1 < 1
+mhPriorProp - change of placement of - signs
+testGibbsPropUnif -- new issue with undefined
 testKernel - failure in recognition of density (and categorical)
 
 Syntax:
 pair1fst/snd - beta instead of list/categorical
+testdistLinregSimp - time expired
 testLinreg - ignored
 gamalonDis - time expired (15s)
 
@@ -27,23 +31,29 @@ t1 - no simplification because change of variables not implemented
 t3 - no simplification because change of variables not implemented
 t4 - no simplification because change of variables not implemented
 t5 - no simplification because change of variables not implemented
-t8 - join on Mixed, Real [bug]
-t9 - Measure(Int) issue [because Int is not yet handled]
-t11 - type inference issue (hard to debug because of x-x)
+t8 - type inference bug
+t9 - Prob from 1-pp1  ?
+t11 - don't know how to make (h3-h4) real
 t12 - no simplification because change of variables not implemented
 t13 - type inference case missing
 t14 - type inference bug?
-t16 - hmm, nested integral of normal which should have worked!
-t17 - ordering
-t18 - ordering
-t19 - bug (new symptom)
-t20 - bug (likely same as t19)
-t21 - sums not handled yet
+t16 - no simplification because change of variables not implemented
+t17 - no simplification because change of variables not implemented
+t18 - don't know how to make (...) real
+t19 - symbolic Vector
+t20 - symbolic Vector
+t21 - infer from (pp1+pp2)^h3
 t22 - something was not normalized properly
 t23 - no simplification because change of variables not implemented
 
 Vector:
-(nothing is really expected to work here)
+testReduce - join2type of Nat, Int (why Int ??)
+testUnrolling - can't evaluate enough to see measure [EM]
+testUnity - EM
+testInside - Vector return type not implemented
+testPull - EM
+testConj - Vector 'type' not properly dealt with
+testPlateDirac - EM (different symptom)
 
 Embed:
 P2-id: parse error?
