@@ -1087,7 +1087,8 @@ SLO := module ()
         'Return'(Pair(op(1,left), op(1,right)));
       elif typ2 = Bool and member(op(1,e), {true,false}) then
         e
-      elif typ2 = Integer and member(inf_typ, {'Integer','Nat'}) then
+      # typ2 will be Int as that is what Haskell sends us
+      elif typ2 = Int and member(inf_typ, {'Integer','Nat'}) then
         e
       elif type(typ2, 'Tagged'(anything, anything)) then
         if check_sop_type(inf_typ, typ2) then
