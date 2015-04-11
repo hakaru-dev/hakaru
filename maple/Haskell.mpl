@@ -301,6 +301,8 @@ end;
   end proc;
 
 # patching routines.  ToDo: better design.
+# Note that we use < and > rather than <= and >= since the background
+# measure is assumed to be Lebesgue
   fix_binds := proc(bind)
     local var, rng, meas, rest, lower, upper;
     (var, rng) := op(op(2,bind));
@@ -309,9 +311,9 @@ end;
     if rng = -infinity..infinity then
       bind = 'Bind'(meas, var, rest)
     elif typematch(rng, identical(-infinity) .. (upper::Non(infinity))) then
-      bind = 'Bind'(meas, var, If(upper <= var, rest, SUPERPOSE()))
+      bind = 'Bind'(meas, var, If(upper < var, rest, SUPERPOSE()))
     elif typematch(rng, (lower::Non(infinity)) .. identical(infinity)) then
-      bind = 'Bind'(meas, var, If(var >= lower, rest, SUPERPOSE()))
+      bind = 'Bind'(meas, var, If(var > lower, rest, SUPERPOSE()))
     else # both finite
       (lower, upper) := op(rng);
       bind = 'Bind'(meas, var, If(var < lower, SUPERPOSE(),
