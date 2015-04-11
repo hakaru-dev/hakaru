@@ -1603,12 +1603,12 @@ SLO := module ()
         cond := op(2*i-1, expr);
         if cond::{identical(var) < anything, identical(var) <= anything} then
           if op(2,cond) > lower then
-            res := res + myint(op(2*i, expr), var = lower .. op(2,cond));
+            res := res + myint(op(2*i, expr), var = lower .. min(upper,op(2,cond)));
             lower := op(2,cond);
           end if;
         elif cond::{anything < identical(var), anything <= identical(var)} then
           if op(1,cond) < upper then
-            res := res + myint(op(2*i, expr), var = op(1,cond) .. upper);
+            res := res + myint(op(2*i, expr), var = max(lower,op(1,cond)) .. upper);
             upper := op(1,cond);
           end if;
         else
