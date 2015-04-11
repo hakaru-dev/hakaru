@@ -311,7 +311,7 @@ end;
     if rng = -infinity..infinity then
       bind = 'Bind'(meas, var, rest)
     elif typematch(rng, identical(-infinity) .. (upper::Non(infinity))) then
-      bind = 'Bind'(meas, var, If(upper < var, rest, SUPERPOSE()))
+      bind = 'Bind'(meas, var, If(var < upper, rest, SUPERPOSE()))
     elif typematch(rng, (lower::Non(infinity)) .. identical(infinity)) then
       bind = 'Bind'(meas, var, If(var > lower, rest, SUPERPOSE()))
     else # both finite
