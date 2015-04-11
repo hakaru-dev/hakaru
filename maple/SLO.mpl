@@ -228,11 +228,13 @@ SLO := module ()
       if type(actual, t_binds) then
         var := op([2,1], actual);
         _EnvBinders := _EnvBinders union {var};
-        dom := DomainOfDef(op(1,actual), var, op([2,2],actual));
-        _EnvPathCond := _EnvPathCond union {var :: RealRange(op(dom))};
+        dom := op([2,2], actual);
+        if dom::(numeric..numeric) then
+          dom := DomainOfDef(op(1,actual), var, dom);
+          _EnvPathCond := _EnvPathCond union {var :: RealRange(op(dom))};
+        end if;
         op(0,actual)(simp(cof*op(1,actual)), var = dom);
       elif type(actual, t_pw) then
-        actual := simplify(actual) assuming op(_EnvPathCond);
         `if`(actual::t_pw, into_pw((x -> cof * x), actual), cof*actual);
       elif degree(v, vars)>1 then
         if type(actual, '`*`'(t_pw)) then
@@ -1085,7 +1087,7 @@ SLO := module ()
         'Return'(Pair(op(1,left), op(1,right)));
       elif typ2 = Bool and member(op(1,e), {true,false}) then
         e
-      elif typ2 = Int and member(inf_typ, {'Integer','Nat'}) then
+      elif typ2 = Integer and member(inf_typ, {'Integer','Nat'}) then
         e
       elif type(typ2, 'Tagged'(anything, anything)) then
         if check_sop_type(inf_typ, typ2) then
@@ -1485,7 +1487,7 @@ SLO := module ()
   end proc;
 
   mkRealDensity := proc(dens, var, rng)
-    local de, res, new_dens, Dx, diffop, init, c, d;
+    local de, res, new_dens, Dx, diffop, init, c, d, finite;
     if dens :: specfunc(anything, 'WeightedM') then
       res := NULL;
       # no matter what, get the de.
@@ -1523,9 +1525,7 @@ SLO := module ()
       # uses associatibity of >>=
       Bind(op(1, new_dens), op(2, new_dens),
         Bind(op(3, new_dens), op(2, dens), op(3, dens)));
-    elif dens :: specfunc(anything, 'Return') then
-      Bind(Uniform(op(1,rng), op(2,rng)), var, dens)
-    else
+    else # don't worry about Uniform, Bind/Lebesgue will take care of it
       Bind(Lebesgue, var = rng, dens)
     end if
   end proc;
@@ -1544,18 +1544,22 @@ SLO := module ()
 #############
 # more hacks to get around Maple weaknesses
   myint := proc(expr, b)
-    local var, inds, res, res0, res1;
+    local var, inds, res, res0, res1, newe;
     _EnvBinders := _EnvBinders union {op(1,b)};
     var := op(1,b);
     inds := indets(expr, specfunc(anything,c));
     inds := select(depends, inds, var);
-    if inds={} then
+    if Normalizer(op([2,1],b)-op([2,2],b)) = 0 then 
+      res := 0;
+    elif inds={} then
       if type(expr, t_binds) then
         res := subsop(1=myint(op(1,expr),b), expr) assuming op(_EnvPathCond);
+        res := simp(res);
       else
-        res0 := int(expr, b) assuming op(_EnvPathCond);
+        res0 := simp(int(expr, b) assuming op(_EnvPathCond));
         if type(res0, t_binds) and op(2,res0)=b then # didn't work, try harder
-          res1 := int(convert(expr, Heaviside), b) assuming op(_EnvPathCond);
+          newe := simplify(convert(expr,Heaviside));
+          res1 := int(newe, b) assuming op(_EnvPathCond);
           if not type(res1, t_binds) then # success!
             res := fix_Heaviside(res1, res0);
           else
@@ -1598,18 +1602,23 @@ SLO := module ()
       for i from 1 to n do
         cond := op(2*i-1, expr);
         if cond::{identical(var) < anything, identical(var) <= anything} then
-          res := res + myint(op(2*i, expr), var = lower .. op(2,cond));
-          lower := op(2,cond);
+          if op(2,cond) > lower then
+            res := res + myint(op(2*i, expr), var = lower .. op(2,cond));
+            lower := op(2,cond);
+          end if;
         elif cond::{anything < identical(var), anything <= identical(var)} then
-          res := res + myint(op(2*i, expr), var = op(1,cond) .. upper);
-          upper := op(1,cond);
+          if op(1,cond) < upper then
+            res := res + myint(op(2*i, expr), var = op(1,cond) .. upper);
+            upper := op(1,cond);
+          end if;
         else
           error "cannot handle condition (%1) while integrating pw", cond;
         end if;
       end do;
-      if rest then
-        if lower = upper then error "What the hey?" end if;
-        res := res + myint(op(-1, expr), var = lower..upper);
+      if rest then # note that lower=upper is possible, but ok
+        if lower < upper then
+          res := res + myint(op(-1, expr), var = lower..upper);
+        end if;
       end if;
       res
     elif length(expr) < 200 then # what have we got to lose?
