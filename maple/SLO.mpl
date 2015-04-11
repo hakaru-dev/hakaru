@@ -229,9 +229,10 @@ SLO := module ()
         var := op([2,1], actual);
         _EnvBinders := _EnvBinders union {var};
         dom := DomainOfDef(op(1,actual), var, op([2,2],actual));
+        _EnvPathCond := _EnvPathCond union {var :: RealRange(op(dom))};
         op(0,actual)(simp(cof*op(1,actual)), var = dom);
       elif type(actual, t_pw) then
-        actual := simplify(actual); # might get rid of pw!
+        actual := simplify(actual) assuming op(_EnvPathCond);
         `if`(actual::t_pw, into_pw((x -> cof * x), actual), cof*actual);
       elif degree(v, vars)>1 then
         if type(actual, '`*`'(t_pw)) then
