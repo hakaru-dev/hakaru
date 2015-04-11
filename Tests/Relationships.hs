@@ -45,9 +45,9 @@ testRelationships = test [
     -- Linear combination property
     "t16"   ~: testSS [t16] (normal 0 (sqrt_ 2)),
     "t17"   ~: testSS [t17] (lam (\mu -> lam (\sigma ->
-                             normal mu (sqrt_ (pow_ sigma 2 + 1))))),
+                             normal mu (sqrt_ (1 + sigma * sigma))))),
     "t18"   ~: testSS [t18] (lam (\a1 -> lam (\a2 ->
-                             normal 0 (sqrt_ (pow_ a1 2 + pow_ a2 2))))),
+                             normal 0 (sqrt_ (a1 * a1 + a2 * a2))))),
 
     -- Convolution property
     "t19"   ~: testSS [t19] (lam (\n1 -> lam (\n2 -> lam (\p ->
