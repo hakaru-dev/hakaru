@@ -26,6 +26,7 @@ SLO := module ()
     simp_pw, simp_pw_equal, simp_pw3, simp_Or,
     simp_props,
     comp2, comp_algeb, compare, comp_list,
+    DomainOfDef,
 
     # density recognisation routines
     get_de, mkRealDensity, recognize_density, recognize_density_01,
@@ -220,13 +221,15 @@ SLO := module ()
     all_vars := [op(vars),op(convert(cs,list))];
 
     push_in := proc(c, v)
-      local actual, cof, ii, rest, res;
+      local actual, cof, ii, rest, res, var, dom;
       cof := c;
       if v=1 then return cof end if;
       actual := thaw(v);
       if type(actual, t_binds) then
-        _EnvBinders := _EnvBinders union {op([2,1], actual)};
-        op(0,actual)(simp(cof*op(1,actual)), op(2,actual))
+        var := op([2,1], actual);
+        _EnvBinders := _EnvBinders union {var};
+        dom := DomainOfDef(op(1,actual), var, op([2,2],actual));
+        op(0,actual)(simp(cof*op(1,actual)), var = dom);
       elif type(actual, t_pw) then
         actual := simplify(actual); # might get rid of pw!
         `if`(actual::t_pw, into_pw((x -> cof * x), actual), cof*actual);
@@ -590,6 +593,30 @@ SLO := module ()
       end if;
     end if;
   end;
+
+  # conservative determination of the domain of definition wrt var
+  DomainOfDef := proc(expr, var, rng)
+    local rng2;
+    if expr::t_binds and not depends(op(2,expr),var) then
+      DomainOfDef(op(1,expr), var, rng)
+    elif expr::t_pw then
+      if nops(expr)=3 and op(3,expr) = 0 then
+        DomainOfDef(op(1,expr), var, rng)
+      else
+        rng
+      end if;
+    elif expr::specfunc(anything, 'And') then 
+      # intersect; And is always binary
+      rng2 := DomainOfDef(op(1,expr), var, rng);
+      DomainOfDef(op(2,expr), var, rng2);
+    elif expr::(identical(var) < numeric) then
+      op(1,rng)..min(op(2,rng), op(2,expr))
+    elif expr::(numeric < identical(var)) then
+      max(op(1,expr), op(1,rng))..op(2,rng)
+    else
+      rng
+    end;
+  end proc;
 
   mkProb := proc(w, ctx)
     local typ, pb, rl, pos, rest;
