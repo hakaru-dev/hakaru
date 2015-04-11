@@ -553,10 +553,10 @@ t60'' =
     lam $ \x0 ->
     uniform 0 1 `bind` \x1 ->
     uniform 0 1 `bind` \x2 ->
-    if_ (if_ (0 `less` x0 * recip (x2 + x1))
-             (x0 * recip (x2 + x1) `less` 1)
+    if_ (if_ (0 `less` x0 * recip (x1 + x2))
+             (x0 * recip (x1 + x2) `less` 1)
              false)
-        (weight (recip (unsafeProb (x2 + x1))) (dirac unit))
+        (weight (recip (unsafeProb (x1 + x2))) (dirac unit))
         (superpose [])
 
 t61, t61' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure Prob)
