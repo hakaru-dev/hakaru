@@ -114,23 +114,20 @@ easierRoadmapProg3'out ::
   (Mochastic repr) =>
   repr (Real, Real) -> repr (Measure (Prob, Prob))
 easierRoadmapProg3'out x0 =
-    lebesgue `bind` \x1 ->
-    lebesgue `bind` \x2 ->
-    if_ (if_ (x2 `less` 4)
-             (if_ (1 `less` x2) (if_ (x1 `less` 8) (3 `less` x1) false) false)
-             false)
-        (weight (recip pi_
-                 * exp_ (((fst_ x0) * (fst_ x0) * (x1 * x1) * 2
-                          + x1 * x1 * (fst_ x0) * (snd_ x0) * (-2)
-                          + (snd_ x0) * (snd_ x0) * (x1 * x1)
-                          + x2 * x2 * ((fst_ x0) * (fst_ x0))
-                          + x2 * x2 * ((snd_ x0) * (snd_ x0)))
-                         * recip (x1 * x1 * (x1 * x1) + x2 * x2 * (x1 * x1) * 3 + x2 * x2 * (x2 * x2))
-                         * (-1/2))
-                 * pow_ (unsafeProb (x1 ** 4 + x2 ** 2 * x1 ** 2 * 3 + x2 ** 4)) (-1/2)
-                 * (1/30)) $
-         dirac (pair (unsafeProb x1) (unsafeProb x2)))
-        (superpose [])
+    weight 5 $
+    uniform 3 8 `bind` \x1 ->
+    uniform 1 4 `bind` \x2 ->
+    weight (recip pi_
+	    * exp_ (((fst_ x0) * (fst_ x0) * (x1 * x1) * 2
+		     + x1 * x1 * (fst_ x0) * (snd_ x0) * (-2)
+		     + (snd_ x0) * (snd_ x0) * (x1 * x1)
+		     + x2 * x2 * ((fst_ x0) * (fst_ x0))
+		     + x2 * x2 * ((snd_ x0) * (snd_ x0)))
+		    * recip (x1 * x1 * (x1 * x1) + x2 * x2 * (x1 * x1) * 3 + x2 * x2 * (x2 * x2))
+		    * (-1/2))
+	    * pow_ (unsafeProb (x1 ** 4 + x2 ** 2 * x1 ** 2 * 3 + x2 ** 4)) (-1/2)
+	    * (1/10)) $
+    dirac (pair (unsafeProb x1) (unsafeProb x2))
 
 proposal ::
   (Mochastic repr) =>
