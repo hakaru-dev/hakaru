@@ -22,14 +22,89 @@ e. instantiate LO inp to the arbitrary function 'c'
 f. change if_ to piecewise
 g. simplify [see below for specification]
 h. try to compute (some of the) integrals to closed-form [see MyInt below]
-i. simplify
+i. simplify [*]
 j. return result
 
+[*] Why two rounds of simplification?
+- because some of the integrals can much more successfully be computed when
+  things have been simplified and normalized
+- because integration might completely change the shape of the result
+  (especially when it succeeds!), so that it needs re-normalized
+
 2. convert to measure [SLO:-AST]
+Language: input is Maple expression
+  output is an AST representing a measure.
+Global design:
+- get into "normal" form of
+int(int(...( piecewise(cond1, ... * c( something ), cond2, ... * c (something2), ...))))
+[where int could be sum too]
+- cannot always 'merge' all piecewises at present
+- conditions are simplified (as much as possible)
+- integral ranges are adjusted to correspond to (conservative approximation) of
+   places where the integrand is not 0
+- there is no "normal form" for conditions at present
+
+a. make sure Heaviside is understood as a unit step function (i.e. defined at 0)
+b. ensure (global) binders, types and properties are in scope
+c. ToAST (see 6 below)
+d. adjust types 
+  - given an expression, the type it should have and a context, use a form
+    of bidirectional inference to insert coercions where needed.
+    Mostly this is to resolve overloading of numeral as Real/Prob/Int/Nat,
+    and +, *, **, etc.
+  - relies on infer_type, mkProb and mkReal
+  - infer_type uses a gc-able memotable for efficiency
+  - uses compute_domain, flip_cond
+  - [some unrecheable branches are resolved this late!]
+e. adjust superpose
+  - sort superpose arguments
+  - adds explicit weights to each argument [in a superpose-specific manner]
+f. lambda wrap, i.e. put lambdas back on.  
+   Deals with pairs as well. [should use `unpair` rather than fst/snd]
 
 3. translate to Hakaru [Haskell]
-
+a. patch up AST a bit  [should be moved to adjust types phase]
+  - powering is implement by multiple different functions in Haskell, 
+    so uses of ^ need to be adjusted accordingly
+  - Bind(anything, name = range, anything) needs to be adjusted to use
+    explicit if_ calls
+  - simplify WeightedM calls to Factor if 2nd arg is Return(Unit)
+b. translate AST to "inert form" [Maple representation of its own structures]
+c. fold over AST [mixfix traversal], printing to a String Buffer
+  - uses dynamic dispatch over AST
+  - only tricky case is Bind which could be called on a Name or escaped local
+    [there might be dead code here dealing with ranges]
 ====
 4. simplify
+  [uses a gc-able memotable for efficiency]
+a. trivial cases (undefined, numeric, infinity)
+b. for cases like c(piecewise(...)), pushes c inside [push_in]
+c. finds all binders and piecewises, and 'freeze' them.
+   invariant: rest should be a rational function in the new indeterminates
+    (unless it is a Pair.  Design drift?)
+d. dispatch depending on "type":
+- if the result is a product, map inside [trying to preserve some structure] [simp_prod]
+- if it is a polynomial, map inside [simp_poly]
+- if rational, normalize, then handle numer and denom as polys
+- if Pair, map inside
+
+4.1 push_in (transform c*f(x) for linear x into f(c*x))
+a. thaw everything
+b. if integral, 
+  - add binder to context
+  - figure out domain of definition of main arg
+  - push in, and re-simplify
+  if piecewise, push into every branch [into_pw]
+  if product of piecewise, [into_pw], then try to merge pw
+  if still product, looks non-linear, error
+4.2 simp_prod
+4.3 simp_poly
+4.4 into_pw
+
+====
 
 5. MyInt
+
+6. ToAST
+a. handle trivial cases (Return, 0, non-measure)
+b.
