@@ -32,8 +32,9 @@ j. return result
   (especially when it succeeds!), so that it needs re-normalized
 
 2. convert to measure [SLO:-AST]
-Language: input is Maple expression
-  output is an AST representing a measure.
+Language: 
+  - input is Maple expression
+  - output is an AST representing a measure.
 Global design:
 - get into "normal" form of
 int(int(...( piecewise(cond1, ... * c( something ), cond2, ... * c (something2), ...))))
