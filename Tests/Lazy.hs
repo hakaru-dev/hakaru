@@ -24,19 +24,6 @@ import Control.Monad ((>=>))
 import Data.Function (on)
 import Data.List (elem)
 import Control.Exception (catch)
-    
-type Cond repr env ab =
-    forall s t. Lazy s (Compose [] t repr) env
-        -> Lazy s (Compose [] t repr) ab
-
-try :: (Mochastic repr, Lambda repr, Backward a a) =>
-       Cond repr env (Measure (a,b))
-    -> [repr (env -> (a -> Measure b))]
-try m = runCompose
-      $ lam $ \env ->
-      lam $ \t -> runLazy
-      $ liftM snd_
-      $ disintegrate (pair (lazy $ scalar0 t) unit) (m (lazy $ scalar0 env))
 
 recover :: (Typeable a) => PrettyPrint a -> IO (Any a)
 recover hakaru = closeLoop ("Any (" ++ leftMode (runPrettyPrint hakaru) ++ ")")
@@ -56,7 +43,7 @@ testL :: (Backward a a, Typeable a, Typeable b,
       -> [(Expect Maple env, Expect Maple a, Any (Measure b))]
       -> Assertion
 testL f slices = do
-  ds <- mapM recover (try f)
+  ds <- mapM recover (runDisintegrate f)
   assertResult ds
   mapM_ testS' ds
   mapM_ (\(env,a,t') ->
@@ -66,12 +53,12 @@ exists :: PrettyPrint a -> [PrettyPrint a] -> Assertion
 exists t ts' = assertBool "no correct disintegration" $
                elem (result t) (map result ts')
 
-tryPretty :: (Backward a a) =>
-             Cond PrettyPrint env (Measure (a,b)) -> IO ()
-tryPretty = print . map runPrettyPrint . try
+runDisintegratePretty :: (Backward a a) =>
+                         Cond PrettyPrint env (Measure (a,b)) -> IO ()
+runDisintegratePretty = print . map runPrettyPrint . runDisintegrate
 
 main :: IO ()
-main = -- tryPretty zeroAddReal
+main = -- runDisintegratePretty zeroAddReal
     runTestTT important >> return ()
 
 -- 2015-04-09
