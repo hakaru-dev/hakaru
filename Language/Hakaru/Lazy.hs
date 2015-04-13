@@ -113,9 +113,9 @@ determine z = forward z >>= \case
   Vector s f   -> liftM (\s' -> Vector (lazy (return s')) f) (determine s)
   w            -> return w
 
-evaluate :: (Mochastic repr, Lub repr) =>
-            Lazy s repr a -> M s repr (repr a)
-evaluate z = forward z >>= \case
+atomize :: (Mochastic repr, Lub repr) =>
+           Hnf s repr a -> M s repr (repr a)
+atomize = \case
   Pair x y     -> liftM2 pair (evaluate x) (evaluate y)
   True_        -> return true
   False_       -> return false
@@ -133,7 +133,11 @@ evaluate z = forward z >>= \case
                       process (RVBind table rhs) = evaluatePlate table rhs
                   in retrieve locateV l (\retrieval -> do v <- process retrieval
                                                           store (VLet l v)
-                                                          return v)
+                                                          return v)      
+
+evaluate :: (Mochastic repr, Lub repr) =>
+            Lazy s repr a -> M s repr (repr a)
+evaluate z = forward z >>= atomize
 
 duplicateHeap :: (Mochastic repr, Lub repr) => M s repr (Heap s repr)
 duplicateHeap = do determineHeap
