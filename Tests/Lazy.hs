@@ -24,19 +24,6 @@ import Control.Monad ((>=>))
 import Data.Function (on)
 import Data.List (elem)
 import Control.Exception (catch)
-    
-type Cond repr env ab =
-    forall s t. Lazy s (Compose [] t repr) env
-        -> Lazy s (Compose [] t repr) ab
-
-try :: (Mochastic repr, Lambda repr, Backward a a) =>
-       Cond repr env (Measure (a,b))
-    -> [repr (env -> (a -> Measure b))]
-try m = runCompose
-      $ lam $ \env ->
-      lam $ \t -> runLazy
-      $ liftM snd_
-      $ disintegrate (pair (lazy $ scalar0 t) unit) (m (lazy $ scalar0 env))
 
 recover :: (Typeable a) => PrettyPrint a -> IO (Any a)
 recover hakaru = closeLoop ("Any (" ++ leftMode (runPrettyPrint hakaru) ++ ")")
@@ -56,7 +43,7 @@ testL :: (Backward a a, Typeable a, Typeable b,
       -> [(Expect Maple env, Expect Maple a, Any (Measure b))]
       -> Assertion
 testL f slices = do
-  ds <- mapM recover (try f)
+  ds <- mapM recover (runDisintegrate f)
   assertResult ds
   mapM_ testS' ds
   mapM_ (\(env,a,t') ->
@@ -66,26 +53,29 @@ exists :: PrettyPrint a -> [PrettyPrint a] -> Assertion
 exists t ts' = assertBool "no correct disintegration" $
                elem (result t) (map result ts')
 
-tryPretty :: (Backward a a) =>
-             Cond PrettyPrint env (Measure (a,b)) -> IO ()
-tryPretty = print . map runPrettyPrint . try
+runDisintegratePretty :: (Backward a a) =>
+                         Cond PrettyPrint env (Measure (a,b)) -> IO ()
+runDisintegratePretty = print . map runPrettyPrint . runDisintegrate
 
 main :: IO ()
-main = runTestTT important >> return ()
+main = -- runDisintegratePretty zeroAddReal
+    runTestTT important >> return ()
 
 -- 2015-04-09
 --------------------------------------------------------------------------------
 important :: Test
-important = test [ "easier1" ~: testL easierRoadmapProg1 []
+important = test [ "zeroAddInt" ~: testL zeroAddInt [(unit, 0, Any $ dirac 3)]
+                 , "zeroAddReal" ~: testL zeroAddReal [(unit, 0, Any $ dirac 3)]
+                 , "easierRoadmapProg1" ~: testL easierRoadmapProg1 []
                  ]
 --------------------------------------------------------------------------------
             
 allTests :: Test
-allTests = test [ "easier1" ~: testL easierRoadmapProg1 []
+allTests = test [ "easierRoadmapProg1" ~: testL easierRoadmapProg1 []
                 , "normalFB1" ~: testL normalFB1 []
                 , "normalFB2" ~: testL normalFB2 []
                 , "zeroDiv" ~: testL zeroDiv [(unit, 0, Any $ dirac 0)]
-                , "zeroPlusFst" ~: testL zeroPlusFst [(unit, 2, Any $ dirac 2)]
+                , "zeroAddInt" ~: testL zeroAddInt [(unit, 2, Any $ dirac 2)]
                 , "zeroPlusSnd" ~: testL zeroPlusSnd [(unit, unit, Any $ dirac 0)]
                 , "prog1s" ~: testL prog1s []
                 , "prog2s" ~: testL prog2s []
@@ -139,15 +129,20 @@ zeroDiv = \u -> ununit u $
           -- normal x (0 / 2) `bind` \y ->
           dirac (pair x (0 / x))
 
-zeroPlusFst :: (Mochastic repr) => Cond repr () (Measure (Int,Int))
-zeroPlusFst = \u -> ununit u $
-              counting `bind` \x ->
-              dirac (pair (0+x) 3)
+zeroAddInt :: (Mochastic repr) => Cond repr () (Measure (Int,Int))
+zeroAddInt = \u -> ununit u $
+             counting `bind` \x ->
+             dirac (pair (0+x) 3)
+
+zeroAddReal :: (Mochastic repr) => Cond repr () (Measure (Real,Real))
+zeroAddReal = \u -> ununit u $
+              lebesgue `bind` \x ->
+              dirac (pair (0+x) 3)                    
 
 zeroPlusSnd :: (Mochastic repr) => Cond repr () (Measure ((),Real))
 zeroPlusSnd = \u -> ununit u $
               normal 0 1 `bind` \x ->
-              dirac (pair unit (0 + x))
+              dirac (pair unit (0 + x))                   
 
 -- Jacques on 2014-11-18: "From an email of Oleg's, could someone please
 -- translate the following 3 programs into new Hakaru?"  The 3 programs below

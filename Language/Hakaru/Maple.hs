@@ -181,6 +181,7 @@ instance Mochastic Maple where
   counting      = Maple (return "measure")
   superpose _   = Maple (return "measure")
   categorical _ = Maple (return "measure")
+  uniform _ _   = Maple (return "measure")
 {-
   dirac = mapleFun1 "Return"
   m `bind` k = Maple (ReaderT $ \i -> return $

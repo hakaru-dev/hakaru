@@ -3,22 +3,18 @@
 {-# OPTIONS -Wall #-}
 
 module Language.Hakaru.Lazy (Lazy, runLazy, Backward, disintegrate,
+       Cond, runDisintegrate, density,
        scalar0, lazy) where
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
-       Number, Fraction(..), EqType(Refl), Order(..), Base(..),
-       Mochastic(..), weight, equal_, Lambda(..), Lub(..))
+       Number, Fraction(..), EqType(Refl), Order(..), Base(..), snd_, equal_,
+       Mochastic(..), weight, Integrate(..), Lambda(..), Lub(..))
 import Language.Hakaru.Compose
-import Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode)
-import Language.Hakaru.Util.Pretty (pretty)
-import Language.Hakaru.Simplify (Simplifiable, closeLoop, simplify)
-import Language.Hakaru.Any (Any(unAny))
-import Data.Typeable (Typeable)
-import Control.Monad (liftM, liftM2, (>=>))
+import Control.Monad (liftM, liftM2)
 import Data.Maybe (isNothing)
-import Data.Function (on)
 import Unsafe.Coerce (unsafeCoerce)
+import Language.Hakaru.Expect (Expect(Expect), Expect', total)
 
 ifTrue, ifFalse :: (Mochastic repr) => repr Bool ->
                    repr (Measure w) -> repr (Measure w)
@@ -117,9 +113,9 @@ determine z = forward z >>= \case
   Vector s f   -> liftM (\s' -> Vector (lazy (return s')) f) (determine s)
   w            -> return w
 
-evaluate :: (Mochastic repr, Lub repr) =>
-            Lazy s repr a -> M s repr (repr a)
-evaluate z = forward z >>= \case
+atomize :: (Mochastic repr, Lub repr) =>
+           Hnf s repr a -> M s repr (repr a)
+atomize = \case
   Pair x y     -> liftM2 pair (evaluate x) (evaluate y)
   True_        -> return true
   False_       -> return false
@@ -137,7 +133,11 @@ evaluate z = forward z >>= \case
                       process (RVBind table rhs) = evaluatePlate table rhs
                   in retrieve locateV l (\retrieval -> do v <- process retrieval
                                                           store (VLet l v)
-                                                          return v)
+                                                          return v)      
+
+evaluate :: (Mochastic repr, Lub repr) =>
+            Lazy s repr a -> M s repr (repr a)
+evaluate z = forward z >>= atomize
 
 duplicateHeap :: (Mochastic repr, Lub repr) => M s repr (Heap s repr)
 duplicateHeap = do determineHeap
@@ -451,14 +451,13 @@ add :: (Mochastic repr, Lub repr, Num (repr a), Number a) =>
 add x y = Lazy
           (do fx <- forward x
               fy <- forward y
-              let redo = scalar2 (+) x y
               case (fx,fy) of
                 (Int a,  Int b)  -> return (Int (a+b))
                 (Real a, Real b) -> return (Real (a+b))
                 (Prob a, Prob b) -> return (Prob (a+b))
-                (Value _, s) -> do (if isZero s then return fx else redo)
-                (s, Value _) -> do (if isZero s then return fy else redo)
-                _            -> redo)
+                (Value _, s) | isZero s -> return fx
+                (s, Value _) | isZero s -> return fy
+                _ -> liftM2 ((Value.) . (+)) (atomize fx) (atomize fy))
           (\t -> lub (evaluate x >>= \r -> backward y (t - r))
                      (evaluate y >>= \r -> backward x (t - r)))
 
@@ -467,14 +466,13 @@ sub :: (Mochastic repr, Lub repr, Num (repr a), Number a) =>
 sub x y = Lazy
           (do fx <- forward x
               fy <- forward y
-              let redo = scalar2 (-) x y
               case (fx,fy) of                
                 (Int a,  Int b)  -> return (Int (a-b))
                 (Real a, Real b) -> return (Real (a-b))
                 (Prob a, Prob b) -> return (Prob (a-b))
-                (Value _, s) -> do (if isZero s then return fx else redo)
-                (s, Value _) -> do (if isZero s then return fy else redo)
-                _            -> redo)
+                (Value _, s) | isZero s -> return fx
+                (s, Value _) | isZero s -> return fy
+                _ -> liftM2 ((Value.) . (-)) (atomize fx) (atomize fy))
           (\t -> lub (evaluate x >>= \r -> backward y (r - t))
                      (evaluate y >>= \r -> backward x (r + t)))
 
@@ -489,16 +487,15 @@ mul :: (Mochastic repr, Lub repr, Num (repr a), Number a) =>
 mul x y = lazy
           (do fx <- forward x
               fy <- forward y
-              let redo = scalar2 (*) x y
               case (fx,fy) of
                 (Int a,  Int b)  -> return (Int (a*b))
                 (Real a, Real b) -> return (Real (a*b))
                 (Prob a, Prob b) -> return (Prob (a*b))
-                (Value _, s) -> do (if isZero s then return s
-                                    else if isOne s then return fx else redo)
-                (s, Value _) -> do (if isZero s then return s
-                                    else if isOne s then return fy else redo)
-                _            -> redo)          
+                (Value _, s) | isZero s -> return s
+                             | isOne s  -> return fx
+                (s, Value _) | isZero s -> return s
+                             | isOne s  -> return fy
+                _ -> liftM2 ((Value.) . (*)) (atomize fx) (atomize fy))
           
 neg :: (Mochastic repr, Lub repr, Num (repr a), Number a) =>
        Lazy s repr a -> Lazy s repr a
@@ -811,3 +808,30 @@ disintegrate :: (Mochastic repr, Lub repr, Backward ab a) =>
                 Lazy s repr (Measure ab) -> Lazy s repr (Measure ab)
 disintegrate a m = measure $ join $ (forward m >>= memo . unMeasure >>= \ab ->
                                      backward_ ab a >> return ab)
+
+type Cond repr env ab = forall s t. Lazy s (Compose [] t repr) env
+                                 -> Lazy s (Compose [] t repr) ab
+
+runDisintegrate :: (Mochastic repr, Lambda repr, Backward a a) =>
+                   Cond repr env (Measure (a,b)) ->
+                   [repr (env -> a -> Measure b)]
+runDisintegrate m = runCompose
+                  $ lam $ \env ->
+                    lam $ \t -> runLazy
+                  $ disintegrate (pair (lazy (scalar0 t)) unit)
+                                 (m (lazy (scalar0 env)))
+                    `bind` dirac . snd_
+
+density :: (Mochastic repr, Lambda repr, Integrate repr, Backward a a) =>
+           Cond (Expect repr) env (Measure a) ->
+           [repr (Expect' env) -> repr (Expect' a) -> repr Prob]
+density m = [ \env t -> total (d `app` Expect env `app` Expect t)
+            | d <- runCompose
+                 $ lam $ \env ->
+                   lam $ \t -> runLazy
+                 $ disintegrate' (lazy (scalar0 t))
+                                 (m (lazy (scalar0 env))) ]
+  where disintegrate' :: (Mochastic repr, Lub repr, Backward a a) =>
+                         Lazy s repr a ->
+                         Lazy s repr (Measure a) -> Lazy s repr (Measure a)
+        disintegrate' = disintegrate

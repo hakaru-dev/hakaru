@@ -27,7 +27,6 @@ Haskell := module ()
 
       unsafes := indets(e, specfunc(anything, 'unsafeProb'));
       expr := subs(map((x -> x = unsafeProb(freeze(op(1,x)))), unsafes), e);
-      # expr := eval(e, unsafeProb = (x -> unsafeProb(freeze(x))));
 
       # some last-minute patching; this will need hardened, 'anything' is
       # wrong.
@@ -48,6 +47,10 @@ Haskell := module ()
       if pows <> {} then
         expr := subs(map((x -> x = recip (sqrt_ (op(1,x)))), pows), expr);
       end if;
+
+      # unsafeProb(..)^(fraction)
+      expr := subsindets(expr, specfunc(anything,'unsafeProb')^fraction,
+        x -> pow_(op(1,x), op(2,x)));
 
       pows := indets(expr, anything ^ integer);
       if pows <> {} then
@@ -147,9 +150,11 @@ bi["fromProb"] := ufunc("fromProb");
 bi["Unit"] := proc() b:-append("unit") end;
 bi["Uniform"] := bfunc("uniform ");
 bi["Lebesgue"] := proc() b:-append("lebesgue") end;
+bi["Counting"] := proc() b:-append("counting") end;
 bi["Pi"] := proc() b:-append("pi_") end;
 bi["Fst"] := ufunc("fst_");
 bi["Snd"] := ufunc("snd_");
+bi["pow_"] := bfunc("pow_");
 
 # SOP functions
 bi["Tag"] := proc(a,b) ufunc("tag")(b); end proc;
@@ -296,6 +301,8 @@ end;
   end proc;
 
 # patching routines.  ToDo: better design.
+# Note that we use < and > rather than <= and >= since the background
+# measure is assumed to be Lebesgue
   fix_binds := proc(bind)
     local var, rng, meas, rest, lower, upper;
     (var, rng) := op(op(2,bind));
@@ -304,9 +311,9 @@ end;
     if rng = -infinity..infinity then
       bind = 'Bind'(meas, var, rest)
     elif typematch(rng, identical(-infinity) .. (upper::Non(infinity))) then
-      bind = 'Bind'(meas, var, If(upper <= var, rest, SUPERPOSE()))
+      bind = 'Bind'(meas, var, If(var < upper, rest, SUPERPOSE()))
     elif typematch(rng, (lower::Non(infinity)) .. identical(infinity)) then
-      bind = 'Bind'(meas, var, If(var >= lower, rest, SUPERPOSE()))
+      bind = 'Bind'(meas, var, If(var > lower, rest, SUPERPOSE()))
     else # both finite
       (lower, upper) := op(rng);
       bind = 'Bind'(meas, var, If(var < lower, SUPERPOSE(),

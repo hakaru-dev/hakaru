@@ -7,6 +7,7 @@ import qualified Tests.Syntax as SY
 import qualified Tests.Vector as TV
 import qualified Tests.Relationships as RE
 import qualified Tests.Embed as E
+import qualified Tests.Lazy as L
 
 import Test.HUnit
 
@@ -19,7 +20,8 @@ allTests = test
   , RE.allTests
   , TV.allTests
   , E.allTests
-    ]
+  , L.important
+  ]
 
 main :: IO ()
 main = do

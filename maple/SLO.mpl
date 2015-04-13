@@ -26,6 +26,7 @@ SLO := module ()
     simp_pw, simp_pw_equal, simp_pw3, simp_Or,
     simp_props,
     comp2, comp_algeb, compare, comp_list,
+    DomainOfDef,
 
     # density recognisation routines
     get_de, mkRealDensity, recognize_density, recognize_density_01,
@@ -147,7 +148,18 @@ SLO := module ()
             mkRealDensity(rest, var, rng)
           end if;
         elif type(e, 'specfunc'(anything, {'sum','Sum'})) then
-          error "sums not handled yet"
+          var, rng := op(op(2,e));
+          ee := op(1,e);
+          weight := simplify(op(2,rng)-op(1,rng));
+          if type(weight, 'SymbolicInfinity') then
+            rest := ToAST(ee, ctx);
+            Bind(Counting, var = rng, rest)
+          else
+            # span := RealRange(op(1,rng), op(2,rng));
+            v := simplify(weight*ee) assuming AndProp(op(1,rng)<var, var<op(2,rng));
+            rest := ToAST(v, ctx);
+            Bind(Counting, var = rng, rest)
+          end if;
         elif type(e, t_pw) then
           return do_pw([op(e)], ctx);
         elif type(e, `+`) then
@@ -209,15 +221,20 @@ SLO := module ()
     all_vars := [op(vars),op(convert(cs,list))];
 
     push_in := proc(c, v)
-      local actual, cof, ii, rest, res;
+      local actual, cof, ii, rest, res, var, dom;
       cof := c;
       if v=1 then return cof end if;
       actual := thaw(v);
       if type(actual, t_binds) then
-        _EnvBinders := _EnvBinders union {op([2,1], actual)};
-        op(0,actual)(simp(cof*op(1,actual)), op(2,actual))
+        var := op([2,1], actual);
+        _EnvBinders := _EnvBinders union {var};
+        dom := op([2,2], actual);
+        if dom::(extended_numeric..extended_numeric) then
+          dom := DomainOfDef(op(1,actual), var, dom);
+          _EnvPathCond := _EnvPathCond union {var :: RealRange(op(dom))};
+        end if;
+        op(0,actual)(simp(cof*op(1,actual)), var = dom);
       elif type(actual, t_pw) then
-        actual := simplify(actual); # might get rid of pw!
         `if`(actual::t_pw, into_pw((x -> cof * x), actual), cof*actual);
       elif degree(v, vars)>1 then
         if type(actual, '`*`'(t_pw)) then
@@ -305,6 +322,8 @@ SLO := module ()
       end if;
     elif type(ee, 'Pair'(anything, anything)) then
       ee := map(x -> simp(thaw(x)), ee);
+      # this is weird, looks like it might not deal with pw in 2nd 
+      # part without recursing TODO
       if op(1,ee)::t_pw then
         ee := into_pw((x -> Pair(x, op(2,ee))), op(1,ee))
       elif op(2,ee)::t_pw then
@@ -580,6 +599,30 @@ SLO := module ()
     end if;
   end;
 
+  # conservative determination of the domain of definition wrt var
+  DomainOfDef := proc(expr, var, rng)
+    local rng2;
+    if expr::t_binds and not depends(op(2,expr),var) then
+      DomainOfDef(op(1,expr), var, rng)
+    elif expr::t_pw then
+      if nops(expr)=3 and op(3,expr) = 0 then
+        DomainOfDef(op(1,expr), var, rng)
+      else
+        rng
+      end if;
+    elif expr::specfunc(anything, 'And') then 
+      # intersect; And is always binary
+      rng2 := DomainOfDef(op(1,expr), var, rng);
+      DomainOfDef(op(2,expr), var, rng2);
+    elif expr::(identical(var) < numeric) then
+      op(1,rng)..min(op(2,rng), op(2,expr))
+    elif expr::(numeric < identical(var)) then
+      max(op(1,expr), op(1,rng))..op(2,rng)
+    else
+      rng
+    end;
+  end proc;
+
   mkProb := proc(w, ctx)
     local typ, pb, rl, pos, rest;
     if type(w, `*`) then
@@ -643,9 +686,10 @@ SLO := module ()
       error "there should be no unsafeProb in %1", w
     else
       typ := infer_type(w, ctx);
-      if member(typ, {'Prob', 'Number'}) then
+      # Number is a cheat, as it might be negative!
+      if member(typ, {'Prob', 'Nat', 'Number'}) then
         w
-      elif typ = 'Real' then
+      elif typ = 'Real' or type = 'Integer' then
         # we are going to need to cast.  Is it safe?
         # if not isPos(w) then WARNING("cannot insure it will not crash") end if;
         unsafeProb(w);
@@ -670,7 +714,7 @@ SLO := module ()
       map(mkReal, w, ctx)
     else
       typ := infer_type(w, ctx);
-      if member(typ ,{'Real', 'Number'}) then
+      if member(typ ,{'Real', 'Number', 'Integer', 'Nat'}) then
         w
       else
         error "don't know how to make (%1) real", w;
@@ -842,6 +886,7 @@ SLO := module ()
     elif e = 'Pi' then Prob
     elif e = 'Unit' then Unit
     elif e = 'Lebesgue' then Measure(Real)
+    elif e = 'Counting' then Measure(Int)
     elif e = 'undefined' then Real
     elif type(e, boolean) then
       'Bool'
@@ -890,7 +935,11 @@ SLO := module ()
     elif type(e, {`+`, `*`}) then
       l := map(infer_type, [op(e)], ctx);
       join_type(op(l));
-    elif type(e, {'integer', 'fraction'}) then
+    elif type(e, 'nonnegint') then
+      Nat; # need to track >=0 as well as Integer
+    elif type(e, 'integer') then
+      Integer; # need to track integer specifically; polymorphism handled elsewhere
+    elif type(e, 'fraction') then
       Number # constants are polymorphic!
     elif type(e, specfunc(anything, 'piecewise')) then
       typ := NULL;
@@ -959,7 +1008,7 @@ SLO := module ()
 
     compatible_types := proc(inf, act)
       if inf = 'Number' then
-        member(act, {'Int', 'Real', 'Prob'})
+        member(act, {'Nat', 'Integer', 'Real', 'Prob'})
       else
         inf = act
       end if;
@@ -976,8 +1025,15 @@ SLO := module ()
     if a = b then a
     elif a = 'Number' then b
     elif b = 'Number' then a
-    elif (a = 'Real' and b = 'Prob') or
-         (b = 'Real' and a = 'Prob') then 'Mixed' # we'll need to patch
+    elif a = 'Mixed' or b = 'Mixed' then 'Mixed'
+    elif (member(a, {'Real', 'Integer'}) and b = 'Prob') or
+         (member(b, {'Real', 'Integer'}) and a = 'Prob') then 'Mixed' # we'll need to patch
+    elif (a = 'Real' and member(b, {'Nat', 'Integer'})) or
+         (b = 'Real' and member(a, {'Nat', 'Integer'})) then 'Real'
+    elif (a = 'Prob' and b = 'Nat') or
+         (b = 'Prob' and a = 'Nat') then 'Prob'
+    elif (a = 'Nat' and b = 'Integer') or
+         (b = 'Nat' and a = 'Integer') then 'Integer'
     else error "join2type of %1, %2", a, b
     end if;
   end proc;
@@ -1022,7 +1078,7 @@ SLO := module ()
         else
           'Return'(ee);
         end if;
-      elif typ2 = Real and member(inf_typ, {'Real', 'Number'}) then
+      elif typ2 = Real and member(inf_typ, {'Real', 'Number', 'Nat', 'Integer'}) then
         'Return'(op(1,e))
       elif typ2 = Real and inf_typ = 'Mixed' then
         'Return'(mkReal(op(1,e), ctx));
@@ -1033,7 +1089,8 @@ SLO := module ()
         'Return'(Pair(op(1,left), op(1,right)));
       elif typ2 = Bool and member(op(1,e), {true,false}) then
         e
-      elif typ2 = Int and inf_typ = Int then
+      # typ2 will be Int as that is what Haskell sends us
+      elif typ2 = Int and member(inf_typ, {'Integer','Nat'}) then
         e
       elif type(typ2, 'Tagged'(anything, anything)) then
         if check_sop_type(inf_typ, typ2) then
@@ -1118,6 +1175,8 @@ SLO := module ()
       GammaD(mkProb(op(1,e), ctx), mkProb(op(2,e), ctx))
     elif type(e, 'NormalD'(anything, anything)) and typ = 'Measure(Real)' then
       NormalD(mkReal(op(1,e),ctx), mkProb(op(2, e), ctx))
+    elif e = 'Counting' and typ = 'Measure(Int)' then
+      Counting
     else
      error "adjust_types of %1 at type %2", e, typ;
     end if;
@@ -1165,6 +1224,8 @@ SLO := module ()
       v::RealRange(op([2,2,1], e), op([2,2,2], e))
     elif type(e, 'WeightedM'(anything, anything)) then
       compute_domain(op(2,e))
+    elif e = 'Counting' then
+      v::'Integer'
     else
       error "compute domain: %1", e;
     end if;
@@ -1429,7 +1490,7 @@ SLO := module ()
   end proc;
 
   mkRealDensity := proc(dens, var, rng)
-    local de, res, new_dens, Dx, diffop, init, c, d;
+    local de, res, new_dens, Dx, diffop, init, c, d, finite;
     if dens :: specfunc(anything, 'WeightedM') then
       res := NULL;
       # no matter what, get the de.
@@ -1467,9 +1528,7 @@ SLO := module ()
       # uses associatibity of >>=
       Bind(op(1, new_dens), op(2, new_dens),
         Bind(op(3, new_dens), op(2, dens), op(3, dens)));
-    elif dens :: specfunc(anything, 'Return') then
-      Bind(Uniform(op(1,rng), op(2,rng)), var, dens)
-    else
+    else # don't worry about Uniform, Bind/Lebesgue will take care of it
       Bind(Lebesgue, var = rng, dens)
     end if
   end proc;
@@ -1488,18 +1547,22 @@ SLO := module ()
 #############
 # more hacks to get around Maple weaknesses
   myint := proc(expr, b)
-    local var, inds, res, res0, res1;
+    local var, inds, res, res0, res1, newe;
     _EnvBinders := _EnvBinders union {op(1,b)};
     var := op(1,b);
     inds := indets(expr, specfunc(anything,c));
     inds := select(depends, inds, var);
-    if inds={} then
+    if Normalizer(op([2,1],b)-op([2,2],b)) = 0 then 
+      res := 0;
+    elif inds={} then
       if type(expr, t_binds) then
         res := subsop(1=myint(op(1,expr),b), expr) assuming op(_EnvPathCond);
+        res := simp(res);
       else
-        res0 := int(expr, b) assuming op(_EnvPathCond);
+        res0 := simp(int(expr, b) assuming op(_EnvPathCond));
         if type(res0, t_binds) and op(2,res0)=b then # didn't work, try harder
-          res1 := int(convert(expr, Heaviside), b) assuming op(_EnvPathCond);
+          newe := simplify(convert(expr,Heaviside));
+          res1 := int(newe, b) assuming op(_EnvPathCond);
           if not type(res1, t_binds) then # success!
             res := fix_Heaviside(res1, res0);
           else
@@ -1542,18 +1605,23 @@ SLO := module ()
       for i from 1 to n do
         cond := op(2*i-1, expr);
         if cond::{identical(var) < anything, identical(var) <= anything} then
-          res := res + myint(op(2*i, expr), var = lower .. op(2,cond));
-          lower := op(2,cond);
+          if op(2,cond) > lower then
+            res := res + myint(op(2*i, expr), var = lower .. min(upper,op(2,cond)));
+            lower := op(2,cond);
+          end if;
         elif cond::{anything < identical(var), anything <= identical(var)} then
-          res := res + myint(op(2*i, expr), var = op(1,cond) .. upper);
-          upper := op(1,cond);
+          if op(1,cond) < upper then
+            res := res + myint(op(2*i, expr), var = max(lower,op(1,cond)) .. upper);
+            upper := op(1,cond);
+          end if;
         else
           error "cannot handle condition (%1) while integrating pw", cond;
         end if;
       end do;
-      if rest then
-        if lower = upper then error "What the hey?" end if;
-        res := res + myint(op(-1, expr), var = lower..upper);
+      if rest then # note that lower=upper is possible, but ok
+        if lower < upper then
+          res := res + myint(op(-1, expr), var = lower..upper);
+        end if;
       end if;
       res
     elif length(expr) < 200 then # what have we got to lose?
