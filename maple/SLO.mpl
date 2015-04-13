@@ -72,7 +72,7 @@ SLO := module ()
   AST := proc(inp::HAST(anything, Context))
     local res, ctx, t, i, rng;
 
-    ctx := op(2,inp);
+    ctx := op(2,inp); # htyp, mtyp, gctx, gnum, gsize
 
     # global option
     _EnvUseHeavisideAsUnitStep := true;
