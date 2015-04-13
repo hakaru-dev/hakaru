@@ -229,7 +229,7 @@ SLO := module ()
         var := op([2,1], actual);
         _EnvBinders := _EnvBinders union {var};
         dom := op([2,2], actual);
-        if dom::(numeric..numeric) then
+        if dom::(extended_numeric..extended_numeric) then
           dom := DomainOfDef(op(1,actual), var, dom);
           _EnvPathCond := _EnvPathCond union {var :: RealRange(op(dom))};
         end if;
@@ -322,6 +322,8 @@ SLO := module ()
       end if;
     elif type(ee, 'Pair'(anything, anything)) then
       ee := map(x -> simp(thaw(x)), ee);
+      # this is weird, looks like it might not deal with pw in 2nd 
+      # part without recursing TODO
       if op(1,ee)::t_pw then
         ee := into_pw((x -> Pair(x, op(2,ee))), op(1,ee))
       elif op(2,ee)::t_pw then
