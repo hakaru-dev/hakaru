@@ -451,14 +451,13 @@ add :: (Mochastic repr, Lub repr, Num (repr a), Number a) =>
 add x y = Lazy
           (do fx <- forward x
               fy <- forward y
-              let redo = scalar2 (+) x y
               case (fx,fy) of
                 (Int a,  Int b)  -> return (Int (a+b))
                 (Real a, Real b) -> return (Real (a+b))
                 (Prob a, Prob b) -> return (Prob (a+b))
-                (Value _, s) -> do (if isZero s then return fx else redo)
-                (s, Value _) -> do (if isZero s then return fy else redo)
-                _            -> redo)
+                (Value _, s) | isZero s -> return fx
+                (s, Value _) | isZero s -> return fy
+                _ -> liftM2 ((Value.) . (+)) (atomize fx) (atomize fy))
           (\t -> lub (evaluate x >>= \r -> backward y (t - r))
                      (evaluate y >>= \r -> backward x (t - r)))
 
@@ -467,14 +466,13 @@ sub :: (Mochastic repr, Lub repr, Num (repr a), Number a) =>
 sub x y = Lazy
           (do fx <- forward x
               fy <- forward y
-              let redo = scalar2 (-) x y
               case (fx,fy) of                
                 (Int a,  Int b)  -> return (Int (a-b))
                 (Real a, Real b) -> return (Real (a-b))
                 (Prob a, Prob b) -> return (Prob (a-b))
-                (Value _, s) -> do (if isZero s then return fx else redo)
-                (s, Value _) -> do (if isZero s then return fy else redo)
-                _            -> redo)
+                (Value _, s) | isZero s -> return fx
+                (s, Value _) | isZero s -> return fy
+                _ -> liftM2 ((Value.) . (-)) (atomize fx) (atomize fy))
           (\t -> lub (evaluate x >>= \r -> backward y (r - t))
                      (evaluate y >>= \r -> backward x (r + t)))
 
@@ -489,16 +487,15 @@ mul :: (Mochastic repr, Lub repr, Num (repr a), Number a) =>
 mul x y = lazy
           (do fx <- forward x
               fy <- forward y
-              let redo = scalar2 (*) x y
               case (fx,fy) of
                 (Int a,  Int b)  -> return (Int (a*b))
                 (Real a, Real b) -> return (Real (a*b))
                 (Prob a, Prob b) -> return (Prob (a*b))
-                (Value _, s) -> do (if isZero s then return s
-                                    else if isOne s then return fx else redo)
-                (s, Value _) -> do (if isZero s then return s
-                                    else if isOne s then return fy else redo)
-                _            -> redo)          
+                (Value _, s) | isZero s -> return s
+                             | isOne s  -> return fx
+                (s, Value _) | isZero s -> return s
+                             | isOne s  -> return fy
+                _ -> liftM2 ((Value.) . (*)) (atomize fx) (atomize fy))
           
 neg :: (Mochastic repr, Lub repr, Num (repr a), Number a) =>
        Lazy s repr a -> Lazy s repr a
