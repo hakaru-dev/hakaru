@@ -96,15 +96,52 @@ b. if integral,
   - push in, and re-simplify
   if piecewise, push into every branch [into_pw]
   if product of piecewise, [into_pw], then try to merge pw
-  if still product, looks non-linear, error
+  if still product of operators, non-linear, error
+  else push in to one remaining operator
 4.2 simp_prod
+  - simplify each part as a product
+  - if there is a piecewise in the denominator, bring it to the numerator
 4.3 simp_poly
+  - collect polynomial in all variables, and simplify the coefficients
+  - pull out any additive constant [i.e. if we have x*y + 3*x + d]
+  - recursively "push_in" all coefficients in the polynomials]
+  - if the variables all denote piecewise functions (so we're in the innermost part),
+    try to merge all those into a single one
+  - if there was an additive constant, and we have a piecewise, push it in
 4.4 into_pw
+  - for each part of a piecewise, map a function into it (a+pw(cond,b,c) = pw(cond,a+b,a+c) )
 
 ====
 
 5. MyInt
+a. if trivial, return 0 [this happens!]
+b. if the integral is over x, but we have (say) c(y), 
+   - if input is nested integral, recurse (using contextual assumptions)
+   - else 
+     - try to integrate using contextual assumptions
+     - if it fails, try again using piecewise -> Heaviside
+c. if the integral is over x, and we have c(x,...) and expression is piecewise
+   - march through each condition, if it is 'simple' (so we can figure out the geometry),
+     integrate and add to result, else fail
+d. otherwise, don't try, it won't ever "work"
 
 6. ToAST
 a. handle trivial cases (Return, 0, non-measure)
-b.
+b. get the binders and the variables which are integrated over
+  - if there are none, we have a 'raw' measure expression 
+    which should be linear in the arbitrary function
+     --> Superpose of Dirac (might be piecewise)
+  - if integral
+    - pull out and simplify the weight (aka length of interval, 1 if infinite)
+    - recusively make integrand into AST
+    - recognize if that AST is a known density [recognize_density]
+  - if sum (same as above, but no density recognizer yet)
+  - if piecewise, recurse
+  - if `+`, superpose
+  - if `*`, make sure we're linear, find the binder, recurse
+
+6. recognize_density
+a. find annihilating differential equation for expression for density
+b. look up in a small database [depending on degree of coefficients of DE] the
+    densities we knw (normal, beta, gamma, uniform)
+c. adjust weight according to initial condition for density vs what we've found
