@@ -155,6 +155,7 @@ testOther = test [
                                                                 (sqrt_ 2 * fromRational (1/2))
                                              `bind` \y -> dirac (pair y (snd_ x))),
     "testRoadmapProg1" ~: testS rmProg1,
+    "testRoadmapProg4" ~: testS rmProg4,
     "testKernel" ~: testSS [testKernel] testKernel2
     ]
 
@@ -966,11 +967,11 @@ testKernel2 =
  bern x4 `bind` \x5 ->
  dirac $ if_ x5 x3 x2
 
--- this comes from Tests/Lazy easierRoadmapProg1.  It is the
+-- this comes from {Tests.Lazy,Examples.EasierRoadmap}.easierRoadmapProg1.  It is the
 -- program post-disintegrate, as passed to Maple to simplify
-rmProg1 :: (Lambda repr, Mochastic repr) => 
+rmProg1 :: (Lambda repr, Mochastic repr) =>
   repr (() -> (Real, Real) -> Measure (Prob, Prob))
-rmProg1 = 
+rmProg1 =
   lam $ \x0 ->
   lam $ \x1 ->
   x1 `unpair` \x2 x3 ->
@@ -1021,3 +1022,187 @@ rmProg1 =
                        (1, superpose [])]),
            (1, superpose [])]
 
+-- this comes from Examples.EasierRoadmap.easierRoadmapProg4'.
+rmProg4 :: (Lambda repr, Mochastic repr) =>
+  repr ((Real, Real) -> (Prob, Prob) -> Measure ((Prob, Prob), Prob))
+rmProg4 =
+  lam $ \x0 ->
+  let_ (lam $ \x1 ->
+        (lam $ \x2 ->
+         lam $ \x3 ->
+         x3 `unpair` \x4 x5 ->
+         let_ 1 $ \x6 ->
+         let_ (let_ 1 $ \x7 ->
+               let_ (let_ 1 $ \x8 ->
+                     let_ (let_ 1 $ \x9 ->
+                           let_ (let_ 1 $ \x10 ->
+                                 let_ (let_ 1 $ \x11 ->
+                                       let_ (x2 `unpair` \x12 x13 ->
+                                             x2 `unpair` \x14 x15 ->
+                                             x2 `unpair` \x16 x17 ->
+                                             x2 `unpair` \x18 x19 ->
+                                             x2 `unpair` \x20 x21 ->
+                                             x2 `unpair` \x22 x23 ->
+                                             x2 `unpair` \x24 x25 ->
+                                             x2 `unpair` \x26 x27 ->
+                                             x2 `unpair` \x28 x29 ->
+                                             x2 `unpair` \x30 x31 ->
+                                             let_ (recip pi_
+                                                   * exp_ ((x12 * x14 * (fromProb x4 * fromProb x4)
+                                                            * 2
+                                                            + fromProb x4 * fromProb x4 * x16 * x19
+                                                              * (-2)
+                                                            + x21 * x23 * (fromProb x4 * fromProb x4)
+                                                            + fromProb x5 * fromProb x5 * (x24 * x26)
+                                                            + fromProb x5 * fromProb x5 * (x29 * x31))
+                                                           * recip (fromProb x4 * fromProb x4
+                                                                    * (fromProb x4 * fromProb x4)
+                                                                    + fromProb x5 * fromProb x5
+                                                                      * (fromProb x4 * fromProb x4)
+                                                                      * 3
+                                                                    + fromProb x5 * fromProb x5
+                                                                      * (fromProb x5 * fromProb x5))
+                                                           * (-1/2))
+                                                   * exp_ (log_ (unsafeProb (exp (log (fromProb x4)
+                                                                                  * 4)
+                                                                             + exp (log (fromProb x5)
+                                                                                    * 2)
+                                                                               * exp (log (fromProb x4)
+                                                                                      * 2)
+                                                                               * 3
+                                                                             + exp (log (fromProb x5)
+                                                                                    * 4)))
+                                                           * (-1/2))
+                                                   * (1/10)) $ \x32 ->
+                                             let_ (let_ (recip (unsafeProb 3)) $ \x33 ->
+                                                   let_ (let_ 1 $ \x34 ->
+                                                         let_ (if_ (fromProb x5 `less` 4)
+                                                                   (if_ (1 `less` fromProb x5)
+                                                                        (let_ (recip (unsafeProb 5)) $ \x35 ->
+                                                                         let_ (let_ 1 $ \x36 ->
+                                                                               let_ (if_ (fromProb x4
+                                                                                          `less` 8)
+                                                                                         (if_ (3
+                                                                                               `less` fromProb x4)
+                                                                                              (let_ 5 $ \x37 ->
+                                                                                               let_ (let_ (pair (unsafeProb (fromProb x4))
+                                                                                                                (unsafeProb (fromProb x5))) $ \x38 ->
+                                                                                                     pair (dirac x38)
+                                                                                                          (lam $ \x39 ->
+                                                                                                           x39
+                                                                                                           `app` x38)) $ \x38 ->
+                                                                                               pair (weight x37 $
+                                                                                                     x38 `unpair` \x39 x40 ->
+                                                                                                     x39)
+                                                                                                    (lam $ \x39 ->
+                                                                                                     0
+                                                                                                     + x37
+                                                                                                       * (x38 `unpair` \x40 x41 ->
+                                                                                                          x41)
+                                                                                                         `app` x39))
+                                                                                              (pair (superpose [])
+                                                                                                    (lam $ \x37 ->
+                                                                                                     0)))
+                                                                                         (pair (superpose [])
+                                                                                               (lam $ \x37 ->
+                                                                                                0))) $ \x37 ->
+                                                                               let_ 1 $ \x38 ->
+                                                                               let_ (pair (superpose [])
+                                                                                          (lam $ \x39 ->
+                                                                                           0)) $ \x39 ->
+                                                                               pair (superpose [(x36,
+                                                                                                 x37 `unpair` \x40 x41 ->
+                                                                                                 x40),
+                                                                                                (x38,
+                                                                                                 x39 `unpair` \x40 x41 ->
+                                                                                                 x40)])
+                                                                                    (lam $ \x40 ->
+                                                                                     0
+                                                                                     + x36
+                                                                                       * (x37 `unpair` \x41 x42 ->
+                                                                                          x42)
+                                                                                         `app` x40
+                                                                                     + x38
+                                                                                       * (x39 `unpair` \x41 x42 ->
+                                                                                          x42)
+                                                                                         `app` x40)) $ \x36 ->
+                                                                         pair (weight x35 $
+                                                                               x36 `unpair` \x37 x38 ->
+                                                                               x37)
+                                                                              (lam $ \x37 ->
+                                                                               0
+                                                                               + x35
+                                                                                 * (x36 `unpair` \x38 x39 ->
+                                                                                    x39)
+                                                                                   `app` x37))
+                                                                        (pair (superpose [])
+                                                                              (lam $ \x35 -> 0)))
+                                                                   (pair (superpose [])
+                                                                         (lam $ \x35 -> 0))) $ \x35 ->
+                                                         let_ 1 $ \x36 ->
+                                                         let_ (pair (superpose [])
+                                                                    (lam $ \x37 -> 0)) $ \x37 ->
+                                                         pair (superpose [(x34,
+                                                                           x35 `unpair` \x38 x39 ->
+                                                                           x38),
+                                                                          (x36,
+                                                                           x37 `unpair` \x38 x39 ->
+                                                                           x38)])
+                                                              (lam $ \x38 ->
+                                                               0
+                                                               + x34
+                                                                 * (x35 `unpair` \x39 x40 -> x40)
+                                                                   `app` x38
+                                                               + x36
+                                                                 * (x37 `unpair` \x39 x40 -> x40)
+                                                                   `app` x38)) $ \x34 ->
+                                                   pair (weight x33 $ x34 `unpair` \x35 x36 -> x35)
+                                                        (lam $ \x35 ->
+                                                         0
+                                                         + x33
+                                                           * (x34 `unpair` \x36 x37 -> x37)
+                                                             `app` x35)) $ \x33 ->
+                                             pair (weight x32 $ x33 `unpair` \x34 x35 -> x34)
+                                                  (lam $ \x34 ->
+                                                   0
+                                                   + x32
+                                                     * (x33 `unpair` \x35 x36 -> x36)
+                                                       `app` x34)) $ \x12 ->
+                                       pair (weight x11 $ x12 `unpair` \x13 x14 -> x13)
+                                            (lam $ \x13 ->
+                                             0
+                                             + x11
+                                               * (x12 `unpair` \x14 x15 -> x15) `app` x13)) $ \x11 ->
+                                 let_ 1 $ \x12 ->
+                                 let_ (pair (superpose []) (lam $ \x13 -> 0)) $ \x13 ->
+                                 pair (superpose [(x10, x11 `unpair` \x14 x15 -> x14),
+                                                  (x12, x13 `unpair` \x14 x15 -> x14)])
+                                      (lam $ \x14 ->
+                                       0 + x10 * (x11 `unpair` \x15 x16 -> x16) `app` x14
+                                       + x12 * (x13 `unpair` \x15 x16 -> x16) `app` x14)) $ \x10 ->
+                           pair (weight x9 $ x10 `unpair` \x11 x12 -> x11)
+                                (lam $ \x11 ->
+                                 0 + x9 * (x10 `unpair` \x12 x13 -> x13) `app` x11)) $ \x9 ->
+                     let_ 1 $ \x10 ->
+                     let_ (pair (superpose []) (lam $ \x11 -> 0)) $ \x11 ->
+                     pair (superpose [(x8, x9 `unpair` \x12 x13 -> x12),
+                                      (x10, x11 `unpair` \x12 x13 -> x12)])
+                          (lam $ \x12 ->
+                           0 + x8 * (x9 `unpair` \x13 x14 -> x14) `app` x12
+                           + x10 * (x11 `unpair` \x13 x14 -> x14) `app` x12)) $ \x8 ->
+               pair (weight x7 $ x8 `unpair` \x9 x10 -> x9)
+                    (lam $ \x9 ->
+                     0 + x7 * (x8 `unpair` \x10 x11 -> x11) `app` x9)) $ \x7 ->
+         pair (weight x6 $ x7 `unpair` \x8 x9 -> x8)
+              (lam $ \x8 -> 0 + x6 * (x7 `unpair` \x9 x10 -> x10) `app` x8))
+        `app` x0
+        `app` x1 `unpair` \x2 x3 ->
+        x3 `app` (lam $ \x4 -> 1)) $ \x1 ->
+  lam $ \x2 ->
+  (x2 `unpair` \x3 x4 ->
+   superpose [(1 / 2,
+               uniform 3 8 `bind` \x5 -> dirac (pair (unsafeProb x5) x4)),
+              (1 / 2,
+               uniform 1 4 `bind` \x5 ->
+               dirac (pair x3 (unsafeProb x5)))]) `bind` \x3 ->
+  dirac (pair x3 (x1 `app` x3 / x1 `app` x2))
