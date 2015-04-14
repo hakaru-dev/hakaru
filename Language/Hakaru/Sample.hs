@@ -6,7 +6,7 @@
 
 {-# OPTIONS -Wall #-}
 
-module Language.Hakaru.Sample (Sample(..), Sample') where
+module Language.Hakaru.Sample (Sample(..), Sample', runSample) where
 
 -- Importance sampling interpretation
 
@@ -211,3 +211,8 @@ instance Embed (Sample m) where
 
   tag (Sample x) = Sample x
   untag (Sample x) = Sample x
+                                   
+runSample :: Sample IO (Measure a) -> IO (Sample' IO a)
+runSample m = do g <- MWC.create
+                 Just (s, _) <- unSample m 1 g
+                 return s

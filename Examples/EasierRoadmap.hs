@@ -201,10 +201,5 @@ makeChain m n s = app (chain (vector n (\ _ ->
                                         app m s `bind` \s' ->
                                         dirac $ (pair s' s')))) s `bind` \vs' ->
                   dirac (fst_ vs')
-                                   
-runChain :: Sample IO (Measure (Vector a)) -> IO (Sample' IO (Vector a))
-runChain m = do g <- MWC.create
-                Just (s, _) <- unSample m 1 g
-                return s
 
-runEasierRoadmapProg4 = runChain $ makeChain (app easierRoadmapProg4 (pair 0 1)) 20 (pair 4 2)
+runEasierRoadmapProg4 = runSample $ makeChain (app easierRoadmapProg4 (pair 0 1)) 20 (pair 4 2)
