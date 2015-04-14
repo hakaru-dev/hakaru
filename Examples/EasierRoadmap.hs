@@ -167,9 +167,11 @@ easierRoadmapProg4 =
         (uniform 1 4 `bind` \noiseE' ->
          let_ (unsafeProb noiseE') $ \noiseE ->
          dirac $ pair noiseTOld noiseE)) (\ntne' ->
-  (bern $ min_ 1 (easyDens ntne' / easyDens ntne)) `bind` \accept ->
+  (bern $ min_ 1 (easyDens m1 m2 ntne' / easyDens m1 m2 ntne)) `bind` \accept ->
   dirac $ if_ accept ntne' ntne)
- where easyDens ntne = unpair ntne $ \nt ne ->
+ where easyDens m1 m2 ntne = unpair ntne $ \nt' ne' ->
+                       let_ (fromProb nt') (\nt ->
+                       let_ (fromProb ne') (\ne ->
                        recip pi_
 	               * exp_ ((m1 * m1 * (nt * nt) * 2
 		                + nt * nt * m1 * m2 * (-2)
@@ -181,7 +183,7 @@ easierRoadmapProg4 =
                                         + ne * ne * (ne * ne))
 		               * (-1/2))
 	               * pow_ (unsafeProb (nt ** 4 + ne ** 2 * nt ** 2 * 3 + ne ** 4)) (-1/2)
-	               * (1/10)
+	               * (1/10)))
 
 easierRoadmapProg4' ::
   (Mochastic repr, Integrate repr, Lambda repr) =>
