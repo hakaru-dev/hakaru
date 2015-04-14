@@ -689,7 +689,7 @@ SLO := module ()
       # Number is a cheat, as it might be negative!
       if member(typ, {'Prob', 'Nat', 'Number'}) then
         w
-      elif typ = 'Real' or type = 'Integer' then
+      elif typ = 'Real' or type = 'Int' then
         # we are going to need to cast.  Is it safe?
         # if not isPos(w) then WARNING("cannot insure it will not crash") end if;
         unsafeProb(w);
@@ -714,7 +714,7 @@ SLO := module ()
       map(mkReal, w, ctx)
     else
       typ := infer_type(w, ctx);
-      if member(typ ,{'Real', 'Number', 'Integer', 'Nat'}) then
+      if member(typ ,{'Real', 'Number', 'Int', 'Nat'}) then
         w
       else
         error "don't know how to make (%1) real", w;
@@ -936,9 +936,9 @@ SLO := module ()
       l := map(infer_type, [op(e)], ctx);
       join_type(op(l));
     elif type(e, 'nonnegint') then
-      Nat; # need to track >=0 as well as Integer
+      Nat; # need to track >=0 as well as Int
     elif type(e, 'integer') then
-      Integer; # need to track integer specifically; polymorphism handled elsewhere
+      Int; # need to track integer specifically; polymorphism handled elsewhere
     elif type(e, 'fraction') then
       Number # constants are polymorphic!
     elif type(e, specfunc(anything, 'piecewise')) then
@@ -1008,7 +1008,7 @@ SLO := module ()
 
     compatible_types := proc(inf, act)
       if inf = 'Number' then
-        member(act, {'Nat', 'Integer', 'Real', 'Prob'})
+        member(act, {'Nat', 'Int', 'Real', 'Prob'})
       else
         inf = act
       end if;
@@ -1026,14 +1026,14 @@ SLO := module ()
     elif a = 'Number' then b
     elif b = 'Number' then a
     elif a = 'Mixed' or b = 'Mixed' then 'Mixed'
-    elif (member(a, {'Real', 'Integer'}) and b = 'Prob') or
-         (member(b, {'Real', 'Integer'}) and a = 'Prob') then 'Mixed' # we'll need to patch
-    elif (a = 'Real' and member(b, {'Nat', 'Integer'})) or
-         (b = 'Real' and member(a, {'Nat', 'Integer'})) then 'Real'
+    elif (member(a, {'Real', 'Int'}) and b = 'Prob') or
+         (member(b, {'Real', 'Int'}) and a = 'Prob') then 'Mixed' # we'll need to patch
+    elif (a = 'Real' and member(b, {'Nat', 'Int'})) or
+         (b = 'Real' and member(a, {'Nat', 'Int'})) then 'Real'
     elif (a = 'Prob' and b = 'Nat') or
          (b = 'Prob' and a = 'Nat') then 'Prob'
-    elif (a = 'Nat' and b = 'Integer') or
-         (b = 'Nat' and a = 'Integer') then 'Integer'
+    elif (a = 'Nat' and b = 'Int') or
+         (b = 'Nat' and a = 'Int') then 'Int'
     else error "join2type of %1, %2", a, b
     end if;
   end proc;
@@ -1078,7 +1078,7 @@ SLO := module ()
         else
           'Return'(ee);
         end if;
-      elif typ2 = Real and member(inf_typ, {'Real', 'Number', 'Nat', 'Integer'}) then
+      elif typ2 = Real and member(inf_typ, {'Real', 'Number', 'Nat', 'Int'}) then
         'Return'(op(1,e))
       elif typ2 = Real and inf_typ = 'Mixed' then
         'Return'(mkReal(op(1,e), ctx));
@@ -1090,7 +1090,7 @@ SLO := module ()
       elif typ2 = Bool and member(op(1,e), {true,false}) then
         e
       # typ2 will be Int as that is what Haskell sends us
-      elif typ2 = Int and member(inf_typ, {'Integer','Nat'}) then
+      elif typ2 = Int and member(inf_typ, {'Int','Nat'}) then
         e
       elif type(typ2, 'Tagged'(anything, anything)) then
         if check_sop_type(inf_typ, typ2) then
@@ -1225,7 +1225,7 @@ SLO := module ()
     elif type(e, 'WeightedM'(anything, anything)) then
       compute_domain(op(2,e))
     elif e = 'Counting' then
-      v::'Integer'
+      v::'Int'
     else
       error "compute domain: %1", e;
     end if;
@@ -1855,18 +1855,31 @@ gensym := module()
 end module;
 
 MVECTOR := proc(expr, bnd :: name = integer .. integer)
-  local j;
+  local j, nj;
   j := op(1,bnd);
-  Vector(op([2,2], bnd), unapply(eval(expr, j = j-1), j));
+  nj := gensym('`ind`');
+  HVect(op(2, bnd), nj, eval(expr, j = nj));
 end proc;
 
 Reduce := proc(f, i, v)
-  local accum, j;
-  accum := i;
-  for j from 1 to LinearAlgebra[Dimension](v) do
-    accum := f(v[j])(accum);
-  end do;
-  accum;
+  local accum, j, rng;
+
+  if v :: HVect(integer..integer, name, anything) then
+    accum := i;
+    (lo,hi) := op(op(1,v));
+    for j from 0 to hi-lo-1 do
+      accum := f(vindex(v,j))(accum);
+    end do;
+    accum;
+  else
+    'Reduce'(f,i,v)
+  end if;
 end proc;
 
-vindex := proc(v,i) if i::integer then v[i] else 'index'(v,i) end if end proc;
+vindex := proc(v,i) 
+  if i::integer and v::HVect(anything, name, anything) then 
+    eval(op(3,v), op(2,v)=i)
+  else 
+    'vindex'(v,i) 
+  end if 
+end proc;
