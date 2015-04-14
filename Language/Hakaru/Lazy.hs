@@ -273,7 +273,7 @@ determineHeap = pop >>= \case Nothing -> return ()
                            Value ab -> do (x,y) <- insert (uncons ab)
                                           return [Let l (Value x),
                                                   Let r (Value y)]
-      Weight        rhs -> do Value x <- forward rhs
+      Weight        rhs -> do x <- evaluate rhs
                               insert_ (weight x)
                               return []
       VBind l table rhs -> do v <- evaluatePlate table rhs
