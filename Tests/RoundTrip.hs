@@ -103,6 +103,7 @@ testMeasureReal = test
   , "t72d" ~: testSS [t72d] (weight 0.5 $ uniform 2 3)
   , "t73d" ~: testSS [t73d] (uniform 1 3)
   , "t74d" ~: testSS [t74d] (uniform 1 3)
+  , "t75"  ~: testSS [] t75
   , "lebesgue1" ~: testSS [] (lebesgue `bind` \x -> if_ (less 42 x) (dirac x) (superpose []))
   , "lebesgue2" ~: testSS [] (lebesgue `bind` \x -> if_ (less x 42) (dirac x) (superpose []))
   , "lebesgue3" ~: testSS [lebesgue `bind` \x -> if_ (and_ [less x 42, less 40 x]) (dirac x) (superpose [])] (weight 2 $ uniform 40 42)
@@ -724,6 +725,12 @@ t71d = uniform 1 3 `bind` \x -> if_ (less x 3) (superpose []) (dirac x)
 t72d = uniform 1 3 `bind` \x -> if_ (less x 2) (superpose []) (dirac x)
 t73d = uniform 1 3 `bind` \x -> if_ (less x 1) (superpose []) (dirac x)
 t74d = uniform 1 3 `bind` \x -> if_ (less x 0) (superpose []) (dirac x)
+
+t75 :: Mochastic repr => repr (Measure (Vector Real))
+t75 = poisson 8 `bind` \n ->
+      plate $ vector n (\ _ ->
+                        normal 0 1)
+
 
 -- Testing round-tripping of some other distributions
 testexponential :: Mochastic repr => repr (Measure Prob)

@@ -11,7 +11,7 @@ import Language.Hakaru.Syntax
 import Language.Hakaru.Sample
 import Language.Hakaru.Expect
 import Language.Hakaru.Embed
-import Language.Hakaru.Disintegrate
+import Language.Hakaru.Lazy
 
 -- To keep things concrete we will assume 5 latent states, 3 observed states
 -- and a sequence of 20 transitions. We know we start in latent state 0.
