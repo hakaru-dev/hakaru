@@ -163,7 +163,7 @@ evaluateVector s table f = do
   s' <- evaluate s
   table' <- evaluatePairs table
   heap <- duplicateHeap
-  let g i = evaluateMeasure (f (lazy $ scalar0 i)) heap
+  let g i = evaluateMeasure (f (scalar0 i)) heap
   lift (plate (vector s' (override table' g)))
 
 evaluatePlate :: (Mochastic repr, Lub repr) =>
@@ -413,16 +413,16 @@ bwdLoc l t = retrieve locate l (\retrieval -> do process retrieval
                             Cons a b -> store (Bind l1 a) >> backward b t
                             Value _  -> bot
 
-scalar0 :: (Lub repr) => repr a -> M s repr (Hnf s repr a)
-scalar0 op = return (Value op)
+scalar0 :: (Lub repr) => repr a -> Lazy s repr a
+scalar0 op = lazy (return (Value op))
 
 scalar1 :: (Lub repr, Mochastic repr) => (repr a -> repr b) ->
-           Lazy s repr a -> M s repr (Hnf s repr b)
-scalar1 op m = liftM (Value . op) (evaluate m)
+           Lazy s repr a -> Lazy s repr b
+scalar1 op m = lazy (liftM (Value . op) (evaluate m))
 
 scalar2 :: (Lub repr, Mochastic repr) => (repr a -> repr b -> repr c) ->
-           Lazy s repr a -> Lazy s repr b -> M s repr (Hnf s repr c)
-scalar2 op m n = liftM2 ((Value.) . op) (evaluate m) (evaluate n)
+           Lazy s repr a -> Lazy s repr b -> Lazy s repr c
+scalar2 op m n = lazy (liftM2 ((Value.) . op) (evaluate m) (evaluate n))
 
 comparison :: (Lub repr, Mochastic repr) =>
               (Integer -> Integer -> Bool) ->
@@ -500,7 +500,7 @@ neg x = Lazy
               Int a  -> return (Int (negate a))
               Real a -> return (Real (negate a))
               Prob a -> return (Prob (negate a))
-              _      -> scalar1 negate x)
+              _      -> liftM (Value . negate) (atomize fx))
         (\t -> backward x (negate t))
 
 abz :: (Mochastic repr, Lub repr, Num (repr a), Order repr a) =>
@@ -511,7 +511,7 @@ abz x = Lazy
               Int a  -> return (Int (abs a))
               Real a -> return (Real (abs a))
               Prob a -> return (Prob (abs a))
-              _      -> scalar1 abs x)
+              _      -> liftM (Value . abs) (atomize fx))
         (\t -> lift (if_ (less 0 t) (superpose [(1, dirac t), (1, dirac (-t))])
                                     (ifTrue (equal 0 t) (dirac 0)))
                >>= backward x)
@@ -524,16 +524,16 @@ sign x = lazy
                Int a  -> return (Int (signum a))
                Real a -> return (Real (signum a))
                Prob a -> return (Prob (signum a))
-               _      -> scalar1 signum x)
+               _      -> liftM (Value . signum) (atomize fx))
  
-inv :: (Mochastic repr, Lub repr, Fraction a, Fractional (repr a)) =>
+inv :: (Mochastic repr, Lub repr, Fractional (repr a), Fraction a) =>
        Lazy s repr a -> Lazy s repr a
 inv x = Lazy
         (do fx <- forward x
             case fx of
               Real a -> return (Real (recip a))
               Prob a -> return (Prob (recip a))
-              _      -> scalar1 recip x)
+              _      -> liftM (Value . recip) (atomize fx))
         (\t -> do insert_ (weight (recip (unsafeProbFraction (t * t))))
                   backward x (recip t))
 
@@ -605,7 +605,7 @@ instance (Mochastic repr, Lub repr) =>
 
 instance (Mochastic repr, Lub repr) =>
          Floating (Lazy s repr Real) where
-  pi = lazy (scalar0 pi)
+  pi = scalar0 pi
   exp x = Lazy
     (liftM (Value . exp) (evaluate x))
     (\t -> do insert_ (ifTrue (less 0 t) . weight (recip (unsafeProb t)))
@@ -653,7 +653,7 @@ unlistM ab = choice [do store (Unnil ab)
                         return (Just (lazyLoc l1, lazyLoc l2))]
 
 instance (Mochastic repr, Lub repr) => Base (Lazy s repr) where
-  unit              = lazy (scalar0 unit)
+  unit              = scalar0 unit
   pair a b          = lazy (return (Pair a b))
   unpair ab k       = join (liftM (uncurry k) (unpairM ab))
   inl a             = lazy (return (Inl a))
@@ -666,21 +666,21 @@ instance (Mochastic repr, Lub repr) => Base (Lazy s repr) where
   cons a b          = lazy (return (Cons a b))
   unlist ab ka kb   = join (liftM (maybe ka (uncurry kb)) (unlistM ab))
   vector s f        = lazy (return (Vector s f))
-  empty             = lazy (scalar0 empty)
+  empty             = scalar0 empty
   size v            = join $ forward v >>= \case
-                      Value v' -> return (lazy $ scalar0 (size v'))
+                      Value v' -> return (scalar0 (size v'))
                       Vector s _ -> return s
                       Plate l -> retrieve locateV l $ \case
                         RVLet v' -> do store (VLet l v')
-                                       return (lazy $ scalar0 (size v'))
+                                       return (scalar0 (size v'))
                         RVBind table rhs -> do store (VBind l table rhs)
                                                return (size rhs)
   index v i         = join $ forward v >>= \case
-                      Value v' -> liftM (lazy.scalar0 . index v') (evaluate i)
+                      Value v' -> liftM (scalar0 . index v') (evaluate i)
                       Vector _ f -> return (f i)
                       Plate l -> retrieve locateV l $ \case
                         RVLet v' -> do store (VLet l v')
-                                       liftM (lazy.scalar0 . index v') (evaluate i)
+                                       liftM (scalar0 . index v') (evaluate i)
                         RVBind table rhs -> choice
                           $ do sequence_ [ do b <- ifM (equal i j)
                                               if b then reject else return ()
@@ -700,8 +700,8 @@ instance (Mochastic repr, Lub repr) => Base (Lazy s repr) where
     (liftM (Value . fromProb) (evaluate x))
     (\t -> do insert_ (ifTrue (less 0 t))
               backward x (unsafeProb t))
-  fromInt = lazy . scalar1 fromInt
-  pi_ = lazy (scalar0 pi_)
+  fromInt = scalar1 fromInt
+  pi_ = scalar0 pi_
   exp_ x = Lazy
     (liftM (Value . exp_) (evaluate x))
     (\t -> do insert_ (weight (recip t))
@@ -711,12 +711,12 @@ instance (Mochastic repr, Lub repr) => Base (Lazy s repr) where
     (\t -> do insert_ (weight (exp_ t))
               backward x (exp_ t))
   -- TODO fill in other methods
-  erf = lazy . scalar1 erf -- need InvErf to disintegrate Erf
-  erf_ = lazy . scalar1 erf_ -- need InvErf to disintegrate Erf
-  infinity = lazy (scalar0 infinity)
-  negativeInfinity = lazy (scalar0 negativeInfinity)
-  gammaFunc = lazy . scalar1 gammaFunc
-  betaFunc = (lazy.) . scalar2 betaFunc
+  erf = scalar1 erf -- need InvErf to disintegrate Erf
+  erf_ = scalar1 erf_ -- need InvErf to disintegrate Erf
+  infinity = scalar0 infinity
+  negativeInfinity = scalar0 negativeInfinity
+  gammaFunc = scalar1 gammaFunc
+  betaFunc = scalar2 betaFunc
 
 measure :: (Lub repr) => Lazy s repr a -> Lazy s repr (Measure a)
 measure = lazy . return . Measure
@@ -805,8 +805,8 @@ runDisintegrate :: (Mochastic repr, Lambda repr, Backward a a) =>
 runDisintegrate m = runCompose
                   $ lam $ \env ->
                     lam $ \t -> runLazy
-                  $ disintegrate (pair (lazy (scalar0 t)) unit)
-                                 (m (lazy (scalar0 env)))
+                  $ disintegrate (pair (scalar0 t) unit)
+                                 (m (scalar0 env))
                     `bind` dirac . snd_
 
 density :: (Mochastic repr, Lambda repr, Integrate repr, Backward a a) =>
@@ -816,8 +816,8 @@ density m = [ \env t -> total (d `app` Expect env `app` Expect t)
             | d <- runCompose
                  $ lam $ \env ->
                    lam $ \t -> runLazy
-                 $ disintegrate' (lazy (scalar0 t))
-                                 (m (lazy (scalar0 env))) ]
+                 $ disintegrate' (scalar0 t)
+                                 (m (scalar0 env)) ]
   where disintegrate' :: (Mochastic repr, Lub repr, Backward a a) =>
                          Lazy s repr a ->
                          Lazy s repr (Measure a) -> Lazy s repr (Measure a)
