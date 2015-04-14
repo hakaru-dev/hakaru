@@ -23,3 +23,7 @@ LibraryTools:-Save(`gensym`, lib):
 LibraryTools:-Save(`MVECTOR`, lib):
 LibraryTools:-Save(`Reduce`, lib):
 LibraryTools:-Save(`vindex`, lib):
+LibraryTools:-Save(`vsize`, lib):
+LibraryTools:-Save(`evalapply/snd`, lib):
+LibraryTools:-Save(`evalapply/HVect`, lib):
+LibraryTools:-Save(`evalapply/vindex`, lib):
