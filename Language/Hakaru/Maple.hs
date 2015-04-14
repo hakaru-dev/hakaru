@@ -139,7 +139,7 @@ instance Base Maple where
   vector    = quant "MVECTOR" 0
   empty     = Maple (return "MVECTOR(undefined,n=0..0)")
   index     = mapleFun2 "vindex"
-  size      = mapleFun1 "LinearAlgebra[Dimension]"
+  size      = mapleFun1 "vsize"
   reduce r z v = Maple (ReaderT $ \i -> return $
     "Reduce((" ++ (let x = "x" ++ show i
                        y = "x" ++ show (i+1)
@@ -149,7 +149,7 @@ instance Base Maple where
 
 instance Integrate Maple where
   integrate = quant "Int"
-  summate   = quant "sum"
+  summate   = quant "Sum"
 
 -- use gensym rather than escaped locals.
 -- put lo and hi in directly, instead of passing them in.

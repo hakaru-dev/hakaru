@@ -1640,6 +1640,9 @@ end;
 # works, but could be made more robust
 `evalapply/if_` := proc(f, t) if_(op(1,f), op(2,f)(t[1]), op(3,f)(t[1])) end;
 `evalapply/Pair` := proc(f, t) Pair(op(1,f)(t[1]), op(2,f)(t[1])) end;
+`evalapply/snd` := proc(f,t) snd(op(1,f)(t[1])) end;
+`evalapply/HVect` := proc(f,t) HVect(op(1,f), op(2,f), op(3,f)(t[1])) end proc;
+`evalapply/vindex` := proc(f,t) vindex(op(1,f)(t[1]), op(2,f)) end proc;
 
 
 # Disabled until Pair is removed in Hakaru
@@ -1854,7 +1857,7 @@ gensym := module()
   end proc;
 end module;
 
-MVECTOR := proc(expr, bnd :: name = integer .. integer)
+MVECTOR := proc(expr, bnd :: name = identical(0) .. anything)
   local j, nj;
   j := op(1,bnd);
   nj := gensym('`ind`');
@@ -1862,7 +1865,7 @@ MVECTOR := proc(expr, bnd :: name = integer .. integer)
 end proc;
 
 Reduce := proc(f, i, v)
-  local accum, j, rng;
+  local accum, j, rng, lo, hi;
 
   if v :: HVect(integer..integer, name, anything) then
     accum := i;
@@ -1882,4 +1885,12 @@ vindex := proc(v,i)
   else 
     'vindex'(v,i) 
   end if 
+end proc;
+
+vsize := proc(v)
+  if v :: HVect(integer..integer, name, anything) then
+    op([1,2],v)-op([1,1],v)
+  else
+    'vsize'(v)
+  end if
 end proc;
