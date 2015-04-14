@@ -445,7 +445,15 @@ isNum m = \case
   Int n  -> fromInteger n == m
   Real n -> n == m
   Prob n -> n == m
-  _      -> False          
+  _      -> False
+
+atom1 :: (Mochastic repr, Lub repr) => (repr a -> repr b) ->
+         Hnf s repr a -> M s repr (Hnf s repr b)
+atom1 op a = liftM (Value . op) (atomize a)
+
+atom2 :: (Mochastic repr, Lub repr) => (repr a -> repr b -> repr c) ->
+         Hnf s repr a -> Hnf s repr b -> M s repr (Hnf s repr c)
+atom2 op a b = liftM2 ((Value .) . op) (atomize a) (atomize b)
 
 add :: (Mochastic repr, Lub repr, Num (repr a), Number a) => 
        Lazy s repr a -> Lazy s repr a -> Lazy s repr a
@@ -458,7 +466,7 @@ add x y = Lazy
                 (Prob a, Prob b) -> return (Prob (a+b))
                 (Value _, s) | isNum 0 s -> return fx
                 (s, Value _) | isNum 0 s -> return fy
-                _ -> liftM2 ((Value.) . (+)) (atomize fx) (atomize fy))
+                _ -> atom2 (+) fx fy)
           (\t -> lub (evaluate x >>= \r -> backward y (t - r))
                      (evaluate y >>= \r -> backward x (t - r)))
 
@@ -473,7 +481,7 @@ sub x y = Lazy
                 (Prob a, Prob b) -> return (Prob (a-b))
                 (Value _, s) | isNum 0 s -> return fx
                 (s, Value _) | isNum 0 s -> return fy
-                _ -> liftM2 ((Value.) . (-)) (atomize fx) (atomize fy))
+                _ -> atom2 (-) fx fy)
           (\t -> lub (evaluate x >>= \r -> backward y (r - t))
                      (evaluate y >>= \r -> backward x (r + t)))
 
@@ -490,7 +498,7 @@ mul x y = lazy
                              | isNum 1 s  -> return fx
                 (s, Value _) | isNum 0 s -> return s
                              | isNum 1 s  -> return fy
-                _ -> liftM2 ((Value.) . (*)) (atomize fx) (atomize fy))
+                _ -> atom2 (*) fx fy)
           
 neg :: (Mochastic repr, Lub repr, Num (repr a), Number a) =>
        Lazy s repr a -> Lazy s repr a
@@ -500,7 +508,7 @@ neg x = Lazy
               Int a  -> return (Int (negate a))
               Real a -> return (Real (negate a))
               Prob a -> return (Prob (negate a))
-              _      -> liftM (Value . negate) (atomize fx))
+              _      -> atom1 negate fx)
         (\t -> backward x (negate t))
 
 abz :: (Mochastic repr, Lub repr, Num (repr a), Order repr a) =>
@@ -511,7 +519,7 @@ abz x = Lazy
               Int a  -> return (Int (abs a))
               Real a -> return (Real (abs a))
               Prob a -> return (Prob (abs a))
-              _      -> liftM (Value . abs) (atomize fx))
+              _      -> atom1 abs fx)
         (\t -> lift (if_ (less 0 t) (superpose [(1, dirac t), (1, dirac (-t))])
                                     (ifTrue (equal 0 t) (dirac 0)))
                >>= backward x)
@@ -524,7 +532,7 @@ sign x = lazy
                Int a  -> return (Int (signum a))
                Real a -> return (Real (signum a))
                Prob a -> return (Prob (signum a))
-               _      -> liftM (Value . signum) (atomize fx))
+               _      -> atom1 signum fx)
  
 inv :: (Mochastic repr, Lub repr, Fractional (repr a), Fraction a) =>
        Lazy s repr a -> Lazy s repr a
@@ -533,7 +541,7 @@ inv x = Lazy
             case fx of
               Real a -> return (Real (recip a))
               Prob a -> return (Prob (recip a))
-              _      -> liftM (Value . recip) (atomize fx))
+              _      -> atom1 recip fx)
         (\t -> do insert_ (weight (recip (unsafeProbFraction (t * t))))
                   backward x (recip t))
 
