@@ -9,6 +9,10 @@ import Language.Hakaru.Expect (Expect')
 import Language.Hakaru.Simplify (simplify)
 import Language.Hakaru.Any (Any)
 
+import Language.Hakaru.Sample
+import qualified Data.Vector as V
+import qualified System.Random.MWC as MWC
+
 easierRoadmapProg1 ::
   (Mochastic repr) =>
   repr (Measure ((Real, Real), (Prob, Prob)))
@@ -189,3 +193,15 @@ easierRoadmapProg4' ::
   (Mochastic repr, Integrate repr, Lambda repr) =>
   repr ((Real, Real) -> (Prob, Prob) -> Measure ((Prob, Prob), Prob))
 easierRoadmapProg4' = mh proposal easierRoadmapProg3'out
+
+makeChain :: (Lambda repr, Mochastic repr) =>
+             repr (a -> Measure a) -> repr Int -> repr a -> repr (Measure (Vector a))
+makeChain m n s = app (chain (vector n (\ _ ->
+                                        lam $ \s ->
+                                        app m s `bind` \s' ->
+                                        dirac $ (pair s' s')))) s `bind` \vs' ->
+                  dirac (fst_ vs')
+
+runEasierRoadmapProg4 = runSample $ makeChain (app easierRoadmapProg4 (pair 0 1))
+                                              20
+                                              (pair 4 2)
