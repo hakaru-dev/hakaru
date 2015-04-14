@@ -202,4 +202,6 @@ makeChain m n s = app (chain (vector n (\ _ ->
                                         dirac $ (pair s' s')))) s `bind` \vs' ->
                   dirac (fst_ vs')
 
-runEasierRoadmapProg4 = runSample $ makeChain (app easierRoadmapProg4 (pair 0 1)) 20 (pair 4 2)
+runEasierRoadmapProg4 = runSample $ makeChain (app easierRoadmapProg4 (pair 0 1))
+                                              20
+                                              (pair 4 2)
