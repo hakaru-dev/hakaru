@@ -132,6 +132,17 @@ testMeasurePair = test [
 --    "testMCMCPriorProp" ~: testS testMCMCPriorProp
     ]
 
+testHigherOrder :: Test
+testHigherOrder = test [
+    "pairFun"        ~: testSS [] (pair (lam exp_) pi_),
+    "pairFunSimp"    ~: testSS [pair (lam exp_) (lam (log_.exp_))]
+                               (pair (lam exp_) (lam id)),
+    "unknownMeasure" ~: testSS [lam $ \m ->
+                                normal 0 1 `bind_`
+                                asTypeOf m (dirac (pair pi_ pi_))]
+                               (lam id)
+    ]
+
 testOther :: Test
 testOther = test [
     "beta1"      ~: testSS [testBetaConj] (superpose [(fromRational (1/2), beta 2 1)]),
@@ -153,6 +164,7 @@ allTests = test
   , testMeasureProb
   , testMeasureReal
   , testMeasurePair
+  , testHigherOrder
   , testOther
   ]
 
