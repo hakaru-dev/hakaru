@@ -440,11 +440,12 @@ instance (Lub repr, Mochastic repr, Order repr a) => Order (Lazy s repr) a where
   less  = comparison (<)  less
   equal = comparison (==) equal
 
-isZero :: (Number a) => Hnf s repr a -> Bool
-isZero (Int 0) = True
-isZero (Real 0) = True
-isZero (Prob 0) = True
-isZero _ = False
+isNum :: (Number a) => Rational -> Hnf s repr a -> Bool
+isNum m = \case
+  Int n  -> fromInteger n == m
+  Real n -> n == m
+  Prob n -> n == m
+  _      -> False          
 
 add :: (Mochastic repr, Lub repr, Num (repr a), Number a) => 
        Lazy s repr a -> Lazy s repr a -> Lazy s repr a
@@ -455,8 +456,8 @@ add x y = Lazy
                 (Int a,  Int b)  -> return (Int (a+b))
                 (Real a, Real b) -> return (Real (a+b))
                 (Prob a, Prob b) -> return (Prob (a+b))
-                (Value _, s) | isZero s -> return fx
-                (s, Value _) | isZero s -> return fy
+                (Value _, s) | isNum 0 s -> return fx
+                (s, Value _) | isNum 0 s -> return fy
                 _ -> liftM2 ((Value.) . (+)) (atomize fx) (atomize fy))
           (\t -> lub (evaluate x >>= \r -> backward y (t - r))
                      (evaluate y >>= \r -> backward x (t - r)))
@@ -470,17 +471,11 @@ sub x y = Lazy
                 (Int a,  Int b)  -> return (Int (a-b))
                 (Real a, Real b) -> return (Real (a-b))
                 (Prob a, Prob b) -> return (Prob (a-b))
-                (Value _, s) | isZero s -> return fx
-                (s, Value _) | isZero s -> return fy
+                (Value _, s) | isNum 0 s -> return fx
+                (s, Value _) | isNum 0 s -> return fy
                 _ -> liftM2 ((Value.) . (-)) (atomize fx) (atomize fy))
           (\t -> lub (evaluate x >>= \r -> backward y (r - t))
                      (evaluate y >>= \r -> backward x (r + t)))
-
-isOne :: (Number a) => Hnf s repr a -> Bool
-isOne (Int 1) = True
-isOne (Real 1) = True
-isOne (Prob 1) = True
-isOne _ = False
 
 mul :: (Mochastic repr, Lub repr, Num (repr a), Number a) => 
        Lazy s repr a -> Lazy s repr a -> Lazy s repr a
@@ -491,10 +486,10 @@ mul x y = lazy
                 (Int a,  Int b)  -> return (Int (a*b))
                 (Real a, Real b) -> return (Real (a*b))
                 (Prob a, Prob b) -> return (Prob (a*b))
-                (Value _, s) | isZero s -> return s
-                             | isOne s  -> return fx
-                (s, Value _) | isZero s -> return s
-                             | isOne s  -> return fy
+                (Value _, s) | isNum 0 s -> return s
+                             | isNum 1 s  -> return fx
+                (s, Value _) | isNum 0 s -> return s
+                             | isNum 1 s  -> return fy
                 _ -> liftM2 ((Value.) . (*)) (atomize fx) (atomize fy))
           
 neg :: (Mochastic repr, Lub repr, Num (repr a), Number a) =>
