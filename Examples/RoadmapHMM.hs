@@ -109,6 +109,7 @@ roadmapProg3 o = transMat `bind` \trans ->
                                         dirac s'))) start `bind` \x ->
                  dirac (pair trans emit)
 
+-- symDirichlet t 1 terms will cancel so they aren't needed in density calculation
 mcmc' :: (Lambda repr, Integrate repr, Mochastic repr) =>
          repr (Vector Int) -> Expect repr MCState -> Expect repr MCState ->
          Expect repr (Measure MCState)
@@ -136,8 +137,7 @@ densProg o x = unpair x (\ trans emit ->
 
 resampleRow :: (Lambda repr, Integrate repr, Mochastic repr) =>
                repr Table -> repr (Measure Table)
-resampleRow t = symDirichlet (size t) 1 `bind`
-                categorical `bind` \ri ->
+resampleRow t = categorical $ constV (size t) 1 \ri ->
                 let_ (index t ri) (\row ->
                 symDirichlet (size row) 1 `bind` \row' ->
                 dirac $ vector (size t) (\ i ->
