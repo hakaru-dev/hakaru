@@ -110,8 +110,8 @@ roadmapProg3 o = transMat `bind` \trans ->
                  dirac (pair trans emit)
 
 mcmc' :: (Lambda repr, Integrate repr, Mochastic repr) =>
-         repr (Vector Int) -> repr MCState -> repr MCState ->
-         repr (Measure MCState)
+         repr (Vector Int) -> Expect repr MCState -> Expect repr MCState ->
+         Expect repr (Measure MCState)
 mcmc' o old new =
   let_ (densProg o new / densProg o old) $ \ratio ->
     bern (min_ 1 ratio) `bind` \accept ->
@@ -123,14 +123,16 @@ densTable t = reduce (*) 1 $ vector (size t)
               (\i -> gammaFunc $ fromInt $ size (index t i))
             
 densProg :: (Lambda repr, Integrate repr, Mochastic repr) =>
-            repr (Vector Int) -> repr MCState -> repr Prob
+            repr (Vector Int) -> Expect repr MCState -> Expect repr Prob
 densProg o x = unpair x (\ trans emit ->
-               reduce (*) 1 (vector 20 $ \t ->
-                             sumV $ vector 5  $ \i ->
-                             sumV $ vector 5  $ \j ->
-                             index (index trans i) j * index (index emit j) (index o t)
-                            ))
-                           
+               sumV $ index (chain'' (vector 20 $ \i -> Expect $
+                               reify 5 5 $
+                               lam $ \s ->
+                               transition trans s `bind` \s' ->
+                               factor (index
+                                       (index emit s')
+                                       (index (Expect o) i)) `bind` \d ->
+                               dirac s')) start)
 
 resampleRow :: (Lambda repr, Integrate repr, Mochastic repr) =>
                repr Table -> repr (Measure Table)
@@ -146,7 +148,7 @@ resampleRow t = symDirichlet (size t) 1 `bind`
 -- Resample a row of both the emission and transmission matrices
 
 roadmapProg4  :: (Integrate repr, Lambda repr, Mochastic repr) =>
-                Expect repr (Vector Int) ->
+                repr (Vector Int) ->
                 Expect repr MCState ->
                 Expect repr (Measure MCState)
 roadmapProg4 o x = unpair x (\ trans emit ->
