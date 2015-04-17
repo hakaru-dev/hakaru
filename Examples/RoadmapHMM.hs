@@ -124,7 +124,13 @@ densTable t = reduce (*) 1 $ vector (size t)
             
 densProg :: (Lambda repr, Integrate repr, Mochastic repr) =>
             repr (Vector Int) -> repr MCState -> repr Prob
-densProg o x = undefined
+densProg o x = unpair x (\ trans emit ->
+               reduce (*) 0 (vector 20 $ \t ->
+                             sumV $ vector 5  $ \i ->
+                             sumV $ vector 5  $ \j ->
+                             index (index trans i) j * index (index emit j) (index o t)
+                            ))
+                           
 
 resampleRow :: (Lambda repr, Integrate repr, Mochastic repr) =>
                repr Table -> repr (Measure Table)
