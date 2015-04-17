@@ -137,7 +137,7 @@ densProg o x = unpair x (\ trans emit ->
 
 resampleRow :: (Lambda repr, Integrate repr, Mochastic repr) =>
                repr Table -> repr (Measure Table)
-resampleRow t = categorical $ constV (size t) 1 \ri ->
+resampleRow t = categorical (constV (size t) 1) `bind` \ri ->
                 let_ (index t ri) (\row ->
                 symDirichlet (size row) 1 `bind` \row' ->
                 dirac $ vector (size t) (\ i ->
