@@ -111,8 +111,8 @@ roadmapProg3 o = transMat `bind` \trans ->
 
 -- symDirichlet t 1 terms will cancel so they aren't needed in density calculation
 mcmc' :: (Lambda repr, Integrate repr, Mochastic repr) =>
-         repr (Vector Int) -> Expect repr MCState -> Expect repr MCState ->
-         Expect repr (Measure MCState)
+         repr (Vector Int) -> repr MCState -> repr MCState ->
+         repr (Measure MCState)
 mcmc' o old new =
   let_ (densProg o new / densProg o old) $ \ratio ->
     bern (min_ 1 ratio) `bind` \accept ->
@@ -124,8 +124,9 @@ densTable t = reduce (*) 1 $ vector (size t)
               (\i -> gammaFunc $ fromInt $ size (index t i))
             
 densProg :: (Lambda repr, Integrate repr, Mochastic repr) =>
-            repr (Vector Int) -> Expect repr MCState -> Expect repr Prob
-densProg o x = unpair x (\ trans emit ->
+            repr (Vector Int) -> repr MCState -> repr Prob
+densProg o x = unExpect
+             $ unpair (Expect x) (\ trans emit ->
                sumV $ index (chain'' (vector 20 $ \i -> Expect $
                                reify 5 5 $
                                lam $ \s ->
@@ -149,8 +150,8 @@ resampleRow t = categorical (constV (size t) 1) `bind` \ri ->
 
 roadmapProg4  :: (Integrate repr, Lambda repr, Mochastic repr) =>
                 repr (Vector Int) ->
-                Expect repr MCState ->
-                Expect repr (Measure MCState)
+                repr MCState ->
+                repr (Measure MCState)
 roadmapProg4 o x = unpair x (\ trans emit ->
                    resampleRow trans `bind` \trans' ->
                    resampleRow emit  `bind` \emit' ->
