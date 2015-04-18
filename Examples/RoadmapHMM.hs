@@ -56,6 +56,8 @@ roadmapProg1 = transMat `bind` \trans ->
                   ))) start `bind` \x ->
                dirac (pair (fst_ x) (pair trans emit))
 
+roadmapProg2' = runDisintegrate (\ u -> ununit u roadmapProg1)
+
 roadmapProg2 :: (Integrate repr, Lambda repr, Mochastic repr) =>
                 repr (Vector Int) -> repr (Measure (Table, Table))
 roadmapProg2 o = transMat `bind` \trans ->
