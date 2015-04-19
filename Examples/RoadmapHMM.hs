@@ -56,6 +56,8 @@ roadmapProg1 = transMat `bind` \trans ->
                   ))) start `bind` \x ->
                dirac (pair (fst_ x) (pair trans emit))
 
+--roadmapProg2' = runDisintegrate (\ u -> ununit u roadmapProg1)
+
 roadmapProg2 :: (Integrate repr, Lambda repr, Mochastic repr) =>
                 repr (Vector Int) -> repr (Measure (Table, Table))
 roadmapProg2 o = transMat `bind` \trans ->
@@ -109,6 +111,28 @@ roadmapProg3 o = transMat `bind` \trans ->
                                         dirac s'))) start `bind` \x ->
                  dirac (pair trans emit)
 
+mh :: (Mochastic repr, Integrate repr, Lambda repr,
+       env ~ Expect' env, a ~ Expect' a, Backward a a) =>
+      (forall repr'. (Mochastic repr') => repr' env -> repr' a -> repr' (Measure a)) ->
+      (forall repr'. (Mochastic repr') => repr' env -> repr' (Measure a)) ->
+      repr (env -> a -> Measure (a, Prob))
+mh proposal target =
+  lam $ \env ->
+  let_ (lam (d env)) $ \mu ->
+  lam $ \old ->
+    proposal env old `bind` \new ->
+    dirac (pair new (mu `app` {-pair-} new {-old-} / mu `app` {-pair-} old {-new-}))
+  where d:_ = density (\env -> {-bindx-} (target env) {-(proposal env)-})
+
+proposal ::
+    (Mochastic repr, Lambda repr, Integrate repr) =>
+    repr (Vector Int) -> repr (Table, Table) -> repr (Measure (Table, Table))
+proposal o x = unpair x (\ trans emit ->
+               resampleRow trans `bind` \trans' ->
+               resampleRow emit  `bind` \emit' ->
+               dirac (pair trans' emit'))      
+                       
+-- symDirichlet t 1 terms will cancel so they aren't needed in density calculation
 mcmc' :: (Lambda repr, Integrate repr, Mochastic repr) =>
          repr (Vector Int) -> repr MCState -> repr MCState ->
          repr (Measure MCState)
@@ -124,12 +148,20 @@ densTable t = reduce (*) 1 $ vector (size t)
             
 densProg :: (Lambda repr, Integrate repr, Mochastic repr) =>
             repr (Vector Int) -> repr MCState -> repr Prob
-densProg o x = undefined
+densProg o x = unExpect
+             $ unpair (Expect x) (\ trans emit ->
+               sumV $ index (chain'' (vector 20 $ \i -> Expect $
+                               reify 5 5 $
+                               lam $ \s ->
+                               transition trans s `bind` \s' ->
+                               factor (index
+                                       (index emit s')
+                                       (index (Expect o) i)) `bind` \d ->
+                               dirac s')) start)
 
 resampleRow :: (Lambda repr, Integrate repr, Mochastic repr) =>
                repr Table -> repr (Measure Table)
-resampleRow t = symDirichlet (size t) 1 `bind`
-                categorical `bind` \ri ->
+resampleRow t = categorical (constV (size t) 1) `bind` \ri ->
                 let_ (index t ri) (\row ->
                 symDirichlet (size row) 1 `bind` \row' ->
                 dirac $ vector (size t) (\ i ->
@@ -140,11 +172,16 @@ resampleRow t = symDirichlet (size t) 1 `bind`
 -- Resample a row of both the emission and transmission matrices
 
 roadmapProg4  :: (Integrate repr, Lambda repr, Mochastic repr) =>
-                Expect repr (Vector Int) ->
-                Expect repr MCState ->
-                Expect repr (Measure MCState)
+                repr (Vector Int) ->
+                repr MCState ->
+                repr (Measure MCState)
 roadmapProg4 o x = unpair x (\ trans emit ->
                    resampleRow trans `bind` \trans' ->
                    resampleRow emit  `bind` \emit' ->
                    mcmc' o (pair trans  emit)
                            (pair trans' emit'))
+
+-- roadmapProg4' :: (Mochastic repr, Integrate repr, Lambda repr) =>
+--                  repr ((Vector Int) -> (Table, Table) ->
+--                        Measure ((Table, Table), Prob))
+-- roadmapProg4' = mh proposal roadmapProg3
