@@ -60,7 +60,7 @@ testMeasureProb = test [
 testMeasureReal :: Test
 testMeasureReal = test
   [ "t3"  ~: testSS [] t3
-  , "t6"  ~: testSS [] t6
+  , "t6"  ~: testSS [t6'] t6
   , "t7"  ~: testSS [t7] t7'
   , "t7n" ~: testSS [t7n] t7n'
   , "t8'" ~: testSS [t8'] (lam $ \s1 -> lam $ \s2 -> normal 0 (sqrt_ (s1 ^ 2 + s2 ^ 2)))
@@ -204,6 +204,7 @@ t5 = factor (1/2) `bind_` dirac unit
 
 t6 :: Mochastic repr => repr (Measure Real)
 t6 = dirac 5
+t6' = superpose [(1, dirac 5)]
 
 t7,t7', t7n,t7n' :: Mochastic repr => repr (Measure Real)
 t7   = uniform 0 1 `bind` \x -> factor (unsafeProb (x+1)) `bind_` dirac (x*x)
@@ -861,12 +862,6 @@ unif2 :: Mochastic repr => repr (Measure (Real, Real))
 unif2 = uniform (-1) 1 `bind` \x ->
         uniform (x-1) (x+1) `bind` \y ->
         dirac (pair x y)
-
-two_coins :: (Mochastic repr, Lambda repr) => repr (Measure [Real])
-two_coins = bern (1/2) `bind` \x ->
-            dirac $ (if_ x
-                     (cons 1 nil)
-                     (cons 1 (cons 2 nil)))
 
 -- pull out some of the intermediate expressions for independent study
 expr1 :: (Lambda repr, Mochastic repr) => repr (Real -> Prob)

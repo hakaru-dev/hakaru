@@ -13,8 +13,7 @@ import Language.Hakaru.Syntax (Real, Prob, Measure, Base(..),
 import Language.Hakaru.Compose
 import Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode)
 import Language.Hakaru.Simplify (Simplifiable, closeLoop, simplify)
-import Language.Hakaru.Expect (Expect)
-import Language.Hakaru.Maple (Maple)    
+import Language.Hakaru.Maple (Maple)
 import Tests.TestTools
 import qualified Examples.EasierRoadmap as RM
 
@@ -40,7 +39,7 @@ testS' t = do
 testL :: (Backward a a, Typeable a, Typeable b,
          Simplifiable a, Simplifiable b, Simplifiable env) => 
          Cond PrettyPrint env (Measure (a,b))
-      -> [(Expect Maple env, Expect Maple a, Any (Measure b))]
+      -> [(Maple env, Maple a, Any (Measure b))]
       -> Assertion
 testL f slices = do
   ds <- mapM recover (runDisintegrate f)

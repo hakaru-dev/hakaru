@@ -55,7 +55,7 @@ SLO := module ()
       NumericEventHandler(division_by_zero = MyHandler);
       # simp first applied so piecewise is effective,
       # then again in case eval "undoes" work of first simp call
-      res := snd(inp(c));
+      res := inp(c);
       res := eval(res, 'if_'=piecewise);
       res := simp(res);
       res := eval(res, Int=myint);
@@ -1640,9 +1640,6 @@ end;
 # works, but could be made more robust
 `evalapply/if_` := proc(f, t) if_(op(1,f), op(2,f)(t[1]), op(3,f)(t[1])) end;
 `evalapply/Pair` := proc(f, t) Pair(op(1,f)(t[1]), op(2,f)(t[1])) end;
-`evalapply/snd` := proc(f,t) snd(op(1,f)(t[1])) end;
-`evalapply/HVect` := proc(f,t) HVect(op(1,f), op(2,f), op(3,f)(t[1])) end proc;
-`evalapply/vindex` := proc(f,t) vindex(op(1,f)(t[1]), op(2,f)) end proc;
 
 
 # Disabled until Pair is removed in Hakaru
@@ -1686,6 +1683,10 @@ end proc;
 if_ := proc(cond, tb, eb)
   if cond::name then
     if_(cond = true, tb, eb)
+  elif (eb = false) then
+    And(cond, tb)
+  elif (tb = true) then
+    Or(cond, eb)
   else
     'if_'(cond, tb, eb)
   end if;
@@ -1893,4 +1894,12 @@ vsize := proc(v)
   else
     'vsize'(v)
   end if
+end proc;
+
+unpair := proc(f, p)
+  if p::Pair(anything, anything) then
+    f(op(1,p), op(2,p))
+  else
+    'unpair'(f,p)
+  end if;
 end proc;

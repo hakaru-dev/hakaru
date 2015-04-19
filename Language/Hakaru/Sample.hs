@@ -82,10 +82,6 @@ instance Base (Sample m) where
   false                           = Sample False
   if_ (Sample True) et _          = et
   if_ (Sample False) _ ef         = ef
-  nil                             = Sample []
-  cons (Sample a) (Sample as)     = Sample (a : as)
-  unlist (Sample []) k _          = k
-  unlist (Sample (a : as)) _ k    = k (Sample a) (Sample as)
   unsafeProb (Sample x)           = Sample (LF.logFloat x)
   fromProb (Sample x)             = Sample (LF.fromLogFloat x)
   fromInt (Sample x)              = Sample (fromIntegral x)

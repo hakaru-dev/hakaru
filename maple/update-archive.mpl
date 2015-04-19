@@ -13,6 +13,7 @@ LibraryTools:-Save(`evalapply/Pair`, lib):
 LibraryTools:-Save(`if_`, lib):
 LibraryTools:-Save(`fst`, lib):
 LibraryTools:-Save(`snd`, lib):
+LibraryTools:-Save(`unpair`, lib):
 LibraryTools:-Save(`WeightedM`, lib):
 LibraryTools:-Save(`Superpose`, lib):
 LibraryTools:-Save(`Bind`, lib):
@@ -24,6 +25,3 @@ LibraryTools:-Save(`MVECTOR`, lib):
 LibraryTools:-Save(`Reduce`, lib):
 LibraryTools:-Save(`vindex`, lib):
 LibraryTools:-Save(`vsize`, lib):
-LibraryTools:-Save(`evalapply/snd`, lib):
-LibraryTools:-Save(`evalapply/HVect`, lib):
-LibraryTools:-Save(`evalapply/vindex`, lib):
