@@ -141,11 +141,6 @@ class (Order repr Int , Num        (repr Int ),
   false      :: repr Bool
   if_        :: repr Bool -> repr c -> repr c -> repr c
 
-  nil        :: repr [a]
-  cons       :: repr a -> repr [a] -> repr [a]
-  unlist     :: repr [a] -> repr c ->
-                (repr a -> repr [a] -> repr c) -> repr c
-
   unsafeProb :: repr Real -> repr Prob
   fromProb   :: repr Prob -> repr Real
   fromInt    :: repr Int  -> repr Real

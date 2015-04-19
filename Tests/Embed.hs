@@ -17,7 +17,6 @@ import Control.Applicative (Const(Const))
 import Text.PrettyPrint (text, (<>), ($$), nest)
 import Data.Function(on)
 import Language.Hakaru.Sample
-import Language.Hakaru.Expect
 import Language.Hakaru.Embed
 import Language.Hakaru.Maple 
 import Language.Hakaru.Simplify 
@@ -39,7 +38,7 @@ testSE t = do
     let s = result (unAny p)
     assertResult (show s)
 
-testSSE :: (Simplifiable a) => [Expect Maple a] -> TesteeEmbed a -> Assertion
+testSSE :: (Simplifiable a) => [Maple a] -> TesteeEmbed a -> Assertion
 testSSE ts t' =
     mapM_ (\t -> do p <- simplify t --`catch` handleSimplify t
                     (assertEqual "testSS" `on` result) t' (unAny p))

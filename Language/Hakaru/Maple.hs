@@ -3,45 +3,66 @@
 
 module Language.Hakaru.Maple (Maple(..), runMaple) where
 
--- Maple printing interpretation
+-- Expect-Maple printing interpretation
+-- This fuses two operations:
+-- 1. the Expect program transformation
+-- 2. the "Expect repr" instantiation at repr = Maple
+-- where Maple is a "printing in Maple syntax" interpretation
+
+-- We won't need fancy type gymnastics (which Expect requires) because
+-- we're squishing everything into String.
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Number(..),
-    Order(..), Base(..), Integrate(..), Lambda(..), Mochastic(..))
+    Order(..), Base(..), Integrate(..), Lambda(..), Mochastic(..), Prob, Measure)
 import Data.Ratio
-import Control.Monad (liftM2)
-import Control.Monad.Trans.Reader (ReaderT(ReaderT), runReaderT)
-import Control.Monad.Trans.Cont (Cont, cont, runCont)
--- import Data.List (intercalate)
+import Control.Monad (liftM, liftM2)
+import Control.Monad.Trans.State.Strict (State, evalState, state)
 import Language.Hakaru.Embed
+import Data.List (intersperse)
 
--- Jacques wrote on December 16 that "the condition of a piecewise can be
--- 1. a relation (i.e. <, <=, =, ::, in)
--- 2. an explicit boolean
--- 3. a boolean combination of relations (i.e. And, Or, Not)
--- and that's it.  Anything else will throw a hard error."
--- We try to satisfy this condition in Maple Bool here---------vvvvvv
-newtype Maple a = Maple { unMaple :: ReaderT Int (Cont String) String }
--- So "runMaple" should not be used on Maple Bool.
+newtype Maple a = Maple {unMaple :: State Int String}
 
 runMaple :: Maple a -> Int -> String
-runMaple (Maple x) i = runCont (runReaderT x i) id
+runMaple (Maple a) = evalState a
 
-mapleFun1 :: String -> Maple a -> Maple b
-mapleFun1 fn x = Maple (ReaderT $ \i -> return $
-  fn ++ "(" ++ runMaple x i ++ ")")
+constant :: String -> Maple a
+constant = Maple . return
 
-mapleFun2 :: String -> Maple a -> Maple b -> Maple c
-mapleFun2 fn x y = Maple (ReaderT $ \i -> return $
-  fn ++ "(" ++ runMaple x i ++ ", " ++ runMaple y i ++ ")")
+app1 :: String -> Maple a -> Maple b
+app1 fn = Maple . liftM (\z -> fn ++ "(" ++ z ++ ")") . unMaple
+
+app2 :: String -> Maple a -> Maple b -> Maple c
+app2 fn (Maple x) (Maple y) = 
+  Maple $ liftM2 (\a b -> fn ++ "(" ++ a ++ ", " ++ b ++ ")") x y
+
+lam1 :: String -> (Maple a  -> Maple b) -> Maple (a -> b)
+lam1 s k = Maple $ do
+    x <- gensym s
+    cont <- unMaple (k (constant x))
+    return ("(" ++ x ++ " -> " ++ cont ++ ")")
+
+lam2 :: String -> (Maple a  -> Maple b -> Maple c) -> Maple (a -> b -> c)
+lam2 s k = Maple $ do
+    x <- gensym s
+    y <- gensym s
+    cont <- unMaple (k (constant x) (constant y))
+    return ("( (" ++ x ++ " , " ++ y ++ ") -> " ++ cont ++ ")")
 
 mapleOp2 :: String -> Maple a -> Maple b -> Maple c
-mapleOp2 fn x y = Maple (ReaderT $ \i -> return $
-  "(" ++ runMaple x i ++ fn ++ runMaple y i ++ ")")
+mapleOp2 fn (Maple x) (Maple y) = 
+  Maple $ liftM2 (\a b -> "(" ++ a ++ fn ++ b ++ ")") x y
 
-mapleBind :: (Maple a -> Maple b) -> Int -> (String, String)
-mapleBind f i = (x, runMaple (f (Maple (return x))) (i + 1))
-  where x = "x" ++ show i
+maplePre1 :: String -> Maple a -> Maple b
+maplePre1 fn (Maple x) = Maple $ liftM (\z -> "("++ fn ++ z ++ ")") x
+
+gensym :: String -> State Int String
+gensym s = state $ \i -> (s ++ show i, i + 1)
+
+mapleCut1 :: String -> Maple a -> Maple b
+mapleCut1 fn (Maple x) = Maple $
+  do undef <- gensym "Undef"
+     liftM (\a -> "(x -> piecewise(x<0, " ++ undef ++ ", " ++ fn ++ "(x)))(" ++ a ++ ")") x
 
 instance (Number a) => Order Maple a where
   less  = mapleOp2 "<"
@@ -51,180 +72,180 @@ instance Num (Maple a) where
   (+)           = mapleOp2 "+"
   (*)           = mapleOp2 "*"
   (-)           = mapleOp2 "-"
-  negate x      = Maple (ReaderT $ \i -> return $ "(-" ++ runMaple x i ++ ")")
-  abs           = mapleFun1 "abs"
-  signum        = mapleFun1 "signum"
-  fromInteger x = Maple (return (show x))
+  negate        = maplePre1 "-"
+  abs           = app1 "abs"
+  signum        = app1 "signum"
+  fromInteger   = constant . show
 
 instance Fractional (Maple a) where
   (/)            = mapleOp2 "/"
-  fromRational x = Maple (return ("(" ++ show (numerator   x) ++
-                                  "/" ++ show (denominator x) ++ ")"))
+  fromRational x = constant ("(" ++ show (numerator   x) ++
+                         "/" ++ show (denominator x) ++ ")")
 
+-- below we don't use Maple's undefined as that leads to more problems
+-- than it is worth.  Use a separate symbol instead.
 instance Floating (Maple a) where
-  pi    = Maple (return "Pi")
-  exp   = mapleFun1 "exp"
-  sqrt  = mapleFun1 "(x -> piecewise(x<0, undefined, sqrt(x)))"
-  log   = mapleFun1 "(x -> piecewise(x<0, undefined, ln(x)))"
+  pi    = constant "Pi"
+  exp   = app1 "exp"
+  sqrt  = mapleCut1 "sqrt"
+  log   = mapleCut1 "ln"
   (**)  = mapleOp2 "^"
-  logBase b y = Maple (ReaderT $ \i -> return $
-    "log[" ++ runMaple b i ++ "](" ++ runMaple y i ++ ")")
-  sin   = mapleFun1 "sin"
-  tan   = mapleFun1 "tan"
-  cos   = mapleFun1 "cos"
-  asin  = mapleFun1 "arcsin"
-  atan  = mapleFun1 "arctan"
-  acos  = mapleFun1 "arccos"
-  sinh  = mapleFun1 "sinh"
-  tanh  = mapleFun1 "tanh"
-  cosh  = mapleFun1 "cosh"
-  asinh = mapleFun1 "arcsinh"
-  atanh = mapleFun1 "arctanh"
-  acosh = mapleFun1 "arccosh"
+  logBase b y = Maple $ liftM2 (\bb yy -> 
+    "log[" ++ bb ++ "](" ++ yy ++ ")") (unMaple b) (unMaple y)
+  sin   = app1 "sin"
+  tan   = app1 "tan"
+  cos   = app1 "cos"
+  asin  = app1 "arcsin"
+  atan  = app1 "arctan"
+  acos  = app1 "arccos"
+  sinh  = app1 "sinh"
+  tanh  = app1 "tanh"
+  cosh  = app1 "cosh"
+  asinh = app1 "arcsinh"
+  atanh = app1 "arctanh"
+  acosh = app1 "arccosh"
 
 instance Base Maple where
-  unit = Maple (return "Unit")
-  pair = mapleFun2 "Pair"
-  -- unpair, uneither, and unlist duplicate their first argument.
-  -- Does this duplication blow up our Maple output?
-  unpair (Maple ab) k = Maple (ab >>= \ab' ->
-    unMaple (k (Maple (return ("fst(" ++ ab' ++ ")"))) 
-               (Maple (return ("snd(" ++ ab' ++ ")")))))
+  unit = constant "Unit"
+  pair = app2 "Pair"
   inl (Maple a) = Maple (fmap (\a' -> "Left("  ++ a' ++ ")") a)
   inr (Maple b) = Maple (fmap (\b' -> "Right(" ++ b' ++ ")") b)
-  uneither (Maple ab) ka kb
-    = Maple (ab >>= \ab' ->
-             ReaderT $ \i -> cont $ \c ->
-             let opS :: Int -> String
-                 opS n = "op(" ++ show n ++ ", " ++ ab' ++ ")"
-                 arm k = runCont (runReaderT (unMaple (k (return (opS 1)))) i) c
-             in "if_(" ++ opS 0 ++ " = Left, " ++ arm (ka . Maple)
-                                       ++ ", " ++ arm (kb . Maple) ++ ")")
-  true = Maple (return "true")
-  false = Maple (return "false")
-  if_ (Maple b) (Maple et) (Maple ef)
-    = Maple (b >>= \b' ->
-             ReaderT $ \i -> cont $ \c ->
-             "if_(" ++ b' ++ ", " ++ runCont (runReaderT et i) c
-                          ++ ", " ++ runCont (runReaderT ef i) c ++ ")")
-
-  nil = Maple (return "Nil")
-  cons = mapleFun2 "Cons"
-  unlist (Maple as) (Maple kn) kc
-    = Maple (as >>= \as' ->
-             ReaderT $ \i -> cont $ \c ->
-             let opS :: Int -> String
-                 opS n = "op(" ++ show n ++ ", " ++ as' ++ ")"
-                 car = Maple (return (opS 1))
-                 cdr = Maple (return (opS 2))
-                 kc' = unMaple (kc car cdr)
-             in "if_(" ++ opS 0 ++ " = Nil, " ++ runCont (runReaderT kn i) c
-                                      ++ ", " ++ runCont (runReaderT kc' i) c
-                                      ++ ")")
-
-  unsafeProb (Maple x) = Maple x
-  fromProb   (Maple x) = Maple x
-  fromInt    (Maple x) = Maple x
-  infinity         = Maple (return  "infinity")
-  negativeInfinity = Maple (return "-infinity")
-  sqrt_     = mapleFun1 "sqrt"
-  log_      = mapleFun1 "ln" -- ok since it is fed > = 0 only
+  true = constant "true"
+  false = constant "false"
+  unsafeProb (Maple x) = (Maple x) -- because the phantom types shift
+  fromProb   (Maple x) = (Maple x) -- because the phantom types shift
+  fromInt    (Maple x) = (Maple x) -- because the phantom types shift
+  infinity   = constant "infinity"
+  negativeInfinity = constant "-infinity"
+  sqrt_     = app1 "sqrt"
+  log_      = app1 "ln" -- ok since it is fed > = 0 only
   pow_      = mapleOp2 "^"
-  gammaFunc = mapleFun1 "GAMMA"
-  betaFunc  = mapleFun2 "Beta"
-  fix       = mapleFun1 "(proc (f) local x; x := f(x) end proc)" . lam
-  erf       = mapleFun1 "erf"
-  erf_      = mapleFun1 "erf"
+  gammaFunc = app1 "GAMMA"
+  betaFunc  = app2 "Beta"
+  erf       = app1 "erf"
+  erf_      = app1 "erf"
 
   vector    = quant "MVECTOR" 0
-  empty     = Maple (return "MVECTOR(undefined,n=0..0)")
-  index     = mapleFun2 "vindex"
-  size      = mapleFun1 "vsize"
+  empty     = constant "MVECTOR(undefined,n=0..0)" -- feels like a hack
+  index     = app2 "vindex"
+  size      = app1 "vsize"
+  unpair (Maple ab) k = Maple $ do
+    pr <- ab
+    f <- unMaple $ lam2 "p" k
+    return ("unpair(" ++ f ++ ", "++pr++")")
+  uneither (Maple ab) ka kb = Maple $ do
+    e <- ab
+    f <- unMaple $ lam1 "left" ka
+    g <- unMaple $ lam1 "right" kb
+    return ("uneither (" ++ f ++ ", " ++ g ++ ", "++e++")")
+  if_ (Maple b) (Maple et) (Maple ef) = Maple $ do
+    b' <- b
+    et' <- et
+    ef' <- ef
+    return $ "if_(" ++ b' ++ ", " ++ et'
+                          ++ ", " ++ ef' ++ ")"
+  -- fix       = app1 "(proc (f) local x; x := f(x) end proc)" . lam
+{-
   reduce r z v = Maple (ReaderT $ \i -> return $
     "Reduce((" ++ (let x = "x" ++ show i
                        y = "x" ++ show (i+1)
                    in x ++ "->" ++ y ++ "->" ++
                       runMaple (r (Maple (return x)) (Maple (return y))) (i+2))
                ++ "), " ++ runMaple z i ++ ", " ++ runMaple v i ++ ")")
-
-instance Integrate Maple where
-  integrate = quant "Int"
-  summate   = quant "Sum"
-
+-}
 -- use gensym rather than escaped locals.
 -- put lo and hi in directly, instead of passing them in.
 -- put the body in directly too, but still use a thunk for gensym
 quant :: String -> Maple b -> Maple b ->
          (Maple a -> Maple c) -> Maple d
-quant q lo hi f = 
-  Maple (ReaderT $ \i -> return $ 
-    let lo' = runMaple lo i in
-    let hi' = runMaple hi i in
-    let (x, body) = mapleBind f i in
-    "(proc () local "++x++"; "++x++" := gensym(`h`);" ++
-        q ++ "(" ++ body ++","++x++"=" ++ lo' ++ ".." ++ hi' ++") end proc)()")
+quant q (Maple lo) (Maple hi) f = Maple $ do
+  lo' <- lo
+  hi' <- hi
+  x <- gensym "x"
+  body <- unMaple $ f $ constant x
+  return $ "(proc () local "++x++"; "++x++" := gensym(`h`);" ++
+           q ++ "(" ++ body ++","++x++"=" ++ lo' ++ ".." ++ hi' ++") end proc)()"
+
+instance Integrate Maple where
+  integrate = quant "Int"
+  summate   = quant "Sum"
 
 instance Lambda Maple where
-  lam f = Maple (ReaderT $ \i -> return $
-    let (x, body) = mapleBind f i in "(" ++ x ++ "->" ++ body ++ ")")
+  lam f = lam1 "x" f
   app (Maple rator) (Maple rand) =
     Maple (liftM2 (\rator' rand' -> 
         "(" ++ rator' ++ "(" ++ rand' ++ "))") rator rand)
 
+-- this does not return a Measure b, but rather the body of a measure
+wmtom :: String -> (Maple Prob, Maple (Measure b)) -> Maple b
+wmtom c (Maple w, Maple m) = Maple $ do
+  w' <- w
+  m' <- m
+  return $ "(" ++ w' ++ " * " ++ m' ++ "(" ++ c ++ "))"
+
 instance Mochastic Maple where
-  -- Maple doesn't currently understand this input (though one day it might).
-  -- This instance is currently here because Expect produces dual output and
-  -- we want "instance Mochastic (Expect Maple)".
-  dirac _       = Maple (return "measure")
-  bind _ _      = Maple (return "measure")
-  lebesgue      = Maple (return "measure")
-  counting      = Maple (return "measure")
-  superpose _   = Maple (return "measure")
-  categorical _ = Maple (return "measure")
-  uniform _ _   = Maple (return "measure")
-{-
-  dirac = mapleFun1 "Return"
-  m `bind` k = Maple (ReaderT $ \i -> return $
-    let (x, body) = mapleBind k i
-    in "Bind(" ++ runMaple m i ++ "," ++ x ++ "," ++ body ++ ")")
-  lebesgue = Maple (return "Lebesgue")
-  counting = Maple (return "Counting")
-  superpose pms = Maple (ReaderT $ \i -> return $
-    let pms' = [ "WeightedM(" ++ runMaple p i ++ "," ++ runMaple m i ++ ")"
-               | (p,m) <- pms ]
-    in "Superpose(" ++ intercalate "," pms' ++ ")")
--}
+  dirac (Maple a) = Maple $ do
+    a' <- a
+    c <- gensym "c"
+    return ("(" ++ c ++ " -> " ++ c ++ "(" ++ a' ++ "))")
+  bind (Maple m) k = Maple $ do
+    m2 <- m
+    c <- gensym "c"
+    a <- gensym "a"
+    body <- unMaple $ app1 m2 (lam1 a (\b -> Maple $ do
+      k'b <- unMaple $ k b
+      kbc <- unMaple $ app1 k'b (constant c)
+      return kbc))
+    return ("("++c++" -> " ++ body ++")")
+  lebesgue      = Maple $ do
+    m <- gensym "m"
+    x <- gensym "x"
+    return ("("++m++" -> Int("++m++"("++x++"),"++x++"=-infinity..infinity))")
+  superpose l   = Maple $ do
+    c <- gensym "c"
+    let l' = map (unMaple . wmtom c) l
+    res <- fmap (concat . intersperse " + ") (sequence l')
+    return $ if res == "" then "(" ++ c ++ " -> 0 )" else "(" ++ c ++ " -> " ++ res ++ ")"
+  uniform (Maple a) (Maple b) = Maple $ do
+    a' <- a
+    b' <- b
+    m <- gensym "m"
+    x <- gensym "x"
+    let weight = "(1/("++b'++" - "++a'++")) *"
+    return ("("++m++" -> Int("++weight ++ m++"("++x++"),"++x++"="++a'++".."++b'++"))")
+  counting      = Maple $ do
+    m <- gensym "m"
+    i <- gensym "i"
+    return ("("++m++" -> Sum("++m++"("++i++"),"++i++"=-infinity..infinity))")
+  categorical _ = Maple (return "missing_categorical")
 
 op :: Int -> Maple a -> Maple b 
 op n (Maple x) = Maple $ x >>= \x' -> return ("op(" ++ show n ++ ", " ++ x' ++ ")")
 
--- reMaple :: Maple a -> Maple b
--- reMaple (Maple a) = Maple a 
-
 instance Embed Maple where 
-  _Nil = Maple (return "Nil")
-  _Cons = mapleFun2 "Cons"
+  _Nil = constant "Nil"
+  _Cons = app2 "Cons"
 
-  _Z = mapleFun1 "Zero"
-  _S = mapleFun1 "Succ"
+  _Z = app1 "Zero"
+  _S = app1 "Succ"
 
-  voidSOP _ = Maple . return $ "HakaruError (`Datatype with no constructors`)"
+  voidSOP _ = constant "HakaruError (`Datatype with no constructors`)"
 
   tag :: forall xss t . (Embeddable t) => Maple (SOP xss) -> Maple (Tag t xss)
-  -- tag = mapleFun1 "Tag" 
+  -- tag = app1 "Tag" 
 
-  tag = mapleFun2 "Tag"
-         (Maple $ return $ datatypeName $ datatypeInfo (Proxy :: Proxy t))
+  tag = app2 "Tag"
+         (constant $ datatypeName $ datatypeInfo (Proxy :: Proxy t))
 
   caseProd x f = f (op 1 x) (op 2 x)
 
-  caseSum (Maple ab) ka kb
-    = Maple (ab >>= \ab' ->
-             ReaderT $ \i -> cont $ \c ->
-             let opS :: Int -> String
-                 opS n = "op(" ++ show n ++ ", " ++ ab' ++ ")"
-                 arm k = runCont (runReaderT (unMaple (k (return (opS 1)))) i) c
-             in "if_(" ++ opS 0 ++ " = Zero, " ++ arm (ka . Maple)
-                                       ++ ", " ++ arm (kb . Maple) ++ ")")
+  -- op isn't best here, FIXME
+  caseSum (Maple ab) ka kb = Maple $ do
+    ab' <- ab
+    op0 <- return $ "op(0,"++ ab' ++ ")"
+    op1 <- return $ "op(1,"++ ab' ++ ")"
+    left <- unMaple $ ka (constant op1)
+    right <- unMaple $ kb (constant op1)
+    return $ "if_(" ++ op0 ++ " = Zero, " ++ left ++ ", " ++ right ++ ")"
 
   untag = op 2 

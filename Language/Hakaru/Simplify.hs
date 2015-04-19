@@ -15,7 +15,7 @@ module Language.Hakaru.Simplify
 
 import Control.Exception
 import Language.Hakaru.Simplifiable (Simplifiable(mapleType))
-import Language.Hakaru.Expect (Expect, unExpect)
+-- import Language.Hakaru.Expect (Expect, unExpect)
 import Language.Hakaru.Maple (Maple, runMaple)
 import Language.Hakaru.Any (Any(Any), AnySimplifiable(AnySimplifiable))
 import Language.Hakaru.PrettyPrint (runPrettyPrintNamesPrec)
@@ -104,12 +104,12 @@ closeLoop s = action where
 mkTypeString :: (Simplifiable a) => String -> a -> String
 mkTypeString s t = "Typed(" ++ s ++ ", " ++ mapleType t ++ ")"
 
-simplify :: (Simplifiable a) => Expect Maple a -> IO (Any a)
+simplify :: (Simplifiable a) => Maple a -> IO (Any a)
 simplify e = do
   hakaru <- simplify' e
   closeLoop ("Any (" ++ hakaru ++ ")")
 
-simplify' :: (Simplifiable a) => Expect Maple a -> IO String
+simplify' :: (Simplifiable a) => Maple a -> IO String
 simplify' e = do
   let slo = toMaple e
   hopeString <- maple ("timelimit(15,Haskell(SLO:-AST(SLO(" ++ slo ++ "))));")
@@ -120,8 +120,8 @@ simplify' e = do
 getArg :: f a -> a
 getArg = undefined
 
-toMaple :: (Simplifiable a) => Expect Maple a -> String
-toMaple e = mkTypeString (runMaple (unExpect e) 0) (getArg e)
+toMaple :: (Simplifiable a) => Maple a -> String
+toMaple e = mkTypeString (runMaple e 0) (getArg e)
 
 main :: IO ()
 main = action `catch` handler1 `catch` handler0 where

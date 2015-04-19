@@ -4,12 +4,8 @@ module Tests.RoundTrip (allTests,t4,unif2,norm) where
 import Prelude hiding (Real)
 
 import Language.Hakaru.Syntax
-import Language.Hakaru.Disintegrate hiding (max_)
-import Language.Hakaru.Expect (Expect(..), Expect', total, normalize)
--- import Language.Hakaru.Maple (Maple, runMaple)
--- import Language.Hakaru.Simplify (simplify)
--- import Language.Hakaru.PrettyPrint (runPrettyPrint)
--- import Text.PrettyPrint (text, (<>), ($$), nest, render)
+import Language.Hakaru.Disintegrate (density)
+import Language.Hakaru.Expect (Expect(..), Expect', total)
 
 import Test.HUnit
 import Tests.TestTools
@@ -60,7 +56,7 @@ testMeasureProb = test [
 testMeasureReal :: Test
 testMeasureReal = test
   [ "t3"  ~: testSS [] t3
-  , "t6"  ~: testSS [] t6
+  , "t6"  ~: testSS [t6'] t6
   , "t7"  ~: testSS [t7] t7'
   , "t7n" ~: testSS [t7n] t7n'
   , "t8'" ~: testSS [t8'] (lam $ \s1 -> lam $ \s2 -> normal 0 (sqrt_ (s1 ^ 2 + s2 ^ 2)))
@@ -102,7 +98,6 @@ testMeasureReal = test
   , "t72d" ~: testSS [t72d] (weight 0.5 $ uniform 2 3)
   , "t73d" ~: testSS [t73d] (uniform 1 3)
   , "t74d" ~: testSS [t74d] (uniform 1 3)
-  , "t75"  ~: testSS [] t75
   , "lebesgue1" ~: testSS [] (lebesgue `bind` \x -> if_ (less 42 x) (dirac x) (superpose []))
   , "lebesgue2" ~: testSS [] (lebesgue `bind` \x -> if_ (less x 42) (dirac x) (superpose []))
   , "lebesgue3" ~: testSS [lebesgue `bind` \x -> if_ (and_ [less x 42, less 40 x]) (dirac x) (superpose [])] (weight 2 $ uniform 40 42)
@@ -183,6 +178,7 @@ t5 = factor (1/2) `bind_` dirac unit
 
 t6 :: Mochastic repr => repr (Measure Real)
 t6 = dirac 5
+t6' = superpose [(1, dirac 5)]
 
 t7,t7', t7n,t7n' :: Mochastic repr => repr (Measure Real)
 t7   = uniform 0 1 `bind` \x -> factor (unsafeProb (x+1)) `bind_` dirac (x*x)
@@ -693,12 +689,6 @@ t72d = uniform 1 3 `bind` \x -> if_ (less x 2) (superpose []) (dirac x)
 t73d = uniform 1 3 `bind` \x -> if_ (less x 1) (superpose []) (dirac x)
 t74d = uniform 1 3 `bind` \x -> if_ (less x 0) (superpose []) (dirac x)
 
-t75 :: Mochastic repr => repr (Measure (Vector Real))
-t75 = poisson 8 `bind` \n ->
-      plate $ vector n (\ _ ->
-                        normal 0 1)
-
-
 -- Testing round-tripping of some other distributions
 testexponential :: Mochastic repr => repr (Measure Prob)
 testexponential = exponential (1/3)
@@ -791,12 +781,6 @@ unif2 :: Mochastic repr => repr (Measure (Real, Real))
 unif2 = uniform (-1) 1 `bind` \x ->
         uniform (x-1) (x+1) `bind` \y ->
         dirac (pair x y)
-
-two_coins :: (Mochastic repr, Lambda repr) => repr (Measure [Real])
-two_coins = bern (1/2) `bind` \x ->
-            dirac $ (if_ x
-                     (cons 1 nil)
-                     (cons 1 (cons 2 nil)))
 
 -- pull out some of the intermediate expressions for independent study
 expr1 :: (Lambda repr, Mochastic repr) => repr (Real -> Prob)

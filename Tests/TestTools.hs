@@ -5,7 +5,6 @@ module Tests.TestTools where
 
 import Language.Hakaru.Syntax (Measure, Lambda(lam), Order_)
 import Language.Hakaru.Disintegrate (Disintegrate, Disintegration(Disintegration), disintegrations)
-import Language.Hakaru.Expect (Expect(unExpect))
 import Language.Hakaru.Maple (Maple, runMaple)
 import Language.Hakaru.Simplify (simplify, Simplifiable, toMaple)
 import Language.Hakaru.Any (Any(unAny), Any')
@@ -49,7 +48,7 @@ testS t = do
     assertResult (show s)
 
 -- Assert that all the given Hakaru programs simplify to the given one
-testSS :: (Simplifiable a) => [Expect Maple a] -> Any' a -> Assertion
+testSS :: (Simplifiable a) => [Maple a] -> Any' a -> Assertion
 testSS ts t' =
     mapM_ (\t -> do p <- simplify t --`catch` handleSimplify t
                     (assertEqual "testSS" `on` result) t' (unAny p))
@@ -60,7 +59,7 @@ handleSimplify t e = throw (TestSimplifyException (show t) e)
 
 testD :: (Simplifiable env, Simplifiable a, Simplifiable b, Order_ a) =>
          (Disintegrate env -> Disintegrate (Measure (a,b))) ->
-         [(Expect Maple env, Expect Maple a, Any (Measure b))] -> Assertion
+         [(Maple env, Maple a, Any (Measure b))] -> Assertion
 testD f slices = do
     let ds = disintegrations f
     assertResult ds
@@ -74,15 +73,15 @@ toMapleD f = do
     mapM_ (\(Disintegration d) -> (putStrLn.toMaple) 
                                   (lam (\env -> lam (\a -> d env a)))) ds
 
-testMaple :: Expect Maple a -> IO ()
-testMaple t = assertResult $ runMaple (unExpect t) 0
+testMaple :: Maple a -> IO ()
+testMaple t = assertResult $ runMaple t 0
 
-testMapleEqual :: Expect Maple a -> Expect Maple a -> IO ()
+testMapleEqual :: Maple a -> Maple a -> IO ()
 testMapleEqual t1 t2 = do
     let r1 = rm t1
     let r2 = rm t2
     assertEqual "testMapleEqual: false" r1 r2
-    where rm t = runMaple (unExpect t) 0
+    where rm t = runMaple t 0
 
 ignore :: a -> Assertion
 ignore _ = assertFailure "ignored"  -- ignoring a test reports as a failure

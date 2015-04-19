@@ -13,6 +13,7 @@ allTests = test [ "testReduce"    ~: testReduce
                 , "testUnity"     ~: testUnity
                 , "testInside"    ~: testInside
                 , "testPull"      ~: testPull
+                , "t75"           ~: testSS [] t75
                 , "testConj"      ~: testConj
                 , "testPlateDirac"~: testPlateDirac ]
 
@@ -92,3 +93,10 @@ testPlateDirac = testSS [plateDirac] plateDirac'
 plateDirac, plateDirac' :: (Mochastic repr) => repr (Measure (Vector Real))
 plateDirac = plate (vector 10 (dirac . (1+) . fromInt))
 plateDirac' = dirac (vector 10 ((1+) . fromInt))
+
+t75 :: Mochastic repr => repr (Measure (Vector Real))
+t75 = poisson 8 `bind` \n ->
+      plate $ vector n (\ _ ->
+                        normal 0 1)
+
+

@@ -125,9 +125,6 @@ instance Base PrettyPrint where
   true              = string "true"
   false             = string "false"
   if_               = apply3 "if_"
-  nil               = string "nil"
-  cons              = apply2 "cons"
-  unlist as kn kc   = apply3 "unlist" as kn (fun2 kc)
   unsafeProb        = apply1 "unsafeProb"
   fromProb          = apply1 "fromProb"
   fromInt           = apply1 "fromInt"

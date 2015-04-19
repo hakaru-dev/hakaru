@@ -37,9 +37,6 @@ data    instance Static (a, b)       repr = SPair  (Partial repr a)
                                                    (Partial repr b)
 data    instance Static (Either a b) repr = SLeft  (Partial repr a)
                                           | SRight (Partial repr b)
-data    instance Static [a]          repr = SNil
-                                          | SCons (Partial repr a)
-                                                  (Partial repr [a])
 newtype instance Static (Measure a)  repr = SMeasure (M repr a)
 
 type M repr a =
@@ -208,21 +205,6 @@ instance (Base repr) => Base (Partial repr) where
   if_ eb et ef = fromDynamic (liftM3 if_ (toDynamic eb)
                                          (toDynamic et)
                                          (toDynamic ef))
-
-  nil         = Partial (Just nil) (Just SNil)
-  cons a as   = Partial (liftM2 cons (toDynamic a) (toDynamic as))
-                        (Just (SCons a as))
-  unlist (Partial _ (Just SNil)) kn _ = kn
-  unlist (Partial _ (Just (SCons a as))) _ kc = kc a as
-  unlist as kn kc = fromDynamic (do
-    _ <- toDynamic (kc (fromDynamic (Just undefined))
-                       (fromDynamic (Just undefined)))
-    as' <- toDynamic as
-    kn' <- toDynamic kn
-    let kc' a l = fromMaybe (error "Partial unlist: kc nonmonotonic!?")
-                           (toDynamic (kc (fromDynamic (Just a))
-                                         (fromDynamic (Just l))))
-    Just (unlist as' kn' kc'))
 
   unsafeProb (Partial d s) = Partial (fmap unsafeProb d)
                                      (fmap (\(SReal x) -> SProb x) s)

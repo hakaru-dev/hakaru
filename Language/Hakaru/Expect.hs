@@ -73,11 +73,6 @@ instance (Base repr) => Base (Expect repr) where
   false                          = Expect false
   if_ eb (Expect et) (Expect ef) = Expect $ if_ (unExpect eb) et ef
 
-  nil                            = Expect nil
-  cons (Expect a) (Expect as)    = Expect $ cons a as
-  unlist (Expect as) kn kc       = Expect $ unlist as (unExpect kn) (\a' as' ->
-                                   unExpect (kc (Expect a') (Expect as')))
-
   unsafeProb                     = Expect . unsafeProb . unExpect
   fromProb                       = Expect . fromProb   . unExpect
   fromInt                        = Expect . fromInt    . unExpect

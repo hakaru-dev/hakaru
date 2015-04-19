@@ -39,7 +39,7 @@ testS' t = testS (unAny t)
 testL :: (Backward a a, Typeable a, Typeable b,
          Simplifiable a, Simplifiable b, Simplifiable env) => 
          Cond PrettyPrint env (Measure (a,b))
-      -> [(Expect Maple env, Expect Maple a, Any (Measure b))]
+      -> [(Maple env, Maple a, Any (Measure b))]
       -> Assertion
 testL f slices = do
   ds <- mapM recover (runDisintegrate f)
