@@ -1,5 +1,5 @@
 {-# LANGUAGE TypeFamilies, Rank2Types, FlexibleContexts #-}
-module Tests.RoundTrip (allTests) where
+module Tests.RoundTrip (allTests,t4,unif2,norm) where
 
 import Prelude hiding (Real)
 
@@ -68,7 +68,6 @@ testMeasureReal = test
   , "t13" ~: testSS [t13] t13'
   , "t14" ~: testSS [t14] t14'
   , "t21" ~: testS t21
-  , "t27" ~: testSS t27 t27'
   , "t28" ~: testSS [] t28
   , "t29" ~: testSS [] t29
   , "t31" ~: testSS [] t31
@@ -128,8 +127,7 @@ testMeasurePair = test [
                               (lam $ \x -> superpose [(fromRational (1/2), normal 0 1         `bind` \y -> dirac (pair y (snd_ x))),
                                                       (fromRational (1/2), normal 0 (sqrt_ 2) `bind` \y -> dirac (pair (fst_ x) y))]),
     "mhPriorProp"   ~: testSS [testMHPriorProp] testPriorProp',
-    "unif2"         ~: testS unif2,
-    "testGibbsPropUnif" ~: testS testGibbsPropUnif
+    "unif2"         ~: testS unif2
 --    "testMCMCPriorProp" ~: testS testMCMCPriorProp
     ]
 
@@ -146,15 +144,6 @@ testHigherOrder = test [
 
 testOther :: Test
 testOther = test [
-    "beta1"      ~: testSS [testBetaConj] (superpose [(fromRational (1/2), beta 2 1)]),
-    "beta2"      ~: testSS [testBetaConj'] (beta 2 1),
-    "testGibbs0" ~: testSS [testGibbsProp0] (lam $ \x -> normal (x * fromRational (1/2))
-                                                                (sqrt_ 2 * fromRational (1/2))),
-    "testGibbs1" ~: testSS [testGibbsProp1] (lam $ \x -> normal (fst_ x) 1
-                                             `bind` \y -> dirac (pair (fst_ x) y)),
-    "testGibbs2" ~: testSS [testGibbsProp2] (lam $ \x -> normal ((snd_ x) * fromRational (1/2))
-                                                                (sqrt_ 2 * fromRational (1/2))
-                                             `bind` \y -> dirac (pair y (snd_ x))),
     "testRoadmapProg1" ~: testS rmProg1,
     "testRoadmapProg4" ~: testS rmProg4,
     "testKernel" ~: testSS [testKernel] testKernel2
@@ -187,16 +176,6 @@ t4' :: Mochastic repr => repr (Measure (Prob, Bool))
 t4' = (uniform  0 1) `bind` \x3 ->
       superpose [((unsafeProb x3)               ,(dirac (pair (unsafeProb x3) true))),
                  ((unsafeProb (1 + (x3 * (-1)))),(dirac (pair (unsafeProb x3) false)))]
-
--- testBetaConj is like t4, but we condition on the coin coming up true,
--- so a different sampling procedure for the bias is called for.
-testBetaConj :: (Mochastic repr) => repr (Measure Prob)
-testBetaConj = d unit true
-  where d:_ = runDisintegrate (\env -> ununit env $ liftM swap_ t4)
-
-testBetaConj' :: (Mochastic repr, Integrate repr, Lambda repr) => repr (Measure Prob)
-testBetaConj' = normalize (d unit true)
-  where d:_ = runDisintegrate (const $ liftM swap_ t4)
 
 -- t5 is "the same" as t1.
 t5 :: Mochastic repr => repr (Measure ())
@@ -292,18 +271,6 @@ t25' = lam (\x -> lam (\y ->
 
 t26 :: (Mochastic repr, Lambda repr, Integrate repr) => repr (Measure Prob)
 t26 = dirac (total t1)
-
-t27 :: (Mochastic repr, Lambda repr) => [repr (Real -> Measure Real)]
-t27 = map (\d -> lam (d unit)) $ runDisintegrate
-  (\env -> ununit env $
-    normal 0 1 `bind` \x ->
-    normal x 1 `bind` \y ->
-    dirac (pair y x))
-t27' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure Real)
-t27' = lam (\y ->
-  superpose 
-    [( recip (sqrt_ pi_) * exp_ (y * y * fromRational (-1/4)) * fromRational (1/2)
-    , normal (y * fromRational (1/2)) ((sqrt_ 2) * fromRational (1/2)) )])
 
 t28 :: Mochastic repr => repr (Measure Real)
 t28 = uniform 0 1
@@ -746,43 +713,6 @@ priorAsProposal p x = bern (1/2) `bind` \c ->
                       dirac (if_ c
                              (pair (fst_ x ) (snd_ x'))
                              (pair (fst_ x') (snd_ x )))
-
-gibbsProposal :: (Order_ a, Expect' a ~ a, Expect' b ~ b,
-                  Mochastic repr, Integrate repr, Lambda repr) =>
-                 Disintegrate (Measure (a,b)) ->
-                 repr (a, b) -> repr (Measure (a, b))
-gibbsProposal p x = q (fst_ x) `bind` \x' -> dirac (pair (fst_ x) x')
-  where d:_ = runDisintegrate (const p)
-        q y = normalize (d unit (Expect y))
-
-testGibbsProp0 :: (Lambda repr, Mochastic repr, Integrate repr) =>
-                  repr (Real -> Measure Real)
-testGibbsProp0 = lam $ \x -> normalize (d unit (Expect x))
-  where d:_ = runDisintegrate (const flipped_norm)
-
-onFst :: (Lambda repr) => (t -> repr a -> repr b) -> t -> repr (a -> b)
-onFst tr f = lam (tr f)
-
-onSnd :: (Mochastic repr, Mochastic repr1, Lambda repr) =>
-               (repr1 (Measure (b1, a1))
-                -> repr (b2, a2) -> repr (Measure (a, b)))
-               -> repr1 (Measure (a1, b1)) -> repr ((a2, b2) -> Measure (b, a))
-onSnd tr f = lam (liftM swap_ . tr (liftM swap_ f) . swap_)
-
-testGibbsProp1 :: (Lambda repr, Mochastic repr, Integrate repr) =>
-                  repr ((Real, Real) -> Measure (Real, Real))
--- testGibbsProp1 = lam (gibbsProposal norm)
-testGibbsProp1 = onFst gibbsProposal norm
-
-testGibbsProp2 :: (Lambda repr, Mochastic repr, Integrate repr) =>
-                  repr ((Real, Real) -> Measure (Real, Real))
--- testGibbsProp2 = lam (liftM swap_ . gibbsProposal (liftM swap_ norm) . swap_)
-testGibbsProp2 = onSnd gibbsProposal norm
-
-testGibbsPropUnif :: (Lambda repr, Mochastic repr, Integrate repr) =>
-                  repr (Real -> Measure Real)
-testGibbsPropUnif = lam $ \x -> normalize (d unit (Expect x))
-  where d:_ = runDisintegrate (const (liftM swap_ unif2))
 
 mh :: (Mochastic repr, Integrate repr, Lambda repr,
        a ~ Expect' a, Order_ a) =>

@@ -1,4 +1,4 @@
-{-# LANGUAGE Rank2Types, ImpredicativeTypes #-}
+{-# LANGUAGE TypeFamilies, Rank2Types, ImpredicativeTypes #-}
 
 module Tests.Lazy where
 
@@ -8,15 +8,17 @@ import Language.Hakaru.Lazy
 import Language.Hakaru.Any (Any(Any, unAny))
 import Language.Hakaru.Syntax (Real, Prob, Measure, Base(..),
                                ununit, max_, liftM, liftM2, bind_,
-                               swap_, snd_, bern, 
-                               Mochastic(..), Lambda(..))
+                               swap_, snd_, bern, fst_,
+                               Mochastic(..), Lambda(..), Integrate(..),
+                               Order_(..))
 import Language.Hakaru.Compose
 import Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode)
 import Language.Hakaru.Simplify (Simplifiable, closeLoop, simplify)
-import Language.Hakaru.Expect (Expect)
+import Language.Hakaru.Expect (Expect(..), Expect', normalize)
 import Language.Hakaru.Maple (Maple)    
 import Tests.TestTools
-import qualified Examples.EasierRoadmap as RM
+import qualified Tests.RoundTrip as RT
+import qualified Examples.EasierRoadmap as RM    
 
 import Data.Typeable (Typeable)    
 import Test.HUnit
@@ -32,10 +34,7 @@ simp :: (Simplifiable a) => Any a -> IO (Any a)
 simp = simplify . unAny
 
 testS' :: (Simplifiable a) => Any a -> Assertion
-testS' t = do
-    p <- simplify (unAny t) `catch` handleSimplify (unAny t)
-    let s = result (unAny p)
-    assertResult (show s)
+testS' t = testS (unAny t)
 
 testL :: (Backward a a, Typeable a, Typeable b,
          Simplifiable a, Simplifiable b, Simplifiable env) => 
@@ -75,8 +74,8 @@ allTests = test [ "easierRoadmapProg1" ~: testL easierRoadmapProg1 []
                 , "normalFB1" ~: testL normalFB1 []
                 , "normalFB2" ~: testL normalFB2 []
                 , "zeroDiv" ~: testL zeroDiv [(unit, 0, Any $ dirac 0)]
-                , "zeroAddInt" ~: testL zeroAddInt [(unit, 2, Any $ dirac 2)]
-                , "zeroPlusSnd" ~: testL zeroPlusSnd [(unit, unit, Any $ dirac 0)]
+                , "zeroAddInt" ~: testL zeroAddInt [(unit, 0, Any $ dirac 3)]
+                , "zeroPlusSnd" ~: testL zeroPlusSnd []
                 , "prog1s" ~: testL prog1s []
                 , "prog2s" ~: testL prog2s []
                 , "prog3s" ~: testL prog3s []
@@ -91,10 +90,37 @@ allTests = test [ "easierRoadmapProg1" ~: testL easierRoadmapProg1 []
                                   [(unit, 0, Any
                                     (superpose [(fromRational (1/8), dirac true)
                                                ,(fromRational (1/8), dirac false)]))]
+                , "beta" ~: testL testBetaConj
+                              [(unit, true, Any
+                                (superpose [(fromRational (1/2), beta 2 1)]))]
+                , "betaNorm" ~: testSS [testBetaConjNorm] (beta 2 1)
+                , "testGibbsPropUnif" ~: testS testGibbsPropUnif
+                , "testGibbs0" ~: testSS [testGibbsProp0]
+                                   (lam $ \x ->
+                                    normal (x * fromRational (1/2))
+                                           (sqrt_ 2 * fromRational (1/2)))
+                , "testGibbs1" ~: testSS [testGibbsProp1]
+                                   (lam $ \x ->
+                                    normal (fst_ x) 1 `bind` \y ->
+                                    dirac (pair (fst_ x) y))
+                -- , "testGibbs2" ~: testSS [testGibbsProp2]
+                --                    (lam $ \x ->
+                --                     normal ((snd_ x) * fromRational (1/2))
+                --                            (sqrt_ 2 * fromRational (1/2))
+                --                            `bind` \y ->
+                --                     dirac (pair y (snd_ x)))
                 , "density1" ~: testL density1 []
                 , "density2" ~: testL density2 []
                 -- , "density3" ~: testL density3 []
-                , "t0"  ~: testL t0 []
+                , "t0"  ~: testL t0
+                            [(unit, 1, Any
+                              (superpose 
+                               [( recip (sqrt_ pi_) *
+                                  exp_ (1 * 1 * fromRational (-1/4)) *
+                                  fromRational (1/2)
+                                , normal
+                                  (1 * fromRational (1/2))
+                                  ((sqrt_ 2) * fromRational (1/2)) )]))]
                 , "t1"  ~: testL t1 []
                 , "t2"  ~: testL t2 []
                 , "t3"  ~: testL t3 []
@@ -126,7 +152,6 @@ easierRoadmapProg1 = \u -> ununit u $ RM.easierRoadmapProg1
 zeroDiv :: (Mochastic repr) => Cond repr () (Measure (Real,Real))
 zeroDiv = \u -> ununit u $
           normal 0 1 `bind` \x ->
-          -- normal x (0 / 2) `bind` \y ->
           dirac (pair x (0 / x))
 
 zeroAddInt :: (Mochastic repr) => Cond repr () (Measure (Int,Int))
@@ -198,6 +223,51 @@ culpepper = bern 0.5 `bind` \a ->
             if_ a (uniform (-2) 2) (liftM (2*) (uniform (-1) 1)) `bind` \b ->
             dirac (pair b a)
 
+-- | testBetaConj is like RT.t4, but we condition on the coin coming up true,
+-- so a different sampling procedure for the bias is called for.
+testBetaConj :: (Mochastic repr) => Cond repr () (Measure (Bool, Prob))
+testBetaConj = \u -> ununit u $ liftM swap_ RT.t4
+
+-- | This is a test of normalizing post disintegration
+testBetaConjNorm :: (Mochastic repr, Integrate repr, Lambda repr) =>
+                    repr (Measure Prob)
+testBetaConjNorm = normalize (app (app d unit) true)
+  where d:_ = runDisintegrate testBetaConj
+
+testGibbsPropUnif :: (Lambda repr, Mochastic repr, Integrate repr) =>
+                     repr (Real -> Measure Real)
+testGibbsPropUnif = lam $ \x -> normalize (app (app d unit) (Expect x))
+  where d:_ = runDisintegrate (const (liftM swap_ RT.unif2))
+
+testGibbsProp0 :: (Lambda repr, Mochastic repr, Integrate repr) =>
+                  repr (Real -> Measure Real)
+testGibbsProp0 = lam $ \x -> normalize (app (app d unit) (Expect x))
+  where d:_ = runDisintegrate t0
+
+gibbsProposal :: (Expect' a ~ a, Expect' b ~ b,
+                  Backward a a, Order_ a, 
+                  Mochastic repr, Integrate repr, Lambda repr) =>
+                 Cond (Expect repr) () (Measure (a,b)) ->
+                 repr (a, b) -> repr (Measure (a, b))
+gibbsProposal p x = q (fst_ x) `bind` \x' -> dirac (pair (fst_ x) x')
+  where d:_ = runDisintegrate p
+        q y = normalize (app (app d unit) (Expect y))              
+
+testGibbsProp1 :: (Lambda repr, Mochastic repr, Integrate repr) =>
+                  repr ((Real, Real) -> Measure (Real, Real))
+testGibbsProp1 = lam (gibbsProposal norm)
+
+onSnd :: (Mochastic repr, Mochastic repr1, Lambda repr) =>
+               (repr1 (Measure (b1, a1))
+                -> repr (b2, a2) -> repr (Measure (a, b)))
+               -> repr1 (Measure (a1, b1)) -> repr ((a2, b2) -> Measure (b, a))
+onSnd tr f = lam (liftM swap_ . tr (liftM swap_ f) . swap_)
+
+-- testGibbsProp2 :: (Lambda repr, Mochastic repr, Integrate repr) =>
+--                   repr ((Real, Real) -> Measure (Real, Real))
+-- testGibbsProp2 = lam (liftM swap_ . gibbsProposal (liftM swap_ norm) . swap_)
+-- testGibbsProp2 = onSnd gibbsProposal norm
+
 density1 :: (Mochastic repr) => Cond repr () (Measure (Real,()))
 density1 = \u -> ununit u $
            liftM (`pair` unit) $
@@ -216,6 +286,9 @@ density2 = \u -> ununit u $
 --            liftM (`pair` unit) $
 --            mix [(7, liftM (\x -> x - 1/2 + 0) (uniform 0 1)),
 --                 (3, liftM (\x -> (x - 1/2) * 10) (uniform 0 1))]
+
+norm :: (Mochastic repr) => Cond repr () (Measure (Real, Real))
+norm = \u -> ununit u $ RT.norm
                  
 t0 :: (Mochastic repr) => Cond repr () (Measure (Real,Real))
 t0 = \u -> ununit u $
@@ -284,4 +357,3 @@ t10 = \u -> ununit u $
       normal 0 1 `bind` \x ->
       plate (vector 10 (\i -> normal x (unsafeProb (fromInt i) + 1))) `bind` \ys ->
       dirac (pair (pair (index ys 3) (index ys 4)) x)
-
