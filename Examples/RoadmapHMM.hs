@@ -84,8 +84,8 @@ roadmapProg2 o = transMat `bind` \trans ->
                  app (chain (vector 20
                   (\ i -> lam $ \s ->
                    transition trans s `bind` \s' ->
-                   factor (index (index emit s') (index o i)) `bind` \d ->
-                   dirac $ pair d s'
+                   factor (index (index emit s') (index o i)) `bind` \_ ->
+                   dirac $ pair s' s'
                   ))) start `bind` \x ->
                  dirac (pair trans emit)
 
