@@ -36,11 +36,11 @@ emitMat :: (Lambda repr, Integrate repr, Mochastic repr) =>
 emitMat =  plate (vector 5 (\ i ->
                             symDirichlet 3 1))
 
-transition :: (Lambda repr, Integrate repr, Mochastic repr) =>
+transition :: (Mochastic repr) =>
               repr Table -> repr Int -> repr (Measure Int)
 transition v s = categorical (index v s)
 
-emission   :: (Lambda repr, Integrate repr, Mochastic repr) =>
+emission   :: (Mochastic repr) =>
               repr Table -> repr Int -> repr (Measure Int)
 emission v s = categorical (index v s)
 
@@ -57,6 +57,25 @@ roadmapProg1 = transMat `bind` \trans ->
                dirac (pair (fst_ x) (pair trans emit))
 
 --roadmapProg2' = runDisintegrate (\ u -> ununit u roadmapProg1)
+
+roadmapProg2'' :: (Lambda repr, Integrate repr, Mochastic repr) =>
+                  repr (Vector Int) -> repr (Measure (Table, Table))
+roadmapProg2'' o = transMat `bind` \trans ->
+                   emitMat `bind`  \emit  ->
+                   app (chain (vector 20
+                    (\ i -> lam $ \s ->
+                     app2 d (pair (pair trans emit) s) (index o i) `bind` \s' ->
+                     dirac $ pair s' s'))) start `bind` \x ->
+                   dirac (pair trans emit)
+
+d :: (Lambda repr, Mochastic repr) =>
+     repr (((Table, Table), Int) -> Int -> Measure Int)
+d = head $ runDisintegrate (\ tes ->
+                            unpair tes (\te s ->
+                            unpair te  (\ trans emit ->
+                            transition trans s `bind` \s' ->
+                            emission emit s' `bind` \o ->
+                            dirac $ pair o s')))
 
 roadmapProg2 :: (Integrate repr, Lambda repr, Mochastic repr) =>
                 repr (Vector Int) -> repr (Measure (Table, Table))
