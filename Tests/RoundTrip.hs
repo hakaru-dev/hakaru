@@ -106,6 +106,12 @@ testMeasureReal = test
     -- "two_coins" ~: testS two_coins -- needs support for lists
     ]
 
+testMeasureInt :: Test
+testMeasureInt = test
+  [ "t75"  ~: testS t75
+  , "t75'" ~: testS t75'
+    ]
+
 testMeasurePair :: Test
 testMeasurePair = test [
     "t4"            ~: testSS [t4] t4',
@@ -688,6 +694,12 @@ t71d = uniform 1 3 `bind` \x -> if_ (less x 3) (superpose []) (dirac x)
 t72d = uniform 1 3 `bind` \x -> if_ (less x 2) (superpose []) (dirac x)
 t73d = uniform 1 3 `bind` \x -> if_ (less x 1) (superpose []) (dirac x)
 t74d = uniform 1 3 `bind` \x -> if_ (less x 0) (superpose []) (dirac x)
+
+t75 :: (Mochastic repr) => repr (Measure Int)
+t75 = gamma 6 1 `bind` poisson
+
+t75' :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure Int)
+t75' = lam $ \x -> gamma x 1 `bind` poisson
 
 -- Testing round-tripping of some other distributions
 testexponential :: Mochastic repr => repr (Measure Prob)
