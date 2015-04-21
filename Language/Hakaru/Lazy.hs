@@ -9,7 +9,7 @@ module Language.Hakaru.Lazy (Lazy, runLazy, Backward, disintegrate,
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        Number, Fraction(..), EqType(Refl), Order(..), Base(..), snd_, equal_,
-       Mochastic(..), weight, Integrate(..), Lambda(..), Lub(..))
+       and_, Mochastic(..), weight, Integrate(..), Lambda(..), Lub(..))
 import Language.Hakaru.Compose
 import Control.Monad (liftM, liftM2)
 import Data.Maybe (isNothing)
@@ -567,6 +567,15 @@ instance (Mochastic repr, Lub repr) =>
     (liftM (Value . log) (evaluate x))
     (\t -> do insert_ (weight (exp_ t))
               backward x (exp t))
+  sin x = (scalar1 sin x)
+    { backward = (\t -> do n <- lift counting
+                           insert_ (ifTrue (and_ [(less (-1) t)
+                                                 ,(less  t   1)]))
+                           let n' = fromInt n
+                               r1 = 2*pi*n' + asin t
+                               r2 = 2*pi*n' + pi - asin t
+                           r <- lift (superpose [(1, dirac r1), (1, dirac r2)])
+                           backward x r) }
   -- TODO fill in other methods
 
 unpairM :: (Mochastic repr, Lub repr) => Lazy s repr (a,b) ->
