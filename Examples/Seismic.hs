@@ -159,7 +159,7 @@ trueDetection :: (Mochastic repr) => repr Station -> repr Event ->
                                   ()        -- mis-detection
                                   Detection -- not mis-detection
                                ))
-trueDetection s event = -- Sections 1.2--1.5
+trueDetection s e = -- Sections 1.2--1.5
   unpair s $ \longitude s ->
   unpair s $ \latitude s ->
   unpair s $ \mu_d0 s ->
@@ -175,9 +175,9 @@ trueDetection s event = -- Sections 1.2--1.5
   unpair s $ \_lambda_f s ->
   unpair s $ \_mu_f _theta_f ->
   let sl = (longitude, latitude) in
-  unpair event $ \eventLongitude event1 ->
-  unpair event1 $ \eventLatitude event2 ->
-  unpair event2 $ \eventMagnitude eventTime ->
+  unpair e $ \eventLongitude e ->
+  unpair e $ \eventLatitude e ->
+  unpair e $ \eventMagnitude eventTime ->
   let el = (eventLongitude, eventLatitude) in
   let distance = dist sl el in
   bern (logistic ( mu_d0
@@ -194,7 +194,9 @@ trueDetection s event = -- Sections 1.2--1.5
           theta_s `bind` \slowness ->
   normal ( mu_a0
          + mu_a1 * fromProb eventMagnitude
-         + mu_a2 * iT distance )
+         + mu_a2 * distance )
+         -- For the previous line, the LaTeX description says "iT distance"
+         -- but the Python code suggests "iT" is a typo.
          sigma_a `bind` \logAmplitude ->
   dirac (inr (time `pair` azimuth `pair` slowness `pair` exp_ logAmplitude))
 
