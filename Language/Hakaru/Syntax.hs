@@ -21,6 +21,7 @@ import Prelude hiding (Real)
 infix  4 `less`, `equal`, `less_`, `equal_`
 infixl 1 `bind`, `bind_`, `bindx`
 infixl 9 `app`
+infixr 9 `pair`
 
 ------- Types
 
