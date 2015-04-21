@@ -571,10 +571,11 @@ instance (Mochastic repr, Lub repr) =>
     { backward = (\t -> do n <- lift counting
                            insert_ (ifTrue (and_ [(less (-1) t)
                                                  ,(less  t   1)]))
-                           let n' = fromInt n
-                               r1 = 2*pi*n' + asin t
-                               r2 = 2*pi*n' + pi - asin t
+                           let r1 = 2*pi*(fromInt n) + asin t
+                               r2 = 2*pi*(fromInt n) + pi - asin t
+                               j = unsafeProb . abs $ sqrt (1 - t*t)
                            r <- lift (superpose [(1, dirac r1), (1, dirac r2)])
+                           insert_ (weight (recip j))
                            backward x r) }
   -- TODO fill in other methods
 
