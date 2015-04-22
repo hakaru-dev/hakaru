@@ -224,6 +224,10 @@ class (Base repr) => Mochastic repr where
   counting      :: repr (Measure Int)
   superpose     :: [(repr Prob, repr (Measure a))] -> repr (Measure a)
   categorical   :: repr (Vector Prob) -> repr (Measure Int)
+  categorical v =  counting `bind` \i ->
+                   if_ (and_ [not_ (less i 0), less i (size v)])
+                       (weight (index v i / sumV v) (dirac i))
+                       (superpose [])
 
   uniform       :: repr Real -> repr Real -> repr (Measure Real)
   uniform lo hi =  lebesgue `bind` \x ->
