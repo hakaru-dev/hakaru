@@ -147,7 +147,12 @@ testOther :: Test
 testOther = test [
     "testRoadmapProg1" ~: testS rmProg1,
     "testRoadmapProg4" ~: testS rmProg4,
-    "testKernel" ~: testSS [testKernel] testKernel2
+    "testKernel" ~: testSS [testKernel] testKernel2,
+    "testFalseDetection" ~: testS (lam seismicFalseDetection),
+    -- this doesn't typecheck because Either isn't Simplifiable yet:
+    -- "testTrueDetection" ~: testS (lam2 seismicTrueDetection)
+    "testTrueDetectionL" ~: testS (lam $ \x0 -> lam $ \x1 -> seismicTrueDetection x0 x1 `bind` \z -> uneither z dirac (\_ -> superpose [])),
+    "testTrueDetectionR" ~: testS (lam $ \x0 -> lam $ \x1 -> seismicTrueDetection x0 x1 `bind` \z -> uneither z (\_ -> superpose []) dirac)
     ]
 
 allTests :: Test
@@ -1139,3 +1144,171 @@ rmProg4 =
                uniform 1 4 `bind` \x5 ->
                dirac (pair x3 (unsafeProb x5)))]) `bind` \x3 ->
   dirac (pair x3 (x1 `app` x3 / x1 `app` x2))
+
+-- this comes from Examples.Seismic.falseDetection
+seismicFalseDetection :: (Mochastic repr) =>
+  repr (Real,(Real,(Real,(Real,(Real,(Prob,(Prob,(Prob,(Real,(Real,(Real,(Prob,(Prob,(Real,Prob))))))))))))))
+  -> repr (Measure (Real,(Real,(Real,Prob))))
+seismicFalseDetection x0 =
+  x0 `unpair` \x1 x2 ->
+  x2 `unpair` \x3 x4 ->
+  x4 `unpair` \x5 x6 ->
+  x6 `unpair` \x7 x8 ->
+  x8 `unpair` \x9 x10 ->
+  x10 `unpair` \x11 x12 ->
+  x12 `unpair` \x13 x14 ->
+  x14 `unpair` \x15 x16 ->
+  x16 `unpair` \x17 x18 ->
+  x18 `unpair` \x19 x20 ->
+  x20 `unpair` \x21 x22 ->
+  x22 `unpair` \x23 x24 ->
+  x24 `unpair` \x25 x26 ->
+  x26 `unpair` \x27 x28 ->
+  uniform 0 3600 `bind` \x29 ->
+  uniform 0 360 `bind` \x30 ->
+  uniform (-23/500 * 180 + 107/10) (-23/500 * 0 + 107/10) `bind` \x31 ->
+  (normal 0 1 `bind` \x32 -> normal 0 1 `bind` \x33 -> dirac (x27 + fromProb x28 * (x32 / x33))) `bind` \x32 ->
+  dirac (pair x29 (pair x30 (pair x31 (exp_ x32))))
+
+-- this comes from Examples.Seismic.trueDetection
+seismicTrueDetection :: (Mochastic repr) =>
+  repr (Real,(Real,(Real,(Real,(Real,(Prob,(Prob,(Prob,(Real,(Real,(Real,(Prob,(Prob,(Real,Prob))))))))))))))
+  -> repr (Real,(Real,(Prob,Real)))
+  -> repr (Measure (Either () (Real,(Real,(Real,Prob)))))
+seismicTrueDetection x0 x1 =
+  x0 `unpair` \x2 x3 ->
+  x3 `unpair` \x4 x5 ->
+  x5 `unpair` \x6 x7 ->
+  x7 `unpair` \x8 x9 ->
+  x9 `unpair` \x10 x11 ->
+  x11 `unpair` \x12 x13 ->
+  x13 `unpair` \x14 x15 ->
+  x15 `unpair` \x16 x17 ->
+  x17 `unpair` \x18 x19 ->
+  x19 `unpair` \x20 x21 ->
+  x21 `unpair` \x22 x23 ->
+  x23 `unpair` \x24 x25 ->
+  x25 `unpair` \x26 x27 ->
+  x27 `unpair` \x28 x29 ->
+  x1 `unpair` \x30 x31 ->
+  x31 `unpair` \x32 x33 ->
+  x33 `unpair` \x34 x35 ->
+  superpose [(recip (1
+                     + exp_ (-(x6 + x8 * fromProb x34
+                               + x10
+                                 * ((atan (sqrt ((cos (x32 * pi / 180) * sin ((x30 - x2) * pi / 180)) ** 2
+                                                 + (cos (x4 * pi / 180) * sin (x32 * pi / 180) - sin (x4 * pi / 180) * cos (x32 * pi / 180) * cos ((x30 - x2) * pi / 180)) ** 2)
+                                           / (sin (x4 * pi / 180) * sin (x32 * pi / 180) + cos (x4 * pi / 180) * cos (x32 * pi / 180) * cos ((x30 - x2) * pi / 180)))
+                                     + if_ (sin (x4 * pi / 180) * sin (x32 * pi / 180) + cos (x4 * pi / 180) * cos (x32 * pi / 180) * cos ((x30 - x2) * pi / 180)
+                                            `less` 0)
+                                           pi
+                                           0)
+                                    * 180
+                                    / pi)))),
+              dirac true),
+             (1
+              - recip (1
+                       + exp_ (-(x6 + x8 * fromProb x34
+                                 + x10
+                                   * ((atan (sqrt ((cos (x32 * pi / 180) * sin ((x30 - x2) * pi / 180)) ** 2
+                                                   + (cos (x4 * pi / 180) * sin (x32 * pi / 180) - sin (x4 * pi / 180) * cos (x32 * pi / 180) * cos ((x30 - x2) * pi / 180)) ** 2)
+                                             / (sin (x4 * pi / 180) * sin (x32 * pi / 180) + cos (x4 * pi / 180) * cos (x32 * pi / 180) * cos ((x30 - x2) * pi / 180)))
+                                       + if_ (sin (x4 * pi / 180) * sin (x32 * pi / 180) + cos (x4 * pi / 180) * cos (x32 * pi / 180) * cos ((x30 - x2) * pi / 180)
+                                              `less` 0)
+                                             pi
+                                             0)
+                                      * 180
+                                      / pi)))),
+              dirac false)] `bind` \x36 ->
+  if_ (if_ x36 false true)
+      (dirac (inl unit))
+      ((gamma 1 1 `bind` \x37 ->
+        normal 0 1 `bind` \x38 ->
+        dirac (x35
+               + (-23/1000
+                   * ((atan (sqrt ((cos (x32 * pi / 180) * sin ((x30 - x2) * pi / 180)) ** 2
+                                   + (cos (x4 * pi / 180) * sin (x32 * pi / 180) - sin (x4 * pi / 180) * cos (x32 * pi / 180) * cos ((x30 - x2) * pi / 180)) ** 2)
+                             / (sin (x4 * pi / 180) * sin (x32 * pi / 180) + cos (x4 * pi / 180) * cos (x32 * pi / 180) * cos ((x30 - x2) * pi / 180)))
+                       + if_ (sin (x4 * pi / 180) * sin (x32 * pi / 180) + cos (x4 * pi / 180) * cos (x32 * pi / 180) * cos ((x30 - x2) * pi / 180)
+                              `less` 0)
+                             pi
+                             0)
+                      * 180
+                      / pi)
+                     ** 2
+                  + 107/10
+                    * ((atan (sqrt ((cos (x32 * pi / 180) * sin ((x30 - x2) * pi / 180)) ** 2
+                                    + (cos (x4 * pi / 180) * sin (x32 * pi / 180) - sin (x4 * pi / 180) * cos (x32 * pi / 180) * cos ((x30 - x2) * pi / 180)) ** 2)
+                              / (sin (x4 * pi / 180) * sin (x32 * pi / 180) + cos (x4 * pi / 180) * cos (x32 * pi / 180) * cos ((x30 - x2) * pi / 180)))
+                        + if_ (sin (x4 * pi / 180) * sin (x32 * pi / 180) + cos (x4 * pi / 180) * cos (x32 * pi / 180) * cos ((x30 - x2) * pi / 180)
+                               `less` 0)
+                              pi
+                              0)
+                       * 180
+                       / pi)
+                  + 5)
+               + x38 * fromProb (x12 * sqrt_ (2 * x37)))) `bind` \x37 ->
+       if_ (3600 `less` x37)
+           (dirac (inl unit))
+           ((gamma 1 1 `bind` \x38 -> normal 0 1 `bind` \x39 -> dirac (0 + x39 * fromProb (x14 * sqrt_ (2 * x38)))) `bind` \x38 ->
+            (counting `bind` \x39 ->
+             if_ (if_ (if_ ((atan (sin ((x30 - x2) * pi / 180)
+                                   / (cos (x4 * pi / 180) * tan (x32 * pi / 180) - sin (x4 * pi / 180) * cos ((x30 - x2) * pi / 180)))
+                             + if_ (cos (x4 * pi / 180) * tan (x32 * pi / 180) - sin (x4 * pi / 180) * cos ((x30 - x2) * pi / 180) `less` 0)
+                                   (if_ (sin ((x30 - x2) * pi / 180) `less` 0) (-pi) pi)
+                                   0)
+                            * 180
+                            / pi
+                            + x38
+                            + 360 * fromInt x39
+                            `less` 0)
+                           false
+                           true)
+                      ((atan (sin ((x30 - x2) * pi / 180)
+                              / (cos (x4 * pi / 180) * tan (x32 * pi / 180) - sin (x4 * pi / 180) * cos ((x30 - x2) * pi / 180)))
+                        + if_ (cos (x4 * pi / 180) * tan (x32 * pi / 180) - sin (x4 * pi / 180) * cos ((x30 - x2) * pi / 180) `less` 0)
+                              (if_ (sin ((x30 - x2) * pi / 180) `less` 0) (-pi) pi)
+                              0)
+                       * 180
+                       / pi
+                       + x38
+                       + 360 * fromInt x39
+                       `less` 360)
+                      false)
+                 (dirac ((atan (sin ((x30 - x2) * pi / 180)
+                                / (cos (x4 * pi / 180) * tan (x32 * pi / 180) - sin (x4 * pi / 180) * cos ((x30 - x2) * pi / 180)))
+                          + if_ (cos (x4 * pi / 180) * tan (x32 * pi / 180) - sin (x4 * pi / 180) * cos ((x30 - x2) * pi / 180) `less` 0)
+                                (if_ (sin ((x30 - x2) * pi / 180) `less` 0) (-pi) pi)
+                                0)
+                         * 180
+                         / pi
+                         + x38
+                         + 360 * fromInt x39))
+                 (superpose [])) `bind` \x39 ->
+            (gamma 1 1 `bind` \x40 ->
+             normal 0 1 `bind` \x41 ->
+             dirac (-23/500
+                     * ((atan (sqrt ((cos (x32 * pi / 180) * sin ((x30 - x2) * pi / 180)) ** 2
+                                     + (cos (x4 * pi / 180) * sin (x32 * pi / 180) - sin (x4 * pi / 180) * cos (x32 * pi / 180) * cos ((x30 - x2) * pi / 180)) ** 2)
+                               / (sin (x4 * pi / 180) * sin (x32 * pi / 180) + cos (x4 * pi / 180) * cos (x32 * pi / 180) * cos ((x30 - x2) * pi / 180)))
+                         + if_ (sin (x4 * pi / 180) * sin (x32 * pi / 180) + cos (x4 * pi / 180) * cos (x32 * pi / 180) * cos ((x30 - x2) * pi / 180)
+                                `less` 0)
+                               pi
+                               0)
+                        * 180
+                        / pi)
+                    + 107/10
+                    + x41 * fromProb (x16 * sqrt_ (2 * x40)))) `bind` \x40 ->
+            normal (x18 + x20 * fromProb x34
+                    + x22
+                      * ((atan (sqrt ((cos (x32 * pi / 180) * sin ((x30 - x2) * pi / 180)) ** 2
+                                      + (cos (x4 * pi / 180) * sin (x32 * pi / 180) - sin (x4 * pi / 180) * cos (x32 * pi / 180) * cos ((x30 - x2) * pi / 180)) ** 2)
+                                / (sin (x4 * pi / 180) * sin (x32 * pi / 180) + cos (x4 * pi / 180) * cos (x32 * pi / 180) * cos ((x30 - x2) * pi / 180)))
+                          + if_ (sin (x4 * pi / 180) * sin (x32 * pi / 180) + cos (x4 * pi / 180) * cos (x32 * pi / 180) * cos ((x30 - x2) * pi / 180)
+                                 `less` 0)
+                                pi
+                                0)
+                         * 180
+                         / pi))
+                   x24 `bind` \x41 ->
+            dirac (inr (pair x37 (pair x39 (pair x40 (exp_ x41)))))))
