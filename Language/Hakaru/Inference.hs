@@ -7,7 +7,8 @@ import Language.Hakaru.Lazy
 import Language.Hakaru.Syntax
 import Language.Hakaru.Expect (Expect(..), Expect', normalize)
 
-priorAsProposal :: Mochastic repr => repr (Measure (a,b)) -> repr (a,b) -> repr (Measure (a,b))
+priorAsProposal :: Mochastic repr =>
+                   repr (Measure (a,b)) -> repr (a,b) -> repr (Measure (a,b))
 priorAsProposal p x = bern (1/2) `bind` \c ->
                       p `bind` \x' ->
                       dirac (if_ c
