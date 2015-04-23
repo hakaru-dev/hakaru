@@ -440,9 +440,9 @@ mul x y = lazy
                 (Real a, Real b) -> return (Real (a*b))
                 (Prob a, Prob b) -> return (Prob (a*b))
                 (Value _, s) | isNum 0 s -> return s
-                             | isNum 1 s  -> return fx
+                             | isNum 1 s -> return fx
                 (s, Value _) | isNum 0 s -> return s
-                             | isNum 1 s  -> return fy
+                             | isNum 1 s -> return fy
                 _ -> atom2 (*) fx fy)
           
 neg :: (Mochastic repr, Lub repr, Num (repr a), Number a) =>
@@ -490,6 +490,26 @@ inv x = Lazy
         (\t -> do insert_ (weight (recip (unsafeProbFraction (t * t))))
                   backward x (recip t))
 
+divide :: (Mochastic repr, Lub repr, Fractional (repr a), Fraction a) =>
+          Lazy s repr a -> Lazy s repr a -> Lazy s repr a
+divide x y = Lazy
+             (do fx <- forward x
+                 fy <- forward y
+                 case (fx,fy) of
+                   (Real a, Real b) -> return (Real (a/b))
+                   (Prob a, Prob b) -> return (Prob (a/b))
+                   (Value _, s) | isNum 0 s -> error "Lazy: divide by zero"
+                                | isNum 1 s -> return fx
+                   (s, Value _) | isNum 0 s -> return s
+                   _ -> atom2 (/) fx fy)
+             (\t -> lub
+                    (do r <- evaluate x
+                        insert_ (weight . unsafeProbFraction $ abs r / (t*t))
+                        backward y (r / t))
+                    (do r <- evaluate y
+                        insert_ (weight . unsafeProbFraction $ abs r)
+                        backward x (t * r)))
+
 instance (Mochastic repr, Lub repr) => Num (Lazy s repr Int) where
   (+) = add
   (-) = sub
@@ -518,10 +538,10 @@ instance (Mochastic repr, Lub repr) => Num (Lazy s repr Real) where
   x * y = (mul x y)
     { backward = (\t ->
         lub (do r <- evaluate x
-                insert_ (weight (recip (unsafeProbFraction (abs r))))
+                insert_ (weight (recip (unsafeProb (abs r))))
                 backward y (t / r))
             (do r <- evaluate y
-                insert_ (weight (recip (unsafeProbFraction (abs r))))
+                insert_ (weight (recip (unsafeProb (abs r))))
                 backward x (t / r))) }
   negate = neg
   abs = abz
@@ -534,10 +554,10 @@ instance (Mochastic repr, Lub repr) => Num (Lazy s repr Prob) where
   x * y = (mul x y)
     { backward = (\t ->
         lub (do r <- evaluate x
-                insert_ (weight (recip (unsafeProbFraction (abs r))))
+                insert_ (weight (recip (abs r)))
                 backward y (t / r))
             (do r <- evaluate y
-                insert_ (weight (recip (unsafeProbFraction (abs r))))
+                insert_ (weight (recip (abs r)))
                 backward x (t / r))) }
   negate = neg
   abs = abz
@@ -547,14 +567,14 @@ instance (Mochastic repr, Lub repr) => Num (Lazy s repr Prob) where
 instance (Mochastic repr, Lub repr) =>
          Fractional (Lazy s repr Real) where
   recip = inv
-  fromRational r = lazy (return (Real r))                   
-  -- TODO fill in (/)
+  fromRational r = lazy (return (Real r))
+  (/) = divide
 
 instance (Mochastic repr, Lub repr) =>
          Fractional (Lazy s repr Prob) where
   recip = inv
   fromRational r = lazy (return (Prob r))
-  -- TODO fill in (/)
+  (/) = divide
 
 instance (Mochastic repr, Lub repr) =>
          Floating (Lazy s repr Real) where
@@ -587,6 +607,11 @@ instance (Mochastic repr, Lub repr) =>
                                                 ,(1, dirac (r1 + pi))])
                            insert_ (weight (recip j))
                            backward x r) }
+  tan x = (scalar1 tan x)
+    { backward = (\t -> do n <- lift counting
+                           r <- lift (dirac (pi * (fromInt n) + atan t))
+                           insert_ (weight.recip.unsafeProb $ 1 + t * t)
+                           backward x r) }
   asin x = (scalar1 asin x)
     { backward = (\t -> do insert_ (weight (unsafeProb (cos t)))
                            backward x (sin t)) }
@@ -594,7 +619,7 @@ instance (Mochastic repr, Lub repr) =>
     { backward = (\t -> do insert_ (weight (unsafeProb (sin t)))
                            backward x (cos t)) }
   atan x = (scalar1 atan x)
-    { backward = (\t -> do insert_ (weight.unsafeProb.recip $ cos t * cos t)
+    { backward = (\t -> do insert_ (weight.recip.unsafeProb $ cos t * cos t)
                            backward x (tan t)) }
   -- TODO fill in other methods
 
