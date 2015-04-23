@@ -15,7 +15,8 @@ import Language.Hakaru.Compose
 import Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode)
 import Language.Hakaru.Simplify (Simplifiable, closeLoop, simplify)
 import Language.Hakaru.Expect (Expect(..), Expect', normalize)
-import Language.Hakaru.Maple (Maple)    
+import Language.Hakaru.Maple (Maple)
+import Language.Hakaru.Inference
 import Tests.TestTools
 import qualified Tests.RoundTrip as RT
 import qualified Examples.EasierRoadmap as RM    
@@ -243,15 +244,6 @@ testGibbsProp0 :: (Lambda repr, Mochastic repr, Integrate repr) =>
                   repr (Real -> Measure Real)
 testGibbsProp0 = lam $ \x -> normalize (app (app d unit) (Expect x))
   where d:_ = runDisintegrate t0
-
-gibbsProposal :: (Expect' a ~ a, Expect' b ~ b,
-                  Backward a a, Order_ a, 
-                  Mochastic repr, Integrate repr, Lambda repr) =>
-                 Cond (Expect repr) () (Measure (a,b)) ->
-                 repr (a, b) -> repr (Measure (a, b))
-gibbsProposal p x = q (fst_ x) `bind` \x' -> dirac (pair (fst_ x) x')
-  where d:_ = runDisintegrate p
-        q y = normalize (app (app d unit) (Expect y))              
 
 testGibbsProp1 :: (Lambda repr, Mochastic repr, Integrate repr) =>
                   repr ((Real, Real) -> Measure (Real, Real))

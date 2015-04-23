@@ -6,6 +6,7 @@ import Prelude hiding (Real)
 import Language.Hakaru.Syntax
 import Language.Hakaru.Disintegrate (density)
 import Language.Hakaru.Expect (Expect(..), Expect', total)
+import Language.Hakaru.Inference
 
 import Test.HUnit
 import Tests.TestTools
@@ -712,39 +713,6 @@ testexponential = exponential (1/3)
 
 testCauchy :: Mochastic repr => repr (Measure Real)
 testCauchy = cauchy 5 3
-
--- And now some actual ML-related tests
-priorAsProposal :: Mochastic repr => repr (Measure (a,b)) -> repr (a,b) -> repr (Measure (a,b))
-priorAsProposal p x = bern (1/2) `bind` \c ->
-                      p `bind` \x' ->
-                      dirac (if_ c
-                             (pair (fst_ x ) (snd_ x'))
-                             (pair (fst_ x') (snd_ x )))
-
-mh :: (Mochastic repr, Integrate repr, Lambda repr,
-       a ~ Expect' a, Order_ a) =>
-      (forall repr'. (Mochastic repr') => repr' a -> repr' (Measure a)) ->
-      (forall repr'. (Mochastic repr') => repr' (Measure a)) ->
-      repr (a -> Measure (a, Prob))
-mh proposal target =
-  let_ (lam (d unit)) $ \mu ->
-  lam $ \old ->
-    proposal old `bind` \new ->
-    dirac (pair new (mu `app` pair new old / mu `app` pair old new))
-  where d:_ = density (\dummy -> ununit dummy $ bindx target proposal)
-
-mcmc :: (Mochastic repr, Integrate repr, Lambda repr,
-         a ~ Expect' a, Order_ a) =>
-        (forall repr'. (Mochastic repr') => repr' a -> repr' (Measure a)) ->
-        (forall repr'. (Mochastic repr') => repr' (Measure a)) ->
-        repr (a -> Measure a)
-mcmc proposal target =
-  let_ (mh proposal target) $ \f ->
-  lam $ \old ->
-    app f old `bind` \new_ratio ->
-    unpair new_ratio $ \new ratio ->
-    bern (min_ 1 ratio) `bind` \accept ->
-    dirac (if_ accept new old)
 
 testMCMCPriorProp :: (Integrate repr, Mochastic repr, Lambda repr) =>
                  repr ((Real, Real) -> Measure (Real, Real))
