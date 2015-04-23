@@ -573,10 +573,29 @@ instance (Mochastic repr, Lub repr) =>
                                                  ,(less  t   1)]))
                            let r1 = 2*pi*(fromInt n) + asin t
                                r2 = 2*pi*(fromInt n) + pi - asin t
-                               j = unsafeProb . abs $ sqrt (1 - t*t)
+                               j = sqrt_ . unsafeProb $ (1 - t*t)
                            r <- lift (superpose [(1, dirac r1), (1, dirac r2)])
                            insert_ (weight (recip j))
                            backward x r) }
+  cos x = (scalar1 cos x)
+    { backward = (\t -> do n <- lift counting
+                           insert_ (ifTrue (and_ [(less (-1) t)
+                                                 ,(less  t   1)]))
+                           let r1 = 2*pi*(fromInt n) + acos t
+                               j = sqrt_ . unsafeProb $ (1 - t*t)
+                           r <- lift (superpose [(1, dirac r1)
+                                                ,(1, dirac (r1 + pi))])
+                           insert_ (weight (recip j))
+                           backward x r) }
+  asin x = (scalar1 asin x)
+    { backward = (\t -> do insert_ (weight (unsafeProb (cos t)))
+                           backward x (sin t)) }
+  acos x = (scalar1 acos x)
+    { backward = (\t -> do insert_ (weight (unsafeProb (sin t)))
+                           backward x (cos t)) }
+  atan x = (scalar1 atan x)
+    { backward = (\t -> do insert_ (weight.unsafeProb.recip $ cos t * cos t)
+                           backward x (tan t)) }
   -- TODO fill in other methods
 
 unpairM :: (Mochastic repr, Lub repr) => Lazy s repr (a,b) ->
