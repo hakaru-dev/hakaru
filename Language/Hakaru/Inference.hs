@@ -48,3 +48,14 @@ gibbsProposal :: (Expect' a ~ a, Expect' b ~ b,
 gibbsProposal p x = q (fst_ x) `bind` \x' -> dirac (pair (fst_ x) x')
   where d:_ = runDisintegrate p
         q y = normalize (app (app d unit) (Expect y))              
+
+-- sliceProposal :: (Mochastic repr) =>
+--                  repr (Measure Real) -> repr (Measure (Real, Real))
+-- sliceProposal x = uniform 0 d `bind` \y ->
+--                   lebesgue `bind` \x' ->
+--                   dirac $ pair x' y
+--   where d:_ = density (\dummy -> ununit dummy x)
+
+approxMh :: (Mochastic repr, Integrate repr, Lambda repr) =>
+            repr (a -> Measure (a, Prob))
+approxMh = undefined
