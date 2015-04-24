@@ -9,7 +9,7 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        summateV, sumV, normalizeV, dirichlet,
        mapWithIndex, mapV, zipWithV, zipV, rangeV, constV, unitV,
        fromListV, concatV, unzipV,
-       Mochastic(..), bind_, factor, weight, bindx, liftM, liftM2,
+       Mochastic(..), bind_, factor, weight, bindx, bindo, liftM, liftM2,
        invgamma, exponential, chi2, bern,
        cauchy, laplace, student, weibull,
        binomial, multinomial,
@@ -303,6 +303,17 @@ weight p m = superpose [(p, m)]
 bindx :: (Mochastic repr) => repr (Measure a) ->
          (repr a -> repr (Measure b)) -> repr (Measure (a,b))
 m `bindx` k = m `bind` \a -> k a `bind` \b -> dirac (pair a b)
+
+-- Kleisli composition
+-- bindo f g = \x -> do y <- f x
+--                      z <- g y
+--                      return z
+
+bindo :: (Mochastic repr, Lambda repr) =>
+         repr (a -> Measure b) ->
+         repr (b -> Measure c) ->
+         repr (a -> Measure c)
+bindo f g = lam (\x -> app f x `bind` app g)
 
 liftM :: (Mochastic repr) => (repr a -> repr b) ->
          repr (Measure a) -> repr (Measure b)

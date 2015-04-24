@@ -281,19 +281,6 @@ fromM m = snd_ (unExpect m)
 
 --------------------------------------------------------------------------------
 
--- Kleisli composition
--- bindo f g = \x -> do y <- f x
---                      z <- g y
---                      return z
-
-bindo :: (Mochastic repr, Lambda repr) =>
-         repr (a -> Measure b) ->
-         repr (b -> Measure c) ->
-         repr (a -> Measure c)
-bindo f g = lam (\x -> app f x `bind` app g)
-
---------------------------------------------------------------------------------
-
 -- Model: A one-dimensional random walk among 20 discrete states (numbered
 --        0 through 19 and arranged in a row) starting at state 10 at time 0.
 -- Query: Given that the state is less than 8 at time 6,

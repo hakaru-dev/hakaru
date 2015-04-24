@@ -14,17 +14,6 @@ import System.Random.MWC (withSystemRandom)
 import Control.Monad (replicateM)
 import Data.Number.LogFloat (LogFloat)
 
--- Kleisli composition
--- bindo f g = \x -> do y <- f x
---                      z <- g y
---                      return z
-
-bindo :: (Mochastic repr, Lambda repr) =>
-         repr (a -> Measure b) ->
-         repr (b -> Measure c) ->
-         repr (a -> Measure c)
-bindo f g = lam (\x -> app f x `bind` app g)
-
 -- Conditional probability tables (ignore Expect and unExpect on first reading)
 
 type Table = Vector (Vector Prob)
