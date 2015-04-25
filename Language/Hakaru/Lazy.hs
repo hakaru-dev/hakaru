@@ -371,39 +371,39 @@ isNum m = \case
   _      -> False
                                         
 instance (Base repr, Num (repr a), Number a) => Num (Hnf s repr a) where
-  x + y = case (x,y) of
-            (Int a, Int b)   -> Int (a+b)
-            (Real a, Real b) -> Real (a+b)
-            (Prob a, Prob b) -> Prob (a+b)
-            (Value _, s) | isNum 0 s -> x
-            (s, Value _) | isNum 0 s -> y
-            _            -> Value (forget x + forget y)
-  x - y = case (x,y) of
-            (Int a,  Int b)  -> Int (a-b)
-            (Real a, Real b) -> Real (a-b)
-            (Prob a, Prob b) -> Prob (a-b)
-            (Value _, s) | isNum 0 s -> x
-            (s, Value _) | isNum 0 s -> y
-            _            -> Value (forget x - forget y)
-  x * y = case (x,y) of
-            (Int a,  Int b)  -> Int (a*b)
-            (Real a, Real b) -> Real (a*b)
-            (Prob a, Prob b) -> Prob (a*b)
-            (Value _, s) | isNum 0 s -> s
-                         | isNum 1 s -> x
-            (s, Value _) | isNum 0 s -> s
-                         | isNum 1 s -> y
-            _            -> Value (forget x * forget y)
+  x + y  = case (x,y) of
+             (Int a, Int b)   -> Int (a+b)
+             (Real a, Real b) -> Real (a+b)
+             (Prob a, Prob b) -> Prob (a+b)
+             (Value _, s) | isNum 0 s -> x
+             (s, Value _) | isNum 0 s -> y
+             _            -> Value (forget x + forget y)
+  x - y  = case (x,y) of
+             (Int a,  Int b)  -> Int (a-b)
+             (Real a, Real b) -> Real (a-b)
+             (Prob a, Prob b) -> Prob (a-b)
+             (Value _, s) | isNum 0 s -> x
+             (s, Value _) | isNum 0 s -> y
+             _            -> Value (forget x - forget y)
+  x * y  = case (x,y) of
+             (Int a,  Int b)  -> Int (a*b)
+             (Real a, Real b) -> Real (a*b)
+             (Prob a, Prob b) -> Prob (a*b)
+             (Value _, s) | isNum 0 s -> s
+                          | isNum 1 s -> x
+             (s, Value _) | isNum 0 s -> s
+                          | isNum 1 s -> y
+             _            -> Value (forget x * forget y)
   negate = \case
            Int a  -> Int   (negate a)
            Real a -> Real  (negate a)
            Prob a -> Prob  (negate a)
            x      -> Value (negate (forget x))
-  abs = \case
-        Int a  -> Int   (abs a)
-        Real a -> Real  (abs a)
-        Prob a -> Prob  (abs a)
-        x      -> Value (abs (forget x))
+  abs    = \case
+           Int a  -> Int   (abs a)
+           Real a -> Real  (abs a)
+           Prob a -> Prob  (abs a)
+           x      -> Value (abs (forget x))
   signum = \case
            Int a  -> Int   (signum a)
            Real a -> Real  (signum a)
