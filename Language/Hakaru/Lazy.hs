@@ -369,14 +369,6 @@ isNum m = \case
   Real n -> n == m
   Prob n -> n == m
   _      -> False
-
-atom1 :: (Mochastic repr, Lub repr) => (repr a -> repr b) ->
-         Hnf s repr a -> M s repr (Hnf s repr b)
-atom1 op a = liftM (Value . op) (atomize a)
-
-atom2 :: (Mochastic repr, Lub repr) => (repr a -> repr b -> repr c) ->
-         Hnf s repr a -> Hnf s repr b -> M s repr (Hnf s repr c)
-atom2 op a b = liftM2 ((Value .) . op) (atomize a) (atomize b)
                                         
 instance (Base repr, Num (repr a), Number a) => Num (Hnf s repr a) where
   x + y = case (x,y) of
@@ -393,31 +385,86 @@ instance (Base repr, Num (repr a), Number a) => Num (Hnf s repr a) where
             (Value _, s) | isNum 0 s -> x
             (s, Value _) | isNum 0 s -> y
             _            -> Value (forget x - forget y)
-   -- TODO
-  (*) = undefined
-  negate = undefined
-  abs = undefined
-  signum = undefined
-  fromInteger = undefined
+  x * y = case (x,y) of
+            (Int a,  Int b)  -> Int (a*b)
+            (Real a, Real b) -> Real (a*b)
+            (Prob a, Prob b) -> Prob (a*b)
+            (Value _, s) | isNum 0 s -> s
+                         | isNum 1 s -> x
+            (s, Value _) | isNum 0 s -> s
+                         | isNum 1 s -> y
+            _            -> Value (forget x * forget y)
+  negate = \case
+           Int a  -> Int   (negate a)
+           Real a -> Real  (negate a)
+           Prob a -> Prob  (negate a)
+           x      -> Value (negate (forget x))
+  abs = \case
+        Int a  -> Int   (abs a)
+        Real a -> Real  (abs a)
+        Prob a -> Prob  (abs a)
+        x      -> Value (abs (forget x))
+  signum = \case
+           Int a  -> Int   (signum a)
+           Real a -> Real  (signum a)
+           Prob a -> Prob  (signum a)
+           x      -> Value (signum (forget x))
+  fromInteger = undefined -- TODO have separate instances for Int,Real,Prob? 
 
--- TODO                
-instance (Base repr, Num (repr a), Number a) => Fractional (Hnf s repr a) where
-  recip = undefined
-  fromRational = undefined
-  (/) = undefined
-
--- TODO        
-instance (Base repr, Num (repr a), Number a) => Floating (Hnf s repr a) where
-  pi = undefined
-  exp = undefined
-  log = undefined
-  sin = undefined
-  cos = undefined
-  tan = undefined
-  asin = undefined
-  acos = undefined        
-  atan = undefined
-
+instance (Base repr, Fractional (repr a), Fraction a) =>
+    Fractional (Hnf s repr a) where
+  recip = \case
+           Real a -> Real  (recip a)
+           Prob a -> Prob  (recip a)
+           x      -> Value (recip (forget x))
+  fromRational = undefined -- TODO have separate instances for Int,Real,Prob?
+  x / y = case (x,y) of
+            (Real a, Real b) -> Real (a/b)
+            (Prob a, Prob b) -> Prob (a/b)
+            (Value _, s) | isNum 0 s -> error "Lazy: divide by zero"
+                         | isNum 1 s -> x
+            (s, Value _) | isNum 0 s -> s
+            _ ->         Value (forget x / forget y)
+                         
+instance (Base repr) => Floating (Hnf s repr Real) where
+  pi = Real (toRational (pi :: Double))
+  exp = \case        
+        Real a -> Real (toRational (exp (fromRational a) :: Double))
+        x      -> Value (exp (forget x))
+  log = \case        
+        Real a -> Real (toRational (log (fromRational a) :: Double))
+        x      -> Value (log (forget x))
+  sin = \case        
+        Real a -> Real (toRational (sin (fromRational a) :: Double))
+        x      -> Value (sin (forget x))
+  cos = \case        
+        Real a -> Real (toRational (cos (fromRational a) :: Double))
+        x      -> Value (cos (forget x))
+  asin = \case        
+         Real a -> Real (toRational (asin (fromRational a) :: Double))
+         x      -> Value (asin (forget x))
+  acos = \case        
+         Real a -> Real (toRational (acos (fromRational a) :: Double))
+         x      -> Value (acos (forget x))
+  atan = \case        
+         Real a -> Real (toRational (atan (fromRational a) :: Double))
+         x      -> Value (atan (forget x))
+  sinh = \case        
+         Real a -> Real (toRational (sinh (fromRational a) :: Double))
+         x      -> Value (sinh (forget x))
+  cosh = \case        
+         Real a -> Real (toRational (cosh (fromRational a) :: Double))
+         x      -> Value (cosh (forget x))
+  asinh = \case        
+          Real a -> Real (toRational (asinh (fromRational a) :: Double))
+          x      -> Value (asinh (forget x))
+  acosh = \case        
+          Real a -> Real (toRational (acosh (fromRational a) :: Double))
+          x      -> Value (acosh (forget x))
+  atanh = \case        
+          Real a -> Real (toRational (atanh (fromRational a) :: Double))
+          x      -> Value (atanh (forget x))
+  
 scalar0 :: (Lub repr) => repr a -> Lazy s repr a
 scalar0 op = lazy (return (Value op))
 
@@ -461,39 +508,17 @@ sub x y = Lazy
 
 mul :: (Mochastic repr, Lub repr, Num (repr a), Number a) => 
        Lazy s repr a -> Lazy s repr a -> Lazy s repr a
-mul x y = lazy
-          (do fx <- forward x
-              fy <- forward y
-              case (fx,fy) of
-                (Int a,  Int b)  -> return (Int (a*b))
-                (Real a, Real b) -> return (Real (a*b))
-                (Prob a, Prob b) -> return (Prob (a*b))
-                (Value _, s) | isNum 0 s -> return s
-                             | isNum 1 s -> return fx
-                (s, Value _) | isNum 0 s -> return s
-                             | isNum 1 s -> return fy
-                _ -> atom2 (*) fx fy)
+mul x y = lazy (liftM2 (*) (forward x) (forward y))          
           
 neg :: (Mochastic repr, Lub repr, Num (repr a), Number a) =>
        Lazy s repr a -> Lazy s repr a
-neg x = Lazy
-        (do fx <- forward x
-            case fx of
-              Int a  -> return (Int (negate a))
-              Real a -> return (Real (negate a))
-              Prob a -> return (Prob (negate a))
-              _      -> atom1 negate fx)
-        (\t -> backward x (negate t))
+neg x = Lazy (liftM negate (forward x))
+             (\t -> backward x (negate t))
 
 abz :: (Mochastic repr, Lub repr, Num (repr a), Order repr a) =>
        Lazy s repr a -> Lazy s repr a
 abz x = Lazy
-        (do fx <- forward x
-            case fx of
-              Int a  -> return (Int (abs a))
-              Real a -> return (Real (abs a))
-              Prob a -> return (Prob (abs a))
-              _      -> atom1 abs fx)
+        (liftM abs (forward x))
         (\t -> do u <- atomize t               
                   v <- lift (if_ (less 0 u) (superpose [(1, dirac u)
                                                        ,(1, dirac (-u))])
@@ -502,22 +527,12 @@ abz x = Lazy
 
 sign :: (Mochastic repr, Lub repr, Num (repr a), Number a) =>
         Lazy s repr a -> Lazy s repr a
-sign x = lazy
-         (do fx <- forward x
-             case fx of
-               Int a  -> return (Int (signum a))
-               Real a -> return (Real (signum a))
-               Prob a -> return (Prob (signum a))
-               _      -> atom1 signum fx)
+sign x = lazy (liftM signum (forward x))
  
 inv :: (Mochastic repr, Lub repr, Fractional (repr a), Fraction a) =>
        Lazy s repr a -> Lazy s repr a
 inv x = Lazy
-        (do fx <- forward x
-            case fx of
-              Real a -> return (Real (recip a))
-              Prob a -> return (Prob (recip a))
-              _      -> atom1 recip fx)
+        (liftM recip (forward x))
         (\t -> do u <- atomize (t * t)
                   insert_ (weight (recip (unsafeProbFraction u)))
                   backward x (recip t))
@@ -525,15 +540,7 @@ inv x = Lazy
 divide :: (Mochastic repr, Lub repr, Fractional (repr a), Fraction a) =>
           Lazy s repr a -> Lazy s repr a -> Lazy s repr a
 divide x y = Lazy
-             (do fx <- forward x
-                 fy <- forward y
-                 case (fx,fy) of
-                   (Real a, Real b) -> return (Real (a/b))
-                   (Prob a, Prob b) -> return (Prob (a/b))
-                   (Value _, s) | isNum 0 s -> error "Lazy: divide by zero"
-                                | isNum 1 s -> return fx
-                   (s, Value _) | isNum 0 s -> return s
-                   _ -> atom2 (/) fx fy)
+             (liftM2 (/) (forward x) (forward y))
              (\t -> lub
                     (do r <- forward x
                         w <- atomize (abs r / (t*t))
@@ -615,58 +622,64 @@ instance (Mochastic repr, Lub repr) =>
 
 instance (Mochastic repr, Lub repr) =>
          Floating (Lazy s repr Real) where
-  pi = scalar0 pi
+  pi = lazy (return pi)
   exp x = Lazy
-    (liftM (Value . exp) (evaluate x))
+    (liftM exp (forward x))
     (\t -> do u <- atomize t
               insert_ (ifTrue (less 0 u) . weight (recip (unsafeProb u)))
               backward x (log t))
   log x = Lazy
-    (liftM (Value . log) (evaluate x))
+    (liftM log (forward x))
     (\t -> do u <- atomize t
               insert_ (weight (exp_ u))
               backward x (exp t))
-  sin x = (scalar1 sin x)
-    { backward = (\t -> do n <- liftM (Value . fromInt) (lift counting)
-                           u <- atomize t
-                           insert_ (ifTrue (and_ [(less (-1) u)
-                                                 ,(less  u   1)]))
-                           r1 <- atomize (2*n*pi + asin t)
-                           r2 <- atomize (2*n*pi + pi - asin t)
-                           j <- liftM (sqrt_ . unsafeProb) (atomize (1 - t*t))
-                           r <- lift (superpose [(1, dirac r1), (1, dirac r2)])
-                           insert_ (weight (recip j))
-                           backward x (Value r)) }
-  cos x = (scalar1 cos x)
-    { backward = (\t -> do n <- liftM (Value . fromInt) (lift counting)
-                           u <- atomize t
-                           insert_ (ifTrue (and_ [(less (-1) u)
-                                                 ,(less  u   1)]))
-                           r1 <- atomize (2*n*pi + acos t)
-                           j <- liftM (sqrt_ . unsafeProb) (atomize (1 - t*t))
-                           r <- lift (superpose [(1, dirac r1)
-                                                ,(1, dirac (r1 + pi))])
-                           insert_ (weight (recip j))
-                           backward x (Value r)) }
-  tan x = (scalar1 tan x)
-    { backward = (\t -> do n <- liftM (Value . fromInt) (lift counting)
-                           v <- atomize (n*pi + atan t)
-                           r <- lift (dirac v)
-                           j <- liftM (recip . unsafeProb) (atomize (1 + t*t))
-                           insert_ (weight j)
-                           backward x (Value r)) }
-  asin x = (scalar1 asin x)
-    { backward = (\t -> do j <- atomize (cos t)
-                           insert_ (weight (unsafeProb j))
-                           backward x (sin t)) }
-  acos x = (scalar1 acos x)
-    { backward = (\t -> do j <- atomize (sin t)
-                           insert_ (weight (unsafeProb j))
-                           backward x (cos t)) }
-  atan x = (scalar1 atan x)
-    { backward = (\t -> do j <- liftM unsafeProb (atomize (cos t * cos t))
-                           insert_ (weight (recip j))
-                           backward x (tan t)) }
+  sin x = Lazy
+    (liftM sin (forward x))
+    (\t -> do n <- liftM (Value . fromInt) (lift counting)
+              u <- atomize t
+              insert_ (ifTrue (and_ [(less (-1) u)
+                                    ,(less  u   1)]))
+              r1 <- atomize (2*n*pi + asin t)
+              r2 <- atomize (2*n*pi + pi - asin t)
+              j <- liftM (sqrt_ . unsafeProb) (atomize (1 - t*t))
+              r <- lift (superpose [(1, dirac r1), (1, dirac r2)])
+              insert_ (weight (recip j))
+              backward x (Value r))
+  cos x = Lazy
+    (liftM cos (forward x))
+    (\t -> do n <- liftM (Value . fromInt) (lift counting)
+              u <- atomize t
+              insert_ (ifTrue (and_ [(less (-1) u)
+                                    ,(less  u   1)]))
+              r1 <- atomize (2*n*pi + acos t)
+              j <- liftM (sqrt_ . unsafeProb) (atomize (1 - t*t))
+              r <- lift (superpose [(1, dirac r1)
+                                   ,(1, dirac (r1 + pi))])
+              insert_ (weight (recip j))
+              backward x (Value r))
+  tan x = Lazy
+    (liftM tan (forward x))
+    (\t -> do n <- liftM (Value . fromInt) (lift counting)
+              v <- atomize (n*pi + atan t)
+              r <- lift (dirac v)
+              j <- liftM (recip . unsafeProb) (atomize (1 + t*t))
+              insert_ (weight j)
+              backward x (Value r))
+  asin x = Lazy
+    (liftM asin (forward x))
+    (\t -> do j <- atomize (cos t)
+              insert_ (weight (unsafeProb j))
+              backward x (sin t))
+  acos x = Lazy
+    (liftM acos (forward x))
+    (\t -> do j <- atomize (sin t)
+              insert_ (weight (unsafeProb j))
+              backward x (cos t))
+  atan x = Lazy
+    (liftM atan (forward x))
+    (\t -> do j <- liftM unsafeProb (atomize (cos t * cos t))
+              insert_ (weight (recip j))
+              backward x (tan t))
   -- TODO fill in other methods
 
 unpairM :: (Mochastic repr, Lub repr) => Lazy s repr (a,b) ->
