@@ -427,42 +427,42 @@ instance (Base repr, Fractional (repr a), Fraction a) =>
             _ ->         Value (forget x / forget y)
                          
 instance (Base repr) => Floating (Hnf s repr Real) where
-  pi = Real (toRational (pi :: Double))
-  exp = \case        
-        Real a -> Real (toRational (exp (fromRational a) :: Double))
-        x      -> Value (exp (forget x))
-  log = \case        
-        Real a -> Real (toRational (log (fromRational a) :: Double))
-        x      -> Value (log (forget x))
-  sin = \case        
-        Real a -> Real (toRational (sin (fromRational a) :: Double))
-        x      -> Value (sin (forget x))
-  cos = \case        
-        Real a -> Real (toRational (cos (fromRational a) :: Double))
-        x      -> Value (cos (forget x))
-  asin = \case        
-         Real a -> Real (toRational (asin (fromRational a) :: Double))
-         x      -> Value (asin (forget x))
-  acos = \case        
-         Real a -> Real (toRational (acos (fromRational a) :: Double))
-         x      -> Value (acos (forget x))
-  atan = \case        
-         Real a -> Real (toRational (atan (fromRational a) :: Double))
-         x      -> Value (atan (forget x))
-  sinh = \case        
-         Real a -> Real (toRational (sinh (fromRational a) :: Double))
-         x      -> Value (sinh (forget x))
-  cosh = \case        
-         Real a -> Real (toRational (cosh (fromRational a) :: Double))
-         x      -> Value (cosh (forget x))
+  pi    =           Real  (toRational (pi :: Double))
+  exp   = \case        
+          Real a -> Real  (toRational (exp   (fromRational a) :: Double))
+          x      -> Value (exp   (forget x))
+  log   = \case        
+          Real a -> Real  (toRational (log   (fromRational a) :: Double))
+          x      -> Value (log   (forget x))
+  sin   = \case        
+          Real a -> Real  (toRational (sin   (fromRational a) :: Double))
+          x      -> Value (sin   (forget x))
+  cos   = \case        
+          Real a -> Real  (toRational (cos   (fromRational a) :: Double))
+          x      -> Value (cos   (forget x))
+  asin  = \case        
+          Real a -> Real  (toRational (asin  (fromRational a) :: Double))
+          x      -> Value (asin  (forget x))
+  acos  = \case        
+          Real a -> Real  (toRational (acos  (fromRational a) :: Double))
+          x      -> Value (acos  (forget x))
+  atan  = \case        
+          Real a -> Real  (toRational (atan  (fromRational a) :: Double))
+          x      -> Value (atan  (forget x))
+  sinh  = \case        
+          Real a -> Real  (toRational (sinh  (fromRational a) :: Double))
+          x      -> Value (sinh  (forget x))
+  cosh  = \case        
+          Real a -> Real  (toRational (cosh  (fromRational a) :: Double))
+          x      -> Value (cosh  (forget x))
   asinh = \case        
-          Real a -> Real (toRational (asinh (fromRational a) :: Double))
+          Real a -> Real  (toRational (asinh (fromRational a) :: Double))
           x      -> Value (asinh (forget x))
   acosh = \case        
-          Real a -> Real (toRational (acosh (fromRational a) :: Double))
+          Real a -> Real  (toRational (acosh (fromRational a) :: Double))
           x      -> Value (acosh (forget x))
   atanh = \case        
-          Real a -> Real (toRational (atanh (fromRational a) :: Double))
+          Real a -> Real  (toRational (atanh (fromRational a) :: Double))
           x      -> Value (atanh (forget x))
   
 scalar0 :: (Lub repr) => repr a -> Lazy s repr a
