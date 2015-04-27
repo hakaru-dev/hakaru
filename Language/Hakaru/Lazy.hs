@@ -793,6 +793,12 @@ instance (Mochastic repr, Lub repr) =>
   superpose pms = measure $ join $ choice
     [ store (Weight p) >> liftM unMeasure (forward m) | (p,m) <- pms ]
   -- TODO fill in other methods (in particular, categorical and chain)
+  uniform lo hi = Lazy (lub (forward dfault)
+                            (forward (scalar2 uniform lo hi)))
+                       (backward dfault)
+      where dfault = lebesgue `bind` \x ->
+                     ifTrue (and_ [less lo x, less x hi])
+                     (superpose [(recip (unsafeProb (hi - lo)), dirac x)])
   plate v       = measure $ join $ do l <- gensymVector
                                       store (VBind l [] v)
                                       return (lazy (return (Plate l)))
