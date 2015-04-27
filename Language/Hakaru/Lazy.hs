@@ -102,29 +102,27 @@ determine z = forward z >>= \case
   w            -> return w
 
 forget :: (Base repr) => Hnf s repr a -> repr a
-forget = \case
-  True_   -> true
-  False_  -> false
-  Int   n -> fromInteger n
-  Real  r -> fromRational r
-  Prob  r -> fromRational r
-  Value v -> v
-  _       -> error "Lazy: no information to forget"
+forget True_     = true
+forget False_    = false
+forget (Int   n) = fromInteger n
+forget (Real  r) = fromRational r
+forget (Prob  r) = fromRational r
+forget (Value v) = v
+forget _         = error "Lazy: no information to forget"
 
-atomize :: (Mochastic repr, Lub repr) =>
-           Hnf s repr a -> M s repr (repr a)
-atomize = \case
-  Pair x y   -> liftM2 pair (evaluate x) (evaluate y)
-  Inl x      -> liftM inl (evaluate x)
-  Inr y      -> liftM inr (evaluate y)
-  Measure x  -> liftM (evaluateMeasure x) duplicateHeap
-  Vector s f -> evaluateVector s [] f
-  Plate l    -> let process (RVLet v)          = return v
-                    process (RVBind table rhs) = evaluatePlate table rhs
-                in retrieve locateV l (\retrieval -> do v <- process retrieval
-                                                        store (VLet l v)
-                                                        return v)
-  w          -> return (forget w)
+atomize :: (Mochastic repr, Lub repr) => Hnf s repr a -> M s repr (repr a)
+atomize (Pair x y)   = liftM2 pair (evaluate x) (evaluate y)
+atomize (Inl x)      = liftM inl (evaluate x)
+atomize (Inr y)      = liftM inr (evaluate y)
+atomize (Measure x)  = liftM (evaluateMeasure x) duplicateHeap
+atomize (Vector s f) = evaluateVector s [] f
+atomize (Plate l)    =
+    let process (RVLet v)          = return v
+        process (RVBind table rhs) = evaluatePlate table rhs
+    in retrieve locateV l (\retrieval -> do v <- process retrieval
+                                            store (VLet l v)
+                                            return v)
+atomize w            = return (forget w)
 
 evaluate :: (Mochastic repr, Lub repr) =>
             Lazy s repr a -> M s repr (repr a)
@@ -364,11 +362,11 @@ bwdLoc l t = retrieve locate l (\retrieval -> do process retrieval
                             Value _  -> bot
 
 isNum :: (Number a) => Rational -> Hnf s repr a -> Bool
-isNum m = \case
-  Int n  -> fromInteger n == m
-  Real n -> n == m
-  Prob n -> n == m
-  _      -> False
+isNum m h = case h of
+              Int n  -> fromInteger n == m
+              Real n -> n == m
+              Prob n -> n == m
+              _      -> False
                                         
 instance (Base repr, Num (repr a), Number a) => Num (Hnf s repr a) where
   x + y  = case (x,y) of
@@ -394,30 +392,32 @@ instance (Base repr, Num (repr a), Number a) => Num (Hnf s repr a) where
              (s, Value _) | isNum 0 s -> s
                           | isNum 1 s -> y
              _            -> Value (forget x * forget y)
-  negate = \case
-           Int a  -> Int   (negate a)
-           Real a -> Real  (negate a)
-           Prob a -> Prob  (negate a)
-           x      -> Value (negate (forget x))
-  abs    = \case
-           Int a  -> Int   (abs a)
-           Real a -> Real  (abs a)
-           Prob a -> Prob  (abs a)
-           x      -> Value (abs (forget x))
-  signum = \case
-           Int a  -> Int   (signum a)
-           Real a -> Real  (signum a)
-           Prob a -> Prob  (signum a)
-           x      -> Value (signum (forget x))
+                             
+  negate (Int a)  = Int   (negate a)
+  negate (Real a) = Real  (negate a)
+  negate (Prob a) = Prob  (negate a)
+  negate x        = Value (negate (forget x))
+                    
+  abs    (Int a)  = Int   (abs a)
+  abs    (Real a) = Real  (abs a)
+  abs    (Prob a) = Prob  (abs a)
+  abs    x        = Value (abs (forget x))
+
+  signum (Int a)  = Int   (signum a)
+  signum (Real a) = Real  (signum a)
+  signum (Prob a) = Prob  (signum a)
+  signum x        = Value (signum (forget x))
+                     
   fromInteger = undefined -- TODO have separate instances for Int,Real,Prob? 
 
 instance (Base repr, Fractional (repr a), Fraction a) =>
     Fractional (Hnf s repr a) where
-  recip = \case
-           Real a -> Real  (recip a)
-           Prob a -> Prob  (recip a)
-           x      -> Value (recip (forget x))
+  recip (Real a) = Real  (recip a)
+  recip (Prob a) = Prob  (recip a)
+  recip x        = Value (recip (forget x))
+                   
   fromRational = undefined -- TODO have separate instances for Int,Real,Prob?
+                 
   x / y = case (x,y) of
             (Real a, Real b) -> Real (a/b)
             (Prob a, Prob b) -> Prob (a/b)
@@ -425,45 +425,24 @@ instance (Base repr, Fractional (repr a), Fraction a) =>
                          | isNum 1 s -> x
             (s, Value _) | isNum 0 s -> s
             _ ->         Value (forget x / forget y)
+
+atom1 :: (Base repr) => (repr a -> repr a) -> Hnf s repr a -> Hnf s repr a
+atom1 op = Value . op . forget
                          
 instance (Base repr) => Floating (Hnf s repr Real) where
-  pi    =           Real  (toRational (pi :: Double))
-  exp   = \case        
-          Real a -> Real  (toRational (exp   (fromRational a) :: Double))
-          x      -> Value (exp   (forget x))
-  log   = \case        
-          Real a -> Real  (toRational (log   (fromRational a) :: Double))
-          x      -> Value (log   (forget x))
-  sin   = \case        
-          Real a -> Real  (toRational (sin   (fromRational a) :: Double))
-          x      -> Value (sin   (forget x))
-  cos   = \case        
-          Real a -> Real  (toRational (cos   (fromRational a) :: Double))
-          x      -> Value (cos   (forget x))
-  asin  = \case        
-          Real a -> Real  (toRational (asin  (fromRational a) :: Double))
-          x      -> Value (asin  (forget x))
-  acos  = \case        
-          Real a -> Real  (toRational (acos  (fromRational a) :: Double))
-          x      -> Value (acos  (forget x))
-  atan  = \case        
-          Real a -> Real  (toRational (atan  (fromRational a) :: Double))
-          x      -> Value (atan  (forget x))
-  sinh  = \case        
-          Real a -> Real  (toRational (sinh  (fromRational a) :: Double))
-          x      -> Value (sinh  (forget x))
-  cosh  = \case        
-          Real a -> Real  (toRational (cosh  (fromRational a) :: Double))
-          x      -> Value (cosh  (forget x))
-  asinh = \case        
-          Real a -> Real  (toRational (asinh (fromRational a) :: Double))
-          x      -> Value (asinh (forget x))
-  acosh = \case        
-          Real a -> Real  (toRational (acosh (fromRational a) :: Double))
-          x      -> Value (acosh (forget x))
-  atanh = \case        
-          Real a -> Real  (toRational (atanh (fromRational a) :: Double))
-          x      -> Value (atanh (forget x))
+  pi    = Value pi
+  exp   = atom1 exp
+  log   = atom1 log
+  sin   = atom1 sin
+  cos   = atom1 cos
+  asin  = atom1 asin
+  acos  = atom1 acos
+  atan  = atom1 atan
+  sinh  = atom1 sinh
+  cosh  = atom1 cosh
+  asinh = atom1 asinh
+  acosh = atom1 acosh
+  atanh = atom1 atanh
   
 scalar0 :: (Lub repr) => repr a -> Lazy s repr a
 scalar0 op = lazy (return (Value op))
