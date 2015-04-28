@@ -35,14 +35,25 @@ transitionContinuous s = normal s 1
 
 -- To compute hmmContinuous efficiently, again we should specialize "bindo" to
 -- values of type "Real -> Measure Real" that are of a certain form.  The form
--- is something like "lam (\s -> weight (? * exp_ (? * (s - ?) ^ 2))
+-- is something like "lam (\s -> weight (? * exp_ (? * (s - ?) ** 2))
 --                                      (normal (? * s + ?) ?))"
 -- in which each ? is a real number.
 
-bindo'' :: (Simplifiable a, Simplifiable b, Simplifiable c) =>
-           Maple (a -> Measure b) ->
-           Maple (b -> Measure c) ->
-           IO (Maple (a -> Measure c))
-bindo'' m n = do 
-   p <- simplify (bindo m n)
-   return (unAny p)
+type M = (Prob, (Real, (Real, (Real, (Real, Prob)))))
+
+reflect :: (Mochastic repr, Lambda repr) =>
+           repr M -> repr (Real -> Measure Real)
+reflect m =
+  unpair m $ \a m ->
+  unpair m $ \b m ->
+  unpair m $ \c m ->
+  unpair m $ \d m ->
+  unpair m $ \e f ->
+  lam $ \s ->
+  weight (a * exp_ (b * (s - c) ** 2)) $
+  normal (d * s + e) f
+
+-- Unfortunately Maple currently refuses to write bindo'' for us:
+--  > simplify (lam $ \m -> lam $ \n -> reflect m `bindo` reflect n)
+--  *** Exception: MapleException:
+--  Error, (in SLO:-AST) non-zero constant (infinity) encountered as a measure
