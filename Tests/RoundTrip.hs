@@ -99,6 +99,7 @@ testMeasureReal = test
   , "t72d" ~: testSS [t72d] (weight 0.5 $ uniform 2 3)
   , "t73d" ~: testSS [t73d] (uniform 1 3)
   , "t74d" ~: testSS [t74d] (uniform 1 3)
+  , "t76" ~: testS t76
   , "lebesgue1" ~: testSS [] (lebesgue `bind` \x -> if_ (less 42 x) (dirac x) (superpose []))
   , "lebesgue2" ~: testSS [] (lebesgue `bind` \x -> if_ (less x 42) (dirac x) (superpose []))
   , "lebesgue3" ~: testSS [lebesgue `bind` \x -> if_ (and_ [less x 42, less 40 x]) (dirac x) (superpose [])] (weight 2 $ uniform 40 42)
@@ -706,6 +707,20 @@ t75 = gamma 6 1 `bind` poisson
 
 t75' :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure Int)
 t75' = lam $ \x -> gamma x 1 `bind` poisson
+
+t76 :: (Lambda repr, Mochastic repr) => repr (Real -> Measure Real)
+t76 = lam $ \x ->
+      lebesgue `bind` \y ->
+      weight (unsafeProb (abs y)) $
+      if_ (y `less` 1)
+          (if_ (0 `less` y)
+               (if_ (x * y `less` 1)
+                    (if_ (0 `less` x * y)
+                         (dirac (x * y))
+                         (superpose []))
+                    (superpose []))
+               (superpose []))
+          (superpose [])
 
 -- Testing round-tripping of some other distributions
 testexponential :: Mochastic repr => repr (Measure Prob)
