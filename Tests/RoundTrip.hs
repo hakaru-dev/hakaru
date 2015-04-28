@@ -33,7 +33,8 @@ testMeasureUnit = test [
     "t62"     ~: testSS [t62] t62',
     "t63"     ~: testSS [t63] t63',
     "t64"     ~: testSS [t64,t64'] t64'',
-    "t65"     ~: testSS [t65] t65'
+    "t65"     ~: testSS [t65] t65',
+    "t77"     ~: testSS [] t77
     ]
 
 testMeasureProb :: Test
@@ -721,6 +722,12 @@ t76 = lam $ \x ->
                     (superpose []))
                (superpose []))
           (superpose [])
+
+t77 :: (Lambda repr, Mochastic repr) => repr (Real -> Measure ())
+t77 = lam $ \x ->
+      if_ (less_ x 0)
+          (factor (exp_ (-x)))
+          (factor (exp_ x))
 
 -- Testing round-tripping of some other distributions
 testexponential :: Mochastic repr => repr (Measure Prob)
