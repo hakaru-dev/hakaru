@@ -39,7 +39,7 @@ transitionContinuous s = normal s 1
 --                                      (normal (? * s + ?) ?))"
 -- in which each ? is a real number.
 
-type M = (Prob, (Real, (Real, (Real, (Real, Prob)))))
+type M = (Prob, (Prob, (Real, (Real, (Real, Prob)))))
 
 reflect :: (Mochastic repr, Lambda repr) =>
            repr M -> repr (Real -> Measure Real)
@@ -50,10 +50,11 @@ reflect m =
   unpair m $ \d m ->
   unpair m $ \e f ->
   lam $ \s ->
-  weight (a * exp_ (b * (s - c) ** 2)) $
+  weight (a * exp_ (- fromProb b * (s - c) ** 2)) $
   normal (d * s + e) f
 
 -- Unfortunately Maple currently refuses to write bindo'' for us:
 --  > simplify (lam $ \m -> lam $ \n -> reflect m `bindo` reflect n)
 --  *** Exception: MapleException:
---  Error, (in SLO:-AST) non-zero constant (infinity) encountered as a measure
+--  Error, (in SLO:-AST) how do I make a Prob from
+--  2*pp12^2*pp6^2*pp8+pp6^2*rr10^2+pp12^2
