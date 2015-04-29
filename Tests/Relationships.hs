@@ -63,7 +63,13 @@ testRelationships = test [
 
     -- Scaling property
     "t24"   ~: testSS [t24] (lam (\a -> lam (\b -> lam (\k ->
-                             weibull (a*(pow_ k (fromProb b))) b))))
+                             weibull (a*(pow_ k (fromProb b))) b)))),
+
+    -- Product property
+    "t25"   ~: testSS [t25] (lam (\mu1 -> lam (\mu2 ->
+                             lam (\sigma1 -> lam (\sigma2 ->
+                             normal (mu1+mu2) (sigma1+sigma2) `bind` \x ->
+                             dirac (log x))))))
     ]
 
 allTests :: Test
@@ -189,3 +195,10 @@ t24 :: (Lambda repr, Mochastic repr) => repr (Prob -> Prob -> Prob -> Measure Pr
 t24 = lam (\a -> lam (\b -> lam (\k ->
     weibull a b `bind` \x ->
     dirac (k*x))))
+
+t25 :: (Lambda repr, Mochastic repr) => repr (Real -> Real -> Prob -> Prob -> Measure Real)
+t25 = lam (\mu1 -> lam (\mu2 ->
+    lam (\sigma1 -> lam (\sigma2 ->
+    normal mu1 sigma1 `bind` \x1 ->
+    normal mu2 sigma2 `bind` \x2 ->
+    dirac ((log x1) * (log x2))))))
