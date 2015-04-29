@@ -69,7 +69,12 @@ testRelationships = test [
     "t25"   ~: testSS [t25] (lam (\mu1 -> lam (\mu2 ->
                              lam (\sigma1 -> lam (\sigma2 ->
                              normal (mu1+mu2) (sigma1+sigma2) `bind` \x ->
-                             dirac (log x))))))
+                             dirac (log x)))))),
+
+    -- Inverse property
+    "t26"   ~: testSS [t26] (lam (\l -> lam (\s ->
+                             cauchy (l / (l*l + (fromProb s)*(fromProb s))) (s / ((unsafeProb l)*(unsafeProb l) + s*s)))))
+
     ]
 
 allTests :: Test
@@ -202,3 +207,8 @@ t25 = lam (\mu1 -> lam (\mu2 ->
     normal mu1 sigma1 `bind` \x1 ->
     normal mu2 sigma2 `bind` \x2 ->
     dirac ((log x1) * (log x2))))))
+
+t26 :: (Lambda repr, Mochastic repr) => repr (Real -> Prob -> Measure Real)
+t26 = lam (\l -> lam (\s ->
+    cauchy l s `bind` \x ->
+    dirac (recip x)))
