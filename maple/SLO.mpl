@@ -98,6 +98,8 @@ SLO := module ()
     # we might have recursively encountered a hidden 0
     elif (e = 0) then
       return Superpose()
+    elif (e = infinity) then # yep, that's a measure!
+      return WeightedM(infinity, Superpose())
     # we might have done something odd, and there is no x anymore (and not 0)
     elif type(e, 'numeric') then
       error "the constant %1 is not a measure", e
@@ -1695,7 +1697,9 @@ end proc;
 WeightedM := proc(w, m)
   if w=1 then
     m
-  elif type(m, specfunc(anything, 'Superpose')) then
+  # we want to allow infinity as weight, but WeightedM(infinity, Superpose())
+  # should not disappear.
+  elif type(m, specfunc(anything, 'Superpose')) and not m = infinity then
     Superpose(op(map(into_sup, m, w)));
   elif type(m, specfunc(anything, 'WeightedM')) then
     WeightedM(w*op(1,m), op(2,m))
