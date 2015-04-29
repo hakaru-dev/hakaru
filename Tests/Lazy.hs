@@ -132,6 +132,7 @@ allTests = test [ "easierRoadmapProg1" ~: testL easierRoadmapProg1 []
                 , "t8"  ~: testL t8 []
                 , "t9"  ~: testL t9 []
                 , "t10" ~: testL t10 []
+                , "marsaglia" ~: testL marsaglia [] -- needs heavy disintegration
                 ]
 
 normalFB1 :: (Mochastic repr) => Cond repr () (Measure (Real, ()))
@@ -349,3 +350,12 @@ t10 = \u -> ununit u $
       normal 0 1 `bind` \x ->
       plate (vector 10 (\i -> normal x (unsafeProb (fromInt i) + 1))) `bind` \ys ->
       dirac (pair (pair (index ys 3) (index ys 4)) x)
+
+marsaglia :: (Mochastic repr) => repr () -> repr (Measure (Real,()))
+marsaglia _ =
+  uniform (-1) 1 `bind` \x ->
+  uniform (-1) 1 `bind` \y ->
+  let s = x ** 2 + y ** 2 in
+  if_ (s `less_` 1)
+      (dirac (pair (x * sqrt (-2 * log s / s)) unit))
+      (superpose [])
