@@ -81,7 +81,11 @@ testRelationships = test [
 
     -- If X is a beta (a, b) random variable then (1 - X) is a beta (b, a) random variable.
     "t28"   ~: testSS [t28] (lam (\a -> lam (\b ->
-                             beta b a)))
+                             beta b a))),
+
+    -- If X is a binomial (n, p) random variable then (n - X) is a binomial (n, 1-p) random variable.
+    "t29"   ~: testSS [t29] (lam (\n -> lam (\p ->
+                             binomial n (1-p))))
     ]
 
 allTests :: Test
@@ -229,3 +233,8 @@ t28 :: (Lambda repr, Mochastic repr) => repr (Prob -> Prob -> Measure Prob)
 t28 = lam (\a -> lam (\b ->
     beta a b `bind` \x ->
     dirac (1 - x)))
+
+t29 :: (Lambda repr, Mochastic repr) => repr (Int -> Prob -> Measure Int)
+t29 = lam (\n -> lam (\p ->
+    binomial n p `bind` \x ->
+    dirac (n - x)))
