@@ -73,7 +73,7 @@ testRelationships = test [
 
     -- Inverse property
     "t26"   ~: testSS [t26] (lam (\l -> lam (\s ->
-                             cauchy (l / (l*l + (fromProb s)*(fromProb s))) (s / ((unsafeProb l)*(unsafeProb l) + s*s)))))
+                             cauchy (l / (l*l + fromProb (s*s))) (s / (unsafeProb (l*l) + s*s)))))
 
     ]
 
