@@ -79,6 +79,7 @@ testRelationships = test [
     "t27"   ~: testSS [t27] (lam (\r -> lam (\lambda -> lam (\a ->
                              gamma r (a*lambda))))),
 
+    -- If X is a beta (a, b) random variable then (1 - X) is a beta (b, a) random variable.
     "t28"   ~: testSS [t28] (lam (\a -> lam (\b ->
                              beta b a)))
     ]
