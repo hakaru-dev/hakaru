@@ -77,7 +77,10 @@ testRelationships = test [
 
     -- Multiple of a random variable
     "t27"   ~: testSS [t27] (lam (\r -> lam (\lambda -> lam (\a ->
-                             gamma r (a*lambda)))))
+                             gamma r (a*lambda))))),
+
+    "t28"   ~: testSS [t28] (lam (\a -> lam (\b ->
+                             beta b a)))
     ]
 
 allTests :: Test
@@ -220,3 +223,8 @@ t27 :: (Lambda repr, Mochastic repr) => repr (Prob -> Prob -> Prob -> Measure Pr
 t27 = lam (\r -> lam (\lambda -> lam (\a ->
     gamma r lambda `bind` \x ->
     dirac (a * x))))
+
+t28 :: (Lambda repr, Mochastic repr) => repr (Prob -> Prob -> Measure Prob)
+t28 = lam (\a -> lam (\b ->
+    beta a b `bind` \x ->
+    dirac (1 - x)))
