@@ -1,30 +1,39 @@
-As of Wed. April. 8th, the failures are as follows:
+As of Fri. May. 1rst, the failures are as follows:
 
 RoundTrip:
-t56 - difference in display of conditions
-t57 - difference in display of conditions
-t60 - x1 + x2 <> x2 + x1 !!!  [testing by comparing pretty-printing is
-  fragile, and was bound to show up in this way]
-t62 - (x0 / x1) vs (x0 * recip x1) vs x1 ** (-1)
-t63 - integration succeeds, but outputs all sorts of functions that
-  cannot currently be handlded, resulting in a hard error.
-t64 - some internal change has made a '42' come out as a weight.
-   this feels like a new bug
+t54 - new handling of undefined causes new issue
+t56 - probable bug in convert/Heaviside
+t57 - probable bug in convert/Heaviside
+t58 - probable bug in convert/Heaviside
+t60 - ordering difference
+t62 - problem with assumption on x0/x1
+t63 - problem with assumption on non-name
+t64 - new handling of undefined causes new issue
 t65 - completely different result now -- looks like an integral no
   longer computes. (uniform 0 1)
+t77 - fromProb (-1)
+t36 - new handling of undefined causes new issue
+t39 - new handling of undefined causes new issue
 t45 - pw/domain interaction with density recognition
 t50 - Maple returns Ei in result, which does not exist in Hakaru
-lebesgue2 -- wrong order!!!
-t52 - "cannot determine if this expression is true or false: h1 < 1
-mhPriorProp - change of placement of - signs
-testGibbsPropUnif -- new issue with undefined
+t76 - Real/Prob inference issue
+t78 - adjust_types issue
+t52 - ordering issue
+dup - 2 normals combine into onw and a lebesgue
+mhPriorProp - hard failure in Inference.hs
+pairFun - first class functions
+pairFunSimp - first class functions
+unknownMeasure - first class functions?
+testRoadMapProg4 - dealing with undefined
 testKernel - failure in recognition of density (and categorical)
+testFalseDetection: Real/Prob inference issue
+testTrueDetection: piecewise issue
 
 Syntax:
 pair1fst/snd - beta instead of list/categorical
 testdistLinregSimp - time expired
 testLinreg - ignored
-gamalonDis - time expired (15s)
+gamalonDis - type inference issue on unpair
 
 Relationships:
 t1 - no simplification because change of variables not implemented
@@ -45,15 +54,25 @@ t20 - symbolic Vector
 t21 - infer from (pp1+pp2)^h3
 t22 - something was not normalized properly
 t23 - no simplification because change of variables not implemented
+t24 - infer from pp3^pp2
+t25 - undefined handling
+t26 - Real/Prob inference issue
+t27 - no simplification because change of variables not implemented
+t28 - make Prob from 1-x3
+t29 - reduce
 
 Vector:
-testReduce - join2type of Nat, Int (why Int ??)
-testUnrolling - can't evaluate enough to see measure [EM]
-testUnity - EM
+testReduce - reduce unimplemented
+testUnrolling - reduce unimplemented
+testUnity - categorical not implemented
 testInside - Vector return type not implemented
-testPull - EM
-testConj - Vector 'type' not properly dealt with
-testPlateDirac - EM (different symptom)
+testPull - reduce unimplemented
+t75 - reduce unimplemented
+testConj - reduce unimplemented
+testPlateDirac - Vector type inference missing
 
 Embed:
 P2-id: parse error?
+
+Lazy:
+zeroAddInt: counting simplification not done
