@@ -1,19 +1,18 @@
-As of Fri. May. 1rst, the failures are as follows:
+As of Sat. May. 2nd, the failures are as follows:
 
 RoundTrip:
-t54 - new handling of undefined causes new issue
 t56 - probable bug in convert/Heaviside
 t57 - probable bug in convert/Heaviside
 t58 - probable bug in convert/Heaviside
 t60 - ordering difference
 t62 - problem with assumption on x0/x1
 t63 - problem with assumption on non-name
-t64 - new handling of undefined causes new issue
+t64 - problem in merging of product of piecewise
 t65 - completely different result now -- looks like an integral no
   longer computes. (uniform 0 1)
 t77 - fromProb (-1)
-t36 - new handling of undefined causes new issue
-t39 - new handling of undefined causes new issue
+t36 - new answer because of undefined handling -- ok
+t39 - new answer because of undefined hangling -- ok
 t45 - pw/domain interaction with density recognition
 t50 - Maple returns Ei in result, which does not exist in Hakaru
 t76 - Real/Prob inference issue
@@ -27,7 +26,8 @@ unknownMeasure - first class functions?
 testRoadMapProg4 - dealing with undefined
 testKernel - failure in recognition of density (and categorical)
 testFalseDetection: Real/Prob inference issue
-testTrueDetection: piecewise issue
+testTrueDetectionL: piecewise issue
+testTrueDetectionR: piecewise issue
 
 Syntax:
 pair1fst/snd - beta instead of list/categorical
@@ -51,11 +51,11 @@ t17 - no simplification because change of variables not implemented
 t18 - don't know how to make (...) real
 t19 - symbolic Vector
 t20 - symbolic Vector
-t21 - infer from (pp1+pp2)^h3
+t21 - piecewise issue
 t22 - something was not normalized properly
 t23 - no simplification because change of variables not implemented
 t24 - infer from pp3^pp2
-t25 - undefined handling
+t25 - Real/Prob inference issue
 t26 - Real/Prob inference issue
 t27 - no simplification because change of variables not implemented
 t28 - make Prob from 1-x3

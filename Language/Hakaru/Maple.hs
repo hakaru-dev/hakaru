@@ -61,8 +61,13 @@ gensym s = state $ \i -> (s ++ show i, i + 1)
 
 mapleCut1 :: String -> Maple a -> Maple b
 mapleCut1 fn (Maple x) = Maple $
+{-
   do undef <- gensym "Undef"
      liftM (\a -> "(x -> piecewise(x<0, " ++ undef ++ ", " ++ fn ++ "(x)))(" ++ a ++ ")") x
+-}
+  -- rather than a new Undef symbol, or undefined, pick an absurd value
+  -- which has a decent chance of being easy to spot.
+  do liftM (\a -> "(x -> piecewise(x<0, -337, " ++ fn ++ "(x)))(" ++ a ++ ")") x
 
 instance (Number a) => Order Maple a where
   less  = mapleOp2 "<"
