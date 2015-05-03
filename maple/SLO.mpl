@@ -885,8 +885,8 @@ SLO := module ()
     end if;
   end proc;
 
+  # should pass _EnvTypes in directly so that option remember can be used
   infer_type := proc(e, ctx)
-    option remember, system;
     local typ, l, res, k, t;
     if type(e, boolean) then
       'Bool'

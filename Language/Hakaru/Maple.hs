@@ -171,6 +171,17 @@ quant q (Maple lo) (Maple hi) f = Maple $ do
   return $ "(proc () local "++x++"; "++x++" := gensym(`h`);" ++
            q ++ "(" ++ body ++","++x++"=" ++ lo' ++ ".." ++ hi' ++") end proc)()"
 
+-- variant, which (in Maple) takes a function to apply
+fquant :: String -> Maple b -> Maple b -> Maple d
+fquant q (Maple lo) (Maple hi) = Maple $ do
+  lo' <- lo
+  hi' <- hi
+  x <- gensym "x"
+  f <- gensym "f"
+  return $ "(proc ("++f++") local "++x++"; "++x++" := gensym(`h`);" ++
+           q ++ "(" ++ f++"("++x++")"++
+               ","++x++"=" ++ lo' ++ ".." ++ hi' ++") end proc)"
+
 instance Integrate Maple where
   integrate = quant "Int"
   summate   = quant "Sum"
@@ -202,10 +213,12 @@ instance Mochastic Maple where
       kbc <- unMaple $ app1 k'b (constant c)
       return kbc))
     return ("("++c++" -> " ++ body ++")")
-  lebesgue      = Maple $ do
+  lebesgue      = fquant "Int" (constant "-infinity") (constant "infinity")
+  {- Maple $ do
     m <- gensym "m"
     x <- gensym "x"
     return ("("++m++" -> Int("++m++"("++x++"),"++x++"=-infinity..infinity))")
+    -}
   superpose l   = Maple $ do
     c <- gensym "c"
     let l' = map (unMaple . wmtom c) l
@@ -214,14 +227,19 @@ instance Mochastic Maple where
   uniform (Maple a) (Maple b) = Maple $ do
     a' <- a
     b' <- b
-    m <- gensym "m"
-    x <- gensym "x"
     let weight = "(1/("++b'++" - "++a'++")) *"
-    return ("("++m++" -> Int("++weight ++ m++"("++x++"),"++x++"="++a'++".."++b'++"))")
-  counting      = Maple $ do
+    x <- gensym "x"
+    f <- gensym "f"
+    return $ "(proc ("++f++") local "++x++"; "++x++" := gensym(`h`);" ++
+           "Int(" ++ weight ++ f++"("++x++")"++
+               ","++x++"=" ++ a' ++ ".." ++ b' ++") end proc)"
+    -- return ("("++m++" -> Int("++weight ++ m++"("++x++"),"++x++"="++a'++".."++b'++"))")
+  counting      = fquant "Sum" (constant "-infinity") (constant "infinity")
+    {-Maple $ do
     m <- gensym "m"
     i <- gensym "i"
     return ("("++m++" -> Sum("++m++"("++i++"),"++i++"=-infinity..infinity))")
+    -}
   categorical _ = Maple (return "missing_categorical")
 
 op :: Int -> Maple a -> Maple b 

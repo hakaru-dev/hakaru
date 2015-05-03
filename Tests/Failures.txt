@@ -1,6 +1,7 @@
 As of Sat. May. 2nd, the failures are as follows:
 
 RoundTrip:
+t54 - invalid property 
 t56 - probable bug in convert/Heaviside
 t57 - probable bug in convert/Heaviside
 t58 - probable bug in convert/Heaviside
@@ -12,10 +13,8 @@ t65 - completely different result now -- looks like an integral no
   longer computes. (uniform 0 1)
 t45 - pw/domain interaction with density recognition
 t50 - Maple returns Ei in result, which does not exist in Hakaru
-t76 - Real/Prob inference issue; actually remember issue -- bad gensym!
 t78 - expects a change of variables?
 t52 - ordering issue
-dup - bad gensym!
 mhPriorProp - hard failure in Inference.hs
 t75 - problem with bad piecewise
 t75' - problem with bad piecewise
