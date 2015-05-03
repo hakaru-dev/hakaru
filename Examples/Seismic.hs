@@ -221,3 +221,24 @@ falseDetection s = -- Section 1.6, except the Poisson
   uniform (iS 180) (iS 0) `bind` \slowness ->
   cauchy mu_f theta_f `bind` \logAmplitude ->
   dirac (time `pair` azimuth `pair` slowness `pair` exp_ logAmplitude)
+
+{- The inference performed in:
+   https://github.com/GaloisInc/ppaml-cp4/blob/master/problems/problem8/pysolve.py
+
+   determines the best detections for each event. 
+
+   Each detection is used to predict the location of an event
+   through exact inference. The process is repeated several times
+   with perturbations of the detection to obtain multiple candidates.
+
+   These event candidates are then each associated with most likely detection
+   from each station which detected it. The candidate who's most likely given
+   the detections associated with it is added to an event list.
+
+   The detections associated with this event are then removed and the process
+   repeats until all detections have been removed, or 20 events are in the
+   event list, whichever comes first.
+
+   TODO: Add hakaru code for each of these steps
+ 
+-}
