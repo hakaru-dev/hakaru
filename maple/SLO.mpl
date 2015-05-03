@@ -705,12 +705,17 @@ SLO := module ()
     local prob, rl, typ;
     if w::`*` then
       rl, prob := selectremove(
-          x->evalb(member(infer_type(x,ctx),{Real,Number})), w);
-      # all parts are Real
+          x->evalb(member(infer_type(x,ctx),{Real,Number,Int,Nat})), w);
+      # all parts are Real (or so Haskell will think so)
       if prob = 1 then
         rl
       else
-        rl * fromProb(prob)
+        # if rl :: Nat, push it in
+        if infer_type(rl, ctx) = Nat then
+          fromProb(rl * prob)
+        else
+          rl * fromProb(prob)
+        end if;
       end if;
     elif type(w, 'specfunc'(anything, {cos, sin, exp,erf})) then
       map(mkReal, w, ctx)
@@ -1082,7 +1087,7 @@ SLO := module ()
         end if;
       elif typ2 = Real and member(inf_typ, {'Real', 'Number', 'Nat', 'Int'}) then
         'Return'(op(1,e))
-      elif typ2 = Real and inf_typ = 'Mixed' then
+      elif typ2 = Real and member(inf_typ, {'Mixed', 'Prob'}) then
         'Return'(mkReal(op(1,e), ctx));
       elif typ2 :: Pair(anything, anything) and
            op(1,e) :: Pair(anything, anything) then

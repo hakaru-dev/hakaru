@@ -8,25 +8,20 @@ import Language.Hakaru.Lazy
 import Language.Hakaru.Any (Any(Any, unAny))
 import Language.Hakaru.Syntax (Real, Prob, Measure, Base(..),
                                ununit, max_, liftM, liftM2, bind_,
-                               swap_, snd_, bern, fst_,
+                               swap_, bern, fst_,
                                Mochastic(..), Lambda(..), Integrate(..),
                                Order_(..))
-import Language.Hakaru.Compose
 import Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode)
 import Language.Hakaru.Simplify (Simplifiable, closeLoop, simplify)
-import Language.Hakaru.Expect (Expect(..), Expect', normalize)
+import Language.Hakaru.Expect (Expect(Expect), Expect', normalize)
 import Language.Hakaru.Maple (Maple)
 import Language.Hakaru.Inference
 import Tests.TestTools
-import qualified Tests.RoundTrip as RT
+import qualified Tests.Models as RT
 import qualified Examples.EasierRoadmap as RM    
 
 import Data.Typeable (Typeable)    
 import Test.HUnit
-import Control.Monad ((>=>))
-import Data.Function (on)
-import Data.List (elem)
-import Control.Exception (catch)
 
 recover :: (Typeable a) => PrettyPrint a -> IO (Any a)
 recover hakaru = closeLoop ("Any (" ++ leftMode (runPrettyPrint hakaru) ++ ")")
@@ -215,10 +210,10 @@ borelishDiv = const (borelish (/))
 
 borelish :: (Mochastic repr) =>
             (repr Real -> repr Real -> repr a) -> repr (Measure (a, Real))
-borelish compare =
+borelish comp =
     uniform 0 1 `bind` \x ->
     uniform 0 1 `bind` \y ->
-    dirac (pair (compare x y) x)
+    dirac (pair (comp x y) x)
 
 culpepper :: (Mochastic repr) => repr (Measure (Real, Bool))
 culpepper = bern 0.5 `bind` \a ->

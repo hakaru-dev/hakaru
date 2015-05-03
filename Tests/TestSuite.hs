@@ -8,6 +8,7 @@ import qualified Tests.Vector as TV
 import qualified Tests.Relationships as RE
 import qualified Tests.Embed as E
 import qualified Tests.Lazy as L
+import qualified Tests.Function as F
 
 import Test.HUnit
 
@@ -21,6 +22,7 @@ allTests = test
   , TV.allTests
   , E.allTests
   , L.important
+  , F.allTests
   ]
 
 main :: IO ()

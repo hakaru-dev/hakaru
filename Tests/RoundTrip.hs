@@ -1,15 +1,16 @@
 {-# LANGUAGE TypeFamilies, Rank2Types, FlexibleContexts #-}
-module Tests.RoundTrip (allTests,t4,unif2,norm) where
+module Tests.RoundTrip (allTests) where
 
 import Prelude hiding (Real)
 
 import Language.Hakaru.Syntax
-import Language.Hakaru.Disintegrate (density)
-import Language.Hakaru.Expect (Expect(..), Expect', total)
-import Language.Hakaru.Inference
+import Language.Hakaru.Expect (total)
+import Language.Hakaru.Inference (priorAsProposal, mcmc, mh)
 
 import Test.HUnit
 import Tests.TestTools
+
+import Tests.Models (t4, t4', norm, unif2)
 
 testMeasureUnit :: Test
 testMeasureUnit = test [
@@ -70,9 +71,9 @@ testMeasureReal = test
   , "t29" ~: testSS [] t29
   , "t31" ~: testSS [] t31
   , "t32" ~: testSS [] t32
-  , "t36" ~: testSS [] t36
+  , "t36" ~: testSS [t36] t36'
   , "t37" ~: testSS [] t37
-  , "t39" ~: testSS [] t39
+  , "t39" ~: testSS [t39] t39'
   , "t40" ~: testSS [] t40
   , "t43" ~: testSS [t43, t43'] t43''
   , "t45" ~: testSS [t46,t47] t45
@@ -136,17 +137,6 @@ testMeasurePair = test [
 --    "testMCMCPriorProp" ~: testS testMCMCPriorProp
     ]
 
-testHigherOrder :: Test
-testHigherOrder = test [
-    "pairFun"        ~: testSS [] (pair (lam exp_) pi_),
-    "pairFunSimp"    ~: testSS [pair (lam exp_) (lam (log_.exp_))]
-                               (pair (lam exp_) (lam id)),
-    "unknownMeasure" ~: testSS [lam $ \m ->
-                                normal 0 1 `bind_`
-                                asTypeOf m (dirac (pair pi_ pi_))]
-                               (lam id)
-    ]
-
 testOther :: Test
 testOther = test [
     "testRoadmapProg1" ~: testS rmProg1,
@@ -165,7 +155,7 @@ allTests = test
   , testMeasureProb
   , testMeasureReal
   , testMeasurePair
-  , testHigherOrder
+  , testMeasureInt
   , testOther
   ]
 
@@ -179,19 +169,11 @@ t2 = beta 1 1
 t3 :: Mochastic repr => repr (Measure Real)
 t3 = normal 0 10
 
-t4 :: Mochastic repr => repr (Measure (Prob, Bool))
-t4 = beta 1 1 `bind` \bias -> bern bias `bind` \coin -> dirac (pair bias coin)
-
-t4' :: Mochastic repr => repr (Measure (Prob, Bool))
-t4' = (uniform  0 1) `bind` \x3 ->
-      superpose [((unsafeProb x3)               ,(dirac (pair (unsafeProb x3) true))),
-                 ((unsafeProb (1 + (x3 * (-1)))),(dirac (pair (unsafeProb x3) false)))]
-
 -- t5 is "the same" as t1.
 t5 :: Mochastic repr => repr (Measure ())
 t5 = factor (1/2) `bind_` dirac unit
 
-t6 :: Mochastic repr => repr (Measure Real)
+t6, t6' :: Mochastic repr => repr (Measure Real)
 t6 = dirac 5
 t6' = superpose [(1, dirac 5)]
 
@@ -307,8 +289,9 @@ t34 = dirac (if_ (less (2 `asTypeOf` log_ 1) 4) 3 5)
 t35 :: (Lambda repr, Mochastic repr) => repr (Real -> Measure Prob)
 t35 = lam (\x -> dirac (if_ (less (x `asTypeOf` log_ 1) 4) 3 5))
 
-t36 :: (Lambda repr, Mochastic repr) => repr (Real -> Measure Real)
+t36, t36' :: (Lambda repr, Mochastic repr) => repr (Real -> Measure Real)
 t36 = lam (dirac . sqrt)
+t36' = lam $ \x -> if_ (x `less` 0) (dirac (-337)) (dirac (sqrt x))
 
 t37 :: (Lambda repr, Mochastic repr) => repr (Real -> Measure Real)
 t37 = lam (dirac . recip)
@@ -316,16 +299,12 @@ t37 = lam (dirac . recip)
 t38 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure Prob)
 t38 = lam (dirac . recip)
 
-t39 :: (Lambda repr, Mochastic repr) => repr (Real -> Measure Real)
+t39, t39' :: (Lambda repr, Mochastic repr) => repr (Real -> Measure Real)
 t39 = lam (dirac . log)
+t39' = lam $ \x -> if_ (x `less` 0) (dirac (-337)) (dirac (log x))
 
 t40 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure Real)
 t40 = lam (dirac . log_)
-
--- this is not plugged in as it requires dealing with first-class functions,
--- which is not implemented
-t41 :: (Lambda repr, Integrate repr, Mochastic repr) => repr (Measure ((Prob -> Prob) -> Prob))
-t41 = dirac $ snd_ $ unExpect $ uniform 0 2 `bind` dirac . unsafeProb
 
 t42 :: (Lambda repr, Integrate repr, Mochastic repr) => repr (Measure Prob)
 t42 = dirac $ total $ uniform 0 2 `bind` dirac . unsafeProb
@@ -594,10 +573,10 @@ t64 = lam $ \x0 ->
         if_ x1
             (dirac x0 `bind` \x2 -> dirac (recip x2))
             (dirac 0)) `bind` \x1 ->
-       weight (unsafeProb x1) (dirac unit)) `bind` \x1 ->
+       weight (unsafeProb x1) (dirac unit)) `bind` \_ ->
       (dirac x0 `bind` \x2 -> dirac (log x2)) `bind` \x2 ->
       ((dirac x2 `bind` \x3 -> dirac (exp x3)) `bind` \x3 ->
-       weight (unsafeProb x3) (dirac unit)) `bind` \x3 ->
+       weight (unsafeProb x3) (dirac unit)) `bind` \_ ->
       (dirac x2 `bind` \x4 -> dirac (exp x4)) `bind` \x4 ->
       ((dirac 0 `bind` \x5 ->
         dirac x4 `bind` \x6 ->
@@ -673,8 +652,8 @@ t68' :: (Lambda repr, Mochastic repr) => repr (Prob -> Real -> Measure Real)
 t68' = lam $ \noise -> app (app t68 noise) noise
 
 t69x, t69y :: (Lambda repr, Mochastic repr, Integrate repr) => repr (Measure Prob)
-t69x = dirac (integrate 1 2 (\x -> integrate 3 4 (\y -> unsafeProb x)))
-t69y = dirac (integrate 1 2 (\x -> integrate 3 4 (\y -> unsafeProb y)))
+t69x = dirac (integrate 1 2 (\x -> integrate 3 4 (\_ -> unsafeProb x)))
+t69y = dirac (integrate 1 2 (\_ -> integrate 3 4 (\y -> unsafeProb y)))
 
 t70a, t71a, t72a, t73a, t74a :: (Mochastic repr) => repr (Measure Real)
 t70a = uniform 1 3 `bind` \x -> if_ (less 4 x) (superpose []) (dirac x)
@@ -724,10 +703,11 @@ t76 = lam $ \x ->
                (superpose []))
           (superpose [])
 
+-- the (x * (-1)) below is an unfortunate artifact not worth fixing
 t77 :: (Lambda repr, Mochastic repr) => repr (Real -> Measure ())
 t77 = lam $ \x ->
       if_ (less_ x 0)
-          (factor (exp_ (-x)))
+          (factor (exp_ (x * (-1))))
           (factor (exp_ x))
 
 t78, t78' :: (Lambda repr, Mochastic repr) => repr (Measure Real)
@@ -769,11 +749,6 @@ testPriorProp' =
 dup :: (Lambda repr, Mochastic repr) => repr (Measure a) -> repr (Measure (a,a))
 dup m = let_ m (\m' -> liftM2 pair m' m')
 
-norm :: Mochastic repr => repr (Measure (Real, Real))
-norm = normal 0 1 `bind` \x ->
-       normal x 1 `bind` \y ->
-       dirac (pair x y)
-
 norm_nox :: Mochastic repr => repr (Measure Real)
 norm_nox = normal 0 1 `bind` \x ->
            normal x 1 `bind` \y ->
@@ -788,11 +763,6 @@ flipped_norm :: Mochastic repr => repr (Measure (Real, Real))
 flipped_norm = normal 0 1 `bind` \x ->
                normal x 1 `bind` \y ->
                dirac (pair y x)
-
-unif2 :: Mochastic repr => repr (Measure (Real, Real))
-unif2 = uniform (-1) 1 `bind` \x ->
-        uniform (x-1) (x+1) `bind` \y ->
-        dirac (pair x y)
 
 -- pull out some of the intermediate expressions for independent study
 expr1 :: (Lambda repr, Mochastic repr) => repr (Real -> Prob)
@@ -905,7 +875,7 @@ testKernel2 =
 rmProg1 :: (Lambda repr, Mochastic repr) =>
   repr (() -> (Real, Real) -> Measure (Prob, Prob))
 rmProg1 =
-  lam $ \x0 ->
+  lam $ \_ ->
   lam $ \x1 ->
   x1 `unpair` \x2 x3 ->
   weight 1 $
@@ -970,16 +940,16 @@ rmProg4 =
                      let_ (let_ 1 $ \x9 ->
                            let_ (let_ 1 $ \x10 ->
                                  let_ (let_ 1 $ \x11 ->
-                                       let_ (x2 `unpair` \x12 x13 ->
-                                             x2 `unpair` \x14 x15 ->
-                                             x2 `unpair` \x16 x17 ->
-                                             x2 `unpair` \x18 x19 ->
-                                             x2 `unpair` \x20 x21 ->
-                                             x2 `unpair` \x22 x23 ->
-                                             x2 `unpair` \x24 x25 ->
-                                             x2 `unpair` \x26 x27 ->
-                                             x2 `unpair` \x28 x29 ->
-                                             x2 `unpair` \x30 x31 ->
+                                       let_ (x2 `unpair` \x12 _ ->
+                                             x2 `unpair` \x14 _ ->
+                                             x2 `unpair` \x16 _ ->
+                                             x2 `unpair` \_ x19 ->
+                                             x2 `unpair` \_ x21 ->
+                                             x2 `unpair` \_ x23 ->
+                                             x2 `unpair` \x24 _ ->
+                                             x2 `unpair` \x26 _ ->
+                                             x2 `unpair` \_ x29 ->
+                                             x2 `unpair` \_ x31 ->
                                              let_ (recip pi_
                                                    * exp_ ((x12 * x14 * (fromProb x4 * fromProb x4)
                                                             * 2
@@ -1025,12 +995,12 @@ rmProg4 =
                                                                                                            x39
                                                                                                            `app` x38)) $ \x38 ->
                                                                                                pair (weight x37 $
-                                                                                                     x38 `unpair` \x39 x40 ->
+                                                                                                     x38 `unpair` \x39 _ ->
                                                                                                      x39)
                                                                                                     (lam $ \x39 ->
                                                                                                      0
                                                                                                      + x37
-                                                                                                       * (x38 `unpair` \x40 x41 ->
+                                                                                                       * (x38 `unpair` \_ x41 ->
                                                                                                           x41)
                                                                                                          `app` x39))
                                                                                               (pair (superpose [])

@@ -1,26 +1,25 @@
-{-# LANGUAGE NoMonomorphismRestriction, GADTs #-}
+{- These are here because they are shared between tests -}
 module Tests.Models where
 
 import Prelude hiding (Real)
 
-import Language.Hakaru.Syntax2
-import Language.Hakaru.Lambda
-import qualified Language.Hakaru.Types as T
+import Language.Hakaru.Syntax
 
--- if we want to forgo the (D m) constraint, need to decorate the
--- program a little more.
-prog_mixture :: (Meas m, D m ~ T.Dist ) => m Bool
-prog_mixture = do
-  c <- unconditioned (bern 0.5)
-  _ <- conditioned (ifThenElse c (normal 1 1)
-                                 (uniform 0 3))
-  return c
+t4 :: Mochastic repr => repr (Measure (Prob, Bool))
+t4 = beta 1 1 `bind` \bias -> bern bias `bind` \coin -> dirac (pair bias coin)
 
-prog_multiple_conditions :: (Meas m, D m ~ T.Dist) => m Double
-prog_multiple_conditions = do
-  b <- unconditioned (beta 1 1)
-  _ <- conditioned (bern b)
-  _ <- conditioned (bern b)
-  return b
+t4' :: Mochastic repr => repr (Measure (Prob, Bool))
+t4' = (uniform  0 1) `bind` \x3 ->
+      superpose [((unsafeProb x3)               ,(dirac (pair (unsafeProb x3) true))),
+                 ((unsafeProb (1 + (x3 * (-1)))),(dirac (pair (unsafeProb x3) false)))]
 
+norm :: Mochastic repr => repr (Measure (Real, Real))
+norm = normal 0 1 `bind` \x ->
+       normal x 1 `bind` \y ->
+       dirac (pair x y)
+
+unif2 :: Mochastic repr => repr (Measure (Real, Real))
+unif2 = uniform (-1) 1 `bind` \x ->
+        uniform (x-1) (x+1) `bind` \y ->
+        dirac (pair x y)
 

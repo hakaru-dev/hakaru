@@ -10,20 +10,16 @@ t63 - problem with assumption on non-name
 t64 - problem in merging of product of piecewise
 t65 - completely different result now -- looks like an integral no
   longer computes. (uniform 0 1)
-t77 - fromProb (-1)
-t36 - new answer because of undefined handling -- ok
-t39 - new answer because of undefined hangling -- ok
 t45 - pw/domain interaction with density recognition
 t50 - Maple returns Ei in result, which does not exist in Hakaru
-t76 - Real/Prob inference issue
-t78 - adjust_types issue
+t76 - Real/Prob inference issue; actually remember issue -- bad gensym!
+t78 - expects a change of variables?
 t52 - ordering issue
-dup - 2 normals combine into onw and a lebesgue
+dup - bad gensym!
 mhPriorProp - hard failure in Inference.hs
-pairFun - first class functions
-pairFunSimp - first class functions
-unknownMeasure - first class functions?
-testRoadMapProg4 - dealing with undefined
+t75 - problem with bad piecewise
+t75' - problem with bad piecewise
+testRoadMapProg4 - type infer from unpair
 testKernel - failure in recognition of density (and categorical)
 testFalseDetection: Real/Prob inference issue
 testTrueDetectionL: piecewise issue
@@ -76,3 +72,10 @@ P2-id: parse error?
 
 Lazy:
 zeroAddInt: counting simplification not done
+
+Function:
+t41 - first class functions
+pairFun - first class functions
+pairFunSimp - first class functions
+unknownMeasure - first class functions
+
