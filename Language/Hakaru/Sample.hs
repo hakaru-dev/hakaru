@@ -209,6 +209,6 @@ instance Embed (Sample m) where
   untag (Sample x) = Sample x
                                    
 runSample :: Sample IO (Measure a) -> IO (Sample' IO a)
-runSample m = do g <- MWC.create
+runSample m = do g <- MWC.createSystemRandom -- "This is a somewhat expensive function, and is intended to be called only occasionally (e.g. once per thread)."
                  Just (s, _) <- unSample m 1 g
                  return s
