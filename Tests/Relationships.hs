@@ -13,7 +13,7 @@ testRelationships = test [
     "t1"   ~: testSS [t1] (lam (\_ -> (lam (\_ -> normal 0 1)))),
     "t2"   ~: testSS [t2] (lam (\b -> gamma b 2)),
     "t3"   ~: testSS [t3, t3'] (lam (\_ -> (lam (\b -> gamma 2 b)))),
-    "t4"   ~: testSS [t4] (lam (\a -> lam (\b -> lam (\t -> beta a b)))),
+    "t4"   ~: testSS [t4] (lam (\a -> lam (\b -> lam (\_ -> beta a b)))),
     "t5"   ~: testSS [t5, t5'] (lam (\alpha -> gamma 1 alpha)),
     --"t6"   ~: testSS [t5] (lam (\mu -> poisson mu `bind` \x -> dirac (fromInt x))),
     "t7"   ~: testSS [t7] (normal 0 1 `bind` \x1 ->
