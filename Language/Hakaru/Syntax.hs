@@ -10,7 +10,7 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        mapWithIndex, mapV, zipWithV, zipV, rangeV, constV, unitV,
        fromListV, concatV, unzipV,
        Mochastic(..), bind_, factor, weight, bindx, bindo, liftM, liftM2,
-       invgamma, exponential, chi2, bern,
+       positiveUniform, invgamma, exponential, chi2, bern,
        cauchy, laplace, student, weibull,
        binomial, multinomial,
        Integrate(..), Lambda(..), lam2, lam3, app2, app3, Lub(..)) where
@@ -322,6 +322,10 @@ liftM f m = m `bind` dirac . f
 liftM2 :: (Mochastic repr) => (repr a -> repr b -> repr c) ->
           repr (Measure a) -> repr (Measure b) -> repr (Measure c)
 liftM2 f m n = m `bind` \x -> n `bind` \y -> dirac (f x y)
+
+positiveUniform :: (Mochastic repr) =>
+                   repr Prob -> repr Prob -> repr (Measure Prob)
+positiveUniform lo hi = liftM unsafeProb (uniform (fromProb lo) (fromProb hi))
 
 invgamma :: (Mochastic repr) => repr Prob -> repr Prob -> repr (Measure Prob)
 invgamma k t = liftM recip (gamma k (recip t))
