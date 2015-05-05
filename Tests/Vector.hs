@@ -9,7 +9,7 @@ import Test.HUnit
 
 allTests :: Test
 allTests = test [ "testReduce"    ~: testSS [unreduced] reduced
-                , "testUnrolling" ~: testSS [unrolled] rolled
+                , "testUnrolling" ~: testSS [rolled] unrolled
                 , "testUnity"     ~: testUnity
                 , "testInside"    ~: testInside
                 , "testPull"      ~: testPull
