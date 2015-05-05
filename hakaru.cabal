@@ -79,7 +79,7 @@ library
 -- integration used in LH.Sample
 -- ghc-prim is used in LH.RoundTrip
 -- tagged is used in LH.Embed
--- MissingH is used in LH.Simplify
+
   build-depends:       base >=4.6 && <5.0, 
                        Cabal >= 1.16,
                        ghc-prim >= 0.3 && < 0.4,
@@ -109,8 +109,7 @@ library
                        HUnit >= 1.2 && < 2.0,
                        mtl >= 2.1,
                        tagged >= 0.7 && < 1.0,
-                       generics-sop >= 0.1.0,
-                       MissingH >= 0.18.6
+                       generics-sop >= 0.1.0
 
 
   if flag(patchedHint)
