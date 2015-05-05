@@ -8,8 +8,8 @@ import Tests.TestTools
 import Test.HUnit
 
 allTests :: Test
-allTests = test [ "testReduce"    ~: testSS [reduced] unreduced
-                , "testUnrolling" ~: testSS [rolled] unrolled
+allTests = test [ "testReduce"    ~: testSS [unreduced] reduced
+                , "testUnrolling" ~: testSS [unrolled] rolled
                 , "testUnity"     ~: testUnity
                 , "testInside"    ~: testInside
                 , "testPull"      ~: testPull
