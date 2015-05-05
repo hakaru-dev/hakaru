@@ -24,6 +24,9 @@ testRoadMapProg4 - how do I make a Prob from h6^4+3*h6^2*pp3^2+pp3^4
 testKernel - failure to recognize a normal under a conditional
 testFalseDetection: time expired
 testTrueDetectionL: 1 <= FAIL
+  -- problem is that the simplifier has a deep design flaw: too deep
+     an assumptions that things will be ``polynomial'' once other
+     things are frozen.  This is just false.  Will need a redesign.
 testTrueDetectionR: infinite loop 
 
 Syntax:
@@ -37,23 +40,23 @@ t1 - no simplification because change of variables not implemented
 t3 - no simplification because change of variables not implemented
 t4 - no simplification because change of variables not implemented
 t5 - no simplification because change of variables not implemented
-t8 - type inference bug
+t8 - normalization difference
 t9 - Prob from 1-pp1  ?
-t11 - don't know how to make (h3-h4) real
+t11 - don't know how to make h3 real!
 t12 - no simplification because change of variables not implemented
 t13 - type inference case missing
 t14 - type inference bug?
 t16 - no simplification because change of variables not implemented
 t17 - no simplification because change of variables not implemented
-t18 - don't know how to make (...) real
+t18 - no simplification because change of variables not implemented
 t19 - symbolic Vector
 t20 - symbolic Vector
-t21 - piecewise issue
+t21 - infer type from (pp1+pp2)^h3
 t22 - something was not normalized properly
 t23 - no simplification because change of variables not implemented
 t24 - infer from pp3^pp2
 t25 - Real/Prob inference issue
-t26 - Real/Prob inference issue
+t26 - don't know how to make (1/...) real
 t27 - no simplification because change of variables not implemented
 t28 - make Prob from 1-x3
 t29 - reduce
@@ -73,6 +76,7 @@ P2-id: parse error?
 
 Lazy:
 zeroAddInt: counting simplification not done
+easierRoadmapProg1: time expired
 
 Function:
 t41 - first class functions

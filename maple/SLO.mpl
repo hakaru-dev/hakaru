@@ -739,13 +739,20 @@ SLO := module ()
       if prob = 1 then
         rl
       else
-        # if rl :: Nat, push it in
-        if infer_type(rl, ctx) = Nat then
+        typ := infer_type(prob, ctx);
+        # if prob :: Prob and rl :: Nat, push it in
+        if typ=Prob and infer_type(rl, ctx) = Nat then
           fromProb(rl * prob)
-        else
+        elif typ=Prob then
           rl * fromProb(prob)
+        elif typ=Mixed then
+          rl * maptype(`*`, mkReal, prob, ctx)
+        else
+          error "(%1) is neither Mixed nor Prob!?!", prob;
         end if;
       end if;
+    elif w::`+` then
+      map(mkReal, w, ctx) # might want to optimize this as above
     elif type(w, 'specfunc'(anything, {cos, sin, exp,erf})) then
       map(mkReal, w, ctx)
     else
