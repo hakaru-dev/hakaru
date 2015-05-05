@@ -42,12 +42,21 @@ lam1 s k = Maple $ do
     cont <- unMaple (k (constant x))
     return ("(" ++ x ++ " -> " ++ cont ++ ")")
 
-lam2 :: String -> (Maple a  -> Maple b -> Maple c) -> Maple (a -> b -> c)
+-- uncurried 2-argument lambda
+lam2 :: String -> (Maple a -> Maple b -> Maple c) -> Maple ((a, b) -> c)
 lam2 s k = Maple $ do
     x <- gensym s
     y <- gensym s
     cont <- unMaple (k (constant x) (constant y))
     return ("( (" ++ x ++ " , " ++ y ++ ") -> " ++ cont ++ ")")
+
+-- curried 2-argument lambda
+lam2c :: String -> (Maple a -> Maple b -> Maple c) -> Maple (a -> b -> c)
+lam2c s k = Maple $ do
+    x <- gensym s
+    y <- gensym s
+    cont <- unMaple (k (constant x) (constant y))
+    return ("(" ++ x ++ " -> " ++ y ++ "-> " ++ cont ++ ")")
 
 mapleOp2 :: String -> Maple a -> Maple b -> Maple c
 mapleOp2 fn (Maple x) (Maple y) = 
@@ -150,14 +159,14 @@ instance Base Maple where
     return $ "if_(" ++ b' ++ ", " ++ et'
                           ++ ", " ++ ef' ++ ")"
   -- fix       = app1 "(proc (f) local x; x := f(x) end proc)" . lam
-{-
-  reduce r z v = Maple (ReaderT $ \i -> return $
-    "Reduce((" ++ (let x = "x" ++ show i
-                       y = "x" ++ show (i+1)
-                   in x ++ "->" ++ y ++ "->" ++
-                      runMaple (r (Maple (return x)) (Maple (return y))) (i+2))
-               ++ "), " ++ runMaple z i ++ ", " ++ runMaple v i ++ ")")
--}
+  reduce r z v = Maple $ do
+    z' <- unMaple z
+    v' <- unMaple v
+    body <- unMaple $ lam2c "z" r
+    return (
+      "Reduce(" ++ body ++ ","
+                ++ z' ++ ", " ++ v' ++ ")")
+
 -- use gensym rather than escaped locals.
 -- put lo and hi in directly, instead of passing them in.
 -- put the body in directly too, but still use a thunk for gensym
