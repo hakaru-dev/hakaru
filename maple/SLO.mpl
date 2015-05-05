@@ -113,7 +113,7 @@ SLO := module ()
         # this is a 'raw' measure, with no integrals
         ee := subs(subst, e);
         if type(ee, 'polynom'(anything,ivars)) then
-          ee := collect(ee, ivars, simplify);
+          ee := frontend(collect,[ee, ivars, simplify]);
           d := degree(ee, ivars);
           ld := ldegree(ee, ivars);
           cof := [coeffs(ee, ivars, 'v')]; # cof is a list, v expseq
@@ -198,7 +198,7 @@ SLO := module ()
   simp := proc(e)
     option remember, system;
     local binds, pw, substb, substp, subst, csubst, vbinds, vpw,
-      ee, vars, all_vars, num, den, push_in, i,
+      ee, zz, vars, all_vars, num, den, push_in, i,
       cs, simp_poly, simp_prod, simp_npw;
 
     simp_npw := zz -> `if`(op(1,zz)::t_pw, into_pw(SLO:-c,op(1,zz)), zz);
@@ -255,7 +255,16 @@ SLO := module ()
     simp_poly := proc(p)
       local coef_q, vars_q, q, c0, res, heads;
       q := collect(p, all_vars , 'distributed', simplify);
-      if not type(q, polynom(anything, vars)) then return thaw(q) end if;
+      if not type(q, polynom(anything, vars)) then 
+        q := thaw(q);
+        if q::`*` then
+          return map(simp, q)
+        elif q::`+` then
+          return map(simp, q)
+        else
+          error "(%1) in simp_poly", q;
+        end if;
+      end if;
       if ldegree(q, vars)<1 then
         # need to 'push in' additive constant sometimes
         c0 := tcoeff(q, vars);
@@ -331,8 +340,22 @@ SLO := module ()
       elif op(2,ee)::t_pw then
         ee := into_pw((x -> Pair(op(1,ee), x)), op(2,ee))
       end if;
+    elif type(ee, anyfunc(anything)) then
+      ee := op(0,ee)(simp(thaw(op(1,ee))));
+      if type(op(1,ee), t_pw) then
+        ee := into_pw(op(0,ee), op(1,ee))
+      end if;
+    elif type(ee,`+`) then
+      ee := map(simp, thaw(ee))
+    elif type(ee, anything^(fraction)) then
+      zz := simp(thaw(op(1,ee)));
+      if type(zz, t_pw) then
+        ee := into_pw((x -> x^op(2,ee)), zz);
+      else
+        ee := zz^op(2,ee);
+      end if
     else
-      error "ee (%1) should be ratpoly in (%2)", ee, vars;
+      error "(%1) involves unknown functions", ee;
     end if;
 
     ee;
@@ -439,18 +462,21 @@ SLO := module ()
   end proc;
 
   simp_rel := proc(r)
+    local res;
     if r::name then
       r
     elif r::t_rel then
       # special case
       if r = ('Right' = 'Left') then
         false
+      elif lhs(r) = undefined or rhs(r) = undefined then
+        false
       else
-        if lhs(r) = undefined or rhs(r) = undefined then
-          false
-        else
-          map(simp, r); # let map take care of which operator it is
-        end if;
+        res := is(r) assuming op(_EnvPathCond);
+        if res = true then return true end if;
+        res := coulditbe(r) assuming op(_EnvPathCond);
+        if res = false then return false end if;
+        map(simp, r); # let map take care of which operator it is
       end if;
     elif r::specfunc(anything, {And, Or, Not}) then
       map(simp_rel, r)
@@ -514,8 +540,10 @@ SLO := module ()
 
   # - takes pw conditions and distributes them, for n = 1
   # - simplifies simple cases of nested pw
+  # [note that it can be called on a non-pw, at which time it just returns]
   simp_pw := proc(pw)
     local res, cond, l, r, b1, b2, b3, rel, new_cond;
+    if not type(pw,t_pw) then return pw end if;
     res := simp_pw_equal(pw);
     if not res::t_pw then return res end if;
     if nops(res)=4 then
@@ -895,6 +923,7 @@ SLO := module ()
     elif e = 'Lebesgue' then Measure(Real)
     elif e = 'Counting' then Measure(Int)
     elif e = 'undefined' then Real
+    elif e = infinity or e = -infinity then Real
     elif type(e, boolean) then
       'Bool'
     elif type(e, anything^integer) then
@@ -1588,8 +1617,12 @@ SLO := module ()
         res := Int(expr, b)
       end try;
     elif type(expr, t_binds) then
-      # go in?
-      res := Int(expr, b)
+      # go in!  This can take a lot of time.  Should really have special code
+      if not depends(op([2,2],expr), var) then
+        res := int(expr, b);
+      else
+        res := Int(expr, b)
+      end if;
     else
       res := Int(expr, b)
     end if;
@@ -1602,25 +1635,23 @@ SLO := module ()
 
   # if the boundaries are not 'natural' for the piecewise, things might go weird
   myint_pw := proc(expr, b :: name = `..`)
-    local rels, n, rest, i, res, var, lower, upper, cond;
+    local rels, n, rest, i, res, res2, var, lower, upper, cond;
     n := floor(nops(expr)/2);
     rels := [seq(op(2*i-1, expr), i=1..n)];
     rest := evalb(2*n < nops(expr));
     upper := op([2,2],b);
-    if type(rels, list({`<`, `<=`})) then # and indets(rels) = {op(1,b)} then
+    if type(rels, list({`<`, `<=`})) and indets(rels,'name') = {op(1,b)} then
       res := 0; lower := op([2,1], b); var := op(1,b);
       for i from 1 to n do
         cond := op(2*i-1, expr);
-        if cond::{identical(var) < anything, identical(var) <= anything} then
-          if op(2,cond) > lower then
-            res := res + myint(op(2*i, expr), var = lower .. min(upper,op(2,cond)));
-            lower := op(2,cond);
-          end if;
-        elif cond::{anything < identical(var), anything <= identical(var)} then
-          if op(1,cond) < upper then
-            res := res + myint(op(2*i, expr), var = max(lower,op(1,cond)) .. upper);
-            upper := op(1,cond);
-          end if;
+        if cond::{identical(var) < anything, identical(var) <= anything} and
+          evalb(signum(op(2,cond) - lower) = 1) then # op2 > lower
+          res := res + myint(op(2*i, expr), var = lower .. min(upper,op(2,cond)));
+          lower := op(2,cond);
+        elif cond::{anything < identical(var), anything <= identical(var)} and
+          evalb(signum(upper - op(1,cond)) = 1) then # op1 < upper
+          res := res + myint(op(2*i, expr), var = max(lower,op(1,cond)) .. upper);
+          upper := op(1,cond);
         else
           error "cannot handle condition (%1) while integrating pw", cond;
         end if;
@@ -1632,11 +1663,14 @@ SLO := module ()
       end if;
       res
     elif length(expr) < 200 then # what have we got to lose?
-      res := int(convert(expr, Heaviside), b);
-      if not (indets(res, specfunc(anything, '{Dirac,Heaviside}')) = {}) then
-        fix_Heaviside(res, Int(expr,b))
-      else
-        res
+      res := int(expr, b);
+      if type(res, t_binds) then
+        res2 := int(convert(expr, Heaviside), b);
+        if not (indets(res2, specfunc(anything, '{Dirac,Heaviside}')) = {}) then
+          fix_Heaviside(res2, res)
+        else
+          res
+        end if;
       end if;
     else # well, too much time!
       Int(expr, b)
@@ -1647,6 +1681,13 @@ end;
 # works, but could be made more robust
 `evalapply/if_` := proc(f, t) if_(op(1,f), op(2,f)(t[1]), op(3,f)(t[1])) end;
 `evalapply/Pair` := proc(f, t) Pair(op(1,f)(t[1]), op(2,f)(t[1])) end;
+# `evalapply/piecewise` := proc(p, tt)
+#   local i, n, rest;
+#   n := floor(nops(pw)/2);
+#   rest := evalb(2*n < nops(pw));
+#   piecewise(seq( (proc (j) op(2*j+1,p), op(2*j+2,p)(tt[1]) end proc)(i), i=0..n),
+#     `if`(rest, op(-1,p)(tt[1]), NULL) );
+# end;
 
 
 # Disabled until Pair is removed in Hakaru
@@ -1688,12 +1729,18 @@ end proc;
 
 # piecewise is horrible, so this hack takes care of some of it
 if_ := proc(cond, tb, eb)
-  if cond::name then
+  if cond = true then
+    tb
+  elif cond = false then
+    eb
+  elif cond::name then
     if_(cond = true, tb, eb)
   elif (eb = false) then
     And(cond, tb)
   elif (tb = true) then
     Or(cond, eb)
+  elif (eb = true) and (tb = false) then
+    SLO:-flip_cond(cond)
   else
     'if_'(cond, tb, eb)
   end if;
@@ -1908,7 +1955,21 @@ end proc;
 unpair := proc(f, p)
   if p::Pair(anything, anything) then
     f(op(1,p), op(2,p))
+  elif p::specfunc(anything, piecewise) and nops(p)=3 then # FIXME
+    piecewise(op(1,p), unpair(f,op(2,p)), unpair(f, op(3,p)))
+  elif p::specfunc(anything, if_) then # FIXME
+    if_(op(1,p), unpair(f,op(2,p)), unpair(f, op(3,p)))
   else
     'unpair'(f,p)
   end if;
+end proc;
+
+uneither := proc(f1, f2, e)
+  if e::Left(anything) then
+    f1(op(1,e))
+  elif e::Right(anything) then
+    f2(op(1,e))
+  else
+    'uneither'(f1,f2,e)
+  end if
 end proc;

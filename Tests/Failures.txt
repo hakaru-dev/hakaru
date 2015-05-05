@@ -11,18 +11,25 @@ t63 - problem with assumption on non-name
 t64 - problem in merging of product of piecewise
 t65 - completely different result now -- looks like an integral no
   longer computes. (uniform 0 1)
+t21 - invalid arguments to coeffs
 t45 - pw/domain interaction with density recognition
 t50 - Maple returns Ei in result, which does not exist in Hakaru
+t70b - contradictory assumptions in assume
+t71b - `uniform 3 3 `bind` \x0 -> superpose [] instead of superpose []
+t73c - same as above
+t74c - contradictory assumptions
+t76 - wrong number of arguments
 t78 - expects a change of variables?
-t52 - ordering issue
-mhPriorProp - hard failure in Inference.hs
-t75 - problem with bad piecewise
-t75' - problem with bad piecewise
-testRoadMapProg4 - type infer from unpair
+t52 - ordering problem
+mhPriorProp - difference in result (not analyzed yet)
+t75 - time expired
+t75' - time expired
+testRoadMapProg1 - time expired
+testRoadMapProg4 - make Prob from piecewise?
 testKernel - failure in recognition of density (and categorical)
 testFalseDetection: Real/Prob inference issue
-testTrueDetectionL: piecewise issue
-testTrueDetectionR: piecewise issue
+testTrueDetectionL: arctan when polynomial expected
+testTrueDetectionR: arctan when polynomial expected
 
 Syntax:
 pair1fst/snd - beta instead of list/categorical
