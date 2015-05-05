@@ -936,24 +936,21 @@ SLO := module ()
       'Bool'
     elif type(e, anything^integer) then
       infer_type(op(1,e), ctx);
-    elif type(e, anything^anything) then
-      typ1 := infer_type(op(1,e), ctx);
-      typ2 := infer_type(op(2,e), ctx);
-      if typ1=Prob and member(typ2, {Prob, Number}) then
-        Prob
-      else
-        error "inferring (%1)^(%2)", typ1,typ2;
-      end if;
     elif type(e, specfunc(anything, {'exp', 'sin','cos'})) then
       typ := infer_type(op(1,e), ctx); # need to make sure it is inferable
       'Real' # someone else will make sure to cast this correctly
     elif type(e, specfunc(anything, {'GAMMA' })) then
       typ := infer_type(op(1,e), ctx); # need to make sure it is inferable
       'Prob'
-    elif type(e, anything^fraction) then
-      infer_type(op(1,e), ctx); # need to make sure it is inferable
-      # if it is <0, weird things will happen
-      # someone else will make sure to cast this correctly
+    elif type(e, anything^anything) then
+      typ1 := infer_type(op(1,e), ctx);
+      typ2 := infer_type(op(2,e), ctx);
+      # Number means (proper) fraction in this context
+      if member(typ1, {Prob, Nat}) and member(typ2, {Prob, Number}) then
+        typ1
+      else
+        error "inferring (%1)^(%2)", typ1,typ2;
+      end if;
     elif type(e, 'erf'(anything)) then
       infer_type(op(1,e), ctx); # erf is Real, erf_ is Prob
       'Real'
@@ -1699,13 +1696,6 @@ end;
 # works, but could be made more robust
 `evalapply/if_` := proc(f, t) if_(op(1,f), op(2,f)(t[1]), op(3,f)(t[1])) end;
 `evalapply/Pair` := proc(f, t) Pair(op(1,f)(t[1]), op(2,f)(t[1])) end;
-# `evalapply/piecewise` := proc(p, tt)
-#   local i, n, rest;
-#   n := floor(nops(pw)/2);
-#   rest := evalb(2*n < nops(pw));
-#   piecewise(seq( (proc (j) op(2*j+1,p), op(2*j+2,p)(tt[1]) end proc)(i), i=0..n),
-#     `if`(rest, op(-1,p)(tt[1]), NULL) );
-# end;
 
 
 # Disabled until Pair is removed in Hakaru
