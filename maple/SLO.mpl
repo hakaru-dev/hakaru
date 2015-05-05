@@ -91,7 +91,7 @@ SLO := module ()
   # recursive function which does the main translation
   ToAST := proc(inp, ctx)
     local a0, a1, var, vars, rng, ee, cof, d, ld, weight, binders,
-      v, subst, ivars, ff, newvar, rest, a, b, e;
+      v, subst, inv_subst, ivars, ff, newvar, rest, a, b, e;
     e := inp; # make e mutable
     if type(e, specfunc(name, c)) then
       return Return(op(e))
@@ -107,18 +107,19 @@ SLO := module ()
     else
       binders := indets(e, t_binds);
       vars := indets(e, specfunc(anything, c));
-      subst := map(x-> x = op(0,x)[op(x)], vars);
+      subst := map(x-> x = gensym(`cc_`), vars);
+      inv_subst := map(z -> op(2,z) = op(op(1,z)), subst);
       ivars := map2(op, 2, subst);
       if binders = {} then
         # this is a 'raw' measure, with no integrals
         ee := subs(subst, e);
         if type(ee, 'polynom'(anything,ivars)) then
-          ee := frontend(collect,[ee, ivars, simplify]);
+          ee := collect(ee, ivars, 'distributed', simplify);
           d := degree(ee, ivars);
           ld := ldegree(ee, ivars);
           cof := [coeffs(ee, ivars, 'v')]; # cof is a list, v expseq
           if (d = 1) and (ld = 1) then
-            ff := (x,y) -> WeightedM(simplify(x), Return(op(y)));
+            ff := (x,y) -> WeightedM(simplify(x), Return(subs(inv_subst, y)));
             Superpose(op(zip(ff, cof, [v])));
           elif (ee=0) then # collect/simplify could have revealed this
             Superpose()
@@ -1671,6 +1672,8 @@ SLO := module ()
         else
           res
         end if;
+      else
+        res
       end if;
     else # well, too much time!
       Int(expr, b)
