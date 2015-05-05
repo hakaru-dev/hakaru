@@ -145,8 +145,8 @@ testOther = test [
     "testFalseDetection" ~: testS (lam seismicFalseDetection),
     -- this doesn't typecheck because Either isn't Simplifiable yet:
     -- "testTrueDetection" ~: testS (lam2 seismicTrueDetection)
-    "testTrueDetectionL" ~: testS (lam $ \x0 -> lam $ \x1 -> seismicTrueDetection x0 x1 `bind` \z -> uneither z dirac (\_ -> superpose [])),
-    "testTrueDetectionR" ~: testS (lam $ \x0 -> lam $ \x1 -> seismicTrueDetection x0 x1 `bind` \z -> uneither z (\_ -> superpose []) dirac)
+    "testTrueDetectionL" ~: testS tdl,
+    "testTrueDetectionR" ~: testS tdr
     ]
 
 allTests :: Test
@@ -1277,3 +1277,20 @@ seismicTrueDetection x0 x1 =
                          / pi))
                    x24 `bind` \x41 ->
             dirac (inr (pair x37 (pair x39 (pair x40 (exp_ x41)))))))
+
+
+tdl :: (Lambda repr, Mochastic repr) =>
+ repr ((Real, (Real, (Real, (Real, (Real, (Prob, (Prob,
+        (Prob, (Real, (Real, (Real, (Prob, (Prob, (Real, Prob))))))))))))))
+                    -> (Real, (Real, (Prob, Real))) -> Measure ())
+tdl = lam $ \x0 -> lam $ \x1 -> 
+  seismicTrueDetection x0 x1 `bind` \z -> 
+  uneither z dirac (\_ -> superpose [])
+tdr :: (Lambda repr, Mochastic repr) =>
+ repr ((Real, (Real, (Real, (Real, (Real, (Prob, (Prob,
+        (Prob, (Real, (Real, (Real, (Prob, (Prob, (Real, Prob))))))))))))))
+                    -> (Real, (Real, (Prob, Real))) -> 
+                    Measure (Real, (Real, (Real, Prob))))
+tdr = lam $ \x0 -> lam $ \x1 -> 
+  seismicTrueDetection x0 x1 `bind` \z -> 
+  uneither z (\_ -> superpose []) dirac
