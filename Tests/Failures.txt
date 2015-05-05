@@ -11,16 +11,16 @@ t63 - problem with assumption on non-name
 t64 - problem in merging of product of piecewise
 t65 - completely different result now -- looks like an integral no
   longer computes. (uniform 0 1)
+t36 - Real^Number
 t45 - pw/domain interaction with density recognition
-t50 - Maple returns Ei in result, which does not exist in Hakaru
-t76 - wrong number of arguments
+t50 - Was: Maple returns Ei in result, which does not exist in Hakaru
 t78 - expects a change of variables?
 t52 - ordering problem
 mhPriorProp - difference in result (not analyzed yet)
 t75 - time expired
 t75' - time expired
 testRoadMapProg1 - time expired
-testRoadMapProg4 - how do I make a Prob from h6^4+3*h6^2*pp3^2+pp3^4 
+testRoadMapProg4 - Mixed^Number
 testKernel - failure to recognize a normal under a conditional
 testFalseDetection: time expired
 testTrueDetectionL: 1 <= FAIL
@@ -31,7 +31,7 @@ testTrueDetectionR: infinite loop
 
 Syntax:
 pair1fst/snd - beta instead of list/categorical
-testdistLinregSimp - time expired
+testdistLinregSimp - Real^Number
 testLinreg - ignored
 gamalonDis - type inference issue on unpair
 
@@ -49,26 +49,26 @@ t14 - sqrt of Prob (mkProb bug)
 t16 - no simplification because change of variables not implemented
 t17 - no simplification because change of variables not implemented
 t18 - no simplification because change of variables not implemented
-t19 - reduce unimplemented
-t20 - reduce unimplemented
+t19 - reasoning about Reduce
+t20 - reasoning about Reduce
 t21 - inferring Prob^Int missing case
 t22 - something was not normalized properly
 t23 - no simplification because change of variables not implemented
 t24 - pp3 ** pp2 does not typecheck (mkProb bug)
-t25 - inferring Nat^Number missing case
+t25 - (pp3+pp4) ** (-1) expects lhs to be Real
 t26 - don't know how to make (1/...) real
 t27 - no simplification because change of variables not implemented
 t28 - make Prob from 1-x3
-t29 - reduce
+t29 - reasoning about Reduce
 
 Vector:
 testReduce - reduce unimplemented
-testUnrolling - reduce unimplemented
+testUnrolling - reasoning about Reduce
 testUnity - categorical not implemented
 testInside - Vector return type not implemented
-testPull - reduce unimplemented
-t75 - reduce unimplemented
-testConj - reduce unimplemented
+testPull - reasoning about Reduce
+t75 - reasoning about Reduce
+testConj - reasoning about Reduce
 testPlateDirac - Vector type inference missing
 
 Embed:
