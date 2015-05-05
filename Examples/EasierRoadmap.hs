@@ -10,8 +10,6 @@ import Language.Hakaru.Simplify (simplify)
 import Language.Hakaru.Any (Any)
 
 import Language.Hakaru.Sample
-import qualified Data.Vector as V
-import qualified System.Random.MWC as MWC
 
 easierRoadmapProg1 ::
   (Mochastic repr) =>
@@ -148,13 +146,13 @@ mh :: (Mochastic repr, Integrate repr, Lambda repr,
       (forall repr'. (Mochastic repr') => repr' env -> repr' a -> repr' (Measure a)) ->
       (forall repr'. (Mochastic repr') => repr' env -> repr' (Measure a)) ->
       repr (env -> a -> Measure (a, Prob))
-mh proposal target =
+mh prop target =
   lam $ \env ->
   let_ (lam (d env)) $ \mu ->
   lam $ \old ->
-    proposal env old `bind` \new ->
+    prop env old `bind` \new ->
     dirac (pair new (mu `app` {-pair-} new {-old-} / mu `app` {-pair-} old {-new-}))
-  where d:_ = density (\env -> {-bindx-} (target env) {-(proposal env)-})
+  where d:_ = density (\env -> {-bindx-} (target env) {-(prop env)-})
 
 easierRoadmapProg4 ::
   (Lambda repr, Mochastic repr) =>
@@ -197,8 +195,8 @@ easierRoadmapProg4' = mh proposal easierRoadmapProg3'out
 makeChain :: (Lambda repr, Mochastic repr) =>
              repr (a -> Measure a) -> repr Int -> repr a -> repr (Measure (Vector a))
 makeChain m n s = app (chain (vector n (\ _ ->
-                                        lam $ \s ->
-                                        app m s `bind` \s' ->
+                                        lam $ \ss ->
+                                        app m ss `bind` \s' ->
                                         dirac $ (pair s' s')))) s `bind` \vs' ->
                   dirac (fst_ vs')
 
