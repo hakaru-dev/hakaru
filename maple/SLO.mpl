@@ -923,7 +923,7 @@ SLO := module ()
 
   # should pass _EnvTypes in directly so that option remember can be used
   infer_type := proc(e, ctx)
-    local typ, l, res, k, t;
+    local typ, l, res, k, t, typ1, typ2;
     if type(e, boolean) then
       'Bool'
     elif e = 'Pi' then Prob
@@ -936,6 +936,14 @@ SLO := module ()
       'Bool'
     elif type(e, anything^integer) then
       infer_type(op(1,e), ctx);
+    elif type(e, anything^anything) then
+      typ1 := infer_type(op(1,e), ctx);
+      typ2 := infer_type(op(2,e), ctx);
+      if typ1=Prob and member(typ2, {Prob, Number}) then
+        Prob
+      else
+        error "inferring (%1)^(%2)", typ1,typ2;
+      end if;
     elif type(e, specfunc(anything, {'exp', 'sin','cos'})) then
       typ := infer_type(op(1,e), ctx); # need to make sure it is inferable
       'Real' # someone else will make sure to cast this correctly

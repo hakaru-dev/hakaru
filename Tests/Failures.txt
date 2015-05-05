@@ -1,4 +1,4 @@
-As of Mon. May. 4th, the failures are as follows:
+As of Tues. May. 5th, the failures are as follows:
 
 RoundTrip:
 t54 - invalid property 
@@ -44,18 +44,18 @@ t8 - normalization difference
 t9 - Prob from 1-pp1  ?
 t11 - don't know how to make h3 real!
 t12 - no simplification because change of variables not implemented
-t13 - type inference case missing
-t14 - type inference bug?
+t13 - h2 ** (recip pp1) does not typecheck in Haskell
+t14 - sqrt of Prob (mkProb bug)
 t16 - no simplification because change of variables not implemented
 t17 - no simplification because change of variables not implemented
 t18 - no simplification because change of variables not implemented
-t19 - symbolic Vector
-t20 - symbolic Vector
-t21 - infer type from (pp1+pp2)^h3
+t19 - reduce unimplemented
+t20 - reduce unimplemented
+t21 - inferring Prob^Int missing case
 t22 - something was not normalized properly
 t23 - no simplification because change of variables not implemented
-t24 - infer from pp3^pp2
-t25 - Real/Prob inference issue
+t24 - pp3 ** pp2 does not typecheck (mkProb bug)
+t25 - inferring Nat^Number missing case
 t26 - don't know how to make (1/...) real
 t27 - no simplification because change of variables not implemented
 t28 - make Prob from 1-x3
