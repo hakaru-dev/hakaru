@@ -8,8 +8,8 @@ import Tests.TestTools
 import Test.HUnit
 
 allTests :: Test
-allTests = test [ "testReduce"    ~: testReduce
-                , "testUnrolling" ~: testUnrolling
+allTests = test [ "testReduce"    ~: testSS [reduced] unreduced
+                , "testUnrolling" ~: testSS [rolled] unrolled
                 , "testUnity"     ~: testUnity
                 , "testInside"    ~: testInside
                 , "testPull"      ~: testPull
@@ -18,13 +18,11 @@ allTests = test [ "testReduce"    ~: testReduce
                 , "testPlateDirac"~: testPlateDirac ]
 
 -- Test partial evaluation of reduce
-testReduce :: Assertion
-testReduce = testSS [lam $ \n -> dirac (sumV (vector 4 (n+)))]
-                    (lam $ \n -> dirac (6 + n * 4))
+unreduced, reduced :: (Mochastic repr, Lambda repr) => repr (Int -> Measure Int)
+unreduced = lam $ \n -> dirac (sumV (vector 4 (n+)))
+reduced = lam $ \n -> dirac (6 + n * 4)
 
 -- Test unrolling short product measures
-testUnrolling :: Assertion
-testUnrolling = testSS [rolled] unrolled
 rolled, unrolled :: (Mochastic repr, Integrate repr) => repr (Measure Prob)
 rolled = liftM summateV (plate (vector 4 (\i ->
          liftM unsafeProb (uniform 0 (2 + fromInt i)))))
