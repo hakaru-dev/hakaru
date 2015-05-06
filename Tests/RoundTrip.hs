@@ -524,10 +524,10 @@ t60'' =
     lam $ \x0 ->
     uniform 0 1 `bind` \x1 ->
     uniform 0 1 `bind` \x2 ->
-    if_ (if_ (0 `less` x0 * recip (x1 + x2))
-             (x0 * recip (x1 + x2) `less` 1)
+    if_ (if_ (0 `less` x0 * recip (x2 + x1))
+             (x0 * recip (x2 + x1) `less` 1)
              false)
-        (weight (recip (unsafeProb (x1 + x2))) (dirac unit))
+        (weight (recip (unsafeProb (x2 + x1))) (dirac unit))
         (superpose [])
 
 t61, t61' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure Prob)
@@ -544,9 +544,9 @@ t62 = lam $ \t ->
           (superpose [])
 t62'= lam $ \t ->
       lam $ \x ->
-      if_ (lesseq (t/x) 0) (superpose []) $
-      if_ (lesseq (t/x) 1) (factor (unsafeProb (t/x))) $
-      if_ (lesseq (t/x) 2) (factor (unsafeProb (2-t/x))) $
+      if_ (lesseq (t * recip x) 0) (superpose []) $
+      if_ (lesseq (t * recip x) 1) (factor (unsafeProb (t/x))) $
+      if_ (lesseq (t * recip x) 2) (factor (unsafeProb (2-t/x))) $
       superpose []
 
 -- "Scalar multiple" of t62
@@ -559,9 +559,9 @@ t63 = lam $ \t ->
           (superpose [])
 t63'= lam $ \t ->
       uniform 0 1 `bind` \x ->
-      if_ (lesseq (t/x) 0) (superpose []) $
-      if_ (lesseq (t/x) 1) (factor (unsafeProb (t/x) / unsafeProb x)) $
-      if_ (lesseq (t/x) 2) (factor (unsafeProb (2-t/x) / unsafeProb x)) $
+      if_ (lesseq (t * recip x) 0) (superpose []) $
+      if_ (lesseq (t * recip x) 1) (factor (unsafeProb (t/x) / unsafeProb x)) $
+      if_ (lesseq (t * recip x) 2) (factor (unsafeProb (2-t/x) / unsafeProb x)) $
       superpose []
 
 -- Density calculation for (Exp (Log StdRandom)) and StdRandom
@@ -600,8 +600,10 @@ t64' =lam $ \x0 ->
            (dirac 0)) `bind` \x1 ->
       weight (unsafeProb x1) (dirac unit)
 t64''=lam $ \x0 ->
-      if_ (and_ [0 `less` x0, x0 `less` 1])
-          (dirac unit)
+      if_ (0 `less` x0) 
+          (if_ (x0 `less` 1)
+               (dirac unit)
+               (superpose []))
           (superpose [])
 
 -- Density calculation for (Add StdRandom (Exp (Neg StdRandom))).
@@ -736,15 +738,18 @@ testPriorProp' =
        superpose [(fromRational (1/2),
                    normal 0 1 `bind` \x1 ->
                    dirac (pair (pair x1 (snd_ old))
-                               (exp_ ((x1 * (-1) + fst_ old)
-                                      * (fst_ old + snd_ old * (-2) + x1)
-                                      * fromRational (1 / 2))))),
+                        (exp_ ((x1 * (-1) + (old `unpair` \x2 x3 -> x2))
+                               * ((old `unpair` \x2 x3 -> x2) + (old `unpair` \x2 x3 -> x3) * (-2)
+                                  + x1)
+                               * (1/2))))),
+
                   (fromRational (1/2),
                    normal 0 (sqrt_ 2) `bind` \x1 ->
                    dirac (pair (pair (fst_ old) x1)
-                               (exp_ ((x1 * (-1) + snd_ old)
-                                      * (snd_ old * (-1) + fst_ old * 4 + x1 * (-1))
-                                      * fromRational (-1/4)))))])
+                        (exp_ ((x1 + (old `unpair` \x2 x3 -> x3) * (-1))
+                               * ((old `unpair` \x2 x3 -> x3) + (old `unpair` \x2 x3 -> x2) * (-4)
+                                  + x1)
+                               * (-1/4)))))])
 
 dup :: (Lambda repr, Mochastic repr) => repr (Measure a) -> repr (Measure (a,a))
 dup m = let_ m (\m' -> liftM2 pair m' m')
