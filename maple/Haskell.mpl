@@ -243,6 +243,14 @@ bi["cos"] := ufunc("cos");
 bi["sin"] := ufunc("sin");
 bi["erf"] := ufunc("erf");
 bi["GAMMA"] := ufunc("gammaFunc");
+bi["Ei"] := proc(a,z)
+  b:-append("integrate 1 infinity $ \k1 -> exp_ (-k1 *");
+  p(z);
+  b:-append(")*(pow_ k1 (-");
+  p(a);
+  b:-append("))");
+end proc;
+
 
 bi["If"] := proc()
   ASSERT(_npassed>0);
