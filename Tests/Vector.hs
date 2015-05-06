@@ -20,7 +20,7 @@ allTests = test [ "testReduce"    ~: testSS [unreduced] reduced
 -- Test partial evaluation of reduce
 unreduced, reduced :: (Mochastic repr, Lambda repr) => repr (Int -> Measure Int)
 unreduced = lam $ \n -> dirac (sumV (vector 4 (n+)))
-reduced = lam $ \n -> dirac (6 + n * 4)
+reduced = lam $ \n -> dirac (n * 4 + 6)
 
 -- Test unrolling short product measures
 rolled, unrolled :: (Mochastic repr, Integrate repr) => repr (Measure Prob)
