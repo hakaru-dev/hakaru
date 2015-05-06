@@ -1,9 +1,10 @@
-{-# LANGUAGE TypeFamilies, Rank2Types, FlexibleContexts #-}
+{-# LANGUAGE TypeFamilies, RankNTypes, FlexibleContexts #-}
 module Language.Hakaru.Inference where
 
 import Prelude hiding (Real)
 
 import Language.Hakaru.Lazy
+import Language.Hakaru.Compose
 import Language.Hakaru.Syntax
 import Language.Hakaru.Expect (Expect(..), Expect', normalize)
 
@@ -49,12 +50,37 @@ gibbsProposal p x = q (fst_ x) `bind` \x' -> dirac (pair (fst_ x) x')
   where d:_ = runDisintegrate p
         q y = normalize (app (app d unit) (Expect y))              
 
--- sliceProposal :: (Mochastic repr) =>
---                  repr (Measure Real) -> repr (Measure (Real, Real))
--- sliceProposal x = uniform 0 d `bind` \y ->
---                   lebesgue `bind` \x' ->
---                   dirac $ pair x' y
---   where d:_ = density (\dummy -> ununit dummy x)
+-- Slice sampling can be thought of:
+--
+-- slice target x = do
+--      u  <- uniform(0, density(target, x))  
+--      x' <- lebesgue
+--      condition (density(target, x') >= u) true
+--      return x'
+
+slice :: (Mochastic repr, Integrate repr, Lambda repr) =>
+         (forall s t. Lazy s (Compose [] t (Expect repr))
+                             (Measure Real)) ->
+         repr (Real -> Measure Real)
+slice target = lam $ \x ->
+               uniform 0 (densAt x) `bind` \u ->
+               lebesgue `bind` \x' ->
+               if_ (u `less_` densAt x')
+                 (dirac x')
+                 (superpose [])
+  where d:_ = density (\dummy -> ununit dummy target)
+        densAt x = fromProb $ d unit x
+
+incompleteBeta :: Integrate repr => repr Prob -> repr Prob -> repr Prob -> repr Prob
+incompleteBeta x a b = integrate 0 (fromProb x)
+                       (\t -> pow_ (unsafeProb t    ) (fromProb a-1) *
+                              pow_ (unsafeProb $ 1-t) (fromProb b-1))
+
+regBeta :: Integrate repr => repr Prob -> repr Prob -> repr Prob -> repr Prob
+regBeta x a b = incompleteBeta x a b / betaFunc a b
+
+tCDF :: Integrate repr => repr Real -> repr Prob -> repr Prob
+tCDF x v = 1 - (1/2)*regBeta (v / (unsafeProb (x*x) + v)) (v/2) (1/2)
 
 approxMh :: (Mochastic repr, Integrate repr, Lambda repr) =>
             repr (a -> Measure (a, Prob))
