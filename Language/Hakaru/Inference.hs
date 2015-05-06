@@ -58,6 +58,7 @@ gibbsProposal p x = q (fst_ x) `bind` \x' -> dirac (pair (fst_ x) x')
 --      condition (density(target, x') >= u) true
 --      return x'
 
+-- un-normalized slice
 slice :: (Mochastic repr, Integrate repr, Lambda repr) =>
          (forall s t. Lazy s (Compose [] t (Expect repr))
                              (Measure Real)) ->
@@ -68,6 +69,15 @@ slice target = lam $ \x ->
                if_ (u `less_` densAt x')
                  (dirac x')
                  (superpose [])
+  where d:_ = density (\dummy -> ununit dummy target)
+        densAt x = fromProb $ d unit x
+
+sliceX :: (Mochastic repr, Integrate repr, Lambda repr,
+          a ~ Expect' a, Order_ a, Backward a a) =>
+          (forall repr' . (Mochastic repr') => repr' (Measure a)) ->
+          repr (Measure (a, Real))
+sliceX target = target `bindx` \x ->
+                uniform 0 (densAt x)
   where d:_ = density (\dummy -> ununit dummy target)
         densAt x = fromProb $ d unit x
 
