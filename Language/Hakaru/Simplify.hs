@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, DeriveDataTypeable, CPP #-}
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, DeriveDataTypeable, CPP, OverloadedStrings #-}
 {-# OPTIONS -Wall #-}
 
 module Language.Hakaru.Simplify
@@ -22,7 +22,7 @@ import Language.Hakaru.PrettyPrint (runPrettyPrintNamesPrec)
 import System.IO (stderr, hPrint, hPutStrLn)
 import Data.Typeable (Typeable, typeOf)
 import Data.List (tails, stripPrefix)
-import Data.List.Utils (replace)
+import Data.Text (replace, pack, unpack)
 import Data.Char (isSpace)
 import System.MapleSSH (maple)
 import Language.Haskell.Interpreter.Unsafe (unsafeRunInterpreterWithArgs)
@@ -97,9 +97,9 @@ closeLoop s = action where
     case result of Left err -> throw (InterpreterException err s')
                    Right a -> return a
   s' = s ++ " :: " ++ typeStr
-  typeStr = replace ":" "Cons"
-          $ replace "[]" "Nil"
-          $ show (typeOf (getArg action))
+  typeStr = unpack $ replace ":" "Cons"
+                   $ replace "[]" "Nil"
+                   $ pack (show (typeOf (getArg action)))
 
 mkTypeString :: (Simplifiable a) => String -> a -> String
 mkTypeString s t = "Typed(" ++ s ++ ", " ++ mapleType t ++ ")"
