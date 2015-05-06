@@ -24,7 +24,8 @@ SLO := module ()
     infer_type_prod, infer_type_sop, check_sop_type,
     simp_sup, simp_if, into_sup, simp_rel,
     simp_pw, simp_pw_equal, simp_pw3, simp_Or,
-    simp_props,
+    simp_props, simp_mono, on_rels, flip_rel,
+    try_assume,
     comp2, comp_algeb, compare, comp_list,
     DomainOfDef,
 
@@ -770,8 +771,12 @@ SLO := module ()
   isPos := proc(w)
     local res;
 
-    res := signum(0, w, 1) assuming op(_EnvPathCond);
-    evalb(res = 1);
+    try
+      res := signum(0, w, 1) assuming op(_EnvPathCond);
+      evalb(res = 1);
+    catch "when calling":
+      false; # pessimistic
+    end try;
   end proc;
 
   toProp := proc(x::`=`)
@@ -1386,10 +1391,12 @@ SLO := module ()
     SUPERPOSE(op(sort([_passed], 'strict'=comp2)))
   end proc;
 
-  # weird routine to catch unsat, which means a condition list implies false
+  # simplify some properties.  In particular:
+  # - weird routine to catch unsat, which means a condition list implies false
+  # - simplify out monotone functions
   simp_props := proc(p)
     local res, X, pl, ii;
-    pl := map(condToProp, p);
+    pl := map2(on_rels, simp_mono, map(condToProp, p));
     ii := remove(type, indets(pl, 'name'), constant);
     try
       # dummy query for unsat only
@@ -1402,6 +1409,51 @@ SLO := module ()
       res := pl;
     end try;
     res;
+  end proc;
+
+  # traverse into a Prop and apply to relations
+  on_rels := proc(f, p)
+    if p::specfunc(anything, {AndProp, OrProp}) then
+      map2(on_rels, f, p)
+    elif type(p, {'`<`','`<=`'}) then
+      f(p)
+    else
+      p
+    end if;
+  end proc;
+
+  flip_rel := proc(r)
+    if   r = `<` then `>` elif r = `<=` then `>=` 
+    elif r = `>` then `<` elif r = `>=` then `<=` else
+      error "should only get inequality"
+    end if;
+  end proc;
+
+  simp_mono := proc(p)
+    local n, rel, e, m;
+
+    if p :: {numeric < anything, numeric <= anything} then
+      (n,e) := op(p); rel := op(0,p);
+    elif p :: {anything < numeric, anything <= numeric} then
+      (e,n) := op(p); rel := flip_rel(op(0,p));
+    else
+      return p;
+    end if;
+
+    if e :: (numeric &* anything) then
+      m := op(1,e);
+      if m<0 then
+        simp_mono(flip_rel(rel)(n/m, op(2,e)))
+      else
+        simp_mono(rel(n/m, op(2,e)))
+      end if;
+    elif e :: ln(anything) then
+      simp_mono(rel(exp(n), op(1,e)))
+    elif e :: exp(anything) then
+      simp_mono(rel(ln(n), op(1,e)))
+    else
+      rel(n, e)
+    end if;
   end proc;
 
   into_sup := proc(wm, w) WeightedM(simplify(w*op(1,wm)), op(2,wm)) end proc;
