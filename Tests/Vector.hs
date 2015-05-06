@@ -10,7 +10,7 @@ import Test.HUnit
 allTests :: Test
 allTests = test [ "testReduce"    ~: testSS [unreduced] reduced
                 , "testUnrolling" ~: testSS [rolled] unrolled
-                , "testUnity"     ~: testUnity
+                , "testUnity"     ~: testSS [unity] count
                 , "testInside"    ~: testInside
                 , "testPull"      ~: testPull
                 , "t75"           ~: testSS [] t75
@@ -42,8 +42,6 @@ testNorm2 = testSS [liftM summateV (dirichlet (vector 4 (\i ->
                    (dirac 1)
 
 -- Test that the product of probability measures is a probability measure
-testUnity :: Assertion
-testUnity = testSS [unity] count
 count, unity :: (Mochastic repr) => repr (Measure Int)
 count = categorical (vector 3 (\_ -> 1)) `bind` \i -> dirac (i * 10 + 20)
 unity = count `bind` \n ->
