@@ -7,18 +7,18 @@ t58 - probable bug in convert/Heaviside
 t60 - ordering difference
 t62 - problem with assumption on x0/x1
 t63 - problem with assumption on non-name
-t64 - problem in merging of product of piecewise
+t64 - t64 and t64' don't simplify to the same t64'', just close!
 t65 - completely different result now -- looks like an integral no
   longer computes. (uniform 0 1)
-t36 - Real^Number
 t45 - pw/domain interaction with density recognition
 t50 - Was: Maple returns Ei in result, which does not exist in Hakaru
 t78 - expects a change of variables?
+t52 - ordering issue
 mhPriorProp - difference in result (not analyzed yet)
 t75 - time expired
 t75' - time expired
 testRoadMapProg1 - time expired
-testRoadMapProg4 - Mixed^Number
+testRoadMapProg4 - Don't know how to make 1/... real
 testKernel - failure to recognize a normal under a conditional
 testFalseDetection: time expired
 testTrueDetectionL: 1 <= FAIL
@@ -29,7 +29,7 @@ testTrueDetectionR: infinite loop
 
 Syntax:
 pair1fst/snd - beta instead of list/categorical
-testdistLinregSimp - Real^Number
+testdistLinregSimp - ordering problem
 testLinreg - ignored
 gamalonDis - type inference issue on unpair
 
@@ -49,7 +49,7 @@ t17 - no simplification because change of variables not implemented
 t18 - no simplification because change of variables not implemented
 t19 - reasoning about Reduce
 t20 - reasoning about Reduce
-t21 - inferring Prob^Int missing case
+t21 - Prob ** Int does not typecheck
 t22 - something was not normalized properly
 t23 - no simplification because change of variables not implemented
 t24 - pp3 ** pp2 does not typecheck (mkProb bug)
@@ -59,8 +59,7 @@ t27 - no simplification because change of variables not implemented
 t28 - make Prob from 1-x3
 t29 - reasoning about Reduce
 
-Vector:
-testReduce - reduce unimplemented
+Vector: (not all fail anymore!)
 testUnrolling - reasoning about Reduce
 testUnity - categorical not implemented
 testInside - Vector return type not implemented
