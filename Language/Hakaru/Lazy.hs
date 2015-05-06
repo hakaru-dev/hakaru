@@ -49,7 +49,8 @@ instance (Lub repr) => Lub (M s repr) where
   lub m1 m2 = M (\c h -> lub (unM m1 c h) (unM m2 c h))
 
 choice :: (Mochastic repr) => [M s repr a] -> M s repr a
-choice ms = M (\c h -> superpose [ (1, m c h) | M m <- ms ])
+choice [m] = m
+choice ms  = M (\c h -> superpose [ (1, m c h) | M m <- ms ])
 
 reject :: (Mochastic repr) => M s repr a
 reject = M (\_ _ -> superpose [])
@@ -247,9 +248,11 @@ determineHeap = pop >>= \case Nothing -> return ()
                            Inl _    -> reject
                            Value ab -> do a <- insert (uninr ab)
                                           return [Let l (Value a)]
-      Weight        rhs -> do x <- evaluate rhs
-                              insert_ (weight x)
-                              return []
+      Weight        rhs -> forward rhs >>= \case
+                           Prob 0 -> reject
+                           Prob 1 -> return []
+                           x      -> do insert_ (weight (forget x))
+                                        return []
       VBind l table rhs -> do v <- evaluatePlate table rhs
                               return [VLet l v]
       Let    _      _   -> return [entry]
@@ -725,10 +728,12 @@ instance (Mochastic repr, Lub repr) => Base (Lazy s repr) where
                                       else reject
                             | (j,y) <- table ]
   unsafeProb x = Lazy
-    (liftM (Value . unsafeProb) (evaluate x))
+    (forward x >>= \case Real  r -> return (Prob r)
+                         Value r -> return (Value (unsafeProb r)))
     (\t -> liftM (Value . fromProb) (atomize t) >>= backward x)
   fromProb x = Lazy
-    (liftM (Value . fromProb) (evaluate x))
+    (forward x >>= \case Prob  r -> return (Real r)
+                         Value r -> return (Value (fromProb r)))
     (\t -> do u <- atomize t
               insert_ (ifTrue (less 0 u))
               backward x (Value $ unsafeProb u))
