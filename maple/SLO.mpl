@@ -952,7 +952,11 @@ SLO := module ()
       typ2 := infer_type(op(2,e), ctx);
       # Number means (proper) fraction in this context
       if member(typ1, {Prob, Nat}) and member(typ2, {Prob, Number}) then
-        typ1
+        Prob
+      elif typ1=Prob and typ2=Int then
+        Prob
+      elif member(typ1, {Real, Mixed}) and member(typ2, {Prob, Number}) then
+        typ1; # yes, we know it is Prob, but that is not its type...
       else
         error "inferring (%1)^(%2)", typ1,typ2;
       end if;
