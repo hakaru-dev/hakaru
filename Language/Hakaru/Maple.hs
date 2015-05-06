@@ -14,7 +14,8 @@ module Language.Hakaru.Maple (Maple(..), runMaple) where
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Number(..),
-    Order(..), Base(..), Integrate(..), Lambda(..), Mochastic(..), Prob, Measure)
+    Order(..), Base(..), Integrate(..), Lambda(..), Mochastic(..), 
+    sumV, Prob, Measure)
 import Data.Ratio
 import Control.Monad (liftM, liftM2)
 import Control.Monad.Trans.State.Strict (State, evalState, state)
@@ -223,11 +224,6 @@ instance Mochastic Maple where
       return kbc))
     return ("("++c++" -> " ++ body ++")")
   lebesgue      = fquant "Int" (constant "-infinity") (constant "infinity")
-  {- Maple $ do
-    m <- gensym "m"
-    x <- gensym "x"
-    return ("("++m++" -> Int("++m++"("++x++"),"++x++"=-infinity..infinity))")
-    -}
   superpose l   = Maple $ do
     c <- gensym "c"
     let l' = map (unMaple . wmtom c) l
@@ -242,14 +238,21 @@ instance Mochastic Maple where
     return $ "(proc ("++f++") local "++x++"; "++x++" := gensym(`h`);" ++
            "Int(" ++ weight ++ f++"("++x++")"++
                ","++x++"=" ++ a' ++ ".." ++ b' ++") end proc)"
-    -- return ("("++m++" -> Int("++weight ++ m++"("++x++"),"++x++"="++a'++".."++b'++"))")
   counting      = fquant "Sum" (constant "-infinity") (constant "infinity")
-    {-Maple $ do
-    m <- gensym "m"
-    i <- gensym "i"
-    return ("("++m++" -> Sum("++m++"("++i++"),"++i++"=-infinity..infinity))")
-    -}
-  categorical _ = Maple (return "missing_categorical")
+  categorical (Maple v) = Maple $ do
+    a <- unMaple $ constant "0"
+    sz <- unMaple $ size $ Maple v
+    b <- unMaple $ constant ("(" ++ sz ++ "-1)")
+    v' <- unMaple $ sumV (Maple v)
+    weight <- unMaple $ constant ("(1/("++v'++"))")
+    w <- gensym "w"
+    x <- gensym "i"
+    f <- gensym "f"
+    return $ "(proc ("++f++") local "++x++","++w++"; "++
+               x++ " := gensym(`h`);" ++
+               w++ " := " ++ weight ++ ";" ++
+           "Sum(" ++ w ++ " * " ++ f++"("++x++")"++
+               ","++x++"=" ++ a ++ ".." ++ b ++") end proc)"
 
 op :: Int -> Maple a -> Maple b 
 op n (Maple x) = Maple $ x >>= \x' -> return ("op(" ++ show n ++ ", " ++ x' ++ ")")
