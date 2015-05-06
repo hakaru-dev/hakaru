@@ -1,7 +1,6 @@
 As of Tues. May. 5th, the failures are as follows:
 
 RoundTrip:
-t54 - invalid property 
 t56 - probable bug in convert/Heaviside
 t57 - probable bug in convert/Heaviside
 t58 - probable bug in convert/Heaviside
@@ -15,7 +14,6 @@ t36 - Real^Number
 t45 - pw/domain interaction with density recognition
 t50 - Was: Maple returns Ei in result, which does not exist in Hakaru
 t78 - expects a change of variables?
-t52 - ordering problem
 mhPriorProp - difference in result (not analyzed yet)
 t75 - time expired
 t75' - time expired
