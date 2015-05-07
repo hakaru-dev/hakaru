@@ -63,18 +63,11 @@ slice :: (Mochastic repr, Integrate repr, Lambda repr) =>
          repr (Real -> Measure Real)
 slice target = lam $ \x ->
                uniform 0 (densAt x) `bind` \u ->
-               slice' target u
-  where d:_ = density (\dummy -> ununit dummy target)
-        densAt x = fromProb $ d unit x
-
-slice' :: (Mochastic repr, Integrate repr, Lambda repr) =>
-       (forall repr' . (Mochastic repr') => repr' (Measure Real)) ->
-       repr Real -> repr (Measure Real)
-slice' target u = normalize $
-        lebesgue `bind` \x' ->
-        if_ (Expect u `less_` densAt x')
-            (dirac x')
-            (superpose [])
+               normalize $
+               lebesgue `bind` \x' ->
+               if_ (Expect (u `less_` densAt (unExpect x')))
+                   (dirac x')
+                   (superpose [])
   where d:_ = density (\dummy -> ununit dummy target)
         densAt x = fromProb $ d unit x
 
