@@ -56,5 +56,4 @@ reflect m =
 -- Unfortunately Maple currently refuses to write bindo'' for us:
 --  > simplify (lam $ \m -> lam $ \n -> reflect m `bindo` reflect n)
 --  *** Exception: MapleException:
---  Error, (in SLO:-AST) how do I make a Prob from
---  2*pp12^2*pp6^2*pp8+pp6^2*rr10^2+pp12^2
+--  Error, (in maptype) don't know how to make (1/(2*pp6^2*pp8+1)) real

@@ -103,6 +103,7 @@ testMeasureReal = test
   , "t74d" ~: testSS [t74d] (uniform 1 3)
   , "t76" ~: testS t76
   , "t78" ~: testSS [t78] t78'
+  , "kalman" ~: testS kalman
   , "lebesgue1" ~: testSS [] (lebesgue `bind` \x -> if_ (less 42 x) (dirac x) (superpose []))
   , "lebesgue2" ~: testSS [] (lebesgue `bind` \x -> if_ (less x 42) (dirac x) (superpose []))
   , "lebesgue3" ~: testSS [lebesgue `bind` \x -> if_ (and_ [less x 42, less 40 x]) (dirac x) (superpose [])] (weight 2 $ uniform 40 42)
@@ -1299,3 +1300,19 @@ tdr :: (Lambda repr, Mochastic repr) =>
 tdr = lam $ \x0 -> lam $ \x1 -> 
   seismicTrueDetection x0 x1 `bind` \z -> 
   uneither z (\_ -> superpose []) dirac
+
+-- from Examples/HMMContinuous.hs
+kalman :: (Mochastic repr, Lambda repr) =>
+          repr ((Prob, (Prob, (Real, (Real, (Real, Prob))))) ->
+                (Prob, (Prob, (Real, (Real, (Real, Prob))))) ->
+                Real -> Measure Real)
+kalman = lam $ \m -> lam $ \n -> reflect m `bindo` reflect n
+  where reflect m =
+          unpair m $ \a m ->
+          unpair m $ \b m ->
+          unpair m $ \c m ->
+          unpair m $ \d m ->
+          unpair m $ \e f ->
+          lam $ \s ->
+          weight (a * exp_ (- fromProb b * (s - c) ** 2)) $
+          normal (d * s + e) f
