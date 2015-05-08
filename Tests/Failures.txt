@@ -5,8 +5,8 @@ t56 - probable bug in convert/Heaviside
 t57 - probable bug in convert/Heaviside
 t58 - probable bug in convert/Heaviside
 t60 - ordering difference
-t62 - problem with assumption on x0/x1
-t63 - problem with assumption on non-name
+t62 - round-trips, but normalizes differently
+t63 - round-trips, but normalizes differently
 t64 - t64 and t64' don't simplify to the same t64'', just close!
 t65 - completely different result now -- looks like an integral no
   longer computes. (uniform 0 1)
