@@ -102,12 +102,6 @@ reify domainSize rangeSize m =
   vector rangeSize  (\j ->
   app (snd_ (app (unExpect m) i)) (lam (\j' -> if_ (equal j j') 1 0))))
 
-bindo :: (Mochastic repr, Lambda repr) =>
-         repr (a -> Measure b) ->
-         repr (b -> Measure c) ->
-         repr (a -> Measure c)
-bindo f g = lam (\x -> app f x `bind` app g)
-
 chain'' :: (Mochastic repr, Lambda repr, Integrate repr) =>
            repr (Vector Table) -> repr Table
 chain'' = reduce bindo' (reify 5 5 (lam dirac))
@@ -200,7 +194,7 @@ roadmapProg4 o x = unpair x (\ trans emit ->
                    mcmc' o (pair trans  emit)
                            (pair trans' emit'))
 
--- roadmapProg4' :: (Mochastic repr, Integrate repr, Lambda repr) =>
---                  repr ((Vector Int) -> (Table, Table) ->
---                        Measure ((Table, Table), Prob))
--- roadmapProg4' = mh proposal roadmapProg3
+roadmapProg4' :: (Mochastic repr, Integrate repr, Lambda repr) =>
+                 repr ((Vector Int) -> (Table, Table) ->
+                       Measure ((Table, Table), Prob))
+roadmapProg4' = mh proposal roadmapProg3
