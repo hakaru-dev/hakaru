@@ -8,8 +8,9 @@ module Language.Hakaru.Lazy (Lazy, runLazy, Backward, disintegrate,
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
-       Number, Fraction(..), EqType(Refl), Order(..), Base(..), snd_, equal_,
-       and_, Mochastic(..), weight, Integrate(..), Lambda(..), Lub(..))
+       Number(..), Fraction(..), EqType(Refl), Order(..),
+       Base(..), snd_, equal_, and_, Mochastic(..), weight,
+       Integrate(..), Lambda(..), Lub(..))
 import Language.Hakaru.Compose
 import Control.Monad (liftM, liftM2)
 import Data.Maybe (isNothing)
@@ -373,21 +374,21 @@ isNum m h = case h of
                                         
 instance (Base repr, Num (repr a), Number a) => Num (Hnf s repr a) where
   x + y  = case (x,y) of
-             (Int a, Int b)   -> Int (a+b)
+             (Int a,  Int b)  -> Int  (a+b)
              (Real a, Real b) -> Real (a+b)
              (Prob a, Prob b) -> Prob (a+b)
              (Value _, s) | isNum 0 s -> x
              (s, Value _) | isNum 0 s -> y
              _            -> Value (forget x + forget y)
   x - y  = case (x,y) of
-             (Int a,  Int b)  -> Int (a-b)
+             (Int a,  Int b)  -> Int  (a-b)
              (Real a, Real b) -> Real (a-b)
              (Prob a, Prob b) -> Prob (a-b)
              (Value _, s) | isNum 0 s -> x
              (s, Value _) | isNum 0 s -> y
              _            -> Value (forget x - forget y)
   x * y  = case (x,y) of
-             (Int a,  Int b)  -> Int (a*b)
+             (Int a,  Int b)  -> Int  (a*b)
              (Real a, Real b) -> Real (a*b)
              (Prob a, Prob b) -> Prob (a*b)
              (Value _, s) | isNum 0 s -> s
@@ -411,7 +412,9 @@ instance (Base repr, Num (repr a), Number a) => Num (Hnf s repr a) where
   signum (Prob a) = Prob  (signum a)
   signum x        = Value (signum (forget x))
                      
-  fromInteger = undefined -- TODO have separate instances for Int,Real,Prob? 
+  fromInteger n = numberCase (Int n)
+                             (Real (fromInteger n))
+                             (Prob (fromInteger n))
 
 instance (Base repr, Fractional (repr a), Fraction a) =>
     Fractional (Hnf s repr a) where
@@ -419,7 +422,7 @@ instance (Base repr, Fractional (repr a), Fraction a) =>
   recip (Prob a) = Prob  (recip a)
   recip x        = Value (recip (forget x))
                    
-  fromRational = undefined -- TODO have separate instances for Int,Real,Prob?
+  fromRational r = fractionCase (Real r) (Prob r)
                  
   x / y = case (x,y) of
             (Real a, Real b) -> Real (a/b)
@@ -554,7 +557,7 @@ instance (Mochastic repr, Lub repr) => Num (Lazy s repr Int) where
                                     u <- atomize t
                                     insert_ (ifTrue (equal (signum n) u))
                                     backward x (Value n)) }
-  fromInteger n = Lazy (return (Int n))
+  fromInteger n = Lazy (return (fromInteger n))
                        (\t -> do u <- atomize t
                                  insert_ (ifTrue (equal (fromInteger n) u)))
 
@@ -572,7 +575,7 @@ instance (Mochastic repr, Lub repr) => Num (Lazy s repr Real) where
   negate = neg
   abs = abz
   signum = sign
-  fromInteger n = lazy (return (Real (fromInteger n)))
+  fromInteger n = lazy (return (fromInteger n))
 
 instance (Mochastic repr, Lub repr) => Num (Lazy s repr Prob) where
   (+) = add  
@@ -588,18 +591,18 @@ instance (Mochastic repr, Lub repr) => Num (Lazy s repr Prob) where
   negate = neg
   abs = abz
   signum = sign
-  fromInteger n = lazy (return (Prob (fromInteger n)))
+  fromInteger n = lazy (return (fromInteger n))
 
 instance (Mochastic repr, Lub repr) =>
          Fractional (Lazy s repr Real) where
   recip = inv
-  fromRational r = lazy (return (Real r))
+  fromRational r = lazy (return (fromRational r))
   (/) = divide
 
 instance (Mochastic repr, Lub repr) =>
          Fractional (Lazy s repr Prob) where
   recip = inv
-  fromRational r = lazy (return (Prob r))
+  fromRational r = lazy (return (fromRational r))
   (/) = divide
 
 instance (Mochastic repr, Lub repr) =>
