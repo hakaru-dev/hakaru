@@ -575,7 +575,7 @@ instance (Mochastic repr, Lub repr) => Num (Lazy s repr Real) where
   negate = neg
   abs = abz
   signum = sign
-  fromInteger n = lazy (return (fromInteger n))
+  fromInteger = lazy . return . fromInteger
 
 instance (Mochastic repr, Lub repr) => Num (Lazy s repr Prob) where
   (+) = add  
@@ -591,18 +591,18 @@ instance (Mochastic repr, Lub repr) => Num (Lazy s repr Prob) where
   negate = neg
   abs = abz
   signum = sign
-  fromInteger n = lazy (return (fromInteger n))
+  fromInteger = lazy . return . fromInteger
 
 instance (Mochastic repr, Lub repr) =>
          Fractional (Lazy s repr Real) where
   recip = inv
-  fromRational r = lazy (return (fromRational r))
+  fromRational = lazy . return . fromRational
   (/) = divide
 
 instance (Mochastic repr, Lub repr) =>
          Fractional (Lazy s repr Prob) where
   recip = inv
-  fromRational r = lazy (return (fromRational r))
+  fromRational = lazy . return . fromRational
   (/) = divide
 
 instance (Mochastic repr, Lub repr) =>
