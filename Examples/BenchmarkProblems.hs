@@ -15,8 +15,8 @@ import Language.Hakaru.Syntax
 import Language.Hakaru.Sample
 import Language.Hakaru.Expect
 import Language.Hakaru.Disintegrate
+import qualified Language.Hakaru.Lazy as L
 import Language.Hakaru.PrettyPrint
-import Language.Hakaru.Partial
 import Language.Hakaru.Simplify
 import Language.Hakaru.Any
 import Language.Hakaru.Embed
@@ -122,11 +122,11 @@ linreg = normal 0 2 `bind` \w1 ->
          dirac (pair (make6Pair [x1,x2,x3,x4,x5,y]) (make5Pair [w1,w2,w3,w4,w5]))
 
 distLinreg :: (Lambda repr, Mochastic repr) => repr (Real6 -> (Measure Real5))
-distLinreg = runPartial (lam $ \ x -> (runDisintegrate (\ env -> linreg) !! 0) unit x)
+distLinreg = app ((L.runDisintegrate (\u -> ununit u $ linreg)) !! 0) unit
 
-simpLinreg :: (Embed repr, Lambda repr, Integrate repr, Mochastic repr) =>
-              IO (repr (Real6 -> (Measure Real5)))
-simpLinreg = Control.Monad.liftM unAny (simplify distLinreg)
+-- simpLinreg :: (Embed repr, Lambda repr, Integrate repr, Mochastic repr) =>
+--               IO (repr (Real6 -> (Measure Real5)))
+-- simpLinreg = Control.Monad.liftM unAny (simplify distLinreg)
 
 testLinreg :: IO (Maybe (Double5, LF.LogFloat))
 testLinreg = do
@@ -292,5 +292,6 @@ liftedInference = bern 0.01 `bind` \cause ->
                            sum_ + (if_ e 1 0)) 0 effects) `bind` \sum_ ->
                   dirac (pair sum_ cause)
 
-testLiftedInference :: Mochastic repr => repr (Measure Bool)
-testLiftedInference = runPartial ((runDisintegrate (\ env -> liftedInference) !! 0) unit k)
+testLiftedInference :: (Lambda repr, Mochastic repr) => repr (Int -> Measure Bool)
+testLiftedInference = app (L.runDisintegrate (\u -> ununit u $ liftedInference) !! 0)
+                          unit

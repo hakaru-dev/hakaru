@@ -2,7 +2,7 @@
              TypeFamilies, RankNTypes #-}
 {-# OPTIONS -Wall #-}
 
-module Language.Hakaru.Partial (Partial, runPartial, dynamic) where
+module Historical.Partial (Partial, runPartial, dynamic) where
 
 -- Rudimentary partial evaluation
 
