@@ -77,6 +77,7 @@ library
 -- integration used in LH.Sample
 -- ghc-prim is used in LH.RoundTrip
 -- tagged is used in LH.Embed
+-- filepath is used in Examples/Slam
 
   build-depends:       base >=4.6 && <5.0, 
                        Cabal >= 1.16,
