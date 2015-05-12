@@ -14,7 +14,6 @@ import qualified Data.Vector as V
 import Language.Hakaru.Syntax
 import Language.Hakaru.Sample
 import Language.Hakaru.Expect
-import Language.Hakaru.Disintegrate
 import qualified Language.Hakaru.Lazy as L
 import Language.Hakaru.PrettyPrint
 import Language.Hakaru.Simplify
@@ -77,7 +76,9 @@ reifyV s1 (Expect m) =
         (app m2 $ lam
              (\x -> if_ (equal_ x s') 1 0))))
 
-condition d = head (runDisintegrate (\ _ -> d)) unit
+condition :: (Lambda repr, Mochastic repr, L.Backward a a) =>
+             L.Cond repr () (Measure (a,b)) -> repr (a -> Measure b)
+condition d = app (head (L.runDisintegrate d)) unit
 
 -- CP4 Problem 1
 

@@ -4,7 +4,6 @@
 module Tests.TestTools where
 
 import Language.Hakaru.Syntax (Measure, Lambda(lam), Order_)
-import Language.Hakaru.Disintegrate (Disintegrate, Disintegration(Disintegration), disintegrations)
 import Language.Hakaru.Maple (Maple, runMaple)
 import Language.Hakaru.Simplify (simplify, Simplifiable, toMaple)
 import Language.Hakaru.Any (Any(unAny), Any')
@@ -56,22 +55,6 @@ testSS ts t' =
 
 handleSimplify :: PrettyPrint a -> SomeException -> IO (Any a)
 handleSimplify t e = throw (TestSimplifyException (show t) e)
-
-testD :: (Simplifiable env, Simplifiable a, Simplifiable b, Order_ a) =>
-         (Disintegrate env -> Disintegrate (Measure (a,b))) ->
-         [(Maple env, Maple a, Any (Measure b))] -> Assertion
-testD f slices = do
-    let ds = disintegrations f
-    assertResult ds
-    mapM_ (\(Disintegration d) -> testS (lam (\env -> lam (\a -> d env a)))) ds
-    mapM_ (\(env,a,t') -> testSS [ d env a | Disintegration d <- ds ] (unAny t')) slices
-
-toMapleD :: (Simplifiable env, Simplifiable a, Simplifiable b, Order_ a) =>
-         (Disintegrate env -> Disintegrate (Measure (a,b))) -> IO ()
-toMapleD f = do
-    let ds = disintegrations f
-    mapM_ (\(Disintegration d) -> (putStrLn.toMaple) 
-                                  (lam (\env -> lam (\a -> d env a)))) ds
 
 testMaple :: Maple a -> IO ()
 testMaple t = assertResult $ runMaple t 0

@@ -2,7 +2,7 @@ module Tests.Vector where
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax
-import Language.Hakaru.Disintegrate (Disintegrate, runDisintegrate)
+import qualified Language.Hakaru.Lazy as L
 import Language.Hakaru.Expect (Expect(Expect), normalize)
 import Tests.TestTools
 import Test.HUnit
@@ -68,11 +68,14 @@ testPull = testSS
 -- Test conjugacy of dirichlet and categorical
 testConj :: Assertion
 testConj = testSS
-  [lam $ \as -> lam $ \coin -> normalize (d (Expect as) (Expect coin))]
-  (lam $ \as -> lam $ \coin -> posterior as coin)
-  where d:_ = runDisintegrate joint
-instance Integrate Disintegrate -- UNDEFINED
-instance Lambda Disintegrate -- UNDEFINED
+  [ lam $ \as -> lam $ \coin -> normalize (app (app d (Expect as))
+                                               (Expect coin)) ]
+  ( lam $ \as -> lam $ \coin -> posterior as coin )
+  where d:_ = L.runDisintegrate joint
+
+instance (Mochastic repr, Lub repr) => Integrate (L.Lazy s repr) -- UNDEFINED
+instance Lambda (L.Lazy s repr) -- UNDEFINED
+
 joint :: (Mochastic repr, Integrate repr, Lambda repr) =>
          repr (Vector Prob) -> repr (Measure (Int, Vector Prob))
 joint as = dirichlet as `bind` \bias ->

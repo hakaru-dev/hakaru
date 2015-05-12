@@ -18,7 +18,6 @@ module SlamEmbed where
 import Prelude as P
 import Control.Monad as CM
 import Language.Hakaru.Syntax as H
-import Language.Hakaru.Disintegrate hiding (Nil)
 import Language.Hakaru.Embed 
 import qualified System.Random.MWC as MWC
 import Language.Hakaru.Sample

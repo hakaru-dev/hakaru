@@ -10,7 +10,6 @@ import Language.Hakaru.Syntax (Real, Prob, Measure,
        Order(..), Base(..), ununit, and_, fst_, snd_, swap_, min_,
        Mochastic(..), Lambda(..), Integrate(..), bind_, liftM, factor, beta, bern, lam)
 import Language.Hakaru.Util.Pretty (Pretty (pretty), prettyPair)
-import Language.Hakaru.Disintegrate hiding (Nil)
 
 import Control.Monad (zipWithM_, replicateM)
 import Control.Applicative (Const(Const))

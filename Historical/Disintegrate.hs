@@ -2,7 +2,7 @@
              RankNTypes, GADTs, StandaloneDeriving #-}
 {-# OPTIONS -Wall #-}
 
-module Language.Hakaru.Disintegrate (Disintegrate, Disintegration(..),
+module Historical.Disintegrate (Disintegrate, Disintegration(..),
        runDisintegrate, disintegrations, condition, density, resetDisint,
        Eq'(..), eq'List, Ord'(..), ord'List, Show'(..), Tree(..), Selector(..),
        Op0(..), Op1(..), Op2(..), Expr(..), Name, Loc, Void,

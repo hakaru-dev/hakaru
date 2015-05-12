@@ -16,7 +16,7 @@ module Slam where
 import Prelude as P
 import Control.Monad as CM
 import Language.Hakaru.Syntax as H
-import Language.Hakaru.Disintegrate
+import qualified Language.Hakaru.Lazy as L
 import qualified System.Random.MWC as MWC
 import Language.Hakaru.Sample
 import Control.Monad.Cont (runCont, cont)
@@ -361,20 +361,21 @@ plotReads out rads ints = do
 type Env = (Dims, (Vector GPS, (Vector GPS, (Coords, (Steering, DelTime)))))
 
 evolve :: (Mochastic repr) => repr Env
-       -> [ repr LaserReads -> repr (Measure Coords) ]
-evolve env =
-    [ d env
-      | d <- runDisintegrate $ \ e0  ->
-             unpair e0  $ \ds    e1  ->
-             unpair e1  $ \blons e2  ->
-             unpair e2  $ \blats e3  ->
-             unpair e3  $ \cds   e4  ->
-             unpair e4  $ \s   delT  ->
-             simulate ds blons blats cds s delT ]
+       -> [ repr (LaserReads -> (Measure Coords)) ]
+evolve env = undefined
+-- TODO the code below would work if Lazy supported Vector
+    -- [ app d env
+    --   | d <- L.runDisintegrate $ \e0 ->
+    --          unpair e0  $ \ds     e1 ->
+    --          unpair e1  $ \blons  e2 ->
+    --          unpair e2  $ \blats  e3 ->
+    --          unpair e3  $ \cds    e4 ->
+    --          unpair e4  $ \s   delT  ->
+    --          simulate ds blons blats cds s delT ]
 
 readLasers :: (Mochastic repr, Lambda repr) =>
               repr (Env -> LaserReads -> Measure Coords)
-readLasers = lam $ \env -> lam $ \lrs -> head (evolve env) lrs
+readLasers = lam $ \env -> lam $ \lrs -> app (head (evolve env)) lrs
 
 sampleCoords prtcl prms lreads tcurr g =
     fmap (\(Just (s,1)) -> s) $

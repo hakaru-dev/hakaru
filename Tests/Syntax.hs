@@ -8,8 +8,7 @@ import Language.Hakaru.Syntax (Real, Prob, Measure,
        Order(..), Base(..), ununit, and_, fst_, snd_, swap_, min_, max_,
        Mochastic(..), Lambda(..), Integrate(..), bind_, liftM, liftM2, factor, beta, bern, exponential)
 import Language.Hakaru.Util.Pretty (Pretty (pretty), prettyPair)
-import Language.Hakaru.Disintegrate hiding (max_)
-import qualified Language.Hakaru.Disintegrate as D
+import qualified Language.Hakaru.Lazy as L
 import Language.Hakaru.Any (Any(Any))
 
 import Control.Monad (zipWithM_)
@@ -227,8 +226,9 @@ linregSimp' =
          normal (x*w) 1 `bind` \y ->
          dirac (pair (pair x y) w)
 
-distLinregSimp :: (Lambda repr, Mochastic repr) => repr ((Real,Real) -> (Measure Real))
-distLinregSimp = lam $ \ x -> (runDisintegrate (const linregSimp) !! 0) unit x
+distLinregSimp :: (Lambda repr, Mochastic repr) =>
+                   repr ((Real,Real) -> (Measure Real))
+distLinregSimp = app (L.runDisintegrate (const linregSimp) !! 0) unit
 
 linreg :: Mochastic repr => repr (Measure (Real6, Real5))
 linreg = normal 0 2 `bind` \w1 ->
@@ -245,7 +245,7 @@ linreg = normal 0 2 `bind` \w1 ->
          dirac (pair (make6Pair x1 x2 x3 x4 x5 y) (make5Pair w1 w2 w3 w4 w5))
 
 distLinreg :: (Lambda repr, Mochastic repr) => repr (Real6 -> (Measure Real5))
-distLinreg = lam $ \ x -> (runDisintegrate (const linreg) !! 0) unit x
+distLinreg = app (L.runDisintegrate (const linreg) !! 0) unit
 
 {-
 disintegrateTestRunner :: IO ()
@@ -309,11 +309,12 @@ testDist (e,s) = do
   putStrLn ""
 -}
 
-gamalonDis -- Simplify me! 2015-01-20 meeting
-  :: (Lambda repr, Mochastic repr, Integrate repr) =>
-     repr ((((Real, Real), (Real, Real)), (Real, Real)) -> (Real, Real) -> Measure Prob)
+-- Simplify me! 2015-01-20 meeting                   
+gamalonDis :: (Lambda repr, Mochastic repr, Integrate repr) =>
+               repr ((((Real, Real), (Real, Real)), (Real, Real))
+                         -> (Real, Real) -> Measure Prob)
 gamalonDis = lam $ \abcd_xy -> lam $ \x'y' ->
-             dirac (head (density gamalon) abcd_xy x'y')
+             dirac ((head (L.density gamalon)) abcd_xy x'y')
 
 gamalon
   :: (Mochastic repr) =>
