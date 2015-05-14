@@ -11,7 +11,7 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        fromListV, concatV, unzipV,
        Mochastic(..), bind_, factor, weight, bindx, bindo, liftM, liftM2,
        positiveUniform, invgamma, exponential, chi2, bern,
-       cauchy, laplace, student, weibull,
+       cauchy, laplace, student, weibull, mix,
        binomial, multinomial,
        Integrate(..), Lambda(..), lam2, lam3, app2, app3, Lub(..)) where
 
@@ -357,6 +357,9 @@ weibull b k = exponential 1 `bind` \x ->
 
 bern :: (Mochastic repr) => repr Prob -> repr (Measure Bool)
 bern p = superpose [(p, dirac true), (1-p, dirac false)]
+
+mix :: (Mochastic repr) => repr (Vector Prob) -> repr (Measure Int)
+mix v = weight (sumV v) (categorical v)
 
 class (Base repr) => Integrate repr where
   integrate :: repr Real -> repr Real -> (repr Real -> repr Prob) -> repr Prob
