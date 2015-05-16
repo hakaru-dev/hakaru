@@ -53,8 +53,8 @@ runDisintegratePretty :: (Backward a a) =>
 runDisintegratePretty = print . map runPrettyPrint . runDisintegrate
 
 main :: IO ()
-main = -- runDisintegratePretty zeroAddReal
-    runTestTT important >> return ()
+main = runDisintegratePretty borelishSub
+    -- runTestTT important >> return ()
 
 -- 2015-04-09
 --------------------------------------------------------------------------------
@@ -354,3 +354,13 @@ marsaglia _ =
   if_ (s `less_` 1)
       (dirac (pair (x * sqrt (-2 * log s / s)) unit))
       (superpose [])
+
+-- | Show that uniform should not always evaluate its arguments
+-- Here disintegrate goes forward on x before going backward on x,
+-- causing the non-default implementation of uniform
+-- (which evaluates the lower bound x) to fail
+t11 :: (Mochastic repr) => Cond repr () (Measure (Real, ()))
+t11 = \u -> ununit u $
+      uniform 0 1 `bind` \x ->
+      uniform x 1 `bind` \y ->
+      dirac (pair (x + (y + y)) unit)
