@@ -109,6 +109,8 @@ testMeasureReal = test
   , "lebesgue3" ~: testSS [lebesgue `bind` \x -> if_ (and_ [less x 42, less 40 x]) (dirac x) (superpose [])] (weight 2 $ uniform 40 42)
   , "testexponential" ~: testS testexponential
   , "testcauchy" ~: testS testCauchy
+  , "exceptionLebesgue" ~: testSS [lebesgue `bind` \x -> dirac (if_ (equal x 3) 1 x)] lebesgue
+  , "exceptionUniform"  ~: testSS [uniform 2 4 `bind` \x -> dirac (if_ (equal x 3) 1 x)] (uniform 2 4)
     -- "two_coins" ~: testS two_coins -- needs support for lists
     ]
 
@@ -116,6 +118,8 @@ testMeasureInt :: Test
 testMeasureInt = test
   [ "t75"  ~: testS t75
   , "t75'" ~: testS t75'
+  , "exceptionCounting" ~: testSS [] (counting `bind` \x -> dirac (if_ (equal x 3) 1 x)) -- Jacques wrote: "bug: [simp_pw_equal] implicitly assumes the ambient measure is Lebesgue"
+  , "exceptionSuperpose" ~: testSS [(superpose [(1/3, dirac 2), (1/3, dirac 3), (1/3, dirac 4)] `asTypeOf` counting) `bind` \x -> dirac (if_ (equal x 3) 1 x)] (let p = fromRational (1/3) in superpose [(p, dirac 1), (p, dirac 2), (p, dirac 4)])
     ]
 
 testMeasurePair :: Test
