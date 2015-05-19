@@ -103,6 +103,7 @@ testMeasureReal = test
   , "t74d" ~: testSS [t74d] (uniform 1 3)
   , "t76" ~: testS t76
   , "t78" ~: testSS [t78] t78'
+  , "t79" ~: testSS [t79] (dirac 1)
   , "kalman" ~: testS kalman
   , "lebesgue1" ~: testSS [] (lebesgue `bind` \x -> if_ (less 42 x) (dirac x) (superpose []))
   , "lebesgue2" ~: testSS [] (lebesgue `bind` \x -> if_ (less x 42) (dirac x) (superpose []))
@@ -721,6 +722,10 @@ t78, t78' :: (Lambda repr, Mochastic repr) => repr (Measure Real)
 t78 = uniform 0 2 `bind` \x2 -> weight (unsafeProb x2) (dirac x2)
 t78' = liftM (fromProb . (*2)) (beta 2 1)
 
+-- what does this simplify to?
+t79 :: (Mochastic repr) => repr (Measure Real)
+t79 = dirac 3 `bind` \x -> dirac (if_ (equal x 3) 1 x)
+
 -- Testing round-tripping of some other distributions
 testexponential :: Mochastic repr => repr (Measure Prob)
 testexponential = exponential (1/3)
@@ -1311,12 +1316,12 @@ kalman :: (Mochastic repr, Lambda repr) =>
                 (Prob, (Prob, (Real, (Real, (Real, Prob))))) ->
                 Real -> Measure Real)
 kalman = lam $ \m -> lam $ \n -> reflect m `bindo` reflect n
-  where reflect m =
-          unpair m $ \a m ->
-          unpair m $ \b m ->
-          unpair m $ \c m ->
-          unpair m $ \d m ->
-          unpair m $ \e f ->
+  where reflect m0 =
+          unpair m0 $ \a m1 ->
+          unpair m1 $ \b m2 ->
+          unpair m2 $ \c m3 ->
+          unpair m3 $ \d m4 ->
+          unpair m4 $ \e f ->
           lam $ \s ->
           weight (a * exp_ (- fromProb b * (s - c) ** 2)) $
           normal (d * s + e) f
