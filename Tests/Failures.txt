@@ -1,6 +1,6 @@
-As of Tues. May. 5th, the failures are as follows:
+As of Fri. May. 22nd, the failures are as follows:
 
-Rob would like test kalman to roundtrip
+Rob would like test rmProg4 to roundtrip
 
 RoundTrip:
 t56 - probable bug in convert/Heaviside
