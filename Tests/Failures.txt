@@ -1,5 +1,7 @@
 As of Tues. May. 5th, the failures are as follows:
 
+Rob would like test kalman to roundtrip
+
 RoundTrip:
 t56 - probable bug in convert/Heaviside
 t57 - probable bug in convert/Heaviside
