@@ -692,11 +692,18 @@ SLO := module ()
       end if;
     elif type(w, `+`) then
       # if not isPos(w) then WARNING("cannot insure it will not crash") end if;
-      unsafeProb(w);  # remember that we're in log-space, so this is cheapest
+      typ := infer_type(w, ctx);
+      if member(typ, {Prob, Real}) then # if it is uni-typed
+        unsafeProb(w);  # remember that we're in log-space, so this is cheapest
+      elif typ = Mixed then # need to cast to real, then back to Prob
+        unsafeProb(mkReal(w, ctx))
+      else # uh?
+        error "in mkProb, got that (%1) is of type %2.", w, typ;
+      end if;
     elif type(w, 'exp'(anything)) then
       exp_(mkReal(op(1,w), ctx));
     elif type(w, 'erf'(anything)) then
-      erf_(mkProb(op(1,w)));
+      erf_(mkProb(op(1,w), ctx));
     elif type(w, 'ln'(anything)) then
       error "mkProb ln: %1", w;
     elif type(w, anything^{identical(1/2), identical(-1/2)}) then
@@ -706,14 +713,17 @@ SLO := module ()
       elif typ = 'Number' then # is this right?
         w
       else
-        mkProb(op(1,w), ctx) ^ op(2,w)
+        `if`(op(2,w)=1/2, sqrt_, recip@sqrt_)(mkProb(op(1,w), ctx))
       end if;
+    elif type(w, anything^posint) then
+      typ := infer_type(op(1,w), ctx);
+      IntPow(`if`(member(typ,{Prob,Number}), op(1,w), unsafeProb(op(1,w))), op(2,w));
     elif type(w, anything^negint) then
       typ := infer_type(op(1,w), ctx);
       if member(typ,{Prob, Number}) then
-        op(1,w)^op(2,w)
+        recip(IntPow(op(1,w), -op(2,w)))
       else
-        unsafeProb(op(1,w))^op(2,w)
+        recip(IntPow(unsafeProb(op(1,w)),op(2,w)))
       end if;
     elif type(w, anything^fraction) then # won't be sqrt
       unsafeProb(w);
@@ -746,9 +756,9 @@ SLO := module ()
         typ := infer_type(prob, ctx);
         # if prob :: Prob and rl :: Nat, push it in
         if typ=Prob and infer_type(rl, ctx) = Nat then
-          fromProb(rl * prob)
+          fromProb(rl * mkProb(prob, ctx)); # fixes up powering
         elif typ=Prob then
-          rl * fromProb(prob)
+          rl * fromProb(mkProb(prob, ctx)); # fixes up powering
         elif typ=Mixed then
           rl * maptype(`*`, mkReal, prob, ctx)
         else
@@ -771,6 +781,8 @@ SLO := module ()
       typ := infer_type(w, ctx);
       if member(typ ,{'Real', 'Number', 'Int', 'Nat'}) then
         w
+      elif typ = Prob then
+        fromProb(mkProb(w, ctx)); # fixes up powering
       else
         error "don't know how to make (%1) real", w;
       end if;
