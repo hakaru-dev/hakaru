@@ -676,7 +676,7 @@ SLO := module ()
             # make sure the rest really is positive
             # if not isPos(rest) then WARNING("cannot insure it will not crash") end if;
             if pos = 1 then
-              unsafeProb(rest); # res it the whole thing, don't recurse!
+              unsafeProb(rest); # rest is the whole thing, don't recurse!
             else
               pos * mkProb(rest, ctx)
             end if;
@@ -690,6 +690,9 @@ SLO := module ()
           end if;
         end if;
       end if;
+    elif type(w, `+`) then
+      # if not isPos(w) then WARNING("cannot insure it will not crash") end if;
+      unsafeProb(w);  # remember that we're in log-space, so this is cheapest
     elif type(w, 'exp'(anything)) then
       exp_(mkReal(op(1,w), ctx));
     elif type(w, 'erf'(anything)) then
@@ -732,7 +735,7 @@ SLO := module ()
   end proc;
 
   mkReal := proc(w, ctx)
-    local prob, rl, typ;
+    local prob, rl, typ, expo;
     if w::`*` then
       rl, prob := selectremove(
           x->evalb(member(infer_type(x,ctx),{Real,Number,Int,Nat})), w);
@@ -756,6 +759,14 @@ SLO := module ()
       map(mkReal, w, ctx) # might want to optimize this as above
     elif type(w, 'specfunc'(anything, {cos, sin, exp,erf})) then
       map(mkReal, w, ctx)
+    elif type(w, anything ^ integer) then
+      expo := op(2,w);
+      rl := mkReal(op(1,w), ctx);
+      if expo = -1 then
+        recip(rl)
+      else
+        IntPow(rl, expo)
+      end if;
     else
       typ := infer_type(w, ctx);
       if member(typ ,{'Real', 'Number', 'Int', 'Nat'}) then
