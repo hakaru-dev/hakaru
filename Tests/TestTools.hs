@@ -3,9 +3,9 @@
 
 module Tests.TestTools where
 
-import Language.Hakaru.Syntax (Measure, Lambda(lam), Order_)
+-- import Language.Hakaru.Syntax (Measure, Lambda(lam), Order_)
 import Language.Hakaru.Maple (Maple, runMaple)
-import Language.Hakaru.Simplify (simplify, Simplifiable, toMaple)
+import Language.Hakaru.Simplify (simplify, Simplifiable)
 import Language.Hakaru.Any (Any(unAny), Any')
 import Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode)
 import Text.PrettyPrint (Doc)
