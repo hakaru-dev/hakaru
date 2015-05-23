@@ -1,5 +1,7 @@
 As of Sat. May. 23rd, the failures are as follows:
 
+Rob would like test rmProg4 to roundtrip
+
 RoundTrip:
 t44Mul - unsafeProb goes in too deep
 t56 - probable bug in convert/Heaviside
