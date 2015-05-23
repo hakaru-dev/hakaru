@@ -3,7 +3,6 @@ As of Sat. May. 23rd, the failures are as follows:
 Rob would like test rmProg4 to roundtrip
 
 RoundTrip:
-t44Mul - unsafeProb goes in too deep
 t56 - probable bug in convert/Heaviside
 t57 - probable bug in convert/Heaviside
 t58 - probable bug in convert/Heaviside
@@ -15,7 +14,6 @@ t65 - different now, need to investigate
 t45 - pw/domain interaction with density recognition
 t50 - Prob/Real inference issue
 t78 - expects a change of variables?
-kalman - inference issue
 exceptionLebesgue - ???
 t52 - ordering issue
 mhPriorProp - difference in result (not analyzed yet)
@@ -23,7 +21,7 @@ t75 - time expired
 t75' - time expired
 exceptionCounting - counting mis-simplifies
 testRoadMapProg1 - time expired
-testRoadMapProg4 - Don't know how to make 1/... real
+testRoadMapProg4 - piecewise in answer?
 testKernel - failure to recognize a normal under a conditional
 testFalseDetection: time expired
 testTrueDetectionL: 1 <= FAIL

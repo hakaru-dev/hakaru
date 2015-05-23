@@ -656,7 +656,7 @@ SLO := module ()
   end proc;
 
   mkProb := proc(w, ctx)
-    local typ, pb, rl, pos, rest;
+    local typ, pb, rl, pos, rest, base, expo;
     if type(w, `*`) then
       pb, rl := selectremove(x->evalb(infer_type(x,ctx)=Prob), w);
       # have to adjust pb anyways, in case of sqrt, etc.
@@ -707,23 +707,30 @@ SLO := module ()
     elif type(w, 'ln'(anything)) then
       error "mkProb ln: %1", w;
     elif type(w, anything^{identical(1/2), identical(-1/2)}) then
-      typ := infer_type(op(1,w), ctx);
+      (base, expo) := op(w);
+      typ := infer_type(base, ctx);
       if typ = 'Prob' then
-        `if`(op(2,w)=1/2, sqrt_, recip@sqrt_)(op(1,w))
+        `if`(expo=1/2, sqrt_, recip@sqrt_)(base)
       elif typ = 'Number' then # is this right?
         w
       else
-        `if`(op(2,w)=1/2, sqrt_, recip@sqrt_)(mkProb(op(1,w), ctx))
+        `if`(expo=1/2, sqrt_, recip@sqrt_)(mkProb(base, ctx))
       end if;
     elif type(w, anything^posint) then
-      typ := infer_type(op(1,w), ctx);
-      IntPow(`if`(member(typ,{Prob,Number}), op(1,w), unsafeProb(op(1,w))), op(2,w));
-    elif type(w, anything^negint) then
-      typ := infer_type(op(1,w), ctx);
-      if member(typ,{Prob, Number}) then
-        recip(IntPow(op(1,w), -op(2,w)))
+      (base, expo) := op(w);
+      typ := infer_type(base, ctx);
+      if member(typ,{Prob,Number}) then
+        IntPow(base, expo)
       else
-        recip(IntPow(unsafeProb(op(1,w)),op(2,w)))
+        unsafeProb(base^expo)
+      end if
+    elif type(w, anything^negint) then
+      (base, expo) := op(w);
+      typ := infer_type(base, ctx);
+      if member(typ,{Prob, Number}) then
+        recip(IntPow(base, -expo))
+      else
+        recip(unsafeProb(base ^ (-expo)))
       end if;
     elif type(w, anything^fraction) then # won't be sqrt
       unsafeProb(w);
@@ -773,7 +780,7 @@ SLO := module ()
       expo := op(2,w);
       rl := mkReal(op(1,w), ctx);
       if expo = -1 then
-        recip(rl)
+        1/rl # no need for recip in Real case
       else
         IntPow(rl, expo)
       end if;
