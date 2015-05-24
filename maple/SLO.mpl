@@ -11,7 +11,7 @@ SLO := module ()
   export ModuleApply, AST, simp, flip_cond, condToProp,
     c; # very important: c is "global".
   local ToAST, t_binds, t_pw, t_rel,
-    into_pw, myprod, do_pw,
+    into_pw, myprod, do_pw, do_pw_weight, 
     mkProb, getCtx, instantiate, lambda_wrap, find_paths,
     mkReal,
     fill_table, toProp, toType,
@@ -92,7 +92,8 @@ SLO := module ()
   # recursive function which does the main translation
   ToAST := proc(inp, ctx)
     local a0, a1, var, vars, rng, ee, cof, d, ld, weight, binders,
-      v, subst, inv_subst, ivars, ff, newvar, rest, a, b, e;
+      v, subst, inv_subst, ivars, ff, newvar, rest, a, b, e,
+      inv_map;
     e := inp; # make e mutable
     if type(e, specfunc(name, c)) then
       return Return(op(e))
@@ -107,12 +108,14 @@ SLO := module ()
     # invariant: we depend on c
     else
       binders := indets(e, t_binds);
-      vars := indets(e, specfunc(anything, c));
-      subst := map(x-> x = gensym(`cc_`), vars);
-      inv_subst := map(z -> op(2,z) = op(op(1,z)), subst);
-      ivars := map2(op, 2, subst);
       if binders = {} then
         # this is a 'raw' measure, with no integrals
+        vars := indets(e, specfunc(anything, c));
+        subst := map(x-> x = gensym(`cc_`), vars);
+        inv_map := zz -> op(eval(op(1,zz), 
+            piecewise=(proc() do_pw_weight([args]) end)));
+        inv_subst := map(z -> op(2,z) = inv_map(z), subst);
+        ivars := map2(op, 2, subst);
         ee := subs(subst, e);
         if type(ee, 'polynom'(anything,ivars)) then
           ee := collect(ee, ivars, 'distributed', simplify);
@@ -631,6 +634,18 @@ SLO := module ()
     end if;
   end;
 
+  # this assumes we are doing pw of weight.
+  do_pw_weight := proc(l)
+    local len;
+    len := nops(l);
+    if len = 0 then 0 # is this right?
+    elif len = 1 then l[1]
+    else # len>2.
+      # should analyze and simplify things depending on cond
+      If(l[1], l[2], thisproc(l[3..-1], ctx))
+    end if;
+  end;
+
   # conservative determination of the domain of definition wrt var
   DomainOfDef := proc(expr, var, rng)
     local rng2;
@@ -1029,16 +1044,9 @@ SLO := module ()
       Int; # need to track integer specifically; polymorphism handled elsewhere
     elif type(e, 'fraction') then
       Number # constants are polymorphic!
-    elif type(e, specfunc(anything, 'piecewise')) then
-      typ := NULL;
-      for l from 1 to nops(e) do
-        if l::odd and l<nops(e) then
-          next;
-        else # last or e:: evan
-          typ := typ, infer_type(op(l, e), ctx)
-        end if;
-      end do;
-      join_type(typ);
+    elif type(e, specfunc(anything, 'If')) then
+      # infer_type(op(1,e)); # should be Boolean
+      join_type(infer_type(op(2,e),ctx), infer_type(op(3,e), ctx));
     elif type(e, {specfunc(anything, 'NormalD')}) then
       Measure(Real)
     elif type(e, specfunc(anything, 'Superpose')) then
