@@ -3,9 +3,11 @@ As of Sat. May. 23rd, the failures are as follows:
 Rob would like test rmProg4 to roundtrip
   -- Jacques replies: this is a prototypical case where we 
      really need 'constrain'.
+  -- what is in the test currently roundtrips, but it is far
+     from fully simplified (see above)
 
 Real bugs:
-t50, exceptionLebesgue, testRoadMapleProg4, testTrueDetectionL,
+t50, exceptionLebesgue, testTrueDetectionL,
 testTrueDetectionR, t12, t13, t21, t22, t24, t25, 
 
 Needs investigation:
@@ -38,7 +40,6 @@ t75 - time expired
 t75' - time expired
 exceptionCounting - counting mis-simplifies
 testRoadMapProg1 - time expired
-testRoadMapProg4 - lots of Real/Prob issues
 testKernel - failure to recognize a normal under a conditional
 testFalseDetection: time expired
 testTrueDetectionL: 1 <= FAIL
