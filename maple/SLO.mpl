@@ -672,44 +672,38 @@ SLO := module ()
 
   mkProb := proc(w, ctx)
     local typ, pb, rl, pos, rest, base, expo;
-    if type(w, `*`) then
-      pb, rl := selectremove(x->evalb(infer_type(x,ctx)=Prob), w);
-      # have to adjust pb anyways, in case of sqrt, etc.
-      pb := maptype(`*`, mkProb, pb, ctx);
-      # all parts are Prob
-      if rl = 1 then
-        pb
+    if type(w, {integer, rational}) then
+      if w < 0 then
+        error "mkProb a negative number (%1)", w
       else
-        # if there are multiple Real parts
-        if type(rl, `*`) then
-          pos, rest := selectremove(isPos, rl);
-          # deal with pos part right away:
-          pos := pb * maptype(`*`, mkProb, pos, ctx);
-          if rest = 1 then
-            pos
-          else
-            # make sure the rest really is positive
-            # if not isPos(rest) then WARNING("cannot insure it will not crash") end if;
-            if pos = 1 then
-              unsafeProb(rest); # rest is the whole thing, don't recurse!
-            else
-              pos * mkProb(rest, ctx)
-            end if;
-          end if;
-        else # otherwise rl is a single thing
-          # if not isPos(rl) then WARNING("cannot insure it will not crash") end if;
-          if pb = 1 then
-            unsafeProb(rl); # rl is the whole thing, don't recurse!
-          else
-            pb * mkProb(rl, ctx); # go ahead
-          end if;
+        w
+      end if;
+    elif type(w, `*`) then
+      pb, rl := selectremove(x->evalb(member(infer_type(x,ctx),{Prob,Nat})), w);
+      # have to adjust pb anyways, in case of sqrt, etc.
+      pb := `if`(type(pb, {integer, rational}), pb, maptype(`*`, mkProb, pb, ctx));
+      if type(rl, `*`) then
+        pos, rest := selectremove(isPos, rl);
+        pos := pb * maptype(`*`, mkProb, pos, ctx);
+        if rest = 1 then 
+          pos
+        else
+          pos * unsafeProb(mkReal(rest, ctx))
+        end if;
+      else
+        if type(rl,rational) and rl>0 then
+          pb*rl
+        else
+          pb*unsafeProb(mkReal(rl, ctx)); # should check rl>0! TODO
         end if;
       end if;
     elif type(w, `+`) then
       # if not isPos(w) then WARNING("cannot insure it will not crash") end if;
       typ := infer_type(w, ctx);
-      if member(typ, {Prob, Real}) then # if it is uni-typed
-        unsafeProb(w);  # remember that we're in log-space, so this is cheapest
+      if typ=Prob then
+        map(mkProb, w, ctx) # need to deal with exponents
+      elif typ=Real then
+        unsafeProb(mkReal(w,ctx));  # remember that we're in log-space, so this is cheapest
       elif typ = Mixed then # need to cast to real, then back to Prob
         unsafeProb(mkReal(w, ctx))
       else # uh?
@@ -723,29 +717,30 @@ SLO := module ()
       error "mkProb ln: %1", w;
     elif type(w, anything^{identical(1/2), identical(-1/2)}) then
       (base, expo) := op(w);
-      typ := infer_type(base, ctx);
-      if typ = 'Prob' then
-        `if`(expo=1/2, sqrt_, recip@sqrt_)(base)
-      elif typ = 'Number' then # is this right?
-        w
-      else
-        `if`(expo=1/2, sqrt_, recip@sqrt_)(mkProb(base, ctx))
-      end if;
+      `if`(expo=1/2, sqrt_, recip@sqrt_)(mkProb(base, ctx))
     elif type(w, anything^posint) then
       (base, expo) := op(w);
       typ := infer_type(base, ctx);
-      if member(typ,{Prob,Number}) then
+      # cases are to optimize (minimize) the placement of unsafeProb
+      if typ = Number then
         IntPow(base, expo)
+      elif typ = Prob then
+        IntPow(mkProb(base,ctx), expo)
+      elif member(typ, {Real, Mixed}) then
+        unsafeProb(mkReal(base, ctx)^expo)
       else
-        unsafeProb(base^expo)
+        error "mkProb of (%1)", w
       end if
     elif type(w, anything^negint) then
       (base, expo) := op(w);
       typ := infer_type(base, ctx);
-      if member(typ,{Prob, Number}) then
+      # cases are to optimize the placement of unsafeProb
+      if typ = Number then
         recip(IntPow(base, -expo))
+      elif typ = Prob then
+        recip(IntPow(mkProb(base,ctx), -expo))
       else
-        recip(unsafeProb(base ^ (-expo)))
+        recip(unsafeProb(IntPow(base, -expo)))
       end if;
     elif type(w, anything^fraction) then # won't be sqrt
       unsafeProb(w);
@@ -768,21 +763,23 @@ SLO := module ()
 
   mkReal := proc(w, ctx)
     local prob, rl, typ, expo;
-    if w::`*` then
+    if type(w,{integer,fraction}) then
+      w
+    elif w::`*` then
       rl, prob := selectremove(
-          x->evalb(member(infer_type(x,ctx),{Real,Number,Int,Nat})), w);
+          x->evalb(member(infer_type(x,ctx),{Real,Number,Int})), w);
+      rl := maptype(`*`, mkReal, rl, ctx);
       # all parts are Real (or so Haskell will think so)
       if prob = 1 then
         rl
       else
         typ := infer_type(prob, ctx);
-        # if prob :: Prob and rl :: Nat, push it in
-        if typ=Prob and infer_type(rl, ctx) = Nat then
-          fromProb(rl * mkProb(prob, ctx)); # fixes up powering
-        elif typ=Prob then
+        if typ=Prob then
           rl * fromProb(mkProb(prob, ctx)); # fixes up powering
         elif typ=Mixed then
           rl * maptype(`*`, mkReal, prob, ctx)
+        elif typ=Nat then
+          prob * rl;
         else
           error "(%1) is neither Mixed nor Prob!?!", prob;
         end if;
@@ -794,17 +791,26 @@ SLO := module ()
     elif type(w, anything ^ integer) then
       expo := op(2,w);
       rl := mkReal(op(1,w), ctx);
-      if expo = -1 then
-        1/rl # no need for recip in Real case
-      else
-        IntPow(rl, expo)
-      end if;
-    else
+      rl^expo
+    elif type(w, anything ^ fraction) then
+      expo := op(2,w);
+      rl := mkReal(op(1,w), ctx);
+      rl ^ expo;
+    elif type(w, 'symbol') then
       typ := infer_type(w, ctx);
       if member(typ ,{'Real', 'Number', 'Int', 'Nat'}) then
         w
       elif typ = Prob then
-        fromProb(mkProb(w, ctx)); # fixes up powering
+        fromProb(w);
+      else
+        error "don't know how to make symbol (%1) real", w;
+      end if;
+    elif type(w, specfunc(anything, 'If')) then
+      If(op(1,w), mkReal(op(2,w), ctx), mkReal(op(3,w),ctx))
+    else
+      typ := infer_type(w, ctx);
+      if member(typ ,{'Number'}) then
+        w
       else
         error "don't know how to make (%1) real", w;
       end if;
