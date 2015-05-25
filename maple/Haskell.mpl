@@ -256,19 +256,21 @@ bi["If"] := proc()
   ASSERT(_npassed>0);
   if _npassed = 1 then p(_passed[1])
   elif _npassed = 2 then
-    b:-append("if_ ");
+    b:-append("(if_ ");
     lparen(); p(_passed[1]); rparen();
     sp();
     lparen(); p(_passed[2]); rparen();
     sp();
-    b:-append("0");
+    b:-append("0)");
   else
+    lparen();
     b:-append("if_ ");
     lparen(); p(_passed[1]); rparen();
     sp();
     lparen(); p(_passed[2]); rparen();
     sp();
     lparen(); thisproc(_passed[3..-1]); rparen();
+    rparen();
   end if;
 end;
 
