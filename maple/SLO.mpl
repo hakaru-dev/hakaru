@@ -1262,6 +1262,8 @@ SLO := module ()
           If(cond, left, right);
         end if;
       end if;
+    elif e = Lebesgue and typ = 'Measure(Real)' then
+      e
     elif type(e, 'Uniform'(anything, anything)) and typ = 'Measure(Real)' then
       e
     elif type(e, 'Uniform'(anything, anything)) and typ = 'Measure(Prob)' then
