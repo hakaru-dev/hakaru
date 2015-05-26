@@ -434,11 +434,17 @@ instance (Base repr, Fractional (repr a), Fraction a) =>
 
 atom1 :: (Base repr) => (repr a -> repr a) -> Hnf s repr a -> Hnf s repr a
 atom1 op = Value . op . forget
+
+atom2 :: (Base repr) => (repr a -> repr b -> repr c)
+      -> Hnf s repr a -> Hnf s repr b -> Hnf s repr c
+atom2 op a b = Value $ op (forget a) (forget b)
                          
 instance (Base repr) => Floating (Hnf s repr Real) where
   pi    = Value pi
   exp   = atom1 exp
   log   = atom1 log
+  (**)  = atom2 (**)
+  sqrt  = atom1 sqrt
   sin   = atom1 sin
   cos   = atom1 cos
   asin  = atom1 asin
@@ -618,6 +624,11 @@ instance (Mochastic repr, Lub repr) =>
     (\t -> do u <- atomize t
               insert_ (weight (exp_ u))
               backward x (exp t))
+  sqrt x = Lazy
+    (liftM sqrt (forward x))
+    (\t -> do u <- atomize t
+              insert_ (weight (unsafeProb u))
+              backward x (t*t))
   sin x = Lazy
     (liftM sin (forward x))
     (\t -> do n <- liftM (Value . fromInt) (lift counting)

@@ -381,10 +381,22 @@ marsaglia _ =
 
 -- | Show that uniform should not always evaluate its arguments
 -- Here disintegrate goes forward on x before going backward on x,
--- causing the non-default implementation of uniform
--- (which evaluates the lower bound x) to fail
+-- causing the failure of the non-default implementation of uniform
+-- (which evaluates the lower bound x)
 t11 :: (Mochastic repr) => Cond repr () (Measure (Real, ()))
 t11 = \u -> ununit u $
       uniform 0 1 `bind` \x ->
       uniform x 1 `bind` \y ->
       dirac (pair (x + (y + y)) unit)
+
+t12 :: (Mochastic repr) => Cond repr () (Measure (Prob, Real))
+t12 = \u -> ununit u $
+      normal 0 1 `bind` \x ->
+      dirac 10 `bind` \y ->
+      dirac (pair (sqrt_ $ unsafeProb (x ** 2 + y ** 2)) x)
+
+t13 :: (Mochastic repr) => Cond repr () (Measure (Real, Real))
+t13 = \u -> ununit u $
+      normal 0 1 `bind` \x ->
+      dirac 10 `bind` \y ->
+      dirac (pair (sqrt (x ** 2 + y ** 2)) x)
