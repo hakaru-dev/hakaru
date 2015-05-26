@@ -624,6 +624,17 @@ instance (Mochastic repr, Lub repr) =>
     (\t -> do u <- atomize t
               insert_ (weight (exp_ u))
               backward x (exp t))
+  x ** y = Lazy
+    (liftM2 (**) (forward x) (forward y))
+    (\t -> lub (do r <- forward x
+                   w <- atomize (recip (t * log r))
+                   insert_ (weight (unsafeProb w))
+                   backward y (log t / log r))
+               (do r <- forward y
+                   let ex = t ** (recip r)
+                   w <- atomize (ex / (r * t))
+                   insert_ (weight (unsafeProb w))
+                   backward x ex))
   sqrt x = Lazy
     (liftM sqrt (forward x))
     (\t -> do u <- atomize t
