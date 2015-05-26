@@ -7,8 +7,12 @@ Rob would like test rmProg4 to roundtrip
      from fully simplified (see above)
 
 Real bugs:
-t50, exceptionLebesgue, testTrueDetectionL,
-testTrueDetectionR, t12, t13, t21, t22, t24, t25, 
+testTrueDetectionL, testTrueDetectionR : due to fundamental 
+  assumptions inside simp routines that frozen expressions 
+  are 'polynomial'.  This assumption is *wrong*.
+
+t50,
+t12, t13, t21, t22, t24, t25, 
 
 Needs investigation:
 t56, t57, t58, t9
@@ -33,7 +37,6 @@ t65 - different now, need to investigate
 t45 - pw/domain interaction with density recognition
 t50 - Prob/Real inference issue
 t78 - expects a change of variables?
-exceptionLebesgue - ???
 t52 - ordering issue
 mhPriorProp - difference in result (not analyzed yet)
 t75 - time expired
