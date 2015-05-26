@@ -745,22 +745,28 @@ SLO := module ()
       else
         recip(unsafeProb(IntPow(base, -expo)))
       end if;
-    elif type(w, anything^fraction) then # won't be sqrt
-      unsafeProb(w);
+    elif type(w, anything^anything) then # won't be sqrt
+      pow_(mkProb(op(1,w), ctx), mkReal(op(2,w), ctx))
     elif type(w, 'unsafeProb'(anything)) then
       error "there should be no unsafeProb in %1", w
-    else
+    elif type(w, 'symbol') then
       typ := infer_type(w, ctx);
-      # Number is a cheat, as it might be negative!
-      if member(typ, {'Prob', 'Nat', 'Number'}) then
+      if member(typ, {'Prob', 'Nat'}) then
         w
-      elif typ = 'Real' or type = 'Int' then
-        # we are going to need to cast.  Is it safe?
-        # if not isPos(w) then WARNING("cannot insure it will not crash") end if;
-        unsafeProb(w);
+      elif typ=Number then
+        if w>=0 then 
+          w
+        else
+          error "mkProb of non-positive number (%1)", w
+        end if
+      elif typ=Real or typ=Int then
+        unsafeProb(w)
       else
-        error "how do I make a Prob from %1 in %2", w, eval(_EnvTypes)
+        error "mkProb of unknown symbol (%1)", w
       end if;
+    else
+      # don't hope it will go through!
+      error "how do I make a Prob from %1 in %2", w, eval(_EnvTypes)
     end if;
   end proc;
 
