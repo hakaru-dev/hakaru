@@ -627,7 +627,7 @@ instance (Mochastic repr, Lub repr) =>
   sqrt x = Lazy
     (liftM sqrt (forward x))
     (\t -> do u <- atomize t
-              insert_ (weight (unsafeProb u))
+              insert_ (weight (unsafeProb (2*u)))
               backward x (t*t))
   sin x = Lazy
     (liftM sin (forward x))
