@@ -65,22 +65,19 @@ main :: IO ()
 main = -- justRun nonDefaultTests
        runDisintegratePretty prog1s
 
+-- | TODO: understand why the following fail to use non-default uniform
+-- prog1s, prog2s, prog3s, (const culpepper), t3, t4, t9, marsaglia
 nonDefaultTests :: Test
 nonDefaultTests = test [ nonDefault "uniform" borelishSub
                        , nonDefault "uniform" borelishDiv
-                       -- , nonDefault "uniform" (const culpepper)
-                       -- , nonDefault "uniform" density1
-                       -- , nonDefault "uniform" density2
-                       -- , nonDefault "uniform" t1
-                       -- , nonDefault "uniform" t2
-                       -- , nonDefault "uniform" t3
-                       -- , nonDefault "uniform" t4
-                       -- , nonDefault "uniform" t5
-                       -- , nonDefault "uniform" t6
-                       -- , nonDefault "uniform" t7
-                       -- , nonDefault "uniform" t8
-                       -- , nonDefault "uniform" t9
-                       -- , nonDefault "uniform" marsaglia
+                       , nonDefault "uniform" density1
+                       , nonDefault "uniform" density2
+                       , nonDefault "uniform" t1
+                       , nonDefault "uniform" t2
+                       , nonDefault "uniform" t5
+                       , nonDefault "uniform" t6
+                       , nonDefault "uniform" t7
+                       , nonDefault "uniform" t8
                        ]
 
 -- 2015-04-09
