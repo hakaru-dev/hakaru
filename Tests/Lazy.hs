@@ -22,6 +22,7 @@ import qualified Examples.EasierRoadmap as RM
 
 import Data.Typeable (Typeable)    
 import Test.HUnit
+import qualified Data.List as L
 
 recover :: (Typeable a) => PrettyPrint a -> IO (Any a)
 recover hakaru = closeLoop ("Any (" ++ leftMode (runPrettyPrint hakaru) ++ ")")
@@ -52,9 +53,35 @@ runDisintegratePretty :: (Backward a a) =>
                          Cond PrettyPrint env (Measure (a,b)) -> IO ()
 runDisintegratePretty = print . map runPrettyPrint . runDisintegrate
 
+nonDefault :: (Backward a a) => String
+           -> Cond PrettyPrint env (Measure (a,b)) -> Assertion
+nonDefault s = assertBool "not calling non-default implementation" . any id .
+               map (L.isInfixOf s . leftMode . runPrettyPrint) . runDisintegrate
+
+justRun :: Test -> IO ()
+justRun t = runTestTT t >> return ()
+                   
 main :: IO ()
-main = runDisintegratePretty borelishSub
-    -- runTestTT important >> return ()
+main = -- justRun nonDefaultTests
+       runDisintegratePretty prog1s
+
+nonDefaultTests :: Test
+nonDefaultTests = test [ nonDefault "uniform" borelishSub
+                       , nonDefault "uniform" borelishDiv
+                       -- , nonDefault "uniform" (const culpepper)
+                       -- , nonDefault "uniform" density1
+                       -- , nonDefault "uniform" density2
+                       -- , nonDefault "uniform" t1
+                       -- , nonDefault "uniform" t2
+                       -- , nonDefault "uniform" t3
+                       -- , nonDefault "uniform" t4
+                       -- , nonDefault "uniform" t5
+                       -- , nonDefault "uniform" t6
+                       -- , nonDefault "uniform" t7
+                       -- , nonDefault "uniform" t8
+                       -- , nonDefault "uniform" t9
+                       -- , nonDefault "uniform" marsaglia
+                       ]
 
 -- 2015-04-09
 --------------------------------------------------------------------------------
