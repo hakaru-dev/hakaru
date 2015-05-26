@@ -22,7 +22,7 @@ SLO := module ()
     get_breakcond, merge_pw,
     MyHandler, getBinderForm, infer_type, join_type, join2type,
     infer_type_prod, infer_type_sop, check_sop_type,
-    simp_sup, simp_if, into_sup, simp_rel,
+    simp_sup, simp_if, into_sup, simp_rel, simp_npw,
     simp_pw, simp_pw_equal, simp_pw3, simp_Or,
     simp_props, simp_mono, on_rels, flip_rel,
     try_assume,
@@ -200,13 +200,14 @@ SLO := module ()
     end if;
   end proc;
 
+  simp_npw := zz -> `if`(op(1,zz)::t_pw, into_pw(SLO:-c,op(1,zz)), zz);
+
   simp := proc(e)
     option remember, system;
     local binds, pw, substb, substp, subst, csubst, vbinds, vpw,
       ee, zz, vars, all_vars, num, den, push_in, i,
-      cs, simp_poly, simp_prod, simp_npw;
+      cs, simp_poly, simp_prod;
 
-    simp_npw := zz -> `if`(op(1,zz)::t_pw, into_pw(SLO:-c,op(1,zz)), zz);
     if e=undefined or e::numeric or e::SymbolicInfinity then return e end if;
     cs := indets(e, specfunc(anything, c));
     csubst := map(x -> x = simp_npw(map(simp, value(x))), cs);
@@ -229,6 +230,7 @@ SLO := module ()
 
     push_in := proc(c, v)
       local actual, cof, ii, rest, res, var, dom;
+      if c=undefined then return undefined end if;
       cof := c;
       if v=1 then return cof end if;
       actual := thaw(v);
@@ -345,14 +347,15 @@ SLO := module ()
       elif op(2,ee)::t_pw then
         ee := into_pw((x -> Pair(op(1,ee), x)), op(2,ee))
       end if;
-    elif type(ee, anyfunc(anything)) then
+    elif type(ee, specfunc(anything,{sin, cos, tan, arcsin,arccos,
+        arctan, exp, erf})) then
       ee := op(0,ee)(simp(thaw(op(1,ee))));
       if type(op(1,ee), t_pw) then
         ee := into_pw(op(0,ee), op(1,ee))
       end if;
     elif type(ee,`+`) then
       ee := map(simp, thaw(ee))
-    elif type(ee, anything^(fraction)) then
+    elif type(ee, anything^{integer, fraction}) then
       zz := simp(thaw(op(1,ee)));
       if type(zz, t_pw) then
         ee := into_pw((x -> x^op(2,ee)), zz);
