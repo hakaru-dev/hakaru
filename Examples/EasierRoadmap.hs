@@ -47,47 +47,47 @@ easierRoadmapProg2', easierRoadmapProg2'out ::
 easierRoadmapProg2' = d `app` unit
   where [d] = runDisintegrate (\_ -> easierRoadmapProg1)
 easierRoadmapProg2'out =
-    (lam $ \x0 ->
-     lam $ \x1 ->
-     x1 `unpair` \x2 x3 ->
+    (lam $ \_ ->
+     lam $ \m1m2 ->
+     m1m2 `unpair` \m1 m2 ->
      weight 1 $
      weight 1 $
      superpose [(1,
                  weight 1 $
-                 lebesgue `bind` \x4 ->
+                 lebesgue `bind` \noiseT' ->
                  superpose [(1,
                              weight 1 $
-                             lebesgue `bind` \x5 ->
+                             lebesgue `bind` \noiseE' ->
                              weight 1 $
-                             lebesgue `bind` \x6 ->
-                             weight (exp_ (-(x3 - x6) * (x3 - x6)
-                                            * recip (fromProb (2 * exp_ (log_ (unsafeProb x5) * 2))))
-                                     * recip (unsafeProb x5)
+                             lebesgue `bind` \x2 ->
+                             weight (exp_ (-(m2 - x2) * (m2 - x2)
+                                            * recip (fromProb (2 * exp_ (log_ (unsafeProb noiseE') * 2))))
+                                     * recip (unsafeProb noiseE')
                                      * recip (exp_ (log_ (2 * pi_) * (1/2)))) $
                              weight 1 $
-                             lebesgue `bind` \x7 ->
-                             weight (exp_ (-(x6 - x7) * (x6 - x7)
-                                            * recip (fromProb (2 * exp_ (log_ (unsafeProb x4) * 2))))
-                                     * recip (unsafeProb x4)
+                             lebesgue `bind` \x1 ->
+                             weight (exp_ (-(x2 - x1) * (x2 - x1)
+                                            * recip (fromProb (2 * exp_ (log_ (unsafeProb noiseT') * 2))))
+                                     * recip (unsafeProb noiseT')
                                      * recip (exp_ (log_ (2 * pi_) * (1/2)))) $
-                             weight (exp_ (-(x2 - x7) * (x2 - x7)
-                                            * recip (fromProb (2 * exp_ (log_ (unsafeProb x5) * 2))))
-                                     * recip (unsafeProb x5)
+                             weight (exp_ (-(m1 - x1) * (m1 - x1)
+                                            * recip (fromProb (2 * exp_ (log_ (unsafeProb noiseE') * 2))))
+                                     * recip (unsafeProb noiseE')
                                      * recip (exp_ (log_ (2 * pi_) * (1/2)))) $
-                             weight (exp_ (-x7 * x7
-                                            * recip (fromProb (2 * exp_ (log_ (unsafeProb x4) * 2))))
-                                     * recip (unsafeProb x4)
+                             weight (exp_ (-x1 * x1
+                                            * recip (fromProb (2 * exp_ (log_ (unsafeProb noiseT') * 2))))
+                                     * recip (unsafeProb noiseT')
                                      * recip (exp_ (log_ (2 * pi_) * (1/2)))) $
                              weight (recip (unsafeProb 3)) $
                              superpose [(1,
-                                         if_ (x5 `less` 4)
-                                             (if_ (1 `less` x5)
+                                         if_ (noiseE' `less` 4)
+                                             (if_ (1 `less` noiseE')
                                                   (weight (recip (unsafeProb 5)) $
                                                    superpose [(1,
-                                                               if_ (x4 `less` 8)
-                                                                   (if_ (3 `less` x4)
-                                                                        (dirac (pair (unsafeProb x4)
-                                                                                     (unsafeProb x5)))
+                                                               if_ (noiseT' `less` 8)
+                                                                   (if_ (3 `less` noiseT')
+                                                                        (dirac (pair (unsafeProb noiseT')
+                                                                                     (unsafeProb noiseE')))
                                                                         (superpose []))
                                                                    (superpose [])),
                                                               (1, superpose [])])
@@ -115,21 +115,21 @@ easierRoadmapProg3' = simplify easierRoadmapProg2'
 easierRoadmapProg3'out ::
   (Mochastic repr) =>
   repr (Real, Real) -> repr (Measure (Prob, Prob))
-easierRoadmapProg3'out x0 =
+easierRoadmapProg3'out m1m2 =
     weight 5 $
-    uniform 3 8 `bind` \x1 ->
-    uniform 1 4 `bind` \x2 ->
+    uniform 3 8 `bind` \noiseT' ->
+    uniform 1 4 `bind` \noiseE' ->
     weight (recip pi_
-	    * exp_ (((fst_ x0) * (fst_ x0) * (x1 * x1) * 2
-		     + x1 * x1 * (fst_ x0) * (snd_ x0) * (-2)
-		     + (snd_ x0) * (snd_ x0) * (x1 * x1)
-		     + x2 * x2 * ((fst_ x0) * (fst_ x0))
-		     + x2 * x2 * ((snd_ x0) * (snd_ x0)))
-		    * recip (x1 * x1 * (x1 * x1) + x2 * x2 * (x1 * x1) * 3 + x2 * x2 * (x2 * x2))
+	    * exp_ (((fst_ m1m2) * (fst_ m1m2) * (noiseT' * noiseT') * 2
+		     + noiseT' * noiseT' * (fst_ m1m2) * (snd_ m1m2) * (-2)
+		     + (snd_ m1m2) * (snd_ m1m2) * (noiseT' * noiseT')
+		     + noiseE' * noiseE' * ((fst_ m1m2) * (fst_ m1m2))
+		     + noiseE' * noiseE' * ((snd_ m1m2) * (snd_ m1m2)))
+		    * recip (noiseT' * noiseT' * (noiseT' * noiseT') + noiseE' * noiseE' * (noiseT' * noiseT') * 3 + noiseE' * noiseE' * (noiseE' * noiseE'))
 		    * (-1/2))
-	    * pow_ (unsafeProb (x1 ** 4 + x2 ** 2 * x1 ** 2 * 3 + x2 ** 4)) (-1/2)
+	    * pow_ (unsafeProb (noiseT' ** 4 + noiseE' ** 2 * noiseT' ** 2 * 3 + noiseE' ** 4)) (-1/2)
 	    * (1/10)) $
-    dirac (pair (unsafeProb x1) (unsafeProb x2))
+    dirac (pair (unsafeProb noiseT') (unsafeProb noiseE'))
 
 proposal ::
   (Mochastic repr) =>
@@ -171,26 +171,115 @@ easierRoadmapProg4 =
          dirac $ pair noiseTOld noiseE)) (\ntne' ->
   (bern $ min_ 1 (easyDens m1 m2 ntne' / easyDens m1 m2 ntne)) `bind` \accept ->
   dirac $ if_ accept ntne' ntne)
- where easyDens m1 m2 ntne = unpair ntne $ \nt' ne' ->
-                       let_ (fromProb nt') (\nt ->
-                       let_ (fromProb ne') (\ne ->
+ where easyDens m1 m2 ntne = unpair ntne $ \nt ne ->
+                       let_ (fromProb nt) (\nt' ->
+                       let_ (fromProb ne) (\ne' ->
                        recip pi_
-	               * exp_ ((m1 * m1 * (nt * nt) * 2
-		                + nt * nt * m1 * m2 * (-2)
-		                + m2 * m2 * (nt * nt)
-		                + ne * ne * (m1 * m1)
-		                + ne * ne * (m2 * m2))
-		               * recip (nt * nt * (nt * nt)
-                                        + ne * ne * (nt * nt) * 3
-                                        + ne * ne * (ne * ne))
+	               * exp_ ((m1 * m1 * (nt' * nt') * 2
+		                + nt' * nt' * m1 * m2 * (-2)
+		                + m2 * m2 * (nt' * nt')
+		                + ne' * ne' * (m1 * m1)
+		                + ne' * ne' * (m2 * m2))
+		               * recip (nt' * nt' * (nt' * nt')
+                                        + ne' * ne' * (nt' * nt') * 3
+                                        + ne' * ne' * (ne' * ne'))
 		               * (-1/2))
-	               * pow_ (unsafeProb (nt ** 4 + ne ** 2 * nt ** 2 * 3 + ne ** 4)) (-1/2)
+	               * pow_ (unsafeProb (nt' ** 4 + ne' ** 2 * nt' ** 2 * 3 + ne' ** 4)) (-1/2)
 	               * (1/10)))
 
 easierRoadmapProg4' ::
   (Mochastic repr, Integrate repr, Lambda repr) =>
   repr ((Real, Real) -> (Prob, Prob) -> Measure ((Prob, Prob), Prob))
 easierRoadmapProg4' = mh proposal easierRoadmapProg3'out
+
+easierRoadmapProg4'out ::
+  (Mochastic repr, Lambda repr) =>
+  repr ((Real, Real) -> (Prob, Prob) -> Measure ((Prob, Prob), Prob))
+easierRoadmapProg4'out =
+  lam $ \m1m2 ->
+  lam $ \ntne ->
+  unpair m1m2 $ \m1 m2 ->
+  unpair ntne $ \noiseTOld noiseEOld ->
+  let noiseTOld' = fromProb noiseTOld
+      noiseEOld' = fromProb noiseEOld in
+  superpose [(1/2,
+              uniform 1 4 `bind` \noiseE' ->
+              dirac (pair (pair noiseTOld (unsafeProb noiseE'))
+                          (sqrt_ (noiseTOld * noiseTOld * (noiseTOld * noiseTOld)
+                                  + noiseEOld * noiseEOld * (noiseTOld * noiseTOld) * 3
+                                  + noiseEOld * noiseEOld * (noiseEOld * noiseEOld))
+                           * if_ (if_ (noiseTOld `less` 3) true (noiseTOld `equal` 3))
+                                 0
+                                 (if_ (noiseTOld `less` 8) 1 0)
+                           * exp_ ((noiseE' * noiseE' * (m1 * m1)
+                                    + noiseE' * noiseE' * (m2 * m2)
+                                    + m1 * m1 * fromProb (noiseTOld * noiseTOld * 2)
+                                    + m1 * m2 * fromProb (noiseTOld * noiseTOld) * (-2)
+                                    + m2 * m2 * fromProb (noiseTOld * noiseTOld))
+                                   * recip (noiseE' * noiseE' * (noiseE' * noiseE')
+                                            + noiseE' * noiseE' * fromProb (noiseTOld * noiseTOld * 3)
+                                            + noiseTOld' * noiseTOld' * (noiseTOld' * noiseTOld'))
+                                   * (-1/2))
+                           * recip (sqrt_ (unsafeProb (noiseE' ** 4
+                                                       + noiseE' ** 2 * fromProb (noiseTOld * noiseTOld * 3)
+                                                       + noiseTOld' ** 4)))
+                           * unsafeProb (if_ (if_ (noiseEOld `less` 4)
+                                                  (if_ (1 `less` noiseEOld)
+                                                       (if_ (noiseTOld `less` 8)
+                                                            (3 `less` noiseTOld)
+                                                            false)
+                                                       false)
+                                                  false)
+                                             (exp ((m1 ** 2 * fromProb (noiseTOld * noiseTOld * 2)
+                                                    + m1 * m2 * fromProb (noiseTOld * noiseTOld) * (-2)
+                                                    + m2 ** 2 * fromProb (noiseTOld * noiseTOld)
+                                                    + m1 ** 2 * fromProb (noiseEOld * noiseEOld)
+                                                    + m2 ** 2 * fromProb (noiseEOld * noiseEOld))
+                                                   * (noiseTOld' ** 4
+                                                      + fromProb (noiseEOld * noiseEOld * (noiseTOld * noiseTOld) * 3)
+                                                      + noiseEOld' ** 4)
+                                                     ** (-1)
+                                                   * (1/2)))
+                                             infinity)))),
+             (1/2,
+              uniform 3 8 `bind` \noiseT' ->
+              dirac (pair (pair (unsafeProb noiseT') noiseEOld)
+                          (sqrt_ (noiseTOld * noiseTOld * (noiseTOld * noiseTOld)
+                                  + noiseEOld * noiseEOld * (noiseTOld * noiseTOld) * 3
+                                  + noiseEOld * noiseEOld * (noiseEOld * noiseEOld))
+                           * if_ (if_ (noiseEOld `less` 1) true (noiseEOld `equal` 1))
+                                 0
+                                 (if_ (noiseEOld `less` 4) 1 0)
+                           * exp_ ((noiseT' * noiseT' * (m1 * m1) * 2
+                                    + noiseT' * noiseT' * m1 * m2 * (-2)
+                                    + noiseT' * noiseT' * (m2 * m2)
+                                    + m1 * m1 * fromProb (noiseEOld * noiseEOld)
+                                    + m2 * m2 * fromProb (noiseEOld * noiseEOld))
+                                   * recip (noiseT' * noiseT' * (noiseT' * noiseT')
+                                            + noiseT' * noiseT' * fromProb (noiseEOld * noiseEOld * 3)
+                                            + noiseEOld' * noiseEOld' * (noiseEOld' * noiseEOld'))
+                                   * (-1/2))
+                           * recip (sqrt_ (unsafeProb (noiseT' ** 4
+                                                       + noiseT' ** 2 * fromProb (noiseEOld * noiseEOld * 3)
+                                                       + noiseEOld' ** 4)))
+                           * unsafeProb (if_ (if_ (noiseEOld `less` 4)
+                                                  (if_ (1 `less` noiseEOld)
+                                                       (if_ (noiseTOld `less` 8)
+                                                            (3 `less` noiseTOld)
+                                                            false)
+                                                       false)
+                                                  false)
+                                             (exp ((m1 ** 2 * fromProb (noiseTOld * noiseTOld * 2)
+                                                    + m1 * m2 * fromProb (noiseTOld * noiseTOld) * (-2)
+                                                    + m2 ** 2 * fromProb (noiseTOld * noiseTOld)
+                                                    + m1 ** 2 * fromProb (noiseEOld * noiseEOld)
+                                                    + m2 ** 2 * fromProb (noiseEOld * noiseEOld))
+                                                   * (noiseTOld' ** 4
+                                                      + fromProb (noiseEOld * noiseEOld * (noiseTOld * noiseTOld) * 3)
+                                                      + noiseEOld' ** 4)
+                                                     ** (-1)
+                                                   * (1/2)))
+                                             infinity))))]
 
 makeChain :: (Lambda repr, Mochastic repr) =>
              repr (a -> Measure a) -> repr Int -> repr a -> repr (Measure (Vector a))
