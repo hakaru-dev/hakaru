@@ -749,6 +749,9 @@ SLO := module ()
       pow_(mkProb(op(1,w), ctx), mkReal(op(2,w), ctx))
     elif type(w, 'unsafeProb'(anything)) then
       error "there should be no unsafeProb in %1", w
+    elif type(w, 'If'(anything, anything, anything)) then
+      # hopefully we don't have to go into the condition? TODO
+      If(op(1,w), mkProb(op(2,w), ctx), mkProb(op(3,w), ctx));
     elif type(w, 'symbol') then
       typ := infer_type(w, ctx);
       if member(typ, {'Prob', 'Nat'}) then
@@ -797,6 +800,8 @@ SLO := module ()
       map(mkReal, w, ctx) # might want to optimize this as above
     elif type(w, 'specfunc'(anything, {cos, sin, exp,erf})) then
       map(mkReal, w, ctx)
+    elif type(w, 'specfunc'(anything, {ln})) then
+      ln_(mkProb(op(1,w), ctx))
     elif type(w, anything ^ integer) then
       expo := op(2,w);
       rl := mkReal(op(1,w), ctx);
