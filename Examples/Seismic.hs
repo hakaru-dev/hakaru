@@ -1,8 +1,14 @@
+{-# LANGUAGE RankNTypes, TypeOperators, ScopedTypeVariables, TypeFamilies, FlexibleContexts #-}
 {-# OPTIONS -Wall -fno-warn-name-shadowing #-}
 module Examples.Seismic where
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax
+import Language.Hakaru.Expect
+import Language.Hakaru.Lazy
+
+import System.Environment
+import qualified Data.Map as M
 
 degrees, radians :: (Floating a) => a -> a
 degrees r = r * 180 / pi
@@ -92,6 +98,8 @@ type Station = -- Sections 3 and 1.6
   , ( Real -- $\mu    _f^k$
   , ( Prob -- $\theta _f^k$
   )))))))))))))))
+
+type StationNum = Int
 
 type Event = -- Sections 1.1 and 4.1
     ( Real -- longitude, in degrees between -180 and 180
@@ -242,3 +250,48 @@ falseDetection s = -- Section 1.6, except the Poisson
    TODO: Add hakaru code for each of these steps
  
 -}
+
+laplacePerc q | q >= 0   && q <= 0.5 = log (2*q)
+laplacePerc q | q >= 0.5 && q <= 1.0 = - log (2*(1-q))
+laplacePerc _ = error "percentiles are between 0 and 1"
+
+fromStation :: Base repr => repr Station -> StationNum
+fromStation = undefined
+
+solveEpisode :: Base repr => [(repr Station, repr Detection)] -> [(repr Event, [repr Detection])]
+solveEpisode = undefined
+
+generateCandidates :: Base repr => repr Detection -> [repr Event]
+generateCandidates = undefined
+
+findBestDetections :: (Integrate repr, Lambda repr, Mochastic repr) =>
+                      repr Event ->
+                      [(repr Station, repr Detection)] ->
+                      M.Map StationNum (repr Station, repr Detection, repr Prob) ->
+                      [(repr Station, repr Detection)]
+findBestDetections e ((s,d):rest) m =
+    case M.lookup (fromStation s) m of
+      Just (_, _, ll) -> let_ (eventLL e s d) (\ll' ->
+                                               if_ (less_ ll' ll)
+                                               (findBestDetections e rest m)
+                                               (findBestDetections e rest
+                                                (M.insert (fromStation s) (s, d, ll') m)))
+      Nothing -> findBestDetections e rest (M.insert (fromStation s) (s, d, (eventLL e s d)) m)
+findBestDetections e [] m = map (\ (s,d, _) -> (s,d)) (M.elems m)
+
+eventLL :: (Integrate repr, Lambda repr, Mochastic repr) =>
+           repr Event ->
+          (forall repr'. (Mochastic repr') => repr' Station) ->
+          repr Detection ->
+          repr Prob
+eventLL e s d = dens unit (pair e (inr d))
+   where dens = head $ density (\env -> ununit env (event `bindx` (trueDetection s)))
+
+invertDetection :: Base repr => repr Detection -> repr Real -> repr Real -> repr Event
+invertDetection d slowPerb aziPerb = undefined
+
+readEpisodes f = undefined
+
+main = do
+  episodes <- getArgs
+  readEpisodes episodes
