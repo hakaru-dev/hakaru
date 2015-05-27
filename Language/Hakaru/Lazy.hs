@@ -440,21 +440,22 @@ atom2 :: (Base repr) => (repr a -> repr b -> repr c)
 atom2 op a b = Value $ op (forget a) (forget b)
                          
 instance (Base repr) => Floating (Hnf s repr Real) where
-  pi    = Value pi
-  exp   = atom1 exp
-  log   = atom1 log
-  (**)  = atom2 (**)
-  sqrt  = atom1 sqrt
-  sin   = atom1 sin
-  cos   = atom1 cos
-  asin  = atom1 asin
-  acos  = atom1 acos
-  atan  = atom1 atan
-  sinh  = atom1 sinh
-  cosh  = atom1 cosh
-  asinh = atom1 asinh
-  acosh = atom1 acosh
-  atanh = atom1 atanh
+  pi      = Value pi
+  exp     = atom1 exp
+  log     = atom1 log
+  (**)    = atom2 (**)
+  logBase = atom2 logBase
+  sqrt    = atom1 sqrt
+  sin     = atom1 sin
+  cos     = atom1 cos
+  asin    = atom1 asin
+  acos    = atom1 acos
+  atan    = atom1 atan
+  sinh    = atom1 sinh
+  cosh    = atom1 cosh
+  asinh   = atom1 asinh
+  acosh   = atom1 acosh
+  atanh   = atom1 atanh
   
 scalar0 :: (Lub repr) => repr a -> Lazy s repr a
 scalar0 op = lazy (return (Value op))
@@ -627,12 +628,23 @@ instance (Mochastic repr, Lub repr) =>
   x ** y = Lazy
     (liftM2 (**) (forward x) (forward y))
     (\t -> lub (do r <- forward x
-                   w <- atomize (recip (t * log r))
+                   w <- atomize (recip (abs (t * log r)))
                    insert_ (weight (unsafeProb w))
                    backward y (log t / log r))
                (do r <- forward y
                    let ex = t ** (recip r)
-                   w <- atomize (ex / (r * t))
+                   w <- atomize (abs (ex / (r * t)))
+                   insert_ (weight (unsafeProb w))
+                   backward x ex))
+  logBase x y = Lazy
+    (liftM2 logBase (forward x) (forward y))
+    (\t -> lub (do r <- forward x
+                   w <- atomize (abs ((r ** t) * log r))
+                   insert_ (weight (unsafeProb w))
+                   backward y (r ** t))
+               (do r <- forward y
+                   let ex = r ** (recip t)
+                   w <- atomize (abs (ex * (log r) / (t*t)))
                    insert_ (weight (unsafeProb w))
                    backward x ex))
   sqrt x = Lazy
