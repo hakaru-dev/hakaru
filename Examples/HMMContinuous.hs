@@ -53,7 +53,46 @@ reflect m =
   weight (a * exp_ (- fromProb b * (s - c) ** 2)) $
   normal (d * s + e) f
 
--- Unfortunately Maple currently refuses to write bindo'' for us:
+-- We can use "simplify" to help with writing bindo':
 --  > simplify (lam $ \m -> lam $ \n -> reflect m `bindo` reflect n)
---  *** Exception: MapleException:
---  Error, (in maptype) don't know how to make (1/(2*pp6^2*pp8+1)) real
+-- The output is the following, after collecting "unpair"s:
+--  lam $ \m ->
+--  lam $ \n ->
+--  lam $ \s ->
+--  unpair m $ \ma m ->
+--  unpair m $ \mb m ->
+--  unpair m $ \mc m ->
+--  unpair m $ \md m ->
+--  unpair m $ \me mf ->
+--  unpair n $ \na n ->
+--  unpair n $ \nb n ->
+--  unpair n $ \nc n ->
+--  unpair n $ \nd n ->
+--  unpair n $ \ne nf ->
+--  weight (ma * na
+--          * recip (sqrt_ (mf * mf * nb * 2 + 1))
+--          * unsafeProb (exp ((s ** 2 * fromProb (mb * (mf * mf) * nb * 2)
+--                              + s * mc * fromProb (mb * (mf * mf) * nb) * (-4)
+--                              + mc ** 2 * fromProb (mb * (mf * mf) * nb * 2)
+--                              + s ** 2 * md ** 2 * fromProb nb
+--                              + s * md * me * fromProb (nb * 2)
+--                              + s * md * nc * fromProb nb * (-2)
+--                              + s ** 2 * fromProb mb
+--                              + s * mc * fromProb mb * (-2)
+--                              + mc ** 2 * fromProb mb
+--                              + me ** 2 * fromProb nb
+--                              + me * nc * fromProb nb * (-2)
+--                              + nc ** 2 * fromProb nb)
+--                             * (fromProb (mf * mf * nb * 2) + 1) ** (-1)
+--                             * (-1)))) $
+--  normal ((nd * nc * fromProb (mf * mf * nb) * (-2)
+--           + ne * fromProb (mf * mf * nb) * (-2)
+--           + nd * s * md * (-1)
+--           + nd * me * (-1)
+--           + ne * (-1))
+--          * recip (fromProb (mf * mf * nb * 2) + 1)
+--          * (-1))
+--         (sqrt_ (recip (mf * mf * nb * 2 + 1)
+--                 * unsafeProb (fromProb (nf * nf * (mf * mf) * nb * 2)
+--                               + nd ** 2 * fromProb (mf * mf)
+--                               + fromProb nf ** 2)))
