@@ -787,6 +787,22 @@ instance (Mochastic repr, Lub repr) => Base (Lazy s repr) where
               insert_ (weight (exp_ u))
               backward x (Value (exp_ u)))
   -- TODO fill in other methods
+  sqrt_ x = (scalar1 sqrt_ x)
+    { backward = (\t -> do u <- atomize t
+                           insert_ (weight (2*u))
+                           backward x (t*t)) } -- Use (t*t) or (Value (u*u))?
+  pow_ x y = (scalar2 pow_ x y)
+    { backward = (\t -> lub (do r <- evaluate x
+                                u <- atomize t
+                                let w = u * (unsafeProb (log_ r))
+                                insert_ (weight (recip w))
+                                backward y (Value $ log_ u / log_ r))
+                            (do r <- evaluate y
+                                u <- atomize t
+                                let ex = pow_ u (recip r)
+                                    w = ex / (unsafeProb r * u)
+                                insert_ (weight w)
+                                backward x (Value ex))) }
   erf = scalar1 erf -- need InvErf to disintegrate Erf
   erf_ = scalar1 erf_ -- need InvErf to disintegrate Erf
   infinity = scalar0 infinity
