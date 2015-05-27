@@ -434,21 +434,28 @@ instance (Base repr, Fractional (repr a), Fraction a) =>
 
 atom1 :: (Base repr) => (repr a -> repr a) -> Hnf s repr a -> Hnf s repr a
 atom1 op = Value . op . forget
+
+atom2 :: (Base repr) => (repr a -> repr b -> repr c)
+      -> Hnf s repr a -> Hnf s repr b -> Hnf s repr c
+atom2 op a b = Value $ op (forget a) (forget b)
                          
 instance (Base repr) => Floating (Hnf s repr Real) where
-  pi    = Value pi
-  exp   = atom1 exp
-  log   = atom1 log
-  sin   = atom1 sin
-  cos   = atom1 cos
-  asin  = atom1 asin
-  acos  = atom1 acos
-  atan  = atom1 atan
-  sinh  = atom1 sinh
-  cosh  = atom1 cosh
-  asinh = atom1 asinh
-  acosh = atom1 acosh
-  atanh = atom1 atanh
+  pi      = Value pi
+  exp     = atom1 exp
+  log     = atom1 log
+  (**)    = atom2 (**)
+  logBase = atom2 logBase
+  sqrt    = atom1 sqrt
+  sin     = atom1 sin
+  cos     = atom1 cos
+  asin    = atom1 asin
+  acos    = atom1 acos
+  atan    = atom1 atan
+  sinh    = atom1 sinh
+  cosh    = atom1 cosh
+  asinh   = atom1 asinh
+  acosh   = atom1 acosh
+  atanh   = atom1 atanh
   
 scalar0 :: (Lub repr) => repr a -> Lazy s repr a
 scalar0 op = lazy (return (Value op))
@@ -618,6 +625,33 @@ instance (Mochastic repr, Lub repr) =>
     (\t -> do u <- atomize t
               insert_ (weight (exp_ u))
               backward x (exp t))
+  x ** y = Lazy
+    (liftM2 (**) (forward x) (forward y))
+    (\t -> lub (do r <- forward x
+                   w <- atomize (recip (abs (t * log r)))
+                   insert_ (weight (unsafeProb w))
+                   backward y (log t / log r))
+               (do r <- forward y
+                   let ex = t ** (recip r)
+                   w <- atomize (abs (ex / (r * t)))
+                   insert_ (weight (unsafeProb w))
+                   backward x ex))
+  logBase x y = Lazy
+    (liftM2 logBase (forward x) (forward y))
+    (\t -> lub (do r <- forward x
+                   w <- atomize (abs ((r ** t) * log r))
+                   insert_ (weight (unsafeProb w))
+                   backward y (r ** t))
+               (do r <- forward y
+                   let ex = r ** (recip t)
+                   w <- atomize (abs (ex * (log r) / (t*t)))
+                   insert_ (weight (unsafeProb w))
+                   backward x ex))
+  sqrt x = Lazy
+    (liftM sqrt (forward x))
+    (\t -> do u <- atomize t
+              insert_ (weight (unsafeProb (2*u)))
+              backward x (t*t))
   sin x = Lazy
     (liftM sin (forward x))
     (\t -> do n <- liftM (Value . fromInt) (lift counting)
@@ -753,6 +787,22 @@ instance (Mochastic repr, Lub repr) => Base (Lazy s repr) where
               insert_ (weight (exp_ u))
               backward x (Value (exp_ u)))
   -- TODO fill in other methods
+  sqrt_ x = (scalar1 sqrt_ x)
+    { backward = (\t -> do u <- atomize t
+                           insert_ (weight (2*u))
+                           backward x (t*t)) } -- Use (t*t) or (Value (u*u))?
+  pow_ x y = (scalar2 pow_ x y)
+    { backward = (\t -> lub (do r <- evaluate x
+                                u <- atomize t
+                                let w = u * (unsafeProb (log_ r))
+                                insert_ (weight (recip w))
+                                backward y (Value $ log_ u / log_ r))
+                            (do r <- evaluate y
+                                u <- atomize t
+                                let ex = pow_ u (recip r)
+                                    w = ex / (unsafeProb r * u)
+                                insert_ (weight w)
+                                backward x (Value ex))) }
   erf = scalar1 erf -- need InvErf to disintegrate Erf
   erf_ = scalar1 erf_ -- need InvErf to disintegrate Erf
   infinity = scalar0 infinity

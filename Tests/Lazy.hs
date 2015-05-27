@@ -22,6 +22,7 @@ import qualified Examples.EasierRoadmap as RM
 
 import Data.Typeable (Typeable)    
 import Test.HUnit
+import qualified Data.List as L
 
 recover :: (Typeable a) => PrettyPrint a -> IO (Any a)
 recover hakaru = closeLoop ("Any (" ++ leftMode (runPrettyPrint hakaru) ++ ")")
@@ -52,9 +53,32 @@ runDisintegratePretty :: (Backward a a) =>
                          Cond PrettyPrint env (Measure (a,b)) -> IO ()
 runDisintegratePretty = print . map runPrettyPrint . runDisintegrate
 
+nonDefault :: (Backward a a) => String
+           -> Cond PrettyPrint env (Measure (a,b)) -> Assertion
+nonDefault s = assertBool "not calling non-default implementation" . any id .
+               map (L.isInfixOf s . leftMode . runPrettyPrint) . runDisintegrate
+
+justRun :: Test -> IO ()
+justRun t = runTestTT t >> return ()
+                   
 main :: IO ()
-main = runDisintegratePretty borelishSub
-    -- runTestTT important >> return ()
+main = -- justRun nonDefaultTests
+       runDisintegratePretty prog1s
+
+-- | TODO: understand why the following fail to use non-default uniform
+-- prog1s, prog2s, prog3s, (const culpepper), t3, t4, t9, marsaglia
+nonDefaultTests :: Test
+nonDefaultTests = test [ nonDefault "uniform" borelishSub
+                       , nonDefault "uniform" borelishDiv
+                       , nonDefault "uniform" density1
+                       , nonDefault "uniform" density2
+                       , nonDefault "uniform" t1
+                       , nonDefault "uniform" t2
+                       , nonDefault "uniform" t5
+                       , nonDefault "uniform" t6
+                       , nonDefault "uniform" t7
+                       , nonDefault "uniform" t8
+                       ]
 
 -- 2015-04-09
 --------------------------------------------------------------------------------
@@ -357,10 +381,22 @@ marsaglia _ =
 
 -- | Show that uniform should not always evaluate its arguments
 -- Here disintegrate goes forward on x before going backward on x,
--- causing the non-default implementation of uniform
--- (which evaluates the lower bound x) to fail
+-- causing the failure of the non-default implementation of uniform
+-- (which evaluates the lower bound x)
 t11 :: (Mochastic repr) => Cond repr () (Measure (Real, ()))
 t11 = \u -> ununit u $
       uniform 0 1 `bind` \x ->
       uniform x 1 `bind` \y ->
       dirac (pair (x + (y + y)) unit)
+
+t12 :: (Mochastic repr) => Cond repr () (Measure (Prob, Real))
+t12 = \u -> ununit u $
+      normal 0 1 `bind` \x ->
+      dirac 10 `bind` \y ->
+      dirac (pair (sqrt_ $ unsafeProb (x ** 2 + y ** 2)) x)
+
+t13 :: (Mochastic repr) => Cond repr () (Measure (Real, Real))
+t13 = \u -> ununit u $
+      normal 0 1 `bind` \x ->
+      dirac 10 `bind` \y ->
+      dirac (pair (sqrt (x ** 2 + y ** 2)) x)
