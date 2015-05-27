@@ -1,32 +1,32 @@
-As of Sat. May. 23rd, the failures are as follows:
+As of Wed. May. 27th, the failures are as follows:
 
 Rob would like test rmProg4 to roundtrip
   -- Jacques replies: this is a prototypical case where we 
      really need 'constrain'.
   -- what is in the test currently roundtrips, but it is far
-     from fully simplified (see above)
+     from fully simplified.
 
 Real bugs:
 testTrueDetectionL, testTrueDetectionR : due to fundamental 
   assumptions inside simp routines that frozen expressions 
   are 'polynomial'.  This assumption is *wrong*.
 
-t50,
-t12, t13, t21, t22, t24, t25, 
+t50, t21
 
 Needs investigation:
-t56, t57, t58, t9
+t57, t58, t9
 
 Unimplemented features:
 Vector: t19, t20, t29, all in Vector
 First-class functions: all in Function
-Change of variables: t1, t3, t4, t5, t16, t17, t18, t23, t27, t28
+Change of variables: t1, t3, t4, t5, t12, t13, t16, 
+  t17, t18, t23, t27, t28
 
 all others - sub-optimal simplification, or ordering problem
 ==================
 
 RoundTrip:
-t56 - probable bug in convert/Heaviside
+t56 - ordering difference
 t57 - probable bug in convert/Heaviside
 t58 - probable bug in convert/Heaviside
 t60 - ordering difference
@@ -46,10 +46,7 @@ testRoadMapProg1 - time expired
 testKernel - failure to recognize a normal under a conditional
 testFalseDetection: time expired
 testTrueDetectionL: 1 <= FAIL
-  -- problem is that the simplifier has a deep design flaw: too deep
-     an assumptions that things will be ``polynomial'' once other
-     things are frozen.  This is just false.  Will need a redesign.
-testTrueDetectionR: infinite loop 
+testTrueDetectionR: 1 <= FAIL
 
 Syntax:
 pair1fst/snd - beta instead of list/categorical
@@ -65,19 +62,19 @@ t5 - no simplification because change of variables not implemented
 t8 - normalization difference
 t9 - gets a funky looking answer now 
 t11 - fromProb maps too far in?
-t12 - Real/Prob issue
-t13 - h2 ** (recip pp1) does not typecheck in Haskell
+t12 - no simplification because change of variables not implemented
+t13 - no simplification because change of variables not implemented
 t14 - just printing issue
 t16 - no simplification because change of variables not implemented
-t17 - no simplification because change of variables not implemented
+t17 - ordering problem
 t18 - no simplification because change of variables not implemented
 t19 - reasoning about Reduce
 t20 - reasoning about Reduce
-t21 - Prob ** Int does not typecheck
-t22 - Real/Prob issue
+t21 - GAMMA(h3+1) in mkProb
+t22 - first factor is not normalized
 t23 - no simplification because change of variables not implemented
-t24 - pp3 ** pp2 does not typecheck (mkProb bug)
-t25 - (pp3+pp4) ** (-1) expects lhs to be Real
+t24 - slightly different printing (fromProb farther in)
+t25 - need to analyse further
 t26 - difference in printing
 t27 - no simplification because change of variables not implemented
 t28 - no simplification because change of variables not implemented
