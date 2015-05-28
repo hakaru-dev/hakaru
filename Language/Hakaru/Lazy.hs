@@ -628,18 +628,17 @@ instance (Mochastic repr, Lub repr) =>
   x ** y = Lazy
     (liftM2 (**) (forward x) (forward y))
     (\t -> lub (do r <- forward x
+                   -- if r is 0 or 1 then bot -- TODO
                    (t',r') <- liftM2 (,) (atomize t) (atomize r)
-                   insert_ (ifTrue (or_ [ and_ [less  0 t', less  0 r']
-                                        , and_ [equal 0 t', equal 0 r'] ]))
+                   insert_ (ifTrue (less 0 t))
                    w <- atomize (recip (abs (t * log r)))
                    insert_ (weight (unsafeProb w))
                    backward y (logBase r t))
                (do r <- forward y
                    (t',r') <- liftM2 (,) (atomize t) (atomize r)
-                   insert_ (ifTrue (or_ [and_ [      equal 0 r' ,equal 1 t']
-                                        ,and_ [not_ (equal 0 r'),less  0 t']]))
+                   insert_ (ifTrue (less 0 t))
                    let ex = t ** (recip r)
-                   w <- atomize (abs (ex / (r * t))) -- TODO check div by 0
+                   w <- atomize (abs (ex / (r * t)))
                    insert_ (weight (unsafeProb w))
                    backward x ex))
   logBase x y = Lazy
