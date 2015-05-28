@@ -11,7 +11,7 @@ module Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        fromListV, concatV, unzipV,
        Mochastic(..), bind_, factor, weight, bindx, bindo, liftM, liftM2,
        positiveUniform, invgamma, exponential, chi2, bern,
-       cauchy, laplace, student, weibull, mix,
+       cauchy, laplace, student, weibull, mix, geometric, negativeBinomial,
        binomial, multinomial,
        Integrate(..), Lambda(..), lam2, lam3, app2, app3, Lub(..)) where
 
@@ -375,6 +375,14 @@ binomial :: (Mochastic repr) =>
             repr Int -> repr Prob -> repr (Measure Int)
 binomial n p = liftM sumV
              $ plate (constV n (liftM (\x -> if_ x 1 0) (bern p)))
+
+negativeBinomial :: (Mochastic repr) =>
+                    repr Int -> repr Prob -> repr (Measure Int)
+negativeBinomial r p = gamma (unsafeProb $ fromInt r) ((1 - p)/p) `bind` \l ->
+                       poisson l
+
+geometric :: (Mochastic repr) => repr Prob -> repr (Measure Int)
+geometric = negativeBinomial 1
 
 multinomial :: (Mochastic repr) => repr Int -> repr (Vector Prob) ->
                                    repr (Measure (Vector Prob))
