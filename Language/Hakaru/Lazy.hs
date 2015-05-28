@@ -9,8 +9,8 @@ module Language.Hakaru.Lazy (Lazy, runLazy, Backward, disintegrate,
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
        Number(..), Fraction(..), EqType(Refl), Order(..),
-       Base(..), snd_, equal_, and_, Mochastic(..), weight,
-       Integrate(..), Lambda(..), Lub(..))
+       Base(..), snd_, equal_, and_, or_, not_, weight,
+       Mochastic(..), Integrate(..), Lambda(..), Lub(..))
 import Language.Hakaru.Compose
 import Control.Monad (liftM, liftM2)
 import Data.Maybe (isNothing)
@@ -628,29 +628,40 @@ instance (Mochastic repr, Lub repr) =>
   x ** y = Lazy
     (liftM2 (**) (forward x) (forward y))
     (\t -> lub (do r <- forward x
+                   (t',r') <- liftM2 (,) (atomize t) (atomize r)
+                   insert_ (ifTrue (or_ [ and_ [less  0 t', less  0 r']
+                                        , and_ [equal 0 t', equal 0 r'] ]))
                    w <- atomize (recip (abs (t * log r)))
                    insert_ (weight (unsafeProb w))
-                   backward y (log t / log r))
+                   backward y (logBase r t))
                (do r <- forward y
+                   (t',r') <- liftM2 (,) (atomize t) (atomize r)
+                   insert_ (ifTrue (or_ [and_ [      equal 0 r' ,equal 1 t']
+                                        ,and_ [not_ (equal 0 r'),less  0 t']]))
                    let ex = t ** (recip r)
-                   w <- atomize (abs (ex / (r * t)))
+                   w <- atomize (abs (ex / (r * t))) -- TODO check div by 0
                    insert_ (weight (unsafeProb w))
                    backward x ex))
   logBase x y = Lazy
     (liftM2 logBase (forward x) (forward y))
     (\t -> lub (do r <- forward x
+                   r' <- atomize r
+                   insert_ (ifTrue (less 0 r'))
                    w <- atomize (abs ((r ** t) * log r))
                    insert_ (weight (unsafeProb w))
                    backward y (r ** t))
                (do r <- forward y
+                   (t',r') <- liftM2 (,) (atomize t) (atomize r)
+                   insert_ (ifTrue (or_ [and_ [      equal 0 t' ,equal 1 r']
+                                        ,and_ [not_ (equal 0 t'),less  0 r']]))
                    let ex = r ** (recip t)
-                   w <- atomize (abs (ex * (log r) / (t*t)))
+                   w <- atomize (abs (ex * (log r) / (t*t))) -- TODO div by 0
                    insert_ (weight (unsafeProb w))
                    backward x ex))
   sqrt x = Lazy
     (liftM sqrt (forward x))
-    (\t -> do u <- atomize t
-              insert_ (weight (unsafeProb (2*u)))
+    (\t -> do u <- atomize (2*t)
+              insert_ (ifTrue (less 0 u) . weight (unsafeProb u))
               backward x (t*t))
   sin x = Lazy
     (liftM sin (forward x))
@@ -688,7 +699,7 @@ instance (Mochastic repr, Lub repr) =>
     (liftM asin (forward x))
     (\t -> do j <- atomize (cos t)
               insert_ (weight (unsafeProb j))
-              backward x (sin t))
+              backward x (sin t)) -- TODO bounds check for -pi/2 <= t < pi/2
   acos x = Lazy
     (liftM acos (forward x))
     (\t -> do j <- atomize (sin t)
@@ -788,20 +799,20 @@ instance (Mochastic repr, Lub repr) => Base (Lazy s repr) where
               backward x (Value (exp_ u)))
   -- TODO fill in other methods
   sqrt_ x = (scalar1 sqrt_ x)
-    { backward = (\t -> do u <- atomize t
-                           insert_ (weight (2*u))
-                           backward x (t*t)) } -- Use (t*t) or (Value (u*u))?
+    { backward = (\t -> do u <- atomize (2*t)
+                           insert_ (weight u)
+                           backward x (t*t)) }
   pow_ x y = (scalar2 pow_ x y)
     { backward = (\t -> lub (do r <- evaluate x
                                 u <- atomize t
-                                let w = u * (unsafeProb (log_ r))
+                                let w = u * (unsafeProb (abs (log_ r)))
                                 insert_ (weight (recip w))
                                 backward y (Value $ log_ u / log_ r))
                             (do r <- evaluate y
                                 u <- atomize t
                                 let ex = pow_ u (recip r)
-                                    w = ex / (unsafeProb r * u)
-                                insert_ (weight w)
+                                    w = abs (fromProb ex / (r * fromProb u))
+                                insert_ (weight (unsafeProb w))
                                 backward x (Value ex))) }
   erf = scalar1 erf -- need InvErf to disintegrate Erf
   erf_ = scalar1 erf_ -- need InvErf to disintegrate Erf
@@ -911,3 +922,16 @@ density m = [ \env t -> total (d `app` Expect env `app` Expect t)
                          Lazy s repr a ->
                          Lazy s repr (Measure a) -> Lazy s repr (Measure a)
         disintegrate' = disintegrate
+
+observe :: (Mochastic repr, Lambda repr, Backward a a) =>
+           (forall s t.
+            ( Lazy s (Compose [] t repr) a
+            , (Lazy s (Compose [] t repr) env
+              -> Lazy s (Compose [] t repr) (Measure (a,b))) ))
+        -> [repr (env -> Measure b)]
+observe tm = runCompose
+             $ lam $ \env -> runLazy
+             $ let (t,m) = tm
+               in disintegrate (pair t unit)
+                               (m (scalar0 env))
+                  `bind` dirac . snd_

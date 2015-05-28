@@ -389,14 +389,25 @@ t11 = \u -> ununit u $
       uniform x 1 `bind` \y ->
       dirac (pair (x + (y + y)) unit)
 
-t12 :: (Mochastic repr) => Cond repr () (Measure (Prob, Real))
-t12 = \u -> ununit u $
-      normal 0 1 `bind` \x ->
-      dirac 10 `bind` \y ->
-      dirac (pair (sqrt_ $ unsafeProb (x ** 2 + y ** 2)) x)
+bwdSqrt_ :: (Mochastic repr) => Cond repr () (Measure (Prob, Real))
+bwdSqrt_ = \u -> ununit u $
+           normal 0 1 `bind` \x ->
+           dirac 10 `bind` \y ->
+           dirac (pair (sqrt_ $ unsafeProb (x ** 2 + y ** 2)) x)
 
-t13 :: (Mochastic repr) => Cond repr () (Measure (Real, Real))
-t13 = \u -> ununit u $
-      normal 0 1 `bind` \x ->
-      dirac 10 `bind` \y ->
-      dirac (pair (sqrt (x ** 2 + y ** 2)) x)
+fwdSqrt_ :: (Mochastic repr) => Cond repr () (Measure (Real, Prob))
+fwdSqrt_ = \u -> ununit u $
+           normal 0 1 `bind` \x ->
+           dirac ((x+1) ** 2 + (x-1) ** 2) `bind` \y ->
+           dirac (pair x (sqrt_ (unsafeProb y)))                 
+
+bwdSqrt :: (Mochastic repr) => Cond repr () (Measure (Real, Real))
+bwdSqrt = \u -> ununit u $
+          uniform 0 10 `bind` \x ->
+          dirac (pair (sqrt x) x)
+                 
+fwdSqrt :: (Mochastic repr) => Cond repr () (Measure (Real, Real))
+fwdSqrt = \u -> ununit u $
+          normal 0 1 `bind` \x ->
+          dirac (sqrt ((x+1) ** 2 + (x-1) ** 2)) `bind` \y ->
+          dirac (pair x y)
