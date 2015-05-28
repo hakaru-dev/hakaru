@@ -378,7 +378,7 @@ binomial n p = liftM sumV
 
 negativeBinomial :: (Mochastic repr) =>
                     repr Int -> repr Prob -> repr (Measure Int)
-negativeBinomial r p = gamma (unsafeProb $ fromInt r) ((1 - p)/p) `bind` \l ->
+negativeBinomial r p = gamma (unsafeProb $ fromInt r) (recip p - 1) `bind` \l ->
                        poisson l
 
 geometric :: (Mochastic repr) => repr Prob -> repr (Measure Int)
