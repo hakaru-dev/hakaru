@@ -54,8 +54,8 @@ invertSlowness s = (s - 10.7) / (-0.046)
 invertAzimuth :: Floating a => (a, a) -> a -> a -> (a, a)
 invertAzimuth (lat, lon) dist azi = undefined
 
-computeTravelTime :: Floating a => a -> a
-computeTravelTime d = -0.023 * d ** 2 + 10.7 * d + 5
+computeTravelTime :: Double -> Double
+computeTravelTime = unSample (lam iT)
 
 type Matrix3 a = (Vector3 a, Vector3 a, Vector3 a) -- row-major
 type Vector3 a = (a, a, a)
@@ -166,7 +166,7 @@ thetaMagnitude = 4.0 -- Section 2
 gammaMagnitude = 6.0 -- Section 2
 
 gammaM :: Double
-gammaM = 6.0
+gammaM = unSample (fromProb gammaMagnitude)
 
 station :: (Mochastic repr) => repr Real -> repr Real -> repr (Measure Station)
 station longitude latitude = -- Section 2
@@ -198,7 +198,7 @@ event = -- Section 1.1, except the Poisson
   uniform (-1) 1 `bind` \sinLatitude ->
   exponential thetaMagnitude `bind` \m ->
   dirac (longitude `pair` degrees (asin sinLatitude)
-                   `pair` m -- max_ muMagnitude (min_ gammaMagnitude m)
+                   `pair` m -- max_ muMagnitude (min_ gammaMagnitude m) -- commented out for density calculation
                    `pair` time)
 
 iT :: (Base repr) => repr Real -> repr Real
@@ -239,7 +239,7 @@ trueDetection s e = -- Sections 1.2--1.5
   if_ (not_ b) (dirac (inl unit)) $
   laplace (eventTime + iT distance) {- Section 2 says $\mu_t^k=0$ -}
           theta_t `bind` \time ->
-  if_ (less constT time) (dirac (inl unit)) $ 
+  if_ (less constT time) (dirac (inl unit)) $
   laplace 0 {- Section 2 says $\mu_z^k=0$ -}
           theta_z `bind` \dazimuth ->
   mod' (gz' sl el + dazimuth) 360 `bind` \azimuth ->
