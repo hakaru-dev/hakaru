@@ -1,4 +1,4 @@
-{-# LANGUAGE Rank2Types, ExistentialQuantification, MultiParamTypeClasses, FlexibleInstances, FlexibleContexts #-}
+{-# LANGUAGE Rank2Types, ExistentialQuantification, MultiParamTypeClasses, FlexibleInstances, FlexibleContexts, KindSignatures, DataKinds #-}
 {-# OPTIONS -Wall #-}
 
 module Language.Hakaru.Compose (Compose, liftCompose, runCompose) where
@@ -8,13 +8,16 @@ import Control.Applicative hiding (empty)
 import Data.Traversable (traverse)
 import Unsafe.Coerce (unsafeCoerce)
 
-newtype Compose f s repr a = Compose { unCompose :: C f repr (repr a) }
+-- BUG: must have @f :: Hakaru -> *@ because of the 'Lub' instance; but then that means we need some Hakaru type for @[Binding repr]->a@ and it's not clear to me what's up with 'Binding' to be able to do that...
+newtype Compose f s (repr :: Hakaru * -> *) (a :: Hakaru *) =
+    Compose { unCompose :: C f repr (repr a) }
 
-newtype C f repr a = C { unC :: Int -> f ([Binding repr] -> a) }
-                         -- this^^^       ^^^^^^^^^^^^^^
-                         -- is the length of this list
+newtype C f (repr :: Hakaru * -> *) a =
+    C { unC :: Int -> f ([Binding repr] -> a) }
+        -- this^^^       ^^^^^^^^^^^^^^
+        -- is the length of this list
 
-data Binding repr = forall a. Binding (repr a)
+data Binding (repr :: Hakaru * -> *) = forall a. Binding (repr a)
 
 unsafeLookup :: Int -> [Binding repr] -> repr a
 unsafeLookup n xs = case xs !! n of

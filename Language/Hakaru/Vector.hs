@@ -8,7 +8,7 @@ module Language.Hakaru.Vector (Nat(..), fromNat, toNat, Repeat,
 
 import Prelude hiding (Real, mapM, sequence, abs)
 import qualified Control.Applicative as A
-import Language.Hakaru.Syntax hiding (Vector)
+import Language.Hakaru.Syntax
 -- import Language.Hakaru.Sample (Sample(unSample))
 import Control.Applicative (WrappedMonad(..))
 import Control.Monad.State (runState, state)
@@ -57,6 +57,7 @@ type instance Repeat' (SD n) a = (Repeat n a, Repeat n a)
 
 type SameLength as b = Length' as ~ Length' (Repeat' (Length' as) b)
 
+-- BUG: must have @a :: Hakaru *@ in order to apply @repr@ to it; but then what of all the arguments and results with the bare type @a@ (e.g., instead of @repr a@)?
 class (as ~ Repeat' (Length' as) a) => Vector a as where
   pure            :: a -> (a, as)
   (<*>)           :: (SameLength as (a -> b), SameLength as b) =>

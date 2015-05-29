@@ -1,41 +1,42 @@
-{-# LANGUAGE ScopedTypeVariables, UndecidableInstances, ConstraintKinds, GADTs #-}
+{-# LANGUAGE ScopedTypeVariables, UndecidableInstances, ConstraintKinds, GADTs, DataKinds, KindSignatures #-}
 {-# OPTIONS -Wall #-}
 
 module Language.Hakaru.Simplifiable (Simplifiable(mapleType)) where
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Measure, Vector, Prob, Real)
+import Language.Hakaru.Syntax (Hakaru(..), HProxy)
 import Language.Hakaru.Embed
-import Data.Typeable (Typeable)
 import Data.List (intercalate)
 
-class (Typeable a) => Simplifiable a where
-  mapleType :: a{-unused-} -> String
+-- N.B., we have Typeable (HProxy a) for all @a@
+class Simplifiable (a :: Hakaru *) where
+  mapleType :: hproxy a -> String
 
-instance Simplifiable () where mapleType _ = "Unit"
-instance Simplifiable Int where mapleType _ = "Int"
-instance Simplifiable Real where mapleType _ = "Real"
-instance Simplifiable Prob where mapleType _ = "Prob"
-instance Simplifiable Bool where mapleType _ = "Bool"
+instance Simplifiable HUnit where mapleType _ = "Unit"
+instance Simplifiable HInt  where mapleType _ = "Int"
+instance Simplifiable HReal where mapleType _ = "Real"
+instance Simplifiable HProb where mapleType _ = "Prob"
+instance Simplifiable HBool where mapleType _ = "Bool"
 
-instance (Simplifiable a, Simplifiable b) => Simplifiable (a,b) where
-  mapleType _ = "Pair(" ++ mapleType (undefined :: a) ++ "," ++
-                           mapleType (undefined :: b) ++ ")"
+instance (Simplifiable a, Simplifiable b) => Simplifiable (HPair a b) where
+  mapleType _ = "Pair(" ++ mapleType (undefined :: HProxy a) ++ "," ++
+                           mapleType (undefined :: HProxy b) ++ ")"
 
-instance Simplifiable a => Simplifiable [a] where
-  mapleType _ = "List(" ++ mapleType (undefined :: a) ++ ")"
+instance Simplifiable a => Simplifiable (HList a) where
+  mapleType _ = "List(" ++ mapleType (undefined :: HProxy a) ++ ")"
 
-instance Simplifiable a => Simplifiable (Measure a) where
-  mapleType _ = "Measure(" ++ mapleType (undefined :: a) ++ ")"
+instance Simplifiable a => Simplifiable (HMeasure a) where
+  mapleType _ = "Measure(" ++ mapleType (undefined :: HProxy a) ++ ")"
 
-instance Simplifiable a => Simplifiable (Vector a) where
-  mapleType _ = "MVector(" ++ mapleType (undefined :: a) ++ ")"
+instance Simplifiable a => Simplifiable (HArray a) where
+  mapleType _ = "MVector(" ++ mapleType (undefined :: HProxy a) ++ ")"
 
-instance (Simplifiable a, Simplifiable b) => Simplifiable (a -> b) where
-  mapleType _ = "Arrow(" ++ mapleType (undefined :: a) ++ "," ++
-                            mapleType (undefined :: b) ++ ")"
+instance (Simplifiable a, Simplifiable b) => Simplifiable (HFun a b) where
+  mapleType _ = "Arrow(" ++ mapleType (undefined :: HProxy a) ++ "," ++
+                            mapleType (undefined :: HProxy b) ++ ")"
 
-instance (SingI xss, All2 Simplifiable xss, SimplEmbed t, Typeable (Tag t xss)) => Simplifiable (Tag t xss) where
+-- Typeable (Tag t xss)
+instance (SingI xss, All2 Simplifiable xss, SimplEmbed t) => Simplifiable (HTag t xss) where
   mapleType _ = concat
     [ "Tagged("
     , mapleTypeEmbed (undefined :: t)
@@ -45,9 +46,6 @@ instance (SingI xss, All2 Simplifiable xss, SimplEmbed t, Typeable (Tag t xss)) 
     ]
 
     where
-      argOf :: f x -> x
-      argOf _ = undefined
-
       typeList xs = "[" ++ intercalate "," xs ++ "]"
 
       go2 :: All2 Simplifiable xs => Sing xs -> [[String]]
@@ -56,4 +54,4 @@ instance (SingI xss, All2 Simplifiable xss, SimplEmbed t, Typeable (Tag t xss)) 
 
       go1 :: All Simplifiable xs => Sing xs -> [String]
       go1 SNil = []
-      go1 (SCons x xs) = mapleType (argOf x) : go1 xs
+      go1 (SCons x xs) = mapleType x : go1 xs

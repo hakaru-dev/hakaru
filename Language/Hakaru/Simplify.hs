@@ -99,9 +99,9 @@ closeLoop s = action where
   s' = s ++ " :: " ++ typeStr
   typeStr = unpack $ replace ":" "Cons"
                    $ replace "[]" "Nil"
-                   $ pack (show (typeOf (getArg action)))
+                   $ pack (show (typeOf ((undefined :: f a -> a) action)))
 
-mkTypeString :: (Simplifiable a) => String -> a -> String
+mkTypeString :: (Simplifiable a) => String -> hproxy a -> String
 mkTypeString s t = "Typed(" ++ s ++ ", " ++ mapleType t ++ ")"
 
 simplify :: (Simplifiable a) => Maple a -> IO (Any a)
@@ -117,11 +117,8 @@ simplify' e = do
     Just hakaru -> return hakaru
     Nothing -> throw (MapleException slo hopeString)
 
-getArg :: f a -> a
-getArg = undefined
-
 toMaple :: (Simplifiable a) => Maple a -> String
-toMaple e = mkTypeString (runMaple e 0) (getArg e)
+toMaple e = mkTypeString (runMaple e 0) e
 
 main :: IO ()
 main = action `catch` handler1 `catch` handler0 where
