@@ -36,7 +36,6 @@ mod' a b = counting `bind` \n ->
 
 dist :: (Base repr) => (repr Real, repr Real) ->
                        (repr Real, repr Real) -> repr Real
-dist _ _ = 5
 dist (lon1,lat1) (lon2,lat2) = -- Section A.3
   degrees (atan (y/x) + if_ (less x 0) pi 0)
   where y = sqrt ( (cos rat2 * sin dlon) ** 2
