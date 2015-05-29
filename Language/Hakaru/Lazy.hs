@@ -630,13 +630,13 @@ instance (Mochastic repr, Lub repr) =>
     (\t -> lub (do r <- forward x
                    -- if r is 0 or 1 then bot -- TODO
                    (t',r') <- liftM2 (,) (atomize t) (atomize r)
-                   insert_ (ifTrue (less 0 t))
+                   insert_ (ifTrue (less 0 t'))
                    w <- atomize (recip (abs (t * log r)))
                    insert_ (weight (unsafeProb w))
                    backward y (logBase r t))
                (do r <- forward y
                    (t',r') <- liftM2 (,) (atomize t) (atomize r)
-                   insert_ (ifTrue (less 0 t))
+                   insert_ (ifTrue (less 0 t'))
                    let ex = t ** (recip r)
                    w <- atomize (abs (ex / (r * t)))
                    insert_ (weight (unsafeProb w))
