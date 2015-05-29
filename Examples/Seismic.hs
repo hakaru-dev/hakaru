@@ -5,10 +5,13 @@ module Examples.Seismic where
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax
 import Language.Hakaru.Expect
+import Language.Hakaru.Sample
+--import Language.Hakaru.Simplify
 import Language.Hakaru.Lazy
 
 import System.Environment
 import qualified Data.Map as M
+import qualified Data.Number.LogFloat as LF
 
 degrees, radians :: (Floating a) => a -> a
 degrees r = r * 180 / pi
@@ -33,6 +36,7 @@ mod' a b = counting `bind` \n ->
 
 dist :: (Base repr) => (repr Real, repr Real) ->
                        (repr Real, repr Real) -> repr Real
+dist _ _ = 5
 dist (lon1,lat1) (lon2,lat2) = -- Section A.3
   degrees (atan (y/x) + if_ (less x 0) pi 0)
   where y = sqrt ( (cos rat2 * sin dlon) ** 2
@@ -44,6 +48,15 @@ dist (lon1,lat1) (lon2,lat2) = -- Section A.3
 
 logistic :: (Base repr) => repr Real -> repr Prob
 logistic x = recip (1 + exp_ (-x)) -- Section B.6
+
+invertSlowness :: Floating a => a -> a
+invertSlowness s = (s - 10.7) / (-0.046)
+
+invertAzimuth :: Floating a => (a, a) -> a -> a -> (a, a)
+invertAzimuth (lat, lon) dist azi = undefined
+
+computeTravelTime :: Floating a => a -> a
+computeTravelTime d = -0.023 * d ** 2 + 10.7 * d + 5
 
 type Matrix3 a = (Vector3 a, Vector3 a, Vector3 a) -- row-major
 type Vector3 a = (a, a, a)
@@ -99,13 +112,36 @@ type Station = -- Sections 3 and 1.6
   , ( Prob -- $\theta _f^k$
   )))))))))))))))
 
-type StationNum = Int
+type Station' =
+    ( Double -- longitude, in degrees between -180 and 180
+  , ( Double -- latitude, in degrees between -90 and 90
+  , ( Double -- $\mu _{d0}^k$
+  , ( Double -- $\mu _{d1}^k$
+  , ( Double -- $\mu _{d2}^k$
+  , ( LF.LogFloat -- $\theta _t^k$
+  , ( LF.LogFloat -- $\theta _z^k$
+  , ( LF.LogFloat -- $\theta _s^k$
+  , ( Double -- $\mu _{a0}^k$
+  , ( Double -- $\mu _{a1}^k$
+  , ( Double -- $\mu _{a2}^k$
+  , ( LF.LogFloat -- $\sigma _a^k$
+  , ( LF.LogFloat -- $\lambda_f^k$
+  , ( Double -- $\mu    _f^k$
+  , ( LF.LogFloat -- $\theta _f^k$
+  )))))))))))))))
 
 type Event = -- Sections 1.1 and 4.1
     ( Real -- longitude, in degrees between -180 and 180
   , ( Real -- latitude, in degrees between -90 and 90
   , ( Prob -- magnitude
   , ( Real -- time, in seconds
+  ))))
+
+type Event' =
+    ( Double -- longitude, in degrees between -180 and 180
+  , ( Double -- latitude, in degrees between -90 and 90
+  , ( LF.LogFloat -- magnitude
+  , ( Double -- time, in seconds
   ))))
 
 type Detection = -- Sections 1.2 and 4.1
@@ -115,6 +151,13 @@ type Detection = -- Sections 1.2 and 4.1
   , ( Prob -- amplitude
   ))))
 
+type Detection' =
+    ( Double -- time, in seconds
+  , ( Double -- azimuth
+  , ( Double -- slowness
+  , ( LF.LogFloat -- amplitude
+  ))))
+
 constT :: (Base repr) => repr Real
 constT = 3600 -- Section 2
 
@@ -122,6 +165,9 @@ muMagnitude, thetaMagnitude, gammaMagnitude :: (Base repr) => repr Prob
 muMagnitude    = 3.0 -- Section 2
 thetaMagnitude = 4.0 -- Section 2
 gammaMagnitude = 6.0 -- Section 2
+
+gammaM :: Double
+gammaM = 6.0
 
 station :: (Mochastic repr) => repr Real -> repr Real -> repr (Measure Station)
 station longitude latitude = -- Section 2
@@ -153,7 +199,7 @@ event = -- Section 1.1, except the Poisson
   uniform (-1) 1 `bind` \sinLatitude ->
   exponential thetaMagnitude `bind` \m ->
   dirac (longitude `pair` degrees (asin sinLatitude)
-                   `pair` max_ muMagnitude (min_ gammaMagnitude m)
+                   `pair` m -- max_ muMagnitude (min_ gammaMagnitude m)
                    `pair` time)
 
 iT :: (Base repr) => repr Real -> repr Real
@@ -187,14 +233,14 @@ trueDetection s e = -- Sections 1.2--1.5
   unpair e $ \eventLatitude e ->
   unpair e $ \eventMagnitude eventTime ->
   let el = (eventLongitude, eventLatitude) in
-  let distance = dist sl el in
+  dirac (dist sl el) `bind` \distance ->
   bern (logistic ( mu_d0
                  + mu_d1 * fromProb eventMagnitude
                  + mu_d2 * distance )) `bind` \b ->
   if_ (not_ b) (dirac (inl unit)) $
   laplace (eventTime + iT distance) {- Section 2 says $\mu_t^k=0$ -}
           theta_t `bind` \time ->
-  if_ (less constT time) (dirac (inl unit)) $
+  if_ (less constT time) (dirac (inl unit)) $ 
   laplace 0 {- Section 2 says $\mu_z^k=0$ -}
           theta_z `bind` \dazimuth ->
   mod' (gz' sl el + dazimuth) 360 `bind` \azimuth ->
@@ -255,43 +301,73 @@ laplacePerc q | q >= 0   && q <= 0.5 = log (2*q)
 laplacePerc q | q >= 0.5 && q <= 1.0 = - log (2*(1-q))
 laplacePerc _ = error "percentiles are between 0 and 1"
 
-fromStation :: Base repr => repr Station -> StationNum
-fromStation = undefined
-
 solveEpisode :: Base repr => [(repr Station, repr Detection)] -> [(repr Event, [repr Detection])]
 solveEpisode = undefined
 
 generateCandidates :: Base repr => repr Detection -> [repr Event]
 generateCandidates = undefined
 
-findBestDetections :: (Integrate repr, Lambda repr, Mochastic repr) =>
-                      repr Event ->
-                      [(repr Station, repr Detection)] ->
-                      M.Map StationNum (repr Station, repr Detection, repr Prob) ->
-                      [(repr Station, repr Detection)]
+findBestDetections :: Event' ->
+                     [(Station', Detection')] ->
+                      M.Map Station' (Detection', Double) ->
+                      [(Station', Detection')]
 findBestDetections e ((s,d):rest) m =
-    case M.lookup (fromStation s) m of
-      Just (_, _, ll) -> let_ (eventLL e s d) (\ll' ->
-                                               if_ (less_ ll' ll)
-                                               (findBestDetections e rest m)
-                                               (findBestDetections e rest
-                                                (M.insert (fromStation s) (s, d, ll') m)))
-      Nothing -> findBestDetections e rest (M.insert (fromStation s) (s, d, (eventLL e s d)) m)
-findBestDetections e [] m = map (\ (s,d, _) -> (s,d)) (M.elems m)
+    case M.lookup s m of
+      Just (_, ll) -> let ll' = eventLL e s d in
+                         if (ll' < ll)
+                         then findBestDetections e rest m
+                         else findBestDetections e rest (M.insert s (d, ll') m)
+      Nothing -> findBestDetections e rest (M.insert s (d, (eventLL e s d)) m)
+findBestDetections e [] m = map (\ (s, (d, _)) -> (s,d)) (M.assocs m)
 
-eventLL :: (Integrate repr, Lambda repr, Mochastic repr) =>
-           repr Event ->
-          (forall repr'. (Mochastic repr') => repr' Station) ->
-          repr Detection ->
-          repr Prob
-eventLL e s d = dens unit (pair e (inr d))
-   where dens = head $ density (\env -> ununit env (event `bindx` (trueDetection s)))
+eventLL :: Event' -> Station' -> Detection' -> Double
+eventLL e s d = unSample (lam3 $ \e s d -> fromProb $ dens s (pair e (inr d))) e s d
+   where dens :: Sample IO (Expect' Station) ->
+                 Sample IO (Expect' (Event, Either () Detection)) ->
+                 Sample IO Prob
+         dens = head $ density (\s -> event `bindx` (trueDetection s))
 
-invertDetection :: Base repr => repr Detection -> repr Real -> repr Real -> repr Event
-invertDetection d slowPerb aziPerb = undefined
+densT :: (Lambda repr, Integrate repr, Mochastic repr) =>
+         repr Station ->
+         repr (Expect' Event) ->
+         repr (Expect' Detection) ->
+         repr Prob
+densT s e d = (head $ density (\s -> event `bindx` (trueDetection s))) s (pair e (inr d))
 
-readEpisodes f = undefined
+station1 :: Base repr => repr Station
+station1 = pair 133.9 (pair (-23.71)
+           (pair (-5.7814139398408066) (pair 2.3145847470983005 (pair (-0.045404100548749146) (pair
+           0.90090308789365892 (pair 10.375546736486864 (pair  0.96913103078757756  (pair
+           (-8.6958852446415698) (pair 2.2868735296486626 (pair (-0.0013429424346670985) (pair
+           0.70293926034604937 (pair 0.002315667198328261 (pair
+           (-1.8351128031038666) 0.62370899995668161)))))))))))))
 
+invertDetection :: Detection' -> Station' -> Double -> Double -> Event'
+invertDetection d s slowPerb aziPerb =
+    let (time, (azimuth, (slowness, amplitude))) = d in
+    let (slat, (slon, (_,(_,(_,(_,(_,(_,
+         (mu_a0, (mu_a1, (mu_a2, _))))))))))) = s in
+    let dist = invertSlowness (slowness + slowPerb) in
+    let (lat, lon) = invertAzimuth (slat, slon) dist (azimuth + aziPerb) in
+    let ttime = computeTravelTime dist in
+    let evtime = time - ttime in
+    let evmag  = (LF.logFromLogFloat amplitude - mu_a0 - mu_a2*dist) / mu_a1 in
+    let evmag' = if evmag' > gammaM then gammaM else evmag in
+    (lat,(lon,(LF.logFloat evmag',evtime)))
+
+readEpisodes :: FilePath -> [Station'] -> IO [(Station', Detection')]
+readEpisodes f s = do
+  content <- readFile f
+  let linesOfFile = lines content
+  return undefined
+
+readStations = undefined
+readPhysics  = undefined
+
+main :: IO ()
 main = do
-  episodes <- getArgs
-  readEpisodes episodes
+  [stations, physics, episodes] <- getArgs
+  --readPhysics physics
+  --sta <- readStations stations
+  --readEpisodes sta episodes
+  return ()
