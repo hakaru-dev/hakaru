@@ -78,6 +78,11 @@ nonDefaultTests = test [ nonDefault "uniform" borelishSub
                        , nonDefault "uniform" t6
                        , nonDefault "uniform" t7
                        , nonDefault "uniform" t8
+                       , nonDefault "sqrt_"   fwdSqrt_
+                       , nonDefault "sqrt"    fwdSqrt
+                       , nonDefault "**"      fwdPow
+                       , nonDefault "pow_"    fwdPow_
+                       , nonDefault "logBase" fwdLogBase
                        ]
 
 -- 2015-04-09
@@ -391,23 +396,56 @@ t11 = \u -> ununit u $
 
 bwdSqrt_ :: (Mochastic repr) => Cond repr () (Measure (Prob, Real))
 bwdSqrt_ = \u -> ununit u $
-           normal 0 1 `bind` \x ->
-           dirac 10 `bind` \y ->
-           dirac (pair (sqrt_ $ unsafeProb (x ** 2 + y ** 2)) x)
+           uniform 0 10 `bind` \x ->
+           dirac (pair (sqrt_ (unsafeProb x)) x)
 
 fwdSqrt_ :: (Mochastic repr) => Cond repr () (Measure (Real, Prob))
 fwdSqrt_ = \u -> ununit u $
-           normal 0 1 `bind` \x ->
-           dirac ((x+1) ** 2 + (x-1) ** 2) `bind` \y ->
-           dirac (pair x (sqrt_ (unsafeProb y)))                 
+           uniform 0 10 `bind` \x ->
+           dirac (pair x (sqrt_ (unsafeProb x)))
 
 bwdSqrt :: (Mochastic repr) => Cond repr () (Measure (Real, Real))
 bwdSqrt = \u -> ununit u $
           uniform 0 10 `bind` \x ->
           dirac (pair (sqrt x) x)
-                 
+
 fwdSqrt :: (Mochastic repr) => Cond repr () (Measure (Real, Real))
 fwdSqrt = \u -> ununit u $
-          normal 0 1 `bind` \x ->
-          dirac (sqrt ((x+1) ** 2 + (x-1) ** 2)) `bind` \y ->
-          dirac (pair x y)
+          uniform 0 10 `bind` \x ->
+          dirac (pair x (sqrt x)) 
+
+bwdLogBase :: (Mochastic repr) => Cond repr () (Measure (Real, ()))
+bwdLogBase = \u -> ununit u $
+             uniform 2 4 `bind` \x ->
+             uniform 5 7 `bind` \y ->
+             dirac (pair (logBase x y) unit)
+
+fwdLogBase :: (Mochastic repr) => Cond repr () (Measure ((), Real))
+fwdLogBase = \u -> ununit u $
+             uniform 2 4 `bind` \x ->
+             uniform 5 7 `bind` \y ->
+             dirac (pair unit (logBase x y))
+
+bwdPow :: (Mochastic repr) => Cond repr () (Measure (Real, ()))
+bwdPow = \u -> ununit u $
+         uniform 2 4 `bind` \x ->
+         uniform 5 7 `bind` \y ->
+         dirac (pair (x ** y) unit)
+
+fwdPow :: (Mochastic repr) => Cond repr () (Measure ((), Real))
+fwdPow = \u -> ununit u $
+         uniform 2 4 `bind` \x ->
+         uniform 5 7 `bind` \y ->
+         dirac (pair unit (x ** y)) 
+                   
+bwdPow_ :: (Mochastic repr) => Cond repr () (Measure (Prob, ()))
+bwdPow_ = \u -> ununit u $
+          uniform 2 4 `bind` \x ->
+          uniform 5 7 `bind` \y ->
+          dirac (pair (pow_ (unsafeProb x) y) unit)
+
+fwdPow_ :: (Mochastic repr) => Cond repr () (Measure ((), Prob))
+fwdPow_ = \u -> ununit u $
+          uniform 2 4 `bind` \x ->
+          uniform 5 7 `bind` \y ->
+          dirac (pair unit (pow_ (unsafeProb x) y))
