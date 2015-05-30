@@ -8,7 +8,7 @@ module Language.Hakaru.Lazy (Lazy, runLazy, Backward, disintegrate,
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Hakaru(..),
-       Number(..), Fraction(..), EqType(Refl), Order(..),
+       Number(..), Fraction(..), Order(..),
        Base(..), snd_, equal_, and_, or_, not_, weight,
        Mochastic(..), Integrate(..), Lambda(..), Lub(..))
 import Language.Hakaru.Compose
@@ -30,7 +30,7 @@ uninr :: (Mochastic repr) => repr (HEither a b) ->
          (repr b -> repr (HMeasure w)) -> repr (HMeasure w)
 uninr x c = uneither x (\_ -> superpose []) c
 
--- TODO: for the Lub instance, we need @a :: Hakaru*@, but then why do we use @a@ as if it were of kind @*@? Also, the Monad instance requires @a :: *@...
+-- BUG: what is the kind of @a@ really supposed to be?
 data M (s :: Hakaru *) (repr :: Hakaru * -> *) (a :: *)
   = Return a
   | M (forall w. (a -> Heap s repr -> repr (HMeasure w))
@@ -41,14 +41,17 @@ unM :: M s repr a -> forall w. (a -> Heap s repr -> repr (HMeasure w))
 unM (Return a) = \c -> c a
 unM (M m)      = m
 
+-- BUG: this requires @M s repr :: * -> *@, conflicts with Lub
 instance Monad (M s repr) where
   return         = Return
   Return a >>= k = k a
   M m      >>= k = M (\c -> m (\a -> unM (k a) c))
 
+-- BUG: this requires @M s repr :: Hakaru * -> *@, conflicts with Monad
 instance (Lub repr) => Lub (M s repr) where
   bot       = M (\_ _ -> bot)
   lub m1 m2 = M (\c h -> lub (unM m1 c h) (unM m2 c h))
+
 
 choice :: (Mochastic repr) => [M s repr a] -> M s repr a
 choice [m] = m
@@ -196,6 +199,10 @@ data Heap (s :: Hakaru *) (repr :: Hakaru * -> *) = Heap
 newtype Loc (s :: Hakaru *) (a :: Hakaru *) = Loc Int
   deriving (Show)
 
+
+data EqType (t :: Hakaru *) (t' :: Hakaru *) where
+  Refl :: EqType t t
+  
 jmEq :: Loc s a -> Loc s b -> Maybe (EqType a b)
 jmEq (Loc a) (Loc b) | a == b    = Just (unsafeCoerce Refl)
                      | otherwise = Nothing
@@ -302,7 +309,7 @@ unique e   (Just _) (Just _) = error e
 unique _ a@(Just _) Nothing  = a
 unique _   Nothing  a        = a
 
-locateV :: Loc (Vector s) a -> Binding s repr -> Maybe (VRetrieval s repr a)
+locateV :: Loc (HArray s) a -> Binding s repr -> Maybe (VRetrieval s repr a)
 locateV l (VBind l1 table rhs) = fmap (\Refl -> RVBind table rhs) (jmEq l l1)
 locateV l (VLet  l1       rhs) = fmap (\Refl -> RVLet        rhs) (jmEq l l1)
 locateV _ _                    = Nothing
@@ -731,7 +738,7 @@ unpairM ab = do l1 <- gensym
                 store (Unpair l1 l2 ab)
                 return (lazyLoc l1, lazyLoc l2)
 
-ifM :: (Mochastic repr, Lub repr) => Lazy s repr HBool -> M s repr HBool
+ifM :: (Mochastic repr, Lub repr) => Lazy s repr HBool -> M s repr Bool
 ifM (Lazy (Return True_ ) _) = Return True
 ifM (Lazy (Return False_) _) = Return False
 ifM ab = choice [store (Iftrue  ab) >> return True,
@@ -852,6 +859,12 @@ instance (Mochastic repr, Lub repr) =>
   superpose pms = measure $ join $ choice
     [ store (Weight p) >> liftM unMeasure (forward m) | (p,m) <- pms ]
   -- TODO fill in other methods (in particular, categorical and chain)
+  -- BUG:
+  -- ""Kind incompatibility when matching types:
+  -- ""repr1 :: Hakaru * -> *
+  -- ""M s repr :: * -> *
+  -- ""Expected type: M s repr (Hnf s repr ('HMeasure 'HReal))
+  -- ""Actual type: repr1 a0
   uniform lo hi = Lazy (lub (forward (scalar2 uniform lo hi))
                             (forward dfault))
                        (backward dfault)
@@ -928,7 +941,7 @@ runDisintegrate m = runCompose
 density
     :: (Mochastic repr, Lambda repr, Integrate repr, Backward a a)
     => Cond (Expect repr) env (HMeasure a)
-    -> [repr (Expect' env) -> repr (Expect' a) -> repr Prob]
+    -> [repr (Expect' env) -> repr (Expect' a) -> repr HProb]
 density m = [ \env t -> total (d `app` Expect env `app` Expect t)
             | d <- runCompose
                  $ lam $ \env ->

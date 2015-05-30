@@ -3,7 +3,7 @@
 {-# OPTIONS -Wall -Werror #-}
 
 module Language.Hakaru.Syntax (Hakaru(..),
-       EqType(Refl), Order_(..), lesseq, Number(..), Fraction(..),
+       Order_(..), lesseq, Number(..), Fraction(..),
        Order(..), Base(..), ununit, fst_, snd_, swap_,
        and_, or_, not_, min_, max_,
        summateV, sumV, normalizeV, dirichlet,
@@ -79,9 +79,6 @@ data Prob      deriving Typeable -- meaning: non-negative real number
 data Measure a deriving Typeable
 data Array a   deriving Typeable
 -}
-
-data EqType t t' where
-  Refl :: EqType t t
 
 -- TODO: We used to require @Typeable a@... but now what?
 class Order_ (a :: Hakaru *) where

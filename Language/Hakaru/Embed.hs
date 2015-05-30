@@ -26,7 +26,7 @@ module Language.Hakaru.Embed (
     NS(..), NP(..), All, All2, Proxy(..)
   ) where
 
-import Language.Hakaru.Syntax hiding (EqType(..))
+import Language.Hakaru.Syntax
 import Prelude hiding (Real (..))
 import Data.List (intercalate, isPrefixOf, intersperse)
 import Data.Proxy 
