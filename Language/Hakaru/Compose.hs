@@ -8,8 +8,10 @@ import Control.Applicative hiding (empty)
 import Data.Traversable (traverse)
 import Unsafe.Coerce (unsafeCoerce)
 
--- BUG: must have @f :: Hakaru -> *@ because of the 'Lub' instance; but then that means we need some Hakaru type for @[Binding repr]->a@ and it's not clear to me what's up with 'Binding' to be able to do that...
-newtype Compose f s (repr :: Hakaru * -> *) (a :: Hakaru *) =
+-- The idea here is that @Compose f s r@ is the repr @f . r@. The
+-- kind signature on @f@ isn't necessary, but is provided to make
+-- clear what is intended.
+newtype Compose (f :: * -> *) s (repr :: Hakaru * -> *) (a :: Hakaru *) =
     Compose { unCompose :: C f repr (repr a) }
 
 newtype C f (repr :: Hakaru * -> *) a =
@@ -21,7 +23,7 @@ data Binding (repr :: Hakaru * -> *) = forall a. Binding (repr a)
 
 unsafeLookup :: Int -> [Binding repr] -> repr a
 unsafeLookup n xs = case xs !! n of
-  Binding x -> (unsafeCoerce :: repr b -> repr a) x
+  Binding x -> unsafeCoerce x
 
 instance (Functor f) => Functor (C f repr) where
   fmap f (C x) = C (\n -> fmap (f .) (x n))
@@ -168,10 +170,6 @@ instance (Lambda repr, Applicative f) => Lambda (Compose f s repr) where
   app   = compose2 app
   lam f = Compose (fmap lam (fun1 f))
 
-instance (Lub f) => Lub (Compose f s repr) where
-  bot                                 = Compose (C (\_ -> bot))
-  lub (Compose (C x)) (Compose (C y)) = Compose (C (\n -> lub (x n) (y n)))
-
-instance Lub [] where
-  bot = []
-  lub = (++)
+instance Lub (Compose [] s repr) where
+  bot                                 = Compose (C (\_ -> []))
+  lub (Compose (C x)) (Compose (C y)) = Compose (C (\n -> x n ++ y n))

@@ -2,7 +2,7 @@
              DeriveDataTypeable, GADTs, Rank2Types, DataKinds, KindSignatures, TypeFamilies #-}
 {-# OPTIONS -Wall -Werror #-}
 
-module Language.Hakaru.Syntax (Hakaru(..), HProxy(),
+module Language.Hakaru.Syntax (Hakaru(..), HProxy(..),
        EqType(Refl), Order_(..), lesseq, Number(..), Fraction(..),
        Order(..), Base(..), ununit, fst_, snd_, swap_,
        and_, or_, not_, min_, max_,
@@ -45,7 +45,7 @@ data Hakaru star
     -- TODO: arbitrary embedding of Haskell types
 
 -- A Haskell proxy for values of Hakaru types.
-data HProxy (a :: Hakaru *)
+data HProxy (a :: Hakaru *) = HProxy
     deriving Typeable
 
 {-
