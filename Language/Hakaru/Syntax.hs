@@ -1,8 +1,8 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleContexts, DefaultSignatures,
-             DeriveDataTypeable, GADTs, Rank2Types, DataKinds, KindSignatures, TypeFamilies #-}
+             GADTs, Rank2Types, DataKinds, KindSignatures, TypeFamilies #-}
 {-# OPTIONS -Wall -Werror #-}
 
-module Language.Hakaru.Syntax (Hakaru(..), HProxy(..),
+module Language.Hakaru.Syntax (Hakaru(..),
        EqType(Refl), Order_(..), lesseq, Number(..), Fraction(..),
        Order(..), Base(..), ununit, fst_, snd_, swap_,
        and_, or_, not_, min_, max_,
@@ -15,7 +15,6 @@ module Language.Hakaru.Syntax (Hakaru(..), HProxy(..),
        binomial, multinomial,
        Integrate(..), Lambda(..), lam2, lam3, app2, app3, Lub(..)) where
 
-import Data.Typeable (Typeable)
 import Prelude hiding (Real)
 
 infix  4 `less`, `equal`, `less_`, `equal_`
@@ -44,9 +43,7 @@ data Hakaru star
     | HMaybe (Hakaru star)
     -- TODO: arbitrary embedding of Haskell types
 
--- A Haskell proxy for values of Hakaru types.
-data HProxy (a :: Hakaru *) = HProxy
-    deriving Typeable
+-- N.B., The @Proxy@ type from "Data.Proxy" is polykinded, so it works for @Hakaru*@ too. However, it is _not_ Typeable!
 
 {-
 type family   ToHakaru (a :: *) :: Hakaru *
@@ -86,7 +83,7 @@ data Array a   deriving Typeable
 data EqType t t' where
   Refl :: EqType t t
 
--- N.B., we have @Typeable (HProxy a)@ for all Hakaru types @a@
+-- TODO: We used to require @Typeable a@... but now what?
 class Order_ (a :: Hakaru *) where
   less_, equal_  :: (Base repr              ) => repr a -> repr a -> repr HBool
   default less_  :: (Base repr, Order repr a) => repr a -> repr a -> repr HBool

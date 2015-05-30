@@ -101,7 +101,7 @@ closeLoop s = action where
                    $ replace "[]" "Nil"
                    $ pack (show (typeOf ((undefined :: f a -> a) action)))
 
-mkTypeString :: (Simplifiable a) => String -> hproxy a -> String
+mkTypeString :: (Simplifiable a) => String -> proxy a -> String
 mkTypeString s t = "Typed(" ++ s ++ ", " ++ mapleType t ++ ")"
 
 simplify :: (Simplifiable a) => Maple a -> IO (Any a)

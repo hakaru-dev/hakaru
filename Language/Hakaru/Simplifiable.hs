@@ -4,13 +4,14 @@
 module Language.Hakaru.Simplifiable (Simplifiable(mapleType)) where
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Hakaru(..), HProxy)
+--import Data.Proxy (Proxy(..)) -- Is in Prelude for modern GHC?
+import Language.Hakaru.Syntax (Hakaru(..))
 import Language.Hakaru.Embed
 import Data.List (intercalate)
 
--- N.B., we have Typeable (HProxy a) for all @a@
+-- TODO: We used to have @Typeable a@ for all Hakaru types @a@, but now that we've moved them into the @Hakaru*@ kind, now what?
 class Simplifiable (a :: Hakaru *) where
-  mapleType :: hproxy a -> String
+  mapleType :: proxy a -> String
 
 instance Simplifiable HUnit where mapleType _ = "Unit"
 instance Simplifiable HInt  where mapleType _ = "Int"
@@ -19,21 +20,21 @@ instance Simplifiable HProb where mapleType _ = "Prob"
 instance Simplifiable HBool where mapleType _ = "Bool"
 
 instance (Simplifiable a, Simplifiable b) => Simplifiable (HPair a b) where
-  mapleType _ = "Pair(" ++ mapleType (undefined :: HProxy a) ++ "," ++
-                           mapleType (undefined :: HProxy b) ++ ")"
+  mapleType _ = "Pair(" ++ mapleType (Proxy :: Proxy a) ++ "," ++
+                           mapleType (Proxy :: Proxy b) ++ ")"
 
 instance Simplifiable a => Simplifiable (HList a) where
-  mapleType _ = "List(" ++ mapleType (undefined :: HProxy a) ++ ")"
+  mapleType _ = "List(" ++ mapleType (Proxy :: Proxy a) ++ ")"
 
 instance Simplifiable a => Simplifiable (HMeasure a) where
-  mapleType _ = "Measure(" ++ mapleType (undefined :: HProxy a) ++ ")"
+  mapleType _ = "Measure(" ++ mapleType (Proxy :: Proxy a) ++ ")"
 
 instance Simplifiable a => Simplifiable (HArray a) where
-  mapleType _ = "MVector(" ++ mapleType (undefined :: HProxy a) ++ ")"
+  mapleType _ = "MVector(" ++ mapleType (Proxy :: Proxy a) ++ ")"
 
 instance (Simplifiable a, Simplifiable b) => Simplifiable (HFun a b) where
-  mapleType _ = "Arrow(" ++ mapleType (undefined :: HProxy a) ++ "," ++
-                            mapleType (undefined :: HProxy b) ++ ")"
+  mapleType _ = "Arrow(" ++ mapleType (Proxy :: Proxy a) ++ "," ++
+                            mapleType (Proxy :: Proxy b) ++ ")"
 
 -- Typeable (Tag t xss)
 instance (SingI xss, All2 Simplifiable xss, SimplEmbed t) => Simplifiable (HTag t xss) where
