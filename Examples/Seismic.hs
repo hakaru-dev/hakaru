@@ -51,8 +51,13 @@ logistic x = recip (1 + exp_ (-x)) -- Section B.6
 invertSlowness :: Floating a => a -> a
 invertSlowness s = (s - 10.7) / (-0.046)
 
-invertAzimuth :: Floating a => (a, a) -> a -> a -> (a, a)
-invertAzimuth (lat, lon) dist azi = undefined
+invertAzimuth :: RealFloat a => (a, a) -> a -> a -> (a, a)
+invertAzimuth (lat, lon) dist azi =
+    let [lat1, lon1, dist1, azi1] = map radians [lat, lon, dist, azi] in
+    let lat2 = asin (sin lat1 * cos dist1 +
+                     cos lat1 * sin dist1 * cos azi1) in
+    let lon2 = lon1 + atan2 (sin azi1 * sin dist1 * cos lat1) (cos dist1 - sin lat1 * sin lat2) in
+    (degrees lat2, degrees lon2)
 
 computeTravelTime :: Double -> Double
 computeTravelTime = unSample (lam iT)
