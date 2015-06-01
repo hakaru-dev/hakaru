@@ -28,9 +28,9 @@ import Control.Monad.State
 import Control.Monad.Trans.Maybe
 import Language.Hakaru.Embed
 
-newtype Sample (m :: Hakaru * -> *) (a :: Hakaru *) =
+newtype Sample (m :: * -> *) (a :: Hakaru *) =
     Sample { unSample :: Sample' m a }
-type family   Sample' (m :: Hakaru * -> *) (a :: Hakaru *) :: *
+type family   Sample' (m :: * -> *) (a :: Hakaru *) :: *
 type instance Sample' m HInt          = Int 
 type instance Sample' m HReal         = Double 
 type instance Sample' m HProb         = LF.LogFloat 
@@ -42,7 +42,7 @@ type instance Sample' m (HList a)     = [Sample' m a]
 -- BUG: need to coerce @m@ into @* -> *@ in order to pass it to 'PrimState'
 type instance Sample' m (HMeasure a)  =
     LF.LogFloat -> MWC.Gen (PrimState m) ->
-    m (HMaybe (HPair (Sample' m a) HProb))
+    m (Maybe (Sample' m a, LF.LogFloat))
 type instance Sample' m (HFun a b)    = Sample' m a -> Sample' m b
 type instance Sample' m (HArray a)    = V.Vector (Sample' m a)
 
@@ -104,7 +104,7 @@ instance Base (Sample m) where
   reduce f a (Sample v)           = V.foldl' (\acc b -> f acc (Sample b)) a v
 
 -- BUG: need to coerce @m@ into @* -> *@ in order to pass it to 'PrimState'
-instance (PrimMonad m) => Mochastic (Sample (m :: Hakaru * -> *)) where
+instance (PrimMonad m) => Mochastic (Sample (m :: * -> *)) where
   dirac (Sample a) = Sample (\p _ ->
     return (Just (a,p)))
   bind (Sample m) k = Sample (\p g -> do
