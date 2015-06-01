@@ -1325,3 +1325,29 @@ kalman = lam $ \m -> lam $ \n -> reflect m `bindo` reflect n
           lam $ \s ->
           weight (a * exp_ (- fromProb b * (s - c) ** 2)) $
           normal (d * s + e) f
+
+-- from a web question
+-- these are mathematically equivalent, albeit at different types
+chal1 :: (Mochastic repr, Lambda repr) => repr (Prob -> Real -> Real -> Real -> Measure Bool)
+chal1 = lam $ \sigma ->
+        lam $ \a     ->
+        lam $ \b     ->
+        lam $ \c     ->
+        normal a sigma `bind` \ya ->
+        normal b sigma `bind` \yb ->
+        normal c sigma `bind` \yc ->
+        dirac (and_ [less_ yb ya, less_ yc ya])
+
+chal2 :: (Mochastic repr, Lambda repr) => repr (Prob -> Real -> Real -> Real -> Measure Real)
+chal2 = lam $ \sigma ->
+        lam $ \a     ->
+        lam $ \b     ->
+        lam $ \c     ->
+        normal a sigma `bind` \ya ->
+        normal b sigma `bind` \yb ->
+        normal c sigma `bind` \yc ->
+        dirac (if_ (and_ [less_ yb ya, less_ yc ya]) 1 0)
+
+chal3 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure Real)
+chal3 = lam $ \sigma -> app3 (app chal2 sigma) 0 0 0
+

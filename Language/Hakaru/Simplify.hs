@@ -112,7 +112,7 @@ simplify e = do
 simplify' :: (Simplifiable a) => Maple a -> IO String
 simplify' e = do
   let slo = toMaple e
-  hopeString <- maple ("timelimit(15,Haskell(SLO:-AST(SLO(" ++ slo ++ "))));")
+  hopeString <- maple ("timelimit(150,Haskell(SLO:-AST(SLO(" ++ slo ++ "))));")
   case readMapleString hopeString of
     Just hakaru -> return hakaru
     Nothing -> throw (MapleException slo hopeString)

@@ -646,34 +646,33 @@ instance (Mochastic repr, Lub repr) =>
   x ** y = Lazy
     (liftM2 (**) (forward x) (forward y))
     (\t -> lub (do r <- forward x
-                   (t',r') <- liftM2 (,) (atomize t) (atomize r)
-                   insert_ (ifTrue (or_ [ and_ [less  0 t', less  0 r']
-                                        , and_ [equal 0 t', equal 0 r'] ]))
+                   -- TODO if r is 0 or 1 then bot
+                   -- Maybe the (log r) in w takes care of the r=0 case
+                   t' <- atomize t
+                   insert_ (ifTrue (less 0 t'))
                    w <- atomize (recip (abs (t * log r)))
                    insert_ (weight (unsafeProb w))
                    backward y (logBase r t))
                (do r <- forward y
-                   (t',r') <- liftM2 (,) (atomize t) (atomize r)
-                   insert_ (ifTrue (or_ [and_ [      equal 0 r' ,equal 1 t']
-                                        ,and_ [not_ (equal 0 r'),less  0 t']]))
+                   -- TODO if r is 0 then bot
+                   -- Maybe the weight w takes care of this case
+                   t'<- atomize t
+                   insert_ (ifTrue (less 0 t'))
                    let ex = t ** (recip r)
-                   w <- atomize (abs (ex / (r * t))) -- TODO check div by 0
+                   w <- atomize (abs (ex / (r * t)))
                    insert_ (weight (unsafeProb w))
                    backward x ex))
   logBase x y = Lazy
     (liftM2 logBase (forward x) (forward y))
     (\t -> lub (do r <- forward x
-                   r' <- atomize r
-                   insert_ (ifTrue (less 0 r'))
+                   -- TODO if r is 0 or 1 then bot
                    w <- atomize (abs ((r ** t) * log r))
                    insert_ (weight (unsafeProb w))
                    backward y (r ** t))
                (do r <- forward y
-                   (t',r') <- liftM2 (,) (atomize t) (atomize r)
-                   insert_ (ifTrue (or_ [and_ [      equal 0 t' ,equal 1 r']
-                                        ,and_ [not_ (equal 0 t'),less  0 r']]))
+                   -- TODO if r is 0 or 1 then bot
                    let ex = r ** (recip t)
-                   w <- atomize (abs (ex * (log r) / (t*t))) -- TODO div by 0
+                   w <- atomize (abs (ex * (log r) / (t*t)))
                    insert_ (weight (unsafeProb w))
                    backward x ex))
   sqrt x = Lazy
