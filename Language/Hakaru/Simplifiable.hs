@@ -5,12 +5,14 @@ module Language.Hakaru.Simplifiable (Simplifiable(mapleType)) where
 
 import Prelude hiding (Real)
 --import Data.Proxy (Proxy(..)) -- Is in Prelude for modern GHC?
+import Data.Typeable (Typeable)
 import Language.Hakaru.Syntax (Hakaru(..))
 import Language.Hakaru.Embed
 import Data.List (intercalate)
 
 -- TODO: We used to have @Typeable a@ for all Hakaru types @a@, but now that we've moved them into the @Hakaru*@ kind, now what?
-class Simplifiable (a :: Hakaru *) where
+-- N.B., 'Typeable' is polykinded...
+class Typeable a => Simplifiable (a :: Hakaru *) where
   mapleType :: proxy a -> String
 
 instance Simplifiable HUnit where mapleType _ = "Unit"
@@ -36,8 +38,8 @@ instance (Simplifiable a, Simplifiable b) => Simplifiable (HFun a b) where
   mapleType _ = "Arrow(" ++ mapleType (Proxy :: Proxy a) ++ "," ++
                             mapleType (Proxy :: Proxy b) ++ ")"
 
--- Typeable (Tag t xss)
-instance (SingI xss, All2 Simplifiable xss, SimplEmbed t) => Simplifiable (HTag t xss) where
+-- N.B., we replaced the old @Typeable (Tag t xss)@ requirement by it's two prerequisites, becase otherwise we need to give a kind signature to @xss@ which for some strange reason causes a syntax error
+instance (SingI xss, All2 Simplifiable xss, SimplEmbed t, Typeable t, Typeable xss) => Simplifiable (HTag t xss) where
   mapleType _ = concat
     [ "Tagged("
     , mapleTypeEmbed (undefined :: t)

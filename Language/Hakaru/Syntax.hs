@@ -1,5 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleContexts, DefaultSignatures,
-             GADTs, Rank2Types, DataKinds, KindSignatures, TypeFamilies #-}
+             GADTs, Rank2Types, DataKinds, KindSignatures, TypeFamilies, StandaloneDeriving, DeriveDataTypeable, PolyKinds #-}
 {-# OPTIONS -Wall -Werror #-}
 
 module Language.Hakaru.Syntax (Hakaru(..),
@@ -16,6 +16,7 @@ module Language.Hakaru.Syntax (Hakaru(..),
        Integrate(..), Lambda(..), lam2, lam3, app2, app3, Lub(..)) where
 
 import Prelude hiding (Real)
+import Data.Typeable (Typeable)
 
 infix  4 `less`, `equal`, `less_`, `equal_`
 infixl 1 `bind`, `bind_`, `bindx`
@@ -44,6 +45,21 @@ data Hakaru star
     -- TODO: arbitrary embedding of Haskell types
 
 -- N.B., The @Proxy@ type from "Data.Proxy" is polykinded, so it works for @Hakaru*@ too. However, it is _not_ Typeable!
+
+deriving instance Typeable HInt
+deriving instance Typeable HReal
+deriving instance Typeable HProb
+deriving instance Typeable HMeasure -- N.B., really polykinded!
+deriving instance Typeable HArray   -- N.B., really polykinded!
+deriving instance Typeable HFun     -- N.B., really polykinded!
+deriving instance Typeable HBool
+deriving instance Typeable HUnit
+deriving instance Typeable HPair    -- N.B., really polykinded!
+deriving instance Typeable HEither  -- N.B., really polykinded!
+deriving instance Typeable HSOP     -- N.B., really polykinded!
+deriving instance Typeable HTag     -- N.B., really polykinded!
+deriving instance Typeable HList    -- N.B., really polykinded!
+deriving instance Typeable HMaybe   -- N.B., really polykinded!
 
 {-
 type family   ToHakaru (a :: *) :: Hakaru *
