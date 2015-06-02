@@ -11,7 +11,7 @@ module Language.Hakaru.Sample (Sample(..), Sample', runSample) where
 -- Importance sampling interpretation
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Real, Prob, Measure, Vector,
+import Language.Hakaru.Syntax (Hakaru(..),
        Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..))
 import Language.Hakaru.Util.Extras (normalize, normalizeVector)
 import Language.Hakaru.Distribution (poisson_rng)
@@ -28,47 +28,50 @@ import Control.Monad.State
 import Control.Monad.Trans.Maybe
 import Language.Hakaru.Embed
 
-newtype Sample m a = Sample { unSample :: Sample' m a }
-type family Sample' (m :: * -> *) (a :: *)
-type instance Sample' m Int          = Int
-type instance Sample' m Real         = Double
-type instance Sample' m Prob         = LF.LogFloat
-type instance Sample' m Bool         = Bool
-type instance Sample' m ()           = ()
-type instance Sample' m (a, b)       = (Sample' m a, Sample' m b)
-type instance Sample' m (Either a b) = Either (Sample' m a) (Sample' m b)
-type instance Sample' m [a]          = [Sample' m a]
-type instance Sample' m (Measure a)  = LF.LogFloat -> MWC.Gen (PrimState m) ->
-                                       m (Maybe (Sample' m a, LF.LogFloat))
-type instance Sample' m (a -> b)     = Sample' m a -> Sample' m b
-type instance Sample' m (Vector a)   = V.Vector (Sample' m a)
+newtype Sample (m :: * -> *) (a :: Hakaru *) =
+    Sample { unSample :: Sample' m a }
+type family   Sample' (m :: * -> *) (a :: Hakaru *) :: *
+type instance Sample' m HInt          = Int 
+type instance Sample' m HReal         = Double 
+type instance Sample' m HProb         = LF.LogFloat 
+type instance Sample' m HBool         = Bool 
+type instance Sample' m HUnit         = () 
+type instance Sample' m (HPair a b)   = (Sample' m a, Sample' m b)
+type instance Sample' m (HEither a b) = Either (Sample' m a) (Sample' m b)
+type instance Sample' m (HList a)     = [Sample' m a] 
+-- BUG: need to coerce @m@ into @* -> *@ in order to pass it to 'PrimState'
+type instance Sample' m (HMeasure a)  =
+    LF.LogFloat -> MWC.Gen (PrimState m) ->
+    m (Maybe (Sample' m a, LF.LogFloat))
+type instance Sample' m (HFun a b)    = Sample' m a -> Sample' m b
+type instance Sample' m (HArray a)    = V.Vector (Sample' m a)
 
-instance Order (Sample m) Real where
+instance Order (Sample m) HReal where
   less  (Sample a) (Sample b) = Sample (a <  b)
   equal (Sample a) (Sample b) = Sample (a == b)
 
-deriving instance Eq         (Sample m Real)
-deriving instance Ord        (Sample m Real)
-deriving instance Num        (Sample m Real)
-deriving instance Fractional (Sample m Real)
-deriving instance Floating   (Sample m Real)
+deriving instance Eq         (Sample m HReal)
+deriving instance Ord        (Sample m HReal)
+deriving instance Num        (Sample m HReal)
+deriving instance Fractional (Sample m HReal)
+deriving instance Floating   (Sample m HReal)
 
-instance Order (Sample m) Prob where
+instance Order (Sample m) HProb where
   less  (Sample a) (Sample b) = Sample (a <  b)
   equal (Sample a) (Sample b) = Sample (a == b)
 
-deriving instance Eq         (Sample m Prob)
-deriving instance Ord        (Sample m Prob)
-deriving instance Num        (Sample m Prob)
-deriving instance Fractional (Sample m Prob)
+deriving instance Eq         (Sample m HProb)
+deriving instance Ord        (Sample m HProb)
+deriving instance Num        (Sample m HProb)
+deriving instance Fractional (Sample m HProb)
 
-instance Order (Sample m) Int where
+instance Order (Sample m) HInt where
   less  (Sample a) (Sample b) = Sample (a <  b)
   equal (Sample a) (Sample b) = Sample (a == b)
 
-deriving instance Eq         (Sample m Int)
-deriving instance Ord        (Sample m Int)
-deriving instance Num        (Sample m Int)
+deriving instance Eq         (Sample m HInt)
+deriving instance Ord        (Sample m HInt)
+deriving instance Num        (Sample m HInt)
 
 instance Base (Sample m) where
   unit                            = Sample ()
@@ -100,7 +103,8 @@ instance Base (Sample m) where
   size   (Sample v)               = Sample (V.length v)
   reduce f a (Sample v)           = V.foldl' (\acc b -> f acc (Sample b)) a v
 
-instance (PrimMonad m) => Mochastic (Sample m) where
+-- BUG: need to coerce @m@ into @* -> *@ in order to pass it to 'PrimState'
+instance (PrimMonad m) => Mochastic (Sample (m :: * -> *)) where
   dirac (Sample a) = Sample (\p _ ->
     return (Just (a,p)))
   bind (Sample m) k = Sample (\p g -> do
@@ -185,8 +189,8 @@ instance Lambda (Sample m) where
   app (Sample rator) (Sample rand) = Sample (rator rand)
 
 
-type instance Sample' m (Tag t xss) = NS (NP (Sample m)) xss
-type instance Sample' m (SOP xss) = NS (NP (Sample m)) xss
+type instance Sample' m (HTag t xss) = NS (NP (Sample m)) xss
+type instance Sample' m (HSOP xss)   = NS (NP (Sample m)) xss
 
 instance Embed (Sample m) where
   _Nil = Sample (Z Nil)
@@ -208,7 +212,7 @@ instance Embed (Sample m) where
   tag (Sample x) = Sample x
   untag (Sample x) = Sample x
                                    
-runSample :: Sample IO (Measure a) -> IO (Maybe (Sample' IO a))
+runSample :: Sample IO (HMeasure a) -> IO (Maybe (Sample' IO a))
 runSample m = do g <- MWC.createSystemRandom -- "This is a somewhat expensive function, and is intended to be called only occasionally (e.g. once per thread)."
                  s <- unSample m 1 g
                  return (fmap fst s)

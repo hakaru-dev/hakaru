@@ -3,18 +3,25 @@
              ConstraintKinds, DataKinds #-}
 
 module Language.Hakaru.Vector (Nat(..), fromNat, toNat, Repeat,
+       {-
+       -- Removing the Vector class, to see what breaks.
        Vector(..), toNestedPair, fromNestedPair, fromList,
-       sequenceA, mapM, sequence, mapAccum, iota, mapC) where
+       sequenceA, mapM, sequence, mapAccum, iota, mapC
+       -}
+       ) where
 
 import Prelude hiding (Real, mapM, sequence, abs)
 import qualified Control.Applicative as A
-import Language.Hakaru.Syntax hiding (Vector)
+import Language.Hakaru.Syntax
 -- import Language.Hakaru.Sample (Sample(unSample))
 import Control.Applicative (WrappedMonad(..))
 import Control.Monad.State (runState, state)
 import Control.Monad.Cont (runCont, cont)
 
+{-
+-- Removing the Vector class, to see what breaks.
 infixl 4 <*>, <$>
+-}
 
 -- Type-level natural numbers (starting at 1, not 0)
 
@@ -57,6 +64,9 @@ type instance Repeat' (SD n) a = (Repeat n a, Repeat n a)
 
 type SameLength as b = Length' as ~ Length' (Repeat' (Length' as) b)
 
+{-
+-- Removing the Vector class, to see what breaks.
+-- BUG: must have @a :: Hakaru *@ in order to apply @repr@ to it; but then what of all the arguments and results with the bare type @a@ (e.g., instead of @repr a@)?
 class (as ~ Repeat' (Length' as) a) => Vector a as where
   pure            :: a -> (a, as)
   (<*>)           :: (SameLength as (a -> b), SameLength as b) =>
@@ -185,3 +195,4 @@ main = do
        -- 15.0
   print (iota 10 :: Repeat Nat123 Int)
   -}
+-}

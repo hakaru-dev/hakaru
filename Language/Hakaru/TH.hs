@@ -1,13 +1,13 @@
-{-# LANGUAGE TemplateHaskell, FlexibleInstances, MultiParamTypeClasses #-}
+{-# LANGUAGE TemplateHaskell, FlexibleInstances, MultiParamTypeClasses, KindSignatures, DataKinds #-}
 {-# OPTIONS -Wall #-}
 module Language.Hakaru.TH (THRepr, unTHRepr, show_code) where
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Number(..), Fraction(..),
+import Language.Hakaru.Syntax (Hakaru(..), Number(..), Fraction(..),
        Order(..), Base(..), Mochastic(..), Lambda(..))
 import Language.Haskell.TH
 
-newtype THRepr a = THR { unTHRepr :: ExpQ }
+newtype THRepr (a :: Hakaru *) = THR { unTHRepr :: ExpQ }
 
 liftT :: Name -> [ExpQ] -> THRepr a
 liftT n es = THR (foldl appE (varE n) es)

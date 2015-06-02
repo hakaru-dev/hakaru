@@ -1,4 +1,4 @@
-{-# LANGUAGE Rank2Types, ExistentialQuantification, MultiParamTypeClasses, FlexibleInstances, FlexibleContexts #-}
+{-# LANGUAGE Rank2Types, ExistentialQuantification, MultiParamTypeClasses, FlexibleInstances, FlexibleContexts, KindSignatures, DataKinds #-}
 {-# OPTIONS -Wall #-}
 
 module Language.Hakaru.Compose (Compose, liftCompose, runCompose) where
@@ -8,17 +8,22 @@ import Control.Applicative hiding (empty)
 import Data.Traversable (traverse)
 import Unsafe.Coerce (unsafeCoerce)
 
-newtype Compose f s repr a = Compose { unCompose :: C f repr (repr a) }
+-- The idea here is that @Compose f s r@ is the repr @f . r@. The
+-- kind signature on @f@ isn't necessary, but is provided to make
+-- clear what is intended.
+newtype Compose (f :: * -> *) s (repr :: Hakaru * -> *) (a :: Hakaru *) =
+    Compose { unCompose :: C f repr (repr a) }
 
-newtype C f repr a = C { unC :: Int -> f ([Binding repr] -> a) }
-                         -- this^^^       ^^^^^^^^^^^^^^
-                         -- is the length of this list
+newtype C f (repr :: Hakaru * -> *) a =
+    C { unC :: Int -> f ([Binding repr] -> a) }
+        -- this^^^       ^^^^^^^^^^^^^^
+        -- is the length of this list
 
-data Binding repr = forall a. Binding (repr a)
+data Binding (repr :: Hakaru * -> *) = forall a. Binding (repr a)
 
 unsafeLookup :: Int -> [Binding repr] -> repr a
 unsafeLookup n xs = case xs !! n of
-  Binding x -> (unsafeCoerce :: repr b -> repr a) x
+  Binding x -> unsafeCoerce x
 
 instance (Functor f) => Functor (C f repr) where
   fmap f (C x) = C (\n -> fmap (f .) (x n))
@@ -165,10 +170,6 @@ instance (Lambda repr, Applicative f) => Lambda (Compose f s repr) where
   app   = compose2 app
   lam f = Compose (fmap lam (fun1 f))
 
-instance (Lub f) => Lub (Compose f s repr) where
-  bot                                 = Compose (C (\_ -> bot))
-  lub (Compose (C x)) (Compose (C y)) = Compose (C (\n -> lub (x n) (y n)))
-
-instance Lub [] where
-  bot = []
-  lub = (++)
+instance Lub (Compose [] s repr) where
+  bot                                 = Compose (C (\_ -> []))
+  lub (Compose (C x)) (Compose (C y)) = Compose (C (\n -> x n ++ y n))
