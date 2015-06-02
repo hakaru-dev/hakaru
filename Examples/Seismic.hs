@@ -12,6 +12,8 @@ import Language.Hakaru.Lazy
 import System.Environment
 import qualified Data.Map as M
 import qualified Data.Number.LogFloat as LF
+import Data.List
+import Data.Function (on)
 
 degrees, radians :: (Floating a) => a -> a
 degrees r = r * 180 / pi
@@ -162,6 +164,8 @@ type Detection' =
   , ( LF.LogFloat -- amplitude
   ))))
 
+type Episode' = [(Station', Detection')]
+
 constT :: (Base repr) => repr Real
 constT = 3600 -- Section 2
 
@@ -301,20 +305,30 @@ falseDetection s = -- Section 1.6, except the Poisson
  
 -}
 
+laplacePerc :: (RealFloat a) => a -> a
 laplacePerc q | q >= 0   && q <= 0.5 = log (2*q)
 laplacePerc q | q >= 0.5 && q <= 1.0 = - log (2*(1-q))
 laplacePerc _ = error "percentiles are between 0 and 1"
 
-solveEpisode :: Base repr => [(repr Station, repr Detection)] -> [(repr Event, [repr Detection])]
-solveEpisode = undefined
+solveEpisode :: Episode' -> [(Event', [(Station', Detection')])]
+solveEpisode sd@((s,d):_) =
+    let events = generateCandidates s d in
+    let (e,(sd',_)) = maximumBy (compare `on` (snd .snd))
+                      (map (\e -> (e, findBestDetections e sd M.empty)) events) in
+    (e,sd') : solveEpisode (sd \\ sd')
 
-generateCandidates :: Base repr => repr Detection -> [repr Event]
-generateCandidates = undefined
+generateCandidates :: Station' -> Detection' -> [Event']
+generateCandidates s@(_,(_,(_,(_,(_,(_,(theta_z,(theta_s, _))))))))
+                   d  =
+    map (\(azi,slow) -> invertDetection d s azi slow) (perbs [0.1, 0.2 .. 0.9])
+  where perbs l = [(LF.fromLogFloat theta_z*(laplacePerc dazi),
+                    LF.fromLogFloat theta_s*(laplacePerc dslow))  |
+                   dazi <- l, dslow <- l]
 
 findBestDetections :: Event' ->
                      [(Station', Detection')] ->
-                      M.Map Station' (Detection', Double) ->
-                      [(Station', Detection')]
+                     M.Map Station' (Detection', Double) ->
+                     ([(Station', Detection')], Double)
 findBestDetections e ((s,d):rest) m =
     case M.lookup s m of
       Just (_, ll) -> let ll' = eventLL e s d in
@@ -322,7 +336,8 @@ findBestDetections e ((s,d):rest) m =
                          then findBestDetections e rest m
                          else findBestDetections e rest (M.insert s (d, ll') m)
       Nothing -> findBestDetections e rest (M.insert s (d, (eventLL e s d)) m)
-findBestDetections e [] m = map (\ (s, (d, _)) -> (s,d)) (M.assocs m)
+findBestDetections _ [] m = (map (\ (s, (d, _)) -> (s,d)) (M.assocs m),
+                             sum $ map snd (M.elems m))
 
 eventLL :: Event' -> Station' -> Detection' -> Double
 eventLL e s d = unSample (lam3 $ \e s d -> fromProb $ dens s (pair e (inr d))) e s d
@@ -338,16 +353,8 @@ densT :: (Lambda repr, Integrate repr, Mochastic repr) =>
          repr Prob
 densT s e d = (head $ density (\s -> event `bindx` (trueDetection s))) s (pair e (inr d))
 
-station1 :: Base repr => repr Station
-station1 = pair 133.9 (pair (-23.71)
-           (pair (-5.7814139398408066) (pair 2.3145847470983005 (pair (-0.045404100548749146) (pair
-           0.90090308789365892 (pair 10.375546736486864 (pair  0.96913103078757756  (pair
-           (-8.6958852446415698) (pair 2.2868735296486626 (pair (-0.0013429424346670985) (pair
-           0.70293926034604937 (pair 0.002315667198328261 (pair
-           (-1.8351128031038666) 0.62370899995668161)))))))))))))
-
 invertDetection :: Detection' -> Station' -> Double -> Double -> Event'
-invertDetection d s slowPerb aziPerb =
+invertDetection d s aziPerb slowPerb =
     let (time, (azimuth, (slowness, amplitude))) = d in
     let (slat, (slon, (_,(_,(_,(_,(_,(_,
          (mu_a0, (mu_a1, (mu_a2, _))))))))))) = s in
@@ -359,19 +366,81 @@ invertDetection d s slowPerb aziPerb =
     let evmag' = if evmag' > gammaM then gammaM else evmag in
     (lat,(lon,(LF.logFloat evmag',evtime)))
 
-readEpisodes :: FilePath -> [Station'] -> IO [(Station', Detection')]
-readEpisodes f s = do
-  content <- readFile f
-  let linesOfFile = lines content
-  return undefined
+configMap :: [String] -> M.Map String [Double] -> M.Map String [Double]
+configMap []     m = m
+configMap (e:es) m = configMap es (updateMap $ words e)
+   where updateMap (key:_:[vals]) | head vals == '[' =  M.insert key (read   vals :: [Double]) m
+                                  | otherwise        =  M.insert key ([read vals] :: [Double]) m 
 
-readStations = undefined
-readPhysics  = undefined
+makeStation :: M.Map String [Double] -> (Int, [String]) -> Station'
+makeStation m (id,[lat,lon]) = (read lat :: Double
+                             , (read lon :: Double
+                             , (m M.! "mu_d0" !! id 
+                             , (m M.! "mu_d1" !! id 
+                             , (m M.! "mu_d2" !! id
+                             , (LF.logFloat $ m M.! "theta_t"  !! id
+                             , (LF.logFloat $ m M.! "theta_k"  !! id
+                             , (LF.logFloat $ m M.! "theta_s"  !! id
+                             , (m M.! "mu_a0" !! id
+                             , (m M.! "mu_a1" !! id
+                             , (m M.! "mu_a2" !! id
+                             , (LF.logFloat $ m M.! "sigma_a"  !! id
+                             , (LF.logFloat $ m M.! "lambda_f" !! id
+                             , (m M.! "mu_f" !! id
+                             , (LF.logFloat $ m M.! "theta_f"  !! id
+                             )))))))))))))))
+
+makeDetection :: [Station'] -> [String] -> (Station', Detection')
+makeDetection stations [id,time,azi,slow,amp] =
+    (station, (read time
+            , (read azi
+            , (read slow
+            , (LF.logFloat $ (read amp :: Double))))))
+                                                           
+    where station = stations !! read id
+
+split :: [String] -> String -> [[String]]
+split s q = case break (== q) s of
+              ([], _)  -> []
+              (s', []) -> [s']
+              (s', q:rest) -> s' : split rest q
+             
+readEpisodes :: FilePath -> [Station'] -> IO [Episode']
+readEpisodes episodeFile stations = do
+  content <- readFile episodeFile
+  let linesOfFile = lines content
+  let episodes = split linesOfFile ""
+  return $ map (parseEpisode stations) episodes
+
+parseEpisode :: [Station'] -> [String] -> Episode'
+parseEpisode stations episode =
+  let suffix = tail $ dropWhile (not . isPrefixOf "Detections:") episode in
+  let episode' = takeWhile (not . isPrefixOf "Assocs") suffix in
+  map (\s -> makeDetection stations (words s)) episode'
+
+readStations :: FilePath -> FilePath -> IO [Station']
+readStations stationFile physicsFile = do
+  physics  <- readFile physicsFile
+  stations <- readFile stationFile
+  let stations' = zip [0..] (map words (lines stations))
+  let paramMap  = configMap (lines physics) M.empty
+  return $ map (makeStation paramMap) stations'
+
+--
+writeEpisode :: FilePath ->
+                [Station'] ->
+                [(Event', [(Station', Detection')])] ->
+                IO ()
+writeEpisode f stations es = do
+  writeFile f "Events:"
+  mapM_ (\ ((lat,(lon,(mag,(time)))),_) ->
+         let s = '\n' : (intercalate " " $ map show [lat, lon, LF.fromLogFloat mag, time]) in
+         appendFile f s) es
+  appendFile f "Detections:"
 
 main :: IO ()
 main = do
-  [stations, physics, episodes] <- getArgs
-  --readPhysics physics
-  --sta <- readStations stations
-  --readEpisodes sta episodes
-  return ()
+  [stationFile, physicsFile, episodesFile, outFile] <- getArgs
+  sta <- readStations stationFile physicsFile
+  epi <- readEpisodes episodesFile sta
+  mapM_ (writeEpisode outFile sta . solveEpisode) epi
