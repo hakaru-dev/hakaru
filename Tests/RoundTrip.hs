@@ -7,6 +7,8 @@ import Language.Hakaru.Syntax
 import Language.Hakaru.Expect (total)
 import Language.Hakaru.Inference (priorAsProposal, mcmc, mh)
 
+import qualified Examples.Seismic as SE
+
 import Test.HUnit
 import Tests.TestTools
 
@@ -105,6 +107,7 @@ testMeasureReal = test
   , "t78" ~: testSS [t78] t78'
   , "t79" ~: testSS [t79] (dirac 1)
   , "kalman" ~: testS kalman
+  , "seismic" ~: testSS [] seismic
   , "lebesgue1" ~: testSS [] (lebesgue `bind` \x -> if_ (less 42 x) (dirac x) (superpose []))
   , "lebesgue2" ~: testSS [] (lebesgue `bind` \x -> if_ (less x 42) (dirac x) (superpose []))
   , "lebesgue3" ~: testSS [lebesgue `bind` \x -> if_ (and_ [less x 42, less 40 x]) (dirac x) (superpose [])] (weight 2 $ uniform 40 42)
@@ -1351,3 +1354,4 @@ chal2 = lam $ \sigma ->
 chal3 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure Real)
 chal3 = lam $ \sigma -> app3 (app chal2 sigma) 0 0 0
 
+seismic = lam3 (\s e d -> dirac $ SE.densT s e d)
