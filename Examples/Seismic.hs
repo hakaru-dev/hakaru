@@ -1,6 +1,6 @@
 {-# LANGUAGE RankNTypes, TypeOperators, ScopedTypeVariables, TypeFamilies, FlexibleContexts, DataKinds #-}
 {-# OPTIONS -Wall -fno-warn-name-shadowing #-}
-module Examples.Seismic where
+module Main where
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax
@@ -380,33 +380,32 @@ invertDetection d s aziPerb slowPerb =
     let ttime = computeTravelTime dist in
     let evtime = time - ttime in
     let evmag  = (LF.logFromLogFloat amplitude - mu_a0 - mu_a2*dist) / mu_a1 in
-    let evmag' = if evmag' > gammaM then gammaM else evmag in
+    let evmag' = if evmag > gammaM then gammaM else evmag in
     (lat,(lon,(LF.logFloat evmag',evtime)))
 
 configMap :: [String] -> M.Map String [Double] -> M.Map String [Double]
 configMap []     m = m
-configMap (e:es) m = configMap es (updateMap $ words e)
-   where updateMap (key:_:[vals]) | head vals == '[' =  M.insert key (read   vals :: [Double]) m
-                                  | otherwise        =  M.insert key ([read vals] :: [Double]) m 
+configMap (e:es) m = configMap es (updateMap $ split e '=')
+   where updateMap ([key,vals]) | head (tail vals) == '[' =  M.insert key (read   vals :: [Double]) m
+                                | otherwise =  M.insert key ([read vals] :: [Double]) m 
 
 makeStation :: M.Map String [Double] -> (Int, [String]) -> Station'
-makeStation m (id,[lat,lon]) =
-      (read lat :: Double
-    , (read lon :: Double
-    , (m M.! "mu_d0" !! id 
-    , (m M.! "mu_d1" !! id 
-    , (m M.! "mu_d2" !! id
-    , (LF.logFloat $ m M.! "theta_t"  !! id
-    , (LF.logFloat $ m M.! "theta_k"  !! id
-    , (LF.logFloat $ m M.! "theta_s"  !! id
-    , (m M.! "mu_a0" !! id
-    , (m M.! "mu_a1" !! id
-    , (m M.! "mu_a2" !! id
-    , (LF.logFloat $ m M.! "sigma_a"  !! id
-    , (LF.logFloat $ m M.! "lambda_f" !! id
-    , (m M.! "mu_f" !! id
-    , (LF.logFloat $ m M.! "theta_f"  !! id
-    )))))))))))))))
+makeStation m (id,[name,lat,lon]) = (read lat :: Double
+                                  , (read lon :: Double
+                                  , (m M.! "mu_d0 " !! id 
+                                  , (m M.! "mu_d1 " !! id 
+                                  , (m M.! "mu_d2 " !! id
+                                  , (LF.logFloat $ m M.! "theta_t "  !! id
+                                  , (LF.logFloat $ m M.! "theta_z "  !! id
+                                  , (LF.logFloat $ m M.! "theta_s "  !! id
+                                  , (m M.! "mu_a0 " !! id
+                                  , (m M.! "mu_a1 " !! id
+                                  , (m M.! "mu_a2 " !! id
+                                  , (LF.logFloat $ m M.! "sigma_a "  !! id
+                                  , (LF.logFloat $ m M.! "lambda_f " !! id
+                                  , (m M.! "mu_f " !! id
+                                  , (LF.logFloat $ m M.! "theta_f "  !! id
+                                  )))))))))))))))
 
 makeDetection :: [Station'] -> [String] -> (Station', Detection')
 makeDetection stations [id,time,azi,slow,amp] =
@@ -414,10 +413,9 @@ makeDetection stations [id,time,azi,slow,amp] =
             , (read azi
             , (read slow
             , (LF.logFloat $ (read amp :: Double))))))
-                                                           
     where station = stations !! read id
 
-split :: [String] -> String -> [[String]]
+split :: Eq a => [a] -> a -> [[a]]
 split s q = case break (== q) s of
               ([], _)  -> []
               (s', []) -> [s']
@@ -428,7 +426,7 @@ readEpisodes episodeFile stations = do
   content <- readFile episodeFile
   let linesOfFile = lines content
   let episodes = split linesOfFile ""
-  return $ map (parseEpisode stations) episodes
+  return $ map (parseEpisode stations) (tail episodes)
 
 parseEpisode :: [Station'] -> [String] -> Episode'
 parseEpisode stations episode =
@@ -436,12 +434,12 @@ parseEpisode stations episode =
   let episode' = takeWhile (not . isPrefixOf "Assocs") suffix in
   map (\s -> makeDetection stations (words s)) episode'
 
-readStations :: FilePath -> FilePath -> IO [Station']
-readStations stationFile physicsFile = do
-  physics  <- readFile physicsFile
-  stations <- readFile stationFile
-  let stations' = zip [0..] (map words (lines stations))
-  let paramMap  = configMap (lines physics) M.empty
+readStations :: FilePath -> IO [Station']
+readStations paramsFile = do
+  params  <- readFile paramsFile
+  let [stations, physics] = split (lines params) ""
+  let stations' = zip [0..] (map words stations)
+  let paramMap  = configMap physics M.empty
   return $ map (makeStation paramMap) stations'
 
 --
@@ -456,10 +454,11 @@ writeEpisode f stations es = do
          let s = '\n' : (intercalate " " $ map show [lat, lon, LF.fromLogFloat mag, time]) in
          appendFile f s) es
   appendFile f "Detections:"
+  appendFile f "Assocs:"
 
 main :: IO ()
 main = do
-  [stationFile, physicsFile, episodesFile, outFile] <- getArgs
-  sta <- readStations stationFile physicsFile
+  [paramsFile, episodesFile, outFile] <- getArgs
+  sta <- readStations paramsFile
   epi <- readEpisodes episodesFile sta
   mapM_ (writeEpisode outFile sta . solveEpisode) epi
