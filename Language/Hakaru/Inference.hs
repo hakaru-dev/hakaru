@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, RankNTypes, FlexibleContexts #-}
+{-# LANGUAGE TypeFamilies, RankNTypes, FlexibleContexts, DataKinds #-}
 module Language.Hakaru.Inference where
 
 import Prelude hiding (Real)
@@ -8,19 +8,24 @@ import Language.Hakaru.Compose
 import Language.Hakaru.Syntax
 import Language.Hakaru.Expect (Expect(..), Expect', normalize)
 
-priorAsProposal :: Mochastic repr =>
-                   repr (Measure (a,b)) -> repr (a,b) -> repr (Measure (a,b))
-priorAsProposal p x = bern (1/2) `bind` \c ->
-                      p `bind` \x' ->
-                      dirac (if_ c
-                             (pair (fst_ x ) (snd_ x'))
-                             (pair (fst_ x') (snd_ x )))
+priorAsProposal
+    :: Mochastic repr
+    => repr (HMeasure (HPair a b))
+    -> repr (HPair a b)
+    -> repr (HMeasure (HPair a b))
+priorAsProposal p x =
+    bern (1/2) `bind` \c ->
+    p `bind` \x' ->
+    dirac (if_ c
+        (pair (fst_ x ) (snd_ x'))
+        (pair (fst_ x') (snd_ x )))
 
-mh :: (Mochastic repr, Integrate repr, Lambda repr,
-       a ~ Expect' a, Order_ a, Backward a a) =>
-      (forall repr'. (Mochastic repr') => repr' a -> repr' (Measure a)) ->
-      (forall repr'. (Mochastic repr') => repr' (Measure a)) ->
-      repr (a -> Measure (a, Prob))
+
+mh  :: (Mochastic repr, Integrate repr, Lambda repr,
+        a ~ Expect' a, Order_ a, Backward a a)
+    => (forall repr'. (Mochastic repr') => repr' a -> repr' (HMeasure a))
+    -> (forall repr'. (Mochastic repr') => repr' (HMeasure a))
+    -> repr (HFun a (HMeasure (HPair a HProb)))
 mh proposal target =
   let_ (lam (d unit)) $ \mu ->
   lam $ \old ->
@@ -28,11 +33,12 @@ mh proposal target =
     dirac (pair new (mu `app` pair new old / mu `app` pair old new))
   where d:_ = density (\dummy -> ununit dummy $ bindx target proposal)
 
+
 mcmc :: (Mochastic repr, Integrate repr, Lambda repr,
-         a ~ Expect' a, Order_ a, Backward a a) =>
-        (forall repr'. (Mochastic repr') => repr' a -> repr' (Measure a)) ->
-        (forall repr'. (Mochastic repr') => repr' (Measure a)) ->
-        repr (a -> Measure a)
+         a ~ Expect' a, Order_ a, Backward a a)
+    => (forall repr'. (Mochastic repr') => repr' a -> repr' (HMeasure a))
+    -> (forall repr'. (Mochastic repr') => repr' (HMeasure a))
+    -> repr (HFun a (HMeasure a))
 mcmc proposal target =
   let_ (mh proposal target) $ \f ->
   lam $ \old ->
@@ -41,11 +47,12 @@ mcmc proposal target =
     bern (min_ 1 ratio) `bind` \accept ->
     dirac (if_ accept new old)
 
-gibbsProposal :: (Expect' a ~ a, Expect' b ~ b,
-                  Backward a a, Order_ a, 
-                  Mochastic repr, Integrate repr, Lambda repr) =>
-                 Cond (Expect repr) () (Measure (a,b)) ->
-                 repr (a, b) -> repr (Measure (a, b))
+gibbsProposal
+    :: (Expect' a ~ a, Expect' b ~ b, Backward a a, Order_ a, 
+        Mochastic repr, Integrate repr, Lambda repr)
+    => Cond (Expect repr) HUnit (HMeasure (HPair a b))
+    -> repr (HPair a b)
+    -> repr (HMeasure (HPair a b))
 gibbsProposal p x = q (fst_ x) `bind` \x' -> dirac (pair (fst_ x) x')
   where d:_ = runDisintegrate p
         q y = normalize (app (app d unit) (Expect y))              
@@ -58,9 +65,10 @@ gibbsProposal p x = q (fst_ x) `bind` \x' -> dirac (pair (fst_ x) x')
 --      condition (density(target, x') >= u) true
 --      return x'
 
-slice :: (Mochastic repr, Integrate repr, Lambda repr) =>
-         (forall repr' . (Mochastic repr') => repr' (Measure Real)) ->
-         repr (Real -> Measure Real)
+slice
+    :: (Mochastic repr, Integrate repr, Lambda repr)
+    => (forall repr' . (Mochastic repr') => repr' (HMeasure HReal))
+    -> repr (HFun HReal (HMeasure HReal))
 slice target = lam $ \x ->
                uniform 0 (densAt x) `bind` \u ->
                normalize $
@@ -72,26 +80,32 @@ slice target = lam $ \x ->
         densAt x = fromProb $ d unit x
 
 
-sliceX :: (Mochastic repr, Integrate repr, Lambda repr,
-          a ~ Expect' a, Order_ a, Backward a a) =>
-          (forall repr' . (Mochastic repr') => repr' (Measure a)) ->
-          repr (Measure (a, Real))
+sliceX
+    :: (Mochastic repr, Integrate repr, Lambda repr,
+        a ~ Expect' a, Order_ a, Backward a a)
+    => (forall repr' . (Mochastic repr') => repr' (HMeasure a))
+    -> repr (HMeasure (HPair a HReal))
 sliceX target = target `bindx` \x ->
                 uniform 0 (densAt x)
   where d:_ = density (\dummy -> ununit dummy target)
         densAt x = fromProb $ d unit x
 
-incompleteBeta :: Integrate repr => repr Prob -> repr Prob -> repr Prob -> repr Prob
+incompleteBeta
+    :: Integrate repr
+    => repr HProb -> repr HProb -> repr HProb -> repr HProb
 incompleteBeta x a b = integrate 0 (fromProb x)
                        (\t -> pow_ (unsafeProb t    ) (fromProb a-1) *
                               pow_ (unsafeProb $ 1-t) (fromProb b-1))
 
-regBeta :: Integrate repr => repr Prob -> repr Prob -> repr Prob -> repr Prob
+regBeta
+    :: Integrate repr
+    => repr HProb -> repr HProb -> repr HProb -> repr HProb
 regBeta x a b = incompleteBeta x a b / betaFunc a b
 
-tCDF :: Integrate repr => repr Real -> repr Prob -> repr Prob
+tCDF :: Integrate repr => repr HReal -> repr HProb -> repr HProb
 tCDF x v = 1 - (1/2)*regBeta (v / (unsafeProb (x*x) + v)) (v/2) (1/2)
 
-approxMh :: (Mochastic repr, Integrate repr, Lambda repr) =>
-            repr (a -> Measure (a, Prob))
+approxMh
+    :: (Mochastic repr, Integrate repr, Lambda repr)
+    => repr (HFun a (HMeasure (HPair a HProb)))
 approxMh = undefined

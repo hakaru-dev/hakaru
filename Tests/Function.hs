@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 module Tests.Function(allTests) where
 
 import Prelude hiding (Real)
@@ -23,6 +24,7 @@ testHigherOrder = test [
 allTests :: Test
 allTests = testHigherOrder
 
-t41 :: (Lambda repr, Integrate repr, Mochastic repr) => repr (Measure ((Prob -> Prob) -> Prob))
+t41 :: (Lambda repr, Integrate repr, Mochastic repr)
+    => repr (HMeasure (HFun (HFun HProb HProb) HProb))
 t41 = dirac $ snd_ $ unExpect $ uniform 0 2 `bind` dirac . unsafeProb
 

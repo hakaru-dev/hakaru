@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, TypeFamilies #-}
+{-# LANGUAGE RankNTypes, TypeFamilies, DataKinds #-}
 
 module Examples.EasierRoadmap where
 
@@ -11,9 +11,9 @@ import Language.Hakaru.Any (Any)
 
 import Language.Hakaru.Sample
 
-easierRoadmapProg1 ::
-  (Mochastic repr) =>
-  repr (Measure ((Real, Real), (Prob, Prob)))
+easierRoadmapProg1
+    :: (Mochastic repr)
+    => repr (HMeasure (HPair (HPair HReal HReal) (HPair HProb HProb)))
 easierRoadmapProg1 =
   uniform 3 8 `bind` \noiseT' -> -- let_ (unsafeProb noiseT') $ \noiseT ->
   uniform 1 4 `bind` \noiseE' -> -- let_ (unsafeProb noiseE') $ \noiseE ->
@@ -25,9 +25,10 @@ easierRoadmapProg1 =
   normal x2 noiseE `bind` \m2 ->
   dirac (pair (pair m1 m2) (pair noiseT noiseE))
 
-easierRoadmapProg2 ::
-  (Mochastic repr) =>
-  repr (Real, Real) -> repr (Measure (Prob, Prob))
+easierRoadmapProg2
+    :: (Mochastic repr)
+    => repr (HPair HReal HReal)
+    -> repr (HMeasure (HPair HProb HProb))
 easierRoadmapProg2 = \m1m2 -> 
   -- lam $ \m1m2 ->
   unpair m1m2 $ \m1 m2 ->
@@ -41,9 +42,9 @@ easierRoadmapProg2 = \m1m2 ->
   weight (undefined x2 noiseE m2) $ -- TODO by disintegration
   dirac (pair noiseT noiseE)
 
-easierRoadmapProg2', easierRoadmapProg2'out ::
-  (Mochastic repr, Lambda repr) =>
-  repr ((Real, Real) -> Measure (Prob, Prob))
+easierRoadmapProg2', easierRoadmapProg2'out
+    :: (Mochastic repr, Lambda repr)
+    => repr (HFun (HPair HReal HReal) (HMeasure (HPair HProb HProb)))
 easierRoadmapProg2' = d `app` unit
   where [d] = runDisintegrate (\_ -> easierRoadmapProg1)
 easierRoadmapProg2'out =
@@ -98,9 +99,9 @@ easierRoadmapProg2'out =
                 (1, superpose [])])
     `app` unit
 
-easierRoadmapProg3 ::
-  (Lambda repr, Mochastic repr) =>
-  repr ((Real, Real) -> Measure (Prob, Prob))
+easierRoadmapProg3
+    :: (Lambda repr, Mochastic repr)
+    => repr (HFun (HPair HReal HReal) (HMeasure (HPair HProb HProb)))
 easierRoadmapProg3 =
   lam $ \m1m2 ->
   unpair m1m2 $ \m1 m2 ->
@@ -109,12 +110,14 @@ easierRoadmapProg3 =
   weight (undefined noiseT noiseE m1 m2) $ -- TODO by simplification
   dirac (pair noiseT noiseE)
 
-easierRoadmapProg3' :: IO (Any ((Real, Real) -> Measure (Prob, Prob)))
+easierRoadmapProg3'
+    :: IO (Any (HFun (HPair HReal HReal) (HMeasure (HPair HProb HProb))))
 easierRoadmapProg3' = simplify easierRoadmapProg2'
 
-easierRoadmapProg3'out ::
-  (Mochastic repr) =>
-  repr (Real, Real) -> repr (Measure (Prob, Prob))
+easierRoadmapProg3'out
+    :: (Mochastic repr)
+    => repr (HPair HReal HReal)
+    -> repr (HMeasure (HPair HProb HProb))
 easierRoadmapProg3'out m1m2 =
     weight 5 $
     uniform 3 8 `bind` \noiseT' ->
@@ -131,9 +134,11 @@ easierRoadmapProg3'out m1m2 =
 	    * (1/10)) $
     dirac (pair (unsafeProb noiseT') (unsafeProb noiseE'))
 
-proposal ::
-  (Mochastic repr) =>
-  repr (Real, Real) -> repr (Prob, Prob) -> repr (Measure (Prob, Prob))
+proposal
+    :: (Mochastic repr)
+    => repr (HPair HReal HReal)
+    -> repr (HPair HProb HProb)
+    -> repr (HMeasure (HPair HProb HProb))
 proposal _m1m2 ntne =
   unpair ntne $ \noiseTOld noiseEOld ->
   superpose [(1/2, uniform 3 8 `bind` \noiseT' ->
@@ -141,11 +146,11 @@ proposal _m1m2 ntne =
              (1/2, uniform 1 4 `bind` \noiseE' ->
                    dirac (pair noiseTOld (unsafeProb noiseE')))]
 
-mh :: (Mochastic repr, Integrate repr, Lambda repr,
-       env ~ Expect' env, a ~ Expect' a, Backward a a) =>
-      (forall repr'. (Mochastic repr') => repr' env -> repr' a -> repr' (Measure a)) ->
-      (forall repr'. (Mochastic repr') => repr' env -> repr' (Measure a)) ->
-      repr (env -> a -> Measure (a, Prob))
+mh  :: (Mochastic repr, Integrate repr, Lambda repr,
+        env ~ Expect' env, a ~ Expect' a, Backward a a)
+    => (forall r'. (Mochastic r') => r' env -> r' a -> r' (HMeasure a))
+    -> (forall r'. (Mochastic r') => r' env -> r' (HMeasure a))
+    -> repr (HFun env (HFun a (HMeasure (HPair a HProb))))
 mh prop target =
   lam $ \env ->
   let_ (lam (d env)) $ \mu ->
@@ -154,9 +159,11 @@ mh prop target =
     dirac (pair new (mu `app` {-pair-} new {-old-} / mu `app` {-pair-} old {-new-}))
   where d:_ = density (\env -> {-bindx-} (target env) {-(prop env)-})
 
-easierRoadmapProg4 ::
-  (Lambda repr, Mochastic repr) =>
-  repr ((Real, Real) -> (Prob, Prob) -> Measure (Prob, Prob))
+easierRoadmapProg4
+    :: (Lambda repr, Mochastic repr)
+    => repr (HFun (HPair HReal HReal)
+            (HFun (HPair HProb HProb)
+                (HMeasure (HPair HProb HProb))))
 easierRoadmapProg4 = 
   lam2 $ \m1m2 ntne ->
   unpair m1m2 $ \m1 m2 ->
@@ -187,14 +194,18 @@ easierRoadmapProg4 =
 	               * pow_ (unsafeProb (nt' ** 4 + ne' ** 2 * nt' ** 2 * 3 + ne' ** 4)) (-1/2)
 	               * (1/10)))
 
-easierRoadmapProg4' ::
-  (Mochastic repr, Integrate repr, Lambda repr) =>
-  repr ((Real, Real) -> (Prob, Prob) -> Measure ((Prob, Prob), Prob))
+easierRoadmapProg4'
+    :: (Mochastic repr, Integrate repr, Lambda repr)
+    => repr (HFun (HPair HReal HReal)
+            (HFun (HPair HProb HProb)
+                (HMeasure (HPair (HPair HProb HProb) HProb))))
 easierRoadmapProg4' = mh proposal easierRoadmapProg3'out
 
-easierRoadmapProg4'out ::
-  (Mochastic repr, Lambda repr) =>
-  repr ((Real, Real) -> (Prob, Prob) -> Measure ((Prob, Prob), Prob))
+easierRoadmapProg4'out
+    :: (Mochastic repr, Lambda repr)
+    => repr (HFun (HPair HReal HReal)
+            (HFun (HPair HProb HProb)
+                (HMeasure (HPair (HPair HProb HProb) HProb))))
 easierRoadmapProg4'out =
   lam $ \m1m2 ->
   lam $ \ntne ->
@@ -281,14 +292,20 @@ easierRoadmapProg4'out =
                                                    * (1/2)))
                                              infinity))))]
 
-makeChain :: (Lambda repr, Mochastic repr) =>
-             repr (a -> Measure a) -> repr Int -> repr a -> repr (Measure (Vector a))
+makeChain
+    :: (Lambda repr, Mochastic repr)
+    => repr (HFun a (HMeasure a))
+    -> repr HInt
+    -> repr a
+    -> repr (HMeasure (HArray a))
 makeChain m n s = app (chain (vector n (\ _ ->
                                         lam $ \ss ->
                                         app m ss `bind` \s' ->
                                         dirac $ (pair s' s')))) s `bind` \vs' ->
                   dirac (fst_ vs')
 
-runEasierRoadmapProg4 = runSample $ makeChain (app easierRoadmapProg4 (pair 0 1))
-                                              20
-                                              (pair 4 2)
+runEasierRoadmapProg4 =
+    runSample $ makeChain
+        (app easierRoadmapProg4 (pair 0 1))
+        20
+        (pair 4 2)

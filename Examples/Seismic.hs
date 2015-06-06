@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, TypeOperators, ScopedTypeVariables, TypeFamilies, FlexibleContexts #-}
+{-# LANGUAGE RankNTypes, TypeOperators, ScopedTypeVariables, TypeFamilies, FlexibleContexts, DataKinds #-}
 {-# OPTIONS -Wall -fno-warn-name-shadowing #-}
 module Examples.Seismic where
 
@@ -19,8 +19,10 @@ degrees, radians :: (Floating a) => a -> a
 degrees r = r * 180 / pi
 radians d = d * pi / 180
 
-gz' :: (Base repr) => (repr Real, repr Real) ->
-                      (repr Real, repr Real) -> repr Real
+gz' :: (Base repr)
+    => (repr HReal, repr HReal)
+    -> (repr HReal, repr HReal)
+    -> repr HReal
 gz' (lon1,lat1) (lon2,lat2) = -- Section A.1
   degrees (atan (y/x) + if_ (less x 0) (if_ (less y 0) (-pi) pi) 0)
   where y = sin dlon
@@ -29,15 +31,17 @@ gz' (lon1,lat1) (lon2,lat2) = -- Section A.1
         rat2 = radians lat2
         dlon = radians (lon2 - lon1)
 
-mod' :: (Mochastic repr) => repr Real -> repr Real -> repr (Measure Real)
+mod' :: (Mochastic repr) => repr HReal -> repr HReal -> repr (HMeasure HReal)
 mod' a b = counting `bind` \n ->
            let a' = a + b * fromInt n in
            if_ (and_ [not_ (less a' 0), less a' b])
                (dirac a')
                (superpose [])
 
-dist :: (Base repr) => (repr Real, repr Real) ->
-                       (repr Real, repr Real) -> repr Real
+dist :: (Base repr)
+    => (repr HReal, repr HReal)
+    -> (repr HReal, repr HReal)
+    -> repr HReal
 dist (lon1,lat1) (lon2,lat2) = -- Section A.3
   degrees (atan (y/x) + if_ (less x 0) pi 0)
   where y = sqrt ( (cos rat2 * sin dlon) ** 2
@@ -47,7 +51,7 @@ dist (lon1,lat1) (lon2,lat2) = -- Section A.3
         rat2 = radians lat2
         dlon = radians (lon2 - lon1)
 
-logistic :: (Base repr) => repr Real -> repr Prob
+logistic :: (Base repr) => repr HReal -> repr HProb
 logistic x = recip (1 + exp_ (-x)) -- Section B.6
 
 invertSlowness :: Floating a => a -> a
@@ -88,8 +92,12 @@ vvMult (a1,a2,a3) (b1,b2,b3) = a1*b1 + a2*b2 + a3*b3
 mvMult :: (Fractional a) => Matrix3 a -> Vector3 a -> Vector3 a
 mvMult (a1,a2,a3) b = (vvMult a1 b, vvMult a2 b, vvMult a3 b)
 
-normal3 :: (Mochastic repr) => Vector3 (repr Real) -> Matrix3 (repr Real) ->
-           (Vector3 (repr Real) -> repr (Measure w)) -> repr (Measure w)
+normal3
+    :: (Mochastic repr)
+    => Vector3 (repr HReal)
+    -> Matrix3 (repr HReal)
+    -> (Vector3 (repr HReal) -> repr (HMeasure w))
+    -> repr (HMeasure w)
 normal3 mean cov c = -- Section B.8
   lebesgue `bind` \x1 ->
   lebesgue `bind` \x2 ->
@@ -100,23 +108,23 @@ normal3 mean cov c = -- Section B.8
         * exp_ (- vvMult y (mvMult (inverse cov) y) / 2)) $
   c x
 
-type Station = -- Sections 3 and 1.6
-    ( Real -- longitude, in degrees between -180 and 180
-  , ( Real -- latitude, in degrees between -90 and 90
-  , ( Real -- $\mu _{d0}^k$
-  , ( Real -- $\mu _{d1}^k$
-  , ( Real -- $\mu _{d2}^k$
-  , ( Prob -- $\theta _t^k$
-  , ( Prob -- $\theta _z^k$
-  , ( Prob -- $\theta _s^k$
-  , ( Real -- $\mu _{a0}^k$
-  , ( Real -- $\mu _{a1}^k$
-  , ( Real -- $\mu _{a2}^k$
-  , ( Prob -- $\sigma _a^k$
-  , ( Prob -- $\lambda_f^k$
-  , ( Real -- $\mu    _f^k$
-  , ( Prob -- $\theta _f^k$
-  )))))))))))))))
+type HStation = -- Sections 3 and 1.6
+    (HPair HReal -- longitude, in degrees between -180 and 180
+    (HPair HReal -- latitude, in degrees between -90 and 90
+    (HPair HReal -- $\mu _{d0}^k$
+    (HPair HReal -- $\mu _{d1}^k$
+    (HPair HReal -- $\mu _{d2}^k$
+    (HPair HProb -- $\theta _t^k$
+    (HPair HProb -- $\theta _z^k$
+    (HPair HProb -- $\theta _s^k$
+    (HPair HReal -- $\mu _{a0}^k$
+    (HPair HReal -- $\mu _{a1}^k$
+    (HPair HReal -- $\mu _{a2}^k$
+    (HPair HProb -- $\sigma _a^k$
+    (HPair HProb -- $\lambda_f^k$
+    (HPair HReal -- $\mu    _f^k$
+    (      HProb -- $\theta _f^k$
+    )))))))))))))))
 
 type Station' =
     ( Double -- longitude, in degrees between -180 and 180
@@ -136,12 +144,12 @@ type Station' =
   , ( LF.LogFloat -- $\theta _f^k$
   )))))))))))))))
 
-type Event = -- Sections 1.1 and 4.1
-    ( Real -- longitude, in degrees between -180 and 180
-  , ( Real -- latitude, in degrees between -90 and 90
-  , ( Prob -- magnitude
-  , ( Real -- time, in seconds
-  ))))
+type HEvent = -- Sections 1.1 and 4.1
+    (HPair HReal -- longitude, in degrees between -180 and 180
+    (HPair HReal -- latitude, in degrees between -90 and 90
+    (HPair HProb -- magnitude
+    (      HReal -- time, in seconds
+    ))))
 
 type Event' =
     ( Double -- longitude, in degrees between -180 and 180
@@ -150,12 +158,12 @@ type Event' =
   , ( Double -- time, in seconds
   ))))
 
-type Detection = -- Sections 1.2 and 4.1
-    ( Real -- time, in seconds
-  , ( Real -- azimuth
-  , ( Real -- slowness
-  , ( Prob -- amplitude
-  ))))
+type HDetection = -- Sections 1.2 and 4.1
+    (HPair HReal -- time, in seconds
+    (HPair HReal -- azimuth
+    (HPair HReal -- slowness
+    (      HProb -- amplitude
+    ))))
 
 type Detection' =
     ( Double -- time, in seconds
@@ -166,10 +174,10 @@ type Detection' =
 
 type Episode' = [(Station', Detection')]
 
-constT :: (Base repr) => repr Real
+constT :: (Base repr) => repr HReal
 constT = 3600 -- Section 2
 
-muMagnitude, thetaMagnitude, gammaMagnitude :: (Base repr) => repr Prob
+muMagnitude, thetaMagnitude, gammaMagnitude :: (Base repr) => repr HProb
 muMagnitude    = 3.0 -- Section 2
 thetaMagnitude = 4.0 -- Section 2
 gammaMagnitude = 6.0 -- Section 2
@@ -177,7 +185,7 @@ gammaMagnitude = 6.0 -- Section 2
 gammaM :: Double
 gammaM = unSample (fromProb gammaMagnitude)
 
-station :: (Mochastic repr) => repr Real -> repr Real -> repr (Measure Station)
+station :: (Mochastic repr) => repr HReal -> repr HReal -> repr (HMeasure HStation)
 station longitude latitude = -- Section 2
   normal3 (-10.4, 3.26, -0.0499)
           ((13.43, -2.36, -0.0122),
@@ -200,7 +208,7 @@ station longitude latitude = -- Section 2
          mu_a0 `pair` mu_a1 `pair` mu_a2 `pair` sqrt_ sigma_a2 `pair`
          lambda_f `pair` mu_f `pair` theta_f)
 
-event :: (Mochastic repr) => repr (Measure Event)
+event :: (Mochastic repr) => repr (HMeasure HEvent)
 event = -- Section 1.1, except the Poisson
   uniform 0 constT `bind` \time ->
   uniform (-180) 180 `bind` \longitude ->
@@ -210,17 +218,20 @@ event = -- Section 1.1, except the Poisson
                    `pair` m -- max_ muMagnitude (min_ gammaMagnitude m) -- commented out for density calculation
                    `pair` time)
 
-iT :: (Base repr) => repr Real -> repr Real
+iT :: (Base repr) => repr HReal -> repr HReal
 iT delta = -0.023 * delta ** 2 + 10.7 * delta + 5
 
-iS :: (Base repr) => repr Real -> repr Real
+iS :: (Base repr) => repr HReal -> repr HReal
 iS delta = -0.046 * delta + 10.7 -- Section 1.4
 
-trueDetection :: (Mochastic repr) => repr Station -> repr Event ->
-                 repr (Measure (Either
-                                  ()        -- mis-detection
-                                  Detection -- not mis-detection
-                               ))
+trueDetection
+    :: (Mochastic repr)
+    => repr HStation
+    -> repr HEvent
+    -> repr (HMeasure (HEither
+        HUnit      -- mis-detection
+        HDetection -- not mis-detection
+        ))
 trueDetection s e = -- Sections 1.2--1.5
   unpair s $ \longitude s ->
   unpair s $ \latitude s ->
@@ -262,7 +273,10 @@ trueDetection s e = -- Sections 1.2--1.5
          sigma_a `bind` \logAmplitude ->
   dirac (inr (time `pair` azimuth `pair` slowness `pair` exp_ logAmplitude))
 
-falseDetection :: (Mochastic repr) => repr Station -> repr (Measure Detection)
+falseDetection
+    :: (Mochastic repr)
+    => repr HStation
+    -> repr (HMeasure HDetection)
 falseDetection s = -- Section 1.6, except the Poisson
   unpair s $ \_longitude s ->
   unpair s $ \_latitude s ->
@@ -325,10 +339,11 @@ generateCandidates s@(_,(_,(_,(_,(_,(_,(theta_z,(theta_s, _))))))))
                     LF.fromLogFloat theta_s*(laplacePerc dslow))  |
                    dazi <- l, dslow <- l]
 
-findBestDetections :: Event' ->
-                     [(Station', Detection')] ->
-                     M.Map Station' (Detection', Double) ->
-                     ([(Station', Detection')], Double)
+findBestDetections
+    :: Event'
+    -> [(Station', Detection')]
+    -> M.Map Station' (Detection', Double)
+    -> ([(Station', Detection')], Double)
 findBestDetections e ((s,d):rest) m =
     case M.lookup s m of
       Just (_, ll) -> let ll' = eventLL e s d in
@@ -341,16 +356,18 @@ findBestDetections _ [] m = (map (\ (s, (d, _)) -> (s,d)) (M.assocs m),
 
 eventLL :: Event' -> Station' -> Detection' -> Double
 eventLL e s d = unSample (lam3 $ \e s d -> fromProb $ dens s (pair e (inr d))) e s d
-   where dens :: Sample IO (Expect' Station) ->
-                 Sample IO (Expect' (Event, Either () Detection)) ->
-                 Sample IO Prob
-         dens = head $ density (\s -> event `bindx` (trueDetection s))
+    where
+    dens :: Sample IO (Expect' HStation)
+        -> Sample IO (Expect' (HPair HEvent (HEither HUnit HDetection)))
+        -> Sample IO HProb
+    dens = head $ density (\s -> event `bindx` (trueDetection s))
 
-densT :: (Lambda repr, Integrate repr, Mochastic repr) =>
-         repr Station ->
-         repr (Expect' Event) ->
-         repr (Expect' Detection) ->
-         repr Prob
+densT
+    :: (Lambda repr, Integrate repr, Mochastic repr)
+    => repr HStation
+    -> repr (Expect' HEvent)
+    -> repr (Expect' HDetection)
+    -> repr HProb
 densT s e d = (head $ density (\s -> event `bindx` (trueDetection s))) s (pair e (inr d))
 
 invertDetection :: Detection' -> Station' -> Double -> Double -> Event'
@@ -373,22 +390,23 @@ configMap (e:es) m = configMap es (updateMap $ words e)
                                   | otherwise        =  M.insert key ([read vals] :: [Double]) m 
 
 makeStation :: M.Map String [Double] -> (Int, [String]) -> Station'
-makeStation m (id,[lat,lon]) = (read lat :: Double
-                             , (read lon :: Double
-                             , (m M.! "mu_d0" !! id 
-                             , (m M.! "mu_d1" !! id 
-                             , (m M.! "mu_d2" !! id
-                             , (LF.logFloat $ m M.! "theta_t"  !! id
-                             , (LF.logFloat $ m M.! "theta_k"  !! id
-                             , (LF.logFloat $ m M.! "theta_s"  !! id
-                             , (m M.! "mu_a0" !! id
-                             , (m M.! "mu_a1" !! id
-                             , (m M.! "mu_a2" !! id
-                             , (LF.logFloat $ m M.! "sigma_a"  !! id
-                             , (LF.logFloat $ m M.! "lambda_f" !! id
-                             , (m M.! "mu_f" !! id
-                             , (LF.logFloat $ m M.! "theta_f"  !! id
-                             )))))))))))))))
+makeStation m (id,[lat,lon]) =
+      (read lat :: Double
+    , (read lon :: Double
+    , (m M.! "mu_d0" !! id 
+    , (m M.! "mu_d1" !! id 
+    , (m M.! "mu_d2" !! id
+    , (LF.logFloat $ m M.! "theta_t"  !! id
+    , (LF.logFloat $ m M.! "theta_k"  !! id
+    , (LF.logFloat $ m M.! "theta_s"  !! id
+    , (m M.! "mu_a0" !! id
+    , (m M.! "mu_a1" !! id
+    , (m M.! "mu_a2" !! id
+    , (LF.logFloat $ m M.! "sigma_a"  !! id
+    , (LF.logFloat $ m M.! "lambda_f" !! id
+    , (m M.! "mu_f" !! id
+    , (LF.logFloat $ m M.! "theta_f"  !! id
+    )))))))))))))))
 
 makeDetection :: [Station'] -> [String] -> (Station', Detection')
 makeDetection stations [id,time,azi,slow,amp] =
@@ -427,10 +445,11 @@ readStations stationFile physicsFile = do
   return $ map (makeStation paramMap) stations'
 
 --
-writeEpisode :: FilePath ->
-                [Station'] ->
-                [(Event', [(Station', Detection')])] ->
-                IO ()
+writeEpisode
+    :: FilePath
+    -> [Station']
+    -> [(Event', [(Station', Detection')])]
+    -> IO ()
 writeEpisode f stations es = do
   writeFile f "Events:"
   mapM_ (\ ((lat,(lon,(mag,(time)))),_) ->

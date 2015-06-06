@@ -1,10 +1,10 @@
-{-# LANGUAGE TypeFamilies, Rank2Types, FlexibleContexts #-}
+{-# LANGUAGE TypeFamilies, Rank2Types, FlexibleContexts, DataKinds #-}
 {-# OPTIONS -W #-}
 
 module Tests.Syntax(allTests) where
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Real, Prob, Measure,
+import Language.Hakaru.Syntax (Hakaru(..),
        Order(..), Base(..), ununit, and_, fst_, snd_, swap_, min_, max_,
        Mochastic(..), Lambda(..), Integrate(..), bind_, liftM, liftM2, factor, beta, bern, exponential)
 import Language.Hakaru.Util.Pretty (Pretty (pretty), prettyPair)
@@ -42,29 +42,33 @@ allTests = test [
     "gamalonDis" ~: testS gamalonDis ]
 
 -- pair1fst and pair1snd are equivalent
-pair1fst :: (Mochastic repr) => repr (Measure (Bool, Prob))
+pair1fst :: (Mochastic repr) => repr (HMeasure (HPair HBool HProb))
 pair1fst =  beta 1 1 `bind` \bias ->
             bern bias `bind` \coin ->
             dirac (pair coin bias)
-pair1snd :: (Mochastic repr) => repr (Measure (Bool, Prob))
+pair1snd :: (Mochastic repr) => repr (HMeasure (HPair HBool HProb))
 pair1snd =  bern (1/2) `bind` \coin ->
             if_ coin (beta 2 1) (beta 1 2) `bind` \bias ->
             dirac (pair coin bias)
 
-pair1same :: (Mochastic repr) => repr (Measure (Bool, Prob))
+pair1same :: (Mochastic repr) => repr (HMeasure (HPair HBool HProb))
 pair1same = superpose [
   ( fromRational (1/2), beta 2 1 `bind` \x -> dirac (pair true x) ) ,
   ( fromRational (1/2), beta 1 2 `bind` \x -> dirac (pair false x) ) ]
   
 
 -- pair2fst and pair2snd are equivalent
-pair2fst :: (Mochastic repr) => repr (Measure ((Bool, Bool), Prob))
+pair2fst
+    :: (Mochastic repr)
+    => repr (HMeasure (HPair (HPair HBool HBool) HProb))
 pair2fst =  beta 1 1 `bind` \bias ->
             bern bias `bind` \coin1 ->
             bern bias `bind` \coin2 ->
             dirac (pair (pair coin1 coin2) bias)
 
-pair2snd :: (Mochastic repr) => repr (Measure ((Bool, Bool), Prob))
+pair2snd
+    :: (Mochastic repr)
+    => repr (HMeasure (HPair (HPair HBool HBool) HProb))
 pair2snd =  bern (1/2) `bind` \coin1 ->
             bern (if_ coin1 (2/3) (1/3)) `bind` \coin2 ->
             beta (1 + f coin1 + f coin2)
@@ -74,7 +78,7 @@ pair2snd =  bern (1/2) `bind` \coin1 ->
         g b = if_ b 0 1
 
 {-
-type Cont repr a = forall w. (a -> repr (Measure w)) -> repr (Measure w)
+type Cont repr a = forall w. (a -> repr (HMeasure w)) -> repr (HMeasure w)
 -- This Cont monad is useful for generalizing pair2fst and pair2snd to an
 -- arbitrary number of coin flips. The generalization would look liks this:
 
@@ -90,18 +94,22 @@ pair2'snd = go 1 1 where
                go (if_ c (a+1) a) (if_ c b (b+1)) (n-1) (\(cs,bias) ->
                k (c:cs,bias))
 
-replicateH :: (Mochastic repr) => Int -> repr (Measure a) -> Cont repr [repr a]
+replicateH :: (Mochastic repr) => Int -> repr (HMeasure a) -> Cont repr [repr a]
 replicateH 0 _ k = k []
 replicateH n m k = m `bind` \x -> replicateH (n-1) m (\xs -> k (x:xs))
 
-twice :: (Mochastic repr) => repr (Measure a) -> Cont repr (repr a, repr a)
+twice :: (Mochastic repr) => repr (HMeasure a) -> Cont repr (repr a, repr a)
 twice m k = m `bind` \x ->
             m `bind` \y ->
             k (x, y)
 -}
 
 -- pair3fst and pair3snd and pair3trd are equivalent
-pair3fst, pair3snd, pair3trd :: (Mochastic repr) => repr Prob -> [repr Bool] -> repr (Measure ())
+pair3fst, pair3snd, pair3trd
+    :: (Mochastic repr)
+    => repr HProb
+    -> [repr HBool]
+    -> repr (HMeasure HUnit)
 pair3fst bias [b1,b2,b3] =
   factor (if_ b1 bias (1-bias)) `bind_`
   factor (if_ b2 bias (1-bias)) `bind_`
@@ -117,25 +125,28 @@ pair3trd bias [b1,b2,b3] =
         * pow_ (1-bias) (if_ b1 0 1 + if_ b2 0 1 + if_ b3 0 1))
 pair3trd _ _ = error "pair3fst: only implemented for 3 coin flips"
 
-pair4fst :: (Mochastic repr) => repr (Measure Real)
+pair4fst :: (Mochastic repr) => repr (HMeasure HReal)
 pair4fst = bern (1/2) `bind` \coin ->
            if_ coin (normal 0 1) (uniform 0 1)
 
-normalLogDensity :: Mochastic repr => repr Real -> repr Prob -> repr Real -> repr Real
+normalLogDensity :: Mochastic repr => repr HReal -> repr HProb -> repr HReal -> repr HReal
 normalLogDensity mu sd x = (-(fromProb tau) * square (x - mu)
                             + log_ (tau / pi_ / 2)) / 2
  where square y = y * y
        tau = recip (square sd)
 
-uniformLogDensity :: Mochastic repr => repr Real -> repr Real -> repr Real -> repr Real
+uniformLogDensity :: Mochastic repr => repr HReal -> repr HReal -> repr HReal -> repr HReal
 uniformLogDensity lo hi x = if_ (and_ [less lo x, less x hi])
                             (log_ (recip (unsafeProb (hi - lo))))
                             (log_ 0)
 
-bernLogDensity :: Mochastic repr => repr Prob -> repr Bool -> repr Real
+bernLogDensity :: Mochastic repr => repr HProb -> repr HBool -> repr HReal
 bernLogDensity p x = log_ (if_ x p (1 - p))
 
-pair4transition :: Mochastic repr => repr (Bool, Real) -> repr (Measure (Bool,Real))
+pair4transition
+    :: Mochastic repr
+    => repr (HPair HBool HReal)
+    -> repr (HMeasure (HPair HBool HReal))
 pair4transition state = bern (1/2) `bind` \resampleCoin ->
                            if_ resampleCoin
                            (bern (1/2) `bind` \coin' ->
@@ -156,7 +167,10 @@ pair4transition state = bern (1/2) `bind` \resampleCoin ->
           coin = fst_ state
           x = snd_ state
 
-pair4'transition :: (Mochastic repr) => repr (Bool, Real) -> repr (Measure (Bool, Real))
+pair4'transition
+    :: (Mochastic repr)
+    => repr (HPair HBool HReal)
+    -> repr (HMeasure (HPair HBool HReal))
 pair4'transition state = bern (1/2) `bind` \resampleCoin ->
                            if_ resampleCoin
                            (bern (1/2) `bind` \coin' ->
@@ -192,25 +206,20 @@ testDistWithSample = do
                                 dirac (pair y x)
 -}
 
-type Real5 = (Real, (Real, (Real, (Real, Real))))
-type Real6 = (Real, (Real, (Real, (Real, (Real, Real)))))
+type Real5 = (HPair HReal (HPair HReal (HPair HReal (HPair HReal HReal))))
+type Real6 = (HPair HReal Real5)
 
-make5Pair :: (Base repr) => repr a -> repr a -> repr a -> repr a -> repr a -> repr (a,(a,(a,(a,a))))
-make5Pair x1 x2 x3 x4 x5 = pair x1
-                                (pair x2
-                                 (pair x3
-                                  (pair x4
-                                         x5)))
+make5Pair :: (Base repr) => repr a -> repr a -> repr a -> repr a -> repr a -> repr (HPair a (HPair a (HPair a (HPair a a))))
+make5Pair x1 x2 x3 x4 x5 =
+    pair x1 (pair x2 (pair x3 (pair x4 x5)))
 
-make6Pair :: (Base repr) => repr a -> repr a -> repr a -> repr a -> repr a -> repr a-> repr (a,(a,(a,(a,(a,a)))))
-make6Pair x1 x2 x3 x4 x5 x6 = pair x1
-                                (pair x2
-                                 (pair x3
-                                  (pair x4
-                                   (pair x5
-                                         x6))))
+make6Pair :: (Base repr) => repr a -> repr a -> repr a -> repr a -> repr a -> repr a -> repr (HPair a (HPair a (HPair a (HPair a (HPair a a)))))
+make6Pair x1 x2 x3 x4 x5 x6 =
+    pair x1 (pair x2 (pair x3 (pair x4 (pair x5 x6))))
 
-linregSimp, linregSimp' :: Mochastic repr => repr (Measure ((Real,Real), Real))
+linregSimp, linregSimp'
+    :: Mochastic repr
+    => repr (HMeasure (HPair (HPair HReal HReal) HReal))
 linregSimp = 
          normal 0 2 `bind` \w ->
          uniform (-1) 1 `bind` \x ->
@@ -226,11 +235,12 @@ linregSimp' =
          normal (x*w) 1 `bind` \y ->
          dirac (pair (pair x y) w)
 
-distLinregSimp :: (Lambda repr, Mochastic repr) =>
-                   repr ((Real,Real) -> (Measure Real))
+distLinregSimp
+    :: (Lambda repr, Mochastic repr)
+    => repr (HFun (HPair HReal HReal) (HMeasure HReal))
 distLinregSimp = app (L.runDisintegrate (const linregSimp) !! 0) unit
 
-linreg :: Mochastic repr => repr (Measure (Real6, Real5))
+linreg :: Mochastic repr => repr (HMeasure (HPair Real6 Real5))
 linreg = normal 0 2 `bind` \w1 ->
          normal 0 2 `bind` \w2 ->
          normal 0 2 `bind` \w3 ->
@@ -244,7 +254,9 @@ linreg = normal 0 2 `bind` \w1 ->
          normal (x1*w1 + x2*w2 + x3*w3 + x4*w4 + x5*w5) 1 `bind` \y ->
          dirac (pair (make6Pair x1 x2 x3 x4 x5 y) (make5Pair w1 w2 w3 w4 w5))
 
-distLinreg :: (Lambda repr, Mochastic repr) => repr (Real6 -> (Measure Real5))
+distLinreg
+    :: (Lambda repr, Mochastic repr)
+    => repr (HFun Real6 (HMeasure Real5))
 distLinreg = app (L.runDisintegrate (const linreg) !! 0) unit
 
 {-
@@ -310,16 +322,24 @@ testDist (e,s) = do
 -}
 
 -- Simplify me! 2015-01-20 meeting                   
-gamalonDis :: (Lambda repr, Mochastic repr, Integrate repr) =>
-               repr ((((Real, Real), (Real, Real)), (Real, Real))
-                         -> (Real, Real) -> Measure Prob)
+gamalonDis
+    :: (Lambda repr, Mochastic repr, Integrate repr)
+    => repr
+        (HFun
+            (HPair
+                (HPair (HPair HReal HReal) (HPair HReal HReal))
+                (HPair HReal HReal))
+        (HFun (HPair HReal HReal)
+            (HMeasure HProb)))
 gamalonDis = lam $ \abcd_xy -> lam $ \x'y' ->
              dirac ((head (L.density gamalon)) abcd_xy x'y')
 
 gamalon
-  :: (Mochastic repr) =>
-     repr (((Real, Real), (Real, Real)), (Real, Real)) ->
-     repr (Measure (Real, Real))
+    :: (Mochastic repr)
+    => repr
+        (HPair (HPair (HPair HReal HReal) (HPair HReal HReal))
+            (HPair HReal HReal))
+    -> repr (HMeasure (HPair HReal HReal))
 gamalon abcd_xy =
     unpair abcd_xy $ \abcd xy ->
     unpair abcd $ \ab cd ->
@@ -330,8 +350,11 @@ gamalon abcd_xy =
     uniform (c * x + d * y - 1) (c * x + d * y + 1) `bind` \y' ->
     dirac (pair x' y')
 
-walk :: (Mochastic repr) =>
-        repr Prob -> repr Real -> repr (Measure (Real, Int))
+walk
+    :: (Mochastic repr)
+    => repr HProb
+    -> repr HReal
+    -> repr (HMeasure (HPair HReal HInt))
 walk remaining location
   = exponential 1 `bind` \elapsed ->
     if_ (less elapsed remaining)

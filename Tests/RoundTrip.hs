@@ -1,7 +1,5 @@
-{-# LANGUAGE TypeFamilies, Rank2Types, FlexibleContexts #-}
+{-# LANGUAGE TypeFamilies, Rank2Types, FlexibleContexts, DataKinds #-}
 module Tests.RoundTrip (allTests) where
-
-import Prelude hiding (Real)
 
 import Language.Hakaru.Syntax
 import Language.Hakaru.Expect (total)
@@ -169,24 +167,24 @@ allTests = test
   ]
 
 -- In Maple, should 'evaluate' to "\c -> 1/2*c(Unit)"
-t1 :: (Mochastic repr) => repr (Measure ())
+t1 :: (Mochastic repr) => repr (HMeasure HUnit)
 t1 = uniform 0 1 `bind` \x -> factor (unsafeProb x)
 
-t2 :: Mochastic repr => repr (Measure Prob)
+t2 :: Mochastic repr => repr (HMeasure HProb)
 t2 = beta 1 1
 
-t3 :: Mochastic repr => repr (Measure Real)
+t3 :: Mochastic repr => repr (HMeasure HReal)
 t3 = normal 0 10
 
 -- t5 is "the same" as t1.
-t5 :: Mochastic repr => repr (Measure ())
+t5 :: Mochastic repr => repr (HMeasure HUnit)
 t5 = factor (1/2) `bind_` dirac unit
 
-t6, t6' :: Mochastic repr => repr (Measure Real)
+t6, t6' :: Mochastic repr => repr (HMeasure HReal)
 t6 = dirac 5
 t6' = superpose [(1, dirac 5)]
 
-t7,t7', t7n,t7n' :: Mochastic repr => repr (Measure Real)
+t7,t7', t7n,t7n' :: Mochastic repr => repr (HMeasure HReal)
 t7   = uniform 0 1 `bind` \x -> factor (unsafeProb (x+1)) `bind_` dirac (x*x)
 t7'  = uniform 0 1 `bind` \x -> superpose [(unsafeProb (x+1), dirac (x*x))]
 t7n  = uniform (-1) 0 `bind` \x -> factor (unsafeProb (x+1)) `bind_` dirac (x*x)
@@ -195,35 +193,36 @@ t7n' = uniform (-1) 0 `bind` \x -> superpose [(unsafeProb (x + 1), dirac (x*x))]
 -- For sampling efficiency (to keep importance weights at or close to 1),
 -- t8 below should read back to uses of "normal", not uses of "lebesgue"
 -- then "factor".
-t8 :: Mochastic repr => repr (Measure (Real, Real))
+t8 :: Mochastic repr => repr (HMeasure (HPair HReal HReal))
 t8 = normal 0 10 `bind` \x -> normal x 20 `bind` \y -> dirac (pair x y)
 
 -- Normal is conjugate to normal
-t8' :: (Lambda repr, Mochastic repr) => repr (Prob -> Prob -> Measure Real)
+t8' :: (Lambda repr, Mochastic repr)
+    => repr (HFun HProb (HFun HProb (HMeasure HReal)))
 t8' = lam $ \s1 ->
       lam $ \s2 ->
       normal 0 s1 `bind` \x -> normal x s2
 
-t9 :: Mochastic repr => repr (Measure Real)
+t9 :: Mochastic repr => repr (HMeasure HReal)
 t9 = lebesgue `bind` \x -> 
      factor (if_ (and_ [less 3 x, less x 7]) (fromRational (1/2)) 0) `bind_` 
      dirac x
 
-t10 :: Mochastic repr => repr (Measure ())
+t10 :: Mochastic repr => repr (HMeasure HUnit)
 t10 = factor 0
 
-t11 :: Mochastic repr => repr (Measure ())
+t11 :: Mochastic repr => repr (HMeasure HUnit)
 t11 = factor 1
 
-t12 :: Mochastic repr => repr (Measure ())
+t12 :: Mochastic repr => repr (HMeasure HUnit)
 t12 = factor 2
 
-t13,t13' :: Mochastic repr => repr (Measure Real)
+t13,t13' :: Mochastic repr => repr (HMeasure HReal)
 t13 = bern (3/5) `bind` \b -> dirac (if_ b 37 42)
 t13' = superpose [(fromRational (3/5), dirac 37), 
                   (fromRational (2/5), dirac 42)]
 
-t14,t14' :: Mochastic repr => repr (Measure Real)
+t14,t14' :: Mochastic repr => repr (HMeasure HReal)
 t14 = bern (3/5) `bind` \b ->
       if_ b t13 (bern (2/7) `bind` \b' ->
                  if_ b' (uniform 10 12) (uniform 14 16))
@@ -234,18 +233,18 @@ t14' = superpose
   , (fromRational (2/7) , uniform 14 16)
   ]
 
-t20 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure ())
+t20 :: (Lambda repr, Mochastic repr) => repr (HFun HProb (HMeasure HUnit))
 t20 = lam (\y -> uniform 0 1 `bind` \x -> factor (unsafeProb x * y))
 
 t21 :: (Mochastic repr, Integrate repr, Lambda repr) =>
-       repr (Real -> Measure Real)
+       repr (HFun HReal (HMeasure HReal))
 t21 = mcmc (`normal` 1) (normal 0 5)
 
-t22 :: Mochastic repr => repr (Measure ())
+t22 :: Mochastic repr => repr (HMeasure HUnit)
 t22 = bern (1/2) `bind_` dirac unit
 
 -- was called bayesNet in Nov.06 msg by Ken for exact inference
-t23, t23' :: Mochastic repr => repr (Measure (Bool, Bool))
+t23, t23' :: Mochastic repr => repr (HMeasure (HPair HBool HBool))
 t23 = bern (1/2) `bind` \a ->
                bern (if_ a (9/10) (1/10)) `bind` \b ->
                bern (if_ a (9/10) (1/10)) `bind` \c ->
@@ -255,7 +254,7 @@ t23' = superpose [(fromRational (41/100), dirac (pair true true)),
                   (fromRational ( 9/100), dirac (pair false true)),
                   (fromRational (41/100), dirac (pair false false))]
 
-t24,t24' :: (Mochastic repr, Lambda repr) => repr (Prob -> Measure ())
+t24,t24' :: (Mochastic repr, Lambda repr) => repr (HFun HProb (HMeasure HUnit))
 t24 = lam (\x ->
       uniform 0 1 `bind` \y ->
       uniform 0 1 `bind` \z ->
@@ -264,99 +263,99 @@ t24' = lam (\x ->
       uniform 0 1 `bind` \y ->
       factor (x * exp_ (cos y) * fromRational (1/2)))
 
-t25,t25' :: (Mochastic repr, Lambda repr) => repr (Prob -> Real -> Measure ())
+t25,t25' :: (Mochastic repr, Lambda repr) => repr (HFun HProb (HFun HReal (HMeasure HUnit)))
 t25 = lam (\x -> lam (\y ->
     uniform 0 1 `bind` \z ->
     factor (x * exp_ (cos y) * unsafeProb z)))
 t25' = lam (\x -> lam (\y ->
     factor (x * exp_ (cos y) * fromRational (1/2))))
 
-t26 :: (Mochastic repr, Lambda repr, Integrate repr) => repr (Measure Prob)
+t26 :: (Mochastic repr, Lambda repr, Integrate repr) => repr (HMeasure HProb)
 t26 = dirac (total t1)
 
-t28 :: Mochastic repr => repr (Measure Real)
+t28 :: Mochastic repr => repr (HMeasure HReal)
 t28 = uniform 0 1
 
-t29 :: Mochastic repr => repr (Measure Real)
+t29 :: Mochastic repr => repr (HMeasure HReal)
 t29 = uniform 0 1 `bind` \x -> dirac (exp x)
 
-t30 :: Mochastic repr => repr (Measure Prob)
+t30 :: Mochastic repr => repr (HMeasure HProb)
 t30 = uniform 0 1 `bind` \x -> dirac (exp_ x)
 
-t31 :: Mochastic repr => repr (Measure Real)
+t31 :: Mochastic repr => repr (HMeasure HReal)
 t31 = uniform (-1) 1
 
-t32 :: Mochastic repr => repr (Measure Real)
+t32 :: Mochastic repr => repr (HMeasure HReal)
 t32 = uniform (-1) 1 `bind` \x -> dirac (exp x)
 
-t33 :: Mochastic repr => repr (Measure Prob)
+t33 :: Mochastic repr => repr (HMeasure HProb)
 t33 = uniform (-1) 1 `bind` \x -> dirac (exp_ x)
 
-t34 :: Mochastic repr => repr (Measure Prob)
+t34 :: Mochastic repr => repr (HMeasure HProb)
 t34 = dirac (if_ (less (2 `asTypeOf` log_ 1) 4) 3 5)
 
-t35 :: (Lambda repr, Mochastic repr) => repr (Real -> Measure Prob)
+t35 :: (Lambda repr, Mochastic repr) => repr (HFun HReal (HMeasure HProb))
 t35 = lam (\x -> dirac (if_ (less (x `asTypeOf` log_ 1) 4) 3 5))
 
-t36, t36' :: (Lambda repr, Mochastic repr) => repr (Real -> Measure Real)
+t36, t36' :: (Lambda repr, Mochastic repr) => repr (HFun HReal (HMeasure HReal))
 t36 = lam (dirac . sqrt)
 t36' = lam $ \x -> if_ (x `less` 0) (dirac (-337)) (dirac (sqrt x))
 
-t37 :: (Lambda repr, Mochastic repr) => repr (Real -> Measure Real)
+t37 :: (Lambda repr, Mochastic repr) => repr (HFun HReal (HMeasure HReal))
 t37 = lam (dirac . recip)
 
-t38 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure Prob)
+t38 :: (Lambda repr, Mochastic repr) => repr (HFun HProb (HMeasure HProb))
 t38 = lam (dirac . recip)
 
-t39, t39' :: (Lambda repr, Mochastic repr) => repr (Real -> Measure Real)
+t39, t39' :: (Lambda repr, Mochastic repr) => repr (HFun HReal (HMeasure HReal))
 t39 = lam (dirac . log)
 t39' = lam $ \x -> if_ (x `less` 0) (dirac (-337)) (dirac (log x))
 
-t40 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure Real)
+t40 :: (Lambda repr, Mochastic repr) => repr (HFun HProb (HMeasure HReal))
 t40 = lam (dirac . log_)
 
-t42 :: (Lambda repr, Integrate repr, Mochastic repr) => repr (Measure Prob)
+t42 :: (Lambda repr, Integrate repr, Mochastic repr) => repr (HMeasure HProb)
 t42 = dirac $ total $ uniform 0 2 `bind` dirac . unsafeProb
 
-t43, t43', t43'' :: (Lambda repr, Mochastic repr) => repr (Bool -> Measure Real)
+t43, t43', t43'' :: (Lambda repr, Mochastic repr) => repr (HFun HBool (HMeasure HReal))
 t43   = lam $ \b -> if_ b (uniform 0 1) (beta 1 1 `bind` dirac . fromProb)
 t43'  = lam $ \b -> if_ b (uniform 0 1) (uniform 0 1)
 t43'' = lam $ \_ -> uniform 0 1
 
-t44Add, t44Add', t44Mul, t44Mul' :: (Lambda repr, Mochastic repr) => repr (Real -> Real -> Measure ())
+t44Add, t44Add', t44Mul, t44Mul' :: (Lambda repr, Mochastic repr) => repr (HFun HReal (HFun HReal (HMeasure HUnit)))
 t44Add  = lam $ \x -> lam $ \y -> factor (unsafeProb (x * x) + unsafeProb (y * y))
 t44Add' = lam $ \x -> lam $ \y -> factor (unsafeProb (x ** 2 + y ** 2))
 t44Mul  = lam $ \x -> lam $ \y -> factor (unsafeProb (x * x * y * y))
 t44Mul' = lam $ \x -> lam $ \y -> factor (unsafeProb (x ** 2) * unsafeProb (y ** 2))
 
 -- t45, t46, t47 are all equivalent. Which one is best?
-t45 :: (Mochastic repr) => repr (Measure Real)
+t45 :: (Mochastic repr) => repr (HMeasure HReal)
 t45 = normal 4 5 `bind` \x -> if_ (less x 3) (dirac (x*x)) (dirac (x-1))
 
-t46 :: (Mochastic repr) => repr (Measure Real)
+t46 :: (Mochastic repr) => repr (HMeasure HReal)
 t46 = normal 4 5 `bind` \x -> dirac (if_ (less x 3) (x*x) (x-1))
 
-t47 :: (Mochastic repr) => repr (Measure Real)
+t47 :: (Mochastic repr) => repr (HMeasure HReal)
 t47 =
   superpose [(1, (normal 4 5 `bind` \x -> if_ (less x 3) (dirac (x*x)) (dirac 0))),
              (1, (normal 4 5 `bind` \x -> if_ (less x 3) (dirac 0) (dirac (x-1))))]
 
-t48 :: (Mochastic repr, Lambda repr) => repr ((Real, Real) -> (Measure Real))
+t48 :: (Mochastic repr, Lambda repr) => repr (HFun (HPair HReal HReal) (HMeasure HReal))
 t48 = lam (\x -> uniform (-5) 7 `bind` \w -> dirac ((fst_ x + snd_ x) * w))
 
-t49 :: (Mochastic repr) => repr (Measure Prob)
+t49 :: (Mochastic repr) => repr (HMeasure HProb)
 t49 = gamma 0.01 0.35
 
-t50 :: (Mochastic repr) => repr (Measure Real)
+t50 :: (Mochastic repr) => repr (HMeasure HReal)
 t50 = uniform 1 3 `bind` \x ->
       normal 1 (unsafeProb x)
 
-t51 :: (Mochastic repr) => repr (Measure Real)
+t51 :: (Mochastic repr) => repr (HMeasure HReal)
 t51 = uniform (-1) 1 `bind` \x ->
       normal x 1
 
 -- Example 1 from Chang & Pollard's Conditioning as Disintegration
-t52, t52' :: (Mochastic repr) => repr (Measure (Real, (Real, Real)))
+t52, t52' :: (Mochastic repr) => repr (HMeasure (HPair HReal (HPair HReal HReal)))
 t52 = uniform 0 1 `bind` \x ->
       uniform 0 1 `bind` \y ->
       dirac (pair (max_ x y)
@@ -365,7 +364,7 @@ t52' = uniform 0 1 `bind` \x2 ->
        superpose [((unsafeProb (1 + (x2 * (-1)))),(uniform  x2 1) `bind` \x4 -> (dirac (pair x4 (pair x2 x4)))),
                   ((unsafeProb x2),(uniform  0 x2) `bind` \x4 -> (dirac (pair x2 (pair x2 x4))))]
 
-t53, t53', t53'' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
+t53, t53', t53'' :: (Mochastic repr, Lambda repr) => repr (HFun HReal (HMeasure HUnit))
 t53 =
   lam $ \x ->
   superpose [(1, superpose [(1, if_ (0 `less` x)
@@ -382,7 +381,7 @@ t53'' =
   lam $ \x ->
   if_ (and_ [less 0 x, less x 1]) (dirac unit) (superpose [])
 
-t54 :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
+t54 :: (Mochastic repr, Lambda repr) => repr (HFun HReal (HMeasure HUnit))
 t54 =
     lam $ \x0 ->
     (dirac x0 `bind` \x1 ->
@@ -408,7 +407,7 @@ t54 =
          (dirac 0)) `bind` \x5 ->
     factor (unsafeProb x5)
 
-t55, t55' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
+t55, t55' :: (Mochastic repr, Lambda repr) => repr (HFun HReal (HMeasure HUnit))
 t55  = lam $ \t -> uniform 0 1 `bind` \x ->
                    if_ (less x t) (dirac unit) $
                    superpose []
@@ -416,7 +415,7 @@ t55' = lam $ \t -> if_ (less t 0) (superpose []) $
                    if_ (less t 1) (factor (unsafeProb t)) $
                    dirac unit
 
-t56, t56', t56'' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
+t56, t56', t56'' :: (Mochastic repr, Lambda repr) => repr (HFun HReal (HMeasure HUnit))
 t56 =
     lam $ \x0 ->
     (dirac x0 `bind` \x1 ->
@@ -445,14 +444,14 @@ t56'' =
     if_ (lesseq t 2) (factor (unsafeProb (2 + t*(-1)))) $
     superpose []
 
-t57, t57' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
+t57, t57' :: (Mochastic repr, Lambda repr) => repr (HFun HReal (HMeasure HUnit))
 t57 = lam $ \t -> superpose
   [(1, if_ (less t 1) (dirac unit) (superpose [])),
    (1, if_ (less 0 t) (dirac unit) (superpose []))]
 t57' = lam $ \t -> 
   if_ (and_ [(t `less` 1), (0 `less` t)]) (factor 2) (dirac unit)
 
-t58, t58' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
+t58, t58' :: (Mochastic repr, Lambda repr) => repr (HFun HReal (HMeasure HUnit))
 t58 = lam $ \t -> superpose
   [(1, if_ (and_ [less 0 t, less t 2]) (dirac unit) (superpose [])),
    (1, if_ (and_ [less 1 t, less t 3]) (dirac unit) (superpose []))]
@@ -465,7 +464,7 @@ t58' = lam $ \t ->
            (dirac unit)
            (superpose []))
 
-t59 :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
+t59 :: (Mochastic repr, Lambda repr) => repr (HFun HReal (HMeasure HUnit))
 t59 =
     lam $ \x0 ->
     ((uniform 0 1 `bind` \x1 -> dirac (recip x1)) `bind` \x1 ->
@@ -493,7 +492,7 @@ t59 =
          (dirac 0)) `bind` \x3 ->
     weight (unsafeProb x3) (dirac unit)
 
-t60,t60',t60'' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
+t60,t60',t60'' :: (Mochastic repr, Lambda repr) => repr (HFun HReal (HMeasure HUnit))
 t60 =
     lam $ \x0 ->
     (((uniform 0 1 `bind` \x1 ->
@@ -539,12 +538,12 @@ t60'' =
         (weight (recip (unsafeProb (x2 + x1))) (dirac unit))
         (superpose [])
 
-t61, t61' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure Prob)
+t61, t61' :: (Mochastic repr, Lambda repr) => repr (HFun HReal (HMeasure HProb))
 t61 = lam $ \x -> if_ (less x 0) (dirac 0) $ dirac $ unsafeProb $ recip x
 t61'= lam $ \x -> if_ (less x 0) (dirac 0) $ dirac $ recip $ unsafeProb x
 
 -- "Special case" of t56
-t62, t62' :: (Mochastic repr, Lambda repr) => repr (Real -> Real -> Measure ())
+t62, t62' :: (Mochastic repr, Lambda repr) => repr (HFun HReal (HFun HReal (HMeasure HUnit)))
 t62 = lam $ \t ->
       lam $ \x ->
       uniform 0 1 `bind` \y ->
@@ -559,7 +558,7 @@ t62'= lam $ \t ->
       superpose []
 
 -- "Scalar multiple" of t62
-t63, t63' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
+t63, t63' :: (Mochastic repr, Lambda repr) => repr (HFun HReal (HMeasure HUnit))
 t63 = lam $ \t ->
       uniform 0 1 `bind` \x ->
       uniform 0 1 `bind` \y ->
@@ -574,7 +573,7 @@ t63'= lam $ \t ->
       superpose []
 
 -- Density calculation for (Exp (Log StdRandom)) and StdRandom
-t64, t64', t64'' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
+t64, t64', t64'' :: (Mochastic repr, Lambda repr) => repr (HFun HReal (HMeasure HUnit))
 t64 = lam $ \x0 ->
       (((dirac 0 `bind` \x1 ->
          dirac x0 `bind` \x2 ->
@@ -617,7 +616,7 @@ t64''=lam $ \x0 ->
 
 -- Density calculation for (Add StdRandom (Exp (Neg StdRandom))).
 -- Maple can integrate this but we don't simplify it for some reason.
-t65, t65' :: (Mochastic repr, Lambda repr) => repr (Real -> Measure ())
+t65, t65' :: (Mochastic repr, Lambda repr) => repr (HFun HReal (HMeasure HUnit))
 t65 = lam $ \t -> uniform 0 1 `bind` \x ->
       if_ (0 `less` t-x)
           (let_ (unsafeProb (t-x)) $ \t_x ->
@@ -633,13 +632,13 @@ t65' = lam $ \t ->
      $ if_ (t `less` 2) (factor (unsafeProb (log (t + (-1)) * (-1))))
      $ superpose []
 
-t66 :: (Mochastic repr) => repr (Measure Prob)
+t66 :: (Mochastic repr) => repr (HMeasure HProb)
 t66 = dirac (sqrt_ (3 + sqrt_ 3))
 
-t67 :: (Lambda repr, Mochastic repr) => repr (Prob -> Real -> Measure Prob)
+t67 :: (Lambda repr, Mochastic repr) => repr (HFun HProb (HFun HReal (HMeasure HProb)))
 t67 = lam $ \p -> lam $ \r -> dirac (exp_ (r * fromProb p))
 
-t68 :: (Lambda repr, Mochastic repr) => repr (Prob -> Prob -> Real -> Measure Real)
+t68 :: (Lambda repr, Mochastic repr) => repr (HFun HProb (HFun HProb (HFun HReal (HMeasure HReal))))
 t68 = lam $ \x4 ->
       lam $ \x5 ->
       lam $ \x1 ->
@@ -659,48 +658,48 @@ t68 = lam $ \x4 ->
                               * recip (exp_ (log_ (2 * pi_) * (1 / 2))))
                              (dirac x2)))
 
-t68' :: (Lambda repr, Mochastic repr) => repr (Prob -> Real -> Measure Real)
+t68' :: (Lambda repr, Mochastic repr) => repr (HFun HProb (HFun HReal (HMeasure HReal)))
 t68' = lam $ \noise -> app (app t68 noise) noise
 
-t69x, t69y :: (Lambda repr, Mochastic repr, Integrate repr) => repr (Measure Prob)
+t69x, t69y :: (Lambda repr, Mochastic repr, Integrate repr) => repr (HMeasure HProb)
 t69x = dirac (integrate 1 2 (\x -> integrate 3 4 (\_ -> unsafeProb x)))
 t69y = dirac (integrate 1 2 (\_ -> integrate 3 4 (\y -> unsafeProb y)))
 
-t70a, t71a, t72a, t73a, t74a :: (Mochastic repr) => repr (Measure Real)
+t70a, t71a, t72a, t73a, t74a :: (Mochastic repr) => repr (HMeasure HReal)
 t70a = uniform 1 3 `bind` \x -> if_ (less 4 x) (superpose []) (dirac x)
 t71a = uniform 1 3 `bind` \x -> if_ (less 3 x) (superpose []) (dirac x)
 t72a = uniform 1 3 `bind` \x -> if_ (less 2 x) (superpose []) (dirac x)
 t73a = uniform 1 3 `bind` \x -> if_ (less 1 x) (superpose []) (dirac x)
 t74a = uniform 1 3 `bind` \x -> if_ (less 0 x) (superpose []) (dirac x)
 
-t70b, t71b, t72b, t73b, t74b :: (Mochastic repr) => repr (Measure Real)
+t70b, t71b, t72b, t73b, t74b :: (Mochastic repr) => repr (HMeasure HReal)
 t70b = uniform 1 3 `bind` \x -> if_ (less 4 x) (dirac x) (superpose [])
 t71b = uniform 1 3 `bind` \x -> if_ (less 3 x) (dirac x) (superpose [])
 t72b = uniform 1 3 `bind` \x -> if_ (less 2 x) (dirac x) (superpose [])
 t73b = uniform 1 3 `bind` \x -> if_ (less 1 x) (dirac x) (superpose [])
 t74b = uniform 1 3 `bind` \x -> if_ (less 0 x) (dirac x) (superpose [])
 
-t70c, t71c, t72c, t73c, t74c :: (Mochastic repr) => repr (Measure Real)
+t70c, t71c, t72c, t73c, t74c :: (Mochastic repr) => repr (HMeasure HReal)
 t70c = uniform 1 3 `bind` \x -> if_ (less x 4) (dirac x) (superpose [])
 t71c = uniform 1 3 `bind` \x -> if_ (less x 3) (dirac x) (superpose [])
 t72c = uniform 1 3 `bind` \x -> if_ (less x 2) (dirac x) (superpose [])
 t73c = uniform 1 3 `bind` \x -> if_ (less x 1) (dirac x) (superpose [])
 t74c = uniform 1 3 `bind` \x -> if_ (less x 0) (dirac x) (superpose [])
 
-t70d, t71d, t72d, t73d, t74d :: (Mochastic repr) => repr (Measure Real)
+t70d, t71d, t72d, t73d, t74d :: (Mochastic repr) => repr (HMeasure HReal)
 t70d = uniform 1 3 `bind` \x -> if_ (less x 4) (superpose []) (dirac x)
 t71d = uniform 1 3 `bind` \x -> if_ (less x 3) (superpose []) (dirac x)
 t72d = uniform 1 3 `bind` \x -> if_ (less x 2) (superpose []) (dirac x)
 t73d = uniform 1 3 `bind` \x -> if_ (less x 1) (superpose []) (dirac x)
 t74d = uniform 1 3 `bind` \x -> if_ (less x 0) (superpose []) (dirac x)
 
-t75 :: (Mochastic repr) => repr (Measure Int)
+t75 :: (Mochastic repr) => repr (HMeasure HInt)
 t75 = gamma 6 1 `bind` poisson
 
-t75' :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure Int)
+t75' :: (Lambda repr, Mochastic repr) => repr (HFun HProb (HMeasure HInt))
 t75' = lam $ \x -> gamma x 1 `bind` poisson
 
-t76 :: (Lambda repr, Mochastic repr) => repr (Real -> Measure Real)
+t76 :: (Lambda repr, Mochastic repr) => repr (HFun HReal (HMeasure HReal))
 t76 = lam $ \x ->
       lebesgue `bind` \y ->
       weight (unsafeProb (abs y)) $
@@ -715,37 +714,40 @@ t76 = lam $ \x ->
           (superpose [])
 
 -- the (x * (-1)) below is an unfortunate artifact not worth fixing
-t77 :: (Lambda repr, Mochastic repr) => repr (Real -> Measure ())
+t77 :: (Lambda repr, Mochastic repr) => repr (HFun HReal (HMeasure HUnit))
 t77 = lam $ \x ->
       if_ (less_ x 0)
           (factor (exp_ (x * (-1))))
           (factor (exp_ x))
 
-t78, t78' :: (Lambda repr, Mochastic repr) => repr (Measure Real)
+t78, t78' :: (Lambda repr, Mochastic repr) => repr (HMeasure HReal)
 t78 = uniform 0 2 `bind` \x2 -> weight (unsafeProb x2) (dirac x2)
 t78' = liftM (fromProb . (*2)) (beta 2 1)
 
 -- what does this simplify to?
-t79 :: (Mochastic repr) => repr (Measure Real)
+t79 :: (Mochastic repr) => repr (HMeasure HReal)
 t79 = dirac 3 `bind` \x -> dirac (if_ (equal x 3) 1 x)
 
 -- Testing round-tripping of some other distributions
-testexponential :: Mochastic repr => repr (Measure Prob)
+testexponential :: Mochastic repr => repr (HMeasure HProb)
 testexponential = exponential (1/3)
 
-testCauchy :: Mochastic repr => repr (Measure Real)
+testCauchy :: Mochastic repr => repr (HMeasure HReal)
 testCauchy = cauchy 5 3
 
-testMCMCPriorProp :: (Integrate repr, Mochastic repr, Lambda repr) =>
-                 repr ((Real, Real) -> Measure (Real, Real))
+testMCMCPriorProp
+    :: (Integrate repr, Mochastic repr, Lambda repr)
+    => repr (HFun (HPair HReal HReal) (HMeasure (HPair HReal HReal)))
 testMCMCPriorProp = mcmc (priorAsProposal norm) norm
 
-testMHPriorProp :: (Integrate repr, Mochastic repr, Lambda repr) =>
-                 repr ((Real, Real) -> Measure ((Real, Real), Prob))
+testMHPriorProp
+    :: (Integrate repr, Mochastic repr, Lambda repr)
+    => repr (HFun (HPair HReal HReal) (HMeasure (HPair (HPair HReal HReal) HProb)))
 testMHPriorProp = mh (priorAsProposal norm) norm
 
-testPriorProp' :: (Integrate repr, Mochastic repr, Lambda repr) =>
-                 repr ((Real, Real) -> Measure ((Real, Real), Prob))
+testPriorProp'
+    :: (Integrate repr, Mochastic repr, Lambda repr)
+    => repr (HFun (HPair HReal HReal) (HMeasure (HPair (HPair HReal HReal) HProb)))
 testPriorProp' =
       (lam $ \old ->
        superpose [(fromRational (1/2),
@@ -764,26 +766,26 @@ testPriorProp' =
                                   + x1)
                                * (-1/4)))))])
 
-dup :: (Lambda repr, Mochastic repr) => repr (Measure a) -> repr (Measure (a,a))
+dup :: (Lambda repr, Mochastic repr) => repr (HMeasure a) -> repr (HMeasure (HPair a a))
 dup m = let_ m (\m' -> liftM2 pair m' m')
 
-norm_nox :: Mochastic repr => repr (Measure Real)
+norm_nox :: Mochastic repr => repr (HMeasure HReal)
 norm_nox = normal 0 1 `bind` \x ->
            normal x 1 `bind` \y ->
            dirac y
 
-norm_noy :: Mochastic repr => repr (Measure Real)
+norm_noy :: Mochastic repr => repr (HMeasure HReal)
 norm_noy = normal 0 1 `bind` \x ->
            normal x 1 `bind_`
            dirac x
 
-flipped_norm :: Mochastic repr => repr (Measure (Real, Real))
+flipped_norm :: Mochastic repr => repr (HMeasure (HPair HReal HReal))
 flipped_norm = normal 0 1 `bind` \x ->
                normal x 1 `bind` \y ->
                dirac (pair y x)
 
 -- pull out some of the intermediate expressions for independent study
-expr1 :: (Lambda repr, Mochastic repr) => repr (Real -> Prob)
+expr1 :: (Lambda repr, Mochastic repr) => repr (HFun HReal HProb)
 expr1 =  (lam $ \x0 ->
           (lam $ \_ ->
            lam $ \x2 ->
@@ -819,7 +821,7 @@ expr1 =  (lam $ \x0 ->
           `app` x0
           `app` (lam $ \_ -> 1))
 
-expr2 :: (Mochastic repr, Lambda repr) => repr (Real -> Real -> Prob)
+expr2 :: (Mochastic repr, Lambda repr) => repr (HFun HReal (HFun HReal HProb))
 expr2 = (lam $ \x1 ->
           lam $ \x2 ->
           (lam $ \x3 ->
@@ -857,7 +859,10 @@ expr2 = (lam $ \x1 ->
           `app` (lam $ \_ -> 1))
 
 -- the one we need in testKernel
-expr3 :: (Mochastic repr, Lambda repr) => repr (d -> Prob) -> repr (d -> d -> Prob) -> repr d -> repr d -> repr Prob
+expr3 :: (Mochastic repr, Lambda repr)
+    => repr (HFun d HProb)
+    -> repr (HFun d (HFun d HProb))
+    -> repr d -> repr d -> repr HProb
 expr3 x0 x1 x2 x3 = (if_ (1
                     `less` x0 `app` x3 / x1 `app` x2 `app` x3 * x1 `app` x3 `app` x2
                            / x0 `app` x2)
@@ -865,8 +870,8 @@ expr3 x0 x1 x2 x3 = (if_ (1
                    (x0 `app` x3 / x1 `app` x2 `app` x3 * x1 `app` x3 `app` x2
                     / x0 `app` x2))
 
--- testKernel :: Sample IO (Real -> Measure Real)
-testKernel :: (Lambda repr, Mochastic repr) => repr (Real -> Measure Real)
+-- testKernel :: Sample IO (HFun HReal (HMeasure HReal)
+testKernel :: (Lambda repr, Mochastic repr) => repr (HFun HReal (HMeasure HReal))
 testKernel =
 -- Below is the output of testMcmc as of 2014-11-05
     let_ expr1 $ \x0 ->
@@ -878,7 +883,7 @@ testKernel =
     dirac (if_ x5 x3 x2)
 
 -- this should be equivalent to the above
-testKernel2 :: (Lambda repr, Mochastic repr) => repr (Real -> Measure Real)
+testKernel2 :: (Lambda repr, Mochastic repr) => repr (HFun HReal (HMeasure HReal))
 testKernel2 =
   lam $ \x2 ->
   normal x2 1 `bind` \x3 ->
@@ -890,8 +895,10 @@ testKernel2 =
 
 -- this comes from {Tests.Lazy,Examples.EasierRoadmap}.easierRoadmapProg1.  It is the
 -- program post-disintegrate, as passed to Maple to simplify
-rmProg1 :: (Lambda repr, Mochastic repr) =>
-  repr (() -> (Real, Real) -> Measure (Prob, Prob))
+rmProg1 :: (Lambda repr, Mochastic repr) => repr
+    (HFun HUnit
+    (HFun (HPair HReal HReal)
+        (HMeasure (HPair HProb HProb))))
 rmProg1 =
   lam $ \_ ->
   lam $ \x1 ->
@@ -944,8 +951,12 @@ rmProg1 =
            (1, superpose [])]
 
 -- this comes from Examples.EasierRoadmap.easierRoadmapProg4'.
-rmProg4 :: (Lambda repr, Mochastic repr) =>
-  repr ((Real, Real) -> (Prob, Prob) -> Measure ((Prob, Prob), Prob))
+rmProg4
+    :: (Lambda repr, Mochastic repr)
+    => repr
+        (HFun (HPair HReal HReal)
+        (HFun (HPair HProb HProb)
+        (HMeasure (HPair (HPair HProb HProb) HProb))))
 rmProg4 =
   lam $ \x0 ->
   let_ (lam $ \x1 ->
@@ -1129,9 +1140,10 @@ rmProg4 =
   dirac (pair x3 (x1 `app` x3 / x1 `app` x2))
 
 -- this comes from Examples.Seismic.falseDetection
-seismicFalseDetection :: (Mochastic repr) =>
-  repr (Real,(Real,(Real,(Real,(Real,(Prob,(Prob,(Prob,(Real,(Real,(Real,(Prob,(Prob,(Real,Prob))))))))))))))
-  -> repr (Measure (Real,(Real,(Real,Prob))))
+seismicFalseDetection
+    :: (Mochastic repr)
+    => repr (HPair HReal (HPair HReal (HPair HReal (HPair HReal (HPair HReal (HPair HProb (HPair HProb (HPair HProb (HPair HReal (HPair HReal (HPair HReal (HPair HProb (HPair HProb (HPair HReal HProb))))))))))))))
+    -> repr (HMeasure (HPair HReal (HPair HReal (HPair HReal HProb))))
 seismicFalseDetection x0 =
   x0 `unpair` \x1 x2 ->
   x2 `unpair` \x3 x4 ->
@@ -1155,9 +1167,9 @@ seismicFalseDetection x0 =
 
 -- this comes from Examples.Seismic.trueDetection
 seismicTrueDetection :: (Mochastic repr) =>
-  repr (Real,(Real,(Real,(Real,(Real,(Prob,(Prob,(Prob,(Real,(Real,(Real,(Prob,(Prob,(Real,Prob))))))))))))))
-  -> repr (Real,(Real,(Prob,Real)))
-  -> repr (Measure (Either () (Real,(Real,(Real,Prob)))))
+  repr (HPair HReal (HPair HReal (HPair HReal (HPair HReal (HPair HReal (HPair HProb (HPair HProb (HPair HProb (HPair HReal (HPair HReal (HPair HReal (HPair HProb (HPair HProb (HPair HReal HProb))))))))))))))
+  -> repr (HPair HReal (HPair HReal (HPair HProb HReal)))
+  -> repr (HMeasure (HEither HUnit (HPair HReal (HPair HReal (HPair HReal HProb)))))
 seismicTrueDetection x0 x1 =
   x0 `unpair` \x2 x3 ->
   x3 `unpair` \x4 x5 ->
@@ -1297,27 +1309,77 @@ seismicTrueDetection x0 x1 =
             dirac (inr (pair x37 (pair x39 (pair x40 (exp_ x41)))))))
 
 
-tdl :: (Lambda repr, Mochastic repr) =>
- repr ((Real, (Real, (Real, (Real, (Real, (Prob, (Prob,
-        (Prob, (Real, (Real, (Real, (Prob, (Prob, (Real, Prob))))))))))))))
-                    -> (Real, (Real, (Prob, Real))) -> Measure ())
+tdl :: (Lambda repr, Mochastic repr) => repr
+    (HFun
+        (HPair HReal
+        (HPair HReal
+        (HPair HReal
+        (HPair HReal
+        (HPair HReal
+        (HPair HProb
+        (HPair HProb
+        (HPair HProb
+        (HPair HReal
+        (HPair HReal
+        (HPair HReal
+        (HPair HProb
+        (HPair HProb
+        (HPair HReal
+        HProb))))))))))))))
+    (HFun
+        (HPair HReal
+        (HPair HReal
+        (HPair HProb
+        HReal)))
+    (HMeasure HUnit)))
 tdl = lam $ \x0 -> lam $ \x1 -> 
   seismicTrueDetection x0 x1 `bind` \z -> 
   uneither z dirac (\_ -> superpose [])
-tdr :: (Lambda repr, Mochastic repr) =>
- repr ((Real, (Real, (Real, (Real, (Real, (Prob, (Prob,
-        (Prob, (Real, (Real, (Real, (Prob, (Prob, (Real, Prob))))))))))))))
-                    -> (Real, (Real, (Prob, Real))) -> 
-                    Measure (Real, (Real, (Real, Prob))))
+tdr :: (Lambda repr, Mochastic repr) => repr
+    (HFun
+        (HPair HReal
+        (HPair HReal
+        (HPair HReal
+        (HPair HReal
+        (HPair HReal
+        (HPair HProb
+        (HPair HProb
+        (HPair HProb
+        (HPair HReal
+        (HPair HReal
+        (HPair HReal
+        (HPair HProb
+        (HPair HProb
+        (HPair HReal
+        HProb))))))))))))))
+    (HFun
+        (HPair HReal
+        (HPair HReal
+        (HPair HProb
+        HReal)))
+    (HMeasure (HPair HReal (HPair HReal (HPair HReal HProb))))))
 tdr = lam $ \x0 -> lam $ \x1 -> 
   seismicTrueDetection x0 x1 `bind` \z -> 
   uneither z (\_ -> superpose []) dirac
 
 -- from Examples/HMMContinuous.hs
-kalman :: (Mochastic repr, Lambda repr) =>
-          repr ((Prob, (Prob, (Real, (Real, (Real, Prob))))) ->
-                (Prob, (Prob, (Real, (Real, (Real, Prob))))) ->
-                Real -> Measure Real)
+kalman :: (Mochastic repr, Lambda repr) => repr
+    (HFun
+        (HPair HProb
+        (HPair HProb
+        (HPair HReal
+        (HPair HReal
+        (HPair HReal
+        HProb)))))
+    (HFun
+        (HPair HProb
+        (HPair HProb
+        (HPair HReal
+        (HPair HReal
+        (HPair HReal
+        HProb)))))
+    (HFun HReal
+    (HMeasure HReal))))
 kalman = lam $ \m -> lam $ \n -> reflect m `bindo` reflect n
   where reflect m0 =
           unpair m0 $ \a m1 ->
@@ -1331,7 +1393,7 @@ kalman = lam $ \m -> lam $ \n -> reflect m `bindo` reflect n
 
 -- from a web question
 -- these are mathematically equivalent, albeit at different types
-chal1 :: (Mochastic repr, Lambda repr) => repr (Prob -> Real -> Real -> Real -> Measure Bool)
+chal1 :: (Mochastic repr, Lambda repr) => repr (HFun HProb (HFun HReal (HFun HReal (HFun HReal (HMeasure HBool)))))
 chal1 = lam $ \sigma ->
         lam $ \a     ->
         lam $ \b     ->
@@ -1341,7 +1403,7 @@ chal1 = lam $ \sigma ->
         normal c sigma `bind` \yc ->
         dirac (and_ [less_ yb ya, less_ yc ya])
 
-chal2 :: (Mochastic repr, Lambda repr) => repr (Prob -> Real -> Real -> Real -> Measure Real)
+chal2 :: (Mochastic repr, Lambda repr) => repr (HFun HProb (HFun HReal (HFun HReal (HFun HReal (HMeasure HReal)))))
 chal2 = lam $ \sigma ->
         lam $ \a     ->
         lam $ \b     ->
@@ -1351,7 +1413,12 @@ chal2 = lam $ \sigma ->
         normal c sigma `bind` \yc ->
         dirac (if_ (and_ [less_ yb ya, less_ yc ya]) 1 0)
 
-chal3 :: (Lambda repr, Mochastic repr) => repr (Prob -> Measure Real)
+chal3 :: (Lambda repr, Mochastic repr) => repr (HFun HProb (HMeasure HReal))
 chal3 = lam $ \sigma -> app3 (app chal2 sigma) 0 0 0
 
+seismic :: (Lambda repr, Mochastic repr, Integrate repr) => repr
+    (HFun SE.HStation
+    (HFun (HPair HReal (HPair HReal (HPair HProb HReal)))
+    (HFun (HPair HReal (HPair HReal (HPair HReal HProb)))
+    (HMeasure HProb))))
 seismic = lam3 (\s e d -> dirac $ SE.densT s e d)
