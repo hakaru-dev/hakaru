@@ -12,7 +12,8 @@ import Language.Hakaru.Syntax (Hakaru(..),
        Base(..), snd_, equal_, and_, or_, not_, weight,
        Mochastic(..), Integrate(..), Lambda(..), Lub(..))
 import Language.Hakaru.Compose
-import Control.Monad (liftM, liftM2)
+import Control.Monad (liftM, liftM2, ap)
+import Control.Applicative (Applicative(..))
 import Data.Maybe (isNothing)
 import Unsafe.Coerce (unsafeCoerce)
 import Language.Hakaru.Expect (Expect(Expect), Expect', total)
@@ -41,17 +42,30 @@ unM :: M s repr a -> forall w. (a -> Heap s repr -> repr (HMeasure w))
 unM (Return a) = \c -> c a
 unM (M m)      = m
 
--- BUG: this requires @M s repr :: * -> *@, conflicts with Lub
+instance Functor (M s repr) where
+    fmap f (Return a) = Return (f a)
+    fmap f (M m)      = M (\c -> m (c . f))
+    
+instance Applicative (M s repr) where
+    pure  = Return
+    (<*>) = ap -- TODO: can we optimize this?
+
 instance Monad (M s repr) where
-  return         = Return
-  Return a >>= k = k a
-  M m      >>= k = M (\c -> m (\a -> unM (k a) c))
+    return         = Return
+    Return a >>= k = k a
+    M m      >>= k = M (\c -> m (\a -> unM (k a) c))
 
--- BUG: this requires @M s repr :: Hakaru * -> *@, conflicts with Monad
-instance (Lub repr) => Lub (M s repr) where
-  bot       = M (\_ _ -> bot)
-  lub m1 m2 = M (\c h -> lub (unM m1 c h) (unM m2 c h))
+-- N.B., we can't make an actual 'Lub' instance, because the kind of @M s repr@ is wrong...
 
+-- | Like 'Lub' but for a different kind...
+-- TODO: choose better names for things!
+class HaskellLub (hask :: * -> *) where
+    bot_ :: hask a
+    lub_ :: hask a -> hask a -> hask a
+
+instance Lub repr => HaskellLub (M s repr) where
+    bot_ = M (\_ _ -> bot)
+    lub_ m1 m2 = M (\c h -> lub (unM m1 c h) (unM m2 c h))
 
 choice :: (Mochastic repr) => [M s repr a] -> M s repr a
 choice [m] = m
@@ -74,14 +88,15 @@ data Lazy (s :: Hakaru *) (repr :: Hakaru * -> *) (a :: Hakaru *) = Lazy
   , backward :: (Number a) => Hnf s repr a -> M s repr () }
 
 lazy :: (Lub repr) => M s repr (Hnf s repr a) -> Lazy s repr a
-lazy m = Lazy m (const bot)
+lazy m = Lazy m (const bot_)
 
 join :: M s repr (Lazy s repr a) -> Lazy s repr a
 join m = Lazy (m >>= forward) (\t -> m >>= (`backward` t))
 
 instance (Lub repr) => Lub (Lazy s repr) where
-  bot = Lazy bot (const bot)
-  lub (Lazy f1 b1) (Lazy f2 b2) = Lazy (lub f1 f2) (\t -> lub (b1 t) (b2 t))
+  bot = Lazy bot_ (const bot_)
+  lub (Lazy f1 b1) (Lazy f2 b2) =
+    Lazy (lub_ f1 f2) (\t -> lub_ (b1 t) (b2 t))
 
 data Hnf (s :: Hakaru *) (repr :: Hakaru * -> *) (a :: Hakaru *) where
   Pair    :: Lazy s repr a -> Lazy s repr b ->     Hnf s repr (HPair a b)
@@ -366,21 +381,21 @@ bwdLoc l t = retrieve locate l (\retrieval -> do process retrieval
                                                  update l t)
   where
     process (RBind   rhs) = backward rhs t
-    process (RLet    _  ) = bot
+    process (RLet    _  ) = bot_
     process (RFst l2 rhs) = forward rhs >>= \case
                             Pair a b -> store (Bind l2 b) >> backward a t
-                            Value _  -> bot
+                            Value _  -> bot_
     process (RSnd l1 rhs) = forward rhs >>= \case
                             Pair a b -> store (Bind l1 a) >> backward b t
-                            Value _  -> bot
+                            Value _  -> bot_
     process (RInl    rhs) = forward rhs >>= \case
                             Inl a    -> backward a t
                             Inr _    -> reject
-                            Value _  -> bot
+                            Value _  -> bot_
     process (RInr    rhs) = forward rhs >>= \case
                             Inr b    -> backward b t
                             Inl _    -> reject
-                            Value _  -> bot
+                            Value _  -> bot_
 
 isNum :: (Number a) => Rational -> Hnf s repr a -> Bool
 isNum m h = case h of
@@ -506,15 +521,15 @@ add :: (Mochastic repr, Lub repr, Num (repr a), Number a) =>
        Lazy s repr a -> Lazy s repr a -> Lazy s repr a
 add x y = Lazy
           (liftM2 (+) (forward x) (forward y))
-          (\t -> lub (forward x >>= \r -> backward y (t - r))
-                     (forward y >>= \r -> backward x (t - r)))
+          (\t -> lub_ (forward x >>= \r -> backward y (t - r))
+                      (forward y >>= \r -> backward x (t - r)))
 
 sub :: (Mochastic repr, Lub repr, Num (repr a), Number a) => 
        Lazy s repr a -> Lazy s repr a -> Lazy s repr a
 sub x y = Lazy
           (liftM2 (-) (forward x) (forward y))
-          (\t -> lub (forward x >>= \r -> backward y (r - t))
-                     (forward y >>= \r -> backward x (r + t)))
+          (\t -> lub_ (forward x >>= \r -> backward y (r - t))
+                      (forward y >>= \r -> backward x (r + t)))
 
 mul :: (Mochastic repr, Lub repr, Num (repr a), Number a) => 
        Lazy s repr a -> Lazy s repr a -> Lazy s repr a
@@ -551,7 +566,7 @@ divide :: (Mochastic repr, Lub repr, Fractional (repr a), Fraction a) =>
           Lazy s repr a -> Lazy s repr a -> Lazy s repr a
 divide x y = Lazy
              (liftM2 (/) (forward x) (forward y))
-             (\t -> lub
+             (\t -> lub_
                     (do r <- forward x
                         w <- atomize (abs r / (t*t))
                         insert_ (weight (unsafeProbFraction w))
@@ -564,17 +579,17 @@ instance (Mochastic repr, Lub repr) => Num (Lazy s repr HInt) where
   (+) = add
   (-) = sub
   x * y = (mul x y)
-    { backward = (\t ->
-        lub (do r <- evaluate x
-                n <- lift counting
-                u <- atomize t
-                insert_ (ifTrue (equal (r * n) u))
-                backward y (Value n))
-            (do r <- evaluate y
-                n <- lift counting
-                u <- atomize t
-                insert_ (ifTrue (equal (n * r) u))
-                backward x (Value n))) }
+    { backward = (\t -> lub_
+        (do r <- evaluate x
+            n <- lift counting
+            u <- atomize t
+            insert_ (ifTrue (equal (r * n) u))
+            backward y (Value n))
+        (do r <- evaluate y
+            n <- lift counting
+            u <- atomize t
+            insert_ (ifTrue (equal (n * r) u))
+            backward x (Value n))) }
   negate = neg
   abs = abz
   signum x = (sign x)
@@ -590,13 +605,13 @@ instance (Mochastic repr, Lub repr) => Num (Lazy s repr HReal) where
   (+) = add
   (-) = sub
   x * y = (mul x y)
-    { backward = (\t ->
-        lub (do r <- evaluate x
-                insert_ (weight (recip (unsafeProb (abs r))))
-                backward y (t / (Value r)))
-            (do r <- evaluate y
-                insert_ (weight (recip (unsafeProb (abs r))))
-                backward x (t / (Value r)))) }
+    { backward = (\t -> lub_
+        (do r <- evaluate x
+            insert_ (weight (recip (unsafeProb (abs r))))
+            backward y (t / (Value r)))
+        (do r <- evaluate y
+            insert_ (weight (recip (unsafeProb (abs r))))
+            backward x (t / (Value r)))) }
   negate = neg
   abs = abz
   signum = sign
@@ -606,13 +621,13 @@ instance (Mochastic repr, Lub repr) => Num (Lazy s repr HProb) where
   (+) = add  
   (-) = sub
   x * y = (mul x y)
-    { backward = (\t ->
-        lub (do r <- evaluate x
-                insert_ (weight (recip (abs r)))
-                backward y (t / (Value r)))
-            (do r <- evaluate y
-                insert_ (weight (recip (abs r)))
-                backward x (t / (Value r)))) }
+    { backward = (\t -> lub_
+        (do r <- evaluate x
+            insert_ (weight (recip (abs r)))
+            backward y (t / (Value r)))
+        (do r <- evaluate y
+            insert_ (weight (recip (abs r)))
+            backward x (t / (Value r)))) }
   negate = neg
   abs = abz
   signum = sign
@@ -645,36 +660,38 @@ instance (Mochastic repr, Lub repr) =>
               backward x (exp t))
   x ** y = Lazy
     (liftM2 (**) (forward x) (forward y))
-    (\t -> lub (do r <- forward x
-                   -- TODO if r is 0 or 1 then bot
-                   -- Maybe the (log r) in w takes care of the r=0 case
-                   t' <- atomize t
-                   insert_ (ifTrue (less 0 t'))
-                   w <- atomize (recip (abs (t * log r)))
-                   insert_ (weight (unsafeProb w))
-                   backward y (logBase r t))
-               (do r <- forward y
-                   -- TODO if r is 0 then bot
-                   -- Maybe the weight w takes care of this case
-                   t'<- atomize t
-                   insert_ (ifTrue (less 0 t'))
-                   let ex = t ** (recip r)
-                   w <- atomize (abs (ex / (r * t)))
-                   insert_ (weight (unsafeProb w))
-                   backward x ex))
+    (\t -> lub_
+        (do r <- forward x
+            -- TODO if r is 0 or 1 then bot
+            -- Maybe the (log r) in w takes care of the r=0 case
+            t' <- atomize t
+            insert_ (ifTrue (less 0 t'))
+            w <- atomize (recip (abs (t * log r)))
+            insert_ (weight (unsafeProb w))
+            backward y (logBase r t))
+        (do r <- forward y
+            -- TODO if r is 0 then bot
+            -- Maybe the weight w takes care of this case
+            t'<- atomize t
+            insert_ (ifTrue (less 0 t'))
+            let ex = t ** (recip r)
+            w <- atomize (abs (ex / (r * t)))
+            insert_ (weight (unsafeProb w))
+            backward x ex))
   logBase x y = Lazy
     (liftM2 logBase (forward x) (forward y))
-    (\t -> lub (do r <- forward x
-                   -- TODO if r is 0 or 1 then bot
-                   w <- atomize (abs ((r ** t) * log r))
-                   insert_ (weight (unsafeProb w))
-                   backward y (r ** t))
-               (do r <- forward y
-                   -- TODO if r is 0 or 1 then bot
-                   let ex = r ** (recip t)
-                   w <- atomize (abs (ex * (log r) / (t*t)))
-                   insert_ (weight (unsafeProb w))
-                   backward x ex))
+    (\t -> lub_
+        (do r <- forward x
+            -- TODO if r is 0 or 1 then bot
+            w <- atomize (abs ((r ** t) * log r))
+            insert_ (weight (unsafeProb w))
+            backward y (r ** t))
+        (do r <- forward y
+            -- TODO if r is 0 or 1 then bot
+            let ex = r ** (recip t)
+            w <- atomize (abs (ex * (log r) / (t*t)))
+            insert_ (weight (unsafeProb w))
+            backward x ex))
   sqrt x = Lazy
     (liftM sqrt (forward x))
     (\t -> do u <- atomize (2*t)
@@ -820,17 +837,18 @@ instance (Mochastic repr, Lub repr) => Base (Lazy s repr) where
                            insert_ (weight u)
                            backward x (t*t)) }
   pow_ x y = (scalar2 pow_ x y)
-    { backward = (\t -> lub (do r <- evaluate x
-                                u <- atomize t
-                                let w = u * (unsafeProb (abs (log_ r)))
-                                insert_ (weight (recip w))
-                                backward y (Value $ log_ u / log_ r))
-                            (do r <- evaluate y
-                                u <- atomize t
-                                let ex = pow_ u (recip r)
-                                    w = abs (fromProb ex / (r * fromProb u))
-                                insert_ (weight (unsafeProb w))
-                                backward x (Value ex))) }
+    { backward = (\t -> lub_
+        (do r <- evaluate x
+            u <- atomize t
+            let w = u * (unsafeProb (abs (log_ r)))
+            insert_ (weight (recip w))
+            backward y (Value $ log_ u / log_ r))
+        (do r <- evaluate y
+            u <- atomize t
+            let ex = pow_ u (recip r)
+                w = abs (fromProb ex / (r * fromProb u))
+            insert_ (weight (unsafeProb w))
+            backward x (Value ex))) }
   erf = scalar1 erf -- need InvErf to disintegrate Erf
   erf_ = scalar1 erf_ -- need InvErf to disintegrate Erf
   infinity = scalar0 infinity
@@ -864,8 +882,8 @@ instance (Mochastic repr, Lub repr) =>
   -- ""M s repr :: * -> *
   -- ""Expected type: M s repr (Hnf s repr ('HMeasure 'HReal))
   -- ""Actual type: repr1 a0
-  uniform lo hi = Lazy (lub (forward (scalar2 uniform lo hi))
-                            (forward dfault))
+  uniform lo hi = Lazy (lub_ (forward (scalar2 uniform lo hi))
+                             (forward dfault))
                        (backward dfault)
       where dfault = lebesgue `bind` \x ->
                      ifTrue (and_ [less lo x, less x hi])
