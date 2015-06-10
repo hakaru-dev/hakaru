@@ -201,3 +201,10 @@ instance Embed PrettyPrint where
   caseSum x f g = apply3 "caseSum" x (lam f) (lam g) 
   tag = apply1 "tag"
   untag = apply1 "untag" 
+  muE = apply1 "muE"
+  unMuE = apply1 "unMuE"
+  konst = apply1 "konst"
+  unKonst = apply1 "unKonst"
+  ident = apply1 "ident"
+  unIdent = apply1 "unIdent"
+  natFn f x = apply2 "natFn" (lam f) x 

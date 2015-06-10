@@ -39,11 +39,15 @@ import Data.Char
 import Data.Typeable 
 
 -- TODO: should this be polykinded rather than using (Hakaru *) explicitly?
-type family   NAryFun (r :: Hakaru * -> *) (o :: Hakaru *) (xs :: [Hakaru *])  :: * 
-type instance NAryFun r o '[]  = r o 
-type instance NAryFun r o (x ': xs) = r x -> NAryFun r o xs 
+-- type family   NAryFun (r :: Hakaru * -> *) (o :: Hakaru *) (xs :: [Hakaru *])  :: * 
+-- type instance NAryFun r o '[]  = r o 
+-- type instance NAryFun r o (x ': xs) = r x -> NAryFun r o xs 
 
-newtype NFn (r :: Hakaru * -> *) (o :: Hakaru *) x = NFn { unFn :: NAryFun r o x } 
+type family   NAryFun (r :: Hakaru * -> *) (o :: Hakaru *) (a :: Hakaru *) (xs :: [HakaruFun *]) :: * 
+type instance NAryFun r o a '[] = r o 
+type instance NAryFun r o a (x ': xs) = r ('[ '[ x ] ] :$ a) -> NAryFun r o a xs 
+
+newtype NFn (r :: Hakaru * -> *) (o :: Hakaru *) a x = NFn { unFn :: NAryFun r o a x } 
 
 -- Datatype info, like in Generics.SOP but without all the ugly dictionaries.
 data DatatypeInfo xss = DatatypeInfo 
@@ -81,21 +85,40 @@ instance SingI '[] where
 instance (SingI x, SingI xs) => SingI (x ': xs) where
   sing = SCons sing sing 
 
--- Sum of products tagged with a Haskell type; cf., HTag
--- TODO: is this actually needed anymore?
-data Tag (t :: *) (xs :: [[*]]) :: *
+{-
+This could be derived with the singletons package.  For now, a singleton
+representation of Hakaru types in not needed, so the simpler version
+which contains no information is used as a "dummy". 
 
-nilTyCon, consTyCon, tagTyCon :: TyCon 
+data instance Sing (a :: Hakaru *) where 
+  S_HInt :: Sing HInt 
+  S_HReal :: Sing HReal 
+  S_HProb :: Sing HProb 
+  S_HMeasure :: Sing a -> Sing (HMeasure a)
+  S_HArray :: Sing a -> Sing (HArray a)
+  S_HFun :: Sing a -> Sing b -> Sing (HFun a b)
+  S_HBool :: Sing HBool 
+  S_HUnit :: Sing HUnit 
+  S_HPair :: Sing a -> Sing b -> Sing (HPair a b)
+  S_HEither :: Sing a -> Sing b -> Sing (HEither a b)
+  S_HSOP :: Sing xss -> Sing (HSOP xss) 
+  S_HTag :: Sing t -> Sing xss -> Sing t xss 
+  S_HList :: Sing t -> Sing (HList t)
+  S_HMaybe :: Sing t -> Sing (HMaybe t)
+-}
+
+data instance Sing (a :: Hakaru *) where SHakaru :: forall (a :: Hakaru *) . Sing a 
+instance SingI (a :: Hakaru *) where sing = SHakaru 
+
+nilTyCon, consTyCon :: TyCon 
 
 #if __GLASGOW_HASKELL__ >= 708
 
 deriving instance Typeable '[]
 deriving instance Typeable '(:)
-deriving instance Typeable Tag 
 
 nilTyCon  = typeRepTyCon (typeRep (Proxy :: Proxy '[]))
 consTyCon = typeRepTyCon (typeRep (Proxy :: Proxy '(:) ))
-tagTyCon  = typeRepTyCon (typeRep (Proxy :: Proxy (Tag () '[ ]) ))
 
 #else
 
@@ -132,8 +155,15 @@ type EmbeddableConstraint t =
 
 -- 't' is really just a "label" - 't' and 'Code t' are completely unrelated.
 class (EmbeddableConstraint t) => Embeddable (t :: *) where 
-  type Code t :: [[Hakaru *]]
+  type Code t :: [[HakaruFun *]]
   datatypeInfo :: Proxy t -> DatatypeInfo (Code t)
+
+data instance Sing (x :: HakaruFun k) where 
+  S_Id :: Sing Id
+  S_K  :: Sing a -> Sing (K a) 
+
+instance SingI Id where sing = S_Id 
+instance SingI a => SingI (K a) where sing = S_K sing 
 
 -- Like Simplifiable in Language.Hakaru.Simplify, but `t' itself should not be
 -- Simplifiable because it is not a Hakaru type - its type is only needed in the
@@ -146,87 +176,128 @@ class Embeddable t => SimplEmbed t where
   
 class (Base repr) => Embed (repr :: Hakaru * -> *) where
   -- unit 
-  _Nil :: repr (HSOP '[ '[] ]) 
+  _Nil :: repr ('[ '[] ] :$ a) 
   
   -- pair 
-  _Cons :: repr x -> repr (HSOP '[ xs ]) -> repr (HSOP '[ x ': xs ])
+  _Cons :: repr ('[ '[ x ] ] :$ a) -> repr ('[ xs ] :$ a) -> repr ('[ x ': xs ] :$ a)
   
   -- unpair 
-  caseProd :: repr (HSOP '[ x ': xs ]) -> (repr x -> repr (HSOP '[ xs ]) -> repr o) -> repr o 
+  caseProd :: repr ('[ x ': xs ] :$ a) -> (repr ('[ '[ x ] ] :$ a) -> repr ('[ xs ] :$ a) -> repr o) -> repr o 
 
   -- inl 
-  _Z :: repr (HSOP '[ xs ]) -> repr (HSOP (xs ': xss))
+  _Z :: repr ('[ xs ] :$ a) -> repr ((xs ': xss) :$ a)
 
   -- inr 
-  _S :: repr (HSOP xss) -> repr (HSOP (xs ': xss))
+  _S :: repr (xss :$ a) -> repr ((xs ': xss) :$ a)
 
   -- uneither
-  caseSum :: repr (HSOP (xs ': xss)) 
-          -> (repr (HSOP '[ xs ]) -> repr o) 
-          -> (repr (HSOP xss) -> repr o) 
+  caseSum :: repr ((xs ': xss) :$ a) 
+          -> (repr ('[ xs ] :$ a) -> repr o) 
+          -> (repr (xss :$ a) -> repr o) 
           -> repr o 
 
   -- void
-  voidSOP :: repr (HSOP '[]) -> repr a
+  voidSOP :: repr ('[] :$ a) -> repr b
   voidSOP _ = error "Datatype with no constructors"
+  
+  -- Fixpoint 
+  muE :: repr (f :$ HMu f) -> repr (HMu f)   
+  unMuE :: repr (HMu f) -> repr (f :$ HMu f) 
+  
+  -- Constant type
+  konst :: repr x -> repr ('[ '[ K x ] ] :$ a) 
+  unKonst :: repr ('[ '[ K x ] ] :$ a) -> repr x 
 
-  -- Doesn't permit recursive types, ie, the
-  -- following produces an "infinite type" error:
-  --   type Code [a] = '[ '[] , '[ a, Tag [a] (Code [a]) ]] 
-  -- Also, the only valid (valid in the sense that tagging arbitrary values with
-  -- abitrary types probably isn't useful) use of 'tag' is in 'sop' below,
-  -- which constrains xss ~ Code t. But putting this constraint here would leave 
-  -- us in the exact same position as 'hRep :: r (HSOP (Code t)) -> r (HRep t)'.
-  tag   :: Embeddable t => repr (HSOP xss) -> repr (HTag t xss)
-  untag :: Embeddable t => repr (HTag t xss) -> repr (HSOP xss) 
+  -- Identity type, representing recursive occurences of a type. 
+  ident :: repr x -> repr ('[ '[ Id ] ] :$ x) 
+  unIdent :: repr ('[ '[ Id ] ] :$ x) -> repr x 
 
+  tag   :: Embeddable t => repr (HMu f) -> repr (HTag t f)
+  untag :: Embeddable t => repr (HTag t f) -> repr (HMu f) 
 
--- Sum of products and case in terms of basic functions 
+  -- Naturality 
+  natFn :: forall x y f . (repr x -> repr y) -> repr (f :$ x) -> repr (f :$ y) 
+  
+-- `HFunRep r a x' is isomorphic to `r (x a)`. 
+data HFunRep (r :: Hakaru * -> *) (a :: Hakaru *) (x :: HakaruFun *) where 
+  HFunRep :: r ('[ '[ x ] ] :$ a) -> HFunRep r a x 
+  HFunI   :: r a -> HFunRep r a Id 
+  HFunK   :: r x -> HFunRep r a (K x) 
 
-prodG :: Embed r => NP r xs -> r (HSOP '[ xs ]) 
+unHFunRep :: Embed r => HFunRep r a x -> r ( '[ '[ x ] ] :$ a )
+unHFunRep (HFunRep x) = x 
+unHFunRep (HFunI x) = ident x 
+unHFunRep (HFunK x) = konst x 
+
+mapHFunRep :: Embed r => (r a -> r b) -> HFunRep r a x -> HFunRep r b x 
+mapHFunRep f (HFunRep x) = HFunRep (natFn f x) 
+mapHFunRep f (HFunI x) = HFunI (f x) 
+mapHFunRep _ (HFunK x) = HFunK x 
+
+-- Helpers / utilities
+mapNS :: (forall a . r a -> r' a) -> NS r xs -> NS r' xs 
+mapNS f (Z t) = Z (f t) 
+mapNS f (S t) = S (mapNS f t) 
+
+mapNP :: (forall a . r a -> r' a) -> NP r xs -> NP r' xs 
+mapNP _ Nil = Nil 
+mapNP f (x :* xs) = f x :* mapNP f xs 
+
+-- NS f '[] is inhabited only by bottom.
+void_ns :: NS f '[] -> a 
+void_ns x = x `seq` undefined
+
+singl :: f x -> NS (NP f) '[ '[ x ] ]
+singl x = Z (x :* Nil) 
+
+fromSingl :: NS (NP f) '[ '[ x ] ] -> f x 
+fromSingl (Z (x :* Nil)) = x 
+fromSingl x = x `seq` undefined
+
+--- Generalized sum-of-products 
+prodG :: Embed r => NP (HFunRep r a) xs -> r ( '[ xs ] :$ a) 
 prodG Nil = _Nil 
-prodG (x :* xs) = _Cons x (prodG xs) 
+prodG (x :* xs) = _Cons (unHFunRep x) (prodG xs)
 
-caseProdG :: Embed r => Sing xs -> r (HSOP '[ xs ]) -> NFn r o xs -> r o 
-caseProdG SNil _ (NFn x) = x 
-caseProdG (SCons _ t) a (NFn f) = caseProd a (\x xs -> caseProdG t xs (NFn $ f x))
-
-sop' :: Embed repr => NS (NP repr) xss -> repr (HSOP xss) 
+sop' :: Embed repr => NS (NP (HFunRep repr a)) xss -> repr (xss :$ a) 
 sop' (Z t) = _Z (prodG t) 
 sop' (S t) = _S (sop' t) 
 
-case' :: (All SingI xss, Embed repr) => repr (HSOP xss) -> NP (NFn repr o) xss -> repr o
+sop :: (Embeddable t, Embed repr) => NS (NP (HFunRep repr (HTag t (Code t)))) (Code t) -> repr (HTag t (Code t))
+sop x = tag (muE (sop' (untagAll x))) where untagAll = mapNS (mapNP (mapHFunRep untag))
+
+-- Generalized case on sum-of-products 
+caseProdG :: Embed r => Sing xs -> r ('[ xs ] :$ a) -> NFn r o a xs -> r o 
+caseProdG SNil _ (NFn x) = x 
+caseProdG (SCons _ t) a (NFn f) = caseProd a (\x xs -> caseProdG t xs (NFn $ f x))
+
+case' :: (All SingI xss, Embed repr) => repr (xss :$ a) -> NP (NFn repr o a) xss -> repr o
 case' x (f :* fs) = caseSum x (\h -> caseProdG sing h f) (\t -> case' t fs) 
 case' x Nil = voidSOP x 
 
-sop :: (Embeddable t, Embed repr) => NS (NP repr) (Code t) -> repr (HTag t (Code t))
-sop x = tag (sop' x)
+case_ :: (Embeddable t, Embed repr) => repr (HTag t (Code t)) -> NP (NFn repr o (HTag t (Code t))) (Code t) -> repr o
+case_ x f = case' (natFn tag $ unMuE $ untag x) f 
 
-case_ :: (Embeddable t, Embed repr) => repr (HTag t (Code t)) -> NP (NFn repr o) (Code t) -> repr o
-case_ x f = case' (untag  x) f 
 
 -- Variants of the above for when you want to fix the type of an application
 -- (like when functions are being generated by TH) without writing a hideous
 -- type signature by hand, or worse, having to generate it.
-sopProxy :: (Embeddable t, Embed repr) => Proxy t -> NS (NP repr) (Code t) -> repr (HTag t (Code t))
+sopProxy :: (Embeddable t, Embed repr) => Proxy t -> NS (NP (HFunRep repr (HTag t (Code t)))) (Code t) -> repr (HTag t (Code t))
 sopProxy _ = sop 
 
-caseProxy :: (Embeddable t, Embed repr) => Proxy t -> repr (HTag t (Code t)) -> NP (NFn repr o) (Code t) -> repr o
+caseProxy :: (Embeddable t, Embed repr) => Proxy t -> repr (HTag t (Code t)) -> NP (NFn repr o (HTag t (Code t))) (Code t) -> repr o
 caseProxy _ = case_
 
--- Possible useful for implementations like Sample
-apNAry' :: NP f xs -> NAryFun f o xs -> f o 
-apNAry' Nil z = z
-apNAry' (x :* xs) f = apNAry' xs (f x) 
 
-apNAry :: NS (NP f) xss -> NP (NFn f o) xss -> f o
+-- Possible useful for implementations like Sample
+apNAry' :: Embed f => NP (HFunRep f a) xs -> NAryFun f o a xs -> f o 
+apNAry' Nil z = z
+apNAry' (x :* xs) f = apNAry' xs (f $ unHFunRep x) 
+
+apNAry :: Embed f => NS (NP (HFunRep f a)) xss -> NP (NFn f o a) xss -> f o
 apNAry (Z x) (NFn f :* _) = apNAry' x f 
 apNAry (S x) (_ :* fs) = apNAry x fs 
 apNAry _ Nil = error "type error" 
-{-
-apNAry (Z _) Nil = error "type error" 
-apNAry (S _) Nil = error "type error" 
--}
 
 -- Template Haskell
 
@@ -588,37 +659,3 @@ instance (HakaruType x, HakaruType xs) => HakaruType (x ': xs :: [*]) where hsin
 instance (HakaruType x, HakaruType xs) => HakaruType (x ': xs :: [[*]]) where hsing = HCons hsing hsing
 -}
 
-
-{-
-
-data P2_Haskell (a_aZFo :: *) (b_aZFp :: *)
-instance Embeddable (P2_Haskell a_aZFo b_aZFp) where
-  type Code (P2_Haskell a_aZFo b_aZFp) = '[ '[ a_aZFo, b_aZFp]]
-  datatypeInfo _
-    = DatatypeInfo
-        "P2"
-        ((ConstructorInfo
-            "P2"
-            (Just ((FieldInfo "p2_fst") :* ((FieldInfo "p2_snd") :* Nil))))
-         :* Nil)
-type P2 a_aZFo b_aZFp = HTypeRep (P2_Haskell a_aZFo b_aZFp)
-
-pair2 a_aZFq a_aZFr = sop (Z (a_aZFq :* (a_aZFr :* Nil)))
-pair2 ::
-  forall repr_aZFs a_aZFo b_aZFp. Embed repr_aZFs =>
-  repr_aZFs a_aZFo
-  -> repr_aZFs b_aZFp
-     -> repr_aZFs (HTypeRep (P2_Haskell a_aZFo b_aZFp))
-
-p2_fst x_aZFt
-  = case_ x_aZFt ((:*) (NFn (\ a_aZFu a_aZFv -> a_aZFu)) Nil)
-p2_fst ::
-  forall repr_aZFw a_aZFo b_aZFp. Embed repr_aZFw =>
-  repr_aZFw (HTypeRep (P2_Haskell a_aZFo b_aZFp)) -> repr_aZFw a_aZFo
-p2_snd x_aZFx
-  = case_ x_aZFx ((:*) (NFn (\ a_aZFy a_aZFz -> a_aZFz)) Nil)
-p2_snd ::
-  forall repr_aZFA a_aZFo b_aZFp. Embed repr_aZFA =>
-  repr_aZFA (HTypeRep (P2_Haskell a_aZFo b_aZFp)) -> repr_aZFA b_aZFp
-
--}

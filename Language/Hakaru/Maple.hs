@@ -264,9 +264,18 @@ instance Embed Maple where
   _Z = app1 "Zero"
   _S = app1 "Succ"
 
+  muE = app1 "Mu" 
+  unMuE = op 1 
+
+  konst = app1 "K" 
+  unKonst = op 1 
+
+  ident = app1 "Id"
+  unIdent = op 1 
+
   voidSOP _ = constant "HakaruError (`Datatype with no constructors`)"
 
-  tag :: forall xss t . (Embeddable t) => Maple (HSOP xss) -> Maple (HTag t xss)
+  tag :: forall f t . (Embeddable t) => Maple (HMu f) -> Maple (HTag t f)
   -- tag = app1 "Tag" 
 
   tag = app2 "Tag"

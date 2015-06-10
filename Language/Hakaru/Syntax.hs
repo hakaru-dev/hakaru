@@ -2,8 +2,8 @@
              GADTs, Rank2Types, DataKinds, KindSignatures, TypeFamilies, StandaloneDeriving, DeriveDataTypeable, PolyKinds #-}
 {-# OPTIONS -Wall -Werror #-}
 
-module Language.Hakaru.Syntax (Hakaru(..),
-       Order_(..), lesseq, Number(..), Fraction(..),
+module Language.Hakaru.Syntax (Hakaru(..), HakaruFun(..), 
+       Order_(..), lesseq, Number(..), Fraction(..), 
        Order(..), Base(..), ununit, fst_, snd_, swap_,
        and_, or_, not_, min_, max_,
        summateV, sumV, normalizeV, dirichlet,
@@ -36,13 +36,18 @@ data Hakaru star
     | HPair (Hakaru star) (Hakaru star)
     | HEither (Hakaru star) (Hakaru star)
     -- Used in "Language.Hakaru.Embed"
-    | HSOP [[Hakaru star]]
-    | HTag star [[Hakaru star]]
+    | HMu [[HakaruFun star]]
+    | [[HakaruFun star]] :$ Hakaru star 
+    | HTag star [[HakaruFun star]]
     -- Used in "Language.Hakaru.Expect"
     | HList (Hakaru star)
     -- Used in "Language.Hakaru.Sample"
     | HMaybe (Hakaru star)
     -- TODO: arbitrary embedding of Haskell types
+
+-- Products and sums are represented as lists, so they aren't
+-- in this datatype. This is essentially a fancy "Maybe". 
+data HakaruFun star = Id | K (Hakaru star) 
 
 -- N.B., The @Proxy@ type from "Data.Proxy" is polykinded, so it works for @Hakaru*@ too. However, it is _not_ Typeable!
 
@@ -56,10 +61,13 @@ deriving instance Typeable HBool
 deriving instance Typeable HUnit
 deriving instance Typeable HPair    -- N.B., really polykinded!
 deriving instance Typeable HEither  -- N.B., really polykinded!
-deriving instance Typeable HSOP     -- N.B., really polykinded!
+deriving instance Typeable HMu      -- N.B., really polykinded!
 deriving instance Typeable HTag     -- N.B., really polykinded!
+deriving instance Typeable (:$)     -- N.B., really polykinded!
 deriving instance Typeable HList    -- N.B., really polykinded!
 deriving instance Typeable HMaybe   -- N.B., really polykinded!
+deriving instance Typeable Id
+deriving instance Typeable K
 
 {-
 type family   ToHakaru (a :: *) :: Hakaru *

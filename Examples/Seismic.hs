@@ -1,6 +1,6 @@
 {-# LANGUAGE RankNTypes, TypeOperators, ScopedTypeVariables, TypeFamilies, FlexibleContexts, DataKinds #-}
 {-# OPTIONS -Wall -fno-warn-name-shadowing #-}
-module Main where
+module Examples.Seismic where
 
 import Prelude hiding (Real)
 import Language.Hakaru.Syntax

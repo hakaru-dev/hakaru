@@ -8,7 +8,7 @@ module Language.Hakaru.Expect (Expect(..), Expect', total, normalize) where
 -- Expectation interpretation
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Hakaru(..),
+import Language.Hakaru.Syntax (Hakaru(..), HakaruFun(..), 
        Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..),
        fst_, snd_, summateV, mapWithIndex)
 -- import qualified Generics.SOP as SOP
@@ -187,17 +187,22 @@ normalize :: (Integrate repr, Lambda repr, Mochastic repr) =>
 normalize (Expect m) = unpair m (\m1 m2 ->
   superpose [(recip (m2 `app` lam (\_ -> 1)), m1)])
 
-type family   MapExpect' (a :: [Hakaru *]) :: [Hakaru *]
-type instance MapExpect' '[] = '[]
-type instance MapExpect' (x ': xs) = (Expect' x ': MapExpect' xs)
 
-type family   MapExpect'2 (a :: [[Hakaru *]]) :: [[Hakaru *]]
+type family ExpectFun' (x :: HakaruFun *) :: HakaruFun * 
+type instance ExpectFun' (K x) = K (Expect' x)
+type instance ExpectFun' Id = Id 
+
+type family   MapExpect' (a :: [HakaruFun *]) :: [HakaruFun *]
+type instance MapExpect' '[] = '[]
+type instance MapExpect' (x ': xs) = (ExpectFun' x ': MapExpect' xs)
+
+type family   MapExpect'2 (a :: [[HakaruFun *]]) :: [[HakaruFun *]]
 type instance MapExpect'2 '[] = '[]
 type instance MapExpect'2 (x ': xs) = MapExpect' x ': MapExpect'2 xs
 
--- type instance Expect' Void = Void
-type instance Expect' (HSOP xss)   = HSOP   (MapExpect'2 xss)
 type instance Expect' (HTag t xss) = HTag t (MapExpect'2 xss)
+type instance Expect' (f :$ x) = MapExpect'2 f :$ Expect' x 
+type instance Expect' (HMu f) = HMu (MapExpect'2 f) 
 
 instance Embed r => Embed (Expect r) where
   _Nil = Expect _Nil
@@ -214,3 +219,14 @@ instance Embed r => Embed (Expect r) where
 
   untag (Expect x) = Expect (untag x)
   tag (Expect x) = Expect (tag x)
+
+  muE (Expect x) = Expect $ muE x
+  unMuE (Expect x) = Expect $ unMuE x 
+
+  konst (Expect x) = Expect $ konst x
+  unKonst (Expect x) = Expect $ unKonst x 
+
+  ident (Expect x) = Expect $ ident x
+  unIdent (Expect x) = Expect $ unIdent x 
+
+  natFn f (Expect x) = Expect (natFn (unExpect . f . Expect) x)

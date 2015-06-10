@@ -11,7 +11,7 @@ module Language.Hakaru.Sample (Sample(..), Sample', runSample) where
 -- Importance sampling interpretation
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Hakaru(..),
+import Language.Hakaru.Syntax (Hakaru(..), HakaruFun(..), 
        Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..))
 import Language.Hakaru.Util.Extras (normalize, normalizeVector)
 import Language.Hakaru.Distribution (poisson_rng)
@@ -27,6 +27,7 @@ import Data.Maybe (fromMaybe)
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
 import Language.Hakaru.Embed
+import Data.Functor.Identity 
 
 newtype Sample (m :: * -> *) (a :: Hakaru *) =
     Sample { unSample :: Sample' m a }
@@ -188,21 +189,21 @@ instance Lambda (Sample m) where
   lam f = Sample (unSample . f . Sample)
   app (Sample rator) (Sample rand) = Sample (rator rand)
 
-
-type instance Sample' m (HTag t xss) = NS (NP (Sample m)) xss
-type instance Sample' m (HSOP xss)   = NS (NP (Sample m)) xss
+type instance Sample' m (HTag t f) = NS (NP (HFunRep (Sample m) (HMu f))) f
+type instance Sample' m (HMu f)    = NS (NP (HFunRep (Sample m) (HMu f))) f
+type instance Sample' m (f :$ a)   = NS (NP (HFunRep (Sample m) a      )) f 
 
 instance Embed (Sample m) where
   _Nil = Sample (Z Nil)
 
-  _Cons x (Sample (Z xs)) = Sample (Z (x :* xs))
-  _Cons _ (Sample (S _ )) = error "type error"
+  _Cons (Sample (Z (x :* Nil))) (Sample (Z xs)) = Sample (Z $ x :* xs) 
+  _Cons x y = x `seq` y `seq` undefined 
 
-  caseProd (Sample (Z (x :* xs))) f = Sample (unSample $ f x (Sample (Z xs)))
-  caseProd (Sample (S _)) _ = error "type error"
+  caseProd (Sample (Z (x :* xs))) f = Sample (unSample $ f (Sample $ Z $ x :* Nil) (Sample (Z xs)))
+  caseProd x f = x `seq` f `seq` undefined 
 
   _Z (Sample (Z x)) = Sample (Z x)
-  _Z (Sample (S _)) = error "type error"
+  _Z (Sample (S x)) = void_ns x
 
   _S (Sample x) = Sample (S x)
 
@@ -211,6 +212,15 @@ instance Embed (Sample m) where
 
   tag (Sample x) = Sample x
   untag (Sample x) = Sample x
+
+  muE (Sample x) = Sample x 
+  unMuE (Sample x) = Sample x 
+
+  konst x = Sample $ singl $ HFunK x
+
+  unKonst (Sample (Z ((HFunK x) :* Nil))) = Sample (unSample x) 
+  unKonst x = x `seq` undefined
+  
                                    
 runSample :: Sample IO (HMeasure a) -> IO (Maybe (Sample' IO a))
 runSample m = do g <- MWC.createSystemRandom -- "This is a somewhat expensive function, and is intended to be called only occasionally (e.g. once per thread)."
