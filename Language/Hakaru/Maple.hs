@@ -293,3 +293,10 @@ instance Embed Maple where
     return $ "if_(" ++ op0 ++ " = Zero, " ++ left ++ ", " ++ right ++ ")"
 
   untag = op 2 
+
+  -- This is probably not the best way of doing this. 
+  natFn f x = Maple $ do 
+    xs <- unMaple x 
+    fs <- unMaple (lam f)   
+    return $ "subsindets( " ++ xs ++ " , 'Id'(anything), (x) -> 'Id' (" ++ fs ++ "(op(1, x)) ))" 
+

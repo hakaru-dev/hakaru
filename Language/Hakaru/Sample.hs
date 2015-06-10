@@ -11,7 +11,7 @@ module Language.Hakaru.Sample (Sample(..), Sample', runSample) where
 -- Importance sampling interpretation
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax (Hakaru(..), HakaruFun(..), 
+import Language.Hakaru.Syntax (Hakaru(..),  
        Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..))
 import Language.Hakaru.Util.Extras (normalize, normalizeVector)
 import Language.Hakaru.Distribution (poisson_rng)
@@ -27,7 +27,6 @@ import Data.Maybe (fromMaybe)
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
 import Language.Hakaru.Embed
-import Data.Functor.Identity 
 
 newtype Sample (m :: * -> *) (a :: Hakaru *) =
     Sample { unSample :: Sample' m a }
@@ -216,11 +215,16 @@ instance Embed (Sample m) where
   muE (Sample x) = Sample x 
   unMuE (Sample x) = Sample x 
 
-  konst x = Sample $ singl $ HFunK x
+  konst x = Sample $ singl $ RK x
 
-  unKonst (Sample (Z ((HFunK x) :* Nil))) = Sample (unSample x) 
+  unKonst (Sample (Z ((RK x) :* Nil))) = Sample (unSample x) 
   unKonst x = x `seq` undefined
   
+  ident x = Sample $ singl $ RI x 
+  unIdent (Sample (Z ((RI x) :* Nil))) = Sample (unSample x) 
+  unIdent x = x `seq` undefined
+
+  natFn f (Sample x) = Sample $ mapNS (mapNP (mapHFunRep f)) x 
                                    
 runSample :: Sample IO ('HMeasure a) -> IO (Maybe (Sample' IO a))
 runSample m = do g <- MWC.createSystemRandom -- "This is a somewhat expensive function, and is intended to be called only occasionally (e.g. once per thread)."

@@ -221,18 +221,18 @@ class (Base repr) => Embed (repr :: Hakaru * -> *) where
 -- `HFunRep r a x' is isomorphic to `r (x a)`. 
 data HFunRep (r :: Hakaru * -> *) (a :: Hakaru *) (x :: HakaruFun *) where 
   HFunRep :: r ('[ '[ x ] ] :$ a) -> HFunRep r a x 
-  HFunI   :: r a -> HFunRep r a Id 
-  HFunK   :: r x -> HFunRep r a (K x) 
+  RI      :: r a -> HFunRep r a Id 
+  RK      :: r x -> HFunRep r a (K x) 
 
 unHFunRep :: Embed r => HFunRep r a x -> r ( '[ '[ x ] ] :$ a )
 unHFunRep (HFunRep x) = x 
-unHFunRep (HFunI x) = ident x 
-unHFunRep (HFunK x) = konst x 
+unHFunRep (RI x) = ident x 
+unHFunRep (RK x) = konst x 
 
 mapHFunRep :: Embed r => (r a -> r b) -> HFunRep r a x -> HFunRep r b x 
 mapHFunRep f (HFunRep x) = HFunRep (natFn f x) 
-mapHFunRep f (HFunI x) = HFunI (f x) 
-mapHFunRep _ (HFunK x) = HFunK x 
+mapHFunRep f (RI x) = RI (f x) 
+mapHFunRep _ (RK x) = RK x 
 
 -- Helpers / utilities
 mapNS :: (forall a . r a -> r' a) -> NS r xs -> NS r' xs 
@@ -297,13 +297,13 @@ apNAry :: Embed f => NS (NP (HFunRep f a)) xss -> NP (NFn f o a) xss -> f o
 apNAry (Z x) (NFn f :* _) = apNAry' x f 
 apNAry (S x) (_ :* fs) = apNAry x fs 
 apNAry _ Nil = error "type error" 
-
 -- Template Haskell
 
 -- The TH syntax tree contains a lot of extra information we don't care
 -- about. This contains the name of the datatype, the type variables it binds,
 -- and a list of consructors for this type.
 data DataDecl = DataDecl Name [TyVarBndr] [Con]
+
 
 -- Given the function f and a datatype, produce the type representing the
 -- datatype fully applied to its type variables, with the name of the datatype
@@ -331,11 +331,18 @@ maybeDataDecl (DataD    _ n tv cs _) = Just $ DataDecl n tv cs
 maybeDataDecl (NewtypeD _ n tv c  _) = Just $ DataDecl n tv [c] 
 maybeDataDecl _ = Nothing
 
+-- The kind `Hakaru *'
+hakaruStarTy = AppT (ConT $ mkName "Hakaru") StarT 
+
 -- Give a datatype `D x0 x1 .. xn = ...`, produce a datatype
 --   data D_Haskell x0 x1 .. xn deriving Typeable 
 toEmptyDec :: DataDecl -> Dec
 toEmptyDec (DataDecl n tv _) = 
-  DataD [] (mkName $ realName n ++ "_Haskell") tv [] [''Typeable]
+  DataD [] (mkName $ realName n ++ "_Haskell") (map (setKind hakaruStarTy) tv) [] [''Typeable]
+    where setKind k (PlainTV x) = KindedTV x k
+          setKind k (KindedTV x _) = KindedTV x k
+      
+  
 
 -- When datatypes are put in a [d|..|] quasiquote, the resulting names have
 -- numbers appended with them. Get rid of those numbers for use with
@@ -358,20 +365,22 @@ embeddableWith cfg decsQ = do
 
 embeddable = embeddableWith defaultConfig
 
+-- TODO: Make sure ctrs, accsrs, spcFns work. 
 deriveEmbeddable :: Config -> DataDecl -> Q [Dec] 
 deriveEmbeddable cfg d'@(DataDecl _ tvs _) = do 
-  let d = realNameDecl d' 
+  let d = d' 
       guarded check deriv = if check cfg then deriv cfg d else return [] 
   diInfo <- deriveDatatypeInfo d
-  ctrs   <- guarded mkCtrs     deriveCtrs
-  accsrs <- guarded mkRecFuns  deriveAccessors
+  -- ctrs   <- guarded mkCtrs     deriveCtrs
+  -- accsrs <- guarded mkRecFuns  deriveAccessors
   htype  <- guarded mkTySyn    deriveHakaruType
   spcFns <- guarded mkSpecFuns deriveTypeSpecFuns
   simpl  <- deriveSimpl cfg d 
   return $ 
     (InstanceD [] (ConT (''Embeddable) `AppT` tyReal' (++"_Haskell") d)
                           (deriveCode d : diInfo)
-    ) : htype ++ ctrs ++ accsrs ++ spcFns ++ simpl 
+    ) : simpl ++ htype ++ spcFns 
+  -- : htype ++ ctrs ++ accsrs ++ spcFns ++ simpl 
 
 -- Create a SimplEmbed instance for the given type.
 deriveSimpl :: Config -> DataDecl -> Q [Dec]
@@ -380,7 +389,7 @@ deriveSimpl _ d@(DataDecl nm tvs cs) = do
       tvs' = map VarT tvsNames
       ctx = map (ClassP (mkName "Simplifiable") . (:[])) tvs' 
       mkArg n = do 
-        x <- [| undefined :: $(varT n) |]
+        x <- [| undefined :: Proxy $(varT n) |]
         return $ VarE (mkName "mapleType") `AppE` x 
 
 
@@ -455,7 +464,7 @@ deriveTypeSpecFuns cfg d@(DataDecl nm tv _) = do
         b <- [| $(varE $ mkName calledFun) (Proxy :: $(return ty)) $(varE a) |]
         return (FunD (mkName funName) [ Clause [VarP a] (NormalB b) []] )
 
-  sequence $ zipWith (\q -> mkFn (validateFnName $ q cfg $ show nm)) 
+  sequence $ zipWith (\q -> mkFn (validateFnName $ q cfg $ realName nm)) 
                      [mkCaseFun, mkSOPFun] 
                      ["caseProxy", "sopProxy"] 
 
@@ -491,7 +500,7 @@ deriveAccessors cfg d@(DataDecl _n _tv [ RecC cn rcs ]) =
       recs = map (\(n,_,_) -> n) rcs
       q = length recs
       hTy = hakaruType d 
-      conTys = codeCon (RecC cn rcs) 
+      conTys = codeCon (hakaruType d) (RecC cn rcs) 
 
       deriveAccessorK :: Int -> Q [Dec]
       deriveAccessorK k = do 
@@ -555,7 +564,8 @@ deriveCode d =
   tySynInstanceD (''Code) [tyReal' (++ "_Haskell") d] . typeListLit . map typeListLit . codeCons $ d
 
 codeCons :: DataDecl -> [[Type]]
-codeCons (DataDecl _n _tv cs) = map codeCon cs
+codeCons d@(DataDecl n tv cs) = map (codeCon t') cs where 
+  t' = foldl AppT (ConT n) $ map (VarT . bndrName) tv
  
 -- We never care about a kind 
 bndrName :: TyVarBndr -> Name
@@ -563,11 +573,15 @@ bndrName (PlainTV n) = n
 bndrName (KindedTV n _) = n
 
 -- The "Code" for type 't' for one of its constructors. 
-codeCon :: Con -> [Type] 
-codeCon (NormalC _ tys)     = map snd tys 
-codeCon (RecC    _ tys)     = map (\(_,_,x) -> x) tys 
-codeCon (InfixC  ty0 _ ty1) = map snd [ty0, ty1] 
-codeCon (ForallC {}) = error "Deriving Embeddable not supported for types with foralls."
+codeCon :: Type -> Con -> [Type] 
+codeCon recT (NormalC _ tys)     = map (recOccur recT . snd) tys 
+codeCon recT (RecC    _ tys)     = map (\(_,_,x) -> recOccur recT x) tys 
+codeCon recT (InfixC  ty0 _ ty1) = map (recOccur recT . snd) [ty0, ty1] 
+codeCon recT (ForallC {}) = error "Deriving Embeddable not supported for types with foralls."
+
+recOccur :: Type -> Type -> Type 
+recOccur recT t | recT == t = PromotedT (mkName "Id")
+                | otherwise = AppT (PromotedT (mkName "K")) t 
 
 -- Produces a type list literal from the given types.
 typeListLit :: [Type] -> Type 
