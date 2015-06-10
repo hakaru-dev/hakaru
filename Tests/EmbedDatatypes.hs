@@ -20,8 +20,6 @@ import Language.Hakaru.Embed
 import Language.Hakaru.Syntax 
 import Language.Hakaru.Simplify
 
-import Language.Hakaru.Maple 
-
 embeddable [d| data BoolProb = BoolProb HBool HProb |] 
 
 embeddable [d| data Real5 = Real5 { r1, r2, r3, r4, r5 :: HReal} |]
@@ -38,5 +36,11 @@ embeddable [d| data List a = Nil | Cons a (List a) |]
 consL :: Embed r => r a -> r (List a) -> r (List a)
 consL x xs = sop (S $ Z $ RK x :* RI xs :* Nil)
 
-test0 :: Maple (List HInt)
-test0 = consL 1 $ consL 2 $ consL 3 (mkList (Z Nil))
+nilL :: Embed r => r (List a) 
+nilL = mkList (Z Nil)
+
+fromL :: Embed r => [r a] -> r (List a)
+fromL = foldr consL nilL 
+
+p2 :: Embed r => r a -> r b -> r (P2 a b) 
+p2 a b = sop (Z $ RK a :* RK b :* Nil) 

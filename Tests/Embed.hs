@@ -42,26 +42,28 @@ testSSE ts t' =
                     (assertEqual "testSS" `on` result) t' (unAny p))
           (t' : ts)
 
+-- YT: All of these tests should work now, but Maple seems to be broken as of
+-- writing this because the names of all the built-in identifies have changed
+-- (Measure to HMeasure) and Maple doesn't emit the new names yet, so they
+-- haven't been run.
+
 allTests :: Test
--- allTests = error "TODO: write tests" 
 allTests = test 
   [ "pair-elim" ~: testSSE [t1] (uniform 1 2)
-  -- BUG: No longer works, since P2 no longer works; cf., EmbedDatatypes.hs
-  {-
   , "P2-elim" ~: testSSE [t0] (uniform 1 2)  
   , "P2-id" ~: testSSE [t3] t3 
-  -}
+  , "List-id" ~: testSSE [testList0] testList0
   ]
 
--- BUG: No longer works, since P2 no longer works; cf., EmbedDatatypes.hs
---t0 :: forall repr . (Mochastic repr, Embed repr) => repr (HMeasure HReal)
---t0 = case_ (p2 1 2) (NFn uniform :* Nil)
+testList0 :: Embed r => r (List HInt)
+testList0 = fromL [1, 2, 3, 4]
+
+t0 :: forall repr . (Mochastic repr, Embed repr) => repr (HMeasure HReal)
+t0 = case_ (p2 1 2) (NFn (\x y -> uniform (unKonst x) (unKonst y)) :* Nil)
 
 t1 :: forall repr . (Mochastic repr) => repr (HMeasure HReal)
 t1 = unpair (pair 1 2) uniform 
 
--- BUG: No longer works, since P2 no longer works; cf., EmbedDatatypes.hs
-{-
 t3 :: (Mochastic repr, Embed repr) => repr (HMeasure (P2 HInt HReal))
 t3 = dirac (p2 1 2)
 
@@ -69,4 +71,3 @@ norm :: (Embed repr, Mochastic repr) => repr (HMeasure (P2 HReal HReal))
 norm = normal 0 1 `bind` \x ->
        normal x 1 `bind` \y ->
        dirac (p2 x y)
--}
