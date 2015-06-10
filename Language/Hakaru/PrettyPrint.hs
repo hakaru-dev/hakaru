@@ -64,13 +64,13 @@ parens :: Bool -> [Doc] -> [Doc]
 parens True  ds = [char '(' <> nest 1 (sep ds) <> char ')']
 parens False ds = ds
 
-fun1 :: (PrettyPrint a -> PrettyPrint b) -> PrettyPrint (HFun a b)
+fun1 :: (PrettyPrint a -> PrettyPrint b) -> PrettyPrint ('HFun a b)
 fun1 f = PP (\(x:xs) p ->
   let PP b = f (PP (\_ _ -> [text x])) in
   parens (p > 10) (text ('\\' : x ++ " ->") : b xs 0))
 
 fun2 :: (PrettyPrint a -> PrettyPrint b -> PrettyPrint c) ->
-        PrettyPrint (HFun a (HFun b c))
+        PrettyPrint ('HFun a ('HFun b c))
 fun2 f = PP (\(x:x':xs) p ->
   let PP b = f (PP (\_ _ -> [text x])) (PP (\_ _ -> [text x'])) in
   parens (p > 10) (text ('\\' : x ++ ' ' : x' ++ " ->") : b xs 0))

@@ -24,10 +24,12 @@ instance Pretty Ordering
 instance Pretty Char where prettyList = text . show
 
 instance (Pretty a, Integral a) => Pretty (Ratio a) where
-    pretty r | denom == 1 = prnum
-	     | otherwise  = cat [prnum, char '/' <> pretty denom]
-	where denom = denominator r
-	      prnum = pretty (numerator r)
+    pretty r
+        | denom == 1 = prnum
+        | otherwise  = cat [prnum, char '/' <> pretty denom]
+        where
+        denom = denominator r
+        prnum = pretty (numerator r)
 
 instance (Pretty a) => Pretty [a] where
     pretty = prettyList

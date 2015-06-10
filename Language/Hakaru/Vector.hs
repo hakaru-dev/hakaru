@@ -44,21 +44,21 @@ toNat _ = error "toNat: divMod behaved strangely"
 
 type Length a as = Length' as
 type family   Length' as :: Nat
-type instance Length' ()                  = I
-type instance Length' ((as, (a, as)), ()) = D  (Length' as)
+type instance Length' ()                  = 'I
+type instance Length' ((as, (a, as)), ()) = 'D  (Length' as)
   --                  ^             ^^^^^
   -- This is necessary to avoid "Conflicting family instance declarations"
   -- between the type instance above and the type instance below in GHC 7.8.
   -- As for why they should conflict, see
   -- http://stackoverflow.com/questions/18369827/why-are-type-instances-a-a-and-a-a-a-conflicting-in-ghc-7-8
   -- http://ghc.haskell.org/trac/ghc/ticket/8154
-type instance Length' ((a, as), (a, as))  = SD (Length' as)
+type instance Length' ((a, as), (a, as))  = 'SD (Length' as)
 
 type Repeat n a = (a, Repeat' n a)
 type family   Repeat' (n :: Nat) a
-type instance Repeat' I      a = ()
-type instance Repeat' (D n)  a = ((Repeat' n a, Repeat n a), ())
-type instance Repeat' (SD n) a = (Repeat n a, Repeat n a)
+type instance Repeat' 'I      a = ()
+type instance Repeat' ('D n)  a = ((Repeat' n a, Repeat n a), ())
+type instance Repeat' ('SD n) a = (Repeat n a, Repeat n a)
 
 -- A theorem that GHC can only infer concrete instances of
 
@@ -180,14 +180,14 @@ mapC :: (Vector a as, SameLength as b) =>
 mapC f = runCont . mapM (cont . f)
 
 {-
-type Nat123 = SD (SD (D (SD (SD (SD I))))) -- toNat 123
+type Nat123 = 'SD ('SD ('D ('SD ('SD ('SD 'I))))) -- toNat 123
 
 main :: IO ()
 main = do
   print (unSample (toNestedPair ((+) <$>
                                  fromList [1,2,3] <*>
                                  fromList [100,200,300])
-                   :: Sample IO (Repeat (SD I) Real)))
+                   :: Sample IO (Repeat ('SD 'I) Real)))
        -- (101.0,((202.0,()),(303.0,())))
   print (unSample (fromNestedPair (pair 3 (pair (pair 5 unit) (pair 7 unit)))
                                   (\(a,((b,()),(c,()))) -> a + b + c)

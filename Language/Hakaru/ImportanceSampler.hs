@@ -14,6 +14,8 @@ import Language.Hakaru.Mixture (Prob, empty, point, Mixture(..))
 import Language.Hakaru.Sampler (Sampler, deterministic, smap, sbind)
 
 import qualified System.Random.MWC as MWC
+import Control.Applicative (Applicative(..))
+import Control.Monad (liftM, ap)
 import Control.Monad.Primitive
 import Data.Monoid
 import Data.Dynamic
@@ -31,9 +33,14 @@ bind measure continuation =
     sbind (unMeasure measure conds)
           (\(a,cds) -> unMeasure (continuation a) cds))
 
+instance Functor Measure where
+  fmap = liftM -- TODO: can we optimize this default definition?
+instance Applicative Measure where
+  pure x = Measure (\conds -> deterministic (point (x,conds) 1))
+  (<*>)  = ap -- TODO: can we optimize this default definition?
 instance Monad Measure where
-  return x = Measure (\conds -> deterministic (point (x,conds) 1))
-  (>>=)    = bind
+  return = pure
+  (>>=)  = bind
 
 updateMixture :: Typeable a => Cond -> Dist a -> Sampler a
 updateMixture (Just cond) dist =

@@ -15,26 +15,26 @@ import Data.List (intercalate)
 class Typeable a => Simplifiable (a :: Hakaru *) where
   mapleType :: proxy a -> String
 
-instance Simplifiable HUnit where mapleType _ = "Unit"
-instance Simplifiable HInt  where mapleType _ = "Int"
-instance Simplifiable HReal where mapleType _ = "Real"
-instance Simplifiable HProb where mapleType _ = "Prob"
-instance Simplifiable HBool where mapleType _ = "Bool"
+instance Simplifiable 'HUnit where mapleType _ = "Unit"
+instance Simplifiable 'HInt  where mapleType _ = "Int"
+instance Simplifiable 'HReal where mapleType _ = "Real"
+instance Simplifiable 'HProb where mapleType _ = "Prob"
+instance Simplifiable 'HBool where mapleType _ = "Bool"
 
-instance (Simplifiable a, Simplifiable b) => Simplifiable (HPair a b) where
+instance (Simplifiable a, Simplifiable b) => Simplifiable ('HPair a b) where
   mapleType _ = "Pair(" ++ mapleType (Proxy :: Proxy a) ++ "," ++
                            mapleType (Proxy :: Proxy b) ++ ")"
 
-instance Simplifiable a => Simplifiable (HList a) where
+instance Simplifiable a => Simplifiable ('HList a) where
   mapleType _ = "List(" ++ mapleType (Proxy :: Proxy a) ++ ")"
 
-instance Simplifiable a => Simplifiable (HMeasure a) where
+instance Simplifiable a => Simplifiable ('HMeasure a) where
   mapleType _ = "Measure(" ++ mapleType (Proxy :: Proxy a) ++ ")"
 
-instance Simplifiable a => Simplifiable (HArray a) where
+instance Simplifiable a => Simplifiable ('HArray a) where
   mapleType _ = "MVector(" ++ mapleType (Proxy :: Proxy a) ++ ")"
 
-instance (Simplifiable a, Simplifiable b) => Simplifiable (HFun a b) where
+instance (Simplifiable a, Simplifiable b) => Simplifiable ('HFun a b) where
   mapleType _ = "Arrow(" ++ mapleType (Proxy :: Proxy a) ++ "," ++
                             mapleType (Proxy :: Proxy b) ++ ")"
 

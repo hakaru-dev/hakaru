@@ -18,27 +18,34 @@ import Data.Maybe (isNothing)
 import Unsafe.Coerce (unsafeCoerce)
 import Language.Hakaru.Expect (Expect(Expect), Expect', total)
 
-ifTrue, ifFalse :: (Mochastic repr) => repr HBool ->
-                   repr (HMeasure w) -> repr (HMeasure w)
+ifTrue, ifFalse
+    :: (Mochastic repr)
+    => repr 'HBool -> repr ('HMeasure w) -> repr ('HMeasure w)
 ifTrue  x m = if_ x m (superpose [])
 ifFalse x m = if_ x (superpose []) m
 
-uninl :: (Mochastic repr) => repr (HEither a b) ->
-         (repr a -> repr (HMeasure w)) -> repr (HMeasure w)
+uninl
+    :: (Mochastic repr)
+    => repr ('HEither a b)
+    -> (repr a -> repr ('HMeasure w))
+    -> repr ('HMeasure w)
 uninl x c = uneither x c (\_ -> superpose [])
 
-uninr :: (Mochastic repr) => repr (HEither a b) ->
-         (repr b -> repr (HMeasure w)) -> repr (HMeasure w)
+uninr
+    :: (Mochastic repr)
+    => repr ('HEither a b)
+    -> (repr b -> repr ('HMeasure w))
+    -> repr ('HMeasure w)
 uninr x c = uneither x (\_ -> superpose []) c
 
 -- BUG: what is the kind of @a@ really supposed to be?
 data M (s :: Hakaru *) (repr :: Hakaru * -> *) (a :: *)
   = Return a
-  | M (forall w. (a -> Heap s repr -> repr (HMeasure w))
-                    -> Heap s repr -> repr (HMeasure w))
+  | M (forall w. (a -> Heap s repr -> repr ('HMeasure w))
+                    -> Heap s repr -> repr ('HMeasure w))
 
-unM :: M s repr a -> forall w. (a -> Heap s repr -> repr (HMeasure w))
-                                  -> Heap s repr -> repr (HMeasure w)
+unM :: M s repr a -> forall w. (a -> Heap s repr -> repr ('HMeasure w))
+                                  -> Heap s repr -> repr ('HMeasure w)
 unM (Return a) = \c -> c a
 unM (M m)      = m
 
@@ -74,13 +81,13 @@ choice ms  = M (\c h -> superpose [ (1, m c h) | M m <- ms ])
 reject :: (Mochastic repr) => M s repr a
 reject = M (\_ _ -> superpose [])
 
-insert :: (forall w. (a -> repr (HMeasure w)) -> repr (HMeasure w)) -> M s repr a
+insert :: (forall w. (a -> repr ('HMeasure w)) -> repr ('HMeasure w)) -> M s repr a
 insert f = M (\c h -> f (\a -> c a h))
 
-insert_ :: (forall w. repr (HMeasure w) -> repr (HMeasure w)) -> M s repr ()
+insert_ :: (forall w. repr ('HMeasure w) -> repr ('HMeasure w)) -> M s repr ()
 insert_ f = insert (\m -> f (m ()))
 
-lift :: (Mochastic repr) => repr (HMeasure a) -> M s repr (repr a)
+lift :: (Mochastic repr) => repr ('HMeasure a) -> M s repr (repr a)
 lift m = insert (bind m)
 
 data Lazy (s :: Hakaru *) (repr :: Hakaru * -> *) (a :: Hakaru *) = Lazy
@@ -90,6 +97,7 @@ data Lazy (s :: Hakaru *) (repr :: Hakaru * -> *) (a :: Hakaru *) = Lazy
 lazy :: (Lub repr) => M s repr (Hnf s repr a) -> Lazy s repr a
 lazy m = Lazy m (const bot_)
 
+-- TODO: rename this; will clash with a Prelude name in GHC 7.10
 join :: M s repr (Lazy s repr a) -> Lazy s repr a
 join m = Lazy (m >>= forward) (\t -> m >>= (`backward` t))
 
@@ -99,19 +107,19 @@ instance (Lub repr) => Lub (Lazy s repr) where
     Lazy (lub_ f1 f2) (\t -> lub_ (b1 t) (b2 t))
 
 data Hnf (s :: Hakaru *) (repr :: Hakaru * -> *) (a :: Hakaru *) where
-  Pair    :: Lazy s repr a -> Lazy s repr b ->     Hnf s repr (HPair a b)
-  True_   ::                                       Hnf s repr HBool
-  False_  ::                                       Hnf s repr HBool
-  Inl     :: Lazy s repr a ->                      Hnf s repr (HEither a b)
-  Inr     :: Lazy s repr b ->                      Hnf s repr (HEither a b)
-  Int     :: Integer ->                            Hnf s repr HInt
-  Real    :: Rational ->  {-constant propagation-} Hnf s repr HReal
-  Prob    :: Rational ->  {-constant propagation-} Hnf s repr HProb
+  Pair    :: Lazy s repr a -> Lazy s repr b ->     Hnf s repr ('HPair a b)
+  True_   ::                                       Hnf s repr 'HBool
+  False_  ::                                       Hnf s repr 'HBool
+  Inl     :: Lazy s repr a ->                      Hnf s repr ('HEither a b)
+  Inr     :: Lazy s repr b ->                      Hnf s repr ('HEither a b)
+  Int     :: Integer ->                            Hnf s repr 'HInt
+  Real    :: Rational ->  {-constant propagation-} Hnf s repr 'HReal
+  Prob    :: Rational ->  {-constant propagation-} Hnf s repr 'HProb
   Value   :: repr a ->                             Hnf s repr a
-  Measure :: Lazy s repr a ->                      Hnf s repr (HMeasure a)
-  Vector  :: Lazy s repr HInt ->
-             (Lazy s repr HInt -> Lazy s repr a) -> Hnf s repr (HArray a)
-  Plate   :: Loc (HArray s) a ->                   Hnf s repr (HArray a)
+  Measure :: Lazy s repr a ->                      Hnf s repr ('HMeasure a)
+  Vector  :: Lazy s repr 'HInt ->
+             (Lazy s repr 'HInt -> Lazy s repr a) -> Hnf s repr ('HArray a)
+  Plate   :: Loc ('HArray s) a ->                   Hnf s repr ('HArray a)
   
 determine :: (Lub repr) => Lazy s repr a -> M s repr (Hnf s repr a)
 determine z = forward z >>= \case
@@ -157,7 +165,7 @@ duplicateHeap = do determineHeap
                    M (\c h -> c h{- !duplicated heap! -} h)
 
 evaluateMeasure :: (Mochastic repr, Lub repr) =>
-                   Lazy s repr a -> Heap s repr -> repr (HMeasure a)
+                   Lazy s repr a -> Heap s repr -> repr ('HMeasure a)
 -- Call duplicateHeap before evaluateMeasure!
 evaluateMeasure z = unM (do a <- evaluate z
                             determineHeap
@@ -166,10 +174,10 @@ evaluateMeasure z = unM (do a <- evaluate z
 
 evaluateVector
     :: (Mochastic repr, Lub repr)
-    => Lazy s repr HInt
-    -> [(Lazy s repr HInt, Lazy s repr a)]
-    -> (Lazy s repr HInt -> Lazy s repr a)
-    -> M s repr (repr (HArray a))
+    => Lazy s repr 'HInt
+    -> [(Lazy s repr 'HInt, Lazy s repr a)]
+    -> (Lazy s repr 'HInt -> Lazy s repr a)
+    -> M s repr (repr ('HArray a))
 evaluateVector s table f = do
   s' <- evaluate s
   table' <- evaluatePairs table
@@ -179,9 +187,9 @@ evaluateVector s table f = do
 
 evaluatePlate
     :: (Mochastic repr, Lub repr)
-    => [(Lazy s repr HInt, Lazy s repr a)]
-    -> Lazy s repr (HArray (HMeasure a))
-    -> M s repr (repr (HArray a))
+    => [(Lazy s repr 'HInt, Lazy s repr a)]
+    -> Lazy s repr ('HArray ('HMeasure a))
+    -> M s repr (repr ('HArray a))
 evaluatePlate table rhs = do
   size'  <- evaluate (size rhs)
   table' <- evaluatePairs table
@@ -196,15 +204,15 @@ evaluatePairs = mapM (\(a,b) -> liftM2 (,) (evaluate a) (evaluate b))
 
 override
     :: (Mochastic repr)
-    => [(repr HInt, repr a)]
-    -> (repr HInt -> repr (HMeasure a))
-    -> (repr HInt -> repr (HMeasure a))
+    => [(repr 'HInt, repr a)]
+    -> (repr 'HInt -> repr ('HMeasure a))
+    -> (repr 'HInt -> repr ('HMeasure a))
 override table f = foldr (\(j,y) c i -> if_ (equal i j) (dirac y) (c i)) f table
 
 runLazy
     :: (Mochastic repr, Lub repr)
-    => (forall s. Lazy s repr (HMeasure a))
-    -> repr (HMeasure a)
+    => (forall s. Lazy s repr ('HMeasure a))
+    -> repr ('HMeasure a)
 runLazy m = unM (evaluate m) const Heap{fresh=0,bound=[]}
 
 data Heap (s :: Hakaru *) (repr :: Hakaru * -> *) = Heap
@@ -225,21 +233,21 @@ jmEq (Loc a) (Loc b) | a == b    = Just (unsafeCoerce Refl)
 gensym :: M s repr (Loc s a)
 gensym = M (\c h@Heap{fresh=f} -> c (Loc f) h{fresh = succ f})
 
-gensymVector :: M s repr (Loc (HArray s) a)
+gensymVector :: M s repr (Loc ('HArray s) a)
 gensymVector = M (\c h@Heap{fresh=f} -> c (Loc f) h{fresh = succ f})
 
 data Binding (s :: Hakaru *) (repr :: Hakaru * -> *) where
-  Bind    :: Loc s a ->              Lazy s repr a             -> Binding s repr
-  Let     :: Loc s a ->              Hnf s repr a              -> Binding s repr
-  Unpair  :: Loc s a -> Loc s b ->   Lazy s repr (HPair a b)   -> Binding s repr
-  Iftrue  ::                         Lazy s repr HBool         -> Binding s repr
-  Iffalse ::                         Lazy s repr HBool         -> Binding s repr
-  Uninl   :: Loc s a ->              Lazy s repr (HEither a b) -> Binding s repr
-  Uninr   :: Loc s b ->              Lazy s repr (HEither a b) -> Binding s repr
-  Weight  ::                         Lazy s repr HProb         -> Binding s repr
-  VBind   :: Loc (HArray s) a -> [(Lazy s repr HInt, Lazy s repr a)] ->
-                             Lazy s repr (HArray (HMeasure a)) -> Binding s repr
-  VLet    :: Loc (HArray s) a -> repr (HArray a)              -> Binding s repr
+  Bind    :: Loc s a ->              Lazy s repr a              -> Binding s repr
+  Let     :: Loc s a ->              Hnf s repr a               -> Binding s repr
+  Unpair  :: Loc s a -> Loc s b ->   Lazy s repr ('HPair a b)   -> Binding s repr
+  Iftrue  ::                         Lazy s repr 'HBool         -> Binding s repr
+  Iffalse ::                         Lazy s repr 'HBool         -> Binding s repr
+  Uninl   :: Loc s a ->              Lazy s repr ('HEither a b) -> Binding s repr
+  Uninr   :: Loc s b ->              Lazy s repr ('HEither a b) -> Binding s repr
+  Weight  ::                         Lazy s repr 'HProb         -> Binding s repr
+  VBind   :: Loc ('HArray s) a -> [(Lazy s repr 'HInt, Lazy s repr a)] ->
+                             Lazy s repr ('HArray ('HMeasure a)) -> Binding s repr
+  VLet    :: Loc ('HArray s) a -> repr ('HArray a)              -> Binding s repr
 
 store :: Binding s repr -> M s repr ()
 store entry = M (\c h -> c () h{bound = entry : bound h})
@@ -293,17 +301,17 @@ determineHeap = pop >>= \case Nothing -> return ()
       VLet   _      _   -> return [entry]
 
 data Retrieval (s :: Hakaru *) (repr :: Hakaru * -> *) (a :: Hakaru *) where
-  RBind  :: Lazy s repr a ->                      Retrieval s repr a
-  RLet   :: Hnf s repr a ->                       Retrieval s repr a
-  RFst   :: Loc s b -> Lazy s repr (HPair a b) -> Retrieval s repr a
-  RSnd   :: Loc s a -> Lazy s repr (HPair a b) -> Retrieval s repr b
-  RInl   :: Lazy s repr (HEither a b) ->          Retrieval s repr a
-  RInr   :: Lazy s repr (HEither a b) ->          Retrieval s repr b
+  RBind  :: Lazy s repr a ->                       Retrieval s repr a
+  RLet   :: Hnf s repr a ->                        Retrieval s repr a
+  RFst   :: Loc s b -> Lazy s repr ('HPair a b) -> Retrieval s repr a
+  RSnd   :: Loc s a -> Lazy s repr ('HPair a b) -> Retrieval s repr b
+  RInl   :: Lazy s repr ('HEither a b) ->          Retrieval s repr a
+  RInr   :: Lazy s repr ('HEither a b) ->          Retrieval s repr b
 
 data VRetrieval (s :: Hakaru *) (repr :: Hakaru * -> *) (a :: Hakaru *) where
-  RVBind :: [(Lazy s repr HInt, Lazy s repr a)] ->
-            Lazy s repr (HArray (HMeasure a)) -> VRetrieval s repr a
-  RVLet  :: repr (HArray a)                   -> VRetrieval s repr a
+  RVBind :: [(Lazy s repr 'HInt, Lazy s repr a)] ->
+            Lazy s repr ('HArray ('HMeasure a)) -> VRetrieval s repr a
+  RVLet  :: repr ('HArray a)                   -> VRetrieval s repr a
 
 locate :: Loc s a -> Binding s repr -> Maybe (Retrieval s repr a)
 locate l (Bind   l1    rhs) =  fmap (\Refl -> RBind   rhs) (jmEq l l1)
@@ -324,7 +332,7 @@ unique e   (Just _) (Just _) = error e
 unique _ a@(Just _) Nothing  = a
 unique _   Nothing  a        = a
 
-locateV :: Loc (HArray s) a -> Binding s repr -> Maybe (VRetrieval s repr a)
+locateV :: Loc ('HArray s) a -> Binding s repr -> Maybe (VRetrieval s repr a)
 locateV l (VBind l1 table rhs) = fmap (\Refl -> RVBind table rhs) (jmEq l l1)
 locateV l (VLet  l1       rhs) = fmap (\Refl -> RVLet        rhs) (jmEq l l1)
 locateV _ _                    = Nothing
@@ -471,7 +479,7 @@ atom2 :: (Base repr) => (repr a -> repr b -> repr c)
       -> Hnf s repr a -> Hnf s repr b -> Hnf s repr c
 atom2 op a b = Value $ op (forget a) (forget b)
                          
-instance (Base repr) => Floating (Hnf s repr HReal) where
+instance (Base repr) => Floating (Hnf s repr 'HReal) where
   pi      = Value pi
   exp     = atom1 exp
   log     = atom1 log
@@ -503,8 +511,8 @@ scalar2 op m n = lazy (liftM2 ((Value.) . op) (evaluate m) (evaluate n))
 comparison
     :: (Lub repr, Mochastic repr)
     => (Integer -> Integer -> Bool)
-    -> (repr a -> repr a -> repr HBool)
-    -> Lazy s repr a -> Lazy s repr a -> Lazy s repr HBool
+    -> (repr a -> repr a -> repr 'HBool)
+    -> Lazy s repr a -> Lazy s repr a -> Lazy s repr 'HBool
 comparison static dynamic m n = lazy $ do
   a <- forward m
   b <- forward n
@@ -575,7 +583,7 @@ divide x y = Lazy
                         insert_ (weight . unsafeProbFraction $ abs r)
                         backward x (t * (Value r))))
 
-instance (Mochastic repr, Lub repr) => Num (Lazy s repr HInt) where
+instance (Mochastic repr, Lub repr) => Num (Lazy s repr 'HInt) where
   (+) = add
   (-) = sub
   x * y = (mul x y)
@@ -601,7 +609,7 @@ instance (Mochastic repr, Lub repr) => Num (Lazy s repr HInt) where
                        (\t -> do u <- atomize t
                                  insert_ (ifTrue (equal (fromInteger n) u)))
 
-instance (Mochastic repr, Lub repr) => Num (Lazy s repr HReal) where
+instance (Mochastic repr, Lub repr) => Num (Lazy s repr 'HReal) where
   (+) = add
   (-) = sub
   x * y = (mul x y)
@@ -617,7 +625,7 @@ instance (Mochastic repr, Lub repr) => Num (Lazy s repr HReal) where
   signum = sign
   fromInteger = lazy . return . fromInteger
 
-instance (Mochastic repr, Lub repr) => Num (Lazy s repr HProb) where
+instance (Mochastic repr, Lub repr) => Num (Lazy s repr 'HProb) where
   (+) = add  
   (-) = sub
   x * y = (mul x y)
@@ -634,19 +642,19 @@ instance (Mochastic repr, Lub repr) => Num (Lazy s repr HProb) where
   fromInteger = lazy . return . fromInteger
 
 instance (Mochastic repr, Lub repr) =>
-         Fractional (Lazy s repr HReal) where
+         Fractional (Lazy s repr 'HReal) where
   recip = inv
   fromRational = lazy . return . fromRational
   (/) = divide
 
 instance (Mochastic repr, Lub repr) =>
-         Fractional (Lazy s repr HProb) where
+         Fractional (Lazy s repr 'HProb) where
   recip = inv
   fromRational = lazy . return . fromRational
   (/) = divide
 
 instance (Mochastic repr, Lub repr) =>
-         Floating (Lazy s repr HReal) where
+         Floating (Lazy s repr 'HReal) where
   pi = lazy (return pi)
   exp x = Lazy
     (liftM exp (forward x))
@@ -746,7 +754,7 @@ instance (Mochastic repr, Lub repr) =>
               backward x (tan t))
   -- TODO fill in other methods
 
-unpairM :: (Mochastic repr, Lub repr) => Lazy s repr (HPair a b) ->
+unpairM :: (Mochastic repr, Lub repr) => Lazy s repr ('HPair a b) ->
            M s repr (Lazy s repr a, Lazy s repr b)
 unpairM (Lazy (Return (Pair a b)) _) = Return (a, b)
 unpairM ab = do l1 <- gensym
@@ -754,13 +762,13 @@ unpairM ab = do l1 <- gensym
                 store (Unpair l1 l2 ab)
                 return (lazyLoc l1, lazyLoc l2)
 
-ifM :: (Mochastic repr, Lub repr) => Lazy s repr HBool -> M s repr Bool
+ifM :: (Mochastic repr, Lub repr) => Lazy s repr 'HBool -> M s repr Bool
 ifM (Lazy (Return True_ ) _) = Return True
 ifM (Lazy (Return False_) _) = Return False
 ifM ab = choice [store (Iftrue  ab) >> return True,
                  store (Iffalse ab) >> return False]
 
-uneitherM :: (Mochastic repr, Lub repr) => Lazy s repr (HEither a b) ->
+uneitherM :: (Mochastic repr, Lub repr) => Lazy s repr ('HEither a b) ->
              M s repr (Either (Lazy s repr a) (Lazy s repr b))
 uneitherM (Lazy (Return (Inl a)) _) = Return (Left  a)
 uneitherM (Lazy (Return (Inr a)) _) = Return (Right a)
@@ -856,11 +864,11 @@ instance (Mochastic repr, Lub repr) => Base (Lazy s repr) where
   gammaFunc = scalar1 gammaFunc
   betaFunc = scalar2 betaFunc
 
-measure :: (Lub repr) => Lazy s repr a -> Lazy s repr (HMeasure a)
+measure :: (Lub repr) => Lazy s repr a -> Lazy s repr ('HMeasure a)
 measure = lazy . return . Measure
 
 unMeasure :: (Mochastic repr, Lub repr) =>
-             Hnf s repr (HMeasure a) -> Lazy s repr a
+             Hnf s repr ('HMeasure a) -> Lazy s repr a
 unMeasure (Measure m) = m
 unMeasure (Value m) = lazy (liftM Value (lift m))
 
@@ -896,30 +904,30 @@ class Backward (ab :: Hakaru *) (a :: Hakaru *) where
   backward_ :: (Mochastic repr, Lub repr) =>
                Lazy s repr ab -> Lazy s repr a -> M s repr ()
 
-instance Backward a HUnit where
+instance Backward a 'HUnit where
   backward_ _ _ = return ()
 
-instance Backward HBool HBool where
+instance Backward 'HBool 'HBool where
   backward_ a x = ifM (equal_ a x) >>= \b -> if b then return () else reject
 
-instance Backward HInt HInt where
+instance Backward 'HInt 'HInt where
   backward_ a x = forward x >>= backward a
 
-instance Backward HReal HReal where
+instance Backward 'HReal 'HReal where
   backward_ a x = forward x >>= backward a
 
-instance Backward HProb HProb where
+instance Backward 'HProb 'HProb where
   backward_ a x = forward x >>= backward a
 
 instance (Backward a x, Backward b y) =>
-         Backward (HPair a b) (HPair x y) where
+         Backward ('HPair a b) ('HPair x y) where
   backward_ ab xy = do (a,b) <- unpairM ab
                        (x,y) <- unpairM xy
                        backward_ a x
                        backward_ b y
 
 instance (Backward a x, Backward b y) =>
-         Backward (HEither a b) (HEither x y) where
+         Backward ('HEither a b) ('HEither x y) where
   backward_ ab xy = do a_b <- uneitherM ab
                        x_y <- uneitherM xy
                        case (a_b, x_y) of
@@ -934,8 +942,8 @@ instance (Backward a x, Backward b y) =>
 disintegrate
     :: (Mochastic repr, Lub repr, Backward ab a)
     => Lazy s repr a
-    -> Lazy s repr (HMeasure ab)
-    -> Lazy s repr (HMeasure ab)
+    -> Lazy s repr ('HMeasure ab)
+    -> Lazy s repr ('HMeasure ab)
 disintegrate a m =
     measure $ join $ (forward m >>= memo . unMeasure >>= \ab ->
                                      backward_ ab a >> return ab)
@@ -946,8 +954,8 @@ type Cond (repr :: Hakaru * -> *) (env :: Hakaru *) (ab :: Hakaru *)
 
 runDisintegrate
     :: (Mochastic repr, Lambda repr, Backward a a)
-    => Cond repr env (HMeasure (HPair a b))
-    -> [repr (HFun env (HFun a  (HMeasure b)))]
+    => Cond repr env ('HMeasure ('HPair a b))
+    -> [repr ('HFun env ('HFun a  ('HMeasure b)))]
 runDisintegrate m = runCompose
                   $ lam $ \env ->
                     lam $ \t -> runLazy
@@ -957,8 +965,8 @@ runDisintegrate m = runCompose
 
 density
     :: (Mochastic repr, Lambda repr, Integrate repr, Backward a a)
-    => Cond (Expect repr) env (HMeasure a)
-    -> [repr (Expect' env) -> repr (Expect' a) -> repr HProb]
+    => Cond (Expect repr) env ('HMeasure a)
+    -> [repr (Expect' env) -> repr (Expect' a) -> repr 'HProb]
 density m = [ \env t -> total (d `app` Expect env `app` Expect t)
             | d <- runCompose
                  $ lam $ \env ->
@@ -968,16 +976,16 @@ density m = [ \env t -> total (d `app` Expect env `app` Expect t)
   where disintegrate'
             :: (Mochastic repr, Lub repr, Backward a a)
             => Lazy s repr a
-            -> Lazy s repr (HMeasure a)
-            -> Lazy s repr (HMeasure a)
+            -> Lazy s repr ('HMeasure a)
+            -> Lazy s repr ('HMeasure a)
         disintegrate' = disintegrate
 
 observe :: (Mochastic repr, Lambda repr, Backward a a) =>
            (forall s t.
             ( Lazy s (Compose [] t repr) a
             , (Lazy s (Compose [] t repr) env
-              -> Lazy s (Compose [] t repr) (HMeasure (HPair a b))) ))
-        -> [repr (HFun env (HMeasure b))]
+              -> Lazy s (Compose [] t repr) ('HMeasure ('HPair a b))) ))
+        -> [repr ('HFun env ('HMeasure b))]
 observe tm = runCompose
              $ lam $ \env -> runLazy
              $ let (t,m) = tm
