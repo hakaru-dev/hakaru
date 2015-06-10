@@ -97,6 +97,7 @@ data Lazy (s :: Hakaru *) (repr :: Hakaru * -> *) (a :: Hakaru *) = Lazy
 lazy :: (Lub repr) => M s repr (Hnf s repr a) -> Lazy s repr a
 lazy m = Lazy m (const bot_)
 
+-- TODO: rename this; will clash with a Prelude name in GHC 7.10
 join :: M s repr (Lazy s repr a) -> Lazy s repr a
 join m = Lazy (m >>= forward) (\t -> m >>= (`backward` t))
 

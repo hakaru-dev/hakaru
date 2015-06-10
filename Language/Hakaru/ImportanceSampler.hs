@@ -14,6 +14,7 @@ import Language.Hakaru.Mixture (Prob, empty, point, Mixture(..))
 import Language.Hakaru.Sampler (Sampler, deterministic, smap, sbind)
 
 import qualified System.Random.MWC as MWC
+import Control.Applicative (Applicative(..))
 import Control.Monad (liftM, ap)
 import Control.Monad.Primitive
 import Data.Monoid
