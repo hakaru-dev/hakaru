@@ -22,45 +22,45 @@ newtype Expect (repr :: Hakaru * -> *) (a :: Hakaru *) =
 
 type family   Expect' (a :: Hakaru *) :: Hakaru *
 -- This type family must be changed in lockstep with typeExpect below
-type instance Expect' HInt          = HInt 
-type instance Expect' HReal         = HReal 
-type instance Expect' HProb         = HProb 
-type instance Expect' HBool         = HBool 
-type instance Expect' HUnit         = HUnit 
-type instance Expect' (HPair a b)   = HPair   (Expect' a) (Expect' b)
-type instance Expect' (HEither a b) = HEither (Expect' a) (Expect' b)
-type instance Expect' (HList a)     = HList   (Expect' a)
-type instance Expect' (HArray a)    = HArray  (Expect' a)
-type instance Expect' (HMeasure a)  = HPair (HMeasure (Expect' a))
-                                           (HFun (HFun (Expect' a) HProb) HProb)
-type instance Expect' (HFun a b)    = HFun (Expect' a) (Expect' b)
+type instance Expect' 'HInt          = 'HInt 
+type instance Expect' 'HReal         = 'HReal 
+type instance Expect' 'HProb         = 'HProb 
+type instance Expect' 'HBool         = 'HBool 
+type instance Expect' 'HUnit         = 'HUnit 
+type instance Expect' ('HPair a b)   = 'HPair   (Expect' a) (Expect' b)
+type instance Expect' ('HEither a b) = 'HEither (Expect' a) (Expect' b)
+type instance Expect' ('HList a)     = 'HList   (Expect' a)
+type instance Expect' ('HArray a)    = 'HArray  (Expect' a)
+type instance Expect' ('HMeasure a)  = 'HPair ('HMeasure (Expect' a))
+                                           ('HFun ('HFun (Expect' a) 'HProb) 'HProb)
+type instance Expect' ('HFun a b)    = 'HFun (Expect' a) (Expect' b)
 
-instance (Order repr HReal) => Order (Expect repr) HReal where
+instance (Order repr 'HReal) => Order (Expect repr) 'HReal where
   less  (Expect x) (Expect y) = Expect (less  x y)
   equal (Expect x) (Expect y) = Expect (equal x y)
 
-deriving instance (Eq         (repr HReal)) => Eq         (Expect repr HReal)
-deriving instance (Ord        (repr HReal)) => Ord        (Expect repr HReal)
-deriving instance (Num        (repr HReal)) => Num        (Expect repr HReal)
-deriving instance (Fractional (repr HReal)) => Fractional (Expect repr HReal)
-deriving instance (Floating   (repr HReal)) => Floating   (Expect repr HReal)
+deriving instance (Eq         (repr 'HReal)) => Eq         (Expect repr 'HReal)
+deriving instance (Ord        (repr 'HReal)) => Ord        (Expect repr 'HReal)
+deriving instance (Num        (repr 'HReal)) => Num        (Expect repr 'HReal)
+deriving instance (Fractional (repr 'HReal)) => Fractional (Expect repr 'HReal)
+deriving instance (Floating   (repr 'HReal)) => Floating   (Expect repr 'HReal)
 
-instance (Order repr HProb) => Order (Expect repr) HProb where
+instance (Order repr 'HProb) => Order (Expect repr) 'HProb where
   less  (Expect x) (Expect y) = Expect (less  x y)
   equal (Expect x) (Expect y) = Expect (equal x y)
 
-deriving instance (Eq         (repr HProb)) => Eq         (Expect repr HProb)
-deriving instance (Ord        (repr HProb)) => Ord        (Expect repr HProb)
-deriving instance (Num        (repr HProb)) => Num        (Expect repr HProb)
-deriving instance (Fractional (repr HProb)) => Fractional (Expect repr HProb)
+deriving instance (Eq         (repr 'HProb)) => Eq         (Expect repr 'HProb)
+deriving instance (Ord        (repr 'HProb)) => Ord        (Expect repr 'HProb)
+deriving instance (Num        (repr 'HProb)) => Num        (Expect repr 'HProb)
+deriving instance (Fractional (repr 'HProb)) => Fractional (Expect repr 'HProb)
 
-instance (Order repr HInt) => Order (Expect repr) HInt where
+instance (Order repr 'HInt) => Order (Expect repr) 'HInt where
   less  (Expect x) (Expect y) = Expect (less  x y)
   equal (Expect x) (Expect y) = Expect (equal x y)
 
-deriving instance (Eq  (repr HInt)) => Eq  (Expect repr HInt)
-deriving instance (Ord (repr HInt)) => Ord (Expect repr HInt)
-deriving instance (Num (repr HInt)) => Num (Expect repr HInt)
+deriving instance (Eq  (repr 'HInt)) => Eq  (Expect repr 'HInt)
+deriving instance (Ord (repr 'HInt)) => Ord (Expect repr 'HInt)
+deriving instance (Num (repr 'HInt)) => Num (Expect repr 'HInt)
 
 instance (Base repr) => Base (Expect repr) where
   unit                           = Expect unit
@@ -179,11 +179,12 @@ instance (Lambda repr) => Lambda (Expect repr) where
   app (Expect rator) (Expect rand) = Expect (app rator rand)
   let_ (Expect rhs) f = Expect (let_ rhs (unExpect . f . Expect))
 
-total :: (Lambda repr, Base repr) => Expect repr (HMeasure a) -> repr HProb
+total :: (Lambda repr, Base repr) => Expect repr ('HMeasure a) -> repr 'HProb
 total (Expect m) = unpair m (\_ m2 -> m2 `app` lam (\_ -> 1))
 
-normalize :: (Integrate repr, Lambda repr, Mochastic repr) =>
-             Expect repr (HMeasure a) -> repr (HMeasure (Expect' a))
+normalize
+    :: (Integrate repr, Lambda repr, Mochastic repr)
+    => Expect repr ('HMeasure a) -> repr ('HMeasure (Expect' a))
 normalize (Expect m) = unpair m (\m1 m2 ->
   superpose [(recip (m2 `app` lam (\_ -> 1)), m1)])
 
@@ -196,8 +197,8 @@ type instance MapExpect'2 '[] = '[]
 type instance MapExpect'2 (x ': xs) = MapExpect' x ': MapExpect'2 xs
 
 -- type instance Expect' Void = Void
-type instance Expect' (HSOP xss)   = HSOP   (MapExpect'2 xss)
-type instance Expect' (HTag t xss) = HTag t (MapExpect'2 xss)
+type instance Expect' ('HSOP xss)   = 'HSOP   (MapExpect'2 xss)
+type instance Expect' ('HTag t xss) = 'HTag t (MapExpect'2 xss)
 
 instance Embed r => Embed (Expect r) where
   _Nil = Expect _Nil

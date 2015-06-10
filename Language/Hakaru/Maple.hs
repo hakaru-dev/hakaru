@@ -37,14 +37,14 @@ app2 :: String -> Maple a -> Maple b -> Maple c
 app2 fn (Maple x) (Maple y) = 
   Maple $ liftM2 (\a b -> fn ++ "(" ++ a ++ ", " ++ b ++ ")") x y
 
-lam1 :: String -> (Maple a  -> Maple b) -> Maple (HFun a b)
+lam1 :: String -> (Maple a  -> Maple b) -> Maple ('HFun a b)
 lam1 s k = Maple $ do
     x <- gensym s
     cont <- unMaple (k (constant x))
     return ("(" ++ x ++ " -> " ++ cont ++ ")")
 
 -- uncurried 2-argument lambda
-lam2 :: String -> (Maple a -> Maple b -> Maple c) -> Maple (HFun (HPair a b) c)
+lam2 :: String -> (Maple a -> Maple b -> Maple c) -> Maple ('HFun ('HPair a b) c)
 lam2 s k = Maple $ do
     x <- gensym s
     y <- gensym s
@@ -52,7 +52,7 @@ lam2 s k = Maple $ do
     return ("( (" ++ x ++ " , " ++ y ++ ") -> " ++ cont ++ ")")
 
 -- curried 2-argument lambda
-lam2c :: String -> (Maple a -> Maple b -> Maple c) -> Maple (HFun a (HFun b c))
+lam2c :: String -> (Maple a -> Maple b -> Maple c) -> Maple ('HFun a ('HFun b c))
 lam2c s k = Maple $ do
     x <- gensym s
     y <- gensym s
@@ -203,7 +203,7 @@ instance Lambda Maple where
         "(" ++ rator' ++ "(" ++ rand' ++ "))") rator rand)
 
 -- this does not return a Measure b, but rather the body of a measure
-wmtom :: String -> (Maple HProb, Maple (HMeasure b)) -> Maple b
+wmtom :: String -> (Maple 'HProb, Maple ('HMeasure b)) -> Maple b
 wmtom c (Maple w, Maple m) = Maple $ do
   w' <- w
   m' <- m
@@ -266,7 +266,7 @@ instance Embed Maple where
 
   voidSOP _ = constant "HakaruError (`Datatype with no constructors`)"
 
-  tag :: forall xss t . (Embeddable t) => Maple (HSOP xss) -> Maple (HTag t xss)
+  tag :: forall xss t . (Embeddable t) => Maple ('HSOP xss) -> Maple ('HTag t xss)
   -- tag = app1 "Tag" 
 
   tag = app2 "Tag"
