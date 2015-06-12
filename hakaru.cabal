@@ -146,7 +146,7 @@ test-suite roundtrip_test
                        generics-sop >= 0.1.0,
                        mtl >= 2.1,
                        vector >=0.10 && <0.11,
-                       MissingH >= 0.18.6,
+                       -- MissingH >= 0.18.6,
                        text >= 0.11 && <1.3
 
     if flag(patchedHint)
