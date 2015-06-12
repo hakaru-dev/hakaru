@@ -52,7 +52,7 @@ unM (M m)      = m
 instance Functor (M s repr) where
     fmap f (Return a) = Return (f a)
     fmap f (M m)      = M (\c -> m (c . f))
-    
+
 instance Applicative (M s repr) where
     pure  = Return
     (<*>) = ap -- TODO: can we optimize this?
@@ -120,7 +120,7 @@ data Hnf (s :: Hakaru *) (repr :: Hakaru * -> *) (a :: Hakaru *) where
   Vector  :: Lazy s repr 'HInt ->
              (Lazy s repr 'HInt -> Lazy s repr a) -> Hnf s repr ('HArray a)
   Plate   :: Loc ('HArray s) a ->                   Hnf s repr ('HArray a)
-  
+
 determine :: (Lub repr) => Lazy s repr a -> M s repr (Hnf s repr a)
 determine z = forward z >>= \case
   Pair x y     -> liftM2 Pair (liftM (lazy . return) (determine x))
@@ -225,7 +225,7 @@ newtype Loc (s :: Hakaru *) (a :: Hakaru *) = Loc Int
 
 data EqType (t :: Hakaru *) (t' :: Hakaru *) where
   Refl :: EqType t t
-  
+
 jmEq :: Loc s a -> Loc s b -> Maybe (EqType a b)
 jmEq (Loc a) (Loc b) | a == b    = Just (unsafeCoerce Refl)
                      | otherwise = Nothing
@@ -411,7 +411,7 @@ isNum m h = case h of
               Real n -> n == m
               Prob n -> n == m
               _      -> False
-                                        
+
 instance (Base repr, Num (repr a), Number a) => Num (Hnf s repr a) where
   x + y  = case (x,y) of
              (Int a,  Int b)  -> Int  (a+b)
@@ -436,12 +436,12 @@ instance (Base repr, Num (repr a), Number a) => Num (Hnf s repr a) where
              (s, Value _) | isNum 0 s -> s
                           | isNum 1 s -> y
              _            -> Value (forget x * forget y)
-                             
+
   negate (Int a)  = Int   (negate a)
   negate (Real a) = Real  (negate a)
   negate (Prob a) = Prob  (negate a)
   negate x        = Value (negate (forget x))
-                    
+
   abs    (Int a)  = Int   (abs a)
   abs    (Real a) = Real  (abs a)
   abs    (Prob a) = Prob  (abs a)
@@ -451,7 +451,7 @@ instance (Base repr, Num (repr a), Number a) => Num (Hnf s repr a) where
   signum (Real a) = Real  (signum a)
   signum (Prob a) = Prob  (signum a)
   signum x        = Value (signum (forget x))
-                     
+
   fromInteger n = numberCase (Int n)
                              (Real (fromInteger n))
                              (Prob (fromInteger n))
@@ -461,9 +461,9 @@ instance (Base repr, Fractional (repr a), Fraction a) =>
   recip (Real a) = Real  (recip a)
   recip (Prob a) = Prob  (recip a)
   recip x        = Value (recip (forget x))
-                   
+
   fromRational r = fractionCase (Real r) (Prob r)
-                 
+
   x / y = case (x,y) of
             (Real a, Real b) -> Real (a/b)
             (Prob a, Prob b) -> Prob (a/b)
@@ -478,7 +478,7 @@ atom1 op = Value . op . forget
 atom2 :: (Base repr) => (repr a -> repr b -> repr c)
       -> Hnf s repr a -> Hnf s repr b -> Hnf s repr c
 atom2 op a b = Value $ op (forget a) (forget b)
-                         
+
 instance (Base repr) => Floating (Hnf s repr 'HReal) where
   pi      = Value pi
   exp     = atom1 exp
@@ -496,7 +496,7 @@ instance (Base repr) => Floating (Hnf s repr 'HReal) where
   asinh   = atom1 asinh
   acosh   = atom1 acosh
   atanh   = atom1 atanh
-  
+
 scalar0 :: (Lub repr) => repr a -> Lazy s repr a
 scalar0 op = lazy (return (Value op))
 
@@ -525,24 +525,24 @@ instance (Lub repr, Mochastic repr, Order repr a) => Order (Lazy s repr) a where
   less  = comparison (<)  less
   equal = comparison (==) equal
 
-add :: (Mochastic repr, Lub repr, Num (repr a), Number a) => 
+add :: (Mochastic repr, Lub repr, Num (repr a), Number a) =>
        Lazy s repr a -> Lazy s repr a -> Lazy s repr a
 add x y = Lazy
           (liftM2 (+) (forward x) (forward y))
           (\t -> lub_ (forward x >>= \r -> backward y (t - r))
                       (forward y >>= \r -> backward x (t - r)))
 
-sub :: (Mochastic repr, Lub repr, Num (repr a), Number a) => 
+sub :: (Mochastic repr, Lub repr, Num (repr a), Number a) =>
        Lazy s repr a -> Lazy s repr a -> Lazy s repr a
 sub x y = Lazy
           (liftM2 (-) (forward x) (forward y))
           (\t -> lub_ (forward x >>= \r -> backward y (r - t))
                       (forward y >>= \r -> backward x (r + t)))
 
-mul :: (Mochastic repr, Lub repr, Num (repr a), Number a) => 
+mul :: (Mochastic repr, Lub repr, Num (repr a), Number a) =>
        Lazy s repr a -> Lazy s repr a -> Lazy s repr a
-mul x y = lazy (liftM2 (*) (forward x) (forward y))          
-          
+mul x y = lazy (liftM2 (*) (forward x) (forward y))
+
 neg :: (Mochastic repr, Lub repr, Num (repr a), Number a) =>
        Lazy s repr a -> Lazy s repr a
 neg x = Lazy (liftM negate (forward x))
@@ -552,7 +552,7 @@ abz :: (Mochastic repr, Lub repr, Num (repr a), Order repr a) =>
        Lazy s repr a -> Lazy s repr a
 abz x = Lazy
         (liftM abs (forward x))
-        (\t -> do u <- atomize t               
+        (\t -> do u <- atomize t
                   v <- lift (if_ (less 0 u) (superpose [(1, dirac u)
                                                        ,(1, dirac (-u))])
                                             (ifTrue (equal 0 u) (dirac 0)))
@@ -561,7 +561,7 @@ abz x = Lazy
 sign :: (Mochastic repr, Lub repr, Num (repr a), Number a) =>
         Lazy s repr a -> Lazy s repr a
 sign x = lazy (liftM signum (forward x))
- 
+
 inv :: (Mochastic repr, Lub repr, Fractional (repr a), Fraction a) =>
        Lazy s repr a -> Lazy s repr a
 inv x = Lazy
@@ -626,7 +626,7 @@ instance (Mochastic repr, Lub repr) => Num (Lazy s repr 'HReal) where
   fromInteger = lazy . return . fromInteger
 
 instance (Mochastic repr, Lub repr) => Num (Lazy s repr 'HProb) where
-  (+) = add  
+  (+) = add
   (-) = sub
   x * y = (mul x y)
     { backward = (\t -> lub_
@@ -936,7 +936,7 @@ instance (Backward a x, Backward b y) =>
                          _                  -> reject
 
 -- TODO: Conditioning on an observed _vector_
-   
+
 -- TODO: instance Lambda, instance Integrate, instance Lub
 
 disintegrate
