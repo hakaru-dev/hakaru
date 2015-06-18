@@ -94,7 +94,7 @@ class Order_ (a :: Hakaru *) where
 lesseq :: (Order_ a, Base repr) => repr a -> repr a -> repr 'HBool
 lesseq x y = or_ [less_ x y, equal_ x y]
 
-instance Order_ 'HNat
+--instance Order_ 'HNat
 instance Order_ 'HInt
 instance Order_ 'HReal
 instance Order_ 'HProb
