@@ -85,6 +85,11 @@ ourContext = do
 
   setImports modules
 
+
+-- Type checking is fragile for this function. It compiles fine
+-- from the commandline, but using `cabal repl` causes it to break
+-- due to OverloadedStrings and (supposed) ambiguity about @a@ in
+-- the Typeable constraint.
 closeLoop :: (Typeable a) => String -> IO a
 closeLoop s = action where
   action = do

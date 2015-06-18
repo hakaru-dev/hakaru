@@ -25,9 +25,10 @@ infixr 9 `pair`
 
 ------- The universe/kind of Hakaru types
 data Hakaru star
-    = HInt
+    = HNat -- TODO: finish incorporating this everywhere...
+    | HInt
+    | HProb -- meaning: non-negative real number (not [0,1] !)
     | HReal
-    | HProb
     | HMeasure (Hakaru star)
     | HArray (Hakaru star)
     | HFun (Hakaru star) (Hakaru star)
@@ -36,8 +37,10 @@ data Hakaru star
     | HPair (Hakaru star) (Hakaru star)
     | HEither (Hakaru star) (Hakaru star)
     -- Used in "Language.Hakaru.Embed"
+    -- The lists-of-lists are sum-of-products functors. The application
+    -- form allows us to unroll fixpoints: @HMu sop ~= sop :$ HMu sop@.
     | HMu [[HakaruFun star]]
-    | [[HakaruFun star]] :$ Hakaru star 
+    | [[HakaruFun star]] :$ Hakaru star
     | HTag star [[HakaruFun star]]
     -- Used in "Language.Hakaru.Expect"
     | HList (Hakaru star)
@@ -45,64 +48,40 @@ data Hakaru star
     | HMaybe (Hakaru star)
     -- TODO: arbitrary embedding of Haskell types
 
+-- | The identity and constant functors on @Hakaru*@. This gives
+-- us limited access to type-variables in @Hakaru*@, for use in
+-- recursive sums-of-products. Notably, however, it only allows a
+-- single variable (namely the one bound by the closest binder) so
+-- it can't encode mutual recursion or other non-local uses of
+-- multiple binders.
+--
 -- Products and sums are represented as lists, so they aren't
--- in this datatype. This is essentially a fancy "Maybe". 
-data HakaruFun star = Id | K (Hakaru star) 
+-- in this datatype.
+data HakaruFun star = Id | K (Hakaru star)
 
 -- N.B., The @Proxy@ type from "Data.Proxy" is polykinded, so it works for @Hakaru*@ too. However, it is _not_ Typeable!
 
-deriving instance Typeable HInt
-deriving instance Typeable HReal
-deriving instance Typeable HProb
-deriving instance Typeable HMeasure -- N.B., really polykinded!
-deriving instance Typeable HArray   -- N.B., really polykinded!
-deriving instance Typeable HFun     -- N.B., really polykinded!
-deriving instance Typeable HBool
-deriving instance Typeable HUnit
-deriving instance Typeable HPair    -- N.B., really polykinded!
-deriving instance Typeable HEither  -- N.B., really polykinded!
-deriving instance Typeable HMu      -- N.B., really polykinded!
-deriving instance Typeable HTag     -- N.B., really polykinded!
-deriving instance Typeable (:$)     -- N.B., really polykinded!
-deriving instance Typeable HList    -- N.B., really polykinded!
-deriving instance Typeable HMaybe   -- N.B., really polykinded!
-deriving instance Typeable Id
-deriving instance Typeable K
+-- TODO: these instances are only used in 'Language.Hakaru.Simplify.closeLoop'; it would be cleaner to remove these instances and reimplement that function to work without them.
+deriving instance Typeable 'HNat
+deriving instance Typeable 'HInt
+deriving instance Typeable 'HReal
+deriving instance Typeable 'HProb
+deriving instance Typeable 'HMeasure
+deriving instance Typeable 'HArray
+deriving instance Typeable 'HFun
+deriving instance Typeable 'HBool
+deriving instance Typeable 'HUnit
+deriving instance Typeable 'HPair
+deriving instance Typeable 'HEither
+deriving instance Typeable 'HMu
+deriving instance Typeable 'HTag
+deriving instance Typeable (:$)
+deriving instance Typeable 'HList
+deriving instance Typeable 'HMaybe
+deriving instance Typeable 'Id
+deriving instance Typeable 'K
 
-{-
-type family   ToHakaru (a :: *) :: Hakaru *
-type instance ToHakaru Int          = HInt 
-type instance ToHakaru Real         = HReal 
-type instance ToHakaru Prob         = HProb 
-type instance ToHakaru (Measure a)  = HMeasure (ToHakaru a)
-type instance ToHakaru (Array a)    = HArray   (ToHakaru a)
-type instance ToHakaru (a -> b)     = HFun     (ToHakaru a) (ToHakaru b)
-type instance ToHakaru Bool         = HBool 
-type instance ToHakaru ()           = HUnit 
-type instance ToHakaru (a,b)        = HPair    (ToHakaru a) (ToHakaru b)
-type instance ToHakaru (Either a b) = HEither  (ToHakaru a) (ToHakaru b)
 
--- The interpretation of the Hakaru universe within Haskell
--- TODO: this should be a data family; but deriving for empty datatypes for datafamilies only seems to work in GHC 7.10, and on GHC 7.8.3 -XStandaloneDeriving cannot derive class instances for family instances
-type family   FromHakaru (a :: Hakaru *) :: *
-type instance FromHakaru HInt          = Int 
-type instance FromHakaru HReal         = Real 
-type instance FromHakaru HProb         = Prob 
-type instance FromHakaru (HMeasure a)  = Measure (FromHakaru a)
-type instance FromHakaru (HArray a)    = Array (FromHakaru a)
-type instance FromHakaru (HFun a b)    = FromHakaru a -> FromHakaru b
-type instance FromHakaru HBool         = Bool 
-type instance FromHakaru HUnit         = () 
-type instance FromHakaru (HPair a b)   = (FromHakaru a, FromHakaru b)
-type instance FromHakaru (HEither a b) = Either (FromHakaru a) (FromHakaru b)
-
-------- Types
-
-data Real      deriving Typeable
-data Prob      deriving Typeable -- meaning: non-negative real number
-data Measure a deriving Typeable
-data Array a   deriving Typeable
--}
 
 -- TODO: We used to require @Typeable a@... but now what?
 class Order_ (a :: Hakaru *) where
@@ -115,6 +94,7 @@ class Order_ (a :: Hakaru *) where
 lesseq :: (Order_ a, Base repr) => repr a -> repr a -> repr 'HBool
 lesseq x y = or_ [less_ x y, equal_ x y]
 
+instance Order_ 'HNat
 instance Order_ 'HInt
 instance Order_ 'HReal
 instance Order_ 'HProb
@@ -147,6 +127,8 @@ instance (Order_ a) => Order_ ('HArray a) where
   less_ _ _ = undefined
   equal_ _ _ = undefined
 
+-- TODO: add HNat to the numberCase
+-- TODO: where are these methods really necessary?
 class (Order_ a) => Number (a :: Hakaru *) where
   numberCase :: f 'HInt -> f 'HReal -> f 'HProb -> f a
   numberRepr :: (Base repr) =>
@@ -200,6 +182,7 @@ class (Number a) => Order (repr :: Hakaru * -> *) (a :: Hakaru *) where
   default equal :: (Base repr) => repr a -> repr a -> repr 'HBool
   equal a b = not_ (or_ [less a b, less b a])
 
+-- TODO: incorporate HNat
 class (Order repr 'HInt , Num        (repr 'HInt ),
        Order repr 'HReal, Floating   (repr 'HReal),
        Order repr 'HProb, Fractional (repr 'HProb))
