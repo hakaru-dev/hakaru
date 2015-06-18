@@ -8,7 +8,9 @@
 
 module Language.Hakaru.Syntax.Wrengr where
 
-import qualified Data.Number.LogFloat as LF
+import Prelude hiding (id, (.))
+import Control.Category (Category(..))
+import Data.Number.LogFloat (LogFloat)
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Nat
 {-
@@ -26,6 +28,7 @@ instance HOrder 'HInt
 instance HOrder 'HProb
 instance HOrder 'HReal
 
+
 -- N.B., even though these ones are commutative, we don't assume that!
 class    HSemiring (a :: Hakaru *)
 instance HSemiring 'HNat
@@ -33,11 +36,17 @@ instance HSemiring 'HInt
 instance HSemiring 'HProb
 instance HSemiring 'HReal
 
+
 -- N.B., even though these ones are commutative, we don't assume that!
+-- N.B., the NonNegative associated type is (a) actually the semiring
+-- that generates this ring, but (b) is also used for the result
+-- of calling the absolute value. For Int and Real that's fine; but
+-- for Complex and Vector these two notions diverge
 class (HSemiring (NonNegative a), HSemiring a)
     => HRing (a :: Hakaru *) where type NonNegative a :: Hakaru *
 instance HRing 'HInt  where type NonNegative 'HInt  = 'HNat 
 instance HRing 'HReal where type NonNegative 'HReal = 'HProb 
+
 
 -- N.B., We're assuming two-sided inverses here. That doesn't entail commutativity, though it does strongly suggest it...
 -- A division-semiring; Not quite a field nor a division-ring...
@@ -46,6 +55,7 @@ instance HRing 'HReal where type NonNegative 'HReal = 'HProb
 class (HSemiring a) => HFractional (a :: Hakaru *)
 instance HFractional 'HProb
 instance HFractional 'HReal
+
 
 -- TODO: find a better name than HIntegral
 -- TODO: how to require that "if HRing a, then HRing b too"?
@@ -57,26 +67,106 @@ instance HContinuous 'HReal where type HIntegral 'HReal = 'HInt
 
 
 ----------------------------------------------------------------
--- | Proofs of the inclusions in our numeric hierarchy.
-data Coercion :: Hakaru * -> Hakaru * -> * where
-    Signed     :: HRing a => Coercion (NonNegative a) a
-    Continuous :: HContinuous a => Coercion (HIntegral a) a
-    -- TODO: do we care that this gives a bad induction principle?
-    ComposeCoercion :: Coercion a b -> Coercion b c -> Coercion a c
-    -- TODO: should we include reflexivity for the category structure? That'd require a clean-up pass to remove them; but it may make for easier intermediate ASTs...
+-- | Primitive proofs of the inclusions in our numeric hierarchy.
+data PrimCoercion :: Hakaru * -> Hakaru * -> * where
+    Signed     :: HRing a       => PrimCoercion (NonNegative a) a
+    Continuous :: HContinuous a => PrimCoercion (HIntegral   a) a
 
--- TODO: implement a simplifying pass for coalescing and cancelling CoerceTo_/UnsafeFrom_
+-- | General proofs of the inclusions in our numeric hierarchy.
+data Coercion :: Hakaru * -> Hakaru * -> * where
+    -- | Added the trivial coercion so we get the Category instance.
+    -- This may/should make program transformations easier to write
+    -- by allowing more intermediate ASTs, but will require a cleanup
+    -- pass afterwards to remove the trivial coercions.
+    IdCoercion :: Coercion a a
+
+    -- | We use a cons-based approach rather than append-based in
+    -- order to get a better inductive hypothesis.
+    ConsCoercion :: !(PrimCoercion a b) -> !(Coercion b c) -> Coercion a c
+
+-- | A smart constructor for 'Signed'.
+signed :: HRing a => Coercion (NonNegative a) a
+signed = ConsCoercion Signed IdCoercion
+
+-- | A smart constructor for 'Continuous'.
+continuous :: HContinuous a => Coercion (HIntegral a) a
+continuous = ConsCoercion Continuous IdCoercion
+
+instance Category Coercion where
+    id = IdCoercion
+    xs . IdCoercion        = xs
+    xs . ConsCoercion y ys = ConsCoercion y (xs . ys)
+
+{-
+-- TODO: make these rules for coalescing things work
+data UnsafeFrom_CoerceTo :: Hakaru * -> Hakaru * -> * where
+    UnsafeFrom_CoerceTo
+        :: !(Coercion c b)
+        -> !(Coercion a b)
+        -> UnsafeFrom_CoerceTo a c
+
+unsafeFrom_coerceTo
+    :: Coercion c b
+    -> Coercion a b
+    -> UnsafeFrom_CoerceTo a c
+unsafeFrom_coerceTo xs ys =
+    case xs of
+    IdCoercion          -> UnsafeFrom_CoerceTo IdCoercion ys
+    ConsCoercion x xs'  ->
+        case ys of
+        IdCoercion      -> UnsafeFrom_CoerceTo xs IdCoercion
+        ConsCoercion y ys' ->
+            | x == y    -> unsafeFrom_coerceTo xs' ys'
+            | otherwise -> UnsafeFrom_CoerceTo xs  ys
+
+data CoerceTo_UnsafeFrom :: Hakaru * -> Hakaru * -> * where
+    CoerceTo_UnsafeFrom
+        :: !(Coercion c b)
+        -> !(Coercion a b)
+        -> CoerceTo_UnsafeFrom a c
+
+coerceTo_unsafeFrom
+    :: Coercion a b
+    -> Coercion c b
+    -> CoerceTo_UnsafeFrom a c
+coerceTo_unsafeFrom xs ys = ...
+-}
+
 -- TODO: implement a simplifying pass for pushing/gathering coersions over other things (e.g., Less_/Equal_)
 
 
 ----------------------------------------------------------------
+-- | Primitive numeric types (with concrete interpretation a~la Sample')
+data Constant :: Hakaru * -> * where
+    Nat_  :: Nat      -> Constant 'HNat
+    Int_  :: Int      -> Constant 'HInt
+    Prob_ :: LogFloat -> Constant 'HProb
+    Real_ :: Double   -> Constant 'HReal
+
+----------------------------------------------------------------
+-- | Primitive distributions/measures, a~la Mochastic.
+data Measure :: Hakaru * -> * where
+    Dirac       :: AST a -> Measure a
+    Lebesgue    :: Measure 'HReal
+    Counting    :: Measure 'HInt
+    Superpose   :: [(AST 'HProb, Measure a)] -> Measure a
+    Categorical :: AST ('HArray 'HProb) -> Measure 'HNat
+    Uniform     :: AST 'HReal -> AST 'HReal -> Measure 'HReal
+    Normal      :: AST 'HReal -> AST 'HProb -> Measure 'HReal
+    Poisson     :: AST 'HProb -> Measure 'HNat
+    Gamma       :: AST 'HProb -> AST 'HProb -> Measure 'HProb
+    Beta        :: AST 'HProb -> AST 'HProb -> Measure 'HProb
+    -- binomial, mix, geometric, multinomial,... should also be HNat
+
+----------------------------------------------------------------
 -- TODO: use the generating functor instead, so we can insert annotations with our fixpoint. Also, so we can use ABTs to separate our binders from the rest of our syntax
 data AST :: Hakaru * -> * where
-    -- Primitive numeric types (with concrete interpretation a~la Sample')
-    Nat_      :: Nat         -> AST 'HNat
-    Int_      :: Int         -> AST 'HInt
-    Prob_     :: LF.LogFloat -> AST 'HProb
-    Real_     :: Double      -> AST 'HReal
+    -- Primitive numeric types and their coercions
+    Constant_   :: Constant a            -> AST a
+    CoerceTo_   :: Coercion a b -> AST a -> AST b
+    UnsafeFrom_ :: Coercion a b -> AST b -> AST a
+    -- TODO: add @SafeFrom_ :: Coercion a b -> AST b -> AST ('HMaybe a)@ ?
+    
     
     -- Primitive data types
     List_     :: [AST a]       -> AST ('HList a)
@@ -102,17 +192,13 @@ data AST :: Hakaru * -> * where
     Equal_ :: (HOrder a) => AST a -> AST a -> AST 'HBool
     
     
-    -- Coercion between primitive types
-    -- TODO: add a SafeFrom_ alternative?
-    CoerceTo_   :: Coercion a b -> AST a -> AST b
-    UnsafeFrom_ :: Coercion a b -> AST b -> AST a
-    
-    
     -- HSemiring
     -- We prefer these n-ary versions to enable better pattern matching; the binary versions can be derived. Notably, because of this encoding, we encode subtraction and division via negation and reciprocal.
+    -- TODO: helper functions for splitting Sum_/Prod_ into components to group up like things.
     Sum_  :: (HSemiring a) => [AST a] -> AST a
     Prod_ :: (HSemiring a) => [AST a] -> AST a
     -- (:^) :: (HSemiring a) => AST a -> AST 'HNat -> AST a
+    -- (:^) :: (HSemiring a) => AST a -> Nat -> AST a
     
     
     -- HRing
@@ -123,12 +209,14 @@ data AST :: Hakaru * -> * where
     -- Should we have Maple5's \"csgn\" as well as the usual \"sgn\"?
     -- Also note that the \"generalized signum\" anticommutes with Dirac delta!
     Signum_ :: (HRing a) => AST a -> AST a
-    -- Law: x = CoerceTo_ Signed (Abs_ x) * Signum_ x
+    -- Law: x = CoerceTo_ signed (Abs_ x) * Signum_ x
     
     
     -- HFractional
     Recip_ :: (HFractional a) => AST a -> AST a
     -- (:^^) :: (HFractional a) => AST a -> AST 'HInt -> AST a
+    -- (:^^) :: (HFractional a) => AST a -> Int -> AST a
+    
     
     -- HContinuous
     -- TODO: what goes here: Sqrt_/Pow_, trig stuff, erf,...?
@@ -138,8 +226,10 @@ data AST :: Hakaru * -> * where
     Sqrt_  :: HContinuous a => AST a -> AST a
     Pow_   :: HContinuous a => AST a -> AST 'HReal -> AST a
     
+    
     -- Trigonometry
     -- TODO: capture more domain information in these types?
+    -- TODO: group these out into a single Trig_ constructor (a~la Measure_)?
     -- TODO: if we're going to bother naming the hyperbolic ones, why not also name /a?(csc|sec|cot)h?/ eh?
     Pi_    :: AST 'HProb -- N.B., HProb means non-negative real!
     Sin_   :: AST 'HReal -> AST 'HReal
@@ -155,6 +245,7 @@ data AST :: Hakaru * -> * where
     Acosh_ :: AST 'HReal -> AST 'HReal
     Atanh_ :: AST 'HReal -> AST 'HReal
     
+    
     -- The rest of the old Base class
     -- N.B., we only give the safe/exact versions here. The lifting of exp'soutput can be done with fromProb; and the lowering of log's input can be done with unsafeProb/unsafeProbFraction
     Exp_              :: AST 'HReal -> AST 'HProb
@@ -165,25 +256,18 @@ data AST :: Hakaru * -> * where
     BetaFunc_         :: AST 'HProb -> AST 'HProb -> AST 'HProb
     
     -- Array stuff
-    Array_      :: AST 'HNat -> (AST 'HNat -> AST a) -> AST ('HArray a)
-    Empty_      :: AST ('HArray a)
-    Index_      :: AST ('HArray a) -> AST 'HNat -> AST a
-    Size_       :: AST ('HArray a) -> AST 'HNat
-    Reduce_     :: (AST a -> AST a -> AST a) -> AST a -> AST ('HArray a) -> AST a
-    Fix_        :: (AST a -> AST a) -> AST a
+    Array_  :: AST 'HNat -> (AST 'HNat -> AST a) -> AST ('HArray a)
+    Empty_  :: AST ('HArray a)
+    Index_  :: AST ('HArray a) -> AST 'HNat -> AST a
+    Size_   :: AST ('HArray a) -> AST 'HNat
+    Reduce_ :: (AST a -> AST a -> AST a) -> AST a -> AST ('HArray a) -> AST a
+    
+    -- TODO: avoid exotic HOAS terms
+    Fix_    :: (AST a -> AST a) -> AST a
     
     -- Mochastic
-    Dirac_       :: AST a -> AST ('HMeasure a)
-    Bind_        :: AST ('HMeasure a) -> (AST a -> AST ('HMeasure b)) -> AST ('HMeasure b)
-    Lebesgue_    :: AST ('HMeasure 'HReal)
-    Counting_    :: AST ('HMeasure 'HInt)
-    Superpose_   :: [(AST 'HProb, AST ('HMeasure a))] -> AST ('HMeasure a)
-    Categorical_ :: AST ('HArray 'HProb) -> AST ('HMeasure 'HInt)
-    Uniform_     :: AST 'HReal -> AST 'HReal -> AST ('HMeasure 'HReal)
-    Normal_      :: AST 'HReal -> AST 'HProb -> AST ('HMeasure 'HReal)
-    Poisson_     :: AST 'HProb -> AST ('HMeasure 'HInt)
-    Gamma_       :: AST 'HProb -> AST 'HProb -> AST ('HMeasure 'HProb)
-    Beta_        :: AST 'HProb -> AST 'HProb -> AST ('HMeasure 'HProb)
+    Measure_ :: Measure a -> AST ('HMeasure a)
+    Bind_    :: AST ('HMeasure a) -> (AST a -> AST ('HMeasure b)) -> AST ('HMeasure b)
     Dp_ :: AST 'HProb -> AST ('HMeasure a) -> AST ('HMeasure ('HMeasure a))
     Plate_ :: AST ('HArray ('HMeasure a)) -> AST ('HMeasure ('HArray a))
     Chain_
@@ -228,10 +312,10 @@ instance HRing a => Num (AST a) where
     negate (Negate_ x)  = x
     negate x            = Negate_ x
     
-    abs (CoerceTo_ Signed x) = CoerceTo_ Signed x
-    abs x                    = CoerceTo_ Signed (Abs_ x)
+    abs (CoerceTo_ (ConsCoercion Signed IdCoercion) x) = CoerceTo_ signed x
+    abs x = CoerceTo_ signed (Abs_ x)
     
-    -- TODO: any obvious simplifications?
+    -- TODO: any obvious simplifications? idempotent?
     signum = Signum_
     
     fromInteger = error "fromInteger: unimplemented" -- TODO
@@ -254,10 +338,10 @@ instance (HRing a, HFractional a) => Fractional (AST a) where
 -- Further evidence of being a bad abstraction...
 instance Floating (AST 'HProb) where
     pi     = Pi_
-    exp    = Exp_ . CoerceTo_ Signed
-    log    = UnsafeFrom_ Signed . Log_ -- error for inputs in [0,1)
+    exp    = Exp_ . CoerceTo_ signed
+    log    = UnsafeFrom_ signed . Log_ -- error for inputs in [0,1)
     sqrt   = Sqrt_
-    x ** y = Pow_ x (CoerceTo_ Signed y)
+    x ** y = Pow_ x (CoerceTo_ signed y)
     logBase b x = log x / log b -- undefined when b == 1
     {-
     -- Most of these won't work...
@@ -277,9 +361,9 @@ instance Floating (AST 'HProb) where
 -}
 
 instance Floating (AST 'HReal) where
-    pi    = CoerceTo_ Signed Pi_
-    exp   = CoerceTo_ Signed . Exp_
-    log   = Log_ . UnsafeFrom_ Signed -- error for inputs in [negInfty,0)
+    pi    = CoerceTo_ signed Pi_
+    exp   = CoerceTo_ signed . Exp_
+    log   = Log_ . UnsafeFrom_ signed -- error for inputs in [negInfty,0)
     sqrt  = Sqrt_
     (**)  = Pow_
     logBase b x = log x / log b -- undefined when b == 1
@@ -314,7 +398,7 @@ class (Number a) => Fraction (a :: Hakaru *) where
   fractionCase :: f 'HReal -> f 'HProb -> f a
   fractionRepr :: (Base repr) =>
                   ((Order repr a, Fractional (repr a)) => f repr a) -> f repr a
-  unsafeProbFraction = fromBaseAST . UnsafeFrom_ Signed . baseToAST
+  unsafeProbFraction = fromBaseAST . UnsafeFrom_ signed . baseToAST
   piFraction         = fromBaseAST . Pi_
   expFraction        = fromBaseAST . Exp_ . baseToAST
   logFraction        = fromBaseAST . Log_ . baseToAST
@@ -335,9 +419,9 @@ instance
     true       = True_
     false      = False_
     if_        = If_
-    unsafeProb = UnsafeFrom_ Signed
-    fromProb   = CoerceTo_ Signed
-    fromInt    = CoerceTo_ Continuous
+    unsafeProb = UnsafeFrom_ signed
+    fromProb   = CoerceTo_ signed
+    fromInt    = CoerceTo_ continuous
     pi_        = Pi_   -- Monomorphized at 'HProb
     exp_       = Exp_
     erf        = Erf_  -- Monomorphized at 'HReal
@@ -357,17 +441,17 @@ instance
     fix       = Fix_
 
 instance Mochastic AST where
-    dirac       = Dirac_
+    dirac       = Measure_ Dirac
     bind        = Bind_
-    lebesgue    = Lebesgue_
-    counting    = Counting_
-    superpose   = Superpose_
-    categorical = Categorical_
-    uniform     = Uniform_
-    normal      = Normal_
-    poisson     = Poisson_
-    gamma       = Gamma_
-    beta        = Beta_
+    lebesgue    = Measure_ Lebesgue
+    counting    = Measure_ Counting
+    superpose   = Measure_ Superpose
+    categorical = Measure_ Categorical
+    uniform     = Measure_ Uniform
+    normal      = Measure_ Normal
+    poisson     = Measure_ Poisson
+    gamma       = Measure_ Gamma
+    beta        = Measure_ Beta
     dp          = Dp_
     plate       = Plate_
     chain       = Chain_
