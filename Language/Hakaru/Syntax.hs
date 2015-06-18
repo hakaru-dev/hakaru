@@ -128,12 +128,13 @@ instance (Order_ a) => Order_ ('HArray a) where
   equal_ _ _ = undefined
 
 -- TODO: add HNat to the numberCase
--- TODO: where are these methods really necessary?
+-- TODO: we can mostly get rid of this class: numberRepr isn't used anywhere, and numberCase is only used once in Lazy.hs to define fromInteger for Hnf.
 class (Order_ a) => Number (a :: Hakaru *) where
   numberCase :: f 'HInt -> f 'HReal -> f 'HProb -> f a
   numberRepr :: (Base repr) =>
                 ((Order repr a, Num (repr a)) => f repr a) -> f repr a
 
+-- TODO: we can mostly get rid of this class: fractionRepr isn't used anywhere, and fractionCase is only used once in Lazy.hs to define fromRational for Hnf. However, unsafeProbFraction is used extensively in Lazy.hs
 class (Number a) => Fraction (a :: Hakaru *) where
   fractionCase :: f 'HReal -> f 'HProb -> f a
   fractionRepr :: (Base repr) =>

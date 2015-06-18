@@ -199,6 +199,7 @@ data AST :: Hakaru * -> * where
     Prod_ :: (HSemiring a) => [AST a] -> AST a
     -- (:^) :: (HSemiring a) => AST a -> AST 'HNat -> AST a
     -- (:^) :: (HSemiring a) => AST a -> Nat -> AST a
+    -- Square_ :: (HSemiring a) => AST a -> AST a
     
     
     -- HRing
@@ -275,6 +276,7 @@ data AST :: Hakaru * -> * where
         -> AST ('HFun s ('HMeasure ('HPair ('HArray a) s)))
 
     -- Integrate
+    -- TODO: avoid exotic HOAS terms
     Integrate_ :: AST 'HReal -> AST 'HReal -> (AST 'HReal -> AST 'HProb) -> AST 'HProb
     Summate_   :: AST 'HReal -> AST 'HReal -> (AST 'HInt  -> AST 'HProb) -> AST 'HProb
     
