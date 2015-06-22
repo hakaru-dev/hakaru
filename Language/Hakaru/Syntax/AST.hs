@@ -57,6 +57,13 @@ instance HFractional 'HProb
 instance HFractional 'HReal
 
 
+-- TODO: find a better name than HRadical
+-- TODO: any special associated type?
+class (HSemiring a) => HRadical (a :: Hakaru *)
+instance HRadical 'HProb
+instance HRadical 'HReal
+
+
 -- TODO: find a better name than HIntegral
 -- TODO: how to require that "if HRing a, then HRing b too"?
 class (HSemiring (HIntegral a), HFractional a)
@@ -116,8 +123,11 @@ unsafeFrom_coerceTo xs ys =
         case ys of
         IdCoercion      -> UnsafeFrom_CoerceTo xs IdCoercion
         ConsCoercion y ys' ->
-            | x == y    -> unsafeFrom_coerceTo xs' ys'
-            | otherwise -> UnsafeFrom_CoerceTo xs  ys
+            -- TODO: use a variant of jmEq instead
+            case (x,y) of
+            (Signed,    Signed)     -> unsafeFrom_coerceTo xs' ys'
+            (Continuous,Continuous) -> unsafeFrom_coerceTo xs' ys'
+            _                       -> UnsafeFrom_CoerceTo xs  ys
 
 data CoerceTo_UnsafeFrom :: Hakaru * -> Hakaru * -> * where
     CoerceTo_UnsafeFrom
@@ -186,7 +196,7 @@ data AST :: Hakaru * -> * where
     
     
     -- HOrder
-    -- TODO: equality doesn't make constructive sense on the reals... would it be better to constructivize things?
+    -- TODO: equality doesn't make constructive sense on the reals... would it be better to constructivize our notion of total ordering?
     -- TODO: what about posets?
     Less_  :: (HOrder a) => AST a -> AST a -> AST 'HBool
     Equal_ :: (HOrder a) => AST a -> AST a -> AST 'HBool
@@ -195,37 +205,49 @@ data AST :: Hakaru * -> * where
     -- HSemiring
     -- We prefer these n-ary versions to enable better pattern matching; the binary versions can be derived. Notably, because of this encoding, we encode subtraction and division via negation and reciprocal.
     -- TODO: helper functions for splitting Sum_/Prod_ into components to group up like things.
-    Sum_  :: (HSemiring a) => [AST a] -> AST a
-    Prod_ :: (HSemiring a) => [AST a] -> AST a
-    -- (:^) :: (HSemiring a) => AST a -> AST 'HNat -> AST a
-    -- (:^) :: (HSemiring a) => AST a -> Nat -> AST a
-    -- Square_ :: (HSemiring a) => AST a -> AST a
+    Sum_    :: (HSemiring a) => [AST a] -> AST a
+    Prod_   :: (HSemiring a) => [AST a] -> AST a
+    NatPow_ :: (HSemiring a) => AST a -> AST 'HNat -> AST a
+    -- TODO: an infix operator alias for NatPow_ a la (^)
+    -- TODO: would it help to have a meta-AST version with Nat instead of AST'HNat?
+    -- TODO: a metaprogram for: Square_ :: (HSemiring a) => AST a -> AST a
     
     
     -- HRing
-    Negate_   :: (HRing a) => AST a -> AST a
-    Abs_      :: (HRing a) => AST a -> AST (NonNegative a)
+    -- TODO: break these apart into a hierarchy of three classes. N.B, there are two different interpretations of "abs" and "signum". On the one hand we can think of rings as being generated from semirings closed under subtraction/negation. From this perspective we have abs as a projection into the underlying semiring, and signum as a projection giving us the residual sign lost by the abs projection. On the other hand, we have the view of "abs" as a norm (i.e., distance to the "origin point"), which is the more common perspective for complex numbers and vector spaces. Relatedly, we have "signum" as Arg (i.e., the angle to the "origin axis") which works for complex numbers and for vector spaces with a distinguished origin axis (e.g., the usual implementation of vector spaces with orthonormal basis via arrays). However, not all normed spaces have a notion of "origin axis", thus we can have norm without having Arg. Thus, we have at least the three following classes:
+    -- Ring: Semiring + negate, abs, signum
+    -- NormedLinearSpace: LinearSpace + originPoint, norm
+    -- ??: Normed + originAxis, Arg
+    Negate_ :: (HRing a) => AST a -> AST a
+    Abs_    :: (HRing a) => AST a -> AST (NonNegative a)
     -- cf., <https://mail.haskell.org/pipermail/libraries/2013-April/019694.html>
     -- cf., <https://en.wikipedia.org/wiki/Sign_function#Complex_signum>
     -- Should we have Maple5's \"csgn\" as well as the usual \"sgn\"?
     -- Also note that the \"generalized signum\" anticommutes with Dirac delta!
     Signum_ :: (HRing a) => AST a -> AST a
     -- Law: x = CoerceTo_ signed (Abs_ x) * Signum_ x
+    -- TODO: would it be worth defining @AST 'HSign = Zero | Plus | Minus@ and then having @Signum_ :: (HRing a) => AST a -> AST 'HSign@ and @FromSign_ :: (HRing a) => AST 'HSign -> AST a@?
+    
+    -- Norm_ :: (HNormedLinearSpace a) => AST a -> AST 'HProb
+    -- Arg_  :: (?? a) => AST a -> AST a
     
     
     -- HFractional
     Recip_ :: (HFractional a) => AST a -> AST a
-    -- (:^^) :: (HFractional a) => AST a -> AST 'HInt -> AST a
-    -- (:^^) :: (HFractional a) => AST a -> Int -> AST a
+    -- TODO: an infix operator alias for the IntPow_ metaprogram a la (^^)
     
+    -- HRadical
+    -- TODO: a better name for this class
+    NatRoot_ :: (HRadical a) => AST a -> AST 'HNat -> AST a
+    -- TODO: an infix operator alias for the RationalPow_ and NonNegativeRationalPow_ metaprograms
     
     -- HContinuous
-    -- TODO: what goes here: Sqrt_/Pow_, trig stuff, erf,...?
+    -- TODO: what goes here: Sqrt_/RealPow_, trig stuff, erf,...?
     -- TODO: why single out Sqrt_? Why not single out Square_?
     -- TODO: distinguish PowNat, PowInt, PowRational, PowReal, PowComplex...
-    Erf_   :: HContinuous a => AST a -> AST a
-    Sqrt_  :: HContinuous a => AST a -> AST a
-    Pow_   :: HContinuous a => AST a -> AST 'HReal -> AST a
+    Erf_     :: HContinuous a => AST a -> AST a
+    Sqrt_    :: HContinuous a => AST a -> AST a
+    RealPow_ :: HContinuous a => AST a -> AST 'HReal -> AST a
     
     
     -- Trigonometry
@@ -251,7 +273,7 @@ data AST :: Hakaru * -> * where
     -- N.B., we only give the safe/exact versions here. The lifting of exp'soutput can be done with fromProb; and the lowering of log's input can be done with unsafeProb/unsafeProbFraction
     Exp_              :: AST 'HReal -> AST 'HProb
     Log_              :: AST 'HProb -> AST 'HReal
-    Infinity_         :: AST 'HReal
+    Infinity_         :: AST 'HReal -- TODO: does infinity also live in HProb?
     NegativeInfinity_ :: AST 'HReal
     GammaFunc_        :: AST 'HReal -> AST 'HProb
     BetaFunc_         :: AST 'HProb -> AST 'HProb -> AST 'HProb
@@ -290,7 +312,8 @@ data AST :: Hakaru * -> * where
     -- TODO: should this really be part of the AST?
     Lub_ :: AST a -> AST a -> AST a
     Bot_ :: AST a
-  
+
+
 
 -- N.B., we don't take advantage of commutativity, for more predictable AST outputs. However, that means we can end up being really slow;
 -- TODO: use sets, fingertrees, etc instead of lists...
@@ -343,7 +366,7 @@ instance Floating (AST 'HProb) where
     exp    = Exp_ . CoerceTo_ signed
     log    = UnsafeFrom_ signed . Log_ -- error for inputs in [0,1)
     sqrt   = Sqrt_
-    x ** y = Pow_ x (CoerceTo_ signed y)
+    x ** y = RealPow_ x (CoerceTo_ signed y)
     logBase b x = log x / log b -- undefined when b == 1
     {-
     -- Most of these won't work...
@@ -367,7 +390,7 @@ instance Floating (AST 'HReal) where
     exp   = CoerceTo_ signed . Exp_
     log   = Log_ . UnsafeFrom_ signed -- error for inputs in [negInfty,0)
     sqrt  = Sqrt_
-    (**)  = Pow_
+    (**)  = RealPow_
     logBase b x = log x / log b -- undefined when b == 1
     sin   = Sin_
     cos   = Cos_
@@ -430,7 +453,7 @@ instance
     erf_       = Erf_  -- Monomorphized at 'HProb
     log_       = Log_
     sqrt_      = Sqrt_ -- Monomorphized at 'HProb
-    pow_       = Pow_  -- Monomorphized at 'HProb
+    pow_       = RealPow_  -- Monomorphized at 'HProb
     infinity   = Infinity_
     negativeInfinity = NegativeInfinity_
     gammaFunc = GammaFunc_
