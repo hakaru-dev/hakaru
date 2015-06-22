@@ -8,7 +8,7 @@
 
 module Language.Hakaru.Syntax.Wrengr where
 
-import Prelude hiding (id, (.))
+import Prelude hiding (id, (.), Ord(..), Num(..), Integral(..), Fractional(..), Floating(..), Real(..), RealFrac(..), RealFloat(..), (^), (^^))
 import Control.Category (Category(..))
 import Data.Number.LogFloat (LogFloat)
 import Language.Hakaru.Syntax.DataKind
@@ -22,6 +22,9 @@ import Language.Hakaru.Sample
 -}
 
 ----------------------------------------------------------------
+-- TODO: class HEq (a :: Hakaru *)
+-- TODO: class HPartialOrder (a :: Hakaru *)
+
 class    HOrder (a :: Hakaru *)
 instance HOrder 'HNat
 instance HOrder 'HInt
@@ -57,7 +60,9 @@ instance HFractional 'HProb
 instance HFractional 'HReal
 
 
--- TODO: find a better name than HRadical
+-- TODO: find a better name than HRadical.
+-- Numbers formed by finitely many uses of integer addition, subtraction, multiplication, division, and nat-roots are all algebraic; however, N.B., not all algebraic numbers can be formed this way (cf., Abel–Ruffini theorem)
+-- TODO: ought we require HRing or HFractional rather than HSemiring?
 -- TODO: any special associated type?
 class (HSemiring a) => HRadical (a :: Hakaru *)
 instance HRadical 'HProb
@@ -169,6 +174,23 @@ data Measure :: Hakaru * -> * where
     -- binomial, mix, geometric, multinomial,... should also be HNat
 
 ----------------------------------------------------------------
+-- TODO: if we're going to bother naming the hyperbolic ones, why not also name /a?(csc|sec|cot)h?/ eh?
+-- | Primitive trogonometric functions
+data TrigOperator
+    = Sin
+    | Cos
+    | Tan
+    | Asin
+    | Acos
+    | Atan
+    | Sinh
+    | Cosh
+    | Tanh
+    | Asinh
+    | Acosh
+    | Atanh
+    
+----------------------------------------------------------------
 -- TODO: use the generating functor instead, so we can insert annotations with our fixpoint. Also, so we can use ABTs to separate our binders from the rest of our syntax
 data AST :: Hakaru * -> * where
     -- Primitive numeric types and their coercions
@@ -214,10 +236,10 @@ data AST :: Hakaru * -> * where
     
     
     -- HRing
-    -- TODO: break these apart into a hierarchy of three classes. N.B, there are two different interpretations of "abs" and "signum". On the one hand we can think of rings as being generated from semirings closed under subtraction/negation. From this perspective we have abs as a projection into the underlying semiring, and signum as a projection giving us the residual sign lost by the abs projection. On the other hand, we have the view of "abs" as a norm (i.e., distance to the "origin point"), which is the more common perspective for complex numbers and vector spaces. Relatedly, we have "signum" as Arg (i.e., the angle to the "origin axis") which works for complex numbers and for vector spaces with a distinguished origin axis (e.g., the usual implementation of vector spaces with orthonormal basis via arrays). However, not all normed spaces have a notion of "origin axis", thus we can have norm without having Arg. Thus, we have at least the three following classes:
+    -- TODO: break these apart into a hierarchy of classes. N.B, there are two different interpretations of "abs" and "signum". On the one hand we can think of rings as being generated from semirings closed under subtraction/negation. From this perspective we have abs as a projection into the underlying semiring, and signum as a projection giving us the residual sign lost by the abs projection. On the other hand, we have the view of "abs" as a norm (i.e., distance to the "origin point"), which is the more common perspective for complex numbers and vector spaces; and relatedly, we have "signum" as returning the value on the unit (hyper)sphere, of the normalized unit vector. In another class, if we have a notion of an "origin axis" then we can have a function Arg which returns the angle to that axis, and therefore define signum in terms of Arg.
     -- Ring: Semiring + negate, abs, signum
-    -- NormedLinearSpace: LinearSpace + originPoint, norm
-    -- ??: Normed + originAxis, Arg
+    -- NormedLinearSpace: LinearSpace + originPoint, norm, Arg
+    -- ??: NormedLinearSpace + originAxis, angle
     Negate_ :: (HRing a) => AST a -> AST a
     Abs_    :: (HRing a) => AST a -> AST (NonNegative a)
     -- cf., <https://mail.haskell.org/pipermail/libraries/2013-April/019694.html>
@@ -226,10 +248,10 @@ data AST :: Hakaru * -> * where
     -- Also note that the \"generalized signum\" anticommutes with Dirac delta!
     Signum_ :: (HRing a) => AST a -> AST a
     -- Law: x = CoerceTo_ signed (Abs_ x) * Signum_ x
-    -- TODO: would it be worth defining @AST 'HSign = Zero | Plus | Minus@ and then having @Signum_ :: (HRing a) => AST a -> AST 'HSign@ and @FromSign_ :: (HRing a) => AST 'HSign -> AST a@?
-    
-    -- Norm_ :: (HNormedLinearSpace a) => AST a -> AST 'HProb
-    -- Arg_  :: (?? a) => AST a -> AST a
+    -- More strictly, the result of Signum_ should be either zero or an @a@-unit value. For Int and Real, the units are +1 and -1. For Complex, the units are any point on the unit circle. For vectors, the units are any unit vector. Thus, more generally:
+    -- Law : x = CoerceTo_ signed (Abs_ x) `scaleBy` Signum_ x
+    -- TODO: would it be worth defining the associated type of unit values for @a@? Probably...
+    -- TODO: are there any salient types which support abs/norm but do not have all units and thus do not support signum/normalize?
     
     
     -- HFractional
@@ -242,38 +264,23 @@ data AST :: Hakaru * -> * where
     -- TODO: an infix operator alias for the RationalPow_ and NonNegativeRationalPow_ metaprograms
     
     -- HContinuous
-    -- TODO: what goes here: Sqrt_/RealPow_, trig stuff, erf,...?
+    -- TODO: what goes here: Sqrt_/RealPow_, trig stuff, erf,...? cf., <https://en.wikipedia.org/wiki/Closed-form_expression#Comparison_of_different_classes_of_expressions>
     -- TODO: why single out Sqrt_? Why not single out Square_?
-    -- TODO: distinguish PowNat, PowInt, PowRational, PowReal, PowComplex...
     Erf_     :: HContinuous a => AST a -> AST a
     Sqrt_    :: HContinuous a => AST a -> AST a
     RealPow_ :: HContinuous a => AST a -> AST 'HReal -> AST a
     
-    
     -- Trigonometry
-    -- TODO: capture more domain information in these types?
-    -- TODO: group these out into a single Trig_ constructor (a~la Measure_)?
-    -- TODO: if we're going to bother naming the hyperbolic ones, why not also name /a?(csc|sec|cot)h?/ eh?
-    Pi_    :: AST 'HProb -- N.B., HProb means non-negative real!
-    Sin_   :: AST 'HReal -> AST 'HReal
-    Cos_   :: AST 'HReal -> AST 'HReal
-    Tan_   :: AST 'HReal -> AST 'HReal
-    Asin_  :: AST 'HReal -> AST 'HReal
-    Acos_  :: AST 'HReal -> AST 'HReal
-    Atan_  :: AST 'HReal -> AST 'HReal
-    Sinh_  :: AST 'HReal -> AST 'HReal
-    Cosh_  :: AST 'HReal -> AST 'HReal
-    Tanh_  :: AST 'HReal -> AST 'HReal
-    Asinh_ :: AST 'HReal -> AST 'HReal
-    Acosh_ :: AST 'HReal -> AST 'HReal
-    Atanh_ :: AST 'HReal -> AST 'HReal
-    
+    -- TODO: make Pi_ HContinuous-polymorphic?
+    -- TODO: capture more domain information in the Trig_ types?
+    Pi_   :: AST 'HProb -- N.B., HProb means non-negative real!
+    Trig_ :: TrigOperator -> AST 'HReal -> AST 'HReal
     
     -- The rest of the old Base class
-    -- N.B., we only give the safe/exact versions here. The lifting of exp'soutput can be done with fromProb; and the lowering of log's input can be done with unsafeProb/unsafeProbFraction
+    -- N.B., we only give the safe/exact versions here. The lifting of exp's output can be done with fromProb; and the lowering of log's input can be done with unsafeProb/unsafeProbFraction
     Exp_              :: AST 'HReal -> AST 'HProb
     Log_              :: AST 'HProb -> AST 'HReal
-    Infinity_         :: AST 'HReal -- TODO: does infinity also live in HProb?
+    Infinity_         :: AST 'HReal -- TODO: does infinity also live in HProb? If so, should it be polymorphic?
     NegativeInfinity_ :: AST 'HReal
     GammaFunc_        :: AST 'HReal -> AST 'HProb
     BetaFunc_         :: AST 'HProb -> AST 'HProb -> AST 'HProb
@@ -392,18 +399,18 @@ instance Floating (AST 'HReal) where
     sqrt  = Sqrt_
     (**)  = RealPow_
     logBase b x = log x / log b -- undefined when b == 1
-    sin   = Sin_
-    cos   = Cos_
-    tan   = Tan_
-    asin  = Asin_
-    acos  = Acos_
-    atan  = Atan_
-    sinh  = Sinh_
-    cosh  = Cosh_
-    tanh  = Tanh_
-    asinh = Asinh_
-    acosh = Acosh_
-    atanh = Atanh_
+    sin   = Trig_ Sin
+    cos   = Trig_ Cos
+    tan   = Trig_ Tan
+    asin  = Trig_ Asin
+    acos  = Trig_ Acos
+    atan  = Trig_ Atan
+    sinh  = Trig_ Sinh
+    cosh  = Trig_ Cosh
+    tanh  = Trig_ Tanh
+    asinh = Trig_ Asinh
+    acosh = Trig_ Acosh
+    atanh = Trig_ Atanh
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
