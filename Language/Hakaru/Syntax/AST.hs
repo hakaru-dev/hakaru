@@ -217,48 +217,52 @@ data BoolOp
     -- The other six are trivial
 
 ----------------------------------------------------------------
+-- TODO: (?)replace all the function primops (TrigOp, BoolOp, Not_, Erf_, GammaFunc_, BetaFunc_) with a proper signature and using Application? Would help to minimize the number of forms in the AST, and it'd make things more uniform wrf eta-expanding functional forms; however, it'd lead to constant-ly larger ASTs and we'd have to go in to recover the flatter structure...
+-- If we did do that though, then why not also do the same for the numerical-hierarchy primops?
+
 -- TODO: use the generating functor instead, so we can insert annotations with our fixpoint. Also, so we can use ABTs to separate our binders from the rest of our syntax
-data AST :: Hakaru * -> * where
+-- TODO: how does using the generating functor work for negative use sites??! (also non-strictlypositive use sites?)
+data AST :: (Hakaru * -> *) -> Hakaru * -> * where
     -- Primitive types and their coercions
-    Constant_   :: Constant a            -> AST a
-    CoerceTo_   :: Coercion a b -> AST a -> AST b
-    UnsafeFrom_ :: Coercion a b -> AST b -> AST a
-    -- TODO: add @SafeFrom_ :: Coercion a b -> AST b -> AST ('HMaybe a)@ ?
+    Constant_   :: Constant a            -> AST ast a
+    CoerceTo_   :: Coercion a b -> ast a -> AST ast b
+    UnsafeFrom_ :: Coercion a b -> ast b -> AST ast a
+    -- TODO: add @SafeFrom_ :: Coercion a b -> ast b -> AST ast ('HMaybe a)@ ?
     
     
     -- Primitive data types
-    List_     :: [AST a]       -> AST ('HList a)
-    Maybe_    :: Maybe (AST a) -> AST ('HMaybe a)
+    List_     :: [ast a]       -> AST ast ('HList a)
+    Maybe_    :: Maybe (ast a) -> AST ast ('HMaybe a)
     -- TODO: the embed stuff...
-    Unit_     :: AST 'HUnit
-    Pair_     :: AST a -> AST b -> AST ('HPair a b)
+    Unit_     :: AST ast 'HUnit
+    Pair_     :: ast a -> ast b -> AST ast ('HPair a b)
     -- TODO: avoid exotic HOAS terms in Unpair_
-    Unpair_   :: AST ('HPair a b) -> (AST a -> AST b -> AST c) -> AST c
-    Inl_      :: AST a -> AST ('HEither a b)
-    Inr_      :: AST b -> AST ('HEither a b)
+    Unpair_   :: ast ('HPair a b) -> (ast a -> ast b -> ast c) -> AST ast c
+    Inl_      :: ast a -> AST ast ('HEither a b)
+    Inr_      :: ast b -> AST ast ('HEither a b)
     -- TODO: avoid exotic HOAS terms in Uneither_
-    Uneither_ :: AST ('HEither a b) -> (AST a -> AST c) -> (AST b -> AST c) -> AST c
+    Uneither_ :: ast ('HEither a b) -> (ast a -> ast c) -> (ast b -> ast c) -> AST ast c
     
     
     -- N.B., we moved True_ and False_ into Constant_
-    If_       :: AST 'HBool -> AST a -> AST a -> AST a
-    -- TODO: n-ary operators as primitives? or just use Reduce_?
-    BoolOp_   :: BoolOp -> AST 'HBool -> AST 'HBool -> AST 'HBool
-    Not_      :: AST 'HBool -> AST 'HBool
+    If_       :: ast 'HBool -> ast a -> ast a -> AST ast a
+    -- TODO: n-ary operators as primitives
+    BoolOp_   :: BoolOp -> ast 'HBool -> ast 'HBool -> AST ast 'HBool
+    Not_      :: ast 'HBool -> AST ast 'HBool
     
     -- HOrder
     -- TODO: equality doesn't make constructive sense on the reals... would it be better to constructivize our notion of total ordering?
     -- TODO: what about posets?
-    Less_  :: (HOrder a) => AST a -> AST a -> AST 'HBool
-    Equal_ :: (HOrder a) => AST a -> AST a -> AST 'HBool
+    Less_  :: (HOrder a) => ast a -> ast a -> AST ast 'HBool
+    Equal_ :: (HOrder a) => ast a -> ast a -> AST ast 'HBool
     
     
     -- HSemiring
     -- We prefer these n-ary versions to enable better pattern matching; the binary versions can be derived. Notably, because of this encoding, we encode subtraction and division via negation and reciprocal.
     -- TODO: helper functions for splitting Sum_/Prod_ into components to group up like things.
-    Sum_    :: (HSemiring a) => [AST a] -> AST a
-    Prod_   :: (HSemiring a) => [AST a] -> AST a
-    NatPow_ :: (HSemiring a) => AST a -> AST 'HNat -> AST a
+    Sum_    :: (HSemiring a) => [ast a] -> AST ast a
+    Prod_   :: (HSemiring a) => [ast a] -> AST ast a
+    NatPow_ :: (HSemiring a) => ast a -> ast 'HNat -> AST ast a
     -- TODO: an infix operator alias for NatPow_ a la (^)
     -- TODO: would it help to have a meta-AST version with Nat instead of AST'HNat?
     
@@ -268,13 +272,13 @@ data AST :: Hakaru * -> * where
     -- Ring: Semiring + negate, abs, signum
     -- NormedLinearSpace: LinearSpace + originPoint, norm, Arg
     -- ??: NormedLinearSpace + originAxis, angle
-    Negate_ :: (HRing a) => AST a -> AST a
-    Abs_    :: (HRing a) => AST a -> AST (NonNegative a)
+    Negate_ :: (HRing a) => ast a -> AST ast a
+    Abs_    :: (HRing a) => ast a -> AST ast (NonNegative a)
     -- cf., <https://mail.haskell.org/pipermail/libraries/2013-April/019694.html>
     -- cf., <https://en.wikipedia.org/wiki/Sign_function#Complex_signum>
     -- Should we have Maple5's \"csgn\" as well as the usual \"sgn\"?
     -- Also note that the \"generalized signum\" anticommutes with Dirac delta!
-    Signum_ :: (HRing a) => AST a -> AST a
+    Signum_ :: (HRing a) => ast a -> AST ast a
     -- Law: x = CoerceTo_ signed (Abs_ x) * Signum_ x
     -- More strictly, the result of Signum_ should be either zero or an @a@-unit value. For Int and Real, the units are +1 and -1. For Complex, the units are any point on the unit circle. For vectors, the units are any unit vector. Thus, more generally:
     -- Law : x = CoerceTo_ signed (Abs_ x) `scaleBy` Signum_ x
@@ -283,78 +287,78 @@ data AST :: Hakaru * -> * where
     
     
     -- HFractional
-    Recip_ :: (HFractional a) => AST a -> AST a
+    Recip_ :: (HFractional a) => ast a -> AST ast a
     -- TODO: define IntPow_ as a metaprogram
     -- TODO: an infix operator alias for the IntPow_ metaprogram a la (^^)
     
     
     -- HRadical
-    NatRoot_ :: (HRadical a) => AST a -> AST 'HNat -> AST a
+    NatRoot_ :: (HRadical a) => ast a -> ast 'HNat -> AST ast a
     -- TODO: define RationalPow_ and NonNegativeRationalPow_ metaprograms
     -- TODO: a infix operator aliases for them
     
     
     -- HContinuous
     -- TODO: what goes here? if anything? cf., <https://en.wikipedia.org/wiki/Closed-form_expression#Comparison_of_different_classes_of_expressions>
-    Erf_ :: HContinuous a => AST a -> AST a
+    Erf_ :: HContinuous a => ast a -> AST ast a
     -- TODO: make Pi_ and Infinity_ HContinuous-polymorphic so that we can avoid the explicit coercion? Probably more mess than benefit.
     
     
     -- The rest of the old Base class
     -- N.B., we only give the safe/exact versions here. The old more lenient versions now require explicit coercions. Some of those coercions are safe, but others are not. This way we're explicit about where things can fail.
     
-    -- N.B., we also have @NatPow_ :: AST 'HReal -> AST 'HNat -> AST 'HReal@, but non-integer real powers of negative reals are not real numbers!
+    -- N.B., we also have @NatPow_ :: 'HReal -> 'HNat -> 'HReal@, but non-integer real powers of negative reals are not real numbers!
     -- TODO: may need @SafeFrom_@ in order to branch on the input in order to provide the old unsafe behavior.
-    RealPow_ :: AST 'HProb -> AST 'HReal -> AST 'HProb
-    -- ComplexPow_ :: AST 'HProb -> AST 'HComplex -> AST 'HComplex
+    RealPow_ :: ast 'HProb -> ast 'HReal -> AST ast 'HProb
+    -- ComplexPow_ :: 'HProb -> 'HComplex -> 'HComplex
     -- is uniquely well-defined. Though we may want to implement it via @r**z = ComplexExp_ (z * RealLog_ r)@
     -- Defining @HReal -> HComplex -> HComplex@ requires either multivalued functions, or a choice of complex logarithm and making it discontinuous.
     
-    Exp_              :: AST 'HReal -> AST 'HProb
-    Log_              :: AST 'HProb -> AST 'HReal
-    Infinity_         :: AST 'HProb
-    NegativeInfinity_ :: AST 'HReal
-    Pi_               :: AST 'HProb
-    TrigOp_           :: TrigOp -> AST 'HReal -> AST 'HReal
+    Exp_              :: ast 'HReal -> AST ast 'HProb
+    Log_              :: ast 'HProb -> AST ast 'HReal
+    Infinity_         :: AST ast 'HProb
+    NegativeInfinity_ :: AST ast 'HReal
+    Pi_               :: AST ast 'HProb
+    TrigOp_           :: TrigOp -> ast 'HReal -> AST ast 'HReal
     -- TODO: capture more domain information in the TrigOp_ types?
-    GammaFunc_        :: AST 'HReal -> AST 'HProb
-    BetaFunc_         :: AST 'HProb -> AST 'HProb -> AST 'HProb
+    GammaFunc_        :: ast 'HReal -> AST ast 'HProb
+    BetaFunc_         :: ast 'HProb -> ast 'HProb -> AST ast 'HProb
     
     
     -- Array stuff
-    Array_  :: AST 'HNat -> (AST 'HNat -> AST a) -> AST ('HArray a)
-    Empty_  :: AST ('HArray a)
-    Index_  :: AST ('HArray a) -> AST 'HNat -> AST a
-    Size_   :: AST ('HArray a) -> AST 'HNat
-    Reduce_ :: (AST a -> AST a -> AST a) -> AST a -> AST ('HArray a) -> AST a
+    Array_  :: ast 'HNat -> (ast 'HNat -> ast a) -> AST ast ('HArray a)
+    Empty_  :: AST ast ('HArray a)
+    Index_  :: ast ('HArray a) -> ast 'HNat -> AST ast a
+    Size_   :: ast ('HArray a) -> AST ast 'HNat
+    Reduce_ :: (ast a -> ast a -> ast a) -> ast a -> ast ('HArray a) -> AST ast a
     
     -- TODO: avoid exotic HOAS terms
-    Fix_    :: (AST a -> AST a) -> AST a
+    Fix_    :: (ast a -> ast a) -> AST ast a
     
     -- Mochastic
-    Measure_ :: Measure a -> AST ('HMeasure a)
-    Bind_    :: AST ('HMeasure a) -> (AST a -> AST ('HMeasure b)) -> AST ('HMeasure b)
-    Dp_ :: AST 'HProb -> AST ('HMeasure a) -> AST ('HMeasure ('HMeasure a))
-    Plate_ :: AST ('HArray ('HMeasure a)) -> AST ('HMeasure ('HArray a))
+    Measure_ :: Measure a -> AST ast ('HMeasure a)
+    Bind_    :: ast ('HMeasure a) -> (ast a -> ast ('HMeasure b)) -> AST ast ('HMeasure b)
+    Dp_ :: ast 'HProb -> ast ('HMeasure a) -> AST ast ('HMeasure ('HMeasure a))
+    Plate_ :: ast ('HArray ('HMeasure a)) -> AST ast ('HMeasure ('HArray a))
     Chain_
-        :: AST ('HArray ('HFun s ('HMeasure ('HPair a s))))
-        -> AST ('HFun s ('HMeasure ('HPair ('HArray a) s)))
+        :: ast ('HArray ('HFun s ('HMeasure ('HPair a s))))
+        -> AST ast ('HFun s ('HMeasure ('HPair ('HArray a) s)))
 
     -- Integrate
     -- TODO: avoid exotic HOAS terms
-    Integrate_ :: AST 'HReal -> AST 'HReal -> (AST 'HReal -> AST 'HProb) -> AST 'HProb
-    Summate_   :: AST 'HReal -> AST 'HReal -> (AST 'HInt  -> AST 'HProb) -> AST 'HProb
+    Integrate_ :: ast 'HReal -> ast 'HReal -> (ast 'HReal -> ast 'HProb) -> AST ast 'HProb
+    Summate_   :: ast 'HReal -> ast 'HReal -> (ast 'HInt  -> ast 'HProb) -> AST ast 'HProb
     
     -- Lambda
     -- TODO: avoid exotic terms from using HOAS
-    Lam_ :: (AST a -> AST b) -> AST ('HFun a b)
-    App_ :: AST ('HFun a b) -> AST a -> AST b
-    Let_ :: AST a -> (AST a -> AST b) -> AST b
+    Lam_ :: (ast a -> ast b) -> AST ast ('HFun a b)
+    App_ :: ast ('HFun a b) -> ast a -> AST ast b
+    Let_ :: ast a -> (ast a -> ast b) -> AST ast b
     
     -- Lub
     -- TODO: should this really be part of the AST?
-    Lub_ :: AST a -> AST a -> AST a
-    Bot_ :: AST a
+    Lub_ :: ast a -> ast a -> AST ast a
+    Bot_ :: AST ast a
 
 
 {-
