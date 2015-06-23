@@ -6,7 +6,7 @@
            , FlexibleInstances
            #-}
 
-module Language.Hakaru.Syntax.Wrengr where
+module Language.Hakaru.Syntax.AST where
 
 import Prelude hiding (id, (.), Ord(..), Num(..), Integral(..), Fractional(..), Floating(..), Real(..), RealFrac(..), RealFloat(..), (^), (^^))
 import Control.Category (Category(..))
@@ -45,28 +45,34 @@ instance HSemiring 'HReal
 -- that generates this ring, but (b) is also used for the result
 -- of calling the absolute value. For Int and Real that's fine; but
 -- for Complex and Vector these two notions diverge
+-- TODO: Can we specify that the @HSemiring (NonNegative a)@ constraint coincides with the @HSemiring a@ constraint on the appropriate subset of @a@? Or should that just be assumed...?
 class (HSemiring (NonNegative a), HSemiring a)
     => HRing (a :: Hakaru *) where type NonNegative a :: Hakaru *
 instance HRing 'HInt  where type NonNegative 'HInt  = 'HNat 
 instance HRing 'HReal where type NonNegative 'HReal = 'HProb 
 
 
--- N.B., We're assuming two-sided inverses here. That doesn't entail commutativity, though it does strongly suggest it...
+-- N.B., We're assuming two-sided inverses here. That doesn't entail commutativity, though it does strongly suggest it... (cf., Wedderburn's little theorem)
 -- A division-semiring; Not quite a field nor a division-ring...
 -- N.B., the (Nat,"+"=lcm,"*"=gcd) semiring is sometimes called "the division semiring"
--- HACK: tracking carriers here wouldn't be quite right b/c we get more than just the (non-negative)rationals generated from HNat/HInt!
+-- HACK: tracking carriers here wouldn't be quite right b/c we get more than just the (non-negative)rationals generated from HNat/HInt! However, we should have some sort of associated type so we can add rationals and non-negative rationals...
 class (HSemiring a) => HFractional (a :: Hakaru *)
 instance HFractional 'HProb
 instance HFractional 'HReal
 
+-- type HDivisionRing a = (HFractional a, HRing a)
+-- type HField a = (HDivisionRing a, HCommutativeSemiring a)
 
--- TODO: find a better name than HRadical.
+
 -- Numbers formed by finitely many uses of integer addition, subtraction, multiplication, division, and nat-roots are all algebraic; however, N.B., not all algebraic numbers can be formed this way (cf., Abel–Ruffini theorem)
 -- TODO: ought we require HRing or HFractional rather than HSemiring?
 -- TODO: any special associated type?
+-- N.B., we /assume/ closure under the semiring operations, thus we get things like @sqrt 2 + sqrt 3@ which cannot be expressed as a single root. Thus, solving the HRadical class means we need solutions to more general polynomials (than just @x^n - a@) in order to express the results as roots. However, the Galois groups of these are all solvable, so this shouldn't be too bad.
 class (HSemiring a) => HRadical (a :: Hakaru *)
 instance HRadical 'HProb
 instance HRadical 'HReal
+
+-- TODO: class (HDivisionRing a, HRadical a) => HAlgebraic a where...
 
 
 -- TODO: find a better name than HIntegral
@@ -151,8 +157,9 @@ coerceTo_unsafeFrom xs ys = ...
 
 
 ----------------------------------------------------------------
--- | Primitive numeric types (with concrete interpretation a~la Sample')
+-- | Primitive types (with concrete interpretation a~la Sample')
 data Constant :: Hakaru * -> * where
+    Bool_ :: Bool     -> Constant 'HBool
     Nat_  :: Nat      -> Constant 'HNat
     Int_  :: Int      -> Constant 'HInt
     Prob_ :: LogFloat -> Constant 'HProb
@@ -176,7 +183,7 @@ data Measure :: Hakaru * -> * where
 ----------------------------------------------------------------
 -- TODO: if we're going to bother naming the hyperbolic ones, why not also name /a?(csc|sec|cot)h?/ eh?
 -- | Primitive trogonometric functions
-data TrigOperator
+data TrigOp
     = Sin
     | Cos
     | Tan
@@ -189,11 +196,30 @@ data TrigOperator
     | Asinh
     | Acosh
     | Atanh
-    
+
+----------------------------------------------------------------
+-- TODO: What primops should we use for optimizing things? We shouldn't include everything... N.B., general circuit minimization problem is Sigma_2^P-complete, which is outside of PTIME; so we'll just have to approximate it for now, or link into something like Espresso or an implementation of Quine–McCluskey
+-- cf., <https://hackage.haskell.org/package/qm-0.1.0.0/candidate>
+-- cf., <https://github.com/pfpacket/Quine-McCluskey>
+-- cf., <https://gist.github.com/dsvictor94/8db2b399a95e301c259a>
+-- | Primitive boolean binary operators.
+data BoolOp
+    = And
+    | Or
+    | Xor
+    | Iff
+    | Impl
+    -- ConverseImpl = flip Impl
+    | Diff -- aka Not (x `Impl` y)
+    -- ConverseDiff = flip Diff
+    | Nand -- aka Alternative Denial, aka Sheffer stroke
+    | Nor  -- aka Joint Denial, aka Quine dagger, aka Pierce arrow
+    -- The other six are trivial
+
 ----------------------------------------------------------------
 -- TODO: use the generating functor instead, so we can insert annotations with our fixpoint. Also, so we can use ABTs to separate our binders from the rest of our syntax
 data AST :: Hakaru * -> * where
-    -- Primitive numeric types and their coercions
+    -- Primitive types and their coercions
     Constant_   :: Constant a            -> AST a
     CoerceTo_   :: Coercion a b -> AST a -> AST b
     UnsafeFrom_ :: Coercion a b -> AST b -> AST a
@@ -212,10 +238,13 @@ data AST :: Hakaru * -> * where
     Inr_      :: AST b -> AST ('HEither a b)
     -- TODO: avoid exotic HOAS terms in Uneither_
     Uneither_ :: AST ('HEither a b) -> (AST a -> AST c) -> (AST b -> AST c) -> AST c
-    True_     :: AST 'HBool
-    False_    :: AST 'HBool
-    If_       :: AST 'HBool -> AST a -> AST a -> AST a
     
+    
+    -- N.B., we moved True_ and False_ into Constant_
+    If_       :: AST 'HBool -> AST a -> AST a -> AST a
+    -- TODO: n-ary operators as primitives? or just use Reduce_?
+    BoolOp_   :: BoolOp -> AST 'HBool -> AST 'HBool -> AST 'HBool
+    Not_      :: AST 'HBool -> AST 'HBool
     
     -- HOrder
     -- TODO: equality doesn't make constructive sense on the reals... would it be better to constructivize our notion of total ordering?
@@ -232,7 +261,6 @@ data AST :: Hakaru * -> * where
     NatPow_ :: (HSemiring a) => AST a -> AST 'HNat -> AST a
     -- TODO: an infix operator alias for NatPow_ a la (^)
     -- TODO: would it help to have a meta-AST version with Nat instead of AST'HNat?
-    -- TODO: a metaprogram for: Square_ :: (HSemiring a) => AST a -> AST a
     
     
     -- HRing
@@ -256,34 +284,42 @@ data AST :: Hakaru * -> * where
     
     -- HFractional
     Recip_ :: (HFractional a) => AST a -> AST a
+    -- TODO: define IntPow_ as a metaprogram
     -- TODO: an infix operator alias for the IntPow_ metaprogram a la (^^)
     
+    
     -- HRadical
-    -- TODO: a better name for this class
     NatRoot_ :: (HRadical a) => AST a -> AST 'HNat -> AST a
-    -- TODO: an infix operator alias for the RationalPow_ and NonNegativeRationalPow_ metaprograms
+    -- TODO: define RationalPow_ and NonNegativeRationalPow_ metaprograms
+    -- TODO: a infix operator aliases for them
+    
     
     -- HContinuous
-    -- TODO: what goes here: Sqrt_/RealPow_, trig stuff, erf,...? cf., <https://en.wikipedia.org/wiki/Closed-form_expression#Comparison_of_different_classes_of_expressions>
-    -- TODO: why single out Sqrt_? Why not single out Square_?
-    Erf_     :: HContinuous a => AST a -> AST a
-    Sqrt_    :: HContinuous a => AST a -> AST a
-    RealPow_ :: HContinuous a => AST a -> AST 'HReal -> AST a
+    -- TODO: what goes here? if anything? cf., <https://en.wikipedia.org/wiki/Closed-form_expression#Comparison_of_different_classes_of_expressions>
+    Erf_ :: HContinuous a => AST a -> AST a
+    -- TODO: make Pi_ and Infinity_ HContinuous-polymorphic so that we can avoid the explicit coercion? Probably more mess than benefit.
     
-    -- Trigonometry
-    -- TODO: make Pi_ HContinuous-polymorphic?
-    -- TODO: capture more domain information in the Trig_ types?
-    Pi_   :: AST 'HProb -- N.B., HProb means non-negative real!
-    Trig_ :: TrigOperator -> AST 'HReal -> AST 'HReal
     
     -- The rest of the old Base class
-    -- N.B., we only give the safe/exact versions here. The lifting of exp's output can be done with fromProb; and the lowering of log's input can be done with unsafeProb/unsafeProbFraction
+    -- N.B., we only give the safe/exact versions here. The old more lenient versions now require explicit coercions. Some of those coercions are safe, but others are not. This way we're explicit about where things can fail.
+    
+    -- N.B., we also have @NatPow_ :: AST 'HReal -> AST 'HNat -> AST 'HReal@, but non-integer real powers of negative reals are not real numbers!
+    -- TODO: may need @SafeFrom_@ in order to branch on the input in order to provide the old unsafe behavior.
+    RealPow_ :: AST 'HProb -> AST 'HReal -> AST 'HProb
+    -- ComplexPow_ :: AST 'HProb -> AST 'HComplex -> AST 'HComplex
+    -- is uniquely well-defined. Though we may want to implement it via @r**z = ComplexExp_ (z * RealLog_ r)@
+    -- Defining @HReal -> HComplex -> HComplex@ requires either multivalued functions, or a choice of complex logarithm and making it discontinuous.
+    
     Exp_              :: AST 'HReal -> AST 'HProb
     Log_              :: AST 'HProb -> AST 'HReal
-    Infinity_         :: AST 'HReal -- TODO: does infinity also live in HProb? If so, should it be polymorphic?
+    Infinity_         :: AST 'HProb
     NegativeInfinity_ :: AST 'HReal
+    Pi_               :: AST 'HProb
+    TrigOp_           :: TrigOp -> AST 'HReal -> AST 'HReal
+    -- TODO: capture more domain information in the TrigOp_ types?
     GammaFunc_        :: AST 'HReal -> AST 'HProb
     BetaFunc_         :: AST 'HProb -> AST 'HProb -> AST 'HProb
+    
     
     -- Array stuff
     Array_  :: AST 'HNat -> (AST 'HNat -> AST a) -> AST ('HArray a)
@@ -321,6 +357,9 @@ data AST :: Hakaru * -> * where
     Bot_ :: AST a
 
 
+{-
+Below we implement a lot of simple optimizations; however, these optimizations only apply if the client uses the type class methods to produce the AST. We should implement a stand-alone function which performs these sorts of optimizations, as a program transformation.
+-}
 
 -- N.B., we don't take advantage of commutativity, for more predictable AST outputs. However, that means we can end up being really slow;
 -- TODO: use sets, fingertrees, etc instead of lists...
@@ -372,7 +411,7 @@ instance Floating (AST 'HProb) where
     pi     = Pi_
     exp    = Exp_ . CoerceTo_ signed
     log    = UnsafeFrom_ signed . Log_ -- error for inputs in [0,1)
-    sqrt   = Sqrt_
+    sqrt x = NatRoot_ x 2
     x ** y = RealPow_ x (CoerceTo_ signed y)
     logBase b x = log x / log b -- undefined when b == 1
     {-
@@ -393,24 +432,24 @@ instance Floating (AST 'HProb) where
 -}
 
 instance Floating (AST 'HReal) where
-    pi    = CoerceTo_ signed Pi_
-    exp   = CoerceTo_ signed . Exp_
-    log   = Log_ . UnsafeFrom_ signed -- error for inputs in [negInfty,0)
-    sqrt  = Sqrt_
-    (**)  = RealPow_
+    pi     = CoerceTo_ signed Pi_
+    exp    = CoerceTo_ signed . Exp_
+    log    = Log_ . UnsafeFrom_ signed -- error for inputs in [negInfty,0)
+    sqrt x = NatRoot_ x 2
+    (**)   = RealPow_
     logBase b x = log x / log b -- undefined when b == 1
-    sin   = Trig_ Sin
-    cos   = Trig_ Cos
-    tan   = Trig_ Tan
-    asin  = Trig_ Asin
-    acos  = Trig_ Acos
-    atan  = Trig_ Atan
-    sinh  = Trig_ Sinh
-    cosh  = Trig_ Cosh
-    tanh  = Trig_ Tanh
-    asinh = Trig_ Asinh
-    acosh = Trig_ Acosh
-    atanh = Trig_ Atanh
+    sin    = TrigOp_ Sin
+    cos    = TrigOp_ Cos
+    tan    = TrigOp_ Tan
+    asin   = TrigOp_ Asin
+    acos   = TrigOp_ Acos
+    atan   = TrigOp_ Atan
+    sinh   = TrigOp_ Sinh
+    cosh   = TrigOp_ Cosh
+    tanh   = TrigOp_ Tanh
+    asinh  = TrigOp_ Asinh
+    acosh  = TrigOp_ Acosh
+    atanh  = TrigOp_ Atanh
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -448,8 +487,8 @@ instance
     inl        = Inl_
     inr        = Inr_
     uneither   = Uneither_
-    true       = True_
-    false      = False_
+    true       = Constant_ (Bool_ True)
+    false      = Constant_ (Bool_ False)
     if_        = If_
     unsafeProb = UnsafeFrom_ signed
     fromProb   = CoerceTo_ signed
@@ -459,9 +498,9 @@ instance
     erf        = Erf_  -- Monomorphized at 'HReal
     erf_       = Erf_  -- Monomorphized at 'HProb
     log_       = Log_
-    sqrt_      = Sqrt_ -- Monomorphized at 'HProb
+    sqrt_ x    = NatRoot_ x 2 -- Monomorphized at 'HProb
     pow_       = RealPow_  -- Monomorphized at 'HProb
-    infinity   = Infinity_
+    infinity   = CoerceTo_ signed Infinity_
     negativeInfinity = NegativeInfinity_
     gammaFunc = GammaFunc_
     betaFunc  = BetaFunc_
