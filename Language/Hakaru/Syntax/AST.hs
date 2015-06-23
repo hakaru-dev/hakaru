@@ -338,6 +338,7 @@ data AST :: (Hakaru * -> *) -> Hakaru * -> * where
     
     
     -- Array stuff
+    -- TODO: avoid exotic HOAS terms in Array_ & Reduce_
     Array_  :: ast 'HNat -> (ast 'HNat -> ast a) -> AST ast ('HArray a)
     Empty_  :: AST ast ('HArray a)
     Index_  :: ast ('HArray a) -> ast 'HNat -> AST ast a
