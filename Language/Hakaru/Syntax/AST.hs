@@ -9,6 +9,9 @@
 module Language.Hakaru.Syntax.AST where
 
 import Prelude hiding (id, (.), Ord(..), Num(..), Integral(..), Fractional(..), Floating(..), Real(..), RealFrac(..), RealFloat(..), (^), (^^))
+import           Data.Sequence (Seq)
+import qualified Data.Sequence as Seq
+
 import Control.Category (Category(..))
 import Data.Number.LogFloat (LogFloat)
 import Language.Hakaru.Syntax.DataKind
@@ -25,6 +28,15 @@ import Language.Hakaru.Sample
 -- TODO: class HEq (a :: Hakaru *)
 -- TODO: class HPartialOrder (a :: Hakaru *)
 
+{-
+-- TODO: replace the open type class with a closed equivalent, e.g.:
+data HOrder :: Hakaru * -> * where
+    HOrder_HNat  :: HOrder 'HNat
+    HOrder_HInt  :: HOrder 'HInt
+    HOrder_HProb :: HOrder 'HProb
+    HOrder_HReal :: HOrder 'HReal
+-- The problem is, how to we handle things like the HRing type class?
+-}
 class    HOrder (a :: Hakaru *)
 instance HOrder 'HNat
 instance HOrder 'HInt
@@ -260,8 +272,8 @@ data AST :: (Hakaru * -> *) -> Hakaru * -> * where
     -- HSemiring
     -- We prefer these n-ary versions to enable better pattern matching; the binary versions can be derived. Notably, because of this encoding, we encode subtraction and division via negation and reciprocal.
     -- TODO: helper functions for splitting Sum_/Prod_ into components to group up like things.
-    Sum_    :: (HSemiring a) => [ast a] -> AST ast a
-    Prod_   :: (HSemiring a) => [ast a] -> AST ast a
+    Sum_    :: (HSemiring a) => Seq (ast a) -> AST ast a
+    Prod_   :: (HSemiring a) => Seq (ast a) -> AST ast a
     NatPow_ :: (HSemiring a) => ast a -> ast 'HNat -> AST ast a
     -- TODO: an infix operator alias for NatPow_ a la (^)
     -- TODO: would it help to have a meta-AST version with Nat instead of AST'HNat?
@@ -366,23 +378,22 @@ Below we implement a lot of simple optimizations; however, these optimizations o
 -}
 
 -- N.B., we don't take advantage of commutativity, for more predictable AST outputs. However, that means we can end up being really slow;
--- TODO: use sets, fingertrees, etc instead of lists...
 -- N.B., we also don't try to eliminate the identity elements or do cancellations because (a) it's undecidable in general, and (b) that's prolly better handled as a post-processing simplification step
 instance HRing a => Num (AST a) where
-    Sum_ xs  + Sum_ ys  = Sum_ (xs ++ ys)
-    Sum_ xs  + y        = Sum_ (xs ++ [y])
-    x        + Sum_ ys  = Sum_ (x : ys)
-    x        + y        = Sum_ [x,y]
+    Sum_ xs  + Sum_ ys  = Sum_ (xs Seq.>< ys)
+    Sum_ xs  + y        = Sum_ (xs Seq.|> y)
+    x        + Sum_ ys  = Sum_ (x  Seq.<| ys)
+    x        + y        = Sum_ (x  Seq.<| Seq.singleton y)
     
-    Sum_ xs  - Sum_ ys  = Sum_ (xs ++ map negate ys)
-    Sum_ xs  - y        = Sum_ (xs ++ [negate y])
-    x        - Sum_ ys  = Sum_ (x : map negate ys)
-    x        - y        = Sum_ [x, negate y]
+    Sum_ xs  - Sum_ ys  = Sum_ (xs Seq.>< map negate ys)
+    Sum_ xs  - y        = Sum_ (xs Seq.|> negate y)
+    x        - Sum_ ys  = Sum_ (x  Seq.<| map negate ys)
+    x        - y        = Sum_ (x  Seq.<| Seq.singleton (negate y))
     
-    Prod_ xs * Prod_ ys = Prod_ (xs ++ ys)
-    Prod_ xs * y        = Prod_ (xs ++ [y])
-    x        * Prod_ ys = Prod_ (x : ys)
-    x        * y        = Prod_ [x,y]
+    Prod_ xs * Prod_ ys = Prod_ (xs Seq.>< ys)
+    Prod_ xs * y        = Prod_ (xs Seq.|> y)
+    x        * Prod_ ys = Prod_ (x  Seq.<| ys)
+    x        * y        = Prod_ (x  Seq.<| Seq.singleton y)
 
     negate (Negate_ x)  = x
     negate x            = Negate_ x
@@ -397,10 +408,10 @@ instance HRing a => Num (AST a) where
 
 
 instance (HRing a, HFractional a) => Fractional (AST a) where
-    Prod_ xs / Prod_ ys = Prod_ (xs ++ map recip ys)
-    Prod_ xs / y        = Prod_ (xs ++ [recip y])
-    x        / Prod_ ys = Prod_ (x : map recip ys)
-    x        / y        = Prod_ [x, recip y]
+    Prod_ xs / Prod_ ys = Prod_ (xs Seq.>< map recip ys)
+    Prod_ xs / y        = Prod_ (xs Seq.|> recip y)
+    x        / Prod_ ys = Prod_ (x  Seq.<| map recip ys)
+    x        / y        = Prod_ (x  Seq.<| Seq.singleton (recip y))
     
     recip (Recip_ x) = x
     recip x          = Recip_ x
