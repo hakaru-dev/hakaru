@@ -37,11 +37,17 @@ app f x = App_ (syn f) (syn x)
 app2 :: (ABT abt) => AST abt ('HFun a ('HFun b c)) -> AST abt a -> AST abt b -> AST abt c
 app2 f x y = app (app f x) y
 
+app3 :: (ABT abt) => AST abt ('HFun a ('HFun b ('HFun c d))) -> AST abt a -> AST abt b -> AST abt c -> AST abt d
+app3 f x y z = app (app (app f x) y) z
+
 primOp1_ :: (ABT abt) => PrimOp ('HFun a b) -> AST abt a -> AST abt b
 primOp1_ = app . PrimOp_
 
 primOp2_ :: (ABT abt) => PrimOp ('HFun a ('HFun b c)) -> AST abt a -> AST abt b -> AST abt c
 primOp2_ = app2 . PrimOp_
+
+primOp3_ :: (ABT abt) => PrimOp ('HFun a ('HFun b ('HFun c d))) -> AST abt a -> AST abt b -> AST abt c -> AST abt d
+primOp3_ = app3 . PrimOp_
 
 naryOp_ :: (ABT abt) => NaryOp a -> AST abt a -> AST abt a -> AST abt a
 naryOp_ o x y =
@@ -262,10 +268,10 @@ atanh  = primOp1_ Atanh
 
 -- instance (ABT abt) => Base (AST abt) where not already defined above
 unit :: AST abt 'HUnit
-unit = Unit_
+unit = PrimOp_ Unit
 
 pair :: (ABT abt) => AST abt a -> AST abt b -> AST abt ('HPair a b)
-pair x y = Pair_ (syn x) (syn y)
+pair = primOp2_ Pair
 
 unpair
     :: (ABT abt)
@@ -283,10 +289,10 @@ unpair e f = do
 -}
 
 inl :: (ABT abt) => AST abt a -> AST abt ('HEither a b)
-inl = Inl_ . syn
+inl = primOp1_ Inl
 
 inr :: (ABT abt) => AST abt b -> AST abt ('HEither a b)
-inr = Inr_ . syn
+inr = primOp1_ Inr
 
 uneither
     :: (ABT abt)
@@ -347,14 +353,14 @@ vector n f = do
 -}
 
 empty :: AST abt ('HArray a)
-empty = Empty_
+empty = PrimOp_ Empty
 
 -- TODO: rename @(!)@
 index :: (ABT abt) => AST abt ('HArray a) -> AST abt 'HInt -> AST abt a
-index xs i = Index_ (syn xs) (syn $ unsafeFrom_ signed i)
+index xs i = primOp2_ Index xs (unsafeFrom_ signed i)
 
 size :: (ABT abt) => AST abt ('HArray a) -> AST abt 'HInt
-size = coerceTo_ signed . Size_ . syn
+size = coerceTo_ signed . primOp1_ Size
 
 reduce
     :: (ABT abt)
@@ -362,13 +368,22 @@ reduce
     -> AST abt a
     -> AST abt ('HArray a)
     -> AST abt a
-reduce f z xs = do
-    Reduce_ (syn (lam $ \x -> lam $ \y -> f x y)) (syn z) (syn xs)
+reduce f = primOp3_ Reduce (lam $ \x -> lam $ \y -> f x y)
 
 
 -- instance (ABT abt) => Mochastic (AST abt) where
+bind
+    :: (ABT abt)
+    => AST abt ('HMeasure a)
+    -> (AST abt a -> AST abt ('HMeasure b))
+    -> AST abt ('HMeasure b)
+bind = undefined
+{-
+bind e f = do
+    x <- freshVar
+    return $ Bind_ (syn e) (open x (f (Var x Proxy)))
+-}
 dirac       = primOp1_ Dirac
-bind        = Bind_
 lebesgue    = PrimOp_  Lebesgue
 counting    = PrimOp_  Counting
 superpose   = Superpose_
