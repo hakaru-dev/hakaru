@@ -169,15 +169,17 @@ coerceTo_unsafeFrom xs ys = ...
 
 
 ----------------------------------------------------------------
--- | Primitive types (with concrete interpretation a~la Sample')
-data Constant :: Hakaru * -> * where
-    Bool_ :: Bool     -> Constant 'HBool
-    Nat_  :: Nat      -> Constant 'HNat
-    Int_  :: Int      -> Constant 'HInt
-    Prob_ :: LogFloat -> Constant 'HProb
-    Real_ :: Double   -> Constant 'HReal
+-- TODO: add constructors for constants of datatypes?
+-- | Constant values for primitive types (with concrete interpretation a~la Sample')
+data Value :: Hakaru * -> * where
+    Bool_ :: Bool     -> Value 'HBool
+    Nat_  :: Nat      -> Value 'HNat
+    Int_  :: Int      -> Value 'HInt
+    Prob_ :: LogFloat -> Value 'HProb
+    Real_ :: Double   -> Value 'HReal
 
 ----------------------------------------------------------------
+-- TODO: move these into 'PrimOp'? Hve to deal with the two polymorphic ones first... Of course, those two are kinda special anyways...
 -- | Primitive distributions/measures, a~la Mochastic.
 data Measure :: Hakaru * -> * where
     Dirac       :: AST a -> Measure a
@@ -193,40 +195,77 @@ data Measure :: Hakaru * -> * where
     -- binomial, mix, geometric, multinomial,... should also be HNat
 
 ----------------------------------------------------------------
--- TODO: if we're going to bother naming the hyperbolic ones, why not also name /a?(csc|sec|cot)h?/ eh?
--- | Primitive trogonometric functions
-data TrigOp
-    = Sin
-    | Cos
-    | Tan
-    | Asin
-    | Acos
-    | Atan
-    | Sinh
-    | Cosh
-    | Tanh
-    | Asinh
-    | Acosh
-    | Atanh
+-- TODO: figure out how to fit the simple polymorphic functions (e.g., Less_/Equal_) into this framework. In general, will be some Haskell function from a type/dictionary to the PrimOp.
+-- | Primitive /monomorphic/ functions, constants, and measures.
+data PrimOp :: Hakaru * -> * where
+    -- The Boolean operators
+    -- TODO: we'll want n-ary And & Or, for the same reason as Plus_/Prod_
+    -- TODO: most of these we'll want to optimize away according to some circuit-minimization procedure. But we're not committing to any particular minimal complete set of primops just yet.
+    -- N.B., general circuit minimization problem is Sigma_2^P-complete, which is outside of PTIME; so we'll just have to approximate it for now, or link into something like Espresso or an implementation of Quine–McCluskey
+    -- cf., <https://hackage.haskell.org/package/qm-0.1.0.0/candidate>
+    -- cf., <https://github.com/pfpacket/Quine-McCluskey>
+    -- cf., <https://gist.github.com/dsvictor94/8db2b399a95e301c259a>
+    Not  :: PrimOp ('HFun 'HBool 'HBool)
+    And  :: PrimOp ('HFun 'HBool ('HFun 'HBool 'HBool))
+    Or   :: PrimOp ('HFun 'HBool ('HFun 'HBool 'HBool))
+    Xor  :: PrimOp ('HFun 'HBool ('HFun 'HBool 'HBool))
+    Iff  :: PrimOp ('HFun 'HBool ('HFun 'HBool 'HBool))
+    Impl :: PrimOp ('HFun 'HBool ('HFun 'HBool 'HBool)) -- == Or (Not x) y
+    -- ConverseImpl = flip Impl
+    Diff :: PrimOp ('HFun 'HBool ('HFun 'HBool 'HBool)) -- == Not (Impl x y)
+    -- ConverseDiff = flip Diff
+    Nand :: PrimOp ('HFun 'HBool ('HFun 'HBool 'HBool)) -- aka Alternative Denial, Sheffer stroke
+    Nor  :: PrimOp ('HFun 'HBool ('HFun 'HBool 'HBool)) -- aka Joint Denial, aka Quine dagger, aka Pierce arrow
+    -- The other six binops are trivial
+    
+    
+    -- Trigonometry operators
+    -- TODO: if we're going to bother naming the hyperbolic ones, why not also name /a?(csc|sec|cot)h?/ eh?
+    -- TODO: capture more domain information in these types?
+    Sin   :: PrimOp ('HFun 'HReal 'HReal)
+    Cos   :: PrimOp ('HFun 'HReal 'HReal)
+    Tan   :: PrimOp ('HFun 'HReal 'HReal)
+    Asin  :: PrimOp ('HFun 'HReal 'HReal)
+    Acos  :: PrimOp ('HFun 'HReal 'HReal)
+    Atan  :: PrimOp ('HFun 'HReal 'HReal)
+    Sinh  :: PrimOp ('HFun 'HReal 'HReal)
+    Cosh  :: PrimOp ('HFun 'HReal 'HReal)
+    Tanh  :: PrimOp ('HFun 'HReal 'HReal)
+    Asinh :: PrimOp ('HFun 'HReal 'HReal)
+    Acosh :: PrimOp ('HFun 'HReal 'HReal)
+    Atanh :: PrimOp ('HFun 'HReal 'HReal)
+    
+    
+    -- Other Real/Prob-valued ops
+    -- N.B., we only give the safe/exact versions here. The old more lenient versions now require explicit coercions. Some of those coercions are safe, but others are not. This way we're explicit about where things can fail.
+    -- N.B., we also have @NatPow_ :: 'HReal -> 'HNat -> 'HReal@, but non-integer real powers of negative reals are not real numbers!
+    -- TODO: may need @SafeFrom_@ in order to branch on the input in order to provide the old unsafe behavior.
+    RealPow          :: PrimOp ('HFun 'HProb ('HFun 'HReal 'HProb))
+    -- ComplexPow :: PrimOp ('HFun 'HProb ('HFun 'HComplex 'HComplex))
+    -- is uniquely well-defined. Though we may want to implement it via @r**z = ComplexExp_ (z * RealLog_ r)@
+    -- Defining @HReal -> HComplex -> HComplex@ requires either multivalued functions, or a choice of complex logarithm and making it discontinuous.
+    Exp              :: PrimOp ('HFun 'HReal 'HProb)
+    Log              :: PrimOp ('HFun 'HProb 'HReal)
+    Infinity         :: PrimOp 'HProb
+    NegativeInfinity :: PrimOp 'HReal -- TODO: maybe replace this by @negate (CoerceTo signed (PrimOp_ Infinity))@ ?
+    Pi               :: PrimOp 'HProb
+    GammaFunc        :: PrimOp ('HFun 'HReal 'HProb)
+    BetaFunc         :: PrimOp ('HFun 'HProb ('HFun 'HProb 'HProb))
 
 ----------------------------------------------------------------
--- TODO: What primops should we use for optimizing things? We shouldn't include everything... N.B., general circuit minimization problem is Sigma_2^P-complete, which is outside of PTIME; so we'll just have to approximate it for now, or link into something like Espresso or an implementation of Quine–McCluskey
--- cf., <https://hackage.haskell.org/package/qm-0.1.0.0/candidate>
--- cf., <https://github.com/pfpacket/Quine-McCluskey>
--- cf., <https://gist.github.com/dsvictor94/8db2b399a95e301c259a>
--- | Primitive boolean binary operators.
-data BoolOp
-    = And
-    | Or
-    | Xor
-    | Iff
-    | Impl
-    -- ConverseImpl = flip Impl
-    | Diff -- aka Not (x `Impl` y)
-    -- ConverseDiff = flip Diff
-    | Nand -- aka Alternative Denial, aka Sheffer stroke
-    | Nor  -- aka Joint Denial, aka Quine dagger, aka Pierce arrow
-    -- The other six are trivial
+-- TODO: extend our patterns to include the embed/SOP stuff
+-- TODO: negative patterns? (to facilitate reordering of case branches)
+-- We index patterns by the type they scrutinize. This requires the parser to be smart enough to build these patterns up, but then it guarantees that we can't have 'Case_' of patterns which can't possibly match according to our type system. If we wanted to go really crazy, we could also index patterns by the type of what variables they bind, like we'll do for ASTPattern... But that's prolly overkill since we can just run the type checker over our AST.
+data Pattern :: Hakaru * -> * where
+    PWild  :: Pattern a
+    PVar   :: Pattern a
+    PTrue  :: Pattern 'HBool
+    PFalse :: Pattern 'HBool
+    PUnit  :: Pattern 'HUnit
+    PPair  :: !(Pattern a) -> !(Pattern b) -> Pattern ('HPair a b)
+    PInl   :: !(Pattern a) -> Pattern ('HEither a b)
+    PInr   :: !(Pattern b) -> Pattern ('HEither a b)
+    deriving (Eq, Read, Show)
 
 ----------------------------------------------------------------
 -- TODO: (?)replace all the function primops (TrigOp, BoolOp, Not_, Erf_, GammaFunc_, BetaFunc_) with a proper signature and using Application? Would help to minimize the number of forms in the AST, and it'd make things more uniform wrf eta-expanding functional forms; however, it'd lead to constant-ly larger ASTs and we'd have to go in to recover the flatter structure...
@@ -236,31 +275,27 @@ data BoolOp
 -- TODO: how does using the generating functor work for negative use sites??! (also non-strictlypositive use sites?)
 data AST :: (Hakaru * -> *) -> Hakaru * -> * where
     -- Primitive types and their coercions
-    Constant_   :: Constant a            -> AST ast a
+    Value_      :: Value a               -> AST ast a
     CoerceTo_   :: Coercion a b -> ast a -> AST ast b
     UnsafeFrom_ :: Coercion a b -> ast b -> AST ast a
-    -- TODO: add @SafeFrom_ :: Coercion a b -> ast b -> AST ast ('HMaybe a)@ ?
+    -- TODO: add @SafeFrom_ :: Coercion a b -> ast b -> AST ast ('HMaybe a)@ or something similar?
     
     
     -- Primitive data types
-    List_     :: [ast a]       -> AST ast ('HList a)
-    Maybe_    :: Maybe (ast a) -> AST ast ('HMaybe a)
+    List_  :: [ast a]       -> AST ast ('HList a)
+    Maybe_ :: Maybe (ast a) -> AST ast ('HMaybe a)
     -- TODO: the embed stuff...
-    Unit_     :: AST ast 'HUnit
-    Pair_     :: ast a -> ast b -> AST ast ('HPair a b)
-    -- TODO: avoid exotic HOAS terms in Unpair_
-    Unpair_   :: ast ('HPair a b) -> (ast a -> ast b -> ast c) -> AST ast c
-    Inl_      :: ast a -> AST ast ('HEither a b)
-    Inr_      :: ast b -> AST ast ('HEither a b)
-    -- TODO: avoid exotic HOAS terms in Uneither_
-    Uneither_ :: ast ('HEither a b) -> (ast a -> ast c) -> (ast b -> ast c) -> AST ast c
+    Unit_  :: AST ast 'HUnit
+    Pair_  :: ast a -> ast b -> AST ast ('HPair a b)
+    Inl_   :: ast a -> AST ast ('HEither a b)
+    Inr_   :: ast b -> AST ast ('HEither a b)
+    Case_  :: ast a -> [(Pattern a, ast b)] -> AST ast b
     
     
-    -- N.B., we moved True_ and False_ into Constant_
-    If_       :: ast 'HBool -> ast a -> ast a -> AST ast a
-    -- TODO: n-ary operators as primitives
-    BoolOp_   :: BoolOp -> ast 'HBool -> ast 'HBool -> AST ast 'HBool
-    Not_      :: ast 'HBool -> AST ast 'HBool
+    -- TODO: n-ary boolean operators
+    -- The /non-polymorphic/ primitive operators.
+    PrimOp_ :: PrimOp a -> AST ast a
+    
     
     -- HOrder
     -- TODO: equality doesn't make constructive sense on the reals... would it be better to constructivize our notion of total ordering?
@@ -314,27 +349,6 @@ data AST :: (Hakaru * -> *) -> Hakaru * -> * where
     -- TODO: what goes here? if anything? cf., <https://en.wikipedia.org/wiki/Closed-form_expression#Comparison_of_different_classes_of_expressions>
     Erf_ :: HContinuous a => ast a -> AST ast a
     -- TODO: make Pi_ and Infinity_ HContinuous-polymorphic so that we can avoid the explicit coercion? Probably more mess than benefit.
-    
-    
-    -- The rest of the old Base class
-    -- N.B., we only give the safe/exact versions here. The old more lenient versions now require explicit coercions. Some of those coercions are safe, but others are not. This way we're explicit about where things can fail.
-    
-    -- N.B., we also have @NatPow_ :: 'HReal -> 'HNat -> 'HReal@, but non-integer real powers of negative reals are not real numbers!
-    -- TODO: may need @SafeFrom_@ in order to branch on the input in order to provide the old unsafe behavior.
-    RealPow_ :: ast 'HProb -> ast 'HReal -> AST ast 'HProb
-    -- ComplexPow_ :: 'HProb -> 'HComplex -> 'HComplex
-    -- is uniquely well-defined. Though we may want to implement it via @r**z = ComplexExp_ (z * RealLog_ r)@
-    -- Defining @HReal -> HComplex -> HComplex@ requires either multivalued functions, or a choice of complex logarithm and making it discontinuous.
-    
-    Exp_              :: ast 'HReal -> AST ast 'HProb
-    Log_              :: ast 'HProb -> AST ast 'HReal
-    Infinity_         :: AST ast 'HProb
-    NegativeInfinity_ :: AST ast 'HReal
-    Pi_               :: AST ast 'HProb
-    TrigOp_           :: TrigOp -> ast 'HReal -> AST ast 'HReal
-    -- TODO: capture more domain information in the TrigOp_ types?
-    GammaFunc_        :: ast 'HReal -> AST ast 'HProb
-    BetaFunc_         :: ast 'HProb -> ast 'HProb -> AST ast 'HProb
     
     
     -- Array stuff
@@ -422,50 +436,36 @@ instance (HRing a, HFractional a) => Fractional (AST a) where
 
 {-
 -- Can't do this, because no @HRing 'HProb@ instance
+-- Also because the trigonometry functions wouldn't be well-typed/safe
 -- Further evidence of being a bad abstraction...
 instance Floating (AST 'HProb) where
-    pi     = Pi_
-    exp    = Exp_ . CoerceTo_ signed
-    log    = UnsafeFrom_ signed . Log_ -- error for inputs in [0,1)
+    pi     = PrimOp_ Pi
+    exp    = App (PrimOp_ Exp) . CoerceTo_ signed
+    log    = UnsafeFrom_ signed . App (PrimOp_ Log) -- error for inputs in [0,1)
     sqrt x = NatRoot_ x 2
     x ** y = RealPow_ x (CoerceTo_ signed y)
     logBase b x = log x / log b -- undefined when b == 1
-    {-
-    -- Most of these won't work...
-    sin   :: AST 'HProb -> AST 'HProb
-    cos   :: AST 'HProb -> AST 'HProb
-    tan   :: AST 'HProb -> AST 'HProb
-    asin  :: AST 'HProb -> AST 'HProb
-    acos  :: AST 'HProb -> AST 'HProb
-    atan  :: AST 'HProb -> AST 'HProb
-    sinh  :: AST 'HProb -> AST 'HProb
-    cosh  :: AST 'HProb -> AST 'HProb
-    tanh  :: AST 'HProb -> AST 'HProb
-    asinh :: AST 'HProb -> AST 'HProb
-    acosh :: AST 'HProb -> AST 'HProb
-    atanh :: AST 'HProb -> AST 'HProb
-    -}
 -}
 
 instance Floating (AST 'HReal) where
-    pi     = CoerceTo_ signed Pi_
-    exp    = CoerceTo_ signed . Exp_
-    log    = Log_ . UnsafeFrom_ signed -- error for inputs in [negInfty,0)
+    pi     = CoerceTo_ signed $ PrimOp_ Pi
+    exp    = CoerceTo_ signed . App (PrimOp_ Exp)
+    log    = App (PrimOp_ Log) . UnsafeFrom_ signed -- error for inputs in [negInfty,0)
     sqrt x = NatRoot_ x 2
-    (**)   = RealPow_
+    (**)   = app2 $ PrimOp_ RealPow
     logBase b x = log x / log b -- undefined when b == 1
-    sin    = TrigOp_ Sin
-    cos    = TrigOp_ Cos
-    tan    = TrigOp_ Tan
-    asin   = TrigOp_ Asin
-    acos   = TrigOp_ Acos
-    atan   = TrigOp_ Atan
-    sinh   = TrigOp_ Sinh
-    cosh   = TrigOp_ Cosh
-    tanh   = TrigOp_ Tanh
-    asinh  = TrigOp_ Asinh
-    acosh  = TrigOp_ Acosh
-    atanh  = TrigOp_ Atanh
+    sin    = App $ PrimOp_ Sin
+    cos    = App $ PrimOp_ Cos
+    tan    = App $ PrimOp_ Tan
+    asin   = App $ PrimOp_ Asin
+    acos   = App $ PrimOp_ Acos
+    atan   = App $ PrimOp_ Atan
+    sinh   = App $ PrimOp_ Sinh
+    cosh   = App $ PrimOp_ Cosh
+    tanh   = App $ PrimOp_ Tanh
+    asinh  = App $ PrimOp_ Asinh
+    acosh  = App $ PrimOp_ Acosh
+    atanh  = App $ PrimOp_ Atanh
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -499,27 +499,37 @@ instance
     ) => Base AST where
     unit       = Unit_
     pair       = Pair_
-    unpair     = Unpair_
+    unpair e f = do
+        x <- freshVar
+        y <- freshVar
+        return $ Case_ (syn e)
+            [(PPair PVar PVar,
+                open x (open y (syn $ f (var x Proxy) (var y Proxy)))]
     inl        = Inl_
     inr        = Inr_
-    uneither   = Uneither_
-    true       = Constant_ (Bool_ True)
-    false      = Constant_ (Bool_ False)
-    if_        = If_
+    uneither e l r = do
+        x <- freshVar
+        return $ Case_ (syn e)
+            [ (PInl PVar, open x (syn $ l (var x Proxy)))
+            , (PInr PVar, open x (syn $ r (var x Proxy)))
+            ]
+    true       = Value_ (Bool_ True)
+    false      = Value_ (Bool_ False)
+    if_ b t f  = Case_ (syn b) [(PTrue, syn t), (PFalse, syn f)]
     unsafeProb = UnsafeFrom_ signed
     fromProb   = CoerceTo_ signed
     fromInt    = CoerceTo_ continuous
-    pi_        = Pi_   -- Monomorphized at 'HProb
-    exp_       = Exp_
+    pi_        = PrimOp_ Pi
+    exp_       = App $ PrimOp_ Exp
     erf        = Erf_  -- Monomorphized at 'HReal
     erf_       = Erf_  -- Monomorphized at 'HProb
-    log_       = Log_
+    log_       = App $ PrimOp_ Log
     sqrt_ x    = NatRoot_ x 2 -- Monomorphized at 'HProb
-    pow_       = RealPow_  -- Monomorphized at 'HProb
-    infinity   = CoerceTo_ signed Infinity_
-    negativeInfinity = NegativeInfinity_
-    gammaFunc = GammaFunc_
-    betaFunc  = BetaFunc_
+    pow_       = app2 $ PrimOp_ RealPow
+    infinity   = CoerceTo_ signed $ PrimOp_ Infinity
+    negativeInfinity = PrimOp_ NegativeInfinity
+    gammaFunc = App  $ PrimOp_ GammaFunc
+    betaFunc  = app2 $ PrimOp_ BetaFunc
     vector    = Array_
     empty     = Empty_
     index     = Index_

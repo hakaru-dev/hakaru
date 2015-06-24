@@ -16,34 +16,54 @@ import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Nat
 
 ----------------------------------------------------------------
+
+app2 :: AST ('HFun a ('HFun b c)) -> AST a -> AST b -> AST c
+app2 f x y = App (App f x) y
+
+primOp1_ :: PrimOp ('HFun a b) -> AST a -> AST b
+primOp1_ = App . PrimOp_
+primOp2_ :: PrimOp ('HFun a ('HFun b c)) -> AST a -> AST b -> AST c
+primOp2_ = app2 . PrimOp_
+
+bool_ :: Bool     -> AST 'HBool
+bool_ = Value_ . Bool_
+nat_  :: Nat      -> AST 'HNat
+nat_  = Value_ . Nat_
+int_  :: Int      -> AST 'HInt
+int_  = Value_ . Int_
+prob_ :: LogFloat -> AST 'HProb
+prob_ = Value_ . Prob_
+real_ :: Double   -> AST 'HReal
+real_ = Value_ . Real_
+
 -- Boolean operators
 true, false :: AST 'HBool
-true  = Constant_ (Bool_ True)
-false = Constant_ (Bool_ False)
+true  = bool_ True
+false = bool_ False
 
 not :: AST 'HBool -> AST 'HBool
-not = Not_
+not = primOp1_ Not
 
 (&&)     :: AST 'HBool -> AST 'HBool -> AST 'HBool
-(&&)     = BoolOp_ And
+(&&)     = primOp2_ And
 (||)     :: AST 'HBool -> AST 'HBool -> AST 'HBool
-(||)     = BoolOp_ Or
--- (/=)  :: AST 'HBool -> AST 'HBool -> AST 'HBool
--- (/=)  = BoolOp_ Xor
--- (==)  :: AST 'HBool -> AST 'HBool -> AST 'HBool
--- (==)  = BoolOp_ Iff
+(||)     = primOp2_ Or
+-- (</=>) :: AST 'HBool -> AST 'HBool -> AST 'HBool
+-- (</=>) = primOp2_ Xor
+-- (<==>) :: AST 'HBool -> AST 'HBool -> AST 'HBool
+-- (<==>) = primOp2_ Iff
 -- (==>) :: AST 'HBool -> AST 'HBool -> AST 'HBool
--- (==>) = BoolOp_ Impl
+-- (==>) = primOp2_ Impl
 -- (<==) :: AST 'HBool -> AST 'HBool -> AST 'HBool
 -- (<==) = flip (==>)
 -- (\\) :: AST 'HBool -> AST 'HBool -> AST 'HBool
--- (\\) = BoolOp_ Diff
+-- (\\) = primOp2_ Diff
 -- (//) :: AST 'HBool -> AST 'HBool -> AST 'HBool
 -- (//) = flip (\\)
 -- nand :: AST 'HBool -> AST 'HBool -> AST 'HBool
--- nand = BoolOp_ Nand
+-- nand = primOp2_ Nand
 -- nor :: AST 'HBool -> AST 'HBool -> AST 'HBool
--- nor = BoolOp_ Nor
+-- nor = primOp2_ Nor
 
 
 -- HOrder operators
@@ -64,16 +84,16 @@ x <= y = (x < y) || (x == y)
 
 -- HSemiring operators
 (+) :: HSemiring a => AST a -> AST a -> AST a
-Sum_ xs  + Sum_ ys  = Sum_ (xs ++ ys)
-Sum_ xs  + y        = Sum_ (xs ++ [y])
-x        + Sum_ ys  = Sum_ (x : ys)
-x        + y        = Sum_ [x,y]
+Sum_ xs  + Sum_ ys  = Sum_ (xs Seq.>< ys)
+Sum_ xs  + y        = Sum_ (xs Seq.|> y)
+x        + Sum_ ys  = Sum_ (x  Seq.<| ys)
+x        + y        = Sum_ (x  Seq.<| Seq.singleton y)
     
 (*) :: HSemiring a => AST a -> AST a -> AST a
-Prod_ xs * Prod_ ys = Prod_ (xs ++ ys)
-Prod_ xs * y        = Prod_ (xs ++ [y])
-x        * Prod_ ys = Prod_ (x : ys)
-x        * y        = Prod_ [x,y]
+Prod_ xs * Prod_ ys = Prod_ (xs Seq.>< ys)
+Prod_ xs * y        = Prod_ (xs Seq.|> y)
+x        * Prod_ ys = Prod_ (x  Seq.<| ys)
+x        * y        = Prod_ (x  Seq.<| Seq.singleton y)
 
 -- TODO: simplify
 (^) :: (HSemiring a) => AST a -> AST 'HNat -> AST a
@@ -82,10 +102,10 @@ x        * y        = Prod_ [x,y]
 
 -- HRing operators
 (-) :: (HRing a) => AST a -> AST a -> AST a
-Sum_ xs  - Sum_ ys  = Sum_ (xs ++ map negate ys)
-Sum_ xs  - y        = Sum_ (xs ++ [negate y])
-x        - Sum_ ys  = Sum_ (x : map negate ys)
-x        - y        = Sum_ [x, negate y]
+Sum_ xs  - Sum_ ys  = Sum_ (xs Seq.>< map negate ys)
+Sum_ xs  - y        = Sum_ (xs Seq.|> negate y)
+x        - Sum_ ys  = Sum_ (x  Seq.<| map negate ys)
+x        - y        = Sum_ (x  Seq.<| Seq.singleton (negate y))
     
 negate :: (HRing a) => AST a -> AST a
 negate (Negate_ x)  = x
@@ -105,10 +125,10 @@ signum = Signum_
 
 -- HFractional operators
 (/) :: HFractional a => AST a -> AST a -> AST a
-Prod_ xs / Prod_ ys = Prod_ (xs ++ map recip ys)
-Prod_ xs / y        = Prod_ (xs ++ [recip y])
-x        / Prod_ ys = Prod_ (x : map recip ys)
-x        / y        = Prod_ [x, recip y]
+Prod_ xs / Prod_ ys = Prod_ (xs Seq.>< map recip ys)
+Prod_ xs / y        = Prod_ (xs Seq.|> recip y)
+x        / Prod_ ys = Prod_ (x  Seq.<| map recip ys)
+x        / y        = Prod_ (x  Seq.<| Seq.singleton (recip y))
 
 recip :: (HFractional a) => AST a -> AST a
 recip (Recip_ x) = x
@@ -117,14 +137,15 @@ recip x          = Recip_ x
 -- TODO: simplify
 (^^) :: (HFractional a) => AST a -> AST 'HInt -> AST a
 x ^^ y =
-    If_ (y < Constant_ (Int_ 0))
+    if_ (y < int_ 0)
         (recip x ^ abs_ y)
         (x ^ abs_ y)
 
+if_ b t f = Case_ (syn b) [(PTrue, syn t), (PFalse, syn f)]
 
 -- HRadical operators
 sqrt :: (HRadical a) => AST a -> AST a
-sqrt x = NatRoot_ x (Constant_ (Nat_ 2))
+sqrt x = NatRoot_ x (nat_ 2)
 
 {-
 -- TODO: simplify
@@ -145,47 +166,51 @@ class RealProb (a :: Hakaru *) where
     infinity :: AST a
 
 instance RealProb 'HReal where
-    (**)     = RealPow_
-    exp      = Exp_
-    log      = Log_
+    (**)     = primOp2_ RealPow
+    exp      = primOp1_ Exp
+    log      = primOp1_ Log
     erf      = Erf_ -- monomorphic at 'HReal
-    pi       = CoerceTo_ signed Pi_
-    infinity = CoerceTo_ signed Infinity_
+    pi       = CoerceTo_ signed $ PrimOp_ Pi
+    infinity = CoerceTo_ signed $ PrimOp_ Infinity
     
 instance RealProb 'HProb where
-    x ** y   = RealPow_ x (CoerceTo_ signed y)
-    exp x    = Exp_ (CoerceTo_ signed x)
-    log x    = UnsafeFrom_ signed (Log_ x) -- error for inputs in [0,1)
+    x ** y   = primOp2_ RealPow x (CoerceTo_ signed y)
+    exp      = primOp1_ Exp . CoerceTo_ signed
+    log      = UnsafeFrom_ signed . primOp1_ Log -- error for inputs in [0,1)
     erf      = Erf_ -- monomorphic at 'HProb
-    pi       = Pi_
-    infinity = Infinity_
+    pi       = PrimOp_ Pi
+    infinity = PrimOp_ Infinity
 
 logBase :: RealProb a => AST a -> AST a -> AST a
 logBase b x = log x / log b -- undefined when b == 1
 
 sin, cos, tan, asin, acos, atan, sinh, cosh, tanh, asinh, acosh, atanh
     :: AST 'HReal -> AST 'HReal
-sin    = TrigOp_ Sin
-cos    = TrigOp_ Cos
-tan    = TrigOp_ Tan
-asin   = TrigOp_ Asin
-acos   = TrigOp_ Acos
-atan   = TrigOp_ Atan
-sinh   = TrigOp_ Sinh
-cosh   = TrigOp_ Cosh
-tanh   = TrigOp_ Tanh
-asinh  = TrigOp_ Asinh
-acosh  = TrigOp_ Acosh
-atanh  = TrigOp_ Atanh
+sin    = primOp1_ Sin
+cos    = primOp1_ Cos
+tan    = primOp1_ Tan
+asin   = primOp1_ Asin
+acos   = primOp1_ Acos
+atan   = primOp1_ Atan
+sinh   = primOp1_ Sinh
+cosh   = primOp1_ Cosh
+tanh   = primOp1_ Tanh
+asinh  = primOp1_ Asinh
+acosh  = primOp1_ Acosh
+atanh  = primOp1_ Atanh
 
-
-dirac       = Measure_ Dirac
+-- instance Mochastic AST where
+dirac       = Measure_ . Dirac
+bind        = Bind_
 lebesgue    = Measure_ Lebesgue
 counting    = Measure_ Counting
-superpose   = Measure_ Superpose
+superpose   = Measure_ . Superpose
 categorical = Measure_ Categorical
-uniform     = Measure_ Uniform
-normal      = Measure_ Normal
-poisson     = Measure_ Poisson
-gamma       = Measure_ Gamma
-beta        = Measure_ Beta
+uniform     = (Measure_ .) . Uniform
+normal      = (Measure_ .) . Normal
+poisson     = Measure_ . Poisson
+gamma       = (Measure_ .) . Gamma
+beta        = (Measure_ .) . Beta
+dp          = Dp_
+plate       = Plate_
+chain       = Chain_
