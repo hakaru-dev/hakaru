@@ -25,6 +25,19 @@ primOp1_ = App . PrimOp_
 primOp2_ :: PrimOp ('HFun a ('HFun b c)) -> AST a -> AST b -> AST c
 primOp2_ = app2 . PrimOp_
 
+naryOp_ :: NaryOp a -> AST a -> AST a -> AST a
+naryOp_ o x y =
+    case (match o x, match o y) of
+    (Just xs, Just ys) -> NaryOp_ o (xs Seq.>< ys)
+    (Just xs, Nothing) -> NaryOp_ o (xs Seq.|> y)
+    (Nothing, Just ys) -> NaryOp_ o (x  Seq.<| ys)
+    (Nothing, Nothing) -> NaryOp_ o (x  Seq.<| Seq.singleton y)
+    where
+    match :: NaryOp a -> AST a -> Maybe (Seq (AST a))
+    match o (NaryOp_ o' xs) | o == o' = Just xs
+    match _ _                         = Nothing
+
+
 bool_ :: Bool     -> AST 'HBool
 bool_ = Value_ . Bool_
 nat_  :: Nat      -> AST 'HNat
@@ -45,9 +58,9 @@ not :: AST 'HBool -> AST 'HBool
 not = primOp1_ Not
 
 (&&)     :: AST 'HBool -> AST 'HBool -> AST 'HBool
-(&&)     = primOp2_ And
+(&&)     = naryOp_ And
 (||)     :: AST 'HBool -> AST 'HBool -> AST 'HBool
-(||)     = primOp2_ Or
+(||)     = naryOp_ Or
 -- (</=>) :: AST 'HBool -> AST 'HBool -> AST 'HBool
 -- (</=>) = primOp2_ Xor
 -- (<==>) :: AST 'HBool -> AST 'HBool -> AST 'HBool
@@ -66,94 +79,94 @@ not = primOp1_ Not
 -- nor = primOp2_ Nor
 
 
--- HOrder operators
-(==)   :: HOrder a => AST a -> AST a -> AST 'HBool
-(==)   = Equal_
-(/=)   :: HOrder a => AST a -> AST a -> AST 'HBool
-x /= y = not (x == y)
+-- HEq & HOrder operators
+(==) :: HOrder a => AST a -> AST a -> AST 'HBool
+(==) = primOp2_ Equal
+(/=) :: HOrder a => AST a -> AST a -> AST 'HBool
+(/=) = (not .) . (==)
 
 (<)    :: HOrder a => AST a -> AST a -> AST 'HBool
-(<)    = Less_
+(<)    = primOp2_ Less
 (<=)   :: HOrder a => AST a -> AST a -> AST 'HBool
 x <= y = (x < y) || (x == y)
 (>)    :: HOrder a => AST a -> AST a -> AST 'HBool
-(>)    = flip Less_
+(>)    = flip (<)
 (>=)   :: HOrder a => AST a -> AST a -> AST 'HBool
 (>=)   = flip (<=)
+
+min :: HOrder a => AST a -> AST a -> AST a
+min = naryOp_ Min
+max :: HOrder a => AST a -> AST a -> AST a
+max = naryOp_ Max
 
 
 -- HSemiring operators
 (+) :: HSemiring a => AST a -> AST a -> AST a
-Sum_ xs  + Sum_ ys  = Sum_ (xs Seq.>< ys)
-Sum_ xs  + y        = Sum_ (xs Seq.|> y)
-x        + Sum_ ys  = Sum_ (x  Seq.<| ys)
-x        + y        = Sum_ (x  Seq.<| Seq.singleton y)
-    
+(+) = naryOp_ Sum
 (*) :: HSemiring a => AST a -> AST a -> AST a
-Prod_ xs * Prod_ ys = Prod_ (xs Seq.>< ys)
-Prod_ xs * y        = Prod_ (xs Seq.|> y)
-x        * Prod_ ys = Prod_ (x  Seq.<| ys)
-x        * y        = Prod_ (x  Seq.<| Seq.singleton y)
+(*) = naryOp_ Prod
 
--- TODO: simplify
+-- TODO: simplifications
 (^) :: (HSemiring a) => AST a -> AST 'HNat -> AST a
-(^) = NatPow_
+(^) = primOp2_ (NatPow {- at type @a@ -})
 
 
 -- HRing operators
 (-) :: (HRing a) => AST a -> AST a -> AST a
-Sum_ xs  - Sum_ ys  = Sum_ (xs Seq.>< map negate ys)
-Sum_ xs  - y        = Sum_ (xs Seq.|> negate y)
-x        - Sum_ ys  = Sum_ (x  Seq.<| map negate ys)
-x        - y        = Sum_ (x  Seq.<| Seq.singleton (negate y))
-    
+x - y = naryOp_ Sum x (negate y)
+
 negate :: (HRing a) => AST a -> AST a
-negate (Negate_ x)  = x
-negate x            = Negate_ x
+negate (NaryOp_ Sum xs)         = NaryOp_ Sum (fmap negate xs)
+negate (App (PrimOp_ Negate) x) = x
+negate x                        = App (PrimOp_ Negate) x
 
 abs :: (HRing a) => AST a -> AST a
 abs = CoerceTo_ signed . abs_
 
 abs_ :: (HRing a) => AST a -> AST (NonNegative a)
 abs_ (CoerceTo_ (ConsCoercion Signed IdCoercion) x) = x
-abs_ x = Abs_ x
-    
+abs_ x = primOp1_ Abs x
+
 -- TODO: any obvious simplifications? idempotent?
 signum :: (HRing a) => AST a -> AST a
-signum = Signum_
+signum = primOp1_ Signum
 
 
 -- HFractional operators
 (/) :: HFractional a => AST a -> AST a -> AST a
-Prod_ xs / Prod_ ys = Prod_ (xs Seq.>< map recip ys)
-Prod_ xs / y        = Prod_ (xs Seq.|> recip y)
-x        / Prod_ ys = Prod_ (x  Seq.<| map recip ys)
-x        / y        = Prod_ (x  Seq.<| Seq.singleton (recip y))
+x / y = naryOp_ Prod x (recip y)
 
 recip :: (HFractional a) => AST a -> AST a
-recip (Recip_ x) = x
-recip x          = Recip_ x
+recip (NaryOp_ Prod xs)       = NaryOp_ Prod (fmap recip xs)
+recip (App (PrimOp_ Recip) x) = x
+recip x                       = App (PrimOp_ Recip) x
 
--- TODO: simplify
+-- TODO: simplifications
 (^^) :: (HFractional a) => AST a -> AST 'HInt -> AST a
 x ^^ y =
     if_ (y < int_ 0)
         (recip x ^ abs_ y)
         (x ^ abs_ y)
 
+if_ :: AST 'HBool -> AST a -> AST a -> AST a
 if_ b t f = Case_ (syn b) [(PTrue, syn t), (PFalse, syn f)]
 
+
 -- HRadical operators
+-- TODO: simplifications
+thRootOf :: (HRadical a) => AST 'HNat -> AST a -> AST a
+n `thRootOf` x = primOp2_ NatRoot x n
+
 sqrt :: (HRadical a) => AST a -> AST a
-sqrt x = NatRoot_ x (nat_ 2)
+sqrt = (nat_ 2 `thRootOf`)
 
 {-
 -- TODO: simplify
 (^+) :: (HRadical a) => AST a -> AST 'HPositiveRational -> AST a
-x ^+ y = casePositiveRational y $ \n d -> NatRoot_ (x ^ n) d
+x ^+ y = casePositiveRational y $ \n d -> d `thRootOf` (x ^ n)
 
 (^*) :: (HRadical a) => AST a -> AST 'HRational -> AST a
-x ^* y = caseRational y $ \n d -> NatRoot_ (x ^^ n) d
+x ^* y = caseRational y $ \n d -> d `thRootOf` (x ^^ n)
 -}
 
 
@@ -169,15 +182,15 @@ instance RealProb 'HReal where
     (**)     = primOp2_ RealPow
     exp      = primOp1_ Exp
     log      = primOp1_ Log
-    erf      = Erf_ -- monomorphic at 'HReal
+    erf      = primOp1_ (Erf {- 'HReal -})
     pi       = CoerceTo_ signed $ PrimOp_ Pi
     infinity = CoerceTo_ signed $ PrimOp_ Infinity
-    
+
 instance RealProb 'HProb where
     x ** y   = primOp2_ RealPow x (CoerceTo_ signed y)
     exp      = primOp1_ Exp . CoerceTo_ signed
     log      = UnsafeFrom_ signed . primOp1_ Log -- error for inputs in [0,1)
-    erf      = Erf_ -- monomorphic at 'HProb
+    erf      = primOp1_ (Erf {- 'HProb -})
     pi       = PrimOp_ Pi
     infinity = PrimOp_ Infinity
 
@@ -200,17 +213,30 @@ acosh  = primOp1_ Acosh
 atanh  = primOp1_ Atanh
 
 -- instance Mochastic AST where
-dirac       = Measure_ . Dirac
+dirac       = primOp1_ Dirac
 bind        = Bind_
-lebesgue    = Measure_ Lebesgue
-counting    = Measure_ Counting
-superpose   = Measure_ . Superpose
-categorical = Measure_ Categorical
-uniform     = (Measure_ .) . Uniform
-normal      = (Measure_ .) . Normal
-poisson     = Measure_ . Poisson
-gamma       = (Measure_ .) . Gamma
-beta        = (Measure_ .) . Beta
+lebesgue    = PrimOp_  Lebesgue
+counting    = PrimOp_  Counting
+superpose   = Superpose_
+categorical = PrimOp_  Categorical
+uniform     = primOp2_ Uniform
+normal      = primOp2_ Normal
+poisson     = primOp1_ Poisson
+gamma       = primOp2_ Gamma
+beta        = primOp2_ Beta
 dp          = Dp_
 plate       = Plate_
 chain       = Chain_
+
+-- instance Integrate AST where
+integrate = Integrate_
+summate   = Summate_
+
+-- instance Lambda AST where
+app      = App_
+lam f    = let x = ... in Lam_ Proxy   (open x (f (Var x Proxy)))
+let_ e f = let x = ... in Let_ (syn e) (open x (f (Var x Proxy)))
+
+-- instance Lub AST where
+lub = Lub_
+bot = Bot_

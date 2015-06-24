@@ -1,9 +1,8 @@
 {-# LANGUAGE DataKinds
-          , KindSignatures
-          , PolyKinds
-          , StandaloneDeriving
-          , DeriveDataTypeable
-          #-}
+           , PolyKinds
+           , StandaloneDeriving
+           , DeriveDataTypeable
+           #-}
 
 -- Don't -Werror, because we can't tick the promoted (:$) in the deriving instance
 {-# OPTIONS -Wall -fwarn-tabs #-}
@@ -25,27 +24,27 @@ data Hakaru star
     | HMeasure (Hakaru star)
     | HArray (Hakaru star)
     | HFun (Hakaru star) (Hakaru star)
-    
+
     -- TODO: replace HUnit, HPair, HEither with the Embed stuff
     | HBool
     | HUnit
     | HPair (Hakaru star) (Hakaru star)
     | HEither (Hakaru star) (Hakaru star)
-    
+
     -- The lists-of-lists are sum-of-products functors. The application
     -- form allows us to unroll fixpoints: @HMu sop ~= sop :$ HMu sop@.
     | HMu [[HakaruFun star]]
     | [[HakaruFun star]] :$ Hakaru star
     | HTag star [[HakaruFun star]]
-    
+
     -- Used in "Language.Hakaru.Expect"
     -- TODO: replace HList with the Embed stuff
     | HList (Hakaru star)
-    
+
     -- Used in "Language.Hakaru.Sample"
     -- TODO: replace HMaybe with the Embed stuff
     | HMaybe (Hakaru star)
-    
+
     deriving (Eq, Read, Show)
 
 
@@ -59,12 +58,17 @@ data Hakaru star
 -- Products and sums are represented as lists, so they aren't
 -- in this datatype.
 data HakaruFun star = Id | K (Hakaru star)
+    deriving (Eq, Read, Show)
 
 
--- N.B., The @Proxy@ type from "Data.Proxy" is polykinded, so it works for @Hakaru*@ too. However, it is _not_ Typeable!
+-- N.B., The @Proxy@ type from "Data.Proxy" is polykinded, so it
+-- works for @Hakaru*@ too. However, it is _not_ Typeable!
 
 
--- TODO: these instances are only used in 'Language.Hakaru.Simplify.closeLoop'; it would be cleaner to remove these instances and reimplement that function to work without them.
+-- TODO: these instances are only used in
+-- 'Language.Hakaru.Simplify.closeLoop'; it would be cleaner to
+-- remove these instances and reimplement that function to work
+-- without them.
 deriving instance Typeable 'HNat
 deriving instance Typeable 'HInt
 deriving instance Typeable 'HReal

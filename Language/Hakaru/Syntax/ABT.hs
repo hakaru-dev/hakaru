@@ -13,19 +13,21 @@ class HakaruFunctor (f :: (Hakaru * -> *) -> Hakaru * -> *) where
     hmap :: (forall b. g b -> g' b) -> f g a -> f g' a 
 
 
-newtype HakaruMonoid (m :: *) (a :: Hakaru *) = HM { unHM :: m }
+newtype HakaruMonoid (m :: *) (a :: Hakaru *) =
+    HakaruMonoid { unHakaruMonoid :: m }
 instance Monoid m => Monoid (HakaruMonoid m a) where
-    mempty = HM mempty
-    mappend (HM m) (HM n) = HM (mappend m n)
-    mconcat ms = HM (mconcat $ map unHM ms)
+    mempty = HakaruMonoid mempty
+    mappend (HakaruMonoid m) (HakaruMonoid n) = HakaruMonoid (mappend m n)
+    mconcat ms = HakaruMonoid (mconcat $ map unHakaruMonoid ms)
 
 class HakaruFunctor f
     => HakaruFoldable (f :: (Hakaru * -> *) -> Hakaru * -> *)
     where
     hfold :: (Monoid m) => f (HakaruMonoid m) a -> m
+    hfold = hfoldMap unHakaruMonoid
     
     hfoldMap :: (Monoid m) => (forall b. g b -> m) -> f g a -> m
-    hfoldMap f = hfold . hmap (HM . f)
+    hfoldMap f = hfold . hmap (HakaruMonoid . f)
 
 instance HakaruFunctor AST where
     hmap = error "TODO"
@@ -34,14 +36,15 @@ instance HakaruFoldable AST where
     hfold = error "TODO"
 
 ----------------------------------------------------------------
--- TODO: have @Variable a@ instead, with @SomeVariable@ to backage up the existential? This would allow us to preserve type safety in 'subst'
+-- TODO: have @Variable a@ instead, with @SomeVariable@ to package up the existential? This would allow us to preserve type safety in 'subst'
 
 -- <http://semantic-domain.blogspot.co.uk/2015/03/abstract-binding-trees.html>
 -- <http://semantic-domain.blogspot.co.uk/2015/03/abstract-binding-trees-addendum.html>
 -- <https://gist.github.com/neel-krishnaswami/834b892327271e348f79>
 -- TODO: abstract over 'AST' like neelk does for @signature@?
--- TODO: remove the proxy type for 'Var', and just infer it?
--- | Abstract binding trees, to separate out variables/binders from the rest of the syntax.
+-- TODO: remove the proxy type for 'Var', and infer it instead?
+-- | Abstract binding trees, to separate out variables and binders
+-- from the rest of syntax.
 data View :: (Hakaru * -> *) -> Hakaru * -> * where
     Var  :: !Variable -> !(Proxy a) -> View abt a
     Open :: !Variable -> abt a -> View abt a
@@ -71,7 +74,12 @@ data ABTException = UnOpenException
 
 instance Exception ABTException
 
--- We could render this function safe by further indexing @abt@ with a tag to say whether it's Open or Var/Syn. But that may be overkill, especially once we start handling more complicated binders. This only throws an error if the ABT the parser generates is malformed, we can trust/check the parser rather than complicating the types further.
+-- We could render this function safe by further indexing @abt@
+-- with a tag to say whether it's Open or Var/Syn. But that may be
+-- overkill, especially once we start handling more complicated
+-- binders. This only throws an error if the ABT the parser generates
+-- is malformed, we can trust/check the parser rather than complicating
+-- the types further.
 unOpen :: ABT abt => abt a -> (Variable, abt a)
 unOpen e =
     case fromABT e of
@@ -87,10 +95,10 @@ instance ABT TrivialABT where
     var x p  = TrivialABT (Var x p)
     open x e = TrivialABT (Open x e)
     syn e    = TrivialABT (Syn e)
-    
+
     fromABT (TrivialABT e) = e
 
-    
+
 ----------------------------------------------------------------
 -- TODO: replace @Set Variable@ with @Map Variable (Hakaru Star)@; though that belongs more in the type-checking than in this FreeVarsABT itself...
 -- TODO: generalize this pattern for any monoidal annotation?
@@ -103,7 +111,7 @@ instance ABT FreeVarsABT where
     var x p  = FreeVarsABT (Set.singleton x) (Var x p)
     open x e = FreeVarsABT (Set.delete x $ freeVars e) (Open x e)
     syn e    = FreeVarsABT (hfoldMap freeVars e) (Syn e)
-    
+
     fromABT (FreeVarsABT _ e) = e
 
 
@@ -134,14 +142,14 @@ rename x y = go
 subst :: Variable -> ABT a -> ABT b -> ABT b
 subst x e = go
     where
-    go body = 
+    go body =
         case fromABT body of
         Var z p
             | x == z    -> e -- TODO: could preserve type-safety if we check that @typeOf e == typeOf p@. Of course, if that fails, then we'd have to return @Nothing@, which will make the recursive calls trickier...
             | otherwise -> body
         Open z body'
             | x == z    -> body
-            | otherwise -> 
+            | otherwise ->
                 let z' = freshen z (freeVars e `mappend` freeVars body)
                 in  open z' (go (rename z z' body'))
         Syn body' -> syn (hmap go body')
