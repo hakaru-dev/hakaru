@@ -54,6 +54,8 @@ instance HakaruFoldable AST where
 newtype Variable = Variable String
     deriving (Eq, Ord, Read, Show)
 
+
+-- TODO: go back to the name \"Abs\"(traction), and figure out some other name for the \"Abs\"(olute value) PrimOp to avoid conflict. Or maybe call it \"Bind\"(er) and then come up with some other name for the HMeasure monadic bind operator?
 -- <http://semantic-domain.blogspot.co.uk/2015/03/abstract-binding-trees.html>
 -- <http://semantic-domain.blogspot.co.uk/2015/03/abstract-binding-trees-addendum.html>
 -- <https://gist.github.com/neel-krishnaswami/834b892327271e348f79>

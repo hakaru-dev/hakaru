@@ -247,6 +247,7 @@ data Value :: Hakaru * -> * where
     Inr_     :: !(Value b) -> Value ('HEither a b)
     -}
 
+
 ----------------------------------------------------------------
 -- TODO: helper functions for splitting NaryOp_ into components to group up like things.
 
@@ -284,6 +285,7 @@ deriving instance Eq   (NaryOp a)
 deriving instance Show (NaryOp a)
 
 
+----------------------------------------------------------------
 -- | Simple primitive functions, constants, and measures.
 data PrimOp :: Hakaru * -> * where
 
@@ -362,14 +364,6 @@ data PrimOp :: Hakaru * -> * where
     BetaFunc  :: PrimOp ('HFun 'HProb ('HFun 'HProb 'HProb))
 
 
-    {-
-    -- -- Data constructors (including polymorphic ones)
-    -- TODO: do these really belong here, or in AST?
-    Unit :: PrimOp 'HUnit
-    Pair :: PrimOp ('HFun a ('HFun b ('HPair a b))
-    Inl  :: PrimOp ('HFun a ('HEither a b))
-    Inr  :: PrimOp ('HFun b ('HEither a b))
-    -}
 
     -- -- Primitive distributions/measures a~la Mochastic (including the polymorphic 'Dirac')
     -- TODO: should we put Dirac back into the main AST?
@@ -388,6 +382,25 @@ data PrimOp :: Hakaru * -> * where
 
     -- -- -- Here we have the /polymorphic/ operators
     -- TODO: \"monomorphize\" these by passing explicit dictionary proxies
+
+    -- TODO: do these really belong here (as PrimOps), or in AST?
+    -- -- Data constructors (including the monomorphic 'Unit')
+    Unit :: PrimOp 'HUnit
+    Pair :: PrimOp ('HFun a ('HFun b ('HPair a b)))
+    Inl  :: PrimOp ('HFun a ('HEither a b))
+    Inr  :: PrimOp ('HFun b ('HEither a b))
+
+    -- -- Array stuff
+    Empty  :: PrimOp ('HArray a)
+    Index  :: PrimOp ('HFun ('HArray a) ('HFun 'HNat a))
+    Size   :: PrimOp ('HFun ('HArray a) 'HNat)
+    -- TODO: is that the right type for the first argument? or was it a binder of some sort?
+    Reduce :: PrimOp
+        ('HFun ('HFun a ('HFun a a))
+        ('HFun a
+        ('HFun ('HArray a)
+        a)))
+
 
     -- -- HOrder operators
     -- TODO: equality doesn't make constructive sense on the reals...
@@ -509,9 +522,22 @@ data AST :: (Hakaru * -> *) -> Hakaru * -> * where
     Let_    :: ast a -> ast {-a-} b -> AST ast b
     -- TODO: a general \"@let*@\" version of let-binding so we can have mutual recursion
 
+
     -- -- Primitive operators
     PrimOp_ :: !(PrimOp a) -> AST ast a
     NaryOp_ :: !(NaryOp a) -> !(Seq (ast a)) -> AST ast a
+
+    -- -- Binding forms for integration (both continuous and discrete)
+    Integrate_
+        :: ast 'HReal
+        -> ast 'HReal
+        -> ast {-'HReal-} 'HProb
+        -> AST ast 'HProb
+    Summate_
+        :: ast 'HReal -- TODO: should that really be 'HReal ?!
+        -> ast 'HReal -- TODO: should that really be 'HReal ?!
+        -> ast {-'HInt-} 'HProb
+        -> AST ast 'HProb
 
 
     -- -- Primitive atomic types: their values and coercions
@@ -520,37 +546,27 @@ data AST :: (Hakaru * -> *) -> Hakaru * -> * where
     UnsafeFrom_ :: !(Coercion a b) -> ast b -> AST ast a
     -- TODO: add @SafeFrom_ :: Coercion a b -> ast b -> AST ast ('HMaybe a)@ or something similar?
 
-    -- -- Primitive data types
+
+    -- -- Primitive data types (which aren't PrimOps)
     -- TODO: add the embed stuff...
     -- TODO: replace 'HList and 'HMaybe by the embed stuff...
     -- TODO: replace 'HUnit, 'HPair, and 'HEither by the embed stuff...
     List_  :: [ast a]       -> AST ast ('HList a)
     Maybe_ :: Maybe (ast a) -> AST ast ('HMaybe a)
-    Unit_  :: AST ast 'HUnit
-    Pair_  :: ast a -> ast b -> AST ast ('HPair a b)
-    Inl_   :: ast a -> AST ast ('HEither a b)
-    Inr_   :: ast b -> AST ast ('HEither a b)
     -- | Generic case-analysis (via ABTs and Structural Focalization).
     Case_
         :: ast a
         -> [{-exists Γ.-} (Pattern a {-Γ-}, ast {-Γ-} b)]
         -> AST ast b
-
-    -- -- Array stuff
-    Array_  :: ast 'HNat -> ast {-'HNat-} a -> AST ast ('HArray a)
-    Empty_  :: AST ast ('HArray a)
-    Index_  :: ast ('HArray a) -> ast 'HNat -> AST ast a
-    Size_   :: ast ('HArray a) -> AST ast 'HNat
-    -- TODO: is that the right type for the first argument? or was it a binder of some sort?
-    Reduce_ :: ast ('HFun a ('HFun a a)) -> ast a -> ast ('HArray a) -> AST ast a
+    -- TODO: do we really need this to be a binding form, or could it take a Hakaru function (HFun) for the second argument?
+    Array_ :: ast 'HNat -> ast {-'HNat-} a -> AST ast ('HArray a)
 
 
-    -- Mochastic stuff that isn't a PrimOp.
+    -- -- Mochastic stuff (which isn't PrimOps)
     -- TODO: should Dirac move back here?
-    -- TODO: avoid exotic HOAS terms
     Bind_
         :: ast ('HMeasure a)
-        -> (ast a -> ast ('HMeasure b))
+        -> ast {-a-} ('HMeasure b)
         -> AST ast ('HMeasure b)
     Superpose_
         :: [(ast 'HProb, ast ('HMeasure a))]
@@ -565,11 +581,6 @@ data AST :: (Hakaru * -> *) -> Hakaru * -> * where
     Chain_
         :: ast ('HArray ('HFun s ('HMeasure ('HPair a s))))
         -> AST ast ('HFun s ('HMeasure ('HPair ('HArray a) s)))
-
-
-    -- Integrate
-    Integrate_ :: ast 'HReal -> ast 'HReal -> ast {-'HReal-} 'HProb -> AST ast 'HProb
-    Summate_   :: ast 'HReal -> ast 'HReal -> ast {-'HInt-} 'HProb -> AST ast 'HProb
 
 
     -- Lub
@@ -608,16 +619,16 @@ instance
     , Order AST 'HReal, Floating   (AST 'HReal)
     , Order AST 'HProb, Fractional (AST 'HProb)
     ) => Base AST where
-    unit       = Unit_
-    pair       = Pair_
+    unit       = PrimOp_ Unit
+    pair       = primOp2_ Pair
     unpair e f = do
         x <- freshVar
         y <- freshVar
         return $ Case_ (syn e)
             [(PPair PVar PVar,
                 open x (open y (syn $ f (var x Proxy) (var y Proxy)))]
-    inl        = Inl_
-    inr        = Inr_
+    inl        = primOp1_ Inl
+    inr        = primOp1_ Inr
     uneither e l r = do
         x <- freshVar
         return $ Case_ (syn e)
@@ -642,10 +653,10 @@ instance
     gammaFunc = App  $ PrimOp_ GammaFunc
     betaFunc  = app2 $ PrimOp_ BetaFunc
     vector    = Array_
-    empty     = Empty_
-    index     = Index_
-    size      = Size_
-    reduce    = Reduce_
+    empty     = PrimOp_  Empty
+    index     = primOp2_ Index
+    size      = primOp1_ Size
+    reduce    = primOp3_ Reduce
     fix       = Fix_
 
 
