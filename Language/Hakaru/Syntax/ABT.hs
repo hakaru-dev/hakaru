@@ -28,6 +28,7 @@ import           Data.Proxy
 import           Data.Typeable     (Typeable)
 import           Data.Set          (Set)
 import qualified Data.Set          as Set
+import           Control.Arrow     (second, (***))
 import           Control.Exception (Exception, throw)
 
 import Language.Hakaru.Syntax.DataKind
@@ -58,10 +59,52 @@ class HakaruFunctor f
     hfoldMap f = hfold . hmap (HakaruMonoid . f)
 
 instance HakaruFunctor AST where
-    hmap = error "TODO"
+    hmap f (Lam_ p  e)           = Lam_ p (f e)
+    hmap f (App_ e1 e2)          = App_ (f e1) (f e2)
+    hmap f (Let_ e1 e2)          = Let_ (f e1) (f e2)
+    hmap f (Fix_ e)              = Fix_ (f e)
+    hmap f (PrimOp_ o)           = PrimOp_ o
+    hmap f (NaryOp_ o es)        = NaryOp_ o (fmap f es)
+    hmap f (Integrate_ e1 e2 e3) = Integrate_ (f e1) (f e2) (f e3)
+    hmap f (Summate_   e1 e2 e3) = Summate_   (f e1) (f e2) (f e3)
+    hmap f (Value_ v)            = Value_ v
+    hmap f (CoerceTo_   c e)     = CoerceTo_   c (f e)
+    hmap f (UnsafeFrom_ c e)     = UnsafeFrom_ c (f e)
+    hmap f (List_  es)           = List_  (map f es)
+    hmap f (Maybe_ me)           = Maybe_ (fmap f me)
+    hmap f (Case_  e pes)        = Case_ (f e) (map (second f) pes)
+    hmap f (Array_ e1 e2)        = Array_ (f e1) (f e2)
+    hmap f (Bind_  e1 e2)        = Bind_  (f e1) (f e2)
+    hmap f (Superpose_ pes)      = Superpose_ (map (f *** f) pes)
+    hmap f (Dp_    e1 e2)        = Dp_    (f e1) (f e2)
+    hmap f (Plate_ e)            = Plate_ (f e)
+    hmap f (Chain_ e)            = Chain_ (f e)
+    hmap f (Lub_ e1 e2)          = Lub_   (f e1) (f e2)
+    hmap f Bot_                  = Bot_
 
 instance HakaruFoldable AST where
-    hfold = error "TODO"
+    hfoldMap f (Lam_ p  e)           = f e
+    hfoldMap f (App_ e1 e2)          = f e1 `mappend` f e2
+    hfoldMap f (Let_ e1 e2)          = f e1 `mappend` f e2
+    hfoldMap f (Fix_ e)              = f e
+    hfoldMap f (PrimOp_ o)           = mempty
+    hfoldMap f (NaryOp_ o es)        = foldMap f es
+    hfoldMap f (Integrate_ e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
+    hfoldMap f (Summate_   e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
+    hfoldMap f (Value_ v)            = mempty
+    hfoldMap f (CoerceTo_   c e)     = f e
+    hfoldMap f (UnsafeFrom_ c e)     = f e
+    hfoldMap f (List_  es)           = foldMap f es
+    hfoldMap f (Maybe_ me)           = foldMap f me
+    hfoldMap f (Case_  e pes)        = f e  `mappend` foldMap (f . snd) pes
+    hfoldMap f (Array_ e1 e2)        = f e1 `mappend` f e2
+    hfoldMap f (Bind_  e1 e2)        = f e1 `mappend` f e2
+    hfoldMap f (Superpose_ pes)      = foldMap (\(e1,e2) -> f e1 `mappend` f e2) pes
+    hfoldMap f (Dp_    e1 e2)        = f e1 `mappend` f e2
+    hfoldMap f (Plate_ e)            = f e
+    hfoldMap f (Chain_ e)            = f e
+    hfoldMap f (Lub_ e1 e2)          = f e1 `mappend` f e2
+    hfoldMap f Bot_                  = mempty
 
 ----------------------------------------------------------------
 -- TODO: actually define 'Variable' as something legit
