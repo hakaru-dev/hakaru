@@ -516,11 +516,12 @@ deriving instance Show (Pattern a)
 data AST :: (Hakaru * -> *) -> Hakaru * -> * where
 
     -- -- Standard lambda calculus stuff
-    Fix_    :: ast {-a-} a -> AST ast a
+    -- We store a Proxy in Lam_, so we needn't infer @a@ in the result.
     Lam_    :: !(Proxy a) -> ast {-a-} b -> AST ast ('HFun a b)
     App_    :: ast ('HFun a b) -> ast a -> AST ast b
     Let_    :: ast a -> ast {-a-} b -> AST ast b
     -- TODO: a general \"@let*@\" version of let-binding so we can have mutual recursion
+    Fix_    :: ast {-a-} a -> AST ast a
 
 
     -- -- Primitive operators
