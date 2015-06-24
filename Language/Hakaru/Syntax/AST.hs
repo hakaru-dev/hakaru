@@ -7,14 +7,26 @@
            , StandaloneDeriving
            #-}
 
+{-# OPTIONS_GHC -Wall -fwarn-tabs #-}
+----------------------------------------------------------------
+--                                                    2015.06.24
+-- |
+-- Module      :  Language.Hakaru.Syntax.AST
+-- Copyright   :  Copyright (c) 2015 the Hakaru team
+-- License     :  BSD3
+-- Maintainer  :  wren@community.haskell.org
+-- Stability   :  experimental
+-- Portability :  GHC-only
+--
+-- The generating functor for the raw syntax, along with various
+-- helper types.
+----------------------------------------------------------------
 module Language.Hakaru.Syntax.AST where
 
 import Prelude hiding (id, (.), Ord(..), Num(..), Integral(..), Fractional(..), Floating(..), Real(..), RealFrac(..), RealFloat(..), (^), (^^))
-import           Data.Sequence (Seq)
-import qualified Data.Sequence as Seq
-import           Data.Proxy
-
-import Control.Category (Category(..))
+import Data.Sequence        (Seq)
+import Data.Proxy
+import Control.Category     (Category(..))
 import Data.Number.LogFloat (LogFloat)
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Nat
@@ -142,6 +154,8 @@ instance HContinuous 'HReal where type HIntegral 'HReal = 'HInt
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
+-- TODO: (?) coercing HMeasure by coercing the underlying measure space.
+
 -- | Primitive proofs of the inclusions in our numeric hierarchy.
 data PrimCoercion :: Hakaru * -> Hakaru * -> * where
     Signed     :: HRing a       => PrimCoercion (NonNegative a) a

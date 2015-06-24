@@ -1,21 +1,41 @@
--- TODO: <https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging>
 {-# LANGUAGE RankNTypes
            , ScopedTypeVariables
            , GADTs
            , TypeFamilies
            , DataKinds
+           , PolyKinds
            , DeriveDataTypeable
            #-}
 
+{-# OPTIONS_GHC -Wall -fwarn-tabs #-}
+----------------------------------------------------------------
+--                                                    2015.06.24
+-- |
+-- Module      :  Language.Hakaru.Syntax.ABT
+-- Copyright   :  Copyright (c) 2015 the Hakaru team
+-- License     :  BSD3
+-- Maintainer  :  wren@community.haskell.org
+-- Stability   :  experimental
+-- Portability :  GHC-only
+--
+-- The interface for abstract binding trees. Given the generating
+-- functor 'AST': the non-recursive 'View' type extends 'AST' by
+-- adding variables and binding; and each 'ABT' type  (1) provides
+-- some additional annotations at each recursion site, and then (2)
+-- ties the knot to produce the recursive trees.
+----------------------------------------------------------------
 module Language.Hakaru.Syntax.ABT
     (
     -- TODO: move this stuff elsewhere
-      HakaruFunctor(..)
-    , HakaruMonoid(..)
-    , HakaruFoldable(..)
+    -- * Indexed variants of standard classes
+      IFunctor(..)
+    , IMonoid(..)
+    , IFoldable(..)
     
     -- * The abstract binding tree interface
     , Variable(..)
+    -- See note about exposing 'View', 'viewABT', and 'unviewABT'
+    , View(..), unviewABT
     , ABT(..), caseABT, caseOpenABT, caseVarSynABT
     , subst
     , ABTException(..)
@@ -24,7 +44,6 @@ module Language.Hakaru.Syntax.ABT
     , FreeVarsABT()
     ) where
 
-import           Data.Proxy
 import           Data.Typeable     (Typeable)
 import           Data.Set          (Set)
 import qualified Data.Set          as Set
@@ -37,37 +56,40 @@ import Language.Hakaru.Syntax.AST
 
 ----------------------------------------------------------------
 -- TODO: will we want to make this polykinded instead of restricting to the @Hakaru*@ kind?
--- | A functor on the category of @Hakaru*@-indexed types.
-class HakaruFunctor (f :: (Hakaru * -> *) -> Hakaru * -> *) where
+-- | A functor on the category of @k@-indexed types.
+class IFunctor (f :: (k -> *) -> k -> *) where
     hmap :: (forall b. g b -> g' b) -> f g a -> f g' a 
 
 
-newtype HakaruMonoid (m :: *) (a :: Hakaru *) =
-    HakaruMonoid { unHakaruMonoid :: m }
-instance Monoid m => Monoid (HakaruMonoid m a) where
-    mempty = HakaruMonoid mempty
-    mappend (HakaruMonoid m) (HakaruMonoid n) = HakaruMonoid (mappend m n)
-    mconcat ms = HakaruMonoid (mconcat $ map unHakaruMonoid ms)
+-- | A monoid lifted to be (trivially) @k@-indexed.
+newtype IMonoid (m :: *) (a :: k) =
+    IMonoid { unIMonoid :: m }
+instance Monoid m => Monoid (IMonoid m a) where
+    mempty = IMonoid mempty
+    mappend (IMonoid m) (IMonoid n) = IMonoid (mappend m n)
+    mconcat ms = IMonoid (mconcat $ map unIMonoid ms)
 
-class HakaruFunctor f
-    => HakaruFoldable (f :: (Hakaru * -> *) -> Hakaru * -> *)
-    where
-    hfold :: (Monoid m) => f (HakaruMonoid m) a -> m
-    hfold = hfoldMap unHakaruMonoid
+
+-- | A foldable functor on the category of @k@-indexed types.
+class IFunctor f => IFoldable (f :: (k -> *) -> k -> *) where
+    hfold :: (Monoid m) => f (IMonoid m) a -> m
+    hfold = hfoldMap unIMonoid
 
     hfoldMap :: (Monoid m) => (forall b. g b -> m) -> f g a -> m
-    hfoldMap f = hfold . hmap (HakaruMonoid . f)
+    hfoldMap f = hfold . hmap (IMonoid . f)
 
-instance HakaruFunctor AST where
+
+-- TODO: move this instance to "Language.Hakaru.Syntax.AST"
+instance IFunctor AST where
     hmap f (Lam_ p  e)           = Lam_ p (f e)
     hmap f (App_ e1 e2)          = App_ (f e1) (f e2)
     hmap f (Let_ e1 e2)          = Let_ (f e1) (f e2)
     hmap f (Fix_ e)              = Fix_ (f e)
-    hmap f (PrimOp_ o)           = PrimOp_ o
+    hmap _ (PrimOp_ o)           = PrimOp_ o
     hmap f (NaryOp_ o es)        = NaryOp_ o (fmap f es)
     hmap f (Integrate_ e1 e2 e3) = Integrate_ (f e1) (f e2) (f e3)
     hmap f (Summate_   e1 e2 e3) = Summate_   (f e1) (f e2) (f e3)
-    hmap f (Value_ v)            = Value_ v
+    hmap _ (Value_ v)            = Value_ v
     hmap f (CoerceTo_   c e)     = CoerceTo_   c (f e)
     hmap f (UnsafeFrom_ c e)     = UnsafeFrom_ c (f e)
     hmap f (List_  es)           = List_  (map f es)
@@ -80,20 +102,22 @@ instance HakaruFunctor AST where
     hmap f (Plate_ e)            = Plate_ (f e)
     hmap f (Chain_ e)            = Chain_ (f e)
     hmap f (Lub_ e1 e2)          = Lub_   (f e1) (f e2)
-    hmap f Bot_                  = Bot_
+    hmap _ Bot_                  = Bot_
 
-instance HakaruFoldable AST where
-    hfoldMap f (Lam_ p  e)           = f e
+
+-- TODO: move this instance to "Language.Hakaru.Syntax.AST"
+instance IFoldable AST where
+    hfoldMap f (Lam_ _  e)           = f e
     hfoldMap f (App_ e1 e2)          = f e1 `mappend` f e2
     hfoldMap f (Let_ e1 e2)          = f e1 `mappend` f e2
     hfoldMap f (Fix_ e)              = f e
-    hfoldMap f (PrimOp_ o)           = mempty
-    hfoldMap f (NaryOp_ o es)        = foldMap f es
+    hfoldMap _ (PrimOp_ _)           = mempty
+    hfoldMap f (NaryOp_ _ es)        = foldMap f es
     hfoldMap f (Integrate_ e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
     hfoldMap f (Summate_   e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
-    hfoldMap f (Value_ v)            = mempty
-    hfoldMap f (CoerceTo_   c e)     = f e
-    hfoldMap f (UnsafeFrom_ c e)     = f e
+    hfoldMap _ (Value_ _)            = mempty
+    hfoldMap f (CoerceTo_   _ e)     = f e
+    hfoldMap f (UnsafeFrom_ _ e)     = f e
     hfoldMap f (List_  es)           = foldMap f es
     hfoldMap f (Maybe_ me)           = foldMap f me
     hfoldMap f (Case_  e pes)        = f e  `mappend` foldMap (f . snd) pes
@@ -104,7 +128,7 @@ instance HakaruFoldable AST where
     hfoldMap f (Plate_ e)            = f e
     hfoldMap f (Chain_ e)            = f e
     hfoldMap f (Lub_ e1 e2)          = f e1 `mappend` f e2
-    hfoldMap f Bot_                  = mempty
+    hfoldMap _ Bot_                  = mempty
 
 ----------------------------------------------------------------
 -- TODO: actually define 'Variable' as something legit
@@ -138,8 +162,8 @@ data View :: (Hakaru * -> *) -> Hakaru * -> * where
     Syn  :: !(AST abt a) -> View abt a
 
 
-instance HakaruFunctor View where
-    hmap f (Var  x p) = Var  x p
+instance IFunctor View where
+    hmap _ (Var  x p) = Var  x p
     hmap f (Open x e) = Open x (f e)
     hmap f (Syn  t)   = Syn (hmap f t)
 
@@ -149,11 +173,15 @@ class ABT (abt :: Hakaru * -> *) where
     var      :: Variable -> Sing a -> abt a
     open     :: Variable -> abt  a -> abt a
     syn      :: AST abt a          -> abt a
-    -- See note about exposing 'View' and 'viewABT'
+    -- See note about exposing 'View', 'viewABT', and 'unviewABT'
     viewABT  :: abt a -> View abt a
     freeVars :: abt a -> Set Variable
     -- TODO: add a function for checking alpha-equivalence? Other stuff?
 
+
+-- | A variant of 'viewABT' for not accessing the 'View' type
+-- directly. Unlike 'caseOpenABT' and 'caseVarSynABT', this function
+-- safely covers all three constructors.
 caseABT
     :: (ABT abt)
     => abt a
@@ -163,19 +191,21 @@ caseABT
     -> r
 caseABT e v o s =
     case viewABT e of
-    Var  x p -> v x p
-    Open x e -> o x e
-    Syn  t   -> s t
+    Var  x p  -> v x p
+    Open x e' -> o x e'
+    Syn  t    -> s t
 
-toABT :: (ABT abt) => View abt a -> abt a
-toABT (Var  x p) = var  x p
-toABT (Open x e) = open x e
-toABT (Syn  t)   = syn  t
+
+-- See note about exposing 'View', 'viewABT', and 'unviewABT'
+unviewABT :: (ABT abt) => View abt a -> abt a
+unviewABT (Var  x p) = var  x p
+unviewABT (Open x e) = open x e
+unviewABT (Syn  t)   = syn  t
 
 
 data ABTException
-    = UnOpenException
-    | UnVarSynException
+    = ExpectedOpenException
+    | ExpectedVarSynException
     | SubstitutionTypeError
     deriving (Show, Typeable)
 
@@ -187,6 +217,10 @@ instance Exception ABTException
 -- binders. This only throws an error if the ABT the parser generates
 -- is malformed, we can trust/check the parser rather than complicating
 -- the types further.
+--
+-- | Assume the ABT is 'Open' and then project out the components.
+-- If the ABT is not 'Open', then this function will throw an
+-- 'ExpectedOpenException' error.
 caseOpenABT
     :: (ABT abt)
     => abt a
@@ -195,8 +229,11 @@ caseOpenABT
 caseOpenABT e v =
     case viewABT e of
     Open x e' -> v x e'
-    _         -> throw UnOpenException -- TODO: add info about the call-site
+    _         -> throw ExpectedOpenException -- TODO: add info about the call-site
 
+-- | Assume the ABT is not 'Open' and then project out the components.
+-- If the ABT is in fact 'Open', then this function will throw an
+-- 'ExpectedVarSynException' error.
 caseVarSynABT
     :: (ABT abt)
     => abt a
@@ -206,7 +243,7 @@ caseVarSynABT
 caseVarSynABT e v s =
     case viewABT e of
     Var  x p -> v x p
-    Open x e -> throw UnVarSynException -- TODO: add call-site info
+    Open _ _ -> throw ExpectedVarSynException -- TODO: add call-site info
     Syn  t   -> s t
 
 
@@ -224,7 +261,7 @@ instance ABT TrivialABT where
     -- This is very expensive! use 'FreeVarsABT' to fix that
     freeVars (TrivialABT v) =
         case v of
-        Var  x p -> Set.singleton x
+        Var  x _ -> Set.singleton x
         Open x e -> Set.delete x (freeVars e)
         Syn  t   -> hfoldMap freeVars t
 
@@ -259,7 +296,7 @@ freshen x@(Variable x0) xs
 rename :: forall abt a. (ABT abt) => Variable -> Variable -> abt a -> abt a
 rename x y = go
     where
-    go :: forall a. abt a -> abt a
+    go :: forall b. abt b -> abt b
     go e =
         case viewABT e of
         Var z p
@@ -281,7 +318,7 @@ subst
     -> abt b
 subst x e = go
     where
-    go :: forall b. abt b -> abt b
+    go :: forall c. abt c -> abt c
     go body =
         case viewABT body of
         Var z p

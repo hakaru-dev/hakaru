@@ -5,14 +5,31 @@
            , StandaloneDeriving
            #-}
 
+{-# OPTIONS_GHC -Wall -fwarn-tabs #-}
+----------------------------------------------------------------
+--                                                    2015.06.24
+-- |
+-- Module      :  Language.Hakaru.Syntax.TypeEq
+-- Copyright   :  Copyright (c) 2015 the Hakaru team
+-- License     :  BSD3
+-- Maintainer  :  wren@community.haskell.org
+-- Stability   :  experimental
+-- Portability :  GHC-only
+--
+-- Singleton types for the @Hakaru*@ kind, and a decision procedure
+-- for @Hakaru*@ type-equality.
+--
+-- TODO: use the singletons library instead... We're reusing their
+-- names in order to mak the transition over easier
+----------------------------------------------------------------
 module Language.Hakaru.Syntax.TypeEq where
 
-import Data.Proxy
+-- import Data.Proxy
 import Language.Hakaru.Syntax.DataKind
 
 ----------------------------------------------------------------
--- TODO: use the singletons library instead... We're reusing their names in order to mak the transition over easier
-
+-- | Singleton types for the kind of Hakaru types. We need to use
+-- this instead of 'Proxy' in order to implement 'jmEq'.
 data Sing :: Hakaru * -> * where
     SNat     :: Sing 'HNat
     SInt     :: Sing 'HInt
@@ -49,6 +66,9 @@ deriving instance Show (SingHakaruFun a)
 -}
 
 
+----------------------------------------------------------------
+-- | A class for automatically generating the singleton for a given
+-- Hakaru type.
 class    SingI (a :: Hakaru *)            where sing :: Sing a
 instance SingI 'HNat                      where sing = SNat 
 instance SingI 'HInt                      where sing = SInt 
@@ -70,15 +90,25 @@ instance SingI (sop ':$ a)   where sing = SApp singSOPHakaruFun sing
 instance SingI ('HTag a sop) where sing = STag Proxy singSOPHakaruFun
 -}
 
+
+-- TODO: what is the actual runtype cost of using 'toSing'...?
+-- | Convert any given proxy into a singleton. This is a convenience
+-- function for type checking; it ignores its argument.
 toSing :: (SingI a) => proxy a -> Sing a
 toSing _ = sing
+{-# INLINE toSing #-}
 
+-- | Concrete proofs of type equality. In order to make use of a
+-- proof @p :: TypeEq a b@, you must pattern-match on the 'Refl'
+-- constructor in order to show GHC that the types @a@ and @b@ are
+-- equal.
 data TypeEq :: k -> k -> * where
     Refl :: TypeEq a a
 
--- Can use 'toSing' to generate the inputs from other things.
--- TODO: what is the actual runtype cost of using 'toSing'...?
 -- BUG: how can we implement this when Sing isn't a closed type?
+-- | Decide whether the types @a@ and @b@ are equal. If you don't
+-- have the singleton laying around, you can use 'toSing' to convert
+-- whatever type-indexed value into one.
 jmEq :: Sing a -> Sing b -> Maybe (TypeEq a b)
 jmEq SNat             SNat             = Just Refl
 jmEq SInt             SInt             = Just Refl
@@ -103,6 +133,6 @@ jmEq (SApp a b) (SApp a b)
 jmEq (STag a b) (STag a b)
 -}
 jmEq _ _ = Nothing
-    
+
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
