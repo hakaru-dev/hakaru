@@ -26,7 +26,7 @@ data Hakaru star
     | HArray (Hakaru star)
     | HFun (Hakaru star) (Hakaru star)
     
-    -- TODO: replace HBool, HUnit, HPair, HEither with the Embed stuff
+    -- TODO: replace HUnit, HPair, HEither with the Embed stuff
     | HBool
     | HUnit
     | HPair (Hakaru star) (Hakaru star)
@@ -45,6 +45,8 @@ data Hakaru star
     -- Used in "Language.Hakaru.Sample"
     -- TODO: replace HMaybe with the Embed stuff
     | HMaybe (Hakaru star)
+    
+    deriving (Eq, Read, Show)
 
 
 -- | The identity and constant functors on @Hakaru*@. This gives
