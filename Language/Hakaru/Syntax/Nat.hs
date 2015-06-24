@@ -2,6 +2,7 @@
 module Language.Hakaru.Syntax.Nat
     ( Nat()
     , fromNat
+    , toNat
     , unsafeNat
     ) where
 
@@ -13,6 +14,12 @@ newtype Nat = Nat Int
 fromNat :: Nat -> Int
 fromNat (Nat i) = i
 {-# INLINE fromNat #-}
+
+toNat :: Int -> Maybe Nat
+toNat x
+    | x < 0     = Nothing
+    | otherwise = Just (Nat x)
+{-# INLINE toNat #-}
 
 unsafeNat :: Int -> Nat
 unsafeNat x
