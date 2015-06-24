@@ -65,6 +65,20 @@ toABT (Var  x p) = var  x p
 toABT (Open x t) = open x t
 toABT (Syn  t)   = syn  t
 
+
+data ABTException = UnOpenException
+    deriving (Show, Typeable)
+
+instance Exception ABTException
+
+-- We could render this function safe by further indexing @abt@ with a tag to say whether it's Open or Var/Syn. But that may be overkill, especially once we start handling more complicated binders. This only throws an error if the ABT the parser generates is malformed, we can trust/check the parser rather than complicating the types further.
+unOpen :: ABT abt => abt a -> (Variable, abt a)
+unOpen e =
+    case fromABT e of
+    Open x t -> (x,t)
+    _         -> throw UnOpenException -- TODO: add info about the call-site
+
+
 ----------------------------------------------------------------
 -- A trivial ABT with no annotations
 newtype TrivialABT (a :: Hakaru *) = TrivialABT (View TrivialABT a)
@@ -123,7 +137,7 @@ subst x e = go
     go body = 
         case fromABT body of
         Var z p
-            | x == z    -> e
+            | x == z    -> e -- TODO: could preserve type-safety if we check that @typeOf e == typeOf p@. Of course, if that fails, then we'd have to return @Nothing@, which will make the recursive calls trickier...
             | otherwise -> body
         Open z body'
             | x == z    -> body

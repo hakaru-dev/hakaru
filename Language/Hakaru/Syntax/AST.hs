@@ -528,17 +528,17 @@ instance
     fix       = Fix_
 
 instance Mochastic AST where
-    dirac       = Measure_ Dirac
+    dirac       = Measure_ . Dirac
     bind        = Bind_
     lebesgue    = Measure_ Lebesgue
     counting    = Measure_ Counting
-    superpose   = Measure_ Superpose
+    superpose   = Measure_ . Superpose
     categorical = Measure_ Categorical
-    uniform     = Measure_ Uniform
-    normal      = Measure_ Normal
-    poisson     = Measure_ Poisson
-    gamma       = Measure_ Gamma
-    beta        = Measure_ Beta
+    uniform     = (Measure_ .) . Uniform
+    normal      = (Measure_ .) . Normal
+    poisson     = Measure_ . Poisson
+    gamma       = (Measure_ .) . Gamma
+    beta        = (Measure_ .) . Beta
     dp          = Dp_
     plate       = Plate_
     chain       = Chain_
