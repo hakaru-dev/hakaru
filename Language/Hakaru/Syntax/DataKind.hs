@@ -5,8 +5,19 @@
            #-}
 
 -- Don't -Werror, because we can't tick the promoted (:$) in the deriving instance
-{-# OPTIONS -Wall -fwarn-tabs #-}
-
+{-# OPTIONS_GHC -Wall -fwarn-tabs #-}
+----------------------------------------------------------------
+--                                                    2015.06.24
+-- |
+-- Module      :  Language.Hakaru.Syntax.DataKind
+-- Copyright   :  Copyright (c) 2015 the Hakaru team
+-- License     :  BSD3
+-- Maintainer  :  wren@community.haskell.org
+-- Stability   :  experimental
+-- Portability :  GHC-only
+--
+-- A data-kind for the universe of Hakaru types.
+----------------------------------------------------------------
 module Language.Hakaru.Syntax.DataKind
     ( Hakaru(..)
     , HakaruFun(..)
@@ -15,12 +26,13 @@ module Language.Hakaru.Syntax.DataKind
 import Data.Typeable (Typeable)
 
 ----------------------------------------------------------------
--- | The universe/kind of Hakaru types.
+-- | The universe/kind of Hakaru types. N.B., the @star@ parameter
+-- will always be @*@ when used as a data-kind.
 data Hakaru star
-    = HNat -- TODO: finish incorporating this everywhere...
+    = HNat
     | HInt
-    | HProb -- meaning: non-negative real number (not the [0,1] interval!)
-    | HReal -- The real projective line, includes +/- infinity
+    | HProb -- ^ Non-negative real numbers (not the [0,1] interval!)
+    | HReal -- ^ The real projective line (includes +/- infinity)
     | HMeasure (Hakaru star)
     | HArray (Hakaru star)
     | HFun (Hakaru star) (Hakaru star)
