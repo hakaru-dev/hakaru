@@ -143,19 +143,22 @@ x - y = naryOp_ Sum x (negate y)
 negate :: (ABT abt, HRing a) => AST abt a -> AST abt a
 negate (NaryOp_ Sum xs) = NaryOp_ Sum (fmap negate_ABT xs)
 negate t0@(App_ f e) =
-    case unVarSyn f of
-    Left _ -> primOp1_ Negate t0 -- Var falls through to the default case...
-    Right (PrimOp_ Negate) ->
-        case unVarSyn e of
-        Left (x,p) -> undefined (Var x p) -- BUG: we want to just return the variable, but it's not AST...
-        Right t    -> t
-negate t = primOp1_ Negate t
+    caseVarSynABT f
+        (\_ _ -> primOp1_ Negate t0) -- fall through to default case
+        (\t   ->
+            case t of
+            PrimOp_ Negate ->
+                caseVarSynABT e
+                    (\x p -> undefined x p) -- BUG: we want to just return @var x p@, but (a) it's not AST, and (b) using caseVarSynABT introduces type ambiguity stuff...
+                    (\t   -> t)
+            _ -> primOp1_ Negate t0)  -- fall through to default case
+negate t0     =  primOp1_ Negate t0
 
 negate_ABT :: (ABT abt, HRing a) => abt a -> abt a
 negate_ABT e =
-    case unVarSyn e of
-    Left  _ -> syn $ App_ (syn $ PrimOp_ Negate) e
-    Right t -> syn $ negate t
+    caseVarSynABT e
+        (\_ _ -> syn $ App_ (syn $ PrimOp_ Negate) e)
+        (\t   -> syn $ negate t)
     
 
 abs :: (ABT abt, HRing a) => AST abt a -> AST abt a
@@ -178,19 +181,22 @@ x / y = naryOp_ Prod x (recip y)
 recip :: (ABT abt, HFractional a) => AST abt a -> AST abt a
 recip (NaryOp_ Prod xs) = NaryOp_ Prod (fmap recip_ABT xs)
 recip t0@(App_ f e) =
-    case unVarSyn f of
-    Left _ -> primOp1_ Recip t0 -- Var falls through to the default case...
-    Right (PrimOp_ Recip) ->
-        case unVarSyn e of
-        Left (x,p) -> undefined (Var x p) -- BUG: we want to just return the variable, but it's not AST...
-        Right t    -> t
-recip t = primOp1_ Recip t
+    caseVarSynABT f
+        (\_ _ -> primOp1_ Recip t0) -- fall through to default case
+        (\t   ->
+            case t of
+            PrimOp_ Recip ->
+                caseVarSynABT e
+                    (\x p -> undefined x p) -- BUG: we want to just return @var x p@, but (a) it's not AST, and (b) using caseVarSynABT introduces type ambiguity stuff...
+                    (\t   -> t)
+            _ -> primOp1_ Recip t0)  -- fall through to default case
+recip t0      =  primOp1_ Recip t0
 
 recip_ABT :: (ABT abt, HFractional a) => abt a -> abt a
 recip_ABT e =
-    case unVarSyn e of
-    Left  _ -> syn $ App_ (syn $ PrimOp_ Recip) e
-    Right t -> syn $ recip t
+    caseVarSynABT e
+        (\_ _ -> syn $ App_ (syn $ PrimOp_ Recip) e)
+        (\t   -> syn $ recip t)
 
 
 -- TODO: simplifications
@@ -285,7 +291,7 @@ unpair e f = do
     y <- freshVar
     return $ Case_ (syn e)
         [(PPair PVar PVar,
-            open x (open y (syn $ f (var x Proxy) (var y Proxy)))]
+            open x (open y (syn $ f (var x sing) (var y sing)))]
 -}
 
 inl :: (ABT abt) => AST abt a -> AST abt ('HEither a b)
@@ -305,8 +311,8 @@ uneither = undefined
 uneither e l r = do
     x <- freshVar
     return $ Case_ (syn e)
-        [ (PInl PVar, open x (syn $ l (var x Proxy)))
-        , (PInr PVar, open x (syn $ r (var x Proxy)))
+        [ (PInl PVar, open x (syn $ l (var x sing)))
+        , (PInr PVar, open x (syn $ r (var x sing)))
         ]
 -}
 
@@ -336,7 +342,7 @@ fix = undefined
 {-
 fix f = do
     x <- freshVar
-    return $ Fix_ (open x (f (Var x Proxy)))
+    return $ Fix_ (open x (f (var x sing)))
 -}
 
 -- TODO: rename @array@
@@ -349,7 +355,7 @@ vector = undefined
 {-
 vector n f = do
     x <- freshVar
-    return $ Array_ (syn $ unsafeFrom_ signed n) (open x (f (Var x Proxy)))
+    return $ Array_ (syn $ unsafeFrom_ signed n) (open x (f (var x sing)))
 -}
 
 empty :: AST abt ('HArray a)
@@ -381,7 +387,7 @@ bind = undefined
 {-
 bind e f = do
     x <- freshVar
-    return $ Bind_ (syn e) (open x (f (Var x Proxy)))
+    return $ Bind_ (syn e) (open x (f (var x sing)))
 -}
 dirac       = primOp1_ Dirac
 lebesgue    = PrimOp_  Lebesgue
@@ -408,7 +414,7 @@ integrate = undefined
 {-
 integrate lo hi f = do
     x <- freshVar
-    return $ Integrate_ (syn lo) (syn hi) (open x $ f (Var x Proxy))
+    return $ Integrate_ (syn lo) (syn hi) (open x $ f (var x sing))
 -}
 
 summate
@@ -421,7 +427,7 @@ summate = undefined
 {-
 summate lo hi f = do
     x <- freshVar
-    return $ Summate_ (syn lo) (syn hi) (open x $ f (Var x Proxy))
+    return $ Summate_ (syn lo) (syn hi) (open x $ f (var x sing))
 -}
 
 
@@ -433,7 +439,7 @@ lam = undefined
 {-
 lam f = do
     x <- freshVar
-    return $ Lam_ Proxy (open x (f (Var x Proxy)))
+    return $ Lam_ Proxy (open x (f (var x sing)))
 -}
 
 let_ :: (ABT abt) => AST abt a -> (AST abt a -> AST abt b) -> AST abt b
@@ -441,7 +447,7 @@ let_ = undefined
 {-
 let_ e f = 
     x <- freshVar
-    return $ Let_ (syn e) (open x (f (Var x Proxy)))
+    return $ Let_ (syn e) (open x (f (var x sing)))
 -}
 
 -- instance (ABT abt) => Lub (AST abt) where
