@@ -4,6 +4,7 @@
            , TypeFamilies
            , GADTs
            , FlexibleInstances
+           , StandaloneDeriving
            #-}
 
 module Language.Hakaru.Syntax.AST where
@@ -11,6 +12,7 @@ module Language.Hakaru.Syntax.AST where
 import Prelude hiding (id, (.), Ord(..), Num(..), Integral(..), Fractional(..), Floating(..), Real(..), RealFrac(..), RealFloat(..), (^), (^^))
 import           Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
+import           Data.Proxy
 
 import Control.Category (Category(..))
 import Data.Number.LogFloat (LogFloat)
@@ -75,6 +77,23 @@ class (HSemiring (NonNegative a), HSemiring a)
 instance HRing 'HInt  where type NonNegative 'HInt  = 'HNat 
 instance HRing 'HReal where type NonNegative 'HReal = 'HProb 
 
+{-
+data HRing_ :: Hakaru * -> * where
+    HRing_Int  :: HRing_ 'HInt
+    HRing_Real :: HRing_ 'HReal
+
+type family   NonNegative (a :: Hakaru *) :: Hakaru *
+type instance NonNegative 'HInt  = 'HNat 
+type instance NonNegative 'HReal = 'HProb 
+
+data HRing :: Hakaru * -> * where
+    HRing
+        :: !(HRing_ a)
+        -> !(HSemiring a)
+        -> !(HSemiring (NonNegative a))
+        -> HRing a
+-}
+
 
 -- N.B., We're assuming two-sided inverses here. That doesn't entail
 -- commutativity, though it does strongly suggest it... (cf.,
@@ -127,7 +146,10 @@ instance HContinuous 'HReal where type HIntegral 'HReal = 'HInt
 data PrimCoercion :: Hakaru * -> Hakaru * -> * where
     Signed     :: HRing a       => PrimCoercion (NonNegative a) a
     Continuous :: HContinuous a => PrimCoercion (HIntegral   a) a
-    deriving (Eq, Read, Show)
+
+deriving instance Eq   (PrimCoercion a b)
+-- BUG: deriving instance Read (PrimCoercion a b)
+deriving instance Show (PrimCoercion a b)
 
 
 -- | General proofs of the inclusions in our numeric hierarchy.
@@ -143,7 +165,9 @@ data Coercion :: Hakaru * -> Hakaru * -> * where
     -- order to get a better inductive hypothesis.
     ConsCoercion :: !(PrimCoercion a b) -> !(Coercion b c) -> Coercion a c
 
-    deriving (Eq, Read, Show)
+-- BUG: deriving instance Eq   (Coercion a b)
+-- BUG: deriving instance Read (Coercion a b)
+deriving instance Show (Coercion a b)
 
 
 -- | A smart constructor for 'Signed'.
@@ -202,6 +226,7 @@ coerceTo_unsafeFrom xs ys = ...
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
+-- TODO: use 'Integer' instead of 'Int', and 'Natural' instead of 'Nat'.
 -- | Constant values for primitive types.
 data Value :: Hakaru * -> * where
     Bool_ :: !Bool     -> Value 'HBool
@@ -253,8 +278,10 @@ data NaryOp :: Hakaru * -> * where
     GCD  :: (GCD_Domain a) => NaryOp a
     LCM  :: (GCD_Domain a) => NaryOp a
     -}
-    -- -- --
-    deriving (Eq, Read, Show)
+
+deriving instance Eq   (NaryOp a)
+-- BUG: deriving instance Read (NaryOp a)
+deriving instance Show (NaryOp a)
 
 
 -- | Simple primitive functions, constants, and measures.
@@ -431,8 +458,9 @@ data PrimOp :: Hakaru * -> * where
     -- TODO: make Pi and Infinity HContinuous-polymorphic so that we can avoid the explicit coercion? Probably more mess than benefit.
 
 
-    -- -- --
-    deriving (Eq, Read, Show)
+deriving instance Eq   (PrimOp a)
+-- BUG: deriving instance Read (PrimOp a)
+deriving instance Show (PrimOp a)
 
 
 ----------------------------------------------------------------
@@ -458,7 +486,10 @@ data Pattern :: Hakaru * -> * where
     PPair  :: !(Pattern a) -> !(Pattern b) -> Pattern ('HPair a b)
     PInl   :: !(Pattern a) -> Pattern ('HEither a b)
     PInr   :: !(Pattern b) -> Pattern ('HEither a b)
-    deriving (Eq, Read, Show)
+
+deriving instance Eq   (Pattern a)
+-- BUG: deriving instance Read (Pattern a)
+deriving instance Show (Pattern a)
 
 
 ----------------------------------------------------------------
@@ -522,7 +553,7 @@ data AST :: (Hakaru * -> *) -> Hakaru * -> * where
         -> (ast a -> ast ('HMeasure b))
         -> AST ast ('HMeasure b)
     Superpose_
-        :: [(ast 'HProb, ast ('HMeasure a)]
+        :: [(ast 'HProb, ast ('HMeasure a))]
         -> AST ast ('HMeasure a)
     Dp_ -- Dirichlet process
         :: ast 'HProb
@@ -546,108 +577,6 @@ data AST :: (Hakaru * -> *) -> Hakaru * -> * where
     Lub_ :: ast a -> ast a -> AST ast a
     Bot_ :: AST ast a
 
-
-{-
-Below we implement a lot of simple optimizations; however, these
-optimizations only apply if the client uses the type class methods
-to produce the AST. We should implement a stand-alone function which
-performs these sorts of optimizations, as a program transformation.
--}
-
-naryOp_ :: NaryOp a -> AST a -> AST a -> AST a
-naryOp_ o x y =
-    case (isNaryOp o x, isNaryOp o y) of
-    (Just xs, Just ys) -> NaryOp_ o (xs Seq.>< ys)
-    (Just xs, Nothing) -> NaryOp_ o (xs Seq.|> y)
-    (Nothing, Just ys) -> NaryOp_ o (x  Seq.<| ys)
-    (Nothing, Nothing) -> NaryOp_ o (x  Seq.<| Seq.singleton y)
-
-isNaryOp :: NaryOp a -> AST ast a -> Maybe (Seq (ast a))
-isNaryOp o (NaryOp_ o' xs) | o == o' = Just xs
-isNaryOp _ _                         = Nothing
-
-
-{-
--- BUG: can't do these two, for the usual reasons about the return type.
--- TODO: HEq class
-instance HOrder a => Eq (AST a) where
-    (==) = primOp2_ Equal
-    (/=) = (primOp1_ Not .) . (==)
-
-instance HOrder a => Order (AST a) where
-    compare = error "unimplemented"
-    (<)    = primOp2_ Less
-    x <= y = (x < y) || (x == y)
-    (>)    = flip (<)
-    (>=)   = flip (<=)
-    min    = naryOp_ Min
-    max    = naryOp_ Max
--}
-
--- N.B., we don't take advantage of commutativity, for more predictable AST outputs. However, that means we can end up being really slow;
--- N.B., we also don't try to eliminate the identity elements or do cancellations because (a) it's undecidable in general, and (b) that's prolly better handled as a post-processing simplification step
-instance HRing a => Num (AST a) where
-    (+)   = naryOp_ Sum
-    x - y = naryOp_ Sum x (negate y)
-    (*)   = naryOp_ Prod
-
-    negate (NaryOp_ Sum xs)         = NaryOp_ Sum (fmap negate xs)
-    negate (App (PrimOp_ Negate) x) = x
-    negate x                        = App (PrimOp_ Negate) x
-
-    abs x =
-        case x of
-        CoerceTo_ (ConsCoercion Signed IdCoercion) x -> x
-        _ -> CoerceTo_ signed (App (PrimOp_ Abs) x)
-
-    -- TODO: any obvious simplifications? idempotent?
-    signum = App $ PrimOp_ Signum
-
-    fromInteger = error "fromInteger: unimplemented" -- TODO
-
-
-instance (HRing a, HFractional a) => Fractional (AST a) where
-    x / y = naryOp_ Prod x (recip y)
-
-    recip (NaryOp_ Prod xs)       = NaryOp_ Prod (fmap recip xs)
-    recip (App (PrimOp_ Recip) x) = x
-    recip x                       = App (PrimOp_ Recip) x
-
-    fromRational = error "fromRational: unimplemented" -- TODO
-
-
-{-
--- Can't do this, because no @HRing 'HProb@ instance
--- Also because the trigonometry functions wouldn't be well-typed/safe
--- Further evidence of being a bad abstraction...
-instance Floating (AST 'HProb) where
-    pi     = PrimOp_ Pi
-    exp    = App (PrimOp_ Exp) . CoerceTo_ signed
-    log    = UnsafeFrom_ signed . App (PrimOp_ Log) -- error for inputs in [0,1)
-    sqrt x = App (App (PrimOp_ NatRoot) x) (Value_ (Nat_ 2))
-    x ** y = RealPow_ x (CoerceTo_ signed y)
-    logBase b x = log x / log b -- undefined when b == 1
--}
-
-instance Floating (AST 'HReal) where
-    pi     = CoerceTo_ signed $ PrimOp_ Pi
-    exp    = CoerceTo_ signed . App (PrimOp_ Exp)
-    log    = App (PrimOp_ Log) . UnsafeFrom_ signed -- error for inputs in [negInfty,0)
-    sqrt x = App (App (PrimOp_ NatRoot) x) (Value_ (Nat_ 2))
-    (**)   = app2 $ PrimOp_ RealPow
-    logBase b x = log x / log b -- undefined when b == 1
-    sin    = App $ PrimOp_ Sin
-    cos    = App $ PrimOp_ Cos
-    tan    = App $ PrimOp_ Tan
-    asin   = App $ PrimOp_ Asin
-    acos   = App $ PrimOp_ Acos
-    atan   = App $ PrimOp_ Atan
-    sinh   = App $ PrimOp_ Sinh
-    cosh   = App $ PrimOp_ Cosh
-    tanh   = App $ PrimOp_ Tanh
-    asinh  = App $ PrimOp_ Asinh
-    acosh  = App $ PrimOp_ Acosh
-    atanh  = App $ PrimOp_ Atanh
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
