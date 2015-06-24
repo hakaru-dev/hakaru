@@ -1,7 +1,19 @@
 -- TODO: <https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging>
-{-# LANGUAGE RankNTypes, TypeFamilies, DataKinds #-}
+{-# LANGUAGE RankNTypes
+           , ScopedTypeVariables
+           , GADTs
+           , TypeFamilies
+           , DataKinds
+           , DeriveDataTypeable
+           #-}
 
 module Language.Hakaru.Syntax.ABT where
+
+import           Data.Proxy
+import           Data.Typeable     (Typeable)
+import           Data.Set          (Set)
+import qualified Data.Set          as Set
+import           Control.Exception (Exception, throw)
 
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.AST
@@ -36,7 +48,11 @@ instance HakaruFoldable AST where
     hfold = error "TODO"
 
 ----------------------------------------------------------------
+-- TODO: actually define 'Variable'
 -- TODO: have @Variable a@ instead, with @SomeVariable@ to package up the existential? This would allow us to preserve type safety in 'subst'
+
+newtype Variable = Variable String
+    deriving (Eq, Ord, Read, Show)
 
 -- <http://semantic-domain.blogspot.co.uk/2015/03/abstract-binding-trees.html>
 -- <http://semantic-domain.blogspot.co.uk/2015/03/abstract-binding-trees-addendum.html>
@@ -50,26 +66,29 @@ data View :: (Hakaru * -> *) -> Hakaru * -> * where
     Open :: !Variable -> abt a -> View abt a
     Syn  :: !(AST abt a) -> View abt a
 
-instance HakaruFunctor AST => HakaruFunctor View where
+
+instance HakaruFunctor View where
     hmap f (Var  x p) = Var  x p
-    hmap f (Open x t) = Open x (f t)
+    hmap f (Open x e) = Open x (f e)
     hmap f (Syn  t)   = Syn (hmap f t)
 
--- TODO: neelk includes 'toABT', 'freeVars', and 'subst' in the signature. Should we?
+
+-- TODO: neelk includes 'toABT' and 'subst' in the signature. Should we?
 -- TODO: add a function for checking alpha-equivalence?
 class ABT (abt :: Hakaru * -> *) where
-    var     :: Variable -> Proxy a -> abt a
-    open    :: Variable -> abt a -> abt a
-    syn     :: AST abt a -> abt a
-    fromABT :: abt a -> View abt a
+    var      :: Variable -> Proxy a -> abt a
+    open     :: Variable -> abt a -> abt a
+    syn      :: AST abt a -> abt a
+    fromABT  :: abt a -> View abt a
+    freeVars :: abt a -> Set Variable
 
 toABT :: (ABT abt) => View abt a -> abt a
 toABT (Var  x p) = var  x p
-toABT (Open x t) = open x t
+toABT (Open x e) = open x e
 toABT (Syn  t)   = syn  t
 
 
-data ABTException = UnOpenException
+data ABTException = UnOpenException | UnVarSynException
     deriving (Show, Typeable)
 
 instance Exception ABTException
@@ -83,8 +102,15 @@ instance Exception ABTException
 unOpen :: ABT abt => abt a -> (Variable, abt a)
 unOpen e =
     case fromABT e of
-    Open x t -> (x,t)
+    Open x e' -> (x, e')
     _         -> throw UnOpenException -- TODO: add info about the call-site
+
+unVarSyn :: ABT abt => abt a -> Either (Variable, Proxy a) (AST abt a)
+unVarSyn e =
+    case fromABT e of
+    Var  x p -> Left (x,p)
+    Open x e -> throw UnVarSynException -- TODO: add call-site info
+    Syn  t   -> Right t
 
 
 ----------------------------------------------------------------
@@ -92,11 +118,18 @@ unOpen e =
 newtype TrivialABT (a :: Hakaru *) = TrivialABT (View TrivialABT a)
 
 instance ABT TrivialABT where
-    var x p  = TrivialABT (Var x p)
+    var  x p = TrivialABT (Var  x p)
     open x e = TrivialABT (Open x e)
-    syn e    = TrivialABT (Syn e)
+    syn  t   = TrivialABT (Syn  t)
 
-    fromABT (TrivialABT e) = e
+    fromABT  (TrivialABT v) = v
+    
+    -- This is very expensive! use 'FreeVarsABT' to fix that
+    freeVars (TrivialABT v) =
+        case v of
+        Var  x p -> Set.singleton x
+        Open x e -> Set.delete x (freeVars e)
+        Syn  t   -> hfoldMap freeVars t
 
 
 ----------------------------------------------------------------
@@ -108,26 +141,28 @@ data FreeVarsABT (a :: Hakaru *)
     -- N.B., Set is a monoid with {Set.empty; Set.union; Set.unions}
 
 instance ABT FreeVarsABT where
-    var x p  = FreeVarsABT (Set.singleton x) (Var x p)
+    var  x p = FreeVarsABT (Set.singleton x)           (Var  x p)
     open x e = FreeVarsABT (Set.delete x $ freeVars e) (Open x e)
-    syn e    = FreeVarsABT (hfoldMap freeVars e) (Syn e)
+    syn  t   = FreeVarsABT (hfoldMap freeVars t)       (Syn  t)
 
-    fromABT (FreeVarsABT _ e) = e
+    fromABT  (FreeVarsABT _  v) = v
+
+    freeVars (FreeVarsABT xs _) = xs
 
 
-freeVars :: FreeVarsABT a -> Set Variable
-freeVars (FreeVarsABT vs _) = vs
-
+----------------------------------------------------------------
+----------------------------------------------------------------
 -- TODO: something smarter
 freshen :: Variable -> Set Variable -> Variable
-freshen v vs
-    | v `Set.member` vs = freshen (v ++"'") vs
-    | otherwise         = v
+freshen x@(Variable x0) xs
+    | x `Set.member` xs = freshen (Variable $ x0 ++"'") xs
+    | otherwise         = x
 
 -- | Rename a free variable. Does nothing if the variable is bound.
-rename :: Variable -> Variable -> ABT a -> ABT a
+rename :: forall abt a. (ABT abt) => Variable -> Variable -> abt a -> abt a
 rename x y = go
     where
+    go :: forall a. abt a -> abt a
     go e =
         case fromABT e of
         Var z p
@@ -136,16 +171,18 @@ rename x y = go
         Open z e'
             | x == z    -> e
             | otherwise -> open z (go e')
-        Syn e'          -> syn (hmap go e')
+        Syn t           -> syn (hmap go t)
+
 
 -- N.B., is not guaranteed to preserve type safety!
-subst :: Variable -> ABT a -> ABT b -> ABT b
+subst :: forall abt a b. (ABT abt) => Variable -> abt a -> abt b -> abt b
 subst x e = go
     where
+    go :: forall b. abt b -> abt b
     go body =
         case fromABT body of
         Var z p
-            | x == z    -> e -- TODO: could preserve type-safety if we check that @typeOf e == typeOf p@. Of course, if that fails, then we'd have to return @Nothing@, which will make the recursive calls trickier...
+            | x == z    -> undefined p e -- BUG: need to check that @e@ and @p@ are indexed by the same type. If so then the substitution is type-safe, as checked/guaranteed by GHC. If not, then we'll need to throw some sort of error (or return @Nothing@, but that makes the recursive calls trickier...)
             | otherwise -> body
         Open z body'
             | x == z    -> body
