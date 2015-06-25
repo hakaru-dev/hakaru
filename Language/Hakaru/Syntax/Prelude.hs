@@ -159,24 +159,28 @@ max = undefined -- TODO: naryOp_ Max
 (-) :: (ABT abt, HRing a) => abt a -> abt a -> abt a
 x - y = x + negate y
 
-negate :: (ABT abt, HRing a) => abt a -> abt a
-negate e =
-    caseVarSynABT e
-        (\_ _ -> syn $ App_ (primOp0_ Negate) e)
-        (\t   -> negate_AST t)
-
 -- BUG: can't just pattern match on (App_ (PrimOp_ Negate) e) anymore; can't even match on (App_ (Syn (PrimOp_ Negate)) e). We need to implement our AST-pattern matching stuff in order to clean this up...
-negate_AST :: (ABT abt, HRing a) => AST abt a -> abt a
-negate_AST (NaryOp_ Sum xs) = syn $ NaryOp_ Sum (fmap negate xs)
-negate_AST t0@(App_ f e) =
-    caseVarSynABT f
-        (\_ _ ->              primOp1_ Negate $ syn t0) -- fall through...
-        (\t   ->
-            case t of
-            PrimOp_ Negate -> e
-            _              -> primOp1_ Negate $ syn t0) -- fall through...
-negate_AST t0              =  primOp1_ Negate $ syn t0
-    
+negate :: (ABT abt, HRing a) => abt a -> abt a
+negate e0 =
+    case me' of
+    Just e' -> e'
+    Nothing -> primOp1_ Negate e0 -- default case
+    where
+    me' =
+        caseVarSynABT e0
+            (\_ _ -> Nothing)
+            $ \t0 ->
+                case t0 of
+                NaryOp_ Sum xs -> Just . syn $ NaryOp_ Sum (fmap negate xs)
+                App_ f e       ->
+                    caseVarSynABT f
+                        (\_ _ -> Nothing)
+                        (\ft  ->
+                            case ft of
+                            PrimOp_ Negate -> Just e
+                            _              -> Nothing)
+                _ -> Nothing
+
 
 abs :: (ABT abt, HRing a) => abt a -> abt a
 abs = coerceTo_ signed . abs_
@@ -196,21 +200,25 @@ x / y = x * recip y
 
 -- TODO: generalize this pattern so we don't have to repeat it...
 recip :: (ABT abt, HFractional a) => abt a -> abt a
-recip e =
-    caseVarSynABT e
-        (\_ _ -> syn $ App_ (syn $ PrimOp_ Recip) e)
-        (\t   -> recip_AST t)
-
-recip_AST :: (ABT abt, HFractional a) => AST abt a -> abt a
-recip_AST (NaryOp_ Prod xs) = syn $ NaryOp_ Prod (fmap recip xs)
-recip_AST t0@(App_ f e) =
-    caseVarSynABT f
-        (\_ _ ->             primOp1_ Recip $ syn t0) -- fall through...
-        (\t   ->
-            case t of
-            PrimOp_ Recip -> e
-            _             -> primOp1_ Recip $ syn t0) -- fall through...
-recip_AST t0              =  primOp1_ Recip $ syn t0
+recip e0 =
+    case me' of
+    Just e' -> e'
+    Nothing -> primOp1_ Recip e0 -- default case
+    where
+    me' =
+        caseVarSynABT e0
+            (\_ _ -> Nothing)
+            $ \t0 ->
+                case t0 of
+                NaryOp_ Prod xs -> Just . syn $ NaryOp_ Prod (fmap recip xs)
+                App_ f e        ->
+                    caseVarSynABT f
+                        (\_ _ -> Nothing)
+                        (\ft  ->
+                            case ft of
+                            PrimOp_ Recip -> Just e
+                            _             -> Nothing)
+                _ -> Nothing
 
 
 -- TODO: simplifications
