@@ -27,7 +27,6 @@ module Language.Hakaru.Syntax.Prelude where
 -- import Prelude hiding (id, (.), Ord(..), Num(..), Integral(..), Fractional(..), Floating(..), Real(..), RealFrac(..), RealFloat(..), (^), (^^),.......)
 import Prelude (Maybe(..), Bool(..), Int, Double, Functor(..), flip, ($), undefined)
 import qualified Prelude
-import           Data.Sequence        (Seq)
 import qualified Data.Sequence        as Seq
 -- import           Data.Proxy
 import           Control.Category     (Category(..))
@@ -67,17 +66,21 @@ primOp2_ = app2 . primOp0_
 primOp3_ :: (ABT abt) => PrimOp ('HFun a ('HFun b ('HFun c d))) -> abt a -> abt b -> abt c -> abt d
 primOp3_ = app3 . primOp0_
 
-naryOp_ :: (ABT abt) => NaryOp a -> AST abt a -> AST abt a -> AST abt a
-naryOp_ o x y =
-    case (matchNaryOp o x, matchNaryOp o y) of
-    (Just xs, Just ys) -> NaryOp_ o (xs    Seq.>< ys)
-    (Just xs, Nothing) -> NaryOp_ o (xs    Seq.|> syn y)
-    (Nothing, Just ys) -> NaryOp_ o (syn x Seq.<| ys)
-    (Nothing, Nothing) -> NaryOp_ o (syn x Seq.<| Seq.singleton (syn y))
-
-matchNaryOp :: NaryOp a -> AST abt a -> Maybe (Seq (abt a))
-matchNaryOp o (NaryOp_ o' xs) | o Prelude.== o' = Just xs
-matchNaryOp _ _                                 = Nothing
+naryOp2_ :: (ABT abt) => NaryOp a -> abt a -> abt a -> abt a
+naryOp2_ o x y =
+    case (match x, match y) of
+    (Just xs, Just ys) -> syn $ NaryOp_ o (xs Seq.>< ys)
+    (Just xs, Nothing) -> syn $ NaryOp_ o (xs Seq.|> y)
+    (Nothing, Just ys) -> syn $ NaryOp_ o (x  Seq.<| ys)
+    (Nothing, Nothing) -> syn $ NaryOp_ o (x  Seq.<| Seq.singleton y)
+    where
+    match e =
+        caseVarSynABT e
+            (\_ _ -> Nothing)
+            $ \t  ->
+                case t of
+                NaryOp_ o' xs | o Prelude.== o' -> Just xs
+                _ -> Nothing
 
 coerceTo_ :: (ABT abt) => Coercion a b -> abt a -> abt b
 coerceTo_ c = syn . CoerceTo_ c
@@ -111,8 +114,8 @@ not = primOp1_ Not
     -- (</=>), (<==>), (==>), (<==), (\\), (//)
     nand, nor
     :: (ABT abt) => abt 'HBool -> abt 'HBool -> abt 'HBool
-(&&) = undefined -- TODO: naryOp_ And
-(||) = undefined -- TODO: naryOp_ Or
+(&&) = naryOp2_ And
+(||) = naryOp2_ Or
 -- (</=>) = primOp2_ Xor
 -- (<==>) = primOp2_ Iff
 -- (==>)  = primOp2_ Impl
@@ -138,8 +141,8 @@ x <= y = (x < y) || (x == y)
 
 min, max
     :: (ABT abt, HOrder a) => abt a -> abt a -> abt a
-min = undefined -- TODO: naryOp_ Min
-max = undefined -- TODO: naryOp_ Max
+min = naryOp2_ Min
+max = naryOp2_ Max
 
 -- N.B., we don't take advantage of commutativity, for more predictable AST outputs. However, that means we can end up being really slow;
 -- N.B., we also don't try to eliminate the identity elements or do cancellations because (a) it's undecidable in general, and (b) that's prolly better handled as a post-processing simplification step
@@ -147,8 +150,8 @@ max = undefined -- TODO: naryOp_ Max
 -- HSemiring operators
 (+), (*)
     :: (ABT abt, HSemiring a) => abt a -> abt a -> abt a
-(+) = undefined -- TODO: naryOp_ Sum
-(*) = undefined -- TODO: naryOp_ Prod
+(+) = naryOp2_ Sum
+(*) = naryOp2_ Prod
 
 -- TODO: simplifications
 (^) :: (ABT abt, HSemiring a) => abt a -> abt 'HNat -> abt a
