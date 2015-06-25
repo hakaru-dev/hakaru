@@ -175,8 +175,10 @@ class ABT (abt :: Hakaru * -> *) where
     syn      :: AST abt a          -> abt a
     -- See note about exposing 'View', 'viewABT', and 'unviewABT'
     viewABT  :: abt a -> View abt a
+    
     freeVars :: abt a -> Set Variable
     -- TODO: add a function for checking alpha-equivalence? Other stuff?
+    -- TODO: does it make sense ot have the functions for generating fresh variable names here? or does that belong in a separate class?
 
 
 -- | A variant of 'viewABT' for not accessing the 'View' type

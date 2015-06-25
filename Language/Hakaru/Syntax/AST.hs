@@ -59,13 +59,19 @@ data HOrder :: Hakaru * -> * where
     HOrder_HInt  :: HOrder 'HInt
     HOrder_HProb :: HOrder 'HProb
     HOrder_HReal :: HOrder 'HReal
+    ...
 -- The problem is, how to we handle things like the HRing type class?
 -}
 class    HOrder (a :: Hakaru *)
+instance HOrder 'HBool
 instance HOrder 'HNat
 instance HOrder 'HInt
 instance HOrder 'HProb
 instance HOrder 'HReal
+instance HOrder 'HUnit
+instance (HOrder a, HOrder b) => HOrder ('HPair   a b)
+instance (HOrder a, HOrder b) => HOrder ('HEither a b)
+instance (HOrder a) => HOrder ('HArray a)
 
 
 -- N.B., even though these ones are commutative, we don't assume that!
@@ -110,11 +116,21 @@ data HRing :: Hakaru * -> * where
 -- N.B., We're assuming two-sided inverses here. That doesn't entail
 -- commutativity, though it does strongly suggest it... (cf.,
 -- Wedderburn's little theorem)
--- N.B., the (Nat,"+"=lcm,"*"=gcd) semiring is sometimes called "the division semiring"
--- HACK: tracking carriers here wouldn't be quite right b/c we get
--- more than just the (non-negative)rationals generated from
--- HNat/HInt! However, we should have some sort of associated type
--- so we can add rationals and non-negative rationals...
+--
+-- N.B., the (Nat,"+"=lcm,"*"=gcd) semiring is sometimes called
+-- "the division semiring"
+--
+-- HACK: tracking the generating carriers here wouldn't be quite
+-- right b/c we get more than just the (non-negative)rationals
+-- generated from HNat/HInt! However, we should have some sort of
+-- associated type so we can add rationals and non-negative
+-- rationals...
+--
+-- TODO: associated type for non-zero elements. To guarantee the
+-- safety of division\/recip? For now, we have Infinity, so it's
+-- actually safe for these two types. But if we want to add the
+-- rationals...
+--
 -- | A division-semiring. (Not quite a field nor quite a division-ring...)
 class (HSemiring a) => HFractional (a :: Hakaru *)
 instance HFractional 'HProb
@@ -138,7 +154,6 @@ instance HFractional 'HReal
 -- of these are all solvable, so this shouldn't be too bad.
 class (HSemiring a) => HRadical (a :: Hakaru *)
 instance HRadical 'HProb
-instance HRadical 'HReal
 
 -- TODO: class (HDivisionRing a, HRadical a) => HAlgebraic a where...
 
@@ -155,6 +170,9 @@ instance HContinuous 'HReal where type HIntegral 'HReal = 'HInt
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 -- TODO: (?) coercing HMeasure by coercing the underlying measure space.
+-- TODO: lifting coercion over HFun, to avoid the need for eta-expansion
+-- TODO: lifting coersion over datatypes, to avoid traversing them at runtime
+-- TODO: see how GHC handles lifting coersions these days...
 
 -- | Primitive proofs of the inclusions in our numeric hierarchy.
 data PrimCoercion :: Hakaru * -> Hakaru * -> * where
@@ -372,8 +390,10 @@ data PrimOp :: Hakaru * -> * where
     -- making it discontinuous.
     Exp       :: PrimOp ('HFun 'HReal 'HProb)
     Log       :: PrimOp ('HFun 'HProb 'HReal)
+    -- TODO: Log1p, Expm1
     Infinity  :: PrimOp 'HProb
     NegativeInfinity :: PrimOp 'HReal -- TODO: maybe replace this by @negate (CoerceTo signed (PrimOp_ Infinity))@ ?
+    -- TODO: add Factorial as the appropriate type restriction of GammaFunc?
     GammaFunc :: PrimOp ('HFun 'HReal 'HProb)
     BetaFunc  :: PrimOp ('HFun 'HProb ('HFun 'HProb 'HProb))
 
@@ -386,6 +406,7 @@ data PrimOp :: Hakaru * -> * where
     Lebesgue    :: PrimOp ('HMeasure 'HReal)
     Counting    :: PrimOp ('HMeasure 'HInt)
     Categorical :: PrimOp ('HFun ('HArray 'HProb) ('HMeasure 'HNat))
+    -- TODO: make Uniform polymorphic, so that if the two inputs are HProb then we know the measure must be over HProb too
     Uniform     :: PrimOp ('HFun 'HReal ('HFun 'HReal ('HMeasure 'HReal)))
     Normal      :: PrimOp ('HFun 'HReal ('HFun 'HProb ('HMeasure 'HReal)))
     Poisson     :: PrimOp ('HFun 'HProb ('HMeasure 'HNat))
@@ -429,6 +450,7 @@ data PrimOp :: Hakaru * -> * where
     -- TODO: would it help to have a specialized version for when
     -- we happen to know that the 'HNat is a Value? Same goes for
     -- the other powers/roots
+    -- TODO: add a specialized version which returns NonNegative when the power is even? N.B., be sure not to actually constrain it to HRing (necessary for calling it \"NonNegative\")
 
 
     -- -- HRing operators
@@ -559,7 +581,8 @@ data AST :: (Hakaru * -> *) -> Hakaru * -> * where
     Value_      :: !(Value a)               -> AST ast a
     CoerceTo_   :: !(Coercion a b) -> ast a -> AST ast b
     UnsafeFrom_ :: !(Coercion a b) -> ast b -> AST ast a
-    -- TODO: add @SafeFrom_ :: Coercion a b -> ast b -> AST ast ('HMaybe a)@ or something similar?
+    -- TODO: add something like @SafeFrom_ :: Coercion a b -> ast b -> AST ast ('HMaybe a)@ so we can capture the safety of patterns like @if_ (0 <= x) (let x_ = unsafeFrom signed x in...) (...)@ Of course, since we're just going to do case analysis on the result; why not make it a binding form directly?
+    -- TODO: we'll probably want some more general thing to capture these sorts of patterns. For example, in the default implementation of Uniform we see: @if_ (lo < x && x < hi) (... unsafeFrom_ signed (hi - lo) ...) (...)@
 
 
     -- -- Primitive data types (which aren't PrimOps)

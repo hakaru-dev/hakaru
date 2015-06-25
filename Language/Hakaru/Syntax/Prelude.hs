@@ -25,7 +25,8 @@
 module Language.Hakaru.Syntax.Prelude where
 
 -- import Prelude hiding (id, (.), Ord(..), Num(..), Integral(..), Fractional(..), Floating(..), Real(..), RealFrac(..), RealFloat(..), (^), (^^),.......)
-import Prelude (Maybe(..), Bool(..), Int, Double, Functor(..), flip, ($), error, otherwise)
+-- TODO: implement and use Prelude's fromInteger and fromRational, so we can use numeric literals!
+import Prelude (Maybe(..), Bool(..), Int, Double, Functor(..), ($), flip, error, otherwise)
 import qualified Prelude
 import           Data.Sequence        (Seq)
 import qualified Data.Sequence        as Seq
@@ -70,7 +71,17 @@ primOp2_ = app2 . primOp0_
 primOp3_ :: (ABT abt) => PrimOp ('HFun a ('HFun b ('HFun c d))) -> abt a -> abt b -> abt c -> abt d
 primOp3_ = app3 . primOp0_
 
--- TODO: generalize from [] to Foldable?
+
+-- N.B., we don't take advantage of commutativity, for more predictable
+-- AST outputs. However, that means we can end up being slow...
+--
+-- N.B., we also don't try to eliminate the identity elements or
+-- do cancellations because (a) it's undecidable in general, and
+-- (b) that's prolly better handled as a post-processing simplification
+-- step
+--
+-- TODO: generalize these two from [] to Foldable?
+
 unsafeNaryOp_ :: (ABT abt) => NaryOp a -> [abt a] -> abt a
 unsafeNaryOp_ o = go Seq.empty
     where
@@ -80,7 +91,6 @@ unsafeNaryOp_ o = go Seq.empty
         Nothing   -> go (es Seq.|> e)    es'
         Just es'' -> go (es Seq.>< es'') es'
 
--- TODO: generalize from [] to Foldable?
 naryOp_withIdentity :: (ABT abt) => NaryOp a -> abt a -> [abt a] -> abt a
 naryOp_withIdentity o i = go Seq.empty
     where
@@ -119,6 +129,27 @@ freshVar k = k $ error "TODO"
 ----------------------------------------------------------------
 ----- Now for the actual EDSL
 
+{-
+infixl 1 `bind`, `bind_`, `bindx`
+infix  4 `less`, `equal`, `less_`, `equal_`
+infixl 9 `app`
+infixr 9 `pair`
+
+infixl 1 >>=, >>
+infixr 1 =<<
+infixr 1 <=<, >=>
+infixr 9 .
+infixr 0 $
+infixl 4 <$>, <$, <*>, <*, *>
+-}
+
+infixr 2 ||
+infixr 3 &&
+infix  4 ==, /=, <, <=, >, >=
+infixl 6 +, -
+infixl 7 *, /
+infixr 8 ^, ^^, ** -- ^+, ^*
+
 coerceTo_ :: (ABT abt) => Coercion a b -> abt a -> abt b
 coerceTo_ = (syn .) . CoerceTo_
 
@@ -153,7 +184,7 @@ and = naryOp_withIdentity And true
 or  = naryOp_withIdentity Or  false
 
 (&&), (||),
-    -- (</=>), (<==>), (==>), (<==), (\\), (//)
+    -- (</=>), (<==>), (==>), (<==), (\\), (//) -- TODO: better names?
     nand, nor
     :: (ABT abt) => abt 'HBool -> abt 'HBool -> abt 'HBool
 (&&) = naryOp2_ And
@@ -177,7 +208,7 @@ nor    = primOp2_ Nor
 (<)    = primOp2_ Less
 x <= y = (x < y) || (x == y)
 (>)    = flip (<)
-(>=)   = flip (<=)
+x >= y = not (x < y) -- or: @flip (<=)@
 
 min, max :: (ABT abt, HOrder a) => abt a -> abt a -> abt a
 min = naryOp2_ Min
@@ -188,8 +219,6 @@ minimum, maximum :: (ABT abt, HOrder a) => [abt a] -> abt a
 minimum = unsafeNaryOp_ Min
 maximum = unsafeNaryOp_ Max
 
--- N.B., we don't take advantage of commutativity, for more predictable AST outputs. However, that means we can end up being really slow;
--- N.B., we also don't try to eliminate the identity elements or do cancellations because (a) it's undecidable in general, and (b) that's prolly better handled as a post-processing simplification step
 
 -- HSemiring operators
 (+), (*) :: (ABT abt, HSemiring a) => abt a -> abt a -> abt a
@@ -209,12 +238,18 @@ product = naryOp_withIdentity Prod one
 (^) :: (ABT abt, HSemiring a) => abt a -> abt 'HNat -> abt a
 (^) = primOp2_ (NatPow {- at type @a@ -})
 
+-- TODO: this is actually safe, how can we capture that?
+-- TODO: is this type restruction actually helpful anywhere for us? If so, we ought to make this function polymorphic so that we can use it for HSemirings which are not HRings too...
+square :: (ABT abt, HRing a) => abt a -> abt (NonNegative a)
+square e = unsafeFrom_ signed (e ^ nat_ 2)
+
 
 -- HRing operators
 (-) :: (ABT abt, HRing a) => abt a -> abt a -> abt a
 x - y = x + negate y
 
 -- BUG: can't just pattern match on (App_ (PrimOp_ Negate) e) anymore; can't even match on (App_ (Syn (PrimOp_ Negate)) e). We need to implement our AST-pattern matching stuff in order to clean this up...
+-- TODO: do we really want to distribute negation over addition /by default/? Clearly we'll want to do that in some optimization\/partial-evaluation pass, but do note that it makes terms larger in general...
 negate :: (ABT abt, HRing a) => abt a -> abt a
 negate e0 =
     Prelude.maybe (primOp1_ Negate e0) id
@@ -232,6 +267,12 @@ negate e0 =
                             PrimOp_ Negate -> Just e
                             _              -> Nothing)
                 _ -> Nothing
+
+
+-- TODO: test case: @negative . square@ simplifies away the intermediate coercions. (cf., normal')
+-- | An occasionally helpful variant of 'negate'.
+negative :: (ABT abt, HRing a) => abt (NonNegative a) -> abt a
+negative = negate . coerceTo_ signed
 
 
 abs :: (ABT abt, HRing a) => abt a -> abt a
@@ -257,7 +298,13 @@ signum = primOp1_ Signum
 (/) :: (ABT abt, HFractional a) => abt a -> abt a -> abt a
 x / y = x * recip y
 
+
 -- TODO: generalize this pattern so we don't have to repeat it...
+--
+-- TODO: do we really want to distribute reciprocal over multiplication
+-- /by default/? Clearly we'll want to do that in some
+-- optimization\/partial-evaluation pass, but do note that it makes
+-- terms larger in general...
 recip :: (ABT abt, HFractional a) => abt a -> abt a
 recip e0 =
     Prelude.maybe (primOp1_ Recip e0) id
@@ -290,8 +337,28 @@ x ^^ y =
 thRootOf :: (ABT abt, HRadical a) => abt 'HNat -> abt a -> abt a
 n `thRootOf` x = primOp2_ NatRoot x n
 
+-- N.B., HProb is the only HRadical type (for now...)
 sqrt :: (ABT abt, HRadical a) => abt a -> abt a
 sqrt = (nat_ 2 `thRootOf`)
+
+-- HACK: for monomorphism. We should get rid of this...
+pi_ :: (ABT abt) => abt 'HProb
+pi_  = primOp0_ Pi
+
+betaFunc :: (ABT abt) => abt 'HProb -> abt 'HProb -> abt 'HProb
+betaFunc = primOp2_ BetaFunc
+
+-- HACK: for monomorphism. We should get rid of this...
+pow_ :: (ABT abt) => abt 'HProb -> abt 'HReal -> abt 'HProb
+pow_ = primOp2_ RealPow
+
+-- HACK: for monomorphism. We should get rid of this...
+exp_ :: (ABT abt) => abt 'HReal -> abt 'HProb
+exp_ = primOp1_ Exp
+
+-- HACK: for monomorphism. We should get rid of this...
+log_ :: (ABT abt) => abt 'HProb -> abt 'HReal
+log_ = primOp1_ Log
 
 {-
 -- TODO: simplifications
@@ -302,7 +369,7 @@ x ^+ y = casePositiveRational y $ \n d -> d `thRootOf` (x ^ n)
 x ^* y = caseRational y $ \n d -> d `thRootOf` (x ^^ n)
 -}
 
-
+-- HACK: we define this class in order to gain more polymorphism; but, will it cause type inferencing issues? Excepting 'log' (which should be moved out of the class) these are all safe. 
 class RealProb (a :: Hakaru *) where
     (**) :: (ABT abt) => abt 'HProb -> abt a -> abt 'HProb
     exp  :: (ABT abt) => abt a -> abt 'HProb
@@ -310,22 +377,25 @@ class RealProb (a :: Hakaru *) where
     erf  :: (ABT abt) => abt a -> abt a
     pi   :: (ABT abt) => abt a
     infinity :: (ABT abt) => abt a
+    gammaFunc :: (ABT abt) => abt a -> abt 'HProb
 
 instance RealProb 'HReal where
-    (**)     = primOp2_ RealPow
-    exp      = primOp1_ Exp
-    log      = primOp1_ Log
-    erf      = primOp1_ (Erf {- 'HReal -})
-    pi       = coerceTo_ signed $ primOp0_ Pi
-    infinity = coerceTo_ signed $ primOp0_ Infinity
+    (**)      = pow_
+    exp       = exp_
+    log       = log_
+    erf       = primOp1_ (Erf {- 'HReal -})
+    pi        = coerceTo_ signed pi_
+    infinity  = coerceTo_ signed $ primOp0_ Infinity
+    gammaFunc = primOp1_ GammaFunc
 
 instance RealProb 'HProb where
-    x ** y   = primOp2_ RealPow x (coerceTo_ signed y)
-    exp      = primOp1_ Exp . coerceTo_ signed
-    log      = unsafeFrom_ signed . primOp1_ Log -- error for inputs in [0,1)
-    erf      = primOp1_ (Erf {- 'HProb -})
-    pi       = primOp0_ Pi
-    infinity = primOp0_ Infinity
+    x ** y    = pow_ x (coerceTo_ signed y)
+    exp       = exp_ . coerceTo_ signed
+    log       = unsafeFrom_ signed . log_ -- error for inputs in [0,1)
+    erf       = primOp1_ (Erf {- 'HProb -})
+    pi        = pi_
+    infinity  = primOp0_ Infinity
+    gammaFunc = primOp1_ GammaFunc . coerceTo_ signed
 
 logBase
     :: (ABT abt, RealProb a, HFractional a)
@@ -402,12 +472,6 @@ fromInt    = coerceTo_ continuous
 negativeInfinity :: (ABT abt) => abt 'HReal
 negativeInfinity = primOp0_ NegativeInfinity
 
-gammaFunc :: (ABT abt) => abt 'HReal -> abt 'HProb
-gammaFunc = primOp1_ GammaFunc
-
-betaFunc :: (ABT abt) => abt 'HProb -> abt 'HProb -> abt 'HProb
-betaFunc = primOp2_ BetaFunc
-
 fix :: (ABT abt, SingI a) => (abt a -> abt a) -> abt a
 fix f = 
     freshVar $ \x ->
@@ -467,104 +531,109 @@ superpose = syn . Superpose_
 
 {-
 -- BUG: need to (a) fix the type, or (b) coerce @'HMeasure 'HNat@ to @'HMeasure 'HInt@
-categorical
+categorical, categorical'
     :: (ABT abt)
     => abt ('HArray 'HProb)
     -> abt ('HMeasure 'HInt)
 categorical = primOp1_ Categorical
-{-
-categorical v = 
+
+categorical' v = 
     counting `bind` \i ->
-    if_ (and_ [not_ (less i 0), less i (size v)])
+    if_ (i >= 0 && i < size v)
         (weight (index v i / sumV v) (dirac i))
         (superpose [])
 -}
--}
 
-uniform
+
+-- TODO: make Uniform polymorphic, so that if the two inputs are HProb then we know the measure must be over HProb too
+uniform, uniform'
     :: (ABT abt)
     => abt 'HReal
     -> abt 'HReal
     -> abt ('HMeasure 'HReal)
 uniform = primOp2_ Uniform
-{-
-uniform lo hi = 
+
+uniform' lo hi = 
     lebesgue `bind` \x ->
-    if_ (and_ [less lo x, less x hi])
+    if_ (lo < x && x < hi)
+        -- TODO: how can we capture that this 'unsafeProb' is safe? (and that this 'recip' isn't Infinity, for that matter)
         (superpose [(recip (unsafeProb (hi - lo)), dirac x)])
         (superpose [])
--}
 
-normal
+
+normal, normal'
     :: (ABT abt)
     => abt 'HReal
     -> abt 'HProb
     -> abt ('HMeasure 'HReal)
 normal = primOp2_ Normal
-{-
-normal mu sd  = 
+
+normal' mu sd  = 
     lebesgue `bind` \x ->
     superpose
-        [( exp_ (- (x - mu)^(2::Int)
-            / fromProb (2 * pow_ sd 2))
-            / sd / sqrt_ (2 * pi_)
+        -- alas, we loose syntactic negation...
+        [( exp_ (negate ((x - mu) ^ nat_ 2)  -- TODO: use negative\/square instead of negate\/(^2)
+            / fromProb (prob_ 2 * sd ** real_ 2)) -- TODO: use square instead of (**2) ?
+            / sd / sqrt (prob_ 2 * pi_)
         , dirac x
         )]
--}
 
-{-
--- BUG: need to (a) fix the type, or (b) coerce @'HMeasure 'HNat@ to @'HMeasure 'HInt@
-poisson :: (ABT abt) => abt 'HProb -> abt ('HMeasure 'HInt)
+
+poisson, poisson' :: (ABT abt) => abt 'HProb -> abt ('HMeasure 'HNat)
 poisson = primOp1_ Poisson
-{-
-poisson l = 
+
+poisson' l = 
     counting `bind` \x ->
-    if_ (and_ [not_ (less x 0), less 0 l])
+    -- TODO: use 'SafeFrom_' instead of @if_ (x >= int_ 0)@ so we can prove that @unsafeFrom_ signed x@ is actually always safe.
+    if_ (x >= int_ 0 && prob_ 0 < l) -- BUG: do you mean @l /= 0@? why use (>=) instead of (<=)?
         (superpose
-            [( pow_ l (fromInt x)
-                / gammaFunc (fromInt x + 1)
-                / exp_ (fromProb l)
-            , dirac x
+            [( l ** fromInt x -- BUG: why do you use (**) instead of (^^)?
+                / gammaFunc (fromInt x + real_ 1) -- TODO: use factorial instead of gammaFunc...
+                / exp l
+            , dirac (unsafeFrom_ signed x)
             )])
         (superpose [])
--}
--}
 
-gamma
+
+gamma, gamma'
     :: (ABT abt)
     => abt 'HProb
     -> abt 'HProb
     -> abt ('HMeasure 'HProb)
 gamma = primOp2_ Gamma
-{-
-gamma shape scale =
-    lebesgue `bind` \x ->
-    if_ (less 0 x)
-        (let x_     = unsafeProb x
-             shape_ = fromProb shape in
-         superpose [(pow_ x_ (fromProb (shape - 1))
-                    * exp_ (- fromProb (x_ / scale))
-                    / (pow_ scale shape_ * gammaFunc shape_),
-                    dirac (unsafeProb x))])
-        (superpose [])
--}
 
-beta
+gamma' shape scale =
+    lebesgue `bind` \x ->
+    -- TODO: use 'SafeFrom_' instead of @if_ (real_ 0 < x)@ so we can prove that @unsafeProb x@ is actually always safe. Of course, then we'll need to mess around with checking (/=0) which'll get ugly... Use another SafeFrom_ with an associated NonZero type?
+    if_ (real_ 0 < x)
+        (let x_ = unsafeProb x in
+         superpose
+            [( x_ ** (fromProb shape - real_ 1)
+                * exp_ (negative $ x_ / scale)
+                / (scale ** shape * gammaFunc shape)
+            , dirac x_
+            )])
+        (superpose [])
+
+
+beta, beta'
     :: (ABT abt)
     => abt 'HProb
     -> abt 'HProb
     -> abt ('HMeasure 'HProb)
 beta = primOp2_ Beta
-{-
-beta a b =
-    uniform 0 1 `bind` \x ->
+
+beta' a b =
+    -- TODO: make Uniform polymorphic, so that if the two inputs are HProb then we know the measure must be over HProb too, and hence @unsafeProb x@ must always be safe. Alas, capturing the safety of @unsafeProb (1-x)@ would take a lot more work...
+    uniform (real_ 0) (real_ 1) `bind` \x ->
+    let x_ = unsafeProb x in
     superpose
-        [( pow_ (unsafeProb x    ) (fromProb a - 1)
-            * pow_ (unsafeProb (1-x)) (fromProb b - 1)
+        [( x_ ** (fromProb a - real_ 1)
+            * unsafeProb (real_ 1 - x) ** (fromProb b - real_ 1)
             / betaFunc a b
-        , dirac (unsafeProb x)
+        , dirac x_
         )]
--}
+
 
 dp  :: (ABT abt)
     => abt 'HProb
@@ -572,17 +641,21 @@ dp  :: (ABT abt)
     -> abt ('HMeasure ('HMeasure a))
 dp = (syn .) . Dp_
 
+
 plate
     :: (ABT abt)
     => abt ('HArray ('HMeasure          a))
     -> abt (         'HMeasure ('HArray a))
 plate = syn . Plate_
 {-
-plate v = reduce r z (mapV m v)
-    where r   = liftM2 concatV
-          z   = dirac empty
-          m a = liftM (vector 1 . const) a
+-- TODO: the array stuff...
+plate' v = reduce r z (mapV m v)
+    where
+    r   = liftM2 concatV
+    z   = dirac empty
+    m a = liftM (vector 1 . const) a
 -}
+
 
 chain
     :: (ABT abt)
@@ -590,16 +663,19 @@ chain
     -> abt (         'HFun s ('HMeasure ('HPair ('HArray a) s)))
 chain = syn . Chain_
 {-
-chain v = reduce r z (mapV m v)
-    where r x y = lam (\s -> app x s `bind` \v1s1 ->
-                             unpair v1s1 $ \v1 s1 ->
-                             app y s1 `bind` \v2s2 ->
-                             unpair v2s2 $ \v2 s2 ->
-                             dirac (pair (concatV v1 v2) s2))
-          z     = lam (\s -> dirac (pair empty s))
-          m a   = lam (\s -> liftM (`unpair` pair . vector 1 . const)
-                                   (app a s))
+-- TODO: the array stuff...
+chain' v = reduce r z (mapV m v)
+    where
+    r x y = lam $ \s ->
+            app x s `bind` \v1s1 ->
+            unpair v1s1 $ \v1 s1 ->
+            app y s1 `bind` \v2s2 ->
+            unpair v2s2 $ \v2 s2 ->
+            dirac (pair (concatV v1 v2) s2)
+    z     = lam $ \s -> dirac (pair empty s)
+    m a   = lam $ \s -> liftM (`unpair` pair . vector 1 . const) (app a s)
 -}
+
 
 -- instance (ABT abt) => Integrate abt where
 integrate
