@@ -38,6 +38,7 @@ import Language.Hakaru.Syntax.Nat
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.TypeEq (SingI(sing))
 import Language.Hakaru.Syntax.HClasses
+import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT hiding (View(..))
 
