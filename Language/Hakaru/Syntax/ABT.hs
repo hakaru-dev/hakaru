@@ -218,6 +218,10 @@ instance Show1 TrivialABT where
             . showsPrec1 11 v
             )
 
+instance Show (TrivialABT a) where
+    showsPrec = showsPrec1
+    show      = show1
+
 ----------------------------------------------------------------
 -- TODO: replace @Set Variable@ with @Map Variable (Hakaru Star)@; though that belongs more in the type-checking than in this FreeVarsABT itself...
 -- TODO: generalize this pattern for any monoidal annotation?
@@ -244,6 +248,10 @@ instance Show1 FreeVarsABT where
             . showString " "
             . showsPrec1 11 v
             )
+
+instance Show (FreeVarsABT a) where
+    showsPrec = showsPrec1
+    show      = show1
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------

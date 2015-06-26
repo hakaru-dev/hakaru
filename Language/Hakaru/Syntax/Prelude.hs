@@ -34,10 +34,10 @@ import           Data.Proxy
 import           Control.Category     (Category(..))
 import           Data.Number.LogFloat (LogFloat)
 
-import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.Nat
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.TypeEq (SingI(sing))
+import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT hiding (View(..))
 

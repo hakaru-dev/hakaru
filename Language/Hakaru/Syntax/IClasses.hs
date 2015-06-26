@@ -36,15 +36,18 @@ newtype Lift1 (a :: *) (i :: k) =
 
 ----------------------------------------------------------------
 -- TODO: cf., <http://hackage.haskell.org/package/abt-0.1.1.0>
--- | Uniform variant of Show for @k@-indexed types. Alas, I don't
--- think there's any way to derive instances the way we can derive
--- for 'Show'.
+-- | Uniform variant of Show for @k@-indexed types. This differs
+-- from @transformers:@'Data.Functor.Classes.Show1' in being
+-- polykinded, like it ought to be.
+--
+-- Alas, I don't think there's any way to derive instances the way
+-- we can derive for 'Show'.
 class Show1 (a :: k -> *) where
     {-# MINIMAL showsPrec1 | show1 #-}
-    
+
     showsPrec1 :: Int -> a i -> ShowS
     showsPrec1 _ x s = show1 x ++ s
-    
+
     show1 :: a i -> String
     show1 x = showsPrec1 0 x ""
 
@@ -65,9 +68,10 @@ instance Show1 a => Show (Showable1 a i) where
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
--- | A functor on the category of @k@-indexed types. Alas, I don't
--- think there's any way to derive instances the way we can derive
--- for 'Functor'.
+-- | A functor on the category of @k@-indexed types.
+--
+-- Alas, I don't think there's any way to derive instances the way
+-- we can derive for 'Functor'.
 class Functor1 (f :: (k -> *) -> k -> *) where
     fmap1 :: (forall i. a i -> b i) -> f a j -> f b j
     -- (<$1) :: (forall i. a i) -> f b j -> f a j
@@ -82,7 +86,7 @@ class Functor1 (f :: (k -> *) -> k -> *) where
 -- | A foldable functor on the category of @k@-indexed types.
 class Functor1 f => Foldable1 (f :: (k -> *) -> k -> *) where
     {-# MINIMAL fold1 | foldMap1 #-}
-    
+
     fold1 :: (Monoid m) => f (Lift1 m) i -> m
     fold1 = foldMap1 unLift1
 
