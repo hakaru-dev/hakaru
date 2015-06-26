@@ -47,6 +47,8 @@ module Language.Hakaru.Syntax.ABT
 import           Data.Typeable     (Typeable)
 import           Data.Set          (Set)
 import qualified Data.Set          as Set
+import           Data.Monoid
+import           Data.Foldable
 import           Control.Arrow     (second, (***))
 import           Control.Exception (Exception, throw)
 

@@ -4,6 +4,7 @@
            , TypeFamilies
            , GADTs
            , FlexibleInstances
+           , FlexibleContexts
            , StandaloneDeriving
            #-}
 
