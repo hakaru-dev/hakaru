@@ -1,12 +1,7 @@
 -- TODO: <https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging>
-{-# LANGUAGE RankNTypes
-           , KindSignatures
-           , DataKinds
+{-# LANGUAGE DataKinds
            , PolyKinds
-           , TypeFamilies
            , GADTs
-           , FlexibleInstances
-           , FlexibleContexts
            , StandaloneDeriving
            #-}
 
@@ -426,7 +421,6 @@ data AST :: (Hakaru * -> *) -> Hakaru * -> * where
 ----------------------------------------------------------------
 -- BUG: deriving instance (forall b. Eq (ast b)) => Eq (AST ast a)
 -- BUG: deriving instance Read (AST ast a)
--- BUG: deriving instance (forall b. Show (ast a)) => Show (AST ast a)
 
 showParen_0 :: Show a => Int -> String -> a -> ShowS
 showParen_0 p s e =
@@ -436,7 +430,7 @@ showParen_0 p s e =
         . showsPrec 11 e
         )
 
-showParen_1 :: forall (a :: k -> *) (i :: k). Show1 a => Int -> String -> a i -> ShowS
+showParen_1 :: Show1 a => Int -> String -> a i -> ShowS
 showParen_1 p s e =
     showParen (p Prelude.> 9)
         ( showString s

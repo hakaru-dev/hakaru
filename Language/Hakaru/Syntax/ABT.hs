@@ -1,10 +1,7 @@
-{-# LANGUAGE RankNTypes
-           , ScopedTypeVariables
+{-# LANGUAGE ScopedTypeVariables
            , GADTs
-           , TypeFamilies
            , DataKinds
            , PolyKinds
-           , DeriveDataTypeable
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -109,6 +106,10 @@ instance Show1 abt => Show1 (View abt) where
             ( showString "Syn "
             . showsPrec1 11 t
             )
+
+instance Show1 abt => Show (View abt a) where
+    showsPrec = showsPrec1
+    show      = show1
 
 
 -- TODO: neelk includes 'subst' in the signature. Any reason we should?

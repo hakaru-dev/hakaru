@@ -1,12 +1,6 @@
--- TODO: <https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging>
-{-# LANGUAGE RankNTypes
-           , KindSignatures
+{-# LANGUAGE KindSignatures
            , DataKinds
-           , PolyKinds
-           , TypeFamilies
            , GADTs
-           , FlexibleInstances
-           , FlexibleContexts
            , StandaloneDeriving
            #-}
 
