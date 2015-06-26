@@ -1,8 +1,8 @@
 -- TODO: move this somewhere else, like "Language.Hakaru.Types"
--- TODO: merge with the Posta version. Release them as a standalone?
+-- TODO: merge with the Posta version. Release them as a standalone package?
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.06.24
+--                                                    2015.06.26
 -- |
 -- Module      :  Language.Hakaru.Syntax.Nat
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -25,7 +25,15 @@ module Language.Hakaru.Syntax.Nat
 -- instance will throw errors on subtraction, negation, and
 -- 'fromInteger' when the result is not a natural number.
 newtype Nat = Nat Int
-    deriving (Eq, Ord, Read, Show)
+    deriving (Eq, Ord, Show)
+
+-- N.B., we cannot derive Read, since that would inject invalid numbers!
+instance Read Nat where
+    readsPrec d =
+        readParen (d > 10) $ \s0 -> do
+            ("Nat", s1) <- lex s0
+            (i,     s2) <- readsPrec 11 s1
+            maybe [] (\n -> [(n,s2)]) (toNat i)
 
 
 -- | Safely convert a natural number to an integer.

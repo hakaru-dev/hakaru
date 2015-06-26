@@ -34,6 +34,7 @@ import           Data.Proxy
 import           Control.Category     (Category(..))
 import           Data.Number.LogFloat (LogFloat)
 
+import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.Nat
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.TypeEq (SingI(sing))
@@ -120,6 +121,7 @@ matchNaryOp o e =
             _ -> Nothing
 
 
+-- cf., <http://comonad.com/reader/2014/fast-circular-substitution/> for magicking our way out of HOAS. Also, we should just feed that into our ABT framework
 -- TODO: give @k@ an actual @Var@ instead of the @Variable@ name? If we try that, then be sure to check 'uneither'
 -- TODO: how can we generate fresh names? Should we have @abt@ be a monad?
 freshVar :: (ABT abt) => (Variable -> abt a) -> abt a

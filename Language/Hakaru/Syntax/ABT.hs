@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.06.24
+--                                                    2015.06.26
 -- |
 -- Module      :  Language.Hakaru.Syntax.ABT
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -23,17 +23,13 @@
 -- adding variables and binding; and each 'ABT' type  (1) provides
 -- some additional annotations at each recursion site, and then (2)
 -- ties the knot to produce the recursive trees.
+--
+-- TODO: simultaneous multiple substitution
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.ABT
     (
-    -- TODO: move this stuff elsewhere
-    -- * Indexed variants of standard classes
-      IFunctor(..)
-    , IMonoid(..)
-    , IFoldable(..)
-    
     -- * The abstract binding tree interface
-    , Variable(..)
+      Variable(..)
     -- See note about exposing 'View', 'viewABT', and 'unviewABT'
     , View(..), unviewABT
     , ABT(..), caseABT, caseOpenABT, caseVarSynABT
@@ -47,89 +43,14 @@ module Language.Hakaru.Syntax.ABT
 import           Data.Typeable     (Typeable)
 import           Data.Set          (Set)
 import qualified Data.Set          as Set
-import           Control.Arrow     (second, (***))
 import           Control.Exception (Exception, throw)
 
+import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.TypeEq (Sing, SingI, toSing, TypeEq(Refl), jmEq)
 import Language.Hakaru.Syntax.AST
 
 ----------------------------------------------------------------
--- TODO: will we want to make this polykinded instead of restricting to the @Hakaru*@ kind?
--- | A functor on the category of @k@-indexed types.
-class IFunctor (f :: (k -> *) -> k -> *) where
-    hmap :: (forall b. g b -> g' b) -> f g a -> f g' a 
-
-
--- | A monoid lifted to be (trivially) @k@-indexed.
-newtype IMonoid (m :: *) (a :: k) =
-    IMonoid { unIMonoid :: m }
-instance Monoid m => Monoid (IMonoid m a) where
-    mempty = IMonoid mempty
-    mappend (IMonoid m) (IMonoid n) = IMonoid (mappend m n)
-    mconcat ms = IMonoid (mconcat $ map unIMonoid ms)
-
-
--- | A foldable functor on the category of @k@-indexed types.
-class IFunctor f => IFoldable (f :: (k -> *) -> k -> *) where
-    hfold :: (Monoid m) => f (IMonoid m) a -> m
-    hfold = hfoldMap unIMonoid
-
-    hfoldMap :: (Monoid m) => (forall b. g b -> m) -> f g a -> m
-    hfoldMap f = hfold . hmap (IMonoid . f)
-
-
--- TODO: move this instance to "Language.Hakaru.Syntax.AST"
-instance IFunctor AST where
-    hmap f (Lam_ p  e)           = Lam_ p (f e)
-    hmap f (App_ e1 e2)          = App_ (f e1) (f e2)
-    hmap f (Let_ e1 e2)          = Let_ (f e1) (f e2)
-    hmap f (Fix_ e)              = Fix_ (f e)
-    hmap _ (PrimOp_ o)           = PrimOp_ o
-    hmap f (NaryOp_ o es)        = NaryOp_ o (fmap f es)
-    hmap f (Integrate_ e1 e2 e3) = Integrate_ (f e1) (f e2) (f e3)
-    hmap f (Summate_   e1 e2 e3) = Summate_   (f e1) (f e2) (f e3)
-    hmap _ (Value_ v)            = Value_ v
-    hmap f (CoerceTo_   c e)     = CoerceTo_   c (f e)
-    hmap f (UnsafeFrom_ c e)     = UnsafeFrom_ c (f e)
-    hmap f (List_  es)           = List_  (map f es)
-    hmap f (Maybe_ me)           = Maybe_ (fmap f me)
-    hmap f (Case_  e pes)        = Case_ (f e) (map (second f) pes)
-    hmap f (Array_ e1 e2)        = Array_ (f e1) (f e2)
-    hmap f (Bind_  e1 e2)        = Bind_  (f e1) (f e2)
-    hmap f (Superpose_ pes)      = Superpose_ (map (f *** f) pes)
-    hmap f (Dp_    e1 e2)        = Dp_    (f e1) (f e2)
-    hmap f (Plate_ e)            = Plate_ (f e)
-    hmap f (Chain_ e)            = Chain_ (f e)
-    hmap f (Lub_ e1 e2)          = Lub_   (f e1) (f e2)
-    hmap _ Bot_                  = Bot_
-
-
--- TODO: move this instance to "Language.Hakaru.Syntax.AST"
-instance IFoldable AST where
-    hfoldMap f (Lam_ _  e)           = f e
-    hfoldMap f (App_ e1 e2)          = f e1 `mappend` f e2
-    hfoldMap f (Let_ e1 e2)          = f e1 `mappend` f e2
-    hfoldMap f (Fix_ e)              = f e
-    hfoldMap _ (PrimOp_ _)           = mempty
-    hfoldMap f (NaryOp_ _ es)        = foldMap f es
-    hfoldMap f (Integrate_ e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
-    hfoldMap f (Summate_   e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
-    hfoldMap _ (Value_ _)            = mempty
-    hfoldMap f (CoerceTo_   _ e)     = f e
-    hfoldMap f (UnsafeFrom_ _ e)     = f e
-    hfoldMap f (List_  es)           = foldMap f es
-    hfoldMap f (Maybe_ me)           = foldMap f me
-    hfoldMap f (Case_  e pes)        = f e  `mappend` foldMap (f . snd) pes
-    hfoldMap f (Array_ e1 e2)        = f e1 `mappend` f e2
-    hfoldMap f (Bind_  e1 e2)        = f e1 `mappend` f e2
-    hfoldMap f (Superpose_ pes)      = foldMap (\(e1,e2) -> f e1 `mappend` f e2) pes
-    hfoldMap f (Dp_    e1 e2)        = f e1 `mappend` f e2
-    hfoldMap f (Plate_ e)            = f e
-    hfoldMap f (Chain_ e)            = f e
-    hfoldMap f (Lub_ e1 e2)          = f e1 `mappend` f e2
-    hfoldMap _ Bot_                  = mempty
-
 ----------------------------------------------------------------
 -- TODO: actually define 'Variable' as something legit
 -- TODO: maybe have @Variable a@ instead, with @SomeVariable@ to package up the existential?
@@ -162,10 +83,32 @@ data View :: (Hakaru * -> *) -> Hakaru * -> * where
     Syn  :: !(AST abt a) -> View abt a
 
 
-instance IFunctor View where
-    hmap _ (Var  x p) = Var  x p
-    hmap f (Open x e) = Open x (f e)
-    hmap f (Syn  t)   = Syn (hmap f t)
+instance Functor1 View where
+    fmap1 _ (Var  x p) = Var  x p
+    fmap1 f (Open x e) = Open x (f e)
+    fmap1 f (Syn  t)   = Syn (fmap1 f t)
+
+
+instance Show1 abt => Show1 (View abt) where
+    showsPrec1 p (Var x s) =
+        showParen (p Prelude.> 9)
+            ( showString "Var "
+            . showsPrec  11 x
+            . showString " "
+            . showsPrec  11 s
+            )
+    showsPrec1 p (Open x e) =
+        showParen (p Prelude.> 9)
+            ( showString "Open "
+            . showsPrec  11 x
+            . showString " "
+            . showsPrec1 11 e
+            )
+    showsPrec1 p (Syn t) =
+        showParen (p Prelude.> 9)
+            ( showString "Syn "
+            . showsPrec1 11 t
+            )
 
 
 -- TODO: neelk includes 'subst' in the signature. Any reason we should?
@@ -265,8 +208,15 @@ instance ABT TrivialABT where
         case v of
         Var  x _ -> Set.singleton x
         Open x e -> Set.delete x (freeVars e)
-        Syn  t   -> hfoldMap freeVars t
+        Syn  t   -> foldMap1 freeVars t
 
+
+instance Show1 TrivialABT where
+    showsPrec1 p (TrivialABT v) =
+        showParen (p Prelude.> 9)
+            ( showString "TrivialABT "
+            . showsPrec1 11 v
+            )
 
 ----------------------------------------------------------------
 -- TODO: replace @Set Variable@ with @Map Variable (Hakaru Star)@; though that belongs more in the type-checking than in this FreeVarsABT itself...
@@ -279,12 +229,21 @@ data FreeVarsABT (a :: Hakaru *)
 instance ABT FreeVarsABT where
     var  x p = FreeVarsABT (Set.singleton x)           (Var  x p)
     open x e = FreeVarsABT (Set.delete x $ freeVars e) (Open x e)
-    syn  t   = FreeVarsABT (hfoldMap freeVars t)       (Syn  t)
+    syn  t   = FreeVarsABT (foldMap1 freeVars t)       (Syn  t)
 
     viewABT  (FreeVarsABT _  v) = v
 
     freeVars (FreeVarsABT xs _) = xs
 
+
+instance Show1 FreeVarsABT where
+    showsPrec1 p (FreeVarsABT xs v) =
+        showParen (p Prelude.> 9)
+            ( showString "FreeVarsABT "
+            . showsPrec  11 xs
+            . showString " "
+            . showsPrec1 11 v
+            )
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -307,7 +266,7 @@ rename x y = go
         Open z e'
             | x == z    -> e
             | otherwise -> open z (go e')
-        Syn t           -> syn (hmap go t)
+        Syn t           -> syn (fmap1 go t)
 
 
 -- N.B., this /is/ guaranteed to preserve type safety— provided it doesn't throw an exception.
@@ -334,7 +293,7 @@ subst x e = go
             | otherwise   ->
                 let z' = freshen z (freeVars e `mappend` freeVars body)
                 in  open z' (go (rename z z' body'))
-        Syn body'         -> syn (hmap go body')
+        Syn body'         -> syn (fmap1 go body')
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

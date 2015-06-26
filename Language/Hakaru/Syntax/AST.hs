@@ -1,6 +1,8 @@
 -- TODO: <https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging>
-{-# LANGUAGE KindSignatures
+{-# LANGUAGE RankNTypes
+           , KindSignatures
            , DataKinds
+           , PolyKinds
            , TypeFamilies
            , GADTs
            , FlexibleInstances
@@ -9,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.06.24
+--                                                    2015.06.26
 -- |
 -- Module      :  Language.Hakaru.Syntax.AST
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -20,14 +22,20 @@
 --
 -- The generating functor for the raw syntax, along with various
 -- helper types.
+--
+-- TODO: are we finally at the place where we can get rid of all those annoying underscores?
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.AST where
 
 import Prelude hiding (id, (.), Ord(..), Num(..), Integral(..), Fractional(..), Floating(..), Real(..), RealFrac(..), RealFloat(..), (^), (^^))
+import qualified Prelude
 import Data.Sequence        (Seq)
 import Data.Proxy
 import Control.Category     (Category(..))
+import Control.Arrow        (second, (***))
 import Data.Number.LogFloat (LogFloat)
+
+import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Nat
 {-
@@ -131,7 +139,9 @@ data HRing :: Hakaru * -> * where
 -- actually safe for these two types. But if we want to add the
 -- rationals...
 --
--- | A division-semiring. (Not quite a field nor quite a division-ring...)
+-- | A division-semiring; i.e., a division-ring without negation.
+-- This is called a \"semifield\" in ring theory, but should not
+-- be confused with the \"semifields\" of geometry.
 class (HSemiring a) => HFractional (a :: Hakaru *)
 instance HFractional 'HProb
 instance HFractional 'HReal
@@ -278,6 +288,10 @@ data Value :: Hakaru * -> * where
     Inl_     :: !(Value a) -> Value ('HEither a b)
     Inr_     :: !(Value b) -> Value ('HEither a b)
     -}
+
+deriving instance Eq   (Value a)
+-- BUG: deriving instance Read (Value a)
+deriving instance Show (Value a)
 
 
 ----------------------------------------------------------------
@@ -625,6 +639,137 @@ data AST :: (Hakaru * -> *) -> Hakaru * -> * where
     -- TODO: should this really be part of the AST?
     Lub_ :: ast a -> ast a -> AST ast a
     Bot_ :: AST ast a
+
+----------------------------------------------------------------
+-- BUG: deriving instance (forall b. Eq (ast b)) => Eq (AST ast a)
+-- BUG: deriving instance Read (AST ast a)
+-- BUG: deriving instance (forall b. Show (ast a)) => Show (AST ast a)
+
+showParen_0 :: Show a => Int -> String -> a -> ShowS
+showParen_0 p s e =
+    showParen (p Prelude.> 9)
+        ( showString s
+        . showString " "
+        . showsPrec 11 e
+        )
+
+showParen_1 :: forall (a :: k -> *) (i :: k). Show1 a => Int -> String -> a i -> ShowS
+showParen_1 p s e =
+    showParen (p Prelude.> 9)
+        ( showString s
+        . showString " "
+        . showsPrec1 11 e
+        )
+
+showParen_01 :: (Show b, Show1 a) => Int -> String -> b -> a i -> ShowS
+showParen_01 p s e1 e2 =
+    showParen (p Prelude.> 9)
+        ( showString s
+        . showString " "
+        . showsPrec  11 e1
+        . showString " "
+        . showsPrec1 11 e2
+        )
+
+showParen_11 :: (Show1 a) => Int -> String -> a i -> a j -> ShowS
+showParen_11 p s e1 e2 =
+    showParen (p Prelude.> 9)
+        ( showString s
+        . showString " "
+        . showsPrec1 11 e1
+        . showString " "
+        . showsPrec1 11 e2
+        )
+
+showParen_111 :: (Show1 a) => Int -> String -> a i -> a j -> a k -> ShowS
+showParen_111 p s e1 e2 e3 =
+    showParen (p Prelude.> 9)
+        ( showString s
+        . showString " "
+        . showsPrec1 11 e1
+        . showString " "
+        . showsPrec1 11 e2
+        . showString " "
+        . showsPrec1 11 e3
+        )
+
+instance Show1 ast => Show1 (AST ast) where
+    showsPrec1 p t =
+        case t of
+        Lam_ a  e            -> showParen_01  p "Lam_" a  e
+        App_ e1 e2           -> showParen_11  p "App_" e1 e2
+        Let_ e1 e2           -> showParen_11  p "Let_" e1 e2
+        Fix_ e               -> showParen_1   p "Fix_" e
+        PrimOp_ o            -> showParen_0   p "PrimOp_" o
+        NaryOp_ o es         -> error "TODO: show NaryOp_"
+        Integrate_ e1 e2 e3  -> showParen_111 p "Integrate_" e1 e2 e3
+        Summate_   e1 e2 e3  -> showParen_111 p "Summate_"   e1 e2 e3
+        Value_ v             -> showParen_0   p "Value_" v
+        CoerceTo_   c e      -> showParen_01  p "CoerceTo_"   c e
+        UnsafeFrom_ c e      -> showParen_01  p "UnsafeFrom_" c e
+        List_  es            -> error "TODO: show List_"
+        Maybe_ me            -> error "TODO: show Maybe_"
+        Case_  e pes         -> error "TODO: show Case_"
+        Array_ e1 e2         -> showParen_11  p "Array_" e1 e2
+        Bind_  e1 e2         -> showParen_11  p "Bind_"  e1 e2
+        Superpose_ pes       -> error "TODO: show Superpose_"
+        Dp_    e1 e2         -> showParen_11  p "Dp_"    e1 e2
+        Plate_ e             -> showParen_1   p "Plate_" e
+        Chain_ e             -> showParen_1   p "Chain_" e
+        Lub_   e1 e2         -> showParen_11  p "Lub_"   e1 e2
+        Bot_                 -> showString      "Bot_"
+
+
+----------------------------------------------------------------
+instance Functor1 AST where
+    fmap1 f (Lam_ p  e)           = Lam_ p (f e)
+    fmap1 f (App_ e1 e2)          = App_ (f e1) (f e2)
+    fmap1 f (Let_ e1 e2)          = Let_ (f e1) (f e2)
+    fmap1 f (Fix_ e)              = Fix_ (f e)
+    fmap1 _ (PrimOp_ o)           = PrimOp_ o
+    fmap1 f (NaryOp_ o es)        = NaryOp_ o (fmap f es)
+    fmap1 f (Integrate_ e1 e2 e3) = Integrate_ (f e1) (f e2) (f e3)
+    fmap1 f (Summate_   e1 e2 e3) = Summate_   (f e1) (f e2) (f e3)
+    fmap1 _ (Value_ v)            = Value_ v
+    fmap1 f (CoerceTo_   c e)     = CoerceTo_   c (f e)
+    fmap1 f (UnsafeFrom_ c e)     = UnsafeFrom_ c (f e)
+    fmap1 f (List_  es)           = List_  (map f es)
+    fmap1 f (Maybe_ me)           = Maybe_ (fmap f me)
+    fmap1 f (Case_  e pes)        = Case_ (f e) (map (second f) pes)
+    fmap1 f (Array_ e1 e2)        = Array_ (f e1) (f e2)
+    fmap1 f (Bind_  e1 e2)        = Bind_  (f e1) (f e2)
+    fmap1 f (Superpose_ pes)      = Superpose_ (map (f *** f) pes)
+    fmap1 f (Dp_    e1 e2)        = Dp_    (f e1) (f e2)
+    fmap1 f (Plate_ e)            = Plate_ (f e)
+    fmap1 f (Chain_ e)            = Chain_ (f e)
+    fmap1 f (Lub_ e1 e2)          = Lub_   (f e1) (f e2)
+    fmap1 _ Bot_                  = Bot_
+
+
+----------------------------------------------------------------
+instance Foldable1 AST where
+    foldMap1 f (Lam_ _  e)           = f e
+    foldMap1 f (App_ e1 e2)          = f e1 `mappend` f e2
+    foldMap1 f (Let_ e1 e2)          = f e1 `mappend` f e2
+    foldMap1 f (Fix_ e)              = f e
+    foldMap1 _ (PrimOp_ _)           = mempty
+    foldMap1 f (NaryOp_ _ es)        = foldMap f es
+    foldMap1 f (Integrate_ e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
+    foldMap1 f (Summate_   e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
+    foldMap1 _ (Value_ _)            = mempty
+    foldMap1 f (CoerceTo_   _ e)     = f e
+    foldMap1 f (UnsafeFrom_ _ e)     = f e
+    foldMap1 f (List_  es)           = foldMap f es
+    foldMap1 f (Maybe_ me)           = foldMap f me
+    foldMap1 f (Case_  e pes)        = f e  `mappend` foldMap (f . snd) pes
+    foldMap1 f (Array_ e1 e2)        = f e1 `mappend` f e2
+    foldMap1 f (Bind_  e1 e2)        = f e1 `mappend` f e2
+    foldMap1 f (Superpose_ pes)      = foldMap (\(e1,e2) -> f e1 `mappend` f e2) pes
+    foldMap1 f (Dp_    e1 e2)        = f e1 `mappend` f e2
+    foldMap1 f (Plate_ e)            = f e
+    foldMap1 f (Chain_ e)            = f e
+    foldMap1 f (Lub_ e1 e2)          = f e1 `mappend` f e2
+    foldMap1 _ Bot_                  = mempty
 
 
 ----------------------------------------------------------------

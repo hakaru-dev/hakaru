@@ -105,6 +105,11 @@ toSing _ = sing
 data TypeEq :: k -> k -> * where
     Refl :: TypeEq a a
 
+-- | Type constructors are extensional.
+cong :: TypeEq a b -> TypeEq (f a) (f b)
+cong Refl = Refl
+
+
 -- BUG: how can we implement this when Sing isn't a closed type?
 -- | Decide whether the types @a@ and @b@ are equal. If you don't
 -- have the singleton laying around, you can use 'toSing' to convert
