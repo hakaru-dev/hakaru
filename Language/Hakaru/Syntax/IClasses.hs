@@ -18,7 +18,7 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.IClasses
     ( Lift1(..)
-    , Show1(..), Showable1(..)
+    , Show1(..), shows1, showList1, Showable1(..)
     {- TODO: as necessary
     , Show2(..), Showable2(..)
     , Eq1(..)
@@ -49,8 +49,36 @@ class Show1 (a :: k -> *) where
     showsPrec1 _ x s = show1 x ++ s
 
     show1 :: a i -> String
-    show1 x = showsPrec1 0 x ""
+    show1 x = shows1 x ""
 
+shows1 :: (Show1 a) => a i -> ShowS
+shows1 =  showsPrec1 0
+
+showList1 :: Show1 a => [a i] -> ShowS
+showList1 []     s = "[]" ++ s
+showList1 (x:xs) s = '[' : shows1 x (showl xs)
+    where
+    showl []     = ']' : s
+    showl (y:ys) = ',' : shows1 y (showl ys)
+
+{-
+-- BUG: these require (Show (i::k)) in the class definition of Show1
+instance Show1 Maybe where
+    showsPrec1 = showsPrec
+    show1      = show
+
+instance Show1 [] where
+    showsPrec1 = showsPrec
+    show1      = show
+
+instance Show1 ((,) a) where
+    showsPrec1 = showsPrec
+    show1      = show
+
+instance Show1 (Either a) where
+    showsPrec1 = showsPrec
+    show1      = show
+-}
 
 instance Show a => Show1 (Lift1 a) where
     showsPrec1 p (Lift1 x) = showsPrec p x

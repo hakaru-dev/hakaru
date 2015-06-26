@@ -213,10 +213,33 @@ instance ABT TrivialABT where
 
 
 instance Show1 TrivialABT where
+    {-
+    -- Print the concrete data constructors:
     showsPrec1 p (TrivialABT v) =
         showParen (p Prelude.> 9)
             ( showString "TrivialABT "
             . showsPrec1 11 v
+            )
+    -}
+    -- Do something a bit prettier. (Because we print the smart constructors, this output can also be cut-and-pasted to work for any ABT instance.)
+    showsPrec1 p (TrivialABT (Var x s)) =
+        showParen (p Prelude.> 9)
+            ( showString "var "
+            . showsPrec  11 x
+            . showString " "
+            . showsPrec  11 s
+            )
+    showsPrec1 p (TrivialABT (Open x e)) =
+        showParen (p Prelude.> 9)
+            ( showString "open "
+            . showsPrec  11 x
+            . showString " "
+            . showsPrec1 11 e
+            )
+    showsPrec1 p (TrivialABT (Syn t)) =
+        showParen (p Prelude.> 9)
+            ( showString "syn "
+            . showsPrec1 11 t
             )
 
 instance Show (TrivialABT a) where

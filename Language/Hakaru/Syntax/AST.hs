@@ -29,6 +29,7 @@ import Data.Sequence        (Seq)
 import Data.Proxy
 import Control.Category     (Category(..))
 import Control.Arrow        (second, (***))
+import qualified Data.Foldable as F
 import Data.Number.LogFloat (LogFloat)
 
 import Language.Hakaru.Syntax.Nat
@@ -221,7 +222,7 @@ data PrimOp :: Hakaru * -> * where
     Empty  :: PrimOp ('HArray a)
     Index  :: PrimOp ('HFun ('HArray a) ('HFun 'HNat a))
     Size   :: PrimOp ('HFun ('HArray a) 'HNat)
-    -- TODO: is that the right type for the first argument? or was it a binder of some sort?
+    -- TODO: is that the right type for the first argument? or was it a binder of some sort? Or should it only accept an NaryOp?
     Reduce :: PrimOp
         ('HFun ('HFun a ('HFun a a))
         ('HFun a
@@ -478,13 +479,26 @@ instance Show1 ast => Show1 (AST ast) where
         Let_ e1 e2           -> showParen_11  p "Let_" e1 e2
         Fix_ e               -> showParen_1   p "Fix_" e
         PrimOp_ o            -> showParen_0   p "PrimOp_" o
-        NaryOp_ o es         -> error "TODO: show NaryOp_"
+        NaryOp_ o es         ->
+            showParen (p Prelude.> 9)
+                ( showString "NaryOp_ "
+                . showsPrec  11 o
+                . showString " "
+                . showParen True
+                    ( showString "fromList "
+                    . showList1 (F.toList es)
+                    )
+                )
         Integrate_ e1 e2 e3  -> showParen_111 p "Integrate_" e1 e2 e3
         Summate_   e1 e2 e3  -> showParen_111 p "Summate_"   e1 e2 e3
         Value_ v             -> showParen_0   p "Value_" v
         CoerceTo_   c e      -> showParen_01  p "CoerceTo_"   c e
         UnsafeFrom_ c e      -> showParen_01  p "UnsafeFrom_" c e
-        List_  es            -> error "TODO: show List_"
+        List_ es             ->
+            showParen (p Prelude.> 9)
+                ( showString "List_ "
+                . showList1 es
+                )
         Maybe_ me            -> error "TODO: show Maybe_"
         Case_  e pes         -> error "TODO: show Case_"
         Array_ e1 e2         -> showParen_11  p "Array_" e1 e2
