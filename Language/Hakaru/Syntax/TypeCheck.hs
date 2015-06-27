@@ -69,18 +69,19 @@ mustCheck (Syn (CoerceTo_   c e))     = error "TODO: mustCheck(CoerceTo_)"
 mustCheck (Syn (UnsafeFrom_ c e))     = error "TODO: mustCheck(UnsafeFrom_)"
 mustCheck (Syn (List_   es))          = error "TODO: mustCheck(List_)"
 mustCheck (Syn (Maybe_  me))          = error "TODO: mustCheck(Maybe_)"
-mustCheck (Syn (Case_   _ _))         = True
-mustCheck (Syn (Array_  _ _))         = True
-mustCheck (Syn (Roll_   _))           = True
+mustCheck (Syn (Case_   _ _))         = True -- TODO: everyone says this, but it seems to me that if we can infer any of the branches (and check the rest to agree) then we should be able to infer the whole thing... Or maybe the problem is that the change-of-direction rule might send us down the wrong path?
+mustCheck (Syn (Array_  _ _))         = True -- I just say this because neelk says all data constructors mustCheck (even though that doesn't seem right to me). TODO: Seems to me that if we can infer the body, then we should be able to infer the whole thing, right? Or maybe the problem is that the change-of-direction rule might send us down the wrong path?
+mustCheck (Syn (Roll_   _))           = True -- I just say this because neelk says all data constructors mustCheck (even though that doesn't seem right to me). Also, Pfenning and Dunfield & Pientka give the same. TODO: can we ever infer it correctly?
 mustCheck (Syn (Unroll_ _))           = False
-mustCheck (Syn (Bind_   e1 e2))       = error "TODO: mustCheck(Bind_)"
+mustCheck (Syn (Bind_   e1 e2))       = error "TODO: mustCheck(Bind_)" -- Presumably works the same way as Let_ does
 mustCheck (Syn (Superpose_ pes))      = error "TODO: mustCheck(Superpose_)"
 mustCheck (Syn (Dp_     e1 e2))       = error "TODO: mustCheck(Dp_)"
 mustCheck (Syn (Plate_  e))           = error "TODO: mustCheck(Plate_)"
 mustCheck (Syn (Chain_  e))           = error "TODO: mustCheck(Chain_)"
 mustCheck (Syn (Lub_    e1 e2))       = error "TODO: mustCheck(Lub_)"
 mustCheck (Syn Bot_)                  = error "TODO: mustCheck(Bot_)"
-mustCheck _                           = False -- Var is false; Open is (presumably) an error...
+mustCheck (Var _ _)                   = False
+mustCheck (Open _ _)                  = error "mustCheck: you shouldn't be asking about Open terms" -- Presumably this ought to be an error, rather than False (right?)
 
 ----------------------------------------------------------------
 
@@ -125,6 +126,14 @@ inferType ctx e =
         case typ1 of
             SFun typ2 typ3 -> checkType ctx e2 typ2 >> return typ3
             -- IMPOSSIBLE: _ -> failwith "Applying a non-function!"
+        -- The above is the standard rule that everyone uses. However, if the @e1@ is a lambda (rather than a primop or a variable), then it will require a type annotation. Couldn't we just as well add an additional rule that says to infer @e2@ and then infer @e1@ under the assumption that the variable has the same type as the argument? (or generalize that idea to keep track of a bunch of arguments being passed in; sort of like a dual to our typing environments?) Is this at all related to what Dunfield & Neelk are doing in their ICFP'13 paper with that \"=>=>\" judgment? (prolly not, but...)
+        {-
+    Syn (App_ (Syn (Lam_ p e1)) e2) -> do 
+        typ2 <- inferType ctx e2
+        -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
+        caseOpenABT e1 $ \x t ->
+            inferType (pushCtx (TV x typ2) ctx) t
+        -}
 
     Syn (Let_ e1 e2)
         | inferable (viewABT e1) -> do
@@ -214,11 +223,13 @@ checkType ctx e typ =
         caseOpenABT e' $ \x t ->
         checkType (pushCtx (TV x typ) ctx) t typ
         
+    {-
+    -- These no longer seem necessary...
     Syn (PrimOp_ Unit) ->
         case typ of
         SUnit -> return ()
         _     -> failwith "expected HUnit type"
-    {-
+    
     Syn (App_ (Syn (App_ (Syn (PrimOp_ Pair)) e1)) e2) ->
         case typ of
         SPair typ1 typ2 -> checkType ctx e1 typ1 >> checkType ctx e2 typ2
@@ -258,7 +269,10 @@ checkType ctx e typ =
         | otherwise   -> do
             typ' <- inferType ctx e
             -- If we ever get evaluation at the type level, then
-            -- (==) should be the appropriate notion of type equivalence.
+            -- (==) should be the appropriate notion of type
+            -- equivalence. More generally, we should have that the
+            -- inferred @typ'@ is a subtype of (i.e., subsumed by)
+            -- the goal @typ@. This will be relevant to us for handling our coercion calculus :(
             if typ == typ' -- TODO: would using 'jmEq' be better?
             then return ()
             else failwith "Type mismatch"
