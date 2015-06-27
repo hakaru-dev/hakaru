@@ -34,6 +34,7 @@ import Data.Number.LogFloat    (LogFloat)
 import Language.Hakaru.Syntax.Nat
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.DataKind
+import Language.Hakaru.Syntax.TypeEq (Sing)
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Coercion
 {-
@@ -379,7 +380,8 @@ data AST :: (Hakaru * -> *) -> Hakaru * -> * where
     Fix_    :: ast {-a-} a -> AST ast a
     -- | Explicitly given type annotations. (For the other
     -- change-of-direction rule in bidirectional type checking.)
-    Ann_    :: !(Proxy a) -> ast a -> AST ast a
+    -- N.B., storing a 'Proxy' isn't enough; we need the 'Sing'.
+    Ann_    :: !(Sing a) -> ast a -> AST ast a
 
 
     -- -- Primitive operators

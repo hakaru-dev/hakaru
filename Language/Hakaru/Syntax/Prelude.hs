@@ -36,7 +36,7 @@ import           Data.Number.LogFloat (LogFloat)
 
 import Language.Hakaru.Syntax.Nat
 import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.TypeEq (SingI(sing))
+import Language.Hakaru.Syntax.TypeEq (Sing, SingI(sing))
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.AST
@@ -154,7 +154,7 @@ infixl 7 *, /
 infixr 8 ^, ^^, ** -- ^+, ^*
 
 -- TODO: some infix notation reminiscent of \"::\"
-ann_ :: (ABT abt) => Proxy a -> abt a -> abt a
+ann_ :: (ABT abt) => Sing a -> abt a -> abt a
 ann_ = (syn .) . Ann_
 
 coerceTo_ :: (ABT abt) => Coercion a b -> abt a -> abt b

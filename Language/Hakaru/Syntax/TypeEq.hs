@@ -91,6 +91,28 @@ instance SingI ('HTag a sop) where sing = STag Proxy singSOPHakaruFun
 -}
 
 
+{-
+-- I think it's impossible to actually implement a function of this
+-- type (i.e., without any type constraints on @a@). That is, even
+-- though for every @a :: Hakaru*@ there is some value of type @Sing
+-- a@, and even though that value is unique for each @a@, nevertheless
+-- I'm pretty sure @forall a. Sing a@ must be empty, by parametricity.
+-- We'd need to inspect the @a@ in order to construct the appropriate
+-- @Sing a@, but \"forall\" doesn't allow that.
+--
+-- BUG: this implementation just gives us a <<loop>>
+toSing :: proxy a -> Sing a
+toSing _ = everySing es
+    where
+    es = EverySing (everySing es)
+
+everySing :: EverySing -> Sing a
+everySing (EverySing s) = s
+
+data EverySing where
+    EverySing :: (forall a. Sing a) -> EverySing
+-}
+
 -- TODO: what is the actual runtype cost of using 'toSing'...?
 -- | Convert any given proxy into a singleton. This is a convenience
 -- function for type checking; it ignores its argument.

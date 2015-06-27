@@ -117,19 +117,19 @@ synth ctx e =
                 Nothing   -> failwith "type mismatch"
             | otherwise -> error "synth: bad context"
         Nothing  -> failwith "unbound variable"
-    
-    Syn (Ann_ prox e) -> do
-        -- TODO: generate a Sing from the Proxy; or store the Sing directly
-        let typ = (error "TODO: Proxy to Sing") prox
+
+    Syn (Ann_ typ e) -> do
+        -- N.B., this requires that @typ@ is a 'Sing' not a 'Proxy',
+        -- since we can't generate a 'Sing' from a 'Proxy'.
         check ctx e typ
         return typ
-    
+
     Syn (App_ e1 e2) -> do
         typ1 <- synth ctx e1
         case typ1 of
             SFun typ2 typ3 -> check ctx e2 typ2 >> return typ3
             -- IMPOSSIBLE: _ -> failwith "Applying a non-function!"
-    
+
     t   | isSynth t -> error "synth: missing an isSynth branch!"
         | otherwise -> failwith "Cannot synthesize type for a checking term"
 
@@ -147,7 +147,7 @@ check ctx e typ =
             caseOpenABT e' $ \x t ->
             check (pushCtx (TV x typ1) ctx) t typ2
         _ -> failwith "expected HFun type"
-    
+
     Syn (PrimOp_ Unit) ->
         case typ of
         SUnit -> return ()
@@ -157,12 +157,12 @@ check ctx e typ =
         case typ of
         SPair typ1 typ2 -> check ctx e1 typ1 >> check ctx e2 typ2
         _               -> failwith "expected HPair type"
-    
+
     Syn (App_ (Syn (PrimOp_ Inl)) e) ->
         case typ of
         SEither typ1 _ -> check ctx e typ1
         _              -> failwith "expected HEither type"
-        
+
     Syn (App_ (Syn (PrimOp_ Inr)) e) ->
         case typ of
         SEither _ typ2 -> check ctx e typ2
@@ -172,7 +172,7 @@ check ctx e typ =
         typ' <- synth ctx e'
         forM_ branches $ \(Branch pat body) ->
             checkBranch ctx [TP pat typ'] body typ
-    
+
     Syn (Array_ n e') ->
         case typ of
         SArray typ1 ->
@@ -180,7 +180,7 @@ check ctx e typ =
             caseOpenABT e' $ \x t ->
             check (pushCtx (TV x SNat) ctx) t typ1
         _ -> failwith "expected HArray type"
-    
+
     t   | isCheck t -> error "check: missing an isCheck branch!"
         | otherwise -> do
             typ' <- synth ctx e
