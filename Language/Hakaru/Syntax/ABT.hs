@@ -25,8 +25,11 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.ABT
     (
-    -- * The abstract binding tree interface
+    -- * Our basic notion of variables\/names.
       Variable(..)
+    , varHint
+    , varId
+    -- * The abstract binding tree interface
     -- See note about exposing 'View', 'viewABT', and 'unviewABT'
     , View(..), unviewABT
     , ABT(..), caseABT, caseOpenABT, caseVarSynABT
@@ -40,6 +43,7 @@ module Language.Hakaru.Syntax.ABT
 import           Data.Typeable     (Typeable)
 import           Data.Set          (Set)
 import qualified Data.Set          as Set
+import           Data.Function     (on)
 import           Control.Exception (Exception, throw)
 
 import Language.Hakaru.Syntax.IClasses
@@ -51,16 +55,41 @@ import Language.Hakaru.Syntax.AST
 ----------------------------------------------------------------
 -- TODO: actually define 'Variable' as something legit
 -- TODO: maybe have @Variable a@ instead, with @SomeVariable@ to package up the existential?
-newtype Variable = Variable String
-    deriving (Eq, Ord, Read, Show)
+-- N.B., This is lazy in its components!
+-- TODO: finish combining the \"fast circular substitution\" pearl with the ABT framework.
+-- <http://comonad.com/reader/2014/fast-circular-substitution/>
+data Variable = Variable String Int
+    deriving (Read, Show)
 
+-- | Project out the string the user suggested as a name for the variable.
+varHint :: Variable -> String
+varHint (Variable n _) = n
 
+-- | Project out the unique identifier for the variable.
+varId :: Variable -> Int
+varId (Variable _ i) = i
+
+instance Eq Variable where
+    (==) = (==) `on` varId
+
+instance Ord Variable where
+    compare = compare `on` varId
+
+-- | Generate a new variable with the same hint as the old one.
+-- N.B., the new variable is not guaranteed to be fresh! To do that,
+-- we'd need some sort of name supply, and thus would need to be
+-- monadic.
+prime :: Variable -> Variable
+prime (Variable n i) = Variable n (i + 1)
+
+----------------------------------------------------------------
 -- TODO: go back to the name \"Abs\"(traction), and figure out some other name for the \"Abs\"(olute value) PrimOp to avoid conflict. Or maybe call it \"Bind\"(er) and then come up with some other name for the HMeasure monadic bind operator?
 -- <http://semantic-domain.blogspot.co.uk/2015/03/abstract-binding-trees.html>
 -- <http://semantic-domain.blogspot.co.uk/2015/03/abstract-binding-trees-addendum.html>
 -- <https://gist.github.com/neel-krishnaswami/834b892327271e348f79>
 -- TODO: abstract over 'AST' like neelk does for @signature@?
 -- TODO: remove the proxy type for 'Var', and infer it instead?
+-- TODO: distinguish between free and bound variables, a~la Locally Nameless? also cf., <http://hackage.haskell.org/package/abt>
 --
 -- | The raw view of abstract binding trees, to separate out variables
 -- and binders from (1) the rest of syntax (cf., 'AST'), and (2)
@@ -74,19 +103,28 @@ newtype Variable = Variable String
 -- their own ABT instances (without reinventing their own copy of
 -- this type)...
 data View :: (Hakaru * -> *) -> Hakaru * -> * where
-    -- TODO: what are the overhead costs of storying a Sing? Would it be cheaper to store the SingI dictionary (and a Proxy, as necessary)?
-    Var  :: !Variable -> !(Sing a) -> View abt a
-    Open :: !Variable -> abt a -> View abt a
+    
     Syn  :: !(AST abt a) -> View abt a
+    
+    -- TODO: what are the overhead costs of storying a Sing? Would it be cheaper to store the SingI dictionary (and a Proxy, as necessary)?
+    Var  :: {-# UNPACK #-} !Variable -> !(Sing a) -> View abt a
+    
+    -- TODO: wouldn't it be better for Open to recurse as @View abt a@ until it bottoms out as Var or Syn?
+    Open :: {-# UNPACK #-} !Variable -> abt a -> View abt a
 
 
 instance Functor1 View where
+    fmap1 f (Syn  t)   = Syn (fmap1 f t)
     fmap1 _ (Var  x p) = Var  x p
     fmap1 f (Open x e) = Open x (f e)
-    fmap1 f (Syn  t)   = Syn (fmap1 f t)
 
 
 instance Show1 abt => Show1 (View abt) where
+    showsPrec1 p (Syn t) =
+        showParen (p Prelude.> 9)
+            ( showString "Syn "
+            . showsPrec1 11 t
+            )
     showsPrec1 p (Var x s) =
         showParen (p Prelude.> 9)
             ( showString "Var "
@@ -101,11 +139,6 @@ instance Show1 abt => Show1 (View abt) where
             . showString " "
             . showsPrec1 11 e
             )
-    showsPrec1 p (Syn t) =
-        showParen (p Prelude.> 9)
-            ( showString "Syn "
-            . showsPrec1 11 t
-            )
 
 instance Show1 abt => Show (View abt a) where
     showsPrec = showsPrec1
@@ -114,9 +147,9 @@ instance Show1 abt => Show (View abt a) where
 
 -- TODO: neelk includes 'subst' in the signature. Any reason we should?
 class ABT (abt :: Hakaru * -> *) where
+    syn      :: AST abt a          -> abt a
     var      :: Variable -> Sing a -> abt a
     open     :: Variable -> abt  a -> abt a
-    syn      :: AST abt a          -> abt a
     -- See note about exposing 'View', 'viewABT', and 'unviewABT'
     viewABT  :: abt a -> View abt a
     
@@ -131,22 +164,22 @@ class ABT (abt :: Hakaru * -> *) where
 caseABT
     :: (ABT abt)
     => abt a
+    -> (AST abt a          -> r)
     -> (Variable -> Sing a -> r)
     -> (Variable -> abt  a -> r)
-    -> (AST abt a          -> r)
     -> r
-caseABT e v o s =
+caseABT e s v o =
     case viewABT e of
+    Syn  t    -> s t
     Var  x p  -> v x p
     Open x e' -> o x e'
-    Syn  t    -> s t
 
 
 -- See note about exposing 'View', 'viewABT', and 'unviewABT'
 unviewABT :: (ABT abt) => View abt a -> abt a
+unviewABT (Syn  t)   = syn  t
 unviewABT (Var  x p) = var  x p
 unviewABT (Open x e) = open x e
-unviewABT (Syn  t)   = syn  t
 
 
 data ABTException
@@ -188,9 +221,9 @@ caseVarSynABT
     -> r
 caseVarSynABT e v s =
     case viewABT e of
+    Syn  t   -> s t
     Var  x p -> v x p
     Open _ _ -> throw ExpectedVarSynException -- TODO: add call-site info
-    Syn  t   -> s t
 
 
 ----------------------------------------------------------------
@@ -198,18 +231,18 @@ caseVarSynABT e v s =
 newtype TrivialABT (a :: Hakaru *) = TrivialABT (View TrivialABT a)
 
 instance ABT TrivialABT where
+    syn  t   = TrivialABT (Syn  t)
     var  x p = TrivialABT (Var  x p)
     open x e = TrivialABT (Open x e)
-    syn  t   = TrivialABT (Syn  t)
 
     viewABT  (TrivialABT v) = v
     
     -- This is very expensive! use 'FreeVarsABT' to fix that
     freeVars (TrivialABT v) =
         case v of
+        Syn  t   -> foldMap1 freeVars t
         Var  x _ -> Set.singleton x
         Open x e -> Set.delete x (freeVars e)
-        Syn  t   -> foldMap1 freeVars t
 
 
 instance Show1 TrivialABT where
@@ -222,6 +255,11 @@ instance Show1 TrivialABT where
             )
     -}
     -- Do something a bit prettier. (Because we print the smart constructors, this output can also be cut-and-pasted to work for any ABT instance.)
+    showsPrec1 p (TrivialABT (Syn t)) =
+        showParen (p Prelude.> 9)
+            ( showString "syn "
+            . showsPrec1 11 t
+            )
     showsPrec1 p (TrivialABT (Var x s)) =
         showParen (p Prelude.> 9)
             ( showString "var "
@@ -235,11 +273,6 @@ instance Show1 TrivialABT where
             . showsPrec  11 x
             . showString " "
             . showsPrec1 11 e
-            )
-    showsPrec1 p (TrivialABT (Syn t)) =
-        showParen (p Prelude.> 9)
-            ( showString "syn "
-            . showsPrec1 11 t
             )
 
 instance Show (TrivialABT a) where
@@ -255,9 +288,9 @@ data FreeVarsABT (a :: Hakaru *)
     -- N.B., Set is a monoid with {Set.empty; Set.union; Set.unions}
 
 instance ABT FreeVarsABT where
+    syn  t   = FreeVarsABT (foldMap1 freeVars t)       (Syn  t)
     var  x p = FreeVarsABT (Set.singleton x)           (Var  x p)
     open x e = FreeVarsABT (Set.delete x $ freeVars e) (Open x e)
-    syn  t   = FreeVarsABT (foldMap1 freeVars t)       (Syn  t)
 
     viewABT  (FreeVarsABT _  v) = v
 
@@ -281,8 +314,8 @@ instance Show (FreeVarsABT a) where
 ----------------------------------------------------------------
 -- TODO: something smarter
 freshen :: Variable -> Set Variable -> Variable
-freshen x@(Variable x0) xs
-    | x `Set.member` xs = freshen (Variable $ x0 ++"'") xs
+freshen x xs
+    | x `Set.member` xs = freshen (prime x) xs
     | otherwise         = x
 
 -- | Rename a free variable. Does nothing if the variable is bound.
@@ -292,13 +325,13 @@ rename x y = go
     go :: forall b. abt b -> abt b
     go e =
         case viewABT e of
+        Syn t           -> syn (fmap1 go t)
         Var z p
             | x == z    -> var y p
             | otherwise -> e
         Open z e'
             | x == z    -> e
             | otherwise -> open z (go e')
-        Syn t           -> syn (fmap1 go t)
 
 
 -- N.B., this /is/ guaranteed to preserve type safety— provided it doesn't throw an exception.
@@ -314,6 +347,7 @@ subst x e = go
     go :: forall c. abt c -> abt c
     go body =
         case viewABT body of
+        Syn body'         -> syn (fmap1 go body')
         Var z p
             | x == z      ->
                 case jmEq p (toSing e) of
@@ -325,7 +359,6 @@ subst x e = go
             | otherwise   ->
                 let z' = freshen z (freeVars e `mappend` freeVars body)
                 in  open z' (go (rename z z' body'))
-        Syn body'         -> syn (fmap1 go body')
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

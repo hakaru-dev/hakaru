@@ -377,6 +377,7 @@ data AST :: (Hakaru * -> *) -> Hakaru * -> * where
     Let_    :: ast a -> ast {-a-} b -> AST ast b
     -- TODO: a general \"@let*@\" version of let-binding so we can have mutual recursion
     Fix_    :: ast {-a-} a -> AST ast a
+    -- TODO: Ann_ :: !(Proxy a) -> ast a -> AST ast a
 
 
     -- -- Primitive operators

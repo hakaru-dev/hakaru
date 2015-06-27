@@ -112,6 +112,9 @@ class Functor1 (f :: (k -> *) -> k -> *) where
 -- at different indices...
 
 -- | A foldable functor on the category of @k@-indexed types.
+--
+-- Alas, I don't think there's any way to derive instances the way
+-- we can derive for 'Foldable'.
 class Functor1 f => Foldable1 (f :: (k -> *) -> k -> *) where
     {-# MINIMAL fold1 | foldMap1 #-}
 
