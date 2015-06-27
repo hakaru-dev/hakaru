@@ -372,7 +372,9 @@ instance Functor1 (Branch a) where
 data AST :: (Hakaru * -> *) -> Hakaru * -> * where
 
     -- -- Standard lambda calculus stuff
-    -- We store a Proxy in Lam_, so we needn't infer @a@ in the result.
+    -- We store a Proxy in Lam_, so Haskell needn't infer @a@ in
+    -- the result. As far as Hakaru is concerned, we only ever try
+    -- to check lambdas, never infer them.
     Lam_    :: !(Proxy a) -> ast {-a-} b -> AST ast ('HFun a b)
     App_    :: ast ('HFun a b) -> ast a -> AST ast b
     Let_    :: ast a -> ast {-a-} b -> AST ast b
@@ -420,6 +422,10 @@ data AST :: (Hakaru * -> *) -> Hakaru * -> * where
     -- TODO: do we really need this to be a binding form, or could it take a Hakaru function (HFun) for the second argument?
     Array_ :: ast 'HNat -> ast {-'HNat-} a -> AST ast ('HArray a)
 
+    Roll_   :: ast (sop ':$ 'HMu sop) -> AST ast ('HMu sop)
+    Unroll_ :: ast ('HMu sop) -> AST ast (sop ':$ 'HMu sop)
+    -- TODO: what's up with HTag? is it just a variant of HMu?
+    -- TODO: we should probably move all the data constructors back here
 
     -- -- Mochastic stuff (which isn't PrimOps)
     -- TODO: should Dirac move back here?
@@ -536,13 +542,15 @@ instance Show1 ast => Show1 (AST ast) where
                 . showString " "
                 . showList1 pes
                 )
-        Array_ e1 e2         -> showParen_11  p "Array_" e1 e2
-        Bind_  e1 e2         -> showParen_11  p "Bind_"  e1 e2
+        Array_  e1 e2        -> showParen_11  p "Array_"  e1 e2
+        Roll_   e            -> showParen_1   p "Roll_"   e
+        Unroll_ e            -> showParen_1   p "Unroll_" e
+        Bind_   e1 e2        -> showParen_11  p "Bind_"   e1 e2
         Superpose_ pes       -> error "TODO: show Superpose_"
-        Dp_    e1 e2         -> showParen_11  p "Dp_"    e1 e2
-        Plate_ e             -> showParen_1   p "Plate_" e
-        Chain_ e             -> showParen_1   p "Chain_" e
-        Lub_   e1 e2         -> showParen_11  p "Lub_"   e1 e2
+        Dp_     e1 e2        -> showParen_11  p "Dp_"    e1 e2
+        Plate_  e            -> showParen_1   p "Plate_" e
+        Chain_  e            -> showParen_1   p "Chain_" e
+        Lub_    e1 e2        -> showParen_11  p "Lub_"   e1 e2
         Bot_                 -> showString      "Bot_"
 
 instance Show1 ast => Show (AST ast a) where
@@ -563,16 +571,18 @@ instance Functor1 AST where
     fmap1 _ (Value_ v)            = Value_ v
     fmap1 f (CoerceTo_   c e)     = CoerceTo_   c (f e)
     fmap1 f (UnsafeFrom_ c e)     = UnsafeFrom_ c (f e)
-    fmap1 f (List_  es)           = List_  (map f es)
-    fmap1 f (Maybe_ me)           = Maybe_ (fmap f me)
-    fmap1 f (Case_  e pes)        = Case_ (f e) (map (fmap1 f) pes)
-    fmap1 f (Array_ e1 e2)        = Array_ (f e1) (f e2)
-    fmap1 f (Bind_  e1 e2)        = Bind_  (f e1) (f e2)
+    fmap1 f (List_   es)          = List_  (map f es)
+    fmap1 f (Maybe_  me)          = Maybe_ (fmap f me)
+    fmap1 f (Case_   e pes)       = Case_ (f e) (map (fmap1 f) pes)
+    fmap1 f (Array_  e1 e2)       = Array_  (f e1) (f e2)
+    fmap1 f (Roll_   e)           = Roll_   (f e)
+    fmap1 f (Unroll_ e)           = Unroll_ (f e)
+    fmap1 f (Bind_   e1 e2)       = Bind_   (f e1) (f e2)
     fmap1 f (Superpose_ pes)      = Superpose_ (map (f *** f) pes)
-    fmap1 f (Dp_    e1 e2)        = Dp_    (f e1) (f e2)
-    fmap1 f (Plate_ e)            = Plate_ (f e)
-    fmap1 f (Chain_ e)            = Chain_ (f e)
-    fmap1 f (Lub_ e1 e2)          = Lub_   (f e1) (f e2)
+    fmap1 f (Dp_     e1 e2)       = Dp_     (f e1) (f e2)
+    fmap1 f (Plate_  e)           = Plate_  (f e)
+    fmap1 f (Chain_  e)           = Chain_  (f e)
+    fmap1 f (Lub_    e1 e2)       = Lub_    (f e1) (f e2)
     fmap1 _ Bot_                  = Bot_
 
 
@@ -590,16 +600,18 @@ instance Foldable1 AST where
     foldMap1 _ (Value_ _)            = mempty
     foldMap1 f (CoerceTo_   _ e)     = f e
     foldMap1 f (UnsafeFrom_ _ e)     = f e
-    foldMap1 f (List_  es)           = foldMap f es
-    foldMap1 f (Maybe_ me)           = foldMap f me
-    foldMap1 f (Case_  e pes)        = f e  `mappend` foldMap (f . branchBody) pes
-    foldMap1 f (Array_ e1 e2)        = f e1 `mappend` f e2
-    foldMap1 f (Bind_  e1 e2)        = f e1 `mappend` f e2
+    foldMap1 f (List_   es)          = foldMap f es
+    foldMap1 f (Maybe_  me)          = foldMap f me
+    foldMap1 f (Case_   e pes)       = f e  `mappend` foldMap (f . branchBody) pes
+    foldMap1 f (Array_  e1 e2)       = f e1 `mappend` f e2
+    foldMap1 f (Roll_   e)           = f e
+    foldMap1 f (Unroll_ e)           = f e
+    foldMap1 f (Bind_   e1 e2)       = f e1 `mappend` f e2
     foldMap1 f (Superpose_ pes)      = foldMap (\(e1,e2) -> f e1 `mappend` f e2) pes
-    foldMap1 f (Dp_    e1 e2)        = f e1 `mappend` f e2
-    foldMap1 f (Plate_ e)            = f e
-    foldMap1 f (Chain_ e)            = f e
-    foldMap1 f (Lub_ e1 e2)          = f e1 `mappend` f e2
+    foldMap1 f (Dp_     e1 e2)       = f e1 `mappend` f e2
+    foldMap1 f (Plate_  e)           = f e
+    foldMap1 f (Chain_  e)           = f e
+    foldMap1 f (Lub_    e1 e2)       = f e1 `mappend` f e2
     foldMap1 _ Bot_                  = mempty
 
 

@@ -40,45 +40,47 @@ import Language.Hakaru.Syntax.ABT
 ----------------------------------------------------------------
 
 
--- | Those terms from which we can synthesize a type. Via the
--- change-of-direction rule, we can also check their types.
-isSynth :: View abt a -> Bool
-isSynth = not . isCheck
+-- | Those terms from which we can synthesize a unique type. We are
+-- also allowed to check them, via the change-of-direction rule.
+inferable :: View abt a -> Bool
+inferable = not . mustCheck
 
 
--- | Those terms which /must/ be checked. We cannot synthesize
--- (unambiguous) types for these terms.
-isCheck :: View abt a -> Bool
+-- | Those terms whose types must be checked analytically. We cannot
+-- synthesize (unambiguous) types for these terms.
+mustCheck :: View abt a -> Bool
 -- Actually, since we have the Proxy, we should be able to synthesize here...
-isCheck (Syn (Lam_ _ _))           = True
--- TODO: all data constructors should return True (but why don't they synthesize?); thus, data constructors shouldn't be considered as primops... or at least, we need better pattern matching to grab them...
-isCheck (Syn (App_ _ _))            = False -- In general, but not when a data-constructor primop is fully saturated! (or partially applied?)
-isCheck (Syn (Let_ e1 e2))          = error "TODO: isCheck(Let_)"
-isCheck (Syn (Fix_ e))              = error "TODO: isCheck(Fix_)"
-isCheck (Syn (Ann_ _ _))            = False
-isCheck (Syn (PrimOp_ o))           =
+mustCheck (Syn (Lam_ _ _))           = True
+-- TODO: all data constructors should return True (but why don't they synthesize? <http://jozefg.bitbucket.org/posts/2014-11-22-bidir.html>); thus, data constructors shouldn't be considered as primops... or at least, we need better pattern matching to grab them...
+mustCheck (Syn (App_ _ _))            = False -- In general, but not when a data-constructor primop is fully saturated! (or partially applied?)
+mustCheck (Syn (Let_ e1 e2))          = error "TODO: mustCheck(Let_)"
+mustCheck (Syn (Fix_ e))              = error "TODO: mustCheck(Fix_)"
+mustCheck (Syn (Ann_ _ _))            = False
+mustCheck (Syn (PrimOp_ o))           =
     case o of
     Unit -> True
-    _    -> error "TODO: isCheck(PrimOp_)"
+    _    -> error "TODO: mustCheck(PrimOp_)"
     -- TODO: presumably, all primops should be checkable & synthesizable
-isCheck (Syn (NaryOp_ o es))        = error "TODO: isCheck(NaryOp_)"
-isCheck (Syn (Integrate_ e1 e2 e3)) = error "TODO: isCheck(Integrate_)"
-isCheck (Syn (Summate_   e1 e2 e3)) = error "TODO: isCheck(Summate_)"
-isCheck (Syn (Value_ v))            = error "TODO: isCheck(Value_)"
-isCheck (Syn (CoerceTo_   c e))     = error "TODO: isCheck(CoerceTo_)"
-isCheck (Syn (UnsafeFrom_ c e))     = error "TODO: isCheck(UnsafeFrom_)"
-isCheck (Syn (List_  es))           = error "TODO: isCheck(List_)"
-isCheck (Syn (Maybe_ me))           = error "TODO: isCheck(Maybe_)"
-isCheck (Syn (Case_  _ _))          = True
-isCheck (Syn (Array_ _ _))          = True
-isCheck (Syn (Bind_  e1 e2))        = error "TODO: isCheck(Bind_)"
-isCheck (Syn (Superpose_ pes))      = error "TODO: isCheck(Superpose_)"
-isCheck (Syn (Dp_    e1 e2))        = error "TODO: isCheck(Dp_)"
-isCheck (Syn (Plate_ e))            = error "TODO: isCheck(Plate_)"
-isCheck (Syn (Chain_ e))            = error "TODO: isCheck(Chain_)"
-isCheck (Syn (Lub_ e1 e2))          = error "TODO: isCheck(Lub_)"
-isCheck (Syn Bot_)                  = error "TODO: isCheck(Bot_)"
-isCheck _                           = False -- Var is false; Open is (presumably) an error...
+mustCheck (Syn (NaryOp_ o es))        = error "TODO: mustCheck(NaryOp_)"
+mustCheck (Syn (Integrate_ e1 e2 e3)) = error "TODO: mustCheck(Integrate_)"
+mustCheck (Syn (Summate_   e1 e2 e3)) = error "TODO: mustCheck(Summate_)"
+mustCheck (Syn (Value_ v))            = error "TODO: mustCheck(Value_)"
+mustCheck (Syn (CoerceTo_   c e))     = error "TODO: mustCheck(CoerceTo_)"
+mustCheck (Syn (UnsafeFrom_ c e))     = error "TODO: mustCheck(UnsafeFrom_)"
+mustCheck (Syn (List_   es))          = error "TODO: mustCheck(List_)"
+mustCheck (Syn (Maybe_  me))          = error "TODO: mustCheck(Maybe_)"
+mustCheck (Syn (Case_   _ _))         = True
+mustCheck (Syn (Array_  _ _))         = True
+mustCheck (Syn (Roll_   _))           = True
+mustCheck (Syn (Unroll_ _))           = False
+mustCheck (Syn (Bind_   e1 e2))       = error "TODO: mustCheck(Bind_)"
+mustCheck (Syn (Superpose_ pes))      = error "TODO: mustCheck(Superpose_)"
+mustCheck (Syn (Dp_     e1 e2))       = error "TODO: mustCheck(Dp_)"
+mustCheck (Syn (Plate_  e))           = error "TODO: mustCheck(Plate_)"
+mustCheck (Syn (Chain_  e))           = error "TODO: mustCheck(Chain_)"
+mustCheck (Syn (Lub_    e1 e2))       = error "TODO: mustCheck(Lub_)"
+mustCheck (Syn Bot_)                  = error "TODO: mustCheck(Bot_)"
+mustCheck _                           = False -- Var is false; Open is (presumably) an error...
 
 ----------------------------------------------------------------
 
@@ -105,8 +107,8 @@ pushCtx tv@(TV x _) = IM.insert (varId x) tv
 
 
 -- | Given a typing environment and a term, synthesize the term's type.
-synth :: ABT abt => Ctx -> abt a -> TypeCheckMonad (Sing a)
-synth ctx e =
+inferType :: ABT abt => Ctx -> abt a -> TypeCheckMonad (Sing a)
+inferType ctx e =
     case viewABT e of
     Var x typ ->
         case IM.lookup (varId x) ctx of
@@ -115,37 +117,44 @@ synth ctx e =
                 case jmEq typ typ' of
                 Just Refl -> return typ'
                 Nothing   -> failwith "type mismatch"
-            | otherwise -> error "synth: bad context"
+            | otherwise -> error "inferType: bad context"
         Nothing  -> failwith "unbound variable"
 
-    Syn (Ann_ typ e) -> do
+    Syn (Ann_ typ e') -> do
         -- N.B., this requires that @typ@ is a 'Sing' not a 'Proxy',
         -- since we can't generate a 'Sing' from a 'Proxy'.
-        check ctx e typ
+        checkType ctx e' typ
         return typ
 
     Syn (App_ e1 e2) -> do
-        typ1 <- synth ctx e1
+        typ1 <- inferType ctx e1
         case typ1 of
-            SFun typ2 typ3 -> check ctx e2 typ2 >> return typ3
+            SFun typ2 typ3 -> checkType ctx e2 typ2 >> return typ3
             -- IMPOSSIBLE: _ -> failwith "Applying a non-function!"
+    {-
+    Syn (Unroll_ e') -> do
+        typ <- inferType ctx e'
+        case typ of
+        SMu typ1 -> return (SApp typ1 typ)
+        _        -> failwith "expected HMu type"
+    -}
 
-    t   | isSynth t -> error "synth: missing an isSynth branch!"
-        | otherwise -> failwith "Cannot synthesize type for a checking term"
+    t   | inferable t -> error "inferType: missing an inferable branch!"
+        | otherwise   -> failwith "Cannot infer types for checking terms; please add a type annotation"
 
 
 -- TODO: rather than returning (), we could return a fully type-annotated term...
 -- | Given a typing environment, a term, and a type, check that the
 -- term satisfies the type.
-check :: ABT abt => Ctx -> abt a -> Sing a -> TypeCheckMonad ()
-check ctx e typ =
+checkType :: ABT abt => Ctx -> abt a -> Sing a -> TypeCheckMonad ()
+checkType ctx e typ =
     case viewABT e of
     Syn (Lam_ p e') ->
         case typ of
         SFun typ1 typ2 ->
             -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
             caseOpenABT e' $ \x t ->
-            check (pushCtx (TV x typ1) ctx) t typ2
+            checkType (pushCtx (TV x typ1) ctx) t typ2
         _ -> failwith "expected HFun type"
 
     Syn (PrimOp_ Unit) ->
@@ -155,21 +164,21 @@ check ctx e typ =
     {-
     Syn (App_ (Syn (App_ (Syn (PrimOp_ Pair)) e1)) e2) ->
         case typ of
-        SPair typ1 typ2 -> check ctx e1 typ1 >> check ctx e2 typ2
+        SPair typ1 typ2 -> checkType ctx e1 typ1 >> checkType ctx e2 typ2
         _               -> failwith "expected HPair type"
 
     Syn (App_ (Syn (PrimOp_ Inl)) e) ->
         case typ of
-        SEither typ1 _ -> check ctx e typ1
+        SEither typ1 _ -> checkType ctx e typ1
         _              -> failwith "expected HEither type"
 
     Syn (App_ (Syn (PrimOp_ Inr)) e) ->
         case typ of
-        SEither _ typ2 -> check ctx e typ2
+        SEither _ typ2 -> checkType ctx e typ2
         _              -> failwith "expected HEither type"
     -}
     Syn (Case_ e' branches) -> do
-        typ' <- synth ctx e'
+        typ' <- inferType ctx e'
         forM_ branches $ \(Branch pat body) ->
             checkBranch ctx [TP pat typ'] body typ
 
@@ -178,12 +187,19 @@ check ctx e typ =
         SArray typ1 ->
             -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
             caseOpenABT e' $ \x t ->
-            check (pushCtx (TV x SNat) ctx) t typ1
+            checkType (pushCtx (TV x SNat) ctx) t typ1
         _ -> failwith "expected HArray type"
 
-    t   | isCheck t -> error "check: missing an isCheck branch!"
-        | otherwise -> do
-            typ' <- synth ctx e
+    {-
+    Syn (Roll_ e') ->
+        case typ of
+        SMu typ1 -> checkType ctx e' (SApp typ1 typ)
+        _        -> failwith "expected HMu type"
+    -}
+
+    t   | mustCheck t -> error "checkType: missing an mustCheck branch!"
+        | otherwise   -> do
+            typ' <- inferType ctx e
             if typ == typ' -- TODO: would using 'jmEq' be better?
             then return ()
             else failwith "Type mismatch"
@@ -196,7 +212,7 @@ checkBranch
     -> abt b
     -> Sing b
     -> TypeCheckMonad ()
-checkBranch ctx []                 e body_typ = check ctx e body_typ
+checkBranch ctx []                 e body_typ = checkType ctx e body_typ
 checkBranch ctx (TP pat typ : pts) e body_typ =
     case pat of
     PVar ->
