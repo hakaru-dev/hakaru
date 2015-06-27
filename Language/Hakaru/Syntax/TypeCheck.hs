@@ -53,7 +53,7 @@ mustCheck :: View abt a -> Bool
 mustCheck (Syn (Lam_ _ _))           = True
 -- TODO: all data constructors should return True (but why don't they synthesize? <http://jozefg.bitbucket.org/posts/2014-11-22-bidir.html>); thus, data constructors shouldn't be considered as primops... or at least, we need better pattern matching to grab them...
 mustCheck (Syn (App_ _ _))            = False -- In general, but not when a data-constructor primop is fully saturated! (or partially applied?)
-mustCheck (Syn (Let_ e1 e2))          = error "TODO: mustCheck(Let_)"
+mustCheck (Syn (Let_ _ _))            = False
 mustCheck (Syn (Fix_ e))              = error "TODO: mustCheck(Fix_)"
 mustCheck (Syn (Ann_ _ _))            = False
 mustCheck (Syn (PrimOp_ o))           =
@@ -120,17 +120,33 @@ inferType ctx e =
             | otherwise -> error "inferType: bad context"
         Nothing  -> failwith "unbound variable"
 
+    Syn (App_ e1 e2) -> do
+        typ1 <- inferType ctx e1
+        case typ1 of
+            SFun typ2 typ3 -> checkType ctx e2 typ2 >> return typ3
+            -- IMPOSSIBLE: _ -> failwith "Applying a non-function!"
+
+    Syn (Let_ e1 e2)
+        | inferable (viewABT e1) -> do
+            typ1 <- inferType ctx e1
+            -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
+            caseOpenABT e2 $ \x t ->
+                inferType (pushCtx (TV x typ1) ctx) t
+        | otherwise -> error "TODO: inferType{LetA}"
+            {-
+            -- TODO: this version of let-binding should come with @typ1@ annotation on the variable. That is, based on the TLDI'05 paper, I think we need two different AST constructors, one for inferable @e1@ and the other for mustCheck @e1@... But for now we can always fake that by putting an Ann_ on the @e1@ itself
+            checkType ctx e1 typ1
+            -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
+            caseOpenABT e2 $ \x t ->
+                inferType (pushCtx (TV x typ1) ctx) t
+            -}
+
     Syn (Ann_ typ e') -> do
         -- N.B., this requires that @typ@ is a 'Sing' not a 'Proxy',
         -- since we can't generate a 'Sing' from a 'Proxy'.
         checkType ctx e' typ
         return typ
 
-    Syn (App_ e1 e2) -> do
-        typ1 <- inferType ctx e1
-        case typ1 of
-            SFun typ2 typ3 -> checkType ctx e2 typ2 >> return typ3
-            -- IMPOSSIBLE: _ -> failwith "Applying a non-function!"
     {-
     Syn (Unroll_ e') -> do
         typ <- inferType ctx e'
