@@ -525,7 +525,13 @@ instance Show1 ast => Show1 (AST ast) where
                 . showList1 es
                 )
         Maybe_ me            -> error "TODO: show Maybe_"
-        Case_  e pes         -> error "TODO: show Case_"
+        Case_  e pes         ->
+            showParen (p Prelude.> 9)
+                ( showString "Case_ "
+                . showsPrec1 11 e
+                . showString " "
+                . showList1 pes
+                )
         Array_ e1 e2         -> showParen_11  p "Array_" e1 e2
         Bind_  e1 e2         -> showParen_11  p "Bind_"  e1 e2
         Superpose_ pes       -> error "TODO: show Superpose_"
