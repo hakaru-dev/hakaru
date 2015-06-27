@@ -153,6 +153,10 @@ infixl 6 +, -
 infixl 7 *, /
 infixr 8 ^, ^^, ** -- ^+, ^*
 
+-- TODO: some infix notation reminiscent of \"::\"
+ann_ :: (ABT abt) => Proxy a -> abt a -> abt a
+ann_ = (syn .) . Ann_
+
 coerceTo_ :: (ABT abt) => Coercion a b -> abt a -> abt b
 coerceTo_ = (syn .) . CoerceTo_
 

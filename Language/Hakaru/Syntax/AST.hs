@@ -377,7 +377,9 @@ data AST :: (Hakaru * -> *) -> Hakaru * -> * where
     Let_    :: ast a -> ast {-a-} b -> AST ast b
     -- TODO: a general \"@let*@\" version of let-binding so we can have mutual recursion
     Fix_    :: ast {-a-} a -> AST ast a
-    -- TODO: Ann_ :: !(Proxy a) -> ast a -> AST ast a
+    -- | Explicitly given type annotations. (For the other
+    -- change-of-direction rule in bidirectional type checking.)
+    Ann_    :: !(Proxy a) -> ast a -> AST ast a
 
 
     -- -- Primitive operators
@@ -502,6 +504,7 @@ instance Show1 ast => Show1 (AST ast) where
         App_ e1 e2           -> showParen_11  p "App_" e1 e2
         Let_ e1 e2           -> showParen_11  p "Let_" e1 e2
         Fix_ e               -> showParen_1   p "Fix_" e
+        Ann_ a e             -> showParen_01  p "Ann_" a  e
         PrimOp_ o            -> showParen_0   p "PrimOp_" o
         NaryOp_ o es         ->
             showParen (p > 9)
@@ -550,6 +553,7 @@ instance Functor1 AST where
     fmap1 f (App_ e1 e2)          = App_ (f e1) (f e2)
     fmap1 f (Let_ e1 e2)          = Let_ (f e1) (f e2)
     fmap1 f (Fix_ e)              = Fix_ (f e)
+    fmap1 f (Ann_ p  e)           = Ann_ p (f e)
     fmap1 _ (PrimOp_ o)           = PrimOp_ o
     fmap1 f (NaryOp_ o es)        = NaryOp_ o (fmap f es)
     fmap1 f (Integrate_ e1 e2 e3) = Integrate_ (f e1) (f e2) (f e3)
@@ -576,6 +580,7 @@ instance Foldable1 AST where
     foldMap1 f (App_ e1 e2)          = f e1 `mappend` f e2
     foldMap1 f (Let_ e1 e2)          = f e1 `mappend` f e2
     foldMap1 f (Fix_ e)              = f e
+    foldMap1 f (Ann_ _  e)           = f e
     foldMap1 _ (PrimOp_ _)           = mempty
     foldMap1 f (NaryOp_ _ es)        = foldMap f es
     foldMap1 f (Integrate_ e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3

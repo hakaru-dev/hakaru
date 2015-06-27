@@ -203,7 +203,7 @@ instance Exception ABTException
 caseOpenABT
     :: (ABT abt)
     => abt a
-    -> (Variable -> abt  a -> r)
+    -> (Variable -> abt a -> r)
     -> r
 caseOpenABT e v =
     case viewABT e of
