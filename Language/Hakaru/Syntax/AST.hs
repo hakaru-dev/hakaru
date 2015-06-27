@@ -23,14 +23,13 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.AST where
 
-import Prelude hiding (id, (.), Ord(..), Num(..), Integral(..), Fractional(..), Floating(..), Real(..), RealFrac(..), RealFloat(..), (^), (^^))
-import qualified Prelude
-import Data.Sequence        (Seq)
-import Data.Proxy
-import Control.Category     (Category(..))
-import Control.Arrow        ((***))
+import Prelude                 hiding ((.))
+import Data.Sequence           (Seq)
 import qualified Data.Foldable as F
-import Data.Number.LogFloat (LogFloat)
+import Data.Proxy
+import Control.Category        (Category(..))
+import Control.Arrow           ((***))
+import Data.Number.LogFloat    (LogFloat)
 
 import Language.Hakaru.Syntax.Nat
 import Language.Hakaru.Syntax.IClasses
@@ -199,7 +198,7 @@ data PrimOp :: Hakaru * -> * where
     Lebesgue    :: PrimOp ('HMeasure 'HReal)
     Counting    :: PrimOp ('HMeasure 'HInt)
     Categorical :: PrimOp ('HFun ('HArray 'HProb) ('HMeasure 'HNat))
-    -- TODO: make Uniform polymorphic, so that if the two inputs are HProb then we know the measure must be over HProb too
+    -- TODO: make Uniform polymorphic, so that if the two inputs are HProb then we know the measure must be over HProb too. More generally, if the first input is HProb (since the second input is assumed to be greater thant he first); though that would be a bit ugly IMO.
     Uniform     :: PrimOp ('HFun 'HReal ('HFun 'HReal ('HMeasure 'HReal)))
     Normal      :: PrimOp ('HFun 'HReal ('HFun 'HProb ('HMeasure 'HReal)))
     Poisson     :: PrimOp ('HFun 'HProb ('HMeasure 'HNat))
@@ -348,7 +347,7 @@ branchBody (Branch _ e) = e
 
 instance Show1 ast => Show1 (Branch a ast) where
     showsPrec1 p (Branch pat e) =
-        showParen (p Prelude.> 9)
+        showParen (p > 9)
             ( showString "Branch "
             . showsPrec  11 pat
             . showString " "
@@ -363,7 +362,6 @@ instance Functor1 (Branch a) where
     fmap1 f (Branch p e) = Branch p (f e)
 
 ----------------------------------------------------------------
--- TODO: finish switching from HOAS to ABT
 -- TODO: define a well-formedness check for the ABT structure, since
 -- we don't encode it into the Haskell types themselves. For clarity,
 -- we do note the typing environments for the open terms via comments.
@@ -450,7 +448,7 @@ data AST :: (Hakaru * -> *) -> Hakaru * -> * where
 
 showParen_0 :: Show a => Int -> String -> a -> ShowS
 showParen_0 p s e =
-    showParen (p Prelude.> 9)
+    showParen (p > 9)
         ( showString s
         . showString " "
         . showsPrec 11 e
@@ -458,7 +456,7 @@ showParen_0 p s e =
 
 showParen_1 :: Show1 a => Int -> String -> a i -> ShowS
 showParen_1 p s e =
-    showParen (p Prelude.> 9)
+    showParen (p > 9)
         ( showString s
         . showString " "
         . showsPrec1 11 e
@@ -466,7 +464,7 @@ showParen_1 p s e =
 
 showParen_01 :: (Show b, Show1 a) => Int -> String -> b -> a i -> ShowS
 showParen_01 p s e1 e2 =
-    showParen (p Prelude.> 9)
+    showParen (p > 9)
         ( showString s
         . showString " "
         . showsPrec  11 e1
@@ -476,7 +474,7 @@ showParen_01 p s e1 e2 =
 
 showParen_11 :: (Show1 a) => Int -> String -> a i -> a j -> ShowS
 showParen_11 p s e1 e2 =
-    showParen (p Prelude.> 9)
+    showParen (p > 9)
         ( showString s
         . showString " "
         . showsPrec1 11 e1
@@ -486,7 +484,7 @@ showParen_11 p s e1 e2 =
 
 showParen_111 :: (Show1 a) => Int -> String -> a i -> a j -> a k -> ShowS
 showParen_111 p s e1 e2 e3 =
-    showParen (p Prelude.> 9)
+    showParen (p > 9)
         ( showString s
         . showString " "
         . showsPrec1 11 e1
@@ -505,7 +503,7 @@ instance Show1 ast => Show1 (AST ast) where
         Fix_ e               -> showParen_1   p "Fix_" e
         PrimOp_ o            -> showParen_0   p "PrimOp_" o
         NaryOp_ o es         ->
-            showParen (p Prelude.> 9)
+            showParen (p > 9)
                 ( showString "NaryOp_ "
                 . showsPrec  11 o
                 . showString " "
@@ -520,13 +518,13 @@ instance Show1 ast => Show1 (AST ast) where
         CoerceTo_   c e      -> showParen_01  p "CoerceTo_"   c e
         UnsafeFrom_ c e      -> showParen_01  p "UnsafeFrom_" c e
         List_ es             ->
-            showParen (p Prelude.> 9)
+            showParen (p > 9)
                 ( showString "List_ "
                 . showList1 es
                 )
         Maybe_ me            -> error "TODO: show Maybe_"
         Case_  e pes         ->
-            showParen (p Prelude.> 9)
+            showParen (p > 9)
                 ( showString "Case_ "
                 . showsPrec1 11 e
                 . showString " "
