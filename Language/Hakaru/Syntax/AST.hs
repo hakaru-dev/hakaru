@@ -28,7 +28,7 @@ import qualified Prelude
 import Data.Sequence        (Seq)
 import Data.Proxy
 import Control.Category     (Category(..))
-import Control.Arrow        (second, (***))
+import Control.Arrow        ((***))
 import qualified Data.Foldable as F
 import Data.Number.LogFloat (LogFloat)
 
@@ -333,6 +333,34 @@ deriving instance Eq   (Pattern a)
 -- BUG: deriving instance Read (Pattern a)
 deriving instance Show (Pattern a)
 
+-- TODO: a pretty infix syntax, like (:->) or something
+data Branch :: Hakaru * -> (Hakaru * -> *) -> Hakaru * -> * where
+    Branch :: {-exists Γ.-} Pattern a {-Γ-} -> ast {-Γ-} b -> Branch a ast b
+
+branchPattern :: Branch a ast b -> Pattern a
+branchPattern (Branch p _) = p
+
+branchBody :: Branch a ast b -> ast b
+branchBody (Branch _ e) = e
+
+-- BUG: deriving instance Eq   (Branch ast a b)
+-- BUG: deriving instance Read (Branch ast a b)
+
+instance Show1 ast => Show1 (Branch a ast) where
+    showsPrec1 p (Branch pat e) =
+        showParen (p Prelude.> 9)
+            ( showString "Branch "
+            . showsPrec  11 pat
+            . showString " "
+            . showsPrec1 11 e
+            )
+
+instance Show1 ast => Show (Branch a ast b) where
+    showsPrec = showsPrec1
+    show      = show1
+
+instance Functor1 (Branch a) where
+    fmap1 f (Branch p e) = Branch p (f e)
 
 ----------------------------------------------------------------
 -- TODO: finish switching from HOAS to ABT
@@ -385,10 +413,7 @@ data AST :: (Hakaru * -> *) -> Hakaru * -> * where
     List_  :: [ast a]       -> AST ast ('HList a)
     Maybe_ :: Maybe (ast a) -> AST ast ('HMaybe a)
     -- | Generic case-analysis (via ABTs and Structural Focalization).
-    Case_
-        :: ast a
-        -> [{-exists Γ.-} (Pattern a {-Γ-}, ast {-Γ-} b)]
-        -> AST ast b
+    Case_ :: ast a -> [Branch a ast b] -> AST ast b
     -- TODO: do we really need this to be a binding form, or could it take a Hakaru function (HFun) for the second argument?
     Array_ :: ast 'HNat -> ast {-'HNat-} a -> AST ast ('HArray a)
 
@@ -485,7 +510,7 @@ instance Show1 ast => Show1 (AST ast) where
                 . showsPrec  11 o
                 . showString " "
                 . showParen True
-                    ( showString "fromList "
+                    ( showString "Seq.fromList "
                     . showList1 (F.toList es)
                     )
                 )
@@ -529,7 +554,7 @@ instance Functor1 AST where
     fmap1 f (UnsafeFrom_ c e)     = UnsafeFrom_ c (f e)
     fmap1 f (List_  es)           = List_  (map f es)
     fmap1 f (Maybe_ me)           = Maybe_ (fmap f me)
-    fmap1 f (Case_  e pes)        = Case_ (f e) (map (second f) pes)
+    fmap1 f (Case_  e pes)        = Case_ (f e) (map (fmap1 f) pes)
     fmap1 f (Array_ e1 e2)        = Array_ (f e1) (f e2)
     fmap1 f (Bind_  e1 e2)        = Bind_  (f e1) (f e2)
     fmap1 f (Superpose_ pes)      = Superpose_ (map (f *** f) pes)
@@ -555,7 +580,7 @@ instance Foldable1 AST where
     foldMap1 f (UnsafeFrom_ _ e)     = f e
     foldMap1 f (List_  es)           = foldMap f es
     foldMap1 f (Maybe_ me)           = foldMap f me
-    foldMap1 f (Case_  e pes)        = f e  `mappend` foldMap (f . snd) pes
+    foldMap1 f (Case_  e pes)        = f e  `mappend` foldMap (f . branchBody) pes
     foldMap1 f (Array_ e1 e2)        = f e1 `mappend` f e2
     foldMap1 f (Bind_  e1 e2)        = f e1 `mappend` f e2
     foldMap1 f (Superpose_ pes)      = foldMap (\(e1,e2) -> f e1 `mappend` f e2) pes

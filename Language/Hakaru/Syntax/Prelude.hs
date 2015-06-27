@@ -439,7 +439,8 @@ unpair e f =
     freshVar $ \x ->
     freshVar $ \y ->
     syn $ Case_ e
-        [(PPair PVar PVar, open x . open y $ f (var x sing) (var y sing))]
+        [Branch (PPair PVar PVar)
+            (open x . open y $ f (var x sing) (var y sing))]
 
 inl :: (ABT abt) => abt a -> abt ('HEither a b)
 inl = primOp1_ Inl
@@ -456,12 +457,12 @@ uneither
 uneither e l r =
     freshVar $ \x ->
     syn $ Case_ e
-        [ (PInl PVar, open x $ l (var x sing))
-        , (PInr PVar, open x $ r (var x sing))
+        [ Branch (PInl PVar) (open x $ l (var x sing))
+        , Branch (PInr PVar) (open x $ r (var x sing))
         ]
 
 if_ :: (ABT abt) => abt 'HBool -> abt a -> abt a -> abt a
-if_ b t f = syn $ Case_ b [(PTrue, t), (PFalse, f)]
+if_ b t f = syn $ Case_ b [Branch PTrue t, Branch PFalse f]
 
 unsafeProb :: (ABT abt) => abt 'HReal -> abt 'HProb
 unsafeProb = unsafeFrom_ signed
