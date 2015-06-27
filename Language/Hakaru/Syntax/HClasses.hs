@@ -1,6 +1,7 @@
 {-# LANGUAGE KindSignatures
            , DataKinds
            , PolyKinds
+           , FlexibleContexts
            , TypeFamilies
            #-}
 

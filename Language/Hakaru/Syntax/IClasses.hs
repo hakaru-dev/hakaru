@@ -28,6 +28,7 @@ module Language.Hakaru.Syntax.IClasses
     , Foldable1(..)
     ) where
 
+import Data.Monoid
 
 ----------------------------------------------------------------
 -- | Any unindexed type can be lifted to be (trivially) @k@-indexed.

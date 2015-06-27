@@ -2,6 +2,7 @@
 {-# LANGUAGE DataKinds
            , PolyKinds
            , GADTs
+           , TypeOperators
            , StandaloneDeriving
            #-}
 
@@ -27,6 +28,7 @@ import Prelude                 hiding ((.))
 import Data.Sequence           (Seq)
 import qualified Data.Foldable as F
 import Data.Proxy
+import Data.Monoid
 import Control.Category        (Category(..))
 import Control.Arrow           ((***))
 import Data.Number.LogFloat    (LogFloat)
@@ -693,20 +695,20 @@ instance Foldable1 AST where
     foldMap1 f (Fix_ e)              = f e
     foldMap1 f (Ann_ _  e)           = f e
     foldMap1 _ (PrimOp_ _)           = mempty
-    foldMap1 f (NaryOp_ _ es)        = foldMap f es
+    foldMap1 f (NaryOp_ _ es)        = F.foldMap f es
     foldMap1 f (Integrate_ e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
     foldMap1 f (Summate_   e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
     foldMap1 _ (Value_ _)            = mempty
     foldMap1 f (CoerceTo_   _ e)     = f e
     foldMap1 f (UnsafeFrom_ _ e)     = f e
-    foldMap1 f (List_   es)          = foldMap f es
-    foldMap1 f (Maybe_  me)          = foldMap f me
-    foldMap1 f (Case_   e pes)       = f e  `mappend` foldMap (f . branchBody) pes
+    foldMap1 f (List_   es)          = F.foldMap f es
+    foldMap1 f (Maybe_  me)          = F.foldMap f me
+    foldMap1 f (Case_   e pes)       = f e  `mappend` F.foldMap (f . branchBody) pes
     foldMap1 f (Array_  e1 e2)       = f e1 `mappend` f e2
     foldMap1 f (Roll_   e)           = f e
     foldMap1 f (Unroll_ e)           = f e
     foldMap1 f (Bind_   e1 e2)       = f e1 `mappend` f e2
-    foldMap1 f (Superpose_ pes)      = foldMap (\(e1,e2) -> f e1 `mappend` f e2) pes
+    foldMap1 f (Superpose_ pes)      = F.foldMap (\(e1,e2) -> f e1 `mappend` f e2) pes
     foldMap1 f (Dp_     e1 e2)       = f e1 `mappend` f e2
     foldMap1 f (Plate_  e)           = f e
     foldMap1 f (Chain_  e)           = f e
