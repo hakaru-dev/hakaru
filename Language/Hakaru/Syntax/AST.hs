@@ -34,7 +34,7 @@ import Data.Number.LogFloat    (LogFloat)
 import Language.Hakaru.Syntax.Nat
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.TypeEq (Sing)
+import Language.Hakaru.Syntax.TypeEq (Sing(..), SingI(..))
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Coercion
 {-
@@ -72,6 +72,13 @@ deriving instance Eq   (Value a)
 -- BUG: deriving instance Read (Value a)
 deriving instance Show (Value a)
 
+-- N.B., we do case analysis so that we don't need the class constraint!
+singValue :: Value a -> Sing a
+singValue (Bool_ _) = sing
+singValue (Nat_  _) = sing
+singValue (Int_  _) = sing
+singValue (Prob_ _) = sing
+singValue (Real_ _) = sing
 
 ----------------------------------------------------------------
 -- TODO: helper functions for splitting NaryOp_ into components to group up like things.
@@ -109,6 +116,18 @@ deriving instance Eq   (NaryOp a)
 -- BUG: deriving instance Read (NaryOp a)
 deriving instance Show (NaryOp a)
 
+
+-- N.B., we do case analysis so that we don't need the class constraint!
+singNaryOp :: NaryOp a -> Sing a
+singNaryOp And  = sing
+singNaryOp Or   = sing
+{- BUG: case analysis isn't enough here, because of the class constraints. We should be able to fix that by passing explicit singleton dictionaries instead of using Haskell's type classes
+singNaryOp Min  = sing
+singNaryOp Max  = sing
+singNaryOp Sum  = sing
+singNaryOp Prod = sing
+-}
+singNaryOp _ = error "TODO: singNaryOp"
 
 ----------------------------------------------------------------
 -- | Simple primitive functions, constants, and measures.
@@ -305,6 +324,66 @@ deriving instance Eq   (PrimOp a)
 deriving instance Show (PrimOp a)
 
 
+-- N.B., we do case analysis so that we don't need the class constraint!
+singPrimOp :: PrimOp a -> Sing a
+singPrimOp Not         = sing
+singPrimOp Xor         = sing
+singPrimOp Iff         = sing
+singPrimOp Impl        = sing
+singPrimOp Diff        = sing
+singPrimOp Nand        = sing
+singPrimOp Nor         = sing
+singPrimOp Pi          = sing
+singPrimOp Sin         = sing
+singPrimOp Cos         = sing
+singPrimOp Tan         = sing
+singPrimOp Asin        = sing
+singPrimOp Acos        = sing
+singPrimOp Atan        = sing
+singPrimOp Sinh        = sing
+singPrimOp Cosh        = sing
+singPrimOp Tanh        = sing
+singPrimOp Asinh       = sing
+singPrimOp Acosh       = sing
+singPrimOp Atanh       = sing
+singPrimOp RealPow     = sing
+singPrimOp Exp         = sing
+singPrimOp Log         = sing
+singPrimOp Infinity    = sing
+singPrimOp NegativeInfinity = sing
+singPrimOp GammaFunc   = sing
+singPrimOp BetaFunc    = sing
+-- TODO: singPrimOp Dirac       = sing
+singPrimOp Lebesgue    = sing
+singPrimOp Counting    = sing
+singPrimOp Categorical = sing
+singPrimOp Uniform     = sing
+singPrimOp Normal      = sing
+singPrimOp Poisson     = sing
+singPrimOp Gamma       = sing
+singPrimOp Beta        = sing
+singPrimOp Unit        = sing
+{-
+-- BUG: case analysis isn't enough here, because of the class constraints. We should be able to fix that by passing explicit singleton dictionaries instead of using Haskell's type classes
+singPrimOp Pair        = sing
+singPrimOp Inl         = sing
+singPrimOp Inr         = sing
+singPrimOp Empty       = sing
+singPrimOp Index       = sing
+singPrimOp Size        = sing
+singPrimOp Reduce      = sing
+singPrimOp Less        = sing
+singPrimOp Equal       = sing
+singPrimOp NatPow      = sing
+singPrimOp Negate      = sing
+singPrimOp Abs         = sing
+singPrimOp Signum      = sing
+singPrimOp Recip       = sing
+singPrimOp NatRoot     = sing
+singPrimOp Erf         = sing
+-}
+singPrimOp _ = error "TODO: singPrimOp"
+
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 -- TODO: extend our patterns to include the embed/SOP stuff
@@ -332,6 +411,24 @@ data Pattern :: Hakaru * -> * where
 deriving instance Eq   (Pattern a)
 -- BUG: deriving instance Read (Pattern a)
 deriving instance Show (Pattern a)
+
+
+-- N.B., we do case analysis so that we don't need the class constraint!
+singPattern :: Pattern a -> Sing a
+{-
+singPattern PWild  = sing
+singPattern PVar   = sing
+-}
+singPattern PTrue         = sing
+singPattern PFalse        = sing
+singPattern PUnit         = sing
+singPattern (PPair p1 p2) = SPair (singPattern p1) (singPattern p2)
+{-
+singPattern (PInl p1)     = SEither (singPattern p1) sing
+singPattern (PInr p2)     = SEither (singPattern p2) sing
+-}
+singPattern _ = error "TODO: singPattern"
+
 
 -- TODO: a pretty infix syntax, like (:->) or something
 data Branch :: Hakaru * -> (Hakaru * -> *) -> Hakaru * -> * where
@@ -454,6 +551,8 @@ data AST :: (Hakaru * -> *) -> Hakaru * -> * where
     Bot_ :: AST ast a
 
 ----------------------------------------------------------------
+-- N.B., having a @singAST :: AST ast a -> Sing a@ doesn't make sense: That's what 'inferType' is for, but not all terms can be inferred; some must be checked...
+
 -- BUG: deriving instance (forall b. Eq (ast b)) => Eq (AST ast a)
 -- BUG: deriving instance Read (AST ast a)
 

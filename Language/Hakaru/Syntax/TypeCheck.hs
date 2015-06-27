@@ -30,6 +30,7 @@ module Language.Hakaru.Syntax.TypeCheck where
 import           Data.IntMap       (IntMap)
 import qualified Data.IntMap       as IM
 import           Control.Monad     (forM_)
+import qualified Data.Foldable     as F
 
 -- import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.TypeEq (Sing(..), TypeEq(Refl), jmEq)
@@ -42,29 +43,28 @@ import Language.Hakaru.Syntax.ABT
 
 -- | Those terms from which we can synthesize a unique type. We are
 -- also allowed to check them, via the change-of-direction rule.
-inferable :: View abt a -> Bool
+inferable :: (ABT abt) => View abt a -> Bool
 inferable = not . mustCheck
 
 
 -- | Those terms whose types must be checked analytically. We cannot
 -- synthesize (unambiguous) types for these terms.
-mustCheck :: View abt a -> Bool
+mustCheck :: (ABT abt) => View abt a -> Bool
 -- Actually, since we have the Proxy, we should be able to synthesize here...
 mustCheck (Syn (Lam_ _ _))           = True
 -- TODO: all data constructors should return True (but why don't they synthesize? <http://jozefg.bitbucket.org/posts/2014-11-22-bidir.html>); thus, data constructors shouldn't be considered as primops... or at least, we need better pattern matching to grab them...
-mustCheck (Syn (App_ _ _))            = False -- In general, but not when a data-constructor primop is fully saturated! (or partially applied?)
-mustCheck (Syn (Let_ _ _))            = False
-mustCheck (Syn (Fix_ e))              = error "TODO: mustCheck(Fix_)"
+mustCheck (Syn (App_ _ _))            = False -- In general, but (according to neelk) not when a data-constructor primop is fully saturated!
+-- N.B., the TLDI'05 paper says we'll always infer the @e2@ but will check or infer the @e1@ depending on whether it has a type annotation or not. However, Dunfield & Pientka have us always inferring the @e1@ and then checking or inferring the @e2@ as appropriate...
+mustCheck (Syn (Let_ _ e2))           = mustCheck (viewABT e2)
+-- If our Fix_ had a type annotation on the variable, then we could infer the type by checking the body against that same type... But for now, we'll just have to check.
+mustCheck (Syn (Fix_ e))              = True
 mustCheck (Syn (Ann_ _ _))            = False
-mustCheck (Syn (PrimOp_ o))           =
-    case o of
-    Unit -> True
-    _    -> error "TODO: mustCheck(PrimOp_)"
-    -- TODO: presumably, all primops should be checkable & synthesizable
-mustCheck (Syn (NaryOp_ o es))        = error "TODO: mustCheck(NaryOp_)"
-mustCheck (Syn (Integrate_ e1 e2 e3)) = error "TODO: mustCheck(Integrate_)"
-mustCheck (Syn (Summate_   e1 e2 e3)) = error "TODO: mustCheck(Summate_)"
-mustCheck (Syn (Value_ v))            = error "TODO: mustCheck(Value_)"
+-- In general (according to Dunfield & Pientka), we should be able to infer the result of a fully saturated primop by looking up it's type and then checking all the arguments. That's assumeing our AST has direct constructors for each of the fully saturated forms, but we should still get that behavior by the way PrimOp_ relies on App_
+mustCheck (Syn (PrimOp_ _))           = False
+mustCheck (Syn (NaryOp_ _ _))         = False
+mustCheck (Syn (Integrate_ _ _ _))    = False
+mustCheck (Syn (Summate_   _ _ _))    = False
+mustCheck (Syn (Value_ _))            = False
 mustCheck (Syn (CoerceTo_   c e))     = error "TODO: mustCheck(CoerceTo_)"
 mustCheck (Syn (UnsafeFrom_ c e))     = error "TODO: mustCheck(UnsafeFrom_)"
 mustCheck (Syn (List_   es))          = error "TODO: mustCheck(List_)"
@@ -146,7 +146,35 @@ inferType ctx e =
         -- since we can't generate a 'Sing' from a 'Proxy'.
         checkType ctx e' typ
         return typ
+        
+    Syn (PrimOp_ o) ->
+        -- BUG: need to finish implementing singPrimOp
+        return (singPrimOp o)
+    
+    Syn (NaryOp_ o es) -> do
+        -- BUG: need to finish implementing singNaryOp
+        let typ = singNaryOp o
+        forM_ (F.toList es) $ \e' ->
+            checkType ctx e' typ
+        return typ
 
+    Syn (Integrate_ e1 e2 e3) -> do
+        checkType ctx e1 SReal
+        checkType ctx e2 SReal
+        caseOpenABT e3 $ \x t ->
+            checkType (pushCtx (TV x SReal) ctx) t SProb
+        return SProb
+    
+    Syn (Summate_ e1 e2 e3) -> do
+        checkType ctx e1 SReal
+        checkType ctx e2 SReal
+        caseOpenABT e3 $ \x t ->
+            checkType (pushCtx (TV x SInt) ctx) t SProb
+        return SProb
+    
+    Syn (Value_ v) ->
+        return (singValue v)
+    
     {-
     Syn (Unroll_ e') -> do
         typ <- inferType ctx e'
@@ -173,6 +201,19 @@ checkType ctx e typ =
             checkType (pushCtx (TV x typ1) ctx) t typ2
         _ -> failwith "expected HFun type"
 
+    Syn (Let_ e1 e2)
+        | inferable (viewABT e1) -> do
+            typ1 <- inferType ctx e1
+            -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
+            caseOpenABT e2 $ \x t ->
+                checkType (pushCtx (TV x typ1) ctx) t typ
+        | otherwise -> error "TODO: checkType{LetA}"
+    
+    Syn (Fix_ e') -> 
+        -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
+        caseOpenABT e' $ \x t ->
+        checkType (pushCtx (TV x typ) ctx) t typ
+        
     Syn (PrimOp_ Unit) ->
         case typ of
         SUnit -> return ()
@@ -216,6 +257,8 @@ checkType ctx e typ =
     t   | mustCheck t -> error "checkType: missing an mustCheck branch!"
         | otherwise   -> do
             typ' <- inferType ctx e
+            -- If we ever get evaluation at the type level, then
+            -- (==) should be the appropriate notion of type equivalence.
             if typ == typ' -- TODO: would using 'jmEq' be better?
             then return ()
             else failwith "Type mismatch"
