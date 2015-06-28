@@ -117,7 +117,8 @@ library
                        mtl >= 2.1,
                        tagged >= 0.7 && < 1.0,
                        generics-sop >= 0.1.0,
-                       filepath >= 1.1.0.2                    
+                       filepath >= 1.1.0.2,
+                       singletons >= 1.0
 
 
   if flag(patchedHint)

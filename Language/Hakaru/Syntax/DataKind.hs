@@ -2,9 +2,9 @@
            , PolyKinds
            , StandaloneDeriving
            , DeriveDataTypeable
+           , ScopedTypeVariables
            #-}
 
--- Don't -Werror, because we can't tick the promoted (:$) in the deriving instance
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
 --                                                    2015.06.24
@@ -21,43 +21,52 @@
 module Language.Hakaru.Syntax.DataKind
     ( Hakaru(..)
     , HakaruFun(..)
+    , HakaruCon(..) 
+    , Symbol
+    , Code 
+    , HakaruType, HBool, HUnit, HPair, HEither, HList, HMaybe
+
     ) where
 
 import Data.Typeable (Typeable)
+import GHC.TypeLits (Symbol) 
 
 ----------------------------------------------------------------
 -- | The universe/kind of Hakaru types. N.B., the @star@ parameter
 -- will always be @*@ when used as a data-kind.
-data Hakaru star
+data Hakaru 
     = HNat
     | HInt
     | HProb -- ^ Non-negative real numbers (not the [0,1] interval!)
     | HReal -- ^ The real projective line (includes +/- infinity)
-    | HMeasure (Hakaru star)
-    | HArray (Hakaru star)
-    | HFun (Hakaru star) (Hakaru star)
+    | HMeasure Hakaru
+    | HArray Hakaru
+    | HFun Hakaru Hakaru
 
     -- TODO: replace HUnit, HPair, HEither with the Embed stuff
+    {-
     | HBool
     | HUnit
-    | HPair (Hakaru star) (Hakaru star)
-    | HEither (Hakaru star) (Hakaru star)
+    | HPair Hakaru Hakaru
+    | HEither Hakaru Hakaru
+    -}
 
     -- The lists-of-lists are sum-of-products functors. The application
     -- form allows us to unroll fixpoints: @HMu sop ~= sop :$ HMu sop@.
-    | HMu [[HakaruFun star]]
-    | [[HakaruFun star]] :$ Hakaru star
-    | HTag star [[HakaruFun star]]
+    | [[HakaruFun]] :$ Hakaru
+    | HTag (HakaruCon Hakaru) [[HakaruFun]]
 
     -- Used in "Language.Hakaru.Expect"
     -- TODO: replace HList with the Embed stuff
-    | HList (Hakaru star)
+    -- | HList Hakaru
 
     -- Used in "Language.Hakaru.Sample"
     -- TODO: replace HMaybe with the Embed stuff
-    | HMaybe (Hakaru star)
+    -- | HMaybe Hakaru
 
-    deriving (Eq, Read, Show)
+-- BUG: Cannot derive anything because HakaruCon contains a Symbol,
+-- which is not inhabited as a type. 
+-- deriving (Eq, Read, Show)
 
 
 -- | The identity and constant functors on @Hakaru*@. This gives
@@ -69,13 +78,67 @@ data Hakaru star
 --
 -- Products and sums are represented as lists, so they aren't
 -- in this datatype.
-data HakaruFun star = Id | K (Hakaru star)
-    deriving (Eq, Read, Show)
+data HakaruFun = Id | K Hakaru
+    -- deriving (Eq, Read, Show)
+
+-- | The kind of hakaru constructors - simply a name, with 0 or more
+-- arguements. It parametric in arguement - this is especially useful when you
+-- need a singleton of the constructor, but not the types in the arguements. The
+-- arguement positions are necessary to do variable binding in Code. Symbol is
+-- the kind of "type level strings".
+infixl 0 :@
+data HakaruCon a = HCon Symbol | HakaruCon a :@ a 
+
+-- | The Code type family allows users to extend the Hakaru language by adding
+-- new types. The right hand side is the sum-of-products representation of that
+-- type. See the built-in types for examples. 
+type family Code (a :: HakaruCon Hakaru) :: [[HakaruFun]]
+
+-- Built-in types 
+type instance Code (HCon "Unit") = '[ '[] ]
+type instance Code (HCon "Maybe" :@ a) = '[ '[] , '[ K a ] ]
+type instance Code (HCon "List" :@ a) = '[ '[] , '[ K a, Id ]]
+type instance Code (HCon "Pair" :@ a :@ b) = '[ '[ K a, K b ]]
+type instance Code (HCon "Either" :@ a :@ b) = '[ '[K a], '[K b]]
+type instance Code (HCon "Bool") = '[ '[], '[] ]
+
+
+
+{-
+BUG: Fully expand these types because the type checker for some reason
+doesn't reduce the type family applications which prevents the use of these
+type synonyms in class instance heads.  Any type synonym created with
+`HakaruType' will suffer the same issue, so type synonyms must be written out
+by hand - or copied from the GHC pretty printer, which will happily reduce
+things in the repl, even in the presence of quantified type variables. 
+   >:kind! forall a b . HakaruType (HCon "Pair" :@ a :@ b)
+   forall a b . HakaruType (HCon "Pair" :@ a :@ b) :: Hakaru
+   = forall (a :: Hakaru) (b :: Hakaru).
+     'HTag (('HCon "Pair" ':@ a) ':@ b) '['['K a, 'K b]]
+-}
+
+type HakaruType t = HTag t (Code t)
+
+{-
+type HBool = HakaruType (HCon "Bool")
+type HUnit = HTag (HCon "Unit") '[ '[] ]
+type HPair a b = HakaruType (HCon "Pair" :@ a :@ b)
+type HEither a b = HakaruType (HCon "Either" :@ a :@ b)
+type HList a = HakaruType (HCon "List" :@ a)
+type HMaybe a = HakaruType (HCon "Maybe" :@ a)
+-}
+type HBool = 'HTag ('HCon "Bool") '[ '[], '[]]
+type HUnit = 'HTag ('HCon "Unit") '[ '[]]
+type HPair a b = 'HTag (('HCon "Pair" ':@ a) ':@ b) '[ '[ 'K a, 'K b]]
+type HEither a b = 'HTag (('HCon "Either" ':@ a) ':@ b) '[ '[ 'K a], '[ 'K b]]
+type HList a = 'HTag ('HCon "List" ':@ a) '[ '[], '[ 'K a, 'Id]]
+type HMaybe a = 'HTag ('HCon "Maybe" ':@ a) '[ '[], '[ 'K a]]
+
+
 
 
 -- N.B., The @Proxy@ type from "Data.Proxy" is polykinded, so it
 -- works for @Hakaru*@ too. However, it is _not_ Typeable!
-
 
 -- TODO: these instances are only used in
 -- 'Language.Hakaru.Simplify.closeLoop'; it would be cleaner to
@@ -88,17 +151,12 @@ deriving instance Typeable 'HProb
 deriving instance Typeable 'HMeasure
 deriving instance Typeable 'HArray
 deriving instance Typeable 'HFun
-deriving instance Typeable 'HBool
-deriving instance Typeable 'HUnit
-deriving instance Typeable 'HPair
-deriving instance Typeable 'HEither
-deriving instance Typeable 'HMu
 deriving instance Typeable 'HTag
-deriving instance Typeable (:$) -- HACK: can't tick this here...
-deriving instance Typeable 'HList
-deriving instance Typeable 'HMaybe
+deriving instance Typeable '(:$) 
 deriving instance Typeable 'Id
 deriving instance Typeable 'K
+deriving instance Typeable 'HCon 
+deriving instance Typeable '(:@)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
