@@ -473,6 +473,8 @@ instance Functor1 (Branch a) where
 -- TODO: should we tag the @abt@ type to capture whether the use
 -- sites must/must-not be 'Open' terms? Or is the well-formedness
 -- check sufficient?
+--
+-- BUG: we need the 'Functor1' instance to be strict, in order to guaranteee timely throwing of exceptions in 'subst'.
 data AST :: (Hakaru * -> *) -> Hakaru * -> * where
 
     -- -- Standard lambda calculus stuff

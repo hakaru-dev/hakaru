@@ -36,6 +36,7 @@ import           Control.Monad     (forM_)
 import           Control.Applicative (Applicative)
 #endif
 
+import Language.Hakaru.Syntax.Nat (fromNat)
 -- import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.TypeEq (Sing(..), TypeEq(Refl), jmEq)
 import Language.Hakaru.Syntax.AST
@@ -104,11 +105,11 @@ data TypedVariable where
 data TypedPattern where
     TP :: !(Pattern a) -> !(Sing a) -> TypedPattern
 
--- TODO: replace with an IntMap(TypedVariable), using the varId of the Variable
+-- TODO: replace with an IntMap(TypedVariable), using the varID of the Variable
 type Ctx = IntMap TypedVariable
 
 pushCtx :: TypedVariable -> Ctx -> Ctx
-pushCtx tv@(TV x _) = IM.insert (varId x) tv
+pushCtx tv@(TV x _) = IM.insert (fromNat $ varID x) tv
 
 
 -- | Given a typing environment and a term, synthesize the term's type.
@@ -116,14 +117,14 @@ inferType :: ABT abt => Ctx -> abt a -> TypeCheckMonad (Sing a)
 inferType ctx e =
     case viewABT e of
     Var x typ ->
-        case IM.lookup (varId x) ctx of
+        case IM.lookup (fromNat $ varID x) ctx of
         Just (TV x' typ')
-            | x' == x   ->
+            | x' == x ->
                 case jmEq typ typ' of
                 Just Refl -> return typ'
                 Nothing   -> failwith "type mismatch"
-            | otherwise -> error "inferType: bad context"
-        Nothing  -> failwith "unbound variable"
+            | otherwise   -> error "inferType: bad context"
+        Nothing           -> failwith "unbound variable"
 
     Syn (App_ e1 e2) -> do
         typ1 <- inferType ctx e1

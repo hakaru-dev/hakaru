@@ -126,7 +126,7 @@ matchNaryOp o e =
 -- TODO: give @k@ an actual @Var@ instead of the @Variable@ name? If we try that, then be sure to check 'uneither'
 -- TODO: how can we generate fresh names? Should we have @abt@ be a monad?
 freshVar :: (ABT abt) => (Variable -> abt a) -> abt a
-freshVar k = k $ error "TODO"
+freshVar k = k $ error "TODO: freshVar"
 
 
 ----------------------------------------------------------------

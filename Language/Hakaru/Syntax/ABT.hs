@@ -35,7 +35,7 @@ module Language.Hakaru.Syntax.ABT
     -- * Our basic notion of variables\/names.
       Variable(..)
     , varHint
-    , varId
+    , varID
     -- * The abstract binding tree interface
     -- See note about exposing 'View', 'viewABT', and 'unviewABT'
     , View(..), unviewABT
@@ -45,17 +45,27 @@ module Language.Hakaru.Syntax.ABT
     -- ** Some ABT instances
     , TrivialABT()
     , FreeVarsABT()
+    {-
+    , BinderABT(), binder
+    -}
     ) where
 
+{-
+import           Data.Proxy
+-}
 import           Data.Typeable     (Typeable)
 import           Data.Set          (Set)
 import qualified Data.Set          as Set
 import           Data.Function     (on)
+{-
+import qualified Data.Foldable     as F
+-}
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Monoid
 #endif
 import           Control.Exception (Exception, throw)
 
+import Language.Hakaru.Syntax.Nat
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.TypeEq
@@ -70,7 +80,7 @@ import Language.Hakaru.Syntax.AST
 -- N.B., This is lazy in its components!
 -- TODO: finish combining the \"fast circular substitution\" pearl with the ABT framework.
 -- <http://comonad.com/reader/2014/fast-circular-substitution/>
-data Variable = Variable String Int
+data Variable = Variable String Nat
     deriving (Read, Show)
 
 -- | Project out the string the user suggested as a name for the variable.
@@ -78,14 +88,14 @@ varHint :: Variable -> String
 varHint (Variable n _) = n
 
 -- | Project out the unique identifier for the variable.
-varId :: Variable -> Int
-varId (Variable _ i) = i
+varID :: Variable -> Nat
+varID (Variable _ i) = i
 
 instance Eq Variable where
-    (==) = (==) `on` varId
+    (==) = (==) `on` varID
 
 instance Ord Variable where
-    compare = compare `on` varId
+    compare = compare `on` varID
 
 -- | Generate a new variable with the same hint as the old one.
 -- N.B., the new variable is not guaranteed to be fresh! To do that,
@@ -403,5 +413,126 @@ subst x e = start
             caseOpenABT f $ \_ f' ->
                 open z' (loop f' . viewABT $ rename z z' f')
 
+
+----------------------------------------------------------------
+{-
+-- cf., <http://comonad.com/reader/2014/fast-circular-substitution/> for magicking our way out of HOAS. Also, we should just feed that into our ABT framework
+
+
+-- | An ABT which keeps track of free variables, and provides a
+-- name supply for generating fresh binders via a HOAS-like interface.
+-- N.B., the choice of names is non-canonical, so you may need to
+-- 'rebind' terms in order to canonicalize them.
+data BinderABT (a :: Hakaru *)
+    = BinderABT {-# UNPACK #-} !Nat !(Set Variable) !(View BinderABT a)
+
+instance Show1 BinderABT where
+    showsPrec1 p (BinderABT n xs v) =
+        showParen (p > 9)
+            ( showString "BinderABT "
+            . showsPrec  11 n
+            . showString " "
+            . showsPrec  11 xs
+            . showString " "
+            . showsPrec1 11 v
+            )
+
+instance Show (BinderABT a) where
+    showsPrec = showsPrec1
+    show      = show1
+
+class Bindable (ast :: Hakaru * -> *) where
+    -- | Return the largest 'varID' of variable binding sites,
+    -- without traversing into the body under those binders.
+    bound :: ast a -> Nat
+
+instance Bindable BinderABT where
+    bound (BinderABT n _ _) = n
+
+maximumBound  :: (Bindable ast) => [ast a] -> Nat
+maximumBound  = F.foldl' (\n e -> n `max` bound e) 0
+
+maximumBound2 :: (Bindable ast) => [(ast a, ast b)] -> Nat
+maximumBound2 = F.foldl' (\n (e1,e2) -> n `max` bound e1 `max` bound e2) 0
+
+-- N.B., we needn't traverse into the type annotation, since we don;t have dependent types, hence no term variables in the types.
+instance Bindable abt => Bindable (AST abt) where
+    bound (Lam_ _  e)           = error "TODO: bound" -- TODO: how to traverse only the Opens of e, without going into the body? It looks like our memoization trick isn't enough keep our tying-the-knot from looping.
+    bound (App_ e1 e2)          = bound e1 `max` bound e2
+    bound (Let_ e1 e2)          = bound e1 `max` error "TODO: bound" 
+    bound (Fix_ e)              = error "TODO: bound" 
+    bound (Ann_ _  e)           = bound e
+    bound (PrimOp_ _)           = 0
+    bound (NaryOp_ _ es)        = maximumBound (F.toList es)
+    bound (Integrate_ e1 e2 e3) = bound e1 `max` bound e2 `max` error "TODO: bound" 
+    bound (Summate_   e1 e2 e3) = bound e1 `max` bound e2 `max` error "TODO: bound" 
+    bound (Value_ _)            = 0
+    bound (CoerceTo_   _ e)     = bound e
+    bound (UnsafeFrom_ _ e)     = bound e
+    bound (List_   es)          = maximumBound es
+    bound (Maybe_  Nothing)     = 0
+    bound (Maybe_  (Just e))    = bound e
+    bound (Case_   e pes)       = bound e  `max` error "TODO: bound" 
+    bound (Array_  e1 e2)       = bound e1 `max` error "TODO: bound" 
+    bound (Roll_   e)           = bound e
+    bound (Unroll_ e)           = bound e
+    bound (Bind_   e1 e2)       = bound e1 `max` error "TODO: bound" 
+    bound (Superpose_ pes)      = maximumBound2 pes
+    bound (Dp_     e1 e2)       = bound e1 `max` bound e2
+    bound (Plate_  e)           = bound e
+    bound (Chain_  e)           = bound e
+    bound (Lub_    e1 e2)       = bound e1 `max` bound e2
+    bound Bot_                  = 0
+
+
+instance ABT BinderABT where
+    syn t =
+        BinderABT (bound t) (foldMap1 freeVars t) (Syn t)
+    
+    var x p =
+        BinderABT 0 (Set.singleton x) (Var x p)
+    
+    open x (BinderABT n xs v) =
+        BinderABT (varID x `max` n) (Set.delete x xs) (Open x v)
+
+    -- HACK: we don't bother lowering the memoized upper bound here!
+    caseOpenABT (BinderABT n xs v) k =
+        case v of
+        Open x v' -> k x (BinderABT n (Set.insert x xs) v')
+        _         -> throw ExpectedOpenException -- TODO: add info about the call-site
+
+    viewABT  (BinderABT _ _  v) = v
+
+    freeVars (BinderABT _ xs _) = xs
+
+
+binder
+    :: (ABT abt, Bindable abt)
+    => (Variable -> abt b -> r)
+    -> String
+    -> Sing a
+    -> (abt a -> abt b)
+    -> r
+binder cons name typ hoas = cons x body
+    where
+    body = hoas (var x typ)
+    x    = Variable name (bound body + 1)
+
+
+lam :: (ABT abt, Bindable abt)
+    => String
+    -> Sing a
+    -> (abt a -> abt b)
+    -> abt ('HFun a b)
+lam name typ = binder (\x e -> syn . Lam_ Proxy $ open x e) name typ
+
+{-
+This works fine if we just recurse with 'bound' in all the TODO spots above:
+> lam "x" SInt (\x -> x) :: BinderABT _
+
+However, this will break if we do that:
+> lam "x" SInt (\x -> lam "y" SInt $ \y -> syn$App_ (syn$App_ (syn$PrimOp_ Less) x) y) :: BinderABT _
+-}
+-}
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
