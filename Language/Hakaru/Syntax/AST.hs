@@ -666,6 +666,15 @@ instance Show1 ast => Show1 (AST ast) where
         CoerceTo_   c e      -> showParen_01  p "CoerceTo_"   c e
         UnsafeFrom_ c e      -> showParen_01  p "UnsafeFrom_" c e
 
+        
+        Nil_         -> showString "Nil_"
+        Cons_ e1 e2  -> showParen_11  p "Cons_" e1 e2
+        Zero_ e  -> showParen_1  p "Zero_" e
+        Succ_ e  -> showParen_1  p "Succ_" e
+        Tag_ e  -> showParen_1  p "Tag_" e
+        Konst_ e  -> showParen_1  p "Konst_" e
+        Ident_ e  -> showParen_1  p "Ident_" e
+
 {-
         List_ es             ->
             showParen (p > 9)
@@ -717,6 +726,15 @@ instance Functor1 AST where
     fmap1 f (Array_  e1 e2)       = Array_  (f e1) (f e2)
     -- fmap1 f (Roll_   e)           = Roll_   (f e)
     -- fmap1 f (Unroll_ e)           = Unroll_ (f e)
+    fmap1 _ Nil_ = Nil_ 
+    fmap1 f (Cons_ x xs) = Cons_ (f x) (f xs) 
+    fmap1 f (Zero_ x) = Zero_ (f x) 
+    fmap1 f (Succ_ x) = Succ_ (f x) 
+    -- fmap1 f (MuE x) = MuE (f x) 
+    fmap1 f (Konst_ x) = Konst_ (f x) 
+    fmap1 f (Ident_ x) = Ident_ (f x) 
+    fmap1 f (Tag_ x) = Tag_ (f x) 
+
     fmap1 f (Bind_   e1 e2)       = Bind_   (f e1) (f e2)
     fmap1 f (Superpose_ pes)      = Superpose_ (map (f *** f) pes)
     fmap1 f (Dp_     e1 e2)       = Dp_     (f e1) (f e2)
@@ -746,6 +764,14 @@ instance Foldable1 AST where
     foldMap1 f (Array_  e1 e2)       = f e1 `mappend` f e2
     -- foldMap1 f (Roll_   e)           = f e
     -- foldMap1 f (Unroll_ e)           = f e
+    foldMap1 _ Nil_ = mempty 
+    foldMap1 f (Cons_ x xs) = mconcat [f x, f xs]
+    foldMap1 f (Zero_ x) = f x 
+    foldMap1 f (Succ_ x) = f x
+    foldMap1 f (Konst_ x) = f x
+    foldMap1 f (Ident_ x) = f x
+    foldMap1 f (Tag_ x) = f x
+
     foldMap1 f (Bind_   e1 e2)       = f e1 `mappend` f e2
     foldMap1 f (Superpose_ pes)      = F.foldMap (\(e1,e2) -> f e1 `mappend` f e2) pes
     foldMap1 f (Dp_     e1 e2)       = f e1 `mappend` f e2

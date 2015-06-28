@@ -377,7 +377,7 @@ x ^* y = caseRational y $ \n d -> d `thRootOf` (x ^^ n)
 -}
 
 -- HACK: we define this class in order to gain more polymorphism; but, will it cause type inferencing issues? Excepting 'log' (which should be moved out of the class) these are all safe. 
-class RealProb (a :: Hakaru *) where
+class RealProb (a :: Hakaru) where
     (**) :: (ABT abt) => abt 'HProb -> abt a -> abt 'HProb
     exp  :: (ABT abt) => abt a -> abt 'HProb
     log  :: (ABT abt) => abt 'HProb -> abt a -- HACK
@@ -429,41 +429,41 @@ atanh  = primOp1_ Atanh
 
 -- instance (ABT abt) => Base abt where not already defined above
 unit :: (ABT abt) => abt HUnit
-unit = primOp0_ Unit
+unit = error "TODO" 
 
-pair :: (ABT abt) => abt a -> abt b -> abt ('HPair a b)
-pair = primOp2_ Pair
+pair :: (ABT abt) => abt a -> abt b -> abt (HPair a b)
+pair = error "TODO" 
 
 unpair
     :: (ABT abt, SingI a, SingI b)
-    => abt ('HPair a b)
+    => abt (HPair a b)
     -> (abt a -> abt b -> abt c)
     -> abt c
-unpair e f =
-    freshVar $ \x ->
+unpair e f = error "TODO" 
+{-    freshVar $ \x ->
     freshVar $ \y ->
     syn $ Case_ e
         [Branch (PPair PVar PVar)
-            (open x . open y $ f (var x sing) (var y sing))]
+            (open x . open y $ f (var x sing) (var y sing))]-}
 
-inl :: (ABT abt) => abt a -> abt ('HEither a b)
-inl = primOp1_ Inl
+inl :: (ABT abt) => abt a -> abt (HEither a b)
+inl = error "TODO" 
 
-inr :: (ABT abt) => abt b -> abt ('HEither a b)
-inr = primOp1_ Inr
+inr :: (ABT abt) => abt b -> abt (HEither a b)
+inr = error "TODO"  
 
 uneither
     :: (ABT abt, SingI a, SingI b)
-    => abt ('HEither a b)
+    => abt (HEither a b)
     -> (abt a -> abt c)
     -> (abt b -> abt c)
     -> abt c
-uneither e l r =
+uneither e l r = error "TODO" {-
     freshVar $ \x ->
     syn $ Case_ e
         [ Branch (PInl PVar) (open x $ l (var x sing))
         , Branch (PInr PVar) (open x $ r (var x sing))
-        ]
+        ]-}
 
 if_ :: (ABT abt) => abt HBool -> abt a -> abt a -> abt a
 if_ b t f = syn $ Case_ b [Branch PTrue t, Branch PFalse f]
@@ -667,8 +667,8 @@ plate' v = reduce r z (mapV m v)
 
 chain
     :: (ABT abt)
-    => abt ('HArray ('HFun s ('HMeasure         ('HPair a s))))
-    -> abt (         'HFun s ('HMeasure ('HPair ('HArray a) s)))
+    => abt ('HArray ('HFun s ('HMeasure         (HPair a s))))
+    -> abt (         'HFun s ('HMeasure (HPair ('HArray a) s)))
 chain = syn . Chain_
 {-
 -- TODO: the array stuff...
