@@ -1,11 +1,23 @@
-{-# LANGUAGE KindSignatures
-           , DataKinds
-           , PolyKinds
-           , GADTs
-           , StandaloneDeriving
-           #-}
+{-# LANGUAGE 
+    QuasiQuotes
+  , TemplateHaskell
 
-{-# OPTIONS_GHC -Wall -fwarn-tabs #-}
+  -- Needed by spliced code 
+  , PolyKinds
+  , UndecidableInstances
+  , DataKinds
+  , GADTs
+  , ScopedTypeVariables
+  #-}
+
+{-# OPTIONS_GHC -Wall -fwarn-tabs  #-}
+
+-- Singletons generates orphan instances warnings 
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
+-- DEBUG
+-- {-# OPTIONS_GHC -ddump-splices #-} 
+
 ----------------------------------------------------------------
 --                                                    2015.06.24
 -- |
@@ -17,15 +29,59 @@
 -- Portability :  GHC-only
 --
 -- Singleton types for the @Hakaru*@ kind, and a decision procedure
--- for @Hakaru*@ type-equality.
---
--- TODO: use the singletons library instead... We're reusing their
--- names in order to mak the transition over easier
+-- for @Hakaru*@ type-equality. 
 ----------------------------------------------------------------
-module Language.Hakaru.Syntax.TypeEq where
+module Language.Hakaru.Syntax.TypeEq 
+  ( module Language.Hakaru.Syntax.TypeEq
+  , Sing(..), SingI(..), SingKind(..), SDecide(..), (:~:)(..)
+  ) where
 
 -- import Data.Proxy
 import Language.Hakaru.Syntax.DataKind
+import Data.Singletons
+import Data.Singletons.TH 
+
+data X = X Symbol 
+
+genSingletons [ ''Hakaru, ''HakaruFun ] 
+-- BUG: The generated code for HakaruCon doesn't typecheck because it contains a
+-- Symbol, so it has to be written manually. I imagine singletons should have a
+-- way to handle Symbol but I haven't found.
+-- genSingletons [ ''HakaruCon ]
+
+data instance Sing (x :: HakaruCon k) where 
+  SHCon :: Sing s -> Sing (HCon s) 
+  (:%@) :: Sing a -> Sing b -> Sing (a :@ b) 
+
+type SHakaruCon (x :: HakaruCon k) = Sing x
+
+instance SingKind ('KProxy :: KProxy k) => SingKind ('KProxy :: KProxy (HakaruCon k)) where
+  type DemoteRep ('KProxy :: KProxy (HakaruCon k)) = HakaruCon (DemoteRep ('KProxy :: KProxy k))
+
+  -- TODO: Can these actually be implemented?
+  fromSing = error "fromSing(HakaruCon)"
+  toSing = error "toSing(HakaruCon)"
+
+instance SingI a => SingI (HCon a) where sing = SHCon sing 
+instance (SingI a, SingI b) => SingI (a :@ b) where sing = (:%@) sing sing
+
+singDecideInstances [ ''Hakaru, ''HakaruCon, ''HakaruFun ] 
+
+
+
+toSingProxy :: SingI a => proxy a -> Sing a
+toSingProxy _ = sing
+{-# INLINE toSingProxy #-}
+
+type TypeEq = (:~:)
+
+jmEq :: SHakaru a -> SHakaru b -> Maybe (a :~: b)
+jmEq a b = case a %~ b of 
+             Proved p -> Just p 
+             _        -> Nothing
+
+
+{-
 
 ----------------------------------------------------------------
 -- | Singleton types for the kind of Hakaru types. We need to use
@@ -163,3 +219,4 @@ jmEq _ _ = Nothing
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
+-}
