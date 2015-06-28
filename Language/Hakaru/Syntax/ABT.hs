@@ -137,7 +137,7 @@ prime (Variable n i) = Variable n (i + 1)
 -- BUG: if we don't expose this type, then clients can't define
 -- their own ABT instances (without reinventing their own copy of
 -- this type)...
-data View :: (Hakaru * -> *) -> Hakaru * -> * where
+data View :: (Hakaru -> *) -> Hakaru -> * where
 
     Syn  :: !(AST abt a) -> View abt a
 
@@ -191,7 +191,7 @@ instance Show1 abt => Show (View abt a) where
 
 
 -- TODO: neelk includes 'subst' in the signature. Any reason we should?
-class ABT (abt :: Hakaru * -> *) where
+class ABT (abt :: Hakaru -> *) where
     syn      :: AST abt a          -> abt a
     var      :: Variable -> Sing a -> abt a
     open     :: Variable -> abt  a -> abt a
@@ -246,7 +246,7 @@ caseVarSynABT e var_ syn_ =
 -- | A trivial ABT with no annotations. The 'freeVars' method is
 -- very expensive for this ABT, because we have to traverse the
 -- term every time we want to get it. Use 'FreeVarsABT' to fix this.
-newtype TrivialABT (a :: Hakaru *) =
+newtype TrivialABT (a :: Hakaru) =
     TrivialABT { unTrivialABT :: View TrivialABT a }
 
 instance ABT TrivialABT where
@@ -313,7 +313,7 @@ instance Show (TrivialABT a) where
 --
 -- | An ABT which keeps track of free variables. The 'freeVars'
 -- method is /O(1)/ for this ABT.
-data FreeVarsABT (a :: Hakaru *)
+data FreeVarsABT (a :: Hakaru)
     = FreeVarsABT !(Set Variable) !(View FreeVarsABT a)
     -- N.B., Set is a monoid with {Set.empty; Set.union; Set.unions}
     -- For a lot of code, the other component ordering would be
@@ -423,7 +423,7 @@ subst x e = start
 -- name supply for generating fresh binders via a HOAS-like interface.
 -- N.B., the choice of names is non-canonical, so you may need to
 -- 'rebind' terms in order to canonicalize them.
-data BinderABT (a :: Hakaru *)
+data BinderABT (a :: Hakaru)
     = BinderABT {-# UNPACK #-} !Nat !(Set Variable) !(View BinderABT a)
 
 instance Show1 BinderABT where
@@ -441,7 +441,7 @@ instance Show (BinderABT a) where
     showsPrec = showsPrec1
     show      = show1
 
-class Bindable (ast :: Hakaru * -> *) where
+class Bindable (ast :: Hakaru -> *) where
     -- | Return the largest 'varID' of variable binding sites,
     -- without traversing into the body under those binders.
     bound :: ast a -> Nat

@@ -30,6 +30,7 @@ module Language.Hakaru.Syntax.DataKind
 
 import Data.Typeable (Typeable)
 import GHC.TypeLits (Symbol) 
+import Unsafe.Coerce
 
 ----------------------------------------------------------------
 -- | The universe/kind of Hakaru types. N.B., the @star@ parameter
@@ -63,11 +64,11 @@ data Hakaru
     -- Used in "Language.Hakaru.Sample"
     -- TODO: replace HMaybe with the Embed stuff
     -- | HMaybe Hakaru
+   deriving (Show)
 
--- BUG: Cannot derive anything because HakaruCon contains a Symbol,
--- which is not inhabited as a type. 
--- deriving (Eq, Read, Show)
-
+-- Huge hack - but there is no way to produce a value level term of type Symbol
+-- other than through the fromSing function in TypeEq, so this should be safe.
+instance Show Symbol where show x = show (unsafeCoerce x :: String)
 
 -- | The identity and constant functors on @Hakaru*@. This gives
 -- us limited access to type-variables in @Hakaru*@, for use in
@@ -79,15 +80,15 @@ data Hakaru
 -- Products and sums are represented as lists, so they aren't
 -- in this datatype.
 data HakaruFun = Id | K Hakaru
-    -- deriving (Eq, Read, Show)
+   deriving (Show)
 
 -- | The kind of hakaru constructors - simply a name, with 0 or more
 -- arguements. It parametric in arguement - this is especially useful when you
 -- need a singleton of the constructor, but not the types in the arguements. The
 -- arguement positions are necessary to do variable binding in Code. Symbol is
 -- the kind of "type level strings".
-infixl 0 :@
 data HakaruCon a = HCon Symbol | HakaruCon a :@ a 
+   deriving (Show)
 
 -- | The Code type family allows users to extend the Hakaru language by adding
 -- new types. The right hand side is the sum-of-products representation of that

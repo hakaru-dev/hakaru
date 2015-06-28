@@ -165,7 +165,7 @@ unsafeFrom_ = (syn .) . UnsafeFrom_
 
 value_ :: (ABT abt) => Value a  -> abt a
 value_ = syn . Value_
-bool_  :: (ABT abt) => Bool     -> abt 'HBool
+bool_  :: (ABT abt) => Bool     -> abt HBool
 bool_  = value_ . Bool_
 nat_   :: (ABT abt) => Nat      -> abt 'HNat
 nat_   = value_ . Nat_
@@ -178,22 +178,22 @@ real_  = value_ . Real_
 
 
 -- Boolean operators
-true, false :: (ABT abt) => abt 'HBool
+true, false :: (ABT abt) => abt HBool
 true  = bool_ True
 false = bool_ False
 
 -- TODO: simplifications: involution, distribution, constant-propogation
-not :: (ABT abt) => abt 'HBool -> abt 'HBool
+not :: (ABT abt) => abt HBool -> abt HBool
 not = primOp1_ Not
 
-and, or :: (ABT abt) => [abt 'HBool] -> abt 'HBool
+and, or :: (ABT abt) => [abt HBool] -> abt HBool
 and = naryOp_withIdentity And true
 or  = naryOp_withIdentity Or  false
 
 (&&), (||),
     -- (</=>), (<==>), (==>), (<==), (\\), (//) -- TODO: better names?
     nand, nor
-    :: (ABT abt) => abt 'HBool -> abt 'HBool -> abt 'HBool
+    :: (ABT abt) => abt HBool -> abt HBool -> abt HBool
 (&&) = naryOp2_ And
 (||) = naryOp2_ Or
 -- (</=>) = primOp2_ Xor
@@ -207,11 +207,11 @@ nor    = primOp2_ Nor
 
 
 -- HEq & HOrder operators
-(==), (/=) :: (ABT abt, HOrder a) => abt a -> abt a -> abt 'HBool
+(==), (/=) :: (ABT abt, HOrder a) => abt a -> abt a -> abt HBool
 (==) = primOp2_ Equal
 (/=) = (not .) . (==)
 
-(<), (<=), (>), (>=) :: (ABT abt, HOrder a) => abt a -> abt a -> abt 'HBool
+(<), (<=), (>), (>=) :: (ABT abt, HOrder a) => abt a -> abt a -> abt HBool
 (<)    = primOp2_ Less
 x <= y = (x < y) || (x == y)
 (>)    = flip (<)
@@ -428,7 +428,7 @@ atanh  = primOp1_ Atanh
 
 
 -- instance (ABT abt) => Base abt where not already defined above
-unit :: (ABT abt) => abt 'HUnit
+unit :: (ABT abt) => abt HUnit
 unit = primOp0_ Unit
 
 pair :: (ABT abt) => abt a -> abt b -> abt ('HPair a b)
@@ -465,7 +465,7 @@ uneither e l r =
         , Branch (PInr PVar) (open x $ r (var x sing))
         ]
 
-if_ :: (ABT abt) => abt 'HBool -> abt a -> abt a -> abt a
+if_ :: (ABT abt) => abt HBool -> abt a -> abt a -> abt a
 if_ b t f = syn $ Case_ b [Branch PTrue t, Branch PFalse f]
 
 unsafeProb :: (ABT abt) => abt 'HReal -> abt 'HProb

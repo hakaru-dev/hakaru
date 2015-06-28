@@ -40,7 +40,7 @@ import Language.Hakaru.Sample
 -- TODO: see how GHC handles lifting coersions these days...
 
 -- | Primitive proofs of the inclusions in our numeric hierarchy.
-data PrimCoercion :: Hakaru * -> Hakaru * -> * where
+data PrimCoercion :: Hakaru -> Hakaru -> * where
     Signed     :: HRing a       => PrimCoercion (NonNegative a) a
     Continuous :: HContinuous a => PrimCoercion (HIntegral   a) a
 
@@ -50,7 +50,7 @@ deriving instance Show (PrimCoercion a b)
 
 
 -- | General proofs of the inclusions in our numeric hierarchy.
-data Coercion :: Hakaru * -> Hakaru * -> * where
+data Coercion :: Hakaru -> Hakaru -> * where
     -- | Added the trivial coercion so we get the Category instance.
     -- This may/should make program transformations easier to write
     -- by allowing more intermediate ASTs, but will require a cleanup
@@ -82,7 +82,7 @@ instance Category Coercion where
 
 {-
 -- TODO: make these rules for coalescing things work
-data UnsafeFrom_CoerceTo :: Hakaru * -> Hakaru * -> * where
+data UnsafeFrom_CoerceTo :: Hakaru -> Hakaru -> * where
     UnsafeFrom_CoerceTo
         :: !(Coercion c b)
         -> !(Coercion a b)
@@ -105,7 +105,7 @@ unsafeFrom_coerceTo xs ys =
             (Continuous,Continuous) -> unsafeFrom_coerceTo xs' ys'
             _                       -> UnsafeFrom_CoerceTo xs  ys
 
-data CoerceTo_UnsafeFrom :: Hakaru * -> Hakaru * -> * where
+data CoerceTo_UnsafeFrom :: Hakaru -> Hakaru -> * where
     CoerceTo_UnsafeFrom
         :: !(Coercion c b)
         -> !(Coercion a b)
