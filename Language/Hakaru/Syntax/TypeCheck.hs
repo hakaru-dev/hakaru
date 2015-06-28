@@ -135,23 +135,23 @@ inferType ctx e =
     Syn (App_ (Syn (Lam_ p e1)) e2) -> do 
         typ2 <- inferType ctx e2
         -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
-        caseOpenABT e1 $ \x t ->
-            inferType (pushCtx (TV x typ2) ctx) t
+        caseOpenABT e1 $ \x e' ->
+            inferType (pushCtx (TV x typ2) ctx) e'
         -}
 
     Syn (Let_ e1 e2)
         | inferable (viewABT e1) -> do
             typ1 <- inferType ctx e1
             -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
-            caseOpenABT e2 $ \x t ->
-                inferType (pushCtx (TV x typ1) ctx) t
+            caseOpenABT e2 $ \x e' ->
+                inferType (pushCtx (TV x typ1) ctx) e'
         | otherwise -> error "TODO: inferType{LetA}"
             {-
             -- TODO: this version of let-binding should come with @typ1@ annotation on the variable. That is, based on the TLDI'05 paper, I think we need two different AST constructors, one for inferable @e1@ and the other for mustCheck @e1@... But for now we can always fake that by putting an Ann_ on the @e1@ itself
             checkType ctx e1 typ1
             -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
-            caseOpenABT e2 $ \x t ->
-                inferType (pushCtx (TV x typ1) ctx) t
+            caseOpenABT e2 $ \x e' ->
+                inferType (pushCtx (TV x typ1) ctx) e'
             -}
 
     Syn (Ann_ typ e') -> do
@@ -174,15 +174,15 @@ inferType ctx e =
     Syn (Integrate_ e1 e2 e3) -> do
         checkType ctx e1 SReal
         checkType ctx e2 SReal
-        caseOpenABT e3 $ \x t ->
-            checkType (pushCtx (TV x SReal) ctx) t SProb
+        caseOpenABT e3 $ \x e' ->
+            checkType (pushCtx (TV x SReal) ctx) e' SProb
         return SProb
     
     Syn (Summate_ e1 e2 e3) -> do
         checkType ctx e1 SReal
         checkType ctx e2 SReal
-        caseOpenABT e3 $ \x t ->
-            checkType (pushCtx (TV x SInt) ctx) t SProb
+        caseOpenABT e3 $ \x e' ->
+            checkType (pushCtx (TV x SInt) ctx) e' SProb
         return SProb
     
     Syn (Value_ v) ->
@@ -206,26 +206,26 @@ inferType ctx e =
 checkType :: ABT abt => Ctx -> abt a -> Sing a -> TypeCheckMonad ()
 checkType ctx e typ =
     case viewABT e of
-    Syn (Lam_ p e') ->
+    Syn (Lam_ p e1) ->
         case typ of
         SFun typ1 typ2 ->
             -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
-            caseOpenABT e' $ \x t ->
-            checkType (pushCtx (TV x typ1) ctx) t typ2
+            caseOpenABT e1 $ \x e' ->
+                checkType (pushCtx (TV x typ1) ctx) e' typ2
         _ -> failwith "expected HFun type"
 
     Syn (Let_ e1 e2)
         | inferable (viewABT e1) -> do
             typ1 <- inferType ctx e1
             -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
-            caseOpenABT e2 $ \x t ->
-                checkType (pushCtx (TV x typ1) ctx) t typ
+            caseOpenABT e2 $ \x e' ->
+                checkType (pushCtx (TV x typ1) ctx) e' typ
         | otherwise -> error "TODO: checkType{LetA}"
     
-    Syn (Fix_ e') -> 
+    Syn (Fix_ e1) -> 
         -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
-        caseOpenABT e' $ \x t ->
-        checkType (pushCtx (TV x typ) ctx) t typ
+        caseOpenABT e1 $ \x e' ->
+            checkType (pushCtx (TV x typ) ctx) e' typ
         
     {-
     -- These no longer seem necessary...
@@ -249,23 +249,23 @@ checkType ctx e typ =
         SEither _ typ2 -> checkType ctx e typ2
         _              -> failwith "expected HEither type"
     -}
-    Syn (Case_ e' branches) -> do
-        typ' <- inferType ctx e'
+    Syn (Case_ e1 branches) -> do
+        typ1 <- inferType ctx e1
         forM_ branches $ \(Branch pat body) ->
-            checkBranch ctx [TP pat typ'] body typ
+            checkBranch ctx [TP pat typ1] body typ
 
-    Syn (Array_ n e') ->
+    Syn (Array_ n e1) ->
         case typ of
         SArray typ1 ->
             -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
-            caseOpenABT e' $ \x t ->
-            checkType (pushCtx (TV x SNat) ctx) t typ1
+            caseOpenABT e1 $ \x e' ->
+                checkType (pushCtx (TV x SNat) ctx) e' typ1
         _ -> failwith "expected HArray type"
 
     {-
-    Syn (Roll_ e') ->
+    Syn (Roll_ e1) ->
         case typ of
-        SMu typ1 -> checkType ctx e' (SApp typ1 typ)
+        SMu typ1 -> checkType ctx e1 (SApp typ1 typ)
         _        -> failwith "expected HMu type"
     -}
 
@@ -295,7 +295,7 @@ checkBranch ctx (TP pat typ : pts) e body_typ =
     PVar ->
         -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
         caseOpenABT e $ \x e' ->
-        checkBranch (pushCtx (TV x typ) ctx) pts e' body_typ
+            checkBranch (pushCtx (TV x typ) ctx) pts e' body_typ
     PWild ->
         checkBranch ctx pts e body_typ
     PTrue ->

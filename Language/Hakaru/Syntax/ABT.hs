@@ -21,7 +21,12 @@
 -- functor 'AST': the non-recursive 'View' type extends 'AST' by
 -- adding variables and binding; and each 'ABT' type  (1) provides
 -- some additional annotations at each recursion site, and then (2)
--- ties the knot to produce the recursive trees.
+-- ties the knot to produce the recursive trees. For an introduction
+-- to this technique\/approach, see:
+--
+--    * <http://semantic-domain.blogspot.co.uk/2015/03/abstract-binding-trees.html>
+--
+--    * <http://semantic-domain.blogspot.co.uk/2015/03/abstract-binding-trees-addendum.html>
 --
 -- TODO: simultaneous multiple substitution
 ----------------------------------------------------------------
@@ -53,13 +58,15 @@ import           Control.Exception (Exception, throw)
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.TypeEq (Sing, SingI, toSing, TypeEq(Refl), jmEq)
+import Language.Hakaru.Syntax.TypeEq
 import Language.Hakaru.Syntax.AST
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 -- TODO: actually define 'Variable' as something legit
+--
 -- TODO: maybe have @Variable a@ instead, with @SomeVariable@ to package up the existential?
+--
 -- N.B., This is lazy in its components!
 -- TODO: finish combining the \"fast circular substitution\" pearl with the ABT framework.
 -- <http://comonad.com/reader/2014/fast-circular-substitution/>
@@ -92,14 +99,22 @@ prime (Variable n i) = Variable n (i + 1)
 -- other name for the \"Abs\"(olute value) PrimOp to avoid conflict.
 -- Or maybe call it \"Bind\"(er) and then come up with some other
 -- name for the HMeasure monadic bind operator?
--- <http://semantic-domain.blogspot.co.uk/2015/03/abstract-binding-trees.html>
 --
--- <http://semantic-domain.blogspot.co.uk/2015/03/abstract-binding-trees-addendum.html>
--- <https://gist.github.com/neel-krishnaswami/834b892327271e348f79>
--- TODO: abstract over 'AST' like neelk does for @signature@?
--- TODO: remove the proxy type for 'Var', and infer it instead?
+-- TODO: should we abstract over 'AST' like neelk does for @signature@?
+--
+-- TODO: remove the singleton type for 'Var', and infer it instead?
+--
 -- TODO: distinguish between free and bound variables, a~la Locally
 -- Nameless? also cf., <http://hackage.haskell.org/package/abt>
+--
+-- TODO: (?) index by the /local/ environment (or size thereof).
+-- That is, Syn and Var would be @Z@, whereas Open would take @n@
+-- to @S n@ (or @[]@ and taking @xs@ to some @x:xs@, respectively).
+-- This way, the 'AST' could actually specify when it expects an
+-- Open term. Doing this would give us improved type-safety of the
+-- syntax tree, and should still free us from worrying about the
+-- issues that tracking a /global/ environment would cause (like
+-- worrying about weakening, etc),
 --
 -- | The raw view of abstract binding trees, to separate out variables
 -- and binders from (1) the rest of syntax (cf., 'AST'), and (2)
@@ -130,7 +145,7 @@ data View :: (Hakaru * -> *) -> Hakaru * -> * where
     -- can push whatever annotations down over one single level of
     -- 'Open', rather than pushing over all of them at once and
     -- then needing to reconstruct all but the first one.
-    Open :: {-# UNPACK #-} !Variable -> View abt a -> View abt a
+    Open :: {-# UNPACK #-} !Variable -> !(View abt a) -> View abt a
 
 
 instance Functor1 View where
@@ -152,12 +167,12 @@ instance Show1 abt => Show1 (View abt) where
             . showString " "
             . showsPrec  11 s
             )
-    showsPrec1 p (Open x e) =
+    showsPrec1 p (Open x v) =
         showParen (p > 9)
             ( showString "Open "
             . showsPrec  11 x
             . showString " "
-            . showsPrec1 11 e
+            . showsPrec1 11 v
             )
 
 instance Show1 abt => Show (View abt a) where
@@ -182,7 +197,7 @@ class ABT (abt :: Hakaru * -> *) where
 
     freeVars :: abt a -> Set Variable
     -- TODO: add a function for checking alpha-equivalence? Other stuff?
-    -- TODO: does it make sense ot have the functions for generating fresh variable names here? or does that belong in a separate class?
+    -- TODO: does it make sense to have the functions for generating fresh variable names here? or does that belong in a separate class?
 
 
 -- See note about exposing 'View', 'viewABT', and 'unviewABT'
@@ -218,7 +233,9 @@ caseVarSynABT e var_ syn_ =
 
 
 ----------------------------------------------------------------
--- A trivial ABT with no annotations
+-- | A trivial ABT with no annotations. The 'freeVars' method is
+-- very expensive for this ABT, because we have to traverse the
+-- term every time we want to get it. Use 'FreeVarsABT' to fix this.
 newtype TrivialABT (a :: Hakaru *) =
     TrivialABT { unTrivialABT :: View TrivialABT a }
 
@@ -234,7 +251,6 @@ instance ABT TrivialABT where
 
     viewABT (TrivialABT v) = v
 
-    -- This is very expensive! use 'FreeVarsABT' to fix that
     freeVars = go . unTrivialABT
         where
         go (Syn  t)   = foldMap1 freeVars t
@@ -282,9 +298,11 @@ instance Show (TrivialABT a) where
 -- TODO: replace @Set Variable@ with @Map Variable (Hakaru Star)@;
 -- though that belongs more in the type-checking than in this
 -- FreeVarsABT itself...
+--
 -- TODO: generalize this pattern for any monoidal annotation?
 --
--- | An ABT which keeps track of free variables.
+-- | An ABT which keeps track of free variables. The 'freeVars'
+-- method is /O(1)/ for this ABT.
 data FreeVarsABT (a :: Hakaru *)
     = FreeVarsABT !(Set Variable) !(View FreeVarsABT a)
     -- N.B., Set is a monoid with {Set.empty; Set.union; Set.unions}
@@ -344,7 +362,9 @@ rename x y = start
         | otherwise = open z (loop (caseOpenABT e $ const id) v)
 
 
--- N.B., this /is/ guaranteed to preserve type safety— provided it doesn't throw an exception.
+-- | Perform capture-avoiding substitution. N.B., this function
+-- will either preserve type-safety or else throw an
+-- 'SubstitutionTypeError'.
 subst
     :: forall abt a b
     .  (SingI a, ABT abt)
@@ -369,8 +389,11 @@ subst x e = start
         | x == z      = f
         | otherwise   =
             let z' = freshen z (freeVars e `mappend` freeVars f) in
-            -- HACK: using 'caseOpenABT' is redundant, it just pushes the annotations down over \"@Open z@\" and onto the @v@
-            -- HACK: how much work is wasted by using 'viewABT' to eliminate the annotations after renaming?
+            -- HACK: the 'rename' function requires an ABT not a
+            -- View, so we have to use 'caseOpenABT' to give its
+            -- input and then 'viewABT' to discard the topmost
+            -- annotation. We really should find a way to eliminate
+            -- that overhead.
             caseOpenABT f $ \_ f' ->
                 open z' (loop f' . viewABT $ rename z z' f')
 
