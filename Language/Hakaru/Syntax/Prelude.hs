@@ -426,31 +426,54 @@ asinh  = primOp1_ Asinh
 acosh  = primOp1_ Acosh
 atanh  = primOp1_ Atanh
 
+-- Embed syn
+
+nilE_ :: ABT abt => abt ('[ '[]] :$ a)
+nilE_ = syn Nil_
+
+consE_ :: ABT abt => abt ('[ '[x] ] :$ a) -> abt ('[xs] :$ a) -> abt ('[x ': xs] :$ a)
+consE_ a b = syn (Cons_ a b) 
+
+zeroE_ :: ABT abt => abt ('[xs] :$ a) -> abt ((xs ': xss) :$ a)
+zeroE_ = syn . Zero_
+
+succE_ :: ABT abt => abt (xss :$ a) -> abt ((xs ': xss) :$ a)
+succE_ = syn . Succ_
+
+konstE_ :: ABT abt => abt x -> abt ('[ '[ K x]] :$ a)
+konstE_ = syn . Konst_ 
+
+identE_ :: ABT abt => abt x -> abt ('[ '[ Id]] :$ x)
+identE_ = syn . Ident_ 
+
+tagE_ :: ABT abt => abt (Code t :$ HTag t (Code t)) -> abt ('HTag t (Code t))
+tagE_ = syn . Tag_ 
+
 
 -- instance (ABT abt) => Base abt where not already defined above
 unit :: (ABT abt) => abt HUnit
-unit = error "TODO" 
+unit = tagE_ nilE_ 
 
 pair :: (ABT abt) => abt a -> abt b -> abt (HPair a b)
-pair = error "TODO" 
+pair a b = tagE_ (zeroE_ $ consE_ (konstE_ a) $ consE_ (konstE_ b) nilE_)
 
 unpair
     :: (ABT abt, SingI a, SingI b)
     => abt (HPair a b)
     -> (abt a -> abt b -> abt c)
     -> abt c
-unpair e f = error "TODO" 
-{-    freshVar $ \x ->
+unpair e f = 
+    freshVar $ \x ->
     freshVar $ \y ->
     syn $ Case_ e
-        [Branch (PPair PVar PVar)
-            (open x . open y $ f (var x sing) (var y sing))]-}
+        [Branch (pPair PVar PVar)
+            (open x . open y $ f (var x sing) (var y sing))]
 
 inl :: (ABT abt) => abt a -> abt (HEither a b)
-inl = error "TODO" 
+inl a = tagE_ (zeroE_ (konstE_ a))
 
 inr :: (ABT abt) => abt b -> abt (HEither a b)
-inr = error "TODO"  
+inr a = tagE_ (succE_ (konstE_ a))  
 
 uneither
     :: (ABT abt, SingI a, SingI b)
@@ -458,15 +481,39 @@ uneither
     -> (abt a -> abt c)
     -> (abt b -> abt c)
     -> abt c
-uneither e l r = error "TODO" {-
+uneither e l r = 
     freshVar $ \x ->
     syn $ Case_ e
-        [ Branch (PInl PVar) (open x $ l (var x sing))
-        , Branch (PInr PVar) (open x $ r (var x sing))
-        ]-}
+        [ Branch (pInl PVar) (open x $ l (var x sing))
+        , Branch (pInr PVar) (open x $ r (var x sing))
+        ]
 
 if_ :: (ABT abt) => abt HBool -> abt a -> abt a -> abt a
 if_ b t f = syn $ Case_ b [Branch PTrue t, Branch PFalse f]
+
+-- List 
+
+nil_ :: ABT abt => abt (HList a)
+nil_ = tagE_ ( (zeroE_ nilE_))
+
+cons_ :: ABT abt => abt a -> abt (HList a) -> abt (HList a)
+cons_ x xs = tagE_ ( (succE_ (consE_ (konstE_ x) $ consE_ (identE_ xs) nilE_)))
+
+list_ :: ABT abt => [abt a] -> abt (HList a)
+list_ = Prelude.foldr cons_ nil_ 
+
+-- Maybe 
+
+nothing_ :: ABT abt => abt (HMaybe a)
+nothing_ = tagE_ ( (zeroE_ nilE_))
+
+just_ :: ABT abt => abt a -> abt (HMaybe a)
+just_ a = tagE_ ( (succE_ (konstE_ a)))
+
+maybe_ :: ABT abt => Maybe (abt a) -> abt (HMaybe a)
+maybe_ = Prelude.maybe nothing_ just_ 
+
+-- 
 
 unsafeProb :: (ABT abt) => abt 'HReal -> abt 'HProb
 unsafeProb = unsafeFrom_ signed
