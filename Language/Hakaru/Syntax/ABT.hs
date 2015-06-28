@@ -1,4 +1,5 @@
-{-# LANGUAGE ScopedTypeVariables
+{-# LANGUAGE CPP
+           , ScopedTypeVariables
            , GADTs
            , DeriveDataTypeable
            , DataKinds
@@ -45,7 +46,9 @@ import           Data.Typeable     (Typeable)
 import           Data.Set          (Set)
 import qualified Data.Set          as Set
 import           Data.Function     (on)
+#if __GLASGOW_HASKELL__ < 710
 import           Data.Monoid
+#endif
 import           Control.Exception (Exception, throw)
 
 import Language.Hakaru.Syntax.IClasses

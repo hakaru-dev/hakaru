@@ -1,15 +1,15 @@
 -- TODO: move this somewhere else, like "Language.Hakaru.IClasses"
-{-# LANGUAGE Rank2Types, PolyKinds #-}
+{-# LANGUAGE CPP, Rank2Types, PolyKinds #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.06.26
+--                                                    2015.06.28
 -- |
 -- Module      :  Language.Hakaru.Syntax.IClasses
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  wren@community.haskell.org
 -- Stability   :  experimental
--- Portability :  Rank2Types + PolyKinds
+-- Portability :  CPP + Rank2Types + PolyKinds
 --
 -- A collection of classes generalizing standard classes in order
 -- to support indexed types.
@@ -28,7 +28,9 @@ module Language.Hakaru.Syntax.IClasses
     , Foldable1(..)
     ) where
 
+#if __GLASGOW_HASKELL__ < 710
 import Data.Monoid
+#endif
 
 ----------------------------------------------------------------
 -- | Any unindexed type can be lifted to be (trivially) @k@-indexed.

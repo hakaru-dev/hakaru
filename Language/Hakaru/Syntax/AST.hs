@@ -1,14 +1,17 @@
 -- TODO: <https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging>
-{-# LANGUAGE DataKinds
+{-# LANGUAGE CPP
+           , DataKinds
            , PolyKinds
            , GADTs
-           , TypeOperators
            , StandaloneDeriving
            #-}
+#if __GLASGOW_HASKELL__ < 710
+{-# LANGUAGE TypeOperators #-}
+#endif
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.06.26
+--                                                    2015.06.28
 -- |
 -- Module      :  Language.Hakaru.Syntax.AST
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -28,7 +31,9 @@ import Prelude                 hiding ((.))
 import Data.Sequence           (Seq)
 import qualified Data.Foldable as F
 import Data.Proxy
+#if __GLASGOW_HASKELL__ < 710
 import Data.Monoid
+#endif
 import Control.Category        (Category(..))
 import Control.Arrow           ((***))
 import Data.Number.LogFloat    (LogFloat)

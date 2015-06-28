@@ -1,4 +1,5 @@
-{-# LANGUAGE ScopedTypeVariables
+{-# LANGUAGE CPP
+           , ScopedTypeVariables
            , GADTs
            , DataKinds
            , PolyKinds
@@ -7,7 +8,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.06.26
+--                                                    2015.06.28
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeCheck
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -29,8 +30,11 @@ module Language.Hakaru.Syntax.TypeCheck where
 
 import           Data.IntMap       (IntMap)
 import qualified Data.IntMap       as IM
-import           Control.Monad     (forM_)
 import qualified Data.Foldable     as F
+import           Control.Monad     (forM_)
+#if __GLASGOW_HASKELL__ < 710
+import           Control.Applicative (Applicative)
+#endif
 
 -- import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.TypeEq (Sing(..), TypeEq(Refl), jmEq)
