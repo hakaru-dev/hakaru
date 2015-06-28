@@ -1,5 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables
            , GADTs
+           , DeriveDataTypeable
            , DataKinds
            , PolyKinds
            #-}
@@ -44,6 +45,7 @@ import           Data.Typeable     (Typeable)
 import           Data.Set          (Set)
 import qualified Data.Set          as Set
 import           Data.Function     (on)
+import           Data.Monoid
 import           Control.Exception (Exception, throw)
 
 import Language.Hakaru.Syntax.IClasses
