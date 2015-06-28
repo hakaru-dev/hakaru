@@ -362,9 +362,10 @@ rename x y = start
         | otherwise = open z (loop (caseOpenABT e $ const id) v)
 
 
--- | Perform capture-avoiding substitution. N.B., this function
--- will either preserve type-safety or else throw an
--- 'SubstitutionTypeError'.
+-- | Perform capture-avoiding substitution. This function will
+-- either preserve type-safety or else throw an 'SubstitutionTypeError'.
+-- N.B., to ensure timely throwing of exceptions, the 'AST' and
+-- 'ABT' should have strict 'fmap1' definitions.
 subst
     :: forall abt a b
     .  (SingI a, ABT abt)
@@ -388,6 +389,11 @@ subst x e = start
     loop f (Open z _)
         | x == z      = f
         | otherwise   =
+            -- TODO: even if we don't come up with a smarter way
+            -- of freshening variables, it'd be better to just pass
+            -- both sets to 'freshen' directly and then check them
+            -- each; rather than paying for taking their union every
+            -- time we go under a binder like this.
             let z' = freshen z (freeVars e `mappend` freeVars f) in
             -- HACK: the 'rename' function requires an ABT not a
             -- View, so we have to use 'caseOpenABT' to give its
