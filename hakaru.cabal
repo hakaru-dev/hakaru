@@ -41,7 +41,15 @@ library
                        Language.Hakaru.Any,
                        Language.Hakaru.Vector,
                        Language.Hakaru.Util.Csv,
-                       Language.Hakaru.Embed
+                       Language.Hakaru.Embed,
+                       Language.Hakaru.Syntax.ABT,
+                       Language.Hakaru.Syntax.AST,
+                       Language.Hakaru.Syntax.DataKind,
+                       Language.Hakaru.Syntax.Prelude,
+                       Language.Hakaru.Syntax.TypeEq,
+                       Language.Hakaru.Syntax.IClasses,
+                       Language.Hakaru.Syntax.HClasses,
+                       Language.Hakaru.Syntax.Coercion
 
   other-modules:       Language.Hakaru.Util.Extras,
                        Language.Hakaru.Util.Finite,
