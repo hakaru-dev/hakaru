@@ -37,7 +37,7 @@ module Language.Hakaru.Syntax.DataKind
 
 import Data.Typeable (Typeable)
 import GHC.TypeLits (Symbol)
-import Unsafe.Coerce 
+import Unsafe.Coerce
 
 ----------------------------------------------------------------
 -- HACK: there is no way to produce a value level term of type
@@ -53,18 +53,42 @@ instance Read Symbol where
 ----------------------------------------------------------------
 -- | The universe\/kind of Hakaru types.
 data Hakaru
-    = HNat
-    | HInt
-    | HProb -- ^ Non-negative real numbers (not the [0,1] interval!)
-    | HReal -- ^ The real projective line (includes +/- infinity)
-    | HMeasure !Hakaru
-    | HArray   !Hakaru
-    | HFun     !Hakaru !Hakaru
+    = HNat -- ^ The natural numbers; aka, the non-negative integers.
 
-    -- The lists-of-lists are sum-of-products functors. The application
-    -- form allows us to unroll fixpoints.
-    | [[HakaruFun]] :$ !Hakaru
+    -- TODO: in terms of Summate (etc), do we consider this to include omega?
+    -- | The integers.
+    | HInt
+
+    -- | Non-negative real numbers. Unlike what you might expect,
+    -- this is /not/ restructed to the @[0,1]@ interval!
+    | HProb
+
+    -- | The real projective line. That is, the real numbers extended
+    -- with positive and negative infinities.
+    | HReal
+
+    -- | The measure monad
+    | HMeasure !Hakaru
+
+    -- | The built-in type for uniform arrays.
+    | HArray !Hakaru
+
+    -- TODO: if we're going to be using type operators anyways, then we might as well use one here.
+    -- | The type of Hakaru functions.
+    | HFun !Hakaru !Hakaru
+
+    -- TODO: rename to something better
+    -- | A user-defined polynomial data type. Each such type is
+    -- specified by a \"tag\" (the @HakaruCon Hakaru@) which names
+    -- the type, and a sum-of-product representation of the type
+    -- itself.
     | HTag !(HakaruCon Hakaru) [[HakaruFun]]
+
+    -- | This is not a proper Hakaru type. It's a helper type for
+    -- getting at the intermediate form produced by unrolling the
+    -- fixpoint of an 'HTag' type.
+    | [[HakaruFun]] :$ !Hakaru
+
     deriving (Read, Show)
 
 
@@ -97,10 +121,10 @@ deriving instance Typeable 'HTag
 --
 -- Products and sums are represented as lists in the 'Hakaru'
 -- data-kind itself, so they aren't in this datatype.
-data HakaruFun = Id | K !Hakaru
+data HakaruFun = I | K !Hakaru
     deriving (Read, Show)
 
-deriving instance Typeable 'Id
+deriving instance Typeable 'I
 deriving instance Typeable 'K
 
 
@@ -128,7 +152,7 @@ type family   Code (a :: HakaruCon Hakaru) :: [[HakaruFun]]
 type instance Code ('HCon "Bool")               = '[ '[], '[] ]
 type instance Code ('HCon "Unit")               = '[ '[] ]
 type instance Code ('HCon "Maybe"  ':@ a)       = '[ '[] , '[ 'K a ] ]
-type instance Code ('HCon "List"   ':@ a)       = '[ '[] , '[ 'K a, 'Id ] ]
+type instance Code ('HCon "List"   ':@ a)       = '[ '[] , '[ 'K a, 'I ] ]
 type instance Code ('HCon "Pair"   ':@ a ':@ b) = '[ '[ 'K a, 'K b ] ]
 type instance Code ('HCon "Either" ':@ a ':@ b) = '[ '[ 'K a ], '[ 'K b ] ]
 
@@ -163,7 +187,7 @@ type HBool       = 'HTag ('HCon "Bool") '[ '[], '[] ]
 type HUnit       = 'HTag ('HCon "Unit") '[ '[] ]
 type HPair   a b = 'HTag (('HCon "Pair"   ':@ a) ':@ b) '[ '[ 'K a, 'K b] ]
 type HEither a b = 'HTag (('HCon "Either" ':@ a) ':@ b) '[ '[ 'K a], '[ 'K b] ]
-type HList   a   = 'HTag ('HCon "List"    ':@ a) '[ '[], '[ 'K a, 'Id] ]
+type HList   a   = 'HTag ('HCon "List"    ':@ a) '[ '[], '[ 'K a, 'I] ]
 type HMaybe  a   = 'HTag ('HCon "Maybe"   ':@ a) '[ '[], '[ 'K a] ]
 
 ----------------------------------------------------------------

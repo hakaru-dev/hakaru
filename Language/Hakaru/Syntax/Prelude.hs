@@ -465,10 +465,10 @@ zeroE_  = syn . Zero_
 succE_  :: (ABT abt) => abt (xss ':$ a) -> abt ((xs ': xss) ':$ a)
 succE_  = syn . Succ_
 
-konstE_ :: (ABT abt) => abt x -> abt ('[ '[ 'K x ] ] ':$ a)
+konstE_ :: (ABT abt) => abt b -> abt ('[ '[ 'K b ] ] ':$ a)
 konstE_ = syn . Konst_
 
-identE_ :: (ABT abt) => abt x -> abt ('[ '[ 'Id ] ] ':$ x)
+identE_ :: (ABT abt) => abt a -> abt ('[ '[ 'I   ] ] ':$ a)
 identE_ = syn . Ident_
 
 

@@ -264,6 +264,7 @@ checkType ctx e typ =
         SEither _ typ2 -> checkType ctx e typ2
         _              -> failwith "expected HEither type"
     -}
+    -- TODO: we must ensure that @typ1@ is not @(:$)@. If it is, then the program is ill-formed!
     Syn (Case_ e1 branches) -> do
         typ1 <- inferType ctx e1
         forM_ branches $ \(Branch pat body) ->
@@ -347,6 +348,47 @@ checkBranch ctx (TP pat typ : pts) e body_typ =
         SEither _ typ2 ->
             checkBranch ctx (TP pat2 typ2 : pts) e body_typ
         _ -> failwith "expected HEither type"
+    -}
+    
+    -- BUG: rename all the patterns, data-constructors, singletons, and types to be *consistent*!
+    
+    {- -- TODO:
+    PNil -> -- :: Pattern ('[ '[] ] ':$ a)
+        case typ of
+        SNil -> checkBranch ctx pts e body_typ
+        _    -> failwith "expected term of unit type"
+
+    PCons pat1 pat2 -> -- :: Pattern ('[ x ': xs ] ':$ a)
+        -- pat1 :: Pattern ('[ '[ x ] ] ':$ a)
+        -- pat2 :: Pattern ('[ xs ] ':$ a)
+        case typ of
+        SCons typ1 typ2 ->
+            checkBranch ctx (TP pat1 typ1 : TP pat2 typ2 : pts) e body_typ
+        _ -> failwith "expected term of product type"
+
+    PZero pat1 -> -- :: Pattern ((xs ': xss) ':$ a)
+        -- pat1 :: Pattern ('[ xs ] ':$ a
+        case typ of
+        SZero typ1 ->
+            checkBranch ctx (TP pat1 typ1 : pts) e body_typ
+        _ -> failwith "expected term of zero type"
+
+    PSucc pat1 -> -- :: Pattern ((xs ': xss) ':$ a)
+        -- pat1 :: Pattern (xss ':$ a)
+        case typ of
+        SSucc typ1 ->
+            checkBranch ctx (TP pat1 typ1 : pts) e body_typ
+        _ -> failwith "expected term of sum type"
+
+    -- BUG: that's not how iso-recursive types work
+    PTag pat1 -> -- :: Pattern ('HTag con (Code con))
+        -- pat1 :: Pattern (Code con ':$ 'HTag con (Code con))
+
+    PIdent pat1 -> -- :: Pattern ('[ '[ 'I ] ] ':$ a)
+        -- pat1 :: Pattern a
+
+    PKonst pat1 -> -- :: Pattern ('[ '[ 'K b ] ] ':$ a)
+        -- pat1 :: Pattern b
     -}
 
 ----------------------------------------------------------------

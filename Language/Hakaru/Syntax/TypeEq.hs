@@ -147,8 +147,8 @@ deriving instance Show (Sing a)
 
 {-
 data SingHakaruFun :: Hakaru -> * where
-    SId :: SingHakaruFun 'Id
-    SK  :: SingHakaru a -> SingHakaruFun ('K a)
+    SI :: SingHakaruFun 'I
+    SK :: SingHakaru a -> SingHakaruFun ('K a)
 
 deriving instance Eq   (SingHakaruFun a)
 deriving instance Read (SingHakaruFun a)
