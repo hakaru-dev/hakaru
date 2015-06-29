@@ -1,15 +1,17 @@
-{-# LANGUAGE 
-    QuasiQuotes
-  , TemplateHaskell
-  , PolyKinds
-  , UndecidableInstances
-  , TypeSynonymInstances
-  , FlexibleInstances
-  , DataKinds
-  , GADTs
-  , ScopedTypeVariables
-  , StandaloneDeriving
-  #-}
+{-# LANGUAGE DataKinds
+           , PolyKinds
+           , GADTs
+           , TypeFamilies
+           
+           -- TODO: how much of this is needed for splices?
+           , QuasiQuotes
+           , TemplateHaskell
+           , UndecidableInstances
+           , TypeSynonymInstances
+           , FlexibleInstances
+           , ScopedTypeVariables
+           , StandaloneDeriving
+           #-}
 
 -- Singletons generates orphan instances warnings 
 {-# OPTIONS_GHC -Wall -fwarn-tabs -fno-warn-orphans #-}
@@ -33,7 +35,6 @@
 module Language.Hakaru.Syntax.TypeEq 
     ( module Language.Hakaru.Syntax.TypeEq
     , Sing(..), SingI(..)
-    , SingCon(..), SingSymbol(..), SingCode(..), SingProd(..), SingFun(..)
     {-
     , SingKind(..), SDecide(..), (:~:)(..)
     -}
@@ -119,9 +120,13 @@ sPair a b =
 
 
 ----------------------------------------------------------------
+data family Sing (a :: k) :: *
+
+-- BUG: data family instances must be fully saturated, but since these are GADTs, the name of the parameter is irrelevant. However, using a wildcard causes GHC to panic. cf., <https://ghc.haskell.org/trac/ghc/ticket/10586>
+
 -- | Singleton types for the kind of Hakaru types. We need to use
 -- this instead of 'Proxy' in order to implement 'jmEq'.
-data Sing :: Hakaru -> * where
+data instance Sing (unused :: Hakaru) where
     SNat     :: Sing 'HNat
     SInt     :: Sing 'HInt
     SProb    :: Sing 'HProb
@@ -138,43 +143,42 @@ data Sing :: Hakaru -> * where
     SList    :: !(Sing a) -> Sing (HList a)
     SMaybe   :: !(Sing a) -> Sing (HMaybe a)
 
-    STag
-        :: !(SingCon con)
-        -> !(SingCode (Code con))
-        -> Sing ('HTag con (Code con))
+    STag :: !(Sing con) -> !(Sing (Code con)) -> Sing ('HTag con (Code con))
     -- TODO: @a@ should always be @'HTag con sop@, and @sop@ should always be @Code con@
-    SUnrolled
-        :: !(SingCode sop)
-        -> !(Sing a)
-        -> Sing (sop ':$ a)
+    SUnrolled :: !(Sing sop) -> !(Sing a) -> Sing (sop ':$ a)
 
 -- BUG: deriving instance Eq   (Sing a)
 -- BUG: deriving instance Read (Sing a)
 -- BUG: deriving instance Show (Sing a)
 
+-- HACK: because of polykindedness, we have to give explicit type signatures for the index in the result of these data constructors.
 
-data SingCon :: HakaruCon Hakaru -> * where
-    SCon :: !(SingSymbol s)           -> SingCon ('HCon s) 
-    SApp :: !(SingCon a) -> !(Sing b) -> SingCon (a ':@ b) 
+data instance Sing (unused :: HakaruCon Hakaru) where
+    SCon :: !(Sing s)              -> Sing ('HCon s :: HakaruCon Hakaru)
+    SApp :: !(Sing a) -> !(Sing b) -> Sing (a ':@ b :: HakaruCon Hakaru) 
 
-data SingSymbol s = BUG -- TODO: fixme
+data instance Sing (s :: Symbol) = BUG -- TODO: fixme
 
-data SingCode :: [[HakaruFun]] -> * where
-    SVoid :: SingCode '[]
-    SPlus :: !(SingProd xs) -> !(SingCode xss) -> SingCode (xs ': xss)
+data instance Sing (unused :: [[HakaruFun]]) where
+    SVoid :: Sing ('[] :: [[HakaruFun]])
+    SPlus
+        :: !(Sing xs)
+        -> !(Sing xss)
+        -> Sing ((xs ': xss) :: [[HakaruFun]])
 
-data SingProd :: [HakaruFun] -> * where
-    SNil  :: SingProd '[]
-    SCons :: !(SingFun x) -> !(SingProd xs) -> SingProd (x ': xs)
+data instance Sing (unused :: [HakaruFun]) where
+    SNil  :: Sing ('[] :: [HakaruFun])
+    SCons :: !(Sing x) -> !(Sing xs) -> Sing ((x ': xs) :: [HakaruFun])
 
-data SingFun :: HakaruFun -> * where
-    SIdent :: SingFun 'I
-    SKonst :: !(Sing a) -> SingFun ('K a)
+data instance Sing (unused :: HakaruFun) where
+    SIdent :: Sing 'I
+    SKonst :: !(Sing a) -> Sing ('K a)
 
 ----------------------------------------------------------------
 -- | A class for automatically generating the singleton for a given
 -- Hakaru type.
-class    SingI (a :: Hakaru)              where sing :: Sing a
+class SingI (a :: k) where sing :: Sing a
+
 instance SingI 'HNat                      where sing = SNat 
 instance SingI 'HInt                      where sing = SInt 
 instance SingI 'HProb                     where sing = SProb 
@@ -190,33 +194,32 @@ instance (SingI a, SingI b) => SingI (HPair a b)   where sing = SPair sing sing
 instance (SingI a, SingI b) => SingI (HEither a b) where sing = SEither sing sing
 
 -- N.B., must use @(~)@ to delay the use of the type family (it's illegal to put it inline in the instance head).
-instance (sop ~ Code con, SingConI con, SingCodeI sop)
+instance (sop ~ Code con, SingI con, SingI sop)
     => SingI ('HTag con sop)
     where
-    sing = STag singCon singCode
-instance (SingCodeI sop, SingI a) => SingI (sop ':$ a) where
-    sing = SUnrolled singCode sing
+    sing = STag sing sing
+instance (SingI sop, SingI a) => SingI (sop ':$ a) where
+    sing = SUnrolled sing sing
 
-class SingConI (a :: HakaruCon Hakaru) where
-    singCon :: SingCon a
-instance SingConI ('HCon s) where
-    singCon = SCon (error "TODO: Symbol singletons")
-instance (SingConI a, SingI b) => SingConI (a ':@ b) where
-    singCon = SApp singCon sing
+instance SingI ('HCon s :: HakaruCon Hakaru) where
+    sing = SCon (error "TODO: Symbol singletons")
+instance (SingI a, SingI b) => SingI ((a ':@ b) :: HakaruCon Hakaru) where
+    sing = SApp sing sing
     
-class    SingCodeI (a :: [[HakaruFun]]) where singCode :: SingCode a
-instance SingCodeI '[]                  where singCode = SVoid 
-instance (SingProdI xs, SingCodeI xss) => SingCodeI (xs ': xss) where
-    singCode = SPlus singProd singCode
+instance SingI ('[] :: [[HakaruFun]]) where
+    sing = SVoid 
+instance (SingI xs, SingI xss) => SingI ((xs ': xss) :: [[HakaruFun]]) where
+    sing = SPlus sing sing
     
-class    SingProdI (a :: [HakaruFun]) where singProd :: SingProd a
-instance SingProdI '[]                where singProd = SNil 
-instance (SingFunI x, SingProdI xs) => SingProdI (x ': xs) where
-    singProd = SCons singFun singProd
+instance SingI ('[] :: [HakaruFun]) where
+    sing = SNil 
+instance (SingI x, SingI xs) => SingI ((x ': xs) :: [HakaruFun]) where
+    sing = SCons sing sing
 
-class    SingFunI (a :: HakaruFun)    where singFun :: SingFun a
-instance SingFunI 'I                  where singFun = SIdent 
-instance (SingI a) => SingFunI ('K a) where singFun = SKonst sing
+instance SingI 'I where
+    sing = SIdent 
+instance (SingI a) => SingI ('K a) where
+    sing = SKonst sing
 
 ----------------------------------------------------------------
 {-
@@ -252,7 +255,7 @@ toSing _ = sing
 -- proof @p :: TypeEq a b@, you must pattern-match on the 'Refl'
 -- constructor in order to show GHC that the types @a@ and @b@ are
 -- equal.
-data TypeEq :: k -> k -> * where
+data TypeEq :: Hakaru -> Hakaru -> * where
     Refl :: TypeEq a a
 
 -- | Type constructors are extensional.

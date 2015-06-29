@@ -36,7 +36,7 @@ import           Control.Monad         (forM_)
 import           Control.Applicative   (Applicative)
 #endif
 import Language.Hakaru.Syntax.Nat      (fromNat)
--- import Language.Hakaru.Syntax.DataKind
+import Language.Hakaru.Syntax.DataKind (Hakaru)
 import Language.Hakaru.Syntax.TypeEq
 import Language.Hakaru.Syntax.Coercion (singCoerceTo, singCoerceFrom)
 import Language.Hakaru.Syntax.AST
@@ -104,10 +104,10 @@ failwith :: TypeCheckError -> TypeCheckMonad a
 failwith = TCM . Left
 
 data TypedVariable where
-    TV :: {-# UNPACK #-} !Variable -> !(Sing a) -> TypedVariable
+    TV :: {-# UNPACK #-} !Variable -> !(Sing (a :: Hakaru)) -> TypedVariable
 
 data TypedPattern where
-    TP :: !(Pattern a) -> !(Sing a) -> TypedPattern
+    TP :: !(Pattern a) -> !(Sing (a :: Hakaru)) -> TypedPattern
 
 -- TODO: replace with an IntMap(TypedVariable), using the varID of the Variable
 type Ctx = IntMap TypedVariable
@@ -117,7 +117,7 @@ pushCtx tv@(TV x _) = IM.insert (fromNat $ varID x) tv
 
 
 -- | Given a typing environment and a term, synthesize the term's type.
-inferType :: ABT abt => Ctx -> abt a -> TypeCheckMonad (Sing a)
+inferType :: ABT abt => Ctx -> abt a -> TypeCheckMonad (Sing (a :: Hakaru))
 inferType ctx e =
     case viewABT e of
     Var x typ ->
@@ -218,7 +218,7 @@ inferType ctx e =
 -- TODO: rather than returning (), we could return a fully type-annotated term...
 -- | Given a typing environment, a term, and a type, check that the
 -- term satisfies the type.
-checkType :: ABT abt => Ctx -> abt a -> Sing a -> TypeCheckMonad ()
+checkType :: ABT abt => Ctx -> abt a -> Sing (a :: Hakaru) -> TypeCheckMonad ()
 checkType ctx e typ =
     case viewABT e of
     Syn (Lam_ p e1) ->
@@ -308,7 +308,7 @@ checkBranch
     :: ABT abt
     => Ctx
     -> abt b
-    -> Sing b
+    -> Sing (b :: Hakaru)
     -> [TypedPattern]
     -> TypeCheckMonad ()
 checkBranch ctx e body_typ = go
@@ -353,6 +353,7 @@ checkBranch ctx e body_typ = go
         -- BUG: rename all the patterns, data-constructors, singletons, and types to be *consistent*!
         
         -- TODO: verify that this all works the way it should!
+        -- TODO: clean up the cruftiness about building and matching on @SUnrolled _ typA@ over and over again.
         
         -- pat  :: Pattern  ('HTag con (Code con))
         -- pat1 :: Pattern  (Code con ':$ 'HTag con (Code con))
