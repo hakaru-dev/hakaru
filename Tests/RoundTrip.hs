@@ -105,6 +105,7 @@ testMeasureReal = test
   , "t78" ~: testSS [t78] t78'
   , "t79" ~: testSS [t79] (dirac 1)
   , "t80" ~: testS t80
+  , "t81" ~: testSS [] t81
   , "kalman" ~: testS kalman
   , "seismic" ~: testSS [] seismic
   , "lebesgue1" ~: testSS [] (lebesgue `bind` \x -> if_ (less 42 x) (dirac x) (superpose []))
@@ -732,6 +733,9 @@ t79 = dirac 3 `bind` \x -> dirac (if_ (equal x 3) 1 x)
 
 t80 :: (Mochastic repr) => repr (HMeasure HReal)
 t80 = gamma 1 1 `bind` \t -> normal 0 t
+
+t81 :: (Mochastic repr) => repr (HMeasure HReal)
+t81 = uniform 0 pi
 
 -- Testing round-tripping of some other distributions
 testexponential :: Mochastic repr => repr (HMeasure HProb)
