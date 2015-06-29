@@ -28,17 +28,17 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.TypeCheck where
 
-import           Data.IntMap       (IntMap)
-import qualified Data.IntMap       as IM
-import qualified Data.Foldable     as F
-import           Control.Monad     (forM_)
+import           Data.IntMap           (IntMap)
+import qualified Data.IntMap           as IM
+import qualified Data.Foldable         as F
+import           Control.Monad         (forM_)
 #if __GLASGOW_HASKELL__ < 710
-import           Control.Applicative (Applicative)
+import           Control.Applicative   (Applicative)
 #endif
-
-import Language.Hakaru.Syntax.Nat    (fromNat)
+import Language.Hakaru.Syntax.Nat      (fromNat)
 -- import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.TypeEq (Sing(..), TypeEq(Refl), jmEq)
+import Language.Hakaru.Syntax.TypeEq   (Sing(..), TypeEq(Refl), jmEq)
+import Language.Hakaru.Syntax.Coercion (singCoerceTo, singCoerceFrom)
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
 
@@ -70,9 +70,9 @@ mustCheck (Syn (NaryOp_ _ _))         = False
 mustCheck (Syn (Integrate_ _ _ _))    = False
 mustCheck (Syn (Summate_   _ _ _))    = False
 mustCheck (Syn (Value_ _))            = False
-mustCheck (Syn (CoerceTo_   c e))     = error "TODO: mustCheck(CoerceTo_)"
-mustCheck (Syn (UnsafeFrom_ c e))     = error "TODO: mustCheck(UnsafeFrom_)"
-mustCheck (Syn (Array_  _ _))         = True -- I just say this because neelk says all data constructors mustCheck (even though that doesn't seem right to me). TODO: Seems to me that if we can infer the body, then we should be able to infer the whole thing, right? Or maybe the problem is that the change-of-direction rule might send us down the wrong path?
+mustCheck (Syn (CoerceTo_   _ e))     = mustCheck (viewABT e) -- TODO: I'm guessing here
+mustCheck (Syn (UnsafeFrom_ _ e))     = mustCheck (viewABT e) -- TODO: I'm guessing here
+mustCheck (Syn (Array_  _ _))         = True -- I just say this because neelk says all data constructors mustCheck (even though that doesn't seem right to me). TODO: Seems to me that if we can infer the body, then we should be able to infer the whole thing, right? Or maybe the problem is that the change-of-direction rule might send us down the wrong path? Usually I'd assume the binder is what does it, but here we know the type of the bound variable, because it's the same for every Array
 mustCheck (Syn (Roll_   _))           = True -- I just say this because neelk says all data constructors mustCheck (even though that doesn't seem right to me). Also, Pfenning and Dunfield & Pientka give the same. TODO: can we ever infer it correctly?
 mustCheck (Syn (Unroll_ _))           = False
 mustCheck (Syn Nil_)                  = error "TODO: mustCheck(Nil_)"
@@ -192,7 +192,17 @@ inferType ctx e =
     
     Syn (Value_ v) ->
         return (singValue v)
-    
+
+    Syn (CoerceTo_ c e1)
+        | inferable (viewABT e1) -> do
+            typ <- inferType ctx e1
+            return (singCoerceTo c typ)
+        
+    Syn (UnsafeFrom_ c e1)
+        | inferable (viewABT e1) -> do
+            typ <- inferType ctx e1
+            return (singCoerceFrom c typ)
+
     {-
     Syn (Unroll_ e') -> do
         typ <- inferType ctx e'
@@ -258,6 +268,12 @@ checkType ctx e typ =
         typ1 <- inferType ctx e1
         forM_ branches $ \(Branch pat body) ->
             checkBranch ctx [TP pat typ1] body typ
+
+    Syn (CoerceTo_ c e1) ->
+        checkType ctx e1 (singCoerceFrom c typ)
+        
+    Syn (UnsafeFrom_ c e1) ->
+        checkType ctx e1 (singCoerceTo c typ)
 
     Syn (Array_ n e1) ->
         case typ of

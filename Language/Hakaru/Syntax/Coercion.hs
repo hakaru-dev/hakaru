@@ -23,11 +23,14 @@ module Language.Hakaru.Syntax.Coercion
     , pattern Signed
     , pattern Continuous
     , Coercion(..)
+    , singCoerceTo
+    , singCoerceFrom
     ) where
 
 import Prelude          hiding (id, (.))
 import Control.Category (Category(..))
 import Language.Hakaru.Syntax.DataKind
+import Language.Hakaru.Syntax.TypeEq
 import Language.Hakaru.Syntax.HClasses
 
 ----------------------------------------------------------------
@@ -80,6 +83,26 @@ instance Category Coercion where
     xs . IdCoercion        = xs
     xs . ConsCoercion y ys = ConsCoercion y (xs . ys)
 
+----------------------------------------------------------------
+-- BUG: we must use explicit singleton dictionaries for HRing and HContinuous, so we can pattern match on them in order to produce the resulting singleton.
+singPrimCoerceTo :: PrimCoercion a b -> Sing a -> Sing b
+singPrimCoerceTo PrimSigned     s = error "TODO: singPrimCoerceTo"
+singPrimCoerceTo PrimContinuous s = error "TODO: singPrimCoerceTo"
+
+singCoerceTo :: Coercion a b -> Sing a -> Sing b
+singCoerceTo IdCoercion          s = s
+singCoerceTo (ConsCoercion c cs) s = singCoerceTo cs (singPrimCoerceTo c s)
+
+singPrimCoerceFrom :: PrimCoercion a b -> Sing b -> Sing a
+singPrimCoerceFrom PrimSigned     s = error "TODO: singPrimCoerceFrom"
+singPrimCoerceFrom PrimContinuous s = error "TODO: singPrimCoerceFrom"
+
+singCoerceFrom :: Coercion a b -> Sing b -> Sing a
+singCoerceFrom IdCoercion          s = s
+singCoerceFrom (ConsCoercion c cs) s =
+    singPrimCoerceFrom c (singCoerceFrom cs s)
+
+----------------------------------------------------------------
 {-
 -- TODO: make these rules for coalescing things work
 data UnsafeFrom_CoerceTo :: Hakaru -> Hakaru -> * where
