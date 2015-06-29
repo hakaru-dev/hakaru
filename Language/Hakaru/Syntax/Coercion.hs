@@ -20,8 +20,9 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.Coercion
     ( PrimCoercion(..)
+    , pattern Signed
+    , pattern Continuous
     , Coercion(..)
-    , Signed, Continuous
     ) where
 
 import Prelude          hiding (id, (.))

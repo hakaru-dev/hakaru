@@ -1,10 +1,10 @@
 {-# LANGUAGE 
     QuasiQuotes
   , TemplateHaskell
-
-  -- Needed by spliced code 
   , PolyKinds
   , UndecidableInstances
+  , TypeSynonymInstances
+  , FlexibleInstances
   , DataKinds
   , GADTs
   , ScopedTypeVariables
@@ -32,7 +32,10 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.TypeEq 
     ( module Language.Hakaru.Syntax.TypeEq
-    , Sing(..), SingI(..), SingKind(..), SDecide(..), (:~:)(..)
+    , Sing(..), SingI(..)
+    {-
+    , SingKind(..), SDecide(..), (:~:)(..)
+    -}
     ) where
 
 -- import Data.Proxy
@@ -117,7 +120,7 @@ sPair a b =
 ----------------------------------------------------------------
 -- | Singleton types for the kind of Hakaru types. We need to use
 -- this instead of 'Proxy' in order to implement 'jmEq'.
-data Sing :: Hakaru * -> * where
+data Sing :: Hakaru -> * where
     SNat     :: Sing 'HNat
     SInt     :: Sing 'HInt
     SProb    :: Sing 'HProb
@@ -125,12 +128,12 @@ data Sing :: Hakaru * -> * where
     SMeasure :: Sing a -> Sing ('HMeasure a)
     SArray   :: Sing a -> Sing ('HArray a)
     SFun     :: Sing a -> Sing b -> Sing ('HFun a b)
-    SBool    :: Sing 'HBool
-    SUnit    :: Sing 'HUnit
-    SPair    :: Sing a -> Sing b -> Sing ('HPair a b)
-    SEither  :: Sing a -> Sing b -> Sing ('HEither a b)
-    SList    :: Sing a -> Sing ('HList a)
-    SMaybe   :: Sing a -> Sing ('HMaybe a)
+    SBool    :: Sing HBool
+    SUnit    :: Sing HUnit
+    SPair    :: Sing a -> Sing b -> Sing (HPair a b)
+    SEither  :: Sing a -> Sing b -> Sing (HEither a b)
+    SList    :: Sing a -> Sing (HList a)
+    SMaybe   :: Sing a -> Sing (HMaybe a)
     {-
     -- TODO
     SMu  :: SingSOPHakaruFun sop -> Sing ('HMu sop)
@@ -156,20 +159,20 @@ deriving instance Show (SingHakaruFun a)
 ----------------------------------------------------------------
 -- | A class for automatically generating the singleton for a given
 -- Hakaru type.
-class    SingI (a :: Hakaru *)            where sing :: Sing a
+class    SingI (a :: Hakaru)              where sing :: Sing a
 instance SingI 'HNat                      where sing = SNat 
 instance SingI 'HInt                      where sing = SInt 
 instance SingI 'HProb                     where sing = SProb 
 instance SingI 'HReal                     where sing = SReal 
-instance SingI 'HBool                     where sing = SBool 
-instance SingI 'HUnit                     where sing = SUnit 
+instance SingI HBool                      where sing = SBool 
+instance SingI HUnit                      where sing = SUnit 
 instance (SingI a) => SingI ('HMeasure a) where sing = SMeasure sing
 instance (SingI a) => SingI ('HArray a)   where sing = SArray sing
-instance (SingI a) => SingI ('HList a)    where sing = SList sing
-instance (SingI a) => SingI ('HMaybe a)   where sing = SMaybe sing
-instance (SingI a, SingI b) => SingI ('HFun a b)    where sing = SFun sing sing
-instance (SingI a, SingI b) => SingI ('HPair a b)   where sing = SPair sing sing
-instance (SingI a, SingI b) => SingI ('HEither a b) where sing = SEither sing sing
+instance (SingI a) => SingI (HList a)     where sing = SList sing
+instance (SingI a) => SingI (HMaybe a)    where sing = SMaybe sing
+instance (SingI a, SingI b) => SingI ('HFun a b)   where sing = SFun sing sing
+instance (SingI a, SingI b) => SingI (HPair a b)   where sing = SPair sing sing
+instance (SingI a, SingI b) => SingI (HEither a b) where sing = SEither sing sing
 {-
 -- TODO
 instance SingI ('HMu sop)    where sing = SMu singSOPHakaruFun

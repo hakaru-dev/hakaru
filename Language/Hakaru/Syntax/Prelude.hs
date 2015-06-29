@@ -247,7 +247,7 @@ product = naryOp_withIdentity Prod one
 -- If so, we ought to make this function polymorphic so that we can
 -- use it for HSemirings which are not HRings too...
 square :: (ABT abt, HRing a) => abt a -> abt (NonNegative a)
-square e = unsafeFrom_ signed (e ^ nat_ 2)
+square e = unsafeFrom_ Signed (e ^ nat_ 2)
 
 
 -- HRing operators
@@ -285,11 +285,11 @@ negate e0 =
 -- TODO: test case: @negative . square@ simplifies away the intermediate coercions. (cf., normal')
 -- | An occasionally helpful variant of 'negate'.
 negative :: (ABT abt, HRing a) => abt (NonNegative a) -> abt a
-negative = negate . coerceTo_ signed
+negative = negate . coerceTo_ Signed
 
 
 abs :: (ABT abt, HRing a) => abt a -> abt a
-abs = coerceTo_ signed . abs_
+abs = coerceTo_ Signed . abs_
 
 abs_ :: (ABT abt, HRing a) => abt a -> abt (NonNegative a)
 abs_ e =
@@ -298,7 +298,8 @@ abs_ e =
             (\_ _ -> Nothing)
             $ \t  ->
                 case t of
-                CoerceTo_ (ConsCoercion Signed IdCoercion) e' -> Just e'
+                -- BUG: can't use the 'Signed' pattern synonym, because that /requires/ the input to be (NonNegative a), instead of giving us the information that it is.
+                CoerceTo_ (ConsCoercion PrimSigned IdCoercion) e' -> Just e'
                 _ -> Nothing
 
 
@@ -399,18 +400,18 @@ instance RealProb 'HReal where
     exp       = exp_
     log       = log_
     erf       = primOp1_ (Erf {- 'HReal -})
-    pi        = coerceTo_ signed pi_
-    infinity  = coerceTo_ signed $ primOp0_ Infinity
+    pi        = coerceTo_ Signed pi_
+    infinity  = coerceTo_ Signed $ primOp0_ Infinity
     gammaFunc = primOp1_ GammaFunc
 
 instance RealProb 'HProb where
-    x ** y    = pow_ x (coerceTo_ signed y)
-    exp       = exp_ . coerceTo_ signed
-    log       = unsafeFrom_ signed . log_ -- error for inputs in [0,1)
+    x ** y    = pow_ x (coerceTo_ Signed y)
+    exp       = exp_ . coerceTo_ Signed
+    log       = unsafeFrom_ Signed . log_ -- error for inputs in [0,1)
     erf       = primOp1_ (Erf {- 'HProb -})
     pi        = pi_
     infinity  = primOp0_ Infinity
-    gammaFunc = primOp1_ GammaFunc . coerceTo_ signed
+    gammaFunc = primOp1_ GammaFunc . coerceTo_ Signed
 
 logBase
     :: (ABT abt, RealProb a, HFractional a)
@@ -438,36 +439,36 @@ atanh  = primOp1_ Atanh
 -- BUG: correct the ugly irregularity of the names.
 rollE_
     :: (ABT abt)
-    => abt (Code t :$ HTag t (Code t))
+    => abt (Code t ':$ 'HTag t (Code t))
     -> abt ('HTag t (Code t))
 rollE_ = syn . Roll_
 
 unrollE_
     :: (ABT abt)
     => abt ('HTag t (Code t))
-    -> abt (Code t :$ HTag t (Code t))
+    -> abt (Code t ':$ 'HTag t (Code t))
 unrollE_ = syn . Unroll_
 
-nilE_ :: (ABT abt) => abt ('[ '[] ] :$ a)
+nilE_ :: (ABT abt) => abt ('[ '[] ] ':$ a)
 nilE_ = syn Nil_
 
 consE_
     :: (ABT abt)
-    => abt ('[ '[x] ] :$ a)
-    -> abt ('[xs] :$ a)
-    -> abt ('[x ': xs] :$ a)
+    => abt ('[ '[x] ] ':$ a)
+    -> abt ('[xs] ':$ a)
+    -> abt ('[x ': xs] ':$ a)
 consE_ = (syn .) . Cons_
 
-zeroE_  :: (ABT abt) => abt ('[xs] :$ a) -> abt ((xs ': xss) :$ a)
+zeroE_  :: (ABT abt) => abt ('[xs] ':$ a) -> abt ((xs ': xss) ':$ a)
 zeroE_  = syn . Zero_
 
-succE_  :: (ABT abt) => abt (xss :$ a) -> abt ((xs ': xss) :$ a)
+succE_  :: (ABT abt) => abt (xss ':$ a) -> abt ((xs ': xss) ':$ a)
 succE_  = syn . Succ_
 
-konstE_ :: (ABT abt) => abt x -> abt ('[ '[ K x ] ] :$ a)
+konstE_ :: (ABT abt) => abt x -> abt ('[ '[ 'K x ] ] ':$ a)
 konstE_ = syn . Konst_
 
-identE_ :: (ABT abt) => abt x -> abt ('[ '[ Id ] ] :$ x)
+identE_ :: (ABT abt) => abt x -> abt ('[ '[ 'Id ] ] ':$ x)
 identE_ = syn . Ident_
 
 
@@ -534,13 +535,13 @@ maybe_    = Prelude.maybe nothing_ just_
 
 
 unsafeProb :: (ABT abt) => abt 'HReal -> abt 'HProb
-unsafeProb = unsafeFrom_ signed
+unsafeProb = unsafeFrom_ Signed
 
 fromProb   :: (ABT abt) => abt 'HProb -> abt 'HReal
-fromProb   = coerceTo_ signed
+fromProb   = coerceTo_ Signed
 
 fromInt    :: (ABT abt) => abt 'HInt  -> abt 'HReal
-fromInt    = coerceTo_ continuous
+fromInt    = coerceTo_ Continuous
 
 negativeInfinity :: (ABT abt) => abt 'HReal
 negativeInfinity = primOp0_ NegativeInfinity
@@ -558,17 +559,17 @@ vector
     -> abt ('HArray a)
 vector n f =
     freshVar $ \x ->
-    syn . Array_ (unsafeFrom_ signed n) . open x $ f (var x sing)
+    syn . Array_ (unsafeFrom_ Signed n) . open x $ f (var x sing)
 
 empty :: (ABT abt) => abt ('HArray a)
 empty = primOp0_ Empty
 
 -- TODO: rename to @(!)@
 index :: (ABT abt) => abt ('HArray a) -> abt 'HInt -> abt a
-index xs i = primOp2_ Index xs (unsafeFrom_ signed i)
+index xs i = primOp2_ Index xs (unsafeFrom_ Signed i)
 
 size :: (ABT abt) => abt ('HArray a) -> abt 'HInt
-size = coerceTo_ signed . primOp1_ Size
+size = coerceTo_ Signed . primOp1_ Size
 
 reduce
     :: (ABT abt, Bindable abt, SingI a)
@@ -604,13 +605,13 @@ superpose
     -> abt ('HMeasure a)
 superpose = syn . Superpose_
 
-categorical, categorical'
+categorical
     :: (ABT abt)
     => abt ('HArray 'HProb)
-    -> abt ('HMeasure 'HInt)
+    -> abt ('HMeasure 'HNat)
 categorical = primOp1_ Categorical
 {-
--- TODO: need to insert the coercion in the right place...
+-- TODO: need to insert the coercion in the right place... Also, implement 'weight' and 'sumV'
 categorical' v =
     counting `bind` \i ->
     if_ (i >= 0 && i < size v)
@@ -659,13 +660,13 @@ poisson = primOp1_ Poisson
 
 poisson' l = 
     counting `bind` \x ->
-    -- TODO: use 'SafeFrom_' instead of @if_ (x >= int_ 0)@ so we can prove that @unsafeFrom_ signed x@ is actually always safe.
+    -- TODO: use 'SafeFrom_' instead of @if_ (x >= int_ 0)@ so we can prove that @unsafeFrom_ Signed x@ is actually always safe.
     if_ (x >= int_ 0 && prob_ 0 < l) -- BUG: do you mean @l /= 0@? why use (>=) instead of (<=)?
         (superpose
             [( l ** fromInt x -- BUG: why do you use (**) instead of (^^)?
                 / gammaFunc (fromInt x + real_ 1) -- TODO: use factorial instead of gammaFunc...
                 / exp l
-            , dirac (unsafeFrom_ signed x)
+            , dirac (unsafeFrom_ Signed x)
             )])
         (superpose [])
 

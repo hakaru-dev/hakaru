@@ -200,7 +200,7 @@ instance Show1 abt => Show (View abt a) where
 
 
 -- TODO: neelk includes 'subst' in the signature. Any reason we should?
-class ABT (abt :: Hakaru * -> *) where
+class ABT (abt :: Hakaru -> *) where
     syn  :: AST abt a          -> abt a
     var  :: Variable -> Sing a -> abt a
     open :: Variable -> abt  a -> abt a
@@ -326,7 +326,7 @@ instance Show (TrivialABT a) where
 -- method is /O(1)/ for this ABT. N.B., the memoized set of free
 -- variables is lazy so that we can tie-the-knot in 'binder'
 -- without interfering with our memos.
-data FreeVarsABT (a :: Hakaru *)
+data FreeVarsABT (a :: Hakaru)
     = FreeVarsABT (Set Variable) !(View FreeVarsABT a)
     -- N.B., Set is a monoid with {Set.empty; Set.union; Set.unions}
     -- For a lot of code, the other component ordering would be
@@ -441,7 +441,7 @@ subst x e = start
 -- course, we could also use some Locally Nameless style approach
 -- to deal with that issue...
 
-class Bindable (ast :: Hakaru * -> *) where
+class Bindable (ast :: Hakaru -> *) where
     -- | Return the largest 'varID' of variable /binding sites/.
     -- N.B., this should return 0 for the bound variables themselves.
     -- For performance, don't traverse into the body under those
@@ -486,32 +486,35 @@ maximumBoundBranch = F.foldl' (\n b -> n `max` bound (branchBody b)) 0
 -- don't have dependent types, hence no term variables can appear
 -- in the types.
 instance Bindable abt => Bindable (AST abt) where
-    bound (Lam_ _  e)           = bound e
-    bound (App_ e1 e2)          = bound e1 `max` bound e2
-    bound (Let_ e1 e2)          = bound e1 `max` bound e2
-    bound (Fix_ e)              = bound e
-    bound (Ann_ _  e)           = bound e
-    bound (PrimOp_ _)           = 0
-    bound (NaryOp_ _ es)        = maximumBound (F.toList es)
-    bound (Integrate_ e1 e2 e3) = bound e1 `max` bound e2 `max` bound e3
-    bound (Summate_   e1 e2 e3) = bound e1 `max` bound e2 `max` bound e3
-    bound (Value_ _)            = 0
-    bound (CoerceTo_   _ e)     = bound e
-    bound (UnsafeFrom_ _ e)     = bound e
-    bound (List_   es)          = maximumBound es
-    bound (Maybe_  Nothing)     = 0
-    bound (Maybe_  (Just e))    = bound e
-    bound (Case_   e  bs)       = bound e  `max` maximumBoundBranch bs
-    bound (Array_  e1 e2)       = bound e1 `max` bound e2
-    bound (Roll_   e)           = bound e
-    bound (Unroll_ e)           = bound e
-    bound (Bind_   e1 e2)       = bound e1 `max` bound e2
-    bound (Superpose_ pes)      = maximumBound2 pes
-    bound (Dp_     e1 e2)       = bound e1 `max` bound e2
-    bound (Plate_  e)           = bound e
-    bound (Chain_  e)           = bound e
-    bound (Lub_    e1 e2)       = bound e1 `max` bound e2
-    bound Bot_                  = 0
+    bound (Lam_        _  e)     = bound e
+    bound (App_        e1 e2)    = bound e1 `max` bound e2
+    bound (Let_        e1 e2)    = bound e1 `max` bound e2
+    bound (Fix_        e)        = bound e
+    bound (Ann_        _  e)     = bound e
+    bound (PrimOp_     _)        = 0
+    bound (NaryOp_     _  es)    = maximumBound (F.toList es)
+    bound (Integrate_  e1 e2 e3) = bound e1 `max` bound e2 `max` bound e3
+    bound (Summate_    e1 e2 e3) = bound e1 `max` bound e2 `max` bound e3
+    bound (Value_ _)             = 0
+    bound (CoerceTo_   _  e)     = bound e
+    bound (UnsafeFrom_ _  e)     = bound e
+    bound (Array_      e1 e2)    = bound e1 `max` bound e2
+    bound (Roll_       e)        = bound e
+    bound (Unroll_     e)        = bound e
+    bound Nil_                   = 0
+    bound (Cons_       e es)     = bound e `max` bound es
+    bound (Zero_       e)        = bound e
+    bound (Succ_       e)        = bound e
+    bound (Konst_      e)        = bound e
+    bound (Ident_      e)        = bound e
+    bound (Case_       e  bs)    = bound e  `max` maximumBoundBranch bs
+    bound (Bind_       e1 e2)    = bound e1 `max` bound e2
+    bound (Superpose_  pes)      = maximumBound2 pes
+    bound (Dp_         e1 e2)    = bound e1 `max` bound e2
+    bound (Plate_      e)        = bound e
+    bound (Chain_      e)        = bound e
+    bound (Lub_        e1 e2)    = bound e1 `max` bound e2
+    bound Bot_                   = 0
 
 
 -- | A combinator for defining a HOAS-like API for our syntax.

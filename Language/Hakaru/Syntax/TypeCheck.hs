@@ -72,12 +72,16 @@ mustCheck (Syn (Summate_   _ _ _))    = False
 mustCheck (Syn (Value_ _))            = False
 mustCheck (Syn (CoerceTo_   c e))     = error "TODO: mustCheck(CoerceTo_)"
 mustCheck (Syn (UnsafeFrom_ c e))     = error "TODO: mustCheck(UnsafeFrom_)"
-mustCheck (Syn (List_   es))          = error "TODO: mustCheck(List_)"
-mustCheck (Syn (Maybe_  me))          = error "TODO: mustCheck(Maybe_)"
-mustCheck (Syn (Case_   _ _))         = True -- TODO: everyone says this, but it seems to me that if we can infer any of the branches (and check the rest to agree) then we should be able to infer the whole thing... Or maybe the problem is that the change-of-direction rule might send us down the wrong path?
 mustCheck (Syn (Array_  _ _))         = True -- I just say this because neelk says all data constructors mustCheck (even though that doesn't seem right to me). TODO: Seems to me that if we can infer the body, then we should be able to infer the whole thing, right? Or maybe the problem is that the change-of-direction rule might send us down the wrong path?
 mustCheck (Syn (Roll_   _))           = True -- I just say this because neelk says all data constructors mustCheck (even though that doesn't seem right to me). Also, Pfenning and Dunfield & Pientka give the same. TODO: can we ever infer it correctly?
 mustCheck (Syn (Unroll_ _))           = False
+mustCheck (Syn Nil_)                  = error "TODO: mustCheck(Nil_)"
+mustCheck (Syn (Cons_       e  es))   = error "TODO: mustCheck(Cons_)"
+mustCheck (Syn (Zero_       e))       = error "TODO: mustCheck(Zero_)"
+mustCheck (Syn (Succ_       e))       = error "TODO: mustCheck(Succ_)"
+mustCheck (Syn (Konst_      e))       = error "TODO: mustCheck(Konst_)"
+mustCheck (Syn (Ident_      e))       = error "TODO: mustCheck(Ident_)"
+mustCheck (Syn (Case_   _ _))         = True -- TODO: everyone says this, but it seems to me that if we can infer any of the branches (and check the rest to agree) then we should be able to infer the whole thing... Or maybe the problem is that the change-of-direction rule might send us down the wrong path?
 mustCheck (Syn (Bind_   e1 e2))       = error "TODO: mustCheck(Bind_)" -- Presumably works the same way as Let_ does
 mustCheck (Syn (Superpose_ pes))      = error "TODO: mustCheck(Superpose_)"
 mustCheck (Syn (Dp_     e1 e2))       = error "TODO: mustCheck(Dp_)"
@@ -299,6 +303,7 @@ checkBranch ctx (TP pat typ : pts) e body_typ =
             checkBranch (pushCtx (TV x typ) ctx) pts e' body_typ
     PWild ->
         checkBranch ctx pts e body_typ
+    {- -- BUG: doesn't work with the new Embed stuff
     PTrue ->
         case typ of
         SBool -> checkBranch ctx pts e body_typ
@@ -326,6 +331,7 @@ checkBranch ctx (TP pat typ : pts) e body_typ =
         SEither _ typ2 ->
             checkBranch ctx (TP pat2 typ2 : pts) e body_typ
         _ -> failwith "expected HEither type"
+    -}
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

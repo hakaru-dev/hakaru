@@ -5,6 +5,7 @@
            , GADTs
            , StandaloneDeriving
            , PatternSynonyms
+           , ScopedTypeVariables
            #-}
 #if __GLASGOW_HASKELL__ < 710
 {-# LANGUAGE TypeOperators #-}
@@ -34,7 +35,13 @@ module Language.Hakaru.Syntax.AST
     , NaryOp(..), singNaryOp
     , PrimOp(..), singPrimOp
     -- * Pattern matching
-    , Pattern(..), PTrue, PFalse, PUnit, pPair, pInl, pInr
+    , Pattern(..)
+    , pattern PTrue
+    , pattern PFalse
+    , pattern PUnit
+    , pPair
+    , pInl
+    , pInr
     , Branch(..), branchPattern, branchBody
     -- * Syntactic forms
     , AST(..)
@@ -416,34 +423,34 @@ singPrimOp _ = error "TODO: singPrimOp"
 data Pattern :: Hakaru -> * where
     PWild  :: Pattern a -- ^ The \"don't care\" wildcard pattern.
     PVar   :: Pattern a -- ^ A pattern variable.
-    PNil   :: Pattern ('[ '[] ] :$ a)
+    PNil   :: Pattern ('[ '[] ] ':$ a)
     PProd
-        :: !(Pattern ('[ '[ x ] ] :$ a))
-        -> !(Pattern ('[ xs ] :$ a))
-        -> Pattern ('[ x ': xs ] :$ a)
-    PZero  :: !(Pattern ('[ xs ] :$ a)) -> Pattern ((xs ': xss) :$ a)
-    PSucc  :: !(Pattern (xss :$ a))     -> Pattern ((xs ': xss) :$ a)
+        :: !(Pattern ('[ '[ x ] ] ':$ a))
+        -> !(Pattern ('[ xs ] ':$ a))
+        -> Pattern ('[ x ': xs ] ':$ a)
+    PZero  :: !(Pattern ('[ xs ] ':$ a)) -> Pattern ((xs ': xss) ':$ a)
+    PSucc  :: !(Pattern (xss ':$ a))     -> Pattern ((xs ': xss) ':$ a)
     PTag
-        :: !(Pattern (Code con :$ HTag con (Code con)))
-        -> Pattern (HTag con (Code con))
-    PIdent :: !(Pattern x) -> Pattern ('[ '[ Id  ] ] :$ x)
-    PKonst :: !(Pattern x) -> Pattern ('[ '[ K x ] ] :$ a)
+        :: !(Pattern (Code con ':$ 'HTag con (Code con)))
+        -> Pattern ('HTag con (Code con))
+    PIdent :: !(Pattern x) -> Pattern ('[ '[ 'Id  ] ] ':$ x)
+    PKonst :: !(Pattern x) -> Pattern ('[ '[ 'K x ] ] ':$ a)
 
 
 -- BUG: should we even bother making these into pattern synonyms?
 -- We can't do it for any of the other derived patterns, so having
 -- these ones just screws up the API.
-pattern PTrue  = (PTag (PZero PNil)) :: Pattern HBool)
-pattern PFalse = (PTag (PSucc PNil)) :: Pattern HBool)
-pattern PUnit  = (PTag PNil)         :: Pattern HUnit)
+pattern PTrue  = (PTag (PZero PNil) :: Pattern HBool)
+pattern PFalse = (PTag (PSucc PNil) :: Pattern HBool)
+pattern PUnit  = (PTag PNil         :: Pattern HUnit)
 
-pPair :: forall a b. Pattern a -> Pattern b -> Pattern (HPair a b)
+pPair :: Pattern a -> Pattern b -> Pattern (HPair a b)
 pPair a b = PTag (PProd (PKonst a) (PKonst b))
 
-pInl :: forall a b. Pattern a -> Pattern (HEither a b)
+pInl :: Pattern a -> Pattern (HEither a b)
 pInl a = PTag (PZero (PKonst a))
 
-pInr :: forall a b. Pattern b -> Pattern (HEither a b)
+pInr :: Pattern b -> Pattern (HEither a b)
 pInr a = PTag (PSucc (PKonst a))
 
 
@@ -541,14 +548,21 @@ data AST :: (Hakaru -> *) -> Hakaru -> * where
 
 
     -- -- User-defined data types
-    Roll_   :: ast (Code t :$ HTag t (Code t)) -> AST ast (HTag t (Code t))
-    Unroll_ :: ast (HTag t (Code t)) -> AST ast (Code t :$ HTag t (Code t))
-    Nil_    :: AST ast ('[ '[] ] :$ a)
-    Cons_   :: ast ('[ '[ x ] ] :$ a) -> ast ('[ xs ] :$ a) -> AST ast ('[ x ': xs ] :$ a)
-    Zero_   :: ast ('[ xs ] :$ a) -> AST ast ((xs ': xss) :$ a)
-    Succ_   :: ast (xss :$ a)     -> AST ast ((xs ': xss) :$ a)
-    Konst_  :: ast x -> AST ast ('[ '[ K x ] ] :$ a)
-    Ident_  :: ast x -> AST ast ('[ '[ Id  ] ] :$ x)
+    Roll_
+        :: ast (Code t ':$ 'HTag t (Code t))
+        -> AST ast ('HTag t (Code t))
+    Unroll_
+        :: ast ('HTag t (Code t))
+        -> AST ast (Code t ':$ 'HTag t (Code t))
+    Nil_    :: AST ast ('[ '[] ] ':$ a)
+    Cons_
+        :: ast ('[ '[ x ] ] ':$ a)
+        -> ast ('[ xs ] ':$ a)
+        -> AST ast ('[ x ': xs ] ':$ a)
+    Zero_   :: ast ('[ xs ] ':$ a) -> AST ast ((xs ': xss) ':$ a)
+    Succ_   :: ast (xss ':$ a)     -> AST ast ((xs ': xss) ':$ a)
+    Konst_  :: ast x -> AST ast ('[ '[ 'K x ] ] ':$ a)
+    Ident_  :: ast x -> AST ast ('[ '[ 'Id  ] ] ':$ x)
     -- | Generic case-analysis (via ABTs and Structural Focalization).
     Case_   :: ast a -> [Branch a ast b] -> AST ast b
 

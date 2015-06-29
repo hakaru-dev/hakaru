@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds
            , PolyKinds
+           , TypeFamilies
            , StandaloneDeriving
            , DeriveDataTypeable
            , ScopedTypeVariables
@@ -31,15 +32,23 @@ module Language.Hakaru.Syntax.DataKind
     -- * Some \"built-in\" types
     -- Naturally, these aren't actually built-in, otherwise they'd
     -- be part of the 'Hakaru' data-kind.
-    , HUnit, HPair, HEither, HList, HMaybe
+    , HBool, HUnit, HPair, HEither, HList, HMaybe
     ) where
 
 import Data.Typeable (Typeable)
-{- -- BUG: this code does not work on my system(s). It generates some strange CPP errors.
 import GHC.TypeLits (Symbol)
-import Unsafe.Coerce
--}
-type Symbol = String 
+import Unsafe.Coerce 
+
+----------------------------------------------------------------
+-- HACK: there is no way to produce a value level term of type
+-- Symbol other than through the fromSing function in TypeEq, so
+-- this should be safe.
+instance Show Symbol where
+    show x = show (unsafeCoerce x :: String)
+
+instance Read Symbol where
+    readsPrec = unsafeCoerce (readsPrec :: Int -> ReadS String)
+
 
 ----------------------------------------------------------------
 -- | The universe\/kind of Hakaru types.
@@ -96,15 +105,6 @@ deriving instance Typeable 'K
 
 
 ----------------------------------------------------------------
-{- -- BUG: this code does not work on my system(s). It generates some strange CPP errors.
--- HACK: there is no way to produce a value level term of type
--- Symbol other than through the fromSing function in TypeEq, so
--- this should be safe.
-instance Show Symbol where
-    show x = show (unsafeCoerce x :: String)
--}
-
-
 -- | The kind of user-defined Hakaru type constructors, which serves
 -- as a tag for the sum-of-products representation of the user-defined
 -- Hakaru type. The head of the 'HakaruCon' is a symbolic name, and
@@ -120,17 +120,17 @@ infixl 0 :@
 deriving instance Typeable 'HCon
 deriving instance Typeable '(:@)
 
-{- -- BUG: Hakaru is not promotable here
+
 -- | The Code type family allows users to extend the Hakaru language
 -- by adding new types. The right hand side is the sum-of-products
 -- representation of that type. See the \"built-in\" types for examples.
-type family   Code (a :: HakaruCon Hakaru)   :: [[HakaruFun]]
-type instance Code (HCon "Bool")             = '[ '[], '[] ]
-type instance Code (HCon "Unit")             = '[ '[] ]
-type instance Code (HCon "Maybe"  :@ a)      = '[ '[] , '[K a] ]
-type instance Code (HCon "List"   :@ a)      = '[ '[] , '[K a, Id] ]
-type instance Code (HCon "Pair"   :@ a :@ b) = '[ '[K a, K b] ]
-type instance Code (HCon "Either" :@ a :@ b) = '[ '[K a], '[K b] ]
+type family   Code (a :: HakaruCon Hakaru) :: [[HakaruFun]]
+type instance Code ('HCon "Bool")               = '[ '[], '[] ]
+type instance Code ('HCon "Unit")               = '[ '[] ]
+type instance Code ('HCon "Maybe"  ':@ a)       = '[ '[] , '[ 'K a ] ]
+type instance Code ('HCon "List"   ':@ a)       = '[ '[] , '[ 'K a, 'Id ] ]
+type instance Code ('HCon "Pair"   ':@ a ':@ b) = '[ '[ 'K a, 'K b ] ]
+type instance Code ('HCon "Either" ':@ a ':@ b) = '[ '[ 'K a ], '[ 'K b ] ]
 
 
 -- | A helper type alias for simplifying type signatures for
@@ -144,7 +144,7 @@ type instance Code (HCon "Either" :@ a :@ b) = '[ '[K a], '[K b] ]
 -- by hand— or copied from the GHC pretty printer, which will happily
 -- reduce things in the repl, even in the presence of quantified
 -- type variables.
-type HakaruType t = HTag t (Code t)
+type HakaruType t = 'HTag t (Code t)
 {-
    >:kind! forall a b . HakaruType (HCon "Pair" :@ a :@ b)
    forall a b . HakaruType (HCon "Pair" :@ a :@ b) :: Hakaru
@@ -165,6 +165,6 @@ type HPair   a b = 'HTag (('HCon "Pair"   ':@ a) ':@ b) '[ '[ 'K a, 'K b] ]
 type HEither a b = 'HTag (('HCon "Either" ':@ a) ':@ b) '[ '[ 'K a], '[ 'K b] ]
 type HList   a   = 'HTag ('HCon "List"    ':@ a) '[ '[], '[ 'K a, 'Id] ]
 type HMaybe  a   = 'HTag ('HCon "Maybe"   ':@ a) '[ '[], '[ 'K a] ]
--}
+
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

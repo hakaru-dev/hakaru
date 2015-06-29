@@ -1,8 +1,10 @@
 {-# LANGUAGE KindSignatures
            , DataKinds
            , PolyKinds
-           , FlexibleContexts
            , TypeFamilies
+           , FlexibleContexts
+           , FlexibleInstances
+           , TypeSynonymInstances
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
