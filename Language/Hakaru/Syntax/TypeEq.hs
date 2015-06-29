@@ -27,8 +27,8 @@
 -- Stability   :  experimental
 -- Portability :  GHC-only
 --
--- Singleton types for the @Hakaru*@ kind, and a decision procedure
--- for @Hakaru*@ type-equality. 
+-- Singleton types for the @Hakaru@ kind, and a decision procedure
+-- for @Hakaru@ type-equality.
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.TypeEq 
     ( module Language.Hakaru.Syntax.TypeEq
@@ -146,7 +146,7 @@ deriving instance Eq   (Sing a)
 deriving instance Show (Sing a)
 
 {-
-data SingHakaruFun :: Hakaru * -> * where
+data SingHakaruFun :: Hakaru -> * where
     SId :: SingHakaruFun 'Id
     SK  :: SingHakaru a -> SingHakaruFun ('K a)
 
@@ -184,7 +184,7 @@ instance SingI ('HTag a sop) where sing = STag Proxy singSOPHakaruFun
 {-
 -- I think it's impossible to actually implement a function of this
 -- type (i.e., without any type constraints on @a@). That is, even
--- though for every @a :: Hakaru*@ there is some value of type @Sing
+-- though for every @a :: Hakaru@ there is some value of type @Sing
 -- a@, and even though that value is unique for each @a@, nevertheless
 -- I'm pretty sure @forall a. Sing a@ must be empty, by parametricity.
 -- We'd need to inspect the @a@ in order to construct the appropriate

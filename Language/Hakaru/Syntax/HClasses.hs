@@ -27,7 +27,7 @@ import Language.Hakaru.Syntax.DataKind
 ----------------------------------------------------------------
 {- TODO: break the HEq class out from HOrder
 -- TODO: allow lifting of equality to work on HPair, HEither,...?
-class HEq (a :: Hakaru *)
+class HEq (a :: Hakaru)
 instance HEq HBool
 instance HEq 'HNat
 instance HEq 'HInt
@@ -35,12 +35,12 @@ instance HEq 'HProb
 instance HEq 'HReal
 -}
 
--- TODO: class HPER (a :: Hakaru *) -- ?
--- TODO: class HPartialOrder (a :: Hakaru *)
+-- TODO: class HPER (a :: Hakaru) -- ?
+-- TODO: class HPartialOrder (a :: Hakaru)
 
 {-
 -- TODO: replace the open type class with a closed equivalent, e.g.:
-data HOrder :: Hakaru * -> * where
+data HOrder :: Hakaru -> * where
     HOrder_HNat  :: HOrder 'HNat
     HOrder_HInt  :: HOrder 'HInt
     HOrder_HProb :: HOrder 'HProb
