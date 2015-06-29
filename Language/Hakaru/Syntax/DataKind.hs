@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds
            , PolyKinds
+           , TypeOperators
            , TypeFamilies
            , StandaloneDeriving
            , DeriveDataTypeable
