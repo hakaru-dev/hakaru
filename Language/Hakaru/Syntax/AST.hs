@@ -4,6 +4,7 @@
            , PolyKinds
            , GADTs
            , StandaloneDeriving
+           , PatternSynonyms
            #-}
 #if __GLASGOW_HASKELL__ < 710
 {-# LANGUAGE TypeOperators #-}
@@ -25,7 +26,19 @@
 --
 -- TODO: are we finally at the place where we can get rid of all those annoying underscores?
 ----------------------------------------------------------------
-module Language.Hakaru.Syntax.AST where
+module Language.Hakaru.Syntax.AST
+    (
+    -- * Constant values
+      Value(..),  singValue
+    -- * Primitive operators
+    , NaryOp(..), singNaryOp
+    , PrimOp(..), singPrimOp
+    -- * Pattern matching
+    , Pattern(..), PTrue, PFalse, PUnit, pPair, pInl, pInr
+    , Branch(..), branchPattern, branchBody
+    -- * Syntactic forms
+    , AST(..)
+    ) where
 
 import Prelude                 hiding ((.))
 import Data.Sequence           (Seq)
@@ -44,35 +57,28 @@ import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.TypeEq (Sing(..), SingI(..))
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Coercion
-{-
-import Language.Hakaru.Lazy (Backward, runDisintegrate, density)
-import Language.Hakaru.Expect (Expect')
-import Language.Hakaru.Simplify (simplify)
-import Language.Hakaru.Any (Any)
-import Language.Hakaru.Sample
--}
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 -- TODO: use 'Integer' instead of 'Int', and 'Natural' instead of 'Nat'.
 -- | Constant values for primitive types.
-data Value :: Hakaru * -> * where
-    Bool_ :: !Bool     -> Value 'HBool
+data Value :: Hakaru -> * where
+    Bool_ :: !Bool     -> Value HBool
     Nat_  :: !Nat      -> Value 'HNat
     Int_  :: !Int      -> Value 'HInt
     Prob_ :: !LogFloat -> Value 'HProb
     Real_ :: !Double   -> Value 'HReal
 
-    -- TODO: add constructors for constants of datatypes?
+    -- TODO: add constructors for constants of datatypes? N.B., these should be auto-generated!
     {-
-    Nil_     :: Value ('HList a)
-    Cons_    :: !(Value a) -> !(Value ('HList a)) -> Value ('HList a)
+    Nil_     :: Value (HList a)
+    Cons_    :: !(Value a) -> !(Value (HList a)) -> Value (HList a)
     Nothing_ :: Value ('HMaybe a)
     Just_    :: !(Value a) -> Value ('HMaybe a)
-    Unit_    :: Value 'HUnit
-    Pair_    :: !(Value a) -> !(Value b) -> Value ('HPair a b)
-    Inl_     :: !(Value a) -> Value ('HEither a b)
-    Inr_     :: !(Value b) -> Value ('HEither a b)
+    Unit_    :: Value HUnit
+    Pair_    :: !(Value a) -> !(Value b) -> Value (HPair a b)
+    Inl_     :: !(Value a) -> Value (HEither a b)
+    Inr_     :: !(Value b) -> Value (HEither a b)
     -}
 
 deriving instance Eq   (Value a)
@@ -101,9 +107,9 @@ singValue (Real_ _) = sing
 -- We do not make any assumptions about whether these semigroups
 -- are monoids, commutative, idempotent, or anything else. That has
 -- to be handled by transformations, rather than by the AST itself.
-data NaryOp :: Hakaru * -> * where
-    And  :: NaryOp 'HBool
-    Or   :: NaryOp 'HBool
+data NaryOp :: Hakaru -> * where
+    And  :: NaryOp HBool
+    Or   :: NaryOp HBool
 
     -- These two don't necessarily have identity elements; thus,
     -- @NaryOp_ Min []@ and @NaryOp_ Max []@ may not be well-defined...
@@ -138,7 +144,7 @@ singNaryOp _ = error "TODO: singNaryOp"
 
 ----------------------------------------------------------------
 -- | Simple primitive functions, constants, and measures.
-data PrimOp :: Hakaru * -> * where
+data PrimOp :: Hakaru -> * where
 
     -- -- -- Here we have /monomorphic/ operators
     -- -- The Boolean operators
@@ -153,15 +159,15 @@ data PrimOp :: Hakaru * -> * where
     -- cf., <https://hackage.haskell.org/package/qm-0.1.0.0/candidate>
     -- cf., <https://github.com/pfpacket/Quine-McCluskey>
     -- cf., <https://gist.github.com/dsvictor94/8db2b399a95e301c259a>
-    Not  :: PrimOp ('HFun 'HBool 'HBool)
+    Not  :: PrimOp ('HFun HBool HBool)
     -- And
     -- Or
-    Xor  :: PrimOp ('HFun 'HBool ('HFun 'HBool 'HBool)) -- == Not (Iff x y)
-    Iff  :: PrimOp ('HFun 'HBool ('HFun 'HBool 'HBool)) -- == Not (Xor x y)
-    Impl :: PrimOp ('HFun 'HBool ('HFun 'HBool 'HBool)) -- == Or (Not x) y
-    Diff :: PrimOp ('HFun 'HBool ('HFun 'HBool 'HBool)) -- == Not (Impl x y)
-    Nand :: PrimOp ('HFun 'HBool ('HFun 'HBool 'HBool)) -- aka Alternative Denial, Sheffer stroke
-    Nor  :: PrimOp ('HFun 'HBool ('HFun 'HBool 'HBool)) -- aka Joint Denial, aka Quine dagger, aka Pierce arrow
+    Xor  :: PrimOp ('HFun HBool ('HFun HBool HBool)) -- == Not (Iff x y)
+    Iff  :: PrimOp ('HFun HBool ('HFun HBool HBool)) -- == Not (Xor x y)
+    Impl :: PrimOp ('HFun HBool ('HFun HBool HBool)) -- == Or (Not x) y
+    Diff :: PrimOp ('HFun HBool ('HFun HBool HBool)) -- == Not (Impl x y)
+    Nand :: PrimOp ('HFun HBool ('HFun HBool HBool)) -- aka Alternative Denial, Sheffer stroke
+    Nor  :: PrimOp ('HFun HBool ('HFun HBool HBool)) -- aka Joint Denial, aka Quine dagger, aka Pierce arrow
     -- The remaining eight binops are completely uninteresting:
     --   flip Impl
     --   flip Diff
@@ -237,12 +243,14 @@ data PrimOp :: Hakaru * -> * where
     -- -- -- Here we have the /polymorphic/ operators
     -- TODO: \"monomorphize\" these by passing explicit dictionary proxies
 
+{-
     -- TODO: do these really belong here (as PrimOps), or in AST?
     -- -- Data constructors (including the monomorphic 'Unit')
-    Unit :: PrimOp 'HUnit
-    Pair :: PrimOp ('HFun a ('HFun b ('HPair a b)))
-    Inl  :: PrimOp ('HFun a ('HEither a b))
-    Inr  :: PrimOp ('HFun b ('HEither a b))
+    Unit :: PrimOp HUnit
+    Pair :: PrimOp ('HFun a ('HFun b (HPair a b)))
+    Inl  :: PrimOp ('HFun a (HEither a b))
+    Inr  :: PrimOp ('HFun b (HEither a b))
+-}
 
     -- -- Array stuff
     Empty  :: PrimOp ('HArray a)
@@ -260,8 +268,8 @@ data PrimOp :: Hakaru * -> * where
     -- TODO: equality doesn't make constructive sense on the reals...
     -- would it be better to constructivize our notion of total ordering?
     -- TODO: what about posets?
-    Less  :: (HOrder a) => PrimOp ('HFun a ('HFun a 'HBool))
-    Equal :: (HOrder a) => PrimOp ('HFun a ('HFun a 'HBool))
+    Less  :: (HOrder a) => PrimOp ('HFun a ('HFun a HBool))
+    Equal :: (HOrder a) => PrimOp ('HFun a ('HFun a HBool))
 
 
     -- -- HSemiring operators (the non-n-ary ones)
@@ -369,9 +377,9 @@ singPrimOp Normal      = sing
 singPrimOp Poisson     = sing
 singPrimOp Gamma       = sing
 singPrimOp Beta        = sing
-singPrimOp Unit        = sing
 {-
--- BUG: case analysis isn't enough here, because of the class constraints. We should be able to fix that by passing explicit singleton dictionaries instead of using Haskell's type classes
+-- BUG: case analysis isn't enough here, because of the class constraints. We should be able to fix that by passing explicit singleton dictionaries instead of using Haskell's type classes. Of course, we can't even do Unit anymore because of whatever bugginess with the embed stuff :(
+singPrimOp Unit        = sing
 singPrimOp Pair        = sing
 singPrimOp Inl         = sing
 singPrimOp Inr         = sing
@@ -405,40 +413,48 @@ singPrimOp _ = error "TODO: singPrimOp"
 -- variables they bind, like we'll do for ASTPattern... But that's
 -- prolly overkill since we can just run the type checker over our
 -- AST.
-data Pattern :: Hakaru * -> * where
-    PWild  :: Pattern a
-    PVar   :: Pattern a
-    PTrue  :: Pattern 'HBool
-    PFalse :: Pattern 'HBool
-    PUnit  :: Pattern 'HUnit
-    PPair  :: !(Pattern a) -> !(Pattern b) -> Pattern ('HPair a b)
-    PInl   :: !(Pattern a) -> Pattern ('HEither a b)
-    PInr   :: !(Pattern b) -> Pattern ('HEither a b)
+data Pattern :: Hakaru -> * where
+    PWild  :: Pattern a -- ^ The \"don't care\" wildcard pattern.
+    PVar   :: Pattern a -- ^ A pattern variable.
+    PNil   :: Pattern ('[ '[] ] :$ a)
+    PProd
+        :: !(Pattern ('[ '[ x ] ] :$ a))
+        -> !(Pattern ('[ xs ] :$ a))
+        -> Pattern ('[ x ': xs ] :$ a)
+    PZero  :: !(Pattern ('[ xs ] :$ a)) -> Pattern ((xs ': xss) :$ a)
+    PSucc  :: !(Pattern (xss :$ a))     -> Pattern ((xs ': xss) :$ a)
+    PTag
+        :: !(Pattern (Code con :$ HTag con (Code con)))
+        -> Pattern (HTag con (Code con))
+    PIdent :: !(Pattern x) -> Pattern ('[ '[ Id  ] ] :$ x)
+    PKonst :: !(Pattern x) -> Pattern ('[ '[ K x ] ] :$ a)
+
+
+-- BUG: should we even bother making these into pattern synonyms?
+-- We can't do it for any of the other derived patterns, so having
+-- these ones just screws up the API.
+pattern PTrue  = (PTag (PZero PNil)) :: Pattern HBool)
+pattern PFalse = (PTag (PSucc PNil)) :: Pattern HBool)
+pattern PUnit  = (PTag PNil)         :: Pattern HUnit)
+
+pPair :: forall a b. Pattern a -> Pattern b -> Pattern (HPair a b)
+pPair a b = PTag (PProd (PKonst a) (PKonst b))
+
+pInl :: forall a b. Pattern a -> Pattern (HEither a b)
+pInl a = PTag (PZero (PKonst a))
+
+pInr :: forall a b. Pattern b -> Pattern (HEither a b)
+pInr a = PTag (PSucc (PKonst a))
+
 
 deriving instance Eq   (Pattern a)
 -- BUG: deriving instance Read (Pattern a)
 deriving instance Show (Pattern a)
 
 
--- N.B., we do case analysis so that we don't need the class constraint!
-singPattern :: Pattern a -> Sing a
-{-
-singPattern PWild  = sing
-singPattern PVar   = sing
--}
-singPattern PTrue         = sing
-singPattern PFalse        = sing
-singPattern PUnit         = sing
-singPattern (PPair p1 p2) = SPair (singPattern p1) (singPattern p2)
-{-
-singPattern (PInl p1)     = SEither (singPattern p1) sing
-singPattern (PInr p2)     = SEither (singPattern p2) sing
--}
-singPattern _ = error "TODO: singPattern"
-
 
 -- TODO: a pretty infix syntax, like (:->) or something
-data Branch :: Hakaru * -> (Hakaru * -> *) -> Hakaru * -> * where
+data Branch :: Hakaru -> (Hakaru -> *) -> Hakaru -> * where
     Branch :: {-exists Γ.-} Pattern a {-Γ-} -> ast {-Γ-} b -> Branch a ast b
 
 branchPattern :: Branch a ast b -> Pattern a
@@ -469,6 +485,7 @@ instance Functor1 (Branch a) where
 instance Foldable1 (Branch a) where
     foldMap1 f (Branch _ e) = f e
 
+
 ----------------------------------------------------------------
 -- TODO: define a well-formedness check for the ABT structure, since
 -- we don't encode it into the Haskell types themselves. For clarity,
@@ -478,7 +495,7 @@ instance Foldable1 (Branch a) where
 -- check sufficient?
 --
 -- BUG: we need the 'Functor1' instance to be strict, in order to guaranteee timely throwing of exceptions in 'subst'.
-data AST :: (Hakaru * -> *) -> Hakaru * -> * where
+data AST :: (Hakaru -> *) -> Hakaru -> * where
 
     -- -- Standard lambda calculus stuff
     -- We store a Proxy in Lam_, so Haskell needn't infer @a@ in
@@ -519,22 +536,22 @@ data AST :: (Hakaru * -> *) -> Hakaru * -> * where
     -- TODO: add something like @SafeFrom_ :: Coercion a b -> ast b -> AST ast ('HMaybe a)@ so we can capture the safety of patterns like @if_ (0 <= x) (let x_ = unsafeFrom signed x in...) (...)@ Of course, since we're just going to do case analysis on the result; why not make it a binding form directly?
     -- TODO: we'll probably want some more general thing to capture these sorts of patterns. For example, in the default implementation of Uniform we see: @if_ (lo < x && x < hi) (... unsafeFrom_ signed (hi - lo) ...) (...)@
 
-
-    -- -- Primitive data types (which aren't PrimOps)
-    -- TODO: add the embed stuff...
-    -- TODO: replace 'HList and 'HMaybe by the embed stuff...
-    -- TODO: replace 'HUnit, 'HPair, and 'HEither by the embed stuff...
-    List_  :: [ast a]       -> AST ast ('HList a)
-    Maybe_ :: Maybe (ast a) -> AST ast ('HMaybe a)
-    -- | Generic case-analysis (via ABTs and Structural Focalization).
-    Case_ :: ast a -> [Branch a ast b] -> AST ast b
     -- TODO: do we really need this to be a binding form, or could it take a Hakaru function (HFun) for the second argument?
     Array_ :: ast 'HNat -> ast {-'HNat-} a -> AST ast ('HArray a)
 
-    Roll_   :: ast (sop ':$ 'HMu sop) -> AST ast ('HMu sop)
-    Unroll_ :: ast ('HMu sop) -> AST ast (sop ':$ 'HMu sop)
-    -- TODO: what's up with HTag? is it just a variant of HMu?
-    -- TODO: we should probably move all the data constructors back here
+
+    -- -- User-defined data types
+    Roll_   :: ast (Code t :$ HTag t (Code t)) -> AST ast (HTag t (Code t))
+    Unroll_ :: ast (HTag t (Code t)) -> AST ast (Code t :$ HTag t (Code t))
+    Nil_    :: AST ast ('[ '[] ] :$ a)
+    Cons_   :: ast ('[ '[ x ] ] :$ a) -> ast ('[ xs ] :$ a) -> AST ast ('[ x ': xs ] :$ a)
+    Zero_   :: ast ('[ xs ] :$ a) -> AST ast ((xs ': xss) :$ a)
+    Succ_   :: ast (xss :$ a)     -> AST ast ((xs ': xss) :$ a)
+    Konst_  :: ast x -> AST ast ('[ '[ K x ] ] :$ a)
+    Ident_  :: ast x -> AST ast ('[ '[ Id  ] ] :$ x)
+    -- | Generic case-analysis (via ABTs and Structural Focalization).
+    Case_   :: ast a -> [Branch a ast b] -> AST ast b
+
 
     -- -- Mochastic stuff (which isn't PrimOps)
     -- TODO: should Dirac move back here?
@@ -553,8 +570,8 @@ data AST :: (Hakaru * -> *) -> Hakaru * -> * where
         :: ast ('HArray ('HMeasure a))
         -> AST ast ('HMeasure ('HArray a))
     Chain_
-        :: ast ('HArray ('HFun s ('HMeasure ('HPair a s))))
-        -> AST ast ('HFun s ('HMeasure ('HPair ('HArray a) s)))
+        :: ast ('HArray ('HFun s ('HMeasure (HPair a s))))
+        -> AST ast ('HFun s ('HMeasure (HPair ('HArray a) s)))
 
 
     -- Lub
@@ -562,11 +579,11 @@ data AST :: (Hakaru * -> *) -> Hakaru * -> * where
     Lub_ :: ast a -> ast a -> AST ast a
     Bot_ :: AST ast a
 
+
 ----------------------------------------------------------------
--- N.B., having a @singAST :: AST ast a -> Sing a@ doesn't make sense: That's what 'inferType' is for, but not all terms can be inferred; some must be checked...
+-- N.B., having a @singAST :: AST ast a -> Sing a@ doesn't make sense: That's what 'inferType' is for, but not all terms can be inferred; some must be checked... Similarly, we can't derive Read, since that's what typechecking is all about.
 
 -- BUG: deriving instance (forall b. Eq (ast b)) => Eq (AST ast a)
--- BUG: deriving instance Read (AST ast a)
 
 showParen_0 :: Show a => Int -> String -> a -> ShowS
 showParen_0 p s e =
@@ -619,11 +636,11 @@ showParen_111 p s e1 e2 e3 =
 instance Show1 ast => Show1 (AST ast) where
     showsPrec1 p t =
         case t of
-        Lam_ a  e            -> showParen_01  p "Lam_" a  e
-        App_ e1 e2           -> showParen_11  p "App_" e1 e2
-        Let_ e1 e2           -> showParen_11  p "Let_" e1 e2
-        Fix_ e               -> showParen_1   p "Fix_" e
-        Ann_ a e             -> showParen_01  p "Ann_" a  e
+        Lam_    a  e         -> showParen_01  p "Lam_"    a  e
+        App_    e1 e2        -> showParen_11  p "App_"    e1 e2
+        Let_    e1 e2        -> showParen_11  p "Let_"    e1 e2
+        Fix_    e            -> showParen_1   p "Fix_"    e
+        Ann_    a e          -> showParen_01  p "Ann_"    a  e
         PrimOp_ o            -> showParen_0   p "PrimOp_" o
         NaryOp_ o es         ->
             showParen (p > 9)
@@ -635,215 +652,104 @@ instance Show1 ast => Show1 (AST ast) where
                     . showList1 (F.toList es)
                     )
                 )
-        Integrate_ e1 e2 e3  -> showParen_111 p "Integrate_" e1 e2 e3
-        Summate_   e1 e2 e3  -> showParen_111 p "Summate_"   e1 e2 e3
-        Value_ v             -> showParen_0   p "Value_" v
+        Integrate_  e1 e2 e3 -> showParen_111 p "Integrate_"  e1 e2 e3
+        Summate_    e1 e2 e3 -> showParen_111 p "Summate_"    e1 e2 e3
+        Value_      v        -> showParen_0   p "Value_"      v
         CoerceTo_   c e      -> showParen_01  p "CoerceTo_"   c e
         UnsafeFrom_ c e      -> showParen_01  p "UnsafeFrom_" c e
-        List_ es             ->
-            showParen (p > 9)
-                ( showString "List_ "
-                . showList1 es
-                )
-        Maybe_ me            -> error "TODO: show Maybe_"
-        Case_  e bs          ->
+        Array_      e1 e2    -> showParen_11  p "Array_"      e1 e2
+        Roll_       e        -> showParen_1   p "Roll_"       e
+        Unroll_     e        -> showParen_1   p "Unroll_"     e
+        Nil_                 -> showString      "Nil_"
+        Cons_       e1 e2    -> showParen_11  p "Cons_"       e1 e2
+        Zero_       e        -> showParen_1   p "Zero_"       e
+        Succ_       e        -> showParen_1   p "Succ_"       e
+        Konst_      e        -> showParen_1   p "Konst_"      e
+        Ident_      e        -> showParen_1   p "Ident_"      e
+        Case_       e bs     ->
             showParen (p > 9)
                 ( showString "Case_ "
                 . showsPrec1 11 e
                 . showString " "
                 . showList1 bs
                 )
-        Array_  e1 e2        -> showParen_11  p "Array_"  e1 e2
-        Roll_   e            -> showParen_1   p "Roll_"   e
-        Unroll_ e            -> showParen_1   p "Unroll_" e
-        Bind_   e1 e2        -> showParen_11  p "Bind_"   e1 e2
+        Bind_      e1 e2     -> showParen_11  p "Bind_"   e1 e2
         Superpose_ pes       -> error "TODO: show Superpose_"
-        Dp_     e1 e2        -> showParen_11  p "Dp_"    e1 e2
-        Plate_  e            -> showParen_1   p "Plate_" e
-        Chain_  e            -> showParen_1   p "Chain_" e
-        Lub_    e1 e2        -> showParen_11  p "Lub_"   e1 e2
+        Dp_        e1 e2     -> showParen_11  p "Dp_"     e1 e2
+        Plate_     e         -> showParen_1   p "Plate_"  e
+        Chain_     e         -> showParen_1   p "Chain_"  e
+        Lub_       e1 e2     -> showParen_11  p "Lub_"    e1 e2
         Bot_                 -> showString      "Bot_"
 
 instance Show1 ast => Show (AST ast a) where
     showsPrec = showsPrec1
     show      = show1
 
+
 ----------------------------------------------------------------
 instance Functor1 AST where
-    fmap1 f (Lam_ p  e)           = Lam_ p (f e)
-    fmap1 f (App_ e1 e2)          = App_ (f e1) (f e2)
-    fmap1 f (Let_ e1 e2)          = Let_ (f e1) (f e2)
-    fmap1 f (Fix_ e)              = Fix_ (f e)
-    fmap1 f (Ann_ p  e)           = Ann_ p (f e)
-    fmap1 _ (PrimOp_ o)           = PrimOp_ o
-    fmap1 f (NaryOp_ o es)        = NaryOp_ o (fmap f es)
-    fmap1 f (Integrate_ e1 e2 e3) = Integrate_ (f e1) (f e2) (f e3)
-    fmap1 f (Summate_   e1 e2 e3) = Summate_   (f e1) (f e2) (f e3)
-    fmap1 _ (Value_ v)            = Value_ v
-    fmap1 f (CoerceTo_   c e)     = CoerceTo_   c (f e)
-    fmap1 f (UnsafeFrom_ c e)     = UnsafeFrom_ c (f e)
-    fmap1 f (List_   es)          = List_  (map f es)
-    fmap1 f (Maybe_  me)          = Maybe_ (fmap f me)
-    fmap1 f (Case_   e  bs)       = Case_ (f e) (map (fmap1 f) bs)
-    fmap1 f (Array_  e1 e2)       = Array_  (f e1) (f e2)
-    fmap1 f (Roll_   e)           = Roll_   (f e)
-    fmap1 f (Unroll_ e)           = Unroll_ (f e)
-    fmap1 f (Bind_   e1 e2)       = Bind_   (f e1) (f e2)
-    fmap1 f (Superpose_ pes)      = Superpose_ (map (f *** f) pes)
-    fmap1 f (Dp_     e1 e2)       = Dp_     (f e1) (f e2)
-    fmap1 f (Plate_  e)           = Plate_  (f e)
-    fmap1 f (Chain_  e)           = Chain_  (f e)
-    fmap1 f (Lub_    e1 e2)       = Lub_    (f e1) (f e2)
-    fmap1 _ Bot_                  = Bot_
+    fmap1 f (Lam_        p  e)     = Lam_        p      (f e)
+    fmap1 f (App_        e1 e2)    = App_        (f e1) (f e2)
+    fmap1 f (Let_        e1 e2)    = Let_        (f e1) (f e2)
+    fmap1 f (Fix_        e)        = Fix_        (f e)
+    fmap1 f (Ann_        p  e)     = Ann_        p      (f e)
+    fmap1 _ (PrimOp_     o)        = PrimOp_     o
+    fmap1 f (NaryOp_     o  es)    = NaryOp_     o      (fmap f es)
+    fmap1 f (Integrate_  e1 e2 e3) = Integrate_  (f e1) (f e2) (f e3)
+    fmap1 f (Summate_    e1 e2 e3) = Summate_    (f e1) (f e2) (f e3)
+    fmap1 _ (Value_      v)        = Value_      v
+    fmap1 f (CoerceTo_   c  e)     = CoerceTo_   c      (f e)
+    fmap1 f (UnsafeFrom_ c  e)     = UnsafeFrom_ c      (f e)
+    fmap1 f (Array_      e1 e2)    = Array_      (f e1) (f e2)
+    fmap1 f (Roll_       e)        = Roll_       (f e)
+    fmap1 f (Unroll_     e)        = Unroll_     (f e)
+    fmap1 _ Nil_                   = Nil_
+    fmap1 f (Cons_       e es)     = Cons_       (f e)  (f es)
+    fmap1 f (Zero_       e)        = Zero_       (f e)
+    fmap1 f (Succ_       e)        = Succ_       (f e)
+    fmap1 f (Konst_      e)        = Konst_      (f e)
+    fmap1 f (Ident_      e)        = Ident_      (f e)
+    fmap1 f (Case_       e  bs)    = Case_       (f e)  (map (fmap1 f) bs)
+    fmap1 f (Bind_       e1 e2)    = Bind_       (f e1) (f e2)
+    fmap1 f (Superpose_  pes)      = Superpose_  (map (f *** f) pes)
+    fmap1 f (Dp_         e1 e2)    = Dp_         (f e1) (f e2)
+    fmap1 f (Plate_      e)        = Plate_      (f e)
+    fmap1 f (Chain_      e)        = Chain_      (f e)
+    fmap1 f (Lub_        e1 e2)    = Lub_        (f e1) (f e2)
+    fmap1 _ Bot_                   = Bot_
 
 
 ----------------------------------------------------------------
 instance Foldable1 AST where
-    foldMap1 f (Lam_ _  e)           = f e
-    foldMap1 f (App_ e1 e2)          = f e1 `mappend` f e2
-    foldMap1 f (Let_ e1 e2)          = f e1 `mappend` f e2
-    foldMap1 f (Fix_ e)              = f e
-    foldMap1 f (Ann_ _  e)           = f e
-    foldMap1 _ (PrimOp_ _)           = mempty
-    foldMap1 f (NaryOp_ _ es)        = F.foldMap f es
-    foldMap1 f (Integrate_ e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
-    foldMap1 f (Summate_   e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
-    foldMap1 _ (Value_ _)            = mempty
-    foldMap1 f (CoerceTo_   _ e)     = f e
-    foldMap1 f (UnsafeFrom_ _ e)     = f e
-    foldMap1 f (List_   es)          = F.foldMap f es
-    foldMap1 f (Maybe_  me)          = F.foldMap f me
-    foldMap1 f (Case_   e  bs)       = f e  `mappend` F.foldMap (f . branchBody) bs
-    foldMap1 f (Array_  e1 e2)       = f e1 `mappend` f e2
-    foldMap1 f (Roll_   e)           = f e
-    foldMap1 f (Unroll_ e)           = f e
-    foldMap1 f (Bind_   e1 e2)       = f e1 `mappend` f e2
-    foldMap1 f (Superpose_ pes)      = F.foldMap (\(e1,e2) -> f e1 `mappend` f e2) pes
-    foldMap1 f (Dp_     e1 e2)       = f e1 `mappend` f e2
-    foldMap1 f (Plate_  e)           = f e
-    foldMap1 f (Chain_  e)           = f e
-    foldMap1 f (Lub_    e1 e2)       = f e1 `mappend` f e2
-    foldMap1 _ Bot_                  = mempty
-
-
-----------------------------------------------------------------
-----------------------------------------------------------------
-{-
-instance (Number a) => Order AST (a :: Hakaru *) where
-    less  = app2 $ PrimOp_ (Less  {- at type @a@ -})
-    equal = app2 $ PrimOp_ (Equal {- at type @a@ -})
-
-
-{- TODO:
-class (Order_ a) => Number (a :: Hakaru *) where
-  numberCase :: f 'HInt -> f 'HReal -> f 'HProb -> f a
-  numberRepr :: (Base repr) =>
-                ((Order repr a, Num (repr a)) => f repr a) -> f repr a
-
-class (Number a) => Fraction (a :: Hakaru *) where
-  fractionCase :: f 'HReal -> f 'HProb -> f a
-  fractionRepr :: (Base repr) =>
-                  ((Order repr a, Fractional (repr a)) => f repr a) -> f repr a
-  unsafeProbFraction = fromBaseAST . UnsafeFrom_ signed . baseToAST
-  piFraction         = fromBaseAST $ PrimOp Pi
-  expFraction        = fromBaseAST . App (PrimOp_ Exp) . baseToAST
-  logFraction        = fromBaseAST . App (PrimOp_ Log) . baseToAST
-  erfFraction        = fromBaseAST . App (PrimOp_ Erf) . baseToAST
--}
-
-instance
-    ( Order AST 'HInt , Num        (AST 'HInt )
-    , Order AST 'HReal, Floating   (AST 'HReal)
-    , Order AST 'HProb, Fractional (AST 'HProb)
-    ) => Base AST where
-    unit       = PrimOp_ Unit
-    pair       = primOp2_ Pair
-    unpair e f = do
-        x <- freshVar
-        y <- freshVar
-        return $ Case_ (syn e)
-            [(PPair PVar PVar,
-                open x (open y (syn $ f (var x Proxy) (var y Proxy)))]
-    inl        = primOp1_ Inl
-    inr        = primOp1_ Inr
-    uneither e l r = do
-        x <- freshVar
-        return $ Case_ (syn e)
-            [ (PInl PVar, open x (syn $ l (var x Proxy)))
-            , (PInr PVar, open x (syn $ r (var x Proxy)))
-            ]
-    true       = Value_ (Bool_ True)
-    false      = Value_ (Bool_ False)
-    if_ b t f  = Case_ (syn b) [(PTrue, syn t), (PFalse, syn f)]
-    unsafeProb = UnsafeFrom_ signed
-    fromProb   = CoerceTo_ signed
-    fromInt    = CoerceTo_ continuous
-    pi_        = PrimOp_ Pi
-    exp_       = App $ PrimOp_ Exp
-    erf        = App $ PrimOp_ (Erf {- 'HReal -})
-    erf_       = App $ PrimOp_ (Erf {- 'HProb -})
-    log_       = App $ PrimOp_ Log
-    sqrt_ x    = app2 (PrimOp_ NatRoot) x (Value_ (Nat_ 2))
-    pow_       = app2 $ PrimOp_ RealPow
-    infinity   = CoerceTo_ signed $ PrimOp_ Infinity
-    negativeInfinity = PrimOp_ NegativeInfinity
-    gammaFunc = App  $ PrimOp_ GammaFunc
-    betaFunc  = app2 $ PrimOp_ BetaFunc
-    vector    = Array_
-    empty     = PrimOp_  Empty
-    index     = primOp2_ Index
-    size      = primOp1_ Size
-    reduce    = primOp3_ Reduce
-    fix       = Fix_
-
+    foldMap1 f (Lam_        _  e)     = f e
+    foldMap1 f (App_        e1 e2)    = f e1 `mappend` f e2
+    foldMap1 f (Let_        e1 e2)    = f e1 `mappend` f e2
+    foldMap1 f (Fix_        e)        = f e
+    foldMap1 f (Ann_        _  e)     = f e
+    foldMap1 _ (PrimOp_     _)        = mempty
+    foldMap1 f (NaryOp_     _  es)    = F.foldMap f es
+    foldMap1 f (Integrate_  e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
+    foldMap1 f (Summate_    e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
+    foldMap1 _ (Value_ _)             = mempty
+    foldMap1 f (CoerceTo_   _  e)     = f e
+    foldMap1 f (UnsafeFrom_ _  e)     = f e
+    foldMap1 f (Array_      e1 e2)    = f e1 `mappend` f e2
+    foldMap1 f (Roll_       e)        = f e
+    foldMap1 f (Unroll_     e)        = f e
+    foldMap1 _ Nil_                   = mempty
+    foldMap1 f (Cons_       e  es)    = f e `mappend` f es
+    foldMap1 f (Zero_       e)        = f e
+    foldMap1 f (Succ_       e)        = f e
+    foldMap1 f (Konst_      e)        = f e
+    foldMap1 f (Ident_      e)        = f e
+    foldMap1 f (Case_       e  bs)    = f e  `mappend` F.foldMap (f . branchBody) bs
+    foldMap1 f (Bind_       e1 e2)    = f e1 `mappend` f e2
+    foldMap1 f (Superpose_  pes)      = F.foldMap (\(e1,e2) -> f e1 `mappend` f e2) pes
+    foldMap1 f (Dp_         e1 e2)    = f e1 `mappend` f e2
+    foldMap1 f (Plate_      e)        = f e
+    foldMap1 f (Chain_      e)        = f e
+    foldMap1 f (Lub_        e1 e2)    = f e1 `mappend` f e2
+    foldMap1 _ Bot_                   = mempty
 
 ----------------------------------------------------------------
-easierRoadmapProg3'out
-    :: (Mochastic repr)
-    => repr ('HPair 'HReal 'HReal)
-    -> repr ('HMeasure ('HPair 'HProb 'HProb))
-easierRoadmapProg3'out m1m2 =
-    weight 5 $
-    uniform 3 8 `bind` \noiseT' ->
-    uniform 1 4 `bind` \noiseE' ->
-    weight (recip pi_
-	    * exp_ (((fst_ m1m2) * (fst_ m1m2) * (noiseT' * noiseT') * 2
-		     + noiseT' * noiseT' * (fst_ m1m2) * (snd_ m1m2) * (-2)
-		     + (snd_ m1m2) * (snd_ m1m2) * (noiseT' * noiseT')
-		     + noiseE' * noiseE' * ((fst_ m1m2) * (fst_ m1m2))
-		     + noiseE' * noiseE' * ((snd_ m1m2) * (snd_ m1m2)))
-		    * recip (noiseT' * noiseT' * (noiseT' * noiseT') + noiseE' * noiseE' * (noiseT' * noiseT') * 3 + noiseE' * noiseE' * (noiseE' * noiseE'))
-		    * (-1/2))
-	    * pow_ (unsafeProb (noiseT' ** 4 + noiseE' ** 2 * noiseT' ** 2 * 3 + noiseE' ** 4)) (-1/2)
-	    * (1/10)) $
-    dirac (pair (unsafeProb noiseT') (unsafeProb noiseE'))
-
-
--- This should be given by the client, not auto-generated by Hakaru.
-proposal
-    :: (Mochastic repr)
-    => repr ('HPair 'HReal 'HReal)
-    -> repr ('HPair 'HProb 'HProb)
-    -> repr ('HMeasure ('HPair 'HProb 'HProb))
-proposal _m1m2 ntne =
-  unpair ntne $ \noiseTOld noiseEOld ->
-  superpose [(1/2, uniform 3 8 `bind` \noiseT' ->
-                   dirac (pair (unsafeProb noiseT') noiseEOld)),
-             (1/2, uniform 1 4 `bind` \noiseE' ->
-                   dirac (pair noiseTOld (unsafeProb noiseE')))]
-
-
--- This should be in a library somewhere, not auto-generated by Hakaru.
-mh  :: (Mochastic repr, Integrate repr, Lambda repr,
-        env ~ Expect' env, a ~ Expect' a, Backward a a)
-    => (forall r'. (Mochastic r') => r' env -> r' a -> r' ('HMeasure a))
-    -> (forall r'. (Mochastic r') => r' env -> r' ('HMeasure a))
-    -> repr ('HFun env ('HFun a ('HMeasure ('HPair a 'HProb))))
-mh prop target =
-  lam $ \env ->
-  let_ (lam (d env)) $ \mu ->
-  lam $ \old ->
-    prop env old `bind` \new ->
-    dirac (pair new (mu `app` {-pair-} new {-old-} / mu `app` {-pair-} old {-new-}))
-  where d:_ = density (\env -> {-bindx-} (target env) {-(prop env)-})
--}
+----------------------------------------------------------- fin.

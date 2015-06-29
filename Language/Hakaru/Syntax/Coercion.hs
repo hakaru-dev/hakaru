@@ -2,11 +2,12 @@
            , DataKinds
            , GADTs
            , StandaloneDeriving
+           , PatternSynonyms
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.06.26
+--                                                    2015.06.28
 -- |
 -- Module      :  Language.Hakaru.Syntax.Coercion
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -17,20 +18,16 @@
 --
 -- Our theory of coercions for Hakaru's numeric hierarchy.
 ----------------------------------------------------------------
-module Language.Hakaru.Syntax.Coercion where
+module Language.Hakaru.Syntax.Coercion
+    ( PrimCoercion(..)
+    , Coercion(..)
+    , Signed, Continuous
+    ) where
 
-import Prelude hiding (id, (.), Ord(..), Num(..), Integral(..), Fractional(..), Floating(..), Real(..), RealFrac(..), RealFloat(..), (^), (^^))
-import Control.Category     (Category(..))
-
+import Prelude          hiding (id, (.))
+import Control.Category (Category(..))
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.HClasses
-{-
-import Language.Hakaru.Lazy (Backward, runDisintegrate, density)
-import Language.Hakaru.Expect (Expect')
-import Language.Hakaru.Simplify (simplify)
-import Language.Hakaru.Any (Any)
-import Language.Hakaru.Sample
--}
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -40,17 +37,27 @@ import Language.Hakaru.Sample
 -- TODO: see how GHC handles lifting coersions these days...
 
 -- | Primitive proofs of the inclusions in our numeric hierarchy.
-data PrimCoercion :: Hakaru * -> Hakaru * -> * where
-    Signed     :: HRing a       => PrimCoercion (NonNegative a) a
-    Continuous :: HContinuous a => PrimCoercion (HIntegral   a) a
+data PrimCoercion :: Hakaru -> Hakaru -> * where
+    PrimSigned     :: HRing a       => PrimCoercion (NonNegative a) a
+    PrimContinuous :: HContinuous a => PrimCoercion (HIntegral   a) a
 
 deriving instance Eq   (PrimCoercion a b)
 -- BUG: deriving instance Read (PrimCoercion a b)
 deriving instance Show (PrimCoercion a b)
 
 
+-- | A smart constructor and pattern synonym for 'PrimSigned'.
+pattern Signed :: HRing a => Coercion (NonNegative a) a
+pattern Signed = ConsCoercion PrimSigned IdCoercion
+
+
+-- | A smart constructor and pattern synonym for 'PrimContinuous'.
+pattern Continuous :: HContinuous a => Coercion (HIntegral a) a
+pattern Continuous = ConsCoercion PrimContinuous IdCoercion
+
+
 -- | General proofs of the inclusions in our numeric hierarchy.
-data Coercion :: Hakaru * -> Hakaru * -> * where
+data Coercion :: Hakaru -> Hakaru -> * where
     -- | Added the trivial coercion so we get the Category instance.
     -- This may/should make program transformations easier to write
     -- by allowing more intermediate ASTs, but will require a cleanup
@@ -67,14 +74,6 @@ data Coercion :: Hakaru * -> Hakaru * -> * where
 deriving instance Show (Coercion a b)
 
 
--- | A smart constructor for 'Signed'.
-signed :: HRing a => Coercion (NonNegative a) a
-signed = ConsCoercion Signed IdCoercion
-
--- | A smart constructor for 'Continuous'.
-continuous :: HContinuous a => Coercion (HIntegral a) a
-continuous = ConsCoercion Continuous IdCoercion
-
 instance Category Coercion where
     id = IdCoercion
     xs . IdCoercion        = xs
@@ -82,7 +81,7 @@ instance Category Coercion where
 
 {-
 -- TODO: make these rules for coalescing things work
-data UnsafeFrom_CoerceTo :: Hakaru * -> Hakaru * -> * where
+data UnsafeFrom_CoerceTo :: Hakaru -> Hakaru -> * where
     UnsafeFrom_CoerceTo
         :: !(Coercion c b)
         -> !(Coercion a b)
@@ -98,14 +97,12 @@ unsafeFrom_coerceTo xs ys =
     ConsCoercion x xs'  ->
         case ys of
         IdCoercion      -> UnsafeFrom_CoerceTo xs IdCoercion
-        ConsCoercion y ys' ->
-            -- TODO: use a variant of jmEq instead
-            case (x,y) of
-            (Signed,    Signed)     -> unsafeFrom_coerceTo xs' ys'
-            (Continuous,Continuous) -> unsafeFrom_coerceTo xs' ys'
-            _                       -> UnsafeFrom_CoerceTo xs  ys
+        ConsCoercion y ys'
+            -- TODO: use a variant of jmEq instead, so it typechecks
+            | x == y    -> unsafeFrom_coerceTo xs' ys'
+            | otherwise -> UnsafeFrom_CoerceTo xs  ys
 
-data CoerceTo_UnsafeFrom :: Hakaru * -> Hakaru * -> * where
+data CoerceTo_UnsafeFrom :: Hakaru -> Hakaru -> * where
     CoerceTo_UnsafeFrom
         :: !(Coercion c b)
         -> !(Coercion a b)

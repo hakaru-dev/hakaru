@@ -162,7 +162,7 @@ unsafeFrom_ = (syn .) . UnsafeFrom_
 
 value_ :: (ABT abt) => Value a  -> abt a
 value_ = syn . Value_
-bool_  :: (ABT abt) => Bool     -> abt 'HBool
+bool_  :: (ABT abt) => Bool     -> abt HBool
 bool_  = value_ . Bool_
 nat_   :: (ABT abt) => Nat      -> abt 'HNat
 nat_   = value_ . Nat_
@@ -175,22 +175,22 @@ real_  = value_ . Real_
 
 
 -- Boolean operators
-true, false :: (ABT abt) => abt 'HBool
+true, false :: (ABT abt) => abt HBool
 true  = bool_ True
 false = bool_ False
 
 -- TODO: simplifications: involution, distribution, constant-propogation
-not :: (ABT abt) => abt 'HBool -> abt 'HBool
+not :: (ABT abt) => abt HBool -> abt HBool
 not = primOp1_ Not
 
-and, or :: (ABT abt) => [abt 'HBool] -> abt 'HBool
+and, or :: (ABT abt) => [abt HBool] -> abt HBool
 and = naryOp_withIdentity And true
 or  = naryOp_withIdentity Or  false
 
 (&&), (||),
     -- (</=>), (<==>), (==>), (<==), (\\), (//) -- TODO: better names?
     nand, nor
-    :: (ABT abt) => abt 'HBool -> abt 'HBool -> abt 'HBool
+    :: (ABT abt) => abt HBool -> abt HBool -> abt HBool
 (&&) = naryOp2_ And
 (||) = naryOp2_ Or
 -- (</=>) = primOp2_ Xor
@@ -204,11 +204,11 @@ nor    = primOp2_ Nor
 
 
 -- HEq & HOrder operators
-(==), (/=) :: (ABT abt, HOrder a) => abt a -> abt a -> abt 'HBool
+(==), (/=) :: (ABT abt, HOrder a) => abt a -> abt a -> abt HBool
 (==) = primOp2_ Equal
 (/=) = (not .) . (==)
 
-(<), (<=), (>), (>=) :: (ABT abt, HOrder a) => abt a -> abt a -> abt 'HBool
+(<), (<=), (>), (>=) :: (ABT abt, HOrder a) => abt a -> abt a -> abt HBool
 (<)    = primOp2_ Less
 x <= y = (x < y) || (x == y)
 (>)    = flip (<)
@@ -243,7 +243,9 @@ product = naryOp_withIdentity Prod one
 (^) = primOp2_ (NatPow {- at type @a@ -})
 
 -- TODO: this is actually safe, how can we capture that?
--- TODO: is this type restruction actually helpful anywhere for us? If so, we ought to make this function polymorphic so that we can use it for HSemirings which are not HRings too...
+-- TODO: is this type restruction actually helpful anywhere for us?
+-- If so, we ought to make this function polymorphic so that we can
+-- use it for HSemirings which are not HRings too...
 square :: (ABT abt, HRing a) => abt a -> abt (NonNegative a)
 square e = unsafeFrom_ signed (e ^ nat_ 2)
 
@@ -252,8 +254,15 @@ square e = unsafeFrom_ signed (e ^ nat_ 2)
 (-) :: (ABT abt, HRing a) => abt a -> abt a -> abt a
 x - y = x + negate y
 
--- BUG: can't just pattern match on (App_ (PrimOp_ Negate) e) anymore; can't even match on (App_ (Syn (PrimOp_ Negate)) e). We need to implement our AST-pattern matching stuff in order to clean this up...
--- TODO: do we really want to distribute negation over addition /by default/? Clearly we'll want to do that in some optimization\/partial-evaluation pass, but do note that it makes terms larger in general...
+-- BUG: can't just pattern match on (App_ (PrimOp_ Negate) e)
+-- anymore; can't even match on (App_ (Syn (PrimOp_ Negate)) e).
+-- We need to implement our AST-pattern matching stuff in order to
+-- clean this up...
+--
+-- TODO: do we really want to distribute negation over addition /by
+-- default/? Clearly we'll want to do that in some
+-- optimization\/partial-evaluation pass, but do note that it makes
+-- terms larger in general...
 negate :: (ABT abt, HRing a) => abt a -> abt a
 negate e0 =
     Prelude.maybe (primOp1_ Negate e0) id
@@ -373,8 +382,10 @@ x ^+ y = casePositiveRational y $ \n d -> d `thRootOf` (x ^ n)
 x ^* y = caseRational y $ \n d -> d `thRootOf` (x ^^ n)
 -}
 
--- HACK: we define this class in order to gain more polymorphism; but, will it cause type inferencing issues? Excepting 'log' (which should be moved out of the class) these are all safe. 
-class RealProb (a :: Hakaru *) where
+-- HACK: we define this class in order to gain more polymorphism;
+-- but, will it cause type inferencing issues? Excepting 'log'
+-- (which should be moved out of the class) these are all safe.
+class RealProb (a :: Hakaru) where
     (**) :: (ABT abt) => abt 'HProb -> abt a -> abt 'HProb
     exp  :: (ABT abt) => abt a -> abt 'HProb
     log  :: (ABT abt) => abt 'HProb -> abt a -- HACK
@@ -424,47 +435,103 @@ acosh  = primOp1_ Acosh
 atanh  = primOp1_ Atanh
 
 
+-- BUG: correct the ugly irregularity of the names.
+rollE_
+    :: (ABT abt)
+    => abt (Code t :$ HTag t (Code t))
+    -> abt ('HTag t (Code t))
+rollE_ = syn . Roll_
+
+unrollE_
+    :: (ABT abt)
+    => abt ('HTag t (Code t))
+    -> abt (Code t :$ HTag t (Code t))
+unrollE_ = syn . Unroll_
+
+nilE_ :: (ABT abt) => abt ('[ '[] ] :$ a)
+nilE_ = syn Nil_
+
+consE_
+    :: (ABT abt)
+    => abt ('[ '[x] ] :$ a)
+    -> abt ('[xs] :$ a)
+    -> abt ('[x ': xs] :$ a)
+consE_ = (syn .) . Cons_
+
+zeroE_  :: (ABT abt) => abt ('[xs] :$ a) -> abt ((xs ': xss) :$ a)
+zeroE_  = syn . Zero_
+
+succE_  :: (ABT abt) => abt (xss :$ a) -> abt ((xs ': xss) :$ a)
+succE_  = syn . Succ_
+
+konstE_ :: (ABT abt) => abt x -> abt ('[ '[ K x ] ] :$ a)
+konstE_ = syn . Konst_
+
+identE_ :: (ABT abt) => abt x -> abt ('[ '[ Id ] ] :$ x)
+identE_ = syn . Ident_
+
+
 -- instance (ABT abt) => Base abt where not already defined above
-unit :: (ABT abt) => abt 'HUnit
-unit = primOp0_ Unit
+unit :: (ABT abt) => abt HUnit
+unit = rollE_ nilE_
 
-pair :: (ABT abt) => abt a -> abt b -> abt ('HPair a b)
-pair = primOp2_ Pair
-
+pair :: (ABT abt) => abt a -> abt b -> abt (HPair a b)
+pair a b = rollE_ (zeroE_ $ consE_ (konstE_ a) $ consE_ (konstE_ b) nilE_)
 
 unpair
     :: (ABT abt, SingI a, SingI b)
-    => abt ('HPair a b)
+    => abt (HPair a b)
     -> (abt a -> abt b -> abt c)
     -> abt c
-unpair e f =
+unpair e f = 
     freshVar $ \x ->
     freshVar $ \y ->
     syn $ Case_ e
-        [Branch (PPair PVar PVar)
+        [Branch (pPair PVar PVar)
             (open x . open y $ f (var x sing) (var y sing))]
 
-inl :: (ABT abt) => abt a -> abt ('HEither a b)
-inl = primOp1_ Inl
+inl :: (ABT abt) => abt a -> abt (HEither a b)
+inl = rollE_ . zeroE_ . konstE_
 
-inr :: (ABT abt) => abt b -> abt ('HEither a b)
-inr = primOp1_ Inr
+inr :: (ABT abt) => abt b -> abt (HEither a b)
+inr = rollE_ . succE_ . konstE_
 
 uneither
     :: (ABT abt, SingI a, SingI b)
-    => abt ('HEither a b)
+    => abt (HEither a b)
     -> (abt a -> abt c)
     -> (abt b -> abt c)
     -> abt c
-uneither e l r =
+uneither e l r = 
     freshVar $ \x ->
     syn $ Case_ e
-        [ Branch (PInl PVar) (open x $ l (var x sing))
-        , Branch (PInr PVar) (open x $ r (var x sing))
+        [ Branch (pInl PVar) (open x $ l (var x sing))
+        , Branch (pInr PVar) (open x $ r (var x sing))
         ]
 
-if_ :: (ABT abt) => abt 'HBool -> abt a -> abt a -> abt a
+if_ :: (ABT abt) => abt HBool -> abt a -> abt a -> abt a
 if_ b t f = syn $ Case_ b [Branch PTrue t, Branch PFalse f]
+
+
+nil_ :: ABT abt => abt (HList a)
+nil_ = rollE_ $ zeroE_ nilE_
+
+cons_ :: ABT abt => abt a -> abt (HList a) -> abt (HList a)
+cons_ x xs =
+    rollE_ (succE_ $ consE_ (konstE_ x) $ consE_ (identE_ xs) nilE_)
+
+list_    :: ABT abt => [abt a] -> abt (HList a)
+list_    = Prelude.foldr cons_ nil_
+
+nothing_ :: ABT abt => abt (HMaybe a)
+nothing_ = rollE_ $ zeroE_ nilE_
+
+just_    :: ABT abt => abt a -> abt (HMaybe a)
+just_    = rollE_ . succE_ . konstE_
+
+maybe_    :: ABT abt => Maybe (abt a) -> abt (HMaybe a)
+maybe_    = Prelude.maybe nothing_ just_
+
 
 unsafeProb :: (ABT abt) => abt 'HReal -> abt 'HProb
 unsafeProb = unsafeFrom_ signed
@@ -524,8 +591,10 @@ bind e f =
 
 dirac    :: (ABT abt) => abt a -> abt ('HMeasure a)
 dirac    = primOp1_ Dirac
+
 lebesgue :: (ABT abt) => abt ('HMeasure 'HReal)
 lebesgue = primOp0_  Lebesgue
+
 counting :: (ABT abt) => abt ('HMeasure 'HInt)
 counting = primOp0_  Counting
 
@@ -535,15 +604,14 @@ superpose
     -> abt ('HMeasure a)
 superpose = syn . Superpose_
 
-{-
--- BUG: need to (a) fix the type, or (b) coerce @'HMeasure 'HNat@ to @'HMeasure 'HInt@
 categorical, categorical'
     :: (ABT abt)
     => abt ('HArray 'HProb)
     -> abt ('HMeasure 'HInt)
 categorical = primOp1_ Categorical
-
-categorical' v = 
+{-
+-- TODO: need to insert the coercion in the right place...
+categorical' v =
     counting `bind` \i ->
     if_ (i >= 0 && i < size v)
         (weight (index v i / sumV v) (dirac i))
@@ -551,7 +619,8 @@ categorical' v =
 -}
 
 
--- TODO: make Uniform polymorphic, so that if the two inputs are HProb then we know the measure must be over HProb too
+-- TODO: make Uniform polymorphic, so that if the two inputs are
+-- HProb then we know the measure must be over HProb too
 uniform, uniform'
     :: (ABT abt)
     => abt 'HReal
@@ -665,8 +734,8 @@ plate' v = reduce r z (mapV m v)
 
 chain
     :: (ABT abt)
-    => abt ('HArray ('HFun s ('HMeasure         ('HPair a s))))
-    -> abt (         'HFun s ('HMeasure ('HPair ('HArray a) s)))
+    => abt ('HArray ('HFun s ('HMeasure         (HPair a s))))
+    -> abt (         'HFun s ('HMeasure (HPair ('HArray a) s)))
 chain = syn . Chain_
 {-
 -- TODO: the array stuff...
@@ -726,10 +795,13 @@ lam = binder (\x e -> syn . Lam_ Proxy $ open x e) "_" sing
 > lam "x" SInt (\x -> lam "y" SInt $ \y -> x < y) :: TrivialABT ('HFun 'HInt ('HFun 'HInt 'HBool))
 -}
 
-let_ :: (ABT abt, SingI a) => abt a -> (abt a -> abt b) -> abt b
-let_ e f = 
-    freshVar $ \x ->
-    syn . Let_ e . open x $ f (var x sing)
+let_
+    :: (ABT abt, Bindable abt, SingI a)
+    => abt a
+    -> (abt a -> abt b)
+    -> abt b
+let_ e = binder (\x f -> syn . Let_ e $ open x f) "_" sing
+
 
 -- instance (ABT abt) => Lub abt where
 lub :: (ABT abt) => abt a -> abt a -> abt a
@@ -737,3 +809,6 @@ lub = (syn .) . Lub_
 
 bot :: (ABT abt) => abt a
 bot = syn Bot_
+
+----------------------------------------------------------------
+----------------------------------------------------------- fin.

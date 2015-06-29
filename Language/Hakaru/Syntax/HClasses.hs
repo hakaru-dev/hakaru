@@ -7,7 +7,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.06.26
+--                                                    2015.06.28
 -- |
 -- Module      :  Language.Hakaru.Syntax.HClasses
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -26,7 +26,7 @@ import Language.Hakaru.Syntax.DataKind
 {- TODO: break the HEq class out from HOrder
 -- TODO: allow lifting of equality to work on HPair, HEither,...?
 class HEq (a :: Hakaru *)
-instance HEq 'HBool
+instance HEq HBool
 instance HEq 'HNat
 instance HEq 'HInt
 instance HEq 'HProb
@@ -46,20 +46,20 @@ data HOrder :: Hakaru * -> * where
     ...
 -- The problem is, how to we handle things like the HRing type class?
 -}
-class    HOrder (a :: Hakaru *)
-instance HOrder 'HBool
+class    HOrder (a :: Hakaru)
+instance HOrder HBool
 instance HOrder 'HNat
 instance HOrder 'HInt
 instance HOrder 'HProb
 instance HOrder 'HReal
-instance HOrder 'HUnit
-instance (HOrder a, HOrder b) => HOrder ('HPair   a b)
-instance (HOrder a, HOrder b) => HOrder ('HEither a b)
+instance HOrder HUnit
+instance (HOrder a, HOrder b) => HOrder (HPair   a b)
+instance (HOrder a, HOrder b) => HOrder (HEither a b)
 instance (HOrder a) => HOrder ('HArray a)
 
 
 -- N.B., even though these ones are commutative, we don't assume that!
-class    HSemiring (a :: Hakaru *)
+class    HSemiring (a :: Hakaru)
 instance HSemiring 'HNat
 instance HSemiring 'HInt
 instance HSemiring 'HProb
@@ -75,20 +75,20 @@ instance HSemiring 'HReal
 -- constraint coincides with the @HSemiring a@ constraint on the
 -- appropriate subset of @a@? Or should that just be assumed...?
 class (HSemiring (NonNegative a), HSemiring a)
-    => HRing (a :: Hakaru *) where type NonNegative a :: Hakaru *
+    => HRing (a :: Hakaru) where type NonNegative a :: Hakaru
 instance HRing 'HInt  where type NonNegative 'HInt  = 'HNat 
 instance HRing 'HReal where type NonNegative 'HReal = 'HProb 
 
 {-
-data HRing_ :: Hakaru * -> * where
+data HRing_ :: Hakaru -> * where
     HRing_Int  :: HRing_ 'HInt
     HRing_Real :: HRing_ 'HReal
 
-type family   NonNegative (a :: Hakaru *) :: Hakaru *
+type family   NonNegative (a :: Hakaru) :: Hakaru
 type instance NonNegative 'HInt  = 'HNat 
 type instance NonNegative 'HReal = 'HProb 
 
-data HRing :: Hakaru * -> * where
+data HRing :: Hakaru -> * where
     HRing
         :: !(HRing_ a)
         -> !(HSemiring a)
@@ -118,7 +118,7 @@ data HRing :: Hakaru * -> * where
 -- | A division-semiring; i.e., a division-ring without negation.
 -- This is called a \"semifield\" in ring theory, but should not
 -- be confused with the \"semifields\" of geometry.
-class (HSemiring a) => HFractional (a :: Hakaru *)
+class (HSemiring a) => HFractional (a :: Hakaru)
 instance HFractional 'HProb
 instance HFractional 'HReal
 
@@ -138,7 +138,7 @@ instance HFractional 'HReal
 -- solutions to more general polynomials (than just @x^n - a@) in
 -- order to express the results as roots. However, the Galois groups
 -- of these are all solvable, so this shouldn't be too bad.
-class (HSemiring a) => HRadical (a :: Hakaru *)
+class (HSemiring a) => HRadical (a :: Hakaru)
 instance HRadical 'HProb
 
 -- TODO: class (HDivisionRing a, HRadical a) => HAlgebraic a where...
@@ -147,7 +147,7 @@ instance HRadical 'HProb
 -- TODO: find a better name than HIntegral
 -- TODO: how to require that "if HRing a, then HRing b too"?
 class (HSemiring (HIntegral a), HFractional a)
-    => HContinuous (a :: Hakaru *) where type HIntegral a :: Hakaru *
+    => HContinuous (a :: Hakaru) where type HIntegral a :: Hakaru
 instance HContinuous 'HProb where type HIntegral 'HProb = 'HNat 
 instance HContinuous 'HReal where type HIntegral 'HReal = 'HInt 
 

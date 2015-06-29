@@ -146,7 +146,7 @@ prime (Variable n i) = Variable n (i + 1)
 -- BUG: if we don't expose this type, then clients can't define
 -- their own ABT instances (without reinventing their own copy of
 -- this type)...
-data View :: (Hakaru * -> *) -> Hakaru * -> * where
+data View :: (Hakaru -> *) -> Hakaru -> * where
 
     Syn  :: !(AST abt a) -> View abt a
 
@@ -256,7 +256,7 @@ caseVarSynABT e var_ syn_ =
 -- | A trivial ABT with no annotations. The 'freeVars' method is
 -- very expensive for this ABT, because we have to traverse the
 -- term every time we want to get it. Use 'FreeVarsABT' to fix this.
-newtype TrivialABT (a :: Hakaru *) =
+newtype TrivialABT (a :: Hakaru) =
     TrivialABT { unTrivialABT :: View TrivialABT a }
 
 instance ABT TrivialABT where

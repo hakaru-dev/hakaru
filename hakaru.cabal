@@ -41,7 +41,15 @@ library
                        Language.Hakaru.Any,
                        Language.Hakaru.Vector,
                        Language.Hakaru.Util.Csv,
-                       Language.Hakaru.Embed
+                       Language.Hakaru.Embed,
+                       Language.Hakaru.Syntax.ABT,
+                       Language.Hakaru.Syntax.AST,
+                       Language.Hakaru.Syntax.DataKind,
+                       Language.Hakaru.Syntax.Prelude,
+                       Language.Hakaru.Syntax.TypeEq,
+                       Language.Hakaru.Syntax.IClasses,
+                       Language.Hakaru.Syntax.HClasses,
+                       Language.Hakaru.Syntax.Coercion
 
   other-modules:       Language.Hakaru.Util.Extras,
                        Language.Hakaru.Util.Finite,
@@ -109,7 +117,8 @@ library
                        mtl >= 2.1,
                        tagged >= 0.7 && < 1.0,
                        generics-sop >= 0.1.0,
-                       filepath >= 1.1.0.2                    
+                       filepath >= 1.1.0.2,
+                       singletons >= 1.0
 
 
   if flag(patchedHint)

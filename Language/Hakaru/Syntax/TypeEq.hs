@@ -1,13 +1,24 @@
-{-# LANGUAGE KindSignatures
-           , DataKinds
-           , PolyKinds
-           , GADTs
-           , StandaloneDeriving
-           #-}
+{-# LANGUAGE 
+    QuasiQuotes
+  , TemplateHaskell
 
-{-# OPTIONS_GHC -Wall -fwarn-tabs #-}
+  -- Needed by spliced code 
+  , PolyKinds
+  , UndecidableInstances
+  , DataKinds
+  , GADTs
+  , ScopedTypeVariables
+  , StandaloneDeriving
+  #-}
+
+-- Singletons generates orphan instances warnings 
+{-# OPTIONS_GHC -Wall -fwarn-tabs -fno-warn-orphans #-}
+
+-- DEBUG
+-- {-# OPTIONS_GHC -ddump-splices #-} 
+
 ----------------------------------------------------------------
---                                                    2015.06.24
+--                                                    2015.06.28
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeEq
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -17,15 +28,91 @@
 -- Portability :  GHC-only
 --
 -- Singleton types for the @Hakaru*@ kind, and a decision procedure
--- for @Hakaru*@ type-equality.
---
--- TODO: use the singletons library instead... We're reusing their
--- names in order to mak the transition over easier
+-- for @Hakaru*@ type-equality. 
 ----------------------------------------------------------------
-module Language.Hakaru.Syntax.TypeEq where
+module Language.Hakaru.Syntax.TypeEq 
+    ( module Language.Hakaru.Syntax.TypeEq
+    , Sing(..), SingI(..), SingKind(..), SDecide(..), (:~:)(..)
+    ) where
 
 -- import Data.Proxy
 import Language.Hakaru.Syntax.DataKind
+{- -- BUG: this code does not work on my system(s). It generates some strange CPP errors.
+
+import Data.Singletons
+import Data.Singletons.TH 
+import Data.Singletons.Prelude (Sing(..))
+
+import Unsafe.Coerce
+
+genSingletons [ ''Hakaru, ''HakaruFun  ] 
+
+-- BUG: The generated code doesn't typecheck because it contains a Symbol, so it has to be written manually. I imagine singletons should have a way to handle Symbol but I haven't found.
+-- genSingletons [ ''HakaruCon ]
+
+-- Singleton datatype
+infixl 0 :%@
+data instance Sing (x :: HakaruCon k) where 
+    SHCon :: Sing s -> Sing (HCon s) 
+    (:%@) :: Sing a -> Sing b -> Sing (a :@ b) 
+
+-- Show instances for each singleton
+instance Show (SHakaru x) where
+    show = show . fromSing 
+instance Show (SHakaruCon (x :: HakaruCon Hakaru)) where
+    show = show . fromSing 
+instance Show (SHakaruFun x) where
+    show = show . fromSing 
+
+-- Type synonym for HakaruCon
+type SHakaruCon (x :: HakaruCon k) = Sing x
+
+-- Demoting/promoting. Used for showing singletons. 
+instance SingKind ('KProxy :: KProxy k)
+    => SingKind ('KProxy :: KProxy (HakaruCon k))
+    where
+    type DemoteRep ('KProxy :: KProxy (HakaruCon k)) =
+        HakaruCon (DemoteRep ('KProxy :: KProxy k))
+
+    fromSing (SHCon b_a1d9D) =
+        HCon ((unsafeCoerce :: String -> Symbol) (fromSing b_a1d9D))
+    fromSing ((:%@) b_a1d9E b_a1d9F) =
+        (:@) (fromSing b_a1d9E) (fromSing b_a1d9F)
+
+    toSing (HCon b_a1d9G) =
+        case toSing ((unsafeCoerce :: Symbol -> String) b_a1d9G)
+            :: SomeSing ('KProxy :: KProxy Symbol)
+        of { SomeSing c_a1d9H -> SomeSing (SHCon c_a1d9H) }
+
+    toSing (a :@ b) = 
+        case (toSing a :: SomeSing ('KProxy :: KProxy (HakaruCon k))
+            , toSing b :: SomeSing ('KProxy :: KProxy k)
+            )
+        of (SomeSing a', SomeSing b') -> SomeSing (a' :%@ b')
+
+-- Implicit singleton 
+instance SingI a            => SingI (HCon a) where sing = SHCon sing 
+instance (SingI a, SingI b) => SingI (a :@ b) where sing = (:%@) sing sing
+
+-- This generates jmEq (or rather a strong version)
+singDecideInstances [ ''Hakaru, ''HakaruCon, ''HakaruFun ] 
+
+type TypeEq = (:~:)
+
+jmEq :: SHakaru a -> SHakaru b -> Maybe (a :~: b)
+jmEq a b =
+    case a %~ b of 
+    Proved p -> Just p 
+    _        -> Nothing
+
+
+-- TODO: Smart constructors for built-in types like Pair, Either, etc.
+sPair :: Sing a -> Sing b -> Sing (HPair a b) 
+sPair a b =
+    SHTag (SHCon (singByProxy (Proxy :: Proxy "Pair")) :%@ a :%@ b) 
+        (SCons (SCons (SK a) $ SCons (SK b) SNil) SNil)
+-}
+
 
 ----------------------------------------------------------------
 -- | Singleton types for the kind of Hakaru types. We need to use

@@ -37,6 +37,7 @@ import Control.Monad (replicateM)
 import Control.Applicative
 import Data.Char 
 import Data.Typeable 
+import GHC.TypeLits 
 
 -- TODO: should this be polykinded rather than using (Hakaru *) explicitly?
 -- type family   NAryFun (r :: Hakaru * -> *) (o :: Hakaru *) (xs :: [Hakaru *])  :: * 
@@ -150,6 +151,7 @@ typeRepSing2 (SCons x xs) = mkTyConApp consTyCon [ typeRepSing1 x, typeRepSing2 
 type Cons (x :: k) (xs :: [k]) = x ': xs 
 type Nil = ('[] :: [k])
 
+
 type EmbeddableConstraint t = 
   (SingI (Code t), All SingI (Code t), All2 SingI (Code t)) 
 
@@ -157,6 +159,7 @@ type EmbeddableConstraint t =
 class (EmbeddableConstraint t) => Embeddable (t :: *) where 
   type Code t :: [[HakaruFun *]]
   datatypeInfo :: Proxy t -> DatatypeInfo (Code t)
+
 
 data instance Sing (x :: HakaruFun k) where 
   S_Id :: Sing Id

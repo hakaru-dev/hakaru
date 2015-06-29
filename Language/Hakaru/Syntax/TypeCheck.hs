@@ -36,7 +36,7 @@ import           Control.Monad     (forM_)
 import           Control.Applicative (Applicative)
 #endif
 
-import Language.Hakaru.Syntax.Nat (fromNat)
+import Language.Hakaru.Syntax.Nat    (fromNat)
 -- import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.TypeEq (Sing(..), TypeEq(Refl), jmEq)
 import Language.Hakaru.Syntax.AST

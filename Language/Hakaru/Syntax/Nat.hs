@@ -27,7 +27,11 @@ module Language.Hakaru.Syntax.Nat
 newtype Nat = Nat Int
     deriving (Eq, Ord, Show)
 
--- TODO: should we define our own Show instance, in order to just show the Int itself, relying on our 'fromInteger' definition to preserve cut&paste-ability? If so, then we should ensure that the Read instance is optional in whether the \"Nat\" is there or not.
+-- TODO: should we define our own Show instance, in order to just
+-- show the Int itself, relying on our 'fromInteger' definition to
+-- preserve cut&paste-ability? If so, then we should ensure that
+-- the Read instance is optional in whether the \"Nat\" is there
+-- or not.
 
 -- N.B., we cannot derive Read, since that would inject invalid numbers!
 instance Read Nat where
