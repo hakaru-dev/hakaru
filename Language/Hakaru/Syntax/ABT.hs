@@ -258,7 +258,7 @@ caseVarSynABT e var_ syn_ =
 -- very expensive for this ABT, because we have to traverse the
 -- term every time we want to get it. Use 'FreeVarsABT' to fix this.
 newtype TrivialABT (a :: Hakaru) =
-    TrivialABT { unTrivialABT :: View TrivialABT a }
+    TrivialABT (View TrivialABT a)
 
 instance ABT TrivialABT where
     syn  t                = TrivialABT (Syn  t)
@@ -272,7 +272,7 @@ instance ABT TrivialABT where
 
     viewABT (TrivialABT v) = v
 
-    freeVars = go . unTrivialABT
+    freeVars = go . viewABT
         where
         go (Syn  t)   = foldMap1 freeVars t
         go (Var  x _) = Set.singleton x
