@@ -146,8 +146,14 @@ instance HRadical 'HProb
 -- TODO: class (HDivisionRing a, HRadical a) => HAlgebraic a where...
 
 
--- TODO: find a better name than HIntegral
+-- TODO: find better names than HContinuous and HIntegral
 -- TODO: how to require that "if HRing a, then HRing b too"?
+-- TODO: should we call this something like Dedekind-complete?
+-- That's what distinguishes the reals from the rationals. Of course,
+-- calling it that suggests (but does not require) that we should
+-- have some supremum operator; but supremum only differs from
+-- maximum if we have some way of talking about infinite sets of
+-- values (which is surely too much to bother with).
 class (HSemiring (HIntegral a), HFractional a)
     => HContinuous (a :: Hakaru) where type HIntegral a :: Hakaru
 instance HContinuous 'HProb where type HIntegral 'HProb = 'HNat 

@@ -64,8 +64,8 @@ data Hakaru
     -- this is /not/ restructed to the @[0,1]@ interval!
     | HProb
 
-    -- | The real projective line. That is, the real numbers extended
-    -- with positive and negative infinities.
+    -- | The affinely extended real number line. That is, the real
+    -- numbers extended with positive and negative infinities.
     | HReal
 
     -- TODO: so much of our code has to distinguish between monadic and pure stuff. Maybe we should just break this out into a separate larger universe?
