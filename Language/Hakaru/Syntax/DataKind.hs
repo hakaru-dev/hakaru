@@ -68,6 +68,7 @@ data Hakaru
     -- with positive and negative infinities.
     | HReal
 
+    -- TODO: so much of our code has to distinguish between monadic and pure stuff. Maybe we should just break this out into a separate larger universe?
     -- | The measure monad
     | HMeasure !Hakaru
 

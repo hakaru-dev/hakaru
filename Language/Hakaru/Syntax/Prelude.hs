@@ -283,6 +283,7 @@ negate e0 =
 
 
 -- TODO: test case: @negative . square@ simplifies away the intermediate coercions. (cf., normal')
+-- BUG: this can lead to ambiguity when used with the polymorphic functions of RealProb.
 -- | An occasionally helpful variant of 'negate'.
 negative :: (ABT abt, HRing a) => abt (NonNegative a) -> abt a
 negative = negate . coerceTo_ Signed
@@ -355,24 +356,8 @@ n `thRootOf` x = primOp2_ NatRoot x n
 sqrt :: (ABT abt, HRadical a) => abt a -> abt a
 sqrt = (nat_ 2 `thRootOf`)
 
--- HACK: for monomorphism. We should get rid of this...
-pi_ :: (ABT abt) => abt 'HProb
-pi_  = primOp0_ Pi
-
 betaFunc :: (ABT abt) => abt 'HProb -> abt 'HProb -> abt 'HProb
 betaFunc = primOp2_ BetaFunc
-
--- HACK: for monomorphism. We should get rid of this...
-pow_ :: (ABT abt) => abt 'HProb -> abt 'HReal -> abt 'HProb
-pow_ = primOp2_ RealPow
-
--- HACK: for monomorphism. We should get rid of this...
-exp_ :: (ABT abt) => abt 'HReal -> abt 'HProb
-exp_ = primOp1_ Exp
-
--- HACK: for monomorphism. We should get rid of this...
-log_ :: (ABT abt) => abt 'HProb -> abt 'HReal
-log_ = primOp1_ Log
 
 {-
 -- TODO: simplifications
@@ -396,20 +381,20 @@ class RealProb (a :: Hakaru) where
     gammaFunc :: (ABT abt) => abt a -> abt 'HProb
 
 instance RealProb 'HReal where
-    (**)      = pow_
-    exp       = exp_
-    log       = log_
+    (**)      = primOp2_ RealPow
+    exp       = primOp1_ Exp
+    log       = primOp1_ Log
     erf       = primOp1_ (Erf {- 'HReal -})
-    pi        = coerceTo_ Signed pi_
+    pi        = coerceTo_ Signed $ primOp0_ Pi
     infinity  = coerceTo_ Signed $ primOp0_ Infinity
     gammaFunc = primOp1_ GammaFunc
 
 instance RealProb 'HProb where
-    x ** y    = pow_ x (coerceTo_ Signed y)
-    exp       = exp_ . coerceTo_ Signed
-    log       = unsafeFrom_ Signed . log_ -- error for inputs in [0,1)
+    x ** y    = primOp2_ RealPow x (coerceTo_ Signed y)
+    exp       = primOp1_ Exp . coerceTo_ Signed
+    log       = unsafeFrom_ Signed . primOp1_ Log -- error for inputs in [0,1)
     erf       = primOp1_ (Erf {- 'HProb -})
-    pi        = pi_
+    pi        = primOp0_ Pi
     infinity  = primOp0_ Infinity
     gammaFunc = primOp1_ GammaFunc . coerceTo_ Signed
 
@@ -648,9 +633,9 @@ normal' mu sd  =
     lebesgue `bind` \x ->
     superpose
         -- alas, we loose syntactic negation...
-        [( exp_ (negate ((x - mu) ^ nat_ 2)  -- TODO: use negative\/square instead of negate\/(^2)
+        [( exp (negate ((x - mu) ^ nat_ 2)  -- TODO: use negative\/square instead of negate\/(^2)
             / fromProb (prob_ 2 * sd ** real_ 2)) -- TODO: use square instead of (**2) ?
-            / sd / sqrt (prob_ 2 * pi_)
+            / sd / sqrt (prob_ 2 * pi)
         , dirac x
         )]
 
@@ -685,7 +670,7 @@ gamma' shape scale =
         (let x_ = unsafeProb x in
          superpose
             [( x_ ** (fromProb shape - real_ 1)
-                * exp_ (negative $ x_ / scale)
+                * exp (negate . fromProb $ x_ / scale)
                 / (scale ** shape * gammaFunc shape)
             , dirac x_
             )])

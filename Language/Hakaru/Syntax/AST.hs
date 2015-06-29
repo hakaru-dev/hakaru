@@ -446,6 +446,10 @@ data Pattern :: Hakaru -> * where
     PIdent :: !(Pattern a) -> Pattern ('[ '[ 'I   ] ] ':$ a)
     PKonst :: !(Pattern b) -> Pattern ('[ '[ 'K b ] ] ':$ a)
 
+deriving instance Eq   (Pattern a)
+-- BUG: deriving instance Read (Pattern a)
+deriving instance Show (Pattern a)
+
 
 -- BUG: should we even bother making these into pattern synonyms?
 -- We can't do it for any of the other derived patterns, so having
@@ -464,11 +468,6 @@ pInl a = PRoll (PZero (PKonst a))
 
 pInr :: Pattern b -> Pattern (HEither a b)
 pInr a = PRoll (PSucc (PKonst a))
-
-
-deriving instance Eq   (Pattern a)
--- BUG: deriving instance Read (Pattern a)
-deriving instance Show (Pattern a)
 
 
 
