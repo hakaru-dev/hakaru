@@ -8,7 +8,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.06.24
+--                                                    2015.06.28
 -- |
 -- Module      :  Language.Hakaru.Syntax.Prelude
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -121,12 +121,9 @@ matchNaryOp o e =
             NaryOp_ o' xs | o' Prelude.== o -> Just xs
             _ -> Nothing
 
-
--- cf., <http://comonad.com/reader/2014/fast-circular-substitution/> for magicking our way out of HOAS. Also, we should just feed that into our ABT framework
--- TODO: give @k@ an actual @Var@ instead of the @Variable@ name? If we try that, then be sure to check 'uneither'
--- TODO: how can we generate fresh names? Should we have @abt@ be a monad?
+--- TODO: give @k@ an actual @Var@ instead of the @Variable@ name? If we try that, then be sure to check 'uneither'
 freshVar :: (ABT abt) => (Variable -> abt a) -> abt a
-freshVar k = k $ error "TODO: freshVar"
+freshVar k = k $ error "TODO: figure out how to implement freshVar in terms of binder"
 
 
 ----------------------------------------------------------------
@@ -434,6 +431,7 @@ unit = primOp0_ Unit
 pair :: (ABT abt) => abt a -> abt b -> abt ('HPair a b)
 pair = primOp2_ Pair
 
+
 unpair
     :: (ABT abt, SingI a, SingI b)
     => abt ('HPair a b)
@@ -506,7 +504,7 @@ size :: (ABT abt) => abt ('HArray a) -> abt 'HInt
 size = coerceTo_ signed . primOp1_ Size
 
 reduce
-    :: (ABT abt, SingI a)
+    :: (ABT abt, Bindable abt, SingI a)
     => (abt a -> abt a -> abt a)
     -> abt a
     -> abt ('HArray a)
@@ -710,10 +708,23 @@ summate lo hi f =
 -- instance (ABT abt) => Lambda abt where
 -- 'app' already defined
 
-lam :: (ABT abt, SingI a) => (abt a -> abt b) -> abt ('HFun a b)
-lam f = 
-    freshVar $ \x ->
-    syn . Lam_ Proxy . open x $ f (var x sing)
+lam :: (ABT abt, Bindable abt, SingI a)
+    => (abt a -> abt b)
+    -> abt ('HFun a b)
+lam = binder (\x e -> syn . Lam_ Proxy $ open x e) "_" sing
+
+{-
+-- some test cases to make sure we tied-the-knot successfully:
+> let
+    lam :: (ABT abt, Bindable abt)
+        => String
+        -> Sing a
+        -> (abt a -> abt b)
+        -> abt ('HFun a b)
+    lam name typ = binder (\x e -> syn . Lam_ Proxy $ open x e) name typ
+> lam "x" SInt (\x -> x) :: TrivialABT ('HFun 'HInt 'HInt)
+> lam "x" SInt (\x -> lam "y" SInt $ \y -> x < y) :: TrivialABT ('HFun 'HInt ('HFun 'HInt 'HBool))
+-}
 
 let_ :: (ABT abt, SingI a) => abt a -> (abt a -> abt b) -> abt b
 let_ e f = 

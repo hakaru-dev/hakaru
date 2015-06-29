@@ -466,6 +466,9 @@ instance Show1 ast => Show (Branch a ast b) where
 instance Functor1 (Branch a) where
     fmap1 f (Branch p e) = Branch p (f e)
 
+instance Foldable1 (Branch a) where
+    foldMap1 f (Branch _ e) = f e
+
 ----------------------------------------------------------------
 -- TODO: define a well-formedness check for the ABT structure, since
 -- we don't encode it into the Haskell types themselves. For clarity,
@@ -643,12 +646,12 @@ instance Show1 ast => Show1 (AST ast) where
                 . showList1 es
                 )
         Maybe_ me            -> error "TODO: show Maybe_"
-        Case_  e pes         ->
+        Case_  e bs          ->
             showParen (p > 9)
                 ( showString "Case_ "
                 . showsPrec1 11 e
                 . showString " "
-                . showList1 pes
+                . showList1 bs
                 )
         Array_  e1 e2        -> showParen_11  p "Array_"  e1 e2
         Roll_   e            -> showParen_1   p "Roll_"   e
@@ -681,7 +684,7 @@ instance Functor1 AST where
     fmap1 f (UnsafeFrom_ c e)     = UnsafeFrom_ c (f e)
     fmap1 f (List_   es)          = List_  (map f es)
     fmap1 f (Maybe_  me)          = Maybe_ (fmap f me)
-    fmap1 f (Case_   e pes)       = Case_ (f e) (map (fmap1 f) pes)
+    fmap1 f (Case_   e  bs)       = Case_ (f e) (map (fmap1 f) bs)
     fmap1 f (Array_  e1 e2)       = Array_  (f e1) (f e2)
     fmap1 f (Roll_   e)           = Roll_   (f e)
     fmap1 f (Unroll_ e)           = Unroll_ (f e)
@@ -710,7 +713,7 @@ instance Foldable1 AST where
     foldMap1 f (UnsafeFrom_ _ e)     = f e
     foldMap1 f (List_   es)          = F.foldMap f es
     foldMap1 f (Maybe_  me)          = F.foldMap f me
-    foldMap1 f (Case_   e pes)       = f e  `mappend` F.foldMap (f . branchBody) pes
+    foldMap1 f (Case_   e  bs)       = f e  `mappend` F.foldMap (f . branchBody) bs
     foldMap1 f (Array_  e1 e2)       = f e1 `mappend` f e2
     foldMap1 f (Roll_   e)           = f e
     foldMap1 f (Unroll_ e)           = f e

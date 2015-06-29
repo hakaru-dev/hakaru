@@ -33,33 +33,26 @@
 module Language.Hakaru.Syntax.ABT
     (
     -- * Our basic notion of variables\/names.
-      Variable(..)
-    , varHint
-    , varID
+      Variable(..), varName, varID
     -- * The abstract binding tree interface
+    , ABTException(..)
     -- See note about exposing 'View', 'viewABT', and 'unviewABT'
     , View(..), unviewABT
     , ABT(..), caseVarSynABT
     , subst
-    , ABTException(..)
+    -- ** Constructing first-order trees with a HOAS-like API
+    -- cf., <http://comonad.com/reader/2014/fast-circular-substitution/>
+    , Bindable(..), binder
     -- ** Some ABT instances
     , TrivialABT()
     , FreeVarsABT()
-    {-
-    , BinderABT(), binder
-    -}
     ) where
 
-{-
-import           Data.Proxy
--}
 import           Data.Typeable     (Typeable)
 import           Data.Set          (Set)
 import qualified Data.Set          as Set
 import           Data.Function     (on)
-{-
 import qualified Data.Foldable     as F
--}
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Monoid
 #endif
@@ -74,18 +67,33 @@ import Language.Hakaru.Syntax.AST
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 -- TODO: actually define 'Variable' as something legit
+-- TODO: use Text instead of String.
+-- TODO: should we make this type abstract?
 --
--- TODO: maybe have @Variable a@ instead, with @SomeVariable@ to package up the existential?
+-- TODO: maybe have @Variable a@ instead, with @SomeVariable@ to
+-- package up the existential?
 --
--- N.B., This is lazy in its components!
--- TODO: finish combining the \"fast circular substitution\" pearl with the ABT framework.
--- <http://comonad.com/reader/2014/fast-circular-substitution/>
-data Variable = Variable String Nat
+-- TODO: we may want to parameterize ABTs over their implementation
+-- of Variable, so that we can use strict\/unpacked Nats everywhere
+-- once we're done building the tree with 'binder'... Or, since we
+-- unpack Variable in View, maybe it'd be better to parameterize
+-- the ABT by its concrete view? If we did that, then we could
+-- define a specialized Open for FreeVarsABT, in order to keep track
+-- of whether the bound variable occurs or not (for defining
+-- 'caseOpenABT' precisely).
+--
+-- | A variable is a pair of some hint for the name ('varName') and
+-- some unique identifier ('varID'). N.B., the unique identifier
+-- is lazy so that we can tie-the-knot in 'binder'.
+data Variable = Variable !String Nat
     deriving (Read, Show)
 
--- | Project out the string the user suggested as a name for the variable.
-varHint :: Variable -> String
-varHint (Variable n _) = n
+-- | Project out the string the user suggested as a name for the
+-- variable. N.B., this name does not uniquely identify the variable;
+-- it is only a hint for how to show the variable when we need to
+-- print things out.
+varName :: Variable -> String
+varName (Variable name _) = name
 
 -- | Project out the unique identifier for the variable.
 varID :: Variable -> Nat
@@ -99,8 +107,9 @@ instance Ord Variable where
 
 -- | Generate a new variable with the same hint as the old one.
 -- N.B., the new variable is not guaranteed to be fresh! To do that,
--- we'd need some sort of name supply, and thus would need to be
--- monadic.
+-- we'd need some sort of name supply (and thus would need to be
+-- monadic), or some sort of knowledge about the context in which
+-- the variable will be used (e.g., as in 'binder')
 prime :: Variable -> Variable
 prime (Variable n i) = Variable n (i + 1)
 
@@ -192,10 +201,11 @@ instance Show1 abt => Show (View abt a) where
 
 -- TODO: neelk includes 'subst' in the signature. Any reason we should?
 class ABT (abt :: Hakaru * -> *) where
-    syn      :: AST abt a          -> abt a
-    var      :: Variable -> Sing a -> abt a
-    open     :: Variable -> abt  a -> abt a
+    syn  :: AST abt a          -> abt a
+    var  :: Variable -> Sing a -> abt a
+    open :: Variable -> abt  a -> abt a
 
+    -- TODO: better name. "unopen"? "caseOpen"? "fromOpen"?
     -- | Assume the ABT is 'Open' and then project out the components.
     -- If the ABT is not 'Open', then this function will throw an
     -- 'ExpectedOpenException' error.
@@ -310,11 +320,14 @@ instance Show (TrivialABT a) where
 -- FreeVarsABT itself...
 --
 -- TODO: generalize this pattern for any monoidal annotation?
+-- TODO: does keeping the set lazy allow us to use 'binder'? At what performance cost?
 --
 -- | An ABT which keeps track of free variables. The 'freeVars'
--- method is /O(1)/ for this ABT.
+-- method is /O(1)/ for this ABT. N.B., the memoized set of free
+-- variables is lazy so that we can tie-the-knot in 'binder'
+-- without interfering with our memos.
 data FreeVarsABT (a :: Hakaru *)
-    = FreeVarsABT !(Set Variable) !(View FreeVarsABT a)
+    = FreeVarsABT (Set Variable) !(View FreeVarsABT a)
     -- N.B., Set is a monoid with {Set.empty; Set.union; Set.unions}
     -- For a lot of code, the other component ordering would be
     -- nicer; but this ordering gives a more intelligible Show instance.
@@ -326,7 +339,7 @@ instance ABT FreeVarsABT where
 
     caseOpenABT (FreeVarsABT xs v) k =
         case v of
-        Open x v' -> k x (FreeVarsABT (Set.insert x xs) v')
+        Open x v' -> k x (FreeVarsABT (Set.insert x xs) v') -- HACK: the variable @x@ doesn't necessarily occur in @v'@! But the only way to be strictly correct is to go back to the non-recursive View, and pay the cost of keeping all thise duplicate Sets around... I suppose we could add a chain of Bools to FreeVarsABT, keeping track for each variable bound by Open whether it actually occured or not...
         _         -> throw ExpectedOpenException -- TODO: add info about the call-site
 
     viewABT  (FreeVarsABT _  v) = v
@@ -347,6 +360,7 @@ instance Show (FreeVarsABT a) where
     showsPrec = showsPrec1
     show      = show1
 
+
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 -- TODO: something smarter
@@ -355,6 +369,7 @@ freshen x xs
     | x `Set.member` xs = freshen (prime x) xs
     | otherwise         = x
 
+
 -- | Rename a free variable. Does nothing if the variable is bound.
 rename :: forall abt a. (ABT abt) => Variable -> Variable -> abt a -> abt a
 rename x y = start
@@ -362,6 +377,7 @@ rename x y = start
     start :: forall b. abt b -> abt b
     start e = loop e (viewABT e)
 
+    -- TODO: is it actually worth passing around the @e@? Benchmark.
     loop :: forall b. abt b -> View abt b -> abt b
     loop _ (Syn t)  = syn (fmap1 start t)
     loop e (Var z p)
@@ -388,6 +404,7 @@ subst x e = start
     start :: forall c. abt c -> abt c
     start f = loop f (viewABT f)
 
+    -- TODO: is it actually worth passing around the @f@? Benchmark.
     loop :: forall c. abt c -> View abt c -> abt c
     loop _ (Syn t)    = syn (fmap1 start t)
     loop f (Var z p)
@@ -415,68 +432,80 @@ subst x e = start
 
 
 ----------------------------------------------------------------
-{-
--- cf., <http://comonad.com/reader/2014/fast-circular-substitution/> for magicking our way out of HOAS. Also, we should just feed that into our ABT framework
-
-
--- | An ABT which keeps track of free variables, and provides a
--- name supply for generating fresh binders via a HOAS-like interface.
--- N.B., the choice of names is non-canonical, so you may need to
--- 'rebind' terms in order to canonicalize them.
-data BinderABT (a :: Hakaru *)
-    = BinderABT {-# UNPACK #-} !Nat !(Set Variable) !(View BinderABT a)
-
-instance Show1 BinderABT where
-    showsPrec1 p (BinderABT n xs v) =
-        showParen (p > 9)
-            ( showString "BinderABT "
-            . showsPrec  11 n
-            . showString " "
-            . showsPrec  11 xs
-            . showString " "
-            . showsPrec1 11 v
-            )
-
-instance Show (BinderABT a) where
-    showsPrec = showsPrec1
-    show      = show1
+----------------------------------------------------------------
+-- TODO: Memoizing the highest bound seen so far (from the bottom-up)
+-- breaks our ability to tie-the-knot in 'binder'. However, when
+-- it comes to program transformations, it might make sense to
+-- memoize the largest binder the transformation passes under (cf.,
+-- the discussion in the paper about program transformations). Of
+-- course, we could also use some Locally Nameless style approach
+-- to deal with that issue...
 
 class Bindable (ast :: Hakaru * -> *) where
-    -- | Return the largest 'varID' of variable binding sites,
-    -- without traversing into the body under those binders.
+    -- | Return the largest 'varID' of variable /binding sites/.
+    -- N.B., this should return 0 for the bound variables themselves.
+    -- For performance, don't traverse into the body under those
+    -- binders. (If all terms are constructed via 'binder', then
+    -- soundness is guaranteed without needing to traverse under
+    -- binders.)
     bound :: ast a -> Nat
 
-instance Bindable BinderABT where
-    bound (BinderABT n _ _) = n
 
-maximumBound  :: (Bindable ast) => [ast a] -> Nat
-maximumBound  = F.foldl' (\n e -> n `max` bound e) 0
+-- For multibinders (i.e., nested uses of Open) we recurse through
+-- the whole binder, just to be sure. However, we should be able
+-- to just look at the first binder, since multibinders will need
+-- to be constructed from multiple calls to 'binder'.
+-- TODO: check correctness of just returning the topmost binder.
+boundView :: Bindable abt => View abt a -> Nat
+boundView = go 0
+    where
+    go 0 (Syn  t)   = bound t
+    go n (Syn  _)   = n -- Don't go under binders
+    go n (Var  _ _) = n
+    go n (Open x v) = go (n `max` varID x) v
+
+instance Bindable TrivialABT where
+    bound = boundView . viewABT
+
+instance Bindable FreeVarsABT where
+    bound = boundView . viewABT
+
+
+-- HACK: can't use 'foldMap(1)' unless we newtype wrap up the Nats to say which monoid we mean.
+-- N.B., the Prelude's 'maximum' throws an error on empty lists!
+maximumBound :: (Bindable ast) => [ast a] -> Nat
+maximumBound = F.foldl' (\n e -> n `max` bound e) 0
 
 maximumBound2 :: (Bindable ast) => [(ast a, ast b)] -> Nat
 maximumBound2 = F.foldl' (\n (e1,e2) -> n `max` bound e1 `max` bound e2) 0
 
--- N.B., we needn't traverse into the type annotation, since we don;t have dependent types, hence no term variables in the types.
+maximumBoundBranch :: (Bindable ast) => [Branch a ast b] -> Nat
+maximumBoundBranch = F.foldl' (\n b -> n `max` bound (branchBody b)) 0
+
+-- N.B., we needn't traverse into any type annotations, since we
+-- don't have dependent types, hence no term variables can appear
+-- in the types.
 instance Bindable abt => Bindable (AST abt) where
-    bound (Lam_ _  e)           = error "TODO: bound" -- TODO: how to traverse only the Opens of e, without going into the body? It looks like our memoization trick isn't enough keep our tying-the-knot from looping.
+    bound (Lam_ _  e)           = bound e
     bound (App_ e1 e2)          = bound e1 `max` bound e2
-    bound (Let_ e1 e2)          = bound e1 `max` error "TODO: bound" 
-    bound (Fix_ e)              = error "TODO: bound" 
+    bound (Let_ e1 e2)          = bound e1 `max` bound e2
+    bound (Fix_ e)              = bound e
     bound (Ann_ _  e)           = bound e
     bound (PrimOp_ _)           = 0
     bound (NaryOp_ _ es)        = maximumBound (F.toList es)
-    bound (Integrate_ e1 e2 e3) = bound e1 `max` bound e2 `max` error "TODO: bound" 
-    bound (Summate_   e1 e2 e3) = bound e1 `max` bound e2 `max` error "TODO: bound" 
+    bound (Integrate_ e1 e2 e3) = bound e1 `max` bound e2 `max` bound e3
+    bound (Summate_   e1 e2 e3) = bound e1 `max` bound e2 `max` bound e3
     bound (Value_ _)            = 0
     bound (CoerceTo_   _ e)     = bound e
     bound (UnsafeFrom_ _ e)     = bound e
     bound (List_   es)          = maximumBound es
     bound (Maybe_  Nothing)     = 0
     bound (Maybe_  (Just e))    = bound e
-    bound (Case_   e pes)       = bound e  `max` error "TODO: bound" 
-    bound (Array_  e1 e2)       = bound e1 `max` error "TODO: bound" 
+    bound (Case_   e  bs)       = bound e  `max` maximumBoundBranch bs
+    bound (Array_  e1 e2)       = bound e1 `max` bound e2
     bound (Roll_   e)           = bound e
     bound (Unroll_ e)           = bound e
-    bound (Bind_   e1 e2)       = bound e1 `max` error "TODO: bound" 
+    bound (Bind_   e1 e2)       = bound e1 `max` bound e2
     bound (Superpose_ pes)      = maximumBound2 pes
     bound (Dp_     e1 e2)       = bound e1 `max` bound e2
     bound (Plate_  e)           = bound e
@@ -485,54 +514,24 @@ instance Bindable abt => Bindable (AST abt) where
     bound Bot_                  = 0
 
 
-instance ABT BinderABT where
-    syn t =
-        BinderABT (bound t) (foldMap1 freeVars t) (Syn t)
-    
-    var x p =
-        BinderABT 0 (Set.singleton x) (Var x p)
-    
-    open x (BinderABT n xs v) =
-        BinderABT (varID x `max` n) (Set.delete x xs) (Open x v)
-
-    -- HACK: we don't bother lowering the memoized upper bound here!
-    caseOpenABT (BinderABT n xs v) k =
-        case v of
-        Open x v' -> k x (BinderABT n (Set.insert x xs) v')
-        _         -> throw ExpectedOpenException -- TODO: add info about the call-site
-
-    viewABT  (BinderABT _ _  v) = v
-
-    freeVars (BinderABT _ xs _) = xs
-
-
+-- | A combinator for defining a HOAS-like API for our syntax.
+-- Because our 'AST' is first-order, we cannot actually have any
+-- exotic terms in our language. In principle, this function could
+-- be used to do exotic things when constructing those non-exotic
+-- terms; however, trying to do anything other than change the
+-- variable's name hint will cause things to explode (since it'll
+-- interfere with our tying-the-knot).
 binder
     :: (ABT abt, Bindable abt)
-    => (Variable -> abt b -> r)
-    -> String
-    -> Sing a
-    -> (abt a -> abt b)
+    => (Variable -> abt b -> r) -- ^ The binder's data constructor
+    -> String                   -- ^ The variable's name hint
+    -> Sing a                   -- ^ The variable's type
+    -> (abt a -> abt b)         -- ^ Buid the binder's body from a variable
     -> r
 binder cons name typ hoas = cons x body
     where
     body = hoas (var x typ)
     x    = Variable name (bound body + 1)
 
-
-lam :: (ABT abt, Bindable abt)
-    => String
-    -> Sing a
-    -> (abt a -> abt b)
-    -> abt ('HFun a b)
-lam name typ = binder (\x e -> syn . Lam_ Proxy $ open x e) name typ
-
-{-
-This works fine if we just recurse with 'bound' in all the TODO spots above:
-> lam "x" SInt (\x -> x) :: BinderABT _
-
-However, this will break if we do that:
-> lam "x" SInt (\x -> lam "y" SInt $ \y -> syn$App_ (syn$App_ (syn$PrimOp_ Less) x) y) :: BinderABT _
--}
--}
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
