@@ -94,7 +94,7 @@ deriving instance Show (Value a)
 
 -- N.B., we do case analysis so that we don't need the class constraint!
 singValue :: Value a -> Sing a
-singValue (Bool_ _) = sing
+-- singValue (Bool_ _) = sing -- BUG: "overlapping instances" for SingI HBool??
 singValue (Nat_  _) = sing
 singValue (Int_  _) = sing
 singValue (Prob_ _) = sing
@@ -139,8 +139,8 @@ deriving instance Show (NaryOp a)
 
 -- N.B., we do case analysis so that we don't need the class constraint!
 singNaryOp :: NaryOp a -> Sing a
-singNaryOp And  = sing
-singNaryOp Or   = sing
+-- singNaryOp And  = sing -- BUG: "overlapping instances" for SingI HBool??
+-- singNaryOp Or   = sing -- BUG: "overlapping instances" for SingI HBool??
 {- BUG: case analysis isn't enough here, because of the class constraints. We should be able to fix that by passing explicit singleton dictionaries instead of using Haskell's type classes
 singNaryOp Min  = sing
 singNaryOp Max  = sing
@@ -348,6 +348,8 @@ deriving instance Show (PrimOp a)
 
 -- N.B., we do case analysis so that we don't need the class constraint!
 singPrimOp :: PrimOp a -> Sing a
+{-
+-- BUG: "overlapping instances" for SingI HBool??
 singPrimOp Not         = sing
 singPrimOp Xor         = sing
 singPrimOp Iff         = sing
@@ -355,6 +357,7 @@ singPrimOp Impl        = sing
 singPrimOp Diff        = sing
 singPrimOp Nand        = sing
 singPrimOp Nor         = sing
+-}
 singPrimOp Pi          = sing
 singPrimOp Sin         = sing
 singPrimOp Cos         = sing
@@ -408,7 +411,6 @@ singPrimOp _ = error "TODO: singPrimOp"
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
--- TODO: extend our patterns to include the embed/SOP stuff
 -- TODO: negative patterns? (to facilitate reordering of case branches)
 -- TODO: exhaustiveness, non-overlap, dead-branch checking
 --
@@ -421,8 +423,19 @@ singPrimOp _ = error "TODO: singPrimOp"
 -- prolly overkill since we can just run the type checker over our
 -- AST.
 data Pattern :: Hakaru -> * where
-    PWild  :: Pattern a -- ^ The \"don't care\" wildcard pattern.
-    PVar   :: Pattern a -- ^ A pattern variable.
+    PWild :: Pattern a -- ^ The \"don't care\" wildcard pattern.
+    PVar  :: Pattern a -- ^ A pattern variable.
+    -- TODO: equality patterns for Nat\/Int.
+    -- Does it make sense to have equality patterns for Prob\/Real?
+    -- No patterns for HFun, HMeasure, or HArray.
+
+    -- | End-users should never see the 'PRoll' pattern; we
+    -- automatically insert it wherever necessary.
+    PRoll
+        :: !(Pattern (Code con ':$ 'HTag con (Code con)))
+        -> Pattern ('HTag con (Code con))
+
+    -- BUG: rename all the patterns, data-constructors, singletons, and types to be *consistent*!
     PNil   :: Pattern ('[ '[] ] ':$ a)
     PCons
         :: !(Pattern ('[ '[ x ] ] ':$ a))
@@ -430,28 +443,27 @@ data Pattern :: Hakaru -> * where
         -> Pattern ('[ x ': xs ] ':$ a)
     PZero  :: !(Pattern ('[ xs ] ':$ a)) -> Pattern ((xs ': xss) ':$ a)
     PSucc  :: !(Pattern (xss ':$ a))     -> Pattern ((xs ': xss) ':$ a)
-    PTag
-        :: !(Pattern (Code con ':$ 'HTag con (Code con)))
-        -> Pattern ('HTag con (Code con))
     PIdent :: !(Pattern a) -> Pattern ('[ '[ 'I   ] ] ':$ a)
     PKonst :: !(Pattern b) -> Pattern ('[ '[ 'K b ] ] ':$ a)
 
 
 -- BUG: should we even bother making these into pattern synonyms?
 -- We can't do it for any of the other derived patterns, so having
--- these ones just screws up the API.
-pattern PTrue  = (PTag (PZero PNil) :: Pattern HBool)
-pattern PFalse = (PTag (PSucc PNil) :: Pattern HBool)
-pattern PUnit  = (PTag PNil         :: Pattern HUnit)
+-- these ones just screws up the API. Of course, once we move to
+-- GHC 7.10, then we're finally allowed to have polymorphic pattern
+-- synonyms, so we can make the other ones work!
+pattern PTrue  = (PRoll (PZero PNil) :: Pattern HBool)
+pattern PFalse = (PRoll (PSucc PNil) :: Pattern HBool)
+pattern PUnit  = (PRoll PNil         :: Pattern HUnit)
 
 pPair :: Pattern a -> Pattern b -> Pattern (HPair a b)
-pPair a b = PTag (PCons (PKonst a) (PKonst b))
+pPair a b = PRoll (PCons (PKonst a) (PKonst b))
 
 pInl :: Pattern a -> Pattern (HEither a b)
-pInl a = PTag (PZero (PKonst a))
+pInl a = PRoll (PZero (PKonst a))
 
 pInr :: Pattern b -> Pattern (HEither a b)
-pInr a = PTag (PSucc (PKonst a))
+pInr a = PRoll (PSucc (PKonst a))
 
 
 deriving instance Eq   (Pattern a)
@@ -654,7 +666,9 @@ instance Show1 ast => Show1 (AST ast) where
         App_    e1 e2        -> showParen_11  p "App_"    e1 e2
         Let_    e1 e2        -> showParen_11  p "Let_"    e1 e2
         Fix_    e            -> showParen_1   p "Fix_"    e
+        {- -- BUG: "Could not deduce (Show (Sing i))" ??
         Ann_    a e          -> showParen_01  p "Ann_"    a  e
+        -}
         PrimOp_ o            -> showParen_0   p "PrimOp_" o
         NaryOp_ o es         ->
             showParen (p > 9)

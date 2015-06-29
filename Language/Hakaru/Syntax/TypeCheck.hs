@@ -37,7 +37,7 @@ import           Control.Applicative   (Applicative)
 #endif
 import Language.Hakaru.Syntax.Nat      (fromNat)
 -- import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.TypeEq   (Sing(..), TypeEq(Refl), jmEq)
+import Language.Hakaru.Syntax.TypeEq
 import Language.Hakaru.Syntax.Coercion (singCoerceTo, singCoerceFrom)
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
@@ -268,7 +268,7 @@ checkType ctx e typ =
     Syn (Case_ e1 branches) -> do
         typ1 <- inferType ctx e1
         forM_ branches $ \(Branch pat body) ->
-            checkBranch ctx [TP pat typ1] body typ
+            checkBranch ctx body typ [TP pat typ1]
 
     Syn (CoerceTo_ c e1) ->
         checkType ctx e1 (singCoerceFrom c typ)
@@ -299,97 +299,138 @@ checkType ctx e typ =
             -- equivalence. More generally, we should have that the
             -- inferred @typ'@ is a subtype of (i.e., subsumed by)
             -- the goal @typ@. This will be relevant to us for handling our coercion calculus :(
-            if typ == typ' -- TODO: would using 'jmEq' be better?
-            then return ()
-            else failwith "Type mismatch"
+            case jmEq typ typ' of
+                Just Refl -> return ()
+                Nothing   -> failwith "Type mismatch"
 
 
 checkBranch
     :: ABT abt
     => Ctx
-    -> [TypedPattern]
     -> abt b
     -> Sing b
+    -> [TypedPattern]
     -> TypeCheckMonad ()
-checkBranch ctx []                 e body_typ = checkType ctx e body_typ
-checkBranch ctx (TP pat typ : pts) e body_typ =
-    case pat of
-    PVar ->
-        -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
-        caseOpenABT e $ \x e' ->
-            checkBranch (pushCtx (TV x typ) ctx) pts e' body_typ
-    PWild ->
-        checkBranch ctx pts e body_typ
-    {- -- BUG: doesn't work with the new Embed stuff
-    PTrue ->
-        case typ of
-        SBool -> checkBranch ctx pts e body_typ
-        _     -> failwith "expected term of HBool type"
-    PFalse ->
-        case typ of
-        SBool -> checkBranch ctx pts e body_typ
-        _     -> failwith "expected term of HBool type"
-    PUnit ->
-        case typ of
-        SUnit -> checkBranch ctx pts e body_typ
-        _     -> failwith "expected term of HUnit type"
-    PPair pat1 pat2 ->
-        case typ of
-        SPair typ1 typ2 ->
-            checkBranch ctx (TP pat1 typ1 : TP pat2 typ2 : pts) e body_typ
-        _ -> failwith "expected term of HPair type"
-    PInl pat1 ->
-        case typ of
-        SEither typ1 _ ->
-            checkBranch ctx (TP pat1 typ1 : pts) e body_typ
-        _ -> failwith "expected HEither type"
-    PInr pat2 ->
-        case typ of
-        SEither _ typ2 ->
-            checkBranch ctx (TP pat2 typ2 : pts) e body_typ
-        _ -> failwith "expected HEither type"
-    -}
+checkBranch ctx e body_typ = go
+    where
+    go []                 = checkType ctx e body_typ
+    go (TP pat typ : pts) =
+        case pat of
+        PVar ->
+            -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
+            caseOpenABT e $ \x e' ->
+                checkBranch (pushCtx (TV x typ) ctx) e' body_typ pts
+
+        PWild               -> go pts
+
+        {- -- BUG: doesn't work with the new Embed stuff
+        PTrue ->
+            case typ of
+            SBool           -> go pts
+            _               -> failwith "expected term of HBool type"
+        PFalse ->
+            case typ of
+            SBool           -> go pts
+            _               -> failwith "expected term of HBool type"
+        PUnit ->
+            case typ of
+            SUnit           -> go pts
+            _               -> failwith "expected term of HUnit type"
+        PPair pat1 pat2 ->
+            case typ of
+            SPair typ1 typ2 -> go (TP pat1 typ1 : TP pat2 typ2 : pts)
+            _               -> failwith "expected term of HPair type"
+        PInl pat1 ->
+            case typ of
+            SEither typ1 _  -> go (TP pat1 typ1 : pts)
+            _               -> failwith "expected HEither type"
+        PInr pat2 ->
+            case typ of
+            SEither _ typ2  -> go (TP pat2 typ2 : pts)
+            _               -> failwith "expected HEither type"
+        -}
+        
+        -- BUG: rename all the patterns, data-constructors, singletons, and types to be *consistent*!
+        
+        -- TODO: verify that this all works the way it should!
+        
+        -- pat  :: Pattern  ('HTag con (Code con))
+        -- pat1 :: Pattern  (Code con ':$ 'HTag con (Code con))
+        -- typ  :: Sing     ('HTag con (Code con))
+        -- typ1 :: SingCon  con
+        -- typ2 :: SingCode (Code con)
+        PRoll pat1 ->
+            case typ of
+            STag typ1 typ2 -> go (TP pat1 (SUnrolled typ2 typ) : pts)
+            _              -> failwith "expected term of user-defined type"
+
+        -- pat  :: Pattern  ('[ '[] ] ':$ a)
+        -- typ  :: Sing     ('[ '[] ] ':$ a)
+        -- typA :: Sing     a
+        PNil ->
+            case typ of
+            SUnrolled (SPlus SNil SVoid) typA -> go pts
+            _ -> failwith "expected term of `unit' type"
     
-    -- BUG: rename all the patterns, data-constructors, singletons, and types to be *consistent*!
-    
-    {- -- TODO:
-    PNil -> -- :: Pattern ('[ '[] ] ':$ a)
-        case typ of
-        SNil -> checkBranch ctx pts e body_typ
-        _    -> failwith "expected term of unit type"
+        -- pat  :: Pattern  ('[ x ': xs ] ':$ a)
+        -- pat1 :: Pattern  ('[ '[ x ] ]  ':$ a)
+        -- pat2 :: Pattern  ('[ xs ] ':$ a)
+        -- typ  :: Sing     ('[ x ': xs ] ':$ a)
+        -- typ1 :: SingFun  x
+        -- typ2 :: SingProd xs
+        -- typA :: Sing     a
+        PCons pat1 pat2 ->
+            case typ of
+            SUnrolled (SPlus (SCons typ1 typ2) SVoid) typA -> go
+                ( TP pat1 (SUnrolled (SPlus (SCons typ1 SNil) SVoid) typA)
+                : TP pat2 (SUnrolled (SPlus typ2 SVoid) typA)
+                : pts
+                )
+            _ -> failwith "expected term of `product' type"
 
-    PCons pat1 pat2 -> -- :: Pattern ('[ x ': xs ] ':$ a)
-        -- pat1 :: Pattern ('[ '[ x ] ] ':$ a)
-        -- pat2 :: Pattern ('[ xs ] ':$ a)
-        case typ of
-        SCons typ1 typ2 ->
-            checkBranch ctx (TP pat1 typ1 : TP pat2 typ2 : pts) e body_typ
-        _ -> failwith "expected term of product type"
+        -- pat  :: Pattern  ((xs ': xss) ':$ a)
+        -- pat1 :: Pattern  ('[ xs ] ':$ a)
+        -- typ  :: Sing     ((xs ': xss) ':$ a)
+        -- typ1 :: SingProd xs
+        -- typ2 :: SingCode xss
+        -- typA :: Sing     a
+        PZero pat1 ->
+            case typ of
+            SUnrolled (SPlus typ1 typ2) typA ->
+                go (TP pat1 (SUnrolled (SPlus typ1 SVoid) typA) : pts)
+            _ -> failwith "expected term of `zero' type"
 
-    PZero pat1 -> -- :: Pattern ((xs ': xss) ':$ a)
-        -- pat1 :: Pattern ('[ xs ] ':$ a
-        case typ of
-        SZero typ1 ->
-            checkBranch ctx (TP pat1 typ1 : pts) e body_typ
-        _ -> failwith "expected term of zero type"
+        -- pat  :: Pattern  ((xs ': xss) ':$ a)
+        -- pat1 :: Pattern  (xss ':$ a)
+        -- typ  :: Sing     ((xs ': xss) ':$ a)
+        -- typ1 :: SingProd xs
+        -- typ2 :: SingCode xss
+        -- typA :: Sing     a
+        PSucc pat1 ->
+            case typ of
+            SUnrolled (SPlus typ1 typ2) typA ->
+                go (TP pat1 (SUnrolled typ2 typA) : pts)
+            _ -> failwith "expected term of `sum' type"
 
-    PSucc pat1 -> -- :: Pattern ((xs ': xss) ':$ a)
-        -- pat1 :: Pattern (xss ':$ a)
-        case typ of
-        SSucc typ1 ->
-            checkBranch ctx (TP pat1 typ1 : pts) e body_typ
-        _ -> failwith "expected term of sum type"
+        -- pat  :: Pattern  ('[ '[ 'I ] ] ':$ a)
+        -- pat1 :: Pattern  a
+        -- typ  :: Sing     ('[ '[ 'I ] ] ':$ a)
+        -- typA :: Sing     a
+        PIdent pat1 ->
+            case typ of
+            SUnrolled (SPlus (SCons SIdent SNil) SVoid) typA ->
+                go (TP pat1 typA : pts)
+            _ -> failwith "expected term of `I' type"
 
-    -- BUG: that's not how iso-recursive types work
-    PTag pat1 -> -- :: Pattern ('HTag con (Code con))
-        -- pat1 :: Pattern (Code con ':$ 'HTag con (Code con))
-
-    PIdent pat1 -> -- :: Pattern ('[ '[ 'I ] ] ':$ a)
-        -- pat1 :: Pattern a
-
-    PKonst pat1 -> -- :: Pattern ('[ '[ 'K b ] ] ':$ a)
-        -- pat1 :: Pattern b
-    -}
+        -- pat  :: Pattern  ('[ '[ 'K b ] ] ':$ a)
+        -- pat1 :: Pattern  b
+        -- typ  :: Sing     ('[ '[ 'K b ] ] ':$ a)
+        -- typA :: Sing     a
+        PKonst pat1 ->
+            case typ of
+            SUnrolled (SPlus (SCons (SKonst typ1) SNil) SVoid) typA ->
+                go (TP pat1 typ1 : pts)
+            _ -> failwith "expected term of `K' type"
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

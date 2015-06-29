@@ -184,7 +184,8 @@ instance Show1 abt => Show1 (View abt) where
             ( showString "Var "
             . showsPrec  11 x
             . showString " "
-            . showsPrec  11 s
+            . error "BUG in ShowsPrec1(Var)"
+            -- @showsPrec 11 s@ -- "Could not deduce (Show (Sing i))"??
             )
     showsPrec1 p (Open x v) =
         showParen (p > 9)
@@ -300,7 +301,8 @@ instance Show1 TrivialABT where
             ( showString "var "
             . showsPrec  11 x
             . showString " "
-            . showsPrec  11 s
+            . error "BUG in ShowsPrec1(TrivialABT)"
+            -- @showsPrec 11 s@ -- "Could not deduce (Show (Sing i))"??
             )
     showsPrec1 p (TrivialABT (Open x v)) =
         showParen (p > 9)

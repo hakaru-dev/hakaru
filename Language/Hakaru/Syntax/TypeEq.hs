@@ -33,6 +33,7 @@
 module Language.Hakaru.Syntax.TypeEq 
     ( module Language.Hakaru.Syntax.TypeEq
     , Sing(..), SingI(..)
+    , SingCon(..), SingSymbol(..), SingCode(..), SingProd(..), SingFun(..)
     {-
     , SingKind(..), SDecide(..), (:~:)(..)
     -}
@@ -125,36 +126,50 @@ data Sing :: Hakaru -> * where
     SInt     :: Sing 'HInt
     SProb    :: Sing 'HProb
     SReal    :: Sing 'HReal
-    SMeasure :: Sing a -> Sing ('HMeasure a)
-    SArray   :: Sing a -> Sing ('HArray a)
-    SFun     :: Sing a -> Sing b -> Sing ('HFun a b)
+    SMeasure :: !(Sing a) -> Sing ('HMeasure a)
+    SArray   :: !(Sing a) -> Sing ('HArray a)
+    SFun     :: !(Sing a) -> !(Sing b) -> Sing ('HFun a b)
+
+    -- TODO: remove these
     SBool    :: Sing HBool
     SUnit    :: Sing HUnit
-    SPair    :: Sing a -> Sing b -> Sing (HPair a b)
-    SEither  :: Sing a -> Sing b -> Sing (HEither a b)
-    SList    :: Sing a -> Sing (HList a)
-    SMaybe   :: Sing a -> Sing (HMaybe a)
-    {-
-    -- TODO
-    SMu  :: SingSOPHakaruFun sop -> Sing ('HMu sop)
-    SApp :: SingSOPHakaruFun sop -> Sing a -> Sing (sop ':$ a)
-    STag :: Proxy a -> SingSOPHakaruFun sop -> Sing ('HTag a sop)
-    -}
+    SPair    :: !(Sing a) -> !(Sing b) -> Sing (HPair a b)
+    SEither  :: !(Sing a) -> !(Sing b) -> Sing (HEither a b)
+    SList    :: !(Sing a) -> Sing (HList a)
+    SMaybe   :: !(Sing a) -> Sing (HMaybe a)
 
-deriving instance Eq   (Sing a)
+    STag
+        :: !(SingCon con)
+        -> !(SingCode (Code con))
+        -> Sing ('HTag con (Code con))
+    -- TODO: @a@ should always be @'HTag con sop@, and @sop@ should always be @Code con@
+    SUnrolled
+        :: !(SingCode sop)
+        -> !(Sing a)
+        -> Sing (sop ':$ a)
+
+-- BUG: deriving instance Eq   (Sing a)
 -- BUG: deriving instance Read (Sing a)
-deriving instance Show (Sing a)
+-- BUG: deriving instance Show (Sing a)
 
-{-
-data SingHakaruFun :: Hakaru -> * where
-    SI :: SingHakaruFun 'I
-    SK :: SingHakaru a -> SingHakaruFun ('K a)
 
-deriving instance Eq   (SingHakaruFun a)
-deriving instance Read (SingHakaruFun a)
-deriving instance Show (SingHakaruFun a)
--}
+data SingCon :: HakaruCon Hakaru -> * where
+    SCon :: !(SingSymbol s)           -> SingCon ('HCon s) 
+    SApp :: !(SingCon a) -> !(Sing b) -> SingCon (a ':@ b) 
 
+data SingSymbol s = BUG -- TODO: fixme
+
+data SingCode :: [[HakaruFun]] -> * where
+    SVoid :: SingCode '[]
+    SPlus :: !(SingProd xs) -> !(SingCode xss) -> SingCode (xs ': xss)
+
+data SingProd :: [HakaruFun] -> * where
+    SNil  :: SingProd '[]
+    SCons :: !(SingFun x) -> !(SingProd xs) -> SingProd (x ': xs)
+
+data SingFun :: HakaruFun -> * where
+    SIdent :: SingFun 'I
+    SKonst :: !(Sing a) -> SingFun ('K a)
 
 ----------------------------------------------------------------
 -- | A class for automatically generating the singleton for a given
@@ -173,14 +188,37 @@ instance (SingI a) => SingI (HMaybe a)    where sing = SMaybe sing
 instance (SingI a, SingI b) => SingI ('HFun a b)   where sing = SFun sing sing
 instance (SingI a, SingI b) => SingI (HPair a b)   where sing = SPair sing sing
 instance (SingI a, SingI b) => SingI (HEither a b) where sing = SEither sing sing
-{-
--- TODO
-instance SingI ('HMu sop)    where sing = SMu singSOPHakaruFun
-instance SingI (sop ':$ a)   where sing = SApp singSOPHakaruFun sing
-instance SingI ('HTag a sop) where sing = STag Proxy singSOPHakaruFun
--}
 
+-- N.B., must use @(~)@ to delay the use of the type family (it's illegal to put it inline in the instance head).
+instance (sop ~ Code con, SingConI con, SingCodeI sop)
+    => SingI ('HTag con sop)
+    where
+    sing = STag singCon singCode
+instance (SingCodeI sop, SingI a) => SingI (sop ':$ a) where
+    sing = SUnrolled singCode sing
 
+class SingConI (a :: HakaruCon Hakaru) where
+    singCon :: SingCon a
+instance SingConI ('HCon s) where
+    singCon = SCon (error "TODO: Symbol singletons")
+instance (SingConI a, SingI b) => SingConI (a ':@ b) where
+    singCon = SApp singCon sing
+    
+class    SingCodeI (a :: [[HakaruFun]]) where singCode :: SingCode a
+instance SingCodeI '[]                  where singCode = SVoid 
+instance (SingProdI xs, SingCodeI xss) => SingCodeI (xs ': xss) where
+    singCode = SPlus singProd singCode
+    
+class    SingProdI (a :: [HakaruFun]) where singProd :: SingProd a
+instance SingProdI '[]                where singProd = SNil 
+instance (SingFunI x, SingProdI xs) => SingProdI (x ': xs) where
+    singProd = SCons singFun singProd
+
+class    SingFunI (a :: HakaruFun)    where singFun :: SingFun a
+instance SingFunI 'I                  where singFun = SIdent 
+instance (SingI a) => SingFunI ('K a) where singFun = SKonst sing
+
+----------------------------------------------------------------
 {-
 -- I think it's impossible to actually implement a function of this
 -- type (i.e., without any type constraints on @a@). That is, even
