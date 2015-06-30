@@ -1,13 +1,20 @@
 The parser deals with concrete syntax for
-  literals
-  unit
-  pairs
-  lambdas
+  numeric literals: int, floating, infinities
+  built-in data types:
+    unit
+    bool, if-then-else
+    pairs
+    list
+  (expression-level) binders:
+    lambdas
+    let-binding
+    bind
 
-  functions
+  function definitions
   primitive distributions
 
 It still needs syntax for
-  Defining new datatypes
+  User-defined datatypes
   Patterns and pattern matching
   type annotations
+  either
