@@ -3,6 +3,7 @@
            , TypeOperators
            , GADTs
            , TypeFamilies
+           , PatternSynonyms
            
            -- TODO: how much of this is needed for splices?
            , QuasiQuotes
@@ -21,7 +22,7 @@
 -- {-# OPTIONS_GHC -ddump-splices #-} 
 
 ----------------------------------------------------------------
---                                                    2015.06.28
+--                                                    2015.06.30
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeEq
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -35,13 +36,22 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.TypeEq 
     ( module Language.Hakaru.Syntax.TypeEq
-    , Sing(..), SingI(..)
+    , Sing(..)
+    , SingI(..)
+    , jmEq
+    {-
+    , pattern SBool
+    , pattern SUnit
+    , pattern SPair
+    , pattern SEither
+    , pattern SList
+    , pattern SMaybe
+    -}
     {-
     , SingKind(..), SDecide(..), (:~:)(..)
     -}
     ) where
 
--- import Data.Proxy
 import Language.Hakaru.Syntax.DataKind
 {- -- BUG: this code does not work on my system(s). It generates some strange CPP errors.
 
@@ -136,14 +146,6 @@ data instance Sing (unused :: Hakaru) where
     SArray   :: !(Sing a) -> Sing ('HArray a)
     SFun     :: !(Sing a) -> !(Sing b) -> Sing ('HFun a b)
 
-    -- TODO: remove these
-    SBool    :: Sing HBool
-    SUnit    :: Sing HUnit
-    SPair    :: !(Sing a) -> !(Sing b) -> Sing (HPair a b)
-    SEither  :: !(Sing a) -> !(Sing b) -> Sing (HEither a b)
-    SList    :: !(Sing a) -> Sing (HList a)
-    SMaybe   :: !(Sing a) -> Sing (HMaybe a)
-
     STag :: !(Sing con) -> !(Sing (Code con)) -> Sing ('HTag con (Code con))
     -- TODO: @a@ should always be @'HTag con sop@, and @sop@ should always be @Code con@
     SUnrolled :: !(Sing sop) -> !(Sing a) -> Sing (sop ':$ a)
@@ -152,13 +154,55 @@ data instance Sing (unused :: Hakaru) where
 -- BUG: deriving instance Read (Sing a)
 -- BUG: deriving instance Show (Sing a)
 
+{-
+-- TODO:
+pattern SUnit :: Sing HUnit
+pattern SUnit =
+    STag (SCon SSymbol_Unit)
+        (SNil `SPlus` SVoid)
+        
+pattern SBool :: Sing HBool
+pattern SBool =
+    STag (SCon SSymbol_Bool)
+        (SNil `SPlus` SNil `SPlus` SVoid)
+
+-- BUG: what does this "Conflicting definitions for ‘a’" message mean?
+pattern SPair :: Sing a -> Sing b -> Sing (HPair a b)
+pattern SPair a b =
+    STag (SCon SSymbol_Pair `SApp` a `SApp` b)
+        ((SKonst a `SCons` SKonst b `SCons` SNil) `SPlus` SVoid)
+
+pattern SEither :: Sing a -> Sing b -> Sing (HEither a b)
+pattern SEither a b =
+    STag (SCon SSymbol_Either `SApp` a `SApp` b)
+        ((SKonst a `SCons` SNil) `SPlus` (SKonst b `SCons` SNil)
+            `SPlus` SVoid)
+
+pattern SList :: Sing a -> Sing (HList a)
+pattern SList a =
+    STag (SCon SSymbol_List `SApp` a)
+        (SNil `SPlus` (SKonst a `SCons` SIdent `SCons` SNil) `SPlus` SVoid)
+
+pattern SMaybe :: Sing a -> Sing (HMaybe a)
+pattern SMaybe a =
+    STag (SCon SSymbol_Maybe `SApp` a)
+        (SNil `SPlus` (SKonst a `SCons` SNil) `SPlus` SVoid)
+-}
+
+
 -- HACK: because of polykindedness, we have to give explicit type signatures for the index in the result of these data constructors.
 
 data instance Sing (unused :: HakaruCon Hakaru) where
     SCon :: !(Sing s)              -> Sing ('HCon s :: HakaruCon Hakaru)
     SApp :: !(Sing a) -> !(Sing b) -> Sing (a ':@ b :: HakaruCon Hakaru) 
 
-data instance Sing (s :: Symbol) = BUG -- TODO: fixme
+data instance Sing (s :: Symbol) where -- TODO: fixme
+    SSymbol_Bool   :: Sing "Bool"
+    SSymbol_Unit   :: Sing "Unit"
+    SSymbol_Pair   :: Sing "Pair"
+    SSymbol_Either :: Sing "Either"
+    SSymbol_List   :: Sing "List"
+    SSymbol_Maybe  :: Sing "Maybe"
 
 data instance Sing (unused :: [[HakaruFun]]) where
     SVoid :: Sing ('[] :: [[HakaruFun]])
@@ -180,19 +224,13 @@ data instance Sing (unused :: HakaruFun) where
 -- Hakaru type.
 class SingI (a :: k) where sing :: Sing a
 
-instance SingI 'HNat                      where sing = SNat 
-instance SingI 'HInt                      where sing = SInt 
-instance SingI 'HProb                     where sing = SProb 
-instance SingI 'HReal                     where sing = SReal 
-instance SingI HBool                      where sing = SBool 
-instance SingI HUnit                      where sing = SUnit 
-instance (SingI a) => SingI ('HMeasure a) where sing = SMeasure sing
-instance (SingI a) => SingI ('HArray a)   where sing = SArray sing
-instance (SingI a) => SingI (HList a)     where sing = SList sing
-instance (SingI a) => SingI (HMaybe a)    where sing = SMaybe sing
-instance (SingI a, SingI b) => SingI ('HFun a b)   where sing = SFun sing sing
-instance (SingI a, SingI b) => SingI (HPair a b)   where sing = SPair sing sing
-instance (SingI a, SingI b) => SingI (HEither a b) where sing = SEither sing sing
+instance SingI 'HNat                             where sing = SNat 
+instance SingI 'HInt                             where sing = SInt 
+instance SingI 'HProb                            where sing = SProb 
+instance SingI 'HReal                            where sing = SReal 
+instance (SingI a) => SingI ('HMeasure a)        where sing = SMeasure sing
+instance (SingI a) => SingI ('HArray a)          where sing = SArray sing
+instance (SingI a, SingI b) => SingI ('HFun a b) where sing = SFun sing sing
 
 -- N.B., must use @(~)@ to delay the use of the type family (it's illegal to put it inline in the instance head).
 instance (sop ~ Code con, SingI con, SingI sop)
@@ -203,9 +241,12 @@ instance (SingI sop, SingI a) => SingI (sop ':$ a) where
     sing = SUnrolled sing sing
 
 instance SingI ('HCon s :: HakaruCon Hakaru) where
-    sing = SCon (error "TODO: Symbol singletons")
+    sing = SCon sing
 instance (SingI a, SingI b) => SingI ((a ':@ b) :: HakaruCon Hakaru) where
     sing = SApp sing sing
+
+instance SingI (s :: Symbol) where
+    sing = error "sing{Symbol} unimplemented"
     
 instance SingI ('[] :: [[HakaruFun]]) where
     sing = SVoid 
@@ -256,7 +297,7 @@ toSing _ = sing
 -- proof @p :: TypeEq a b@, you must pattern-match on the 'Refl'
 -- constructor in order to show GHC that the types @a@ and @b@ are
 -- equal.
-data TypeEq :: Hakaru -> Hakaru -> * where
+data TypeEq :: k -> k -> * where
     Refl :: TypeEq a a
 
 -- | Type constructors are extensional.
@@ -268,30 +309,68 @@ cong Refl = Refl
 -- | Decide whether the types @a@ and @b@ are equal. If you don't
 -- have the singleton laying around, you can use 'toSing' to convert
 -- whatever type-indexed value into one.
-jmEq :: Sing a -> Sing b -> Maybe (TypeEq a b)
+jmEq :: Sing (a :: Hakaru) -> Sing (b :: Hakaru) -> Maybe (TypeEq a b)
 jmEq SNat             SNat             = Just Refl
 jmEq SInt             SInt             = Just Refl
 jmEq SProb            SProb            = Just Refl
 jmEq SReal            SReal            = Just Refl
-jmEq SBool            SBool            = Just Refl
-jmEq SUnit            SUnit            = Just Refl
 jmEq (SMeasure a)     (SMeasure b)     = jmEq a  b  >>= \Refl -> Just Refl
 jmEq (SArray   a)     (SArray   b)     = jmEq a  b  >>= \Refl -> Just Refl
-jmEq (SList    a)     (SList    b)     = jmEq a  b  >>= \Refl -> Just Refl
-jmEq (SMaybe   a)     (SMaybe   b)     = jmEq a  b  >>= \Refl -> Just Refl
 jmEq (SFun     a1 a2) (SFun     b1 b2) = jmEq a1 b1 >>= \Refl -> 
                                          jmEq a2 b2 >>= \Refl -> Just Refl
-jmEq (SPair    a1 a2) (SPair    b1 b2) = jmEq a1 b1 >>= \Refl -> 
-                                         jmEq a2 b2 >>= \Refl -> Just Refl
-jmEq (SEither  a1 a2) (SEither  b1 b2) = jmEq a1 b1 >>= \Refl -> 
-                                         jmEq a2 b2 >>= \Refl -> Just Refl
-{-
--- TODO
-jmEq (SMu  a)   (SMu  a)
-jmEq (SApp a b) (SApp a b)
-jmEq (STag a b) (STag a b)
--}
+jmEq (STag con1 code1) (STag con2 code2) =
+    jmEq_Con  con1  con2  >>= \Refl ->
+    jmEq_Code code1 code2 >>= \Refl -> Just Refl
+jmEq (SUnrolled code1 a) (SUnrolled code2 b) =
+    jmEq_Code code1 code2 >>= \Refl -> 
+    jmEq a b >>= \Refl -> Just Refl
 jmEq _ _ = Nothing
+
+jmEq_Con
+    :: Sing (a :: HakaruCon Hakaru)
+    -> Sing (b :: HakaruCon Hakaru)
+    -> Maybe (TypeEq a b)
+jmEq_Con (SCon s)   (SCon z)   = jmEq_Symb s z >>= \Refl -> Just Refl
+jmEq_Con (SApp f a) (SApp g b) = jmEq_Con  f g >>= \Refl ->
+                                 jmEq a b      >>= \Refl -> Just Refl
+jmEq_Con _ _ = Nothing
+
+jmEq_Symb :: Sing (a :: Symbol) -> Sing (b :: Symbol) -> Maybe (TypeEq a b)
+jmEq_Symb SSymbol_Bool   SSymbol_Bool   = Just Refl
+jmEq_Symb SSymbol_Unit   SSymbol_Unit   = Just Refl
+jmEq_Symb SSymbol_Pair   SSymbol_Pair   = Just Refl
+jmEq_Symb SSymbol_Either SSymbol_Either = Just Refl
+jmEq_Symb SSymbol_List   SSymbol_List   = Just Refl
+jmEq_Symb SSymbol_Maybe  SSymbol_Maybe  = Just Refl
+jmEq_Symb _ _ = Nothing
+
+jmEq_Code
+    :: Sing (a :: [[HakaruFun]])
+    -> Sing (b :: [[HakaruFun]])
+    -> Maybe (TypeEq a b)
+jmEq_Code SVoid        SVoid        = Just Refl
+jmEq_Code (SPlus x xs) (SPlus y ys) =
+    jmEq_Prod x  y  >>= \Refl ->
+    jmEq_Code xs ys >>= \Refl -> Just Refl
+jmEq_Code _ _ = Nothing
+
+jmEq_Prod
+    :: Sing (a :: [HakaruFun])
+    -> Sing (b :: [HakaruFun])
+    -> Maybe (TypeEq a b)
+jmEq_Prod SNil         SNil         = Just Refl
+jmEq_Prod (SCons x xs) (SCons y ys) =
+    jmEq_Fun  x  y  >>= \Refl ->
+    jmEq_Prod xs ys >>= \Refl -> Just Refl
+jmEq_Prod _ _ = Nothing
+
+jmEq_Fun
+    :: Sing (a :: HakaruFun)
+    -> Sing (b :: HakaruFun)
+    -> Maybe (TypeEq a b)
+jmEq_Fun SIdent     SIdent     = Just Refl
+jmEq_Fun (SKonst a) (SKonst b) = jmEq a b >>= \Refl -> Just Refl
+jmEq_Fun _ _ = Nothing
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

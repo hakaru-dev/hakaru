@@ -94,7 +94,7 @@ deriving instance Show (Value a)
 
 -- N.B., we do case analysis so that we don't need the class constraint!
 singValue :: Value a -> Sing a
--- singValue (Bool_ _) = sing -- BUG: "overlapping instances" for SingI HBool??
+singValue (Bool_ _) = sing
 singValue (Nat_  _) = sing
 singValue (Int_  _) = sing
 singValue (Prob_ _) = sing
@@ -142,12 +142,10 @@ deriving instance Show (NaryOp a)
 
 -- N.B., we do case analysis so that we don't need the class constraint!
 singNaryOp :: NaryOp a -> Sing a
-{- -- BUG: "overlapping instances" for SingI HBool??
 singNaryOp And  = sing
 singNaryOp Or   = sing
 singNaryOp Xor  = sing
 singNaryOp Iff  = sing
--}
 {- BUG: case analysis isn't enough here, because of the class constraints. We should be able to fix that by passing explicit singleton dictionaries instead of using Haskell's type classes
 singNaryOp Min  = sing
 singNaryOp Max  = sing
@@ -234,7 +232,7 @@ data PrimOp :: Hakaru -> * where
     BetaFunc  :: PrimOp ('HFun 'HProb ('HFun 'HProb 'HProb))
 
 
-
+    -- TODO: move these to a separate type; for easing the pattern matching in places like Expect that treat monadic stuff differently from everything else.
     -- -- Primitive distributions/measures a~la Mochastic (including the polymorphic 'Dirac')
     -- TODO: should we put Dirac back into the main AST?
     -- TODO: could we move Dp_, Plate_, or Chain_ to here?
@@ -352,14 +350,11 @@ deriving instance Show (PrimOp a)
 
 -- N.B., we do case analysis so that we don't need the class constraint!
 singPrimOp :: PrimOp a -> Sing a
-{-
--- BUG: "overlapping instances" for SingI HBool??
 singPrimOp Not         = sing
 singPrimOp Impl        = sing
 singPrimOp Diff        = sing
 singPrimOp Nand        = sing
 singPrimOp Nor         = sing
--}
 singPrimOp Pi          = sing
 singPrimOp Sin         = sing
 singPrimOp Cos         = sing
