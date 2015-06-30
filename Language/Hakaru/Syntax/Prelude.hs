@@ -73,6 +73,17 @@ primOp2_ = app2 . primOp0_
 primOp3_ :: (ABT abt) => PrimOp ('HFun a ('HFun b ('HFun c d))) -> abt a -> abt b -> abt c -> abt d
 primOp3_ = app3 . primOp0_
 
+measure0_ :: (ABT abt) => Measure a -> abt a
+measure0_ = syn . Measure_
+
+measure1_ :: (ABT abt) => Measure ('HFun a b) -> abt a -> abt b
+measure1_ = app . measure0_
+
+measure2_ :: (ABT abt) => Measure ('HFun a ('HFun b c)) -> abt a -> abt b -> abt c
+measure2_ = app2 . measure0_
+
+
+
 
 -- N.B., we don't take advantage of commutativity, for more predictable
 -- AST outputs. However, that means we can end up being slow...
@@ -540,13 +551,13 @@ bind e f =
     syn . Bind_ e . open x $ f (var x sing)
 
 dirac    :: (ABT abt) => abt a -> abt ('HMeasure a)
-dirac    = primOp1_ Dirac
+dirac    = measure1_ Dirac
 
 lebesgue :: (ABT abt) => abt ('HMeasure 'HReal)
-lebesgue = primOp0_  Lebesgue
+lebesgue = measure0_  Lebesgue
 
 counting :: (ABT abt) => abt ('HMeasure 'HInt)
-counting = primOp0_  Counting
+counting = measure0_  Counting
 
 superpose
     :: (ABT abt)
@@ -558,7 +569,7 @@ categorical
     :: (ABT abt)
     => abt ('HArray 'HProb)
     -> abt ('HMeasure 'HNat)
-categorical = primOp1_ Categorical
+categorical = measure1_ Categorical
 {-
 -- TODO: need to insert the coercion in the right place... Also, implement 'weight' and 'sumV'
 categorical' v =
@@ -576,7 +587,7 @@ uniform, uniform'
     => abt 'HReal
     -> abt 'HReal
     -> abt ('HMeasure 'HReal)
-uniform = primOp2_ Uniform
+uniform = measure2_ Uniform
 
 uniform' lo hi = 
     lebesgue `bind` \x ->
@@ -591,7 +602,7 @@ normal, normal'
     => abt 'HReal
     -> abt 'HProb
     -> abt ('HMeasure 'HReal)
-normal = primOp2_ Normal
+normal = measure2_ Normal
 
 normal' mu sd  = 
     lebesgue `bind` \x ->
@@ -605,7 +616,7 @@ normal' mu sd  =
 
 
 poisson, poisson' :: (ABT abt) => abt 'HProb -> abt ('HMeasure 'HNat)
-poisson = primOp1_ Poisson
+poisson = measure1_ Poisson
 
 poisson' l = 
     counting `bind` \x ->
@@ -625,7 +636,7 @@ gamma, gamma'
     => abt 'HProb
     -> abt 'HProb
     -> abt ('HMeasure 'HProb)
-gamma = primOp2_ Gamma
+gamma = measure2_ Gamma
 
 gamma' shape scale =
     lebesgue `bind` \x ->
@@ -646,7 +657,7 @@ beta, beta'
     => abt 'HProb
     -> abt 'HProb
     -> abt ('HMeasure 'HProb)
-beta = primOp2_ Beta
+beta = measure2_ Beta
 
 beta' a b =
     -- TODO: make Uniform polymorphic, so that if the two inputs are HProb then we know the measure must be over HProb too, and hence @unsafeProb x@ must always be safe. Alas, capturing the safety of @unsafeProb (1-x)@ would take a lot more work...

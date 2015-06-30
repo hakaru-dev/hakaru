@@ -503,6 +503,7 @@ instance Bindable abt => Bindable (AST abt) where
     bound (Array_      e1 e2)    = bound e1 `max` bound e2
     bound (Datum_      d)        = bound d
     bound (Case_       e  bs)    = bound e  `max` maximumBoundBranch bs
+    bound (Measure_    _)        = 0
     bound (Bind_       e1 e2)    = bound e1 `max` bound e2
     bound (Superpose_  pes)      = maximumBound2 pes
     bound (Dp_         e1 e2)    = bound e1 `max` bound e2

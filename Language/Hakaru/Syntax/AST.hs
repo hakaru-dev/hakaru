@@ -32,8 +32,9 @@ module Language.Hakaru.Syntax.AST
     -- * Constant values
       Value(..),  singValue
     -- * Primitive operators
-    , NaryOp(..), singNaryOp
-    , PrimOp(..), singPrimOp
+    , NaryOp(..),  singNaryOp
+    , PrimOp(..),  singPrimOp
+    , Measure(..), singMeasure
     -- * User-defined data types
     -- ** Data constructors\/patterns
     , Datum(..)
@@ -147,7 +148,7 @@ singNaryOp Prod = sing
 singNaryOp _ = error "TODO: singNaryOp"
 
 ----------------------------------------------------------------
--- | Simple primitive functions, constants, and measures.
+-- | Simple primitive functions, and constants.
 data PrimOp :: Hakaru -> * where
 
     -- -- -- Here we have /monomorphic/ operators
@@ -223,22 +224,6 @@ data PrimOp :: Hakaru -> * where
     GammaFunc :: PrimOp ('HFun 'HReal 'HProb)
     BetaFunc  :: PrimOp ('HFun 'HProb ('HFun 'HProb 'HProb))
 
-
-    -- TODO: move these to a separate type; for easing the pattern matching in places like Expect that treat monadic stuff differently from everything else.
-    -- -- Primitive distributions/measures a~la Mochastic (including the polymorphic 'Dirac')
-    -- TODO: should we put Dirac back into the main AST?
-    -- TODO: could we move Dp_, Plate_, or Chain_ to here?
-    Dirac       :: PrimOp ('HFun a ('HMeasure a))
-    Lebesgue    :: PrimOp ('HMeasure 'HReal)
-    Counting    :: PrimOp ('HMeasure 'HInt)
-    Categorical :: PrimOp ('HFun ('HArray 'HProb) ('HMeasure 'HNat))
-    -- TODO: make Uniform polymorphic, so that if the two inputs are HProb then we know the measure must be over HProb too. More generally, if the first input is HProb (since the second input is assumed to be greater thant he first); though that would be a bit ugly IMO.
-    Uniform     :: PrimOp ('HFun 'HReal ('HFun 'HReal ('HMeasure 'HReal)))
-    Normal      :: PrimOp ('HFun 'HReal ('HFun 'HProb ('HMeasure 'HReal)))
-    Poisson     :: PrimOp ('HFun 'HProb ('HMeasure 'HNat))
-    Gamma       :: PrimOp ('HFun 'HProb ('HFun 'HProb ('HMeasure 'HProb)))
-    Beta        :: PrimOp ('HFun 'HProb ('HFun 'HProb ('HMeasure 'HProb)))
-    -- binomial, mix, geometric, multinomial,... should also be HNat
 
 
     -- -- -- Here we have the /polymorphic/ operators
@@ -359,15 +344,6 @@ singPrimOp Infinity    = sing
 singPrimOp NegativeInfinity = sing
 singPrimOp GammaFunc   = sing
 singPrimOp BetaFunc    = sing
--- TODO: singPrimOp Dirac       = sing
-singPrimOp Lebesgue    = sing
-singPrimOp Counting    = sing
-singPrimOp Categorical = sing
-singPrimOp Uniform     = sing
-singPrimOp Normal      = sing
-singPrimOp Poisson     = sing
-singPrimOp Gamma       = sing
-singPrimOp Beta        = sing
 {-
 -- BUG: case analysis isn't enough here, because of the class constraints. We should be able to fix that by passing explicit singleton dictionaries instead of using Haskell's type classes. Of course, we can't even do Unit anymore because of whatever bugginess with the embed stuff :(
 singPrimOp Empty       = sing
@@ -385,6 +361,40 @@ singPrimOp NatRoot     = sing
 singPrimOp Erf         = sing
 -}
 singPrimOp _ = error "TODO: singPrimOp"
+
+----------------------------------------------------------------
+-- TODO: move the rest of the old Mochastic class into here?
+-- | Primitive distributions\/measures.
+data Measure :: Hakaru -> * where
+    -- TODO: should we put Dirac back into the main AST?
+    -- TODO: could we move Dp_, Plate_, or Chain_ to here?
+    Dirac       :: Measure ('HFun a ('HMeasure a))
+    Lebesgue    :: Measure ('HMeasure 'HReal)
+    Counting    :: Measure ('HMeasure 'HInt)
+    Categorical :: Measure ('HFun ('HArray 'HProb) ('HMeasure 'HNat))
+    -- TODO: make Uniform polymorphic, so that if the two inputs are HProb then we know the measure must be over HProb too. More generally, if the first input is HProb (since the second input is assumed to be greater thant he first); though that would be a bit ugly IMO.
+    Uniform     :: Measure ('HFun 'HReal ('HFun 'HReal ('HMeasure 'HReal)))
+    Normal      :: Measure ('HFun 'HReal ('HFun 'HProb ('HMeasure 'HReal)))
+    Poisson     :: Measure ('HFun 'HProb ('HMeasure 'HNat))
+    Gamma       :: Measure ('HFun 'HProb ('HFun 'HProb ('HMeasure 'HProb)))
+    Beta        :: Measure ('HFun 'HProb ('HFun 'HProb ('HMeasure 'HProb)))
+    -- binomial, mix, geometric, multinomial,... should also be HNat
+
+deriving instance Eq   (Measure a)
+-- BUG: deriving instance Read (Measure a)
+deriving instance Show (Measure a)
+
+-- N.B., we do case analysis so that we don't need the class constraint!
+singMeasure :: Measure a -> Sing a
+-- TODO: singMeasure Dirac       = sing
+singMeasure Lebesgue    = sing
+singMeasure Counting    = sing
+singMeasure Categorical = sing
+singMeasure Uniform     = sing
+singMeasure Normal      = sing
+singMeasure Poisson     = sing
+singMeasure Gamma       = sing
+singMeasure Beta        = sing
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -626,8 +636,11 @@ data AST :: (Hakaru -> *) -> Hakaru -> * where
     Case_ :: ast a -> [Branch a ast b] -> AST ast b
 
 
-    -- -- Mochastic stuff (which isn't PrimOps)
+    -- -- Mochastic stuff
     -- TODO: should Dirac move back here?
+    -- TODO: should DP_, Plate_, and Chain_ move there?
+    -- | Primitive operators which generate measures.
+    Measure_ :: !(Measure a) -> AST ast a
     Bind_
         :: ast ('HMeasure a)
         -> ast {-a-} ('HMeasure b)
@@ -741,6 +754,7 @@ instance Show1 ast => Show1 (AST ast) where
                 . showString " "
                 . showList1 bs
                 )
+        Measure_   o         -> showParen_0   p "Measure_" o
         Bind_      e1 e2     -> showParen_11  p "Bind_"   e1 e2
         Superpose_ pes       -> error "TODO: show Superpose_"
         Dp_        e1 e2     -> showParen_11  p "Dp_"     e1 e2
@@ -771,6 +785,7 @@ instance Functor1 AST where
     fmap1 f (Array_      e1 e2)    = Array_      (f e1) (f e2)
     fmap1 f (Datum_      d)        = Datum_      (fmap1 f d)
     fmap1 f (Case_       e  bs)    = Case_       (f e)  (map (fmap1 f) bs)
+    fmap1 _ (Measure_    o)        = Measure_    o
     fmap1 f (Bind_       e1 e2)    = Bind_       (f e1) (f e2)
     fmap1 f (Superpose_  pes)      = Superpose_  (map (f *** f) pes)
     fmap1 f (Dp_         e1 e2)    = Dp_         (f e1) (f e2)
@@ -797,6 +812,7 @@ instance Foldable1 AST where
     foldMap1 f (Array_      e1 e2)    = f e1 `mappend` f e2
     foldMap1 f (Datum_      d)        = foldMap1 f d
     foldMap1 f (Case_       e  bs)    = f e  `mappend` F.foldMap (f . branchBody) bs
+    foldMap1 _ (Measure_    _)        = mempty
     foldMap1 f (Bind_       e1 e2)    = f e1 `mappend` f e2
     foldMap1 f (Superpose_  pes)      = F.foldMap (\(e1,e2) -> f e1 `mappend` f e2) pes
     foldMap1 f (Dp_         e1 e2)    = f e1 `mappend` f e2
