@@ -78,9 +78,6 @@ mustCheck (Syn (Case_   _ _))         = True -- TODO: everyone says this, but it
 mustCheck (Syn (Measure_ _))          = False
 mustCheck (Syn (Bind_   e1 e2))       = error "TODO: mustCheck(Bind_)" -- Presumably works the same way as Let_ does
 mustCheck (Syn (Superpose_ pes))      = error "TODO: mustCheck(Superpose_)"
-mustCheck (Syn (Dp_     e1 e2))       = error "TODO: mustCheck(Dp_)"
-mustCheck (Syn (Plate_  e))           = error "TODO: mustCheck(Plate_)"
-mustCheck (Syn (Chain_  e))           = error "TODO: mustCheck(Chain_)"
 mustCheck (Syn (Lub_    e1 e2))       = error "TODO: mustCheck(Lub_)"
 mustCheck (Syn Bot_)                  = error "TODO: mustCheck(Bot_)"
 mustCheck (Var _ _)                   = False
@@ -103,11 +100,11 @@ data TypedVariable where
 data TypedPattern where
     TP  :: !(Pattern a) -> !(Sing (a :: Hakaru)) -> TypedPattern
 
-    -- N.B., we do not require that @sop ~ Code con@; so we can
+    -- N.B., we do not require that @sop ~ Code t@; so we can
     -- perform induction on it!
-    TDP :: !(Datum Pattern (sop ':$ 'HData con (Code con)))
+    TDP :: !(Datum Pattern (sop ':$ 'HData t (Code t)))
         -> !(Sing (sop :: [[HakaruFun]]))
-        -> !(Sing ('HData con (Code con) :: Hakaru))
+        -> !(Sing ('HData t (Code t) :: Hakaru))
         -> TypedPattern
 
 -- TODO: replace with an IntMap(TypedVariable), using the varID of the Variable

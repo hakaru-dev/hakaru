@@ -675,14 +675,14 @@ dp  :: (ABT abt)
     => abt 'HProb
     -> abt ('HMeasure a)
     -> abt ('HMeasure ('HMeasure a))
-dp = (syn .) . Dp_
+dp = measure2_ DirichletProcess
 
 
 plate
     :: (ABT abt)
     => abt ('HArray ('HMeasure          a))
     -> abt (         'HMeasure ('HArray a))
-plate = syn . Plate_
+plate = measure1_ Plate
 {-
 -- TODO: the array stuff...
 plate' v = reduce r z (mapV m v)
@@ -697,7 +697,7 @@ chain
     :: (ABT abt)
     => abt ('HArray ('HFun s ('HMeasure         (HPair a s))))
     -> abt (         'HFun s ('HMeasure (HPair ('HArray a) s)))
-chain = syn . Chain_
+chain = measure1_ Chain
 {-
 -- TODO: the array stuff...
 chain' v = reduce r z (mapV m v)

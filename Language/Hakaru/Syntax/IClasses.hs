@@ -2,7 +2,7 @@
 {-# LANGUAGE CPP, Rank2Types, PolyKinds #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.06.28
+--                                                    2015.06.30
 -- |
 -- Module      :  Language.Hakaru.Syntax.IClasses
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -18,7 +18,14 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.IClasses
     ( Lift1(..)
-    , Show1(..), shows1, showList1, Showable1(..)
+    -- * Showing indexed types
+    , Show1(..), shows1, showList1
+    -- ** some helpers for implementing the instances
+    , showParen_0
+    , showParen_1
+    , showParen_01
+    , showParen_11
+    , showParen_111
     {- TODO: as necessary
     , Show2(..), Showable2(..)
     , Eq1(..)
@@ -87,15 +94,56 @@ instance Show a => Show1 (Lift1 a) where
     showsPrec1 p (Lift1 x) = showsPrec p x
     show1        (Lift1 x) = show x
 
+----------------------------------------------------------------
+showParen_0 :: Show a => Int -> String -> a -> ShowS
+showParen_0 p s e =
+    showParen (p > 9)
+        ( showString s
+        . showString " "
+        . showsPrec 11 e
+        )
 
--- | Every 'Show1' instance gives rise to the 'Show' instance we
--- wanted all along.
-newtype Showable1 (a :: k -> *) (i :: k) =
-    Showable1 { unShowable1 :: a i }
+showParen_1 :: Show1 a => Int -> String -> a i -> ShowS
+showParen_1 p s e =
+    showParen (p > 9)
+        ( showString s
+        . showString " "
+        . showsPrec1 11 e
+        )
 
-instance Show1 a => Show (Showable1 a i) where
-    showsPrec p (Showable1 x) = showsPrec1 p x
-    show        (Showable1 x) = show1 x
+showParen_01 :: (Show b, Show1 a) => Int -> String -> b -> a i -> ShowS
+showParen_01 p s e1 e2 =
+    showParen (p > 9)
+        ( showString s
+        . showString " "
+        . showsPrec  11 e1
+        . showString " "
+        . showsPrec1 11 e2
+        )
+
+showParen_11 :: (Show1 a, Show1 b) => Int -> String -> a i -> b j -> ShowS
+showParen_11 p s e1 e2 =
+    showParen (p > 9)
+        ( showString s
+        . showString " "
+        . showsPrec1 11 e1
+        . showString " "
+        . showsPrec1 11 e2
+        )
+
+showParen_111
+    :: (Show1 a, Show1 b, Show1 c)
+    => Int -> String -> a i -> b j -> c k -> ShowS
+showParen_111 p s e1 e2 e3 =
+    showParen (p > 9)
+        ( showString s
+        . showString " "
+        . showsPrec1 11 e1
+        . showString " "
+        . showsPrec1 11 e2
+        . showString " "
+        . showsPrec1 11 e3
+        )
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------

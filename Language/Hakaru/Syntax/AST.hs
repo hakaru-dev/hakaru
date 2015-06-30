@@ -234,7 +234,8 @@ data PrimOp :: Hakaru -> * where
     Empty  :: PrimOp ('HArray a)
     Index  :: PrimOp ('HFun ('HArray a) ('HFun 'HNat a))
     Size   :: PrimOp ('HFun ('HArray a) 'HNat)
-    -- TODO: is that the right type for the first argument? or was it a binder of some sort? Or should it only accept an NaryOp?
+    -- The first argument should be a monoid, but we don't enforce
+    -- that; it's the user's responsibility.
     Reduce :: PrimOp
         ('HFun ('HFun a ('HFun a a))
         ('HFun a
@@ -367,8 +368,8 @@ singPrimOp _ = error "TODO: singPrimOp"
 -- | Primitive distributions\/measures.
 data Measure :: Hakaru -> * where
     -- TODO: should we put Dirac back into the main AST?
-    -- TODO: could we move Dp_, Plate_, or Chain_ to here?
     Dirac       :: Measure ('HFun a ('HMeasure a))
+    
     Lebesgue    :: Measure ('HMeasure 'HReal)
     Counting    :: Measure ('HMeasure 'HInt)
     Categorical :: Measure ('HFun ('HArray 'HProb) ('HMeasure 'HNat))
@@ -379,6 +380,19 @@ data Measure :: Hakaru -> * where
     Gamma       :: Measure ('HFun 'HProb ('HFun 'HProb ('HMeasure 'HProb)))
     Beta        :: Measure ('HFun 'HProb ('HFun 'HProb ('HMeasure 'HProb)))
     -- binomial, mix, geometric, multinomial,... should also be HNat
+
+    DirichletProcess :: Measure
+        ('HFun 'HProb
+        ('HFun ('HMeasure a)
+        ('HMeasure ('HMeasure a))))
+    -- TODO: unify Plate and Chain as 'sequence' a~la traversable?
+    Plate :: Measure
+        ('HFun ('HArray ('HMeasure a))
+        ('HMeasure ('HArray a)))
+    Chain :: Measure
+        ('HFun ('HArray ('HFun s ('HMeasure (HPair a s))))
+        ('HFun s ('HMeasure (HPair ('HArray a) s))))
+
 
 deriving instance Eq   (Measure a)
 -- BUG: deriving instance Read (Measure a)
@@ -395,6 +409,12 @@ singMeasure Normal      = sing
 singMeasure Poisson     = sing
 singMeasure Gamma       = sing
 singMeasure Beta        = sing
+{-
+singMeasure DirichletProcess = sing
+singMeasure Plate       = sing
+singMeasure Chain       = sing
+-}
+singMeasure _ = error "TODO: singMeasure"
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -629,8 +649,8 @@ data AST :: (Hakaru -> *) -> Hakaru -> * where
     -- -- User-defined data types
     -- | A data constructor applied to some expressions.
     Datum_
-        :: Datum ast ('HData con (Code con))
-        -> AST   ast ('HData con (Code con))
+        :: Datum ast ('HData t (Code t))
+        -> AST   ast ('HData t (Code t))
     
     -- | Generic case-analysis (via ABTs and Structural Focalization).
     Case_ :: ast a -> [Branch a ast b] -> AST ast b
@@ -648,16 +668,6 @@ data AST :: (Hakaru -> *) -> Hakaru -> * where
     Superpose_
         :: [(ast 'HProb, ast ('HMeasure a))]
         -> AST ast ('HMeasure a)
-    Dp_ -- Dirichlet process
-        :: ast 'HProb
-        -> ast ('HMeasure a)
-        -> AST ast ('HMeasure ('HMeasure a))
-    Plate_
-        :: ast ('HArray ('HMeasure a))
-        -> AST ast ('HMeasure ('HArray a))
-    Chain_
-        :: ast ('HArray ('HFun s ('HMeasure (HPair a s))))
-        -> AST ast ('HFun s ('HMeasure (HPair ('HArray a) s)))
 
 
     -- Lub
@@ -671,54 +681,6 @@ data AST :: (Hakaru -> *) -> Hakaru -> * where
 
 -- BUG: deriving instance (forall b. Eq (ast b)) => Eq (AST ast a)
 
-showParen_0 :: Show a => Int -> String -> a -> ShowS
-showParen_0 p s e =
-    showParen (p > 9)
-        ( showString s
-        . showString " "
-        . showsPrec 11 e
-        )
-
-showParen_1 :: Show1 a => Int -> String -> a i -> ShowS
-showParen_1 p s e =
-    showParen (p > 9)
-        ( showString s
-        . showString " "
-        . showsPrec1 11 e
-        )
-
-showParen_01 :: (Show b, Show1 a) => Int -> String -> b -> a i -> ShowS
-showParen_01 p s e1 e2 =
-    showParen (p > 9)
-        ( showString s
-        . showString " "
-        . showsPrec  11 e1
-        . showString " "
-        . showsPrec1 11 e2
-        )
-
-showParen_11 :: (Show1 a) => Int -> String -> a i -> a j -> ShowS
-showParen_11 p s e1 e2 =
-    showParen (p > 9)
-        ( showString s
-        . showString " "
-        . showsPrec1 11 e1
-        . showString " "
-        . showsPrec1 11 e2
-        )
-
-showParen_111 :: (Show1 a) => Int -> String -> a i -> a j -> a k -> ShowS
-showParen_111 p s e1 e2 e3 =
-    showParen (p > 9)
-        ( showString s
-        . showString " "
-        . showsPrec1 11 e1
-        . showString " "
-        . showsPrec1 11 e2
-        . showString " "
-        . showsPrec1 11 e3
-        )
-
 instance Show1 ast => Show1 (AST ast) where
     showsPrec1 p t =
         case t of
@@ -726,9 +688,7 @@ instance Show1 ast => Show1 (AST ast) where
         App_    e1 e2        -> showParen_11  p "App_"    e1 e2
         Let_    e1 e2        -> showParen_11  p "Let_"    e1 e2
         Fix_    e            -> showParen_1   p "Fix_"    e
-        {- -- BUG: "Could not deduce (Show (Sing i))" ??
         Ann_    a e          -> showParen_01  p "Ann_"    a  e
-        -}
         PrimOp_ o            -> showParen_0   p "PrimOp_" o
         NaryOp_ o es         ->
             showParen (p > 9)
@@ -757,9 +717,6 @@ instance Show1 ast => Show1 (AST ast) where
         Measure_   o         -> showParen_0   p "Measure_" o
         Bind_      e1 e2     -> showParen_11  p "Bind_"   e1 e2
         Superpose_ pes       -> error "TODO: show Superpose_"
-        Dp_        e1 e2     -> showParen_11  p "Dp_"     e1 e2
-        Plate_     e         -> showParen_1   p "Plate_"  e
-        Chain_     e         -> showParen_1   p "Chain_"  e
         Lub_       e1 e2     -> showParen_11  p "Lub_"    e1 e2
         Bot_                 -> showString      "Bot_"
 
@@ -788,9 +745,6 @@ instance Functor1 AST where
     fmap1 _ (Measure_    o)        = Measure_    o
     fmap1 f (Bind_       e1 e2)    = Bind_       (f e1) (f e2)
     fmap1 f (Superpose_  pes)      = Superpose_  (map (f *** f) pes)
-    fmap1 f (Dp_         e1 e2)    = Dp_         (f e1) (f e2)
-    fmap1 f (Plate_      e)        = Plate_      (f e)
-    fmap1 f (Chain_      e)        = Chain_      (f e)
     fmap1 f (Lub_        e1 e2)    = Lub_        (f e1) (f e2)
     fmap1 _ Bot_                   = Bot_
 
@@ -815,9 +769,6 @@ instance Foldable1 AST where
     foldMap1 _ (Measure_    _)        = mempty
     foldMap1 f (Bind_       e1 e2)    = f e1 `mappend` f e2
     foldMap1 f (Superpose_  pes)      = F.foldMap (\(e1,e2) -> f e1 `mappend` f e2) pes
-    foldMap1 f (Dp_         e1 e2)    = f e1 `mappend` f e2
-    foldMap1 f (Plate_      e)        = f e
-    foldMap1 f (Chain_      e)        = f e
     foldMap1 f (Lub_        e1 e2)    = f e1 `mappend` f e2
     foldMap1 _ Bot_                   = mempty
 

@@ -184,8 +184,7 @@ instance Show1 abt => Show1 (View abt) where
             ( showString "Var "
             . showsPrec  11 x
             . showString " "
-            . error "BUG in ShowsPrec1(Var)"
-            -- @showsPrec 11 s@ -- "Could not deduce (Show (Sing i))"??
+            . showsPrec 11 s
             )
     showsPrec1 p (Open x v) =
         showParen (p > 9)
@@ -301,8 +300,7 @@ instance Show1 TrivialABT where
             ( showString "var "
             . showsPrec  11 x
             . showString " "
-            . error "BUG in ShowsPrec1(TrivialABT)"
-            -- @showsPrec 11 s@ -- "Could not deduce (Show (Sing i))"??
+            . showsPrec 11 s
             )
     showsPrec1 p (TrivialABT (Open x v)) =
         showParen (p > 9)
@@ -403,6 +401,9 @@ subst
     -> abt b
 subst x e = start
     where
+    toSing :: (SingI c) => proxy c -> Sing c
+    toSing _ = sing
+    
     start :: forall c. abt c -> abt c
     start f = loop f (viewABT f)
 
@@ -506,9 +507,6 @@ instance Bindable abt => Bindable (AST abt) where
     bound (Measure_    _)        = 0
     bound (Bind_       e1 e2)    = bound e1 `max` bound e2
     bound (Superpose_  pes)      = maximumBound2 pes
-    bound (Dp_         e1 e2)    = bound e1 `max` bound e2
-    bound (Plate_      e)        = bound e
-    bound (Chain_      e)        = bound e
     bound (Lub_        e1 e2)    = bound e1 `max` bound e2
     bound Bot_                   = 0
 

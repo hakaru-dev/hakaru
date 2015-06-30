@@ -35,11 +35,13 @@
 -- for @Hakaru@ type-equality.
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.TypeEq 
-    ( module Language.Hakaru.Syntax.TypeEq
-    , Sing(..)
+    ( Sing(..)
     , SingI(..)
+    -- * type equality
+    , TypeEq(..), symmetry, congruence
     , jmEq
     {-
+    , module Language.Hakaru.Syntax.TypeEq
     , pattern SBool
     , pattern SUnit
     , pattern SPair
@@ -52,6 +54,9 @@ module Language.Hakaru.Syntax.TypeEq
     -}
     ) where
 
+import Prelude hiding (id, (.))
+import Control.Category (Category(..))
+import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.DataKind
 {- -- BUG: this code does not work on my system(s). It generates some strange CPP errors.
 
@@ -125,14 +130,20 @@ jmEq a b =
 -- TODO: Smart constructors for built-in types like Pair, Either, etc.
 sPair :: Sing a -> Sing b -> Sing (HPair a b) 
 sPair a b =
-    SHData (SHCon (singByProxy (Proxy :: Proxy "Pair")) :%@ a :%@ b) 
+    SData (SCon (singByProxy (Proxy :: Proxy "Pair")) :%@ a :%@ b) 
         (SCons (SCons (SK a) $ SCons (SK b) SNil) SNil)
 -}
 
-
+----------------------------------------------------------------
 ----------------------------------------------------------------
 data family Sing (a :: k) :: *
 
+-- | A class for automatically generating the singleton for a given
+-- Hakaru type.
+class SingI (a :: k) where sing :: Sing a
+
+
+----------------------------------------------------------------
 -- BUG: data family instances must be fully saturated, but since these are GADTs, the name of the parameter is irrelevant. However, using a wildcard causes GHC to panic. cf., <https://ghc.haskell.org/trac/ghc/ticket/10586>
 
 -- | Singleton types for the kind of Hakaru types. We need to use
@@ -145,14 +156,46 @@ data instance Sing (unused :: Hakaru) where
     SMeasure :: !(Sing a) -> Sing ('HMeasure a)
     SArray   :: !(Sing a) -> Sing ('HArray a)
     SFun     :: !(Sing a) -> !(Sing b) -> Sing ('HFun a b)
-
-    SData :: !(Sing con) -> !(Sing (Code con)) -> Sing ('HData con (Code con))
-    -- TODO: @a@ should always be @'HData con sop@, and @sop@ should always be @Code con@
+    SData    :: !(Sing t) -> !(Sing (Code t)) -> Sing ('HData t (Code t))
+    
+    -- TODO: @a@ should always be @'HData t sop@, and @sop@ should always be @Code t@
     SUnrolled :: !(Sing sop) -> !(Sing a) -> Sing (sop ':$ a)
 
--- BUG: deriving instance Eq   (Sing a)
--- BUG: deriving instance Read (Sing a)
--- BUG: deriving instance Show (Sing a)
+instance Eq (Sing (a :: Hakaru)) where
+    a == b = maybe False (const True) (jmEq a b)
+
+-- TODO: instance Read (Sing (a :: Hakaru))
+
+instance Show1 (Sing :: Hakaru -> *) where
+    showsPrec1 p s =
+        case s of
+        SNat            -> showString     "SNat"
+        SInt            -> showString     "SInt"
+        SProb           -> showString     "SProb"
+        SReal           -> showString     "SReal"
+        SMeasure  s1    -> showParen_1  p "SMeasure"  s1
+        SArray    s1    -> showParen_1  p "SArray"    s1
+        SFun      s1 s2 -> showParen_11 p "SFun"      s1 s2
+        SData     s1 s2 -> showParen_11 p "SData"     s1 s2
+        SUnrolled s1 s2 -> showParen_11 p "SUnrolled" s1 s2
+
+instance Show (Sing (a :: Hakaru)) where
+    showsPrec = showsPrec1
+    show      = show1
+
+instance SingI 'HNat                             where sing = SNat 
+instance SingI 'HInt                             where sing = SInt 
+instance SingI 'HProb                            where sing = SProb 
+instance SingI 'HReal                            where sing = SReal 
+instance (SingI a) => SingI ('HMeasure a)        where sing = SMeasure sing
+instance (SingI a) => SingI ('HArray a)          where sing = SArray sing
+instance (SingI a, SingI b) => SingI ('HFun a b) where sing = SFun sing sing
+
+-- N.B., must use @(~)@ to delay the use of the type family (it's illegal to put it inline in the instance head).
+instance (sop ~ Code t, SingI t, SingI sop) => SingI ('HData t sop) where
+    sing = SData sing sing
+instance (SingI sop, SingI a) => SingI (sop ':$ a) where
+    sing = SUnrolled sing sing
 
 {-
 -- TODO:
@@ -189,13 +232,34 @@ pattern SMaybe a =
         (SNil `SPlus` (SKonst a `SCons` SNil) `SPlus` SVoid)
 -}
 
-
+----------------------------------------------------------------
 -- HACK: because of polykindedness, we have to give explicit type signatures for the index in the result of these data constructors.
-
 data instance Sing (unused :: HakaruCon Hakaru) where
     SCon :: !(Sing s)              -> Sing ('HCon s :: HakaruCon Hakaru)
     SApp :: !(Sing a) -> !(Sing b) -> Sing (a ':@ b :: HakaruCon Hakaru) 
 
+instance Eq (Sing (a :: HakaruCon Hakaru)) where
+    a == b = maybe False (const True) (jmEq_Con a b)
+
+-- TODO: instance Read (Sing (a :: HakaruCon Hakaru))
+
+instance Show1 (Sing :: HakaruCon Hakaru -> *) where
+    showsPrec1 p s =
+        case s of
+        SCon s1    -> showParen_1  p "SCon" s1
+        SApp s1 s2 -> showParen_11 p "SApp" s1 s2
+
+instance Show (Sing (a :: HakaruCon Hakaru)) where
+    showsPrec = showsPrec1
+    show      = show1
+
+instance SingI ('HCon s :: HakaruCon Hakaru) where
+    sing = SCon sing
+instance (SingI a, SingI b) => SingI ((a ':@ b) :: HakaruCon Hakaru) where
+    sing = SApp sing sing
+
+
+----------------------------------------------------------------
 data instance Sing (s :: Symbol) where -- TODO: fixme
     SSymbol_Bool   :: Sing "Bool"
     SSymbol_Unit   :: Sing "Unit"
@@ -204,6 +268,30 @@ data instance Sing (s :: Symbol) where -- TODO: fixme
     SSymbol_List   :: Sing "List"
     SSymbol_Maybe  :: Sing "Maybe"
 
+instance Eq (Sing (a :: Symbol)) where
+    a == b = maybe False (const True) (jmEq_Symb a b)
+
+-- TODO: instance Read (Sing (a :: Symbol))
+
+instance Show1 (Sing :: Symbol -> *) where
+    showsPrec1 _ s =
+        case s of
+        SSymbol_Bool   -> showString "SSymbol_Bool"
+        SSymbol_Unit   -> showString "SSymbol_Unit"
+        SSymbol_Pair   -> showString "SSymbol_Pair"
+        SSymbol_Either -> showString "SSymbol_Either"
+        SSymbol_List   -> showString "SSymbol_List"
+        SSymbol_Maybe  -> showString "SSymbol_Maybe"
+
+instance Show (Sing (a :: Symbol)) where
+    showsPrec = showsPrec1
+    show      = show1
+
+instance SingI (s :: Symbol) where
+    sing = error "sing{Symbol} unimplemented"
+
+
+----------------------------------------------------------------
 data instance Sing (unused :: [[HakaruFun]]) where
     SVoid :: Sing ('[] :: [[HakaruFun]])
     SPlus
@@ -211,88 +299,82 @@ data instance Sing (unused :: [[HakaruFun]]) where
         -> !(Sing xss)
         -> Sing ((xs ': xss) :: [[HakaruFun]])
 
-data instance Sing (unused :: [HakaruFun]) where
-    SNil  :: Sing ('[] :: [HakaruFun])
-    SCons :: !(Sing x) -> !(Sing xs) -> Sing ((x ': xs) :: [HakaruFun])
+instance Eq (Sing (a :: [[HakaruFun]])) where
+    a == b = maybe False (const True) (jmEq_Code a b)
 
-data instance Sing (unused :: HakaruFun) where
-    SIdent :: Sing 'I
-    SKonst :: !(Sing a) -> Sing ('K a)
+-- TODO: instance Read (Sing (a :: [[HakaruFun]]))
 
-----------------------------------------------------------------
--- | A class for automatically generating the singleton for a given
--- Hakaru type.
-class SingI (a :: k) where sing :: Sing a
+instance Show1 (Sing :: [[HakaruFun]] -> *) where
+    showsPrec1 p s =
+        case s of
+        SVoid       -> showString     "SVoid"
+        SPlus s1 s2 -> showParen_11 p "SPlus" s1 s2
 
-instance SingI 'HNat                             where sing = SNat 
-instance SingI 'HInt                             where sing = SInt 
-instance SingI 'HProb                            where sing = SProb 
-instance SingI 'HReal                            where sing = SReal 
-instance (SingI a) => SingI ('HMeasure a)        where sing = SMeasure sing
-instance (SingI a) => SingI ('HArray a)          where sing = SArray sing
-instance (SingI a, SingI b) => SingI ('HFun a b) where sing = SFun sing sing
+instance Show (Sing (a :: [[HakaruFun]])) where
+    showsPrec = showsPrec1
+    show      = show1
 
--- N.B., must use @(~)@ to delay the use of the type family (it's illegal to put it inline in the instance head).
-instance (sop ~ Code con, SingI con, SingI sop)
-    => SingI ('HData con sop)
-    where
-    sing = SData sing sing
-instance (SingI sop, SingI a) => SingI (sop ':$ a) where
-    sing = SUnrolled sing sing
-
-instance SingI ('HCon s :: HakaruCon Hakaru) where
-    sing = SCon sing
-instance (SingI a, SingI b) => SingI ((a ':@ b) :: HakaruCon Hakaru) where
-    sing = SApp sing sing
-
-instance SingI (s :: Symbol) where
-    sing = error "sing{Symbol} unimplemented"
-    
 instance SingI ('[] :: [[HakaruFun]]) where
     sing = SVoid 
 instance (SingI xs, SingI xss) => SingI ((xs ': xss) :: [[HakaruFun]]) where
     sing = SPlus sing sing
-    
+
+
+----------------------------------------------------------------
+data instance Sing (unused :: [HakaruFun]) where
+    SNil  :: Sing ('[] :: [HakaruFun])
+    SCons :: !(Sing x) -> !(Sing xs) -> Sing ((x ': xs) :: [HakaruFun])
+
+instance Eq (Sing (a :: [HakaruFun])) where
+    a == b = maybe False (const True) (jmEq_Prod a b)
+
+-- TODO: instance Read (Sing (a :: [HakaruFun]))
+
+instance Show1 (Sing :: [HakaruFun] -> *) where
+    showsPrec1 p s =
+        case s of
+        SNil        -> showString     "SNil"
+        SCons s1 s2 -> showParen_11 p "SCons" s1 s2
+
+instance Show (Sing (a :: [HakaruFun])) where
+    showsPrec = showsPrec1
+    show      = show1
+
 instance SingI ('[] :: [HakaruFun]) where
     sing = SNil 
 instance (SingI x, SingI xs) => SingI ((x ': xs) :: [HakaruFun]) where
     sing = SCons sing sing
+
+
+----------------------------------------------------------------
+data instance Sing (unused :: HakaruFun) where
+    SIdent :: Sing 'I
+    SKonst :: !(Sing a) -> Sing ('K a)
+
+instance Eq (Sing (a :: HakaruFun)) where
+    a == b = maybe False (const True) (jmEq_Fun a b)
+
+-- TODO: instance Read (Sing (a :: HakaruFun))
+
+instance Show1 (Sing :: HakaruFun -> *) where
+    showsPrec1 p s =
+        case s of
+        SIdent    -> showString    "SIdent"
+        SKonst s1 -> showParen_1 p "SKonst" s1
+
+instance Show (Sing (a :: HakaruFun)) where
+    showsPrec = showsPrec1
+    show      = show1
 
 instance SingI 'I where
     sing = SIdent 
 instance (SingI a) => SingI ('K a) where
     sing = SKonst sing
 
+
+
 ----------------------------------------------------------------
-{-
--- I think it's impossible to actually implement a function of this
--- type (i.e., without any type constraints on @a@). That is, even
--- though for every @a :: Hakaru@ there is some value of type @Sing
--- a@, and even though that value is unique for each @a@, nevertheless
--- I'm pretty sure @forall a. Sing a@ must be empty, by parametricity.
--- We'd need to inspect the @a@ in order to construct the appropriate
--- @Sing a@, but \"forall\" doesn't allow that.
---
--- BUG: this implementation just gives us a <<loop>>
-toSing :: proxy a -> Sing a
-toSing _ = everySing es
-    where
-    es = EverySing (everySing es)
-
-everySing :: EverySing -> Sing a
-everySing (EverySing s) = s
-
-data EverySing where
-    EverySing :: (forall a. Sing a) -> EverySing
--}
-
--- TODO: what is the actual runtype cost of using 'toSing'...?
--- | Convert any given proxy into a singleton. This is a convenience
--- function for type checking; it ignores its argument.
-toSing :: (SingI a) => proxy a -> Sing a
-toSing _ = sing
-{-# INLINE toSing #-}
-
+----------------------------------------------------------------
 -- | Concrete proofs of type equality. In order to make use of a
 -- proof @p :: TypeEq a b@, you must pattern-match on the 'Refl'
 -- constructor in order to show GHC that the types @a@ and @b@ are
@@ -300,12 +382,20 @@ toSing _ = sing
 data TypeEq :: k -> k -> * where
     Refl :: TypeEq a a
 
+instance Category TypeEq where
+    id          = Refl
+    Refl . Refl = Refl
+
+symmetry :: TypeEq a b -> TypeEq b a
+symmetry Refl = Refl
+
 -- | Type constructors are extensional.
-cong :: TypeEq a b -> TypeEq (f a) (f b)
-cong Refl = Refl
+congruence :: TypeEq a b -> TypeEq (f a) (f b)
+congruence Refl = Refl
 
 
--- BUG: how can we implement this when Sing isn't a closed type?
+-- TODO: how can we define this as a class parameterized by the kind?
+--
 -- | Decide whether the types @a@ and @b@ are equal. If you don't
 -- have the singleton laying around, you can use 'toSing' to convert
 -- whatever type-indexed value into one.
