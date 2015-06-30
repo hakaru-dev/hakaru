@@ -225,7 +225,19 @@ data PrimOp :: Hakaru -> * where
     BetaFunc  :: PrimOp ('HFun 'HProb ('HFun 'HProb 'HProb))
 
 
-
+    -- -- Continuous and discrete integration.
+    Integrate :: PrimOp
+        ('HFun 'HReal
+        ('HFun 'HReal
+        ('HFun ('HFun 'HReal 'HProb)
+        'HProb)))
+    Summate :: PrimOp
+        ('HFun 'HReal -- TODO: should that really be 'HReal ?!
+        ('HFun 'HReal -- TODO: should that really be 'HReal ?!
+        ('HFun ('HFun 'HInt 'HProb)
+        'HProb)))
+    
+    
     -- -- -- Here we have the /polymorphic/ operators
     -- TODO: \"monomorphize\" these by passing explicit dictionary proxies
 
@@ -622,18 +634,6 @@ data AST :: (Hakaru -> *) -> Hakaru -> * where
     PrimOp_ :: !(PrimOp a) -> AST ast a
     NaryOp_ :: !(NaryOp a) -> !(Seq (ast a)) -> AST ast a
 
-    -- -- Binding forms for integration (both continuous and discrete)
-    Integrate_
-        :: ast 'HReal
-        -> ast 'HReal
-        -> ast {-'HReal-} 'HProb
-        -> AST ast 'HProb
-    Summate_
-        :: ast 'HReal -- TODO: should that really be 'HReal ?!
-        -> ast 'HReal -- TODO: should that really be 'HReal ?!
-        -> ast {-'HInt-} 'HProb
-        -> AST ast 'HProb
-
 
     -- -- Primitive atomic types: their values and coercions
     Value_      :: !(Value a)               -> AST ast a
@@ -700,8 +700,6 @@ instance Show1 ast => Show1 (AST ast) where
                     . showList1 (F.toList es)
                     )
                 )
-        Integrate_  e1 e2 e3 -> showParen_111 p "Integrate_"  e1 e2 e3
-        Summate_    e1 e2 e3 -> showParen_111 p "Summate_"    e1 e2 e3
         Value_      v        -> showParen_0   p "Value_"      v
         CoerceTo_   c e      -> showParen_01  p "CoerceTo_"   c e
         UnsafeFrom_ c e      -> showParen_01  p "UnsafeFrom_" c e
@@ -734,8 +732,6 @@ instance Functor1 AST where
     fmap1 f (Ann_        p  e)     = Ann_        p      (f e)
     fmap1 _ (PrimOp_     o)        = PrimOp_     o
     fmap1 f (NaryOp_     o  es)    = NaryOp_     o      (fmap f es)
-    fmap1 f (Integrate_  e1 e2 e3) = Integrate_  (f e1) (f e2) (f e3)
-    fmap1 f (Summate_    e1 e2 e3) = Summate_    (f e1) (f e2) (f e3)
     fmap1 _ (Value_      v)        = Value_      v
     fmap1 f (CoerceTo_   c  e)     = CoerceTo_   c      (f e)
     fmap1 f (UnsafeFrom_ c  e)     = UnsafeFrom_ c      (f e)
@@ -758,8 +754,6 @@ instance Foldable1 AST where
     foldMap1 f (Ann_        _  e)     = f e
     foldMap1 _ (PrimOp_     _)        = mempty
     foldMap1 f (NaryOp_     _  es)    = F.foldMap f es
-    foldMap1 f (Integrate_  e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
-    foldMap1 f (Summate_    e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
     foldMap1 _ (Value_ _)             = mempty
     foldMap1 f (CoerceTo_   _  e)     = f e
     foldMap1 f (UnsafeFrom_ _  e)     = f e

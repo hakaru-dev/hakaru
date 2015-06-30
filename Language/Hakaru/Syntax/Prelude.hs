@@ -715,24 +715,22 @@ chain' v = reduce r z (mapV m v)
 
 -- instance (ABT abt) => Integrate abt where
 integrate
-    :: (ABT abt)
+    :: (ABT abt, Bindable abt)
     => abt 'HReal
     -> abt 'HReal
     -> (abt 'HReal -> abt 'HProb)
     -> abt 'HProb
 integrate lo hi f =
-    freshVar $ \x ->
-    syn . Integrate_ lo hi . open x $ f (var x sing)
+    primOp3_ Integrate lo hi (lam f)
 
 summate
-    :: (ABT abt)
+    :: (ABT abt, Bindable abt)
     => abt 'HReal
     -> abt 'HReal
     -> (abt 'HInt -> abt 'HProb)
     -> abt 'HProb
 summate lo hi f =
-    freshVar $ \x ->
-    syn . Summate_ lo hi . open x $ f (var x sing)
+    primOp3_ Summate lo hi (lam f)
 
 
 -- instance (ABT abt) => Lambda abt where

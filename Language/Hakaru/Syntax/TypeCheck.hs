@@ -67,8 +67,6 @@ mustCheck (Syn (Ann_ _ _))            = False
 -- In general (according to Dunfield & Pientka), we should be able to infer the result of a fully saturated primop by looking up it's type and then checking all the arguments. That's assumeing our AST has direct constructors for each of the fully saturated forms, but we should still get that behavior by the way PrimOp_ relies on App_
 mustCheck (Syn (PrimOp_ _))           = False
 mustCheck (Syn (NaryOp_ _ _))         = False
-mustCheck (Syn (Integrate_ _ _ _))    = False
-mustCheck (Syn (Summate_   _ _ _))    = False
 mustCheck (Syn (Value_ _))            = False
 mustCheck (Syn (CoerceTo_   _ e))     = mustCheck (viewABT e) -- TODO: I'm guessing here
 mustCheck (Syn (UnsafeFrom_ _ e))     = mustCheck (viewABT e) -- TODO: I'm guessing here
@@ -174,20 +172,6 @@ inferType ctx e =
             checkType ctx e' typ
         return typ
 
-    Syn (Integrate_ e1 e2 e3) -> do
-        checkType ctx e1 SReal
-        checkType ctx e2 SReal
-        caseOpenABT e3 $ \x e' ->
-            checkType (pushCtx (TV x SReal) ctx) e' SProb
-        return SProb
-    
-    Syn (Summate_ e1 e2 e3) -> do
-        checkType ctx e1 SReal
-        checkType ctx e2 SReal
-        caseOpenABT e3 $ \x e' ->
-            checkType (pushCtx (TV x SInt) ctx) e' SProb
-        return SProb
-    
     Syn (Value_ v) ->
         return (singValue v)
 
