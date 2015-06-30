@@ -389,6 +389,8 @@ singPrimOp _ = error "TODO: singPrimOp"
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
+-- BUG: rename all the patterns, data-constructors, singletons, and types to be *consistent* everywhere!
+        
 -- TODO: generate a type inequality proof showing that @AST ast (a
 -- :$ b)@ is impossible. Of a few proofs demonstrating that, in
 -- general @(:$)@ only occurs here in Datum.

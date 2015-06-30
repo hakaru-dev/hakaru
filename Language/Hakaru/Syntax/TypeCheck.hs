@@ -36,7 +36,7 @@ import           Control.Monad         (forM_)
 import           Control.Applicative   (Applicative)
 #endif
 import Language.Hakaru.Syntax.Nat      (fromNat)
-import Language.Hakaru.Syntax.DataKind (Hakaru)
+import Language.Hakaru.Syntax.DataKind (Hakaru(..), Code, HakaruFun)
 import Language.Hakaru.Syntax.TypeEq
 import Language.Hakaru.Syntax.Coercion (singCoerceTo, singCoerceFrom)
 import Language.Hakaru.Syntax.AST
@@ -73,14 +73,7 @@ mustCheck (Syn (Value_ _))            = False
 mustCheck (Syn (CoerceTo_   _ e))     = mustCheck (viewABT e) -- TODO: I'm guessing here
 mustCheck (Syn (UnsafeFrom_ _ e))     = mustCheck (viewABT e) -- TODO: I'm guessing here
 mustCheck (Syn (Array_  _ _))         = True -- I just say this because neelk says all data constructors mustCheck (even though that doesn't seem right to me). TODO: Seems to me that if we can infer the body, then we should be able to infer the whole thing, right? Or maybe the problem is that the change-of-direction rule might send us down the wrong path? Usually I'd assume the binder is what does it, but here we know the type of the bound variable, because it's the same for every Array
-mustCheck (Syn (Roll_   _))           = True -- I just say this because neelk says all data constructors mustCheck (even though that doesn't seem right to me). Also, Pfenning and Dunfield & Pientka give the same. TODO: can we ever infer it correctly?
-mustCheck (Syn (Unroll_ _))           = False
-mustCheck (Syn Nil_)                  = error "TODO: mustCheck(Nil_)"
-mustCheck (Syn (Cons_       e  es))   = error "TODO: mustCheck(Cons_)"
-mustCheck (Syn (Zero_       e))       = error "TODO: mustCheck(Zero_)"
-mustCheck (Syn (Succ_       e))       = error "TODO: mustCheck(Succ_)"
-mustCheck (Syn (Konst_      e))       = error "TODO: mustCheck(Konst_)"
-mustCheck (Syn (Ident_      e))       = error "TODO: mustCheck(Ident_)"
+mustCheck (Syn (Datum_   _))          = True -- I just say this because neelk says all data constructors mustCheck (even though that doesn't seem right to me). Also, Pfenning and Dunfield & Pientka give the same. TODO: shouldn't we always be able to infer it correctly, supposing that the main components (the children of the 'HakaruFun' constructors) are all inferable? I suppose we would have some trouble inferring the tag\/name for the type...
 mustCheck (Syn (Case_   _ _))         = True -- TODO: everyone says this, but it seems to me that if we can infer any of the branches (and check the rest to agree) then we should be able to infer the whole thing... Or maybe the problem is that the change-of-direction rule might send us down the wrong path?
 mustCheck (Syn (Bind_   e1 e2))       = error "TODO: mustCheck(Bind_)" -- Presumably works the same way as Let_ does
 mustCheck (Syn (Superpose_ pes))      = error "TODO: mustCheck(Superpose_)"
@@ -107,7 +100,14 @@ data TypedVariable where
     TV :: {-# UNPACK #-} !Variable -> !(Sing (a :: Hakaru)) -> TypedVariable
 
 data TypedPattern where
-    TP :: !(Pattern a) -> !(Sing (a :: Hakaru)) -> TypedPattern
+    TP  :: !(Pattern a) -> !(Sing (a :: Hakaru)) -> TypedPattern
+
+    -- N.B., we do not require that @sop ~ Code con@; so we can
+    -- perform induction on it!
+    TDP :: !(Datum Pattern (sop ':$ 'HTag con (Code con)))
+        -> !(Sing (sop :: [[HakaruFun]]))
+        -> !(Sing ('HTag con (Code con) :: Hakaru))
+        -> TypedPattern
 
 -- TODO: replace with an IntMap(TypedVariable), using the varID of the Variable
 type Ctx = IntMap TypedVariable
@@ -311,125 +311,58 @@ checkBranch
     -> Sing (b :: Hakaru)
     -> [TypedPattern]
     -> TypeCheckMonad ()
-checkBranch ctx e body_typ = go
+checkBranch ctx body body_typ = go
     where
-    go []                 = checkType ctx e body_typ
+    go []                 = checkType ctx body body_typ
     go (TP pat typ : pts) =
         case pat of
         PVar ->
             -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
-            caseOpenABT e $ \x e' ->
-                checkBranch (pushCtx (TV x typ) ctx) e' body_typ pts
+            caseOpenABT body $ \x body' ->
+                checkBranch (pushCtx (TV x typ) ctx) body' body_typ pts
 
-        PWild               -> go pts
-
-        {- -- BUG: doesn't work with the new Embed stuff
-        PTrue ->
+        PWild              -> go pts
+        PDatum (Roll pat1) ->
             case typ of
-            SBool           -> go pts
-            _               -> failwith "expected term of HBool type"
-        PFalse ->
-            case typ of
-            SBool           -> go pts
-            _               -> failwith "expected term of HBool type"
-        PUnit ->
-            case typ of
-            SUnit           -> go pts
-            _               -> failwith "expected term of HUnit type"
-        PPair pat1 pat2 ->
-            case typ of
-            SPair typ1 typ2 -> go (TP pat1 typ1 : TP pat2 typ2 : pts)
-            _               -> failwith "expected term of HPair type"
-        PInl pat1 ->
-            case typ of
-            SEither typ1 _  -> go (TP pat1 typ1 : pts)
-            _               -> failwith "expected HEither type"
-        PInr pat2 ->
-            case typ of
-            SEither _ typ2  -> go (TP pat2 typ2 : pts)
-            _               -> failwith "expected HEither type"
-        -}
-        
-        -- BUG: rename all the patterns, data-constructors, singletons, and types to be *consistent*!
-        
-        -- TODO: verify that this all works the way it should!
-        -- TODO: clean up the cruftiness about building and matching on @SUnrolled _ typA@ over and over again.
-        
-        -- pat  :: Pattern  ('HTag con (Code con))
-        -- pat1 :: Pattern  (Code con ':$ 'HTag con (Code con))
-        -- typ  :: Sing     ('HTag con (Code con))
-        -- typ1 :: SingCon  con
-        -- typ2 :: SingCode (Code con)
-        PRoll pat1 ->
-            case typ of
-            STag typ1 typ2 -> go (TP pat1 (SUnrolled typ2 typ) : pts)
-            _              -> failwith "expected term of user-defined type"
-
-        -- pat  :: Pattern  ('[ '[] ] ':$ a)
-        -- typ  :: Sing     ('[ '[] ] ':$ a)
-        -- typA :: Sing     a
-        PNil ->
-            case typ of
-            SUnrolled (SPlus SNil SVoid) typA -> go pts
-            _ -> failwith "expected term of `unit' type"
+            STag typ1 typ2 -> go (TDP pat1 typ2 typ : pts)
+            _ -> failwith "expected term of user-defined data type"
     
-        -- pat  :: Pattern  ('[ x ': xs ] ':$ a)
-        -- pat1 :: Pattern  ('[ '[ x ] ]  ':$ a)
-        -- pat2 :: Pattern  ('[ xs ] ':$ a)
-        -- typ  :: Sing     ('[ x ': xs ] ':$ a)
-        -- typ1 :: SingFun  x
-        -- typ2 :: SingProd xs
-        -- typA :: Sing     a
-        PCons pat1 pat2 ->
+    go (TDP pat typ typA : pts) =
+        -- TODO: verify that this all works the way it should!
+        -- TODO: use @typA@ to provide better error messages; particularly, the first argument to its constructor 'STag'.
+        case pat of
+        Nil ->
             case typ of
-            SUnrolled (SPlus (SCons typ1 typ2) SVoid) typA -> go
-                ( TP pat1 (SUnrolled (SPlus (SCons typ1 SNil) SVoid) typA)
-                : TP pat2 (SUnrolled (SPlus typ2 SVoid) typA)
+            SPlus SNil SVoid -> go pts
+            _                -> failwith "expected term of `unit' type"
+    
+        Cons pat1 pat2 ->
+            case typ of
+            SPlus (SCons typ1 typ2) SVoid -> go
+                ( TDP pat1 (SPlus (SCons typ1 SNil) SVoid) typA
+                : TDP pat2 (SPlus typ2 SVoid) typA
                 : pts
                 )
             _ -> failwith "expected term of `product' type"
 
-        -- pat  :: Pattern  ((xs ': xss) ':$ a)
-        -- pat1 :: Pattern  ('[ xs ] ':$ a)
-        -- typ  :: Sing     ((xs ': xss) ':$ a)
-        -- typ1 :: SingProd xs
-        -- typ2 :: SingCode xss
-        -- typA :: Sing     a
-        PZero pat1 ->
+        Zero pat1 ->
             case typ of
-            SUnrolled (SPlus typ1 typ2) typA ->
-                go (TP pat1 (SUnrolled (SPlus typ1 SVoid) typA) : pts)
-            _ -> failwith "expected term of `zero' type"
+            SPlus typ1 typ2 -> go (TDP pat1 (SPlus typ1 SVoid) typA : pts)
+            _               -> failwith "expected term of `zero' type"
 
-        -- pat  :: Pattern  ((xs ': xss) ':$ a)
-        -- pat1 :: Pattern  (xss ':$ a)
-        -- typ  :: Sing     ((xs ': xss) ':$ a)
-        -- typ1 :: SingProd xs
-        -- typ2 :: SingCode xss
-        -- typA :: Sing     a
-        PSucc pat1 ->
+        Succ pat1 ->
             case typ of
-            SUnrolled (SPlus typ1 typ2) typA ->
-                go (TP pat1 (SUnrolled typ2 typA) : pts)
-            _ -> failwith "expected term of `sum' type"
+            SPlus typ1 typ2 -> go (TDP pat1 typ2 typA : pts)
+            _               -> failwith "expected term of `sum' type"
 
-        -- pat  :: Pattern  ('[ '[ 'I ] ] ':$ a)
-        -- pat1 :: Pattern  a
-        -- typ  :: Sing     ('[ '[ 'I ] ] ':$ a)
-        -- typA :: Sing     a
-        PIdent pat1 ->
+        Ident pat1 ->
             case typ of
-            SUnrolled (SPlus (SCons SIdent SNil) SVoid) typA ->
-                go (TP pat1 typA : pts)
+            SPlus (SCons SIdent SNil) SVoid -> go (TP pat1 typA : pts)
             _ -> failwith "expected term of `I' type"
 
-        -- pat  :: Pattern  ('[ '[ 'K b ] ] ':$ a)
-        -- pat1 :: Pattern  b
-        -- typ  :: Sing     ('[ '[ 'K b ] ] ':$ a)
-        -- typA :: Sing     a
-        PKonst pat1 ->
+        Konst pat1 ->
             case typ of
-            SUnrolled (SPlus (SCons (SKonst typ1) SNil) SVoid) typA ->
+            SPlus (SCons (SKonst typ1) SNil) SVoid ->
                 go (TP pat1 typ1 : pts)
             _ -> failwith "expected term of `K' type"
 
