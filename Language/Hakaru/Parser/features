@@ -1,0 +1,13 @@
+The parser deals with concrete syntax for
+  literals
+  unit
+  pairs
+  lambdas
+
+  functions
+  primitive distributions
+
+It still needs syntax for
+  Defining new datatypes
+  Patterns and pattern matching
+  type annotations
