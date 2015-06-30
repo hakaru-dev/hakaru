@@ -420,49 +420,13 @@ asinh  = primOp1_ Asinh
 acosh  = primOp1_ Acosh
 atanh  = primOp1_ Atanh
 
-
--- BUG: correct the ugly irregularity of the names.
-rollE_
-    :: (ABT abt)
-    => abt (Code t ':$ 'HTag t (Code t))
-    -> abt ('HTag t (Code t))
-rollE_ = syn . Roll_
-
-unrollE_
-    :: (ABT abt)
-    => abt ('HTag t (Code t))
-    -> abt (Code t ':$ 'HTag t (Code t))
-unrollE_ = syn . Unroll_
-
-nilE_ :: (ABT abt) => abt ('[ '[] ] ':$ a)
-nilE_ = syn Nil_
-
-consE_
-    :: (ABT abt)
-    => abt ('[ '[x] ] ':$ a)
-    -> abt ('[xs] ':$ a)
-    -> abt ('[x ': xs] ':$ a)
-consE_ = (syn .) . Cons_
-
-zeroE_  :: (ABT abt) => abt ('[xs] ':$ a) -> abt ((xs ': xss) ':$ a)
-zeroE_  = syn . Zero_
-
-succE_  :: (ABT abt) => abt (xss ':$ a) -> abt ((xs ': xss) ':$ a)
-succE_  = syn . Succ_
-
-konstE_ :: (ABT abt) => abt b -> abt ('[ '[ 'K b ] ] ':$ a)
-konstE_ = syn . Konst_
-
-identE_ :: (ABT abt) => abt a -> abt ('[ '[ 'I   ] ] ':$ a)
-identE_ = syn . Ident_
-
-
 -- instance (ABT abt) => Base abt where not already defined above
 unit :: (ABT abt) => abt HUnit
-unit = rollE_ nilE_
+unit = syn . Datum_ $ Roll Nil
 
 pair :: (ABT abt) => abt a -> abt b -> abt (HPair a b)
-pair a b = rollE_ (zeroE_ $ consE_ (konstE_ a) $ consE_ (konstE_ b) nilE_)
+pair a b =
+    syn . Datum_ . Roll . Zero . Cons (Konst a) . Cons (Konst b) $ Nil
 
 unpair
     :: (ABT abt, SingI a, SingI b)
@@ -477,10 +441,10 @@ unpair e f =
             (open x . open y $ f (var x sing) (var y sing))]
 
 inl :: (ABT abt) => abt a -> abt (HEither a b)
-inl = rollE_ . zeroE_ . konstE_
+inl = syn . Datum_ . Roll . Zero . Konst
 
 inr :: (ABT abt) => abt b -> abt (HEither a b)
-inr = rollE_ . succE_ . konstE_
+inr = syn . Datum_ . Roll . Succ . Konst
 
 uneither
     :: (ABT abt, SingI a, SingI b)
@@ -500,20 +464,20 @@ if_ b t f = syn $ Case_ b [Branch PTrue t, Branch PFalse f]
 
 
 nil_ :: ABT abt => abt (HList a)
-nil_ = rollE_ $ zeroE_ nilE_
+nil_ = syn . Datum_ . Roll $ Zero Nil
 
 cons_ :: ABT abt => abt a -> abt (HList a) -> abt (HList a)
 cons_ x xs =
-    rollE_ (succE_ $ consE_ (konstE_ x) $ consE_ (identE_ xs) nilE_)
+    syn . Datum_ . Roll . Succ . Cons (Konst x) . Cons (Ident xs) $ Nil
 
 list_    :: ABT abt => [abt a] -> abt (HList a)
 list_    = Prelude.foldr cons_ nil_
 
 nothing_ :: ABT abt => abt (HMaybe a)
-nothing_ = rollE_ $ zeroE_ nilE_
+nothing_ = syn . Datum_ . Roll $ Zero Nil
 
 just_    :: ABT abt => abt a -> abt (HMaybe a)
-just_    = rollE_ . succE_ . konstE_
+just_    = syn . Datum_ . Roll . Succ . Konst
 
 maybe_    :: ABT abt => Maybe (abt a) -> abt (HMaybe a)
 maybe_    = Prelude.maybe nothing_ just_

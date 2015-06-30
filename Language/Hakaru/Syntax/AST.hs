@@ -13,7 +13,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.06.28
+--                                                    2015.06.30
 -- |
 -- Module      :  Language.Hakaru.Syntax.AST
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -34,7 +34,10 @@ module Language.Hakaru.Syntax.AST
     -- * Primitive operators
     , NaryOp(..), singNaryOp
     , PrimOp(..), singPrimOp
-    -- * Pattern matching
+    -- * User-defined data types
+    -- ** Data constructors\/patterns
+    , Datum(..)
+    -- ** Pattern matching
     , Pattern(..)
     , pattern PTrue
     , pattern PFalse
@@ -75,18 +78,7 @@ data Value :: Hakaru -> * where
     Int_  :: !Int      -> Value 'HInt
     Prob_ :: !LogFloat -> Value 'HProb
     Real_ :: !Double   -> Value 'HReal
-
-    -- TODO: add constructors for constants of datatypes? N.B., these should be auto-generated!
-    {-
-    Nil_     :: Value (HList a)
-    Cons_    :: !(Value a) -> !(Value (HList a)) -> Value (HList a)
-    Nothing_ :: Value ('HMaybe a)
-    Just_    :: !(Value a) -> Value ('HMaybe a)
-    Unit_    :: Value HUnit
-    Pair_    :: !(Value a) -> !(Value b) -> Value (HPair a b)
-    Inl_     :: !(Value a) -> Value (HEither a b)
-    Inr_     :: !(Value b) -> Value (HEither a b)
-    -}
+    -- TODO: Should we add a @Datum Value@ option here?
 
 deriving instance Eq   (Value a)
 -- BUG: deriving instance Read (Value a)
@@ -252,16 +244,8 @@ data PrimOp :: Hakaru -> * where
     -- -- -- Here we have the /polymorphic/ operators
     -- TODO: \"monomorphize\" these by passing explicit dictionary proxies
 
-{-
-    -- TODO: do these really belong here (as PrimOps), or in AST?
-    -- -- Data constructors (including the monomorphic 'Unit')
-    Unit :: PrimOp HUnit
-    Pair :: PrimOp ('HFun a ('HFun b (HPair a b)))
-    Inl  :: PrimOp ('HFun a (HEither a b))
-    Inr  :: PrimOp ('HFun b (HEither a b))
--}
-
     -- -- Array stuff
+    -- TODO: do these really belong here (as PrimOps), in AST, or in their own place (a la Datum)?
     Empty  :: PrimOp ('HArray a)
     Index  :: PrimOp ('HFun ('HArray a) ('HFun 'HNat a))
     Size   :: PrimOp ('HFun ('HArray a) 'HNat)
@@ -386,10 +370,6 @@ singPrimOp Gamma       = sing
 singPrimOp Beta        = sing
 {-
 -- BUG: case analysis isn't enough here, because of the class constraints. We should be able to fix that by passing explicit singleton dictionaries instead of using Haskell's type classes. Of course, we can't even do Unit anymore because of whatever bugginess with the embed stuff :(
-singPrimOp Unit        = sing
-singPrimOp Pair        = sing
-singPrimOp Inl         = sing
-singPrimOp Inr         = sing
 singPrimOp Empty       = sing
 singPrimOp Index       = sing
 singPrimOp Size        = sing
@@ -408,6 +388,76 @@ singPrimOp _ = error "TODO: singPrimOp"
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
+
+-- TODO: generate a type inequality proof showing that @AST ast (a
+-- :$ b)@ is impossible. Of a few proofs demonstrating that, in
+-- general @(:$)@ only occurs here in Datum.
+--
+-- Heck, maybe we can move @(:$)@ out of the Hakaru data kind all
+-- together. Here's the plan: First we get rid of 'Roll', fusing
+-- into 'PDatum' and 'Datum_' (and anywhere else similar). Then the
+-- index type of 'Datum' becomes uniform, so we can break it up
+-- into the two components. We'd have to define some weird stand-alone
+-- variant of 'Functor1' in order to map over the first parameter;
+-- and we'd lose the ability to wrap up a 'Datum' as a final package,
+-- without committing to it being a constructor or a pattern; But
+-- other than those two things, it looks like a win!
+
+-- | The intermediate components of a data constructor. The @(:$)@
+-- types aren't really proper Hakaru types, so this data type is
+-- designed to separate it out from the rest of the AST.
+data Datum :: (Hakaru -> *) -> Hakaru -> * where
+    Roll
+        :: !(Datum ast (Code t ':$ 'HTag t (Code t)))
+        -> Datum ast ('HTag t (Code t))
+    Nil :: Datum ast ('[ '[] ] ':$ a)
+    Cons
+        :: !(Datum ast ('[ '[ x ] ] ':$ a))
+        -> !(Datum ast ('[ xs ] ':$ a))
+        -> Datum ast ('[ x ': xs ] ':$ a)
+    Zero  :: !(Datum ast ('[ xs ] ':$ a)) -> Datum ast ((xs ': xss) ':$ a)
+    Succ  :: !(Datum ast (xss ':$ a))     -> Datum ast ((xs ': xss) ':$ a)
+    Konst :: ast b -> Datum ast ('[ '[ 'K b ] ] ':$ a)
+    Ident :: ast a -> Datum ast ('[ '[ 'I   ] ] ':$ a)
+
+-- BUG: deriving instance Eq   (Datum ast a)
+-- BUG: deriving instance Read (Datum ast a)
+
+instance Show1 ast => Show1 (Datum ast) where
+    showsPrec1 p t =
+        case t of
+        Roll  d     -> showParen_1   p "Roll"  d
+        Nil         -> showString      "Nil"
+        Cons  d1 d2 -> showParen_11  p "Cons"  d1 d2
+        Zero  d     -> showParen_1   p "Zero"  d
+        Succ  d     -> showParen_1   p "Succ"  d
+        Konst d     -> showParen_1   p "Konst" d
+        Ident d     -> showParen_1   p "Ident" d
+
+instance Show1 ast => Show (Datum ast a) where
+    showsPrec = showsPrec1
+    show      = show1
+
+instance Functor1 Datum where
+    fmap1 f (Roll  d)     = Roll  (fmap1 f d)
+    fmap1 _ Nil           = Nil
+    fmap1 f (Cons  d1 d2) = Cons  (fmap1 f d1) (fmap1 f d2)
+    fmap1 f (Zero  d)     = Zero  (fmap1 f d)
+    fmap1 f (Succ  d)     = Succ  (fmap1 f d)
+    fmap1 f (Konst d)     = Konst (f d)
+    fmap1 f (Ident d)     = Ident (f d)
+
+instance Foldable1 Datum where
+    foldMap1 f (Roll  d)     = foldMap1 f d
+    foldMap1 _ Nil           = mempty
+    foldMap1 f (Cons  d1 d2) = foldMap1 f d1 `mappend` foldMap1 f d2
+    foldMap1 f (Zero  d)     = foldMap1 f d
+    foldMap1 f (Succ  d)     = foldMap1 f d
+    foldMap1 f (Konst d)     = f d
+    foldMap1 f (Ident d)     = f d
+
+
+----------------------------------------------------------------
 -- TODO: negative patterns? (to facilitate reordering of case branches)
 -- TODO: exhaustiveness, non-overlap, dead-branch checking
 --
@@ -420,57 +470,66 @@ singPrimOp _ = error "TODO: singPrimOp"
 -- prolly overkill since we can just run the type checker over our
 -- AST.
 data Pattern :: Hakaru -> * where
-    PWild :: Pattern a -- ^ The \"don't care\" wildcard pattern.
-    PVar  :: Pattern a -- ^ A pattern variable.
+    -- | The \"don't care\" wildcard pattern.
+    PWild :: Pattern a
+    
+    -- | A pattern variable.
+    PVar  :: Pattern a
+    
     -- TODO: equality patterns for Nat\/Int.
     -- Does it make sense to have equality patterns for Prob\/Real?
-    -- No patterns for HFun, HMeasure, or HArray.
 
-    -- | End-users should never see the 'PRoll' pattern; we
-    -- automatically insert it wherever necessary.
-    PRoll
-        :: !(Pattern (Code con ':$ 'HTag con (Code con)))
-        -> Pattern ('HTag con (Code con))
+    -- | A data type constructor pattern.
+    PDatum
+        :: !(Datum Pattern ('HTag t (Code t)))
+        -> Pattern ('HTag t (Code t))
 
-    -- BUG: rename all the patterns, data-constructors, singletons, and types to be *consistent*!
-    PNil   :: Pattern ('[ '[] ] ':$ a)
-    PCons
-        :: !(Pattern ('[ '[ x ] ] ':$ a))
-        -> !(Pattern ('[ xs ] ':$ a))
-        -> Pattern ('[ x ': xs ] ':$ a)
-    PZero  :: !(Pattern ('[ xs ] ':$ a)) -> Pattern ((xs ': xss) ':$ a)
-    PSucc  :: !(Pattern (xss ':$ a))     -> Pattern ((xs ': xss) ':$ a)
-    PIdent :: !(Pattern a) -> Pattern ('[ '[ 'I   ] ] ':$ a)
-    PKonst :: !(Pattern b) -> Pattern ('[ '[ 'K b ] ] ':$ a)
 
-deriving instance Eq   (Pattern a)
+-- BUG: deriving instance Eq   (Pattern a)
 -- BUG: deriving instance Read (Pattern a)
-deriving instance Show (Pattern a)
 
+instance Show1 Pattern where
+    showsPrec1 p pat =
+        case pat of
+        PWild    -> showString    "PWild"
+        PVar     -> showString    "PVar"
+        PDatum d -> showParen_1 p "PDatum" d
+
+instance Show (Pattern a) where
+    showsPrec = showsPrec1
+    show      = show1
+
+
+-- TODO: move these pattern synonyms up to just the types @Datum ast _@, so we can reuse them both for patterns and constructors.
 
 -- BUG: should we even bother making these into pattern synonyms?
 -- We can't do it for any of the other derived patterns, so having
 -- these ones just screws up the API. Of course, once we move to
 -- GHC 7.10, then we're finally allowed to have polymorphic pattern
 -- synonyms, so we can make the other ones work!
-pattern PTrue  = (PRoll (PZero PNil) :: Pattern HBool)
-pattern PFalse = (PRoll (PSucc PNil) :: Pattern HBool)
-pattern PUnit  = (PRoll PNil         :: Pattern HUnit)
+pattern PTrue  = (PDatum (Roll (Zero Nil)) :: Pattern HBool)
+pattern PFalse = (PDatum (Roll (Succ Nil)) :: Pattern HBool)
+pattern PUnit  = (PDatum (Roll Nil)        :: Pattern HUnit)
 
 pPair :: Pattern a -> Pattern b -> Pattern (HPair a b)
-pPair a b = PRoll (PCons (PKonst a) (PKonst b))
+pPair a b = PDatum (Roll (Cons (Konst a) (Konst b)))
 
 pInl :: Pattern a -> Pattern (HEither a b)
-pInl a = PRoll (PZero (PKonst a))
+pInl a = PDatum (Roll (Zero (Konst a)))
 
 pInr :: Pattern b -> Pattern (HEither a b)
-pInr a = PRoll (PSucc (PKonst a))
+pInr a = PDatum (Roll (Succ (Konst a)))
 
 
 
 -- TODO: a pretty infix syntax, like (:->) or something
+-- TODO: this type is helpful for capturing the existential, if we ever end up keeping track of local binding environments; but other than that, it should be replaced\/augmented with a type for pattern automata, so we can optimize case analysis.
 data Branch :: Hakaru -> (Hakaru -> *) -> Hakaru -> * where
-    Branch :: {-exists Γ.-} Pattern a {-Γ-} -> ast {-Γ-} b -> Branch a ast b
+    Branch
+        :: {-exists Γ.-}
+           !(Pattern a) {-Γ-}
+        -> ast {-Γ-} b
+        -> Branch a ast b
 
 branchPattern :: Branch a ast b -> Pattern a
 branchPattern (Branch p _) = p
@@ -556,23 +615,13 @@ data AST :: (Hakaru -> *) -> Hakaru -> * where
 
 
     -- -- User-defined data types
-    Roll_
-        :: ast (Code t ':$ 'HTag t (Code t))
-        -> AST ast ('HTag t (Code t))
-    Unroll_
-        :: ast ('HTag t (Code t))
-        -> AST ast (Code t ':$ 'HTag t (Code t))
-    Nil_    :: AST ast ('[ '[] ] ':$ a)
-    Cons_
-        :: ast ('[ '[ x ] ] ':$ a)
-        -> ast ('[ xs ] ':$ a)
-        -> AST ast ('[ x ': xs ] ':$ a)
-    Zero_   :: ast ('[ xs ] ':$ a) -> AST ast ((xs ': xss) ':$ a)
-    Succ_   :: ast (xss ':$ a)     -> AST ast ((xs ': xss) ':$ a)
-    Konst_  :: ast b -> AST ast ('[ '[ 'K b ] ] ':$ a)
-    Ident_  :: ast a -> AST ast ('[ '[ 'I   ] ] ':$ a)
+    -- | A data constructor applied to some expressions.
+    Datum_
+        :: Datum ast ('HTag con (Code con))
+        -> AST   ast ('HTag con (Code con))
+    
     -- | Generic case-analysis (via ABTs and Structural Focalization).
-    Case_   :: ast a -> [Branch a ast b] -> AST ast b
+    Case_ :: ast a -> [Branch a ast b] -> AST ast b
 
 
     -- -- Mochastic stuff (which isn't PrimOps)
@@ -682,14 +731,7 @@ instance Show1 ast => Show1 (AST ast) where
         CoerceTo_   c e      -> showParen_01  p "CoerceTo_"   c e
         UnsafeFrom_ c e      -> showParen_01  p "UnsafeFrom_" c e
         Array_      e1 e2    -> showParen_11  p "Array_"      e1 e2
-        Roll_       e        -> showParen_1   p "Roll_"       e
-        Unroll_     e        -> showParen_1   p "Unroll_"     e
-        Nil_                 -> showString      "Nil_"
-        Cons_       e1 e2    -> showParen_11  p "Cons_"       e1 e2
-        Zero_       e        -> showParen_1   p "Zero_"       e
-        Succ_       e        -> showParen_1   p "Succ_"       e
-        Konst_      e        -> showParen_1   p "Konst_"      e
-        Ident_      e        -> showParen_1   p "Ident_"      e
+        Datum_      d        -> showParen_1   p "Datum_"      d
         Case_       e bs     ->
             showParen (p > 9)
                 ( showString "Case_ "
@@ -725,14 +767,7 @@ instance Functor1 AST where
     fmap1 f (CoerceTo_   c  e)     = CoerceTo_   c      (f e)
     fmap1 f (UnsafeFrom_ c  e)     = UnsafeFrom_ c      (f e)
     fmap1 f (Array_      e1 e2)    = Array_      (f e1) (f e2)
-    fmap1 f (Roll_       e)        = Roll_       (f e)
-    fmap1 f (Unroll_     e)        = Unroll_     (f e)
-    fmap1 _ Nil_                   = Nil_
-    fmap1 f (Cons_       e es)     = Cons_       (f e)  (f es)
-    fmap1 f (Zero_       e)        = Zero_       (f e)
-    fmap1 f (Succ_       e)        = Succ_       (f e)
-    fmap1 f (Konst_      e)        = Konst_      (f e)
-    fmap1 f (Ident_      e)        = Ident_      (f e)
+    fmap1 f (Datum_      d)        = Datum_      (fmap1 f d)
     fmap1 f (Case_       e  bs)    = Case_       (f e)  (map (fmap1 f) bs)
     fmap1 f (Bind_       e1 e2)    = Bind_       (f e1) (f e2)
     fmap1 f (Superpose_  pes)      = Superpose_  (map (f *** f) pes)
@@ -758,14 +793,7 @@ instance Foldable1 AST where
     foldMap1 f (CoerceTo_   _  e)     = f e
     foldMap1 f (UnsafeFrom_ _  e)     = f e
     foldMap1 f (Array_      e1 e2)    = f e1 `mappend` f e2
-    foldMap1 f (Roll_       e)        = f e
-    foldMap1 f (Unroll_     e)        = f e
-    foldMap1 _ Nil_                   = mempty
-    foldMap1 f (Cons_       e  es)    = f e `mappend` f es
-    foldMap1 f (Zero_       e)        = f e
-    foldMap1 f (Succ_       e)        = f e
-    foldMap1 f (Konst_      e)        = f e
-    foldMap1 f (Ident_      e)        = f e
+    foldMap1 f (Datum_      d)        = foldMap1 f d
     foldMap1 f (Case_       e  bs)    = f e  `mappend` F.foldMap (f . branchBody) bs
     foldMap1 f (Bind_       e1 e2)    = f e1 `mappend` f e2
     foldMap1 f (Superpose_  pes)      = F.foldMap (\(e1,e2) -> f e1 `mappend` f e2) pes

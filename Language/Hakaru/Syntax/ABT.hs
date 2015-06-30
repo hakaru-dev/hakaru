@@ -501,14 +501,7 @@ instance Bindable abt => Bindable (AST abt) where
     bound (CoerceTo_   _  e)     = bound e
     bound (UnsafeFrom_ _  e)     = bound e
     bound (Array_      e1 e2)    = bound e1 `max` bound e2
-    bound (Roll_       e)        = bound e
-    bound (Unroll_     e)        = bound e
-    bound Nil_                   = 0
-    bound (Cons_       e es)     = bound e `max` bound es
-    bound (Zero_       e)        = bound e
-    bound (Succ_       e)        = bound e
-    bound (Konst_      e)        = bound e
-    bound (Ident_      e)        = bound e
+    bound (Datum_      d)        = bound d
     bound (Case_       e  bs)    = bound e  `max` maximumBoundBranch bs
     bound (Bind_       e1 e2)    = bound e1 `max` bound e2
     bound (Superpose_  pes)      = maximumBound2 pes
@@ -517,6 +510,15 @@ instance Bindable abt => Bindable (AST abt) where
     bound (Chain_      e)        = bound e
     bound (Lub_        e1 e2)    = bound e1 `max` bound e2
     bound Bot_                   = 0
+
+instance Bindable abt => Bindable (Datum abt) where
+    bound (Roll       d)        = bound d
+    bound Nil                   = 0
+    bound (Cons       d1 d2)    = bound d1 `max` bound d2
+    bound (Zero       d)        = bound d
+    bound (Succ       d)        = bound d
+    bound (Konst      e)        = bound e
+    bound (Ident      e)        = bound e
 
 
 -- | A combinator for defining a HOAS-like API for our syntax.
