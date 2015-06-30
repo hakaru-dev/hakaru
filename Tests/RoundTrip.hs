@@ -104,6 +104,8 @@ testMeasureReal = test
   , "t76" ~: testS t76
   , "t78" ~: testSS [t78] t78'
   , "t79" ~: testSS [t79] (dirac 1)
+  , "t80" ~: testS t80
+  , "t81" ~: testSS [] t81
   , "kalman" ~: testS kalman
   , "seismic" ~: testSS [] seismic
   , "lebesgue1" ~: testSS [] (lebesgue `bind` \x -> if_ (less 42 x) (dirac x) (superpose []))
@@ -140,7 +142,8 @@ testMeasurePair = test [
                               (lam $ \x -> superpose [(fromRational (1/2), normal 0 1         `bind` \y -> dirac (pair y (snd_ x))),
                                                       (fromRational (1/2), normal 0 (sqrt_ 2) `bind` \y -> dirac (pair (fst_ x) y))]),
     "mhPriorProp"   ~: testSS [testMHPriorProp] testPriorProp',
-    "unif2"         ~: testS unif2
+    "unif2"         ~: testS unif2,
+    "easyHMM"       ~: testS easyHMM
 --    "testMCMCPriorProp" ~: testS testMCMCPriorProp
     ]
 
@@ -727,6 +730,12 @@ t78' = liftM (fromProb . (*2)) (beta 2 1)
 -- what does this simplify to?
 t79 :: (Mochastic repr) => repr (HMeasure HReal)
 t79 = dirac 3 `bind` \x -> dirac (if_ (equal x 3) 1 x)
+
+t80 :: (Mochastic repr) => repr (HMeasure HReal)
+t80 = gamma 1 1 `bind` \t -> normal 0 t
+
+t81 :: (Mochastic repr) => repr (HMeasure HReal)
+t81 = uniform 0 pi
 
 -- Testing round-tripping of some other distributions
 testexponential :: Mochastic repr => repr (HMeasure HProb)
@@ -1422,3 +1431,15 @@ seismic :: (Lambda repr, Mochastic repr, Integrate repr) => repr
     (HFun (HPair HReal (HPair HReal (HPair HReal HProb)))
     (HMeasure HProb))))
 seismic = lam3 (\s e d -> dirac $ SE.densT s e d)
+
+easyHMM
+    :: (Mochastic repr)
+    => repr (HMeasure (HPair (HPair HReal HReal) (HPair HProb HProb)))
+easyHMM =
+  gamma 3 1 `bind` \noiseT ->
+  gamma 1 1 `bind` \noiseE ->
+  normal  0 noiseT `bind` \x1 ->
+  normal x1 noiseE `bind` \m1 ->
+  normal x1 noiseT `bind` \x2 ->
+  normal x2 noiseE `bind` \m2 ->
+  dirac (pair (pair m1 m2) (pair noiseT noiseE))
