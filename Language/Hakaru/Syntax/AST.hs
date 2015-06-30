@@ -117,6 +117,9 @@ singValue (Real_ _) = sing
 data NaryOp :: Hakaru -> * where
     And  :: NaryOp HBool
     Or   :: NaryOp HBool
+    Xor  :: NaryOp HBool
+    -- TODO: even though 'Iff' is associative (in Boolean algebras), we should not support n-ary uses in our *surface* syntax. Because it's too easy for folks to confuse "a <=> b <=> c" with "(a <=> b) /\ (b <=> c)".
+    Iff  :: NaryOp HBool -- == Not (Xor x y)
 
     -- These two don't necessarily have identity elements; thus,
     -- @NaryOp_ Min []@ and @NaryOp_ Max []@ may not be well-defined...
@@ -139,8 +142,12 @@ deriving instance Show (NaryOp a)
 
 -- N.B., we do case analysis so that we don't need the class constraint!
 singNaryOp :: NaryOp a -> Sing a
--- singNaryOp And  = sing -- BUG: "overlapping instances" for SingI HBool??
--- singNaryOp Or   = sing -- BUG: "overlapping instances" for SingI HBool??
+{- -- BUG: "overlapping instances" for SingI HBool??
+singNaryOp And  = sing
+singNaryOp Or   = sing
+singNaryOp Xor  = sing
+singNaryOp Iff  = sing
+-}
 {- BUG: case analysis isn't enough here, because of the class constraints. We should be able to fix that by passing explicit singleton dictionaries instead of using Haskell's type classes
 singNaryOp Min  = sing
 singNaryOp Max  = sing
@@ -167,10 +174,7 @@ data PrimOp :: Hakaru -> * where
     -- cf., <https://github.com/pfpacket/Quine-McCluskey>
     -- cf., <https://gist.github.com/dsvictor94/8db2b399a95e301c259a>
     Not  :: PrimOp ('HFun HBool HBool)
-    -- And
-    -- Or
-    Xor  :: PrimOp ('HFun HBool ('HFun HBool HBool)) -- == Not (Iff x y)
-    Iff  :: PrimOp ('HFun HBool ('HFun HBool HBool)) -- == Not (Xor x y)
+    -- And, Or, Xor, Iff
     Impl :: PrimOp ('HFun HBool ('HFun HBool HBool)) -- == Or (Not x) y
     Diff :: PrimOp ('HFun HBool ('HFun HBool HBool)) -- == Not (Impl x y)
     Nand :: PrimOp ('HFun HBool ('HFun HBool HBool)) -- aka Alternative Denial, Sheffer stroke
@@ -351,8 +355,6 @@ singPrimOp :: PrimOp a -> Sing a
 {-
 -- BUG: "overlapping instances" for SingI HBool??
 singPrimOp Not         = sing
-singPrimOp Xor         = sing
-singPrimOp Iff         = sing
 singPrimOp Impl        = sing
 singPrimOp Diff        = sing
 singPrimOp Nand        = sing

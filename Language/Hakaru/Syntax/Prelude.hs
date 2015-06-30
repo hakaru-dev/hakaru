@@ -193,8 +193,8 @@ or  = naryOp_withIdentity Or  false
     :: (ABT abt) => abt HBool -> abt HBool -> abt HBool
 (&&) = naryOp2_ And
 (||) = naryOp2_ Or
--- (</=>) = primOp2_ Xor
--- (<==>) = primOp2_ Iff
+-- (</=>) = naryOp2_ Xor
+-- (<==>) = naryOp2_ Iff
 -- (==>)  = primOp2_ Impl
 -- (<==)  = flip (==>)
 -- (\\)   = primOp2_ Diff
