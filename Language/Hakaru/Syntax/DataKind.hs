@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.06.28
+--                                                    2015.06.30
 -- |
 -- Module      :  Language.Hakaru.Syntax.DataKind
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -79,16 +79,15 @@ data Hakaru
     -- | The type of Hakaru functions.
     | HFun !Hakaru !Hakaru
 
-    -- TODO: rename to something better
     -- | A user-defined polynomial data type. Each such type is
     -- specified by a \"tag\" (the @HakaruCon Hakaru@) which names
     -- the type, and a sum-of-product representation of the type
     -- itself.
-    | HTag !(HakaruCon Hakaru) [[HakaruFun]]
+    | HData !(HakaruCon Hakaru) [[HakaruFun]]
 
     -- | This is not a proper Hakaru type. It's a helper type for
     -- getting at the intermediate form produced by unrolling the
-    -- fixpoint of an 'HTag' type.
+    -- fixpoint of an 'HData' type.
     | [[HakaruFun]] :$ !Hakaru
 
     deriving (Read, Show)
@@ -110,7 +109,7 @@ deriving instance Typeable 'HMeasure
 deriving instance Typeable 'HArray
 deriving instance Typeable 'HFun
 deriving instance Typeable '(:$)
-deriving instance Typeable 'HTag
+deriving instance Typeable 'HData
 
 
 ----------------------------------------------------------------
@@ -170,12 +169,12 @@ type instance Code ('HCon "Either" ':@ a ':@ b) = '[ '[ 'K a ], '[ 'K b ] ]
 -- by hand— or copied from the GHC pretty printer, which will happily
 -- reduce things in the repl, even in the presence of quantified
 -- type variables.
-type HakaruType t = 'HTag t (Code t)
+type HakaruType t = 'HData t (Code t)
 {-
    >:kind! forall a b . HakaruType (HCon "Pair" :@ a :@ b)
    forall a b . HakaruType (HCon "Pair" :@ a :@ b) :: Hakaru
    = forall (a :: Hakaru) (b :: Hakaru).
-     'HTag (('HCon "Pair" ':@ a) ':@ b) '['['K a, 'K b]]
+     'HData (('HCon "Pair" ':@ a) ':@ b) '['['K a, 'K b]]
 
 type HBool       = HakaruType (HCon "Bool")
 type HUnit       = HakaruType (HCon "Unit")
@@ -185,12 +184,12 @@ type HList   a   = HakaruType (HCon "List"   :@ a)
 type HMaybe  a   = HakaruType (HCon "Maybe"  :@ a)
 -}
 
-type HBool       = 'HTag ('HCon "Bool") '[ '[], '[] ]
-type HUnit       = 'HTag ('HCon "Unit") '[ '[] ]
-type HPair   a b = 'HTag (('HCon "Pair"   ':@ a) ':@ b) '[ '[ 'K a, 'K b] ]
-type HEither a b = 'HTag (('HCon "Either" ':@ a) ':@ b) '[ '[ 'K a], '[ 'K b] ]
-type HList   a   = 'HTag ('HCon "List"    ':@ a) '[ '[], '[ 'K a, 'I] ]
-type HMaybe  a   = 'HTag ('HCon "Maybe"   ':@ a) '[ '[], '[ 'K a] ]
+type HBool       = 'HData ('HCon "Bool") '[ '[], '[] ]
+type HUnit       = 'HData ('HCon "Unit") '[ '[] ]
+type HPair   a b = 'HData (('HCon "Pair"   ':@ a) ':@ b) '[ '[ 'K a, 'K b] ]
+type HEither a b = 'HData (('HCon "Either" ':@ a) ':@ b) '[ '[ 'K a], '[ 'K b] ]
+type HList   a   = 'HData ('HCon "List"    ':@ a) '[ '[], '[ 'K a, 'I] ]
+type HMaybe  a   = 'HData ('HCon "Maybe"   ':@ a) '[ '[], '[ 'K a] ]
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

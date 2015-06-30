@@ -8,7 +8,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.06.28
+--                                                    2015.06.30
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeCheck
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -105,9 +105,9 @@ data TypedPattern where
 
     -- N.B., we do not require that @sop ~ Code con@; so we can
     -- perform induction on it!
-    TDP :: !(Datum Pattern (sop ':$ 'HTag con (Code con)))
+    TDP :: !(Datum Pattern (sop ':$ 'HData con (Code con)))
         -> !(Sing (sop :: [[HakaruFun]]))
-        -> !(Sing ('HTag con (Code con) :: Hakaru))
+        -> !(Sing ('HData con (Code con) :: Hakaru))
         -> TypedPattern
 
 -- TODO: replace with an IntMap(TypedVariable), using the varID of the Variable
@@ -325,12 +325,12 @@ checkBranch ctx body body_typ = go
         PWild              -> go pts
         PDatum (Roll pat1) ->
             case typ of
-            STag typ1 typ2 -> go (TDP pat1 typ2 typ : pts)
+            SData typ1 typ2 -> go (TDP pat1 typ2 typ : pts)
             _ -> failwith "expected term of user-defined data type"
     
     go (TDP pat typ typA : pts) =
         -- TODO: verify that this all works the way it should!
-        -- TODO: use @typA@ to provide better error messages; particularly, the first argument to its constructor 'STag'.
+        -- TODO: use @typA@ to provide better error messages; particularly, the first argument to its constructor 'SData'.
         case pat of
         Nil ->
             case typ of

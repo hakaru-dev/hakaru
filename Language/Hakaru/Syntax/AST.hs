@@ -420,8 +420,8 @@ singMeasure Beta        = sing
 -- designed to separate it out from the rest of the AST.
 data Datum :: (Hakaru -> *) -> Hakaru -> * where
     Roll
-        :: !(Datum ast (Code t ':$ 'HTag t (Code t)))
-        -> Datum ast ('HTag t (Code t))
+        :: !(Datum ast (Code t ':$ 'HData t (Code t)))
+        -> Datum ast ('HData t (Code t))
     Nil :: Datum ast ('[ '[] ] ':$ a)
     Cons
         :: !(Datum ast ('[ '[ x ] ] ':$ a))
@@ -493,8 +493,8 @@ data Pattern :: Hakaru -> * where
 
     -- | A data type constructor pattern.
     PDatum
-        :: !(Datum Pattern ('HTag t (Code t)))
-        -> Pattern ('HTag t (Code t))
+        :: !(Datum Pattern ('HData t (Code t)))
+        -> Pattern ('HData t (Code t))
 
 
 -- BUG: deriving instance Eq   (Pattern a)
@@ -629,8 +629,8 @@ data AST :: (Hakaru -> *) -> Hakaru -> * where
     -- -- User-defined data types
     -- | A data constructor applied to some expressions.
     Datum_
-        :: Datum ast ('HTag con (Code con))
-        -> AST   ast ('HTag con (Code con))
+        :: Datum ast ('HData con (Code con))
+        -> AST   ast ('HData con (Code con))
     
     -- | Generic case-analysis (via ABTs and Structural Focalization).
     Case_ :: ast a -> [Branch a ast b] -> AST ast b

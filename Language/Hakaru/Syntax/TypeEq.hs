@@ -125,7 +125,7 @@ jmEq a b =
 -- TODO: Smart constructors for built-in types like Pair, Either, etc.
 sPair :: Sing a -> Sing b -> Sing (HPair a b) 
 sPair a b =
-    SHTag (SHCon (singByProxy (Proxy :: Proxy "Pair")) :%@ a :%@ b) 
+    SHData (SHCon (singByProxy (Proxy :: Proxy "Pair")) :%@ a :%@ b) 
         (SCons (SCons (SK a) $ SCons (SK b) SNil) SNil)
 -}
 
@@ -146,8 +146,8 @@ data instance Sing (unused :: Hakaru) where
     SArray   :: !(Sing a) -> Sing ('HArray a)
     SFun     :: !(Sing a) -> !(Sing b) -> Sing ('HFun a b)
 
-    STag :: !(Sing con) -> !(Sing (Code con)) -> Sing ('HTag con (Code con))
-    -- TODO: @a@ should always be @'HTag con sop@, and @sop@ should always be @Code con@
+    SData :: !(Sing con) -> !(Sing (Code con)) -> Sing ('HData con (Code con))
+    -- TODO: @a@ should always be @'HData con sop@, and @sop@ should always be @Code con@
     SUnrolled :: !(Sing sop) -> !(Sing a) -> Sing (sop ':$ a)
 
 -- BUG: deriving instance Eq   (Sing a)
@@ -158,34 +158,34 @@ data instance Sing (unused :: Hakaru) where
 -- TODO:
 pattern SUnit :: Sing HUnit
 pattern SUnit =
-    STag (SCon SSymbol_Unit)
+    SData (SCon SSymbol_Unit)
         (SNil `SPlus` SVoid)
         
 pattern SBool :: Sing HBool
 pattern SBool =
-    STag (SCon SSymbol_Bool)
+    SData (SCon SSymbol_Bool)
         (SNil `SPlus` SNil `SPlus` SVoid)
 
 -- BUG: what does this "Conflicting definitions for ‘a’" message mean?
 pattern SPair :: Sing a -> Sing b -> Sing (HPair a b)
 pattern SPair a b =
-    STag (SCon SSymbol_Pair `SApp` a `SApp` b)
+    SData (SCon SSymbol_Pair `SApp` a `SApp` b)
         ((SKonst a `SCons` SKonst b `SCons` SNil) `SPlus` SVoid)
 
 pattern SEither :: Sing a -> Sing b -> Sing (HEither a b)
 pattern SEither a b =
-    STag (SCon SSymbol_Either `SApp` a `SApp` b)
+    SData (SCon SSymbol_Either `SApp` a `SApp` b)
         ((SKonst a `SCons` SNil) `SPlus` (SKonst b `SCons` SNil)
             `SPlus` SVoid)
 
 pattern SList :: Sing a -> Sing (HList a)
 pattern SList a =
-    STag (SCon SSymbol_List `SApp` a)
+    SData (SCon SSymbol_List `SApp` a)
         (SNil `SPlus` (SKonst a `SCons` SIdent `SCons` SNil) `SPlus` SVoid)
 
 pattern SMaybe :: Sing a -> Sing (HMaybe a)
 pattern SMaybe a =
-    STag (SCon SSymbol_Maybe `SApp` a)
+    SData (SCon SSymbol_Maybe `SApp` a)
         (SNil `SPlus` (SKonst a `SCons` SNil) `SPlus` SVoid)
 -}
 
@@ -234,9 +234,9 @@ instance (SingI a, SingI b) => SingI ('HFun a b) where sing = SFun sing sing
 
 -- N.B., must use @(~)@ to delay the use of the type family (it's illegal to put it inline in the instance head).
 instance (sop ~ Code con, SingI con, SingI sop)
-    => SingI ('HTag con sop)
+    => SingI ('HData con sop)
     where
-    sing = STag sing sing
+    sing = SData sing sing
 instance (SingI sop, SingI a) => SingI (sop ':$ a) where
     sing = SUnrolled sing sing
 
@@ -318,7 +318,7 @@ jmEq (SMeasure a)     (SMeasure b)     = jmEq a  b  >>= \Refl -> Just Refl
 jmEq (SArray   a)     (SArray   b)     = jmEq a  b  >>= \Refl -> Just Refl
 jmEq (SFun     a1 a2) (SFun     b1 b2) = jmEq a1 b1 >>= \Refl -> 
                                          jmEq a2 b2 >>= \Refl -> Just Refl
-jmEq (STag con1 code1) (STag con2 code2) =
+jmEq (SData con1 code1) (SData con2 code2) =
     jmEq_Con  con1  con2  >>= \Refl ->
     jmEq_Code code1 code2 >>= \Refl -> Just Refl
 jmEq (SUnrolled code1 a) (SUnrolled code2 b) =

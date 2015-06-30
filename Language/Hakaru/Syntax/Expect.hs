@@ -4,7 +4,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.06.29
+--                                                    2015.06.30
 -- |
 -- Module      :  Language.Hakaru.Syntax.Expect
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -48,7 +48,7 @@ type instance Expect' ('HMeasure a)  =
     HPair ('HMeasure (Expect' a)) ('HFun ('HFun (Expect' a) 'HProb) 'HProb)
 type instance Expect' ('HArray a)    = 'HArray  (Expect' a)
 type instance Expect' ('HFun a b)    = 'HFun (Expect' a) (Expect' b)
-type instance Expect' ('HTag t xss)  = 'HTag (ExpectCon t) (ExpectCode xss)
+type instance Expect' ('HData t xss) = 'HData (ExpectCon t) (ExpectCode xss)
 type instance Expect' (f ':$ x)      = ExpectCode f ':$ Expect' x 
 
 type family   ExpectCon (x :: HakaruCon Hakaru) :: HakaruCon Hakaru 
@@ -197,8 +197,8 @@ expectSing (SFun a b)   = SFun (expectSing a) (expectSing b)
 expectSing (SMeasure a) =
     let xa = expectSing a
     in SPair (SMeasure xa) (SFun (SFun xa SProb) SProb)
-expectSing (STag con code) =
-    STag (expectSing_Con con) (expectSing_Code code)
+expectSing (SData con code) =
+    SData (expectSing_Con con) (expectSing_Code code)
 expectSing (SUnrolled code a) =
     SUnrolled (expectSing_Code code) (expectSing a)
     where
