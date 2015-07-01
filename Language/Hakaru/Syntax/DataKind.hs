@@ -29,7 +29,7 @@ module Language.Hakaru.Syntax.DataKind
     -- *
     , Symbol
     , Code
-    , HakaruType
+    , HData'
     -- * Some \"built-in\" types
     -- Naturally, these aren't actually built-in, otherwise they'd
     -- be part of the 'Hakaru' data-kind.
@@ -158,24 +158,24 @@ type instance Code ('HCon "Either" ':@ a ':@ b) = '[ '[ 'K a ], '[ 'K b ] ]
 -- BUG: you cannot use this alias when defining other type aliases!
 -- For some reason the type checker doesn't reduce the type family
 -- applications, which prevents the use of these type synonyms in
--- class instance heads. Any type synonym created with 'HakaruType'
+-- class instance heads. Any type synonym created with 'HData''
 -- will suffer the same issue, so type synonyms must be written out
 -- by hand— or copied from the GHC pretty printer, which will happily
 -- reduce things in the repl, even in the presence of quantified
 -- type variables.
-type HakaruType t = 'HData t (Code t)
+type HData' t = 'HData t (Code t)
 {-
-   >:kind! forall a b . HakaruType (HCon "Pair" :@ a :@ b)
-   forall a b . HakaruType (HCon "Pair" :@ a :@ b) :: Hakaru
+   >:kind! forall a b . HData' (HCon "Pair" :@ a :@ b)
+   forall a b . HData' (HCon "Pair" :@ a :@ b) :: Hakaru
    = forall (a :: Hakaru) (b :: Hakaru).
      'HData (('HCon "Pair" ':@ a) ':@ b) '['['K a, 'K b]]
 
-type HBool       = HakaruType (HCon "Bool")
-type HUnit       = HakaruType (HCon "Unit")
-type HPair   a b = HakaruType (HCon "Pair"   :@ a :@ b)
-type HEither a b = HakaruType (HCon "Either" :@ a :@ b)
-type HList   a   = HakaruType (HCon "List"   :@ a)
-type HMaybe  a   = HakaruType (HCon "Maybe"  :@ a)
+type HBool       = HData' (HCon "Bool")
+type HUnit       = HData' (HCon "Unit")
+type HPair   a b = HData' (HCon "Pair"   :@ a :@ b)
+type HEither a b = HData' (HCon "Either" :@ a :@ b)
+type HList   a   = HData' (HCon "List"   :@ a)
+type HMaybe  a   = HData' (HCon "Maybe"  :@ a)
 -}
 
 type HBool       = 'HData ('HCon "Bool") '[ '[], '[] ]
