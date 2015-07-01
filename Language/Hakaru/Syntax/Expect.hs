@@ -54,7 +54,6 @@ type instance Expect' ('HMeasure a)  =
 type instance Expect' ('HArray a)    = 'HArray  (Expect' a)
 type instance Expect' ('HFun a b)    = 'HFun (Expect' a) (Expect' b)
 type instance Expect' ('HData t xss) = 'HData (ExpectCon t) (ExpectCode xss)
-type instance Expect' (f ':$ x)      = ExpectCode f ':$ Expect' x 
 
 type family   ExpectCon (x :: HakaruCon Hakaru) :: HakaruCon Hakaru 
 type instance ExpectCon ('HCon s)    = 'HCon s
@@ -177,8 +176,8 @@ expectPartialDatum f = go
     go (Cons  d1 d2) = Cons  (go d1) (go d2)
     go (Zero  d)     = Zero  (go d)
     go (Succ  d)     = Succ  (go d)
-    go (Konst d)     = Konst (f d)
-    go (Ident d)     = Ident (f d)
+    go (Konst e)     = Konst (f e)
+    go (Ident e)     = Ident (f e)
 
 
 -- There are no patterns on 'HMeasure'. At best, we can use a trivial
@@ -211,8 +210,6 @@ expectSing (SMeasure a) =
     in SPair (SMeasure xa) (SFun (SFun xa SProb) SProb)
 expectSing (SData con code) =
     SData (expectSing_Con con) (expectSing_Code code)
-expectSing (SUnrolled code a) =
-    SUnrolled (expectSing_Code code) (expectSing a)
     where
     expectSing_Con (SCon s)   = SCon s
     expectSing_Con (SApp f a) = SApp (expectSing_Con f) (expectSing a)

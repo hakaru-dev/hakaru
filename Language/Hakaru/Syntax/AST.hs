@@ -3,6 +3,7 @@
            , DataKinds
            , PolyKinds
            , GADTs
+           , Rank2Types
            , StandaloneDeriving
            , PatternSynonyms
            , ScopedTypeVariables
@@ -437,96 +438,110 @@ singMeasure _ = error "TODO: singMeasure"
 
 -- BUG: rename all the patterns, data-constructors, singletons, and types to be consistent everywhere!
 
-
--- TODO: generate a type inequality proof showing that @AST ast (a
--- :$ b)@ is impossible. Of a few proofs demonstrating that, in
--- general @(:$)@ only occurs here in PartialDatum
---
--- Heck, maybe we can move @(:$)@ out of the Hakaru data kind all
--- together. Here's the plan: First we get rid of 'Roll', fusing
--- into 'PDatum' and 'Datum_' (and anywhere else similar). Then the
--- index type of 'Datum' becomes uniform, so we can break it up
--- into the two components. We'd have to define some weird stand-alone
--- variant of 'Functor1' in order to map over the first parameter;
--- and we'd lose the ability to wrap up a 'Datum' as a final package,
--- without committing to it being a constructor or a pattern; But
--- other than those two things, it looks like a win!
-
-
 -- TODO: add the constructor name as another component of this record, to improve error messages etc.
 -- | A fully saturated data constructor\/pattern, with leaves in @ast@.
 data Datum :: (Hakaru -> *) -> Hakaru -> * where
     Datum
-        :: !(PartialDatum ast (Code t ':$ 'HData t (Code t)))
+        :: !(PartialDatum ast (Code t) ('HData t (Code t)))
         -> Datum ast ('HData t (Code t))
 
 -- BUG: deriving instance Eq   (Datum ast a)
 -- BUG: deriving instance Read (Datum ast a)
 
 instance Show1 ast => Show1 (Datum ast) where
-    showsPrec1 p (Datum d) = showParen_1 p "Datum" d
+    showsPrec1 p (Datum d) =
+        showParen (p > 9)
+            ( showString "Datum "
+            . showsPrec_PartialDatum 11 d
+            )
 
 instance Show1 ast => Show (Datum ast a) where
     showsPrec = showsPrec1
     show      = show1
 
 instance Functor1 Datum where
-    fmap1 f (Datum d) = Datum (fmap1 f d)
+    fmap1 f (Datum d) = Datum (fmap_PartialDatum f d)
 
 instance Foldable1 Datum where
-    foldMap1 f (Datum d) = foldMap1 f d
+    foldMap1 f (Datum d) = foldMap_PartialDatum f d
     
 ----------------------------------------------------------------
--- | The intermediate components of a data constructor. The @(:$)@
--- types aren't really proper Hakaru types, so this data type is
--- designed to separate it out from the rest of the AST.
-data PartialDatum :: (Hakaru -> *) -> Hakaru -> * where
-    Nil :: PartialDatum ast ('[ '[] ] ':$ a)
+-- | The intermediate components of a data constructor. The intuition behind the two indices is that the @[[HakaruFun]]@ is a functor applied to the Hakaru type. Initially the @[[HakaruFun]]@ functor will be the 'Code' associated with the Hakaru type; hence it's the one-step unrolling of the fixed point for our recursive data types. But as we go along, we'll be doing induction on the @[[HakaruFun]]@ functor.
+data PartialDatum :: (Hakaru -> *) -> [[HakaruFun]] -> Hakaru -> * where
+    Nil ::   PartialDatum ast '[ '[] ]     a
     Cons
-        :: !(PartialDatum ast ('[ '[ x ] ] ':$ a))
-        -> !(PartialDatum ast ('[ xs ] ':$ a))
-        -> PartialDatum ast ('[ x ': xs ] ':$ a)
+        :: !(PartialDatum ast '[ '[ x ] ]  a)
+        -> !(PartialDatum ast '[ xs ]      a)
+        ->   PartialDatum ast '[ x ': xs ] a
     Zero
-        :: !(PartialDatum ast ('[ xs ] ':$ a))
-        -> PartialDatum ast ((xs ': xss) ':$ a)
+        :: !(PartialDatum ast '[ xs ]      a)
+        ->   PartialDatum ast (xs ': xss)  a
     Succ
-        :: !(PartialDatum ast (xss ':$ a))
-        -> PartialDatum ast ((xs ': xss) ':$ a)
-    Konst :: ast b -> PartialDatum ast ('[ '[ 'K b ] ] ':$ a)
-    Ident :: ast a -> PartialDatum ast ('[ '[ 'I   ] ] ':$ a)
+        :: !(PartialDatum ast xss          a)
+        ->   PartialDatum ast (xs ': xss)  a
+    Konst :: ast b -> PartialDatum ast '[ '[ 'K b ] ] a
+    Ident :: ast a -> PartialDatum ast '[ '[ 'I   ] ] a
 
--- BUG: deriving instance Eq   (PartialDatum ast a)
--- BUG: deriving instance Read (PartialDatum ast a)
+-- BUG: deriving instance Eq   (PartialDatum ast code a)
+-- BUG: deriving instance Read (PartialDatum ast code a)
 
-instance Show1 ast => Show1 (PartialDatum ast) where
-    showsPrec1 p t =
-        case t of
-        Nil         -> showString      "Nil"
-        Cons  d1 d2 -> showParen_11  p "Cons"  d1 d2
-        Zero  d     -> showParen_1   p "Zero"  d
-        Succ  d     -> showParen_1   p "Succ"  d
-        Konst d     -> showParen_1   p "Konst" d
-        Ident d     -> showParen_1   p "Ident" d
+showsPrec_PartialDatum
+    :: Show1 ast => Int -> PartialDatum ast code a -> ShowS
+showsPrec_PartialDatum p t =
+    case t of
+    Nil        -> showString "Nil"
+    Cons d1 d2 ->
+        showParen (p > 9)
+            ( showString "Cons "
+            . showsPrec_PartialDatum 11 d1
+            . showString " "
+            . showsPrec_PartialDatum 11 d2
+            )
+    Zero d ->
+        showParen (p > 9)
+            ( showString "Zero "
+            . showsPrec_PartialDatum 11 d
+            )
+    Succ d ->
+        showParen (p > 9)
+            ( showString "Succ "
+            . showsPrec_PartialDatum 11 d
+            )
+    Konst e -> showParen_1 p "Konst" e
+    Ident e -> showParen_1 p "Ident" e
 
-instance Show1 ast => Show (PartialDatum ast a) where
-    showsPrec = showsPrec1
-    show      = show1
+instance Show1 ast => Show (PartialDatum ast code a) where
+    showsPrec = showsPrec_PartialDatum
 
-instance Functor1 PartialDatum where
-    fmap1 _ Nil           = Nil
-    fmap1 f (Cons  d1 d2) = Cons  (fmap1 f d1) (fmap1 f d2)
-    fmap1 f (Zero  d)     = Zero  (fmap1 f d)
-    fmap1 f (Succ  d)     = Succ  (fmap1 f d)
-    fmap1 f (Konst d)     = Konst (f d)
-    fmap1 f (Ident d)     = Ident (f d)
+fmap_PartialDatum
+    :: forall a b code j
+    .  (forall i. a i -> b i)
+    -> PartialDatum a code j
+    -> PartialDatum b code j
+fmap_PartialDatum f = go
+    where
+    go :: forall code' j'. PartialDatum a code' j' -> PartialDatum b code' j'
+    go Nil           = Nil
+    go (Cons  d1 d2) = Cons  (go d1) (go d2)
+    go (Zero  d)     = Zero  (go d)
+    go (Succ  d)     = Succ  (go d)
+    go (Konst e)     = Konst (f e)
+    go (Ident e)     = Ident (f e)
 
-instance Foldable1 PartialDatum where
-    foldMap1 _ Nil           = mempty
-    foldMap1 f (Cons  d1 d2) = foldMap1 f d1 `mappend` foldMap1 f d2
-    foldMap1 f (Zero  d)     = foldMap1 f d
-    foldMap1 f (Succ  d)     = foldMap1 f d
-    foldMap1 f (Konst d)     = f d
-    foldMap1 f (Ident d)     = f d
+foldMap_PartialDatum
+    :: forall m a code j
+    .  (Monoid m)
+    => (forall i. a i -> m)
+    -> PartialDatum a code j -> m
+foldMap_PartialDatum f = go
+    where
+    go :: forall code' j'. PartialDatum a code' j' -> m
+    go Nil           = mempty
+    go (Cons  d1 d2) = go d1 `mappend` go d2
+    go (Zero  d)     = go d
+    go (Succ  d)     = go d
+    go (Konst e)     = f e
+    go (Ident e)     = f e
 
 
 ----------------------------------------------------------------

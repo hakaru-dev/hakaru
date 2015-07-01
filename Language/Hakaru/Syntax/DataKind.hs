@@ -85,11 +85,6 @@ data Hakaru
     -- itself.
     | HData !(HakaruCon Hakaru) [[HakaruFun]]
 
-    -- | This is not a proper Hakaru type. It's a helper type for
-    -- getting at the intermediate form produced by unrolling the
-    -- fixpoint of an 'HData' type.
-    | [[HakaruFun]] :$ !Hakaru
-
     deriving (Read, Show)
 
 
@@ -108,7 +103,6 @@ deriving instance Typeable 'HReal
 deriving instance Typeable 'HMeasure
 deriving instance Typeable 'HArray
 deriving instance Typeable 'HFun
-deriving instance Typeable '(:$)
 deriving instance Typeable 'HData
 
 

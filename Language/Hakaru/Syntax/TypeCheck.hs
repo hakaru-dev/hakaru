@@ -151,7 +151,7 @@ data TypedPattern where
 data TypedDatum (abt :: Hakaru -> *) where
     -- N.B., we do not require that @sop ~ Code t@; so we can
     -- perform induction on it!
-    TD  :: !(PartialDatum abt (sop ':$ 'HData t (Code t)))
+    TD  :: !(PartialDatum abt sop ('HData t (Code t)))
         -> !(Sing sop)
         -> !(Sing ('HData t (Code t)))
         -> TypedDatum abt
@@ -304,7 +304,6 @@ checkType ctx e typ =
         SData _ typ2 -> checkDatum ctx [TD d typ2 typ]
         _            -> failwith "expected HData type"
     
-    -- TODO: we must ensure that @typ1@ is not @(:$)@. If it is, then the program is ill-formed!
     Syn (Case_ e1 branches) -> do
         typ1 <- inferType ctx e1
         forM_ branches $ \(Branch pat body) ->
@@ -368,17 +367,17 @@ checkDatum ctx = go
             SPlus _ typ2 -> go (TD d2 typ2 typA : dts)
             _            -> failwith "expected term of `sum' type"
     
-        Ident d1 ->
+        Ident e1 ->
             case typ of
             SPlus (SCons SIdent SNil) SVoid -> do
-                checkType ctx d1 typA
+                checkType ctx e1 typA
                 go dts
             _ -> failwith "expected term of `I' type"
     
-        Konst d1 ->
+        Konst e1 ->
             case typ of
             SPlus (SCons (SKonst typ1) SNil) SVoid -> do
-                checkType ctx d1 typ1
+                checkType ctx e1 typ1
                 go dts
             _ -> failwith "expected term of `K' type"
 

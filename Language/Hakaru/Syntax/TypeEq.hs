@@ -157,9 +157,6 @@ data instance Sing (unused :: Hakaru) where
     SArray   :: !(Sing a) -> Sing ('HArray a)
     SFun     :: !(Sing a) -> !(Sing b) -> Sing ('HFun a b)
     SData    :: !(Sing t) -> !(Sing (Code t)) -> Sing ('HData t (Code t))
-    
-    -- TODO: @a@ should always be @'HData t sop@, and @sop@ should always be @Code t@
-    SUnrolled :: !(Sing sop) -> !(Sing a) -> Sing (sop ':$ a)
 
 instance Eq (Sing (a :: Hakaru)) where
     a == b = maybe False (const True) (jmEq a b)
@@ -177,7 +174,6 @@ instance Show1 (Sing :: Hakaru -> *) where
         SArray    s1    -> showParen_1  p "SArray"    s1
         SFun      s1 s2 -> showParen_11 p "SFun"      s1 s2
         SData     s1 s2 -> showParen_11 p "SData"     s1 s2
-        SUnrolled s1 s2 -> showParen_11 p "SUnrolled" s1 s2
 
 instance Show (Sing (a :: Hakaru)) where
     showsPrec = showsPrec1
@@ -190,12 +186,9 @@ instance SingI 'HReal                            where sing = SReal
 instance (SingI a) => SingI ('HMeasure a)        where sing = SMeasure sing
 instance (SingI a) => SingI ('HArray a)          where sing = SArray sing
 instance (SingI a, SingI b) => SingI ('HFun a b) where sing = SFun sing sing
-
 -- N.B., must use @(~)@ to delay the use of the type family (it's illegal to put it inline in the instance head).
 instance (sop ~ Code t, SingI t, SingI sop) => SingI ('HData t sop) where
     sing = SData sing sing
-instance (SingI sop, SingI a) => SingI (sop ':$ a) where
-    sing = SUnrolled sing sing
 
 {-
 -- TODO:
@@ -411,9 +404,6 @@ jmEq (SFun     a1 a2) (SFun     b1 b2) = jmEq a1 b1 >>= \Refl ->
 jmEq (SData con1 code1) (SData con2 code2) =
     jmEq_Con  con1  con2  >>= \Refl ->
     jmEq_Code code1 code2 >>= \Refl -> Just Refl
-jmEq (SUnrolled code1 a) (SUnrolled code2 b) =
-    jmEq_Code code1 code2 >>= \Refl -> 
-    jmEq a b >>= \Refl -> Just Refl
 jmEq _ _ = Nothing
 
 jmEq_Con

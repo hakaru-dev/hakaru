@@ -511,7 +511,7 @@ instance Bindable abt => Bindable (AST abt) where
 instance Bindable abt => Bindable (Datum abt) where
     bound (Datum      d)        = bound d
     
-instance Bindable abt => Bindable (PartialDatum abt) where
+instance Bindable abt => Bindable (PartialDatum abt code) where
     bound Nil                   = 0
     bound (Cons       d1 d2)    = bound d1 `max` bound d2
     bound (Zero       d)        = bound d
