@@ -173,16 +173,18 @@ unsafeFrom_ = (syn .) . UnsafeFrom_
 value_ :: (ABT abt) => Value a  -> abt a
 value_ = syn . Value_
 bool_  :: (ABT abt) => Bool     -> abt HBool
-bool_  = value_ . Bool_
+bool_  = syn . Value_ . VDatum . boolDatum
 nat_   :: (ABT abt) => Nat      -> abt 'HNat
-nat_   = value_ . Nat_
+nat_   = value_ . VNat
 int_   :: (ABT abt) => Int      -> abt 'HInt
-int_   = value_ . Int_
+int_   = value_ . VInt
 prob_  :: (ABT abt) => LogFloat -> abt 'HProb
-prob_  = value_ . Prob_
+prob_  = value_ . VProb
 real_  :: (ABT abt) => Double   -> abt 'HReal
-real_  = value_ . Real_
+real_  = value_ . VReal
 
+boolDatum :: Bool -> Datum ast HBool
+boolDatum = Datum . ($Nil) . (\b -> if b then Zero else Succ)
 
 -- Boolean operators
 true, false :: (ABT abt) => abt HBool

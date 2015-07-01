@@ -74,26 +74,40 @@ import Language.Hakaru.Syntax.Coercion
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 -- TODO: use 'Integer' instead of 'Int', and 'Natural' instead of 'Nat'.
--- | Constant values for primitive types.
+-- | Constant values for primitive numeric types and user-defined data-types.
 data Value :: Hakaru -> * where
-    Bool_ :: !Bool     -> Value HBool
-    Nat_  :: !Nat      -> Value 'HNat
-    Int_  :: !Int      -> Value 'HInt
-    Prob_ :: !LogFloat -> Value 'HProb
-    Real_ :: !Double   -> Value 'HReal
+    VNat  :: !Nat      -> Value 'HNat
+    VInt  :: !Int      -> Value 'HInt
+    VProb :: !LogFloat -> Value 'HProb
+    VReal :: !Double   -> Value 'HReal
+    VDatum
+        :: {-# UNPACK #-} !(Datum Value ('HData t (Code t)))
+        -> Value ('HData t (Code t))
     -- TODO: Should we add a @Datum Value@ option here?
 
-deriving instance Eq   (Value a)
+-- BUG: deriving instance Eq   (Value a)
 -- BUG: deriving instance Read (Value a)
-deriving instance Show (Value a)
+
+instance Show1 Value where
+    showsPrec1 p t =
+        case t of
+        VNat   v -> showParen_0 p "VNat"   v
+        VInt   v -> showParen_0 p "VInt"   v
+        VProb  v -> showParen_0 p "VProb"  v
+        VReal  v -> showParen_0 p "VReal"  v
+        VDatum v -> showParen_1 p "VDatum" v
+
+instance Show (Value a) where
+    showsPrec = showsPrec1
+    show      = show1
 
 -- N.B., we do case analysis so that we don't need the class constraint!
 singValue :: Value a -> Sing a
-singValue (Bool_ _) = sing
-singValue (Nat_  _) = sing
-singValue (Int_  _) = sing
-singValue (Prob_ _) = sing
-singValue (Real_ _) = sing
+singValue (VNat   _) = sing
+singValue (VInt   _) = sing
+singValue (VProb  _) = sing
+singValue (VReal  _) = sing
+singValue (VDatum d) = error "TODO: singValue{VDatum}"
 
 ----------------------------------------------------------------
 -- TODO: helper functions for splitting NaryOp_ into components to group up like things.

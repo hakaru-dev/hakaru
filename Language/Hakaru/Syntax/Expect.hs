@@ -96,11 +96,11 @@ type instance ExpectFun ('K x)       = 'K (Expect' x)
 -- in memory, rather than reallocating it.
 
 expectRefl_Value :: Value a -> TypeEq a (Expect' a)
-expectRefl_Value (Bool_ _) = Refl
-expectRefl_Value (Nat_  _) = Refl
-expectRefl_Value (Int_  _) = Refl
-expectRefl_Value (Prob_ _) = Refl
-expectRefl_Value (Real_ _) = Refl
+expectRefl_Value (VNat   _) = Refl
+expectRefl_Value (VInt   _) = Refl
+expectRefl_Value (VProb  _) = Refl
+expectRefl_Value (VReal  _) = Refl
+expectRefl_Value (VDatum _) = Refl
 
 expectRefl_NaryOp :: NaryOp a -> TypeEq a (Expect' a)
 expectRefl_NaryOp And  = Refl
