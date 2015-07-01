@@ -1,5 +1,5 @@
 -- TODO: move this somewhere else, like "Language.Hakaru.IClasses"
-{-# LANGUAGE CPP, Rank2Types, PolyKinds #-}
+{-# LANGUAGE CPP, Rank2Types, PolyKinds, ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
 --                                                    2015.06.30
@@ -9,7 +9,7 @@
 -- License     :  BSD3
 -- Maintainer  :  wren@community.haskell.org
 -- Stability   :  experimental
--- Portability :  CPP + Rank2Types + PolyKinds
+-- Portability :  CPP + Rank2Types + PolyKinds + ScopedTypeVariables
 --
 -- A collection of classes generalizing standard classes in order
 -- to support indexed types.
@@ -32,6 +32,7 @@ module Language.Hakaru.Syntax.IClasses
     , Eq2(..)
     -}
     , Functor1(..)
+    , Fix1(..), cata1, ana1, hylo1
     , Foldable1(..)
     ) where
 
@@ -153,8 +154,42 @@ showParen_111 p s e1 e2 e3 =
 -- we can derive for 'Functor'.
 class Functor1 (f :: (k -> *) -> k -> *) where
     fmap1 :: (forall i. a i -> b i) -> f a j -> f b j
-    -- (<$1) :: (forall i. a i) -> f b j -> f a j
 
+
+newtype Fix1 (f :: (k -> *) -> k -> *) (i :: k) =
+    Fix1 { unFix1 :: f (Fix1 f) i }
+
+cata1
+    :: forall f a j
+    .  (Functor1 f)
+    => (forall i. f a i -> a i)
+    -> Fix1 f j -> a j
+cata1 alg = go
+    where
+    go :: forall j'. Fix1 f j' -> a j'
+    go = alg . fmap1 go . unFix1
+
+ana1
+    :: forall f a j
+    .  (Functor1 f)
+    => (forall i. a i -> f a i)
+    -> a j -> Fix1 f j
+ana1 coalg = go
+    where
+    go :: forall j'. a j' -> Fix1 f j'
+    go = Fix1 . fmap1 go . coalg
+
+hylo1
+    :: forall f a b j
+    .  (Functor1 f)
+    => (forall i. a i -> f a i)
+    -> (forall i. f b i -> b i)
+    -> a j
+    -> b j
+hylo1 coalg alg = go
+    where
+    go :: forall j'. a j' -> b j'
+    go = alg . fmap1 go . coalg
 
 ----------------------------------------------------------------
 -- TODO: in theory we could define some Monoid1 class to avoid the
