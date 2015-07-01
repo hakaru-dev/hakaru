@@ -111,7 +111,10 @@ data NaryOp :: Hakaru -> * where
     And  :: NaryOp HBool
     Or   :: NaryOp HBool
     Xor  :: NaryOp HBool
-    -- TODO: even though 'Iff' is associative (in Boolean algebras), we should not support n-ary uses in our *surface* syntax. Because it's too easy for folks to confuse "a <=> b <=> c" with "(a <=> b) /\ (b <=> c)".
+    -- N.B., even though 'Iff' is associative (in Boolean algebras),
+    -- we should not support n-ary uses in our *surface* syntax.
+    -- Because it's too easy for folks to confuse "a <=> b <=> c"
+    -- with "(a <=> b) /\ (b <=> c)".
     Iff  :: NaryOp HBool -- == Not (Xor x y)
 
     -- These two don't necessarily have identity elements; thus,
@@ -236,8 +239,8 @@ data PrimOp :: Hakaru -> * where
         ('HFun 'HReal -- TODO: should that really be 'HReal ?!
         ('HFun ('HFun 'HInt 'HProb)
         'HProb)))
-    
-    
+
+
     -- -- -- Here we have the /polymorphic/ operators
     -- TODO: \"monomorphize\" these by passing explicit dictionary proxies
 
@@ -381,7 +384,7 @@ singPrimOp _ = error "TODO: singPrimOp"
 data Measure :: Hakaru -> * where
     -- TODO: should we put Dirac back into the main AST?
     Dirac       :: Measure ('HFun a ('HMeasure a))
-    
+
     Lebesgue    :: Measure ('HMeasure 'HReal)
     Counting    :: Measure ('HMeasure 'HInt)
     Categorical :: Measure ('HFun ('HArray 'HProb) ('HMeasure 'HNat))
@@ -431,8 +434,9 @@ singMeasure _ = error "TODO: singMeasure"
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
--- BUG: rename all the patterns, data-constructors, singletons, and types to be *consistent* everywhere!
-        
+-- BUG: rename all the patterns, data-constructors, singletons, and types to be consistent everywhere!
+
+
 -- TODO: generate a type inequality proof showing that @AST ast (a
 -- :$ b)@ is impossible. Of a few proofs demonstrating that, in
 -- general @(:$)@ only occurs here in Datum.
@@ -516,10 +520,10 @@ instance Foldable1 Datum where
 data Pattern :: Hakaru -> * where
     -- | The \"don't care\" wildcard pattern.
     PWild :: Pattern a
-    
+
     -- | A pattern variable.
     PVar  :: Pattern a
-    
+
     -- TODO: equality patterns for Nat\/Int.
     -- Does it make sense to have equality patterns for Prob\/Real?
 
@@ -647,11 +651,14 @@ data AST :: (Hakaru -> *) -> Hakaru -> * where
 
 
     -- -- User-defined data types
-    -- | A data constructor applied to some expressions.
+    -- | A data constructor applied to some expressions. N.B., this
+    -- definition only accounts for data constructors which are
+    -- fully saturated. Unsaturated constructors will need to be
+    -- eta-expanded.
     Datum_
         :: Datum ast ('HData t (Code t))
         -> AST   ast ('HData t (Code t))
-    
+
     -- | Generic case-analysis (via ABTs and Structural Focalization).
     Case_ :: ast a -> [Branch a ast b] -> AST ast b
 
