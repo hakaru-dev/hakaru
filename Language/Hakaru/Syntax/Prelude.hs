@@ -433,11 +433,11 @@ atanh  = primOp1_ Atanh
 
 -- instance (ABT abt) => Base abt where not already defined above
 unit :: (ABT abt) => abt HUnit
-unit = syn . Datum_ $ Roll Nil
+unit = syn . Datum_ $ Datum Nil
 
 pair :: (ABT abt) => abt a -> abt b -> abt (HPair a b)
 pair a b =
-    syn . Datum_ . Roll . Zero . Cons (Konst a) . Cons (Konst b) $ Nil
+    syn . Datum_ . Datum . Zero . Cons (Konst a) . Cons (Konst b) $ Nil
 
 unpair
     :: (ABT abt, SingI a, SingI b)
@@ -452,10 +452,10 @@ unpair e f =
             (open x . open y $ f (var x sing) (var y sing))]
 
 inl :: (ABT abt) => abt a -> abt (HEither a b)
-inl = syn . Datum_ . Roll . Zero . Konst
+inl = syn . Datum_ . Datum . Zero . Konst
 
 inr :: (ABT abt) => abt b -> abt (HEither a b)
-inr = syn . Datum_ . Roll . Succ . Konst
+inr = syn . Datum_ . Datum . Succ . Konst
 
 uneither
     :: (ABT abt, SingI a, SingI b)
@@ -475,20 +475,20 @@ if_ b t f = syn $ Case_ b [Branch PTrue t, Branch PFalse f]
 
 
 nil_ :: ABT abt => abt (HList a)
-nil_ = syn . Datum_ . Roll $ Zero Nil
+nil_ = syn . Datum_ . Datum $ Zero Nil
 
 cons_ :: ABT abt => abt a -> abt (HList a) -> abt (HList a)
 cons_ x xs =
-    syn . Datum_ . Roll . Succ . Cons (Konst x) . Cons (Ident xs) $ Nil
+    syn . Datum_ . Datum . Succ . Cons (Konst x) . Cons (Ident xs) $ Nil
 
 list_    :: ABT abt => [abt a] -> abt (HList a)
 list_    = Prelude.foldr cons_ nil_
 
 nothing_ :: ABT abt => abt (HMaybe a)
-nothing_ = syn . Datum_ . Roll $ Zero Nil
+nothing_ = syn . Datum_ . Datum $ Zero Nil
 
 just_    :: ABT abt => abt a -> abt (HMaybe a)
-just_    = syn . Datum_ . Roll . Succ . Konst
+just_    = syn . Datum_ . Datum . Succ . Konst
 
 maybe_    :: ABT abt => Maybe (abt a) -> abt (HMaybe a)
 maybe_    = Prelude.maybe nothing_ just_

@@ -151,7 +151,7 @@ data TypedPattern where
 data TypedDatum (abt :: Hakaru -> *) where
     -- N.B., we do not require that @sop ~ Code t@; so we can
     -- perform induction on it!
-    TD  :: !(Datum abt (sop ':$ 'HData t (Code t)))
+    TD  :: !(PartialDatum abt (sop ':$ 'HData t (Code t)))
         -> !(Sing sop)
         -> !(Sing ('HData t (Code t)))
         -> TypedDatum abt
@@ -299,8 +299,7 @@ checkType ctx e typ =
                 checkType (pushCtx (TV x SNat) ctx) e' typ1
         _ -> failwith "expected HArray type"
 
-    -- N.B., the 'Roll' part is irrefutable\/complete
-    Syn (Datum_ (Roll d)) ->
+    Syn (Datum_ (Datum d)) ->
         case typ of
         SData _ typ2 -> checkDatum ctx [TD d typ2 typ]
         _            -> failwith "expected HData type"
@@ -401,8 +400,8 @@ checkBranch ctx body body_typ = go
             caseOpenABT body $ \x body' ->
                 checkBranch (pushCtx (TV x typ) ctx) body' body_typ pts
 
-        PWild              -> go pts
-        PDatum (Roll pat1) ->
+        PWild               -> go pts
+        PDatum (Datum pat1) ->
             case typ of
             SData _ typ2 -> go (TDP (TD pat1 typ2 typ) : pts)
             _ -> failwith "expected term of user-defined data type"

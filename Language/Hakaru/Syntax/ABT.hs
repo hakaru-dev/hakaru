@@ -509,7 +509,9 @@ instance Bindable abt => Bindable (AST abt) where
     bound Bot_                   = 0
 
 instance Bindable abt => Bindable (Datum abt) where
-    bound (Roll       d)        = bound d
+    bound (Datum      d)        = bound d
+    
+instance Bindable abt => Bindable (PartialDatum abt) where
     bound Nil                   = 0
     bound (Cons       d1 d2)    = bound d1 `max` bound d2
     bound (Zero       d)        = bound d

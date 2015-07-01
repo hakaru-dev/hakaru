@@ -38,6 +38,7 @@ module Language.Hakaru.Syntax.AST
     -- * User-defined data types
     -- ** Data constructors\/patterns
     , Datum(..)
+    , PartialDatum(..)
     -- ** Pattern matching
     , Pattern(..)
     , pattern PTrue
@@ -439,7 +440,7 @@ singMeasure _ = error "TODO: singMeasure"
 
 -- TODO: generate a type inequality proof showing that @AST ast (a
 -- :$ b)@ is impossible. Of a few proofs demonstrating that, in
--- general @(:$)@ only occurs here in Datum.
+-- general @(:$)@ only occurs here in PartialDatum
 --
 -- Heck, maybe we can move @(:$)@ out of the Hakaru data kind all
 -- together. Here's the plan: First we get rid of 'Roll', fusing
@@ -451,30 +452,55 @@ singMeasure _ = error "TODO: singMeasure"
 -- without committing to it being a constructor or a pattern; But
 -- other than those two things, it looks like a win!
 
--- | The intermediate components of a data constructor. The @(:$)@
--- types aren't really proper Hakaru types, so this data type is
--- designed to separate it out from the rest of the AST.
+
+-- TODO: add the constructor name as another component of this record, to improve error messages etc.
+-- | A fully saturated data constructor\/pattern, with leaves in @ast@.
 data Datum :: (Hakaru -> *) -> Hakaru -> * where
-    Roll
-        :: !(Datum ast (Code t ':$ 'HData t (Code t)))
+    Datum
+        :: !(PartialDatum ast (Code t ':$ 'HData t (Code t)))
         -> Datum ast ('HData t (Code t))
-    Nil :: Datum ast ('[ '[] ] ':$ a)
-    Cons
-        :: !(Datum ast ('[ '[ x ] ] ':$ a))
-        -> !(Datum ast ('[ xs ] ':$ a))
-        -> Datum ast ('[ x ': xs ] ':$ a)
-    Zero  :: !(Datum ast ('[ xs ] ':$ a)) -> Datum ast ((xs ': xss) ':$ a)
-    Succ  :: !(Datum ast (xss ':$ a))     -> Datum ast ((xs ': xss) ':$ a)
-    Konst :: ast b -> Datum ast ('[ '[ 'K b ] ] ':$ a)
-    Ident :: ast a -> Datum ast ('[ '[ 'I   ] ] ':$ a)
 
 -- BUG: deriving instance Eq   (Datum ast a)
 -- BUG: deriving instance Read (Datum ast a)
 
 instance Show1 ast => Show1 (Datum ast) where
+    showsPrec1 p (Datum d) = showParen_1 p "Datum" d
+
+instance Show1 ast => Show (Datum ast a) where
+    showsPrec = showsPrec1
+    show      = show1
+
+instance Functor1 Datum where
+    fmap1 f (Datum d) = Datum (fmap1 f d)
+
+instance Foldable1 Datum where
+    foldMap1 f (Datum d) = foldMap1 f d
+    
+----------------------------------------------------------------
+-- | The intermediate components of a data constructor. The @(:$)@
+-- types aren't really proper Hakaru types, so this data type is
+-- designed to separate it out from the rest of the AST.
+data PartialDatum :: (Hakaru -> *) -> Hakaru -> * where
+    Nil :: PartialDatum ast ('[ '[] ] ':$ a)
+    Cons
+        :: !(PartialDatum ast ('[ '[ x ] ] ':$ a))
+        -> !(PartialDatum ast ('[ xs ] ':$ a))
+        -> PartialDatum ast ('[ x ': xs ] ':$ a)
+    Zero
+        :: !(PartialDatum ast ('[ xs ] ':$ a))
+        -> PartialDatum ast ((xs ': xss) ':$ a)
+    Succ
+        :: !(PartialDatum ast (xss ':$ a))
+        -> PartialDatum ast ((xs ': xss) ':$ a)
+    Konst :: ast b -> PartialDatum ast ('[ '[ 'K b ] ] ':$ a)
+    Ident :: ast a -> PartialDatum ast ('[ '[ 'I   ] ] ':$ a)
+
+-- BUG: deriving instance Eq   (PartialDatum ast a)
+-- BUG: deriving instance Read (PartialDatum ast a)
+
+instance Show1 ast => Show1 (PartialDatum ast) where
     showsPrec1 p t =
         case t of
-        Roll  d     -> showParen_1   p "Roll"  d
         Nil         -> showString      "Nil"
         Cons  d1 d2 -> showParen_11  p "Cons"  d1 d2
         Zero  d     -> showParen_1   p "Zero"  d
@@ -482,12 +508,11 @@ instance Show1 ast => Show1 (Datum ast) where
         Konst d     -> showParen_1   p "Konst" d
         Ident d     -> showParen_1   p "Ident" d
 
-instance Show1 ast => Show (Datum ast a) where
+instance Show1 ast => Show (PartialDatum ast a) where
     showsPrec = showsPrec1
     show      = show1
 
-instance Functor1 Datum where
-    fmap1 f (Roll  d)     = Roll  (fmap1 f d)
+instance Functor1 PartialDatum where
     fmap1 _ Nil           = Nil
     fmap1 f (Cons  d1 d2) = Cons  (fmap1 f d1) (fmap1 f d2)
     fmap1 f (Zero  d)     = Zero  (fmap1 f d)
@@ -495,8 +520,7 @@ instance Functor1 Datum where
     fmap1 f (Konst d)     = Konst (f d)
     fmap1 f (Ident d)     = Ident (f d)
 
-instance Foldable1 Datum where
-    foldMap1 f (Roll  d)     = foldMap1 f d
+instance Foldable1 PartialDatum where
     foldMap1 _ Nil           = mempty
     foldMap1 f (Cons  d1 d2) = foldMap1 f d1 `mappend` foldMap1 f d2
     foldMap1 f (Zero  d)     = foldMap1 f d
@@ -529,7 +553,7 @@ data Pattern :: Hakaru -> * where
 
     -- | A data type constructor pattern.
     PDatum
-        :: !(Datum Pattern ('HData t (Code t)))
+        :: {-# UNPACK #-} !(Datum Pattern ('HData t (Code t)))
         -> Pattern ('HData t (Code t))
 
 
@@ -555,18 +579,18 @@ instance Show (Pattern a) where
 -- these ones just screws up the API. Of course, once we move to
 -- GHC 7.10, then we're finally allowed to have polymorphic pattern
 -- synonyms, so we can make the other ones work!
-pattern PTrue  = (PDatum (Roll (Zero Nil)) :: Pattern HBool)
-pattern PFalse = (PDatum (Roll (Succ Nil)) :: Pattern HBool)
-pattern PUnit  = (PDatum (Roll Nil)        :: Pattern HUnit)
+pattern PTrue  = (PDatum (Datum (Zero Nil)) :: Pattern HBool)
+pattern PFalse = (PDatum (Datum (Succ Nil)) :: Pattern HBool)
+pattern PUnit  = (PDatum (Datum Nil)        :: Pattern HUnit)
 
 pPair :: Pattern a -> Pattern b -> Pattern (HPair a b)
-pPair a b = PDatum (Roll (Cons (Konst a) (Konst b)))
+pPair a b = PDatum (Datum (Cons (Konst a) (Konst b)))
 
 pInl :: Pattern a -> Pattern (HEither a b)
-pInl a = PDatum (Roll (Zero (Konst a)))
+pInl a = PDatum (Datum (Zero (Konst a)))
 
 pInr :: Pattern b -> Pattern (HEither a b)
-pInr a = PDatum (Roll (Succ (Konst a)))
+pInr a = PDatum (Datum (Succ (Konst a)))
 
 
 
@@ -656,8 +680,8 @@ data AST :: (Hakaru -> *) -> Hakaru -> * where
     -- fully saturated. Unsaturated constructors will need to be
     -- eta-expanded.
     Datum_
-        :: Datum ast ('HData t (Code t))
-        -> AST   ast ('HData t (Code t))
+        :: {-# UNPACK #-} !(Datum ast ('HData t (Code t)))
+        -> AST ast ('HData t (Code t))
 
     -- | Generic case-analysis (via ABTs and Structural Focalization).
     Case_ :: ast a -> [Branch a ast b] -> AST ast b

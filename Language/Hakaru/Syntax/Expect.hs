@@ -165,13 +165,20 @@ expectDatum
     :: (forall b. f b -> g (Expect' b))
     -> Datum f a
     -> Datum g (Expect' a)
-expectDatum f (Roll  d)     = Roll  (expectDatum f d)
-expectDatum f Nil           = Nil
-expectDatum f (Cons  d1 d2) = Cons  (expectDatum f d1) (expectDatum f d2)
-expectDatum f (Zero  d)     = Zero  (expectDatum f d)
-expectDatum f (Succ  d)     = Succ  (expectDatum f d)
-expectDatum f (Konst d)     = Konst (f d)
-expectDatum f (Ident d)     = Ident (f d)
+expectDatum f (Datum d) = Datum (expectPartialDatum f d)
+
+expectPartialDatum
+    :: (forall b. f b -> g (Expect' b))
+    -> PartialDatum f a
+    -> PartialDatum g (Expect' a)
+expectPartialDatum f = go
+    where
+    go Nil           = Nil
+    go (Cons  d1 d2) = Cons  (go d1) (go d2)
+    go (Zero  d)     = Zero  (go d)
+    go (Succ  d)     = Succ  (go d)
+    go (Konst d)     = Konst (f d)
+    go (Ident d)     = Ident (f d)
 
 
 -- There are no patterns on 'HMeasure'. At best, we can use a trivial
