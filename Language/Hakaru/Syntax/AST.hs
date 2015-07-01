@@ -74,7 +74,8 @@ import Language.Hakaru.Syntax.Coercion
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 -- TODO: use 'Integer' instead of 'Int', and 'Natural' instead of 'Nat'.
--- | Constant values for primitive numeric types and user-defined data-types.
+-- | Constant values for primitive numeric types and user-defined
+-- data-types.
 data Value :: Hakaru -> * where
     VNat  :: !Nat      -> Value 'HNat
     VInt  :: !Int      -> Value 'HInt
@@ -83,7 +84,6 @@ data Value :: Hakaru -> * where
     VDatum
         :: {-# UNPACK #-} !(Datum Value ('HData t (Code t)))
         -> Value ('HData t (Code t))
-    -- TODO: Should we add a @Datum Value@ option here?
 
 -- BUG: deriving instance Eq   (Value a)
 -- BUG: deriving instance Read (Value a)
@@ -107,7 +107,24 @@ singValue (VNat   _) = sing
 singValue (VInt   _) = sing
 singValue (VProb  _) = sing
 singValue (VReal  _) = sing
-singValue (VDatum d) = error "TODO: singValue{VDatum}"
+singValue (VDatum (Datum d)) = error "TODO: singValue{VDatum}"
+    {-
+    -- @fmap1 singValue d@ gets us halfway there, but then what....
+    -- This seems vaguely on the right track; but how can we get
+    -- it to actually typecheck? Should we just have VDatum (or
+    -- Datum) store the Sing when it's created?
+    SData sing (go d)
+    where
+    go :: PartialDatum Value code a -> Sing code
+    go Nil           = SNil `SPlus` SVoid
+    go (Cons  d1 d2) = SCons (go d1) (go d2) `SPlus` SVoid
+
+    go (Zero  d1)    = case go d1 of SPlus d2 SVoid -> SPlus d2 sing
+    go (Succ  d1)    = SPlus sing (go d1)
+
+    go (Konst e1)    = (SKonst (singValue e1) `SCons` SNil) `SPlus` SVoid
+    go (Ident e1)    = undefined -- @singValue e1@ is what the first argumen to SData should be; assuming we actually make it to this branch...
+    -}
 
 ----------------------------------------------------------------
 -- TODO: helper functions for splitting NaryOp_ into components to group up like things.
