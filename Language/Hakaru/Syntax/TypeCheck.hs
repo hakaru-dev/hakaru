@@ -184,9 +184,19 @@ inferType ctx e =
         SFun typ2 typ3 <- inferType ctx e1
         checkType ctx e2 typ2
         return typ3
-        -- The above is the standard rule that everyone uses. However, if the @e1@ is a lambda (rather than a primop or a variable), then it will require a type annotation. Couldn't we just as well add an additional rule that says to infer @e2@ and then infer @e1@ under the assumption that the variable has the same type as the argument? (or generalize that idea to keep track of a bunch of arguments being passed in; sort of like a dual to our typing environments?) Is this at all related to what Dunfield & Neelk are doing in their ICFP'13 paper with that \"=>=>\" judgment? (prolly not, but...)
+        -- The above is the standard rule that everyone uses.
+        -- However, if the @e1@ is a lambda (rather than a primop
+        -- or a variable), then it will require a type annotation.
+        -- Couldn't we just as well add an additional rule that
+        -- says to infer @e2@ and then infer @e1@ under the assumption
+        -- that the variable has the same type as the argument? (or
+        -- generalize that idea to keep track of a bunch of arguments
+        -- being passed in; sort of like a dual to our typing
+        -- environments?) Is this at all related to what Dunfield
+        -- & Neelk are doing in their ICFP'13 paper with that
+        -- \"=>=>\" judgment? (prolly not, but...)
         {-
-    Syn (App_ (Syn (Lam_ p e1)) e2) -> do 
+    Syn (App_ (Syn (Lam_ p e1)) e2) -> do
         typ2 <- inferType ctx e2
         -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
         caseOpenABT e1 $ \x e' ->
@@ -232,7 +242,7 @@ inferType ctx e =
         | inferable (viewABT e1) -> do
             typ <- inferType ctx e1
             return (singCoerceTo c typ)
-        
+
     Syn (UnsafeFrom_ c e1)
         | inferable (viewABT e1) -> do
             typ <- inferType ctx e1
@@ -241,7 +251,7 @@ inferType ctx e =
     Syn (Measure_ o) ->
         -- BUG: need to finish implementing singMeasure
         return (singMeasure o)
-    
+
     Syn (Bind_ e1 e2)
         | inferable (viewABT e1) -> do
             -- N.B., that pattern is irrefutable\/complete
@@ -278,15 +288,15 @@ checkType ctx e typ =
             caseOpenABT e2 $ \x e' ->
                 checkType (pushCtx (TV x typ1) ctx) e' typ
         | otherwise -> error "TODO: checkType{LetA}"
-    
-    Syn (Fix_ e1) -> 
+
+    Syn (Fix_ e1) ->
         -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
         caseOpenABT e1 $ \x e' ->
             checkType (pushCtx (TV x typ) ctx) e' typ
 
     Syn (CoerceTo_ c e1) ->
         checkType ctx e1 (singCoerceFrom c typ)
-        
+
     Syn (UnsafeFrom_ c e1) ->
         checkType ctx e1 (singCoerceTo c typ)
 
@@ -303,7 +313,7 @@ checkType ctx e typ =
         case typ of
         SData _ typ2 -> checkDatum ctx [TD d typ2 typ]
         _            -> failwith "expected HData type"
-    
+
     Syn (Case_ e1 branches) -> do
         typ1 <- inferType ctx e1
         forM_ branches $ \(Branch pat body) ->
@@ -347,7 +357,7 @@ checkDatum ctx = go
             case typ of
             SPlus SNil SVoid -> go dts
             _                -> failwith "expected term of `unit' type"
-    
+
         Cons d1 d2 ->
             case typ of
             SPlus (SCons typ1 typ2) SVoid -> go
@@ -356,24 +366,24 @@ checkDatum ctx = go
                 : dts
                 )
             _ -> failwith "expected term of `product' type"
-    
+
         Zero d1 ->
             case typ of
             SPlus typ1 _ -> go (TD d1 (SPlus typ1 SVoid) typA : dts)
             _            -> failwith "expected term of `zero' type"
-    
+
         Succ d2 ->
             case typ of
             SPlus _ typ2 -> go (TD d2 typ2 typA : dts)
             _            -> failwith "expected term of `sum' type"
-    
+
         Ident e1 ->
             case typ of
             SPlus (SCons SIdent SNil) SVoid -> do
                 checkType ctx e1 typA
                 go dts
             _ -> failwith "expected term of `I' type"
-    
+
         Konst e1 ->
             case typ of
             SPlus (SCons (SKonst typ1) SNil) SVoid -> do
@@ -404,7 +414,7 @@ checkBranch ctx body body_typ = go
             case typ of
             SData _ typ2 -> go (TDP (TD pat1 typ2 typ) : pts)
             _ -> failwith "expected term of user-defined data type"
-    
+
     go (TDP (TD pat typ typA) : pts) =
         -- TODO: verify that this all works the way it should!
         -- TODO: use @typA@ to provide better error messages; particularly, the first argument to its constructor 'SData'.
@@ -413,7 +423,7 @@ checkBranch ctx body body_typ = go
             case typ of
             SPlus SNil SVoid -> go pts
             _                -> failwith "expected term of `unit' type"
-    
+
         Cons pat1 pat2 ->
             case typ of
             SPlus (SCons typ1 typ2) SVoid -> go

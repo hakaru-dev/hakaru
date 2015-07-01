@@ -49,7 +49,10 @@ deriving instance Eq   (PrimCoercion a b)
 -- BUG: deriving instance Read (PrimCoercion a b)
 deriving instance Show (PrimCoercion a b)
 
--- BUG: GHC 7.8 does not allow these pattern synonyms: (1) it disallows standalone type signatures for pattern synonyms, so we'd need to give it as an annotation, which isn't too terrible; and, (2) it does not allow polymorphic pattern synonyms :(
+-- BUG: GHC 7.8 does not allow these pattern synonyms: (1) it
+-- disallows standalone type signatures for pattern synonyms, so
+-- we'd need to give it as an annotation, which isn't too terrible;
+-- and, (2) it does not allow polymorphic pattern synonyms :(
 
 -- | A smart constructor and pattern synonym for 'PrimSigned'.
 pattern Signed :: HRing a => Coercion (NonNegative a) a

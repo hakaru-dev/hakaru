@@ -80,7 +80,7 @@ data Hakaru
     -- | The type of Hakaru functions.
     | !Hakaru :-> !Hakaru
 
-    -- | A user-defined polynomial data type. Each such type is
+    -- | A user-defined polynomial datatype. Each such type is
     -- specified by a \"tag\" (the @HakaruCon Hakaru@) which names
     -- the type, and a sum-of-product representation of the type
     -- itself.
@@ -113,7 +113,9 @@ deriving instance Typeable 'HData
 -- recursive sums-of-products. Notably, however, it only allows a
 -- single variable (namely the one bound by the closest binder) so
 -- it can't encode mutual recursion or other non-local uses of
--- multiple binders.
+-- multiple binders. We also cannot encode non-regular recursive
+-- types (aka nested datatypes), like rose trees. To do that, we'd
+-- need to allow any old functor here.
 --
 -- Products and sums are represented as lists in the 'Hakaru'
 -- data-kind itself, so they aren't in this datatype.

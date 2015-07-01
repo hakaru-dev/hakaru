@@ -24,7 +24,6 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.Prelude where
 
--- import Prelude hiding (id, (.), Ord(..), Num(..), Integral(..), Fractional(..), Floating(..), Real(..), RealFrac(..), RealFloat(..), (^), (^^),.......)
 -- TODO: implement and use Prelude's fromInteger and fromRational, so we can use numeric literals!
 import Prelude (Maybe(..), Bool(..), Int, Double, Functor(..), ($), flip, error, otherwise)
 import qualified Prelude

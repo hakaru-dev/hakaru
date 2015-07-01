@@ -403,7 +403,7 @@ subst x e = start
     where
     toSing :: (SingI c) => proxy c -> Sing c
     toSing _ = sing
-    
+
     start :: forall c. abt c -> abt c
     start f = loop f (viewABT f)
 
@@ -510,7 +510,7 @@ instance Bindable abt => Bindable (AST abt) where
 
 instance Bindable abt => Bindable (Datum abt) where
     bound (Datum      d)        = bound d
-    
+
 instance Bindable abt => Bindable (PartialDatum abt code) where
     bound Nil                   = 0
     bound (Cons       d1 d2)    = bound d1 `max` bound d2

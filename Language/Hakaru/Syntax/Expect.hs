@@ -213,19 +213,19 @@ expectSing (SData con code) =
     where
     expectSing_Con (SCon s)   = SCon s
     expectSing_Con (SApp f a) = SApp (expectSing_Con f) (expectSing a)
-    
+
     expectSing_Code SVoid        = SVoid
     expectSing_Code (SPlus x xs) =
         SPlus (expectSing_Prod x) (expectSing_Code xs)
-        
+
     expectSing_Prod SNil         = SNil
     expectSing_Prod (SCons x xs) =
         SCons (expectSing_Fun x) (expectSing_Prod xs)
-    
+
     expectSing_Fun SIdent     = SIdent
     expectSing_Fun (SKonst a) = SKonst (expectSing a)
 
-    
+
 expectAST :: AST ast a -> AST ast (Expect' a)
 expectAST (Lam_        p  e)     = Lam_ Proxy       (expect e)
 expectAST (App_        e1 e2)    = App_ (expect e1) (expect e2)

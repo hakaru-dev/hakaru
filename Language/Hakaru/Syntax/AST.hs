@@ -36,7 +36,7 @@ module Language.Hakaru.Syntax.AST
     , NaryOp(..),  singNaryOp
     , PrimOp(..),  singPrimOp
     , Measure(..), singMeasure
-    -- * User-defined data types
+    -- * User-defined datatypes
     -- ** Data constructors\/patterns
     , Datum(..)
     , PartialDatum(..)
@@ -456,9 +456,15 @@ instance Functor1 Datum where
 
 instance Foldable1 Datum where
     foldMap1 f (Datum d) = foldMap_PartialDatum f d
-    
+
 ----------------------------------------------------------------
--- | The intermediate components of a data constructor. The intuition behind the two indices is that the @[[HakaruFun]]@ is a functor applied to the Hakaru type. Initially the @[[HakaruFun]]@ functor will be the 'Code' associated with the Hakaru type; hence it's the one-step unrolling of the fixed point for our recursive data types. But as we go along, we'll be doing induction on the @[[HakaruFun]]@ functor.
+-- | The intermediate components of a data constructor. The intuition
+-- behind the two indices is that the @[[HakaruFun]]@ is a functor
+-- applied to the Hakaru type. Initially the @[[HakaruFun]]@ functor
+-- will be the 'Code' associated with the Hakaru type; hence it's
+-- the one-step unrolling of the fixed point for our recursive
+-- datatypes. But as we go along, we'll be doing induction on the
+-- @[[HakaruFun]]@ functor.
 data PartialDatum :: (Hakaru -> *) -> [[HakaruFun]] -> Hakaru -> * where
     Nil ::   PartialDatum ast '[ '[] ]     a
     Cons
@@ -601,8 +607,11 @@ pInr a = PDatum (Datum (Succ (Konst a)))
 
 
 
--- TODO: a pretty infix syntax, like (:->) or something
--- TODO: this type is helpful for capturing the existential, if we ever end up keeping track of local binding environments; but other than that, it should be replaced\/augmented with a type for pattern automata, so we can optimize case analysis.
+-- TODO: a pretty infix syntax, like (:=>) or something
+-- TODO: this type is helpful for capturing the existential, if we
+-- ever end up keeping track of local binding environments; but
+-- other than that, it should be replaced\/augmented with a type
+-- for pattern automata, so we can optimize case analysis.
 data Branch :: Hakaru -> (Hakaru -> *) -> Hakaru -> * where
     Branch
         :: {-exists Γ.-}
@@ -715,7 +724,10 @@ data AST :: (Hakaru -> *) -> Hakaru -> * where
 
 
 ----------------------------------------------------------------
--- N.B., having a @singAST :: AST ast a -> Sing a@ doesn't make sense: That's what 'inferType' is for, but not all terms can be inferred; some must be checked... Similarly, we can't derive Read, since that's what typechecking is all about.
+-- N.B., having a @singAST :: AST ast a -> Sing a@ doesn't make
+-- sense: That's what 'inferType' is for, but not all terms can be
+-- inferred; some must be checked... Similarly, we can't derive
+-- Read, since that's what typechecking is all about.
 
 -- BUG: deriving instance (forall b. Eq (ast b)) => Eq (AST ast a)
 

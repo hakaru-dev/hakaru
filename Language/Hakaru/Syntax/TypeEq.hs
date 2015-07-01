@@ -4,7 +4,7 @@
            , GADTs
            , TypeFamilies
            , PatternSynonyms
-           
+
            -- TODO: how much of this is needed for splices?
            , QuasiQuotes
            , TemplateHaskell
@@ -15,11 +15,11 @@
            , StandaloneDeriving
            #-}
 
--- Singletons generates orphan instances warnings 
+-- Singletons generates orphan instances warnings
 {-# OPTIONS_GHC -Wall -fwarn-tabs -fno-warn-orphans #-}
 
 -- DEBUG
--- {-# OPTIONS_GHC -ddump-splices #-} 
+-- {-# OPTIONS_GHC -ddump-splices #-}
 
 ----------------------------------------------------------------
 --                                                    2015.06.30
@@ -61,34 +61,34 @@ import Language.Hakaru.Syntax.DataKind
 {- -- BUG: this code does not work on my system(s). It generates some strange CPP errors.
 
 import Data.Singletons
-import Data.Singletons.TH 
+import Data.Singletons.TH
 import Data.Singletons.Prelude (Sing(..))
 
 import Unsafe.Coerce
 
-genSingletons [ ''Hakaru, ''HakaruFun  ] 
+genSingletons [ ''Hakaru, ''HakaruFun  ]
 
 -- BUG: The generated code doesn't typecheck because it contains a Symbol, so it has to be written manually. I imagine singletons should have a way to handle Symbol but I haven't found.
 -- genSingletons [ ''HakaruCon ]
 
 -- Singleton datatype
 infixl 0 :%@
-data instance Sing (x :: HakaruCon k) where 
-    SHCon :: Sing s -> Sing (HCon s) 
-    (:%@) :: Sing a -> Sing b -> Sing (a :@ b) 
+data instance Sing (x :: HakaruCon k) where
+    SHCon :: Sing s -> Sing (HCon s)
+    (:%@) :: Sing a -> Sing b -> Sing (a :@ b)
 
 -- Show instances for each singleton
 instance Show (SHakaru x) where
-    show = show . fromSing 
+    show = show . fromSing
 instance Show (SHakaruCon (x :: HakaruCon Hakaru)) where
-    show = show . fromSing 
+    show = show . fromSing
 instance Show (SHakaruFun x) where
-    show = show . fromSing 
+    show = show . fromSing
 
 -- Type synonym for HakaruCon
 type SHakaruCon (x :: HakaruCon k) = Sing x
 
--- Demoting/promoting. Used for showing singletons. 
+-- Demoting/promoting. Used for showing singletons.
 instance SingKind ('KProxy :: KProxy k)
     => SingKind ('KProxy :: KProxy (HakaruCon k))
     where
@@ -105,32 +105,32 @@ instance SingKind ('KProxy :: KProxy k)
             :: SomeSing ('KProxy :: KProxy Symbol)
         of { SomeSing c_a1d9H -> SomeSing (SHCon c_a1d9H) }
 
-    toSing (a :@ b) = 
+    toSing (a :@ b) =
         case (toSing a :: SomeSing ('KProxy :: KProxy (HakaruCon k))
             , toSing b :: SomeSing ('KProxy :: KProxy k)
             )
         of (SomeSing a', SomeSing b') -> SomeSing (a' :%@ b')
 
--- Implicit singleton 
-instance SingI a            => SingI (HCon a) where sing = SHCon sing 
+-- Implicit singleton
+instance SingI a            => SingI (HCon a) where sing = SHCon sing
 instance (SingI a, SingI b) => SingI (a :@ b) where sing = (:%@) sing sing
 
 -- This generates jmEq (or rather a strong version)
-singDecideInstances [ ''Hakaru, ''HakaruCon, ''HakaruFun ] 
+singDecideInstances [ ''Hakaru, ''HakaruCon, ''HakaruFun ]
 
 type TypeEq = (:~:)
 
 jmEq :: SHakaru a -> SHakaru b -> Maybe (a :~: b)
 jmEq a b =
-    case a %~ b of 
-    Proved p -> Just p 
+    case a %~ b of
+    Proved p -> Just p
     _        -> Nothing
 
 
 -- TODO: Smart constructors for built-in types like Pair, Either, etc.
-sPair :: Sing a -> Sing b -> Sing (HPair a b) 
+sPair :: Sing a -> Sing b -> Sing (HPair a b)
 sPair a b =
-    SData (SCon (singByProxy (Proxy :: Proxy "Pair")) :%@ a :%@ b) 
+    SData (SCon (singByProxy (Proxy :: Proxy "Pair")) :%@ a :%@ b)
         (SCons (SCons (SK a) $ SCons (SK b) SNil) SNil)
 -}
 
@@ -144,7 +144,10 @@ class SingI (a :: k) where sing :: Sing a
 
 
 ----------------------------------------------------------------
--- BUG: data family instances must be fully saturated, but since these are GADTs, the name of the parameter is irrelevant. However, using a wildcard causes GHC to panic. cf., <https://ghc.haskell.org/trac/ghc/ticket/10586>
+-- BUG: data family instances must be fully saturated, but since
+-- these are GADTs, the name of the parameter is irrelevant. However,
+-- using a wildcard causes GHC to panic. cf.,
+-- <https://ghc.haskell.org/trac/ghc/ticket/10586>
 
 -- | Singleton types for the kind of Hakaru types. We need to use
 -- this instead of 'Proxy' in order to implement 'jmEq'.
@@ -196,7 +199,7 @@ pattern SUnit :: Sing HUnit
 pattern SUnit =
     SData (SCon SSymbol_Unit)
         (SNil `SPlus` SVoid)
-        
+
 pattern SBool :: Sing HBool
 pattern SBool =
     SData (SCon SSymbol_Bool)
@@ -229,7 +232,7 @@ pattern SMaybe a =
 -- HACK: because of polykindedness, we have to give explicit type signatures for the index in the result of these data constructors.
 data instance Sing (unused :: HakaruCon Hakaru) where
     SCon :: !(Sing s)              -> Sing ('HCon s :: HakaruCon Hakaru)
-    SApp :: !(Sing a) -> !(Sing b) -> Sing (a ':@ b :: HakaruCon Hakaru) 
+    SApp :: !(Sing a) -> !(Sing b) -> Sing (a ':@ b :: HakaruCon Hakaru)
 
 instance Eq (Sing (a :: HakaruCon Hakaru)) where
     a == b = maybe False (const True) (jmEq_Con a b)
@@ -308,7 +311,7 @@ instance Show (Sing (a :: [[HakaruFun]])) where
     show      = show1
 
 instance SingI ('[] :: [[HakaruFun]]) where
-    sing = SVoid 
+    sing = SVoid
 instance (SingI xs, SingI xss) => SingI ((xs ': xss) :: [[HakaruFun]]) where
     sing = SPlus sing sing
 
@@ -334,7 +337,7 @@ instance Show (Sing (a :: [HakaruFun])) where
     show      = show1
 
 instance SingI ('[] :: [HakaruFun]) where
-    sing = SNil 
+    sing = SNil
 instance (SingI x, SingI xs) => SingI ((x ': xs) :: [HakaruFun]) where
     sing = SCons sing sing
 
@@ -360,7 +363,7 @@ instance Show (Sing (a :: HakaruFun)) where
     show      = show1
 
 instance SingI 'I where
-    sing = SIdent 
+    sing = SIdent
 instance (SingI a) => SingI ('K a) where
     sing = SKonst sing
 
@@ -399,7 +402,7 @@ jmEq SProb            SProb            = Just Refl
 jmEq SReal            SReal            = Just Refl
 jmEq (SMeasure a)     (SMeasure b)     = jmEq a  b  >>= \Refl -> Just Refl
 jmEq (SArray   a)     (SArray   b)     = jmEq a  b  >>= \Refl -> Just Refl
-jmEq (SFun     a1 a2) (SFun     b1 b2) = jmEq a1 b1 >>= \Refl -> 
+jmEq (SFun     a1 a2) (SFun     b1 b2) = jmEq a1 b1 >>= \Refl ->
                                          jmEq a2 b2 >>= \Refl -> Just Refl
 jmEq (SData con1 code1) (SData con2 code2) =
     jmEq_Con  con1  con2  >>= \Refl ->
