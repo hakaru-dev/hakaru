@@ -169,12 +169,12 @@ data PrimOp :: Hakaru -> * where
     -- cf., <https://hackage.haskell.org/package/qm-0.1.0.0/candidate>
     -- cf., <https://github.com/pfpacket/Quine-McCluskey>
     -- cf., <https://gist.github.com/dsvictor94/8db2b399a95e301c259a>
-    Not  :: PrimOp ('HFun HBool HBool)
+    Not  :: PrimOp (HBool ':-> HBool)
     -- And, Or, Xor, Iff
-    Impl :: PrimOp ('HFun HBool ('HFun HBool HBool)) -- == Or (Not x) y
-    Diff :: PrimOp ('HFun HBool ('HFun HBool HBool)) -- == Not (Impl x y)
-    Nand :: PrimOp ('HFun HBool ('HFun HBool HBool)) -- aka Alternative Denial, Sheffer stroke
-    Nor  :: PrimOp ('HFun HBool ('HFun HBool HBool)) -- aka Joint Denial, aka Quine dagger, aka Pierce arrow
+    Impl :: PrimOp (HBool ':-> HBool ':-> HBool) -- == Or (Not x) y
+    Diff :: PrimOp (HBool ':-> HBool ':-> HBool) -- == Not (Impl x y)
+    Nand :: PrimOp (HBool ':-> HBool ':-> HBool) -- aka Alternative Denial, Sheffer stroke
+    Nor  :: PrimOp (HBool ':-> HBool ':-> HBool) -- aka Joint Denial, aka Quine dagger, aka Pierce arrow
     -- The remaining eight binops are completely uninteresting:
     --   flip Impl
     --   flip Diff
@@ -190,18 +190,18 @@ data PrimOp :: Hakaru -> * where
     Pi    :: PrimOp 'HProb
     -- TODO: if we're going to bother naming the hyperbolic ones, why not also name /a?(csc|sec|cot)h?/ eh?
     -- TODO: capture more domain information in these types?
-    Sin   :: PrimOp ('HFun 'HReal 'HReal)
-    Cos   :: PrimOp ('HFun 'HReal 'HReal)
-    Tan   :: PrimOp ('HFun 'HReal 'HReal)
-    Asin  :: PrimOp ('HFun 'HReal 'HReal)
-    Acos  :: PrimOp ('HFun 'HReal 'HReal)
-    Atan  :: PrimOp ('HFun 'HReal 'HReal)
-    Sinh  :: PrimOp ('HFun 'HReal 'HReal)
-    Cosh  :: PrimOp ('HFun 'HReal 'HReal)
-    Tanh  :: PrimOp ('HFun 'HReal 'HReal)
-    Asinh :: PrimOp ('HFun 'HReal 'HReal)
-    Acosh :: PrimOp ('HFun 'HReal 'HReal)
-    Atanh :: PrimOp ('HFun 'HReal 'HReal)
+    Sin   :: PrimOp ('HReal ':-> 'HReal)
+    Cos   :: PrimOp ('HReal ':-> 'HReal)
+    Tan   :: PrimOp ('HReal ':-> 'HReal)
+    Asin  :: PrimOp ('HReal ':-> 'HReal)
+    Acos  :: PrimOp ('HReal ':-> 'HReal)
+    Atan  :: PrimOp ('HReal ':-> 'HReal)
+    Sinh  :: PrimOp ('HReal ':-> 'HReal)
+    Cosh  :: PrimOp ('HReal ':-> 'HReal)
+    Tanh  :: PrimOp ('HReal ':-> 'HReal)
+    Asinh :: PrimOp ('HReal ':-> 'HReal)
+    Acosh :: PrimOp ('HReal ':-> 'HReal)
+    Atanh :: PrimOp ('HReal ':-> 'HReal)
 
 
     -- -- Other Real/Prob-valued operators
@@ -213,34 +213,34 @@ data PrimOp :: Hakaru -> * where
     -- but non-integer real powers of negative reals are not real numbers!
     -- TODO: may need @SafeFrom_@ in order to branch on the input
     -- in order to provide the old unsafe behavior.
-    RealPow   :: PrimOp ('HFun 'HProb ('HFun 'HReal 'HProb))
-    -- ComplexPow :: PrimOp ('HFun 'HProb ('HFun 'HComplex 'HComplex))
+    RealPow   :: PrimOp ('HProb ':-> 'HReal ':-> 'HProb)
+    -- ComplexPow :: PrimOp ('HProb ':-> 'HComplex ':-> 'HComplex)
     -- is uniquely well-defined. Though we may want to implement
     -- it via @r**z = ComplexExp (z * RealLog r)@
     -- Defining @HReal -> HComplex -> HComplex@ requires either
     -- multivalued functions, or a choice of complex logarithm and
     -- making it discontinuous.
-    Exp       :: PrimOp ('HFun 'HReal 'HProb)
-    Log       :: PrimOp ('HFun 'HProb 'HReal)
+    Exp       :: PrimOp ('HReal ':-> 'HProb)
+    Log       :: PrimOp ('HProb ':-> 'HReal)
     -- TODO: Log1p, Expm1
     Infinity  :: PrimOp 'HProb
     NegativeInfinity :: PrimOp 'HReal -- TODO: maybe replace this by @negate (CoerceTo signed (PrimOp_ Infinity))@ ?
     -- TODO: add Factorial as the appropriate type restriction of GammaFunc?
-    GammaFunc :: PrimOp ('HFun 'HReal 'HProb)
-    BetaFunc  :: PrimOp ('HFun 'HProb ('HFun 'HProb 'HProb))
+    GammaFunc :: PrimOp ('HReal ':-> 'HProb)
+    BetaFunc  :: PrimOp ('HProb ':-> 'HProb ':-> 'HProb)
 
 
     -- -- Continuous and discrete integration.
     Integrate :: PrimOp
-        ('HFun 'HReal
-        ('HFun 'HReal
-        ('HFun ('HFun 'HReal 'HProb)
-        'HProb)))
+        (    'HReal
+        ':-> 'HReal
+        ':-> ('HReal ':-> 'HProb)
+        ':-> 'HProb)
     Summate :: PrimOp
-        ('HFun 'HReal -- TODO: should that really be 'HReal ?!
-        ('HFun 'HReal -- TODO: should that really be 'HReal ?!
-        ('HFun ('HFun 'HInt 'HProb)
-        'HProb)))
+        (    'HReal -- TODO: should that really be 'HReal ?!
+        ':-> 'HReal -- TODO: should that really be 'HReal ?!
+        ':-> ('HInt ':-> 'HProb)
+        ':-> 'HProb)
 
 
     -- -- -- Here we have the /polymorphic/ operators
@@ -249,27 +249,23 @@ data PrimOp :: Hakaru -> * where
     -- -- Array stuff
     -- TODO: do these really belong here (as PrimOps), in AST, or in their own place (a la Datum)?
     Empty  :: PrimOp ('HArray a)
-    Index  :: PrimOp ('HFun ('HArray a) ('HFun 'HNat a))
-    Size   :: PrimOp ('HFun ('HArray a) 'HNat)
+    Index  :: PrimOp ('HArray a ':-> 'HNat ':-> a)
+    Size   :: PrimOp ('HArray a ':-> 'HNat)
     -- The first argument should be a monoid, but we don't enforce
     -- that; it's the user's responsibility.
-    Reduce :: PrimOp
-        ('HFun ('HFun a ('HFun a a))
-        ('HFun a
-        ('HFun ('HArray a)
-        a)))
+    Reduce :: PrimOp ((a ':-> a ':-> a) ':-> a ':-> 'HArray a ':-> a)
 
 
     -- -- HOrder operators
     -- TODO: equality doesn't make constructive sense on the reals...
     -- would it be better to constructivize our notion of total ordering?
     -- TODO: what about posets?
-    Less  :: (HOrder a) => PrimOp ('HFun a ('HFun a HBool))
-    Equal :: (HOrder a) => PrimOp ('HFun a ('HFun a HBool))
+    Less  :: (HOrder a) => PrimOp (a ':-> a ':-> HBool)
+    Equal :: (HOrder a) => PrimOp (a ':-> a ':-> HBool)
 
 
     -- -- HSemiring operators (the non-n-ary ones)
-    NatPow :: (HSemiring a) => PrimOp ('HFun a ('HFun 'HNat a))
+    NatPow :: (HSemiring a) => PrimOp (a ':-> 'HNat ':-> a)
     -- TODO: would it help to have a specialized version for when
     -- we happen to know that the 'HNat is a Value? Same goes for
     -- the other powers/roots
@@ -295,13 +291,13 @@ data PrimOp :: Hakaru -> * where
     -- Ring: Semiring + negate, abs, signum
     -- NormedLinearSpace: LinearSpace + originPoint, norm, Arg
     -- ??: NormedLinearSpace + originAxis, angle
-    Negate :: (HRing a) => PrimOp ('HFun a a)
-    Abs    :: (HRing a) => PrimOp ('HFun a (NonNegative a))
+    Negate :: (HRing a) => PrimOp (a ':-> a)
+    Abs    :: (HRing a) => PrimOp (a ':-> NonNegative a)
     -- cf., <https://mail.haskell.org/pipermail/libraries/2013-April/019694.html>
     -- cf., <https://en.wikipedia.org/wiki/Sign_function#Complex_signum>
     -- Should we have Maple5's \"csgn\" as well as the usual \"sgn\"?
     -- Also note that the \"generalized signum\" anticommutes with Dirac delta!
-    Signum :: (HRing a) => PrimOp ('HFun a a)
+    Signum :: (HRing a) => PrimOp (a ':-> a)
     -- Law: x = coerceTo_ signed (abs_ x) * signum x
     -- More strictly/exactly, the result of Signum should be either
     -- zero or an @a@-unit value. For Int and Real, the units are
@@ -315,18 +311,18 @@ data PrimOp :: Hakaru -> * where
 
 
     -- -- HFractional operators
-    Recip :: (HFractional a) => PrimOp ('HFun a a)
+    Recip :: (HFractional a) => PrimOp (a ':-> a)
     -- generates macro: IntPow
 
 
     -- -- HRadical operators
-    NatRoot :: (HRadical a) => PrimOp ('HFun a ('HFun 'HNat a))
+    NatRoot :: (HRadical a) => PrimOp (a ':-> 'HNat ':-> a)
     -- generates macros: Sqrt, NonNegativeRationalPow, and RationalPow
 
 
     -- -- HContinuous operators
     -- TODO: what goes here, if anything? cf., <https://en.wikipedia.org/wiki/Closed-form_expression#Comparison_of_different_classes_of_expressions>
-    Erf :: (HContinuous a) => PrimOp ('HFun a a)
+    Erf :: (HContinuous a) => PrimOp (a ':-> a)
     -- TODO: make Pi and Infinity HContinuous-polymorphic so that we can avoid the explicit coercion? Probably more mess than benefit.
 
 
@@ -385,30 +381,26 @@ singPrimOp _ = error "TODO: singPrimOp"
 -- | Primitive distributions\/measures.
 data Measure :: Hakaru -> * where
     -- TODO: should we put Dirac back into the main AST?
-    Dirac       :: Measure ('HFun a ('HMeasure a))
+    Dirac       :: Measure (a ':-> 'HMeasure a)
 
     Lebesgue    :: Measure ('HMeasure 'HReal)
     Counting    :: Measure ('HMeasure 'HInt)
-    Categorical :: Measure ('HFun ('HArray 'HProb) ('HMeasure 'HNat))
+    Categorical :: Measure ('HArray 'HProb ':-> 'HMeasure 'HNat)
     -- TODO: make Uniform polymorphic, so that if the two inputs are HProb then we know the measure must be over HProb too. More generally, if the first input is HProb (since the second input is assumed to be greater thant he first); though that would be a bit ugly IMO.
-    Uniform     :: Measure ('HFun 'HReal ('HFun 'HReal ('HMeasure 'HReal)))
-    Normal      :: Measure ('HFun 'HReal ('HFun 'HProb ('HMeasure 'HReal)))
-    Poisson     :: Measure ('HFun 'HProb ('HMeasure 'HNat))
-    Gamma       :: Measure ('HFun 'HProb ('HFun 'HProb ('HMeasure 'HProb)))
-    Beta        :: Measure ('HFun 'HProb ('HFun 'HProb ('HMeasure 'HProb)))
+    Uniform     :: Measure ('HReal ':-> 'HReal ':-> 'HMeasure 'HReal)
+    Normal      :: Measure ('HReal ':-> 'HProb ':-> 'HMeasure 'HReal)
+    Poisson     :: Measure ('HProb ':-> 'HMeasure 'HNat)
+    Gamma       :: Measure ('HProb ':-> 'HProb ':-> 'HMeasure 'HProb)
+    Beta        :: Measure ('HProb ':-> 'HProb ':-> 'HMeasure 'HProb)
     -- binomial, mix, geometric, multinomial,... should also be HNat
 
-    DirichletProcess :: Measure
-        ('HFun 'HProb
-        ('HFun ('HMeasure a)
-        ('HMeasure ('HMeasure a))))
+    DirichletProcess
+        :: Measure ('HProb ':-> 'HMeasure a ':-> 'HMeasure ('HMeasure a))
     -- TODO: unify Plate and Chain as 'sequence' a~la traversable?
-    Plate :: Measure
-        ('HFun ('HArray ('HMeasure a))
-        ('HMeasure ('HArray a)))
+    Plate :: Measure ('HArray ('HMeasure a) ':-> 'HMeasure ('HArray a))
     Chain :: Measure
-        ('HFun ('HArray ('HFun s ('HMeasure (HPair a s))))
-        ('HFun s ('HMeasure (HPair ('HArray a) s))))
+        ('HArray (s ':-> 'HMeasure (HPair a s)) ':->
+        s ':-> 'HMeasure (HPair ('HArray a) s))
 
 
 deriving instance Eq   (Measure a)
@@ -662,8 +654,8 @@ data AST :: (Hakaru -> *) -> Hakaru -> * where
     -- We store a Proxy in Lam_, so Haskell needn't infer @a@ in
     -- the result. As far as Hakaru is concerned, we only ever try
     -- to check lambdas, never infer them.
-    Lam_    :: !(Proxy a) -> ast {-a-} b -> AST ast ('HFun a b)
-    App_    :: ast ('HFun a b) -> ast a -> AST ast b
+    Lam_    :: !(Proxy a) -> ast {-a-} b -> AST ast (a ':-> b)
+    App_    :: ast (a ':-> b) -> ast a -> AST ast b
     Let_    :: ast a -> ast {-a-} b -> AST ast b
     -- TODO: a general \"@let*@\" version of let-binding so we can have mutual recursion
     Fix_    :: ast {-a-} a -> AST ast a
@@ -685,7 +677,7 @@ data AST :: (Hakaru -> *) -> Hakaru -> * where
     -- TODO: add something like @SafeFrom_ :: Coercion a b -> ast b -> AST ast ('HMaybe a)@ so we can capture the safety of patterns like @if_ (0 <= x) (let x_ = unsafeFrom signed x in...) (...)@ Of course, since we're just going to do case analysis on the result; why not make it a binding form directly?
     -- TODO: we'll probably want some more general thing to capture these sorts of patterns. For example, in the default implementation of Uniform we see: @if_ (lo < x && x < hi) (... unsafeFrom_ signed (hi - lo) ...) (...)@
 
-    -- TODO: do we really need this to be a binding form, or could it take a Hakaru function (HFun) for the second argument?
+    -- TODO: do we really need this to be a binding form, or could it take a Hakaru function for the second argument?
     Array_ :: ast 'HNat -> ast {-'HNat-} a -> AST ast ('HArray a)
 
 

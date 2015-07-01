@@ -36,7 +36,7 @@ import Language.Hakaru.Syntax.HClasses
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 -- TODO: (?) coercing HMeasure by coercing the underlying measure space.
--- TODO: lifting coercion over HFun, to avoid the need for eta-expansion
+-- TODO: lifting coercion over (:->), to avoid the need for eta-expansion
 -- TODO: lifting coersion over datatypes, to avoid traversing them at runtime
 -- TODO: see how GHC handles lifting coersions these days...
 

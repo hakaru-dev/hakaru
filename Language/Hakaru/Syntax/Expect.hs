@@ -45,14 +45,14 @@ type instance Expect' 'HInt          = 'HInt
 type instance Expect' 'HProb         = 'HProb 
 type instance Expect' 'HReal         = 'HReal 
 type instance Expect' ('HMeasure a)  =
-    HPair ('HMeasure (Expect' a)) ('HFun ('HFun (Expect' a) 'HProb) 'HProb)
+    HPair ('HMeasure (Expect' a)) ((Expect' a ':-> 'HProb) ':-> 'HProb)
     -- TODO: what we really want are Haskell types here:
     -- > (abt 'HMeasure (Expect' a), ((anb (Expect' a) -> abt 'HProb) -> abt 'HProb)
     -- That's necesary to get rid of the administrative redexes.
     --
     -- TODO: ultimately, we'd like to be able to specify an explicit measure to take the expectiation of, leaving the rest alone.
 type instance Expect' ('HArray a)    = 'HArray  (Expect' a)
-type instance Expect' ('HFun a b)    = 'HFun (Expect' a) (Expect' b)
+type instance Expect' (a ':-> b)     =  Expect' a ':-> Expect' b
 type instance Expect' ('HData t xss) = 'HData (ExpectCon t) (ExpectCode xss)
 
 type family   ExpectCon (x :: HakaruCon Hakaru) :: HakaruCon Hakaru 

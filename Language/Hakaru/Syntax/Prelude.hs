@@ -52,34 +52,34 @@ performs these sorts of optimizations, as a program transformation.
 -}
 -- TODO: constant propogation
 
-app :: (ABT abt) => abt ('HFun a b) -> abt a -> abt b
+app :: (ABT abt) => abt (a ':-> b) -> abt a -> abt b
 app = (syn .) . App_
 
-app2 :: (ABT abt) => abt ('HFun a ('HFun b c)) -> abt a -> abt b -> abt c
+app2 :: (ABT abt) => abt (a ':-> b ':-> c) -> abt a -> abt b -> abt c
 app2 = (app .) . app
 
-app3 :: (ABT abt) => abt ('HFun a ('HFun b ('HFun c d))) -> abt a -> abt b -> abt c -> abt d
+app3 :: (ABT abt) => abt (a ':-> b ':-> c ':-> d) -> abt a -> abt b -> abt c -> abt d
 app3 = (app2 .) . app
 
 primOp0_ :: (ABT abt) => PrimOp a -> abt a
 primOp0_ = syn . PrimOp_
 
-primOp1_ :: (ABT abt) => PrimOp ('HFun a b) -> abt a -> abt b
+primOp1_ :: (ABT abt) => PrimOp (a ':-> b) -> abt a -> abt b
 primOp1_ = app . primOp0_
 
-primOp2_ :: (ABT abt) => PrimOp ('HFun a ('HFun b c)) -> abt a -> abt b -> abt c
+primOp2_ :: (ABT abt) => PrimOp (a ':-> b ':-> c) -> abt a -> abt b -> abt c
 primOp2_ = app2 . primOp0_
 
-primOp3_ :: (ABT abt) => PrimOp ('HFun a ('HFun b ('HFun c d))) -> abt a -> abt b -> abt c -> abt d
+primOp3_ :: (ABT abt) => PrimOp (a ':-> b ':-> c ':-> d) -> abt a -> abt b -> abt c -> abt d
 primOp3_ = app3 . primOp0_
 
 measure0_ :: (ABT abt) => Measure a -> abt a
 measure0_ = syn . Measure_
 
-measure1_ :: (ABT abt) => Measure ('HFun a b) -> abt a -> abt b
+measure1_ :: (ABT abt) => Measure (a ':-> b) -> abt a -> abt b
 measure1_ = app . measure0_
 
-measure2_ :: (ABT abt) => Measure ('HFun a ('HFun b c)) -> abt a -> abt b -> abt c
+measure2_ :: (ABT abt) => Measure (a ':-> b ':-> c) -> abt a -> abt b -> abt c
 measure2_ = app2 . measure0_
 
 
@@ -695,8 +695,8 @@ plate' v = reduce r z (mapV m v)
 
 chain
     :: (ABT abt)
-    => abt ('HArray ('HFun s ('HMeasure         (HPair a s))))
-    -> abt (         'HFun s ('HMeasure (HPair ('HArray a) s)))
+    => abt ('HArray (s ':-> 'HMeasure (HPair          a  s)))
+    -> abt (         s ':-> 'HMeasure (HPair ('HArray a) s))
 chain = measure1_ Chain
 {-
 -- TODO: the array stuff...
@@ -738,7 +738,7 @@ summate lo hi f =
 
 lam :: (ABT abt, Bindable abt, SingI a)
     => (abt a -> abt b)
-    -> abt ('HFun a b)
+    -> abt (a ':-> b)
 lam = binder (\x e -> syn . Lam_ Proxy $ open x e) "_" sing
 
 {-
@@ -748,10 +748,10 @@ lam = binder (\x e -> syn . Lam_ Proxy $ open x e) "_" sing
         => String
         -> Sing a
         -> (abt a -> abt b)
-        -> abt ('HFun a b)
+        -> abt (a ':-> b)
     lam name typ = binder (\x e -> syn . Lam_ Proxy $ open x e) name typ
-> lam "x" SInt (\x -> x) :: TrivialABT ('HFun 'HInt 'HInt)
-> lam "x" SInt (\x -> lam "y" SInt $ \y -> x < y) :: TrivialABT ('HFun 'HInt ('HFun 'HInt 'HBool))
+> lam "x" SInt (\x -> x) :: TrivialABT ('HInt ':-> 'HInt)
+> lam "x" SInt (\x -> lam "y" SInt $ \y -> x < y) :: TrivialABT ('HInt ':-> 'HInt ':-> 'HBool)
 -}
 
 let_

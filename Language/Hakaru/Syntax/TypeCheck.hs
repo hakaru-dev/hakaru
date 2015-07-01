@@ -269,7 +269,7 @@ checkType ctx e typ =
             -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
             caseOpenABT e1 $ \x e' ->
                 checkType (pushCtx (TV x typ1) ctx) e' typ2
-        _ -> failwith "expected HFun type"
+        _ -> failwith "expected function type"
 
     Syn (Let_ e1 e2)
         | inferable (viewABT e1) -> do

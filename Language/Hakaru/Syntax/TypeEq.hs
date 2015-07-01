@@ -155,7 +155,7 @@ data instance Sing (unused :: Hakaru) where
     SReal    :: Sing 'HReal
     SMeasure :: !(Sing a) -> Sing ('HMeasure a)
     SArray   :: !(Sing a) -> Sing ('HArray a)
-    SFun     :: !(Sing a) -> !(Sing b) -> Sing ('HFun a b)
+    SFun     :: !(Sing a) -> !(Sing b) -> Sing (a ':-> b)
     SData    :: !(Sing t) -> !(Sing (Code t)) -> Sing ('HData t (Code t))
 
 instance Eq (Sing (a :: Hakaru)) where
@@ -179,13 +179,13 @@ instance Show (Sing (a :: Hakaru)) where
     showsPrec = showsPrec1
     show      = show1
 
-instance SingI 'HNat                             where sing = SNat 
-instance SingI 'HInt                             where sing = SInt 
-instance SingI 'HProb                            where sing = SProb 
-instance SingI 'HReal                            where sing = SReal 
-instance (SingI a) => SingI ('HMeasure a)        where sing = SMeasure sing
-instance (SingI a) => SingI ('HArray a)          where sing = SArray sing
-instance (SingI a, SingI b) => SingI ('HFun a b) where sing = SFun sing sing
+instance SingI 'HNat                            where sing = SNat 
+instance SingI 'HInt                            where sing = SInt 
+instance SingI 'HProb                           where sing = SProb 
+instance SingI 'HReal                           where sing = SReal 
+instance (SingI a) => SingI ('HMeasure a)       where sing = SMeasure sing
+instance (SingI a) => SingI ('HArray a)         where sing = SArray sing
+instance (SingI a, SingI b) => SingI (a ':-> b) where sing = SFun sing sing
 -- N.B., must use @(~)@ to delay the use of the type family (it's illegal to put it inline in the instance head).
 instance (sop ~ Code t, SingI t, SingI sop) => SingI ('HData t sop) where
     sing = SData sing sing

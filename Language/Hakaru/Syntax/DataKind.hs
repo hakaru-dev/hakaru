@@ -52,6 +52,8 @@ instance Read Symbol where
 
 
 ----------------------------------------------------------------
+infixr 0 :->
+
 -- | The universe\/kind of Hakaru types.
 data Hakaru
     = HNat -- ^ The natural numbers; aka, the non-negative integers.
@@ -75,9 +77,8 @@ data Hakaru
     -- | The built-in type for uniform arrays.
     | HArray !Hakaru
 
-    -- TODO: if we're going to be using type operators anyways, then we might as well use one here.
     -- | The type of Hakaru functions.
-    | HFun !Hakaru !Hakaru
+    | !Hakaru :-> !Hakaru
 
     -- | A user-defined polynomial data type. Each such type is
     -- specified by a \"tag\" (the @HakaruCon Hakaru@) which names
@@ -102,7 +103,7 @@ deriving instance Typeable 'HProb
 deriving instance Typeable 'HReal
 deriving instance Typeable 'HMeasure
 deriving instance Typeable 'HArray
-deriving instance Typeable 'HFun
+deriving instance Typeable '(:->)
 deriving instance Typeable 'HData
 
 
