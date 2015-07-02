@@ -121,7 +121,7 @@ singValue (VDatum (Datum d)) = error "TODO: singValue{VDatum}"
     -- Datum) store the Sing when it's created?
     SData sing (go d)
     where
-    go :: PartialDatum Value code a -> Sing code
+    go :: PartialDatum code Value a -> Sing code
     go Done        = SDone `SPlus` SVoid
     go (Et  d1 d2) = (go d1 `SEt` go d2) `SPlus` SVoid
 
@@ -476,7 +476,7 @@ singMeasure _ = error "TODO: singMeasure"
 -- whereas 'PartialDatum' has non-Hakaru types.
 data Datum :: (Hakaru -> *) -> Hakaru -> * where
     Datum
-        :: !(PartialDatum ast (Code t) ('HData t (Code t)))
+        :: !(PartialDatum (Code t) ast ('HData t (Code t)))
         -> Datum ast ('HData t (Code t))
 
 instance Eq1 ast => Eq1 (Datum ast) where
@@ -495,10 +495,10 @@ instance Show1 ast => Show (Datum ast a) where
     show      = show1
 
 instance Functor1 Datum where
-    fmap1 f (Datum d) = Datum (fmap_PartialDatum f d)
+    fmap1 f (Datum d) = Datum (fmap1 f d)
 
 instance Foldable1 Datum where
-    foldMap1 f (Datum d) = foldMap_PartialDatum f d
+    foldMap1 f (Datum d) = foldMap1 f d
 
 ----------------------------------------------------------------
 infixr 7 `Et`
@@ -512,7 +512,7 @@ infixr 7 `Et`
 -- the one-step unrolling of the fixed point for our recursive
 -- datatypes. But as we go along, we'll be doing induction on the
 -- @[[HakaruFun]]@ functor.
-data PartialDatum :: (Hakaru -> *) -> [[HakaruFun]] -> Hakaru -> * where
+data PartialDatum :: [[HakaruFun]] -> (Hakaru -> *) -> Hakaru -> * where
 
     -- | Close off the product. N.B., because of their types, the
     -- 'Konst' and 'Ident' constructors can be used as the \"tail\"
@@ -520,14 +520,14 @@ data PartialDatum :: (Hakaru -> *) -> [[HakaruFun]] -> Hakaru -> * where
     -- type checking and pattern matching, we assume the type codes
     -- match /exactly/; thus, avoid abusing this fact because it
     -- may cause things to fail unexpectedly.
-    Done ::  PartialDatum ast '[ '[] ]     a
+    Done ::  PartialDatum '[ '[] ]     ast a
 
     -- | Continue with the next component of the product. (\"et\"
     -- means \"and\" in Latin)
     Et
-        :: !(PartialDatum ast '[ '[ x ] ]  a)
-        -> !(PartialDatum ast '[ xs ]      a)
-        ->   PartialDatum ast '[ x ': xs ] a
+        :: !(PartialDatum '[ '[ x ] ]  ast a)
+        -> !(PartialDatum '[ xs ]      ast a)
+        ->   PartialDatum '[ x ': xs ] ast a
 
     -- | Inject into the left component of the sum. N.B., the actual
     -- effect of this constructor is to leave the rest of the sum
@@ -539,29 +539,37 @@ data PartialDatum :: (Hakaru -> *) -> [[HakaruFun]] -> Hakaru -> * where
     -- assume the type codes match /exactly/; thus, avoid abusing
     -- these facts because they may cause things to fail unexpectedly.
     Inl
-        :: !(PartialDatum ast '[ xs ]      a)
-        ->   PartialDatum ast (xs ': xss)  a
+        :: !(PartialDatum '[ xs ]      ast a)
+        ->   PartialDatum (xs ': xss)  ast a
 
     -- | Inject into the right component of the sum.
     Inr
-        :: !(PartialDatum ast xss          a)
-        ->   PartialDatum ast (xs ': xss)  a
+        :: !(PartialDatum xss          ast a)
+        ->   PartialDatum (xs ': xss)  ast a
 
-    Konst :: ast b -> PartialDatum ast '[ '[ 'K b ] ] a
-    Ident :: ast a -> PartialDatum ast '[ '[ 'I   ] ] a
+    Konst :: ast b -> PartialDatum '[ '[ 'K b ] ] ast a
+    Ident :: ast a -> PartialDatum '[ '[ 'I   ] ] ast a
 
-instance Eq1 ast => Eq1 (PartialDatum ast code) where
+
+-- N.B., these \"Foo1\" instances rely on polymorphic recursion,
+-- since the @code@ changes at each constructor. However, we don't
+-- actually need to abstract over @code@ in order to define these
+-- functions, because (1) we never existentially close over any
+-- codes, and (2) the code is always getting smaller; so we have
+-- a good enough inductive hypothesis from polymorphism alone.
+
+instance Eq1 ast => Eq1 (PartialDatum code ast) where
     eq1 Done        Done        = True
-    eq1 (Et  c1 c2) (Et  d1 d2) = eq1  c1 d1 && eq1 c2 d2
-    eq1 (Inl c)     (Inl d)     = eq1  c  d
-    eq1 (Inr c)     (Inr d)     = eq1  c  d
+    eq1 (Et  c1 c2) (Et  d1 d2) = eq1 c1 d1 && eq1 c2 d2
+    eq1 (Inl c)     (Inl d)     = eq1 c  d
+    eq1 (Inr c)     (Inr d)     = eq1 c  d
     eq1 (Konst e)   (Konst f)   = eq1 e  f
     eq1 (Ident e)   (Ident f)   = eq1 e  f
     eq1 _           _           = False
 
--- TODO: instance Read (PartialDatum ast code a)
+-- TODO: instance Read (PartialDatum code ast a)
 
-instance Show1 ast => Show1 (PartialDatum ast code) where
+instance Show1 ast => Show1 (PartialDatum code ast) where
     showsPrec1 p t =
         case t of
         Done      -> showString     "Done"
@@ -571,44 +579,24 @@ instance Show1 ast => Show1 (PartialDatum ast code) where
         Konst e   -> showParen_1  p "Konst" e
         Ident e   -> showParen_1  p "Ident" e
 
-instance Show1 ast => Show (PartialDatum ast code a) where
+instance Show1 ast => Show (PartialDatum code ast a) where
     showsPrec = showsPrec1
 
--- N.B., even though we could rearrange the parameters of PartialDatum
--- to allow us to partially apply @code@ and get something of the
--- right kind to try and specify 'Functor1' and 'Foldable1' instances,
--- we wouldn't be able to provide the actual instances because it'd
--- give us the wrong inductive hypothesis. The @code@ isn't constant
--- as we recurse, so we need to allow it to vary as we go.
-fmap_PartialDatum
-    :: forall a b code j
-    .  (forall i. a i -> b i)
-    -> PartialDatum a code j
-    -> PartialDatum b code j
-fmap_PartialDatum f = go
-    where
-    go :: forall code' j'. PartialDatum a code' j' -> PartialDatum b code' j'
-    go Done        = Done
-    go (Et  d1 d2) = Et   (go d1) (go d2)
-    go (Inl d)     = Inl  (go d)
-    go (Inr d)     = Inr  (go d)
-    go (Konst e)   = Konst (f e)
-    go (Ident e)   = Ident (f e)
+instance Functor1 (PartialDatum code) where
+    fmap1 f Done        = Done
+    fmap1 f (Et  d1 d2) = Et    (fmap1 f d1) (fmap1 f d2)
+    fmap1 f (Inl d)     = Inl   (fmap1 f d)
+    fmap1 f (Inr d)     = Inr   (fmap1 f d)
+    fmap1 f (Konst e)   = Konst (f e)
+    fmap1 f (Ident e)   = Ident (f e)
 
-foldMap_PartialDatum
-    :: forall m a code j
-    .  (Monoid m)
-    => (forall i. a i -> m)
-    -> PartialDatum a code j -> m
-foldMap_PartialDatum f = go
-    where
-    go :: forall code' j'. PartialDatum a code' j' -> m
-    go Done        = mempty
-    go (Et  d1 d2) = go d1 `mappend` go d2
-    go (Inl d)     = go d
-    go (Inr d)     = go d
-    go (Konst e)   = f e
-    go (Ident e)   = f e
+instance Foldable1 (PartialDatum code) where
+    foldMap1 f Done        = mempty
+    foldMap1 f (Et  d1 d2) = foldMap1 f d1 `mappend` foldMap1 f d2
+    foldMap1 f (Inl d)     = foldMap1 f d
+    foldMap1 f (Inr d)     = foldMap1 f d
+    foldMap1 f (Konst e)   = f e
+    foldMap1 f (Ident e)   = f e
 
 
 -- In GHC 7.8 we can make the monomorphic smart constructors into

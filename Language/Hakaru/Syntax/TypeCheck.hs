@@ -151,7 +151,7 @@ data TypedPattern where
 data TypedDatum (abt :: Hakaru -> *) where
     -- N.B., we do not require that @sop ~ Code t@; so we can
     -- perform induction on it!
-    TD  :: !(PartialDatum abt sop ('HData t (Code t)))
+    TD  :: !(PartialDatum sop abt ('HData t (Code t)))
         -> !(Sing sop)
         -> !(Sing ('HData t (Code t)))
         -> TypedDatum abt

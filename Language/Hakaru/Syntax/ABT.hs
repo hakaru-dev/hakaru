@@ -511,7 +511,7 @@ bound = boundView . viewABT
     boundAST (Lub_        e1 e2)    = bound e1 `max` bound e2
     boundAST Bot_                   = 0
 
-    boundDatum :: (ABT abt) => PartialDatum abt code a -> Nat
+    boundDatum :: (ABT abt) => PartialDatum code abt a -> Nat
     boundDatum Done                  = 0
     boundDatum (Et         d1 d2)    = boundDatum d1 `max` boundDatum d2
     boundDatum (Inl        d)        = boundDatum d
