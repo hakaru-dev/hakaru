@@ -512,10 +512,10 @@ bound = boundView . viewABT
     boundAST Bot_                   = 0
 
     boundDatum :: (ABT abt) => PartialDatum abt code a -> Nat
-    boundDatum Nil                   = 0
-    boundDatum (Cons       d1 d2)    = boundDatum d1 `max` boundDatum d2
-    boundDatum (Zero       d)        = boundDatum d
-    boundDatum (Succ       d)        = boundDatum d
+    boundDatum Done                  = 0
+    boundDatum (Et         d1 d2)    = boundDatum d1 `max` boundDatum d2
+    boundDatum (Inl        d)        = boundDatum d
+    boundDatum (Inr        d)        = boundDatum d
     boundDatum (Konst      e)        = bound e
     boundDatum (Ident      e)        = bound e
 
@@ -553,14 +553,13 @@ binder name typ hoas = open x body
 
 data TyList k = TyNil | TyCons k (TyList k)
 
--- HACK: have to use crappy names INil and ICons because Nil and Cons are taken.
 data IList :: (k -> *) -> TyList k -> * where
-    INil  :: IList a 'TyNil
-    ICons :: a x -> IList a xs -> IList a ('TyCons x xs)
+    Nil  :: IList a 'TyNil
+    Cons :: a x -> IList a xs -> IList a ('TyCons x xs)
 
 instance Show1 a => Show1 (IList a) where
-    showsPrec1 _ INil         = showString     "INil"
-    showsPrec1 p (ICons x xs) = showParen_11 p "ICons" x xs
+    showsPrec1 _ Nil         = showString     "Nil"
+    showsPrec1 p (Cons x xs) = showParen_11 p "Cons" x xs
 
 instance Show1 a => Show (IList a xs) where
     showsPrec = showsPrec1
@@ -588,19 +587,19 @@ binders names hoas = opens vars body
         where
         -- BUG: this puts the largest binder on the inside
         go :: Nat -> IList Hint xs -> IList VS xs
-        go _ INil                         = INil
-        go n (ICons (Hint name typ) rest) = 
-            ICons (VS (Variable name $ bound body + n) typ)
+        go _ Nil                         = Nil
+        go n (Cons (Hint name typ) rest) = 
+            Cons (VS (Variable name $ bound body + n) typ)
                 (go (n + 1) rest)
     body = hoas (go vars)
         where
         go :: ABT abt => IList VS xs -> IList abt xs
-        go INil                    = INil
-        go (ICons (VS x typ) rest) = ICons (var x typ) (go rest)
+        go Nil                    = Nil
+        go (Cons (VS x typ) rest) = Cons (var x typ) (go rest)
     
     opens :: ABT abt => IList VS xs -> abt a -> abt a
-    opens INil                  = id
-    opens (ICons (VS x _) rest) = open x . opens rest
+    opens Nil                  = id
+    opens (Cons (VS x _) rest) = open x . opens rest
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

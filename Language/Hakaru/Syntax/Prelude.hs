@@ -456,11 +456,11 @@ unpair e f =
         [Branch (PDatum $ dPair PVar PVar)
             (open x . open y $ f (var x sing) (var y sing))]
 
-inl :: (ABT abt) => abt a -> abt (HEither a b)
-inl = datum_ . dInl
+left_ :: (ABT abt) => abt a -> abt (HEither a b)
+left_ = datum_ . dLeft
 
-inr :: (ABT abt) => abt b -> abt (HEither a b)
-inr = datum_ . dInr
+right_ :: (ABT abt) => abt b -> abt (HEither a b)
+right_ = datum_ . dRight
 
 uneither
     :: (ABT abt, SingI a, SingI b)
@@ -470,8 +470,8 @@ uneither
     -> abt c
 uneither e l r = 
     syn $ Case_ e
-        [ Branch (PDatum $ dInl PVar) (binder "_" sing l)
-        , Branch (PDatum $ dInr PVar) (binder "_" sing r)
+        [ Branch (PDatum $ dLeft  PVar) (binder "_" sing l)
+        , Branch (PDatum $ dRight PVar) (binder "_" sing r)
         ]
 
 if_ :: (ABT abt) => abt HBool -> abt a -> abt a -> abt a

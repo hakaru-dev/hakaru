@@ -41,7 +41,7 @@ module Language.Hakaru.Syntax.AST
     , dTrue, dFalse
     , dUnit
     , dPair
-    , dInl, dInr
+    , dLeft, dRight
     , dNil, dCons
     , dNothing, dJust
     -- ** Pattern matching
@@ -122,14 +122,14 @@ singValue (VDatum (Datum d)) = error "TODO: singValue{VDatum}"
     SData sing (go d)
     where
     go :: PartialDatum Value code a -> Sing code
-    go Nil           = SNil `SPlus` SVoid
-    go (Cons  d1 d2) = SCons (go d1) (go d2) `SPlus` SVoid
+    go Done        = SDone `SPlus` SVoid
+    go (Et  d1 d2) = (go d1 `SEt` go d2) `SPlus` SVoid
 
-    go (Zero  d1)    = case go d1 of SPlus d2 SVoid -> SPlus d2 sing
-    go (Succ  d1)    = SPlus sing (go d1)
+    go (Inl  d1)   = case go d1 of { d2 `SPlus` SVoid -> d2 `SPlus` sing }
+    go (Inr  d1)   = sing `SPlus` go d1
 
-    go (Konst e1)    = (SKonst (singValue e1) `SCons` SNil) `SPlus` SVoid
-    go (Ident e1)    = undefined -- @singValue e1@ is what the first argumen to SData should be; assuming we actually make it to this branch...
+    go (Konst e1)  = (SKonst (singValue e1) `SEt` SDone) `SPlus` SVoid
+    go (Ident e1)  = undefined -- @singValue e1@ is what the first argumen to SData should be; assuming we actually make it to this branch...
     -}
 
 ----------------------------------------------------------------
@@ -505,6 +505,10 @@ instance Foldable1 Datum where
     foldMap1 f (Datum d) = foldMap_PartialDatum f d
 
 ----------------------------------------------------------------
+infixr 7 `Et`
+
+-- TODO: break this into several layers (like we do in TypeCheck and TypeEq) to avoid the confusion\/ambiguity about 'Done' and 'Inl'?
+
 -- | The intermediate components of a data constructor. The intuition
 -- behind the two indices is that the @[[HakaruFun]]@ is a functor
 -- applied to the Hakaru type. Initially the @[[HakaruFun]]@ functor
@@ -513,17 +517,38 @@ instance Foldable1 Datum where
 -- datatypes. But as we go along, we'll be doing induction on the
 -- @[[HakaruFun]]@ functor.
 data PartialDatum :: (Hakaru -> *) -> [[HakaruFun]] -> Hakaru -> * where
-    Nil ::   PartialDatum ast '[ '[] ]     a
-    Cons
+
+    -- | Close off the product. N.B., because of their types, the
+    -- 'Konst' and 'Ident' constructors can be used as the \"tail\"
+    -- of the product, without an explicit 'Done'. For the sake of
+    -- type checking and pattern matching, we assume the type codes
+    -- match /exactly/; thus, avoid abusing this fact because it
+    -- may cause things to fail unexpectedly.
+    Done ::  PartialDatum ast '[ '[] ]     a
+
+    -- | Continue with the next component of the product. (\"et\"
+    -- means \"and\" in Latin)
+    Et
         :: !(PartialDatum ast '[ '[ x ] ]  a)
         -> !(PartialDatum ast '[ xs ]      a)
         ->   PartialDatum ast '[ x ': xs ] a
-    Zero
+
+    -- | Inject into the left component of the sum. N.B., the actual
+    -- effect of this constructor is to leave the rest of the sum
+    -- (to the right) unspecified; thus, we can repeatedly use 'Inl'
+    -- without changing the type. For the sake of type checking and
+    -- pattern matching, we assume the type codes match /exactly/;
+    -- thus, avoid abusing this fact because it may cause things
+    -- to fail unexpectedly.
+    Inl
         :: !(PartialDatum ast '[ xs ]      a)
         ->   PartialDatum ast (xs ': xss)  a
-    Succ
+
+    -- | Inject into the right component of the sum.
+    Inr
         :: !(PartialDatum ast xss          a)
         ->   PartialDatum ast (xs ': xss)  a
+
     Konst :: ast b -> PartialDatum ast '[ '[ 'K b ] ] a
     Ident :: ast a -> PartialDatum ast '[ '[ 'I   ] ] a
 
@@ -538,13 +563,13 @@ eq_PartialDatum = go
         => PartialDatum ast code a
         -> PartialDatum ast code a
         -> Bool
-    go Nil           Nil           = True
-    go (Cons  c1 c2) (Cons  d1 d2) = go  c1 d1 && go c2 d2
-    go (Zero  c)     (Zero  d)     = go  c  d
-    go (Succ  c)     (Succ  d)     = go  c  d
-    go (Konst e)     (Konst f)     = eq1 e  f
-    go (Ident e)     (Ident f)     = eq1 e  f
-    go _             _             = False
+    go Done        Done        = True
+    go (Et  c1 c2) (Et  d1 d2) = go  c1 d1 && go c2 d2
+    go (Inl c)     (Inl d)     = go  c  d
+    go (Inr c)     (Inr d)     = go  c  d
+    go (Konst e)   (Konst f)   = eq1 e  f
+    go (Ident e)   (Ident f)   = eq1 e  f
+    go _           _           = False
 
 -- TODO: instance Read (PartialDatum ast code a)
 
@@ -552,22 +577,22 @@ showsPrec_PartialDatum
     :: Show1 ast => Int -> PartialDatum ast code a -> ShowS
 showsPrec_PartialDatum p t =
     case t of
-    Nil        -> showString "Nil"
-    Cons d1 d2 ->
+    Done     -> showString "Done"
+    Et d1 d2 ->
         showParen (p > 9)
-            ( showString "Cons "
+            ( showString "Et "
             . showsPrec_PartialDatum 11 d1
             . showString " "
             . showsPrec_PartialDatum 11 d2
             )
-    Zero d ->
+    Inl d ->
         showParen (p > 9)
-            ( showString "Zero "
+            ( showString "Inl "
             . showsPrec_PartialDatum 11 d
             )
-    Succ d ->
+    Inr d ->
         showParen (p > 9)
-            ( showString "Succ "
+            ( showString "Inr "
             . showsPrec_PartialDatum 11 d
             )
     Konst e -> showParen_1 p "Konst" e
@@ -584,12 +609,12 @@ fmap_PartialDatum
 fmap_PartialDatum f = go
     where
     go :: forall code' j'. PartialDatum a code' j' -> PartialDatum b code' j'
-    go Nil           = Nil
-    go (Cons  d1 d2) = Cons  (go d1) (go d2)
-    go (Zero  d)     = Zero  (go d)
-    go (Succ  d)     = Succ  (go d)
-    go (Konst e)     = Konst (f e)
-    go (Ident e)     = Ident (f e)
+    go Done        = Done
+    go (Et  d1 d2) = Et  (go d1) (go d2)
+    go (Inl d)     = Inl  (go d)
+    go (Inr d)     = Inr  (go d)
+    go (Konst e)   = Konst (f e)
+    go (Ident e)   = Ident (f e)
 
 foldMap_PartialDatum
     :: forall m a code j
@@ -599,12 +624,12 @@ foldMap_PartialDatum
 foldMap_PartialDatum f = go
     where
     go :: forall code' j'. PartialDatum a code' j' -> m
-    go Nil           = mempty
-    go (Cons  d1 d2) = go d1 `mappend` go d2
-    go (Zero  d)     = go d
-    go (Succ  d)     = go d
-    go (Konst e)     = f e
-    go (Ident e)     = f e
+    go Done        = mempty
+    go (Et  d1 d2) = go d1 `mappend` go d2
+    go (Inl d)     = go d
+    go (Inr d)     = go d
+    go (Konst e)   = f e
+    go (Ident e)   = f e
 
 
 -- In GHC 7.8 we can make the monomorphic smart constructors into
@@ -616,32 +641,32 @@ foldMap_PartialDatum f = go
 -- values, so the pattern synonyms wouldn't even be helpful.
 
 dTrue, dFalse :: Datum ast HBool
-dTrue      = Datum $ Zero Nil
-dFalse     = Datum $ Succ Nil
+dTrue      = Datum . Inl $ Done
+dFalse     = Datum . Inr $ Done
 
 dUnit      :: Datum ast HUnit
-dUnit      = Datum Nil
+dUnit      = Datum Done
 
 dPair      :: ast a -> ast b -> Datum ast (HPair a b)
-dPair a b  = Datum $ Cons (Konst a) (Konst b)
+dPair a b  = Datum $ Konst a `Et` Konst b `Et` Done
 
-dInl       :: ast a -> Datum ast (HEither a b)
-dInl       = Datum . Zero . Konst
+dLeft      :: ast a -> Datum ast (HEither a b)
+dLeft      = Datum . Inl . (`Et` Done) . Konst
 
-dInr       :: ast b -> Datum ast (HEither a b)
-dInr       = Datum . Succ . Konst
+dRight     :: ast b -> Datum ast (HEither a b)
+dRight     = Datum . Inr . (`Et` Done) . Konst
 
 dNil       :: Datum ast (HList a)
-dNil       = Datum $ Zero Nil
+dNil       = Datum . Inl $ Done
 
 dCons      :: ast a -> ast (HList a) -> Datum ast (HList a)
-dCons x xs = Datum . Succ . Cons (Konst x) . Cons (Ident xs) $ Nil
+dCons x xs = Datum . Inr $ Konst x `Et` Ident xs `Et` Done
 
 dNothing   :: Datum ast (HMaybe a)
-dNothing   = Datum $ Zero Nil
+dNothing   = Datum . Inl $ Done
 
 dJust      :: ast a -> Datum ast (HMaybe a)
-dJust      = Datum . Succ . Konst
+dJust      = Datum . Inr . (`Et` Done) . Konst
 
 
 ----------------------------------------------------------------

@@ -124,13 +124,6 @@ jmEq a b =
     case a %~ b of
     Proved p -> Just p
     _        -> Nothing
-
-
--- TODO: Smart constructors for built-in types like Pair, Either, etc.
-sPair :: Sing a -> Sing b -> Sing (HPair a b)
-sPair a b =
-    SData (SCon (singByProxy (Proxy :: Proxy "Pair")) :%@ a :%@ b)
-        (SCons (SCons (SK a) $ SCons (SK b) SNil) SNil)
 -}
 
 ----------------------------------------------------------------
@@ -194,7 +187,7 @@ instance (sop ~ Code t, SingI t, SingI sop) => SingI ('HData t sop) where
 
 
 infixr 6 `SPlus`
-infixr 7 `SCons`
+infixr 7 `SEt`
 
 -- These aren't pattern synonyms (cf., the problems mentioned
 -- elsewhere about those), but they're helpful for generating
@@ -204,34 +197,34 @@ infixr 7 `SCons`
 sUnit :: Sing HUnit
 sUnit =
     SData (SCon SSymbol_Unit)
-        (SNil `SPlus` SVoid)
+        (SDone `SPlus` SVoid)
 
 sBool :: Sing HBool
 sBool =
     SData (SCon SSymbol_Bool)
-        (SNil `SPlus` SNil `SPlus` SVoid)
+        (SDone `SPlus` SDone `SPlus` SVoid)
 
 -- BUG: what does this "Conflicting definitions for ‘a’" message mean when we try to make this a pattern synonym?
 sPair :: Sing a -> Sing b -> Sing (HPair a b)
 sPair a b =
     SData (SCon SSymbol_Pair `SApp` a `SApp` b)
-        ((SKonst a `SCons` SKonst b `SCons` SNil) `SPlus` SVoid)
+        ((SKonst a `SEt` SKonst b `SEt` SDone) `SPlus` SVoid)
 
 sEither :: Sing a -> Sing b -> Sing (HEither a b)
 sEither a b =
     SData (SCon SSymbol_Either `SApp` a `SApp` b)
-        ((SKonst a `SCons` SNil) `SPlus` (SKonst b `SCons` SNil)
+        ((SKonst a `SEt` SDone) `SPlus` (SKonst b `SEt` SDone)
             `SPlus` SVoid)
 
 sList :: Sing a -> Sing (HList a)
 sList a =
     SData (SCon SSymbol_List `SApp` a)
-        (SNil `SPlus` (SKonst a `SCons` SIdent `SCons` SNil) `SPlus` SVoid)
+        (SDone `SPlus` (SKonst a `SEt` SIdent `SEt` SDone) `SPlus` SVoid)
 
 sMaybe :: Sing a -> Sing (HMaybe a)
 sMaybe a =
     SData (SCon SSymbol_Maybe `SApp` a)
-        (SNil `SPlus` (SKonst a `SCons` SNil) `SPlus` SVoid)
+        (SDone `SPlus` (SKonst a `SEt` SDone) `SPlus` SVoid)
 
 ----------------------------------------------------------------
 -- HACK: because of polykindedness, we have to give explicit type signatures for the index in the result of these data constructors.
@@ -323,8 +316,8 @@ instance (SingI xs, SingI xss) => SingI ((xs ': xss) :: [[HakaruFun]]) where
 
 ----------------------------------------------------------------
 data instance Sing (unused :: [HakaruFun]) where
-    SNil  :: Sing ('[] :: [HakaruFun])
-    SCons :: !(Sing x) -> !(Sing xs) -> Sing ((x ': xs) :: [HakaruFun])
+    SDone :: Sing ('[] :: [HakaruFun])
+    SEt   :: !(Sing x) -> !(Sing xs) -> Sing ((x ': xs) :: [HakaruFun])
 
 instance Eq (Sing (a :: [HakaruFun])) where
     a == b = maybe False (const True) (jmEq_Prod a b)
@@ -334,17 +327,17 @@ instance Eq (Sing (a :: [HakaruFun])) where
 instance Show1 (Sing :: [HakaruFun] -> *) where
     showsPrec1 p s =
         case s of
-        SNil        -> showString     "SNil"
-        SCons s1 s2 -> showParen_11 p "SCons" s1 s2
+        SDone     -> showString     "SDone"
+        SEt s1 s2 -> showParen_11 p "SEt" s1 s2
 
 instance Show (Sing (a :: [HakaruFun])) where
     showsPrec = showsPrec1
     show      = show1
 
 instance SingI ('[] :: [HakaruFun]) where
-    sing = SNil
+    sing = SDone
 instance (SingI x, SingI xs) => SingI ((x ': xs) :: [HakaruFun]) where
-    sing = SCons sing sing
+    sing = SEt sing sing
 
 
 ----------------------------------------------------------------
@@ -446,8 +439,8 @@ jmEq_Prod
     :: Sing (a :: [HakaruFun])
     -> Sing (b :: [HakaruFun])
     -> Maybe (TypeEq a b)
-jmEq_Prod SNil         SNil         = Just Refl
-jmEq_Prod (SCons x xs) (SCons y ys) =
+jmEq_Prod SDone      SDone      = Just Refl
+jmEq_Prod (SEt x xs) (SEt y ys) =
     jmEq_Fun  x  y  >>= \Refl ->
     jmEq_Prod xs ys >>= \Refl -> Just Refl
 jmEq_Prod _ _ = Nothing

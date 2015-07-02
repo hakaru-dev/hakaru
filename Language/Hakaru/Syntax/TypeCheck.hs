@@ -353,40 +353,40 @@ checkDatum ctx = go
     go []                    = return ()
     go (TD d typ typA : dts) =
         case d of
-        Nil ->
+        Done ->
             case typ of
-            SPlus SNil SVoid -> go dts
-            _                -> failwith "expected term of `unit' type"
+            SDone `SPlus` SVoid -> go dts
+            _                   -> failwith "expected term of `done' type"
 
-        Cons d1 d2 ->
+        d1 `Et` d2 ->
             case typ of
-            SPlus (SCons typ1 typ2) SVoid -> go
-                ( TD d1 (SPlus (SCons typ1 SNil) SVoid) typA
-                : TD d2 (SPlus typ2 SVoid) typA
+            (typ1 `SEt` typ2) `SPlus` SVoid -> go
+                ( TD d1 ((typ1 `SEt` SDone) `SPlus` SVoid) typA
+                : TD d2 (typ2 `SPlus` SVoid) typA
                 : dts
                 )
-            _ -> failwith "expected term of `product' type"
+            _ -> failwith "expected term of `et' type"
 
-        Zero d1 ->
+        Inl d1 ->
             case typ of
-            SPlus typ1 _ -> go (TD d1 (SPlus typ1 SVoid) typA : dts)
-            _            -> failwith "expected term of `zero' type"
+            typ1 `SPlus` _ -> go (TD d1 (typ1 `SPlus` SVoid) typA : dts)
+            _              -> failwith "expected term of `inl' type"
 
-        Succ d2 ->
+        Inr d2 ->
             case typ of
-            SPlus _ typ2 -> go (TD d2 typ2 typA : dts)
-            _            -> failwith "expected term of `sum' type"
+            _ `SPlus` typ2 -> go (TD d2 typ2 typA : dts)
+            _              -> failwith "expected term of `inr' type"
 
         Ident e1 ->
             case typ of
-            SPlus (SCons SIdent SNil) SVoid -> do
+            (SIdent `SEt` SDone) `SPlus` SVoid -> do
                 checkType ctx e1 typA
                 go dts
             _ -> failwith "expected term of `I' type"
 
         Konst e1 ->
             case typ of
-            SPlus (SCons (SKonst typ1) SNil) SVoid -> do
+            (SKonst typ1 `SEt` SDone) `SPlus` SVoid -> do
                 checkType ctx e1 typ1
                 go dts
             _ -> failwith "expected term of `K' type"
@@ -419,38 +419,38 @@ checkBranch ctx body body_typ = go
         -- TODO: verify that this all works the way it should!
         -- TODO: use @typA@ to provide better error messages; particularly, the first argument to its constructor 'SData'.
         case pat of
-        Nil ->
+        Done ->
             case typ of
-            SPlus SNil SVoid -> go pts
-            _                -> failwith "expected term of `unit' type"
+            SDone `SPlus` SVoid -> go pts
+            _                   -> failwith "expected term of `done' type"
 
-        Cons pat1 pat2 ->
+        pat1 `Et` pat2 ->
             case typ of
-            SPlus (SCons typ1 typ2) SVoid -> go
-                ( TDP (TD pat1 (SPlus (SCons typ1 SNil) SVoid) typA)
-                : TDP (TD pat2 (SPlus typ2 SVoid) typA)
+            (typ1 `SEt` typ2) `SPlus` SVoid -> go
+                ( TDP (TD pat1 ((typ1 `SEt` SDone) `SPlus` SVoid) typA)
+                : TDP (TD pat2 (typ2 `SPlus` SVoid) typA)
                 : pts
                 )
-            _ -> failwith "expected term of `product' type"
+            _ -> failwith "expected term of `et' type"
 
-        Zero pat1 ->
+        Inl pat1 ->
             case typ of
             SPlus typ1 _ -> go (TDP (TD pat1 (SPlus typ1 SVoid) typA) : pts)
             _            -> failwith "expected term of `zero' type"
 
-        Succ pat2 ->
+        Inr pat2 ->
             case typ of
             SPlus _ typ2 -> go (TDP (TD pat2 typ2 typA) : pts)
             _            -> failwith "expected term of `sum' type"
 
         Ident pat1 ->
             case typ of
-            SPlus (SCons SIdent SNil) SVoid -> go (TP pat1 typA : pts)
+            (SIdent `SEt` SDone) `SPlus` SVoid -> go (TP pat1 typA : pts)
             _ -> failwith "expected term of `I' type"
 
         Konst pat1 ->
             case typ of
-            SPlus (SCons (SKonst typ1) SNil) SVoid ->
+            (SKonst typ1 `SEt` SDone) `SPlus` SVoid ->
                 go (TP pat1 typ1 : pts)
             _ -> failwith "expected term of `K' type"
 
