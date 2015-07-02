@@ -5,7 +5,6 @@
            , GADTs
            , Rank2Types
            , StandaloneDeriving
-           , PatternSynonyms
            , ScopedTypeVariables
            , TypeOperators
            #-}

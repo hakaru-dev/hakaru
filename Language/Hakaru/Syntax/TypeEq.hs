@@ -3,24 +3,24 @@
            , TypeOperators
            , GADTs
            , TypeFamilies
-           , PatternSynonyms
-
+           , FlexibleInstances
+           #-}
+{-
            -- TODO: how much of this is needed for splices?
            , QuasiQuotes
            , TemplateHaskell
            , UndecidableInstances
            , TypeSynonymInstances
-           , FlexibleInstances
            , ScopedTypeVariables
            , StandaloneDeriving
-           #-}
-
 -- Singletons generates orphan instances warnings
-{-# OPTIONS_GHC -Wall -fwarn-tabs -fno-warn-orphans #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- DEBUG
 -- {-# OPTIONS_GHC -ddump-splices #-}
+-}
 
+{-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
 --                                                    2015.06.30
 -- |
@@ -37,19 +37,18 @@
 module Language.Hakaru.Syntax.TypeEq 
     ( Sing(..)
     , SingI(..)
+    -- * Some helpful shorthands for \"built-in\" datatypes
+    , sBool
+    , sUnit
+    , sPair
+    , sEither
+    , sList
+    , sMaybe
     -- * type equality
     , TypeEq(..), symmetry, congruence
     , jmEq
     {-
     , module Language.Hakaru.Syntax.TypeEq
-    , pattern SBool
-    , pattern SUnit
-    , pattern SPair
-    , pattern SEither
-    , pattern SList
-    , pattern SMaybe
-    -}
-    {-
     , SingKind(..), SDecide(..), (:~:)(..)
     -}
     ) where
@@ -193,40 +192,46 @@ instance (SingI a, SingI b) => SingI (a ':-> b) where sing = SFun sing sing
 instance (sop ~ Code t, SingI t, SingI sop) => SingI ('HData t sop) where
     sing = SData sing sing
 
-{-
--- TODO:
-pattern SUnit :: Sing HUnit
-pattern SUnit =
+
+infixr 6 `SPlus`
+infixr 7 `SCons`
+
+-- These aren't pattern synonyms (cf., the problems mentioned
+-- elsewhere about those), but they're helpful for generating
+-- singletons at least.
+-- TODO: we might be able to use 'singByProxy' to generate singletons
+-- for Symbols? Doesn't work in pattern synonyms, of course.
+sUnit :: Sing HUnit
+sUnit =
     SData (SCon SSymbol_Unit)
         (SNil `SPlus` SVoid)
 
-pattern SBool :: Sing HBool
-pattern SBool =
+sBool :: Sing HBool
+sBool =
     SData (SCon SSymbol_Bool)
         (SNil `SPlus` SNil `SPlus` SVoid)
 
--- BUG: what does this "Conflicting definitions for ‘a’" message mean?
-pattern SPair :: Sing a -> Sing b -> Sing (HPair a b)
-pattern SPair a b =
+-- BUG: what does this "Conflicting definitions for ‘a’" message mean when we try to make this a pattern synonym?
+sPair :: Sing a -> Sing b -> Sing (HPair a b)
+sPair a b =
     SData (SCon SSymbol_Pair `SApp` a `SApp` b)
         ((SKonst a `SCons` SKonst b `SCons` SNil) `SPlus` SVoid)
 
-pattern SEither :: Sing a -> Sing b -> Sing (HEither a b)
-pattern SEither a b =
+sEither :: Sing a -> Sing b -> Sing (HEither a b)
+sEither a b =
     SData (SCon SSymbol_Either `SApp` a `SApp` b)
         ((SKonst a `SCons` SNil) `SPlus` (SKonst b `SCons` SNil)
             `SPlus` SVoid)
 
-pattern SList :: Sing a -> Sing (HList a)
-pattern SList a =
+sList :: Sing a -> Sing (HList a)
+sList a =
     SData (SCon SSymbol_List `SApp` a)
         (SNil `SPlus` (SKonst a `SCons` SIdent `SCons` SNil) `SPlus` SVoid)
 
-pattern SMaybe :: Sing a -> Sing (HMaybe a)
-pattern SMaybe a =
+sMaybe :: Sing a -> Sing (HMaybe a)
+sMaybe a =
     SData (SCon SSymbol_Maybe `SApp` a)
         (SNil `SPlus` (SKonst a `SCons` SNil) `SPlus` SVoid)
--}
 
 ----------------------------------------------------------------
 -- HACK: because of polykindedness, we have to give explicit type signatures for the index in the result of these data constructors.
