@@ -2,7 +2,7 @@
 {-# LANGUAGE CPP, Rank2Types, PolyKinds, ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.06.30
+--                                                    2015.07.01
 -- |
 -- Module      :  Language.Hakaru.Syntax.IClasses
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -26,11 +26,9 @@ module Language.Hakaru.Syntax.IClasses
     , showParen_01
     , showParen_11
     , showParen_111
-    {- TODO: as necessary
-    , Show2(..), Showable2(..)
+    -- * Equality
     , Eq1(..)
-    , Eq2(..)
-    -}
+    -- * Generalized abstract nonsense
     , Functor1(..)
     , Fix1(..), cata1, ana1, hylo1
     , Foldable1(..)
@@ -145,6 +143,20 @@ showParen_111 p s e1 e2 e3 =
         . showString " "
         . showsPrec1 11 e3
         )
+
+----------------------------------------------------------------
+----------------------------------------------------------------
+-- | Uniform variant of 'Eq' for @k@-indexed types. N.B., this
+-- function returns term equality. We assume the indices match up.
+--
+-- Alas, I don't think there's any way to derive instances the way
+-- we can derive for 'Eq'.
+class Eq1 (a :: k -> *) where
+    eq1 :: a i -> a i -> Bool
+
+instance Eq a => Eq1 (Lift1 a) where
+    eq1 (Lift1 a) (Lift1 b) = a == b
+
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------

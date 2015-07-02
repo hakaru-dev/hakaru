@@ -82,14 +82,16 @@ data Value :: Hakaru -> * where
         :: {-# UNPACK #-} !(Datum Value ('HData t (Code t)))
         -> Value ('HData t (Code t))
 
-{-
+instance Eq1 Value where
+    eq1 (VNat   v1) (VNat   v2) = v1 == v2
+    eq1 (VInt   v1) (VInt   v2) = v1 == v2
+    eq1 (VProb  v1) (VProb  v2) = v1 == v2
+    eq1 (VReal  v1) (VReal  v2) = v1 == v2
+    eq1 (VDatum v1) (VDatum v2) = v1 `eq1` v2
+    eq1 _           _           = False -- impossible...
+
 instance Eq (Value a) where
-    VNat   v1 == VNat   v2 = v1 == v2
-    VInt   v1 == VInt   v2 = v1 == v2
-    VProb  v1 == VProb  v2 = v1 == v2
-    VReal  v1 == VReal  v2 = v1 == v2
-    VDatum v1 == VDatum v2 = error "TODO: (==){VDatum}"
--}
+    (==) = eq1
 
 -- TODO: instance Read (Value a)
 
@@ -467,13 +469,23 @@ singMeasure _ = error "TODO: singMeasure"
 -- BUG: rename all the patterns, data-constructors, singletons, and types to be consistent everywhere!
 
 -- TODO: add the constructor name as another component of this record, to improve error messages etc.
--- | A fully saturated data constructor\/pattern, with leaves in @ast@.
+-- | A fully saturated data constructor\/pattern, with leaves in
+-- @ast@. We define this type as separate from 'PartialDatum' for
+-- two reasons. First is to capture the fact that the datum is
+-- \"complete\", i.e., is a well-formed constructor\/pattern. The
+-- second is to have a type which is indexed by its 'Hakaru' type,
+-- whereas 'PartialDatum' has non-Hakaru types.
 data Datum :: (Hakaru -> *) -> Hakaru -> * where
     Datum
         :: !(PartialDatum ast (Code t) ('HData t (Code t)))
         -> Datum ast ('HData t (Code t))
 
--- TODO: instance Eq   (Datum ast a)
+instance Eq1 ast => Eq1 (Datum ast) where
+    eq1 (Datum d1) (Datum d2) = eq_PartialDatum d1 d2
+
+instance Eq1 ast => Eq (Datum ast a) where
+    (==) = eq1
+
 -- TODO: instance Read (Datum ast a)
 
 instance Show1 ast => Show1 (Datum ast) where
@@ -516,7 +528,25 @@ data PartialDatum :: (Hakaru -> *) -> [[HakaruFun]] -> Hakaru -> * where
     Konst :: ast b -> PartialDatum ast '[ '[ 'K b ] ] a
     Ident :: ast a -> PartialDatum ast '[ '[ 'I   ] ] a
 
--- TODO: instance Eq   (PartialDatum ast code a)
+eq_PartialDatum
+    :: (Eq1 ast)
+    => PartialDatum ast code a
+    -> PartialDatum ast code a
+    -> Bool
+eq_PartialDatum = go
+    where
+    go  :: (Eq1 ast)
+        => PartialDatum ast code a
+        -> PartialDatum ast code a
+        -> Bool
+    go Nil           Nil           = True
+    go (Cons  c1 c2) (Cons  d1 d2) = go  c1 d1 && go c2 d2
+    go (Zero  c)     (Zero  d)     = go  c  d
+    go (Succ  c)     (Succ  d)     = go  c  d
+    go (Konst e)     (Konst f)     = eq1 e  f
+    go (Ident e)     (Ident f)     = eq1 e  f
+    go _             _             = False
+
 -- TODO: instance Read (PartialDatum ast code a)
 
 showsPrec_PartialDatum
@@ -642,8 +672,15 @@ data Pattern :: Hakaru -> * where
         :: {-# UNPACK #-} !(Datum Pattern ('HData t (Code t)))
         -> Pattern ('HData t (Code t))
 
+instance Eq1 Pattern where
+    eq1 PWild       PWild       = True
+    eq1 PVar        PVar        = True
+    eq1 (PDatum d1) (PDatum d2) = eq1 d1 d2
+    eq1 _           _           = False
 
--- TODO: instance Eq   (Pattern a)
+instance Eq (Pattern a) where
+    (==) = eq1
+
 -- TODO: instance Read (Pattern a)
 
 instance Show1 Pattern where
@@ -676,7 +713,12 @@ branchPattern (Branch p _) = p
 branchBody :: Branch a ast b -> ast b
 branchBody (Branch _ e) = e
 
--- TODO: instance Eq   (Branch ast a b)
+instance Eq1 ast => Eq1 (Branch a ast) where
+    eq1 (Branch p1 e1) (Branch p2 e2) = p1 `eq1` p2 && e1 `eq1` e2
+
+instance Eq1 ast => Eq (Branch a ast b) where
+    (==) = eq1
+
 -- TODO: instance Read (Branch ast a b)
 
 instance Show1 ast => Show1 (Branch a ast) where
