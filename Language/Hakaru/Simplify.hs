@@ -15,7 +15,6 @@ module Language.Hakaru.Simplify
 
 import Control.Exception
 import Language.Hakaru.Simplifiable (Simplifiable(mapleType))
--- import Language.Hakaru.Expect (Expect, unExpect)
 import Language.Hakaru.Maple (Maple, runMaple)
 import Language.Hakaru.Any (Any(Any), AnySimplifiable(AnySimplifiable))
 import Language.Hakaru.PrettyPrint (runPrettyPrintNamesPrec)

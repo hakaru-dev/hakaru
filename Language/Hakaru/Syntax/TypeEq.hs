@@ -203,30 +203,30 @@ sBool =
 -- BUG: what does this "Conflicting definitions for ‘a’" message mean when we try to make this a pattern synonym?
 sPair :: Sing a -> Sing b -> Sing (HPair a b)
 sPair a b =
-    SData (STyCon SSymbol_Pair `SApp` a `SApp` b)
+    SData (STyCon SSymbol_Pair `STyApp` a `STyApp` b)
         ((SKonst a `SEt` SKonst b `SEt` SDone) `SPlus` SVoid)
 
 sEither :: Sing a -> Sing b -> Sing (HEither a b)
 sEither a b =
-    SData (STyCon SSymbol_Either `SApp` a `SApp` b)
+    SData (STyCon SSymbol_Either `STyApp` a `STyApp` b)
         ((SKonst a `SEt` SDone) `SPlus` (SKonst b `SEt` SDone)
             `SPlus` SVoid)
 
 sList :: Sing a -> Sing (HList a)
 sList a =
-    SData (STyCon SSymbol_List `SApp` a)
+    SData (STyCon SSymbol_List `STyApp` a)
         (SDone `SPlus` (SKonst a `SEt` SIdent `SEt` SDone) `SPlus` SVoid)
 
 sMaybe :: Sing a -> Sing (HMaybe a)
 sMaybe a =
-    SData (STyCon SSymbol_Maybe `SApp` a)
+    SData (STyCon SSymbol_Maybe `STyApp` a)
         (SDone `SPlus` (SKonst a `SEt` SDone) `SPlus` SVoid)
 
 ----------------------------------------------------------------
 -- HACK: because of polykindedness, we have to give explicit type signatures for the index in the result of these data constructors.
 data instance Sing (unused :: HakaruCon Hakaru) where
     STyCon :: !(Sing s)              -> Sing ('TyCon s :: HakaruCon Hakaru)
-    SApp   :: !(Sing a) -> !(Sing b) -> Sing (a ':@ b  :: HakaruCon Hakaru)
+    STyApp :: !(Sing a) -> !(Sing b) -> Sing (a ':@ b  :: HakaruCon Hakaru)
 
 instance Eq (Sing (a :: HakaruCon Hakaru)) where
     a == b = maybe False (const True) (jmEq_Con a b)
@@ -237,7 +237,7 @@ instance Show1 (Sing :: HakaruCon Hakaru -> *) where
     showsPrec1 p s =
         case s of
         STyCon s1    -> showParen_1  p "STyCon" s1
-        SApp   s1 s2 -> showParen_11 p "SApp" s1 s2
+        STyApp s1 s2 -> showParen_11 p "STyApp" s1 s2
 
 instance Show (Sing (a :: HakaruCon Hakaru)) where
     showsPrec = showsPrec1
@@ -246,7 +246,7 @@ instance Show (Sing (a :: HakaruCon Hakaru)) where
 instance SingI ('TyCon s :: HakaruCon Hakaru) where
     sing = STyCon sing
 instance (SingI a, SingI b) => SingI ((a ':@ b) :: HakaruCon Hakaru) where
-    sing = SApp sing sing
+    sing = STyApp sing sing
 
 
 ----------------------------------------------------------------
@@ -407,9 +407,9 @@ jmEq_Con
     :: Sing (a :: HakaruCon Hakaru)
     -> Sing (b :: HakaruCon Hakaru)
     -> Maybe (TypeEq a b)
-jmEq_Con (STyCon s) (STyCon z) = jmEq_Symb s z >>= \Refl -> Just Refl
-jmEq_Con (SApp f a) (SApp g b) = jmEq_Con  f g >>= \Refl ->
-                                 jmEq a b      >>= \Refl -> Just Refl
+jmEq_Con (STyCon s)   (STyCon z)   = jmEq_Symb s z >>= \Refl -> Just Refl
+jmEq_Con (STyApp f a) (STyApp g b) = jmEq_Con  f g >>= \Refl ->
+                                     jmEq a b      >>= \Refl -> Just Refl
 jmEq_Con _ _ = Nothing
 
 jmEq_Symb :: Sing (a :: Symbol) -> Sing (b :: Symbol) -> Maybe (TypeEq a b)

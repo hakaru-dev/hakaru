@@ -121,15 +121,15 @@ singValue (VDatum (Datum d)) = error "TODO: singValue{VDatum}"
     -- This seems vaguely on the right track; but how can we get
     -- it to actually typecheck? Should we just have VDatum (or
     -- Datum) store the Sing when it's created?
-    SData sing (go d)
+    SData sing (goC d)
     where
     goC :: DatumCode xss Value a -> Sing xss
-    goC (Inr  d1)   = SPlus sing (goS d1)
-    goC (Inl  d1)   = SPlus (goC d1) sing
+    goC (Inr d1)   = SPlus sing (goS d1)
+    goC (Inl d1)   = SPlus (goC d1) sing
     
     goS :: DatumStruct xs Value a -> Sing xs
-    goS (Et d1 d2)  = SEt (goF d1) (goS d2)
-    goS Done        = SDone
+    goS (Et d1 d2) = SEt (goF d1) (goS d2)
+    goS Done       = SDone
 
     goF :: DatumFun x Value a -> Sing x
     goF (Konst e1) = SKonst (singValue e1)

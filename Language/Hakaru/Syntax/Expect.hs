@@ -164,9 +164,9 @@ expectDatum
     :: (forall b. f b -> g (Expect' b))
     -> Datum f a
     -> Datum g (Expect' a)
-expectDatum       f (Datum d)  = Datum (expectDatumCode f d)
-expectDatumCode   f (Inr d)    = Inr (expectDatumCode   f d)
-expectDatumCode   f (Inl d)    = Inl (expectDatumStruct f d)
+expectDatum       f (Datum d)  = Datum (expectDatumCode   f d)
+expectDatumCode   f (Inr d)    = Inr   (expectDatumCode   f d)
+expectDatumCode   f (Inl d)    = Inl   (expectDatumStruct f d)
 expectDatumStruct f (Et d1 d2) =
     Et (expectDatumFun f d1) (expectDatumStruct f d2)
 expectDatumStruct f Done       = Done
@@ -198,26 +198,20 @@ expectSing SInt         = SInt
 expectSing SProb        = SProb
 expectSing SReal        = SReal
 expectSing (SArray a)   = SArray (expectSing a)
-expectSing (SFun a b)   = SFun (expectSing a) (expectSing b)
+expectSing (SFun a b)   = SFun   (expectSing a) (expectSing b)
 expectSing (SMeasure a) =
     let xa = expectSing a
     in SPair (SMeasure xa) (SFun (SFun xa SProb) SProb)
-expectSing (SData con code) =
-    SData (expectSing_Con con) (expectSing_Code code)
+expectSing (SData con code) = SData (go_Con con) (go_Code code)
     where
-    expectSing_Con (SCon s)   = SCon s
-    expectSing_Con (SApp f a) = SApp (expectSing_Con f) (expectSing a)
-
-    expectSing_Code SVoid        = SVoid
-    expectSing_Code (SPlus x xs) =
-        SPlus (expectSing_Struct x) (expectSing_Code xs)
-
-    expectSing_Struct SNil         = SNil
-    expectSing_Struct (SCons x xs) =
-        SCons (expectSing_Fun x) (expectSing_Struct xs)
-
-    expectSing_Fun SIdent     = SIdent
-    expectSing_Fun (SKonst a) = SKonst (expectSing a)
+    go_Con    (STyCon s)   = STyCon s
+    go_Con    (STyApp f a) = STyApp (go_Con f) (expectSing a)
+    go_Code   SVoid        = SVoid
+    go_Code   (SPlus x xs) = SPlus  (go_Struct x) (go_Code xs)
+    go_Struct SNil         = SNil
+    go_Struct (SCons x xs) = SCons  (go_Fun x) (go_Struct xs)
+    go_Fun    SIdent       = SIdent
+    go_Fun    (SKonst a)   = SKonst (expectSing a)
 
 
 expectAST :: AST ast a -> AST ast (Expect' a)
@@ -226,11 +220,9 @@ expectAST (App_        e1 e2)    = App_ (expect e1) (expect e2)
 expectAST (Let_        e1 e2)    = Let_ (expect e1) (expect e2)
 expectAST (Fix_        e)        = Fix_ (expect e)
 expectAST (Ann_        p  e)     = Ann_ (expectSing p) (expect e)
-expectAST t@(PrimOp_     o)      = case expectRefl_NaryOp o of Refl -> t
-expectAST t@(NaryOp_     o  _)   = case expectRefl_NaryOp o of Refl -> t
-expectAST t@(Integrate_  e1 e2 e3) = t
-expectAST t@(Summate_    e1 e2 e3) = t
-expectAST t@(Value_      v)      = case expectRefl_Value v of Refl -> t
+expectAST t@(PrimOp_   o)        = case expectRefl_NaryOp o of Refl -> t
+expectAST t@(NaryOp_   o  _)     = case expectRefl_NaryOp o of Refl -> t
+expectAST t@(Value_    v)        = case expectRefl_Value  v of Refl -> t
 expectAST (CoerceTo_   c  e)     = CoerceTo_   c      (expect e)
 expectAST (UnsafeFrom_ c  e)     = UnsafeFrom_ c      (expect e)
 expectAST (Array_      e1 e2)    = Array_ (expect e1) (expect e2)
@@ -254,15 +246,8 @@ expectAST (Lub_        e1 e2)    = Lub_        (f e1) (f e2)
 expectAST Bot_                   = Bot_
 
 
-
 expect :: ABT abt => abt a -> abt (Expect' a)
 
-
-instance (Integrate repr) => Integrate (Expect repr) where
-  integrate (Expect lo) (Expect hi) f =
-    Expect (integrate lo hi (unExpect . f . Expect))
-  summate (Expect lo) (Expect hi) f =
-    Expect (summate lo hi (unExpect . f . Expect))
 
 reflectPair :: (Lambda repr) =>
                (a -> (a -> repr w) -> repr w) ->
