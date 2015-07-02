@@ -8,7 +8,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.06.30
+--                                                    2015.07.01
 -- |
 -- Module      :  Language.Hakaru.Syntax.ABT
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -105,13 +105,6 @@ instance Eq Variable where
 instance Ord Variable where
     compare = compare `on` varID
 
--- | Generate a new variable with the same hint as the old one.
--- N.B., the new variable is not guaranteed to be fresh! To do that,
--- we'd need some sort of name supply (and thus would need to be
--- monadic), or some sort of knowledge about the context in which
--- the variable will be used (e.g., as in 'binder')
-prime :: Variable -> Variable
-prime (Variable n i) = Variable n (i + 1)
 
 ----------------------------------------------------------------
 -- TODO: go back to the name \"Abs\"(traction), and figure out some
@@ -366,7 +359,7 @@ instance Show (FreeVarsABT a) where
 -- TODO: something smarter
 freshen :: Variable -> Set Variable -> Variable
 freshen x xs
-    | x `Set.member` xs = freshen (prime x) xs
+    | x `Set.member` xs = Variable (varName x) (1 + varID (Set.findMax xs))
     | otherwise         = x
 
 
