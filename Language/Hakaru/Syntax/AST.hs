@@ -480,7 +480,7 @@ data Datum :: (Hakaru -> *) -> Hakaru -> * where
         -> Datum ast ('HData t (Code t))
 
 instance Eq1 ast => Eq1 (Datum ast) where
-    eq1 (Datum d1) (Datum d2) = eq_PartialDatum d1 d2
+    eq1 (Datum d1) (Datum d2) = eq1 d1 d2
 
 instance Eq1 ast => Eq (Datum ast a) where
     (==) = eq1
@@ -488,11 +488,7 @@ instance Eq1 ast => Eq (Datum ast a) where
 -- TODO: instance Read (Datum ast a)
 
 instance Show1 ast => Show1 (Datum ast) where
-    showsPrec1 p (Datum d) =
-        showParen (p > 9)
-            ( showString "Datum "
-            . showsPrec_PartialDatum 11 d
-            )
+    showsPrec1 p (Datum d) = showParen_1 p "Datum" d
 
 instance Show1 ast => Show (Datum ast a) where
     showsPrec = showsPrec1
@@ -554,55 +550,36 @@ data PartialDatum :: (Hakaru -> *) -> [[HakaruFun]] -> Hakaru -> * where
     Konst :: ast b -> PartialDatum ast '[ '[ 'K b ] ] a
     Ident :: ast a -> PartialDatum ast '[ '[ 'I   ] ] a
 
-eq_PartialDatum
-    :: (Eq1 ast)
-    => PartialDatum ast code a
-    -> PartialDatum ast code a
-    -> Bool
-eq_PartialDatum = go
-    where
-    go  :: (Eq1 ast)
-        => PartialDatum ast code a
-        -> PartialDatum ast code a
-        -> Bool
-    go Done        Done        = True
-    go (Et  c1 c2) (Et  d1 d2) = go  c1 d1 && go c2 d2
-    go (Inl c)     (Inl d)     = go  c  d
-    go (Inr c)     (Inr d)     = go  c  d
-    go (Konst e)   (Konst f)   = eq1 e  f
-    go (Ident e)   (Ident f)   = eq1 e  f
-    go _           _           = False
+instance Eq1 ast => Eq1 (PartialDatum ast code) where
+    eq1 Done        Done        = True
+    eq1 (Et  c1 c2) (Et  d1 d2) = eq1  c1 d1 && eq1 c2 d2
+    eq1 (Inl c)     (Inl d)     = eq1  c  d
+    eq1 (Inr c)     (Inr d)     = eq1  c  d
+    eq1 (Konst e)   (Konst f)   = eq1 e  f
+    eq1 (Ident e)   (Ident f)   = eq1 e  f
+    eq1 _           _           = False
 
 -- TODO: instance Read (PartialDatum ast code a)
 
-showsPrec_PartialDatum
-    :: Show1 ast => Int -> PartialDatum ast code a -> ShowS
-showsPrec_PartialDatum p t =
-    case t of
-    Done     -> showString "Done"
-    Et d1 d2 ->
-        showParen (p > 9)
-            ( showString "Et "
-            . showsPrec_PartialDatum 11 d1
-            . showString " "
-            . showsPrec_PartialDatum 11 d2
-            )
-    Inl d ->
-        showParen (p > 9)
-            ( showString "Inl "
-            . showsPrec_PartialDatum 11 d
-            )
-    Inr d ->
-        showParen (p > 9)
-            ( showString "Inr "
-            . showsPrec_PartialDatum 11 d
-            )
-    Konst e -> showParen_1 p "Konst" e
-    Ident e -> showParen_1 p "Ident" e
+instance Show1 ast => Show1 (PartialDatum ast code) where
+    showsPrec1 p t =
+        case t of
+        Done      -> showString     "Done"
+        Et  d1 d2 -> showParen_11 p "Et"  d1 d2
+        Inl d     -> showParen_1  p "Inl" d
+        Inr d     -> showParen_1  p "Inr" d
+        Konst e   -> showParen_1  p "Konst" e
+        Ident e   -> showParen_1  p "Ident" e
 
 instance Show1 ast => Show (PartialDatum ast code a) where
-    showsPrec = showsPrec_PartialDatum
+    showsPrec = showsPrec1
 
+-- N.B., even though we could rearrange the parameters of PartialDatum
+-- to allow us to partially apply @code@ and get something of the
+-- right kind to try and specify 'Functor1' and 'Foldable1' instances,
+-- we wouldn't be able to provide the actual instances because it'd
+-- give us the wrong inductive hypothesis. The @code@ isn't constant
+-- as we recurse, so we need to allow it to vary as we go.
 fmap_PartialDatum
     :: forall a b code j
     .  (forall i. a i -> b i)
@@ -612,7 +589,7 @@ fmap_PartialDatum f = go
     where
     go :: forall code' j'. PartialDatum a code' j' -> PartialDatum b code' j'
     go Done        = Done
-    go (Et  d1 d2) = Et  (go d1) (go d2)
+    go (Et  d1 d2) = Et   (go d1) (go d2)
     go (Inl d)     = Inl  (go d)
     go (Inr d)     = Inr  (go d)
     go (Konst e)   = Konst (f e)
