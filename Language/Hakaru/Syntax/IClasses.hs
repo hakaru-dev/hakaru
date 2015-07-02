@@ -191,6 +191,9 @@ hylo1 coalg alg = go
     go :: forall j'. a j' -> b j'
     go = alg . fmap1 go . coalg
 
+-- TODO: a tracing evaluator: <http://www.timphilipwilliams.com/posts/2013-01-16-fixing-gadts.html>
+
+
 ----------------------------------------------------------------
 -- TODO: in theory we could define some Monoid1 class to avoid the
 -- explicit dependency on Lift1 in fold1's type. But we'd need that

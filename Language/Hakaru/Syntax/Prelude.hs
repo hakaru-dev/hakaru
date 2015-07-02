@@ -1,4 +1,5 @@
-{-# LANGUAGE KindSignatures
+{-# LANGUAGE TypeOperators
+           , KindSignatures
            , DataKinds
            , TypeFamilies
            , GADTs
@@ -259,7 +260,7 @@ product = naryOp_withIdentity Prod one
 -- If so, we ought to make this function polymorphic so that we can
 -- use it for HSemirings which are not HRings too...
 square :: (ABT abt, HRing a) => abt a -> abt (NonNegative a)
-square e = unsafeFrom_ Signed (e ^ nat_ 2)
+square e = unsafeFrom_ signed (e ^ nat_ 2)
 
 
 -- HRing operators
@@ -298,11 +299,11 @@ negate e0 =
 -- BUG: this can lead to ambiguity when used with the polymorphic functions of RealProb.
 -- | An occasionally helpful variant of 'negate'.
 negative :: (ABT abt, HRing a) => abt (NonNegative a) -> abt a
-negative = negate . coerceTo_ Signed
+negative = negate . coerceTo_ signed
 
 
 abs :: (ABT abt, HRing a) => abt a -> abt a
-abs = coerceTo_ Signed . abs_
+abs = coerceTo_ signed . abs_
 
 abs_ :: (ABT abt, HRing a) => abt a -> abt (NonNegative a)
 abs_ e =
@@ -397,18 +398,18 @@ instance RealProb 'HReal where
     exp       = primOp1_ Exp
     log       = primOp1_ Log
     erf       = primOp1_ (Erf {- 'HReal -})
-    pi        = coerceTo_ Signed $ primOp0_ Pi
-    infinity  = coerceTo_ Signed $ primOp0_ Infinity
+    pi        = coerceTo_ signed $ primOp0_ Pi
+    infinity  = coerceTo_ signed $ primOp0_ Infinity
     gammaFunc = primOp1_ GammaFunc
 
 instance RealProb 'HProb where
-    x ** y    = primOp2_ RealPow x (coerceTo_ Signed y)
-    exp       = primOp1_ Exp . coerceTo_ Signed
-    log       = unsafeFrom_ Signed . primOp1_ Log -- error for inputs in [0,1)
+    x ** y    = primOp2_ RealPow x (coerceTo_ signed y)
+    exp       = primOp1_ Exp . coerceTo_ signed
+    log       = unsafeFrom_ signed . primOp1_ Log -- error for inputs in [0,1)
     erf       = primOp1_ (Erf {- 'HProb -})
     pi        = primOp0_ Pi
     infinity  = primOp0_ Infinity
-    gammaFunc = primOp1_ GammaFunc . coerceTo_ Signed
+    gammaFunc = primOp1_ GammaFunc . coerceTo_ signed
 
 logBase
     :: (ABT abt, RealProb a, HFractional a)
@@ -496,13 +497,13 @@ maybe_    = Prelude.maybe nothing_ just_
 
 
 unsafeProb :: (ABT abt) => abt 'HReal -> abt 'HProb
-unsafeProb = unsafeFrom_ Signed
+unsafeProb = unsafeFrom_ signed
 
 fromProb   :: (ABT abt) => abt 'HProb -> abt 'HReal
-fromProb   = coerceTo_ Signed
+fromProb   = coerceTo_ signed
 
 fromInt    :: (ABT abt) => abt 'HInt  -> abt 'HReal
-fromInt    = coerceTo_ Continuous
+fromInt    = coerceTo_ continuous
 
 negativeInfinity :: (ABT abt) => abt 'HReal
 negativeInfinity = primOp0_ NegativeInfinity
@@ -520,17 +521,17 @@ vector
     -> abt ('HArray a)
 vector n f =
     freshVar $ \x ->
-    syn . Array_ (unsafeFrom_ Signed n) . open x $ f (var x sing)
+    syn . Array_ (unsafeFrom_ signed n) . open x $ f (var x sing)
 
 empty :: (ABT abt) => abt ('HArray a)
 empty = primOp0_ Empty
 
 -- TODO: rename to @(!)@
 index :: (ABT abt) => abt ('HArray a) -> abt 'HInt -> abt a
-index xs i = primOp2_ Index xs (unsafeFrom_ Signed i)
+index xs i = primOp2_ Index xs (unsafeFrom_ signed i)
 
 size :: (ABT abt) => abt ('HArray a) -> abt 'HInt
-size = coerceTo_ Signed . primOp1_ Size
+size = coerceTo_ signed . primOp1_ Size
 
 reduce
     :: (ABT abt, Bindable abt, SingI a)
@@ -621,13 +622,13 @@ poisson = measure1_ Poisson
 
 poisson' l = 
     counting `bind` \x ->
-    -- TODO: use 'SafeFrom_' instead of @if_ (x >= int_ 0)@ so we can prove that @unsafeFrom_ Signed x@ is actually always safe.
+    -- TODO: use 'SafeFrom_' instead of @if_ (x >= int_ 0)@ so we can prove that @unsafeFrom_ signed x@ is actually always safe.
     if_ (x >= int_ 0 && prob_ 0 < l) -- BUG: do you mean @l /= 0@? why use (>=) instead of (<=)?
         (superpose
             [( l ** fromInt x -- BUG: why do you use (**) instead of (^^)?
                 / gammaFunc (fromInt x + real_ 1) -- TODO: use factorial instead of gammaFunc...
                 / exp l
-            , dirac (unsafeFrom_ Signed x)
+            , dirac (unsafeFrom_ signed x)
             )])
         (superpose [])
 

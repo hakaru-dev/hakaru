@@ -7,14 +7,12 @@
            , StandaloneDeriving
            , PatternSynonyms
            , ScopedTypeVariables
+           , TypeOperators
            #-}
-#if __GLASGOW_HASKELL__ < 710
-{-# LANGUAGE TypeOperators #-}
-#endif
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.06.30
+--                                                    2015.07.01
 -- |
 -- Module      :  Language.Hakaru.Syntax.AST
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -53,14 +51,12 @@ module Language.Hakaru.Syntax.AST
     , AST(..)
     ) where
 
-import Prelude                 hiding ((.))
 import Data.Sequence           (Seq)
 import qualified Data.Foldable as F
 import Data.Proxy
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid
 #endif
-import Control.Category        (Category(..))
 import Control.Arrow           ((***))
 import Data.Number.LogFloat    (LogFloat)
 
@@ -77,16 +73,24 @@ import Language.Hakaru.Syntax.Coercion
 -- | Constant values for primitive numeric types and user-defined
 -- data-types.
 data Value :: Hakaru -> * where
-    VNat  :: !Nat      -> Value 'HNat
-    VInt  :: !Int      -> Value 'HInt
-    VProb :: !LogFloat -> Value 'HProb
-    VReal :: !Double   -> Value 'HReal
+    VNat  :: {-# UNPACK #-} !Nat      -> Value 'HNat
+    VInt  :: {-# UNPACK #-} !Int      -> Value 'HInt
+    VProb :: {-# UNPACK #-} !LogFloat -> Value 'HProb
+    VReal :: {-# UNPACK #-} !Double   -> Value 'HReal
     VDatum
         :: {-# UNPACK #-} !(Datum Value ('HData t (Code t)))
         -> Value ('HData t (Code t))
 
--- BUG: deriving instance Eq   (Value a)
--- BUG: deriving instance Read (Value a)
+{-
+instance Eq (Value a) where
+    VNat   v1 == VNat   v2 = v1 == v2
+    VInt   v1 == VInt   v2 = v1 == v2
+    VProb  v1 == VProb  v2 = v1 == v2
+    VReal  v1 == VReal  v2 = v1 == v2
+    VDatum v1 == VDatum v2 = error "TODO: (==){VDatum}"
+-}
+
+-- TODO: instance Read (Value a)
 
 instance Show1 Value where
     showsPrec1 p t =
@@ -165,7 +169,7 @@ data NaryOp :: Hakaru -> * where
     -}
 
 deriving instance Eq   (NaryOp a)
--- BUG: deriving instance Read (NaryOp a)
+-- TODO: instance Read (NaryOp a)
 deriving instance Show (NaryOp a)
 
 
@@ -358,7 +362,7 @@ data PrimOp :: Hakaru -> * where
 
 
 deriving instance Eq   (PrimOp a)
--- BUG: deriving instance Read (PrimOp a)
+-- TODO: instance Read (PrimOp a)
 deriving instance Show (PrimOp a)
 
 
@@ -435,7 +439,7 @@ data Measure :: Hakaru -> * where
 
 
 deriving instance Eq   (Measure a)
--- BUG: deriving instance Read (Measure a)
+-- TODO: instance Read (Measure a)
 deriving instance Show (Measure a)
 
 -- N.B., we do case analysis so that we don't need the class constraint!
@@ -468,8 +472,8 @@ data Datum :: (Hakaru -> *) -> Hakaru -> * where
         :: !(PartialDatum ast (Code t) ('HData t (Code t)))
         -> Datum ast ('HData t (Code t))
 
--- BUG: deriving instance Eq   (Datum ast a)
--- BUG: deriving instance Read (Datum ast a)
+-- TODO: instance Eq   (Datum ast a)
+-- TODO: instance Read (Datum ast a)
 
 instance Show1 ast => Show1 (Datum ast) where
     showsPrec1 p (Datum d) =
@@ -511,8 +515,8 @@ data PartialDatum :: (Hakaru -> *) -> [[HakaruFun]] -> Hakaru -> * where
     Konst :: ast b -> PartialDatum ast '[ '[ 'K b ] ] a
     Ident :: ast a -> PartialDatum ast '[ '[ 'I   ] ] a
 
--- BUG: deriving instance Eq   (PartialDatum ast code a)
--- BUG: deriving instance Read (PartialDatum ast code a)
+-- TODO: instance Eq   (PartialDatum ast code a)
+-- TODO: instance Read (PartialDatum ast code a)
 
 showsPrec_PartialDatum
     :: Show1 ast => Int -> PartialDatum ast code a -> ShowS
@@ -601,8 +605,8 @@ data Pattern :: Hakaru -> * where
         -> Pattern ('HData t (Code t))
 
 
--- BUG: deriving instance Eq   (Pattern a)
--- BUG: deriving instance Read (Pattern a)
+-- TODO: instance Eq   (Pattern a)
+-- TODO: instance Read (Pattern a)
 
 instance Show1 Pattern where
     showsPrec1 p pat =
@@ -656,8 +660,8 @@ branchPattern (Branch p _) = p
 branchBody :: Branch a ast b -> ast b
 branchBody (Branch _ e) = e
 
--- BUG: deriving instance Eq   (Branch ast a b)
--- BUG: deriving instance Read (Branch ast a b)
+-- TODO: instance Eq   (Branch ast a b)
+-- TODO: instance Read (Branch ast a b)
 
 instance Show1 ast => Show1 (Branch a ast) where
     showsPrec1 p (Branch pat e) =

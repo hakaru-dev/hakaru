@@ -40,7 +40,7 @@ newtype Expect (abt :: Hakaru -> *) (a :: Hakaru) =
 
 type family   Expect' (a :: Hakaru) :: Hakaru
 -- This type family must be changed in lockstep with typeExpect below
-type instance Expect' 'HNat          = 'HNat
+type instance Expect' 'HNat          = 'HNat 
 type instance Expect' 'HInt          = 'HInt 
 type instance Expect' 'HProb         = 'HProb 
 type instance Expect' 'HReal         = 'HReal 
