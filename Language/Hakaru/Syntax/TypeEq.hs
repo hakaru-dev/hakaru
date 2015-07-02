@@ -110,10 +110,6 @@ instance SingKind ('KProxy :: KProxy k)
             )
         of (SomeSing a', SomeSing b') -> SomeSing (a' :%@ b')
 
--- Implicit singleton
-instance SingI a            => SingI (TyCon a) where sing = STyCon sing
-instance (SingI a, SingI b) => SingI (a :@ b) where sing = (:%@) sing sing
-
 -- This generates jmEq (or rather a strong version)
 singDecideInstances [ ''Hakaru, ''HakaruCon, ''HakaruFun ]
 
@@ -320,7 +316,7 @@ data instance Sing (unused :: [HakaruFun]) where
     SEt   :: !(Sing x) -> !(Sing xs) -> Sing ((x ': xs) :: [HakaruFun])
 
 instance Eq (Sing (a :: [HakaruFun])) where
-    a == b = maybe False (const True) (jmEq_Prod a b)
+    a == b = maybe False (const True) (jmEq_Struct a b)
 
 -- TODO: instance Read (Sing (a :: [HakaruFun]))
 
@@ -431,19 +427,19 @@ jmEq_Code
     -> Maybe (TypeEq a b)
 jmEq_Code SVoid        SVoid        = Just Refl
 jmEq_Code (SPlus x xs) (SPlus y ys) =
-    jmEq_Prod x  y  >>= \Refl ->
-    jmEq_Code xs ys >>= \Refl -> Just Refl
+    jmEq_Struct x  y  >>= \Refl ->
+    jmEq_Code   xs ys >>= \Refl -> Just Refl
 jmEq_Code _ _ = Nothing
 
-jmEq_Prod
+jmEq_Struct
     :: Sing (a :: [HakaruFun])
     -> Sing (b :: [HakaruFun])
     -> Maybe (TypeEq a b)
-jmEq_Prod SDone      SDone      = Just Refl
-jmEq_Prod (SEt x xs) (SEt y ys) =
-    jmEq_Fun  x  y  >>= \Refl ->
-    jmEq_Prod xs ys >>= \Refl -> Just Refl
-jmEq_Prod _ _ = Nothing
+jmEq_Struct SDone      SDone      = Just Refl
+jmEq_Struct (SEt x xs) (SEt y ys) =
+    jmEq_Fun    x  y  >>= \Refl ->
+    jmEq_Struct xs ys >>= \Refl -> Just Refl
+jmEq_Struct _ _ = Nothing
 
 jmEq_Fun
     :: Sing (a :: HakaruFun)

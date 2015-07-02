@@ -503,21 +503,25 @@ bound = boundView . viewABT
     boundAST (CoerceTo_   _  e)     = bound e
     boundAST (UnsafeFrom_ _  e)     = bound e
     boundAST (Array_      e1 e2)    = bound e1 `max` bound e2
-    boundAST (Datum_ (Datum d))     = boundDatum d
+    boundAST (Datum_ (Datum d))     = boundDatumCode d
     boundAST (Case_       e  bs)    = bound e  `max` maximumBoundBranch bs
     boundAST (Measure_    _)        = 0
     boundAST (Bind_       e1 e2)    = bound e1 `max` bound e2
     boundAST (Superpose_  pes)      = maximumBound2 pes
     boundAST (Lub_        e1 e2)    = bound e1 `max` bound e2
     boundAST Bot_                   = 0
-
-    boundDatum :: (ABT abt) => PartialDatum code abt a -> Nat
-    boundDatum Done                  = 0
-    boundDatum (Et         d1 d2)    = boundDatum d1 `max` boundDatum d2
-    boundDatum (Inl        d)        = boundDatum d
-    boundDatum (Inr        d)        = boundDatum d
-    boundDatum (Konst      e)        = bound e
-    boundDatum (Ident      e)        = bound e
+    
+    boundDatumCode :: (ABT abt) => DatumCode xss abt a -> Nat
+    boundDatumCode (Inr d) = boundDatumCode   d
+    boundDatumCode (Inl d) = boundDatumStruct d
+    
+    boundDatumStruct :: (ABT abt) => DatumStruct xs abt a -> Nat
+    boundDatumStruct (Et d1 d2) = boundDatumFun d1 `max` boundDatumStruct d2
+    boundDatumStruct Done       = 0
+    
+    boundDatumFun :: (ABT abt) => DatumFun x abt a -> Nat
+    boundDatumFun (Konst e) = bound e
+    boundDatumFun (Ident e) = bound e
 
     -- HACK: can't use 'foldMap1' unless we newtype wrap up the Nats to say which monoid we mean.
     -- N.B., the Prelude's 'maximum' throws an error on empty lists!

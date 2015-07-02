@@ -61,11 +61,11 @@ type instance ExpectCon (c ':@ a)    = ExpectCon c ':@ Expect' a
 
 type family   ExpectCode (a :: [[HakaruFun]]) :: [[HakaruFun]]
 type instance ExpectCode '[]         = '[] 
-type instance ExpectCode (x ': xs)   = ExpectProd x ': ExpectCode xs
+type instance ExpectCode (x ': xs)   = ExpectStruct x ': ExpectCode xs
 
-type family   ExpectProd (a :: [HakaruFun]) :: [HakaruFun]
-type instance ExpectProd '[]         = '[] 
-type instance ExpectProd (x ': xs)   = (ExpectFun x ': ExpectProd xs)
+type family   ExpectStruct (a :: [HakaruFun]) :: [HakaruFun]
+type instance ExpectStruct '[]         = '[] 
+type instance ExpectStruct (x ': xs)   = (ExpectFun x ': ExpectStruct xs)
 
 type family   ExpectFun (x :: HakaruFun) :: HakaruFun 
 type instance ExpectFun 'I           = I 
@@ -164,20 +164,14 @@ expectDatum
     :: (forall b. f b -> g (Expect' b))
     -> Datum f a
     -> Datum g (Expect' a)
-expectDatum f (Datum d) = Datum (expectPartialDatum f d)
-
-expectPartialDatum
-    :: (forall b. f b -> g (Expect' b))
-    -> PartialDatum f a
-    -> PartialDatum g (Expect' a)
-expectPartialDatum f = go
-    where
-    go Nil           = Nil
-    go (Cons  d1 d2) = Cons  (go d1) (go d2)
-    go (Zero  d)     = Zero  (go d)
-    go (Succ  d)     = Succ  (go d)
-    go (Konst e)     = Konst (f e)
-    go (Ident e)     = Ident (f e)
+expectDatum       f (Datum d)  = Datum (expectDatumCode f d)
+expectDatumCode   f (Inr d)    = Inr (expectDatumCode   f d)
+expectDatumCode   f (Inl d)    = Inl (expectDatumStruct f d)
+expectDatumStruct f (Et d1 d2) =
+    Et (expectDatumFun f d1) (expectDatumStruct f d2)
+expectDatumStruct f Done       = Done
+expectDatumFun    f (Konst e)  = Konst (f e)
+expectDatumFun    f (Ident e)  = Ident (f e)
 
 
 -- There are no patterns on 'HMeasure'. At best, we can use a trivial
@@ -216,11 +210,11 @@ expectSing (SData con code) =
 
     expectSing_Code SVoid        = SVoid
     expectSing_Code (SPlus x xs) =
-        SPlus (expectSing_Prod x) (expectSing_Code xs)
+        SPlus (expectSing_Struct x) (expectSing_Code xs)
 
-    expectSing_Prod SNil         = SNil
-    expectSing_Prod (SCons x xs) =
-        SCons (expectSing_Fun x) (expectSing_Prod xs)
+    expectSing_Struct SNil         = SNil
+    expectSing_Struct (SCons x xs) =
+        SCons (expectSing_Fun x) (expectSing_Struct xs)
 
     expectSing_Fun SIdent     = SIdent
     expectSing_Fun (SKonst a) = SKonst (expectSing a)

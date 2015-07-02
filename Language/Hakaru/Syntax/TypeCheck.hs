@@ -149,10 +149,18 @@ data TypedPattern where
     TDP :: {-# UNPACK #-} !(TypedDatum Pattern) -> TypedPattern
 
 data TypedDatum (abt :: Hakaru -> *) where
-    -- N.B., we do not require that @sop ~ Code t@; so we can
+    -- N.B., we do not require that @xss ~ Code t@; so we can
     -- perform induction on it!
-    TD  :: !(PartialDatum sop abt ('HData t (Code t)))
-        -> !(Sing sop)
+    TDC :: !(DatumCode xss abt ('HData t (Code t)))
+        -> !(Sing xss)
+        -> !(Sing ('HData t (Code t)))
+        -> TypedDatum abt
+    TDS :: !(DatumStruct xs abt ('HData t (Code t)))
+        -> !(Sing xs)
+        -> !(Sing ('HData t (Code t)))
+        -> TypedDatum abt
+    TDF :: !(DatumFun x abt ('HData t (Code t)))
+        -> !(Sing x)
         -> !(Sing ('HData t (Code t)))
         -> TypedDatum abt
 
@@ -311,7 +319,7 @@ checkType ctx e typ =
 
     Syn (Datum_ (Datum d)) ->
         case typ of
-        SData _ typ2 -> checkDatum ctx [TD d typ2 typ]
+        SData _ typ2 -> checkDatum ctx [TDC d typ2 typ]
         _            -> failwith "expected HData type"
 
     Syn (Case_ e1 branches) -> do
@@ -350,46 +358,37 @@ checkDatum
     -> TypeCheckMonad ()
 checkDatum ctx = go
     where
-    go []                    = return ()
-    go (TD d typ typA : dts) =
+    go []                     = return ()
+    go (TDC d typ typA : dts) =
         case d of
-        Done ->
-            case typ of
-            SDone `SPlus` SVoid -> go dts
-            _                   -> failwith "expected term of `done' type"
-
-        d1 `Et` d2 ->
-            case typ of
-            (typ1 `SEt` typ2) `SPlus` SVoid -> go
-                ( TD d1 ((typ1 `SEt` SDone) `SPlus` SVoid) typA
-                : TD d2 (typ2 `SPlus` SVoid) typA
-                : dts
-                )
-            _ -> failwith "expected term of `et' type"
-
-        Inl d1 ->
-            case typ of
-            typ1 `SPlus` _ -> go (TD d1 (typ1 `SPlus` SVoid) typA : dts)
-            _              -> failwith "expected term of `inl' type"
-
         Inr d2 ->
             case typ of
-            _ `SPlus` typ2 -> go (TD d2 typ2 typA : dts)
-            _              -> failwith "expected term of `inr' type"
-
+            SPlus _ typ2  -> go (TDC d2 typ2 typA : dts)
+            _             -> failwith "expected term of `inr' type"
+        Inl d1 ->
+            case typ of
+            SPlus typ1 _  -> go (TDS d1 typ1 typA : dts)
+            _             -> failwith "expected term of `inl' type"
+    go (TDS d typ typA : dts) =
+        case d of
+        Et d1 d2 ->
+            case typ of
+            SEt typ1 typ2 -> go (TDF d1 typ1 typA : TDS d2 typ2 typA : dts)
+            _             -> failwith "expected term of `et' type"
+        Done ->
+            case typ of
+            SDone         -> go dts
+            _             -> failwith "expected term of `done' type"
+    go (TDF d typ typA : dts) =
+        case d of
         Ident e1 ->
             case typ of
-            (SIdent `SEt` SDone) `SPlus` SVoid -> do
-                checkType ctx e1 typA
-                go dts
-            _ -> failwith "expected term of `I' type"
-
+            SIdent        -> checkType ctx e1 typA >> go dts
+            _             -> failwith "expected term of `I' type"
         Konst e1 ->
             case typ of
-            (SKonst typ1 `SEt` SDone) `SPlus` SVoid -> do
-                checkType ctx e1 typ1
-                go dts
-            _ -> failwith "expected term of `K' type"
+            SKonst typ1   -> checkType ctx e1 typ1 >> go dts
+            _             -> failwith "expected term of `K' type"
 
 ----------------------------------------------------------------
 checkBranch
@@ -412,47 +411,45 @@ checkBranch ctx body body_typ = go
         PWild               -> go pts
         PDatum (Datum pat1) ->
             case typ of
-            SData _ typ2 -> go (TDP (TD pat1 typ2 typ) : pts)
+            SData _ typ2 -> go (TDP (TDC pat1 typ2 typ) : pts)
             _ -> failwith "expected term of user-defined data type"
 
-    go (TDP (TD pat typ typA) : pts) =
-        -- TODO: verify that this all works the way it should!
-        -- TODO: use @typA@ to provide better error messages; particularly, the first argument to its constructor 'SData'.
+    -- TODO: verify that this all works the way it should!
+    -- TODO: use @typA@ to provide better error messages; particularly, the first argument to its constructor 'SData'.
+    go (TDP (TDC pat typ typA) : pts) =
         case pat of
-        Done ->
+        Inr pat2 ->
             case typ of
-            SDone `SPlus` SVoid -> go pts
-            _                   -> failwith "expected term of `done' type"
-
-        pat1 `Et` pat2 ->
+            SPlus _ typ2 -> go (TDP (TDC pat2 typ2 typA) : pts)
+            _            -> failwith "expected term of `sum' type"
+        Inl pat1 ->
             case typ of
-            (typ1 `SEt` typ2) `SPlus` SVoid -> go
-                ( TDP (TD pat1 ((typ1 `SEt` SDone) `SPlus` SVoid) typA)
-                : TDP (TD pat2 (typ2 `SPlus` SVoid) typA)
+            SPlus typ1 _ -> go (TDP (TDS pat1 typ1 typA) : pts)
+            _            -> failwith "expected term of `zero' type"
+    go (TDP (TDS pat typ typA) : pts) =
+        case pat of
+        Et pat1 pat2 ->
+            case typ of
+            SEt typ1 typ2 -> go
+                ( TDP (TDF pat1 typ1 typA)
+                : TDP (TDS pat2 typ2 typA)
                 : pts
                 )
             _ -> failwith "expected term of `et' type"
-
-        Inl pat1 ->
+        Done ->
             case typ of
-            SPlus typ1 _ -> go (TDP (TD pat1 (SPlus typ1 SVoid) typA) : pts)
-            _            -> failwith "expected term of `zero' type"
-
-        Inr pat2 ->
-            case typ of
-            SPlus _ typ2 -> go (TDP (TD pat2 typ2 typA) : pts)
-            _            -> failwith "expected term of `sum' type"
-
+            SDone  -> go pts
+            _      -> failwith "expected term of `done' type"
+    go (TDP (TDF pat typ typA) : pts) =
+        case pat of
         Ident pat1 ->
             case typ of
-            (SIdent `SEt` SDone) `SPlus` SVoid -> go (TP pat1 typA : pts)
-            _ -> failwith "expected term of `I' type"
-
+            SIdent -> go (TP pat1 typA : pts)
+            _      -> failwith "expected term of `I' type"
         Konst pat1 ->
             case typ of
-            (SKonst typ1 `SEt` SDone) `SPlus` SVoid ->
-                go (TP pat1 typ1 : pts)
-            _ -> failwith "expected term of `K' type"
+            SKonst typ1 -> go (TP pat1 typ1 : pts)
+            _           -> failwith "expected term of `K' type"
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
