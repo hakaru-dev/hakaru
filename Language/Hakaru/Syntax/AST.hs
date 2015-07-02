@@ -535,11 +535,13 @@ data PartialDatum :: (Hakaru -> *) -> [[HakaruFun]] -> Hakaru -> * where
 
     -- | Inject into the left component of the sum. N.B., the actual
     -- effect of this constructor is to leave the rest of the sum
-    -- (to the right) unspecified; thus, we can repeatedly use 'Inl'
-    -- without changing the type. For the sake of type checking and
-    -- pattern matching, we assume the type codes match /exactly/;
-    -- thus, avoid abusing this fact because it may cause things
-    -- to fail unexpectedly.
+    -- (to the right) unspecified; thus, if we use 'Inl' once then
+    -- we can use it repeatedly without changing the type. In
+    -- addition, after a chain of 'Inr', we can use an 'Inl' to
+    -- erase the fact that we've chosen the last element of the
+    -- sum. For the sake of type checking and pattern matching, we
+    -- assume the type codes match /exactly/; thus, avoid abusing
+    -- these facts because they may cause things to fail unexpectedly.
     Inl
         :: !(PartialDatum ast '[ xs ]      a)
         ->   PartialDatum ast (xs ': xss)  a
