@@ -38,14 +38,15 @@ module Language.Hakaru.Syntax.AST
     -- ** Data constructors\/patterns
     , Datum(..)
     , PartialDatum(..)
+    -- *** Some smart constructors for the \"built-in\" datatypes
+    , dTrue, dFalse
+    , dUnit
+    , dPair
+    , dInl, dInr
+    , dNil, dCons
+    , dNothing, dJust
     -- ** Pattern matching
     , Pattern(..)
-    , pattern PTrue
-    , pattern PFalse
-    , pattern PUnit
-    , pPair
-    , pInl
-    , pInr
     , Branch(..), branchPattern, branchBody
     -- * Syntactic forms
     , AST(..)
@@ -577,6 +578,43 @@ foldMap_PartialDatum f = go
     go (Ident e)     = f e
 
 
+-- In GHC 7.8 we can make the monomorphic smart constructors into
+-- pattern synonyms, but 7.8 can't handle anything polymorphic (but
+-- GHC 7.10 can). For libraries (e.g., "Language.Hakaru.Syntax.Prelude")
+-- we can use functions to construct our Case_ statements, so library
+-- designers don't need pattern synonyms. Whereas, for the internal
+-- aspects of the compiler, we need to handle all possible Datum
+-- values, so the pattern synonyms wouldn't even be helpful.
+
+dTrue, dFalse :: Datum ast HBool
+dTrue      = Datum $ Zero Nil
+dFalse     = Datum $ Succ Nil
+
+dUnit      :: Datum ast HUnit
+dUnit      = Datum Nil
+
+dPair      :: ast a -> ast b -> Datum ast (HPair a b)
+dPair a b  = Datum $ Cons (Konst a) (Konst b)
+
+dInl       :: ast a -> Datum ast (HEither a b)
+dInl       = Datum . Zero . Konst
+
+dInr       :: ast b -> Datum ast (HEither a b)
+dInr       = Datum . Succ . Konst
+
+dNil       :: Datum ast (HList a)
+dNil       = Datum $ Zero Nil
+
+dCons      :: ast a -> ast (HList a) -> Datum ast (HList a)
+dCons x xs = Datum . Succ . Cons (Konst x) . Cons (Ident xs) $ Nil
+
+dNothing   :: Datum ast (HMaybe a)
+dNothing   = Datum $ Zero Nil
+
+dJust      :: ast a -> Datum ast (HMaybe a)
+dJust      = Datum . Succ . Konst
+
+
 ----------------------------------------------------------------
 -- TODO: negative patterns? (to facilitate reordering of case branches)
 -- TODO: exhaustiveness, non-overlap, dead-branch checking
@@ -618,28 +656,6 @@ instance Show1 Pattern where
 instance Show (Pattern a) where
     showsPrec = showsPrec1
     show      = show1
-
-
--- TODO: move these pattern synonyms up to just the types @Datum ast _@, so we can reuse them both for patterns and constructors.
-
--- BUG: should we even bother making these into pattern synonyms?
--- We can't do it for any of the other derived patterns, so having
--- these ones just screws up the API. Of course, once we move to
--- GHC 7.10, then we're finally allowed to have polymorphic pattern
--- synonyms, so we can make the other ones work!
-pattern PTrue  = (PDatum (Datum (Zero Nil)) :: Pattern HBool)
-pattern PFalse = (PDatum (Datum (Succ Nil)) :: Pattern HBool)
-pattern PUnit  = (PDatum (Datum Nil)        :: Pattern HUnit)
-
-pPair :: Pattern a -> Pattern b -> Pattern (HPair a b)
-pPair a b = PDatum (Datum (Cons (Konst a) (Konst b)))
-
-pInl :: Pattern a -> Pattern (HEither a b)
-pInl a = PDatum (Datum (Zero (Konst a)))
-
-pInr :: Pattern b -> Pattern (HEither a b)
-pInr a = PDatum (Datum (Succ (Konst a)))
-
 
 
 -- TODO: a pretty infix syntax, like (:=>) or something

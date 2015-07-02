@@ -174,7 +174,7 @@ unsafeFrom_ = (syn .) . UnsafeFrom_
 value_ :: (ABT abt) => Value a  -> abt a
 value_ = syn . Value_
 bool_  :: (ABT abt) => Bool     -> abt HBool
-bool_  = syn . Value_ . VDatum . boolDatum
+bool_  = syn . Value_ . VDatum . (\b -> if b then dTrue else dFalse)
 nat_   :: (ABT abt) => Nat      -> abt 'HNat
 nat_   = value_ . VNat
 int_   :: (ABT abt) => Int      -> abt 'HInt
@@ -183,9 +183,6 @@ prob_  :: (ABT abt) => LogFloat -> abt 'HProb
 prob_  = value_ . VProb
 real_  :: (ABT abt) => Double   -> abt 'HReal
 real_  = value_ . VReal
-
-boolDatum :: Bool -> Datum ast HBool
-boolDatum = Datum . ($Nil) . (\b -> if b then Zero else Succ)
 
 -- Boolean operators
 true, false :: (ABT abt) => abt HBool
@@ -434,12 +431,18 @@ acosh  = primOp1_ Acosh
 atanh  = primOp1_ Atanh
 
 -- instance (ABT abt) => Base abt where not already defined above
-unit :: (ABT abt) => abt HUnit
-unit = syn . Datum_ $ Datum Nil
 
-pair :: (ABT abt) => abt a -> abt b -> abt (HPair a b)
-pair a b =
-    syn . Datum_ . Datum . Zero . Cons (Konst a) . Cons (Konst b) $ Nil
+datum_
+    :: (ABT abt)
+    => Datum abt ('HData t (Code t))
+    -> abt ('HData t (Code t))
+datum_ = syn . Datum_
+
+unit   :: (ABT abt) => abt HUnit
+unit   = datum_ dUnit
+
+pair   :: (ABT abt) => abt a -> abt b -> abt (HPair a b)
+pair   = (datum_ .) . dPair
 
 unpair
     :: (ABT abt, SingI a, SingI b)
@@ -450,14 +453,14 @@ unpair e f =
     freshVar $ \x ->
     freshVar $ \y ->
     syn $ Case_ e
-        [Branch (pPair PVar PVar)
+        [Branch (PDatum $ dPair PVar PVar)
             (open x . open y $ f (var x sing) (var y sing))]
 
 inl :: (ABT abt) => abt a -> abt (HEither a b)
-inl = syn . Datum_ . Datum . Zero . Konst
+inl = datum_ . dInl
 
 inr :: (ABT abt) => abt b -> abt (HEither a b)
-inr = syn . Datum_ . Datum . Succ . Konst
+inr = datum_ . dInr
 
 uneither
     :: (ABT abt, SingI a, SingI b)
@@ -468,29 +471,31 @@ uneither
 uneither e l r = 
     freshVar $ \x ->
     syn $ Case_ e
-        [ Branch (pInl PVar) (open x $ l (var x sing))
-        , Branch (pInr PVar) (open x $ r (var x sing))
+        [ Branch (PDatum $ dInl PVar) (open x $ l (var x sing))
+        , Branch (PDatum $ dInr PVar) (open x $ r (var x sing))
         ]
 
 if_ :: (ABT abt) => abt HBool -> abt a -> abt a -> abt a
-if_ b t f = syn $ Case_ b [Branch PTrue t, Branch PFalse f]
+if_ b t f =
+    syn $ Case_ b
+        [ Branch (PDatum dTrue)  t
+        , Branch (PDatum dFalse) f
+        ]
 
+nil_      :: ABT abt => abt (HList a)
+nil_      = datum_ dNil
 
-nil_ :: ABT abt => abt (HList a)
-nil_ = syn . Datum_ . Datum $ Zero Nil
+cons_     :: ABT abt => abt a -> abt (HList a) -> abt (HList a)
+cons_     = (datum_ .) . dCons
 
-cons_ :: ABT abt => abt a -> abt (HList a) -> abt (HList a)
-cons_ x xs =
-    syn . Datum_ . Datum . Succ . Cons (Konst x) . Cons (Ident xs) $ Nil
+list_     :: ABT abt => [abt a] -> abt (HList a)
+list_     = Prelude.foldr cons_ nil_
 
-list_    :: ABT abt => [abt a] -> abt (HList a)
-list_    = Prelude.foldr cons_ nil_
+nothing_  :: ABT abt => abt (HMaybe a)
+nothing_  = datum_ dNothing
 
-nothing_ :: ABT abt => abt (HMaybe a)
-nothing_ = syn . Datum_ . Datum $ Zero Nil
-
-just_    :: ABT abt => abt a -> abt (HMaybe a)
-just_    = syn . Datum_ . Datum . Succ . Konst
+just_     :: ABT abt => abt a -> abt (HMaybe a)
+just_     = datum_ . dJust
 
 maybe_    :: ABT abt => Maybe (abt a) -> abt (HMaybe a)
 maybe_    = Prelude.maybe nothing_ just_
