@@ -43,6 +43,11 @@ module Language.Hakaru.Syntax.ABT
     -- ** Constructing first-order trees with a HOAS-like API
     -- cf., <http://comonad.com/reader/2014/fast-circular-substitution/>
     , binder
+    -- *** Highly experimental
+    , TyList(..)
+    , IList(..)
+    , Hint(..)
+    , binders
     -- ** Some ABT instances
     , TrivialABT()
     , FreeVarsABT()
@@ -480,7 +485,7 @@ bound = boundView . viewABT
         where
         go 0 (Syn  t)   = boundAST t
         go n (Syn  _)   = n -- Don't go under binders
-        go n (Var  _ _) = n
+        go n (Var  _ _) = n -- Don't look at variable *uses*
         go n (Open x v) = go (n `max` varID x) v
 
     -- N.B., we needn't traverse into any type annotations, since we
@@ -527,9 +532,6 @@ bound = boundView . viewABT
         F.foldl' (\n b -> n `max` bound (branchBody b)) 0
 
 
-
--- BUG: this trick doesn't seem like it can be generalized to multibinders, since the multiple new variables would all fight one another for their varID
---
 -- | A combinator for defining a HOAS-like API for our syntax.
 -- Because our 'AST' is first-order, we cannot actually have any
 -- exotic terms in our language. In principle, this function could
@@ -541,12 +543,64 @@ binder
     :: (ABT abt)
     => String                   -- ^ The variable's name hint
     -> Sing a                   -- ^ The variable's type
-    -> (abt a -> abt b)         -- ^ Buid the binder's body from a variable
+    -> (abt a -> abt b)         -- ^ Build the binder's body from a variable
     -> abt b
 binder name typ hoas = open x body
     where
     body = hoas (var x typ)
     x    = Variable name (bound body + 1)
+
+
+data TyList k = TyNil | TyCons k (TyList k)
+
+-- HACK: have to use crappy names INil and ICons because Nil and Cons are taken.
+data IList :: (k -> *) -> TyList k -> * where
+    INil  :: IList a 'TyNil
+    ICons :: a x -> IList a xs -> IList a ('TyCons x xs)
+
+instance Show1 a => Show1 (IList a) where
+    showsPrec1 _ INil         = showString     "INil"
+    showsPrec1 p (ICons x xs) = showParen_11 p "ICons" x xs
+
+instance Show1 a => Show (IList a xs) where
+    showsPrec = showsPrec1
+    show      = show1
+
+data Hint :: Hakaru -> * where
+    Hint :: !String -> !(Sing a) -> Hint a
+
+instance Show1 Hint where
+    showsPrec1 p (Hint x s) = showParen_01 p "Hint" x s
+
+instance Show (Hint a) where
+    showsPrec = showsPrec1
+    show      = show1
+    
+data VS :: Hakaru -> * where
+    VS :: {-# UNPACK #-} !Variable -> !(Sing a) -> VS a
+
+-- this typechecks, and it works! 
+-- BUG: but it seems fairly unusable. We must give explicit type signatures to any lambdas passed as the second argument, otherwise it complains about not knowing enough about the types in @xs@... Also, the uncurriedness of it isn't very HOAS-like
+binders :: (ABT abt) => IList Hint xs -> (IList abt xs -> abt b) -> abt b
+binders names hoas = opens vars body
+    where
+    vars = go 0 names
+        where
+        -- BUG: this puts the largest binder on the inside
+        go :: Nat -> IList Hint xs -> IList VS xs
+        go _ INil                         = INil
+        go n (ICons (Hint name typ) rest) = 
+            ICons (VS (Variable name $ bound body + n) typ)
+                (go (n + 1) rest)
+    body = hoas (go vars)
+        where
+        go :: ABT abt => IList VS xs -> IList abt xs
+        go INil                    = INil
+        go (ICons (VS x typ) rest) = ICons (var x typ) (go rest)
+    
+    opens :: ABT abt => IList VS xs -> abt a -> abt a
+    opens INil                  = id
+    opens (ICons (VS x _) rest) = open x . opens rest
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
