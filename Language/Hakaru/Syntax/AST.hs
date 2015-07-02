@@ -534,10 +534,8 @@ instance Eq1 ast => Eq1 (DatumCode xss ast) where
 -- TODO: instance Read (DatumCode xss ast a)
 
 instance Show1 ast => Show1 (DatumCode xss ast) where
-    showsPrec1 p t =
-        case t of
-        Inr d -> showParen_1  p "Inr" d
-        Inl d -> showParen_1  p "Inl" d
+    showsPrec1 p (Inr d) = showParen_1  p "Inr" d
+    showsPrec1 p (Inl d) = showParen_1  p "Inl" d
 
 instance Show1 ast => Show (DatumCode xss ast a) where
     showsPrec = showsPrec1
@@ -568,10 +566,8 @@ instance Eq1 ast => Eq1 (DatumStruct xs ast) where
 -- TODO: instance Read (DatumStruct xs ast a)
 
 instance Show1 ast => Show1 (DatumStruct xs ast) where
-    showsPrec1 p t =
-        case t of
-        Et d1 d2 -> showParen_11 p "Et" d1 d2
-        Done     -> showString     "Done"
+    showsPrec1 p (Et d1 d2) = showParen_11 p "Et" d1 d2
+    showsPrec1 p Done       = showString     "Done"
 
 instance Show1 ast => Show (DatumStruct xs ast a) where
     showsPrec = showsPrec1
@@ -599,10 +595,8 @@ instance Eq1 ast => Eq1 (DatumFun x ast) where
 -- TODO: instance Read (DatumFun x ast a)
 
 instance Show1 ast => Show1 (DatumFun x ast) where
-    showsPrec1 p t =
-        case t of
-        Konst e   -> showParen_1  p "Konst" e
-        Ident e   -> showParen_1  p "Ident" e
+    showsPrec1 p (Konst e) = showParen_1  p "Konst" e
+    showsPrec1 p (Ident e) = showParen_1  p "Ident" e
 
 instance Show1 ast => Show (DatumFun x ast a) where
     showsPrec = showsPrec1
