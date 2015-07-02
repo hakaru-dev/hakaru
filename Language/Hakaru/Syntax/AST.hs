@@ -123,15 +123,17 @@ singValue (VDatum (Datum d)) = error "TODO: singValue{VDatum}"
     -- Datum) store the Sing when it's created?
     SData sing (go d)
     where
-    go :: DatumCode code Value a -> Sing code
-    go Done        = SDone `SPlus` SVoid
-    go (Et  d1 d2) = (go d1 `SEt` go d2) `SPlus` SVoid
+    goC :: DatumCode xss Value a -> Sing xss
+    goC (Inr  d1)   = SPlus sing (goS d1)
+    goC (Inl  d1)   = SPlus (goC d1) sing
+    
+    goS :: DatumStruct xs Value a -> Sing xs
+    goS (Et d1 d2)  = SEt (goF d1) (goS d2)
+    goS Done        = SDone
 
-    go (Inl  d1)   = case go d1 of { d2 `SPlus` SVoid -> d2 `SPlus` sing }
-    go (Inr  d1)   = sing `SPlus` go d1
-
-    go (Konst e1)  = (SKonst (singValue e1) `SEt` SDone) `SPlus` SVoid
-    go (Ident e1)  = undefined -- @singValue e1@ is what the first argumen to SData should be; assuming we actually make it to this branch...
+    goF :: DatumFun x Value a -> Sing x
+    goF (Konst e1) = SKonst (singValue e1)
+    goF (Ident e1) = SIdent -- @singValue e1@ is what the first argument to SData should be; assuming we actually make it to this branch...
     -}
 
 ----------------------------------------------------------------
