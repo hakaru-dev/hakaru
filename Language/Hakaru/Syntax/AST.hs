@@ -534,8 +534,8 @@ instance Eq1 ast => Eq1 (DatumCode xss ast) where
 -- TODO: instance Read (DatumCode xss ast a)
 
 instance Show1 ast => Show1 (DatumCode xss ast) where
-    showsPrec1 p (Inr d) = showParen_1  p "Inr" d
-    showsPrec1 p (Inl d) = showParen_1  p "Inl" d
+    showsPrec1 p (Inr d) = showParen_1 p "Inr" d
+    showsPrec1 p (Inl d) = showParen_1 p "Inl" d
 
 instance Show1 ast => Show (DatumCode xss ast a) where
     showsPrec = showsPrec1
@@ -567,18 +567,18 @@ instance Eq1 ast => Eq1 (DatumStruct xs ast) where
 
 instance Show1 ast => Show1 (DatumStruct xs ast) where
     showsPrec1 p (Et d1 d2) = showParen_11 p "Et" d1 d2
-    showsPrec1 p Done       = showString     "Done"
+    showsPrec1 _ Done       = showString     "Done"
 
 instance Show1 ast => Show (DatumStruct xs ast a) where
     showsPrec = showsPrec1
 
 instance Functor1 (DatumStruct xs) where
     fmap1 f (Et d1 d2) = Et (fmap1 f d1) (fmap1 f d2)
-    fmap1 f Done       = Done
+    fmap1 _ Done       = Done
 
 instance Foldable1 (DatumStruct xs) where
     foldMap1 f (Et d1 d2) = foldMap1 f d1 `mappend` foldMap1 f d2
-    foldMap1 f Done       = mempty
+    foldMap1 _ Done       = mempty
 
 
 data DatumFun :: HakaruFun -> (Hakaru -> *) -> Hakaru -> * where
@@ -595,8 +595,8 @@ instance Eq1 ast => Eq1 (DatumFun x ast) where
 -- TODO: instance Read (DatumFun x ast a)
 
 instance Show1 ast => Show1 (DatumFun x ast) where
-    showsPrec1 p (Konst e) = showParen_1  p "Konst" e
-    showsPrec1 p (Ident e) = showParen_1  p "Ident" e
+    showsPrec1 p (Konst e) = showParen_1 p "Konst" e
+    showsPrec1 p (Ident e) = showParen_1 p "Ident" e
 
 instance Show1 ast => Show (DatumFun x ast a) where
     showsPrec = showsPrec1
@@ -686,11 +686,9 @@ instance Eq (Pattern a) where
 -- TODO: instance Read (Pattern a)
 
 instance Show1 Pattern where
-    showsPrec1 p pat =
-        case pat of
-        PWild    -> showString    "PWild"
-        PVar     -> showString    "PVar"
-        PDatum d -> showParen_1 p "PDatum" d
+    showsPrec1 _ PWild      = showString    "PWild"
+    showsPrec1 _ PVar       = showString    "PVar"
+    showsPrec1 p (PDatum d) = showParen_1 p "PDatum" d
 
 instance Show (Pattern a) where
     showsPrec = showsPrec1
@@ -724,13 +722,7 @@ instance Eq1 ast => Eq (Branch a ast b) where
 -- TODO: instance Read (Branch ast a b)
 
 instance Show1 ast => Show1 (Branch a ast) where
-    showsPrec1 p (Branch pat e) =
-        showParen (p > 9)
-            ( showString "Branch "
-            . showsPrec  11 pat
-            . showString " "
-            . showsPrec1 11 e
-            )
+    showsPrec1 p (Branch pat e) = showParen_01 p "Branch" pat e
 
 instance Show1 ast => Show (Branch a ast b) where
     showsPrec = showsPrec1
