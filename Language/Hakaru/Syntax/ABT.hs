@@ -42,7 +42,7 @@ module Language.Hakaru.Syntax.ABT
     , subst
     -- ** Constructing first-order trees with a HOAS-like API
     -- cf., <http://comonad.com/reader/2014/fast-circular-substitution/>
-    , Bindable(..), binder
+    , binder
     -- ** Some ABT instances
     , TrivialABT()
     , FreeVarsABT()
@@ -84,7 +84,9 @@ import Language.Hakaru.Syntax.AST
 --
 -- | A variable is a pair of some hint for the name ('varName') and
 -- some unique identifier ('varID'). N.B., the unique identifier
--- is lazy so that we can tie-the-knot in 'binder'.
+-- is lazy so that we can tie-the-knot in 'binder'. Also, N.B., the
+-- 'Eq' and 'Ord' instances only check the 'varID' and ignore the
+-- 'varName'.
 data Variable = Variable !String Nat
     deriving (Read, Show)
 
@@ -308,9 +310,18 @@ instance Show (TrivialABT a) where
     show      = show1
 
 ----------------------------------------------------------------
--- TODO: replace @Set Variable@ with @Map Variable (Hakaru Star)@;
--- though that belongs more in the type-checking than in this
--- FreeVarsABT itself...
+-- TODO: replace @Set Variable@ with @Map Variable Hakaru@ or @Map
+-- Variable (Some (Sing :: Hakaru -> *))@ though that belongs more
+-- in a different ABT instance produced by type-checking, rather
+-- than belonging here...
+--
+-- TODO: replace @Set Variable@ with @Map Variable Nat@ where the
+-- Nat is the number of times the variable occurs. That way, we can
+-- tell when a bound variable is unused or only used only once (and
+-- hence performing beta\/let reduction would be a guaranteed win),
+-- and if it's used more than once then we can use the number of
+-- occurances in our heuristic for deciding whether reduction would
+-- be a win or not.
 --
 -- TODO: generalize this pattern for any monoidal annotation?
 -- TODO: does keeping the set lazy allow us to use 'binder'? At what performance cost?
@@ -437,82 +448,88 @@ subst x e = start
 -- course, we could also use some Locally Nameless style approach
 -- to deal with that issue...
 
-class Bindable (ast :: Hakaru -> *) where
-    -- | Return the largest 'varID' of variable /binding sites/.
-    -- N.B., this should return 0 for the bound variables themselves.
-    -- For performance, don't traverse into the body under those
-    -- binders. (If all terms are constructed via 'binder', then
-    -- soundness is guaranteed without needing to traverse under
-    -- binders.)
-    bound :: ast a -> Nat
+
+-- N.B., we define this as a standalone class in order to avoid
+-- imposing additional type-class constraints on functions that use
+-- it. However, do note that our ability to do this is tied to the
+-- fact that our 'ABT' class hard-codes the 'View', 'AST', and
+-- 'Variable' types. The first two are important so that we can
+-- simply give their 'bound' definitions inline. The last is important
+-- for knowing that the implementation of variables has the laziness
+-- we need. If we end up deciding to have the 'ABT' class abstract
+-- over any of those three types, then we'll need to move this into
+-- a type class again.
 
 
--- For multibinders (i.e., nested uses of Open) we recurse through
--- the whole binder, just to be sure. However, we should be able
--- to just look at the first binder, since multibinders will need
--- to be constructed from multiple calls to 'binder'.
--- TODO: check correctness of just returning the topmost binder.
-boundView :: Bindable abt => View abt a -> Nat
-boundView = go 0
+-- | Return the largest 'varID' of variable /binding sites/.
+-- N.B., this should return 0 for the bound variables themselves.
+-- For performance, we don't traverse into the body under those
+-- binders. (If all terms are constructed via 'binder', then
+-- soundness is guaranteed without needing to traverse under
+-- binders.)
+bound :: (ABT abt) => abt a -> Nat
+bound = boundView . viewABT
     where
-    go 0 (Syn  t)   = bound t
-    go n (Syn  _)   = n -- Don't go under binders
-    go n (Var  _ _) = n
-    go n (Open x v) = go (n `max` varID x) v
+    -- For multibinders (i.e., nested uses of Open) we recurse
+    -- through the whole binder, just to be sure. However, we should
+    -- be able to just look at the first binder, since whenever we
+    -- figure out how to do multibinders we can prolly arrange for
+    -- the first one to be the largest.
+    boundView :: (ABT abt) => View abt a -> Nat
+    boundView = go 0
+        where
+        go 0 (Syn  t)   = boundAST t
+        go n (Syn  _)   = n -- Don't go under binders
+        go n (Var  _ _) = n
+        go n (Open x v) = go (n `max` varID x) v
 
-instance Bindable TrivialABT where
-    bound = boundView . viewABT
+    -- N.B., we needn't traverse into any type annotations, since we
+    -- don't have dependent types, hence no term variables can appear
+    -- in the types.
+    boundAST :: (ABT abt) => AST abt a -> Nat
+    boundAST (Lam_        _  e)     = bound e
+    boundAST (App_        e1 e2)    = bound e1 `max` bound e2
+    boundAST (Let_        e1 e2)    = bound e1 `max` bound e2
+    boundAST (Fix_        e)        = bound e
+    boundAST (Ann_        _  e)     = bound e
+    boundAST (PrimOp_     _)        = 0
+    boundAST (NaryOp_     _  es)    = maximumBound (F.toList es)
+    boundAST (Value_ _)             = 0
+    boundAST (CoerceTo_   _  e)     = bound e
+    boundAST (UnsafeFrom_ _  e)     = bound e
+    boundAST (Array_      e1 e2)    = bound e1 `max` bound e2
+    boundAST (Datum_ (Datum d))     = boundDatum d
+    boundAST (Case_       e  bs)    = bound e  `max` maximumBoundBranch bs
+    boundAST (Measure_    _)        = 0
+    boundAST (Bind_       e1 e2)    = bound e1 `max` bound e2
+    boundAST (Superpose_  pes)      = maximumBound2 pes
+    boundAST (Lub_        e1 e2)    = bound e1 `max` bound e2
+    boundAST Bot_                   = 0
 
-instance Bindable FreeVarsABT where
-    bound = boundView . viewABT
+    boundDatum :: (ABT abt) => PartialDatum abt code a -> Nat
+    boundDatum Nil                   = 0
+    boundDatum (Cons       d1 d2)    = boundDatum d1 `max` boundDatum d2
+    boundDatum (Zero       d)        = boundDatum d
+    boundDatum (Succ       d)        = boundDatum d
+    boundDatum (Konst      e)        = bound e
+    boundDatum (Ident      e)        = bound e
 
-
--- HACK: can't use 'foldMap(1)' unless we newtype wrap up the Nats to say which monoid we mean.
--- N.B., the Prelude's 'maximum' throws an error on empty lists!
-maximumBound :: (Bindable ast) => [ast a] -> Nat
-maximumBound = F.foldl' (\n e -> n `max` bound e) 0
-
-maximumBound2 :: (Bindable ast) => [(ast a, ast b)] -> Nat
-maximumBound2 = F.foldl' (\n (e1,e2) -> n `max` bound e1 `max` bound e2) 0
-
-maximumBoundBranch :: (Bindable ast) => [Branch a ast b] -> Nat
-maximumBoundBranch = F.foldl' (\n b -> n `max` bound (branchBody b)) 0
-
--- N.B., we needn't traverse into any type annotations, since we
--- don't have dependent types, hence no term variables can appear
--- in the types.
-instance Bindable abt => Bindable (AST abt) where
-    bound (Lam_        _  e)     = bound e
-    bound (App_        e1 e2)    = bound e1 `max` bound e2
-    bound (Let_        e1 e2)    = bound e1 `max` bound e2
-    bound (Fix_        e)        = bound e
-    bound (Ann_        _  e)     = bound e
-    bound (PrimOp_     _)        = 0
-    bound (NaryOp_     _  es)    = maximumBound (F.toList es)
-    bound (Value_ _)             = 0
-    bound (CoerceTo_   _  e)     = bound e
-    bound (UnsafeFrom_ _  e)     = bound e
-    bound (Array_      e1 e2)    = bound e1 `max` bound e2
-    bound (Datum_      d)        = bound d
-    bound (Case_       e  bs)    = bound e  `max` maximumBoundBranch bs
-    bound (Measure_    _)        = 0
-    bound (Bind_       e1 e2)    = bound e1 `max` bound e2
-    bound (Superpose_  pes)      = maximumBound2 pes
-    bound (Lub_        e1 e2)    = bound e1 `max` bound e2
-    bound Bot_                   = 0
-
-instance Bindable abt => Bindable (Datum abt) where
-    bound (Datum      d)        = bound d
-
-instance Bindable abt => Bindable (PartialDatum abt code) where
-    bound Nil                   = 0
-    bound (Cons       d1 d2)    = bound d1 `max` bound d2
-    bound (Zero       d)        = bound d
-    bound (Succ       d)        = bound d
-    bound (Konst      e)        = bound e
-    bound (Ident      e)        = bound e
+    -- HACK: can't use 'foldMap1' unless we newtype wrap up the Nats to say which monoid we mean.
+    -- N.B., the Prelude's 'maximum' throws an error on empty lists!
+    maximumBound :: (ABT abt) => [abt a] -> Nat
+    maximumBound =
+        F.foldl' (\n e -> n `max` bound e) 0
+    maximumBound2 :: (ABT abt) => [(abt a, abt b)] -> Nat
+    maximumBound2 =
+        F.foldl' (\n (e1,e2) -> n `max` bound e1 `max` bound e2) 0
+    maximumBoundBranch :: (ABT abt) => [Branch a abt b] -> Nat
+    maximumBoundBranch =
+        F.foldl' (\n b -> n `max` bound (branchBody b)) 0
 
 
+
+-- BUG: this trick doesn't seem like it can be generalized to multibinders, since the multiple new variables would all fight one another for their varID
+--
 -- | A combinator for defining a HOAS-like API for our syntax.
 -- Because our 'AST' is first-order, we cannot actually have any
 -- exotic terms in our language. In principle, this function could
@@ -521,13 +538,12 @@ instance Bindable abt => Bindable (PartialDatum abt code) where
 -- variable's name hint will cause things to explode (since it'll
 -- interfere with our tying-the-knot).
 binder
-    :: (ABT abt, Bindable abt)
-    => (Variable -> abt b -> r) -- ^ The binder's data constructor
-    -> String                   -- ^ The variable's name hint
+    :: (ABT abt)
+    => String                   -- ^ The variable's name hint
     -> Sing a                   -- ^ The variable's type
     -> (abt a -> abt b)         -- ^ Buid the binder's body from a variable
-    -> r
-binder cons name typ hoas = cons x body
+    -> abt b
+binder name typ hoas = open x body
     where
     body = hoas (var x typ)
     x    = Variable name (bound body + 1)

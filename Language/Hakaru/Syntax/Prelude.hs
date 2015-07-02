@@ -132,10 +132,6 @@ matchNaryOp o e =
             NaryOp_ o' xs | o' Prelude.== o -> Just xs
             _ -> Nothing
 
---- TODO: give @k@ an actual @Var@ instead of the @Variable@ name? If we try that, then be sure to check 'uneither'
-freshVar :: (ABT abt) => (Variable -> abt a) -> abt a
-freshVar k = k $ error "TODO: figure out how to implement freshVar in terms of binder"
-
 
 ----------------------------------------------------------------
 ----- Now for the actual EDSL
@@ -444,6 +440,10 @@ unit   = datum_ dUnit
 pair   :: (ABT abt) => abt a -> abt b -> abt (HPair a b)
 pair   = (datum_ .) . dPair
 
+
+freshVar :: (ABT abt) => (Variable -> abt a) -> abt a
+freshVar k =
+    k $ error "TODO: figure out how to implement freshVar"
 unpair
     :: (ABT abt, SingI a, SingI b)
     => abt (HPair a b)
@@ -469,10 +469,9 @@ uneither
     -> (abt b -> abt c)
     -> abt c
 uneither e l r = 
-    freshVar $ \x ->
     syn $ Case_ e
-        [ Branch (PDatum $ dInl PVar) (open x $ l (var x sing))
-        , Branch (PDatum $ dInr PVar) (open x $ r (var x sing))
+        [ Branch (PDatum $ dInl PVar) (binder "_" sing l)
+        , Branch (PDatum $ dInr PVar) (binder "_" sing r)
         ]
 
 if_ :: (ABT abt) => abt HBool -> abt a -> abt a -> abt a
@@ -514,19 +513,15 @@ negativeInfinity :: (ABT abt) => abt 'HReal
 negativeInfinity = primOp0_ NegativeInfinity
 
 fix :: (ABT abt, SingI a) => (abt a -> abt a) -> abt a
-fix f = 
-    freshVar $ \x ->
-    syn . Fix_ . open x $ f (var x sing)
+fix = syn . Fix_ . binder "_" sing
 
--- TODO: rename to @array@
-vector
+array
     :: (ABT abt)
     => abt 'HInt
     -> (abt 'HInt -> abt a)
     -> abt ('HArray a)
-vector n f =
-    freshVar $ \x ->
-    syn . Array_ (unsafeFrom_ signed n) . open x $ f (var x sing)
+array n =
+    syn . Array_ (unsafeFrom_ signed n) . binder "_" sing
 
 empty :: (ABT abt) => abt ('HArray a)
 empty = primOp0_ Empty
@@ -539,7 +534,7 @@ size :: (ABT abt) => abt ('HArray a) -> abt 'HInt
 size = coerceTo_ signed . primOp1_ Size
 
 reduce
-    :: (ABT abt, Bindable abt, SingI a)
+    :: (ABT abt, SingI a)
     => (abt a -> abt a -> abt a)
     -> abt a
     -> abt ('HArray a)
@@ -553,9 +548,7 @@ bind
     => abt ('HMeasure a)
     -> (abt a -> abt ('HMeasure b))
     -> abt ('HMeasure b)
-bind e f = 
-    freshVar $ \x ->
-    syn . Bind_ e . open x $ f (var x sing)
+bind e = syn . Bind_ e . binder "_" sing
 
 dirac    :: (ABT abt) => abt a -> abt ('HMeasure a)
 dirac    = measure1_ Dirac
@@ -722,7 +715,7 @@ chain' v = reduce r z (mapV m v)
 
 -- instance (ABT abt) => Integrate abt where
 integrate
-    :: (ABT abt, Bindable abt)
+    :: (ABT abt)
     => abt 'HReal
     -> abt 'HReal
     -> (abt 'HReal -> abt 'HProb)
@@ -731,7 +724,7 @@ integrate lo hi f =
     primOp3_ Integrate lo hi (lam f)
 
 summate
-    :: (ABT abt, Bindable abt)
+    :: (ABT abt)
     => abt 'HReal
     -> abt 'HReal
     -> (abt 'HInt -> abt 'HProb)
@@ -743,30 +736,30 @@ summate lo hi f =
 -- instance (ABT abt) => Lambda abt where
 -- 'app' already defined
 
-lam :: (ABT abt, Bindable abt, SingI a)
+lam :: (ABT abt, SingI a)
     => (abt a -> abt b)
     -> abt (a ':-> b)
-lam = binder (\x e -> syn . Lam_ Proxy $ open x e) "_" sing
+lam = syn . Lam_ Proxy . binder "_" sing
 
 {-
 -- some test cases to make sure we tied-the-knot successfully:
 > let
-    lam :: (ABT abt, Bindable abt)
+    lam :: (ABT abt)
         => String
         -> Sing a
         -> (abt a -> abt b)
         -> abt (a ':-> b)
-    lam name typ = binder (\x e -> syn . Lam_ Proxy $ open x e) name typ
+    lam name typ = syn . Lam_ Proxy . binder name typ
 > lam "x" SInt (\x -> x) :: TrivialABT ('HInt ':-> 'HInt)
 > lam "x" SInt (\x -> lam "y" SInt $ \y -> x < y) :: TrivialABT ('HInt ':-> 'HInt ':-> 'HBool)
 -}
 
 let_
-    :: (ABT abt, Bindable abt, SingI a)
+    :: (ABT abt, SingI a)
     => abt a
     -> (abt a -> abt b)
     -> abt b
-let_ e = binder (\x f -> syn . Let_ e $ open x f) "_" sing
+let_ e = syn . Let_ e . binder "_" sing
 
 
 -- instance (ABT abt) => Lub abt where
