@@ -56,7 +56,7 @@ type instance Expect' (a ':-> b)     =  Expect' a ':-> Expect' b
 type instance Expect' ('HData t xss) = 'HData (ExpectCon t) (ExpectCode xss)
 
 type family   ExpectCon (x :: HakaruCon Hakaru) :: HakaruCon Hakaru 
-type instance ExpectCon ('HCon s)    = 'HCon s
+type instance ExpectCon ('TyCon s)   = 'TyCon s
 type instance ExpectCon (c ':@ a)    = ExpectCon c ':@ Expect' a
 
 type family   ExpectCode (a :: [[HakaruFun]]) :: [[HakaruFun]]

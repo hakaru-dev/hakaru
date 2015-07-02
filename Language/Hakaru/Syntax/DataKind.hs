@@ -135,11 +135,11 @@ deriving instance Typeable 'K
 -- of the constructor. The argument positions are necessary to do
 -- variable binding in Code. 'Symbol' is the kind of \"type level
 -- strings\".
-data HakaruCon a = HCon !Symbol | HakaruCon a :@ a
+data HakaruCon a = TyCon !Symbol | HakaruCon a :@ a
     deriving (Read, Show)
 infixl 0 :@
 
-deriving instance Typeable 'HCon
+deriving instance Typeable 'TyCon
 deriving instance Typeable '(:@)
 
 
@@ -147,12 +147,12 @@ deriving instance Typeable '(:@)
 -- by adding new types. The right hand side is the sum-of-products
 -- representation of that type. See the \"built-in\" types for examples.
 type family   Code (a :: HakaruCon Hakaru) :: [[HakaruFun]]
-type instance Code ('HCon "Bool")               = '[ '[], '[] ]
-type instance Code ('HCon "Unit")               = '[ '[] ]
-type instance Code ('HCon "Maybe"  ':@ a)       = '[ '[] , '[ 'K a ] ]
-type instance Code ('HCon "List"   ':@ a)       = '[ '[] , '[ 'K a, 'I ] ]
-type instance Code ('HCon "Pair"   ':@ a ':@ b) = '[ '[ 'K a, 'K b ] ]
-type instance Code ('HCon "Either" ':@ a ':@ b) = '[ '[ 'K a ], '[ 'K b ] ]
+type instance Code ('TyCon "Bool")               = '[ '[], '[] ]
+type instance Code ('TyCon "Unit")               = '[ '[] ]
+type instance Code ('TyCon "Maybe"  ':@ a)       = '[ '[] , '[ 'K a ] ]
+type instance Code ('TyCon "List"   ':@ a)       = '[ '[] , '[ 'K a, 'I ] ]
+type instance Code ('TyCon "Pair"   ':@ a ':@ b) = '[ '[ 'K a, 'K b ] ]
+type instance Code ('TyCon "Either" ':@ a ':@ b) = '[ '[ 'K a ], '[ 'K b ] ]
 
 
 -- | A helper type alias for simplifying type signatures for
@@ -168,25 +168,25 @@ type instance Code ('HCon "Either" ':@ a ':@ b) = '[ '[ 'K a ], '[ 'K b ] ]
 -- type variables.
 type HData' t = 'HData t (Code t)
 {-
-   >:kind! forall a b . HData' (HCon "Pair" :@ a :@ b)
-   forall a b . HData' (HCon "Pair" :@ a :@ b) :: Hakaru
+   >:kind! forall a b . HData' (TyCon "Pair" :@ a :@ b)
+   forall a b . HData' (TyCon "Pair" :@ a :@ b) :: Hakaru
    = forall (a :: Hakaru) (b :: Hakaru).
-     'HData (('HCon "Pair" ':@ a) ':@ b) '['['K a, 'K b]]
+     'HData (('TyCon "Pair" ':@ a) ':@ b) '['['K a, 'K b]]
 
-type HBool       = HData' (HCon "Bool")
-type HUnit       = HData' (HCon "Unit")
-type HPair   a b = HData' (HCon "Pair"   :@ a :@ b)
-type HEither a b = HData' (HCon "Either" :@ a :@ b)
-type HList   a   = HData' (HCon "List"   :@ a)
-type HMaybe  a   = HData' (HCon "Maybe"  :@ a)
+type HBool       = HData' (TyCon "Bool")
+type HUnit       = HData' (TyCon "Unit")
+type HPair   a b = HData' (TyCon "Pair"   :@ a :@ b)
+type HEither a b = HData' (TyCon "Either" :@ a :@ b)
+type HList   a   = HData' (TyCon "List"   :@ a)
+type HMaybe  a   = HData' (TyCon "Maybe"  :@ a)
 -}
 
-type HBool       = 'HData ('HCon "Bool") '[ '[], '[] ]
-type HUnit       = 'HData ('HCon "Unit") '[ '[] ]
-type HPair   a b = 'HData (('HCon "Pair"   ':@ a) ':@ b) '[ '[ 'K a, 'K b] ]
-type HEither a b = 'HData (('HCon "Either" ':@ a) ':@ b) '[ '[ 'K a], '[ 'K b] ]
-type HList   a   = 'HData ('HCon "List"    ':@ a) '[ '[], '[ 'K a, 'I] ]
-type HMaybe  a   = 'HData ('HCon "Maybe"   ':@ a) '[ '[], '[ 'K a] ]
+type HBool       = 'HData ('TyCon "Bool") '[ '[], '[] ]
+type HUnit       = 'HData ('TyCon "Unit") '[ '[] ]
+type HPair   a b = 'HData ('TyCon "Pair"   ':@ a ':@ b) '[ '[ 'K a, 'K b] ]
+type HEither a b = 'HData ('TyCon "Either" ':@ a ':@ b) '[ '[ 'K a], '[ 'K b] ]
+type HList   a   = 'HData ('TyCon "List"    ':@ a) '[ '[], '[ 'K a, 'I] ]
+type HMaybe  a   = 'HData ('TyCon "Maybe"   ':@ a) '[ '[], '[ 'K a] ]
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
