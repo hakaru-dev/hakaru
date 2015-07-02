@@ -123,8 +123,6 @@ mustCheck (Syn (Measure_ _))     = False
 -- TODO: I'm assuming this works like Let_, but we should make sure...
 mustCheck (Syn (Bind_ _ e2))     = mustCheck (viewABT e2)
 mustCheck (Syn (Superpose_ pes)) = error "TODO: mustCheck(Superpose_)"
-mustCheck (Syn (Lub_    e1 e2))  = error "TODO: mustCheck(Lub_)"
-mustCheck (Syn Bot_)             = error "TODO: mustCheck(Bot_)"
 mustCheck (Var  _ _)             = False
 mustCheck (Open _ _)             = error "mustCheck: you shouldn't be asking about Open terms" -- Presumably this ought to be an error, rather than False (right?)
 

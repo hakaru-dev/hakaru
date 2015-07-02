@@ -242,8 +242,6 @@ expectAST (Superpose_  pes)      = Superpose_  (map (f *** f) pes)
 expectAST (Dp_         e1 e2)    = Dp_         (f e1) (f e2)
 expectAST (Plate_      e)        = Plate_      (f e)
 expectAST (Chain_      e)        = Chain_      (f e)
-expectAST (Lub_        e1 e2)    = Lub_        (f e1) (f e2)
-expectAST Bot_                   = Bot_
 
 
 expect :: ABT abt => abt a -> abt (Expect' a)

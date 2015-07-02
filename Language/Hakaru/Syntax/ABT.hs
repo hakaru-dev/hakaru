@@ -508,8 +508,6 @@ bound = boundView . viewABT
     boundAST (Measure_    _)        = 0
     boundAST (Bind_       e1 e2)    = bound e1 `max` bound e2
     boundAST (Superpose_  pes)      = maximumBound2 pes
-    boundAST (Lub_        e1 e2)    = bound e1 `max` bound e2
-    boundAST Bot_                   = 0
     
     boundDatumCode :: (ABT abt) => DatumCode xss abt a -> Nat
     boundDatumCode (Inr d) = boundDatumCode   d

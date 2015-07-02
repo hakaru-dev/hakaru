@@ -761,13 +761,14 @@ let_
     -> abt b
 let_ e = syn . Let_ e . binder "_" sing
 
-
+{-
 -- instance (ABT abt) => Lub abt where
 lub :: (ABT abt) => abt a -> abt a -> abt a
 lub = (syn .) . Lub_
 
 bot :: (ABT abt) => abt a
 bot = syn Bot_
+-}
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

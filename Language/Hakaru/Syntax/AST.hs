@@ -806,12 +806,6 @@ data AST :: (Hakaru -> *) -> Hakaru -> * where
         -> AST ast ('HMeasure a)
 
 
-    -- Lub
-    -- TODO: should this really be part of the AST?
-    Lub_ :: ast a -> ast a -> AST ast a
-    Bot_ :: AST ast a
-
-
 ----------------------------------------------------------------
 -- N.B., having a @singAST :: AST ast a -> Sing a@ doesn't make
 -- sense: That's what 'inferType' is for, but not all terms can be
@@ -854,8 +848,6 @@ instance Show1 ast => Show1 (AST ast) where
         Measure_   o         -> showParen_0   p "Measure_" o
         Bind_      e1 e2     -> showParen_11  p "Bind_"   e1 e2
         Superpose_ pes       -> error "TODO: show Superpose_"
-        Lub_       e1 e2     -> showParen_11  p "Lub_"    e1 e2
-        Bot_                 -> showString      "Bot_"
 
 instance Show1 ast => Show (AST ast a) where
     showsPrec = showsPrec1
@@ -880,8 +872,6 @@ instance Functor1 AST where
     fmap1 _ (Measure_    o)        = Measure_    o
     fmap1 f (Bind_       e1 e2)    = Bind_       (f e1) (f e2)
     fmap1 f (Superpose_  pes)      = Superpose_  (map (f *** f) pes)
-    fmap1 f (Lub_        e1 e2)    = Lub_        (f e1) (f e2)
-    fmap1 _ Bot_                   = Bot_
 
 
 ----------------------------------------------------------------
@@ -902,8 +892,6 @@ instance Foldable1 AST where
     foldMap1 _ (Measure_    _)        = mempty
     foldMap1 f (Bind_       e1 e2)    = f e1 `mappend` f e2
     foldMap1 f (Superpose_  pes)      = F.foldMap (\(e1,e2) -> f e1 `mappend` f e2) pes
-    foldMap1 f (Lub_        e1 e2)    = f e1 `mappend` f e2
-    foldMap1 _ Bot_                   = mempty
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
