@@ -243,6 +243,10 @@ sum, product :: (ABT abt, HSemiring a) => [abt a] -> abt a
 sum     = naryOp_withIdentity Sum  zero
 product = naryOp_withIdentity Prod one
 -}
+sum, product :: (ABT abt, HSemiring a) => [abt a] -> abt a
+sum     = unsafeNaryOp_ Sum
+product = unsafeNaryOp_ Prod
+
 
 -- TODO: simplifications
 (^) :: (ABT abt, HSemiring a) => abt a -> abt 'HNat -> abt a
@@ -526,12 +530,11 @@ array n =
 empty :: (ABT abt) => abt ('HArray a)
 empty = primOp0_ Empty
 
--- TODO: rename to @(!)@
-index :: (ABT abt) => abt ('HArray a) -> abt 'HInt -> abt a
-index xs i = primOp2_ Index xs (unsafeFrom_ signed i)
+(!) :: (ABT abt) => abt ('HArray a) -> abt 'HNat -> abt a
+(!) = primOp2_ Index
 
-size :: (ABT abt) => abt ('HArray a) -> abt 'HInt
-size = coerceTo_ signed . primOp1_ Size
+size :: (ABT abt) => abt ('HArray a) -> abt 'HNat
+size = primOp1_ Size
 
 reduce
     :: (ABT abt, SingI a)
@@ -575,7 +578,7 @@ categorical = measure1_ Categorical
 categorical' v =
     counting `bind` \i ->
     if_ (i >= 0 && i < size v)
-        (weight (index v i / sumV v) (dirac i))
+        (weight (v!i / sumV v) (dirac i))
         (superpose [])
 -}
 
