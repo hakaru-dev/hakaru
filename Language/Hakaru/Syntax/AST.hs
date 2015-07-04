@@ -332,7 +332,8 @@ data PrimOp :: Hakaru -> * where
     -- NormedLinearSpace: LinearSpace + originPoint, norm, Arg
     -- ??: NormedLinearSpace + originAxis, angle
     Negate :: (HRing a) => PrimOp (a ':-> a)
-    Abs    :: (HRing a) => PrimOp (a ':-> NonNegative a)
+    -- | We use this longer name to avoid conflict with ABT
+    AbsVal :: (HRing a) => PrimOp (a ':-> NonNegative a)
     -- cf., <https://mail.haskell.org/pipermail/libraries/2013-April/019694.html>
     -- cf., <https://en.wikipedia.org/wiki/Sign_function#Complex_signum>
     -- Should we have Maple5's \"csgn\" as well as the usual \"sgn\"?
@@ -407,7 +408,7 @@ singPrimOp Less        = sing
 singPrimOp Equal       = sing
 singPrimOp NatPow      = sing
 singPrimOp Negate      = sing
-singPrimOp Abs         = sing
+singPrimOp AbsVal      = sing
 singPrimOp Signum      = sing
 singPrimOp Recip       = sing
 singPrimOp NatRoot     = sing

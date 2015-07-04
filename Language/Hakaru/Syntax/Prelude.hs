@@ -126,7 +126,7 @@ naryOp2_ o x y =
 
 matchNaryOp :: (ABT abt) => NaryOp a -> abt a -> Maybe (Seq (abt a))
 matchNaryOp o e =
-    caseVarSynABT e
+    caseVarSyn e
         (\_ _ -> Nothing)
         $ \t  ->
             case t of
@@ -277,14 +277,14 @@ x - y = x + negate y
 negate :: (ABT abt, HRing a) => abt a -> abt a
 negate e0 =
     Prelude.maybe (primOp1_ Negate e0) id
-        $ caseVarSynABT e0
+        $ caseVarSyn e0
             (\_ _ -> Nothing)
             $ \t0 ->
                 case t0 of
                 NaryOp_ Sum xs ->
                     Just . syn $ NaryOp_ Sum (fmap negate xs)
                 App_ f e ->
-                    caseVarSynABT f
+                    caseVarSyn f
                         (\_ _ -> Nothing)
                         (\ft  ->
                             case ft of
@@ -305,8 +305,8 @@ abs = coerceTo_ signed . abs_
 
 abs_ :: (ABT abt, HRing a) => abt a -> abt (NonNegative a)
 abs_ e =
-    Prelude.maybe (primOp1_ Abs e) id
-        $ caseVarSynABT e
+    Prelude.maybe (primOp1_ AbsVal e) id
+        $ caseVarSyn e
             (\_ _ -> Nothing)
             $ \t  ->
                 case t of
@@ -334,14 +334,14 @@ x / y = x * recip y
 recip :: (ABT abt, HFractional a) => abt a -> abt a
 recip e0 =
     Prelude.maybe (primOp1_ Recip e0) id
-        $ caseVarSynABT e0
+        $ caseVarSyn e0
             (\_ _ -> Nothing)
             $ \t0 ->
                 case t0 of
                 NaryOp_ Prod xs ->
                     Just . syn $ NaryOp_ Prod (fmap recip xs)
                 App_ f e ->
-                    caseVarSynABT f
+                    caseVarSyn f
                         (\_ _ -> Nothing)
                         (\ft  ->
                             case ft of

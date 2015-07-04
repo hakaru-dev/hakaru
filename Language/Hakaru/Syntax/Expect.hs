@@ -148,7 +148,7 @@ expectAST (UnsafeFrom_ c  e)  xs = error "TODO: expect{UnsafeFrom_}"
 expectAST Empty_              _  = ExpectArray . syn $ Empty_
 expectAST (Array_      e1 e2) _  = ExpectArray . syn $ Array_ e1 e2
 expectAST (Datum_      d)     _  = ExpectData $ datum_ d
-expectAST (Case_       e  bs) xs = error "TODO: expect{Case_}"
+expectAST (Case_       e  bs) xs = error "TODO: expect{Case_}" -- use 'isOpen' to capture the easy cases at least
 expectAST (Measure_    o)     _  = expectMeasure o
 expectAST (Bind_       e1 e2) xs =
     ExpectMeasure $ \c ->
@@ -297,7 +297,7 @@ expectPrimOp Less      = expectFun2 ExpectData (<)
 expectPrimOp Equal     = expectFun2 ExpectData (==)
 expectPrimOp NatPow    = error "TODO: expectPrimOp{NatPow}" -- Need to prove the first argument can't be an HMeasure or HFun before we can use (^)
 expectPrimOp Negate    = error "TODO: expectPrimOp{Negate}" -- Need to prove the argument can't be an HMeasure or HFun before we can use 'negate'
-expectPrimOp Abs       = error "TODO: expectPrimOp{Abs}" -- Need to prove the argument can't be an HMeasure or HFun before we can use 'abs_'
+expectPrimOp AbsVal    = error "TODO: expectPrimOp{AbsVal}" -- Need to prove the argument can't be an HMeasure or HFun before we can use 'abs_'
 expectPrimOp Signum    = error "TODO: expectPrimOp{Signum}" -- Need to prove the argument can't be an HMeasure or HFun before we can use 'signum'
 expectPrimOp Recip     = error "TODO: expectPrimOp{Recip}" -- Need to prove the argument can't be an HMeasure or HFun before we can use 'recip'
 expectPrimOp NatRoot   = error "TODO: expectPrimOp{NatRoot}" -- Need to prove the argument can't be an HMeasure or HFun before we can use @primOp2_ NatRoot@

@@ -8,7 +8,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.07.01
+--                                                    2015.07.04
 -- |
 -- Module      :  Language.Hakaru.Syntax.ABT
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -19,7 +19,7 @@
 --
 -- The interface for abstract binding trees. Given the generating
 -- functor 'AST': the non-recursive 'View' type extends 'AST' by
--- adding variables and binding; and each 'ABT' type  (1) provides
+-- adding variables and binding; and each 'ABT' type (1) provides
 -- some additional annotations at each recursion site, and then (2)
 -- ties the knot to produce the recursive trees. For an introduction
 -- to this technique\/approach, see:
@@ -33,12 +33,18 @@
 module Language.Hakaru.Syntax.ABT
     (
     -- * Our basic notion of variables\/names.
-      Variable(..), varName, varID
+      Variable(..)
+    , varName
+    , varID
     -- * The abstract binding tree interface
     , ABTException(..)
     -- See note about exposing 'View', 'viewABT', and 'unviewABT'
-    , View(..), unviewABT
-    , ABT(..), caseVarSynABT
+    , View(..)
+    , unviewABT
+    , ABT(..)
+    , caseVarSyn
+    , isOpen
+    -- ** Capture avoiding substitution for any 'ABT'
     , subst
     -- ** Constructing first-order trees with a HOAS-like API
     -- cf., <http://comonad.com/reader/2014/fast-circular-substitution/>
@@ -47,7 +53,7 @@ module Language.Hakaru.Syntax.ABT
     , TyList(..)
     , IList(..)
     , Hint(..)
-    , binders
+    , multibinder
     -- ** Some ABT instances
     , TrivialABT()
     , FreeVarsABT()
@@ -85,14 +91,14 @@ import Language.Hakaru.Syntax.AST
 -- the ABT by its concrete view? If we did that, then we could
 -- define a specialized Open for FreeVarsABT, in order to keep track
 -- of whether the bound variable occurs or not (for defining
--- 'caseOpenABT' precisely).
+-- 'caseOpen' precisely).
 --
 -- | A variable is a pair of some hint for the name ('varName') and
 -- some unique identifier ('varID'). N.B., the unique identifier
 -- is lazy so that we can tie-the-knot in 'binder'. Also, N.B., the
 -- 'Eq' and 'Ord' instances only check the 'varID' and ignore the
 -- 'varName'.
-data Variable = Variable !Text Nat
+data Variable = Variable {-# UNPACK #-} !Text Nat
     deriving (Read, Show)
 
 -- | Project out the string the user suggested as a name for the
@@ -150,6 +156,8 @@ data View :: (Hakaru -> *) -> Hakaru -> * where
 
     Syn  :: !(AST abt a) -> View abt a
 
+    -- HACK: alas we need to keep the Sing in order to make 'subst' typesafe... Is there any way to work around that? Maybe only define substitution for well-typed ABTs (i.e., what we produce via typechecking a plain ABT)? If we can manage to get rid of the Sing, then 'biner' and 'multibinder' would become much simpler.
+    --
     -- TODO: what are the overhead costs of storing a Sing? Would
     -- it be cheaper to store the SingI dictionary (and a Proxy,
     -- as necessary)?
@@ -160,7 +168,7 @@ data View :: (Hakaru -> *) -> Hakaru -> * where
     -- only annotate once, at the top of a chaing of 'Open's, rather
     -- than before each one). However, in the 'ABT' class, we provide
     -- an API as if things went straight back to @abt@. Doing so
-    -- requires that 'caseOpenABT' is part of the class so that we
+    -- requires that 'caseOpen' is part of the class so that we
     -- can push whatever annotations down over one single level of
     -- 'Open', rather than pushing over all of them at once and
     -- then needing to reconstruct all but the first one.
@@ -206,18 +214,36 @@ class ABT (abt :: Hakaru -> *) where
     open :: Variable -> abt  a -> abt a
 
     -- TODO: better name. "unopen"? "caseOpen"? "fromOpen"?
+    --
+    -- When the left side is defined, we have the following laws:
+    -- > caseOpen e open == e
+    -- > caseOpen (open x e) k == k x (unviewABT $ viewABT e)
+    -- However, we do not necessarily have the following:
+    -- > caseOpen (open x e) k == k x e
+    -- because the definition of 'caseOpen' for 'FreeVarsABT'
+    -- is not exact.
+    --
     -- | Assume the ABT is 'Open' and then project out the components.
     -- If the ABT is not 'Open', then this function will throw an
     -- 'ExpectedOpenException' error.
-    caseOpenABT :: abt a -> (Variable -> abt a -> r) -> r
+    caseOpen :: abt a -> (Variable -> abt a -> r) -> r
 
     -- See note about exposing 'View', 'viewABT', and 'unviewABT'.
     -- We could replace 'viewABT' with a case-elimination version...
     viewABT  :: abt a -> View abt a
 
+    -- TODO: use our own VarSet type (e.g., @IntMap Variable@) instead of @Set Variable@?
     freeVars :: abt a -> Set Variable
+
     -- TODO: add a function for checking alpha-equivalence? Other stuff?
     -- TODO: does it make sense to have the functions for generating fresh variable names here? or does that belong in a separate class?
+
+
+isOpen :: (ABT abt) => abt a -> Bool
+isOpen e =
+    case viewABT e of
+    Open _ _ -> True
+    _        -> False
 
 
 -- See note about exposing 'View', 'viewABT', and 'unviewABT'
@@ -239,13 +265,13 @@ instance Exception ABTException
 -- | Assume the ABT is not 'Open' and then project out the components.
 -- If the ABT is in fact 'Open', then this function will throw an
 -- 'ExpectedVarSynException' error.
-caseVarSynABT
+caseVarSyn
     :: (ABT abt)
     => abt a
     -> (Variable -> Sing a -> r)
     -> (AST abt a          -> r)
     -> r
-caseVarSynABT e var_ syn_ =
+caseVarSyn e var_ syn_ =
     case viewABT e of
     Syn  t   -> syn_ t
     Var  x p -> var_ x p
@@ -264,7 +290,7 @@ instance ABT TrivialABT where
     var  x p              = TrivialABT (Var  x p)
     open x (TrivialABT v) = TrivialABT (Open x v)
 
-    caseOpenABT (TrivialABT v) k =
+    caseOpen (TrivialABT v) k =
         case v of
         Open x v' -> k x (TrivialABT v')
         _         -> throw ExpectedOpenException -- TODO: add info about the call-site
@@ -307,7 +333,7 @@ instance Show1 TrivialABT where
             ( showString "open "
             . showsPrec  11 x
             . showString " "
-            . showsPrec1 11 (TrivialABT v) -- HACK: use caseOpenABT
+            . showsPrec1 11 (TrivialABT v) -- HACK: use caseOpen
             )
 
 instance Show (TrivialABT a) where
@@ -346,9 +372,21 @@ instance ABT FreeVarsABT where
     var  x p                  = FreeVarsABT (Set.singleton x)     (Var  x p)
     open x (FreeVarsABT xs v) = FreeVarsABT (Set.delete x xs)     (Open x v)
 
-    caseOpenABT (FreeVarsABT xs v) k =
+    -- N.B., when we go under the binder, the variable @x@ may not
+    -- actually be used, but we add it to the set of freeVars
+    -- anyways. The reasoning is thus: this function is mainly used
+    -- in defining 'subst', and for that purpose it's important to
+    -- track all the variables which /could be/ free, so that we
+    -- can freshen appropriately. It may be safe to not include @x@
+    -- when @x@ is not actually used in @v'@, but it's best not to
+    -- risk it. Moreover, once we add support for open terms (i.e.,
+    -- truly-free variables) then we'll need to account for the
+    -- fact that the variable @x@ may come to be used in the grounding
+    -- of the open term, even though it's not used in the part of
+    -- the term we already know.
+    caseOpen (FreeVarsABT xs v) k =
         case v of
-        Open x v' -> k x (FreeVarsABT (Set.insert x xs) v') -- HACK: the variable @x@ doesn't necessarily occur in @v'@! But the only way to be strictly correct is to go back to the non-recursive View, and pay the cost of keeping all thise duplicate Sets around... I suppose we could add a chain of Bools to FreeVarsABT, keeping track for each variable bound by Open whether it actually occured or not...
+        Open x v' -> k x (FreeVarsABT (Set.insert x xs) v')
         _         -> throw ExpectedOpenException -- TODO: add info about the call-site
 
     viewABT  (FreeVarsABT _  v) = v
@@ -375,7 +413,7 @@ instance Show (FreeVarsABT a) where
 -- TODO: something smarter
 freshen :: Variable -> Set Variable -> Variable
 freshen x xs
-    | x `Set.member` xs = Variable (varName x) (1 + varID (Set.findMax xs))
+    | x `Set.member` xs = Variable (varName x) $! 1 + varID (Set.findMax xs)
     | otherwise         = x
 
 
@@ -394,34 +432,34 @@ rename x y = start
         | otherwise = e
     loop e (Open z v)
         | x == z    = e
-        | otherwise = open z (loop (caseOpenABT e $ const id) v)
+        | otherwise = open z $ loop (caseOpen e $ const id) v
 
 
+-- TODO: keep track of a variable renaming environment, and do renaming on the fly rather than traversing the ABT repeatedly.
+--
 -- | Perform capture-avoiding substitution. This function will
 -- either preserve type-safety or else throw an 'SubstitutionTypeError'.
 -- N.B., to ensure timely throwing of exceptions, the 'AST' and
 -- 'ABT' should have strict 'fmap1' definitions.
 subst
     :: forall abt a b
-    .  (SingI a, ABT abt)
+    .  (ABT abt)
     => Variable
     -> abt a
+    -> Sing a
     -> abt b
     -> abt b
-subst x e = start
+subst x e e_typ = start
     where
-    toSing :: (SingI c) => proxy c -> Sing c
-    toSing _ = sing
-
     start :: forall c. abt c -> abt c
     start f = loop f (viewABT f)
 
     -- TODO: is it actually worth passing around the @f@? Benchmark.
     loop :: forall c. abt c -> View abt c -> abt c
-    loop _ (Syn t)    = syn (fmap1 start t)
-    loop f (Var z p)
+    loop _ (Syn t)    = syn $! fmap1 start t
+    loop f (Var z z_typ)
         | x == z      =
-            case jmEq p (toSing e) of
+            case jmEq z_typ e_typ of
             Just Refl -> e
             Nothing   -> throw SubstitutionTypeError
         | otherwise   = f
@@ -435,12 +473,12 @@ subst x e = start
             -- time we go under a binder like this.
             let z' = freshen z (freeVars e `mappend` freeVars f) in
             -- HACK: the 'rename' function requires an ABT not a
-            -- View, so we have to use 'caseOpenABT' to give its
+            -- View, so we have to use 'caseOpen' to give its
             -- input and then 'viewABT' to discard the topmost
             -- annotation. We really should find a way to eliminate
             -- that overhead.
-            caseOpenABT f $ \_ f' ->
-                open z' (loop f' . viewABT $ rename z z' f')
+            caseOpen f $ \_ f' ->
+                open z' . loop f' . viewABT $ rename z z' f'
 
 
 ----------------------------------------------------------------
@@ -499,7 +537,7 @@ bound = boundView . viewABT
     boundAST (Ann_        _  e)     = bound e
     boundAST (PrimOp_     _)        = 0
     boundAST (NaryOp_     _  es)    = maximumBound (F.toList es)
-    boundAST (Value_ _)             = 0
+    boundAST (Value_      _)        = 0
     boundAST (CoerceTo_   _  e)     = bound e
     boundAST (UnsafeFrom_ _  e)     = bound e
     boundAST Empty_                 = 0
@@ -583,8 +621,9 @@ data VS :: Hakaru -> * where
 
 -- this typechecks, and it works! 
 -- BUG: but it seems fairly unusable. We must give explicit type signatures to any lambdas passed as the second argument, otherwise it complains about not knowing enough about the types in @xs@... Also, the uncurriedness of it isn't very HOAS-like
-binders :: (ABT abt) => IList Hint xs -> (IList abt xs -> abt b) -> abt b
-binders names hoas = opens vars body
+multibinder
+    :: (ABT abt) => IList Hint xs -> (IList abt xs -> abt b) -> abt b
+multibinder names hoas = opens vars body
     where
     vars = go 0 names
         where
@@ -593,7 +632,7 @@ binders names hoas = opens vars body
         go _ Nil                         = Nil
         go n (Cons (Hint name typ) rest) = 
             Cons (VS (Variable name $ bound body + n) typ)
-                (go (n + 1) rest)
+                ((go $! n + 1) rest)
     body = hoas (go vars)
         where
         go :: ABT abt => IList VS xs -> IList abt xs
