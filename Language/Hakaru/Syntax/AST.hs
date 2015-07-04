@@ -289,7 +289,6 @@ data PrimOp :: Hakaru -> * where
 
     -- -- Array stuff
     -- TODO: do these really belong here (as PrimOps), in AST, or in their own place (a la Datum)?
-    Empty  :: PrimOp ('HArray a)
     Index  :: PrimOp ('HArray a ':-> 'HNat ':-> a)
     Size   :: PrimOp ('HArray a ':-> 'HNat)
     -- The first argument should be a monoid, but we don't enforce
@@ -401,7 +400,6 @@ singPrimOp GammaFunc   = sing
 singPrimOp BetaFunc    = sing
 {-
 -- BUG: case analysis isn't enough here, because of the class constraints. We should be able to fix that by passing explicit singleton dictionaries instead of using Haskell's type classes. Of course, we can't even do Unit anymore because of whatever bugginess with the embed stuff :(
-singPrimOp Empty       = sing
 singPrimOp Index       = sing
 singPrimOp Size        = sing
 singPrimOp Reduce      = sing
@@ -775,9 +773,10 @@ data AST :: (Hakaru -> *) -> Hakaru -> * where
     -- TODO: add something like @SafeFrom_ :: Coercion a b -> ast b -> AST ast ('HMaybe a)@ so we can capture the safety of patterns like @if_ (0 <= x) (let x_ = unsafeFrom signed x in...) (...)@ Of course, since we're just going to do case analysis on the result; why not make it a binding form directly?
     -- TODO: we'll probably want some more general thing to capture these sorts of patterns. For example, in the default implementation of Uniform we see: @if_ (lo < x && x < hi) (... unsafeFrom_ signed (hi - lo) ...) (...)@
 
+    -- We have the constructors for arrays here, so that they're grouped together with our other constructors 'Value_' and 'Datum_'.
     -- TODO: do we really need this to be a binding form, or could it take a Hakaru function for the second argument?
     Array_ :: ast 'HNat -> ast {-'HNat-} a -> AST ast ('HArray a)
-
+    Empty_ :: AST ast ('HArray a)
 
     -- -- User-defined data types
     -- | A data constructor applied to some expressions. N.B., this

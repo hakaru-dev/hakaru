@@ -528,7 +528,7 @@ array n =
     syn . Array_ (unsafeFrom_ signed n) . binder "_" sing
 
 empty :: (ABT abt) => abt ('HArray a)
-empty = primOp0_ Empty
+empty = syn Empty_
 
 (!) :: (ABT abt) => abt ('HArray a) -> abt 'HNat -> abt a
 (!) = primOp2_ Index

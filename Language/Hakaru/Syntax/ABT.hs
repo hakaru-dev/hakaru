@@ -502,6 +502,7 @@ bound = boundView . viewABT
     boundAST (Value_ _)             = 0
     boundAST (CoerceTo_   _  e)     = bound e
     boundAST (UnsafeFrom_ _  e)     = bound e
+    boundAST Empty_                 = 0
     boundAST (Array_      e1 e2)    = bound e1 `max` bound e2
     boundAST (Datum_ (Datum d))     = boundDatumCode d
     boundAST (Case_       e  bs)    = bound e  `max` maximumBoundBranch bs

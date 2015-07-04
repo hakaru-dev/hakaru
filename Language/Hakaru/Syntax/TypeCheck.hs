@@ -62,8 +62,6 @@ mustCheck (Syn (Lam_ _ _)) = True
 
 -- In general, applications don't require checking; however, for
 -- fully saturated data constructors they do (according to neelk).
--- Thus, we should beware of the 'Empty' primop. (Maybe we should
--- move it back to 'AST'?)
 mustCheck (Syn (App_ _ _)) = False
 
 -- N.B., the TLDI'05 paper says we'll always infer the @e2@ but
@@ -96,6 +94,7 @@ mustCheck (Syn (UnsafeFrom_ _ e)) = mustCheck (viewABT e)
 -- Usually I'd assume the binder is what does it, but here we know
 -- the type of the bound variable, because it's the same for every
 -- Array
+mustCheck (Syn Empty_)       = True
 mustCheck (Syn (Array_ _ _)) = True
 
 -- I return true because most folks (neelk, Pfenning, Dunfield &
@@ -306,6 +305,11 @@ checkType ctx e typ =
     Syn (UnsafeFrom_ c e1) ->
         checkType ctx e1 (singCoerceTo c typ)
 
+    Syn Empty_ ->
+        case typ of
+        SArray typ1 -> return ()
+            -- TODO: use jmEq to test that 'typ1' matches
+        _ -> failwith "expected HArray type"
     Syn (Array_ n e1) ->
         case typ of
         SArray typ1 -> do

@@ -21,7 +21,7 @@
 -- "Language.Hakaru.Syntax.Expect"; it should keep the old name,
 -- once we switch everything over to using the new AST.
 ----------------------------------------------------------------
-module Language.Hakaru.Syntax.Expect2
+module Language.Hakaru.Syntax.Expect
     ( normalize
     , total
     , expect
@@ -57,10 +57,10 @@ expect e = apM $ expect_ e IM.empty
 ----------------------------------------------------------------
 -- We can't do this as a type family, because that cause ambiguity issues
 data Expect :: (Hakaru -> *) -> Hakaru -> * where
-    ExpectNat   :: abt 'HNat  -> Expect abt 'HNat
-    ExpectInt   :: abt 'HInt  -> Expect abt 'HInt
-    ExpectProb  :: abt 'HProb -> Expect abt 'HProb
-    ExpectReal  :: abt 'HReal -> Expect abt 'HReal
+    ExpectNat   :: abt 'HNat               -> Expect abt 'HNat
+    ExpectInt   :: abt 'HInt               -> Expect abt 'HInt
+    ExpectProb  :: abt 'HProb              -> Expect abt 'HProb
+    ExpectReal  :: abt 'HReal              -> Expect abt 'HReal
     ExpectArray :: abt ('HArray a)         -> Expect abt ('HArray a)
     ExpectData  :: abt ('HData t xss)      -> Expect abt ('HData t xss)
     ExpectFun   :: (abt a -> Expect abt b) -> Expect abt (a ':-> b)
@@ -68,7 +68,7 @@ data Expect :: (Hakaru -> *) -> Hakaru -> * where
         :: ((abt a -> abt 'HProb) -> abt 'HProb)
         -> Expect abt ('HMeasure a)
 
--- TODO: a function for converting Expect back into plain Haskell functions. We may need to define a type family that mirrors the Expect datatype, and then enable -XAllowAmbiguousTypes to be able to use it...
+-- TODO: a general function for converting Expect back into plain Haskell functions. We may need to define a type family that mirrors the Expect datatype, and then enable -XAllowAmbiguousTypes to be able to use it...
 
 apF :: Expect abt (a ':-> b) -> abt a -> Expect abt b
 apF (ExpectFun f) x = f x
@@ -145,6 +145,7 @@ expectAST (Value_  v)    _  =
 
 expectAST (CoerceTo_   c  e ) xs = error "TODO: expect{CoerceTo_}"
 expectAST (UnsafeFrom_ c  e ) xs = error "TODO: expect{UnsafeFrom_}"
+expectAST Empty_                 = ExpectArray . syn $ Empty_
 expectAST (Array_      e1 e2) _  = ExpectArray . syn $ Array_ e1 e2
 expectAST (Datum_      d)     _  = ExpectData $ datum_ d
 expectAST (Case_       e  bs) xs = error "TODO: expect{Case_}"
@@ -289,7 +290,6 @@ expectPrimOp GammaFunc = expectFun1 ExpectProb gammaFunc
 expectPrimOp BetaFunc  = expectFun2 ExpectProb betaFunc
 expectPrimOp Integrate = expectFun3 ExpectProb $ primOp3_ Integrate
 expectPrimOp Summate   = expectFun3 ExpectProb $ primOp3_ Summate
-expectPrimOp Empty     = ExpectArray empty
 expectPrimOp Index     = error "TODO: expectPrimOp{Index}" -- The lookup could return an HMeasure or a (':->)...
 expectPrimOp Size      = expectFun1 ExpectNat size
 expectPrimOp Reduce    = error "TODO: expectPrimOp{Reduce}" -- Not sure why this one doesn't typecheck
