@@ -332,8 +332,7 @@ data PrimOp :: Hakaru -> * where
     -- NormedLinearSpace: LinearSpace + originPoint, norm, Arg
     -- ??: NormedLinearSpace + originAxis, angle
     Negate :: (HRing a) => PrimOp (a ':-> a)
-    -- | We use this longer name to avoid conflict with ABT
-    AbsVal :: (HRing a) => PrimOp (a ':-> NonNegative a)
+    Abs    :: (HRing a) => PrimOp (a ':-> NonNegative a)
     -- cf., <https://mail.haskell.org/pipermail/libraries/2013-April/019694.html>
     -- cf., <https://en.wikipedia.org/wiki/Sign_function#Complex_signum>
     -- Should we have Maple5's \"csgn\" as well as the usual \"sgn\"?
@@ -408,7 +407,7 @@ singPrimOp Less        = sing
 singPrimOp Equal       = sing
 singPrimOp NatPow      = sing
 singPrimOp Negate      = sing
-singPrimOp AbsVal      = sing
+singPrimOp Abs         = sing
 singPrimOp Signum      = sing
 singPrimOp Recip       = sing
 singPrimOp NatRoot     = sing
@@ -797,6 +796,7 @@ data AST :: (Hakaru -> *) -> Hakaru -> * where
     -- TODO: should DP_, Plate_, and Chain_ move there?
     -- | Primitive operators which generate measures.
     Measure_ :: !(Measure a) -> AST ast a
+    -- TODO: find a name so this doesn't conflict with ABT's Bind
     Bind_
         :: ast ('HMeasure a)
         -> ast {-a-} ('HMeasure b)

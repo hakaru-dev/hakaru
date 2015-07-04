@@ -92,7 +92,7 @@ getSing _ = error "TODO: get singletons of anything after typechecking"
 
 expect_ :: (ABT abt) => abt a -> Env abt -> Expect abt a
 expect_ e xs =
-    flip (caseVarSynABT e)
+    flip (caseVarSyn e)
         (`expectAST` xs)
         $ \x a ->
             case IM.lookup (fromNat $ varID x) xs of
@@ -118,18 +118,18 @@ expectify (SMeasure _) e xs = expect_ e xs
 expectAST :: (ABT abt) => AST abt a -> Env abt -> Expect abt a
 expectAST (Lam_ _ e1) xs =
     ExpectFun $ \e2 ->
-    caseOpenABT e1 $ \x e' ->
+    caseBind e1 $ \x e' ->
     expect_ e' $ pushEnv (V x e2) xs
 
 expectAST (App_ e1 e2) xs =
     expect_ e1 xs `apF` e2
 
 expectAST (Let_ e1 e2) xs =
-    caseOpenABT e2 $ \x e' ->
+    caseBind e2 $ \x e' ->
     expect_ e' $ pushEnv (V x e1) xs
 
 expectAST (Fix_ e1) xs =
-    caseOpenABT e1 $ \x e' ->
+    caseBind e1 $ \x e' ->
     expect_ e' $ pushEnv (V x e1) xs -- BUG: looping?
 
 expectAST (Ann_    _ e)  xs = expect_ e xs
@@ -148,11 +148,11 @@ expectAST (UnsafeFrom_ c  e)  xs = error "TODO: expect{UnsafeFrom_}"
 expectAST Empty_              _  = ExpectArray . syn $ Empty_
 expectAST (Array_      e1 e2) _  = ExpectArray . syn $ Array_ e1 e2
 expectAST (Datum_      d)     _  = ExpectData $ datum_ d
-expectAST (Case_       e  bs) xs = error "TODO: expect{Case_}" -- use 'isOpen' to capture the easy cases at least
+expectAST (Case_       e  bs) xs = error "TODO: expect{Case_}" -- use 'isBind' to capture the easy cases at least
 expectAST (Measure_    o)     _  = expectMeasure o
 expectAST (Bind_       e1 e2) xs =
     ExpectMeasure $ \c ->
-    caseOpenABT e2 $ \x e' ->
+    caseBind e2 $ \x e' ->
     expect_ e1 xs `apM` \a ->
     (expect_ e' $ pushEnv (V x a) xs) `apM` c
 expectAST (Superpose_ pms) xs =
@@ -297,7 +297,7 @@ expectPrimOp Less      = expectFun2 ExpectData (<)
 expectPrimOp Equal     = expectFun2 ExpectData (==)
 expectPrimOp NatPow    = error "TODO: expectPrimOp{NatPow}" -- Need to prove the first argument can't be an HMeasure or HFun before we can use (^)
 expectPrimOp Negate    = error "TODO: expectPrimOp{Negate}" -- Need to prove the argument can't be an HMeasure or HFun before we can use 'negate'
-expectPrimOp AbsVal    = error "TODO: expectPrimOp{AbsVal}" -- Need to prove the argument can't be an HMeasure or HFun before we can use 'abs_'
+expectPrimOp Abs       = error "TODO: expectPrimOp{Abs}" -- Need to prove the argument can't be an HMeasure or HFun before we can use 'abs_'
 expectPrimOp Signum    = error "TODO: expectPrimOp{Signum}" -- Need to prove the argument can't be an HMeasure or HFun before we can use 'signum'
 expectPrimOp Recip     = error "TODO: expectPrimOp{Recip}" -- Need to prove the argument can't be an HMeasure or HFun before we can use 'recip'
 expectPrimOp NatRoot   = error "TODO: expectPrimOp{NatRoot}" -- Need to prove the argument can't be an HMeasure or HFun before we can use @primOp2_ NatRoot@

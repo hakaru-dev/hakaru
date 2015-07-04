@@ -151,6 +151,7 @@ infixr 0 $
 infixl 4 <$>, <$, <*>, <*, *>
 -}
 
+infixl 1 >>=
 infixr 2 ||
 infixr 3 &&
 infix  4 ==, /=, <, <=, >, >=
@@ -305,7 +306,7 @@ abs = coerceTo_ signed . abs_
 
 abs_ :: (ABT abt, HRing a) => abt a -> abt (NonNegative a)
 abs_ e =
-    Prelude.maybe (primOp1_ AbsVal e) id
+    Prelude.maybe (primOp1_ Abs e) id
         $ caseVarSyn e
             (\_ _ -> Nothing)
             $ \t  ->
@@ -459,7 +460,7 @@ unpair e f =
     freshVar $ \y ->
     syn $ Case_ e
         [Branch (PDatum $ dPair PVar PVar)
-            (open x . open y $ f (var x sing) (var y sing))]
+            (bind x . bind y $ f (var x sing) (var y sing))]
 
 left_ :: (ABT abt) => abt a -> abt (HEither a b)
 left_ = datum_ . dLeft
@@ -547,12 +548,12 @@ reduce f = primOp3_ Reduce (lam $ \x -> lam $ \y -> f x y)
 
 
 -- instance (ABT abt) => Mochastic (abt) where
-bind
+(>>=)
     :: (ABT abt, SingI a)
     => abt ('HMeasure a)
     -> (abt a -> abt ('HMeasure b))
     -> abt ('HMeasure b)
-bind e = syn . Bind_ e . binder (Text.pack "_") sing
+(>>=) e = syn . Bind_ e . binder (Text.pack "_") sing
 
 dirac    :: (ABT abt) => abt a -> abt ('HMeasure a)
 dirac    = measure1_ Dirac
@@ -577,7 +578,7 @@ categorical = measure1_ Categorical
 {-
 -- TODO: need to insert the coercion in the right place... Also, implement 'weight' and 'sumV'
 categorical' v =
-    counting `bind` \i ->
+    counting >>= \i ->
     if_ (i >= 0 && i < size v)
         (weight (v!i / sumV v) (dirac i))
         (superpose [])
@@ -594,7 +595,7 @@ uniform, uniform'
 uniform = measure2_ Uniform
 
 uniform' lo hi = 
-    lebesgue `bind` \x ->
+    lebesgue >>= \x ->
     if_ (lo < x && x < hi)
         -- TODO: how can we capture that this 'unsafeProb' is safe? (and that this 'recip' isn't Infinity, for that matter)
         (superpose [(recip (unsafeProb (hi - lo)), dirac x)])
@@ -609,7 +610,7 @@ normal, normal'
 normal = measure2_ Normal
 
 normal' mu sd  = 
-    lebesgue `bind` \x ->
+    lebesgue >>= \x ->
     superpose
         -- alas, we loose syntactic negation...
         [( exp (negate ((x - mu) ^ nat_ 2)  -- TODO: use negative\/square instead of negate\/(^2)
@@ -623,7 +624,7 @@ poisson, poisson' :: (ABT abt) => abt 'HProb -> abt ('HMeasure 'HNat)
 poisson = measure1_ Poisson
 
 poisson' l = 
-    counting `bind` \x ->
+    counting >>= \x ->
     -- TODO: use 'SafeFrom_' instead of @if_ (x >= int_ 0)@ so we can prove that @unsafeFrom_ signed x@ is actually always safe.
     if_ (x >= int_ 0 && prob_ 0 < l) -- BUG: do you mean @l /= 0@? why use (>=) instead of (<=)?
         (superpose
@@ -643,7 +644,7 @@ gamma, gamma'
 gamma = measure2_ Gamma
 
 gamma' shape scale =
-    lebesgue `bind` \x ->
+    lebesgue >>= \x ->
     -- TODO: use 'SafeFrom_' instead of @if_ (real_ 0 < x)@ so we can prove that @unsafeProb x@ is actually always safe. Of course, then we'll need to mess around with checking (/=0) which'll get ugly... Use another SafeFrom_ with an associated NonZero type?
     if_ (real_ 0 < x)
         (let x_ = unsafeProb x in
@@ -665,7 +666,7 @@ beta = measure2_ Beta
 
 beta' a b =
     -- TODO: make Uniform polymorphic, so that if the two inputs are HProb then we know the measure must be over HProb too, and hence @unsafeProb x@ must always be safe. Alas, capturing the safety of @unsafeProb (1-x)@ would take a lot more work...
-    uniform (real_ 0) (real_ 1) `bind` \x ->
+    uniform (real_ 0) (real_ 1) >>= \x ->
     let x_ = unsafeProb x in
     superpose
         [( x_ ** (fromProb a - real_ 1)
@@ -707,9 +708,9 @@ chain = measure1_ Chain
 chain' v = reduce r z (mapV m v)
     where
     r x y = lam $ \s ->
-            app x s `bind` \v1s1 ->
+            app x s >>= \v1s1 ->
             unpair v1s1 $ \v1 s1 ->
-            app y s1 `bind` \v2s2 ->
+            app y s1 >>= \v2s2 ->
             unpair v2s2 $ \v2 s2 ->
             dirac (pair (concatV v1 v2) s2)
     z     = lam $ \s -> dirac (pair empty s)

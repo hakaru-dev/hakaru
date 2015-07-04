@@ -43,7 +43,7 @@ module Language.Hakaru.Syntax.ABT
     , unviewABT
     , ABT(..)
     , caseVarSyn
-    , isOpen
+    , isBind
     -- ** Capture avoiding substitution for any 'ABT'
     , subst
     -- ** Constructing first-order trees with a HOAS-like API
@@ -89,9 +89,9 @@ import Language.Hakaru.Syntax.AST
 -- once we're done building the tree with 'binder'... Or, since we
 -- unpack Variable in View, maybe it'd be better to parameterize
 -- the ABT by its concrete view? If we did that, then we could
--- define a specialized Open for FreeVarsABT, in order to keep track
+-- define a specialized Bind for FreeVarsABT, in order to keep track
 -- of whether the bound variable occurs or not (for defining
--- 'caseOpen' precisely).
+-- 'caseBind' precisely).
 --
 -- | A variable is a pair of some hint for the name ('varName') and
 -- some unique identifier ('varID'). N.B., the unique identifier
@@ -120,11 +120,6 @@ instance Ord Variable where
 
 
 ----------------------------------------------------------------
--- TODO: go back to the name \"Abs\"(traction), and figure out some
--- other name for the \"Abs\"(olute value) PrimOp to avoid conflict.
--- Or maybe call it \"Bind\"(er) and then come up with some other
--- name for the HMeasure monadic bind operator?
---
 -- TODO: should we abstract over 'AST' like neelk does for @signature@?
 --
 -- TODO: remove the singleton type for 'Var', and infer it instead?
@@ -133,10 +128,10 @@ instance Ord Variable where
 -- Nameless? also cf., <http://hackage.haskell.org/package/abt>
 --
 -- TODO: (?) index by the /local/ environment (or size thereof).
--- That is, Syn and Var would be @Z@, whereas Open would take @n@
+-- That is, Syn and Var would be @Z@, whereas Bind would take @n@
 -- to @S n@ (or @[]@ and taking @xs@ to some @x:xs@, respectively).
 -- This way, the 'AST' could actually specify when it expects an
--- Open term. Doing this would give us improved type-safety of the
+-- Bind term. Doing this would give us improved type-safety of the
 -- syntax tree, and should still free us from worrying about the
 -- issues that tracking a /global/ environment would cause (like
 -- worrying about weakening, etc),
@@ -165,20 +160,20 @@ data View :: (Hakaru -> *) -> Hakaru -> * where
 
     -- N.B., this constructor is recursive, thus minimizing the
     -- memory overhead of whatever annotations our ABT stores (we
-    -- only annotate once, at the top of a chaing of 'Open's, rather
+    -- only annotate once, at the top of a chaing of 'Bind's, rather
     -- than before each one). However, in the 'ABT' class, we provide
     -- an API as if things went straight back to @abt@. Doing so
-    -- requires that 'caseOpen' is part of the class so that we
+    -- requires that 'caseBind' is part of the class so that we
     -- can push whatever annotations down over one single level of
-    -- 'Open', rather than pushing over all of them at once and
+    -- 'Bind', rather than pushing over all of them at once and
     -- then needing to reconstruct all but the first one.
-    Open :: {-# UNPACK #-} !Variable -> !(View abt a) -> View abt a
+    Bind :: {-# UNPACK #-} !Variable -> !(View abt a) -> View abt a
 
 
 instance Functor1 View where
     fmap1 f (Syn  t)   = Syn (fmap1 f t)
     fmap1 _ (Var  x p) = Var  x p
-    fmap1 f (Open x e) = Open x (fmap1 f e)
+    fmap1 f (Bind x e) = Bind x (fmap1 f e)
 
 
 instance Show1 abt => Show1 (View abt) where
@@ -194,9 +189,9 @@ instance Show1 abt => Show1 (View abt) where
             . showString " "
             . showsPrec 11 s
             )
-    showsPrec1 p (Open x v) =
+    showsPrec1 p (Bind x v) =
         showParen (p > 9)
-            ( showString "Open "
+            ( showString "Bind "
             . showsPrec  11 x
             . showString " "
             . showsPrec1 11 v
@@ -211,22 +206,22 @@ instance Show1 abt => Show (View abt a) where
 class ABT (abt :: Hakaru -> *) where
     syn  :: AST abt a          -> abt a
     var  :: Variable -> Sing a -> abt a
-    open :: Variable -> abt  a -> abt a
+    bind :: Variable -> abt  a -> abt a
 
-    -- TODO: better name. "unopen"? "caseOpen"? "fromOpen"?
+    -- TODO: better name. "unbind"? "caseBind"? "fromBind"?
     --
     -- When the left side is defined, we have the following laws:
-    -- > caseOpen e open == e
-    -- > caseOpen (open x e) k == k x (unviewABT $ viewABT e)
+    -- > caseBind e bind == e
+    -- > caseBind (bind x e) k == k x (unviewABT $ viewABT e)
     -- However, we do not necessarily have the following:
-    -- > caseOpen (open x e) k == k x e
-    -- because the definition of 'caseOpen' for 'FreeVarsABT'
+    -- > caseBind (bind x e) k == k x e
+    -- because the definition of 'caseBind' for 'FreeVarsABT'
     -- is not exact.
     --
-    -- | Assume the ABT is 'Open' and then project out the components.
-    -- If the ABT is not 'Open', then this function will throw an
-    -- 'ExpectedOpenException' error.
-    caseOpen :: abt a -> (Variable -> abt a -> r) -> r
+    -- | Assume the ABT is 'Bind' and then project out the components.
+    -- If the ABT is not 'Bind', then this function will throw an
+    -- 'ExpectedBindException' error.
+    caseBind :: abt a -> (Variable -> abt a -> r) -> r
 
     -- See note about exposing 'View', 'viewABT', and 'unviewABT'.
     -- We could replace 'viewABT' with a case-elimination version...
@@ -239,10 +234,10 @@ class ABT (abt :: Hakaru -> *) where
     -- TODO: does it make sense to have the functions for generating fresh variable names here? or does that belong in a separate class?
 
 
-isOpen :: (ABT abt) => abt a -> Bool
-isOpen e =
+isBind :: (ABT abt) => abt a -> Bool
+isBind e =
     case viewABT e of
-    Open _ _ -> True
+    Bind _ _ -> True
     _        -> False
 
 
@@ -250,11 +245,11 @@ isOpen e =
 unviewABT :: (ABT abt) => View abt a -> abt a
 unviewABT (Syn  t)   = syn  t
 unviewABT (Var  x p) = var  x p
-unviewABT (Open x v) = open x (unviewABT v)
+unviewABT (Bind x v) = bind x (unviewABT v)
 
 
 data ABTException
-    = ExpectedOpenException
+    = ExpectedBindException
     | ExpectedVarSynException
     | SubstitutionTypeError
     deriving (Show, Typeable)
@@ -262,8 +257,8 @@ data ABTException
 instance Exception ABTException
 
 
--- | Assume the ABT is not 'Open' and then project out the components.
--- If the ABT is in fact 'Open', then this function will throw an
+-- | Assume the ABT is not 'Bind' and then project out the components.
+-- If the ABT is in fact 'Bind', then this function will throw an
 -- 'ExpectedVarSynException' error.
 caseVarSyn
     :: (ABT abt)
@@ -275,7 +270,7 @@ caseVarSyn e var_ syn_ =
     case viewABT e of
     Syn  t   -> syn_ t
     Var  x p -> var_ x p
-    Open _ _ -> throw ExpectedVarSynException -- TODO: add call-site info
+    Bind _ _ -> throw ExpectedVarSynException -- TODO: add call-site info
 
 
 ----------------------------------------------------------------
@@ -288,12 +283,12 @@ newtype TrivialABT (a :: Hakaru) =
 instance ABT TrivialABT where
     syn  t                = TrivialABT (Syn  t)
     var  x p              = TrivialABT (Var  x p)
-    open x (TrivialABT v) = TrivialABT (Open x v)
+    bind x (TrivialABT v) = TrivialABT (Bind x v)
 
-    caseOpen (TrivialABT v) k =
+    caseBind (TrivialABT v) k =
         case v of
-        Open x v' -> k x (TrivialABT v')
-        _         -> throw ExpectedOpenException -- TODO: add info about the call-site
+        Bind x v' -> k x (TrivialABT v')
+        _         -> throw ExpectedBindException -- TODO: add info about the call-site
 
     viewABT (TrivialABT v) = v
 
@@ -301,7 +296,7 @@ instance ABT TrivialABT where
         where
         go (Syn  t)   = foldMap1 freeVars t
         go (Var  x _) = Set.singleton x
-        go (Open x v) = Set.delete x (go v)
+        go (Bind x v) = Set.delete x (go v)
 
 
 instance Show1 TrivialABT where
@@ -328,12 +323,12 @@ instance Show1 TrivialABT where
             . showString " "
             . showsPrec 11 s
             )
-    showsPrec1 p (TrivialABT (Open x v)) =
+    showsPrec1 p (TrivialABT (Bind x v)) =
         showParen (p > 9)
-            ( showString "open "
+            ( showString "bind "
             . showsPrec  11 x
             . showString " "
-            . showsPrec1 11 (TrivialABT v) -- HACK: use caseOpen
+            . showsPrec1 11 (TrivialABT v) -- HACK: use caseBind
             )
 
 instance Show (TrivialABT a) where
@@ -370,7 +365,7 @@ data FreeVarsABT (a :: Hakaru)
 instance ABT FreeVarsABT where
     syn  t                    = FreeVarsABT (foldMap1 freeVars t) (Syn  t)
     var  x p                  = FreeVarsABT (Set.singleton x)     (Var  x p)
-    open x (FreeVarsABT xs v) = FreeVarsABT (Set.delete x xs)     (Open x v)
+    bind x (FreeVarsABT xs v) = FreeVarsABT (Set.delete x xs)     (Bind x v)
 
     -- N.B., when we go under the binder, the variable @x@ may not
     -- actually be used, but we add it to the set of freeVars
@@ -384,10 +379,10 @@ instance ABT FreeVarsABT where
     -- fact that the variable @x@ may come to be used in the grounding
     -- of the open term, even though it's not used in the part of
     -- the term we already know.
-    caseOpen (FreeVarsABT xs v) k =
+    caseBind (FreeVarsABT xs v) k =
         case v of
-        Open x v' -> k x (FreeVarsABT (Set.insert x xs) v')
-        _         -> throw ExpectedOpenException -- TODO: add info about the call-site
+        Bind x v' -> k x (FreeVarsABT (Set.insert x xs) v')
+        _         -> throw ExpectedBindException -- TODO: add info about the call-site
 
     viewABT  (FreeVarsABT _  v) = v
 
@@ -430,9 +425,9 @@ rename x y = start
     loop e (Var z p)
         | x == z    = var y p
         | otherwise = e
-    loop e (Open z v)
+    loop e (Bind z v)
         | x == z    = e
-        | otherwise = open z $ loop (caseOpen e $ const id) v
+        | otherwise = bind z $ loop (caseBind e $ const id) v
 
 
 -- TODO: keep track of a variable renaming environment, and do renaming on the fly rather than traversing the ABT repeatedly.
@@ -463,7 +458,7 @@ subst x e e_typ = start
             Just Refl -> e
             Nothing   -> throw SubstitutionTypeError
         | otherwise   = f
-    loop f (Open z _)
+    loop f (Bind z _)
         | x == z      = f
         | otherwise   =
             -- TODO: even if we don't come up with a smarter way
@@ -473,12 +468,12 @@ subst x e e_typ = start
             -- time we go under a binder like this.
             let z' = freshen z (freeVars e `mappend` freeVars f) in
             -- HACK: the 'rename' function requires an ABT not a
-            -- View, so we have to use 'caseOpen' to give its
+            -- View, so we have to use 'caseBind' to give its
             -- input and then 'viewABT' to discard the topmost
             -- annotation. We really should find a way to eliminate
             -- that overhead.
-            caseOpen f $ \_ f' ->
-                open z' . loop f' . viewABT $ rename z z' f'
+            caseBind f $ \_ f' ->
+                bind z' . loop f' . viewABT $ rename z z' f'
 
 
 ----------------------------------------------------------------
@@ -513,7 +508,7 @@ subst x e e_typ = start
 bound :: (ABT abt) => abt a -> Nat
 bound = boundView . viewABT
     where
-    -- For multibinders (i.e., nested uses of Open) we recurse
+    -- For multibinders (i.e., nested uses of Bind) we recurse
     -- through the whole binder, just to be sure. However, we should
     -- be able to just look at the first binder, since whenever we
     -- figure out how to do multibinders we can prolly arrange for
@@ -524,7 +519,7 @@ bound = boundView . viewABT
         go 0 (Syn  t)   = boundAST t
         go n (Syn  _)   = n -- Don't go under binders
         go n (Var  _ _) = n -- Don't look at variable *uses*
-        go n (Open x v) = go (n `max` varID x) v
+        go n (Bind x v) = go (n `max` varID x) v
 
     -- N.B., we needn't traverse into any type annotations, since we
     -- don't have dependent types, hence no term variables can appear
@@ -586,7 +581,7 @@ binder
     -> Sing a                   -- ^ The variable's type
     -> (abt a -> abt b)         -- ^ Build the binder's body from a variable
     -> abt b
-binder name typ hoas = open x body
+binder name typ hoas = bind x body
     where
     body = hoas (var x typ)
     x    = Variable name (bound body + 1)
@@ -623,7 +618,7 @@ data VS :: Hakaru -> * where
 -- BUG: but it seems fairly unusable. We must give explicit type signatures to any lambdas passed as the second argument, otherwise it complains about not knowing enough about the types in @xs@... Also, the uncurriedness of it isn't very HOAS-like
 multibinder
     :: (ABT abt) => IList Hint xs -> (IList abt xs -> abt b) -> abt b
-multibinder names hoas = opens vars body
+multibinder names hoas = binds vars body
     where
     vars = go 0 names
         where
@@ -639,9 +634,9 @@ multibinder names hoas = opens vars body
         go Nil                    = Nil
         go (Cons (VS x typ) rest) = Cons (var x typ) (go rest)
     
-    opens :: ABT abt => IList VS xs -> abt a -> abt a
-    opens Nil                  = id
-    opens (Cons (VS x _) rest) = open x . opens rest
+    binds :: ABT abt => IList VS xs -> abt a -> abt a
+    binds Nil                  = id
+    binds (Cons (VS x _) rest) = bind x . binds rest
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

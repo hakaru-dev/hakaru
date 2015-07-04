@@ -123,7 +123,7 @@ mustCheck (Syn (Measure_ _))     = False
 mustCheck (Syn (Bind_ _ e2))     = mustCheck (viewABT e2)
 mustCheck (Syn (Superpose_ pes)) = error "TODO: mustCheck(Superpose_)"
 mustCheck (Var  _ _)             = False
-mustCheck (Open _ _)             = error "mustCheck: you shouldn't be asking about Open terms" -- Presumably this ought to be an error, rather than False (right?)
+mustCheck (Bind _ _)             = error "mustCheck: you shouldn't be asking about Bind terms" -- Presumably this ought to be an error, rather than False (right?)
 
 
 ----------------------------------------------------------------
@@ -203,23 +203,23 @@ inferType ctx e =
         {-
     Syn (App_ (Syn (Lam_ p e1)) e2) -> do
         typ2 <- inferType ctx e2
-        -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
-        caseOpen e1 $ \x e' ->
+        -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
+        caseBind e1 $ \x e' ->
             inferType (pushCtx (TV x typ2) ctx) e'
         -}
 
     Syn (Let_ e1 e2)
         | inferable (viewABT e1) -> do
             typ1 <- inferType ctx e1
-            -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
-            caseOpen e2 $ \x e' ->
+            -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
+            caseBind e2 $ \x e' ->
                 inferType (pushCtx (TV x typ1) ctx) e'
         | otherwise -> error "TODO: inferType{LetA}"
             {-
             -- TODO: this version of let-binding should come with @typ1@ annotation on the variable. That is, based on the TLDI'05 paper, I think we need two different AST constructors, one for inferable @e1@ and the other for mustCheck @e1@... But for now we can always fake that by putting an Ann_ on the @e1@ itself
             checkType ctx e1 typ1
-            -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
-            caseOpen e2 $ \x e' ->
+            -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
+            caseBind e2 $ \x e' ->
                 inferType (pushCtx (TV x typ1) ctx) e'
             -}
 
@@ -261,8 +261,8 @@ inferType ctx e =
         | inferable (viewABT e1) -> do
             -- N.B., that pattern is irrefutable\/complete
             SMeasure typ1 <- inferType ctx e1
-            -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
-            caseOpen e2 $ \x e' ->
+            -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
+            caseBind e2 $ \x e' ->
                 inferType (pushCtx (TV x typ1) ctx) e'
         | otherwise -> error "TODO: inferType{BindA}"
 
@@ -281,22 +281,22 @@ checkType ctx e typ =
     Syn (Lam_ _ e1) ->
         case typ of
         SFun typ1 typ2 ->
-            -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
-            caseOpen e1 $ \x e' ->
+            -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
+            caseBind e1 $ \x e' ->
                 checkType (pushCtx (TV x typ1) ctx) e' typ2
         _ -> failwith "expected function type"
 
     Syn (Let_ e1 e2)
         | inferable (viewABT e1) -> do
             typ1 <- inferType ctx e1
-            -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
-            caseOpen e2 $ \x e' ->
+            -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
+            caseBind e2 $ \x e' ->
                 checkType (pushCtx (TV x typ1) ctx) e' typ
         | otherwise -> error "TODO: checkType{LetA}"
 
     Syn (Fix_ e1) ->
-        -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
-        caseOpen e1 $ \x e' ->
+        -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
+        caseBind e1 $ \x e' ->
             checkType (pushCtx (TV x typ) ctx) e' typ
 
     Syn (CoerceTo_ c e1) ->
@@ -314,8 +314,8 @@ checkType ctx e typ =
         case typ of
         SArray typ1 -> do
             checkType ctx n SNat
-            -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
-            caseOpen e1 $ \x e' ->
+            -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
+            caseBind e1 $ \x e' ->
                 checkType (pushCtx (TV x SNat) ctx) e' typ1
         _ -> failwith "expected HArray type"
 
@@ -333,8 +333,8 @@ checkType ctx e typ =
         | inferable (viewABT e1) -> do
             -- N.B., that pattern is irrefutable\/complete
             SMeasure typ1 <- inferType ctx e1
-            -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
-            caseOpen e2 $ \x e' ->
+            -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
+            caseBind e2 $ \x e' ->
                 checkType (pushCtx (TV x typ1) ctx) e' typ
         | otherwise -> error "TODO: checkType{BindA}"
 
@@ -406,8 +406,8 @@ checkBranch ctx body body_typ = go
     go (TP pat typ : pts) =
         case pat of
         PVar ->
-            -- TODO: catch ExpectedOpenException and convert it to a TypeCheckError
-            caseOpen body $ \x body' ->
+            -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
+            caseBind body $ \x body' ->
                 checkBranch (pushCtx (TV x typ) ctx) body' body_typ pts
 
         PWild               -> go pts
