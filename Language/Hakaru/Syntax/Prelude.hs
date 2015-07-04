@@ -30,6 +30,7 @@ import Prelude (Maybe(..), Bool(..), Int, Double, Functor(..), ($), flip, error,
 import qualified Prelude
 import           Data.Sequence        (Seq)
 import qualified Data.Sequence        as Seq
+import qualified Data.Text            as Text
 import           Data.Proxy
 import           Control.Category     (Category(..))
 import           Data.Number.LogFloat (LogFloat)
@@ -474,8 +475,8 @@ uneither
     -> abt c
 uneither e l r = 
     syn $ Case_ e
-        [ Branch (PDatum $ dLeft  PVar) (binder "_" sing l)
-        , Branch (PDatum $ dRight PVar) (binder "_" sing r)
+        [ Branch (PDatum $ dLeft  PVar) (binder (Text.pack "_") sing l)
+        , Branch (PDatum $ dRight PVar) (binder (Text.pack "_") sing r)
         ]
 
 if_ :: (ABT abt) => abt HBool -> abt a -> abt a -> abt a
@@ -517,7 +518,7 @@ negativeInfinity :: (ABT abt) => abt 'HReal
 negativeInfinity = primOp0_ NegativeInfinity
 
 fix :: (ABT abt, SingI a) => (abt a -> abt a) -> abt a
-fix = syn . Fix_ . binder "_" sing
+fix = syn . Fix_ . binder (Text.pack "_") sing
 
 array
     :: (ABT abt)
@@ -525,7 +526,7 @@ array
     -> (abt 'HInt -> abt a)
     -> abt ('HArray a)
 array n =
-    syn . Array_ (unsafeFrom_ signed n) . binder "_" sing
+    syn . Array_ (unsafeFrom_ signed n) . binder (Text.pack "_") sing
 
 empty :: (ABT abt) => abt ('HArray a)
 empty = syn Empty_
@@ -551,7 +552,7 @@ bind
     => abt ('HMeasure a)
     -> (abt a -> abt ('HMeasure b))
     -> abt ('HMeasure b)
-bind e = syn . Bind_ e . binder "_" sing
+bind e = syn . Bind_ e . binder (Text.pack "_") sing
 
 dirac    :: (ABT abt) => abt a -> abt ('HMeasure a)
 dirac    = measure1_ Dirac
@@ -742,7 +743,7 @@ summate lo hi f =
 lam :: (ABT abt, SingI a)
     => (abt a -> abt b)
     -> abt (a ':-> b)
-lam = syn . Lam_ Proxy . binder "_" sing
+lam = syn . Lam_ Proxy . binder (Text.pack "_") sing
 
 {-
 -- some test cases to make sure we tied-the-knot successfully:
@@ -762,7 +763,7 @@ let_
     => abt a
     -> (abt a -> abt b)
     -> abt b
-let_ e = syn . Let_ e . binder "_" sing
+let_ e = syn . Let_ e . binder (Text.pack "_") sing
 
 {-
 -- instance (ABT abt) => Lub abt where

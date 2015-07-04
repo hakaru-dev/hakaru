@@ -54,6 +54,7 @@ module Language.Hakaru.Syntax.ABT
     ) where
 
 import           Data.Typeable     (Typeable)
+import           Data.Text         (Text)
 import           Data.Set          (Set)
 import qualified Data.Set          as Set
 import           Data.Function     (on)
@@ -72,7 +73,6 @@ import Language.Hakaru.Syntax.AST
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 -- TODO: actually define 'Variable' as something legit
--- TODO: use Text instead of String.
 -- TODO: should we make this type abstract?
 --
 -- TODO: maybe have @Variable a@ instead, with @SomeVariable@ to
@@ -92,14 +92,14 @@ import Language.Hakaru.Syntax.AST
 -- is lazy so that we can tie-the-knot in 'binder'. Also, N.B., the
 -- 'Eq' and 'Ord' instances only check the 'varID' and ignore the
 -- 'varName'.
-data Variable = Variable !String Nat
+data Variable = Variable !Text Nat
     deriving (Read, Show)
 
 -- | Project out the string the user suggested as a name for the
 -- variable. N.B., this name does not uniquely identify the variable;
 -- it is only a hint for how to show the variable when we need to
 -- print things out.
-varName :: Variable -> String
+varName :: Variable -> Text
 varName (Variable name _) = name
 
 -- | Project out the unique identifier for the variable.
@@ -544,7 +544,7 @@ bound = boundView . viewABT
 -- interfere with our tying-the-knot).
 binder
     :: (ABT abt)
-    => String                   -- ^ The variable's name hint
+    => Text                     -- ^ The variable's name hint
     -> Sing a                   -- ^ The variable's type
     -> (abt a -> abt b)         -- ^ Build the binder's body from a variable
     -> abt b
@@ -569,7 +569,7 @@ instance Show1 a => Show (IList a xs) where
     show      = show1
 
 data Hint :: Hakaru -> * where
-    Hint :: !String -> !(Sing a) -> Hint a
+    Hint :: !Text -> !(Sing a) -> Hint a
 
 instance Show1 Hint where
     showsPrec1 p (Hint x s) = showParen_01 p "Hint" x s

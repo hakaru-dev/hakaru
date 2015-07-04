@@ -774,9 +774,9 @@ data AST :: (Hakaru -> *) -> Hakaru -> * where
     -- TODO: we'll probably want some more general thing to capture these sorts of patterns. For example, in the default implementation of Uniform we see: @if_ (lo < x && x < hi) (... unsafeFrom_ signed (hi - lo) ...) (...)@
 
     -- We have the constructors for arrays here, so that they're grouped together with our other constructors 'Value_' and 'Datum_'.
+    Empty_ :: AST ast ('HArray a)
     -- TODO: do we really need this to be a binding form, or could it take a Hakaru function for the second argument?
     Array_ :: ast 'HNat -> ast {-'HNat-} a -> AST ast ('HArray a)
-    Empty_ :: AST ast ('HArray a)
 
     -- -- User-defined data types
     -- | A data constructor applied to some expressions. N.B., this
@@ -835,6 +835,7 @@ instance Show1 ast => Show1 (AST ast) where
         Value_      v        -> showParen_0   p "Value_"      v
         CoerceTo_   c e      -> showParen_01  p "CoerceTo_"   c e
         UnsafeFrom_ c e      -> showParen_01  p "UnsafeFrom_" c e
+        Empty_               -> showString      "Empty_"
         Array_      e1 e2    -> showParen_11  p "Array_"      e1 e2
         Datum_      d        -> showParen_1   p "Datum_"      d
         Case_       e bs     ->
@@ -865,6 +866,7 @@ instance Functor1 AST where
     fmap1 _ (Value_      v)        = Value_      v
     fmap1 f (CoerceTo_   c  e)     = CoerceTo_   c      (f e)
     fmap1 f (UnsafeFrom_ c  e)     = UnsafeFrom_ c      (f e)
+    fmap1 _ Empty_                 = Empty_
     fmap1 f (Array_      e1 e2)    = Array_      (f e1) (f e2)
     fmap1 f (Datum_      d)        = Datum_      (fmap1 f d)
     fmap1 f (Case_       e  bs)    = Case_       (f e)  (map (fmap1 f) bs)
@@ -885,6 +887,7 @@ instance Foldable1 AST where
     foldMap1 _ (Value_ _)             = mempty
     foldMap1 f (CoerceTo_   _  e)     = f e
     foldMap1 f (UnsafeFrom_ _  e)     = f e
+    foldMap1 _ Empty_                 = mempty
     foldMap1 f (Array_      e1 e2)    = f e1 `mappend` f e2
     foldMap1 f (Datum_      d)        = foldMap1 f d
     foldMap1 f (Case_       e  bs)    = f e  `mappend` F.foldMap (f . branchBody) bs

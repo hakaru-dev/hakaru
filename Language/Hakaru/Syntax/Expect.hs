@@ -143,9 +143,9 @@ expectAST (Value_  v)    _  =
     VReal  _ -> ExpectReal $ value_ v
     VDatum _ -> ExpectData $ value_ v
 
-expectAST (CoerceTo_   c  e ) xs = error "TODO: expect{CoerceTo_}"
-expectAST (UnsafeFrom_ c  e ) xs = error "TODO: expect{UnsafeFrom_}"
-expectAST Empty_                 = ExpectArray . syn $ Empty_
+expectAST (CoerceTo_   c  e)  xs = error "TODO: expect{CoerceTo_}"
+expectAST (UnsafeFrom_ c  e)  xs = error "TODO: expect{UnsafeFrom_}"
+expectAST Empty_              _  = ExpectArray . syn $ Empty_
 expectAST (Array_      e1 e2) _  = ExpectArray . syn $ Array_ e1 e2
 expectAST (Datum_      d)     _  = ExpectData $ datum_ d
 expectAST (Case_       e  bs) xs = error "TODO: expect{Case_}"
