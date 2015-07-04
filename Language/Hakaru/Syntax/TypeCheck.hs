@@ -47,83 +47,89 @@ import Language.Hakaru.Syntax.ABT
 
 -- | Those terms from which we can synthesize a unique type. We are
 -- also allowed to check them, via the change-of-direction rule.
-inferable :: (ABT abt) => View abt a -> Bool
+inferable :: (ABT abt) => abt a -> Bool
 inferable = not . mustCheck
 
 
 
 -- | Those terms whose types must be checked analytically. We cannot
 -- synthesize (unambiguous) types for these terms.
-mustCheck :: (ABT abt) => View abt a -> Bool
+mustCheck :: (ABT abt) => abt a -> Bool
+mustCheck = go . viewABT
+    where
+    go :: (ABT abt) => View abt a -> Bool
 
--- Actually, since we have the Proxy, we should be able to synthesize
--- here...
-mustCheck (Syn (Lam_ _ _)) = True
+    -- Actually, since we have the Proxy, we should be able to
+    -- synthesize here...
+    go (Syn (Lam_ _ _)) = True
 
--- In general, applications don't require checking; however, for
--- fully saturated data constructors they do (according to neelk).
-mustCheck (Syn (App_ _ _)) = False
+    -- In general, applications don't require checking; however,
+    -- for fully saturated data constructors they do (according to
+    -- neelk).
+    go (Syn (App_ _ _)) = False
 
--- N.B., the TLDI'05 paper says we'll always infer the @e2@ but
--- will check or infer the @e1@ depending on whether it has a type
--- annotation or not. However, Dunfield & Pientka have us always
--- inferring the @e1@ and then checking or inferring the @e2@ as
--- appropriate...
-mustCheck (Syn (Let_ _ e2)) = mustCheck (viewABT e2)
+    -- N.B., the TLDI'05 paper says we'll always infer the @e2@ but
+    -- will check or infer the @e1@ depending on whether it has a
+    -- type annotation or not. However, Dunfield & Pientka have us
+    -- always inferring the @e1@ and then checking or inferring the
+    -- @e2@ as appropriate...
+    go (Syn (Let_ _ e2)) = mustCheck e2
 
--- If our Fix_ had a type annotation on the variable, then we could
--- infer the type by checking the body against that same type...
--- But for now, we'll just have to check.
-mustCheck (Syn (Fix_ e))          = True
+    -- If our Fix_ had a type annotation on the variable, then we
+    -- could infer the type by checking the body against that same
+    -- type... But for now, we'll just have to check.
+    go (Syn (Fix_ e))          = True
 
-mustCheck (Syn (Ann_ _ _))        = False
+    go (Syn (Ann_ _ _))        = False
 
-mustCheck (Syn (PrimOp_ _))       = False
-mustCheck (Syn (NaryOp_ _ _))     = False
-mustCheck (Syn (Value_ _))        = False
+    go (Syn (PrimOp_ _))       = False
+    go (Syn (NaryOp_ _ _))     = False
+    go (Syn (Value_ _))        = False
 
--- TODO: I'm guessing for these two
-mustCheck (Syn (CoerceTo_   _ e)) = mustCheck (viewABT e)
-mustCheck (Syn (UnsafeFrom_ _ e)) = mustCheck (viewABT e)
+    -- TODO: I'm guessing for these two
+    go (Syn (CoerceTo_   _ e)) = mustCheck e
+    go (Syn (UnsafeFrom_ _ e)) = mustCheck e
 
--- I just say this because neelk says all data constructors mustCheck
--- (even though that doesn't seem right to me). TODO: Seems to me
--- that if we can infer the body, then we should be able to infer
--- the whole thing, right? Or maybe the problem is that the
--- change-of-direction rule might send us down the wrong path?
--- Usually I'd assume the binder is what does it, but here we know
--- the type of the bound variable, because it's the same for every
--- Array
-mustCheck (Syn Empty_)       = True
-mustCheck (Syn (Array_ _ _)) = True
+    -- I just say this because neelk says all data constructors
+    -- mustCheck (even though that doesn't seem right to me).
+    -- TODO: Seems to me that if we can infer the body, then we
+    -- should be able to infer the whole thing, right? Or maybe the
+    -- problem is that the change-of-direction rule might send us
+    -- down the wrong path? Usually I'd assume the binder is what
+    -- does it, but here we know the type of the bound variable,
+    -- because it's the same for every Array
+    go (Syn Empty_)       = True
+    go (Syn (Array_ _ _)) = True
 
--- I return true because most folks (neelk, Pfenning, Dunfield &
--- Pientka) say all data constructors mustCheck (even though that
--- doesn't seem right to me; also, cf.,
--- <http://jozefg.bitbucket.org/posts/2014-11-22-bidir.html>).
---
--- TODO: shouldn't we always be able to infer it correctly, supposing
--- that the main components (the children of the 'HakaruFun'
--- constructors) are all inferable? I suppose we would have some
--- trouble inferring the tag\/name for the type...
---
--- In general (according to Dunfield & Pientka), we should be able
--- to infer the result of a fully saturated primop by looking up
--- it's type and then checking all the arguments.
-mustCheck (Syn (Datum_ _)) = True
+    -- I return true because most folks (neelk, Pfenning, Dunfield
+    -- & Pientka) say all data constructors mustCheck (even though
+    -- that doesn't seem right to me; also, cf.,
+    -- <http://jozefg.bitbucket.org/posts/2014-11-22-bidir.html>).
+    --
+    -- TODO: shouldn't we always be able to infer it correctly,
+    -- supposing that the main components (the children of the
+    -- 'HakaruFun' constructors) are all inferable? I suppose we
+    -- would have some trouble inferring the tag\/name for the
+    -- type...
+    --
+    -- In general (according to Dunfield & Pientka), we should be
+    -- able to infer the result of a fully saturated primop by
+    -- looking up it's type and then checking all the arguments.
+    go (Syn (Datum_ _)) = True
 
--- TODO: everyone says this, but it seems to me that if we can infer
--- any of the branches (and check the rest to agree) then we should
--- be able to infer the whole thing... Or maybe the problem is that
--- the change-of-direction rule might send us down the wrong path?
-mustCheck (Syn (Case_ _ _))      = True
+    -- TODO: everyone says this, but it seems to me that if we can
+    -- infer any of the branches (and check the rest to agree) then
+    -- we should be able to infer the whole thing... Or maybe the
+    -- problem is that the change-of-direction rule might send us
+    -- down the wrong path?
+    go (Syn (Case_ _ _))      = True
 
-mustCheck (Syn (Measure_ _))     = False
--- TODO: I'm assuming this works like Let_, but we should make sure...
-mustCheck (Syn (Bind_ _ e2))     = mustCheck (viewABT e2)
-mustCheck (Syn (Superpose_ pes)) = error "TODO: mustCheck(Superpose_)"
-mustCheck (Var  _ _)             = False
-mustCheck (Bind _ _)             = error "mustCheck: you shouldn't be asking about Bind terms" -- Presumably this ought to be an error, rather than False (right?)
+    go (Syn (Measure_ _))     = False
+    -- TODO: I'm assuming this works like Let_, but we should make sure...
+    go (Syn (Bind_ _ e2))     = mustCheck e2
+    go (Syn (Superpose_ pes)) = error "TODO: mustCheck(Superpose_)"
+    go (Var  _ _)             = False
+    go (Bind _ _)             = error "mustCheck: you shouldn't be asking about Bind terms" -- Presumably this ought to be an error, rather than False (right?)
 
 
 ----------------------------------------------------------------
@@ -209,7 +215,7 @@ inferType ctx e =
         -}
 
     Syn (Let_ e1 e2)
-        | inferable (viewABT e1) -> do
+        | inferable e1 -> do
             typ1 <- inferType ctx e1
             -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
             caseBind e2 $ \x e' ->
@@ -244,12 +250,12 @@ inferType ctx e =
         return (singValue v)
 
     Syn (CoerceTo_ c e1)
-        | inferable (viewABT e1) -> do
+        | inferable e1 -> do
             typ <- inferType ctx e1
             return (singCoerceTo c typ)
 
     Syn (UnsafeFrom_ c e1)
-        | inferable (viewABT e1) -> do
+        | inferable e1 -> do
             typ <- inferType ctx e1
             return (singCoerceFrom c typ)
 
@@ -258,7 +264,7 @@ inferType ctx e =
         return (singMeasure o)
 
     Syn (Bind_ e1 e2)
-        | inferable (viewABT e1) -> do
+        | inferable e1 -> do
             -- N.B., that pattern is irrefutable\/complete
             SMeasure typ1 <- inferType ctx e1
             -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
@@ -266,7 +272,7 @@ inferType ctx e =
                 inferType (pushCtx (TV x typ1) ctx) e'
         | otherwise -> error "TODO: inferType{BindA}"
 
-    t   | inferable t -> error "inferType: missing an inferable branch!"
+    _   | inferable e -> error "inferType: missing an inferable branch!"
         | otherwise   -> failwith "Cannot infer types for checking terms; please add a type annotation"
 
 
@@ -287,7 +293,7 @@ checkType ctx e typ =
         _ -> failwith "expected function type"
 
     Syn (Let_ e1 e2)
-        | inferable (viewABT e1) -> do
+        | inferable e1 -> do
             typ1 <- inferType ctx e1
             -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
             caseBind e2 $ \x e' ->
@@ -330,7 +336,7 @@ checkType ctx e typ =
             checkBranch ctx body typ [TP pat typ1]
 
     Syn (Bind_ e1 e2)
-        | inferable (viewABT e1) -> do
+        | inferable e1 -> do
             -- N.B., that pattern is irrefutable\/complete
             SMeasure typ1 <- inferType ctx e1
             -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
@@ -338,7 +344,7 @@ checkType ctx e typ =
                 checkType (pushCtx (TV x typ1) ctx) e' typ
         | otherwise -> error "TODO: checkType{BindA}"
 
-    t   | mustCheck t -> error "checkType: missing an mustCheck branch!"
+    _   | mustCheck e -> error "checkType: missing an mustCheck branch!"
         | otherwise   -> do
             typ' <- inferType ctx e
             -- If we ever get evaluation at the type level, then

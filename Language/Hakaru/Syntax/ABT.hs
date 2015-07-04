@@ -151,7 +151,7 @@ data View :: (Hakaru -> *) -> Hakaru -> * where
 
     Syn  :: !(AST abt a) -> View abt a
 
-    -- HACK: alas we need to keep the Sing in order to make 'subst' typesafe... Is there any way to work around that? Maybe only define substitution for well-typed ABTs (i.e., what we produce via typechecking a plain ABT)? If we can manage to get rid of the Sing, then 'biner' and 'multibinder' would become much simpler.
+    -- HACK: alas we need to keep the Sing in order to make 'subst' typesafe... Is there any way to work around that? Maybe only define substitution for well-typed ABTs (i.e., what we produce via typechecking a plain ABT)? If we can manage to get rid of the Sing, then 'biner' and 'multibinder' would become much simpler. Alas, it looks like we also need it for 'inferType' to be well-typed... How can we avoid that?
     --
     -- TODO: what are the overhead costs of storing a Sing? Would
     -- it be cheaper to store the SingI dictionary (and a Proxy,
@@ -208,7 +208,7 @@ class ABT (abt :: Hakaru -> *) where
     var  :: Variable -> Sing a -> abt a
     bind :: Variable -> abt  a -> abt a
 
-    -- TODO: better name. "unbind"? "caseBind"? "fromBind"?
+    -- TODO: better name. "unbind"? "fromBind"?
     --
     -- When the left side is defined, we have the following laws:
     -- > caseBind e bind == e
