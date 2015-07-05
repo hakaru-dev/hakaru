@@ -23,9 +23,13 @@
 -- The generating functor for the raw syntax, along with various
 -- helper types.
 --
--- TODO: are we finally at the place where we can get rid of all those annoying underscores?
+-- TODO: are we finally at the place where we can get rid of all
+-- those annoying underscores?
 --
--- TODO: what is the runtime cost of storing all these dictionary singletons? For existential type variables, it should be the same as using a type class constraint; but for non-existential type variables it'll, what, double the size of the AST?
+-- TODO: what is the runtime cost of storing all these dictionary
+-- singletons? For existential type variables, it should be the
+-- same as using a type class constraint; but for non-existential
+-- type variables it'll, what, double the size of the AST?
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.AST
     (
@@ -226,7 +230,7 @@ data PrimOp :: Hakaru -> * where
 
 
     -- -- Trigonometry operators
-    Pi    :: PrimOp 'HProb
+    Pi    :: PrimOp 'HProb -- TODO: maybe make this HContinuous polymorphic?
     -- TODO: if we're going to bother naming the hyperbolic ones, why not also name /a?(csc|sec|cot)h?/ eh?
     -- TODO: capture more domain information in these types?
     Sin   :: PrimOp ('HReal ':-> 'HReal)
@@ -262,7 +266,7 @@ data PrimOp :: Hakaru -> * where
     Exp       :: PrimOp ('HReal ':-> 'HProb)
     Log       :: PrimOp ('HProb ':-> 'HReal)
     -- TODO: Log1p, Expm1
-    Infinity  :: PrimOp 'HProb
+    Infinity  :: PrimOp 'HProb -- TODO: maybe make this HContinuous polymorphic?
     NegativeInfinity :: PrimOp 'HReal -- TODO: maybe replace this by @negate (CoerceTo signed (PrimOp_ Infinity))@ ?
     -- TODO: add Factorial as the appropriate type restriction of GammaFunc?
     GammaFunc :: PrimOp ('HReal ':-> 'HProb)
@@ -287,7 +291,7 @@ data PrimOp :: Hakaru -> * where
 
     -- -- Array stuff
     -- TODO: do these really belong here (as PrimOps), in AST, or in their own place (a la Datum)?
-    -- HACK: is there any way we can avoid storing the Sing values here, while still implementing 'sing_PrimOp'?
+    -- HACK: is there any way we can avoid storing the Sing values here, while still implementing 'sing_PrimOp'? Should we have a Hakaru class for the types which can be stored in arrays? might not be a crazy idea...
     Index  :: !(Sing a) -> PrimOp ('HArray a ':-> 'HNat ':-> a)
     Size   :: !(Sing a) -> PrimOp ('HArray a ':-> 'HNat)
     -- The first argument should be a monoid, but we don't enforce
@@ -297,10 +301,9 @@ data PrimOp :: Hakaru -> * where
         -> PrimOp ((a ':-> a ':-> a) ':-> a ':-> 'HArray a ':-> a)
 
 
-    -- -- HOrder operators
+    -- -- HEq and HOrd operators
     -- TODO: equality doesn't make constructive sense on the reals...
     -- would it be better to constructivize our notion of total ordering?
-    -- TODO: what about posets?
     Equal :: !(HEq  a) -> PrimOp (a ':-> a ':-> HBool)
     Less  :: !(HOrd a) -> PrimOp (a ':-> a ':-> HBool)
 
@@ -309,7 +312,7 @@ data PrimOp :: Hakaru -> * where
     NatPow :: !(HSemiring a) -> PrimOp (a ':-> 'HNat ':-> a)
     -- TODO: would it help to have a specialized version for when
     -- we happen to know that the 'HNat is a Value? Same goes for
-    -- the other powers/roots
+    -- the other powers\/roots
     -- TODO: add a specialized version which returns NonNegative when the power is even? N.B., be sure not to actually constrain it to HRing (necessary for calling it \"NonNegative\")
 
 
@@ -347,8 +350,8 @@ data PrimOp :: Hakaru -> * where
     -- more generally:
     -- Law : x = coerceTo_ signed (abs_ x) `scaleBy` signum x
     -- TODO: would it be worth defining the associated type of unit values for @a@? Probably...
-    -- TODO: are there any salient types which support abs/norm but
-    -- do not have all units and thus do not support signum/normalize?
+    -- TODO: are there any salient types which support abs\/norm but
+    -- do not have all units and thus do not support signum\/normalize?
 
 
     -- -- HFractional operators
@@ -401,15 +404,19 @@ sing_PrimOp GammaFunc   = sing
 sing_PrimOp BetaFunc    = sing
 sing_PrimOp Integrate   = sing
 sing_PrimOp Summate     = sing
--- Mere case analysis isn't enough for the rest of these, because of the class constraints. We fix that by various helper functions on explicit dictionary passing.
--- TODO: is there any way to automate building these from their respective @a@ proofs?
+-- Mere case analysis isn't enough for the rest of these, because
+-- of the class constraints. We fix that by various helper functions
+-- on explicit dictionary passing.
+--
+-- TODO: is there any way to automate building these from their
+-- respective @a@ proofs?
 sing_PrimOp (Index  a) = SArray a `SFun` SNat `SFun` a
 sing_PrimOp (Size   a) = SArray a `SFun` SNat
 sing_PrimOp (Reduce a) =
     (a `SFun` a `SFun` a) `SFun` a `SFun` SArray a `SFun` a
 sing_PrimOp (Equal theEq) =
     let a = sing_HEq theEq
-    in a `SFun` a `SFun` sBool
+    in  a `SFun` a `SFun` sBool
 sing_PrimOp (Less theOrd) =
     let a = sing_HOrd theOrd
     in  a `SFun` a `SFun` sBool
@@ -441,7 +448,7 @@ sing_PrimOp (Erf theCont) =
 -- | Primitive distributions\/measures.
 data Measure :: Hakaru -> * where
     -- TODO: should we put Dirac back into the main AST?
-    -- HACK: is there any way we can avoid storing the Sing value here, while still implementing 'sing_Measure'?
+    -- HACK: is there any way we can avoid storing the Sing value here, while still implementing 'sing_Measure'? Should we have a Hakaru class for the types which can be measurable? might not be a crazy idea...
     Dirac       :: !(Sing a) -> Measure (a ':-> 'HMeasure a)
 
     Lebesgue    :: Measure ('HMeasure 'HReal)
@@ -455,7 +462,7 @@ data Measure :: Hakaru -> * where
     Beta        :: Measure ('HProb ':-> 'HProb ':-> 'HMeasure 'HProb)
     -- binomial, mix, geometric, multinomial,... should also be HNat
 
-    -- HACK: is there any way we can avoid storing the Sing values here, while still implementing 'sing_Measure'?
+    -- HACK: is there any way we can avoid storing the Sing values here, while still implementing 'sing_Measure'? Should we have a Hakaru class for the types which can be measurable? might not be a crazy idea...
     DirichletProcess
         :: !(Sing a)
         -> Measure ('HProb ':-> 'HMeasure a ':-> 'HMeasure ('HMeasure a))
