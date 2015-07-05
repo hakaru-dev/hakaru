@@ -128,7 +128,7 @@ instance (HOrd_ a, HOrd_ b) => HOrd_ (HEither a b) where
     hOrd = HOrd_Either hOrd hOrd
 
 
--- TODO: class HPER (a :: Hakaru) -- ?
+-- TODO: class HPER (a :: Hakaru)
 -- TODO: class HPartialOrder (a :: Hakaru)
 
 ----------------------------------------------------------------

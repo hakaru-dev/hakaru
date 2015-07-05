@@ -22,6 +22,7 @@ module Language.Hakaru.Syntax.Coercion
     , signed
     , continuous
     , Coercion(..)
+    , singletonCoercion
     , singCoerceTo
     , singCoerceFrom
     ) where
@@ -56,13 +57,18 @@ deriving instance Show (PrimCoercion a b)
 -- so we'd need to give it as an annotation, which isn't too terrible;
 -- but, (2) it does not allow polymorphic pattern synonyms :(
 
+
+-- | A smart constructor for lifting 'PrimCoercion' into 'Coercion'
+singletonCoercion :: PrimCoercion a b -> Coercion a b
+singletonCoercion c = ConsCoercion c IdCoercion
+
 -- | A smart constructor for 'Signed'.
 signed :: (HRing_ a) => Coercion (NonNegative a) a
-signed = ConsCoercion (Signed hRing) IdCoercion
+signed = singletonCoercion $ Signed hRing
 
 -- | A smart constructor for 'Continuous'.
 continuous :: (HContinuous_ a) => Coercion (HIntegral a) a
-continuous = ConsCoercion (Continuous hContinuous) IdCoercion
+continuous = singletonCoercion $ Continuous hContinuous
 
 
 -- | General proofs of the inclusions in our numeric hierarchy.

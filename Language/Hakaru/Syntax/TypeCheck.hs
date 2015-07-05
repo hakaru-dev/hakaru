@@ -270,8 +270,8 @@ inferType ctx e =
                 inferType (pushCtx (TV x typ1) ctx) e'
         | otherwise -> error "TODO: inferType{BindA}"
 
-    _   | inferable e -> error "inferType: missing an inferable branch!"
-        | otherwise   -> failwith "Cannot infer types for checking terms; please add a type annotation"
+    _   | mustCheck e -> failwith "Cannot infer types for checking terms; please add a type annotation"
+        | otherwise   -> error "inferType: missing an inferable branch!"
 
 
 ----------------------------------------------------------------
@@ -342,8 +342,7 @@ checkType ctx e typ =
                 checkType (pushCtx (TV x typ1) ctx) e' typ
         | otherwise -> error "TODO: checkType{BindA}"
 
-    _   | mustCheck e -> error "checkType: missing an mustCheck branch!"
-        | otherwise   -> do
+    _   | inferable e -> do
             typ' <- inferType ctx e
             -- If we ever get evaluation at the type level, then
             -- (==) should be the appropriate notion of type
@@ -353,6 +352,7 @@ checkType ctx e typ =
             case jmEq typ typ' of
                 Just Refl -> return ()
                 Nothing   -> failwith "Type mismatch"
+        | otherwise -> error "checkType: missing an mustCheck branch!"
 
 
 ----------------------------------------------------------------

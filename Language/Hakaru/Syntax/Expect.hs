@@ -7,7 +7,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.07.02
+--                                                    2015.07.04
 -- |
 -- Module      :  Language.Hakaru.Syntax.Expect
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -27,14 +27,16 @@ module Language.Hakaru.Syntax.Expect
     , expect
     ) where
 
-import Prelude (($), (.), flip, error, Maybe(..))
-import Data.IntMap (IntMap)
+import Prelude (($), (.), id, flip, error, Maybe(..))
+import Data.Sequence         (Seq)
+import Data.IntMap           (IntMap)
 import qualified Data.IntMap as IM
 
 import Language.Hakaru.Syntax.Nat      (fromNat)
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.TypeEq
-import Language.Hakaru.Syntax.Coercion (signed)
+import Language.Hakaru.Syntax.HClasses
+import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Prelude
@@ -55,7 +57,18 @@ expect e = apM $ expect_ e IM.empty
 
 
 ----------------------------------------------------------------
--- We can't do this as a type family, because that cause ambiguity issues
+-- TODO: factor out all the trivial constructors, separating them from ExpectFun and ExpectMeasure
+{-
+type family   IsTrivialExpect (a :: Hakaru) :: Bool
+type instance IsTrivialExpect (unused :: Hakaru) where
+    IsTrivialExpect (a ':-> b)    = 'False
+    IsTrivialExpect ('HMeasure a) = 'False
+    IsTrivialExpect a             = 'True
+
+type TrivialExpect a = IsTrivialExpect a ~ 'True
+-}
+
+-- We can't do this as a type family, because that causes ambiguity issues due to the @abt@ being parametric (but we have no way of explaining that to type families).
 data Expect :: (Hakaru -> *) -> Hakaru -> * where
     ExpectNat   :: abt 'HNat               -> Expect abt 'HNat
     ExpectInt   :: abt 'HInt               -> Expect abt 'HInt
@@ -134,7 +147,7 @@ expectAST (Fix_ e1) xs =
 
 expectAST (Ann_    _ e)  xs = expect_ e xs
 expectAST (PrimOp_ o)    _  = expectPrimOp o
-expectAST (NaryOp_ o es) xs = error "TODO: expect{NaryOp_}"
+expectAST (NaryOp_ o es) _  = expectNaryOp o es
 expectAST (Value_  v)    _  =
     case v of
     VNat   _ -> ExpectNat  $ value_ v
@@ -143,8 +156,8 @@ expectAST (Value_  v)    _  =
     VReal  _ -> ExpectReal $ value_ v
     VDatum _ -> ExpectData $ value_ v
 
-expectAST (CoerceTo_   c  e)  xs = error "TODO: expect{CoerceTo_}"
-expectAST (UnsafeFrom_ c  e)  xs = error "TODO: expect{UnsafeFrom_}"
+expectAST (CoerceTo_   c  e)  xs = expectCoerceTo   c $ expect_ e xs
+expectAST (UnsafeFrom_ c  e)  xs = expectUnsafeFrom c $ expect_ e xs
 expectAST Empty_              _  = ExpectArray . syn $ Empty_
 expectAST (Array_      e1 e2) _  = ExpectArray . syn $ Array_ e1 e2
 expectAST (Datum_      d)     _  = ExpectData $ datum_ d
@@ -290,30 +303,101 @@ expectPrimOp GammaFunc = expectFun1 ExpectProb gammaFunc
 expectPrimOp BetaFunc  = expectFun2 ExpectProb betaFunc
 expectPrimOp Integrate = expectFun3 ExpectProb $ primOp3_ Integrate
 expectPrimOp Summate   = expectFun3 ExpectProb $ primOp3_ Summate
-expectPrimOp (Index   _) = error "TODO: expectPrimOp{Index}" -- The lookup could return an HMeasure or a (':->)...
+expectPrimOp (Index   a) = error "TODO: expectPrimOp{Index}" -- The lookup could return an HMeasure or a (':->)...
 expectPrimOp (Size    a) = expectFun1 ExpectNat . primOp1_ $ Size a
-expectPrimOp (Reduce  _) = error "TODO: expectPrimOp{Reduce}" -- Not sure why this one doesn't typecheck
-expectPrimOp (Equal   a) = expectFun2 ExpectData . primOp2_ $ Equal a
-expectPrimOp (Less    a) = expectFun2 ExpectData . primOp2_ $ Less  a
-expectPrimOp (NatPow  _) = error "TODO: expectPrimOp{NatPow}" -- Need to prove the first argument can't be an HMeasure or HFun before we can use (^)
-expectPrimOp (Negate  _) = error "TODO: expectPrimOp{Negate}" -- Need to prove the argument can't be an HMeasure or HFun before we can use 'negate'
-expectPrimOp (Abs     _) = error "TODO: expectPrimOp{Abs}" -- Need to prove the argument can't be an HMeasure or HFun before we can use 'abs_'
-expectPrimOp (Signum  _) = error "TODO: expectPrimOp{Signum}" -- Need to prove the argument can't be an HMeasure or HFun before we can use 'signum'
-expectPrimOp (Recip   _) = error "TODO: expectPrimOp{Recip}" -- Need to prove the argument can't be an HMeasure or HFun before we can use 'recip'
-expectPrimOp (NatRoot _) = error "TODO: expectPrimOp{NatRoot}" -- Need to prove the argument can't be an HMeasure or HFun before we can use @primOp2_ NatRoot@
-expectPrimOp (Erf     _) = error "TODO: expectPrimOp{Erf}" -- Need to prove the argument can't be an HMeasure or HFun before we can use 'erf'
+expectPrimOp (Reduce  a) = error "TODO: expectPrimOp{Reduce}" -- Not sure why this one doesn't typecheck
+expectPrimOp (Equal theEq)  = expectFun2 ExpectData . primOp2_ $ Equal theEq
+expectPrimOp (Less  theOrd) = expectFun2 ExpectData . primOp2_ $ Less theOrd
 
-{-
-expectNaryOp :: (ABT abt) => NaryOp a -> Expect abt _
-expectNaryOp And  = _
-expectNaryOp Or   = _
-expectNaryOp Xor  = _
-expectNaryOp Iff  = _
-expectNaryOp Min  = _
-expectNaryOp Max  = _
-expectNaryOp Sum  = _
-expectNaryOp Prod = _
--}
+-- TODO: can we abstract over the following pattern somehow? There's too much repetition of what's in HClasses.hs and there's too much boilerplate that's too easy to mess up...
+expectPrimOp (NatPow theSemi) =
+    case theSemi of
+    HSemiring_Nat  -> expectFun2 ExpectNat  . primOp2_ $ NatPow theSemi
+    HSemiring_Int  -> expectFun2 ExpectInt  . primOp2_ $ NatPow theSemi
+    HSemiring_Prob -> expectFun2 ExpectProb . primOp2_ $ NatPow theSemi
+    HSemiring_Real -> expectFun2 ExpectReal . primOp2_ $ NatPow theSemi
+expectPrimOp (Negate theRing) =
+    case theRing of
+    HRing_Int  -> expectFun1 ExpectInt  . primOp1_ $ Negate theRing
+    HRing_Real -> expectFun1 ExpectReal . primOp1_ $ Negate theRing
+expectPrimOp (Abs theRing) =
+    case theRing of
+    HRing_Int  -> expectFun1 ExpectNat  . primOp1_ $ Abs theRing
+    HRing_Real -> expectFun1 ExpectProb . primOp1_ $ Abs theRing
+expectPrimOp (Signum theRing) =
+    case theRing of
+    HRing_Int  -> expectFun1 ExpectInt  . primOp1_ $ Signum theRing
+    HRing_Real -> expectFun1 ExpectReal . primOp1_ $ Signum theRing
+expectPrimOp (Recip theFrac) =
+    case theFrac of
+    HFractional_Prob -> expectFun1 ExpectProb . primOp1_ $ Recip theFrac
+    HFractional_Real -> expectFun1 ExpectReal . primOp1_ $ Recip theFrac
+expectPrimOp (NatRoot theRad) =
+    case theRad of
+    HRadical_Prob -> expectFun2 ExpectProb . primOp2_ $ NatRoot theRad
+expectPrimOp (Erf theCont) =
+    case theCont of
+    HContinuous_Prob -> expectFun1 ExpectProb . primOp1_ $ Erf theCont
+    HContinuous_Real -> expectFun1 ExpectReal . primOp1_ $ Erf theCont
+
+
+-- Neither the arguments nor the result type can be functions nor measures, so we can just return the same thing.
+expectNaryOp :: (ABT abt) => NaryOp a -> Seq (abt a) -> Expect abt a
+expectNaryOp o xs =
+    let self = syn $ NaryOp_ o xs
+        hack = error "expectNaryOp: the impossible happened"
+    in
+    case o of
+    And          -> ExpectData self
+    Or           -> ExpectData self
+    Xor          -> ExpectData self
+    Iff          -> ExpectData self
+    Min  theOrd  -> expectify (sing_HOrd theOrd)       self hack
+    Max  theOrd  -> expectify (sing_HOrd theOrd)       self hack
+    Sum  theSemi -> expectify (sing_HSemiring theSemi) self hack
+    Prod theSemi -> expectify (sing_HSemiring theSemi) self hack
+
+
+expectCoerceTo :: (ABT abt) => Coercion a b -> Expect abt a -> Expect abt b
+expectCoerceTo IdCoercion           = id
+expectCoerceTo (ConsCoercion c1 c2) =
+    expectCoerceTo c2 . expectPrimCoerceTo c1
+
+-- TODO: how to avoid all this boilerplate?
+expectPrimCoerceTo
+    :: (ABT abt) => PrimCoercion a b -> Expect abt a -> Expect abt b
+expectPrimCoerceTo (Signed HRing_Int) (ExpectNat e) =
+    ExpectInt $ coerceTo_ (singletonCoercion $ Signed HRing_Int) e
+expectPrimCoerceTo (Signed HRing_Real) (ExpectProb e) =
+    ExpectReal $ coerceTo_ (singletonCoercion $ Signed HRing_Real) e
+expectPrimCoerceTo (Continuous HContinuous_Prob) (ExpectNat e) =
+    ExpectProb $ coerceTo_
+        (singletonCoercion $ Continuous HContinuous_Prob) e
+expectPrimCoerceTo (Continuous HContinuous_Real) (ExpectInt e) =
+    ExpectReal $ coerceTo_
+        (singletonCoercion $ Continuous HContinuous_Real) e
+expectPrimCoerceTo _ _ = error "expectPrimCoerceTo: the impossible happened"
+
+expectUnsafeFrom
+    :: (ABT abt) => Coercion a b -> Expect abt b -> Expect abt a
+expectUnsafeFrom IdCoercion           = id
+expectUnsafeFrom (ConsCoercion c1 c2) =
+    expectPrimUnsafeFrom c1 . expectUnsafeFrom c2
+
+-- TODO: how to avoid all this boilerplate?
+expectPrimUnsafeFrom
+    :: (ABT abt) => PrimCoercion a b -> Expect abt b -> Expect abt a
+expectPrimUnsafeFrom (Signed HRing_Int) (ExpectInt e) =
+    ExpectNat $ unsafeFrom_ (singletonCoercion $ Signed HRing_Int) e
+expectPrimUnsafeFrom (Signed HRing_Real) (ExpectReal e) =
+    ExpectProb $ unsafeFrom_ (singletonCoercion $ Signed HRing_Real) e
+expectPrimUnsafeFrom (Continuous HContinuous_Prob) (ExpectProb e) =
+    ExpectNat $ unsafeFrom_
+        (singletonCoercion $ Continuous HContinuous_Prob) e
+expectPrimUnsafeFrom (Continuous HContinuous_Real) (ExpectReal e) =
+    ExpectInt $ unsafeFrom_
+        (singletonCoercion $ Continuous HContinuous_Real) e
+expectPrimUnsafeFrom _ _ = error "expectPrimCoerceTo: the impossible happened"
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

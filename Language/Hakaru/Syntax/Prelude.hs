@@ -162,11 +162,24 @@ infixr 8 ^, ^^, ** -- ^+, ^*
 ann_ :: (ABT abt) => Sing a -> abt a -> abt a
 ann_ = (syn .) . Ann_
 
+-- TODO: cancellation; constant coercion
 coerceTo_ :: (ABT abt) => Coercion a b -> abt a -> abt b
-coerceTo_ = (syn .) . CoerceTo_
+coerceTo_ c e =
+    caseVarSyn e
+        (\_ _ -> syn $ CoerceTo_ c e)
+        $ \t  ->
+            case t of
+            CoerceTo_ c' e' -> syn $ CoerceTo_ (c . c') e'
+            _               -> syn $ CoerceTo_ c e
 
 unsafeFrom_ :: (ABT abt) => Coercion a b -> abt b -> abt a
-unsafeFrom_ = (syn .) . UnsafeFrom_
+unsafeFrom_ c e =
+    caseVarSyn e
+        (\_ _ -> syn $ UnsafeFrom_ c e)
+        $ \t  ->
+            case t of
+            UnsafeFrom_ c' e' -> syn $ UnsafeFrom_ (c' . c) e'
+            _                 -> syn $ UnsafeFrom_ c e
 
 value_ :: (ABT abt) => Value a  -> abt a
 value_ = syn . Value_
