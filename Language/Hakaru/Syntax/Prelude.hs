@@ -371,6 +371,7 @@ recip e0 =
 
 
 -- TODO: simplifications
+-- TODO: a variant of 'if_' which gives us the evidence that the argument is non-negative, so we don't need to coerce or use 'abs_'
 (^^) :: (ABT abt, HFractional_ a) => abt a -> abt 'HInt -> abt a
 x ^^ y =
     if_ (y < int_ 0)
@@ -629,6 +630,9 @@ reduce
     -> abt a
 reduce f = primOp3_ (Reduce sing) (lam $ \x -> lam $ \y -> f x y)
 
+-- TODO: better names for all these. The \"V\" suffix doesn't make sense anymore since we're calling these arrays, not vectors...
+-- TODO: bust these all out into their own place, since the API for arrays is gonna be huge
+
 -- BUG: remove the 'SingI' requirement!
 sumV :: (ABT abt, HSemiring_ a, SingI a) =>  abt ('HArray a) -> abt a
 sumV = reduce (+) zero -- equivalent to summateV if @a ~ 'HProb@
@@ -637,6 +641,28 @@ summateV :: (ABT abt) => abt ('HArray 'HProb) -> abt 'HProb
 summateV x =
     summate (real_ 0) (fromInt $ nat2int (size x) - int_ 1)
         (\i -> x ! unsafeFrom_ signed i)
+
+
+unsafeMinus :: (ABT abt) => abt 'HNat -> abt 'HNat -> abt 'HNat
+unsafeMinus x y =
+    unsafeFrom_ signed (nat2int x - nat2int y)
+
+-- BUG: remove the 'SingI' requirement!
+-- TODO: a variant of 'if_' for giving us evidence that the subtraction is sound.
+appendV
+    :: (ABT abt, SingI a)
+    => abt ('HArray a) -> abt ('HArray a) -> abt ('HArray a)
+appendV v1 v2 =
+    array (size v1 + size v2) $ \i ->
+        if_ (i < size v1)
+            (v1 ! i)
+            (v2 ! (i `unsafeMinus` size v1))
+
+-- BUG: remove the 'SingI' requirement!
+mapV
+    :: (ABT abt, SingI a)
+    => (abt a -> abt b) -> abt ('HArray a) -> abt ('HArray b)
+mapV f v = array (size v) $ \i -> f (v ! i)
 
 ----------------------------------------------------------------
 -- instance (ABT abt) => Mochastic (abt) where
@@ -648,8 +674,13 @@ summateV x =
 (>>=) e = syn . Bind_ e . binder (Text.pack "_") sing
 
 -- BUG: remove the 'SingI' requirement!
-dirac    :: (ABT abt, SingI a) => abt a -> abt ('HMeasure a)
-dirac    = measure1_ $ Dirac sing
+dirac :: (ABT abt, SingI a) => abt a -> abt ('HMeasure a)
+dirac = measure1_ $ Dirac sing
+
+-- BUG: remove the 'SingI' requirement!
+weightedDirac
+    :: (ABT abt, SingI a) => abt a -> abt 'HProb -> abt ('HMeasure a)
+weightedDirac e p = superpose [(p, dirac e)]
 
 lebesgue :: (ABT abt) => abt ('HMeasure 'HReal)
 lebesgue = measure0_ Lebesgue
@@ -663,19 +694,20 @@ superpose
     -> abt ('HMeasure a)
 superpose = syn . Superpose_
 
-categorical
+assert_ :: (ABT abt) => abt HBool -> abt ('HMeasure a) -> abt ('HMeasure a)
+assert_ b m = if_ b m $ superpose []
+
+categorical, categorical'
     :: (ABT abt)
     => abt ('HArray 'HProb)
     -> abt ('HMeasure 'HNat)
 categorical = measure1_ Categorical
-{-
--- TODO: need to insert the coercion in the right place... Also, implement 'weight' and 'sumV'
+
+-- TODO: a variant of 'if_' which gives us the evidence that the argument is non-negative, so we don't need to coerce or use 'abs_'
 categorical' v =
     counting >>= \i ->
-    if_ (i >= 0 && i < size v)
-        (weight (v!i / sumV v) (dirac i))
-        (superpose [])
--}
+    assert_ (i >= int_ 0 && i < nat2int (size v))
+        $ weightedDirac (abs_ i) (v ! abs_ i / sumV v)
 
 
 -- TODO: make Uniform polymorphic, so that if the two inputs are
@@ -689,10 +721,9 @@ uniform = measure2_ Uniform
 
 uniform' lo hi = 
     lebesgue >>= \x ->
-    if_ (lo < x && x < hi)
+    assert_ (lo < x && x < hi)
         -- TODO: how can we capture that this 'unsafeProb' is safe? (and that this 'recip' isn't Infinity, for that matter)
-        (superpose [(recip (unsafeProb (hi - lo)), dirac x)])
-        (superpose [])
+        $ weightedDirac x (recip . unsafeProb $ hi - lo)
 
 
 normal, normal'
@@ -704,13 +735,11 @@ normal = measure2_ Normal
 
 normal' mu sd  = 
     lebesgue >>= \x ->
-    superpose
+    weightedDirac x
         -- alas, we loose syntactic negation...
-        [( exp (negate ((x - mu) ^ nat_ 2)  -- TODO: use negative\/square instead of negate\/(^2)
+        $ exp (negate ((x - mu) ^ nat_ 2)  -- TODO: use negative\/square instead of negate\/(^2)
             / fromProb (prob_ 2 * sd ** real_ 2)) -- TODO: use square instead of (**2) ?
             / sd / sqrt (prob_ 2 * pi)
-        , dirac x
-        )]
 
 
 poisson, poisson' :: (ABT abt) => abt 'HProb -> abt ('HMeasure 'HNat)
@@ -719,14 +748,11 @@ poisson = measure1_ Poisson
 poisson' l = 
     counting >>= \x ->
     -- TODO: use 'SafeFrom_' instead of @if_ (x >= int_ 0)@ so we can prove that @unsafeFrom_ signed x@ is actually always safe.
-    if_ (x >= int_ 0 && prob_ 0 < l) -- BUG: do you mean @l /= 0@? why use (>=) instead of (<=)?
-        (superpose
-            [( l ** fromInt x -- BUG: why do you use (**) instead of (^^)?
+    assert_ (x >= int_ 0 && prob_ 0 < l) -- BUG: do you mean @l /= 0@? why use (>=) instead of (<=)?
+        $ weightedDirac (unsafeFrom_ signed x)
+            $ l ** fromInt x -- BUG: why do you use (**) instead of (^^)?
                 / gammaFunc (fromInt x + real_ 1) -- TODO: use factorial instead of gammaFunc...
                 / exp l
-            , dirac (unsafeFrom_ signed x)
-            )])
-        (superpose [])
 
 
 gamma, gamma'
@@ -739,15 +765,12 @@ gamma = measure2_ Gamma
 gamma' shape scale =
     lebesgue >>= \x ->
     -- TODO: use 'SafeFrom_' instead of @if_ (real_ 0 < x)@ so we can prove that @unsafeProb x@ is actually always safe. Of course, then we'll need to mess around with checking (/=0) which'll get ugly... Use another SafeFrom_ with an associated NonZero type?
-    if_ (real_ 0 < x)
-        (let x_ = unsafeProb x in
-         superpose
-            [( x_ ** (fromProb shape - real_ 1)
+    assert_ (real_ 0 < x)
+        $ let x_ = unsafeProb x in
+         weightedDirac x_
+            $ x_ ** (fromProb shape - real_ 1)
                 * exp (negate . fromProb $ x_ / scale)
                 / (scale ** shape * gammaFunc shape)
-            , dirac x_
-            )])
-        (superpose [])
 
 
 beta, beta'
@@ -761,12 +784,10 @@ beta' a b =
     -- TODO: make Uniform polymorphic, so that if the two inputs are HProb then we know the measure must be over HProb too, and hence @unsafeProb x@ must always be safe. Alas, capturing the safety of @unsafeProb (1-x)@ would take a lot more work...
     uniform (real_ 0) (real_ 1) >>= \x ->
     let x_ = unsafeProb x in
-    superpose
-        [( x_ ** (fromProb a - real_ 1)
+    weightedDirac x_
+        $ x_ ** (fromProb a - real_ 1)
             * unsafeProb (real_ 1 - x) ** (fromProb b - real_ 1)
             / betaFunc a b
-        , dirac x_
-        )]
 
 -- BUG: remove the 'SingI' requirement!
 dp  :: (ABT abt, SingI a)
@@ -785,7 +806,7 @@ plate = measure1_ $ Plate sing
 -- TODO: the array stuff...
 plate' v = reduce r z (mapV m v)
     where
-    r   = liftM2 concatV
+    r   = liftM2 appendV
     z   = dirac empty
     m a = liftM (array (nat_ 1) . const) a
 -}
@@ -805,9 +826,9 @@ chain' v = reduce r z (mapV m v)
             unpair v1s1 $ \v1 s1 ->
             app y s1 >>= \v2s2 ->
             unpair v2s2 $ \v2 s2 ->
-            dirac (pair (concatV v1 v2) s2)
+            dirac (pair (appendV v1 v2) s2)
     z     = lam $ \s -> dirac (pair empty s)
-    m a   = lam $ \s -> liftM (`unpair` pair . vector 1 . const) (app a s)
+    m a   = lam $ \s -> liftM (`unpair` pair . array 1 . const) (app a s)
 -}
 
 

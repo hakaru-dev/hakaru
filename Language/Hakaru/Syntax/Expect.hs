@@ -7,7 +7,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.07.04
+--                                                    2015.07.05
 -- |
 -- Module      :  Language.Hakaru.Syntax.Expect
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -68,6 +68,7 @@ type instance IsTrivialExpect (unused :: Hakaru) where
 type TrivialExpect a = IsTrivialExpect a ~ 'True
 -}
 
+-- TODO: we accidentally rediscovered NBE (for functions). Should we do NBE for the \"trivial\" types too? That cuts to the chase of needing an interpreter for 'Case_'... (of course, NBE doesn't work so well for open terms...) Or maybe we should just NBE things away before calling 'expect'?
 -- We can't do this as a type family, because that causes ambiguity issues due to the @abt@ being parametric (but we have no way of explaining that to type families).
 data Expect :: (Hakaru -> *) -> Hakaru -> * where
     ExpectNat   :: abt 'HNat               -> Expect abt 'HNat
@@ -81,7 +82,11 @@ data Expect :: (Hakaru -> *) -> Hakaru -> * where
         :: ((abt a -> abt 'HProb) -> abt 'HProb)
         -> Expect abt ('HMeasure a)
 
--- TODO: a general function for converting Expect back into plain Haskell functions. We may need to define a type family that mirrors the Expect datatype, and then enable -XAllowAmbiguousTypes to be able to use it...
+-- TODO: a general function for converting Expect back into plain
+-- Haskell functions; we could call it \"expectify\", to pun on the
+-- reify\/reflect of NBE. We may need to define a type family that
+-- mirrors the Expect datatype, and then enable -XAllowAmbiguousTypes
+-- to be able to use it...
 
 apF :: Expect abt (a ':-> b) -> abt a -> Expect abt b
 apF (ExpectFun f) x = f x
@@ -103,6 +108,9 @@ getSing :: (ABT abt) => abt a -> Sing a
 getSing _ = error "TODO: get singletons of anything after typechecking"
 
 
+-- | Reflect a term into it's expectation semantics. In particular,
+-- this function handles variables; everything else is handed off
+-- to the 'expectAST' or 'expectSing' helper functions.
 expect_ :: (ABT abt) => abt a -> Env abt -> Expect abt a
 expect_ e xs =
     flip (caseVarSyn e)
@@ -114,18 +122,23 @@ expect_ e xs =
                 let b = getSing e' in
                 case jmEq a b of
                 Nothing   -> error "expect: ill-typed environment"
-                Just Refl -> expectify b e' xs
+                Just Refl -> expectSing b e' xs
 
 
-expectify :: (ABT abt) => Sing a -> abt a -> Env abt -> Expect abt a
-expectify SNat         e _  = ExpectNat   e
-expectify SInt         e _  = ExpectInt   e
-expectify SProb        e _  = ExpectProb  e
-expectify SReal        e _  = ExpectReal  e
-expectify (SData  _ _) e _  = ExpectData  e
-expectify (SArray   _) e _  = ExpectArray e
-expectify (SFun   _ s) e xs = ExpectFun $ \x -> expectify s (e `app` x) xs
-expectify (SMeasure _) e xs = expect_ e xs
+-- | A singleton-directed variant of 'expect_'. This function just
+-- does the bare minimum necessary for wrapping an @abt@ up in
+-- 'Expect'. In particular, the environment is only ever used if
+-- the term's type is an @n@-ary function (including where @n=0@)
+-- returning a measure.
+expectSing :: (ABT abt) => Sing a -> abt a -> Env abt -> Expect abt a
+expectSing SNat         e _  = ExpectNat   e
+expectSing SInt         e _  = ExpectInt   e
+expectSing SProb        e _  = ExpectProb  e
+expectSing SReal        e _  = ExpectReal  e
+expectSing (SData  _ _) e _  = ExpectData  e
+expectSing (SArray   _) e _  = ExpectArray e
+expectSing (SFun   _ s) e xs = ExpectFun $ \x -> expectSing s (e `app` x) xs
+expectSing (SMeasure _) e xs = expect_ e xs
 
 
 expectAST :: (ABT abt) => AST abt a -> Env abt -> Expect abt a
@@ -145,17 +158,15 @@ expectAST (Fix_ e1) xs =
     caseBind e1 $ \x e' ->
     expect_ e' $ pushEnv (V x e1) xs -- BUG: looping?
 
-expectAST (Ann_    _ e)  xs = expect_ e xs
-expectAST (PrimOp_ o)    _  = expectPrimOp o
-expectAST (NaryOp_ o es) _  = expectNaryOp o es
-expectAST (Value_  v)    _  =
-    case v of
-    VNat   _ -> ExpectNat  $ value_ v
-    VInt   _ -> ExpectInt  $ value_ v
-    VProb  _ -> ExpectProb $ value_ v
-    VReal  _ -> ExpectReal $ value_ v
-    VDatum _ -> ExpectData $ value_ v
+expectAST (Ann_        _ e)   xs = expect_ e xs
+expectAST (PrimOp_     o)     xs =
+    expectSing (sing_PrimOp o) (syn $ PrimOp_ o) xs
+    -- TODO: we should beware of 'Index' and 'Reduce'. They may need evaluating if they happen to return functions or measures
 
+expectAST (NaryOp_     o es)  xs =
+    expectSing (sing_NaryOp o) (syn $ NaryOp_ o es) xs
+
+expectAST (Value_      v)     xs = expectSing (sing_Value v) (value_ v) xs
 expectAST (CoerceTo_   c  e)  xs = expectCoerceTo   c $ expect_ e xs
 expectAST (UnsafeFrom_ c  e)  xs = expectUnsafeFrom c $ expect_ e xs
 expectAST Empty_              _  = ExpectArray . syn $ Empty_
@@ -250,119 +261,14 @@ expectMeasure (Chain _ _) =
     error "TODO: expectMeasure{Chain}"
 
 
-expectFun1 :: (s -> Expect abt b) -> (abt a -> s) -> Expect abt (a ':-> b)
-expectFun1 h f =
-    ExpectFun $ \x ->
-    h $ f x
 
-expectFun2
-    :: (s -> Expect abt c)
-    -> (abt a -> abt b -> s)
-    -> Expect abt (a ':-> b ':-> c)
-expectFun2 h f =
-    ExpectFun $ \x ->
-    ExpectFun $ \y ->
-    h $ f x y
-
-expectFun3
-    :: (s -> Expect abt d)
-    -> (abt a -> abt b -> abt c -> s)
-    -> Expect abt (a ':-> b ':-> c ':-> d)
-expectFun3 h f =
-    ExpectFun $ \x ->
-    ExpectFun $ \y ->
-    ExpectFun $ \z ->
-    h $ f x y z
-
-expectPrimOp :: (ABT abt) => PrimOp a -> Expect abt a
-expectPrimOp Not       = expectFun1 ExpectData not
-expectPrimOp Impl      = expectFun2 ExpectData $ primOp2_ Impl
-expectPrimOp Diff      = expectFun2 ExpectData $ primOp2_ Diff
-expectPrimOp Nand      = expectFun2 ExpectData nand
-expectPrimOp Nor       = expectFun2 ExpectData nor
-expectPrimOp Pi        = ExpectProb pi
-expectPrimOp Sin       = expectFun1 ExpectReal sin
-expectPrimOp Cos       = expectFun1 ExpectReal cos
-expectPrimOp Tan       = expectFun1 ExpectReal tan
-expectPrimOp Asin      = expectFun1 ExpectReal asin
-expectPrimOp Acos      = expectFun1 ExpectReal acos
-expectPrimOp Atan      = expectFun1 ExpectReal atan
-expectPrimOp Sinh      = expectFun1 ExpectReal sinh
-expectPrimOp Cosh      = expectFun1 ExpectReal cosh
-expectPrimOp Tanh      = expectFun1 ExpectReal tanh
-expectPrimOp Asinh     = expectFun1 ExpectReal asinh
-expectPrimOp Acosh     = expectFun1 ExpectReal acosh
-expectPrimOp Atanh     = expectFun1 ExpectReal atanh
-expectPrimOp RealPow   = expectFun2 ExpectProb (**)
-expectPrimOp Exp       = expectFun1 ExpectProb exp
-expectPrimOp Log       = expectFun1 ExpectReal log
-expectPrimOp Infinity         = ExpectProb infinity
-expectPrimOp NegativeInfinity = ExpectReal negativeInfinity
-expectPrimOp GammaFunc = expectFun1 ExpectProb gammaFunc
-expectPrimOp BetaFunc  = expectFun2 ExpectProb betaFunc
-expectPrimOp Integrate = expectFun3 ExpectProb $ primOp3_ Integrate
-expectPrimOp Summate   = expectFun3 ExpectProb $ primOp3_ Summate
-expectPrimOp (Index   a) = error "TODO: expectPrimOp{Index}" -- The lookup could return an HMeasure or a (':->)...
-expectPrimOp (Size    a) = expectFun1 ExpectNat . primOp1_ $ Size a
-expectPrimOp (Reduce  a) = error "TODO: expectPrimOp{Reduce}" -- Not sure why this one doesn't typecheck
-expectPrimOp (Equal theEq)  = expectFun2 ExpectData . primOp2_ $ Equal theEq
-expectPrimOp (Less  theOrd) = expectFun2 ExpectData . primOp2_ $ Less theOrd
-
--- TODO: can we abstract over the following pattern somehow? There's too much repetition of what's in HClasses.hs and there's too much boilerplate that's too easy to mess up...
-expectPrimOp (NatPow theSemi) =
-    case theSemi of
-    HSemiring_Nat  -> expectFun2 ExpectNat  . primOp2_ $ NatPow theSemi
-    HSemiring_Int  -> expectFun2 ExpectInt  . primOp2_ $ NatPow theSemi
-    HSemiring_Prob -> expectFun2 ExpectProb . primOp2_ $ NatPow theSemi
-    HSemiring_Real -> expectFun2 ExpectReal . primOp2_ $ NatPow theSemi
-expectPrimOp (Negate theRing) =
-    case theRing of
-    HRing_Int  -> expectFun1 ExpectInt  . primOp1_ $ Negate theRing
-    HRing_Real -> expectFun1 ExpectReal . primOp1_ $ Negate theRing
-expectPrimOp (Abs theRing) =
-    case theRing of
-    HRing_Int  -> expectFun1 ExpectNat  . primOp1_ $ Abs theRing
-    HRing_Real -> expectFun1 ExpectProb . primOp1_ $ Abs theRing
-expectPrimOp (Signum theRing) =
-    case theRing of
-    HRing_Int  -> expectFun1 ExpectInt  . primOp1_ $ Signum theRing
-    HRing_Real -> expectFun1 ExpectReal . primOp1_ $ Signum theRing
-expectPrimOp (Recip theFrac) =
-    case theFrac of
-    HFractional_Prob -> expectFun1 ExpectProb . primOp1_ $ Recip theFrac
-    HFractional_Real -> expectFun1 ExpectReal . primOp1_ $ Recip theFrac
-expectPrimOp (NatRoot theRad) =
-    case theRad of
-    HRadical_Prob -> expectFun2 ExpectProb . primOp2_ $ NatRoot theRad
-expectPrimOp (Erf theCont) =
-    case theCont of
-    HContinuous_Prob -> expectFun1 ExpectProb . primOp1_ $ Erf theCont
-    HContinuous_Real -> expectFun1 ExpectReal . primOp1_ $ Erf theCont
-
-
--- Neither the arguments nor the result type can be functions nor measures, so we can just return the same thing.
-expectNaryOp :: (ABT abt) => NaryOp a -> Seq (abt a) -> Expect abt a
-expectNaryOp o xs =
-    let self = syn $ NaryOp_ o xs
-        hack = error "expectNaryOp: the impossible happened"
-    in
-    case o of
-    And          -> ExpectData self
-    Or           -> ExpectData self
-    Xor          -> ExpectData self
-    Iff          -> ExpectData self
-    Min  theOrd  -> expectify (sing_HOrd theOrd)       self hack
-    Max  theOrd  -> expectify (sing_HOrd theOrd)       self hack
-    Sum  theSemi -> expectify (sing_HSemiring theSemi) self hack
-    Prod theSemi -> expectify (sing_HSemiring theSemi) self hack
-
-
+-- TODO: how to avoid all this boilerplate?
 expectCoerceTo :: (ABT abt) => Coercion a b -> Expect abt a -> Expect abt b
 expectCoerceTo IdCoercion           = id
 expectCoerceTo (ConsCoercion c1 c2) =
     expectCoerceTo c2 . expectPrimCoerceTo c1
 
--- TODO: how to avoid all this boilerplate?
+
 expectPrimCoerceTo
     :: (ABT abt) => PrimCoercion a b -> Expect abt a -> Expect abt b
 expectPrimCoerceTo (Signed HRing_Int) (ExpectNat e) =
@@ -377,13 +283,14 @@ expectPrimCoerceTo (Continuous HContinuous_Real) (ExpectInt e) =
         (singletonCoercion $ Continuous HContinuous_Real) e
 expectPrimCoerceTo _ _ = error "expectPrimCoerceTo: the impossible happened"
 
+
 expectUnsafeFrom
     :: (ABT abt) => Coercion a b -> Expect abt b -> Expect abt a
 expectUnsafeFrom IdCoercion           = id
 expectUnsafeFrom (ConsCoercion c1 c2) =
     expectPrimUnsafeFrom c1 . expectUnsafeFrom c2
 
--- TODO: how to avoid all this boilerplate?
+
 expectPrimUnsafeFrom
     :: (ABT abt) => PrimCoercion a b -> Expect abt b -> Expect abt a
 expectPrimUnsafeFrom (Signed HRing_Int) (ExpectInt e) =
