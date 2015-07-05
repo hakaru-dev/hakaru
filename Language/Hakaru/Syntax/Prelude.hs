@@ -5,11 +5,12 @@
            , GADTs
            , FlexibleInstances
            , NoImplicitPrelude
+           , ScopedTypeVariables
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.06.30
+--                                                    2015.07.04
 -- |
 -- Module      :  Language.Hakaru.Syntax.Prelude
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -83,8 +84,6 @@ measure2_ :: (ABT abt) => Measure (a ':-> b ':-> c) -> abt a -> abt b -> abt c
 measure2_ = app2 . measure0_
 
 
-
-
 -- N.B., we don't take advantage of commutativity, for more predictable
 -- AST outputs. However, that means we can end up being slow...
 --
@@ -134,15 +133,14 @@ matchNaryOp o e =
 
 
 ----------------------------------------------------------------
+----------------------------------------------------------------
 ----- Now for the actual EDSL
 
 {-
-infixl 1 `bind`, `bind_`, `bindx`
-infix  4 `less`, `equal`, `less_`, `equal_`
 infixl 9 `app`
 infixr 9 `pair`
 
-infixl 1 >>=, >>
+infixl 1 >>
 infixr 1 =<<
 infixr 1 <=<, >=>
 infixr 9 .
@@ -249,17 +247,20 @@ maximum = unsafeNaryOp_ $ Max hOrd
 (+) = naryOp2_ $ Sum  hSemiring
 (*) = naryOp2_ $ Prod hSemiring
 
-{-
--- TODO
+-- TODO: more legit implementations for these two
 zero, one :: (ABT abt, HSemiring_ a) => abt a
+zero = syn $ NaryOp_ (Sum  hSemiring) Seq.empty
+one  = syn $ NaryOp_ (Prod hSemiring) Seq.empty
 
 sum, product :: (ABT abt, HSemiring_ a) => [abt a] -> abt a
-sum     = naryOp_withIdentity Sum  zero
-product = naryOp_withIdentity Prod one
--}
+sum     = naryOp_withIdentity (Sum  hSemiring)  zero
+product = naryOp_withIdentity (Prod hSemiring) one
+
+{-
 sum, product :: (ABT abt, HSemiring_ a) => [abt a] -> abt a
 sum     = unsafeNaryOp_ $ Sum  hSemiring
 product = unsafeNaryOp_ $ Prod hSemiring
+-}
 
 
 -- TODO: simplifications
@@ -378,16 +379,13 @@ x ^^ y =
 
 
 -- HRadical operators
+-- N.B., HProb is the only HRadical type (for now...)
 -- TODO: simplifications
 thRootOf :: (ABT abt, HRadical_ a) => abt 'HNat -> abt a -> abt a
 n `thRootOf` x = primOp2_ (NatRoot hRadical) x n
 
--- N.B., HProb is the only HRadical type (for now...)
 sqrt :: (ABT abt, HRadical_ a) => abt a -> abt a
 sqrt = (nat_ 2 `thRootOf`)
-
-betaFunc :: (ABT abt) => abt 'HProb -> abt 'HProb -> abt 'HProb
-betaFunc = primOp2_ BetaFunc
 
 {-
 -- TODO: simplifications
@@ -397,6 +395,29 @@ x ^+ y = casePositiveRational y $ \n d -> d `thRootOf` (x ^ n)
 (^*) :: (ABT abt, HRadical_ a) => abt a -> abt 'HRational -> abt a
 x ^* y = caseRational y $ \n d -> d `thRootOf` (x ^^ n)
 -}
+
+betaFunc :: (ABT abt) => abt 'HProb -> abt 'HProb -> abt 'HProb
+betaFunc = primOp2_ BetaFunc
+
+-- instance (ABT abt) => Integrate abt where
+integrate
+    :: (ABT abt)
+    => abt 'HReal
+    -> abt 'HReal
+    -> (abt 'HReal -> abt 'HProb)
+    -> abt 'HProb
+integrate lo hi f =
+    primOp3_ Integrate lo hi (lam f)
+
+summate
+    :: (ABT abt)
+    => abt 'HReal
+    -> abt 'HReal
+    -> (abt 'HInt -> abt 'HProb)
+    -> abt 'HProb
+summate lo hi f =
+    primOp3_ Summate lo hi (lam f)
+
 
 -- HACK: we define this class in order to gain more polymorphism;
 -- but, will it cause type inferencing issues? Excepting 'log'
@@ -415,18 +436,18 @@ instance RealProb 'HReal where
     exp       = primOp1_ Exp
     log       = primOp1_ Log
     erf       = primOp1_ $ Erf hContinuous
-    pi        = coerceTo_ signed $ primOp0_ Pi
-    infinity  = coerceTo_ signed $ primOp0_ Infinity
+    pi        = fromProb $ primOp0_ Pi
+    infinity  = fromProb $ primOp0_ Infinity
     gammaFunc = primOp1_ GammaFunc
 
 instance RealProb 'HProb where
-    x ** y    = primOp2_ RealPow x (coerceTo_ signed y)
-    exp       = primOp1_ Exp . coerceTo_ signed
-    log       = unsafeFrom_ signed . primOp1_ Log -- error for inputs in [0,1)
+    x ** y    = primOp2_ RealPow x $ fromProb y
+    exp       = primOp1_ Exp . fromProb
+    log       = unsafeProb . primOp1_ Log -- error for inputs in [0,1)
     erf       = primOp1_ $ Erf hContinuous
     pi        = primOp0_ Pi
     infinity  = primOp0_ Infinity
-    gammaFunc = primOp1_ GammaFunc . coerceTo_ signed
+    gammaFunc = primOp1_ GammaFunc . fromProb
 
 logBase
     :: (ABT abt, RealProb a, HFractional_ a)
@@ -450,8 +471,9 @@ asinh  = primOp1_ Asinh
 acosh  = primOp1_ Acosh
 atanh  = primOp1_ Atanh
 
--- instance (ABT abt) => Base abt where not already defined above
 
+----------------------------------------------------------------
+-- the datatypes component of instance (ABT abt) => Base abt
 datum_
     :: (ABT abt)
     => Datum abt ('HData t (Code t))
@@ -465,20 +487,27 @@ pair   :: (ABT abt) => abt a -> abt b -> abt (HPair a b)
 pair   = (datum_ .) . dPair
 
 
-freshVar :: (ABT abt) => (Variable -> abt a) -> abt a
-freshVar k =
-    k $ error "TODO: figure out how to implement freshVar"
+-- BUG: N.B., this doesn't work when @a@ or @b@ are HData, because the SingI instance for Symbol isn't implemented! (But other than that, this seems to work...)
 unpair
-    :: (ABT abt, SingI a, SingI b)
+    :: forall abt a b c
+    .  (ABT abt, SingI a, SingI b)
     => abt (HPair a b)
     -> (abt a -> abt b -> abt c)
     -> abt c
-unpair e f = 
-    freshVar $ \x ->
-    freshVar $ \y ->
-    syn $ Case_ e
+unpair e f =
+    -- HACK: the current implementation of 'multibinder' requires this explicit type signature.
+    -- BUG: why do we get a warning about the pattern being non-exhaustive?
+    let f' :: List1 abt (a ': b ': '[]) -> abt c
+        f' (Cons x (Cons y Nil)) = f x y
+        f' _ = error "unpair: the impossible happened"
+    in syn $ Case_ e
         [Branch (PDatum $ dPair PVar PVar)
-            (bind x . bind y $ f (var x sing) (var y sing))]
+            $ multibinder
+                ( Cons (Hint (Text.pack "_") sing)
+                . Cons (Hint (Text.pack "_") sing)
+                $ Nil)
+                f'
+        ]
 
 left_ :: (ABT abt) => abt a -> abt (HEither a b)
 left_ = datum_ . dLeft
@@ -530,6 +559,9 @@ unsafeProb = unsafeFrom_ signed
 fromProb   :: (ABT abt) => abt 'HProb -> abt 'HReal
 fromProb   = coerceTo_ signed
 
+nat2int    :: (ABT abt) => abt 'HNat -> abt 'HInt
+nat2int    = coerceTo_ signed
+
 fromInt    :: (ABT abt) => abt 'HInt  -> abt 'HReal
 fromInt    = coerceTo_ continuous
 
@@ -539,13 +571,43 @@ negativeInfinity = primOp0_ NegativeInfinity
 fix :: (ABT abt, SingI a) => (abt a -> abt a) -> abt a
 fix = syn . Fix_ . binder (Text.pack "_") sing
 
+-- instance (ABT abt) => Lambda abt where
+-- 'app' already defined
+
+lam :: (ABT abt, SingI a)
+    => (abt a -> abt b)
+    -> abt (a ':-> b)
+lam = syn . Lam_ . binder (Text.pack "_") sing
+
+{-
+-- some test cases to make sure we tied-the-knot successfully:
+> let
+    lam :: (ABT abt)
+        => String
+        -> Sing a
+        -> (abt a -> abt b)
+        -> abt (a ':-> b)
+    lam name typ = syn . Lam_ . binder name typ
+> lam "x" SInt (\x -> x) :: TrivialABT ('HInt ':-> 'HInt)
+> lam "x" SInt (\x -> lam "y" SInt $ \y -> x < y) :: TrivialABT ('HInt ':-> 'HInt ':-> 'HBool)
+-}
+
+let_
+    :: (ABT abt, SingI a)
+    => abt a
+    -> (abt a -> abt b)
+    -> abt b
+let_ e = syn . Let_ e . binder (Text.pack "_") sing
+
+
+----------------------------------------------------------------
 array
     :: (ABT abt)
-    => abt 'HInt
-    -> (abt 'HInt -> abt a)
+    => abt 'HNat
+    -> (abt 'HNat -> abt a)
     -> abt ('HArray a)
 array n =
-    syn . Array_ (unsafeFrom_ signed n) . binder (Text.pack "_") sing
+    syn . Array_ n . binder (Text.pack "_") sing
 
 empty :: (ABT abt) => abt ('HArray a)
 empty = syn Empty_
@@ -567,7 +629,16 @@ reduce
     -> abt a
 reduce f = primOp3_ (Reduce sing) (lam $ \x -> lam $ \y -> f x y)
 
+-- BUG: remove the 'SingI' requirement!
+sumV :: (ABT abt, HSemiring_ a, SingI a) =>  abt ('HArray a) -> abt a
+sumV = reduce (+) zero -- equivalent to summateV if @a ~ 'HProb@
 
+summateV :: (ABT abt) => abt ('HArray 'HProb) -> abt 'HProb
+summateV x =
+    summate (real_ 0) (fromInt $ nat2int (size x) - int_ 1)
+        (\i -> x ! unsafeFrom_ signed i)
+
+----------------------------------------------------------------
 -- instance (ABT abt) => Mochastic (abt) where
 (>>=)
     :: (ABT abt, SingI a)
@@ -716,7 +787,7 @@ plate' v = reduce r z (mapV m v)
     where
     r   = liftM2 concatV
     z   = dirac empty
-    m a = liftM (vector 1 . const) a
+    m a = liftM (array (nat_ 1) . const) a
 -}
 
 -- BUG: remove the 'SingI' requirement!
@@ -740,54 +811,6 @@ chain' v = reduce r z (mapV m v)
 -}
 
 
--- instance (ABT abt) => Integrate abt where
-integrate
-    :: (ABT abt)
-    => abt 'HReal
-    -> abt 'HReal
-    -> (abt 'HReal -> abt 'HProb)
-    -> abt 'HProb
-integrate lo hi f =
-    primOp3_ Integrate lo hi (lam f)
-
-summate
-    :: (ABT abt)
-    => abt 'HReal
-    -> abt 'HReal
-    -> (abt 'HInt -> abt 'HProb)
-    -> abt 'HProb
-summate lo hi f =
-    primOp3_ Summate lo hi (lam f)
-
-
--- instance (ABT abt) => Lambda abt where
--- 'app' already defined
-
-
-lam :: (ABT abt, SingI a)
-    => (abt a -> abt b)
-    -> abt (a ':-> b)
-lam = syn . Lam_ . binder (Text.pack "_") sing
-
-{-
--- some test cases to make sure we tied-the-knot successfully:
-> let
-    lam :: (ABT abt)
-        => String
-        -> Sing a
-        -> (abt a -> abt b)
-        -> abt (a ':-> b)
-    lam name typ = syn . Lam_ . binder name typ
-> lam "x" SInt (\x -> x) :: TrivialABT ('HInt ':-> 'HInt)
-> lam "x" SInt (\x -> lam "y" SInt $ \y -> x < y) :: TrivialABT ('HInt ':-> 'HInt ':-> 'HBool)
--}
-
-let_
-    :: (ABT abt, SingI a)
-    => abt a
-    -> (abt a -> abt b)
-    -> abt b
-let_ e = syn . Let_ e . binder (Text.pack "_") sing
 
 {-
 -- instance (ABT abt) => Lub abt where

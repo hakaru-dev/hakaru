@@ -4,6 +4,7 @@
            , DeriveDataTypeable
            , DataKinds
            , PolyKinds
+           , TypeOperators
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -50,8 +51,7 @@ module Language.Hakaru.Syntax.ABT
     -- cf., <http://comonad.com/reader/2014/fast-circular-substitution/>
     , binder
     -- *** Highly experimental
-    , TyList(..)
-    , IList(..)
+    , List1(..)
     , Hint(..)
     , multibinder
     -- ** Some ABT instances
@@ -587,17 +587,15 @@ binder name typ hoas = bind x body
     x    = Variable name (bound body + 1)
 
 
-data TyList k = TyNil | TyCons k (TyList k)
+data List1 :: (k -> *) -> [k] -> * where
+    Nil  :: List1 a '[]
+    Cons :: a x -> List1 a xs -> List1 a (x ': xs)
 
-data IList :: (k -> *) -> TyList k -> * where
-    Nil  :: IList a 'TyNil
-    Cons :: a x -> IList a xs -> IList a ('TyCons x xs)
-
-instance Show1 a => Show1 (IList a) where
+instance Show1 a => Show1 (List1 a) where
     showsPrec1 _ Nil         = showString     "Nil"
     showsPrec1 p (Cons x xs) = showParen_11 p "Cons" x xs
 
-instance Show1 a => Show (IList a xs) where
+instance Show1 a => Show (List1 a xs) where
     showsPrec = showsPrec1
     show      = show1
 
@@ -617,24 +615,24 @@ data VS :: Hakaru -> * where
 -- this typechecks, and it works! 
 -- BUG: but it seems fairly unusable. We must give explicit type signatures to any lambdas passed as the second argument, otherwise it complains about not knowing enough about the types in @xs@... Also, the uncurriedness of it isn't very HOAS-like
 multibinder
-    :: (ABT abt) => IList Hint xs -> (IList abt xs -> abt b) -> abt b
+    :: (ABT abt) => List1 Hint xs -> (List1 abt xs -> abt b) -> abt b
 multibinder names hoas = binds vars body
     where
     vars = go 0 names
         where
         -- BUG: this puts the largest binder on the inside
-        go :: Nat -> IList Hint xs -> IList VS xs
+        go :: Nat -> List1 Hint xs -> List1 VS xs
         go _ Nil                         = Nil
         go n (Cons (Hint name typ) rest) = 
             Cons (VS (Variable name $ bound body + n) typ)
                 ((go $! n + 1) rest)
     body = hoas (go vars)
         where
-        go :: ABT abt => IList VS xs -> IList abt xs
+        go :: ABT abt => List1 VS xs -> List1 abt xs
         go Nil                    = Nil
         go (Cons (VS x typ) rest) = Cons (var x typ) (go rest)
     
-    binds :: ABT abt => IList VS xs -> abt a -> abt a
+    binds :: ABT abt => List1 VS xs -> abt a -> abt a
     binds Nil                  = id
     binds (Cons (VS x _) rest) = bind x . binds rest
 

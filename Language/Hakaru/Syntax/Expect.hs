@@ -173,7 +173,6 @@ expectAST (Superpose_ pms) xs =
     sum [ p * (expect_ m xs `apM` c) | (p, m) <- pms ]
 
 
--- BUG: something about can't deduce (Expect abt0 a ~ Expect abt a); we can get rid of that with -XAllowAmbiguousTypes
 expectMeasure :: (ABT abt) => Measure a -> Expect abt a
 expectMeasure (Dirac _) =
     ExpectFun $ \a ->

@@ -274,6 +274,7 @@ data PrimOp :: Hakaru -> * where
 
 
     -- -- Continuous and discrete integration.
+    -- TODO: make Integrate and Summate polymorphic, so that if the two inputs are HProb then we know the function must be over HProb\/HNat too. More generally, if the first input is HProb (since the second input is assumed to be greater thant he first); though that would be a bit ugly IMO.
     Integrate :: PrimOp
         (    'HReal
         ':-> 'HReal
