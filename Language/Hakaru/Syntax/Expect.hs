@@ -28,7 +28,6 @@ module Language.Hakaru.Syntax.Expect
     ) where
 
 import Prelude (($), (.), id, flip, error, Maybe(..))
-import Data.Sequence         (Seq)
 import Data.IntMap           (IntMap)
 import qualified Data.IntMap as IM
 
@@ -98,6 +97,7 @@ apM (ExpectMeasure f) c = f c
 data V :: (Hakaru -> *) -> * where
     V :: {-# UNPACK #-} !Variable -> abt a -> V abt
     -- TODO: store the @Expect abt a@ instead?
+    -- TODO: have two different versions of variable lookup; one for when we need to take the expectation of the variable, and one for just plugging things into place.
 
 type Env abt = IntMap (V abt)
 
@@ -158,12 +158,14 @@ expectAST (Fix_ e1) xs =
     caseBind e1 $ \x e' ->
     expect_ e' $ pushEnv (V x e1) xs -- BUG: looping?
 
-expectAST (Ann_        _ e)   xs = expect_ e xs
-expectAST (PrimOp_     o)     xs =
+expectAST (Ann_ _ e) xs =
+    expect_ e xs
+
+expectAST (PrimOp_ o) xs =
     expectSing (sing_PrimOp o) (syn $ PrimOp_ o) xs
     -- TODO: we should beware of 'Index' and 'Reduce'. They may need evaluating if they happen to return functions or measures
 
-expectAST (NaryOp_     o es)  xs =
+expectAST (NaryOp_ o es) xs =
     expectSing (sing_NaryOp o) (syn $ NaryOp_ o es) xs
 
 expectAST (Value_      v)     xs = expectSing (sing_Value v) (value_ v) xs
@@ -176,8 +178,8 @@ expectAST (Case_       e  bs) xs = error "TODO: expect{Case_}" -- use 'isBind' t
 expectAST (Measure_    o)     _  = expectMeasure o
 expectAST (Bind_       e1 e2) xs =
     ExpectMeasure $ \c ->
-    caseBind e2 $ \x e' ->
     expect_ e1 xs `apM` \a ->
+    caseBind e2 $ \x e' ->
     (expect_ e' $ pushEnv (V x a) xs) `apM` c
 expectAST (Superpose_ pms) xs =
     ExpectMeasure $ \c ->

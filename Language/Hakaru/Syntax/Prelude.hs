@@ -10,7 +10,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.07.04
+--                                                    2015.07.05
 -- |
 -- Module      :  Language.Hakaru.Syntax.Prelude
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -27,7 +27,7 @@
 module Language.Hakaru.Syntax.Prelude where
 
 -- TODO: implement and use Prelude's fromInteger and fromRational, so we can use numeric literals!
-import Prelude (Maybe(..), Bool(..), Int, Double, Functor(..), ($), flip, error, otherwise)
+import Prelude (Maybe(..), Bool(..), Int, Double, Functor(..), ($), flip, const, error, otherwise)
 import qualified Prelude
 import           Data.Sequence        (Seq)
 import qualified Data.Sequence        as Seq
@@ -53,6 +53,7 @@ performs these sorts of optimizations, as a program transformation.
 -}
 -- TODO: constant propogation
 
+-- TODO: NBE to get rid of administrative redexes.
 app :: (ABT abt) => abt (a ':-> b) -> abt a -> abt b
 app = (syn .) . App_
 
@@ -94,6 +95,10 @@ measure2_ = app2 . measure0_
 --
 -- TODO: generalize these two from [] to Foldable?
 
+-- | Apply an n-ary operator to a list. Whether this is actually
+-- unsafe or not depends on whether the 'NaryOp' has an identity
+-- element or not; if not, then this will yield code containing an
+-- error whenever the list is empty.
 unsafeNaryOp_ :: (ABT abt) => NaryOp a -> [abt a] -> abt a
 unsafeNaryOp_ o = go Seq.empty
     where
@@ -103,6 +108,8 @@ unsafeNaryOp_ o = go Seq.empty
         Nothing   -> go (es Seq.|> e)    es'
         Just es'' -> go (es Seq.>< es'') es'
 
+-- | Apply an n-ary operator to a list, replacing the empty list
+-- with a specified identity element.
 naryOp_withIdentity :: (ABT abt) => NaryOp a -> abt a -> [abt a] -> abt a
 naryOp_withIdentity o i = go Seq.empty
     where
@@ -117,10 +124,10 @@ naryOp_withIdentity o i = go Seq.empty
 naryOp2_ :: (ABT abt) => NaryOp a -> abt a -> abt a -> abt a
 naryOp2_ o x y =
     case (matchNaryOp o x, matchNaryOp o y) of
-    (Just xs, Just ys) -> syn $ NaryOp_ o (xs Seq.>< ys)
-    (Just xs, Nothing) -> syn $ NaryOp_ o (xs Seq.|> y)
-    (Nothing, Just ys) -> syn $ NaryOp_ o (x  Seq.<| ys)
-    (Nothing, Nothing) -> syn $ NaryOp_ o (x  Seq.<| Seq.singleton y)
+    (Just xs, Just ys) -> syn . NaryOp_ o $ xs Seq.>< ys
+    (Just xs, Nothing) -> syn . NaryOp_ o $ xs Seq.|> y
+    (Nothing, Just ys) -> syn . NaryOp_ o $ x  Seq.<| ys
+    (Nothing, Nothing) -> syn . NaryOp_ o $ x  Seq.<| Seq.singleton y
 
 matchNaryOp :: (ABT abt) => NaryOp a -> abt a -> Maybe (Seq (abt a))
 matchNaryOp o e =
@@ -140,18 +147,17 @@ matchNaryOp o e =
 infixl 9 `app`
 infixr 9 `pair`
 
-infixl 1 >>
 infixr 1 =<<
 infixr 1 <=<, >=>
 infixr 9 .
 infixr 0 $
-infixl 4 <$>, <$, <*>, <*, *>
 -}
 
-infixl 1 >>=
+infixl 1 >>= -- >>
 infixr 2 ||
 infixr 3 &&
 infix  4 ==, /=, <, <=, >, >=
+infixl 4 <$>, <*> -- <$, <*, *>
 infixl 6 +, -
 infixl 7 *, /
 infixr 8 ^, ^^, ** -- ^+, ^*
@@ -253,7 +259,7 @@ zero = syn $ NaryOp_ (Sum  hSemiring) Seq.empty
 one  = syn $ NaryOp_ (Prod hSemiring) Seq.empty
 
 sum, product :: (ABT abt, HSemiring_ a) => [abt a] -> abt a
-sum     = naryOp_withIdentity (Sum  hSemiring)  zero
+sum     = naryOp_withIdentity (Sum  hSemiring) zero
 product = naryOp_withIdentity (Prod hSemiring) one
 
 {-
@@ -297,15 +303,15 @@ negate e0 =
                 case t0 of
                 -- TODO: need we case analyze the @HSemiring@?
                 NaryOp_ (Sum theSemi) xs ->
-                    Just . syn $ NaryOp_ (Sum theSemi) (fmap negate xs)
+                    Just . syn . NaryOp_ (Sum theSemi) $ fmap negate xs
                 App_ f e ->
                     caseVarSyn f
                         (\_ _ -> Nothing)
-                        (\ft  ->
+                        $ \ft ->
                             case ft of
                             -- TODO: need we case analyze the @HRing@?
                             PrimOp_ (Negate _theRing) -> Just e
-                            _                         -> Nothing)
+                            _                         -> Nothing
                 _ -> Nothing
 
 
@@ -358,15 +364,15 @@ recip e0 =
                 case t0 of
                 -- TODO: need we case analyze the @HSemiring@?
                 NaryOp_ (Prod theSemi) xs ->
-                    Just . syn $ NaryOp_ (Prod theSemi) (fmap recip xs)
+                    Just . syn . NaryOp_ (Prod theSemi) $ fmap recip xs
                 App_ f e ->
                     caseVarSyn f
                         (\_ _ -> Nothing)
-                        (\ft  ->
+                        $ \ft ->
                             case ft of
                             -- TODO: need we case analyze the @HFractional@?
                             PrimOp_ (Recip _theFrac) -> Just e
-                            _                        -> Nothing)
+                            _                        -> Nothing
                 _ -> Nothing
 
 
@@ -643,12 +649,12 @@ summateV x =
         (\i -> x ! unsafeFrom_ signed i)
 
 
+-- TODO: a variant of 'if_' for giving us evidence that the subtraction is sound.
 unsafeMinus :: (ABT abt) => abt 'HNat -> abt 'HNat -> abt 'HNat
 unsafeMinus x y =
     unsafeFrom_ signed (nat2int x - nat2int y)
 
 -- BUG: remove the 'SingI' requirement!
--- TODO: a variant of 'if_' for giving us evidence that the subtraction is sound.
 appendV
     :: (ABT abt, SingI a)
     => abt ('HArray a) -> abt ('HArray a) -> abt ('HArray a)
@@ -657,6 +663,12 @@ appendV v1 v2 =
         if_ (i < size v1)
             (v1 ! i)
             (v2 ! (i `unsafeMinus` size v1))
+
+-- BUG: remove the 'SingI' requirement!
+mapWithIndex
+    :: (ABT abt, SingI a)
+    => (abt 'HNat -> abt a -> abt b) -> abt ('HArray a) -> abt ('HArray b)
+mapWithIndex f v = array (size v) $ \i -> f i (v ! i)
 
 -- BUG: remove the 'SingI' requirement!
 mapV
@@ -678,6 +690,32 @@ dirac :: (ABT abt, SingI a) => abt a -> abt ('HMeasure a)
 dirac = measure1_ $ Dirac sing
 
 -- BUG: remove the 'SingI' requirement!
+(<$>), liftM
+    :: (ABT abt, SingI a, SingI b)
+    => (abt a -> abt b)
+    -> abt ('HMeasure a) -> abt ('HMeasure b)
+f <$> m = m >>= dirac . f
+liftM = (<$>)
+
+-- TODO: (<$), (<*), (*>)
+-- BUG: remove the 'SingI' requirement!
+-- | N.B, this function may introduce administrative redexes.
+(<*>)
+    :: (ABT abt, SingI a, SingI b)
+    => abt ('HMeasure (a ':-> b)) -> abt ('HMeasure a) -> abt ('HMeasure b)
+mf <*> mx = mf >>= \f -> app f <$> mx
+
+-- BUG: remove the 'SingI' requirement!
+liftM2
+    :: (ABT abt, SingI a, SingI b, SingI c)
+    => (abt a -> abt b -> abt c)
+    -> abt ('HMeasure a) -> abt ('HMeasure b) -> abt ('HMeasure c)
+liftM2 f m n = m >>= \x -> f x <$> n
+    -- or @(lam . f) <$> m <*> n@ but that would introduce administrative redexes
+
+
+-- TODO: for the EDSL, rephrase this as just taking the weight and applying it to @dirac unit@; and then make @(>>)@ work in the right way to plug the continuation measure in place of the @dirac unit@.
+-- BUG: remove the 'SingI' requirement!
 weightedDirac
     :: (ABT abt, SingI a) => abt a -> abt 'HProb -> abt ('HMeasure a)
 weightedDirac e p = superpose [(p, dirac e)]
@@ -694,8 +732,10 @@ superpose
     -> abt ('HMeasure a)
 superpose = syn . Superpose_
 
+-- TODO: for the EDSL, rephrase this as just taking the first argument and using @dirac unit@ for the else-branch; then, make @(>>)@ work in the right way to plug the continuation measure in place of the @dirac unit@.
 assert_ :: (ABT abt) => abt HBool -> abt ('HMeasure a) -> abt ('HMeasure a)
 assert_ b m = if_ b m $ superpose []
+
 
 categorical, categorical'
     :: (ABT abt)
@@ -789,6 +829,7 @@ beta' a b =
             * unsafeProb (real_ 1 - x) ** (fromProb b - real_ 1)
             / betaFunc a b
 
+
 -- BUG: remove the 'SingI' requirement!
 dp  :: (ABT abt, SingI a)
     => abt 'HProb
@@ -796,29 +837,28 @@ dp  :: (ABT abt, SingI a)
     -> abt ('HMeasure ('HMeasure a))
 dp = measure2_ $ DirichletProcess sing
 
+
 -- BUG: remove the 'SingI' requirement!
-plate
+plate, plate'
     :: (ABT abt, SingI a)
     => abt ('HArray ('HMeasure          a))
     -> abt (         'HMeasure ('HArray a))
 plate = measure1_ $ Plate sing
-{-
--- TODO: the array stuff...
+
 plate' v = reduce r z (mapV m v)
     where
     r   = liftM2 appendV
     z   = dirac empty
-    m a = liftM (array (nat_ 1) . const) a
--}
+    m a = (array (nat_ 1) . const) <$> a
+
 
 -- BUG: remove the 'SingI' requirement!
-chain
+chain, chain'
     :: (ABT abt, SingI s, SingI a)
     => abt ('HArray (s ':-> 'HMeasure (HPair          a  s)))
     -> abt (         s ':-> 'HMeasure (HPair ('HArray a) s))
 chain = measure1_ $ Chain sing sing
-{-
--- TODO: the array stuff...
+
 chain' v = reduce r z (mapV m v)
     where
     r x y = lam $ \s ->
@@ -826,11 +866,9 @@ chain' v = reduce r z (mapV m v)
             unpair v1s1 $ \v1 s1 ->
             app y s1 >>= \v2s2 ->
             unpair v2s2 $ \v2 s2 ->
-            dirac (pair (appendV v1 v2) s2)
+            dirac $ pair (appendV v1 v2) s2
     z     = lam $ \s -> dirac (pair empty s)
-    m a   = lam $ \s -> liftM (`unpair` pair . array 1 . const) (app a s)
--}
-
+    m a   = lam $ \s -> (`unpair` pair . array (nat_ 1) . const) <$> app a s
 
 
 {-

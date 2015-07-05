@@ -49,6 +49,7 @@ module Language.Hakaru.Syntax.ABT
     , subst
     -- ** Constructing first-order trees with a HOAS-like API
     -- cf., <http://comonad.com/reader/2014/fast-circular-substitution/>
+    , maxBind
     , binder
     -- *** Highly experimental
     , List1(..)
@@ -61,6 +62,7 @@ module Language.Hakaru.Syntax.ABT
 
 import           Data.Typeable     (Typeable)
 import           Data.Text         (Text)
+import           Data.Sequence     (Seq)
 import           Data.Set          (Set)
 import qualified Data.Set          as Set
 import           Data.Function     (on)
@@ -499,24 +501,26 @@ subst x e e_typ = start
 -- a type class again.
 
 
--- | Return the largest 'varID' of variable /binding sites/.
+-- | Return the largest 'varID' of variable /binding sites/ (i.e.,
+-- of variables bound by the 'Bind' constructor).
+--
 -- N.B., this should return 0 for the bound variables themselves.
 -- For performance, we don't traverse into the body under those
 -- binders. (If all terms are constructed via 'binder', then
 -- soundness is guaranteed without needing to traverse under
 -- binders.)
-bound :: (ABT abt) => abt a -> Nat
-bound = boundView . viewABT
+maxBind :: (ABT abt) => abt a -> Nat
+maxBind = go_View . viewABT
     where
     -- For multibinders (i.e., nested uses of Bind) we recurse
     -- through the whole binder, just to be sure. However, we should
     -- be able to just look at the first binder, since whenever we
     -- figure out how to do multibinders we can prolly arrange for
     -- the first one to be the largest.
-    boundView :: (ABT abt) => View abt a -> Nat
-    boundView = go 0
+    go_View :: (ABT abt) => View abt a -> Nat
+    go_View = go 0
         where
-        go 0 (Syn  t)   = boundAST t
+        go 0 (Syn  t)   = go_AST t
         go n (Syn  _)   = n -- Don't go under binders
         go n (Var  _ _) = n -- Don't look at variable *uses*
         go n (Bind x v) = go (n `max` varID x) v
@@ -524,48 +528,48 @@ bound = boundView . viewABT
     -- N.B., we needn't traverse into any type annotations, since we
     -- don't have dependent types, hence no term variables can appear
     -- in the types.
-    boundAST :: (ABT abt) => AST abt a -> Nat
-    boundAST (Lam_        e)        = bound e
-    boundAST (App_        e1 e2)    = bound e1 `max` bound e2
-    boundAST (Let_        e1 e2)    = bound e1 `max` bound e2
-    boundAST (Fix_        e)        = bound e
-    boundAST (Ann_        _  e)     = bound e
-    boundAST (PrimOp_     _)        = 0
-    boundAST (NaryOp_     _  es)    = maximumBound (F.toList es)
-    boundAST (Value_      _)        = 0
-    boundAST (CoerceTo_   _  e)     = bound e
-    boundAST (UnsafeFrom_ _  e)     = bound e
-    boundAST Empty_                 = 0
-    boundAST (Array_      e1 e2)    = bound e1 `max` bound e2
-    boundAST (Datum_ (Datum d))     = boundDatumCode d
-    boundAST (Case_       e  bs)    = bound e  `max` maximumBoundBranch bs
-    boundAST (Measure_    _)        = 0
-    boundAST (Bind_       e1 e2)    = bound e1 `max` bound e2
-    boundAST (Superpose_  pes)      = maximumBound2 pes
+    go_AST :: (ABT abt) => AST abt a -> Nat
+    go_AST (Lam_        e)        = maxBind e
+    go_AST (App_        e1 e2)    = maxBind e1 `max` maxBind e2
+    go_AST (Let_        e1 e2)    = maxBind e1 `max` maxBind e2
+    go_AST (Fix_        e)        = maxBind e
+    go_AST (Ann_        _  e)     = maxBind e
+    go_AST (PrimOp_     _)        = 0
+    go_AST (NaryOp_     _  es)    = go_Sequence es
+    go_AST (Value_      _)        = 0
+    go_AST (CoerceTo_   _  e)     = maxBind e
+    go_AST (UnsafeFrom_ _  e)     = maxBind e
+    go_AST Empty_                 = 0
+    go_AST (Array_      e1 e2)    = maxBind e1 `max` maxBind e2
+    go_AST (Datum_ (Datum d))     = go_DatumCode d
+    go_AST (Case_       e  bs)    = maxBind e  `max` go_Branches bs
+    go_AST (Measure_    _)        = 0
+    go_AST (Bind_       e1 e2)    = maxBind e1 `max` maxBind e2
+    go_AST (Superpose_  pes)      = go_Pairs pes
     
-    boundDatumCode :: (ABT abt) => DatumCode xss abt a -> Nat
-    boundDatumCode (Inr d) = boundDatumCode   d
-    boundDatumCode (Inl d) = boundDatumStruct d
+    go_DatumCode :: (ABT abt) => DatumCode xss abt a -> Nat
+    go_DatumCode (Inr d) = go_DatumCode   d
+    go_DatumCode (Inl d) = go_DatumStruct d
     
-    boundDatumStruct :: (ABT abt) => DatumStruct xs abt a -> Nat
-    boundDatumStruct (Et d1 d2) = boundDatumFun d1 `max` boundDatumStruct d2
-    boundDatumStruct Done       = 0
+    go_DatumStruct :: (ABT abt) => DatumStruct xs abt a -> Nat
+    go_DatumStruct (Et d1 d2) = go_DatumFun d1 `max` go_DatumStruct d2
+    go_DatumStruct Done       = 0
     
-    boundDatumFun :: (ABT abt) => DatumFun x abt a -> Nat
-    boundDatumFun (Konst e) = bound e
-    boundDatumFun (Ident e) = bound e
+    go_DatumFun :: (ABT abt) => DatumFun x abt a -> Nat
+    go_DatumFun (Konst e) = maxBind e
+    go_DatumFun (Ident e) = maxBind e
 
     -- HACK: can't use 'foldMap1' unless we newtype wrap up the Nats to say which monoid we mean.
     -- N.B., the Prelude's 'maximum' throws an error on empty lists!
-    maximumBound :: (ABT abt) => [abt a] -> Nat
-    maximumBound =
-        F.foldl' (\n e -> n `max` bound e) 0
-    maximumBound2 :: (ABT abt) => [(abt a, abt b)] -> Nat
-    maximumBound2 =
-        F.foldl' (\n (e1,e2) -> n `max` bound e1 `max` bound e2) 0
-    maximumBoundBranch :: (ABT abt) => [Branch a abt b] -> Nat
-    maximumBoundBranch =
-        F.foldl' (\n b -> n `max` bound (branchBody b)) 0
+    go_Sequence :: (ABT abt) => Seq (abt a) -> Nat
+    go_Sequence =
+        F.foldl' (\n e -> n `max` maxBind e) 0
+    go_Pairs :: (ABT abt) => [(abt a, abt b)] -> Nat
+    go_Pairs =
+        F.foldl' (\n (e1,e2) -> n `max` maxBind e1 `max` maxBind e2) 0
+    go_Branches :: (ABT abt) => [Branch a abt b] -> Nat
+    go_Branches =
+        F.foldl' (\n b -> n `max` maxBind (branchBody b)) 0
 
 
 -- | A combinator for defining a HOAS-like API for our syntax.
@@ -584,7 +588,7 @@ binder
 binder name typ hoas = bind x body
     where
     body = hoas (var x typ)
-    x    = Variable name (bound body + 1)
+    x    = Variable name (maxBind body + 1)
 
 
 data List1 :: (k -> *) -> [k] -> * where
@@ -624,7 +628,7 @@ multibinder names hoas = binds vars body
         go :: Nat -> List1 Hint xs -> List1 VS xs
         go _ Nil                         = Nil
         go n (Cons (Hint name typ) rest) = 
-            Cons (VS (Variable name $ bound body + n) typ)
+            Cons (VS (Variable name $ maxBind body + n) typ)
                 ((go $! n + 1) rest)
     body = hoas (go vars)
         where
