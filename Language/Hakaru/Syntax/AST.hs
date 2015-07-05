@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.07.01
+--                                                    2015.07.04
 -- |
 -- Module      :  Language.Hakaru.Syntax.AST
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -24,15 +24,17 @@
 -- helper types.
 --
 -- TODO: are we finally at the place where we can get rid of all those annoying underscores?
+--
+-- TODO: what is the runtime cost of storing all these dictionary singletons? For existential type variables, it should be the same as using a type class constraint; but for non-existential type variables it'll, what, double the size of the AST?
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.AST
     (
     -- * Constant values
-      Value(..),  singValue
+      Value(..),   sing_Value
     -- * Primitive operators
-    , NaryOp(..),  singNaryOp
-    , PrimOp(..),  singPrimOp
-    , Measure(..), singMeasure
+    , NaryOp(..),  sing_NaryOp
+    , PrimOp(..),  sing_PrimOp
+    , Measure(..), sing_Measure
     -- * User-defined datatypes
     -- ** Data constructors\/patterns
     , Datum(..)
@@ -55,9 +57,8 @@ module Language.Hakaru.Syntax.AST
 
 import Data.Sequence           (Seq)
 import qualified Data.Foldable as F
-import Data.Proxy
 #if __GLASGOW_HASKELL__ < 710
-import Data.Monoid
+import Data.Monoid             hiding (Sum)
 #endif
 import Control.Arrow           ((***))
 import Data.Number.LogFloat    (LogFloat)
@@ -65,7 +66,7 @@ import Data.Number.LogFloat    (LogFloat)
 import Language.Hakaru.Syntax.Nat
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.TypeEq (Sing(..), SingI(..))
+import Language.Hakaru.Syntax.TypeEq
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Coercion
 
@@ -110,14 +111,14 @@ instance Show (Value a) where
     show      = show1
 
 -- N.B., we do case analysis so that we don't need the class constraint!
-singValue :: Value a -> Sing a
-singValue (VNat   _) = sing
-singValue (VInt   _) = sing
-singValue (VProb  _) = sing
-singValue (VReal  _) = sing
-singValue (VDatum (Datum d)) = error "TODO: singValue{VDatum}"
+sing_Value :: Value a -> Sing a
+sing_Value (VNat   _) = sing
+sing_Value (VInt   _) = sing
+sing_Value (VProb  _) = sing
+sing_Value (VReal  _) = sing
+sing_Value (VDatum (Datum d)) = error "TODO: sing_Value{VDatum}"
     {-
-    -- @fmap1 singValue d@ gets us halfway there, but then what....
+    -- @fmap1 sing_Value d@ gets us halfway there, but then what....
     -- This seems vaguely on the right track; but how can we get
     -- it to actually typecheck? Should we just have VDatum (or
     -- Datum) store the Sing when it's created?
@@ -132,8 +133,8 @@ singValue (VDatum (Datum d)) = error "TODO: singValue{VDatum}"
     goS Done       = SDone
 
     goF :: DatumFun x Value a -> Sing x
-    goF (Konst e1) = SKonst (singValue e1)
-    goF (Ident e1) = SIdent -- @singValue e1@ is what the first argument to SData should be; assuming we actually make it to this branch...
+    goF (Konst e1) = SKonst (sing_Value e1)
+    goF (Ident e1) = SIdent -- @sing_Value e1@ is what the first argument to SData should be; assuming we actually make it to this branch...
     -}
 
 ----------------------------------------------------------------
@@ -163,15 +164,15 @@ data NaryOp :: Hakaru -> * where
     -- These two don't necessarily have identity elements; thus,
     -- @NaryOp_ Min []@ and @NaryOp_ Max []@ may not be well-defined...
     -- TODO: check for those cases!
-    Min  :: (HOrder a) => NaryOp a
-    Max  :: (HOrder a) => NaryOp a
+    Min  :: !(HOrd a) -> NaryOp a
+    Max  :: !(HOrd a) -> NaryOp a
 
-    Sum  :: (HSemiring a) => NaryOp a
-    Prod :: (HSemiring a) => NaryOp a
+    Sum  :: !(HSemiring a) -> NaryOp a
+    Prod :: !(HSemiring a) -> NaryOp a
 
     {-
-    GCD  :: (GCD_Domain a) => NaryOp a
-    LCM  :: (GCD_Domain a) => NaryOp a
+    GCD  :: !(GCD_Domain a) -> NaryOp a
+    LCM  :: !(GCD_Domain a) -> NaryOp a
     -}
 
 deriving instance Eq   (NaryOp a)
@@ -179,19 +180,16 @@ deriving instance Eq   (NaryOp a)
 deriving instance Show (NaryOp a)
 
 
--- N.B., we do case analysis so that we don't need the class constraint!
-singNaryOp :: NaryOp a -> Sing a
-singNaryOp And  = sing
-singNaryOp Or   = sing
-singNaryOp Xor  = sing
-singNaryOp Iff  = sing
-{- BUG: case analysis isn't enough here, because of the class constraints. We should be able to fix that by passing explicit singleton dictionaries instead of using Haskell's type classes
-singNaryOp Min  = sing
-singNaryOp Max  = sing
-singNaryOp Sum  = sing
-singNaryOp Prod = sing
--}
-singNaryOp _ = error "TODO: singNaryOp"
+-- TODO: we don't need to store the HOrd\/HSemiring values here, we can recover them by typeclass, just like we use 'sing' to get 'sBool' for the other ones...
+sing_NaryOp :: NaryOp a -> Sing a
+sing_NaryOp And            = sing
+sing_NaryOp Or             = sing
+sing_NaryOp Xor            = sing
+sing_NaryOp Iff            = sing
+sing_NaryOp (Min  theOrd)  = sing_HOrd theOrd
+sing_NaryOp (Max  theOrd)  = sing_HOrd theOrd
+sing_NaryOp (Sum  theSemi) = sing_HSemiring theSemi
+sing_NaryOp (Prod theSemi) = sing_HSemiring theSemi
 
 ----------------------------------------------------------------
 -- | Simple primitive functions, and constants.
@@ -289,23 +287,26 @@ data PrimOp :: Hakaru -> * where
 
     -- -- Array stuff
     -- TODO: do these really belong here (as PrimOps), in AST, or in their own place (a la Datum)?
-    Index  :: PrimOp ('HArray a ':-> 'HNat ':-> a)
-    Size   :: PrimOp ('HArray a ':-> 'HNat)
+    -- HACK: is there any way we can avoid storing the Sing values here, while still implementing 'sing_PrimOp'?
+    Index  :: !(Sing a) -> PrimOp ('HArray a ':-> 'HNat ':-> a)
+    Size   :: !(Sing a) -> PrimOp ('HArray a ':-> 'HNat)
     -- The first argument should be a monoid, but we don't enforce
     -- that; it's the user's responsibility.
-    Reduce :: PrimOp ((a ':-> a ':-> a) ':-> a ':-> 'HArray a ':-> a)
+    Reduce
+        :: !(Sing a)
+        -> PrimOp ((a ':-> a ':-> a) ':-> a ':-> 'HArray a ':-> a)
 
 
     -- -- HOrder operators
     -- TODO: equality doesn't make constructive sense on the reals...
     -- would it be better to constructivize our notion of total ordering?
     -- TODO: what about posets?
-    Less  :: (HOrder a) => PrimOp (a ':-> a ':-> HBool)
-    Equal :: (HOrder a) => PrimOp (a ':-> a ':-> HBool)
+    Equal :: !(HEq  a) -> PrimOp (a ':-> a ':-> HBool)
+    Less  :: !(HOrd a) -> PrimOp (a ':-> a ':-> HBool)
 
 
     -- -- HSemiring operators (the non-n-ary ones)
-    NatPow :: (HSemiring a) => PrimOp (a ':-> 'HNat ':-> a)
+    NatPow :: !(HSemiring a) -> PrimOp (a ':-> 'HNat ':-> a)
     -- TODO: would it help to have a specialized version for when
     -- we happen to know that the 'HNat is a Value? Same goes for
     -- the other powers/roots
@@ -331,13 +332,13 @@ data PrimOp :: Hakaru -> * where
     -- Ring: Semiring + negate, abs, signum
     -- NormedLinearSpace: LinearSpace + originPoint, norm, Arg
     -- ??: NormedLinearSpace + originAxis, angle
-    Negate :: (HRing a) => PrimOp (a ':-> a)
-    Abs    :: (HRing a) => PrimOp (a ':-> NonNegative a)
+    Negate :: !(HRing a) -> PrimOp (a ':-> a)
+    Abs    :: !(HRing a) -> PrimOp (a ':-> NonNegative a)
     -- cf., <https://mail.haskell.org/pipermail/libraries/2013-April/019694.html>
     -- cf., <https://en.wikipedia.org/wiki/Sign_function#Complex_signum>
     -- Should we have Maple5's \"csgn\" as well as the usual \"sgn\"?
     -- Also note that the \"generalized signum\" anticommutes with Dirac delta!
-    Signum :: (HRing a) => PrimOp (a ':-> a)
+    Signum :: !(HRing a) -> PrimOp (a ':-> a)
     -- Law: x = coerceTo_ signed (abs_ x) * signum x
     -- More strictly/exactly, the result of Signum should be either
     -- zero or an @a@-unit value. For Int and Real, the units are
@@ -351,18 +352,18 @@ data PrimOp :: Hakaru -> * where
 
 
     -- -- HFractional operators
-    Recip :: (HFractional a) => PrimOp (a ':-> a)
+    Recip :: !(HFractional a) -> PrimOp (a ':-> a)
     -- generates macro: IntPow
 
 
     -- -- HRadical operators
-    NatRoot :: (HRadical a) => PrimOp (a ':-> 'HNat ':-> a)
+    NatRoot :: !(HRadical a) -> PrimOp (a ':-> 'HNat ':-> a)
     -- generates macros: Sqrt, NonNegativeRationalPow, and RationalPow
 
 
     -- -- HContinuous operators
     -- TODO: what goes here, if anything? cf., <https://en.wikipedia.org/wiki/Closed-form_expression#Comparison_of_different_classes_of_expressions>
-    Erf :: (HContinuous a) => PrimOp (a ':-> a)
+    Erf :: !(HContinuous a) -> PrimOp (a ':-> a)
     -- TODO: make Pi and Infinity HContinuous-polymorphic so that we can avoid the explicit coercion? Probably more mess than benefit.
 
 
@@ -371,56 +372,77 @@ deriving instance Eq   (PrimOp a)
 deriving instance Show (PrimOp a)
 
 
--- N.B., we do case analysis so that we don't need the class constraint!
-singPrimOp :: PrimOp a -> Sing a
-singPrimOp Not         = sing
-singPrimOp Impl        = sing
-singPrimOp Diff        = sing
-singPrimOp Nand        = sing
-singPrimOp Nor         = sing
-singPrimOp Pi          = sing
-singPrimOp Sin         = sing
-singPrimOp Cos         = sing
-singPrimOp Tan         = sing
-singPrimOp Asin        = sing
-singPrimOp Acos        = sing
-singPrimOp Atan        = sing
-singPrimOp Sinh        = sing
-singPrimOp Cosh        = sing
-singPrimOp Tanh        = sing
-singPrimOp Asinh       = sing
-singPrimOp Acosh       = sing
-singPrimOp Atanh       = sing
-singPrimOp RealPow     = sing
-singPrimOp Exp         = sing
-singPrimOp Log         = sing
-singPrimOp Infinity    = sing
-singPrimOp NegativeInfinity = sing
-singPrimOp GammaFunc   = sing
-singPrimOp BetaFunc    = sing
-{-
--- BUG: case analysis isn't enough here, because of the class constraints. We should be able to fix that by passing explicit singleton dictionaries instead of using Haskell's type classes. Of course, we can't even do Unit anymore because of whatever bugginess with the embed stuff :(
-singPrimOp Index       = sing
-singPrimOp Size        = sing
-singPrimOp Reduce      = sing
-singPrimOp Less        = sing
-singPrimOp Equal       = sing
-singPrimOp NatPow      = sing
-singPrimOp Negate      = sing
-singPrimOp Abs         = sing
-singPrimOp Signum      = sing
-singPrimOp Recip       = sing
-singPrimOp NatRoot     = sing
-singPrimOp Erf         = sing
--}
-singPrimOp _ = error "TODO: singPrimOp"
+-- TODO: we don't need to store the dictionary values here, we can recover them by typeclass, just like we use 'sing' for the other ones...
+sing_PrimOp :: PrimOp a -> Sing a
+sing_PrimOp Not         = sing
+sing_PrimOp Impl        = sing
+sing_PrimOp Diff        = sing
+sing_PrimOp Nand        = sing
+sing_PrimOp Nor         = sing
+sing_PrimOp Pi          = sing
+sing_PrimOp Sin         = sing
+sing_PrimOp Cos         = sing
+sing_PrimOp Tan         = sing
+sing_PrimOp Asin        = sing
+sing_PrimOp Acos        = sing
+sing_PrimOp Atan        = sing
+sing_PrimOp Sinh        = sing
+sing_PrimOp Cosh        = sing
+sing_PrimOp Tanh        = sing
+sing_PrimOp Asinh       = sing
+sing_PrimOp Acosh       = sing
+sing_PrimOp Atanh       = sing
+sing_PrimOp RealPow     = sing
+sing_PrimOp Exp         = sing
+sing_PrimOp Log         = sing
+sing_PrimOp Infinity    = sing
+sing_PrimOp NegativeInfinity = sing
+sing_PrimOp GammaFunc   = sing
+sing_PrimOp BetaFunc    = sing
+sing_PrimOp Integrate   = sing
+sing_PrimOp Summate     = sing
+-- Mere case analysis isn't enough for the rest of these, because of the class constraints. We fix that by various helper functions on explicit dictionary passing.
+-- TODO: is there any way to automate building these from their respective @a@ proofs?
+sing_PrimOp (Index  a) = SArray a `SFun` SNat `SFun` a
+sing_PrimOp (Size   a) = SArray a `SFun` SNat
+sing_PrimOp (Reduce a) =
+    (a `SFun` a `SFun` a) `SFun` a `SFun` SArray a `SFun` a
+sing_PrimOp (Equal theEq) =
+    let a = sing_HEq theEq
+    in a `SFun` a `SFun` sBool
+sing_PrimOp (Less theOrd) =
+    let a = sing_HOrd theOrd
+    in  a `SFun` a `SFun` sBool
+sing_PrimOp (NatPow theSemi) =
+    let a = sing_HSemiring theSemi
+    in  a `SFun` SNat `SFun` a
+sing_PrimOp (Negate theRing) =
+    let a = sing_HRing theRing
+    in  a `SFun` a
+sing_PrimOp (Abs theRing) =
+    let a = sing_HRing theRing
+        b = sing_NonNegative theRing
+    in  a `SFun` b
+sing_PrimOp (Signum theRing) =
+    let a = sing_HRing theRing
+    in  a `SFun` a
+sing_PrimOp (Recip theFrac) =
+    let a = sing_HFractional theFrac
+    in  a `SFun` a
+sing_PrimOp (NatRoot theRad) =
+    let a = sing_HRadical theRad
+    in  a `SFun` SNat `SFun` a
+sing_PrimOp (Erf theCont) =
+    let a = sing_HContinuous theCont
+    in  a `SFun` a
 
 ----------------------------------------------------------------
 -- TODO: move the rest of the old Mochastic class into here?
 -- | Primitive distributions\/measures.
 data Measure :: Hakaru -> * where
     -- TODO: should we put Dirac back into the main AST?
-    Dirac       :: Measure (a ':-> 'HMeasure a)
+    -- HACK: is there any way we can avoid storing the Sing value here, while still implementing 'sing_Measure'?
+    Dirac       :: !(Sing a) -> Measure (a ':-> 'HMeasure a)
 
     Lebesgue    :: Measure ('HMeasure 'HReal)
     Counting    :: Measure ('HMeasure 'HInt)
@@ -433,36 +455,45 @@ data Measure :: Hakaru -> * where
     Beta        :: Measure ('HProb ':-> 'HProb ':-> 'HMeasure 'HProb)
     -- binomial, mix, geometric, multinomial,... should also be HNat
 
+    -- HACK: is there any way we can avoid storing the Sing values here, while still implementing 'sing_Measure'?
     DirichletProcess
-        :: Measure ('HProb ':-> 'HMeasure a ':-> 'HMeasure ('HMeasure a))
+        :: !(Sing a)
+        -> Measure ('HProb ':-> 'HMeasure a ':-> 'HMeasure ('HMeasure a))
     -- TODO: unify Plate and Chain as 'sequence' a~la traversable?
-    Plate :: Measure ('HArray ('HMeasure a) ':-> 'HMeasure ('HArray a))
-    Chain :: Measure
-        ('HArray (s ':-> 'HMeasure (HPair a s)) ':->
-        s ':-> 'HMeasure (HPair ('HArray a) s))
+    Plate
+        :: !(Sing a)
+        -> Measure ('HArray ('HMeasure a) ':-> 'HMeasure ('HArray a))
+    Chain
+        :: !(Sing s)
+        -> !(Sing a)
+        -> Measure
+            ('HArray (s ':-> 'HMeasure (HPair a s)) ':->
+            s ':-> 'HMeasure (HPair ('HArray a) s))
 
 
 deriving instance Eq   (Measure a)
 -- TODO: instance Read (Measure a)
 deriving instance Show (Measure a)
 
--- N.B., we do case analysis so that we don't need the class constraint!
-singMeasure :: Measure a -> Sing a
--- TODO: singMeasure Dirac       = sing
-singMeasure Lebesgue    = sing
-singMeasure Counting    = sing
-singMeasure Categorical = sing
-singMeasure Uniform     = sing
-singMeasure Normal      = sing
-singMeasure Poisson     = sing
-singMeasure Gamma       = sing
-singMeasure Beta        = sing
-{-
-singMeasure DirichletProcess = sing
-singMeasure Plate       = sing
-singMeasure Chain       = sing
--}
-singMeasure _ = error "TODO: singMeasure"
+
+sing_Measure :: Measure a -> Sing a
+sing_Measure (Dirac a)   = a `SFun` SMeasure a
+sing_Measure Lebesgue    = sing
+sing_Measure Counting    = sing
+sing_Measure Categorical = sing
+sing_Measure Uniform     = sing
+sing_Measure Normal      = sing
+sing_Measure Poisson     = sing
+sing_Measure Gamma       = sing
+sing_Measure Beta        = sing
+sing_Measure (DirichletProcess a) =
+    SProb `SFun` SMeasure a `SFun` SMeasure (SMeasure a)
+sing_Measure (Plate a) =
+    (SArray $ SMeasure a) `SFun` SMeasure (SArray a)
+sing_Measure (Chain s a) =
+    SArray (s `SFun` SMeasure (sPair a s))
+    `SFun` s `SFun` SMeasure (sPair (SArray a) s)
+
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -470,6 +501,9 @@ singMeasure _ = error "TODO: singMeasure"
 -- BUG: rename all the patterns, data-constructors, singletons, and types to be consistent everywhere!
 
 -- TODO: add the constructor name as another component of this record, to improve error messages etc.
+--
+-- TODO: add @Sing ('HData t (Code t))@ ?
+--
 -- | A fully saturated data constructor\/pattern, with leaves in
 -- @ast@. We define this type as separate from 'DatumCode' for
 -- two reasons. First is to capture the fact that the datum is
@@ -747,10 +781,7 @@ instance Foldable1 (Branch a) where
 data AST :: (Hakaru -> *) -> Hakaru -> * where
 
     -- -- Standard lambda calculus stuff
-    -- We store a Proxy in Lam_, so Haskell needn't infer @a@ in
-    -- the result. As far as Hakaru is concerned, we only ever try
-    -- to check lambdas, never infer them.
-    Lam_    :: !(Proxy a) -> ast {-a-} b -> AST ast (a ':-> b)
+    Lam_    :: ast {-a-} b -> AST ast (a ':-> b)
     App_    :: ast (a ':-> b) -> ast a -> AST ast b
     Let_    :: ast a -> ast {-a-} b -> AST ast b
     -- TODO: a general \"@let*@\" version of let-binding so we can have mutual recursion
@@ -817,7 +848,7 @@ data AST :: (Hakaru -> *) -> Hakaru -> * where
 instance Show1 ast => Show1 (AST ast) where
     showsPrec1 p t =
         case t of
-        Lam_    a  e         -> showParen_01  p "Lam_"    a  e
+        Lam_    e            -> showParen_1   p "Lam_"    e
         App_    e1 e2        -> showParen_11  p "App_"    e1 e2
         Let_    e1 e2        -> showParen_11  p "Let_"    e1 e2
         Fix_    e            -> showParen_1   p "Fix_"    e
@@ -857,7 +888,7 @@ instance Show1 ast => Show (AST ast a) where
 
 ----------------------------------------------------------------
 instance Functor1 AST where
-    fmap1 f (Lam_        p  e)     = Lam_        p      (f e)
+    fmap1 f (Lam_        e)        = Lam_        (f e)
     fmap1 f (App_        e1 e2)    = App_        (f e1) (f e2)
     fmap1 f (Let_        e1 e2)    = Let_        (f e1) (f e2)
     fmap1 f (Fix_        e)        = Fix_        (f e)
@@ -878,7 +909,7 @@ instance Functor1 AST where
 
 ----------------------------------------------------------------
 instance Foldable1 AST where
-    foldMap1 f (Lam_        _  e)     = f e
+    foldMap1 f (Lam_        e)        = f e
     foldMap1 f (App_        e1 e2)    = f e1 `mappend` f e2
     foldMap1 f (Let_        e1 e2)    = f e1 `mappend` f e2
     foldMap1 f (Fix_        e)        = f e

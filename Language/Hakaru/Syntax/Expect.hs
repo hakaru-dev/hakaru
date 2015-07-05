@@ -116,7 +116,7 @@ expectify (SMeasure _) e xs = expect_ e xs
 
 
 expectAST :: (ABT abt) => AST abt a -> Env abt -> Expect abt a
-expectAST (Lam_ _ e1) xs =
+expectAST (Lam_ e1) xs =
     ExpectFun $ \e2 ->
     caseBind e1 $ \x e' ->
     expect_ e' $ pushEnv (V x e2) xs
@@ -162,7 +162,7 @@ expectAST (Superpose_ pms) xs =
 
 -- BUG: something about can't deduce (Expect abt0 a ~ Expect abt a); we can get rid of that with -XAllowAmbiguousTypes
 expectMeasure :: (ABT abt) => Measure a -> Expect abt a
-expectMeasure Dirac       =
+expectMeasure (Dirac _) =
     ExpectFun $ \a ->
     ExpectMeasure $ \c -> c a
 expectMeasure Lebesgue    =
@@ -222,16 +222,16 @@ expectMeasure Beta =
         x_ ** (fromProb a - real_ 1)
         * (unsafeProb (real_ 1 - x) ** (fromProb b - real_ 1))
         / betaFunc a b * c (unsafeProb x)
-expectMeasure DirichletProcess =
+expectMeasure (DirichletProcess _) =
     ExpectFun $ \p ->
     ExpectFun $ \m ->
     ExpectMeasure $ \c ->
     error "TODO: expectMeasure{DirichletProcess}"
-expectMeasure Plate =
+expectMeasure (Plate _) =
     ExpectFun $ \ms ->
     ExpectMeasure $ \c -> 
     error "TODO: expectMeasure{Plate}"
-expectMeasure Chain =
+expectMeasure (Chain _ _) =
     ExpectFun $ \mz ->
     ExpectFun $ \s0 ->
     ExpectMeasure $ \c ->
@@ -290,18 +290,18 @@ expectPrimOp GammaFunc = expectFun1 ExpectProb gammaFunc
 expectPrimOp BetaFunc  = expectFun2 ExpectProb betaFunc
 expectPrimOp Integrate = expectFun3 ExpectProb $ primOp3_ Integrate
 expectPrimOp Summate   = expectFun3 ExpectProb $ primOp3_ Summate
-expectPrimOp Index     = error "TODO: expectPrimOp{Index}" -- The lookup could return an HMeasure or a (':->)...
-expectPrimOp Size      = expectFun1 ExpectNat size
-expectPrimOp Reduce    = error "TODO: expectPrimOp{Reduce}" -- Not sure why this one doesn't typecheck
-expectPrimOp Less      = expectFun2 ExpectData (<)
-expectPrimOp Equal     = expectFun2 ExpectData (==)
-expectPrimOp NatPow    = error "TODO: expectPrimOp{NatPow}" -- Need to prove the first argument can't be an HMeasure or HFun before we can use (^)
-expectPrimOp Negate    = error "TODO: expectPrimOp{Negate}" -- Need to prove the argument can't be an HMeasure or HFun before we can use 'negate'
-expectPrimOp Abs       = error "TODO: expectPrimOp{Abs}" -- Need to prove the argument can't be an HMeasure or HFun before we can use 'abs_'
-expectPrimOp Signum    = error "TODO: expectPrimOp{Signum}" -- Need to prove the argument can't be an HMeasure or HFun before we can use 'signum'
-expectPrimOp Recip     = error "TODO: expectPrimOp{Recip}" -- Need to prove the argument can't be an HMeasure or HFun before we can use 'recip'
-expectPrimOp NatRoot   = error "TODO: expectPrimOp{NatRoot}" -- Need to prove the argument can't be an HMeasure or HFun before we can use @primOp2_ NatRoot@
-expectPrimOp Erf       = error "TODO: expectPrimOp{Erf}" -- Need to prove the argument can't be an HMeasure or HFun before we can use 'erf'
+expectPrimOp (Index   _) = error "TODO: expectPrimOp{Index}" -- The lookup could return an HMeasure or a (':->)...
+expectPrimOp (Size    a) = expectFun1 ExpectNat . primOp1_ $ Size a
+expectPrimOp (Reduce  _) = error "TODO: expectPrimOp{Reduce}" -- Not sure why this one doesn't typecheck
+expectPrimOp (Equal   a) = expectFun2 ExpectData . primOp2_ $ Equal a
+expectPrimOp (Less    a) = expectFun2 ExpectData . primOp2_ $ Less  a
+expectPrimOp (NatPow  _) = error "TODO: expectPrimOp{NatPow}" -- Need to prove the first argument can't be an HMeasure or HFun before we can use (^)
+expectPrimOp (Negate  _) = error "TODO: expectPrimOp{Negate}" -- Need to prove the argument can't be an HMeasure or HFun before we can use 'negate'
+expectPrimOp (Abs     _) = error "TODO: expectPrimOp{Abs}" -- Need to prove the argument can't be an HMeasure or HFun before we can use 'abs_'
+expectPrimOp (Signum  _) = error "TODO: expectPrimOp{Signum}" -- Need to prove the argument can't be an HMeasure or HFun before we can use 'signum'
+expectPrimOp (Recip   _) = error "TODO: expectPrimOp{Recip}" -- Need to prove the argument can't be an HMeasure or HFun before we can use 'recip'
+expectPrimOp (NatRoot _) = error "TODO: expectPrimOp{NatRoot}" -- Need to prove the argument can't be an HMeasure or HFun before we can use @primOp2_ NatRoot@
+expectPrimOp (Erf     _) = error "TODO: expectPrimOp{Erf}" -- Need to prove the argument can't be an HMeasure or HFun before we can use 'erf'
 
 {-
 expectNaryOp :: (ABT abt) => NaryOp a -> Expect abt _

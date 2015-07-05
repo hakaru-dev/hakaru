@@ -132,6 +132,9 @@ class SingI (a :: k) where sing :: Sing a
 
 
 ----------------------------------------------------------------
+infixr 0 `SFun`
+
+
 -- BUG: data family instances must be fully saturated, but since
 -- these are GADTs, the name of the parameter is irrelevant. However,
 -- using a wildcard causes GHC to panic. cf.,

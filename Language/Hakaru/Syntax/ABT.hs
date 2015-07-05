@@ -525,7 +525,7 @@ bound = boundView . viewABT
     -- don't have dependent types, hence no term variables can appear
     -- in the types.
     boundAST :: (ABT abt) => AST abt a -> Nat
-    boundAST (Lam_        _  e)     = bound e
+    boundAST (Lam_        e)        = bound e
     boundAST (App_        e1 e2)    = bound e1 `max` bound e2
     boundAST (Let_        e1 e2)    = bound e1 `max` bound e2
     boundAST (Fix_        e)        = bound e

@@ -31,7 +31,6 @@ import qualified Prelude
 import           Data.Sequence        (Seq)
 import qualified Data.Sequence        as Seq
 import qualified Data.Text            as Text
-import           Data.Proxy
 import           Control.Category     (Category(..))
 import           Data.Number.LogFloat (LogFloat)
 
@@ -212,58 +211,58 @@ nor    = primOp2_ Nor
 
 
 -- HEq & HOrder operators
-(==), (/=) :: (ABT abt, HOrder a) => abt a -> abt a -> abt HBool
-(==) = primOp2_ Equal
+(==), (/=) :: (ABT abt, HEq_ a) => abt a -> abt a -> abt HBool
+(==) = primOp2_ $ Equal hEq
 (/=) = (not .) . (==)
 
-(<), (<=), (>), (>=) :: (ABT abt, HOrder a) => abt a -> abt a -> abt HBool
-(<)    = primOp2_ Less
+(<), (<=), (>), (>=) :: (ABT abt, HOrd_ a) => abt a -> abt a -> abt HBool
+(<)    = primOp2_ $ Less hOrd
 x <= y = (x < y) || (x == y)
 (>)    = flip (<)
 x >= y = not (x < y) -- or: @flip (<=)@
 
-min, max :: (ABT abt, HOrder a) => abt a -> abt a -> abt a
-min = naryOp2_ Min
-max = naryOp2_ Max
+min, max :: (ABT abt, HOrd_ a) => abt a -> abt a -> abt a
+min = naryOp2_ $ Min hOrd
+max = naryOp2_ $ Max hOrd
 
 -- TODO: if @a@ is bounded, then we can make these safe...
-minimum, maximum :: (ABT abt, HOrder a) => [abt a] -> abt a
-minimum = unsafeNaryOp_ Min
-maximum = unsafeNaryOp_ Max
+minimum, maximum :: (ABT abt, HOrd_ a) => [abt a] -> abt a
+minimum = unsafeNaryOp_ $ Min hOrd
+maximum = unsafeNaryOp_ $ Max hOrd
 
 
 -- HSemiring operators
-(+), (*) :: (ABT abt, HSemiring a) => abt a -> abt a -> abt a
-(+) = naryOp2_ Sum
-(*) = naryOp2_ Prod
+(+), (*) :: (ABT abt, HSemiring_ a) => abt a -> abt a -> abt a
+(+) = naryOp2_ $ Sum  hSemiring
+(*) = naryOp2_ $ Prod hSemiring
 
 {-
 -- TODO
-zero, one :: (ABT abt, HSemiring a) => abt a
+zero, one :: (ABT abt, HSemiring_ a) => abt a
 
-sum, product :: (ABT abt, HSemiring a) => [abt a] -> abt a
+sum, product :: (ABT abt, HSemiring_ a) => [abt a] -> abt a
 sum     = naryOp_withIdentity Sum  zero
 product = naryOp_withIdentity Prod one
 -}
-sum, product :: (ABT abt, HSemiring a) => [abt a] -> abt a
-sum     = unsafeNaryOp_ Sum
-product = unsafeNaryOp_ Prod
+sum, product :: (ABT abt, HSemiring_ a) => [abt a] -> abt a
+sum     = unsafeNaryOp_ $ Sum  hSemiring
+product = unsafeNaryOp_ $ Prod hSemiring
 
 
 -- TODO: simplifications
-(^) :: (ABT abt, HSemiring a) => abt a -> abt 'HNat -> abt a
-(^) = primOp2_ (NatPow {- at type @a@ -})
+(^) :: (ABT abt, HSemiring_ a) => abt a -> abt 'HNat -> abt a
+(^) = primOp2_ $ NatPow hSemiring
 
 -- TODO: this is actually safe, how can we capture that?
 -- TODO: is this type restruction actually helpful anywhere for us?
 -- If so, we ought to make this function polymorphic so that we can
 -- use it for HSemirings which are not HRings too...
-square :: (ABT abt, HRing a) => abt a -> abt (NonNegative a)
+square :: (ABT abt, HRing_ a) => abt a -> abt (NonNegative a)
 square e = unsafeFrom_ signed (e ^ nat_ 2)
 
 
 -- HRing operators
-(-) :: (ABT abt, HRing a) => abt a -> abt a -> abt a
+(-) :: (ABT abt, HRing_ a) => abt a -> abt a -> abt a
 x - y = x + negate y
 
 -- BUG: can't just pattern match on (App_ (PrimOp_ Negate) e)
@@ -275,54 +274,58 @@ x - y = x + negate y
 -- default/? Clearly we'll want to do that in some
 -- optimization\/partial-evaluation pass, but do note that it makes
 -- terms larger in general...
-negate :: (ABT abt, HRing a) => abt a -> abt a
+negate :: (ABT abt, HRing_ a) => abt a -> abt a
 negate e0 =
-    Prelude.maybe (primOp1_ Negate e0) id
+    Prelude.maybe (primOp1_ (Negate hRing) e0) id
         $ caseVarSyn e0
             (\_ _ -> Nothing)
             $ \t0 ->
                 case t0 of
-                NaryOp_ Sum xs ->
-                    Just . syn $ NaryOp_ Sum (fmap negate xs)
+                -- TODO: need we case analyze the @HSemiring@?
+                NaryOp_ (Sum theSemi) xs ->
+                    Just . syn $ NaryOp_ (Sum theSemi) (fmap negate xs)
                 App_ f e ->
                     caseVarSyn f
                         (\_ _ -> Nothing)
                         (\ft  ->
                             case ft of
-                            PrimOp_ Negate -> Just e
-                            _              -> Nothing)
+                            -- TODO: need we case analyze the @HRing@?
+                            PrimOp_ (Negate _theRing) -> Just e
+                            _                         -> Nothing)
                 _ -> Nothing
 
 
 -- TODO: test case: @negative . square@ simplifies away the intermediate coercions. (cf., normal')
 -- BUG: this can lead to ambiguity when used with the polymorphic functions of RealProb.
 -- | An occasionally helpful variant of 'negate'.
-negative :: (ABT abt, HRing a) => abt (NonNegative a) -> abt a
+negative :: (ABT abt, HRing_ a) => abt (NonNegative a) -> abt a
 negative = negate . coerceTo_ signed
 
 
-abs :: (ABT abt, HRing a) => abt a -> abt a
+abs :: (ABT abt, HRing_ a) => abt a -> abt a
 abs = coerceTo_ signed . abs_
 
-abs_ :: (ABT abt, HRing a) => abt a -> abt (NonNegative a)
+abs_ :: (ABT abt, HRing_ a) => abt a -> abt (NonNegative a)
 abs_ e =
-    Prelude.maybe (primOp1_ Abs e) id
+    Prelude.maybe (primOp1_ (Abs hRing) e) id
         $ caseVarSyn e
             (\_ _ -> Nothing)
             $ \t  ->
                 case t of
                 -- BUG: can't use the 'Signed' pattern synonym, because that /requires/ the input to be (NonNegative a), instead of giving us the information that it is.
-                CoerceTo_ (ConsCoercion PrimSigned IdCoercion) e' -> Just e'
+                -- TODO: need we case analyze the @HRing@?
+                CoerceTo_ (ConsCoercion (Signed _theRing) IdCoercion) e' ->
+                    Just e'
                 _ -> Nothing
 
 
 -- TODO: any obvious simplifications? idempotent?
-signum :: (ABT abt, HRing a) => abt a -> abt a
-signum = primOp1_ Signum
+signum :: (ABT abt, HRing_ a) => abt a -> abt a
+signum = primOp1_ $ Signum hRing
 
 
 -- HFractional operators
-(/) :: (ABT abt, HFractional a) => abt a -> abt a -> abt a
+(/) :: (ABT abt, HFractional_ a) => abt a -> abt a -> abt a
 x / y = x * recip y
 
 
@@ -332,27 +335,29 @@ x / y = x * recip y
 -- /by default/? Clearly we'll want to do that in some
 -- optimization\/partial-evaluation pass, but do note that it makes
 -- terms larger in general...
-recip :: (ABT abt, HFractional a) => abt a -> abt a
+recip :: (ABT abt, HFractional_ a) => abt a -> abt a
 recip e0 =
-    Prelude.maybe (primOp1_ Recip e0) id
+    Prelude.maybe (primOp1_ (Recip hFractional) e0) id
         $ caseVarSyn e0
             (\_ _ -> Nothing)
             $ \t0 ->
                 case t0 of
-                NaryOp_ Prod xs ->
-                    Just . syn $ NaryOp_ Prod (fmap recip xs)
+                -- TODO: need we case analyze the @HSemiring@?
+                NaryOp_ (Prod theSemi) xs ->
+                    Just . syn $ NaryOp_ (Prod theSemi) (fmap recip xs)
                 App_ f e ->
                     caseVarSyn f
                         (\_ _ -> Nothing)
                         (\ft  ->
                             case ft of
-                            PrimOp_ Recip -> Just e
-                            _             -> Nothing)
+                            -- TODO: need we case analyze the @HFractional@?
+                            PrimOp_ (Recip _theFrac) -> Just e
+                            _                        -> Nothing)
                 _ -> Nothing
 
 
 -- TODO: simplifications
-(^^) :: (ABT abt, HFractional a) => abt a -> abt 'HInt -> abt a
+(^^) :: (ABT abt, HFractional_ a) => abt a -> abt 'HInt -> abt a
 x ^^ y =
     if_ (y < int_ 0)
         (recip x ^ abs_ y)
@@ -361,11 +366,11 @@ x ^^ y =
 
 -- HRadical operators
 -- TODO: simplifications
-thRootOf :: (ABT abt, HRadical a) => abt 'HNat -> abt a -> abt a
-n `thRootOf` x = primOp2_ NatRoot x n
+thRootOf :: (ABT abt, HRadical_ a) => abt 'HNat -> abt a -> abt a
+n `thRootOf` x = primOp2_ (NatRoot hRadical) x n
 
 -- N.B., HProb is the only HRadical type (for now...)
-sqrt :: (ABT abt, HRadical a) => abt a -> abt a
+sqrt :: (ABT abt, HRadical_ a) => abt a -> abt a
 sqrt = (nat_ 2 `thRootOf`)
 
 betaFunc :: (ABT abt) => abt 'HProb -> abt 'HProb -> abt 'HProb
@@ -373,10 +378,10 @@ betaFunc = primOp2_ BetaFunc
 
 {-
 -- TODO: simplifications
-(^+) :: (ABT abt, HRadical a) => abt a -> abt 'HPositiveRational -> abt a
+(^+) :: (ABT abt, HRadical_ a) => abt a -> abt 'HPositiveRational -> abt a
 x ^+ y = casePositiveRational y $ \n d -> d `thRootOf` (x ^ n)
 
-(^*) :: (ABT abt, HRadical a) => abt a -> abt 'HRational -> abt a
+(^*) :: (ABT abt, HRadical_ a) => abt a -> abt 'HRational -> abt a
 x ^* y = caseRational y $ \n d -> d `thRootOf` (x ^^ n)
 -}
 
@@ -396,7 +401,7 @@ instance RealProb 'HReal where
     (**)      = primOp2_ RealPow
     exp       = primOp1_ Exp
     log       = primOp1_ Log
-    erf       = primOp1_ (Erf {- 'HReal -})
+    erf       = primOp1_ $ Erf hContinuous
     pi        = coerceTo_ signed $ primOp0_ Pi
     infinity  = coerceTo_ signed $ primOp0_ Infinity
     gammaFunc = primOp1_ GammaFunc
@@ -405,13 +410,13 @@ instance RealProb 'HProb where
     x ** y    = primOp2_ RealPow x (coerceTo_ signed y)
     exp       = primOp1_ Exp . coerceTo_ signed
     log       = unsafeFrom_ signed . primOp1_ Log -- error for inputs in [0,1)
-    erf       = primOp1_ (Erf {- 'HProb -})
+    erf       = primOp1_ $ Erf hContinuous
     pi        = primOp0_ Pi
     infinity  = primOp0_ Infinity
     gammaFunc = primOp1_ GammaFunc . coerceTo_ signed
 
 logBase
-    :: (ABT abt, RealProb a, HFractional a)
+    :: (ABT abt, RealProb a, HFractional_ a)
     => abt 'HProb
     -> abt 'HProb
     -> abt a
@@ -487,22 +492,22 @@ if_ b t f =
         , Branch (PDatum dFalse) f
         ]
 
-nil_      :: ABT abt => abt (HList a)
+nil_      :: (ABT abt) => abt (HList a)
 nil_      = datum_ dNil
 
-cons_     :: ABT abt => abt a -> abt (HList a) -> abt (HList a)
+cons_     :: (ABT abt) => abt a -> abt (HList a) -> abt (HList a)
 cons_     = (datum_ .) . dCons
 
-list_     :: ABT abt => [abt a] -> abt (HList a)
+list_     :: (ABT abt) => [abt a] -> abt (HList a)
 list_     = Prelude.foldr cons_ nil_
 
-nothing_  :: ABT abt => abt (HMaybe a)
+nothing_  :: (ABT abt) => abt (HMaybe a)
 nothing_  = datum_ dNothing
 
-just_     :: ABT abt => abt a -> abt (HMaybe a)
+just_     :: (ABT abt) => abt a -> abt (HMaybe a)
 just_     = datum_ . dJust
 
-maybe_    :: ABT abt => Maybe (abt a) -> abt (HMaybe a)
+maybe_    :: (ABT abt) => Maybe (abt a) -> abt (HMaybe a)
 maybe_    = Prelude.maybe nothing_ just_
 
 
@@ -532,19 +537,22 @@ array n =
 empty :: (ABT abt) => abt ('HArray a)
 empty = syn Empty_
 
-(!) :: (ABT abt) => abt ('HArray a) -> abt 'HNat -> abt a
-(!) = primOp2_ Index
+-- BUG: remove the 'SingI' requirement!
+(!) :: (ABT abt, SingI a) => abt ('HArray a) -> abt 'HNat -> abt a
+(!) = primOp2_ $ Index sing
 
-size :: (ABT abt) => abt ('HArray a) -> abt 'HNat
-size = primOp1_ Size
+-- BUG: remove the 'SingI' requirement!
+size :: (ABT abt, SingI a) => abt ('HArray a) -> abt 'HNat
+size = primOp1_ $ Size sing
 
+-- BUG: remove the 'SingI' requirement!
 reduce
     :: (ABT abt, SingI a)
     => (abt a -> abt a -> abt a)
     -> abt a
     -> abt ('HArray a)
     -> abt a
-reduce f = primOp3_ Reduce (lam $ \x -> lam $ \y -> f x y)
+reduce f = primOp3_ (Reduce sing) (lam $ \x -> lam $ \y -> f x y)
 
 
 -- instance (ABT abt) => Mochastic (abt) where
@@ -555,14 +563,15 @@ reduce f = primOp3_ Reduce (lam $ \x -> lam $ \y -> f x y)
     -> abt ('HMeasure b)
 (>>=) e = syn . Bind_ e . binder (Text.pack "_") sing
 
-dirac    :: (ABT abt) => abt a -> abt ('HMeasure a)
-dirac    = measure1_ Dirac
+-- BUG: remove the 'SingI' requirement!
+dirac    :: (ABT abt, SingI a) => abt a -> abt ('HMeasure a)
+dirac    = measure1_ $ Dirac sing
 
 lebesgue :: (ABT abt) => abt ('HMeasure 'HReal)
-lebesgue = measure0_  Lebesgue
+lebesgue = measure0_ Lebesgue
 
 counting :: (ABT abt) => abt ('HMeasure 'HInt)
-counting = measure0_  Counting
+counting = measure0_ Counting
 
 superpose
     :: (ABT abt)
@@ -675,19 +684,19 @@ beta' a b =
         , dirac x_
         )]
 
-
-dp  :: (ABT abt)
+-- BUG: remove the 'SingI' requirement!
+dp  :: (ABT abt, SingI a)
     => abt 'HProb
     -> abt ('HMeasure a)
     -> abt ('HMeasure ('HMeasure a))
-dp = measure2_ DirichletProcess
+dp = measure2_ $ DirichletProcess sing
 
-
+-- BUG: remove the 'SingI' requirement!
 plate
-    :: (ABT abt)
+    :: (ABT abt, SingI a)
     => abt ('HArray ('HMeasure          a))
     -> abt (         'HMeasure ('HArray a))
-plate = measure1_ Plate
+plate = measure1_ $ Plate sing
 {-
 -- TODO: the array stuff...
 plate' v = reduce r z (mapV m v)
@@ -697,12 +706,12 @@ plate' v = reduce r z (mapV m v)
     m a = liftM (vector 1 . const) a
 -}
 
-
+-- BUG: remove the 'SingI' requirement!
 chain
-    :: (ABT abt)
+    :: (ABT abt, SingI s, SingI a)
     => abt ('HArray (s ':-> 'HMeasure (HPair          a  s)))
     -> abt (         s ':-> 'HMeasure (HPair ('HArray a) s))
-chain = measure1_ Chain
+chain = measure1_ $ Chain sing sing
 {-
 -- TODO: the array stuff...
 chain' v = reduce r z (mapV m v)
@@ -741,10 +750,11 @@ summate lo hi f =
 -- instance (ABT abt) => Lambda abt where
 -- 'app' already defined
 
+
 lam :: (ABT abt, SingI a)
     => (abt a -> abt b)
     -> abt (a ':-> b)
-lam = syn . Lam_ Proxy . binder (Text.pack "_") sing
+lam = syn . Lam_ . binder (Text.pack "_") sing
 
 {-
 -- some test cases to make sure we tied-the-knot successfully:
@@ -754,7 +764,7 @@ lam = syn . Lam_ Proxy . binder (Text.pack "_") sing
         -> Sing a
         -> (abt a -> abt b)
         -> abt (a ':-> b)
-    lam name typ = syn . Lam_ Proxy . binder name typ
+    lam name typ = syn . Lam_ . binder name typ
 > lam "x" SInt (\x -> x) :: TrivialABT ('HInt ':-> 'HInt)
 > lam "x" SInt (\x -> lam "y" SInt $ \y -> x < y) :: TrivialABT ('HInt ':-> 'HInt ':-> 'HBool)
 -}

@@ -61,7 +61,7 @@ mustCheck = go . viewABT
 
     -- Actually, since we have the Proxy, we should be able to
     -- synthesize here...
-    go (Syn (Lam_ _ _)) = True
+    go (Syn (Lam_ _)) = True
 
     -- In general, applications don't require checking; however,
     -- for fully saturated data constructors they do (according to
@@ -207,7 +207,7 @@ inferType ctx e =
         -- & Neelk are doing in their ICFP'13 paper with that
         -- \"=>=>\" judgment? (prolly not, but...)
         {-
-    Syn (App_ (Syn (Lam_ p e1)) e2) -> do
+    Syn (App_ (Syn (Lam_ e1)) e2) -> do
         typ2 <- inferType ctx e2
         -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
         caseBind e1 $ \x e' ->
@@ -236,18 +236,17 @@ inferType ctx e =
         return typ
 
     Syn (PrimOp_ o) ->
-        -- BUG: need to finish implementing singPrimOp
-        return (singPrimOp o)
+        return (sing_PrimOp o)
 
     Syn (NaryOp_ o es) -> do
-        -- BUG: need to finish implementing singNaryOp
-        let typ = singNaryOp o
+        let typ = sing_NaryOp o
         forM_ (F.toList es) $ \e' ->
             checkType ctx e' typ
         return typ
 
     Syn (Value_ v) ->
-        return (singValue v)
+        -- BUG: need to finish implementing sing_Value for Datum
+        return (sing_Value v)
 
     Syn (CoerceTo_ c e1)
         | inferable e1 -> do
@@ -260,8 +259,7 @@ inferType ctx e =
             return (singCoerceFrom c typ)
 
     Syn (Measure_ o) ->
-        -- BUG: need to finish implementing singMeasure
-        return (singMeasure o)
+        return (sing_Measure o)
 
     Syn (Bind_ e1 e2)
         | inferable e1 -> do
@@ -284,7 +282,7 @@ inferType ctx e =
 checkType :: ABT abt => Ctx -> abt a -> Sing a -> TypeCheckMonad ()
 checkType ctx e typ =
     case viewABT e of
-    Syn (Lam_ _ e1) ->
+    Syn (Lam_ e1) ->
         case typ of
         SFun typ1 typ2 ->
             -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
