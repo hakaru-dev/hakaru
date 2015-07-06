@@ -231,17 +231,21 @@ expectAST (Ann_ _ e) xs =
     expectSynDir e xs
 
 expectAST (PrimOp_ o) xs =
-    -- N.B., we can's just use the default implementation for 'Index' and 'Reduce', because they could produce a measure by eliminating an array. Thus, to avoid looping forever, we must actually interpret arrays in our 'Expect' semantics, so that we can actually eliminate them here.
-    -- TODO: this further suggests that these two shouldn't really be considered 'PrimOp's
+    -- N.B., we can't just use the default implementation for 'Index' and 'Reduce', because they could produce a measure by eliminating an array. Thus, to avoid looping forever, we must actually interpret arrays in our 'Expect' semantics, so that we can actually eliminate them here.
+    -- TODO: this further suggests that these three shouldn't really be considered 'PrimOp's
     case o of
     Index a ->
         ExpectFun $ \arr ->
         ExpectFun $ \i ->
-        case expectTypeDir (SArray a) arr xs of
         -- TODO: should that be type-directed or syntax-directed?
+        case expectTypeDir (SArray a) arr xs of
         -- TODO: should we insert a guard that @i < e1@?
         ExpectArray e1 e2 -> e2 i
-
+    Size   a ->
+        ExpectFun $ \arr ->
+        -- TODO: should that be type-directed or syntax-directed?
+        case expectTypeDir (SArray a) arr xs of
+        ExpectArray e1 e2 -> expectSynDir e1 xs
     Reduce a -> error "TODO: expectAST{Reduce}"
 
     -- Everything else is trivial
