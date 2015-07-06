@@ -27,9 +27,10 @@ module Language.Hakaru.Syntax.Expect
     , expect
     ) where
 
-import Prelude (($), (.), id, flip, error, Maybe(..))
-import Data.IntMap           (IntMap)
-import qualified Data.IntMap as IM
+import qualified Prelude
+import           Prelude (($), (.), id, flip, error, Maybe(..), otherwise)
+import           Data.IntMap   (IntMap)
+import qualified Data.IntMap   as IM
 
 import Language.Hakaru.Syntax.Nat      (fromNat)
 import Language.Hakaru.Syntax.DataKind
@@ -52,34 +53,51 @@ expect
     :: (ABT abt)
     => abt ('HMeasure a)
     -> (abt a -> abt 'HProb) -> abt 'HProb
-expect e = apM $ expect_ e IM.empty
+expect e = apM $ expectSynDir e IM.empty
 
 
 ----------------------------------------------------------------
--- TODO: factor out all the trivial constructors, separating them from ExpectFun and ExpectMeasure
-{-
-type family   IsTrivialExpect (a :: Hakaru) :: Bool
-type instance IsTrivialExpect (unused :: Hakaru) where
-    IsTrivialExpect (a ':-> b)    = 'False
-    IsTrivialExpect ('HMeasure a) = 'False
-    IsTrivialExpect a             = 'True
-
-type TrivialExpect a = IsTrivialExpect a ~ 'True
--}
-
--- TODO: we accidentally rediscovered NBE (for functions). Should we do NBE for the \"trivial\" types too? That cuts to the chase of needing an interpreter for 'Case_'... (of course, NBE doesn't work so well for open terms...) Or maybe we should just NBE things away before calling 'expect'?
--- We can't do this as a type family, because that causes ambiguity issues due to the @abt@ being parametric (but we have no way of explaining that to type families).
+-- We can't do this as a type family, because that causes ambiguity
+-- issues due to the @abt@ being parametric (but we have no way of
+-- explaining that to type families). cf., -XAllowAmbiguousTypes
+--
+-- TODO: only partially interpret things (functions, arrays), doing so lazily as needed.
+--
+-- | @Expect abt a@ gives the expectation-semantic interpretation
+-- of @abt a@. The only \"real\" change is interpreting measures
+-- as linear functionals; all the other interpretations are just
+-- for performing normalization-by-evaluation in order to construct
+-- that linear functional.
 data Expect :: (Hakaru -> *) -> Hakaru -> * where
-    ExpectNat   :: abt 'HNat               -> Expect abt 'HNat
-    ExpectInt   :: abt 'HInt               -> Expect abt 'HInt
-    ExpectProb  :: abt 'HProb              -> Expect abt 'HProb
-    ExpectReal  :: abt 'HReal              -> Expect abt 'HReal
-    ExpectArray :: abt ('HArray a)         -> Expect abt ('HArray a)
-    ExpectData  :: abt ('HData t xss)      -> Expect abt ('HData t xss)
-    ExpectFun   :: (abt a -> Expect abt b) -> Expect abt (a ':-> b)
+    -- We don't bother interpreting primitive numeric types.
+    ExpectNat  :: abt 'HNat  -> Expect abt 'HNat
+    ExpectInt  :: abt 'HInt  -> Expect abt 'HInt
+    ExpectProb :: abt 'HProb -> Expect abt 'HProb
+    ExpectReal :: abt 'HReal -> Expect abt 'HReal
+
+    -- We have to interpret arrays so we can evaluate 'Index' and
+    -- 'Reduce' as needed.
+    ExpectArray
+        :: abt 'HNat
+        -> (abt 'HNat -> Expect abt a)
+        -> Expect abt ('HArray a)
+
+    -- TODO: actually interpret 'HData', so we can evaluate 'Case_'
+    ExpectData
+        :: abt ('HData t xss)
+        -> Expect abt ('HData t xss)
+
+    -- We have to interpret functions so we can (easily) interpret
+    -- our parameterized measures. This interpretation allows us
+    -- to evaluate 'App_' as needed.
+    ExpectFun
+        :: (abt a -> Expect abt b)
+        -> Expect abt (a ':-> b)
+
     ExpectMeasure
         :: ((abt a -> abt 'HProb) -> abt 'HProb)
         -> Expect abt ('HMeasure a)
+
 
 -- TODO: a general function for converting Expect back into plain
 -- Haskell functions; we could call it \"expectify\", to pun on the
@@ -108,82 +126,161 @@ getSing :: (ABT abt) => abt a -> Sing a
 getSing _ = error "TODO: get singletons of anything after typechecking"
 
 
--- | Reflect a term into it's expectation semantics. In particular,
--- this function handles variables; everything else is handed off
--- to the 'expectAST' or 'expectSing' helper functions.
-expect_ :: (ABT abt) => abt a -> Env abt -> Expect abt a
-expect_ e xs =
-    flip (caseVarSyn e)
-        (`expectAST` xs)
-        $ \x a ->
-            case IM.lookup (fromNat $ varID x) xs of
-            Nothing       -> error "expect: unbound variable"
-            Just (V _ e') ->
-                let b = getSing e' in
-                case jmEq a b of
-                Nothing   -> error "expect: ill-typed environment"
-                Just Refl -> expectSing b e' xs
+-- TODO: Move this to ABT.hs
+-- TODO: Swap the argument order?
+-- TODO: use a proper exception\/error monad; like 'Either'.
+-- TODO: Remove the 'getSing' requirement by storing singletons in
+-- the environment? If so, then should we return @Maybe (Sing a)@
+-- as well? (a) That will let us know whether we had to perform
+-- variable lookups along the way, and so prevents losing information;
+-- (b) we can't just return @Sing a@ because doing so would require
+-- taking a @Sing a@ input, and if we had that already then there's
+-- no point in returning it...
+--
+-- | Perform recursive variable lookups until we can finally return
+-- some syntax.
+resolveVar :: (ABT abt) => abt a -> Env abt -> AST abt a
+resolveVar e xs =
+    flip (caseVarSyn e) id $ \x typ ->
+        case IM.lookup (fromNat $ varID x) xs of
+        Just (V x' e')
+            | x' Prelude.== x ->
+                let typ' = getSing e' in
+                case jmEq typ' typ of
+                Just Refl -> resolveVar e' xs
+                Nothing   -> error "resolveVar: ill-typed environment"
+            | otherwise   -> error "resolveVar: ill-formed environment"
+        Nothing           -> error "resolveVar: unbound variable"
 
 
--- | A singleton-directed variant of 'expect_'. This function just
--- does the bare minimum necessary for wrapping an @abt@ up in
--- 'Expect'. In particular, the environment is only ever used if
--- the term's type is an @n@-ary function (including where @n=0@)
--- returning a measure.
-expectSing :: (ABT abt) => Sing a -> abt a -> Env abt -> Expect abt a
-expectSing SNat         e _  = ExpectNat   e
-expectSing SInt         e _  = ExpectInt   e
-expectSing SProb        e _  = ExpectProb  e
-expectSing SReal        e _  = ExpectReal  e
-expectSing (SData  _ _) e _  = ExpectData  e
-expectSing (SArray   _) e _  = ExpectArray e
-expectSing (SFun   _ s) e xs = ExpectFun $ \x -> expectSing s (e `app` x) xs
-expectSing (SMeasure _) e xs = expect_ e xs
+-- TODO: if we really do have 'getSing', then we can call it in
+-- 'expect' and jump directly to 'expectTypeDir'; then we could
+-- probably find a way to thread singletons through in order to
+-- combine 'expectSynDir' and 'expectTypeDir' into a single function.
+--
+-- TODO: when should we switch back and forth between 'expectSynDir'
+-- and 'expectTypeDir'? The old version of 'expectSynDir' switched
+-- to 'expectTypeDir' whenever it had looked up a variable; is that
+-- what we want?
+--
+-- | Perform a syntax-directed reflection of a term into it's
+-- expectation semantics. This function will perform whatever
+-- evaluation it needs to in order to expose the things being
+-- reflected.
+expectSynDir :: (ABT abt) => abt a -> Env abt -> Expect abt a
+expectSynDir e xs = expectAST (resolveVar e xs) xs
+
+
+-- | Perform a type-directed reflection of a term into it's expectation
+-- semantics. This function does the bare minimum necessary for
+-- wrapping up an @abt@ into 'Expect'; thus, it will build up a
+-- larger term from the @abt a@ argument, without looking inside
+-- it (whenever possible). Only only when absolutely necessary, do
+-- we fall back to the syntax-directed 'expectSynDir'. \"Absolutely
+-- necessary\" is when we have an @n@-ary function returning a
+-- measure (including when @n=0@), or when we have an array of such,
+-- or when we have some expression which evaluates to an array (but
+-- which is not yet an array literal).
+--
+-- This is mainly for 'PrimOp', 'NaryOp', and 'Value' to do the
+-- right thing with a minimum of boilerplate code.
+expectTypeDir :: (ABT abt) => Sing a -> abt a -> Env abt -> Expect abt a
+expectTypeDir SNat         e _  = ExpectNat   e
+expectTypeDir SInt         e _  = ExpectInt   e
+expectTypeDir SProb        e _  = ExpectProb  e
+expectTypeDir SReal        e _  = ExpectReal  e
+expectTypeDir (SData  _ _) e _  = ExpectData  e
+expectTypeDir (SArray   a) e xs =
+    -- TODO: fold this into 'expectAST'? cf., type-dir vs syn-dir...
+    case resolveVar e xs of
+    Array_ e1 e2 ->
+        ExpectArray e1 $ \ei ->
+        caseBind e2 $ \x e' ->
+        expectTypeDir a e' $ pushEnv (V x ei) xs
+    Empty_       -> expectEmpty
+    t            -> expectAST t xs
+expectTypeDir (SFun   _ s) e xs =
+    ExpectFun $ \e2 ->
+    expectTypeDir s (e `app` e2) xs
+expectTypeDir (SMeasure _) e xs =
+    expectSynDir e xs
+
+
+expectEmpty :: (ABT abt) => Expect abt ('HArray a)
+expectEmpty = ExpectArray (nat_ 0) $ error "expect: indexing an empty array"
 
 
 expectAST :: (ABT abt) => AST abt a -> Env abt -> Expect abt a
 expectAST (Lam_ e1) xs =
     ExpectFun $ \e2 ->
     caseBind e1 $ \x e' ->
-    expect_ e' $ pushEnv (V x e2) xs
+    expectSynDir e' $ pushEnv (V x e2) xs
 
 expectAST (App_ e1 e2) xs =
-    expect_ e1 xs `apF` e2
+    expectSynDir e1 xs `apF` e2
 
 expectAST (Let_ e1 e2) xs =
     caseBind e2 $ \x e' ->
-    expect_ e' $ pushEnv (V x e1) xs
+    expectSynDir e' $ pushEnv (V x e1) xs
 
 expectAST (Fix_ e1) xs =
     caseBind e1 $ \x e' ->
-    expect_ e' $ pushEnv (V x e1) xs -- BUG: looping?
+    expectSynDir e' $ pushEnv (V x . syn $ Fix_ e1) xs -- BUG: could loop
 
 expectAST (Ann_ _ e) xs =
-    expect_ e xs
+    expectSynDir e xs
 
 expectAST (PrimOp_ o) xs =
-    expectSing (sing_PrimOp o) (syn $ PrimOp_ o) xs
-    -- TODO: we should beware of 'Index' and 'Reduce'. They may need evaluating if they happen to return functions or measures
+    -- N.B., we can's just use the default implementation for 'Index' and 'Reduce', because they could produce a measure by eliminating an array. Thus, to avoid looping forever, we must actually interpret arrays in our 'Expect' semantics, so that we can actually eliminate them here.
+    -- TODO: this further suggests that these two shouldn't really be considered 'PrimOp's
+    case o of
+    Index a ->
+        ExpectFun $ \arr ->
+        ExpectFun $ \i ->
+        case expectTypeDir (SArray a) arr xs of
+        -- TODO: should that be type-directed or syntax-directed?
+        -- TODO: should we insert a guard that @i < e1@?
+        ExpectArray e1 e2 -> e2 i
+
+    Reduce a -> error "TODO: expectAST{Reduce}"
+
+    -- Everything else is trivial
+    _ -> expectTypeDir (sing_PrimOp o) (syn $ PrimOp_ o) xs
 
 expectAST (NaryOp_ o es) xs =
-    expectSing (sing_NaryOp o) (syn $ NaryOp_ o es) xs
+    expectTypeDir (sing_NaryOp o) (syn $ NaryOp_ o es) xs
 
-expectAST (Value_      v)     xs = expectSing (sing_Value v) (value_ v) xs
-expectAST (CoerceTo_   c  e)  xs = expectCoerceTo   c $ expect_ e xs
-expectAST (UnsafeFrom_ c  e)  xs = expectUnsafeFrom c $ expect_ e xs
-expectAST Empty_              _  = ExpectArray . syn $ Empty_
-expectAST (Array_      e1 e2) _  = ExpectArray . syn $ Array_ e1 e2
+expectAST (Value_ v) xs =
+    expectTypeDir (sing_Value v) (value_ v) xs
+
+expectAST (CoerceTo_   c  e)  xs = expectCoerceTo   c $ expectSynDir e xs
+expectAST (UnsafeFrom_ c  e)  xs = expectUnsafeFrom c $ expectSynDir e xs
+expectAST Empty_              _  = expectEmpty
+expectAST (Array_      e1 e2) xs =
+    ExpectArray e1 $ \ei ->
+    caseBind e2 $ \x e' ->
+    expectSynDir e' $ pushEnv (V x ei) xs
+
 expectAST (Datum_      d)     _  = ExpectData $ datum_ d
-expectAST (Case_       e  bs) xs = error "TODO: expect{Case_}" -- use 'isBind' to capture the easy cases at least
+expectAST (Case_       e  bs) xs = error "TODO: expect{Case_}"
+    -- In theory we should be able to use 'isBind' to filter our the hard cases and be able to tackle 'if_' at the very least. However, The problem is, we don't have @ABT (Expect abt)@ so we can't turn our @View (Expect abt)@ into an @Expect abt@...
+    -- > | F.any (Monoid.getAny . foldMap1 (Monoid.Any . isBind)) $ bs =
+    -- >     ...
+    -- > | otherwise =
+    -- >     let e'  = expectTypeDir (getSing e) e xs
+    -- >         bs' = map (fmap1 (`expectSynDir` xs)) bs
+    -- >         e2  = Syn $ Case_ e' bs'
+    -- >     in ...?
+
 expectAST (Measure_    o)     _  = expectMeasure o
 expectAST (Bind_       e1 e2) xs =
     ExpectMeasure $ \c ->
-    expect_ e1 xs `apM` \a ->
+    expectSynDir e1 xs `apM` \a ->
     caseBind e2 $ \x e' ->
-    (expect_ e' $ pushEnv (V x a) xs) `apM` c
+    (expectSynDir e' $ pushEnv (V x a) xs) `apM` c
 expectAST (Superpose_ pms) xs =
     ExpectMeasure $ \c ->
-    sum [ p * (expect_ m xs `apM` c) | (p, m) <- pms ]
+    sum [ p * (expectSynDir m xs `apM` c) | (p, m) <- pms ]
 
 
 expectMeasure :: (ABT abt) => Measure a -> Expect abt a
@@ -198,13 +295,10 @@ expectMeasure Counting    =
     summate   negativeInfinity infinity c
 expectMeasure Categorical =
     ExpectFun $ \ps ->
-    ExpectMeasure $ \c -> 
-    error "TODO: expectMeasure{Categorical}"
-    {-
+    ExpectMeasure $ \c ->
     let_ (summateV ps) $ \tot ->
-    flip (if_ (0 < tot)) 0
+    flip (if_ (prob_ 0 < tot)) (prob_ 0)
         $ summateV (mapWithIndex (\i p -> p * c i) ps) / tot
-    -}
 expectMeasure Uniform =
     ExpectFun $ \lo ->
     ExpectFun $ \hi ->

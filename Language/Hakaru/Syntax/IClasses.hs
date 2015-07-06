@@ -225,5 +225,7 @@ class Functor1 f => Foldable1 (f :: (k -> *) -> k -> *) where
     foldMap1 :: (Monoid m) => (forall i. a i -> m) -> f a j -> m
     foldMap1 f = fold1 . fmap1 (Lift1 . f)
 
+-- TODO: standard Foldable wrappers 'and1', 'or1', 'all1', 'any1',...
+
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

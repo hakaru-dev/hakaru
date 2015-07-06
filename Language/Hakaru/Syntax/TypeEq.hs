@@ -280,6 +280,7 @@ instance Show (Sing (a :: Symbol)) where
     showsPrec = showsPrec1
     show      = show1
 
+-- BUG: this is really getting in the way of printf-debugging things...
 instance SingI (s :: Symbol) where
     sing = error "sing{Symbol} unimplemented"
 
