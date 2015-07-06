@@ -505,12 +505,9 @@ sing_Measure (Chain s a) =
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
-
--- BUG: rename all the patterns, data-constructors, singletons, and types to be consistent everywhere!
-
 -- TODO: add the constructor name as another component of this record, to improve error messages etc.
 --
--- TODO: add @Sing ('HData t (Code t))@ ?
+-- TODO: add @Sing ('HData t (Code t))@ to the Datum constructor?
 --
 -- | A fully saturated data constructor\/pattern, with leaves in
 -- @ast@. We define this type as separate from 'DatumCode' for
@@ -623,6 +620,7 @@ instance Foldable1 (DatumStruct xs) where
     foldMap1 _ Done       = mempty
 
 
+-- TODO: do we like those constructor names? Should we change them?
 data DatumFun :: HakaruFun -> (Hakaru -> *) -> Hakaru -> * where
     -- | Hit a leaf which isn't a recursive component of the datatype.
     Konst :: ast b -> DatumFun ('K b) ast a
@@ -691,6 +689,8 @@ dJust      = Datum . Inr . Inl . (`Et` Done) . Konst
 
 ----------------------------------------------------------------
 -- TODO: negative patterns? (to facilitate reordering of case branches)
+-- TODO: disjunctive patterns, a~la ML?
+-- TODO: equality patterns for Nat\/Int? (what about Prob\/Real??)
 -- TODO: exhaustiveness, non-overlap, dead-branch checking
 --
 -- We index patterns by the type they scrutinize. This requires the
@@ -707,9 +707,6 @@ data Pattern :: Hakaru -> * where
 
     -- | A pattern variable.
     PVar  :: Pattern a
-
-    -- TODO: equality patterns for Nat\/Int.
-    -- Does it make sense to have equality patterns for Prob\/Real?
 
     -- | A data type constructor pattern.
     PDatum
@@ -832,7 +829,6 @@ data AST :: (Hakaru -> *) -> Hakaru -> * where
 
     -- -- Mochastic stuff
     -- TODO: should Dirac move back here?
-    -- TODO: should DP_, Plate_, and Chain_ move there?
     -- | Primitive operators which generate measures.
     Measure_ :: !(Measure a) -> AST ast a
     -- TODO: find a name so this doesn't conflict with ABT's Bind
