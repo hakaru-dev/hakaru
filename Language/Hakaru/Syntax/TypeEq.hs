@@ -195,34 +195,34 @@ infixr 7 `SEt`
 -- for Symbols? Doesn't work in pattern synonyms, of course.
 sUnit :: Sing HUnit
 sUnit =
-    SData (STyCon SSymbol_Unit)
+    SData (STyCon sSymbol_Unit)
         (SDone `SPlus` SVoid)
 
 sBool :: Sing HBool
 sBool =
-    SData (STyCon SSymbol_Bool)
+    SData (STyCon sSymbol_Bool)
         (SDone `SPlus` SDone `SPlus` SVoid)
 
 -- BUG: what does this "Conflicting definitions for ‘a’" message mean when we try to make this a pattern synonym?
 sPair :: Sing a -> Sing b -> Sing (HPair a b)
 sPair a b =
-    SData (STyCon SSymbol_Pair `STyApp` a `STyApp` b)
+    SData (STyCon sSymbol_Pair `STyApp` a `STyApp` b)
         ((SKonst a `SEt` SKonst b `SEt` SDone) `SPlus` SVoid)
 
 sEither :: Sing a -> Sing b -> Sing (HEither a b)
 sEither a b =
-    SData (STyCon SSymbol_Either `STyApp` a `STyApp` b)
+    SData (STyCon sSymbol_Either `STyApp` a `STyApp` b)
         ((SKonst a `SEt` SDone) `SPlus` (SKonst b `SEt` SDone)
             `SPlus` SVoid)
 
 sList :: Sing a -> Sing (HList a)
 sList a =
-    SData (STyCon SSymbol_List `STyApp` a)
+    SData (STyCon sSymbol_List `STyApp` a)
         (SDone `SPlus` (SKonst a `SEt` SIdent `SEt` SDone) `SPlus` SVoid)
 
 sMaybe :: Sing a -> Sing (HMaybe a)
 sMaybe a =
-    SData (STyCon SSymbol_Maybe `STyApp` a)
+    SData (STyCon sSymbol_Maybe `STyApp` a)
         (SDone `SPlus` (SKonst a `SEt` SDone) `SPlus` SVoid)
 
 ----------------------------------------------------------------
@@ -253,13 +253,27 @@ instance (SingI a, SingI b) => SingI ((a ':@ b) :: HakaruCon Hakaru) where
 
 
 ----------------------------------------------------------------
-data instance Sing (s :: Symbol) where -- TODO: fixme
-    SSymbol_Bool   :: Sing "Bool"
-    SSymbol_Unit   :: Sing "Unit"
-    SSymbol_Pair   :: Sing "Pair"
-    SSymbol_Either :: Sing "Either"
-    SSymbol_List   :: Sing "List"
-    SSymbol_Maybe  :: Sing "Maybe"
+-- BUG: this whole section is a gross hack! the singletons for
+-- symbols conveys no information, and thus is useless as a singleton.
+-- 'jmEq_Symb' will always return false; but that should be easier
+-- to work around than 'sing' always throwing an undefined-ness
+-- exception.
+
+data instance Sing (s :: Symbol) where
+    SomeSymbol :: Sing (s :: Symbol)
+
+sSymbol_Bool   :: Sing "Bool"
+sSymbol_Bool = SomeSymbol
+sSymbol_Unit   :: Sing "Unit"
+sSymbol_Unit = SomeSymbol
+sSymbol_Pair   :: Sing "Pair"
+sSymbol_Pair = SomeSymbol
+sSymbol_Either :: Sing "Either"
+sSymbol_Either = SomeSymbol
+sSymbol_List   :: Sing "List"
+sSymbol_List = SomeSymbol
+sSymbol_Maybe  :: Sing "Maybe"
+sSymbol_Maybe = SomeSymbol
 
 instance Eq (Sing (a :: Symbol)) where
     a == b = maybe False (const True) (jmEq_Symb a b)
@@ -267,7 +281,8 @@ instance Eq (Sing (a :: Symbol)) where
 -- TODO: instance Read (Sing (a :: Symbol))
 
 instance Show1 (Sing :: Symbol -> *) where
-    showsPrec1 _ s =
+    showsPrec1 _ s = showString "SomeSymbol"
+    {-
         case s of
         SSymbol_Bool   -> showString "SSymbol_Bool"
         SSymbol_Unit   -> showString "SSymbol_Unit"
@@ -275,14 +290,14 @@ instance Show1 (Sing :: Symbol -> *) where
         SSymbol_Either -> showString "SSymbol_Either"
         SSymbol_List   -> showString "SSymbol_List"
         SSymbol_Maybe  -> showString "SSymbol_Maybe"
+    -}
 
 instance Show (Sing (a :: Symbol)) where
     showsPrec = showsPrec1
     show      = show1
 
--- BUG: this is really getting in the way of printf-debugging things...
 instance SingI (s :: Symbol) where
-    sing = error "sing{Symbol} unimplemented"
+    sing = SomeSymbol
 
 
 ----------------------------------------------------------------
@@ -417,12 +432,14 @@ jmEq_Con (STyApp f a) (STyApp g b) = jmEq_Con  f g >>= \Refl ->
 jmEq_Con _ _ = Nothing
 
 jmEq_Symb :: Sing (a :: Symbol) -> Sing (b :: Symbol) -> Maybe (TypeEq a b)
+{-
 jmEq_Symb SSymbol_Bool   SSymbol_Bool   = Just Refl
 jmEq_Symb SSymbol_Unit   SSymbol_Unit   = Just Refl
 jmEq_Symb SSymbol_Pair   SSymbol_Pair   = Just Refl
 jmEq_Symb SSymbol_Either SSymbol_Either = Just Refl
 jmEq_Symb SSymbol_List   SSymbol_List   = Just Refl
 jmEq_Symb SSymbol_Maybe  SSymbol_Maybe  = Just Refl
+-}
 jmEq_Symb _ _ = Nothing
 
 jmEq_Code

@@ -20,6 +20,9 @@ module Language.Hakaru.Syntax.IClasses
     ( Lift1(..)
     -- * Showing indexed types
     , Show1(..), shows1, showList1
+    -- ** Some more-generic helper functions
+    , showListWith
+    , showTuple
     -- ** some helpers for implementing the instances
     , showParen_0
     , showParen_1
@@ -63,12 +66,28 @@ class Show1 (a :: k -> *) where
 shows1 :: (Show1 a) => a i -> ShowS
 shows1 =  showsPrec1 0
 
+
 showList1 :: Show1 a => [a i] -> ShowS
-showList1 []     s = "[]" ++ s
-showList1 (x:xs) s = '[' : shows1 x (showl xs)
+showList1 = showListWith shows1
+
+-- This implementation taken from 'showList' in base-4.8:"GHC.Show",
+-- generalizing over the showing function.
+showListWith :: (a -> ShowS) -> [a] -> ShowS
+showListWith f = start
     where
-    showl []     = ']' : s
-    showl (y:ys) = ',' : shows1 y (showl ys)
+    start []     s = "[]" ++ s
+    start (x:xs) s = '[' : f x (go xs)
+        where
+        go []     = ']' : s
+        go (y:ys) = ',' : f y (go ys)
+
+-- This implementation taken from 'show_tuple' in base-4.8:"GHC.Show",
+-- verbatim.
+showTuple :: [ShowS] -> ShowS
+showTuple ss
+    = showChar '('
+    . foldr1 (\s r -> s . showChar ',' . r) ss
+    . showChar ')'
 
 {-
 -- BUG: these require (Show (i::k)) in the class definition of Show1

@@ -887,7 +887,13 @@ instance Show1 ast => Show1 (AST ast) where
                 )
         Measure_   o         -> showParen_0   p "Measure_" o
         Bind_      e1 e2     -> showParen_11  p "Bind_"   e1 e2
-        Superpose_ pes       -> error "TODO: show Superpose_"
+        Superpose_ pes       ->
+            showParen (p > 9)
+                ( showString "Superpose_ "
+                . showListWith
+                    (\(p,e) -> showTuple [shows1 p, shows1 e])
+                    pes
+                )
 
 instance Show1 ast => Show (AST ast a) where
     showsPrec = showsPrec1
