@@ -8,7 +8,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.06.30
+--                                                    2015.07.06
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeCheck
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -31,9 +31,8 @@ module Language.Hakaru.Syntax.TypeCheck where
 import           Data.IntMap           (IntMap)
 import qualified Data.IntMap           as IM
 import qualified Data.Foldable         as F
-import           Control.Monad         (forM_)
 #if __GLASGOW_HASKELL__ < 710
-import           Control.Applicative   (Applicative)
+import           Control.Applicative   (Applicative(..))
 #endif
 import Language.Hakaru.Syntax.Nat      (fromNat)
 import Language.Hakaru.Syntax.DataKind (Hakaru(..), Code)
@@ -51,16 +50,16 @@ inferable :: (ABT abt) => abt a -> Bool
 inferable = not . mustCheck
 
 
-
 -- | Those terms whose types must be checked analytically. We cannot
 -- synthesize (unambiguous) types for these terms.
 mustCheck :: (ABT abt) => abt a -> Bool
 mustCheck = go . viewABT
     where
     go :: (ABT abt) => View abt a -> Bool
+    go (Bind _ _) =
+        error "mustCheck: you shouldn't be asking about Bind terms"
+    go (Var  _ _)     = False
 
-    -- Actually, since we have the Proxy, we should be able to
-    -- synthesize here...
     go (Syn (Lam_ _)) = True
 
     -- In general, applications don't require checking; however,
@@ -68,17 +67,18 @@ mustCheck = go . viewABT
     -- neelk).
     go (Syn (App_ _ _)) = False
 
-    -- N.B., the TLDI'05 paper says we'll always infer the @e2@ but
+    -- We follow Dunfield & Pientka and \Pi\Sigma in inferring or
+    -- checking depending on what the body requires. This is as
+    -- opposed to the TLDI'05 paper, which always inders @e2@ but
     -- will check or infer the @e1@ depending on whether it has a
-    -- type annotation or not. However, Dunfield & Pientka have us
-    -- always inferring the @e1@ and then checking or inferring the
-    -- @e2@ as appropriate...
+    -- type annotation or not.
     go (Syn (Let_ _ e2)) = mustCheck e2
 
     -- If our Fix_ had a type annotation on the variable, then we
     -- could infer the type by checking the body against that same
-    -- type... But for now, we'll just have to check.
-    go (Syn (Fix_ e))          = True
+    -- type (just as if Lam_ had a type annotation on the variable).
+    -- But for now we'll just have to check (again, just like Lam_).
+    go (Syn (Fix_ _))          = True
 
     go (Syn (Ann_ _ _))        = False
 
@@ -86,36 +86,37 @@ mustCheck = go . viewABT
     go (Syn (NaryOp_ _ _))     = False
     go (Syn (Value_ _))        = False
 
-    -- TODO: I'm guessing for these two
+    -- TODO: I'm guessing for these two. Since the coercion stores
+    -- concrete information about both the type of @e@ and the type
+    -- of the whole expression, maybe this should behave more like
+    -- 'Ann_'...?
     go (Syn (CoerceTo_   _ e)) = mustCheck e
     go (Syn (UnsafeFrom_ _ e)) = mustCheck e
-
-    -- I just say this because neelk says all data constructors
-    -- mustCheck (even though that doesn't seem right to me).
-    -- TODO: Seems to me that if we can infer the body, then we
-    -- should be able to infer the whole thing, right? Or maybe the
-    -- problem is that the change-of-direction rule might send us
-    -- down the wrong path? Usually I'd assume the binder is what
-    -- does it, but here we know the type of the bound variable,
-    -- because it's the same for every Array
-    go (Syn Empty_)       = True
-    go (Syn (Array_ _ _)) = True
 
     -- I return true because most folks (neelk, Pfenning, Dunfield
     -- & Pientka) say all data constructors mustCheck (even though
     -- that doesn't seem right to me; also, cf.,
     -- <http://jozefg.bitbucket.org/posts/2014-11-22-bidir.html>).
     --
-    -- TODO: shouldn't we always be able to infer it correctly,
-    -- supposing that the main components (the children of the
-    -- 'HakaruFun' constructors) are all inferable? I suppose we
-    -- would have some trouble inferring the tag\/name for the
+    -- TODO: For 'Array_', it seems to me that if we can infer the
+    -- body, then we should be able to infer the whole thing, right?
+    -- Or maybe the problem is that the change-of-direction rule
+    -- might send us down the wrong path? Usually I'd assume the
+    -- binder is what does it, but here we know the type of the
+    -- bound variable, because it's the same for every array.
+    --
+    -- TODO: For 'Datum_', shouldn't we always be able to infer it
+    -- correctly, supposing that the main components (the children
+    -- of the 'HakaruFun' constructors) are all inferable? I suppose
+    -- we would have some trouble inferring the tag\/name for the
     -- type...
     --
     -- In general (according to Dunfield & Pientka), we should be
     -- able to infer the result of a fully saturated primop by
     -- looking up it's type and then checking all the arguments.
-    go (Syn (Datum_ _)) = True
+    go (Syn Empty_)       = True
+    go (Syn (Array_ _ _)) = True
+    go (Syn (Datum_ _))   = True
 
     -- TODO: everyone says this, but it seems to me that if we can
     -- infer any of the branches (and check the rest to agree) then
@@ -127,22 +128,15 @@ mustCheck = go . viewABT
     go (Syn (Measure_ _))     = False
     -- TODO: I'm assuming this works like Let_, but we should make sure...
     go (Syn (Bind_ _ e2))     = mustCheck e2
-    go (Syn (Superpose_ pes)) = error "TODO: mustCheck(Superpose_)"
-    go (Var  _ _)             = False
-    go (Bind _ _)             = error "mustCheck: you shouldn't be asking about Bind terms" -- Presumably this ought to be an error, rather than False (right?)
+    -- TODO: again, it seems like if we can infer one of the options, then we should be able to check the rest against it. But for now we'll assume we must check
+    go (Syn (Superpose_ _))   = True
 
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
-type TypeCheckError = String -- TODO: something better
-
-newtype TypeCheckMonad a = TCM { unTCM :: Either TypeCheckError a }
-    deriving (Functor, Applicative, Monad)
--- TODO: ensure that the monad instance has the appropriate strictness
-
-failwith :: TypeCheckError -> TypeCheckMonad a
-failwith = TCM . Left
+-- TODO: replace with an IntMap(TypedVariable), using the varID of the Variable
+type Ctx = IntMap TypedVariable
 
 data TypedVariable where
     TV :: {-# UNPACK #-} !Variable -> !(Sing (a :: Hakaru)) -> TypedVariable
@@ -167,34 +161,60 @@ data TypedDatum (abt :: Hakaru -> *) where
         -> !(Sing ('HData t (Code t)))
         -> TypedDatum abt
 
--- TODO: replace with an IntMap(TypedVariable), using the varID of the Variable
-type Ctx = IntMap TypedVariable
+----------------------------------------------------------------
+type TypeCheckError = String -- TODO: something better
 
-pushCtx :: TypedVariable -> Ctx -> Ctx
-pushCtx tv@(TV x _) = IM.insert (fromNat $ varID x) tv
+newtype TypeCheckMonad a =
+    TCM { unTCM :: Ctx -> Either TypeCheckError a }
+
+instance Functor TypeCheckMonad where
+    fmap f m = TCM $ fmap f . unTCM m
+
+instance Applicative TypeCheckMonad where
+    pure      = TCM . const . Right
+    mf <*> mx = mf >>= \f -> fmap f mx
+
+-- TODO: ensure this instance has the appropriate strictness
+instance Monad TypeCheckMonad where
+    return   = pure
+    mx >>= k = TCM $ \ctx -> unTCM mx ctx >>= \x -> unTCM (k x) ctx
+
+-- | Extend the typing context, but only locally.
+pushCtx :: TypedVariable -> TypeCheckMonad a -> TypeCheckMonad a
+pushCtx tv@(TV x _) (TCM m) =
+    TCM $ \ctx -> m $ IM.insert (fromNat $ varID x) tv ctx
+
+getCtx :: TypeCheckMonad Ctx
+getCtx = TCM Right
+
+failwith :: TypeCheckError -> TypeCheckMonad a
+failwith = TCM . const . Left
 
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 -- | Given a typing environment and a term, synthesize the term's type.
-inferType :: ABT abt => Ctx -> abt a -> TypeCheckMonad (Sing a)
-inferType ctx e =
-    case viewABT e of
-    Var x typ ->
+inferType :: ABT abt => abt a -> TypeCheckMonad (Sing a)
+inferType e0 =
+    case viewABT e0 of
+    Bind _ _  -> error "inferType: you shouldn't be asking about Bind terms"
+    Var x typ -> do
+        ctx <- getCtx
         case IM.lookup (fromNat $ varID x) ctx of
-        Just (TV x' typ')
-            | x' == x ->
-                case jmEq typ typ' of
-                Just Refl -> return typ'
-                Nothing   -> failwith "type mismatch"
-            | otherwise   -> error "inferType: bad context"
-        Nothing           -> failwith "unbound variable"
+            Just (TV x' typ')
+                | x' == x ->
+                    case jmEq typ' typ of
+                    Just Refl -> return typ'
+                    Nothing   -> failwith "type mismatch"
+                | otherwise   -> error "inferType: ill-formed context"
+            Nothing           -> failwith "unbound variable"
 
     Syn (App_ e1 e2) -> do
-        -- N.B., the SFun part is irrefutable\/complete
-        SFun typ2 typ3 <- inferType ctx e1
-        checkType ctx e2 typ2
-        return typ3
+        typ1 <- inferType e1
+        case typ1 of
+            SFun typ2 typ3 -> do
+                checkType typ2 e2
+                return typ3
         -- The above is the standard rule that everyone uses.
         -- However, if the @e1@ is a lambda (rather than a primop
         -- or a variable), then it will require a type annotation.
@@ -208,70 +228,58 @@ inferType ctx e =
         -- \"=>=>\" judgment? (prolly not, but...)
         {-
     Syn (App_ (Syn (Lam_ e1)) e2) -> do
-        typ2 <- inferType ctx e2
+        typ2 <- inferType e2
         -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
-        caseBind e1 $ \x e' ->
-            inferType (pushCtx (TV x typ2) ctx) e'
+        caseBind e1 $ \x -> pushCtx (TV x typ2) . inferType
         -}
 
     Syn (Let_ e1 e2)
         | inferable e1 -> do
-            typ1 <- inferType ctx e1
+            typ1 <- inferType e1
             -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
-            caseBind e2 $ \x e' ->
-                inferType (pushCtx (TV x typ1) ctx) e'
-        | otherwise -> error "TODO: inferType{LetA}"
-            {-
-            -- TODO: this version of let-binding should come with @typ1@ annotation on the variable. That is, based on the TLDI'05 paper, I think we need two different AST constructors, one for inferable @e1@ and the other for mustCheck @e1@... But for now we can always fake that by putting an Ann_ on the @e1@ itself
-            checkType ctx e1 typ1
-            -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
-            caseBind e2 $ \x e' ->
-                inferType (pushCtx (TV x typ1) ctx) e'
-            -}
+            caseBind e2 $ \x -> pushCtx (TV x typ1) . inferType
 
-    Syn (Ann_ typ e') -> do
+    Syn (Ann_ typ1 e1) -> do
         -- N.B., this requires that @typ@ is a 'Sing' not a 'Proxy',
         -- since we can't generate a 'Sing' from a 'Proxy'.
-        checkType ctx e' typ
-        return typ
+        checkType typ1 e1
+        return typ1
 
     Syn (PrimOp_ o) ->
-        return (sing_PrimOp o)
+        return $ sing_PrimOp o
 
     Syn (NaryOp_ o es) -> do
         let typ = sing_NaryOp o
-        forM_ (F.toList es) $ \e' ->
-            checkType ctx e' typ
+        F.forM_ es $ checkType typ
         return typ
 
     Syn (Value_ v) ->
         -- BUG: need to finish implementing sing_Value for Datum
-        return (sing_Value v)
+        return $ sing_Value v
 
     Syn (CoerceTo_ c e1)
         | inferable e1 -> do
-            typ <- inferType ctx e1
-            return (singCoerceTo c typ)
+            typ <- inferType e1
+            return $ singCoerceTo c typ
 
     Syn (UnsafeFrom_ c e1)
         | inferable e1 -> do
-            typ <- inferType ctx e1
-            return (singCoerceFrom c typ)
+            typ <- inferType e1
+            return $ singCoerceFrom c typ
 
     Syn (Measure_ o) ->
-        return (sing_Measure o)
+        return $ sing_Measure o
 
     Syn (Bind_ e1 e2)
         | inferable e1 -> do
-            -- N.B., that pattern is irrefutable\/complete
-            SMeasure typ1 <- inferType ctx e1
-            -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
-            caseBind e2 $ \x e' ->
-                inferType (pushCtx (TV x typ1) ctx) e'
-        | otherwise -> error "TODO: inferType{BindA}"
+            typ1 <- inferType e1
+            case typ1 of
+                SMeasure typ2 ->
+                    -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
+                    caseBind e2 $ \x -> pushCtx (TV x typ2) . inferType
 
-    _   | mustCheck e -> failwith "Cannot infer types for checking terms; please add a type annotation"
-        | otherwise   -> error "inferType: missing an inferable branch!"
+    _   | mustCheck e0 -> failwith "Cannot infer types for checking terms; please add a type annotation"
+        | otherwise    -> error "inferType: missing an inferable branch!"
 
 
 ----------------------------------------------------------------
@@ -279,77 +287,78 @@ inferType ctx e =
 -- TODO: rather than returning (), we could return a fully type-annotated term...
 -- | Given a typing environment, a term, and a type, check that the
 -- term satisfies the type.
-checkType :: ABT abt => Ctx -> abt a -> Sing a -> TypeCheckMonad ()
-checkType ctx e typ =
-    case viewABT e of
+checkType :: ABT abt => Sing a -> abt a -> TypeCheckMonad ()
+checkType typ0 e0 =
+    case viewABT e0 of
+    Bind _ _ -> error "checkType: you shouldn't be asking about Bind terms"
     Syn (Lam_ e1) ->
-        case typ of
+        case typ0 of
         SFun typ1 typ2 ->
             -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
-            caseBind e1 $ \x e' ->
-                checkType (pushCtx (TV x typ1) ctx) e' typ2
+            caseBind e1 $ \x -> pushCtx (TV x typ1) . checkType typ2
         _ -> failwith "expected function type"
 
     Syn (Let_ e1 e2)
         | inferable e1 -> do
-            typ1 <- inferType ctx e1
+            typ1 <- inferType e1
             -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
-            caseBind e2 $ \x e' ->
-                checkType (pushCtx (TV x typ1) ctx) e' typ
-        | otherwise -> error "TODO: checkType{LetA}"
+            caseBind e2 $ \x -> pushCtx (TV x typ1) . checkType typ0
 
     Syn (Fix_ e1) ->
         -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
-        caseBind e1 $ \x e' ->
-            checkType (pushCtx (TV x typ) ctx) e' typ
+        caseBind e1 $ \x -> pushCtx (TV x typ0) . checkType typ0
 
     Syn (CoerceTo_ c e1) ->
-        checkType ctx e1 (singCoerceFrom c typ)
+        checkType (singCoerceFrom c typ0) e1
 
     Syn (UnsafeFrom_ c e1) ->
-        checkType ctx e1 (singCoerceTo c typ)
+        checkType (singCoerceTo c typ0) e1
 
     Syn Empty_ ->
-        case typ of
+        case typ0 of
         SArray typ1 -> return ()
             -- TODO: use jmEq to test that 'typ1' matches
         _ -> failwith "expected HArray type"
+
     Syn (Array_ n e1) ->
-        case typ of
+        case typ0 of
         SArray typ1 -> do
-            checkType ctx n SNat
+            checkType SNat n
             -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
-            caseBind e1 $ \x e' ->
-                checkType (pushCtx (TV x SNat) ctx) e' typ1
+            caseBind e1 $ \x -> pushCtx (TV x SNat) . checkType typ1
         _ -> failwith "expected HArray type"
 
     Syn (Datum_ (Datum d)) ->
-        case typ of
-        SData _ typ2 -> checkDatum ctx [TDC d typ2 typ]
+        case typ0 of
+        SData _ typ2 -> checkDatum [TDC d typ2 typ0]
         _            -> failwith "expected HData type"
 
     Syn (Case_ e1 branches) -> do
-        typ1 <- inferType ctx e1
-        forM_ branches $ \(Branch pat body) ->
-            checkBranch ctx body typ [TP pat typ1]
+        typ1 <- inferType e1
+        F.forM_ branches $ \(Branch pat body) ->
+            checkBranch typ0 body [TP pat typ1]
 
     Syn (Bind_ e1 e2)
         | inferable e1 -> do
-            -- N.B., that pattern is irrefutable\/complete
-            SMeasure typ1 <- inferType ctx e1
-            -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
-            caseBind e2 $ \x e' ->
-                checkType (pushCtx (TV x typ1) ctx) e' typ
-        | otherwise -> error "TODO: checkType{BindA}"
+            typ1 <- inferType e1
+            case typ1 of
+                SMeasure typ2 ->
+                    -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
+                    caseBind e2 $ \x -> pushCtx (TV x typ2) . checkType typ0
 
-    _   | inferable e -> do
-            typ' <- inferType ctx e
+    Syn (Superpose_ pes) ->
+        F.forM_ pes $ \(p,e) -> do
+            checkType SProb p
+            checkType typ0  e
+        
+    _   | inferable e0 -> do
+            typ' <- inferType e0
             -- If we ever get evaluation at the type level, then
             -- (==) should be the appropriate notion of type
             -- equivalence. More generally, we should have that the
             -- inferred @typ'@ is a subtype of (i.e., subsumed by)
             -- the goal @typ@. This will be relevant to us for handling our coercion calculus :(
-            case jmEq typ typ' of
+            case jmEq typ0 typ' of
                 Just Refl -> return ()
                 Nothing   -> failwith "Type mismatch"
         | otherwise -> error "checkType: missing an mustCheck branch!"
@@ -359,10 +368,9 @@ checkType ctx e typ =
 -- TODO: can we unify this with the last major case of 'checkBranch'?
 checkDatum
     :: ABT abt
-    => Ctx
-    -> [TypedDatum abt]
+    => [TypedDatum abt]
     -> TypeCheckMonad ()
-checkDatum ctx = go
+checkDatum = go
     where
     go []                     = return ()
     go (TDC d typ typA : dts) =
@@ -389,30 +397,30 @@ checkDatum ctx = go
         case d of
         Ident e1 ->
             case typ of
-            SIdent        -> checkType ctx e1 typA >> go dts
+            SIdent        -> checkType typA e1 >> go dts
             _             -> failwith "expected term of `I' type"
         Konst e1 ->
             case typ of
-            SKonst typ1   -> checkType ctx e1 typ1 >> go dts
+            SKonst typ1   -> checkType typ1 e1 >> go dts
             _             -> failwith "expected term of `K' type"
 
 ----------------------------------------------------------------
 checkBranch
     :: ABT abt
-    => Ctx
+    => Sing b
     -> abt b
-    -> Sing b
     -> [TypedPattern]
     -> TypeCheckMonad ()
-checkBranch ctx body body_typ = go
+checkBranch body_typ body = go
     where
-    go []                 = checkType ctx body body_typ
+    go []                 = checkType body_typ body
     go (TP pat typ : pts) =
         case pat of
         PVar ->
             -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
             caseBind body $ \x body' ->
-                checkBranch (pushCtx (TV x typ) ctx) body' body_typ pts
+                pushCtx (TV x typ) $
+                    checkBranch body_typ body' pts
 
         PWild               -> go pts
         PDatum (Datum pat1) ->
