@@ -334,7 +334,7 @@ abs_ e =
                 case t of
                 -- BUG: can't use the 'Signed' pattern synonym, because that /requires/ the input to be (NonNegative a), instead of giving us the information that it is.
                 -- TODO: need we case analyze the @HRing@?
-                CoerceTo_ (ConsCoercion (Signed _theRing) IdCoercion) e' ->
+                CoerceTo_ (CCons (Signed _theRing) CNil) e' ->
                     Just e'
                 _ -> Nothing
 

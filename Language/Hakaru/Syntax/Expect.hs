@@ -364,8 +364,8 @@ expectMeasure (Chain _ _) =
 
 -- TODO: how to avoid all this boilerplate?
 expectCoerceTo :: (ABT abt) => Coercion a b -> Expect abt a -> Expect abt b
-expectCoerceTo IdCoercion           = id
-expectCoerceTo (ConsCoercion c1 c2) =
+expectCoerceTo CNil          = id
+expectCoerceTo (CCons c1 c2) =
     expectCoerceTo c2 . expectPrimCoerceTo c1
 
 
@@ -386,8 +386,8 @@ expectPrimCoerceTo _ _ = error "expectPrimCoerceTo: the impossible happened"
 
 expectUnsafeFrom
     :: (ABT abt) => Coercion a b -> Expect abt b -> Expect abt a
-expectUnsafeFrom IdCoercion           = id
-expectUnsafeFrom (ConsCoercion c1 c2) =
+expectUnsafeFrom CNil          = id
+expectUnsafeFrom (CCons c1 c2) =
     expectPrimUnsafeFrom c1 . expectUnsafeFrom c2
 
 

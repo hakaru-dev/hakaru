@@ -60,7 +60,7 @@ deriving instance Show (PrimCoercion a b)
 
 -- | A smart constructor for lifting 'PrimCoercion' into 'Coercion'
 singletonCoercion :: PrimCoercion a b -> Coercion a b
-singletonCoercion c = ConsCoercion c IdCoercion
+singletonCoercion c = CCons c CNil
 
 -- | A smart constructor for 'Signed'.
 signed :: (HRing_ a) => Coercion (NonNegative a) a
@@ -77,12 +77,12 @@ data Coercion :: Hakaru -> Hakaru -> * where
     -- This may/should make program transformations easier to write
     -- by allowing more intermediate ASTs, but will require a cleanup
     -- pass afterwards to remove the trivial coercions.
-    IdCoercion :: Coercion a a
+    CNil :: Coercion a a
 
     -- TODO: but sometimes we need the snoc-based inductive hypothesis...
     -- | We use a cons-based approach rather than append-based in
     -- order to get a better inductive hypothesis.
-    ConsCoercion :: !(PrimCoercion a b) -> !(Coercion b c) -> Coercion a c
+    CCons :: !(PrimCoercion a b) -> !(Coercion b c) -> Coercion a c
 
 -- BUG: deriving instance Eq   (Coercion a b)
 -- BUG: deriving instance Read (Coercion a b)
@@ -90,9 +90,9 @@ deriving instance Show (Coercion a b)
 
 
 instance Category Coercion where
-    id = IdCoercion
-    xs . IdCoercion        = xs
-    xs . ConsCoercion y ys = ConsCoercion y (xs . ys)
+    id = CNil
+    xs . CNil       = xs
+    xs . CCons y ys = CCons y (xs . ys)
 
 ----------------------------------------------------------------
 singPrimCoerceTo :: PrimCoercion a b -> Sing a -> Sing b
@@ -118,13 +118,13 @@ singPrimCoerceFrom (Continuous theCont) s =
 
 
 singCoerceTo :: Coercion a b -> Sing a -> Sing b
-singCoerceTo IdCoercion          s = s
-singCoerceTo (ConsCoercion c cs) s =
+singCoerceTo CNil         s = s
+singCoerceTo (CCons c cs) s =
     singCoerceTo cs (singPrimCoerceTo c s)
 
 singCoerceFrom :: Coercion a b -> Sing b -> Sing a
-singCoerceFrom IdCoercion          s = s
-singCoerceFrom (ConsCoercion c cs) s =
+singCoerceFrom CNil         s = s
+singCoerceFrom (CCons c cs) s =
     singPrimCoerceFrom c (singCoerceFrom cs s)
 
 ----------------------------------------------------------------
@@ -142,11 +142,11 @@ unsafeFrom_coerceTo
     -> UnsafeFrom_CoerceTo a c
 unsafeFrom_coerceTo xs ys =
     case xs of
-    IdCoercion          -> UnsafeFrom_CoerceTo IdCoercion ys
-    ConsCoercion x xs'  ->
+    CNil        -> UnsafeFrom_CoerceTo CNil ys
+    CCons x xs' ->
         case ys of
-        IdCoercion      -> UnsafeFrom_CoerceTo xs IdCoercion
-        ConsCoercion y ys'
+        CNil    -> UnsafeFrom_CoerceTo xs CNil
+        CCons y ys'
             -- TODO: use a variant of jmEq instead, so it typechecks
             | x == y    -> unsafeFrom_coerceTo xs' ys'
             | otherwise -> UnsafeFrom_CoerceTo xs  ys
