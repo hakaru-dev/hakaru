@@ -25,6 +25,11 @@ module Language.Hakaru.Syntax.Coercion
     , singletonCoercion
     , singCoerceTo
     , singCoerceFrom
+    -- * Experimental optimization functions
+    , CoerceTo_UnsafeFrom(..)
+    , simplifyCTUF
+    , UnsafeFrom_CoerceTo(..)
+    , simplifyUFCT
     ) where
 
 import Prelude          hiding (id, (.))
@@ -127,42 +132,115 @@ singCoerceFrom CNil         s = s
 singCoerceFrom (CCons c cs) s =
     singPrimCoerceFrom c (singCoerceFrom cs s)
 
+
 ----------------------------------------------------------------
-{-
--- TODO: make these rules for coalescing things work
+----------------------------------------------------------------
+-- TODO: move this to HClasses.hs
+jmEq_Ring :: HRing a -> HRing b -> Maybe (TypeEq a b)
+jmEq_Ring HRing_Int  HRing_Int  = Just Refl
+jmEq_Ring HRing_Real HRing_Real = Just Refl
+jmEq_Ring _ _ = Nothing
+
+-- TODO: move this to HClasses.hs
+jmEq_Cont :: HContinuous a -> HContinuous b -> Maybe (TypeEq a b)
+jmEq_Cont HContinuous_Prob HContinuous_Prob = Just Refl
+jmEq_Cont HContinuous_Real HContinuous_Real = Just Refl
+jmEq_Cont _ _ = Nothing
+
+jmEq_Coe
+    :: PrimCoercion a1 a2
+    -> PrimCoercion b1 b2
+    -> Maybe (TypeEq a1 b1, TypeEq a2 b2)
+jmEq_Coe (Signed r1) (Signed r2) =
+    jmEq_Ring r1 r2 >>= \Refl -> Just (Refl, Refl)
+jmEq_Coe (Continuous c1) (Continuous c2) =
+    jmEq_Cont c1 c2 >>= \Refl -> Just (Refl, Refl)
+jmEq_Coe _ _ = Nothing
+
+
+data CoerceTo_UnsafeFrom :: Hakaru -> Hakaru -> * where
+    CTUF :: !(Coercion b c) -> !(Coercion b a) -> CoerceTo_UnsafeFrom a c
+
+-- BUG: deriving instance Eq   (CoerceTo_UnsafeFrom a b)
+-- BUG: deriving instance Read (CoerceTo_UnsafeFrom a b)
+deriving instance Show (CoerceTo_UnsafeFrom a b)
+
+-- TODO: handle the fact that certain coercions commute over one another!
+simplifyCTUF :: CoerceTo_UnsafeFrom a c -> CoerceTo_UnsafeFrom a c
+simplifyCTUF (CTUF xs ys) =
+    case xs of
+    CNil        -> CTUF CNil ys
+    CCons x xs' ->
+        case ys of
+        CNil        -> CTUF xs CNil
+        CCons y ys' ->
+            case jmEq_Coe x y of
+            Just (Refl, Refl) -> simplifyCTUF (CTUF xs' ys')
+            Nothing           -> CTUF xs ys
+
+----------------------------------------------------------------
+-- | Choose the other inductive hypothesis.
+data RevCoercion :: Hakaru -> Hakaru -> * where
+    CLin  :: RevCoercion a a
+    CSnoc :: !(RevCoercion a b) -> !(PrimCoercion b c) -> RevCoercion a c
+
+-- BUG: deriving instance Eq   (RevCoercion a b)
+-- BUG: deriving instance Read (RevCoercion a b)
+deriving instance Show (RevCoercion a b)
+
+instance Category RevCoercion where
+    id = CLin
+    CLin . xs       = xs
+    CSnoc ys y . xs = CSnoc (ys . xs) y
+
+revCons :: PrimCoercion a b -> RevCoercion b c -> RevCoercion a c
+revCons x CLin         = CSnoc CLin x
+revCons x (CSnoc ys y) = CSnoc (revCons x ys) y
+
+toRev :: Coercion a b -> RevCoercion a b
+toRev CNil         = CLin
+toRev (CCons x xs) = revCons x (toRev xs)
+
+obvSnoc :: Coercion a b -> PrimCoercion b c -> Coercion a c
+obvSnoc CNil         y = CCons y CNil
+obvSnoc (CCons x xs) y = CCons x (obvSnoc xs y)
+
+fromRev :: RevCoercion a b -> Coercion a b
+fromRev CLin         = CNil
+fromRev (CSnoc xs x) = obvSnoc (fromRev xs) x
+
 data UnsafeFrom_CoerceTo :: Hakaru -> Hakaru -> * where
-    UnsafeFrom_CoerceTo
+    UFCT
         :: !(Coercion c b)
         -> !(Coercion a b)
         -> UnsafeFrom_CoerceTo a c
 
-unsafeFrom_coerceTo
-    :: Coercion c b
-    -> Coercion a b
-    -> UnsafeFrom_CoerceTo a c
-unsafeFrom_coerceTo xs ys =
+-- BUG: deriving instance Eq   (UnsafeFrom_CoerceTo a b)
+-- BUG: deriving instance Read (UnsafeFrom_CoerceTo a b)
+deriving instance Show (UnsafeFrom_CoerceTo a b)
+
+data RevUFCT :: Hakaru -> Hakaru -> * where
+    RevUFCT :: !(RevCoercion c b) -> !(RevCoercion a b) -> RevUFCT a c
+        
+-- TODO: handle the fact that certain coercions commute over one another!
+-- N.B., This version can be tricky to get to type check because our associated type families aren't guaranteed injective.
+simplifyUFCT :: UnsafeFrom_CoerceTo a c -> UnsafeFrom_CoerceTo a c
+simplifyUFCT (UFCT xs ys) =
+    case simplifyRevUFCT $ RevUFCT (toRev xs) (toRev ys) of
+    RevUFCT xs' ys' -> UFCT (fromRev xs') (fromRev ys')
+
+simplifyRevUFCT :: RevUFCT a c -> RevUFCT a c
+simplifyRevUFCT (RevUFCT xs ys) =
     case xs of
-    CNil        -> UnsafeFrom_CoerceTo CNil ys
-    CCons x xs' ->
+    CLin        -> RevUFCT CLin ys
+    CSnoc xs' x ->
         case ys of
-        CNil    -> UnsafeFrom_CoerceTo xs CNil
-        CCons y ys'
-            -- TODO: use a variant of jmEq instead, so it typechecks
-            | x == y    -> unsafeFrom_coerceTo xs' ys'
-            | otherwise -> UnsafeFrom_CoerceTo xs  ys
+        CLin        -> RevUFCT xs CLin
+        CSnoc ys' y ->
+            case jmEq_Coe x y of
+            Just (Refl, Refl) -> simplifyRevUFCT (RevUFCT xs' ys')
+            Nothing           -> RevUFCT xs ys
 
-data CoerceTo_UnsafeFrom :: Hakaru -> Hakaru -> * where
-    CoerceTo_UnsafeFrom
-        :: !(Coercion c b)
-        -> !(Coercion a b)
-        -> CoerceTo_UnsafeFrom a c
-
-coerceTo_unsafeFrom
-    :: Coercion a b
-    -> Coercion c b
-    -> CoerceTo_UnsafeFrom a c
-coerceTo_unsafeFrom xs ys = ...
--}
 
 -- TODO: implement a simplifying pass for pushing/gathering coersions over other things (e.g., Less/Equal)
 
