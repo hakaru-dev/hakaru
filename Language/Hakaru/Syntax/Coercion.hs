@@ -26,10 +26,14 @@ module Language.Hakaru.Syntax.Coercion
     , singCoerceTo
     , singCoerceFrom
     -- * Experimental optimization functions
+    {-
     , CoerceTo_UnsafeFrom(..)
     , simplifyCTUF
     , UnsafeFrom_CoerceTo(..)
     , simplifyUFCT
+    -}
+    , ZigZag(..)
+    , simplifyZZ
     ) where
 
 import Prelude          hiding (id, (.))
@@ -243,6 +247,45 @@ simplifyRevUFCT (RevUFCT xs ys) =
 
 
 -- TODO: implement a simplifying pass for pushing/gathering coersions over other things (e.g., Less/Equal)
+
+----------------------------------------------------------------
+----------------------------------------------------------------
+
+-- | An arbitrary composition of safe and unsafe coercions.
+data ZigZag :: Hakaru -> Hakaru -> * where
+    ZRefl :: ZigZag a a
+    Zig   :: !(Coercion a b) -> !(ZigZag b c) -> ZigZag a c
+    Zag   :: !(Coercion b a) -> !(ZigZag b c) -> ZigZag a c
+
+-- BUG: deriving instance Eq   (ZigZag a b)
+-- BUG: deriving instance Read (ZigZag a b)
+deriving instance Show (ZigZag a b)
+
+-- TODO: whenever we build up a new ZigZag from the remains of a simplification step, do we need to resimplify? If so, how can we avoid quadratic behavior? cf., <http://research.microsoft.com/en-us/um/people/simonpj/papers/ext-f/fc-normalization-rta.pdf>
+-- TODO: handle the fact that certain coercions commute over one another!
+simplifyZZ :: ZigZag a b -> ZigZag a b
+simplifyZZ ZRefl      = ZRefl
+simplifyZZ (Zig x xs) =
+    case simplifyZZ xs of
+    ZRefl   -> Zig x ZRefl
+    Zig y z -> Zig (y . x) z
+    Zag y z ->
+        -- TODO: can we optimize this to avoid reversing things?
+        case simplifyUFCT (UFCT x y) of
+        UFCT CNil CNil -> z
+        UFCT CNil y'   -> Zag y' z
+        UFCT x'   CNil -> Zig x' z
+        UFCT x'   y'   -> Zig x' (Zag y' z)
+simplifyZZ (Zag x xs) =
+    case simplifyZZ xs of
+    ZRefl   -> Zag x ZRefl
+    Zag y z -> Zag (x . y) z
+    Zig y z ->
+        case simplifyCTUF (CTUF x y) of
+        CTUF CNil CNil -> z
+        CTUF CNil y'   -> Zig y' z
+        CTUF x'   CNil -> Zag x' z
+        CTUF x'   y'   -> Zag x' (Zig y' z)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
