@@ -560,11 +560,11 @@ instance Show1 ast => Show (Datum ast a) where
     showsPrec = showsPrec1
     show      = show1
 
-instance Functor1 Datum where
-    fmap1 f (Datum d) = Datum (fmap1 f d)
+instance Functor11 Datum where
+    fmap11 f (Datum d) = Datum (fmap11 f d)
 
-instance Foldable1 Datum where
-    foldMap1 f (Datum d) = foldMap1 f d
+instance Foldable11 Datum where
+    foldMap11 f (Datum d) = foldMap11 f d
 
 ----------------------------------------------------------------
 infixr 7 `Et`
@@ -604,13 +604,13 @@ instance Show1 ast => Show1 (DatumCode xss ast) where
 instance Show1 ast => Show (DatumCode xss ast a) where
     showsPrec = showsPrec1
 
-instance Functor1 (DatumCode xss) where
-    fmap1 f (Inr d) = Inr (fmap1 f d)
-    fmap1 f (Inl d) = Inl (fmap1 f d)
+instance Functor11 (DatumCode xss) where
+    fmap11 f (Inr d) = Inr (fmap11 f d)
+    fmap11 f (Inl d) = Inl (fmap11 f d)
 
-instance Foldable1 (DatumCode xss) where
-    foldMap1 f (Inr d) = foldMap1 f d
-    foldMap1 f (Inl d) = foldMap1 f d
+instance Foldable11 (DatumCode xss) where
+    foldMap11 f (Inr d) = foldMap11 f d
+    foldMap11 f (Inl d) = foldMap11 f d
 
 
 data DatumStruct :: [HakaruFun] -> (Hakaru -> *) -> Hakaru -> * where
@@ -636,13 +636,13 @@ instance Show1 ast => Show1 (DatumStruct xs ast) where
 instance Show1 ast => Show (DatumStruct xs ast a) where
     showsPrec = showsPrec1
 
-instance Functor1 (DatumStruct xs) where
-    fmap1 f (Et d1 d2) = Et (fmap1 f d1) (fmap1 f d2)
-    fmap1 _ Done       = Done
+instance Functor11 (DatumStruct xs) where
+    fmap11 f (Et d1 d2) = Et (fmap11 f d1) (fmap11 f d2)
+    fmap11 _ Done       = Done
 
-instance Foldable1 (DatumStruct xs) where
-    foldMap1 f (Et d1 d2) = foldMap1 f d1 `mappend` foldMap1 f d2
-    foldMap1 _ Done       = mempty
+instance Foldable11 (DatumStruct xs) where
+    foldMap11 f (Et d1 d2) = foldMap11 f d1 `mappend` foldMap11 f d2
+    foldMap11 _ Done       = mempty
 
 
 -- TODO: do we like those constructor names? Should we change them?
@@ -666,13 +666,13 @@ instance Show1 ast => Show1 (DatumFun x ast) where
 instance Show1 ast => Show (DatumFun x ast a) where
     showsPrec = showsPrec1
 
-instance Functor1 (DatumFun x) where
-    fmap1 f (Konst e) = Konst (f e)
-    fmap1 f (Ident e) = Ident (f e)
+instance Functor11 (DatumFun x) where
+    fmap11 f (Konst e) = Konst (f e)
+    fmap11 f (Ident e) = Ident (f e)
 
-instance Foldable1 (DatumFun x) where
-    foldMap1 f (Konst e) = f e
-    foldMap1 f (Ident e) = f e
+instance Foldable11 (DatumFun x) where
+    foldMap11 f (Konst e) = f e
+    foldMap11 f (Ident e) = f e
 
 
 -- In GHC 7.8 we can make the monomorphic smart constructors into
@@ -764,39 +764,41 @@ instance Show (Pattern a) where
 -- ever end up keeping track of local binding environments; but
 -- other than that, it should be replaced\/augmented with a type
 -- for pattern automata, so we can optimize case analysis.
-data Branch :: Hakaru -> (Hakaru -> *) -> Hakaru -> * where
+data Branch :: Hakaru -> ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     Branch
         :: {-exists Γ.-}
            !(Pattern a) {-Γ-}
-        -> ast {-Γ-} b
+        -> ast xs{-Γ-} b
         -> Branch a ast b
 
-branchPattern :: Branch a ast b -> Pattern a
+branchPattern :: Branch a ast b -> Pattern a {-Γ-}
 branchPattern (Branch p _) = p
 
-branchBody :: Branch a ast b -> ast b
-branchBody (Branch _ e) = e
+branchBody :: Branch a ast b -> (forall xs. ast xs{-Γ-} b -> r) -> r
+branchBody (Branch _ e) k = k e
 
-instance Eq1 ast => Eq1 (Branch a ast) where
-    eq1 (Branch p1 e1) (Branch p2 e2) = p1 `eq1` p2 && e1 `eq1` e2
+instance Eq2 ast => Eq1 (Branch a ast) where
+    eq1 (Branch p1 e1) (Branch p2 e2) =
+        error "TODO: Eq1{Branch}: make sure existentials match up"
+        -- p1 `eq1` p2 && e1 `eq2` e2
 
-instance Eq1 ast => Eq (Branch a ast b) where
+instance Eq2 ast => Eq (Branch a ast b) where
     (==) = eq1
 
 -- TODO: instance Read (Branch ast a b)
 
-instance Show1 ast => Show1 (Branch a ast) where
-    showsPrec1 p (Branch pat e) = showParen_01 p "Branch" pat e
+instance Show2 ast => Show1 (Branch a ast) where
+    showsPrec1 p (Branch pat e) = showParen_02 p "Branch" pat e
 
-instance Show1 ast => Show (Branch a ast b) where
+instance Show2 ast => Show (Branch a ast b) where
     showsPrec = showsPrec1
     show      = show1
 
-instance Functor1 (Branch a) where
-    fmap1 f (Branch p e) = Branch p (f e)
+instance Functor21 (Branch a) where
+    fmap21 f (Branch p e) = Branch p (f e)
 
-instance Foldable1 (Branch a) where
-    foldMap1 f (Branch _ e) = f e
+instance Foldable21 (Branch a) where
+    foldMap21 f (Branch _ e) = f e
 
 
 ----------------------------------------------------------------
@@ -807,37 +809,37 @@ instance Foldable1 (Branch a) where
 -- sites must/must-not be 'Open' terms? Or is the well-formedness
 -- check sufficient?
 --
--- BUG: we need the 'Functor1' instance to be strict, in order to guaranteee timely throwing of exceptions in 'subst'.
-data AST :: (Hakaru -> *) -> Hakaru -> * where
+-- BUG: we need the 'Functor21' instance to be strict, in order to guaranteee timely throwing of exceptions in 'subst'.
+data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
 
     -- -- Standard lambda calculus stuff
-    Lam_    :: ast {-a-} b -> AST ast (a ':-> b)
-    App_    :: ast (a ':-> b) -> ast a -> AST ast b
-    Let_    :: ast a -> ast {-a-} b -> AST ast b
+    Lam_    :: ast '[ a ] b -> AST ast (a ':-> b)
+    App_    :: ast '[] (a ':-> b) -> ast '[] a -> AST ast b
+    Let_    :: ast '[] a -> ast '[ a ] b -> AST ast b
     -- TODO: a general \"@let*@\" version of let-binding so we can have mutual recursion
-    Fix_    :: ast {-a-} a -> AST ast a
+    Fix_    :: ast '[ a ] a -> AST ast a
     -- | Explicitly given type annotations. (For the other
     -- change-of-direction rule in bidirectional type checking.)
     -- N.B., storing a 'Proxy' isn't enough; we need the 'Sing'.
-    Ann_    :: !(Sing a) -> ast a -> AST ast a
+    Ann_    :: !(Sing a) -> ast '[] a -> AST ast a
 
 
     -- -- Primitive operators
     PrimOp_ :: !(PrimOp a) -> AST ast a
-    NaryOp_ :: !(NaryOp a) -> !(Seq (ast a)) -> AST ast a
+    NaryOp_ :: !(NaryOp a) -> !(Seq (ast '[] a)) -> AST ast a
 
 
     -- -- Primitive atomic types: their values and coercions
-    Value_      :: !(Value a)               -> AST ast a
-    CoerceTo_   :: !(Coercion a b) -> ast a -> AST ast b
-    UnsafeFrom_ :: !(Coercion a b) -> ast b -> AST ast a
+    Value_      :: !(Value a)                   -> AST ast a
+    CoerceTo_   :: !(Coercion a b) -> ast '[] a -> AST ast b
+    UnsafeFrom_ :: !(Coercion a b) -> ast '[] b -> AST ast a
     -- TODO: add something like @SafeFrom_ :: Coercion a b -> ast b -> AST ast ('HMaybe a)@ so we can capture the safety of patterns like @if_ (0 <= x) (let x_ = unsafeFrom signed x in...) (...)@ Of course, since we're just going to do case analysis on the result; why not make it a binding form directly?
     -- TODO: we'll probably want some more general thing to capture these sorts of patterns. For example, in the default implementation of Uniform we see: @if_ (lo < x && x < hi) (... unsafeFrom_ signed (hi - lo) ...) (...)@
 
     -- We have the constructors for arrays here, so that they're grouped together with our other constructors 'Value_' and 'Datum_'.
     Empty_ :: AST ast ('HArray a)
     -- TODO: do we really need this to be a binding form, or could it take a Hakaru function for the second argument?
-    Array_ :: ast 'HNat -> ast {-'HNat-} a -> AST ast ('HArray a)
+    Array_ :: ast '[] 'HNat -> ast '[ 'HNat ] a -> AST ast ('HArray a)
 
     -- -- User-defined data types
     -- | A data constructor applied to some expressions. N.B., this
@@ -845,11 +847,11 @@ data AST :: (Hakaru -> *) -> Hakaru -> * where
     -- fully saturated. Unsaturated constructors will need to be
     -- eta-expanded.
     Datum_
-        :: {-# UNPACK #-} !(Datum ast ('HData t (Code t)))
+        :: {-# UNPACK #-} !(Datum (ast '[]) ('HData t (Code t)))
         -> AST ast ('HData t (Code t))
 
     -- | Generic case-analysis (via ABTs and Structural Focalization).
-    Case_ :: ast a -> [Branch a ast b] -> AST ast b
+    Case_ :: ast '[] a -> [Branch a ast b] -> AST ast b
 
 
     -- -- Mochastic stuff
@@ -858,11 +860,11 @@ data AST :: (Hakaru -> *) -> Hakaru -> * where
     Measure_ :: !(Measure a) -> AST ast a
     -- TODO: find a name so this doesn't conflict with ABT's Bind
     Bind_
-        :: ast ('HMeasure a)
-        -> ast {-a-} ('HMeasure b)
+        :: ast '[] ('HMeasure a)
+        -> ast '[ a ] ('HMeasure b)
         -> AST ast ('HMeasure b)
     Superpose_
-        :: [(ast 'HProb, ast ('HMeasure a))]
+        :: [(ast '[] 'HProb, ast '[] ('HMeasure a))]
         -> AST ast ('HMeasure a)
 
 
@@ -874,14 +876,14 @@ data AST :: (Hakaru -> *) -> Hakaru -> * where
 
 -- BUG: deriving instance (forall b. Eq (ast b)) => Eq (AST ast a)
 
-instance Show1 ast => Show1 (AST ast) where
+instance Show2 ast => Show1 (AST ast) where
     showsPrec1 p t =
         case t of
-        Lam_    e            -> showParen_1   p "Lam_"    e
-        App_    e1 e2        -> showParen_11  p "App_"    e1 e2
-        Let_    e1 e2        -> showParen_11  p "Let_"    e1 e2
-        Fix_    e            -> showParen_1   p "Fix_"    e
-        Ann_    a e          -> showParen_01  p "Ann_"    a  e
+        Lam_    e            -> showParen_2   p "Lam_"    e
+        App_    e1 e2        -> showParen_22  p "App_"    e1 e2
+        Let_    e1 e2        -> showParen_22  p "Let_"    e1 e2
+        Fix_    e            -> showParen_2   p "Fix_"    e
+        Ann_    a e          -> showParen_02  p "Ann_"    a  e
         PrimOp_ o            -> showParen_0   p "PrimOp_" o
         NaryOp_ o es         ->
             showParen (p > 9)
@@ -890,77 +892,78 @@ instance Show1 ast => Show1 (AST ast) where
                 . showString " "
                 . showParen True
                     ( showString "Seq.fromList "
-                    . showList1 (F.toList es)
+                    . showList2 (F.toList es)
                     )
                 )
         Value_      v        -> showParen_0   p "Value_"      v
-        CoerceTo_   c e      -> showParen_01  p "CoerceTo_"   c e
-        UnsafeFrom_ c e      -> showParen_01  p "UnsafeFrom_" c e
+        CoerceTo_   c e      -> showParen_02  p "CoerceTo_"   c e
+        UnsafeFrom_ c e      -> showParen_02  p "UnsafeFrom_" c e
         Empty_               -> showString      "Empty_"
-        Array_      e1 e2    -> showParen_11  p "Array_"      e1 e2
-        Datum_      d        -> showParen_1   p "Datum_"      d
+        Array_      e1 e2    -> showParen_22  p "Array_"      e1 e2
+-- BUG: with 'showParen_1' could not deduce (Show1 (ast '[])) from (Show2 ast). But with 'showParen_2' could not deduce (Show2 Datum)...
+--        Datum_      d        -> showParen_1   p "Datum_"      d
         Case_       e bs     ->
             showParen (p > 9)
                 ( showString "Case_ "
-                . showsPrec1 11 e
+                . showsPrec2 11 e
                 . showString " "
                 . showList1 bs
                 )
         Measure_   o         -> showParen_0   p "Measure_" o
-        Bind_      e1 e2     -> showParen_11  p "Bind_"   e1 e2
+        Bind_      e1 e2     -> showParen_22  p "Bind_"   e1 e2
         Superpose_ pes       ->
             showParen (p > 9)
                 ( showString "Superpose_ "
                 . showListWith
-                    (\(p,e) -> showTuple [shows1 p, shows1 e])
+                    (\(p,e) -> showTuple [shows2 p, shows2 e])
                     pes
                 )
 
-instance Show1 ast => Show (AST ast a) where
+instance Show2 ast => Show (AST ast a) where
     showsPrec = showsPrec1
     show      = show1
 
 
 ----------------------------------------------------------------
-instance Functor1 AST where
-    fmap1 f (Lam_        e)        = Lam_        (f e)
-    fmap1 f (App_        e1 e2)    = App_        (f e1) (f e2)
-    fmap1 f (Let_        e1 e2)    = Let_        (f e1) (f e2)
-    fmap1 f (Fix_        e)        = Fix_        (f e)
-    fmap1 f (Ann_        p  e)     = Ann_        p      (f e)
-    fmap1 _ (PrimOp_     o)        = PrimOp_     o
-    fmap1 f (NaryOp_     o  es)    = NaryOp_     o      (fmap f es)
-    fmap1 _ (Value_      v)        = Value_      v
-    fmap1 f (CoerceTo_   c  e)     = CoerceTo_   c      (f e)
-    fmap1 f (UnsafeFrom_ c  e)     = UnsafeFrom_ c      (f e)
-    fmap1 _ Empty_                 = Empty_
-    fmap1 f (Array_      e1 e2)    = Array_      (f e1) (f e2)
-    fmap1 f (Datum_      d)        = Datum_      (fmap1 f d)
-    fmap1 f (Case_       e  bs)    = Case_       (f e)  (map (fmap1 f) bs)
-    fmap1 _ (Measure_    o)        = Measure_    o
-    fmap1 f (Bind_       e1 e2)    = Bind_       (f e1) (f e2)
-    fmap1 f (Superpose_  pes)      = Superpose_  (map (f *** f) pes)
+instance Functor21 AST where
+    fmap21 f (Lam_        e)        = Lam_        (f e)
+    fmap21 f (App_        e1 e2)    = App_        (f e1) (f e2)
+    fmap21 f (Let_        e1 e2)    = Let_        (f e1) (f e2)
+    fmap21 f (Fix_        e)        = Fix_        (f e)
+    fmap21 f (Ann_        p  e)     = Ann_        p      (f e)
+    fmap21 _ (PrimOp_     o)        = PrimOp_     o
+    fmap21 f (NaryOp_     o  es)    = NaryOp_     o      (fmap f es)
+    fmap21 _ (Value_      v)        = Value_      v
+    fmap21 f (CoerceTo_   c  e)     = CoerceTo_   c      (f e)
+    fmap21 f (UnsafeFrom_ c  e)     = UnsafeFrom_ c      (f e)
+    fmap21 _ Empty_                 = Empty_
+    fmap21 f (Array_      e1 e2)    = Array_      (f e1) (f e2)
+    fmap21 f (Datum_      d)        = Datum_      (fmap11 f d)
+    fmap21 f (Case_       e  bs)    = Case_       (f e)  (map (fmap21 f) bs)
+    fmap21 _ (Measure_    o)        = Measure_    o
+    fmap21 f (Bind_       e1 e2)    = Bind_       (f e1) (f e2)
+    fmap21 f (Superpose_  pes)      = Superpose_  (map (f *** f) pes)
 
 
 ----------------------------------------------------------------
-instance Foldable1 AST where
-    foldMap1 f (Lam_        e)        = f e
-    foldMap1 f (App_        e1 e2)    = f e1 `mappend` f e2
-    foldMap1 f (Let_        e1 e2)    = f e1 `mappend` f e2
-    foldMap1 f (Fix_        e)        = f e
-    foldMap1 f (Ann_        _  e)     = f e
-    foldMap1 _ (PrimOp_     _)        = mempty
-    foldMap1 f (NaryOp_     _  es)    = F.foldMap f es
-    foldMap1 _ (Value_ _)             = mempty
-    foldMap1 f (CoerceTo_   _  e)     = f e
-    foldMap1 f (UnsafeFrom_ _  e)     = f e
-    foldMap1 _ Empty_                 = mempty
-    foldMap1 f (Array_      e1 e2)    = f e1 `mappend` f e2
-    foldMap1 f (Datum_      d)        = foldMap1 f d
-    foldMap1 f (Case_       e  bs)    = f e  `mappend` F.foldMap (f . branchBody) bs
-    foldMap1 _ (Measure_    _)        = mempty
-    foldMap1 f (Bind_       e1 e2)    = f e1 `mappend` f e2
-    foldMap1 f (Superpose_  pes)      = F.foldMap (\(e1,e2) -> f e1 `mappend` f e2) pes
+instance Foldable21 AST where
+    foldMap21 f (Lam_        e)        = f e
+    foldMap21 f (App_        e1 e2)    = f e1 `mappend` f e2
+    foldMap21 f (Let_        e1 e2)    = f e1 `mappend` f e2
+    foldMap21 f (Fix_        e)        = f e
+    foldMap21 f (Ann_        _  e)     = f e
+    foldMap21 _ (PrimOp_     _)        = mempty
+    foldMap21 f (NaryOp_     _  es)    = F.foldMap f es
+    foldMap21 _ (Value_ _)             = mempty
+    foldMap21 f (CoerceTo_   _  e)     = f e
+    foldMap21 f (UnsafeFrom_ _  e)     = f e
+    foldMap21 _ Empty_                 = mempty
+    foldMap21 f (Array_      e1 e2)    = f e1 `mappend` f e2
+    foldMap21 f (Datum_      d)        = foldMap11 f d
+    foldMap21 f (Case_       e  bs)    = f e  `mappend` F.foldMap (foldMap21 f) bs
+    foldMap21 _ (Measure_    _)        = mempty
+    foldMap21 f (Bind_       e1 e2)    = f e1 `mappend` f e2
+    foldMap21 f (Superpose_  pes)      = F.foldMap (\(e1,e2) -> f e1 `mappend` f e2) pes
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
