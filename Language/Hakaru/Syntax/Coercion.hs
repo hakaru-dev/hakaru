@@ -6,7 +6,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.07.04
+--                                                    2015.07.07
 -- |
 -- Module      :  Language.Hakaru.Syntax.Coercion
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -261,7 +261,7 @@ data ZigZag :: Hakaru -> Hakaru -> * where
 -- BUG: deriving instance Read (ZigZag a b)
 deriving instance Show (ZigZag a b)
 
--- TODO: whenever we build up a new ZigZag from the remains of a simplification step, do we need to resimplify? If so, how can we avoid quadratic behavior? cf., <http://research.microsoft.com/en-us/um/people/simonpj/papers/ext-f/fc-normalization-rta.pdf>
+-- TODO: whenever we build up a new ZigZag from the remains of a simplification step, do we need to resimplify? If so, how can we avoid quadratic behavior? cf., <http://research.microsoft.com/en-us/um/people/simonpj/papers/ext-f/fc-normalization-rta.pdf> Also, try just doing a shortest-path problem on the graph of coercions (since we can get all the singletons along the way)
 -- TODO: handle the fact that certain coercions commute over one another!
 simplifyZZ :: ZigZag a b -> ZigZag a b
 simplifyZZ ZRefl      = ZRefl

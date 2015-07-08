@@ -132,8 +132,8 @@ naryOp2_ o x y =
 matchNaryOp :: (ABT abt) => NaryOp a -> abt a -> Maybe (Seq (abt a))
 matchNaryOp o e =
     caseVarSyn e
-        (\_ _ -> Nothing)
-        $ \t  ->
+        (const Nothing)
+        $ \t ->
             case t of
             NaryOp_ o' xs | o' Prelude.== o -> Just xs
             _ -> Nothing
@@ -170,8 +170,8 @@ ann_ = (syn .) . Ann_
 coerceTo_ :: (ABT abt) => Coercion a b -> abt a -> abt b
 coerceTo_ c e =
     caseVarSyn e
-        (\_ _ -> syn $ CoerceTo_ c e)
-        $ \t  ->
+        (const . syn $ CoerceTo_ c e)
+        $ \t ->
             case t of
             CoerceTo_ c' e' -> syn $ CoerceTo_ (c . c') e'
             _               -> syn $ CoerceTo_ c e
@@ -179,8 +179,8 @@ coerceTo_ c e =
 unsafeFrom_ :: (ABT abt) => Coercion a b -> abt b -> abt a
 unsafeFrom_ c e =
     caseVarSyn e
-        (\_ _ -> syn $ UnsafeFrom_ c e)
-        $ \t  ->
+        (const . syn $ UnsafeFrom_ c e)
+        $ \t ->
             case t of
             UnsafeFrom_ c' e' -> syn $ UnsafeFrom_ (c' . c) e'
             _                 -> syn $ UnsafeFrom_ c e
@@ -298,7 +298,7 @@ negate :: (ABT abt, HRing_ a) => abt a -> abt a
 negate e0 =
     Prelude.maybe (primOp1_ (Negate hRing) e0) id
         $ caseVarSyn e0
-            (\_ _ -> Nothing)
+            (const Nothing)
             $ \t0 ->
                 case t0 of
                 -- TODO: need we case analyze the @HSemiring@?
@@ -306,7 +306,7 @@ negate e0 =
                     Just . syn . NaryOp_ (Sum theSemi) $ fmap negate xs
                 App_ f e ->
                     caseVarSyn f
-                        (\_ _ -> Nothing)
+                        (const Nothing)
                         $ \ft ->
                             case ft of
                             -- TODO: need we case analyze the @HRing@?
@@ -329,8 +329,8 @@ abs_ :: (ABT abt, HRing_ a) => abt a -> abt (NonNegative a)
 abs_ e =
     Prelude.maybe (primOp1_ (Abs hRing) e) id
         $ caseVarSyn e
-            (\_ _ -> Nothing)
-            $ \t  ->
+            (const Nothing)
+            $ \t ->
                 case t of
                 -- BUG: can't use the 'Signed' pattern synonym, because that /requires/ the input to be (NonNegative a), instead of giving us the information that it is.
                 -- TODO: need we case analyze the @HRing@?
@@ -359,7 +359,7 @@ recip :: (ABT abt, HFractional_ a) => abt a -> abt a
 recip e0 =
     Prelude.maybe (primOp1_ (Recip hFractional) e0) id
         $ caseVarSyn e0
-            (\_ _ -> Nothing)
+            (const Nothing)
             $ \t0 ->
                 case t0 of
                 -- TODO: need we case analyze the @HSemiring@?
@@ -367,7 +367,7 @@ recip e0 =
                     Just . syn . NaryOp_ (Prod theSemi) $ fmap recip xs
                 App_ f e ->
                     caseVarSyn f
-                        (\_ _ -> Nothing)
+                        (const Nothing)
                         $ \ft ->
                             case ft of
                             -- TODO: need we case analyze the @HFractional@?
@@ -501,7 +501,8 @@ unpair
     => abt (HPair a b)
     -> (abt a -> abt b -> abt c)
     -> abt c
-unpair e f =
+unpair e f = error "TODO: unpair with the new 'Variable' type"
+{-
     -- HACK: the current implementation of 'multibinder' requires this explicit type signature.
     -- BUG: why do we get a warning about the pattern being non-exhaustive?
     let f' :: List1 abt (a ': b ': '[]) -> abt c
@@ -515,6 +516,7 @@ unpair e f =
                 $ Nil)
                 f'
         ]
+-}
 
 left_ :: (ABT abt) => abt a -> abt (HEither a b)
 left_ = datum_ . dLeft

@@ -8,7 +8,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.07.06
+--                                                    2015.07.07
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeCheck
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -58,7 +58,7 @@ mustCheck = go . viewABT
     go :: (ABT abt) => View abt a -> Bool
     go (Bind _ _) =
         error "mustCheck: you shouldn't be asking about Bind terms"
-    go (Var  _ _)     = False
+    go (Var  _)       = False
 
     go (Syn (Lam_ _)) = True
 
@@ -135,11 +135,8 @@ mustCheck = go . viewABT
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
--- TODO: replace with an IntMap(TypedVariable), using the varID of the Variable
-type Ctx = IntMap TypedVariable
-
-data TypedVariable where
-    TV :: {-# UNPACK #-} !Variable -> !(Sing (a :: Hakaru)) -> TypedVariable
+-- TODO: replace with an IntMap(SomeVariable), using the varID of the Variable
+type Ctx = IntMap SomeVariable
 
 data TypedPattern where
     TP  :: !(Pattern a) -> !(Sing a) -> TypedPattern
@@ -180,8 +177,8 @@ instance Monad TypeCheckMonad where
     mx >>= k = TCM $ \ctx -> unTCM mx ctx >>= \x -> unTCM (k x) ctx
 
 -- | Extend the typing context, but only locally.
-pushCtx :: TypedVariable -> TypeCheckMonad a -> TypeCheckMonad a
-pushCtx tv@(TV x _) (TCM m) =
+pushCtx :: SomeVariable -> TypeCheckMonad a -> TypeCheckMonad a
+pushCtx tv@(Some x) (TCM m) =
     TCM $ \ctx -> m $ IM.insert (fromNat $ varID x) tv ctx
 
 getCtx :: TypeCheckMonad Ctx
@@ -198,16 +195,14 @@ inferType :: ABT abt => abt a -> TypeCheckMonad (Sing a)
 inferType e0 =
     case viewABT e0 of
     Bind _ _  -> error "inferType: you shouldn't be asking about Bind terms"
-    Var x typ -> do
+    Var x     -> do
         ctx <- getCtx
         case IM.lookup (fromNat $ varID x) ctx of
-            Just (TV x' typ')
-                | x' == x ->
-                    case jmEq typ' typ of
-                    Just Refl -> return typ'
-                    Nothing   -> failwith "type mismatch"
-                | otherwise   -> error "inferType: ill-formed context"
-            Nothing           -> failwith "unbound variable"
+            Just (Some x') ->
+                case varEq x x' of
+                Just Refl -> return (varType x')
+                Nothing   -> failwith "type mismatch"
+            Nothing       -> failwith "unbound variable"
 
     Syn (App_ e1 e2) -> do
         typ1 <- inferType e1
@@ -230,14 +225,17 @@ inferType e0 =
     Syn (App_ (Syn (Lam_ e1)) e2) -> do
         typ2 <- inferType e2
         -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
-        caseBind e1 $ \x -> pushCtx (TV x typ2) . inferType
+        caseBind e1 $ \x -> pushCtx (Some x typ2) . inferType
         -}
 
     Syn (Let_ e1 e2)
         | inferable e1 -> do
             typ1 <- inferType e1
             -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
-            caseBind e2 $ \x -> pushCtx (TV x typ1) . inferType
+            caseBind e2 $ \x ->
+                case jmEq typ1 (varType x) of
+                Just Refl -> pushCtx (Some x) . inferType
+                Nothing   -> const $ failwith "type mismatch"
 
     Syn (Ann_ typ1 e1) -> do
         -- N.B., this requires that @typ@ is a 'Sing' not a 'Proxy',
@@ -276,7 +274,10 @@ inferType e0 =
             case typ1 of
                 SMeasure typ2 ->
                     -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
-                    caseBind e2 $ \x -> pushCtx (TV x typ2) . inferType
+                    caseBind e2 $ \x ->
+                        case jmEq typ2 (varType x) of
+                        Just Refl -> pushCtx (Some x) . inferType
+                        Nothing   -> const $ failwith "type mismatch"
 
     _   | mustCheck e0 -> failwith "Cannot infer types for checking terms; please add a type annotation"
         | otherwise    -> error "inferType: missing an inferable branch!"
@@ -295,18 +296,27 @@ checkType typ0 e0 =
         case typ0 of
         SFun typ1 typ2 ->
             -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
-            caseBind e1 $ \x -> pushCtx (TV x typ1) . checkType typ2
+            caseBind e1 $ \x ->
+                case jmEq typ1 (varType x) of
+                Just Refl -> pushCtx (Some x) . checkType typ2
+                Nothing   -> const $ failwith "type mismatch"
         _ -> failwith "expected function type"
 
     Syn (Let_ e1 e2)
         | inferable e1 -> do
             typ1 <- inferType e1
             -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
-            caseBind e2 $ \x -> pushCtx (TV x typ1) . checkType typ0
+            caseBind e2 $ \x ->
+                case jmEq typ1 (varType x) of
+                Just Refl -> pushCtx (Some x) . checkType typ0
+                Nothing   -> const $ failwith "type mismatch"
 
     Syn (Fix_ e1) ->
         -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
-        caseBind e1 $ \x -> pushCtx (TV x typ0) . checkType typ0
+        caseBind e1 $ \x ->
+            case jmEq typ0 (varType x) of
+            Just Refl -> pushCtx (Some x) . checkType typ0
+            Nothing   -> const $ failwith "type mismatch"
 
     Syn (CoerceTo_ c e1) ->
         checkType (singCoerceFrom c typ0) e1
@@ -325,7 +335,10 @@ checkType typ0 e0 =
         SArray typ1 -> do
             checkType SNat n
             -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
-            caseBind e1 $ \x -> pushCtx (TV x SNat) . checkType typ1
+            caseBind e1 $ \x ->
+                case jmEq SNat (varType x) of
+                Just Refl -> pushCtx (Some x) . checkType typ1
+                Nothing   -> const $ failwith "type mismatch"
         _ -> failwith "expected HArray type"
 
     Syn (Datum_ (Datum d)) ->
@@ -344,13 +357,16 @@ checkType typ0 e0 =
             case typ1 of
                 SMeasure typ2 ->
                     -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
-                    caseBind e2 $ \x -> pushCtx (TV x typ2) . checkType typ0
+                    caseBind e2 $ \x ->
+                        case jmEq typ2 (varType x) of
+                        Just Refl -> pushCtx (Some x) . checkType typ0
+                        Nothing   -> const $ failwith "type mismatch"
 
     Syn (Superpose_ pes) ->
         F.forM_ pes $ \(p,e) -> do
             checkType SProb p
             checkType typ0  e
-        
+
     _   | inferable e0 -> do
             typ' <- inferType e0
             -- If we ever get evaluation at the type level, then
@@ -419,8 +435,11 @@ checkBranch body_typ body = go
         PVar ->
             -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
             caseBind body $ \x body' ->
-                pushCtx (TV x typ) $
-                    checkBranch body_typ body' pts
+                case jmEq typ (varType x) of
+                Just Refl ->
+                    pushCtx (Some x) $
+                        checkBranch body_typ body' pts
+                Nothing   -> failwith "type mismatch"
 
         PWild               -> go pts
         PDatum (Datum pat1) ->

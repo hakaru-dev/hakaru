@@ -7,7 +7,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.07.05
+--                                                    2015.07.07
 -- |
 -- Module      :  Language.Hakaru.Syntax.Expect
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -27,8 +27,7 @@ module Language.Hakaru.Syntax.Expect
     , expect
     ) where
 
-import qualified Prelude
-import           Prelude (($), (.), id, flip, error, Maybe(..), otherwise)
+import           Prelude (($), (.), id, flip, error, Maybe(..), Either(..))
 import           Data.IntMap   (IntMap)
 import qualified Data.IntMap   as IM
 
@@ -112,15 +111,15 @@ apM :: Expect abt ('HMeasure a) -> (abt a -> abt 'HProb) -> abt 'HProb
 apM (ExpectMeasure f) c = f c
 
 
-data V :: (Hakaru -> *) -> * where
-    V :: {-# UNPACK #-} !Variable -> abt a -> V abt
+data Assoc :: (Hakaru -> *) -> * where
+    Assoc :: {-# UNPACK #-} !(Variable a) -> abt a -> Assoc abt
     -- TODO: store the @Expect abt a@ instead?
     -- TODO: have two different versions of variable lookup; one for when we need to take the expectation of the variable, and one for just plugging things into place.
 
-type Env abt = IntMap (V abt)
+type Env abt = IntMap (Assoc abt)
 
-pushEnv :: V abt -> Env abt -> Env abt
-pushEnv v@(V x _) = IM.insert (fromNat $ varID x) v
+pushEnv :: Assoc abt -> Env abt -> Env abt
+pushEnv v@(Assoc x _) = IM.insert (fromNat $ varID x) v
 
 getSing :: (ABT abt) => abt a -> Sing a
 getSing _ = error "TODO: get singletons of anything after typechecking"
@@ -139,19 +138,22 @@ getSing _ = error "TODO: get singletons of anything after typechecking"
 --
 -- | Perform recursive variable lookups until we can finally return
 -- some syntax.
-resolveVar :: (ABT abt) => abt a -> Env abt -> AST abt a
+resolveVar
+    :: (ABT abt)
+    => abt a
+    -> Env abt
+    -> Either (Variable a) (AST abt a)
 resolveVar e xs =
-    flip (caseVarSyn e) id $ \x typ ->
+    flip (caseVarSyn e) Right $ \x ->
         case IM.lookup (fromNat $ varID x) xs of
-        Just (V x' e')
-            | x' Prelude.== x ->
-                let typ' = getSing e' in
-                case jmEq typ' typ of
-                Just Refl -> resolveVar e' xs
-                Nothing   -> error "resolveVar: ill-typed environment"
-            | otherwise   -> error "resolveVar: ill-formed environment"
-        Nothing           -> error "resolveVar: unbound variable"
-
+        Just (Assoc x' e') ->
+            case varEq x x' of
+            Just Refl -> resolveVar e' xs
+            Nothing   -> error "resolveVar: ill-formed environment"
+        Nothing       -> Left x
+            -- error "resolveVar: unbound variable"
+            -- error "TODO: replace the variable with a new variable of a different type (i.e., of the appropriate type); or, wrap the variable with a (Hakaru-)call to (Hakaru-)'expect'"
+            -- TODO: make sure that @lam$\t -> total (factor t)@ works
 
 -- TODO: if we really do have 'getSing', then we can call it in
 -- 'expect' and jump directly to 'expectTypeDir'; then we could
@@ -168,7 +170,11 @@ resolveVar e xs =
 -- evaluation it needs to in order to expose the things being
 -- reflected.
 expectSynDir :: (ABT abt) => abt a -> Env abt -> Expect abt a
-expectSynDir e xs = expectAST (resolveVar e xs) xs
+expectSynDir e xs =
+    case resolveVar e xs of
+    Left  x -> error "TODO" -- App_ (syn . PrimOp_ . Expect $ varType x) (var x)
+    Right t -> expectAST t xs
+
 
 
 -- | Perform a type-directed reflection of a term into it's expectation
@@ -193,15 +199,18 @@ expectTypeDir (SData  _ _) e _  = ExpectData  e
 expectTypeDir (SArray   a) e xs =
     -- TODO: fold this into 'expectAST'? cf., type-dir vs syn-dir...
     case resolveVar e xs of
-    Array_ e1 e2 ->
+    Left  x -> error "TODO" -- App_ (syn . PrimOp_ . Expect $ varType x) (var x)
+    Right (Array_ e1 e2) ->
         ExpectArray e1 $ \ei ->
         caseBind e2 $ \x e' ->
-        expectTypeDir a e' $ pushEnv (V x ei) xs
-    Empty_       -> expectEmpty
-    t            -> expectAST t xs
-expectTypeDir (SFun   _ s) e xs =
+            case jmEq (getSing ei) (varType x) of
+            Just Refl -> expectTypeDir a e' $ pushEnv (Assoc x ei) xs
+            Nothing   -> error "TODO"
+    Right Empty_       -> expectEmpty
+    Right t            -> expectAST t xs
+expectTypeDir (SFun   _ a) e xs =
     ExpectFun $ \e2 ->
-    expectTypeDir s (e `app` e2) xs
+    expectTypeDir a (e `app` e2) xs
 expectTypeDir (SMeasure _) e xs =
     expectSynDir e xs
 
@@ -214,18 +223,25 @@ expectAST :: (ABT abt) => AST abt a -> Env abt -> Expect abt a
 expectAST (Lam_ e1) xs =
     ExpectFun $ \e2 ->
     caseBind e1 $ \x e' ->
-    expectSynDir e' $ pushEnv (V x e2) xs
+        case jmEq (getSing e2) (varType x) of
+        Just Refl -> expectSynDir e' $ pushEnv (Assoc x e2) xs
+        Nothing   -> error "TODO"
 
 expectAST (App_ e1 e2) xs =
     expectSynDir e1 xs `apF` e2
 
 expectAST (Let_ e1 e2) xs =
     caseBind e2 $ \x e' ->
-    expectSynDir e' $ pushEnv (V x e1) xs
+        case jmEq (getSing e1) (varType x) of
+        Just Refl -> expectSynDir e' $ pushEnv (Assoc x e1) xs
+        Nothing   -> error "TODO"
 
 expectAST (Fix_ e1) xs =
     caseBind e1 $ \x e' ->
-    expectSynDir e' $ pushEnv (V x . syn $ Fix_ e1) xs -- BUG: could loop
+        let self = syn $ Fix_ e1 in
+        case jmEq (getSing self) (varType x) of
+        Just Refl -> expectSynDir e' $ pushEnv (Assoc x self) xs -- BUG: could loop
+        Nothing   -> error "TODO"
 
 expectAST (Ann_ _ e) xs =
     expectSynDir e xs
@@ -263,7 +279,9 @@ expectAST Empty_              _  = expectEmpty
 expectAST (Array_      e1 e2) xs =
     ExpectArray e1 $ \ei ->
     caseBind e2 $ \x e' ->
-    expectSynDir e' $ pushEnv (V x ei) xs
+        case jmEq (getSing ei) (varType x) of
+        Just Refl -> expectSynDir e' $ pushEnv (Assoc x ei) xs
+        Nothing   -> error "TODO"
 
 expectAST (Datum_      d)     _  = ExpectData $ datum_ d
 expectAST (Case_       e  bs) xs = error "TODO: expect{Case_}"
@@ -281,7 +299,10 @@ expectAST (Bind_       e1 e2) xs =
     ExpectMeasure $ \c ->
     expectSynDir e1 xs `apM` \a ->
     caseBind e2 $ \x e' ->
-    (expectSynDir e' $ pushEnv (V x a) xs) `apM` c
+        case jmEq (getSing a) (varType x) of
+        Just Refl -> (expectSynDir e' $ pushEnv (Assoc x a) xs) `apM` c
+        Nothing   -> error "TODO"
+
 expectAST (Superpose_ pms) xs =
     ExpectMeasure $ \c ->
     sum [ p * (expectSynDir m xs `apM` c) | (p, m) <- pms ]
@@ -306,13 +327,13 @@ expectMeasure Categorical =
 expectMeasure Uniform =
     ExpectFun $ \lo ->
     ExpectFun $ \hi ->
-    ExpectMeasure $ \c -> 
+    ExpectMeasure $ \c ->
     integrate lo hi $ \x ->
         c x / unsafeProb (hi - lo)
 expectMeasure Normal =
     ExpectFun $ \mu ->
     ExpectFun $ \sd ->
-    ExpectMeasure $ \c -> 
+    ExpectMeasure $ \c ->
     integrate negativeInfinity infinity $ \x ->
         exp (negate ((x - mu) ^ nat_ 2)
             / fromProb (prob_ 2 * sd ** real_ 2))
@@ -331,7 +352,7 @@ expectMeasure Gamma =
     ExpectFun $ \scale ->
     ExpectMeasure $ \c ->
     integrate (real_ 0) infinity $ \x ->
-        let x_ = unsafeProb x in 
+        let x_ = unsafeProb x in
         x_ ** (fromProb shape - real_ 1)
         * exp (negate . fromProb $ x_ / scale)
         / (scale ** shape * gammaFunc shape)
@@ -341,7 +362,7 @@ expectMeasure Beta =
     ExpectFun $ \b ->
     ExpectMeasure $ \c ->
     integrate (real_ 0) (real_ 1) $ \x ->
-        let x_ = unsafeProb x in 
+        let x_ = unsafeProb x in
         x_ ** (fromProb a - real_ 1)
         * (unsafeProb (real_ 1 - x) ** (fromProb b - real_ 1))
         / betaFunc a b * c (unsafeProb x)
@@ -352,7 +373,7 @@ expectMeasure (DirichletProcess _) =
     error "TODO: expectMeasure{DirichletProcess}"
 expectMeasure (Plate _) =
     ExpectFun $ \ms ->
-    ExpectMeasure $ \c -> 
+    ExpectMeasure $ \c ->
     error "TODO: expectMeasure{Plate}"
 expectMeasure (Chain _ _) =
     ExpectFun $ \mz ->

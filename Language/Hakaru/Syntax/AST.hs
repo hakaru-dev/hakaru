@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.07.04
+--                                                    2015.07.07
 -- |
 -- Module      :  Language.Hakaru.Syntax.AST
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -131,7 +131,7 @@ sing_Value (VDatum (Datum d)) = error "TODO: sing_Value{VDatum}"
     goC :: DatumCode xss Value a -> Sing xss
     goC (Inr d1)   = SPlus sing (goS d1)
     goC (Inl d1)   = SPlus (goC d1) sing
-    
+
     goS :: DatumStruct xs Value a -> Sing xs
     goS (Et d1 d2) = SEt (goF d1) (goS d2)
     goS Done       = SDone
@@ -184,7 +184,9 @@ deriving instance Eq   (NaryOp a)
 deriving instance Show (NaryOp a)
 
 
--- TODO: we don't need to store the HOrd\/HSemiring values here, we can recover them by typeclass, just like we use 'sing' to get 'sBool' for the other ones...
+-- TODO: we don't need to store the HOrd\/HSemiring values here,
+-- we can recover them by typeclass, just like we use 'sing' to get
+-- 'sBool' for the other ones...
 sing_NaryOp :: NaryOp a -> Sing a
 sing_NaryOp And            = sing
 sing_NaryOp Or             = sing
@@ -274,7 +276,11 @@ data PrimOp :: Hakaru -> * where
 
 
     -- -- Continuous and discrete integration.
-    -- TODO: make Integrate and Summate polymorphic, so that if the two inputs are HProb then we know the function must be over HProb\/HNat too. More generally, if the first input is HProb (since the second input is assumed to be greater thant he first); though that would be a bit ugly IMO.
+    -- TODO: make Integrate and Summate polymorphic, so that if the
+    -- two inputs are HProb then we know the function must be over
+    -- HProb\/HNat too. More generally, if the first input is HProb
+    -- (since the second input is assumed to be greater thant he
+    -- first); though that would be a bit ugly IMO.
     Integrate :: PrimOp
         (    'HReal
         ':-> 'HReal
@@ -314,7 +320,10 @@ data PrimOp :: Hakaru -> * where
     -- TODO: would it help to have a specialized version for when
     -- we happen to know that the 'HNat is a Value? Same goes for
     -- the other powers\/roots
-    -- TODO: add a specialized version which returns NonNegative when the power is even? N.B., be sure not to actually constrain it to HRing (necessary for calling it \"NonNegative\")
+    --
+    -- TODO: add a specialized version which returns NonNegative
+    -- when the power is even? N.B., be sure not to actually constrain
+    -- it to HRing (necessary for calling it \"NonNegative\")
 
 
     -- -- HRing operators
@@ -371,12 +380,26 @@ data PrimOp :: Hakaru -> * where
     -- TODO: make Pi and Infinity HContinuous-polymorphic so that we can avoid the explicit coercion? Probably more mess than benefit.
 
 
+    -- -- Internalized program transformations
+    -- We generally want to evaluate these away at compile-time,
+    -- but sometimes we may be stuck with a few unresolved things
+    -- for open terms.
+    --
+    -- TODO: implement a \"change of variables\" program transformation
+    -- to map, say, @Lam_ x. blah (Expect x)@ into @Lam x'. blah x'@.
+    -- Or, perhaps rather, transform it into @Lam_ x. App_ (Lam_ x'. blah x') (Expect x)@.
+    Expect
+        :: !(Sing a)
+        -> PrimOp ('HMeasure a ':-> (a ':-> 'HProb) ':-> 'HProb)
+
 deriving instance Eq   (PrimOp a)
 -- TODO: instance Read (PrimOp a)
 deriving instance Show (PrimOp a)
 
 
--- TODO: we don't need to store the dictionary values here, we can recover them by typeclass, just like we use 'sing' for the other ones...
+-- TODO: we don't need to store the dictionary values here, we can
+-- recover them by typeclass, just like we use 'sing' for the other
+-- ones...
 sing_PrimOp :: PrimOp a -> Sing a
 sing_PrimOp Not         = sing
 sing_PrimOp Impl        = sing
@@ -443,6 +466,8 @@ sing_PrimOp (NatRoot theRad) =
 sing_PrimOp (Erf theCont) =
     let a = sing_HContinuous theCont
     in  a `SFun` a
+sing_PrimOp (Expect a) =
+    SMeasure a `SFun` (a `SFun` SProb) `SFun` SProb
 
 ----------------------------------------------------------------
 -- TODO: move the rest of the old Mochastic class into here?
@@ -593,7 +618,7 @@ data DatumStruct :: [HakaruFun] -> (Hakaru -> *) -> Hakaru -> * where
     Et  :: !(DatumFun    x         ast a)
         -> !(DatumStruct xs        ast a)
         ->   DatumStruct (x ': xs) ast a
-    
+
     -- | Close off the product.
     Done :: DatumStruct '[] ast a
 
