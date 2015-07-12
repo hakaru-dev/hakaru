@@ -6,7 +6,7 @@ import qualified Tests.RoundTrip as RT
 import qualified Tests.Syntax as SY
 import qualified Tests.Vector as TV
 import qualified Tests.Relationships as RE
-import qualified Tests.Embed as E
+-- import qualified Tests.Embed as E
 import qualified Tests.Lazy as L
 import qualified Tests.Function as F
 
@@ -20,7 +20,7 @@ allTests = test
   , SY.allTests
   , RE.allTests
   , TV.allTests
-  , E.allTests
+--  , E.allTests
   , L.important
   , F.allTests
   ]
