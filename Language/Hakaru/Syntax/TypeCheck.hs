@@ -38,7 +38,7 @@ import           Control.Applicative   (Applicative(..))
 import Language.Hakaru.Syntax.Nat      (fromNat)
 import Language.Hakaru.Syntax.DataKind (Hakaru(..), Code)
 import Language.Hakaru.Syntax.TypeEq
-import Language.Hakaru.Syntax.Coercion (singCoerceTo, singCoerceFrom)
+import Language.Hakaru.Syntax.Coercion (Coercion(..), singCoerceTo, singCoerceFrom, singCoerceDomCod)
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
 
@@ -47,18 +47,16 @@ import Language.Hakaru.Syntax.ABT
 
 -- | Those terms from which we can synthesize a unique type. We are
 -- also allowed to check them, via the change-of-direction rule.
-inferable :: (ABT abt) => abt vars a -> Bool
+inferable :: (ABT abt) => abt '[] a -> Bool
 inferable = not . mustCheck
 
 
 -- | Those terms whose types must be checked analytically. We cannot
 -- synthesize (unambiguous) types for these terms.
-mustCheck :: (ABT abt) => abt vars a -> Bool
+mustCheck :: (ABT abt) => abt '[] a -> Bool
 mustCheck = go . viewABT
     where
-    go :: (ABT abt) => View abt vars a -> Bool
-    go (Bind _ _) =
-        error "mustCheck: you shouldn't be asking about Bind terms"
+    go :: (ABT abt) => View abt '[] a -> Bool
     go (Var  _)       = False
 
     go (Syn (Lam_ _)) = True
@@ -73,7 +71,7 @@ mustCheck = go . viewABT
     -- opposed to the TLDI'05 paper, which always inders @e2@ but
     -- will check or infer the @e1@ depending on whether it has a
     -- type annotation or not.
-    go (Syn (Let_ _ e2)) = mustCheck e2
+    go (Syn (Let_ _ e2)) = caseBind e2 $ \_ e2' -> mustCheck e2'
 
     -- If our Fix_ had a type annotation on the variable, then we
     -- could infer the type by checking the body against that same
@@ -87,12 +85,10 @@ mustCheck = go . viewABT
     go (Syn (NaryOp_ _ _))     = False
     go (Syn (Value_ _))        = False
 
-    -- TODO: I'm guessing for these two. Since the coercion stores
-    -- concrete information about both the type of @e@ and the type
-    -- of the whole expression, maybe this should behave more like
-    -- 'Ann_'...?
-    go (Syn (CoerceTo_   _ e)) = mustCheck e
-    go (Syn (UnsafeFrom_ _ e)) = mustCheck e
+    go (Syn (CoerceTo_   CNil e)) = mustCheck e
+    go (Syn (CoerceTo_   _    _)) = False
+    go (Syn (UnsafeFrom_ CNil e)) = mustCheck e
+    go (Syn (UnsafeFrom_ _    _)) = False
 
     -- I return true because most folks (neelk, Pfenning, Dunfield
     -- & Pientka) say all data constructors mustCheck (even though
@@ -128,7 +124,7 @@ mustCheck = go . viewABT
 
     go (Syn (Measure_ _))     = False
     -- TODO: I'm assuming this works like Let_, but we should make sure...
-    go (Syn (Bind_ _ e2))     = mustCheck e2
+    go (Syn (Bind_ _ e2))     = caseBind e2 $ \_ e2' -> mustCheck e2'
     -- TODO: again, it seems like if we can infer one of the options, then we should be able to check the rest against it. But for now we'll assume we must check
     go (Syn (Superpose_ _))   = True
 
@@ -186,6 +182,9 @@ type TypeCheckError = String -- TODO: something better
 newtype TypeCheckMonad a =
     TCM { unTCM :: Ctx -> Either TypeCheckError a }
 
+runTCM :: TypeCheckMonad a -> Either TypeCheckError a 
+runTCM m = unTCM m IM.empty
+
 instance Functor TypeCheckMonad where
     fmap f m = TCM $ fmap f . unTCM m
 
@@ -213,10 +212,9 @@ failwith = TCM . const . Left
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 -- | Given a typing environment and a term, synthesize the term's type.
-inferType :: ABT abt => abt vars a -> TypeCheckMonad (Sing a)
+inferType :: ABT abt => abt '[] a -> TypeCheckMonad (Sing a)
 inferType e0 =
     case viewABT e0 of
-    Bind _ _  -> error "inferType: you shouldn't be asking about Bind terms"
     Var x     -> do
         ctx <- getCtx
         case IM.lookup (fromNat $ varID x) ctx of
@@ -281,11 +279,23 @@ inferType e0 =
         | inferable e1 -> do
             typ <- inferType e1
             return $ singCoerceTo c typ
+        | otherwise ->
+            case singCoerceDomCod c of
+            Nothing -> failwith "Cannot infer type for null-coercion over a checking term; please add a type annotation"
+            Just (dom,cod) -> do
+                checkType dom e1
+                return cod
 
     Syn (UnsafeFrom_ c e1)
         | inferable e1 -> do
             typ <- inferType e1
             return $ singCoerceFrom c typ
+        | otherwise ->
+            case singCoerceDomCod c of
+            Nothing -> failwith "Cannot infer type for null-coercion over a checking term; please add a type annotation"
+            Just (dom,cod) -> do
+                checkType cod e1
+                return dom
 
     Syn (Measure_ o) ->
         return $ sing_Measure o
@@ -310,10 +320,9 @@ inferType e0 =
 -- TODO: rather than returning (), we could return a fully type-annotated term...
 -- | Given a typing environment, a term, and a type, check that the
 -- term satisfies the type.
-checkType :: ABT abt => Sing a -> abt vars a -> TypeCheckMonad ()
+checkType :: ABT abt => Sing a -> abt '[] a -> TypeCheckMonad ()
 checkType typ0 e0 =
     case viewABT e0 of
-    Bind _ _ -> error "checkType: you shouldn't be asking about Bind terms"
     Syn (Lam_ e1) ->
         case typ0 of
         SFun typ1 typ2 ->

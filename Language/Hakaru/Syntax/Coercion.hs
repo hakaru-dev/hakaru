@@ -6,7 +6,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.07.07
+--                                                    2015.07.15
 -- |
 -- Module      :  Language.Hakaru.Syntax.Coercion
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -25,6 +25,9 @@ module Language.Hakaru.Syntax.Coercion
     , singletonCoercion
     , singCoerceTo
     , singCoerceFrom
+    , singCoerceDom
+    , singCoerceCod
+    , singCoerceDomCod
     -- * Experimental optimization functions
     {-
     , CoerceTo_UnsafeFrom(..)
@@ -38,6 +41,7 @@ module Language.Hakaru.Syntax.Coercion
 
 import Prelude          hiding (id, (.))
 import Control.Category (Category(..))
+import Data.Functor     ((<$>))
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.TypeEq
 import Language.Hakaru.Syntax.HClasses
@@ -136,6 +140,36 @@ singCoerceFrom CNil         s = s
 singCoerceFrom (CCons c cs) s =
     singPrimCoerceFrom c (singCoerceFrom cs s)
 
+----------------------------------------------------------------
+singPrimCoerceDom :: PrimCoercion a b -> Sing a
+singPrimCoerceDom (Signed     theRing) = sing_NonNegative theRing
+singPrimCoerceDom (Continuous theCont) = sing_HIntegral   theCont
+
+singPrimCoerceCod :: PrimCoercion a b -> Sing b
+singPrimCoerceCod (Signed     theRing) = sing_HRing       theRing
+singPrimCoerceCod (Continuous theCont) = sing_HContinuous theCont
+
+
+singCoerceDom :: Coercion a b -> Maybe (Sing a)
+singCoerceDom CNil           = Nothing
+singCoerceDom (CCons c CNil) = Just $ singPrimCoerceDom c
+singCoerceDom (CCons c cs)   = singPrimCoerceFrom c <$> singCoerceDom cs
+
+singCoerceCod :: Coercion a b -> Maybe (Sing b)
+singCoerceCod CNil           = Nothing
+singCoerceCod (CCons c CNil) = Just $ singPrimCoerceCod c
+singCoerceCod (CCons c cs)   = Just . singCoerceTo cs $ singPrimCoerceCod c
+
+
+singCoerceDomCod :: Coercion a b -> Maybe (Sing a, Sing b)
+singCoerceDomCod CNil           = Nothing
+singCoerceDomCod (CCons c CNil) =
+    Just (singPrimCoerceDom c, singPrimCoerceCod c)
+singCoerceDomCod (CCons c cs)   = do
+    dom <- singCoerceDom cs
+    Just (singPrimCoerceFrom c dom
+        , singCoerceTo cs $ singPrimCoerceCod c
+        )
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
