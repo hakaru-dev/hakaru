@@ -2,6 +2,7 @@
 module Language.Hakaru.Parser.AST where
 
 import Language.Hakaru.Syntax.DataKind
+import Language.Hakaru.Syntax.AST()
 
 type Name = String
 
@@ -88,13 +89,13 @@ data Value' =
 data AST' a =
    | Var Name
    | Op a
-   | Lam Name AST' 
-   | App AST' AST'
-   | Let Name AST' AST'
-   | Ann AST' Hakaru
+   | Lam Name (AST' a) 
+   | App (AST' a) (AST' a)
+   | Let Name (AST' a) (AST' a)
+   | Ann (AST' a) Hakaru
    | Value Value'
    | Empty
-   | Array AST' Name AST'
+   | Array (AST' a) Name (AST' a)
    | Case  AST' [Branch']
-   | Bind  Name AST' AST'
-   | Superpose [(AST', AST')]
+   | Bind  Name (AST' a) (AST' a)
+   | Superpose [((AST' a), (AST' a))]
