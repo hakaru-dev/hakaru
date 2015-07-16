@@ -55,6 +55,10 @@ module Language.Hakaru.Syntax.AST
     , dNothing, dJust
     -- ** Pattern matching
     , Pattern(..)
+    , PDatumCode(..)
+    , type (++)
+    , PDatumStruct(..)
+    , PDatumFun(..)
     , Branch(..), branchPattern, branchBody
     -- *** Some smart constructors for the \"built-in\" datatypes
     , pTrue, pFalse
@@ -818,7 +822,7 @@ instance Show (PDatumCode xss vars a) where
     showsPrec = showsPrec1
 
 
--- BUG: how do we actually use the term-level @(++)@ at the type level? Or do we have to redefine it ourselves (as below)? If we define it ourselves, how do we make it a closed family? or ensure invertability\/inference in other ways? What are the usability problems of not having the full relational modes specified?
+-- BUG: how do we actually use the term-level @(++)@ at the type level? Or do we have to redefine it ourselves (as below)? If we define it ourselves, how can we make sure it's usable? In particular, how can we prove associativity and that @'[]@ is a /two-sided/ identity element?
 type family (xs :: [k]) ++ (ys :: [k]) :: [k]
 type instance '[]       ++ ys = ys 
 type instance (x ': xs) ++ ys = x ': (xs ++ ys) 

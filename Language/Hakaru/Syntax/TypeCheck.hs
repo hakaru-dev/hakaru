@@ -4,11 +4,12 @@
            , DataKinds
            , PolyKinds
            , GeneralizedNewtypeDeriving
+           , TypeOperators
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.07.07
+--                                                    2015.07.15
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeCheck
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -46,16 +47,16 @@ import Language.Hakaru.Syntax.ABT
 
 -- | Those terms from which we can synthesize a unique type. We are
 -- also allowed to check them, via the change-of-direction rule.
-inferable :: (ABT abt) => abt a -> Bool
+inferable :: (ABT abt) => abt vars a -> Bool
 inferable = not . mustCheck
 
 
 -- | Those terms whose types must be checked analytically. We cannot
 -- synthesize (unambiguous) types for these terms.
-mustCheck :: (ABT abt) => abt a -> Bool
+mustCheck :: (ABT abt) => abt vars a -> Bool
 mustCheck = go . viewABT
     where
-    go :: (ABT abt) => View abt a -> Bool
+    go :: (ABT abt) => View abt vars a -> Bool
     go (Bind _ _) =
         error "mustCheck: you shouldn't be asking about Bind terms"
     go (Var  _)       = False
@@ -138,25 +139,46 @@ mustCheck = go . viewABT
 -- TODO: replace with an IntMap(SomeVariable), using the varID of the Variable
 type Ctx = IntMap SomeVariable
 
-data TypedPattern where
-    TP  :: !(Pattern a) -> !(Sing a) -> TypedPattern
-    TDP :: {-# UNPACK #-} !(TypedDatum Pattern) -> TypedPattern
-
-data TypedDatum (abt :: Hakaru -> *) where
-    -- N.B., we do not require that @xss ~ Code t@; so we can
-    -- perform induction on it!
-    TDC :: !(DatumCode xss abt ('HData t (Code t)))
+data TypedPattern :: [Hakaru] -> * where
+    TP  :: !(Pattern vars a)
+        -> !(Sing a)
+        -> TypedPattern vars
+    TPC :: !(PDatumCode xss vars ('HData t (Code t)))
         -> !(Sing xss)
         -> !(Sing ('HData t (Code t)))
-        -> TypedDatum abt
-    TDS :: !(DatumStruct xs abt ('HData t (Code t)))
+        -> TypedPattern vars
+    TPS :: !(PDatumStruct xs vars ('HData t (Code t)))
         -> !(Sing xs)
         -> !(Sing ('HData t (Code t)))
-        -> TypedDatum abt
-    TDF :: !(DatumFun x abt ('HData t (Code t)))
+        -> TypedPattern vars
+    TPF :: !(PDatumFun x vars ('HData t (Code t)))
         -> !(Sing x)
         -> !(Sing ('HData t (Code t)))
-        -> TypedDatum abt
+        -> TypedPattern vars
+
+-- We can't just use @[TypedPattern vars]@ because the @vars@ won't necessarily be constant for every element. Rather, what we want is \"@[TypedPattern] vars@\" where the @vars@ is collected over the whole list. That's what this type does.
+data TypedPatternList :: [Hakaru] -> * where
+    TPNil :: TypedPatternList '[]
+    TPCons
+        :: !(TypedPattern vars1)
+        -> TypedPatternList vars2
+        -> TypedPatternList (vars1 ++ vars2)
+
+data TypedDatum (ast :: Hakaru -> *) where
+    -- N.B., we do not require that @xss ~ Code t@; so we can
+    -- perform induction on it!
+    TDC :: !(DatumCode xss ast ('HData t (Code t)))
+        -> !(Sing xss)
+        -> !(Sing ('HData t (Code t)))
+        -> TypedDatum ast
+    TDS :: !(DatumStruct xs ast ('HData t (Code t)))
+        -> !(Sing xs)
+        -> !(Sing ('HData t (Code t)))
+        -> TypedDatum ast
+    TDF :: !(DatumFun x ast ('HData t (Code t)))
+        -> !(Sing x)
+        -> !(Sing ('HData t (Code t)))
+        -> TypedDatum ast
 
 ----------------------------------------------------------------
 type TypeCheckError = String -- TODO: something better
@@ -191,7 +213,7 @@ failwith = TCM . const . Left
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 -- | Given a typing environment and a term, synthesize the term's type.
-inferType :: ABT abt => abt a -> TypeCheckMonad (Sing a)
+inferType :: ABT abt => abt vars a -> TypeCheckMonad (Sing a)
 inferType e0 =
     case viewABT e0 of
     Bind _ _  -> error "inferType: you shouldn't be asking about Bind terms"
@@ -288,7 +310,7 @@ inferType e0 =
 -- TODO: rather than returning (), we could return a fully type-annotated term...
 -- | Given a typing environment, a term, and a type, check that the
 -- term satisfies the type.
-checkType :: ABT abt => Sing a -> abt a -> TypeCheckMonad ()
+checkType :: ABT abt => Sing a -> abt vars a -> TypeCheckMonad ()
 checkType typ0 e0 =
     case viewABT e0 of
     Bind _ _ -> error "checkType: you shouldn't be asking about Bind terms"
@@ -349,7 +371,8 @@ checkType typ0 e0 =
     Syn (Case_ e1 branches) -> do
         typ1 <- inferType e1
         F.forM_ branches $ \(Branch pat body) ->
-            checkBranch typ0 body [TP pat typ1]
+            -- BUG: Could not deduce (xs ~ (xs ++ '[]))
+            checkBranch typ0 body (TP pat typ1 `TPCons` TPNil)
 
     Syn (Bind_ e1 e2)
         | inferable e1 -> do
@@ -384,7 +407,7 @@ checkType typ0 e0 =
 -- TODO: can we unify this with the last major case of 'checkBranch'?
 checkDatum
     :: ABT abt
-    => [TypedDatum abt]
+    => [TypedDatum (abt '[])]
     -> TypeCheckMonad ()
 checkDatum = go
     where
@@ -424,13 +447,13 @@ checkDatum = go
 checkBranch
     :: ABT abt
     => Sing b
-    -> abt b
-    -> [TypedPattern]
+    -> abt vars b
+    -> TypedPatternList vars
     -> TypeCheckMonad ()
 checkBranch body_typ body = go
     where
-    go []                 = checkType body_typ body
-    go (TP pat typ : pts) =
+    go TPNil                     = checkType body_typ body
+    go (TP pat typ `TPCons` pts) =
         case pat of
         PVar ->
             -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
@@ -442,46 +465,47 @@ checkBranch body_typ body = go
                 Nothing   -> failwith "type mismatch"
 
         PWild               -> go pts
-        PDatum (Datum pat1) ->
+        PDatum pat1 ->
             case typ of
-            SData _ typ2 -> go (TDP (TDC pat1 typ2 typ) : pts)
+            SData _ typ2 -> go (TPC pat1 typ2 typ `TPCons` pts)
             _ -> failwith "expected term of user-defined data type"
 
     -- TODO: verify that this all works the way it should!
     -- TODO: use @typA@ to provide better error messages; particularly, the first argument to its constructor 'SData'.
-    go (TDP (TDC pat typ typA) : pts) =
+    go (TPC pat typ typA `TPCons` pts) =
         case pat of
-        Inr pat2 ->
+        PInr pat2 ->
             case typ of
-            SPlus _ typ2 -> go (TDP (TDC pat2 typ2 typA) : pts)
+            SPlus _ typ2 -> go (TPC pat2 typ2 typA `TPCons` pts)
             _            -> failwith "expected term of `sum' type"
-        Inl pat1 ->
+        PInl pat1 ->
             case typ of
-            SPlus typ1 _ -> go (TDP (TDS pat1 typ1 typA) : pts)
+            SPlus typ1 _ -> go (TPS pat1 typ1 typA `TPCons` pts)
             _            -> failwith "expected term of `zero' type"
-    go (TDP (TDS pat typ typA) : pts) =
+    go (TPS pat typ typA `TPCons` pts) =
         case pat of
-        Et pat1 pat2 ->
+        PEt pat1 pat2 ->
             case typ of
             SEt typ1 typ2 -> go
-                ( TDP (TDF pat1 typ1 typA)
-                : TDP (TDS pat2 typ2 typA)
-                : pts
+            -- BUG: Could not deduce (((vars3 ++ vars4) ++ vars2) ~ (vars3 ++ (vars4 ++ vars2)))
+                ( TPCons (TPF pat1 typ1 typA)
+                . TPCons (TPS pat2 typ2 typA)
+                $ pts
                 )
             _ -> failwith "expected term of `et' type"
-        Done ->
+        PDone ->
             case typ of
             SDone  -> go pts
             _      -> failwith "expected term of `done' type"
-    go (TDP (TDF pat typ typA) : pts) =
+    go (TPF pat typ typA `TPCons` pts) =
         case pat of
-        Ident pat1 ->
+        PIdent pat1 ->
             case typ of
-            SIdent -> go (TP pat1 typA : pts)
+            SIdent -> go (TP pat1 typA `TPCons` pts)
             _      -> failwith "expected term of `I' type"
-        Konst pat1 ->
+        PKonst pat1 ->
             case typ of
-            SKonst typ1 -> go (TP pat1 typ1 : pts)
+            SKonst typ1 -> go (TP pat1 typ1 `TPCons` pts)
             _           -> failwith "expected term of `K' type"
 
 ----------------------------------------------------------------
