@@ -1,6 +1,8 @@
 {-# LANGUAGE RankNTypes, GADTs, ExistentialQuantification, StandaloneDeriving #-}
 module Language.Hakaru.Parser.AST where
 
+import Language.Hakaru.Syntax.DataKind
+
 type Name = String
 
 -- Base/Integrate/Lambda/Order/Num/Floating/Fractional repr
@@ -75,3 +77,24 @@ data Dist =
     Gamma UExpr UExpr |
     Beta UExpr UExpr
  deriving (Eq, Show)
+
+data Value' =
+   | Nat
+   | Int
+   | Prob
+   | Real
+   | Datum
+
+data AST' a =
+   | Var Name
+   | Op a
+   | Lam Name AST' 
+   | App AST' AST'
+   | Let Name AST' AST'
+   | Ann AST' Hakaru
+   | Value Value'
+   | Empty
+   | Array AST' Name AST'
+   | Case  AST' [Branch']
+   | Bind  Name AST' AST'
+   | Superpose [(AST', AST')]
