@@ -156,11 +156,11 @@ infixr 9 .
 infixr 0 $
 -}
 
-infixl 1 >>= -- >>
+infixl 1 >>=, >>
 infixr 2 ||
 infixr 3 &&
 infix  4 ==, /=, <, <=, >, >=
-infixl 4 <$>, <*> -- <$, <*, *>
+infixl 4 <$>, <*>, <*, *> -- <$
 infixl 6 +, -
 infixl 7 *, /
 infixr 8 ^, ^^, ** -- ^+, ^*
@@ -707,15 +707,32 @@ dirac = measure1_ $ Dirac sing
 f <$> m = m >>= dirac . f
 liftM = (<$>)
 
--- TODO: (<$), (<*), (*>)
 -- BUG: remove the 'SingI' requirement!
--- | N.B, this function may introduce administrative redexes.
+-- | N.B, this function may introduce administrative redexes. Moreover, it's not clear that we should even allow the type @'HMeasure (a ':-> b)@!
 (<*>)
     :: (ABT abt, SingI a, SingI b)
     => abt '[] ('HMeasure (a ':-> b))
     -> abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure b)
 mf <*> mx = mf >>= \f -> app f <$> mx
+
+-- TODO: ensure that @dirac a *> n@ simplifies to just @n@, regardless of @a@ but especially when @a = unit@.
+-- BUG: remove the 'SingI' requirement!
+(*>)
+    :: (ABT abt, SingI a)
+    => abt '[] ('HMeasure a)
+    -> abt '[] ('HMeasure b)
+    -> abt '[] ('HMeasure b)
+m *> n = m >>= \_ -> n
+
+-- TODO: ensure that @m <* dirac a@ simplifies to just @m@, regardless of @a@ but especially when @a = unit@.
+-- BUG: remove the 'SingI' requirements! especially on @b@!
+(<*)
+    :: (ABT abt, SingI a, SingI b)
+    => abt '[] ('HMeasure a)
+    -> abt '[] ('HMeasure b)
+    -> abt '[] ('HMeasure a)
+m <* n = m >>= \a -> n *> dirac a
 
 -- BUG: remove the 'SingI' requirement!
 liftM2
@@ -727,15 +744,39 @@ liftM2
 liftM2 f m n = m >>= \x -> f x <$> n
     -- or @(lam . f) <$> m <*> n@ but that would introduce administrative redexes
 
+-- TODO: we should ensure that this simplifies away whenever @m = dirac x@; especially when @m = dirac unit@
+-- BUG: remove the 'SingI' requirement!
+(>>)
+    :: (ABT abt, SingI a)
+    => abt '[] ('HMeasure a)
+    -> abt '[] ('HMeasure b)
+    -> abt '[] ('HMeasure b)
+(>>) = (*>)
 
--- TODO: for the EDSL, rephrase this as just taking the weight and applying it to @dirac unit@; and then make @(>>)@ work in the right way to plug the continuation measure in place of the @dirac unit@.
+-- TODO: we should ensure that @weight p m >> n@ simplifies to @weight p (m >> n)@; also ensure that @m >> weight p n@ simplifies to @weight p (m >> n)@
+weight
+    :: (ABT abt)
+    => abt '[] 'HProb
+    -> abt '[] ('HMeasure w)
+    -> abt '[] ('HMeasure w)
+weight p m = superpose [(p, m)]
+
+-- TODO: we should ensure that @m >> factor p@ simplifies to @weight p m@.
+factor
+    :: (ABT abt)
+    => abt '[] 'HProb
+    -> abt '[] ('HMeasure HUnit)
+factor p = weight p (dirac unit)
+
 -- BUG: remove the 'SingI' requirement!
 weightedDirac
     :: (ABT abt, SingI a)
     => abt '[] a
     -> abt '[] 'HProb
     -> abt '[] ('HMeasure a)
-weightedDirac e p = superpose [(p, dirac e)]
+weightedDirac e p = weight p (dirac e)
+    -- == factor p *> dirac e
+    -- == dirac e <* factor p
 
 lebesgue :: (ABT abt) => abt '[] ('HMeasure 'HReal)
 lebesgue = measure0_ Lebesgue
@@ -749,13 +790,16 @@ superpose
     -> abt '[] ('HMeasure a)
 superpose = syn . Superpose_
 
--- TODO: for the EDSL, rephrase this as just taking the first argument and using @dirac unit@ for the else-branch; then, make @(>>)@ work in the right way to plug the continuation measure in place of the @dirac unit@.
-assert_
+-- TODO: this taking of two arguments is as per the Core Hakaru specification; but for the EDSL, can we rephrase this as just taking the first argument, using @dirac unit@ for the else-branch, and then, making @(>>)@ work in the right way to plug the continuation measure in place of the @dirac unit@.
+-- TODO: would it help inference\/simplification at all to move this into the AST as a primitive? I mean, it is a primitive of Core Hakaru afterall...
+-- | Assert that a condition is true.
+-- TODO: why do we call this \"factor\" rather than something like \"assert\"?
+factor_
     :: (ABT abt)
     => abt '[] HBool
     -> abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure a)
-assert_ b m = if_ b m $ superpose []
+factor_ b m = if_ b m (superpose [])
 
 
 categorical, categorical'
@@ -767,7 +811,7 @@ categorical = measure1_ Categorical
 -- TODO: a variant of 'if_' which gives us the evidence that the argument is non-negative, so we don't need to coerce or use 'abs_'
 categorical' v =
     counting >>= \i ->
-    assert_ (i >= int_ 0 && i < nat2int (size v))
+    factor_ (i >= int_ 0 && i < nat2int (size v))
         $ weightedDirac (abs_ i) (v ! abs_ i / sumV v)
 
 
@@ -782,7 +826,7 @@ uniform = measure2_ Uniform
 
 uniform' lo hi = 
     lebesgue >>= \x ->
-    assert_ (lo < x && x < hi)
+    factor_ (lo < x && x < hi)
         -- TODO: how can we capture that this 'unsafeProb' is safe? (and that this 'recip' isn't Infinity, for that matter)
         $ weightedDirac x (recip . unsafeProb $ hi - lo)
 
@@ -810,7 +854,7 @@ poisson = measure1_ Poisson
 poisson' l = 
     counting >>= \x ->
     -- TODO: use 'SafeFrom_' instead of @if_ (x >= int_ 0)@ so we can prove that @unsafeFrom_ signed x@ is actually always safe.
-    assert_ (x >= int_ 0 && prob_ 0 < l) -- BUG: do you mean @l /= 0@? why use (>=) instead of (<=)?
+    factor_ (x >= int_ 0 && prob_ 0 < l) -- BUG: do you mean @l /= 0@? why use (>=) instead of (<=)?
         $ weightedDirac (unsafeFrom_ signed x)
             $ l ** fromInt x -- BUG: why do you use (**) instead of (^^)?
                 / gammaFunc (fromInt x + real_ 1) -- TODO: use factorial instead of gammaFunc...
@@ -827,7 +871,7 @@ gamma = measure2_ Gamma
 gamma' shape scale =
     lebesgue >>= \x ->
     -- TODO: use 'SafeFrom_' instead of @if_ (real_ 0 < x)@ so we can prove that @unsafeProb x@ is actually always safe. Of course, then we'll need to mess around with checking (/=0) which'll get ugly... Use another SafeFrom_ with an associated NonZero type?
-    assert_ (real_ 0 < x)
+    factor_ (real_ 0 < x)
         $ let x_ = unsafeProb x in
          weightedDirac x_
             $ x_ ** (fromProb shape - real_ 1)
