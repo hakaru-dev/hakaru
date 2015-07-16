@@ -7,11 +7,12 @@
            , StandaloneDeriving
            , ScopedTypeVariables
            , TypeOperators
+           , TypeFamilies
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.07.07
+--                                                    2015.07.15
 -- |
 -- Module      :  Language.Hakaru.Syntax.AST
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -55,6 +56,13 @@ module Language.Hakaru.Syntax.AST
     -- ** Pattern matching
     , Pattern(..)
     , Branch(..), branchPattern, branchBody
+    -- *** Some smart constructors for the \"built-in\" datatypes
+    , pTrue, pFalse
+    , pUnit
+    , pPair
+    , pLeft, pRight
+    , pNil, pCons
+    , pNothing, pJust
     -- * Syntactic forms
     , AST(..)
     ) where
@@ -542,21 +550,21 @@ sing_Measure (Chain s a) =
 -- whereas 'DatumCode' has non-Hakaru types.
 data Datum :: (Hakaru -> *) -> Hakaru -> * where
     Datum
-        :: !(DatumCode (Code t) ast ('HData t (Code t)))
-        -> Datum ast ('HData t (Code t))
+        :: !(DatumCode (Code t) abt ('HData t (Code t)))
+        -> Datum abt ('HData t (Code t))
 
-instance Eq1 ast => Eq1 (Datum ast) where
+instance Eq1 abt => Eq1 (Datum abt) where
     eq1 (Datum d1) (Datum d2) = eq1 d1 d2
 
-instance Eq1 ast => Eq (Datum ast a) where
+instance Eq1 abt => Eq (Datum abt a) where
     (==) = eq1
 
--- TODO: instance Read (Datum ast a)
+-- TODO: instance Read (Datum abt a)
 
-instance Show1 ast => Show1 (Datum ast) where
+instance Show1 abt => Show1 (Datum abt) where
     showsPrec1 p (Datum d) = showParen_1 p "Datum" d
 
-instance Show1 ast => Show (Datum ast a) where
+instance Show1 abt => Show (Datum abt a) where
     showsPrec = showsPrec1
     show      = show1
 
@@ -567,7 +575,7 @@ instance Foldable11 Datum where
     foldMap11 f (Datum d) = foldMap11 f d
 
 ----------------------------------------------------------------
-infixr 7 `Et`
+infixr 7 `Et`, `PEt`
 
 -- | The intermediate components of a data constructor. The intuition
 -- behind the two indices is that the @[[HakaruFun]]@ is a functor
@@ -578,9 +586,9 @@ infixr 7 `Et`
 -- @[[HakaruFun]]@ functor.
 data DatumCode :: [[HakaruFun]] -> (Hakaru -> *) -> Hakaru -> * where
     -- | Skip rightwards along the sum.
-    Inr :: !(DatumCode  xss ast a) -> DatumCode (xs ': xss) ast a
+    Inr :: !(DatumCode  xss abt a) -> DatumCode (xs ': xss) abt a
     -- | Inject into the sum.
-    Inl :: !(DatumStruct xs ast a) -> DatumCode (xs ': xss) ast a
+    Inl :: !(DatumStruct xs abt a) -> DatumCode (xs ': xss) abt a
 
 
 -- N.B., these \"Foo1\" instances rely on polymorphic recursion,
@@ -590,18 +598,18 @@ data DatumCode :: [[HakaruFun]] -> (Hakaru -> *) -> Hakaru -> * where
 -- codes, and (2) the code is always getting smaller; so we have
 -- a good enough inductive hypothesis from polymorphism alone.
 
-instance Eq1 ast => Eq1 (DatumCode xss ast) where
+instance Eq1 abt => Eq1 (DatumCode xss abt) where
     eq1 (Inr c) (Inr d) = eq1 c d
     eq1 (Inl c) (Inl d) = eq1 c d
     eq1 _       _       = False
 
--- TODO: instance Read (DatumCode xss ast a)
+-- TODO: instance Read (DatumCode xss abt a)
 
-instance Show1 ast => Show1 (DatumCode xss ast) where
+instance Show1 abt => Show1 (DatumCode xss abt) where
     showsPrec1 p (Inr d) = showParen_1 p "Inr" d
     showsPrec1 p (Inl d) = showParen_1 p "Inl" d
 
-instance Show1 ast => Show (DatumCode xss ast a) where
+instance Show1 abt => Show (DatumCode xss abt a) where
     showsPrec = showsPrec1
 
 instance Functor11 (DatumCode xss) where
@@ -615,25 +623,25 @@ instance Foldable11 (DatumCode xss) where
 
 data DatumStruct :: [HakaruFun] -> (Hakaru -> *) -> Hakaru -> * where
     -- | Combine components of the product. (\"et\" means \"and\" in Latin)
-    Et  :: !(DatumFun    x         ast a)
-        -> !(DatumStruct xs        ast a)
-        ->   DatumStruct (x ': xs) ast a
+    Et  :: !(DatumFun    x         abt a)
+        -> !(DatumStruct xs        abt a)
+        ->   DatumStruct (x ': xs) abt a
 
     -- | Close off the product.
-    Done :: DatumStruct '[] ast a
+    Done :: DatumStruct '[] abt a
 
-instance Eq1 ast => Eq1 (DatumStruct xs ast) where
+instance Eq1 abt => Eq1 (DatumStruct xs abt) where
     eq1 (Et c1 c2) (Et d1 d2) = eq1 c1 d1 && eq1 c2 d2
     eq1 Done       Done       = True
     eq1 _          _          = False
 
--- TODO: instance Read (DatumStruct xs ast a)
+-- TODO: instance Read (DatumStruct xs abt a)
 
-instance Show1 ast => Show1 (DatumStruct xs ast) where
+instance Show1 abt => Show1 (DatumStruct xs abt) where
     showsPrec1 p (Et d1 d2) = showParen_11 p "Et" d1 d2
     showsPrec1 _ Done       = showString     "Done"
 
-instance Show1 ast => Show (DatumStruct xs ast a) where
+instance Show1 abt => Show (DatumStruct xs abt a) where
     showsPrec = showsPrec1
 
 instance Functor11 (DatumStruct xs) where
@@ -648,22 +656,22 @@ instance Foldable11 (DatumStruct xs) where
 -- TODO: do we like those constructor names? Should we change them?
 data DatumFun :: HakaruFun -> (Hakaru -> *) -> Hakaru -> * where
     -- | Hit a leaf which isn't a recursive component of the datatype.
-    Konst :: ast b -> DatumFun ('K b) ast a
+    Konst :: abt b -> DatumFun ('K b) abt a
     -- | Hit a leaf which is a recursive component of the datatype.
-    Ident :: ast a -> DatumFun 'I     ast a
+    Ident :: abt a -> DatumFun 'I     abt a
 
-instance Eq1 ast => Eq1 (DatumFun x ast) where
+instance Eq1 abt => Eq1 (DatumFun x abt) where
     eq1 (Konst e) (Konst f) = eq1 e f
     eq1 (Ident e) (Ident f) = eq1 e f
     eq1 _         _         = False
 
--- TODO: instance Read (DatumFun x ast a)
+-- TODO: instance Read (DatumFun x abt a)
 
-instance Show1 ast => Show1 (DatumFun x ast) where
+instance Show1 abt => Show1 (DatumFun x abt) where
     showsPrec1 p (Konst e) = showParen_1 p "Konst" e
     showsPrec1 p (Ident e) = showParen_1 p "Ident" e
 
-instance Show1 ast => Show (DatumFun x ast a) where
+instance Show1 abt => Show (DatumFun x abt a) where
     showsPrec = showsPrec1
 
 instance Functor11 (DatumFun x) where
@@ -683,32 +691,32 @@ instance Foldable11 (DatumFun x) where
 -- aspects of the compiler, we need to handle all possible Datum
 -- values, so the pattern synonyms wouldn't even be helpful.
 
-dTrue, dFalse :: Datum ast HBool
+dTrue, dFalse :: Datum abt HBool
 dTrue      = Datum . Inl $ Done
 dFalse     = Datum . Inr . Inl $ Done
 
-dUnit      :: Datum ast HUnit
+dUnit      :: Datum abt HUnit
 dUnit      = Datum . Inl $ Done
 
-dPair      :: ast a -> ast b -> Datum ast (HPair a b)
+dPair      :: abt a -> abt b -> Datum abt (HPair a b)
 dPair a b  = Datum . Inl $ Konst a `Et` Konst b `Et` Done
 
-dLeft      :: ast a -> Datum ast (HEither a b)
+dLeft      :: abt a -> Datum abt (HEither a b)
 dLeft      = Datum . Inl . (`Et` Done) . Konst
 
-dRight     :: ast b -> Datum ast (HEither a b)
+dRight     :: abt b -> Datum abt (HEither a b)
 dRight     = Datum . Inr . Inl . (`Et` Done) . Konst
 
-dNil       :: Datum ast (HList a)
+dNil       :: Datum abt (HList a)
 dNil       = Datum . Inl $ Done
 
-dCons      :: ast a -> ast (HList a) -> Datum ast (HList a)
+dCons      :: abt a -> abt (HList a) -> Datum abt (HList a)
 dCons x xs = Datum . Inr . Inl $ Konst x `Et` Ident xs `Et` Done
 
-dNothing   :: Datum ast (HMaybe a)
+dNothing   :: Datum abt (HMaybe a)
 dNothing   = Datum . Inl $ Done
 
-dJust      :: ast a -> Datum ast (HMaybe a)
+dJust      :: abt a -> Datum abt (HMaybe a)
 dJust      = Datum . Inr . Inl . (`Et` Done) . Konst
 
 
@@ -718,6 +726,8 @@ dJust      = Datum . Inr . Inl . (`Et` Done) . Konst
 -- TODO: equality patterns for Nat\/Int? (what about Prob\/Real??)
 -- TODO: exhaustiveness, non-overlap, dead-branch checking
 --
+-- TODO: index by @[Hakaru]@ to keep track of the number\/types of the 'PVar's. It seems like this will mean defining our own specific type for @Datum Pattern@ in order to collect up the variables in each branch of products\/structs.
+--
 -- We index patterns by the type they scrutinize. This requires the
 -- parser to be smart enough to build these patterns up, but then
 -- it guarantees that we can't have 'Case_' of patterns which can't
@@ -726,6 +736,7 @@ dJust      = Datum . Inr . Inl . (`Et` Done) . Konst
 -- variables they bind, like we'll do for ASTPattern... But that's
 -- prolly overkill since we can just run the type checker over our
 -- AST.
+{-
 data Pattern :: Hakaru -> * where
     -- | The \"don't care\" wildcard pattern.
     PWild :: Pattern a
@@ -737,6 +748,7 @@ data Pattern :: Hakaru -> * where
     PDatum
         :: {-# UNPACK #-} !(Datum Pattern ('HData t (Code t)))
         -> Pattern ('HData t (Code t))
+
 
 instance Eq1 Pattern where
     eq1 PWild       PWild       = True
@@ -757,8 +769,151 @@ instance Show1 Pattern where
 instance Show (Pattern a) where
     showsPrec = showsPrec1
     show      = show1
+-}
+
+data Pattern :: [Hakaru] -> Hakaru -> * where
+    PWild :: Pattern '[]    a
+    PVar  :: Pattern '[ a ] a
+    PDatum
+        :: !(PDatumCode (Code t) vars ('HData t (Code t)))
+        -> Pattern vars ('HData t (Code t))
+
+instance Eq1 (Pattern vars) where
+    eq1 PWild       PWild       = True
+    eq1 PVar        PVar        = True
+    eq1 (PDatum d1) (PDatum d2) = eq1 d1 d2
+    eq1 _           _           = False
+
+instance Eq (Pattern vars a) where
+    (==) = eq1
+
+-- TODO: instance Read (Pattern vars a)
+
+instance Show1 (Pattern vars) where
+    showsPrec1 _ PWild      = showString    "PWild"
+    showsPrec1 _ PVar       = showString    "PVar"
+    showsPrec1 p (PDatum d) = showParen_1 p "PDatum" d
+
+instance Show (Pattern vars a) where
+    showsPrec = showsPrec1
+    show      = show1
 
 
+data PDatumCode :: [[HakaruFun]] -> [Hakaru] -> Hakaru -> * where
+    PInr :: !(PDatumCode  xss vars a) -> PDatumCode (xs ': xss) vars a
+    PInl :: !(PDatumStruct xs vars a) -> PDatumCode (xs ': xss) vars a
+
+instance Eq1 (PDatumCode xss vars) where
+    eq1 (PInr c) (PInr d) = eq1 c d
+    eq1 (PInl c) (PInl d) = eq1 c d
+    eq1 _        _        = False
+
+-- TODO: instance Read (PDatumCode xss vars a)
+
+instance Show1 (PDatumCode xss vars) where
+    showsPrec1 p (PInr d) = showParen_1 p "PInr" d
+    showsPrec1 p (PInl d) = showParen_1 p "PInl" d
+
+instance Show (PDatumCode xss vars a) where
+    showsPrec = showsPrec1
+
+
+-- BUG: how do we actually use the term-level @(++)@ at the type level? Or do we have to redefine it ourselves (as below)? If we define it ourselves, how do we make it a closed family? or ensure invertability\/inference in other ways? What are the usability problems of not having the full relational modes specified?
+type family (xs :: [k]) ++ (ys :: [k]) :: [k]
+type instance '[]       ++ ys = ys 
+type instance (x ': xs) ++ ys = x ': (xs ++ ys) 
+
+data PDatumStruct :: [HakaruFun] -> [Hakaru] -> Hakaru -> * where
+    PEt :: !(PDatumFun    x         vars1 a)
+        -> !(PDatumStruct xs        vars2 a)
+        ->   PDatumStruct (x ': xs) (vars1 ++ vars2) a
+
+    PDone :: PDatumStruct '[] '[] a
+
+instance Eq1 (PDatumStruct xs vars) where
+    eq1 (PEt c1 c2) (PEt d1 d2) =
+        error "TODO: Eq1{PEt}: make sure existentials match up"
+        -- > eq1 c1 d1 && eq1 c2 d2
+        -- TODO: we could do it with some instance of @jmEq@; which is just further begging for making @jmEq@ into a kind-class (i.e., a typeclass indexed by a kind instead of by a type). /Could/ do it without that kind-class, but will be namespace ugliness
+        -- TODO: maybe we could just push @jmEq@ into the 'Eq1' class like the other abt library on Haskage does?
+    eq1 PDone       PDone       = True
+    eq1 _           _           = False
+
+-- TODO: instance Read (PDatumStruct xs vars a)
+
+instance Show1 (PDatumStruct xs vars) where
+    showsPrec1 p (PEt d1 d2) = showParen_11 p "PEt" d1 d2
+    showsPrec1 _ PDone       = showString     "PDone"
+
+instance Show (PDatumStruct xs vars a) where
+    showsPrec = showsPrec1
+
+
+data PDatumFun :: HakaruFun -> [Hakaru] -> Hakaru -> * where
+    PKonst :: Pattern vars b -> PDatumFun ('K b) vars a
+    PIdent :: Pattern vars a -> PDatumFun 'I     vars a
+
+instance Eq1 (PDatumFun x vars) where
+    eq1 (PKonst e) (PKonst f) = eq1 e f
+    eq1 (PIdent e) (PIdent f) = eq1 e f
+    eq1 _          _          = False
+
+-- TODO: instance Read (PDatumFun x vars a)
+
+instance Show1 (PDatumFun x vars) where
+    showsPrec1 p (PKonst e) = showParen_1 p "PKonst" e
+    showsPrec1 p (PIdent e) = showParen_1 p "PIdent" e
+
+instance Show (PDatumFun x vars a) where
+    showsPrec = showsPrec1
+
+
+pTrue, pFalse :: Pattern '[] HBool
+pTrue  = PDatum . PInl $ PDone
+pFalse = PDatum . PInr . PInl $ PDone
+
+pUnit  :: Pattern '[] HUnit
+pUnit  = PDatum . PInl $ PDone
+
+-- BUG: Couldn't match type ‘vars1 ++ (vars2 ++ '[])’ with ‘vars1 ++ vars2’
+pPair
+    :: Pattern vars1 a
+    -> Pattern vars2 b
+    -> Pattern (vars1 ++ vars2) (HPair a b)
+pPair a b =
+    error "TODO: make pPair typecheck"
+    -- PDatum . PInl $ PKonst a `PEt` PKonst b `PEt` PDone
+
+-- BUG: Couldn't match type ‘vars’ with ‘vars ++ '[]’
+pLeft  :: Pattern vars a -> Pattern vars (HEither a b)
+pLeft  = 
+    error "TODO: make pLeft typecheck"
+    -- PDatum . PInl . (`PEt` PDone) . PKonst
+
+pRight :: Pattern vars b -> Pattern vars (HEither a b)
+pRight = 
+    error "TODO: make pRight typecheck"
+    -- PDatum . PInr . PInl . (`PEt` PDone) . PKonst
+
+pNil   :: Pattern '[] (HList a)
+pNil   = PDatum . PInl $ PDone
+
+pCons :: Pattern vars1 a
+    -> Pattern vars2 (HList a)
+    -> Pattern (vars1 ++ vars2) (HList a)
+pCons x xs = 
+    error "TODO: make pCons typecheck"
+    -- PDatum . PInr . PInl $ PKonst x `PEt` PIdent xs `PEt` PDone
+
+pNothing   :: Pattern '[] (HMaybe a)
+pNothing   = PDatum . PInl $ PDone
+
+pJust      :: Pattern vars a -> Pattern vars (HMaybe a)
+pJust      = 
+    error "TODO: make pJust typecheck"
+    -- PDatum . PInr . PInl . (`PEt` PDone) . PKonst
+
+----------------------------------------------------------------
 -- TODO: a pretty infix syntax, like (:=>) or something
 -- TODO: this type is helpful for capturing the existential, if we
 -- ever end up keeping track of local binding environments; but
@@ -766,31 +921,30 @@ instance Show (Pattern a) where
 -- for pattern automata, so we can optimize case analysis.
 data Branch :: Hakaru -> ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     Branch
-        :: {-exists Γ.-}
-           !(Pattern a) {-Γ-}
-        -> ast xs{-Γ-} b
-        -> Branch a ast b
+        :: !(Pattern xs a)
+        -> abt xs b
+        -> Branch a abt b
 
-branchPattern :: Branch a ast b -> Pattern a {-Γ-}
-branchPattern (Branch p _) = p
+branchPattern :: Branch a abt b -> (forall xs. Pattern xs a -> r) -> r
+branchPattern (Branch p _) k = k p
 
-branchBody :: Branch a ast b -> (forall xs. ast xs{-Γ-} b -> r) -> r
+branchBody :: Branch a abt b -> (forall xs. abt xs b -> r) -> r
 branchBody (Branch _ e) k = k e
 
-instance Eq2 ast => Eq1 (Branch a ast) where
+instance Eq2 abt => Eq1 (Branch a abt) where
     eq1 (Branch p1 e1) (Branch p2 e2) =
         error "TODO: Eq1{Branch}: make sure existentials match up"
         -- p1 `eq1` p2 && e1 `eq2` e2
 
-instance Eq2 ast => Eq (Branch a ast b) where
+instance Eq2 abt => Eq (Branch a abt b) where
     (==) = eq1
 
--- TODO: instance Read (Branch ast a b)
+-- TODO: instance Read (Branch abt a b)
 
-instance Show2 ast => Show1 (Branch a ast) where
+instance Show2 abt => Show1 (Branch a abt) where
     showsPrec1 p (Branch pat e) = showParen_02 p "Branch" pat e
 
-instance Show2 ast => Show (Branch a ast b) where
+instance Show2 abt => Show (Branch a abt b) where
     showsPrec = showsPrec1
     show      = show1
 
@@ -813,33 +967,33 @@ instance Foldable21 (Branch a) where
 data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
 
     -- -- Standard lambda calculus stuff
-    Lam_    :: ast '[ a ] b -> AST ast (a ':-> b)
-    App_    :: ast '[] (a ':-> b) -> ast '[] a -> AST ast b
-    Let_    :: ast '[] a -> ast '[ a ] b -> AST ast b
+    Lam_    :: abt '[ a ] b -> AST abt (a ':-> b)
+    App_    :: abt '[] (a ':-> b) -> abt '[] a -> AST abt b
+    Let_    :: abt '[] a -> abt '[ a ] b -> AST abt b
     -- TODO: a general \"@let*@\" version of let-binding so we can have mutual recursion
-    Fix_    :: ast '[ a ] a -> AST ast a
+    Fix_    :: abt '[ a ] a -> AST abt a
     -- | Explicitly given type annotations. (For the other
     -- change-of-direction rule in bidirectional type checking.)
     -- N.B., storing a 'Proxy' isn't enough; we need the 'Sing'.
-    Ann_    :: !(Sing a) -> ast '[] a -> AST ast a
+    Ann_    :: !(Sing a) -> abt '[] a -> AST abt a
 
 
     -- -- Primitive operators
-    PrimOp_ :: !(PrimOp a) -> AST ast a
-    NaryOp_ :: !(NaryOp a) -> !(Seq (ast '[] a)) -> AST ast a
+    PrimOp_ :: !(PrimOp a) -> AST abt a
+    NaryOp_ :: !(NaryOp a) -> !(Seq (abt '[] a)) -> AST abt a
 
 
     -- -- Primitive atomic types: their values and coercions
-    Value_      :: !(Value a)                   -> AST ast a
-    CoerceTo_   :: !(Coercion a b) -> ast '[] a -> AST ast b
-    UnsafeFrom_ :: !(Coercion a b) -> ast '[] b -> AST ast a
-    -- TODO: add something like @SafeFrom_ :: Coercion a b -> ast b -> AST ast ('HMaybe a)@ so we can capture the safety of patterns like @if_ (0 <= x) (let x_ = unsafeFrom signed x in...) (...)@ Of course, since we're just going to do case analysis on the result; why not make it a binding form directly?
+    Value_      :: !(Value a)                   -> AST abt a
+    CoerceTo_   :: !(Coercion a b) -> abt '[] a -> AST abt b
+    UnsafeFrom_ :: !(Coercion a b) -> abt '[] b -> AST abt a
+    -- TODO: add something like @SafeFrom_ :: Coercion a b -> abt b -> AST abt ('HMaybe a)@ so we can capture the safety of patterns like @if_ (0 <= x) (let x_ = unsafeFrom signed x in...) (...)@ Of course, since we're just going to do case analysis on the result; why not make it a binding form directly?
     -- TODO: we'll probably want some more general thing to capture these sorts of patterns. For example, in the default implementation of Uniform we see: @if_ (lo < x && x < hi) (... unsafeFrom_ signed (hi - lo) ...) (...)@
 
     -- We have the constructors for arrays here, so that they're grouped together with our other constructors 'Value_' and 'Datum_'.
-    Empty_ :: AST ast ('HArray a)
+    Empty_ :: AST abt ('HArray a)
     -- TODO: do we really need this to be a binding form, or could it take a Hakaru function for the second argument?
-    Array_ :: ast '[] 'HNat -> ast '[ 'HNat ] a -> AST ast ('HArray a)
+    Array_ :: abt '[] 'HNat -> abt '[ 'HNat ] a -> AST abt ('HArray a)
 
     -- -- User-defined data types
     -- | A data constructor applied to some expressions. N.B., this
@@ -847,36 +1001,36 @@ data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     -- fully saturated. Unsaturated constructors will need to be
     -- eta-expanded.
     Datum_
-        :: {-# UNPACK #-} !(Datum (ast '[]) ('HData t (Code t)))
-        -> AST ast ('HData t (Code t))
+        :: {-# UNPACK #-} !(Datum (abt '[]) ('HData t (Code t)))
+        -> AST abt ('HData t (Code t))
 
     -- | Generic case-analysis (via ABTs and Structural Focalization).
-    Case_ :: ast '[] a -> [Branch a ast b] -> AST ast b
+    Case_ :: abt '[] a -> [Branch a abt b] -> AST abt b
 
 
     -- -- Mochastic stuff
     -- TODO: should Dirac move back here?
     -- | Primitive operators which generate measures.
-    Measure_ :: !(Measure a) -> AST ast a
+    Measure_ :: !(Measure a) -> AST abt a
     -- TODO: find a name so this doesn't conflict with ABT's Bind
     Bind_
-        :: ast '[] ('HMeasure a)
-        -> ast '[ a ] ('HMeasure b)
-        -> AST ast ('HMeasure b)
+        :: abt '[] ('HMeasure a)
+        -> abt '[ a ] ('HMeasure b)
+        -> AST abt ('HMeasure b)
     Superpose_
-        :: [(ast '[] 'HProb, ast '[] ('HMeasure a))]
-        -> AST ast ('HMeasure a)
+        :: [(abt '[] 'HProb, abt '[] ('HMeasure a))]
+        -> AST abt ('HMeasure a)
 
 
 ----------------------------------------------------------------
--- N.B., having a @singAST :: AST ast a -> Sing a@ doesn't make
+-- N.B., having a @singAST :: AST abt a -> Sing a@ doesn't make
 -- sense: That's what 'inferType' is for, but not all terms can be
 -- inferred; some must be checked... Similarly, we can't derive
 -- Read, since that's what typechecking is all about.
 
--- BUG: deriving instance (forall b. Eq (ast b)) => Eq (AST ast a)
+-- BUG: deriving instance (forall b. Eq (abt b)) => Eq (AST abt a)
 
-instance Show2 ast => Show1 (AST ast) where
+instance Show2 abt => Show1 (AST abt) where
     showsPrec1 p t =
         case t of
         Lam_    e            -> showParen_2   p "Lam_"    e
@@ -900,7 +1054,7 @@ instance Show2 ast => Show1 (AST ast) where
         UnsafeFrom_ c e      -> showParen_02  p "UnsafeFrom_" c e
         Empty_               -> showString      "Empty_"
         Array_      e1 e2    -> showParen_22  p "Array_"      e1 e2
--- BUG: with 'showParen_1' could not deduce (Show1 (ast '[])) from (Show2 ast). But with 'showParen_2' could not deduce (Show2 Datum)...
+-- BUG: with 'showParen_1' could not deduce (Show1 (abt '[])) from (Show2 abt). But with 'showParen_2' could not deduce (Show2 Datum)...
 --        Datum_      d        -> showParen_1   p "Datum_"      d
         Case_       e bs     ->
             showParen (p > 9)
@@ -915,11 +1069,11 @@ instance Show2 ast => Show1 (AST ast) where
             showParen (p > 9)
                 ( showString "Superpose_ "
                 . showListWith
-                    (\(p,e) -> showTuple [shows2 p, shows2 e])
+                    (\(e1,e2) -> showTuple [shows2 e1, shows2 e2])
                     pes
                 )
 
-instance Show2 ast => Show (AST ast a) where
+instance Show2 abt => Show (AST abt a) where
     showsPrec = showsPrec1
     show      = show1
 

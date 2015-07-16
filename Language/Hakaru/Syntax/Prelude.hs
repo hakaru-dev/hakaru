@@ -509,7 +509,7 @@ unpair e f = error "TODO: unpair with the new 'Variable' type"
         f' (Cons x (Cons y Nil)) = f x y
         f' _ = error "unpair: the impossible happened"
     in syn $ Case_ e
-        [Branch (PDatum $ dPair PVar PVar)
+        [Branch (pPair PVar PVar)
             $ multibinder
                 ( Cons (Hint (Text.pack "_") sing)
                 . Cons (Hint (Text.pack "_") sing)
@@ -532,15 +532,15 @@ uneither
     -> abt c
 uneither e l r = 
     syn $ Case_ e
-        [ Branch (PDatum $ dLeft  PVar) (binder (Text.pack "_") sing l)
-        , Branch (PDatum $ dRight PVar) (binder (Text.pack "_") sing r)
+        [ Branch (pLeft  PVar) (binder (Text.pack "_") sing l)
+        , Branch (pRight PVar) (binder (Text.pack "_") sing r)
         ]
 
 if_ :: (ABT abt) => abt HBool -> abt a -> abt a -> abt a
 if_ b t f =
     syn $ Case_ b
-        [ Branch (PDatum dTrue)  t
-        , Branch (PDatum dFalse) f
+        [ Branch pTrue  t
+        , Branch pFalse f
         ]
 
 nil_      :: (ABT abt) => abt (HList a)
