@@ -56,7 +56,7 @@ module Language.Hakaru.Syntax.AST
     -- ** Pattern matching
     , Pattern(..)
     , PDatumCode(..)
-    , type (++)
+    , type (++), eqAppendNil, eqAppendAssoc
     , PDatumStruct(..)
     , PDatumFun(..)
     , Branch(..), branchPattern, branchBody
@@ -826,6 +826,16 @@ instance Show (PDatumCode xss vars a) where
 type family (xs :: [k]) ++ (ys :: [k]) :: [k]
 type instance '[]       ++ ys = ys 
 type instance (x ': xs) ++ ys = x ': (xs ++ ys) 
+
+eqAppendNil :: proxy xs -> TypeEq xs (xs ++ '[])
+eqAppendNil _ = error "TODO: eqAppendNil = unsafeCoerce Refl"
+
+eqAppendAssoc
+    :: proxy1 xs
+    -> proxy2 ys
+    -> proxy3 zs
+    -> TypeEq ((xs ++ ys) ++ zs) (xs ++ (ys ++ zs))
+eqAppendAssoc _ _ _ = error "TODO: eqAppendAssoc = unsafeCoerce Refl"
 
 data PDatumStruct :: [HakaruFun] -> [Hakaru] -> Hakaru -> * where
     PEt :: !(PDatumFun    x         vars1 a)

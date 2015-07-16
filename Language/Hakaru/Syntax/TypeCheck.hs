@@ -371,8 +371,15 @@ checkType typ0 e0 =
     Syn (Case_ e1 branches) -> do
         typ1 <- inferType e1
         F.forM_ branches $ \(Branch pat body) ->
+            {-
             -- BUG: Could not deduce (xs ~ (xs ++ '[]))
             checkBranch typ0 body (TP pat typ1 `TPCons` TPNil)
+            -}
+            -- N.B., we need the call to 'checkBranch' to be outside the case analysis, otherwise we get some weird error about the return type being untouchable (and hence not matchable with @()@)
+            checkBranch typ0 body $
+                let p = TP pat typ1 in
+                case eqAppendNil p of
+                Refl -> TPCons p TPNil
 
     Syn (Bind_ e1 e2)
         | inferable e1 -> do
@@ -464,7 +471,7 @@ checkBranch body_typ body = go
                         checkBranch body_typ body' pts
                 Nothing   -> failwith "type mismatch"
 
-        PWild               -> go pts
+        PWild       -> go pts
         PDatum pat1 ->
             case typ of
             SData _ typ2 -> go (TPC pat1 typ2 typ `TPCons` pts)
@@ -486,23 +493,29 @@ checkBranch body_typ body = go
         case pat of
         PEt pat1 pat2 ->
             case typ of
-            SEt typ1 typ2 -> go
-            -- BUG: Could not deduce (((vars3 ++ vars4) ++ vars2) ~ (vars3 ++ (vars4 ++ vars2)))
+            SEt typ1 typ2 -> go $
+                {-
+                -- BUG: Could not deduce (((vars3 ++ vars4) ++ vars2) ~ (vars3 ++ (vars4 ++ vars2)))
                 ( TPCons (TPF pat1 typ1 typA)
                 . TPCons (TPS pat2 typ2 typA)
                 $ pts
                 )
+                -}
+                let p1 = TPF pat1 typ1 typA
+                    p2 = TPS pat2 typ2 typA
+                in case eqAppendAssoc p1 p2 pts of
+                    Refl -> TPCons p1 (TPCons p2 pts)
             _ -> failwith "expected term of `et' type"
         PDone ->
             case typ of
-            SDone  -> go pts
-            _      -> failwith "expected term of `done' type"
+            SDone       -> go pts
+            _           -> failwith "expected term of `done' type"
     go (TPF pat typ typA `TPCons` pts) =
         case pat of
         PIdent pat1 ->
             case typ of
-            SIdent -> go (TP pat1 typA `TPCons` pts)
-            _      -> failwith "expected term of `I' type"
+            SIdent      -> go (TP pat1 typA `TPCons` pts)
+            _           -> failwith "expected term of `I' type"
         PKonst pat1 ->
             case typ of
             SKonst typ1 -> go (TP pat1 typ1 `TPCons` pts)
