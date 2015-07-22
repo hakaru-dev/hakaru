@@ -7,7 +7,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.07.07
+--                                                    2015.07.22
 -- |
 -- Module      :  Language.Hakaru.Syntax.Expect
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -53,6 +53,18 @@ expect
     => abt ('HMeasure a)
     -> (abt a -> abt 'HProb) -> abt 'HProb
 expect e = apM $ expectSynDir e IM.empty
+
+{- For debugging via the old Expect.hs:
+
+-- Must rely on the Mochastic instance to define the @Expect repr@. Not clear how to build one directly from a plain @repr@.
+almostExpect
+    :: (Mochastic repr, Lambda repr)
+    => Expect repr ('HMeasure a)
+    -> repr ('HFun ('HFun (Expect' a) 'HProb) 'HProb)
+almostExpect m = lam (\c -> unpair (unExpect m) (\_ m2 -> m2 `app` c))
+
+prettyAlmostExpect = runPrettyPrint . almostExpect
+-}
 
 
 ----------------------------------------------------------------
@@ -124,6 +136,8 @@ pushEnv v@(Assoc x _) = IM.insert (fromNat $ varID x) v
 getSing :: (ABT abt) => abt a -> Sing a
 getSing _ = error "TODO: get singletons of anything after typechecking"
 
+-- N.B., in the ICFP 2015 pearl paper, we take the expectation of bound variables prior to taking the expectation of their scope. E.g., @expect(let_ v e1 e2) xs c = expect e1 xs $ \x -> expect e2 (pushEnv v x xs) c@. Whereas here, I'm being lazier and performing the expectation on variable lookup. If the variable is never used (by wasted computation) or used exactly once (by Tonelli's theorem), then this delayed evaluation preserves the expectation semantics (ICFP 2015, §5.6.0); so we only need to worry if the variable is used more than once, in which case we'll have to worry about whether the various integrals commute/exchange with one another. More generally, cf. Bhat et al.'s \"active variables\"
+
 
 -- TODO: Move this to ABT.hs
 -- TODO: Swap the argument order?
@@ -153,7 +167,7 @@ resolveVar e xs =
         Nothing       -> Left x
             -- error "resolveVar: unbound variable"
             -- error "TODO: replace the variable with a new variable of a different type (i.e., of the appropriate type); or, wrap the variable with a (Hakaru-)call to (Hakaru-)'expect'"
-            -- TODO: make sure that @lam$\t -> total (factor t)@ works
+            -- TODO: make sure that @lam$\t -> total (weight t)@ works
 
 -- TODO: if we really do have 'getSing', then we can call it in
 -- 'expect' and jump directly to 'expectTypeDir'; then we could
@@ -293,6 +307,20 @@ expectAST (Case_       e  bs) xs = error "TODO: expect{Case_}"
     -- >         bs' = map (fmap1 (`expectSynDir` xs)) bs
     -- >         e2  = Syn $ Case_ e' bs'
     -- >     in ...?
+    --
+    --
+    -- According to the old Expect.hs, we have expect(if_ b t f) = if_ b (expect t) (expect f); albeit with the @lam$\x0 -> ... `unpair` \x1 x2 -> x2 `app` x0@ wrapper around it at the top level.
+    -- Similarly for @uneither@, going under the binders and leaving the bound variables as-is, thus changing their types. E.g., @uneither x dirac m@ becomes @uneither x (\x1 -> let_ x1$\x2-> pair (dirac x2) (lam$\x3 -> x3 `app` x2)) (...)@ so it looks like that's what @(unExpect . f . Expect)@ actually means...
+    -- Though this seems to contradict the ICFP2015 paper, which has @expect(if_ b t f) rho c = expect b rho $\b' -> expect (if b then t else f) rho c@. Then again, everything is implicitly a measure in that paper; so that's prolly all that's going on.
+    --
+    -- According to the Lazy.tex paper, we should have something like:
+    -- > expect (Case_ e bs) xs c =
+    -- >     foreach bs $ \(pat,body) ->
+    -- >         case tryMatching pat (denotation e xs) of
+    -- >         Matches ys   -> expect body (ys ++ xs) c
+    -- >         Doesn'tMatch -> 0 -- == expect (superpose[]) xs c
+    -- where @denotation e xs@ is the constant interpretation for non-measures, and the @expect@ integrator interpretation for measures
+    -- We can avoid some of that administrative stuff, by using @let_@ to name the @denotation e xs@ stuff and then use Hakaru's @Case_@ on that.
 
 expectAST (Measure_    o)     _  = expectMeasure o
 expectAST (Bind_       e1 e2) xs =
@@ -306,6 +334,8 @@ expectAST (Bind_       e1 e2) xs =
 expectAST (Superpose_ pms) xs =
     ExpectMeasure $ \c ->
     sum [ p * (expectSynDir m xs `apM` c) | (p, m) <- pms ]
+    -- TODO: in the Lazy.tex paper, we use @denotation p xs@ and guard against that interpretation being negative...
+    -- TODO: if @pms@ is null, then automatically simplify to just 0
 
 
 expectMeasure :: (ABT abt) => Measure a -> Expect abt a

@@ -10,7 +10,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.07.15
+--                                                    2015.07.22
 -- |
 -- Module      :  Language.Hakaru.Syntax.Prelude
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -514,8 +514,8 @@ unpair e f = error "TODO: unpair with the new 'Variable' type"
     in syn $ Case_ e
         [Branch (pPair PVar PVar)
             $ multibinder
-                ( Cons (Hint (Text.pack "_") sing)
-                . Cons (Hint (Text.pack "_") sing)
+                ( Cons (Hint (Text.pack "x") sing)
+                . Cons (Hint (Text.pack "x") sing)
                 $ Nil)
                 f'
         ]
@@ -535,8 +535,8 @@ uneither
     -> abt '[] c
 uneither e l r = 
     syn $ Case_ e
-        [ Branch (pLeft  PVar) (binder (Text.pack "_") sing l)
-        , Branch (pRight PVar) (binder (Text.pack "_") sing r)
+        [ Branch (pLeft  PVar) (binder (Text.pack "x") sing l)
+        , Branch (pRight PVar) (binder (Text.pack "x") sing r)
         ]
 
 if_ :: (ABT abt) => abt '[] HBool -> abt '[] a -> abt '[] a -> abt '[] a
@@ -581,7 +581,7 @@ negativeInfinity :: (ABT abt) => abt '[] 'HReal
 negativeInfinity = primOp0_ NegativeInfinity
 
 fix :: (ABT abt, SingI a) => (abt '[] a -> abt '[] a) -> abt '[] a
-fix = syn . Fix_ . binder (Text.pack "_") sing
+fix = syn . Fix_ . binder (Text.pack "x") sing
 
 -- instance (ABT abt) => Lambda abt where
 -- 'app' already defined
@@ -589,7 +589,7 @@ fix = syn . Fix_ . binder (Text.pack "_") sing
 lam :: (ABT abt, SingI a)
     => (abt '[] a -> abt '[] b)
     -> abt '[] (a ':-> b)
-lam = syn . Lam_ . binder (Text.pack "_") sing
+lam = syn . Lam_ . binder (Text.pack "x") sing
 
 {-
 -- some test cases to make sure we tied-the-knot successfully:
@@ -609,7 +609,7 @@ let_
     => abt '[] a
     -> (abt '[] a -> abt '[] b)
     -> abt '[] b
-let_ e = syn . Let_ e . binder (Text.pack "_") sing
+let_ e = syn . Let_ e . binder (Text.pack "x") sing
 
 
 ----------------------------------------------------------------
@@ -619,7 +619,7 @@ array
     -> (abt '[] 'HNat -> abt '[] a)
     -> abt '[] ('HArray a)
 array n =
-    syn . Array_ n . binder (Text.pack "_") sing
+    syn . Array_ n . binder (Text.pack "x") sing
 
 empty :: (ABT abt) => abt '[] ('HArray a)
 empty = syn Empty_
@@ -692,7 +692,7 @@ mapV f v = array (size v) $ \i -> f (v ! i)
     => abt '[] ('HMeasure a)
     -> (abt '[] a -> abt '[] ('HMeasure b))
     -> abt '[] ('HMeasure b)
-(>>=) e = syn . Bind_ e . binder (Text.pack "_") sing
+(>>=) e = syn . Bind_ e . binder (Text.pack "x") sing
 
 -- BUG: remove the 'SingI' requirement!
 dirac :: (ABT abt, SingI a) => abt '[] a -> abt '[] ('HMeasure a)
@@ -708,7 +708,9 @@ f <$> m = m >>= dirac . f
 liftM = (<$>)
 
 -- BUG: remove the 'SingI' requirement!
--- | N.B, this function may introduce administrative redexes. Moreover, it's not clear that we should even allow the type @'HMeasure (a ':-> b)@!
+-- | N.B, this function may introduce administrative redexes.
+-- Moreover, it's not clear that we should even allow the type
+-- @'HMeasure (a ':-> b)@!
 (<*>)
     :: (ABT abt, SingI a, SingI b)
     => abt '[] ('HMeasure (a ':-> b))
@@ -753,31 +755,6 @@ liftM2 f m n = m >>= \x -> f x <$> n
     -> abt '[] ('HMeasure b)
 (>>) = (*>)
 
--- TODO: we should ensure that @weight p m >> n@ simplifies to @weight p (m >> n)@; also ensure that @m >> weight p n@ simplifies to @weight p (m >> n)@
-weight
-    :: (ABT abt)
-    => abt '[] 'HProb
-    -> abt '[] ('HMeasure w)
-    -> abt '[] ('HMeasure w)
-weight p m = superpose [(p, m)]
-
--- TODO: we should ensure that @m >> factor p@ simplifies to @weight p m@.
-factor
-    :: (ABT abt)
-    => abt '[] 'HProb
-    -> abt '[] ('HMeasure HUnit)
-factor p = weight p (dirac unit)
-
--- BUG: remove the 'SingI' requirement!
-weightedDirac
-    :: (ABT abt, SingI a)
-    => abt '[] a
-    -> abt '[] 'HProb
-    -> abt '[] ('HMeasure a)
-weightedDirac e p = weight p (dirac e)
-    -- == factor p *> dirac e
-    -- == dirac e <* factor p
-
 lebesgue :: (ABT abt) => abt '[] ('HMeasure 'HReal)
 lebesgue = measure0_ Lebesgue
 
@@ -785,22 +762,77 @@ counting :: (ABT abt) => abt '[] ('HMeasure 'HInt)
 counting = measure0_ Counting
 
 -- TODO: define @fail@ and @mplus@ to better mimic Core Hakaru
+-- TODO: make this smarter by collapsing nested @Superpose_@ similar to how we collapse nested NaryOps. Though beware, that could cause duplication of the computation for the probabilities\/weights; thus may want to only do it when the weights are constant values, or \"simplify\" things by generating let-bindings in order to share work.
 superpose
     :: (ABT abt)
     => [(abt '[] 'HProb, abt '[] ('HMeasure a))]
     -> abt '[] ('HMeasure a)
 superpose = syn . Superpose_
 
+-- TODO: we should ensure that @pose p m >> n@ simplifies to @pose p (m >> n)@; also ensure that @m >> pose p n@ simplifies to @pose p (m >> n)@; also that @pose 1 m@ simplifies to @m@
+-- | Pose a given measure with some given weight. This generates
+-- the singleton \"positions\" of 'superpose'.
+--
+-- /N.B.,/ the name for this function is terribly inconsistent
+-- across the literature, even just the Hakaru literature, let alone
+-- the Hakaru code base. It is variously called \"factor\" or
+-- \"weight\"; though \"factor\" is also used to mean the function
+-- 'factor' or the function 'observe', and \"weight\" is also used
+-- to mean the 'weight' function.
+--
+-- (was formerly called @weight@ in this branch, as per the old Syntax.hs)
+-- TODO: would @withWeight@ be a better name than @pose@?
+pose
+    :: (ABT abt)
+    => abt '[] 'HProb
+    -> abt '[] ('HMeasure w)
+    -> abt '[] ('HMeasure w)
+pose p m = superpose [(p, m)]
+
+-- TODO: we should ensure that @m >> weight p@ simplifies to @pose p m@.
+-- | Adjust the weight of the current measure.
+--
+-- /N.B.,/ the name for this function is terribly inconsistent
+-- across the literature, even just the Hakaru literature, let alone
+-- the Hakaru code base. It is often called \"factor\", though that
+-- name is variously used to mean the 'pose' function or the 'observe'
+-- function instead.
+--
+-- (was formerly called @factor@ in this branch, as per the old Syntax.hs)
+weight
+    :: (ABT abt)
+    => abt '[] 'HProb
+    -> abt '[] ('HMeasure HUnit)
+weight p = pose p (dirac unit)
+
+-- BUG: remove the 'SingI' requirement!
+weightedDirac
+    :: (ABT abt, SingI a)
+    => abt '[] a
+    -> abt '[] 'HProb
+    -> abt '[] ('HMeasure a)
+weightedDirac e p = pose p (dirac e)
+    -- == weight p *> dirac e
+    -- == dirac e <* weight p
+
 -- TODO: this taking of two arguments is as per the Core Hakaru specification; but for the EDSL, can we rephrase this as just taking the first argument, using @dirac unit@ for the else-branch, and then, making @(>>)@ work in the right way to plug the continuation measure in place of the @dirac unit@.
--- TODO: would it help inference\/simplification at all to move this into the AST as a primitive? I mean, it is a primitive of Core Hakaru afterall...
+-- TODO: would it help inference\/simplification at all to move this into the AST as a primitive? I mean, it is a primitive of Core Hakaru afterall... Also, that would help clarify whether the (first)argument should actually be an @HBool@ or whether it should be some sort of proposition.
 -- | Assert that a condition is true.
--- TODO: why do we call this \"factor\" rather than something like \"assert\"? Many people use the term \"observe\" to mean the backwards part of Lazy.hs
-factor_
+--
+-- /N.B.,/ the name for this function is terribly inconsistent
+-- across the literature, even just the Hakaru literature, let alone
+-- the Hakaru code base. It is variously called \"factor\" or
+-- \"observe\"; though \"factor\" is also used to mean the function
+-- 'pose', and \"observe\" is also used to mean the backwards part
+-- of Lazy.hs.
+--
+-- (was formerly called @factor_@ in this branch; wasn't abstracted out in the old Syntax.hs)
+observe
     :: (ABT abt)
     => abt '[] HBool
     -> abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure a)
-factor_ b m = if_ b m (superpose [])
+observe b m = if_ b m (superpose [])
 
 
 categorical, categorical'
@@ -812,7 +844,7 @@ categorical = measure1_ Categorical
 -- TODO: a variant of 'if_' which gives us the evidence that the argument is non-negative, so we don't need to coerce or use 'abs_'
 categorical' v =
     counting >>= \i ->
-    factor_ (i >= int_ 0 && i < nat2int (size v))
+    observe (i >= int_ 0 && i < nat2int (size v))
         $ weightedDirac (abs_ i) (v ! abs_ i / sumV v)
 
 
@@ -827,7 +859,7 @@ uniform = measure2_ Uniform
 
 uniform' lo hi = 
     lebesgue >>= \x ->
-    factor_ (lo < x && x < hi)
+    observe (lo < x && x < hi)
         -- TODO: how can we capture that this 'unsafeProb' is safe? (and that this 'recip' isn't Infinity, for that matter)
         $ weightedDirac x (recip . unsafeProb $ hi - lo)
 
@@ -855,7 +887,7 @@ poisson = measure1_ Poisson
 poisson' l = 
     counting >>= \x ->
     -- TODO: use 'SafeFrom_' instead of @if_ (x >= int_ 0)@ so we can prove that @unsafeFrom_ signed x@ is actually always safe.
-    factor_ (x >= int_ 0 && prob_ 0 < l) -- BUG: do you mean @l /= 0@? why use (>=) instead of (<=)?
+    observe (x >= int_ 0 && prob_ 0 < l) -- BUG: do you mean @l /= 0@? why use (>=) instead of (<=)?
         $ weightedDirac (unsafeFrom_ signed x)
             $ l ** fromInt x -- BUG: why do you use (**) instead of (^^)?
                 / gammaFunc (fromInt x + real_ 1) -- TODO: use factorial instead of gammaFunc...
@@ -872,7 +904,7 @@ gamma = measure2_ Gamma
 gamma' shape scale =
     lebesgue >>= \x ->
     -- TODO: use 'SafeFrom_' instead of @if_ (real_ 0 < x)@ so we can prove that @unsafeProb x@ is actually always safe. Of course, then we'll need to mess around with checking (/=0) which'll get ugly... Use another SafeFrom_ with an associated NonZero type?
-    factor_ (real_ 0 < x)
+    observe (real_ 0 < x)
         $ let x_ = unsafeProb x in
          weightedDirac x_
             $ x_ ** (fromProb shape - real_ 1)
