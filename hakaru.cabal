@@ -41,7 +41,9 @@ library
                        Language.Hakaru.Any,
                        Language.Hakaru.Vector,
                        Language.Hakaru.Util.Csv,
-                       Language.Hakaru.Embed
+                       Language.Hakaru.Embed,
+                       Language.Hakaru.Parser.AST,
+                       Language.Hakaru.Parser.Parser
 
   other-modules:       Language.Hakaru.Util.Extras,
                        Language.Hakaru.Util.Finite,
@@ -90,6 +92,7 @@ library
                        logfloat >=0.12 && <0.14,
                        math-functions >=0.1 && <0.2,
                        vector >=0.10 && <0.11,
+                       indentation >= 0.2.1,
                        cassava >=0.4 && <0.5,
                        zlib >=0.5 && <0.6,
                        bytestring >=0.10 && <0.11,
