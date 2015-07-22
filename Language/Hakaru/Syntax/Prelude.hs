@@ -784,6 +784,7 @@ lebesgue = measure0_ Lebesgue
 counting :: (ABT abt) => abt '[] ('HMeasure 'HInt)
 counting = measure0_ Counting
 
+-- TODO: define @fail@ and @mplus@ to better mimic Core Hakaru
 superpose
     :: (ABT abt)
     => [(abt '[] 'HProb, abt '[] ('HMeasure a))]
@@ -793,7 +794,7 @@ superpose = syn . Superpose_
 -- TODO: this taking of two arguments is as per the Core Hakaru specification; but for the EDSL, can we rephrase this as just taking the first argument, using @dirac unit@ for the else-branch, and then, making @(>>)@ work in the right way to plug the continuation measure in place of the @dirac unit@.
 -- TODO: would it help inference\/simplification at all to move this into the AST as a primitive? I mean, it is a primitive of Core Hakaru afterall...
 -- | Assert that a condition is true.
--- TODO: why do we call this \"factor\" rather than something like \"assert\"?
+-- TODO: why do we call this \"factor\" rather than something like \"assert\"? Many people use the term \"observe\" to mean the backwards part of Lazy.hs
 factor_
     :: (ABT abt)
     => abt '[] HBool
