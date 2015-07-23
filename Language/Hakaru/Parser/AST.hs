@@ -79,6 +79,8 @@ data Dist =
     Beta UExpr UExpr
  deriving (Eq, Show)
 
+data Branch' = None
+
 data Value' =
    | Nat
    | Int
@@ -99,3 +101,4 @@ data AST' a =
    | Case  AST' [Branch']
    | Bind  Name (AST' a) (AST' a)
    | Superpose [((AST' a), (AST' a))]
+   | Datum Sop
