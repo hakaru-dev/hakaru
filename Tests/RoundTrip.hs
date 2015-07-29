@@ -343,8 +343,8 @@ t46 = normal 4 5 `bind` \x -> dirac (if_ (less x 3) (x*x) (x-1))
 
 t47 :: (Mochastic repr) => repr (HMeasure HReal)
 t47 =
-  superpose [(1, (normal 4 5 `bind` \x -> if_ (less x 3) (dirac (x*x)) (dirac 0))),
-             (1, (normal 4 5 `bind` \x -> if_ (less x 3) (dirac 0) (dirac (x-1))))]
+  superpose [(1, (normal 4 5 `bind` \x -> if_ (less x 3) (dirac (x*x)) (superpose []))),
+             (1, (normal 4 5 `bind` \x -> if_ (less x 3) (superpose []) (dirac (x-1))))]
 
 t48 :: (Mochastic repr, Lambda repr) => repr (HFun (HPair HReal HReal) (HMeasure HReal))
 t48 = lam (\x -> uniform (-5) 7 `bind` \w -> dirac ((fst_ x + snd_ x) * w))
