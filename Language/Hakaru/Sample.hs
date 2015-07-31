@@ -103,7 +103,6 @@ instance Base (Sample m) where
   size   (Sample v)               = Sample (V.length v)
   reduce f a (Sample v)           = V.foldl' (\acc b -> f acc (Sample b)) a v
 
--- BUG: need to coerce @m@ into @* -> *@ in order to pass it to 'PrimState'
 instance (PrimMonad m) => Mochastic (Sample (m :: * -> *)) where
   dirac (Sample a) = Sample (\p _ ->
     return (Just (a,p)))

@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, DeriveDataTypeable, CPP, OverloadedStrings #-}
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, DeriveDataTypeable, CPP, OverloadedStrings, ScopedTypeVariables #-}
 {-# OPTIONS -Wall #-}
 
 module Language.Hakaru.Simplify
@@ -15,7 +15,6 @@ module Language.Hakaru.Simplify
 
 import Control.Exception
 import Language.Hakaru.Simplifiable (Simplifiable(mapleType))
--- import Language.Hakaru.Expect (Expect, unExpect)
 import Language.Hakaru.Maple (Maple, runMaple)
 import Language.Hakaru.Any (Any(Any), AnySimplifiable(AnySimplifiable))
 import Language.Hakaru.PrettyPrint (runPrettyPrintNamesPrec)
@@ -89,22 +88,31 @@ ourContext = do
 -- Type checking is fragile for this function. It compiles fine
 -- from the commandline, but using `cabal repl` causes it to break
 -- due to OverloadedStrings and (supposed) ambiguity about @a@ in
--- the Typeable constraint.
-closeLoop :: (Typeable a) => String -> IO a
-closeLoop s = action where
-  action = do
-    result <- unsafeRunInterpreterWithArgs ourGHCOptions $ ourContext >>
+-- the Typeable constraint. I've patched those two issues up by
+-- giving an explicit type signature to @s'@, and using ScopedTypeVariables
+-- to form the argument to 'typeOf' (rather than using 'asTypeOf'-style
+-- tricks). Then again, 'simplify' doesn't work inside `cabal repl`
+-- anyways, due to some dependency packages being hidden for some
+-- odd reason...
+closeLoop :: forall a. (Typeable a) => String -> IO a
+closeLoop s = do
+    result <- unsafeRunInterpreterWithArgs ourGHCOptions $ do
+        ourContext
 #ifdef PATCHED_HINT
-                unsafeInterpret s' typeStr
+        unsafeInterpret s' typeStr
 #else
-                interpret s' undefined
+        interpret s' undefined
 #endif
-    case result of Left err -> throw (InterpreterException err s')
-                   Right a -> return a
-  s' = s ++ " :: " ++ typeStr
-  typeStr = unpack $ replace ":" "Cons"
-                   $ replace "[]" "Nil"
-                   $ pack (show (typeOf ((undefined :: f a -> a) action)))
+    case result of
+        Left err -> throw (InterpreterException err s')
+        Right a -> return a
+    where
+    s' :: String
+    s' = s ++ " :: " ++ typeStr
+
+    typeStr = unpack $ replace ":" "Cons"
+                     $ replace "[]" "Nil"
+                     $ pack (show (typeOf (undefined :: a)))
 
 mkTypeString :: (Simplifiable a) => String -> proxy a -> String
 mkTypeString s t = "Typed(" ++ s ++ ", " ++ mapleType t ++ ")"
