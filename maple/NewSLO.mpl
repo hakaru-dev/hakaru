@@ -1,7 +1,7 @@
 NewSLO := module ()
   option package;
   local t_pw, t_LO, gensym, density, get_de, recognize_density, WeightM, WeightedM;
-  export ret, bind, mzero, mplus, weight, lebesgue, gaussian, LO, applyLO, intLO, Ret, Bind, Mzero, Mplus, Weight, Lebesgue, Gaussian, unexpect;
+  export ret, bind, msum, weight, lebesgue, gaussian, LO, applyLO, intLO, Ret, Bind, Msum, Weight, Lebesgue, Gaussian, unexpect;
 
   t_pw := 'specfunc(anything, piecewise)';
   t_LO := 'LO(name, anything)';
@@ -14,25 +14,19 @@ NewSLO := module ()
     LO(h, h(x))
   end proc;
 
-  bind := proc(m,x,n)
+  bind := proc(m, x, n)
     local h;
     h := gensym('hb');
     LO(h, applyLO(m, z -> applyLO(eval(n,x=z), h)))
   end proc;
 
-  mzero := proc()
+  msum := proc(ms)
     local h;
     h := gensym('hmz');
-    LO(h, 0)
+    LO(h, `+`(op(map(applyLO, ms, h))))
   end proc;
 
-  mplus := proc(m1,m2)
-    local h;
-    h := gensym('hmp');
-    LO(h, applyLO(m1,h) + applyLO(m2,h))
-  end proc;
-
-  weight := proc(p,m)
+  weight := proc(p, m)
     local h;
     h := gensym('hw');
     LO(h, p * applyLO(m,h))
@@ -76,8 +70,18 @@ NewSLO := module ()
 
 # Step 3 of 3: unexpect
 
+  Bind := proc(m, x, n)
+    if n = 'Ret'(x) then
+      m
+    elif m :: 'Ret(anything)' then
+      eval(n, x=op(1,m))
+    else
+      'Bind'(m, x, n)
+    end if;
+  end proc;
+
   Weight := proc(p, m)
-    if p = 1 or m = Mzero then
+    if p = 1 or m = Msum([]) then
       m
     elif m :: 'Weight(anything, anything)' then
       'Weight'(p * op(1,m), op(2,m))
@@ -93,25 +97,20 @@ NewSLO := module ()
       h := op(1,lo);
       body := op(2,lo);
       if body=0 then
-        Mzero
+        Msum([])
       elif body::`+` then
-        foldr(Mplus, Mzero,
-              op(map((subbody -> unexpect(LO(h, subbody), context)),
-                  convert(body,'list'))))
+        Msum([op(map((subbody -> unexpect(LO(h, subbody), context)),
+                  convert(body,'list')))])
       elif body::function and op(0,body)=h then
         Ret(op(1,body))
       elif body::'intLO(anything, name, anything)' then
         x := gensym('xu');
         # TODO is there any way to enrich context in this case?
-        subbody := op(3,body);
-        if subbody::function and op(0,subbody)=h and op(1,subbody)=op(2,body) then
-          op(1,body) # optimize using right-identity monad-law
-        else
-          Bind(op(1,body), x,
-               unexpect(LO(h, eval(subbody, op(2,body)=x)),
-                        context))
-        end if;
-      elif body::'Int(anything, name=-infinity..infinity)' then
+        Bind(op(1,body), x,
+             unexpect(LO(h, eval(op(3,body), op(2,body)=x)),
+                      context))
+      elif body::'Or(Int(anything, name=-infinity..infinity),
+                     int(anything, name=-infinity..infinity))' then
         x := gensym('xu');
         # TODO: enrich context with x (measure class lebesgue)
         result := unexpect(LO(h, eval(op(1,body), op([2,1],body)=x)),
