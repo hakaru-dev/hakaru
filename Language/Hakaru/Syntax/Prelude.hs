@@ -782,6 +782,7 @@ superpose = syn . Superpose_
 --
 -- (was formerly called @weight@ in this branch, as per the old Syntax.hs)
 -- TODO: would @withWeight@ be a better name than @pose@?
+-- TODO: ideally we'll be able to get rid of this function entirely, relying on 'weight' instead. Doing this effectively requires having certain optimizations for our ASTs.
 pose
     :: (ABT abt)
     => abt '[] 'HProb
@@ -818,6 +819,8 @@ weightedDirac e p = pose p (dirac e)
 -- TODO: this taking of two arguments is as per the Core Hakaru specification; but for the EDSL, can we rephrase this as just taking the first argument, using @dirac unit@ for the else-branch, and then, making @(>>)@ work in the right way to plug the continuation measure in place of the @dirac unit@.
 -- TODO: would it help inference\/simplification at all to move this into the AST as a primitive? I mean, it is a primitive of Core Hakaru afterall... Also, that would help clarify whether the (first)argument should actually be an @HBool@ or whether it should be some sort of proposition.
 -- | Assert that a condition is true.
+--
+-- TODO: rephrase to have the type @abt '[] HBool -> abt '[] ('HMeasure HUnit)@. Doing this effectively requires having certain optimizations for our ASTs.
 --
 -- /N.B.,/ the name for this function is terribly inconsistent
 -- across the literature, even just the Hakaru literature, let alone
