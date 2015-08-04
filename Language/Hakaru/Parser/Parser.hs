@@ -1,12 +1,16 @@
-{-# LANGUAGE RankNTypes, GADTs, ExistentialQuantification, StandaloneDeriving #-}
+{-# LANGUAGE RankNTypes, GADTs, ExistentialQuantification,
+             StandaloneDeriving, OverloadedStrings #-}
 module Language.Hakaru.Parser.Parser where
 
 import Prelude hiding (Real)
 
 import Control.Applicative ((<$>))
+import qualified Control.Monad as M
 import Data.Functor.Identity
+import Data.Text hiding (foldr)
 
 import Text.Parsec
+import Text.Parsec.Text hiding (Parser())
 import Text.Parsec.Indentation
 import Text.Parsec.Indentation.Char
 
@@ -16,6 +20,8 @@ import qualified Text.Parsec.Token as Tok
 import Language.Hakaru.Parser.AST
 import Language.Hakaru.Syntax
 
+ops, dist, names :: [String]
+
 ops   = ["+","*","-",":","<~", "==", "="]
 dist  = ["return", "lebesgue", "counting", "uniform",
          "normal", "superpose", "categorical", "beta",
@@ -24,7 +30,7 @@ dist  = ["return", "lebesgue", "counting", "uniform",
 names = ["def","fn", "if","else","pi","inf"] ++ dist
 
 
-type Parser = ParsecT (IndentStream (CharIndentStream String)) () Identity
+type Parser = ParsecT (IndentStream (CharIndentStream Text)) () Identity
 
 style = Tok.LanguageDef
         { Tok.commentStart   = ""
@@ -63,8 +69,8 @@ semiSep = Tok.semiSep lexer
 semiSep1 :: Parser a -> Parser [a]
 semiSep1 = Tok.semiSep1 lexer
  
-identifier :: Parser String
-identifier = Tok.identifier lexer
+identifier :: Parser Text
+identifier = M.liftM pack $ Tok.identifier lexer
 
 reserved :: String -> Parser ()
 reserved = Tok.reserved lexer
@@ -72,8 +78,8 @@ reserved = Tok.reserved lexer
 reservedOp :: String -> Parser ()
 reservedOp = Tok.reservedOp lexer
 
-symbol :: String -> Parser String
-symbol = Tok.symbol lexer
+symbol :: Text -> Parser Text
+symbol = M.liftM pack . Tok.symbol lexer . unpack
 
 binary s f assoc = Ex.Infix (reservedOp s >> return f) assoc
 prefix s f = Ex.Prefix (reservedOp s >> return f )
@@ -288,10 +294,10 @@ expr = if_expr
    <|> try let_expr
    <|> try basic_expr
  
-indentConfig :: String -> IndentStream (CharIndentStream String)
+indentConfig :: Text -> IndentStream (CharIndentStream Text)
 indentConfig input = mkIndentStream 0 infIndentation True Ge (mkCharIndentStream input)
 
-parseHakaru :: String -> Either ParseError UExpr
+parseHakaru :: Text -> Either ParseError UExpr
 parseHakaru input
   = case runParser expr () "<input>" (indentConfig input) of
       Left err -> Left err
