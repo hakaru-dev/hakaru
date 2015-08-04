@@ -107,5 +107,6 @@ tCDF x v = 1 - (1/2)*regBeta (v / (unsafeProb (x*x) + v)) (v/2) (1/2)
 
 approxMh
     :: (Mochastic repr, Integrate repr, Lambda repr)
-    => repr ('HFun a ('HMeasure ('HPair a 'HProb)))
+    -- => repr ('HFun a ('HMeasure ('HPair a 'HProb)))
+    => repr a -> [repr a -> 'HMeasure b] -> repr ('HMeasure b)
 approxMh = undefined

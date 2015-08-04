@@ -65,6 +65,7 @@ data UExpr =
 
 
 -- Mochastic repr, not including mix, dp, chain and plate
+
 data Dist =
     Dirac UExpr |
     Bind UExpr Dist Dist |
@@ -79,26 +80,26 @@ data Dist =
     Beta UExpr UExpr
  deriving (Eq, Show)
 
-data Branch' = None
+-- data Branch' = None
+-- data Sop = Sop [[Value']]
+-- data Value' =
+--      Nat
+--    | Int
+--    | Prob
+--    | Real
+--    | Datum
 
-data Value' =
-   | Nat
-   | Int
-   | Prob
-   | Real
-   | Datum
-
-data AST' a =
-   | Var Name
-   | Op a
-   | Lam Name (AST' a) 
-   | App (AST' a) (AST' a)
-   | Let Name (AST' a) (AST' a)
-   | Ann (AST' a) Hakaru
-   | Value Value'
-   | Empty
-   | Array (AST' a) Name (AST' a)
-   | Case  AST' [Branch']
-   | Bind  Name (AST' a) (AST' a)
-   | Superpose [((AST' a), (AST' a))]
-   | Datum Sop
+-- data AST' a =
+--      Var Name
+--    | Op a
+--    | Lam Name (AST' a) 
+--    | App (AST' a) (AST' a)
+--    | Let Name (AST' a) (AST' a)
+--    | Ann (AST' a) Hakaru
+--    | Value Value'
+--    | Empty
+--    | Array (AST' a) Name (AST' a)
+--    | Case  (AST' a) [Branch']
+--    | Bind  Name (AST' a) (AST' a)
+--    | Superpose [((AST' a), (AST' a))]
+--    | Data Sop
