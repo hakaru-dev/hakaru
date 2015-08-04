@@ -42,16 +42,16 @@ import Language.Hakaru.Syntax.Prelude
 
 ----------------------------------------------------------------
 
-normalize :: (ABT abt) => abt ('HMeasure a) -> abt ('HMeasure a)
+normalize :: (ABT abt) => abt '[] ('HMeasure a) -> abt '[] ('HMeasure a)
 normalize m = superpose [(recip (total m), m)]
 
-total :: (ABT abt) => abt ('HMeasure a) -> abt 'HProb
+total :: (ABT abt) => abt '[] ('HMeasure a) -> abt '[] 'HProb
 total m = expect m $ \_ -> prob_ 1
 
 expect
     :: (ABT abt)
-    => abt ('HMeasure a)
-    -> (abt a -> abt 'HProb) -> abt 'HProb
+    => abt '[] ('HMeasure a)
+    -> (abt '[] a -> abt '[] 'HProb) -> abt '[] 'HProb
 expect e = apM $ expectSynDir e IM.empty
 
 {- For debugging via the old Expect.hs:
@@ -79,34 +79,34 @@ prettyAlmostExpect = runPrettyPrint . almostExpect
 -- as linear functionals; all the other interpretations are just
 -- for performing normalization-by-evaluation in order to construct
 -- that linear functional.
-data Expect :: (Hakaru -> *) -> Hakaru -> * where
+data Expect :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     -- We don't bother interpreting primitive numeric types.
-    ExpectNat  :: abt 'HNat  -> Expect abt 'HNat
-    ExpectInt  :: abt 'HInt  -> Expect abt 'HInt
-    ExpectProb :: abt 'HProb -> Expect abt 'HProb
-    ExpectReal :: abt 'HReal -> Expect abt 'HReal
+    ExpectNat  :: abt '[] 'HNat  -> Expect abt 'HNat
+    ExpectInt  :: abt '[] 'HInt  -> Expect abt 'HInt
+    ExpectProb :: abt '[] 'HProb -> Expect abt 'HProb
+    ExpectReal :: abt '[] 'HReal -> Expect abt 'HReal
 
     -- We have to interpret arrays so we can evaluate 'Index' and
     -- 'Reduce' as needed.
     ExpectArray
-        :: abt 'HNat
-        -> (abt 'HNat -> Expect abt a)
+        :: abt '[] 'HNat
+        -> (abt '[] 'HNat -> Expect abt a)
         -> Expect abt ('HArray a)
 
     -- TODO: actually interpret 'HData', so we can evaluate 'Case_'
     ExpectData
-        :: abt ('HData t xss)
+        :: abt '[] ('HData t xss)
         -> Expect abt ('HData t xss)
 
     -- We have to interpret functions so we can (easily) interpret
     -- our parameterized measures. This interpretation allows us
     -- to evaluate 'App_' as needed.
     ExpectFun
-        :: (abt a -> Expect abt b)
+        :: (abt '[] a -> Expect abt b)
         -> Expect abt (a ':-> b)
 
     ExpectMeasure
-        :: ((abt a -> abt 'HProb) -> abt 'HProb)
+        :: ((abt '[] a -> abt '[] 'HProb) -> abt '[] 'HProb)
         -> Expect abt ('HMeasure a)
 
 
@@ -116,15 +116,16 @@ data Expect :: (Hakaru -> *) -> Hakaru -> * where
 -- mirrors the Expect datatype, and then enable -XAllowAmbiguousTypes
 -- to be able to use it...
 
-apF :: Expect abt (a ':-> b) -> abt a -> Expect abt b
+apF :: Expect abt (a ':-> b) -> abt '[] a -> Expect abt b
 apF (ExpectFun f) x = f x
 
-apM :: Expect abt ('HMeasure a) -> (abt a -> abt 'HProb) -> abt 'HProb
+apM :: Expect abt ('HMeasure a)
+    -> (abt '[] a -> abt '[] 'HProb) -> abt '[] 'HProb
 apM (ExpectMeasure f) c = f c
 
 
-data Assoc :: (Hakaru -> *) -> * where
-    Assoc :: {-# UNPACK #-} !(Variable a) -> abt a -> Assoc abt
+data Assoc :: ([Hakaru] -> Hakaru -> *) -> * where
+    Assoc :: {-# UNPACK #-} !(Variable a) -> abt '[] a -> Assoc abt
     -- TODO: store the @Expect abt a@ instead?
     -- TODO: have two different versions of variable lookup; one for when we need to take the expectation of the variable, and one for just plugging things into place.
 
@@ -133,7 +134,7 @@ type Env abt = IntMap (Assoc abt)
 pushEnv :: Assoc abt -> Env abt -> Env abt
 pushEnv v@(Assoc x _) = IM.insert (fromNat $ varID x) v
 
-getSing :: (ABT abt) => abt a -> Sing a
+getSing :: (ABT abt) => abt '[] a -> Sing a
 getSing _ = error "TODO: get singletons of anything after typechecking"
 
 -- N.B., in the ICFP 2015 pearl paper, we take the expectation of bound variables prior to taking the expectation of their scope. E.g., @expect(let_ v e1 e2) xs c = expect e1 xs $ \x -> expect e2 (pushEnv v x xs) c@. Whereas here, I'm being lazier and performing the expectation on variable lookup. If the variable is never used (by wasted computation) or used exactly once (by Tonelli's theorem), then this delayed evaluation preserves the expectation semantics (ICFP 2015, §5.6.0); so we only need to worry if the variable is used more than once, in which case we'll have to worry about whether the various integrals commute/exchange with one another. More generally, cf. Bhat et al.'s \"active variables\"
@@ -154,7 +155,7 @@ getSing _ = error "TODO: get singletons of anything after typechecking"
 -- some syntax.
 resolveVar
     :: (ABT abt)
-    => abt a
+    => abt '[] a
     -> Env abt
     -> Either (Variable a) (AST abt a)
 resolveVar e xs =
@@ -183,7 +184,7 @@ resolveVar e xs =
 -- expectation semantics. This function will perform whatever
 -- evaluation it needs to in order to expose the things being
 -- reflected.
-expectSynDir :: (ABT abt) => abt a -> Env abt -> Expect abt a
+expectSynDir :: (ABT abt) => abt '[] a -> Env abt -> Expect abt a
 expectSynDir e xs =
     case resolveVar e xs of
     Left  x -> error "TODO" -- App_ (syn . PrimOp_ . Expect $ varType x) (var x)
@@ -204,7 +205,7 @@ expectSynDir e xs =
 --
 -- This is mainly for 'PrimOp', 'NaryOp', and 'Value' to do the
 -- right thing with a minimum of boilerplate code.
-expectTypeDir :: (ABT abt) => Sing a -> abt a -> Env abt -> Expect abt a
+expectTypeDir :: (ABT abt) => Sing a -> abt '[] a -> Env abt -> Expect abt a
 expectTypeDir SNat         e _  = ExpectNat   e
 expectTypeDir SInt         e _  = ExpectInt   e
 expectTypeDir SProb        e _  = ExpectProb  e
