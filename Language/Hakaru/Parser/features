@@ -55,6 +55,10 @@ patterns and pattern-matching:
 match e:
   left(x):  e1
   right(x): e2
+
+match e:
+  foo(x, _): e1
+  _: e2
      
 type annotations: 3 :: int, fn (x::nat): x
 
