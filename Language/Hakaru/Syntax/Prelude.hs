@@ -10,7 +10,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.07.22
+--                                                    2015.08.06
 -- |
 -- Module      :  Language.Hakaru.Syntax.Prelude
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -29,7 +29,7 @@
 module Language.Hakaru.Syntax.Prelude where
 
 -- TODO: implement and use Prelude's fromInteger and fromRational, so we can use numeric literals!
-import Prelude (Maybe(..), Bool(..), Int, Double, Functor(..), ($), flip, const, error, otherwise)
+import Prelude (Maybe(..), Bool(..), Int, Double, Functor(..), ($), flip, const, error)
 import qualified Prelude
 import           Data.Sequence        (Seq)
 import qualified Data.Sequence        as Seq
@@ -97,33 +97,49 @@ measure2_ = app2 . measure0_
 --
 -- TODO: generalize these two from [] to Foldable?
 
--- | Apply an n-ary operator to a list. Whether this is actually
--- unsafe or not depends on whether the 'NaryOp' has an identity
--- element or not; if not, then this will yield code containing an
--- error whenever the list is empty.
+-- | Apply an n-ary operator to a list. This smart constructor will
+-- flatten nested calls to the same operator. And if there is exactly
+-- one element in the flattened sequence, then it will remove the
+-- 'NaryOp_' node from the AST.
+--
+-- N.B., if the flattened sequence is empty, this smart constructor
+-- will return an AST which applies the operator to the empty
+-- sequence; which may or may not be unsafe. If the operator has
+-- an identity element, then it's fine (operating on the empty
+-- sequence evaluates to the identity element). However, if the
+-- operator doesn't have an identity, then the generated code will
+-- error whenever we attempt to run it.
 unsafeNaryOp_ :: (ABT abt) => NaryOp a -> [abt '[] a] -> abt '[] a
-unsafeNaryOp_ o = go Seq.empty
-    where
-    go es []      = syn $ NaryOp_ o es -- N.B., @es@ may be empty!
-    go es (e:es') =
-        case matchNaryOp o e of
-        Nothing   -> go (es Seq.|> e)    es'
-        Just es'' -> go (es Seq.>< es'') es'
+unsafeNaryOp_ o = naryOp_withIdentity o (syn $ NaryOp_ o Seq.empty)
 
--- | Apply an n-ary operator to a list, replacing the empty list
--- with a specified identity element.
+
+-- | A variant of 'unsafeNaryOp_' which will replace operating over
+-- the empty sequence with a specified identity element. The produced
+-- AST has the same semantics, we're just preemptively
+-- evaluating\/simplifying the 'NaryOp_' node of the AST.
+--
+-- N.B., this function does not simplify away the identity element
+-- if it exists in the flattened sequence! We should add that in
+-- the future.
 naryOp_withIdentity
     :: (ABT abt) => NaryOp a -> abt '[] a -> [abt '[] a] -> abt '[] a
 naryOp_withIdentity o i = go Seq.empty
     where
-    go es []
-        | Seq.null es = i
-        | otherwise   = syn $ NaryOp_ o es
+    go es [] =
+        case Seq.viewl es of
+        Seq.EmptyL   -> i
+        e Seq.:< es' ->
+            case Seq.viewl es' of
+            Seq.EmptyL -> e
+            _          -> syn $ NaryOp_ o es
     go es (e:es') =
         case matchNaryOp o e of
         Nothing   -> go (es Seq.|> e)    es'
         Just es'' -> go (es Seq.>< es'') es'
 
+
+-- TODO: is this actually worth breaking out, performance-wise? Or should we simply use:
+-- > naryOp2_ o x y = unsafeNaryOp_ o [x,y]
 naryOp2_ :: (ABT abt) => NaryOp a -> abt '[] a -> abt '[] a -> abt '[] a
 naryOp2_ o x y =
     case (matchNaryOp o x, matchNaryOp o y) of
@@ -131,6 +147,7 @@ naryOp2_ o x y =
     (Just xs, Nothing) -> syn . NaryOp_ o $ xs Seq.|> y
     (Nothing, Just ys) -> syn . NaryOp_ o $ x  Seq.<| ys
     (Nothing, Nothing) -> syn . NaryOp_ o $ x  Seq.<| Seq.singleton y
+
 
 matchNaryOp :: (ABT abt) => NaryOp a -> abt '[] a -> Maybe (Seq (abt '[] a))
 matchNaryOp o e =
@@ -589,7 +606,14 @@ fix = syn . Fix_ . binder (Text.pack "x") sing
 lam :: (ABT abt, SingI a)
     => (abt '[] a -> abt '[] b)
     -> abt '[] (a ':-> b)
-lam = syn . Lam_ . binder (Text.pack "x") sing
+lam = lamWithType sing
+
+lamWithType
+    :: (ABT abt)
+    => Sing a
+    -> (abt '[] a -> abt '[] b)
+    -> abt '[] (a ':-> b)
+lamWithType typ = syn . Lam_ . binder (Text.pack "x") typ
 
 {-
 -- some test cases to make sure we tied-the-knot successfully:
@@ -769,7 +793,7 @@ superpose
     -> abt '[] ('HMeasure a)
 superpose = syn . Superpose_
 
--- TODO: we should ensure that @pose p m >> n@ simplifies to @pose p (m >> n)@; also ensure that @m >> pose p n@ simplifies to @pose p (m >> n)@; also that @pose 1 m@ simplifies to @m@
+-- TODO: we should ensure that @pose p m >> n@ simplifies to @pose p (m >> n)@; also ensure that @m >> pose p n@ simplifies to @pose p (m >> n)@; also that @pose 1 m@ simplifies to @m@ and @pose p (pose q m)@ simplifies to @pose (p*q) m@.
 -- | Pose a given measure with some given weight. This generates
 -- the singleton \"positions\" of 'superpose'.
 --

@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.07.07
+--                                                    2015.08.06
 -- |
 -- Module      :  Language.Hakaru.Syntax.ABT
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -417,7 +417,6 @@ instance ABT TrivialABT where
         go (Var  x)   = Set.singleton (Some x)
         go (Bind x v) = Set.delete (Some x) (go v)
 
-{-
 -- TODO: fix me up again
 instance Show2 TrivialABT where
     {-
@@ -456,7 +455,6 @@ instance Show1 (TrivialABT xs) where
 instance Show (TrivialABT xs a) where
     showsPrec = showsPrec1
     show      = show1
--}
 
 ----------------------------------------------------------------
 -- TODO: replace @Set Variable@ with @Map Variable Hakaru@ or @Map
@@ -511,10 +509,9 @@ instance ABT FreeVarsABT where
 
     freeVars (FreeVarsABT xs _) = xs
 
-{-
 -- TODO: fix me up again
-instance Show1 FreeVarsABT where
-    showsPrec1 p (FreeVarsABT xs v) =
+instance Show2 FreeVarsABT where
+    showsPrec2 p (FreeVarsABT xs v) =
         showParen (p > 9)
             ( showString "FreeVarsABT "
             . showsPrec  11 xs
@@ -522,10 +519,13 @@ instance Show1 FreeVarsABT where
             . showsPrec1 11 v
             )
 
-instance Show (FreeVarsABT a) where
+instance Show1 (FreeVarsABT xs) where
+    showsPrec1 = showsPrec2
+    show1      = show2
+
+instance Show (FreeVarsABT xs a) where
     showsPrec = showsPrec1
     show      = show1
--}
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------

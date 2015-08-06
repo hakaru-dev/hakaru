@@ -7,7 +7,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.07.22
+--                                                    2015.08.06
 -- |
 -- Module      :  Language.Hakaru.Syntax.Expect
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -27,14 +27,13 @@ module Language.Hakaru.Syntax.Expect
     , expect
     ) where
 
-import           Prelude (($), (.), id, flip, error, Maybe(..), Either(..))
+import           Prelude (($), (.), flip, error, Maybe(..), Either(..))
 import           Data.IntMap   (IntMap)
 import qualified Data.IntMap   as IM
 
 import Language.Hakaru.Syntax.Nat      (fromNat)
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.TypeEq
-import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
@@ -66,12 +65,24 @@ almostExpect m = lam (\c -> unpair (unExpect m) (\_ m2 -> m2 `app` c))
 prettyAlmostExpect = runPrettyPrint . almostExpect
 -}
 
+{- Test cases:
+
+(1) make sure that @lam$\x -> total (weight x)@ works. Right now it returns @lam$\x -> x * prob_ 1@ which is correct, but could still be simplified further. It used to return @lam$\t -> sum [t * prob_ 1]@ but we fixed that.
+
+
+(2) make sure that @lam$\m -> total m@ works. Right now it throws a <<loop>> exception! However, note that the following does work:
+> let x = Variable (Name (Text.pack "x") 1) (SMeasure sWhatever)
+> in syn . Lam_ . bind x . total $ var x
+It's a problem with our 'binder' macro; surely due to the fact that 'expect' has to force things in order to store them in the 'Env'. Is there a way around that? Maybe by explicitly using the 'Expect' primop, and then performing the evaluation of that primop after 'binder' has finished constructing the first-order AST; but how can we specify that order of evaluation (except by making the evaluation of 'Expect' as 'expect' explicit)?
+
+(3) Just using the numbers @2@ and @3@ to make the output a bit clearer:
+> let x = Variable (Name (Data.Text.pack "x") 2) (SFun SInt $ SMeasure SProb)
+> in syn . Lam_ . bind x . total $ (var x `app` int_ 3) :: TrivialABT '[] (('HInt ':-> 'HMeasure 'HProb) ':-> 'HProb)
+N.B., the call to the 'Expect' primop should be applied to the whole @var x `app` int_ 3@ expression, not just to the @var x@ subexpression! This works, at present.
+-}
+
 
 ----------------------------------------------------------------
--- We can't do this as a type family, because that causes ambiguity
--- issues due to the @abt@ being parametric (but we have no way of
--- explaining that to type families). cf., -XAllowAmbiguousTypes
---
 -- TODO: only partially interpret things (functions, arrays), doing so lazily as needed.
 --
 -- | @Expect abt a@ gives the expectation-semantic interpretation
@@ -80,13 +91,17 @@ prettyAlmostExpect = runPrettyPrint . almostExpect
 -- for performing normalization-by-evaluation in order to construct
 -- that linear functional.
 data Expect :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
-    -- We don't bother interpreting primitive numeric types.
-    ExpectNat  :: abt '[] 'HNat  -> Expect abt 'HNat
-    ExpectInt  :: abt '[] 'HInt  -> Expect abt 'HInt
-    ExpectProb :: abt '[] 'HProb -> Expect abt 'HProb
-    ExpectReal :: abt '[] 'HReal -> Expect abt 'HReal
 
-    -- We have to interpret arrays so we can evaluate 'Index' and
+    -- | This constructor captures two cases: (1) we don't bother
+    -- performing NBE on primitive numeric types, so we just leave
+    -- them as ASTs; (2) we can't interpret free variables or
+    -- expressions whose reduction is blocked by a variable in head
+    -- position, so we'll just wrap these ASTs with the 'Expect'
+    -- primop (as neessary).
+    ExpectAST :: abt '[] a -> Expect abt a
+
+    -- TODO: keep track of the old 'varHint' used for the array body, in case we need to undo the HOAS.
+    -- | We interpret arrays so that we can evaluate 'Index' and
     -- 'Reduce' as needed.
     ExpectArray
         :: abt '[] 'HNat
@@ -98,13 +113,17 @@ data Expect :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         :: abt '[] ('HData t xss)
         -> Expect abt ('HData t xss)
 
-    -- We have to interpret functions so we can (easily) interpret
-    -- our parameterized measures. This interpretation allows us
-    -- to evaluate 'App_' as needed.
+    -- TODO: keep track of the old 'varHint' used for the lambda body, in case we need to undo the HOAS.
+    -- | We interpret functions so we can (easily) interpret our
+    -- parameterized measures. This interpretation allows us to
+    -- evaluate 'App_' as needed; which is especially helpful for
+    -- the case where it's a beta-redex with 'Lam_'.
     ExpectFun
         :: (abt '[] a -> Expect abt b)
         -> Expect abt (a ':-> b)
 
+    -- | The whole goal of this module is to provide the following
+    -- interpretation for measures.
     ExpectMeasure
         :: ((abt '[] a -> abt '[] 'HProb) -> abt '[] 'HProb)
         -> Expect abt ('HMeasure a)
@@ -116,12 +135,27 @@ data Expect :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
 -- mirrors the Expect datatype, and then enable -XAllowAmbiguousTypes
 -- to be able to use it...
 
-apF :: Expect abt (a ':-> b) -> abt '[] a -> Expect abt b
-apF (ExpectFun f) x = f x
 
-apM :: Expect abt ('HMeasure a)
+-- | Apply a function, removing administrative redexes if possible.
+apF :: (ABT abt) => Expect abt (a ':-> b) -> abt '[] a -> Expect abt b
+apF (ExpectFun f) e = f e
+apF (ExpectAST f) e = ExpectAST $ f `app` e
+
+
+-- | Apply a measure's integrator to a given function, removing
+-- administrative redexes if possible. N.B., if the argument is an
+-- 'ExpectAST', then we're stuck converting the continuation argument
+-- into a lambda in the resulting AST.
+--
+-- TODO: how can we minimize our need to do that (e.g., only do it for the top-level @apM@ in 'expect' and not at any of the other @apM@ call sites)?
+apM :: (ABT abt)
+    => Expect abt ('HMeasure a)
     -> (abt '[] a -> abt '[] 'HProb) -> abt '[] 'HProb
 apM (ExpectMeasure f) c = f c
+apM (ExpectAST     e) c =
+    -- TODO: should we really be doing this here? or should it only be in 'expectTypeDir'?
+    case getSing e of
+    SMeasure a -> primOp2_ (Expect a) e (lamWithType a c)
 
 
 data Assoc :: ([Hakaru] -> Hakaru -> *) -> * where
@@ -142,7 +176,6 @@ getSing _ = error "TODO: get singletons of anything after typechecking"
 
 -- TODO: Move this to ABT.hs
 -- TODO: Swap the argument order?
--- TODO: use a proper exception\/error monad; like 'Either'.
 -- TODO: Remove the 'getSing' requirement by storing singletons in
 -- the environment? If so, then should we return @Maybe (Sing a)@
 -- as well? (a) That will let us know whether we had to perform
@@ -166,9 +199,6 @@ resolveVar e xs =
             Just Refl -> resolveVar e' xs
             Nothing   -> error "resolveVar: ill-formed environment"
         Nothing       -> Left x
-            -- error "resolveVar: unbound variable"
-            -- error "TODO: replace the variable with a new variable of a different type (i.e., of the appropriate type); or, wrap the variable with a (Hakaru-)call to (Hakaru-)'expect'"
-            -- TODO: make sure that @lam$\t -> total (weight t)@ works
 
 -- TODO: if we really do have 'getSing', then we can call it in
 -- 'expect' and jump directly to 'expectTypeDir'; then we could
@@ -184,54 +214,43 @@ resolveVar e xs =
 -- expectation semantics. This function will perform whatever
 -- evaluation it needs to in order to expose the things being
 -- reflected.
+--
+-- N.B., when the expression is a variable of measure type, then
+-- we're stuck producing a lambda for the second argument to the
+-- 'Expect' primop.
 expectSynDir :: (ABT abt) => abt '[] a -> Env abt -> Expect abt a
 expectSynDir e xs =
     case resolveVar e xs of
-    Left  x -> error "TODO" -- App_ (syn . PrimOp_ . Expect $ varType x) (var x)
     Right t -> expectAST t xs
+    Left  x -> expectTypeDir (varType x) (var x)
 
 
-
--- | Perform a type-directed reflection of a term into it's expectation
--- semantics. This function does the bare minimum necessary for
--- wrapping up an @abt@ into 'Expect'; thus, it will build up a
--- larger term from the @abt a@ argument, without looking inside
--- it (whenever possible). Only only when absolutely necessary, do
--- we fall back to the syntax-directed 'expectSynDir'. \"Absolutely
--- necessary\" is when we have an @n@-ary function returning a
--- measure (including when @n=0@), or when we have an array of such,
--- or when we have some expression which evaluates to an array (but
--- which is not yet an array literal).
+-- | Perform type-directed reflection in order to lift an expression
+-- into its expectation semantics without actually looking at it.
+-- For expressions of function type, this means eta-expanding things
+-- (with a Haskell lambda and a Hakaru application); which is used
+-- by the 'expectAST' call-site for handling 'PrimOp'. For expressions
+-- of measure types, we wrap the expression with an explicit call
+-- to the 'Expect' primop; which is the right thing to do for
+-- variables in the 'expectSynDir' call-site.
 --
--- This is mainly for 'PrimOp', 'NaryOp', and 'Value' to do the
--- right thing with a minimum of boilerplate code.
-expectTypeDir :: (ABT abt) => Sing a -> abt '[] a -> Env abt -> Expect abt a
-expectTypeDir SNat         e _  = ExpectNat   e
-expectTypeDir SInt         e _  = ExpectInt   e
-expectTypeDir SProb        e _  = ExpectProb  e
-expectTypeDir SReal        e _  = ExpectReal  e
-expectTypeDir (SData  _ _) e _  = ExpectData  e
-expectTypeDir (SArray   a) e xs =
-    -- TODO: fold this into 'expectAST'? cf., type-dir vs syn-dir...
-    case resolveVar e xs of
-    Left  x -> error "TODO" -- App_ (syn . PrimOp_ . Expect $ varType x) (var x)
-    Right (Array_ e1 e2) ->
-        ExpectArray e1 $ \ei ->
-        caseBind e2 $ \x e' ->
-            case jmEq (getSing ei) (varType x) of
-            Just Refl -> expectTypeDir a e' $ pushEnv (Assoc x ei) xs
-            Nothing   -> error "TODO"
-    Right Empty_       -> expectEmpty
-    Right t            -> expectAST t xs
-expectTypeDir (SFun   _ a) e xs =
+-- TODO: it's not entirely clear what this function should do for arrays and datatypes...
+expectTypeDir :: (ABT abt) => Sing a -> abt '[] a -> Expect abt a
+expectTypeDir SNat         e = ExpectAST e
+expectTypeDir SInt         e = ExpectAST e
+expectTypeDir SProb        e = ExpectAST e
+expectTypeDir SReal        e = ExpectAST e
+expectTypeDir (SData  _ _) e = ExpectAST e -- TODO: is that right?
+expectTypeDir (SArray   _) e = ExpectAST e -- TODO: is that right?
+expectTypeDir (SFun   _ a) e =
     ExpectFun $ \e2 ->
-    expectTypeDir a (e `app` e2) xs
-expectTypeDir (SMeasure _) e xs =
-    expectSynDir e xs
+    expectTypeDir a (e `app` e2)
+expectTypeDir (SMeasure a) e =
+    -- TODO: should we really be doing this here? or should it only be in 'apM'?
+    ExpectMeasure $ \c ->
+    primOp2_ (Expect a) e (lamWithType a c)
+    -- TODO: can we reuse 'apM' somehow, instead of repeating ourselves? We could use @ExpectMeasure (apM . ExpectAST $ var x)@ if we can make 'getSing' work. N.B., we cannot use 'expect' in lieu of the 'Expect' primop, because that will cause us to loop (without throwing a <<loop>> exception).
 
-
-expectEmpty :: (ABT abt) => Expect abt ('HArray a)
-expectEmpty = ExpectArray (nat_ 0) $ error "expect: indexing an empty array"
 
 
 expectAST :: (ABT abt) => AST abt a -> Env abt -> Expect abt a
@@ -240,7 +259,7 @@ expectAST (Lam_ e1) xs =
     caseBind e1 $ \x e' ->
         case jmEq (getSing e2) (varType x) of
         Just Refl -> expectSynDir e' $ pushEnv (Assoc x e2) xs
-        Nothing   -> error "TODO"
+        Nothing   -> error "TODO: expectAST{Lam_} with mismatched types"
 
 expectAST (App_ e1 e2) xs =
     expectSynDir e1 xs `apF` e2
@@ -249,16 +268,17 @@ expectAST (Let_ e1 e2) xs =
     caseBind e2 $ \x e' ->
         case jmEq (getSing e1) (varType x) of
         Just Refl -> expectSynDir e' $ pushEnv (Assoc x e1) xs
-        Nothing   -> error "TODO"
+        Nothing   -> error "TODO: expectAST{Let_} with mismatched types"
 
 expectAST (Fix_ e1) xs =
     caseBind e1 $ \x e' ->
         let self = syn $ Fix_ e1 in
         case jmEq (getSing self) (varType x) of
         Just Refl -> expectSynDir e' $ pushEnv (Assoc x self) xs -- BUG: could loop
-        Nothing   -> error "TODO"
+        Nothing   -> error "TODO: expectAST{Fix_} with mismatched types"
 
 expectAST (Ann_ _ e) xs =
+    -- TODO: should we re-wrap it up in a type annotation?
     expectSynDir e xs
 
 expectAST (PrimOp_ o) xs =
@@ -267,36 +287,37 @@ expectAST (PrimOp_ o) xs =
     case o of
     Index a ->
         ExpectFun $ \arr ->
-        ExpectFun $ \i ->
-        -- TODO: should that be type-directed or syntax-directed?
-        case expectTypeDir (SArray a) arr xs of
+        case expectSynDir arr xs of
         -- TODO: should we insert a guard that @i < e1@?
-        ExpectArray e1 e2 -> e2 i
-    Size   a ->
+        ExpectArray e1 e2 -> ExpectFun e2
+        ExpectAST   e     -> ExpectAST $ primOp1_ o e
+    Size a ->
         ExpectFun $ \arr ->
-        -- TODO: should that be type-directed or syntax-directed?
-        case expectTypeDir (SArray a) arr xs of
-        ExpectArray e1 e2 -> expectSynDir e1 xs
+        case expectSynDir arr xs of
+        ExpectArray e1 _ -> expectSynDir e1 xs
+        ExpectAST   e    -> ExpectAST $ primOp1_ o e
     Reduce a -> error "TODO: expectAST{Reduce}"
 
-    -- Everything else is trivial
-    _ -> expectTypeDir (sing_PrimOp o) (syn $ PrimOp_ o) xs
+    -- All the other PrimOps are functions returning primitive types (the four numbers or HBool); so we'll just eta-expand them.
+    _ -> expectTypeDir (sing_PrimOp o) (primOp0_ o)
 
-expectAST (NaryOp_ o es) xs =
-    expectTypeDir (sing_NaryOp o) (syn $ NaryOp_ o es) xs
-
-expectAST (Value_ v) xs =
-    expectTypeDir (sing_Value v) (value_ v) xs
+expectAST (NaryOp_ o es) _ = ExpectAST . syn $ NaryOp_ o es
+    -- N.B., no NaryOps operate on types containing HMeasure nor
+    -- (:->); thus we're guaranteed to never need to descend into @es@.
+expectAST (Value_ v)     _ = ExpectAST $ value_ v
+    -- N.B., no Values have types containing HMeasure, (:->), nor
+    -- HArray; thus we're guaranteed to never need to descend into @v@.
 
 expectAST (CoerceTo_   c  e)  xs = expectCoerceTo   c $ expectSynDir e xs
 expectAST (UnsafeFrom_ c  e)  xs = expectUnsafeFrom c $ expectSynDir e xs
-expectAST Empty_              _  = expectEmpty
+expectAST Empty_              _  =
+    ExpectArray (nat_ 0) $ error "expect: indexing an empty array"
 expectAST (Array_      e1 e2) xs =
     ExpectArray e1 $ \ei ->
     caseBind e2 $ \x e' ->
         case jmEq (getSing ei) (varType x) of
         Just Refl -> expectSynDir e' $ pushEnv (Assoc x ei) xs
-        Nothing   -> error "TODO"
+        Nothing   -> error "TODO: expectAST{Array_} with mismatched types"
 
 expectAST (Datum_      d)     _  = ExpectData $ datum_ d
 expectAST (Case_       e  bs) xs = error "TODO: expect{Case_}"
@@ -304,7 +325,7 @@ expectAST (Case_       e  bs) xs = error "TODO: expect{Case_}"
     -- > | F.any (Monoid.getAny . foldMap1 (Monoid.Any . isBind)) $ bs =
     -- >     ...
     -- > | otherwise =
-    -- >     let e'  = expectTypeDir (getSing e) e xs
+    -- >     let e'  = expectTypeDir (getSing e) e
     -- >         bs' = map (fmap1 (`expectSynDir` xs)) bs
     -- >         e2  = Syn $ Case_ e' bs'
     -- >     in ...?
@@ -330,7 +351,7 @@ expectAST (Bind_       e1 e2) xs =
     caseBind e2 $ \x e' ->
         case jmEq (getSing a) (varType x) of
         Just Refl -> (expectSynDir e' $ pushEnv (Assoc x a) xs) `apM` c
-        Nothing   -> error "TODO"
+        Nothing   -> error "TODO: expectAST{Bind_} with mismatched types"
 
 expectAST (Superpose_ pms) xs =
     ExpectMeasure $ \c ->
@@ -413,49 +434,14 @@ expectMeasure (Chain _ _) =
     error "TODO: expectMeasure{Chain}"
 
 
-
--- TODO: how to avoid all this boilerplate?
 expectCoerceTo :: (ABT abt) => Coercion a b -> Expect abt a -> Expect abt b
-expectCoerceTo CNil          = id
-expectCoerceTo (CCons c1 c2) =
-    expectCoerceTo c2 . expectPrimCoerceTo c1
-
-
-expectPrimCoerceTo
-    :: (ABT abt) => PrimCoercion a b -> Expect abt a -> Expect abt b
-expectPrimCoerceTo (Signed HRing_Int) (ExpectNat e) =
-    ExpectInt $ coerceTo_ (singletonCoercion $ Signed HRing_Int) e
-expectPrimCoerceTo (Signed HRing_Real) (ExpectProb e) =
-    ExpectReal $ coerceTo_ (singletonCoercion $ Signed HRing_Real) e
-expectPrimCoerceTo (Continuous HContinuous_Prob) (ExpectNat e) =
-    ExpectProb $ coerceTo_
-        (singletonCoercion $ Continuous HContinuous_Prob) e
-expectPrimCoerceTo (Continuous HContinuous_Real) (ExpectInt e) =
-    ExpectReal $ coerceTo_
-        (singletonCoercion $ Continuous HContinuous_Real) e
-expectPrimCoerceTo _ _ = error "expectPrimCoerceTo: the impossible happened"
-
+expectCoerceTo c (ExpectAST e) = ExpectAST $ coerceTo_ c e
+expectCoerceTo _ _ = error "expectCoerceTo: the impossible happened"
 
 expectUnsafeFrom
     :: (ABT abt) => Coercion a b -> Expect abt b -> Expect abt a
-expectUnsafeFrom CNil          = id
-expectUnsafeFrom (CCons c1 c2) =
-    expectPrimUnsafeFrom c1 . expectUnsafeFrom c2
-
-
-expectPrimUnsafeFrom
-    :: (ABT abt) => PrimCoercion a b -> Expect abt b -> Expect abt a
-expectPrimUnsafeFrom (Signed HRing_Int) (ExpectInt e) =
-    ExpectNat $ unsafeFrom_ (singletonCoercion $ Signed HRing_Int) e
-expectPrimUnsafeFrom (Signed HRing_Real) (ExpectReal e) =
-    ExpectProb $ unsafeFrom_ (singletonCoercion $ Signed HRing_Real) e
-expectPrimUnsafeFrom (Continuous HContinuous_Prob) (ExpectProb e) =
-    ExpectNat $ unsafeFrom_
-        (singletonCoercion $ Continuous HContinuous_Prob) e
-expectPrimUnsafeFrom (Continuous HContinuous_Real) (ExpectReal e) =
-    ExpectInt $ unsafeFrom_
-        (singletonCoercion $ Continuous HContinuous_Real) e
-expectPrimUnsafeFrom _ _ = error "expectPrimCoerceTo: the impossible happened"
+expectUnsafeFrom c (ExpectAST e) = ExpectAST $ unsafeFrom_ c e
+expectUnsafeFrom _ _ = error "expectUnsafeFrom: the impossible happened"
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
