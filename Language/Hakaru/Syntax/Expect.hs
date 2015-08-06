@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs
+           , EmptyCase
            , KindSignatures
            , DataKinds
            , TypeOperators
@@ -51,7 +52,7 @@ expect
     :: (ABT abt)
     => abt '[] ('HMeasure a)
     -> (abt '[] a -> abt '[] 'HProb) -> abt '[] 'HProb
-expect e = apM $ expectSynDir e IM.empty
+expect e = apM $ expectSynDir ImpureMeasure e IM.empty
 
 {- For debugging via the old Expect.hs:
 
@@ -83,22 +84,41 @@ N.B., the call to the 'Expect' primop should be applied to the whole @var x `app
 
 
 ----------------------------------------------------------------
+-- | Explicit proof that a given Hakaru type is impure.
+data ImpureType :: Hakaru -> * where
+    ImpureMeasure :: ImpureType ('HMeasure a)
+    ImpureFun     :: !(ImpureType a) -> ImpureType (b ':-> a)
+    ImpureArray   :: !(ImpureType a) -> ImpureType ('HArray a)
+
+-- | Lazily pattern match on 'ImpureFun'.
+unImpureFun :: ImpureType (b ':-> a) -> ImpureType a
+unImpureFun (ImpureFun p) = p
+
+-- | Lazily pattern match on 'ImpureArray'.
+unImpureArray :: ImpureType ('HArray a) -> ImpureType a
+unImpureArray (ImpureArray p) = p
+
 -- TODO: only partially interpret things (functions, arrays), doing so lazily as needed.
 --
 -- | @Expect abt a@ gives the expectation-semantic interpretation
--- of @abt a@. The only \"real\" change is interpreting measures
--- as linear functionals; all the other interpretations are just
--- for performing normalization-by-evaluation in order to construct
--- that linear functional.
+-- of @abt a@, where @a@ is some 'ImpureType'. The only \"real\"
+-- change is interpreting measures as linear functionals; all the
+-- other interpretations are just for performing
+-- normalization-by-evaluation in order to construct that linear
+-- functional.
 data Expect :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
 
+    -- TODO: interpret 'HData', so we can evaluate 'Case_'
+    --
     -- | This constructor captures two cases: (1) we don't bother
     -- performing NBE on primitive numeric types, so we just leave
     -- them as ASTs; (2) we can't interpret free variables or
     -- expressions whose reduction is blocked by a variable in head
     -- position, so we'll just wrap these ASTs with the 'Expect'
     -- primop (as neessary).
-    ExpectAST :: abt '[] a -> Expect abt a
+    --
+    -- HACK: the proof that @a@ is 'ImpureType' should be lazy, to avoid doing any actual work; but it should be strict in order to ensure that we actually have a legit proof.
+    ExpectAST :: !(ImpureType a) -> abt '[] a -> Expect abt a
 
     -- TODO: keep track of the old 'varHint' used for the array body, in case we need to undo the HOAS.
     -- | We interpret arrays so that we can evaluate 'Index' and
@@ -107,11 +127,6 @@ data Expect :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         :: abt '[] 'HNat
         -> (abt '[] 'HNat -> Expect abt a)
         -> Expect abt ('HArray a)
-
-    -- TODO: actually interpret 'HData', so we can evaluate 'Case_'
-    ExpectData
-        :: abt '[] ('HData t xss)
-        -> Expect abt ('HData t xss)
 
     -- TODO: keep track of the old 'varHint' used for the lambda body, in case we need to undo the HOAS.
     -- | We interpret functions so we can (easily) interpret our
@@ -129,6 +144,23 @@ data Expect :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         -> Expect abt ('HMeasure a)
 
 
+-- | Guarantee that everything we can give an 'Expect' interpretation
+-- to actually is an 'ImpureType'. This function is only defined
+-- for the sake of demonstrating correctness to human readers of
+-- this code.
+--
+-- BUG: we need to come up with a better thing to use than @undefined@,
+-- since the actual HOA functions we package up will need to inspect
+-- it in various ways (namely passing it to 'app', 'getSing', etc).
+expectToImpureType :: Expect abt a -> ImpureType a
+expectToImpureType (ExpectAST proof _) = proof
+expectToImpureType (ExpectArray e1 e2) =
+    ImpureArray . expectToImpureType $ e2 (error "TODO: expectToImpureType")
+expectToImpureType (ExpectFun   e1)    = 
+    ImpureFun . expectToImpureType $ e1 (error "TODO: expectToImpureType")
+expectToImpureType (ExpectMeasure _)   = ImpureMeasure
+
+
 -- TODO: a general function for converting Expect back into plain
 -- Haskell functions; we could call it \"expectify\", to pun on the
 -- reify\/reflect of NBE. We may need to define a type family that
@@ -138,8 +170,8 @@ data Expect :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
 
 -- | Apply a function, removing administrative redexes if possible.
 apF :: (ABT abt) => Expect abt (a ':-> b) -> abt '[] a -> Expect abt b
-apF (ExpectFun f) e = f e
-apF (ExpectAST f) e = ExpectAST $ f `app` e
+apF (ExpectFun   e1) e2 = e1 e2
+apF (ExpectAST p e1) e2 = ExpectAST (unImpureFun p) $ e1 `app` e2
 
 
 -- | Apply a measure's integrator to a given function, removing
@@ -152,8 +184,9 @@ apM :: (ABT abt)
     => Expect abt ('HMeasure a)
     -> (abt '[] a -> abt '[] 'HProb) -> abt '[] 'HProb
 apM (ExpectMeasure f) c = f c
-apM (ExpectAST     e) c =
+apM (ExpectAST _   e) c =
     -- TODO: should we really be doing this here? or should it only be in 'expectTypeDir'?
+    -- TODO: should we just package @a@ up inside the 'ImpureMeasure' proof?
     case getSing e of
     SMeasure a -> primOp2_ (Expect a) e (lamWithType a c)
 
@@ -218,11 +251,16 @@ resolveVar e xs =
 -- N.B., when the expression is a variable of measure type, then
 -- we're stuck producing a lambda for the second argument to the
 -- 'Expect' primop.
-expectSynDir :: (ABT abt) => abt '[] a -> Env abt -> Expect abt a
-expectSynDir e xs =
+expectSynDir
+    :: (ABT abt)
+    => ImpureType a -- N.B., should be lazy\/irrelevant in this argument
+    -> abt '[] a
+    -> Env abt
+    -> Expect abt a
+expectSynDir p e xs =
     case resolveVar e xs of
-    Right t -> expectAST t xs
-    Left  x -> expectTypeDir (varType x) (var x)
+    Right t -> expectAST p t xs
+    Left  x -> expectTypeDir p (varType x) (var x)
 
 
 -- | Perform type-directed reflection in order to lift an expression
@@ -235,17 +273,22 @@ expectSynDir e xs =
 -- variables in the 'expectSynDir' call-site.
 --
 -- TODO: it's not entirely clear what this function should do for arrays and datatypes...
-expectTypeDir :: (ABT abt) => Sing a -> abt '[] a -> Expect abt a
-expectTypeDir SNat         e = ExpectAST e
-expectTypeDir SInt         e = ExpectAST e
-expectTypeDir SProb        e = ExpectAST e
-expectTypeDir SReal        e = ExpectAST e
-expectTypeDir (SData  _ _) e = ExpectAST e -- TODO: is that right?
-expectTypeDir (SArray   _) e = ExpectAST e -- TODO: is that right?
-expectTypeDir (SFun   _ a) e =
+expectTypeDir
+    :: (ABT abt)
+    => ImpureType a -- N.B., should be lazy\/irrelevant in this argument
+    -> Sing a
+    -> abt '[] a
+    -> Expect abt a
+expectTypeDir p SNat         _ = case p of {}
+expectTypeDir p SInt         _ = case p of {}
+expectTypeDir p SProb        _ = case p of {}
+expectTypeDir p SReal        _ = case p of {}
+expectTypeDir p (SData  _ _) _ = case p of {}  -- TODO: is that right?
+expectTypeDir p (SArray   _) e = ExpectAST p e -- TODO: is that right?
+expectTypeDir p (SFun   _ a) e =
     ExpectFun $ \e2 ->
-    expectTypeDir a (e `app` e2)
-expectTypeDir (SMeasure a) e =
+    expectTypeDir (unImpureFun p) a (e `app` e2)
+expectTypeDir p (SMeasure a) e =
     -- TODO: should we really be doing this here? or should it only be in 'apM'?
     ExpectMeasure $ \c ->
     primOp2_ (Expect a) e (lamWithType a c)
@@ -253,74 +296,109 @@ expectTypeDir (SMeasure a) e =
 
 
 
-expectAST :: (ABT abt) => AST abt a -> Env abt -> Expect abt a
-expectAST (Lam_ e1) xs =
+expectAST
+    :: (ABT abt)
+    => ImpureType a -- N.B., should be lazy\/irrelevant in this argument
+    -> AST abt a
+    -> Env abt
+    -> Expect abt a
+expectAST p (Lam_ e1) xs =
     ExpectFun $ \e2 ->
     caseBind e1 $ \x e' ->
         case jmEq (getSing e2) (varType x) of
-        Just Refl -> expectSynDir e' $ pushEnv (Assoc x e2) xs
+        Just Refl -> expectSynDir (unImpureFun p) e' $ pushEnv (Assoc x e2) xs
         Nothing   -> error "TODO: expectAST{Lam_} with mismatched types"
 
-expectAST (App_ e1 e2) xs =
-    expectSynDir e1 xs `apF` e2
+expectAST p (App_ e1 e2) xs =
+    expectSynDir (ImpureFun p) e1 xs `apF` e2
 
-expectAST (Let_ e1 e2) xs =
+expectAST p (Let_ e1 e2) xs =
     caseBind e2 $ \x e' ->
         case jmEq (getSing e1) (varType x) of
-        Just Refl -> expectSynDir e' $ pushEnv (Assoc x e1) xs
+        Just Refl -> expectSynDir p e' $ pushEnv (Assoc x e1) xs
         Nothing   -> error "TODO: expectAST{Let_} with mismatched types"
 
-expectAST (Fix_ e1) xs =
+expectAST p (Fix_ e1) xs =
     caseBind e1 $ \x e' ->
         let self = syn $ Fix_ e1 in
         case jmEq (getSing self) (varType x) of
-        Just Refl -> expectSynDir e' $ pushEnv (Assoc x self) xs -- BUG: could loop
+        Just Refl -> expectSynDir p e' $ pushEnv (Assoc x self) xs -- BUG: could loop
         Nothing   -> error "TODO: expectAST{Fix_} with mismatched types"
 
-expectAST (Ann_ _ e) xs =
+expectAST p (Ann_ _ e) xs =
     -- TODO: should we re-wrap it up in a type annotation?
-    expectSynDir e xs
+    expectSynDir p e xs
 
-expectAST (PrimOp_ o) xs =
+expectAST p (PrimOp_ o) xs =
     -- N.B., we can't just use the default implementation for 'Index' and 'Reduce', because they could produce a measure by eliminating an array. Thus, to avoid looping forever, we must actually interpret arrays in our 'Expect' semantics, so that we can actually eliminate them here.
     -- TODO: this further suggests that these three shouldn't really be considered 'PrimOp's
     case o of
     Index a ->
         ExpectFun $ \arr ->
-        case expectSynDir arr xs of
+        let p' = ImpureArray . unImpureFun $ unImpureFun p in
+        case expectSynDir p' arr xs of
         -- TODO: should we insert a guard that @i < e1@?
         ExpectArray e1 e2 -> ExpectFun e2
-        ExpectAST   e     -> ExpectAST $ primOp1_ o e
+        ExpectAST q e   ->
+            let q' = ImpureFun $ unImpureArray q
+            in ExpectAST q' $ primOp1_ o e
+    {- -- not of impure type!
     Size a ->
         ExpectFun $ \arr ->
         case expectSynDir arr xs of
         ExpectArray e1 _ -> expectSynDir e1 xs
         ExpectAST   e    -> ExpectAST $ primOp1_ o e
+    -}
     Reduce a -> error "TODO: expectAST{Reduce}"
 
+    {- -- not of impure type!
     -- All the other PrimOps are functions returning primitive types (the four numbers or HBool); so we'll just eta-expand them.
     _ -> expectTypeDir (sing_PrimOp o) (primOp0_ o)
+    -}
+    
+    _ -> case p of {}
 
-expectAST (NaryOp_ o es) _ = ExpectAST . syn $ NaryOp_ o es
+expectAST p (NaryOp_ o es) _ =
+    case p of {}
+    {-
+    ExpectAST . syn $ NaryOp_ o es
     -- N.B., no NaryOps operate on types containing HMeasure nor
     -- (:->); thus we're guaranteed to never need to descend into @es@.
-expectAST (Value_ v)     _ = ExpectAST $ value_ v
+    -}
+expectAST p (Value_ v)     _ =
+    case p of {}
+    {-
+    ExpectAST $ value_ v
     -- N.B., no Values have types containing HMeasure, (:->), nor
     -- HArray; thus we're guaranteed to never need to descend into @v@.
+    -}
 
-expectAST (CoerceTo_   c  e)  xs = expectCoerceTo   c $ expectSynDir e xs
-expectAST (UnsafeFrom_ c  e)  xs = expectUnsafeFrom c $ expectSynDir e xs
-expectAST Empty_              _  =
+expectAST p (CoerceTo_   c  e)  xs =
+    case p of {}
+    {-
+    expectCoerceTo   c $ expectSynDir e xs
+    -}
+expectAST p (UnsafeFrom_ c  e)  xs =
+    case p of {}
+    {-
+    expectUnsafeFrom c $ expectSynDir e xs
+    -}
+expectAST p Empty_              _  =
     ExpectArray (nat_ 0) $ error "expect: indexing an empty array"
-expectAST (Array_      e1 e2) xs =
+expectAST p (Array_      e1 e2) xs =
     ExpectArray e1 $ \ei ->
     caseBind e2 $ \x e' ->
         case jmEq (getSing ei) (varType x) of
-        Just Refl -> expectSynDir e' $ pushEnv (Assoc x ei) xs
+        Just Refl ->
+            expectSynDir (unImpureArray p) e' $ pushEnv (Assoc x ei) xs
         Nothing   -> error "TODO: expectAST{Array_} with mismatched types"
 
-expectAST (Datum_      d)     _  = ExpectData $ datum_ d
-expectAST (Case_       e  bs) xs = error "TODO: expect{Case_}"
+expectAST p (Datum_      d)     _  =
+    case p of {}
+    {-
+    ExpectAST $ datum_ d
+    -}
+expectAST p (Case_       e  bs) xs = error "TODO: expect{Case_}"
     -- In theory we should be able to use 'isBind' to filter our the hard cases and be able to tackle 'if_' at the very least. However, The problem is, we don't have @ABT (Expect abt)@ so we can't turn our @View (Expect abt)@ into an @Expect abt@...
     -- > | F.any (Monoid.getAny . foldMap1 (Monoid.Any . isBind)) $ bs =
     -- >     ...
@@ -344,18 +422,18 @@ expectAST (Case_       e  bs) xs = error "TODO: expect{Case_}"
     -- where @denotation e xs@ is the constant interpretation for non-measures, and the @expect@ integrator interpretation for measures
     -- We can avoid some of that administrative stuff, by using @let_@ to name the @denotation e xs@ stuff and then use Hakaru's @Case_@ on that.
 
-expectAST (Measure_    o)     _  = expectMeasure o
-expectAST (Bind_       e1 e2) xs =
+expectAST _ (Measure_    o)     _  = expectMeasure o
+expectAST p (Bind_       e1 e2) xs =
     ExpectMeasure $ \c ->
-    expectSynDir e1 xs `apM` \a ->
+    expectSynDir ImpureMeasure e1 xs `apM` \a ->
     caseBind e2 $ \x e' ->
         case jmEq (getSing a) (varType x) of
-        Just Refl -> (expectSynDir e' $ pushEnv (Assoc x a) xs) `apM` c
+        Just Refl -> (expectSynDir p e' $ pushEnv (Assoc x a) xs) `apM` c
         Nothing   -> error "TODO: expectAST{Bind_} with mismatched types"
 
-expectAST (Superpose_ pms) xs =
+expectAST p (Superpose_ es) xs =
     ExpectMeasure $ \c ->
-    sum [ p * (expectSynDir m xs `apM` c) | (p, m) <- pms ]
+    sum [ e1 * (expectSynDir p e2 xs `apM` c) | (e1, e2) <- es ]
     -- TODO: in the Lazy.tex paper, we use @denotation p xs@ and guard against that interpretation being negative...
     -- TODO: if @pms@ is null, then automatically simplify to just 0
 
@@ -433,7 +511,7 @@ expectMeasure (Chain _ _) =
     ExpectMeasure $ \c ->
     error "TODO: expectMeasure{Chain}"
 
-
+{-
 expectCoerceTo :: (ABT abt) => Coercion a b -> Expect abt a -> Expect abt b
 expectCoerceTo c (ExpectAST e) = ExpectAST $ coerceTo_ c e
 expectCoerceTo _ _ = error "expectCoerceTo: the impossible happened"
@@ -442,6 +520,7 @@ expectUnsafeFrom
     :: (ABT abt) => Coercion a b -> Expect abt b -> Expect abt a
 expectUnsafeFrom c (ExpectAST e) = ExpectAST $ unsafeFrom_ c e
 expectUnsafeFrom _ _ = error "expectUnsafeFrom: the impossible happened"
+-}
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
