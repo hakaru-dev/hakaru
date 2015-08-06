@@ -1,80 +1,82 @@
 NewSLO := module ()
   option package;
-  local t_pw, t_LO, gensym, density, get_de, recognize_density, WeightM, WeightedM;
-  export ret, bind, msum, weight, lebesgue, gaussian, LO, applyLO, intLO, Ret, Bind, Msum, Weight, Lebesgue, Gaussian, unexpect;
+  local t_pw, gensym, density, get_de, recognize_density, Diffop, WeightedM;
+  export Integrand, applyintegrand,
+         LO, Ret, Bind, Msum, Weight, Lebesgue, Gaussian,
+         HakaruToLO, integrate, LOToHakaru, unintegrate;
 
-  t_pw := 'specfunc(anything, piecewise)';
-  t_LO := 'LO(name, anything)';
+# FIXME Need eval/LO and eval/Integrand and eval/Bind to teach eval about our
+# binders.  Both LO and Integrand bind from 1st arg to 2nd arg, whereas Bind
+# binds from 2nd arg to 3rd arg.
 
-# Step 1 of 3: expect (shallow embedding from Hakaru to Maple LO (linear operator))
+  t_pw := 'specfunc(piecewise)';
 
-  ret := proc(x)
-    local h;
-    h := gensym('hr');
-    LO(h, h(x))
-  end proc;
+# An integrand h is either an Integrand (our own binding construct for a
+# measurable function to be integrated) or something that can be applied
+# (probably proc, which should be applied immediately, or a generated symbol).
 
-  bind := proc(m, x, n)
-    local h;
-    h := gensym('hb');
-    LO(h, applyLO(m, z -> applyLO(eval(n,x=z), h)))
-  end proc;
+# TODO evalapply/Integrand instead of applyintegrand?
+# TODO evalapply/{Ret,Bind,...} instead of integrate?!
 
-  msum := proc(ms)
-    local h;
-    h := gensym('hmz');
-    LO(h, `+`(op(map(applyLO, ms, h))))
-  end proc;
-
-  weight := proc(p, m)
-    local h;
-    h := gensym('hw');
-    LO(h, p * applyLO(m,h))
-  end proc;
-
-  lebesgue := proc()
-    local h, x;
-    h := gensym('hl');
-    x := gensym('xl');
-    LO(h, Int(h(x), x=-infinity..infinity))
-  end proc;
-
-  gaussian := proc(mean, stdev)
-    local h, x;
-    h := gensym('hg');
-    x := gensym('xg');
-    LO(h, Int(density[NormalD](mean,stdev)(x) * h(x), x=-infinity..infinity))
-  end proc;
-
-  applyLO := proc(lo, hproc)
-    local x;
-    if lo::t_LO then
-      eval(op(2,lo), op(1,lo) = hproc)
-    elif lo::t_pw then
-      # FIXME ... applyLO(loPrime, hproc) ...
+  applyintegrand := proc(h, x)
+    if h :: 'Integrand(name, anything)' then
+      eval(op(2,h), op(1,h) = x)
+    elif h :: procedure then
+      h(x)
     else
+      'applyintegrand'(h, x)
+    end if
+  end proc;
+
+# Step 1 of 3: from Hakaru to Maple LO (linear operator)
+
+  HakaruToLO := proc(m)
+    local h;
+    h := gensym('hh');
+    LO(h, integrate(m, h))
+  end proc;
+
+  integrate := proc(m, h)
+    local x, n, i;
+    if m :: 'Ret(anything)' then
+      applyintegrand(h, op(1,m))
+    elif m :: 'Bind(anything, name, anything)' then
+      integrate(op(1,m), z -> integrate(eval(op(3,m), op(2,m) = z), h))
+    elif m :: 'Msum(list)' then
+      `+`(op(map(integrate, op(1,m), h)))
+    elif m :: 'Weight(anything, anything)' then
+      op(1,m) * integrate(op(2,m), h)
+    elif m :: 'Lebesgue()' then
+      x := gensym('xl');
+      Int(applyintegrand(h, x),
+          x=-infinity..infinity)
+    elif m :: 'Gaussian(anything, anything)' then
+      x := gensym('xg');
+      Int(density[NormalD](op(1,m),op(2,m))(x) * applyintegrand(h, x),
+          x=-infinity..infinity)
+    elif m :: 'LO(name, anything)' then
+      eval(op(2,m), op(1,m) = h)
+    elif m :: t_pw then
+      n := nops(m);
+      piecewise(seq(`if`(i::even or i=n, integrate(op(i,m), h), op(i,m)),
+                    i=1..n))
+    elif h :: procedure then
       x := gensym('xa');
-      'intLO'(lo, x, hproc(x))
-    end if;
+      'integrate'(m, Integrand(x, h(x)))
+    else
+      'integrate'(m, h)
+    end if
   end proc;
-
-  intLO := proc(lo, x, body)
-    applyLO(lo, unapply(body, x))
-  end proc;
-
-  # FIXME Need eval/LO and eval/intLO to teach eval about our binders:
-  # - 'LO' binds from 1st arg to 2nd arg
-  # - 'intLO' binds from 2nd arg to 3rd arg
 
 # Step 2 of 3: algebra (currently nothing)
 
-# Step 3 of 3: unexpect
+# Step 3 of 3: from Maple LO (linear operator) back to Hakaru
 
   Bind := proc(m, x, n)
     if n = 'Ret'(x) then
-      m
+      m # monad law: right identity
     elif m :: 'Ret(anything)' then
-      eval(n, x=op(1,m))
+      eval(n, x = op(1,m)) # monad law: left identity
     else
       'Bind'(m, x, n)
     end if;
@@ -90,59 +92,76 @@ NewSLO := module ()
     end if;
   end proc;
 
-  unexpect := proc(lo, context)
-    local body, h, x, subbody, weight, result, de, res, Dx, f, diffop, init;
+  LOToHakaru := proc(lo :: LO(name, anything))
+    local h;
+    h := gensym('hl');
+    unintegrate(h, eval(op(2,lo), op(1,lo) = h), [])
+  end proc;
 
-    if lo :: t_LO then
-      h := op(1,lo);
-      body := op(2,lo);
-      if body=0 then
-        Msum([])
-      elif body::`+` then
-        Msum([op(map((subbody -> unexpect(LO(h, subbody), context)),
-                  convert(body,'list')))])
-      elif body::function and op(0,body)=h then
-        Ret(op(1,body))
-      elif body::'intLO(anything, name, anything)' then
-        x := gensym('xu');
-        # TODO is there any way to enrich context in this case?
-        Bind(op(1,body), x,
-             unexpect(LO(h, eval(op(3,body), op(2,body)=x)),
-                      context))
-      elif body::'Or(Int(anything, name=-infinity..infinity),
-                     int(anything, name=-infinity..infinity))' then
-        x := gensym('xu');
-        # TODO: enrich context with x (measure class lebesgue)
-        result := unexpect(LO(h, eval(op(1,body), op([2,1],body)=x)),
-                           [op(context), x::real]);
-        res := NULL;
-        if result :: Weight(anything, anything) then
-          de := get_de(op(1,result),x,Dx,f);
-          if de::specfunc(anything, 'Diffop') then
-            (diffop, init) := op(de);
-            res := recognize_density(diffop, init, Dx, x) assuming op(context), x::real;
-          end if;
-        end if;
-        if res :: WeightedM(anything, NormalD(anything, anything)) then
-          Weight(op(1,res), Bind(Gaussian(op(op(2,res))), x, op(2,result)))
-        else
-          Bind(Lebesgue(), x, result)
-        end if;
-      elif body::`*` then
-        (subbody, weight) := selectremove(has, body, h);
-        if subbody::`*` then
-          error "Nonlinear body %1", body;
-        end if;
-        Weight(weight, unexpect(LO(h, subbody), context))
-      else
-        error "unexpect failure on LO: %1", args;
+  unintegrate := proc(h :: name, integral, context :: list)
+    local x, m,
+          recognition, de, Dx, f, diffop, init,
+          subintegral, weight,
+          n, i, else_context, update_context;
+    if integral = 0 then
+      Msum([])
+    elif integral :: `+` then
+      Msum(map2(unintegrate, h, convert(integral, 'list'), context))
+    elif integral :: 'applyintegrand(anything, anything)'
+         and op(1,integral) = h then
+      Ret(op(2,integral))
+    elif integral :: 'integrate(anything, anything)' then
+      x := gensym('xu');
+      # TODO is there any way to enrich context in this case?
+      Bind(op(1,integral), x,
+           unintegrate(h, applyintegrand(op(2,integral), x), context))
+    elif integral :: 'Or(Int(anything, name=-infinity..infinity),
+                         int(anything, name=-infinity..infinity))' then
+      x := gensym('xu');
+      # TODO: enrich context with x (measure class lebesgue)
+      m := unintegrate(h, eval(op(1,integral), op([2,1],integral) = x),
+                       [op(context), x::real]);
+      recognition := NULL;
+      if m :: 'Weight(anything, anything)' then
+        de := get_de(op(1,m), x, Dx, f);
+        if de :: 'Diffop(anything, anything)' then
+          (diffop, init) := op(de);
+          recognition := recognize_density(diffop, init, Dx, x)
+            assuming op(context), x::real
+        end if
       end if;
-    elif lo :: t_pw then
-      # FIXME
-      error "pw case in unexpect not implemented yet";
+      if recognition :: 'WeightedM(anything, NormalD(anything, anything))' then
+        Weight(op(1,recognition),
+               Bind(Gaussian(op(op(2,recognition))), x, op(2,m)))
+      else
+        Bind(Lebesgue(), x, m)
+      end if
+    elif integral :: `*` then
+      (subintegral, weight) := selectremove(has, integral, h);
+      if subintegral :: `*` then
+        error "Nonlinear integral %1", integral
+      end if;
+      Weight(weight, unintegrate(h, subintegral, context))
+    elif integral :: t_pw then
+      n := nops(integral);
+      else_context := context;
+      update_context := proc(c)
+        local then_context;
+        then_context := [op(else_context), c];
+        else_context := [op(else_context), not c]; # Mutation!
+        then_context
+      end proc;
+      piecewise(seq(piecewise(i::even,
+                              unintegrate(h, op(i,integral),
+                                          update_context(op(i-1,integral))),
+                              i=n,
+                              unintegrate(h, op(i,integral), context),
+                              op(i,integral)),
+                    i=1..n))
     else
-      error "unexpect failure: %1", args;
-    end if;
+      # Failure: return residual LO
+      LO(h, integral)
+    end if
   end proc;
 
   get_de := proc(dens, var, Dx, f)
