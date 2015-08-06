@@ -155,7 +155,7 @@ NewSLO := module ()
                               unintegrate(h, op(i,integral),
                                           update_context(op(i-1,integral))),
                               i=n,
-                              unintegrate(h, op(i,integral), context),
+                              unintegrate(h, op(i,integral), else_context),
                               op(i,integral)),
                     i=1..n))
     else
