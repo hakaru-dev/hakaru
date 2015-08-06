@@ -3,8 +3,9 @@ module Language.Hakaru.Parser.AST where
 
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.AST()
+import Data.Text
 
-type Name = String
+type Name = Text
 
 -- Base/Integrate/Lambda/Order/Num/Floating/Fractional repr
 -- Does not include pi_, exp_, erf_, log_, sqrt_ or
@@ -63,9 +64,7 @@ data UExpr =
     Dist Dist
  deriving (Eq, Show)
 
-
 -- Mochastic repr, not including mix, dp, chain and plate
-
 data Dist =
     Dirac UExpr |
     Bind UExpr Dist Dist |
@@ -80,8 +79,8 @@ data Dist =
     Beta UExpr UExpr
  deriving (Eq, Show)
 
--- data Branch' = None
--- data Sop = Sop [[Value']]
+-- data Branch' a = Branch' Pattern (AST' a)
+-- data Sop = Sop [[Sop]] | V Value'
 -- data Value' =
 --      Nat
 --    | Int
@@ -99,7 +98,7 @@ data Dist =
 --    | Value Value'
 --    | Empty
 --    | Array (AST' a) Name (AST' a)
---    | Case  (AST' a) [Branch']
+--    | Case  (AST' a) [(Branch' a)]
 --    | Bind  Name (AST' a) (AST' a)
 --    | Superpose [((AST' a), (AST' a))]
 --    | Data Sop

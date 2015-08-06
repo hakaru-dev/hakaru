@@ -17,4 +17,50 @@ It still needs syntax for
   User-defined datatypes
   Patterns and pattern matching
   type annotations
-  either
+  either -- will implement with pattern matching
+
+
+literals: 1, -2, 3.0, -4.5, inf
+unit: ()
+bool: true, false
+
+if cond:
+   tclause
+else:
+   fclause
+
+pairs:  (one, two)
+list:   [one, two, three]
+lambda: fn x: y
+let:    var = e
+        body
+bind:   x <~ m
+        body
+
+def foo(arg1, arg2):
+    body
+
+primitive distributions: normal, uniform,
+	  		 lebesgue, counting,
+			 gamma, superpose, dirac
+
+user-defined types:
+
+data either(a, b):
+     left(a)
+     right(a)
+
+patterns and pattern-matching:
+
+match e:
+  left(x):  e1
+  right(x): e2
+
+match e:
+  foo(x, _): e1
+  _: e2
+     
+type annotations: 3 :: int, fn (x::nat): x
+
+types: nat, real, prob, int, unit,
+       (a, b), fun(a,b), measure(a)
