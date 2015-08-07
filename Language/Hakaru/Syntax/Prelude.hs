@@ -531,8 +531,8 @@ unpair e f = error "TODO: unpair with the new 'Variable' type"
     in syn $ Case_ e
         [Branch (pPair PVar PVar)
             $ multibinder
-                ( Cons (Hint (Text.pack "x") sing)
-                . Cons (Hint (Text.pack "x") sing)
+                ( Cons (Hint Text.empty sing)
+                . Cons (Hint Text.empty sing)
                 $ Nil)
                 f'
         ]
@@ -552,8 +552,8 @@ uneither
     -> abt '[] c
 uneither e l r = 
     syn $ Case_ e
-        [ Branch (pLeft  PVar) (binder (Text.pack "x") sing l)
-        , Branch (pRight PVar) (binder (Text.pack "x") sing r)
+        [ Branch (pLeft  PVar) (binder Text.empty sing l)
+        , Branch (pRight PVar) (binder Text.empty sing r)
         ]
 
 if_ :: (ABT abt) => abt '[] HBool -> abt '[] a -> abt '[] a -> abt '[] a
@@ -598,7 +598,7 @@ negativeInfinity :: (ABT abt) => abt '[] 'HReal
 negativeInfinity = primOp0_ NegativeInfinity
 
 fix :: (ABT abt, SingI a) => (abt '[] a -> abt '[] a) -> abt '[] a
-fix = syn . Fix_ . binder (Text.pack "x") sing
+fix = syn . Fix_ . binder Text.empty sing
 
 -- instance (ABT abt) => Lambda abt where
 -- 'app' already defined
@@ -613,7 +613,7 @@ lamWithType
     => Sing a
     -> (abt '[] a -> abt '[] b)
     -> abt '[] (a ':-> b)
-lamWithType typ = syn . Lam_ . binder (Text.pack "x") typ
+lamWithType typ = syn . Lam_ . binder Text.empty typ
 
 {-
 -- some test cases to make sure we tied-the-knot successfully:
@@ -633,7 +633,7 @@ let_
     => abt '[] a
     -> (abt '[] a -> abt '[] b)
     -> abt '[] b
-let_ e = syn . Let_ e . binder (Text.pack "x") sing
+let_ e = syn . Let_ e . binder Text.empty sing
 
 
 ----------------------------------------------------------------
@@ -643,7 +643,7 @@ array
     -> (abt '[] 'HNat -> abt '[] a)
     -> abt '[] ('HArray a)
 array n =
-    syn . Array_ n . binder (Text.pack "x") sing
+    syn . Array_ n . binder Text.empty sing
 
 empty :: (ABT abt) => abt '[] ('HArray a)
 empty = syn Empty_
@@ -716,7 +716,7 @@ mapV f v = array (size v) $ \i -> f (v ! i)
     => abt '[] ('HMeasure a)
     -> (abt '[] a -> abt '[] ('HMeasure b))
     -> abt '[] ('HMeasure b)
-(>>=) e = syn . Bind_ e . binder (Text.pack "x") sing
+(>>=) e = syn . Bind_ e . binder Text.empty sing
 
 -- BUG: remove the 'SingI' requirement!
 dirac :: (ABT abt, SingI a) => abt '[] a -> abt '[] ('HMeasure a)

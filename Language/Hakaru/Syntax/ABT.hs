@@ -417,7 +417,7 @@ instance ABT TrivialABT where
         go (Var  x)   = Set.singleton (Some x)
         go (Bind x v) = Set.delete (Some x) (go v)
 
--- TODO: fix me up again
+
 instance Show2 TrivialABT where
     {-
     -- Print the concrete data constructors:
@@ -720,7 +720,7 @@ binder
 binder hint typ hoas = bind x body
     where
     body = hoas (var x)
-    x    = Variable (Name hint (maxBind body + 1)) typ
+    x    = Variable (Name hint (1 + maxBind body)) typ
 
 {-
 data List1 :: (k -> *) -> [k] -> * where

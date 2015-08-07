@@ -88,7 +88,7 @@ import Language.Hakaru.Syntax.Coercion
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
--- TODO: use 'Integer' instead of 'Int', and 'Natural' instead of 'Nat'.
+-- TODO: use 'Integer' instead of 'Int', 'Natural' instead of 'Nat', and 'Rational' instead of 'LogFloat' and 'Double'.
 -- | Constant values for primitive numeric types and user-defined
 -- data-types.
 data Value :: Hakaru -> * where
@@ -898,11 +898,16 @@ pPair a b =
     error "TODO: make pPair typecheck"
     -- PDatum . PInl $ PKonst a `PEt` PKonst b `PEt` PDone
 
--- BUG: Couldn't match type ‘vars’ with ‘vars ++ '[]’
 pLeft  :: Pattern vars a -> Pattern vars (HEither a b)
 pLeft  = 
-    error "TODO: make pLeft typecheck"
-    -- PDatum . PInl . (`PEt` PDone) . PKonst
+    -- BUG: Couldn't match type ‘vars’ with ‘vars ++ '[]’
+    -- > PDatum . PInl . (`PEt` PDone) . PKonst
+    \pat ->
+        let coerce :: Pattern vars a -> Sing vars
+            coerce = error "TODO: pLeft"
+        in
+        case eqAppendNil (coerce pat) of
+        Refl -> PDatum . PInl . (`PEt` PDone) . PKonst $ pat
 
 pRight :: Pattern vars b -> Pattern vars (HEither a b)
 pRight = 
