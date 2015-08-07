@@ -32,7 +32,7 @@ NewSLO := module ()
 
   HakaruToLO := proc(m)
     local h;
-    h := gensym('hh');
+    h := gensym('h');
     LO(h, integrate(m, h))
   end proc;
 
@@ -98,7 +98,7 @@ NewSLO := module ()
 
   LOToHakaru := proc(lo :: LO(name, anything))
     local h;
-    h := gensym('hl');
+    h := gensym(op(1,lo));
     unintegrate(h, eval(op(2,lo), op(1,lo) = h), [])
   end proc;
 
@@ -115,13 +115,13 @@ NewSLO := module ()
          and op(1,integral) = h then
       Ret(op(2,integral))
     elif integral :: 'integrate(anything, anything)' then
-      x := gensym('xu');
+      x := gensym('x');
       # TODO is there any way to enrich context in this case?
       Bind(op(1,integral), x,
            unintegrate(h, applyintegrand(op(2,integral), x), context))
     elif integral :: 'Or(Int(anything, name=-infinity..infinity),
                          int(anything, name=-infinity..infinity))' then
-      x := gensym('xu');
+      x := gensym(op([2,1],integral));
       # TODO: enrich context with x (measure class lebesgue)
       m := unintegrate(h, eval(op(1,integral), op([2,1],integral) = x),
                        [op(context), x::real]);
