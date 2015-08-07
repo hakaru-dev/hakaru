@@ -1,6 +1,6 @@
 NewSLO := module ()
   option package;
-  local t_pw, gensym, density, get_de, recognize_density, Diffop, WeightedM;
+  local t_pw, gensym, density, recognize, get_de, recognize_density, Diffop, WeightedM;
   export Integrand, applyintegrand,
          LO, Ret, Bind, Msum, Weight, Lebesgue, Gaussian, Uniform,
          HakaruToLO, integrate, LOToHakaru, unintegrate;
@@ -103,9 +103,7 @@ NewSLO := module ()
   end proc;
 
   unintegrate := proc(h :: name, integral, context :: list)
-    local x, m,
-          recognition, de, Dx, f, diffop, init,
-          subintegral, weight,
+    local x, lower, upper, m, w, m0, w0, subintegral,
           n, i, else_context, update_context;
     if integral = 0 then
       Msum()
@@ -119,33 +117,26 @@ NewSLO := module ()
       # TODO is there any way to enrich context in this case?
       Bind(op(1,integral), x,
            unintegrate(h, applyintegrand(op(2,integral), x), context))
-    elif integral :: 'Or(Int(anything, name=-infinity..infinity),
-                         int(anything, name=-infinity..infinity))' then
+    elif integral :: 'Or(Int(anything, name=anything..anything),
+                         int(anything, name=anything..anything))' then
       x := gensym(op([2,1],integral));
+      (lower, upper) := op(op([2,2],integral));
       # TODO: enrich context with x (measure class lebesgue)
       m := unintegrate(h, eval(op(1,integral), op([2,1],integral) = x),
-                       [op(context), x::real]);
-      recognition := NULL;
+                       [op(context), x::real, And(lower<x, x<upper)]);
       if m :: 'Weight(anything, anything)' then
-        de := get_de(op(1,m), x, Dx, f);
-        if de :: 'Diffop(anything, anything)' then
-          (diffop, init) := op(de);
-          recognition := recognize_density(diffop, init, Dx, x)
-            assuming op(context), x::real
-        end if
-      end if;
-      if recognition :: 'WeightedM(anything, NormalD(anything, anything))' then
-        Weight(op(1,recognition),
-               Bind(Gaussian(op(op(2,recognition))), x, op(2,m)))
+        (w, m) := op(m)
       else
-        Bind(Lebesgue(), x, m)
-      end if
+        w := 1
+      end if;
+      (w, m0, w0) := recognize(w, x, lower, upper, context);
+      Weight(w, Bind(m0, x, Weight(w0, m)))
     elif integral :: `*` then
-      (subintegral, weight) := selectremove(has, integral, h);
+      (subintegral, w) := selectremove(has, integral, h);
       if subintegral :: `*` then
         error "Nonlinear integral %1", integral
       end if;
-      Weight(weight, unintegrate(h, subintegral, context))
+      Weight(w, unintegrate(h, subintegral, context))
     elif integral :: t_pw then
       n := nops(integral);
       else_context := context;
@@ -165,6 +156,31 @@ NewSLO := module ()
     else
       # Failure: return residual LO
       LO(h, integral)
+    end if
+  end proc;
+
+  recognize := proc(weight, x, lower, upper, context)
+    local de, Dx, f, diffop, init, recognition, w0, w1;
+    if lower = -infinity and upper = infinity then
+      de := get_de(weight, x, Dx, f);
+      if de :: 'Diffop(anything, anything)' then
+        (diffop, init) := op(de);
+        recognition := recognize_density(diffop, init, Dx, x)
+          assuming op(context), x::real, And(lower<x, x<upper);
+        if recognition :: 'WeightedM(anything, anything)' then
+          return op(recognition), 1
+        end if
+      end if;
+      if weight :: `*` then
+        (w1, w0) := selectremove(has, weight, x);
+        return (w0, Lebesgue(), w1)
+      elif has(weight, x) then
+        return (1, Lebesgue(), weight)
+      else
+        return (weight, Lebesgue(), 1)
+      end if
+    else
+      error "recognition implemented for -infinity..infinity only"
     end if
   end proc;
 
@@ -203,7 +219,7 @@ NewSLO := module ()
         mu := -coeff(a0, var, 0)/scale;
         sigma := sqrt(coeff(a1, var, 0)/scale);
         at0 := simplify(eval(ii/density[NormalD](mu, sigma)(0)));
-        return WeightedM(at0, NormalD(mu,sigma));
+        return WeightedM(at0, Gaussian(mu,sigma));
       end if;
     end if;
     NULL;
