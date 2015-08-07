@@ -42,8 +42,8 @@ NewSLO := module ()
       applyintegrand(h, op(1,m))
     elif m :: 'Bind(anything, name, anything)' then
       integrate(op(1,m), z -> integrate(eval(op(3,m), op(2,m) = z), h))
-    elif m :: 'Msum(list)' then
-      `+`(op(map(integrate, op(1,m), h)))
+    elif m :: 'specfunc(Msum)' then
+      `+`(op(map(integrate, [op(m)], h)))
     elif m :: 'Weight(anything, anything)' then
       op(1,m) * integrate(op(2,m), h)
     elif m :: 'Lebesgue()' then
@@ -87,7 +87,7 @@ NewSLO := module ()
   end proc;
 
   Weight := proc(p, m)
-    if p = 1 or m = Msum([]) then
+    if p = 1 or m = Msum() then
       m
     elif m :: 'Weight(anything, anything)' then
       'Weight'(p * op(1,m), op(2,m))
@@ -108,9 +108,9 @@ NewSLO := module ()
           subintegral, weight,
           n, i, else_context, update_context;
     if integral = 0 then
-      Msum([])
+      Msum()
     elif integral :: `+` then
-      Msum(map2(unintegrate, h, convert(integral, 'list'), context))
+      Msum(op(map2(unintegrate, h, convert(integral, 'list'), context)))
     elif integral :: 'applyintegrand(anything, anything)'
          and op(1,integral) = h then
       Ret(op(2,integral))
