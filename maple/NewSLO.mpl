@@ -216,8 +216,8 @@ NewSLO := module ()
     x^(a-1)*(1-x)^(b-1)/Beta(a,b)
   end proc end proc;
   # Hakaru uses the alternate definition of gamma, so the args are backwards
-  density[GammaD] := proc(theta,k) proc(x)
-    x^(theta-1)/k^(theta-1)*exp(-x/k)/k/GAMMA(theta);
+  density[GammaD] := proc(shape,scale) proc(x)
+    x^(shape-1)/scale^shape*exp(-x/scale)/GAMMA(shape);
   end proc end proc;
 
   gensym := module()
