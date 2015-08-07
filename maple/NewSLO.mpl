@@ -2,7 +2,7 @@ NewSLO := module ()
   option package;
   local t_pw, gensym, density, get_de, recognize_density, Diffop, WeightedM;
   export Integrand, applyintegrand,
-         LO, Ret, Bind, Msum, Weight, Lebesgue, Gaussian,
+         LO, Ret, Bind, Msum, Weight, Lebesgue, Gaussian, Uniform,
          HakaruToLO, integrate, LOToHakaru, unintegrate;
 
 # FIXME Need eval/LO and eval/Integrand and eval/Bind to teach eval about our
@@ -54,6 +54,10 @@ NewSLO := module ()
       x := gensym('xg');
       Int(density[NormalD](op(1,m),op(2,m))(x) * applyintegrand(h, x),
           x=-infinity..infinity)
+    elif m :: 'Uniform(anything, anything)' then
+      x := gensym('xu');
+      Int(applyintegrand(h, x),
+          x=op(1,m)..op(2,m)) / (op(2,m)-op(1,m))
     elif m :: 'LO(name, anything)' then
       eval(op(2,m), op(1,m) = h)
     elif m :: t_pw then
