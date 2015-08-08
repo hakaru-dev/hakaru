@@ -87,7 +87,7 @@ NewSLO := module ()
   end proc;
 
   Weight := proc(p, m)
-    if p = 1 or m = Msum() then
+    if p = 1 then
       m
     elif m :: 'Weight(anything, anything)' then
       'Weight'(p * op(1,m), op(2,m))
