@@ -1,6 +1,6 @@
 NewSLO := module ()
   option package;
-  local t_pw, gensym, density, recognize, get_de, recognize_density, Diffop, WeightedM;
+  local t_pw, gensym, density, recognize, get_de, recognize_density, Diffop, Recognized;
   export Integrand, applyintegrand,
          LO, Ret, Bind, Msum, Weight, Lebesgue, Gaussian, Uniform,
          HakaruToLO, integrate, LOToHakaru, unintegrate;
@@ -103,7 +103,7 @@ NewSLO := module ()
   end proc;
 
   unintegrate := proc(h :: name, integral, context :: list)
-    local x, lower, upper, m, w, m0, w0, subintegral,
+    local x, lower, upper, m, w, m2, w2, subintegral,
           n, i, else_context, update_context;
     if integral = 0 then
       Msum()
@@ -129,8 +129,8 @@ NewSLO := module ()
       else
         w := 1
       end if;
-      (w, m0, w0) := recognize(w, x, lower, upper, context);
-      Weight(w, Bind(m0, x, Weight(w0, m)))
+      (m2, w2) := recognize(w, x, lower, upper, context);
+      Bind(m2, x, Weight(w2, m))
     elif integral :: `*` then
       (subintegral, w) := selectremove(has, integral, h);
       if subintegral :: `*` then
@@ -159,26 +159,19 @@ NewSLO := module ()
     end if
   end proc;
 
-  recognize := proc(weight, x, lower, upper, context)
-    local de, Dx, f, diffop, init, recognition, w0, w1;
+  recognize := proc(weight, x, lower, upper, context) :: (anything, anything);
+    local de, Dx, f, diffop, init, recognition;
     if lower = -infinity and upper = infinity then
       de := get_de(weight, x, Dx, f);
       if de :: 'Diffop(anything, anything)' then
         (diffop, init) := op(de);
         recognition := recognize_density(diffop, init, Dx, x)
           assuming op(context), x::real, And(lower<x, x<upper);
-        if recognition :: 'WeightedM(anything, anything)' then
-          return op(recognition), 1
+        if recognition :: 'Recognized(anything, anything)' then
+          return op(recognition)
         end if
       end if;
-      if weight :: `*` then
-        (w1, w0) := selectremove(has, weight, x);
-        return (w0, Lebesgue(), w1)
-      elif has(weight, x) then
-        return (1, Lebesgue(), weight)
-      else
-        return (weight, Lebesgue(), 1)
-      end if
+      return (Lebesgue(), weight)
     else
       error "recognition implemented for -infinity..infinity only"
     end if
@@ -219,7 +212,7 @@ NewSLO := module ()
         mu := -coeff(a0, var, 0)/scale;
         sigma := sqrt(coeff(a1, var, 0)/scale);
         at0 := simplify(eval(ii/density[NormalD](mu, sigma)(0)));
-        return WeightedM(at0, Gaussian(mu,sigma));
+        return Recognized(Gaussian(mu,sigma), at0);
       end if;
     end if;
     NULL;
