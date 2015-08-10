@@ -99,8 +99,7 @@ table = [[prefix "+"  id],
           binary "==" Ex.AssocLeft]]
 
 unit_ :: Parser (AST' a)
-unit_ = do u <- string "()"
-           return Empty
+unit_ = string "()" >> return Empty
 
 bool :: Parser (AST' Text)
 bool = do
@@ -142,10 +141,10 @@ pairs = do
   return $ foldr (binop "Pair") Empty l
 
 op_factor :: Parser (AST' Text)
-op_factor = try undefined --floating
-            -- <|> try inf_
+op_factor =     try (M.liftM Value floating)
+            <|> try (M.liftM Value inf_)
             <|> try unit_
-            -- <|> try int
+            <|> try (M.liftM Value int)
             <|> try bool
             <|> try var
             <|> try pairs

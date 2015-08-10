@@ -34,3 +34,4 @@ data AST' a =
    | Bind  Name (AST' a) (AST' a)
 --    | Superpose [((AST' a), (AST' a))]
 --    | Data Sop
+ deriving (Eq, Show)
