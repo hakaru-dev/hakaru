@@ -197,13 +197,17 @@ def_expr = do
   reserved "def"
   name <- identifier
 
-  args <- parens identifier -- op_expr
+  args <- parens $ commaSep identifier
   reservedOp ":"
   
   body <- expr
   rest <- expr
 
-  return $ Let name (Lam args body) rest
+  return $ Let name (defargs args body) rest
+
+defargs :: [Text] -> AST' Text -> AST' Text
+defargs (a:as) body = Lam a (defargs as body)
+defargs []     body = body 
 
 call_expr :: Parser (AST' Text)
 call_expr = do
