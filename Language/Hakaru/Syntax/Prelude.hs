@@ -538,6 +538,16 @@ unpair e f = error "TODO: unpair with the new 'Variable' type"
         ]
 -}
 
+fst :: (ABT abt, SingI a, SingI b)
+    => abt '[] (HPair a b)
+    -> abt '[] a
+fst p = unpair p (\x _ -> x)
+
+snd :: (ABT abt, SingI a, SingI b)
+    => abt '[] (HPair a b)
+    -> abt '[] b
+snd p = unpair p (\_ y -> y)
+
 left_ :: (ABT abt) => abt '[] a -> abt '[] (HEither a b)
 left_ = datum_ . dLeft
 
@@ -593,6 +603,9 @@ nat2int    = coerceTo_ signed
 
 fromInt    :: (ABT abt) => abt '[] 'HInt  -> abt '[] 'HReal
 fromInt    = coerceTo_ continuous
+
+nat2prob   :: (ABT abt) => abt '[] 'HNat  -> abt '[] 'HProb
+nat2prob   = coerceTo_ continuous
 
 negativeInfinity :: (ABT abt) => abt '[] 'HReal
 negativeInfinity = primOp0_ NegativeInfinity
@@ -677,11 +690,26 @@ summateV x =
     summate (real_ 0) (fromInt $ nat2int (size x) - int_ 1)
         (\i -> x ! unsafeFrom_ signed i)
 
-
 -- TODO: a variant of 'if_' for giving us evidence that the subtraction is sound.
-unsafeMinus :: (ABT abt) => abt '[] 'HNat -> abt '[] 'HNat -> abt '[] 'HNat
+
+unsafeMinusNat
+    :: (ABT abt) => abt '[] 'HNat -> abt '[] 'HNat -> abt '[] 'HNat
+unsafeMinusNat x y = unsafeFrom_ signed (nat2int x - nat2int y)
+
+unsafeMinusProb
+    :: (ABT abt) => abt '[] 'HProb -> abt '[] 'HProb -> abt '[] 'HProb
+unsafeMinusProb x y = unsafeProb (fromProb x - fromProb y)
+
+{-
+-- BUG: the general version won't typecheck because we run into ambiguity issues due to NonNegative not being injective... Basically, we need to concretize the choice of @a@ given @NonNegative a@
+unsafeMinus
+    :: (ABT abt, HRing_ a)
+    => abt '[] (NonNegative a)
+    -> abt '[] (NonNegative a)
+    -> abt '[] (NonNegative a)
 unsafeMinus x y =
-    unsafeFrom_ signed (nat2int x - nat2int y)
+    unsafeFrom_ signed (coerceTo_ signed x - coerceTo_ signed y)
+-}
 
 -- BUG: remove the 'SingI' requirement!
 appendV
@@ -691,7 +719,7 @@ appendV v1 v2 =
     array (size v1 + size v2) $ \i ->
         if_ (i < size v1)
             (v1 ! i)
-            (v2 ! (i `unsafeMinus` size v1))
+            (v2 ! (i `unsafeMinusNat` size v1))
 
 -- BUG: remove the 'SingI' requirement!
 mapWithIndex
@@ -708,6 +736,15 @@ mapV
     -> abt '[] ('HArray a)
     -> abt '[] ('HArray b)
 mapV f v = array (size v) $ \i -> f (v ! i)
+
+normalizeV
+    :: (ABT abt) => abt '[] ('HArray 'HProb) -> abt '[] ('HArray 'HProb)
+normalizeV x = mapV (/ summateV x) x -- TODO: why summateV instead of sumV?
+
+constV :: (ABT abt) => abt '[] 'HNat -> abt '[] b -> abt '[] ('HArray b)
+constV n c = array n (const c)
+
+-- TODO: zipWithV
 
 ----------------------------------------------------------------
 -- instance (ABT abt) => Mochastic (abt) where
@@ -997,14 +1034,104 @@ chain' v = reduce r z (mapV m v)
     m a   = lam $ \s -> (`unpair` pair . array (nat_ 1) . const) <$> app a s
 
 
-{-
--- instance (ABT abt) => Lub abt where
-lub :: (ABT abt) => abt '[] a -> abt '[] a -> abt '[] a
-lub = (syn .) . Lub_
+invgamma
+    :: (ABT abt)
+    => abt '[] 'HProb
+    -> abt '[] 'HProb
+    -> abt '[] ('HMeasure 'HProb)
+invgamma k t = recip <$> gamma k (recip t)
 
-bot :: (ABT abt) => abt '[] a
-bot = syn Bot_
+exponential :: (ABT abt) => abt '[] 'HProb -> abt '[] ('HMeasure 'HProb)
+exponential = gamma (prob_ 1)
+
+chi2 :: (ABT abt) => abt '[] 'HProb -> abt '[] ('HMeasure 'HProb)
+chi2 v = gamma (v / prob_ 2) (prob_ 2)
+
+cauchy
+    :: (ABT abt)
+    => abt '[] 'HReal
+    -> abt '[] 'HProb
+    -> abt '[] ('HMeasure 'HReal)
+cauchy loc scale =
+    normal (real_ 0) (prob_ 1) >>= \x ->
+    normal (real_ 0) (prob_ 1) >>= \y ->
+    dirac $ loc + fromProb scale * x / y
+
+laplace
+    :: (ABT abt)
+    => abt '[] 'HReal
+    -> abt '[] 'HProb
+    -> abt '[] ('HMeasure 'HReal)
+laplace loc scale =
+    exponential (prob_ 1) >>= \v ->
+    normal (real_ 0) (prob_ 1) >>= \z ->
+    dirac $ loc + z * fromProb (scale * sqrt (prob_ 2 * v))
+
+student
+    :: (ABT abt)
+    => abt '[] 'HReal
+    -> abt '[] 'HProb
+    -> abt '[] ('HMeasure 'HReal)
+student loc v =
+    normal loc (prob_ 1) >>= \z ->
+    chi2 v >>= \df ->
+    dirac $ z * fromProb (sqrt (v / df))
+
+weibull
+    :: (ABT abt)
+    => abt '[] 'HProb
+    -> abt '[] 'HProb
+    -> abt '[] ('HMeasure 'HProb)
+weibull b k =
+    exponential (prob_ 1) >>= \x ->
+    dirac $ b * x ** fromProb (recip k)
+
+bern :: (ABT abt) => abt '[] 'HProb -> abt '[] ('HMeasure HBool)
+bern p = superpose
+    [ (p, dirac true)
+    , (prob_ 1 `unsafeMinusProb` p, dirac false)
+    ]
+
+mix :: (ABT abt) => abt '[] ('HArray 'HProb) -> abt '[] ('HMeasure 'HNat)
+mix v = pose (sumV v) (categorical v)
+
+binomial
+    :: (ABT abt)
+    => abt '[] 'HNat
+    -> abt '[] 'HProb
+    -> abt '[] ('HMeasure 'HInt)
+binomial n p =
+    sumV <$> plate (constV n ((\b -> if_ b (int_ 1) (int_ 0)) <$> bern p))
+
+negativeBinomial
+    :: (ABT abt)
+    => abt '[] 'HNat
+    -> abt '[] 'HProb -- N.B., must actually be >= 1
+    -> abt '[] ('HMeasure 'HNat)
+negativeBinomial r p =
+    gamma (nat2prob r) (recip p `unsafeMinusProb` prob_ 1) >>= \l ->
+    poisson l
+
+geometric :: (ABT abt) => abt '[] 'HProb -> abt '[] ('HMeasure 'HNat)
+geometric = negativeBinomial (nat_ 1)
+
+{-
+multinomial
+    :: (ABT abt)
+    => abt '[] 'HInt
+    -> abt '[] ('HArray 'HProb)
+    -> abt '[] ('HMeasure ('HArray 'HProb))
+multinomial n v =
+    reduce (liftM2 (zipWithV (+)))
+        (dirac (constV (size v) 0))
+        (constV n (unitV (size v) <$> categorical v))
 -}
+
+dirichlet
+    :: (ABT abt)
+    => abt '[] ('HArray 'HProb)
+    -> abt '[] ('HMeasure ('HArray 'HProb))
+dirichlet a = normalizeV <$> plate (mapV (`gamma` prob_ 1) a)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
