@@ -1,8 +1,10 @@
 NewSLO := module ()
   option package;
-  local t_pw, gensym, density, get_de, recognize_density, Diffop, WeightedM;
+  local t_pw, gensym, density, recognize, get_de, recognize_de, polymatch,
+        Diffop, Recognized;
   export Integrand, applyintegrand,
-         LO, Ret, Bind, Msum, Weight, Lebesgue, Gaussian,
+         Lebesgue, Uniform, Gaussian, BetaD, GammaD,
+         Ret, Bind, Msum, Weight, LO,
          HakaruToLO, integrate, LOToHakaru, unintegrate;
 
 # FIXME Need eval/LO and eval/Integrand and eval/Bind to teach eval about our
@@ -32,34 +34,46 @@ NewSLO := module ()
 
   HakaruToLO := proc(m)
     local h;
-    h := gensym('hh');
+    h := gensym('h');
     LO(h, integrate(m, h))
   end proc;
 
   integrate := proc(m, h)
     local x, n, i;
-    if m :: 'Ret(anything)' then
-      applyintegrand(h, op(1,m))
-    elif m :: 'Bind(anything, name, anything)' then
-      integrate(op(1,m), z -> integrate(eval(op(3,m), op(2,m) = z), h))
-    elif m :: 'Msum(list)' then
-      `+`(op(map(integrate, op(1,m), h)))
-    elif m :: 'Weight(anything, anything)' then
-      op(1,m) * integrate(op(2,m), h)
-    elif m :: 'Lebesgue()' then
+    if m :: 'Lebesgue()' then
       x := gensym('xl');
       Int(applyintegrand(h, x),
           x=-infinity..infinity)
+    elif m :: 'Uniform(anything, anything)' then
+      x := gensym('xu');
+      Int(applyintegrand(h, x),
+          x=op(1,m)..op(2,m)) / (op(2,m)-op(1,m))
     elif m :: 'Gaussian(anything, anything)' then
       x := gensym('xg');
-      Int(density[NormalD](op(1,m),op(2,m))(x) * applyintegrand(h, x),
+      Int(density[op(0,m)](op(m))(x) * applyintegrand(h, x),
           x=-infinity..infinity)
-    elif m :: 'LO(name, anything)' then
-      eval(op(2,m), op(1,m) = h)
+    elif m :: 'BetaD(anything, anything)' then
+      x := gensym('xb');
+      Int(density[op(0,m)](op(m))(x) * applyintegrand(h, x),
+          x=0..1)
+    elif m :: 'GammaD(anything, anything)' then
+      x := gensym('xr');
+      Int(density[op(0,m)](op(m))(x) * applyintegrand(h, x),
+          x=0..infinity)
+    elif m :: 'Ret(anything)' then
+      applyintegrand(h, op(1,m))
+    elif m :: 'Bind(anything, name, anything)' then
+      integrate(op(1,m), z -> integrate(eval(op(3,m), op(2,m) = z), h))
+    elif m :: 'specfunc(Msum)' then
+      `+`(op(map(integrate, [op(m)], h)))
+    elif m :: 'Weight(anything, anything)' then
+      op(1,m) * integrate(op(2,m), h)
     elif m :: t_pw then
       n := nops(m);
       piecewise(seq(`if`(i::even or i=n, integrate(op(i,m), h), op(i,m)),
                     i=1..n))
+    elif m :: 'LO(name, anything)' then
+      eval(op(2,m), op(1,m) = h)
     elif h :: procedure then
       x := gensym('xa');
       'integrate'(m, Integrand(x, h(x)))
@@ -83,7 +97,7 @@ NewSLO := module ()
   end proc;
 
   Weight := proc(p, m)
-    if p = 1 or m = Msum([]) then
+    if p = 1 then
       m
     elif m :: 'Weight(anything, anything)' then
       'Weight'(p * op(1,m), op(2,m))
@@ -94,68 +108,73 @@ NewSLO := module ()
 
   LOToHakaru := proc(lo :: LO(name, anything))
     local h;
-    h := gensym('hl');
+    h := gensym(op(1,lo));
     unintegrate(h, eval(op(2,lo), op(1,lo) = h), [])
   end proc;
 
   unintegrate := proc(h :: name, integral, context :: list)
-    local x, m,
-          recognition, de, Dx, f, diffop, init,
-          subintegral, weight,
-          n, i, else_context, update_context;
-    if integral = 0 then
-      Msum([])
-    elif integral :: `+` then
-      Msum(map2(unintegrate, h, convert(integral, 'list'), context))
+    local x, lo, hi, m, w, recognition, subintegral,
+          n, i, next_context, update_context;
+    if integral :: 'Or(Int(anything, name=anything..anything),
+                       int(anything, name=anything..anything))' then
+      x := gensym(op([2,1],integral));
+      (lo, hi) := op(op([2,2],integral));
+      next_context := [op(context), x::RealRange(Open(lo), Open(hi))];
+      # TODO: enrich context with x (measure class lebesgue)
+      subintegral := eval(op(1,integral), op([2,1],integral) = x);
+      m := unintegrate(h, subintegral, next_context);
+      if m :: 'Weight(anything, anything)' then
+        (w, m) := op(m)
+      else
+        w := 1
+      end if;
+      recognition := recognize(w, x, lo, hi) assuming op(next_context);
+      if recognition :: 'Recognized(anything, anything)' then
+        # Recognition succeeded
+        Bind(op(1,recognition), x, Weight(op(2,recognition), m))
+      else
+        # Recognition failed
+        m := Weight(w, m);
+        if hi <> infinity then
+          m := piecewise(x < hi, m, Msum())
+        end if;
+        if lo <> -infinity then
+          m := piecewise(lo < x, m, Msum())
+        end if;
+        Bind(Lebesgue(), x, m)
+      end if
     elif integral :: 'applyintegrand(anything, anything)'
          and op(1,integral) = h then
       Ret(op(2,integral))
     elif integral :: 'integrate(anything, anything)' then
-      x := gensym('xu');
+      x := gensym('x');
       # TODO is there any way to enrich context in this case?
       Bind(op(1,integral), x,
            unintegrate(h, applyintegrand(op(2,integral), x), context))
-    elif integral :: 'Or(Int(anything, name=-infinity..infinity),
-                         int(anything, name=-infinity..infinity))' then
-      x := gensym('xu');
-      # TODO: enrich context with x (measure class lebesgue)
-      m := unintegrate(h, eval(op(1,integral), op([2,1],integral) = x),
-                       [op(context), x::real]);
-      recognition := NULL;
-      if m :: 'Weight(anything, anything)' then
-        de := get_de(op(1,m), x, Dx, f);
-        if de :: 'Diffop(anything, anything)' then
-          (diffop, init) := op(de);
-          recognition := recognize_density(diffop, init, Dx, x)
-            assuming op(context), x::real
-        end if
-      end if;
-      if recognition :: 'WeightedM(anything, NormalD(anything, anything))' then
-        Weight(op(1,recognition),
-               Bind(Gaussian(op(op(2,recognition))), x, op(2,m)))
-      else
-        Bind(Lebesgue(), x, m)
-      end if
+    elif integral = 0 then
+      Msum()
+    elif integral :: `+` then
+      Msum(op(map2(unintegrate, h, convert(integral, 'list'), context)))
     elif integral :: `*` then
-      (subintegral, weight) := selectremove(has, integral, h);
+      (subintegral, w) := selectremove(has, integral, h);
       if subintegral :: `*` then
         error "Nonlinear integral %1", integral
       end if;
-      Weight(weight, unintegrate(h, subintegral, context))
+      Weight(w, unintegrate(h, subintegral, context))
     elif integral :: t_pw then
       n := nops(integral);
-      else_context := context;
+      next_context := context;
       update_context := proc(c)
         local then_context;
-        then_context := [op(else_context), c];
-        else_context := [op(else_context), not c]; # Mutation!
+        then_context := [op(next_context), c];
+        next_context := [op(next_context), not c]; # Mutation!
         then_context
       end proc;
       piecewise(seq(piecewise(i::even,
                               unintegrate(h, op(i,integral),
                                           update_context(op(i-1,integral))),
                               i=n,
-                              unintegrate(h, op(i,integral), else_context),
+                              unintegrate(h, op(i,integral), next_context),
                               op(i,integral)),
                     i=1..n))
     else
@@ -164,56 +183,103 @@ NewSLO := module ()
     end if
   end proc;
 
+  recognize := proc(weight, x, lo, hi)
+    local de, Dx, f, w, res;
+    res := FAIL;
+    # no matter what, get the de.
+    # TODO: might want to switch from x=0 sometimes
+    de := get_de(weight, x, Dx, f);
+    if de :: 'Diffop(anything, anything)' then
+      res := recognize_de(op(de), Dx, f, x, lo, hi)
+    end if;
+    if res = FAIL then
+      w := simplify(weight * (hi - lo));
+      if not (w :: 'SymbolicInfinity') then
+        res := Recognized(Uniform(lo, hi), w)
+      end if
+    end if;
+    res
+  end proc;
+
   get_de := proc(dens, var, Dx, f)
-    local de, init, diffop;
+    :: Or(Diffop(anything, set(function=anything)), identical(FAIL));
+    local de, init;
     try
       de := gfun[holexprtodiffeq](dens, f(var));
-      if not (de = NULL) and not (de :: set) then
-        de := gfun[diffeqtohomdiffeq](de, f(var));
-      end if;
-      if de::set then
-        init, de := selectremove(type, de, `=`);
-        if nops(de)=1 then
-          de := de[1];
-          diffop := DEtools[de2diffop](de, f(var), [Dx, var]);
-          return Diffop(diffop, init)
+      if not (de = NULL) then
+        if not (de :: set) then
+          de := gfun[diffeqtohomdiffeq](de, f(var))
         end if;
-      elif not (de = NULL) then # no initial condition returned
-        diffop := DEtools[de2diffop](de, f(var), [Dx, var]);
-        return Diffop(diffop, {}); # should be {f(0)=0} ?
-      end if;
+        if not (de :: set) then
+          de := {de}
+        end if;
+        init, de := selectremove(type, de, `=`);
+        if nops(init) = 0 then
+          init := map((val -> f(val) = eval(dens, var=val)), {0, 1/2, 1})
+        end if;
+        if nops(de) = 1 then
+          return Diffop(DEtools[de2diffop](de[1], f(var), [Dx, var]), init)
+        end if
+      end if
     catch: # do nothing
     end try;
-    Nothing
+    FAIL
   end proc;
 
-  # density recognizer for reals
-  recognize_density := proc(diffop, init, Dx, var)
-    local a0, a1, scale, at0, mu, sigma, ii;
-    if degree(diffop, Dx) = 1 then
-      a0 := coeff(diffop, Dx, 0);
-      a1 := coeff(diffop, Dx, 1);
-      if degree(a0, var) = 1 and degree(a1, var) = 0 and nops(init) = 1 then
-        ii := rhs(init[1]);
-        scale := coeff(a0, var, 1);
-        mu := -coeff(a0, var, 0)/scale;
-        sigma := sqrt(coeff(a1, var, 0)/scale);
-        at0 := simplify(eval(ii/density[NormalD](mu, sigma)(0)));
-        return WeightedM(at0, NormalD(mu,sigma));
-      end if;
+  recognize_de := proc(diffop, init, Dx, f, var, lo, hi)
+    local dist, ii, constraints, c0, a0, a1, b0, b1, scale, y;
+    dist := FAIL;
+    if lo = -infinity and hi = infinity
+       and 1 = polymatch(diffop, Dx, 'a0', 'a1')
+       and 1 = polymatch(a0, var, 'b0', 'scale')
+       and 0 = polymatch(a1, var, 'b1') then
+      dist := Gaussian(-b0/scale, sqrt(b1/scale));
+    elif lo = 0 and hi = 1
+         and 1 = polymatch(diffop, Dx, 'a0', 'a1')
+         and 1 = polymatch(normal(a0*var*(1-var)/a1), var, 'b0', 'b1') then
+      dist := BetaD(1-b0, 1+b0+b1)
+    elif lo = 0 and hi = infinity
+         and 1 = polymatch(diffop, Dx, 'a0', 'a1')
+         and 1 >= polymatch(normal(subs(var=1/y, a0/a1)), y, 'b0', 'b1')
+         and b0 <> 0 then
+      dist := GammaD(1-b1, 1/b0)
     end if;
-    NULL;
+    if dist <> FAIL then
+      ii := map(convert, init, 'diff');
+      constraints := eval(ii, f = (x -> c0*density[op(0,dist)](op(dist))(x)));
+      c0 := eval(c0, solve(constraints, c0));
+      if not (has(c0, 'c0')) then
+        return Recognized(dist, c0)
+      end if
+    end if;
+    FAIL
   end proc;
 
-  density[NormalD] := proc(mu, sigma) proc(x)
+  polymatch := proc(f, x::name)
+    local a, d, i;
+    if not (f :: 'polynom'(anything, x)) then
+      return infinity
+    end if;
+    a := collect(f,x,normal);
+    d := degree(a,x);
+    if d >= _nrest then
+      return infinity
+    end if;
+    for i from 1 to _nrest do
+      assign(_rest[i], coeff(a,x,i-1))
+    end do;
+    return d
+  end proc;
+
+  density[Gaussian] := proc(mu, sigma) proc(x)
     1/sigma/sqrt(2)/sqrt(Pi)*exp(-(x-mu)^2/2/sigma^2)
   end proc end proc;
   density[BetaD] := proc(a, b) proc(x)
     x^(a-1)*(1-x)^(b-1)/Beta(a,b)
   end proc end proc;
   # Hakaru uses the alternate definition of gamma, so the args are backwards
-  density[GammaD] := proc(theta,k) proc(x)
-    x^(theta-1)/k^(theta-1)*exp(-x/k)/k/GAMMA(theta);
+  density[GammaD] := proc(shape,scale) proc(x)
+    x^(shape-1)/scale^shape*exp(-x/scale)/GAMMA(shape);
   end proc end proc;
 
   gensym := module()
