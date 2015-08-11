@@ -9,7 +9,7 @@ import qualified Control.Monad as M
 import Data.Functor.Identity
 import Data.Text hiding (foldr)
 
-import Text.Parsec
+import Text.Parsec hiding (Empty)
 import Text.Parsec.Text hiding (Parser())
 import Text.Parsec.Indentation
 import Text.Parsec.Indentation.Char
@@ -81,78 +81,78 @@ reservedOp = Tok.reservedOp lexer
 symbol :: Text -> Parser Text
 symbol = M.liftM pack . Tok.symbol lexer . unpack
 
-binary s f assoc = Ex.Infix (reservedOp s >> return f) assoc
-prefix s f = Ex.Prefix (reservedOp s >> return f )
+binop :: Text ->  AST' Text ->  AST' Text ->  AST' Text
+binop s x y = Op s `App` x `App` y
 
-table = [[prefix "+" id],
-         [binary "^"  Pow Ex.AssocLeft]
-        ,[binary "*"  Times Ex.AssocLeft,
-          binary "/"  Divide Ex.AssocLeft]
-        ,[binary "+"  Plus Ex.AssocLeft,
-          binary "-"  Minus Ex.AssocLeft]
-        ,[binary "<"  Lt_ Ex.AssocLeft,
-          binary "==" Eq_ Ex.AssocLeft]]
+binary s assoc = Ex.Infix (do reservedOp s
+                              return $ binop (pack s)) assoc
 
-unit_ :: Parser UExpr
-unit_ = do u <- string "()"
-           return Unit
+prefix s f = Ex.Prefix (reservedOp s >> return f)
 
-bool :: Parser UExpr
+table = [[prefix "+"  id],
+         [binary "^"  Ex.AssocLeft]
+        ,[binary "*"  Ex.AssocLeft,
+          binary "/"  Ex.AssocLeft]
+        ,[binary "+"  Ex.AssocLeft,
+          binary "-"  Ex.AssocLeft]
+        ,[binary "<"  Ex.AssocLeft,
+          binary "==" Ex.AssocLeft]]
+
+unit_ :: Parser (AST' a)
+unit_ = string "()" >> return Empty
+
+bool :: Parser (AST' Text)
 bool = do
   b <- try (symbol "True")
        <|> (symbol "False")
-  return $ Bool (b == "True")
+  return $ Op b
 
-int :: Parser UExpr
-int = do
+int :: Parser Value'
+int = withPos $ do
   n <- integer
-  return $ Int (fromInteger n)
+  return $ case (n < 0) of
+             True  -> Int (fromInteger n)
+             False -> Nat (fromInteger n)
 
-floating :: Parser UExpr
-floating = do
-  sign <- option 1 (do
-             {s <- oneOf "+-";
-              return $ if s == '-' then -1.0 else 1.0})
+floating :: Parser Value'
+floating = withPos $ do
+  sign <- option '+' (oneOf "+-")
   n <- float
-  return $ Double (n*sign)
+  return $ case sign of
+             '-' -> Real (-1.0*n)
+             '+' -> Prob n
 
-inf_ :: Parser UExpr
-inf_ = do
+inf_ :: Parser Value'
+inf_ = withPos $ do
   s <- option '+' (oneOf "+-")
   reserved "inf";
   return $ case s of
-             '-' -> NegInfinity
-             '+' -> Infinity
+             '-' -> Real (-1.0 / 0.0)
+             '+' -> Prob ( 1.0 / 0.0)
 
-var :: Parser UExpr
+var :: Parser (AST' Text)
 var = do
   x <- identifier
   return (Var x)
 
-list :: Parser UExpr
-list = do
-  l <- brackets $ commaSep op_expr
-  return $ foldr Cons Nil l
-
-pairs :: Parser UExpr
+pairs :: Parser (AST' Text)
 pairs = do
   l <- parens $ commaSep op_expr
-  return $ foldr Pair Unit l
+  return $ foldr (binop "Pair") Empty l
 
-op_factor :: Parser UExpr
-op_factor = try floating
-            <|> try inf_
+op_factor :: Parser (AST' Text)
+op_factor =     try (M.liftM Value floating)
+            <|> try (M.liftM Value inf_)
             <|> try unit_
-            <|> try int
+            <|> try (M.liftM Value int)
             <|> try bool
             <|> try var
             <|> try pairs
-            <|> try list
 
-op_expr :: Parser UExpr
+op_expr :: Parser (AST' Text)
 op_expr = Ex.buildExpressionParser table op_factor
 
-if_expr :: Parser UExpr
+if_expr :: Parser (AST' Text)
 if_expr = do
   reserved "if"
   test_expr <- expr -- localIndentation Ge (absoluteIndentation expr)
@@ -163,142 +163,81 @@ if_expr = do
   reserved "else"
   reservedOp ":"
   fexp <- expr -- localIndentation Ge (absoluteIndentation expr)
-  return $ If test_expr texp fexp
+  return $ (Op "if") `App` test_expr `App` texp  `App` fexp
 
-lam_expr :: Parser UExpr
+lam_expr :: Parser (AST' Text)
 lam_expr = do
    reserved "fn"
    x <- identifier
 
    reservedOp ":"
    body <- expr
-   return $ Lam (Var x) body
+   return $ Lam x body
 
-bind_expr :: Parser Dist
+bind_expr :: Parser (AST' Text)
 bind_expr = do
    x <- identifier
    reservedOp "<~"
-   v <- dist_expr
-
-   body <- dist_expr
-   return $ Bind (Var x) v body
-
-lebesgue_ :: Parser Dist
-lebesgue_ = do
-   reserved "lebesgue"
-   return Lebesgue
-
-counting_ :: Parser Dist
-counting_ = do
-   reserved "counting"
-   return Counting
-
-dirac_ :: Parser Dist
-dirac_ = do
-   reserved "return"
    v <- expr
-   return $ Dirac v
 
-uniform_ :: Parser Dist
-uniform_ = do
-   reserved "uniform"
-   Pair lo (Pair hi Unit) <- pairs
-   return $ Uniform lo hi
+   body <- expr
+   return $ Bind x v body
 
-normal_ :: Parser Dist
-normal_ = do
-   reserved "normal"
-   Pair mu (Pair sd Unit) <- pairs
-   return $ Normal mu sd
-
-categorical_ :: Parser Dist
-categorical_ = do
-   reserved "categorical"
-   Pair (Cons x xs) Unit <- pairs
-   return $ Categorical (Cons x xs)
-
-superpose_ :: Parser Dist
-superpose_ = do
-   reserved "superpose"
-   Pair (Cons x xs) Unit <- pairs
-   return $ Superpose (Cons x xs)
-
-beta_ :: Parser Dist
-beta_ = do
-   reserved "beta"
-   Pair a (Pair b Unit) <- pairs
-   return $ Beta a b
-
-gamma_ :: Parser Dist
-gamma_ = do
-   reserved "gamma"
-   Pair a (Pair b Unit) <- pairs
-   return $ Gamma a b
-
-poisson_ :: Parser Dist
-poisson_ = do
-   reserved "poisson"
-   Pair l Unit <- pairs
-   return $ Poisson l
-
-dist_expr :: Parser Dist
-dist_expr = lebesgue_
-        <|> counting_
-        <|> uniform_
-        <|> normal_
-        <|> categorical_
-        <|> superpose_
-        <|> beta_
-        <|> gamma_
-        <|> poisson_
-        <|> dirac_
-        <|> try bind_expr
-
-let_expr :: Parser UExpr
+let_expr :: Parser (AST' Text)
 let_expr = do
    x <- identifier
    reservedOp "="
    v <- expr
 
    body <- expr
-   return $ Let (Var x) v body
+   return $ Let x v body
 
-def_expr :: Parser UExpr
+def_expr :: Parser (AST' Text)
 def_expr = do
   reserved "def"
   name <- identifier
 
-  args <- parens basic_expr
+  args <- parens $ commaSep identifier
   reservedOp ":"
   
   body <- expr
   rest <- expr
 
-  return $ Let (Var name) (Lam args body) rest
+  return $ Let name (defargs args body) rest
 
-call_expr :: Parser UExpr
+defargs :: [Text] -> AST' Text -> AST' Text
+defargs (a:as) body = Lam a (defargs as body)
+defargs []     body = body 
+
+call_expr :: Parser (AST' Text)
 call_expr = do
   name <- identifier
   args <- parens basic_expr
-  return $ App (Var name) args
+  return $ App (Op name) args
 
-basic_expr :: Parser UExpr
+basic_expr :: Parser (AST' Text)
 basic_expr = try call_expr
          <|> try op_expr
  
-expr :: Parser UExpr
+expr :: Parser (AST' Text)
 expr = if_expr
    <|> lam_expr
    <|> def_expr
-   <|> try (dist_expr >>= return . Dist)
    <|> try let_expr
    <|> try basic_expr
  
 indentConfig :: Text -> IndentStream (CharIndentStream Text)
 indentConfig input = mkIndentStream 0 infIndentation True Ge (mkCharIndentStream input)
 
-parseHakaru :: Text -> Either ParseError UExpr
+parseHakaru :: Text -> Either ParseError (AST' Text)
 parseHakaru input
   = case runParser expr () "<input>" (indentConfig input) of
       Left err -> Left err
       Right a  -> Right a
+
+withPos :: Parser (Meta -> a) -> Parser a
+withPos x = do
+  s  <- getPosition
+  x' <- x
+  e  <- getPosition
+  return $ x' (Meta (s, e))
