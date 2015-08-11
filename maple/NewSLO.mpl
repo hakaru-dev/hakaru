@@ -1,9 +1,9 @@
 NewSLO := module ()
   option package;
-  local t_pw, gensym, density, recognize, get_de, recognize_de, polymatch,
+  local t_pw, gensym, density, recognize, get_de, recognize_de,
         Diffop, Recognized;
   export Integrand, applyintegrand,
-         Lebesgue, Uniform, Gaussian, BetaD, GammaD,
+         Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD,
          Ret, Bind, Msum, Weight, LO,
          HakaruToLO, integrate, LOToHakaru, unintegrate;
 
@@ -50,6 +50,10 @@ NewSLO := module ()
           x=op(1,m)..op(2,m)) / (op(2,m)-op(1,m))
     elif m :: 'Gaussian(anything, anything)' then
       x := gensym('xg');
+      Int(density[op(0,m)](op(m))(x) * applyintegrand(h, x),
+          x=-infinity..infinity)
+    elif m :: 'Cauchy(anything, anything)' then
+      x := gensym('xc');
       Int(density[op(0,m)](op(m))(x) * applyintegrand(h, x),
           x=-infinity..infinity)
     elif m :: 'BetaD(anything, anything)' then
@@ -186,8 +190,6 @@ NewSLO := module ()
   recognize := proc(weight, x, lo, hi)
     local de, Dx, f, w, res;
     res := FAIL;
-    # no matter what, get the de.
-    # TODO: might want to switch from x=0 sometimes
     de := get_de(weight, x, Dx, f);
     if de :: 'Diffop(anything, anything)' then
       res := recognize_de(op(de), Dx, f, x, lo, hi)
@@ -206,20 +208,16 @@ NewSLO := module ()
     local de, init;
     try
       de := gfun[holexprtodiffeq](dens, f(var));
-      if not (de = NULL) then
-        if not (de :: set) then
-          de := gfun[diffeqtohomdiffeq](de, f(var))
-        end if;
-        if not (de :: set) then
-          de := {de}
-        end if;
-        init, de := selectremove(type, de, `=`);
+      de := gfun[diffeqtohomdiffeq](de, f(var));
+      if not (de :: set) then
+        de := {de}
+      end if;
+      init, de := selectremove(type, de, `=`);
+      if nops(de) = 1 then
         if nops(init) = 0 then
           init := map((val -> f(val) = eval(dens, var=val)), {0, 1/2, 1})
         end if;
-        if nops(de) = 1 then
-          return Diffop(DEtools[de2diffop](de[1], f(var), [Dx, var]), init)
-        end if
+        return Diffop(DEtools[de2diffop](de[1], f(var), [Dx, var]), init)
       end if
     catch: # do nothing
     end try;
@@ -227,52 +225,45 @@ NewSLO := module ()
   end proc;
 
   recognize_de := proc(diffop, init, Dx, f, var, lo, hi)
-    local dist, ii, constraints, c0, a0, a1, b0, b1, scale, y;
+    local dist, ii, constraints, w, a0, a1, a, b0, b1, c0, c1, c2, loc;
     dist := FAIL;
     if lo = -infinity and hi = infinity
-       and 1 = polymatch(diffop, Dx, 'a0', 'a1')
-       and 1 = polymatch(a0, var, 'b0', 'scale')
-       and 0 = polymatch(a1, var, 'b1') then
-      dist := Gaussian(-b0/scale, sqrt(b1/scale));
+       and ispoly(diffop, 'linear', Dx, 'a0', 'a1') then
+      a := normal(a0/a1);
+      if ispoly(a, 'linear', var, 'b0', 'b1') then
+        dist := Gaussian(-b0/b1, sqrt(1/b1))
+      elif ispoly(numer(a), 'linear', var, 'b0', 'b1') and
+           ispoly(denom(a), 'quadratic', var, 'c0', 'c1', 'c2') then
+        loc := -b0/b1;
+        if Testzero(c1/c2 + 2*loc) then
+          dist := Cauchy(loc, sqrt(c0/c2-loc^2))
+        end if
+      end if;
     elif lo = 0 and hi = 1
-         and 1 = polymatch(diffop, Dx, 'a0', 'a1')
-         and 1 = polymatch(normal(a0*var*(1-var)/a1), var, 'b0', 'b1') then
+         and ispoly(diffop, 'linear', Dx, 'a0', 'a1')
+         and ispoly(normal(a0*var*(1-var)/a1), 'linear', var, 'b0', 'b1') then
       dist := BetaD(1-b0, 1+b0+b1)
     elif lo = 0 and hi = infinity
-         and 1 = polymatch(diffop, Dx, 'a0', 'a1')
-         and 1 >= polymatch(normal(subs(var=1/y, a0/a1)), y, 'b0', 'b1')
-         and b0 <> 0 then
-      dist := GammaD(1-b1, 1/b0)
+         and ispoly(diffop, 'linear', Dx, 'a0', 'a1')
+         and ispoly(normal(a0*var/a1), 'linear', var, 'b0', 'b1') then
+      dist := GammaD(1-b0, 1/b1)
     end if;
     if dist <> FAIL then
       ii := map(convert, init, 'diff');
-      constraints := eval(ii, f = (x -> c0*density[op(0,dist)](op(dist))(x)));
-      c0 := eval(c0, solve(constraints, c0));
-      if not (has(c0, 'c0')) then
-        return Recognized(dist, c0)
+      constraints := eval(ii, f = (x -> w*density[op(0,dist)](op(dist))(x)));
+      w := eval(w, solve(constraints, w));
+      if not (has(w, 'w')) then
+        return Recognized(dist, w)
       end if
     end if;
     FAIL
   end proc;
 
-  polymatch := proc(f, x::name)
-    local a, d, i;
-    if not (f :: 'polynom'(anything, x)) then
-      return infinity
-    end if;
-    a := collect(f,x,normal);
-    d := degree(a,x);
-    if d >= _nrest then
-      return infinity
-    end if;
-    for i from 1 to _nrest do
-      assign(_rest[i], coeff(a,x,i-1))
-    end do;
-    return d
-  end proc;
-
   density[Gaussian] := proc(mu, sigma) proc(x)
     1/sigma/sqrt(2)/sqrt(Pi)*exp(-(x-mu)^2/2/sigma^2)
+  end proc end proc;
+  density[Cauchy] := proc(loc,scale) proc(x)
+    1/Pi/scale/(1+((x-loc)/scale)^2)
   end proc end proc;
   density[BetaD] := proc(a, b) proc(x)
     x^(a-1)*(1-x)^(b-1)/Beta(a,b)
