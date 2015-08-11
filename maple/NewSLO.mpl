@@ -1,7 +1,7 @@
 NewSLO := module ()
   option package;
-  local t_pw, gensym, density, recognize, get_de, recognize_de,
-        Diffop, Recognized, Nothing;
+  local t_pw, gensym, density, recognize, get_de, recognize_de, polymatch,
+        Diffop, Recognized;
   export Integrand, applyintegrand,
          Lebesgue, Uniform, Gaussian, BetaD, GammaD,
          Ret, Bind, Msum, Weight, LO,
@@ -116,7 +116,7 @@ NewSLO := module ()
     local x, lo, hi, m, w, recognition, subintegral,
           n, i, next_context, update_context;
     if integral :: 'Or(Int(anything, name=anything..anything),
-                         int(anything, name=anything..anything))' then
+                       int(anything, name=anything..anything))' then
       x := gensym(op([2,1],integral));
       (lo, hi) := op(op([2,2],integral));
       next_context := [op(context), x::RealRange(Open(lo), Open(hi))];
@@ -185,14 +185,14 @@ NewSLO := module ()
 
   recognize := proc(weight, x, lo, hi)
     local de, Dx, f, w, res;
-    res := Nothing;
+    res := FAIL;
     # no matter what, get the de.
     # TODO: might want to switch from x=0 sometimes
     de := get_de(weight, x, Dx, f);
     if de :: 'Diffop(anything, anything)' then
-      res := recognize_de(op(de), Dx, f, weight, x, lo, hi)
+      res := recognize_de(op(de), Dx, f, x, lo, hi)
     end if;
-    if res = Nothing then
+    if res = FAIL then
       w := simplify(weight * (hi - lo));
       if not (w :: 'SymbolicInfinity') then
         res := Recognized(Uniform(lo, hi), w)
@@ -202,7 +202,7 @@ NewSLO := module ()
   end proc;
 
   get_de := proc(dens, var, Dx, f)
-    :: Or(Diffop(anything, set(function=anything)), Nothing);
+    :: Or(Diffop(anything, set(function=anything)), identical(FAIL));
     local de, init;
     try
       de := gfun[holexprtodiffeq](dens, f(var));
@@ -223,45 +223,28 @@ NewSLO := module ()
       end if
     catch: # do nothing
     end try;
-    Nothing
+    FAIL
   end proc;
 
-  recognize_de := proc(diffop, init, Dx, f, weight, var, lo, hi)
-    local dist, ii, constraints, c0, a0, a1, scale, mu, sigma, a, b, pp;
-    dist := Nothing;
-    if lo = -infinity and hi = infinity and degree(diffop, Dx) = 1 then
-      a0 := coeff(diffop, Dx, 0);
-      a1 := coeff(diffop, Dx, 1);
-      if degree(a0, var) = 1 and degree(a1, var) = 0 then
-        scale := coeff(a0, var, 1);
-        dist := Gaussian(-coeff(a0, var, 0)/scale,
-                         sqrt(coeff(a1, var, 0)/scale));
-      end if;
-    elif lo = 0 and hi = 1 then
-      pp := primpart(diffop, Dx);
-      if degree(pp, Dx) = 1 then
-        a0 := coeff(pp, Dx, 0);
-        a1 := coeff(pp, Dx, 1);
-        if degree(a0,var) = 1 and degree(a1,var) = 2
-           and normal(coeff(a1,var,0)) = 0
-           and normal(coeff(a1,var,2) + coeff(a1,var,1)) = 0 then
-          dist := BetaD(coeff(a0, var, 0)/coeff(a1, var, 2) + 1,
-                        -(coeff(a0, var, 1) +
-                          coeff(a0, var, 0))/coeff(a1, var, 2) + 1);
-        # degenerate case with b=1
-        elif degree(a0,var) = 0 and degree(a1,var) = 1
-             and normal(coeff(a1,var,0)) = 0 then
-          dist := BetaD(-coeff(a0, var, 0)/coeff(a1, var, 1) + 1, 1);
-        # degenerate case with a=1
-        elif degree(a0,var) = 0 and degree(a1,var) = 1
-             and normal(coeff(a1,var,1) + coeff(a1,var,0)) = 0 then
-          dist := BetaD(1, -coeff(a0, var, 0)/coeff(a1, var, 1) + 1);
-        end if;
-      end if;
-    elif lo = 0 and hi = infinity then
-      # TODO GammaD
+  recognize_de := proc(diffop, init, Dx, f, var, lo, hi)
+    local dist, ii, constraints, c0, a0, a1, b0, b1, scale, y;
+    dist := FAIL;
+    if lo = -infinity and hi = infinity
+       and 1 = polymatch(diffop, Dx, 'a0', 'a1')
+       and 1 = polymatch(a0, var, 'b0', 'scale')
+       and 0 = polymatch(a1, var, 'b1') then
+      dist := Gaussian(-b0/scale, sqrt(b1/scale));
+    elif lo = 0 and hi = 1
+         and 1 = polymatch(diffop, Dx, 'a0', 'a1')
+         and 1 = polymatch(normal(a0*var*(1-var)/a1), var, 'b0', 'b1') then
+      dist := BetaD(1-b0, 1+b0+b1)
+    elif lo = 0 and hi = infinity
+         and 1 = polymatch(diffop, Dx, 'a0', 'a1')
+         and 1 >= polymatch(normal(subs(var=1/y, a0/a1)), y, 'b0', 'b1')
+         and b0 <> 0 then
+      dist := GammaD(1-b1, 1/b0)
     end if;
-    if dist <> Nothing then
+    if dist <> FAIL then
       ii := map(convert, init, 'diff');
       constraints := eval(ii, f = (x -> c0*density[op(0,dist)](op(dist))(x)));
       c0 := eval(c0, solve(constraints, c0));
@@ -269,7 +252,23 @@ NewSLO := module ()
         return Recognized(dist, c0)
       end if
     end if;
-    Nothing
+    FAIL
+  end proc;
+
+  polymatch := proc(f, x::name)
+    local a, d, i;
+    if not (f :: 'polynom'(anything, x)) then
+      return infinity
+    end if;
+    a := collect(f,x,normal);
+    d := degree(a,x);
+    if d >= _nrest then
+      return infinity
+    end if;
+    for i from 1 to _nrest do
+      assign(_rest[i], coeff(a,x,i-1))
+    end do;
+    return d
   end proc;
 
   density[Gaussian] := proc(mu, sigma) proc(x)
