@@ -83,7 +83,7 @@ test1 = lam $ \x -> total (weight x)
 
 
 test2 :: TrivialABT '[] ('HMeasure 'HProb ':-> 'HProb)
-test2 = syn . Lam_ . bind x . total $ var x 
+test2 = syn . Lam_ . bind x . total $ var x
     where
     x = Variable (Name (Text.pack "x") 2) (SMeasure SProb)
 -- TODO: we'd rather use @lam $ \x -> total x@ but that causes 'binder' to throw a <<loop>> exception, presumably because 'expect' needs to force variable IDs to store them in the Env. Is there any way to work around that so we don't need to manually generate our own variable? Maybe by explicitly using the 'Expect' primop, and then performing the evaluation of that primop after 'binder' has finished constructing the first-order AST; but how can we specify that order of evaluation (except by making the evaluation of 'Expect' as 'expect' explicit)?
@@ -108,6 +108,12 @@ test5 =
             (\_ -> dirac unit)
             (\_ -> weight (prob_ 5) >> dirac unit)
 
+{-
+total (array (nat_ 1) (\x -> dirac x) ! nat_ 0) :: TrivialABT '[] 'HProb
+syn (Value_ (VProb LogFloat 1.0))
+
+total (if_ true (dirac unit) (weight (prob_ 42)))
+-}
 
 ----------------------------------------------------------------
 -- | Explicit proof that a given Hakaru type is impure. We use this
