@@ -120,7 +120,8 @@ NewSLO := module ()
     local x, lo, hi, m, w, recognition, subintegral,
           n, i, next_context, update_context;
     if integral :: 'Or(Int(anything, name=anything..anything),
-                       int(anything, name=anything..anything))' then
+                       int(anything, name=anything..anything))'
+       and not (has(op([2,2],integral), h)) then
       x := gensym(op([2,1],integral));
       (lo, hi) := op(op([2,2],integral));
       next_context := [op(context), x::RealRange(Open(lo), Open(hi))];
@@ -148,13 +149,8 @@ NewSLO := module ()
         Bind(Lebesgue(), x, m)
       end if
     elif integral :: 'applyintegrand(anything, anything)'
-         and op(1,integral) = h then
+         and op(1,integral) = h and not (has(op(2,integral), h)) then
       Ret(op(2,integral))
-    elif integral :: 'integrate(anything, anything)' then
-      x := gensym('x');
-      # TODO is there any way to enrich context in this case?
-      Bind(op(1,integral), x,
-           unintegrate(h, applyintegrand(op(2,integral), x), context))
     elif integral = 0 then
       Msum()
     elif integral :: `+` then
@@ -165,7 +161,9 @@ NewSLO := module ()
         error "Nonlinear integral %1", integral
       end if;
       Weight(w, unintegrate(h, subintegral, context))
-    elif integral :: t_pw then
+    elif integral :: t_pw
+         and `and`(seq(not (has(op(i,integral), h)),
+                       i=1..nops(integral)-1, 2)) then
       n := nops(integral);
       next_context := context;
       update_context := proc(c)
@@ -181,6 +179,12 @@ NewSLO := module ()
                               unintegrate(h, op(i,integral), next_context),
                               op(i,integral)),
                     i=1..n))
+    elif integral :: 'integrate(anything, anything)'
+         and not (has(op(1,integral), h)) then
+      x := gensym('x');
+      # TODO is there any way to enrich context in this case?
+      Bind(op(1,integral), x,
+           unintegrate(h, applyintegrand(op(2,integral), x), context))
     else
       # Failure: return residual LO
       LO(h, integral)
