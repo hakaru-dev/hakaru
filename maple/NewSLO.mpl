@@ -119,9 +119,8 @@ NewSLO := module ()
   unintegrate := proc(h :: name, integral, context :: list)
     local x, lo, hi, m, w, recognition, subintegral,
           n, i, next_context, update_context;
-    if integral :: 'Or(Int(anything, name=anything..anything),
-                       int(anything, name=anything..anything))'
-       and not (has(op([2,2],integral), h)) then
+    if integral :: 'And'('specfunc({Int,int})',
+                         'anyfunc'('anything','name'='range'('freeof'(h)))) then
       x := gensym(op([2,1],integral));
       (lo, hi) := op(op([2,2],integral));
       next_context := [op(context), x::RealRange(Open(lo), Open(hi))];
@@ -148,21 +147,20 @@ NewSLO := module ()
         end if;
         Bind(Lebesgue(), x, m)
       end if
-    elif integral :: 'applyintegrand(anything, anything)'
-         and op(1,integral) = h and not (has(op(2,integral), h)) then
+    elif integral :: 'applyintegrand'('identical'(h), 'freeof'(h)) then
       Ret(op(2,integral))
     elif integral = 0 then
       Msum()
     elif integral :: `+` then
       Msum(op(map2(unintegrate, h, convert(integral, 'list'), context)))
     elif integral :: `*` then
-      (subintegral, w) := selectremove(has, integral, h);
+      (subintegral, w) := selectremove(depends, integral, h);
       if subintegral :: `*` then
         error "Nonlinear integral %1", integral
       end if;
       Weight(w, unintegrate(h, subintegral, context))
     elif integral :: t_pw
-         and `and`(seq(not (has(op(i,integral), h)),
+         and `and`(seq(not (depends(op(i,integral), h)),
                        i=1..nops(integral)-1, 2)) then
       n := nops(integral);
       next_context := context;
@@ -179,8 +177,7 @@ NewSLO := module ()
                               unintegrate(h, op(i,integral), next_context),
                               op(i,integral)),
                     i=1..n))
-    elif integral :: 'integrate(anything, anything)'
-         and not (has(op(1,integral), h)) then
+    elif integral :: 'integrate'('freeof'(h), 'anything') then
       x := gensym('x');
       # TODO is there any way to enrich context in this case?
       Bind(op(1,integral), x,
