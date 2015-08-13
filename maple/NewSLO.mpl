@@ -26,7 +26,7 @@ NewSLO := module ()
     elif h :: procedure then
       h(x)
     else
-      'applyintegrand'(h, x)
+      'procname(_passed)'
     end if
   end proc;
 
@@ -82,7 +82,7 @@ NewSLO := module ()
       x := gensym('xa');
       'integrate'(m, Integrand(x, h(x)))
     else
-      'integrate'(m, h)
+      'procname(_passed)'
     end if
   end proc;
 
@@ -96,7 +96,7 @@ NewSLO := module ()
     elif m :: 'Ret(anything)' then
       eval(n, x = op(1,m)) # monad law: left identity
     else
-      'Bind'(m, x, n)
+      'procname(_passed)'
     end if;
   end proc;
 
@@ -106,7 +106,7 @@ NewSLO := module ()
     elif m :: 'Weight(anything, anything)' then
       'Weight'(p * op(1,m), op(2,m))
     else
-      'Weight'(p, m)
+      'procname(_passed)'
     end if;
   end proc;
 
