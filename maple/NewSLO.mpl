@@ -7,7 +7,7 @@ NewSLO := module ()
          Ret, Bind, Msum, Weight, LO,
          HakaruToLO, integrate, LOToHakaru, unintegrate;
 
-# FIXME Need eval/LO and eval/Integrand and eval/Bind to teach eval about our
+# FIXME Need {eval,depends}/{LO,Integrand,Bind} to teach eval about our
 # binders.  Both LO and Integrand bind from 1st arg to 2nd arg, whereas Bind
 # binds from 2nd arg to 3rd arg.
 
