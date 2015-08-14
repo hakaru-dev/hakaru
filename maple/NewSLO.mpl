@@ -105,7 +105,7 @@ NewSLO := module ()
     if p = 1 then
       m
     elif m :: 'Weight(anything, anything)' then
-      'Weight'(p * op(1,m), op(2,m))
+      Weight(p * op(1,m), op(2,m))
     else
       'procname(_passed)'
     end if;
