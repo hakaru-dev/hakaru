@@ -1,6 +1,6 @@
 NewSLO := module ()
   option package;
-  local t_pw, gensym, density, recognize, get_de, recognize_de,
+  local t_pw, gensym, density, factorize, recognize, get_de, recognize_de,
         Diffop, Recognized, verify_measure;
   export Integrand, applyintegrand,
          Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD,
@@ -47,8 +47,8 @@ NewSLO := module ()
           x=-infinity..infinity)
     elif m :: 'Uniform(anything, anything)' then
       x := gensym('xu');
-      Int(applyintegrand(h, x),
-          x=op(1,m)..op(2,m)) / (op(2,m)-op(1,m))
+      Int(applyintegrand(h, x) / (op(2,m)-op(1,m)),
+          x=op(1,m)..op(2,m))
     elif m :: 'Gaussian(anything, anything)' then
       x := gensym('xg');
       Int(density[op(0,m)](op(m))(x) * applyintegrand(h, x),
@@ -118,7 +118,7 @@ NewSLO := module ()
   end proc;
 
   unintegrate := proc(h :: name, integral, context :: list)
-    local x, lo, hi, m, w, recognition, subintegral,
+    local x, lo, hi, m, w, w0, recognition, subintegral,
           n, i, next_context, update_context;
     if integral :: 'And'('specfunc({Int,int})',
                          'anyfunc'('anything','name'='range'('freeof'(h)))) then
@@ -136,9 +136,11 @@ NewSLO := module ()
       recognition := recognize(w, x, lo, hi) assuming op(next_context);
       if recognition :: 'Recognized(anything, anything)' then
         # Recognition succeeded
-        Bind(op(1,recognition), x, Weight(op(2,recognition), m))
+        (w, w0) := factorize(op(2,recognition), x);
+        Weight(w0, Bind(op(1,recognition), x, Weight(w, m)))
       else
         # Recognition failed
+        (w, w0) := factorize(w, x);
         m := Weight(w, m);
         if hi <> infinity then
           m := piecewise(x < hi, m, Msum())
@@ -146,7 +148,7 @@ NewSLO := module ()
         if lo <> -infinity then
           m := piecewise(lo < x, m, Msum())
         end if;
-        Bind(Lebesgue(), x, m)
+        Weight(w0, Bind(Lebesgue(), x, m))
       end if
     elif integral :: 'applyintegrand'('identical'(h), 'freeof'(h)) then
       Ret(op(2,integral))
@@ -186,6 +188,17 @@ NewSLO := module ()
     else
       # Failure: return residual LO
       LO(h, integral)
+    end if
+  end proc;
+
+  factorize := proc(weight, x)
+    # return (weight, 1); # uncomment this to disable factorization
+    if weight :: `*` then
+      selectremove(depends, weight, x)
+    elif depends(weight, x) then
+      (weight, 1)
+    else
+      (1, weight)
     end if
   end proc;
 
