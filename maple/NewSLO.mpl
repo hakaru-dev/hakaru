@@ -295,23 +295,22 @@ NewSLO := module ()
   end proc;
 
   verify_measure := proc(m, n, v:='boolean')
-    local mv, x, i, j, k, matc, hing;
+    local mv, x, i, j, k;
     mv := measure(v);
     if verify(m, n, 'Bind'(mv, true, true)) then
       x := gensym(cat(op(2,m), "_", op(2,n), "_"));
-      verify(subs(op(2,m)=x, op(3,m)),
-             subs(op(2,n)=x, op(3,n)), mv)
+      thisproc(subs(op(2,m)=x, op(3,m)),
+               subs(op(2,n)=x, op(3,n)), v)
     elif m :: 'specfunc(Msum)' and n :: 'specfunc(Msum)'
          and nops(m) = nops(n) then
       k := nops(m);
-      (matc, hing) := GraphTheory[BipartiteMatching](GraphTheory[Graph]({
-        seq(seq(`if`(verify(op(i,m), op(j,n), mv), {i,-j}, NULL),
-                j=1..k), i=1..k)}));
-      verify(matc, k)
+      verify(k, GraphTheory[BipartiteMatching](GraphTheory[Graph]({
+                seq(seq(`if`(thisproc(op(i,m), op(j,n), v), {i,-j}, NULL),
+                        j=1..k), i=1..k)}))[1]);
     elif m :: t_pw and n :: t_pw and nops(m) = nops(n) then
       k := nops(m);
       for i to k do
-        if not (procname(op(i,m), op(i,n), `if`(i::even or i=k, mv, v))) then
+        if not (thisproc(op(i,m), op(i,n), `if`(i::even or i=k, mv, v))) then
           return false
         end if
       end do;
