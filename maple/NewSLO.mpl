@@ -1,11 +1,12 @@
 NewSLO := module ()
   option package;
   local t_pw, gensym, density, recognize, get_de, recognize_de,
-        Diffop, Recognized;
+        Diffop, Recognized, verify_measure;
   export Integrand, applyintegrand,
          Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD,
          Ret, Bind, Msum, Weight, LO,
-         HakaruToLO, integrate, LOToHakaru, unintegrate;
+         HakaruToLO, integrate, LOToHakaru, unintegrate,
+         TestHakaru, measure;
 
 # FIXME Need {eval,depends}/{LO,Integrand,Bind} to teach eval about our
 # binders.  Both LO and Integrand bind from 1st arg to 2nd arg, whereas Bind
@@ -273,6 +274,54 @@ NewSLO := module ()
   density[GammaD] := proc(shape,scale) proc(x)
     x^(shape-1)/scale^shape*exp(-x/scale)/GAMMA(shape);
   end proc end proc;
+
+# Testing
+
+  TestHakaru := proc(m,n:=m,f:=(lo->lo))
+    CodeTools[Test](LOToHakaru(f(HakaruToLO(m))), n, measure({boolean,equal}))
+  end proc;
+
+  verify_measure := proc(m, n, v:='boolean')
+    local mv, x, i, j, k, matc, hing;
+    mv := measure(v);
+    if verify(m, n, 'Bind'(mv, true, true)) then
+      x := gensym(cat(op(2,m), "_", op(2,n), "_"));
+      verify(subs(op(2,m)=x, op(3,m)),
+             subs(op(2,n)=x, op(3,n)), mv)
+    elif m :: 'specfunc(Msum)' and n :: 'specfunc(Msum)'
+         and nops(m) = nops(n) then
+      k := nops(m);
+      (matc, hing) := GraphTheory[BipartiteMatching](GraphTheory[Graph]({
+        seq(seq(`if`(verify(op(i,m), op(j,n), mv), {i,-j}, NULL),
+                j=1..k), i=1..k)}));
+      verify(matc, k)
+    elif m :: t_pw and n :: t_pw and nops(m) = nops(n) then
+      k := nops(m);
+      for i to k do
+        if not (procname(op(i,m), op(i,n), `if`(i::even or i=k, mv, v))) then
+          return false
+        end if
+      end do;
+      true
+    elif m :: 'LO(name, anything)' and n :: 'LO(name, anything)' then
+      x := gensym(cat(op(1,m), "_", op(1,n), "_"));
+      verify(subs(op(1,m)=x, op(2,m)),
+             subs(op(1,n)=x, op(2,n)), v)
+    else
+      verify(m, n, {v,
+        Lebesgue(),
+        Uniform(v, v),
+        Gaussian(v, v),
+        Cauchy(v, v),
+        BetaD(v, v),
+        GammaD(v, v),
+        Ret(mv),
+        Weight(v, mv)
+      })
+    end if
+  end proc;
+
+  VerifyTools[AddVerification](measure = verify_measure);
 
   gensym := module()
     export ModuleApply;
