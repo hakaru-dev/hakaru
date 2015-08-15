@@ -1015,6 +1015,7 @@ plate' v = reduce r z (mapV m v)
     m a = (array (nat_ 1) . const) <$> a
 
 
+-- TODO: use 'measure2_' instead? 
 -- BUG: remove the 'SingI' requirement!
 chain, chain'
     :: (ABT abt, SingI s, SingI a)
@@ -1026,9 +1027,9 @@ chain' v = reduce r z (mapV m v)
     where
     r x y = lam $ \s ->
             app x s >>= \v1s1 ->
-            unpair v1s1 $ \v1 s1 ->
+            v1s1 `unpair` \v1 s1 ->
             app y s1 >>= \v2s2 ->
-            unpair v2s2 $ \v2 s2 ->
+            v2s2 `unpair` \v2 s2 ->
             dirac $ pair (appendV v1 v2) s2
     z     = lam $ \s -> dirac (pair empty s)
     m a   = lam $ \s -> (`unpair` pair . array (nat_ 1) . const) <$> app a s

@@ -20,6 +20,8 @@
 --
 -- This is a fork of "Examples.EasierRoadmap" to work with our new
 -- AST. This module shouldn't actually be called what it is; it should keep the old name, once we switch everything over to using the new AST.
+--
+-- TODO: @runDisintegrate@, @simplify@, @density@, @runSample@
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.EasierRoadmap where
 
@@ -47,10 +49,8 @@ easierRoadmapProg1
         ('HMeasure (HPair (HPair 'HReal 'HReal) (HPair 'HProb 'HProb)))
 easierRoadmapProg1 =
     -- TODO: make 'uniform' polymorphic so it works on HProb too
-    uniform (real_ 3) (real_ 8) >>= \noiseT' ->
-    uniform (real_ 1) (real_ 4) >>= \noiseE' ->
-    let_ (unsafeProb noiseT') $ \noiseT ->
-    let_ (unsafeProb noiseE') $ \noiseE ->
+    unsafeProb <$> uniform (real_ 3) (real_ 8) >>= \noiseT ->
+    unsafeProb <$> uniform (real_ 1) (real_ 4) >>= \noiseE ->
     normal (real_ 0) noiseT >>= \x1 ->
     normal x1 noiseE >>= \m1 ->
     normal x1 noiseT >>= \x2 ->
@@ -63,17 +63,14 @@ easierRoadmapProg2
     => abt '[] (HPair 'HReal 'HReal)
     -> abt '[] ('HMeasure (HPair 'HProb 'HProb))
 easierRoadmapProg2 = \m1m2 -> 
-    -- lam $ \m1m2 ->
-    unpair m1m2 $ \m1 m2 ->
-    uniform (real_ 3) (real_ 8) >>= \noiseT' ->
-    uniform (real_ 1) (real_ 4) >>= \noiseE' ->
-    let_ (unsafeProb noiseT') $ \noiseT ->
-    let_ (unsafeProb noiseE') $ \noiseE ->
+    m1m2 `unpair` \m1 m2 ->
+    unsafeProb <$> uniform (real_ 3) (real_ 8) >>= \noiseT ->
+    unsafeProb <$> uniform (real_ 1) (real_ 4) >>= \noiseE ->
     normal (real_ 0) noiseT >>= \x1 ->
     weight (undefined x1 noiseE m1) >> -- TODO by disintegration
     normal x1 noiseT >>= \x2 ->
     weight (undefined x2 noiseE m2) >> -- TODO by disintegration
-    dirac (pair noiseT noiseE)
+    dirac (pair noiseT noiseE) -- BUG: can't use ($) because of precedence clashing with (>>)
 
 
 easierRoadmapProg2', easierRoadmapProg2'out
@@ -85,31 +82,30 @@ easierRoadmapProg2' =
     -- Using the irrefutable pattern @[d] = runDisintegrate...@ fails for me. ~wrengr
     -}
 easierRoadmapProg2'out =
-    -- According to PrettyPrint, as of 2015.06.29 13:29:32EDT
     (lam $ \_ -> -- TODO: this extraneous administrative redex should go away
     lam  $ \x1 ->
     x1 `unpair` \x2 x3 ->
-    uniform (real_ 3) (real_ 8) >>= \x4 -> -- TODO: polymorphic uniform for HProb
-    uniform (real_ 1) (real_ 4) >>= \x5 -> -- TODO: polymorphic uniform for HProb
+    unsafeProb <$> uniform (real_ 3) (real_ 8) >>= \x4 ->
+    unsafeProb <$> uniform (real_ 1) (real_ 4) >>= \x5 ->
     lebesgue >>= \x6 ->
     weight (exp (negate (x3 - x6) * (x3 - x6)
-                   / fromProb (prob_ 2 * unsafeProb x5 ^ nat_ 2)) -- TODO: replace with 'square'
-           / unsafeProb x5
+                   / fromProb (prob_ 2 * x5 ^ nat_ 2))
+           / x5
            / sqrt (prob_ 2 * pi)) >>
     lebesgue >>= \x7 ->
     weight (exp (negate (x6 - x7) * (x6 - x7)
-                   / fromProb (prob_ 2 * unsafeProb x4 ^ nat_ 2))
-           / unsafeProb x4
+                   / fromProb (prob_ 2 * x4 ^ nat_ 2))
+           / x4
            / sqrt (prob_ 2 * pi)) >>
     weight (exp (negate (x2 - x7) * (x2 - x7)
-                   / fromProb (prob_ 2 * unsafeProb x5 ^ nat_ 2))
-           / unsafeProb x5
+                   / fromProb (prob_ 2 * x5 ^ nat_ 2))
+           / x5
            / sqrt (prob_ 2 * pi)) >>
     weight (exp (negate x7 * x7
-                   / fromProb (prob_ 2 * unsafeProb x4 ^ nat_ 2))
-           / unsafeProb x4
+                   / fromProb (prob_ 2 * x4 ^ nat_ 2))
+           / x4
            / sqrt (prob_ 2 * pi)) >>
-    dirac (pair (unsafeProb x4) (unsafeProb x5)))
+    dirac (pair x4 x5))
     `app` unit
 
 
@@ -118,11 +114,9 @@ easierRoadmapProg3
     => abt '[] (HPair 'HReal 'HReal ':-> 'HMeasure (HPair 'HProb 'HProb))
 easierRoadmapProg3 =
     lam $ \m1m2 ->
-    unpair m1m2 $ \m1 m2 ->
-    uniform (real_ 3) (real_ 8) >>= \noiseT' ->
-    let_ (unsafeProb noiseT') $ \noiseT ->
-    uniform (real_ 1) (real_ 4) >>= \noiseE' ->
-    let_ (unsafeProb noiseE') $ \noiseE ->
+    m1m2 `unpair` \m1 m2 ->
+    unsafeProb <$> uniform (real_ 3) (real_ 8) >>= \noiseT ->
+    unsafeProb <$> uniform (real_ 1) (real_ 4) >>= \noiseE ->
     weight (undefined noiseT noiseE m1 m2) >> -- TODO by simplification
     dirac (pair noiseT noiseE)
 
@@ -140,6 +134,7 @@ easierRoadmapProg3'out
     -> abt '[] ('HMeasure (HPair 'HProb 'HProb))
 easierRoadmapProg3'out m1m2 =
     weight (prob_ 5) >>
+    -- HACK: N.B., this is the one place we don't use @(unsafeProb <$>)@
     uniform (real_ 3) (real_ 8) >>= \noiseT' ->
     uniform (real_ 1) (real_ 4) >>= \noiseE' ->
     weight (recip pi
@@ -169,26 +164,19 @@ proposal
     => abt '[] (HPair 'HReal 'HReal)
     -> abt '[] (HPair 'HProb 'HProb)
     -> abt '[] ('HMeasure (HPair 'HProb 'HProb))
-proposal _m1m2 ntne =
+proposal _ ntne =
     ntne `unpair` \noiseTOld noiseEOld ->
     superpose
         [ (prob_ 0.5,
-            uniform (real_ 3) (real_ 8) >>= \noiseT' ->
-            dirac (pair (unsafeProb noiseT') noiseEOld))
+            unsafeProb <$> uniform (real_ 3) (real_ 8) >>= \noiseT ->
+            dirac (pair noiseT noiseEOld))
         , (prob_ 0.5,
-            uniform (real_ 1) (real_ 4) >>= \noiseE' ->
-            dirac (pair noiseTOld (unsafeProb noiseE')))
+            unsafeProb <$> uniform (real_ 1) (real_ 4) >>= \noiseE ->
+            dirac (pair noiseTOld noiseE))
         ]
 
 
 -- The env thing is just a hack for dealing with the fact that free variables may change types. It's a huge tuple of all the freevars— eewww!! If we can get rid of that, then do so
---
--- This should be in a library somewhere, not auto-generated by Hakaru.
--- For this particular function, the problem causing us to need to
--- use rank-2 quantifiers is the use of 'density' which wants to
--- instantiate the @r'@ of the @target@. We're allowed to drop the
--- quantifier on @prop@ (that would just make the API uglier than
--- it already is).
 --
 -- BUG: the @env@ and @a@ types should be pure types (aka @t ~ Expect' t@ in the old parlance).
 -- BUG: we also need @Backward a a@ for 'density'
@@ -216,25 +204,22 @@ easierRoadmapProg4
         ':-> HPair 'HProb 'HProb
         ':-> 'HMeasure (HPair 'HProb 'HProb))
 easierRoadmapProg4 = 
-    -- TODO: syntactic support for multi-lambdas
     lam $ \m1m2 ->
     lam $ \ntne ->
-    unpair m1m2 $ \m1 m2 ->
-    unpair ntne $ \noiseTOld noiseEOld ->
+    m1m2 `unpair` \m1 m2 ->
+    ntne `unpair` \noiseTOld noiseEOld ->
     bern (prob_ 0.5) >>= \b ->
     (if_ b
-      ( uniform (real_ 3) (real_ 8) >>= \noiseT' ->
-        let_ (unsafeProb noiseT') $ \noiseT ->
+      ( unsafeProb <$> uniform (real_ 3) (real_ 8) >>= \noiseT ->
         dirac $ pair noiseT noiseEOld)
-      ( uniform (real_ 1) (real_ 4) >>= \noiseE' ->
-        let_ (unsafeProb noiseE') $ \noiseE ->
+      ( unsafeProb <$> uniform (real_ 1) (real_ 4) >>= \noiseE ->
         dirac $ pair noiseTOld noiseE)
     ) >>= \ntne' ->
     bern (min (prob_ 1) (easyDens m1 m2 ntne' / easyDens m1 m2 ntne)) >>= \accept ->
     dirac $ if_ accept ntne' ntne
     where
     easyDens m1 m2 ntne =
-        unpair ntne $ \nt ne ->
+        ntne `unpair` \nt ne ->
         let_ (fromProb nt) $ \nt' ->
         let_ (fromProb ne) $ \ne' ->
         recip pi
@@ -394,19 +379,21 @@ easierRoadmapProg4'out =
         )]
 
 -- BUG: remove the SingI requirement coming from (>>=)
+-- TODO: this is essentially @replicateM@, just with a better argument order. When adding this to whatever library, we should call it something like that.
 makeChain
     :: (ABT abt, SingI a)
-    => abt '[] (a ':-> 'HMeasure a)
-    -> abt '[] 'HNat
+    => abt '[] 'HNat
     -> abt '[] a
+    -> abt '[] (a ':-> 'HMeasure a)
     -> abt '[] ('HMeasure ('HArray a))
-makeChain m n s =
-    chain (array n $ \ _ ->
-            lam $ \ss ->
-            app m ss >>= \s' ->
-            dirac $ pair s' s')
-        `app` s >>= \vs' ->
-    dirac (fst vs')
+makeChain n s0 m =
+    fst <$>
+        chain (array n $ \ _ ->
+            lam $ \s' ->
+            dup <$> (m `app` s'))
+        `app` s0
+    where
+    dup x = pair x x
 
 -- "Language.Hakaru.Sample"
 runSample
@@ -419,7 +406,6 @@ runEasierRoadmapProg4
     :: (ABT abt)
     => IO (Maybe (abt '[] ('HArray (HPair 'HProb 'HProb))))
 runEasierRoadmapProg4 =
-    runSample $ makeChain
-        (easierRoadmapProg4 `app` pair (real_ 0) (real_ 1))
-        (nat_ 20)
-        (pair (prob_ 4) (prob_ 2))
+    runSample $
+        makeChain (nat_ 20) (pair (prob_ 4) (prob_ 2))
+            (easierRoadmapProg4 `app` pair (real_ 0) (real_ 1))
