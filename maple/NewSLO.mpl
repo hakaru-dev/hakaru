@@ -1,7 +1,8 @@
 NewSLO := module ()
   option package;
-  local t_pw, gensym, density, factorize, recognize, get_de, recognize_de,
-        Diffop, Recognized, verify_measure;
+  local t_pw, gensym, density, unweight, factorize,
+        recognize, get_de, recognize_de, Diffop, Recognized,
+        verify_measure;
   export Integrand, applyintegrand,
          Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD,
          Ret, Bind, Msum, Weight, LO,
@@ -104,6 +105,8 @@ NewSLO := module ()
   Weight := proc(p, m)
     if p = 1 then
       m
+    elif p = 0 then
+      Msum()
     elif m :: 'Weight(anything, anything)' then
       Weight(p * op(1,m), op(2,m))
     else
@@ -127,12 +130,7 @@ NewSLO := module ()
       next_context := [op(context), x::RealRange(Open(lo), Open(hi))];
       # TODO: enrich context with x (measure class lebesgue)
       subintegral := eval(op(1,integral), op([2,1],integral) = x);
-      m := unintegrate(h, subintegral, next_context);
-      if m :: 'Weight(anything, anything)' then
-        (w, m) := op(m)
-      else
-        w := 1
-      end if;
+      (w, m) := unweight(unintegrate(h, subintegral, next_context));
       recognition := recognize(w, x, lo, hi) assuming op(next_context);
       if recognition :: 'Recognized(anything, anything)' then
         # Recognition succeeded
@@ -191,6 +189,19 @@ NewSLO := module ()
     end if
   end proc;
 
+  unweight := proc(m)
+    local unweights, total;
+    if m :: 'Weight(anything, anything)' then
+      op(m)
+    elif m :: 'specfunc(Msum)' then
+      total := `+`(op(map((mi -> unweight(mi)[1]), m)));
+      (total, map((mi -> Weight(1/total, mi)), m))
+    else
+      # TODO: Better weight estimate for piecewise & density-recognition cases?
+      (1, m)
+    end if;
+  end proc;
+
   factorize := proc(weight, x)
     # return (weight, 1); # uncomment this to disable factorization
     if weight :: `*` then
@@ -211,7 +222,7 @@ NewSLO := module ()
     end if;
     if res = FAIL then
       w := simplify(weight * (hi - lo));
-      if not (w :: 'SymbolicInfinity') then
+      if not (w :: {'SymbolicInfinity', 'undefined'}) then
         res := Recognized(Uniform(lo, hi), w)
       end if
     end if;
