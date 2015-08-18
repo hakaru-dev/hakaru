@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.07.15
+--                                                    2015.08.14
 -- |
 -- Module      :  Language.Hakaru.Syntax.AST
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -404,6 +404,11 @@ data PrimOp :: Hakaru -> * where
         :: !(Sing a)
         -> PrimOp ('HMeasure a ':-> (a ':-> 'HProb) ':-> 'HProb)
 
+    Disintegrate
+        :: !(Sing a)
+        -> !(Sing b)
+        -> PrimOp ('HMeasure (HPair a b) ':-> a ':-> 'HMeasure b)
+
 deriving instance Eq   (PrimOp a)
 -- TODO: instance Read (PrimOp a)
 deriving instance Show (PrimOp a)
@@ -480,6 +485,9 @@ sing_PrimOp (Erf theCont) =
     in  a `SFun` a
 sing_PrimOp (Expect a) =
     SMeasure a `SFun` (a `SFun` SProb) `SFun` SProb
+sing_PrimOp (Disintegrate a b) =
+    SMeasure (sPair a b) `SFun` a `SFun` SMeasure b
+
 
 ----------------------------------------------------------------
 -- TODO: move the rest of the old Mochastic class into here?
@@ -1041,6 +1049,11 @@ data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         -> AST abt ('HMeasure a)
 
 
+    -- -- Other oddities
+    -- | Arbitrary choice between equivalent programs
+    Lub_ :: [abt '[] a] -> AST abt a
+
+
 ----------------------------------------------------------------
 -- N.B., having a @singAST :: AST abt a -> Sing a@ doesn't make
 -- sense: That's what 'inferType' is for, but not all terms can be
@@ -1073,7 +1086,7 @@ instance Show2 abt => Show1 (AST abt) where
         UnsafeFrom_ c e      -> showParen_02  p "UnsafeFrom_" c e
         Empty_               -> showString      "Empty_"
         Array_      e1 e2    -> showParen_22  p "Array_"      e1 e2
--- BUG: with 'showParen_1' could not deduce (Show1 (abt '[])) from (Show2 abt). But with 'showParen_2' could not deduce (Show2 Datum)...
+-- BUG: with 'showParen_1' or 'showParen_0' could not deduce (Show1 (abt '[])) from (Show2 abt). But with 'showParen_2' could not deduce (Show2 Datum)...
 --        Datum_      d        -> showParen_1   p "Datum_"      d
         Case_       e bs     ->
             showParen (p > 9)
@@ -1090,6 +1103,11 @@ instance Show2 abt => Show1 (AST abt) where
                 . showListWith
                     (\(e1,e2) -> showTuple [shows2 e1, shows2 e2])
                     pes
+                )
+        Lub_ es       ->
+            showParen (p > 9)
+                ( showString "Lub_ "
+                . showList2 es
                 )
 
 instance Show2 abt => Show (AST abt a) where
@@ -1116,6 +1134,7 @@ instance Functor21 AST where
     fmap21 _ (Measure_    o)        = Measure_    o
     fmap21 f (Bind_       e1 e2)    = Bind_       (f e1) (f e2)
     fmap21 f (Superpose_  pes)      = Superpose_  (map (f *** f) pes)
+    fmap21 f (Lub_        es)       = Lub_        (map f es)
 
 
 ----------------------------------------------------------------
@@ -1137,6 +1156,7 @@ instance Foldable21 AST where
     foldMap21 _ (Measure_    _)        = mempty
     foldMap21 f (Bind_       e1 e2)    = f e1 `mappend` f e2
     foldMap21 f (Superpose_  pes)      = F.foldMap (\(e1,e2) -> f e1 `mappend` f e2) pes
+    foldMap21 f (Lub_        es)       = F.foldMap f es -- BUG: really, to handle Lub in a sensible way, we need to adjust Foldable so that it uses a semiring or something; so that we can distinguish \"multiplication\" from \"addition\".
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

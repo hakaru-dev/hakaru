@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.08.11
+--                                                    2015.08.18
 -- |
 -- Module      :  Language.Hakaru.Syntax.EasierRoadmap
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -21,7 +21,8 @@
 -- This is a fork of "Examples.EasierRoadmap" to work with our new
 -- AST. This module shouldn't actually be called what it is; it should keep the old name, once we switch everything over to using the new AST.
 --
--- TODO: @runDisintegrate@, @simplify@, @density@, @runSample@
+-- TODO: come up with a story for @simplify@, @runSample@
+-- TODO: actually finish implementing "Language.Hakaru.Syntax.Disintegrate"
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.EasierRoadmap where
 
@@ -32,6 +33,7 @@ import Language.Hakaru.Syntax.TypeEq (SingI)
 import Language.Hakaru.Syntax.HClasses (HSemiring_)
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Prelude
+import Language.Hakaru.Syntax.Disintegrate
 
 {-
 import Language.Hakaru.Syntax
@@ -77,10 +79,8 @@ easierRoadmapProg2', easierRoadmapProg2'out
     :: (ABT abt)
     => abt '[] (HPair 'HReal 'HReal ':-> 'HMeasure (HPair 'HProb 'HProb))
 easierRoadmapProg2' =
-    error "TODO" {-
-    (head $ runDisintegrate $ \_ -> easierRoadmapProg1) `app` unit
-    -- Using the irrefutable pattern @[d] = runDisintegrate...@ fails for me. ~wrengr
-    -}
+    determine (disintegrate easierRoadmapProg1)
+    -- nee @head $ runDisintegrate $ \_ -> easierRoadmapProg1) `app` unit@
 easierRoadmapProg2'out =
     (lam $ \_ -> -- TODO: this extraneous administrative redex should go away
     lam  $ \x1 ->
@@ -176,26 +176,25 @@ proposal _ ntne =
         ]
 
 
--- The env thing is just a hack for dealing with the fact that free variables may change types. It's a huge tuple of all the freevars— eewww!! If we can get rid of that, then do so
+-- The env thing is just a hack for dealing with the fact that free variables may change types. It's a huge tuple of all the freevars— eewww!! If we can get rid of that, then do so. N.B., the proposal ignores the @env@ argument; whereas the target distribution needs it, but can project out the components statically in order to return the measure.
 --
 -- BUG: the @env@ and @a@ types should be pure types (aka @t ~ Expect' t@ in the old parlance).
--- BUG: we also need @Backward a a@ for 'density'
 -- BUG: get rid of the SingI requirements from using 'lam'
-mh  :: (ABT abt, SingI env, SingI a)
+mh  :: (ABT abt, SingI env, SingI a, Backward a a)
     => (abt '[] env -> abt '[] a -> abt '[] ('HMeasure a))
     -> (abt '[] env -> abt '[] ('HMeasure a))
     -> abt '[] (env ':-> a ':-> 'HMeasure (HPair a 'HProb))
 mh prop target =
     lam $ \env ->
-    let_ (lam (d env)) $ \mu ->
+    let_ (determine . density $ target env) $ \mu ->
     lam $ \old ->
         prop env old >>= \new ->
-        dirac (pair new (mu `app` {-pair-} new {-old-} / mu `app` {-pair-} old {-new-}))
-    where
-    d:_ = error "TODO: density" (\env -> {-bindx-} (target env) {-(prop env)-})
+        dirac (pair new (mu `app` new / mu `app` old))
+
 
 sq :: (ABT abt, HSemiring_ a) => abt '[] a -> abt '[] a
 sq x = x * x -- TODO: use 'square' instead
+
 
 easierRoadmapProg4
     :: (ABT abt)

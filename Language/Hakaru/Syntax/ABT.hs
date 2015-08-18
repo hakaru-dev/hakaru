@@ -73,7 +73,6 @@ module Language.Hakaru.Syntax.ABT
 
 import           Data.Typeable     (Typeable)
 import           Data.Text         (Text)
-import           Data.Sequence     (Seq)
 import           Data.Set          (Set)
 import qualified Data.Set          as Set
 import           Data.Function     (on)
@@ -667,7 +666,7 @@ maxBind = go_View . viewABT
     go_AST (Fix_        e)        = maxBind e
     go_AST (Ann_        _  e)     = maxBind e
     go_AST (PrimOp_     _)        = 0
-    go_AST (NaryOp_     _  es)    = go_Sequence es
+    go_AST (NaryOp_     _  es)    = go_Foldable es
     go_AST (Value_      _)        = 0
     go_AST (CoerceTo_   _  e)     = maxBind e
     go_AST (UnsafeFrom_ _  e)     = maxBind e
@@ -678,6 +677,7 @@ maxBind = go_View . viewABT
     go_AST (Measure_    _)        = 0
     go_AST (Bind_       e1 e2)    = maxBind e1 `max` maxBind e2
     go_AST (Superpose_  pes)      = go_Pairs pes
+    go_AST (Lub_        es)       = go_Foldable es
 
     go_DatumCode :: (ABT abt) => DatumCode xss (abt '[]) a -> Nat
     go_DatumCode (Inr d) = go_DatumCode   d
@@ -693,8 +693,8 @@ maxBind = go_View . viewABT
 
     -- HACK: can't use 'foldMap21' unless we newtype wrap up the Nats to say which monoid we mean.
     -- N.B., the Prelude's 'maximum' throws an error on empty lists!
-    go_Sequence :: (ABT abt) => Seq (abt '[] a) -> Nat
-    go_Sequence =
+    go_Foldable :: (ABT abt, F.Foldable f) => f (abt '[] a) -> Nat
+    go_Foldable =
         F.foldl' (\n e -> n `max` maxBind e) 0
     go_Pairs :: (ABT abt) => [(abt '[] a, abt '[] b)] -> Nat
     go_Pairs =
