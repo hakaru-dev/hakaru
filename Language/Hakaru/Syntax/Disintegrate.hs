@@ -83,6 +83,7 @@ density
 density m =
     lam $ \x -> total (conditionalize x m)
     -- BUG: we need to wrap @x@ in the @scalar0@ wrapper before handing it to 'conditionalize'
+    -- @scalar0@ means forward is no-op and backward is bot.
 {-
     [ \x -> total (d `app` x)
     | d <- runCompose $
@@ -355,6 +356,7 @@ evaluate (Var x) = M $ \c h ->
     Found h1 binding h2 ->
         case binding of
         SBind _x e ->
+            -- This is the only line with \"side effects\"
             unM (perform e) (\v h1' -> c v (glue h1' (SLet x v) h2)) h1
         SLeft _x e ->
             unM (evaluate e) (\v -> unleft v (\e' ->

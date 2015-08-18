@@ -138,7 +138,7 @@ easierRoadmapProg3'out
     -> abt '[] ('HMeasure (HPair 'HProb 'HProb))
 easierRoadmapProg3'out m1m2 =
     weight (prob_ 5) >>
-    -- HACK: N.B., this is the one place we don't use @(unsafeProb <$>)@
+    -- HACK: N.B., this is the one place we don't use @(unsafeProb <$>)@. Is only a concern for when implementing Prob as actually in the log-domain
     uniform (real_ 3) (real_ 8) >>= \noiseT' ->
     uniform (real_ 1) (real_ 4) >>= \noiseE' ->
     weight (recip pi
@@ -180,6 +180,7 @@ proposal ntne =
 
 
 
+-- We don't do the accept\/reject part of MCMC here, because @min@ and @bern@ don't do well in @simplify@! So we'll be passing the resulting AST of 'mh' to 'simplify' before plugging that into @mcmc@; that's why 'easierRoadmapProg4' and 'easierRoadmapProg4'' have different types.
 -- TODO: the @a@ type should be pure (aka @a ~ Expect' a@ in the old parlance).
 -- BUG: get rid of the SingI requirements due to using 'lam'
 mh  :: (ABT abt, SingI a, Backward a a)
@@ -424,3 +425,10 @@ runEasierRoadmapProg4' =
         let_ (mh proposal (target `app` m1m2)) $ \f ->
         makeChain (nat_ 20) (pair (prob_ 4) (prob_ 2)) $
             lam (\ntne -> fst <$> f `app` ntne)
+            {-
+            -- TODO:
+            lam $ \ntne -> 
+            (f `app` ntne) `unpair` \ntne' ratio ->
+            bern (prob_ 1 `min` ratio) >>= \accept ->
+            dirac $ if_ accept ntne' ntne
+            -}
