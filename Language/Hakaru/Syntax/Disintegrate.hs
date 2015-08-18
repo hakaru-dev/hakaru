@@ -91,7 +91,7 @@ density m =
         conditionalize (lazy . return $ Value x) m
     ]
 === {assuming: (`app` x) <$> runCompose f == runCompose (f `app` x) }
-    lam $ \x -> 
+    lam $ \x ->
     total $
     runCompose $
     runLazy $
@@ -209,12 +209,85 @@ instance (Backward a x, Backward b y)
 
 ----------------------------------------------------------------
 {-
-data Heap s abt =
+-- | A location is essentially the same thing as a variable (namely
+-- for variable bound to some value), except that we brand it with
+-- the @s@ to keep track of the 'Context' it belongs to.
+newtype Loc s (a :: Hakaru) = Loc Nat
+    deriving (Show)
 
-fromHnf :: (ABT abt) => Hnf abt a -> abt '[] a
+data Locs s (xs :: [Hakaru]) where
+    LNil  :: Locs s '[]
+    LCons :: Loc s x -> Locs s xs -> Locs s (x ': xs)
+
+-- | A single statement in the @HMeasure@ monad, where bound variables
+-- are considered part of the \"statement\" that binds them rather
+-- than part of the continuation. Thus, non-binding statements like
+-- @Weight@ are also included here.
+--
+-- This type was formerly called @Binding@, but that is inaccurate
+-- since it also includes non-binding statements.
+data Statement s abt where
+    SBind :: Loc s a -> Lazy s abt a -> Statement s abt
+    SLet  :: Loc s a -> Hnf (L s abt) a -> Statement s abt
+    SCase :: Locs s xs -> Pattern xs a -> Lazy s abt a -> Statement s abt
+    SWeight :: Lazy s abt 'HProb -> Statement s abt
+
+-- | An ordered collection of statements representing the context
+-- surrounding the current focus of our program transformation.
+-- That is, since some transformations work from the bottom up, we
+-- need to keep track of the statements we passed along the way
+-- when reaching for the bottom.
+--
+-- This type was formerly called @Heap@ (presumably due to the
+-- 'Statement' type being called @Binding@) but that seems like a
+-- misnomer to me since this really has nothing to do with allocation
+-- and does not allow reordering of components as is usually allowed
+-- in heaps.
+data Context s abt = Context
+    { freshNat   :: {-# UNPACK #-} !Nat
+    , statements :: [Statement s abt]
+    }
+
+freshLoc :: M s abt (Loc s a)
+freshLoc = M $ \c h@Context{freshNat=n} -> c (Loc n) h{freshNat = succ n}
+
+store :: Statement s abt -> M s abt ()
+store entry = M $ \c h -> c () h{statements = entry : statements h}
+
+update :: Loc s a -> Hnf (L s abt) a -> M s abt ()
+update l v = store (SLet l v)
+
+data Hnf rec a where
+    -- 'Value'-like things:
+    HnfNat  :: {-# UNPACK #-} !Natural     -> Hnf rec 'HNat
+    HnfInt  :: {-# UNPACK #-} !Integer     -> Hnf rec 'HInt
+    HnfProb :: {-# UNPACK #-} !PosRational -> Hnf rec 'HProb
+    HnfReal :: {-# UNPACK #-} !Rational    -> Hnf rec 'HReal
+    HnfDatum
+        :: {-# UNPACK #-} !(Datum rec ('HData t (Code t)))
+        -> Hnf rec ('HData t (Code t))
+
+    -- Other stuff: (TODO: should probably be separated out, since this doesn't really fit with our usual notion of head-normal forms...)
+    HnfMeasure :: rec a -> Hnf rec ('HMeasure a) -- TODO: not sure what's going on here...
+    HnfArray :: rec 'HInt -> (rec 'HInt -> rec a) -> Hnf rec ('HArray a)
+    -- TODO: shouldn't there be an @HnfLam@? (renaming to Whnf as appropriate)
+    
+    -- Neutral terms: (TODO: should we rename the type? These aren't typically considered part of head-normal form since they're not heads; albeit they are normal forms...)
+    HnfNeutral :: abt '[] a -> Hnf rec a -- BUG: how to capture that @abt@ in the type without making things too ugly for the case where @rec ~ Lazy s (abt '[])@ ?
+
+
+-- | formerly called @forget@, but this seems like a better name
+fromHnf :: (ABT abt) => Hnf (abt '[]) a -> abt '[] a
+fromHnf (HnfNat  n) = nat_ n
+fromHnf (HnfInt  i) = int_ i
+fromHnf (HnfProb p) = prob_ p
+fromHnf (HnfReal r) = real_ r
+fromHnf (HnfDatum d) = datum_ d
+fromHnf (HnfNeutral e) = e
+fromHnf _ = error "fromHnf: these cases should never be reached"
 
 -- TODO: is that actually Hnf like the paper says? or is it just any term?
-type Ans s abt a = Heap s abt -> Hnf abt ('HMeasure a)
+type Ans s abt a = Context s abt -> Hnf (L s abt) ('HMeasure a)
 
 data M s abt x = M { unM :: forall a. (x -> Ans s abt a) -> Ans s abt a }
 
@@ -243,20 +316,108 @@ disintegrate
     :: (ABT abt, SingI a, SingI b) -- Backward a a
     => abt '[] ('HMeasure (HPair a b))
     -> abt '[] (a ':-> 'HMeasure b) -- this Hakaru function is measurable
-disintegrate m = 
+disintegrate m =
     lam $ \a ->
     fromHnf $ unM (perform m) (\ab ->
       unM (constrainValue (fst ab) a) (\h' ->
-        residuate h' >> dirac (snd ab)))
-      emptyHeap
+        residuate h' `bind_` dirac (snd ab)))
+      emptyContext
+
+-- TODO: should that actually be Hnf or are neutral terms also allowed?
+perform  :: abt '[] ('HMeasure a) -> M s abt (Hnf (abt '[]) a)
+perform u | atomic u    = M $ \c h -> u `bind` \z -> c z h
+perform Lebesgue        = M $ \c h -> Lebesgue `bind` \z -> c z h
+perform (Uniform lo hi) = M $ \c h -> Uniform lo hi `bind` \z -> c z h
+perform (Dirac e)       = evaluate e
+perform (Bind g e)      = M $ \c h -> unM (perform e) c (h `snoc` g) -- TODO: move the bound variable from @e@ into the binding of @g@ we push on the heap
+perform (Superpose es)  = Superpose Haskell.<$> T.traverse perform es
+perform e | not (hnf e) = M $ \c h -> unM (evaluate e) (\m -> unM (perform m) c) h
 
 -- TODO: should that actually be Hnf or are neutral terms also allowed?
 evaluate :: abt '[] a -> M s abt (Hnf (abt '[]) a)
-perform  :: abt '[] ('HMeasure a) -> M s abt (Hnf (abt '[]) a)
+evaluate v | hnf v = M $ \c h -> c v h
+evaluate (Fst e) | not (atomic e) = M $ \c h -> unM (evaluate e) (\v -> evaluate (fst v) c) h
+evaluate (Snd e) | not (atomic e) = M $ \c h -> unM (evaluate e) (\v -> evaluate (snd v) c) h
+evaluate (Negate e) = M $ \c h -> unM (evaluate e) (\v -> c (negate v)) h
+evaluate (Recip e) = M $ \c h -> unM (evaluate e) (\v -> c (recip v)) h
+evaluate (Plus e1 e2) =
+    M $ \c h -> unM (evaluate e1) (\v1 ->
+    unM (evaluate e2) (\v2 -> c (e1 + e2))) h
+evaluate (Times e1 e2) =
+    M $ \c h -> unM (evaluate e1) (\v1 ->
+    unM (evaluate e2) (\v2 -> c (e1 * e2))) h
+evaluate (LE e1 e2) =
+    M $ \c h -> unM (evaluate e1) (\v1 ->
+    unM (evaluate e2) (\v2 -> c (e1 <= e2))) h
+evaluate (Var x) = M $ \c h ->
+    case lookup x h of
+    Missing -> error "evaluate: variable is missing in heap!"
+    Found h1 binding h2 ->
+        case binding of
+        SBind _x e ->
+            unM (perform e) (\v h1' -> c v (glue h1' (SLet x v) h2)) h1
+        SLeft _x e ->
+            unM (evaluate e) (\v -> unleft v (\e' ->
+            unM (evaluate e') (\v' h1' -> c v (glue h1' (SLet x v) h2))) h1
+        SRight _x e ->
+            unM (evaluate e) (\v -> unright v (\e' ->
+            unM (evaluate e') (\v' h1' -> c v (glue h1' (SLet x v) h2))) h1
 
--- TODO: do we really need to allow all Hnf, or do we just need variables (or neutral terms)?
-constrainValue  :: abt '[] a -> Hnf (abt '[]) a -> M s abt () 
-constrainAction :: abt '[] ('HMeasure a) -> Hnf (abt '[]) a -> M s abt ()
+-- TODO: do we really need to allow all Hnf, or do we just need
+-- variables (or neutral terms)? Do we actually want (hnf)terms at
+-- all, or do we want (hnf)patterns or something to more generally
+-- capture (hnf)measurable events?
+constrainOutcome :: abt '[] ('HMeasure a) -> Hnf (abt '[]) a -> M s abt ()
+constrainOutcome e0 v =
+    case e0 of
+    u | atomic u  -> M $ \c h -> bot
+    Lebesgue      -> M $ \c h -> c h
+    Uniform lo hi -> M $ \c h -> Prelude.observe (lo <= v && v <= hi) `bind_` weight (recip (hi - lo)) `bind_` c h
+    Return e      -> constrainValue e v
+    Bind g e      -> M $ \c h -> unM (constrainOutcome e v) c (h `snoc` g) -- TODO: move the bound variable from @e@ into the binding of @g@ we push on the heap
+    Superpose es ->
+        Superpose Haskell.<$> T.traverse (`constrainOutcome` v) es
+    e | not (hnf e) -> M $ \c h -> unM (evaluate e) (\m -> unM (constrainOutcome m v) c) h
+
+-- TODO: see the todo for 'constrainOutcome'
+constrainValue :: abt '[] a -> Hnf (abt '[]) a -> M s abt ()
+constrainValue e0 v0 =
+    case e0 of
+    u | atomic u -> M $ \c h -> bot
+    Real _       -> M $ \c h -> bot
+    Fst e1 | not (atomic e1) -> M $ \c h -> unM (evaluate e1) (\v1 -> unM (constrainValue (fst v1) v0) c) h
+    Snd e1 | not (atomic e1) -> M $ \c h -> unM (evaluate e1) (\v1 -> unM (constrainValue (snd v1) v0) c) h
+    Negate e1 -> constrainValue e1 (negate v0)
+    Recip e1 -> M $ \c h -> weight (recip (v0^2)) `bind_` unM (constrainValue e1 (recip v0)) c h
+    Plus e1 e2 -> M $ \c h ->
+        unM (evaluate e1) (\v1 -> unM (constrainValue e2 (v0 - v1)) c) h
+        `lub`
+        unM (evaluate e2) (\v2 -> unM (constrainValue e1 (v0 - v2)) c) h
+    Times e1 e2 -> M $ \c h ->
+        unM (evaluate e1) (\v1 -> abs v1 (\v1' h' -> weight (recip v1') `bind_` unM (constrainValue e2 (v0 / v1)) c h')) h
+        `lub`
+        unM (evaluate e2) (\v2 -> abs v2 (\v2' h' -> weight (recip v2') `bind_` unM (constrainValue e1 (v0 / v2)) c h')) h
+    Var x ->  M $ \c h ->
+        case lookup x h of
+        Missing -> error "constrainValue: variable is missing in heap!"
+        Found h1 binding h2 ->
+            case binding of
+            SBind _x e1 ->
+                unM (constrainOutcome e1 v0) (\h1' -> c (glue h1' (SLet x v0) h2)) h1
+            SLeft _x e1 ->
+                unM (evaluate e1) (\v1 -> unleft v1 (\e2 -> unM (constrainValue e1 v0) (\h1' -> c (glue h1' (SLet x v0) h2)))) h1
+            SRight _x e1 ->
+                unM (evaluate e1) (\v1 -> unright v1 (\e2 -> unM (constrainValue e1 v0) (\h1' -> c (glue h1' (SLet x v0) h2)))) h1
+
+unleft :: Hnf abt (HEither a b) -> M s abt (abt '[] a)
+unleft (Left  e) = M $ \c h -> c e h
+unleft (Right e) = M $ \c h -> reject
+unleft u         = M $ \c h -> uneither u (\x -> c x h) (\_ -> reject)
+
+unright :: Hnf abt (HEither a b) -> M s abt (abt '[] a)
+unright (Right e) = M $ \c h -> c e h
+unright (Left  e) = M $ \c h -> reject
+unright u         = M $ \c h -> uneither u (\_ -> reject) (\x -> c x h)
 -}
 
 ----------------------------------------------------------------
