@@ -39,17 +39,12 @@ module Language.Hakaru.Syntax.AST
     , SArgs(..)
     , AST(..)
     -- * Operators
-    , NaryOp(..),  sing_NaryOp
-    , PrimOp(..)
-    {- PAST
-    ,  sing_PrimOp
-    -}
-    , MeasureOp(..)
-    {- PAST
-    , sing_Measure
-    -}
+    , LC, LCs, UnLCs
+    , NaryOp(..),    sing_NaryOp
+    , PrimOp(..),    sing_PrimOp
+    , MeasureOp(..), sing_MeasureOp
     -- * Constant values
-    , Value(..),   sing_Value
+    , Value(..),     sing_Value
 
     -- * User-defined datatypes
     -- ** Data constructors\/patterns
@@ -226,6 +221,7 @@ sing_NaryOp (Prod theSemi) = sing_HSemiring theSemi
 -- TODO: come up with a better name
 type LC (a :: Hakaru) = '( '[], a )
 
+-- BUG: how to declare that these are inverses?
 type family LCs (xs :: [Hakaru]) :: [([Hakaru], Hakaru)] where
     LCs '[]       = '[]
     LCs (x ': xs) = LC x ': LCs xs
@@ -419,78 +415,73 @@ deriving instance Eq   (PrimOp args a)
 -- TODO: instance Read (PrimOp args a)
 deriving instance Show (PrimOp args a)
 
-
-{- PAST
--- TODO: we don't need to store the dictionary values here, we can
--- recover them by typeclass, just like we use 'sing' for the other
--- ones...
-sing_PrimOp :: PrimOp a -> Sing a
-sing_PrimOp Not         = sing
-sing_PrimOp Impl        = sing
-sing_PrimOp Diff        = sing
-sing_PrimOp Nand        = sing
-sing_PrimOp Nor         = sing
-sing_PrimOp Pi          = sing
-sing_PrimOp Sin         = sing
-sing_PrimOp Cos         = sing
-sing_PrimOp Tan         = sing
-sing_PrimOp Asin        = sing
-sing_PrimOp Acos        = sing
-sing_PrimOp Atan        = sing
-sing_PrimOp Sinh        = sing
-sing_PrimOp Cosh        = sing
-sing_PrimOp Tanh        = sing
-sing_PrimOp Asinh       = sing
-sing_PrimOp Acosh       = sing
-sing_PrimOp Atanh       = sing
-sing_PrimOp RealPow     = sing
-sing_PrimOp Exp         = sing
-sing_PrimOp Log         = sing
-sing_PrimOp Infinity    = sing
-sing_PrimOp NegativeInfinity = sing
-sing_PrimOp GammaFunc   = sing
-sing_PrimOp BetaFunc    = sing
-sing_PrimOp Integrate   = sing
-sing_PrimOp Summate     = sing
+-- TODO: is there any way to define a @sing_List1@ like @sing@ for automating all these monomorphic cases?
+sing_PrimOp :: PrimOp args a -> (List1 Sing args, Sing a)
+sing_PrimOp Not        = (sing `Cons1` Nil1, sing)
+sing_PrimOp Impl       = (sing `Cons1` sing `Cons1` Nil1, sing)
+sing_PrimOp Diff       = (sing `Cons1` sing `Cons1` Nil1, sing)
+sing_PrimOp Nand       = (sing `Cons1` sing `Cons1` Nil1, sing)
+sing_PrimOp Nor        = (sing `Cons1` sing `Cons1` Nil1, sing)
+sing_PrimOp Pi         = (Nil1, sing)
+sing_PrimOp Sin        = (sing `Cons1` Nil1, sing)
+sing_PrimOp Cos        = (sing `Cons1` Nil1, sing)
+sing_PrimOp Tan        = (sing `Cons1` Nil1, sing)
+sing_PrimOp Asin       = (sing `Cons1` Nil1, sing)
+sing_PrimOp Acos       = (sing `Cons1` Nil1, sing)
+sing_PrimOp Atan       = (sing `Cons1` Nil1, sing)
+sing_PrimOp Sinh       = (sing `Cons1` Nil1, sing)
+sing_PrimOp Cosh       = (sing `Cons1` Nil1, sing)
+sing_PrimOp Tanh       = (sing `Cons1` Nil1, sing)
+sing_PrimOp Asinh      = (sing `Cons1` Nil1, sing)
+sing_PrimOp Acosh      = (sing `Cons1` Nil1, sing)
+sing_PrimOp Atanh      = (sing `Cons1` Nil1, sing)
+sing_PrimOp RealPow    = (sing `Cons1` sing `Cons1` Nil1, sing)
+sing_PrimOp Exp        = (sing `Cons1` Nil1, sing)
+sing_PrimOp Log        = (sing `Cons1` Nil1, sing)
+sing_PrimOp Infinity   = (Nil1, sing)
+sing_PrimOp NegativeInfinity = (Nil1, sing)
+sing_PrimOp GammaFunc  = (sing `Cons1` Nil1, sing)
+sing_PrimOp BetaFunc   = (sing `Cons1` sing `Cons1` Nil1, sing)
+sing_PrimOp Integrate  = (sing `Cons1` sing `Cons1` sing `Cons1` Nil1, sing)
+sing_PrimOp Summate    = (sing `Cons1` sing `Cons1` sing `Cons1` Nil1, sing)
 -- Mere case analysis isn't enough for the rest of these, because
 -- of the class constraints. We fix that by various helper functions
 -- on explicit dictionary passing.
 --
 -- TODO: is there any way to automate building these from their
 -- respective @a@ proofs?
-sing_PrimOp (Index  a) = SArray a `SFun` SNat `SFun` a
-sing_PrimOp (Size   a) = SArray a `SFun` SNat
+sing_PrimOp (Index  a) = (SArray a `Cons1` SNat `Cons1` Nil1, a)
+sing_PrimOp (Size   a) = (SArray a `Cons1` Nil1, SNat)
 sing_PrimOp (Reduce a) =
-    (a `SFun` a `SFun` a) `SFun` a `SFun` SArray a `SFun` a
+    ((a `SFun` a `SFun` a) `Cons1` a `Cons1` SArray a `Cons1` Nil1, a)
 sing_PrimOp (Equal theEq) =
     let a = sing_HEq theEq
-    in  a `SFun` a `SFun` sBool
+    in  (a `Cons1` a `Cons1` Nil1, sBool)
 sing_PrimOp (Less theOrd) =
     let a = sing_HOrd theOrd
-    in  a `SFun` a `SFun` sBool
+    in  (a `Cons1` a `Cons1` Nil1, sBool)
 sing_PrimOp (NatPow theSemi) =
     let a = sing_HSemiring theSemi
-    in  a `SFun` SNat `SFun` a
+    in  (a `Cons1` SNat `Cons1` Nil1, a)
 sing_PrimOp (Negate theRing) =
     let a = sing_HRing theRing
-    in  a `SFun` a
+    in  (a `Cons1` Nil1, a)
 sing_PrimOp (Abs theRing) =
     let a = sing_HRing theRing
         b = sing_NonNegative theRing
-    in  a `SFun` b
+    in  (a `Cons1` Nil1, b)
 sing_PrimOp (Signum theRing) =
     let a = sing_HRing theRing
-    in  a `SFun` a
+    in  (a `Cons1` Nil1, a)
 sing_PrimOp (Recip theFrac) =
     let a = sing_HFractional theFrac
-    in  a `SFun` a
+    in  (a `Cons1` Nil1, a)
 sing_PrimOp (NatRoot theRad) =
     let a = sing_HRadical theRad
-    in  a `SFun` SNat `SFun` a
+    in  (a `Cons1` SNat `Cons1` Nil1, a)
 sing_PrimOp (Erf theCont) =
     let a = sing_HContinuous theCont
-    in  a `SFun` a
--}
+    in  (a `Cons1` Nil1, a)
 
 
 ----------------------------------------------------------------
@@ -554,29 +545,29 @@ deriving instance Eq   (MeasureOp args a)
 deriving instance Show (MeasureOp args a)
 
 
-{- PAST
-sing_Measure :: MeasureOp a -> Sing a
-sing_Measure (Dirac a)   = a `SFun` SMeasure a
-sing_Measure Lebesgue    = sing
-sing_Measure Counting    = sing
-sing_Measure Categorical = sing
-sing_Measure Uniform     = sing
-sing_Measure Normal      = sing
-sing_Measure Poisson     = sing
-sing_Measure Gamma       = sing
-sing_Measure Beta        = sing
-sing_Measure (DirichletProcess a) =
-    SProb `SFun` SMeasure a `SFun` SMeasure (SMeasure a)
-sing_Measure (Plate a) =
-    (SArray $ SMeasure a) `SFun` SMeasure (SArray a)
-sing_Measure (Chain s a) =
-    SArray (s `SFun` SMeasure (sPair a s))
-    `SFun` s `SFun` SMeasure (sPair (SArray a) s)
-sing_Measure (Expect a) =
-    SMeasure a `SFun` (a `SFun` SProb) `SFun` SProb
-sing_Measure (Disintegrate a b) =
-    SMeasure (sPair a b) `SFun` a `SFun` SMeasure b
--}
+sing_MeasureOp :: MeasureOp args a -> (List1 Sing args, Sing a)
+sing_MeasureOp (Dirac a)   = (a `Cons1` Nil1, SMeasure a)
+sing_MeasureOp Lebesgue    = (Nil1, sing)
+sing_MeasureOp Counting    = (Nil1, sing)
+sing_MeasureOp Categorical = (sing `Cons1` Nil1, sing)
+sing_MeasureOp Uniform     = (sing `Cons1` sing `Cons1` Nil1, sing)
+sing_MeasureOp Normal      = (sing `Cons1` sing `Cons1` Nil1, sing)
+sing_MeasureOp Poisson     = (sing `Cons1` Nil1, sing)
+sing_MeasureOp Gamma       = (sing `Cons1` sing `Cons1` Nil1, sing)
+sing_MeasureOp Beta        = (sing `Cons1` sing `Cons1` Nil1, sing)
+sing_MeasureOp (DirichletProcess a) =
+    ( SProb `Cons1` SMeasure a `Cons1` Nil1
+    , SMeasure (SMeasure a))
+sing_MeasureOp (Plate a)   =
+    (SArray (SMeasure a) `Cons1` Nil1, SMeasure (SArray a))
+sing_MeasureOp (Chain s a) =
+    ( SArray (s `SFun` SMeasure (sPair a s)) `Cons1` s `Cons1` Nil1
+    , SMeasure (sPair (SArray a) s))
+sing_MeasureOp (Expect a) =
+    (SMeasure a `Cons1` (a `SFun` SProb) `Cons1` Nil1, sing)
+sing_MeasureOp (Disintegrate a b) =
+    (SMeasure (sPair a b) `Cons1` a `Cons1` Nil1, SMeasure b)
+
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -1057,10 +1048,14 @@ data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
     UnsafeFrom_ :: !(Coercion a b) -> SCon '[ LC b ] a
     -}
 
-    -- TODO: map @'(,) '[]@ over a mere @[Hakaru]@ to generate @args@
-    -- N.B., we must use 'UnLCs' rather than 'LCs' for type inference reasons re the typeclass instances for 'SCon'
-    PrimOp_    :: !(PrimOp    (UnLCs args) a) -> SCon args a
-    MeasureOp_ :: !(MeasureOp (UnLCs args) a) -> SCon args a
+    -- HACK: we must add the constraints that 'LCs' and 'UnLCs' are inverses, so that we have those in scope when doing case analysis (e.g., in TypeCheck.hs).
+    -- As for this file itself, we can get it to typecheck by using 'UnLCs' in the argument rather than 'LCs' in the result; trying to do things the other way results in type inference issues in the typeclass instances for 'SCon'
+    PrimOp_
+        :: (typs ~ UnLCs args, args ~ LCs typs)
+        => !(PrimOp typs a) -> SCon args a
+    MeasureOp_
+        :: (typs ~ UnLCs args, args ~ LCs typs)
+        => !(MeasureOp typs a) -> SCon args a
     -- TODO: Does this one need to have a Sing value for @a@ (or @b@)?
     MBind :: SCon
         '[ LC ('HMeasure a)
@@ -1075,6 +1070,7 @@ deriving instance Show (SCon args a)
 
 ----------------------------------------------------------------
 -- TODO: ideally we'd like to make SArgs totally flat, like tuples and arrays. Is there a way to do that with data families?
+-- TODO: is there any good way to reuse 'List1' instead of defining 'SArgs' (aka @List2@)?
 
 -- TODO: come up with a better name for 'End'
 -- | The arguments to a '(:$)' node in the 'AST'; that is, a list
@@ -1082,10 +1078,10 @@ deriving instance Show (SCon args a)
 -- of the indices of each element.
 data SArgs :: ([Hakaru] -> Hakaru -> *) -> [([Hakaru], Hakaru)] -> *
     where
+    End :: SArgs abt '[]
     (:*) :: !(abt vars a)
         -> !(SArgs abt args)
         -> SArgs abt ( '(vars, a) ': args)
-    End :: SArgs abt '[]
 
 -- TODO: instance Eq   (SArgs abt args)
 -- TODO: instance Read (SArgs abt args)
@@ -1102,6 +1098,14 @@ instance Show2 abt => Show1 (SArgs abt) where
 instance Show2 abt => Show (SArgs abt args) where
     showsPrec = showsPrec1
     show      = show1
+
+instance Eq2 abt => Eq1 (SArgs abt) where
+    eq1 End       End       = True
+    eq1 (x :* xs) (y :* ys) = eq2 x y && eq1 xs ys
+    eq1 _         _         = False
+
+instance Eq2 abt => Eq (SArgs abt args) where
+    (==) = eq1
 
 instance Functor21 SArgs where
     fmap21 f (e :* es) = f e :* fmap21 f es

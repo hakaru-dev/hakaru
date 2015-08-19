@@ -36,6 +36,7 @@ import qualified Data.Foldable         as F
 import           Control.Applicative   (Applicative(..))
 #endif
 import Language.Hakaru.Syntax.Nat      (fromNat)
+import Language.Hakaru.Syntax.IClasses (List1(..))
 import Language.Hakaru.Syntax.DataKind (Hakaru(..), Code)
 import Language.Hakaru.Syntax.TypeEq
 import Language.Hakaru.Syntax.Coercion (Coercion(..), singCoerceTo, singCoerceFrom, singCoerceDomCod)
@@ -81,7 +82,7 @@ mustCheck = go . viewABT
 
     go (Syn (Ann_ _ _))        = False
 
-    go (Syn (PrimOp_ _))       = False
+    go (Syn (PrimOp_ _ :$ _))  = False
     go (Syn (NaryOp_ _ _))     = False
     go (Syn (Value_ _))        = False
 
@@ -124,15 +125,22 @@ mustCheck = go . viewABT
 
 
     go (Syn (MeasureOp_ _ :$ _)) = False
-    -- TODO: I'm assuming this works like Let_, but we should make sure...
+    -- TODO: I'm assuming MBind works like Let_, but we should make sure...
     -- TODO: again, it seems like if we can infer one of the options, then we should be able to check the rest against it. But for now we'll assume we must check
-    go (Syn (MBind :$ _ :* e2 :* End)) =
-        caseBind e2 $ \_ e2' -> mustCheck e2'
+    go (Syn (MBind :$ es)) =
+        -- BUG: why does ghc think there are other possibilities for @es@ here, but not in the other places we pattern match on 'MBind'?
+        case es of
+        _ :* e2 :* End -> caseBind e2 $ \_ e2' -> mustCheck e2'
+        _              -> error "mustCheck: the impossible happened"
     {- PAST
     go (Syn (Measure_ _))     = False
     go (Syn (Bind_ _ e2))     = caseBind e2 $ \_ e2' -> mustCheck e2'
     -}
     go (Syn (Superpose_ _))   = True
+
+    {- TODO:
+    go (Syn (Lub_ es)) = ...
+    -}
 
 
 ----------------------------------------------------------------
@@ -269,8 +277,10 @@ inferType e0 =
         checkType typ1 e1
         return typ1
 
-    Syn (PrimOp_ o) ->
-        return $ sing_PrimOp o
+    Syn (PrimOp_ o :$ es) ->
+        let (typs, typ1) = sing_PrimOp o in do
+        checkSArgs typs es
+        return typ1
 
     Syn (NaryOp_ o es) -> do
         let typ = sing_NaryOp o
@@ -303,13 +313,16 @@ inferType e0 =
                 checkType cod e1
                 return dom
 
-    Syn (Measure_ o) ->
-        return $ sing_Measure o
+    Syn (MeasureOp_ o :$ es) ->
+        let (typs, typ1) = sing_MeasureOp o in do
+        checkSArgs typs es
+        return typ1
 
-    Syn (Bind_ e1 e2)
+    Syn (MBind :$ e1 :* e2 :* End)
         | inferable e1 -> do
             typ1 <- inferType e1
             case typ1 of
+                -- BUG: type inference fail; ghc now thinks there are other possibilities for @typ1@
                 SMeasure typ2 ->
                     -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
                     caseBind e2 $ \x ->
@@ -323,6 +336,22 @@ inferType e0 =
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
+
+-- HACK: we must add the constraints that 'LCs' and 'UnLCs' are inverses.
+-- TODO: how can we do that in general rather than needing to repeat it here and in the various constructors of 'SCon'?
+checkSArgs
+    :: (ABT abt, typs ~ UnLCs args, args ~ LCs typs)
+    => List1 Sing typs
+    -> SArgs abt args
+    -> TypeCheckMonad ()
+checkSArgs Nil1             End       = return ()
+checkSArgs (Cons1 typ typs) (e :* es) = do
+    checkType  typ  e
+    checkSArgs typs es
+-- BUG: why does ghc think there are other possibilities here?
+checkSArgs _ _ = error "checkSArgs: the impossible happened"
+
+
 -- TODO: rather than returning (), we could return a fully type-annotated term...
 -- | Given a typing environment, a term, and a type, check that the
 -- term satisfies the type.
@@ -396,10 +425,11 @@ checkType typ0 e0 =
                 case eqAppendNil p of
                 Refl -> TPCons p TPNil
 
-    Syn (Bind_ e1 e2)
+    Syn (MBind :$ e1 :* e2 :* End)
         | inferable e1 -> do
             typ1 <- inferType e1
             case typ1 of
+                -- BUG: type inference fail; ghc now thinks there are other possibilities for @typ1@
                 SMeasure typ2 ->
                     -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
                     caseBind e2 $ \x ->

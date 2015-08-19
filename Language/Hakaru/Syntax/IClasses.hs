@@ -1,15 +1,22 @@
--- TODO: move this somewhere else, like "Language.Hakaru.IClasses"
-{-# LANGUAGE CPP, Rank2Types, PolyKinds, ScopedTypeVariables #-}
+-- TODO: move this file somewhere else, like "Language.Hakaru.IClasses"
+{-# LANGUAGE CPP
+           , Rank2Types
+           , PolyKinds
+           , DataKinds
+           , TypeOperators
+           , GADTs
+           , ScopedTypeVariables
+           #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.07.07
+--                                                    2015.08.19
 -- |
 -- Module      :  Language.Hakaru.Syntax.IClasses
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  wren@community.haskell.org
 -- Stability   :  experimental
--- Portability :  CPP + Rank2Types + PolyKinds + ScopedTypeVariables
+-- Portability :  GHC-only
 --
 -- A collection of classes generalizing standard classes in order
 -- to support indexed types.
@@ -19,6 +26,7 @@
 module Language.Hakaru.Syntax.IClasses
     ( Lift1(..)
     , Lift2(..)
+    , List1(..)
     -- * Showing indexed types
     , Show1(..), shows1, showList1
     , Show2(..), shows2, showList2
@@ -58,6 +66,39 @@ newtype Lift1 (a :: *) (i :: k) =
     
 newtype Lift2 (a :: *) (i :: k1) (j :: k2) =
     Lift2 { unLift2 :: a }
+
+
+----------------------------------------------------------------
+infixr 5 `Cons1`
+
+-- | A list of 1-indexed elements, itself indexed by the list of indices
+data List1 :: (k -> *) -> [k] -> * where
+    Nil1  :: List1 a '[]
+    Cons1 :: a x -> List1 a xs -> List1 a (x ': xs)
+
+instance Show1 a => Show1 (List1 a) where
+    showsPrec1 _ Nil1         = showString     "Nil1"
+    showsPrec1 p (Cons1 x xs) = showParen_11 p "Cons1" x xs
+
+instance Show1 a => Show (List1 a xs) where
+    showsPrec = showsPrec1
+    show      = show1
+
+instance Eq1 a  => Eq1 (List1 a) where
+    eq1 Nil1         Nil1         = True
+    eq1 (Cons1 x xs) (Cons1 y ys) = eq1 x y && eq1 xs ys
+    eq1 _            _            = False
+
+instance Eq1 a  => Eq (List1 a xs) where
+    (==) = eq1
+
+instance Functor11 List1 where
+    fmap11 _ Nil1         = Nil1
+    fmap11 f (Cons1 x xs) = Cons1 (f x) (fmap11 f xs)
+
+instance Foldable11 List1 where
+    foldMap11 _ Nil1         = mempty
+    foldMap11 f (Cons1 x xs) = f x `mappend` foldMap11 f xs
 
 ----------------------------------------------------------------
 -- TODO: cf., <http://hackage.haskell.org/package/abt-0.1.1.0>
@@ -255,7 +296,7 @@ class Eq2 (a :: k1 -> k2 -> *) where
 --
 -- Alas, I don't think there's any way to derive instances the way
 -- we can derive for 'Functor'.
-class Functor11 (f :: (k -> *) -> k -> *) where
+class Functor11 (f :: (k1 -> *) -> k2 -> *) where
     fmap11 :: (forall i. a i -> b i) -> f a j -> f b j
 
 
@@ -317,7 +358,7 @@ hylo11 coalg alg = go
 --
 -- Alas, I don't think there's any way to derive instances the way
 -- we can derive for 'Foldable'.
-class Functor11 f => Foldable11 (f :: (k -> *) -> k -> *) where
+class Functor11 f => Foldable11 (f :: (k1 -> *) -> k2 -> *) where
     {-# MINIMAL fold11 | foldMap11 #-}
 
     fold11 :: (Monoid m) => f (Lift1 m) i -> m

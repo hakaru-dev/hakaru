@@ -149,6 +149,7 @@ data instance Sing (unused :: Hakaru) where
     SReal    :: Sing 'HReal
     SMeasure :: !(Sing a) -> Sing ('HMeasure a)
     SArray   :: !(Sing a) -> Sing ('HArray a)
+    -- TODO: would it be clearer to use (:$->) in order to better mirror the type-level (:->)
     SFun     :: !(Sing a) -> !(Sing b) -> Sing (a ':-> b)
     SData    :: !(Sing t) -> !(Sing (Code t)) -> Sing ('HData t (Code t))
 

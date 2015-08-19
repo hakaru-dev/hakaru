@@ -62,7 +62,6 @@ module Language.Hakaru.Syntax.ABT
     , binder
     {-
     -- *** Highly experimental
-    , List1(..)
     , Hint(..)
     , multibinder
     -}
@@ -687,18 +686,6 @@ binder hint typ hoas = bind x body
     x    = Variable (Name hint (1 + maxBind body)) typ
 
 {-
-data List1 :: (k -> *) -> [k] -> * where
-    Nil  :: List1 a '[]
-    Cons :: a x -> List1 a xs -> List1 a (x ': xs)
-
-instance Show1 a => Show1 (List1 a) where
-    showsPrec1 _ Nil         = showString     "Nil"
-    showsPrec1 p (Cons x xs) = showParen_11 p "Cons" x xs
-
-instance Show1 a => Show (List1 a xs) where
-    showsPrec = showsPrec1
-    show      = show1
-
 data Hint :: Hakaru -> * where
     Hint :: !Text -> !(Sing a) -> Hint a
 
