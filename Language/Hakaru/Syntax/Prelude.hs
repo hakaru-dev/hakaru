@@ -29,7 +29,7 @@
 module Language.Hakaru.Syntax.Prelude where
 
 -- TODO: implement and use Prelude's fromInteger and fromRational, so we can use numeric literals!
-import Prelude (Maybe(..), Bool(..), Int, Double, Functor(..), ($), flip, const, error)
+import Prelude (Maybe(..), Bool(..), Int, Double, ($), flip, const, error)
 import qualified Prelude
 import           Data.Sequence        (Seq)
 import qualified Data.Sequence        as Seq
@@ -70,19 +70,19 @@ primOp0_ o = syn (PrimOp_ o :$ End)
 
 primOp1_
     :: (ABT abt)
-    => PrimOp '[ '( '[], a ) ] b
+    => PrimOp '[ a ] b
     -> abt '[] a -> abt '[] b
 primOp1_ o e1 = syn (PrimOp_ o :$ e1 :* End)
 
 primOp2_
     :: (ABT abt)
-    => PrimOp '[ '( '[], a ), '( '[], b ) ] c
+    => PrimOp '[ a, b ] c
     -> abt '[] a -> abt '[] b -> abt '[] c
 primOp2_ o e1 e2 = syn (PrimOp_ o :$ e1 :* e2 :* End)
 
 primOp3_
     :: (ABT abt)
-    => PrimOp '[ '( '[], a ), '( '[], b ), '( '[], c ) ] d
+    => PrimOp '[ a, b, c ] d
     -> abt '[] a -> abt '[] b -> abt '[] c -> abt '[] d
 primOp3_ o e1 e2 e3 = syn (PrimOp_ o :$ e1 :* e2 :* e3 :* End)
 
@@ -91,13 +91,13 @@ measure0_ o = syn (MeasureOp_ o :$ End)
 
 measure1_
     :: (ABT abt)
-    => MeasureOp '[ '( '[], a ) ] b
+    => MeasureOp '[ a ] b
     -> abt '[] a -> abt '[] b
 measure1_ o e1 = syn (MeasureOp_ o :$ e1 :* End)
 
 measure2_
     :: (ABT abt)
-    => MeasureOp '[ '( '[], a ), '( '[], b ) ] c
+    => MeasureOp '[ a, b ] c
     -> abt '[] a -> abt '[] b -> abt '[] c
 measure2_ o e1 e2 = syn (MeasureOp_ o :$ e1 :* e2 :* End)
 
@@ -774,7 +774,7 @@ constV n c = array n (const c)
     => abt '[] ('HMeasure a)
     -> (abt '[] a -> abt '[] ('HMeasure b))
     -> abt '[] ('HMeasure b)
-m >>= f = syn (MeasureOp_ MBind :$ m :* binder Text.empty sing f :* End)
+m >>= f = syn (MBind :$ m :* binder Text.empty sing f :* End)
 
 -- BUG: remove the 'SingI' requirement!
 dirac :: (ABT abt, SingI a) => abt '[] a -> abt '[] ('HMeasure a)

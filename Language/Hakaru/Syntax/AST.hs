@@ -34,9 +34,11 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.AST
     (
-    -- * Constant values
-      Value(..),   sing_Value
-    -- * Primitive operators
+    -- * Syntactic forms
+      SCon(..)
+    , SArgs(..)
+    , AST(..)
+    -- * Operators
     , NaryOp(..),  sing_NaryOp
     , PrimOp(..)
     {- PAST
@@ -46,6 +48,9 @@ module Language.Hakaru.Syntax.AST
     {- PAST
     , sing_Measure
     -}
+    -- * Constant values
+    , Value(..),   sing_Value
+
     -- * User-defined datatypes
     -- ** Data constructors\/patterns
     , Datum(..)
@@ -73,10 +78,6 @@ module Language.Hakaru.Syntax.AST
     , pLeft, pRight
     , pNil, pCons
     , pNothing, pJust
-    -- * Syntactic forms
-    , SCon(..)
-    , SArgs(..)
-    , AST(..)
     ) where
 
 import Data.Sequence           (Seq)
@@ -218,13 +219,26 @@ sing_NaryOp (Sum  theSemi) = sing_HSemiring theSemi
 sing_NaryOp (Prod theSemi) = sing_HSemiring theSemi
 
 ----------------------------------------------------------------
--- TODO: redo this to avoid the @(,) [Hakaru]@ part since it's always trivial here (by happenstance if not by design).
--- TODO: should we make that triviality part of what it means to be a \"primop\"?
+
+-- TODO: should we define our own datakind for @([Hakaru], Hakaru)@ or perhaps for the @/\a -> ([a], Hakaru)@ part of it?
+
+-- | A locally closed type.
+-- TODO: come up with a better name
+type LC (a :: Hakaru) = '( '[], a )
+
+type family LCs (xs :: [Hakaru]) :: [([Hakaru], Hakaru)] where
+    LCs '[]       = '[]
+    LCs (x ': xs) = LC x ': LCs xs
+
+type family UnLCs (xs :: [([Hakaru], Hakaru)]) :: [Hakaru] where
+    UnLCs '[]                  = '[]
+    UnLCs ( '( '[], x ) ': xs) = x ': UnLCs xs
+
 
 -- | Simple primitive functions, and constants. N.B., nothing in
 -- here should produce or consume things of @HMeasure@ type (except
 -- perhaps in a totally polymorphic way).
-data PrimOp :: [([Hakaru], Hakaru)] -> Hakaru -> * where
+data PrimOp :: [Hakaru] -> Hakaru -> * where
 
     -- -- -- Here we have /monomorphic/ operators
     -- -- The Boolean operators
@@ -239,15 +253,15 @@ data PrimOp :: [([Hakaru], Hakaru)] -> Hakaru -> * where
     -- cf., <https://hackage.haskell.org/package/qm-0.1.0.0/candidate>
     -- cf., <https://github.com/pfpacket/Quine-McCluskey>
     -- cf., <https://gist.github.com/dsvictor94/8db2b399a95e301c259a>
-    Not  :: PrimOp '[ '( '[], HBool ) ] HBool
+    Not  :: PrimOp '[ HBool ] HBool
     -- And, Or, Xor, Iff
-    Impl :: PrimOp '[ '( '[], HBool ), '( '[], HBool ) ] HBool
+    Impl :: PrimOp '[ HBool, HBool ] HBool
     -- Impl x y == Or (Not x) y
-    Diff :: PrimOp '[ '( '[], HBool ), '( '[], HBool ) ] HBool
+    Diff :: PrimOp '[ HBool, HBool ] HBool
     -- Diff x y == Not (Impl x y)
-    Nand :: PrimOp '[ '( '[], HBool ), '( '[], HBool ) ] HBool
+    Nand :: PrimOp '[ HBool, HBool ] HBool
     -- Nand aka Alternative Denial, Sheffer stroke
-    Nor  :: PrimOp '[ '( '[], HBool ), '( '[], HBool ) ] HBool
+    Nor  :: PrimOp '[ HBool, HBool ] HBool
     -- Nor aka Joint Denial, aka Quine dagger, aka Pierce arrow
     --
     -- The remaining eight binops are completely uninteresting:
@@ -265,18 +279,18 @@ data PrimOp :: [([Hakaru], Hakaru)] -> Hakaru -> * where
     Pi    :: PrimOp '[] 'HProb -- TODO: maybe make this HContinuous polymorphic?
     -- TODO: if we're going to bother naming the hyperbolic ones, why not also name /a?(csc|sec|cot)h?/ eh?
     -- TODO: capture more domain information in these types?
-    Sin   :: PrimOp '[ '( '[], 'HReal ) ] 'HReal
-    Cos   :: PrimOp '[ '( '[], 'HReal ) ] 'HReal
-    Tan   :: PrimOp '[ '( '[], 'HReal ) ] 'HReal
-    Asin  :: PrimOp '[ '( '[], 'HReal ) ] 'HReal
-    Acos  :: PrimOp '[ '( '[], 'HReal ) ] 'HReal
-    Atan  :: PrimOp '[ '( '[], 'HReal ) ] 'HReal
-    Sinh  :: PrimOp '[ '( '[], 'HReal ) ] 'HReal
-    Cosh  :: PrimOp '[ '( '[], 'HReal ) ] 'HReal
-    Tanh  :: PrimOp '[ '( '[], 'HReal ) ] 'HReal
-    Asinh :: PrimOp '[ '( '[], 'HReal ) ] 'HReal
-    Acosh :: PrimOp '[ '( '[], 'HReal ) ] 'HReal
-    Atanh :: PrimOp '[ '( '[], 'HReal ) ] 'HReal
+    Sin   :: PrimOp '[ 'HReal ] 'HReal
+    Cos   :: PrimOp '[ 'HReal ] 'HReal
+    Tan   :: PrimOp '[ 'HReal ] 'HReal
+    Asin  :: PrimOp '[ 'HReal ] 'HReal
+    Acos  :: PrimOp '[ 'HReal ] 'HReal
+    Atan  :: PrimOp '[ 'HReal ] 'HReal
+    Sinh  :: PrimOp '[ 'HReal ] 'HReal
+    Cosh  :: PrimOp '[ 'HReal ] 'HReal
+    Tanh  :: PrimOp '[ 'HReal ] 'HReal
+    Asinh :: PrimOp '[ 'HReal ] 'HReal
+    Acosh :: PrimOp '[ 'HReal ] 'HReal
+    Atanh :: PrimOp '[ 'HReal ] 'HReal
 
 
     -- -- Other Real/Prob-valued operators
@@ -288,21 +302,21 @@ data PrimOp :: [([Hakaru], Hakaru)] -> Hakaru -> * where
     -- but non-integer real powers of negative reals are not real numbers!
     -- TODO: may need @SafeFrom_@ in order to branch on the input
     -- in order to provide the old unsafe behavior.
-    RealPow   :: PrimOp '[ '( '[], 'HProb ), '( '[], 'HReal ) ] 'HProb
+    RealPow   :: PrimOp '[ 'HProb, 'HReal ] 'HProb
     -- ComplexPow :: PrimOp ('HProb ':-> 'HComplex ':-> 'HComplex)
     -- is uniquely well-defined. Though we may want to implement
     -- it via @r**z = ComplexExp (z * RealLog r)@
     -- Defining @HReal -> HComplex -> HComplex@ requires either
     -- multivalued functions, or a choice of complex logarithm and
     -- making it discontinuous.
-    Exp       :: PrimOp '[ '( '[], 'HReal ) ] 'HProb
-    Log       :: PrimOp '[ '( '[], 'HProb ) ] 'HReal
+    Exp       :: PrimOp '[ 'HReal ] 'HProb
+    Log       :: PrimOp '[ 'HProb ] 'HReal
     -- TODO: Log1p, Expm1
     Infinity  :: PrimOp '[] 'HProb -- TODO: maybe make this HContinuous polymorphic?
     NegativeInfinity :: PrimOp '[] 'HReal -- TODO: maybe replace this by @negate (CoerceTo signed (PrimOp_ Infinity))@ ?
     -- TODO: add Factorial as the appropriate type restriction of GammaFunc?
-    GammaFunc :: PrimOp '[ '( '[], 'HReal ) ] 'HProb
-    BetaFunc  :: PrimOp '[ '( '[], 'HProb ), '( '[], 'HProb ) ] 'HProb
+    GammaFunc :: PrimOp '[ 'HReal ] 'HProb
+    BetaFunc  :: PrimOp '[ 'HProb, 'HProb ] 'HProb
 
 
     -- -- Continuous and discrete integration.
@@ -311,46 +325,33 @@ data PrimOp :: [([Hakaru], Hakaru)] -> Hakaru -> * where
     -- HProb\/HNat too. More generally, if the first input is HProb
     -- (since the second input is assumed to be greater thant he
     -- first); though that would be a bit ugly IMO.
-    Integrate :: PrimOp
-        '[ '( '[], 'HReal)
-        ,  '( '[], 'HReal)
-        ,  '( '[], 'HReal ':-> 'HProb)
-        ] 'HProb
-    Summate :: PrimOp
-        '[ '( '[], 'HReal) -- TODO: should that really be 'HReal ?!
-        ,  '( '[], 'HReal) -- TODO: should that really be 'HReal ?!
-        ,  '( '[], 'HInt ':-> 'HProb)
-        ] 'HProb
+    Integrate :: PrimOp '[ 'HReal, 'HReal, 'HReal ':-> 'HProb ] 'HProb
+    -- TODO: Should the first to arguments really be HReal?!
+    Summate   :: PrimOp '[ 'HReal, 'HReal, 'HInt  ':-> 'HProb ] 'HProb
+    -- TODO: in the future we may want to turn these back into binders in order to avoid the need for lambdas. Of course, if we do that, then they have to move out of PrimOp and into SCon (or somewhere)
 
 
     -- -- -- Here we have the /polymorphic/ operators
-    -- TODO: \"monomorphize\" these by passing explicit dictionary proxies
-
     -- -- Array stuff
-    -- TODO: do these really belong here (as PrimOps), in AST, or in their own place (a la Datum)?
+    -- TODO: do these really belong here (as PrimOps) or should they be in their own place (e.g., \"ArrayOp\")?
     -- HACK: is there any way we can avoid storing the Sing values here, while still implementing 'sing_PrimOp'? Should we have a Hakaru class for the types which can be stored in arrays? might not be a crazy idea...
-    Index  :: !(Sing a) -> PrimOp '[ '( '[], 'HArray a), '( '[], 'HNat)] a
-    Size   :: !(Sing a) -> PrimOp '[ '( '[], 'HArray a)] 'HNat
+    Index  :: !(Sing a) -> PrimOp '[ 'HArray a, 'HNat ] a
+    Size   :: !(Sing a) -> PrimOp '[ 'HArray a ] 'HNat
     -- The first argument should be a monoid, but we don't enforce
     -- that; it's the user's responsibility.
-    Reduce
-        :: !(Sing a)
-        -> PrimOp
-            '[ '( '[], a ':-> a ':-> a)
-            ,  '( '[], a)
-            ,  '( '[], 'HArray a)
-            ] a
+    Reduce :: !(Sing a) -> PrimOp '[ a ':-> a ':-> a, a, 'HArray a ] a
+    -- TODO: would it make sense to have a specialized version for when the first argument is some \"Op\", in order to avoid the need for lambdas?
 
 
     -- -- HEq and HOrd operators
     -- TODO: equality doesn't make constructive sense on the reals...
     -- would it be better to constructivize our notion of total ordering?
-    Equal :: !(HEq  a) -> PrimOp '[ '( '[], a ), '( '[], a ) ] HBool
-    Less  :: !(HOrd a) -> PrimOp '[ '( '[], a ), '( '[], a ) ] HBool
+    Equal :: !(HEq  a) -> PrimOp '[ a, a ] HBool
+    Less  :: !(HOrd a) -> PrimOp '[ a, a ] HBool
 
 
     -- -- HSemiring operators (the non-n-ary ones)
-    NatPow :: !(HSemiring a) -> PrimOp '[ '( '[], a ), '( '[], 'HNat ) ] a
+    NatPow :: !(HSemiring a) -> PrimOp '[ a, 'HNat ] a
     -- TODO: would it help to have a specialized version for when
     -- we happen to know that the 'HNat is a Value? Same goes for
     -- the other powers\/roots
@@ -379,13 +380,13 @@ data PrimOp :: [([Hakaru], Hakaru)] -> Hakaru -> * where
     -- Ring: Semiring + negate, abs, signum
     -- NormedLinearSpace: LinearSpace + originPoint, norm, Arg
     -- ??: NormedLinearSpace + originAxis, angle
-    Negate :: !(HRing a) -> PrimOp '[ '( '[], a ) ] a
-    Abs    :: !(HRing a) -> PrimOp '[ '( '[], a ) ] (NonNegative a)
+    Negate :: !(HRing a) -> PrimOp '[ a ] a
+    Abs    :: !(HRing a) -> PrimOp '[ a ] (NonNegative a)
     -- cf., <https://mail.haskell.org/pipermail/libraries/2013-April/019694.html>
     -- cf., <https://en.wikipedia.org/wiki/Sign_function#Complex_signum>
     -- Should we have Maple5's \"csgn\" as well as the usual \"sgn\"?
     -- Also note that the \"generalized signum\" anticommutes with Dirac delta!
-    Signum :: !(HRing a) -> PrimOp '[ '( '[], a ) ] a
+    Signum :: !(HRing a) -> PrimOp '[ a ] a
     -- Law: x = coerceTo_ signed (abs_ x) * signum x
     -- More strictly/exactly, the result of Signum should be either
     -- zero or an @a@-unit value. For Int and Real, the units are
@@ -399,18 +400,18 @@ data PrimOp :: [([Hakaru], Hakaru)] -> Hakaru -> * where
 
 
     -- -- HFractional operators
-    Recip :: !(HFractional a) -> PrimOp '[ '( '[], a ) ] a
+    Recip :: !(HFractional a) -> PrimOp '[ a ] a
     -- generates macro: IntPow
 
 
     -- -- HRadical operators
-    NatRoot :: !(HRadical a) -> PrimOp '[ '( '[], a ), '( '[], 'HNat ) ] a
+    NatRoot :: !(HRadical a) -> PrimOp '[ a, 'HNat ] a
     -- generates macros: Sqrt, NonNegativeRationalPow, and RationalPow
 
 
     -- -- HContinuous operators
     -- TODO: what goes here, if anything? cf., <https://en.wikipedia.org/wiki/Closed-form_expression#Comparison_of_different_classes_of_expressions>
-    Erf :: !(HContinuous a) -> PrimOp '[ '( '[], a ) ] a
+    Erf :: !(HContinuous a) -> PrimOp '[ a ] a
     -- TODO: make Pi and Infinity HContinuous-polymorphic so that we can avoid the explicit coercion? Probably more mess than benefit.
 
 
@@ -496,63 +497,41 @@ sing_PrimOp (Erf theCont) =
 -- TODO: move the rest of the old Mochastic class into here?
 -- | Primitive operators to produce, consume, or transform
 -- distributions\/measures.
-data MeasureOp :: [([Hakaru], Hakaru)] -> Hakaru -> * where
+data MeasureOp :: [Hakaru] -> Hakaru -> * where
+    -- TODO: Should Dirac move into SCon to be with MBind?
     -- HACK: is there any way we can avoid storing the Sing value here, while still implementing 'sing_Measure'? Should we have a Hakaru class for the types which can be measurable? might not be a crazy idea...
-    Dirac :: !(Sing a) -> MeasureOp '[ '( '[], a ) ] ('HMeasure a)
-    -- TODO: Does this one need to have a Sing value for @a@ (or @b@)?
-    MBind :: MeasureOp
-        '[ '( '[],    'HMeasure a)
-        ,  '( '[ a ], 'HMeasure b)
-        ] ('HMeasure b)
+    Dirac :: !(Sing a) -> MeasureOp '[ a ] ('HMeasure a)
 
-    Lebesgue    :: MeasureOp '[] ('HMeasure 'HReal)
-    Counting    :: MeasureOp '[] ('HMeasure 'HInt)
-    Categorical :: MeasureOp '[ '( '[], 'HArray 'HProb)] ('HMeasure 'HNat)
+    Lebesgue    :: MeasureOp '[]                 ('HMeasure 'HReal)
+    Counting    :: MeasureOp '[]                 ('HMeasure 'HInt)
+    Categorical :: MeasureOp '[ 'HArray 'HProb ] ('HMeasure 'HNat)
     -- TODO: make Uniform polymorphic, so that if the two inputs are HProb then we know the measure must be over HProb too. More generally, if the first input is HProb (since the second input is assumed to be greater thant he first); though that would be a bit ugly IMO.
-    Uniform :: MeasureOp
-        '[ '( '[], 'HReal)
-        ,  '( '[], 'HReal)
-        ] ('HMeasure 'HReal)
-    Normal :: MeasureOp
-        '[ '( '[], 'HReal)
-        ,  '( '[], 'HProb)
-        ] ('HMeasure 'HReal)
-    Poisson :: MeasureOp
-        '[ '( '[], 'HProb)
-        ] ('HMeasure 'HNat)
-    Gamma :: MeasureOp
-        '[ '( '[], 'HProb )
-        ,  '( '[], 'HProb )
-        ] ('HMeasure 'HProb)
-    Beta :: MeasureOp
-        '[ '( '[], 'HProb)
-        ,  '( '[], 'HProb)
-        ] ('HMeasure 'HProb)
+    Uniform     :: MeasureOp '[ 'HReal, 'HReal ] ('HMeasure 'HReal)
+    Normal      :: MeasureOp '[ 'HReal, 'HProb ] ('HMeasure 'HReal)
+    Poisson     :: MeasureOp '[ 'HProb         ] ('HMeasure 'HNat)
+    Gamma       :: MeasureOp '[ 'HProb, 'HProb ] ('HMeasure 'HProb)
+    Beta        :: MeasureOp '[ 'HProb, 'HProb ] ('HMeasure 'HProb)
 
     -- HACK: is there any way we can avoid storing the Sing values here, while still implementing 'sing_Measure'? Should we have a Hakaru class for the types which can be measurable? might not be a crazy idea...
     DirichletProcess
         :: !(Sing a)
-        -> MeasureOp
-            '[ '( '[], 'HProb)
-            ,  '( '[], 'HMeasure a)
-            ] ('HMeasure ('HMeasure a))
+        -> MeasureOp '[ 'HProb, 'HMeasure a ] ('HMeasure ('HMeasure a))
     -- TODO: unify Plate and Chain as 'sequence' a~la traversable?
     Plate
         :: !(Sing a)
-        -> MeasureOp
-            '[ '( '[], 'HArray ('HMeasure a))
-            ] ('HMeasure ('HArray a))
+        -> MeasureOp '[ 'HArray ('HMeasure a) ] ('HMeasure ('HArray a))
     Chain
         :: !(Sing s)
         -> !(Sing a)
         -> MeasureOp
-            '[ '( '[], 'HArray (s ':-> 'HMeasure (HPair a s)))
-            ,  '( '[], s)
+            '[ 'HArray (s ':-> 'HMeasure (HPair a s))
+            ,  s
             ] ('HMeasure (HPair ('HArray a) s))
 
 
-    -- TODO: do these belong in their own place?
     -- -- Internalized program transformations
+    -- TODO: do these belong in their own place?
+    --
     -- We generally want to evaluate these away at compile-time,
     -- but sometimes we may be stuck with a few unresolved things
     -- for open terms.
@@ -562,19 +541,13 @@ data MeasureOp :: [([Hakaru], Hakaru)] -> Hakaru -> * where
     -- Or, perhaps rather, transform it into @Lam_ x. App_ (Lam_ x'. blah x') (Expect x)@.
     Expect
         :: !(Sing a)
-        -> MeasureOp
-            '[ '( '[], 'HMeasure a)
-            ,  '( '[], a ':-> 'HProb)
-            ] 'HProb
+        -> MeasureOp '[ 'HMeasure a, a ':-> 'HProb ] 'HProb
 
     -- TODO: replace with separate primitives for Forward and Backward (or possibly the four primitives given in the paper, depending on whether the inductive argument is of measure type or not).
     Disintegrate
         :: !(Sing a)
         -> !(Sing b)
-        -> MeasureOp
-            '[ '( '[], 'HMeasure (HPair a b))
-            ,  '( '[], a)
-            ] ('HMeasure b)
+        -> MeasureOp '[ 'HMeasure (HPair a b), a ] ('HMeasure b)
 
 deriving instance Eq   (MeasureOp args a)
 -- TODO: instance Read (MeasureOp args a)
@@ -1047,18 +1020,17 @@ infix  4 :$ -- Chosen to be at the same precedence as (<$>) rather than ($)
 infixr 5 :* -- Chosen to match (:)
 
 
--- TODO: should we define our own datakind for @[([Hakaru], Hakaru)]@ or perhaps for the @/\a -> ([a], Hakaru)@ part of it?
-
 -- | The constructor of a '(:$)' node in the 'AST'. Each of these
 -- constructors denotes a \"normal\/standard\/basic\" syntactic
 -- form (i.e., a generalized quantifier). In the literature, these
 -- syntactic forms are sometimes called \"operators\", but we avoid
 -- calling them that so as not to introduce confusion vs 'PrimOp'
--- etc. Also in the literature, the 'SCon' type itself is usually
--- called the \"signature\" of the term language. However, we avoid
--- calling it that since our 'AST' has constructors other than just
--- @(:$)@, so 'SCon' does not give a complete signature for our
--- terms.
+-- etc. Instead we use the term \"operator\" to refer to any primitive
+-- function or constant; that is, non-binding syntactic forms. Also
+-- in the literature, the 'SCon' type itself is usually called the
+-- \"signature\" of the term language. However, we avoid calling
+-- it that since our 'AST' has constructors other than just @(:$)@,
+-- so 'SCon' does not give a complete signature for our terms.
 --
 -- The main reason for breaking this type out and using it in
 -- conjunction with '(:$)' and 'SArgs' is so that we can easily
@@ -1070,8 +1042,8 @@ data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
     {- FUTURE
     -- -- Standard lambda calculus stuff
     Lam_ :: SCon '[ '( '[ a ], b ) ] (a ':-> b)
-    App_ :: SCon '[ '( '[], a ':-> b ), '( '[], a ) ] b
-    Let_ :: SCon '[ '( '[], a ), '( '[ a ], b ) ] b
+    App_ :: SCon '[ LC (a ':-> b ), LC a ] b
+    Let_ :: SCon '[ LC a, '( '[ a ], b ) ] b
     -- TODO: a general \"@let*@\" version of let-binding so we can have mutual recursion
     -- TODO: get rid of 'Fix_' and introduce induction principles for each HData instead.
     Fix_ :: SCon '[ '( '[ a ], a ) ] a
@@ -1080,14 +1052,20 @@ data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
     -- | Explicitly given type annotations. (For the other
     -- change-of-direction rule in bidirectional type checking.)
     -- N.B., storing a 'Proxy' isn't enough; we need the 'Sing'.
-    Ann_        :: !(Sing a)       -> SCon '[ '( '[], a ) ] a
-    CoerceTo_   :: !(Coercion a b) -> SCon '[ '( '[], a ) ] b
-    UnsafeFrom_ :: !(Coercion a b) -> SCon '[ '( '[], b ) ] a
+    Ann_        :: !(Sing a)       -> SCon '[ LC a ] a
+    CoerceTo_   :: !(Coercion a b) -> SCon '[ LC a ] b
+    UnsafeFrom_ :: !(Coercion a b) -> SCon '[ LC b ] a
     -}
 
     -- TODO: map @'(,) '[]@ over a mere @[Hakaru]@ to generate @args@
-    PrimOp_    :: !(PrimOp    args a) -> SCon args a
-    MeasureOp_ :: !(MeasureOp args a) -> SCon args a
+    -- N.B., we must use 'UnLCs' rather than 'LCs' for type inference reasons re the typeclass instances for 'SCon'
+    PrimOp_    :: !(PrimOp    (UnLCs args) a) -> SCon args a
+    MeasureOp_ :: !(MeasureOp (UnLCs args) a) -> SCon args a
+    -- TODO: Does this one need to have a Sing value for @a@ (or @b@)?
+    MBind :: SCon
+        '[ LC ('HMeasure a)
+        ,  '( '[ a ], 'HMeasure b)
+        ] ('HMeasure b)
 
 
 deriving instance Eq   (SCon args a)
@@ -1096,15 +1074,17 @@ deriving instance Show (SCon args a)
 
 
 ----------------------------------------------------------------
+-- TODO: ideally we'd like to make SArgs totally flat, like tuples and arrays. Is there a way to do that with data families?
+
 -- TODO: come up with a better name for 'End'
 -- | The arguments to a '(:$)' node in the 'AST'; that is, a list
 -- of ASTs, where the whole list is indexed by a (type-level) list
 -- of the indices of each element.
 data SArgs :: ([Hakaru] -> Hakaru -> *) -> [([Hakaru], Hakaru)] -> *
     where
-    (:*) :: !(abt xs a)
+    (:*) :: !(abt vars a)
         -> !(SArgs abt args)
-        -> SArgs abt ( '(xs,a) ': args)
+        -> SArgs abt ( '(vars, a) ': args)
     End :: SArgs abt '[]
 
 -- TODO: instance Eq   (SArgs abt args)

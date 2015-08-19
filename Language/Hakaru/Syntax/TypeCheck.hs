@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.07.15
+--                                                    2015.07.19
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeCheck
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -122,10 +122,16 @@ mustCheck = go . viewABT
     -- down the wrong path?
     go (Syn (Case_ _ _))      = True
 
-    go (Syn (Measure_ _))     = False
+
+    go (Syn (MeasureOp_ _ :$ _)) = False
     -- TODO: I'm assuming this works like Let_, but we should make sure...
-    go (Syn (Bind_ _ e2))     = caseBind e2 $ \_ e2' -> mustCheck e2'
     -- TODO: again, it seems like if we can infer one of the options, then we should be able to check the rest against it. But for now we'll assume we must check
+    go (Syn (MBind :$ _ :* e2 :* End)) =
+        caseBind e2 $ \_ e2' -> mustCheck e2'
+    {- PAST
+    go (Syn (Measure_ _))     = False
+    go (Syn (Bind_ _ e2))     = caseBind e2 $ \_ e2' -> mustCheck e2'
+    -}
     go (Syn (Superpose_ _))   = True
 
 
