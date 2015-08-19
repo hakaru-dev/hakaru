@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.08.06
+--                                                    2015.08.19
 -- |
 -- Module      :  Language.Hakaru.Syntax.ABT
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -76,7 +76,6 @@ import           Data.Text         (Text)
 import           Data.Set          (Set)
 import qualified Data.Set          as Set
 import           Data.Function     (on)
-import qualified Data.Foldable     as F
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Monoid
 #endif
@@ -619,6 +618,13 @@ subst x e = start
 -- to deal with that issue...
 
 
+newtype MaxNat = MaxNat { unMaxNat :: Nat }
+
+instance Monoid MaxNat where
+    mempty = MaxNat 0
+    mappend (MaxNat m1) (MaxNat m2) = MaxNat (max m1 m2)
+
+
 -- N.B., we define this as a standalone class in order to avoid
 -- imposing additional type-class constraints on functions that use
 -- it. However, do note that our ability to do this is tied to the
@@ -630,7 +636,6 @@ subst x e = start
 -- over any of those three types, then we'll need to move this into
 -- a type class again.
 
-
 -- | Return the largest 'varID' of variable /binding sites/ (i.e.,
 -- of variables bound by the 'Bind' constructor).
 --
@@ -640,68 +645,18 @@ subst x e = start
 -- soundness is guaranteed without needing to traverse under
 -- binders.)
 maxBind :: (ABT abt) => abt xs a -> Nat
-maxBind = go_View . viewABT
+maxBind = go 0 . viewABT
     where
     -- For multibinders (i.e., nested uses of Bind) we recurse
     -- through the whole binder, just to be sure. However, we should
     -- be able to just look at the first binder, since whenever we
     -- figure out how to do multibinders we can prolly arrange for
     -- the first one to be the largest.
-    go_View :: (ABT abt) => View abt xs a -> Nat
-    go_View = go 0
-        where
-        go :: (ABT abt) => Nat -> View abt xs a -> Nat
-        go 0 (Syn  t)   = go_AST t
-        go n (Syn  _)   = n -- Don't go under binders
-        go n (Var  _)   = n -- Don't look at variable *uses*
-        go n (Bind x v) = go (n `max` varID x) v
-
-    -- N.B., we needn't traverse into any type annotations, since we
-    -- don't have dependent types, hence no term variables can appear
-    -- in the types.
-    go_AST :: (ABT abt) => AST abt a -> Nat
-    go_AST (Lam_        e)        = maxBind e
-    go_AST (App_        e1 e2)    = maxBind e1 `max` maxBind e2
-    go_AST (Let_        e1 e2)    = maxBind e1 `max` maxBind e2
-    go_AST (Fix_        e)        = maxBind e
-    go_AST (Ann_        _  e)     = maxBind e
-    go_AST (PrimOp_     _)        = 0
-    go_AST (NaryOp_     _  es)    = go_Foldable es
-    go_AST (Value_      _)        = 0
-    go_AST (CoerceTo_   _  e)     = maxBind e
-    go_AST (UnsafeFrom_ _  e)     = maxBind e
-    go_AST Empty_                 = 0
-    go_AST (Array_      e1 e2)    = maxBind e1 `max` maxBind e2
-    go_AST (Datum_ (Datum d))     = go_DatumCode d
-    go_AST (Case_       e  bs)    = maxBind e  `max` go_Branches bs
-    go_AST (Measure_    _)        = 0
-    go_AST (Bind_       e1 e2)    = maxBind e1 `max` maxBind e2
-    go_AST (Superpose_  pes)      = go_Pairs pes
-    go_AST (Lub_        es)       = go_Foldable es
-
-    go_DatumCode :: (ABT abt) => DatumCode xss (abt '[]) a -> Nat
-    go_DatumCode (Inr d) = go_DatumCode   d
-    go_DatumCode (Inl d) = go_DatumStruct d
-
-    go_DatumStruct :: (ABT abt) => DatumStruct xs (abt '[]) a -> Nat
-    go_DatumStruct (Et d1 d2) = go_DatumFun d1 `max` go_DatumStruct d2
-    go_DatumStruct Done       = 0
-
-    go_DatumFun :: (ABT abt) => DatumFun x (abt '[]) a -> Nat
-    go_DatumFun (Konst e) = maxBind e
-    go_DatumFun (Ident e) = maxBind e
-
-    -- HACK: can't use 'foldMap21' unless we newtype wrap up the Nats to say which monoid we mean.
-    -- N.B., the Prelude's 'maximum' throws an error on empty lists!
-    go_Foldable :: (ABT abt, F.Foldable f) => f (abt '[] a) -> Nat
-    go_Foldable =
-        F.foldl' (\n e -> n `max` maxBind e) 0
-    go_Pairs :: (ABT abt) => [(abt '[] a, abt '[] b)] -> Nat
-    go_Pairs =
-        F.foldl' (\n (e1,e2) -> n `max` maxBind e1 `max` maxBind e2) 0
-    go_Branches :: (ABT abt) => [Branch a abt b] -> Nat
-    go_Branches =
-        F.foldl' (\n b -> n `max` branchBody b maxBind) 0
+    go :: (ABT abt) => Nat -> View abt xs a -> Nat
+    go 0 (Syn  t)   = unMaxNat $ foldMap21 (MaxNat . maxBind) t
+    go n (Syn  _)   = n -- Don't go under binders
+    go n (Var  _)   = n -- Don't look at variable *uses*
+    go n (Bind x v) = go (n `max` varID x) v
 
 
 -- | A combinator for defining a HOAS-like API for our syntax.
@@ -711,6 +666,15 @@ maxBind = go_View . viewABT
 -- terms; however, trying to do anything other than change the
 -- variable's name hint will cause things to explode (since it'll
 -- interfere with our tying-the-knot).
+--
+-- N.B., if you manually construct free variables and use them in
+-- the body (i.e., via 'var'), they may become captured by the new
+-- binding introduced here! This is inevitable since 'maxBind' never
+-- looks at variable /use sites/; it only ever looks at /binding
+-- sites/. On the other hand, if you manually construct a bound
+-- variable (i.e., manually calling 'bind' yourself), then the new
+-- binding introduced here will respect the old binding and avoid
+-- that variable ID.
 binder
     :: (ABT abt)
     => Text                     -- ^ The variable's name hint

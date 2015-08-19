@@ -10,7 +10,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.08.06
+--                                                    2015.08.19
 -- |
 -- Module      :  Language.Hakaru.Syntax.Prelude
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -65,26 +65,41 @@ app2 = (app .) . app
 app3 :: (ABT abt) => abt '[] (a ':-> b ':-> c ':-> d) -> abt '[] a -> abt '[] b -> abt '[] c -> abt '[] d
 app3 = (app2 .) . app
 
-primOp0_ :: (ABT abt) => PrimOp a -> abt '[] a
-primOp0_ = syn . PrimOp_
+primOp0_ :: (ABT abt) => PrimOp '[] a -> abt '[] a
+primOp0_ o = syn (PrimOp_ o :$ End)
 
-primOp1_ :: (ABT abt) => PrimOp (a ':-> b) -> abt '[] a -> abt '[] b
-primOp1_ = app . primOp0_
+primOp1_
+    :: (ABT abt)
+    => PrimOp '[ '( '[], a ) ] b
+    -> abt '[] a -> abt '[] b
+primOp1_ o e1 = syn (PrimOp_ o :$ e1 :* End)
 
-primOp2_ :: (ABT abt) => PrimOp (a ':-> b ':-> c) -> abt '[] a -> abt '[] b -> abt '[] c
-primOp2_ = app2 . primOp0_
+primOp2_
+    :: (ABT abt)
+    => PrimOp '[ '( '[], a ), '( '[], b ) ] c
+    -> abt '[] a -> abt '[] b -> abt '[] c
+primOp2_ o e1 e2 = syn (PrimOp_ o :$ e1 :* e2 :* End)
 
-primOp3_ :: (ABT abt) => PrimOp (a ':-> b ':-> c ':-> d) -> abt '[] a -> abt '[] b -> abt '[] c -> abt '[] d
-primOp3_ = app3 . primOp0_
+primOp3_
+    :: (ABT abt)
+    => PrimOp '[ '( '[], a ), '( '[], b ), '( '[], c ) ] d
+    -> abt '[] a -> abt '[] b -> abt '[] c -> abt '[] d
+primOp3_ o e1 e2 e3 = syn (PrimOp_ o :$ e1 :* e2 :* e3 :* End)
 
-measure0_ :: (ABT abt) => Measure a -> abt '[] a
-measure0_ = syn . Measure_
+measure0_ :: (ABT abt) => MeasureOp '[] a -> abt '[] a
+measure0_ o = syn (MeasureOp_ o :$ End)
 
-measure1_ :: (ABT abt) => Measure (a ':-> b) -> abt '[] a -> abt '[] b
-measure1_ = app . measure0_
+measure1_
+    :: (ABT abt)
+    => MeasureOp '[ '( '[], a ) ] b
+    -> abt '[] a -> abt '[] b
+measure1_ o e1 = syn (MeasureOp_ o :$ e1 :* End)
 
-measure2_ :: (ABT abt) => Measure (a ':-> b ':-> c) -> abt '[] a -> abt '[] b -> abt '[] c
-measure2_ = app2 . measure0_
+measure2_
+    :: (ABT abt)
+    => MeasureOp '[ '( '[], a ), '( '[], b ) ] c
+    -> abt '[] a -> abt '[] b -> abt '[] c
+measure2_ o e1 e2 = syn (MeasureOp_ o :$ e1 :* e2 :* End)
 
 
 -- N.B., we don't take advantage of commutativity, for more predictable
@@ -315,7 +330,9 @@ x - y = x + negate y
 -- optimization\/partial-evaluation pass, but do note that it makes
 -- terms larger in general...
 negate :: (ABT abt, HRing_ a) => abt '[] a -> abt '[] a
-negate e0 =
+negate = primOp1_ $ Negate hRing
+    {- PAST: TODO: redo this optimization
+    \e0 ->
     Prelude.maybe (primOp1_ (Negate hRing) e0) id
         $ caseVarSyn e0
             (const Nothing)
@@ -333,6 +350,7 @@ negate e0 =
                             PrimOp_ (Negate _theRing) -> Just e
                             _                         -> Nothing
                 _ -> Nothing
+    -}
 
 
 -- TODO: test case: @negative . square@ simplifies away the intermediate coercions. (cf., normal')
@@ -376,7 +394,9 @@ x / y = x * recip y
 -- optimization\/partial-evaluation pass, but do note that it makes
 -- terms larger in general...
 recip :: (ABT abt, HFractional_ a) => abt '[] a -> abt '[] a
-recip e0 =
+recip = primOp1_ $ Recip hFractional
+    {- PAST: TODO: redo this optimization
+    \e0 ->
     Prelude.maybe (primOp1_ (Recip hFractional) e0) id
         $ caseVarSyn e0
             (const Nothing)
@@ -394,6 +414,7 @@ recip e0 =
                             PrimOp_ (Recip _theFrac) -> Just e
                             _                        -> Nothing
                 _ -> Nothing
+    -}
 
 
 -- TODO: simplifications
@@ -753,7 +774,7 @@ constV n c = array n (const c)
     => abt '[] ('HMeasure a)
     -> (abt '[] a -> abt '[] ('HMeasure b))
     -> abt '[] ('HMeasure b)
-(>>=) e = syn . Bind_ e . binder Text.empty sing
+m >>= f = syn (MeasureOp_ MBind :$ m :* binder Text.empty sing f :* End)
 
 -- BUG: remove the 'SingI' requirement!
 dirac :: (ABT abt, SingI a) => abt '[] a -> abt '[] ('HMeasure a)
@@ -1015,15 +1036,15 @@ plate' v = reduce r z (mapV m v)
     m a = (array (nat_ 1) . const) <$> a
 
 
--- TODO: use 'measure2_' instead? 
 -- BUG: remove the 'SingI' requirement!
 chain, chain'
     :: (ABT abt, SingI s, SingI a)
-    => abt '[] ('HArray (s ':-> 'HMeasure (HPair          a  s)))
-    -> abt '[] (         s ':-> 'HMeasure (HPair ('HArray a) s))
-chain = measure1_ $ Chain sing sing
+    => abt '[] ('HArray (s ':-> 'HMeasure (HPair a s)))
+    -> abt '[] s
+    -> abt '[] ('HMeasure (HPair ('HArray a) s))
+chain = measure2_ $ Chain sing sing
 
-chain' v = reduce r z (mapV m v)
+chain' v s0 = reduce r z (mapV m v) `app` s0
     where
     r x y = lam $ \s ->
             app x s >>= \v1s1 ->
@@ -1119,7 +1140,7 @@ geometric = negativeBinomial (nat_ 1)
 {-
 multinomial
     :: (ABT abt)
-    => abt '[] 'HInt
+    => abt '[] 'HNat
     -> abt '[] ('HArray 'HProb)
     -> abt '[] ('HMeasure ('HArray 'HProb))
 multinomial n v =

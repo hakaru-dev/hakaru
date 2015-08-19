@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.08.14
+--                                                    2015.08.19
 -- |
 -- Module      :  Language.Hakaru.Syntax.AST
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -38,8 +38,14 @@ module Language.Hakaru.Syntax.AST
       Value(..),   sing_Value
     -- * Primitive operators
     , NaryOp(..),  sing_NaryOp
-    , PrimOp(..),  sing_PrimOp
-    , Measure(..), sing_Measure
+    , PrimOp(..)
+    {- PAST
+    ,  sing_PrimOp
+    -}
+    , MeasureOp(..)
+    {- PAST
+    , sing_Measure
+    -}
     -- * User-defined datatypes
     -- ** Data constructors\/patterns
     , Datum(..)
@@ -68,6 +74,8 @@ module Language.Hakaru.Syntax.AST
     , pNil, pCons
     , pNothing, pJust
     -- * Syntactic forms
+    , SCon(..)
+    , SArgs(..)
     , AST(..)
     ) where
 
@@ -210,8 +218,13 @@ sing_NaryOp (Sum  theSemi) = sing_HSemiring theSemi
 sing_NaryOp (Prod theSemi) = sing_HSemiring theSemi
 
 ----------------------------------------------------------------
--- | Simple primitive functions, and constants.
-data PrimOp :: Hakaru -> * where
+-- TODO: redo this to avoid the @(,) [Hakaru]@ part since it's always trivial here (by happenstance if not by design).
+-- TODO: should we make that triviality part of what it means to be a \"primop\"?
+
+-- | Simple primitive functions, and constants. N.B., nothing in
+-- here should produce or consume things of @HMeasure@ type (except
+-- perhaps in a totally polymorphic way).
+data PrimOp :: [([Hakaru], Hakaru)] -> Hakaru -> * where
 
     -- -- -- Here we have /monomorphic/ operators
     -- -- The Boolean operators
@@ -226,12 +239,17 @@ data PrimOp :: Hakaru -> * where
     -- cf., <https://hackage.haskell.org/package/qm-0.1.0.0/candidate>
     -- cf., <https://github.com/pfpacket/Quine-McCluskey>
     -- cf., <https://gist.github.com/dsvictor94/8db2b399a95e301c259a>
-    Not  :: PrimOp (HBool ':-> HBool)
+    Not  :: PrimOp '[ '( '[], HBool ) ] HBool
     -- And, Or, Xor, Iff
-    Impl :: PrimOp (HBool ':-> HBool ':-> HBool) -- == Or (Not x) y
-    Diff :: PrimOp (HBool ':-> HBool ':-> HBool) -- == Not (Impl x y)
-    Nand :: PrimOp (HBool ':-> HBool ':-> HBool) -- aka Alternative Denial, Sheffer stroke
-    Nor  :: PrimOp (HBool ':-> HBool ':-> HBool) -- aka Joint Denial, aka Quine dagger, aka Pierce arrow
+    Impl :: PrimOp '[ '( '[], HBool ), '( '[], HBool ) ] HBool
+    -- Impl x y == Or (Not x) y
+    Diff :: PrimOp '[ '( '[], HBool ), '( '[], HBool ) ] HBool
+    -- Diff x y == Not (Impl x y)
+    Nand :: PrimOp '[ '( '[], HBool ), '( '[], HBool ) ] HBool
+    -- Nand aka Alternative Denial, Sheffer stroke
+    Nor  :: PrimOp '[ '( '[], HBool ), '( '[], HBool ) ] HBool
+    -- Nor aka Joint Denial, aka Quine dagger, aka Pierce arrow
+    --
     -- The remaining eight binops are completely uninteresting:
     --   flip Impl
     --   flip Diff
@@ -244,21 +262,21 @@ data PrimOp :: Hakaru -> * where
 
 
     -- -- Trigonometry operators
-    Pi    :: PrimOp 'HProb -- TODO: maybe make this HContinuous polymorphic?
+    Pi    :: PrimOp '[] 'HProb -- TODO: maybe make this HContinuous polymorphic?
     -- TODO: if we're going to bother naming the hyperbolic ones, why not also name /a?(csc|sec|cot)h?/ eh?
     -- TODO: capture more domain information in these types?
-    Sin   :: PrimOp ('HReal ':-> 'HReal)
-    Cos   :: PrimOp ('HReal ':-> 'HReal)
-    Tan   :: PrimOp ('HReal ':-> 'HReal)
-    Asin  :: PrimOp ('HReal ':-> 'HReal)
-    Acos  :: PrimOp ('HReal ':-> 'HReal)
-    Atan  :: PrimOp ('HReal ':-> 'HReal)
-    Sinh  :: PrimOp ('HReal ':-> 'HReal)
-    Cosh  :: PrimOp ('HReal ':-> 'HReal)
-    Tanh  :: PrimOp ('HReal ':-> 'HReal)
-    Asinh :: PrimOp ('HReal ':-> 'HReal)
-    Acosh :: PrimOp ('HReal ':-> 'HReal)
-    Atanh :: PrimOp ('HReal ':-> 'HReal)
+    Sin   :: PrimOp '[ '( '[], 'HReal ) ] 'HReal
+    Cos   :: PrimOp '[ '( '[], 'HReal ) ] 'HReal
+    Tan   :: PrimOp '[ '( '[], 'HReal ) ] 'HReal
+    Asin  :: PrimOp '[ '( '[], 'HReal ) ] 'HReal
+    Acos  :: PrimOp '[ '( '[], 'HReal ) ] 'HReal
+    Atan  :: PrimOp '[ '( '[], 'HReal ) ] 'HReal
+    Sinh  :: PrimOp '[ '( '[], 'HReal ) ] 'HReal
+    Cosh  :: PrimOp '[ '( '[], 'HReal ) ] 'HReal
+    Tanh  :: PrimOp '[ '( '[], 'HReal ) ] 'HReal
+    Asinh :: PrimOp '[ '( '[], 'HReal ) ] 'HReal
+    Acosh :: PrimOp '[ '( '[], 'HReal ) ] 'HReal
+    Atanh :: PrimOp '[ '( '[], 'HReal ) ] 'HReal
 
 
     -- -- Other Real/Prob-valued operators
@@ -270,21 +288,21 @@ data PrimOp :: Hakaru -> * where
     -- but non-integer real powers of negative reals are not real numbers!
     -- TODO: may need @SafeFrom_@ in order to branch on the input
     -- in order to provide the old unsafe behavior.
-    RealPow   :: PrimOp ('HProb ':-> 'HReal ':-> 'HProb)
+    RealPow   :: PrimOp '[ '( '[], 'HProb ), '( '[], 'HReal ) ] 'HProb
     -- ComplexPow :: PrimOp ('HProb ':-> 'HComplex ':-> 'HComplex)
     -- is uniquely well-defined. Though we may want to implement
     -- it via @r**z = ComplexExp (z * RealLog r)@
     -- Defining @HReal -> HComplex -> HComplex@ requires either
     -- multivalued functions, or a choice of complex logarithm and
     -- making it discontinuous.
-    Exp       :: PrimOp ('HReal ':-> 'HProb)
-    Log       :: PrimOp ('HProb ':-> 'HReal)
+    Exp       :: PrimOp '[ '( '[], 'HReal ) ] 'HProb
+    Log       :: PrimOp '[ '( '[], 'HProb ) ] 'HReal
     -- TODO: Log1p, Expm1
-    Infinity  :: PrimOp 'HProb -- TODO: maybe make this HContinuous polymorphic?
-    NegativeInfinity :: PrimOp 'HReal -- TODO: maybe replace this by @negate (CoerceTo signed (PrimOp_ Infinity))@ ?
+    Infinity  :: PrimOp '[] 'HProb -- TODO: maybe make this HContinuous polymorphic?
+    NegativeInfinity :: PrimOp '[] 'HReal -- TODO: maybe replace this by @negate (CoerceTo signed (PrimOp_ Infinity))@ ?
     -- TODO: add Factorial as the appropriate type restriction of GammaFunc?
-    GammaFunc :: PrimOp ('HReal ':-> 'HProb)
-    BetaFunc  :: PrimOp ('HProb ':-> 'HProb ':-> 'HProb)
+    GammaFunc :: PrimOp '[ '( '[], 'HReal ) ] 'HProb
+    BetaFunc  :: PrimOp '[ '( '[], 'HProb ), '( '[], 'HProb ) ] 'HProb
 
 
     -- -- Continuous and discrete integration.
@@ -294,15 +312,15 @@ data PrimOp :: Hakaru -> * where
     -- (since the second input is assumed to be greater thant he
     -- first); though that would be a bit ugly IMO.
     Integrate :: PrimOp
-        (    'HReal
-        ':-> 'HReal
-        ':-> ('HReal ':-> 'HProb)
-        ':-> 'HProb)
+        '[ '( '[], 'HReal)
+        ,  '( '[], 'HReal)
+        ,  '( '[], 'HReal ':-> 'HProb)
+        ] 'HProb
     Summate :: PrimOp
-        (    'HReal -- TODO: should that really be 'HReal ?!
-        ':-> 'HReal -- TODO: should that really be 'HReal ?!
-        ':-> ('HInt ':-> 'HProb)
-        ':-> 'HProb)
+        '[ '( '[], 'HReal) -- TODO: should that really be 'HReal ?!
+        ,  '( '[], 'HReal) -- TODO: should that really be 'HReal ?!
+        ,  '( '[], 'HInt ':-> 'HProb)
+        ] 'HProb
 
 
     -- -- -- Here we have the /polymorphic/ operators
@@ -311,24 +329,28 @@ data PrimOp :: Hakaru -> * where
     -- -- Array stuff
     -- TODO: do these really belong here (as PrimOps), in AST, or in their own place (a la Datum)?
     -- HACK: is there any way we can avoid storing the Sing values here, while still implementing 'sing_PrimOp'? Should we have a Hakaru class for the types which can be stored in arrays? might not be a crazy idea...
-    Index  :: !(Sing a) -> PrimOp ('HArray a ':-> 'HNat ':-> a)
-    Size   :: !(Sing a) -> PrimOp ('HArray a ':-> 'HNat)
+    Index  :: !(Sing a) -> PrimOp '[ '( '[], 'HArray a), '( '[], 'HNat)] a
+    Size   :: !(Sing a) -> PrimOp '[ '( '[], 'HArray a)] 'HNat
     -- The first argument should be a monoid, but we don't enforce
     -- that; it's the user's responsibility.
     Reduce
         :: !(Sing a)
-        -> PrimOp ((a ':-> a ':-> a) ':-> a ':-> 'HArray a ':-> a)
+        -> PrimOp
+            '[ '( '[], a ':-> a ':-> a)
+            ,  '( '[], a)
+            ,  '( '[], 'HArray a)
+            ] a
 
 
     -- -- HEq and HOrd operators
     -- TODO: equality doesn't make constructive sense on the reals...
     -- would it be better to constructivize our notion of total ordering?
-    Equal :: !(HEq  a) -> PrimOp (a ':-> a ':-> HBool)
-    Less  :: !(HOrd a) -> PrimOp (a ':-> a ':-> HBool)
+    Equal :: !(HEq  a) -> PrimOp '[ '( '[], a ), '( '[], a ) ] HBool
+    Less  :: !(HOrd a) -> PrimOp '[ '( '[], a ), '( '[], a ) ] HBool
 
 
     -- -- HSemiring operators (the non-n-ary ones)
-    NatPow :: !(HSemiring a) -> PrimOp (a ':-> 'HNat ':-> a)
+    NatPow :: !(HSemiring a) -> PrimOp '[ '( '[], a ), '( '[], 'HNat ) ] a
     -- TODO: would it help to have a specialized version for when
     -- we happen to know that the 'HNat is a Value? Same goes for
     -- the other powers\/roots
@@ -357,13 +379,13 @@ data PrimOp :: Hakaru -> * where
     -- Ring: Semiring + negate, abs, signum
     -- NormedLinearSpace: LinearSpace + originPoint, norm, Arg
     -- ??: NormedLinearSpace + originAxis, angle
-    Negate :: !(HRing a) -> PrimOp (a ':-> a)
-    Abs    :: !(HRing a) -> PrimOp (a ':-> NonNegative a)
+    Negate :: !(HRing a) -> PrimOp '[ '( '[], a ) ] a
+    Abs    :: !(HRing a) -> PrimOp '[ '( '[], a ) ] (NonNegative a)
     -- cf., <https://mail.haskell.org/pipermail/libraries/2013-April/019694.html>
     -- cf., <https://en.wikipedia.org/wiki/Sign_function#Complex_signum>
     -- Should we have Maple5's \"csgn\" as well as the usual \"sgn\"?
     -- Also note that the \"generalized signum\" anticommutes with Dirac delta!
-    Signum :: !(HRing a) -> PrimOp (a ':-> a)
+    Signum :: !(HRing a) -> PrimOp '[ '( '[], a ) ] a
     -- Law: x = coerceTo_ signed (abs_ x) * signum x
     -- More strictly/exactly, the result of Signum should be either
     -- zero or an @a@-unit value. For Int and Real, the units are
@@ -377,43 +399,27 @@ data PrimOp :: Hakaru -> * where
 
 
     -- -- HFractional operators
-    Recip :: !(HFractional a) -> PrimOp (a ':-> a)
+    Recip :: !(HFractional a) -> PrimOp '[ '( '[], a ) ] a
     -- generates macro: IntPow
 
 
     -- -- HRadical operators
-    NatRoot :: !(HRadical a) -> PrimOp (a ':-> 'HNat ':-> a)
+    NatRoot :: !(HRadical a) -> PrimOp '[ '( '[], a ), '( '[], 'HNat ) ] a
     -- generates macros: Sqrt, NonNegativeRationalPow, and RationalPow
 
 
     -- -- HContinuous operators
     -- TODO: what goes here, if anything? cf., <https://en.wikipedia.org/wiki/Closed-form_expression#Comparison_of_different_classes_of_expressions>
-    Erf :: !(HContinuous a) -> PrimOp (a ':-> a)
+    Erf :: !(HContinuous a) -> PrimOp '[ '( '[], a ) ] a
     -- TODO: make Pi and Infinity HContinuous-polymorphic so that we can avoid the explicit coercion? Probably more mess than benefit.
 
 
-    -- -- Internalized program transformations
-    -- We generally want to evaluate these away at compile-time,
-    -- but sometimes we may be stuck with a few unresolved things
-    -- for open terms.
-    --
-    -- TODO: implement a \"change of variables\" program transformation
-    -- to map, say, @Lam_ x. blah (Expect x)@ into @Lam x'. blah x'@.
-    -- Or, perhaps rather, transform it into @Lam_ x. App_ (Lam_ x'. blah x') (Expect x)@.
-    Expect
-        :: !(Sing a)
-        -> PrimOp ('HMeasure a ':-> (a ':-> 'HProb) ':-> 'HProb)
-
-    Disintegrate
-        :: !(Sing a)
-        -> !(Sing b)
-        -> PrimOp ('HMeasure (HPair a b) ':-> a ':-> 'HMeasure b)
-
-deriving instance Eq   (PrimOp a)
--- TODO: instance Read (PrimOp a)
-deriving instance Show (PrimOp a)
+deriving instance Eq   (PrimOp args a)
+-- TODO: instance Read (PrimOp args a)
+deriving instance Show (PrimOp args a)
 
 
+{- PAST
 -- TODO: we don't need to store the dictionary values here, we can
 -- recover them by typeclass, just like we use 'sing' for the other
 -- ones...
@@ -483,53 +489,100 @@ sing_PrimOp (NatRoot theRad) =
 sing_PrimOp (Erf theCont) =
     let a = sing_HContinuous theCont
     in  a `SFun` a
-sing_PrimOp (Expect a) =
-    SMeasure a `SFun` (a `SFun` SProb) `SFun` SProb
-sing_PrimOp (Disintegrate a b) =
-    SMeasure (sPair a b) `SFun` a `SFun` SMeasure b
+-}
 
 
 ----------------------------------------------------------------
 -- TODO: move the rest of the old Mochastic class into here?
--- | Primitive distributions\/measures.
-data Measure :: Hakaru -> * where
-    -- TODO: should we put Dirac back into the main AST?
+-- | Primitive operators to produce, consume, or transform
+-- distributions\/measures.
+data MeasureOp :: [([Hakaru], Hakaru)] -> Hakaru -> * where
     -- HACK: is there any way we can avoid storing the Sing value here, while still implementing 'sing_Measure'? Should we have a Hakaru class for the types which can be measurable? might not be a crazy idea...
-    Dirac       :: !(Sing a) -> Measure (a ':-> 'HMeasure a)
+    Dirac :: !(Sing a) -> MeasureOp '[ '( '[], a ) ] ('HMeasure a)
+    -- TODO: Does this one need to have a Sing value for @a@ (or @b@)?
+    MBind :: MeasureOp
+        '[ '( '[],    'HMeasure a)
+        ,  '( '[ a ], 'HMeasure b)
+        ] ('HMeasure b)
 
-    Lebesgue    :: Measure ('HMeasure 'HReal)
-    Counting    :: Measure ('HMeasure 'HInt)
-    Categorical :: Measure ('HArray 'HProb ':-> 'HMeasure 'HNat)
+    Lebesgue    :: MeasureOp '[] ('HMeasure 'HReal)
+    Counting    :: MeasureOp '[] ('HMeasure 'HInt)
+    Categorical :: MeasureOp '[ '( '[], 'HArray 'HProb)] ('HMeasure 'HNat)
     -- TODO: make Uniform polymorphic, so that if the two inputs are HProb then we know the measure must be over HProb too. More generally, if the first input is HProb (since the second input is assumed to be greater thant he first); though that would be a bit ugly IMO.
-    Uniform     :: Measure ('HReal ':-> 'HReal ':-> 'HMeasure 'HReal)
-    Normal      :: Measure ('HReal ':-> 'HProb ':-> 'HMeasure 'HReal)
-    Poisson     :: Measure ('HProb ':-> 'HMeasure 'HNat)
-    Gamma       :: Measure ('HProb ':-> 'HProb ':-> 'HMeasure 'HProb)
-    Beta        :: Measure ('HProb ':-> 'HProb ':-> 'HMeasure 'HProb)
-    -- binomial, mix, geometric, multinomial,... should also be HNat
+    Uniform :: MeasureOp
+        '[ '( '[], 'HReal)
+        ,  '( '[], 'HReal)
+        ] ('HMeasure 'HReal)
+    Normal :: MeasureOp
+        '[ '( '[], 'HReal)
+        ,  '( '[], 'HProb)
+        ] ('HMeasure 'HReal)
+    Poisson :: MeasureOp
+        '[ '( '[], 'HProb)
+        ] ('HMeasure 'HNat)
+    Gamma :: MeasureOp
+        '[ '( '[], 'HProb )
+        ,  '( '[], 'HProb )
+        ] ('HMeasure 'HProb)
+    Beta :: MeasureOp
+        '[ '( '[], 'HProb)
+        ,  '( '[], 'HProb)
+        ] ('HMeasure 'HProb)
 
     -- HACK: is there any way we can avoid storing the Sing values here, while still implementing 'sing_Measure'? Should we have a Hakaru class for the types which can be measurable? might not be a crazy idea...
     DirichletProcess
         :: !(Sing a)
-        -> Measure ('HProb ':-> 'HMeasure a ':-> 'HMeasure ('HMeasure a))
+        -> MeasureOp
+            '[ '( '[], 'HProb)
+            ,  '( '[], 'HMeasure a)
+            ] ('HMeasure ('HMeasure a))
     -- TODO: unify Plate and Chain as 'sequence' a~la traversable?
     Plate
         :: !(Sing a)
-        -> Measure ('HArray ('HMeasure a) ':-> 'HMeasure ('HArray a))
+        -> MeasureOp
+            '[ '( '[], 'HArray ('HMeasure a))
+            ] ('HMeasure ('HArray a))
     Chain
         :: !(Sing s)
         -> !(Sing a)
-        -> Measure
-            ('HArray (s ':-> 'HMeasure (HPair a s)) ':->
-            s ':-> 'HMeasure (HPair ('HArray a) s))
+        -> MeasureOp
+            '[ '( '[], 'HArray (s ':-> 'HMeasure (HPair a s)))
+            ,  '( '[], s)
+            ] ('HMeasure (HPair ('HArray a) s))
 
 
-deriving instance Eq   (Measure a)
--- TODO: instance Read (Measure a)
-deriving instance Show (Measure a)
+    -- TODO: do these belong in their own place?
+    -- -- Internalized program transformations
+    -- We generally want to evaluate these away at compile-time,
+    -- but sometimes we may be stuck with a few unresolved things
+    -- for open terms.
+    --
+    -- TODO: implement a \"change of variables\" program transformation
+    -- to map, say, @Lam_ x. blah (Expect x)@ into @Lam x'. blah x'@.
+    -- Or, perhaps rather, transform it into @Lam_ x. App_ (Lam_ x'. blah x') (Expect x)@.
+    Expect
+        :: !(Sing a)
+        -> MeasureOp
+            '[ '( '[], 'HMeasure a)
+            ,  '( '[], a ':-> 'HProb)
+            ] 'HProb
+
+    -- TODO: replace with separate primitives for Forward and Backward (or possibly the four primitives given in the paper, depending on whether the inductive argument is of measure type or not).
+    Disintegrate
+        :: !(Sing a)
+        -> !(Sing b)
+        -> MeasureOp
+            '[ '( '[], 'HMeasure (HPair a b))
+            ,  '( '[], a)
+            ] ('HMeasure b)
+
+deriving instance Eq   (MeasureOp args a)
+-- TODO: instance Read (MeasureOp args a)
+deriving instance Show (MeasureOp args a)
 
 
-sing_Measure :: Measure a -> Sing a
+{- PAST
+sing_Measure :: MeasureOp a -> Sing a
 sing_Measure (Dirac a)   = a `SFun` SMeasure a
 sing_Measure Lebesgue    = sing
 sing_Measure Counting    = sing
@@ -546,7 +599,11 @@ sing_Measure (Plate a) =
 sing_Measure (Chain s a) =
     SArray (s `SFun` SMeasure (sPair a s))
     `SFun` s `SFun` SMeasure (sPair (SArray a) s)
-
+sing_Measure (Expect a) =
+    SMeasure a `SFun` (a `SFun` SProb) `SFun` SProb
+sing_Measure (Disintegrate a b) =
+    SMeasure (sPair a b) `SFun` a `SFun` SMeasure b
+-}
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -983,6 +1040,99 @@ instance Foldable21 (Branch a) where
 
 
 ----------------------------------------------------------------
+----------------------------------------------------------------
+-- N.B., the precedence of (:$) must be lower than (:*).
+-- N.B., if these are changed, then be sure to update the Show instances
+infix  4 :$ -- Chosen to be at the same precedence as (<$>) rather than ($)
+infixr 5 :* -- Chosen to match (:)
+
+
+-- TODO: should we define our own datakind for @[([Hakaru], Hakaru)]@ or perhaps for the @/\a -> ([a], Hakaru)@ part of it?
+
+-- | The constructor of a '(:$)' node in the 'AST'. Each of these
+-- constructors denotes a \"normal\/standard\/basic\" syntactic
+-- form (i.e., a generalized quantifier). In the literature, these
+-- syntactic forms are sometimes called \"operators\", but we avoid
+-- calling them that so as not to introduce confusion vs 'PrimOp'
+-- etc. Also in the literature, the 'SCon' type itself is usually
+-- called the \"signature\" of the term language. However, we avoid
+-- calling it that since our 'AST' has constructors other than just
+-- @(:$)@, so 'SCon' does not give a complete signature for our
+-- terms.
+--
+-- The main reason for breaking this type out and using it in
+-- conjunction with '(:$)' and 'SArgs' is so that we can easily
+-- pattern match on /fully saturated/ nodes. For example, we want
+-- to be able to match @MeasureOp_ Uniform :$ lo :* hi :* End@
+-- without needing to deal with 'App_' nodes nor 'viewABT'.
+data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
+
+    {- FUTURE
+    -- -- Standard lambda calculus stuff
+    Lam_ :: SCon '[ '( '[ a ], b ) ] (a ':-> b)
+    App_ :: SCon '[ '( '[], a ':-> b ), '( '[], a ) ] b
+    Let_ :: SCon '[ '( '[], a ), '( '[ a ], b ) ] b
+    -- TODO: a general \"@let*@\" version of let-binding so we can have mutual recursion
+    -- TODO: get rid of 'Fix_' and introduce induction principles for each HData instead.
+    Fix_ :: SCon '[ '( '[ a ], a ) ] a
+
+    -- -- Type munging
+    -- | Explicitly given type annotations. (For the other
+    -- change-of-direction rule in bidirectional type checking.)
+    -- N.B., storing a 'Proxy' isn't enough; we need the 'Sing'.
+    Ann_        :: !(Sing a)       -> SCon '[ '( '[], a ) ] a
+    CoerceTo_   :: !(Coercion a b) -> SCon '[ '( '[], a ) ] b
+    UnsafeFrom_ :: !(Coercion a b) -> SCon '[ '( '[], b ) ] a
+    -}
+
+    -- TODO: map @'(,) '[]@ over a mere @[Hakaru]@ to generate @args@
+    PrimOp_    :: !(PrimOp    args a) -> SCon args a
+    MeasureOp_ :: !(MeasureOp args a) -> SCon args a
+
+
+deriving instance Eq   (SCon args a)
+-- TODO: instance Read (SCon args a)
+deriving instance Show (SCon args a)
+
+
+----------------------------------------------------------------
+-- TODO: come up with a better name for 'End'
+-- | The arguments to a '(:$)' node in the 'AST'; that is, a list
+-- of ASTs, where the whole list is indexed by a (type-level) list
+-- of the indices of each element.
+data SArgs :: ([Hakaru] -> Hakaru -> *) -> [([Hakaru], Hakaru)] -> *
+    where
+    (:*) :: !(abt xs a)
+        -> !(SArgs abt args)
+        -> SArgs abt ( '(xs,a) ': args)
+    End :: SArgs abt '[]
+
+-- TODO: instance Eq   (SArgs abt args)
+-- TODO: instance Read (SArgs abt args)
+
+instance Show2 abt => Show1 (SArgs abt) where
+    showsPrec1 p End       = showString "End"
+    showsPrec1 p (e :* es) =
+        showParen (p > 5)
+            ( showsPrec2 (p+1) e
+            . showString " :* "
+            . showsPrec1 (p+1) es
+            )
+
+instance Show2 abt => Show (SArgs abt args) where
+    showsPrec = showsPrec1
+    show      = show1
+
+instance Functor21 SArgs where
+    fmap21 f (e :* es) = f e :* fmap21 f es
+    fmap21 _ End       = End
+
+instance Foldable21 SArgs where
+    foldMap21 f (e :* es) = f e `mappend` foldMap21 f es
+    foldMap21 _ End       = mempty
+
+
+----------------------------------------------------------------
 -- TODO: define a well-formedness check for the ABT structure, since
 -- we don't encode it into the Haskell types themselves. For clarity,
 -- we do note the typing environments for the open terms via comments.
@@ -992,6 +1142,10 @@ instance Foldable21 (Branch a) where
 --
 -- BUG: we need the 'Functor21' instance to be strict, in order to guaranteee timely throwing of exceptions in 'subst'.
 data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
+
+    -- -- Simple syntactic forms (i.e., generalized quantifiers)
+    (:$) :: !(SCon args a) -> !(SArgs abt args) -> AST abt a
+
 
     -- -- Standard lambda calculus stuff
     Lam_    :: abt '[ a ] b -> AST abt (a ':-> b)
@@ -1004,9 +1158,10 @@ data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     -- N.B., storing a 'Proxy' isn't enough; we need the 'Sing'.
     Ann_    :: !(Sing a) -> abt '[] a -> AST abt a
 
-
     -- -- Primitive operators
+    {- PAST
     PrimOp_ :: !(PrimOp a) -> AST abt a
+    -}
     NaryOp_ :: !(NaryOp a) -> !(Seq (abt '[] a)) -> AST abt a
 
 
@@ -1036,14 +1191,16 @@ data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
 
 
     -- -- Mochastic stuff
+    {- PAST
     -- TODO: should Dirac move back here?
     -- | Primitive operators which generate measures.
-    Measure_ :: !(Measure a) -> AST abt a
+    Measure_ :: !(MeasureOp a) -> AST abt a
     -- TODO: find a name so this doesn't conflict with ABT's Bind
     Bind_
         :: abt '[] ('HMeasure a)
         -> abt '[ a ] ('HMeasure b)
         -> AST abt ('HMeasure b)
+    -}
     Superpose_
         :: [(abt '[] 'HProb, abt '[] ('HMeasure a))]
         -> AST abt ('HMeasure a)
@@ -1065,12 +1222,20 @@ data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
 instance Show2 abt => Show1 (AST abt) where
     showsPrec1 p t =
         case t of
+        o :$ es ->
+            showParen (p > 4)
+                ( showsPrec  (p+1) o
+                . showString " :* "
+                . showsPrec1 (p+1) es
+                )
         Lam_    e            -> showParen_2   p "Lam_"    e
         App_    e1 e2        -> showParen_22  p "App_"    e1 e2
         Let_    e1 e2        -> showParen_22  p "Let_"    e1 e2
         Fix_    e            -> showParen_2   p "Fix_"    e
         Ann_    a e          -> showParen_02  p "Ann_"    a  e
+        {- PAST
         PrimOp_ o            -> showParen_0   p "PrimOp_" o
+        -}
         NaryOp_ o es         ->
             showParen (p > 9)
                 ( showString "NaryOp_ "
@@ -1095,8 +1260,10 @@ instance Show2 abt => Show1 (AST abt) where
                 . showString " "
                 . showList1 bs
                 )
+        {- PAST
         Measure_   o         -> showParen_0   p "Measure_" o
         Bind_      e1 e2     -> showParen_22  p "Bind_"   e1 e2
+        -}
         Superpose_ pes       ->
             showParen (p > 9)
                 ( showString "Superpose_ "
@@ -1117,12 +1284,15 @@ instance Show2 abt => Show (AST abt a) where
 
 ----------------------------------------------------------------
 instance Functor21 AST where
+    fmap21 f (o :$ es)              = o :$ fmap21 f es
     fmap21 f (Lam_        e)        = Lam_        (f e)
     fmap21 f (App_        e1 e2)    = App_        (f e1) (f e2)
     fmap21 f (Let_        e1 e2)    = Let_        (f e1) (f e2)
     fmap21 f (Fix_        e)        = Fix_        (f e)
     fmap21 f (Ann_        p  e)     = Ann_        p      (f e)
+    {- PAST
     fmap21 _ (PrimOp_     o)        = PrimOp_     o
+    -}
     fmap21 f (NaryOp_     o  es)    = NaryOp_     o      (fmap f es)
     fmap21 _ (Value_      v)        = Value_      v
     fmap21 f (CoerceTo_   c  e)     = CoerceTo_   c      (f e)
@@ -1131,20 +1301,25 @@ instance Functor21 AST where
     fmap21 f (Array_      e1 e2)    = Array_      (f e1) (f e2)
     fmap21 f (Datum_      d)        = Datum_      (fmap11 f d)
     fmap21 f (Case_       e  bs)    = Case_       (f e)  (map (fmap21 f) bs)
+    {- PAST
     fmap21 _ (Measure_    o)        = Measure_    o
     fmap21 f (Bind_       e1 e2)    = Bind_       (f e1) (f e2)
+    -}
     fmap21 f (Superpose_  pes)      = Superpose_  (map (f *** f) pes)
     fmap21 f (Lub_        es)       = Lub_        (map f es)
 
 
 ----------------------------------------------------------------
 instance Foldable21 AST where
+    foldMap21 f (_ :$ es)              = foldMap21 f es
     foldMap21 f (Lam_        e)        = f e
     foldMap21 f (App_        e1 e2)    = f e1 `mappend` f e2
     foldMap21 f (Let_        e1 e2)    = f e1 `mappend` f e2
     foldMap21 f (Fix_        e)        = f e
     foldMap21 f (Ann_        _  e)     = f e
+    {- PAST
     foldMap21 _ (PrimOp_     _)        = mempty
+    -}
     foldMap21 f (NaryOp_     _  es)    = F.foldMap f es
     foldMap21 _ (Value_ _)             = mempty
     foldMap21 f (CoerceTo_   _  e)     = f e
@@ -1153,8 +1328,10 @@ instance Foldable21 AST where
     foldMap21 f (Array_      e1 e2)    = f e1 `mappend` f e2
     foldMap21 f (Datum_      d)        = foldMap11 f d
     foldMap21 f (Case_       e  bs)    = f e  `mappend` F.foldMap (foldMap21 f) bs
+    {- PAST
     foldMap21 _ (Measure_    _)        = mempty
     foldMap21 f (Bind_       e1 e2)    = f e1 `mappend` f e2
+    -}
     foldMap21 f (Superpose_  pes)      = F.foldMap (\(e1,e2) -> f e1 `mappend` f e2) pes
     foldMap21 f (Lub_        es)       = F.foldMap f es -- BUG: really, to handle Lub in a sensible way, we need to adjust Foldable so that it uses a semiring or something; so that we can distinguish \"multiplication\" from \"addition\".
 

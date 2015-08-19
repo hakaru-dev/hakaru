@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.08.06
+--                                                    2015.08.19
 -- |
 -- Module      :  Language.Hakaru.Syntax.Expect
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
