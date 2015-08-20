@@ -57,7 +57,7 @@ performs these sorts of optimizations, as a program transformation.
 
 -- TODO: NBE to get rid of administrative redexes.
 app :: (ABT abt) => abt '[] (a ':-> b) -> abt '[] a -> abt '[] b
-app = (syn .) . App_
+app e1 e2 = syn (App_ :$ e1 :* e2 :* End)
 
 app2 :: (ABT abt) => abt '[] (a ':-> b ':-> c) -> abt '[] a -> abt '[] b -> abt '[] c
 app2 = (app .) . app
@@ -199,26 +199,30 @@ infixr 8 ^, ^^, ** -- ^+, ^*
 
 -- TODO: some infix notation reminiscent of \"::\"
 ann_ :: (ABT abt) => Sing a -> abt '[] a -> abt '[] a
-ann_ = (syn .) . Ann_
+ann_ typ e = syn (Ann_ typ :$ e :* End)
 
 -- TODO: cancellation; constant coercion
 coerceTo_ :: (ABT abt) => Coercion a b -> abt '[] a -> abt '[] b
-coerceTo_ c e =
+coerceTo_ c e = syn (CoerceTo_ c :$ e :* End)
+{- TODO: redo this optimization
     caseVarSyn e
         (const . syn $ CoerceTo_ c e)
         $ \t ->
             case t of
             CoerceTo_ c' e' -> syn $ CoerceTo_ (c . c') e'
             _               -> syn $ CoerceTo_ c e
+-}
 
 unsafeFrom_ :: (ABT abt) => Coercion a b -> abt '[] b -> abt '[] a
-unsafeFrom_ c e =
+unsafeFrom_ c e = syn (UnsafeFrom_ c :$ e :* End)
+{- TODO: redo this optimization
     caseVarSyn e
         (const . syn $ UnsafeFrom_ c e)
         $ \t ->
             case t of
             UnsafeFrom_ c' e' -> syn $ UnsafeFrom_ (c' . c) e'
             _                 -> syn $ UnsafeFrom_ c e
+-}
 
 value_ :: (ABT abt) => Value a  -> abt '[] a
 value_ = syn . Value_
@@ -331,7 +335,7 @@ x - y = x + negate y
 -- terms larger in general...
 negate :: (ABT abt, HRing_ a) => abt '[] a -> abt '[] a
 negate = primOp1_ $ Negate hRing
-    {- PAST: TODO: redo this optimization
+    {- TODO: redo this optimization
     \e0 ->
     Prelude.maybe (primOp1_ (Negate hRing) e0) id
         $ caseVarSyn e0
@@ -364,7 +368,9 @@ abs :: (ABT abt, HRing_ a) => abt '[] a -> abt '[] a
 abs = coerceTo_ signed . abs_
 
 abs_ :: (ABT abt, HRing_ a) => abt '[] a -> abt '[] (NonNegative a)
-abs_ e =
+abs_ = primOp1_ $ Abs hRing
+{- TODO: redo this optimization
+    \e ->
     Prelude.maybe (primOp1_ (Abs hRing) e) id
         $ caseVarSyn e
             (const Nothing)
@@ -375,6 +381,7 @@ abs_ e =
                 CoerceTo_ (CCons (Signed _theRing) CNil) e' ->
                     Just e'
                 _ -> Nothing
+-}
 
 
 -- TODO: any obvious simplifications? idempotent?
@@ -395,7 +402,7 @@ x / y = x * recip y
 -- terms larger in general...
 recip :: (ABT abt, HFractional_ a) => abt '[] a -> abt '[] a
 recip = primOp1_ $ Recip hFractional
-    {- PAST: TODO: redo this optimization
+    {- TODO: redo this optimization
     \e0 ->
     Prelude.maybe (primOp1_ (Recip hFractional) e0) id
         $ caseVarSyn e0
@@ -632,7 +639,7 @@ negativeInfinity :: (ABT abt) => abt '[] 'HReal
 negativeInfinity = primOp0_ NegativeInfinity
 
 fix :: (ABT abt, SingI a) => (abt '[] a -> abt '[] a) -> abt '[] a
-fix = syn . Fix_ . binder Text.empty sing
+fix f = syn (Fix_ :$ binder Text.empty sing f :* End)
 
 -- instance (ABT abt) => Lambda abt where
 -- 'app' already defined
@@ -647,7 +654,7 @@ lamWithType
     => Sing a
     -> (abt '[] a -> abt '[] b)
     -> abt '[] (a ':-> b)
-lamWithType typ = syn . Lam_ . binder Text.empty typ
+lamWithType typ f = syn (Lam_ :$ binder Text.empty typ f :* End)
 
 {-
 -- some test cases to make sure we tied-the-knot successfully:
@@ -657,7 +664,7 @@ lamWithType typ = syn . Lam_ . binder Text.empty typ
         -> Sing a
         -> (abt '[] a -> abt '[] b)
         -> abt '[] (a ':-> b)
-    lam name typ = syn . Lam_ . binder name typ
+    lam name typ f = syn (Lam_ :$ binder name typ f :* End)
 > lam "x" SInt (\x -> x) :: TrivialABT ('HInt ':-> 'HInt)
 > lam "x" SInt (\x -> lam "y" SInt $ \y -> x < y) :: TrivialABT ('HInt ':-> 'HInt ':-> 'HBool)
 -}
@@ -667,7 +674,7 @@ let_
     => abt '[] a
     -> (abt '[] a -> abt '[] b)
     -> abt '[] b
-let_ e = syn . Let_ e . binder Text.empty sing
+let_ e f = syn (Let_ :$ e :* binder Text.empty sing f :* End)
 
 
 ----------------------------------------------------------------

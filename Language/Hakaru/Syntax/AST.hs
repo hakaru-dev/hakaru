@@ -309,7 +309,7 @@ data PrimOp :: [Hakaru] -> Hakaru -> * where
     Log       :: PrimOp '[ 'HProb ] 'HReal
     -- TODO: Log1p, Expm1
     Infinity  :: PrimOp '[] 'HProb -- TODO: maybe make this HContinuous polymorphic?
-    NegativeInfinity :: PrimOp '[] 'HReal -- TODO: maybe replace this by @negate (CoerceTo signed (PrimOp_ Infinity))@ ?
+    NegativeInfinity :: PrimOp '[] 'HReal -- TODO: maybe replace this by @negate (CoerceTo signed (PrimOp_ Infinity :$ End))@ ?
     -- TODO: add Factorial as the appropriate type restriction of GammaFunc?
     GammaFunc :: PrimOp '[ 'HReal ] 'HProb
     BetaFunc  :: PrimOp '[ 'HProb, 'HProb ] 'HProb
@@ -1030,7 +1030,6 @@ infixr 5 :* -- Chosen to match (:)
 -- without needing to deal with 'App_' nodes nor 'viewABT'.
 data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
 
-    {- FUTURE
     -- -- Standard lambda calculus stuff
     Lam_ :: SCon '[ '( '[ a ], b ) ] (a ':-> b)
     App_ :: SCon '[ LC (a ':-> b ), LC a ] b
@@ -1046,7 +1045,8 @@ data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
     Ann_        :: !(Sing a)       -> SCon '[ LC a ] a
     CoerceTo_   :: !(Coercion a b) -> SCon '[ LC a ] b
     UnsafeFrom_ :: !(Coercion a b) -> SCon '[ LC b ] a
-    -}
+    -- TODO: add something like @SafeFrom_ :: Coercion a b -> abt b -> AST abt ('HMaybe a)@ so we can capture the safety of patterns like @if_ (0 <= x) (let x_ = unsafeFrom signed x in...) (...)@ Of course, since we're just going to do case analysis on the result; why not make it a binding form directly?
+    -- TODO: we'll probably want some more general thing to capture these sorts of patterns. For example, in the default implementation of Uniform we see: @if_ (lo < x && x < hi) (... unsafeFrom_ signed (hi - lo) ...) (...)@
 
     -- HACK: we must add the constraints that 'LCs' and 'UnLCs' are inverses, so that we have those in scope when doing case analysis (e.g., in TypeCheck.hs).
     -- As for this file itself, we can get it to typecheck by using 'UnLCs' in the argument rather than 'LCs' in the result; trying to do things the other way results in type inference issues in the typeclass instances for 'SCon'
@@ -1056,6 +1056,7 @@ data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
     MeasureOp_
         :: (typs ~ UnLCs args, args ~ LCs typs)
         => !(MeasureOp typs a) -> SCon args a
+    -- TODO: should Dirac move back here?
     -- TODO: Does this one need to have a Sing value for @a@ (or @b@)?
     MBind :: SCon
         '[ LC ('HMeasure a)
@@ -1063,7 +1064,7 @@ data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
         ] ('HMeasure b)
 
 
-deriving instance Eq   (SCon args a)
+-- TODO: instance Eq   (SCon args a)
 -- TODO: instance Read (SCon args a)
 deriving instance Show (SCon args a)
 
@@ -1131,6 +1132,7 @@ data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     (:$) :: !(SCon args a) -> !(SArgs abt args) -> AST abt a
 
 
+{- PAST
     -- -- Standard lambda calculus stuff
     Lam_    :: abt '[ a ] b -> AST abt (a ':-> b)
     App_    :: abt '[] (a ':-> b) -> abt '[] a -> AST abt b
@@ -1141,20 +1143,20 @@ data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     -- change-of-direction rule in bidirectional type checking.)
     -- N.B., storing a 'Proxy' isn't enough; we need the 'Sing'.
     Ann_    :: !(Sing a) -> abt '[] a -> AST abt a
+-}
 
-    -- -- Primitive operators
-    {- PAST
-    PrimOp_ :: !(PrimOp a) -> AST abt a
-    -}
+    -- -- Other operators
     NaryOp_ :: !(NaryOp a) -> !(Seq (abt '[] a)) -> AST abt a
 
 
     -- -- Primitive atomic types: their values and coercions
     Value_      :: !(Value a)                   -> AST abt a
+{- PAST
     CoerceTo_   :: !(Coercion a b) -> abt '[] a -> AST abt b
     UnsafeFrom_ :: !(Coercion a b) -> abt '[] b -> AST abt a
     -- TODO: add something like @SafeFrom_ :: Coercion a b -> abt b -> AST abt ('HMaybe a)@ so we can capture the safety of patterns like @if_ (0 <= x) (let x_ = unsafeFrom signed x in...) (...)@ Of course, since we're just going to do case analysis on the result; why not make it a binding form directly?
     -- TODO: we'll probably want some more general thing to capture these sorts of patterns. For example, in the default implementation of Uniform we see: @if_ (lo < x && x < hi) (... unsafeFrom_ signed (hi - lo) ...) (...)@
+-}
 
     -- We have the constructors for arrays here, so that they're grouped together with our other constructors 'Value_' and 'Datum_'.
     Empty_ :: AST abt ('HArray a)
@@ -1175,16 +1177,6 @@ data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
 
 
     -- -- Mochastic stuff
-    {- PAST
-    -- TODO: should Dirac move back here?
-    -- | Primitive operators which generate measures.
-    Measure_ :: !(MeasureOp a) -> AST abt a
-    -- TODO: find a name so this doesn't conflict with ABT's Bind
-    Bind_
-        :: abt '[] ('HMeasure a)
-        -> abt '[ a ] ('HMeasure b)
-        -> AST abt ('HMeasure b)
-    -}
     Superpose_
         :: [(abt '[] 'HProb, abt '[] ('HMeasure a))]
         -> AST abt ('HMeasure a)
@@ -1212,14 +1204,13 @@ instance Show2 abt => Show1 (AST abt) where
                 . showString " :* "
                 . showsPrec1 (p+1) es
                 )
+{- PAST
         Lam_    e            -> showParen_2   p "Lam_"    e
         App_    e1 e2        -> showParen_22  p "App_"    e1 e2
         Let_    e1 e2        -> showParen_22  p "Let_"    e1 e2
         Fix_    e            -> showParen_2   p "Fix_"    e
         Ann_    a e          -> showParen_02  p "Ann_"    a  e
-        {- PAST
-        PrimOp_ o            -> showParen_0   p "PrimOp_" o
-        -}
+-}
         NaryOp_ o es         ->
             showParen (p > 9)
                 ( showString "NaryOp_ "
@@ -1231,8 +1222,10 @@ instance Show2 abt => Show1 (AST abt) where
                     )
                 )
         Value_      v        -> showParen_0   p "Value_"      v
+{- PAST
         CoerceTo_   c e      -> showParen_02  p "CoerceTo_"   c e
         UnsafeFrom_ c e      -> showParen_02  p "UnsafeFrom_" c e
+-}
         Empty_               -> showString      "Empty_"
         Array_      e1 e2    -> showParen_22  p "Array_"      e1 e2
 -- BUG: with 'showParen_1' or 'showParen_0' could not deduce (Show1 (abt '[])) from (Show2 abt). But with 'showParen_2' could not deduce (Show2 Datum)...
@@ -1244,10 +1237,6 @@ instance Show2 abt => Show1 (AST abt) where
                 . showString " "
                 . showList1 bs
                 )
-        {- PAST
-        Measure_   o         -> showParen_0   p "Measure_" o
-        Bind_      e1 e2     -> showParen_22  p "Bind_"   e1 e2
-        -}
         Superpose_ pes       ->
             showParen (p > 9)
                 ( showString "Superpose_ "
@@ -1269,26 +1258,23 @@ instance Show2 abt => Show (AST abt a) where
 ----------------------------------------------------------------
 instance Functor21 AST where
     fmap21 f (o :$ es)              = o :$ fmap21 f es
+{- PAST
     fmap21 f (Lam_        e)        = Lam_        (f e)
     fmap21 f (App_        e1 e2)    = App_        (f e1) (f e2)
     fmap21 f (Let_        e1 e2)    = Let_        (f e1) (f e2)
     fmap21 f (Fix_        e)        = Fix_        (f e)
     fmap21 f (Ann_        p  e)     = Ann_        p      (f e)
-    {- PAST
-    fmap21 _ (PrimOp_     o)        = PrimOp_     o
-    -}
+-}
     fmap21 f (NaryOp_     o  es)    = NaryOp_     o      (fmap f es)
     fmap21 _ (Value_      v)        = Value_      v
+{- PAST
     fmap21 f (CoerceTo_   c  e)     = CoerceTo_   c      (f e)
     fmap21 f (UnsafeFrom_ c  e)     = UnsafeFrom_ c      (f e)
+-}
     fmap21 _ Empty_                 = Empty_
     fmap21 f (Array_      e1 e2)    = Array_      (f e1) (f e2)
     fmap21 f (Datum_      d)        = Datum_      (fmap11 f d)
     fmap21 f (Case_       e  bs)    = Case_       (f e)  (map (fmap21 f) bs)
-    {- PAST
-    fmap21 _ (Measure_    o)        = Measure_    o
-    fmap21 f (Bind_       e1 e2)    = Bind_       (f e1) (f e2)
-    -}
     fmap21 f (Superpose_  pes)      = Superpose_  (map (f *** f) pes)
     fmap21 f (Lub_        es)       = Lub_        (map f es)
 
@@ -1296,26 +1282,23 @@ instance Functor21 AST where
 ----------------------------------------------------------------
 instance Foldable21 AST where
     foldMap21 f (_ :$ es)              = foldMap21 f es
+{- PAST
     foldMap21 f (Lam_        e)        = f e
     foldMap21 f (App_        e1 e2)    = f e1 `mappend` f e2
     foldMap21 f (Let_        e1 e2)    = f e1 `mappend` f e2
     foldMap21 f (Fix_        e)        = f e
     foldMap21 f (Ann_        _  e)     = f e
-    {- PAST
-    foldMap21 _ (PrimOp_     _)        = mempty
-    -}
+-}
     foldMap21 f (NaryOp_     _  es)    = F.foldMap f es
     foldMap21 _ (Value_ _)             = mempty
+{- PAST
     foldMap21 f (CoerceTo_   _  e)     = f e
     foldMap21 f (UnsafeFrom_ _  e)     = f e
+-}
     foldMap21 _ Empty_                 = mempty
     foldMap21 f (Array_      e1 e2)    = f e1 `mappend` f e2
     foldMap21 f (Datum_      d)        = foldMap11 f d
     foldMap21 f (Case_       e  bs)    = f e  `mappend` F.foldMap (foldMap21 f) bs
-    {- PAST
-    foldMap21 _ (Measure_    _)        = mempty
-    foldMap21 f (Bind_       e1 e2)    = f e1 `mappend` f e2
-    -}
     foldMap21 f (Superpose_  pes)      = F.foldMap (\(e1,e2) -> f e1 `mappend` f e2) pes
     foldMap21 f (Lub_        es)       = F.foldMap f es -- BUG: really, to handle Lub in a sensible way, we need to adjust Foldable so that it uses a semiring or something; so that we can distinguish \"multiplication\" from \"addition\".
 

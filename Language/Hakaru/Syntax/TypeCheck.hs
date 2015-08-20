@@ -58,38 +58,42 @@ mustCheck :: (ABT abt) => abt '[] a -> Bool
 mustCheck = go . viewABT
     where
     go :: (ABT abt) => View abt '[] a -> Bool
-    go (Var  _)       = False
+    go (Var  _)          = False
 
-    go (Syn (Lam_ _)) = True
+    go (Syn (Lam_ :$ _)) = True
 
     -- In general, applications don't require checking; however,
     -- for fully saturated data constructors they do (according to
     -- neelk).
-    go (Syn (App_ _ _)) = False
+    go (Syn (App_ :$ _)) = False
 
     -- We follow Dunfield & Pientka and \Pi\Sigma in inferring or
     -- checking depending on what the body requires. This is as
     -- opposed to the TLDI'05 paper, which always inders @e2@ but
     -- will check or infer the @e1@ depending on whether it has a
     -- type annotation or not.
-    go (Syn (Let_ _ e2)) = caseBind e2 $ \_ e2' -> mustCheck e2'
+    go (Syn (Let_ :$ es)) =
+        -- BUG: why does ghc think there are other possibilities for @es@ here, but not in the other places we pattern match on 'MBind'?
+        case es of
+        _ :* e2 :* End -> caseBind e2 $ \_ e2' -> mustCheck e2'
+        _              -> error "mustCheck: the impossible happened"
 
     -- If our Fix_ had a type annotation on the variable, then we
     -- could infer the type by checking the body against that same
     -- type (just as if Lam_ had a type annotation on the variable).
     -- But for now we'll just have to check (again, just like Lam_).
-    go (Syn (Fix_ _))          = True
+    go (Syn (Fix_ :$ _)) = True
 
-    go (Syn (Ann_ _ _))        = False
+    go (Syn (Ann_ _ :$ _))     = False
 
     go (Syn (PrimOp_ _ :$ _))  = False
     go (Syn (NaryOp_ _ _))     = False
     go (Syn (Value_ _))        = False
 
-    go (Syn (CoerceTo_   CNil e)) = mustCheck e
-    go (Syn (CoerceTo_   _    _)) = False
-    go (Syn (UnsafeFrom_ CNil e)) = mustCheck e
-    go (Syn (UnsafeFrom_ _    _)) = False
+    go (Syn (CoerceTo_   CNil :$ e :* End)) = mustCheck e
+    go (Syn (CoerceTo_   _    :$ _))        = False
+    go (Syn (UnsafeFrom_ CNil :$ e :* End)) = mustCheck e
+    go (Syn (UnsafeFrom_ _    :$ _))        = False
 
     -- I return true because most folks (neelk, Pfenning, Dunfield
     -- & Pientka) say all data constructors mustCheck (even though
@@ -132,10 +136,6 @@ mustCheck = go . viewABT
         case es of
         _ :* e2 :* End -> caseBind e2 $ \_ e2' -> mustCheck e2'
         _              -> error "mustCheck: the impossible happened"
-    {- PAST
-    go (Syn (Measure_ _))     = False
-    go (Syn (Bind_ _ e2))     = caseBind e2 $ \_ e2' -> mustCheck e2'
-    -}
     go (Syn (Superpose_ _))   = True
 
     {- TODO:
@@ -238,9 +238,10 @@ inferType e0 =
                 Nothing   -> failwith "type mismatch"
             Nothing       -> failwith "unbound variable"
 
-    Syn (App_ e1 e2) -> do
+    Syn (App_ :$ e1 :* e2 :* End) -> do
         typ1 <- inferType e1
         case typ1 of
+            -- BUG: type inference fail; ghc now thinks there are other possibilities for @typ1@
             SFun typ2 typ3 -> do
                 checkType typ2 e2
                 return typ3
@@ -262,7 +263,7 @@ inferType e0 =
         caseBind e1 $ \x -> pushCtx (Some x typ2) . inferType
         -}
 
-    Syn (Let_ e1 e2)
+    Syn (Let_ :$ e1 :* e2 :* End)
         | inferable e1 -> do
             typ1 <- inferType e1
             -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
@@ -271,7 +272,7 @@ inferType e0 =
                 Just Refl -> pushCtx (Some x) . inferType
                 Nothing   -> const $ failwith "type mismatch"
 
-    Syn (Ann_ typ1 e1) -> do
+    Syn (Ann_ typ1 :$ e1 :* End) -> do
         -- N.B., this requires that @typ@ is a 'Sing' not a 'Proxy',
         -- since we can't generate a 'Sing' from a 'Proxy'.
         checkType typ1 e1
@@ -291,7 +292,7 @@ inferType e0 =
         -- BUG: need to finish implementing sing_Value for Datum
         return $ sing_Value v
 
-    Syn (CoerceTo_ c e1)
+    Syn (CoerceTo_ c :$ e1 :* End)
         | inferable e1 -> do
             typ <- inferType e1
             return $ singCoerceTo c typ
@@ -302,7 +303,7 @@ inferType e0 =
                 checkType dom e1
                 return cod
 
-    Syn (UnsafeFrom_ c e1)
+    Syn (UnsafeFrom_ c :$ e1 :* End)
         | inferable e1 -> do
             typ <- inferType e1
             return $ singCoerceFrom c typ
@@ -358,7 +359,7 @@ checkSArgs _ _ = error "checkSArgs: the impossible happened"
 checkType :: ABT abt => Sing a -> abt '[] a -> TypeCheckMonad ()
 checkType typ0 e0 =
     case viewABT e0 of
-    Syn (Lam_ e1) ->
+    Syn (Lam_ :$ e1 :* End) ->
         case typ0 of
         SFun typ1 typ2 ->
             -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
@@ -368,7 +369,7 @@ checkType typ0 e0 =
                 Nothing   -> const $ failwith "type mismatch"
         _ -> failwith "expected function type"
 
-    Syn (Let_ e1 e2)
+    Syn (Let_ :$ e1 :* e2 :* End)
         | inferable e1 -> do
             typ1 <- inferType e1
             -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
@@ -377,17 +378,17 @@ checkType typ0 e0 =
                 Just Refl -> pushCtx (Some x) . checkType typ0
                 Nothing   -> const $ failwith "type mismatch"
 
-    Syn (Fix_ e1) ->
+    Syn (Fix_ :$ e1 :* End) ->
         -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
         caseBind e1 $ \x ->
             case jmEq typ0 (varType x) of
             Just Refl -> pushCtx (Some x) . checkType typ0
             Nothing   -> const $ failwith "type mismatch"
 
-    Syn (CoerceTo_ c e1) ->
+    Syn (CoerceTo_ c :$ e1 :* End) ->
         checkType (singCoerceFrom c typ0) e1
 
-    Syn (UnsafeFrom_ c e1) ->
+    Syn (UnsafeFrom_ c :$ e1 :* End) ->
         checkType (singCoerceTo c typ0) e1
 
     Syn Empty_ ->
