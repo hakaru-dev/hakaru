@@ -531,8 +531,8 @@ atanh  = primOp1_ Atanh
 -- the datatypes component of instance (ABT abt) => Base abt
 datum_
     :: (ABT abt)
-    => Datum (abt '[]) ('HData t (Code t))
-    -> abt '[] ('HData t (Code t))
+    => Datum (abt '[]) (HData' t)
+    -> abt '[] (HData' t)
 datum_ = syn . Datum_
 
 unit   :: (ABT abt) => abt '[] HUnit

@@ -101,8 +101,8 @@ data Value :: Hakaru -> * where
     VProb :: {-# UNPACK #-} !LogFloat -> Value 'HProb
     VReal :: {-# UNPACK #-} !Double   -> Value 'HReal
     VDatum
-        :: {-# UNPACK #-} !(Datum Value ('HData t (Code t)))
-        -> Value ('HData t (Code t))
+        :: {-# UNPACK #-} !(Datum Value (HData' t))
+        -> Value (HData' t)
 
 instance Eq1 Value where
     eq1 (VNat   v1) (VNat   v2) = v1 == v2
@@ -110,7 +110,7 @@ instance Eq1 Value where
     eq1 (VProb  v1) (VProb  v2) = v1 == v2
     eq1 (VReal  v1) (VReal  v2) = v1 == v2
     eq1 (VDatum v1) (VDatum v2) = v1 `eq1` v2
-    eq1 _           _           = False -- impossible...
+    eq1 _           _           = False
 
 instance Eq (Value a) where
     (==) = eq1
@@ -485,12 +485,13 @@ sing_PrimOp (Erf theCont) =
 
 
 ----------------------------------------------------------------
--- TODO: move the rest of the old Mochastic class into here?
 -- | Primitive operators to produce, consume, or transform
--- distributions\/measures.
+-- distributions\/measures. This corresponds to the old @Mochastic@
+-- class, except that 'MBind' and 'Superpose_' are handled elsewhere
+-- since they are not simple operators.
 data MeasureOp :: [Hakaru] -> Hakaru -> * where
-    -- TODO: Should Dirac move into SCon to be with MBind?
-    -- HACK: is there any way we can avoid storing the Sing value here, while still implementing 'sing_Measure'? Should we have a Hakaru class for the types which can be measurable? might not be a crazy idea...
+    -- TODO: Should Dirac move into SCon to be with MBind? Might help with removing the Sing value...
+    -- HACK: is there any way we can avoid storing the Sing value here, while still implementing 'sing_MeasureOp'? Should we have a Hakaru class for the types which can be measurable? might not be a crazy idea...
     Dirac :: !(Sing a) -> MeasureOp '[ a ] ('HMeasure a)
 
     Lebesgue    :: MeasureOp '[]                 ('HMeasure 'HReal)
@@ -503,14 +504,16 @@ data MeasureOp :: [Hakaru] -> Hakaru -> * where
     Gamma       :: MeasureOp '[ 'HProb, 'HProb ] ('HMeasure 'HProb)
     Beta        :: MeasureOp '[ 'HProb, 'HProb ] ('HMeasure 'HProb)
 
-    -- HACK: is there any way we can avoid storing the Sing values here, while still implementing 'sing_Measure'? Should we have a Hakaru class for the types which can be measurable? might not be a crazy idea...
+    -- HACK: is there any way we can avoid storing the Sing values here, while still implementing 'sing_MeasureOp'? Should we have a Hakaru class for the types which can be measurable? might not be a crazy idea...
     DirichletProcess
         :: !(Sing a)
         -> MeasureOp '[ 'HProb, 'HMeasure a ] ('HMeasure ('HMeasure a))
-    -- TODO: unify Plate and Chain as 'sequence' a~la traversable?
+    -- TODO: unify Plate and Chain as @sequence@ a~la traversable?
     Plate
         :: !(Sing a)
         -> MeasureOp '[ 'HArray ('HMeasure a) ] ('HMeasure ('HArray a))
+    -- TODO: if we swap the order of arguments to 'Chain', we could change the functional argument to be a binding form in order to avoid the need for lambdas. It'd no longer be trivial to see 'Chain' as an instance of @sequence@, but might be worth it... Of course, we also need to handle the fact that it's an array of transition functions; i.e., we could do:
+    -- > chain n s0 $ \i s -> do {...}
     Chain
         :: !(Sing s)
         -> !(Sing a)
@@ -573,7 +576,7 @@ sing_MeasureOp (Disintegrate a b) =
 ----------------------------------------------------------------
 -- TODO: add the constructor name as another component of this record, to improve error messages etc.
 --
--- TODO: add @Sing ('HData t (Code t))@ to the Datum constructor?
+-- TODO: add @Sing (HData' t)@ to the Datum constructor?
 --
 -- | A fully saturated data constructor\/pattern, with leaves in
 -- @ast@. We define this type as separate from 'DatumCode' for
@@ -583,8 +586,8 @@ sing_MeasureOp (Disintegrate a b) =
 -- whereas 'DatumCode' has non-Hakaru types.
 data Datum :: (Hakaru -> *) -> Hakaru -> * where
     Datum
-        :: !(DatumCode (Code t) abt ('HData t (Code t)))
-        -> Datum abt ('HData t (Code t))
+        :: !(DatumCode (Code t) abt (HData' t))
+        -> Datum abt (HData' t)
 
 instance Eq1 abt => Eq1 (Datum abt) where
     eq1 (Datum d1) (Datum d2) = eq1 d1 d2
@@ -779,8 +782,8 @@ data Pattern :: Hakaru -> * where
 
     -- | A data type constructor pattern.
     PDatum
-        :: {-# UNPACK #-} !(Datum Pattern ('HData t (Code t)))
-        -> Pattern ('HData t (Code t))
+        :: {-# UNPACK #-} !(Datum Pattern (HData' t))
+        -> Pattern (HData' t)
 
 
 instance Eq1 Pattern where
@@ -808,8 +811,8 @@ data Pattern :: [Hakaru] -> Hakaru -> * where
     PWild :: Pattern '[]    a
     PVar  :: Pattern '[ a ] a
     PDatum
-        :: !(PDatumCode (Code t) vars ('HData t (Code t)))
-        -> Pattern vars ('HData t (Code t))
+        :: !(PDatumCode (Code t) vars (HData' t))
+        -> Pattern vars (HData' t)
 
 instance Eq1 (Pattern vars) where
     eq1 PWild       PWild       = True
@@ -1128,37 +1131,16 @@ instance Foldable21 SArgs where
 -- BUG: we need the 'Functor21' instance to be strict, in order to guaranteee timely throwing of exceptions in 'subst'.
 data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
 
-    -- -- Simple syntactic forms (i.e., generalized quantifiers)
+    -- | Simple syntactic forms (i.e., generalized quantifiers)
     (:$) :: !(SCon args a) -> !(SArgs abt args) -> AST abt a
 
-
-{- PAST
-    -- -- Standard lambda calculus stuff
-    Lam_    :: abt '[ a ] b -> AST abt (a ':-> b)
-    App_    :: abt '[] (a ':-> b) -> abt '[] a -> AST abt b
-    Let_    :: abt '[] a -> abt '[ a ] b -> AST abt b
-    -- TODO: a general \"@let*@\" version of let-binding so we can have mutual recursion
-    Fix_    :: abt '[ a ] a -> AST abt a
-    -- | Explicitly given type annotations. (For the other
-    -- change-of-direction rule in bidirectional type checking.)
-    -- N.B., storing a 'Proxy' isn't enough; we need the 'Sing'.
-    Ann_    :: !(Sing a) -> abt '[] a -> AST abt a
--}
-
-    -- -- Other operators
+    -- | N-ary operators
     NaryOp_ :: !(NaryOp a) -> !(Seq (abt '[] a)) -> AST abt a
 
+    -- | Constant values
+    Value_ :: !(Value a) -> AST abt a
 
-    -- -- Primitive atomic types: their values and coercions
-    Value_      :: !(Value a)                   -> AST abt a
-{- PAST
-    CoerceTo_   :: !(Coercion a b) -> abt '[] a -> AST abt b
-    UnsafeFrom_ :: !(Coercion a b) -> abt '[] b -> AST abt a
-    -- TODO: add something like @SafeFrom_ :: Coercion a b -> abt b -> AST abt ('HMaybe a)@ so we can capture the safety of patterns like @if_ (0 <= x) (let x_ = unsafeFrom signed x in...) (...)@ Of course, since we're just going to do case analysis on the result; why not make it a binding form directly?
-    -- TODO: we'll probably want some more general thing to capture these sorts of patterns. For example, in the default implementation of Uniform we see: @if_ (lo < x && x < hi) (... unsafeFrom_ signed (hi - lo) ...) (...)@
--}
-
-    -- We have the constructors for arrays here, so that they're grouped together with our other constructors 'Value_' and 'Datum_'.
+    -- We have the constructors for arrays here, so that they're grouped together with our other constructors 'Value_' and 'Datum_'. Though, if we introduce a new @ArrayOp@ type, these should probably move there
     Empty_ :: AST abt ('HArray a)
     -- TODO: do we really need this to be a binding form, or could it take a Hakaru function for the second argument?
     Array_ :: abt '[] 'HNat -> abt '[ 'HNat ] a -> AST abt ('HArray a)
@@ -1169,20 +1151,18 @@ data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     -- fully saturated. Unsaturated constructors will need to be
     -- eta-expanded.
     Datum_
-        :: {-# UNPACK #-} !(Datum (abt '[]) ('HData t (Code t)))
-        -> AST abt ('HData t (Code t))
+        :: {-# UNPACK #-} !(Datum (abt '[]) (HData' t))
+        -> AST abt (HData' t)
 
     -- | Generic case-analysis (via ABTs and Structural Focalization).
     Case_ :: abt '[] a -> [Branch a abt b] -> AST abt b
 
 
-    -- -- Mochastic stuff
+    -- | Linear combinations of measures.
     Superpose_
         :: [(abt '[] 'HProb, abt '[] ('HMeasure a))]
         -> AST abt ('HMeasure a)
 
-
-    -- -- Other oddities
     -- | Arbitrary choice between equivalent programs
     Lub_ :: [abt '[] a] -> AST abt a
 
@@ -1204,13 +1184,6 @@ instance Show2 abt => Show1 (AST abt) where
                 . showString " :* "
                 . showsPrec1 (p+1) es
                 )
-{- PAST
-        Lam_    e            -> showParen_2   p "Lam_"    e
-        App_    e1 e2        -> showParen_22  p "App_"    e1 e2
-        Let_    e1 e2        -> showParen_22  p "Let_"    e1 e2
-        Fix_    e            -> showParen_2   p "Fix_"    e
-        Ann_    a e          -> showParen_02  p "Ann_"    a  e
--}
         NaryOp_ o es         ->
             showParen (p > 9)
                 ( showString "NaryOp_ "
@@ -1222,10 +1195,6 @@ instance Show2 abt => Show1 (AST abt) where
                     )
                 )
         Value_      v        -> showParen_0   p "Value_"      v
-{- PAST
-        CoerceTo_   c e      -> showParen_02  p "CoerceTo_"   c e
-        UnsafeFrom_ c e      -> showParen_02  p "UnsafeFrom_" c e
--}
         Empty_               -> showString      "Empty_"
         Array_      e1 e2    -> showParen_22  p "Array_"      e1 e2
 -- BUG: with 'showParen_1' or 'showParen_0' could not deduce (Show1 (abt '[])) from (Show2 abt). But with 'showParen_2' could not deduce (Show2 Datum)...
@@ -1258,19 +1227,8 @@ instance Show2 abt => Show (AST abt a) where
 ----------------------------------------------------------------
 instance Functor21 AST where
     fmap21 f (o :$ es)              = o :$ fmap21 f es
-{- PAST
-    fmap21 f (Lam_        e)        = Lam_        (f e)
-    fmap21 f (App_        e1 e2)    = App_        (f e1) (f e2)
-    fmap21 f (Let_        e1 e2)    = Let_        (f e1) (f e2)
-    fmap21 f (Fix_        e)        = Fix_        (f e)
-    fmap21 f (Ann_        p  e)     = Ann_        p      (f e)
--}
     fmap21 f (NaryOp_     o  es)    = NaryOp_     o      (fmap f es)
     fmap21 _ (Value_      v)        = Value_      v
-{- PAST
-    fmap21 f (CoerceTo_   c  e)     = CoerceTo_   c      (f e)
-    fmap21 f (UnsafeFrom_ c  e)     = UnsafeFrom_ c      (f e)
--}
     fmap21 _ Empty_                 = Empty_
     fmap21 f (Array_      e1 e2)    = Array_      (f e1) (f e2)
     fmap21 f (Datum_      d)        = Datum_      (fmap11 f d)
@@ -1282,19 +1240,8 @@ instance Functor21 AST where
 ----------------------------------------------------------------
 instance Foldable21 AST where
     foldMap21 f (_ :$ es)              = foldMap21 f es
-{- PAST
-    foldMap21 f (Lam_        e)        = f e
-    foldMap21 f (App_        e1 e2)    = f e1 `mappend` f e2
-    foldMap21 f (Let_        e1 e2)    = f e1 `mappend` f e2
-    foldMap21 f (Fix_        e)        = f e
-    foldMap21 f (Ann_        _  e)     = f e
--}
     foldMap21 f (NaryOp_     _  es)    = F.foldMap f es
     foldMap21 _ (Value_ _)             = mempty
-{- PAST
-    foldMap21 f (CoerceTo_   _  e)     = f e
-    foldMap21 f (UnsafeFrom_ _  e)     = f e
--}
     foldMap21 _ Empty_                 = mempty
     foldMap21 f (Array_      e1 e2)    = f e1 `mappend` f e2
     foldMap21 f (Datum_      d)        = foldMap11 f d

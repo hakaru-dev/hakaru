@@ -151,7 +151,7 @@ data instance Sing (unused :: Hakaru) where
     SArray   :: !(Sing a) -> Sing ('HArray a)
     -- TODO: would it be clearer to use (:$->) in order to better mirror the type-level (:->)
     SFun     :: !(Sing a) -> !(Sing b) -> Sing (a ':-> b)
-    SData    :: !(Sing t) -> !(Sing (Code t)) -> Sing ('HData t (Code t))
+    SData    :: !(Sing t) -> !(Sing (Code t)) -> Sing (HData' t)
 
 instance Eq (Sing (a :: Hakaru)) where
     a == b = maybe False (const True) (jmEq a b)

@@ -37,7 +37,7 @@ import           Control.Applicative   (Applicative(..))
 #endif
 import Language.Hakaru.Syntax.Nat      (fromNat)
 import Language.Hakaru.Syntax.IClasses (List1(..))
-import Language.Hakaru.Syntax.DataKind (Hakaru(..), Code)
+import Language.Hakaru.Syntax.DataKind (Hakaru(..), HData')
 import Language.Hakaru.Syntax.TypeEq
 import Language.Hakaru.Syntax.Coercion (Coercion(..), singCoerceTo, singCoerceFrom, singCoerceDomCod)
 import Language.Hakaru.Syntax.AST
@@ -153,17 +153,17 @@ data TypedPattern :: [Hakaru] -> * where
     TP  :: !(Pattern vars a)
         -> !(Sing a)
         -> TypedPattern vars
-    TPC :: !(PDatumCode xss vars ('HData t (Code t)))
+    TPC :: !(PDatumCode xss vars (HData' t))
         -> !(Sing xss)
-        -> !(Sing ('HData t (Code t)))
+        -> !(Sing (HData' t))
         -> TypedPattern vars
-    TPS :: !(PDatumStruct xs vars ('HData t (Code t)))
+    TPS :: !(PDatumStruct xs vars (HData' t))
         -> !(Sing xs)
-        -> !(Sing ('HData t (Code t)))
+        -> !(Sing (HData' t))
         -> TypedPattern vars
-    TPF :: !(PDatumFun x vars ('HData t (Code t)))
+    TPF :: !(PDatumFun x vars (HData' t))
         -> !(Sing x)
-        -> !(Sing ('HData t (Code t)))
+        -> !(Sing (HData' t))
         -> TypedPattern vars
 
 -- We can't just use @[TypedPattern vars]@ because the @vars@ won't necessarily be constant for every element. Rather, what we want is \"@[TypedPattern] vars@\" where the @vars@ is collected over the whole list. That's what this type does.
@@ -177,17 +177,17 @@ data TypedPatternList :: [Hakaru] -> * where
 data TypedDatum (ast :: Hakaru -> *) where
     -- N.B., we do not require that @xss ~ Code t@; so we can
     -- perform induction on it!
-    TDC :: !(DatumCode xss ast ('HData t (Code t)))
+    TDC :: !(DatumCode xss ast (HData' t))
         -> !(Sing xss)
-        -> !(Sing ('HData t (Code t)))
+        -> !(Sing (HData' t))
         -> TypedDatum ast
-    TDS :: !(DatumStruct xs ast ('HData t (Code t)))
+    TDS :: !(DatumStruct xs ast (HData' t))
         -> !(Sing xs)
-        -> !(Sing ('HData t (Code t)))
+        -> !(Sing (HData' t))
         -> TypedDatum ast
-    TDF :: !(DatumFun x ast ('HData t (Code t)))
+    TDF :: !(DatumFun x ast (HData' t))
         -> !(Sing x)
-        -> !(Sing ('HData t (Code t)))
+        -> !(Sing (HData' t))
         -> TypedDatum ast
 
 ----------------------------------------------------------------

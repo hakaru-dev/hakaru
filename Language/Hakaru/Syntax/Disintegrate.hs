@@ -265,8 +265,8 @@ data Hnf rec a where
     HnfProb :: {-# UNPACK #-} !PosRational -> Hnf rec 'HProb
     HnfReal :: {-# UNPACK #-} !Rational    -> Hnf rec 'HReal
     HnfDatum
-        :: {-# UNPACK #-} !(Datum rec ('HData t (Code t)))
-        -> Hnf rec ('HData t (Code t))
+        :: {-# UNPACK #-} !(Datum rec (HData' t))
+        -> Hnf rec (HData' t)
 
     -- Other stuff: (TODO: should probably be separated out, since this doesn't really fit with our usual notion of head-normal forms...)
     HnfMeasure :: rec a -> Hnf rec ('HMeasure a) -- TODO: not sure what's going on here...

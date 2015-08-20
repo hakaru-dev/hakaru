@@ -80,6 +80,7 @@ data Hakaru
     -- | The type of Hakaru functions.
     | !Hakaru :-> !Hakaru
 
+    -- TODO: do we need to actually store the code? or can we get away with just requiring that the particular HakaruCon has a Code instance defined?
     -- | A user-defined polynomial datatype. Each such type is
     -- specified by a \"tag\" (the @HakaruCon Hakaru@) which names
     -- the type, and a sum-of-product representation of the type
