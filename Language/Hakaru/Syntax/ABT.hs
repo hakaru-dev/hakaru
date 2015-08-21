@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.08.19
+--                                                    2015.08.20
 -- |
 -- Module      :  Language.Hakaru.Syntax.ABT
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -45,9 +45,9 @@ module Language.Hakaru.Syntax.ABT
     , varID
     , varType
     , varEq
+    , VarEqTypeError(..)
     , SomeVariable(..)
     -- * The abstract binding tree interface
-    , ABTException(..)
     -- See note about exposing 'View', 'viewABT', and 'unviewABT'
     , View(..)
     , unviewABT
@@ -225,7 +225,7 @@ varEq x y
     | varID x == varID y =
         case jmEq (varType x) (varType y) of
         Just Refl -> Just Refl
-        Nothing   -> throw VarEqTypeError
+        Nothing   -> throw (VarEqTypeError x y)
     | otherwise = Nothing
 {-
 -- Interpretation #3:
@@ -234,10 +234,20 @@ varEq x y
     | otherwise          = Nothing
 -}
 
+data VarEqTypeError where
+    VarEqTypeError
+        :: {-# UNPACK #-} !(Variable a)
+        -> {-# UNPACK #-} !(Variable b)
+        -> VarEqTypeError
+    deriving (Typeable)
+
+deriving instance Show VarEqTypeError
+instance Exception VarEqTypeError
+
 ----------------------------------------------------------------
 -- | Hide an existentially quantified parameter to 'Variable'.
 data SomeVariable where
-    Some :: !(Variable a) -> SomeVariable
+    Some :: {-# UNPACK #-} !(Variable a) -> SomeVariable
 
 instance Eq SomeVariable where
     Some x == Some y =
@@ -249,8 +259,7 @@ instance Eq SomeVariable where
 instance Ord SomeVariable where
     Some x `compare` Some y = varID x `compare` varID y
 
--- TODO: deriving instance Ord SomeVariable
--- TODO: deriving instance Read SomeVariable
+-- TODO: instance Read SomeVariable
 deriving instance Show SomeVariable
 
 ----------------------------------------------------------------
@@ -369,14 +378,9 @@ unviewABT (Var  x)   = var  x
 unviewABT (Bind x v) = bind x (unviewABT v)
 
 
-data ABTException
-    = VarEqTypeError
-    deriving (Show, Typeable)
-
-instance Exception ABTException
-
-
--- | Since the first argument to @abt@ is @'[]@, we know it must be either 'Syn' of 'Var'. So we do case analysis with those two constructors.
+-- | Since the first argument to @abt@ is @'[]@, we know it must
+-- be either 'Syn' of 'Var'. So we do case analysis with those two
+-- constructors.
 caseVarSyn
     :: (ABT abt)
     => abt '[] a
@@ -385,8 +389,8 @@ caseVarSyn
     -> r
 caseVarSyn e var_ syn_ =
     case viewABT e of
-    Syn  t -> syn_ t
-    Var  x -> var_ x
+    Syn t -> syn_ t
+    Var x -> var_ x
 
 
 ----------------------------------------------------------------
@@ -506,7 +510,6 @@ instance ABT FreeVarsABT where
 
     freeVars (FreeVarsABT xs _) = xs
 
--- TODO: fix me up again
 instance Show2 FreeVarsABT where
     showsPrec2 p (FreeVarsABT xs v) =
         showParen (p > 9)
@@ -620,8 +623,8 @@ subst x e = start
 newtype MaxNat = MaxNat { unMaxNat :: Nat }
 
 instance Monoid MaxNat where
-    mempty = MaxNat 0
-    mappend (MaxNat m1) (MaxNat m2) = MaxNat (max m1 m2)
+    mempty                        = MaxNat 0
+    mappend (MaxNat m) (MaxNat n) = MaxNat (max m n)
 
 
 -- N.B., we define this as a standalone class in order to avoid

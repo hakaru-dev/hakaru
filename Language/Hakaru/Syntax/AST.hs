@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.08.19
+--                                                    2015.08.20
 -- |
 -- Module      :  Language.Hakaru.Syntax.AST
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -65,7 +65,7 @@ module Language.Hakaru.Syntax.AST
     , type (++), eqAppendNil, eqAppendAssoc
     , PDatumStruct(..)
     , PDatumFun(..)
-    , Branch(..), branchPattern, branchBody
+    , Branch(..)
     -- *** Some smart constructors for the \"built-in\" datatypes
     , pTrue, pFalse
     , pUnit
@@ -75,6 +75,7 @@ module Language.Hakaru.Syntax.AST
     , pNothing, pJust
     ) where
 
+import Unsafe.Coerce           (unsafeCoerce) -- TODO: move the stuff that uses this off to a separate file
 import Data.Sequence           (Seq)
 import qualified Data.Foldable as F
 #if __GLASGOW_HASKELL__ < 710
@@ -93,16 +94,21 @@ import Language.Hakaru.Syntax.Coercion
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 -- TODO: use 'Integer' instead of 'Int', 'Natural' instead of 'Nat', and 'Rational' instead of 'LogFloat' and 'Double'.
+
+-- TODO: is the restriction to ground terms too much? Would it be enough to just consider closed normal forms?
+
 -- | Constant values for primitive numeric types and user-defined
--- data-types.
+-- data-types. In addition to being normal forms, these are also
+-- ground terms: that is, not only are they closed (i.e., no free
+-- variables), they also have no bound variables and thus no binding
+-- forms. Hence, we do not include lambdas nor arrays, even though
+-- they can be closed normal forms.
 data Value :: Hakaru -> * where
-    VNat  :: {-# UNPACK #-} !Nat      -> Value 'HNat
-    VInt  :: {-# UNPACK #-} !Int      -> Value 'HInt
-    VProb :: {-# UNPACK #-} !LogFloat -> Value 'HProb
-    VReal :: {-# UNPACK #-} !Double   -> Value 'HReal
-    VDatum
-        :: {-# UNPACK #-} !(Datum Value (HData' t))
-        -> Value (HData' t)
+    VNat   :: {-# UNPACK #-} !Nat                      -> Value 'HNat
+    VInt   :: {-# UNPACK #-} !Int                      -> Value 'HInt
+    VProb  :: {-# UNPACK #-} !LogFloat                 -> Value 'HProb
+    VReal  :: {-# UNPACK #-} !Double                   -> Value 'HReal
+    VDatum :: {-# UNPACK #-} !(Datum Value (HData' t)) -> Value (HData' t)
 
 instance Eq1 Value where
     eq1 (VNat   v1) (VNat   v2) = v1 == v2
@@ -158,7 +164,7 @@ sing_Value (VDatum (Datum d)) = error "TODO: sing_Value{VDatum}"
     -}
 
 ----------------------------------------------------------------
--- TODO: helper functions for splitting NaryOp_ into components to group up like things.
+-- TODO: helper functions for splitting NaryOp_ into components to group up like things. (e.g., grouping all the Values together so we can do constant propagation)
 
 -- | Primitive associative n-ary functions. By flattening the trees
 -- for associative operators, we can more easily perform equivalence
@@ -208,8 +214,8 @@ sing_NaryOp And            = sing
 sing_NaryOp Or             = sing
 sing_NaryOp Xor            = sing
 sing_NaryOp Iff            = sing
-sing_NaryOp (Min  theOrd)  = sing_HOrd theOrd
-sing_NaryOp (Max  theOrd)  = sing_HOrd theOrd
+sing_NaryOp (Min  theOrd)  = sing_HOrd      theOrd
+sing_NaryOp (Max  theOrd)  = sing_HOrd      theOrd
 sing_NaryOp (Sum  theSemi) = sing_HSemiring theSemi
 sing_NaryOp (Prod theSemi) = sing_HSemiring theSemi
 
@@ -217,7 +223,7 @@ sing_NaryOp (Prod theSemi) = sing_HSemiring theSemi
 
 -- TODO: should we define our own datakind for @([Hakaru], Hakaru)@ or perhaps for the @/\a -> ([a], Hakaru)@ part of it?
 
--- | A locally closed type.
+-- | Locally closed values (i.e., not binding forms) of a given type.
 -- TODO: come up with a better name
 type LC (a :: Hakaru) = '( '[], a )
 
@@ -289,8 +295,8 @@ data PrimOp :: [Hakaru] -> Hakaru -> * where
     Atanh :: PrimOp '[ 'HReal ] 'HReal
 
 
-    -- -- Other Real/Prob-valued operators
-    -- N.B., we only give the safe/exact versions here. The old
+    -- -- Other Real\/Prob-valued operators
+    -- N.B., we only give the safe\/exact versions here. The old
     -- more lenient versions now require explicit coercions. Some
     -- of those coercions are safe, but others are not. This way
     -- we're explicit about where things can fail.
@@ -299,7 +305,7 @@ data PrimOp :: [Hakaru] -> Hakaru -> * where
     -- TODO: may need @SafeFrom_@ in order to branch on the input
     -- in order to provide the old unsafe behavior.
     RealPow   :: PrimOp '[ 'HProb, 'HReal ] 'HProb
-    -- ComplexPow :: PrimOp ('HProb ':-> 'HComplex ':-> 'HComplex)
+    -- ComplexPow :: PrimOp '[ 'HProb, 'HComplex ] 'HComplex
     -- is uniquely well-defined. Though we may want to implement
     -- it via @r**z = ComplexExp (z * RealLog r)@
     -- Defining @HReal -> HComplex -> HComplex@ requires either
@@ -309,7 +315,7 @@ data PrimOp :: [Hakaru] -> Hakaru -> * where
     Log       :: PrimOp '[ 'HProb ] 'HReal
     -- TODO: Log1p, Expm1
     Infinity  :: PrimOp '[] 'HProb -- TODO: maybe make this HContinuous polymorphic?
-    NegativeInfinity :: PrimOp '[] 'HReal -- TODO: maybe replace this by @negate (CoerceTo signed (PrimOp_ Infinity :$ End))@ ?
+    NegativeInfinity :: PrimOp '[] 'HReal -- TODO: maybe replace this by @negate (coerceTo signed $ Infinity)@ ?
     -- TODO: add Factorial as the appropriate type restriction of GammaFunc?
     GammaFunc :: PrimOp '[ 'HReal ] 'HProb
     BetaFunc  :: PrimOp '[ 'HProb, 'HProb ] 'HProb
@@ -319,7 +325,7 @@ data PrimOp :: [Hakaru] -> Hakaru -> * where
     -- TODO: make Integrate and Summate polymorphic, so that if the
     -- two inputs are HProb then we know the function must be over
     -- HProb\/HNat too. More generally, if the first input is HProb
-    -- (since the second input is assumed to be greater thant he
+    -- (since the second input is assumed to be greater than the
     -- first); though that would be a bit ugly IMO.
     Integrate :: PrimOp '[ 'HReal, 'HReal, 'HReal ':-> 'HProb ] 'HProb
     -- TODO: Should the first to arguments really be HReal?!
@@ -342,6 +348,7 @@ data PrimOp :: [Hakaru] -> Hakaru -> * where
     -- -- HEq and HOrd operators
     -- TODO: equality doesn't make constructive sense on the reals...
     -- would it be better to constructivize our notion of total ordering?
+    -- TODO: should we have LessEq as a primitive, rather than treating it as a macro?
     Equal :: !(HEq  a) -> PrimOp '[ a, a ] HBool
     Less  :: !(HOrd a) -> PrimOp '[ a, a ] HBool
 
@@ -578,8 +585,8 @@ sing_MeasureOp (Disintegrate a b) =
 --
 -- TODO: add @Sing (HData' t)@ to the Datum constructor?
 --
--- | A fully saturated data constructor\/pattern, with leaves in
--- @ast@. We define this type as separate from 'DatumCode' for
+-- | A fully saturated data constructor\/pattern, with lives in
+-- @abt@. We define this type as separate from 'DatumCode' for
 -- two reasons. First is to capture the fact that the datum is
 -- \"complete\", i.e., is a well-formed constructor\/pattern. The
 -- second is to have a type which is indexed by its 'Hakaru' type,
@@ -762,54 +769,23 @@ dJust      = Datum . Inr . Inl . (`Et` Done) . Konst
 -- TODO: equality patterns for Nat\/Int? (what about Prob\/Real??)
 -- TODO: exhaustiveness, non-overlap, dead-branch checking
 --
--- TODO: index by @[Hakaru]@ to keep track of the number\/types of the 'PVar's. It seems like this will mean defining our own specific type for @Datum Pattern@ in order to collect up the variables in each branch of products\/structs.
---
 -- We index patterns by the type they scrutinize. This requires the
 -- parser to be smart enough to build these patterns up, but then
 -- it guarantees that we can't have 'Case_' of patterns which can't
--- possibly match according to our type system. If we wanted to go
--- really crazy, we could also index patterns by the type of what
--- variables they bind, like we'll do for ASTPattern... But that's
--- prolly overkill since we can just run the type checker over our
--- AST.
-{-
-data Pattern :: Hakaru -> * where
+-- possibly match according to our type system. In addition, we
+-- also index patterns by the type of what variables they bind, so
+-- that we can ensure that 'Branch' will never \"go wrong\". Alas,
+-- this latter indexing means we can't use 'DatumCode', 'DatumStruct',
+-- and 'DatumFun' but rather must define our own @P@ variants for
+-- pattern matching.
+data Pattern :: [Hakaru] -> Hakaru -> * where
     -- | The \"don't care\" wildcard pattern.
-    PWild :: Pattern a
+    PWild :: Pattern '[]    a
 
     -- | A pattern variable.
-    PVar  :: Pattern a
+    PVar  :: Pattern '[ a ] a
 
     -- | A data type constructor pattern.
-    PDatum
-        :: {-# UNPACK #-} !(Datum Pattern (HData' t))
-        -> Pattern (HData' t)
-
-
-instance Eq1 Pattern where
-    eq1 PWild       PWild       = True
-    eq1 PVar        PVar        = True
-    eq1 (PDatum d1) (PDatum d2) = eq1 d1 d2
-    eq1 _           _           = False
-
-instance Eq (Pattern a) where
-    (==) = eq1
-
--- TODO: instance Read (Pattern a)
-
-instance Show1 Pattern where
-    showsPrec1 _ PWild      = showString    "PWild"
-    showsPrec1 _ PVar       = showString    "PVar"
-    showsPrec1 p (PDatum d) = showParen_1 p "PDatum" d
-
-instance Show (Pattern a) where
-    showsPrec = showsPrec1
-    show      = show1
--}
-
-data Pattern :: [Hakaru] -> Hakaru -> * where
-    PWild :: Pattern '[]    a
-    PVar  :: Pattern '[ a ] a
     PDatum
         :: !(PDatumCode (Code t) vars (HData' t))
         -> Pattern vars (HData' t)
@@ -859,15 +835,60 @@ type family (xs :: [k]) ++ (ys :: [k]) :: [k]
 type instance '[]       ++ ys = ys 
 type instance (x ': xs) ++ ys = x ': (xs ++ ys) 
 
+{-
+-- BUG: having the instances for @[[HakaruFun]]@ and @[HakaruFun]@ precludes giving a general kind-polymorphic data instance for type-level lists; so we have to monomorphize it to just the @[Hakaru]@ kind.
+-- TODO: we should figure out some way to clean that up without introducing too much ambiguity\/overloading of the constructor names.
+data instance Sing (xs :: [Hakaru]) where
+    SNil  :: Sing ('[] :: [Hakaru])
+    SCons :: !(Sing x) -> !(Sing xs) -> Sing ((x ': xs) :: [Hakaru])
+
+-- BUG: ghc calls all these orphan instances, even though the data instance is defined here... Will that actually cause problems? Should we move this to TypeEq.hs?
+instance Show1 (Sing :: [Hakaru] -> *) where
+    showsPrec1 p s =
+        case s of
+        SNil        -> showString     "SNil"
+        SCons s1 s2 -> showParen_11 p "SCons" s1 s2
+instance Show (Sing (xs :: [Hakaru])) where
+    showsPrec = showsPrec1
+    show      = show1
+instance SingI ('[] :: [Hakaru]) where
+    sing = SNil
+instance (SingI x, SingI xs) => SingI ((x ': xs) :: [Hakaru]) where
+    sing = SCons sing sing
+-}
+
+
 eqAppendNil :: proxy xs -> TypeEq xs (xs ++ '[])
-eqAppendNil _ = error "TODO: eqAppendNil = unsafeCoerce Refl"
+-- This version should be used for runtime performance
+eqAppendNil _ = unsafeCoerce Refl
+{-
+-- This version demonstrates that our use of unsafeCoerce is sound
+-- BUG: to have an argument of type @Sing xs@, instead of an arbitrary @proxy xs@, we'd need to store the singleton somewhere (prolly in the 'Branch', for the use site in TypeCheck.hs) or else produce it somehow
+eqAppendNil :: Sing (xs :: [Hakaru]) -> TypeEq xs (xs ++ '[])
+eqAppendNil SNil        = Refl
+eqAppendNil (SCons _ s) = case eqAppendNil s of Refl -> Refl
+-}
 
 eqAppendAssoc
     :: proxy1 xs
     -> proxy2 ys
     -> proxy3 zs
     -> TypeEq ((xs ++ ys) ++ zs) (xs ++ (ys ++ zs))
-eqAppendAssoc _ _ _ = error "TODO: eqAppendAssoc = unsafeCoerce Refl"
+-- This version should be used for runtime performance
+eqAppendAssoc _ _ _ = unsafeCoerce Refl
+{-
+-- This version demonstrates that our use of unsafeCoerce is sound
+-- BUG: to have the arguments be of type @Sing xs@, instead of arbitrary proxy types, we'd need to store the singletons somewhere (for the use site in TypeCheck.hs), but where?
+eqAppendAssoc
+    :: Sing (xs :: [Hakaru])
+    -> Sing (ys :: [Hakaru])
+    -> Sing (zs :: [Hakaru])
+    -> TypeEq ((xs ++ ys) ++ zs) (xs ++ (ys ++ zs))
+eqAppendAssoc SNil         _  _  = Refl
+eqAppendAssoc (SCons _ sx) sy sz =
+    case eqAppendAssoc sx sy sz of Refl -> Refl
+-}
+
 
 data PDatumStruct :: [HakaruFun] -> [Hakaru] -> Hakaru -> * where
     PEt :: !(PDatumFun    x         vars1 a)
@@ -921,48 +942,45 @@ pFalse = PDatum . PInr . PInl $ PDone
 pUnit  :: Pattern '[] HUnit
 pUnit  = PDatum . PInl $ PDone
 
--- BUG: Couldn't match type ‘vars1 ++ (vars2 ++ '[])’ with ‘vars1 ++ vars2’
+-- HACK: using undefined like that isn't going to help if we use the variant of eqAppendNil that actually needs the Sing...
+varsOfPattern :: Pattern vars a -> proxy vars
+varsOfPattern _ = error "TODO: varsOfPattern"
+
 pPair
     :: Pattern vars1 a
     -> Pattern vars2 b
     -> Pattern (vars1 ++ vars2) (HPair a b)
 pPair a b =
-    error "TODO: make pPair typecheck"
-    -- PDatum . PInl $ PKonst a `PEt` PKonst b `PEt` PDone
+    case eqAppendNil (varsOfPattern b) of
+    Refl -> PDatum . PInl $ PKonst a `PEt` PKonst b `PEt` PDone
 
-pLeft  :: Pattern vars a -> Pattern vars (HEither a b)
-pLeft  = 
-    -- BUG: Couldn't match type ‘vars’ with ‘vars ++ '[]’
-    -- > PDatum . PInl . (`PEt` PDone) . PKonst
-    \pat ->
-        let coerce :: Pattern vars a -> Sing vars
-            coerce = error "TODO: pLeft"
-        in
-        case eqAppendNil (coerce pat) of
-        Refl -> PDatum . PInl . (`PEt` PDone) . PKonst $ pat
+pLeft :: Pattern vars a -> Pattern vars (HEither a b)
+pLeft a =
+    case eqAppendNil (varsOfPattern a) of
+    Refl -> PDatum . PInl $ PKonst a `PEt` PDone
 
 pRight :: Pattern vars b -> Pattern vars (HEither a b)
-pRight = 
-    error "TODO: make pRight typecheck"
-    -- PDatum . PInr . PInl . (`PEt` PDone) . PKonst
+pRight b =
+    case eqAppendNil (varsOfPattern b) of
+    Refl -> PDatum . PInr . PInl $ PKonst b `PEt` PDone
 
-pNil   :: Pattern '[] (HList a)
-pNil   = PDatum . PInl $ PDone
+pNil :: Pattern '[] (HList a)
+pNil = PDatum . PInl $ PDone
 
 pCons :: Pattern vars1 a
     -> Pattern vars2 (HList a)
     -> Pattern (vars1 ++ vars2) (HList a)
 pCons x xs = 
-    error "TODO: make pCons typecheck"
-    -- PDatum . PInr . PInl $ PKonst x `PEt` PIdent xs `PEt` PDone
+    case eqAppendNil (varsOfPattern xs) of
+    Refl -> PDatum . PInr . PInl $ PKonst x `PEt` PIdent xs `PEt` PDone
 
-pNothing   :: Pattern '[] (HMaybe a)
-pNothing   = PDatum . PInl $ PDone
+pNothing :: Pattern '[] (HMaybe a)
+pNothing = PDatum . PInl $ PDone
 
-pJust      :: Pattern vars a -> Pattern vars (HMaybe a)
-pJust      = 
-    error "TODO: make pJust typecheck"
-    -- PDatum . PInr . PInl . (`PEt` PDone) . PKonst
+pJust :: Pattern vars a -> Pattern vars (HMaybe a)
+pJust a =
+    case eqAppendNil (varsOfPattern a) of
+    Refl -> PDatum . PInr . PInl $ PKonst a `PEt` PDone
 
 ----------------------------------------------------------------
 -- TODO: a pretty infix syntax, like (:=>) or something
@@ -975,12 +993,6 @@ data Branch :: Hakaru -> ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         :: !(Pattern xs a)
         -> abt xs b
         -> Branch a abt b
-
-branchPattern :: Branch a abt b -> (forall xs. Pattern xs a -> r) -> r
-branchPattern (Branch p _) k = k p
-
-branchBody :: Branch a abt b -> (forall xs. abt xs b -> r) -> r
-branchBody (Branch _ e) k = k e
 
 instance Eq2 abt => Eq1 (Branch a abt) where
     eq1 (Branch p1 e1) (Branch p2 e2) =
@@ -1087,11 +1099,10 @@ data SArgs :: ([Hakaru] -> Hakaru -> *) -> [([Hakaru], Hakaru)] -> *
         -> !(SArgs abt args)
         -> SArgs abt ( '(vars, a) ': args)
 
--- TODO: instance Eq   (SArgs abt args)
 -- TODO: instance Read (SArgs abt args)
 
 instance Show2 abt => Show1 (SArgs abt) where
-    showsPrec1 p End       = showString "End"
+    showsPrec1 _ End       = showString "End"
     showsPrec1 p (e :* es) =
         showParen (p > 5)
             ( showsPrec2 (p+1) e
@@ -1121,13 +1132,6 @@ instance Foldable21 SArgs where
 
 
 ----------------------------------------------------------------
--- TODO: define a well-formedness check for the ABT structure, since
--- we don't encode it into the Haskell types themselves. For clarity,
--- we do note the typing environments for the open terms via comments.
--- TODO: should we tag the @abt@ type to capture whether the use
--- sites must/must-not be 'Open' terms? Or is the well-formedness
--- check sufficient?
---
 -- BUG: we need the 'Functor21' instance to be strict, in order to guaranteee timely throwing of exceptions in 'subst'.
 data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
 
@@ -1136,6 +1140,8 @@ data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
 
     -- | N-ary operators
     NaryOp_ :: !(NaryOp a) -> !(Seq (abt '[] a)) -> AST abt a
+
+    -- TODO: 'Value_', 'Empty_', 'Array_', and 'Datum_' are generalized quantifiers (to the same extent that 'Ann_', 'CoerceTo_', and 'UnsafeFrom_' are). Should we move them into 'SCon' just for the sake of minimizing how much lives in 'AST'? Or are they unique enough to be worth keeping here?
 
     -- | Constant values
     Value_ :: !(Value a) -> AST abt a
@@ -1157,7 +1163,6 @@ data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     -- | Generic case-analysis (via ABTs and Structural Focalization).
     Case_ :: abt '[] a -> [Branch a abt b] -> AST abt b
 
-
     -- | Linear combinations of measures.
     Superpose_
         :: [(abt '[] 'HProb, abt '[] ('HMeasure a))]
@@ -1173,7 +1178,16 @@ data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
 -- inferred; some must be checked... Similarly, we can't derive
 -- Read, since that's what typechecking is all about.
 
--- BUG: deriving instance (forall b. Eq (abt b)) => Eq (AST abt a)
+-- TODO: instance (Eq1 abt) => Eq1 (AST abt)
+
+-- HACK: so we can print 'Datum_' nodes. Namely, we need to derive @Show1 (abt '[])@ from @Show2 abt@
+newtype LC_ (abt :: [Hakaru] -> Hakaru -> *) (a :: Hakaru) =
+    LC_ { unLC_ :: abt '[] a }
+
+instance Show2 abt => Show1 (LC_ abt) where
+    showsPrec1 p = showsPrec2 p . unLC_
+    show1        = show2        . unLC_
+
 
 instance Show2 abt => Show1 (AST abt) where
     showsPrec1 p t =
@@ -1184,7 +1198,7 @@ instance Show2 abt => Show1 (AST abt) where
                 . showString " :* "
                 . showsPrec1 (p+1) es
                 )
-        NaryOp_ o es         ->
+        NaryOp_ o es ->
             showParen (p > 9)
                 ( showString "NaryOp_ "
                 . showsPrec  11 o
@@ -1194,26 +1208,25 @@ instance Show2 abt => Show1 (AST abt) where
                     . showList2 (F.toList es)
                     )
                 )
-        Value_      v        -> showParen_0   p "Value_"      v
-        Empty_               -> showString      "Empty_"
-        Array_      e1 e2    -> showParen_22  p "Array_"      e1 e2
--- BUG: with 'showParen_1' or 'showParen_0' could not deduce (Show1 (abt '[])) from (Show2 abt). But with 'showParen_2' could not deduce (Show2 Datum)...
---        Datum_      d        -> showParen_1   p "Datum_"      d
-        Case_       e bs     ->
+        Value_ v        -> showParen_0   p "Value_" v
+        Empty_          -> showString      "Empty_"
+        Array_ e1 e2    -> showParen_22  p "Array_" e1 e2
+        Datum_ d        -> showParen_1   p "Datum_" (fmap11 LC_ d)
+        Case_  e bs     ->
             showParen (p > 9)
                 ( showString "Case_ "
                 . showsPrec2 11 e
                 . showString " "
                 . showList1 bs
                 )
-        Superpose_ pes       ->
+        Superpose_ pes ->
             showParen (p > 9)
                 ( showString "Superpose_ "
                 . showListWith
                     (\(e1,e2) -> showTuple [shows2 e1, shows2 e2])
                     pes
                 )
-        Lub_ es       ->
+        Lub_ es ->
             showParen (p > 9)
                 ( showString "Lub_ "
                 . showList2 es
