@@ -203,26 +203,32 @@ ann_ typ e = syn (Ann_ typ :$ e :* End)
 
 -- TODO: cancellation; constant coercion
 coerceTo_ :: (ABT abt) => Coercion a b -> abt '[] a -> abt '[] b
-coerceTo_ c e = syn (CoerceTo_ c :$ e :* End)
-{- TODO: redo this optimization
-    caseVarSyn e
-        (const . syn $ CoerceTo_ c e)
-        $ \t ->
-            case t of
-            CoerceTo_ c' e' -> syn $ CoerceTo_ (c . c') e'
-            _               -> syn $ CoerceTo_ c e
--}
+coerceTo_ c e =
+    Prelude.maybe (syn $ CoerceTo_ c :$ e :* End) id
+        $ caseVarSyn e
+            (const Nothing)
+            $ \t ->
+                case t of
+                CoerceTo_ c' :$ es' ->
+                    case es' of
+                    e' :* End ->
+                        Just . syn $ CoerceTo_ (c . c') :$ e' :* End
+                    _ -> error "coerceTo_: the impossible happened"
+                _ -> Nothing
 
 unsafeFrom_ :: (ABT abt) => Coercion a b -> abt '[] b -> abt '[] a
-unsafeFrom_ c e = syn (UnsafeFrom_ c :$ e :* End)
-{- TODO: redo this optimization
-    caseVarSyn e
-        (const . syn $ UnsafeFrom_ c e)
-        $ \t ->
-            case t of
-            UnsafeFrom_ c' e' -> syn $ UnsafeFrom_ (c' . c) e'
-            _                 -> syn $ UnsafeFrom_ c e
--}
+unsafeFrom_ c e =
+    Prelude.maybe (syn $ UnsafeFrom_ c :$ e :* End) id
+        $ caseVarSyn e
+            (const Nothing)
+            $ \t ->
+                case t of
+                UnsafeFrom_ c' :$ es' ->
+                    case es' of
+                    e' :* End ->
+                        Just . syn $ UnsafeFrom_ (c' . c) :$ e' :* End
+                    _ -> error "unsafeFrom_: the impossible happened"
+                _ -> Nothing
 
 value_ :: (ABT abt) => Value a  -> abt '[] a
 value_ = syn . Value_
@@ -242,9 +248,33 @@ true, false :: (ABT abt) => abt '[] HBool
 true  = bool_ True
 false = bool_ False
 
--- TODO: simplifications: involution, distribution, constant-propogation
+-- TODO: simplifications: distribution, constant-propogation
+-- TODO: do we really want to distribute /by default/? Clearly we'll want to do that in some optimization\/partial-evaluation pass, but do note that it makes terms larger in general...
 not :: (ABT abt) => abt '[] HBool -> abt '[] HBool
-not = primOp1_ Not
+not e =
+    Prelude.maybe (primOp1_ Not e) id
+        $ caseVarSyn e
+            (const Nothing)
+            $ \t ->
+                case t of
+                PrimOp_ Not :$ es' ->
+                    case es' of
+                    e' :* End -> Just e'
+                    _         -> error "not: the impossible happened"
+                NaryOp_ And xs ->
+                    Just . syn . NaryOp_ Or  $ Prelude.fmap not xs
+                NaryOp_ Or xs ->
+                    Just . syn . NaryOp_ And $ Prelude.fmap not xs
+                NaryOp_ Xor xs ->
+                    Just . syn . NaryOp_ Iff $ Prelude.fmap not xs
+                NaryOp_ Iff xs ->
+                    Just . syn . NaryOp_ Xor $ Prelude.fmap not xs
+                Value_ v ->
+                    case v of
+                    VDatum (Datum (Inl Done))       -> Just false
+                    VDatum (Datum (Inr (Inl Done))) -> Just true
+                    _ -> error "not: the impossible happened"
+                _ -> Nothing
 
 and, or :: (ABT abt) => [abt '[] HBool] -> abt '[] HBool
 and = naryOp_withIdentity And true
@@ -273,9 +303,9 @@ nor    = primOp2_ Nor
 
 (<), (<=), (>), (>=) :: (ABT abt, HOrd_ a) => abt '[] a -> abt '[] a -> abt '[] HBool
 (<)    = primOp2_ $ Less hOrd
-x <= y = (x < y) || (x == y)
+x <= y = not (x > y) -- or: @(x < y) || (x == y)@
 (>)    = flip (<)
-x >= y = not (x < y) -- or: @flip (<=)@
+(>=)   = flip (<=)
 
 min, max :: (ABT abt, HOrd_ a) => abt '[] a -> abt '[] a -> abt '[] a
 min = naryOp2_ $ Min hOrd
@@ -315,7 +345,7 @@ product = unsafeNaryOp_ $ Prod hSemiring
 -- TODO: this is actually safe, how can we capture that?
 -- TODO: is this type restruction actually helpful anywhere for us?
 -- If so, we ought to make this function polymorphic so that we can
--- use it for HSemirings which are not HRings too...
+-- use it for non-HRing HSemirings too...
 square :: (ABT abt, HRing_ a) => abt '[] a -> abt '[] (NonNegative a)
 square e = unsafeFrom_ signed (e ^ nat_ 2)
 
@@ -324,37 +354,27 @@ square e = unsafeFrom_ signed (e ^ nat_ 2)
 (-) :: (ABT abt, HRing_ a) => abt '[] a -> abt '[] a -> abt '[] a
 x - y = x + negate y
 
--- BUG: can't just pattern match on (App_ (PrimOp_ Negate) e)
--- anymore; can't even match on (App_ (Syn (PrimOp_ Negate)) e).
--- We need to implement our AST-pattern matching stuff in order to
--- clean this up...
---
+
 -- TODO: do we really want to distribute negation over addition /by
 -- default/? Clearly we'll want to do that in some
 -- optimization\/partial-evaluation pass, but do note that it makes
 -- terms larger in general...
 negate :: (ABT abt, HRing_ a) => abt '[] a -> abt '[] a
-negate = primOp1_ $ Negate hRing
-    {- TODO: redo this optimization
-    \e0 ->
-    Prelude.maybe (primOp1_ (Negate hRing) e0) id
-        $ caseVarSyn e0
+negate e =
+    Prelude.maybe (primOp1_ (Negate hRing) e) id
+        $ caseVarSyn e
             (const Nothing)
-            $ \t0 ->
-                case t0 of
+            $ \t ->
+                case t of
                 -- TODO: need we case analyze the @HSemiring@?
                 NaryOp_ (Sum theSemi) xs ->
-                    Just . syn . NaryOp_ (Sum theSemi) $ fmap negate xs
-                App_ f e ->
-                    caseVarSyn f
-                        (const Nothing)
-                        $ \ft ->
-                            case ft of
-                            -- TODO: need we case analyze the @HRing@?
-                            PrimOp_ (Negate _theRing) -> Just e
-                            _                         -> Nothing
+                    Just . syn . NaryOp_ (Sum theSemi) $ Prelude.fmap negate xs
+                -- TODO: need we case analyze the @HRing@?
+                PrimOp_ (Negate _theRing) :$ es' ->
+                    case es' of
+                    e' :* End -> Just e'
+                    _         -> error "negate: the impossible happened"
                 _ -> Nothing
-    -}
 
 
 -- TODO: test case: @negative . square@ simplifies away the intermediate coercions. (cf., normal')
@@ -368,20 +388,19 @@ abs :: (ABT abt, HRing_ a) => abt '[] a -> abt '[] a
 abs = coerceTo_ signed . abs_
 
 abs_ :: (ABT abt, HRing_ a) => abt '[] a -> abt '[] (NonNegative a)
-abs_ = primOp1_ $ Abs hRing
-{- TODO: redo this optimization
-    \e ->
+abs_ e = 
     Prelude.maybe (primOp1_ (Abs hRing) e) id
         $ caseVarSyn e
             (const Nothing)
             $ \t ->
                 case t of
-                -- BUG: can't use the 'Signed' pattern synonym, because that /requires/ the input to be (NonNegative a), instead of giving us the information that it is.
+                -- BUG: can't use the 'Signed' pattern synonym here, because that /requires/ the input to be (NonNegative a), instead of giving us the information that it is.
                 -- TODO: need we case analyze the @HRing@?
-                CoerceTo_ (CCons (Signed _theRing) CNil) e' ->
-                    Just e'
+                CoerceTo_ (CCons (Signed _theRing) CNil) :$ es' ->
+                    case es' of
+                    e' :* End -> Just e'
+                    _         -> error "abs_: the impossible happened"
                 _ -> Nothing
--}
 
 
 -- TODO: any obvious simplifications? idempotent?
@@ -401,9 +420,7 @@ x / y = x * recip y
 -- optimization\/partial-evaluation pass, but do note that it makes
 -- terms larger in general...
 recip :: (ABT abt, HFractional_ a) => abt '[] a -> abt '[] a
-recip = primOp1_ $ Recip hFractional
-    {- TODO: redo this optimization
-    \e0 ->
+recip e0 =
     Prelude.maybe (primOp1_ (Recip hFractional) e0) id
         $ caseVarSyn e0
             (const Nothing)
@@ -411,17 +428,13 @@ recip = primOp1_ $ Recip hFractional
                 case t0 of
                 -- TODO: need we case analyze the @HSemiring@?
                 NaryOp_ (Prod theSemi) xs ->
-                    Just . syn . NaryOp_ (Prod theSemi) $ fmap recip xs
-                App_ f e ->
-                    caseVarSyn f
-                        (const Nothing)
-                        $ \ft ->
-                            case ft of
-                            -- TODO: need we case analyze the @HFractional@?
-                            PrimOp_ (Recip _theFrac) -> Just e
-                            _                        -> Nothing
+                    Just . syn . NaryOp_ (Prod theSemi) $ Prelude.fmap recip xs
+                -- TODO: need we case analyze the @HFractional@?
+                PrimOp_ (Recip _theFrac) :$ es' ->
+                    case es' of
+                    e :* End -> Just e
+                    _ -> error "recip: the impossible happened"
                 _ -> Nothing
-    -}
 
 
 -- TODO: simplifications
@@ -776,6 +789,7 @@ constV n c = array n (const c)
 
 ----------------------------------------------------------------
 -- instance (ABT abt) => Mochastic (abt) where
+-- BUG: remove the 'SingI' requirement!
 (>>=)
     :: (ABT abt, SingI a)
     => abt '[] ('HMeasure a)
@@ -809,12 +823,13 @@ mf <*> mx = mf >>= \f -> app f <$> mx
 
 -- TODO: ensure that @dirac a *> n@ simplifies to just @n@, regardless of @a@ but especially when @a = unit@.
 -- BUG: remove the 'SingI' requirement!
-(*>)
+(*>), (>>)
     :: (ABT abt, SingI a)
     => abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure b)
     -> abt '[] ('HMeasure b)
 m *> n = m >>= \_ -> n
+(>>) = (*>)
 
 -- TODO: ensure that @m <* dirac a@ simplifies to just @m@, regardless of @a@ but especially when @a = unit@.
 -- BUG: remove the 'SingI' requirements! especially on @b@!
@@ -835,14 +850,6 @@ liftM2
 liftM2 f m n = m >>= \x -> f x <$> n
     -- or @(lam . f) <$> m <*> n@ but that would introduce administrative redexes
 
--- TODO: we should ensure that this simplifies away whenever @m = dirac x@; especially when @m = dirac unit@
--- BUG: remove the 'SingI' requirement!
-(>>)
-    :: (ABT abt, SingI a)
-    => abt '[] ('HMeasure a)
-    -> abt '[] ('HMeasure b)
-    -> abt '[] ('HMeasure b)
-(>>) = (*>)
 
 lebesgue :: (ABT abt) => abt '[] ('HMeasure 'HReal)
 lebesgue = measure0_ Lebesgue
@@ -936,8 +943,9 @@ categorical = measure1_ Categorical
 -- TODO: a variant of 'if_' which gives us the evidence that the argument is non-negative, so we don't need to coerce or use 'abs_'
 categorical' v =
     counting >>= \i ->
-    observe (i >= int_ 0 && i < nat2int (size v))
-        $ weightedDirac (abs_ i) (v ! abs_ i / sumV v)
+    observe (int_ 0 <= i && i < nat2int (size v)) $
+    let_ (abs_ i) $ \j ->
+    weightedDirac j (v!j / sumV v)
 
 
 -- TODO: make Uniform polymorphic, so that if the two inputs are
@@ -968,7 +976,7 @@ normal' mu sd  =
     weightedDirac x
         -- alas, we loose syntactic negation...
         $ exp (negate ((x - mu) ^ nat_ 2)  -- TODO: use negative\/square instead of negate\/(^2)
-            / fromProb (prob_ 2 * sd ** real_ 2)) -- TODO: use square instead of (**2) ?
+            / fromProb (prob_ 2 * sd ^ nat_ 2)) -- TODO: use square?
             / sd / sqrt (prob_ 2 * pi)
 
 
@@ -979,10 +987,10 @@ poisson = measure1_ Poisson
 poisson' l = 
     counting >>= \x ->
     -- TODO: use 'SafeFrom_' instead of @if_ (x >= int_ 0)@ so we can prove that @unsafeFrom_ signed x@ is actually always safe.
-    observe (x >= int_ 0 && prob_ 0 < l) -- BUG: do you mean @l /= 0@? why use (>=) instead of (<=)?
+    observe (int_ 0 <= x && prob_ 0 < l) -- N.B., @0 < l@ means simply that @l /= 0@; why phrase it the other way?
         $ weightedDirac (unsafeFrom_ signed x)
-            $ l ** fromInt x -- BUG: why do you use (**) instead of (^^)?
-                / gammaFunc (fromInt x + real_ 1) -- TODO: use factorial instead of gammaFunc...
+            $ l ^^ x
+                / gammaFunc (fromInt (x + int_ 1)) -- TODO: use factorial instead of gammaFunc...
                 / exp l
 
 
@@ -996,12 +1004,12 @@ gamma = measure2_ Gamma
 gamma' shape scale =
     lebesgue >>= \x ->
     -- TODO: use 'SafeFrom_' instead of @if_ (real_ 0 < x)@ so we can prove that @unsafeProb x@ is actually always safe. Of course, then we'll need to mess around with checking (/=0) which'll get ugly... Use another SafeFrom_ with an associated NonZero type?
-    observe (real_ 0 < x)
-        $ let x_ = unsafeProb x in
-         weightedDirac x_
-            $ x_ ** (fromProb shape - real_ 1)
-                * exp (negate . fromProb $ x_ / scale)
-                / (scale ** shape * gammaFunc shape)
+    observe (real_ 0 < x) $
+    let_ (unsafeProb x) $ \ x_ ->
+    weightedDirac x_
+        $ x_ ** (fromProb shape - real_ 1)
+            * exp (negate . fromProb $ x_ / scale)
+            / (scale ** shape * gammaFunc shape)
 
 
 beta, beta'
@@ -1013,11 +1021,10 @@ beta = measure2_ Beta
 
 beta' a b =
     -- TODO: make Uniform polymorphic, so that if the two inputs are HProb then we know the measure must be over HProb too, and hence @unsafeProb x@ must always be safe. Alas, capturing the safety of @unsafeProb (1-x)@ would take a lot more work...
-    uniform (real_ 0) (real_ 1) >>= \x ->
-    let x_ = unsafeProb x in
-    weightedDirac x_
-        $ x_ ** (fromProb a - real_ 1)
-            * unsafeProb (real_ 1 - x) ** (fromProb b - real_ 1)
+    unsafeProb <$> uniform (real_ 0) (real_ 1) >>= \x ->
+    weightedDirac x
+        $ x ** (fromProb a - real_ 1)
+            * unsafeProb (real_ 1 - fromProb x) ** (fromProb b - real_ 1)
             / betaFunc a b
 
 
@@ -1113,8 +1120,9 @@ weibull
     -> abt '[] ('HMeasure 'HProb)
 weibull b k =
     exponential (prob_ 1) >>= \x ->
-    dirac $ b * x ** fromProb (recip k)
+    dirac $ b * x ** recip k
 
+-- BUG: would it be better to 'observe' that @p <= 1@ before doing the superpose? At least that way things would be /defined/ for all inputs...
 bern :: (ABT abt) => abt '[] 'HProb -> abt '[] ('HMeasure HBool)
 bern p = superpose
     [ (p, dirac true)
@@ -1132,14 +1140,14 @@ binomial
 binomial n p =
     sumV <$> plate (constV n ((\b -> if_ b (int_ 1) (int_ 0)) <$> bern p))
 
+-- BUG: would it be better to 'observe' that @p >= 1@ before doing everything? At least that way things would be /defined/ for all inputs...
 negativeBinomial
     :: (ABT abt)
     => abt '[] 'HNat
     -> abt '[] 'HProb -- N.B., must actually be >= 1
     -> abt '[] ('HMeasure 'HNat)
 negativeBinomial r p =
-    gamma (nat2prob r) (recip p `unsafeMinusProb` prob_ 1) >>= \l ->
-    poisson l
+    gamma (nat2prob r) (recip p `unsafeMinusProb` prob_ 1) >>= poisson
 
 geometric :: (ABT abt) => abt '[] 'HProb -> abt '[] ('HMeasure 'HNat)
 geometric = negativeBinomial (nat_ 1)

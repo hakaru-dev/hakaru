@@ -1180,7 +1180,7 @@ data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
 
 -- TODO: instance (Eq1 abt) => Eq1 (AST abt)
 
--- HACK: so we can print 'Datum_' nodes. Namely, we need to derive @Show1 (abt '[])@ from @Show2 abt@
+-- HACK: so we can print 'Datum_' nodes. Namely, we need to derive @Show1 (abt '[])@ from @Show2 abt@. Alas, we'll also need this same hack for lowering @Eq2 abt@ to @Eq1 (abt '[])@, etc...
 newtype LC_ (abt :: [Hakaru] -> Hakaru -> *) (a :: Hakaru) =
     LC_ { unLC_ :: abt '[] a }
 
