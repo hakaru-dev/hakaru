@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.07.19
+--                                                    2015.08.21
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeCheck
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -55,45 +55,34 @@ inferable = not . mustCheck
 -- | Those terms whose types must be checked analytically. We cannot
 -- synthesize (unambiguous) types for these terms.
 mustCheck :: (ABT abt) => abt '[] a -> Bool
-mustCheck = go . viewABT
+mustCheck = \e -> caseVarSyn e (const False) go
     where
-    go :: (ABT abt) => View abt '[] a -> Bool
-    go (Var  _)          = False
-
-    go (Syn (Lam_ :$ _)) = True
+    go :: (ABT abt) => AST abt a -> Bool
+    go (Lam_ :$ _) = True
+    go (Fix_ :$ _) = True
 
     -- In general, applications don't require checking; however,
     -- for fully saturated data constructors they do (according to
     -- neelk).
-    go (Syn (App_ :$ _)) = False
+    go (App_ :$ _) = False
 
     -- We follow Dunfield & Pientka and \Pi\Sigma in inferring or
     -- checking depending on what the body requires. This is as
     -- opposed to the TLDI'05 paper, which always inders @e2@ but
     -- will check or infer the @e1@ depending on whether it has a
     -- type annotation or not.
-    go (Syn (Let_ :$ es)) =
-        -- BUG: why does ghc think there are other possibilities for @es@ here, but not in the other places we pattern match on 'MBind'?
-        case es of
-        _ :* e2 :* End -> caseBind e2 $ \_ e2' -> mustCheck e2'
-        _              -> error "mustCheck: the impossible happened"
+    go (Let_ :$ _ :* e2 :* End) =
+        caseBind e2 $ \_ e2' -> mustCheck e2'
 
-    -- If our Fix_ had a type annotation on the variable, then we
-    -- could infer the type by checking the body against that same
-    -- type (just as if Lam_ had a type annotation on the variable).
-    -- But for now we'll just have to check (again, just like Lam_).
-    go (Syn (Fix_ :$ _)) = True
+    go (Ann_ _ :$ _)                  = False
+    go (CoerceTo_   CNil :$ e :* End) = mustCheck e
+    go (CoerceTo_   _    :$ _)        = False
+    go (UnsafeFrom_ CNil :$ e :* End) = mustCheck e
+    go (UnsafeFrom_ _    :$ _)        = False
 
-    go (Syn (Ann_ _ :$ _))     = False
-
-    go (Syn (PrimOp_ _ :$ _))  = False
-    go (Syn (NaryOp_ _ _))     = False
-    go (Syn (Value_ _))        = False
-
-    go (Syn (CoerceTo_   CNil :$ e :* End)) = mustCheck e
-    go (Syn (CoerceTo_   _    :$ _))        = False
-    go (Syn (UnsafeFrom_ CNil :$ e :* End)) = mustCheck e
-    go (Syn (UnsafeFrom_ _    :$ _))        = False
+    go (PrimOp_ _ :$ _) = False
+    go (NaryOp_ _ _)    = False
+    go (Value_ _)       = False
 
     -- I return true because most folks (neelk, Pfenning, Dunfield
     -- & Pientka) say all data constructors mustCheck (even though
@@ -116,31 +105,28 @@ mustCheck = go . viewABT
     -- In general (according to Dunfield & Pientka), we should be
     -- able to infer the result of a fully saturated primop by
     -- looking up it's type and then checking all the arguments.
-    go (Syn Empty_)       = True
-    go (Syn (Array_ _ _)) = True
-    go (Syn (Datum_ _))   = True
+    go Empty_       = True
+    go (Array_ _ _) = True
+    go (Datum_ _)   = True
 
     -- TODO: everyone says this, but it seems to me that if we can
     -- infer any of the branches (and check the rest to agree) then
     -- we should be able to infer the whole thing... Or maybe the
     -- problem is that the change-of-direction rule might send us
     -- down the wrong path?
-    go (Syn (Case_ _ _))      = True
+    go (Case_ _ _) = True
 
-
-    go (Syn (MeasureOp_ _ :$ _)) = False
+    go (MeasureOp_ _ :$ _) = False
     -- TODO: I'm assuming MBind works like Let_, but we should make sure...
     -- TODO: again, it seems like if we can infer one of the options, then we should be able to check the rest against it. But for now we'll assume we must check
-    go (Syn (MBind :$ es)) =
-        -- BUG: why does ghc think there are other possibilities for @es@ here, but not in the other places we pattern match on 'MBind'?
-        case es of
-        _ :* e2 :* End -> caseBind e2 $ \_ e2' -> mustCheck e2'
-        _              -> error "mustCheck: the impossible happened"
-    go (Syn (Superpose_ _))   = True
+    go (MBind :$ _ :* e2 :* End) =
+        caseBind e2 $ \_ e2' -> mustCheck e2'
+    go (Superpose_ _)   = True
 
-    {- TODO:
-    go (Syn (Lub_ es)) = ...
-    -}
+    go (Lub_ es) = error "TODO: mustCheck{Lub_}"
+
+    -- For some reason ghc won't infer that the SArgs must have the appropriate length for their SCon (namely 'Let_' and 'MBind')...
+    go _ = error "mustCheck: the impossible happened"
 
 
 ----------------------------------------------------------------
@@ -173,6 +159,8 @@ data TypedPatternList :: [Hakaru] -> * where
         :: !(TypedPattern vars1)
         -> TypedPatternList vars2
         -> TypedPatternList (vars1 ++ vars2)
+
+infixr 5 `TPCons`
 
 data TypedDatum (ast :: Hakaru -> *) where
     -- N.B., we do not require that @xss ~ Code t@; so we can
@@ -241,10 +229,10 @@ inferType e0 =
     Syn (App_ :$ e1 :* e2 :* End) -> do
         typ1 <- inferType e1
         case typ1 of
-            -- BUG: type inference fail; ghc now thinks there are other possibilities for @typ1@
             SFun typ2 typ3 -> do
                 checkType typ2 e2
                 return typ3
+            _ -> failwith "expected function type"
         -- The above is the standard rule that everyone uses.
         -- However, if the @e1@ is a lambda (rather than a primop
         -- or a variable), then it will require a type annotation.
@@ -259,21 +247,19 @@ inferType e0 =
         {-
     Syn (App_ (Syn (Lam_ e1)) e2) -> do
         typ2 <- inferType e2
-        -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
         caseBind e1 $ \x -> pushCtx (Some x typ2) . inferType
         -}
 
     Syn (Let_ :$ e1 :* e2 :* End)
         | inferable e1 -> do
             typ1 <- inferType e1
-            -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
             caseBind e2 $ \x ->
                 case jmEq typ1 (varType x) of
                 Just Refl -> pushCtx (Some x) . inferType
                 Nothing   -> const $ failwith "type mismatch"
 
     Syn (Ann_ typ1 :$ e1 :* End) -> do
-        -- N.B., this requires that @typ@ is a 'Sing' not a 'Proxy',
+        -- N.B., this requires that @typ1@ is a 'Sing' not a 'Proxy',
         -- since we can't generate a 'Sing' from a 'Proxy'.
         checkType typ1 e1
         return typ1
@@ -283,8 +269,8 @@ inferType e0 =
         checkSArgs typs es
         return typ1
 
-    Syn (NaryOp_ o es) -> do
-        let typ = sing_NaryOp o
+    Syn (NaryOp_ o es) ->
+        let typ = sing_NaryOp o in do
         F.forM_ es $ checkType typ
         return typ
 
@@ -323,13 +309,12 @@ inferType e0 =
         | inferable e1 -> do
             typ1 <- inferType e1
             case typ1 of
-                -- BUG: type inference fail; ghc now thinks there are other possibilities for @typ1@
                 SMeasure typ2 ->
-                    -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
                     caseBind e2 $ \x ->
                         case jmEq typ2 (varType x) of
                         Just Refl -> pushCtx (Some x) . inferType
                         Nothing   -> const $ failwith "type mismatch"
+                _ -> failwith "expected measure type"
 
     _   | mustCheck e0 -> failwith "Cannot infer types for checking terms; please add a type annotation"
         | otherwise    -> error "inferType: missing an inferable branch!"
@@ -349,7 +334,6 @@ checkSArgs Nil1             End       = return ()
 checkSArgs (Cons1 typ typs) (e :* es) = do
     checkType  typ  e
     checkSArgs typs es
--- BUG: why does ghc think there are other possibilities here?
 checkSArgs _ _ = error "checkSArgs: the impossible happened"
 
 
@@ -362,7 +346,6 @@ checkType typ0 e0 =
     Syn (Lam_ :$ e1 :* End) ->
         case typ0 of
         SFun typ1 typ2 ->
-            -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
             caseBind e1 $ \x ->
                 case jmEq typ1 (varType x) of
                 Just Refl -> pushCtx (Some x) . checkType typ2
@@ -372,14 +355,12 @@ checkType typ0 e0 =
     Syn (Let_ :$ e1 :* e2 :* End)
         | inferable e1 -> do
             typ1 <- inferType e1
-            -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
             caseBind e2 $ \x ->
                 case jmEq typ1 (varType x) of
                 Just Refl -> pushCtx (Some x) . checkType typ0
                 Nothing   -> const $ failwith "type mismatch"
 
     Syn (Fix_ :$ e1 :* End) ->
-        -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
         caseBind e1 $ \x ->
             case jmEq typ0 (varType x) of
             Just Refl -> pushCtx (Some x) . checkType typ0
@@ -401,7 +382,6 @@ checkType typ0 e0 =
         case typ0 of
         SArray typ1 -> do
             checkType SNat n
-            -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
             caseBind e1 $ \x ->
                 case jmEq SNat (varType x) of
                 Just Refl -> pushCtx (Some x) . checkType typ1
@@ -416,10 +396,6 @@ checkType typ0 e0 =
     Syn (Case_ e1 branches) -> do
         typ1 <- inferType e1
         F.forM_ branches $ \(Branch pat body) ->
-            {-
-            -- BUG: Could not deduce (xs ~ (xs ++ '[]))
-            checkBranch typ0 body (TP pat typ1 `TPCons` TPNil)
-            -}
             -- N.B., we need the call to 'checkBranch' to be outside the case analysis, otherwise we get some weird error about the return type being untouchable (and hence not matchable with @()@)
             checkBranch typ0 body $
                 let p = TP pat typ1 in
@@ -430,13 +406,12 @@ checkType typ0 e0 =
         | inferable e1 -> do
             typ1 <- inferType e1
             case typ1 of
-                -- BUG: type inference fail; ghc now thinks there are other possibilities for @typ1@
                 SMeasure typ2 ->
-                    -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
                     caseBind e2 $ \x ->
                         case jmEq typ2 (varType x) of
                         Just Refl -> pushCtx (Some x) . checkType typ0
                         Nothing   -> const $ failwith "type mismatch"
+                _ -> failwith "expected measure type"
 
     Syn (Superpose_ pes) ->
         F.forM_ pes $ \(p,e) -> do
@@ -509,7 +484,6 @@ checkBranch body_typ body = go
     go (TP pat typ `TPCons` pts) =
         case pat of
         PVar ->
-            -- TODO: catch ExpectedBindException and convert it to a TypeCheckError
             caseBind body $ \x body' ->
                 case jmEq typ (varType x) of
                 Just Refl ->
@@ -540,17 +514,10 @@ checkBranch body_typ body = go
         PEt pat1 pat2 ->
             case typ of
             SEt typ1 typ2 -> go $
-                {-
-                -- BUG: Could not deduce (((vars3 ++ vars4) ++ vars2) ~ (vars3 ++ (vars4 ++ vars2)))
-                ( TPCons (TPF pat1 typ1 typA)
-                . TPCons (TPS pat2 typ2 typA)
-                $ pts
-                )
-                -}
                 let p1 = TPF pat1 typ1 typA
                     p2 = TPS pat2 typ2 typA
                 in case eqAppendAssoc p1 p2 pts of
-                    Refl -> TPCons p1 (TPCons p2 pts)
+                    Refl -> p1 `TPCons` p2 `TPCons` pts
             _ -> failwith "expected term of `et' type"
         PDone ->
             case typ of
