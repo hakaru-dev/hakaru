@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.08.19
+--                                                    2015.08.21
 -- |
 -- Module      :  Language.Hakaru.Syntax.Expect
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -83,7 +83,7 @@ test1 = lam $ \x -> total (weight x)
 
 
 test2 :: TrivialABT '[] ('HMeasure 'HProb ':-> 'HProb)
-test2 = syn . Lam_ . bind x . total $ var x
+test2 = syn (Lam_ :$ bind x (total (var x)) :* End)
     where
     x = Variable (Name (Text.pack "x") 2) (SMeasure SProb)
 -- TODO: we'd rather use @lam $ \x -> total x@ but that causes 'binder' to throw a <<loop>> exception, presumably because 'expect' needs to force variable IDs to store them in the Env. Is there any way to work around that so we don't need to manually generate our own variable? Maybe by explicitly using the 'Expect' primop, and then performing the evaluation of that primop after 'binder' has finished constructing the first-order AST; but how can we specify that order of evaluation (except by making the evaluation of 'Expect' as 'expect' explicit)?
@@ -91,15 +91,13 @@ test2 = syn . Lam_ . bind x . total $ var x
 
 -- TODO: we'd rather use @lam $ \x -> total (x `app` int_ 3)@
 test3 :: TrivialABT '[] (('HInt ':-> 'HMeasure 'HProb) ':-> 'HProb)
-test3 = syn . Lam_ . bind x . total $ (var x `app` int_ 3)
+test3 = syn (Lam_ :$ bind x (total (var x `app` int_ 3)) :* End)
     where
     x = Variable (Name (Text.pack "x") 2) (SFun SInt $ SMeasure SProb)
 
 test4 :: TrivialABT '[] 'HProb
 test4 = total $ if_ true (dirac unit) (weight (prob_ 5) >> dirac unit)
 
--- TODO: this one still doesn't work at all. Need to finish fixing 'pLeft' and 'pRight' so that they typecheck again.
--- TODO: also need to fix the @Show1 AST@ instance so that it can print 'Datum_'. That's why we have to abstract over @x@ instead of just saying @left_ unit@ or the like
 test5 :: TrivialABT '[] (HEither HUnit HUnit ':-> 'HProb)
 test5 =
     lam $ \x ->
@@ -111,8 +109,6 @@ test5 =
 {-
 total (array (nat_ 1) (\x -> dirac x) ! nat_ 0) :: TrivialABT '[] 'HProb
 syn (Value_ (VProb LogFloat 1.0))
-
-total (if_ true (dirac unit) (weight (prob_ 42)))
 -}
 
 ----------------------------------------------------------------
@@ -319,7 +315,7 @@ expectTypeDir p (SFun   _ a) e =
     expectTypeDir (unImpureFun p) a (e `app` e2)
 expectTypeDir _ (SMeasure a) e =
     ExpectMeasure $ \c ->
-    primOp2_ (Expect a) e (lamWithType a c)
+    measure2_ (Expect a) e (lamWithType a c)
 
 
 expectAST
@@ -328,43 +324,57 @@ expectAST
     -> AST abt a
     -> Env abt
     -> Expect abt a
-expectAST p (Lam_ e1) xs =
-    caseBind e1 $ \x e' ->
-    ExpectFun (varHint x) $ \e2 ->
-    expectSynDir (unImpureFun p) e' $ pushEnv (Assoc x e2) xs
+expectAST p (Lam_ :$ es) xs =
+    case es of
+    e1 :* End ->
+        caseBind e1 $ \x e' ->
+        ExpectFun (varHint x) $ \e2 ->
+        expectSynDir (unImpureFun p) e' $ pushEnv (Assoc x e2) xs
+    _ -> error "expectAST: the impossible happened"
 
-expectAST p (App_ e1 e2) xs =
-    expectSynDir (ImpureFun p) e1 xs `apF` e2
+expectAST p (App_ :$ es) xs =
+    case es of
+    e1 :* e2 :* End ->
+        expectSynDir (ImpureFun p) e1 xs `apF` e2
+    _ -> error "expectAST: the impossible happened"
 
-expectAST p (Let_ e1 e2) xs =
-    caseBind e2 $ \x e' ->
-    expectSynDir p e' $ pushEnv (Assoc x e1) xs
+expectAST p (Let_ :$ es) xs =
+    case es of
+    e1 :* e2 :* End ->
+        caseBind e2 $ \x e' ->
+        expectSynDir p e' $ pushEnv (Assoc x e1) xs
+    _ -> error "expectAST: the impossible happened"
 
-expectAST p (Fix_ e1) xs =
-    caseBind e1 $ \x e' ->
-    expectSynDir p e' $ pushEnv (Assoc x . syn $ Fix_ e1) xs -- BUG: could loop
+expectAST p (Fix_ :$ es) xs =
+    case es of
+    e1 :* End ->
+        caseBind e1 $ \x e' ->
+        expectSynDir p e' $ pushEnv (Assoc x $ syn (Fix_ :$ e1 :* End)) xs -- BUG: could loop
+    _ -> error "expectAST: the impossible happened"
 
-expectAST p (Ann_ _ e) xs =
-    -- TODO: should we re-wrap it up in a type annotation?
-    expectSynDir p e xs
+expectAST p (Ann_ _ :$ es) xs =
+    case es of
+    e :* End ->
+        -- TODO: should we re-wrap it up in a type annotation?
+        expectSynDir p e xs
+    _ -> error "expectAST: the impossible happened"
 
-expectAST p (PrimOp_ o) xs =
+expectAST p (PrimOp_ o :$ es) xs =
     case o of
     Index _ ->
-        ExpectFun Text.empty $ \arr ->
-        ExpectFun Text.empty $ \ei ->
-        let p' = ImpureArray . unImpureFun $ unImpureFun p
-        in  expectSynDir p' arr xs `apA` ei
+        case es of
+        arr :* ei :* End -> expectSynDir (ImpureArray p) arr xs `apA` ei
+        _ -> error "expectAST: the impossible happened"
 
     Reduce a -> error "TODO: expectAST{Reduce}"
     
     _ -> case p of {}
 
-expectAST p (NaryOp_     _ _) _ = case p of {}
-expectAST p (Value_      _)   _ = case p of {}
-expectAST p (CoerceTo_   _ _) _ = case p of {}
-expectAST p (UnsafeFrom_ _ _) _ = case p of {}
-expectAST _ Empty_            _ =
+expectAST p (NaryOp_     _ _)    _ = case p of {}
+expectAST p (Value_      _)      _ = case p of {}
+expectAST p (CoerceTo_   _ :$ _) _ = case p of {}
+expectAST p (UnsafeFrom_ _ :$ _) _ = case p of {}
+expectAST _ Empty_               _ =
     ExpectArray Text.empty (nat_ 0)
         $ error "expect: indexing an empty array"
     -- TODO: should we instead emit the AST for buggily indexing an empty array?
@@ -395,12 +405,15 @@ expectAST p (Case_  e bs) xs =
     -- where @denotation e xs@ is the constant interpretation for non-measures, and the @expect@ integrator interpretation for measures
     -- We can avoid some of that administrative stuff, by using @let_@ to name the @denotation e xs@ stuff and then use Hakaru's @Case_@ on that.
 
-expectAST _ (Measure_    o)     _  = expectMeasure o
-expectAST p (Bind_       e1 e2) xs =
-    ExpectMeasure $ \c ->
-    expectSynDir ImpureMeasure e1 xs `apM` \a ->
-    caseBind e2 $ \x e' ->
-    (expectSynDir p e' $ pushEnv (Assoc x a) xs) `apM` c
+expectAST p (MeasureOp_ o :$ es) xs = expectMeasure p o es xs
+expectAST p (MBind :$ es) xs =
+    case es of
+    e1 :* e2 :* End ->
+        ExpectMeasure $ \c ->
+        expectSynDir ImpureMeasure e1 xs `apM` \a ->
+        caseBind e2 $ \x e' ->
+        (expectSynDir p e' $ pushEnv (Assoc x a) xs) `apM` c
+    _ -> error "expectAST: the impossible happened"
 
 expectAST p (Superpose_ es) xs =
     ExpectMeasure $ \c ->
@@ -438,79 +451,108 @@ expectBranch c p xs (Var  x)    = expectSynDir p (var x) xs `apM` c
 expectBranch c p xs (Bind x e') = bind x $ expectBranch c p xs e'
 
 
-
-expectMeasure :: (ABT abt) => Measure a -> Expect abt a
-expectMeasure (Dirac _) =
-    ExpectFun Text.empty $ \a ->
-    ExpectMeasure $ \c -> c a
-expectMeasure Lebesgue    =
-    ExpectMeasure $ \c ->
-    integrate negativeInfinity infinity c
-expectMeasure Counting    =
-    ExpectMeasure $ \c ->
-    summate   negativeInfinity infinity c
-expectMeasure Categorical =
-    ExpectFun Text.empty $ \ps ->
-    ExpectMeasure $ \c ->
-    let_ (summateV ps) $ \tot ->
-    flip (if_ (prob_ 0 < tot)) (prob_ 0)
-        $ summateV (mapWithIndex (\i p -> p * c i) ps) / tot
-expectMeasure Uniform =
-    ExpectFun Text.empty $ \lo ->
-    ExpectFun Text.empty $ \hi ->
-    ExpectMeasure $ \c ->
-    integrate lo hi $ \x ->
-        c x / unsafeProb (hi - lo)
-expectMeasure Normal =
-    ExpectFun Text.empty $ \mu ->
-    ExpectFun Text.empty $ \sd ->
-    ExpectMeasure $ \c ->
-    integrate negativeInfinity infinity $ \x ->
-        exp (negate ((x - mu) ^ nat_ 2)
-            / fromProb (prob_ 2 * sd ** real_ 2))
-        / sd / sqrt (prob_ 2 * pi) * c x
-expectMeasure Poisson =
-    ExpectFun Text.empty $ \l ->
-    ExpectMeasure $ \c ->
-    flip (if_ (prob_ 0 < l)) (prob_ 0)
-        $ summate (real_ 0) infinity $ \x ->
-            l ** fromInt x
-            / gammaFunc (fromInt x + real_ 1)
-            / exp (fromProb l)
-            * c (unsafeFrom_ signed x)
-expectMeasure Gamma =
-    ExpectFun Text.empty $ \shape ->
-    ExpectFun Text.empty $ \scale ->
-    ExpectMeasure $ \c ->
-    integrate (real_ 0) infinity $ \x ->
-        let x_ = unsafeProb x in
-        x_ ** (fromProb shape - real_ 1)
-        * exp (negate . fromProb $ x_ / scale)
-        / (scale ** shape * gammaFunc shape)
-        * c x_
-expectMeasure Beta =
-    ExpectFun Text.empty $ \a ->
-    ExpectFun Text.empty $ \b ->
-    ExpectMeasure $ \c ->
-    integrate (real_ 0) (real_ 1) $ \x ->
-        let x_ = unsafeProb x in
-        x_ ** (fromProb a - real_ 1)
-        * (unsafeProb (real_ 1 - x) ** (fromProb b - real_ 1))
-        / betaFunc a b * c (unsafeProb x)
-expectMeasure (DirichletProcess _) =
-    ExpectFun Text.empty $ \p ->
-    ExpectFun Text.empty $ \m ->
-    ExpectMeasure $ \c ->
-    error "TODO: expectMeasure{DirichletProcess}"
-expectMeasure (Plate _) =
-    ExpectFun Text.empty $ \ms ->
-    ExpectMeasure $ \c ->
-    error "TODO: expectMeasure{Plate}"
-expectMeasure (Chain _ _) =
-    ExpectFun Text.empty $ \mz ->
-    ExpectFun Text.empty $ \s0 ->
-    ExpectMeasure $ \c ->
-    error "TODO: expectMeasure{Chain}"
+-- BUG: none of these use the Env; they must, in case we need to substitute for variables in the SArgs. Or we need to residualize the Env into the program we're generating...
+expectMeasure
+    :: (ABT abt, typs ~ UnLCs args, args ~ LCs typs)
+    => ImpureType a 
+    -> MeasureOp typs a
+    -> SArgs abt args
+    -> Env abt
+    -> Expect abt a
+expectMeasure _ (Dirac _) es _ =
+    case es of
+    a :* End ->
+        ExpectMeasure $ \c -> c a
+    _ -> error "expectMeasure: the impossible happened"
+expectMeasure _ Lebesgue es _ =
+    case es of
+    End ->
+        ExpectMeasure $ \c ->
+        integrate negativeInfinity infinity c
+    _ -> error "expectMeasure: the impossible happened"
+expectMeasure _ Counting es _ =
+    case es of
+    End ->
+        ExpectMeasure $ \c ->
+        summate negativeInfinity infinity c
+    _ -> error "expectMeasure: the impossible happened"
+expectMeasure _ Categorical es _ =
+    case es of
+    ps :* End ->
+        ExpectMeasure $ \c ->
+        let_ (summateV ps) $ \tot ->
+        flip (if_ (prob_ 0 < tot)) (prob_ 0)
+            $ summateV (mapWithIndex (\i p -> p * c i) ps) / tot
+    _ -> error "expectMeasure: the impossible happened"
+expectMeasure _ Uniform  es _ =
+    case es of
+    lo :* hi :* End ->
+        ExpectMeasure $ \c ->
+        integrate lo hi $ \x ->
+            c x / unsafeProb (hi - lo)
+    _ -> error "expectMeasure: the impossible happened"
+expectMeasure _ Normal es _ =
+    case es of
+    mu :* sd :* End ->
+        ExpectMeasure $ \c ->
+        integrate negativeInfinity infinity $ \x ->
+            exp (negate ((x - mu) ^ nat_ 2)
+                / fromProb (prob_ 2 * sd ^ nat_ 2))
+            / sd / sqrt (prob_ 2 * pi) * c x
+    _ -> error "expectMeasure: the impossible happened"
+expectMeasure _ Poisson es _ =
+    case es of
+    l :* End ->
+        ExpectMeasure $ \c ->
+        flip (if_ (prob_ 0 < l)) (prob_ 0)
+            $ summate (real_ 0) infinity $ \x ->
+                l ^^ x
+                / gammaFunc (fromInt x + real_ 1)
+                / exp (fromProb l)
+                * c (unsafeFrom_ signed x)
+    _ -> error "expectMeasure: the impossible happened"
+expectMeasure _ Gamma es _ =
+    case es of
+    shape :* scale :* End ->
+        ExpectMeasure $ \c ->
+        integrate (real_ 0) infinity $ \x ->
+            let x_ = unsafeProb x in
+            x_ ** (fromProb shape - real_ 1)
+            * exp (negate . fromProb $ x_ / scale)
+            / (scale ** shape * gammaFunc shape)
+            * c x_
+    _ -> error "expectMeasure: the impossible happened"
+expectMeasure _ Beta es _ =
+    case es of
+    a :* b :* End ->
+        ExpectMeasure $ \c ->
+        integrate (real_ 0) (real_ 1) $ \x ->
+            let x_ = unsafeProb x in
+            x_ ** (fromProb a - real_ 1)
+            * (unsafeProb (real_ 1 - x) ** (fromProb b - real_ 1))
+            / betaFunc a b * c (unsafeProb x)
+    _ -> error "expectMeasure: the impossible happened"
+expectMeasure _ (DirichletProcess _) es _ =
+    case es of
+    p :* m :* End ->
+        ExpectMeasure $ \c ->
+        error "TODO: expectMeasure{DirichletProcess}"
+    _ -> error "expectMeasure: the impossible happened"
+expectMeasure _ (Plate _) es _ =
+    case es of
+    ms :* End ->
+        ExpectMeasure $ \c ->
+        error "TODO: expectMeasure{Plate}"
+    _ -> error "expectMeasure: the impossible happened"
+expectMeasure _ (Chain _ _) es _ =
+    case es of
+    mz :* s0 :* End ->
+        ExpectMeasure $ \c ->
+        error "TODO: expectMeasure{Chain}"
+    _ -> error "expectMeasure: the impossible happened"
+expectMeasure p (Expect _) _ _ = case p of {}
+expectMeasure _ (Disintegrate _ _) _ _ =
+    error "TODO: expectMeasure{Disintegrate}"
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
