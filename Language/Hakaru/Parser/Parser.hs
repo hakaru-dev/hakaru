@@ -7,7 +7,7 @@ import Prelude hiding (Real)
 import Control.Applicative ((<$>))
 import qualified Control.Monad as M
 import Data.Functor.Identity
-import Data.Text hiding (foldr)
+import Data.Text hiding (foldr, foldl)
 
 import Text.Parsec hiding (Empty)
 import Text.Parsec.Text hiding (Parser())
@@ -212,8 +212,8 @@ defargs []     body = body
 call_expr :: Parser (AST' Text)
 call_expr = do
   name <- identifier
-  args <- parens basic_expr
-  return $ App (Op name) args
+  args <- parens $ commaSep basic_expr
+  return $ foldl App (Op name) args
 
 basic_expr :: Parser (AST' Text)
 basic_expr = try call_expr

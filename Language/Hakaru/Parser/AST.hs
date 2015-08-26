@@ -4,11 +4,11 @@ module Language.Hakaru.Parser.AST where
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.AST()
 import Data.Text
-import Text.Parsec (SourcePos(..))
+import Text.Parsec (SourcePos)
 
 type Name = Text
 
--- data Branch' a = Branch' Pattern (AST' a)
+-- data Branch' a = Branch' Pattern' (AST' a)
 
 -- Meta stores start and end position for AST in source code
 newtype Meta = Meta (SourcePos, SourcePos) deriving (Eq, Show)
