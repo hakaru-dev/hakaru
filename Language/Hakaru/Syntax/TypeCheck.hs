@@ -33,7 +33,7 @@ import           Data.IntMap           (IntMap)
 import qualified Data.IntMap           as IM
 import qualified Data.Traversable      as T
 #if __GLASGOW_HASKELL__ < 710
-import           Control.Applicative   (Applicative(..))
+import           Control.Applicative   (Applicative(..), (<$>))
 #endif
 import Language.Hakaru.Syntax.Nat      (fromNat)
 import Language.Hakaru.Syntax.IClasses (List1(..))
@@ -359,176 +359,280 @@ checkType
     -> abt '[] a
     -> TypeCheckMonad (abt' '[] a)
 checkType = checkType_
-  where
-  -- HACK: to convince GHC to stop being stupid about resolving the \"choice\" of @abt'@. I'm not sure why we don't need to use this same hack when 'inferType' calls 'checkType', but whatevs.
-  inferType_ :: forall b. abt '[] b -> TypeCheckMonad (Sing b, abt' '[] b)
-  inferType_ = inferType
-  
-  checkType_ 
-    :: forall b
-    .  Sing b
-    -> abt '[] b
-    -> TypeCheckMonad (abt' '[] b)
-  checkType_ typ0 e0 =
-    case viewABT e0 of
-    Syn (Lam_ :$ e1 :* End) ->
-        case typ0 of
-        SFun typ1 typ2 ->
-            caseBind e1 $ \x e2 ->
-                case jmEq typ1 (varType x) of
-                Nothing   -> failwith "type mismatch"
-                Just Refl -> pushCtx (Some x) $ do
-                    e2' <- checkType_ typ2 e2
-                    return (syn(Lam_ :$ bind x e2' :* End))
-        _ -> failwith "expected function type"
-
-    Syn (Let_ :$ e1 :* e2 :* End)
-        | inferable e1 -> do
-            (typ1,e1') <- inferType_ e1
-            caseBind e2 $ \x e3 ->
-                case jmEq typ1 (varType x) of
-                Nothing   -> failwith "type mismatch"
-                Just Refl -> pushCtx (Some x) $ do
-                    e3' <- checkType_ typ0 e3
-                    return (syn(Let_ :$ e1' :* bind x e3' :* End))
-
-    Syn (Fix_ :$ e1 :* End) ->
-        caseBind e1 $ \x e2 ->
-            case jmEq typ0 (varType x) of
-            Nothing   -> failwith "type mismatch"
-            Just Refl -> pushCtx (Some x) $ do
-                e2' <- checkType_ typ0 e2
-                return (syn(Fix_ :$ bind x e2' :* End))
-
-    Syn (CoerceTo_ c :$ e1 :* End) -> do
-        e1' <- checkType_ (singCoerceFrom c typ0) e1
-        return (syn(CoerceTo_ c :$ e1' :* End))
-
-    Syn (UnsafeFrom_ c :$ e1 :* End) -> do
-        e1' <- checkType_ (singCoerceTo c typ0) e1
-        return (syn(UnsafeFrom_ c :$ e1' :* End))
-
-    Syn Empty_ ->
-        case typ0 of
-        SArray typ1 -> return (syn Empty_)
-            -- TODO: use jmEq to test that 'typ1' matches
-        _ -> failwith "expected HArray type"
-
-    Syn (Array_ e1 e2) ->
-        case typ0 of
-        SArray typ1 -> do
-            e1' <- checkType_ SNat e1
-            caseBind e2 $ \x e3 ->
-                case jmEq SNat (varType x) of
-                Nothing   -> failwith "type mismatch"
-                Just Refl -> pushCtx (Some x) $ do
-                    e3' <- checkType_ typ1 e3
-                    return (syn(Array_ e1' (bind x e3')))
-        _ -> failwith "expected HArray type"
-
-    Syn (Datum_ (Datum d)) ->
-        case typ0 of
-        SData _ typ2 -> do
-            checkDatum [TDC d typ2 typ0]
-            return (syn(Datum_ (Datum (error "TODO: checkDatum"))))
-        _            -> failwith "expected HData type"
-
-    Syn (Case_ e1 branches) -> do
-        (typ1,e1') <- inferType_ e1
-        branches' <- T.forM branches $ \(Branch pat body) ->
-            -- N.B., we need the call to 'checkBranch' to be outside the case analysis, otherwise we get some weird error about the return type being untouchable (and hence not matchable with @()@)
-            checkBranch typ0 body $
-                let p = TP pat typ1 in
-                case eqAppendNil p of
-                Refl -> TPCons p TPNil
-        return (syn(Case_ e1' (error "TODO: checkBranch")))
-
-    Syn (MBind :$ e1 :* e2 :* End)
-        | inferable e1 -> do
-            (typ1,e1') <- inferType_ e1
-            case typ1 of
-                SMeasure typ2 ->
-                    caseBind e2 $ \x e3 ->
-                        case jmEq typ2 (varType x) of
-                        Nothing   -> failwith "type mismatch"
-                        Just Refl -> pushCtx (Some x) $ do
-                            e3' <- checkType_ typ0 e3
-                            return (syn(MBind :$ e1' :* bind x e3' :* End))
-                _ -> failwith "expected measure type"
-
-    Syn (Superpose_ pes) -> do
-        pes' <- T.forM pes $ \(p,e) -> do
-            p' <- checkType_ SProb p
-            e' <- checkType_ typ0  e
-            return (p',e')
-        return (syn(Superpose_ pes'))
-
-    _   | inferable e0 -> do
-            (typ',e0') <- inferType_ e0
-            -- If we ever get evaluation at the type level, then
-            -- (==) should be the appropriate notion of type
-            -- equivalence. More generally, we should have that the
-            -- inferred @typ'@ is a subtype of (i.e., subsumed by)
-            -- the goal @typ@. This will be relevant to us for handling our coercion calculus :(
-            case jmEq typ0 typ' of
-                Just Refl -> return e0'
-                Nothing   -> failwith "Type mismatch"
-        | otherwise -> error "checkType: missing an mustCheck branch!"
-
-
-----------------------------------------------------------------
--- TODO: can we unify this with the last major case of 'checkBranch'?
-checkDatum
-    :: ABT abt
-    => [TypedDatum (abt '[])]
-    -> TypeCheckMonad ()
-checkDatum = error "TODO: checkDatum"
-{-
-go
     where
-    go []                     = return ()
-    go (TDC d typ typA : dts) =
+    -- HACK: to convince GHC to stop being stupid about resolving the \"choice\" of @abt'@. I'm not sure why we don't need to use this same hack when 'inferType' calls 'checkType', but whatevs.
+    inferType_ :: forall b. abt '[] b -> TypeCheckMonad (Sing b, abt' '[] b)
+    inferType_ = inferType
+
+    checkType_ 
+        :: forall b. Sing b -> abt '[] b -> TypeCheckMonad (abt' '[] b)
+    checkType_ typ0 e0 =
+        case viewABT e0 of
+        Syn (Lam_ :$ e1 :* End) ->
+            case typ0 of
+            SFun typ1 typ2 ->
+                caseBind e1 $ \x e2 ->
+                    case jmEq typ1 (varType x) of
+                    Nothing   -> failwith "type mismatch"
+                    Just Refl -> pushCtx (Some x) $ do
+                        e2' <- checkType_ typ2 e2
+                        return (syn(Lam_ :$ bind x e2' :* End))
+            _ -> failwith "expected function type"
+    
+        Syn (Let_ :$ e1 :* e2 :* End)
+            | inferable e1 -> do
+                (typ1,e1') <- inferType_ e1
+                caseBind e2 $ \x e3 ->
+                    case jmEq typ1 (varType x) of
+                    Nothing   -> failwith "type mismatch"
+                    Just Refl -> pushCtx (Some x) $ do
+                        e3' <- checkType_ typ0 e3
+                        return (syn(Let_ :$ e1' :* bind x e3' :* End))
+    
+        Syn (Fix_ :$ e1 :* End) ->
+            caseBind e1 $ \x e2 ->
+                case jmEq typ0 (varType x) of
+                Nothing   -> failwith "type mismatch"
+                Just Refl -> pushCtx (Some x) $ do
+                    e2' <- checkType_ typ0 e2
+                    return (syn(Fix_ :$ bind x e2' :* End))
+    
+        Syn (CoerceTo_ c :$ e1 :* End) -> do
+            e1' <- checkType_ (singCoerceFrom c typ0) e1
+            return (syn(CoerceTo_ c :$ e1' :* End))
+    
+        Syn (UnsafeFrom_ c :$ e1 :* End) -> do
+            e1' <- checkType_ (singCoerceTo c typ0) e1
+            return (syn(UnsafeFrom_ c :$ e1' :* End))
+    
+        Syn Empty_ ->
+            case typ0 of
+            SArray typ1 -> return (syn Empty_)
+                -- TODO: use jmEq to test that 'typ1' matches
+            _ -> failwith "expected HArray type"
+    
+        Syn (Array_ e1 e2) ->
+            case typ0 of
+            SArray typ1 -> do
+                e1' <- checkType_ SNat e1
+                caseBind e2 $ \x e3 ->
+                    case jmEq SNat (varType x) of
+                    Nothing   -> failwith "type mismatch"
+                    Just Refl -> pushCtx (Some x) $ do
+                        e3' <- checkType_ typ1 e3
+                        return (syn(Array_ e1' (bind x e3')))
+            _ -> failwith "expected HArray type"
+    
+        Syn (Datum_ (Datum d)) ->
+            case typ0 of
+            SData _ typ2 ->
+                (syn . Datum_ . Datum)
+                    <$> checkDatumCode d typ2 typ0
+            _            -> failwith "expected HData type"
+    
+        Syn (Case_ e1 branches) -> do
+            (typ1,e1') <- inferType_ e1
+            branches'  <- T.forM branches $ checkBranch typ1 typ0
+            return (syn(Case_ e1' branches'))
+    
+        Syn (MBind :$ e1 :* e2 :* End)
+            | inferable e1 -> do
+                (typ1,e1') <- inferType_ e1
+                case typ1 of
+                    SMeasure typ2 ->
+                        caseBind e2 $ \x e3 ->
+                            case jmEq typ2 (varType x) of
+                            Nothing   -> failwith "type mismatch"
+                            Just Refl -> pushCtx (Some x) $ do
+                                e3' <- checkType_ typ0 e3
+                                return (syn(MBind :$ e1' :* bind x e3' :* End))
+                    _ -> failwith "expected measure type"
+    
+        Syn (Superpose_ pes) -> do
+            pes' <- T.forM pes $ \(p,e) -> do
+                p' <- checkType_ SProb p
+                e' <- checkType_ typ0  e
+                return (p',e')
+            return (syn(Superpose_ pes'))
+    
+        _   | inferable e0 -> do
+                (typ',e0') <- inferType_ e0
+                -- If we ever get evaluation at the type level, then
+                -- (==) should be the appropriate notion of type
+                -- equivalence. More generally, we should have that the
+                -- inferred @typ'@ is a subtype of (i.e., subsumed by)
+                -- the goal @typ@. This will be relevant to us for handling our coercion calculus :(
+                case jmEq typ0 typ' of
+                    Just Refl -> return e0'
+                    Nothing   -> failwith "Type mismatch"
+            | otherwise -> error "checkType: missing an mustCheck branch!"
+
+    --------------------------------------------------------
+    -- We make these local to 'checkType' for the same reason we have 'checkType_'
+    -- TODO: can we combine these in with the 'checkBranch' functions somehow?
+    checkDatumCode
+        :: forall xss t
+        .  DatumCode xss (abt '[]) (HData' t)
+        -> Sing xss
+        -> Sing (HData' t)
+        -> TypeCheckMonad (DatumCode xss (abt' '[]) (HData' t))
+    checkDatumCode d typ typA =
         case d of
         Inr d2 ->
             case typ of
-            SPlus _ typ2  -> go (TDC d2 typ2 typA : dts)
+            SPlus _ typ2  -> Inr <$> checkDatumCode d2 typ2 typA
             _             -> failwith "expected term of `inr' type"
         Inl d1 ->
             case typ of
-            SPlus typ1 _  -> go (TDS d1 typ1 typA : dts)
+            SPlus typ1 _  -> Inl <$> checkDatumStruct d1 typ1 typA
             _             -> failwith "expected term of `inl' type"
-    go (TDS d typ typA : dts) =
+    
+    checkDatumStruct
+        :: forall xs t
+        .  DatumStruct xs (abt '[]) (HData' t)
+        -> Sing xs
+        -> Sing (HData' t)
+        -> TypeCheckMonad (DatumStruct xs (abt' '[]) (HData' t))
+    checkDatumStruct d typ typA =
         case d of
         Et d1 d2 ->
             case typ of
-            SEt typ1 typ2 -> go (TDF d1 typ1 typA : TDS d2 typ2 typA : dts)
+            SEt typ1 typ2 -> Et
+                <$> checkDatumFun    d1 typ1 typA
+                <*> checkDatumStruct d2 typ2 typA
             _             -> failwith "expected term of `et' type"
         Done ->
             case typ of
-            SDone         -> go dts
+            SDone         -> return Done
             _             -> failwith "expected term of `done' type"
-    go (TDF d typ typA : dts) =
+    
+    checkDatumFun
+        :: forall x t
+        .  DatumFun x (abt '[]) (HData' t)
+        -> Sing x
+        -> Sing (HData' t)
+        -> TypeCheckMonad (DatumFun x (abt' '[]) (HData' t))
+    checkDatumFun d typ typA = 
         case d of
         Ident e1 ->
             case typ of
-            SIdent        -> checkType typA e1 >> go dts
+            SIdent        -> Ident <$> checkType_ typA e1
             _             -> failwith "expected term of `I' type"
         Konst e1 ->
             case typ of
-            SKonst typ1   -> checkType typ1 e1 >> go dts
+            SKonst typ1   -> Konst <$> checkType_ typ1 e1
             _             -> failwith "expected term of `K' type"
--}
+
 
 ----------------------------------------------------------------
+{-
+data TypedPatternList :: [Hakaru] -> * where
+    TPNil :: TypedPatternList '[]
+    TPCons
+        :: !(TypedPattern vars1)
+        -> TypedPatternList vars2
+        -> TypedPatternList (vars1 ++ vars2)
+-}
 checkBranch
-    :: ABT abt
+    :: (ABT abt, ABT abt')
+    => Sing a
+    -> Sing b
+    -> Branch a abt b
+    -> TypeCheckMonad (Branch a abt' b)
+checkBranch pat_typ body_typ (Branch pat body) =
+    Branch pat <$> checkPattern body pat_typ pat (checkType body_typ)
+
+checkPattern
+    :: (ABT abt, ABT abt')
+    => abt vars b
+    -> Sing a
+    -> Pattern vars a
+    -> (abt '[] b -> TypeCheckMonad (abt' '[] b))
+    -> TypeCheckMonad (abt' vars b)
+checkPattern body pat_typ pat k = 
+    case pat of
+    PVar ->
+        caseBind body $ \x body' ->
+            case jmEq pat_typ (varType x) of
+            Nothing   -> failwith "type mismatch"
+            Just Refl -> bind x <$> pushCtx (Some x) (k body')
+    PWild       -> k body
+    PDatum pat1 ->
+        case pat_typ of
+        SData _ typ2 -> checkPatternCode body pat1 typ2 pat_typ k
+        _            -> failwith "expected term of user-defined data type"
+            
+checkPatternCode
+    :: (ABT abt, ABT abt')
+    => abt vars b
+    -> PDatumCode xss vars (HData' t)
+    -> Sing xss
+    -> Sing (HData' t)
+    -> (abt '[] b -> TypeCheckMonad (abt' '[] b))
+    -> TypeCheckMonad (abt' vars b)
+checkPatternCode body pat typ typA k =
+    case pat of
+    PInr pat2 ->
+        case typ of
+        SPlus _ typ2 -> checkPatternCode body pat2 typ2 typA k
+        _            -> failwith "expected term of `sum' type"
+    PInl pat1 ->
+        case typ of
+        SPlus typ1 _ -> checkPatternStruct body pat1 typ1 typA k
+        _            -> failwith "expected term of `zero' type"
+
+checkPatternStruct
+    :: (ABT abt, ABT abt')
+    => abt vars b
+    -> PDatumStruct xs vars (HData' t)
+    -> Sing xs
+    -> Sing (HData' t)
+    -> (abt '[] b -> TypeCheckMonad (abt' '[] b))
+    -> TypeCheckMonad (abt' vars b)
+checkPatternStruct body pat typ typA k =
+    case pat of
+    PEt pat1 pat2 ->
+        case typ of
+        SEt typ1 typ2 ->
+            error "TODO: checkPatternStruct"
+            {-
+            -- BUG: how do we get this to typecheck?
+            checkPatternFun    body  pat1 typ1 typA $ \body' ->
+            checkPatternStruct body' pat2 typ2 typA k
+            -}
+        _ -> failwith "expected term of `et' type"
+    PDone ->
+        case typ of
+        SDone       -> k body
+        _           -> failwith "expected term of `done' type"
+
+checkPatternFun
+    :: (ABT abt, ABT abt')
+    => abt vars b
+    -> PDatumFun x vars (HData' t)
+    -> Sing x
+    -> Sing (HData' t)
+    -> (abt '[] b -> TypeCheckMonad (abt' '[] b))
+    -> TypeCheckMonad (abt' vars b)
+checkPatternFun body pat typ typA k =
+    case pat of
+    PIdent pat1 ->
+        case typ of
+        SIdent      -> checkPattern body typA pat1 k
+        _           -> failwith "expected term of `I' type"
+    PKonst pat1 ->
+        case typ of
+        SKonst typ1 -> checkPattern body typ1 pat1 k
+        _           -> failwith "expected term of `K' type"
+
+{-
+checkBranch
+    :: (ABT abt, ABT abt')
     => Sing b
     -> abt vars b
     -> TypedPatternList vars
     -> TypeCheckMonad ()
-checkBranch = error "TODO: checkBranch"
-{-
-\body_typ body = go
+checkBranch body_typ body = go
     where
     go TPNil                     = checkType body_typ body
     go (TP pat typ `TPCons` pts) =
