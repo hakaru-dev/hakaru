@@ -135,8 +135,6 @@ instance Base Maple where
   sqrt_     = app1 "sqrt"
   log_      = app1 "ln" -- ok since it is fed > = 0 only
   pow_      = mapleOp2 "^"
-  gammaFunc = app1 "GAMMA"
-  betaFunc  = app2 "Beta"
   erf       = app1 "erf"
   erf_      = app1 "erf"
 
@@ -221,6 +219,7 @@ instance Mochastic Maple where
     let l' = map (unMaple . wmtom) l
     res <- fmap (concat . intersperse ", ") (sequence l')
     return $ "Msum(" ++ res ++ ")"
+  beta = app2 "Beta"
   uniform = app2 "Uniform"
   categorical (Maple v) = error "categorical is undefined"
   normal = app2 "Gaussian"
