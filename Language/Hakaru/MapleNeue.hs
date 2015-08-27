@@ -197,10 +197,8 @@ instance Integrate Maple where
   summate   = quant "Sum"
 
 instance Lambda Maple where
-  lam f = lam1 "x" f
-  app (Maple rator) (Maple rand) =
-    Maple (liftM2 (\rator' rand' -> 
-        "(" ++ rator' ++ "(" ++ rand' ++ "))") rator rand)
+  lam = error "lam is unsupported"
+  app = error "app is unsupported"
 
 -- this does not return a Measure b, but rather the body of a measure
 wmtom :: (Maple 'HProb, Maple ('HMeasure b)) -> Maple b
