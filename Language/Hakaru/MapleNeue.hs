@@ -221,7 +221,7 @@ instance Mochastic Maple where
     let l' = map (unMaple . wmtom) l
     res <- fmap (concat . intersperse ", ") (sequence l')
     return $ "Msum(" ++ res ++ ")"
-  beta = app2 "Beta"
+  beta = app2 "BetaD"
   uniform = app2 "Uniform"
   categorical (Maple v) = error "categorical is undefined"
   normal = app2 "Gaussian"
