@@ -225,7 +225,7 @@ instance Mochastic Maple where
   uniform = app2 "Uniform"
   categorical (Maple v) = error "categorical is undefined"
   normal = app2 "Gaussian"
-  gamma = app2 "Gamma"
+  gamma = app2 "GammaD"
 
 op :: Int -> Maple a -> Maple b 
 op n (Maple x) = Maple $ x >>= \x' -> return ("op(" ++ show n ++ ", " ++ x' ++ ")")
