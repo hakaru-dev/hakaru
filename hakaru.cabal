@@ -29,6 +29,7 @@ library
                        Language.Hakaru.TH,
                        Language.Hakaru.Expect,
                        Language.Hakaru.Maple,
+                       Language.Hakaru.MapleNeue,
                        Language.Hakaru.ImportanceSampler,
                        Language.Hakaru.Metropolis,
                        Language.Hakaru.Lambda,
