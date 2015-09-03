@@ -1567,7 +1567,8 @@ SLO := module ()
         scale := coeff(a0, var, 1);
         mu := -coeff(a0, var, 0)/scale;
         sigma := sqrt(coeff(a1, var, 0)/scale);
-        at0 := simplify(eval(ii/density[NormalD](mu, sigma)(0)));
+        at0 := simplify(eval(ii/density[NormalD](mu, sigma)(0)))
+            assuming op(_EnvPathCond);
         return WeightedM(at0, NormalD(mu,sigma));
       end if;
     end if;
