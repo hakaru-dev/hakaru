@@ -106,6 +106,24 @@ tCDF :: Integrate repr => repr 'HReal -> repr 'HProb -> repr 'HProb
 tCDF x v = 1 - (1/2)*regBeta (v / (unsafeProb (x*x) + v)) (v/2) (1/2)
 
 approxMh
-    :: (Mochastic repr, Integrate repr, Lambda repr)
-    => repr ('HFun a ('HMeasure ('HPair a 'HProb)))
-approxMh = undefined
+    :: (Mochastic repr, Integrate repr, Lambda repr,
+        a ~ Expect' a, Order_ a, Backward a a)
+    =>  (forall repr' . (Mochastic repr') => repr'  a -> repr' ('HMeasure a)) ->
+        (forall repr' . (Mochastic repr') => repr' ('HMeasure a)) ->
+        [repr a -> repr ('HMeasure a)] ->
+        repr ('HFun a ('HMeasure a))
+approxMh proposal prior (x:xs) =
+  lam $ \old ->
+  let_ (lam (d unit)) $ \mu ->
+  liftM unsafeProb (uniform 0 1) `bind` \u ->
+  proposal old `bind` \new ->
+  let_ (u * mu `app` pair new old / mu `app` pair old new) $ \u0 ->
+  let_ ((l new new) / (l old old)) $ \l0 ->
+  let_ (tCDF (n - 1) (l0 - u0)) $ \delta ->
+  if_ (delta `less` eps)
+  (if_ (u0 `less` l0) (dirac new) (dirac old))
+  (app (approxMh proposal prior xs) old)
+  where n = 2000
+        eps = 1/20
+        d:_ = density (\dummy -> ununit dummy $ bindx prior proposal)
+        l:_ = [(\d1 d2 -> 2)] -- density (\theta -> x theta)      
