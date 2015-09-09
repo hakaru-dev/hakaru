@@ -1,3 +1,145 @@
+# we create 3 new binding forms.  Teach Maple (through depends and eval)
+# about them.
+# Both LO and Integrand bind from 1st arg to 2nd arg, whereas Bind
+# binds from 2nd arg to 3rd arg.
+`depends/LO` := proc(h, e, x)
+  if member(h, x) then false else depends(e, x) end if
+end proc:
+
+`depends/Integrand` := proc(h, e, x)
+  if member(h, x) then false else depends(e, x) end if
+end proc:
+
+# v should not occur in m1
+`depends/Bind` := proc(m1, v, m2, x)
+  if member(v, x) then false else depends(m1,x) or depends(m2, x) end if;
+end proc:
+
+# Warning: these eval routines are not "general"; there are various
+# corner cases not handled.  This is not an issue, as they are only
+# used internally, and those cases do not arise (by construction).
+`eval/LO` := proc(e, eq1)
+  local eqs, eq, changed, vv, lft, op_e, tmp, a;
+
+  # boilerplate to deal with set/list input
+  if eq1::list then eqs := {op(eq1)}
+  elif eq1::set then eqs := eq1
+  else error "unexpected input type for eval/LO"
+  end if;
+
+  changed := false;
+  eq := remove(t -> op(1,t) = op(2,t), eqs);
+
+  # figure out which equations to use
+  vv := op(1,e); # the variable
+  # split off renaming of the bound variable to a fresh name -- this is allowed!
+  tmp, eq := selectremove(t -> (op(1,t) = vv) and op(2,t)::'And(name, Not(constant))'
+                          and not depends(e, op(2,t)), eq);
+  # split off [renaming the bound variable] or [variable-capture potential]
+  lft, eq := selectremove(t -> op(1,t) = vv or (type(op(1, t), 'name') and
+                          depends(op(2,t), vv)), eq);
+  if nops(lft) = 0 then
+    eq := eq union tmp; # put renaming of bound var back in
+  end if;
+
+  op_e := [op(e)];
+  a := eval(op_e, eq);
+  if a <> op_e then changed := true end if;
+  # if things were split off
+  if nops(lft) = 0 then
+    'NewSLO:-LO'(op(a))
+  else
+    if changed then
+      eval(NewSLO:-LO(op(a)), lft)
+    else
+      'eval'(e, lft)
+    end if
+  end if
+end proc:
+
+`eval/Integrand` := proc(e, eq1)
+  local eqs, eq, changed, vv, lft, op_e, tmp, a;
+
+  # boilerplate to deal with set/list input
+  if eq1::list then eqs := {op(eq1)}
+  elif eq1::set then eqs := eq1
+  else error "unexpected input type for eval/Integrand"
+  end if;
+
+  changed := false;
+  eq := remove(t -> op(1,t) = op(2,t), eqs);
+
+  # figure out which equations to use
+  vv := op(1,e); # the variable
+  # split off renaming of the bound variable to a fresh name -- this is allowed!
+  tmp, eq := selectremove(t -> (op(1,t) = vv) and op(2,t)::'And(name, Not(constant))'
+                          and not depends(e, op(2,t)), eq);
+  # split off [renaming the bound variable] or [variable-capture potential]
+  lft, eq := selectremove(t -> op(1,t) = vv or (type(op(1, t), 'name') and
+                          depends(op(2,t), vv)), eq);
+  if nops(lft) = 0 then
+    eq := eq union tmp; # put renaming of bound var back in
+  end if;
+
+  op_e := [op(e)];
+  a := eval(op_e, eq);
+  if a <> op_e then changed := true end if;
+  # if things were split off
+  if nops(lft) = 0 then
+    'NewSLO:-Integrand'(op(a))
+  else
+    if changed then
+      eval(NewSLO:-Integrand(op(a)), lft)
+    else
+      'eval'(e, lft)
+    end if
+  end if
+end proc:
+
+# this currently assumes/asserts that in Bind(a,b,c), depends(a,b) = false
+`eval/Bind` := proc(e, eq1)
+  local eqs, eq, changed, vv, lft, op_e, tmp, a;
+
+  # boilerplate to deal with set/list input
+  if eq1::list then eqs := {op(eq1)}
+  elif eq1::set then eqs := eq1
+  else error "unexpected input type for eval/Integrand"
+  end if;
+
+  if depends(op(1,e), op(2,e)) then error "unexpected dependence in Bind" end if;
+
+  changed := false;
+  eq := remove(t -> op(1,t) = op(2,t), eqs);
+
+  # figure out which equations to use
+  vv := op(2,e); # the variable
+  # split off renaming of the bound variable to a fresh name -- this is allowed!
+  tmp, eq := selectremove(t -> (op(1,t) = vv) and op(2,t)::'And(name, Not(constant))'
+                          and not depends(e, op(2,t)), eq);
+  # split off [renaming the bound variable] or [variable-capture potential]
+  lft, eq := selectremove(t -> op(1,t) = vv or (type(op(1, t), 'name') and
+                          depends(op(2,t), vv)), eq);
+  if nops(lft) = 0 then
+    eq := eq union tmp; # put renaming of bound var back in
+  end if;
+
+  op_e := [op(e)];
+  a := eval(op_e, eq);
+  if a <> op_e then changed := true end if;
+  # if things were split off
+  if nops(lft) = 0 then
+    'NewSLO:-Bind'(op(a))
+  else
+    if changed then
+      eval(NewSLO:-Bind(op(a)), lft)
+    else
+      'eval'(e, lft)
+    end if
+  end if
+end proc:
+
+#############################################################################
+
 NewSLO := module ()
   option package;
   local t_pw, gensym, density, unweight, factorize,
@@ -9,9 +151,6 @@ NewSLO := module ()
          HakaruToLO, integrate, LOToHakaru, unintegrate,
          TestHakaru, measure;
 
-# FIXME Need {eval,depends}/{LO,Integrand,Bind} to teach eval about our
-# binders.  Both LO and Integrand bind from 1st arg to 2nd arg, whereas Bind
-# binds from 2nd arg to 3rd arg.
 
   t_pw := 'specfunc(piecewise)';
 
