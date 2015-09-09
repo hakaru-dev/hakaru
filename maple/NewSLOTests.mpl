@@ -84,9 +84,17 @@ TestHakaru(LO(h, int(x*exp(-x/2)*applyintegrand(h,x),x=0..infinity)), Weight(4,G
 TestHakaru(Bind(Lebesgue(), x, Weight(1/x^2, Ret(x))));
 TestHakaru(Cauchy(loc,scale)) assuming scale>0;
 
-# how far does value get us?
-TestHakaru(Bind(Uniform(0,1),x,Weight(x,Ret(Unit))), Weight(1/2,Ret(Unit)), simp = value);
-TestHakaru(Bind(Weight(1/2,Ret(Unit)),x,Ret(Unit)), Weight(1/2, Ret(Unit)), simp = value);
+# how far does myint get us?
+TestHakaru(
+  Bind(Uniform(0,1),x,Weight(x,Ret(Unit))), 
+  Weight(1/2,Ret(Unit)),
+  label = "eliminate Uniform");
+
+# just the front-end is already enough to get this
+TestHakaru(
+  Bind(Weight(1/2,Ret(Unit)),x,Ret(Unit)), 
+  Weight(1/2, Ret(Unit)),
+  label = "integrate at work");
 
 # and more various
 TestHakaru(Bind(Uniform(-1,1),x,Ret(exp(x))));
@@ -108,8 +116,11 @@ t4s := Bind(Uniform(0, 1), a0,
 t5 := Bind(Msum(Weight((1/2), Ret(Unit))), a0, Ret(Unit)):
 t5s := Weight((1/2), Ret(Unit)):
 
+t80 := Bind(GammaD(1, 1), a0, Gaussian(0, a0)):
+
 TestHakaru(t1, t5s, label = "t1");
 TestHakaru(t2, t2s, label = "t2");
 TestHakaru(t3, t3, label = "t3");
 TestHakaru(t4, t4s, label = "t4");
 TestHakaru(t5, t5s, label = "t5");
+TestHakaru(t80, t80, label = "t80");
