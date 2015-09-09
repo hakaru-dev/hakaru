@@ -266,7 +266,7 @@ NewSLO := module ()
                          'anyfunc'('anything','name'='range'('freeof'(h)))) then
       x := gensym(op([2,1],integral));
       (lo, hi) := op(op([2,2],integral));
-      next_context := [op(context), x::RealRange(Open(lo), Open(hi))];
+      next_context := [op(context), And(lo<x, x<hi)];
       # TODO: enrich context with x (measure class lebesgue)
       subintegral := eval(op(1,integral), op([2,1],integral) = x);
       (w, m) := unweight(unintegrate(h, subintegral, next_context));
