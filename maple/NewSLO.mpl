@@ -368,12 +368,15 @@ NewSLO := module ()
       dist := GammaD(1-b0, 1/b1)
     end if;
     if dist <> FAIL then
-      ii := map(convert, init, 'diff');
-      constraints := eval(ii, f = (x -> w*density[op(0,dist)](op(dist))(x)));
-      w := eval(w, solve(constraints, w));
-      if not (has(w, 'w')) then
-        return Recognized(dist, w)
-      end if
+      try
+        ii := map(convert, init, 'diff');
+        constraints := eval(ii, f = (x -> w*density[op(0,dist)](op(dist))(x)));
+        w := eval(w, solve(simplify(constraints), w));
+        if not (has(w, 'w')) then
+          return Recognized(dist, w)
+        end if
+      catch: # do nothing
+      end try;
     end if;
     FAIL
   end proc;
