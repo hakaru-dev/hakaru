@@ -14,9 +14,11 @@ end proc:
 end proc:
 
 generic_evalat := proc(e, m, vv, eqs)
-  local v, m2, eqsRemain, eq, vRename;
+  local v, m2, eqsRemain, subsEq, eq, vRename;
   v, m2 := vv, m;
-  eqsRemain := select((eq -> op(1,eq) <> v and depends(m2, op(1,eq))), eqs);
+  eqsRemain := remove((eq -> op(1,eq) = op(2, eq)), eqs);
+  subsEq, eqsRemain := selectremove((eq -> not type(op(1,eq), 'name')), eqsRemain);
+  eqsRemain := select((eq -> op(1,eq) <> v and depends(m2, op(1,eq))), eqsRemain);
   for eq in eqsRemain do
     if depends(op(2,eq), v) then
       vRename := gensym(v);
@@ -25,30 +27,38 @@ generic_evalat := proc(e, m, vv, eqs)
       break
     end if
   end do;
-  m2, v, eqsRemain;
+  m2, v, eqsRemain, subsEq;
 end proc:
 
 `eval/Integrate` := proc(e, eqs)
-  local v, m2, eqsRemain;
+  local v, m2, eqsRemain, subsEq;
   v, m2 := op(e);
-  m2, v, eqsRemain := generic_evalat(e, m2, v, eqs);
-  if nops(eqsRemain) = 0 then e else op(0,e)(v, eval(m2,eqsRemain)) end if;
+  m2, v, eqsRemain, subsEq := generic_evalat(e, m2, v, eqs);
+  if nops(eqsRemain) = 0 then 
+    subs(subsEq, e) 
+  else 
+    eval(op(0,e), eqsRemain)(v, eval(subs(subsEq,m2),eqsRemain)) 
+  end if;
 end proc:
 
 `eval/LO` := proc(e, eqs)
-  local v, m2, eqsRemain;
+  local v, m2, eqsRemain, subsEq;
   v, m2 := op(e);
-  m2, v, eqsRemain := generic_evalat(e, m2, v, eqs);
-  if nops(eqsRemain) = 0 then e else op(0,e)(v, eval(m2,eqsRemain)) end if;
+  m2, v, eqsRemain, subsEq := generic_evalat(e, m2, v, eqs);
+  if nops(eqsRemain) = 0 then 
+    subs(subsEq, e) 
+  else 
+    eval(op(0,e), eqsRemain)(v, eval(subs(subsEq,m2),eqsRemain)) 
+  end if;
 end proc:
 
 `eval/Bind` := proc(e, eqs)
-  local m1, v, m2, eqsRemain;
+  local m1, v, m2, eqsRemain, subsEq, ee;
   m1, v, m2 := op(e);
-  m2, v, eqsRemain := generic_evalat(e, m2, v, eqs);
-  if nops(eqsRemain) = 0 then e 
-  else op(0,e)(eval(m1,eqs), v, eval(m2,eqsRemain))
-  end if;
+  m2, v, eqsRemain, subsEq := generic_evalat(e, m2, v, eqs);
+  # can't short-circuit unless we test for eqs = eqsRemain
+  eval(op(0,e), eqsRemain)(eval(subs(subsEq,m1),eqs), v, 
+                           eval(subs(subsEq,m2),eqsRemain))
 end proc:
 
 #############################################################################
@@ -366,8 +376,9 @@ NewSLO := module ()
 
 # Testing
 
-  TestHakaru := proc(m,n:=m,f:=(lo->lo))
-    CodeTools[Test](LOToHakaru(f(HakaruToLO(m))), n, measure({boolean,equal}))
+  TestHakaru := proc(m,n:=m,{simp:=(lo->lo)})
+    CodeTools[Test](LOToHakaru(simp(HakaruToLO(m))), n, 
+      measure({boolean,equal}), _rest)
   end proc;
 
   verify_measure := proc(m, n, v:='boolean')
