@@ -2,147 +2,73 @@
 # about them.
 # Both LO and Integrand bind from 1st arg to 2nd arg, whereas Bind
 # binds from 2nd arg to 3rd arg.
-`depends/LO` := proc(h, e, x)
-  if member(h, x) then false else depends(e, x) end if
-end proc:
+`depends/LO` := proc(h, e, x) depends(e, x minus {h}) end proc:
 
 `depends/Integrand` := proc(h, e, x)
-  if member(h, x) then false else depends(e, x) end if
+  depends(e, x minus {h})
 end proc:
 
-# v should not occur in m1
+# note that v _can_ occur in m1.
 `depends/Bind` := proc(m1, v, m2, x)
-  if member(v, x) then false else depends(m1,x) or depends(m2, x) end if;
+  depends(m1, x) or depends(m2, x minus {v})
 end proc:
 
-# Warning: these eval routines are not "general"; there are various
-# corner cases not handled.  This is not an issue, as they are only
-# used internally, and those cases do not arise (by construction).
-`eval/LO` := proc(e, eq1)
-  local eqs, eq, changed, vv, lft, op_e, tmp, a;
-
-  # boilerplate to deal with set/list input
-  if eq1::list then eqs := {op(eq1)}
-  elif eq1::set then eqs := eq1
-  else error "unexpected input type for eval/LO"
-  end if;
-
-  changed := false;
-  eq := remove(t -> op(1,t) = op(2,t), eqs);
-
-  # figure out which equations to use
-  vv := op(1,e); # the variable
-  # split off renaming of the bound variable to a fresh name -- this is allowed!
-  tmp, eq := selectremove(t -> (op(1,t) = vv) and op(2,t)::'And(name, Not(constant))'
-                          and not depends(e, op(2,t)), eq);
-  # split off [renaming the bound variable] or [variable-capture potential]
-  lft, eq := selectremove(t -> op(1,t) = vv or (type(op(1, t), 'name') and
-                          depends(op(2,t), vv)), eq);
-  if nops(lft) = 0 then
-    eq := eq union tmp; # put renaming of bound var back in
-  end if;
-
-  op_e := [op(e)];
-  a := eval(op_e, eq);
-  if a <> op_e then changed := true end if;
-  # if things were split off
-  if nops(lft) = 0 then
-    'NewSLO:-LO'(op(a))
-  else
-    if changed then
-      eval(NewSLO:-LO(op(a)), lft)
-    else
-      'eval'(e, lft)
+generic_evalat := proc(e, m, vv, eqs)
+  local v, m2, eqsRemain, eq, vRename;
+  v, m2 := vv, m;
+  eqsRemain := select((eq -> op(1,eq) <> v and depends(m2, op(1,eq))), eqs);
+  for eq in eqsRemain do
+    if depends(op(2,eq), v) then
+      vRename := gensym(v);
+      m2 := subs(v=vRename, m2);
+      v := vRename;
+      break
     end if
-  end if
+  end do;
+  m2, v, eqsRemain;
 end proc:
 
-`eval/Integrand` := proc(e, eq1)
-  local eqs, eq, changed, vv, lft, op_e, tmp, a;
-
-  # boilerplate to deal with set/list input
-  if eq1::list then eqs := {op(eq1)}
-  elif eq1::set then eqs := eq1
-  else error "unexpected input type for eval/Integrand"
-  end if;
-
-  changed := false;
-  eq := remove(t -> op(1,t) = op(2,t), eqs);
-
-  # figure out which equations to use
-  vv := op(1,e); # the variable
-  # split off renaming of the bound variable to a fresh name -- this is allowed!
-  tmp, eq := selectremove(t -> (op(1,t) = vv) and op(2,t)::'And(name, Not(constant))'
-                          and not depends(e, op(2,t)), eq);
-  # split off [renaming the bound variable] or [variable-capture potential]
-  lft, eq := selectremove(t -> op(1,t) = vv or (type(op(1, t), 'name') and
-                          depends(op(2,t), vv)), eq);
-  if nops(lft) = 0 then
-    eq := eq union tmp; # put renaming of bound var back in
-  end if;
-
-  op_e := [op(e)];
-  a := eval(op_e, eq);
-  if a <> op_e then changed := true end if;
-  # if things were split off
-  if nops(lft) = 0 then
-    'NewSLO:-Integrand'(op(a))
-  else
-    if changed then
-      eval(NewSLO:-Integrand(op(a)), lft)
-    else
-      'eval'(e, lft)
-    end if
-  end if
+`eval/Integrate` := proc(e, eqs)
+  local v, m2, eqsRemain;
+  v, m2 := op(e);
+  m2, v, eqsRemain := generic_evalat(e, m2, v, eqs);
+  if nops(eqsRemain) = 0 then e else op(0,e)(v, eval(m2,eqsRemain)) end if;
 end proc:
 
-# this currently assumes/asserts that in Bind(a,b,c), depends(a,b) = false
-`eval/Bind` := proc(e, eq1)
-  local eqs, eq, changed, vv, lft, op_e, tmp, a;
-
-  # boilerplate to deal with set/list input
-  if eq1::list then eqs := {op(eq1)}
-  elif eq1::set then eqs := eq1
-  else error "unexpected input type for eval/Integrand"
-  end if;
-
-  if depends(op(1,e), op(2,e)) then error "unexpected dependence in Bind" end if;
-
-  changed := false;
-  eq := remove(t -> op(1,t) = op(2,t), eqs);
-
-  # figure out which equations to use
-  vv := op(2,e); # the variable
-  # split off renaming of the bound variable to a fresh name -- this is allowed!
-  tmp, eq := selectremove(t -> (op(1,t) = vv) and op(2,t)::'And(name, Not(constant))'
-                          and not depends(e, op(2,t)), eq);
-  # split off [renaming the bound variable] or [variable-capture potential]
-  lft, eq := selectremove(t -> op(1,t) = vv or (type(op(1, t), 'name') and
-                          depends(op(2,t), vv)), eq);
-  if nops(lft) = 0 then
-    eq := eq union tmp; # put renaming of bound var back in
-  end if;
-
-  op_e := [op(e)];
-  a := eval(op_e, eq);
-  if a <> op_e then changed := true end if;
-  # if things were split off
-  if nops(lft) = 0 then
-    'NewSLO:-Bind'(op(a))
-  else
-    if changed then
-      eval(NewSLO:-Bind(op(a)), lft)
-    else
-      'eval'(e, lft)
-    end if
-  end if
+`eval/LO` := proc(e, eqs)
+  local v, m2, eqsRemain;
+  v, m2 := op(e);
+  m2, v, eqsRemain := generic_evalat(e, m2, v, eqs);
+  if nops(eqsRemain) = 0 then e else op(0,e)(v, eval(m2,eqsRemain)) end if;
 end proc:
+
+`eval/Bind` := proc(e, eqs)
+  local m1, v, m2, eqsRemain;
+  m1, v, m2 := op(e);
+  m2, v, eqsRemain := generic_evalat(e, m2, v, eqs);
+  if nops(eqsRemain) = 0 then e 
+  else op(0,e)(eval(m1,eqs), v, eval(m2,eqsRemain))
+  end if;
+end proc:
+
+#############################################################################
+
+# make gensym global, so that it can be shared with other 'global' routines
+gensym := module()
+  export ModuleApply;
+  local gs_counter;
+  gs_counter := 0;
+  ModuleApply := proc(x::name)
+    gs_counter := gs_counter + 1;
+    x || gs_counter;
+  end proc;
+end module: # gensym
 
 #############################################################################
 
 NewSLO := module ()
   option package;
-  local t_pw, gensym, density, unweight, factorize,
+  local t_pw, density, unweight, factorize,
         recognize, get_de, recognize_de, Diffop, Recognized,
         verify_measure;
   export Integrand, applyintegrand,
@@ -484,15 +410,5 @@ NewSLO := module ()
   end proc;
 
   VerifyTools[AddVerification](measure = verify_measure);
-
-  gensym := module()
-    export ModuleApply;
-    local gs_counter;
-    gs_counter := 0;
-    ModuleApply := proc(x::name)
-      gs_counter := gs_counter + 1;
-      x || gs_counter;
-    end proc;
-  end module; # gensym
 
 end module; # NewSLO
