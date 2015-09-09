@@ -82,12 +82,14 @@ NewSLO := module ()
   option package;
   local t_pw, density, unweight, factorize,
         recognize, get_de, recognize_de, Diffop, Recognized,
+        step2, myint,
         verify_measure;
   export Integrand, applyintegrand,
          Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD,
          Ret, Bind, Msum, Weight, LO,
          HakaruToLO, integrate, LOToHakaru, unintegrate,
-         TestHakaru, measure;
+         TestHakaru, measure,
+         Simplify;
 
 
   t_pw := 'specfunc(piecewise)';
@@ -165,7 +167,21 @@ NewSLO := module ()
     end if
   end proc;
 
-# Step 2 of 3: algebra (currently nothing)
+# Step 2 of 3: computer algebra
+
+  Simplify := proc(e) step2(e, []) end;
+
+  # as in both previous steps, walk through the expression
+  step2 := proc(e, ctx)
+    if e::LO(anything, anything) then
+      LO(op(1,e), step2(op(2,e), [op(1,e), op(ctx)]))
+    elif e :: Int(anything, name = range) then
+      # try to evaluate it
+      myint(op(e), ctx)
+    else
+      e
+    end if;
+  end proc;
 
 # Step 3 of 3: from Maple LO (linear operator) back to Hakaru
 
@@ -376,9 +392,29 @@ NewSLO := module ()
     x^(shape-1)/scale^shape*exp(-x/scale)/GAMMA(shape);
   end proc end proc;
 
+  # a special version of int to get around Maple weaknesses
+  myint := proc(expr, b, ctx)
+    local var, inds, res;
+    var := op(1,b);
+
+    # grab all the pieces under arbitrary functions
+    inds := map2(op, 2, indets(expr, 'specfunc(anything, applyintegrand)'));
+    # trivial integration bounds
+    if Normalizer(op([2,1],b)-op([2,2],b)) = 0 then 
+      res := 0;
+    # if the integration variable doesn't occur under any of them:
+    elif not depends(inds, var) then
+      # just do it!
+      res := int(expr, b)
+    else # give up
+      res := Int(expr, b)
+    end if;
+    res;  
+  end proc;
+
 # Testing
 
-  TestHakaru := proc(m,n:=m,{simp:=(lo->lo)})
+  TestHakaru := proc(m,n:=m,{simp:=Simplify})
     CodeTools[Test](LOToHakaru(simp(HakaruToLO(m))), n, 
       measure({boolean,equal}), _rest)
   end proc;
