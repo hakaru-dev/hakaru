@@ -14,11 +14,13 @@ end proc:
 end proc:
 
 generic_evalat := proc(e, m, vv, eqs)
-  local v, m2, eqsRemain, subsEq, eq, vRename;
+  local v, m2, eqsRemain, subsEq, eq, vRename, funs;
   v, m2 := vv, m;
+  funs := map2(op, 0, indets(e, 'function'));
   eqsRemain := remove((eq -> op(1,eq) = op(2, eq)), eqs);
   subsEq, eqsRemain := selectremove((eq -> not type(op(1,eq), 'name')), eqsRemain);
-  eqsRemain := select((eq -> op(1,eq) <> v and depends(m2, op(1,eq))), eqsRemain);
+  eqsRemain := select((eq -> op(1,eq) <> v and 
+    (depends(m, op(1,eq)) or member(op(1,eq), funs))), eqsRemain);
   for eq in eqsRemain do
     if depends(op(2,eq), v) then
       vRename := gensym(v);
@@ -37,7 +39,7 @@ end proc:
   if nops(eqsRemain) = 0 then 
     subs(subsEq, e) 
   else 
-    eval(op(0,e), eqsRemain)(v, eval(subs(subsEq,m2),eqsRemain)) 
+    eval(op(0,e), eqs)(v, eval(subs(subsEq,m2),eqsRemain)) 
   end if;
 end proc:
 
@@ -48,7 +50,7 @@ end proc:
   if nops(eqsRemain) = 0 then 
     subs(subsEq, e) 
   else 
-    eval(op(0,e), eqsRemain)(v, eval(subs(subsEq,m2),eqsRemain)) 
+    eval(op(0,e), eqs)(v, eval(subs(subsEq,m2),eqsRemain)) 
   end if;
 end proc:
 
@@ -57,8 +59,8 @@ end proc:
   m1, v, m2 := op(e);
   m2, v, eqsRemain, subsEq := generic_evalat(e, m2, v, eqs);
   # can't short-circuit unless we test for eqs = eqsRemain
-  eval(op(0,e), eqsRemain)(eval(subs(subsEq,m1),eqs), v, 
-                           eval(subs(subsEq,m2),eqsRemain))
+  eval(op(0,e), eqs)(eval(subs(subsEq,m1),eqs), v, 
+                     eval(subs(subsEq,m2),eqsRemain))
 end proc:
 
 #############################################################################
