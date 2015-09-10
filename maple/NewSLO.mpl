@@ -13,54 +13,42 @@ end proc:
   depends(m1, x) or depends(m2, x minus {v})
 end proc:
 
-generic_evalat := proc(e, m, vv, eqs)
-  local v, m2, eqsRemain, subsEq, eq, vRename, funs;
-  v, m2 := vv, m;
-  funs := map2(op, 0, indets(e, 'function'));
-  eqsRemain := remove((eq -> op(1,eq) = op(2, eq)), eqs);
-  subsEq, eqsRemain := selectremove((eq -> not type(op(1,eq), 'name')), eqsRemain);
-  eqsRemain := select((eq -> op(1,eq) <> v and 
-    (depends(m, op(1,eq)) or member(op(1,eq), funs))), eqsRemain);
-  for eq in eqsRemain do
-    if depends(op(2,eq), v) then
-      vRename := gensym(v);
-      m2 := subs(v=vRename, m2);
-      v := vRename;
-      break
-    end if
-  end do;
-  m2, v, eqsRemain, subsEq;
+generic_evalat := proc(vv, mm, eqs)
+  local v, m, eqsRemain, subsEq, eq, vRename, funs;
+  v, m := vv, mm;
+  funs := map2(op, 0, indets(mm, 'function'));
+  eqsRemain := remove((eq -> op(1,eq) = op(2,eq)), eqs);
+  eqsRemain, subsEq := selectremove((eq -> type(op(1,eq), 'name')), eqsRemain);
+  eqsRemain := select((eq -> op(1,eq) <> v and
+    (depends(mm, op(1,eq)) or member(op(1,eq), funs))), eqsRemain);
+  if depends(eqsRemain, v) then
+    vRename := gensym(v);
+    m := subs(v=vRename, m);
+    v := vRename;
+  end if;
+  m := subs(subsEq,m);
+  if nops(eqsRemain) > 0 then
+    m := eval(m,eqsRemain);
+  end if;
+  v, m;
 end proc:
 
 `eval/Integrate` := proc(e, eqs)
-  local v, m2, eqsRemain, subsEq;
+  local v, m2;
   v, m2 := op(e);
-  m2, v, eqsRemain, subsEq := generic_evalat(e, m2, v, eqs);
-  if nops(eqsRemain) = 0 then 
-    subs(subsEq, e) 
-  else 
-    eval(op(0,e), eqs)(v, eval(subs(subsEq,m2),eqsRemain)) 
-  end if;
+  eval(op(0,e), eqs)(generic_evalat(v, m2, eqs))
 end proc:
 
 `eval/LO` := proc(e, eqs)
-  local v, m2, eqsRemain, subsEq;
+  local v, m2;
   v, m2 := op(e);
-  m2, v, eqsRemain, subsEq := generic_evalat(e, m2, v, eqs);
-  if nops(eqsRemain) = 0 then 
-    subs(subsEq, e) 
-  else 
-    eval(op(0,e), eqs)(v, eval(subs(subsEq,m2),eqsRemain)) 
-  end if;
+  eval(op(0,e), eqs)(generic_evalat(v, m2, eqs))
 end proc:
 
 `eval/Bind` := proc(e, eqs)
-  local m1, v, m2, eqsRemain, subsEq, ee;
+  local m1, v, m2;
   m1, v, m2 := op(e);
-  m2, v, eqsRemain, subsEq := generic_evalat(e, m2, v, eqs);
-  # can't short-circuit unless we test for eqs = eqsRemain
-  eval(op(0,e), eqs)(eval(subs(subsEq,m1),eqs), v, 
-                     eval(subs(subsEq,m2),eqsRemain))
+  eval(op(0,e), eqs)(eval(m1, eqs), generic_evalat(v, m2, eqs))
 end proc:
 
 #############################################################################
@@ -404,7 +392,7 @@ NewSLO := module ()
     # grab all the pieces under arbitrary functions
     inds := map2(op, 2, indets(expr, 'specfunc(anything, applyintegrand)'));
     # trivial integration bounds
-    if Normalizer(op([2,1],b)-op([2,2],b)) = 0 then 
+    if Normalizer(op([2,1],b)-op([2,2],b)) = 0 then
       res := 0;
     # if the integration variable doesn't occur under any of them:
     elif not depends(inds, var) then
@@ -413,13 +401,13 @@ NewSLO := module ()
     else # give up
       res := Int(expr, b)
     end if;
-    res;  
+    res;
   end proc;
 
 # Testing
 
   TestHakaru := proc(m,n:=m,{simp:=Simplify})
-    CodeTools[Test](LOToHakaru(simp(HakaruToLO(m))), n, 
+    CodeTools[Test](LOToHakaru(simp(HakaruToLO(m))), n,
       measure({boolean,equal}), _rest)
   end proc;
 
