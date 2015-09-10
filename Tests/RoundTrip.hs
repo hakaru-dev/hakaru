@@ -1,5 +1,5 @@
 {-# LANGUAGE TypeFamilies, Rank2Types, FlexibleContexts, DataKinds #-}
-module Tests.RoundTrip (allTests) where
+module Tests.RoundTrip where
 
 import Language.Hakaru.Syntax
 import Language.Hakaru.Expect (total)
