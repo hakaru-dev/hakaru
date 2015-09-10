@@ -126,6 +126,15 @@ t4s := Bind(Uniform(0, 1), a0,
             Weight((1+(a0*(-1))), Ret(Pair(a0, false))))):
 t5 := Bind(Msum(Weight((1/2), Ret(Unit))), a0, Ret(Unit)):
 t5s := Weight((1/2), Ret(Unit)):
+t6 := Ret(5):
+t7 := Bind(Uniform(0, 1), a0, 
+  Bind(Msum(Weight((a0+1), Ret(Unit))), a1, Ret((a0*a0)))):
+t7s := Bind(Uniform(0,1),a3,Weight(a3+1,Ret(a3^2))):
+t7n := Bind(Uniform((-1), 0), a0, 
+  Bind(Msum(Weight((a0+1), Ret(Unit))), a1, Ret((a0*a0)))):
+t7ns := Bind(Uniform(-1,0),a3,Weight(a3+1,Ret(a3^2))):
+t8 := Bind(Gaussian(0, 10), a0, Bind(Gaussian(a0, 20), a1, Ret(Pair(a0, a1)))):
+
 
 t80 := Bind(GammaD(1, 1), a0, Gaussian(0, a0)):
 
@@ -134,4 +143,9 @@ TestHakaru(t2, t2s, label = "t2");
 TestHakaru(t3, t3, label = "t3");
 TestHakaru(t4, t4s, label = "t4");
 TestHakaru(t5, t5s, label = "t5");
+TestHakaru(t6, t6, label = "t6");
+TestHakaru(t7, t7s, label = "t7");
+TestHakaru(t7n, t7ns, label = "t7n");
+TestHakaru(t8, t8, label = "t8");
+
 TestHakaru(t80, t80, label = "t80");
