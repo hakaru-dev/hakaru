@@ -83,6 +83,8 @@ TestHakaru(LO(h, int(exp(-x/2)*applyintegrand(h,x),x=0..infinity)), Weight(2,Gam
 TestHakaru(LO(h, int(x*exp(-x/2)*applyintegrand(h,x),x=0..infinity)), Weight(4,GammaD(2,2)));
 TestHakaru(Bind(Lebesgue(), x, Weight(1/x^2, Ret(x))));
 TestHakaru(Cauchy(loc,scale)) assuming scale>0;
+TestHakaru(StudentT(nu,loc,scale)) assuming scale>0;
+TestHakaru(StudentT(1,loc,scale),Cauchy(loc,scale)) assuming scale>0;
 
 # how far does myint get us?
 TestHakaru(
