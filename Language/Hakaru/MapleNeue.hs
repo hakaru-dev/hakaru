@@ -216,7 +216,7 @@ instance Mochastic Maple where
     a <- gensym "a"
     body <- unMaple (k (constant a))
     return ("Bind("++ m2 ++", " ++ a ++ ", " ++ body ++")")
-  lebesgue      = error "lebesgue is undefined"
+  lebesgue      = constant "Lebesgue()"
   superpose l   = Maple $ do
     let l' = map (unMaple . wmtom) l
     res <- fmap (concat . intersperse ", ") (sequence l')
