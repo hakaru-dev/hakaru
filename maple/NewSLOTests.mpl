@@ -134,6 +134,10 @@ t7n := Bind(Uniform((-1), 0), a0,
   Bind(Msum(Weight((a0+1), Ret(Unit))), a1, Ret((a0*a0)))):
 t7ns := Bind(Uniform(-1,0),a3,Weight(a3+1,Ret(a3^2))):
 t8 := Bind(Gaussian(0, 10), a0, Bind(Gaussian(a0, 20), a1, Ret(Pair(a0, a1)))):
+t9 := Bind(Lebesgue(), a0, 
+  Bind(Msum(Weight(piecewise(And((3<a0), (a0<7)), (1/2), 0), Ret(Unit))), a1, Ret(a0))):
+t9s := Weight(2, Uniform(3,7)):
+
 
 
 t80 := Bind(GammaD(1, 1), a0, Gaussian(0, a0)):
@@ -147,5 +151,6 @@ TestHakaru(t6, t6, label = "t6");
 TestHakaru(t7, t7s, label = "t7");
 TestHakaru(t7n, t7ns, label = "t7n");
 TestHakaru(t8, t8, label = "t8");
+TestHakaru(t9, t9s, label = "t9");
 
 TestHakaru(t80, t80, label = "t80");
