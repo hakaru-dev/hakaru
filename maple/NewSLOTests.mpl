@@ -101,6 +101,15 @@ TestHakaru(Bind(Uniform(-1,1),x,Ret(exp(x))));
 TestHakaru(IntegrationTools[Expand](LO(h, Int((1+y)*applyintegrand(h,y),y=0..1))), Msum(Uniform(0,1), Weight(1/2,BetaD(2,1))));
 TestHakaru(Bind(Uniform(0,1),x,Bind(IntegrationTools[Expand](LO(h, Int((1+y)*applyintegrand(h,y),y=0..1))),y,Ret([x,y]))), Weight(3/2,Bind(Uniform(0,1),x,Msum(Weight(2/3,Bind(Uniform(0,1),y,Ret([x,y]))),Weight(1/3,Bind(BetaD(2,1),y,Ret([x,y])))))));
 
+# easy-easy-HMM
+eeHMM := Bind(GammaD(1,1),t,
+                 Weight(NewSLO:-density[Gaussian](0,1/sqrt(t))(a),
+                 Ret(t))):
+ees := Weight(1/(a^2+2)^(3/2), GammaD(3/2, 1/((1/2)*a^2+1))):
+
+
+TestHakaru(eeHMM, ees, label = "easy-easy-HMM") assuming a :: real;
+
 # and now models (then tests) taken from Tests.RoundTrip
 t1 := Bind(Uniform(0, 1), a0, Msum(Weight(a0, Ret(Unit)))):
 t2 := BetaD(1,1):
