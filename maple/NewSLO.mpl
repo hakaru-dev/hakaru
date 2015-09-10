@@ -51,6 +51,12 @@ end proc:
   eval(op(0,e), eqs)(eval(m1, eqs), generic_evalat(v, m2, eqs))
 end proc:
 
+`eval/lam` := proc(e, eqs)
+  local v, m2;
+  v, m2 := op(e);
+  eval(op(0,e), eqs)(generic_evalat(v, m2, eqs))
+end proc:
+
 #############################################################################
 
 # make gensym global, so that it can be shared with other 'global' routines
@@ -72,7 +78,7 @@ NewSLO := module ()
         recognize, get_de, recognize_de, Diffop, Recognized,
         step2, myint,
         verify_measure;
-  export Integrand, applyintegrand,
+  export Integrand, applyintegrand, app, lam,
          Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD, StudentT,
          Ret, Bind, Msum, Weight, LO,
          HakaruToLO, integrate, LOToHakaru, unintegrate,
@@ -265,6 +271,14 @@ NewSLO := module ()
     else
       # Failure: return residual LO
       LO(h, integral)
+    end if
+  end proc;
+
+  app := proc (func, argu)
+    if func :: lam(name, anything) then
+      eval(op(2,func), op(1,func)=argu)
+    else
+      'procname(_passed)'
     end if
   end proc;
 
