@@ -68,7 +68,7 @@ end module: # gensym
 
 NewSLO := module ()
   option package;
-  local t_pw, density, unweight, factorize,
+  local t_pw, unweight, factorize,
         recognize, get_de, recognize_de, Diffop, Recognized,
         step2, myint,
         verify_measure;
@@ -76,7 +76,7 @@ NewSLO := module ()
          Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD,
          Ret, Bind, Msum, Weight, LO,
          HakaruToLO, integrate, LOToHakaru, unintegrate,
-         TestHakaru, measure,
+         TestHakaru, measure, density,
          Simplify;
 
 
