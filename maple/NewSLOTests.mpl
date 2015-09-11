@@ -65,8 +65,9 @@ introLO :=
   piecewise(x<y,Ret(true),x>=y,Ret(false)))):
 introLOs := Msum(Weight(1/2, Ret(false)), Weight(1/2, Ret(true))):
 
-TestHakaru(introLO, introLO, label = "2 uniform - no change");
+TestHakaru(introLO, introLO, simp = (x -> x), label = "2 uniform - no change");
 TestHakaru(introLO, introLOs, simp = value, label = "2 uniform + value = elimination");
+TestHakaru(introLO, introLOs, label = "2 uniform + simplifier  elimination");
 
 # a variety of other tests
 TestHakaru(LO(h,(x*applyintegrand(h,5)+applyintegrand(h,3))/x), Weight(1/x, Msum(Weight(x, Ret(5)), Ret(3))));
