@@ -1,12 +1,11 @@
-# we create 3 new binding forms.  Teach Maple (through depends and eval)
+# We create 4 new binding forms.  Teach Maple (through depends and eval)
 # about them.
-# Both LO and Integrand bind from 1st arg to 2nd arg, whereas Bind
+# Integrand, LO, and lam bind from 1st arg to 2nd arg, whereas Bind
 # binds from 2nd arg to 3rd arg.
-`depends/LO` := proc(h, e, x) depends(e, x minus {h}) end proc:
 
-`depends/Integrand` := proc(h, e, x)
-  depends(e, x minus {h})
-end proc:
+`depends/Integrand` := proc(h, e, x) depends(e, x minus {h}) end proc:
+`depends/LO`        := proc(h, e, x) depends(e, x minus {h}) end proc:
+`depends/lam`       := proc(h, e, x) depends(e, x minus {h}) end proc:
 
 # note that v _can_ occur in m1.
 `depends/Bind` := proc(m1, v, m2, x)
@@ -33,7 +32,7 @@ generic_evalat := proc(vv, mm, eqs)
   v, m;
 end proc:
 
-`eval/Integrate` := proc(e, eqs)
+`eval/Integrand` := proc(e, eqs)
   local v, m2;
   v, m2 := op(e);
   eval(op(0,e), eqs)(generic_evalat(v, m2, eqs))
@@ -45,16 +44,16 @@ end proc:
   eval(op(0,e), eqs)(generic_evalat(v, m2, eqs))
 end proc:
 
-`eval/Bind` := proc(e, eqs)
-  local m1, v, m2;
-  m1, v, m2 := op(e);
-  eval(op(0,e), eqs)(eval(m1, eqs), generic_evalat(v, m2, eqs))
-end proc:
-
 `eval/lam` := proc(e, eqs)
   local v, m2;
   v, m2 := op(e);
   eval(op(0,e), eqs)(generic_evalat(v, m2, eqs))
+end proc:
+
+`eval/Bind` := proc(e, eqs)
+  local m1, v, m2;
+  m1, v, m2 := op(e);
+  eval(op(0,e), eqs)(eval(m1, eqs), generic_evalat(v, m2, eqs))
 end proc:
 
 #############################################################################
@@ -173,9 +172,12 @@ NewSLO := module ()
     local ee, subintegral, w;
 
     if e :: Int(anything, name = range) then
-      simp_Int(e, bound, constraints)
+      simp_Int(e, constraints)
     elif e :: `*` then
       (subintegral, w) := selectremove(depends, e, h);
+      if w = 1 then
+        error "Nonlinear integral %1", e
+      end if;
       maptype(`*`, simp_pw, w) * step2(subintegral, h, constraints)
     # control piecewise; doesn't work...
     # elif e :: t_pw then 
@@ -191,18 +193,15 @@ NewSLO := module ()
   end proc;
 
   # if a weight term is piecewise, then 
-  # 1. check if it is in  fact an indicator function, and if so, convert
-  # 2. check if all its branches are equal, if so simplify
+  # 1. check if all its branches are equal, if so simplify
+  # 2. check if it is in  fact an indicator function, and if so, convert
   simp_pw := proc(e)
     if e::t_pw then
      if nops(e) = 3 then
+        if Testzero(op(2,e) - op(3,e)) then op(2,e) # same
         # indicator
-        if op(3,e)=0 then indicator(op(1,e)) * op(2,e)
-        elif op(2,e)=0 then indicator(Not(op(1,e))) * op(3,e)
-
-        # same
-        elif Testzero(op(2,e) - op(3,e)) then
-          op(2,e)
+        elif Testzero(op(3,e)) then indicator(op(1,e)) * op(2,e)
+        elif Testzero(op(2,e)) then indicator(Not(op(1,e))) * op(3,e)
         else e
         end if
       else
@@ -213,7 +212,7 @@ NewSLO := module ()
     end if
   end proc;
 
-  simp_Int := proc(e, bound, constraints)
+  simp_Int := proc(e, constraints)
     local ee, var, rng, dom_spec, rest, new_rng, left;
 
     var := op([2,1],e);
@@ -362,7 +361,7 @@ NewSLO := module ()
       Msum(op(map2(unintegrate, h, convert(integral, 'list'), context)))
     elif integral :: `*` then
       (subintegral, w) := selectremove(depends, integral, h);
-      if subintegral :: `*` then
+      if w = 1 then
         error "Nonlinear integral %1", integral
       end if;
       Weight(w, unintegrate(h, subintegral, context))
@@ -478,8 +477,8 @@ NewSLO := module ()
       elif ispoly(numer(a), 'linear', var, 'b0', 'b1') and
            ispoly(denom(a), 'quadratic', var, 'c0', 'c1', 'c2') then
         loc := -c1/c2/2;
-        nu := b1/c2 - 1;
         if Testzero(b0 + loc * b1) then
+          nu := b1/c2 - 1;
           if Testzero(nu - 1) then
             dist := Cauchy(loc, sqrt(c0/c2-loc^2))
           else
@@ -506,6 +505,7 @@ NewSLO := module ()
         end if
       catch: # do nothing
       end try;
+      WARNING("recognized %1 as %2 but could not solve %3", f, dist, init)
     end if;
     FAIL
   end proc;
@@ -516,9 +516,9 @@ NewSLO := module ()
   density[Cauchy] := proc(loc, scale) proc(x)
     1/Pi/scale/(1+((x-loc)/scale)^2)
   end proc end proc;
-  density[StudentT] := proc(nu, mu, sigma) proc(x)
-    GAMMA((nu+1)/2) / GAMMA(nu/2) / sqrt(Pi*nu) / sigma
-    * (1 + ((x-mu)/sigma)^2/nu)^(-(nu+1)/2)
+  density[StudentT] := proc(nu, loc, scale) proc(x)
+    GAMMA((nu+1)/2) / GAMMA(nu/2) / sqrt(Pi*nu) / scale
+    * (1 + ((x-loc)/scale)^2/nu)^(-(nu+1)/2)
   end proc end proc;
   density[BetaD] := proc(a, b) proc(x)
     x^(a-1)*(1-x)^(b-1)/Beta(a,b)
