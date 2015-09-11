@@ -307,15 +307,17 @@ NewSLO := module ()
   end proc;
 
   recognize := proc(weight, x, lo, hi)
-    local de, Dx, f, w, res;
+    local de, Dx, f, w, res, rng;
     res := FAIL;
     de := get_de(weight, x, Dx, f);
     if de :: 'Diffop(anything, anything)' then
       res := recognize_de(op(de), Dx, f, x, lo, hi)
     end if;
     if res = FAIL then
+      rng := hi - lo;
       w := simplify(weight * (hi - lo));
-      if not (w :: {'SymbolicInfinity', 'undefined'}) then
+      # weight could be piecewise and simplify will hide the problem
+      if not (rng :: 'SymbolicInfinity' or w :: {'SymbolicInfinity', 'undefined'}) then
         res := Recognized(Uniform(lo, hi), w)
       end if
     end if;
