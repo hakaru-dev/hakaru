@@ -141,7 +141,6 @@ t9 := Bind(Lebesgue(), a0,
 t9s := Weight(2, Uniform(3,7)):
 
 
-
 t80 := Bind(GammaD(1, 1), a0, Gaussian(0, a0)):
 
 TestHakaru(t1, t5s, label = "t1");
@@ -156,3 +155,10 @@ TestHakaru(t8, t8, label = "t8");
 TestHakaru(t9, t9s, label = "t9");
 
 TestHakaru(t80, t80, label = "t80");
+
+###
+# From disintegration paper
+disint1 := 
+Bind(Lebesgue(),y, Weight(piecewise(0<y and y<1, 1, 0), Weight(y/2, Ret(y)))):
+
+TestHakaru(disint1, Weight(1/4,BetaD(2,1)), label="minor miracle");
