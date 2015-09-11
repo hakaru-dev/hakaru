@@ -76,11 +76,12 @@ NewSLO := module ()
   option package;
   local t_pw, unweight, factorize,
         recognize, get_de, recognize_de, Diffop, Recognized,
-        step2, myint, myint_pw,
+        step2, myint, myint_pw, simp_pw, simp_Int, get_indicators,
+        indicator, extract_dom,
         verify_measure;
   export Integrand, applyintegrand, app, lam,
          Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD, StudentT,
-         Ret, Bind, Msum, Weight, LO,
+         Ret, Bind, Msum, Weight, LO, Indicator,
          HakaruToLO, integrate, LOToHakaru, unintegrate,
          TestHakaru, measure, density,
          Simplify;
@@ -161,41 +162,122 @@ NewSLO := module ()
 
 # Step 2 of 3: computer algebra
 
-  Simplify := proc(e) step2(e, [], []) end;
+  Simplify := proc(lo :: LO(name, anything)) 
+    LO(op(1,lo), step2(op(2,lo), op(1,lo), []))
+  end proc;
 
-  # as in both previous steps, walk through the expression
-  # bound - variables which are bound by something in our context
+  # Walk through integrals and simplify, recursing through grammar
+  # h - name of the linear operator above us
   # constraints - domain information
-  step2 := proc(e, bound, constraints)
-    local ee, pw, rest, n;
-    if e::LO(anything, anything) then
-      LO(op(1,e), step2(op(2,e), [op(1,e), op(bound)], constraints))
-    elif e :: Int(anything, name = range) then
-      # first step through the integrand
-      ee := step2(op(1,e), [op([2,1],e), op(bound)], [op(2, e), op(constraints)]);
-      # and then try to evaluate it
-      myint(ee, op(2,e), constraints)
+  step2 := proc(e, h, constraints)
+    local ee, subintegral, w;
+
+    if e :: Int(anything, name = range) then
+      simp_Int(e, bound, constraints)
     elif e :: `*` then
-      # look for the piecewise, if any
-      (pw, rest) := selectremove(type, e, 'piecewise');
-      # give up if there are 2+ of them
-      if pw :: `*` then
-        e
-      elif pw=1 then
-        # maybe a nested int then?
-        e
-      else
-        # if the piecewise is a weight, pull it out, else leave it be
-        if not has(pw, 'applyintegrand') then
-          n := nops(pw);
-          piecewise(seq(`if`(i::even or i=n, op(i,pw)*rest, op(i, pw)), i=1..n))
-        else
-          e
-        end if;
-      end if;
+      (subintegral, w) := selectremove(depends, e, h);
+      maptype(`*`, simp_pw, w) * subintegral
     else
       e
     end if;
+  end proc;
+
+  # if a weight term is piecewise, then check if it is in
+  # fact an indicator function, and if so, convert
+  simp_pw := proc(e)
+    if e::t_pw then
+     if nops(e) = 3 then
+        if op(3,e)=0 then indicator(op(1,e)) * op(2,e)
+        elif op(2,e)=0 then indicator(Not(op(1,e))) * op(3,e)
+        else e
+        end if
+      else
+        e
+      end if
+    else
+      e
+    end if
+  end proc;
+
+  simp_Int := proc(e, bound, constraints)
+    local ee, var, rng, dom_spec, rest, new_rng, left;
+
+    var := op([2,1],e);
+    rng := op([2,2],e);
+
+    # first step through the integrand
+    ee := step2(op(1,e), h, [var = rng, op(constraints)]);
+
+    # then if there are domain restrictions, try to apply them
+    (dom_spec, rest) := get_indicators(ee);
+
+    if not (dom_spec = 1) then
+      if depends(dom_spec, var) then
+        # TODO: new_rng might be a union of ranges
+        (new_rng, left) := extract_dom(dom_spec, var);
+        if new_rng :: 'range' then
+          rng := max(op(1,rng), op(1,new_rng)) .. 
+                 min(op(2,rng), op(2,new_rng));
+          ee := left * rest;
+        end if;
+      end if;
+    end if;
+
+    myint(ee, var = rng, constraints)
+  end proc;
+
+  get_indicators := proc(e)
+    local inds, rest;
+    if e::`*` then
+      (inds, rest) := selectremove(type, e, 'specfunc(Indicator)');
+      if inds::`*` then error "need to merge indicators" end if;
+      (inds, rest)
+    elif e::'specfunc(Indicator)' then
+      e, 1
+    else
+      1, e
+    end if
+  end proc;
+
+  extract_dom := proc(spec, v)
+    local s, lo, hi, i, rest;
+    if spec::'specfunc(Indicator)' then
+      s, rest := selectremove(depends, spec, v);
+      if nops(s) <> 1 then error "expected a single range" end if;
+      s := op(1,s);
+      lo := -infinity; hi := infinity;
+      for i in s do
+        if i :: 'numeric < identical(v)' or i :: 'numeric <= identical(v)' then
+          lo := max(lo, op(1,i));
+        elif i :: 'identical(v) < numeric' or 
+             i :: 'identical(v) <= numeric' then
+          hi := min(hi, op(2,i));
+        elif depends(i, v) then
+          error "encountered (%1) in domain spec", i;
+        # else -- no need, as these are not relevant
+        end if;
+      end do;
+      if rest = 'Indicator()' then rest := 1; end if;
+      lo .. hi, rest;
+    else
+      FAIL, spec;
+    end if;
+  end proc;
+
+  indicator := proc(b)
+    local to_set;
+
+    to_set := proc(a)
+      if a :: 'specfunc'(And) then
+        map(op @ to_set, {op(a)})
+      elif a :: {`<`,`<=`} then
+        {a}
+      else
+        error "unknown set specification (%1)", a
+      end if;
+    end proc;
+
+    Indicator(to_set(b))
   end proc;
 
 # Step 3 of 3: from Maple LO (linear operator) back to Hakaru
