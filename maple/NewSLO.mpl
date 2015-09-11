@@ -76,7 +76,7 @@ NewSLO := module ()
   option package;
   local t_pw, unweight, factorize,
         recognize, get_de, recognize_de, Diffop, Recognized,
-        step2, myint,
+        step2, myint, myint_pw,
         verify_measure;
   export Integrand, applyintegrand, app, lam,
          Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD, StudentT,
@@ -174,7 +174,7 @@ NewSLO := module ()
       # first step through the integrand
       ee := step2(op(1,e), [op([2,1],e), op(bound)], [op(2, e), op(constraints)]);
       # and then try to evaluate it
-      myint(ee, op(2,e), ctx)
+      myint(ee, op(2,e), constraints)
     elif e :: `*` then
       # look for the piecewise, if any
       (pw, rest) := selectremove(type, e, 'piecewise');
@@ -431,7 +431,7 @@ NewSLO := module ()
   end proc end proc;
 
   # a special version of int to get around Maple weaknesses
-  myint := proc(expr, b, ctx)
+  myint := proc(expr, b, constraints)
     local var, inds, res;
     var := op(1,b);
 
@@ -444,10 +444,48 @@ NewSLO := module ()
     elif not depends(inds, var) then
       # just do it!
       res := int(expr, b)
+    elif type(expr, 'piecewise') then
+      res := myint_pw(expr, b); # TODO pass constraints too?
     else # give up
       res := Int(expr, b)
     end if;
     res;
+  end proc;
+
+  # special code for integrating pw
+  myint_pw := proc(expr, b :: name = `..`)
+    local rels, n, rest, i, res, res2, var, lower, upper, cond;
+    n := floor(nops(expr)/2);
+    rels := [seq(op(2*i-1, expr), i=1..n)];
+    rest := evalb(2*n < nops(expr));
+    upper := op([2,2],b);
+    if type(rels, list({`<`, `<=`})) and indets(rels,'name') = {op(1,b)} then
+      res := 0; lower := op([2,1], b); var := op(1,b);
+      for i from 1 to n do
+        cond := op(2*i-1, expr);
+        if cond::{identical(var) < anything, identical(var) <= anything} and
+          evalb(signum(op(2,cond) - lower) = 1) then # op2 > lower
+          res := res + myint(op(2*i, expr), var = lower .. min(upper,op(2,cond)));
+          lower := op(2,cond);
+        elif cond::{anything < identical(var), anything <= identical(var)} and
+          evalb(signum(upper - op(1,cond)) = 1) then # op1 < upper
+          res := res + myint(op(2*i, expr), var = max(lower,op(1,cond)) .. upper);
+          upper := op(1,cond);
+        else
+          error "cannot handle condition (%1) while integrating pw", cond;
+        end if;
+      end do;
+      if rest then # note that lower=upper is possible, but ok
+        if lower < upper then
+          res := res + myint(op(-1, expr), var = lower..upper);
+        end if;
+      end if;
+      res
+    elif length(expr) < 200 then # what have we got to lose?
+      int(expr, b);
+    else # well, too much time!
+      Int(expr, b)
+    end if;
   end proc;
 
 # Testing
