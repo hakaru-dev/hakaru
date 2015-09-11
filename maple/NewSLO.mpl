@@ -176,19 +176,33 @@ NewSLO := module ()
       simp_Int(e, bound, constraints)
     elif e :: `*` then
       (subintegral, w) := selectremove(depends, e, h);
-      maptype(`*`, simp_pw, w) * subintegral
+      maptype(`*`, simp_pw, w) * step2(subintegral, h, constraints)
+    # control piecewise; doesn't work...
+    # elif e :: t_pw then 
+      # if both branches are the same, don't bother branching
+    #   if nops(e)=3 and verify_measure(op(2,e), op(3,e), 'equal') then
+    #     op(2,e)
+    #   else 
+    #     e
+    #   end if
     else
       e
     end if;
   end proc;
 
-  # if a weight term is piecewise, then check if it is in
-  # fact an indicator function, and if so, convert
+  # if a weight term is piecewise, then 
+  # 1. check if it is in  fact an indicator function, and if so, convert
+  # 2. check if all its branches are equal, if so simplify
   simp_pw := proc(e)
     if e::t_pw then
      if nops(e) = 3 then
+        # indicator
         if op(3,e)=0 then indicator(op(1,e)) * op(2,e)
         elif op(2,e)=0 then indicator(Not(op(1,e))) * op(3,e)
+
+        # same
+        elif Testzero(op(2,e) - op(3,e)) then
+          op(2,e)
         else e
         end if
       else
@@ -319,7 +333,7 @@ NewSLO := module ()
                          'anyfunc'('anything','name'='range'('freeof'(h)))) then
       x := gensym(op([2,1],integral));
       (lo, hi) := op(op([2,2],integral));
-      next_context := [op(context), And(lo<x, x<hi)];
+      next_context := [op(context), lo<x, x<hi];
       # TODO: enrich context with x (measure class lebesgue)
       subintegral := eval(op(1,integral), op([2,1],integral) = x);
       (w, m) := unweight(unintegrate(h, subintegral, next_context));
@@ -360,7 +374,7 @@ NewSLO := module ()
       update_context := proc(c)
         local then_context;
         then_context := [op(next_context), c];
-        next_context := [op(next_context), not c]; # Mutation!
+        next_context := [op(next_context), Not(c)]; # Mutation!
         then_context
       end proc;
       piecewise(seq(piecewise(i::even,
