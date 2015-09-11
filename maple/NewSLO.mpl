@@ -161,15 +161,38 @@ NewSLO := module ()
 
 # Step 2 of 3: computer algebra
 
-  Simplify := proc(e) step2(e, []) end;
+  Simplify := proc(e) step2(e, [], []) end;
 
   # as in both previous steps, walk through the expression
-  step2 := proc(e, ctx)
+  # bound - variables which are bound by something in our context
+  # constraints - domain information
+  step2 := proc(e, bound, constraints)
+    local ee, pw, rest, n;
     if e::LO(anything, anything) then
-      LO(op(1,e), step2(op(2,e), [op(1,e), op(ctx)]))
+      LO(op(1,e), step2(op(2,e), [op(1,e), op(bound)], constraints))
     elif e :: Int(anything, name = range) then
-      # try to evaluate it
-      myint(op(e), ctx)
+      # first step through the integrand
+      ee := step2(op(1,e), [op([2,1],e), op(bound)], [op(2, e), op(constraints)]);
+      # and then try to evaluate it
+      myint(ee, op(2,e), ctx)
+    elif e :: `*` then
+      # look for the piecewise, if any
+      (pw, rest) := selectremove(type, e, 'piecewise');
+      # give up if there are 2+ of them
+      if pw :: `*` then
+        e
+      elif pw=1 then
+        # maybe a nested int then?
+        e
+      else
+        # if the piecewise is a weight, pull it out, else leave it be
+        if not has(pw, 'applyintegrand') then
+          n := nops(pw);
+          piecewise(seq(`if`(i::even or i=n, op(i,pw)*rest, op(i, pw)), i=1..n))
+        else
+          e
+        end if;
+      end if;
     else
       e
     end if;
