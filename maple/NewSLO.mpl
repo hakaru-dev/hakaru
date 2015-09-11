@@ -270,6 +270,8 @@ NewSLO := module ()
     to_set := proc(a)
       if a :: 'specfunc'(And) then
         map(op @ to_set, {op(a)})
+      elif a :: 'specop(anything, `and`)' then
+        map(op @ to_set, {op(a)})
       elif a :: {`<`,`<=`} then
         {a}
       else
