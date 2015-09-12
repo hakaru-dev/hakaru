@@ -156,7 +156,7 @@ t23s := Msum(Weight(41/100,Ret(Pair(true,true))),
 
 # t43 without the explicit lam
 t43 := piecewise(x0=true, Uniform(0, 1), Bind(BetaD(1, 1), a1, Ret(a1))):
-t43almost := piecewise(x0=true, Uniform(0,1), Uniform(0,1));
+t43s := Uniform(0, 1):
 
 t80 := Bind(GammaD(1, 1), a0, Gaussian(0, a0)):
 
@@ -171,7 +171,7 @@ TestHakaru(t7n, t7ns, label = "t7n");
 TestHakaru(t8, t8, label = "t8");
 TestHakaru(t9, t9s, label = "t9");
 TestHakaru(t23, t23s, label = "t23");
-TestHakaru(t43, t43almost, label = "t43"):
+TestHakaru(t43, t43s, label = "t43"):
 
 TestHakaru(t80, t80, label = "t80");
 

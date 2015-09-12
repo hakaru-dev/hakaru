@@ -75,8 +75,8 @@ NewSLO := module ()
   option package;
   local t_pw, unweight, factorize,
         recognize, get_de, recognize_de, Diffop, Recognized,
-        step2, myint, myint_pw, simp_pw, simp_Int, get_indicators,
-        indicator, extract_dom,
+        step2, myint, myint_pw, simp_weight, simp_Int, get_indicators,
+        indicator, extract_dom, nub_piecewise,
         verify_measure;
   export Integrand, applyintegrand, app, lam,
          Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD, StudentT,
@@ -84,7 +84,6 @@ NewSLO := module ()
          HakaruToLO, integrate, LOToHakaru, unintegrate,
          TestHakaru, measure, density,
          Simplify;
-
 
   t_pw := 'specfunc(piecewise)';
 
@@ -161,59 +160,62 @@ NewSLO := module ()
 
 # Step 2 of 3: computer algebra
 
-  Simplify := proc(lo :: LO(name, anything)) 
+  Simplify := proc(lo :: LO(name, anything))
     LO(op(1,lo), step2(op(2,lo), op(1,lo), []))
   end proc;
 
   # Walk through integrals and simplify, recursing through grammar
   # h - name of the linear operator above us
   # constraints - domain information
-  step2 := proc(e, h, constraints)
-    local ee, subintegral, w;
+  step2 := proc(e, h :: name, constraints :: list)
+    local subintegral, w;
 
-    if e :: Int(anything, name = range) then
+    if e :: 'And'('specfunc({Int,int})',
+                  'anyfunc'('anything','name'='range'('freeof'(h)))) then
       simp_Int(e, constraints)
+    elif e :: `+` then
+      map(step2, e, h, constraints)
     elif e :: `*` then
       (subintegral, w) := selectremove(depends, e, h);
       if w = 1 then
         error "Nonlinear integral %1", e
       end if;
-      maptype(`*`, simp_pw, w) * step2(subintegral, h, constraints)
-    # control piecewise; doesn't work...
-    # elif e :: t_pw then 
-      # if both branches are the same, don't bother branching
-    #   if nops(e)=3 and verify_measure(op(2,e), op(3,e), 'equal') then
-    #     op(2,e)
-    #   else 
-    #     e
-    #   end if
+      simp_weight(w) * step2(subintegral, h, constraints)
+    elif e :: t_pw then
+      Testzero := x -> evalb(simplify(x) = 0);
+      nub_piecewise(e)
     else
       e
     end if;
   end proc;
 
-  # if a weight term is piecewise, then 
+  # if a weight term is piecewise, then
   # 1. check if all its branches are equal, if so simplify
   # 2. check if it is in  fact an indicator function, and if so, convert
-  simp_pw := proc(e)
-    if e::t_pw then
-     if nops(e) = 3 then
-        if Testzero(op(2,e) - op(3,e)) then op(2,e) # same
-        # indicator
-        elif Testzero(op(3,e)) then indicator(op(1,e)) * op(2,e)
-        elif Testzero(op(2,e)) then indicator(Not(op(1,e))) * op(3,e)
-        else e
-        end if
+  simp_weight := proc(ee)
+    local e;
+    if ee :: `*` then
+      map(simp_weight, ee)
+    elif ee :: `^` then
+      applyop(simp_weight, 1, ee)
+    elif ee :: t_pw then
+      e := nub_piecewise(ee);
+      if nops(e) = 2 then
+        indicator(op(1,e)) * op(2,e)
+      elif nops(e) = 3 and Testzero(op(2,e)) then
+        indicator(Not(op(1,e))) * op(3,e)
+      elif nops(e) = 4 and Testzero(op(2,e)) then
+        indicator(And(Not(op(1,e)),op(3,e))) * op(4,e)
       else
         e
       end if
     else
-      e
+      ee
     end if
   end proc;
 
-  simp_Int := proc(e, constraints)
-    local ee, var, rng, dom_spec, rest, new_rng, left;
+  simp_Int := proc(e, constraints :: list)
+    local ee, var, rng, dom_spec, new_rng, rest;
 
     var := op([2,1],e);
     rng := op([2,2],e);
@@ -222,59 +224,37 @@ NewSLO := module ()
     ee := step2(op(1,e), h, [var = rng, op(constraints)]);
 
     # then if there are domain restrictions, try to apply them
-    (dom_spec, rest) := get_indicators(ee);
-
-    if not (dom_spec = 1) then
-      if depends(dom_spec, var) then
-        # TODO: new_rng might be a union of ranges
-        (new_rng, left) := extract_dom(dom_spec, var);
-        if new_rng :: 'range' then
-          rng := max(op(1,rng), op(1,new_rng)) .. 
-                 min(op(2,rng), op(2,new_rng));
-          ee := left * rest;
-        end if;
-      end if;
-    end if;
+    (dom_spec, ee) := get_indicators(ee);
+    (new_rng, rest) := extract_dom(dom_spec, var);
+    rng := max(op(1,rng), op(1,new_rng)) ..
+           min(op(2,rng), op(2,new_rng));
+    if rest <> {} then ee := Indicator(rest) * ee end if;
 
     myint(ee, var = rng, constraints)
   end proc;
 
   get_indicators := proc(e)
-    local inds, rest;
+    local sub, inds, rest;
     if e::`*` then
-      (inds, rest) := selectremove(type, e, 'specfunc(Indicator)');
-      if inds::`*` then error "need to merge indicators" end if;
-      (inds, rest)
-    elif e::'specfunc(Indicator)' then
-      e, 1
+      sub := map((s -> [get_indicators(s)]), [op(e)]);
+      `union`(op(map2(op,1,sub))), `*`(op(map2(op,2,sub)))
+    elif e::`^` then
+      inds, rest := get_indicators(op(1,e));
+      inds, subsop(1=rest, e)
+    elif e::'Indicator(set)' then
+      op(1,e), 1
     else
-      1, e
+      {}, e
     end if
   end proc;
 
-  extract_dom := proc(spec, v)
-    local s, lo, hi, i, rest;
-    if spec::'specfunc(Indicator)' then
-      s, rest := selectremove(depends, spec, v);
-      if nops(s) <> 1 then error "expected a single range" end if;
-      s := op(1,s);
-      lo := -infinity; hi := infinity;
-      for i in s do
-        if i :: 'numeric < identical(v)' or i :: 'numeric <= identical(v)' then
-          lo := max(lo, op(1,i));
-        elif i :: 'identical(v) < numeric' or 
-             i :: 'identical(v) <= numeric' then
-          hi := min(hi, op(2,i));
-        elif depends(i, v) then
-          error "encountered (%1) in domain spec", i;
-        # else -- no need, as these are not relevant
-        end if;
-      end do;
-      if rest = 'Indicator()' then rest := 1; end if;
-      lo .. hi, rest;
-    else
-      FAIL, spec;
-    end if;
+  extract_dom := proc(spec :: set, v :: name)
+    local lo, hi, i, rest;
+    lo, rest := selectremove(type, spec, '{numeric <  identical(v),
+                                           numeric <= identical(v)}');
+    hi, rest := selectremove(type, rest, '{identical(v) <  numeric,
+                                           identical(v) <= numeric}');
+    max(map2(op,1,lo)) .. min(map2(op,2,hi)), rest;
   end proc;
 
   indicator := proc(b)
@@ -285,14 +265,48 @@ NewSLO := module ()
         map(op @ to_set, {op(a)})
       elif a :: 'specop(anything, `and`)' then
         map(op @ to_set, {op(a)})
-      elif a :: {`<`,`<=`} then
-        {a}
+      elif a :: 'And(specfunc(Not), anyfunc(anything < anything))' then
+        {op([1,1],a) >= op([1,2],a)}
+      elif a :: 'And(specfunc(Not), anyfunc(anything <= anything))' then
+        {op([1,1],a) > op([1,2],a)}
       else
-        error "unknown set specification (%1)", a
+        {a}
       end if;
     end proc;
 
     Indicator(to_set(b))
+  end proc;
+
+  nub_piecewise := proc(pw)
+    local ret, i;
+    if pw :: t_pw and nops(pw) >= 2 then
+      ret := [op(1,pw), op(2,pw)];
+      for i from 4 by 2 to nops(pw) do
+        if Testzero(op(nops(ret),ret) - op(i,pw)) then
+          ret := applyop(Or, nops(ret)-1, ret, op(i-1,pw))
+        else
+          ret := [op(ret), op(i-1,pw), op(i,pw)]
+        end if
+      end do;
+      if nops(pw) :: odd and not Testzero(op(nops(pw),pw)) then
+        if Testzero(op(nops(ret),ret) - op(nops(pw),pw)) then
+          ret := [op(1..nops(ret)-2,ret), op(nops(ret),ret)]
+        else
+          ret := [op(ret), op(nops(pw),pw)]
+        end if
+      elif Testzero(op(nops(ret),ret)) then
+        ret := [op(1..nops(ret)-2,ret)]
+      end if;
+      if nops(ret) = 0 then
+        0
+      elif nops(ret) = 1 then
+        op(1,ret)
+      else
+        'piecewise'(op(ret))
+      end if
+    else
+      pw
+    end if
   end proc;
 
 # Step 3 of 3: from Maple LO (linear operator) back to Hakaru
