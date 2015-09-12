@@ -551,7 +551,7 @@ NewSLO := module ()
     var := op(1,b);
 
     # grab all the pieces under arbitrary functions
-    inds := map2(op, 2, indets(expr, 'specfunc(anything, applyintegrand)'));
+    inds := map2(op, 2, indets(expr, 'specfunc(applyintegrand)'));
     # trivial integration bounds
     if Normalizer(op([2,1],b)-op([2,2],b)) = 0 then
       res := 0;
