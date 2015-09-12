@@ -196,3 +196,4 @@ TestHakaru(ind1, ind1s, label="exponentiated indicator");
 TestHakaru(ind2, ind2s, label="negated and conjoined indicator");
 TestHakaru(ind3, ind3s, label="bounds ordering");
 TestHakaru(Msum(ind1,ind2), Msum(ind1s,ind2s), label="simplify under sum");
+TestHakaru(piecewise(c>0,ind1,ind2), piecewise(c>0,ind1s,ind2s), label="simplify under piecewise");

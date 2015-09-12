@@ -168,7 +168,7 @@ NewSLO := module ()
   # h - name of the linear operator above us
   # constraints - domain information
   step2 := proc(e, h :: name, constraints :: list)
-    local subintegral, w;
+    local subintegral, w, n, ee;
 
     if e :: 'And'('specfunc({Int,int})',
                   'anyfunc'('anything','name'='range'('freeof'(h)))) then
@@ -180,10 +180,16 @@ NewSLO := module ()
       if subintegral :: `*` then error "Nonlinear integral %1", e end if;
       simp_weight(w) * step2(subintegral, h, constraints)
     elif e :: t_pw then
+      n := nops(e);
+      ee := piecewise(seq(`if`(i::even or i=n,
+                               step2(op(i,e), h, constraints),
+                                 # TODO: update_context like unintegrate does
+                               simplify(op(i,e))),
+                          i=1..n));
       # big hammer: simplify knows about bound variables, amongst many
       # other things
       Testzero := x -> evalb(simplify(x) = 0);
-      nub_piecewise(e)
+      nub_piecewise(ee)
     else
       simplify(e)
     end if;
