@@ -619,12 +619,7 @@ NewSLO := module ()
                         j=1..k), i=1..k)}))[1]);
     elif m :: t_pw and n :: t_pw and nops(m) = nops(n) then
       k := nops(m);
-      for i to k do
-        if not (thisproc(op(i,m), op(i,n), `if`(i::even or i=k, mv, v))) then
-          return false
-        end if
-      end do;
-      true
+      verify(m, n, 'piecewise'(seq(`if`(i::even or i=k, mv, v), i=1..k)))
     elif m :: 'LO(name, anything)' and n :: 'LO(name, anything)' then
       x := gensym(cat(op(1,m), "_", op(1,n), "_"));
       verify(subs(op(1,m)=x, op(2,m)),
