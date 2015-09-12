@@ -226,8 +226,7 @@ NewSLO := module ()
     # then if there are domain restrictions, try to apply them
     (dom_spec, ee) := get_indicators(ee);
     (new_rng, rest) := extract_dom(dom_spec, var);
-    rng := max(op(1,rng), op(1,new_rng)) ..
-           min(op(2,rng), op(2,new_rng));
+    rng := map((bound -> min(max(bound, op(1,new_rng)), op(2,new_rng))), rng);
     if rest <> {} then ee := Indicator(rest) * ee end if;
 
     myint(ee, var = rng, constraints)

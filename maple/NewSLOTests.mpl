@@ -181,3 +181,5 @@ disint1 :=
 Bind(Lebesgue(),y, Weight(piecewise(0<y and y<1, 1, 0), Weight(y/2, Ret(y)))):
 
 TestHakaru(disint1, Weight(1/4,BetaD(2,1)), label="minor miracle");
+
+TestHakaru(Bind(Uniform(0,1),x, Weight(piecewise(1<x and x<0,1,0), Ret(x))), Msum(), label="bounds ordering");
