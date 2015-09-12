@@ -186,4 +186,13 @@ Bind(Lebesgue(),y, Weight(piecewise(0<y and y<1, 1, 0), Weight(y/2, Ret(y)))):
 
 TestHakaru(disint1, Weight(1/4,BetaD(2,1)), label="minor miracle");
 
-TestHakaru(Bind(Uniform(0,1),x, Weight(piecewise(1<x and x<0,1,0), Ret(x))), Msum(), label="bounds ordering");
+ind1  := Bind(Uniform(0,1),x, Weight(piecewise(x>0,1,0), Weight(piecewise(x>1/2,0,1), Weight(piecewise(0<x,1,0), Ret(x))))):
+ind1s := Weight(1/2, Uniform(0,1/2)):
+ind2  := Bind(Lebesgue(),x, Weight(piecewise(x<0,0,x<1,x,0), Ret(x))):
+ind2s := Weight(1/2, BetaD(2,1)):
+ind3  := Bind(Uniform(0,1),x, Weight(piecewise(1<x and x<0,1,0), Ret(x))):
+ind3s := Msum():
+TestHakaru(ind1, ind1s, label="exponentiated indicator");
+TestHakaru(ind2, ind2s, label="negated and conjoined indicator");
+TestHakaru(ind3, ind3s, label="bounds ordering");
+TestHakaru(Msum(ind1,ind2), Msum(ind1s,ind2s), label="simplify under sum");
