@@ -114,6 +114,10 @@ ees := Weight(1/(a^2+2)^(3/2), GammaD(3/2, 1/((1/2)*a^2+1))):
 
 TestHakaru(eeHMM, ees, label = "easy-easy-HMM") assuming a :: real;
 
+# from an email conversation on Sept. 11
+model6 := Bind(Gaussian(0,1),x, piecewise(x>4,Ret(4),Ret(x))):
+TestHakaru(model6, model6, label = "clamped Gaussian");
+
 # and now models (then tests) taken from Tests.RoundTrip
 t1 := Bind(Uniform(0, 1), a0, Msum(Weight(a0, Ret(Unit)))):
 t2 := BetaD(1,1):
