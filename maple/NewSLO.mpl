@@ -374,9 +374,7 @@ NewSLO := module ()
       Msum(op(map2(unintegrate, h, convert(integral, 'list'), context)))
     elif integral :: `*` then
       (subintegral, w) := selectremove(depends, integral, h);
-      if w = 1 then
-        error "Nonlinear integral %1", integral
-      end if;
+      if subintegral :: `*` then error "Nonlinear integral %1", integral end if;
       Weight(w, unintegrate(h, subintegral, context))
     elif integral :: t_pw
          and `and`(seq(not (depends(op(i,integral), h)),
