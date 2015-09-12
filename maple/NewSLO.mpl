@@ -177,11 +177,11 @@ NewSLO := module ()
       map(step2, e, h, constraints)
     elif e :: `*` then
       (subintegral, w) := selectremove(depends, e, h);
-      if w = 1 then
-        error "Nonlinear integral %1", e
-      end if;
+      if subintegral :: `*` then error "Nonlinear integral %1", e end if;
       simp_weight(w) * step2(subintegral, h, constraints)
     elif e :: t_pw then
+      # big hammer: simplify knows about bound variables, amongst many
+      # other things
       Testzero := x -> evalb(simplify(x) = 0);
       nub_piecewise(e)
     else
