@@ -185,7 +185,7 @@ NewSLO := module ()
       Testzero := x -> evalb(simplify(x) = 0);
       nub_piecewise(e)
     else
-      e
+      simplify(e)
     end if;
   end proc;
 
