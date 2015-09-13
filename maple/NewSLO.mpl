@@ -216,7 +216,7 @@ NewSLO := module ()
         e
       end if
     else
-      ee
+      simplify(ee)
     end if
   end proc;
 

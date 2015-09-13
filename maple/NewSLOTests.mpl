@@ -13,9 +13,9 @@ model1 :=
 # simplifies to
 model1s :=
   Bind(Gaussian(0,1), x, 
-  Msum(Ret(1/exp(x^2)), 
+  Msum(Ret(exp(-x^2)), 
        Bind(Lebesgue(), y, 
-       Ret(1/exp(x^2+y^2))))):
+       Ret(exp(-(x^2+y^2)))))):
 
 CodeTools[Test](value(integrate(model1,z->z)), (sqrt(Pi)+1)/sqrt(3), equal,
   label="primitive constructs + integrate + value");
