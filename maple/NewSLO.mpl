@@ -235,7 +235,7 @@ NewSLO := module ()
     rng := map((bound -> min(max(bound, op(1,new_rng)), op(2,new_rng))), rng);
     if rest <> {} then ee := Indicator(rest) * ee end if;
 
-    myint(ee, var = rng, constraints)
+    myint(h, ee, var = rng, constraints)
   end proc;
 
   get_indicators := proc(e)
@@ -616,8 +616,8 @@ NewSLO := module ()
   end proc end proc;
 
   # a special version of int to get around Maple weaknesses
-  myint := proc(expr, b, constraints)
-    local var, inds, res;
+  myint := proc(h :: name, expr, b, constraints)
+    local var, inds, res, hh;
     var := op(1,b);
 
     # grab all the pieces under arbitrary functions
@@ -627,8 +627,9 @@ NewSLO := module ()
       res := 0;
     # if the integration variable doesn't occur under any of them:
     elif not depends(inds, var) then
-      # just do it!
-      res := int(expr, b)
+      # do it!
+      hh := gensym('h');
+      res := bind_late(LO(hh,int(applyintegrand(hh,var),b)), var, h, expr)
     else # give up
       res := Int(expr, b)
     end if;
