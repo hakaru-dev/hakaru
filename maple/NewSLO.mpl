@@ -76,7 +76,7 @@ NewSLO := module ()
   local t_pw, unweight, factorize,
         recognize, get_de, recognize_de, Diffop, Recognized,
         step2, myint, myint_pw, simp_weight, simp_Int, get_indicators,
-        indicator, extract_dom, nub_piecewise,
+        indicator, extract_dom, bind_late, nub_piecewise,
         verify_measure;
   export Integrand, applyintegrand, app, lam,
          Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD, StudentT,
@@ -280,6 +280,74 @@ NewSLO := module ()
     end proc;
 
     Indicator(to_set(b))
+  end proc;
+
+  bind_late := proc(m, x :: name, h :: name, g)
+    # bind_late(m, x, h, g) is supposed to be equivalent to Bind(m, x, LO(h, g))
+    # but performs integration over x innermost rather than outermost.
+    local guard, subintegral, w, y, yRename, lo, hi, i, j, gg, cond;
+    guard := proc(c) Bind(m, x, piecewise(c, Ret(x), Msum())) end proc;
+    if g = 0 then
+      0
+    elif g :: `+` then
+      map[4](bind_late, m, x, h, g)
+    elif g :: `*` then
+      (subintegral, w) := selectremove(depends, g, h);
+      if subintegral :: `*` then error "Nonlinear integral %1", g end if;
+      bind_late(Bind(m, x, Weight(w, Ret(x))), x, h, subintegral)
+    elif g :: 'And'('specfunc({Int,int})',
+                    'anyfunc'('anything','name'='range'('freeof'(h)))) then
+      subintegral := op(1, g);
+      y           := op([2,1], g);
+      lo, hi      := op(op([2,2], g));
+      if x = y then
+        yRename     := gensym(y);
+        subintegral := subs(y=yRename, subintegral);
+        y           := yRename;
+      end if;
+      if depends(lo, x) then
+        if depends(hi, x) then
+          op(0,g)(bind_late(guard(And(lo<y, y<hi)), x, h, subintegral),
+                  y=-infinity..infinity)
+        else
+          op(0,g)(bind_late(guard(lo<y), x, h, subintegral),
+                  y=-infinity..hi)
+        end if
+      elif depends(hi, x) then
+        op(0,g)(bind_late(guard(y<hi), x, h, subintegral),
+                y=lo..infinity)
+      else
+        op(0,g)(bind_late(m, x, h, subintegral), y=lo..hi)
+      end if
+    elif g :: t_pw
+         and `and`(seq(not (depends(op(i,g), h)),
+                       i=1..nops(g)-1, 2)) then
+      gg := 0;
+      for i from 1 by 2 to nops(g)-1 do
+        if depends(op(i,g), x) then
+          gg := bind_late(guard(op(i,g)), x, h, op(i+1,g));
+          cond := Not(op(i,g));
+          for j from i+2 by 2 to nops(g) do
+            if j = nops(g) then
+              gg := gg + bind_late(guard(cond), x, h, op(j,g));
+            else
+              gg := gg + bind_late(guard(And(cond, op(j,g))), x, h, op(j+1,g));
+              cond := And(cond, Not(op(j,g)));
+            end if
+          end do;
+          break
+        end if
+      end do;
+      if i > 1 then
+        gg := gg + piecewise(seq(`if`(j::even or j=nops(g),
+                                      bind_late(m, x, h, op(j,g)),
+                                      op(j,g)),
+                                 j=1..`if`(i=nops(g),i,i-1)));
+      end if;
+      gg
+    else
+      value(integrate(m, Integrand(x, g)))
+    end if
   end proc;
 
   nub_piecewise := proc(pw)
