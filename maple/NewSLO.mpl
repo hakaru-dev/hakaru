@@ -289,6 +289,8 @@ NewSLO := module ()
     guard := proc(c) Bind(m, x, piecewise(c, Ret(x), Msum())) end proc;
     if g = 0 then
       0
+    elif not depends(g, x) then
+      value(integrate(m, x->1)) * g
     elif g :: `+` then
       map[4](bind_late, m, x, h, g)
     elif g :: `*` then
