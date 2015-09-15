@@ -300,7 +300,7 @@ NewSLO := module ()
       subintegral := op(1, g);
       y           := op([2,1], g);
       lo, hi      := op(op([2,2], g));
-      if x = y then
+      if x = y or depends(m, y) then
         yRename     := gensym(y);
         subintegral := subs(y=yRename, subintegral);
         y           := yRename;
