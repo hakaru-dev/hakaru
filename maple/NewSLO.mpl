@@ -283,7 +283,7 @@ NewSLO := module ()
   end proc;
 
   bind_late := proc(m, x :: name, h :: name, g)
-    # bind_late(m, x, h, g) is supposed to be equivalent to Bind(m, x, LO(h, g))
+    # LO(h, bind_late(m, x, h, g)) should be equivalent to Bind(m, x, LO(h, g))
     # but performs integration over x innermost rather than outermost.
     local guard, subintegral, w, y, yRename, lo, hi, i, j, gg, cond;
     guard := proc(c) Bind(m, x, piecewise(c, Ret(x), Msum())) end proc;
