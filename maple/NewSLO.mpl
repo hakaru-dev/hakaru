@@ -292,6 +292,8 @@ NewSLO := module ()
         map(op @ to_set, {op(a)})
       elif a :: 'And(specfunc(Not), anyfunc(anything))' then
         co_set(op(1,a))
+      elif a = true then
+        {}
       else
         {a}
       end if;
@@ -306,6 +308,10 @@ NewSLO := module ()
         {op(1,a) >= op(2,a)}
       elif a :: 'anything <= anything' then
         {op(1,a) > op(2,a)}
+      elif a = false then
+        {}
+      elif a = true then
+        {false}
       else
         {Not(a)}
       end if;
