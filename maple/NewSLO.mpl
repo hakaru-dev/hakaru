@@ -208,12 +208,16 @@ NewSLO := module ()
       applyop(simp_weight, 1, ee)
     elif ee :: t_pw then
       e := nub_piecewise(ee);
-      if nops(e) = 2 then
-        indicator(op(1,e)) * op(2,e)
-      elif nops(e) = 3 and Testzero(op(2,e)) then
-        indicator(Not(op(1,e))) * op(3,e)
-      elif nops(e) = 4 and Testzero(op(2,e)) then
-        indicator(And(Not(op(1,e)),op(3,e))) * op(4,e)
+      if e :: t_pw then
+        if nops(e) = 2 then
+          indicator(op(1,e)) * op(2,e)
+        elif nops(e) = 3 and Testzero(op(2,e)) then
+          indicator(Not(op(1,e))) * op(3,e)
+        elif nops(e) = 4 and Testzero(op(2,e)) then
+          indicator(And(Not(op(1,e)),op(3,e))) * op(4,e)
+        else
+          e
+        end if
       else
         e
       end if
