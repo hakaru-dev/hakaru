@@ -226,3 +226,6 @@ TestHakaru(bp(x>y, m1, x>0, m2, m3), Msum(Weight(1/2, m1), Weight(1/8, m2), Weig
 TestHakaru(bp(x>0, m1, x>y, m2, m3), Msum(Weight(1/2, m1), Weight(1/8, m2), Weight(3/8, m3)), label="bind_late piecewise 5");
 TestHakaru(bp(y>x, m1, y>0, m2, m3), Msum(Weight(1/2, m1), Weight(1/8, m2), Weight(3/8, m3)), label="bind_late piecewise 6");
 TestHakaru(bp(y>0, m1, y>x, m2, m3), Msum(Weight(1/2, m1), Weight(1/8, m2), Weight(3/8, m3)), label="bind_late piecewise 7");
+
+# Simplify is not yet idempotent
+TestHakaru(Bind(Uniform(0,1), x, Weight(x, Uniform(0,x))), Weight(1/2, BetaD(1, 2)), simp=Simplify@Simplify);

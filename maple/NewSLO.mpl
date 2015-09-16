@@ -75,7 +75,7 @@ NewSLO := module ()
   option package;
   local t_pw, unweight, factorize,
         recognize, get_de, recognize_de, Diffop, Recognized,
-        step2, simp_weight, simp_pw, simp_Int, get_indicators,
+        step2, simplify_assuming, simp_pw, simp_Int, get_indicators,
         indicator, extract_dom, bind_late,
         piecewise_if, nub_piecewise, foldr_piecewise,
         verify_measure;
@@ -169,7 +169,8 @@ NewSLO := module ()
   # h - name of the linear operator above us
   # constraints - domain information
   # TODO unify constraints with unintegrate's context
-  step2 := proc(e, h :: name, constraints :: list)
+  step2 := proc(e, h :: name, constraints :: list(name=anything))
+    # option remember, system;
     local subintegral, w, n, ee;
 
     if e :: Int(anything, name=anything) then
@@ -181,36 +182,32 @@ NewSLO := module ()
     elif e :: `*` then
       (subintegral, w) := selectremove(depends, e, h);
       if subintegral :: `*` then error "Nonlinear integral %1", e end if;
-      simp_weight(w) * step2(subintegral, h, constraints)
+      simp_pw(simplify_assuming(w, constraints)) * step2(subintegral, h, constraints)
     elif e :: t_pw then
       n := nops(e);
       ee := piecewise(seq(`if`(i::even or i=n,
                                step2(op(i,e), h, constraints),
                                  # TODO: update_context like unintegrate does
-                               simplify(op(i,e))),
+                               simplify_assuming(op(i,e), constraints)),
                           i=1..n));
       # big hammer: simplify knows about bound variables, amongst many
       # other things
       Testzero := x -> evalb(simplify(x) = 0);
       simp_pw(ee)
     else
-      simplify(e)
+      simplify_assuming(e, constraints)
     end if;
   end proc;
 
-  # if a weight term is piecewise, then
-  # 1. check if all its branches are equal, if so simplify
-  # 2. check if it is in  fact an indicator function, and if so, convert
-  simp_weight := proc(e)
-    if e :: `*` then
-      map(simp_weight, e)
-    elif e :: `^` then
-      applyop(simp_weight, 1, e)
-    elif e :: t_pw then
-      simp_pw(e)
-    else
-      simplify(e)
-    end if
+  simplify_assuming := proc(e, constraints :: list(name=anything..anything))
+    local f;
+    f := proc(c)
+      local var, lo, hi;
+      var := op(1,c);
+      lo, hi := op(op(2,c));
+      (var > lo, var < hi)
+    end proc;
+    simplify(e) assuming op(map(f, constraints));
   end proc;
 
   simp_pw := proc(ee) # ee may or may not be piecewise
