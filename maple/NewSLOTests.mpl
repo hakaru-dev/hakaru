@@ -164,11 +164,11 @@ t23s := Msum(Weight(41/100,Ret(Pair(true,true))),
 # all 5 models are equivalent, but don't all simplify to the same
 model_pw := Bind(Uniform(0,4), x,
   piecewise(x<1, Ret(x), x<2, Ret(2*x), x<3, Ret(3*x), Ret(5*x))):
-model_pw2 := Bind(Uniform(0,4), x, piecewise(x<1, 1, x<2, 2, x<3, 3, 5)*Ret(x)):
+model_pw2 := Bind(Uniform(0,4), x, Weight(piecewise(x<1, 1, x<2, 2, x<3, 3, 5),Ret(x))):
 model_pw3 := Bind(Uniform(0,4), x,
-  piecewise(x<1, Ret(x), x<2, 2*Ret(x), x<3, 3*Ret(x), x>=3, 5*Ret(x))):
+  piecewise(x<1, Ret(x), x<2, Weight(2,Ret(x)), x<3, Weight(3,Ret(x)), x>=3, Weight(5,Ret(x)))):
 model_pw4 := Bind(Uniform(0,4), x, Weight(piecewise(x<1, 1, x<2, 2, x<3, 3, 5),Ret(x))):
-model_pw5 := Bind(Uniform(0,4), x, Weight(piecewise(x<1, 1, x<2, 2, x<3, 3, x>=3, 5)*Ret(x))):
+model_pw5 := Bind(Uniform(0,4), x, Weight(piecewise(x<1, 1, x<2, 2, x<3, 3, x>=3, 5),Ret(x))):
 TestHakaru(model_pw, model_pw, label = "multi-branch choice");
 TestHakaru(model_pw2, model_pw3, label = "fake multi-branch weight");
 TestHakaru(model_pw4, model_pw5, label = "proper multi-branch weight");
