@@ -76,7 +76,8 @@ NewSLO := module ()
   local t_pw, unweight, factorize,
         recognize, get_de, recognize_de, Diffop, Recognized,
         step2, simp_weight, simp_pw, simp_Int, get_indicators,
-        indicator, extract_dom, bind_late, nub_piecewise,
+        indicator, extract_dom, bind_late,
+        piecewise_if, nub_piecewise, foldr_piecewise,
         verify_measure;
   export Integrand, applyintegrand, app, lam,
          Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD, StudentT,
@@ -316,8 +317,8 @@ NewSLO := module ()
   bind_late := proc(m, x :: name, h :: name, g)
     # LO(h, bind_late(m, x, h, g)) should be equivalent to Bind(m, x, LO(h, g))
     # but performs integration over x innermost rather than outermost.
-    local guard, subintegral, w, y, yRename, lo, hi, i, j, gg, cond;
-    guard := proc(c) Bind(m, x, piecewise(c, Ret(x), Msum())) end proc;
+    local guard, subintegral, w, y, yRename, lo, hi, mm;
+    guard := proc(m, c) Bind(m, x, piecewise(c, Ret(x), Msum())) end proc;
     if g = 0 then
       0
     elif not depends(g, x) then
@@ -338,80 +339,56 @@ NewSLO := module ()
         subintegral := subs(y=yRename, subintegral);
         y           := yRename;
       end if;
-      if depends(lo, x) then
-        if depends(hi, x) then
-          op(0,g)(bind_late(guard(And(lo<y, y<hi)), x, h, subintegral),
-                  y=-infinity..infinity)
-        else
-          op(0,g)(bind_late(guard(lo<y), x, h, subintegral),
-                  y=-infinity..hi)
-        end if
-      elif depends(hi, x) then
-        op(0,g)(bind_late(guard(y<hi), x, h, subintegral),
-                y=lo..infinity)
-      else
-        op(0,g)(bind_late(m, x, h, subintegral), y=lo..hi)
-      end if
-    elif g :: t_pw
-         and `and`(seq(not (depends(op(i,g), h)),
-                       i=1..nops(g)-1, 2)) then
-      gg := 0;
-      for i from 1 by 2 to nops(g)-1 do
-        if depends(op(i,g), x) then
-          gg := bind_late(guard(op(i,g)), x, h, op(i+1,g));
-          cond := Not(op(i,g));
-          for j from i+2 by 2 to nops(g) do
-            if j = nops(g) then
-              gg := gg + bind_late(guard(cond), x, h, op(j,g));
-            else
-              gg := gg + bind_late(guard(And(cond, op(j,g))), x, h, op(j+1,g));
-              cond := And(cond, Not(op(j,g)));
-            end if
-          end do;
-          break
-        end if
-      end do;
-      if i > 1 then
-        gg := gg + piecewise(seq(`if`(j::even or j=nops(g),
-                                      bind_late(m, x, h, op(j,g)),
-                                      op(j,g)),
-                                 j=1..`if`(i=nops(g),i,i-1)));
-      end if;
-      gg
+      mm := m;
+      if depends(lo, x) then mm := guard(mm, lo<y); lo := -infinity end if;
+      if depends(hi, x) then mm := guard(mm, y<hi); hi :=  infinity end if;
+      op(0,g)(bind_late(mm, x, h, subintegral), y=lo..hi)
+    elif g :: t_pw then
+      foldr_piecewise(
+        proc(cond, th, el) proc(m)
+          if depends(cond, x) then
+            bind_late(guard(m, cond), x, h, th) + el(guard(m, Not(cond)))
+          else
+            piecewise_if(cond, bind_late(m, x, h, th), el(m))
+          end if
+        end proc end proc,
+        proc(m) 0 end proc,
+        g)(m)
     else
       value(integrate(m, Integrand(x, g)))
     end if
   end proc;
 
-  nub_piecewise := proc(pw)
-    local ret, i;
-    if pw :: t_pw and nops(pw) >= 2 then
-      ret := [op(1,pw), op(2,pw)];
-      for i from 4 by 2 to nops(pw) do
-        if Testzero(op(nops(ret),ret) - op(i,pw)) then
-          ret := applyop(Or, nops(ret)-1, ret, op(i-1,pw))
-        else
-          ret := [op(ret), op(i-1,pw), op(i,pw)]
-        end if
-      end do;
-      if nops(pw) :: odd and not Testzero(op(nops(pw),pw)) then
-        if Testzero(op(nops(ret),ret) - op(nops(pw),pw)) then
-          ret := [op(1..nops(ret)-2,ret), op(nops(ret),ret)]
-        else
-          ret := [op(ret), op(nops(pw),pw)]
-        end if
-      elif Testzero(op(nops(ret),ret)) then
-        ret := [op(1..nops(ret)-2,ret)]
-      end if;
-      if nops(ret) = 0 then
-        0
-      elif nops(ret) = 1 then
-        op(1,ret)
+  piecewise_if := proc(cond, th, el)
+    # piecewise_if should be equivalent to `if`, but it produces
+    # 'piecewise' and optimizes for when the 3rd argument is 'piecewise'
+    if cond = true then
+      th
+    elif cond = false or Testzero(th - el) then
+      el
+    elif el :: t_pw then
+      if nops(el) >= 2 and Testzero(th - op(2,el)) then
+        applyop(Or, 1, el, cond)
       else
-        'piecewise'(op(ret))
+        piecewise(cond, th, op(el))
       end if
+    elif Testzero(el) then
+      piecewise(cond, th)
     else
-      pw
+      piecewise(cond, th, el)
+    end if
+  end proc;
+
+  nub_piecewise := proc(pw) foldr_piecewise(piecewise_if, 0, pw) end proc;
+
+  foldr_piecewise := proc(cons, nil, pw)
+    # View pw as a piecewise and foldr over its arms
+    if pw :: t_pw then
+      foldr(proc(i,x) cons(op(i,pw), op(i+1,pw), x) end proc,
+            `if`(nops(pw)::odd, cons(true, op(-1,pw), nil), nil),
+            seq(1..nops(pw)-1, 2))
+    else
+      cons(true, pw, nil)
     end if
   end proc;
 
