@@ -169,43 +169,46 @@ NewSLO := module ()
   # h - name of the linear operator above us
   # constraints - domain information
   # TODO unify constraints with unintegrate's context
-  step2 := proc(e, h :: name, constraints :: list(name=anything))
+  step2 := proc(ee, h :: name, constraints :: list(name=anything))
     # option remember, system;
-    local hh, subintegral, w, n, ee;
+    local e, elim, hh, subintegral, w, n;
+    e := ee;
 
-    if e :: Int(anything, name=anything) and not hastype(op(1,e),
-       'applyintegrand'('identical'(h), 'dependent'(op([2,1],e)))) then
+    while e :: Int(anything, name=anything) and not hastype(op(1,e),
+       'applyintegrand'('identical'(h), 'dependent'(op([2,1],e)))) do
       # try to eliminate unused var
       hh := gensym('h');
-      ee := subs(int=Int, bind_late(LO(hh, int(applyintegrand(hh,op([2,1],e)), op(2,e))), op([2,1],e), h, op(1,e)));
-      if has(ee, {MeijerG}) or numboccur(ee,Int) >= numboccur(e,Int) then
+      elim := subs(int=Int,
+                bind_late(LO(hh, int(applyintegrand(hh,op([2,1],e)), op(2,e))),
+                  op([2,1],e), h, op(1,e)));
+      if has(elim, {MeijerG}) or numboccur(elim,Int) >= numboccur(e,Int) then
         # Maple was too good at integration
-      else
-        return step2(ee, h, constraints); # TODO: replace tail recursion by loop
+        break;
       end if;
-    end if;
+      e := elim;
+    end do;
 
     if e :: Int(anything, name=anything) then
-      # first step through the integrand
-      ee := step2(op(1,e), h, [op(2,e), op(constraints)]);
-      simp_Int(ee, op([2,1],e), op([2,2],e), h, constraints)
+      simp_Int(step2(op(1,e), h, [op(2,e), op(constraints)]),
+               op([2,1],e), op([2,2],e), h, constraints)
     elif e :: `+` then
       map(step2, e, h, constraints)
     elif e :: `*` then
       (subintegral, w) := selectremove(depends, e, h);
       if subintegral :: `*` then error "Nonlinear integral %1", e end if;
-      simp_pw(simplify_assuming(w, constraints)) * step2(subintegral, h, constraints)
+      simp_pw(simplify_assuming(w, constraints))
+        * step2(subintegral, h, constraints)
     elif e :: t_pw then
       n := nops(e);
-      ee := piecewise(seq(`if`(i::even or i=n,
-                               step2(op(i,e), h, constraints),
-                                 # TODO: update_context like unintegrate does
-                               simplify_assuming(op(i,e), constraints)),
-                          i=1..n));
+      e := piecewise(seq(`if`(i::even or i=n,
+                              step2(op(i,e), h, constraints),
+                                # TODO: update_context like unintegrate does
+                              simplify_assuming(op(i,e), constraints)),
+                         i=1..n));
       # big hammer: simplify knows about bound variables, amongst many
       # other things
       Testzero := x -> evalb(simplify(x) = 0);
-      simp_pw(ee)
+      simp_pw(e)
     else
       simplify_assuming(e, constraints)
     end if;
@@ -536,7 +539,8 @@ NewSLO := module ()
       rng := hi - lo;
       w := simplify(weight * (hi - lo));
       # weight could be piecewise and simplify will hide the problem
-      if not (rng :: 'SymbolicInfinity' or w :: {'SymbolicInfinity', 'undefined'}) then
+      if not (rng :: 'SymbolicInfinity'
+              or w :: {'SymbolicInfinity', 'undefined'}) then
         res := Recognized(Uniform(lo, hi), w)
       end if
     end if;
