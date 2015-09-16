@@ -75,7 +75,7 @@ NewSLO := module ()
   option package;
   local t_pw, unweight, factorize,
         recognize, get_de, recognize_de, Diffop, Recognized,
-        step2, myint, myint_pw, simp_weight, simp_Int, get_indicators,
+        step2, simp_weight, simp_Int, get_indicators,
         indicator, extract_dom, bind_late, nub_piecewise,
         verify_measure;
   export Integrand, applyintegrand, app, lam,
@@ -167,12 +167,14 @@ NewSLO := module ()
   # Walk through integrals and simplify, recursing through grammar
   # h - name of the linear operator above us
   # constraints - domain information
+  # TODO unify constraints with unintegrate's context
   step2 := proc(e, h :: name, constraints :: list)
     local subintegral, w, n, ee;
 
-    if e :: 'And'('specfunc({Int,int})',
-                  'anyfunc'('anything','name'='range'('freeof'(h)))) then
-      simp_Int(e, constraints)
+    if e :: Int(anything, name=anything) then
+      # first step through the integrand
+      ee := step2(op(1,e), h, [op(2,e), op(constraints)]);
+      simp_Int(ee, op([2,1],e), op([2,2],e), h, constraints)
     elif e :: `+` then
       map(step2, e, h, constraints)
     elif e :: `*` then
@@ -220,22 +222,36 @@ NewSLO := module ()
     end if
   end proc;
 
-  simp_Int := proc(e, constraints :: list)
-    local ee, var, rng, dom_spec, new_rng, rest;
+  simp_Int := proc(e, var :: name, rng, h :: name, constraints :: list)
+    local ee, hh, dom_spec, new_rng, rest;
 
-    var := op([2,1],e);
-    rng := op([2,2],e);
-
-    # first step through the integrand
-    ee := step2(op(1,e), h, [var = rng, op(constraints)]);
-
-    # then if there are domain restrictions, try to apply them
-    (dom_spec, ee) := get_indicators(ee);
-    (new_rng, rest) := extract_dom(dom_spec, var);
-    rng := map((bound -> min(max(bound, op(1,new_rng)), op(2,new_rng))), rng);
-    if rest <> {} then ee := Indicator(rest) * ee end if;
-
-    myint(h, ee, var = rng, constraints)
+    if depends(indets(e, 'applyintegrand'('identical'(h), anything)), var) then
+      ee := NULL;
+    else
+      # try to eliminate unused var
+      hh := gensym('h');
+      ee := bind_late(LO(hh, int(applyintegrand(hh,var), var=rng)), var, h, e);
+      if depends(ee, MeijerG) then
+        # Maple was too good at integration
+        ee := NULL
+      end if
+    end if;
+    if ee = NULL then
+      # if there are domain restrictions, try to apply them
+      (dom_spec, ee) := get_indicators(e);
+      (new_rng, dom_spec) := extract_dom(dom_spec, var);
+      new_rng := map((b -> min(max(b, op(1,new_rng)), op(2,new_rng))), rng);
+      if Testzero(op(2,new_rng)-op(1,new_rng)) then
+        # trivial integration bounds
+        ee := 0
+      else
+        (dom_spec, rest) := selectremove(depends, dom_spec, var);
+        if dom_spec <> {} then ee := Indicator(dom_spec) * ee end if;
+        ee := Int(ee, var=new_rng);
+        if rest <> {} then ee := Indicator(rest) * ee end if;
+      end if
+    end if;
+    ee
   end proc;
 
   get_indicators := proc(e)
@@ -614,27 +630,6 @@ NewSLO := module ()
   density[GammaD] := proc(shape, scale) proc(x)
     x^(shape-1)/scale^shape*exp(-x/scale)/GAMMA(shape);
   end proc end proc;
-
-  # a special version of int to get around Maple weaknesses
-  myint := proc(h :: name, expr, b, constraints)
-    local var, inds, res, hh;
-    var := op(1,b);
-
-    # grab all the pieces under arbitrary functions
-    inds := map2(op, 2, indets(expr, 'specfunc(applyintegrand)'));
-    # trivial integration bounds
-    if Normalizer(op([2,1],b)-op([2,2],b)) = 0 then
-      res := 0;
-    # if the integration variable doesn't occur under any of them:
-    elif not depends(inds, var) then
-      # do it!
-      hh := gensym('h');
-      res := bind_late(LO(hh,int(applyintegrand(hh,var),b)), var, h, expr)
-    else # give up
-      res := Int(expr, b)
-    end if;
-    res;
-  end proc;
 
 # Testing
 
