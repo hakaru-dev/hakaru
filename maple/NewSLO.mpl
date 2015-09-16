@@ -237,8 +237,8 @@ NewSLO := module ()
       # try to eliminate unused var
       hh := gensym('h');
       ee := bind_late(LO(hh, int(applyintegrand(hh,var), var=rng)), var, h, e);
-      if depends(ee, MeijerG) then
-        # Maple was too good at integration
+      if depends(ee, {int, MeijerG}) then
+        # Maple was either not good enough or too good at integration
         ee := NULL
       end if
     end if;
