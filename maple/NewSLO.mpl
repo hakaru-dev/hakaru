@@ -75,7 +75,7 @@ NewSLO := module ()
   option package;
   local t_pw, unweight, factorize,
         recognize, get_de, recognize_de, Diffop, Recognized,
-        step2, simp_weight, simp_Int, get_indicators,
+        step2, simp_weight, simp_pw, simp_Int, get_indicators,
         indicator, extract_dom, bind_late, nub_piecewise,
         verify_measure;
   export Integrand, applyintegrand, app, lam,
@@ -191,7 +191,7 @@ NewSLO := module ()
       # big hammer: simplify knows about bound variables, amongst many
       # other things
       Testzero := x -> evalb(simplify(x) = 0);
-      nub_piecewise(ee)
+      simp_pw(ee)
     else
       simplify(e)
     end if;
@@ -200,30 +200,31 @@ NewSLO := module ()
   # if a weight term is piecewise, then
   # 1. check if all its branches are equal, if so simplify
   # 2. check if it is in  fact an indicator function, and if so, convert
-  simp_weight := proc(ee)
-    local e;
-    if ee :: `*` then
-      map(simp_weight, ee)
-    elif ee :: `^` then
-      applyop(simp_weight, 1, ee)
-    elif ee :: t_pw then
-      e := nub_piecewise(ee);
-      if e :: t_pw then
-        if nops(e) = 2 then
-          indicator(op(1,e)) * op(2,e)
-        elif nops(e) = 3 and Testzero(op(2,e)) then
-          indicator(Not(op(1,e))) * op(3,e)
-        elif nops(e) = 4 and Testzero(op(2,e)) then
-          indicator(And(Not(op(1,e)),op(3,e))) * op(4,e)
-        else
-          e
-        end if
-      else
-        e
-      end if
+  simp_weight := proc(e)
+    if e :: `*` then
+      map(simp_weight, e)
+    elif e :: `^` then
+      applyop(simp_weight, 1, e)
+    elif e :: t_pw then
+      simp_pw(e)
     else
-      simplify(ee)
+      simplify(e)
     end if
+  end proc;
+
+  simp_pw := proc(ee)
+    local e;
+    e := nub_piecewise(ee);
+    if e :: t_pw then
+      if nops(e) = 2 then
+        return indicator(op(1,e)) * op(2,e)
+      elif nops(e) = 3 and Testzero(op(2,e)) then
+        return indicator(Not(op(1,e))) * op(3,e)
+      elif nops(e) = 4 and Testzero(op(2,e)) then
+        return indicator(And(Not(op(1,e)),op(3,e))) * op(4,e)
+      end if
+    end if;
+    return e
   end proc;
 
   simp_Int := proc(e, var :: name, rng, h :: name, constraints :: list)
@@ -283,19 +284,29 @@ NewSLO := module ()
   end proc;
 
   indicator := proc(b)
-    local to_set;
+    local to_set, co_set;
 
-    to_set := proc(a)
-      if a :: 'specfunc'(And) then
+    to_set := proc(a) # Make a set whose conjunction is equivalent to a
+      if a :: '{specfunc(And), specop(anything, `and`)}' then
         map(op @ to_set, {op(a)})
-      elif a :: 'specop(anything, `and`)' then
-        map(op @ to_set, {op(a)})
-      elif a :: 'And(specfunc(Not), anyfunc(anything < anything))' then
-        {op([1,1],a) >= op([1,2],a)}
-      elif a :: 'And(specfunc(Not), anyfunc(anything <= anything))' then
-        {op([1,1],a) > op([1,2],a)}
+      elif a :: 'And(specfunc(Not), anyfunc(anything))' then
+        co_set(op(1,a))
       else
         {a}
+      end if;
+    end proc;
+
+    co_set := proc(a) # Make a set whose conjunction is equivalent to Not(a)
+      if a :: '{specfunc(Or), specop(anything, `or`)}' then
+        map(op @ co_set, {op(a)})
+      elif a :: 'And(specfunc(Not), anyfunc(anything))' then
+        to_set(op(1,a))
+      elif a :: 'anything < anything' then
+        {op(1,a) >= op(2,a)}
+      elif a :: 'anything <= anything' then
+        {op(1,a) > op(2,a)}
+      else
+        {Not(a)}
       end if;
     end proc;
 
