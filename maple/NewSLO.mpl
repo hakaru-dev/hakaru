@@ -213,7 +213,7 @@ NewSLO := module ()
     end if
   end proc;
 
-  simp_pw := proc(ee)
+  simp_pw := proc(ee) # ee may or may not be piecewise
     local e;
     e := nub_piecewise(ee);
     if e :: t_pw then
@@ -385,9 +385,11 @@ NewSLO := module ()
     end if
   end proc;
 
-  nub_piecewise := proc(pw) foldr_piecewise(piecewise_if, 0, pw) end proc;
+  nub_piecewise := proc(pw) # pw may or may not be piecewise
+    foldr_piecewise(piecewise_if, 0, pw)
+  end proc;
 
-  foldr_piecewise := proc(cons, nil, pw)
+  foldr_piecewise := proc(cons, nil, pw) # pw may or may not be piecewise
     # View pw as a piecewise and foldr over its arms
     if pw :: t_pw then
       foldr(proc(i,x) cons(op(i,pw), op(i+1,pw), x) end proc,
