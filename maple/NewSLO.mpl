@@ -169,31 +169,46 @@ NewSLO := module ()
   # h - name of the linear operator above us
   # constraints - domain information
   # TODO unify constraints with unintegrate's context
-  step2 := proc(e, h :: name, constraints :: list(name=anything))
+  step2 := proc(ee, h :: name, constraints :: list(name=anything))
     # option remember, system;
-    local subintegral, w, n, ee;
+    local e, elim, hh, subintegral, w, n;
+    e := ee;
+
+    while e :: Int(anything, name=anything) and not hastype(op(1,e),
+       'applyintegrand'('identical'(h), 'dependent'(op([2,1],e)))) do
+      # try to eliminate unused var
+      hh := gensym('h');
+      elim := subs(int=Int,
+                bind_late(LO(hh, int(applyintegrand(hh,op([2,1],e)), op(2,e))),
+                  op([2,1],e), h, op(1,e)));
+      if has(elim, {MeijerG}) or numboccur(elim,Int) >= numboccur(e,Int) then
+        # Maple was too good at integration
+        break;
+      end if;
+      e := elim;
+    end do;
 
     if e :: Int(anything, name=anything) then
-      # first step through the integrand
-      ee := step2(op(1,e), h, [op(2,e), op(constraints)]);
-      simp_Int(ee, op([2,1],e), op([2,2],e), h, constraints)
+      simp_Int(step2(op(1,e), h, [op(2,e), op(constraints)]),
+               op([2,1],e), op([2,2],e), h, constraints)
     elif e :: `+` then
       map(step2, e, h, constraints)
     elif e :: `*` then
       (subintegral, w) := selectremove(depends, e, h);
       if subintegral :: `*` then error "Nonlinear integral %1", e end if;
-      simp_pw(simplify_assuming(w, constraints)) * step2(subintegral, h, constraints)
+      simp_pw(simplify_assuming(w, constraints))
+        * step2(subintegral, h, constraints)
     elif e :: t_pw then
       n := nops(e);
-      ee := piecewise(seq(`if`(i::even or i=n,
-                               step2(op(i,e), h, constraints),
-                                 # TODO: update_context like unintegrate does
-                               simplify_assuming(op(i,e), constraints)),
-                          i=1..n));
+      e := piecewise(seq(`if`(i::even or i=n,
+                              step2(op(i,e), h, constraints),
+                                # TODO: update_context like unintegrate does
+                              simplify_assuming(op(i,e), constraints)),
+                         i=1..n));
       # big hammer: simplify knows about bound variables, amongst many
       # other things
       Testzero := x -> evalb(simplify(x) = 0);
-      simp_pw(ee)
+      simp_pw(e)
     else
       simplify_assuming(e, constraints)
     end if;
@@ -225,36 +240,23 @@ NewSLO := module ()
     return e
   end proc;
 
-  simp_Int := proc(e, var :: name, rng, h :: name, constraints :: list)
-    local ee, hh, dom_spec, new_rng, rest;
+  simp_Int := proc(ee, var :: name, rng, h :: name, constraints :: list)
+    local e, dom_spec, new_rng, rest;
 
-    if hastype(e, 'applyintegrand'('identical'(h), 'dependent'(var))) then
-      ee := NULL;
+    # if there are domain restrictions, try to apply them
+    (dom_spec, e) := get_indicators(ee);
+    (new_rng, dom_spec) := extract_dom(dom_spec, var);
+    new_rng := map((b -> min(max(b, op(1,new_rng)), op(2,new_rng))), rng);
+    if Testzero(op(2,new_rng)-op(1,new_rng)) then
+      # trivial integration bounds
+      e := 0
     else
-      # try to eliminate unused var
-      hh := gensym('h');
-      ee := subs(int=Int, bind_late(LO(hh, int(applyintegrand(hh,var), var=rng)), var, h, e));
-      if has(ee, {MeijerG}) then
-        # Maple was too good at integration
-        ee := NULL
-      end if
+      (dom_spec, rest) := selectremove(depends, dom_spec, var);
+      if dom_spec <> {} then e := Indicator(dom_spec) * e end if;
+      e := Int(e, var=new_rng);
+      if rest <> {} then e := Indicator(rest) * e end if;
     end if;
-    if ee = NULL then
-      # if there are domain restrictions, try to apply them
-      (dom_spec, ee) := get_indicators(e);
-      (new_rng, dom_spec) := extract_dom(dom_spec, var);
-      new_rng := map((b -> min(max(b, op(1,new_rng)), op(2,new_rng))), rng);
-      if Testzero(op(2,new_rng)-op(1,new_rng)) then
-        # trivial integration bounds
-        ee := 0
-      else
-        (dom_spec, rest) := selectremove(depends, dom_spec, var);
-        if dom_spec <> {} then ee := Indicator(dom_spec) * ee end if;
-        ee := Int(ee, var=new_rng);
-        if rest <> {} then ee := Indicator(rest) * ee end if;
-      end if
-    end if;
-    ee
+    e
   end proc;
 
   get_indicators := proc(e)
@@ -325,7 +327,7 @@ NewSLO := module ()
     if g = 0 then
       0
     elif not depends(g, x) then
-      value(integrate(m, x->1)) * g
+      integrate(m, x->1) * g
     elif g :: `+` then
       map[4](bind_late, m, x, h, g)
     elif g :: `*` then
@@ -358,7 +360,7 @@ NewSLO := module ()
         proc(m) 0 end proc,
         g)(m)
     else
-      value(integrate(m, Integrand(x, g)))
+      integrate(m, Integrand(x, g))
     end if
   end proc;
 
@@ -537,7 +539,8 @@ NewSLO := module ()
       rng := hi - lo;
       w := simplify(weight * (hi - lo));
       # weight could be piecewise and simplify will hide the problem
-      if not (rng :: 'SymbolicInfinity' or w :: {'SymbolicInfinity', 'undefined'}) then
+      if not (rng :: 'SymbolicInfinity'
+              or w :: {'SymbolicInfinity', 'undefined'}) then
         res := Recognized(Uniform(lo, hi), w)
       end if
     end if;

@@ -1,6 +1,10 @@
 kernelopts(assertlevel=2): # be strict on all assertions while testing
 kernelopts(opaquemodules=false): # allow testing of internal routines
 read "NewSLO.mpl":
+if not (NewSLO :: `module`) then
+  WARNING("loading NewSLO failed");
+  `quit`(3);
+end if;
 
 with(NewSLO):
 
@@ -228,4 +232,4 @@ TestHakaru(bp(y>x, m1, y>0, m2, m3), Msum(Weight(1/2, m1), Weight(1/8, m2), Weig
 TestHakaru(bp(y>0, m1, y>x, m2, m3), Msum(Weight(1/2, m1), Weight(1/8, m2), Weight(3/8, m3)), label="bind_late piecewise 7");
 
 # Simplify is not yet idempotent
-TestHakaru(Bind(Uniform(0,1), x, Weight(x, Uniform(0,x))), Weight(1/2, BetaD(1, 2)), simp=Simplify@Simplify);
+TestHakaru(Bind(Uniform(0,1), x, Weight(x, Uniform(0,x))), Weight(1/2, BetaD(1, 2)));
