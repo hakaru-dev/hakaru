@@ -76,14 +76,14 @@ NewSLO := module ()
   local t_pw, unweight, factorize,
         recognize, get_de, recognize_de, Diffop, Recognized,
         step2, simplify_assuming, simp_pw, simp_Int, get_indicators,
-        indicator, extract_dom, bind_late,
+        indicator, extract_dom, bind_late, known_measures,
         piecewise_if, nub_piecewise, foldr_piecewise,
         verify_measure;
   export Integrand, applyintegrand, app, lam,
          Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD, StudentT,
          Ret, Bind, Msum, Weight, LO, Indicator,
          HakaruToLO, integrate, LOToHakaru, unintegrate,
-         TestHakaru, measure, density,
+         TestHakaru, measure, density, bounds,
          Simplify;
 
   t_pw := 'specfunc(piecewise)';
@@ -113,30 +113,17 @@ NewSLO := module ()
     LO(h, integrate(m, h))
   end proc;
 
+  known_measures := '{Lebesgue(), Uniform(anything, anything), 
+    Gaussian(anything, anything), Cauchy  (anything, anything),
+    StudentT(anything, anything, anything),
+    BetaD(anything, anything), GammaD(anything, anything)}':
+    
   integrate := proc(m, h)
     local x, n, i;
-    if m :: 'Lebesgue()' then
-      x := gensym('xl');
-      Int(applyintegrand(h, x),
-          x=-infinity..infinity)
-    elif m :: 'Uniform(anything, anything)' then
-      x := gensym('xu');
-      Int(applyintegrand(h, x) / (op(2,m)-op(1,m)),
-          x=op(1,m)..op(2,m))
-    elif m :: '{Gaussian(anything, anything),
-                Cauchy  (anything, anything),
-                StudentT(anything, anything, anything)}' then
-      x := gensym('xg');
-      Int(density[op(0,m)](op(m))(x) * applyintegrand(h, x),
-          x=-infinity..infinity)
-    elif m :: 'BetaD(anything, anything)' then
-      x := gensym('xb');
-      Int(density[op(0,m)](op(m))(x) * applyintegrand(h, x),
-          x=0..1)
-    elif m :: 'GammaD(anything, anything)' then
-      x := gensym('xr');
-      Int(density[op(0,m)](op(m))(x) * applyintegrand(h, x),
-          x=0..infinity)
+    if m :: known_measures then
+      x := gensym('xx');
+      Int(density[op(0,m)](op(m))(x) * applyintegrand(h, x), 
+        x = bounds[op(0,m)](op(m)));
     elif m :: 'Ret(anything)' then
       applyintegrand(h, op(1,m))
     elif m :: 'Bind(anything, name, anything)' then
@@ -613,6 +600,10 @@ NewSLO := module ()
     FAIL
   end proc;
 
+  density[Lebesgue] := proc() proc(x) 1 end proc end proc;
+  density[Uniform] := proc(a,b) proc(x)
+    1/(b-a)
+  end proc end proc;
   density[Gaussian] := proc(mu, sigma) proc(x)
     1/sigma/sqrt(2)/sqrt(Pi)*exp(-(x-mu)^2/2/sigma^2)
   end proc end proc;
@@ -630,6 +621,14 @@ NewSLO := module ()
   density[GammaD] := proc(shape, scale) proc(x)
     x^(shape-1)/scale^shape*exp(-x/scale)/GAMMA(shape);
   end proc end proc;
+
+  bounds[Lebesgue] := proc() -infinity .. infinity end proc;
+  bounds[Uniform] := proc(a, b) a .. b end proc;
+  bounds[Gaussian] := proc(mu, sigma) -infinity .. infinity end proc;
+  bounds[Cauchy] := proc(loc, scale) -infinity .. infinity end proc;
+  bounds[StudentT] := proc(mu, sigma) -infinity .. infinity end proc;
+  bounds[BetaD] := proc(nu, loc, scale) 0 .. 1 end proc;
+  bounds[GammaD] := proc(a, b) 0 .. infinity end proc;
 
 # Testing
 
