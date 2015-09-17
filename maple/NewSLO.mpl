@@ -327,7 +327,7 @@ NewSLO := module ()
     if g = 0 then
       0
     elif not depends(g, x) then
-      value(integrate(m, x->1)) * g
+      integrate(m, x->1) * g
     elif g :: `+` then
       map[4](bind_late, m, x, h, g)
     elif g :: `*` then
@@ -360,7 +360,7 @@ NewSLO := module ()
         proc(m) 0 end proc,
         g)(m)
     else
-      value(integrate(m, Integrand(x, g)))
+      integrate(m, Integrand(x, g))
     end if
   end proc;
 
