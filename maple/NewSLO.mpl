@@ -141,13 +141,17 @@ NewSLO := module ()
   integrate := proc(m, h)
     local x, n, i;
     if m :: known_measures then
-      x := gensym('xx');
+      x := 'xx';
+      if h :: 'Integrand(name, anything)' then
+        x := op(1,h);
+      end if;
+      x := gensym(x);
       Int(density[op(0,m)](op(m))(x) * applyintegrand(h, x), 
         x = bounds[op(0,m)](op(m)));
     elif m :: 'Ret(anything)' then
       applyintegrand(h, op(1,m))
     elif m :: 'Bind(anything, name, anything)' then
-      integrate(op(1,m), z -> integrate(eval(op(3,m), op(2,m) = z), h))
+      integrate(op(1,m), Integrand(op(2,m), integrate(op(3,m), h)))
     elif m :: 'specfunc(Msum)' then
       `+`(op(map(integrate, [op(m)], h)))
     elif m :: 'Weight(anything, anything)' then
