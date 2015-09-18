@@ -95,8 +95,8 @@ NewSLO := module ()
   option package;
   local t_pw, unweight, factorize,
         recognize, get_de, recognize_de, Diffop, Recognized,
-        step2, simplify_assuming, simp_pw, simp_Int, get_indicators,
-        indicator, extract_dom, bind_late, known_measures,
+        reduce, simplify_assuming, reduce_pw, reduce_Int, get_indicators,
+        indicator, extract_dom, banish, known_measures,
         piecewise_if, nub_piecewise, foldr_piecewise,
         verify_measure;
   export Integrand, applyintegrand, app, lam,
@@ -173,14 +173,14 @@ NewSLO := module ()
 # Step 2 of 3: computer algebra
 
   Simplify := proc(lo :: LO(name, anything))
-    LO(op(1,lo), step2(op(2,lo), op(1,lo), []))
+    LO(op(1,lo), reduce(op(2,lo), op(1,lo), []))
   end proc;
 
   # Walk through integrals and simplify, recursing through grammar
   # h - name of the linear operator above us
   # constraints - domain information
   # TODO unify constraints with unintegrate's context
-  step2 := proc(ee, h :: name, constraints :: list(name=anything))
+  reduce := proc(ee, h :: name, constraints :: list(name=anything))
     # option remember, system;
     local e, elim, hh, subintegral, w, n;
     e := ee;
@@ -190,7 +190,7 @@ NewSLO := module ()
       # try to eliminate unused var
       hh := gensym('h');
       elim := subs(int=Int,
-                bind_late(LO(hh, int(applyintegrand(hh,op([2,1],e)), op(2,e))),
+                banish(LO(hh, int(applyintegrand(hh,op([2,1],e)), op(2,e))),
                   op([2,1],e), h, op(1,e)));
       if has(elim, {MeijerG}) or numboccur(elim,Int) >= numboccur(e,Int) then
         # Maple was too good at integration
@@ -200,26 +200,26 @@ NewSLO := module ()
     end do;
 
     if e :: Int(anything, name=anything) then
-      simp_Int(step2(op(1,e), h, [op(2,e), op(constraints)]),
+      reduce_Int(reduce(op(1,e), h, [op(2,e), op(constraints)]),
                op([2,1],e), op([2,2],e), h, constraints)
     elif e :: `+` then
-      map(step2, e, h, constraints)
+      map(reduce, e, h, constraints)
     elif e :: `*` then
       (subintegral, w) := selectremove(depends, e, h);
       if subintegral :: `*` then error "Nonlinear integral %1", e end if;
-      simp_pw(simplify_assuming(w, constraints))
-        * step2(subintegral, h, constraints)
+      reduce_pw(simplify_assuming(w, constraints))
+        * reduce(subintegral, h, constraints)
     elif e :: t_pw then
       n := nops(e);
       e := piecewise(seq(`if`(i::even or i=n,
-                              step2(op(i,e), h, constraints),
+                              reduce(op(i,e), h, constraints),
                                 # TODO: update_context like unintegrate does
                               simplify_assuming(op(i,e), constraints)),
                          i=1..n));
       # big hammer: simplify knows about bound variables, amongst many
       # other things
       Testzero := x -> evalb(simplify(x) = 0);
-      simp_pw(e)
+      reduce_pw(e)
     else
       simplify_assuming(e, constraints)
     end if;
@@ -236,7 +236,7 @@ NewSLO := module ()
     simplify(e) assuming op(map(f, constraints));
   end proc;
 
-  simp_pw := proc(ee) # ee may or may not be piecewise
+  reduce_pw := proc(ee) # ee may or may not be piecewise
     local e;
     e := nub_piecewise(ee);
     if e :: t_pw then
@@ -251,7 +251,7 @@ NewSLO := module ()
     return e
   end proc;
 
-  simp_Int := proc(ee, var :: name, rng, h :: name, constraints :: list)
+  reduce_Int := proc(ee, var :: name, rng, h :: name, constraints :: list)
     local e, dom_spec, new_rng, rest;
 
     # if there are domain restrictions, try to apply them
@@ -330,8 +330,8 @@ NewSLO := module ()
     Indicator(to_set(b))
   end proc;
 
-  bind_late := proc(m, x :: name, h :: name, g)
-    # LO(h, bind_late(m, x, h, g)) should be equivalent to Bind(m, x, LO(h, g))
+  banish := proc(m, x :: name, h :: name, g)
+    # LO(h, banish(m, x, h, g)) should be equivalent to Bind(m, x, LO(h, g))
     # but performs integration over x innermost rather than outermost.
     local guard, subintegral, w, y, yRename, lo, hi, mm;
     guard := proc(m, c) Bind(m, x, piecewise(c, Ret(x), Msum())) end proc;
@@ -340,11 +340,11 @@ NewSLO := module ()
     elif not depends(g, x) then
       integrate(m, x->1) * g
     elif g :: `+` then
-      map[4](bind_late, m, x, h, g)
+      map[4](banish, m, x, h, g)
     elif g :: `*` then
       (subintegral, w) := selectremove(depends, g, h);
       if subintegral :: `*` then error "Nonlinear integral %1", g end if;
-      bind_late(Bind(m, x, Weight(w, Ret(x))), x, h, subintegral)
+      banish(Bind(m, x, Weight(w, Ret(x))), x, h, subintegral)
     elif g :: 'And'('specfunc({Int,int})',
                     'anyfunc'('anything','name'='range'('freeof'(h)))) then
       subintegral := op(1, g);
@@ -358,14 +358,14 @@ NewSLO := module ()
       mm := m;
       if depends(lo, x) then mm := guard(mm, lo<y); lo := -infinity end if;
       if depends(hi, x) then mm := guard(mm, y<hi); hi :=  infinity end if;
-      op(0,g)(bind_late(mm, x, h, subintegral), y=lo..hi)
+      op(0,g)(banish(mm, x, h, subintegral), y=lo..hi)
     elif g :: t_pw then
       foldr_piecewise(
         proc(cond, th, el) proc(m)
           if depends(cond, x) then
-            bind_late(guard(m, cond), x, h, th) + el(guard(m, Not(cond)))
+            banish(guard(m, cond), x, h, th) + el(guard(m, Not(cond)))
           else
-            piecewise_if(cond, bind_late(m, x, h, th), el(m))
+            piecewise_if(cond, banish(m, x, h, th), el(m))
           end if
         end proc end proc,
         proc(m) 0 end proc,
