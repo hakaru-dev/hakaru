@@ -104,7 +104,7 @@ NewSLO := module ()
          Ret, Bind, Msum, Weight, LO, Indicator,
          HakaruToLO, integrate, LOToHakaru, unintegrate,
          TestHakaru, measure, density, bounds,
-         Simplify;
+         Simplify, Banish;
 
   t_pw := 'specfunc(piecewise)';
 
@@ -176,6 +176,15 @@ NewSLO := module ()
     LO(op(1,lo), reduce(op(2,lo), op(1,lo), []))
   end proc;
 
+  Banish := proc(e :: Int(anything, name=anything), h :: name,
+                 levels :: extended_numeric)
+    local hh;
+    hh := gensym('h');
+    subs(int=Int,
+      banish(LO(hh, int(applyintegrand(hh,op([2,1],e)), op(2,e))),
+        op([2,1],e), h, op(1,e), infinity));
+  end proc;
+
   # Walk through integrals and simplify, recursing through grammar
   # h - name of the linear operator above us
   # constraints - domain information
@@ -191,7 +200,7 @@ NewSLO := module ()
       hh := gensym('h');
       elim := subs(int=Int,
                 banish(LO(hh, int(applyintegrand(hh,op([2,1],e)), op(2,e))),
-                  op([2,1],e), h, op(1,e)));
+                  op([2,1],e), h, op(1,e), infinity));
       if has(elim, {MeijerG}) or numboccur(elim,Int) >= numboccur(e,Int) then
         # Maple was too good at integration
         break;
@@ -330,21 +339,23 @@ NewSLO := module ()
     Indicator(to_set(b))
   end proc;
 
-  banish := proc(m, x :: name, h :: name, g)
+  banish := proc(m, x :: name, h :: name, g, levels :: extended_numeric)
     # LO(h, banish(m, x, h, g)) should be equivalent to Bind(m, x, LO(h, g))
     # but performs integration over x innermost rather than outermost.
     local guard, subintegral, w, y, yRename, lo, hi, mm;
     guard := proc(m, c) Bind(m, x, piecewise(c, Ret(x), Msum())) end proc;
     if g = 0 then
       0
+    elif levels <= 0 then
+      integrate(m, Integrand(x, g))
     elif not depends(g, x) then
       integrate(m, x->1) * g
     elif g :: `+` then
-      map[4](banish, m, x, h, g)
+      map[4](banish, m, x, h, g, levels)
     elif g :: `*` then
       (subintegral, w) := selectremove(depends, g, h);
       if subintegral :: `*` then error "Nonlinear integral %1", g end if;
-      banish(Bind(m, x, Weight(w, Ret(x))), x, h, subintegral)
+      banish(Bind(m, x, Weight(w, Ret(x))), x, h, subintegral, levels)
     elif g :: 'And'('specfunc({Int,int})',
                     'anyfunc'('anything','name'='range'('freeof'(h)))) then
       subintegral := op(1, g);
@@ -358,14 +369,14 @@ NewSLO := module ()
       mm := m;
       if depends(lo, x) then mm := guard(mm, lo<y); lo := -infinity end if;
       if depends(hi, x) then mm := guard(mm, y<hi); hi :=  infinity end if;
-      op(0,g)(banish(mm, x, h, subintegral), y=lo..hi)
+      op(0,g)(banish(mm, x, h, subintegral, levels-1), y=lo..hi)
     elif g :: t_pw then
       foldr_piecewise(
         proc(cond, th, el) proc(m)
           if depends(cond, x) then
-            banish(guard(m, cond), x, h, th) + el(guard(m, Not(cond)))
+            banish(guard(m, cond), x, h, th, levels-1) + el(guard(m, Not(cond)))
           else
-            piecewise_if(cond, banish(m, x, h, th), el(m))
+            piecewise_if(cond, banish(m, x, h, th, levels-1), el(m))
           end if
         end proc end proc,
         proc(m) 0 end proc,
