@@ -61,11 +61,31 @@ end proc:
 # make gensym global, so that it can be shared with other 'global' routines
 gensym := module()
   export ModuleApply;
-  local gs_counter;
-  gs_counter := 0;
+  local gs_counter, utf8, blocks, radix, unicode;
+  gs_counter := -1;
+  utf8 := proc(n :: integer)
+    local m;
+    if n<128 then n
+    elif n<2048 then 192+iquo(n,64,'m'), 128+m
+    elif n<65536 then 224+iquo(n,4096,'m'), 128+iquo(m,64,'m'), 128+m
+    elif n<2097152 then 240+iquo(n,262144,'m'), 128+iquo(m,4096,'m'), 128+iquo(m,64,'m'), 128+m
+    elif n<67108864 then 248+iquo(n,16777216,'m'), 128+iquo(m,262144,'m'), 128+iquo(m,4096,'m'), 128+iquo(m,64,'m'), 128+m
+    elif n<2147483648 then 248+iquo(n,1073741824,'m'), 128+iquo(m,16777216,'m'), 128+iquo(m,262144,'m'), 128+iquo(m,4096,'m'), 128+iquo(m,64,'m'), 128+m
+    end if
+  end proc;
+  blocks := map((b -> block(convert(op(0,b), decimal, hex), op(1,b))),
+                ["4e00"(20950)]);
+  radix := `+`(op(map2(op, 2, blocks))) / 2;
+  unicode := proc(nn)
+    local n, b;
+    n := nn;
+    for b in blocks do
+      if n < op(2,b) then return n + op(1,b) else n := n - op(2,b) end if
+    end do
+  end proc;
   ModuleApply := proc(x::name)
     gs_counter := gs_counter + 1;
-    x || gs_counter;
+    cat(x, op(map(StringTools:-Char, map(utf8 @ unicode, applyop(`+`, 1, map(`*`, convert(gs_counter, 'base', radix), 2), 1)))))
   end proc;
 end module: # gensym
 
