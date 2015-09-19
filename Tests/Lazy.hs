@@ -8,21 +8,24 @@ import Language.Hakaru.Lazy
 import Language.Hakaru.Any (Any(Any, unAny))
 import Language.Hakaru.Syntax (Hakaru(..), Base(..),
                                ununit, max_, liftM, liftM2, bind_,
-                               swap_, bern, fst_,
+                               swap_, bern, fst_, not_, equal_, weight,
                                Mochastic(..), Lambda(..), Integrate(..),
                                Order_(..))
 import Language.Hakaru.PrettyPrint (PrettyPrint, runPrettyPrint, leftMode)
 import Language.Hakaru.Simplify (Simplifiable, closeLoop, simplify)
-import Language.Hakaru.Expect (Expect(Expect), Expect', normalize)
+import Language.Hakaru.Expect (Expect(Expect), Expect', normalize, total)
 import Language.Hakaru.Maple (Maple)
 import Language.Hakaru.Inference
 import Tests.TestTools
 import qualified Tests.Models as RT
-import qualified Examples.EasierRoadmap as RM    
+import qualified Examples.EasierRoadmap as RM
+import Examples.BenchmarkProblems (runExpect)
 
 import Data.Typeable (Typeable)    
 import Test.HUnit
 import qualified Data.List as L
+
+import Text.PrettyPrint    
 
 recover :: (Typeable a) => PrettyPrint a -> IO (Any a)
 recover hakaru = closeLoop ("Any (" ++ leftMode (runPrettyPrint hakaru) ++ ")")
@@ -194,7 +197,49 @@ zeroDiv
 zeroDiv = \u -> ununit u $
           normal 0 1 `bind` \x ->
           dirac (pair x (0 / x))
+            
+-- cushing :: (Mochastic repr) => Cond repr () (Measure (Real,Real))
+-- cushing = \u -> ununit u $
+--           uniform 0 1 `bind` \x ->
+--           if_ (not_ (equal_ x (1/2)))
+--               (uniform 0 x)
+--               (uniform x 1) `bind` \y ->
+--           dirac (pair y x)                
 
+-- cushingObs n = simplify (d `app` unit `app` n)
+--     where d:_ = runDisintegrate cushing
+
+-- cushingSimpl = mapM simplify d
+--     where d = runDisintegrate cushing
+
+-- cobb :: (Mochastic repr) => Cond repr () (Measure (Real,Real))
+-- cobb = \u -> ununit u $
+--        uniform 0 1 `bind` \x ->
+--        uniform (-x) x `bind` \y ->
+--        dirac (pair y x)
+
+-- cobbSimpl = mapM simplify d
+--     where d = runDisintegrate cobb
+             
+-- cobbObs n = simplify (d `app` unit `app` n)
+--     where d:_ = runDisintegrate cobb
+
+-- cobb0 :: (Mochastic repr, Lambda repr, Integrate repr)
+--          => Expect repr (Measure Prob)
+-- cobb0 = uniform 0 1 `bind` \x0 ->
+--         weight (recip (unsafeProb x0) * (1/2)) $
+--         dirac (unsafeProb x0)
+
+-- expectCobb0 :: Doc
+-- expectCobb0 = runPrettyPrint (runExpect cobb0)
+
+-- totalCobb0 :: Doc
+-- totalCobb0 = runPrettyPrint (total cobb0)
+
+-- thenSimpl1 = simplify $ dirac (total cobb0)
+-- thenSimpl2 = simplify $ dirac (runExpect cobb0)
+-- thenSimpl3 = simplify $ normalize cobb0
+                          
 zeroAddInt
     :: (Mochastic repr)
     => Cond repr HUnit (HMeasure (HPair HInt HInt))
