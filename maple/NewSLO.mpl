@@ -218,7 +218,7 @@ NewSLO := module ()
   # TODO unify constraints with unintegrate's context
   reduce := proc(ee, h :: name, constraints :: list(name=anything))
     # option remember, system;
-    local e, elim, hh, subintegral, w, n;
+    local e, elim, hh, subintegral, w, n, x;
     e := ee;
 
     while e :: Int(anything, name=anything) and not hastype(op(1,e),
@@ -256,6 +256,11 @@ NewSLO := module ()
       # other things
       Testzero := x -> evalb(simplify(x) = 0);
       reduce_pw(e)
+    elif e :: 'integrate(anything, Integrand(name, anything))' then
+      x := gensym(op([2,1],e));
+      # TODO is there any way to enrich constraints in this case?
+      subsop(2=Integrand(x, reduce(subs(op([2,1],e)=x, op([2,2],e)),
+                                   h, constraints)), e)
     else
       simplify_assuming(e, constraints)
     end if;

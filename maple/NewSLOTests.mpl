@@ -233,3 +233,6 @@ TestHakaru(bp(y>0, m1, y>x, m2, m3), Msum(Weight(1/2, m1), Weight(1/8, m2), Weig
 
 # Simplify is not yet idempotent
 TestHakaru(Bind(Uniform(0,1), x, Weight(x, Uniform(0,x))), Weight(1/2, BetaD(1, 2)));
+
+unk_pw := Bind(m, y, Bind(Gaussian(0,1), x, piecewise(x<0, Ret(-x), Ret(x)))):
+TestHakaru(unk_pw, unk_pw, label="Don't simplify Integrand willy-nilly");
