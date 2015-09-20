@@ -540,7 +540,11 @@ NewSLO := module ()
                               op(i,integral)),
                     i=1..n))
     elif integral :: 'integrate'('freeof'(h), 'anything') then
-      x := gensym('x');
+      x := 'x';
+      if op(2,integral) :: 'Integrand(name, anything)' then
+        x := op([2,1],integral);
+      end if;
+      x := gensym(x);
       # TODO is there any way to enrich context in this case?
       Bind(op(1,integral), x,
            unintegrate(h, applyintegrand(op(2,integral), x), context))
