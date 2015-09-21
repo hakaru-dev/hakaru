@@ -233,3 +233,14 @@ TestHakaru(bp(y>0, m1, y>x, m2, m3), Msum(Weight(1/2, m1), Weight(1/8, m2), Weig
 
 # Simplify is not yet idempotent
 TestHakaru(Bind(Uniform(0,1), x, Weight(x, Uniform(0,x))), Weight(1/2, BetaD(1, 2)));
+
+# Test for change of variables; see Tests/Relationships.hs
+# t1
+# cv1 := Bind(Gaussian(mu, sigma), x, Ret((x-mu)/sigma)):
+# cv1s := Gaussian(0,1):
+# TestHakaru(cv1, cv1s, label = "renormalize Gaussian") assuming sigma>0;
+
+# t28
+# cv2 := Bind(BetaD(a,b), x, Ret(1-x)):
+# cv2s := BetaD(b,a):
+# TestHakaru(cv2, cv2s, label = "swap BetaD") assuming a>0,b>0;
