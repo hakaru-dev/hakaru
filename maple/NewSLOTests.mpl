@@ -235,4 +235,14 @@ TestHakaru(bp(y>0, m1, y>x, m2, m3), Msum(Weight(1/2, m1), Weight(1/8, m2), Weig
 TestHakaru(Bind(Uniform(0,1), x, Weight(x, Uniform(0,x))), Weight(1/2, BetaD(1, 2)));
 
 unk_pw := Bind(m, y, Bind(Gaussian(0,1), x, piecewise(x<0, Ret(-x), Ret(x)))):
+unk1   := Bind(Gaussian(0,1), x, Bind(m, y, Bind(Gaussian(x,1), z, Ret([y,z])))):
+unk1s  := Bind(m, y, Bind(Gaussian(0,sqrt(2)), z, Ret([y,z]))):
+unk2   := Bind(Gaussian(0,1), x, Bind(Gaussian(x,1), z, Bind(m, y, Ret([y,z])))):
+unk2s  := Bind(Gaussian(0,sqrt(2)), z, Bind(m, y, Ret([y,z]))):
+unk3   := Bind(Gaussian(0,1), x, Bind(m(x), y, Bind(Gaussian(x,1), z, Ret([y,z])))):
+unk4   := Bind(Gaussian(0,1), x, Bind(Gaussian(x,1), z, Bind(m(x), y, Ret([y,z])))):
 TestHakaru(unk_pw, unk_pw, label="Don't simplify Integrand willy-nilly");
+TestHakaru(unk1, unk1s, label="Banish into Integrand 1");
+TestHakaru(unk2, unk2s, label="Banish into Integrand 2");
+TestHakaru(unk3, unk3, label="Banish into Integrand 3");
+TestHakaru(unk4, unk4, label="Banish into Integrand 4");

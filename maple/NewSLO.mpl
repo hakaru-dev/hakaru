@@ -413,6 +413,10 @@ NewSLO := module ()
         end proc end proc,
         proc(m) 0 end proc,
         g)(m)
+    elif g :: 'integrate(freeof(x), Integrand(name, anything))' then
+      y := gensym(op([2,1],g));
+      subsop(2=Integrand(y, banish(m, x, h,
+        subs(op([2,1],g)=y, op([2,2],g)), levels-1)), g)
     else
       integrate(m, Integrand(x, g))
     end if
