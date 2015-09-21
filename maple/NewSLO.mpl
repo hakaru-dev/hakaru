@@ -61,11 +61,31 @@ end proc:
 # make gensym global, so that it can be shared with other 'global' routines
 gensym := module()
   export ModuleApply;
-  local gs_counter;
-  gs_counter := 0;
+  local gs_counter, utf8, blocks, radix, unicode;
+  gs_counter := -1;
+  utf8 := proc(n :: integer)
+    local m;
+    if n<128 then n
+    elif n<2048 then 192+iquo(n,64,'m'), 128+m
+    elif n<65536 then 224+iquo(n,4096,'m'), 128+iquo(m,64,'m'), 128+m
+    elif n<2097152 then 240+iquo(n,262144,'m'), 128+iquo(m,4096,'m'), 128+iquo(m,64,'m'), 128+m
+    elif n<67108864 then 248+iquo(n,16777216,'m'), 128+iquo(m,262144,'m'), 128+iquo(m,4096,'m'), 128+iquo(m,64,'m'), 128+m
+    elif n<2147483648 then 248+iquo(n,1073741824,'m'), 128+iquo(m,16777216,'m'), 128+iquo(m,262144,'m'), 128+iquo(m,4096,'m'), 128+iquo(m,64,'m'), 128+m
+    end if
+  end proc;
+  blocks := map((b -> block(convert(op(0,b), decimal, hex), op(1,b))),
+                ["4e00"(20950)]);
+  radix := `+`(op(map2(op, 2, blocks))) / 2;
+  unicode := proc(nn)
+    local n, b;
+    n := nn;
+    for b in blocks do
+      if n < op(2,b) then return n + op(1,b) else n := n - op(2,b) end if
+    end do
+  end proc;
   ModuleApply := proc(x::name)
     gs_counter := gs_counter + 1;
-    x || gs_counter;
+    cat(x, op(map(StringTools:-Char, map(utf8 @ unicode, applyop(`+`, 1, map(`*`, convert(gs_counter, 'base', radix), 2), 1)))))
   end proc;
 end module: # gensym
 
@@ -75,8 +95,8 @@ NewSLO := module ()
   option package;
   local t_pw, unweight, factorize,
         recognize, get_de, recognize_de, Diffop, Recognized,
-        step2, simplify_assuming, simp_pw, simp_Int, get_indicators,
-        indicator, extract_dom, bind_late, known_measures,
+        reduce, simplify_assuming, reduce_pw, reduce_Int, get_indicators,
+        indicator, extract_dom, banish, known_measures,
         piecewise_if, nub_piecewise, foldr_piecewise,
         verify_measure;
   export Integrand, applyintegrand, app, lam,
@@ -84,7 +104,7 @@ NewSLO := module ()
          Ret, Bind, Msum, Weight, LO, Indicator,
          HakaruToLO, integrate, LOToHakaru, unintegrate,
          TestHakaru, measure, density, bounds,
-         Simplify;
+         Simplify, ReparamDetermined, determined, Reparam, Banish;
 
   t_pw := 'specfunc(piecewise)';
 
@@ -121,13 +141,17 @@ NewSLO := module ()
   integrate := proc(m, h)
     local x, n, i;
     if m :: known_measures then
-      x := gensym('xx');
+      x := 'xx';
+      if h :: 'Integrand(name, anything)' then
+        x := op(1,h);
+      end if;
+      x := gensym(x);
       Int(density[op(0,m)](op(m))(x) * applyintegrand(h, x), 
         x = bounds[op(0,m)](op(m)));
     elif m :: 'Ret(anything)' then
       applyintegrand(h, op(1,m))
     elif m :: 'Bind(anything, name, anything)' then
-      integrate(op(1,m), z -> integrate(eval(op(3,m), op(2,m) = z), h))
+      integrate(op(1,m), Integrand(op(2,m), integrate(op(3,m), h)))
     elif m :: 'specfunc(Msum)' then
       `+`(op(map(integrate, [op(m)], h)))
     elif m :: 'Weight(anything, anything)' then
@@ -149,16 +173,52 @@ NewSLO := module ()
 # Step 2 of 3: computer algebra
 
   Simplify := proc(lo :: LO(name, anything))
-    LO(op(1,lo), step2(op(2,lo), op(1,lo), []))
+    LO(op(1,lo), reduce(op(2,lo), op(1,lo), []))
+  end proc;
+
+  ReparamDetermined := proc(lo :: LO(name, anything))
+    local h;
+    h := op(1,lo);
+    LO(h,
+       evalindets(op(2,lo),
+                  'And'('specfunc({Int,int})',
+                        'anyfunc'(anything, 'name=anything')),
+                  g -> `if`(determined(op(1,g),h), Reparam(g,h), g)))
+  end proc;
+
+  determined := proc(e, h :: name)
+    local ints, i;
+    ints := indets(e, 'specfunc({Int,int})');
+    for i in ints do
+      if hastype(IntegrationTools:-GetIntegrand(i),
+           'applyintegrand'('identical'(h),
+             'dependent'(IntegrationTools:-GetVariable(i)))) then
+        return false
+      end if
+    end do;
+    return true
+  end proc;
+
+  Reparam := proc(e :: Int(anything, name=anything), h :: name)
+    'procname(_passed)' # TODO to be implemented
+  end proc;
+
+  Banish := proc(e :: Int(anything, name=anything), h :: name,
+                 levels :: extended_numeric)
+    local hh;
+    hh := gensym('h');
+    subs(int=Int,
+      banish(LO(hh, int(applyintegrand(hh,op([2,1],e)), op(2,e))),
+        op([2,1],e), h, op(1,e), infinity));
   end proc;
 
   # Walk through integrals and simplify, recursing through grammar
   # h - name of the linear operator above us
   # constraints - domain information
   # TODO unify constraints with unintegrate's context
-  step2 := proc(ee, h :: name, constraints :: list(name=anything))
+  reduce := proc(ee, h :: name, constraints :: list(name=anything))
     # option remember, system;
-    local e, elim, hh, subintegral, w, n;
+    local e, elim, hh, subintegral, w, n, x;
     e := ee;
 
     while e :: Int(anything, name=anything) and not hastype(op(1,e),
@@ -166,8 +226,8 @@ NewSLO := module ()
       # try to eliminate unused var
       hh := gensym('h');
       elim := subs(int=Int,
-                bind_late(LO(hh, int(applyintegrand(hh,op([2,1],e)), op(2,e))),
-                  op([2,1],e), h, op(1,e)));
+                banish(LO(hh, int(applyintegrand(hh,op([2,1],e)), op(2,e))),
+                  op([2,1],e), h, op(1,e), infinity));
       if has(elim, {MeijerG}) or numboccur(elim,Int) >= numboccur(e,Int) then
         # Maple was too good at integration
         break;
@@ -176,26 +236,31 @@ NewSLO := module ()
     end do;
 
     if e :: Int(anything, name=anything) then
-      simp_Int(step2(op(1,e), h, [op(2,e), op(constraints)]),
+      reduce_Int(reduce(op(1,e), h, [op(2,e), op(constraints)]),
                op([2,1],e), op([2,2],e), h, constraints)
     elif e :: `+` then
-      map(step2, e, h, constraints)
+      map(reduce, e, h, constraints)
     elif e :: `*` then
       (subintegral, w) := selectremove(depends, e, h);
       if subintegral :: `*` then error "Nonlinear integral %1", e end if;
-      simp_pw(simplify_assuming(w, constraints))
-        * step2(subintegral, h, constraints)
+      reduce_pw(simplify_assuming(w, constraints))
+        * reduce(subintegral, h, constraints)
     elif e :: t_pw then
       n := nops(e);
       e := piecewise(seq(`if`(i::even or i=n,
-                              step2(op(i,e), h, constraints),
+                              reduce(op(i,e), h, constraints),
                                 # TODO: update_context like unintegrate does
                               simplify_assuming(op(i,e), constraints)),
                          i=1..n));
       # big hammer: simplify knows about bound variables, amongst many
       # other things
       Testzero := x -> evalb(simplify(x) = 0);
-      simp_pw(e)
+      reduce_pw(e)
+    elif e :: 'integrate(anything, Integrand(name, anything))' then
+      x := gensym(op([2,1],e));
+      # TODO is there any way to enrich constraints in this case?
+      subsop(2=Integrand(x, reduce(subs(op([2,1],e)=x, op([2,2],e)),
+                                   h, constraints)), e)
     else
       simplify_assuming(e, constraints)
     end if;
@@ -212,7 +277,7 @@ NewSLO := module ()
     simplify(e) assuming op(map(f, constraints));
   end proc;
 
-  simp_pw := proc(ee) # ee may or may not be piecewise
+  reduce_pw := proc(ee) # ee may or may not be piecewise
     local e;
     e := nub_piecewise(ee);
     if e :: t_pw then
@@ -227,7 +292,7 @@ NewSLO := module ()
     return e
   end proc;
 
-  simp_Int := proc(ee, var :: name, rng, h :: name, constraints :: list)
+  reduce_Int := proc(ee, var :: name, rng, h :: name, constraints :: list)
     local e, dom_spec, new_rng, rest;
 
     # if there are domain restrictions, try to apply them
@@ -306,21 +371,23 @@ NewSLO := module ()
     Indicator(to_set(b))
   end proc;
 
-  bind_late := proc(m, x :: name, h :: name, g)
-    # LO(h, bind_late(m, x, h, g)) should be equivalent to Bind(m, x, LO(h, g))
+  banish := proc(m, x :: name, h :: name, g, levels :: extended_numeric)
+    # LO(h, banish(m, x, h, g)) should be equivalent to Bind(m, x, LO(h, g))
     # but performs integration over x innermost rather than outermost.
     local guard, subintegral, w, y, yRename, lo, hi, mm;
     guard := proc(m, c) Bind(m, x, piecewise(c, Ret(x), Msum())) end proc;
     if g = 0 then
       0
+    elif levels <= 0 then
+      integrate(m, Integrand(x, g))
     elif not depends(g, x) then
       integrate(m, x->1) * g
     elif g :: `+` then
-      map[4](bind_late, m, x, h, g)
+      map[4](banish, m, x, h, g, levels)
     elif g :: `*` then
       (subintegral, w) := selectremove(depends, g, h);
       if subintegral :: `*` then error "Nonlinear integral %1", g end if;
-      bind_late(Bind(m, x, Weight(w, Ret(x))), x, h, subintegral)
+      banish(Bind(m, x, Weight(w, Ret(x))), x, h, subintegral, levels)
     elif g :: 'And'('specfunc({Int,int})',
                     'anyfunc'('anything','name'='range'('freeof'(h)))) then
       subintegral := op(1, g);
@@ -334,18 +401,22 @@ NewSLO := module ()
       mm := m;
       if depends(lo, x) then mm := guard(mm, lo<y); lo := -infinity end if;
       if depends(hi, x) then mm := guard(mm, y<hi); hi :=  infinity end if;
-      op(0,g)(bind_late(mm, x, h, subintegral), y=lo..hi)
+      op(0,g)(banish(mm, x, h, subintegral, levels-1), y=lo..hi)
     elif g :: t_pw then
       foldr_piecewise(
         proc(cond, th, el) proc(m)
           if depends(cond, x) then
-            bind_late(guard(m, cond), x, h, th) + el(guard(m, Not(cond)))
+            banish(guard(m, cond), x, h, th, levels-1) + el(guard(m, Not(cond)))
           else
-            piecewise_if(cond, bind_late(m, x, h, th), el(m))
+            piecewise_if(cond, banish(m, x, h, th, levels-1), el(m))
           end if
         end proc end proc,
         proc(m) 0 end proc,
         g)(m)
+    elif g :: 'integrate(freeof(x), Integrand(name, anything))' then
+      y := gensym(op([2,1],g));
+      subsop(2=Integrand(y, banish(m, x, h,
+        subs(op([2,1],g)=y, op([2,2],g)), levels-1)), g)
     else
       integrate(m, Integrand(x, g))
     end if
@@ -496,7 +567,11 @@ NewSLO := module ()
                               op(i,integral)),
                     i=1..n))
     elif integral :: 'integrate'('freeof'(h), 'anything') then
-      x := gensym('x');
+      x := 'x';
+      if op(2,integral) :: 'Integrand(name, anything)' then
+        x := op([2,1],integral);
+      end if;
+      x := gensym(x);
       # TODO is there any way to enrich context in this case?
       Bind(op(1,integral), x,
            unintegrate(h, applyintegrand(op(2,integral), x), context))

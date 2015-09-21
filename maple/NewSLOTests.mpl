@@ -216,20 +216,20 @@ TestHakaru(ind3, ind3s, label="bounds ordering");
 TestHakaru(Msum(ind1,ind2), Msum(ind1s,ind2s), label="simplify under sum");
 TestHakaru(piecewise(c>0,ind1,ind2), piecewise(c>0,ind1s,ind2s), label="simplify under piecewise");
 
-# test how bind_late handles piecewise
+# test how banish handles piecewise
 m1 := Uniform(0,1):
 m2 := BetaD(2,1):
 m3 := BetaD(1,2):
 bp := proc() Bind(Gaussian(0,1), x,
              Bind(Gaussian(0,1), y,
              piecewise(_passed))) end proc:
-TestHakaru(bp(x>y, m1, m2         ), Msum(Weight(1/2, m1), Weight(1/2, m2)                 ), label="bind_late piecewise 1");
-TestHakaru(bp(x>0, m1, m2         ), Msum(Weight(1/2, m1), Weight(1/2, m2)                 ), label="bind_late piecewise 2");
-TestHakaru(bp(y>0, m1, m2         ), Msum(Weight(1/2, m1), Weight(1/2, m2)                 ), label="bind_late piecewise 3");
-TestHakaru(bp(x>y, m1, x>0, m2, m3), Msum(Weight(1/2, m1), Weight(1/8, m2), Weight(3/8, m3)), label="bind_late piecewise 4");
-TestHakaru(bp(x>0, m1, x>y, m2, m3), Msum(Weight(1/2, m1), Weight(1/8, m2), Weight(3/8, m3)), label="bind_late piecewise 5");
-TestHakaru(bp(y>x, m1, y>0, m2, m3), Msum(Weight(1/2, m1), Weight(1/8, m2), Weight(3/8, m3)), label="bind_late piecewise 6");
-TestHakaru(bp(y>0, m1, y>x, m2, m3), Msum(Weight(1/2, m1), Weight(1/8, m2), Weight(3/8, m3)), label="bind_late piecewise 7");
+TestHakaru(bp(x>y, m1, m2         ), Msum(Weight(1/2, m1), Weight(1/2, m2)                 ), label="banish piecewise 1");
+TestHakaru(bp(x>0, m1, m2         ), Msum(Weight(1/2, m1), Weight(1/2, m2)                 ), label="banish piecewise 2");
+TestHakaru(bp(y>0, m1, m2         ), Msum(Weight(1/2, m1), Weight(1/2, m2)                 ), label="banish piecewise 3");
+TestHakaru(bp(x>y, m1, x>0, m2, m3), Msum(Weight(1/2, m1), Weight(1/8, m2), Weight(3/8, m3)), label="banish piecewise 4");
+TestHakaru(bp(x>0, m1, x>y, m2, m3), Msum(Weight(1/2, m1), Weight(1/8, m2), Weight(3/8, m3)), label="banish piecewise 5");
+TestHakaru(bp(y>x, m1, y>0, m2, m3), Msum(Weight(1/2, m1), Weight(1/8, m2), Weight(3/8, m3)), label="banish piecewise 6");
+TestHakaru(bp(y>0, m1, y>x, m2, m3), Msum(Weight(1/2, m1), Weight(1/8, m2), Weight(3/8, m3)), label="banish piecewise 7");
 
 # Simplify is not yet idempotent
 TestHakaru(Bind(Uniform(0,1), x, Weight(x, Uniform(0,x))), Weight(1/2, BetaD(1, 2)));
@@ -244,3 +244,16 @@ TestHakaru(Bind(Uniform(0,1), x, Weight(x, Uniform(0,x))), Weight(1/2, BetaD(1, 
 # cv2 := Bind(BetaD(a,b), x, Ret(1-x)):
 # cv2s := BetaD(b,a):
 # TestHakaru(cv2, cv2s, label = "swap BetaD") assuming a>0,b>0;
+
+unk_pw := Bind(m, y, Bind(Gaussian(0,1), x, piecewise(x<0, Ret(-x), Ret(x)))):
+unk1   := Bind(Gaussian(0,1), x, Bind(m, y, Bind(Gaussian(x,1), z, Ret([y,z])))):
+unk1s  := Bind(m, y, Bind(Gaussian(0,sqrt(2)), z, Ret([y,z]))):
+unk2   := Bind(Gaussian(0,1), x, Bind(Gaussian(x,1), z, Bind(m, y, Ret([y,z])))):
+unk2s  := Bind(Gaussian(0,sqrt(2)), z, Bind(m, y, Ret([y,z]))):
+unk3   := Bind(Gaussian(0,1), x, Bind(m(x), y, Bind(Gaussian(x,1), z, Ret([y,z])))):
+unk4   := Bind(Gaussian(0,1), x, Bind(Gaussian(x,1), z, Bind(m(x), y, Ret([y,z])))):
+TestHakaru(unk_pw, unk_pw, label="Don't simplify Integrand willy-nilly");
+TestHakaru(unk1, unk1s, label="Banish into Integrand 1");
+TestHakaru(unk2, unk2s, label="Banish into Integrand 2");
+TestHakaru(unk3, unk3, label="Banish into Integrand 3");
+TestHakaru(unk4, unk4, label="Banish into Integrand 4");
