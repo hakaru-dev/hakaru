@@ -236,7 +236,7 @@ NewSLO := module ()
     new_rng := map((b -> min(max(b, op(1,new_rng)), op(2,new_rng))), rng);
     if Testzero(op(2,new_rng)-op(1,new_rng)) then
       # trivial integration bounds
-      e := 0
+      e := 0;
     else
       (dom_spec, rest) := selectremove(depends, dom_spec, var);
       if dom_spec <> {} then e := Indicator(dom_spec) * e end if;
@@ -349,6 +349,29 @@ NewSLO := module ()
     else
       integrate(m, Integrand(x, g))
     end if
+  end proc;
+
+  # this code should not currently be used, it is just a snapshot in time
+  Reparam := proc(e::Int(anything,name=range), h::name)
+    local body, var, inds, xx, inv, new_e;
+
+    # TODO improve the checks.
+    if not has(body, {Int,int}) and hastype(e,'specfunc(applyintegrand)') then
+      inds := indets(body, 'applyintegrand'('identical'(h), 'dependent'(var)));
+      if nops(inds)=1 and op(2,inds[1]) :: algebraic and 
+         not hastype(body, t_pw) then
+        xx := gensym('xx');
+        inv := solve({op(2,inds[1])=xx}, {var});
+        try 
+          new_e := IntegrationTools[Change](e, inv, xx);
+          if not has(new_e,{'limit'}) then e := new_e end if;
+        catch:
+          # this will simply not change e
+        end try;
+      end if;
+    end if;
+
+    e;
   end proc;
 
   piecewise_if := proc(cond, th, el)
