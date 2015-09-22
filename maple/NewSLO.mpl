@@ -99,7 +99,7 @@ NewSLO := module ()
         indicator, extract_dom, banish, known_measures,
         piecewise_if, nub_piecewise, foldr_piecewise,
         verify_measure;
-  export Integrand, applyintegrand, app, lam,
+  export Integrand, applyintegrand, app, lam, map_piecewise,
          Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD, StudentT,
          Ret, Bind, Msum, Weight, LO, Indicator,
          HakaruToLO, integrate, LOToHakaru, unintegrate,
@@ -480,6 +480,15 @@ NewSLO := module ()
     end if
   end proc;
 
+  map_piecewise := proc(f,p)
+    local i;
+    if p :: t_pw then
+      piecewise(seq(`if`(i::even or i=nops(p),f(op(i,p),_rest),op(i,p)),i=1..nops(p)))
+    else
+      f(p,_rest)
+    end if
+  end proc;
+
 # Step 3 of 3: from Maple LO (linear operator) back to Hakaru
 
   Bind := proc(m, x, n)
@@ -584,6 +593,8 @@ NewSLO := module ()
   app := proc (func, argu)
     if func :: lam(name, anything) then
       eval(op(2,func), op(1,func)=argu)
+    elif func :: t_pw then
+      map_piecewise(procname, _passed)
     else
       'procname(_passed)'
     end if
