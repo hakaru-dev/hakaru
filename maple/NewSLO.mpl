@@ -12,6 +12,11 @@
   depends(m1, x) or depends(m2, x minus {v})
 end proc:
 
+# note that i _can_ occur in n.
+`depends/ary` := proc(n, i::name, e, x)
+  depends(n, x) or depends(e, x minus {i})
+end proc:
+
 generic_evalat := proc(vv, mm, eqs)
   local v, m, eqsRemain, subsEq, eq, vRename, funs;
   v, m := vv, mm;
@@ -54,6 +59,12 @@ end proc:
   local m1, v, m2;
   m1, v, m2 := op(e);
   eval(op(0,e), eqs)(eval(m1, eqs), generic_evalat(v, m2, eqs))
+end proc:
+
+`eval/ary` := proc(e, eqs)
+  local n, i, ee;
+  n, i, ee := op(e);
+  eval(op(0,e), eqs)(eval(n, eqs), generic_evalat(i, ee, eqs))
 end proc:
 
 #############################################################################
@@ -99,9 +110,9 @@ NewSLO := module ()
         indicator, extract_dom, banish, known_measures,
         piecewise_if, nub_piecewise, foldr_piecewise,
         verify_measure;
-  export Integrand, applyintegrand, app, lam, map_piecewise,
+  export Integrand, applyintegrand, app, lam, map_piecewise, idx,
          Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD, StudentT,
-         Ret, Bind, Msum, Weight, LO, Indicator,
+         Ret, Bind, Msum, Weight, Plate, LO, Indicator,
          HakaruToLO, integrate, LOToHakaru, unintegrate,
          TestHakaru, measure, density, bounds,
          Simplify, ReparamDetermined, determined, Reparam, Banish;
@@ -513,6 +524,22 @@ NewSLO := module ()
     end if;
   end proc;
 
+  Plate := proc(a)
+    local w, m;
+    if a :: 'ary(anything, name, Ret(anything))' then
+      Ret(ary(op(1,a), op(2,a), op([3,1],a)))
+    elif a :: 'ary(anything, name, anything)' then
+      (w, m) := unweight(op(3,a));
+      if w <> 1 then
+        Weight(product(w, op(2,a)=1..op(1,a)), Plate(ary(op(1,a), op(2,a), m)))
+      else
+        'procname(_passed)'
+      end if
+    else
+      'procname(_passed)'
+    end if;
+  end proc;
+
   LOToHakaru := proc(lo :: LO(name, anything))
     local h;
     h := gensym(op(1,lo));
@@ -594,6 +621,16 @@ NewSLO := module ()
     if func :: lam(name, anything) then
       eval(op(2,func), op(1,func)=argu)
     elif func :: t_pw then
+      map_piecewise(procname, _passed)
+    else
+      'procname(_passed)'
+    end if
+  end proc;
+
+  idx := proc (a, i)
+    if a :: ary(anything, name, anything) then
+      eval(op(3,a), op(2,a)=i)
+    elif a :: t_pw then
       map_piecewise(procname, _passed)
     else
       'procname(_passed)'
