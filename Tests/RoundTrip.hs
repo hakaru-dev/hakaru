@@ -1,5 +1,5 @@
 {-# LANGUAGE TypeFamilies, Rank2Types, FlexibleContexts, DataKinds #-}
-module Tests.RoundTrip (allTests) where
+module Tests.RoundTrip where
 
 import Language.Hakaru.Syntax
 import Language.Hakaru.Expect (total)
@@ -107,7 +107,7 @@ testMeasureReal = test
   , "t80" ~: testS t80
   , "t81" ~: testSS [] t81
   , "kalman" ~: testS kalman
-  , "seismic" ~: testSS [] seismic
+  -- , "seismic" ~: testSS [] seismic
   , "lebesgue1" ~: testSS [] (lebesgue `bind` \x -> if_ (less 42 x) (dirac x) (superpose []))
   , "lebesgue2" ~: testSS [] (lebesgue `bind` \x -> if_ (less x 42) (dirac x) (superpose []))
   , "lebesgue3" ~: testSS [lebesgue `bind` \x -> if_ (and_ [less x 42, less 40 x]) (dirac x) (superpose [])] (weight 2 $ uniform 40 42)

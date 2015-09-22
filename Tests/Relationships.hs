@@ -103,6 +103,9 @@ t2  :: (Lambda repr, Mochastic repr)
     => repr (HFun HProb (HMeasure HProb))
 t2 = lam (\b -> chi2 (2*b))
 
+-- This test (and probably many others involving gamma) is wrong,
+-- because the argument order to our gamma is the opposite of
+-- the order used by 2008amstat.pdf
 t3  :: (Lambda repr, Mochastic repr)
     => repr (HFun HProb (HFun HProb (HMeasure HProb)))
 t3 = lam (\alpha -> (lam (\bet ->

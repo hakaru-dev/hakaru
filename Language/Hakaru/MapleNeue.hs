@@ -41,7 +41,7 @@ lam1 :: String -> (Maple a  -> Maple b) -> Maple ('HFun a b)
 lam1 s k = Maple $ do
     x <- gensym s
     cont <- unMaple (k (constant x))
-    return ("(" ++ x ++ " -> " ++ cont ++ ")")
+    return ("lam(" ++ x ++ ", " ++ cont ++ ")")
 
 -- uncurried 2-argument lambda
 lam2 :: String -> (Maple a -> Maple b -> Maple c) -> Maple ('HFun ('HPair a b) c)
@@ -198,7 +198,7 @@ instance Lambda Maple where
   lam f = lam1 "x" f
   app (Maple rator) (Maple rand) =
     Maple (liftM2 (\rator' rand' -> 
-        "(" ++ rator' ++ "(" ++ rand' ++ "))") rator rand)
+        "app(" ++ rator' ++ "," ++ rand' ++ ")") rator rand)
 
 -- this does not return a Measure b, but rather the body of a measure
 wmtom :: (Maple 'HProb, Maple ('HMeasure b)) -> Maple b
@@ -216,7 +216,7 @@ instance Mochastic Maple where
     a <- gensym "a"
     body <- unMaple (k (constant a))
     return ("Bind("++ m2 ++", " ++ a ++ ", " ++ body ++")")
-  lebesgue      = error "lebesgue is undefined"
+  lebesgue      = constant "Lebesgue()"
   superpose l   = Maple $ do
     let l' = map (unMaple . wmtom) l
     res <- fmap (concat . intersperse ", ") (sequence l')

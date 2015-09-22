@@ -1,5 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleContexts, DefaultSignatures,
-             GADTs, Rank2Types, DataKinds, KindSignatures, TypeFamilies, StandaloneDeriving, DeriveDataTypeable, PolyKinds #-}
+             GADTs, Rank2Types, DataKinds, KindSignatures, TypeFamilies, 
+             StandaloneDeriving, DeriveDataTypeable, PolyKinds #-}
 {-# OPTIONS -Wall -Werror #-}
 
 module Language.Hakaru.Syntax (Hakaru(..), HakaruFun(..), 
