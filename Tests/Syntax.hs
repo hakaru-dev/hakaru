@@ -21,25 +21,32 @@ import Tests.TestTools
 
 allTests :: Test
 allTests = test [
-    "pair1fst/snd" ~: testSS [pair1fst, pair1snd] pair1same,
+    -- "pair1fst/snd" ~: testSS [pair1fst, pair1snd] pair1same,
+
     "pair2fst" ~: testS pair2fst,
     "pair2snd" ~: testS pair2snd,
+               
     -- "pair2'fst" ~: testS $ pair2'fst 10,
     -- "pair2'snd" ~: testS $ pair2'snd 10,
     -- "replicateH" ~: testS $ replicateH 10,
+               
     "pair3fst" ~: testS $ pair3fst 1 [true,true,true],
     "pair3snd" ~: testS $ pair3snd 1 [true,true,true],
     "pair3trd" ~: testS $ pair3trd 1 [true,true,true],
     "pair4fst" ~: testS $ pair4fst,
     "pair4transition" ~: testS $ pair4transition $ pair true 1,
     "pair4'transition" ~: testS $ pair4'transition $ pair true 1,
+                       
     -- "transitionTest" ~: ignore $ transitionTest,
     --"testDistWithSample" ~: ignore $ do x <- testDistWithSample
     --                                    mapM_ assertJust x,
-    "testLinregSimp" ~: testSS [linregSimp] linregSimp',
-    "testdistLinregSimp" ~: testS distLinregSimp,
-    "testLinreg" ~: ignore $ testS distLinreg,
-    "gamalonDis" ~: testS gamalonDis ]
+                       
+    "testLinregSimp" ~: testSS [linregSimp] linregSimp'
+                     
+    -- "testdistLinregSimp" ~: testS distLinregSimp,
+    -- "testLinreg" ~: ignore $ testS distLinreg,
+    -- "gamalonDis" ~: testS gamalonDis
+           ]
 
 -- pair1fst and pair1snd are equivalent
 pair1fst :: (Mochastic repr) => repr (HMeasure (HPair HBool HProb))

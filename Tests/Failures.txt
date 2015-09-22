@@ -37,12 +37,17 @@ t65 - different now, need to investigate
 t45 - pw/domain interaction with density recognition
 t50 - Prob/Real inference issue
 t78 - expects a change of variables?
+t80 - how do I infer a type from csgn(h1)
+t81 - maple converts pi to pi_ but expects HReal not HProb
+seismic - time expired
 t52 - ordering issue
 mhPriorProp - difference in result (not analyzed yet)
+easyHMM - time expired
 t75 - time expired
 t75' - time expired
 exceptionCounting - counting mis-simplifies
 testRoadMapProg1 - time expired
+                 - too many levels of recursion
 testKernel - failure to recognize a normal under a conditional
 testFalseDetection: time expired
 testTrueDetectionL: 1 <= FAIL
@@ -50,6 +55,7 @@ testTrueDetectionR: 1 <= FAIL
 
 Syntax:
 pair1fst/snd - beta instead of list/categorical
+testLinregSimp - time expired
 testdistLinregSimp - ordering problem
 testLinreg - ignored
 gamalonDis - time expired

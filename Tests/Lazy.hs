@@ -19,7 +19,6 @@ import Language.Hakaru.Inference
 import Tests.TestTools
 import qualified Tests.Models as RT
 import qualified Examples.EasierRoadmap as RM
-import Examples.BenchmarkProblems (runExpect)
 
 import Data.Typeable (Typeable)    
 import Test.HUnit
@@ -58,6 +57,10 @@ runDisintegratePretty
     => Cond PrettyPrint env (HMeasure (HPair a b))
     -> IO ()
 runDisintegratePretty = print . map runPrettyPrint . runDisintegrate
+
+runExpect :: (Lambda repr, Base repr) =>
+              Expect repr (HMeasure HProb) -> repr HProb
+runExpect (Expect m) = unpair m (\ m1 m2 -> m2 `app` lam id)
 
 nonDefault
     :: (Backward a a)
@@ -169,6 +172,14 @@ allTests = test
     , "marsaglia" ~: testL marsaglia [] -- needs heavy disintegration
     ]
 
+burgalarm
+    :: (Mochastic repr)
+    => Cond repr HUnit (HMeasure (HPair HBool HBool))
+burgalarm = \u -> ununit u $
+            bern 0.0001 `bind` \burglary ->
+            bern (if_ burglary 0.95 0.01) `bind` \alarm ->
+            dirac (pair alarm burglary)
+
 normalFB1
     :: (Mochastic repr)
     => Cond repr HUnit (HMeasure (HPair HReal HUnit))
@@ -198,47 +209,47 @@ zeroDiv = \u -> ununit u $
           normal 0 1 `bind` \x ->
           dirac (pair x (0 / x))
             
--- cushing :: (Mochastic repr) => Cond repr () (Measure (Real,Real))
--- cushing = \u -> ununit u $
---           uniform 0 1 `bind` \x ->
---           if_ (not_ (equal_ x (1/2)))
---               (uniform 0 x)
---               (uniform x 1) `bind` \y ->
---           dirac (pair y x)                
+cushing :: (Mochastic repr) => Cond repr HUnit (HMeasure (HPair HReal HReal))
+cushing = \u -> ununit u $
+          uniform 0 1 `bind` \x ->
+          if_ (not_ (equal_ x (1/2)))
+              (uniform 0 x)
+              (uniform x 1) `bind` \y ->
+          dirac (pair y x)
 
--- cushingObs n = simplify (d `app` unit `app` n)
---     where d:_ = runDisintegrate cushing
+cushingObs n = simplify (d `app` unit `app` n)
+    where d:_ = runDisintegrate cushing
 
--- cushingSimpl = mapM simplify d
---     where d = runDisintegrate cushing
+cushingSimpl = mapM simplify d
+    where d = runDisintegrate cushing
 
--- cobb :: (Mochastic repr) => Cond repr () (Measure (Real,Real))
--- cobb = \u -> ununit u $
---        uniform 0 1 `bind` \x ->
---        uniform (-x) x `bind` \y ->
---        dirac (pair y x)
+cobb :: (Mochastic repr) => Cond repr HUnit (HMeasure (HPair HReal HReal))
+cobb = \u -> ununit u $
+       uniform 0 1 `bind` \x ->
+       uniform (-x) x `bind` \y ->
+       dirac (pair y x)
 
--- cobbSimpl = mapM simplify d
---     where d = runDisintegrate cobb
+cobbSimpl = mapM simplify d
+    where d = runDisintegrate cobb
              
--- cobbObs n = simplify (d `app` unit `app` n)
---     where d:_ = runDisintegrate cobb
+cobbObs n = simplify (d `app` unit `app` n)
+    where d:_ = runDisintegrate cobb
 
--- cobb0 :: (Mochastic repr, Lambda repr, Integrate repr)
---          => Expect repr (Measure Prob)
--- cobb0 = uniform 0 1 `bind` \x0 ->
---         weight (recip (unsafeProb x0) * (1/2)) $
---         dirac (unsafeProb x0)
+cobb0 :: (Mochastic repr, Lambda repr, Integrate repr)
+         => Expect repr (HMeasure HProb)
+cobb0 = uniform 0 1 `bind` \x0 ->
+        weight (recip (unsafeProb x0) * (1/2)) $
+        dirac (unsafeProb x0)
 
--- expectCobb0 :: Doc
--- expectCobb0 = runPrettyPrint (runExpect cobb0)
+expectCobb0 :: Doc
+expectCobb0 = runPrettyPrint (runExpect cobb0)
 
--- totalCobb0 :: Doc
--- totalCobb0 = runPrettyPrint (total cobb0)
+totalCobb0 :: Doc
+totalCobb0 = runPrettyPrint (total cobb0)
 
--- thenSimpl1 = simplify $ dirac (total cobb0)
--- thenSimpl2 = simplify $ dirac (runExpect cobb0)
--- thenSimpl3 = simplify $ normalize cobb0
+thenSimpl1 = simplify $ dirac (total cobb0)
+thenSimpl2 = simplify $ dirac (runExpect cobb0)
+thenSimpl3 = simplify $ normalize cobb0
                           
 zeroAddInt
     :: (Mochastic repr)

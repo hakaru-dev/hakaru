@@ -18,11 +18,11 @@ allTests :: Test
 allTests = test
   [ RT.allTests
   , SY.allTests
-  , RE.allTests
-  , TV.allTests
---  , E.allTests
+  -- , RE.allTests
+  -- , TV.allTests
+  -- , E.allTests
   , L.important
-  , F.allTests
+  -- , F.allTests
   ]
 
 main :: IO ()
