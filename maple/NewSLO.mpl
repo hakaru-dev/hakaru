@@ -8,7 +8,7 @@
 `depends/lam`       := proc(h, e, x) depends(e, x minus {h}) end proc:
 
 # note that v _can_ occur in m1.
-`depends/Bind` := proc(m1, v, m2, x)
+`depends/Bind` := proc(m1, v::name, m2, x)
   depends(m1, x) or depends(m2, x minus {v})
 end proc:
 
