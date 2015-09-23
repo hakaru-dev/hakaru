@@ -279,14 +279,30 @@ NewSLO := module ()
     end if;
   end proc;
 
-  simplify_assuming := proc(e, constraints :: list(name=anything..anything))
-    local f;
+  simplify_assuming := proc(ee, constraints :: list(name=anything..anything))
+    local f, e, ep;
+    global `expand/product`;
     f := proc(c)
       local var, lo, hi;
       var := op(1,c);
       lo, hi := op(op(2,c));
       (var > lo, var < hi)
     end proc;
+    ep := eval(`expand/product`);
+    try
+      `expand/product` := proc()
+        eval(ep(_passed), product = proc(body, quantifier)
+          local r, s;
+          r := convert(body, list, `*`);
+          s, r := selectremove(type, r, 'exp(anything)');
+          `*`(op(map((e -> exp(expand(sum(op(1,e), quantifier)))), s)),
+              product(`*`(op(r)), quantifier))
+        end proc)
+      end proc;
+      e := evalindets(ee, 'specfunc({sum, product})', expand);
+    finally
+      `expand/product` := ep;
+    end try;
     simplify(e) assuming op(map(f, constraints));
   end proc;
 
@@ -531,8 +547,7 @@ NewSLO := module ()
   end proc;
 
   Plate := proc(a)
-    local xs, w, m, ep;
-    global `expand/product`;
+    local xs, w, m;
     if a :: 'ary(anything, name, Ret(anything))' then
       Ret(ary(op(1,a), op(2,a), op([3,1],a)))
     elif a :: 'ary(anything, name, Bind(anything, name, anything))' then
@@ -543,22 +558,7 @@ NewSLO := module ()
     elif a :: 'ary(anything, name, anything)' then
       (w, m) := unweight(op(3,a));
       if w <> 1 then
-        try
-          ep := eval(`expand/product`);
-          `expand/product` := proc()
-            eval(ep(_passed), product=proc(body, quantifier)
-              local s, r;
-              s, r := selectremove(type, body, 'exp(anything)');
-              `*`(op(map((e -> exp(expand(sum(op(1,e), quantifier)))),
-                         convert(s, list, `*`))),
-                  product(r, quantifier))
-            end proc)
-          end proc;
-          w := expand(product(w, op(2,a)=1..op(1,a)));
-        finally
-          `expand/product` := ep;
-        end try;
-        Weight(w, Plate(ary(op(1,a), op(2,a), m)))
+        Weight(product(w, op(2,a)=1..op(1,a)), Plate(ary(op(1,a), op(2,a), m)))
       else
         'procname(_passed)'
       end if
