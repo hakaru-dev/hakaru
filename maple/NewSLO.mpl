@@ -452,7 +452,7 @@ NewSLO := module ()
   end proc;
 
   freeze_difficult := proc(e,x)
-    evalindets(e, 'And(specfunc(sum), freeof(x))', freeze)
+    evalindets(e, 'And(specfunc({product,sum}), freeof(x))', freeze)
   end proc;
 
   # this code should not currently be used, it is just a snapshot in time
