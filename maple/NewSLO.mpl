@@ -637,8 +637,10 @@ NewSLO := module ()
       end if;
       x := gensym(x);
       # TODO is there any way to enrich context in this case?
-      Bind(op(1,integral), x,
-           unintegrate(h, applyintegrand(op(2,integral), x), context))
+      (w, m) := unweight(unintegrate(h, applyintegrand(op(2,integral), x),
+                                     context));
+      (w, w0) := factorize(w, x);
+      Weight(w0, Bind(op(1,integral), x, Weight(w, m)))
     else
       # Failure: return residual LO
       LO(h, integral)
