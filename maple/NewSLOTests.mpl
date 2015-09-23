@@ -296,3 +296,13 @@ ary2  := Bind(Gaussian(0,1), x,
          Bind(Plate(ary(n, i, Bind(Gaussian(idx(t,i),1),z, Weight(density[Gaussian](x,1)(idx(t,i)), Ret(z+1))))), ys,
          Ret(ys))):
 TestHakaru(ary2, Weight(ary1w, Bind(Plate(ary(n, i, Gaussian(idx(t,i),1))), zs, Ret(ary(n, i, idx(zs,i)+1)))), label="Reason for fission") assuming n::nonnegint;
+ary3  := Bind(Gaussian(0,1), x,
+         Bind(Plate(ary(n, i, Bind(Gaussian(idx(t,i),1),z, Weight(density[Gaussian](x,1)(idx(t,i)), Ret(z))))), zs,
+         Ret(zs))):
+TestHakaru(ary3, Weight(ary1w, Plate(ary(n, i, Gaussian(idx(t,i),1)))), label="Array eta") assuming n::nonnegint;
+
+fission     := Bind(Plate(ary(k, i, Gaussian(0,1))), xs, Plate(ary(k, i, Gaussian(idx(xs,i),1)))):
+fusion      := Plate(ary(k, i, Bind(Gaussian(0,1), x, Gaussian(x,1)))):
+conjugacies := Plate(ary(k, i, Gaussian(0, sqrt(2)))):
+TestHakaru(fission, conjugacies, label="Reason for fusion");
+TestHakaru(fusion,  conjugacies, label="Conjugacy in plate");
