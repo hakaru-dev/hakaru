@@ -30,7 +30,7 @@ TestHakaru(model1, model1s, label = "primitive constructs simplification");
 u1 := Bind(m, x, Ret(x^2)):
 u2 := Bind(Gaussian(0,1), x, m(x)):
 
-TestHakaru(u1, u1, label = "binding unknown m");
+TestHakaru(u1, label = "binding unknown m");
 TestHakaru(u2, u2, label = "sending to unknown m");
 
 # example with an elaborate simplifier to do reordering of

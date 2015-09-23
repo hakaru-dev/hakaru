@@ -806,7 +806,7 @@ NewSLO := module ()
 
 # Testing
 
-  TestHakaru := proc(m,n:=m,{simp:=Simplify,verify:={boolean,equal}})
+  TestHakaru := proc(m,n::algebraic:=m,{simp:=Simplify,verify:={boolean,equal}})
     CodeTools[Test](LOToHakaru(simp(HakaruToLO(m))), n,
       measure(verify), _rest)
   end proc;
