@@ -283,6 +283,9 @@ end module:
 
 TestHakaru(Bind(Ret(ary(n,i,i*2)), v, Ret(idx(v,42))), Ret(84), label="basic array indexing");
 
+ary0 := Bind(Plate(ary(k, i, Gaussian(0,1))), xs, Ret([xs])):
+TestHakaru(ary0, ary0, label="plate roundtripping");
+
 ary1  := Bind(Gaussian(0,1), x,
          Bind(Plate(ary(n, i, Weight(density[Gaussian](x,1)(idx(t,i)), Ret(Unit)))), ys,
          Ret(x))):
