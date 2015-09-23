@@ -306,3 +306,8 @@ fusion      := Plate(ary(k, i, Bind(Gaussian(0,1), x, Gaussian(x,1)))):
 conjugacies := Plate(ary(k, i, Gaussian(0, sqrt(2)))):
 TestHakaru(fission, conjugacies, label="Reason for fusion");
 TestHakaru(fusion,  conjugacies, label="Conjugacy in plate");
+
+# Simplifying gmm below is a baby step towards index manipulations we need
+gmm := Bind(Plate(ary(k, c, Gaussian(0,1))), xs,
+       Bind(Plate(ary(n, i, Weight(density[Gaussian](idx(xs,idx(cs,i)),1)(idx(t,i)), Ret(Unit)))), ys,
+       Ret(xs))):
