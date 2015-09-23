@@ -107,7 +107,7 @@ NewSLO := module ()
   local t_pw, unweight, factorize,
         recognize, get_de, recognize_de, Diffop, Recognized,
         reduce, simplify_assuming, reduce_pw, reduce_Int, get_indicators,
-        indicator, extract_dom, banish, known_measures,
+        indicator, extract_dom, banish, known_measures, freeze_difficult,
         piecewise_if, nub_piecewise, foldr_piecewise,
         verify_measure;
   export Integrand, applyintegrand, app, lam, map_piecewise, idx,
@@ -229,16 +229,18 @@ NewSLO := module ()
   # TODO unify constraints with unintegrate's context
   reduce := proc(ee, h :: name, constraints :: list(name=anything))
     # option remember, system;
-    local e, elim, hh, subintegral, w, n, x;
+    local e, elim, hh, subintegral, w, n, x, myint;
     e := ee;
 
     while e :: Int(anything, name=anything) and not hastype(op(1,e),
        'applyintegrand'('identical'(h), 'dependent'(op([2,1],e)))) do
       # try to eliminate unused var
       hh := gensym('h');
-      elim := subs(int=Int,
-                banish(LO(hh, int(applyintegrand(hh,op([2,1],e)), op(2,e))),
-                  op([2,1],e), h, op(1,e), infinity));
+      elim := eval(banish(LO(hh, myint(applyintegrand(hh,op([2,1],e)),op(2,e))),
+                          op([2,1],e), h, op(1,e), infinity),
+                   myint = proc(e,r)
+                     subs(int=Int, int(simplify_assuming(e,constraints),r))
+                   end proc);
       if has(elim, {MeijerG}) or numboccur(elim,Int) >= numboccur(e,Int) then
         # Maple was too good at integration
         break;
@@ -433,6 +435,10 @@ NewSLO := module ()
     end if
   end proc;
 
+  freeze_difficult := proc(e,x)
+    evalindets(e, 'And(specfunc(sum), freeof(x))', freeze)
+  end proc;
+
   # this code should not currently be used, it is just a snapshot in time
   Reparam := proc(e::Int(anything,name=range), h::name)
     local body, var, inds, xx, inv, new_e;
@@ -525,13 +531,34 @@ NewSLO := module ()
   end proc;
 
   Plate := proc(a)
-    local w, m;
+    local xs, w, m, ep;
+    global `expand/product`;
     if a :: 'ary(anything, name, Ret(anything))' then
       Ret(ary(op(1,a), op(2,a), op([3,1],a)))
+    elif a :: 'ary(anything, name, Bind(anything, name, anything))' then
+      xs := gensym(op([3,2],a));
+      Bind(Plate(ary(op(1,a), op(2,a), op([3,1],a))), xs,
+           Plate(ary(op(1,a), op(2,a),
+                 eval(op([3,3],a), op([3,2],a)=idx(xs,op(2,a))))))
     elif a :: 'ary(anything, name, anything)' then
       (w, m) := unweight(op(3,a));
       if w <> 1 then
-        Weight(product(w, op(2,a)=1..op(1,a)), Plate(ary(op(1,a), op(2,a), m)))
+        try
+          ep := eval(`expand/product`);
+          `expand/product` := proc()
+            eval(ep(_passed), product=proc(body, quantifier)
+              local s, r;
+              s, r := selectremove(type, body, 'exp(anything)');
+              `*`(op(map((e -> exp(expand(sum(op(1,e), quantifier)))),
+                         convert(s, list, `*`))),
+                  product(r, quantifier))
+            end proc)
+          end proc;
+          w := expand(product(w, op(2,a)=1..op(1,a)));
+        finally
+          `expand/product` := ep;
+        end try;
+        Weight(w, Plate(ary(op(1,a), op(2,a), m)))
       else
         'procname(_passed)'
       end if
@@ -557,7 +584,8 @@ NewSLO := module ()
       # TODO: enrich context with x (measure class lebesgue)
       subintegral := eval(op(1,integral), op([2,1],integral) = x);
       (w, m) := unweight(unintegrate(h, subintegral, next_context));
-      recognition := recognize(w, x, lo, hi) assuming op(next_context);
+      recognition := thaw(recognize(freeze_difficult(w,x), x, lo, hi))
+        assuming op(next_context);
       if recognition :: 'Recognized(anything, anything)' then
         # Recognition succeeded
         (w, w0) := factorize(op(2,recognition), x);
@@ -778,9 +806,9 @@ NewSLO := module ()
 
 # Testing
 
-  TestHakaru := proc(m,n:=m,{simp:=Simplify})
+  TestHakaru := proc(m,n:=m,{simp:=Simplify,verify:={boolean,equal}})
     CodeTools[Test](LOToHakaru(simp(HakaruToLO(m))), n,
-      measure({boolean,equal}), _rest)
+      measure(verify), _rest)
   end proc;
 
   verify_measure := proc(m, n, v:='boolean')
