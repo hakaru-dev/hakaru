@@ -279,15 +279,32 @@ NewSLO := module ()
     end if;
   end proc;
 
-  simplify_assuming := proc(e, constraints :: list(name=anything..anything))
-    local f;
+  simplify_assuming := proc(ee, constraints :: list(name=anything..anything))
+    local f, e, ep;
+    global `expand/product`;
     f := proc(c)
       local var, lo, hi;
       var := op(1,c);
       lo, hi := op(op(2,c));
       (var > lo, var < hi)
     end proc;
-    simplify(e) assuming op(map(f, constraints));
+    ep := eval(`expand/product`);
+    try
+      `expand/product` := proc()
+        eval(ep(_passed), product = proc(body, quantifier)
+          local r, s;
+          r := convert(body, list, `*`);
+          s, r := selectremove(type, r, 'exp(anything)');
+          `*`(op(map((e -> exp(expand(sum(op(1,e), quantifier)))), s)),
+              product(`*`(op(r)), quantifier))
+        end proc)
+      end proc;
+      e := evalindets(ee, 'specfunc({sum, product})', expand);
+    finally
+      `expand/product` := ep;
+    end try;
+    e := simplify(e) assuming op(map(f, constraints));
+    e := eval(e, exp = expand @ exp);
   end proc;
 
   reduce_pw := proc(ee) # ee may or may not be piecewise
@@ -436,7 +453,7 @@ NewSLO := module ()
   end proc;
 
   freeze_difficult := proc(e,x)
-    evalindets(e, 'And(specfunc(sum), freeof(x))', freeze)
+    evalindets(e, 'And(specfunc({product,sum}), freeof(x))', freeze)
   end proc;
 
   # this code should not currently be used, it is just a snapshot in time
@@ -531,8 +548,7 @@ NewSLO := module ()
   end proc;
 
   Plate := proc(a)
-    local xs, w, m, ep;
-    global `expand/product`;
+    local xs, w, m;
     if a :: 'ary(anything, name, Ret(anything))' then
       Ret(ary(op(1,a), op(2,a), op([3,1],a)))
     elif a :: 'ary(anything, name, Bind(anything, name, anything))' then
@@ -543,22 +559,7 @@ NewSLO := module ()
     elif a :: 'ary(anything, name, anything)' then
       (w, m) := unweight(op(3,a));
       if w <> 1 then
-        try
-          ep := eval(`expand/product`);
-          `expand/product` := proc()
-            eval(ep(_passed), product=proc(body, quantifier)
-              local s, r;
-              s, r := selectremove(type, body, 'exp(anything)');
-              `*`(op(map((e -> exp(expand(sum(op(1,e), quantifier)))),
-                         convert(s, list, `*`))),
-                  product(r, quantifier))
-            end proc)
-          end proc;
-          w := expand(product(w, op(2,a)=1..op(1,a)));
-        finally
-          `expand/product` := ep;
-        end try;
-        Weight(w, Plate(ary(op(1,a), op(2,a), m)))
+        Weight(product(w, op(2,a)=1..op(1,a)), Plate(ary(op(1,a), op(2,a), m)))
       else
         'procname(_passed)'
       end if
@@ -637,8 +638,10 @@ NewSLO := module ()
       end if;
       x := gensym(x);
       # TODO is there any way to enrich context in this case?
-      Bind(op(1,integral), x,
-           unintegrate(h, applyintegrand(op(2,integral), x), context))
+      (w, m) := unweight(unintegrate(h, applyintegrand(op(2,integral), x),
+                                     context));
+      (w, w0) := factorize(w, x);
+      Weight(w0, Bind(op(1,integral), x, Weight(w, m)))
     else
       # Failure: return residual LO
       LO(h, integral)
@@ -806,7 +809,7 @@ NewSLO := module ()
 
 # Testing
 
-  TestHakaru := proc(m,n::algebraic:=m,{simp:=Simplify,verify:={boolean,equal}})
+  TestHakaru := proc(m,n::algebraic:=m,{simp:=Simplify,verify:=simplify})
     CodeTools[Test](LOToHakaru(simp(HakaruToLO(m))), n,
       measure(verify), _rest)
   end proc;
