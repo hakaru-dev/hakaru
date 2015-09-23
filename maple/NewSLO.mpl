@@ -303,7 +303,8 @@ NewSLO := module ()
     finally
       `expand/product` := ep;
     end try;
-    simplify(e) assuming op(map(f, constraints));
+    e := simplify(e) assuming op(map(f, constraints));
+    e := eval(e, exp = expand @ exp);
   end proc;
 
   reduce_pw := proc(ee) # ee may or may not be piecewise
