@@ -287,7 +287,7 @@ ary1  := Bind(Gaussian(0,1), x,
          Bind(Plate(ary(n, i, Weight(density[Gaussian](x,1)(idx(t,i)), Ret(Unit)))), ys,
          Ret(x))):
 ary1w := 2^(-(1/2)*n+1/2)*exp((1/2)*((sum(idx(t,i),i=1..n))^2-(sum(idx(t,i)^2,i=1..n))*n-(sum(idx(t,i)^2,i=1..n)))/(n+1))*Pi^(-(1/2)*n)/sqrt(2+2*n):
-TestHakaru(ary1, Weight(ary1w, Gaussian((sum(idx(t, i), i = 1 .. n))/(n+1), 1/sqrt(n+1))), verify=simplify, label="Wednesday goal") assuming n::nonnegint;
+TestHakaru(ary1, Weight(ary1w, Gaussian((sum(idx(t, i), i = 1 .. n))/(n+1), 1/sqrt(n+1))), label="Wednesday goal") assuming n::nonnegint;
 TestHakaru(Bind(ary1, x, Ret(Unit)), Weight(ary1w, Ret(Unit)), label="Wednesday goal total") assuming n::nonnegint;
 
 ary2  := Bind(Gaussian(0,1), x, Bind(Ret(ary(n, j, m1(j,x))), m1s, Bind(Plate(ary(n, i, Bind(idx(m1s,i), y, m2(i,y)))), zs, Ret([x,zs])))):
