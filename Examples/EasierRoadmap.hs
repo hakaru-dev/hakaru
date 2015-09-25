@@ -9,7 +9,12 @@ import Language.Hakaru.Simplify (simplify)
 import Language.Hakaru.Any (Any)
 import Language.Hakaru.Sample
 
-
+-- | Note:
+-- The model has been modified (x1 is bound from a normal centered at 21, not 0)
+-- The generated code (functions with ' at the end of their names) reflect this
+-- The handwritten code does not reflect this. The handwritten code is for a model
+-- with 0 instead of 21 for the mean of the normal binding x1
+    
 easierRoadmapProg1
     :: (Mochastic repr)
     => repr (HMeasure (HPair (HPair HReal HReal) (HPair HProb HProb)))
@@ -18,7 +23,7 @@ easierRoadmapProg1 =
   uniform 1 4 `bind` \noiseE' -> -- let_ (unsafeProb noiseE') $ \noiseE ->
   dirac (unsafeProb noiseT') `bind` \noiseT ->
   dirac (unsafeProb noiseE') `bind` \noiseE ->
-  normal  0 noiseT `bind` \x1 ->
+  normal 21 noiseT `bind` \x1 ->
   normal x1 noiseE `bind` \m1 ->
   normal x1 noiseT `bind` \x2 ->
   normal x2 noiseE `bind` \m2 ->
@@ -319,3 +324,23 @@ runEasierRoadmapProg4 =
         (app easierRoadmapProg4 (pair 0 1))
         20
         (pair 4 2)
+
+makeChain'
+    :: (Lambda repr, Mochastic repr)
+    => repr (HFun a (HMeasure (HPair a HProb)))
+    -> repr HInt
+    -> repr a
+    -> repr (HMeasure (HArray a))
+makeChain' m n s = app (chain (vector n (\ _ ->
+                                        lam $ \ss ->
+                                        app m ss `bind` \p ->
+                                        unpair p $ \s' _ ->  
+                                        dirac $ (pair s' s')))) s `bind` \vs' ->
+                  dirac (fst_ vs')        
+
+runEasierRoadmapProg4' =
+    runSample $ makeChain' (app easierRoadmapProg4' (pair m1 m2))
+                           20
+                           (pair nt ne)
+        where (m1, m2) = (0,1)
+              (nt, ne) = (4,2)
