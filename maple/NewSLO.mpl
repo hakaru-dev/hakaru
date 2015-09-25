@@ -8,8 +8,13 @@
 `depends/lam`       := proc(h, e, x) depends(e, x minus {h}) end proc:
 
 # note that v _can_ occur in m1.
-`depends/Bind` := proc(m1, v, m2, x)
+`depends/Bind` := proc(m1, v::name, m2, x)
   depends(m1, x) or depends(m2, x minus {v})
+end proc:
+
+# note that i _can_ occur in n.
+`depends/ary` := proc(n, i::name, e, x)
+  depends(n, x) or depends(e, x minus {i})
 end proc:
 
 generic_evalat := proc(vv, mm, eqs)
@@ -56,6 +61,12 @@ end proc:
   eval(op(0,e), eqs)(eval(m1, eqs), generic_evalat(v, m2, eqs))
 end proc:
 
+`eval/ary` := proc(e, eqs)
+  local n, i, ee;
+  n, i, ee := op(e);
+  eval(op(0,e), eqs)(eval(n, eqs), generic_evalat(i, ee, eqs))
+end proc:
+
 #############################################################################
 
 # make gensym global, so that it can be shared with other 'global' routines
@@ -96,12 +107,12 @@ NewSLO := module ()
   local t_pw, unweight, factorize,
         recognize, get_de, recognize_de, Diffop, Recognized,
         reduce, simplify_assuming, reduce_pw, reduce_Int, get_indicators,
-        indicator, extract_dom, banish, known_measures,
+        indicator, extract_dom, banish, known_measures, freeze_difficult,
         piecewise_if, nub_piecewise, foldr_piecewise,
         verify_measure;
-  export Integrand, applyintegrand, app, lam,
+  export Integrand, applyintegrand, app, lam, map_piecewise, idx,
          Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD, StudentT,
-         Ret, Bind, Msum, Weight, LO, Indicator,
+         Ret, Bind, Msum, Weight, Plate, LO, Indicator,
          HakaruToLO, integrate, LOToHakaru, unintegrate,
          TestHakaru, measure, density, bounds,
          Simplify, ReparamDetermined, determined, Reparam, Banish;
@@ -218,16 +229,18 @@ NewSLO := module ()
   # TODO unify constraints with unintegrate's context
   reduce := proc(ee, h :: name, constraints :: list(name=anything))
     # option remember, system;
-    local e, elim, hh, subintegral, w, n, x;
+    local e, elim, hh, subintegral, w, n, x, myint;
     e := ee;
 
     while e :: Int(anything, name=anything) and not hastype(op(1,e),
        'applyintegrand'('identical'(h), 'dependent'(op([2,1],e)))) do
       # try to eliminate unused var
       hh := gensym('h');
-      elim := subs(int=Int,
-                banish(LO(hh, int(applyintegrand(hh,op([2,1],e)), op(2,e))),
-                  op([2,1],e), h, op(1,e), infinity));
+      elim := eval(banish(LO(hh, myint(applyintegrand(hh,op([2,1],e)),op(2,e))),
+                          op([2,1],e), h, op(1,e), infinity),
+                   myint = proc(e,r)
+                     subs(int=Int, int(simplify_assuming(e,constraints),r))
+                   end proc);
       if has(elim, {MeijerG}) or numboccur(elim,Int) >= numboccur(e,Int) then
         # Maple was too good at integration
         break;
@@ -266,15 +279,32 @@ NewSLO := module ()
     end if;
   end proc;
 
-  simplify_assuming := proc(e, constraints :: list(name=anything..anything))
-    local f;
+  simplify_assuming := proc(ee, constraints :: list(name=anything..anything))
+    local f, e, ep;
+    global `expand/product`;
     f := proc(c)
       local var, lo, hi;
       var := op(1,c);
       lo, hi := op(op(2,c));
       (var > lo, var < hi)
     end proc;
-    simplify(e) assuming op(map(f, constraints));
+    ep := eval(`expand/product`);
+    try
+      `expand/product` := proc()
+        eval(ep(_passed), product = proc(body, quantifier)
+          local r, s;
+          r := convert(body, list, `*`);
+          s, r := selectremove(type, r, 'exp(anything)');
+          `*`(op(map((e -> exp(expand(sum(op(1,e), quantifier)))), s)),
+              product(`*`(op(r)), quantifier))
+        end proc)
+      end proc;
+      e := evalindets(ee, 'specfunc({sum, product})', expand);
+    finally
+      `expand/product` := ep;
+    end try;
+    e := simplify(e) assuming op(map(f, constraints));
+    e := eval(e, exp = expand @ exp);
   end proc;
 
   reduce_pw := proc(ee) # ee may or may not be piecewise
@@ -422,6 +452,10 @@ NewSLO := module ()
     end if
   end proc;
 
+  freeze_difficult := proc(e,x)
+    evalindets(e, 'And(specfunc({product,sum}), freeof(x))', freeze)
+  end proc;
+
   # this code should not currently be used, it is just a snapshot in time
   Reparam := proc(e::Int(anything,name=range), h::name)
     local body, var, inds, xx, inv, new_e;
@@ -480,6 +514,15 @@ NewSLO := module ()
     end if
   end proc;
 
+  map_piecewise := proc(f,p)
+    local i;
+    if p :: t_pw then
+      piecewise(seq(`if`(i::even or i=nops(p),f(op(i,p),_rest),op(i,p)),i=1..nops(p)))
+    else
+      f(p,_rest)
+    end if
+  end proc;
+
 # Step 3 of 3: from Maple LO (linear operator) back to Hakaru
 
   Bind := proc(m, x, n)
@@ -504,6 +547,27 @@ NewSLO := module ()
     end if;
   end proc;
 
+  Plate := proc(a)
+    local xs, w, m;
+    if a :: 'ary(anything, name, Ret(anything))' then
+      Ret(ary(op(1,a), op(2,a), op([3,1],a)))
+    elif a :: 'ary(anything, name, Bind(anything, name, anything))' then
+      xs := gensym(op([3,2],a));
+      Bind(Plate(ary(op(1,a), op(2,a), op([3,1],a))), xs,
+           Plate(ary(op(1,a), op(2,a),
+                 eval(op([3,3],a), op([3,2],a)=idx(xs,op(2,a))))))
+    elif a :: 'ary(anything, name, anything)' then
+      (w, m) := unweight(op(3,a));
+      if w <> 1 then
+        Weight(product(w, op(2,a)=1..op(1,a)), Plate(ary(op(1,a), op(2,a), m)))
+      else
+        'procname(_passed)'
+      end if
+    else
+      'procname(_passed)'
+    end if;
+  end proc;
+
   LOToHakaru := proc(lo :: LO(name, anything))
     local h;
     h := gensym(op(1,lo));
@@ -521,7 +585,8 @@ NewSLO := module ()
       # TODO: enrich context with x (measure class lebesgue)
       subintegral := eval(op(1,integral), op([2,1],integral) = x);
       (w, m) := unweight(unintegrate(h, subintegral, next_context));
-      recognition := recognize(w, x, lo, hi) assuming op(next_context);
+      recognition := thaw(recognize(freeze_difficult(w,x), x, lo, hi))
+        assuming op(next_context);
       if recognition :: 'Recognized(anything, anything)' then
         # Recognition succeeded
         (w, w0) := factorize(op(2,recognition), x);
@@ -573,8 +638,10 @@ NewSLO := module ()
       end if;
       x := gensym(x);
       # TODO is there any way to enrich context in this case?
-      Bind(op(1,integral), x,
-           unintegrate(h, applyintegrand(op(2,integral), x), context))
+      (w, m) := unweight(unintegrate(h, applyintegrand(op(2,integral), x),
+                                     context));
+      (w, w0) := factorize(w, x);
+      Weight(w0, Bind(op(1,integral), x, Weight(w, m)))
     else
       # Failure: return residual LO
       LO(h, integral)
@@ -584,6 +651,18 @@ NewSLO := module ()
   app := proc (func, argu)
     if func :: lam(name, anything) then
       eval(op(2,func), op(1,func)=argu)
+    elif func :: t_pw then
+      map_piecewise(procname, _passed)
+    else
+      'procname(_passed)'
+    end if
+  end proc;
+
+  idx := proc (a, i)
+    if a :: ary(anything, name, anything) then
+      eval(op(3,a), op(2,a)=i)
+    elif a :: t_pw then
+      map_piecewise(procname, _passed)
     else
       'procname(_passed)'
     end if
@@ -730,9 +809,9 @@ NewSLO := module ()
 
 # Testing
 
-  TestHakaru := proc(m,n:=m,{simp:=Simplify})
+  TestHakaru := proc(m,n::algebraic:=m,{simp:=Simplify,verify:=simplify})
     CodeTools[Test](LOToHakaru(simp(HakaruToLO(m))), n,
-      measure({boolean,equal}), _rest)
+      measure(verify), _rest)
   end proc;
 
   verify_measure := proc(m, n, v:='boolean')

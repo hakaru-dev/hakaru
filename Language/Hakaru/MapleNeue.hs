@@ -155,8 +155,8 @@ instance Base Maple where
     b' <- b
     et' <- et
     ef' <- ef
-    return $ "if_(" ++ b' ++ ", " ++ et'
-                          ++ ", " ++ ef' ++ ")"
+    return $ "piecewise(" ++ b' ++ ", " ++ et'
+                                ++ ", " ++ ef' ++ ")"
   -- fix       = app1 "(proc (f) local x; x := f(x) end proc)" . lam
   reduce r z v = Maple $ do
     z' <- unMaple z

@@ -52,11 +52,7 @@ exists :: PrettyPrint a -> [PrettyPrint a] -> Assertion
 exists t ts' = assertBool "no correct disintegration" $
                elem (result t) (map result ts')
 
-runDisintegratePretty
-    :: (Backward a a)
-    => Cond PrettyPrint env (HMeasure (HPair a b))
-    -> IO ()
-runDisintegratePretty = print . map runPrettyPrint . runDisintegrate
+disp = print . map runPrettyPrint
 
 runExpect :: (Lambda repr, Base repr) =>
               Expect repr (HMeasure HProb) -> repr HProb
@@ -75,7 +71,7 @@ justRun t = runTestTT t >> return ()
                    
 main :: IO ()
 main = -- justRun nonDefaultTests
-       runDisintegratePretty prog1s
+       disp (runDisintegrate burgalarm)
 
 -- | TODO: understand why the following fail to use non-default uniform
 -- prog1s, prog2s, prog3s, (const culpepper), t3, t4, t9, marsaglia
@@ -180,6 +176,13 @@ burgalarm = \u -> ununit u $
             bern (if_ burglary 0.95 0.01) `bind` \alarm ->
             dirac (pair alarm burglary)
 
+burgRaw = disp (runDisintegrate burgalarm)
+
+burgSimpl = mapM simplify $ runDisintegrate burgalarm
+
+burgObs b = simplify (d `app` unit `app` b)
+    where d:_ = runDisintegrate burgalarm
+
 normalFB1
     :: (Mochastic repr)
     => Cond repr HUnit (HMeasure (HPair HReal HUnit))
@@ -220,8 +223,7 @@ cushing = \u -> ununit u $
 cushingObs n = simplify (d `app` unit `app` n)
     where d:_ = runDisintegrate cushing
 
-cushingSimpl = mapM simplify d
-    where d = runDisintegrate cushing
+cushingSimpl = mapM simplify (runDisintegrate cushing)
 
 cobb :: (Mochastic repr) => Cond repr HUnit (HMeasure (HPair HReal HReal))
 cobb = \u -> ununit u $
@@ -229,8 +231,7 @@ cobb = \u -> ununit u $
        uniform (-x) x `bind` \y ->
        dirac (pair y x)
 
-cobbSimpl = mapM simplify d
-    where d = runDisintegrate cobb
+cobbSimpl = mapM simplify (runDisintegrate cobb)
              
 cobbObs n = simplify (d `app` unit `app` n)
     where d:_ = runDisintegrate cobb
