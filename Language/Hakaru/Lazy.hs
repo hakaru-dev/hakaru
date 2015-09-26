@@ -890,6 +890,14 @@ instance (Mochastic repr, Lub repr) =>
   -- ""M s repr :: * -> *
   -- ""Expected type: M s repr (Hnf s repr ('HMeasure 'HReal))
   -- ""Actual type: repr1 a0
+  normal mu sd  = Lazy (lub_ (forward (scalar2 normal mu sd))
+                             (forward dfault))
+                       (backward dfault)
+      where dfault = lebesgue `bind` \x ->
+                     superpose [( exp_ (- (x - mu)^(2::Int)
+                                       / fromProb (2 * pow_ sd 2))
+                                   / sd / sqrt_ (2 * pi_)
+                                , dirac x )]
   uniform lo hi = Lazy (lub_ (forward (scalar2 uniform lo hi))
                              (forward dfault))
                        (backward dfault)
