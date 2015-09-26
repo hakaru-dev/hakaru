@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, TypeFamilies, DataKinds #-}
+{-# LANGUAGE RankNTypes, TypeFamilies, DataKinds, OverloadedStrings, OverloadedLists #-}
 
 module Examples.EasierRoadmap where
 
@@ -8,6 +8,12 @@ import Language.Hakaru.Expect (Expect')
 import Language.Hakaru.Simplify (simplify)
 import Language.Hakaru.Any (Any)
 import Language.Hakaru.Sample
+
+import Data.Csv
+import Data.Maybe
+import qualified Data.Number.LogFloat as LF
+import qualified Data.Vector as V
+import qualified Data.ByteString.Lazy as B
 
 -- | Note:
 -- The model has been modified (x1 is bound from a normal centered at 21, not 0)
@@ -340,7 +346,13 @@ makeChain' m n s = app (chain (vector n (\ _ ->
 
 runEasierRoadmapProg4' =
     runSample $ makeChain' (app easierRoadmapProg4' (pair m1 m2))
-                           20
+                           400
                            (pair nt ne)
-        where (m1, m2) = (0,1)
-              (nt, ne) = (4,2)
+        where (m1, m2) = (29,26)
+              (nt, ne) = (20,20)
+
+writeProg4 filepath = do
+    a <- runEasierRoadmapProg4'
+    B.writeFile filepath (encode $ V.toList (removeLogFloat a))
+  where removeLogFloat a = V.map (\ (x,y) -> (LF.fromLogFloat x, LF.fromLogFloat y))
+                           (fromJust a) :: V.Vector (Double, Double)
