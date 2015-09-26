@@ -8,6 +8,7 @@ import Language.Hakaru.Expect (Expect')
 import Language.Hakaru.Simplify (simplify)
 import Language.Hakaru.Any (Any)
 import Language.Hakaru.Sample
+import Tests.Lazy (disintegrate)
 
 import Data.Csv
 import Data.Maybe
@@ -18,9 +19,9 @@ import qualified Data.ByteString.Lazy as B
 -- | Note:
 -- The model has been modified (x1 is bound from a normal centered at 21, not 0)
 -- The generated code (functions with ' at the end of their names) reflect this
--- The handwritten code does not reflect this. The handwritten code is for a model
+-- Some handwritten code does not reflect this. The handwritten code is for a model
 -- with 0 instead of 21 for the mean of the normal binding x1
-    
+
 easierRoadmapProg1
     :: (Mochastic repr)
     => repr (HMeasure (HPair (HPair HReal HReal) (HPair HProb HProb)))
@@ -40,7 +41,7 @@ easierRoadmapProg2
     :: (Mochastic repr)
     => repr (HPair HReal HReal)
     -> repr (HMeasure (HPair HProb HProb))
-easierRoadmapProg2 = \m1m2 -> 
+easierRoadmapProg2 = \m1m2 ->
   -- lam $ \m1m2 ->
   unpair m1m2 $ \m1 m2 ->
   uniform 3 8 `bind` \noiseT' -> -- let_ (unsafeProb noiseT') $ \noiseT ->
@@ -57,9 +58,9 @@ easierRoadmapProg2 = \m1m2 ->
 easierRoadmapProg2', easierRoadmapProg2'out
     :: (Mochastic repr, Lambda repr)
     => repr (HFun (HPair HReal HReal) (HMeasure (HPair HProb HProb)))
-easierRoadmapProg2' =
-    (head $ runDisintegrate $ \_ -> easierRoadmapProg1) `app` unit
-    -- Using the irrefutable pattern @[d] = runDisintegrate...@ fails for me. ~wrengr
+easierRoadmapProg2' = disintegrate easierRoadmapProg1
+
+-- | Does not reflect new model
 easierRoadmapProg2'out =
     -- According to PrettyPrint, as of 2015.06.29 13:29:32EDT
     (lam $ \x0 ->
@@ -104,29 +105,56 @@ easierRoadmapProg3'
     :: IO (Any (HFun (HPair HReal HReal) (HMeasure (HPair HProb HProb))))
 easierRoadmapProg3' = simplify easierRoadmapProg2'
 
-
+-- | Reflects new model
 easierRoadmapProg3'out
     :: (Mochastic repr)
     => repr (HPair HReal HReal)
     -> repr (HMeasure (HPair HProb HProb))
-easierRoadmapProg3'out m1m2 =
-    weight 5 $
-    uniform 3 8 `bind` \noiseT' ->
-    uniform 1 4 `bind` \noiseE' ->
-    weight (recip pi_
-	    * exp_ (((fst_ m1m2) * (fst_ m1m2) * (noiseT' * noiseT') * 2
-		     + noiseT' * noiseT' * (fst_ m1m2) * (snd_ m1m2) * (-2)
-		     + (snd_ m1m2) * (snd_ m1m2) * (noiseT' * noiseT')
-		     + noiseE' * noiseE' * ((fst_ m1m2) * (fst_ m1m2))
-		     + noiseE' * noiseE' * ((snd_ m1m2) * (snd_ m1m2)))
-		    * recip (noiseT' * noiseT' * (noiseT' * noiseT') + noiseE' * noiseE' * (noiseT' * noiseT') * 3 + noiseE' * noiseE' * (noiseE' * noiseE'))
-		    * (-1/2))
-	    * pow_ (unsafeProb (noiseT' ** 4 + noiseE' ** 2 * noiseT' ** 2 * 3 + noiseE' ** 4)) (-1/2)
-	    * (1/10)) $
-    dirac (pair (unsafeProb noiseT') (unsafeProb noiseE'))
+easierRoadmapProg3'out x1 =
+    weight (recip pi_ * (1/6)) $
+    uniform 3 8 `bind` \x2 ->
+    uniform 1 4 `bind` \x3 ->
+    weight (exp_ ((x2 * x2
+               * ((x1 `unpair` \x4 x5 -> x4) * (x1 `unpair` \x4 x5 -> x4))
+               * 2
+               + x2 * x2 * (x1 `unpair` \x4 x5 -> x4) * (x1 `unpair` \x4 x5 -> x5)
+                 * (-2)
+               + x2 * x2
+                 * ((x1 `unpair` \x4 x5 -> x5) * (x1 `unpair` \x4 x5 -> x5))
+               + x3 * x3
+                 * ((x1 `unpair` \x4 x5 -> x4) * (x1 `unpair` \x4 x5 -> x4))
+               + x3 * x3
+                 * ((x1 `unpair` \x4 x5 -> x5) * (x1 `unpair` \x4 x5 -> x5))
+               + x2 * x2 * (x1 `unpair` \x4 x5 -> x4) * (-42)
+               + x3 * x3 * (x1 `unpair` \x4 x5 -> x4) * (-42)
+               + x3 * x3 * (x1 `unpair` \x4 x5 -> x5) * (-42)
+               + x2 * x2 * 441
+               + x3 * x3 * 882)
+              * recip (x2 * x2 * (x2 * x2) + x2 * x2 * (x3 * x3) * 3
+                       + x3 * x3 * (x3 * x3))
+              * (-1/2))
+        * recip (sqrt_ (unsafeProb (x2 ** 4 + x2 ** 2 * x3 ** 2 * 3
+                                    + x3 ** 4)))
+        * 3) $
+    dirac (pair (unsafeProb x2) (unsafeProb x3))
+
+    -- weight 5 $
+    -- uniform 3 8 `bind` \noiseT' ->
+    -- uniform 1 4 `bind` \noiseE' ->
+    -- weight (recip pi_
+    --         * exp_ (((fst_ m1m2) * (fst_ m1m2) * (noiseT' * noiseT') * 2
+    --     	     + noiseT' * noiseT' * (fst_ m1m2) * (snd_ m1m2) * (-2)
+    --     	     + (snd_ m1m2) * (snd_ m1m2) * (noiseT' * noiseT')
+    --     	     + noiseE' * noiseE' * ((fst_ m1m2) * (fst_ m1m2))
+    --     	     + noiseE' * noiseE' * ((snd_ m1m2) * (snd_ m1m2)))
+    --     	    * recip (noiseT' * noiseT' * (noiseT' * noiseT') + noiseE' * noiseE' * (noiseT' * noiseT') * 3 + noiseE' * noiseE' * (noiseE' * noiseE'))
+    --     	    * (-1/2))
+    --         * pow_ (unsafeProb (noiseT' ** 4 + noiseE' ** 2 * noiseT' ** 2 * 3 + noiseE' ** 4)) (-1/2)
+    --         * (1/10)) $
+    -- dirac (pair (unsafeProb noiseT') (unsafeProb noiseE'))
 
 
--- This should be given by the client, not auto-generated by Hakaru.
+-- | This should be given by the client, not auto-generated by Hakaru.
 proposal
     :: (Mochastic repr)
     => repr (HPair HReal HReal)
@@ -162,6 +190,7 @@ mh prop target =
   where d:_ = density (\env -> {-bindx-} (target env) {-(prop env)-})
 
 
+-- | Reflects the new model
 easierRoadmapProg4
     :: (Lambda repr, Mochastic repr)
     => repr (HFun (HPair HReal HReal)
@@ -181,21 +210,49 @@ easierRoadmapProg4 =
          dirac $ pair noiseTOld noiseE)) (\ntne' ->
   (bern $ min_ 1 (easyDens m1 m2 ntne' / easyDens m1 m2 ntne)) `bind` \accept ->
   dirac $ if_ accept ntne' ntne)
- where easyDens m1 m2 ntne = unpair ntne $ \nt ne ->
-                       let_ (fromProb nt) (\nt' ->
-                       let_ (fromProb ne) (\ne' ->
-                       recip pi_
-	               * exp_ ((m1 * m1 * (nt' * nt') * 2
-		                + nt' * nt' * m1 * m2 * (-2)
-		                + m2 * m2 * (nt' * nt')
-		                + ne' * ne' * (m1 * m1)
-		                + ne' * ne' * (m2 * m2))
-		               * recip (nt' * nt' * (nt' * nt')
-                                        + ne' * ne' * (nt' * nt') * 3
-                                        + ne' * ne' * (ne' * ne'))
-		               * (-1/2))
-	               * pow_ (unsafeProb (nt' ** 4 + ne' ** 2 * nt' ** 2 * 3 + ne' ** 4)) (-1/2)
-	               * (1/10)))
+    where easyDens m1 m2 ntne =
+              unpair ntne $ \nt ne ->
+              let_ (fromProb nt) (\nt' ->
+              let_ (fromProb ne) (\ne' ->
+              (exp_ ((nt' * nt'
+                     * (m1 * m1)
+                     * 2
+                     + nt' * nt' * m1 * m2
+                     * (-2)
+                     + nt' * nt'
+                     * (m2 * m2)
+                     + ne' * ne'
+                     * (m1 * m1)
+                     + ne' * ne'
+                     * (m2 * m2)
+                     + nt' * nt' * m1 * (-42)
+                     + ne' * ne' * m1 * (-42)
+                     + ne' * ne' * m2 * (-42)
+                     + nt' * nt' * 441
+                     + ne' * ne' * 882)
+                    * recip (nt' * nt' * (nt' * nt') + nt' * nt' * (ne' * ne') * 3
+                            + ne' * ne' * (ne' * ne'))
+                    * (-1/2))
+              * recip (sqrt_ (unsafeProb (nt' ** 4 + nt' ** 2 * ne' ** 2 * 3
+                                    + ne' ** 4)))
+              * 3)))
+
+ -- where easyDens m1 m2 ntne =
+ --           unpair ntne $ \nt ne ->
+ --                       let_ (fromProb nt) (\nt' ->
+ --                       let_ (fromProb ne) (\ne' ->
+ --                       recip pi_
+ --                       * exp_ ((m1 * m1 * (nt' * nt') * 2
+ --                                + nt' * nt' * m1 * m2 * (-2)
+ --                                + m2 * m2 * (nt' * nt')
+ --                                + ne' * ne' * (m1 * m1)
+ --                                + ne' * ne' * (m2 * m2))
+ --                               * recip (nt' * nt' * (nt' * nt')
+ --                                        + ne' * ne' * (nt' * nt') * 3
+ --                                        + ne' * ne' * (ne' * ne'))
+ --                               * (-1/2))
+ --                       * pow_ (unsafeProb (nt' ** 4 + ne' ** 2 * nt' ** 2 * 3 + ne' ** 4)) (-1/2)
+ --                       * (1/10)))
 
 
 easierRoadmapProg4'
@@ -310,9 +367,11 @@ makeChain m n s = app (chain (vector n (\ _ ->
 
 runEasierRoadmapProg4 =
     runSample $ makeChain
-        (app easierRoadmapProg4 (pair 0 1))
-        20
-        (pair 4 2)
+        (app easierRoadmapProg4 (pair m1 m2))
+        400
+        (pair nt ne)
+    where (m1, m2) = (29,26)
+          (nt, ne) = (5,2)
 
 makeChain'
     :: (Lambda repr, Mochastic repr)
@@ -323,19 +382,22 @@ makeChain'
 makeChain' m n s = app (chain (vector n (\ _ ->
                                         lam $ \ss ->
                                         app m ss `bind` \p ->
-                                        unpair p $ \s' _ ->  
-                                        dirac $ (pair s' s')))) s `bind` \vs' ->
-                  dirac (fst_ vs')        
+                                        unpair p $ \s' r ->
+                                        bern (min_ 1 r) `bind` \a ->
+                                        dirac (if_ a s' ss) `bind` \nxt ->
+                                        dirac $ (pair nxt nxt)))) s
+                   `bind` \vs' ->
+                  dirac (fst_ vs')
 
 runEasierRoadmapProg4' =
     runSample $ makeChain' (app easierRoadmapProg4' (pair m1 m2))
                            400
                            (pair nt ne)
         where (m1, m2) = (29,26)
-              (nt, ne) = (20,20)
+              (nt, ne) = (5,2)
 
 writeProg4 filepath = do
     a <- runEasierRoadmapProg4'
-    B.writeFile filepath (encode $ V.toList (removeLogFloat a))
+    B.writeFile filepath (B.append "noiseT,noiseE\n" (encode $ V.toList $ removeLogFloat a))
   where removeLogFloat a = V.map (\ (x,y) -> (LF.fromLogFloat x, LF.fromLogFloat y))
                            (fromJust a) :: V.Vector (Double, Double)
