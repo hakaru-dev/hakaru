@@ -208,6 +208,7 @@ mh prop target =
   where d:_ = density (\env -> {-bindx-} (target env) {-(prop env)-})
 
 
+-- | Reflects the new model              
 easierRoadmapProg4
     :: (Lambda repr, Mochastic repr)
     => repr (HFun (HPair HReal HReal)
