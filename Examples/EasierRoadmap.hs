@@ -389,7 +389,7 @@ runEasierRoadmapProg4 =
         400
         (pair nt ne)
     where (m1, m2) = (29,26)
-          (nt, ne) = (20,20)
+          (nt, ne) = (5,2)
 
 makeChain'
     :: (Lambda repr, Mochastic repr)
@@ -412,10 +412,10 @@ runEasierRoadmapProg4' =
                            400
                            (pair nt ne)
         where (m1, m2) = (29,26)
-              (nt, ne) = (5,5)
+              (nt, ne) = (5,2)
 
 writeProg4 filepath = do
-    a <- runEasierRoadmapProg4
+    a <- runEasierRoadmapProg4'
     B.writeFile filepath (B.append "noiseT,noiseE\n" (encode $ V.toList $ removeLogFloat a))
   where removeLogFloat a = V.map (\ (x,y) -> (LF.fromLogFloat x, LF.fromLogFloat y))
                            (fromJust a) :: V.Vector (Double, Double)
