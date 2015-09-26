@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, DeriveDataTypeable, CPP, OverloadedStrings #-}
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, DeriveDataTypeable, CPP, OverloadedStrings, ScopedTypeVariables #-}
 {-# OPTIONS -Wall #-}
 
 module Language.Hakaru.Simplify
@@ -90,7 +90,7 @@ ourContext = do
 -- from the commandline, but using `cabal repl` causes it to break
 -- due to OverloadedStrings and (supposed) ambiguity about @a@ in
 -- the Typeable constraint.
-closeLoop :: (Typeable a) => String -> IO a
+closeLoop :: forall a. (Typeable a) => String -> IO a
 closeLoop s = action where
   action = do
     result <- unsafeRunInterpreterWithArgs ourGHCOptions $ ourContext >>
@@ -101,10 +101,12 @@ closeLoop s = action where
 #endif
     case result of Left err -> throw (InterpreterException err s')
                    Right a -> return a
+
   s' = s ++ " :: " ++ typeStr
+
   typeStr = unpack $ replace ":" "Cons"
                    $ replace "[]" "Nil"
-                   $ pack (show (typeOf ((undefined :: f a -> a) action)))
+                   $ pack (show (typeOf (undefined :: a)))
 
 mkTypeString :: (Simplifiable a) => String -> proxy a -> String
 mkTypeString s t = "Typed(" ++ s ++ ", " ++ mapleType t ++ ")"
