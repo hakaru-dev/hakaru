@@ -12,22 +12,22 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.08.18
+--                                                    2015.09.29
 -- |
--- Module      :  Language.Hakaru.Syntax.Disintegrate
+-- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  wren@community.haskell.org
 -- Stability   :  experimental
 -- Portability :  GHC-only
 --
--- This is a fork of "Language.Hakaru.Lazy" to work with our new
+-- This is a fork of the old "Language.Hakaru.Lazy" to work with our new
 -- AST.
 --
 -- TODO: capture in the type signatures when things allow the use
 -- of 'Lub' vs when they do not.
 ----------------------------------------------------------------
-module Language.Hakaru.Syntax.Disintegrate
+module Language.Hakaru.Disintegrate
     ( disintegrate
     , density
     , observe

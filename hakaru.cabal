@@ -1,7 +1,7 @@
 -- To understand this, see http://haskell.org/cabal/users-guide/
 
 name:                hakaru
-version:             0.2.0
+version:             0.3.0
 synopsis:            A probabilistic programming embedded DSL   
 -- description:         
 homepage:            http://indiana.edu/~ppaml/
