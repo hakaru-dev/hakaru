@@ -368,7 +368,7 @@ makeChain m n s = app (chain (vector n (\ _ ->
 runEasierRoadmapProg4 =
     runSample $ makeChain
         (app easierRoadmapProg4 (pair m1 m2))
-        400
+        4000
         (pair nt ne)
     where (m1, m2) = (29,26)
           (nt, ne) = (5,2)
