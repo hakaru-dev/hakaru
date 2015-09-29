@@ -229,7 +229,7 @@ NewSLO := module ()
   # TODO unify constraints with unintegrate's context
   reduce := proc(ee, h :: name, constraints :: list(name=anything))
     # option remember, system;
-    local e, elim, hh, subintegral, w, n, x, myint;
+    local e, elim, hh, subintegral, w, n, i, x, myint;
     e := ee;
 
     while e :: Int(anything, name=anything) and not hastype(op(1,e),
