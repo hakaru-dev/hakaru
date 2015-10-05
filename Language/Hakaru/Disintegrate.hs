@@ -48,7 +48,7 @@ import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Prelude hiding (observe)
-import Language.Hakaru.Syntax.Expect (total)
+import Language.Hakaru.Expect (total)
 
 ----------------------------------------------------------------
 

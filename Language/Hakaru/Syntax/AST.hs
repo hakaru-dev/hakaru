@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.08.20
+--                                                    2015.09.29
 -- |
 -- Module      :  Language.Hakaru.Syntax.AST
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -22,7 +22,7 @@
 -- Portability :  GHC-only
 --
 -- The generating functor for the raw syntax, along with various
--- helper types.
+-- helper types. For a more tutorial sort of introduction to how things are structured here and in "Language.Hakaru.Syntax.ABT", see <http://winterkoninkje.dreamwidth.org/103978.html>
 --
 -- TODO: are we finally at the place where we can get rid of all
 -- those annoying underscores?
