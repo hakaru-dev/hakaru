@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.09.29
+--                                                    2015.10.07
 -- |
 -- Module      :  Examples.EasierRoadmap
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -30,7 +30,7 @@ import Language.Hakaru.Syntax.TypeEq (SingI)
 import Language.Hakaru.Syntax.HClasses (HSemiring_)
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Prelude
-import Language.Hakaru.Syntax.Disintegrate
+import Language.Hakaru.Disintegrate
 
 {-
 import Language.Hakaru.Syntax

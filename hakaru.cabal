@@ -21,7 +21,6 @@ Flag patchedHint
 
 library
   exposed-modules:     Language.Hakaru.Types,
-                       Language.Hakaru.Arrow,
                        Language.Hakaru.Mixture,
                        Language.Hakaru.Sampler,
                        Language.Hakaru.Syntax,
