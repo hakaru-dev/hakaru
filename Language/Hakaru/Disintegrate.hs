@@ -61,8 +61,7 @@ disintegrate
     => abt '[] ('HMeasure (HPair a b))
     -> abt '[] (a ':-> 'HMeasure b) -- this Hakaru function is measurable
 disintegrate m =
-    -- TODO: actually implement the Disintegrate primop
-    primOp1_ (Disintegrate sing sing) m
+    error "TODO: disintegrate"
 {-
     runCompose $
     lam $ \x ->

@@ -31,7 +31,7 @@ import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.ABT (ABT)
 import Language.Hakaru.Syntax.Prelude
 import Language.Hakaru.Expect (normalize)
-import Language.Hakaru.Disintegrate (determine, density, disintegrate)
+import Language.Hakaru.Disintegrate (determine, density, disintegrate, Backward())
 
 {-
 import Language.Hakaru.Lazy
@@ -44,9 +44,9 @@ import Language.Hakaru.Expect (Expect(..), Expect', normalize)
 ----------------------------------------------------------------
 priorAsProposal
     :: ABT abt
-    => abt '[] ('HMeasure ('HPair a b))
-    -> abt '[] ('HPair a b)
-    -> abt '[] ('HMeasure ('HPair a b))
+    => abt '[] ('HMeasure (HPair a b))
+    -> abt '[] (HPair a b)
+    -> abt '[] ('HMeasure (HPair a b))
 priorAsProposal p x =
     bern (prob_ 0.5) >>= \c ->
     p >>= \x' ->
@@ -85,9 +85,9 @@ mcmc proposal target =
 
 gibbsProposal
     :: (ABT abt, SingI a, Backward a a)
-    => abt '[] ('HMeasure ('HPair a b))
-    -> abt '[] ('HPair a b)
-    -> abt '[] ('HMeasure ('HPair a b))
+    => abt '[] ('HMeasure (HPair a b))
+    -> abt '[] (HPair a b)
+    -> abt '[] ('HMeasure (HPair a b))
 gibbsProposal p xy =
     xy `unpair` \x _y ->
     pair x <$> normalize (determine (disintegrate p) `app` x)
@@ -118,7 +118,7 @@ slice target =
 sliceX
     :: (ABT abt, SingI a, Backward a a)
     => abt '[] ('HMeasure a)
-    -> abt '[] ('HMeasure ('HPair a 'HReal))
+    -> abt '[] ('HMeasure (HPair a 'HReal))
 sliceX target =
     let densAt = fromProb . determine (density target) in
     target `bindx` \x ->
