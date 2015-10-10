@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.09.29
+--                                                    2015.10.09
 -- |
 -- Module      :  Language.Hakaru.Syntax.AST
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -530,26 +530,6 @@ data MeasureOp :: [Hakaru] -> Hakaru -> * where
             ] ('HMeasure (HPair ('HArray a) s))
 
 
-    -- -- Internalized program transformations
-    -- TODO: do these belong in their own place?
-    --
-    -- We generally want to evaluate these away at compile-time,
-    -- but sometimes we may be stuck with a few unresolved things
-    -- for open terms.
-    --
-    -- TODO: implement a \"change of variables\" program transformation
-    -- to map, say, @Lam_ x. blah (Expect x)@ into @Lam x'. blah x'@.
-    -- Or, perhaps rather, transform it into @Lam_ x. App_ (Lam_ x'. blah x') (Expect x)@.
-    Expect
-        :: !(Sing a)
-        -> MeasureOp '[ 'HMeasure a, a ':-> 'HProb ] 'HProb
-
-    -- TODO: replace with separate primitives for Forward and Backward (or possibly the four primitives given in the paper, depending on whether the inductive argument is of measure type or not).
-    Disintegrate
-        :: !(Sing a)
-        -> !(Sing b)
-        -> MeasureOp '[ 'HMeasure (HPair a b), a ] ('HMeasure b)
-
 deriving instance Eq   (MeasureOp args a)
 -- TODO: instance Read (MeasureOp args a)
 deriving instance Show (MeasureOp args a)
@@ -573,10 +553,6 @@ sing_MeasureOp (Plate a)   =
 sing_MeasureOp (Chain s a) =
     ( SArray (s `SFun` SMeasure (sPair a s)) `Cons1` s `Cons1` Nil1
     , SMeasure (sPair (SArray a) s))
-sing_MeasureOp (Expect a) =
-    (SMeasure a `Cons1` (a `SFun` SProb) `Cons1` Nil1, sing)
-sing_MeasureOp (Disintegrate a b) =
-    (SMeasure (sPair a b) `Cons1` a `Cons1` Nil1, SMeasure b)
 
 
 ----------------------------------------------------------------
@@ -1078,6 +1054,19 @@ data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
         ,  '( '[ a ], 'HMeasure b)
         ] ('HMeasure b)
 
+    -- -- Internalized program transformations
+    -- TODO: do these belong in their own place?
+    --
+    -- We generally want to evaluate these away at compile-time,
+    -- but sometimes we may be stuck with a few unresolved things
+    -- for open terms.
+    --
+    -- TODO: implement a \"change of variables\" program transformation
+    -- to map, say, @Lam_ x. blah (Expect x)@ into @Lam x'. blah x'@.
+    -- Or, perhaps rather, transform it into @Lam_ x. App_ (Lam_ x'. blah x') (Expect x)@.
+    --
+    -- TODO: did we want the singleton @a@ argument back?
+    Expect :: SCon '[ LC ('HMeasure a), '( '[ a ], 'HProb) ] 'HProb
 
 -- TODO: instance Eq   (SCon args a)
 -- TODO: instance Read (SCon args a)

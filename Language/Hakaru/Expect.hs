@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.09.29
+--                                                    2015.10.09
 -- |
 -- Module      :  Language.Hakaru.Expect
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -30,7 +30,6 @@ import           Data.IntMap   (IntMap)
 import qualified Data.IntMap   as IM
 import qualified Data.Text     as Text
 
-import Language.Hakaru.Syntax.IClasses (fmap21)
 import Language.Hakaru.Syntax.Nat      (fromNat)
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.TypeEq
@@ -311,7 +310,8 @@ expectTypeDir p (SFun   _ a) e =
     expectTypeDir (unImpureFun p) a (e `app` e2)
 expectTypeDir _ (SMeasure a) e =
     ExpectMeasure $ \c ->
-    measure2_ (Expect a) e (lamWithType a c)
+    -- measure2_ (Expect a) e (lamWithType a c)
+    syn (Expect :$ e :* binder Text.empty a c :* End)
 
 
 expectAST
@@ -434,6 +434,8 @@ expectAST p (Lub_ es) xs =
         syn $ Lub_ [ expectSynDir p e xs `apA` ei | e <- es]
     -}
 
+expectAST p (Expect :$ _) _ = case p of {}
+
 
 expectBranch
     :: (ABT abt)
@@ -546,9 +548,6 @@ expectMeasure _ (Chain _ _) es _ =
         ExpectMeasure $ \c ->
         error "TODO: expectMeasure{Chain}"
     _ -> error "expectMeasure: the impossible happened"
-expectMeasure p (Expect _) _ _ = case p of {}
-expectMeasure _ (Disintegrate _ _) _ _ =
-    error "TODO: expectMeasure{Disintegrate}"
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
