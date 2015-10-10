@@ -1,61 +1,97 @@
-{-# LANGUAGE TypeFamilies, RankNTypes, FlexibleContexts, DataKinds #-}
-module Language.Hakaru.Inference where
+{-# LANGUAGE DataKinds, TypeOperators, NoImplicitPrelude #-}
 
-import Prelude hiding (Real)
+{-# OPTIONS_GHC -Wall -fwarn-tabs #-}
+----------------------------------------------------------------
+--                                                    2015.10.09
+-- |
+-- Module      :  Language.Hakaru.Inference
+-- Copyright   :  Copyright (c) 2015 the Hakaru team
+-- License     :  BSD3
+-- Maintainer  :  wren@community.haskell.org
+-- Stability   :  experimental
+-- Portability :  GHC-only
+--
+-- TODO: we may want to give these longer\/more-explicit names so as to be a bit less ambiguous in the larger Haskell ecosystem.
+----------------------------------------------------------------
+module Language.Hakaru.Inference
+    ( priorAsProposal
+    , mh
+    , mcmc
+    , gibbsProposal
+    , slice
+    , sliceX
+    , incompleteBeta
+    , regBeta
+    , tCDF
+    , approxMh
+    ) where
 
+import Prelude (($), (.))
+import Language.Hakaru.Syntax.DataKind
+import Language.Hakaru.Syntax.ABT (ABT)
+import Language.Hakaru.Syntax.Prelude
+import Language.Hakaru.Expect (normalize)
+import Language.Hakaru.Disintegrate (determine, density, disintegrate)
+
+{-
 import Language.Hakaru.Lazy
 import Language.Hakaru.Compose
 import Language.Hakaru.Syntax
 import Language.Hakaru.Expect (Expect(..), Expect', normalize)
+-}
 
+----------------------------------------------------------------
+----------------------------------------------------------------
 priorAsProposal
-    :: Mochastic repr
-    => repr ('HMeasure ('HPair a b))
-    -> repr ('HPair a b)
-    -> repr ('HMeasure ('HPair a b))
+    :: ABT abt
+    => abt '[] ('HMeasure ('HPair a b))
+    -> abt '[] ('HPair a b)
+    -> abt '[] ('HMeasure ('HPair a b))
 priorAsProposal p x =
-    bern (1/2) `bind` \c ->
-    p `bind` \x' ->
-    dirac (if_ c
-        (pair (fst_ x ) (snd_ x'))
-        (pair (fst_ x') (snd_ x )))
+    bern (prob_ 0.5) >>= \c ->
+    p >>= \x' ->
+    dirac $
+        if_ c
+            (pair (fst x ) (snd x'))
+            (pair (fst x') (snd x ))
 
 
-mh  :: (Mochastic repr, Integrate repr, Lambda repr,
-        a ~ Expect' a, Order_ a, Backward a a)
-    => (forall repr'. (Mochastic repr') => repr' a -> repr' ('HMeasure a))
-    -> (forall repr'. (Mochastic repr') => repr' ('HMeasure a))
-    -> repr ('HFun a ('HMeasure ('HPair a 'HProb)))
+-- We don't do the accept\/reject part of MCMC here, because @min@ and @bern@ don't do well in @simplify@! So we'll be passing the resulting AST of 'mh' to 'simplify' before plugging that into @mcmc@; that's why 'easierRoadmapProg4' and 'easierRoadmapProg4'' have different types.
+-- TODO: the @a@ type should be pure (aka @a ~ Expect' a@ in the old parlance).
+-- BUG: get rid of the SingI requirements due to using 'lam'
+mh  :: (ABT abt, SingI a, Backward a a)
+    => (abt '[] a -> abt '[] ('HMeasure a))
+    -> abt '[] ('HMeasure a)
+    -> abt '[] (a ':-> 'HMeasure (HPair a 'HProb))
 mh proposal target =
-  let_ (lam (d unit)) $ \mu ->
-  lam $ \old ->
-    proposal old `bind` \new ->
-    dirac (pair new (mu `app` pair new old / mu `app` pair old new))
-  where d:_ = density (\dummy -> ununit dummy $ bindx target proposal)
+    let_ (determine $ density target) $ \mu ->
+    lam $ \old ->
+        proposal old >>= \new ->
+        dirac $ pair new (mu `app` {-pair-} new {-old-} / mu `app` {-pair-} old {-new-})
 
 
-mcmc :: (Mochastic repr, Integrate repr, Lambda repr,
-         a ~ Expect' a, Order_ a, Backward a a)
-    => (forall repr'. (Mochastic repr') => repr' a -> repr' ('HMeasure a))
-    -> (forall repr'. (Mochastic repr') => repr' ('HMeasure a))
-    -> repr ('HFun a ('HMeasure a))
+mcmc :: (ABT abt, SingI a, Backward a a)
+    => (abt '[] a -> abt '[] ('HMeasure a))
+    -> abt '[] ('HMeasure a)
+    -> abt '[] (a ':-> 'HMeasure a)
 mcmc proposal target =
-  let_ (mh proposal target) $ \f ->
-  lam $ \old ->
-    app f old `bind` \new_ratio ->
-    unpair new_ratio $ \new ratio ->
-    bern (min_ 1 ratio) `bind` \accept ->
-    dirac (if_ accept new old)
+    let_ (mh proposal target) $ \f ->
+    lam $ \old ->
+        app f old >>= \new_ratio ->
+        new_ratio `unpair` \new ratio ->
+        bern (min (prob_ 1) ratio) >>= \accept ->
+        dirac (if_ accept new old)
+
 
 gibbsProposal
-    :: (Expect' a ~ a, Expect' b ~ b, Backward a a, Order_ a, 
-        Mochastic repr, Integrate repr, Lambda repr)
-    => Cond (Expect repr) 'HUnit ('HMeasure ('HPair a b))
-    -> repr ('HPair a b)
-    -> repr ('HMeasure ('HPair a b))
-gibbsProposal p x = q (fst_ x) `bind` \x' -> dirac (pair (fst_ x) x')
-  where d:_ = runDisintegrate p
-        q y = normalize (app (app d unit) (Expect y))              
+    :: (ABT abt, SingI a, Backward a a)
+    => abt '[] ('HMeasure ('HPair a b))
+    -> abt '[] ('HPair a b)
+    -> abt '[] ('HMeasure ('HPair a b))
+gibbsProposal p xy =
+    xy `unpair` \x _y ->
+    pair x <$> normalize (determine (disintegrate p) `app` x)
+
 
 -- Slice sampling can be thought of:
 --
@@ -66,64 +102,77 @@ gibbsProposal p x = q (fst_ x) `bind` \x' -> dirac (pair (fst_ x) x')
 --      return x'
 
 slice
-    :: (Mochastic repr, Integrate repr, Lambda repr)
-    => (forall repr' . (Mochastic repr') => repr' ('HMeasure 'HReal))
-    -> repr ('HFun 'HReal ('HMeasure 'HReal))
-slice target = lam $ \x ->
-               uniform 0 (densAt x) `bind` \u ->
-               normalize $
-               lebesgue `bind` \x' ->
-               if_ (Expect (u `less_` densAt (unExpect x')))
-                   (dirac x')
-                   (superpose [])
-  where d:_ = density (\dummy -> ununit dummy target)
-        densAt x = fromProb $ d unit x
+    :: (ABT abt, SingI a)
+    => abt '[] ('HMeasure 'HReal)
+    -> abt '[] ('HReal ':-> 'HMeasure 'HReal)
+slice target =
+    let densAt = fromProb . determine (density target) in
+    lam $ \x ->
+    uniform (real_ 0) (densAt x) >>= \u ->
+    normalize $
+    lebesgue >>= \x' ->
+    observe (u < densAt x') $
+    dirac x'
 
 
 sliceX
-    :: (Mochastic repr, Integrate repr, Lambda repr,
-        a ~ Expect' a, Order_ a, Backward a a)
-    => (forall repr' . (Mochastic repr') => repr' ('HMeasure a))
-    -> repr ('HMeasure ('HPair a 'HReal))
-sliceX target = target `bindx` \x ->
-                uniform 0 (densAt x)
-  where d:_ = density (\dummy -> ununit dummy target)
-        densAt x = fromProb $ d unit x
+    :: (ABT abt, SingI a, Backward a a)
+    => abt '[] ('HMeasure a)
+    -> abt '[] ('HMeasure ('HPair a 'HReal))
+sliceX target =
+    let densAt = fromProb . determine (density target) in
+    target `bindx` \x ->
+    uniform (real_ 0) (densAt x)
+
 
 incompleteBeta
-    :: Integrate repr
-    => repr 'HProb -> repr 'HProb -> repr 'HProb -> repr 'HProb
-incompleteBeta x a b = integrate 0 (fromProb x)
-                       (\t -> pow_ (unsafeProb t    ) (fromProb a-1) *
-                              pow_ (unsafeProb $ 1-t) (fromProb b-1))
+    :: ABT abt
+    => abt '[] 'HProb
+    -> abt '[] 'HProb
+    -> abt '[] 'HProb
+    -> abt '[] 'HProb
+incompleteBeta x a b =
+    let one = real_ 1 in
+    integrate (real_ 0) (fromProb x) $ \t ->
+        unsafeProb t ** (fromProb a - one)
+        * unsafeProb (one - t) ** (fromProb b - one)
 
-regBeta
-    :: Integrate repr
-    => repr 'HProb -> repr 'HProb -> repr 'HProb -> repr 'HProb
+
+regBeta -- TODO: rename 'regularBeta'
+    :: ABT abt
+    => abt '[] 'HProb
+    -> abt '[] 'HProb
+    -> abt '[] 'HProb
+    -> abt '[] 'HProb
 regBeta x a b = incompleteBeta x a b / betaFunc a b
 
-tCDF :: Integrate repr => repr 'HReal -> repr 'HProb -> repr 'HProb
-tCDF x v = 1 - (1/2)*regBeta (v / (unsafeProb (x*x) + v)) (v/2) (1/2)
+
+tCDF :: ABT abt => abt '[] 'HReal -> abt '[] 'HProb -> abt '[] 'HProb
+tCDF x v =
+    let b = regBeta (v / (unsafeProb (x*x) + v)) (v / prob_ 2) (prob_ 0.5)
+    in  unsafeProb $ real_ 1 - real_ 0.5 * fromProb b
+    
 
 approxMh
-    :: (Mochastic repr, Integrate repr, Lambda repr,
-        a ~ Expect' a, Order_ a, Backward a a)
-    =>  (forall repr' . (Mochastic repr') => repr'  a -> repr' ('HMeasure a)) ->
-        (forall repr' . (Mochastic repr') => repr' ('HMeasure a)) ->
-        [repr a -> repr ('HMeasure a)] ->
-        repr ('HFun a ('HMeasure a))
+    :: (ABT abt, SingI a, Backward a a)
+    => (abt '[] a -> abt '[] ('HMeasure a))
+    -> abt '[] ('HMeasure a)
+    -> [abt '[] a -> abt '[] ('HMeasure a)]
+    -> abt '[] (a ':-> 'HMeasure a)
 approxMh proposal prior (x:xs) =
-  lam $ \old ->
-  let_ (lam (d unit)) $ \mu ->
-  liftM unsafeProb (uniform 0 1) `bind` \u ->
-  proposal old `bind` \new ->
-  let_ (u * mu `app` pair new old / mu `app` pair old new) $ \u0 ->
-  let_ ((l new new) / (l old old)) $ \l0 ->
-  let_ (tCDF (n - 1) (l0 - u0)) $ \delta ->
-  if_ (delta `less` eps)
-  (if_ (u0 `less` l0) (dirac new) (dirac old))
-  (app (approxMh proposal prior xs) old)
-  where n = 2000
-        eps = 1/20
-        d:_ = density (\dummy -> ununit dummy $ bindx prior proposal)
-        l:_ = [(\d1 d2 -> 2)] -- density (\theta -> x theta)      
+    lam $ \old ->
+    let_ (determine . density $ bindx prior proposal) $ \mu ->
+    unsafeProb <$> uniform (real_ 0) (real_ 1) >>= \u ->
+    proposal old >>= \new ->
+    let_ (u * mu `app` pair new old / mu `app` pair old new) $ \u0 ->
+    let_ (l new new / l old old) $ \l0 ->
+    let_ (tCDF (n - real_ 1) (l0 - u0)) $ \delta ->
+    if_ (delta < eps)
+        (if_ (u0 < l0)
+            (dirac new)
+            (dirac old))
+        (approxMh proposal prior xs `app` old)
+  where
+    n   = real_ 2000
+    eps = prob_ (1/20)
+    l   = \d1 d2 -> prob_ 2 -- determine (density (\theta -> x theta))

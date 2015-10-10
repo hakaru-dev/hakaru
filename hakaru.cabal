@@ -54,6 +54,7 @@ library
                        Language.Hakaru.Syntax.TypeCheck,
                        Language.Hakaru.Expect
                        -- Language.Hakaru.Disintegrate
+                       -- Language.Hakaru.Inference
 
   other-modules:       Language.Hakaru.Util.Extras,
                        Language.Hakaru.Util.Finite,
