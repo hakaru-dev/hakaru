@@ -5,10 +5,10 @@ module Language.Hakaru.RoundTrip
   ( ()(..), (,)(..), Either(..), Bool(..), Int, Num(..)
   , Fractional(..), Floating(..), ($), Any(Any), (^^)
   , module Language.Hakaru.Syntax
-  , module Language.Hakaru.Embed 
+  -- module Language.Hakaru.Embed 
   ) where
 
 import GHC.Tuple (()(..), (,)(..))
 import Language.Hakaru.Syntax
 import Language.Hakaru.Any (Any(Any))
-import Language.Hakaru.Embed 
+-- import Language.Hakaru.Embed 

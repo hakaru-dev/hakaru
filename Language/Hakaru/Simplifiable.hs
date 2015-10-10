@@ -4,10 +4,10 @@
 module Language.Hakaru.Simplifiable (Simplifiable(mapleType)) where
 
 import Prelude hiding (Real)
---import Data.Proxy (Proxy(..)) -- Is in Prelude for modern GHC?
+import Data.Proxy (Proxy(..)) -- Is in Prelude for modern GHC?
 import Data.Typeable (Typeable)
 import Language.Hakaru.Syntax (Hakaru(..), HakaruFun(..))
-import Language.Hakaru.Embed
+-- import Language.Hakaru.Embed
 import Data.List (intercalate)
 
 -- TODO: We used to have @Typeable a@ for all Hakaru types @a@, but now that we've moved them into the @Hakaru*@ kind, now what?
@@ -49,6 +49,7 @@ instance SimplifiableFun Id where mapleTypeFn _ = "Id"
 instance Simplifiable x => SimplifiableFun (K x) where 
   mapleTypeFn _ = "Konst("  ++ mapleType (Proxy :: Proxy x) ++ ")" 
 
+{-
 instance (SingI xss, All2 SimplifiableFun xss, SimplEmbed t, Typeable t, Typeable xss) => Simplifiable (HTag t xss) where
   mapleType _ = concat
     [ "Tagged("
@@ -68,3 +69,4 @@ instance (SingI xss, All2 SimplifiableFun xss, SimplEmbed t, Typeable t, Typeabl
       go1 :: All SimplifiableFun xs => Sing xs -> [String]
       go1 SNil = []
       go1 (SCons x xs) = mapleTypeFn x : go1 xs
+-}

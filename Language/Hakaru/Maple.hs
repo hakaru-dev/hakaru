@@ -19,7 +19,7 @@ import Language.Hakaru.Syntax (Number(..),
 import Data.Ratio
 import Control.Monad (liftM, liftM2)
 import Control.Monad.Trans.State.Strict (State, evalState, state)
-import Language.Hakaru.Embed
+-- import Language.Hakaru.Embed
 import Data.List (intersperse)
 
 newtype Maple (a :: Hakaru *) = Maple {unMaple :: State Int String}
@@ -257,6 +257,7 @@ instance Mochastic Maple where
 op :: Int -> Maple a -> Maple b 
 op n (Maple x) = Maple $ x >>= \x' -> return ("op(" ++ show n ++ ", " ++ x' ++ ")")
 
+{-
 instance Embed Maple where 
   _Nil = constant "Nil"
   _Cons = app2 "Cons"
@@ -299,4 +300,4 @@ instance Embed Maple where
     xs <- unMaple x 
     fs <- unMaple (lam f)   
     return $ "subsindets( " ++ xs ++ " , 'Id'(anything), (x) -> 'Id' (" ++ fs ++ "(op(1, x)) ))" 
-
+-}

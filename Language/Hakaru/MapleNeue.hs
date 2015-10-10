@@ -19,7 +19,7 @@ import Language.Hakaru.Syntax (Number(..),
 import Data.Ratio
 import Control.Monad (liftM, liftM2)
 import Control.Monad.Trans.State.Strict (State, evalState, state)
-import Language.Hakaru.Embed
+-- import Language.Hakaru.Embed
 import Data.List (intersperse)
 
 newtype Maple (a :: Hakaru *) = Maple {unMaple :: State Int String}

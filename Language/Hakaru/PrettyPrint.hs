@@ -8,7 +8,7 @@ module Language.Hakaru.PrettyPrint (PrettyPrint,
 import Language.Hakaru.Syntax
 import Language.Hakaru.Util.Pretty
 import Text.PrettyPrint hiding (parens, empty)
-import Language.Hakaru.Embed
+-- import Language.Hakaru.Embed
 import Data.List ((\\))
 
 leftMode :: Doc -> String
@@ -192,6 +192,7 @@ op p0 s p1 p2 (PP a) (PP b) =
 string :: String -> PrettyPrint a
 string s = PP $ \_ _ -> [text s] 
 
+{-
 instance Embed PrettyPrint where 
   _Nil = string "_Nil"
   _Cons = apply2 "_Cons" 
@@ -208,3 +209,4 @@ instance Embed PrettyPrint where
   ident = apply1 "ident"
   unIdent = apply1 "unIdent"
   natFn f x = apply2 "natFn" (lam f) x 
+-}

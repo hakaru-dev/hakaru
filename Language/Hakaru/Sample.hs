@@ -26,7 +26,7 @@ import qualified Data.Vector as V
 import Data.Maybe (fromMaybe)
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
-import Language.Hakaru.Embed
+-- import Language.Hakaru.Embed
 
 newtype Sample (m :: * -> *) (a :: Hakaru *) =
     Sample { unSample :: Sample' m a }
@@ -187,9 +187,11 @@ instance Lambda (Sample m) where
   lam f = Sample (unSample . f . Sample)
   app (Sample rator) (Sample rand) = Sample (rator rand)
 
+{-
 type instance Sample' m (HTag t f) = NS (NP (HFunRep (Sample m) (HMu f))) f
 type instance Sample' m (HMu f)    = NS (NP (HFunRep (Sample m) (HMu f))) f
 type instance Sample' m (f :$ a)   = NS (NP (HFunRep (Sample m) a      )) f 
+
 
 instance Embed (Sample m) where
   _Nil = Sample (Z Nil)
@@ -224,6 +226,7 @@ instance Embed (Sample m) where
   unIdent x = x `seq` undefined
 
   natFn f (Sample x) = Sample $ mapNS (mapNP (mapHFunRep f)) x 
+-}
                                    
 runSample :: Sample IO ('HMeasure a) -> IO (Maybe (Sample' IO a))
 runSample m = do g <- MWC.createSystemRandom -- "This is a somewhat expensive function, and is intended to be called only occasionally (e.g. once per thread)."
