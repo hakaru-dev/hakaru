@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.08.25
+--                                                    2015.10.13
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeCheck
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -423,10 +423,10 @@ checkType = checkType_
                         return (syn(Array_ e1' (bind x e3')))
             _ -> failwith "expected HArray type"
     
-        Syn (Datum_ (Datum d)) ->
+        Syn (Datum_ (Datum hint d)) ->
             case typ0 of
             SData _ typ2 ->
-                (syn . Datum_ . Datum)
+                (syn . Datum_ . Datum hint)
                     <$> checkDatumCode d typ2 typ0
             _            -> failwith "expected HData type"
     
@@ -557,7 +557,8 @@ checkPattern body pat_typ pat k =
             Nothing   -> failwith "type mismatch"
             Just Refl -> bind x <$> pushCtx (Some x) (k body')
     PWild       -> k body
-    PDatum pat1 ->
+    PDatum _hint pat1 ->
+        -- TODO: actually use the hint to improve error messages
         case pat_typ of
         SData _ typ2 -> checkPatternCode body pat1 typ2 pat_typ k
         _            -> failwith "expected term of user-defined data type"

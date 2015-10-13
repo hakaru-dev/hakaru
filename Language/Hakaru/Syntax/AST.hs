@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.09
+--                                                    2015.10.13
 -- |
 -- Module      :  Language.Hakaru.Syntax.AST
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -48,7 +48,7 @@ module Language.Hakaru.Syntax.AST
 
     -- * User-defined datatypes
     -- ** Data constructors\/patterns
-    , Datum(..)
+    , Datum(..), datumHint
     , DatumCode(..)
     , DatumStruct(..)
     , DatumFun(..)
@@ -75,8 +75,10 @@ module Language.Hakaru.Syntax.AST
     , pNothing, pJust
     ) where
 
-import Unsafe.Coerce           (unsafeCoerce) -- TODO: move the stuff that uses this off to a separate file
-import Data.Sequence           (Seq)
+import           Unsafe.Coerce (unsafeCoerce) -- TODO: move the stuff that uses this off to a separate file
+import qualified Data.Text     as Text
+import           Data.Text     (Text)
+import           Data.Sequence (Seq)
 import qualified Data.Foldable as F
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid             hiding (Sum)
@@ -96,6 +98,8 @@ import Language.Hakaru.Syntax.Coercion
 -- TODO: use 'Integer' instead of 'Int', 'Natural' instead of 'Nat', and 'Rational' instead of 'LogFloat' and 'Double'.
 
 -- TODO: is the restriction to ground terms too much? Would it be enough to just consider closed normal forms?
+
+-- BUG: even though the 'Datum' type has a single constructor, we get a warning about not being able to UNPACK it in 'VDatum'...
 
 -- | Constant values for primitive numeric types and user-defined
 -- data-types. In addition to being normal forms, these are also
@@ -142,7 +146,7 @@ sing_Value (VNat   _) = sing
 sing_Value (VInt   _) = sing
 sing_Value (VProb  _) = sing
 sing_Value (VReal  _) = sing
-sing_Value (VDatum (Datum d)) = error "TODO: sing_Value{VDatum}"
+sing_Value (VDatum (Datum hint d)) = error "TODO: sing_Value{VDatum}"
     {-
     -- @fmap1 sing_Value d@ gets us halfway there, but then what....
     -- This seems vaguely on the right track; but how can we get
@@ -322,6 +326,8 @@ data PrimOp :: [Hakaru] -> Hakaru -> * where
 
 
     -- -- Continuous and discrete integration.
+    -- TODO: turn these back into binders in order to avoid the need for lambdas! Of course, to do that, they have to move out of PrimOp and into SCon (or somewhere)
+    --
     -- TODO: make Integrate and Summate polymorphic, so that if the
     -- two inputs are HProb then we know the function must be over
     -- HProb\/HNat too. More generally, if the first input is HProb
@@ -330,7 +336,6 @@ data PrimOp :: [Hakaru] -> Hakaru -> * where
     Integrate :: PrimOp '[ 'HReal, 'HReal, 'HReal ':-> 'HProb ] 'HProb
     -- TODO: Should the first to arguments really be HReal?!
     Summate   :: PrimOp '[ 'HReal, 'HReal, 'HInt  ':-> 'HProb ] 'HProb
-    -- TODO: in the future we may want to turn these back into binders in order to avoid the need for lambdas. Of course, if we do that, then they have to move out of PrimOp and into SCon (or somewhere)
 
 
     -- -- -- Here we have the /polymorphic/ operators
@@ -557,8 +562,6 @@ sing_MeasureOp (Chain s a) =
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
--- TODO: add the constructor name as another component of this record, to improve error messages etc.
---
 -- TODO: add @Sing (HData' t)@ to the Datum constructor?
 --
 -- | A fully saturated data constructor\/pattern, with lives in
@@ -567,13 +570,23 @@ sing_MeasureOp (Chain s a) =
 -- \"complete\", i.e., is a well-formed constructor\/pattern. The
 -- second is to have a type which is indexed by its 'Hakaru' type,
 -- whereas 'DatumCode' has non-Hakaru types.
+--
+-- The first component is a hint for what the data constructor
+-- should be called when pretty-printing, giving error messages,
+-- etc. Like the hints for variable names, its value is not actually
+-- used to decide which constructor is meant or which pattern
+-- matches.
 data Datum :: (Hakaru -> *) -> Hakaru -> * where
     Datum
-        :: !(DatumCode (Code t) abt (HData' t))
+        :: {-# UNPACK #-} !Text
+        -> !(DatumCode (Code t) abt (HData' t))
         -> Datum abt (HData' t)
 
+datumHint :: Datum abt (HData' t) -> Text
+datumHint (Datum hint _) = hint
+
 instance Eq1 abt => Eq1 (Datum abt) where
-    eq1 (Datum d1) (Datum d2) = eq1 d1 d2
+    eq1 (Datum _ d1) (Datum _ d2) = eq1 d1 d2
 
 instance Eq1 abt => Eq (Datum abt a) where
     (==) = eq1
@@ -581,17 +594,17 @@ instance Eq1 abt => Eq (Datum abt a) where
 -- TODO: instance Read (Datum abt a)
 
 instance Show1 abt => Show1 (Datum abt) where
-    showsPrec1 p (Datum d) = showParen_1 p "Datum" d
+    showsPrec1 p (Datum hint d) = showParen_01 p "Datum" hint d
 
 instance Show1 abt => Show (Datum abt a) where
     showsPrec = showsPrec1
     show      = show1
 
 instance Functor11 Datum where
-    fmap11 f (Datum d) = Datum (fmap11 f d)
+    fmap11 f (Datum hint d) = Datum hint (fmap11 f d)
 
 instance Foldable11 Datum where
-    foldMap11 f (Datum d) = foldMap11 f d
+    foldMap11 f (Datum _ d) = foldMap11 f d
 
 ----------------------------------------------------------------
 infixr 7 `Et`, `PEt`
@@ -711,32 +724,44 @@ instance Foldable11 (DatumFun x) where
 -- values, so the pattern synonyms wouldn't even be helpful.
 
 dTrue, dFalse :: Datum abt HBool
-dTrue      = Datum . Inl $ Done
-dFalse     = Datum . Inr . Inl $ Done
+dTrue      = Datum tTrue  . Inl $ Done
+dFalse     = Datum tFalse . Inr . Inl $ Done
 
 dUnit      :: Datum abt HUnit
-dUnit      = Datum . Inl $ Done
+dUnit      = Datum tUnit . Inl $ Done
 
 dPair      :: abt a -> abt b -> Datum abt (HPair a b)
-dPair a b  = Datum . Inl $ Konst a `Et` Konst b `Et` Done
+dPair a b  = Datum tPair . Inl $ Konst a `Et` Konst b `Et` Done
 
 dLeft      :: abt a -> Datum abt (HEither a b)
-dLeft      = Datum . Inl . (`Et` Done) . Konst
+dLeft      = Datum tLeft . Inl . (`Et` Done) . Konst
 
 dRight     :: abt b -> Datum abt (HEither a b)
-dRight     = Datum . Inr . Inl . (`Et` Done) . Konst
+dRight     = Datum tRight . Inr . Inl . (`Et` Done) . Konst
 
 dNil       :: Datum abt (HList a)
-dNil       = Datum . Inl $ Done
+dNil       = Datum tNil. Inl $ Done
 
 dCons      :: abt a -> abt (HList a) -> Datum abt (HList a)
-dCons x xs = Datum . Inr . Inl $ Konst x `Et` Ident xs `Et` Done
+dCons x xs = Datum tCons . Inr . Inl $ Konst x `Et` Ident xs `Et` Done
 
 dNothing   :: Datum abt (HMaybe a)
-dNothing   = Datum . Inl $ Done
+dNothing   = Datum tNothing . Inl $ Done
 
 dJust      :: abt a -> Datum abt (HMaybe a)
-dJust      = Datum . Inr . Inl . (`Et` Done) . Konst
+dJust      = Datum tJust . Inr . Inl . (`Et` Done) . Konst
+
+tTrue, tFalse, tUnit, tPair, tLeft, tRight, tNil, tCons, tNothing, tJust :: Text
+tTrue    = Text.pack "true"
+tFalse   = Text.pack "false"
+tUnit    = Text.pack "unit"
+tPair    = Text.pack "pair"
+tLeft    = Text.pack "left"
+tRight   = Text.pack "right"
+tNil     = Text.pack "nil"
+tCons    = Text.pack "cons"
+tNothing = Text.pack "nothing"
+tJust    = Text.pack "just"
 
 
 ----------------------------------------------------------------
@@ -761,16 +786,17 @@ data Pattern :: [Hakaru] -> Hakaru -> * where
     -- | A pattern variable.
     PVar  :: Pattern '[ a ] a
 
-    -- | A data type constructor pattern.
+    -- | A data type constructor pattern. As with the 'Datum' constructor, the first component is a hint.
     PDatum
-        :: !(PDatumCode (Code t) vars (HData' t))
+        :: {-# UNPACK #-} !Text
+        -> !(PDatumCode (Code t) vars (HData' t))
         -> Pattern vars (HData' t)
 
 instance Eq1 (Pattern vars) where
-    eq1 PWild       PWild       = True
-    eq1 PVar        PVar        = True
-    eq1 (PDatum d1) (PDatum d2) = eq1 d1 d2
-    eq1 _           _           = False
+    eq1 PWild         PWild         = True
+    eq1 PVar          PVar          = True
+    eq1 (PDatum _ d1) (PDatum _ d2) = eq1 d1 d2
+    eq1 _           _               = False
 
 instance Eq (Pattern vars a) where
     (==) = eq1
@@ -778,9 +804,9 @@ instance Eq (Pattern vars a) where
 -- TODO: instance Read (Pattern vars a)
 
 instance Show1 (Pattern vars) where
-    showsPrec1 _ PWild      = showString    "PWild"
-    showsPrec1 _ PVar       = showString    "PVar"
-    showsPrec1 p (PDatum d) = showParen_1 p "PDatum" d
+    showsPrec1 _ PWild           = showString     "PWild"
+    showsPrec1 _ PVar            = showString     "PVar"
+    showsPrec1 p (PDatum hint d) = showParen_01 p "PDatum" hint d
 
 instance Show (Pattern vars a) where
     showsPrec = showsPrec1
@@ -912,11 +938,11 @@ instance Show (PDatumFun x vars a) where
 
 
 pTrue, pFalse :: Pattern '[] HBool
-pTrue  = PDatum . PInl $ PDone
-pFalse = PDatum . PInr . PInl $ PDone
+pTrue  = PDatum tTrue  . PInl $ PDone
+pFalse = PDatum tFalse . PInr . PInl $ PDone
 
 pUnit  :: Pattern '[] HUnit
-pUnit  = PDatum . PInl $ PDone
+pUnit  = PDatum tUnit . PInl $ PDone
 
 -- HACK: using undefined like that isn't going to help if we use the variant of eqAppendNil that actually needs the Sing...
 varsOfPattern :: Pattern vars a -> proxy vars
@@ -928,35 +954,35 @@ pPair
     -> Pattern (vars1 ++ vars2) (HPair a b)
 pPair a b =
     case eqAppendNil (varsOfPattern b) of
-    Refl -> PDatum . PInl $ PKonst a `PEt` PKonst b `PEt` PDone
+    Refl -> PDatum tPair . PInl $ PKonst a `PEt` PKonst b `PEt` PDone
 
 pLeft :: Pattern vars a -> Pattern vars (HEither a b)
 pLeft a =
     case eqAppendNil (varsOfPattern a) of
-    Refl -> PDatum . PInl $ PKonst a `PEt` PDone
+    Refl -> PDatum tLeft . PInl $ PKonst a `PEt` PDone
 
 pRight :: Pattern vars b -> Pattern vars (HEither a b)
 pRight b =
     case eqAppendNil (varsOfPattern b) of
-    Refl -> PDatum . PInr . PInl $ PKonst b `PEt` PDone
+    Refl -> PDatum tRight . PInr . PInl $ PKonst b `PEt` PDone
 
 pNil :: Pattern '[] (HList a)
-pNil = PDatum . PInl $ PDone
+pNil = PDatum tNil . PInl $ PDone
 
 pCons :: Pattern vars1 a
     -> Pattern vars2 (HList a)
     -> Pattern (vars1 ++ vars2) (HList a)
 pCons x xs = 
     case eqAppendNil (varsOfPattern xs) of
-    Refl -> PDatum . PInr . PInl $ PKonst x `PEt` PIdent xs `PEt` PDone
+    Refl -> PDatum tCons . PInr . PInl $ PKonst x `PEt` PIdent xs `PEt` PDone
 
 pNothing :: Pattern '[] (HMaybe a)
-pNothing = PDatum . PInl $ PDone
+pNothing = PDatum tNothing . PInl $ PDone
 
 pJust :: Pattern vars a -> Pattern vars (HMaybe a)
 pJust a =
     case eqAppendNil (varsOfPattern a) of
-    Refl -> PDatum . PInr . PInl $ PKonst a `PEt` PDone
+    Refl -> PDatum tJust . PInr . PInl $ PKonst a `PEt` PDone
 
 ----------------------------------------------------------------
 -- TODO: a pretty infix syntax, like (:=>) or something
@@ -1054,19 +1080,23 @@ data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
         ,  '( '[ a ], 'HMeasure b)
         ] ('HMeasure b)
 
+
     -- -- Internalized program transformations
     -- TODO: do these belong in their own place?
     --
     -- We generally want to evaluate these away at compile-time,
     -- but sometimes we may be stuck with a few unresolved things
     -- for open terms.
-    --
+
+    -- TODO: did we want the singleton @a@ argument back?
+    Expect :: SCon '[ LC ('HMeasure a), '( '[ a ], 'HProb) ] 'HProb
+
     -- TODO: implement a \"change of variables\" program transformation
     -- to map, say, @Lam_ x. blah (Expect x)@ into @Lam x'. blah x'@.
     -- Or, perhaps rather, transform it into @Lam_ x. App_ (Lam_ x'. blah x') (Expect x)@.
-    --
-    -- TODO: did we want the singleton @a@ argument back?
-    Expect :: SCon '[ LC ('HMeasure a), '( '[ a ], 'HProb) ] 'HProb
+
+    -- TODO: add the four ops for disingetration
+
 
 -- TODO: instance Eq   (SCon args a)
 -- TODO: instance Read (SCon args a)
@@ -1141,6 +1171,7 @@ data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     Array_ :: abt '[] 'HNat -> abt '[ 'HNat ] a -> AST abt ('HArray a)
 
     -- -- User-defined data types
+    -- BUG: even though the 'Datum' type has a single constructor, we get a warning about not being able to UNPACK it in 'Datum_'...
     -- | A data constructor applied to some expressions. N.B., this
     -- definition only accounts for data constructors which are
     -- fully saturated. Unsaturated constructors will need to be
