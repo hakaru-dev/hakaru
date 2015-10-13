@@ -10,7 +10,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.08.19
+--                                                    2015.10.13
 -- |
 -- Module      :  Language.Hakaru.Syntax.Prelude
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -271,8 +271,8 @@ not e =
                     Just . syn . NaryOp_ Xor $ Prelude.fmap not xs
                 Value_ v ->
                     case v of
-                    VDatum (Datum (Inl Done))       -> Just false
-                    VDatum (Datum (Inr (Inl Done))) -> Just true
+                    VDatum (Datum _ (Inl Done))       -> Just false
+                    VDatum (Datum _ (Inr (Inl Done))) -> Just true
                     _ -> error "not: the impossible happened"
                 _ -> Nothing
 
@@ -542,14 +542,22 @@ atanh  = primOp1_ Atanh
 
 ----------------------------------------------------------------
 -- the datatypes component of instance (ABT abt) => Base abt
+
+-- TODO: whenever all children are 'value_' then automagically use 'vdatum' rather than the raw syntax of 'datum_'
 datum_
     :: (ABT abt)
     => Datum (abt '[]) (HData' t)
     -> abt '[] (HData' t)
 datum_ = syn . Datum_
 
+vdatum
+    :: (ABT abt)
+    => Datum Value (HData' t)
+    -> abt '[] (HData' t)
+vdatum = value_ . VDatum
+
 unit   :: (ABT abt) => abt '[] HUnit
-unit   = datum_ dUnit
+unit   = vdatum dUnit
 
 pair   :: (ABT abt) => abt '[] a -> abt '[] b -> abt '[] (HPair a b)
 pair   = (datum_ .) . dPair
@@ -615,7 +623,7 @@ if_ b t f =
         ]
 
 nil_      :: (ABT abt) => abt '[] (HList a)
-nil_      = datum_ dNil
+nil_      = vdatum dNil
 
 cons_     :: (ABT abt) => abt '[] a -> abt '[] (HList a) -> abt '[] (HList a)
 cons_     = (datum_ .) . dCons
@@ -624,7 +632,7 @@ list_     :: (ABT abt) => [abt '[] a] -> abt '[] (HList a)
 list_     = Prelude.foldr cons_ nil_
 
 nothing_  :: (ABT abt) => abt '[] (HMaybe a)
-nothing_  = datum_ dNothing
+nothing_  = vdatum dNothing
 
 just_     :: (ABT abt) => abt '[] a -> abt '[] (HMaybe a)
 just_     = datum_ . dJust

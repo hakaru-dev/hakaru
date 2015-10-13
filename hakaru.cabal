@@ -53,8 +53,9 @@ library
                        Language.Hakaru.Syntax.Prelude,
                        Language.Hakaru.Syntax.TypeCheck,
                        Language.Hakaru.Expect,
-                       Language.Hakaru.Disintegrate,
-                       Language.Hakaru.Inference
+                       Language.Hakaru.Disintegrate
+                       -- TODO:
+                       -- Language.Hakaru.Inference
 
   other-modules:       Language.Hakaru.Util.Extras,
                        Language.Hakaru.Util.Finite,
