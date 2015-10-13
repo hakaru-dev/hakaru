@@ -292,11 +292,20 @@ NewSLO := module ()
     try
       `expand/product` := proc()
         eval(ep(_passed), product = proc(body, quantifier)
-          local r, s;
-          r := convert(body, list, `*`);
-          s, r := selectremove(type, r, 'exp(anything)');
-          `*`(op(map((e -> exp(expand(sum(op(1,e), quantifier)))), s)),
-              product(`*`(op(r)), quantifier))
+          local x, p;
+          x := op(1, quantifier);
+          p := proc(e)
+            if e :: 'exp(anything)' then
+              exp(expand(sum(op(1,e), quantifier)))
+            elif e :: ('freeof'(x) ^ 'anything') then
+              op(1,e) ^ expand(sum(op(2,e), quantifier))
+            elif e :: ('anything' ^ 'freeof'(x)) then
+              p(op(1,e)) ^ op(2,e)
+            else
+              product(e, quantifier)
+            end if
+          end proc;
+          `*`(op(map(p, convert(body, list, `*`))));
         end proc)
       end proc;
       e := evalindets(ee, 'specfunc({sum, product})', expand);
