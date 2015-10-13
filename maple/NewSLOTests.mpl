@@ -301,6 +301,28 @@ ary3  := Bind(Gaussian(0,1), x,
          Ret(zs))):
 TestHakaru(ary3, Weight(ary1w, Plate(ary(n, i, Gaussian(idx(t,i),1)))), label="Array eta") assuming n::nonnegint;
 
+bry1  := Bind(BetaD(alpha,beta), x,
+         Bind(Plate(ary(n, i, Weight(x    ^piecewise(idx(y,i)=true ,1) *
+                                     (1-x)^piecewise(idx(y,i)=false,1),
+                              Ret(Unit)))), ys,
+         Ret(x))):
+bry1s := Weight(Beta(alpha+sum(piecewise(idx(y,i)=true ,1), i=1..n),
+                     beta +sum(piecewise(idx(y,i)=false,1), i=1..n))/Beta(alpha,beta),
+         BetaD(alpha+sum(piecewise(idx(y,i)=true ,1), i=1..n),
+               beta +sum(piecewise(idx(y,i)=false,1), i=1..n))):
+TestHakaru(bry1, bry1s, label="first way to express flipping a biased coin many times") assuming n::nonnegint;
+
+bry2  := Bind(BetaD(alpha,beta), x,
+         Bind(Plate(ary(n, i, Weight(x    ^(  idx(y,i)) *
+                                     (1-x)^(1-idx(y,i)),
+                              Ret(Unit)))), ys,
+         Ret(x))):
+bry2s := Weight(Beta(alpha+  sum(idx(y,i),i=1..n),
+                     beta +n-sum(idx(y,i),i=1..n))/Beta(alpha,beta),
+         BetaD(alpha+  sum(idx(y,i),i=1..n),
+               beta +n-sum(idx(y,i),i=1..n))):
+TestHakaru(bry2, bry2s, label="second way to express flipping a biased coin many times") assuming n::nonnegint;
+
 fission     := Bind(Plate(ary(k, i, Gaussian(0,1))), xs, Plate(ary(k, i, Gaussian(idx(xs,i),1)))):
 fusion      := Plate(ary(k, i, Bind(Gaussian(0,1), x, Gaussian(x,1)))):
 conjugacies := Plate(ary(k, i, Gaussian(0, sqrt(2)))):

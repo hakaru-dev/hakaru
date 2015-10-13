@@ -4,12 +4,13 @@ module Language.Hakaru.Parser.Parser where
 
 import Prelude hiding (Real)
 
-import Control.Applicative ((<$>))
+import Control.Applicative ((<$>), (<*))
 import qualified Control.Monad as M
 import Data.Functor.Identity
 import Data.Text hiding (foldr, foldl)
 
 import Text.Parsec hiding (Empty)
+import Text.Parsec.Combinator (eof)
 import Text.Parsec.Text hiding (Parser())
 import Text.Parsec.Indentation
 import Text.Parsec.Indentation.Char
@@ -20,15 +21,10 @@ import qualified Text.Parsec.Token as Tok
 import Language.Hakaru.Parser.AST
 import Language.Hakaru.Syntax
 
-ops, dist, names :: [String]
+ops, names :: [String]
 
-ops   = ["+","*","-",":","<~", "==", "="]
-dist  = ["return", "lebesgue", "counting", "uniform",
-         "normal", "superpose", "categorical", "beta",
-         "gamma", "poisson"
-        ]
-names = ["def","fn", "if","else","pi","inf"] ++ dist
-
+ops   = ["+","*","-",":","<~","==", "="]
+names = ["def","fn", "if","else","pi","inf", "return"]
 
 type Parser = ParsecT (IndentStream (CharIndentStream Text)) () Identity
 
@@ -95,7 +91,7 @@ table = [[prefix "+"  id],
           binary "/"  Ex.AssocLeft]
         ,[binary "+"  Ex.AssocLeft,
           binary "-"  Ex.AssocLeft]
-        ,[binary "<"  Ex.AssocLeft,
+        ,[binary ">"  Ex.AssocLeft,
           binary "==" Ex.AssocLeft]]
 
 unit_ :: Parser (AST' a)
@@ -140,6 +136,15 @@ pairs = do
   l <- parens $ commaSep op_expr
   return $ foldr (binop "Pair") Empty l
 
+type_expr :: Parser (AST' Text)
+type_expr = undefined
+
+ann_expr :: Parser (AST' Text)
+ann_expr = undefined
+
+match_expr :: Parser (AST' Text)
+match_expr = undefined
+
 op_factor :: Parser (AST' Text)
 op_factor =     try (M.liftM Value floating)
             <|> try (M.liftM Value inf_)
@@ -155,14 +160,14 @@ op_expr = Ex.buildExpressionParser table op_factor
 if_expr :: Parser (AST' Text)
 if_expr = do
   reserved "if"
-  test_expr <- expr -- localIndentation Ge (absoluteIndentation expr)
+  test_expr <- localIndentation Ge expr
   
   reservedOp ":"
-  texp <- expr -- localIndentation Ge (absoluteIndentation expr)
+  texp <- localIndentation Ge expr
   
   reserved "else"
   reservedOp ":"
-  fexp <- expr -- localIndentation Ge (absoluteIndentation expr)
+  fexp <- localIndentation Ge expr
   return $ (Op "if") `App` test_expr `App` texp  `App` fexp
 
 lam_expr :: Parser (AST' Text)
@@ -224,6 +229,7 @@ expr = if_expr
    <|> lam_expr
    <|> def_expr
    <|> try let_expr
+   <|> try bind_expr
    <|> try basic_expr
  
 indentConfig :: Text -> IndentStream (CharIndentStream Text)
@@ -231,7 +237,7 @@ indentConfig input = mkIndentStream 0 infIndentation True Ge (mkCharIndentStream
 
 parseHakaru :: Text -> Either ParseError (AST' Text)
 parseHakaru input
-  = case runParser expr () "<input>" (indentConfig input) of
+  = case runParser (expr  <* eof) () "<input>" (indentConfig input) of
       Left err -> Left err
       Right a  -> Right a
 
