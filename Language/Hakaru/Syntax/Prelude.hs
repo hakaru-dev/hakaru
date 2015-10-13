@@ -271,8 +271,8 @@ not e =
                     Just . syn . NaryOp_ Xor $ Prelude.fmap not xs
                 Value_ v ->
                     case v of
-                    VDatum (Datum (Inl Done))       -> Just false
-                    VDatum (Datum (Inr (Inl Done))) -> Just true
+                    VDatum (Datum _ (Inl Done))       -> Just false
+                    VDatum (Datum _ (Inr (Inl Done))) -> Just true
                     _ -> error "not: the impossible happened"
                 _ -> Nothing
 
