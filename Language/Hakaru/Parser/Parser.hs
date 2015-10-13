@@ -21,15 +21,10 @@ import qualified Text.Parsec.Token as Tok
 import Language.Hakaru.Parser.AST
 import Language.Hakaru.Syntax
 
-ops, dist, names :: [String]
+ops, names :: [String]
 
 ops   = ["+","*","-",":","<~","==", "="]
-dist  = ["return", "lebesgue", "counting", "uniform",
-         "normal", "superpose", "categorical", "beta",
-         "gamma", "poisson"
-        ]
-names = ["def","fn", "if","else","pi","inf"] -- ++ dist
-
+names = ["def","fn", "if","else","pi","inf", "return"]
 
 type Parser = ParsecT (IndentStream (CharIndentStream Text)) () Identity
 
