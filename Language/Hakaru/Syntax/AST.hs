@@ -322,6 +322,8 @@ data PrimOp :: [Hakaru] -> Hakaru -> * where
 
 
     -- -- Continuous and discrete integration.
+    -- TODO: turn these back into binders in order to avoid the need for lambdas! Of course, to do that, they have to move out of PrimOp and into SCon (or somewhere)
+    --
     -- TODO: make Integrate and Summate polymorphic, so that if the
     -- two inputs are HProb then we know the function must be over
     -- HProb\/HNat too. More generally, if the first input is HProb
@@ -330,7 +332,6 @@ data PrimOp :: [Hakaru] -> Hakaru -> * where
     Integrate :: PrimOp '[ 'HReal, 'HReal, 'HReal ':-> 'HProb ] 'HProb
     -- TODO: Should the first to arguments really be HReal?!
     Summate   :: PrimOp '[ 'HReal, 'HReal, 'HInt  ':-> 'HProb ] 'HProb
-    -- TODO: in the future we may want to turn these back into binders in order to avoid the need for lambdas. Of course, if we do that, then they have to move out of PrimOp and into SCon (or somewhere)
 
 
     -- -- -- Here we have the /polymorphic/ operators
@@ -1054,19 +1055,23 @@ data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
         ,  '( '[ a ], 'HMeasure b)
         ] ('HMeasure b)
 
+
     -- -- Internalized program transformations
     -- TODO: do these belong in their own place?
     --
     -- We generally want to evaluate these away at compile-time,
     -- but sometimes we may be stuck with a few unresolved things
     -- for open terms.
-    --
+
+    -- TODO: did we want the singleton @a@ argument back?
+    Expect :: SCon '[ LC ('HMeasure a), '( '[ a ], 'HProb) ] 'HProb
+
     -- TODO: implement a \"change of variables\" program transformation
     -- to map, say, @Lam_ x. blah (Expect x)@ into @Lam x'. blah x'@.
     -- Or, perhaps rather, transform it into @Lam_ x. App_ (Lam_ x'. blah x') (Expect x)@.
-    --
-    -- TODO: did we want the singleton @a@ argument back?
-    Expect :: SCon '[ LC ('HMeasure a), '( '[ a ], 'HProb) ] 'HProb
+
+    -- TODO: add the four ops for disingetration
+
 
 -- TODO: instance Eq   (SCon args a)
 -- TODO: instance Read (SCon args a)
@@ -1141,6 +1146,7 @@ data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     Array_ :: abt '[] 'HNat -> abt '[ 'HNat ] a -> AST abt ('HArray a)
 
     -- -- User-defined data types
+    -- BUG: even though the 'Datum' type has a single constructor, we get a warning about not being able to UNPACK it...
     -- | A data constructor applied to some expressions. N.B., this
     -- definition only accounts for data constructors which are
     -- fully saturated. Unsaturated constructors will need to be
