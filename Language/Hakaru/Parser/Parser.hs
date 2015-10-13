@@ -140,6 +140,12 @@ pairs = do
   l <- parens $ commaSep op_expr
   return $ foldr (binop "Pair") Empty l
 
+type_expr :: Parser (AST' Text)
+type_expr = undefined
+
+ann_expr :: Parser (AST' Text)
+ann_expr = undefined
+
 op_factor :: Parser (AST' Text)
 op_factor =     try (M.liftM Value floating)
             <|> try (M.liftM Value inf_)
