@@ -19,7 +19,14 @@ data Value' =
    | Int  Integer Meta
    | Prob Double  Meta
    | Real Double  Meta
- deriving (Eq, Show)
+ -- | Datum Sop Meta
+ deriving (Eq)
+
+instance Show Value' where
+  show (Nat  i _) = show i
+  show (Int  i _) = show i
+  show (Prob i _) = show i
+  show (Real i _) = show i
 
 data Op' =
      Fix
@@ -43,9 +50,8 @@ data AST' a =
 --    | Ann (AST' a) Hakaru
    | Value Value'
    | Empty
---    | Case  (AST' a) [(Branch' a)]
+--    | Case  (AST' a) [(Branch' a)] -- match
    | Bind  Name (AST' a) (AST' a)
---    | Superpose [((AST' a), (AST' a))]
 --    | Data Sop
 
 deriving instance Eq a => Eq (AST' a)
