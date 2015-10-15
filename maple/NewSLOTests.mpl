@@ -84,6 +84,7 @@ TestHakaru(Bind(Uniform(0,1),x,Weight((1-x)^beta,Ret(x))), Weight(1/(1+beta),Bet
 TestHakaru(Bind(Uniform(0,1),x,Weight(x*2,Ret(x))), BetaD(2,1));
 TestHakaru(BetaD(alpha,beta));
 TestHakaru(GammaD(a,b));
+TestHakaru(GammaD(1/2,2));
 TestHakaru(LO(h, int(exp(-x/2)*applyintegrand(h,x),x=0..infinity)), Weight(2,GammaD(1,2)));
 TestHakaru(LO(h, int(x*exp(-x/2)*applyintegrand(h,x),x=0..infinity)), Weight(4,GammaD(2,2)));
 TestHakaru(Bind(Lebesgue(), x, Weight(1/x^2, Ret(x))));

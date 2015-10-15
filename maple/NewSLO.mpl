@@ -733,7 +733,12 @@ NewSLO := module ()
       if nops(de) = 1 then
         if nops(init) = 0 then
           # TODO: Replace {0, 1/2, 1} by PyMC's distribution-specific "testval"
-          init := map((val -> f(val) = eval(dens, var=val)), {0, 1/2, 1})
+          init := map(proc (val)
+                        try f(val) = eval(dens, var=val)
+                        catch: NULL
+                        end try
+                      end proc,
+                      {0, 1/2, 1})
         end if;
         return Diffop(DEtools[de2diffop](de[1], f(var), [Dx, var]), init)
       end if
