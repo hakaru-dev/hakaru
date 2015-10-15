@@ -68,14 +68,27 @@ testIfs = test
 lam1 :: Text
 lam1 = "fn x: x+3"
 
+lam1AST = Lam "x" (App (App (Op "+")
+                        (Var "x"))
+                   (Value (Nat 3)))
+
 def1 :: Text
 def1 = unlines ["def foo(x):"
                ,"    x + 3"
                ,"foo(5)"
                ]
 
+def1AST = Let "foo"
+              (Lam "x" (App (App (Op "+")
+                             (Var "x"))
+                        (Value (Nat 3))))
+              (App (Op "foo") (Value (Nat 5)))
+
 testLams :: Test
-testLams = undefined
+testLams = test
+   [ testParse lam1 lam1AST
+   , testParse def1 def1AST
+   ]
 
 let1 :: Text
 let1 = unlines ["x = 3"
