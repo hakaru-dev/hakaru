@@ -282,6 +282,11 @@ module()
   TestHakaru(app(app(rmProg4,Pair(r1,r2)),Pair(p1,p2)), Msum(Weight(1/2, Bind(Uniform(3, 8), a5, Ret(Pair(Pair(a5, p2), exp((1/2)*(-p1+a5)*(a5+p1)*(p1^2*p2^2*r1^2+p1^2*p2^2*r2^2+2*p1^2*r1^2*a5^2-2*p1^2*r1*r2*a5^2+p1^2*r2^2*a5^2+p2^4*r1^2+2*p2^4*r1*r2+2*p2^4*r2^2+p2^2*r1^2*a5^2+p2^2*r2^2*a5^2)/((p2^4+3*p2^2*a5^2+a5^4)*(p1^4+3*p1^2*p2^2+p2^4)))*sqrt(p1^4+3*p1^2*p2^2+p2^4)/sqrt(p2^4+3*p2^2*a5^2+a5^4))))), Weight(1/2, Bind(Uniform(1, 4), a6, Ret(Pair(Pair(p1, a6), exp((1/2)*(-p2+a6)*(a6+p2)*(5*p1^4*r1^2-6*p1^4*r1*r2+2*p1^4*r2^2+2*p1^2*p2^2*r1^2-2*p1^2*p2^2*r1*r2+p1^2*p2^2*r2^2+2*p1^2*r1^2*a6^2-2*p1^2*r1*r2*a6^2+p1^2*r2^2*a6^2+p2^2*r1^2*a6^2+p2^2*r2^2*a6^2)/((p1^4+3*p1^2*a6^2+a6^4)*(p1^4+3*p1^2*p2^2+p2^4)))*sqrt(p1^4+3*p1^2*p2^2+p2^4)/sqrt(p1^4+3*p1^2*a6^2+a6^4)))))), label="rmProg4") assuming 3<p1, p1<8, 1<p2, p2<4;
 end module:
 
+# conjugacies
+gaussian_gaussian   := Bind(Gaussian(mu0,sigma0),mu, Weight(NewSLO:-density[Gaussian](mu,sigma1)(x), Ret(mu))):
+gaussian_gaussian_s := Weight((1/2)*sqrt(2)*exp(-(1/2)*(mu0-x)^2/(sigma0^2+sigma1^2))/(sqrt(Pi)*sqrt(sigma0^2+sigma1^2)), Gaussian((mu0*sigma1^2+sigma0^2*x)/(sigma0^2+sigma1^2), sigma0*sigma1/sqrt(sigma0^2+sigma1^2))):
+TestHakaru(gaussian_gaussian, gaussian_gaussian_s, label="gaussian_gaussian conjugacy") assuming mu0::real, sigma0>0, sigma1>0, x::real;
+
 TestHakaru(Bind(Ret(ary(n,i,i*2)), v, Ret(idx(v,42))), Ret(84), label="basic array indexing");
 
 ary0 := Bind(Plate(ary(k, i, Gaussian(0,1))), xs, Ret([xs])):
