@@ -15,18 +15,12 @@ newtype Meta = Meta (SourcePos, SourcePos) deriving (Eq, Show)
 
 data Sop = Sop [[Sop]] | V Value'
 data Value' =
-     Nat  Integer Meta
-   | Int  Integer Meta
-   | Prob Double  Meta
-   | Real Double  Meta
- -- | Datum Sop Meta
+     Nat  Integer
+   | Int  Integer
+   | Prob Double
+   | Real Double
+ -- | Datum Sop
  deriving (Eq)
-
-instance Show Value' where
-  show (Nat  i _) = show i
-  show (Int  i _) = show i
-  show (Prob i _) = show i
-  show (Real i _) = show i
 
 data Op' =
      Fix
@@ -53,6 +47,8 @@ data AST' a =
 --    | Case  (AST' a) [(Branch' a)] -- match
    | Bind  Name (AST' a) (AST' a)
 --    | Data Sop
+   | WithMeta (AST' a) Meta
 
 deriving instance Eq a => Eq (AST' a)
 deriving instance Show a => Show (AST' a)
+deriving instance Show Value'

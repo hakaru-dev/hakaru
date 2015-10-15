@@ -104,14 +104,14 @@ bool = do
   return $ Op b
 
 int :: Parser Value'
-int = withPos $ do
+int = do
   n <- integer
   return $ case (n < 0) of
              True  -> Int (fromInteger n)
              False -> Nat (fromInteger n)
 
 floating :: Parser Value'
-floating = withPos $ do
+floating = do
   sign <- option '+' (oneOf "+-")
   n <- float
   return $ case sign of
@@ -119,7 +119,7 @@ floating = withPos $ do
              '+' -> Prob n
 
 inf_ :: Parser Value'
-inf_ = withPos $ do
+inf_ = do
   s <- option '+' (oneOf "+-")
   reserved "inf";
   return $ case s of
@@ -241,9 +241,9 @@ parseHakaru input
       Left err -> Left err
       Right a  -> Right a
 
-withPos :: Parser (Meta -> a) -> Parser a
+withPos :: Parser (AST' a) -> Parser (AST' a)
 withPos x = do
   s  <- getPosition
   x' <- x
   e  <- getPosition
-  return $ x' (Meta (s, e))
+  return $ WithMeta x' (Meta (s, e))
