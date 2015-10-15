@@ -286,6 +286,9 @@ end module:
 gaussian_gaussian   := Bind(Gaussian(mu0,sigma0),mu, Weight(NewSLO:-density[Gaussian](mu,sigma1)(x), Ret(mu))):
 gaussian_gaussian_s := Weight((1/2)*sqrt(2)*exp(-(1/2)*(mu0-x)^2/(sigma0^2+sigma1^2))/(sqrt(Pi)*sqrt(sigma0^2+sigma1^2)), Gaussian((mu0*sigma1^2+sigma0^2*x)/(sigma0^2+sigma1^2), sigma0*sigma1/sqrt(sigma0^2+sigma1^2))):
 TestHakaru(gaussian_gaussian, gaussian_gaussian_s, label="gaussian_gaussian conjugacy") assuming mu0::real, sigma0>0, sigma1>0, x::real;
+invgamma_gaussian   := Bind(GammaD(alpha,beta),lambda, Weight(NewSLO:-density[Gaussian](mu,lambda^(-1/2))(x), Ret(lambda))):
+invgamma_gaussian_s := Weight(GAMMA(1/2+alpha)*sqrt(beta)*((1/2)*beta*mu^2-beta*mu*x+(1/2)*beta*x^2+1)^(-alpha)/(GAMMA(alpha)*sqrt(beta*mu^2-2*beta*mu*x+beta*x^2+2)*sqrt(Pi)), GammaD(1/2+alpha, 2*beta/(beta*mu^2-2*beta*mu*x+beta*x^2+2))):
+TestHakaru(invgamma_gaussian, invgamma_gaussian_s, label="invgamma_gaussian conjugacy") assuming mu::real, alpha>0, beta>0, x::real;
 
 TestHakaru(Bind(Ret(ary(n,i,i*2)), v, Ret(idx(v,42))), Ret(84), label="basic array indexing");
 

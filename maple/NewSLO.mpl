@@ -105,7 +105,7 @@ end module: # gensym
 NewSLO := module ()
   option package;
   local t_pw, unweight, factorize,
-        recognize, get_de, recognize_de, Diffop, Recognized,
+        recognize, get_de, recognize_de, mysolve, Diffop, Recognized,
         reduce, simplify_assuming, reduce_pw, reduce_Int, get_indicators,
         indicator, extract_dom, banish, known_measures, freeze_difficult,
         piecewise_if, nub_piecewise, foldr_piecewise,
@@ -780,7 +780,7 @@ NewSLO := module ()
       try
         ii := map(convert, init, 'diff');
         constraints := eval(ii, f = (x -> w*density[op(0,dist)](op(dist))(x)));
-        w := eval(w, solve(simplify(constraints), w));
+        w := eval(w, mysolve(simplify(constraints), w));
         if not (has(w, 'w')) then
           return Recognized(dist, w)
         end if
@@ -789,6 +789,31 @@ NewSLO := module ()
       WARNING("recognized %1 as %2 but could not solve %3", f, dist, init)
     end if;
     FAIL
+  end proc;
+
+  mysolve := proc(constraints)
+    # This wrapper around "solve" works around the problem that Maple sometimes
+    # thinks there is no solution to a set of constraints because it doesn't
+    # recognize the solution to each constraint is the same.  For example--
+    # This fails     : solve({c*2^(-1/2-alpha) = sqrt(2)/2, c*4^(-alpha) = 2^(-alpha)}, {c}) assuming alpha>0;
+    # This also fails: solve(simplify({c*2^(-1/2-alpha) = sqrt(2)/2, c*4^(-alpha) = 2^(-alpha)}), {c}) assuming alpha>0;
+    # But this works : map(solve, {c*2^(-1/2-alpha) = sqrt(2)/2, c*4^(-alpha) = 2^(-alpha)}, {c}) assuming alpha>0;
+    # And the difference of the two solutions returned simplifies to zero.
+
+    local result;
+    if nops(constraints) = 0 then return NULL end if;
+    result := solve(constraints, _rest);
+    if result <> NULL or not (constraints :: {set,list}) then
+      return result
+    end if;
+    result := mysolve(subsop(1=NULL,constraints), _rest);
+    if result <> NULL
+       and op(1,constraints) :: 'anything=anything'
+       and simplify(eval(op([1,1],constraints) - op([1,2],constraints),
+                         result)) <> 0 then
+      return NULL
+    end if;
+    result
   end proc;
 
   density[Lebesgue] := proc() proc(x) 1 end proc end proc;
