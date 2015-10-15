@@ -96,17 +96,33 @@ let1 = unlines ["x = 3"
                ,"x + y"
                ]
 
+let1AST = Let "x" (Value (Nat 3))
+          (Let "y" (Value (Nat 2))
+           (App (App (Op "+")
+                 (Var "x"))
+            (Var "y")))
+
 testLets :: Test
-testLets = undefined
+testLets = test
+   [ testParse let1 let1AST ]
 
 bind1 :: Text
 bind1 = unlines ["x <~ uniform(0,1)"
                 ,"y <~ normal(x, 1)"
-                ,"return y"
+                ,"dirac(y)"
                 ]
 
+bind1AST = Bind "x" (App (App (Op "uniform")
+                          (Value (Nat 0)))
+                     (Value (Nat 1)))
+           (Bind "y" (App (App (Op "normal")
+                           (Var "x"))
+                      (Value (Nat 1)))
+            (App (Op "dirac") (Var "y")))
+
 testBinds :: Test
-testBinds = undefined
+testBinds = test
+   [ testParse bind1 bind1AST ]
 
 allTests :: Test
 allTests = test
