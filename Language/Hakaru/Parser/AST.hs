@@ -47,6 +47,7 @@ data AST' a =
 --    | Case  (AST' a) [(Branch' a)] -- match
    | Bind  Name (AST' a) (AST' a)
 --    | Data Sop
+   | WithMeta (AST' a) Meta
 
 deriving instance Eq a => Eq (AST' a)
 deriving instance Show a => Show (AST' a)

@@ -241,9 +241,9 @@ parseHakaru input
       Left err -> Left err
       Right a  -> Right a
 
-withPos :: Parser (Meta -> a) -> Parser a
+withPos :: Parser (AST' a) -> Parser (AST' a)
 withPos x = do
   s  <- getPosition
   x' <- x
   e  <- getPosition
-  return $ x' (Meta (s, e))
+  return $ WithMeta x' (Meta (s, e))
