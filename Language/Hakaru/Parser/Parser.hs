@@ -220,12 +220,19 @@ call_expr = do
   args <- parens $ commaSep basic_expr
   return $ foldl App (Op name) args
 
+return_expr :: Parser (AST' Text)
+return_expr = do
+  reserved "return"
+  arg <- basic_expr
+  return $ App (Op "dirac") arg
+
 basic_expr :: Parser (AST' Text)
 basic_expr = try call_expr
          <|> try op_expr
  
 expr :: Parser (AST' Text)
 expr = if_expr
+   <|> return_expr
    <|> lam_expr
    <|> def_expr
    <|> try let_expr

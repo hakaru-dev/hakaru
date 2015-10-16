@@ -112,6 +112,13 @@ bind1 = unlines ["x <~ uniform(0,1)"
                 ,"dirac(y)"
                 ]
 
+bind2 :: Text
+bind2 = unlines ["x <~ uniform(0,1)"
+                ,"y <~ normal(x, 1)"
+                ,"return y"
+                ]
+
+
 bind1AST = Bind "x" (App (App (Op "uniform")
                           (Value (Nat 0)))
                      (Value (Nat 1)))
@@ -122,7 +129,9 @@ bind1AST = Bind "x" (App (App (Op "uniform")
 
 testBinds :: Test
 testBinds = test
-   [ testParse bind1 bind1AST ]
+   [ testParse bind1 bind1AST
+   , testParse bind2 bind1AST
+   ]
 
 allTests :: Test
 allTests = test
