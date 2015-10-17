@@ -30,6 +30,7 @@ import Prelude (($), (.))
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.ABT (ABT)
 import Language.Hakaru.Syntax.Prelude
+import Language.Hakaru.Syntax.TypeEq (Sing, SingI(sing))
 import Language.Hakaru.Expect (normalize)
 import Language.Hakaru.Disintegrate (determine, density, disintegrate, Backward())
 
@@ -43,7 +44,7 @@ import Language.Hakaru.Expect (Expect(..), Expect', normalize)
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 priorAsProposal
-    :: ABT abt
+    :: (ABT abt, SingI a, SingI b)
     => abt '[] ('HMeasure (HPair a b))
     -> abt '[] (HPair a b)
     -> abt '[] ('HMeasure (HPair a b))
@@ -84,7 +85,7 @@ mcmc proposal target =
 
 
 gibbsProposal
-    :: (ABT abt, SingI a, Backward a a)
+    :: (ABT abt, SingI a, SingI b, Backward a a)
     => abt '[] ('HMeasure (HPair a b))
     -> abt '[] (HPair a b)
     -> abt '[] ('HMeasure (HPair a b))
@@ -102,16 +103,16 @@ gibbsProposal p xy =
 --      return x'
 
 slice
-    :: (ABT abt, SingI a)
+    :: (ABT abt)
     => abt '[] ('HMeasure 'HReal)
     -> abt '[] ('HReal ':-> 'HMeasure 'HReal)
 slice target =
-    let densAt = fromProb . determine (density target) in
+    let densAt = determine (density target) in
     lam $ \x ->
-    uniform (real_ 0) (densAt x) >>= \u ->
+    uniform (real_ 0) (fromProb $ app densAt x) >>= \u ->
     normalize $
     lebesgue >>= \x' ->
-    observe (u < densAt x') $
+    observe (u < (fromProb $ app densAt x')) $
     dirac x'
 
 
@@ -120,9 +121,9 @@ sliceX
     => abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure (HPair a 'HReal))
 sliceX target =
-    let densAt = fromProb . determine (density target) in
+    let densAt = determine (density target) in
     target `bindx` \x ->
-    uniform (real_ 0) (densAt x)
+    uniform (real_ 0) (fromProb $ app densAt x)
 
 
 incompleteBeta
@@ -166,7 +167,7 @@ approxMh proposal prior (x:xs) =
     proposal old >>= \new ->
     let_ (u * mu `app` pair new old / mu `app` pair old new) $ \u0 ->
     let_ (l new new / l old old) $ \l0 ->
-    let_ (tCDF (n - real_ 1) (l0 - u0)) $ \delta ->
+    let_ (tCDF (n - real_ 1) (udif l0 u0)) $ \delta ->
     if_ (delta < eps)
         (if_ (u0 < l0)
             (dirac new)
@@ -174,5 +175,6 @@ approxMh proposal prior (x:xs) =
         (approxMh proposal prior xs `app` old)
   where
     n   = real_ 2000
-    eps = prob_ (1/20)
+    eps = prob_ 0.05
+    udif l u = unsafeProb $ (fromProb l) - (fromProb u)
     l   = \d1 d2 -> prob_ 2 -- determine (density (\theta -> x theta))

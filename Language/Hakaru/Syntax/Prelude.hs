@@ -851,6 +851,14 @@ m *> n = m >>= \_ -> n
 m <* n = m >>= \a -> n *> dirac a
 
 -- BUG: remove the 'SingI' requirement!
+bindx
+    :: (ABT abt, SingI a, SingI b)
+    => abt '[] ('HMeasure a)
+    -> (abt '[] a -> abt '[] ('HMeasure b))
+    -> abt '[] ('HMeasure (HPair a b))
+m `bindx` f = m >>= \a -> f a >>= \b -> dirac (pair a b)
+
+-- BUG: remove the 'SingI' requirement!
 liftM2
     :: (ABT abt, SingI a, SingI b, SingI c)
     => (abt '[] a -> abt '[] b -> abt '[] c)
