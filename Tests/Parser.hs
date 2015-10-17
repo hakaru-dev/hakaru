@@ -11,6 +11,10 @@ import Data.Text
 import Test.HUnit
 import Text.Parsec.Error
 
+stripMetadata :: AST' Text -> AST' Text
+stripMetadata (WithMeta ast m) = ast
+stripMetadata ast              = ast
+
 testParse :: Text -> AST' Text -> Assertion
 testParse s p = case parseHakaru s of
                    Left  m  -> assertFailure (show m)
@@ -132,6 +136,56 @@ testBinds = test
    [ testParse bind1 bind1AST
    , testParse bind2 bind1AST
    ]
+
+easyRoad1 :: Text
+easyRoad1 = unlines ["noiseT <~ uniform(3, 8)"
+                    ,"noiseE <~ uniform(1, 4)"
+                    ,"x1 <~ normal( 0, noiseT)"
+                    ,"m1 <~ normal(x1, noiseE)"
+                    ,"x2 <~ normal(x1, noiseT)"
+                    ,"m2 <~ normal(x2, noiseE)"
+                    ,"return ((m1, m2), (noiseT, noiseE))"
+                    ]
+
+easyRoadAST :: AST' Text
+easyRoadAST = Bind "noiseT" (App (App (Op "uniform")
+                                          (Value (Nat 3)))
+                                          (Value (Nat 8)))
+              (Bind "noiseE" (App (App (Op "uniform")
+                                           (Value (Nat 1)))
+                              (Value (Nat 4)))
+               (Bind "x1" (App (App (Op "normal")
+                                        (Value (Nat 0)))
+                                        (Var "noiseT"))
+                (Bind "m1" (App (App (Op "normal")
+                                         (Var "x1"))
+                                         (Var "noiseE"))
+                 (Bind "x2" (App (App (Op "normal")
+                                          (Var "x1"))
+                                          (Var "noiseT"))
+                  (Bind "m2" (App (App (Op "normal")
+                                           (Var "x2"))
+                                           (Var "noiseE"))
+                   (App (Op "dirac")
+                            (App (App (Op "Pair")
+                                          (App (App (Op "Pair")
+                                                        (Var "m1"))
+                                                        (App (App (Op "Pair")
+                                                                  (Var "m2"))
+                                                                  Empty)))
+                             (App (App (Op "Pair")
+                                           (App (App (Op "Pair")
+                                                         (Var "noiseT"))
+                                                         (App (App (Op "Pair")
+                                                                   (Var "noiseE"))
+                                                                   Empty)))
+                              Empty))))))))
+
+-- testRoadmap :: Test
+-- testRoadmap = test
+--    [ testParse easyRoad1 easyRoadAST
+--    , testParse easyRoad2 easyRoad2AST
+--    ]
 
 allTests :: Test
 allTests = test
