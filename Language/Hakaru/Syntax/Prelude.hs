@@ -856,7 +856,7 @@ bindx
     => abt '[] ('HMeasure a)
     -> (abt '[] a -> abt '[] ('HMeasure b))
     -> abt '[] ('HMeasure (HPair a b))
-m `bindx` f = m >>= \a -> f a >>= \b -> dirac (pair a b)
+m `bindx` f = m >>= \a -> pair a <$> f a
 
 -- BUG: remove the 'SingI' requirement!
 liftM2
