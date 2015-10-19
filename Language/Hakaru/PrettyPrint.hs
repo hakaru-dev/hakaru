@@ -1,212 +1,371 @@
-{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, GADTs, ScopedTypeVariables, TypeFamilies, DataKinds #-}
-{-# OPTIONS -Wall -Werror #-}
-module Language.Hakaru.PrettyPrint (PrettyPrint,
-  runPrettyPrint, runPrettyPrintPrec, runPrettyPrintNamesPrec, leftMode) where
+{-# LANGUAGE GADTs
+           , KindSignatures
+           , DataKinds
+           #-}
 
--- Pretty-printing interpretation
+{-# OPTIONS_GHC -Wall -fwarn-tabs #-}
+----------------------------------------------------------------
+--                                                    2015.10.18
+-- |
+-- Module      :  Language.Hakaru.PrettyPrint
+-- Copyright   :  Copyright (c) 2015 the Hakaru team
+-- License     :  BSD3
+-- Maintainer  :  wren@community.haskell.org
+-- Stability   :  experimental
+-- Portability :  GHC-only
+--
+-- 
+----------------------------------------------------------------
+module Language.Hakaru.PrettyPrint (pretty, prettyPrec) where
 
-import Language.Hakaru.Syntax
-import Language.Hakaru.Util.Pretty
-import Text.PrettyPrint hiding (parens, empty)
--- import Language.Hakaru.Embed
-import Data.List ((\\))
+import           Text.PrettyPrint (Doc, (<>), (<+>))
+import qualified Text.PrettyPrint as PP
+import qualified Data.Foldable    as F
+import qualified Data.Text        as Text
+import qualified Data.Sequence    as Seq -- Because older versions of "Data.Foldable" do not export 'null' apparently...
 
-leftMode :: Doc -> String
-leftMode = renderStyle style{mode=LeftMode}
+import Language.Hakaru.Syntax.Nat      (fromNat)
+import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11)
+import Language.Hakaru.Syntax.DataKind
+import Language.Hakaru.Syntax.AST
+import Language.Hakaru.Syntax.ABT
+----------------------------------------------------------------
+-- TODO: can we avoid using Text.unpack?
 
-newtype PrettyPrint (a :: Hakaru *) = PP ([String] -> Int -> [Doc])
 
-runPrettyPrint :: PrettyPrint a -> Doc
-runPrettyPrint pp = runPrettyPrintPrec pp 0
+-- | Pretty-print a term.
+pretty :: (ABT abt) => abt '[] a -> Doc
+pretty = prettyPrec 0
 
-runPrettyPrintPrec :: PrettyPrint a -> Int -> Doc
-runPrettyPrintPrec (PP a) p = sep (a defaultNames p)
 
-runPrettyPrintNamesPrec :: PrettyPrint a -> [String] -> Int -> Doc
-runPrettyPrintNamesPrec (PP a) customNames p =
-  sep $ drop (length customNames)
-      $ a (customNames ++ (defaultNames \\ customNames)) p
+-- | Pretty-print a term at a given precendence level.
+prettyPrec :: (ABT abt) => Int -> abt '[] a -> Doc
+prettyPrec p = prettyPrec_ p . LC_
 
-defaultNames :: [String]
-defaultNames = [ 'x' : show i | i <- [0::Int ..] ]
 
-instance Show (PrettyPrint a) where
-  show        = show        . pretty
-  showsPrec p = showsPrec p . (`runPrettyPrintPrec` p)
-  showList    = showsPrec 0 . pretty
+-- | Pretty-print a variable.
+ppVariable :: Variable a -> Doc
+ppVariable x = hint <> (PP.int . fromNat . varID) x
+    where
+    hint
+        | Text.null (varHint x) = PP.char '_'
+        | otherwise             = (PP.text . Text.unpack . varHint) x
 
-instance Pretty (PrettyPrint a) where
-  pretty = runPrettyPrint
 
-apply1 :: String -> PrettyPrint a -> PrettyPrint b
-apply2 :: String -> PrettyPrint a -> PrettyPrint b -> PrettyPrint c
-apply3 :: String -> PrettyPrint a -> PrettyPrint b -> PrettyPrint c ->
-          PrettyPrint d
-
-apply1 f (PP a) =
-  PP (\xs p -> [prettyFun (p > 10) f (sep (a xs 11))])
-apply2 f (PP a) (PP b) =
-  PP (\xs p -> [prettyFun (p > 10) f (sep [sep (d xs 11) | d <- [a,b]])])
-apply3 f (PP a) (PP b) (PP c) =
-  PP (\xs p -> [prettyFun (p > 10) f (sep [sep (d xs 11) | d <- [a,b,c]])])
-
-applyPairs :: String -> [(PrettyPrint a, PrettyPrint b)] -> PrettyPrint c
-applyPairs s pms = apply1 s (PP (\xs _ ->
-                    [brackets (nest 1 (sep (punctuate comma
-                       [ prettyPair (sep (p xs 0)) (sep (m xs 0))
-                       | (PP p, PP m) <- pms ])))]))
-
-adjustHead :: (Doc -> Doc) -> [Doc] -> [Doc]
-adjustHead f []     = [f (sep [])]
-adjustHead f (d:ds) = f d : ds
-
-parens :: Bool -> [Doc] -> [Doc]
-parens True  ds = [char '(' <> nest 1 (sep ds) <> char ')']
-parens False ds = ds
-
-fun1 :: (PrettyPrint a -> PrettyPrint b) -> PrettyPrint ('HFun a b)
-fun1 f = PP (\(x:xs) p ->
-  let PP b = f (PP (\_ _ -> [text x])) in
-  parens (p > 10) (text ('\\' : x ++ " ->") : b xs 0))
-
-fun2 :: (PrettyPrint a -> PrettyPrint b -> PrettyPrint c) ->
-        PrettyPrint ('HFun a ('HFun b c))
-fun2 f = PP (\(x:x':xs) p ->
-  let PP b = f (PP (\_ _ -> [text x])) (PP (\_ _ -> [text x'])) in
-  parens (p > 10) (text ('\\' : x ++ ' ' : x' ++ " ->") : b xs 0))
-
-instance (Number a) => Order PrettyPrint a where
-  less  = op 4 "`less`"  5 5
-  equal = op 4 "`equal`" 5 5
-
-instance Num (PrettyPrint a) where
-  (+)           = op 6 "+" 6 7
-  (*)           = op 7 "*" 7 8
-  (-)           = op 6 "-" 6 7
-  negate (PP b) = PP (\xs p -> [prettyParen (p > 6) (char '-' <> sep (b xs 7))])
-  abs           = apply1 "abs"
-  signum        = apply1 "signum"
-  fromInteger n = PP (\_ _ -> [integer n])
-
-instance Fractional (PrettyPrint a) where
-  (/)            = op 7 "/" 7 8
-  recip          = apply1 "recip"
-  fromRational n = PP (\_ p -> [text (showRatio p n "")])
-
-instance Floating (PrettyPrint a) where
-  pi      = string "pi"
-  exp     = apply1 "exp"
-  sqrt    = apply1 "sqrt"
-  log     = apply1 "log"
-  (**)    = op 8 "**" 9 8
-  logBase = apply2 "logBase"
-  sin     = apply1 "sin"
-  cos     = apply1 "cos"
-  tan     = apply1 "tan"
-  asin    = apply1 "asin"
-  acos    = apply1 "acos"
-  atan    = apply1 "atan"
-  sinh    = apply1 "sinh"
-  cosh    = apply1 "cosh"
-  tanh    = apply1 "tanh"
-  asinh   = apply1 "asinh"
-  atanh   = apply1 "atanh"
-  acosh   = apply1 "acosh"
-
-instance Base PrettyPrint where
-  unit              = string "unit"
-  pair              = apply2 "pair"
-  unpair (PP xy) k  = let PP k' = fun2 k in PP (\xs p -> parens (p > 0)
-                    $ adjustHead (sep (xy xs 9) <+> text "`unpair`" <+>)
-                    $ k' xs 10)
-  inl               = apply1 "inl"
-  inr               = apply1 "inr"
-  uneither xy kx ky = apply3 "uneither" xy (fun1 kx) (fun1 ky)
-  true              = string "true"
-  false             = string "false"
-  if_               = apply3 "if_"
-  unsafeProb        = apply1 "unsafeProb"
-  fromProb          = apply1 "fromProb"
-  fromInt           = apply1 "fromInt"
-  pi_               = string "pi_"
-  exp_              = apply1 "exp_"
-  erf               = apply1 "erf"
-  erf_              = apply1 "erf_"
-  log_              = apply1 "log_"
-  sqrt_             = apply1 "sqrt_"
-  pow_              = apply2 "pow_"
-  infinity          = string "infinity"
-  negativeInfinity  = string "negativeInfinity"
-  gammaFunc         = apply1 "gammaFunc"
-  betaFunc          = apply2 "betaFunc"
-  vector l f        = apply2 "vector" l (fun1 f)
-  empty             = string "empty"
-  index             = apply2 "index"
-  size              = apply1 "size"
-  reduce f          = apply3 "reduce" (fun2 f)
-  fix f             = apply1 "fix" (fun1 f)
-
-instance Mochastic PrettyPrint where
-  dirac         = apply1 "dirac"
-  bind (PP m) k = let PP k' = fun1 k in PP (\xs p -> parens (p > 0)
-                $ adjustHead (sep (m xs 1) <+> text "`bind`" <+>)
-                $ k' xs 2)
-  lebesgue      = string "lebesgue"
-  counting      = string "counting"
-  superpose [(PP pp, PP m)] = PP (\xs p -> parens (p > 0)
-                                         $ text "weight" <+> sep (pp xs 11)
-                                                         <+> char '$'
-                                         : m xs 0)
-  superpose pms = applyPairs "superpose" pms
-  uniform       = apply2 "uniform"
-  normal        = apply2 "normal"
-  categorical   = apply1 "categorical"
-  poisson       = apply1 "poisson"
-  gamma         = apply2 "gamma"
-  beta          = apply2 "beta"
-  dp            = apply2 "dp"
-  chain         = apply1 "chain"
-  plate         = apply1 "plate"
-
-instance Integrate PrettyPrint where
-  integrate a b f = apply3 "integrate" a b (fun1 f)
-  summate   a b f = apply3 "summate"   a b (fun1 f)
-
-instance Lambda PrettyPrint where
-  lam f         = let PP f' = fun1 f in
-                  PP (\xs p -> parens (p > 0)
-                             $ adjustHead (text "lam $" <+>)
-                             $ f' xs 0)
-  app           = op 9 "`app`" 9 10
-  let_ (PP a) f = let PP f' = fun1 f in
-                  PP (\xs p -> parens (p > 0)
-                             $ adjustHead (text "let_" <+> sep (a xs 11)
-                                                       <+> char '$' <+>)
-                             $ f' xs 0)
-
-op :: Int -> String -> Int -> Int ->
-      PrettyPrint a -> PrettyPrint b -> PrettyPrint c
-op p0 s p1 p2 (PP a) (PP b) =
-  PP (\xs p -> [prettyOp (p > p0) s (sep (a xs p1)) (sep (b xs p2))])
-
-string :: String -> PrettyPrint a
-string s = PP $ \_ _ -> [text s] 
-
+-- TODO: use the 'adjustHead' trick from the old PrettyPrint.hs
+-- | Pretty-print Hakaru binders as a Haskell lambda, as per our HOAS API.
+ppBinder :: (ABT abt) => abt xs a -> Doc
+ppBinder e =
+    case go [] (viewABT e) of
+    ([],  body) -> PP.parens body
+    (vars,body) ->
+        PP.parens $ PP.sep
+            [ PP.char '\\'
+                <+> PP.sep vars
+                <+> PP.text "->"
+            , PP.nest 4 body -- TODO: is there a better nesting than constant 4?
+            ]
+    where
+    go :: (ABT abt) => [Doc] -> View abt xs a -> ([Doc],Doc)
+    go xs (Bind x v) = go (ppVariable x : xs) v
+    go xs (Var  x)   = (reverse xs, ppVariable x)
+    go xs (Syn  t)   = (reverse xs, pretty (syn t))
 {-
-instance Embed PrettyPrint where 
-  _Nil = string "_Nil"
-  _Cons = apply2 "_Cons" 
-  _Z = apply1 "_Z" 
-  _S = apply1 "_S" 
-  caseProd x f = apply2 "caseProd" x (lam2 f) 
-  caseSum x f g = apply3 "caseSum" x (lam f) (lam g) 
-  tag = apply1 "tag"
-  untag = apply1 "untag" 
-  muE = apply1 "muE"
-  unMuE = apply1 "unMuE"
-  konst = apply1 "konst"
-  unKonst = apply1 "unKonst"
-  ident = apply1 "ident"
-  unIdent = apply1 "unIdent"
-  natFn f x = apply2 "natFn" (lam f) x 
+-- Simpler version in case we only need to handle singleton binders.
+ppBinder :: (ABT abt) => abt '[ x ] a -> Doc
+ppBinder e =
+    caseBind e $ \x e' ->
+        PP.parens $ PP.sep
+            [ PP.char '\\'
+                <+> ppVariable x
+                <+> PP.text "->"
+            , PP.nest 4 (pretty e')
+            ]
 -}
+
+
+class Pretty (f :: Hakaru -> *) where
+    -- | A polymorphic variant if 'prettyPrec', for internal use.
+    prettyPrec_ :: Int -> f a -> Doc
+
+
+-- HACK: so we can safely give a 'Pretty' instance
+-- TODO: unify this with the same hack used in AST.hs for 'Show'
+newtype LC_ (abt :: [Hakaru] -> Hakaru -> *) (a :: Hakaru) =
+    LC_ { unLC_ :: abt '[] a }
+
+
+instance (ABT abt) => Pretty (LC_ abt) where
+  prettyPrec_ p (LC_ e) =
+    caseVarSyn e ppVariable $ \t -> 
+        case t of
+        o :$ es      -> ppSCon p o es
+        NaryOp_ o es ->
+            -- TODO: make sure these ops actually have those precedences in the Prelude!!
+            let prettyNaryOp :: NaryOp a -> (String, Int, Maybe String)
+                prettyNaryOp And  = ("&&", 3, Just "true")
+                prettyNaryOp Or   = ("||", 2, Just "false")
+                prettyNaryOp Xor  = ("`xor`", 0, Just "false")
+                -- BUG: even though 'Iff' is associative (in Boolean algebras), we should not support n-ary uses in our *surface* syntax. Because it's too easy for folks to confuse "a <=> b <=> c" with "(a <=> b) /\ (b <=> c)".
+                prettyNaryOp Iff      = ("`iff`", 0, Just "true")
+                prettyNaryOp (Min  _) = ("`min`", 5, Nothing)
+                prettyNaryOp (Max  _) = ("`max`", 5, Nothing)
+                prettyNaryOp (Sum  _) = ("+",     6, Just "zero")
+                prettyNaryOp (Prod _) = ("*",     7, Just "one")
+            in
+            let (opName,opPrec,maybeIdentity) = prettyNaryOp o in
+            if Seq.null es
+            then
+                case maybeIdentity of
+                Just identity -> PP.text identity
+                Nothing ->
+                    ppFun p "syn"
+                        [ ppFun 11 "NaryOp_"
+                            [ PP.text (showsPrec 11 o "")
+                            , PP.text "(Seq.fromList [])"
+                            ]
+                        ]
+            else
+                tryParens (p > opPrec)
+                . PP.sep
+                . PP.punctuate (PP.space <> PP.text opName)
+                . map (prettyPrec opPrec)
+                $ F.toList es
+
+        Value_ v      -> prettyPrec_ p v
+        Empty_        -> PP.text "empty"
+        Array_ e1 e2  -> ppFun p "array" [ppArg e1, ppBinder e2]
+        Datum_ d      -> prettyPrec_ p (fmap11 LC_ d)
+        Case_  e1 bs  ->
+            -- TODO: should we also add hints to the 'Case_' constructor to know whether it came from 'if_', 'unpair', etc?
+            ppFun p "syn"
+                [ ppFun 11 "Case_"
+                    [ ppArg e1
+                    , ppList (map (prettyPrec_ 0) bs)
+                    ]
+                ]
+        Superpose_ pes ->
+            -- TODO: use the old PrettyPrint.hs's hack for when there's exactly one thing in the list; i.e., print as @weight w *> m@ with the appropriate do-notation indentation for @(*>)@ (or using 'pose' and @($)@)
+            ppFun p "superpose"
+                [ ppList
+                . map (\(e1,e2) -> ppTuple [pretty e1, pretty e2])
+                $ pes
+                ]
+        Lub_ es -> ppFun p "syn" [ppFun 11 "Lub_" [ppList (map pretty es)]]
+
+
+-- | Pretty-print @(:$)@ nodes in the AST.
+ppSCon :: (ABT abt) => Int -> SCon args a -> SArgs abt args -> Doc
+ppSCon p Lam_ (e1 :* End)       = ppFun p "lam"  [ppBinder e1]
+    -- TODO: use the 'adjustHead' trick from the old PrettyPrint.hs
+ppSCon p App_ (e1 :* e2 :* End) = ppBinop "`app`" 9 LeftAssoc p e1 e2
+ppSCon p Let_ (e1 :* e2 :* End) = ppFun p "let_" [ppArg e1, ppBinder e2]
+    -- TODO: use the 'adjustHead' trick from the old PrettyPrint.hs
+ppSCon p Fix_       (e1 :* End) = ppFun p "fix"  [ppBinder e1]
+ppSCon p (Ann_ typ) (e1 :* End) =
+    ppFun p "ann_"
+        [ PP.text (showsPrec 11 typ "") -- TODO: make this prettier. Add hints to the singletons?
+        , ppArg e1
+        ]
+ppSCon p (PrimOp_     o) es = ppPrimOp p o es
+ppSCon p (CoerceTo_   c) (e1 :* End) =
+    ppFun p "coerceTo_"
+        [ PP.text (showsPrec 11 c "") -- TODO: make this prettier. Add hints to the coercions?
+        , ppArg e1
+        ]
+ppSCon p (UnsafeFrom_ c) (e1 :* End) =
+    ppFun p "unsafeFrom_"
+        [ PP.text (showsPrec 11 c "") -- TODO: make this prettier. Add hints to the coercions?
+        , ppArg e1
+        ]
+ppSCon p (MeasureOp_  o) es = ppMeasureOp p o es
+ppSCon p MBind (e1 :* e2 :* End) =
+    -- TODO: use the 'adjustHead' trick from the old PrettyPrint.hs
+    -- @ppBinop ">>=" 1 LeftAssoc p e1 e2@ doesn't work because the binder...
+    tryParens (p > 1) $ PP.sep
+        [ prettyPrec 1 e1
+        , PP.text ">>="
+            <+> ppBinder e2 -- TODO: add a precedence arg to ppBinder so we can capture the left-associativity appropriately; only meaningful if we allow non-parenthesization of HOAS-lambdas...
+        ]
+ppSCon p Expect (e1 :* e2 :* End) =
+    ppFun p "syn"
+        [ ppFun 11 "Expect"
+            [ ppArg e1
+            , ppBinder e2 -- BUG: we can't actually use the HOAS API here, since we aren't using a Prelude-defined @expect@ but rather are using 'syn'...
+            ]
+        ]
+-- HACK: GHC can't figure out that there are no other type-safe cases
+ppSCon _ _ _ = error "ppSCon: the impossible happened"
+
+
+-- | Pretty-print a 'PrimOp' @(:$)@ node in the AST.
+ppPrimOp
+    :: (ABT abt, typs ~ UnLCs args, args ~ LCs typs)
+    => Int -> PrimOp typs a -> SArgs abt args -> Doc
+ppPrimOp p Not  (e1 :* End)       = ppFun p "not" [ppArg e1]
+ppPrimOp p Impl (e1 :* e2 :* End) =
+    -- TODO: make prettier
+    ppFun p "syn" [ppFun 11 "Impl" [ppArg e1, ppArg e2]]
+ppPrimOp p Diff (e1 :* e2 :* End) =
+    -- TODO: make prettier
+    ppFun p "syn" [ppFun 11 "Diff" [ppArg e1, ppArg e2]]
+ppPrimOp p Nand (e1 :* e2 :* End) =
+    -- TODO: make infix...
+    ppFun p "nand" [ppArg e1, ppArg e2]
+ppPrimOp p Nor  (e1 :* e2 :* End) =
+    -- TODO: make infix...
+    ppFun p "nor" [ppArg e1, ppArg e2]
+ppPrimOp _ Pi      End               = PP.text "pi"
+ppPrimOp p Sin     (e1 :* End)       = ppFun p "sin"   [ppArg e1]
+ppPrimOp p Cos     (e1 :* End)       = ppFun p "cos"   [ppArg e1]
+ppPrimOp p Tan     (e1 :* End)       = ppFun p "tan"   [ppArg e1]
+ppPrimOp p Asin    (e1 :* End)       = ppFun p "asin"  [ppArg e1]
+ppPrimOp p Acos    (e1 :* End)       = ppFun p "acos"  [ppArg e1]
+ppPrimOp p Atan    (e1 :* End)       = ppFun p "atan"  [ppArg e1]
+ppPrimOp p Sinh    (e1 :* End)       = ppFun p "sinh"  [ppArg e1]
+ppPrimOp p Cosh    (e1 :* End)       = ppFun p "cosh"  [ppArg e1]
+ppPrimOp p Tanh    (e1 :* End)       = ppFun p "tanh"  [ppArg e1]
+ppPrimOp p Asinh   (e1 :* End)       = ppFun p "asinh" [ppArg e1]
+ppPrimOp p Acosh   (e1 :* End)       = ppFun p "acosh" [ppArg e1]
+ppPrimOp p Atanh   (e1 :* End)       = ppFun p "atanh" [ppArg e1]
+ppPrimOp p RealPow (e1 :* e2 :* End) = ppBinop "**" 8 RightAssoc p e1 e2
+ppPrimOp p Exp     (e1 :* End)       = ppFun p "exp"   [ppArg e1]
+ppPrimOp p Log     (e1 :* End)       = ppFun p "log"   [ppArg e1]
+ppPrimOp _ Infinity         End      = PP.text "infinity"
+ppPrimOp _ NegativeInfinity End      = PP.text "negativeInfinity"
+ppPrimOp p GammaFunc (e1 :* End)     = ppFun p "gammaFunc" [ppArg e1]
+ppPrimOp p BetaFunc  (e1 :* e2 :* End) =
+    ppFun p "betaFunc" [ppArg e1, ppArg e2]
+ppPrimOp p Integrate (e1 :* e2 :* e3 :* End) =
+    ppFun p "integrate"
+        [ ppArg e1
+        , ppArg e2
+        , ppArg e3 -- TODO: make into a binding form!
+        ]
+ppPrimOp p Summate (e1 :* e2 :* e3 :* End) =
+    ppFun p "summate"
+        [ ppArg e1
+        , ppArg e2
+        , ppArg e3 -- TODO: make into a binding form!
+        ]
+ppPrimOp p (Index   _) (e1 :* e2 :* End) = ppBinop "!" 9 LeftAssoc p e1 e2
+ppPrimOp p (Size    _) (e1 :* End)       = ppFun p "size" [ppArg e1]
+ppPrimOp p (Reduce  _) (e1 :* e2 :* e3 :* End) =
+    ppFun p "reduce"
+        [ ppArg e1 -- N.B., @e1@ uses lambdas rather than being a binding form!
+        , ppArg e2
+        , ppArg e3
+        ]
+ppPrimOp p (Equal   _) (e1 :* e2 :* End) = ppBinop "==" 4 NonAssoc   p e1 e2
+ppPrimOp p (Less    _) (e1 :* e2 :* End) = ppBinop "<"  4 NonAssoc   p e1 e2
+ppPrimOp p (NatPow  _) (e1 :* e2 :* End) = ppBinop "^"  8 RightAssoc p e1 e2
+ppPrimOp p (Negate  _) (e1 :* End)       = ppFun p "negate" [ppArg e1]
+ppPrimOp p (Abs     _) (e1 :* End)       = ppFun p "abs_"   [ppArg e1]
+ppPrimOp p (Signum  _) (e1 :* End)       = ppFun p "signum" [ppArg e1]
+ppPrimOp p (Recip   _) (e1 :* End)       = ppFun p "recip"  [ppArg e1]
+ppPrimOp p (NatRoot _) (e1 :* e2 :* End) =
+    -- N.B., argument order is swapped!
+    ppBinop "`thRootOf`" 9 LeftAssoc p e2 e1
+ppPrimOp p (Erf _) (e1 :* End) = ppFun p "erf" [ppArg e1]
+-- HACK: GHC can't figure out that there are no other type-safe cases
+ppPrimOp _ _ _ = error "ppPrimOp: the impossible happened"
+
+
+-- | Pretty-print a 'MeasureOp' @(:$)@ node in the AST.
+ppMeasureOp
+    :: (ABT abt, typs ~ UnLCs args, args ~ LCs typs)
+    => Int -> MeasureOp typs a -> SArgs abt args -> Doc
+ppMeasureOp p (Dirac _) (e1 :* End) =
+    ppFun p "dirac" [ppArg e1]
+ppMeasureOp _ Lebesgue End =
+    PP.text "lebesgue"
+ppMeasureOp _ Counting End =
+    PP.text "counting"
+ppMeasureOp p Categorical (e1 :* End) =
+    ppFun p "categorical" [ppArg e1]
+ppMeasureOp p Uniform (e1 :* e2 :* End) =
+    ppFun p "uniform" [ppArg e1, ppArg e2]
+ppMeasureOp p Normal (e1 :* e2 :* End) =
+    ppFun p "normal" [ppArg e1, ppArg e2]
+ppMeasureOp p Poisson (e1 :* End) =
+    ppFun p "poisson" [ppArg e1]
+ppMeasureOp p Gamma (e1 :* e2 :* End) =
+    ppFun p "gamma" [ppArg e1, ppArg e2]
+ppMeasureOp p Beta (e1 :* e2 :* End) =
+    ppFun p "beta" [ppArg e1, ppArg e2]
+ppMeasureOp p (DirichletProcess _) (e1 :* e2 :* End) =
+    ppFun p "dp" [ppArg e1, ppArg e2]
+ppMeasureOp p (Plate _) (e1 :* End) =
+    ppFun p "plate" [ppArg e1]
+ppMeasureOp p (Chain _ _) (e1 :* e2 :* End) =
+    ppFun p "chain" [ppArg e1, ppArg e2]
+-- HACK: GHC can't figure out that there are no other type-safe cases
+ppMeasureOp _ _ _ = error "ppMeasureOp: the impossible happened"
+
+
+instance Pretty Value where
+    prettyPrec_ p (VNat   n) = ppFun p "nat_"  [PP.int (fromNat n)]
+    prettyPrec_ p (VInt   i) = ppFun p "int_"  [PP.int i]
+    prettyPrec_ p (VProb  l) = ppFun p "prob_" [PP.text (showsPrec 11 l "")]
+        -- TODO: make it prettier! (e.g., don't use LogFloat in the AST)
+    prettyPrec_ p (VReal  r) = ppFun p "real_" [PP.double r] -- TODO: make it prettier! (i.e., don't use Double in the AST)
+    prettyPrec_ p (VDatum d) = prettyPrec_ p d
+
+
+instance Pretty f => Pretty (Datum f) where
+    prettyPrec_ p (Datum hint d)
+        | Text.null hint =
+            ppFun p "datum_"
+                [error "TODO: prettyPrec_@Datum"]
+        | otherwise = 
+            ppFun p (Text.unpack hint)
+                (foldMap11 ((:[]) . prettyPrec_ 11) d)
+
+
+instance (ABT abt) => Pretty (Branch a abt) where
+    prettyPrec_ p (Branch pat e) =
+        ppFun p "Branch"
+            [ PP.text (showsPrec 11 pat "") -- HACK: make prettier. Especially since we have the hints!
+            , ppBinder e -- BUG: we can't actually use the HOAS API here, since we aren't using a Prelude-defined @branch@...
+            ]
+
+ppList :: [Doc] -> Doc
+ppList = PP.brackets . PP.nest 1 . PP.fsep . PP.punctuate PP.comma
+
+tryParens :: Bool -> Doc -> Doc
+tryParens True  = PP.parens
+tryParens False = id
+
+ppTuple :: [Doc] -> Doc
+ppTuple = PP.parens . PP.sep . PP.punctuate PP.comma
+
+ppFun :: Int -> String -> [Doc] -> Doc
+ppFun _ f [] = PP.text f
+ppFun p f ds =
+    tryParens (p > 9) (PP.text f <+> PP.nest (1 + length f) (PP.sep ds))
+
+ppArg :: (ABT abt) => abt '[] a -> Doc
+ppArg = prettyPrec 11
+
+
+data Associativity = LeftAssoc | RightAssoc | NonAssoc
+
+ppBinop
+    :: (ABT abt)
+    => String -> Int -> Associativity
+    -> Int -> abt '[] a -> abt '[] b -> Doc
+ppBinop op p0 assoc =
+    let (p1,p2) =
+            case assoc of
+            LeftAssoc  -> (p0, 1 + p0)
+            RightAssoc -> (1 + p0, p0)
+            NonAssoc   -> (1 + p0, 1 + p0)
+    in \p e1 e2 -> 
+        tryParens (p > p0) $ PP.sep
+            [ prettyPrec p1 e1
+            , PP.text op
+                <+> prettyPrec p2 e2
+            ]
+
+----------------------------------------------------------------
+----------------------------------------------------------- fin.
