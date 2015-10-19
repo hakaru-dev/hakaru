@@ -27,7 +27,6 @@ import qualified Data.Sequence    as Seq -- Because older versions of "Data.Fold
 import Language.Hakaru.Syntax.Nat      (fromNat)
 import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11)
 import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
 ----------------------------------------------------------------
@@ -67,7 +66,7 @@ ppBinder e =
             ]
     where
     go :: (ABT abt) => [Doc] -> View abt xs a -> ([Doc],Doc)
-    go xs (Bind x e) = go (ppVariable x : xs) e
+    go xs (Bind x v) = go (ppVariable x : xs) v
     go xs (Var  x)   = (reverse xs, ppVariable x)
     go xs (Syn  t)   = (reverse xs, pretty (syn t))
 {-
@@ -110,9 +109,8 @@ instance (ABT abt) => Pretty (LC_ abt) where
                 prettyNaryOp Iff      = ("`iff`", 0, Just "true")
                 prettyNaryOp (Min  _) = ("`min`", 5, Nothing)
                 prettyNaryOp (Max  _) = ("`max`", 5, Nothing)
-                -- HACK: we don't actually have polymorphic literals; thus we should only print "0"/"1" wrapped with the appropriate value wrapper. We can use the Prelude's 'zero' and 'one', provided we actually give them legit implementations
-                prettyNaryOp (Sum  _) = ("+", 6, Just "0")
-                prettyNaryOp (Prod _) = ("*", 7, Just "1")
+                prettyNaryOp (Sum  _) = ("+",     6, Just "zero")
+                prettyNaryOp (Prod _) = ("*",     7, Just "one")
             in
             let (opName,opPrec,maybeIdentity) = prettyNaryOp o in
             if Seq.null es
@@ -279,9 +277,9 @@ ppMeasureOp
     => Int -> MeasureOp typs a -> SArgs abt args -> Doc
 ppMeasureOp p (Dirac _) (e1 :* End) =
     ppFun p "dirac" [ppArg e1]
-ppMeasureOp p Lebesgue End =
+ppMeasureOp _ Lebesgue End =
     PP.text "lebesgue"
-ppMeasureOp p Counting End =
+ppMeasureOp _ Counting End =
     PP.text "counting"
 ppMeasureOp p Categorical (e1 :* End) =
     ppFun p "categorical" [ppArg e1]
