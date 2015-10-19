@@ -14,7 +14,6 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Sampling.Distribution where
 
-import Control.Monad
 import Control.Monad.Primitive
 import Control.Monad.Loops
 import Data.Functor                   ((<$>))
@@ -29,9 +28,6 @@ import qualified Data.Number.LogFloat as LF
 import Language.Hakaru.Sampling.Mixture
 import Language.Hakaru.Sampling.Types
 ----------------------------------------------------------------
-
-mapFst :: (t -> s) -> (t, u) -> (s, u)
-mapFst f (a,b) = (f a, b)
 
 dirac :: (Eq a) => a -> Dist a
 dirac theta = Dist
@@ -68,10 +64,11 @@ uniformD lo hi =
         , distSample = \ g -> Discrete <$> MWC.uniformR (lo, hi) g
         }
 
+-- | "Marsaglia polar method"
 marsaglia
     :: (MWC.Variate a, Ord a, Floating a, Functor m, PrimMonad m)
     => PRNG m -> m (a, a)
-marsaglia g = do -- "Marsaglia polar method"
+marsaglia g = do
     x <- MWC.uniformR (-1,1) g
     y <- MWC.uniformR (-1,1) g
     let s = x * x + y * y
@@ -84,7 +81,7 @@ choose :: (Functor m, PrimMonad m) => Mixture k -> PRNG m -> m (k, Prob)
 choose (Mixture m) g = do
     let peak = maximum (M.elems m)
         unMix = M.map (LF.fromLogFloat . (/peak)) m
-        total = M.foldl' (+) (0::Double) unMix
+        total = M.foldl' (+) 0 unMix
     p <- MWC.uniformR (0, total) g
     let f !k !v b !p0 = let p1 = p0 + v in if p <= p1 then k else b p1
         err p0 = error $
@@ -97,14 +94,15 @@ chooseIndex :: (Functor m, PrimMonad m) => [Double] -> PRNG m -> m Int
 chooseIndex probs g = do
     p <- MWC.uniform g
     return
-        . fromMaybe (error ("chooseIndex: failure p=" ++ show p))
-        $ findIndex (p <=) (scanl1 (+) probs)
+        . fromMaybe (error $ "chooseIndex: failure p=" ++ show p)
+        . findIndex (p <=)
+        $ scanl1 (+) probs
 
 normal_rng
     :: (Real a, Floating a, MWC.Variate a, Functor m, PrimMonad m)
     => a -> a -> PRNG m -> m a
 normal_rng mu sd g
-    | sd > 0    = marsaglia g >>= \ (x, _) -> return (mu + sd * x)
+    | sd > 0    = marsaglia g >>= \ (x,_) -> return (mu + sd * x)
     | otherwise = error "normal: invalid parameters"
 
 normalLogDensity :: Floating a => a -> a -> a -> a
@@ -287,12 +285,12 @@ dirichlet_rng n' a g' = normalize <$> gammas g' n'
     normalize (b, total) = map (/ total) b
 
 dirichletLogDensity :: [Double] -> [Double] -> Double
-dirichletLogDensity a x | all (> 0) x =
-    sum' (zipWith logTerm a x) + logGamma (sum a)
+dirichletLogDensity a x
+    | any (<= 0) x = error "dirichlet: all values must be between 0 and 1"
+    | otherwise    = sum' (zipWith logTerm a x) + logGamma (sum a)
     where
-    sum' = foldl' (+) 0
+    sum'        = foldl' (+) 0
     logTerm b y = (b-1) * log y - logGamma b
-dirichletLogDensity _ _ = error "dirichlet: all values must be between 0 and 1"
 
 dirichlet :: Int -> Double -> Dist [Double]
 dirichlet n a = Dist
@@ -305,9 +303,10 @@ multinomial_rng
     :: (Functor m, PrimMonad m) => Int -> [Double] -> PRNG m -> m [Int]
 multinomial_rng _n _theta _g = undefined
 
+-- TODO: check the sum and the @0 < y && y < n@ in a single pass
 multinomialLogDensity :: Int -> [Double] -> [Int] -> Double
 multinomialLogDensity n theta' x'
-    | n > 0 && sum x' == n && all (\y -> y > 0 && y < n) x' =
+    | n > 0 && sum x' == n && all (\y -> 0 < y && y < n) x' =
         logFactorial n
         + sum [ fromIntegral x * log theta - logFactorial x
             | (theta, x) <- zip theta' x']
