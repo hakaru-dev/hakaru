@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.13
+--                                                    2015.10.18
 -- |
 -- Module      :  Language.Hakaru.Syntax.AST
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -750,6 +750,7 @@ dNothing   = Datum tNothing . Inl $ Done
 
 dJust      :: abt a -> Datum abt (HMaybe a)
 dJust      = Datum tJust . Inr . Inl . (`Et` Done) . Konst
+
 
 tTrue, tFalse, tUnit, tPair, tLeft, tRight, tNil, tCons, tNothing, tJust :: Text
 tTrue    = Text.pack "true"

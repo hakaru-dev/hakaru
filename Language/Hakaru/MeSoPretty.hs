@@ -5,7 +5,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.13
+--                                                    2015.10.18
 -- |
 -- Module      :  Language.Hakaru.MeSoPretty
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -16,12 +16,13 @@
 --
 -- An in-progress replacement for "Language.Hakaru.PrettyPrint". When this is complete, we will move it to that module name.
 ----------------------------------------------------------------
-module MeSoPretty (pretty, prettyPrec) where
+module Language.Hakaru.MeSoPretty (pretty, prettyPrec) where
 
 import           Text.PrettyPrint (Doc, (<>), (<+>))
 import qualified Text.PrettyPrint as PP
 import qualified Data.Foldable    as F
 import qualified Data.Text        as Text
+import qualified Data.Sequence    as Seq -- Because older versions of "Data.Foldable" do not export 'null' apparently...
 
 import Language.Hakaru.Syntax.Nat      (fromNat)
 import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11)
@@ -52,7 +53,25 @@ ppVariable x = hint <> (PP.int . fromNat . varID) x
         | otherwise             = (PP.text . Text.unpack . varHint) x
 
 
--- | Pretty-print a (singleton)binder as a lambda, as per our HOAS API.
+-- | Pretty-print Hakaru binders as a Haskell lambda, as per our HOAS API.
+ppBinder :: (ABT abt) => abt xs a -> Doc
+ppBinder e =
+    case go [] (viewABT e) of
+    ([],  body) -> PP.parens body
+    (vars,body) ->
+        PP.parens $ PP.sep
+            [ PP.char '\\'
+                <+> PP.sep vars
+                <+> PP.text "->"
+            , PP.nest 4 body -- TODO: is there a better nesting than constant 4?
+            ]
+    where
+    go :: (ABT abt) => [Doc] -> View abt xs a -> ([Doc],Doc)
+    go xs (Bind x e) = go (ppVariable x : xs) e
+    go xs (Var  x)   = (reverse xs, ppVariable x)
+    go xs (Syn  t)   = (reverse xs, pretty (syn t))
+{-
+-- Simpler version in case we only need to handle singleton binders.
 ppBinder :: (ABT abt) => abt '[ x ] a -> Doc
 ppBinder e =
     caseBind e $ \x e' ->
@@ -60,8 +79,9 @@ ppBinder e =
             [ PP.char '\\'
                 <+> ppVariable x
                 <+> PP.text "->"
-            , PP.nest 4 (pretty e') -- TODO: is there a better nesting than constant 4?
+            , PP.nest 4 (pretty e')
             ]
+-}
 
 
 class Pretty (f :: Hakaru -> *) where
@@ -95,7 +115,7 @@ instance (ABT abt) => Pretty (LC_ abt) where
                 prettyNaryOp (Prod _) = ("*", 7, Just "1")
             in
             let (opName,opPrec,maybeIdentity) = prettyNaryOp o in
-            if F.null es
+            if Seq.null es
             then
                 case maybeIdentity of
                 Just identity -> PP.text identity
@@ -149,8 +169,16 @@ ppSCon p (Ann_ typ) (e1 :* End) =
         , ppArg e1
         ]
 ppSCon p (PrimOp_     o) es = ppPrimOp p o es
-ppSCon p (CoerceTo_   c) es = error "TODO: ppSCon"
-ppSCon p (UnsafeFrom_ c) es = error "TODO: ppSCon"
+ppSCon p (CoerceTo_   c) (e1 :* End) =
+    ppFun p "coerceTo_"
+        [ PP.text (showsPrec 11 c "") -- TODO: make this prettier. Add hints to the coercions?
+        , ppArg e1
+        ]
+ppSCon p (UnsafeFrom_ c) (e1 :* End) =
+    ppFun p "unsafeFrom_"
+        [ PP.text (showsPrec 11 c "") -- TODO: make this prettier. Add hints to the coercions?
+        , ppArg e1
+        ]
 ppSCon p (MeasureOp_  o) es = ppMeasureOp p o es
 ppSCon p MBind (e1 :* e2 :* End) =
     -- TODO: use the 'adjustHead' trick from the old PrettyPrint.hs
@@ -224,7 +252,11 @@ ppPrimOp p Summate (e1 :* e2 :* e3 :* End) =
 ppPrimOp p (Index   _) (e1 :* e2 :* End) = ppBinop "!" 9 LeftAssoc p e1 e2
 ppPrimOp p (Size    _) (e1 :* End)       = ppFun p "size" [ppArg e1]
 ppPrimOp p (Reduce  _) (e1 :* e2 :* e3 :* End) =
-    error "TODO: ppPrimOp{Reduce}"
+    ppFun p "reduce"
+        [ ppArg e1 -- N.B., @e1@ uses lambdas rather than being a binding form!
+        , ppArg e2
+        , ppArg e3
+        ]
 ppPrimOp p (Equal   _) (e1 :* e2 :* End) = ppBinop "==" 4 NonAssoc   p e1 e2
 ppPrimOp p (Less    _) (e1 :* e2 :* End) = ppBinop "<"  4 NonAssoc   p e1 e2
 ppPrimOp p (NatPow  _) (e1 :* e2 :* End) = ppBinop "^"  8 RightAssoc p e1 e2
@@ -294,13 +326,10 @@ instance Pretty f => Pretty (Datum f) where
 
 instance (ABT abt) => Pretty (Branch a abt) where
     prettyPrec_ p (Branch pat e) =
-        error "TODO: prettyPrec_@Branch"
-{-
-        ppFun (p > 9) "Branch"
-            [ prettyPrec 11 pat
-            , prettyPrec 11 e
+        ppFun p "Branch"
+            [ PP.text (showsPrec 11 pat "") -- HACK: make prettier. Especially since we have the hints!
+            , ppBinder e -- BUG: we can't actually use the HOAS API here, since we aren't using a Prelude-defined @branch@...
             ]
--}
 
 ppList :: [Doc] -> Doc
 ppList = PP.brackets . PP.nest 1 . PP.fsep . PP.punctuate PP.comma

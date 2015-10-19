@@ -10,7 +10,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.13
+--                                                    2015.10.18
 -- |
 -- Module      :  Language.Hakaru.Syntax.Prelude
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -599,11 +599,11 @@ snd :: (ABT abt, SingI a, SingI b)
     -> abt '[] b
 snd p = unpair p (\_ y -> y)
 
-left_ :: (ABT abt) => abt '[] a -> abt '[] (HEither a b)
-left_ = datum_ . dLeft
+left :: (ABT abt) => abt '[] a -> abt '[] (HEither a b)
+left = datum_ . dLeft
 
-right_ :: (ABT abt) => abt '[] b -> abt '[] (HEither a b)
-right_ = datum_ . dRight
+right :: (ABT abt) => abt '[] b -> abt '[] (HEither a b)
+right = datum_ . dRight
 
 uneither
     :: (ABT abt, SingI a, SingI b)
@@ -624,23 +624,23 @@ if_ b t f =
         , Branch pFalse f
         ]
 
-nil_      :: (ABT abt) => abt '[] (HList a)
-nil_      = vdatum dNil
+nil      :: (ABT abt) => abt '[] (HList a)
+nil      = vdatum dNil
 
-cons_     :: (ABT abt) => abt '[] a -> abt '[] (HList a) -> abt '[] (HList a)
-cons_     = (datum_ .) . dCons
+cons     :: (ABT abt) => abt '[] a -> abt '[] (HList a) -> abt '[] (HList a)
+cons     = (datum_ .) . dCons
 
-list_     :: (ABT abt) => [abt '[] a] -> abt '[] (HList a)
-list_     = Prelude.foldr cons_ nil_
+list     :: (ABT abt) => [abt '[] a] -> abt '[] (HList a)
+list     = Prelude.foldr cons nil
 
-nothing_  :: (ABT abt) => abt '[] (HMaybe a)
-nothing_  = vdatum dNothing
+nothing  :: (ABT abt) => abt '[] (HMaybe a)
+nothing  = vdatum dNothing
 
-just_     :: (ABT abt) => abt '[] a -> abt '[] (HMaybe a)
-just_     = datum_ . dJust
+just     :: (ABT abt) => abt '[] a -> abt '[] (HMaybe a)
+just     = datum_ . dJust
 
-maybe_    :: (ABT abt) => Maybe (abt '[] a) -> abt '[] (HMaybe a)
-maybe_    = Prelude.maybe nothing_ just_
+maybe    :: (ABT abt) => Maybe (abt '[] a) -> abt '[] (HMaybe a)
+maybe    = Prelude.maybe nothing just
 
 
 unsafeProb :: (ABT abt) => abt '[] 'HReal -> abt '[] 'HProb
