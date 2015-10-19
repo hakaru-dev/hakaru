@@ -1,13 +1,24 @@
 {-# LANGUAGE RankNTypes, NoMonomorphismRestriction, BangPatterns #-}
-{-# OPTIONS -W #-}
 
+{-# OPTIONS_GHC -Wall -fwarn-tabs #-}
+----------------------------------------------------------------
+--                                                    2015.10.18
+-- |
+-- Module      :  Language.Hakaru.Sampling.ImportanceSampler
+-- Copyright   :  Copyright (c) 2015 the Hakaru team
+-- License     :  BSD3
+-- Maintainer  :  wren@community.haskell.org
+-- Stability   :  experimental
+-- Portability :  GHC-only
+--
+-- This is an interpreter that's like Interpreter except conditioning
+-- is checked at run time rather than by static types. In other
+-- words, we allow models to be compiled whose conditioned parts
+-- do not match the observation inputs. In exchange, we get to make
+-- Measure an instance of Monad, and we can express models whose
+-- number of observations is unknown at compile time.
+----------------------------------------------------------------
 module Language.Hakaru.Sampling.ImportanceSampler where
-
--- This is an interpreter that's like Interpreter except conditioning is
--- checked at run time rather than by static types.  In other words, we allow
--- models to be compiled whose conditioned parts do not match the observation
--- inputs.  In exchange, we get to make Measure an instance of Monad, and we
--- can express models whose number of observations is unknown at compile time.
 
 import Language.Hakaru.Sampling.Types
 import Language.Hakaru.Sampling.Mixture (Prob, empty, point, Mixture(..))
@@ -23,73 +34,87 @@ import System.IO.Unsafe
 import qualified Data.Map.Strict as M
 
 import qualified Data.Number.LogFloat as LF
+----------------------------------------------------------------
 
 -- Conditioned sampling
 newtype Measure a = Measure { unMeasure :: [Cond] -> Sampler (a, [Cond]) }
 
 bind :: Measure a -> (a -> Measure b) -> Measure b
 bind measure continuation =
-  Measure (\conds ->
-    sbind (unMeasure measure conds)
-          (\(a,cds) -> unMeasure (continuation a) cds))
+    Measure $ \conds ->
+    sbind (unMeasure measure conds) $ \ (a,cds) ->
+    unMeasure (continuation a) cds
 
 instance Functor Measure where
-  fmap = liftM -- TODO: can we optimize this default definition?
+    fmap = liftM -- TODO: can we optimize this default definition?
 instance Applicative Measure where
-  pure x = Measure (\conds -> deterministic (point (x,conds) 1))
-  (<*>)  = ap -- TODO: can we optimize this default definition?
+    pure x = Measure $ \conds -> deterministic (point (x,conds) 1)
+    (<*>)  = ap -- TODO: can we optimize this default definition?
 instance Monad Measure where
-  return = pure
-  (>>=)  = bind
+    return = pure
+    (>>=)  = bind
 
 updateMixture :: Typeable a => Cond -> Dist a -> Sampler a
+updateMixture Nothing dist = \g -> do
+    e <- distSample dist g
+    return $ point (fromDensity e) 1
 updateMixture (Just cond) dist =
     case fromDynamic cond of
-      Just y  -> deterministic (point (fromDensity y) density)
-          where density = LF.logToLogFloat $ logDensity dist y
-      Nothing -> error "did not get data from dynamic source"
-updateMixture Nothing     dist = \g -> do e <- distSample dist g
-                                          return $ point (fromDensity e) 1
+    Nothing -> error "did not get data from dynamic source"
+    Just y  ->
+        let density = LF.logToLogFloat $ logDensity dist y
+        in  deterministic (point (fromDensity y) density)
     
 conditioned, unconditioned :: Typeable a => Dist a -> Measure a
-conditioned   dist = Measure (\(cond:conds) -> smap (\a->(a,conds))
-                                               (updateMixture cond    dist))
-unconditioned dist = Measure (\      conds  -> smap (\a->(a,conds))
-                                               (updateMixture Nothing dist))
+conditioned dist =
+    Measure $ \(cond:conds) ->
+    smap (\a -> (a,conds)) (updateMixture cond dist)
+
+unconditioned dist =
+    Measure $ \ conds ->
+    smap (\a -> (a,conds)) (updateMixture Nothing dist)
 
 factor :: Prob -> Measure ()
-factor p = Measure (\conds -> deterministic (point ((), conds) p))
+factor p = Measure $ \conds -> deterministic (point ((), conds) p)
 
 condition :: Eq b => Measure (a, b) -> b -> Measure a
 condition m b' =
-    Measure (\ conds -> 
-      sbind (unMeasure m conds)
-            (\ ((a,b), cds) ->
-                 deterministic (if b==b' then point (a,cds) 1 else empty)))
+    Measure $ \ conds -> 
+    sbind (unMeasure m conds) $ \ ((a,b), cds) ->
+    deterministic $ if b == b' then point (a,cds) 1 else empty
 
 -- Drivers for testing
 finish :: Mixture (a, [Cond]) -> Mixture a
 finish (Mixture m) = Mixture (M.mapKeysMonotonic (\(a,[]) -> a) m)
 
-empiricalMeasure :: (Functor m, PrimMonad m, Ord a) => Int -> Measure a -> [Cond] -> m (Mixture a)
+empiricalMeasure
+    :: (Functor m, PrimMonad m, Ord a)
+    => Int -> Measure a -> [Cond] -> m (Mixture a)
 empiricalMeasure !n measure conds = do
-  gen <- MWC.create
-  go n gen empty
-    where once = unMeasure measure conds
-          go 0 _ m = return m
-          go k g m = once g >>= \result -> go (k - 1) g $! mappend m (finish result)
+    gen <- MWC.create
+    go n gen empty
+    where
+    once     = unMeasure measure conds
+    go 0 _ m = return m
+    go k g m = do
+        result <- once g
+        go (k - 1) g $! mappend m (finish result)
 
 sample :: Measure a -> [Cond] -> IO [(a, Prob)]
 sample measure conds = do
-  gen <- MWC.create
-  unsafeInterleaveIO $ sampleNext gen
- where once = unMeasure measure conds
-       mixToTuple = head . M.toList . unMixture
-       sampleNext g = do
-          u <- once g
-          let x = mixToTuple (finish u)
-          xs <- unsafeInterleaveIO $ sampleNext g
-          return (x : xs)
+    gen <- MWC.create
+    unsafeInterleaveIO $ sampleNext gen
+    where
+    once         = unMeasure measure conds
+    mixToTuple   = head . M.toList . unMixture
+    sampleNext g = do
+        u <- once g
+        let x = mixToTuple (finish u)
+        xs <- unsafeInterleaveIO $ sampleNext g
+        return (x : xs)
 
 logit :: Floating a => a -> a
 logit !x = 1 / (1 + exp (- x))
+
+----------------------------------------------------------------
+----------------------------------------------------------- fin.
