@@ -34,7 +34,8 @@ library
                        Language.Hakaru.Sample,
                        Language.Hakaru.Distribution,
                        Language.Hakaru.Simplifiable,
-                       Language.Hakaru.Simplify,
+                       -- BUG: we need to solve the Typeable issue in order to get Simplify.hs to typecheck again
+                       -- Language.Hakaru.Simplify,
                        Language.Hakaru.Any,
                        Language.Hakaru.Vector,
                        Language.Hakaru.Util.Csv,
