@@ -179,8 +179,6 @@ matchNaryOp o e =
 ----- Now for the actual EDSL
 
 {-
--- infixl9 is the default when things are unspecified
-infixl 9 `app`
 infixr 9 `pair`
 
 infixr 1 =<<
@@ -197,7 +195,8 @@ infixl 4 <$>, <*>, <*, *> -- <$
 infixl 6 +, -
 infixl 7 *, /
 infixr 8 ^, ^^, ** -- ^+, ^*
-infixl 9 !
+-- infixl9 is the default when things are unspecified
+infixl 9 !, `app`, `thRootOf`
 
 -- TODO: some infix notation reminiscent of \"::\"
 ann_ :: (ABT abt) => Sing a -> abt '[] a -> abt '[] a

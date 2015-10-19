@@ -52,6 +52,7 @@ ppVariable x = hint <> (PP.int . fromNat . varID) x
         | otherwise             = (PP.text . Text.unpack . varHint) x
 
 
+-- TODO: use the 'adjustHead' trick from the old PrettyPrint.hs
 -- | Pretty-print Hakaru binders as a Haskell lambda, as per our HOAS API.
 ppBinder :: (ABT abt) => abt xs a -> Doc
 ppBinder e =
@@ -144,6 +145,7 @@ instance (ABT abt) => Pretty (LC_ abt) where
                     ]
                 ]
         Superpose_ pes ->
+            -- TODO: use the old PrettyPrint.hs's hack for when there's exactly one thing in the list; i.e., print as @weight w *> m@ with the appropriate do-notation indentation for @(*>)@ (or using 'pose' and @($)@)
             ppFun p "superpose"
                 [ ppList
                 . map (\(e1,e2) -> ppTuple [pretty e1, pretty e2])
@@ -156,8 +158,7 @@ instance (ABT abt) => Pretty (LC_ abt) where
 ppSCon :: (ABT abt) => Int -> SCon args a -> SArgs abt args -> Doc
 ppSCon p Lam_ (e1 :* End)       = ppFun p "lam"  [ppBinder e1]
     -- TODO: use the 'adjustHead' trick from the old PrettyPrint.hs
-ppSCon p App_ (e1 :* e2 :* End) = ppFun p "app"  [ppArg e1, ppArg e2]
-    -- TODO: use infix instead! must enable @infixl 9 `app`@ in the Prelude
+ppSCon p App_ (e1 :* e2 :* End) = ppBinop "`app`" 9 LeftAssoc p e1 e2
 ppSCon p Let_ (e1 :* e2 :* End) = ppFun p "let_" [ppArg e1, ppBinder e2]
     -- TODO: use the 'adjustHead' trick from the old PrettyPrint.hs
 ppSCon p Fix_       (e1 :* End) = ppFun p "fix"  [ppBinder e1]
@@ -263,9 +264,8 @@ ppPrimOp p (Abs     _) (e1 :* End)       = ppFun p "abs_"   [ppArg e1]
 ppPrimOp p (Signum  _) (e1 :* End)       = ppFun p "signum" [ppArg e1]
 ppPrimOp p (Recip   _) (e1 :* End)       = ppFun p "recip"  [ppArg e1]
 ppPrimOp p (NatRoot _) (e1 :* e2 :* End) =
-    -- TODO: make infix...
     -- N.B., argument order is swapped!
-    ppFun p "thRootOf" [ppArg e2, ppArg e1]
+    ppBinop "`thRootOf`" 9 LeftAssoc p e2 e1
 ppPrimOp p (Erf _) (e1 :* End) = ppFun p "erf" [ppArg e1]
 -- HACK: GHC can't figure out that there are no other type-safe cases
 ppPrimOp _ _ _ = error "ppPrimOp: the impossible happened"
