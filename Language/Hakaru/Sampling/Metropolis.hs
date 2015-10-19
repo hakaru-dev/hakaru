@@ -3,7 +3,7 @@
   ExistentialQuantification, StandaloneDeriving #-}
 {-# OPTIONS -Wall #-}
 
-module Language.Hakaru.Metropolis where
+module Language.Hakaru.Sampling.Metropolis where
 
 import qualified System.Random.MWC as MWC
 import Control.Applicative
@@ -13,7 +13,7 @@ import Data.Dynamic
 import Data.Maybe
 
 import qualified Data.Map.Strict as M
-import Language.Hakaru.Types
+import Language.Hakaru.Sampling.Types
 
 import System.IO.Unsafe
 

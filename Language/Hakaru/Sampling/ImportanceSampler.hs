@@ -1,7 +1,7 @@
 {-# LANGUAGE RankNTypes, NoMonomorphismRestriction, BangPatterns #-}
 {-# OPTIONS -W #-}
 
-module Language.Hakaru.ImportanceSampler where
+module Language.Hakaru.Sampling.ImportanceSampler where
 
 -- This is an interpreter that's like Interpreter except conditioning is
 -- checked at run time rather than by static types.  In other words, we allow
@@ -9,9 +9,9 @@ module Language.Hakaru.ImportanceSampler where
 -- inputs.  In exchange, we get to make Measure an instance of Monad, and we
 -- can express models whose number of observations is unknown at compile time.
 
-import Language.Hakaru.Types
-import Language.Hakaru.Mixture (Prob, empty, point, Mixture(..))
-import Language.Hakaru.Sampler (Sampler, deterministic, smap, sbind)
+import Language.Hakaru.Sampling.Types
+import Language.Hakaru.Sampling.Mixture (Prob, empty, point, Mixture(..))
+import Language.Hakaru.Sampling.Sampler (Sampler, deterministic, smap, sbind)
 
 import qualified System.Random.MWC as MWC
 import Control.Applicative (Applicative(..))

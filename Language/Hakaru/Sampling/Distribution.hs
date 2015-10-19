@@ -1,14 +1,14 @@
 {-# LANGUAGE RankNTypes, BangPatterns, GADTs #-}
 {-# OPTIONS -Wall #-}
 
-module Language.Hakaru.Distribution where
+module Language.Hakaru.Sampling.Distribution where
 
 import Control.Monad
 import Control.Monad.Primitive
 import Control.Monad.Loops
 import qualified System.Random.MWC as MWC
-import Language.Hakaru.Mixture
-import Language.Hakaru.Types
+import Language.Hakaru.Sampling.Mixture
+import Language.Hakaru.Sampling.Types
 import Data.Ix
 import Data.Maybe (fromMaybe)
 import Data.List (findIndex, foldl')

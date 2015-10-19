@@ -19,7 +19,6 @@ import qualified Text.Parsec.Expr as Ex
 import qualified Text.Parsec.Token as Tok
 
 import Language.Hakaru.Parser.AST
-import Language.Hakaru.Syntax
 
 ops, names :: [String]
 

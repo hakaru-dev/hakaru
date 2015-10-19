@@ -20,27 +20,28 @@ Flag patchedHint
     Description: Using the patched version of Hint. 
 
 library
-  exposed-modules:     Language.Hakaru.Types,
-                       Language.Hakaru.Mixture,
-                       Language.Hakaru.Sampler,
-                       Language.Hakaru.Syntax,
-                       Language.Hakaru.RoundTrip,
+  exposed-modules:     Language.Hakaru.Syntax,
                        Language.Hakaru.TH,
                        Language.Hakaru.Maple,
                        Language.Hakaru.MapleNeue,
-                       Language.Hakaru.ImportanceSampler,
-                       Language.Hakaru.Metropolis,
                        Language.Hakaru.Lambda,
-                       Language.Hakaru.Sample,
-                       Language.Hakaru.Distribution,
                        Language.Hakaru.Simplifiable,
                        -- BUG: we need to solve the Typeable issue in order to get Simplify.hs to typecheck again
                        -- Language.Hakaru.Simplify,
                        Language.Hakaru.Any,
-                       Language.Hakaru.Vector,
                        Language.Hakaru.Util.Csv,
+                       Language.Hakaru.Sampling.Types,
+                       Language.Hakaru.Sampling.Sample,
+                       Language.Hakaru.Sampling.Sampler,
+                       Language.Hakaru.Sampling.Mixture,
+                       Language.Hakaru.Sampling.ImportanceSampler,
+                       Language.Hakaru.Sampling.Metropolis,
+                       Language.Hakaru.Sampling.Distribution,
                        Language.Hakaru.Parser.AST,
                        Language.Hakaru.Parser.Parser,
+                       -- Old code which is not used anywhere in the library itself. These may be required by tests, in which case we should translate them to the new AST. If not, then they should be deleted from the repo.
+                       -- Language.Hakaru.RoundTrip,
+                       -- Language.Hakaru.Vector,
                        -- The new AST stuff. As the above are migrated to the new infrastructure I'll move them below.
                        Language.Hakaru.Syntax.Nat,
                        Language.Hakaru.Syntax.IClasses,
@@ -62,9 +63,10 @@ library
                        Language.Hakaru.Util.Lex,
                        Language.Hakaru.Util.Pretty,
                        Language.Hakaru.Util.Visual,
-                       Language.Hakaru.Compose,
                        Language.Hakaru.Paths,  
                        System.MapleSSH
+                       -- Old code which is not used anywhere in the library itself. These may be required by tests, in which case we should translate them to the new AST. If not, then they should be deleted from the repo.
+                       -- Language.Hakaru.Compose,
 
   other-extensions:    RankNTypes, BangPatterns, GADTs, TypeFamilies, TypeOperators,
                        ConstraintKinds, FlexibleContexts, NoMonomorphismRestriction,

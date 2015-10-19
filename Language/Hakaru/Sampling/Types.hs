@@ -1,7 +1,7 @@
 {-# LANGUAGE RankNTypes, DeriveDataTypeable, StandaloneDeriving #-}
 {-# OPTIONS -W #-}
 
-module Language.Hakaru.Types where
+module Language.Hakaru.Sampling.Types where
 
 import Data.Dynamic
 import Control.Monad.Primitive

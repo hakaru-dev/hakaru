@@ -34,13 +34,6 @@ import Language.Hakaru.Syntax.TypeEq (Sing, SingI(sing))
 import Language.Hakaru.Expect (normalize)
 import Language.Hakaru.Disintegrate (determine, density, disintegrate, Backward())
 
-{-
-import Language.Hakaru.Lazy
-import Language.Hakaru.Compose
-import Language.Hakaru.Syntax
-import Language.Hakaru.Expect (Expect(..), Expect', normalize)
--}
-
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 priorAsProposal

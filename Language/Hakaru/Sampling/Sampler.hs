@@ -1,11 +1,11 @@
 {-# LANGUAGE RankNTypes #-}
 {-# OPTIONS -W #-}
 
-module Language.Hakaru.Sampler (Sampler, deterministic, sbind, smap) where
+module Language.Hakaru.Sampling.Sampler (Sampler, deterministic, sbind, smap) where
 
-import Language.Hakaru.Mixture (Mixture, mnull, empty, scale, point)
-import Language.Hakaru.Distribution (choose)
-import Language.Hakaru.Types
+import Language.Hakaru.Sampling.Mixture (Mixture, mnull, empty, scale, point)
+import Language.Hakaru.Sampling.Distribution (choose)
+import Language.Hakaru.Sampling.Types
 import Control.Monad.Primitive
 
 -- Sampling procedures that produce one sample

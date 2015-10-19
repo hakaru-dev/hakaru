@@ -6,7 +6,7 @@
 
 {-# OPTIONS -Wall #-}
 
-module Language.Hakaru.Sample (Sample(..), Sample', runSample) where
+module Language.Hakaru.Sampling.Sample (Sample(..), Sample', runSample) where
 
 -- Importance sampling interpretation
 
@@ -14,7 +14,7 @@ import Prelude hiding (Real)
 import Language.Hakaru.Syntax (Hakaru(..),  
        Order(..), Base(..), Mochastic(..), Integrate(..), Lambda(..))
 import Language.Hakaru.Util.Extras (normalize, normalizeVector)
-import Language.Hakaru.Distribution (poisson_rng)
+import Language.Hakaru.Sampling.Distribution (poisson_rng)
 import Control.Monad.Primitive (PrimState, PrimMonad)
 import Numeric.SpecFunctions (logGamma, logBeta)
 import qualified Numeric.SpecFunctions as SF
