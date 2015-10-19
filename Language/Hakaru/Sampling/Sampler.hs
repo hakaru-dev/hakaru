@@ -10,7 +10,7 @@ import Control.Monad.Primitive
 
 -- Sampling procedures that produce one sample
 
-type Sampler a = PrimMonad m => PRNG m -> m (Mixture a)
+type Sampler a = (Functor m, PrimMonad m) => PRNG m -> m (Mixture a)
 
 deterministic :: Mixture a -> Sampler a
 deterministic m _ = return m

@@ -103,7 +103,7 @@ instance Base (Sample m) where
   size   (Sample v)               = Sample (V.length v)
   reduce f a (Sample v)           = V.foldl' (\acc b -> f acc (Sample b)) a v
 
-instance (PrimMonad m) => Mochastic (Sample (m :: * -> *)) where
+instance (Functor m, PrimMonad m) => Mochastic (Sample (m :: * -> *)) where
   dirac (Sample a) = Sample (\p _ ->
     return (Just (a,p)))
   bind (Sample m) k = Sample (\p g -> do

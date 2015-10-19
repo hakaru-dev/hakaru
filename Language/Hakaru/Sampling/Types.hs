@@ -26,6 +26,8 @@ fromDensity (Discrete a) = a
 fromDensity (Lebesgue a) = a
 
 type LogLikelihood = Double
-data Dist a = Dist {logDensity :: Density a -> LogLikelihood,
-                    distSample :: (PrimMonad m) => PRNG m -> m (Density a)}
+data Dist a = Dist
+    { logDensity :: Density a -> LogLikelihood
+    , distSample :: (Functor m, PrimMonad m) => PRNG m -> m (Density a)
+    }
 deriving instance Typeable Dist

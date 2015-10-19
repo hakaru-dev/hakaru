@@ -58,7 +58,7 @@ data SamplerState where
          cnds :: [Cond] -- conditions left to process
        } -> SamplerState
 
-type Sampler a = PrimMonad m => SamplerState -> PRNG m -> m (a, SamplerState)
+type Sampler a = (Functor m, PrimMonad m) => SamplerState -> PRNG m -> m (a, SamplerState)
 
 sreturn :: a -> Sampler a
 sreturn x s _ = return (x, s)
@@ -151,7 +151,7 @@ run (Measure prog) cds = do
   (v, S d ll []) <- (prog [0]) (S M.empty (0,0) cds) g
   return (v, d, fst ll)
 
-traceUpdate :: PrimMonad m => Measure a -> Database -> [Cond] -> PRNG m
+traceUpdate :: (Functor m, PrimMonad m) => Measure a -> Database -> [Cond] -> PRNG m
             -> m (a, Database, LL, LL, LL)
 traceUpdate (Measure prog) d cds g = do
   -- let d1 = M.map (\ (x, l, _, ob) -> (x, l, False, ob)) d
@@ -166,7 +166,7 @@ initialStep :: Measure a -> [Cond] ->
 initialStep prog cds g = traceUpdate prog M.empty cds g
 
 -- TODO: Make a way of passing user-provided proposal distributions
-resample :: PrimMonad m => Name -> Database -> Observed -> XRP -> PRNG m ->
+resample :: (Functor m, PrimMonad m) => Name -> Database -> Observed -> XRP -> PRNG m ->
             m (Database, LL, LL, LL)
 resample name db ob (XRP (x, dist)) g =
     do x' <- distSample dist g

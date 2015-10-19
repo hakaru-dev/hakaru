@@ -71,7 +71,7 @@ condition m b' =
 finish :: Mixture (a, [Cond]) -> Mixture a
 finish (Mixture m) = Mixture (M.mapKeysMonotonic (\(a,[]) -> a) m)
 
-empiricalMeasure :: (PrimMonad m, Ord a) => Int -> Measure a -> [Cond] -> m (Mixture a)
+empiricalMeasure :: (Functor m, PrimMonad m, Ord a) => Int -> Measure a -> [Cond] -> m (Mixture a)
 empiricalMeasure !n measure conds = do
   gen <- MWC.create
   go n gen empty
