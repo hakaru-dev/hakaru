@@ -30,7 +30,6 @@ module Language.Hakaru.Sampling.Metropolis where
 import Control.Applicative
 import Control.Monad.Primitive
 import Data.Dynamic
-import Data.Maybe
 import System.IO.Unsafe
 import qualified System.Random.MWC as MWC
 import qualified Data.Map.Strict   as M
@@ -96,34 +95,33 @@ newtype Measure a = Measure { unMeasure :: Name -> Sampler a }
 
 -- TODO: what value is there in having the name be the first argument? We could get rid of the 'Sampler' type alias if only we reordered the name to be the last argument. Notably, this also eliminates some eta expansion in the use sites (since the name is just passed through from outside)
 updateXRP :: Typeable a => Name -> Cond -> Dist a -> Sampler a
-updateXRP n obs dist s@(SamplerState {localDB = db}) g =
-    case M.lookup n db of
-    Just (DBEntry xd _ _ ob) ->
-        let Just (x, _) = unXRP xd
-            l   = logDensity dist x
-            db' = M.insert n (DBEntry (XRP x dist) l True ob) db
-        in return
-            ( fromDensity x
-            , s { localDB = db'
-                , totalLL = l + totalLL s
-                }
-            )
-    Nothing -> do
-        x <- case obs of
-            Nothing -> distSample dist g
+updateXRP n obs dist s@(SamplerState {localDB = db}) g = do
+    -- As a performance hack, we use @isFresh*l@ instead of @if isFresh then l else 0@
+    (x, ob, isFresh) <-
+        case M.lookup n db of
+        Just (DBEntry xd _ _ ob) ->
+            case unXRP xd of
+            Just (x, _) -> return (x, ob, 0)
+            Nothing     -> error "updateXRP: unXRP failed"
+        Nothing ->
+            case obs of
             Just xd ->
                 case fromDynamic xd of
+                Just x  -> return (x, True, 1)
                 Nothing -> error "updateXRP: fromDynamic failed"
-                Just x  -> return x
-        let l   = logDensity dist x
-            db' = M.insert n (DBEntry (XRP x dist) l True (isJust obs)) db
-        return
-            ( fromDensity x
-            , s { localDB = db'
-                , totalLL = l + totalLL s
-                , freshLL = l + freshLL s
-                }
-            )
+            Nothing -> do
+                x <- distSample dist g
+                return (x, False, 1)
+    --
+    let l   = logDensity dist x
+        db' = M.insert n (DBEntry (XRP x dist) l True ob) db
+    return
+        ( fromDensity x
+        , s { localDB = db'
+            , totalLL = totalLL s + l
+            , freshLL = freshLL s + isFresh*l
+            }
+        )
 
 factor :: LL -> Measure ()
 factor l = Measure $ \_ s _ -> return ((), s {totalLL = l + totalLL s})
