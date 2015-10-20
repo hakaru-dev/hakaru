@@ -37,11 +37,11 @@ data Op' =
 
 data AST' a =
      Var Name
-   | Op a -- Op Text?
+   | Op a
    | Lam Name (AST' a) 
    | App (AST' a) (AST' a)
    | Let Name (AST' a) (AST' a)
---    | Ann (AST' a) Hakaru
+   | Ann (AST' a) Hakaru
    | Value Value'
    | Empty
 --    | Case  (AST' a) [(Branch' a)] -- match

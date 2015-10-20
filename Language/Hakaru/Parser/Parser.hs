@@ -19,10 +19,12 @@ import qualified Text.Parsec.Expr as Ex
 import qualified Text.Parsec.Token as Tok
 
 import Language.Hakaru.Parser.AST
+import Language.Hakaru.Syntax.DataKind
 
 ops, names :: [String]
 
-ops   = ["+","*","-",":","<~","==", "="]
+ops   = ["+","*","-",":","::", "<~","==", "="]
+types = ["int", "prob", "nat", "int"]
 names = ["def","fn", "if","else","pi","inf", "return"]
 
 type Parser = ParsecT (IndentStream (CharIndentStream Text)) () Identity
@@ -38,7 +40,7 @@ style = Tok.LanguageDef
         , Tok.caseSensitive  = True
         , Tok.commentLine = "#"
         , Tok.reservedOpNames = ops
-        , Tok.reservedNames = names
+        , Tok.reservedNames = names ++ types
         }
 
 lexer = Tok.makeTokenParser style
@@ -135,11 +137,15 @@ pairs = do
   l <- parens $ commaSep op_expr
   return $ foldr (binop "Pair") Empty l
 
-type_expr :: Parser (AST' Text)
+type_expr :: Parser Hakaru
 type_expr = undefined
 
 ann_expr :: Parser (AST' Text)
-ann_expr = undefined
+ann_expr = do
+  e <- basic_expr
+  reservedOp "::"
+  t <- type_expr
+  return $ Ann e t
 
 match_expr :: Parser (AST' Text)
 match_expr = undefined
