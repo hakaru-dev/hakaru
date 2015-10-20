@@ -7,7 +7,7 @@ import Prelude hiding (Real)
 import Control.Applicative ((<$>), (<*))
 import qualified Control.Monad as M
 import Data.Functor.Identity
-import Data.Text hiding (foldr, foldl)
+import Data.Text hiding (foldr1, foldl)
 
 import Text.Parsec hiding (Empty)
 import Text.Parsec.Combinator (eof)
@@ -135,9 +135,9 @@ var = do
 pairs :: Parser (AST' Text)
 pairs = do
   l <- parens $ commaSep op_expr
-  return $ foldr (binop "Pair") Empty l
+  return $ foldr1 (binop "Pair") l
 
-type_expr :: Parser Hakaru
+type_expr :: Parser (AST' Text)
 type_expr = undefined
 
 ann_expr :: Parser (AST' Text)

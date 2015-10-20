@@ -18,7 +18,7 @@ stripMetadata ast              = ast
 testParse :: Text -> AST' Text -> Assertion
 testParse s p = case parseHakaru s of
                    Left  m  -> assertFailure (show m)
-                   Right p' -> assertEqual "" p p'
+                   Right p' -> assertEqual "" p (stripMetadata p')
 
 if1, if2, if3, if4, if5 :: Text
 

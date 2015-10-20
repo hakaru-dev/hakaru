@@ -41,7 +41,13 @@ data AST' a =
    | Lam Name (AST' a) 
    | App (AST' a) (AST' a)
    | Let Name (AST' a) (AST' a)
-   | Ann (AST' a) Hakaru
+   | Ann (AST' a) (AST' a)
+
+   | TypeApp (AST' a) (AST' a)
+   | TypeFun (AST' a) (AST' a)
+   | TypeOp  a
+   | TypeVar Name
+
    | Value Value'
    | Empty
 --    | Case  (AST' a) [(Branch' a)] -- match
