@@ -42,7 +42,7 @@ data AST' a =
    | App (AST' a) (AST' a)
    | Let Name (AST' a) (AST' a)
    | Ann (AST' a) (AST' a)
-
+   -- These should probably be in their own TypeAST
    | TypeApp (AST' a) (AST' a)
    | TypeFun (AST' a) (AST' a)
    | TypeOp  a

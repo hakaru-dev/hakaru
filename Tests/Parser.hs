@@ -178,7 +178,6 @@ easyRoadAST = Bind "noiseT" (App (App (Op "uniform")
 testRoadmap :: Test
 testRoadmap = test
    [ testParse easyRoad1 easyRoadAST
---   , testParse easyRoad2 easyRoad2AST
    ]
 
 allTests :: Test
