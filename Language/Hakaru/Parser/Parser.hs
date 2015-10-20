@@ -206,7 +206,7 @@ if_expr = do
   reserved "else"
   reservedOp ":"
   fexp <- localIndentation Ge expr
-  return $ (Op "if") `App` test_expr `App` texp  `App` fexp
+  return $ If test_expr texp fexp
 
 lam_expr :: Parser (AST' Text)
 lam_expr = do

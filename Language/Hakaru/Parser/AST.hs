@@ -33,7 +33,7 @@ data Symbol' =
    | Empty'
    | MeasureOp
    | MBind
-   | Lub
+   | Plus
 
 type SymbolTable = [(Text, Symbol')]
 
@@ -43,6 +43,7 @@ data AST' a =
    | Lam Name (AST' a) 
    | App (AST' a) (AST' a)
    | Let Name (AST' a) (AST' a)
+   | If (AST' a) (AST' a) (AST' a)
    | Ann (AST' a) (AST' a)
    -- These should probably be in their own TypeAST
    | TypeApp (AST' a) (AST' a)
@@ -129,7 +130,7 @@ data AST a =
    | CoerceTo_   (AST a) (AST a)
    | UnsafeFrom_ (AST a) (AST a)
    | PrimOp_     (AST a) (AST a)
-   | NaryOp_     NaryOp'   (AST a) (AST a)
+   | NaryOp_     NaryOp' (AST a) (AST a)
    | Value_      (AST a)
    | Empty_
    | Array_      (AST a) (AST a)

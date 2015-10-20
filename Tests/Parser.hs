@@ -47,18 +47,15 @@ if5 = unlines ["if True:"
               ,"      3"
               ]
 
-ifAST1 = App (App (App (Op "if")
-                       (Op "True"))
-                  (Value (Nat 1)))
-              (Value (Nat 2))
+ifAST1 = If (Op "True")
+         (Value (Nat 1))
+         (Value (Nat 2))
 
-ifAST2 = App (App (App (Op "if")
-                           (Op "True"))
-              (Value (Nat 4)))
-         (App (App (App (Op "if")
-                            (Op "False"))
-               (Value (Nat 2)))
-          (Value (Nat 3)))
+ifAST2 = If (Op "True")
+         (Value (Nat 4))
+         (If (Op "False")
+             (Value (Nat 2))
+             (Value (Nat 3)))
 
 testIfs :: Test
 testIfs = test
