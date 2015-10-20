@@ -57,16 +57,90 @@ data AST' a =
 --    | Data Sop
    | WithMeta (AST' a) Meta
 
-data AST a = Unimplmented a
+data PrimOp' a =
+     Not'        (AST a)
+   | Impl'       (AST a) (AST a)
+   | Diff'       (AST a) (AST a)
+   | Nand'       (AST a) (AST a)
+   | Nor'        (AST a) (AST a)
+   | Pi'        
+   | Sin'        (AST a)
+   | Cos'        (AST a)
+   | Tan'        (AST a)
+   | Asin'       (AST a)
+   | Acos'       (AST a)
+   | Atan'       (AST a)
+   | Sinh'       (AST a)
+   | Cosh'       (AST a)
+   | Tanh'       (AST a)
+   | Asinh'      (AST a)
+   | Acosh'      (AST a)
+   | Atanh'      (AST a)
+   | RealPow'    (AST a) (AST a)
+   | Exp'        (AST a)
+   | Log'        (AST a)
+   | Infinity'
+   | NegativeInfinity'
+   | GammaFunc' (AST a)
+   | BetaFunc'  (AST a)
+   | Integrate' (AST a) (AST a) (AST a)
+   | Summate'   (AST a) (AST a) (AST a)
+   | Index'     (AST a) (AST a)
+   | Size'      (AST a)
+   | Reduce'    (AST a) (AST a)
+   | Equal'     (AST a) (AST a)
+   | Less'      (AST a) (AST a)
+   | NatPow'    (AST a) (AST a)
+   | Negate'    (AST a)
+   | Abs'       (AST a)
+   | Signum'    (AST a)
+   | Recip'     (AST a)
+   | NatRoot'   (AST a) (AST a)
+   | Erf'       (AST a)
+
+data NaryOp' =
+     And'
+   | Or'
+   | Xor'
+   | Iff'
+   | Min' 
+   | Max' 
+   | Sum' 
+   | Prod'
+
+data MeasureOp' a =
+     Lebesgue'
+   | Counting'
+   | Categorical' (AST a)
+   | Uniform'     (AST a) (AST a)
+   | Normal'      (AST a) (AST a)
+   | Poisson'     (AST a) (AST a)
+   | Gamma'       (AST a) (AST a)
+   | Beta'        (AST a) (AST a)
+   | DP'          (AST a) (AST a)
+   | Plate'       (AST a)
+   | Chain'       (AST a) (AST a)
+
+data AST a =        
+     Lam_        (AST a) (AST a)
+   | Fix_        (AST a)
+   | Let_        (AST a) (AST a) (AST a)
+   | Ann_        (AST a) (AST a)
+   | CoerceTo_   (AST a) (AST a)
+   | UnsafeFrom_ (AST a) (AST a)
+   | PrimOp_     (AST a) (AST a)
+   | NaryOp_     NaryOp'   (AST a) (AST a)
+   | Value_      (AST a)
+   | Empty_
+   | Array_      (AST a) (AST a)
+   | Datum_      (AST a)
+   | Case_       (AST a) (AST a)
+   | MeasureOp_  (MeasureOp' a)
+   | MBind_      (AST a) (AST a) (AST a)
+   | Superpose_  (AST a)
+   | Lub_        (AST a)
+
 
 deriving instance Eq a => Eq (AST' a)
 deriving instance Show a => Show (AST' a)
 deriving instance Show Value'
-
-
--- figure out symbols and types
-symbolResolution :: SymbolTable -> AST' Text -> AST' Symbol
-symbolResolution = undefined
-
-makeAST :: AST' Symbol' -> AST Symbol'
-makeAST = undefined
