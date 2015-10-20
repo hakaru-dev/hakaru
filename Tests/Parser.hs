@@ -170,22 +170,16 @@ easyRoadAST = Bind "noiseT" (App (App (Op "uniform")
                             (App (App (Op "Pair")
                                           (App (App (Op "Pair")
                                                         (Var "m1"))
-                                                        (App (App (Op "Pair")
-                                                                  (Var "m2"))
-                                                                  Empty)))
-                             (App (App (Op "Pair")
+                                                        (Var "m2")))
                                            (App (App (Op "Pair")
                                                          (Var "noiseT"))
-                                                         (App (App (Op "Pair")
-                                                                   (Var "noiseE"))
-                                                                   Empty)))
-                              Empty))))))))
+                                                         (Var "noiseE")))))))))
 
--- testRoadmap :: Test
--- testRoadmap = test
---    [ testParse easyRoad1 easyRoadAST
---    , testParse easyRoad2 easyRoad2AST
---    ]
+testRoadmap :: Test
+testRoadmap = test
+   [ testParse easyRoad1 easyRoadAST
+--   , testParse easyRoad2 easyRoad2AST
+   ]
 
 allTests :: Test
 allTests = test
@@ -193,6 +187,7 @@ allTests = test
    , testLams
    , testLets
    , testBinds
+   , testRoadmap
    ]
 
 
