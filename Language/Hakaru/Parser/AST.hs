@@ -2,7 +2,7 @@
 module Language.Hakaru.Parser.AST where
 
 import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.AST (SCon, PrimOp, NaryOp)
+import Language.Hakaru.Syntax.AST()
 import Data.Text
 import Text.Parsec (SourcePos)
 
@@ -22,7 +22,7 @@ data Value' =
  -- | Datum Sop
  deriving (Eq)
 
-data Op' =
+data Symbol' =
      Fix
    | CoerceTo
    | UnsafeFrom 
@@ -34,6 +34,8 @@ data Op' =
    | MeasureOp
    | MBind
    | Lub
+
+type SymbolTable = [(Text, Symbol')]
 
 data AST' a =
      Var Name
@@ -55,6 +57,16 @@ data AST' a =
 --    | Data Sop
    | WithMeta (AST' a) Meta
 
+data AST a = Unimplmented a
+
 deriving instance Eq a => Eq (AST' a)
 deriving instance Show a => Show (AST' a)
 deriving instance Show Value'
+
+
+-- figure out symbols and types
+symbolResolution :: SymbolTable -> AST' Text -> AST' Symbol
+symbolResolution = undefined
+
+makeAST :: AST' Symbol' -> AST Symbol'
+makeAST = undefined
