@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.13
+--                                                    2015.10.21
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeCheck
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -201,7 +201,7 @@ instance Monad TypeCheckMonad where
 
 -- | Extend the typing context, but only locally.
 pushCtx :: SomeVariable -> TypeCheckMonad a -> TypeCheckMonad a
-pushCtx tv@(Some x) (TCM m) =
+pushCtx tv@(SomeVariable x) (TCM m) =
     TCM $ \ctx -> m $ IM.insert (fromNat $ varID x) tv ctx
 
 getCtx :: TypeCheckMonad Ctx
@@ -227,7 +227,7 @@ inferType = inferType_
     Var x     -> do
         ctx <- getCtx
         case IM.lookup (fromNat $ varID x) ctx of
-            Just (Some x') ->
+            Just (SomeVariable x') ->
                 case varEq x x' of
                 Just Refl -> return (varType x', var x')
                 Nothing   -> failwith "type mismatch"
@@ -254,7 +254,7 @@ inferType = inferType_
         {-
     Syn (App_ (Syn (Lam_ e1)) e2) -> do
         typ2 <- inferType_ e2
-        caseBind e1 $ \x -> pushCtx (Some x typ2) . inferType_
+        caseBind e1 $ \x -> pushCtx (SomeVariable x typ2) . inferType_
         -}
 
     Syn (Let_ :$ e1 :* e2 :* End)
@@ -263,7 +263,7 @@ inferType = inferType_
             caseBind e2 $ \x e3 ->
                 case jmEq typ1 (varType x) of
                 Nothing   -> failwith "type mismatch"
-                Just Refl -> pushCtx (Some x) $ do
+                Just Refl -> pushCtx (SomeVariable x) $ do
                     (typ2,e3') <- inferType_ e3
                     return (typ2, syn(Let_ :$ e1' :* bind x e3' :* End))
                     
@@ -323,7 +323,7 @@ inferType = inferType_
                     caseBind e2 $ \x e3 ->
                         case jmEq typ2 (varType x) of
                         Nothing   -> failwith "type mismatch"
-                        Just Refl -> pushCtx (Some x) $ do
+                        Just Refl -> pushCtx (SomeVariable x) $ do
                             (typ3,e3') <- inferType e3
                             return (typ3, syn(MBind :$ e1' :* bind x e3' :* End))
                 _ -> failwith "expected measure type"
@@ -374,7 +374,7 @@ checkType = checkType_
                 caseBind e1 $ \x e2 ->
                     case jmEq typ1 (varType x) of
                     Nothing   -> failwith "type mismatch"
-                    Just Refl -> pushCtx (Some x) $ do
+                    Just Refl -> pushCtx (SomeVariable x) $ do
                         e2' <- checkType_ typ2 e2
                         return (syn(Lam_ :$ bind x e2' :* End))
             _ -> failwith "expected function type"
@@ -385,7 +385,7 @@ checkType = checkType_
                 caseBind e2 $ \x e3 ->
                     case jmEq typ1 (varType x) of
                     Nothing   -> failwith "type mismatch"
-                    Just Refl -> pushCtx (Some x) $ do
+                    Just Refl -> pushCtx (SomeVariable x) $ do
                         e3' <- checkType_ typ0 e3
                         return (syn(Let_ :$ e1' :* bind x e3' :* End))
     
@@ -393,7 +393,7 @@ checkType = checkType_
             caseBind e1 $ \x e2 ->
                 case jmEq typ0 (varType x) of
                 Nothing   -> failwith "type mismatch"
-                Just Refl -> pushCtx (Some x) $ do
+                Just Refl -> pushCtx (SomeVariable x) $ do
                     e2' <- checkType_ typ0 e2
                     return (syn(Fix_ :$ bind x e2' :* End))
     
@@ -418,7 +418,7 @@ checkType = checkType_
                 caseBind e2 $ \x e3 ->
                     case jmEq SNat (varType x) of
                     Nothing   -> failwith "type mismatch"
-                    Just Refl -> pushCtx (Some x) $ do
+                    Just Refl -> pushCtx (SomeVariable x) $ do
                         e3' <- checkType_ typ1 e3
                         return (syn(Array_ e1' (bind x e3')))
             _ -> failwith "expected HArray type"
@@ -443,7 +443,7 @@ checkType = checkType_
                         caseBind e2 $ \x e3 ->
                             case jmEq typ2 (varType x) of
                             Nothing   -> failwith "type mismatch"
-                            Just Refl -> pushCtx (Some x) $ do
+                            Just Refl -> pushCtx (SomeVariable x) $ do
                                 e3' <- checkType_ typ0 e3
                                 return (syn(MBind :$ e1' :* bind x e3' :* End))
                     _ -> failwith "expected measure type"
@@ -555,7 +555,7 @@ checkPattern body pat_typ pat k =
         caseBind body $ \x body' ->
             case jmEq pat_typ (varType x) of
             Nothing   -> failwith "type mismatch"
-            Just Refl -> bind x <$> pushCtx (Some x) (k body')
+            Just Refl -> bind x <$> pushCtx (SomeVariable x) (k body')
     PWild       -> k body
     PDatum _hint pat1 ->
         -- TODO: actually use the hint to improve error messages
@@ -642,7 +642,7 @@ checkBranch body_typ body = go
             caseBind body $ \x body' ->
                 case jmEq typ (varType x) of
                 Just Refl ->
-                    pushCtx (Some x) $
+                    pushCtx (SomeVariable x) $
                         checkBranch body_typ body' pts
                 Nothing   -> failwith "type mismatch"
 
