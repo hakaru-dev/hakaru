@@ -228,7 +228,7 @@ inferType = inferType_
   inferType_ :: U.AST a -> TypeCheckMonad (TypedAST abt)
   inferType_ e0 =
     case e0 of -- viewAbt e0
-    U.Var_ x  -> do
+    U.Var_ x -> do
         ctx <- getCtx
         case IM.lookup (fromNat $ nameID x) ctx of
             Just (SomeVariable x') ->
@@ -240,13 +240,15 @@ inferType = inferType_
                 --   Nothing   -> failwith "type mismatch"
             Nothing       -> failwith "unbound variable"
 
-    Syn (App_ :$ e1 :* e2 :* End) -> do
-        (typ1,e1') <- inferType_ e1
-        case typ1 of
-            SFun typ2 typ3 -> do
-                e2' <- checkType typ2 e2
-                return (typ3, syn(App_ :$ e1' :* e2' :* End))
-            _ -> failwith "expected function type"
+    U.App_ e1  e2 -> do
+        r <- inferType_ e1
+        case r of
+          TypedAST typ1 e1' ->
+              case typ1 of
+                SFun typ2 typ3 -> do
+                  e2' <- checkType typ2 e2
+                  return $ TypedAST typ3 (syn(App_ :$ e1' :* e2' :* End))
+                _ -> failwith "expected function type"
         -- The above is the standard rule that everyone uses.
         -- However, if the @e1@ is a lambda (rather than a primop
         -- or a variable), then it will require a type annotation.

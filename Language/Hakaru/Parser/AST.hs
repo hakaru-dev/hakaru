@@ -50,7 +50,7 @@ data AST' a =
    | TypeApp (AST' a) (AST' a)
    | TypeFun (AST' a) (AST' a)
    | TypeOp  a
-   | TypeVar Name
+   | TypeVar Name'
 
    | Value Value'
    | Empty
