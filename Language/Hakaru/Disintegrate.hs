@@ -317,6 +317,7 @@ data Context s abt = Context
     { freshNat   :: {-# UNPACK #-} !Nat
     , statements :: [Statement s abt] -- stored in reverse order.
     }
+-- TODO: to the extent that we can ignore order of statements, we could use an @IntMap (Statement s abt)@ in order to speed up the lookup times in 'updateBy'. We just need to figure out (a) what to do with 'SWeight' statements, (b) how to handle 'SCase' so that we can update just once despite possibly binding multiple variables, and (c) figure out how to recover the order (to the extent that we must).
 
 emptyContext :: Context s abt
 emptyContext = Context 0 []
@@ -406,7 +407,7 @@ updateBy l k = go []
     -- BUG: no 'JmEq1' instance for 'Loc'
     isBindingFor (SBind l  _)   l' = jmEq1 l l'
     isBindingFor (SLet  l  _)   l' = jmEq1 l l'
-    isBindingFor (SCase ls _ _) l' = error "TODO: isBindingFor"
+    isBindingFor (SCase ls _ _) l' = l' `elem` ls
     isBindingFor (SWeight  _)   _  = Nothing
 -}
 
@@ -495,43 +496,52 @@ disintegrate m =
 
 -- TODO: should that actually be Whnf or are neutral terms also allowed?
 perform  :: abt '[] ('HMeasure a) -> M s abt (Whnf (abt '[]) a)
-perform u | atomic u    = M $ \c h -> u P.>>= \z -> c z h
-perform Lebesgue        = M $ \c h -> P.lebesgue P.>>= \z -> c z h
-perform (Uniform lo hi) = M $ \c h -> P.uniform lo hi P.>>= \z -> c z h
-perform (Dirac e)       = evaluate e
-perform (MBind g (bind x e)) = M $ \c h -> unM (perform e) c (h `snoc` SBind x g)
-perform (Superpose es)  = Superpose Haskell.<$> T.traverse perform es
-perform e | not (hnf e) = perform =<< evaluate e
+perform u | atomic u         = M $ \c h -> u P.>>= \z -> c z h
+perform Lebesgue             = M $ \c h -> P.lebesgue P.>>= \z -> c z h
+perform (Uniform lo hi)      = M $ \c h -> P.uniform lo hi P.>>= \z -> c z h
+perform (Dirac e)            = evaluate e
+perform (MBind g (bind x e)) = push (SBind x g) >> perform e
+perform (Superpose es)       = P.superpose <$> T.traverse perform es
+perform e | not (hnf e)      = evaluate e >>= perform
 
 
 -- TODO: should that actually be Whnf or are neutral terms also allowed?
 evaluate :: abt '[] a -> M s abt (Whnf (abt '[]) a)
 evaluate v       | hnf v          = return v
-evaluate (Fst e) | not (atomic e) = (evaluate . fst) =<< evaluate e
-evaluate (Snd e) | not (atomic e) = (evaluate . snd) =<< evaluate e
+evaluate (Fst e) | not (atomic e) = evaluate e >>= (evaluate . fst)
+evaluate (Snd e) | not (atomic e) = evaluate e >>= (evaluate . snd)
 evaluate (Negate e)               = negate <$> evaluate e
 evaluate (Recip e)                = recip  <$> evaluate e
 evaluate (Plus  e1 e2)            = (+)    <$> evaluate e1 <*> evaluate e2
 evaluate (Times e1 e2)            = (*)    <$> evaluate e1 <*> evaluate e2
 evaluate (LE    e1 e2)            = (<=)   <$> evaluate e1 <*> evaluate e2
-evaluate (Var x) = M $ \c h ->
-    case lookup x h of
-    Missing -> error "evaluate: variable is missing in heap!"
-    Found h1 binding h2 ->
+evaluate (Var x) =
+    -- TODO: do these get the effects in the right order?
+    updateBy x $ \binding ->
         case binding of
-        SBind x e ->
-            -- This is the only line with \"side effects\"
-            unM (perform e) (\v h1' -> c v (glue h1' (SLet x v) h2)) h1
-        SLeft x e ->
-            unM (evaluate e) (\v ->
-            unleft v (\e' ->
-            unM (evaluate e') (\v' h1' ->
-            c v (glue h1' (SLet x v) h2))) h1
-        SRight x e ->
-            unM (evaluate e) (\v ->
-            unright v (\e' ->
-            unM (evaluate e') (\v' h1' ->
-            c v (glue h1' (SLet x v) h2))) h1
+        SBind  _ e -> perform e
+        SLeft  _ e -> evaluate e >>= (`unleft`  evaluate)
+        SRight _ e -> evaluate e >>= (`unright` evaluate)
+    {-
+    M $ \c h ->
+        case lookup x h of
+        Missing -> error "evaluate: variable is missing in heap!"
+        Found h1 binding h2 ->
+            case binding of
+            SBind x e ->
+                -- This is the only line with \"side effects\"
+                unM (perform e) (\v h1' -> c v (glue h1' (SLet x v) h2)) h1
+            SLeft x e ->
+                unM (evaluate e) (\v ->
+                unleft v (\e' ->
+                unM (evaluate e') (\v' h1' ->
+                c v (glue h1' (SLet x v) h2))) h1
+            SRight x e ->
+                unM (evaluate e) (\v ->
+                unright v (\e' ->
+                unM (evaluate e') (\v' h1' ->
+                c v (glue h1' (SLet x v) h2))) h1
+    -}
 
 
 -- TODO: do we really need to allow all Whnf, or do we just need
@@ -541,33 +551,32 @@ evaluate (Var x) = M $ \c h ->
 constrainOutcome :: abt '[] ('HMeasure a) -> Whnf (abt '[]) a -> M s abt ()
 constrainOutcome e0 v =
     case e0 of
-    u | atomic u  -> M $ \c h -> bot
-    Lebesgue      -> M $ \c h -> c h
-    Uniform lo hi -> M $ \c h -> Prelude.observe (lo <= v && v <= hi) `bind_` weight (recip (hi - lo)) `bind_` c h
-    Return e      -> constrainValue e v
-    Bind g e      -> M $ \c h -> unM (constrainOutcome e v) c (h `snoc` g) -- TODO: move the bound variable from @e@ into the binding of @g@ we push on the heap
-    Superpose es ->
-        Superpose Haskell.<$> T.traverse (`constrainOutcome` v) es
-    e | not (hnf e) -> M $ \c h -> unM (evaluate e) (\m -> unM (constrainOutcome m v) c) h
+    u | atomic u    -> M $ \c h -> P.bot
+    Lebesgue        -> M $ \c h -> c h
+    Uniform lo hi   -> M $ \c h -> P.observe (lo P.<= v P.&& v P.<= hi) P.>> P.weight (P.recip (hi P.- lo)) P.>> c h
+    Return e        -> constrainValue e v
+    MBind g (bind x e) -> push (SBind x g) >> constrainOutcome e v
+    Superpose es    -> P.uperpose <$> T.traverse (`constrainOutcome` v) es
+    e | not (hnf e) -> (`constrainOutcome` v) =<< evaluate e
 
 -- TODO: see the todo for 'constrainOutcome'
 constrainValue :: abt '[] a -> Whnf (abt '[]) a -> M s abt ()
 constrainValue e0 v0 =
     case e0 of
-    u | atomic u -> M $ \c h -> bot
-    Real _       -> M $ \c h -> bot
-    Fst e1 | not (atomic e1) -> M $ \c h -> unM (evaluate e1) (\v1 -> unM (constrainValue (fst v1) v0) c) h
-    Snd e1 | not (atomic e1) -> M $ \c h -> unM (evaluate e1) (\v1 -> unM (constrainValue (snd v1) v0) c) h
+    u | atomic u -> M $ \c h -> P.bot
+    Real _       -> M $ \c h -> P.bot
+    Fst e1 | not (atomic e1) -> evaluate e1 >>= ((`constrainValue` v0) . fst)
+    Snd e1 | not (atomic e1) -> evaluate e1 >>= ((`constrainValue` v0) . snd)
     Negate e1 -> constrainValue e1 (negate v0)
-    Recip e1 -> M $ \c h -> weight (recip (v0^2)) `bind_` unM (constrainValue e1 (recip v0)) c h
+    Recip e1 -> M $ \c h -> P.weight (P.recip (v0 P.^ P.nat_ 2)) P.>> unM (constrainValue e1 (recip v0)) c h
     Plus e1 e2 -> M $ \c h ->
         unM (evaluate e1) (\v1 -> unM (constrainValue e2 (v0 - v1)) c) h
-        `lub`
+        `P.lub`
         unM (evaluate e2) (\v2 -> unM (constrainValue e1 (v0 - v2)) c) h
     Times e1 e2 -> M $ \c h ->
-        unM (evaluate e1) (\v1 -> abs v1 (\v1' h' -> weight (recip v1') `bind_` unM (constrainValue e2 (v0 / v1)) c h')) h
-        `lub`
-        unM (evaluate e2) (\v2 -> abs v2 (\v2' h' -> weight (recip v2') `bind_` unM (constrainValue e1 (v0 / v2)) c h')) h
+        unM (evaluate e1) (\v1 -> abs v1 (\v1' h' -> P.weight (P.recip v1') P.>> unM (constrainValue e2 (v0 / v1)) c h')) h
+        `P.lub`
+        unM (evaluate e2) (\v2 -> abs v2 (\v2' h' -> P.weight (P.recip v2') P.>> unM (constrainValue e1 (v0 / v2)) c h')) h
     Var x ->  M $ \c h ->
         case lookup x h of
         Missing -> error "constrainValue: variable is missing in heap!"
@@ -583,12 +592,12 @@ constrainValue e0 v0 =
 unleft :: Whnf abt (HEither a b) -> M s abt (abt '[] a)
 unleft (Left  e) = M $ \c h -> c e h
 unleft (Right e) = M $ \c h -> reject
-unleft u         = M $ \c h -> uneither u (\x -> c x h) (\_ -> reject)
+unleft u         = M $ \c h -> P.uneither u (\x -> c x h) (\_ -> reject)
 
 unright :: Whnf abt (HEither a b) -> M s abt (abt '[] a)
 unright (Right e) = M $ \c h -> c e h
 unright (Left  e) = M $ \c h -> reject
-unright u         = M $ \c h -> uneither u (\_ -> reject) (\x -> c x h)
+unright u         = M $ \c h -> P.uneither u (\_ -> reject) (\x -> c x h)
 -}
 
 ----------------------------------------------------------------
