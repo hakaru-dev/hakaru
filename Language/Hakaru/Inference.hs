@@ -2,7 +2,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.09
+--                                                    2015.10.21
 -- |
 -- Module      :  Language.Hakaru.Inference
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -26,7 +26,7 @@ module Language.Hakaru.Inference
     , approxMh
     ) where
 
-import Prelude (($), (.))
+import Prelude (($), (.), error)
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.ABT (ABT)
 import Language.Hakaru.Syntax.Prelude
@@ -153,6 +153,7 @@ approxMh
     -> abt '[] ('HMeasure a)
     -> [abt '[] a -> abt '[] ('HMeasure a)]
     -> abt '[] (a ':-> 'HMeasure a)
+approxMh _ _ [] = error "TODO: approxMh for empty list"
 approxMh proposal prior (x:xs) =
     lam $ \old ->
     let_ (determine . density $ bindx prior proposal) $ \mu ->

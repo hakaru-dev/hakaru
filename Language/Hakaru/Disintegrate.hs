@@ -1,9 +1,12 @@
-{-# LANGUAGE GADTs
+{-# LANGUAGE CPP
+           , GADTs
            , EmptyCase
            , KindSignatures
            , DataKinds
+           , PolyKinds
            , TypeOperators
            , ScopedTypeVariables
+           , RankNTypes
            , MultiParamTypeClasses
            , TypeSynonymInstances
            , FlexibleInstances
@@ -11,7 +14,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.09.29
+--                                                    2015.10.21
 -- |
 -- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -38,6 +41,9 @@ import           Data.IntMap           (IntMap)
 import qualified Data.IntMap           as IM
 import qualified Data.Text             as Text
 import           Data.Number.LogFloat  (LogFloat)
+#if __GLASGOW_HASKELL__ < 710
+import           Control.Applicative   (Applicative(..))
+#endif
 
 import Language.Hakaru.Syntax.IClasses (List1(..), fmap21)
 import Language.Hakaru.Syntax.Nat      (Nat, fromNat)
@@ -236,10 +242,13 @@ data Whnf :: (Hakaru -> *) -> Hakaru -> * where
         :: {-# UNPACK #-} !(Datum rec (HData' t))
         -> Whnf rec (HData' t)
 
-    -- Other stuff: (TODO: should probably be separated out, since this doesn't really fit with our usual notion of head-normal forms...)
-    WhnfMeasure :: rec a -> Whnf rec ('HMeasure a) -- TODO: not sure what's going on here...
+    -- Other stuff:
+    -- TODO: Is this truly a WHNF or is it a HNF?
+    -- TODO: add strictness?
     WhnfArray :: rec 'HInt -> (rec 'HInt -> rec a) -> Whnf rec ('HArray a)
-    -- TODO: shouldn't there be an @WhnfLam@? (renaming to Whnf as appropriate)
+    -- TODO: shouldn't there be an @WhnfLam@?
+    -- TODO: should probably be separated out, since this doesn't really fit with our usual notion of head-normal forms...
+    WhnfMeasure :: rec a -> Whnf rec ('HMeasure a) -- TODO: not sure what's going on here...
     
 {-
 -- BUG: how to capture that @abt@ in the type without making things too ugly for the case where @rec ~ Lazy s (abt '[])@ ?
@@ -258,7 +267,7 @@ fromWhnf (WhnfDatum d) = P.datum_ d
 -- TODO: fromWhnf (WhnfNeutral e) = e
 fromWhnf _ = error "fromWhnf: these cases should never be reached" -- TODO: why not be able to residualize WhnfMeasure and WhnfArray? even if they aren't reached in the stated use of this function, they should still make some amout of sense, ne?
 
-{-
+
 ----------------------------------------------------------------
 -- | A single statement in the @HMeasure@ monad, where bound variables
 -- are considered part of the \"statement\" that binds them rather
@@ -331,7 +340,7 @@ runContextCont (Store  entry   k) = store  entry   >> runContextCont k
 runContextCont (Update loc val k) = update loc val >> runContextCont k
 
 freshLoc :: M s abt (Loc s a)
-freshLoc = M $ \c h@Context{freshNat=n} -> c (Loc n) h{freshNat = succ n}
+freshLoc = M $ \c h@Context{freshNat=n} -> c (Loc n) h{freshNat = 1+n}
 
 store :: Statement s abt -> M s abt ()
 store entry = M $ \c h -> c () h{statements = entry : statements h}
@@ -357,7 +366,7 @@ data C abt a = C { unC :: Nat -> [[Some abt] -> a] }
 
 type Lazy s abt a = L s (C abt) a
 
-
+{-
 ----------------------------------------------------------------
 disintegrate
     :: (ABT abt, SingI a, SingI b) -- Backward a a

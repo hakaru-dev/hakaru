@@ -688,9 +688,9 @@ instance Foldable11 (DatumStruct xs) where
 -- TODO: do we like those constructor names? Should we change them?
 data DatumFun :: HakaruFun -> (Hakaru -> *) -> Hakaru -> * where
     -- | Hit a leaf which isn't a recursive component of the datatype.
-    Konst :: abt b -> DatumFun ('K b) abt a
+    Konst :: !(abt b) -> DatumFun ('K b) abt a
     -- | Hit a leaf which is a recursive component of the datatype.
-    Ident :: abt a -> DatumFun 'I     abt a
+    Ident :: !(abt a) -> DatumFun 'I     abt a
 
 instance Eq1 abt => Eq1 (DatumFun x abt) where
     eq1 (Konst e) (Konst f) = eq1 e f
@@ -920,8 +920,8 @@ instance Show (PDatumStruct xs vars a) where
 
 
 data PDatumFun :: HakaruFun -> [Hakaru] -> Hakaru -> * where
-    PKonst :: Pattern vars b -> PDatumFun ('K b) vars a
-    PIdent :: Pattern vars a -> PDatumFun 'I     vars a
+    PKonst :: !(Pattern vars b) -> PDatumFun ('K b) vars a
+    PIdent :: !(Pattern vars a) -> PDatumFun 'I     vars a
 
 instance Eq1 (PDatumFun x vars) where
     eq1 (PKonst e) (PKonst f) = eq1 e f
@@ -994,7 +994,7 @@ pJust a =
 data Branch :: Hakaru -> ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     Branch
         :: !(Pattern xs a)
-        -> abt xs b
+        -> !(abt xs b)
         -> Branch a abt b
 
 instance Eq2 abt => Eq1 (Branch a abt) where
@@ -1169,7 +1169,7 @@ data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     -- We have the constructors for arrays here, so that they're grouped together with our other constructors 'Value_' and 'Datum_'. Though, if we introduce a new @ArrayOp@ type, these should probably move there
     Empty_ :: AST abt ('HArray a)
     -- TODO: do we really need this to be a binding form, or could it take a Hakaru function for the second argument?
-    Array_ :: abt '[] 'HNat -> abt '[ 'HNat ] a -> AST abt ('HArray a)
+    Array_ :: !(abt '[] 'HNat) -> !(abt '[ 'HNat ] a) -> AST abt ('HArray a)
 
     -- -- User-defined data types
     -- BUG: even though the 'Datum' type has a single constructor, we get a warning about not being able to UNPACK it in 'Datum_'...
@@ -1182,7 +1182,7 @@ data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         -> AST abt (HData' t)
 
     -- | Generic case-analysis (via ABTs and Structural Focalization).
-    Case_ :: abt '[] a -> [Branch a abt b] -> AST abt b
+    Case_ :: !(abt '[] a) -> [Branch a abt b] -> AST abt b
 
     -- | Linear combinations of measures.
     Superpose_
