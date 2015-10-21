@@ -57,33 +57,33 @@ inferable = not . mustCheck
 -- | Those terms whose types must be checked analytically. We cannot
 -- synthesize (unambiguous) types for these terms.
 mustCheck :: U.AST a -> Bool
-mustCheck = \e -> caseVarSyn e (const False) go
+mustCheck = go
     where
-    go (U.Lam_ _ _) = True
-    go (Fix_ :$ _) = True
-
+    go (U.Var_ _)    = False
+    go (U.Lam_ _ _)  = True
+    go (U.Fix_ _ _)  = True
+ 
     -- In general, applications don't require checking; however,
     -- for fully saturated data constructors they do (according to
     -- neelk).
-    go (App_ :$ _) = False
+    go (U.App_ _  _) = False
 
     -- We follow Dunfield & Pientka and \Pi\Sigma in inferring or
     -- checking depending on what the body requires. This is as
     -- opposed to the TLDI'05 paper, which always inders @e2@ but
     -- will check or infer the @e1@ depending on whether it has a
     -- type annotation or not.
-    go (Let_ :$ _ :* e2 :* End) =
-        caseBind e2 $ \_ e2' -> mustCheck e2'
+    go (U.Let_ _ _ e2)    = mustCheck e2
 
-    go (Ann_ _ :$ _)                  = False
-    go (CoerceTo_   CNil :$ e :* End) = mustCheck e
-    go (CoerceTo_   _    :$ _)        = False
-    go (UnsafeFrom_ CNil :$ e :* End) = mustCheck e
-    go (UnsafeFrom_ _    :$ _)        = False
+    go (U.Ann_ _ _)                   = False
+    go (U.CoerceTo_   U.CNone e)      = mustCheck e
+    go (U.CoerceTo_    _      _)      = False
+    go (U.UnsafeFrom_ U.CNone e)      = mustCheck e
+    go (U.UnsafeFrom_ _       _)      = False
 
-    go (PrimOp_ _ :$ _) = False
-    go (NaryOp_ _ _)    = False
-    go (Value_ _)       = False
+    go (U.PrimOp_ _)      = False
+    go (U.NaryOp_ _ _)    = False
+    go (U.Value_ _)       = False
 
     -- I return true because most folks (neelk, Pfenning, Dunfield
     -- & Pientka) say all data constructors mustCheck (even though
@@ -106,25 +106,24 @@ mustCheck = \e -> caseVarSyn e (const False) go
     -- In general (according to Dunfield & Pientka), we should be
     -- able to infer the result of a fully saturated primop by
     -- looking up it's type and then checking all the arguments.
-    go Empty_       = True
-    go (Array_ _ _) = True
-    go (Datum_ _)   = True
+    go U.Empty_       = True
+    go (U.Array_ _ _) = True
+    go (U.Datum_ _)   = True
 
     -- TODO: everyone says this, but it seems to me that if we can
     -- infer any of the branches (and check the rest to agree) then
     -- we should be able to infer the whole thing... Or maybe the
     -- problem is that the change-of-direction rule might send us
     -- down the wrong path?
-    go (Case_ _ _) = True
+    go (U.Case_ _ _)     = True
 
-    go (MeasureOp_ _ :$ _) = False
+    go (U.MeasureOp_ _)  = False
     -- TODO: I'm assuming MBind works like Let_, but we should make sure...
     -- TODO: again, it seems like if we can infer one of the options, then we should be able to check the rest against it. But for now we'll assume we must check
-    go (MBind :$ _ :* e2 :* End) =
-        caseBind e2 $ \_ e2' -> mustCheck e2'
-    go (Superpose_ _)   = True
+    go (U.MBind_ _ _ e2) = mustCheck e2
+    go (U.Superpose_ _)  = True
 
-    go (Lub_ es) = error "TODO: mustCheck{Lub_}"
+    go (U.Lub_ es) = error "TODO: mustCheck{Lub_}"
 
     -- For some reason ghc won't infer that the SArgs must have the appropriate length for their SCon (namely 'Let_' and 'MBind')...
     go _ = error "mustCheck: the impossible happened"

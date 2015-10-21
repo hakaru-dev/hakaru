@@ -124,23 +124,29 @@ data MeasureOp' a =
 
 data Branch a = BNone
 
+data Coerce'  =
+     CNone
+   | CSigned Coerce'
+   | CContinuous Coerce'
+
 data AST a =
      Var_        Name
    | Lam_        Name    (AST a)
+   | App_        (AST a) (AST a)
    | Fix_        Name    (AST a)
    | Let_        Name    (AST a) (AST a)
    | Ann_        (AST a) Hakaru
-   | CoerceTo_   (AST a) (AST a)
-   | UnsafeFrom_ (AST a) (AST a)
-   | PrimOp_     (AST a) (AST a)
-   | NaryOp_     NaryOp' (AST a) (AST a)
+   | CoerceTo_   Coerce' (AST a)
+   | UnsafeFrom_ Coerce' (AST a)
+   | PrimOp_     (PrimOp' a)
+   | NaryOp_     NaryOp' (AST a)
    | Value_      (AST a)
    | Empty_
    | Array_      (AST a) (AST a)
    | Datum_      (AST a)
    | Case_       (AST a) [Branch a]
    | MeasureOp_  (MeasureOp' a)
-   | MBind_      (AST a) (AST a) (AST a)
+   | MBind_      Name    (AST a) (AST a)
    | Superpose_  (AST a)
    | Lub_        (AST a)
 
