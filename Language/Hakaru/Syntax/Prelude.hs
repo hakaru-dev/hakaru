@@ -874,13 +874,18 @@ lebesgue = measure0_ Lebesgue
 counting :: (ABT abt) => abt '[] ('HMeasure 'HInt)
 counting = measure0_ Counting
 
--- TODO: define @fail@ and @mplus@ to better mimic Core Hakaru
 -- TODO: make this smarter by collapsing nested @Superpose_@ similar to how we collapse nested NaryOps. Though beware, that could cause duplication of the computation for the probabilities\/weights; thus may want to only do it when the weights are constant values, or \"simplify\" things by generating let-bindings in order to share work.
 superpose
     :: (ABT abt)
     => [(abt '[] 'HProb, abt '[] ('HMeasure a))]
     -> abt '[] ('HMeasure a)
 superpose = syn . Superpose_
+
+-- | The empty measure. Is called @fail@ in the Core Hakaru paper.
+reject :: (ABT abt) => abt '[] ('HMeasure a)
+reject = superpose []
+
+-- TODO: define @mplus@ to better mimic Core Hakaru
 
 -- TODO: we should ensure that @pose p m >> n@ simplifies to @pose p (m >> n)@; also ensure that @m >> pose p n@ simplifies to @pose p (m >> n)@; also that @pose 1 m@ simplifies to @m@ and @pose p (pose q m)@ simplifies to @pose (p*q) m@.
 -- | Pose a given measure with some given weight. This generates
@@ -948,7 +953,7 @@ observe
     => abt '[] HBool
     -> abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure a)
-observe b m = if_ b m (superpose [])
+observe b m = if_ b m reject
 
 
 categorical, categorical'
