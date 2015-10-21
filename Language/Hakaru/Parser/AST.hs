@@ -124,11 +124,12 @@ data MeasureOp' a =
 
 data Branch a = BNone
 
-data AST a =        
-     Lam_        Name    (AST a)
+data AST a =
+     Var_        Name
+   | Lam_        Name    (AST a)
    | Fix_        Name    (AST a)
    | Let_        Name    (AST a) (AST a)
-   | Ann_        (AST a) (AST a)
+   | Ann_        (AST a) Hakaru
    | CoerceTo_   (AST a) (AST a)
    | UnsafeFrom_ (AST a) (AST a)
    | PrimOp_     (AST a) (AST a)

@@ -215,7 +215,8 @@ failwith = TCM . const . Left
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
-data TypeAST abt = forall b. TypedAST !(Sing b) !(abt '[] b)
+data TypedAST abt where
+     TypedAST ::  !(Sing b) -> !(abt '[] b) -> TypedAST abt
 
 -- | Given a typing environment and a term, synthesize the term's type.
 inferType
@@ -225,9 +226,9 @@ inferType
     -> TypeCheckMonad (TypedAST abt)
 inferType = inferType_
   where
-  inferType_ :: U.AST c -> TypeCheckMonad (TypedAST abt)
+  inferType_ :: U.AST a -> TypeCheckMonad (TypedAST abt)
   inferType_ e0 =
-    case viewABT e0 of
+    case e0 of -- viewAbt e0
     Var x     -> do
         ctx <- getCtx
         case IM.lookup (fromNat $ varID x) ctx of
