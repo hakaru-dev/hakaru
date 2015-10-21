@@ -36,7 +36,7 @@ import qualified Data.Traversable      as T
 import           Control.Applicative   (Applicative(..), (<$>))
 #endif
 import Language.Hakaru.Syntax.Nat      (fromNat)
-import Language.Hakaru.Syntax.IClasses (List1(..))
+import Language.Hakaru.Syntax.IClasses (TypeEq(..), JmEq1(..), List1(..))
 import Language.Hakaru.Syntax.DataKind (Hakaru(..), HData')
 import Language.Hakaru.Syntax.TypeEq
 import Language.Hakaru.Syntax.Coercion (Coercion(..), singCoerceTo, singCoerceFrom, singCoerceDomCod)
@@ -261,7 +261,7 @@ inferType = inferType_
         | inferable e1 -> do
             (typ1,e1') <- inferType_ e1
             caseBind e2 $ \x e3 ->
-                case jmEq typ1 (varType x) of
+                case jmEq1 typ1 (varType x) of
                 Nothing   -> failwith "type mismatch"
                 Just Refl -> pushCtx (SomeVariable x) $ do
                     (typ2,e3') <- inferType_ e3
@@ -321,7 +321,7 @@ inferType = inferType_
             case typ1 of
                 SMeasure typ2 ->
                     caseBind e2 $ \x e3 ->
-                        case jmEq typ2 (varType x) of
+                        case jmEq1 typ2 (varType x) of
                         Nothing   -> failwith "type mismatch"
                         Just Refl -> pushCtx (SomeVariable x) $ do
                             (typ3,e3') <- inferType e3
@@ -372,7 +372,7 @@ checkType = checkType_
             case typ0 of
             SFun typ1 typ2 ->
                 caseBind e1 $ \x e2 ->
-                    case jmEq typ1 (varType x) of
+                    case jmEq1 typ1 (varType x) of
                     Nothing   -> failwith "type mismatch"
                     Just Refl -> pushCtx (SomeVariable x) $ do
                         e2' <- checkType_ typ2 e2
@@ -383,7 +383,7 @@ checkType = checkType_
             | inferable e1 -> do
                 (typ1,e1') <- inferType_ e1
                 caseBind e2 $ \x e3 ->
-                    case jmEq typ1 (varType x) of
+                    case jmEq1 typ1 (varType x) of
                     Nothing   -> failwith "type mismatch"
                     Just Refl -> pushCtx (SomeVariable x) $ do
                         e3' <- checkType_ typ0 e3
@@ -391,7 +391,7 @@ checkType = checkType_
     
         Syn (Fix_ :$ e1 :* End) ->
             caseBind e1 $ \x e2 ->
-                case jmEq typ0 (varType x) of
+                case jmEq1 typ0 (varType x) of
                 Nothing   -> failwith "type mismatch"
                 Just Refl -> pushCtx (SomeVariable x) $ do
                     e2' <- checkType_ typ0 e2
@@ -408,7 +408,7 @@ checkType = checkType_
         Syn Empty_ ->
             case typ0 of
             SArray typ1 -> return (syn Empty_)
-                -- TODO: use jmEq to test that 'typ1' matches
+                -- TODO: use jmEq1 to test that 'typ1' matches
             _ -> failwith "expected HArray type"
     
         Syn (Array_ e1 e2) ->
@@ -416,7 +416,7 @@ checkType = checkType_
             SArray typ1 -> do
                 e1' <- checkType_ SNat e1
                 caseBind e2 $ \x e3 ->
-                    case jmEq SNat (varType x) of
+                    case jmEq1 SNat (varType x) of
                     Nothing   -> failwith "type mismatch"
                     Just Refl -> pushCtx (SomeVariable x) $ do
                         e3' <- checkType_ typ1 e3
@@ -441,7 +441,7 @@ checkType = checkType_
                 case typ1 of
                     SMeasure typ2 ->
                         caseBind e2 $ \x e3 ->
-                            case jmEq typ2 (varType x) of
+                            case jmEq1 typ2 (varType x) of
                             Nothing   -> failwith "type mismatch"
                             Just Refl -> pushCtx (SomeVariable x) $ do
                                 e3' <- checkType_ typ0 e3
@@ -462,7 +462,7 @@ checkType = checkType_
                 -- equivalence. More generally, we should have that the
                 -- inferred @typ'@ is a subtype of (i.e., subsumed by)
                 -- the goal @typ@. This will be relevant to us for handling our coercion calculus :(
-                case jmEq typ0 typ' of
+                case jmEq1 typ0 typ' of
                     Just Refl -> return e0'
                     Nothing   -> failwith "Type mismatch"
             | otherwise -> error "checkType: missing an mustCheck branch!"
@@ -553,7 +553,7 @@ checkPattern body pat_typ pat k =
     case pat of
     PVar ->
         caseBind body $ \x body' ->
-            case jmEq pat_typ (varType x) of
+            case jmEq1 pat_typ (varType x) of
             Nothing   -> failwith "type mismatch"
             Just Refl -> bind x <$> pushCtx (SomeVariable x) (k body')
     PWild       -> k body
@@ -640,7 +640,7 @@ checkBranch body_typ body = go
         case pat of
         PVar ->
             caseBind body $ \x body' ->
-                case jmEq typ (varType x) of
+                case jmEq1 typ (varType x) of
                 Just Refl ->
                     pushCtx (SomeVariable x) $
                         checkBranch body_typ body' pts

@@ -9,7 +9,7 @@
            #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.08.19
+--                                                    2015.10.21
 -- |
 -- Module      :  Language.Hakaru.Syntax.IClasses
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -45,6 +45,9 @@ module Language.Hakaru.Syntax.IClasses
     -- * Equality
     , Eq1(..)
     , Eq2(..)
+    , TypeEq(..), symmetry, congruence
+    , JmEq1(..)
+    , JmEq2(..)
     -- * Generalized abstract nonsense
     , Functor11(..)
     , Functor21(..)
@@ -55,6 +58,8 @@ module Language.Hakaru.Syntax.IClasses
     , Foldable22(..)
     ) where
 
+import Prelude hiding (id, (.))
+import Control.Category (Category(..))
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid
 #endif
@@ -84,6 +89,14 @@ instance Show1 a => Show (List1 a xs) where
     showsPrec = showsPrec1
     show      = show1
 
+instance JmEq1 a  => JmEq1 (List1 a) where
+    jmEq1 Nil1         Nil1         = Just Refl
+    jmEq1 (Cons1 x xs) (Cons1 y ys) =
+        jmEq1 x  y  >>= \Refl ->
+        jmEq1 xs ys >>= \Refl ->
+        Just Refl
+    jmEq1 _            _            = Nothing
+    
 instance Eq1 a  => Eq1 (List1 a) where
     eq1 Nil1         Nil1         = True
     eq1 (Cons1 x xs) (Cons1 y ys) = eq1 x y && eq1 xs ys
@@ -274,13 +287,17 @@ showParen_111 p s e1 e2 e3 =
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
--- | Uniform variant of 'Eq' for @k@-indexed types. N.B., this
--- function returns term equality. We assume the indices match up.
+-- | Uniform variant of 'Eq' for homogeneous @k@-indexed types.
+-- N.B., we keep this separate from the 'JmEq1' class because for
+-- some types we may be able to decide 'eq1' while not being able
+-- to decide 'jmEq1' (e.g., if using phantom types rather than
+-- GADTs).
 --
 -- Alas, I don't think there's any way to derive instances the way
 -- we can derive for 'Eq'.
 class Eq1 (a :: k -> *) where
     eq1 :: a i -> a i -> Bool
+    -- TODO: how do we give the default instance for whenever we have a JmEq1 instance?
 
 instance Eq a => Eq1 (Lift1 a) where
     eq1 (Lift1 a) (Lift1 b) = a == b
@@ -289,6 +306,47 @@ instance Eq a => Eq1 (Lift1 a) where
 class Eq2 (a :: k1 -> k2 -> *) where
     eq2 :: a i j -> a i j -> Bool
 
+instance Eq a => Eq2 (Lift2 a) where
+    eq2 (Lift2 a) (Lift2 b) = a == b
+    
+instance Eq a => Eq1 (Lift2 a i) where
+    eq1 (Lift2 a) (Lift2 b) = a == b
+
+
+
+----------------------------------------------------------------
+----------------------------------------------------------------
+-- | Concrete proofs of type equality. In order to make use of a
+-- proof @p :: TypeEq a b@, you must pattern-match on the 'Refl'
+-- constructor in order to show GHC that the types @a@ and @b@ are
+-- equal.
+data TypeEq :: k -> k -> * where
+    Refl :: TypeEq a a
+
+instance Category TypeEq where
+    id          = Refl
+    Refl . Refl = Refl
+
+symmetry :: TypeEq a b -> TypeEq b a
+symmetry Refl = Refl
+
+-- | Type constructors are extensional.
+congruence :: TypeEq a b -> TypeEq (f a) (f b)
+congruence Refl = Refl
+
+
+-- TODO: Should we add a method which only checks for index equality, ignoring possible differences at the term\/value level?
+--
+-- | Uniform variant of 'Eq' for heterogeneous @k@-indexed types.
+-- N.B., this function returns value\/term equality!
+--
+-- Alas, I don't think there's any way to derive instances the way
+-- we can derive for 'Eq'.
+class Eq1 a => JmEq1 (a :: k -> *) where
+    jmEq1 :: a i -> a j -> Maybe (TypeEq i j)
+
+class Eq2 a => JmEq2 (a :: k1 -> k2 -> *) where
+    jmEq2 :: a i1 j1 -> a i2 j2 -> Maybe (TypeEq i1 i2, TypeEq j1 j2)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------

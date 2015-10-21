@@ -30,6 +30,7 @@ import           Data.IntMap   (IntMap)
 import qualified Data.IntMap   as IM
 import qualified Data.Text     as Text
 
+import Language.Hakaru.Syntax.IClasses (TypeEq(..))
 import Language.Hakaru.Syntax.Nat      (fromNat)
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.TypeEq

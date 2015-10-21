@@ -24,6 +24,7 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.HClasses where
 
+import Language.Hakaru.Syntax.IClasses (TypeEq(..), Eq1(..), JmEq1(..))
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.TypeEq
 
@@ -41,6 +42,7 @@ data HEq :: Hakaru -> * where
     HEq_Either :: !(HEq a) -> !(HEq b) -> HEq (HEither a b)
 
 deriving instance Eq   (HEq a)
+-- TODO: instance JmEq1 HEq
 -- BUG: deriving instance Read (HEq a)
 deriving instance Show (HEq a)
 
@@ -86,6 +88,7 @@ data HOrd :: Hakaru -> * where
     HOrd_Either :: !(HOrd a) -> !(HOrd b) -> HOrd (HEither a b)
 
 deriving instance Eq   (HOrd a)
+-- TODO: instance JmEq1 HOrd
 -- BUG: deriving instance Read (HOrd a)
 deriving instance Show (HOrd a)
 
@@ -141,7 +144,18 @@ data HSemiring :: Hakaru -> * where
     HSemiring_Prob :: HSemiring 'HProb
     HSemiring_Real :: HSemiring 'HReal
 
-deriving instance Eq   (HSemiring a)
+
+instance Eq (HSemiring a) where -- This one could be derived...
+    (==) = eq1
+instance Eq1 HSemiring where
+    eq1 x y = maybe False (const True) (jmEq1 x y)
+instance JmEq1 HSemiring where
+    jmEq1 HSemiring_Nat  HSemiring_Nat  = Just Refl
+    jmEq1 HSemiring_Int  HSemiring_Int  = Just Refl
+    jmEq1 HSemiring_Prob HSemiring_Prob = Just Refl
+    jmEq1 HSemiring_Real HSemiring_Real = Just Refl
+    jmEq1 _              _              = Nothing
+
 -- BUG: deriving instance Read (HSemiring a)
 deriving instance Show (HSemiring a)
 
@@ -167,8 +181,19 @@ data HRing :: Hakaru -> * where
     HRing_Int  :: HRing 'HInt
     HRing_Real :: HRing 'HReal
 
-deriving instance Eq   (HRing a)
+
+instance Eq (HRing a) where -- This one could be derived...
+    (==) = eq1
+instance Eq1 HRing where
+    eq1 x y = maybe False (const True) (jmEq1 x y)
+instance JmEq1 HRing where
+    jmEq1 HRing_Int  HRing_Int  = Just Refl
+    jmEq1 HRing_Real HRing_Real = Just Refl
+    jmEq1 _          _          = Nothing
+
+    
 -- BUG: deriving instance Read (HRing a)
+
 deriving instance Show (HRing a)
 
 sing_HRing :: HRing a -> Sing a
@@ -244,7 +269,16 @@ data HFractional :: Hakaru -> * where
     HFractional_Prob :: HFractional 'HProb
     HFractional_Real :: HFractional 'HReal
 
-deriving instance Eq   (HFractional a)
+
+instance Eq (HFractional a) where -- This one could be derived...
+    (==) = eq1
+instance Eq1 HFractional where
+    eq1 x y = maybe False (const True) (jmEq1 x y)
+instance JmEq1 HFractional where
+    jmEq1 HFractional_Prob HFractional_Prob = Just Refl
+    jmEq1 HFractional_Real HFractional_Real = Just Refl
+    jmEq1 _                _                = Nothing
+
 -- BUG: deriving instance Read (HFractional a)
 deriving instance Show (HFractional a)
 
@@ -294,7 +328,15 @@ instance HFractional_ 'HReal where hFractional = HFractional_Real
 data HRadical :: Hakaru -> * where
     HRadical_Prob :: HRadical 'HProb
 
-deriving instance Eq   (HRadical a)
+
+instance Eq (HRadical a) where -- This one could be derived...
+    (==) = eq1
+instance Eq1 HRadical where
+    eq1 x y = maybe False (const True) (jmEq1 x y)
+instance JmEq1 HRadical where
+    jmEq1 HRadical_Prob HRadical_Prob = Just Refl
+    jmEq1 _             _             = Nothing
+    
 -- BUG: deriving instance Read (HRadical a)
 deriving instance Show (HRadical a)
 
@@ -332,7 +374,16 @@ data HContinuous :: Hakaru -> * where
     HContinuous_Prob :: HContinuous 'HProb
     HContinuous_Real :: HContinuous 'HReal
 
-deriving instance Eq   (HContinuous a)
+
+instance Eq (HContinuous a) where -- This one could be derived...
+    (==) = eq1
+instance Eq1 HContinuous where
+    eq1 x y = maybe False (const True) (jmEq1 x y)
+instance JmEq1 HContinuous where
+    jmEq1 HContinuous_Prob HContinuous_Prob = Just Refl
+    jmEq1 HContinuous_Real HContinuous_Real = Just Refl
+    jmEq1 _                _                = Nothing
+
 -- BUG: deriving instance Read (HContinuous a)
 deriving instance Show (HContinuous a)
 

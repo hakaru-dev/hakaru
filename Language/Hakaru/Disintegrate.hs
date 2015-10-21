@@ -45,7 +45,7 @@ import           Data.Number.LogFloat  (LogFloat)
 import           Control.Applicative   (Applicative(..))
 #endif
 
-import Language.Hakaru.Syntax.IClasses (List1(..), fmap21)
+import Language.Hakaru.Syntax.IClasses (Eq1(..), List1(..), fmap21)
 import Language.Hakaru.Syntax.Nat      (Nat, fromNat)
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.TypeEq
@@ -224,6 +224,12 @@ instance (Backward a x, Backward b y)
 newtype Loc s (a :: Hakaru) = Loc Nat
     deriving (Show)
 
+instance Eq (Loc s a) where
+    (==) = eq1
+instance Eq1 (Loc s) where
+    eq1 (Loc m) (Loc n) = m == n
+-- Alas, no JmEq1 instance
+
 
 -- | Lists of locations, not necessarily all of the same type.
 type Locs s xs = List1 (Loc s) xs
@@ -277,10 +283,22 @@ fromWhnf _ = error "fromWhnf: these cases should never be reached" -- TODO: why 
 -- This type was formerly called @Binding@, but that is inaccurate
 -- since it also includes non-binding statements.
 data Statement s abt where
-    SBind :: Loc s a -> Lazy s abt a -> Statement s abt
-    SLet  :: Loc s a -> Whnf (L s abt) a -> Statement s abt
-    SCase :: Locs s xs -> Pattern xs a -> Lazy s abt a -> Statement s abt
-    SWeight :: Lazy s abt 'HProb -> Statement s abt
+    SBind
+        :: {-# UNPACK #-} !(Loc s a)
+        -> {-# UNPACK #-} !(Lazy s abt a)
+        -> Statement s abt
+    SLet
+        :: {-# UNPACK #-} !(Loc s a)
+        -> !(Whnf (L s abt) a)
+        -> Statement s abt
+    SCase
+        :: !(Locs s xs)
+        -> !(Pattern xs a)
+        -> {-# UNPACK #-} !(Lazy s abt a)
+        -> Statement s abt
+    SWeight 
+        :: {-# UNPACK #-} !(Lazy s abt 'HProb)
+        -> Statement s abt
 
 
 -- | An ordered collection of statements representing the context
@@ -300,53 +318,148 @@ data Context s abt = Context
     , statements :: [Statement s abt] -- stored in reverse order.
     }
 
+emptyContext :: Context s abt
+emptyContext = Context 0 []
+
+{-
+-- | Given a context and a final statement, print them out as a complete expression.
+residualizeContext
+    :: (ABT abt)
+    => Context s abt
+    -> abt '[] ('HMeasure a)
+    -> abt '[] ('HMeasure a)
+residualizeContext = (runResidualizer .) . go . statements
+    where
+    -- TODO: something like this, where the Residualiser monad keeps track of a Loc-to-Variable mapping and 'freshVariable' adds a new entry in that mapping...
+    go [] e =
+        return e
+    go (SBind loc body : ss) e = do
+        x    <- freshVariable loc
+        rest <- go ss e
+        return $ syn (MBind :$ fromLazy body :* bind x rest :* End)
+    go (SLet loc body : ss) e = do
+        x    <- freshVariable loc
+        rest <- go ss e
+        return $ syn (Let_ :$ fromWhnf_L body :* bind x rest :* End)
+    go (SCase locs pat body : ss) e = do
+        xs   <- freshVariables locs
+        rest <- go ss e
+        return $ syn (Case_ (fromLazy body)
+            [ Branch pat   rest
+            , Branch PWild (P.superpose [])
+            ])
+    go (SWeight body : ss) e = do
+        rest <- go ss e
+        return (P.weight (fromLazy body) P.*> rest)
+-}
+
 ----------------------------------------------------------------
 -- TODO: is that actually Whnf like the paper says? or is it just any term?
 type Ans s abt a = Context s abt -> Whnf (L s abt) ('HMeasure a)
 
 -- TODO: replace the use of 'Ans' in the continuation with the defunctionalized verson.
-newtype M s abt x =
-    M { unM :: forall a. (x -> Ans s abt a) -> Ans s abt a }
+newtype M s abt x = M { unM :: forall a. (x -> Ans s abt a) -> Ans s abt a }
 
 instance Functor (M s abt) where
-    fmap f (M m)  = M $ \c -> m $ \x -> c (f x)
+    fmap f (M m)  = M $ \c -> m (c . f)
 
 instance Applicative (M s abt) where
-    pure a        = M $ \c -> c a
+    pure x        = M $ \c -> c x
     M mf <*> M mx = M $ \c -> mf $ \f -> mx $ \x -> c (f x)
 
 instance Monad (M s abt) where
     return    = pure
     M m >>= k = M $ \c -> m $ \x -> unM (k x) c
 
+freshLoc :: M s abt (Loc s a)
+freshLoc = M $ \c h@Context{freshNat=n} -> c (Loc n) h{freshNat = 1+n}
+
+push :: Statement s abt -> M s abt ()
+push s = M $ \c h -> c () h{statements = s : statements h}
+
+pushes :: [Statement s abt] -> M s abt ()
+pushes ss = M $ \c h -> c () h{statements = ss ++ statements h}
+
+pop :: M s abt (Statement s abt)
+pop = M $ \c h ->
+    case statements h of
+    []   -> error "pop: empty context!"
+    s:ss -> c s h{statements = ss}
+
+{-
+-- TODO: should the body really return @Whnf (L s abt) a@ or would @Whnf (abt '[]) a@ also work? Better/worse? cf., type mismatch between 'SLet' and 'evaluate'
+updateBy
+    :: Loc s a
+    -> (Statement s abt -> M s abt (Whnf (L s abt) a))
+    -> M s abt ()
+updateBy l k = go []
+    where
+    go ss = do
+        s <- pop
+        case s `isBindingFor` l of
+            Nothing   -> go (s:ss)
+            Just Refl -> do
+                v <- k s
+                push   (SLet l v)
+                pushes (reverse ss)
+
+    -- BUG: no 'JmEq1' instance for 'Loc'
+    isBindingFor (SBind l  _)   l' = jmEq1 l l'
+    isBindingFor (SLet  l  _)   l' = jmEq1 l l'
+    isBindingFor (SCase ls _ _) l' = error "TODO: isBindingFor"
+    isBindingFor (SWeight  _)   _  = Nothing
+-}
+
+----------------------------------------------------------------         
+{-
+-- | A partially defunctionalized representation of @x -> Ans s abt a@.
+data DisintegrationCont s abt x a where
+    -- The first argument is a difference list of ContextEffects
+    -- TODO: for defunctionalizing the second argument: how can we get @Whnf (L s abt)@ to have an open-term variant like @abt '[ x ] a@?
+    DC  :: (ContextCont s abt -> ContextCont s abt)
+        -> (x -> Whnf (L s abt) ('HMeasure a))
+        -> DisintegrationCont s abt x a
+
+composeDC
+    :: DisintegrationCont s abt (Whnf (L s abt) ('HMeasure b)) c
+    -> DisintegrationCont s abt x b
+    -> DisintegrationCont s abt x c
+composeDC (DC k2 c2) (DC k1 c1) = DC (k1 . k2) (c2 . c1)
+
+newtype N s abt x =
+    N { unN :: forall a. DisintegrationCont s abt x a -> Ans s abt a }
+
+instance Functor (N s abt) where
+    fmap f (N n)  = N $ \ (DC k c) -> n $ DC k (c . f)
+
+instance Applicative (N s abt) where
+    pure x    = N $ \ (DC _ c) _ -> c x
+    nf <*> nx = nf >>= (<$> nx) -- TODO: optimize?
+
+instance Monad (N s abt) where
+    return    = pure
+    N n >>= f = N $ \ (DC k c) h -> n (DC k $ \x -> unN (f x) (DC k c) h) h
+        -- TODO: optimize so we don't have to keep evaluating @k h@!!
+
 
 -- | A defunctionalization of the heap-to-heap transformation
 -- contained in the continuation argument for the four primitive
 -- functions. Should be paired with some @abt '[x] a@ representing
 -- the term-to-term transformation of the same continuation.
-data ContextCont s abt where
-    -- | The initial\/identity continuation.
-    Nop :: ContextCont s abt
+type ContextCont s abt = [ContextEffect s abt] 
 
+data ContextEffect s abt where
     -- | Used in the @perform (MBind g e)@ case to push an 'SBind'
-    Store :: Statement s abt -> ContextCont s abt -> ContextCont s abt
+    Store :: Statement s abt -> ContextEffect s abt
 
     -- | Used for the cases of @evaluate (Var x)@ and @constrainValue (Var x)@
-    Update :: Loc s a -> Whnf (L s abt) a -> ContextCont s abt -> ContextCont s abt
+    Update :: Loc s a -> Whnf (L s abt) a -> ContextEffect s abt
 
 runContextCont :: ContextCont s abt -> M s abt ()
-runContextCont Nop                = return ()
-runContextCont (Store  entry   k) = store  entry   >> runContextCont k
-runContextCont (Update loc val k) = update loc val >> runContextCont k
-
-freshLoc :: M s abt (Loc s a)
-freshLoc = M $ \c h@Context{freshNat=n} -> c (Loc n) h{freshNat = 1+n}
-
-store :: Statement s abt -> M s abt ()
-store entry = M $ \c h -> c () h{statements = entry : statements h}
-
-update :: Loc s a -> Whnf (L s abt) a -> M s abt ()
-update l v = store (SLet l v) -- TODO: walk the statements to replace the old one
+runContextCont []                   = return ()
+runContextCont (Store  entry   : k) = push  entry   >> runContextCont k
+runContextCont (Update loc val : k) = update loc val >> runContextCont k
+-}
 
 ----------------------------------------------------------------
 data L s abt a = L
@@ -361,7 +474,7 @@ data L s abt a = L
 data Some :: (k -> *) -> * where
     Some :: !(f a) -> Some f
 
---TODO: data C abt a = C { unC :: Fin n -> [Vec (Some abt) n -> a] }
+-- TODO: data C abt a = C { unC :: Fin n -> [Vec (Some abt) n -> a] }
 data C abt a = C { unC :: Nat -> [[Some abt] -> a] }
 
 type Lazy s abt a = L s (C abt) a
@@ -373,52 +486,53 @@ disintegrate
     => abt '[] ('HMeasure (HPair a b))
     -> abt '[] (a ':-> 'HMeasure b) -- this Hakaru function is measurable
 disintegrate m =
-    lam $ \a ->
+    P.lam $ \a ->
     fromWhnf $ unM (perform m) (\ab ->
       unM (constrainValue (fst ab) a) (\h' ->
-        residuate h' `bind_` dirac (snd ab)))
+        residualizeContext h' (P.dirac $ P.snd ab)))
       emptyContext
+
 
 -- TODO: should that actually be Whnf or are neutral terms also allowed?
 perform  :: abt '[] ('HMeasure a) -> M s abt (Whnf (abt '[]) a)
-perform u | atomic u    = M $ \c h -> u `bind` \z -> c z h
-perform Lebesgue        = M $ \c h -> Lebesgue `bind` \z -> c z h
-perform (Uniform lo hi) = M $ \c h -> Uniform lo hi `bind` \z -> c z h
+perform u | atomic u    = M $ \c h -> u P.>>= \z -> c z h
+perform Lebesgue        = M $ \c h -> P.lebesgue P.>>= \z -> c z h
+perform (Uniform lo hi) = M $ \c h -> P.uniform lo hi P.>>= \z -> c z h
 perform (Dirac e)       = evaluate e
-perform (MBind g e)     = M $ \c h -> unM (perform e) c (h `snoc` g) -- TODO: move the bound variable from @e@ into the binding of @g@ we push on the heap
+perform (MBind g (bind x e)) = M $ \c h -> unM (perform e) c (h `snoc` SBind x g)
 perform (Superpose es)  = Superpose Haskell.<$> T.traverse perform es
-perform e | not (hnf e) = M $ \c h -> unM (evaluate e) (\m -> unM (perform m) c) h
+perform e | not (hnf e) = perform =<< evaluate e
+
 
 -- TODO: should that actually be Whnf or are neutral terms also allowed?
 evaluate :: abt '[] a -> M s abt (Whnf (abt '[]) a)
-evaluate v | hnf v = M $ \c h -> c v h
-evaluate (Fst e) | not (atomic e) = M $ \c h -> unM (evaluate e) (\v -> evaluate (fst v) c) h
-evaluate (Snd e) | not (atomic e) = M $ \c h -> unM (evaluate e) (\v -> evaluate (snd v) c) h
-evaluate (Negate e) = M $ \c h -> unM (evaluate e) (\v -> c (negate v)) h
-evaluate (Recip e) = M $ \c h -> unM (evaluate e) (\v -> c (recip v)) h
-evaluate (Plus e1 e2) =
-    M $ \c h -> unM (evaluate e1) (\v1 ->
-    unM (evaluate e2) (\v2 -> c (e1 + e2))) h
-evaluate (Times e1 e2) =
-    M $ \c h -> unM (evaluate e1) (\v1 ->
-    unM (evaluate e2) (\v2 -> c (e1 * e2))) h
-evaluate (LE e1 e2) =
-    M $ \c h -> unM (evaluate e1) (\v1 ->
-    unM (evaluate e2) (\v2 -> c (e1 <= e2))) h
+evaluate v       | hnf v          = return v
+evaluate (Fst e) | not (atomic e) = (evaluate . fst) =<< evaluate e
+evaluate (Snd e) | not (atomic e) = (evaluate . snd) =<< evaluate e
+evaluate (Negate e)               = negate <$> evaluate e
+evaluate (Recip e)                = recip  <$> evaluate e
+evaluate (Plus  e1 e2)            = (+)    <$> evaluate e1 <*> evaluate e2
+evaluate (Times e1 e2)            = (*)    <$> evaluate e1 <*> evaluate e2
+evaluate (LE    e1 e2)            = (<=)   <$> evaluate e1 <*> evaluate e2
 evaluate (Var x) = M $ \c h ->
     case lookup x h of
     Missing -> error "evaluate: variable is missing in heap!"
     Found h1 binding h2 ->
         case binding of
-        SBind _x e ->
+        SBind x e ->
             -- This is the only line with \"side effects\"
             unM (perform e) (\v h1' -> c v (glue h1' (SLet x v) h2)) h1
-        SLeft _x e ->
-            unM (evaluate e) (\v -> unleft v (\e' ->
-            unM (evaluate e') (\v' h1' -> c v (glue h1' (SLet x v) h2))) h1
-        SRight _x e ->
-            unM (evaluate e) (\v -> unright v (\e' ->
-            unM (evaluate e') (\v' h1' -> c v (glue h1' (SLet x v) h2))) h1
+        SLeft x e ->
+            unM (evaluate e) (\v ->
+            unleft v (\e' ->
+            unM (evaluate e') (\v' h1' ->
+            c v (glue h1' (SLet x v) h2))) h1
+        SRight x e ->
+            unM (evaluate e) (\v ->
+            unright v (\e' ->
+            unM (evaluate e') (\v' h1' ->
+            c v (glue h1' (SLet x v) h2))) h1
+
 
 -- TODO: do we really need to allow all Whnf, or do we just need
 -- variables (or neutral terms)? Do we actually want (hnf)terms at

@@ -216,14 +216,14 @@ varEq :: Variable a -> Variable b -> Maybe (TypeEq a b)
 {-
 -- Interpretation #1:
 varEq x y =
-    case jmEq (varType x) (varType y) of
+    case jmEq1 (varType x) (varType y) of
     Just Refl | x == y -> Just Refl
     _                  -> Nothing
 -}
 -- Interpretation #2:
 varEq x y
     | varID x == varID y =
-        case jmEq (varType x) (varType y) of
+        case jmEq1 (varType x) (varType y) of
         Just Refl -> Just Refl
         Nothing   -> throw (VarEqTypeError x y)
     | otherwise = Nothing

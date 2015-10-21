@@ -6,7 +6,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.07.15
+--                                                    2015.10.21
 -- |
 -- Module      :  Language.Hakaru.Syntax.Coercion
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -45,6 +45,7 @@ import Data.Functor     ((<$>))
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.TypeEq
 import Language.Hakaru.Syntax.HClasses
+import Language.Hakaru.Syntax.IClasses (TypeEq(..), Eq1(..), Eq2(..), JmEq1(..), JmEq2(..))
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -60,7 +61,6 @@ data PrimCoercion :: Hakaru -> Hakaru -> * where
     Signed     :: !(HRing a)       -> PrimCoercion (NonNegative a) a
     Continuous :: !(HContinuous a) -> PrimCoercion (HIntegral   a) a
 
-deriving instance Eq   (PrimCoercion a b)
 -- BUG: deriving instance Read (PrimCoercion a b)
 deriving instance Show (PrimCoercion a b)
 
@@ -110,22 +110,22 @@ instance Category Coercion where
 ----------------------------------------------------------------
 singPrimCoerceTo :: PrimCoercion a b -> Sing a -> Sing b
 singPrimCoerceTo (Signed theRing) s =
-    case jmEq s (sing_NonNegative theRing) of
+    case jmEq1 s (sing_NonNegative theRing) of
     Just Refl -> sing_HRing theRing
     Nothing   -> error "singPrimCoerceTo: the impossible happened"
 singPrimCoerceTo (Continuous theCont) s =
-    case jmEq s (sing_HIntegral theCont) of
+    case jmEq1 s (sing_HIntegral theCont) of
     Just Refl -> sing_HContinuous theCont
     Nothing   -> error "singPrimCoerceTo: the impossible happened"
 
 
 singPrimCoerceFrom :: PrimCoercion a b -> Sing b -> Sing a
 singPrimCoerceFrom (Signed theRing) s =
-    case jmEq s (sing_HRing theRing) of
+    case jmEq1 s (sing_HRing theRing) of
     Just Refl -> sing_NonNegative theRing
     Nothing   -> error "singPrimCoerceFrom: the impossible happened"
 singPrimCoerceFrom (Continuous theCont) s =
-    case jmEq s (sing_HContinuous theCont) of
+    case jmEq1 s (sing_HContinuous theCont) of
     Just Refl -> sing_HIntegral theCont
     Nothing   -> error "singPrimCoerceFrom: the impossible happened"
 
@@ -173,27 +173,22 @@ singCoerceDomCod (CCons c cs)   = do
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
--- TODO: move this to HClasses.hs
-jmEq_Ring :: HRing a -> HRing b -> Maybe (TypeEq a b)
-jmEq_Ring HRing_Int  HRing_Int  = Just Refl
-jmEq_Ring HRing_Real HRing_Real = Just Refl
-jmEq_Ring _ _ = Nothing
 
--- TODO: move this to HClasses.hs
-jmEq_Cont :: HContinuous a -> HContinuous b -> Maybe (TypeEq a b)
-jmEq_Cont HContinuous_Prob HContinuous_Prob = Just Refl
-jmEq_Cont HContinuous_Real HContinuous_Real = Just Refl
-jmEq_Cont _ _ = Nothing
 
-jmEq_Coe
-    :: PrimCoercion a1 a2
-    -> PrimCoercion b1 b2
-    -> Maybe (TypeEq a1 b1, TypeEq a2 b2)
-jmEq_Coe (Signed r1) (Signed r2) =
-    jmEq_Ring r1 r2 >>= \Refl -> Just (Refl, Refl)
-jmEq_Coe (Continuous c1) (Continuous c2) =
-    jmEq_Cont c1 c2 >>= \Refl -> Just (Refl, Refl)
-jmEq_Coe _ _ = Nothing
+instance Eq (PrimCoercion a b) where -- this one could be derived
+    (==) = eq2
+instance Eq1 (PrimCoercion a) where
+    eq1 x y = maybe False (const True) (jmEq2 x y)
+instance Eq2 PrimCoercion where
+    eq2 x y = maybe False (const True) (jmEq2 x y)
+instance JmEq1 (PrimCoercion a) where
+    jmEq1 x y = jmEq2 x y >>= \(Refl,Refl) -> Just Refl
+instance JmEq2 PrimCoercion where
+    jmEq2 (Signed r1) (Signed r2) =
+        jmEq1 r1 r2 >>= \Refl -> Just (Refl, Refl)
+    jmEq2 (Continuous c1) (Continuous c2) =
+        jmEq1 c1 c2 >>= \Refl -> Just (Refl, Refl)
+    jmEq2 _ _ = Nothing
 
 
 data CoerceTo_UnsafeFrom :: Hakaru -> Hakaru -> * where
@@ -212,7 +207,7 @@ simplifyCTUF (CTUF xs ys) =
         case ys of
         CNil        -> CTUF xs CNil
         CCons y ys' ->
-            case jmEq_Coe x y of
+            case jmEq2 x y of
             Just (Refl, Refl) -> simplifyCTUF (CTUF xs' ys')
             Nothing           -> CTUF xs ys
 
@@ -275,7 +270,7 @@ simplifyRevUFCT (RevUFCT xs ys) =
         case ys of
         CLin        -> RevUFCT xs CLin
         CSnoc ys' y ->
-            case jmEq_Coe x y of
+            case jmEq2 x y of
             Just (Refl, Refl) -> simplifyRevUFCT (RevUFCT xs' ys')
             Nothing           -> RevUFCT xs ys
 
