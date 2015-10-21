@@ -3,7 +3,6 @@
            , KindSignatures
            , DataKinds
            , TypeOperators
-           , NoImplicitPrelude
            , ScopedTypeVariables
            , MultiParamTypeClasses
            , TypeSynonymInstances
@@ -35,19 +34,19 @@ module Language.Hakaru.Disintegrate
     , Backward(..)
     ) where
 
-import           Prelude (($), (.), flip, map, error, Maybe(..), Either(..))
-import           Data.IntMap   (IntMap)
-import qualified Data.IntMap   as IM
-import qualified Data.Text     as Text
+import           Data.IntMap           (IntMap)
+import qualified Data.IntMap           as IM
+import qualified Data.Text             as Text
+import           Data.Number.LogFloat  (LogFloat)
 
-import Language.Hakaru.Syntax.IClasses (fmap21)
-import Language.Hakaru.Syntax.Nat      (fromNat)
+import Language.Hakaru.Syntax.IClasses (List1(..), fmap21)
+import Language.Hakaru.Syntax.Nat      (Nat, fromNat)
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.TypeEq
 import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
-import Language.Hakaru.Syntax.Prelude hiding (observe)
+import qualified Language.Hakaru.Syntax.Prelude as P
 import Language.Hakaru.Expect (total)
 
 ----------------------------------------------------------------
@@ -64,9 +63,9 @@ disintegrate m =
     error "TODO: disintegrate"
 {-
     runCompose $
-    lam $ \x ->
+    P.lam $ \x ->
     runLazy $
-    snd <$> conditionalize (pair (lazy . return $ Value x) unit) m
+    P.snd <$> conditionalize (P.pair (lazy . return $ Value x) P.unit) m
     -- N.B., I think that use of @unit@ is for giving a "don't care" pattern; rather than actually having anything to do with the @HUnit@ type. We should avoid this by having 'conditionalize' actually accept some form of pattern (for possible observations) rather than accepting terms.
     -- TODO: can we lift the @lam(\x ->@ over the @runCompose@? if so, then we can make sure those functions only need to be called inside 'conditionalize'
 -}
@@ -80,18 +79,18 @@ density
     => abt '[] ('HMeasure a)
     -> abt '[] (a ':-> 'HProb) -- TODO: make this a Haskell function?
 density m =
-    lam $ \x -> total (conditionalize x m)
+    P.lam $ \x -> total (conditionalize x m)
     -- BUG: we need to wrap @x@ in the @scalar0@ wrapper before handing it to 'conditionalize'
     -- @scalar0@ means forward is no-op and backward is bot.
 {-
     [ \x -> total (d `app` x)
     | d <- runCompose $
-        lam $ \x ->
+        P.lam $ \x ->
         runLazy $
         conditionalize (lazy . return $ Value x) m
     ]
 === {assuming: (`app` x) <$> runCompose f == runCompose (f `app` x) }
-    lam $ \x ->
+    P.lam $ \x ->
     total $
     runCompose $
     runLazy $
@@ -111,13 +110,15 @@ observe
 observe x m =
     {- runCompose $ -}
     {- runLazy $ -}
-    snd <$> conditionalize (pair x unit) m
+    P.snd P.<$> conditionalize (P.pair x P.unit) m
     -- TODO: can we lift the @(snd <$>)@ over the @runCompose@ and @runLazy@ functions? if so, then we can make sure those functions only need to be called inside 'conditionalize'
     -- N.B., see the note at 'disintegrate' about the use of @unit@ here...
 
 
 -- N.B., all arguments used to have type @Lazy s repr@ instead of @abt '[]@
 -- | This is what used to be called @disintegrate@. I think this new name captures whatever it is that funtion was actually supposed to be doing?
+--
+-- The first argument is a representation of a projection function followed by equality; for example @(pair x unit)@ rather than @(x ==) . fst@. This trick isn't used in the paper, and probably doesn't generalize...
 --
 -- TODO: whatever this function is supposed to do, it should probably be the one that's the primop rather than 'disintegrate'.
 conditionalize
@@ -208,17 +209,57 @@ instance (Backward a x, Backward b y)
     -}
 
 ----------------------------------------------------------------
-{-
+----------------------------------------------------------------
+-- TODO: keep track of the original 'Variable', for its hint!
+--
 -- | A location is essentially the same thing as a variable (namely
 -- for variable bound to some value), except that we brand it with
 -- the @s@ to keep track of the 'Context' it belongs to.
 newtype Loc s (a :: Hakaru) = Loc Nat
     deriving (Show)
 
-data Locs s (xs :: [Hakaru]) where
-    LNil  :: Locs s '[]
-    LCons :: Loc s x -> Locs s xs -> Locs s (x ': xs)
 
+-- | Lists of locations, not necessarily all of the same type.
+type Locs s xs = List1 (Loc s) xs
+
+
+-- | Weak head-normal forms.
+-- TODO: we should distinguish between true-WHNFs and neutral terms!
+data Whnf :: (Hakaru -> *) -> Hakaru -> * where
+    -- TODO: use Natural, Integer, Rational, NonNegativeRational!
+    -- 'Value'-like things:
+    WhnfNat  :: {-# UNPACK #-} !Nat      -> Whnf rec 'HNat
+    WhnfInt  :: {-# UNPACK #-} !Int      -> Whnf rec 'HInt
+    WhnfProb :: {-# UNPACK #-} !LogFloat -> Whnf rec 'HProb
+    WhnfReal :: {-# UNPACK #-} !Double   -> Whnf rec 'HReal
+    WhnfDatum
+        :: {-# UNPACK #-} !(Datum rec (HData' t))
+        -> Whnf rec (HData' t)
+
+    -- Other stuff: (TODO: should probably be separated out, since this doesn't really fit with our usual notion of head-normal forms...)
+    WhnfMeasure :: rec a -> Whnf rec ('HMeasure a) -- TODO: not sure what's going on here...
+    WhnfArray :: rec 'HInt -> (rec 'HInt -> rec a) -> Whnf rec ('HArray a)
+    -- TODO: shouldn't there be an @WhnfLam@? (renaming to Whnf as appropriate)
+    
+{-
+-- BUG: how to capture that @abt@ in the type without making things too ugly for the case where @rec ~ Lazy s (abt '[])@ ?
+    -- Neutral terms: (TODO: should we rename the type? These aren't typically considered part of head-normal form since they're not heads; albeit they are normal forms...)
+    WhnfNeutral :: abt '[] a -> Whnf rec a
+-}
+
+
+-- | formerly called @forget@, but this seems like a better name
+fromWhnf :: (ABT abt) => Whnf (abt '[]) a -> abt '[] a
+fromWhnf (WhnfNat   n) = P.nat_   n
+fromWhnf (WhnfInt   i) = P.int_   i
+fromWhnf (WhnfProb  p) = P.prob_  p
+fromWhnf (WhnfReal  r) = P.real_  r
+fromWhnf (WhnfDatum d) = P.datum_ d
+-- TODO: fromWhnf (WhnfNeutral e) = e
+fromWhnf _ = error "fromWhnf: these cases should never be reached" -- TODO: why not be able to residualize WhnfMeasure and WhnfArray? even if they aren't reached in the stated use of this function, they should still make some amout of sense, ne?
+
+{-
+----------------------------------------------------------------
 -- | A single statement in the @HMeasure@ monad, where bound variables
 -- are considered part of the \"statement\" that binds them rather
 -- than part of the continuation. Thus, non-binding statements like
@@ -228,9 +269,10 @@ data Locs s (xs :: [Hakaru]) where
 -- since it also includes non-binding statements.
 data Statement s abt where
     SBind :: Loc s a -> Lazy s abt a -> Statement s abt
-    SLet  :: Loc s a -> Hnf (L s abt) a -> Statement s abt
+    SLet  :: Loc s a -> Whnf (L s abt) a -> Statement s abt
     SCase :: Locs s xs -> Pattern xs a -> Lazy s abt a -> Statement s abt
     SWeight :: Lazy s abt 'HProb -> Statement s abt
+
 
 -- | An ordered collection of statements representing the context
 -- surrounding the current focus of our program transformation.
@@ -240,13 +282,53 @@ data Statement s abt where
 --
 -- This type was formerly called @Heap@ (presumably due to the
 -- 'Statement' type being called @Binding@) but that seems like a
--- misnomer to me since this really has nothing to do with allocation
--- and does not allow reordering of components as is usually allowed
--- in heaps.
+-- misnomer to me since this really has nothing to do with allocation.
+-- However, it is still like a heap inasmuch as it's a dependency
+-- graph and we may wish to change the topological sorting or remove
+-- \"garbage\" (subject to correctness criteria).
 data Context s abt = Context
     { freshNat   :: {-# UNPACK #-} !Nat
-    , statements :: [Statement s abt]
+    , statements :: [Statement s abt] -- stored in reverse order.
     }
+
+----------------------------------------------------------------
+-- TODO: is that actually Whnf like the paper says? or is it just any term?
+type Ans s abt a = Context s abt -> Whnf (L s abt) ('HMeasure a)
+
+-- TODO: replace the use of 'Ans' in the continuation with the defunctionalized verson.
+newtype M s abt x =
+    M { unM :: forall a. (x -> Ans s abt a) -> Ans s abt a }
+
+instance Functor (M s abt) where
+    fmap f (M m)  = M $ \c -> m $ \x -> c (f x)
+
+instance Applicative (M s abt) where
+    pure a        = M $ \c -> c a
+    M mf <*> M mx = M $ \c -> mf $ \f -> mx $ \x -> c (f x)
+
+instance Monad (M s abt) where
+    return    = pure
+    M m >>= k = M $ \c -> m $ \x -> unM (k x) c
+
+
+-- | A defunctionalization of the heap-to-heap transformation
+-- contained in the continuation argument for the four primitive
+-- functions. Should be paired with some @abt '[x] a@ representing
+-- the term-to-term transformation of the same continuation.
+data ContextCont s abt where
+    -- | The initial\/identity continuation.
+    Nop :: ContextCont s abt
+
+    -- | Used in the @perform (MBind g e)@ case to push an 'SBind'
+    Store :: Statement s abt -> ContextCont s abt -> ContextCont s abt
+
+    -- | Used for the cases of @evaluate (Var x)@ and @constrainValue (Var x)@
+    Update :: Loc s a -> Whnf (L s abt) a -> ContextCont s abt -> ContextCont s abt
+
+runContextCont :: ContextCont s abt -> M s abt ()
+runContextCont Nop                = return ()
+runContextCont (Store  entry   k) = store  entry   >> runContextCont k
+runContextCont (Update loc val k) = update loc val >> runContextCont k
 
 freshLoc :: M s abt (Loc s a)
 freshLoc = M $ \c h@Context{freshNat=n} -> c (Loc n) h{freshNat = succ n}
@@ -254,87 +336,52 @@ freshLoc = M $ \c h@Context{freshNat=n} -> c (Loc n) h{freshNat = succ n}
 store :: Statement s abt -> M s abt ()
 store entry = M $ \c h -> c () h{statements = entry : statements h}
 
-update :: Loc s a -> Hnf (L s abt) a -> M s abt ()
-update l v = store (SLet l v)
+update :: Loc s a -> Whnf (L s abt) a -> M s abt ()
+update l v = store (SLet l v) -- TODO: walk the statements to replace the old one
 
-data Hnf rec a where
-    -- 'Value'-like things:
-    HnfNat  :: {-# UNPACK #-} !Natural     -> Hnf rec 'HNat
-    HnfInt  :: {-# UNPACK #-} !Integer     -> Hnf rec 'HInt
-    HnfProb :: {-# UNPACK #-} !PosRational -> Hnf rec 'HProb
-    HnfReal :: {-# UNPACK #-} !Rational    -> Hnf rec 'HReal
-    HnfDatum
-        :: {-# UNPACK #-} !(Datum rec (HData' t))
-        -> Hnf rec (HData' t)
-
-    -- Other stuff: (TODO: should probably be separated out, since this doesn't really fit with our usual notion of head-normal forms...)
-    HnfMeasure :: rec a -> Hnf rec ('HMeasure a) -- TODO: not sure what's going on here...
-    HnfArray :: rec 'HInt -> (rec 'HInt -> rec a) -> Hnf rec ('HArray a)
-    -- TODO: shouldn't there be an @HnfLam@? (renaming to Whnf as appropriate)
-    
-    -- Neutral terms: (TODO: should we rename the type? These aren't typically considered part of head-normal form since they're not heads; albeit they are normal forms...)
-    HnfNeutral :: abt '[] a -> Hnf rec a -- BUG: how to capture that @abt@ in the type without making things too ugly for the case where @rec ~ Lazy s (abt '[])@ ?
-
-
--- | formerly called @forget@, but this seems like a better name
-fromHnf :: (ABT abt) => Hnf (abt '[]) a -> abt '[] a
-fromHnf (HnfNat  n) = nat_ n
-fromHnf (HnfInt  i) = int_ i
-fromHnf (HnfProb p) = prob_ p
-fromHnf (HnfReal r) = real_ r
-fromHnf (HnfDatum d) = datum_ d
-fromHnf (HnfNeutral e) = e
-fromHnf _ = error "fromHnf: these cases should never be reached"
-
--- TODO: is that actually Hnf like the paper says? or is it just any term?
-type Ans s abt a = Context s abt -> Hnf (L s abt) ('HMeasure a)
-
-data M s abt x = M { unM :: forall a. (x -> Ans s abt a) -> Ans s abt a }
-
-instance Functor (M s abt) where
-    fmap f (M m) = M (\c -> m (c . f))
-
-instance Applicative (M s abt) where
-    pure a = M (\c -> c a)
-    (<*>) = ap -- TODO: can we optimize this?
-
-instance Monad (M s abt) where
-    return    = pure
-    M m >>= k = M (\c -> m (\a -> unM (k a) c))
-
+----------------------------------------------------------------
 data L s abt a = L
-    { forward  :: M s abt (Hnf (L s abt) a)
-    , backward :: Hnf (L s abt) a -> M s abt ()
+    { forward  :: M s abt (Whnf (L s abt) a)
+    , backward :: Whnf (L s abt) a -> M s abt ()
     }
+
+
+-- | Hide an existentially quantified parameter.
+-- TODO: move elsewhere.
+-- TODO: replace 'SomeVariable' with @(Some Variable)@
+data Some :: (k -> *) -> * where
+    Some :: !(f a) -> Some f
+
+--TODO: data C abt a = C { unC :: Fin n -> [Vec (Some abt) n -> a] }
+data C abt a = C { unC :: Nat -> [[Some abt] -> a] }
 
 type Lazy s abt a = L s (C abt) a
 
-data C abt a = C { unC :: Fin n -> [Vec (Some abt) n -> a] }
 
-
+----------------------------------------------------------------
 disintegrate
     :: (ABT abt, SingI a, SingI b) -- Backward a a
     => abt '[] ('HMeasure (HPair a b))
     -> abt '[] (a ':-> 'HMeasure b) -- this Hakaru function is measurable
 disintegrate m =
     lam $ \a ->
-    fromHnf $ unM (perform m) (\ab ->
+    fromWhnf $ unM (perform m) (\ab ->
       unM (constrainValue (fst ab) a) (\h' ->
         residuate h' `bind_` dirac (snd ab)))
       emptyContext
 
--- TODO: should that actually be Hnf or are neutral terms also allowed?
-perform  :: abt '[] ('HMeasure a) -> M s abt (Hnf (abt '[]) a)
+-- TODO: should that actually be Whnf or are neutral terms also allowed?
+perform  :: abt '[] ('HMeasure a) -> M s abt (Whnf (abt '[]) a)
 perform u | atomic u    = M $ \c h -> u `bind` \z -> c z h
 perform Lebesgue        = M $ \c h -> Lebesgue `bind` \z -> c z h
 perform (Uniform lo hi) = M $ \c h -> Uniform lo hi `bind` \z -> c z h
 perform (Dirac e)       = evaluate e
-perform (Bind g e)      = M $ \c h -> unM (perform e) c (h `snoc` g) -- TODO: move the bound variable from @e@ into the binding of @g@ we push on the heap
+perform (MBind g e)     = M $ \c h -> unM (perform e) c (h `snoc` g) -- TODO: move the bound variable from @e@ into the binding of @g@ we push on the heap
 perform (Superpose es)  = Superpose Haskell.<$> T.traverse perform es
 perform e | not (hnf e) = M $ \c h -> unM (evaluate e) (\m -> unM (perform m) c) h
 
--- TODO: should that actually be Hnf or are neutral terms also allowed?
-evaluate :: abt '[] a -> M s abt (Hnf (abt '[]) a)
+-- TODO: should that actually be Whnf or are neutral terms also allowed?
+evaluate :: abt '[] a -> M s abt (Whnf (abt '[]) a)
 evaluate v | hnf v = M $ \c h -> c v h
 evaluate (Fst e) | not (atomic e) = M $ \c h -> unM (evaluate e) (\v -> evaluate (fst v) c) h
 evaluate (Snd e) | not (atomic e) = M $ \c h -> unM (evaluate e) (\v -> evaluate (snd v) c) h
@@ -364,11 +411,11 @@ evaluate (Var x) = M $ \c h ->
             unM (evaluate e) (\v -> unright v (\e' ->
             unM (evaluate e') (\v' h1' -> c v (glue h1' (SLet x v) h2))) h1
 
--- TODO: do we really need to allow all Hnf, or do we just need
+-- TODO: do we really need to allow all Whnf, or do we just need
 -- variables (or neutral terms)? Do we actually want (hnf)terms at
 -- all, or do we want (hnf)patterns or something to more generally
 -- capture (hnf)measurable events?
-constrainOutcome :: abt '[] ('HMeasure a) -> Hnf (abt '[]) a -> M s abt ()
+constrainOutcome :: abt '[] ('HMeasure a) -> Whnf (abt '[]) a -> M s abt ()
 constrainOutcome e0 v =
     case e0 of
     u | atomic u  -> M $ \c h -> bot
@@ -381,7 +428,7 @@ constrainOutcome e0 v =
     e | not (hnf e) -> M $ \c h -> unM (evaluate e) (\m -> unM (constrainOutcome m v) c) h
 
 -- TODO: see the todo for 'constrainOutcome'
-constrainValue :: abt '[] a -> Hnf (abt '[]) a -> M s abt ()
+constrainValue :: abt '[] a -> Whnf (abt '[]) a -> M s abt ()
 constrainValue e0 v0 =
     case e0 of
     u | atomic u -> M $ \c h -> bot
@@ -410,12 +457,12 @@ constrainValue e0 v0 =
             SRight _x e1 ->
                 unM (evaluate e1) (\v1 -> unright v1 (\e2 -> unM (constrainValue e1 v0) (\h1' -> c (glue h1' (SLet x v0) h2)))) h1
 
-unleft :: Hnf abt (HEither a b) -> M s abt (abt '[] a)
+unleft :: Whnf abt (HEither a b) -> M s abt (abt '[] a)
 unleft (Left  e) = M $ \c h -> c e h
 unleft (Right e) = M $ \c h -> reject
 unleft u         = M $ \c h -> uneither u (\x -> c x h) (\_ -> reject)
 
-unright :: Hnf abt (HEither a b) -> M s abt (abt '[] a)
+unright :: Whnf abt (HEither a b) -> M s abt (abt '[] a)
 unright (Right e) = M $ \c h -> c e h
 unright (Left  e) = M $ \c h -> reject
 unright u         = M $ \c h -> uneither u (\_ -> reject) (\x -> c x h)

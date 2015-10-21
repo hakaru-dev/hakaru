@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.08.20
+--                                                    2015.10.21
 -- |
 -- Module      :  Language.Hakaru.Syntax.ABT
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -247,17 +247,18 @@ instance Exception VarEqTypeError
 ----------------------------------------------------------------
 -- | Hide an existentially quantified parameter to 'Variable'.
 data SomeVariable where
-    Some :: {-# UNPACK #-} !(Variable a) -> SomeVariable
+    SomeVariable :: {-# UNPACK #-} !(Variable a) -> SomeVariable
 
 instance Eq SomeVariable where
-    Some x == Some y =
+    SomeVariable x == SomeVariable y =
         case varEq x y of
         Just Refl -> True
         Nothing   -> False
 
 -- N.B., This implementation assumes that 'varEq' uses either the second or third interpretation! If it uses the first interpretation then this is wrong!
 instance Ord SomeVariable where
-    Some x `compare` Some y = varID x `compare` varID y
+    SomeVariable x `compare` SomeVariable y =
+        varID x `compare` varID y
 
 -- TODO: instance Read SomeVariable
 deriving instance Show SomeVariable
@@ -415,8 +416,8 @@ instance ABT TrivialABT where
         where
         go :: View TrivialABT xs a -> Set SomeVariable
         go (Syn  t)   = foldMap21 freeVars t
-        go (Var  x)   = Set.singleton (Some x)
-        go (Bind x v) = Set.delete (Some x) (go v)
+        go (Var  x)   = Set.singleton (SomeVariable x)
+        go (Bind x v) = Set.delete (SomeVariable x) (go v)
 
 
 instance Show2 TrivialABT where
@@ -485,10 +486,10 @@ data FreeVarsABT (xs :: [Hakaru]) (a :: Hakaru)
     -- nicer; but this ordering gives a more intelligible Show instance.
 
 instance ABT FreeVarsABT where
-    syn  t   = FreeVarsABT (foldMap21 freeVars t)   (Syn t)
-    var  x   = FreeVarsABT (Set.singleton $ Some x) (Var x)
+    syn  t   = FreeVarsABT (foldMap21 freeVars t) (Syn t)
+    var  x   = FreeVarsABT (Set.singleton $ SomeVariable x) (Var x)
     bind x (FreeVarsABT xs v) =
-        FreeVarsABT (Set.delete (Some x) xs) (Bind x v)
+        FreeVarsABT (Set.delete (SomeVariable x) xs) (Bind x v)
 
     -- N.B., when we go under the binder, the variable @x@ may not
     -- actually be used, but we add it to the set of freeVars
@@ -504,7 +505,8 @@ instance ABT FreeVarsABT where
     -- the term we already know.
     caseBind (FreeVarsABT xs v) k =
         case v of
-        Bind x v' -> k x (FreeVarsABT (Set.insert (Some x) xs) v')
+        Bind x v' ->
+            k x (FreeVarsABT (Set.insert (SomeVariable x) xs) v')
 
     viewABT  (FreeVarsABT _  v) = v
 
@@ -532,9 +534,10 @@ instance Show (FreeVarsABT xs a) where
 -- TODO: something smarter
 freshen :: Variable a -> Set SomeVariable -> Variable a
 freshen x xs
-    | Some x `Set.member` xs =
+    | SomeVariable x `Set.member` xs =
         case Set.findMax xs of
-        Some y -> Variable (Name (varHint x) $! 1 + varID y) (varType x)
+        SomeVariable y ->
+            Variable (Name (varHint x) $! 1 + varID y) (varType x)
     | otherwise = x
 
 
