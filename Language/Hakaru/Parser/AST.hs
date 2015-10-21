@@ -122,10 +122,12 @@ data MeasureOp' a =
    | Plate'       (AST a)
    | Chain'       (AST a) (AST a)
 
+data Branch a = BNone
+
 data AST a =        
-     Lam_        (AST a) (AST a)
-   | Fix_        (AST a)
-   | Let_        (AST a) (AST a) (AST a)
+     Lam_        Name    (AST a)
+   | Fix_        Name    (AST a)
+   | Let_        Name    (AST a) (AST a)
    | Ann_        (AST a) (AST a)
    | CoerceTo_   (AST a) (AST a)
    | UnsafeFrom_ (AST a) (AST a)
@@ -135,7 +137,7 @@ data AST a =
    | Empty_
    | Array_      (AST a) (AST a)
    | Datum_      (AST a)
-   | Case_       (AST a) (AST a)
+   | Case_       (AST a) [Branch a]
    | MeasureOp_  (MeasureOp' a)
    | MBind_      (AST a) (AST a) (AST a)
    | Superpose_  (AST a)
