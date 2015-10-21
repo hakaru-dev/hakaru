@@ -228,13 +228,16 @@ inferType = inferType_
   inferType_ :: U.AST a -> TypeCheckMonad (TypedAST abt)
   inferType_ e0 =
     case e0 of -- viewAbt e0
-    Var x     -> do
+    U.Var_ x  -> do
         ctx <- getCtx
-        case IM.lookup (fromNat $ varID x) ctx of
+        case IM.lookup (fromNat $ nameID x) ctx of
             Just (SomeVariable x') ->
-                case varEq x x' of
-                Just Refl -> return (varType x', var x')
-                Nothing   -> failwith "type mismatch"
+                return $ TypedAST (varType x') (var x')
+                -- Unsure if this is the right decision:
+                --
+                -- case varEq x x' of
+                --   Just Refl -> return (varType x', var x')
+                --   Nothing   -> failwith "type mismatch"
             Nothing       -> failwith "unbound variable"
 
     Syn (App_ :$ e1 :* e2 :* End) -> do

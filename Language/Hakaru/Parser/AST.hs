@@ -3,10 +3,11 @@ module Language.Hakaru.Parser.AST where
 
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.AST()
+import Language.Hakaru.Syntax.ABT(Name(..))
 import Data.Text
 import Text.Parsec (SourcePos)
 
-type Name = Text
+type Name' = Text
 
 -- data Branch' a = Branch' Pattern' (AST' a)
 
@@ -38,12 +39,12 @@ data Symbol' =
 type SymbolTable = [(Text, Symbol')]
 
 data AST' a =
-     Var Name
+     Var Name'
    | Op a
-   | Lam Name (AST' a) 
+   | Lam Name'    (AST' a) 
    | App (AST' a) (AST' a)
-   | Let Name (AST' a) (AST' a)
-   | If (AST' a) (AST' a) (AST' a)
+   | Let Name'    (AST' a) (AST' a)
+   | If  (AST' a) (AST' a) (AST' a)
    | Ann (AST' a) (AST' a)
    -- These should probably be in their own TypeAST
    | TypeApp (AST' a) (AST' a)
@@ -54,7 +55,7 @@ data AST' a =
    | Value Value'
    | Empty
 --    | Case  (AST' a) [(Branch' a)] -- match
-   | Bind  Name (AST' a) (AST' a)
+   | Bind  Name' (AST' a) (AST' a)
 --    | Data Sop
    | WithMeta (AST' a) Meta
 
