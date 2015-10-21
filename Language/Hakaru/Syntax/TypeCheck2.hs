@@ -266,7 +266,7 @@ inferType = inferType_
         caseBind e1 $ \x -> pushCtx (SomeVariable x typ2) . inferType_
         -}
 
-    Syn (Let_ :$ e1 :* e2 :* End)
+    Let_ n e1 e2
         | inferable e1 -> do
             (typ1,e1') <- inferType_ e1
             caseBind e2 $ \x e3 ->

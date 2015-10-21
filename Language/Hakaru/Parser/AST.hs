@@ -9,7 +9,11 @@ import Text.Parsec (SourcePos)
 
 type Name' = Text
 
--- data Branch' a = Branch' Pattern' (AST' a)
+data Branch'  a = Branch' (Pattern' a) (AST' a)
+data Pattern' a =
+     PVar'  Name'
+   | PWild'
+   | PData' Name' [AST' a]
 
 -- Meta stores start and end position for AST in source code
 newtype Meta = Meta (SourcePos, SourcePos) deriving (Eq, Show)
@@ -123,7 +127,11 @@ data MeasureOp' a =
    | Plate'       (AST a)
    | Chain'       (AST a) (AST a)
 
-data Branch a = BNone
+data Branch a = Branch (Pattern a) (AST a)
+data Pattern a =
+     PVar (AST a)
+   | PWild
+   | PData [AST a]
 
 data Coerce'  =
      CNone
