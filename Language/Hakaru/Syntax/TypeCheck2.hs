@@ -266,22 +266,30 @@ inferType = inferType_
         caseBind e1 $ \x -> pushCtx (SomeVariable x typ2) . inferType_
         -}
 
-    Let_ n e1 e2
+    U.Let_ x e1 e2
         | inferable e1 -> do
-            (typ1,e1') <- inferType_ e1
-            caseBind e2 $ \x e3 ->
-                case jmEq1 typ1 (varType x) of
-                Nothing   -> failwith "type mismatch"
-                Just Refl -> pushCtx (SomeVariable x) $ do
-                    (typ2,e3') <- inferType_ e3
-                    return (typ2, syn(Let_ :$ e1' :* bind x e3' :* End))
+            t1 <- inferType_ e1
+            case t1 of
+              TypedAST typ1 e1' ->
+                let x' = Variable x typ1 in
+                -- Unsure if this is the right decision:
+                --
+                -- case jmEq1 typ1 (varType x) of
+                -- Nothing   -> failwith "type mismatch"
+                pushCtx (SomeVariable x') $ do
+                    t2 <- inferType_ e2
+                    case t2 of
+                      TypedAST typ2 e2' ->
+                       return $ TypedAST typ2
+                                  (syn(Let_ :$ e1' :* bind x' e2' :* End))
                     
 
-    Syn (Ann_ typ1 :$ e1 :* End) -> do
+    U.Ann_ e1 t1 -> do
         -- N.B., this requires that @typ1@ is a 'Sing' not a 'Proxy',
         -- since we can't generate a 'Sing' from a 'Proxy'.
+        let typ1 = undefined :: t1
         e1' <- checkType typ1 e1
-        return (typ1, syn(Ann_ typ1 :$ e1' :* End))
+        return $ TypedAST typ1 (syn(Ann_ typ1 :$ e1' :* End))
 
     Syn (PrimOp_ o :$ es) ->
         let (typs, typ1) = sing_PrimOp o in do
