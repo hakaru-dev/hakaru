@@ -1,0 +1,15 @@
+# RRN: Problem with unticked promoted constructor in 7.10:
+# resolver: lts-3.9
+resolver: lts-2.22
+
+# Local packages, usually specified by relative directory name
+packages:
+ - '.'
+ - maple/
+
+# Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
+extra-deps:
+ - indentation-0.2.1.1
+ - logfloat-0.13.3.3
+
+flags: {}
