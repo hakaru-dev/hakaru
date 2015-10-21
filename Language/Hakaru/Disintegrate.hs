@@ -45,7 +45,7 @@ import           Data.Number.LogFloat  (LogFloat)
 import           Control.Applicative   (Applicative(..))
 #endif
 
-import Language.Hakaru.Syntax.IClasses (Eq1(..), List1(..), fmap21)
+import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.Nat      (Nat, fromNat)
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.TypeEq
@@ -172,7 +172,7 @@ instance Backward a HUnit where
 instance Backward HBool HBool where
     {-
     backward_ a x =
-        ifM (equal_ a x) >>= \b -> if b then return () else reject
+        ifM (equal_ a x) >>= \b -> if b then return () else P.reject
     -}
 
 instance Backward 'HInt 'HInt where
@@ -211,7 +211,7 @@ instance (Backward a x, Backward b y)
         case (a_b, x_y) of
             (Left  a, Left  x) -> backward_ a x
             (Right b, Right y) -> backward_ b y
-            _                  -> reject
+            _                  -> P.reject
     -}
 
 ----------------------------------------------------------------
@@ -236,7 +236,8 @@ type Locs s xs = List1 (Loc s) xs
 
 
 -- | Weak head-normal forms.
--- TODO: we should distinguish between true-WHNFs and neutral terms!
+-- TODO: or did we really mean (strong) head-normal forms?
+-- TODO: we should distinguish between true (W)HNFs and neutral terms!
 data Whnf :: (Hakaru -> *) -> Hakaru -> * where
     -- TODO: use Natural, Integer, Rational, NonNegativeRational!
     -- 'Value'-like things:
@@ -257,7 +258,7 @@ data Whnf :: (Hakaru -> *) -> Hakaru -> * where
     WhnfMeasure :: rec a -> Whnf rec ('HMeasure a) -- TODO: not sure what's going on here...
     
 {-
--- BUG: how to capture that @abt@ in the type without making things too ugly for the case where @rec ~ Lazy s (abt '[])@ ?
+-- BUG: how to capture that @abt@ in the type without making things too ugly for the case where @rec ~ Lazy s (abt '[])@ ? Or should this really be @rec@ rather than @abt '[]@ ?
     -- Neutral terms: (TODO: should we rename the type? These aren't typically considered part of head-normal form since they're not heads; albeit they are normal forms...)
     WhnfNeutral :: abt '[] a -> Whnf rec a
 -}
@@ -282,23 +283,26 @@ fromWhnf _ = error "fromWhnf: these cases should never be reached" -- TODO: why 
 --
 -- This type was formerly called @Binding@, but that is inaccurate
 -- since it also includes non-binding statements.
+--
+-- TODO: do we still need this 'L' and 'Lazy' stuff? or is the @Whnf abt@ enough?
 data Statement s abt where
     SBind
         :: {-# UNPACK #-} !(Loc s a)
-        -> {-# UNPACK #-} !(Lazy s abt a)
+        -> !(Whnf (abt '[]) ('HMeasure a)) -- was @Lazy s abt a@
         -> Statement s abt
     SLet
         :: {-# UNPACK #-} !(Loc s a)
-        -> !(Whnf (L s abt) a)
+        -> !(Whnf (abt '[]) a) -- was @Whnf (L s abt) a@
         -> Statement s abt
     SCase
         :: !(Locs s xs)
         -> !(Pattern xs a)
-        -> {-# UNPACK #-} !(Lazy s abt a)
+        -> !(Whnf (abt '[]) a) -- was @Lazy s abt a@
         -> Statement s abt
     SWeight 
-        :: {-# UNPACK #-} !(Lazy s abt 'HProb)
+        :: !(Whnf (abt '[]) 'HProb) -- was @Lazy s abt 'HProb@
         -> Statement s abt
+    -- TODO: if we do proper HNFs then we should add all the other binding forms (Lam_, Array_, Expect,...) as \"statements\" too
 
 
 -- | An ordered collection of statements representing the context
@@ -317,7 +321,7 @@ data Context s abt = Context
     { freshNat   :: {-# UNPACK #-} !Nat
     , statements :: [Statement s abt] -- stored in reverse order.
     }
--- TODO: to the extent that we can ignore order of statements, we could use an @IntMap (Statement s abt)@ in order to speed up the lookup times in 'updateBy'. We just need to figure out (a) what to do with 'SWeight' statements, (b) how to handle 'SCase' so that we can update just once despite possibly binding multiple variables, and (c) figure out how to recover the order (to the extent that we must).
+-- TODO: to the extent that we can ignore order of statements, we could use an @IntMap (Statement s abt)@ in order to speed up the lookup times in 'update'. We just need to figure out (a) what to do with 'SWeight' statements, (b) how to handle 'SCase' so that we can just make one map modification despite possibly binding multiple variables, and (c) figure out how to recover the order (to the extent that we must).
 
 emptyContext :: Context s abt
 emptyContext = Context 0 []
@@ -347,7 +351,7 @@ residualizeContext = (runResidualizer .) . go . statements
         rest <- go ss e
         return $ syn (Case_ (fromLazy body)
             [ Branch pat   rest
-            , Branch PWild (P.superpose [])
+            , Branch PWild P.reject
             ])
     go (SWeight body : ss) e = do
         rest <- go ss e
@@ -356,9 +360,9 @@ residualizeContext = (runResidualizer .) . go . statements
 
 ----------------------------------------------------------------
 -- TODO: is that actually Whnf like the paper says? or is it just any term?
-type Ans s abt a = Context s abt -> Whnf (L s abt) ('HMeasure a)
+type Ans s abt a = Context s abt -> Whnf (abt '[]) a -- was @Whnf (L s abt) ('HMeasure a)@
 
--- TODO: replace the use of 'Ans' in the continuation with the defunctionalized verson.
+-- TODO: defunctionalize the continuation. In particular, the only heap modifications we need are 'push' and a variant of 'update' for finding\/replacing a binding once we have the value in hand.
 newtype M s abt x = M { unM :: forall a. (x -> Ans s abt a) -> Ans s abt a }
 
 instance Functor (M s abt) where
@@ -381,118 +385,244 @@ push s = M $ \c h -> c () h{statements = s : statements h}
 pushes :: [Statement s abt] -> M s abt ()
 pushes ss = M $ \c h -> c () h{statements = ss ++ statements h}
 
-pop :: M s abt (Statement s abt)
+-- | N.B., this can be unsafe. If a binding statement is returned, then the caller must be sure to push back on statements binding all the same variables!
+pop :: M s abt (Maybe (Statement s abt))
 pop = M $ \c h ->
     case statements h of
-    []   -> error "pop: empty context!"
-    s:ss -> c s h{statements = ss}
-
-{-
--- TODO: should the body really return @Whnf (L s abt) a@ or would @Whnf (abt '[]) a@ also work? Better/worse? cf., type mismatch between 'SLet' and 'evaluate'
-updateBy
-    :: Loc s a
-    -> (Statement s abt -> M s abt (Whnf (L s abt) a))
-    -> M s abt ()
-updateBy l k = go []
-    where
-    go ss = do
-        s <- pop
-        case s `isBindingFor` l of
-            Nothing   -> go (s:ss)
-            Just Refl -> do
-                v <- k s
-                push   (SLet l v)
-                pushes (reverse ss)
-
-    -- BUG: no 'JmEq1' instance for 'Loc'
-    isBindingFor (SBind l  _)   l' = jmEq1 l l'
-    isBindingFor (SLet  l  _)   l' = jmEq1 l l'
-    isBindingFor (SCase ls _ _) l' = l' `elem` ls
-    isBindingFor (SWeight  _)   _  = Nothing
--}
-
-----------------------------------------------------------------         
-{-
--- | A partially defunctionalized representation of @x -> Ans s abt a@.
-data DisintegrationCont s abt x a where
-    -- The first argument is a difference list of ContextEffects
-    -- TODO: for defunctionalizing the second argument: how can we get @Whnf (L s abt)@ to have an open-term variant like @abt '[ x ] a@?
-    DC  :: (ContextCont s abt -> ContextCont s abt)
-        -> (x -> Whnf (L s abt) ('HMeasure a))
-        -> DisintegrationCont s abt x a
-
-composeDC
-    :: DisintegrationCont s abt (Whnf (L s abt) ('HMeasure b)) c
-    -> DisintegrationCont s abt x b
-    -> DisintegrationCont s abt x c
-composeDC (DC k2 c2) (DC k1 c1) = DC (k1 . k2) (c2 . c1)
-
-newtype N s abt x =
-    N { unN :: forall a. DisintegrationCont s abt x a -> Ans s abt a }
-
-instance Functor (N s abt) where
-    fmap f (N n)  = N $ \ (DC k c) -> n $ DC k (c . f)
-
-instance Applicative (N s abt) where
-    pure x    = N $ \ (DC _ c) _ -> c x
-    nf <*> nx = nf >>= (<$> nx) -- TODO: optimize?
-
-instance Monad (N s abt) where
-    return    = pure
-    N n >>= f = N $ \ (DC k c) h -> n (DC k $ \x -> unN (f x) (DC k c) h) h
-        -- TODO: optimize so we don't have to keep evaluating @k h@!!
-
-
--- | A defunctionalization of the heap-to-heap transformation
--- contained in the continuation argument for the four primitive
--- functions. Should be paired with some @abt '[x] a@ representing
--- the term-to-term transformation of the same continuation.
-type ContextCont s abt = [ContextEffect s abt] 
-
-data ContextEffect s abt where
-    -- | Used in the @perform (MBind g e)@ case to push an 'SBind'
-    Store :: Statement s abt -> ContextEffect s abt
-
-    -- | Used for the cases of @evaluate (Var x)@ and @constrainValue (Var x)@
-    Update :: Loc s a -> Whnf (L s abt) a -> ContextEffect s abt
-
-runContextCont :: ContextCont s abt -> M s abt ()
-runContextCont []                   = return ()
-runContextCont (Store  entry   : k) = push  entry   >> runContextCont k
-runContextCont (Update loc val : k) = update loc val >> runContextCont k
--}
+    []   -> c Nothing  h
+    s:ss -> c (Just s) h{statements = ss}
 
 ----------------------------------------------------------------
+{-
 data L s abt a = L
     { forward  :: M s abt (Whnf (L s abt) a)
     , backward :: Whnf (L s abt) a -> M s abt ()
     }
 
-
--- | Hide an existentially quantified parameter.
--- TODO: move elsewhere.
--- TODO: replace 'SomeVariable' with @(Some Variable)@
-data Some :: (k -> *) -> * where
-    Some :: !(f a) -> Some f
-
--- TODO: data C abt a = C { unC :: Fin n -> [Vec (Some abt) n -> a] }
+-- TODO: make the length indexing explicit:
+-- > data C abt a = C { unC :: forall n. Sing n -> [Vec (Some abt) n -> a] }
+--
+-- TODO: does the old version actually mean to erase type info? or should we rather use:
+-- > data C abt a = C { unC :: forall xs. Sing xs -> [List1 abt xs -> a] }
+--
+-- TODO: should we add back in something like @C@ for interpreting\/erasing the uses of 'Lub_'?
 data C abt a = C { unC :: Nat -> [[Some abt] -> a] }
 
 type Lazy s abt a = L s (C abt) a
+-}
 
-{-
 ----------------------------------------------------------------
+{-
 disintegrate
     :: (ABT abt, SingI a, SingI b) -- Backward a a
     => abt '[] ('HMeasure (HPair a b))
-    -> abt '[] (a ':-> 'HMeasure b) -- this Hakaru function is measurable
+    -> abt '[] (a ':-> 'HMeasure b) -- ^ this Hakaru function is measurable
 disintegrate m =
     P.lam $ \a ->
     fromWhnf $ unM (perform m) (\ab ->
       unM (constrainValue (fst ab) a) (\h' ->
         residualizeContext h' (P.dirac $ P.snd ab)))
       emptyContext
+-}
 
+valueToWhnf :: (ABT abt) => Value a -> Whnf (abt '[]) a
+valueToWhnf (VNat   n) = WhnfNat   n
+valueToWhnf (VInt   i) = WhnfInt   i
+valueToWhnf (VProb  p) = WhnfProb  p
+valueToWhnf (VReal  r) = WhnfReal  r
+valueToWhnf (VDatum d) = WhnfDatum (fmap11 P.value_ d)
+
+{-
+evaluate :: abt '[] a -> M s abt (Whnf (abt '[]) a)
+evaluate e =
+    caseVarSyn e update $ \t ->
+        case t of
+        -- Things which are already weak head-normal forms
+        Value_ v                  -> return (valueToWhnf v)
+        Datum_ d                  -> return (WhnfDatum d)
+        -- TODO: Empty_           -> return WhnfEmpty
+        -- TODO: Array_ e1 e2     -> return (WhnfArray e1 e2)
+        -- TODO: Lam_ :$ e :* End -> return (WhnfLam e)
+        -- TODO: 'WhnfMeasure' ??
+        
+        Superpose_ pes ->
+            WhnfSuperpose <$> T.for pes $ \(p,e) ->
+                w <- evaluate p
+                push (SWeight w)
+                v <- evaluate e
+                return (w,v)
+        
+        Lub_ es -> WhnfLub <$> T.for es evaluate
+        
+        Case_ e bs -> do
+            v <- evaluate e
+            tryMatch (fromWhnf v) bs evaluate
+        
+        scon :$ es ->
+        NaryOp_ o es ->
+        
+        case e of
+        -- TODO: proper case analysis should be able to get rid of the need to check for non-atomicity
+        Fst e | not (atomic e) -> evaluate e >>= (evaluate . fst)
+        Snd e | not (atomic e) -> evaluate e >>= (evaluate . snd)
+        Negate _ :$ e :* End   -> negate <$> evaluate e
+        Recip  _ :$ e :* End   -> recip  <$> evaluate e
+        LE    e1 e2            -> (<=)   <$> evaluate e1 <*> evaluate e2
+        Plus  e1 e2            -> (+)    <$> evaluate e1 <*> evaluate e2
+        Times e1 e2            -> (*)    <$> evaluate e1 <*> evaluate e2
+-}
+
+
+-- | Existentially quantify over an index.
+-- TODO: move elsewhere.
+-- TODO: replace 'SomeVariable' with @(Some Variable)@
+data Some :: (k -> *) -> * where
+    Some :: !(f a) -> Some f
+
+data Pair1 (f :: k -> *) (g :: k -> *) (i :: k) = Pair1 !(f i) !(g i)
+
+newtype DList1 a xs =
+    DList1 { unDList1 :: forall ys. List1 a ys -> List1 a (xs ++ ys) }
+
+runDList1 :: DList1 a xs -> List1 a xs
+runDList1 dx@(DList1 xs) =
+    case eqAppendNil dx of
+    Refl -> xs Nil1
+
+dnil1 :: DList1 a '[]
+dnil1 = DList1 id
+
+dcons1 :: a x -> DList1 a '[ x ]
+dcons1 x = DList1 (Cons1 x)
+
+dappend1 :: DList1 a xs -> DList1 a ys -> DList1 a (xs ++ ys)
+dappend1 dx@(DList1 xs) dy@(DList1 ys) =
+    DList1 $ \zs ->
+        case eqAppendAssoc dx dy zs of
+        Refl -> xs (ys zs)
+
+data MatchResult :: ([Hakaru] -> Hakaru -> *) -> [Hakaru] -> Hakaru -> * where
+    MatchFail  :: MatchResult abt vars a
+    MatchStuck :: MatchResult abt vars a
+    Matched
+        :: DList1 (Pair1 Variable (abt '[])) vars1
+        -> !(abt vars2 a)
+        -> MatchResult abt (vars1 ++ vars2) a
+
+toStatements
+    :: DList1 (Pair1 Variable (abt '[])) vars
+    -> [Statement s abt]
+toStatements = go . runDList1
+    where
+    go :: List1 (Pair1 Variable (abt '[])) vars -> [Statement s abt]
+    go Nil1           = []
+    go (Cons1 xv xvs) = toStatement xv : go xvs
+    
+toStatement :: Pair1 Variable (abt '[]) a -> Statement s abt
+toStatement (Pair1 x e) = error "TODO" -- SLet x e
+
+tryMatch
+    :: (ABT abt)
+    => abt '[] a
+    -> [Branch a abt b]
+    -> (abt '[] b -> M s abt (Whnf (abt '[]) b))
+    -> M s abt (Whnf (abt '[]) b)
+tryMatch e bs0 k = go id bs0
+    where
+    go _  []                         = error "tryMatch: nothing matched!"
+    go ps (b@(Branch pat body) : bs) =
+        case matchPattern e pat body of
+        MatchFail        -> go (ps . (b:)) bs
+        MatchStuck       -> error "TODO" -- return . Neutral . syn $ Case_ e (ps (b:bs))
+        Matched ss body' -> error "TODO" -- pushes (toStatements ss) >> k body' -- BUG: need to hack the types to prove @'[] ~ ys@ from @'[] ~ (xs ++ ys)@
+
+
+matchPattern
+    :: (ABT abt)
+    => abt '[] a
+    -> Pattern vars a
+    -> abt vars b
+    -> MatchResult abt vars b
+matchPattern e pat body =
+    case pat of
+    PWild              -> Matched dnil1 body
+    PVar               ->
+        caseBind body $ \x body' ->
+            Matched (dcons1 (Pair1 x e)) body'
+    PDatum _hint1 pat1 ->
+        caseVarSyn e (const MatchStuck) $ \t ->
+            case t of
+            Value_ (VDatum (Datum _hint2 d)) ->
+                matchCode (fmap11 P.value_ d) pat1 body
+            Datum_         (Datum _hint2 d)  ->
+                matchCode d pat1 body
+            _                                -> MatchStuck
+
+matchCode
+    :: (ABT abt)
+    => DatumCode  xss (abt '[]) (HData' t)
+    -> PDatumCode xss vars      (HData' t)
+    -> abt vars b
+    -> MatchResult abt vars b
+matchCode (Inr d2) (PInr p2) body = matchCode   d2 p2 body
+matchCode (Inl d1) (PInl p1) body = matchStruct d1 p1 body
+matchCode _        _         _    = MatchFail
+
+
+matchStruct
+    :: (ABT abt)
+    => DatumStruct  xs (abt '[]) (HData' t)
+    -> PDatumStruct xs vars      (HData' t)
+    -> abt vars b
+    -> MatchResult abt vars b
+matchStruct Done       PDone       body = Matched dnil1 body
+matchStruct (Et d1 d2) (PEt p1 p2) body =
+    case matchFun d1 p1 body of -- BUG: needs type coercion
+    MatchFail        -> MatchFail
+    MatchStuck       -> MatchStuck
+    Matched xs body' -> 
+        case matchStruct d2 p2 body' of -- BUG: needs type coercion
+        MatchFail         -> MatchFail
+        MatchStuck        -> MatchStuck
+        Matched ys body'' -> Matched (xs `dappend1` ys) body''
+
+matchFun
+    :: (ABT abt)
+    => DatumFun  x (abt '[]) (HData' t)
+    -> PDatumFun x vars      (HData' t)
+    -> abt vars b
+    -> MatchResult abt vars b
+matchFun (Konst d2) (PKonst p2) body = matchPattern d2 p2 body
+matchFun (Ident d1) (PIdent p1) body = matchPattern d1 p1 body
+matchFun _           _          _    = MatchFail
+
+{-
+----------------------------------------------------------------        
+-- TODO: should this really return @Whnf (L s abt) a@ or @Whnf (abt '[]) a@ ? cf., type mismatch between what 'evaluate' gives and what 'SLet' wants.
+update :: Variable a -> M s abt (Whnf (abt '[]) a)
+update x = loop []
+    where
+    loop ss = do
+        ms <- pop
+        case ms of
+            Nothing -> do
+                pushes (reverse ss)
+                return (WhnfNeutral (var x))
+            Just s  ->
+                case step s of
+                Nothing -> loop (s:ss)
+                Just mv -> do
+                    v <- mv             -- evaluate the body of @s@
+                    push   (SLet x v)   -- replace @s@ itself
+                    pushes (reverse ss) -- put the rest of the context back
+                    return v            -- TODO: return (NamedWhnf x v)
+
+    step (SBind  y e) | x == y = Just $ perform  e
+    step (SLet   y e) | x == y = Just $ evaluate e
+    step (SLeft  y e) | x == y = Just $ evaluate e >>= (`unleft`  evaluate)
+    step (SRight y e) | x == y = Just $ evaluate e >>= (`unright` evaluate)
+    step _                     = Nothing
+          
 
 -- TODO: should that actually be Whnf or are neutral terms also allowed?
 perform  :: abt '[] ('HMeasure a) -> M s abt (Whnf (abt '[]) a)
@@ -501,63 +631,9 @@ perform Lebesgue             = M $ \c h -> P.lebesgue P.>>= \z -> c z h
 perform (Uniform lo hi)      = M $ \c h -> P.uniform lo hi P.>>= \z -> c z h
 perform (Dirac e)            = evaluate e
 perform (MBind g (bind x e)) = push (SBind x g) >> perform e
-perform (Superpose es)       = P.superpose <$> T.traverse perform es
+perform (Superpose es)       = P.superpose <$> T.traverse perform es -- TODO: not quite right; need to push the SWeight in each branch
 perform e | not (hnf e)      = evaluate e >>= perform
 
-
--- TODO: should that actually be Whnf or are neutral terms also allowed?
-evaluate :: abt '[] a -> M s abt (Whnf (abt '[]) a)
-evaluate v       | hnf v          = return v
-evaluate (Fst e) | not (atomic e) = evaluate e >>= (evaluate . fst)
-evaluate (Snd e) | not (atomic e) = evaluate e >>= (evaluate . snd)
-evaluate (Negate e)               = negate <$> evaluate e
-evaluate (Recip e)                = recip  <$> evaluate e
-evaluate (Plus  e1 e2)            = (+)    <$> evaluate e1 <*> evaluate e2
-evaluate (Times e1 e2)            = (*)    <$> evaluate e1 <*> evaluate e2
-evaluate (LE    e1 e2)            = (<=)   <$> evaluate e1 <*> evaluate e2
-evaluate (Var x) =
-    -- TODO: do these get the effects in the right order?
-    updateBy x $ \binding ->
-        case binding of
-        SBind  _ e -> perform e
-        SLeft  _ e -> evaluate e >>= (`unleft`  evaluate)
-        SRight _ e -> evaluate e >>= (`unright` evaluate)
-    {-
-    M $ \c h ->
-        case lookup x h of
-        Missing -> error "evaluate: variable is missing in heap!"
-        Found h1 binding h2 ->
-            case binding of
-            SBind x e ->
-                -- This is the only line with \"side effects\"
-                unM (perform e) (\v h1' -> c v (glue h1' (SLet x v) h2)) h1
-            SLeft x e ->
-                unM (evaluate e) (\v ->
-                unleft v (\e' ->
-                unM (evaluate e') (\v' h1' ->
-                c v (glue h1' (SLet x v) h2))) h1
-            SRight x e ->
-                unM (evaluate e) (\v ->
-                unright v (\e' ->
-                unM (evaluate e') (\v' h1' ->
-                c v (glue h1' (SLet x v) h2))) h1
-    -}
-
-
--- TODO: do we really need to allow all Whnf, or do we just need
--- variables (or neutral terms)? Do we actually want (hnf)terms at
--- all, or do we want (hnf)patterns or something to more generally
--- capture (hnf)measurable events?
-constrainOutcome :: abt '[] ('HMeasure a) -> Whnf (abt '[]) a -> M s abt ()
-constrainOutcome e0 v =
-    case e0 of
-    u | atomic u    -> M $ \c h -> P.bot
-    Lebesgue        -> M $ \c h -> c h
-    Uniform lo hi   -> M $ \c h -> P.observe (lo P.<= v P.&& v P.<= hi) P.>> P.weight (P.recip (hi P.- lo)) P.>> c h
-    Return e        -> constrainValue e v
-    MBind g (bind x e) -> push (SBind x g) >> constrainOutcome e v
-    Superpose es    -> P.uperpose <$> T.traverse (`constrainOutcome` v) es
-    e | not (hnf e) -> (`constrainOutcome` v) =<< evaluate e
 
 -- TODO: see the todo for 'constrainOutcome'
 constrainValue :: abt '[] a -> Whnf (abt '[]) a -> M s abt ()
@@ -589,15 +665,31 @@ constrainValue e0 v0 =
             SRight _x e1 ->
                 unM (evaluate e1) (\v1 -> unright v1 (\e2 -> unM (constrainValue e1 v0) (\h1' -> c (glue h1' (SLet x v0) h2)))) h1
 
+-- TODO: do we really need to allow all Whnf, or do we just need
+-- variables (or neutral terms)? Do we actually want (hnf)terms at
+-- all, or do we want (hnf)patterns or something to more generally
+-- capture (hnf)measurable events?
+constrainOutcome :: abt '[] ('HMeasure a) -> Whnf (abt '[]) a -> M s abt ()
+constrainOutcome e0 v =
+    case e0 of
+    u | atomic u    -> M $ \c h -> P.bot
+    Lebesgue        -> M $ \c h -> c h
+    Uniform lo hi   -> M $ \c h -> P.observe (lo P.<= v P.&& v P.<= hi) P.>> P.weight (P.recip (hi P.- lo)) P.>> c h
+    Return e        -> constrainValue e v
+    MBind g (bind x e) -> push (SBind x g) >> constrainOutcome e v
+    Superpose es    -> P.superpose <$> T.traverse (`constrainOutcome` v) es -- TODO: not quite right; need to push the SWeight in each branch
+    e | not (hnf e) -> (`constrainOutcome` v) =<< evaluate e
+
+
 unleft :: Whnf abt (HEither a b) -> M s abt (abt '[] a)
 unleft (Left  e) = M $ \c h -> c e h
-unleft (Right e) = M $ \c h -> reject
-unleft u         = M $ \c h -> P.uneither u (\x -> c x h) (\_ -> reject)
+unleft (Right e) = M $ \c h -> P.reject
+unleft u         = M $ \c h -> P.uneither u (\x -> c x h) (\_ -> P.reject)
 
 unright :: Whnf abt (HEither a b) -> M s abt (abt '[] a)
 unright (Right e) = M $ \c h -> c e h
-unright (Left  e) = M $ \c h -> reject
-unright u         = M $ \c h -> P.uneither u (\_ -> reject) (\x -> c x h)
+unright (Left  e) = M $ \c h -> P.reject
+unright u         = M $ \c h -> P.uneither u (\_ -> P.reject) (\x -> c x h)
 -}
 
 ----------------------------------------------------------------
