@@ -36,7 +36,7 @@ import qualified Data.Traversable      as T
 import           Control.Applicative   (Applicative(..), (<$>))
 #endif
 import Language.Hakaru.Syntax.Nat      (fromNat)
-import Language.Hakaru.Syntax.IClasses (TypeEq(..), JmEq1(..), List1(..))
+import Language.Hakaru.Syntax.IClasses (TypeEq(..), JmEq1(..), type (++), List1(..))
 import Language.Hakaru.Syntax.DataKind (Hakaru(..), HData')
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.TypeHelpers

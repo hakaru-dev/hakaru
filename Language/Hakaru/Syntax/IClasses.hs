@@ -1,15 +1,16 @@
 -- TODO: move this file somewhere else, like "Language.Hakaru.IClasses"
 {-# LANGUAGE CPP
-           , Rank2Types
            , PolyKinds
            , DataKinds
            , TypeOperators
            , GADTs
+           , TypeFamilies
+           , Rank2Types
            , ScopedTypeVariables
            #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.21
+--                                                    2015.10.22
 -- |
 -- Module      :  Language.Hakaru.Syntax.IClasses
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -24,13 +25,11 @@
 -- TODO: DeriveDataTypeable for all our newtypes?
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.IClasses
-    ( Lift1(..)
-    , Lift2(..)
-    , List1(..)
+    ( 
     -- * Showing indexed types
-    , Show1(..), shows1, showList1
+      Show1(..), shows1, showList1
     , Show2(..), shows2, showList2
-    -- ** Some more-generic helper functions
+    -- ** Some more-generic helper functions for showing things
     , showListWith
     , showTuple
     -- ** some helpers for implementing the instances
@@ -42,80 +41,42 @@ module Language.Hakaru.Syntax.IClasses
     , showParen_11
     , showParen_22
     , showParen_111
+
     -- * Equality
     , Eq1(..)
     , Eq2(..)
     , TypeEq(..), symmetry, congruence
     , JmEq1(..)
     , JmEq2(..)
+
     -- * Generalized abstract nonsense
-    , Functor11(..)
+    , Functor11(..), Fix11(..), cata11, ana11, hylo11
     , Functor21(..)
     , Functor22(..)
-    , Fix11(..), cata11, ana11, hylo11
-    , Foldable11(..)
-    , Foldable21(..)
+    , Foldable11(..), Lift1(..)
+    , Foldable21(..), Lift2(..)
     , Foldable22(..)
+    
+    -- * Helper types
+    , Some(..)
+    , Pair1(..)
+    -- ** List types
+    , type (++), eqAppendNil, eqAppendAssoc
+    , List1(..), append1
+    , DList1(..), toList1, fromList1, dnil1, dsingleton1, dappend1
     ) where
 
-import Prelude hiding (id, (.))
+import Prelude hiding   (id, (.))
 import Control.Category (Category(..))
+import Unsafe.Coerce    (unsafeCoerce)
 #if __GLASGOW_HASKELL__ < 710
-import Data.Monoid
+import Data.Monoid      (Monoid(..))
 #endif
 
 ----------------------------------------------------------------
--- | Any unindexed type can be lifted to be (trivially) @k@-indexed.
-newtype Lift1 (a :: *) (i :: k) =
-    Lift1 { unLift1 :: a }
-    
-newtype Lift2 (a :: *) (i :: k1) (j :: k2) =
-    Lift2 { unLift2 :: a }
-
-
-----------------------------------------------------------------
-infixr 5 `Cons1`
-
--- | A list of 1-indexed elements, itself indexed by the list of indices
-data List1 :: (k -> *) -> [k] -> * where
-    Nil1  :: List1 a '[]
-    Cons1 :: a x -> List1 a xs -> List1 a (x ': xs)
-
-instance Show1 a => Show1 (List1 a) where
-    showsPrec1 _ Nil1         = showString     "Nil1"
-    showsPrec1 p (Cons1 x xs) = showParen_11 p "Cons1" x xs
-
-instance Show1 a => Show (List1 a xs) where
-    showsPrec = showsPrec1
-    show      = show1
-
-instance JmEq1 a  => JmEq1 (List1 a) where
-    jmEq1 Nil1         Nil1         = Just Refl
-    jmEq1 (Cons1 x xs) (Cons1 y ys) =
-        jmEq1 x  y  >>= \Refl ->
-        jmEq1 xs ys >>= \Refl ->
-        Just Refl
-    jmEq1 _            _            = Nothing
-    
-instance Eq1 a  => Eq1 (List1 a) where
-    eq1 Nil1         Nil1         = True
-    eq1 (Cons1 x xs) (Cons1 y ys) = eq1 x y && eq1 xs ys
-    eq1 _            _            = False
-
-instance Eq1 a  => Eq (List1 a xs) where
-    (==) = eq1
-
-instance Functor11 List1 where
-    fmap11 _ Nil1         = Nil1
-    fmap11 f (Cons1 x xs) = Cons1 (f x) (fmap11 f xs)
-
-instance Foldable11 List1 where
-    foldMap11 _ Nil1         = mempty
-    foldMap11 f (Cons1 x xs) = f x `mappend` foldMap11 f xs
-
 ----------------------------------------------------------------
 -- TODO: cf., <http://hackage.haskell.org/package/abt-0.1.1.0>
--- | Uniform variant of Show for @k@-indexed types. This differs
+-- | Uniform variant of 'Show' for @k@-indexed types. This differs
 -- from @transformers:@'Data.Functor.Classes.Show1' in being
 -- polykinded, like it ought to be.
 --
@@ -133,28 +94,8 @@ class Show1 (a :: k -> *) where
 shows1 :: (Show1 a) => a i -> ShowS
 shows1 =  showsPrec1 0
 
-
-showList1 :: Show1 a => [a i] -> ShowS
+showList1 :: (Show1 a) => [a i] -> ShowS
 showList1 = showListWith shows1
-
--- This implementation taken from 'showList' in base-4.8:"GHC.Show",
--- generalizing over the showing function.
-showListWith :: (a -> ShowS) -> [a] -> ShowS
-showListWith f = start
-    where
-    start []     s = "[]" ++ s
-    start (x:xs) s = '[' : f x (go xs)
-        where
-        go []     = ']' : s
-        go (y:ys) = ',' : f y (go ys)
-
--- This implementation taken from 'show_tuple' in base-4.8:"GHC.Show",
--- verbatim.
-showTuple :: [ShowS] -> ShowS
-showTuple ss
-    = showChar '('
-    . foldr1 (\s r -> s . showChar ',' . r) ss
-    . showChar ')'
 
 {-
 -- BUG: these require (Show (i::k)) in the class definition of Show1
@@ -175,13 +116,9 @@ instance Show1 (Either a) where
     show1      = show
 -}
 
-instance Show a => Show1 (Lift1 a) where
-    showsPrec1 p (Lift1 x) = showsPrec p x
-    show1        (Lift1 x) = show x
-
 
 ----------------------------------------------------------------
--- TODO: how to show that @Show2 a@ implies @Show1 (a i)@ for all @i@... This is needed for 'Datum'
+-- TODO: how to show, in general, that @Show2 a@ implies @Show1 (a i)@ for all @i@... This is needed for 'Datum' which uses the 'LC_' trick...
 class Show2 (a :: k1 -> k2 -> *) where
     {-# MINIMAL showsPrec2 | show2 #-}
 
@@ -198,15 +135,28 @@ showList2 :: Show2 a => [a i j] -> ShowS
 showList2 = showListWith shows2
 
 
-instance Show a => Show2 (Lift2 a) where
-    showsPrec2 p (Lift2 x) = showsPrec p x
-    show2        (Lift2 x) = show x
-
-instance Show a => Show1 (Lift2 a i) where
-    showsPrec1 p (Lift2 x) = showsPrec p x
-    show1        (Lift2 x) = show x
-
 ----------------------------------------------------------------
+-- This implementation taken from 'showList' in base-4.8:"GHC.Show",
+-- generalizing over the showing function.
+showListWith :: (a -> ShowS) -> [a] -> ShowS
+showListWith f = start
+    where
+    start []     s = "[]" ++ s
+    start (x:xs) s = '[' : f x (go xs)
+        where
+        go []     = ']' : s
+        go (y:ys) = ',' : f y (go ys)
+
+
+-- This implementation taken from 'show_tuple' in base-4.8:"GHC.Show",
+-- verbatim.
+showTuple :: [ShowS] -> ShowS
+showTuple ss
+    = showChar '('
+    . foldr1 (\s r -> s . showChar ',' . r) ss
+    . showChar ')'
+
+
 showParen_0 :: Show a => Int -> String -> a -> ShowS
 showParen_0 p s e =
     showParen (p > 9)
@@ -299,18 +249,9 @@ class Eq1 (a :: k -> *) where
     eq1 :: a i -> a i -> Bool
     -- TODO: how do we give the default instance for whenever we have a JmEq1 instance?
 
-instance Eq a => Eq1 (Lift1 a) where
-    eq1 (Lift1 a) (Lift1 b) = a == b
 
-----------------------------------------------------------------
 class Eq2 (a :: k1 -> k2 -> *) where
     eq2 :: a i j -> a i j -> Bool
-
-instance Eq a => Eq2 (Lift2 a) where
-    eq2 (Lift2 a) (Lift2 b) = a == b
-    
-instance Eq a => Eq1 (Lift2 a i) where
-    eq1 (Lift2 a) (Lift2 b) = a == b
 
 
 
@@ -327,6 +268,7 @@ instance Category TypeEq where
     id          = Refl
     Refl . Refl = Refl
 
+-- | Type equality is symmetric.
 symmetry :: TypeEq a b -> TypeEq b a
 symmetry Refl = Refl
 
@@ -348,9 +290,16 @@ class Eq1 a => JmEq1 (a :: k -> *) where
 class Eq2 a => JmEq2 (a :: k1 -> k2 -> *) where
     jmEq2 :: a i1 j1 -> a i2 j2 -> Maybe (TypeEq i1 i2, TypeEq j1 j2)
 
+
 ----------------------------------------------------------------
 ----------------------------------------------------------------
--- | A functor on the category of @k@-indexed types (i.e., from @k@-indexed types to @k@-indexed types). We unify the two indices, because that seems the most helpful for what we're doing; we could, of course, offer a different variant that maps @k1@-indexed types to @k2@-indexed types...
+-- TODO: rather than having this plethora of classes for different indexing, define newtypes for 1-natural transformations, 2-natural transformations, etc; and then define a single higher-order functor class which is parameterized by the input and output categories.
+
+-- | A functor on the category of @k@-indexed types (i.e., from
+-- @k@-indexed types to @k@-indexed types). We unify the two indices,
+-- because that seems the most helpful for what we're doing; we
+-- could, of course, offer a different variant that maps @k1@-indexed
+-- types to @k2@-indexed types...
 --
 -- Alas, I don't think there's any way to derive instances the way
 -- we can derive for 'Functor'.
@@ -361,6 +310,7 @@ class Functor11 (f :: (k1 -> *) -> k2 -> *) where
 -- | A functor from @(k1,k2)@-indexed types to @k3@-indexed types.
 class Functor21 (f :: (k1 -> k2 -> *) -> k3 -> *) where
     fmap21 :: (forall h i. a h i -> b h i) -> f a j -> f b j
+
 
 -- | A functor from @(k1,k2)@-indexed types to @(k3,k4)@-indexed types.
 class Functor22 (f :: (k1 -> k2 -> *) -> k3 -> k4 -> *) where
@@ -428,7 +378,6 @@ class Functor11 f => Foldable11 (f :: (k1 -> *) -> k2 -> *) where
 -- TODO: standard Foldable wrappers 'and11', 'or11', 'all11', 'any11',...
 
 
-
 class Functor21 f => Foldable21 (f :: (k1 -> k2 -> *) -> k3 -> *) where
     {-# MINIMAL fold21 | foldMap21 #-}
 
@@ -439,8 +388,7 @@ class Functor21 f => Foldable21 (f :: (k1 -> k2 -> *) -> k3 -> *) where
     foldMap21 f = fold21 . fmap21 (Lift2 . f)
     
 
-class Functor22 f
-    =>
+class Functor22 f =>
     Foldable22 (f :: (k1 -> k2 -> *) -> k3 -> k4 -> *)
     where
     {-# MINIMAL fold22 | foldMap22 #-}
@@ -450,6 +398,237 @@ class Functor22 f
 
     foldMap22 :: (Monoid m) => (forall h i. a h i -> m) -> f a j l -> m
     foldMap22 f = fold22 . fmap22 (Lift2 . f)
+
+
+----------------------------------------------------------------
+----------------------------------------------------------------
+-- | Any unindexed type can be lifted to be (trivially) @k@-indexed.
+newtype Lift1 (a :: *) (i :: k) =
+    Lift1 { unLift1 :: a }
+    deriving (Read, Show, Eq, Ord)
+
+instance Show a => Show1 (Lift1 a) where
+    showsPrec1 p (Lift1 x) = showsPrec p x
+    show1        (Lift1 x) = show x
+
+instance Eq a => Eq1 (Lift1 a) where
+    eq1 (Lift1 a) (Lift1 b) = a == b
+
+
+----------------------------------------------------------------
+-- | Any unindexed type can be lifted to be (trivially) @(k1,k2)@-indexed.
+newtype Lift2 (a :: *) (i :: k1) (j :: k2) =
+    Lift2 { unLift2 :: a }
+    deriving (Read, Show, Eq, Ord)
+
+instance Show a => Show2 (Lift2 a) where
+    showsPrec2 p (Lift2 x) = showsPrec p x
+    show2        (Lift2 x) = show x
+
+instance Show a => Show1 (Lift2 a i) where
+    showsPrec1 p (Lift2 x) = showsPrec p x
+    show1        (Lift2 x) = show x
+    
+instance Eq a => Eq2 (Lift2 a) where
+    eq2 (Lift2 a) (Lift2 b) = a == b
+    
+instance Eq a => Eq1 (Lift2 a i) where
+    eq1 (Lift2 a) (Lift2 b) = a == b
+
+
+----------------------------------------------------------------
+-- | Existentially quantify over an index.
+-- TODO: replace 'SomeVariable' with @(Some Variable)@
+data Some (a :: k -> *) where
+    Some :: !(a i) -> Some a
+
+instance Show1 a => Show (Some a) where
+    showsPrec p (Some x) = showParen_1 p "Some" x
+
+instance JmEq1 a  => Eq (Some a) where
+    Some x == Some y = maybe False (const True) (jmEq1 x y)
+
+
+----------------------------------------------------------------
+-- | A /strict/ pairing of identically @k@-indexed values.
+data Pair1 (a :: k -> *) (b :: k -> *) (i :: k) =
+    Pair1 !(a i) !(b i)
+
+instance (Show1 a, Show1 b) => Show1 (Pair1 a b) where
+    showsPrec1 p (Pair1 x y) = showParen_11 p "Pair1" x y
+
+instance (Show1 a, Show1 b) => Show (Pair1 a b i) where
+    showsPrec = showsPrec1
+    show      = show1
+
+
+----------------------------------------------------------------
+----------------------------------------------------------------
+-- TODO: move all the list stuff off somewhere else
+
+-- BUG: how do we actually use the term-level @(++)@ at the type level? Or do we have to redefine it ourselves (as below)? If we define it ourselves, how can we make sure it's usable? In particular, how can we prove associativity and that @'[]@ is a /two-sided/ identity element?
+type family (xs :: [k]) ++ (ys :: [k]) :: [k]
+type instance '[]       ++ ys = ys 
+type instance (x ': xs) ++ ys = x ': (xs ++ ys) 
+
+{-
+-- BUG: having the instances for @[[HakaruFun]]@ and @[HakaruFun]@ precludes giving a general kind-polymorphic data instance for type-level lists; so we have to monomorphize it to just the @[Hakaru]@ kind.
+-- TODO: we should figure out some way to clean that up without introducing too much ambiguity\/overloading of the constructor names.
+data instance Sing (xs :: [Hakaru]) where
+    SNil  :: Sing ('[] :: [Hakaru])
+    SCons :: !(Sing x) -> !(Sing xs) -> Sing ((x ': xs) :: [Hakaru])
+
+-- BUG: ghc calls all these orphan instances, even though the data instance is defined here... Will that actually cause problems? Should we move this to TypeEq.hs?
+instance Show1 (Sing :: [Hakaru] -> *) where
+    showsPrec1 p s =
+        case s of
+        SNil        -> showString     "SNil"
+        SCons s1 s2 -> showParen_11 p "SCons" s1 s2
+instance Show (Sing (xs :: [Hakaru])) where
+    showsPrec = showsPrec1
+    show      = show1
+instance SingI ('[] :: [Hakaru]) where
+    sing = SNil
+instance (SingI x, SingI xs) => SingI ((x ': xs) :: [Hakaru]) where
+    sing = SCons sing sing
+-}
+
+
+eqAppendNil :: proxy xs -> TypeEq xs (xs ++ '[])
+-- This version should be used for runtime performance
+eqAppendNil _ = unsafeCoerce Refl
+{-
+-- This version demonstrates that our use of unsafeCoerce is sound
+-- BUG: to have an argument of type @Sing xs@, instead of an arbitrary @proxy xs@, we'd need to store the singleton somewhere (prolly in the 'Branch', for the use site in TypeCheck.hs) or else produce it somehow
+eqAppendNil :: Sing (xs :: [Hakaru]) -> TypeEq xs (xs ++ '[])
+eqAppendNil SNil        = Refl
+eqAppendNil (SCons _ s) = case eqAppendNil s of Refl -> Refl
+-}
+
+eqAppendAssoc
+    :: proxy1 xs
+    -> proxy2 ys
+    -> proxy3 zs
+    -> TypeEq ((xs ++ ys) ++ zs) (xs ++ (ys ++ zs))
+-- This version should be used for runtime performance
+eqAppendAssoc _ _ _ = unsafeCoerce Refl
+{-
+-- This version demonstrates that our use of unsafeCoerce is sound
+-- BUG: to have the arguments be of type @Sing xs@, instead of arbitrary proxy types, we'd need to store the singletons somewhere (for the use site in TypeCheck.hs), but where?
+eqAppendAssoc
+    :: Sing (xs :: [Hakaru])
+    -> Sing (ys :: [Hakaru])
+    -> Sing (zs :: [Hakaru])
+    -> TypeEq ((xs ++ ys) ++ zs) (xs ++ (ys ++ zs))
+eqAppendAssoc SNil         _  _  = Refl
+eqAppendAssoc (SCons _ sx) sy sz =
+    case eqAppendAssoc sx sy sz of Refl -> Refl
+-}
+
+
+----------------------------------------------------------------
+infixr 5 `Cons1`
+
+-- | A /lazy/ list of @k@-indexed elements, itself indexed by the
+-- list of indices
+data List1 :: (k -> *) -> [k] -> * where
+    Nil1  :: List1 a '[]
+    Cons1 :: a x -> List1 a xs -> List1 a (x ': xs)
+
+
+append1 :: List1 a xs -> List1 a ys -> List1 a (xs ++ ys)
+append1 Nil1         ys = ys
+append1 (Cons1 x xs) ys = Cons1 x (append1 xs ys)
+
+
+instance Show1 a => Show1 (List1 a) where
+    showsPrec1 _ Nil1         = showString     "Nil1"
+    showsPrec1 p (Cons1 x xs) = showParen_11 p "Cons1" x xs
+
+instance Show1 a => Show (List1 a xs) where
+    showsPrec = showsPrec1
+    show      = show1
+
+instance JmEq1 a  => JmEq1 (List1 a) where
+    jmEq1 Nil1         Nil1         = Just Refl
+    jmEq1 (Cons1 x xs) (Cons1 y ys) =
+        jmEq1 x  y  >>= \Refl ->
+        jmEq1 xs ys >>= \Refl ->
+        Just Refl
+    jmEq1 _ _ = Nothing
+
+instance Eq1 a  => Eq1 (List1 a) where
+    eq1 Nil1         Nil1         = True
+    eq1 (Cons1 x xs) (Cons1 y ys) = eq1 x y && eq1 xs ys
+    eq1 _            _            = False
+
+instance Eq1 a  => Eq (List1 a xs) where
+    (==) = eq1
+
+instance Functor11 List1 where
+    fmap11 _ Nil1         = Nil1
+    fmap11 f (Cons1 x xs) = Cons1 (f x) (fmap11 f xs)
+
+instance Foldable11 List1 where
+    foldMap11 _ Nil1         = mempty
+    foldMap11 f (Cons1 x xs) = f x `mappend` foldMap11 f xs
+
+
+----------------------------------------------------------------
+-- TODO: cf the interface of <https://hackage.haskell.org/package/dlist-0.7.1.2/docs/Data-DList.html>
+-- | A difference-list variant of 'List1'.
+newtype DList1 a xs =
+    DList1 { unDList1 :: forall ys. List1 a ys -> List1 a (xs ++ ys) }
+
+
+toList1 :: DList1 a xs -> List1 a xs
+toList1 dx@(DList1 xs) =
+    case eqAppendNil dx of
+    Refl -> xs Nil1
+
+fromList1 :: List1 a xs -> DList1 a xs
+fromList1 xs = DList1 (append1 xs)
+    -- N.B., using @DList1 . append1@ doesn't type check
+
+dnil1 :: DList1 a '[]
+dnil1 = DList1 id
+
+-- HACK: we need to give this a top-level definition rather than
+-- inlining it in order to prove that the resulting index is @[x]@
+-- rather than possibly some other @(x:xs)@. No, I'm not sure why
+-- GHC can't infer that...
+dsingleton1 :: a x -> DList1 a '[ x ]
+dsingleton1 x = DList1 (Cons1 x)
+
+dappend1 :: DList1 a xs -> DList1 a ys -> DList1 a (xs ++ ys)
+dappend1 dx@(DList1 xs) dy@(DList1 ys) =
+    DList1 $ \zs ->
+        case eqAppendAssoc dx dy zs of
+        Refl -> xs (ys zs)
+
+{-
+instance Show1 a => Show1 (DList1 a) where
+    showsPrec1 p xs =
+
+instance Show1 a => Show (DList1 a xs) where
+    showsPrec = showsPrec1
+    show      = show1
+
+instance JmEq1 a => JmEq1 (DList1 a) where
+    jmEq1 xs ys =
+
+instance Eq1 a => Eq1 (DList1 a) where
+    eq1 xs ys =
+
+instance Eq1 a => Eq (DList1 a xs) where
+    (==) = eq1
+
+instance Functor11 DList1 where
+    fmap11 f xs =
+
+instance Foldable11 DList1 where
+    foldMap11 f xs =
+-}
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

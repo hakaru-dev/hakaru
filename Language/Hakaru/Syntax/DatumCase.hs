@@ -23,14 +23,7 @@
 -- Reduction of case analysis on user-defined data types.
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.DatumCase
-    (
-    -- * Helper types
-      Some(..)
-    , Pair1(..)
-    , DList1(..), runDList1, toDList1, dnil1, dappend1
-
-    -- * Reduction of case analysis
-    , MatchResult(..)
+    ( MatchResult(..)
     , matchBranches
     , matchBranch
     ) where
@@ -47,73 +40,6 @@ import qualified Language.Hakaru.Syntax.Prelude as P
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
--- | Existentially quantify over an index.
--- TODO: move elsewhere.
--- TODO: replace 'SomeVariable' with @(Some Variable)@
-data Some :: (k -> *) -> * where
-    Some :: !(f a) -> Some f
-
-
-data Pair1 (f :: k -> *) (g :: k -> *) (i :: k) = Pair1 !(f i) !(g i)
-
-
--- TODO: move 'DList1' and all associated things somewhere else (e.g., IClasses.hs)
-newtype DList1 a xs =
-    DList1 { unDList1 :: forall ys. List1 a ys -> List1 a (xs ++ ys) }
-
-runDList1 :: DList1 a xs -> List1 a xs
-runDList1 dx@(DList1 xs) =
-    case eqAppendNil dx of
-    Refl -> xs Nil1
-
-toDList1 :: List1 a xs -> DList1 a xs
-toDList1 xs = DList1 (append1 xs) -- N.B., can't use @DList1 . append1@ here
-
-append1 :: List1 a xs -> List1 a ys -> List1 a (xs ++ ys)
-append1 Nil1         ys = ys
-append1 (Cons1 x xs) ys = Cons1 x (append1 xs ys)
-
-dnil1 :: DList1 a '[]
-dnil1 = DList1 id
-
--- HACK: we need to give this a top-level definition rather than
--- inlining it in order to prove that the resulting index is @[x]@
--- rather than possibly some other @(x:xs)@. No, I'm not sure why
--- GHC can't infer that...
-dsingleton1 :: a x -> DList1 a '[ x ]
-dsingleton1 x = DList1 (Cons1 x)
-
-dappend1 :: DList1 a xs -> DList1 a ys -> DList1 a (xs ++ ys)
-dappend1 dx@(DList1 xs) dy@(DList1 ys) =
-    DList1 $ \zs ->
-        case eqAppendAssoc dx dy zs of
-        Refl -> xs (ys zs)
-
-{-
-instance Show1 a => Show1 (DList1 a) where
-    showsPrec1 p xs =
-
-instance Show1 a => Show (DList1 a xs) where
-    showsPrec = showsPrec1
-    show      = show1
-
-instance JmEq1 a => JmEq1 (DList1 a) where
-    jmEq1 xs ys =
-
-instance Eq1 a => Eq1 (DList1 a) where
-    eq1 xs ys =
-
-instance Eq1 a => Eq (DList1 a xs) where
-    (==) = eq1
-
-instance Functor11 DList1 where
-    fmap11 f xs =
-
-instance Foldable11 DList1 where
-    foldMap11 f xs =
--}
-
-----------------------------------------------------------------
 data MatchResult :: ([Hakaru] -> Hakaru -> *) -> [Hakaru] -> Hakaru -> * where
     -- TODO: actually store information inside GotStuck so we can
     -- force the appropriate expression and continue without needing

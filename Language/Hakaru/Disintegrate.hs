@@ -14,7 +14,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.21
+--                                                    2015.10.22
 -- |
 -- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -52,6 +52,7 @@ import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
+import Language.Hakaru.Syntax.DatumCase
 import Language.Hakaru.Syntax.ABT
 import qualified Language.Hakaru.Syntax.Prelude as P
 import Language.Hakaru.Expect (total)
@@ -471,20 +472,13 @@ evaluate e =
         LE    e1 e2            -> (<=)   <$> evaluate e1 <*> evaluate e2
         Plus  e1 e2            -> (+)    <$> evaluate e1 <*> evaluate e2
         Times e1 e2            -> (*)    <$> evaluate e1 <*> evaluate e2
-
+-}
 
 toStatements
     :: DList1 (Pair1 Variable (abt '[])) vars
     -> [Statement s abt]
 toStatements = 
-    foldMap11 ((:[]) . toStatement) . runDList1
-
-
-go . runDList1
-    where
-    go :: List1 (Pair1 Variable (abt '[])) vars -> [Statement s abt]
-    go Nil1           = []
-    go (Cons1 xv xvs) = toStatement xv : go xvs
+    foldMap11 ((:[]) . toStatement) . toList1
 
 
 toStatement :: Pair1 Variable (abt '[]) a -> Statement s abt
@@ -498,12 +492,12 @@ tryMatch
     -> (abt '[] b -> M s abt (Whnf (abt '[]) b))
     -> M s abt (Whnf (abt '[]) b)
 tryMatch e bs k =
-    case matchPatterns e bs of
-    MatchFail        -> error "tryMatch: nothing matched!"
-    MatchStuck       -> error "TODO" -- return . Neutral . syn $ Case_ e bs
-    Matched ss body' -> error "TODO" -- pushes (toStatements ss) >> k body' -- BUG: need to hack the types to prove @'[] ~ ys@ from @'[] ~ (xs ++ ys)@
+    case matchBranches e bs of
+    Nothing                 -> error "tryMatch: nothing matched!"
+    Just GotStuck           -> error "TODO" -- return . Neutral . syn $ Case_ e bs
+    Just (Matched ss body') -> pushes (toStatements ss) >> k body'
 
-
+{-
 ----------------------------------------------------------------        
 -- TODO: should this really return @Whnf (L s abt) a@ or @Whnf (abt '[]) a@ ? cf., type mismatch between what 'evaluate' gives and what 'SLet' wants.
 update :: Variable a -> M s abt (Whnf (abt '[]) a)

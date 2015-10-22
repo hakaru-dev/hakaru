@@ -43,7 +43,6 @@ module Language.Hakaru.Syntax.Datum
     , Branch(..)
     , Pattern(..)
     , PDatumCode(..)
-    , type (++), eqAppendNil, eqAppendAssoc
     , PDatumStruct(..)
     , PDatumFun(..)
     -- ** Some smart constructors for the \"built-in\" datatypes
@@ -55,11 +54,10 @@ module Language.Hakaru.Syntax.Datum
     , pNothing, pJust
     ) where
 
-import           Unsafe.Coerce (unsafeCoerce) -- TODO: move the stuff that uses this off to a separate file
 import qualified Data.Text     as Text
 import           Data.Text     (Text)
 #if __GLASGOW_HASKELL__ < 710
-import Data.Monoid             hiding (Sum)
+import Data.Monoid             (Monoid(..))
 #endif
 
 import Language.Hakaru.Syntax.IClasses
@@ -344,67 +342,6 @@ instance Show1 (PDatumCode xss vars) where
 
 instance Show (PDatumCode xss vars a) where
     showsPrec = showsPrec1
-
-
-----------------------------------------------------------------
--- BUG: how do we actually use the term-level @(++)@ at the type level? Or do we have to redefine it ourselves (as below)? If we define it ourselves, how can we make sure it's usable? In particular, how can we prove associativity and that @'[]@ is a /two-sided/ identity element?
-type family (xs :: [k]) ++ (ys :: [k]) :: [k]
-type instance '[]       ++ ys = ys 
-type instance (x ': xs) ++ ys = x ': (xs ++ ys) 
-
-{-
--- BUG: having the instances for @[[HakaruFun]]@ and @[HakaruFun]@ precludes giving a general kind-polymorphic data instance for type-level lists; so we have to monomorphize it to just the @[Hakaru]@ kind.
--- TODO: we should figure out some way to clean that up without introducing too much ambiguity\/overloading of the constructor names.
-data instance Sing (xs :: [Hakaru]) where
-    SNil  :: Sing ('[] :: [Hakaru])
-    SCons :: !(Sing x) -> !(Sing xs) -> Sing ((x ': xs) :: [Hakaru])
-
--- BUG: ghc calls all these orphan instances, even though the data instance is defined here... Will that actually cause problems? Should we move this to TypeEq.hs?
-instance Show1 (Sing :: [Hakaru] -> *) where
-    showsPrec1 p s =
-        case s of
-        SNil        -> showString     "SNil"
-        SCons s1 s2 -> showParen_11 p "SCons" s1 s2
-instance Show (Sing (xs :: [Hakaru])) where
-    showsPrec = showsPrec1
-    show      = show1
-instance SingI ('[] :: [Hakaru]) where
-    sing = SNil
-instance (SingI x, SingI xs) => SingI ((x ': xs) :: [Hakaru]) where
-    sing = SCons sing sing
--}
-
-
-eqAppendNil :: proxy xs -> TypeEq xs (xs ++ '[])
--- This version should be used for runtime performance
-eqAppendNil _ = unsafeCoerce Refl
-{-
--- This version demonstrates that our use of unsafeCoerce is sound
--- BUG: to have an argument of type @Sing xs@, instead of an arbitrary @proxy xs@, we'd need to store the singleton somewhere (prolly in the 'Branch', for the use site in TypeCheck.hs) or else produce it somehow
-eqAppendNil :: Sing (xs :: [Hakaru]) -> TypeEq xs (xs ++ '[])
-eqAppendNil SNil        = Refl
-eqAppendNil (SCons _ s) = case eqAppendNil s of Refl -> Refl
--}
-
-eqAppendAssoc
-    :: proxy1 xs
-    -> proxy2 ys
-    -> proxy3 zs
-    -> TypeEq ((xs ++ ys) ++ zs) (xs ++ (ys ++ zs))
--- This version should be used for runtime performance
-eqAppendAssoc _ _ _ = unsafeCoerce Refl
-{-
--- This version demonstrates that our use of unsafeCoerce is sound
--- BUG: to have the arguments be of type @Sing xs@, instead of arbitrary proxy types, we'd need to store the singletons somewhere (for the use site in TypeCheck.hs), but where?
-eqAppendAssoc
-    :: Sing (xs :: [Hakaru])
-    -> Sing (ys :: [Hakaru])
-    -> Sing (zs :: [Hakaru])
-    -> TypeEq ((xs ++ ys) ++ zs) (xs ++ (ys ++ zs))
-eqAppendAssoc SNil         _  _  = Refl
-eqAppendAssoc (SCons _ sx) sy sz =
-    case eqAppendAssoc sx sy sz of Refl -> Refl
--}
 
 
 ----------------------------------------------------------------
