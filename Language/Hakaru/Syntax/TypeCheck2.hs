@@ -32,6 +32,7 @@ module Language.Hakaru.Syntax.TypeCheck where
 import           Data.IntMap           (IntMap)
 import qualified Data.IntMap           as IM
 import qualified Data.Traversable      as T
+import qualified Data.Sequence         as S
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative   (Applicative(..), (<$>))
 #endif
@@ -304,7 +305,7 @@ inferType = inferType_
           U.Sealed1 op ->
               let typ = sing_NaryOp op in do
               es' <- T.forM es $ checkType typ
-              return $ TypedAST typ (syn(NaryOp_ op es'))
+              return $ TypedAST typ (syn(NaryOp_ op (S.fromList es')))
 
     U.Value_ v ->
         -- BUG: need to finish implementing sing_Value for Datum
