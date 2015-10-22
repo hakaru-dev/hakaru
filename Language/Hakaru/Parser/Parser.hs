@@ -177,7 +177,7 @@ type_expr = type_nat
         <|> type_prob
         <|> type_real
         <|> try type_app
-        -- <|> try type_fun
+        <|> try type_fun
         <|> type_var
 
 ann_expr :: Parser (AST' Text)
