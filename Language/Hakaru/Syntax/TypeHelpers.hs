@@ -12,8 +12,7 @@
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 
 module Language.Hakaru.Syntax.TypeHelpers
-    ( Sealed(..)
-    , sing_NaryOp
+    ( sing_NaryOp
     , sing_PrimOp
     , sing_MeasureOp
     , sing_Value
@@ -30,8 +29,6 @@ import Language.Hakaru.Syntax.TypeEq
 import Language.Hakaru.Syntax.AST
 
 import qualified Language.Hakaru.Parser.AST as U
-
-data Sealed op = forall a. Sealed (op a)
 
 -- N.B., we do case analysis so that we don't need the class constraint!
 sing_Value :: Value a -> Sing a
@@ -60,11 +57,11 @@ sing_Value (VDatum (Datum hint d)) = error "TODO: sing_Value{VDatum}"
     goF (Ident e1) = SIdent -- @sing_Value e1@ is what the first argument to SData should be; assuming we actually make it to this branch...
     -}
 
-type_Value :: U.Value' -> Sealed Value
-type_Value (U.Nat  v) = Sealed $ VNat  (unsafeNat v)
-type_Value (U.Int  v) = Sealed $ VInt  v
-type_Value (U.Prob v) = Sealed $ VProb (logFloat v)
-type_Value (U.Real v) = Sealed $ VReal v
+type_Value :: U.Value' -> U.Sealed1 Value
+type_Value (U.Nat  v) = U.Sealed1 $ VNat  (unsafeNat v)
+type_Value (U.Int  v) = U.Sealed1 $ VInt  v
+type_Value (U.Prob v) = U.Sealed1 $ VProb (logFloat v)
+type_Value (U.Real v) = U.Sealed1 $ VReal v
 type_Value (U.Datum _) = error "TODO: type_Value(Datum)"
 
 -- TODO: we don't need to store the HOrd\/HSemiring values here,
