@@ -162,21 +162,22 @@ ann_expr = do
   t <- type_expr
   return $ Ann e t
 
-datum_expr :: Parser (Datum' Text)
-datum_expr = do
+pdat_expr :: Parser (Datum' Text)
+pdat_expr = do
    n <- identifier
    args <- parens $ commaSep identifier
    return $ DV n args
 
 pat_expr :: Parser (Pattern' Text)
 pat_expr = do
-      (identifier >>= return . PVar')
-  <|> (reservedOp "_" >> return PWild')
-  <|> try (datum_expr >>= return . PData')
+      try (pdat_expr >>= return . PData')
+  <|> (reservedOp "_" >> return PWild') 
+  <|> (identifier >>= return . PVar')
 
 branch_expr :: Parser (Branch' Text)
 branch_expr = do
    p <- pat_expr
+   reservedOp ":"
    e <- expr
    return $ Branch' p e
 
@@ -196,7 +197,7 @@ data_expr = do
    args <- parens $ commaSep identifier
    reservedOp ":"
    defs <- localIndentation Gt $
-             many $ absoluteIndentation (type_var <|> type_app)
+             many $ absoluteIndentation (try type_app <|> type_var)
    return $ Data name defs
    
 

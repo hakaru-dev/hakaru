@@ -8,6 +8,7 @@
 module Language.Hakaru.Parser.AST where
 
 import Language.Hakaru.Syntax.DataKind
+import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.AST    (PrimOp(..), NaryOp(..), LCs(..), UnLCs (..))
 import Language.Hakaru.Syntax.ABT(Name(..))
 import Language.Hakaru.Syntax.Sing
@@ -16,6 +17,9 @@ import Data.Text
 import Text.Parsec (SourcePos)
 
 data Sealed1 op = forall a. Sealed1 (op a)
+
+data Sealed2 op  where
+     Sealed2 :: op args a -> Sealed2 op
 
 data SealedOp op where
      SealedOp
@@ -139,20 +143,15 @@ data Pattern a =
    | PWild
    | PData [AST a]
 
-data Coerce'  =
-     CNone
-   | CSigned Coerce'
-   | CContinuous Coerce'
-
 data AST a =
-     Var_        Name
+     Var_        a
    | Lam_        Name    (AST a)
    | App_        (AST a) (AST a)
    | Fix_        Name    (AST a)
    | Let_        Name    (AST a) (AST a)
    | Ann_        (AST a) Hakaru
-   | CoerceTo_   Coerce' (AST a)
-   | UnsafeFrom_ Coerce' (AST a)
+   | CoerceTo_   [Sealed2 Coercion] (AST a)
+   | UnsafeFrom_ [Sealed2 Coercion] (AST a)
    | PrimOp_     (SealedOp PrimOp) [AST a]
    | NaryOp_     (Sealed1 NaryOp)  [AST a]
    | Value_      Value'
