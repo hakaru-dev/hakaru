@@ -23,9 +23,10 @@ import Language.Hakaru.Syntax.DataKind
 
 ops, names :: [String]
 
-ops   = ["+","*","-",":","::", "<~","==", "="]
+ops   = ["+","*","-",":","::", "<~","==", "=", "_"]
 types = ["int", "prob", "nat", "real", "->"]
-names = ["def","fn", "if","else","pi","inf", "return"]
+names = ["def","fn", "if","else","pi","inf",
+         "return", "match", "data"]
 
 type Parser = ParsecT (IndentStream (CharIndentStream Text)) () Identity
 
@@ -187,8 +188,23 @@ ann_expr = do
   t <- type_expr
   return $ Ann e t
 
+-- TODO: finish me
 match_expr :: Parser (AST' Text)
-match_expr = undefined
+match_expr = do
+   reserved "match"
+   a <- expr
+   reservedOp ":"
+   return $ Case a []
+
+-- TODO: finish me
+data_expr :: Parser (AST' Text)
+data_expr = do
+   reserved "data"
+   name <- identifier
+   args <- parens $ commaSep identifier
+   reservedOp ":"
+   return $ Data name
+   
 
 op_factor :: Parser (AST' Text)
 op_factor =     try (M.liftM Value floating)

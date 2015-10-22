@@ -20,11 +20,15 @@ data Sealed2 op  where
 
 type Name' = Text
 
-data Branch'  a = Branch' (Pattern' a) (AST' a)
+data Branch'  a =
+     Branch' (Pattern' a) (AST' a)
+     deriving (Eq, Show)
+
 data Pattern' a =
-     PVar'  Name'
+     PVar'  a
    | PWild'
-   | PData' Name' [AST' a]
+   | PData' a [AST' a]
+   deriving (Eq, Show)
 
 -- Meta stores start and end position for AST in source code
 newtype Meta = Meta (SourcePos, SourcePos) deriving (Eq, Show)
@@ -69,9 +73,9 @@ data AST' a =
 
    | Value Value'
    | Empty
---    | Case  (AST' a) [(Branch' a)] -- match
+   | Case  (AST' a) [(Branch' a)] -- match
    | Bind  Name' (AST' a) (AST' a)
---    | Data Sop
+   | Data  Name'
    | WithMeta (AST' a) Meta
 
 data PrimOp' =
