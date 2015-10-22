@@ -1,11 +1,22 @@
-{-# LANGUAGE RankNTypes, GADTs, ExistentialQuantification, StandaloneDeriving #-}
+{-# LANGUAGE RankNTypes,
+             GADTs,
+             Rank2Types,
+             DataKinds,
+             PolyKinds,
+             ExistentialQuantification,
+             StandaloneDeriving #-}
 module Language.Hakaru.Parser.AST where
 
 import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.AST()
+import Language.Hakaru.Syntax.AST    (PrimOp(..), NaryOp(..))
 import Language.Hakaru.Syntax.ABT(Name(..))
 import Data.Text
 import Text.Parsec (SourcePos)
+
+data Sealed1 op = forall a. Sealed1 (op a)
+
+data Sealed2 op  where
+     Sealed2 :: op args a -> Sealed2 op
 
 type Name' = Text
 
@@ -63,46 +74,32 @@ data AST' a =
 --    | Data Sop
    | WithMeta (AST' a) Meta
 
-data PrimOp' a =
-     Not'        (AST a)
-   | Impl'       (AST a) (AST a)
-   | Diff'       (AST a) (AST a)
-   | Nand'       (AST a) (AST a)
-   | Nor'        (AST a) (AST a)
+data PrimOp' =
+     Not'        
+   | Impl'       
+   | Diff'       
+   | Nand'  | Nor'        
    | Pi'        
-   | Sin'        (AST a)
-   | Cos'        (AST a)
-   | Tan'        (AST a)
-   | Asin'       (AST a)
-   | Acos'       (AST a)
-   | Atan'       (AST a)
-   | Sinh'       (AST a)
-   | Cosh'       (AST a)
-   | Tanh'       (AST a)
-   | Asinh'      (AST a)
-   | Acosh'      (AST a)
-   | Atanh'      (AST a)
-   | RealPow'    (AST a) (AST a)
-   | Exp'        (AST a)
-   | Log'        (AST a)
-   | Infinity'
-   | NegativeInfinity'
-   | GammaFunc' (AST a)
-   | BetaFunc'  (AST a)
-   | Integrate' (AST a) (AST a) (AST a)
-   | Summate'   (AST a) (AST a) (AST a)
-   | Index'     (AST a) (AST a)
-   | Size'      (AST a)
-   | Reduce'    (AST a) (AST a)
-   | Equal'     (AST a) (AST a)
-   | Less'      (AST a) (AST a)
-   | NatPow'    (AST a) (AST a)
-   | Negate'    (AST a)
-   | Abs'       (AST a)
-   | Signum'    (AST a)
-   | Recip'     (AST a)
-   | NatRoot'   (AST a) (AST a)
-   | Erf'       (AST a)
+   | Sin'   | Cos'   | Tan'        
+   | Asin'  | Acos'  | Atan'       
+   | Sinh'  | Cosh'  | Tanh'       
+   | Asinh' | Acosh' | Atanh'      
+   | RealPow'    
+   | Exp'   | Log'        
+   | Infinity'  | NegativeInfinity'
+   | GammaFunc' | BetaFunc' 
+   | Integrate' | Summate'  
+   | Index'    
+   | Size'     
+   | Reduce'   
+   | Equal'     | Less'     
+   | NatPow'   
+   | Negate'   
+   | Abs'      
+   | Signum'   
+   | Recip'    
+   | NatRoot'  
+   | Erf'      
 
 data NaryOp' =
      And'
@@ -147,8 +144,8 @@ data AST a =
    | Ann_        (AST a) Hakaru
    | CoerceTo_   Coerce' (AST a)
    | UnsafeFrom_ Coerce' (AST a)
-   | PrimOp_     (PrimOp' a)
-   | NaryOp_     NaryOp' (AST a)
+   | PrimOp_     (Sealed2 PrimOp) [AST a]
+   | NaryOp_     (Sealed1 NaryOp) [AST a]
    | Value_      Value'
    | Empty_
    | Array_      (AST a) (AST a)

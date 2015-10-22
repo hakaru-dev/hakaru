@@ -32,6 +32,7 @@ module Language.Hakaru.Syntax.TypeCheck where
 import           Data.IntMap           (IntMap)
 import qualified Data.IntMap           as IM
 import qualified Data.Traversable      as T
+import qualified Data.Sequence         as S
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative   (Applicative(..), (<$>))
 #endif
@@ -82,7 +83,7 @@ mustCheck = go
     go (U.UnsafeFrom_ U.CNone e)      = mustCheck e
     go (U.UnsafeFrom_ _       _)      = False
 
-    go (U.PrimOp_ _)      = False
+    go (U.PrimOp_ _ _)    = False
     go (U.NaryOp_ _ _)    = False
     go (U.Value_ _)       = False
 
@@ -292,20 +293,25 @@ inferType = inferType_
         e1' <- checkType typ1 e1
         return $ TypedAST typ1 (syn(Ann_ typ1 :$ e1' :* End))
 
-    -- Syn (PrimOp_ o :$ es) ->
-    --     let (typs, typ1) = sing_PrimOp o in do
-    --     es' <- checkSArgs typs es
-    --     return (typ1, syn(PrimOp_ o :$ es'))
+    U.PrimOp_ o es ->
+        case o of
+          U.Sealed2 op ->
+              let (typs, typ1) = sing_PrimOp op in do
+              es' <- checkSArgs typs es  :: (args ~ UnLCs (LCs args) =>
+                                                   TypeCheckMonad (SArgs abt args))
+              return $ TypedAST typ1 (syn(PrimOp_ op :$ es'))
 
-    -- Syn (NaryOp_ o es) ->
-    --     let typ = sing_NaryOp o in do
-    --     es' <- T.forM es $ checkType typ
-    --     return (typ, syn(NaryOp_ o es'))
+    U.NaryOp_ o es ->
+        case o of
+          U.Sealed1 op ->
+              let typ = sing_NaryOp op in do
+              es' <- T.forM es $ checkType typ
+              return $ TypedAST typ (syn(NaryOp_ op (S.fromList es')))
 
     U.Value_ v ->
         -- BUG: need to finish implementing sing_Value for Datum
         case type_Value v of
-          Sealed v' ->
+          U.Sealed1 v' ->
               return $ TypedAST (sing_Value v') (syn(Value_ v'))
 
     Syn (CoerceTo_ c :$ e1 :* End)
@@ -362,8 +368,8 @@ checkSArgs
     => List1 Sing typs
     -> [U.AST c]
     -> TypeCheckMonad (SArgs abt args)
-checkSArgs Nil1             End       = return End
-checkSArgs (Cons1 typ typs) (e :* es) = do
+checkSArgs Nil1             []        = return End
+checkSArgs (Cons1 typ typs) (e:es) = do
     e'  <- checkType  typ  e
     es' <- checkSArgs typs es
     return (e' :* es')
