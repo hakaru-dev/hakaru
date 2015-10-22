@@ -577,6 +577,8 @@ matchStruct
     -> MatchResult abt vars b
 matchStruct Done       PDone       body = Matched dnil1 body
 matchStruct (Et d1 d2) (PEt p1 p2) body =
+    error "TODO: matchStruct"
+    {-
     case matchFun d1 p1 body of -- BUG: needs type coercion
     MatchFail        -> MatchFail
     MatchStuck       -> MatchStuck
@@ -585,6 +587,8 @@ matchStruct (Et d1 d2) (PEt p1 p2) body =
         MatchFail         -> MatchFail
         MatchStuck        -> MatchStuck
         Matched ys body'' -> Matched (xs `dappend1` ys) body''
+    -}
+matchStruct _ _ _ = MatchFail
 
 matchFun
     :: (ABT abt)

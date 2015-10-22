@@ -4,6 +4,7 @@
            , GADTs
            , TypeFamilies
            , FlexibleInstances
+           , RankNTypes
            #-}
 {-
            -- TODO: how much of this is needed for splices?
@@ -37,6 +38,7 @@
 module Language.Hakaru.Syntax.TypeEq 
     ( Sing(..)
     , SingI(..)
+    , toSing
     -- * Some helpful shorthands for \"built-in\" datatypes
     , sBool
     , sUnit
@@ -397,6 +399,66 @@ instance SingI 'I where
     sing = SIdent
 instance (SingI a) => SingI ('K a) where
     sing = SKonst sing
+
+----------------------------------------------------------------
+----------------------------------------------------------------
+toSing :: Hakaru -> (forall a. Sing (a :: Hakaru) -> r) -> r
+toSing HNat         k = k SNat
+toSing HInt         k = k SInt
+toSing HProb        k = k SProb
+toSing HReal        k = k SReal
+toSing (HMeasure a) k = toSing a $ \a' -> k (SMeasure a')
+toSing (HArray   a) k = toSing a $ \a' -> k (SArray   a')
+toSing (a :-> b)    k =
+    toSing a $ \a' ->
+    toSing b $ \b' ->
+    k (SFun a' b')
+toSing (HData t xss) k =
+    error "TODO: toSing{HData}"
+    {-
+    -- BUG: the type index for @t' :: Sing t@ must match the one for @xss' :: Sing (Code t)@
+    toSing_Con  t  $ \t' ->
+    toSing_Code xss $ \xss' ->
+    k (SData t' xss')
+    -}
+
+toSing_Con
+    :: HakaruCon Hakaru
+    -> (forall t. Sing (t :: HakaruCon Hakaru) -> r) -> r
+toSing_Con (TyCon s)  k = toSing_Symbol s $ \s' -> k (STyCon s')
+toSing_Con (t :@ a) k =
+    toSing_Con t $ \t' ->
+    toSing     a $ \a' ->
+    k (STyApp t' a')
+
+toSing_Symbol
+    :: Symbol
+    -> (forall s. Sing (s :: Symbol) -> r) -> r
+toSing_Symbol s k = k SomeSymbol
+
+toSing_Code
+    :: [[HakaruFun]]
+    -> (forall xss. Sing (xss :: [[HakaruFun]]) -> r) -> r
+toSing_Code []       k = k SVoid
+toSing_Code (xs:xss) k =
+    toSing_Struct xs  $ \xs'  ->
+    toSing_Code   xss $ \xss' ->
+    k (SPlus xs' xss')
+
+toSing_Struct
+    :: [HakaruFun]
+    -> (forall xs. Sing (xs :: [HakaruFun]) -> r) -> r
+toSing_Struct []     k = k SDone
+toSing_Struct (x:xs) k =
+    toSing_Fun    x  $ \x'  ->
+    toSing_Struct xs $ \xs' ->
+    k (SEt x' xs')
+
+toSing_Fun
+    :: HakaruFun
+    -> (forall x. Sing (x :: HakaruFun) -> r) -> r
+toSing_Fun I     k = k SIdent
+toSing_Fun (K a) k = toSing a $ \a' -> k (SKonst a')
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
