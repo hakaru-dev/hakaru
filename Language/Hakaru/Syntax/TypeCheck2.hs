@@ -277,11 +277,11 @@ inferType = inferType_
                 -- case jmEq1 typ1 (varType x) of
                 -- Nothing   -> failwith "type mismatch"
                 pushCtx (SomeVariable x') $ do
-                    t2 <- inferType_ e2
-                    case t2 of
-                      TypedAST typ2 e2' ->
-                       return $ TypedAST typ2
-                                  (syn(Let_ :$ e1' :* bind x' e2' :* End))
+                t2 <- inferType_ e2
+                case t2 of
+                 TypedAST typ2 e2' ->
+                  return $ TypedAST typ2
+                             (syn(Let_ :$ e1' :* bind x' e2' :* End))
                     
 
     U.Ann_ e1 t1 -> do
