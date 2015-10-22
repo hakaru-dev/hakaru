@@ -14,6 +14,7 @@ import Text.Parsec.Combinator (eof)
 import Text.Parsec.Text hiding (Parser())
 import Text.Parsec.Indentation
 import Text.Parsec.Indentation.Char
+import qualified Text.Parsec.Indentation.Token as ITok
 
 import qualified Text.Parsec.Expr as Ex
 import qualified Text.Parsec.Token as Tok
@@ -44,7 +45,7 @@ style = Tok.LanguageDef
         , Tok.reservedNames = names ++ types
         }
 
-lexer = Tok.makeTokenParser style
+lexer = ITok.makeTokenParser style
 
 integer :: Parser Integer
 integer = Tok.integer lexer
