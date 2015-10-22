@@ -224,7 +224,7 @@ matchStruct (Et d1 d2) (PEt p1 p2) body = do
         case eqAppendAssoc
                 (secondProxy p1)
                 (secondProxy p2)
-                (Proxy ::Proxy vars2)
+                (Proxy :: Proxy vars2)
         of
         Refl -> matchFun d1 p1 body
     case m1 of
