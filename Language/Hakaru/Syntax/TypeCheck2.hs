@@ -41,6 +41,7 @@ import Language.Hakaru.Syntax.Nat      (fromNat)
 import Language.Hakaru.Syntax.IClasses (List1(..), JmEq1(..), JmEq2(..), TypeEq(..))
 import Language.Hakaru.Syntax.DataKind (Hakaru(..), HData')
 import Language.Hakaru.Syntax.TypeEq
+import Language.Hakaru.Syntax.TypeHelpers
 import Language.Hakaru.Syntax.Coercion (Coercion(..), singCoerceTo, singCoerceFrom, singCoerceDomCod)
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
@@ -303,7 +304,9 @@ inferType = inferType_
 
     U.Value_ v ->
         -- BUG: need to finish implementing sing_Value for Datum
-        return $ TypedAST (sing_Value v) (syn(Value_ v))
+        case type_Value v of
+          Sealed v' ->
+              return $ TypedAST (sing_Value v') (syn(Value_ v'))
 
     Syn (CoerceTo_ c :$ e1 :* End)
         | inferable e1 -> do
