@@ -98,12 +98,6 @@ table = [[prefix "+"  id],
 unit_ :: Parser (AST' a)
 unit_ = string "()" >> return Empty
 
-bool :: Parser (AST' Text)
-bool = do
-  b <- try (symbol "True")
-       <|> (symbol "False")
-  return $ Var b
-
 int :: Parser Value'
 int = do
   n <- integer
@@ -188,7 +182,6 @@ op_factor =     try (M.liftM Value floating)
             <|> try (M.liftM Value inf_)
             <|> try unit_
             <|> try (M.liftM Value int)
-            <|> try bool
             <|> try var
             <|> try pairs
 

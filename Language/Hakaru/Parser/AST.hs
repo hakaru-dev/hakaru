@@ -29,6 +29,7 @@ data Value' =
 
 data Symbol' =
      Fix
+   | True' | False'
    | CoerceTo
    | UnsafeFrom 
    | PrimOp
