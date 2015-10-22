@@ -261,7 +261,7 @@ data PrimOp :: [Hakaru] -> Hakaru -> * where
     -- (since the second input is assumed to be greater than the
     -- first); though that would be a bit ugly IMO.
     Integrate :: PrimOp '[ 'HReal, 'HReal, 'HReal ':-> 'HProb ] 'HProb
-    -- TODO: Should the first to arguments really be HReal?!
+    -- TODO: the high and low bounds *should* be HInt. The only reason we use HReal is so that we can have infinite summations. Once we figure out a way to handle infinite bounds here, we can make the switch
     Summate   :: PrimOp '[ 'HReal, 'HReal, 'HInt  ':-> 'HProb ] 'HProb
 
 

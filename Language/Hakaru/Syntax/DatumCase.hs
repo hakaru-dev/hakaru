@@ -6,6 +6,7 @@
            , TypeOperators
            , TypeFamilies
            , Rank2Types
+           , ScopedTypeVariables
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -66,7 +67,7 @@ runDList1 dx@(DList1 xs) =
     Refl -> xs Nil1
 
 toDList1 :: List1 a xs -> DList1 a xs
-toDList1 xs = DList1 (append1 xs) -- N.B., can't use (.) here
+toDList1 xs = DList1 (append1 xs) -- N.B., can't use @DList1 . append1@ here
 
 append1 :: List1 a xs -> List1 a ys -> List1 a (xs ++ ys)
 append1 Nil1         ys = ys
@@ -156,11 +157,11 @@ matchBranch
     -> Branch a abt b
     -> Maybe (MatchResult abt '[] b)
 matchBranch e (Branch pat body) =
-    case eqAppendNil (bodyToProxy body) of
+    case eqAppendNil (secondProxy body) of
     Refl -> matchPattern e pat body
-    where
-    bodyToProxy :: abt xs a -> Proxy xs
-    bodyToProxy _ = Proxy
+
+secondProxy :: f i j -> Proxy i
+secondProxy _ = Proxy
 
 
 -- | This function must be distinguished from 'matchBranch' since
@@ -211,14 +212,21 @@ matchCode _        _         _    = Nothing
 
 
 matchStruct
-    :: (ABT abt)
+    :: forall abt xs t vars1 vars2 b
+    .  (ABT abt)
     => DatumStruct  xs (abt '[]) (HData' t)
     -> PDatumStruct xs vars1     (HData' t)
     -> abt (vars1 ++ vars2)  b
     -> Maybe (MatchResult abt vars2 b)
 matchStruct Done       PDone       body = Just (Matched dnil1 body)
 matchStruct (Et d1 d2) (PEt p1 p2) body = do
-    m1 <- error "TODO" -- matchFun d1 p1 body -- BUG: needs type coercion
+    m1 <- 
+        case eqAppendAssoc
+                (secondProxy p1)
+                (secondProxy p2)
+                (Proxy ::Proxy vars2)
+        of
+        Refl -> matchFun d1 p1 body
     case m1 of
         GotStuck         -> return GotStuck
         Matched xs body' -> do
