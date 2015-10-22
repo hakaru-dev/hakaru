@@ -27,20 +27,20 @@ data Branch'  a =
 data Pattern' a =
      PVar'  a
    | PWild'
-   | PData' a [AST' a]
+   | PData' (Datum' a)
    deriving (Eq, Show)
 
 -- Meta stores start and end position for AST in source code
 newtype Meta = Meta (SourcePos, SourcePos) deriving (Eq, Show)
 
-data Sop = Sop [[Sop]] | V Value' deriving (Eq, Show)
+data Datum' a = DV a [a] deriving (Eq, Show)
 
 data Value' =
      Nat  Int
    | Int  Int
    | Prob Double
    | Real Double
-   | Datum Sop
+   | Datum (Datum' Name')
  deriving (Eq)
 
 data Symbol' =
@@ -58,24 +58,23 @@ data Symbol' =
 
 type SymbolTable = [(Text, Symbol')]
 
+data TypeAST' a =
+     TypeVar a
+   | TypeApp (TypeAST' a) (TypeAST' a)
+   | TypeFun (TypeAST' a) (TypeAST' a)
+
 data AST' a =
      Var a
    | Lam Name'    (AST' a) 
    | App (AST' a) (AST' a)
    | Let Name'    (AST' a) (AST' a)
    | If  (AST' a) (AST' a) (AST' a)
-   | Ann (AST' a) (AST' a)
-   -- These should probably be in their own TypeAST
-   | TypeApp (AST' a) (AST' a)
-   | TypeFun (AST' a) (AST' a)
-   | TypeOp  a
-   | TypeVar Name'
-
+   | Ann (AST' a) (TypeAST' a)
    | Value Value'
    | Empty
    | Case  (AST' a) [(Branch' a)] -- match
    | Bind  Name' (AST' a) (AST' a)
-   | Data  Name'
+   | Data  Name' [TypeAST' a]
    | WithMeta (AST' a) Meta
 
 data PrimOp' =
@@ -163,4 +162,6 @@ data AST a =
 
 deriving instance Eq a => Eq (AST' a)
 deriving instance Show a => Show (AST' a)
+deriving instance Eq a => Eq (TypeAST' a)
+deriving instance Show a => Show (TypeAST' a)
 deriving instance Show Value'

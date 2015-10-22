@@ -24,7 +24,7 @@ import Language.Hakaru.Syntax.DataKind
 ops, names :: [String]
 
 ops   = ["+","*","-",":","::", "<~","==", "=", "_"]
-types = ["int", "prob", "nat", "real", "->"]
+types = ["->"]
 names = ["def","fn", "if","else","pi","inf",
          "return", "match", "data"]
 
@@ -132,54 +132,28 @@ pairs = do
   l <- parens $ commaSep op_expr
   return $ foldr1 (binop "Pair") l
 
--- Possibly put type parsing in own module
-
-type_nat :: Parser (AST' Text)
-type_nat = do
-  reserved "nat"
-  return $ TypeOp "nat"
-
-type_int :: Parser (AST' Text)
-type_int = do
-  reserved "int"
-  return $ TypeOp "int"
-
-type_prob :: Parser (AST' Text)
-type_prob = do
-  reserved "prob"
-  return $ TypeOp "prob"
-
-type_real :: Parser (AST' Text)
-type_real = do
-  reserved "real"
-  return $ TypeOp "real"
-
-type_var :: Parser (AST' Text)
+type_var :: Parser (TypeAST' Text)
 type_var = do
   t <- identifier
   return (TypeVar t)
 
-type_app :: Parser (AST' Text)
+type_app :: Parser (TypeAST' Text)
 type_app = do
    f    <- identifier
    args <- parens $ commaSep type_expr
    return $ foldl TypeApp (TypeVar f) args
 
-type_fun :: Parser (AST' Text)
+type_fun :: Parser (TypeAST' Text)
 type_fun = do
    a <- type_expr
    reservedOp "->"
    b <- type_expr 
    return $ TypeFun a b
 
-type_expr :: Parser (AST' Text)
-type_expr = type_nat
-        <|> type_int
-        <|> type_prob
-        <|> type_real
+type_expr :: Parser (TypeAST' Text)
+type_expr = type_var
         <|> try type_app
         <|> try type_fun
-        <|> type_var
 
 ann_expr :: Parser (AST' Text)
 ann_expr = do
@@ -188,22 +162,42 @@ ann_expr = do
   t <- type_expr
   return $ Ann e t
 
--- TODO: finish me
+datum_expr :: Parser (Datum' Text)
+datum_expr = do
+   n <- identifier
+   args <- parens $ commaSep identifier
+   return $ DV n args
+
+pat_expr :: Parser (Pattern' Text)
+pat_expr = do
+      (identifier >>= return . PVar')
+  <|> (reservedOp "_" >> return PWild')
+  <|> try (datum_expr >>= return . PData')
+
+branch_expr :: Parser (Branch' Text)
+branch_expr = do
+   p <- pat_expr
+   e <- expr
+   return $ Branch' p e
+
 match_expr :: Parser (AST' Text)
 match_expr = do
    reserved "match"
    a <- expr
    reservedOp ":"
-   return $ Case a []
+   clauses <- localIndentation Gt $
+                many $ absoluteIndentation branch_expr
+   return $ Case a clauses
 
--- TODO: finish me
 data_expr :: Parser (AST' Text)
 data_expr = do
    reserved "data"
    name <- identifier
    args <- parens $ commaSep identifier
    reservedOp ":"
-   return $ Data name
+   defs <- localIndentation Gt $
+             many $ absoluteIndentation (type_var <|> type_app)
+   return $ Data name defs
    
 
 op_factor :: Parser (AST' Text)

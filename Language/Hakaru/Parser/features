@@ -50,6 +50,10 @@ data either(a, b):
      left(a)
      right(a)
 
+data maybe(a):
+     nothing
+     just(a)
+
 patterns and pattern-matching:
 
 match e:
