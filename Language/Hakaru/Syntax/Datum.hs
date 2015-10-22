@@ -5,6 +5,7 @@
            , StandaloneDeriving
            , TypeOperators
            , TypeFamilies
+           , Rank2Types
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -18,8 +19,10 @@
 -- Stability   :  experimental
 -- Portability :  GHC-only
 --
--- All the types and functions for user-defined data types. At
--- present we only support regular-recursive polynomial data types.
+-- Haskell types and helpers for Hakaru's user-defined data types.
+-- At present we only support regular-recursive polynomial data
+-- types. Reduction of case analysis on data types is in
+-- "Language.Hakaru.Syntax.Datum".
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.Datum
     (
@@ -37,6 +40,7 @@ module Language.Hakaru.Syntax.Datum
     , dNothing, dJust
 
     -- * Pattern constructors
+    , Branch(..)
     , Pattern(..)
     , PDatumCode(..)
     , type (++), eqAppendNil, eqAppendAssoc
@@ -49,13 +53,6 @@ module Language.Hakaru.Syntax.Datum
     , pLeft, pRight
     , pNil, pCons
     , pNothing, pJust
-    
-    -- * Pattern matching
-    -- ** Helper types
-    , Branch(..)
-    , Some(..)
-    , Pair1(..)
-    , DList1(..), runDList1, dnil1, dcons1, dappend1
     ) where
 
 import           Unsafe.Coerce (unsafeCoerce) -- TODO: move the stuff that uses this off to a separate file
@@ -541,135 +538,6 @@ instance Functor21 (Branch a) where
 
 instance Foldable21 (Branch a) where
     foldMap21 f (Branch _ e) = f e
-
-----------------------------------------------------------------
--- | Existentially quantify over an index.
--- TODO: move elsewhere.
--- TODO: replace 'SomeVariable' with @(Some Variable)@
-data Some :: (k -> *) -> * where
-    Some :: !(f a) -> Some f
-
-data Pair1 (f :: k -> *) (g :: k -> *) (i :: k) = Pair1 !(f i) !(g i)
-
-newtype DList1 a xs =
-    DList1 { unDList1 :: forall ys. List1 a ys -> List1 a (xs ++ ys) }
-
-runDList1 :: DList1 a xs -> List1 a xs
-runDList1 dx@(DList1 xs) =
-    case eqAppendNil dx of
-    Refl -> xs Nil1
-
-dnil1 :: DList1 a '[]
-dnil1 = DList1 id
-
-dcons1 :: a x -> DList1 a '[ x ]
-dcons1 x = DList1 (Cons1 x)
-
-dappend1 :: DList1 a xs -> DList1 a ys -> DList1 a (xs ++ ys)
-dappend1 dx@(DList1 xs) dy@(DList1 ys) =
-    DList1 $ \zs ->
-        case eqAppendAssoc dx dy zs of
-        Refl -> xs (ys zs)
-
-----------------------------------------------------------------
-data MatchResult :: ([Hakaru] -> Hakaru -> *) -> [Hakaru] -> Hakaru -> * where
-    MatchFail  :: MatchResult abt vars a
-    MatchStuck :: MatchResult abt vars a
-    Matched
-        :: DList1 (Pair1 Variable (abt '[])) vars1
-        -> !(abt vars2 a)
-        -> MatchResult abt (vars1 ++ vars2) a
-
-toStatements
-    :: DList1 (Pair1 Variable (abt '[])) vars
-    -> [Statement s abt]
-toStatements = go . runDList1
-    where
-    go :: List1 (Pair1 Variable (abt '[])) vars -> [Statement s abt]
-    go Nil1           = []
-    go (Cons1 xv xvs) = toStatement xv : go xvs
-    
-toStatement :: Pair1 Variable (abt '[]) a -> Statement s abt
-toStatement (Pair1 x e) = error "TODO" -- SLet x e
-
-tryMatch
-    :: (ABT abt)
-    => abt '[] a
-    -> [Branch a abt b]
-    -> (abt '[] b -> M s abt (Whnf (abt '[]) b))
-    -> M s abt (Whnf (abt '[]) b)
-tryMatch e bs0 k = go id bs0
-    where
-    go _  []                         = error "tryMatch: nothing matched!"
-    go ps (b@(Branch pat body) : bs) =
-        case matchPattern e pat body of
-        MatchFail        -> go (ps . (b:)) bs
-        MatchStuck       -> error "TODO" -- return . Neutral . syn $ Case_ e (ps (b:bs))
-        Matched ss body' -> error "TODO" -- pushes (toStatements ss) >> k body' -- BUG: need to hack the types to prove @'[] ~ ys@ from @'[] ~ (xs ++ ys)@
-
-
-matchPattern
-    :: (ABT abt)
-    => abt '[] a
-    -> Pattern vars a
-    -> abt vars b
-    -> MatchResult abt vars b
-matchPattern e pat body =
-    case pat of
-    PWild              -> Matched dnil1 body
-    PVar               ->
-        caseBind body $ \x body' ->
-            Matched (dcons1 (Pair1 x e)) body'
-    PDatum _hint1 pat1 ->
-        caseVarSyn e (const MatchStuck) $ \t ->
-            case t of
-            Value_ (VDatum (Datum _hint2 d)) ->
-                matchCode (fmap11 P.value_ d) pat1 body
-            Datum_         (Datum _hint2 d)  ->
-                matchCode d pat1 body
-            _                                -> MatchStuck
-
-matchCode
-    :: (ABT abt)
-    => DatumCode  xss (abt '[]) (HData' t)
-    -> PDatumCode xss vars      (HData' t)
-    -> abt vars b
-    -> MatchResult abt vars b
-matchCode (Inr d2) (PInr p2) body = matchCode   d2 p2 body
-matchCode (Inl d1) (PInl p1) body = matchStruct d1 p1 body
-matchCode _        _         _    = MatchFail
-
-
-matchStruct
-    :: (ABT abt)
-    => DatumStruct  xs (abt '[]) (HData' t)
-    -> PDatumStruct xs vars      (HData' t)
-    -> abt vars b
-    -> MatchResult abt vars b
-matchStruct Done       PDone       body = Matched dnil1 body
-matchStruct (Et d1 d2) (PEt p1 p2) body =
-    error "TODO: matchStruct"
-    {-
-    case matchFun d1 p1 body of -- BUG: needs type coercion
-    MatchFail        -> MatchFail
-    MatchStuck       -> MatchStuck
-    Matched xs body' -> 
-        case matchStruct d2 p2 body' of -- BUG: needs type coercion
-        MatchFail         -> MatchFail
-        MatchStuck        -> MatchStuck
-        Matched ys body'' -> Matched (xs `dappend1` ys) body''
-    -}
-matchStruct _ _ _ = MatchFail
-
-matchFun
-    :: (ABT abt)
-    => DatumFun  x (abt '[]) (HData' t)
-    -> PDatumFun x vars      (HData' t)
-    -> abt vars b
-    -> MatchResult abt vars b
-matchFun (Konst d2) (PKonst p2) body = matchPattern d2 p2 body
-matchFun (Ident d1) (PIdent p1) body = matchPattern d1 p1 body
-matchFun _           _          _    = MatchFail
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
