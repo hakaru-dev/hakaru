@@ -297,7 +297,8 @@ inferType = inferType_
         case o of
           U.Sealed2 op ->
               let (typs, typ1) = sing_PrimOp op in do
-              es' <- checkSArgs typs es
+              es' <- checkSArgs typs es  :: (args ~ UnLCs (LCs args) =>
+                                                   TypeCheckMonad (SArgs abt args))
               return $ TypedAST typ1 (syn(PrimOp_ op :$ es'))
 
     U.NaryOp_ o es ->
