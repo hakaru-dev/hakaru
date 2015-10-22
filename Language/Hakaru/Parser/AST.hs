@@ -17,12 +17,12 @@ import Text.Parsec (SourcePos)
 
 data Sealed1 op = forall a. Sealed1 (op a)
 
-data SealedOp where
+data SealedOp op where
      SealedOp
       :: (typs ~ UnLCs args, args ~ LCs typs)
       => !(Sing args)
-      -> !(PrimOp typs a)
-      -> SealedOp
+      -> !(op typs a)
+      -> SealedOp op
 
 type Name' = Text
 
@@ -153,8 +153,8 @@ data AST a =
    | Ann_        (AST a) Hakaru
    | CoerceTo_   Coerce' (AST a)
    | UnsafeFrom_ Coerce' (AST a)
-   | PrimOp_     SealedOp [AST a]
-   | NaryOp_     (Sealed1 NaryOp) [AST a]
+   | PrimOp_     (SealedOp PrimOp) [AST a]
+   | NaryOp_     (Sealed1 NaryOp)  [AST a]
    | Value_      Value'
    | Empty_
    | Array_      (AST a) (AST a)
