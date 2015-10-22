@@ -400,6 +400,7 @@ toSing (a :-> b)    k =
     toSing b $ \b' ->
     k (SFun a' b')
 toSing (HData t xss) k =
+    let { _ = toSing_Con; _ = toSing_Code } in -- HACK: to silence "unused" warnings
     error "TODO: toSing{HData}"
     {-
     -- BUG: the type index for @t' :: Sing t@ must match the one for @xss' :: Sing (Code t)@
@@ -417,10 +418,12 @@ toSing_Con (t :@ a) k =
     toSing     a $ \a' ->
     k (STyApp t' a')
 
+
 toSing_Symbol
     :: Symbol
     -> (forall s. Sing (s :: Symbol) -> r) -> r
 toSing_Symbol s k = k SomeSymbol
+
 
 toSing_Code
     :: [[HakaruFun]]
@@ -431,6 +434,7 @@ toSing_Code (xs:xss) k =
     toSing_Code   xss $ \xss' ->
     k (SPlus xs' xss')
 
+
 toSing_Struct
     :: [HakaruFun]
     -> (forall xs. Sing (xs :: [HakaruFun]) -> r) -> r
@@ -439,6 +443,7 @@ toSing_Struct (x:xs) k =
     toSing_Fun    x  $ \x'  ->
     toSing_Struct xs $ \xs' ->
     k (SEt x' xs')
+
 
 toSing_Fun
     :: HakaruFun

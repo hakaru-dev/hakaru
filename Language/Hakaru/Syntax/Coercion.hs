@@ -1,4 +1,5 @@
-{-# LANGUAGE KindSignatures
+{-# LANGUAGE CPP
+           , KindSignatures
            , DataKinds
            , GADTs
            , StandaloneDeriving
@@ -41,7 +42,9 @@ module Language.Hakaru.Syntax.Coercion
 
 import Prelude          hiding (id, (.))
 import Control.Category (Category(..))
+#if __GLASGOW_HASKELL__ < 710
 import Data.Functor     ((<$>))
+#endif
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.HClasses

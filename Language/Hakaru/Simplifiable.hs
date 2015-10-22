@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.18
+--                                                    2015.10.22
 -- |
 -- Module      :  Language.Hakaru.Simplifiable
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -24,10 +24,9 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Simplifiable (Simplifiable(mapleType)) where
 
-import Data.Proxy (Proxy(..)) -- Is in Prelude for modern GHC?
-import Data.Typeable (Typeable)
-import Data.List (intercalate)
-
+import Data.Proxy (Proxy(..)) -- TODO: Is this in Prelude for modern GHC?
+-- import Data.Typeable (Typeable)
+-- import Data.List     (intercalate)
 import Language.Hakaru.Syntax.DataKind
 ----------------------------------------------------------------
 
