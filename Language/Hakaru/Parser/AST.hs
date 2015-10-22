@@ -17,9 +17,6 @@ import Text.Parsec (SourcePos)
 
 data Sealed1 op = forall a. Sealed1 (op a)
 
-data Sealed2 op  where
-     Sealed2 :: op args a -> Sealed2 op
-
 data SealedOp where
      SealedOp
       :: (typs ~ UnLCs args, args ~ LCs typs)
