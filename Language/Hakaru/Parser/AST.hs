@@ -18,13 +18,14 @@ data Pattern' a =
 -- Meta stores start and end position for AST in source code
 newtype Meta = Meta (SourcePos, SourcePos) deriving (Eq, Show)
 
-data Sop = Sop [[Sop]] | V Value'
+data Sop = Sop [[Sop]] | V Value' deriving (Eq, Show)
+
 data Value' =
      Nat  Int
    | Int  Int
    | Prob Double
    | Real Double
- -- | Datum Sop
+   | Datum Sop
  deriving (Eq)
 
 data Symbol' =
@@ -34,7 +35,6 @@ data Symbol' =
    | UnsafeFrom 
    | PrimOp
    | NaryOp
-   | Datum
    | Array
    | Empty'
    | MeasureOp

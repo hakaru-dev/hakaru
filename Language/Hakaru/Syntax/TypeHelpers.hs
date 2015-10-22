@@ -65,6 +65,7 @@ type_Value (U.Nat  v) = Sealed $ VNat  (unsafeNat v)
 type_Value (U.Int  v) = Sealed $ VInt  v
 type_Value (U.Prob v) = Sealed $ VProb (logFloat v)
 type_Value (U.Real v) = Sealed $ VReal v
+type_Value (U.Datum _) = error "TODO: type_Value(Datum)"
 
 -- TODO: we don't need to store the HOrd\/HSemiring values here,
 -- we can recover them by typeclass, just like we use 'sing' to get
