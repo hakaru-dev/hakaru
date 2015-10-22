@@ -8,8 +8,10 @@
 module Language.Hakaru.Parser.AST where
 
 import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.AST    (PrimOp(..), NaryOp(..))
+import Language.Hakaru.Syntax.AST    (PrimOp(..), NaryOp(..), LCs(..), UnLCs (..))
 import Language.Hakaru.Syntax.ABT(Name(..))
+import Language.Hakaru.Syntax.Sing
+
 import Data.Text
 import Text.Parsec (SourcePos)
 
@@ -17,6 +19,13 @@ data Sealed1 op = forall a. Sealed1 (op a)
 
 data Sealed2 op  where
      Sealed2 :: op args a -> Sealed2 op
+
+data SealedOp where
+     SealedOp
+      :: (typs ~ UnLCs args, args ~ LCs typs)
+      => !(Sing args)
+      -> !(PrimOp typs a)
+      -> SealedOp
 
 type Name' = Text
 
@@ -147,7 +156,7 @@ data AST a =
    | Ann_        (AST a) Hakaru
    | CoerceTo_   Coerce' (AST a)
    | UnsafeFrom_ Coerce' (AST a)
-   | PrimOp_     (Sealed2 PrimOp) [AST a]
+   | PrimOp_     SealedOp [AST a]
    | NaryOp_     (Sealed1 NaryOp) [AST a]
    | Value_      Value'
    | Empty_
