@@ -24,7 +24,7 @@ import Language.Hakaru.Syntax.DataKind
 ops, names :: [String]
 
 ops   = ["+","*","-",":","::", "<~","==", "="]
-types = ["int", "prob", "nat", "real"]
+types = ["int", "prob", "nat", "real", "->"]
 names = ["def","fn", "if","else","pi","inf", "return"]
 
 type Parser = ParsecT (IndentStream (CharIndentStream Text)) () Identity
@@ -158,12 +158,25 @@ type_var = do
   t <- identifier
   return (TypeVar t)
 
+type_app :: Parser (AST' Text)
+type_app = do
+   f    <- identifier
+   args <- parens $ commaSep type_expr
+   return $ foldl TypeApp (TypeVar f) args
+
+type_fun :: Parser (AST' Text)
+type_fun = do
+   a <- type_expr
+   reservedOp "->"
+   b <- type_expr 
+   return $ TypeFun a b
+
 type_expr :: Parser (AST' Text)
 type_expr = type_nat
         <|> type_int
         <|> type_prob
         <|> type_real
-        -- <|> try type_app
+        <|> try type_app
         -- <|> try type_fun
         <|> type_var
 

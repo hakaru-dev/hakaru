@@ -298,8 +298,7 @@ inferType = inferType_
         case o of
           U.Sealed2 op ->
               let (typs, typ1) = sing_PrimOp op in do
-              es' <- checkSArgs typs es  :: (args ~ UnLCs (LCs args) =>
-                                                   TypeCheckMonad (SArgs abt args))
+              es' <- checkSArgs typs es
               return $ TypedAST typ1 (syn(PrimOp_ op :$ es'))
 
     U.NaryOp_ o es ->
@@ -315,10 +314,12 @@ inferType = inferType_
           U.Sealed1 v' ->
               return $ TypedAST (sing_Value v') (syn(Value_ v'))
 
-    Syn (CoerceTo_ c :$ e1 :* End)
+    U.CoerceTo_ c e1
         | inferable e1 -> do
-            (typ,e1') <- inferType_ e1
-            return (singCoerceTo c typ, syn(CoerceTo_ c :$ e1' :* End))
+            t1 <- inferType_ e1
+            case t1 of
+              TypedAST typ e1' ->
+               return (singCoerceTo c typ, syn(CoerceTo_ c :$ e1' :* End))
         | otherwise ->
             case singCoerceDomCod c of
             Nothing -> failwith "Cannot infer type for null-coercion over a checking term; please add a type annotation"
