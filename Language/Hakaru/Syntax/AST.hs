@@ -450,24 +450,24 @@ deriving instance Show (MeasureOp args a)
 data Datum :: (Hakaru -> *) -> Hakaru -> * where
     Datum
         :: {-# UNPACK #-} !Text
-        -> !(DatumCode (Code t) abt (HData' t))
-        -> Datum abt (HData' t)
+        -> !(DatumCode (Code t) ast (HData' t))
+        -> Datum ast (HData' t)
 
-datumHint :: Datum abt (HData' t) -> Text
+datumHint :: Datum ast (HData' t) -> Text
 datumHint (Datum hint _) = hint
 
-instance Eq1 abt => Eq1 (Datum abt) where
+instance Eq1 ast => Eq1 (Datum ast) where
     eq1 (Datum _ d1) (Datum _ d2) = eq1 d1 d2
 
-instance Eq1 abt => Eq (Datum abt a) where
+instance Eq1 ast => Eq (Datum ast a) where
     (==) = eq1
 
--- TODO: instance Read (Datum abt a)
+-- TODO: instance Read (Datum ast a)
 
-instance Show1 abt => Show1 (Datum abt) where
+instance Show1 ast => Show1 (Datum ast) where
     showsPrec1 p (Datum hint d) = showParen_01 p "Datum" hint d
 
-instance Show1 abt => Show (Datum abt a) where
+instance Show1 ast => Show (Datum ast a) where
     showsPrec = showsPrec1
     show      = show1
 
@@ -501,18 +501,18 @@ data DatumCode :: [[HakaruFun]] -> (Hakaru -> *) -> Hakaru -> * where
 -- codes, and (2) the code is always getting smaller; so we have
 -- a good enough inductive hypothesis from polymorphism alone.
 
-instance Eq1 abt => Eq1 (DatumCode xss abt) where
+instance Eq1 ast => Eq1 (DatumCode xss ast) where
     eq1 (Inr c) (Inr d) = eq1 c d
     eq1 (Inl c) (Inl d) = eq1 c d
     eq1 _       _       = False
 
 -- TODO: instance Read (DatumCode xss abt a)
 
-instance Show1 abt => Show1 (DatumCode xss abt) where
+instance Show1 ast => Show1 (DatumCode xss ast) where
     showsPrec1 p (Inr d) = showParen_1 p "Inr" d
     showsPrec1 p (Inl d) = showParen_1 p "Inl" d
 
-instance Show1 abt => Show (DatumCode xss abt a) where
+instance Show1 ast => Show (DatumCode xss ast a) where
     showsPrec = showsPrec1
 
 instance Functor11 (DatumCode xss) where
@@ -533,18 +533,18 @@ data DatumStruct :: [HakaruFun] -> (Hakaru -> *) -> Hakaru -> * where
     -- | Close off the product.
     Done :: DatumStruct '[] abt a
 
-instance Eq1 abt => Eq1 (DatumStruct xs abt) where
+instance Eq1 ast => Eq1 (DatumStruct xs ast) where
     eq1 (Et c1 c2) (Et d1 d2) = eq1 c1 d1 && eq1 c2 d2
     eq1 Done       Done       = True
     eq1 _          _          = False
 
 -- TODO: instance Read (DatumStruct xs abt a)
 
-instance Show1 abt => Show1 (DatumStruct xs abt) where
+instance Show1 ast => Show1 (DatumStruct xs ast) where
     showsPrec1 p (Et d1 d2) = showParen_11 p "Et" d1 d2
     showsPrec1 _ Done       = showString     "Done"
 
-instance Show1 abt => Show (DatumStruct xs abt a) where
+instance Show1 ast => Show (DatumStruct xs ast a) where
     showsPrec = showsPrec1
 
 instance Functor11 (DatumStruct xs) where
@@ -559,22 +559,22 @@ instance Foldable11 (DatumStruct xs) where
 -- TODO: do we like those constructor names? Should we change them?
 data DatumFun :: HakaruFun -> (Hakaru -> *) -> Hakaru -> * where
     -- | Hit a leaf which isn't a recursive component of the datatype.
-    Konst :: !(abt b) -> DatumFun ('K b) abt a
+    Konst :: !(ast b) -> DatumFun ('K b) ast a
     -- | Hit a leaf which is a recursive component of the datatype.
-    Ident :: !(abt a) -> DatumFun 'I     abt a
+    Ident :: !(ast a) -> DatumFun 'I     ast a
 
-instance Eq1 abt => Eq1 (DatumFun x abt) where
+instance Eq1 ast => Eq1 (DatumFun x ast) where
     eq1 (Konst e) (Konst f) = eq1 e f
     eq1 (Ident e) (Ident f) = eq1 e f
     eq1 _         _         = False
 
 -- TODO: instance Read (DatumFun x abt a)
 
-instance Show1 abt => Show1 (DatumFun x abt) where
+instance Show1 ast => Show1 (DatumFun x ast) where
     showsPrec1 p (Konst e) = showParen_1 p "Konst" e
     showsPrec1 p (Ident e) = showParen_1 p "Ident" e
 
-instance Show1 abt => Show (DatumFun x abt a) where
+instance Show1 ast => Show (DatumFun x ast a) where
     showsPrec = showsPrec1
 
 instance Functor11 (DatumFun x) where
@@ -594,32 +594,32 @@ instance Foldable11 (DatumFun x) where
 -- aspects of the compiler, we need to handle all possible Datum
 -- values, so the pattern synonyms wouldn't even be helpful.
 
-dTrue, dFalse :: Datum abt HBool
+dTrue, dFalse :: Datum ast HBool
 dTrue      = Datum tTrue  . Inl $ Done
 dFalse     = Datum tFalse . Inr . Inl $ Done
 
-dUnit      :: Datum abt HUnit
+dUnit      :: Datum ast HUnit
 dUnit      = Datum tUnit . Inl $ Done
 
-dPair      :: abt a -> abt b -> Datum abt (HPair a b)
+dPair      :: ast a -> ast b -> Datum ast (HPair a b)
 dPair a b  = Datum tPair . Inl $ Konst a `Et` Konst b `Et` Done
 
-dLeft      :: abt a -> Datum abt (HEither a b)
+dLeft      :: ast a -> Datum ast (HEither a b)
 dLeft      = Datum tLeft . Inl . (`Et` Done) . Konst
 
-dRight     :: abt b -> Datum abt (HEither a b)
+dRight     :: ast b -> Datum ast (HEither a b)
 dRight     = Datum tRight . Inr . Inl . (`Et` Done) . Konst
 
-dNil       :: Datum abt (HList a)
+dNil       :: Datum ast (HList a)
 dNil       = Datum tNil. Inl $ Done
 
-dCons      :: abt a -> abt (HList a) -> Datum abt (HList a)
+dCons      :: ast a -> ast (HList a) -> Datum ast (HList a)
 dCons x xs = Datum tCons . Inr . Inl $ Konst x `Et` Ident xs `Et` Done
 
-dNothing   :: Datum abt (HMaybe a)
+dNothing   :: Datum ast (HMaybe a)
 dNothing   = Datum tNothing . Inl $ Done
 
-dJust      :: abt a -> Datum abt (HMaybe a)
+dJust      :: ast a -> Datum ast (HMaybe a)
 dJust      = Datum tJust . Inr . Inl . (`Et` Done) . Konst
 
 
