@@ -48,6 +48,7 @@ library
                        Language.Hakaru.Syntax.Sing,
                        Language.Hakaru.Syntax.HClasses,
                        Language.Hakaru.Syntax.Coercion,
+                       Language.Hakaru.Syntax.Datum,
                        Language.Hakaru.Syntax.AST,
                        Language.Hakaru.Syntax.ABT,
                        Language.Hakaru.Syntax.Prelude,

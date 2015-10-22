@@ -5,7 +5,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.18
+--                                                    2015.10.22
 -- |
 -- Module      :  Language.Hakaru.PrettyPrint
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -28,6 +28,7 @@ import Language.Hakaru.Syntax.Nat      (fromNat)
 import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11)
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.AST
+import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT
 ----------------------------------------------------------------
 -- TODO: can we avoid using Text.unpack?

@@ -51,6 +51,7 @@ import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.AST
+import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT
 import qualified Language.Hakaru.Syntax.Prelude as P
 import Language.Hakaru.Expect (total)

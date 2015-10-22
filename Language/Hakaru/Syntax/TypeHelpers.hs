@@ -1,16 +1,18 @@
-{-# LANGUAGE CPP
-           , DataKinds
-           , PolyKinds
-           , GADTs
-           , Rank2Types
-           , StandaloneDeriving
-           , ScopedTypeVariables
-           , TypeOperators
-           , TypeFamilies
-           #-}
+{-# LANGUAGE GADTs #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
-
+----------------------------------------------------------------
+--                                                    2015.10.22
+-- |
+-- Module      :  Language.Hakaru.Syntax.TypeHelpers
+-- Copyright   :  Copyright (c) 2015 the Hakaru team
+-- License     :  BSD3
+-- Maintainer  :  wren@community.haskell.org
+-- Stability   :  experimental
+-- Portability :  GHC-only
+--
+-- Factored out from "Language.Hakaru.Syntax.AST"
+----------------------------------------------------------------
 module Language.Hakaru.Syntax.TypeHelpers
     ( sing_NaryOp
     , sing_PrimOp
@@ -19,16 +21,18 @@ module Language.Hakaru.Syntax.TypeHelpers
     , type_Value
     ) where
 
-import Data.Number.LogFloat    (logFloat)
+import Data.Number.LogFloat            (logFloat)
 
-import Language.Hakaru.Syntax.Nat      (fromNat, unsafeNat)
-import Language.Hakaru.Syntax.IClasses (List1(..), JmEq1(..), JmEq2(..), TypeEq(..))
+import Language.Hakaru.Syntax.Nat      (unsafeNat)
+import Language.Hakaru.Syntax.IClasses (List1(..))
 import Language.Hakaru.Syntax.HClasses
-import Language.Hakaru.Syntax.DataKind (Hakaru(..), HData')
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.AST
+import Language.Hakaru.Syntax.Datum
 
 import qualified Language.Hakaru.Parser.AST as U
+----------------------------------------------------------------
+----------------------------------------------------------------
 
 -- N.B., we do case analysis so that we don't need the class constraint!
 sing_Value :: Value a -> Sing a
@@ -165,4 +169,5 @@ sing_MeasureOp (Chain s a) =
     ( SArray (s `SFun` SMeasure (sPair a s)) `Cons1` s `Cons1` Nil1
     , SMeasure (sPair (SArray a) s))
 
-
+----------------------------------------------------------------
+----------------------------------------------------------- fin.

@@ -2,7 +2,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.21
+--                                                    2015.10.22
 -- |
 -- Module      :  Language.Hakaru.Inference
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -30,7 +30,7 @@ import Prelude (($), (.), error)
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.ABT (ABT)
 import Language.Hakaru.Syntax.Prelude
-import Language.Hakaru.Syntax.Sing (Sing, SingI(sing))
+import Language.Hakaru.Syntax.Sing (SingI())
 import Language.Hakaru.Expect (normalize)
 import Language.Hakaru.Disintegrate (determine, density, disintegrate, Backward())
 

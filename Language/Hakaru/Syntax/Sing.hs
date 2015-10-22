@@ -6,24 +6,14 @@
            , FlexibleInstances
            , RankNTypes
            #-}
-{-
-           -- TODO: how much of this is needed for splices?
-           , QuasiQuotes
-           , TemplateHaskell
-           , UndecidableInstances
-           , TypeSynonymInstances
-           , ScopedTypeVariables
-           , StandaloneDeriving
--- Singletons generates orphan instances warnings
-{-# OPTIONS_GHC -fno-warn-orphans #-}
 
--- DEBUG
--- {-# OPTIONS_GHC -ddump-splices #-}
+{- -- DEBUG
+{-# OPTIONS_GHC -ddump-splices #-}
 -}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.21
+--                                                    2015.10.22
 -- |
 -- Module      :  Language.Hakaru.Syntax.Sing
 -- Copyright   :  Copyright (c) 2015 the Hakaru team

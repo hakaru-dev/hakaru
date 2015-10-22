@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.08.25
+--                                                    2015.10.22
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeCheck
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -45,6 +45,7 @@ import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.TypeHelpers
 import Language.Hakaru.Syntax.Coercion (Coercion(..), singCoerceTo, singCoerceFrom, singCoerceDomCod)
 import Language.Hakaru.Syntax.AST
+import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT
 
 ----------------------------------------------------------------
