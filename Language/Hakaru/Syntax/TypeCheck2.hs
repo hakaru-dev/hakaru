@@ -291,19 +291,19 @@ inferType = inferType_
         e1' <- checkType typ1 e1
         return $ TypedAST typ1 (syn(Ann_ typ1 :$ e1' :* End))
 
-    Syn (PrimOp_ o :$ es) ->
-        let (typs, typ1) = sing_PrimOp o in do
-        es' <- checkSArgs typs es
-        return (typ1, syn(PrimOp_ o :$ es'))
+    -- Syn (PrimOp_ o :$ es) ->
+    --     let (typs, typ1) = sing_PrimOp o in do
+    --     es' <- checkSArgs typs es
+    --     return (typ1, syn(PrimOp_ o :$ es'))
 
-    Syn (NaryOp_ o es) ->
-        let typ = sing_NaryOp o in do
-        es' <- T.forM es $ checkType typ
-        return (typ, syn(NaryOp_ o es'))
+    -- Syn (NaryOp_ o es) ->
+    --     let typ = sing_NaryOp o in do
+    --     es' <- T.forM es $ checkType typ
+    --     return (typ, syn(NaryOp_ o es'))
 
-    Syn (Value_ v) ->
+    U.Value_ v ->
         -- BUG: need to finish implementing sing_Value for Datum
-        return (sing_Value v, syn(Value_ v))
+        return $ TypedAST (sing_Value v) (syn(Value_ v))
 
     Syn (CoerceTo_ c :$ e1 :* End)
         | inferable e1 -> do

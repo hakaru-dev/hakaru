@@ -18,12 +18,16 @@ module Language.Hakaru.Syntax.TypeHelpers
     , sing_Value
     ) where
 
-import Language.Hakaru.Syntax.Nat      (fromNat)
+import Data.Number.LogFloat    (logFloat)
+
+import Language.Hakaru.Syntax.Nat      (fromNat, unsafeNat)
 import Language.Hakaru.Syntax.IClasses (List1(..), JmEq1(..), JmEq2(..), TypeEq(..))
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.DataKind (Hakaru(..), HData')
 import Language.Hakaru.Syntax.TypeEq
 import Language.Hakaru.Syntax.AST
+
+import qualified Language.Hakaru.Parser.AST as U
 
 -- N.B., we do case analysis so that we don't need the class constraint!
 sing_Value :: Value a -> Sing a
@@ -51,6 +55,14 @@ sing_Value (VDatum (Datum hint d)) = error "TODO: sing_Value{VDatum}"
     goF (Konst e1) = SKonst (sing_Value e1)
     goF (Ident e1) = SIdent -- @sing_Value e1@ is what the first argument to SData should be; assuming we actually make it to this branch...
     -}
+
+data Sealed op = forall a. Sealed (op a)
+
+type_Value :: U.Value' -> Sealed Value
+type_Value (U.Nat  v) = Sealed $ VNat  (unsafeNat v)
+type_Value (U.Int  v) = Sealed $ VInt  v
+type_Value (U.Prob v) = Sealed $ VProb (logFloat v)
+type_Value (U.Real v) = Sealed $ VReal v
 
 -- TODO: we don't need to store the HOrd\/HSemiring values here,
 -- we can recover them by typeclass, just like we use 'sing' to get

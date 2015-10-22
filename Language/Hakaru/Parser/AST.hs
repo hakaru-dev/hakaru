@@ -20,8 +20,8 @@ newtype Meta = Meta (SourcePos, SourcePos) deriving (Eq, Show)
 
 data Sop = Sop [[Sop]] | V Value'
 data Value' =
-     Nat  Integer
-   | Int  Integer
+     Nat  Int
+   | Int  Int
    | Prob Double
    | Real Double
  -- | Datum Sop
@@ -43,8 +43,7 @@ data Symbol' =
 type SymbolTable = [(Text, Symbol')]
 
 data AST' a =
-     Var Name'
-   | Op a
+     Var a
    | Lam Name'    (AST' a) 
    | App (AST' a) (AST' a)
    | Let Name'    (AST' a) (AST' a)
@@ -149,7 +148,7 @@ data AST a =
    | UnsafeFrom_ Coerce' (AST a)
    | PrimOp_     (PrimOp' a)
    | NaryOp_     NaryOp' (AST a)
-   | Value_      (AST a)
+   | Value_      Value'
    | Empty_
    | Array_      (AST a) (AST a)
    | Datum_      (AST a)
