@@ -39,7 +39,7 @@ import           Data.Number.LogFloat (LogFloat)
 
 import Language.Hakaru.Syntax.Nat
 import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.TypeEq (Sing, SingI(sing))
+import Language.Hakaru.Syntax.Sing (Sing, SingI(sing))
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.AST

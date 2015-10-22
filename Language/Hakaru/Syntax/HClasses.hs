@@ -26,7 +26,7 @@ module Language.Hakaru.Syntax.HClasses where
 
 import Language.Hakaru.Syntax.IClasses (TypeEq(..), Eq1(..), JmEq1(..))
 import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.TypeEq
+import Language.Hakaru.Syntax.Sing
 
 ----------------------------------------------------------------
 -- | Concrete dictionaries for Hakaru types with decidable equality.

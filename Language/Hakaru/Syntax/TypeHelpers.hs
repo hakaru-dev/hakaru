@@ -25,7 +25,7 @@ import Language.Hakaru.Syntax.Nat      (fromNat, unsafeNat)
 import Language.Hakaru.Syntax.IClasses (List1(..), JmEq1(..), JmEq2(..), TypeEq(..))
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.DataKind (Hakaru(..), HData')
-import Language.Hakaru.Syntax.TypeEq
+import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.AST
 
 import qualified Language.Hakaru.Parser.AST as U

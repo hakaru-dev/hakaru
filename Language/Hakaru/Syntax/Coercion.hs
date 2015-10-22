@@ -43,7 +43,7 @@ import Prelude          hiding (id, (.))
 import Control.Category (Category(..))
 import Data.Functor     ((<$>))
 import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.TypeEq
+import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.IClasses (TypeEq(..), Eq1(..), Eq2(..), JmEq1(..), JmEq2(..))
 

@@ -48,7 +48,7 @@ import           Control.Applicative   (Applicative(..))
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.Nat      (Nat, fromNat)
 import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.TypeEq
+import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT

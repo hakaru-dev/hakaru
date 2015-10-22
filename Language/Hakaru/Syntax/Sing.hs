@@ -25,7 +25,7 @@
 ----------------------------------------------------------------
 --                                                    2015.10.21
 -- |
--- Module      :  Language.Hakaru.Syntax.TypeEq
+-- Module      :  Language.Hakaru.Syntax.Sing
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  wren@community.haskell.org
@@ -35,7 +35,7 @@
 -- Singleton types for the @Hakaru@ kind, and a decision procedure
 -- for @Hakaru@ type-equality.
 ----------------------------------------------------------------
-module Language.Hakaru.Syntax.TypeEq 
+module Language.Hakaru.Syntax.Sing
     ( Sing(..)
     , SingI(..)
     , toSing
@@ -46,10 +46,6 @@ module Language.Hakaru.Syntax.TypeEq
     , sEither
     , sList
     , sMaybe
-    {-
-    , module Language.Hakaru.Syntax.TypeEq
-    , SingKind(..), SDecide(..), (:~:)(..)
-    -}
     ) where
 
 import Language.Hakaru.Syntax.IClasses

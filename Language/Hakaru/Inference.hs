@@ -30,7 +30,7 @@ import Prelude (($), (.), error)
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.ABT (ABT)
 import Language.Hakaru.Syntax.Prelude
-import Language.Hakaru.Syntax.TypeEq (Sing, SingI(sing))
+import Language.Hakaru.Syntax.Sing (Sing, SingI(sing))
 import Language.Hakaru.Expect (normalize)
 import Language.Hakaru.Disintegrate (determine, density, disintegrate, Backward())
 

@@ -45,7 +45,7 @@ library
                        Language.Hakaru.Syntax.Nat,
                        Language.Hakaru.Syntax.IClasses,
                        Language.Hakaru.Syntax.DataKind,
-                       Language.Hakaru.Syntax.TypeEq,
+                       Language.Hakaru.Syntax.Sing,
                        Language.Hakaru.Syntax.HClasses,
                        Language.Hakaru.Syntax.Coercion,
                        Language.Hakaru.Syntax.AST,
