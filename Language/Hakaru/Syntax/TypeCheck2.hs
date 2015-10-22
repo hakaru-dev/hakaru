@@ -287,12 +287,12 @@ inferType = inferType_
                              (syn(Let_ :$ e1' :* bind x' e2' :* End))
                     
 
-    U.Ann_ e1 t1 -> do
+    U.Ann_ e1 t1 ->
         -- N.B., this requires that @typ1@ is a 'Sing' not a 'Proxy',
         -- since we can't generate a 'Sing' from a 'Proxy'.
-        let typ1 = undefined :: t1
-        e1' <- checkType typ1 e1
-        return $ TypedAST typ1 (syn(Ann_ typ1 :$ e1' :* End))
+        toSing t1 (\typ1 -> do
+          e1' <- checkType typ1 e1
+          return $ TypedAST typ1 (syn(Ann_ typ1 :$ e1' :* End)))
 
     U.PrimOp_ o es ->
         case o of
