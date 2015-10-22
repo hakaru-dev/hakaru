@@ -3,32 +3,38 @@ module Language.Hakaru.Parser.AST where
 
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.AST()
+import Language.Hakaru.Syntax.ABT(Name(..))
 import Data.Text
 import Text.Parsec (SourcePos)
 
-type Name = Text
+type Name' = Text
 
--- data Branch' a = Branch' Pattern' (AST' a)
+data Branch'  a = Branch' (Pattern' a) (AST' a)
+data Pattern' a =
+     PVar'  Name'
+   | PWild'
+   | PData' Name' [AST' a]
 
 -- Meta stores start and end position for AST in source code
 newtype Meta = Meta (SourcePos, SourcePos) deriving (Eq, Show)
 
-data Sop = Sop [[Sop]] | V Value'
+data Sop = Sop [[Sop]] | V Value' deriving (Eq, Show)
+
 data Value' =
-     Nat  Integer
-   | Int  Integer
+     Nat  Int
+   | Int  Int
    | Prob Double
    | Real Double
- -- | Datum Sop
+   | Datum Sop
  deriving (Eq)
 
 data Symbol' =
      Fix
+   | True' | False'
    | CoerceTo
    | UnsafeFrom 
    | PrimOp
    | NaryOp
-   | Datum
    | Array
    | Empty'
    | MeasureOp
@@ -38,23 +44,22 @@ data Symbol' =
 type SymbolTable = [(Text, Symbol')]
 
 data AST' a =
-     Var Name
-   | Op a
-   | Lam Name (AST' a) 
+     Var a
+   | Lam Name'    (AST' a) 
    | App (AST' a) (AST' a)
-   | Let Name (AST' a) (AST' a)
-   | If (AST' a) (AST' a) (AST' a)
+   | Let Name'    (AST' a) (AST' a)
+   | If  (AST' a) (AST' a) (AST' a)
    | Ann (AST' a) (AST' a)
    -- These should probably be in their own TypeAST
    | TypeApp (AST' a) (AST' a)
    | TypeFun (AST' a) (AST' a)
    | TypeOp  a
-   | TypeVar Name
+   | TypeVar Name'
 
    | Value Value'
    | Empty
 --    | Case  (AST' a) [(Branch' a)] -- match
-   | Bind  Name (AST' a) (AST' a)
+   | Bind  Name' (AST' a) (AST' a)
 --    | Data Sop
    | WithMeta (AST' a) Meta
 
@@ -122,24 +127,35 @@ data MeasureOp' a =
    | Plate'       (AST a)
    | Chain'       (AST a) (AST a)
 
-data Branch a = BNone
+data Branch a = Branch (Pattern a) (AST a)
+data Pattern a =
+     PVar (AST a)
+   | PWild
+   | PData [AST a]
 
-data AST a =        
-     Lam_        Name    (AST a)
+data Coerce'  =
+     CNone
+   | CSigned Coerce'
+   | CContinuous Coerce'
+
+data AST a =
+     Var_        Name
+   | Lam_        Name    (AST a)
+   | App_        (AST a) (AST a)
    | Fix_        Name    (AST a)
    | Let_        Name    (AST a) (AST a)
-   | Ann_        (AST a) (AST a)
-   | CoerceTo_   (AST a) (AST a)
-   | UnsafeFrom_ (AST a) (AST a)
-   | PrimOp_     (AST a) (AST a)
-   | NaryOp_     NaryOp' (AST a) (AST a)
-   | Value_      (AST a)
+   | Ann_        (AST a) Hakaru
+   | CoerceTo_   Coerce' (AST a)
+   | UnsafeFrom_ Coerce' (AST a)
+   | PrimOp_     (PrimOp' a)
+   | NaryOp_     NaryOp' (AST a)
+   | Value_      Value'
    | Empty_
    | Array_      (AST a) (AST a)
    | Datum_      (AST a)
    | Case_       (AST a) [Branch a]
    | MeasureOp_  (MeasureOp' a)
-   | MBind_      (AST a) (AST a) (AST a)
+   | MBind_      Name    (AST a) (AST a)
    | Superpose_  (AST a)
    | Lub_        (AST a)
 

@@ -79,7 +79,7 @@ symbol :: Text -> Parser Text
 symbol = M.liftM pack . Tok.symbol lexer . unpack
 
 binop :: Text ->  AST' Text ->  AST' Text ->  AST' Text
-binop s x y = Op s `App` x `App` y
+binop s x y = Var s `App` x `App` y
 
 binary s assoc = Ex.Infix (do reservedOp s
                               return $ binop (pack s)) assoc
@@ -97,12 +97,6 @@ table = [[prefix "+"  id],
 
 unit_ :: Parser (AST' a)
 unit_ = string "()" >> return Empty
-
-bool :: Parser (AST' Text)
-bool = do
-  b <- try (symbol "True")
-       <|> (symbol "False")
-  return $ Op b
 
 int :: Parser Value'
 int = do
@@ -188,7 +182,6 @@ op_factor =     try (M.liftM Value floating)
             <|> try (M.liftM Value inf_)
             <|> try unit_
             <|> try (M.liftM Value int)
-            <|> try bool
             <|> try var
             <|> try pairs
 
@@ -256,13 +249,13 @@ call_expr :: Parser (AST' Text)
 call_expr = do
   name <- identifier
   args <- parens $ commaSep basic_expr
-  return $ foldl App (Op name) args
+  return $ foldl App (Var name) args
 
 return_expr :: Parser (AST' Text)
 return_expr = do
   reserved "return"
   arg <- basic_expr
-  return $ App (Op "dirac") arg
+  return $ App (Var "dirac") arg
 
 basic_expr :: Parser (AST' Text)
 basic_expr = try call_expr
