@@ -87,9 +87,8 @@ import Language.Hakaru.Syntax.AST
 -- generates
 
 -- TODO: (probably) parameterize the 'ABT' class over it's
--- implementation of 'Name'\/'Variable', so that after we're done
--- constructing terms with 'binder' we can make the varID
--- strict\/unboxed.
+-- implementation of 'Variable', so that after we're done constructing
+-- terms with 'binder' we can make the varID strict\/unboxed.
 
 -- TODO: (maybe) parameterize the 'ABT' class over it's implementation
 -- of 'View' so that we can unpack the implementation of 'Variable'
@@ -101,68 +100,48 @@ import Language.Hakaru.Syntax.AST
 -- or not (for defining 'caseBind' precisely).
 
 ----------------------------------------------------------------
--- | A name is a pair of some hint for how to display things to
--- humans ('nameHint') and some unique identifier ('nameID'). N.B.,
--- the unique identifier is lazy so that we can tie-the-knot in
--- 'binder'. Also, N.B., the 'Eq' and 'Ord' instances only check
--- the 'nameID' and ignore the 'nameHint' entirely.
-data Name = Name {-# UNPACK #-} !Text Nat
-    deriving (Read, Show)
-
--- | Project out the string the user suggested as a hint for how
--- to print the name. N.B., this hint does not uniquely identify
--- the name, and is completely ignored by the 'Eq' and 'Ord'
--- instances; it is only a suggestion for how to show the name when
--- we need to print things out for humans to read.
-nameHint :: Name -> Text
-nameHint (Name hint _) = hint
-
--- | Project out the unique identifier for the name.
-nameID :: Name -> Nat
-nameID (Name _ i) = i
-
-instance Eq Name where
-    (==) = (==) `on` nameID
-
-instance Ord Name where
-    compare = compare `on` nameID
-
-----------------------------------------------------------------
 -- TODO: should we make this type abstract?
 
--- HACK: alas we need to keep the Sing in order to make 'subst' typesafe... Is there any way to work around that? Maybe only define substitution for well-typed ABTs (i.e., what we produce via typechecking a plain ABT)? If we can manage to get rid of the Sing, then 'biner' and 'multibinder' would become much simpler. Alas, it looks like we also need it for 'inferType' to be well-typed... How can we avoid that?
+
+-- TODO: alas we need to keep the Sing in order to make 'subst'
+-- typesafe... Is there any way to work around that? Maybe only
+-- define substitution for well-typed ABTs (i.e., what we produce
+-- via typechecking a plain ABT)? If we can manage to get rid of
+-- the Sing, then 'binder' and 'multibinder' would become much
+-- simpler. Alas, it looks like we also need it for 'inferType' to
+-- be well-typed... How can we avoid that?
 --
 -- TODO: what are the overhead costs of storing a Sing? Would
 -- it be cheaper to store the SingI dictionary (and a Proxy,
 -- as necessary)?
 
 
--- | A variable is a triple of some hint for how to display things to humans ('varHint'), some unique identifier ('varID'), and some type ('varType'). 
-
-
-. N.B.,
--- the unique identifier is lazy so that we can tie-the-knot in
--- 'binder'. Also, N.B., the 'Eq' and 'Ord' instances only check
-
-pair of some name ('varName') and some type
--- ('varType'). The 'Eq' and 'Ord' instances only look at the
--- 'nameID', ignoring both the 'nameHint' and the 'varType'. However,
--- the 'varEq' function also takes the 'varType' into consideration.
-data Variable :: Hakaru -> * where
-    Variable ::
-        { varHint :: {-# UNPACK #-} !Text
-        , varID   :: Nat -- N.B., lazy!
-        , varType :: !(Sing a)
-        }
-        -> Variable a
+-- | A variable is a triple of a unique identifier ('varID'), a
+-- hint for how to display things to humans ('varHint'), and a type
+-- ('varType'). Notably, the hint is only used for display purposes,
+-- and the type is only used for typing purposes; thus, the 'Eq'
+-- and 'Ord' instances only look at the unique identifier, completely
+-- ignoring the other two components. However, the 'varEq' function
+-- does take the type into consideration (but still ignores the
+-- hint).
+--
+-- N.B., the unique identifier is lazy so that we can tie-the-knot
+-- in 'binder'.
+data Variable (a :: Hakaru) = Variable
+    { varHint :: {-# UNPACK #-} !Text
+    , varID   :: Nat -- N.B., lazy!
+    , varType :: !(Sing a)
+    }
 
 -- TODO: instance Read (Variable a)
 
 instance Show1 Variable where
-    showsPrec1 p (Variable name typ) =
+    showsPrec1 p (Variable hint i typ) =
         showParen (p > 9)
             ( showString "Variable "
-            . showsPrec  11 name
+            . showsPrec  11 hint
+            . showString " "
+            . showsPrec  11 i
             . showString " "
             . showsPrec  11 typ
             )
@@ -172,33 +151,24 @@ instance Show (Variable a) where
     show      = show1
 
 
--- | Project out the variable's name.
-varName :: Variable a -> Name
-varName (Variable name _) = name
-
--- | Project out the unique identifier for the variable (i.e., the
--- identifier for the variable's name).
-varID :: Variable a -> Nat
-varID = nameID . varName
-
--- | Project out the variable's hint (i.e., the hint for the
--- variable's name).
-varHint :: Variable a -> Text
-varHint = nameHint . varName
-
--- | Project out the variable's type.
-varType :: Variable a -> Sing a
-varType (Variable _ typ) = typ
-
 -- BUG: this may not be consistent with the interpretation chosen by 'varEq'
 instance Eq (Variable a) where
-    (==) = (==) `on` varName
+    (==) = (==) `on` varID
 
--- BUG: this must be consistent with the 'Eq' instance, but should also be consistent with the 'varEq' interpretation. In particular, it's not clear how to make any Ord instance consistent with interpretation #1 (unless we have some sort of `jmCompare` on types!)
+-- BUG: this must be consistent with the 'Eq' instance, but should
+-- also be consistent with the 'varEq' interpretation. In particular,
+-- it's not clear how to make any Ord instance consistent with
+-- interpretation #1 (unless we have some sort of `jmCompare` on
+-- types!)
 instance Ord (Variable a) where
-    compare = compare `on` varName
+    compare = compare `on` varID
 
 
+-- TODO: so long as we don't go with interpretation #1 (because
+-- that'd cause consistency issues with the 'Ord' instance) we could
+-- simply use this to give a 'JmEq1' instance. Would help to minimize
+-- the number of distinct concepts floating around...
+--
 -- | Compare to variables at possibly-different types. If the
 -- variables are \"equal\", then they must in fact have the same
 -- type. N.B., it is not entirely specified what this function
@@ -654,7 +624,7 @@ instance Show (MemoizedABT xs a) where
 freshen :: Variable a -> Set SomeVariable -> Variable a
 freshen x xs
     | SomeVariable x `Set.member` xs =
-        Variable (Name (varHint x) $! 1 + maxVarID xs) (varType x)
+        let i = 1 + maxVarID xs in i `seq` x{varID = i}
     | otherwise = x
 
 
@@ -767,7 +737,7 @@ binder
 binder hint typ hoas = bind x body
     where
     body = hoas (var x)
-    x    = Variable (Name hint (1 + maxBind body)) typ
+    x    = Variable hint (1 + maxBind body) typ
 
 {-
 data Hint :: Hakaru -> * where
@@ -795,7 +765,7 @@ multibinder names hoas = binds vars body
         go :: Nat -> List1 Hint xs -> List1 VS xs
         go _ Nil                         = Nil
         go n (Cons (Hint name typ) rest) =
-            Cons (VS (Variable (Name name $ maxBind body + n) typ) typ)
+            Cons (VS (Variable name (maxBind body + n) typ) typ)
                 ((go $! n + 1) rest)
     body = hoas (go vars)
         where

@@ -7,6 +7,7 @@
              StandaloneDeriving #-}
 module Language.Hakaru.Parser.AST where
 
+import Language.Hakaru.Syntax.Nat
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.AST    (PrimOp(..),
@@ -14,12 +15,16 @@ import Language.Hakaru.Syntax.AST    (PrimOp(..),
                                       MeasureOp(..),
                                       LCs(..),
                                       UnLCs (..))
-import Language.Hakaru.Syntax.ABT(Name(..))
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.IClasses
 
 import Data.Text
 import Text.Parsec (SourcePos)
+
+-- N.B., because we're not using the ABT's trick for implementing a HOAS API, we can make the identifier strict.
+data Name = Name {-# UNPACK #-}!Nat {-# UNPACK #-}!Text
+    deriving (Read, Show, Eq, Ord)
+
 
 data SealedOp op where
      SealedOp

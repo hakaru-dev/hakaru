@@ -82,7 +82,7 @@ test1 = lam $ \x -> total (weight x)
 test2 :: TrivialABT '[] ('HMeasure 'HProb ':-> 'HProb)
 test2 = syn (Lam_ :$ bind x (total (var x)) :* End)
     where
-    x = Variable (Name (Text.pack "x") 2) (SMeasure SProb)
+    x = Variable (Text.pack "x") 2 (SMeasure SProb)
 -- TODO: we'd rather use @lam $ \x -> total x@ but that causes 'binder' to throw a <<loop>> exception, presumably because 'expect' needs to force variable IDs to store them in the Env. Is there any way to work around that so we don't need to manually generate our own variable? Maybe by explicitly using the 'Expect' primop, and then performing the evaluation of that primop after 'binder' has finished constructing the first-order AST; but how can we specify that order of evaluation (except by making the evaluation of 'Expect' as 'expect' explicit)?
 
 
@@ -90,7 +90,7 @@ test2 = syn (Lam_ :$ bind x (total (var x)) :* End)
 test3 :: TrivialABT '[] (('HInt ':-> 'HMeasure 'HProb) ':-> 'HProb)
 test3 = syn (Lam_ :$ bind x (total (var x `app` int_ 3)) :* End)
     where
-    x = Variable (Name (Text.pack "x") 2) (SFun SInt $ SMeasure SProb)
+    x = Variable (Text.pack "x") 2 (SFun SInt $ SMeasure SProb)
 
 test4 :: TrivialABT '[] 'HProb
 test4 = total $ if_ true (dirac unit) (weight (prob_ 5) >> dirac unit)
