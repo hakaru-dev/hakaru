@@ -1,3 +1,5 @@
+-- TODO: [wrengr 2015.10.23] remove this file entirely. There are only three files that depend on this: "Tests.ImportanceSampler", "Tests.Metropolis", @Examples/@"Examples"
+
 -- The lambda-calculus part of the language, which can be shared
 module Language.Hakaru.Lambda(lit, dbl, lam, app, fix, ifThenElse) where
 

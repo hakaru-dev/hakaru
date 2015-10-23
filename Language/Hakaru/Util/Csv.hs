@@ -1,5 +1,6 @@
-{-# LANGUAGE TypeOperators #-}
+-- TODO: [wrengr 2015.10.23] (a) remove this file entirely, or (b) move it somewhere more helpful.
 
+{-# LANGUAGE TypeOperators #-}
 module Language.Hakaru.Util.Csv ((:::)((:::)), decodeFile, decodeGZipFile,
                  decodeFileStream, decodeGZipFileStream) where
 

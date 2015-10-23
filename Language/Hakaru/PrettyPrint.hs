@@ -348,6 +348,34 @@ ppFun p f ds =
 ppArg :: (ABT abt) => abt '[] a -> Doc
 ppArg = prettyPrec 11
 
+{-
+-- TODO: for when we update the representation of HReal\/HProb values to use rationals rather than Double\/LogFloat.
+ppRational :: Int -> Rational -> Doc
+ppRational p r
+    | d == 1    = ppInteger n
+    | otherwise = PP.cat [ppInteger n, PP.char '/' <> ppInteger d ]
+    where
+    ppInteger = PP.text . show
+    d = denominator r
+    n = numerator   r
+
+-- If we decide to generalize the above to all Ratio, then we'd need something like:
+showRatio :: (Show a, Integral a) => Int -> Ratio a -> ShowS
+showRatio p r
+    | num < 0    =
+        showParen (p > 6)
+            $ showChar '-'
+            . showRatio 7 (-r)
+    | denom == 1 = showsPrec p n
+    | otherwise  =
+        showParen (p > 7)
+            $ showsPrec 8 n 
+            . showChar '/' 
+            . showsPrec 8 d
+    where
+    d = denominator r
+    n = numerator   r
+-}
 
 data Associativity = LeftAssoc | RightAssoc | NonAssoc
 

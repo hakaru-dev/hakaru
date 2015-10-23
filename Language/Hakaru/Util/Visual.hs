@@ -1,3 +1,5 @@
+-- TODO: [wrengr 2015.10.23] (a) remove this file entirely, or (b) move it somewhere more helpful.
+
 {-# LANGUAGE OverloadedStrings #-}
 
 module Language.Hakaru.Util.Visual where

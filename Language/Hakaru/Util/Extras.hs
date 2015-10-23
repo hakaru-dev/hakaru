@@ -1,3 +1,5 @@
+-- TODO: [wrengr 2015.10.23] (a) remove this file entirely, or (b) move it somewhere more helpful.
+
 {-|
   Functions on lists and sequences.
   Some of the functions follow the style of Data.Random.Extras 

@@ -1,3 +1,5 @@
+-- TODO: [wrengr 2015.10.23] (a) remove this file entirely, or (b) move it somewhere more helpful. Also, if we keep it around, the module name should change to match the file name.
+
 {-# LANGUAGE RankNTypes, NoMonomorphismRestriction #-}
 {-# OPTIONS -W #-}
 
