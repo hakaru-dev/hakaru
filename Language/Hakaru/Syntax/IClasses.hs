@@ -450,8 +450,10 @@ instance Show1 a => Show (Some a) where
 instance JmEq1 a  => Eq (Some a) where
     Some x == Some y = maybe False (const True) (jmEq1 x y)
 
+{-# DEPRECATED Sealed1 "use Some instead" #-}
 data Sealed1 op = forall a. Sealed1 (op a)
 
+{-# DEPRECATED Sealed2 "If we actually need this; rename to Some1 and Some2" #-}
 data Sealed2 op  where
      Sealed2 :: op args a -> Sealed2 op
 

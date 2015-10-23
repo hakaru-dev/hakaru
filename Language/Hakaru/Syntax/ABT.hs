@@ -519,7 +519,10 @@ instance Show (TrivialABT xs a) where
 -- TODO: what is the performance cost of letting 'memoizedFreeVars' be lazy? Is it okay to lose the ability to use 'binder' in order to shore that up?
 
 
--- WARNING: in older versions of the library, there was an issue about the memoization of 'maxBind' breaking our ability to tie-the-knot in 'binder'. Everything seems to work now, but it's not entirely clear to me what changed...
+-- WARNING: in older versions of the library, there was an issue
+-- about the memoization of 'maxBind' breaking our ability to
+-- tie-the-knot in 'binder'. Everything seems to work now, but it's
+-- not entirely clear to me what changed...
 
 -- | An ABT which memoizes 'freeVars', 'maxBind', and 'maxFree',
 -- thereby making them take only /O(1)/ time.

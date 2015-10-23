@@ -20,7 +20,9 @@
 -- Portability :  GHC-only
 --
 -- The generating functor for the raw syntax, along with various
--- helper types. For a more tutorial sort of introduction to how things are structured here and in "Language.Hakaru.Syntax.ABT", see <http://winterkoninkje.dreamwidth.org/103978.html>
+-- helper types. For a more tutorial sort of introduction to how
+-- things are structured here and in "Language.Hakaru.Syntax.ABT",
+-- see <http://winterkoninkje.dreamwidth.org/103978.html>
 --
 -- TODO: are we finally at the place where we can get rid of all
 -- those annoying underscores?
@@ -530,7 +532,6 @@ instance Foldable21 SArgs where
 
 
 ----------------------------------------------------------------
--- BUG: we need the 'Functor21' instance to be strict, in order to guaranteee timely throwing of exceptions in 'subst'.
 data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
 
     -- | Simple syntactic forms (i.e., generalized quantifiers)
