@@ -43,7 +43,11 @@ import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.DataKind (Hakaru(..), HData')
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.TypeHelpers
-import Language.Hakaru.Syntax.Coercion (Coercion(..), singCoerceTo, singCoerceFrom, singCoerceDomCod)
+import Language.Hakaru.Syntax.Coercion (Coercion(..),
+                                        singCoerceTo,
+                                        singCoerceFrom,
+                                        singCoerceDom,
+                                        singCoerceDomCod)
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT
@@ -312,22 +316,30 @@ inferType = inferType_
           Sealed1 v' ->
               return $ TypedAST (sing_Value v') (syn(Value_ v'))
 
-    -- Giving up on CoerceTo_, UnsafeFrom_, and MBind_
+    -- Giving up on CoerceTo_, UnsafeFrom_
     --
-   
-    -- U.CoerceTo_ (U.Coerc c) e1
+    --  U.CoerceTo_ c' e1 ->
     --     | inferable e1 -> do
     --         t1 <- inferType_ e1
-    --         case t1 of
-    --           TypedAST typ e1' ->
-    --            return $ TypedAST (singCoerceTo c typ)
-    --                              (syn(CoerceTo_ c :$ e1' :* End))
-    --     | otherwise ->
-    --         case singCoerceDomCod c of
-    --           Nothing -> failwith "Cannot infer type for null-coercion over a checking term; please add a type annotation"
-    --           Just (dom,cod) -> do
-    --             e1' <- checkType dom e1
-    --             return $ TypedAST cod (syn(CoerceTo_ c :$ e1' :* End))
+    --         case (c', t1) of
+    --           (Sealed2 c, TypedAST typ e1') ->
+    --            case singCoerceDom c of
+    --             Nothing   -> return t1
+    --             Just typ' -> 
+    --              case jmEq1 typ typ' of
+    --               Nothing   -> failwith "type mismatch"
+    --               Just Refl -> return $ TypedAST (singCoerceTo c typ)
+    --                                              (syn(CoerceTo_ c :$ e1' :* End))
+
+    U.CoerceTo_ (Sealed2 c) e1 ->
+        case singCoerceDomCod c of
+          Nothing | inferable e1 -> inferType_ e1
+                  | otherwise    -> 
+                      failwith "Cannot infer type for null-coercion over a checking term; please add a type annotation"  
+          Just (dom,cod) -> do
+            e1' <- checkType dom e1
+            return $ TypedAST cod (syn(CoerceTo_ c :$ e1' :* End))
+          
 
     -- Syn (UnsafeFrom_ c :$ e1 :* End)
     --     | inferable e1 -> do
