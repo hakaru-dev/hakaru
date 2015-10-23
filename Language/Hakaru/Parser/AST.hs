@@ -16,14 +16,10 @@ import Language.Hakaru.Syntax.AST    (PrimOp(..),
                                       UnLCs (..))
 import Language.Hakaru.Syntax.ABT(Name(..))
 import Language.Hakaru.Syntax.Sing
+import Language.Hakaru.Syntax.IClasses
 
 import Data.Text
 import Text.Parsec (SourcePos)
-
-data Sealed1 op = forall a. Sealed1 (op a)
-
-data Sealed2 op  where
-     Sealed2 :: op args a -> Sealed2 op
 
 data SealedOp op where
      SealedOp
@@ -147,15 +143,19 @@ data Pattern a =
    | PWild
    | PData [AST a]
 
+data Coerce' =
+     CNone
+   | forall a b. Coerc (Coercion a b)
+
 data AST a =
-     Var_        a
+     Var_        Name
    | Lam_        Name    (AST a)
    | App_        (AST a) (AST a)
    | Fix_        Name    (AST a)
    | Let_        Name    (AST a) (AST a)
    | Ann_        (AST a) Hakaru
-   | CoerceTo_   [Sealed2 Coercion] (AST a)
-   | UnsafeFrom_ [Sealed2 Coercion] (AST a)
+   | CoerceTo_   Coerce' (AST a)
+   | UnsafeFrom_ Coerce' (AST a)
    | PrimOp_     (SealedOp PrimOp) [AST a]
    | NaryOp_     (Sealed1 NaryOp)  [AST a]
    | Value_      Value'
@@ -174,3 +174,10 @@ deriving instance Show a => Show (AST' a)
 deriving instance Eq a => Eq (TypeAST' a)
 deriving instance Show a => Show (TypeAST' a)
 deriving instance Show Value'
+
+
+fromProb :: Coercion 'HProb 'HReal
+fromProb = signed
+
+fromInt :: Coercion 'HInt 'HReal
+fromInt = continuous

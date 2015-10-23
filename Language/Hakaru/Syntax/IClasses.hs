@@ -59,6 +59,8 @@ module Language.Hakaru.Syntax.IClasses
     
     -- * Helper types
     , Some(..)
+    , Sealed1(..)
+    , Sealed2(..)
     , Pair1(..)
     -- ** List types
     , type (++), eqAppendNil, eqAppendAssoc
@@ -448,6 +450,10 @@ instance Show1 a => Show (Some a) where
 instance JmEq1 a  => Eq (Some a) where
     Some x == Some y = maybe False (const True) (jmEq1 x y)
 
+data Sealed1 op = forall a. Sealed1 (op a)
+
+data Sealed2 op  where
+     Sealed2 :: op args a -> Sealed2 op
 
 ----------------------------------------------------------------
 -- | A /strict/ pairing of identically @k@-indexed values.

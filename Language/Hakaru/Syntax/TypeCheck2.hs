@@ -39,7 +39,7 @@ import           Control.Applicative   (Applicative(..), (<$>))
 import qualified Language.Hakaru.Parser.AST as U
 
 import Language.Hakaru.Syntax.Nat      (fromNat)
-import Language.Hakaru.Syntax.IClasses (List1(..), JmEq1(..), JmEq2(..), TypeEq(..))
+import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.DataKind (Hakaru(..), HData')
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.TypeHelpers
@@ -118,9 +118,9 @@ mustCheck = go
     -- we should be able to infer the whole thing... Or maybe the
     -- problem is that the change-of-direction rule might send us
     -- down the wrong path?
-    go (U.Case_ _ _)     = True
+    go (U.Case_ _ _)       = True
 
-    go (U.MeasureOp_ _)  = False
+    go (U.MeasureOp_ _ _)  = False
     -- TODO: I'm assuming MBind works like Let_, but we should make sure...
     -- TODO: again, it seems like if we can infer one of the options, then we should be able to check the rest against it. But for now we'll assume we must check
     go (U.MBind_ _ _ e2) = mustCheck e2
@@ -303,7 +303,7 @@ inferType = inferType_
 
     U.NaryOp_ o es ->
         case o of
-          U.Sealed1 op ->
+          Sealed1 op ->
               let typ = sing_NaryOp op in do
               es' <- T.forM es $ checkType typ
               return $ TypedAST typ (syn(NaryOp_ op (S.fromList es')))
@@ -311,50 +311,71 @@ inferType = inferType_
     U.Value_ v ->
         -- BUG: need to finish implementing sing_Value for Datum
         case type_Value v of
-          U.Sealed1 v' ->
+          Sealed1 v' ->
               return $ TypedAST (sing_Value v') (syn(Value_ v'))
 
-    U.CoerceTo_ c e1
-        | inferable e1 -> do
-            t1 <- inferType_ e1
-            case t1 of
-              TypedAST typ e1' ->
-               return (singCoerceTo c typ, syn(CoerceTo_ c :$ e1' :* End))
-        | otherwise ->
-            case singCoerceDomCod c of
-            Nothing -> failwith "Cannot infer type for null-coercion over a checking term; please add a type annotation"
-            Just (dom,cod) -> do
-                e1' <- checkType dom e1
-                return (cod, syn(CoerceTo_ c :$ e1' :* End))
+    -- Giving up on CoerceTo_, UnsafeFrom_, and MBind_
+    --
+    -- U.CoerceTo_ U.CNone e1
+    --     | inferable e1 -> do
+    --         t1 <- inferType_ e1
+    --         case t1 of
+    --            TypedAST typ e1' ->
+    --             return $ TypedAST (singCoerceTo CNil typ)
+    --                               (syn(CoerceTo_ CNil :$ e1' :* End))
+    --     | otherwise ->
+    --         case singCoerceDomCod CNil of
+    --           Nothing -> failwith "Cannot infer type for null-coercion over a checking term; please add a type annotation"
+    --           Just (dom,cod) -> do
+    --             e1' <- checkType dom e1
+    --             return $ TypedAST cod (syn(CoerceTo_ CNil :$ e1' :* End))
 
-    Syn (UnsafeFrom_ c :$ e1 :* End)
-        | inferable e1 -> do
-            (typ,e1') <- inferType_ e1
-            return (singCoerceFrom c typ, syn(UnsafeFrom_ c :$ e1' :* End))
-        | otherwise ->
-            case singCoerceDomCod c of
-            Nothing -> failwith "Cannot infer type for null-coercion over a checking term; please add a type annotation"
-            Just (dom,cod) -> do
-                e1' <- checkType cod e1
-                return (dom, syn(UnsafeFrom_ c :$ e1' :* End))
+    -- U.CoerceTo_ (U.Coerc c) e1
+    --     | inferable e1 -> do
+    --         t1 <- inferType_ e1
+    --         case t1 of
+    --           TypedAST typ e1' ->
+    --            return $ TypedAST (singCoerceTo c typ)
+    --                              (syn(CoerceTo_ c :$ e1' :* End))
+    --     | otherwise ->
+    --         case singCoerceDomCod c of
+    --           Nothing -> failwith "Cannot infer type for null-coercion over a checking term; please add a type annotation"
+    --           Just (dom,cod) -> do
+    --             e1' <- checkType dom e1
+    --             return $ TypedAST cod (syn(CoerceTo_ c :$ e1' :* End))
 
-    Syn (MeasureOp_ o :$ es) ->
-        let (typs, typ1) = sing_MeasureOp o in do
-        es' <- checkSArgs typs es
-        return (typ1, syn(MeasureOp_ o :$ es'))
+    -- Syn (UnsafeFrom_ c :$ e1 :* End)
+    --     | inferable e1 -> do
+    --         (typ,e1') <- inferType_ e1
+    --         return (singCoerceFrom c typ, syn(UnsafeFrom_ c :$ e1' :* End))
+    --     | otherwise ->
+    --         case singCoerceDomCod c of
+    --         Nothing -> failwith "Cannot infer type for null-coercion over a checking term; please add a type annotation"
+    --         Just (dom,cod) -> do
+    --             e1' <- checkType cod e1
+    --             return (dom, syn(UnsafeFrom_ c :$ e1' :* End))
 
-    Syn (MBind :$ e1 :* e2 :* End)
-        | inferable e1 -> do
-            (typ1,e1') <- inferType_ e1
-            case typ1 of
-                SMeasure typ2 ->
-                    caseBind e2 $ \x e3 ->
-                        case jmEq1 typ2 (varType x) of
-                        Nothing   -> failwith "type mismatch"
-                        Just Refl -> pushCtx (SomeVariable x) $ do
-                            (typ3,e3') <- inferType e3
-                            return (typ3, syn(MBind :$ e1' :* bind x e3' :* End))
-                _ -> failwith "expected measure type"
+    U.MeasureOp_ o es ->
+        case o of
+          U.SealedOp _ op ->
+              let (typs, typ1) = sing_MeasureOp op in do
+              es' <- checkSArgs typs es
+              return $ TypedAST typ1 (syn(MeasureOp_ op :$ es'))
+
+    -- U.MBind_ name e1 e2
+    --     | inferable e1 -> do
+    --         t1 <- inferType_ e1
+    --         case t1 of
+    --           TypedAST typ1 e1' ->
+    --               case typ1 of
+    --                 SMeasure typ2 ->
+    --                     let x = (Variable name typ2)
+    --                     in pushCtx (SomeVariable x) $ do
+    --                         t2 <- inferType e2
+    --                         case t2 of
+    --                           TypedAST typ3 e2' ->
+    --                               return $ TypedAST typ3 (syn(MBind :$ e1' :* bind x e2' :* End)) 
+    --                 _ -> failwith "expected measure type"
 
     _   | mustCheck e0 -> failwith "Cannot infer types for checking terms; please add a type annotation"
         | otherwise    -> error "inferType: missing an inferable branch!"
@@ -381,8 +402,8 @@ checkSArgs _ _ = error "checkSArgs: the impossible happened"
 -- | Given a typing environment, a term, and a type, check that the
 -- term satisfies the type.
 checkType
-    :: forall abt a c
-    .  ABT abt
+    :: forall abt abt' a c
+    .  (ABT abt, ABT abt')
     => Sing a
     -> U.AST c
     -> TypeCheckMonad (abt '[] a)
@@ -500,10 +521,10 @@ checkType = checkType_
     -- TODO: can we combine these in with the 'checkBranch' functions somehow?
     checkDatumCode
         :: forall xss t
-        .  DatumCode xss (U.AST c) -- CHANGE THIS
+        .  DatumCode xss (abt '[]) (HData' t) -- CHANGE THIS
         -> Sing xss
         -> Sing (HData' t)
-        -> TypeCheckMonad (DatumCode xss (abt '[]) (HData' t))
+        -> TypeCheckMonad (DatumCode xss (abt' '[]) (HData' t))
     checkDatumCode d typ typA =
         case d of
         Inr d2 ->
@@ -640,7 +661,7 @@ checkPatternFun
     -> PDatumFun x vars (HData' t) -- CHANGE THIS
     -> Sing x
     -> Sing (HData' t)
-    -> (abt '[] b -> TypeCheckMonad (abt' '[] b)) -- CHANGETHIS
+    -> (abt '[] b -> TypeCheckMonad (abt' '[] b)) -- CHANGE THIS
     -> TypeCheckMonad (abt' vars b)
 checkPatternFun body pat typ typA k =
     case pat of
