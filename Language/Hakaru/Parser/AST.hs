@@ -9,7 +9,11 @@ module Language.Hakaru.Parser.AST where
 
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Coercion
-import Language.Hakaru.Syntax.AST    (PrimOp(..), NaryOp(..), LCs(..), UnLCs (..))
+import Language.Hakaru.Syntax.AST    (PrimOp(..),
+                                      NaryOp(..),
+                                      MeasureOp(..),
+                                      LCs(..),
+                                      UnLCs (..))
 import Language.Hakaru.Syntax.ABT(Name(..))
 import Language.Hakaru.Syntax.Sing
 
@@ -62,7 +66,7 @@ data Symbol' =
    | NaryOp
    | Array
    | Empty'
-   | MeasureOp
+   | MeasureOp'
    | MBind
    | Plus
 
@@ -124,18 +128,18 @@ data NaryOp' =
    | Sum' 
    | Prod'
 
-data MeasureOp' a =
+data MeasureOp_ =
      Lebesgue'
    | Counting'
-   | Categorical' (AST a)
-   | Uniform'     (AST a) (AST a)
-   | Normal'      (AST a) (AST a)
-   | Poisson'     (AST a) (AST a)
-   | Gamma'       (AST a) (AST a)
-   | Beta'        (AST a) (AST a)
-   | DP'          (AST a) (AST a)
-   | Plate'       (AST a)
-   | Chain'       (AST a) (AST a)
+   | Categorical'
+   | Uniform'    
+   | Normal'     
+   | Poisson'    
+   | Gamma'      
+   | Beta'       
+   | DP'         
+   | Plate'      
+   | Chain'      
 
 data Branch a = Branch (Pattern a) (AST a)
 data Pattern a =
@@ -159,7 +163,7 @@ data AST a =
    | Array_      (AST a) (AST a)
    | Datum_      (AST a)
    | Case_       (AST a) [Branch a]
-   | MeasureOp_  (MeasureOp' a)
+   | MeasureOp_  (SealedOp MeasureOp) [AST a]
    | MBind_      Name    (AST a) (AST a)
    | Superpose_  (AST a)
    | Lub_        (AST a)
