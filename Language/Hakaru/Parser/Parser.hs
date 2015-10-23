@@ -31,7 +31,7 @@ names = ["def","fn", "if","else","pi","inf",
 
 type Parser = ParsecT (IndentStream (CharIndentStream Text)) () Identity
 
-style = Tok.LanguageDef
+style = ITok.makeIndentLanguageDef $ Tok.LanguageDef
         { Tok.commentStart   = ""
         , Tok.commentEnd     = ""
         , Tok.nestedComments = True
