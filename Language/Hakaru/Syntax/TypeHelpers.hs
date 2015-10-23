@@ -18,7 +18,6 @@ module Language.Hakaru.Syntax.TypeHelpers
     , sing_PrimOp
     , sing_MeasureOp
     , sing_Value
-    , type_Value
     ) where
 
 import Data.Number.LogFloat            (logFloat)
@@ -60,13 +59,6 @@ sing_Value (VDatum (Datum hint d)) = error "TODO: sing_Value{VDatum}"
     goF (Konst e1) = SKonst (sing_Value e1)
     goF (Ident e1) = SIdent -- @sing_Value e1@ is what the first argument to SData should be; assuming we actually make it to this branch...
     -}
-
-type_Value :: U.Value' -> Sealed1 Value
-type_Value (U.Nat  v) = Sealed1 $ VNat  (unsafeNat v)
-type_Value (U.Int  v) = Sealed1 $ VInt  v
-type_Value (U.Prob v) = Sealed1 $ VProb (logFloat v)
-type_Value (U.Real v) = Sealed1 $ VReal v
-type_Value (U.Datum _) = error "TODO: type_Value(Datum)"
 
 -- TODO: we don't need to store the HOrd\/HSemiring values here,
 -- we can recover them by typeclass, just like we use 'sing' to get

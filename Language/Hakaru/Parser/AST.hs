@@ -12,6 +12,7 @@ import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.AST    (PrimOp(..),
                                       NaryOp(..),
+                                      Value(..),
                                       MeasureOp(..),
                                       LCs(..),
                                       UnLCs (..))
@@ -90,7 +91,7 @@ data AST' a =
    | Let Name'    (AST' a) (AST' a)
    | If  (AST' a) (AST' a) (AST' a)
    | Ann (AST' a) (TypeAST' a)
-   | Value Value'
+   | UValue Value'
    | Empty
    | Case  (AST' a) [(Branch' a)] -- match
    | Bind  Name' (AST' a) (AST' a)
@@ -164,7 +165,7 @@ data AST a =
    | UnsafeFrom_ Hakaru (AST a)
    | PrimOp_     (SealedOp PrimOp) [AST a]
    | NaryOp_     (Sealed1 NaryOp)  [AST a]
-   | Value_      Value'
+   | Value_      (Sealed1 Value)
    | Empty_
    | Array_      (AST a) (AST a)
    | Datum_      (AST a)

@@ -308,7 +308,7 @@ inferType = inferType_
 
     U.Value_ v ->
         -- BUG: need to finish implementing sing_Value for Datum
-        case type_Value v of
+        case v of
           Sealed1 v' ->
               return $ TypedAST (sing_Value v') (syn(Value_ v'))
 

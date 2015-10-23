@@ -203,10 +203,10 @@ data_expr = do
    
 
 op_factor :: Parser (AST' Text)
-op_factor =     try (M.liftM Value floating)
-            <|> try (M.liftM Value inf_)
+op_factor =     try (M.liftM UValue floating)
+            <|> try (M.liftM UValue inf_)
             <|> try unit_
-            <|> try (M.liftM Value int)
+            <|> try (M.liftM UValue int)
             <|> try var
             <|> try pairs
 
