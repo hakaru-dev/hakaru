@@ -218,7 +218,7 @@ instance (Backward a x, Backward b y)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
--- TODO: keep track of the original 'Variable', for its hint!
+-- TODO: just use Variables rather than Loc. Make sure to freshen variables when adding things to the heap though.
 --
 -- | A location is essentially the same thing as a variable (namely
 -- for variable bound to some value), except that we brand it with

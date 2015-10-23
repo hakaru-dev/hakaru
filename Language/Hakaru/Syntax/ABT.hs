@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.21
+--                                                    2015.10.22
 -- |
 -- Module      :  Language.Hakaru.Syntax.ABT
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -31,19 +31,14 @@
 --
 --    * <http://semantic-domain.blogspot.co.uk/2015/03/abstract-binding-trees-addendum.html>
 --
+--    * <http://winterkoninkje.dreamwidth.org/103978.html>
+--
 -- TODO: simultaneous multiple substitution
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.ABT
     (
-    -- * Our basic notion of variables\/names.
-      Name(..)
-    , nameHint
-    , nameID
-    , Variable(..)
-    , varName
-    , varHint
-    , varID
-    , varType
+    -- * Our basic notion of variables.
+      Variable(..)
     , varEq
     , VarEqTypeError(..)
     , SomeVariable(..)
@@ -53,12 +48,10 @@ module Language.Hakaru.Syntax.ABT
     , unviewABT
     , ABT(..)
     , caseVarSyn
-    , isBind
     -- ** Capture avoiding substitution for any 'ABT'
     , subst
     -- ** Constructing first-order trees with a HOAS-like API
     -- cf., <http://comonad.com/reader/2014/fast-circular-substitution/>
-    , maxBind
     , binder
     {-
     -- *** Highly experimental
@@ -67,7 +60,7 @@ module Language.Hakaru.Syntax.ABT
     -}
     -- ** Some ABT instances
     , TrivialABT()
-    , FreeVarsABT()
+    , MemoizedABT()
     ) where
 
 import           Data.Typeable     (Typeable)
@@ -88,15 +81,26 @@ import Language.Hakaru.Syntax.AST
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
--- TODO: we may want to parameterize ABTs over their implementation
--- of Variable\/Name, so that we can use strict\/unpacked Nats
--- everywhere once we're done building the tree with 'binder'...
--- Or, since we unpack Variable in View, maybe it'd be better to
--- parameterize the ABT by its concrete view? If we did that, then
--- we could define a specialized Bind for FreeVarsABT, in order to
--- keep track of whether the bound variable occurs or not (for
--- defining 'caseBind' precisely).
---
+-- TODO: (definitely) parameterise the 'ABT' class over it's choice
+-- of syntax (currently assumed to always be 'AST'). This way we
+-- can reuse the ABT stuff for the untyped AST that symbol resolution
+-- generates
+
+-- TODO: (probably) parameterize the 'ABT' class over it's
+-- implementation of 'Name'\/'Variable', so that after we're done
+-- constructing terms with 'binder' we can make the varID
+-- strict\/unboxed.
+
+-- TODO: (maybe) parameterize the 'ABT' class over it's implementation
+-- of 'View' so that we can unpack the implementation of 'Variable'
+-- into the 'Var' constructor. That is, the current version does
+-- this unpacking, but if we parameterize the variable implementation
+-- then we'd lose it; so this would allow us to regain it. Also,
+-- if we do this, then 'MemoizedABT' could define it's own specialized
+-- 'Bind' in order to keep track of whether bound variables occur
+-- or not (for defining 'caseBind' precisely).
+
+----------------------------------------------------------------
 -- | A name is a pair of some hint for how to display things to
 -- humans ('nameHint') and some unique identifier ('nameID'). N.B.,
 -- the unique identifier is lazy so that we can tie-the-knot in
@@ -124,7 +128,6 @@ instance Ord Name where
     compare = compare `on` nameID
 
 ----------------------------------------------------------------
--- TODO: actually define 'Variable' as something legit
 -- TODO: should we make this type abstract?
 
 -- HACK: alas we need to keep the Sing in order to make 'subst' typesafe... Is there any way to work around that? Maybe only define substitution for well-typed ABTs (i.e., what we produce via typechecking a plain ABT)? If we can manage to get rid of the Sing, then 'biner' and 'multibinder' would become much simpler. Alas, it looks like we also need it for 'inferType' to be well-typed... How can we avoid that?
@@ -134,12 +137,24 @@ instance Ord Name where
 -- as necessary)?
 
 
--- | A variable is a pair of some name ('varName') and some type
+-- | A variable is a triple of some hint for how to display things to humans ('varHint'), some unique identifier ('varID'), and some type ('varType'). 
+
+
+. N.B.,
+-- the unique identifier is lazy so that we can tie-the-knot in
+-- 'binder'. Also, N.B., the 'Eq' and 'Ord' instances only check
+
+pair of some name ('varName') and some type
 -- ('varType'). The 'Eq' and 'Ord' instances only look at the
 -- 'nameID', ignoring both the 'nameHint' and the 'varType'. However,
 -- the 'varEq' function also takes the 'varType' into consideration.
 data Variable :: Hakaru -> * where
-    Variable :: {-# UNPACK #-} !Name -> !(Sing a) -> Variable a
+    Variable ::
+        { varHint :: {-# UNPACK #-} !Text
+        , varID   :: Nat -- N.B., lazy!
+        , varType :: !(Sing a)
+        }
+        -> Variable a
 
 -- TODO: instance Read (Variable a)
 
@@ -175,9 +190,11 @@ varHint = nameHint . varName
 varType :: Variable a -> Sing a
 varType (Variable _ typ) = typ
 
+-- BUG: this may not be consistent with the interpretation chosen by 'varEq'
 instance Eq (Variable a) where
     (==) = (==) `on` varName
 
+-- BUG: this must be consistent with the 'Eq' instance, but should also be consistent with the 'varEq' interpretation. In particular, it's not clear how to make any Ord instance consistent with interpretation #1 (unless we have some sort of `jmCompare` on types!)
 instance Ord (Variable a) where
     compare = compare `on` varName
 
@@ -245,6 +262,7 @@ deriving instance Show VarEqTypeError
 instance Exception VarEqTypeError
 
 ----------------------------------------------------------------
+-- TODO: switch to using 'Some' itself
 -- | Hide an existentially quantified parameter to 'Variable'.
 data SomeVariable where
     SomeVariable :: {-# UNPACK #-} !(Variable a) -> SomeVariable
@@ -263,12 +281,8 @@ instance Ord SomeVariable where
 -- TODO: instance Read SomeVariable
 deriving instance Show SomeVariable
 
+
 ----------------------------------------------------------------
--- TODO: should we abstract over 'AST' like neelk does for @signature@?
---
--- TODO: distinguish between free and bound variables, a~la Locally
--- Nameless? also cf., <http://hackage.haskell.org/package/abt>
---
 -- | The raw view of abstract binding trees, to separate out variables
 -- and binders from (1) the rest of syntax (cf., 'AST'), and (2)
 -- whatever annotations (cf., the 'ABT' instances).
@@ -335,8 +349,10 @@ instance Show2 abt => Show (View abt xs a) where
     show      = show1
 
 
--- TODO: neelk includes 'subst' in the signature. Any reason we should?
+-- TODO: neelk includes 'subst' as a method. Any reason we should?
+-- TODO: jon includes instantiation as a method. Any reason we should?
 class ABT (abt :: [Hakaru] -> Hakaru -> *) where
+    -- Smart constructors for building a 'View' and then injecting it into the @abt@.
     syn  :: AST abt  a -> abt '[] a
     var  :: Variable a -> abt '[] a
     bind :: Variable a -> abt xs b -> abt (a ': xs) b
@@ -348,10 +364,13 @@ class ABT (abt :: [Hakaru] -> Hakaru -> *) where
     -- > caseBind (bind x e) k == k x (unviewABT $ viewABT e)
     -- However, we do not necessarily have the following:
     -- > caseBind (bind x e) k == k x e
-    -- because the definition of 'caseBind' for 'FreeVarsABT'
+    -- because the definition of 'caseBind' for 'MemoizedABT'
     -- is not exact.
     --
-    -- | Since the first argument to @abt@ is not @'[]@, we know it must be 'Bind'. So we do case analysis on that constructor, pushing the annotation down one binder (but not over the whole recursive 'View' layer).
+    -- | Since the first argument to @abt@ is not @'[]@, we know
+    -- it must be 'Bind'. So we do case analysis on that constructor,
+    -- pushing the annotation down one binder (but not over the
+    -- whole recursive 'View' layer).
     caseBind :: abt (x ': xs) a -> (Variable x -> abt xs a -> r) -> r
 
     -- See note about exposing 'View', 'viewABT', and 'unviewABT'.
@@ -361,15 +380,39 @@ class ABT (abt :: [Hakaru] -> Hakaru -> *) where
     -- TODO: use our own VarSet type (e.g., @IntMap Variable@) instead of @Set Variable@?
     freeVars :: abt xs a -> Set SomeVariable
 
-    -- TODO: add a function for checking alpha-equivalence? Other stuff?
-    -- TODO: does it make sense to have the functions for generating fresh variable names here? or does that belong in a separate class?
+    -- | Return the largest 'varID' of /free/ variables. The default
+    -- implementation is to take the maximum of 'freeVars'. This
+    -- is part of the class in case you want to memoize it.
+    --
+    -- This function is used in order to generate guaranteed-fresh
+    -- variables without the need for a name supply. In particular,
+    -- it's used to ensure that the generated variable don't capture
+    -- any free variables in the term.
+    maxFree :: abt xs a -> Nat
+    maxFree = maxVarID . freeVars
+
+    -- | Return the largest 'varID' of variable /binding sites/
+    -- (i.e., of variables bound by the 'Bind' constructor). N.B.,
+    -- this should return 0 for /uses/ of the bound variables
+    -- themselves. This is part of the class in case you want to
+    -- memoize it.
+    --
+    -- This function is used in order to generate guaranteed-fresh
+    -- variables without the need for a name supply. In particular,
+    -- it's used to ensure that the generated variable won't be
+    -- captured or shadowed by bindings already in the term.
+    maxBind :: abt xs a -> Nat
 
 
-isBind :: (ABT abt) => abt xs a -> Bool
-isBind e =
-    case viewABT e of
-    Bind _ _ -> True
-    _        -> False
+    -- TODO: add a function for checking alpha-equivalence? Refreshing all variable IDs to be in some canonical form? Other stuff?
+
+
+maxVarID :: Set SomeVariable -> Nat
+maxVarID xs
+    | Set.null xs = 0
+    | otherwise   =
+        case Set.findMax xs of
+        SomeVariable x -> varID x
 
 
 -- See note about exposing 'View', 'viewABT', and 'unviewABT'
@@ -395,9 +438,26 @@ caseVarSyn e var_ syn_ =
 
 
 ----------------------------------------------------------------
--- | A trivial ABT with no annotations. The 'freeVars' method is
--- very expensive for this ABT, because we have to traverse the
--- term every time we want to get it. Use 'FreeVarsABT' to fix this.
+----------------------------------------------------------------
+-- | A trivial ABT with no annotations.
+--
+-- The 'Show' instance does not expose the raw underlying data
+-- types, but rather prints the smart constructors 'var', 'syn',
+-- and 'bind'. This makes things prettier, but also means that if
+-- you paste the string into a Haskell file you can use it for any
+-- 'ABT' instance.
+--
+-- The 'freeVars', 'maxFree', and 'maxBind' methods are all very
+-- expensive for this ABT, because we have to traverse the term
+-- every time we want to call them. The 'MemoizedABT' implementation
+-- fixes this.
+--
+-- N.B., The 'maxBind' method is not as expensive as it could be.
+-- As a performance hack, we do not traverse under binders. If every
+-- binding form is generated by using 'binder', then this is in
+-- fact sound because all nested binders will bind smaller variables.
+-- However, If you generate any binding forms manually, then you
+-- can break things so that 'maxBind' returns an incorrect answer.
 newtype TrivialABT (xs :: [Hakaru]) (a :: Hakaru) =
     TrivialABT (View TrivialABT xs a)
 
@@ -419,6 +479,19 @@ instance ABT TrivialABT where
         go (Var  x)   = Set.singleton (SomeVariable x)
         go (Bind x v) = Set.delete (SomeVariable x) (go v)
 
+    maxBind = go 0 . viewABT
+        where
+        -- For multibinders (i.e., nested uses of Bind) we recurse
+        -- through the whole binder, just to be sure. However, we should
+        -- be able to just look at the first binder, since whenever we
+        -- figure out how to do multibinders we can prolly arrange for
+        -- the first one to be the largest.
+        go :: (ABT abt) => Nat -> View abt xs a -> Nat
+        go 0 (Syn  t)   = unMaxNat $ foldMap21 (MaxNat . maxBind) t
+        go n (Syn  _)   = n -- Don't go under binders
+        go n (Var  _)   = n -- Don't look at variable *uses*
+        go n (Bind x v) = go (n `max` varID x) v
+        
 
 instance Show2 TrivialABT where
     {-
@@ -453,7 +526,7 @@ instance Show2 TrivialABT where
 instance Show1 (TrivialABT xs) where
     showsPrec1 = showsPrec2
     show1      = show2
-    
+
 instance Show (TrivialABT xs a) where
     showsPrec = showsPrec1
     show      = show1
@@ -473,23 +546,50 @@ instance Show (TrivialABT xs a) where
 -- be a win or not.
 --
 -- TODO: generalize this pattern for any monoidal annotation?
--- TODO: does keeping the set lazy allow us to use 'binder'? At what performance cost?
+-- TODO: what is the performance cost of letting 'memoizedFreeVars' be lazy? Is it okay to lose the ability to use 'binder' in order to shore that up?
+
+
+-- WARNING: in older versions of the library, there was an issue about the memoization of 'maxBind' breaking our ability to tie-the-knot in 'binder'. Everything seems to work now, but it's not entirely clear to me what changed...
+
+-- | An ABT which memoizes 'freeVars', 'maxBind', and 'maxFree',
+-- thereby making them take only /O(1)/ time.
 --
--- | An ABT which keeps track of free variables. The 'freeVars'
--- method is /O(1)/ for this ABT. N.B., the memoized set of free
--- variables is lazy so that we can tie-the-knot in 'binder'
--- without interfering with our memos.
-data FreeVarsABT (xs :: [Hakaru]) (a :: Hakaru)
-    = FreeVarsABT (Set SomeVariable) !(View FreeVarsABT xs a)
+-- N.B., the memoized set of free variables is lazy so that we can
+-- tie-the-knot in 'binder' without interfering with our memos. The
+-- memoized 'maxFree' must be lazy for the same reason.
+data MemoizedABT (xs :: [Hakaru]) (a :: Hakaru) = MemoizedABT
+    { memoizedFreeVars :: Set SomeVariable -- N.B., lazy!
+    , memoizedMaxFree  :: Nat -- N.B., lazy!
+    , memoizedMaxBind  :: {-# UNPACK #-} !Nat
+    , memoizedView     :: !(View MemoizedABT xs a)
+    }
     -- N.B., Set is a monoid with {Set.empty; Set.union; Set.unions}
     -- For a lot of code, the other component ordering would be
     -- nicer; but this ordering gives a more intelligible Show instance.
 
-instance ABT FreeVarsABT where
-    syn  t   = FreeVarsABT (foldMap21 freeVars t) (Syn t)
-    var  x   = FreeVarsABT (Set.singleton $ SomeVariable x) (Var x)
-    bind x (FreeVarsABT xs v) =
-        FreeVarsABT (Set.delete (SomeVariable x) xs) (Bind x v)
+
+instance ABT MemoizedABT where
+    syn t =
+        MemoizedABT
+            (foldMap21 freeVars t)
+            (unMaxNat $ foldMap21 (MaxNat . maxFree) t)
+            (unMaxNat $ foldMap21 (MaxNat . maxBind) t)
+            (Syn t)
+
+    var x =
+        MemoizedABT
+            (Set.singleton $ SomeVariable x)
+            (varID x)
+            0
+            (Var x)
+
+    bind x (MemoizedABT xs _ mb v) =
+        let xs' = Set.delete (SomeVariable x) xs
+        in MemoizedABT
+            xs'
+            (maxVarID xs')
+            (varID x `max` mb)
+            (Bind x v)
 
     -- N.B., when we go under the binder, the variable @x@ may not
     -- actually be used, but we add it to the set of freeVars
@@ -502,42 +602,59 @@ instance ABT FreeVarsABT where
     -- truly-free variables) then we'll need to account for the
     -- fact that the variable @x@ may come to be used in the grounding
     -- of the open term, even though it's not used in the part of
-    -- the term we already know.
-    caseBind (FreeVarsABT xs v) k =
+    -- the term we already know. Similarly, the true 'maxBind' may
+    -- be lower now that we're going under this binding; but keeping
+    -- it the same is an always valid approximation.
+    --
+    -- TODO: we could actually compute things exactly, similar to how we do it in 'syn'; but unclear if that's really worth it...
+    caseBind (MemoizedABT xs mf mb v) k =
         case v of
         Bind x v' ->
-            k x (FreeVarsABT (Set.insert (SomeVariable x) xs) v')
+            k x $ MemoizedABT
+                (Set.insert (SomeVariable x) xs)
+                (varID x `max` mf)
+                mb
+                v'
 
-    viewABT  (FreeVarsABT _  v) = v
+    viewABT  = memoizedView
+    freeVars = memoizedFreeVars
+    maxFree  = memoizedMaxFree
+    maxBind  = memoizedMaxBind
 
-    freeVars (FreeVarsABT xs _) = xs
 
-instance Show2 FreeVarsABT where
-    showsPrec2 p (FreeVarsABT xs v) =
+instance Show2 MemoizedABT where
+    showsPrec2 p (MemoizedABT xs mf mb v) =
         showParen (p > 9)
-            ( showString "FreeVarsABT "
+            ( showString "MemoizedABT "
             . showsPrec  11 xs
+            . showString " "
+            . showsPrec  11 mf
+            . showString " "
+            . showsPrec  11 mb
             . showString " "
             . showsPrec1 11 v
             )
 
-instance Show1 (FreeVarsABT xs) where
+instance Show1 (MemoizedABT xs) where
     showsPrec1 = showsPrec2
     show1      = show2
 
-instance Show (FreeVarsABT xs a) where
+instance Show (MemoizedABT xs a) where
     showsPrec = showsPrec1
     show      = show1
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
--- TODO: something smarter
+-- TODO: should we export 'freshen' and 'rename'?
+
+-- TODO: do something smarter
+-- | If the variable is in the set, then construct a new one which
+-- isn't (but keeping the same hint and type as the old variable).
+-- If it isn't in the set, then just return it.
 freshen :: Variable a -> Set SomeVariable -> Variable a
 freshen x xs
     | SomeVariable x `Set.member` xs =
-        case Set.findMax xs of
-        SomeVariable y ->
-            Variable (Name (varHint x) $! 1 + varID y) (varType x)
+        Variable (Name (varHint x) $! 1 + maxVarID xs) (varType x)
     | otherwise = x
 
 
@@ -569,11 +686,13 @@ rename x y = start
 
 -- TODO: keep track of a variable renaming environment, and do renaming on the fly rather than traversing the ABT repeatedly.
 --
+-- TODO: make an explicit distinction between substitution in general vs instantiation of the top-level bound variable (i.e., the function of type @abt (x ': xs) a -> abt '[] x -> abt xs a@). cf., <http://hackage.haskell.org/package/abt>
+--
 -- | Perform capture-avoiding substitution. This function will
 -- either preserve type-safety or else throw an 'VarEqTypeError'
 -- (depending on which interpretation of 'varEq' is chosen). N.B.,
 -- to ensure timely throwing of exceptions, the 'AST' and 'ABT'
--- should have strict 'fmap1' definitions.
+-- should have strict 'fmap21' definitions.
 subst
     :: forall abt a xs b
     .  (ABT abt)
@@ -614,13 +733,6 @@ subst x e = start
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
--- TODO: Memoizing the highest bound seen so far (from the bottom-up)
--- breaks our ability to tie-the-knot in 'binder'. However, when
--- it comes to program transformations, it might make sense to
--- memoize the largest binder the transformation passes under (cf.,
--- the discussion in the paper about program transformations). Of
--- course, we could also use some Locally Nameless style approach
--- to deal with that issue...
 
 
 newtype MaxNat = MaxNat { unMaxNat :: Nat }
@@ -628,40 +740,6 @@ newtype MaxNat = MaxNat { unMaxNat :: Nat }
 instance Monoid MaxNat where
     mempty                        = MaxNat 0
     mappend (MaxNat m) (MaxNat n) = MaxNat (max m n)
-
-
--- N.B., we define this as a standalone class in order to avoid
--- imposing additional type-class constraints on functions that use
--- it. However, do note that our ability to do this is tied to the
--- fact that our 'ABT' class hard-codes the 'View', 'AST', and
--- 'Variable' types. The first two are important so that we can
--- simply give their 'bound' definitions inline. The last is important
--- for knowing that the implementation of variables has the laziness
--- we need. If we end up deciding to have the 'ABT' class abstract
--- over any of those three types, then we'll need to move this into
--- a type class again.
-
--- | Return the largest 'varID' of variable /binding sites/ (i.e.,
--- of variables bound by the 'Bind' constructor).
---
--- N.B., this should return 0 for the bound variables themselves.
--- For performance, we don't traverse into the body under those
--- binders. (If all terms are constructed via 'binder', then
--- soundness is guaranteed without needing to traverse under
--- binders.)
-maxBind :: (ABT abt) => abt xs a -> Nat
-maxBind = go 0 . viewABT
-    where
-    -- For multibinders (i.e., nested uses of Bind) we recurse
-    -- through the whole binder, just to be sure. However, we should
-    -- be able to just look at the first binder, since whenever we
-    -- figure out how to do multibinders we can prolly arrange for
-    -- the first one to be the largest.
-    go :: (ABT abt) => Nat -> View abt xs a -> Nat
-    go 0 (Syn  t)   = unMaxNat $ foldMap21 (MaxNat . maxBind) t
-    go n (Syn  _)   = n -- Don't go under binders
-    go n (Var  _)   = n -- Don't look at variable *uses*
-    go n (Bind x v) = go (n `max` varID x) v
 
 
 -- | A combinator for defining a HOAS-like API for our syntax.
