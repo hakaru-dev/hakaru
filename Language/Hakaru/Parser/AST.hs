@@ -7,7 +7,7 @@
              StandaloneDeriving #-}
 module Language.Hakaru.Parser.AST where
 
-import Language.Hakaru.Syntax.Nat
+import qualified Language.Hakaru.Syntax.Nat as N
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.AST    (PrimOp(..),
@@ -22,9 +22,14 @@ import Data.Text
 import Text.Parsec (SourcePos)
 
 -- N.B., because we're not using the ABT's trick for implementing a HOAS API, we can make the identifier strict.
-data Name = Name {-# UNPACK #-}!Nat {-# UNPACK #-}!Text
+data Name = Name {-# UNPACK #-}!N.Nat {-# UNPACK #-}!Text
     deriving (Read, Show, Eq, Ord)
 
+nameID :: Name -> N.Nat
+nameID (Name i _) = i
+
+hintID :: Name -> Text
+hintID (Name _ t) = t
 
 data SealedOp op where
      SealedOp
@@ -148,10 +153,6 @@ data Pattern a =
    | PWild
    | PData [AST a]
 
-data Coerce' =
-     CNone
-   | forall a b. Coerc (Coercion a b)
-
 data AST a =
      Var_        Name
    | Lam_        Name    (AST a)
@@ -159,8 +160,8 @@ data AST a =
    | Fix_        Name    (AST a)
    | Let_        Name    (AST a) (AST a)
    | Ann_        (AST a) Hakaru
-   | CoerceTo_   Coerce' (AST a)
-   | UnsafeFrom_ Coerce' (AST a)
+   | CoerceTo_   Hakaru (AST a)
+   | UnsafeFrom_ Hakaru (AST a)
    | PrimOp_     (SealedOp PrimOp) [AST a]
    | NaryOp_     (Sealed1 NaryOp)  [AST a]
    | Value_      Value'
@@ -179,10 +180,3 @@ deriving instance Show a => Show (AST' a)
 deriving instance Eq a => Eq (TypeAST' a)
 deriving instance Show a => Show (TypeAST' a)
 deriving instance Show Value'
-
-
-fromProb :: Coercion 'HProb 'HReal
-fromProb = signed
-
-fromInt :: Coercion 'HInt 'HReal
-fromInt = continuous

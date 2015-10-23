@@ -79,10 +79,8 @@ mustCheck = go
     go (U.Let_ _ _ e2)    = mustCheck e2
 
     go (U.Ann_ _ _)                   = False
-    go (U.CoerceTo_   U.CNone e)      = mustCheck e
     go (U.CoerceTo_    _      _)      = False
-    go (U.UnsafeFrom_ U.CNone e)      = mustCheck e
-    go (U.UnsafeFrom_ _       _)      = False
+    go (U.UnsafeFrom_  _      _)      = False
 
     go (U.PrimOp_ _ _)    = False
     go (U.NaryOp_ _ _)    = False
@@ -233,7 +231,7 @@ inferType = inferType_
     case e0 of -- viewAbt e0
     U.Var_ x -> do
         ctx <- getCtx
-        case IM.lookup (fromNat $ nameID x) ctx of
+        case IM.lookup (fromNat $ U.nameID x) ctx of
             Just (SomeVariable x') ->
                 return $ TypedAST (varType x') (var x')
                 -- Unsure if this is the right decision:
@@ -274,7 +272,7 @@ inferType = inferType_
             t1 <- inferType_ e1
             case t1 of
               TypedAST typ1 e1' ->
-                let x' = Variable x typ1 in
+                let x' = Variable (U.hintID x) (U.nameID x) typ1 in
                 -- Unsure if this is the right decision:
                 --
                 -- case jmEq1 typ1 (varType x) of
@@ -316,20 +314,7 @@ inferType = inferType_
 
     -- Giving up on CoerceTo_, UnsafeFrom_, and MBind_
     --
-    -- U.CoerceTo_ U.CNone e1
-    --     | inferable e1 -> do
-    --         t1 <- inferType_ e1
-    --         case t1 of
-    --            TypedAST typ e1' ->
-    --             return $ TypedAST (singCoerceTo CNil typ)
-    --                               (syn(CoerceTo_ CNil :$ e1' :* End))
-    --     | otherwise ->
-    --         case singCoerceDomCod CNil of
-    --           Nothing -> failwith "Cannot infer type for null-coercion over a checking term; please add a type annotation"
-    --           Just (dom,cod) -> do
-    --             e1' <- checkType dom e1
-    --             return $ TypedAST cod (syn(CoerceTo_ CNil :$ e1' :* End))
-
+   
     -- U.CoerceTo_ (U.Coerc c) e1
     --     | inferable e1 -> do
     --         t1 <- inferType_ e1
@@ -362,20 +347,19 @@ inferType = inferType_
               es' <- checkSArgs typs es
               return $ TypedAST typ1 (syn(MeasureOp_ op :$ es'))
 
-    -- U.MBind_ name e1 e2
-    --     | inferable e1 -> do
-    --         t1 <- inferType_ e1
-    --         case t1 of
-    --           TypedAST typ1 e1' ->
-    --               case typ1 of
-    --                 SMeasure typ2 ->
-    --                     let x = (Variable name typ2)
-    --                     in pushCtx (SomeVariable x) $ do
-    --                         t2 <- inferType e2
-    --                         case t2 of
-    --                           TypedAST typ3 e2' ->
-    --                               return $ TypedAST typ3 (syn(MBind :$ e1' :* bind x e2' :* End)) 
-    --                 _ -> failwith "expected measure type"
+    U.MBind_ name e1 e2
+        | inferable e1 -> do
+            TypedAST typ1 e1' <- inferType_ e1
+            case typ1 of
+              SMeasure typ2 ->
+                let x = Variable (U.hintID name) (U.nameID name) typ2
+                in pushCtx (SomeVariable x) $ do
+                    t2 <- inferType_ e2
+                    case t2 of
+                     TypedAST typ3@(SMeasure _) e2' ->
+                         return $ TypedAST typ3 (syn(MBind :$ e1' :* bind x e2' :* End))
+                     _ -> failwith "expected measure type"
+              _ -> failwith "expected measure type"
 
     _   | mustCheck e0 -> failwith "Cannot infer types for checking terms; please add a type annotation"
         | otherwise    -> error "inferType: missing an inferable branch!"
@@ -402,8 +386,8 @@ checkSArgs _ _ = error "checkSArgs: the impossible happened"
 -- | Given a typing environment, a term, and a type, check that the
 -- term satisfies the type.
 checkType
-    :: forall abt abt' a c
-    .  (ABT abt, ABT abt')
+    :: forall abt a c
+    .  (ABT abt)
     => Sing a
     -> U.AST c
     -> TypeCheckMonad (abt '[] a)
@@ -521,10 +505,10 @@ checkType = checkType_
     -- TODO: can we combine these in with the 'checkBranch' functions somehow?
     checkDatumCode
         :: forall xss t
-        .  DatumCode xss (abt '[]) (HData' t) -- CHANGE THIS
+        .  DatumCode xss (U.AST c) (HData' t) -- CHANGE THIS
         -> Sing xss
         -> Sing (HData' t)
-        -> TypeCheckMonad (DatumCode xss (abt' '[]) (HData' t))
+        -> TypeCheckMonad (DatumCode xss (abt '[]) (HData' t))
     checkDatumCode d typ typA =
         case d of
         Inr d2 ->

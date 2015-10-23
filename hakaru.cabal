@@ -60,9 +60,7 @@ library
                        Language.Hakaru.Inference
 
   other-modules:       Language.Hakaru.Util.Extras,
-                       Language.Hakaru.Util.Finite,
                        Language.Hakaru.Util.Lex,
-                       Language.Hakaru.Util.Pretty,
                        Language.Hakaru.Util.Visual,
                        Language.Hakaru.Paths,  
                        System.MapleSSH
