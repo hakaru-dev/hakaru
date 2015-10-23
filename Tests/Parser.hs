@@ -47,13 +47,13 @@ if5 = unlines ["if True:"
               ,"      3"
               ]
 
-ifAST1 = If (Op "True")
+ifAST1 = If (Var "True")
          (Value (Nat 1))
          (Value (Nat 2))
 
-ifAST2 = If (Op "True")
+ifAST2 = If (Var "True")
          (Value (Nat 4))
-         (If (Op "False")
+         (If (Var "False")
              (Value (Nat 2))
              (Value (Nat 3)))
 
@@ -69,7 +69,7 @@ testIfs = test
 lam1 :: Text
 lam1 = "fn x: x+3"
 
-lam1AST = Lam "x" (App (App (Op "+")
+lam1AST = Lam "x" (App (App (Var "+")
                         (Var "x"))
                    (Value (Nat 3)))
 
@@ -80,10 +80,10 @@ def1 = unlines ["def foo(x):"
                ]
 
 def1AST = Let "foo"
-              (Lam "x" (App (App (Op "+")
+              (Lam "x" (App (App (Var "+")
                              (Var "x"))
                         (Value (Nat 3))))
-              (App (Op "foo") (Value (Nat 5)))
+              (App (Var "foo") (Value (Nat 5)))
 
 testLams :: Test
 testLams = test
@@ -99,7 +99,7 @@ let1 = unlines ["x = 3"
 
 let1AST = Let "x" (Value (Nat 3))
           (Let "y" (Value (Nat 2))
-           (App (App (Op "+")
+           (App (App (Var "+")
                  (Var "x"))
             (Var "y")))
 
@@ -120,13 +120,13 @@ bind2 = unlines ["x <~ uniform(0,1)"
                 ]
 
 
-bind1AST = Bind "x" (App (App (Op "uniform")
+bind1AST = Bind "x" (App (App (Var "uniform")
                           (Value (Nat 0)))
                      (Value (Nat 1)))
-           (Bind "y" (App (App (Op "normal")
+           (Bind "y" (App (App (Var "normal")
                            (Var "x"))
                       (Value (Nat 1)))
-            (App (Op "dirac") (Var "y")))
+            (App (Var "dirac") (Var "y")))
 
 testBinds :: Test
 testBinds = test
@@ -145,30 +145,30 @@ easyRoad1 = unlines ["noiseT <~ uniform(3, 8)"
                     ]
 
 easyRoadAST :: AST' Text
-easyRoadAST = Bind "noiseT" (App (App (Op "uniform")
+easyRoadAST = Bind "noiseT" (App (App (Var "uniform")
                                           (Value (Nat 3)))
                                           (Value (Nat 8)))
-              (Bind "noiseE" (App (App (Op "uniform")
+              (Bind "noiseE" (App (App (Var "uniform")
                                            (Value (Nat 1)))
                               (Value (Nat 4)))
-               (Bind "x1" (App (App (Op "normal")
+               (Bind "x1" (App (App (Var "normal")
                                         (Value (Nat 0)))
                                         (Var "noiseT"))
-                (Bind "m1" (App (App (Op "normal")
+                (Bind "m1" (App (App (Var "normal")
                                          (Var "x1"))
                                          (Var "noiseE"))
-                 (Bind "x2" (App (App (Op "normal")
+                 (Bind "x2" (App (App (Var "normal")
                                           (Var "x1"))
                                           (Var "noiseT"))
-                  (Bind "m2" (App (App (Op "normal")
+                  (Bind "m2" (App (App (Var "normal")
                                            (Var "x2"))
                                            (Var "noiseE"))
-                   (App (Op "dirac")
-                            (App (App (Op "Pair")
-                                          (App (App (Op "Pair")
+                   (App (Var "dirac")
+                            (App (App (Var "Pair")
+                                          (App (App (Var "Pair")
                                                         (Var "m1"))
                                                         (Var "m2")))
-                                           (App (App (Op "Pair")
+                                           (App (App (Var "Pair")
                                                          (Var "noiseT"))
                                                          (Var "noiseE")))))))))
 
