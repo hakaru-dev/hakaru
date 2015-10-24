@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.22
+--                                                    2015.10.23
 -- |
 -- Module      :  Language.Hakaru.Syntax.ABT
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -34,6 +34,7 @@
 --    * <http://winterkoninkje.dreamwidth.org/103978.html>
 --
 -- TODO: simultaneous multiple substitution
+-- TODO: move all the variable stuff out to a separate module that this one depends on.
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.ABT
     (
@@ -42,6 +43,14 @@ module Language.Hakaru.Syntax.ABT
     , varEq
     , VarEqTypeError(..)
     , SomeVariable(..)
+    -- ** Some helper types for \"heaps\", \"environments\", etc
+    , Assoc(..)
+    , Assocs()
+    , emptyAssocs
+    , insertAssoc
+    , lookupAssoc
+    , resolveVar
+
     -- * The abstract binding tree interface
     -- See note about exposing 'View', 'viewABT', and 'unviewABT'
     , View(..)
@@ -67,6 +76,8 @@ import           Data.Typeable     (Typeable)
 import           Data.Text         (Text)
 import           Data.Set          (Set)
 import qualified Data.Set          as Set
+import           Data.IntMap       (IntMap)
+import qualified Data.IntMap       as IM
 import           Data.Function     (on)
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Monoid
@@ -779,52 +790,86 @@ multibinder names hoas = binds vars body
     binds :: ABT abt => List1 VS xs -> abt a -> abt a
     binds Nil                  = id
     binds (Cons (VS x _) rest) = bind x . binds rest
+-}
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
+
+-- | A pair of variable and term, both of the same Hakaru type.
+data Assoc :: ([Hakaru] -> Hakaru -> *) -> * where
+    Assoc :: {-# UNPACK #-} !(Variable a) -> !(abt '[] a) -> Assoc abt
+
+
+-- BUG: since multiple 'varEq'-distinct variables could have the
+-- same ID, we should really have the elements be a list of
+-- associations (or something more efficient; e.g., if 'Sing' is
+-- hashable).
+--
+-- | A set of variable\/term associations.
+--
+-- N.B., the current implementation assumes 'varEq' uses either the
+-- second or third interpretations; that is, it is impossible to
+-- have a single 'varID' be shared by multiple variables (i.e., at
+-- different types). If you really want the first interpretation,
+-- then the implementation must be updated.
+newtype Assocs abt = Assocs (IntMap (Assoc abt))
+
+-- | The empty set of associations.
+emptyAssocs :: Assocs abt
+emptyAssocs = Assocs IM.empty
+
+-- If we actually do have a list (etc) of variables for each ID,
+-- and want to add the new binding to whatever old ones, then it
+-- looks like there's no way to do that in one pass of both the
+-- IntMap and the list.
+--
+-- | Add an association to the set of associations.
+--
+-- HACK: if the variable is already associated with some term then
+-- we throw an error! In the future it'd be better to take some
+-- sort of continuation to decide between (a) replacing the old
+-- binding, (b) throwing an exception, or (c) safely wrapping the
+-- result up with 'Maybe'
+insertAssoc :: Assoc abt -> Assocs abt -> Assocs abt
+insertAssoc v@(Assoc x _) (Assocs xs) =
+    case IM.insertLookupWithKey (\_ v' _ -> v') (fromNat $ varID x) v xs of
+    (Nothing, xs') -> Assocs xs'
+    (Just _,  _)   -> error "insertAssoc: variable is already assigned!"
+
+
+-- | Look up a variable and return the associated term.
+--
+-- N.B., this function is robust to all interpretations of 'varEq'.
+lookupAssoc :: Variable a -> Assocs abt -> Maybe (abt '[] a)
+lookupAssoc x (Assocs xs) = do
+    Assoc x' e' <- IM.lookup (fromNat $ varID x) xs
+    Refl        <- varEq x x'
+    return e'
 {-
--- TODO: find a better name. Heck, maybe even just use @(:=)@?
--- | A single association of a variable to a term.
-data Assoc :: (Hakaru -> *) -> * where
-    Assoc :: {-# UNPACK #-} !Variable -> abt a -> Assoc abt
-    -- TODO: store the @Expect abt a@ instead?
-    -- TODO: have two different versions of variable lookup; one for when we need to take the expectation of the variable, and one for just plugging things into place.
-
-type Env abt = IntMap (Assoc abt)
-
-pushEnv :: Assoc abt -> Env abt -> Env abt
-pushEnv v@(Assoc x _) = IM.insert (fromNat $ varID x) v
-
-getSing :: (ABT abt) => abt a -> Sing a
-getSing _ = error "TODO: get singletons of anything after typechecking"
+-- for @Assocs abt = IntMap [Assoc abt]@ this should work:
+lookupAssoc x (Assocs xss) =
+    go x <$> IM.lookup (fromNat $ varID x) xss
+    where
+    go x []                 = Nothing
+    go x (Assoc x' e' : xs) =
+        case varEq x x' of
+        Just Refl -> Just e'
+        Nothing   -> go x xs
+-}
 
 -- TODO: Swap the argument order?
--- TODO: use a proper exception\/error monad; like 'Either'.
--- TODO: Remove the 'getSing' requirement by storing singletons in
--- the environment? If so, then should we return @Maybe (Sing a)@
--- as well? (a) That will let us know whether we had to perform
--- variable lookups along the way, and so prevents losing information;
--- (b) we can't just return @Sing a@ because doing so would require
--- taking a @Sing a@ input, and if we had that already then there's
--- no point in returning it...
---
--- | Perform recursive variable lookups until we can finally return
--- some syntax.
+-- | If the expression is a variable, then look it up. Recursing
+-- until we can finally return some syntax.
 resolveVar
     :: (ABT abt)
-    => abt a
-    -> Env abt
+    => abt '[] a
+    -> Assocs abt
     -> Either (Variable a) (AST abt a)
 resolveVar e xs =
     flip (caseVarSyn e) Right $ \x ->
-        case IM.lookup (fromNat $ varID x) xs of
-        Just (Assoc x' e') =
-            case varEq x' x of
-            Just Refl -> resolveVar e' xs
-            Nothing   -> error "resolveVar: ill-formed environment"
-        Nothing       -> Left $ Variable x
--}
+        case lookupAssoc x xs of
+        Just e' -> resolveVar e' xs
+        Nothing -> Left x
 
--}
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

@@ -58,7 +58,7 @@ expect
     :: (ABT abt)
     => abt '[] ('HMeasure a)
     -> (abt '[] a -> abt '[] 'HProb) -> abt '[] 'HProb
-expect e = apM $ expectSynDir ImpureMeasure e IM.empty
+expect e = apM $ expectSynDir ImpureMeasure e emptyAssocs
 -- TODO: we should prolly grab the @c@ here and pass it down through 'expectSynDir'; rather than gluing things together with just the 'Expect' data type. Maybe that'll make it easier to handle 'Case_'
 
 {- For debugging via the old Expect.hs:
@@ -83,7 +83,7 @@ test2 :: TrivialABT '[] ('HMeasure 'HProb ':-> 'HProb)
 test2 = syn (Lam_ :$ bind x (total (var x)) :* End)
     where
     x = Variable (Text.pack "x") 2 (SMeasure SProb)
--- TODO: we'd rather use @lam $ \x -> total x@ but that causes 'binder' to throw a <<loop>> exception, presumably because 'expect' needs to force variable IDs to store them in the Env. Is there any way to work around that so we don't need to manually generate our own variable? Maybe by explicitly using the 'Expect' primop, and then performing the evaluation of that primop after 'binder' has finished constructing the first-order AST; but how can we specify that order of evaluation (except by making the evaluation of 'Expect' as 'expect' explicit)?
+-- TODO: we'd rather use @lam $ \x -> total x@ but that causes 'binder' to throw a <<loop>> exception, presumably because 'expect' needs to force variable IDs to store them in the Assocs. Is there any way to work around that so we don't need to manually generate our own variable? Maybe by explicitly using the 'Expect' primop, and then performing the evaluation of that primop after 'binder' has finished constructing the first-order AST; but how can we specify that order of evaluation (except by making the evaluation of 'Expect' as 'expect' explicit)?
 
 
 -- TODO: we'd rather use @lam $ \x -> total (x `app` int_ 3)@
@@ -192,70 +192,10 @@ apA (ExpectArray _ _ e2) ei = e2 ei
 
 
 ----------------------------------------------------------------
--- N.B., in the ICFP 2015 pearl paper, we took the expectation of bound variables prior to taking the expectation of their scope. E.g., @expect(let_ v e1 e2) xs c = expect e1 xs $ \x -> expect e2 (pushEnv v x xs) c@. Whereas here, I'm being lazier and performing the expectation on variable lookup. This delayed evaluation preserves the expectation semantics (ICFP 2015, §5.6.0) whenever (1) the variable is never used (by wasted computation), or (2) used exactly once (by Tonelli's theorem); so we only need to worry if (3) the variable is used more than once, in which case we'll have to worry about whether the various integrals commute/exchange with one another. More generally, cf. Bhat et al.'s \"active variables\"
+-- N.B., in the ICFP 2015 pearl paper, we took the expectation of bound variables prior to taking the expectation of their scope. E.g., @expect(let_ v e1 e2) xs c = expect e1 xs $ \x -> expect e2 (insertAssoc v x xs) c@. Whereas here, I'm being lazier and performing the expectation on variable lookup. This delayed evaluation preserves the expectation semantics (ICFP 2015, §5.6.0) whenever (1) the variable is never used (by wasted computation), or (2) used exactly once (by Tonelli's theorem); so we only need to worry if (3) the variable is used more than once, in which case we'll have to worry about whether the various integrals commute/exchange with one another. More generally, cf. Bhat et al.'s \"active variables\"
 
 
--- TODO: Move all this Env stuff to ABT.hs so it can be reused everywhere we want some sort of evaluation environment.
--- BUG: Make sure this has the correct capture-avoiding behavior!!
-
-
--- | A single association pair in our environment\/heap.
-data Assoc :: ([Hakaru] -> Hakaru -> *) -> * where
-    Assoc :: {-# UNPACK #-} !(Variable a) -> abt '[] a -> Assoc abt
-    -- TODO: is there any way we can be sure to maintain CSE? Maybe by inserting a 'Let_' the first time we do a lookup, destructively changing the environment so that subsequent lookups will reuse the 'Let_'-bound variable? That's not guaranteed to have the proper variable scoping\/binding however...
-    
-    -- TODO: store the @Expect abt a@ instead? Or store both?
-    -- TODO: have two different versions of variable lookup? (one for when we need to take the expectation of the variable, and one for just plugging things into place)
-
-
--- BUG: since multiple 'varEq'-distinct variables could have the
--- same ID, we should really have the elements be a list of
--- associations (or something more efficient; e.g., if 'Sing' is
--- hashable).
-type Env abt = IntMap (Assoc abt)
-
--- If we actually do have a list (etc) of variables for each ID, and want to add the new binding to whatever old ones, then it looks like there's no way to do that in one pass of both the IntMap and the list.
-pushEnv :: Assoc abt -> Env abt -> Env abt
-pushEnv v@(Assoc x _) xs =
-    case IM.insertLookupWithKey (\_ v' _ -> v') (fromNat $ varID x) v xs of
-    (Nothing, xs') -> xs'
-    (Just _,  _)   -> error "pushEnv: variable is already assigned!"
-
--- N.B., it's up to 'varEq' to say whether we actually found the
--- right variable or not.
-lookupEnv :: Variable a -> Env abt -> Maybe (abt '[] a)
-lookupEnv x xs = do
-    Assoc x' e' <- IM.lookup (fromNat $ varID x) xs
-    Refl <- varEq x x'
-    Just e'
-{-
--- for @Env abt = IntMap [Assoc abt]@ this should work:
-lookupEnv =
-    \x xs -> do
-        assocs <- IM.lookup (fromNat $ varID x) xs
-        go x assocs
-    where
-    go x []                     = Nothing
-    go x (Assoc x' e' : assocs) =
-        case varEq x x' of
-        Just Refl -> Just e'
-        Nothing   -> go x assocs
--}
-
--- TODO: Swap the argument order?
--- | If the expression is a variable, then look it up. Recursing
--- until we can finally return some syntax.
-resolveVar
-    :: (ABT abt)
-    => abt '[] a
-    -> Env abt
-    -> Either (Variable a) (AST abt a)
-resolveVar e xs =
-    flip (caseVarSyn e) Right $ \x ->
-        case lookupEnv x xs of
-        Just e' -> resolveVar e' xs
-        Nothing -> Left x
-
+-- BUG: Make sure our use of Assocs has the correct capture-avoiding behavior!!
 
 ----------------------------------------------------------------
 -- | Perform a syntax-directed reflection of a term into it's
@@ -270,7 +210,7 @@ expectSynDir
     :: (ABT abt)
     => ImpureType a -- N.B., should be lazy\/irrelevant in this argument
     -> abt '[] a
-    -> Env abt
+    -> Assocs abt
     -> Expect abt a
 expectSynDir p e xs =
     case resolveVar e xs of
@@ -320,14 +260,14 @@ expectAST
     :: (ABT abt)
     => ImpureType a -- N.B., should be lazy\/irrelevant in this argument
     -> AST abt a
-    -> Env abt
+    -> Assocs abt
     -> Expect abt a
 expectAST p (Lam_ :$ es) xs =
     case es of
     e1 :* End ->
         caseBind e1 $ \x e' ->
         ExpectFun (varHint x) $ \e2 ->
-        expectSynDir (unImpureFun p) e' $ pushEnv (Assoc x e2) xs
+        expectSynDir (unImpureFun p) e' $ insertAssoc (Assoc x e2) xs
     _ -> error "expectAST: the impossible happened"
 
 expectAST p (App_ :$ es) xs =
@@ -340,14 +280,14 @@ expectAST p (Let_ :$ es) xs =
     case es of
     e1 :* e2 :* End ->
         caseBind e2 $ \x e' ->
-        expectSynDir p e' $ pushEnv (Assoc x e1) xs
+        expectSynDir p e' $ insertAssoc (Assoc x e1) xs
     _ -> error "expectAST: the impossible happened"
 
 expectAST p (Fix_ :$ es) xs =
     case es of
     e1 :* End ->
         caseBind e1 $ \x e' ->
-        expectSynDir p e' $ pushEnv (Assoc x $ syn (Fix_ :$ e1 :* End)) xs -- BUG: could loop
+        expectSynDir p e' $ insertAssoc (Assoc x $ syn (Fix_ :$ e1 :* End)) xs -- BUG: could loop
     _ -> error "expectAST: the impossible happened"
 
 expectAST p (Ann_ _ :$ es) xs =
@@ -380,7 +320,7 @@ expectAST p (Array_ e1 e2) xs =
     caseBind e2 $ \x e' ->
     ExpectArray (varHint x) e1 $ \ei ->
     -- BUG: we should wrap this in a guard that @ei < e1@, instead of just performing the substitution arbitrarily.
-    expectSynDir (unImpureArray p) e' $ pushEnv (Assoc x ei) xs
+    expectSynDir (unImpureArray p) e' $ insertAssoc (Assoc x ei) xs
 
 expectAST p (Datum_ _)    _  = case p of {}
 expectAST p (Case_  e bs) xs =
@@ -410,7 +350,7 @@ expectAST p (MBind :$ es) xs =
         ExpectMeasure $ \c ->
         expectSynDir ImpureMeasure e1 xs `apM` \a ->
         caseBind e2 $ \x e' ->
-        (expectSynDir p e' $ pushEnv (Assoc x a) xs) `apM` c
+        (expectSynDir p e' $ insertAssoc (Assoc x a) xs) `apM` c
     _ -> error "expectAST: the impossible happened"
 
 expectAST p (Superpose_ es) xs =
@@ -443,7 +383,7 @@ expectBranch
     :: (ABT abt)
     => (abt '[] a -> abt '[] 'HProb)
     -> ImpureType ('HMeasure a)
-    -> Env abt
+    -> Assocs abt
     -> View abt xs ('HMeasure a)
     -> abt xs 'HProb
 expectBranch c p xs (Syn  t)    = expectAST    p      t  xs `apM` c
@@ -451,13 +391,13 @@ expectBranch c p xs (Var  x)    = expectSynDir p (var x) xs `apM` c
 expectBranch c p xs (Bind x e') = bind x $ expectBranch c p xs e'
 
 
--- BUG: none of these use the Env; they must, in case we need to substitute for variables in the SArgs. Or we need to residualize the Env into the program we're generating...
+-- BUG: none of these use the Assocs; they must, in case we need to substitute for variables in the SArgs. Or we need to residualize the Assocs into the program we're generating...
 expectMeasure
     :: (ABT abt, typs ~ UnLCs args, args ~ LCs typs)
     => ImpureType a 
     -> MeasureOp typs a
     -> SArgs abt args
-    -> Env abt
+    -> Assocs abt
     -> Expect abt a
 expectMeasure _ (Dirac _) es _ =
     case es of

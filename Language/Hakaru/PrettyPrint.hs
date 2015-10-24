@@ -308,9 +308,9 @@ instance Pretty f => Pretty (Datum f) where
 ppPattern :: Int -> Pattern xs a -> Docs
 ppPattern _ PWild = [PP.text "PWild"]
 ppPattern _ PVar  = [PP.text "PVar"]
-ppPattern p (PDatum hint d)
+ppPattern p (PDatum hint d0)
     | Text.null hint = error "TODO: prettyPrec_@Pattern"
-    | otherwise      = ppFun p (Text.unpack hint) (goCode d)
+    | otherwise      = ppFun p (Text.unpack hint) (goCode d0)
     where
     goCode :: PDatumCode xss vars a -> Docs
     goCode (PInr d) = goCode   d
