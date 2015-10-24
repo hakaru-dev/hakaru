@@ -438,7 +438,9 @@ checkType = checkType_
     
         U.CoerceTo_ (Sealed2 c) e1 -> do
             case singCoerceDomCod c of
-              Nothing -> return (syn(CoerceTo_ CNil :$  e1 :* End))
+              Nothing -> do
+                  e1' <- checkType_ typ0 e1
+                  return (syn(CoerceTo_ CNil :$  e1' :* End))
               Just (dom, cod) -> 
                   case jmEq1 typ0 cod of
                     Nothing   -> failwith "type mismatch"
@@ -448,7 +450,9 @@ checkType = checkType_
     
         U.UnsafeTo_ (Sealed2 c) e1 -> do
           case singCoerceDomCod c of
-              Nothing -> return (syn(UnsafeFrom_ CNil :$  e1 :* End))
+              Nothing -> do
+                  e1' <- checkType_ typ0 e1
+                  return (syn(UnsafeFrom_ CNil :$  e1' :* End))
               Just (dom, cod) -> 
                   case jmEq1 typ0 dom of
                     Nothing   -> failwith "type mismatch"
