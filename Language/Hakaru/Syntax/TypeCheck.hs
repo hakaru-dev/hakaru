@@ -318,21 +318,6 @@ inferType = inferType_
           Sealed1 v' ->
               return $ TypedAST (sing_Value v') (syn(Value_ v'))
 
-    -- Giving up on CoerceTo_, UnsafeFrom_
-    --
-    --  U.CoerceTo_ c' e1 ->
-    --     | inferable e1 -> do
-    --         t1 <- inferType_ e1
-    --         case (c', t1) of
-    --           (Sealed2 c, TypedAST typ e1') ->
-    --            case singCoerceDom c of
-    --             Nothing   -> return t1
-    --             Just typ' -> 
-    --              case jmEq1 typ typ' of
-    --               Nothing   -> failwith "type mismatch"
-    --               Just Refl -> return $ TypedAST (singCoerceTo c typ)
-    --                                              (syn(CoerceTo_ c :$ e1' :* End))
-
     U.CoerceTo_ (Sealed2 c) e1 ->
         case singCoerceDomCod c of
           Nothing | inferable e1 -> inferType_ e1
