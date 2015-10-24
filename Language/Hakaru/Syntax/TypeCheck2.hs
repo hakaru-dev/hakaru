@@ -82,9 +82,9 @@ mustCheck = go
     -- type annotation or not.
     go (U.Let_ _ _ e2)    = mustCheck e2
 
-    go (U.Ann_ _ _)                   = False
-    go (U.CoerceTo_    _      _)      = False
-    go (U.UnsafeFrom_  _      _)      = False
+    go (U.Ann_ _ _)       = False
+    go (U.CoerceTo_ _ _)  = False
+    go (U.UnsafeTo_ _ _)  = False
 
     go (U.PrimOp_ _ _)    = False
     go (U.NaryOp_ _ _)    = False
@@ -341,16 +341,14 @@ inferType = inferType_
             return $ TypedAST cod (syn(CoerceTo_ c :$ e1' :* End))
           
 
-    -- Syn (UnsafeFrom_ c :$ e1 :* End)
-    --     | inferable e1 -> do
-    --         (typ,e1') <- inferType_ e1
-    --         return (singCoerceFrom c typ, syn(UnsafeFrom_ c :$ e1' :* End))
-    --     | otherwise ->
-    --         case singCoerceDomCod c of
-    --         Nothing -> failwith "Cannot infer type for null-coercion over a checking term; please add a type annotation"
-    --         Just (dom,cod) -> do
-    --             e1' <- checkType cod e1
-    --             return (dom, syn(UnsafeFrom_ c :$ e1' :* End))
+    U.UnsafeTo_ (Sealed2 c) e1 ->
+        case singCoerceDomCod c of
+          Nothing | inferable e1 -> inferType_ e1
+                  | otherwise    -> 
+                      failwith "Cannot infer type for null-coercion over a checking term; please add a type annotation"  
+          Just (dom,cod) -> do
+            e1' <- checkType cod e1
+            return $ TypedAST dom (syn(UnsafeFrom_ c :$ e1' :* End))
 
     U.MeasureOp_ o es ->
         case o of

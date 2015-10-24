@@ -162,7 +162,7 @@ data AST a =
    | Let_        Name    (AST a) (AST a)
    | Ann_        (AST a) Hakaru
    | CoerceTo_   (Sealed2 Coercion) (AST a)
-   | UnsafeFrom_ (Sealed2 Coercion) (AST a)
+   | UnsafeTo_   (Sealed2 Coercion) (AST a)
    | PrimOp_     (SealedOp PrimOp) [AST a]
    | NaryOp_     (Sealed1 NaryOp)  [AST a]
    | Value_      (Sealed1 Value)

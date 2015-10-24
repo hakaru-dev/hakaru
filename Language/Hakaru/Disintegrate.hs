@@ -495,7 +495,7 @@ tryMatch e bs k =
     case matchBranches e bs of
     Nothing                 -> error "tryMatch: nothing matched!"
     Just GotStuck           -> error "TODO" -- return . Neutral . syn $ Case_ e bs
-    Just (Matched ss body') -> pushes (toStatements ss) >> k body'
+    Just (Matched ss body') -> error "TODO" -- pushes (toStatements ss) >> k body'
 
 {-
 ----------------------------------------------------------------        
