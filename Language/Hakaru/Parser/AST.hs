@@ -16,6 +16,7 @@ import Language.Hakaru.Syntax.AST    (PrimOp(..),
                                       MeasureOp(..),
                                       LCs(..),
                                       UnLCs (..))
+import Language.Hakaru.Syntax.ABT (Variable(..))
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.IClasses
 
@@ -25,6 +26,9 @@ import Text.Parsec (SourcePos)
 -- N.B., because we're not using the ABT's trick for implementing a HOAS API, we can make the identifier strict.
 data Name = Name {-# UNPACK #-}!N.Nat {-# UNPACK #-}!Text
     deriving (Read, Show, Eq, Ord)
+
+makeVar :: Name ->  Sing a -> Variable a
+makeVar name typ = Variable (hintID name) (nameID name) typ
 
 nameID :: Name -> N.Nat
 nameID (Name i _) = i

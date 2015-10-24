@@ -47,6 +47,7 @@ import Language.Hakaru.Syntax.Coercion (Coercion(..),
                                         singCoerceTo,
                                         singCoerceFrom,
                                         singCoerceDom,
+                                        singCoerceCod,
                                         singCoerceDomCod)
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
@@ -216,6 +217,7 @@ failwith :: TypeCheckError -> TypeCheckMonad a
 failwith = TCM . const . Left
 
 
+
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
@@ -276,7 +278,7 @@ inferType = inferType_
             t1 <- inferType_ e1
             case t1 of
               TypedAST typ1 e1' ->
-                let x' = Variable (U.hintID x) (U.nameID x) typ1 in
+                let x' = U.makeVar x typ1 in
                 -- Unsure if this is the right decision:
                 --
                 -- case jmEq1 typ1 (varType x) of
@@ -362,7 +364,7 @@ inferType = inferType_
             TypedAST typ1 e1' <- inferType_ e1
             case typ1 of
               SMeasure typ2 ->
-                let x = Variable (U.hintID name) (U.nameID name) typ2
+                let x = U.makeVar name typ2
                 in pushCtx (SomeVariable x) $ do
                     t2 <- inferType_ e2
                     case t2 of
@@ -410,45 +412,51 @@ checkType = checkType_
     checkType_ 
         :: forall b. Sing b -> U.AST c -> TypeCheckMonad (abt '[] b)
     checkType_ typ0 e0 =
-        case viewABT e0 of
-        Syn (Lam_ :$ e1 :* End) ->
+        case e0 of
+        U.Lam_ name e1 ->
             case typ0 of
             SFun typ1 typ2 ->
-                caseBind e1 $ \x e2 ->
-                    case jmEq1 typ1 (varType x) of
-                    Nothing   -> failwith "type mismatch"
-                    Just Refl -> pushCtx (SomeVariable x) $ do
-                        e2' <- checkType_ typ2 e2
-                        return (syn(Lam_ :$ bind x e2' :* End))
+                let x = U.makeVar name typ1 in
+                pushCtx (SomeVariable x) $ do
+                  e1' <- checkType_ typ2 e1
+                  return (syn(Lam_ :$ bind x e1' :* End))
             _ -> failwith "expected function type"
     
-        Syn (Let_ :$ e1 :* e2 :* End)
+        U.Let_ name e1 e2
             | inferable e1 -> do
-                (typ1,e1') <- inferType_ e1
-                caseBind e2 $ \x e3 ->
-                    case jmEq1 typ1 (varType x) of
+                TypedAST typ1 e1' <- inferType_ e1
+                let x = U.makeVar name typ1
+                pushCtx (SomeVariable x) $ do
+                  e2' <- checkType_ typ0 e2
+                  return (syn(Let_ :$ e1' :* bind x e2' :* End))
+    
+        U.Fix_ name e1 ->
+            let x = U.makeVar name typ0 in
+            pushCtx (SomeVariable x) $ do
+              e1' <- checkType_ typ0 e1
+              return (syn(Fix_ :$ bind x e1' :* End))
+    
+        U.CoerceTo_ (Sealed2 c) e1 -> do
+            case singCoerceDomCod c of
+              Nothing -> return (syn(CoerceTo_ CNil :$  e1 :* End))
+              Just (dom, cod) -> 
+                  case jmEq1 typ0 cod of
                     Nothing   -> failwith "type mismatch"
-                    Just Refl -> pushCtx (SomeVariable x) $ do
-                        e3' <- checkType_ typ0 e3
-                        return (syn(Let_ :$ e1' :* bind x e3' :* End))
+                    Just Refl -> do
+                        e1' <- checkType_ dom e1
+                        return (syn(CoerceTo_ c :$ e1' :* End))
     
-        Syn (Fix_ :$ e1 :* End) ->
-            caseBind e1 $ \x e2 ->
-                case jmEq1 typ0 (varType x) of
-                Nothing   -> failwith "type mismatch"
-                Just Refl -> pushCtx (SomeVariable x) $ do
-                    e2' <- checkType_ typ0 e2
-                    return (syn(Fix_ :$ bind x e2' :* End))
+        U.UnsafeTo_ (Sealed2 c) e1 -> do
+          case singCoerceDomCod c of
+              Nothing -> return (syn(UnsafeFrom_ CNil :$  e1 :* End))
+              Just (dom, cod) -> 
+                  case jmEq1 typ0 dom of
+                    Nothing   -> failwith "type mismatch"
+                    Just Refl -> do
+                        e1' <- checkType_ cod e1
+                        return (syn(UnsafeFrom_ c :$ e1' :* End))
     
-        Syn (CoerceTo_ c :$ e1 :* End) -> do
-            e1' <- checkType_ (singCoerceFrom c typ0) e1
-            return (syn(CoerceTo_ c :$ e1' :* End))
-    
-        Syn (UnsafeFrom_ c :$ e1 :* End) -> do
-            e1' <- checkType_ (singCoerceTo c typ0) e1
-            return (syn(UnsafeFrom_ c :$ e1' :* End))
-    
-        Syn Empty_ ->
+        U.Empty_ ->
             case typ0 of
             SArray typ1 -> return (syn Empty_)
                 -- TODO: use jmEq1 to test that 'typ1' matches
@@ -466,7 +474,7 @@ checkType = checkType_
                         return (syn(Array_ e1' (bind x e3')))
             _ -> failwith "expected HArray type"
     
-        Syn (Datum_ (Datum d)) ->
+        Syn (Datum_ (Datum t d)) ->
             case typ0 of
             SData _ typ2 ->
                 (syn . Datum_ . Datum)
@@ -515,7 +523,7 @@ checkType = checkType_
     -- TODO: can we combine these in with the 'checkBranch' functions somehow?
     checkDatumCode
         :: forall xss t
-        .  DatumCode xss (U.AST c) (HData' t) -- CHANGE THIS
+        .  DatumCode xss (abt '[]) (HData' t) -- CHANGE THIS
         -> Sing xss
         -> Sing (HData' t)
         -> TypeCheckMonad (DatumCode xss (abt '[]) (HData' t))
@@ -532,7 +540,7 @@ checkType = checkType_
     
     checkDatumStruct
         :: forall xs t
-        .  DatumStruct xs (U.AST c) -- CHANGE THIS
+        .  DatumStruct xs (abt '[]) (HData' t) -- CHANGE THIS
         -> Sing xs
         -> Sing (HData' t)
         -> TypeCheckMonad (DatumStruct xs (abt '[]) (HData' t))
@@ -551,7 +559,7 @@ checkType = checkType_
     
     checkDatumFun
         :: forall x t
-        .  DatumFun x (U.AST c)
+        .  DatumFun x (abt '[]) (HData' t)
         -> Sing x
         -> Sing (HData' t)
         -> TypeCheckMonad (DatumFun x (abt '[]) (HData' t))
