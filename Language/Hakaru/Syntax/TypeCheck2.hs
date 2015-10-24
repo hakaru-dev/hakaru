@@ -112,9 +112,9 @@ mustCheck = go
     -- In general (according to Dunfield & Pientka), we should be
     -- able to infer the result of a fully saturated primop by
     -- looking up it's type and then checking all the arguments.
-    go U.Empty_       = True
-    go (U.Array_ _ _) = True
-    go (U.Datum_ _)   = True
+    go U.Empty_         = True
+    go (U.Array_ _ _ _) = True
+    go (U.Datum_ _)     = True
 
     -- TODO: everyone says this, but it seems to me that if we can
     -- infer any of the branches (and check the rest to agree) then
@@ -462,16 +462,15 @@ checkType = checkType_
                 -- TODO: use jmEq1 to test that 'typ1' matches
             _ -> failwith "expected HArray type"
     
-        Syn (Array_ e1 e2) ->
+        -- Not sure Array should be a binding form
+        U.Array_ e1 name e2 ->
             case typ0 of
             SArray typ1 -> do
                 e1' <- checkType_ SNat e1
-                caseBind e2 $ \x e3 ->
-                    case jmEq1 SNat (varType x) of
-                    Nothing   -> failwith "type mismatch"
-                    Just Refl -> pushCtx (SomeVariable x) $ do
-                        e3' <- checkType_ typ1 e3
-                        return (syn(Array_ e1' (bind x e3')))
+                let x = U.makeVar name SNat
+                pushCtx (SomeVariable x) $ do
+                  e2' <- checkType_ typ1 e2
+                  return (syn(Array_ e1' (bind x e2')))
             _ -> failwith "expected HArray type"
     
         Syn (Datum_ (Datum t d)) ->
@@ -481,8 +480,8 @@ checkType = checkType_
                     <$> checkDatumCode d typ2 typ0
             _            -> failwith "expected HData type"
     
-        Syn (Case_ e1 branches) -> do
-            (typ1,e1') <- inferType_ e1
+        U.Case_ e1 branches -> do
+            TypedAST typ1 e1' <- inferType_ e1
             branches'  <- T.forM branches $ checkBranch typ1 typ0
             return (syn(Case_ e1' branches'))
     

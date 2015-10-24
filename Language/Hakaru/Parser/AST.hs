@@ -171,7 +171,7 @@ data AST a =
    | NaryOp_     (Sealed1 NaryOp)  [AST a]
    | Value_      (Sealed1 Value)
    | Empty_
-   | Array_      (AST a) (AST a)
+   | Array_      (AST a) Name (AST a) -- not sure should binding form
    | Datum_      (AST a)
    | Case_       (AST a) [Branch a]
    | MeasureOp_  (SealedOp MeasureOp) [AST a]
