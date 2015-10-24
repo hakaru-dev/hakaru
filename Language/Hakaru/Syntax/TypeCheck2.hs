@@ -479,10 +479,10 @@ checkType = checkType_
     
         -- Need to do these cases
         --
-        -- U.Datum_ (Sealed2 (Datum t d)) ->
+        -- U.Datum_ (Sealed2 (Datum hint d)) ->
         --     case typ0 of
         --     SData _ typ2 ->
-        --         (syn . Datum_ . (Datum t))
+        --         (syn . Datum_ . Datum hint)
         --             <$> checkDatumCode d typ2 typ0
         --     _            -> failwith "expected HData type"
     
@@ -573,11 +573,11 @@ checkType = checkType_
         case d of
         Ident e1 ->
             case typ of
-            SIdent        -> Ident <$> checkType_ typA e1
+            SIdent        -> return $ Ident e1
             _             -> failwith "expected term of `I' type"
         Konst e1 ->
             case typ of
-            SKonst typ1   -> Konst <$> checkType_ typ1 e1
+            SKonst typ1   -> return $ Konst e1
             _             -> failwith "expected term of `K' type"
 
 
@@ -597,7 +597,7 @@ checkBranch
     -> Branch a abt b -- CHANGE THIS
     -> TypeCheckMonad (Branch a abt b)
 checkBranch pat_typ body_typ (Branch pat body) =
-    Branch pat <$> checkPattern body pat_typ pat (checkType body_typ)
+    Branch pat <$> checkPattern body pat_typ pat return
 
 checkPattern
     :: (ABT abt, ABT abt')
