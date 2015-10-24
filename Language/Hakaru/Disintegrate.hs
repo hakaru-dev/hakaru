@@ -37,19 +37,15 @@ module Language.Hakaru.Disintegrate
     , Backward(..)
     ) where
 
-import           Data.IntMap           (IntMap)
-import qualified Data.IntMap           as IM
-import qualified Data.Text             as Text
 import           Data.Number.LogFloat  (LogFloat)
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative   (Applicative(..))
 #endif
 
 import Language.Hakaru.Syntax.IClasses
-import Language.Hakaru.Syntax.Nat      (Nat, fromNat)
+import Language.Hakaru.Syntax.Nat      (Nat)
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Sing
-import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumCase
@@ -474,15 +470,15 @@ evaluate e =
         Times e1 e2            -> (*)    <$> evaluate e1 <*> evaluate e2
 -}
 
+type DList a = [a] -> [a]
+
 toStatements
-    :: DList1 (Pair1 Variable (abt '[])) vars
+    :: DList (Assoc abt)
     -> [Statement s abt]
-toStatements = 
-    foldMap11 ((:[]) . toStatement) . toList1
+toStatements = map toStatement . ($ [])
 
-
-toStatement :: Pair1 Variable (abt '[]) a -> Statement s abt
-toStatement (Pair1 x e) = error "TODO" -- SLet x e
+toStatement :: Assoc abt -> Statement s abt
+toStatement (Assoc x e) = error "TODO" -- SLet x e
 
 
 tryMatch
