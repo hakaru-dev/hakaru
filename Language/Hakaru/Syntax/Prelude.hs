@@ -805,13 +805,21 @@ constV n c = array n (const c)
     => abt '[] ('HMeasure a)
     -> (abt '[] a -> abt '[] ('HMeasure b))
     -> abt '[] ('HMeasure b)
-m >>= f = syn (MBind :$ m :* binder Text.empty sing f :* End)
+m >>= f =
+    case
+        caseVarSyn m (const Nothing) $ \t ->
+            case t of
+            MeasureOp_ (Dirac _) :$ e1 :* End -> Just e1
+            _                                 -> Nothing
+    of
+    Nothing -> syn (MBind :$ m :* binder Text.empty sing f :* End)
+    Just e1 -> let_ e1 f
 
 -- BUG: remove the 'SingI' requirement!
 dirac :: (ABT abt, SingI a) => abt '[] a -> abt '[] ('HMeasure a)
 dirac = measure1_ $ Dirac sing
 
--- TODO: can we use let-binding instead of (>>=)-binding (i.e., for when the dirac is immediately (>>=)-bound again...)? Methinks we'd have to adjust the definition of (>>=) to be smarter enough to eliminate extraneous dirac.
+-- TODO: can we use let-binding instead of (>>=)-binding (i.e., for when the dirac is immediately (>>=)-bound again...)?
 -- BUG: remove the 'SingI' requirement!
 (<$>), liftM
     :: (ABT abt, SingI a, SingI b)
