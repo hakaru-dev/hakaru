@@ -24,6 +24,8 @@ module Language.Hakaru.Syntax.Variable
       Variable(..)
     , varEq
     , VarEqTypeError(..)
+    -- ** Variables with existentially quantified types
+    , KindOf
     , SomeVariable(..)
     , maxVarID
     
