@@ -7,11 +7,12 @@
            , TypeFamilies
            , Rank2Types
            , ScopedTypeVariables
+           , FlexibleInstances
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.22
+--                                                    2015.10.23
 -- |
 -- Module      :  Language.Hakaru.Syntax.DatumCase
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -37,6 +38,11 @@ import Language.Hakaru.Syntax.AST (AST(Datum_, Value_), Value(VDatum))
 import Language.Hakaru.Syntax.ABT
 import qualified Language.Hakaru.Syntax.Prelude as P
 
+
+import           Language.Hakaru.PrettyPrint
+import           Text.PrettyPrint (Doc, (<+>))
+import qualified Text.PrettyPrint as PP
+
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
@@ -51,14 +57,38 @@ data MatchResult :: ([Hakaru] -> Hakaru -> *) -> [Hakaru] -> Hakaru -> * where
     -- | For when we encounter free variables and non-head-normal forms.
     GotStuck :: MatchResult abt vars a
 
+    -- TODO: would it be helpful for anyone if we went back to using @DList1 (Pair1 Variable (abt '[])) vars1@ for the first argument?
+    --
     -- | We successfully matched everything (so far). The @vars2@
     -- are for tracking variables bound by the future\/rest of the
     -- pattern (i.e., for recursing into the left part of a product,
     -- @vars2@ are the variables in the right part of the product).
     Matched
-        :: DList1 (Pair1 Variable (abt '[])) vars1
+        :: DList (Assoc abt)
         -> !(abt vars2 a)
         -> MatchResult abt vars2 a
+
+
+type DList a = [a] -> [a]
+
+
+instance ABT abt => Show (MatchResult abt '[] a) where
+    showsPrec p = shows . ppMatchResult p
+
+ppMatchResult :: (ABT abt) => Int -> MatchResult abt '[] a -> Doc
+ppMatchResult _ GotStuck = PP.text "GotStuck"
+ppMatchResult p (Matched xs body) =
+    parens (p > 9)
+        (PP.text f <+> PP.nest (1 + length f) (PP.sep
+            [ ppList . map (prettyPrecAssoc 11) $ xs []
+            , prettyPrec 11 body
+            ]))
+    where
+    f            = "Matched"
+    ppList       = PP.brackets . PP.nest 1 . PP.fsep . PP.punctuate PP.comma
+    parens True  = PP.parens   . PP.nest 1
+    parens False = id
+
 
 
 -- | Walk through a list of branches and try matching against them in order.
@@ -103,10 +133,10 @@ matchPattern
     -> Maybe (MatchResult abt vars2 b)
 matchPattern e pat body =
     case pat of
-    PWild              -> Just (Matched dnil1 body)
+    PWild              -> Just (Matched id body)
     PVar               ->
         caseBind body $ \x body' ->
-            Just (Matched (dsingleton1 (Pair1 x e)) body')
+            Just (Matched (Assoc x e :) body')
     PDatum _hint1 pat1 ->
         case viewDatum e of
         Nothing               -> Just GotStuck
@@ -144,7 +174,7 @@ matchStruct
     -> PDatumStruct xs vars1     (HData' t)
     -> abt (vars1 ++ vars2)  b
     -> Maybe (MatchResult abt vars2 b)
-matchStruct Done       PDone       body = Just (Matched dnil1 body)
+matchStruct Done       PDone       body = Just (Matched id body)
 matchStruct (Et d1 d2) (PEt p1 p2) body = do
     m1 <- 
         case eqAppendAssoc
@@ -160,7 +190,7 @@ matchStruct (Et d1 d2) (PEt p1 p2) body = do
             return $
                 case m2 of
                 GotStuck          -> GotStuck
-                Matched ys body'' -> Matched (xs `dappend1` ys) body''
+                Matched ys body'' -> Matched (xs . ys) body''
 matchStruct _ _ _ = Nothing
 
 

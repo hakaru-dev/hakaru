@@ -16,7 +16,12 @@
 --
 -- 
 ----------------------------------------------------------------
-module Language.Hakaru.PrettyPrint (pretty, prettyPrec) where
+module Language.Hakaru.PrettyPrint
+    ( pretty
+    , prettyPrec
+    , prettyAssoc
+    , prettyPrecAssoc
+    ) where
 
 import           Text.PrettyPrint (Doc, (<>), (<+>))
 import qualified Text.PrettyPrint as PP
@@ -42,6 +47,19 @@ prettyPrec :: (ABT abt) => Int -> abt '[] a -> Doc
 prettyPrec p = toDoc . prettyPrec_ p . LC_
 
 
+-- | Pretty-print a variable\/term association pair.
+prettyAssoc :: (ABT abt) => Assoc abt -> Doc
+prettyAssoc = prettyPrecAssoc 0
+
+
+-- | Pretty-print an association at a given precendence level.
+prettyPrecAssoc :: (ABT abt) => Int -> Assoc abt -> Doc
+prettyPrecAssoc p (Assoc x e) =
+    toDoc $ ppFun p "Assoc"
+        [ ppVariable x
+        , prettyPrec 11 e
+        ]
+
 ----------------------------------------------------------------
 class Pretty (f :: Hakaru -> *) where
     -- | A polymorphic variant if 'prettyPrec', for internal use.
@@ -49,6 +67,7 @@ class Pretty (f :: Hakaru -> *) where
 
 type Docs = [Doc] 
 
+-- So far as I can tell from the documentation, if the input is a singleton list then the result is the same as that singleton.
 toDoc :: Docs -> Doc
 toDoc = PP.sep
 
