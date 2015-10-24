@@ -473,32 +473,32 @@ checkType = checkType_
                   return (syn(Array_ e1' (bind x e2')))
             _ -> failwith "expected HArray type"
     
-        Syn (Datum_ (Datum t d)) ->
-            case typ0 of
-            SData _ typ2 ->
-                (syn . Datum_ . Datum)
-                    <$> checkDatumCode d typ2 typ0
-            _            -> failwith "expected HData type"
+        -- Need to do these cases
+        --
+        -- U.Datum_ (Sealed2 (Datum t d)) ->
+        --     case typ0 of
+        --     SData _ typ2 ->
+        --         (syn . Datum_ . (Datum t))
+        --             <$> checkDatumCode d typ2 typ0
+        --     _            -> failwith "expected HData type"
     
-        U.Case_ e1 branches -> do
-            TypedAST typ1 e1' <- inferType_ e1
-            branches'  <- T.forM branches $ checkBranch typ1 typ0
-            return (syn(Case_ e1' branches'))
+        -- U.Case_ e1 branches -> do
+        --     TypedAST typ1 e1' <- inferType_ e1
+        --     branches'  <- T.forM branches $ checkBranch typ1 typ0
+        --     return (syn(Case_ e1' branches'))
     
-        Syn (MBind :$ e1 :* e2 :* End)
+        U.MBind_ name e1 e2
             | inferable e1 -> do
-                (typ1,e1') <- inferType_ e1
-                case typ1 of
-                    SMeasure typ2 ->
-                        caseBind e2 $ \x e3 ->
-                            case jmEq1 typ2 (varType x) of
-                            Nothing   -> failwith "type mismatch"
-                            Just Refl -> pushCtx (SomeVariable x) $ do
-                                e3' <- checkType_ typ0 e3
-                                return (syn(MBind :$ e1' :* bind x e3' :* End))
+                TypedAST typ1 e1' <- inferType_ e1
+                case (typ0, typ1) of
+                    (SMeasure _, SMeasure typ2) ->
+                        let x = U.makeVar name typ2 in
+                        pushCtx (SomeVariable x) $ do
+                            e2' <- checkType_ typ0 e2
+                            return (syn(MBind :$ e1' :* bind x e2' :* End))
                     _ -> failwith "expected measure type"
     
-        Syn (Superpose_ pes) -> do
+        U.Superpose_ pes -> do
             pes' <- T.forM pes $ \(p,e) -> do
                 p' <- checkType_ SProb p
                 e' <- checkType_ typ0  e
@@ -506,7 +506,7 @@ checkType = checkType_
             return (syn(Superpose_ pes'))
     
         _   | inferable e0 -> do
-                (typ',e0') <- inferType_ e0
+                TypedAST typ' e0' <- inferType_ e0
                 -- If we ever get evaluation at the type level, then
                 -- (==) should be the appropriate notion of type
                 -- equivalence. More generally, we should have that the
@@ -584,11 +584,11 @@ data TypedPatternList :: [Hakaru] -> * where
         -> TypedPatternList (vars1 ++ vars2)
 -}
 checkBranch
-    :: (ABT abt, ABT abt')
+    :: (ABT abt)
     => Sing a
     -> Sing b
     -> Branch a abt b -- CHANGE THIS
-    -> TypeCheckMonad (Branch a abt' b)
+    -> TypeCheckMonad (Branch a abt b)
 checkBranch pat_typ body_typ (Branch pat body) =
     Branch pat <$> checkPattern body pat_typ pat (checkType body_typ)
 

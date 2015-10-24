@@ -19,6 +19,7 @@ import Language.Hakaru.Syntax.AST    (PrimOp(..),
 import Language.Hakaru.Syntax.ABT (Variable(..))
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.IClasses
+import Language.Hakaru.Syntax.Datum (Datum(..))
 
 import Data.Text
 import Text.Parsec (SourcePos)
@@ -65,7 +66,7 @@ data Value' =
    | Int  Int
    | Prob Double
    | Real Double
-   | Datum (Datum' Name')
+   | Datum''
  deriving (Eq)
 
 data Symbol' =
@@ -172,11 +173,11 @@ data AST a =
    | Value_      (Sealed1 Value)
    | Empty_
    | Array_      (AST a) Name (AST a) -- not sure should binding form
-   | Datum_      (AST a)
+   | Datum_      (Sealed2 Datum)
    | Case_       (AST a) [Branch a]
    | MeasureOp_  (SealedOp MeasureOp) [AST a]
    | MBind_      Name    (AST a) (AST a)
-   | Superpose_  (AST a)
+   | Superpose_  [(AST a, AST a)]
    | Lub_        (AST a)
 
 
