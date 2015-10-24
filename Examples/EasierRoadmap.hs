@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.07
+--                                                    2015.10.23
 -- |
 -- Module      :  Examples.EasierRoadmap
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -26,11 +26,12 @@ module Examples.EasierRoadmap where
 import Prelude (($), (.), undefined, error, IO, Maybe(..))
 
 import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.TypeEq (SingI)
+import Language.Hakaru.Syntax.Sing (SingI)
 import Language.Hakaru.Syntax.HClasses (HSemiring_)
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Prelude
 import Language.Hakaru.Disintegrate
+import Language.Hakaru.PrettyPrint
 
 {-
 import Language.Hakaru.Syntax
@@ -388,10 +389,11 @@ makeChain
     -> abt '[] ('HMeasure ('HArray a))
 makeChain n s0 m =
     fst <$>
-        chain (array n $ \ _ ->
-            lam $ \s' ->
-            dup <$> m `app` s')
-        `app` s0
+        chain
+            (array n $ \ _ ->
+                lam $ \s' ->
+                dup <$> m `app` s')
+            s0
     where
     dup x = pair x x
 
