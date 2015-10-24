@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.22
+--                                                    2015.10.24
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeCheck
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -27,7 +27,15 @@
 -- checking by having our 'View' type be indexed by the number of
 -- bindings it introduces.
 ----------------------------------------------------------------
-module Language.Hakaru.Syntax.TypeCheck where
+module Language.Hakaru.Syntax.TypeCheck
+    ( inferable
+    , mustCheck
+    , TypeCheckError
+    , TypeCheckMonad(), runTCM
+    , TypedAST(..)
+    , inferType
+    , checkType
+    ) where
 
 import           Data.IntMap           (IntMap)
 import qualified Data.IntMap           as IM
