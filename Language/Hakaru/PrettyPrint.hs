@@ -43,26 +43,14 @@ prettyPrec p = toDoc . prettyPrec_ p . LC_
 
 
 ----------------------------------------------------------------
--- TODO: can we avoid using Text.unpack?
+class Pretty (f :: Hakaru -> *) where
+    -- | A polymorphic variant if 'prettyPrec', for internal use.
+    prettyPrec_ :: Int -> f a -> Docs
 
 type Docs = [Doc] 
 
 toDoc :: Docs -> Doc
 toDoc = PP.sep
-
--- | For the \"@lam $ \x ->\n@\"  style layout.
-adjustHead :: (Doc -> Doc) -> Docs -> Docs
-adjustHead f []     = [f (toDoc [])]
-adjustHead f (d:ds) = f d : ds
-
--- | For the \"@lam (\x ->\n\t...)@\"  style layout.
-nestTail :: Int -> Docs -> Docs
-nestTail _ []     = []
-nestTail n (d:ds) = [d, PP.nest n (toDoc ds)]
-
-parens :: Bool -> Docs -> Docs
-parens True  ds = [PP.parens (PP.nest 1 (toDoc ds))]
-parens False ds = ds
 
 
 -- | Pretty-print a variable.
@@ -87,16 +75,10 @@ ppBinder e =
     go xs (Syn  t)   = (reverse xs, prettyPrec_ 0 (LC_ (syn t)))
 
 
-class Pretty (f :: Hakaru -> *) where
-    -- | A polymorphic variant if 'prettyPrec', for internal use.
-    prettyPrec_ :: Int -> f a -> Docs
-
-
 -- HACK: so we can safely give a 'Pretty' instance
 -- TODO: unify this with the same hack used in AST.hs for 'Show'
 newtype LC_ (abt :: [Hakaru] -> Hakaru -> *) (a :: Hakaru) =
     LC_ { unLC_ :: abt '[] a }
-
 
 instance (ABT abt) => Pretty (LC_ abt) where
   prettyPrec_ p (LC_ e) =
@@ -165,10 +147,10 @@ instance (ABT abt) => Pretty (LC_ abt) where
 -- | Pretty-print @(:$)@ nodes in the AST.
 ppSCon :: (ABT abt) => Int -> SCon args a -> SArgs abt args -> Docs
 ppSCon p Lam_ (e1 :* End) =
-    parens (p > 9) $ adjustHead (PP.text "lam $" <+>) (ppBinder e1)
+    parens (p > 0) $ adjustHead (PP.text "lam $" <+>) (ppBinder e1)
 ppSCon p App_ (e1 :* e2 :* End) = ppBinop "`app`" 9 LeftAssoc p e1 e2
 ppSCon p Let_ (e1 :* e2 :* End) =
-    parens (p > 9) $ 
+    parens (p > 0) $ 
         adjustHead
             (PP.text "let_" <+> toDoc (ppArg e1) <+> PP.char '$' <+>)
             (ppBinder e2)
@@ -199,7 +181,8 @@ ppSCon p Expect (e1 :* e2 :* End) =
     ppFun p "syn"
         [ toDoc $ ppFun 11 "Expect"
             [ toDoc $ ppArg e1
-            , toDoc $ ppBinder e2 -- BUG: we can't actually use the HOAS API here, since we aren't using a Prelude-defined @expect@ but rather are using 'syn'...
+            , toDoc . nestTail 4 $ ppBinder e2 -- BUG: we can't actually use the HOAS API here, since we aren't using a Prelude-defined @expect@ but rather are using 'syn'...
+            -- TODO: use the adjustHead trick
             ]]
 -- HACK: GHC can't figure out that there are no other type-safe cases
 ppSCon _ _ _ = error "ppSCon: the impossible happened"
@@ -289,11 +272,11 @@ ppMeasureOp p (Dirac _)   (e1 :* End)   = ppApply1 p "dirac" e1
 ppMeasureOp _ Lebesgue    End           = [PP.text "lebesgue"]
 ppMeasureOp _ Counting    End           = [PP.text "counting"]
 ppMeasureOp p Categorical (e1 :* End)   = ppApply1 p "categorical" e1
-ppMeasureOp p Uniform (e1 :* e2 :* End) = ppApply2 p "uniform" e1 e2
-ppMeasureOp p Normal  (e1 :* e2 :* End) = ppApply2 p "normal" e1 e2
-ppMeasureOp p Poisson (e1 :* End)       = ppApply1 p "poisson" e1
-ppMeasureOp p Gamma   (e1 :* e2 :* End) = ppApply2 p "gamma" e1 e2
-ppMeasureOp p Beta    (e1 :* e2 :* End) = ppApply2 p "beta" e1 e2
+ppMeasureOp p Uniform (e1 :* e2 :* End) = ppApply2 p "uniform"     e1 e2
+ppMeasureOp p Normal  (e1 :* e2 :* End) = ppApply2 p "normal"      e1 e2
+ppMeasureOp p Poisson (e1 :* End)       = ppApply1 p "poisson"     e1
+ppMeasureOp p Gamma   (e1 :* e2 :* End) = ppApply2 p "gamma"       e1 e2
+ppMeasureOp p Beta    (e1 :* e2 :* End) = ppApply2 p "beta"        e1 e2
 ppMeasureOp p (DirichletProcess _) (e1 :* e2 :* End) = ppApply2 p "dp" e1 e2
 ppMeasureOp p (Plate _)   (e1 :* End)       = ppApply1 p "plate" e1
 ppMeasureOp p (Chain _ _) (e1 :* e2 :* End) = ppApply2 p "chain" e1 e2
@@ -306,7 +289,8 @@ instance Pretty Value where
     prettyPrec_ p (VInt   i) = ppFun p "int_"  [PP.int i]
     prettyPrec_ p (VProb  l) = ppFun p "prob_" [PP.text (showsPrec 11 l "")]
         -- TODO: make it prettier! (e.g., don't use LogFloat in the AST)
-    prettyPrec_ p (VReal  r) = ppFun p "real_" [PP.double r] -- TODO: make it prettier! (i.e., don't use Double in the AST)
+    prettyPrec_ p (VReal  r) = ppFun p "real_" [PP.double r]
+        -- TODO: make it prettier! (i.e., don't use Double in the AST)
     prettyPrec_ p (VDatum d) = prettyPrec_ p d
 
 
@@ -320,12 +304,53 @@ instance Pretty f => Pretty (Datum f) where
                 (foldMap11 ((:[]) . toDoc . prettyPrec_ 11) d)
 
 
+-- HACK: need to pull this out in order to get polymorphic recursion over @xs@
+ppPattern :: Int -> Pattern xs a -> Docs
+ppPattern _ PWild = [PP.text "PWild"]
+ppPattern _ PVar  = [PP.text "PVar"]
+ppPattern p (PDatum hint d)
+    | Text.null hint = error "TODO: prettyPrec_@Pattern"
+    | otherwise      = ppFun p (Text.unpack hint) (goCode d)
+    where
+    goCode :: PDatumCode xss vars a -> Docs
+    goCode (PInr d) = goCode   d
+    goCode (PInl d) = goStruct d
+
+    goStruct :: PDatumStruct xs vars a -> Docs
+    goStruct PDone       = []
+    goStruct (PEt d1 d2) = goFun d1 ++ goStruct d2
+
+    goFun :: PDatumFun x vars a -> Docs
+    goFun (PKonst d) = [toDoc $ ppPattern 11 d]
+    goFun (PIdent d) = [toDoc $ ppPattern 11 d]
+
+
+instance Pretty (Pattern xs) where
+    prettyPrec_ = ppPattern
+
+
 instance (ABT abt) => Pretty (Branch a abt) where
     prettyPrec_ p (Branch pat e) =
         ppFun p "Branch"
-            [ PP.text (showsPrec 11 pat "") -- HACK: make prettier. Especially since we have the hints!
-            , toDoc $ ppBinder e -- BUG: we can't actually use the HOAS API here, since we aren't using a Prelude-defined @branch@...
+            [ toDoc $ prettyPrec_ 11 pat
+            , PP.parens . toDoc $ ppBinder e -- BUG: we can't actually use the HOAS API here, since we aren't using a Prelude-defined @branch@...
+            -- HACK: don't *always* print parens; pass down the precedence to 'ppBinder' to have them decide if they need to or not.
             ]
+
+----------------------------------------------------------------
+-- | For the \"@lam $ \x ->\n@\"  style layout.
+adjustHead :: (Doc -> Doc) -> Docs -> Docs
+adjustHead f []     = [f (toDoc [])]
+adjustHead f (d:ds) = f d : ds
+
+-- | For the \"@lam (\x ->\n\t...)@\"  style layout.
+nestTail :: Int -> Docs -> Docs
+nestTail _ []     = []
+nestTail n (d:ds) = [d, PP.nest n (toDoc ds)]
+
+parens :: Bool -> Docs -> Docs
+parens True  ds = [PP.parens (PP.nest 1 (toDoc ds))]
+parens False ds = ds
 
 ppList :: [Doc] -> Docs
 ppList = (:[]) . PP.brackets . PP.nest 1 . PP.fsep . PP.punctuate PP.comma

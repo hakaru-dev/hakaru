@@ -811,6 +811,7 @@ m >>= f = syn (MBind :$ m :* binder Text.empty sing f :* End)
 dirac :: (ABT abt, SingI a) => abt '[] a -> abt '[] ('HMeasure a)
 dirac = measure1_ $ Dirac sing
 
+-- TODO: can we use let-binding instead of (>>=)-binding (i.e., for when the dirac is immediately (>>=)-bound again...)? Methinks we'd have to adjust the definition of (>>=) to be smarter enough to eliminate extraneous dirac.
 -- BUG: remove the 'SingI' requirement!
 (<$>), liftM
     :: (ABT abt, SingI a, SingI b)

@@ -10,7 +10,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.22
+--                                                    2015.10.23
 -- |
 -- Module      :  Language.Hakaru.Syntax.Datum
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -231,46 +231,46 @@ instance Foldable11 (DatumFun x) where
 -- values, so the pattern synonyms wouldn't even be helpful.
 
 dTrue, dFalse :: Datum ast HBool
-dTrue      = Datum tTrue  . Inl $ Done
-dFalse     = Datum tFalse . Inr . Inl $ Done
+dTrue      = Datum tdTrue  . Inl $ Done
+dFalse     = Datum tdFalse . Inr . Inl $ Done
 
 dUnit      :: Datum ast HUnit
-dUnit      = Datum tUnit . Inl $ Done
+dUnit      = Datum tdUnit . Inl $ Done
 
 dPair      :: ast a -> ast b -> Datum ast (HPair a b)
-dPair a b  = Datum tPair . Inl $ Konst a `Et` Konst b `Et` Done
+dPair a b  = Datum tdPair . Inl $ Konst a `Et` Konst b `Et` Done
 
 dLeft      :: ast a -> Datum ast (HEither a b)
-dLeft      = Datum tLeft . Inl . (`Et` Done) . Konst
+dLeft      = Datum tdLeft . Inl . (`Et` Done) . Konst
 
 dRight     :: ast b -> Datum ast (HEither a b)
-dRight     = Datum tRight . Inr . Inl . (`Et` Done) . Konst
+dRight     = Datum tdRight . Inr . Inl . (`Et` Done) . Konst
 
 dNil       :: Datum ast (HList a)
-dNil       = Datum tNil. Inl $ Done
+dNil       = Datum tdNil. Inl $ Done
 
 dCons      :: ast a -> ast (HList a) -> Datum ast (HList a)
-dCons x xs = Datum tCons . Inr . Inl $ Konst x `Et` Ident xs `Et` Done
+dCons x xs = Datum tdCons . Inr . Inl $ Konst x `Et` Ident xs `Et` Done
 
 dNothing   :: Datum ast (HMaybe a)
-dNothing   = Datum tNothing . Inl $ Done
+dNothing   = Datum tdNothing . Inl $ Done
 
 dJust      :: ast a -> Datum ast (HMaybe a)
-dJust      = Datum tJust . Inr . Inl . (`Et` Done) . Konst
+dJust      = Datum tdJust . Inr . Inl . (`Et` Done) . Konst
 
 
 ----------------------------------------------------------------
-tTrue, tFalse, tUnit, tPair, tLeft, tRight, tNil, tCons, tNothing, tJust :: Text
-tTrue    = Text.pack "true"
-tFalse   = Text.pack "false"
-tUnit    = Text.pack "unit"
-tPair    = Text.pack "pair"
-tLeft    = Text.pack "left"
-tRight   = Text.pack "right"
-tNil     = Text.pack "nil"
-tCons    = Text.pack "cons"
-tNothing = Text.pack "nothing"
-tJust    = Text.pack "just"
+tdTrue, tdFalse, tdUnit, tdPair, tdLeft, tdRight, tdNil, tdCons, tdNothing, tdJust :: Text
+tdTrue    = Text.pack "true"
+tdFalse   = Text.pack "false"
+tdUnit    = Text.pack "unit"
+tdPair    = Text.pack "pair"
+tdLeft    = Text.pack "left"
+tdRight   = Text.pack "right"
+tdNil     = Text.pack "nil"
+tdCons    = Text.pack "cons"
+tdNothing = Text.pack "nothing"
+tdJust    = Text.pack "just"
 
 
 ----------------------------------------------------------------
@@ -393,11 +393,11 @@ instance Show (PDatumFun x vars a) where
 
 ----------------------------------------------------------------
 pTrue, pFalse :: Pattern '[] HBool
-pTrue  = PDatum tTrue  . PInl $ PDone
-pFalse = PDatum tFalse . PInr . PInl $ PDone
+pTrue  = PDatum tpTrue  . PInl $ PDone
+pFalse = PDatum tpFalse . PInr . PInl $ PDone
 
 pUnit  :: Pattern '[] HUnit
-pUnit  = PDatum tUnit . PInl $ PDone
+pUnit  = PDatum tpUnit . PInl $ PDone
 
 -- HACK: using undefined like that isn't going to help if we use the variant of eqAppendNil that actually needs the Sing...
 varsOfPattern :: Pattern vars a -> proxy vars
@@ -409,36 +409,48 @@ pPair
     -> Pattern (vars1 ++ vars2) (HPair a b)
 pPair a b =
     case eqAppendNil (varsOfPattern b) of
-    Refl -> PDatum tPair . PInl $ PKonst a `PEt` PKonst b `PEt` PDone
+    Refl -> PDatum tpPair . PInl $ PKonst a `PEt` PKonst b `PEt` PDone
 
 pLeft :: Pattern vars a -> Pattern vars (HEither a b)
 pLeft a =
     case eqAppendNil (varsOfPattern a) of
-    Refl -> PDatum tLeft . PInl $ PKonst a `PEt` PDone
+    Refl -> PDatum tpLeft . PInl $ PKonst a `PEt` PDone
 
 pRight :: Pattern vars b -> Pattern vars (HEither a b)
 pRight b =
     case eqAppendNil (varsOfPattern b) of
-    Refl -> PDatum tRight . PInr . PInl $ PKonst b `PEt` PDone
+    Refl -> PDatum tpRight . PInr . PInl $ PKonst b `PEt` PDone
 
 pNil :: Pattern '[] (HList a)
-pNil = PDatum tNil . PInl $ PDone
+pNil = PDatum tpNil . PInl $ PDone
 
 pCons :: Pattern vars1 a
     -> Pattern vars2 (HList a)
     -> Pattern (vars1 ++ vars2) (HList a)
 pCons x xs = 
     case eqAppendNil (varsOfPattern xs) of
-    Refl -> PDatum tCons . PInr . PInl $ PKonst x `PEt` PIdent xs `PEt` PDone
+    Refl -> PDatum tpCons . PInr . PInl $ PKonst x `PEt` PIdent xs `PEt` PDone
 
 pNothing :: Pattern '[] (HMaybe a)
-pNothing = PDatum tNothing . PInl $ PDone
+pNothing = PDatum tpNothing . PInl $ PDone
 
 pJust :: Pattern vars a -> Pattern vars (HMaybe a)
 pJust a =
     case eqAppendNil (varsOfPattern a) of
-    Refl -> PDatum tJust . PInr . PInl $ PKonst a `PEt` PDone
+    Refl -> PDatum tpJust . PInr . PInl $ PKonst a `PEt` PDone
 
+----------------------------------------------------------------
+tpTrue, tpFalse, tpUnit, tpPair, tpLeft, tpRight, tpNil, tpCons, tpNothing, tpJust :: Text
+tpTrue    = Text.pack "pTrue"
+tpFalse   = Text.pack "pFalse"
+tpUnit    = Text.pack "pUnit"
+tpPair    = Text.pack "pPair"
+tpLeft    = Text.pack "pLeft"
+tpRight   = Text.pack "pRight"
+tpNil     = Text.pack "pNil"
+tpCons    = Text.pack "pCons"
+tpNothing = Text.pack "pNothing"
+tpJust    = Text.pack "pJust"
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
