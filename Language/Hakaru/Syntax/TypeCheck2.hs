@@ -499,12 +499,15 @@ checkType = checkType_
                     _ -> failwith "expected measure type"
     
         U.Superpose_ pes -> do
-            pes' <- T.forM pes $ \(p,e) -> do
-                p' <- checkType_ SProb p
-                e' <- checkType_ typ0  e
-                return (p',e')
-            return (syn(Superpose_ pes'))
-    
+          case typ0 of
+            (SMeasure _) -> do
+              pes' <- T.forM pes $ \(p,e) -> do
+                         p' <- checkType_ SProb p
+                         e' <- checkType_ typ0  e
+                         return (p',e')
+              return (syn(Superpose_ pes'))
+            _ -> failwith "expected measure type"    
+
         _   | inferable e0 -> do
                 TypedAST typ' e0' <- inferType_ e0
                 -- If we ever get evaluation at the type level, then
@@ -607,7 +610,7 @@ checkPattern body pat_typ pat k =
             Nothing   -> failwith "type mismatch"
             Just Refl -> bind x <$> pushCtx (SomeVariable x) (k body')
     PWild       -> k body
-    PDatum pat1 ->
+    PDatum t pat1 ->
         case pat_typ of
         SData _ typ2 -> checkPatternCode body pat1 typ2 pat_typ k
         _            -> failwith "expected term of user-defined data type"
