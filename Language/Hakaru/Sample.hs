@@ -73,6 +73,9 @@ failwith = SM . const . Left
 one :: LF.LogFloat
 one = LF.logFloat (1.0 :: Double)
 
+ret2 :: PrimMonad m => PRNG m -> a-> m (SamplerMonad abt a)
+ret2 g = return . return
+
 -- Makes use of Atkinson's algorithm as described in:
 -- Monte Carlo Statistical Methods pg. 55
 --
@@ -107,29 +110,35 @@ poisson_rng lambda g' = make_poisson g'
         <=
         -lambda + fromIntegral k * lnlam - logFactorial k
 
-class Sampleable (f :: Hakaru -> *) where
-    sample :: PrimMonad m =>
-              f a -> PRNG m -> m (Sample a, LF.LogFloat)
+class Sampleable (f :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> *) where
+    sample :: (ABT abt, PrimMonad m) =>
+              f abt a -> PRNG m -> Assocs abt ->
+              m (Sample a, LF.LogFloat, Assocs abt)
 
-instance (ABT abt) => Sampleable (LC_ abt) where
-    sample (LC_ e) g =
-      caseVarSyn e sampleVar $ \t ->
+instance Sampleable LC_ where
+    sample (LC_ e) g env =
+      caseVarSyn e (sampleVar g env) $ \t ->
           case t of
-            Value_ v -> sample v g
+            Value_ v -> return (sampleValue v, one, env)
 
-instance Sampleable Value where
-    sample (VNat  n)  _  = return (n, one)
-    sample (VInt  n)  _  = return (n, one)
-    sample (VProb n)  _  = return (n, one)
-    sample (VReal n)  _  = return (n, one)
-    sample (VDatum _) _  = error "Don't know how to sample Datum"
+sampleValue :: Value a -> Sample a
+sampleValue (VNat  n)  = n
+sampleValue (VInt  n)  = n
+sampleValue (VProb n)  = n
+sampleValue (VReal n)  = n
+sampleValue (VDatum _) = error "Don't know how to sample Datum"
 
--- HACK: all variables are 42!
-sampleVar :: (PrimMonad m) =>
-             Variable a -> m (Sample a, LF.LogFloat)
-sampleVar _ = return (undefined, one)
+sampleVar :: (PrimMonad m, ABT abt) =>
+             PRNG m -> Assocs abt -> Variable a -> 
+             m (Sample a, LF.LogFloat, Assocs abt)
+sampleVar g env v = do
+  case lookupAssoc v env of
+    Nothing -> error "variable not found!"
+    Just a  -> sample (LC_ a) g env
 
 runSample :: (ABT abt, Functor m, PrimMonad m) =>
              abt '[] a -> PRNG m -> m (Sample a, LF.LogFloat)
-runSample prog g = sample (LC_ prog) g
+runSample prog g = do
+  (v, weight, _) <- sample (LC_ prog) g emptyAssocs
+  return (v, weight)
 
