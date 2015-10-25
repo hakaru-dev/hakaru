@@ -6,11 +6,15 @@
            , DataKinds
            , PolyKinds
            , TypeOperators
+           , MultiParamTypeClasses
+           , FlexibleInstances
+           , FunctionalDependencies
+           , UndecidableInstances
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.23
+--                                                    2015.10.24
 -- |
 -- Module      :  Language.Hakaru.Syntax.ABT
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -33,21 +37,11 @@
 --    * <http://winterkoninkje.dreamwidth.org/103978.html>
 --
 -- TODO: simultaneous multiple substitution
--- TODO: move all the variable stuff out to a separate module that this one depends on.
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.ABT
     (
     -- * Our basic notion of variables.
-      Variable(..)
-    , varEq
-    , VarEqTypeError(..)
-    , SomeVariable(..)
-    -- ** Some helper types for \"heaps\", \"environments\", etc
-    , Assoc(..)
-    , Assocs()
-    , emptyAssocs
-    , insertAssoc
-    , lookupAssoc
+      module Language.Hakaru.Syntax.Variable
     , resolveVar
 
     -- * The abstract binding tree interface
@@ -80,18 +74,11 @@ import           Data.Monoid
 
 import Language.Hakaru.Syntax.Nat
 import Language.Hakaru.Syntax.IClasses
-import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Sing
-import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Variable
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
--- TODO: (definitely) parameterise the 'ABT' class over it's choice
--- of syntax (currently assumed to always be 'AST'). This way we
--- can reuse the ABT stuff for the untyped AST that symbol resolution
--- generates
-
 -- TODO: (probably) parameterize the 'ABT' class over it's
 -- implementation of 'Variable', so that after we're done constructing
 -- terms with 'binder' we can make the varID strict\/unboxed.
@@ -118,11 +105,14 @@ import Language.Hakaru.Syntax.Variable
 -- BUG: if we don't expose this type, then clients can't define
 -- their own ABT instances (without reinventing their own copy of
 -- this type)...
-data View :: ([Hakaru] -> Hakaru -> *) -> [Hakaru] -> Hakaru -> * where
+data View
+        :: (([k] -> k -> *) -> k -> *)
+        -> ([k] -> k -> *)
+        -> [k] -> k -> * 
+    where
+    Syn  :: !(syn abt a) -> View syn abt '[] a
 
-    Syn  :: !(AST abt a) -> View abt '[] a
-
-    Var  :: {-# UNPACK #-} !(Variable a) -> View abt '[] a
+    Var  :: {-# UNPACK #-} !(Variable a) -> View syn abt '[] a
 
     -- N.B., this constructor is recursive, thus minimizing the
     -- memory overhead of whatever annotations our ABT stores (we
@@ -135,17 +125,20 @@ data View :: ([Hakaru] -> Hakaru -> *) -> [Hakaru] -> Hakaru -> * where
     -- then needing to reconstruct all but the first one.
     Bind
         :: {-# UNPACK #-} !(Variable a)
-        -> !(View abt xs b)
-        -> View abt (a ': xs) b
+        -> !(View syn abt xs b)
+        -> View syn abt (a ': xs) b
 
 
-instance Functor22 View where
-    fmap22 f (Syn  t)   = Syn (fmap21 f t)
+instance Functor21 syn => Functor22 (View syn) where
+    fmap22 f (Syn  t)   = Syn  (fmap21 f t)
     fmap22 _ (Var  x)   = Var  x
     fmap22 f (Bind x e) = Bind x (fmap22 f e)
 
 
-instance Show2 abt => Show2 (View abt) where
+instance (Show1 (Sing :: k -> *), Show1 (syn abt), Show2 abt)
+    => Show2 (View (syn :: ([k] -> k -> *) -> k -> *) (abt :: [k] -> k -> *))
+    where
+    -- TODO: use the helpers in IClasses.hs to clean this up
     showsPrec2 p (Syn t) =
         showParen (p > 9)
             ( showString "Syn "
@@ -164,20 +157,24 @@ instance Show2 abt => Show2 (View abt) where
             . showsPrec2 11 v
             )
 
-instance Show2 abt => Show1 (View abt xs) where
+instance (Show1 (Sing :: k -> *), Show1 (syn abt), Show2 abt)
+    => Show1 (View (syn :: ([k] -> k -> *) -> k -> *) (abt :: [k] -> k -> *) xs)
+    where
     showsPrec1 = showsPrec2
     show1      = show2
     
-instance Show2 abt => Show (View abt xs a) where
+instance (Show1 (Sing :: k -> *), Show1 (syn abt), Show2 abt)
+    => Show (View (syn :: ([k] -> k -> *) -> k -> *) (abt :: [k] -> k -> *) xs a)
+    where
     showsPrec = showsPrec1
     show      = show1
 
 
 -- TODO: neelk includes 'subst' as a method. Any reason we should?
 -- TODO: jon includes instantiation as a method. Any reason we should?
-class ABT (abt :: [Hakaru] -> Hakaru -> *) where
+class ABT (syn :: ([k] -> k -> *) -> k -> *) (abt :: [k] -> k -> *) | abt -> syn where
     -- Smart constructors for building a 'View' and then injecting it into the @abt@.
-    syn  :: AST abt  a -> abt '[] a
+    syn  :: syn abt  a -> abt '[] a
     var  :: Variable a -> abt '[] a
     bind :: Variable a -> abt xs b -> abt (a ': xs) b
 
@@ -199,7 +196,7 @@ class ABT (abt :: [Hakaru] -> Hakaru -> *) where
 
     -- See note about exposing 'View', 'viewABT', and 'unviewABT'.
     -- We could replace 'viewABT' with a case-elimination version...
-    viewABT  :: abt xs a -> View abt xs a
+    viewABT  :: abt xs a -> View syn abt xs a
 
     -- TODO: use our own VarSet type (e.g., @IntMap Variable@) instead of @Set Variable@?
     freeVars :: abt xs a -> Set (SomeVariable (KindOf a))
@@ -232,7 +229,7 @@ class ABT (abt :: [Hakaru] -> Hakaru -> *) where
 
 
 -- See note about exposing 'View', 'viewABT', and 'unviewABT'
-unviewABT :: (ABT abt) => View abt xs a -> abt xs a
+unviewABT :: (ABT syn abt) => View syn abt xs a -> abt xs a
 unviewABT (Syn  t)   = syn  t
 unviewABT (Var  x)   = var  x
 unviewABT (Bind x v) = bind x (unviewABT v)
@@ -242,10 +239,10 @@ unviewABT (Bind x v) = bind x (unviewABT v)
 -- be either 'Syn' of 'Var'. So we do case analysis with those two
 -- constructors.
 caseVarSyn
-    :: (ABT abt)
+    :: (ABT syn abt)
     => abt '[] a
     -> (Variable a -> r)
-    -> (AST abt  a -> r)
+    -> (syn abt  a -> r)
     -> r
 caseVarSyn e var_ syn_ =
     case viewABT e of
@@ -274,10 +271,12 @@ caseVarSyn e var_ syn_ =
 -- fact sound because all nested binders will bind smaller variables.
 -- However, If you generate any binding forms manually, then you
 -- can break things so that 'maxBind' returns an incorrect answer.
-newtype TrivialABT (xs :: [Hakaru]) (a :: Hakaru) =
-    TrivialABT (View TrivialABT xs a)
+newtype TrivialABT syn (xs :: [k]) (a :: k) =
+    TrivialABT (View syn (TrivialABT syn) xs a)
 
-instance ABT TrivialABT where
+instance (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Foldable21 syn)
+    => ABT (syn :: ([k] -> k -> *) -> k -> *) (TrivialABT syn)
+    where
     syn  t                = TrivialABT (Syn  t)
     var  x                = TrivialABT (Var  x)
     bind x (TrivialABT v) = TrivialABT (Bind x v)
@@ -290,7 +289,8 @@ instance ABT TrivialABT where
 
     freeVars = go . viewABT
         where
-        go :: View TrivialABT xs a -> Set (SomeVariable (KindOf a))
+        go  :: View syn (TrivialABT syn) xs a
+            -> Set (SomeVariable (KindOf a))
         go (Syn  t)   = foldMap21 freeVars t
         go (Var  x)   = Set.singleton (SomeVariable x)
         go (Bind x v) = Set.delete (SomeVariable x) (go v)
@@ -302,14 +302,17 @@ instance ABT TrivialABT where
         -- be able to just look at the first binder, since whenever we
         -- figure out how to do multibinders we can prolly arrange for
         -- the first one to be the largest.
-        go :: (ABT abt) => Nat -> View abt xs a -> Nat
+        go :: (ABT syn abt) => Nat -> View syn abt xs a -> Nat
         go 0 (Syn  t)   = unMaxNat $ foldMap21 (MaxNat . maxBind) t
         go n (Syn  _)   = n -- Don't go under binders
         go n (Var  _)   = n -- Don't look at variable *uses*
         go n (Bind x v) = go (n `max` varID x) v
         
 
-instance Show2 TrivialABT where
+-- BUG: requires UndecidableInstances
+instance (Show1 (Sing :: k -> *), Show1 (syn (TrivialABT syn)))
+    => Show2 (TrivialABT (syn :: ([k] -> k -> *) -> k -> *))
+    where
     {-
     -- Print the concrete data constructors:
     showsPrec2 p (TrivialABT v) =
@@ -339,17 +342,21 @@ instance Show2 TrivialABT where
             . showsPrec1 11 (TrivialABT v) -- HACK: use caseBind
             )
 
-instance Show1 (TrivialABT xs) where
+instance (Show1 (Sing :: k -> *), Show1 (syn (TrivialABT syn)))
+    => Show1 (TrivialABT (syn :: ([k] -> k -> *) -> k -> *) xs)
+    where
     showsPrec1 = showsPrec2
     show1      = show2
 
-instance Show (TrivialABT xs a) where
+instance (Show1 (Sing :: k -> *), Show1 (syn (TrivialABT syn)))
+    => Show (TrivialABT (syn :: ([k] -> k -> *) -> k -> *) xs a)
+    where
     showsPrec = showsPrec1
     show      = show1
 
 ----------------------------------------------------------------
--- TODO: replace @Set Variable@ with @Map Variable Hakaru@ or @Map
--- Variable (Some (Sing :: Hakaru -> *))@ though that belongs more
+-- TODO: replace @Set Variable@ with @Map Variable k@ or @Map
+-- Variable (Some (Sing :: k -> *))@ though that belongs more
 -- in a different ABT instance produced by type-checking, rather
 -- than belonging here...
 --
@@ -376,18 +383,21 @@ instance Show (TrivialABT xs a) where
 -- N.B., the memoized set of free variables is lazy so that we can
 -- tie-the-knot in 'binder' without interfering with our memos. The
 -- memoized 'maxFree' must be lazy for the same reason.
-data MemoizedABT (xs :: [Hakaru]) (a :: Hakaru) = MemoizedABT
+data MemoizedABT syn (xs :: [k]) (a :: k) = MemoizedABT
     { memoizedFreeVars :: Set (SomeVariable (KindOf a)) -- N.B., lazy!
     , memoizedMaxFree  :: Nat -- N.B., lazy!
     , memoizedMaxBind  :: {-# UNPACK #-} !Nat
-    , memoizedView     :: !(View MemoizedABT xs a)
+    , memoizedView     :: !(View syn (MemoizedABT syn) xs a)
     }
     -- N.B., Set is a monoid with {Set.empty; Set.union; Set.unions}
     -- For a lot of code, the other component ordering would be
     -- nicer; but this ordering gives a more intelligible Show instance.
 
 
-instance ABT MemoizedABT where
+
+instance (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Foldable21 syn)
+    => ABT (syn :: ([k] -> k -> *) -> k -> *) (MemoizedABT syn)
+    where
     syn t =
         MemoizedABT
             (foldMap21 freeVars t)
@@ -441,7 +451,9 @@ instance ABT MemoizedABT where
     maxBind  = memoizedMaxBind
 
 
-instance Show2 MemoizedABT where
+instance (Show1 (Sing :: k -> *), Show1 (syn (MemoizedABT syn)))
+    => Show2 (MemoizedABT (syn :: ([k] -> k -> *) -> k -> *))
+    where
     showsPrec2 p (MemoizedABT xs mf mb v) =
         showParen (p > 9)
             ( showString "MemoizedABT "
@@ -454,11 +466,15 @@ instance Show2 MemoizedABT where
             . showsPrec1 11 v
             )
 
-instance Show1 (MemoizedABT xs) where
+instance (Show1 (Sing :: k -> *), Show1 (syn (MemoizedABT syn)))
+    => Show1 (MemoizedABT (syn :: ([k] -> k -> *) -> k -> *) xs)
+    where
     showsPrec1 = showsPrec2
     show1      = show2
 
-instance Show (MemoizedABT xs a) where
+instance (Show1 (Sing :: k -> *), Show1 (syn (MemoizedABT syn)))
+    => Show (MemoizedABT (syn :: ([k] -> k -> *) -> k -> *) xs a)
+    where
     showsPrec = showsPrec1
     show      = show1
 
@@ -471,7 +487,8 @@ instance Show (MemoizedABT xs a) where
 -- isn't (but keeping the same hint and type as the old variable).
 -- If it isn't in the set, then just return it.
 freshen
-    :: Variable (a :: Hakaru)
+    :: (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *))
+    => Variable (a :: k)
     -> Set (SomeVariable (KindOf a))
     -> Variable a
 freshen x xs
@@ -482,19 +499,19 @@ freshen x xs
 
 -- | Rename a free variable. Does nothing if the variable is bound.
 rename
-    :: forall abt (a :: Hakaru) xs (b :: Hakaru)
-    .  (ABT abt)
+    :: forall syn abt (a :: k) xs (b :: k)
+    .  (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Functor21 syn, ABT syn abt)
     => Variable a
     -> Variable a
     -> abt xs b
     -> abt xs b
 rename x y = start
     where
-    start :: forall xs' (b':: Hakaru) . abt xs' b' -> abt xs' b'
+    start :: forall xs' (b':: k) . abt xs' b' -> abt xs' b'
     start e = loop e (viewABT e)
 
     -- TODO: is it actually worth passing around the @e@? Benchmark.
-    loop :: forall xs' (b' :: Hakaru). abt xs' b' -> View abt xs' b' -> abt xs' b'
+    loop :: forall xs' (b' :: k). abt xs' b' -> View syn abt xs' b' -> abt xs' b'
     loop _ (Syn t) = syn $! fmap21 start t
     loop e (Var z) =
         case varEq x z of
@@ -516,8 +533,8 @@ rename x y = start
 -- to ensure timely throwing of exceptions, the 'AST' and 'ABT'
 -- should have strict 'fmap21' definitions.
 subst
-    :: forall abt a xs b
-    .  (ABT abt)
+    :: forall syn abt (a :: k) xs (b :: k)
+    .  (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Functor21 syn, ABT syn abt)
     => Variable a
     -> abt '[] a
     -> abt xs b
@@ -528,7 +545,7 @@ subst x e = start
     start f = loop f (viewABT f)
 
     -- TODO: is it actually worth passing around the @f@? Benchmark.
-    loop :: forall xs' b'. abt xs' b' -> View abt xs' b' -> abt xs' b'
+    loop :: forall xs' b'. abt xs' b' -> View syn abt xs' b' -> abt xs' b'
     loop _ (Syn t) = syn $! fmap21 start t
     loop f (Var z) =
         case varEq x z of
@@ -581,7 +598,7 @@ instance Monoid MaxNat where
 -- binding introduced here will respect the old binding and avoid
 -- that variable ID.
 binder
-    :: (ABT abt)
+    :: (ABT syn abt)
     => Text                     -- ^ The variable's name hint
     -> Sing a                   -- ^ The variable's type
     -> (abt '[] a -> abt xs b)  -- ^ Build the binder's body from a variable
@@ -592,7 +609,7 @@ binder hint typ hoas = bind x body
     x    = Variable hint (1 + maxBind body) typ
 
 {-
-data Hint :: Hakaru -> * where
+data Hint :: k -> * where
     Hint :: !Text -> !(Sing a) -> Hint a
 
 instance Show1 Hint where
@@ -602,7 +619,7 @@ instance Show (Hint a) where
     showsPrec = showsPrec1
     show      = show1
 
-data VS :: Hakaru -> * where
+data VS :: k -> * where
     VS :: {-# UNPACK #-} !Variable -> !(Sing a) -> VS a
 
 -- this typechecks, and it works!
@@ -637,10 +654,10 @@ multibinder names hoas = binds vars body
 -- | If the expression is a variable, then look it up. Recursing
 -- until we can finally return some syntax.
 resolveVar
-    :: (ABT abt)
-    => abt '[] a
+    :: (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), ABT syn abt)
+    => abt '[] (a :: k)
     -> Assocs abt
-    -> Either (Variable a) (AST abt a)
+    -> Either (Variable a) (syn abt a)
 resolveVar e xs =
     flip (caseVarSyn e) Right $ \x ->
         case lookupAssoc x xs of
