@@ -7,12 +7,15 @@ import Prelude hiding (unlines)
 import Language.Hakaru.Parser.Parser
 import Language.Hakaru.Parser.AST
 
+import Language.Hakaru.Syntax.IClasses
+import Language.Hakaru.Syntax.Nat
+
 import Data.Text
 import Test.HUnit
 import Text.Parsec.Error
 
 stripMetadata :: AST' Text -> AST' Text
-stripMetadata (WithMeta ast m) = ast
+stripMetadata (WithMeta ast _) = ast
 stripMetadata ast              = ast
 
 testParse :: Text -> AST' Text -> Assertion
@@ -21,6 +24,8 @@ testParse s p = case parseHakaru s of
                    Right p' -> assertEqual "" p (stripMetadata p')
 
 if1, if2, if3, if4, if5 :: Text
+
+ifAST1, ifAST2 :: AST' Text
 
 if1 = "if True: 1 else: 2"
 
@@ -48,14 +53,14 @@ if5 = unlines ["if True:"
               ]
 
 ifAST1 = If (Var "True")
-         (Value (Nat 1))
-         (Value (Nat 2))
+         (UValue (Nat 1))
+         (UValue (Nat 2))
 
 ifAST2 = If (Var "True")
-         (Value (Nat 4))
+         (UValue (Nat 4))
          (If (Var "False")
-             (Value (Nat 2))
-             (Value (Nat 3)))
+             (UValue (Nat 2))
+             (UValue (Nat 3)))
 
 testIfs :: Test
 testIfs = test
@@ -69,9 +74,10 @@ testIfs = test
 lam1 :: Text
 lam1 = "fn x: x+3"
 
+lam1AST :: AST' Text
 lam1AST = Lam "x" (App (App (Var "+")
                         (Var "x"))
-                   (Value (Nat 3)))
+                   (UValue (Nat 3)))
 
 def1 :: Text
 def1 = unlines ["def foo(x):"
@@ -79,11 +85,12 @@ def1 = unlines ["def foo(x):"
                ,"foo(5)"
                ]
 
+def1AST :: AST' Text
 def1AST = Let "foo"
               (Lam "x" (App (App (Var "+")
                              (Var "x"))
-                        (Value (Nat 3))))
-              (App (Var "foo") (Value (Nat 5)))
+                        (UValue (Nat 3))))
+              (App (Var "foo") (UValue (Nat 5)))
 
 testLams :: Test
 testLams = test
@@ -97,8 +104,9 @@ let1 = unlines ["x = 3"
                ,"x + y"
                ]
 
-let1AST = Let "x" (Value (Nat 3))
-          (Let "y" (Value (Nat 2))
+let1AST :: AST' Text
+let1AST = Let "x" (UValue (Nat 3))
+          (Let "y" (UValue (Nat 2))
            (App (App (Var "+")
                  (Var "x"))
             (Var "y")))
@@ -119,13 +127,13 @@ bind2 = unlines ["x <~ uniform(0,1)"
                 ,"return y"
                 ]
 
-
+bind1AST :: AST' Text
 bind1AST = Bind "x" (App (App (Var "uniform")
-                          (Value (Nat 0)))
-                     (Value (Nat 1)))
+                          (UValue (Nat 0)))
+                     (UValue (Nat 1)))
            (Bind "y" (App (App (Var "normal")
                            (Var "x"))
-                      (Value (Nat 1)))
+                      (UValue (Nat 1)))
             (App (Var "dirac") (Var "y")))
 
 testBinds :: Test
@@ -133,6 +141,28 @@ testBinds = test
    [ testParse bind1 bind1AST
    , testParse bind2 bind1AST
    ]
+
+match1 :: Text
+match1 = unlines ["match e:"
+                 ,"  left(a): e1"
+                 ]
+
+match2 :: Text
+match2 = unlines ["match e:"
+                 ,"  _: e"
+                 ]
+
+
+match3 :: Text
+match3 = unlines ["match e:"
+                 ,"  a: e"
+                 ]
+
+match4 :: Text
+match4 = unlines ["match e:"
+                 ,"  left(a):  e1"
+                 ,"  right(b): e2"
+                 ]
 
 easyRoad1 :: Text
 easyRoad1 = unlines ["noiseT <~ uniform(3, 8)"
@@ -146,13 +176,13 @@ easyRoad1 = unlines ["noiseT <~ uniform(3, 8)"
 
 easyRoadAST :: AST' Text
 easyRoadAST = Bind "noiseT" (App (App (Var "uniform")
-                                          (Value (Nat 3)))
-                                          (Value (Nat 8)))
+                                          (UValue (Nat 3)))
+                                          (UValue (Nat 8)))
               (Bind "noiseE" (App (App (Var "uniform")
-                                           (Value (Nat 1)))
-                              (Value (Nat 4)))
+                                           (UValue (Nat 1)))
+                              (UValue (Nat 4)))
                (Bind "x1" (App (App (Var "normal")
-                                        (Value (Nat 0)))
+                                        (UValue (Nat 0)))
                                         (Var "noiseT"))
                 (Bind "m1" (App (App (Var "normal")
                                          (Var "x1"))
