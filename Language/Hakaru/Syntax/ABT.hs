@@ -45,7 +45,7 @@ module Language.Hakaru.Syntax.ABT
     , SomeVariable(..)
     -- ** Some helper types for \"heaps\", \"environments\", etc
     , Assoc(..)
-    , Assocs()
+    , Assocs(..)
     , emptyAssocs
     , insertAssoc
     , lookupAssoc

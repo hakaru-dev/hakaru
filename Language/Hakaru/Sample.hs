@@ -24,11 +24,13 @@ import           Control.Applicative   (Applicative(..), (<$>))
 --import Control.Monad.Trans.Maybe
 
 import qualified Data.Text        as T
+import qualified Data.IntMap      as IM
+
 import Language.Hakaru.Syntax.Nat      (fromNat, Nat())
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.AST
-import Language.Hakaru.Syntax.ABT
+import Language.Hakaru.Syntax.ABT hiding (insertAssoc)
 
 type PRNG m = MWC.Gen (PrimState m)
 
@@ -56,7 +58,6 @@ instance Monad (SamplerMonad abt) where
     return   = pure
     mx >>= k = SM $ \env -> unSM mx env >>= \x -> unSM (k x) env
 
--- | Warning: throws an error if binding already there
 pushEnv :: Assoc abt-> SamplerMonad abt a -> SamplerMonad abt a
 pushEnv x (SM m) =
     SM $ \env -> m $ insertAssoc x env
@@ -67,6 +68,10 @@ getEnv = SM Right
 failwith :: T.Text -> SamplerMonad abt a
 failwith = SM . const . Left
 
+
+insertAssoc :: Assoc abt -> Assocs abt -> Assocs abt
+insertAssoc v@(Assoc x _) (Assocs xs) =
+    Assocs $ IM.insert (fromNat $ varID x) v xs
 
 ---------------------------------------------------------------
 
