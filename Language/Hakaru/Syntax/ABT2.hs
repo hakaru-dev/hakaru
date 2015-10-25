@@ -105,14 +105,10 @@ import Language.Hakaru.Syntax.Variable
 -- BUG: if we don't expose this type, then clients can't define
 -- their own ABT instances (without reinventing their own copy of
 -- this type)...
-data View
-        :: (([k] -> k -> *) -> k -> *)
-        -> ([k] -> k -> *)
-        -> [k] -> k -> * 
-    where
-    Syn  :: !(syn abt a) -> View syn abt '[] a
+data View :: (k -> *) -> [k] -> k -> * where
+    Syn  :: !(rec a) -> View rec '[] a
 
-    Var  :: {-# UNPACK #-} !(Variable a) -> View syn abt '[] a
+    Var  :: {-# UNPACK #-} !(Variable a) -> View rec '[] a
 
     -- N.B., this constructor is recursive, thus minimizing the
     -- memory overhead of whatever annotations our ABT stores (we
@@ -125,18 +121,18 @@ data View
     -- then needing to reconstruct all but the first one.
     Bind
         :: {-# UNPACK #-} !(Variable a)
-        -> !(View syn abt xs b)
-        -> View syn abt (a ': xs) b
+        -> !(View rec xs b)
+        -> View rec (a ': xs) b
 
 
-instance Functor21 syn => Functor22 (View syn) where
-    fmap22 f (Syn  t)   = Syn  (fmap21 f t)
-    fmap22 _ (Var  x)   = Var  x
-    fmap22 f (Bind x e) = Bind x (fmap22 f e)
+instance Functor12 View where
+    fmap12 f (Syn  t)   = Syn  (f t)
+    fmap12 _ (Var  x)   = Var  x
+    fmap12 f (Bind x e) = Bind x (fmap12 f e)
 
 
-instance (Show1 (Sing :: k -> *), Show1 (syn abt), Show2 abt)
-    => Show2 (View (syn :: ([k] -> k -> *) -> k -> *) (abt :: [k] -> k -> *))
+instance (Show1 (Sing :: k -> *), Show1 rec)
+    => Show2 (View (rec :: k -> *))
     where
     -- TODO: use the helpers in IClasses.hs to clean this up
     showsPrec2 p (Syn t) =
@@ -157,14 +153,14 @@ instance (Show1 (Sing :: k -> *), Show1 (syn abt), Show2 abt)
             . showsPrec2 11 v
             )
 
-instance (Show1 (Sing :: k -> *), Show1 (syn abt), Show2 abt)
-    => Show1 (View (syn :: ([k] -> k -> *) -> k -> *) (abt :: [k] -> k -> *) xs)
+instance (Show1 (Sing :: k -> *), Show1 rec)
+    => Show1 (View (rec :: k -> *) xs)
     where
     showsPrec1 = showsPrec2
     show1      = show2
     
-instance (Show1 (Sing :: k -> *), Show1 (syn abt), Show2 abt)
-    => Show (View (syn :: ([k] -> k -> *) -> k -> *) (abt :: [k] -> k -> *) xs a)
+instance (Show1 (Sing :: k -> *), Show1 rec)
+    => Show (View (rec :: k -> *) xs a)
     where
     showsPrec = showsPrec1
     show      = show1
@@ -196,7 +192,7 @@ class ABT (syn :: ([k] -> k -> *) -> k -> *) (abt :: [k] -> k -> *) | abt -> syn
 
     -- See note about exposing 'View', 'viewABT', and 'unviewABT'.
     -- We could replace 'viewABT' with a case-elimination version...
-    viewABT  :: abt xs a -> View syn abt xs a
+    viewABT  :: abt xs a -> View (syn abt) xs a
 
     -- TODO: use our own VarSet type (e.g., @IntMap Variable@) instead of @Set Variable@?
     freeVars :: abt xs a -> Set (SomeVariable (KindOf a))
@@ -229,7 +225,7 @@ class ABT (syn :: ([k] -> k -> *) -> k -> *) (abt :: [k] -> k -> *) | abt -> syn
 
 
 -- See note about exposing 'View', 'viewABT', and 'unviewABT'
-unviewABT :: (ABT syn abt) => View syn abt xs a -> abt xs a
+unviewABT :: (ABT syn abt) => View (syn abt) xs a -> abt xs a
 unviewABT (Syn  t)   = syn  t
 unviewABT (Var  x)   = var  x
 unviewABT (Bind x v) = bind x (unviewABT v)
@@ -272,7 +268,7 @@ caseVarSyn e var_ syn_ =
 -- However, If you generate any binding forms manually, then you
 -- can break things so that 'maxBind' returns an incorrect answer.
 newtype TrivialABT syn (xs :: [k]) (a :: k) =
-    TrivialABT (View syn (TrivialABT syn) xs a)
+    TrivialABT (View (syn (TrivialABT syn)) xs a)
 
 instance (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Foldable21 syn)
     => ABT (syn :: ([k] -> k -> *) -> k -> *) (TrivialABT syn)
@@ -289,7 +285,7 @@ instance (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Foldable21 syn)
 
     freeVars = go . viewABT
         where
-        go  :: View syn (TrivialABT syn) xs a
+        go  :: View (syn (TrivialABT syn)) xs a
             -> Set (SomeVariable (KindOf a))
         go (Syn  t)   = foldMap21 freeVars t
         go (Var  x)   = Set.singleton (SomeVariable x)
@@ -302,7 +298,7 @@ instance (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Foldable21 syn)
         -- be able to just look at the first binder, since whenever we
         -- figure out how to do multibinders we can prolly arrange for
         -- the first one to be the largest.
-        go :: (ABT syn abt) => Nat -> View syn abt xs a -> Nat
+        go :: (ABT syn abt) => Nat -> View (syn abt) xs a -> Nat
         go 0 (Syn  t)   = unMaxNat $ foldMap21 (MaxNat . maxBind) t
         go n (Syn  _)   = n -- Don't go under binders
         go n (Var  _)   = n -- Don't look at variable *uses*
@@ -387,7 +383,7 @@ data MemoizedABT syn (xs :: [k]) (a :: k) = MemoizedABT
     { memoizedFreeVars :: Set (SomeVariable (KindOf a)) -- N.B., lazy!
     , memoizedMaxFree  :: Nat -- N.B., lazy!
     , memoizedMaxBind  :: {-# UNPACK #-} !Nat
-    , memoizedView     :: !(View syn (MemoizedABT syn) xs a)
+    , memoizedView     :: !(View (syn (MemoizedABT syn)) xs a)
     }
     -- N.B., Set is a monoid with {Set.empty; Set.union; Set.unions}
     -- For a lot of code, the other component ordering would be
@@ -511,7 +507,7 @@ rename x y = start
     start e = loop e (viewABT e)
 
     -- TODO: is it actually worth passing around the @e@? Benchmark.
-    loop :: forall xs' (b' :: k). abt xs' b' -> View syn abt xs' b' -> abt xs' b'
+    loop :: forall xs' (b' :: k). abt xs' b' -> View (syn abt) xs' b' -> abt xs' b'
     loop _ (Syn t) = syn $! fmap21 start t
     loop e (Var z) =
         case varEq x z of
@@ -545,7 +541,7 @@ subst x e = start
     start f = loop f (viewABT f)
 
     -- TODO: is it actually worth passing around the @f@? Benchmark.
-    loop :: forall xs' b'. abt xs' b' -> View syn abt xs' b' -> abt xs' b'
+    loop :: forall xs' b'. abt xs' b' -> View (syn abt) xs' b' -> abt xs' b'
     loop _ (Syn t) = syn $! fmap21 start t
     loop f (Var z) =
         case varEq x z of

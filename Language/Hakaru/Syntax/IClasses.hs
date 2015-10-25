@@ -10,7 +10,7 @@
            #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.22
+--                                                    2015.10.24
 -- |
 -- Module      :  Language.Hakaru.Syntax.IClasses
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -51,6 +51,7 @@ module Language.Hakaru.Syntax.IClasses
 
     -- * Generalized abstract nonsense
     , Functor11(..), Fix11(..), cata11, ana11, hylo11
+    , Functor12(..)
     , Functor21(..)
     , Functor22(..)
     , Foldable11(..), Lift1(..)
@@ -307,7 +308,9 @@ class Eq2 a => JmEq2 (a :: k1 -> k2 -> *) where
 -- we can derive for 'Functor'.
 class Functor11 (f :: (k1 -> *) -> k2 -> *) where
     fmap11 :: (forall i. a i -> b i) -> f a j -> f b j
-
+    
+class Functor12 (f :: (k1 -> *) -> k2 -> k3 -> *) where
+    fmap12 :: (forall i. a i -> b i) -> f a j l -> f b j l
 
 -- | A functor from @(k1,k2)@-indexed types to @k3@-indexed types.
 class Functor21 (f :: (k1 -> k2 -> *) -> k3 -> *) where
