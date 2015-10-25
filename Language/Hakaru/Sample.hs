@@ -19,9 +19,9 @@ import qualified System.Random.MWC               as MWC
 --import Control.Monad.State
 --import Control.Monad.Trans.Maybe
 
---import qualified Data.Text        as Text
-import Language.Hakaru.Syntax.Nat      (fromNat, Nat(..))
---import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11)
+import qualified Data.Text        as T
+import Language.Hakaru.Syntax.Nat      (fromNat, Nat())
+import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
@@ -33,6 +33,9 @@ type instance Sample 'HNat          = Nat
 type instance Sample 'HInt          = Int 
 type instance Sample 'HReal         = Double 
 type instance Sample 'HProb         = LF.LogFloat 
+
+newtype SamplerMonad abt =
+    SM { unSM :: Assocs abt -> Either T.Text (Some2 abt)}
 
 one :: LF.LogFloat
 one = LF.logFloat (1.0 :: Double)

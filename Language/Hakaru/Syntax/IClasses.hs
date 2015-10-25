@@ -61,8 +61,8 @@ module Language.Hakaru.Syntax.IClasses
     
     -- * Helper types
     , Some(..)
-    , Sealed1(..)
-    , Sealed2(..)
+    , Some1(..)
+    , Some2(..)
     , Pair1(..)
     -- ** List types
     , type (++), eqAppendNil, eqAppendAssoc
@@ -455,6 +455,8 @@ instance Eq a => Eq1 (Lift2 a i) where
 ----------------------------------------------------------------
 -- | Existentially quantify over an index.
 -- TODO: replace 'SomeVariable' with @(Some Variable)@
+
+{-# DEPRECATED Some "Replace Some with Some1" #-}
 data Some (a :: k -> *) where
     Some :: !(a i) -> Some a
 
@@ -464,12 +466,10 @@ instance Show1 a => Show (Some a) where
 instance JmEq1 a  => Eq (Some a) where
     Some x == Some y = maybe False (const True) (jmEq1 x y)
 
-{-# DEPRECATED Sealed1 "use Some instead" #-}
-data Sealed1 op = forall a. Sealed1 (op a)
+data Some1 op = forall a. Some1 (op a)
 
-{-# DEPRECATED Sealed2 "If we actually need this; rename to Some1 and Some2" #-}
-data Sealed2 op  where
-     Sealed2 :: op args a -> Sealed2 op
+data Some2 op  where
+     Some2 :: op a b -> Some2 op
 
 ----------------------------------------------------------------
 -- | A /strict/ pairing of identically @k@-indexed values.

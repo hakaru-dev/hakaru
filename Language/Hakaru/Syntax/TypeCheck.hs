@@ -315,7 +315,7 @@ inferType = inferType_
 
     U.NaryOp_ o es ->
         case o of
-          Sealed1 op ->
+          Some1 op ->
               let typ = sing_NaryOp op in do
               es' <- T.forM es $ checkType typ
               return $ TypedAST typ (syn(NaryOp_ op (S.fromList es')))
@@ -323,10 +323,10 @@ inferType = inferType_
     U.Value_ v ->
         -- BUG: need to finish implementing sing_Value for Datum
         case v of
-          Sealed1 v' ->
+          Some1 v' ->
               return $ TypedAST (sing_Value v') (syn(Value_ v'))
 
-    U.CoerceTo_ (Sealed2 c) e1 ->
+    U.CoerceTo_ (Some2 c) e1 ->
         case singCoerceDomCod c of
           Nothing | inferable e1 -> inferType_ e1
                   | otherwise    -> 
@@ -336,7 +336,7 @@ inferType = inferType_
             return $ TypedAST cod (syn(CoerceTo_ c :$ e1' :* End))
           
 
-    U.UnsafeTo_ (Sealed2 c) e1 ->
+    U.UnsafeTo_ (Some2 c) e1 ->
         case singCoerceDomCod c of
           Nothing | inferable e1 -> inferType_ e1
                   | otherwise    -> 
@@ -429,7 +429,7 @@ checkType = checkType_
               e1' <- checkType_ typ0 e1
               return (syn(Fix_ :$ bind x e1' :* End))
     
-        U.CoerceTo_ (Sealed2 c) e1 -> do
+        U.CoerceTo_ (Some2 c) e1 -> do
             case singCoerceDomCod c of
               Nothing -> do
                   e1' <- checkType_ typ0 e1
@@ -441,7 +441,7 @@ checkType = checkType_
                         e1' <- checkType_ dom e1
                         return (syn(CoerceTo_ c :$ e1' :* End))
     
-        U.UnsafeTo_ (Sealed2 c) e1 -> do
+        U.UnsafeTo_ (Some2 c) e1 -> do
           case singCoerceDomCod c of
               Nothing -> do
                   e1' <- checkType_ typ0 e1
@@ -472,7 +472,7 @@ checkType = checkType_
     
         -- Need to do these cases
         --
-        -- U.Datum_ (Sealed2 (Datum hint d)) ->
+        -- U.Datum_ (Some2 (Datum hint d)) ->
         --     case typ0 of
         --     SData _ typ2 ->
         --         (syn . Datum_ . Datum hint)

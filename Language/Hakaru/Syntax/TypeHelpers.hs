@@ -23,7 +23,7 @@ module Language.Hakaru.Syntax.TypeHelpers
 import Data.Number.LogFloat            (logFloat)
 
 import Language.Hakaru.Syntax.Nat      (unsafeNat)
-import Language.Hakaru.Syntax.IClasses (List1(..), Sealed1(..))
+import Language.Hakaru.Syntax.IClasses (List1(..), Some1(..))
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.AST

@@ -29,7 +29,8 @@ data Name = Name {-# UNPACK #-}!N.Nat {-# UNPACK #-}!Text
     deriving (Read, Show, Eq, Ord)
 
 makeVar :: Name ->  Sing a -> Variable a
-makeVar name typ = Variable (hintID name) (nameID name) typ
+makeVar name typ =
+    Variable (hintID name) (nameID name) typ
 
 nameID :: Name -> N.Nat
 nameID (Name i _) = i
@@ -166,14 +167,14 @@ data AST a =
    | Fix_        Name    (AST a)
    | Let_        Name    (AST a) (AST a)
    | Ann_        (AST a) Hakaru
-   | CoerceTo_   (Sealed2 Coercion) (AST a)
-   | UnsafeTo_   (Sealed2 Coercion) (AST a)
+   | CoerceTo_   (Some2 Coercion) (AST a)
+   | UnsafeTo_   (Some2 Coercion) (AST a)
    | PrimOp_     (SealedOp PrimOp) [AST a]
-   | NaryOp_     (Sealed1 NaryOp)  [AST a]
-   | Value_      (Sealed1 Value)
+   | NaryOp_     (Some1 NaryOp)  [AST a]
+   | Value_      (Some1 Value)
    | Empty_
    | Array_      (AST a) Name (AST a) -- not sure should binding form
-   | Datum_      (Sealed2 Datum)
+   | Datum_      (Some2 Datum)
    | Case_       (AST a) [Branch a]
    | MeasureOp_  (SealedOp MeasureOp) [AST a]
    | MBind_      Name    (AST a) (AST a)
