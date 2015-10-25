@@ -14,7 +14,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.22
+--                                                    2015.10.24
 -- |
 -- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -214,23 +214,10 @@ instance (Backward a x, Backward b y)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
--- TODO: just use Variables rather than Loc. Make sure to freshen variables when adding things to the heap though.
---
--- | A location is essentially the same thing as a variable (namely
--- for variable bound to some value), except that we brand it with
--- the @s@ to keep track of the 'Context' it belongs to.
-newtype Loc s (a :: Hakaru) = Loc Nat
-    deriving (Show)
+-- N.B., when putting things into the context, be sure to freshen the variables as if we were allocating a new location on the heap.
 
-instance Eq (Loc s a) where
-    (==) = eq1
-instance Eq1 (Loc s) where
-    eq1 (Loc m) (Loc n) = m == n
--- Alas, no JmEq1 instance
+-- For simplicity we don't actually distinguish between "variables" and "locations". In the old finally-tagless code we had an @s@ parameter like the 'ST' monad does in order to keep track of which heap things belong to. But since we might have nested disintegration, and thus nested heaps, doing that means we'd have to do some sort of De Bruijn numbering in the @s@ parameter in order to keep track of the nested regions; and that's just too much work to bother with.
 
-
--- | Lists of locations, not necessarily all of the same type.
-type Locs s xs = List1 (Loc s) xs
 
 
 -- | Weak head-normal forms.
@@ -261,6 +248,15 @@ data Whnf :: (Hakaru -> *) -> Hakaru -> * where
     WhnfNeutral :: abt '[] a -> Whnf rec a
 -}
 
+-- | A neutral term; i.e., a term whose reduction is blocked by a free variable.
+neutral :: abt '[] a -> Whnf rec a
+neutral = error "TODO: Neutral"
+
+-- | A thunk; i.e., any term we decide to maybe evaluate later.
+-- TODO: this isn't a 'Whnf' in any sense; but is only here because 'Statement' says we need 'Whnf' rather than some other more general thing...
+thunk :: abt '[] a -> Whnf rec a
+thunk = error "TODO: Thunk"
+
 
 -- | formerly called @forget@, but this seems like a better name
 fromWhnf :: (ABT abt) => Whnf (abt '[]) a -> abt '[] a
@@ -282,24 +278,24 @@ fromWhnf _ = error "fromWhnf: these cases should never be reached" -- TODO: why 
 -- This type was formerly called @Binding@, but that is inaccurate
 -- since it also includes non-binding statements.
 --
--- TODO: do we still need this 'L' and 'Lazy' stuff? or is the @Whnf abt@ enough?
-data Statement s abt where
+-- TODO: should these really all be 'Whnf' (or even the sum of WHNF and neutral terms)? Shouldn't we be allowed to have arbitrary not at all normal forms if we are, in fact, doing *lazy* partial evaluation?
+data Statement abt where
     SBind
-        :: {-# UNPACK #-} !(Loc s a)
+        :: {-# UNPACK #-} !(Variable a) -- was @Loc s a@
         -> !(Whnf (abt '[]) ('HMeasure a)) -- was @Lazy s abt a@
-        -> Statement s abt
+        -> Statement abt
     SLet
-        :: {-# UNPACK #-} !(Loc s a)
+        :: {-# UNPACK #-} !(Variable a) -- was @Loc s a@
         -> !(Whnf (abt '[]) a) -- was @Whnf (L s abt) a@
-        -> Statement s abt
+        -> Statement abt
     SCase
-        :: !(Locs s xs)
+        :: !(List1 Variable xs) -- was @Locs s xs@
         -> !(Pattern xs a)
         -> !(Whnf (abt '[]) a) -- was @Lazy s abt a@
-        -> Statement s abt
+        -> Statement abt
     SWeight 
         :: !(Whnf (abt '[]) 'HProb) -- was @Lazy s abt 'HProb@
-        -> Statement s abt
+        -> Statement abt
     -- TODO: if we do proper HNFs then we should add all the other binding forms (Lam_, Array_, Expect,...) as \"statements\" too
 
 
@@ -315,37 +311,33 @@ data Statement s abt where
 -- However, it is still like a heap inasmuch as it's a dependency
 -- graph and we may wish to change the topological sorting or remove
 -- \"garbage\" (subject to correctness criteria).
-data Context s abt = Context
+data Context abt = Context
     { freshNat   :: {-# UNPACK #-} !Nat
-    , statements :: [Statement s abt] -- stored in reverse order.
+    , statements :: [Statement abt] -- stored in reverse order.
     }
--- TODO: to the extent that we can ignore order of statements, we could use an @IntMap (Statement s abt)@ in order to speed up the lookup times in 'update'. We just need to figure out (a) what to do with 'SWeight' statements, (b) how to handle 'SCase' so that we can just make one map modification despite possibly binding multiple variables, and (c) figure out how to recover the order (to the extent that we must).
+-- TODO: to the extent that we can ignore order of statements, we could use an @IntMap (Statement abt)@ in order to speed up the lookup times in 'update'. We just need to figure out (a) what to do with 'SWeight' statements, (b) how to handle 'SCase' so that we can just make one map modification despite possibly binding multiple variables, and (c) figure out how to recover the order (to the extent that we must).
 
-emptyContext :: Context s abt
+emptyContext :: Context abt
 emptyContext = Context 0 []
 
 {-
 -- | Given a context and a final statement, print them out as a complete expression.
 residualizeContext
     :: (ABT abt)
-    => Context s abt
+    => Context abt
     -> abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure a)
 residualizeContext = (runResidualizer .) . go . statements
     where
-    -- TODO: something like this, where the Residualiser monad keeps track of a Loc-to-Variable mapping and 'freshVariable' adds a new entry in that mapping...
     go [] e =
         return e
-    go (SBind loc body : ss) e = do
-        x    <- freshVariable loc
+    go (SBind x body : ss) e = do
         rest <- go ss e
         return $ syn (MBind :$ fromLazy body :* bind x rest :* End)
-    go (SLet loc body : ss) e = do
-        x    <- freshVariable loc
+    go (SLet x body : ss) e = do
         rest <- go ss e
         return $ syn (Let_ :$ fromWhnf_L body :* bind x rest :* End)
-    go (SCase locs pat body : ss) e = do
-        xs   <- freshVariables locs
+    go (SCase xs pat body : ss) e = do
         rest <- go ss e
         return $ syn (Case_ (fromLazy body)
             [ Branch pat   rest
@@ -358,33 +350,37 @@ residualizeContext = (runResidualizer .) . go . statements
 
 ----------------------------------------------------------------
 -- TODO: is that actually Whnf like the paper says? or is it just any term?
-type Ans s abt a = Context s abt -> Whnf (abt '[]) a -- was @Whnf (L s abt) ('HMeasure a)@
+type Ans abt a = Context abt -> Whnf (abt '[]) a -- was @Whnf (L s abt) ('HMeasure a)@
 
 -- TODO: defunctionalize the continuation. In particular, the only heap modifications we need are 'push' and a variant of 'update' for finding\/replacing a binding once we have the value in hand.
-newtype M s abt x = M { unM :: forall a. (x -> Ans s abt a) -> Ans s abt a }
+newtype M abt x = M { unM :: forall a. (x -> Ans abt a) -> Ans abt a }
 
-instance Functor (M s abt) where
+instance Functor (M abt) where
     fmap f (M m)  = M $ \c -> m (c . f)
 
-instance Applicative (M s abt) where
+instance Applicative (M abt) where
     pure x        = M $ \c -> c x
     M mf <*> M mx = M $ \c -> mf $ \f -> mx $ \x -> c (f x)
 
-instance Monad (M s abt) where
+instance Monad (M abt) where
     return    = pure
     M m >>= k = M $ \c -> m $ \x -> unM (k x) c
 
-freshLoc :: M s abt (Loc s a)
-freshLoc = M $ \c h@Context{freshNat=n} -> c (Loc n) h{freshNat = 1+n}
+{-
+-- TODO: use @freshen :: Variable a -> M (Variable a)@ instead; to avoid losing the hint and singleton
+freshVar :: M abt (Variable a)
+freshVar = M $ \c h@Context{freshNat=n} ->
+    c (Variable Text.empty n sing) h{freshNat = 1+n}
+-}
 
-push :: Statement s abt -> M s abt ()
+push :: Statement abt -> M abt ()
 push s = M $ \c h -> c () h{statements = s : statements h}
 
-pushes :: [Statement s abt] -> M s abt ()
+pushes :: [Statement abt] -> M abt ()
 pushes ss = M $ \c h -> c () h{statements = ss ++ statements h}
 
 -- | N.B., this can be unsafe. If a binding statement is returned, then the caller must be sure to push back on statements binding all the same variables!
-pop :: M s abt (Maybe (Statement s abt))
+pop :: M abt (Maybe (Statement abt))
 pop = M $ \c h ->
     case statements h of
     []   -> c Nothing  h
@@ -410,6 +406,7 @@ type Lazy s abt a = L s (C abt) a
 -}
 
 ----------------------------------------------------------------
+----------------------------------------------------------------
 {-
 disintegrate
     :: (ABT abt, SingI a, SingI b) -- Backward a a
@@ -423,6 +420,8 @@ disintegrate m =
       emptyContext
 -}
 
+----------------------------------------------------------------
+-- | Every value is already in WHNF.
 valueToWhnf :: (ABT abt) => Value a -> Whnf (abt '[]) a
 valueToWhnf (VNat   n) = WhnfNat   n
 valueToWhnf (VInt   i) = WhnfInt   i
@@ -430,73 +429,164 @@ valueToWhnf (VProb  p) = WhnfProb  p
 valueToWhnf (VReal  r) = WhnfReal  r
 valueToWhnf (VDatum d) = WhnfDatum (fmap11 P.value_ d)
 
-{-
-evaluate :: abt '[] a -> M s abt (Whnf (abt '[]) a)
-evaluate e =
-    caseVarSyn e update $ \t ->
-        case t of
-        -- Things which are already weak head-normal forms
-        Value_ v                  -> return (valueToWhnf v)
-        Datum_ d                  -> return (WhnfDatum d)
-        -- TODO: Empty_           -> return WhnfEmpty
-        -- TODO: Array_ e1 e2     -> return (WhnfArray e1 e2)
-        -- TODO: Lam_ :$ e :* End -> return (WhnfLam e)
-        -- TODO: 'WhnfMeasure' ??
-        
-        Superpose_ pes ->
-            WhnfSuperpose <$> T.for pes $ \(p,e) ->
-                w <- evaluate p
-                push (SWeight w)
-                v <- evaluate e
-                return (w,v)
-        
-        Lub_ es -> WhnfLub <$> T.for es evaluate
-        
-        Case_ e bs -> do
-            v <- evaluate e
-            tryMatch (fromWhnf v) bs evaluate
-        
-        scon :$ es ->
-        NaryOp_ o es ->
-        
-        case e of
-        -- TODO: proper case analysis should be able to get rid of the need to check for non-atomicity
-        Fst e | not (atomic e) -> evaluate e >>= (evaluate . fst)
-        Snd e | not (atomic e) -> evaluate e >>= (evaluate . snd)
-        Negate _ :$ e :* End   -> negate <$> evaluate e
-        Recip  _ :$ e :* End   -> recip  <$> evaluate e
-        LE    e1 e2            -> (<=)   <$> evaluate e1 <*> evaluate e2
-        Plus  e1 e2            -> (+)    <$> evaluate e1 <*> evaluate e2
-        Times e1 e2            -> (*)    <$> evaluate e1 <*> evaluate e2
--}
-
 type DList a = [a] -> [a]
-
-toStatements
-    :: DList (Assoc abt)
-    -> [Statement s abt]
-toStatements = map toStatement . ($ [])
-
-toStatement :: Assoc abt -> Statement s abt
-toStatement (Assoc x e) = error "TODO" -- SLet x e
-
 
 tryMatch
     :: (ABT abt)
     => abt '[] a
     -> [Branch a abt b]
-    -> (abt '[] b -> M s abt (Whnf (abt '[]) b))
-    -> M s abt (Whnf (abt '[]) b)
+    -> (abt '[] b -> M abt (Whnf (abt '[]) b))
+    -> M abt (Whnf (abt '[]) b)
 tryMatch e bs k =
     case matchBranches e bs of
-    Nothing                 -> error "tryMatch: nothing matched!"
-    Just GotStuck           -> error "TODO" -- return . Neutral . syn $ Case_ e bs
-    Just (Matched ss body') -> error "TODO" -- pushes (toStatements ss) >> k body'
+    Nothing                 -> error "tryMatch: nothing matched!" -- TODO: return the Hakaru code for throwing an error instead. Or have some sort of 'fail' option in our monad.
+    Just GotStuck           -> return . neutral . syn $ Case_ e bs
+    Just (Matched ss body') -> pushes (toStatements ss) >> k body'
+    where
+    toStatements
+        :: DList (Assoc abt)
+        -> [Statement abt]
+    toStatements = map toStatement . ($ [])
+    
+    toStatement :: Assoc abt -> Statement abt
+    toStatement (Assoc x e) = SLet x (thunk e)
 
 {-
+-- TODO: move to ABT.hs and come up with a good name for it.
+-- | The inverse of 'binder'; aka \"instantiation\".
+($$)
+    :: (ABT abt)
+    => abt (a ': xs) b
+    -> abt '[] a
+    -> abt xs  b
+f $$ e =
+    caseBind f $ \x f' ->
+        subst x e f'
+    
+evaluate :: abt '[] a -> M abt (Whnf (abt '[]) a)
+evaluate e =
+    caseVarSyn e update $ \t ->
+        case t of
+        -- Things which are already weak head-normal forms
+        _ | isNeutral t    -> return (neutral t) -- 'isNeutral' is called \"atomic\" in the paper.
+        Value_ v           -> return (valueToWhnf v)
+        Datum_ d           -> return (WhnfDatum d)
+        Empty_             -> return WhnfEmpty
+        Array_ e1 e2       -> return (WhnfArray e1 e2)
+        Lam_ :$ e1 :* End  -> return (WhnfLam e1)
+        MeasureOp_ _ :$ _  -> return (WhnfMeasure t)
+        MBind        :$ _  -> return (WhnfMeasure t) -- N.B., not HNF
+        Superpose_ _       -> return (WhnfMeasure t)
+        
+        -- Everything else needs some evaluation
+        
+        App_ :$ e1 :* e2 :* End -> do
+            v1 <- evaluate e1
+            case v1 of
+                WhnfLam f -> evaluate (f $$ e2)
+                _         -> return . neutral $ P.app (fromWhnf v1) e2
+        
+        Let_ :$ e1 :* e2 :* End ->
+            caseBind e2 $ \x e2' -> do
+                push (SLet x (thunk e1))
+                evaluate e2'
+        
+        Fix_ :$ e1 :* End ->
+        
+        Ann_        t :$ e1 :* End ->
+        CoerceTo_   c :$ e1 :* End ->
+        UnsafeFrom_ c :$ e1 :* End ->
+        NaryOp_     o    es        -> evaluateNaryOp o es
+        PrimOp_     o :$ es        -> evaluatePrimOp o es
+
+        -- TODO: avoid the chance of looping in case 'E.expect' residualizes.
+        -- TODO: use 'evaluate' in 'E.expect' in order to partially-NBE @e1@
+        Expect :$ e1 :* e2 :* End ->
+            evaluate $ E.expect e1 (e2 $$)
+        
+        Lub_ es -> WhnfLub <$> T.for es evaluate
+        
+        -- TODO: in the paper there's a guard so that this only fires when @not (atomic e)@. I think that was to prevent infinite loops in case 'evaluate' returns a 'neutral' term. We get around this in the following way... The 'matchBranches' primitive will tell us it 'GotStuck' if it turns out that the value @v@ is not already a 'Datum' (whether as 'Datum_' or as 'Value_')[1]. And whenever 'matchBranches' gets stuck, 'tryMatch' will wrap the whole case expression up as a neutral term.
+        --
+        -- [1] 'matchBranches' will also tell us it 'GotStuck' if the scrutinee isn't a 'Datum' at some subterm a nested 'Pattern' is trying to match against. At present this means we won't do as much partial evaluation as we really ought to; but in the future the 'GotStuck' constructor should return some information about where it got stuck so that we can 'evaluate' that subexpression. If we were evaluating to full normal forms, this wouldn't be an issue; it's only a problem because we're only doing (W)HNFs.
+        Case_ e bs -> do
+            v <- evaluate e
+            tryMatch (fromWhnf v) bs evaluate
+
+
+
+evaluateNaryOp :: NaryOp a -> Seq (abt '[] a) -> M abt (Whnf (abt '[]) a)
+evaluateNaryOp o es = foldBy (interp o) <$> T.traverse evaluate es
+    where
+    -- The evaluation interpretation of each NaryOp
+    op And      =
+    op Or       =
+    op Xor      =
+    op Iff      =
+    op (Min  _) =
+    op (Max  _) =
+    op (Sum  _) =
+    op (Prod _) =
+    
+    -- Either actually interpret @op o x y@ or else residualize it
+    interp o x y =
+    
+    -- TODO: group things like values to do them all at once, keeping the neutrals til the very end
+    foldBy f vs = 
+
+
+-- Essentially, these should all do @f <$> evaluate e1 <*> evaluate e2...@ where @f@ is the interpretation of the 'PrimOp', which residualizes as necessary if it gets stuck.
+evaluatePrimOp
+    :: (typs ~ UnLCs args, args ~ LCs typs)
+    => PrimOp typs a
+    -> SCon   args a
+    -> M abt (Whnf (abt '[]) a)
+evaluatePrimOp Not  (e1 :* End)       =
+evaluatePrimOp Impl (e1 :* e2 :* End) =
+evaluatePrimOp Diff (e1 :* e2 :* End) =
+evaluatePrimOp Nand (e1 :* e2 :* End) =
+evaluatePrimOp Nor  (e1 :* e2 :* End) =
+evaluatePrimOp Pi        End               =
+evaluatePrimOp Sin       (e1 :* End)       =
+evaluatePrimOp Cos       (e1 :* End)       =
+evaluatePrimOp Tan       (e1 :* End)       =
+evaluatePrimOp Asin      (e1 :* End)       =
+evaluatePrimOp Acos      (e1 :* End)       =
+evaluatePrimOp Atan      (e1 :* End)       =
+evaluatePrimOp Sinh      (e1 :* End)       =
+evaluatePrimOp Cosh      (e1 :* End)       =
+evaluatePrimOp Tanh      (e1 :* End)       =
+evaluatePrimOp Asinh     (e1 :* End)       =
+evaluatePrimOp Acosh     (e1 :* End)       =
+evaluatePrimOp Atanh     (e1 :* End)       =
+evaluatePrimOp RealPow   (e1 :* e2 :* End) =
+evaluatePrimOp Exp       (e1 :* End)       =
+evaluatePrimOp Log       (e1 :* End)       =
+evaluatePrimOp Infinity         End        =
+evaluatePrimOp NegativeInfinity End        =
+evaluatePrimOp GammaFunc   (e1 :* End)       =
+evaluatePrimOp BetaFunc    (e1 :* e2 :* End) =
+evaluatePrimOp Integrate   (e1 :* e2 :* e3 :* End) =
+evaluatePrimOp Summate     (e1 :* e2 :* e3 :* End) =
+evaluatePrimOp (Index   _) (e1 :* e2 :* End) =
+evaluatePrimOp (Size    _) (e1 :* End)       =
+evaluatePrimOp (Reduce  _) (e1 :* e2 :* e3 :* End) =
+evaluatePrimOp (Equal   _) (e1 :* e2 :* End) =
+evaluatePrimOp (Less    _) (e1 :* e2 :* End) =
+evaluatePrimOp (NatPow  _) (e1 :* e2 :* End) =
+evaluatePrimOp (Negate  _) (e1 :* End)       =
+evaluatePrimOp (Abs     _) (e1 :* End)       =
+evaluatePrimOp (Signum  _) (e1 :* End)       =
+evaluatePrimOp (Recip   _) (e1 :* End)       =
+evaluatePrimOp (NatRoot _) (e1 :* e2 :* End) =
+evaluatePrimOp (Erf _)     (e1 :* End)       =
+-- HACK: GHC can't figure out that there are no other type-safe cases
+evaluatePrimOp _ _ = error "evaluatePrimOp: the impossible happened"
+
+
 ----------------------------------------------------------------        
 -- TODO: should this really return @Whnf (L s abt) a@ or @Whnf (abt '[]) a@ ? cf., type mismatch between what 'evaluate' gives and what 'SLet' wants.
-update :: Variable a -> M s abt (Whnf (abt '[]) a)
+update :: Variable a -> M abt (Whnf (abt '[]) a)
 update x = loop []
     where
     loop ss = do
@@ -522,7 +612,7 @@ update x = loop []
           
 
 -- TODO: should that actually be Whnf or are neutral terms also allowed?
-perform  :: abt '[] ('HMeasure a) -> M s abt (Whnf (abt '[]) a)
+perform  :: abt '[] ('HMeasure a) -> M abt (Whnf (abt '[]) a)
 perform u | atomic u         = M $ \c h -> u P.>>= \z -> c z h
 perform Lebesgue             = M $ \c h -> P.lebesgue P.>>= \z -> c z h
 perform (Uniform lo hi)      = M $ \c h -> P.uniform lo hi P.>>= \z -> c z h
@@ -533,7 +623,7 @@ perform e | not (hnf e)      = evaluate e >>= perform
 
 
 -- TODO: see the todo for 'constrainOutcome'
-constrainValue :: abt '[] a -> Whnf (abt '[]) a -> M s abt ()
+constrainValue :: abt '[] a -> Whnf (abt '[]) a -> M abt ()
 constrainValue e0 v0 =
     case e0 of
     u | atomic u -> M $ \c h -> P.bot
@@ -566,7 +656,7 @@ constrainValue e0 v0 =
 -- variables (or neutral terms)? Do we actually want (hnf)terms at
 -- all, or do we want (hnf)patterns or something to more generally
 -- capture (hnf)measurable events?
-constrainOutcome :: abt '[] ('HMeasure a) -> Whnf (abt '[]) a -> M s abt ()
+constrainOutcome :: abt '[] ('HMeasure a) -> Whnf (abt '[]) a -> M abt ()
 constrainOutcome e0 v =
     case e0 of
     u | atomic u    -> M $ \c h -> P.bot
@@ -578,12 +668,12 @@ constrainOutcome e0 v =
     e | not (hnf e) -> (`constrainOutcome` v) =<< evaluate e
 
 
-unleft :: Whnf abt (HEither a b) -> M s abt (abt '[] a)
+unleft :: Whnf abt (HEither a b) -> M abt (abt '[] a)
 unleft (Left  e) = M $ \c h -> c e h
 unleft (Right e) = M $ \c h -> P.reject
 unleft u         = M $ \c h -> P.uneither u (\x -> c x h) (\_ -> P.reject)
 
-unright :: Whnf abt (HEither a b) -> M s abt (abt '[] a)
+unright :: Whnf abt (HEither a b) -> M abt (abt '[] a)
 unright (Right e) = M $ \c h -> c e h
 unright (Left  e) = M $ \c h -> P.reject
 unright u         = M $ \c h -> P.uneither u (\_ -> P.reject) (\x -> c x h)
