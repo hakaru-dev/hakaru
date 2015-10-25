@@ -192,12 +192,11 @@ ppSCon p MBind (e1 :* e2 :* End) =
             (prettyPrec 1 e1 <+> PP.text ">>=" <+>)
             (ppBinder e2)
 ppSCon p Expect (e1 :* e2 :* End) =
-    ppFun p "syn"
-        [ toDoc $ ppFun 11 "Expect"
-            [ toDoc $ ppArg e1
-            , toDoc . nestTail 4 $ ppBinder e2 -- BUG: we can't actually use the HOAS API here, since we aren't using a Prelude-defined @expect@ but rather are using 'syn'...
-            -- TODO: use the adjustHead trick
-            ]]
+    -- N.B., for this to be read back in correctly, "Language.Hakaru.Expect" must be in scope as well as the prelude.
+    parens (p > 0) $
+        adjustHead
+            (PP.text "expect" <+> toDoc (ppArg e1) <+> PP.char '$' <+>)
+            (ppBinder e2)
 -- HACK: GHC can't figure out that there are no other type-safe cases
 ppSCon _ _ _ = error "ppSCon: the impossible happened"
 
