@@ -39,6 +39,7 @@ module Language.Hakaru.Syntax.IClasses
     , showParen_01
     , showParen_02
     , showParen_11
+    , showParen_12
     , showParen_22
     , showParen_111
 
@@ -212,6 +213,16 @@ showParen_11 p s e1 e2 =
         . showsPrec1 11 e1
         . showString " "
         . showsPrec1 11 e2
+        )
+
+showParen_12 :: (Show1 a, Show2 b) => Int -> String -> a i -> b j l -> ShowS
+showParen_12 p s e1 e2 =
+    showParen (p > 9)
+        ( showString s
+        . showString " "
+        . showsPrec1 11 e1
+        . showString " "
+        . showsPrec2 11 e2
         )
 
 showParen_22 :: (Show2 a, Show2 b) => Int -> String -> a i1 j1 -> b i2 j2 -> ShowS

@@ -752,6 +752,7 @@ binder hint typ hoas = bind x body
     where
     body = hoas (var x)
     x    = Variable hint (1 + maxBind body) typ
+    -- N.B., cannot use 'maxFree' when deciding the 'varID' of @x@
 
 {-
 data Hint :: Hakaru -> * where
