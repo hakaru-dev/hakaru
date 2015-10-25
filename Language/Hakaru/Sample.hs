@@ -1,4 +1,5 @@
-{-# LANGUAGE GADTs
+{-# LANGUAGE CPP
+           , GADTs
            , KindSignatures
            , TypeFamilies
            , DataKinds
@@ -16,6 +17,9 @@ import qualified System.Random.MWC               as MWC
 --import qualified System.Random.MWC.Distributions as MWCD
 --import qualified Data.Vector                     as V
 --import Data.Maybe                                (fromMaybe)
+#if __GLASGOW_HASKELL__ < 710
+import           Control.Applicative   (Applicative(..), (<$>))
+#endif
 --import Control.Monad.State
 --import Control.Monad.Trans.Maybe
 
@@ -34,8 +38,37 @@ type instance Sample 'HInt          = Int
 type instance Sample 'HReal         = Double 
 type instance Sample 'HProb         = LF.LogFloat 
 
-newtype SamplerMonad abt =
-    SM { unSM :: Assocs abt -> Either T.Text (Some2 abt)}
+---------------------------------------------------------------
+newtype SamplerMonad abt a =
+    SM { unSM :: Assocs abt -> Either T.Text a }
+
+runSM :: SamplerMonad abt a -> Either T.Text a 
+runSM m = unSM m emptyAssocs
+
+instance Functor (SamplerMonad abt) where
+    fmap f m = SM $ fmap f . unSM m
+
+instance Applicative (SamplerMonad abt) where
+    pure      = SM . const . Right
+    mf <*> mx = mf >>= \f -> fmap f mx
+
+instance Monad (SamplerMonad abt) where
+    return   = pure
+    mx >>= k = SM $ \env -> unSM mx env >>= \x -> unSM (k x) env
+
+-- | Warning: throws an error if binding already there
+pushEnv :: Assoc abt-> SamplerMonad abt a -> SamplerMonad abt a
+pushEnv x (SM m) =
+    SM $ \env -> m $ insertAssoc x env
+
+getEnv :: SamplerMonad abt (Assocs abt)
+getEnv = SM Right
+
+failwith :: T.Text -> SamplerMonad abt a
+failwith = SM . const . Left
+
+
+---------------------------------------------------------------
 
 one :: LF.LogFloat
 one = LF.logFloat (1.0 :: Double)
