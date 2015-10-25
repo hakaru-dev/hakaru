@@ -36,8 +36,6 @@ import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.AST (AST(Datum_, Value_), Value(VDatum))
 import Language.Hakaru.Syntax.ABT
-import qualified Language.Hakaru.Syntax.Prelude as P
-
 
 import           Language.Hakaru.PrettyPrint
 import           Text.PrettyPrint (Doc, (<+>))
@@ -151,7 +149,7 @@ viewDatum
 viewDatum e =
     caseVarSyn e (const Nothing) $ \t ->
         case t of
-        Value_ (VDatum d) -> Just (fmap11 P.value_ d)
+        Value_ (VDatum d) -> Just (fmap11 (syn . Value_) d)
         Datum_         d  -> Just d
         _                 -> Nothing
 
