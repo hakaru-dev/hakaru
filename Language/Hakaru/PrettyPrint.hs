@@ -94,11 +94,6 @@ ppBinder e =
     go xs (Syn  t)   = (reverse xs, prettyPrec_ 0 (LC_ (syn t)))
 
 
--- HACK: so we can safely give a 'Pretty' instance
--- TODO: unify this with the same hack used in AST.hs for 'Show'
-newtype LC_ (abt :: [Hakaru] -> Hakaru -> *) (a :: Hakaru) =
-    LC_ { unLC_ :: abt '[] a }
-
 instance (ABT abt) => Pretty (LC_ abt) where
   prettyPrec_ p (LC_ e) =
     caseVarSyn e ((:[]) . ppVariable) $ \t -> 

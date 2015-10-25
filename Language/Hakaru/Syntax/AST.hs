@@ -40,6 +40,7 @@ module Language.Hakaru.Syntax.AST
     , AST(..)
     -- * Operators
     , LC, LCs, UnLCs
+    , LC_(..)
     , NaryOp(..)
     , PrimOp(..)
     , MeasureOp(..)
