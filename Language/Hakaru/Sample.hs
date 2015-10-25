@@ -27,6 +27,7 @@ import qualified Data.Text        as T
 import qualified Data.IntMap      as IM
 
 import Language.Hakaru.Syntax.Nat      (fromNat, Nat())
+import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.AST
@@ -78,9 +79,6 @@ insertAssoc v@(Assoc x _) (Assocs xs) =
 one :: LF.LogFloat
 one = LF.logFloat (1.0 :: Double)
 
-ret2 :: PrimMonad m => PRNG m -> a-> m (SamplerMonad abt a)
-ret2 g = return . return
-
 -- Makes use of Atkinson's algorithm as described in:
 -- Monte Carlo Statistical Methods pg. 55
 --
@@ -115,16 +113,22 @@ poisson_rng lambda g' = make_poisson g'
         <=
         -lambda + fromIntegral k * lnlam - logFactorial k
 
-class Sampleable (f :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> *) where
-    sample :: (ABT abt, PrimMonad m) =>
-              f abt a -> PRNG m -> Assocs abt ->
-              m (Sample a, LF.LogFloat, Assocs abt)
+sample :: (ABT abt, PrimMonad m) =>
+          LC_ abt a -> PRNG m -> Assocs abt ->
+          m (Sample a, LF.LogFloat, Assocs abt)
+sample (LC_ e) g env =
+  caseVarSyn e (sampleVar g env) $ \t ->
+    case t of
+      o :$ es  -> sampleScon o es g env
+      Value_ v -> return (sampleValue v, one, env)
 
-instance Sampleable LC_ where
-    sample (LC_ e) g env =
-      caseVarSyn e (sampleVar g env) $ \t ->
-          case t of
-            Value_ v -> return (sampleValue v, one, env)
+sampleScon :: (ABT abt, PrimMonad m) =>
+              SCon args a -> SArgs abt args ->
+              PRNG m      -> Assocs abt ->
+              m (Sample a, LF.LogFloat, Assocs abt)
+sampleScon (CoerceTo_ CNil) (e1 :* End) g env =
+    sample (LC_ e1) g env
+sampleScon o es g env = undefined
 
 sampleValue :: Value a -> Sample a
 sampleValue (VNat  n)  = n
