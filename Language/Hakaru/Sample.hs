@@ -54,6 +54,23 @@ type instance Sample m ('HMeasure a)  =
     m (Maybe (Sample m a, LF.LogFloat))
 type instance Sample m (a ':-> b)     = Sample m a -> Sample m b
 type instance Sample m ('HArray a)    = V.Vector (Sample m a)
+--type instance Sample m (HData' (HakaruCon a)) = SCode (Sample m a)
+
+----------------------------------------------------------------
+
+data SCode a where
+     SInr :: !(SCode a) -> SCode a
+     SInl :: SStruct a -> SCode a
+
+infixr 7 `SEt`
+
+data SStruct a where
+     SEt   :: !(SDFun a) -> !(SStruct a) -> SStruct a
+     SDone :: SStruct a
+
+data SDFun a where
+     SKonst  :: !b -> SDFun a
+     SIdent  :: !a -> SDFun a 
 
 ----------------------------------------------------------------
 
