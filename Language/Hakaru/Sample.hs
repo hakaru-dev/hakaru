@@ -77,9 +77,6 @@ lookupVar x (Env env) = do
 
 ---------------------------------------------------------------
 
-one :: LF.LogFloat
-one = LF.logFloat (1.0 :: Double)
-
 -- Makes use of Atkinson's algorithm as described in:
 -- Monte Carlo Statistical Methods pg. 55
 --
