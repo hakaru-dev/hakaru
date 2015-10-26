@@ -69,8 +69,8 @@ data SStruct a where
      SDone :: SStruct a
 
 data SDFun a where
-     SKonst  :: !b -> SDFun a
-     SIdent  :: !a -> SDFun a 
+     SKonst  :: Show b => !b -> SDFun a
+     SIdent  :: Show a => !a -> SDFun a 
 
 ----------------------------------------------------------------
 
