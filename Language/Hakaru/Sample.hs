@@ -22,7 +22,7 @@ import Data.Maybe                                (fromMaybe)
 import           Control.Applicative   (Applicative(..), (<$>))
 #endif
 import Control.Monad.State
---import Control.Monad.Trans.Maybe
+import Control.Monad.Trans.Maybe
 
 import qualified Data.Text        as T
 import qualified Data.IntMap      as IM
@@ -285,11 +285,22 @@ sampleMeasureOp (DirichletProcess _)  _ env =
     error "sampleMeasureOp: Dirichlet Processes not implemented yet"
 
 sampleMeasureOp (Plate _)   (e1 :* End) env =
-    error "sampleMeasureOP: Plate not implemented yet"
+    let S v = sample (LC_ e1) env
+    in  S (\ p g -> runMaybeT $ do
+             samples <- V.mapM (\m -> MaybeT $ m 1 g) v
+             let (v', ps) = V.unzip samples
+             return (v', p * V.product ps))
 
--- Not sure if correct
 sampleMeasureOp (Chain _ _) (e1 :* e2 :* End) env =
-    error "sampleMeasureOP: Chain not implemented yet"
+  let S v = sample (LC_ e1) env
+      S s = sample (LC_ e2) env
+  in  S (\ p g -> runMaybeT $ do
+           let convert f = StateT $ \s' -> do
+                             ((a,s''),p') <- MaybeT (f s' 1 g)
+                             return ((a,p'),s'')
+           (samples, sout) <- runStateT (V.mapM convert v) s
+           let (v', ps) = V.unzip samples
+           return ((v', sout), p * V.product ps))
 
 sampleMeasureOp _ _ _ =
     error "sampleMeasureOP: the impossible happened"
