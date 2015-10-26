@@ -471,13 +471,16 @@ checkType = checkType_
             _ -> failwith "expected HArray type"
     
         -- Need to do these cases
-        --
-        -- U.Datum_ (Some2 (Datum hint d)) ->
-        --     case typ0 of
-        --     SData _ typ2 ->
-        --         (syn . Datum_ . Datum hint)
-        --             <$> checkDatumCode d typ2 typ0
-        --     _            -> failwith "expected HData type"
+
+        U.Datum_ (U.SealedDatum typ1 (U.Datum hint d)) ->
+          case typ0 of
+            SData typ2 typ3 -> do
+               case jmEq1 typ1 typ2 of
+                 Nothing   -> failwith "type mismatch"
+                 Just Refl -> do
+                    (syn . Datum_ . Datum hint)
+                      <$> checkDatumCode d typ3 typ0
+            _            -> failwith "expected HData type"
     
         -- U.Case_ e1 branches -> do
         --     TypedAST typ1 e1' <- inferType_ e1
@@ -522,55 +525,59 @@ checkType = checkType_
     -- TODO: can we combine these in with the 'checkBranch' functions somehow?
     checkDatumCode
         :: forall xss t
-        .  DatumCode xss (abt '[]) (HData' t) -- CHANGE THIS
+        .  U.DCode c (HData' t)
         -> Sing xss
         -> Sing (HData' t)
         -> TypeCheckMonad (DatumCode xss (abt '[]) (HData' t))
     checkDatumCode d typ typA =
         case d of
-        Inr d2 ->
+        U.Inr d2 ->
             case typ of
             SPlus _ typ2  -> Inr <$> checkDatumCode d2 typ2 typA
             _             -> failwith "expected term of `inr' type"
-        Inl d1 ->
+        U.Inl d1 ->
             case typ of
             SPlus typ1 _  -> Inl <$> checkDatumStruct d1 typ1 typA
             _             -> failwith "expected term of `inl' type"
     
     checkDatumStruct
         :: forall xs t
-        .  DatumStruct xs (abt '[]) (HData' t) -- CHANGE THIS
+        .  U.DStruct c (HData' t)
         -> Sing xs
         -> Sing (HData' t)
         -> TypeCheckMonad (DatumStruct xs (abt '[]) (HData' t))
     checkDatumStruct d typ typA =
         case d of
-        Et d1 d2 ->
+        U.Et d1 d2 ->
             case typ of
             SEt typ1 typ2 -> Et
                 <$> checkDatumFun    d1 typ1 typA
                 <*> checkDatumStruct d2 typ2 typA
             _             -> failwith "expected term of `et' type"
-        Done ->
+        U.Done ->
             case typ of
             SDone         -> return Done
             _             -> failwith "expected term of `done' type"
     
     checkDatumFun
         :: forall x t
-        .  DatumFun x (abt '[]) (HData' t)
+        .  U.DFun c (HData' t)
         -> Sing x
         -> Sing (HData' t)
         -> TypeCheckMonad (DatumFun x (abt '[]) (HData' t))
     checkDatumFun d typ typA = 
         case d of
-        Ident e1 ->
+        U.Ident t e1 ->
             case typ of
-            SIdent        -> return $ Ident e1
+            SIdent        -> do e1' <- checkType_ t e1
+                                return $ Ident e1'
             _             -> failwith "expected term of `I' type"
-        Konst e1 ->
+        U.Konst t e1 ->
             case typ of
-            SKonst typ1   -> return $ Konst e1
+            SKonst typ1   -> do TypedAST t1 e1' <- inferType_ e1
+                                case jmEq1 typ1 t1 of
+                                  Nothing   -> failwith "type mismatch"
+                                  Just Refl -> return $ Konst e1'
             _             -> failwith "expected term of `K' type"
 
 

@@ -22,7 +22,6 @@ import Language.Hakaru.Syntax.AST    (PrimOp(..),
 import Language.Hakaru.Syntax.ABT (Variable(..))
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.IClasses
-import Language.Hakaru.Syntax.Datum (Datum(..))
 
 import Data.Text
 import Text.Parsec (SourcePos)
@@ -48,6 +47,9 @@ data SealedOp op where
       -> !(op typs a)
       -> SealedOp op
 
+data SealedDatum a = forall t.
+     SealedDatum (Sing t) (Datum a (HData' t))
+
 type Name' = Text
 
 data Branch'  a =
@@ -60,10 +62,24 @@ data Pattern' a =
    | PData' (Datum' a)
    deriving (Eq, Show)
 
+data Datum' a = DV a [a] deriving (Eq, Show)
+
 -- Meta stores start and end position for AST in source code
 newtype Meta = Meta (SourcePos, SourcePos) deriving (Eq, Show)
 
-data Datum' a = DV a [a] deriving (Eq, Show)
+data DFun a t where
+     Konst :: Sing t1 -> AST a -> DFun a t
+     Ident :: Sing t  -> AST a -> DFun a t
+
+data DStruct a t where
+     Et   :: DFun a t -> DStruct a t -> DStruct a t
+     Done :: DStruct a t
+
+data DCode a t where
+     Inr ::  DCode a t   -> DCode a t
+     Inl ::  DStruct a t -> DCode a t
+
+data Datum a t = Datum Text (DCode a t)
 
 data Value' =
      Nat  Int
@@ -177,7 +193,7 @@ data AST a =
    | Value_      (Some1 Value)
    | Empty_
    | Array_      (AST a) Name (AST a) -- not sure should binding form
-   | Datum_      (Some2 Datum)
+   | Datum_      (SealedDatum a)
    | Case_       (AST a) [Branch a]
    | MeasureOp_  (SealedOp MeasureOp) [AST a]
    | MBind_      Name    (AST a) (AST a)

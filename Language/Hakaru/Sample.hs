@@ -316,7 +316,7 @@ sampleValue (VReal n)  = S n
 sampleValue (VDatum _) = error "Don't know how to sample Datum"
 
 sampleDatum :: Datum ast a -> S m a
-sampleDatum = error "in Datum_"
+sampleDatum (Datum _ _) = error "in Datum_"
 
 sampleVar :: (PrimMonad m, Functor m) =>
              Env m -> Variable a -> S m a
