@@ -212,6 +212,19 @@ sampleMeasureOp Categorical (e1 :* End)  g env = do
           , env
           )
 
+sampleMeasureOp Uniform (e1 :* e2 :* End) g env = do
+  (v1, w1, env) <- sample (LC_ e1) g env
+  (v2, w2, env) <- sample (LC_ e2) g env
+  x <- MWC.uniformR (v1, v2) g
+  return (x, w1*w2, env)
+
+sampleMeasureOp Normal  (e1 :* e2 :* End) g env = do
+  (v1, w1, env) <- sample (LC_ e1) g env
+  (v2, w2, env) <- sample (LC_ e2) g env
+  x <- MWCD.normal v1 (LF.fromLogFloat v2) g
+  return (x, w1*w2, env)
+
+
 sampleMeasureOp m es g env = undefined
 
 sampleValue :: Value a -> Sample a
