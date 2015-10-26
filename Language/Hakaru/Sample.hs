@@ -65,33 +65,6 @@ newtype Env m = Env (IM.IntMap (EAssoc m))
 emptyEnv :: Env m
 emptyEnv = Env IM.empty
 
-newtype SamplerMonad m a =
-    SM { unSM :: Env m -> Either T.Text a }
-
-runSM :: SamplerMonad m a -> Either T.Text a 
-runSM m = unSM m emptyEnv
-
-instance Functor (SamplerMonad m) where
-    fmap f m = SM $ fmap f . unSM m
-
-instance Applicative (SamplerMonad m) where
-    pure      = SM . const . Right
-    mf <*> mx = mf >>= \f -> fmap f mx
-
-instance Monad (SamplerMonad m) where
-    return   = pure
-    mx >>= k = SM $ \env -> unSM mx env >>= \x -> unSM (k x) env
-
-extendEnv :: EAssoc m -> SamplerMonad m a -> SamplerMonad m a
-extendEnv x (SM m) =
-    SM $ \env -> m $ updateEnv x env
-
-getEnv :: SamplerMonad m (Env m)
-getEnv = SM Right
-
-failwith :: T.Text -> SamplerMonad m a
-failwith = SM . const . Left
-
 updateEnv :: EAssoc m -> Env m -> Env m
 updateEnv v@(EAssoc x _) (Env xs) =
     Env $ IM.insert (fromNat $ varID x) v xs
