@@ -394,24 +394,24 @@ evaluateNaryOp o es = foldBy (interp o) <$> T.traverse evaluate es
 
 -- BUG: need to improve the types so they can capture polymorphic data types
 class Interp a a' | a -> a' where
-    reify   :: (ABT abt) => Whnf abt a -> a'
-    reflect :: (ABT abt) => a' -> Whnf abt a
+    reify   :: (ABT abt) => Head abt a -> a'
+    reflect :: (ABT abt) => a' -> Head abt a
 
 instance Interp 'HNat Nat where
-    reify (Head_ (WValue (VNat n))) = n
-    reflect = Head_ . WValue . VNat
+    reify (WValue (VNat n)) = n
+    reflect = WValue . VNat
 
 instance Interp 'HInt Int where
-    reify (Head_ (WValue (VInt i))) = i
-    reflect = Head_ . WValue . VInt
+    reify (WValue (VInt i)) = i
+    reflect = WValue . VInt
 
 instance Interp 'HProb LogFloat where -- TODO: use rational instead
-    reify (Head_ (WValue (VProb p))) = p
-    reflect = Head_ . WValue . VProb
+    reify (WValue (VProb p)) = p
+    reflect = WValue . VProb
 
 instance Interp 'HReal Double where -- TODO: use rational instead
-    reify (Head_ (WValue (VReal r))) = r
-    reflect = Head_ . WValue . VReal
+    reify (WValue (VReal r)) = r
+    reflect = WValue . VReal
 
 instance Interp HUnit () where
     reify   =
@@ -422,14 +422,14 @@ instance Interp HBool Bool where
     reify w =
         -- HACK!!!
         let d = case w of
-                Head_ (WValue (VDatum d)) -> fmap11 P.value_ d
-                Head_ (WDatum         d)  -> d
+                WValue (VDatum d) -> fmap11 P.value_ d
+                WDatum         d  -> d
         in
         if d == dTrue  then True  else
         if d == dFalse then False else
         error "hsBool: the impossible happened"
 
-    reflect = Head_ . WValue . VDatum . (\b -> if b then dTrue else dFalse)
+    reflect = WValue . VDatum . (\b -> if b then dTrue else dFalse)
 
 instance (Interp a a', Interp b b')
     => Interp (HPair a b) (a',b')
@@ -454,27 +454,44 @@ instance (Interp a a') => Interp (HList a) [a'] where
     reflect []     = P.nil
     reflect (x:xs) = P.cons x xs
 
--- TODO: handle the Neutral case
+
 rr1 :: (Interp a a', Interp b b')
     => (a' -> b')
+    -> (abt '[] a -> abt '[] b)
     -> abt '[] a
     -> M abt (Whnf abt b)
-rr1 f e = (reflect . f . reify) <$> evaluate e
+rr1 f' f e = do
+    w <- evaluate e
+    return $
+        case w of
+        Head_   v  -> Head_ . reflect $ f' (reify v)
+        Neutral e' -> Neutral $ f e'
 
--- TODO: handle the Neutral case
+
 rr2 :: (Interp a a', Interp b b', Interp c c')
     => (a' -> b' -> c')
+    => (abt '[] a -> abt '[] b -> abt '[] c)
     -> abt '[] a
     -> abt '[] b
     -> M abt (Whnf abt c)
-rr2 f e1 e2 = 
-    (\v1 v2 -> reflect $ f (reify v1) (reify v2))
-    <$> evaluate e1
-    <*> evaluate e2
+rr2 f' f e1 e2 = do
+    w1 <- evaluate e1
+    w2 <- evaluate e2
+    return $
+        case (w1,w2) of
+        (Head_ v1, Head_ v2) -> Head_ . reflect $ f' (reify v1) (reify v2)
+        _                    -> Neutral $ f (fromWhnf w1) (fromWhnf w2)
+
 
 natRoot :: (Floating a) => a -> Nat -> a
 natRoot x y = x ** recip (fromIntegral (fromNat y))
 -}
+
+impl, diff, nand, nor :: Bool -> Bool -> Bool
+impl x y = not x || y
+diff x y = x && not y
+nand x y = not (x && y)
+nor  x y = not (x || y)
 
 -- Essentially, these should all do @f <$> evaluate e1 <*> evaluate e2...@ where @f@ is the interpretation of the 'PrimOp', which residualizes as necessary if it gets stuck.
 evaluatePrimOp
@@ -484,28 +501,28 @@ evaluatePrimOp
     -> M abt (Whnf abt a)
 evaluatePrimOp = error "TODO: evaluatePrimOp"
 {-
-evaluatePrimOp Not  (e1 :* End)       = rr1 not e1
-evaluatePrimOp Impl (e1 :* e2 :* End) = rr2 (\x y -> not x || y)   e1 e2
-evaluatePrimOp Diff (e1 :* e2 :* End) = rr2 (\x y -> x && not y)   e1 e2
-evaluatePrimOp Nand (e1 :* e2 :* End) = rr2 (\x y -> not (x && y)) e1 e2
-evaluatePrimOp Nor  (e1 :* e2 :* End) = rr2 (\x y -> not (x || y)) e1 e2
+evaluatePrimOp Not  (e1 :* End)       = rr1 not  P.not  e1
+evaluatePrimOp Impl (e1 :* e2 :* End) = rr2 impl P.impl e1 e2
+evaluatePrimOp Diff (e1 :* e2 :* End) = rr2 diff P.diff e1 e2
+evaluatePrimOp Nand (e1 :* e2 :* End) = rr2 nand P.nand e1 e2
+evaluatePrimOp Nor  (e1 :* e2 :* End) = rr2 nor  P.nor  e1 e2
 -- TODO: all our magic constants (Pi, Infty,...) should be bundled together under one AST constructor called something like @Constant@; that way we can group them in the 'Head' like we do for values.
 evaluatePrimOp Pi        End               = return (Head_ HPi)
-evaluatePrimOp Sin       (e1 :* End)       = rr1 sin   e1
-evaluatePrimOp Cos       (e1 :* End)       = rr1 cos   e1
-evaluatePrimOp Tan       (e1 :* End)       = rr1 tan   e1
-evaluatePrimOp Asin      (e1 :* End)       = rr1 asin  e1
-evaluatePrimOp Acos      (e1 :* End)       = rr1 acos  e1
-evaluatePrimOp Atan      (e1 :* End)       = rr1 atan  e1
-evaluatePrimOp Sinh      (e1 :* End)       = rr1 sinh  e1
-evaluatePrimOp Cosh      (e1 :* End)       = rr1 cosh  e1
-evaluatePrimOp Tanh      (e1 :* End)       = rr1 tanh  e1
-evaluatePrimOp Asinh     (e1 :* End)       = rr1 asinh e1
-evaluatePrimOp Acosh     (e1 :* End)       = rr1 acosh e1
-evaluatePrimOp Atanh     (e1 :* End)       = rr1 atanh e1
-evaluatePrimOp RealPow   (e1 :* e2 :* End) = rr2 (**)  e1 e2 -- TODO: types
-evaluatePrimOp Exp       (e1 :* End)       = rr1 exp   e1 -- TODO: types
-evaluatePrimOp Log       (e1 :* End)       = rr1 log   e1 -- TODO: types
+evaluatePrimOp Sin       (e1 :* End)       = rr1 sin   P.sin   e1
+evaluatePrimOp Cos       (e1 :* End)       = rr1 cos   P.cos   e1
+evaluatePrimOp Tan       (e1 :* End)       = rr1 tan   P.tan   e1
+evaluatePrimOp Asin      (e1 :* End)       = rr1 asin  P.asin  e1
+evaluatePrimOp Acos      (e1 :* End)       = rr1 acos  P.acos  e1
+evaluatePrimOp Atan      (e1 :* End)       = rr1 atan  P.atan  e1
+evaluatePrimOp Sinh      (e1 :* End)       = rr1 sinh  P.sinh  e1
+evaluatePrimOp Cosh      (e1 :* End)       = rr1 cosh  P.cosh  e1
+evaluatePrimOp Tanh      (e1 :* End)       = rr1 tanh  P.tanh  e1
+evaluatePrimOp Asinh     (e1 :* End)       = rr1 asinh P.asinh e1
+evaluatePrimOp Acosh     (e1 :* End)       = rr1 acosh P.acosh e1
+evaluatePrimOp Atanh     (e1 :* End)       = rr1 atanh P.atanh e1
+evaluatePrimOp RealPow   (e1 :* e2 :* End) = rr2 (**)  _ e1 e2 -- TODO: types
+evaluatePrimOp Exp       (e1 :* End)       = rr1 exp   _ e1 -- TODO: types
+evaluatePrimOp Log       (e1 :* End)       = rr1 log   _ e1 -- TODO: types
 evaluatePrimOp Infinity         End        = return (Head_ HInfinity)
 evaluatePrimOp NegativeInfinity End        = return (Head_ HNegativeInfinity)
 evaluatePrimOp GammaFunc   (e1 :* End)             =
@@ -515,15 +532,15 @@ evaluatePrimOp Summate     (e1 :* e2 :* e3 :* End) =
 evaluatePrimOp (Index   _) (e1 :* e2 :* End)       =
 evaluatePrimOp (Size    _) (e1 :* End)             =
 evaluatePrimOp (Reduce  _) (e1 :* e2 :* e3 :* End) =
-evaluatePrimOp (Equal   _) (e1 :* e2 :* End) = rr2 (==)    e1 e2
-evaluatePrimOp (Less    _) (e1 :* e2 :* End) = rr2 (<)     e1 e2
-evaluatePrimOp (NatPow  _) (e1 :* e2 :* End) = rr2 (^^)    e1 e2
-evaluatePrimOp (Negate  _) (e1 :* End)       = rr1 negate  e1
-evaluatePrimOp (Abs     _) (e1 :* End)       = rr1 abs     e1 -- TODO: types
-evaluatePrimOp (Signum  _) (e1 :* End)       = rr1 signum  e1
-evaluatePrimOp (Recip   _) (e1 :* End)       = rr1 recip   e1
-evaluatePrimOp (NatRoot _) (e1 :* e2 :* End) = rr2 natRoot e1 e2
-evaluatePrimOp (Erf     _) (e1 :* End)       = rr1 erf     e1
+evaluatePrimOp (Equal   _) (e1 :* e2 :* End) = rr2 (==)    (P.==) e1 e2
+evaluatePrimOp (Less    _) (e1 :* e2 :* End) = rr2 (<)     (P.<)  e1 e2
+evaluatePrimOp (NatPow  _) (e1 :* e2 :* End) = rr2 (^^)    (P.^^) e1 e2
+evaluatePrimOp (Negate  _) (e1 :* End)       = rr1 negate  P.negate e1
+evaluatePrimOp (Abs     _) (e1 :* End)       = rr1 abs     P.abs_   e1 -- TODO: types
+evaluatePrimOp (Signum  _) (e1 :* End)       = rr1 signum  P.signum e1
+evaluatePrimOp (Recip   _) (e1 :* End)       = rr1 recip   P.recip  e1
+evaluatePrimOp (NatRoot _) (e1 :* e2 :* End) = rr2 natRoot _ e1 e2
+evaluatePrimOp (Erf     _) (e1 :* End)       = rr1 erf     P.erf    e1
 -- HACK: GHC can't figure out that there are no other type-safe cases
 evaluatePrimOp _ _ = error "evaluatePrimOp: the impossible happened"
 -}
