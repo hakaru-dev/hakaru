@@ -33,7 +33,7 @@ import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.AST
-import Language.Hakaru.Syntax.ABT hiding (insertAssoc)
+import Language.Hakaru.Syntax.ABT
 
 type PRNG m = MWC.Gen (PrimState m)
 
@@ -50,37 +50,51 @@ type instance Sample (a ':-> b)     = Sample a -> Sample b
 type instance Sample ('HArray a)    = V.Vector (Sample a)
 
 ---------------------------------------------------------------
-newtype SamplerMonad abt a =
-    SM { unSM :: Assocs abt -> Either T.Text a }
 
-runSM :: SamplerMonad abt a -> Either T.Text a 
-runSM m = unSM m emptyAssocs
+data EAssoc where
+     EAssoc :: {-# UNPACK #-} !(Variable a) -> !(Sample a) -> EAssoc
 
-instance Functor (SamplerMonad abt) where
+newtype Env = Env (IM.IntMap EAssoc)
+
+emptyEnv :: Env
+emptyEnv = Env IM.empty
+
+newtype SamplerMonad a =
+    SM { unSM :: Env -> Either T.Text a }
+
+runSM :: SamplerMonad a -> Either T.Text a 
+runSM m = unSM m emptyEnv
+
+instance Functor SamplerMonad where
     fmap f m = SM $ fmap f . unSM m
 
-instance Applicative (SamplerMonad abt) where
+instance Applicative SamplerMonad where
     pure      = SM . const . Right
     mf <*> mx = mf >>= \f -> fmap f mx
 
-instance Monad (SamplerMonad abt) where
+instance Monad SamplerMonad where
     return   = pure
     mx >>= k = SM $ \env -> unSM mx env >>= \x -> unSM (k x) env
 
-pushEnv :: Assoc abt-> SamplerMonad abt a -> SamplerMonad abt a
-pushEnv x (SM m) =
-    SM $ \env -> m $ insertAssoc x env
+extendEnv :: EAssoc -> SamplerMonad a -> SamplerMonad a
+extendEnv x (SM m) =
+    SM $ \env -> m $ updateEnv x env
 
-getEnv :: SamplerMonad abt (Assocs abt)
+getEnv :: SamplerMonad Env
 getEnv = SM Right
 
-failwith :: T.Text -> SamplerMonad abt a
+failwith :: T.Text -> SamplerMonad a
 failwith = SM . const . Left
 
+updateEnv :: EAssoc -> Env -> Env
+updateEnv v@(EAssoc x _) (Env xs) =
+    Env $ IM.insert (fromNat $ varID x) v xs
 
-insertAssoc :: Assoc abt -> Assocs abt -> Assocs abt
-insertAssoc v@(Assoc x _) (Assocs xs) =
-    Assocs $ IM.insert (fromNat $ varID x) v xs
+lookupVar :: Variable a -> Env -> Maybe (Sample a)
+lookupVar x (Env env) = do
+  EAssoc x' e' <- IM.lookup (fromNat $ varID x) env
+  Refl         <- varEq x x'
+  return e'
 
 ---------------------------------------------------------------
 
@@ -134,8 +148,8 @@ normalizeVector xs = case V.length xs of
 ---------------------------------------------------------------
 
 sample :: (ABT abt, PrimMonad m, Functor m) =>
-          LC_ abt a -> PRNG m -> Assocs abt ->
-          m (Sample a, LF.LogFloat, Assocs abt)
+          LC_ abt a -> PRNG m -> Env ->
+          m (Sample a, LF.LogFloat, Env)
 sample (LC_ e) g env =
   caseVarSyn e (sampleVar g env) $ \t ->
     case t of
@@ -144,8 +158,8 @@ sample (LC_ e) g env =
 
 sampleScon :: (ABT abt, PrimMonad m, Functor m) =>
               SCon args a -> SArgs abt args ->
-              PRNG m      -> Assocs abt ->
-              m (Sample a, LF.LogFloat, Assocs abt)
+              PRNG m      -> Env ->
+              m (Sample a, LF.LogFloat, Env)
 
 sampleScon (CoerceTo_   c) (e1 :* End) g env = do
     (v, weight, env) <- sample (LC_ e1) g env
@@ -184,8 +198,8 @@ samplePrimUnsafe (Continuous HContinuous_Real) a = floor a
 sampleMeasureOp :: (ABT abt, PrimMonad m, Functor m,
                     typs ~ UnLCs args, args ~ LCs typs) =>
                    MeasureOp typs a -> SArgs abt args ->
-                   PRNG m -> Assocs abt ->
-                   m (Sample a, LF.LogFloat, Assocs abt)
+                   PRNG m -> Env ->
+                   m (Sample a, LF.LogFloat, Env)
 
 sampleMeasureOp (Dirac _)   (e1 :* End)  g env =
   sample (LC_ e1) g env
@@ -271,17 +285,17 @@ sampleValue (VProb n)  = n
 sampleValue (VReal n)  = n
 sampleValue (VDatum _) = error "Don't know how to sample Datum"
 
-sampleVar :: (ABT abt, PrimMonad m, Functor m) =>
-             PRNG m -> Assocs abt -> Variable a -> 
-             m (Sample a, LF.LogFloat, Assocs abt)
+sampleVar :: (PrimMonad m, Functor m) =>
+             PRNG m -> Env -> Variable a -> 
+             m (Sample a, LF.LogFloat, Env)
 sampleVar g env v = do
-  case lookupAssoc v env of
+  case lookupVar v env of
     Nothing -> error "variable not found!"
-    Just a  -> sample (LC_ a) g env
+    Just a  -> return (a, one, env)
 
 runSample :: (ABT abt, Functor m, PrimMonad m) =>
              abt '[] a -> PRNG m -> m (Sample a, LF.LogFloat)
 runSample prog g = do
-  (v, weight, _) <- sample (LC_ prog) g emptyAssocs
+  (v, weight, _) <- sample (LC_ prog) g emptyEnv
   return (v, weight)
 
