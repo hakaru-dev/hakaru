@@ -129,7 +129,7 @@ normalizeVector xs = case V.length xs of
 
 ---------------------------------------------------------------
 
-sample :: (ABT abt, PrimMonad m) =>
+sample :: (ABT abt, PrimMonad m, Functor m) =>
           LC_ abt a -> PRNG m -> Assocs abt ->
           m (Sample a, LF.LogFloat, Assocs abt)
 sample (LC_ e) g env =
@@ -138,7 +138,7 @@ sample (LC_ e) g env =
       o :$ es  -> sampleScon o es g env
       Value_ v -> return (sampleValue v, one, env)
 
-sampleScon :: (ABT abt, PrimMonad m) =>
+sampleScon :: (ABT abt, PrimMonad m, Functor m) =>
               SCon args a -> SArgs abt args ->
               PRNG m      -> Assocs abt ->
               m (Sample a, LF.LogFloat, Assocs abt)
@@ -176,8 +176,8 @@ samplePrimUnsafe (Continuous HContinuous_Prob) a =
     unsafeNat (floor (LF.fromLogFloat a :: Double))
 samplePrimUnsafe (Continuous HContinuous_Real) a = floor a
 
-sampleMeasureOp :: (ABT abt, PrimMonad m, typs ~ UnLCs args, 
-                    args ~ LCs typs) =>
+sampleMeasureOp :: (ABT abt, PrimMonad m, Functor m,
+                    typs ~ UnLCs args, args ~ LCs typs) =>
                    MeasureOp typs a -> SArgs abt args ->
                    PRNG m -> Assocs abt ->
                    m (Sample a, LF.LogFloat, Assocs abt)
@@ -224,8 +224,30 @@ sampleMeasureOp Normal  (e1 :* e2 :* End) g env = do
   x <- MWCD.normal v1 (LF.fromLogFloat v2) g
   return (x, w1*w2, env)
 
+sampleMeasureOp Poisson (e1 :* End)       g env = do
+  (v1, w1, env) <- sample (LC_ e1) g env
+  x <- poisson_rng (LF.fromLogFloat v1) g
+  return (unsafeNat x, w1, env)
 
-sampleMeasureOp m es g env = undefined
+sampleMeasureOp Gamma   (e1 :* e2 :* End) g env = do
+  (v1, w1, env) <- sample (LC_ e1) g env
+  (v2, w2, env) <- sample (LC_ e2) g env
+  x <- MWCD.gamma (LF.fromLogFloat v1) (LF.fromLogFloat v2) g
+  return (LF.logFloat x, w1*w2, env)
+
+sampleMeasureOp Beta    (e1 :* e2 :* End) g env = do
+  (v1, w1, env) <- sample (LC_ e1) g env
+  (v2, w2, env) <- sample (LC_ e2) g env
+  x <- MWCD.beta (LF.fromLogFloat v1) (LF.fromLogFloat v2) g
+  return (LF.logFloat x, w1*w2, env)
+
+sampleMeasureOp (DirichletProcess _)  _ g env =
+    error "sampleMeasureOp: Dirichlet Processes not implemented yet"
+
+sampleMeasureOp (Plate _) (e1 :* End)   g env = sample (LC_ e1) g env
+
+sampleMeasureOp _ _ _ _ =
+    error "sampleMeasureOP: the impossible happened"
 
 sampleValue :: Value a -> Sample a
 sampleValue (VNat  n)  = n
@@ -234,7 +256,7 @@ sampleValue (VProb n)  = n
 sampleValue (VReal n)  = n
 sampleValue (VDatum _) = error "Don't know how to sample Datum"
 
-sampleVar :: (PrimMonad m, ABT abt) =>
+sampleVar :: (ABT abt, PrimMonad m, Functor m) =>
              PRNG m -> Assocs abt -> Variable a -> 
              m (Sample a, LF.LogFloat, Assocs abt)
 sampleVar g env v = do
