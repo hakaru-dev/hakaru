@@ -174,7 +174,18 @@ sampleScon (UnsafeFrom_ c) (e1 :* End) env =
 
 sampleScon (MeasureOp_  m) es env = sampleMeasureOp m es env
 
-sampleScon MBind (e1 :* e2 :* End) env = undefined
+sampleScon MBind (e1 :* e2 :* End) env =
+    let S m1 = sample (LC_ e1) env in
+    S (\ p g -> do
+         x <- m1 p g
+         case x of
+           Nothing ->
+               return Nothing
+           Just (a, p') ->
+               caseBind e2 $ \x e2' ->
+                   let y = sample (LC_ e2')
+                                  (updateEnv (EAssoc x a) env)
+                   in  (unS y) p' g)
 
 sampleCoerce :: Coercion a b -> S m a -> S m b
 sampleCoerce CNil         (S a) = S a
