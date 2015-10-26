@@ -5,6 +5,9 @@
              PolyKinds,
              ExistentialQuantification,
              StandaloneDeriving #-}
+
+{-# OPTIONS_GHC -Wall -fwarn-tabs #-}
+
 module Language.Hakaru.Parser.AST where
 
 import qualified Language.Hakaru.Syntax.Nat as N
