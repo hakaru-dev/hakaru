@@ -26,7 +26,7 @@ import           Control.Applicative   (Applicative(..), (<$>))
 import qualified Data.Text        as T
 import qualified Data.IntMap      as IM
 
-import Language.Hakaru.Syntax.Nat      (fromNat, Nat())
+import Language.Hakaru.Syntax.Nat      (fromNat, unsafeNat, Nat())
 import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.HClasses
@@ -127,9 +127,13 @@ sampleScon :: (ABT abt, PrimMonad m) =>
               SCon args a -> SArgs abt args ->
               PRNG m      -> Assocs abt ->
               m (Sample a, LF.LogFloat, Assocs abt)
-sampleScon (CoerceTo_ c) (e1 :* End) g env = do
+sampleScon (CoerceTo_   c) (e1 :* End) g env = do
     (v, weight, env) <- sample (LC_ e1) g env
     return (sampleCoerce c v, weight, env)
+sampleScon (UnsafeFrom_ c) (e1 :* End) g env = do
+    (v, weight, env) <- sample (LC_ e1) g env
+    return (sampleUnsafe c v, weight, env)
+
 
 sampleScon o es g env = undefined
 
@@ -137,11 +141,22 @@ sampleCoerce :: (Coercion a b) -> Sample a -> Sample b
 sampleCoerce CNil         a = a
 sampleCoerce (CCons c cs) a = sampleCoerce cs (samplePrimCoerce c a)
 
+sampleUnsafe :: (Coercion a b) -> Sample b -> Sample a
+sampleUnsafe CNil         a = a
+sampleUnsafe (CCons c cs) a = samplePrimUnsafe c (sampleUnsafe cs a)
+
 samplePrimCoerce :: (PrimCoercion a b) -> Sample a -> Sample b
 samplePrimCoerce (Signed HRing_Int ) a = fromNat a
 samplePrimCoerce (Signed HRing_Real) a = LF.fromLogFloat a
 samplePrimCoerce (Continuous HContinuous_Prob) a = LF.logFloat (fromNat a)
 samplePrimCoerce (Continuous HContinuous_Real) a = fromIntegral a
+
+samplePrimUnsafe :: (PrimCoercion a b) -> Sample b -> Sample a
+samplePrimUnsafe (Signed HRing_Int ) a = unsafeNat a
+samplePrimUnsafe (Signed HRing_Real) a = LF.logFloat a
+samplePrimUnsafe (Continuous HContinuous_Prob) a =
+    unsafeNat (floor (LF.fromLogFloat a :: Double))
+samplePrimUnsafe (Continuous HContinuous_Real) a = floor a
 
 sampleValue :: Value a -> Sample a
 sampleValue (VNat  n)  = n
