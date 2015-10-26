@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP
            , GADTs
            , KindSignatures
+           , TypeOperators
            , TypeFamilies
            , DataKinds
            #-}
@@ -20,7 +21,7 @@ import Data.Maybe                                (fromMaybe)
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative   (Applicative(..), (<$>))
 #endif
---import Control.Monad.State
+import Control.Monad.State
 --import Control.Monad.Trans.Maybe
 
 import qualified Data.Text        as T
@@ -42,7 +43,10 @@ type instance Sample 'HInt          = Int
 type instance Sample 'HReal         = Double 
 type instance Sample 'HProb         = LF.LogFloat
 
+type instance Sample (HPair a b)    = (Sample a, Sample b)
+
 type instance Sample ('HMeasure a)  = Sample a
+type instance Sample (a ':-> b)     = Sample a -> Sample b
 type instance Sample ('HArray a)    = V.Vector (Sample a)
 
 ---------------------------------------------------------------
@@ -153,7 +157,8 @@ sampleScon (UnsafeFrom_ c) (e1 :* End) g env = do
 
 sampleScon (MeasureOp_  m) es g env = sampleMeasureOp m es g env
 
-sampleScon o es g env = undefined
+sampleScon MBind (e1 :* e2 :* End) g env = do
+    return undefined
 
 sampleCoerce :: Coercion a b -> Sample a -> Sample b
 sampleCoerce CNil         a = a
@@ -244,7 +249,17 @@ sampleMeasureOp Beta    (e1 :* e2 :* End) g env = do
 sampleMeasureOp (DirichletProcess _)  _ g env =
     error "sampleMeasureOp: Dirichlet Processes not implemented yet"
 
-sampleMeasureOp (Plate _) (e1 :* End)   g env = sample (LC_ e1) g env
+sampleMeasureOp (Plate _)   (e1 :* End) g env = sample (LC_ e1) g env
+
+-- Not sure if correct
+sampleMeasureOp (Chain _ _) (e1 :* e2 :* End) g env = do
+  (v, ps, env) <- sample (LC_ e1) g env
+  (s, p,  env) <- sample (LC_ e2) g env
+  let samples  = chain s (V.toList v)
+  return ((V.fromList samples, s), p * ps, env)
+ where chain s     [] = []
+       chain s (f:fs) = let (a, s') = f s in
+                        a : (chain s' fs)
 
 sampleMeasureOp _ _ _ _ =
     error "sampleMeasureOP: the impossible happened"
