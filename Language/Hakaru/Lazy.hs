@@ -27,16 +27,22 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Lazy
     (
-    -- * Helper types
+    -- * Terms in particular known forms\/formats
       Head(..), fromHead
     , Whnf(..), fromWhnf
     , Lazy(..), fromLazy
 
     -- * The monad for term-to-term translations
-    , M(..)
+    -- TODO: how much of this do we actually need to export?
+    , Statement(..)
+    , Context(..), emptyContext
+    , Ans
+    , M(..), push, pushes, pop
 
     -- * Lazy partial evaluation
     , evaluate
+    , perform
+    -- ** Helper functions
     ) where
 
 import Data.Sequence        (Seq)
@@ -320,7 +326,26 @@ evaluate e0 =
             tryMatch (fromWhnf v) bs evaluate
 
 
+perform :: (ABT abt) => abt '[] ('HMeasure a) -> M abt (Whnf abt a)
+perform = error "TODO: perform"
+{-
+perform u | atomic u         = M $ \c h -> u P.>>= \z -> c z h
+perform Lebesgue             = M $ \c h -> P.lebesgue P.>>= \z -> c z h
+perform (Uniform lo hi)      = M $ \c h -> P.uniform lo hi P.>>= \z -> c z h
+perform (Dirac e)            = evaluate e
+perform (MBind g (bind x e)) = push (SBind x g) >> perform e
+perform (Superpose es)       = P.superpose <$> T.traverse perform es -- TODO: not quite right; need to push the SWeight in each branch
+perform e | not (hnf e)      = evaluate e >>= perform
+-}
+
+
 -- TODO: generalize this to return any @M abt r@
+-- | Try to match against a set of branches. If matching succeeds,
+-- then push the bindings onto the 'Context' and call the continuation.
+-- If matching gets stuck, then residualize the case expression.
+-- If matching fails, then throw an error.
+--
+-- TODO: rather than throwing a Haskell error, instead capture the possibility of failure in the 'M' monad.
 tryMatch
     :: (ABT abt)
     => abt '[] a
@@ -329,7 +354,7 @@ tryMatch
     -> M abt (Whnf abt b)
 tryMatch e bs k =
     case matchBranches e bs of
-    Nothing                 -> error "tryMatch: nothing matched!" -- TODO: return the Hakaru code for throwing an error instead. Or have some sort of 'fail' option in our monad.
+    Nothing                 -> error "tryMatch: nothing matched!"
     Just GotStuck           -> return . Neutral . syn $ Case_ e bs
     Just (Matched ss body') -> pushes (toStatements ss) >> k body'
 
@@ -503,7 +528,8 @@ evaluatePrimOp (Erf     _) (e1 :* End)       = rr1 erf     e1
 evaluatePrimOp _ _ = error "evaluatePrimOp: the impossible happened"
 -}
 
-----------------------------------------------------------------        
+----------------------------------------------------------------
+-- TODO: figure out how to abstract this so it can be reused by 'constrainValue'
 update :: Variable a -> M abt (Whnf abt a)
 update = error "TODO: update"
 {-
@@ -527,6 +553,7 @@ update x = loop []
     step (SBind  y e) | x == y = Just $ perform  e
     step (SLet   y e) | x == y = Just $ evaluate e
     step (SBranch ys pat e) | x `elem` ys = Just $ do
+        -- TODO: figure out how to abstract this out so it can be reused by 'constrainValue'
         v <- evaluate e
         case v of
             Neutral e -> M $ \c h -> 
@@ -549,7 +576,6 @@ update x = loop []
                     else P.reject
     step _ = Nothing
 -}
-
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
