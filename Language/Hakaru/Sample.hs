@@ -37,60 +37,65 @@ import Language.Hakaru.Syntax.ABT
 
 type PRNG m = MWC.Gen (PrimState m)
 
-type family   Sample (a :: Hakaru) :: *
-type instance Sample 'HNat          = Nat
-type instance Sample 'HInt          = Int 
-type instance Sample 'HReal         = Double 
-type instance Sample 'HProb         = LF.LogFloat
+newtype S (m :: * -> *) (a :: Hakaru) =
+    S { unS :: Sample m a }
 
-type instance Sample (HPair a b)    = (Sample a, Sample b)
+type family   Sample (m :: * -> *) (a :: Hakaru) :: *
+type instance Sample m 'HNat          = Nat
+type instance Sample m 'HInt          = Int 
+type instance Sample m 'HReal         = Double 
+type instance Sample m 'HProb         = LF.LogFloat
 
-type instance Sample ('HMeasure a)  = Sample a
-type instance Sample (a ':-> b)     = Sample a -> Sample b
-type instance Sample ('HArray a)    = V.Vector (Sample a)
+type instance Sample m (HPair a b)    = (Sample m a, Sample m b)
 
----------------------------------------------------------------
+type instance Sample m ('HMeasure a)  =
+    LF.LogFloat -> PRNG m ->
+    m (Maybe (Sample m a, LF.LogFloat))
+type instance Sample m (a ':-> b)     = Sample m a -> Sample m b
+type instance Sample m ('HArray a)    = V.Vector (Sample m a)
 
-data EAssoc where
-     EAssoc :: {-# UNPACK #-} !(Variable a) -> !(Sample a) -> EAssoc
+----------------------------------------------------------------
 
-newtype Env = Env (IM.IntMap EAssoc)
+data EAssoc m where
+     EAssoc :: {-# UNPACK #-} !(Variable a) -> !(Sample m a) -> EAssoc m
 
-emptyEnv :: Env
+newtype Env m = Env (IM.IntMap (EAssoc m))
+
+emptyEnv :: Env m
 emptyEnv = Env IM.empty
 
-newtype SamplerMonad a =
-    SM { unSM :: Env -> Either T.Text a }
+newtype SamplerMonad m a =
+    SM { unSM :: Env m -> Either T.Text a }
 
-runSM :: SamplerMonad a -> Either T.Text a 
+runSM :: SamplerMonad m a -> Either T.Text a 
 runSM m = unSM m emptyEnv
 
-instance Functor SamplerMonad where
+instance Functor (SamplerMonad m) where
     fmap f m = SM $ fmap f . unSM m
 
-instance Applicative SamplerMonad where
+instance Applicative (SamplerMonad m) where
     pure      = SM . const . Right
     mf <*> mx = mf >>= \f -> fmap f mx
 
-instance Monad SamplerMonad where
+instance Monad (SamplerMonad m) where
     return   = pure
     mx >>= k = SM $ \env -> unSM mx env >>= \x -> unSM (k x) env
 
-extendEnv :: EAssoc -> SamplerMonad a -> SamplerMonad a
+extendEnv :: EAssoc m -> SamplerMonad m a -> SamplerMonad m a
 extendEnv x (SM m) =
     SM $ \env -> m $ updateEnv x env
 
-getEnv :: SamplerMonad Env
+getEnv :: SamplerMonad m (Env m)
 getEnv = SM Right
 
-failwith :: T.Text -> SamplerMonad a
+failwith :: T.Text -> SamplerMonad m a
 failwith = SM . const . Left
 
-updateEnv :: EAssoc -> Env -> Env
+updateEnv :: EAssoc m -> Env m -> Env m
 updateEnv v@(EAssoc x _) (Env xs) =
     Env $ IM.insert (fromNat $ varID x) v xs
 
-lookupVar :: Variable a -> Env -> Maybe (Sample a)
+lookupVar :: Variable a -> Env m -> Maybe (Sample m a)
 lookupVar x (Env env) = do
   EAssoc x' e' <- IM.lookup (fromNat $ varID x) env
   Refl         <- varEq x x'
@@ -148,154 +153,156 @@ normalizeVector xs = case V.length xs of
 ---------------------------------------------------------------
 
 sample :: (ABT abt, PrimMonad m, Functor m) =>
-          LC_ abt a -> PRNG m -> Env ->
-          m (Sample a, LF.LogFloat, Env)
+          LC_ abt a -> PRNG m -> Env m -> (S m a, Env m)
 sample (LC_ e) g env =
   caseVarSyn e (sampleVar g env) $ \t ->
     case t of
       o :$ es  -> sampleScon o es g env
-      Value_ v -> return (sampleValue v, one, env)
+      Value_ v -> (sampleValue v, env)
 
 sampleScon :: (ABT abt, PrimMonad m, Functor m) =>
               SCon args a -> SArgs abt args ->
-              PRNG m      -> Env ->
-              m (Sample a, LF.LogFloat, Env)
+              PRNG m      -> Env m ->
+              (S m a, Env m)
 
-sampleScon (CoerceTo_   c) (e1 :* End) g env = do
-    (v, weight, env) <- sample (LC_ e1) g env
-    return (sampleCoerce c v, weight, env)
+sampleScon (CoerceTo_   c) (e1 :* End) g env =
+    let (v, env) = sample (LC_ e1) g env
+    in  (sampleCoerce c v, env)
 
-sampleScon (UnsafeFrom_ c) (e1 :* End) g env = do
-    (v, weight, env) <- sample (LC_ e1) g env
-    return (sampleUnsafe c v, weight, env)
+sampleScon (UnsafeFrom_ c) (e1 :* End) g env =
+    let (v, env) = sample (LC_ e1) g env
+    in  (sampleUnsafe c v, env)
 
 sampleScon (MeasureOp_  m) es g env = sampleMeasureOp m es g env
 
-sampleScon MBind (e1 :* e2 :* End) g env = do
-    return undefined
+sampleScon MBind (e1 :* e2 :* End) g env = undefined
 
-sampleCoerce :: Coercion a b -> Sample a -> Sample b
-sampleCoerce CNil         a = a
-sampleCoerce (CCons c cs) a = sampleCoerce cs (samplePrimCoerce c a)
+sampleCoerce :: Coercion a b -> S m a -> S m b
+sampleCoerce CNil         (S a) = S a
+sampleCoerce (CCons c cs) (S a) = sampleCoerce cs (samplePrimCoerce c (S a))
 
-sampleUnsafe :: Coercion a b -> Sample b -> Sample a
-sampleUnsafe CNil         a = a
-sampleUnsafe (CCons c cs) a = samplePrimUnsafe c (sampleUnsafe cs a)
+sampleUnsafe :: Coercion a b -> S m b -> S m a
+sampleUnsafe CNil         (S a) = S a
+sampleUnsafe (CCons c cs) (S a) = samplePrimUnsafe c (sampleUnsafe cs (S a))
 
-samplePrimCoerce :: (PrimCoercion a b) -> Sample a -> Sample b
-samplePrimCoerce (Signed HRing_Int ) a = fromNat a
-samplePrimCoerce (Signed HRing_Real) a = LF.fromLogFloat a
-samplePrimCoerce (Continuous HContinuous_Prob) a = LF.logFloat (fromNat a)
-samplePrimCoerce (Continuous HContinuous_Real) a = fromIntegral a
+samplePrimCoerce :: (PrimCoercion a b) -> S m a -> S m b
+samplePrimCoerce (Signed HRing_Int ) (S a) = S $ fromNat a
+samplePrimCoerce (Signed HRing_Real) (S a) = S $ LF.fromLogFloat a
+samplePrimCoerce (Continuous HContinuous_Prob) (S a) = S $ LF.logFloat (fromNat a)
+samplePrimCoerce (Continuous HContinuous_Real) (S a) = S $ fromIntegral a
 
-samplePrimUnsafe :: (PrimCoercion a b) -> Sample b -> Sample a
-samplePrimUnsafe (Signed HRing_Int ) a = unsafeNat a
-samplePrimUnsafe (Signed HRing_Real) a = LF.logFloat a
-samplePrimUnsafe (Continuous HContinuous_Prob) a =
-    unsafeNat (floor (LF.fromLogFloat a :: Double))
-samplePrimUnsafe (Continuous HContinuous_Real) a = floor a
+samplePrimUnsafe :: (PrimCoercion a b) -> S m b -> S m a
+samplePrimUnsafe (Signed HRing_Int ) (S a) = S $ unsafeNat a
+samplePrimUnsafe (Signed HRing_Real) (S a) = S $ LF.logFloat a
+samplePrimUnsafe (Continuous HContinuous_Prob) (S a) =
+    S $ unsafeNat $ floor (LF.fromLogFloat a :: Double)
+samplePrimUnsafe (Continuous HContinuous_Real) (S a) = S $ floor a
 
 sampleMeasureOp :: (ABT abt, PrimMonad m, Functor m,
                     typs ~ UnLCs args, args ~ LCs typs) =>
                    MeasureOp typs a -> SArgs abt args ->
-                   PRNG m -> Env ->
-                   m (Sample a, LF.LogFloat, Env)
+                   PRNG m -> Env m -> (S m a, Env m)
 
-sampleMeasureOp (Dirac _)   (e1 :* End)  g env =
-  sample (LC_ e1) g env
-  
-sampleMeasureOp Lebesgue    End          g env = do
-  (u,b) <- MWC.uniform g
-  let l = log u
-  let n = -l
-  return (if b then n else l, 2 * LF.logToLogFloat n, env)
+sampleMeasureOp (Dirac _)   (e1 :* End) g env =
+  let (S a, env') = sample (LC_ e1) g env
+  in  (S (\p _ -> return $ Just (a, p)), env')
 
-sampleMeasureOp Counting    End          g env = do
-  let success = LF.logToLogFloat (-3 :: Double)
-  let pow x y = LF.logToLogFloat (LF.logFromLogFloat x *
-                                  (fromIntegral y :: Double))
-  u <- MWCD.geometric0 (LF.fromLogFloat success) g
-  b <- MWC.uniform g
-  return (if b then -1-u else u, 2 / pow (1-success) u / success, env)
+sampleMeasureOp Lebesgue    End         g env =
+  (S (\p g -> do
+        (u,b) <- MWC.uniform g
+        let l = log u
+        let n = -l
+        return $ Just (if b then n
+                       else l, 2 * LF.logToLogFloat n)), env)
 
-sampleMeasureOp Categorical (e1 :* End)  g env = do
-  (v, weight, env) <- sample (LC_ e1) g env
-  let (_,y,ys) = normalizeVector v
-  if not (y > (0::Double)) then
-      error "Categorical needs positive weights"
-  else do
-   u <- MWC.uniformR (0, y) g
-   return ( unsafeNat $ fromMaybe 0 (V.findIndex (u <=)
-                                     (V.scanl1' (+) ys))
-          , weight
-          , env
-          )
+sampleMeasureOp Counting    End          g env =
+  (S (\p g -> do
+        let success = LF.logToLogFloat (-3 :: Double)
+        let pow x y = LF.logToLogFloat (LF.logFromLogFloat x *
+                                        (fromIntegral y :: Double))
+        u <- MWCD.geometric0 (LF.fromLogFloat success) g
+        b <- MWC.uniform g
+        return $ Just (if b then -1-u
+                       else u, 2 / pow (1-success) u / success)), env)
 
-sampleMeasureOp Uniform (e1 :* e2 :* End) g env = do
-  (v1, w1, env) <- sample (LC_ e1) g env
-  (v2, w2, env) <- sample (LC_ e2) g env
-  x <- MWC.uniformR (v1, v2) g
-  return (x, w1*w2, env)
+sampleMeasureOp Categorical (e1 :* End)  g env =
+  (S (\p g -> do
+        let (S v, _) = sample (LC_ e1) g env
+        let (_,y,ys) = normalizeVector v
+        if not (y > (0::Double)) then
+            error "Categorical needs positive weights"
+        else do
+          u <- MWC.uniformR (0, y) g
+          return $ Just (unsafeNat $ fromMaybe 0 (V.findIndex (u <=)
+                                                  (V.scanl1' (+) ys))
+                        , p))
+  , env
+  )
 
-sampleMeasureOp Normal  (e1 :* e2 :* End) g env = do
-  (v1, w1, env) <- sample (LC_ e1) g env
-  (v2, w2, env) <- sample (LC_ e2) g env
-  x <- MWCD.normal v1 (LF.fromLogFloat v2) g
-  return (x, w1*w2, env)
+sampleMeasureOp Uniform (e1 :* e2 :* End) g env =
+  let (S v1, _) = sample (LC_ e1) g env
+      (S v2, _) = sample (LC_ e2) g env
+  in  (S (\ p g -> do
+            x <- MWC.uniformR (v1, v2) g
+            return $ Just (x, p)), env)
 
-sampleMeasureOp Poisson (e1 :* End)       g env = do
-  (v1, w1, env) <- sample (LC_ e1) g env
-  x <- poisson_rng (LF.fromLogFloat v1) g
-  return (unsafeNat x, w1, env)
+sampleMeasureOp Normal  (e1 :* e2 :* End) g env =
+  let (S v1, _) = sample (LC_ e1) g env
+      (S v2, _) = sample (LC_ e2) g env
+  in  (S (\ p g -> do
+            x <- MWCD.normal v1 (LF.fromLogFloat v2) g
+            return $ (Just (x, p))), env)
 
-sampleMeasureOp Gamma   (e1 :* e2 :* End) g env = do
-  (v1, w1, env) <- sample (LC_ e1) g env
-  (v2, w2, env) <- sample (LC_ e2) g env
-  x <- MWCD.gamma (LF.fromLogFloat v1) (LF.fromLogFloat v2) g
-  return (LF.logFloat x, w1*w2, env)
+sampleMeasureOp Poisson (e1 :* End)       g env =
+  let (S v1, _) = sample (LC_ e1) g env
+  in  (S (\ p g -> do
+            x <- poisson_rng (LF.fromLogFloat v1) g
+            return $ Just (unsafeNat x, p)), env)
 
-sampleMeasureOp Beta    (e1 :* e2 :* End) g env = do
-  (v1, w1, env) <- sample (LC_ e1) g env
-  (v2, w2, env) <- sample (LC_ e2) g env
-  x <- MWCD.beta (LF.fromLogFloat v1) (LF.fromLogFloat v2) g
-  return (LF.logFloat x, w1*w2, env)
+sampleMeasureOp Gamma   (e1 :* e2 :* End) g env =
+  let (S v1, _) = sample (LC_ e1) g env
+      (S v2, _) = sample (LC_ e2) g env
+  in  (S (\ p g -> do
+            x <- MWCD.gamma (LF.fromLogFloat v1) (LF.fromLogFloat v2) g
+            return $ Just (LF.logFloat x, p)), env)
+
+sampleMeasureOp Beta    (e1 :* e2 :* End) g env =
+  let (S v1, _) = sample (LC_ e1) g env
+      (S v2, _) = sample (LC_ e2) g env
+  in  (S (\ p g -> do
+            x <- MWCD.beta (LF.fromLogFloat v1) (LF.fromLogFloat v2) g
+            return $ Just (LF.logFloat x, p)), env)
 
 sampleMeasureOp (DirichletProcess _)  _ g env =
     error "sampleMeasureOp: Dirichlet Processes not implemented yet"
 
-sampleMeasureOp (Plate _)   (e1 :* End) g env = sample (LC_ e1) g env
+sampleMeasureOp (Plate _)   (e1 :* End) g env =
+    error "sampleMeasureOP: Plate not implemented yet"
 
 -- Not sure if correct
-sampleMeasureOp (Chain _ _) (e1 :* e2 :* End) g env = do
-  (v, ps, env) <- sample (LC_ e1) g env
-  (s, p,  env) <- sample (LC_ e2) g env
-  let samples  = chain s (V.toList v)
-  return ((V.fromList samples, s), p * ps, env)
- where chain s     [] = []
-       chain s (f:fs) = let (a, s') = f s in
-                        a : (chain s' fs)
+sampleMeasureOp (Chain _ _) (e1 :* e2 :* End) g env =
+    error "sampleMeasureOP: Chain not implemented yet"
 
 sampleMeasureOp _ _ _ _ =
     error "sampleMeasureOP: the impossible happened"
 
-sampleValue :: Value a -> Sample a
-sampleValue (VNat  n)  = n
-sampleValue (VInt  n)  = n
-sampleValue (VProb n)  = n
-sampleValue (VReal n)  = n
+sampleValue :: Value a -> S m a
+sampleValue (VNat  n)  = S n
+sampleValue (VInt  n)  = S n
+sampleValue (VProb n)  = S n
+sampleValue (VReal n)  = S n
 sampleValue (VDatum _) = error "Don't know how to sample Datum"
 
 sampleVar :: (PrimMonad m, Functor m) =>
-             PRNG m -> Env -> Variable a -> 
-             m (Sample a, LF.LogFloat, Env)
+             PRNG m -> Env m -> Variable a -> 
+             (S m a, Env m)
 sampleVar g env v = do
   case lookupVar v env of
     Nothing -> error "variable not found!"
-    Just a  -> return (a, one, env)
+    Just a  -> (S a, env)
 
 runSample :: (ABT abt, Functor m, PrimMonad m) =>
-             abt '[] a -> PRNG m -> m (Sample a, LF.LogFloat)
-runSample prog g = do
-  (v, weight, _) <- sample (LC_ prog) g emptyEnv
-  return (v, weight)
+             abt '[] a -> PRNG m -> S m a
+runSample prog g =
+  fst $ sample (LC_ prog) g emptyEnv
 
