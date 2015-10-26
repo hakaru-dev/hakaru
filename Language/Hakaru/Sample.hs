@@ -32,6 +32,7 @@ import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.DataKind
+import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
 
@@ -157,8 +158,10 @@ sample :: (ABT abt, PrimMonad m, Functor m) =>
 sample (LC_ e) env =
   caseVarSyn e (sampleVar env) $ \t ->
     case t of
-      o :$ es  -> sampleScon o es env
-      Value_ v -> sampleValue v
+      o :$ es     -> sampleScon o es env
+      Value_ v    -> sampleValue v
+      Datum_ d    -> sampleDatum d
+      Case_  o bs -> error "in Case_"
 
 sampleScon :: (ABT abt, PrimMonad m, Functor m) =>
               SCon args a -> SArgs abt args ->
@@ -311,6 +314,9 @@ sampleValue (VInt  n)  = S n
 sampleValue (VProb n)  = S n
 sampleValue (VReal n)  = S n
 sampleValue (VDatum _) = error "Don't know how to sample Datum"
+
+sampleDatum :: Datum ast a -> S m a
+sampleDatum = error "in Datum_"
 
 sampleVar :: (PrimMonad m, Functor m) =>
              Env m -> Variable a -> S m a
