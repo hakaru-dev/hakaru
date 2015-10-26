@@ -343,6 +343,7 @@ data PrimOp :: [Hakaru] -> Hakaru -> * where
 
 
     -- -- HRadical operators
+    -- TODO: flip argument order to match our prelude's @thRootOf@?
     NatRoot :: !(HRadical a) -> PrimOp '[ a, 'HNat ] a
     -- generates macros: Sqrt, NonNegativeRationalPow, and RationalPow
 
@@ -490,6 +491,8 @@ deriving instance Show (SCon args a)
 -- TODO: is there any good way to reuse 'List1' instead of defining 'SArgs' (aka @List2@)?
 
 -- TODO: come up with a better name for 'End'
+-- TODO: unify this with 'List1'? However, strictness differences...
+--
 -- | The arguments to a '(:$)' node in the 'AST'; that is, a list
 -- of ASTs, where the whole list is indexed by a (type-level) list
 -- of the indices of each element.

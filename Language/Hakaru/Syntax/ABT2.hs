@@ -14,7 +14,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.24
+--                                                    2015.10.25
 -- |
 -- Module      :  Language.Hakaru.Syntax.ABT
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -50,6 +50,7 @@ module Language.Hakaru.Syntax.ABT
     , unviewABT
     , ABT(..)
     , caseVarSyn
+    , binds
     -- ** Capture avoiding substitution for any 'ABT'
     , subst
     -- ** Constructing first-order trees with a HOAS-like API
@@ -240,6 +241,12 @@ caseVarSyn e var_ syn_ =
     case viewABT e of
     Syn t -> syn_ t
     Var x -> var_ x
+
+
+-- | Call 'bind' repeatedly.
+binds :: (ABT syn abt) => List1 Variable xs -> abt ys b -> abt (xs ++ ys) b
+binds Nil1         e = e
+binds (Cons1 x xs) e = bind x (binds xs e)
 
 
 ----------------------------------------------------------------

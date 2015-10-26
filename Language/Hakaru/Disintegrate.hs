@@ -452,17 +452,6 @@ tryMatch e bs k =
     toStatement (Assoc x e) = SLet x (thunk e)
 
 {-
--- TODO: move to ABT.hs and come up with a good name for it.
--- | The inverse of 'binder'; aka \"instantiation\".
-($$)
-    :: (ABT abt)
-    => abt (a ': xs) b
-    -> abt '[] a
-    -> abt xs  b
-f $$ e =
-    caseBind f $ \x f' ->
-        subst x e f'
-    
 evaluate :: abt '[] a -> M abt (Whnf (abt '[]) a)
 evaluate e =
     caseVarSyn e update $ \t ->
@@ -483,8 +472,11 @@ evaluate e =
         App_ :$ e1 :* e2 :* End -> do
             v1 <- evaluate e1
             case v1 of
-                WhnfLam f -> evaluate (f $$ e2)
-                _         -> return . neutral $ P.app (fromWhnf v1) e2
+                WhnfLam f ->
+                    caseBind f $ \x f' -> do
+                        push (SLet x (thunk e2))
+                        evaluate f'
+                _ -> return . neutral $ P.app (fromWhnf v1) e2
         
         Let_ :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' -> do
@@ -502,7 +494,8 @@ evaluate e =
         -- TODO: avoid the chance of looping in case 'E.expect' residualizes.
         -- TODO: use 'evaluate' in 'E.expect' in order to partially-NBE @e1@
         Expect :$ e1 :* e2 :* End ->
-            evaluate $ E.expect e1 (e2 $$)
+            caseBind e2 $ \x e2' ->
+                evaluate $ E.expect e1 (\e3 -> subst x e3 e2')
         
         Lub_ es -> WhnfLub <$> T.for es evaluate
         
