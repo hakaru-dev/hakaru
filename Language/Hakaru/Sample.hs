@@ -14,9 +14,9 @@ import Numeric.SpecFunctions                     (logGamma, logBeta, logFactoria
 import qualified Data.Number.LogFloat            as LF
 --import qualified Numeric.Integration.TanhSinh    as TS
 import qualified System.Random.MWC               as MWC
---import qualified System.Random.MWC.Distributions as MWCD
---import qualified Data.Vector                     as V
---import Data.Maybe                                (fromMaybe)
+import qualified System.Random.MWC.Distributions as MWCD
+import qualified Data.Vector                     as V
+import Data.Maybe                                (fromMaybe)
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative   (Applicative(..), (<$>))
 #endif
@@ -40,7 +40,10 @@ type family   Sample (a :: Hakaru) :: *
 type instance Sample 'HNat          = Nat
 type instance Sample 'HInt          = Int 
 type instance Sample 'HReal         = Double 
-type instance Sample 'HProb         = LF.LogFloat 
+type instance Sample 'HProb         = LF.LogFloat
+
+type instance Sample ('HMeasure a)  = Sample a
+type instance Sample ('HArray a)    = V.Vector (Sample a)
 
 ---------------------------------------------------------------
 newtype SamplerMonad abt a =
@@ -114,6 +117,18 @@ poisson_rng lambda g' = make_poisson g'
         <=
         -lambda + fromIntegral k * lnlam - logFactorial k
 
+normalizeVector :: V.Vector LF.LogFloat ->
+                   (LF.LogFloat, Double, V.Vector Double)
+normalizeVector xs = case V.length xs of
+  0 -> (0, 0, V.empty)
+  1 -> (V.unsafeHead xs, 1, V.singleton 1)
+  _ -> let m  = V.maximum xs
+           ys = V.map (\x -> LF.fromLogFloat (x/m)) xs
+           y  = V.sum ys
+       in (m, y, ys)
+
+---------------------------------------------------------------
+
 sample :: (ABT abt, PrimMonad m) =>
           LC_ abt a -> PRNG m -> Assocs abt ->
           m (Sample a, LF.LogFloat, Assocs abt)
@@ -127,21 +142,24 @@ sampleScon :: (ABT abt, PrimMonad m) =>
               SCon args a -> SArgs abt args ->
               PRNG m      -> Assocs abt ->
               m (Sample a, LF.LogFloat, Assocs abt)
+
 sampleScon (CoerceTo_   c) (e1 :* End) g env = do
     (v, weight, env) <- sample (LC_ e1) g env
     return (sampleCoerce c v, weight, env)
+
 sampleScon (UnsafeFrom_ c) (e1 :* End) g env = do
     (v, weight, env) <- sample (LC_ e1) g env
     return (sampleUnsafe c v, weight, env)
 
+sampleScon (MeasureOp_  m) es g env = sampleMeasureOp m es g env
 
 sampleScon o es g env = undefined
 
-sampleCoerce :: (Coercion a b) -> Sample a -> Sample b
+sampleCoerce :: Coercion a b -> Sample a -> Sample b
 sampleCoerce CNil         a = a
 sampleCoerce (CCons c cs) a = sampleCoerce cs (samplePrimCoerce c a)
 
-sampleUnsafe :: (Coercion a b) -> Sample b -> Sample a
+sampleUnsafe :: Coercion a b -> Sample b -> Sample a
 sampleUnsafe CNil         a = a
 sampleUnsafe (CCons c cs) a = samplePrimUnsafe c (sampleUnsafe cs a)
 
@@ -157,6 +175,44 @@ samplePrimUnsafe (Signed HRing_Real) a = LF.logFloat a
 samplePrimUnsafe (Continuous HContinuous_Prob) a =
     unsafeNat (floor (LF.fromLogFloat a :: Double))
 samplePrimUnsafe (Continuous HContinuous_Real) a = floor a
+
+sampleMeasureOp :: (ABT abt, PrimMonad m, typs ~ UnLCs args, 
+                    args ~ LCs typs) =>
+                   MeasureOp typs a -> SArgs abt args ->
+                   PRNG m -> Assocs abt ->
+                   m (Sample a, LF.LogFloat, Assocs abt)
+
+sampleMeasureOp (Dirac _)   (e1 :* End)  g env =
+  sample (LC_ e1) g env
+  
+sampleMeasureOp Lebesgue    End          g env = do
+  (u,b) <- MWC.uniform g
+  let l = log u
+  let n = -l
+  return (if b then n else l, 2 * LF.logToLogFloat n, env)
+
+sampleMeasureOp Counting    End          g env = do
+  let success = LF.logToLogFloat (-3 :: Double)
+  let pow x y = LF.logToLogFloat (LF.logFromLogFloat x *
+                                  (fromIntegral y :: Double))
+  u <- MWCD.geometric0 (LF.fromLogFloat success) g
+  b <- MWC.uniform g
+  return (if b then -1-u else u, 2 / pow (1-success) u / success, env)
+
+sampleMeasureOp Categorical (e1 :* End)  g env = do
+  (v, weight, env) <- sample (LC_ e1) g env
+  let (_,y,ys) = normalizeVector v
+  if not (y > (0::Double)) then
+      error "Categorical needs positive weights"
+  else do
+   u <- MWC.uniformR (0, y) g
+   return ( unsafeNat $ fromMaybe 0 (V.findIndex (u <=)
+                                     (V.scanl1' (+) ys))
+          , weight
+          , env
+          )
+
+sampleMeasureOp m es g env = undefined
 
 sampleValue :: Value a -> Sample a
 sampleValue (VNat  n)  = n
