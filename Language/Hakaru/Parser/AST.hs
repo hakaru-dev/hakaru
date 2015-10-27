@@ -17,8 +17,8 @@ import Language.Hakaru.Syntax.AST    (PrimOp(..),
                                       NaryOp(..),
                                       Value(..),
                                       MeasureOp(..),
-                                      LCs(..),
-                                      UnLCs (..))
+                                      LCs(),
+                                      UnLCs ())
 import Language.Hakaru.Syntax.ABT (Variable(..))
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.IClasses
@@ -67,8 +67,8 @@ data Datum' a = DV a [a] deriving (Eq, Show)
 newtype Meta = Meta (SourcePos, SourcePos) deriving (Eq, Show)
 
 data DFun a t where
-     Konst :: Sing t1 -> AST a -> DFun a t
-     Ident :: Sing t  -> AST a -> DFun a t
+     Konst :: AST a -> DFun a t
+     Ident :: AST a -> DFun a t
 
 data DStruct a t where
      Et   :: DFun a t -> DStruct a t -> DStruct a t

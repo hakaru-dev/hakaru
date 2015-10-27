@@ -567,12 +567,12 @@ checkType = checkType_
         -> TypeCheckMonad (DatumFun x (abt '[]) (HData' t))
     checkDatumFun d typ typA = 
         case d of
-        U.Ident t e1 ->
+        U.Ident e1 ->
             case typ of
-            SIdent        -> do e1' <- checkType_ t e1
+            SIdent        -> do e1' <- checkType_ typA e1
                                 return $ Ident e1'
             _             -> failwith "expected term of `I' type"
-        U.Konst t e1 ->
+        U.Konst e1 ->
             case typ of
             SKonst typ1   -> do e1' <- checkType_ typ1 e1
                                 return $ Konst e1'
