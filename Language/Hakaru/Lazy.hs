@@ -10,6 +10,7 @@
            , MultiParamTypeClasses
            , TypeSynonymInstances
            , FlexibleInstances
+           , FunctionalDependencies
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs -fno-warn-unused-binds -fno-warn-unused-imports #-}
@@ -30,7 +31,7 @@ module Language.Hakaru.Lazy
     -- * Terms in particular known forms\/formats
       Head(..), fromHead
     , Whnf(..), fromWhnf
-    , Lazy(..), fromLazy
+    , Lazy(..), fromLazy, caseLazy
 
     -- * The monad for term-to-term translations
     -- TODO: how much of this do we actually need to export?
@@ -45,6 +46,7 @@ module Language.Hakaru.Lazy
     -- ** Helper functions
     ) where
 
+import Data.Proxy           (Proxy(..)) -- TODO: Is this in Prelude for modern GHC?
 import Data.Sequence        (Seq)
 import Data.Number.LogFloat (LogFloat)
 #if __GLASGOW_HASKELL__ < 710
@@ -52,7 +54,7 @@ import Control.Applicative  (Applicative(..))
 #endif
 
 import Language.Hakaru.Syntax.IClasses
-import Language.Hakaru.Syntax.Nat (Nat)
+import Language.Hakaru.Syntax.Nat (Nat, fromNat)
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.AST
@@ -137,6 +139,9 @@ fromLazy :: (ABT abt) => Lazy abt a -> abt '[] a
 fromLazy (Whnf_ e) = fromWhnf e
 fromLazy (Thunk e) = e
 
+caseLazy :: Lazy abt a -> (Whnf abt a -> r) -> (abt '[] a -> r) -> r
+caseLazy (Whnf_ e) k _ = k e
+caseLazy (Thunk e) _ k = k e
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -188,34 +193,26 @@ data Context abt = Context
 emptyContext :: Context abt
 emptyContext = Context 0 []
 
-{-
--- TODO: implement at the correct type, so it can be used by 'runM'
--- | Given a context and a final statement, print them out as a complete expression.
+-- Argument order is to avoid flipping in 'runM'
+-- TODO: generalize to non-measure types too!
 residualizeContext
     :: (ABT abt)
-    => Context abt
+    => Whnf abt ('HMeasure a)
+    -> Context abt
     -> abt '[] ('HMeasure a)
-    -> abt '[] ('HMeasure a)
-residualizeContext = (runResidualizer .) . go . statements
-    where
-    go [] e =
-        return e
-    go (SBind x body : ss) e = do
-        rest <- go ss e
-        return $ syn (MBind :$ fromLazy body :* bind x rest :* End)
-    go (SLet x body : ss) e = do
-        rest <- go ss e
-        return $ syn (Let_ :$ fromWhnf_L body :* bind x rest :* End)
-    go (SBranch xs pat body : ss) e = do
-        rest <- go ss e
-        return $ syn (Case_ (fromLazy body)
-            [ Branch pat   rest
-            , Branch PWild P.reject
-            ])
-    go (SWeight body : ss) e = do
-        rest <- go ss e
-        return (P.weight (fromLazy body) P.*> rest)
--}
+residualizeContext = \e h -> foldl step (fromWhnf e) (statements h)
+    where 
+    step e s = syn $
+        case s of
+        SBind x body -> MBind :$ fromLazy body :* bind x e :* End
+        SLet  x body -> Let_  :$ fromLazy body :* bind x e :* End
+        SBranch xs pat body ->
+            Case_ (fromLazy body)
+                [ Branch pat   (case eqAppendNil xs of Refl -> binds xs e)
+                , Branch PWild P.reject
+                ]
+        SWeight body -> Superpose_ [(fromLazy body, e)]
+
 
 ----------------------------------------------------------------
 -- TODO: is that actually Whnf like the paper says? or is it just any term?
@@ -224,9 +221,11 @@ type Ans abt a = Context abt -> Whnf abt a
 -- TODO: defunctionalize the continuation. In particular, the only heap modifications we need are 'push' and a variant of 'update' for finding\/replacing a binding once we have the value in hand.
 newtype M abt x = M { unM :: forall a. (x -> Ans abt a) -> Ans abt a }
 
-{- -- TODO: implement 'residualizeContext' at the correct type.
+{-
+-- TODO: implement 'residualizeContext' at the correct type.
+-- TODO: can we legit call the result of 'residualizeContext' a neutral term? Really we should change the definition of 'Ans', ne?
 runM :: M abt (Whnf abt a) -> Whnf abt a
-runM (M m) = m residualizeContext emptyContext
+runM (M m) = m ((Neutral .) residualizeContext) emptyContext
 -}
 
 instance Functor (M abt) where
@@ -390,6 +389,7 @@ evaluateNaryOp o es = foldBy (interp o) <$> T.traverse evaluate es
     
     -- TODO: group things like values to do them all at once, keeping the neutrals til the very end
     foldBy f vs = 
+-}
 
 
 -- BUG: need to improve the types so they can capture polymorphic data types
@@ -413,12 +413,23 @@ instance Interp 'HReal Double where -- TODO: use rational instead
     reify (WValue (VReal r)) = r
     reflect = WValue . VReal
 
+{-
+-- TODO: generalize matchBranches\/MatchResult to allow any sort of continuation...
+-- BUG: """Could not deduce (Eq1 (abt '[])) arising from a use of ‘==’"""
 instance Interp HUnit () where
-    reify   =
-    reflect () = P.unit
+    reflect () = WValue $ VDatum dUnit
+    reify w =
+        -- HACK!!!
+        let d = case w of
+                WValue (VDatum d) -> fmap11 P.value_ d
+                WDatum         d  -> d
+        in
+        if d == dUnit
+        then ()
+        else error "reify{HUnit}: the impossible happened"
 
 instance Interp HBool Bool where
-    -- TODO: generalize matchBranches\/MatchResult to allow any sort of continuation...
+    reflect = WValue . VDatum . (\b -> if b then dTrue else dFalse)
     reify w =
         -- HACK!!!
         let d = case w of
@@ -427,9 +438,7 @@ instance Interp HBool Bool where
         in
         if d == dTrue  then True  else
         if d == dFalse then False else
-        error "hsBool: the impossible happened"
-
-    reflect = WValue . VDatum . (\b -> if b then dTrue else dFalse)
+        error "reify{HBool}: the impossible happened"
 
 instance (Interp a a', Interp b b')
     => Interp (HPair a b) (a',b')
@@ -453,9 +462,10 @@ instance (Interp a a') => Interp (HList a) [a'] where
     reify =
     reflect []     = P.nil
     reflect (x:xs) = P.cons x xs
+-}
 
 
-rr1 :: (Interp a a', Interp b b')
+rr1 :: (ABT abt, Interp a a', Interp b b')
     => (a' -> b')
     -> (abt '[] a -> abt '[] b)
     -> abt '[] a
@@ -468,9 +478,9 @@ rr1 f' f e = do
         Neutral e' -> Neutral $ f e'
 
 
-rr2 :: (Interp a a', Interp b b', Interp c c')
+rr2 :: (ABT abt, Interp a a', Interp b b', Interp c c')
     => (a' -> b' -> c')
-    => (abt '[] a -> abt '[] b -> abt '[] c)
+    -> (abt '[] a -> abt '[] b -> abt '[] c)
     -> abt '[] a
     -> abt '[] b
     -> M abt (Whnf abt c)
@@ -483,15 +493,14 @@ rr2 f' f e1 e2 = do
         _                    -> Neutral $ f (fromWhnf w1) (fromWhnf w2)
 
 
-natRoot :: (Floating a) => a -> Nat -> a
-natRoot x y = x ** recip (fromIntegral (fromNat y))
--}
-
 impl, diff, nand, nor :: Bool -> Bool -> Bool
 impl x y = not x || y
 diff x y = x && not y
 nand x y = not (x && y)
 nor  x y = not (x || y)
+
+natRoot :: (Floating a) => a -> Nat -> a
+natRoot x y = x ** recip (fromIntegral (fromNat y))
 
 -- Essentially, these should all do @f <$> evaluate e1 <*> evaluate e2...@ where @f@ is the interpretation of the 'PrimOp', which residualizes as necessary if it gets stuck.
 evaluatePrimOp
@@ -546,7 +555,7 @@ evaluatePrimOp _ _ = error "evaluatePrimOp: the impossible happened"
 -}
 
 ----------------------------------------------------------------
--- TODO: figure out how to abstract this so it can be reused by 'constrainValue'
+-- TODO: figure out how to abstract this so it can be reused by 'constrainValue'. Especially the 'SBranch case of 'step'
 update :: Variable a -> M abt (Whnf abt a)
 update = error "TODO: update"
 {-
@@ -563,34 +572,35 @@ update x = loop []
                 Nothing -> loop (s:ss)
                 Just mv -> do
                     v <- mv             -- evaluate the body of @s@
-                    push   (SLet x v)   -- push the updated binding
+                    push   (SLet x (Whnf_ v)) -- push the updated binding
                     pushes (reverse ss) -- put the rest of the context back
                     return v            -- TODO: return (NamedWhnf x v)
 
-    step (SBind  y e) | x == y = Just $ perform  e
-    step (SLet   y e) | x == y = Just $ evaluate e
-    step (SBranch ys pat e) | x `elem` ys = Just $ do
-        -- TODO: figure out how to abstract this out so it can be reused by 'constrainValue'
-        v <- evaluate e
-        case v of
-            Neutral e -> M $ \c h -> 
-                Neutral . syn $ Case_ e
-                    [ Branch pat   (binds ys (c x h))
-                    , Branch PWild P.reject
-                    ]
-            Head_ e ->
-                case 
-                    matchBranches (fromHead e)
-                        [ Branch pat   (binds ys P.true)
-                        , Branch PWild P.false
+    -- BUG: existential escapes; need to cps
+    step (SBind   y      e0) | x == y = Just $ caseLazy e0 return perform
+    step (SLet    y      e0) | x == y = Just $ caseLazy e0 return evaluate
+    step (SBranch ys pat e0) | x `elem` ys =
+        Just $ caseLazy e0 return $ \e -> do
+            v <- evaluate e
+            case v of
+                Neutral e' -> M $ \c h ->
+                    Neutral . syn $ Case_ e'
+                        [ Branch pat   (binds ys (c x h))
+                        , Branch PWild P.reject
                         ]
-                of
-                Nothing -> ... -- TODO: emit an error?
-                Just GotStuck -> ... -- TODO: repeat the neutral case
-                Just (Matched ss b) ->
-                    if reify b
-                    then pushes ss >> update x
-                    else P.reject
+                Head_ e' ->
+                    case
+                        matchBranches (fromHead e')
+                            [ Branch pat   (binds ys P.true)
+                            , Branch PWild P.false
+                            ]
+                    of
+                    Nothing -> error "TODO: update: match failed"
+                    Just GotStuck -> error "TODO: update: got stuck"
+                    Just (Matched ss b) ->
+                        if reify b
+                        then pushes ss >> update x
+                        else P.reject
     step _ = Nothing
 -}
 
