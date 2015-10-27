@@ -29,6 +29,7 @@ import Prelude (($), (.), return,
 import qualified System.Random.MWC     as MWC
 import qualified Data.Number.LogFloat  as LF()
 import qualified Data.Vector           as V()
+import Text.PrettyPrint (Doc)
 
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Sing (SingI)
@@ -37,12 +38,14 @@ import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Prelude
 import Language.Hakaru.Disintegrate
+
 import Language.Hakaru.Sample hiding (runSample)
+import Language.Hakaru.PrettyPrint
+import Language.Hakaru.Expect
 
 {-
 import Language.Hakaru.Syntax
 import Language.Hakaru.Lazy (Backward, runDisintegrate, density)
-import Language.Hakaru.Expect (Expect')
 import Language.Hakaru.Simplify (simplify)
 import Language.Hakaru.Any (Any)
 -}
@@ -61,9 +64,16 @@ easierRoadmapProg1 =
     normal x2 noiseE >>= \m2 ->
     dirac $ pair (pair m1 m2) (pair noiseT noiseE)
 
-easierRoadmapProg1' :: TrivialABT '[]
-                       ('HMeasure (HPair (HPair 'HReal 'HReal) (HPair 'HProb 'HProb)))
-easierRoadmapProg1' = easierRoadmapProg1
+easierRoadmapProg1', easierRoadmapProg1'' ::
+    TrivialABT '[]
+                ('HMeasure (HPair (HPair 'HReal 'HReal)
+                                  (HPair 'HProb 'HProb)))
+
+easierRoadmapProg1'  = easierRoadmapProg1
+easierRoadmapProg1'' = normalize easierRoadmapProg1'
+
+prettyEasierRoadmap1'' :: Doc
+prettyEasierRoadmap1'' = pretty easierRoadmapProg1''
 
 easierRoadmapProg2
     :: (ABT abt)

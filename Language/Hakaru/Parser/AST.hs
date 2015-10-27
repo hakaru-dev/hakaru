@@ -160,7 +160,7 @@ data NaryOp' =
    | Sum' 
    | Prod'
 
-data MeasureOp_ =
+data MeasureOp' =
      Lebesgue'
    | Counting'
    | Categorical'
