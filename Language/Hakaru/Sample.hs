@@ -58,10 +58,13 @@ type instance Sample m HBool          = Bool
 type instance Sample m ('HMeasure a)  =
     LF.LogFloat -> PRNG m ->
     m (Maybe (Sample m a, LF.LogFloat))
+
 type instance Sample m (a ':-> b)     = Sample m a -> Sample m b
 type instance Sample m ('HArray a)    = V.Vector (Sample m a)
 --type instance Sample m (HData' (HakaruCon a)) = SCode (Sample m a)
 
+type instance Sample m ('HData t ('[ 'K b1, 'K b2] ': xss)) =
+    (Sample m b1, Sample m b2)
 ----------------------------------------------------------------
 
 data SCode a where
@@ -334,11 +337,16 @@ sampleValue (VReal n)  = S n
 sampleValue (VDatum _) = error "Don't know how to sample Datum"
 
 -- HACK only will work for HPair
--- sampleDatum :: Datum ast a -> Env m -> S m a
--- sampleDatum (Datum _ (Inl (Et (Konst a)
---                            (Et (Konst b) Done)))) env =
---              S ( sample (LC_ (syn a)) env
---                , sample (LC_ (syn b)) env)
+sampleDatum :: (ABT abt, PrimMonad m, Functor m) =>
+                Datum (abt '[]) (HData' a) ->
+                Env m -> S m (HData' a)
+
+sampleDatum (Datum _ (Inl (Et (Konst a)
+                           (Et (Konst b) Done)))) env =
+             let S a1 = sample (LC_ a) env
+                 S a2 = sample (LC_ b) env
+             in  S (a1, a2)
+
 sampleDatum (Datum _ _) _ = error "TODO: Handle this case in Datum"
 
 sampleVar :: (PrimMonad m, Functor m) =>
