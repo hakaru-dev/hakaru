@@ -89,21 +89,6 @@ data Value' =
    | Datum''
  deriving (Eq)
 
-data Symbol' =
-     Fix
-   | True' | False'
-   | CoerceTo
-   | UnsafeFrom 
-   | PrimOp
-   | NaryOp
-   | Array
-   | Empty'
-   | MeasureOp'
-   | MBind
-   | Plus
-
-type SymbolTable = [(Text, Symbol')]
-
 data TypeAST' a =
      TypeVar a
    | TypeApp (TypeAST' a) (TypeAST' a)
@@ -122,56 +107,6 @@ data AST' a =
    | Bind  Name' (AST' a) (AST' a)
    | Data  Name' [TypeAST' a]
    | WithMeta (AST' a) Meta
-
-data PrimOp' =
-     Not'        
-   | Impl'       
-   | Diff'       
-   | Nand'  | Nor'        
-   | Pi'        
-   | Sin'   | Cos'   | Tan'        
-   | Asin'  | Acos'  | Atan'       
-   | Sinh'  | Cosh'  | Tanh'       
-   | Asinh' | Acosh' | Atanh'      
-   | RealPow'    
-   | Exp'   | Log'        
-   | Infinity'  | NegativeInfinity'
-   | GammaFunc' | BetaFunc' 
-   | Integrate' | Summate'  
-   | Index'    
-   | Size'     
-   | Reduce'   
-   | Equal'     | Less'     
-   | NatPow'   
-   | Negate'   
-   | Abs'      
-   | Signum'   
-   | Recip'    
-   | NatRoot'  
-   | Erf'      
-
-data NaryOp' =
-     And'
-   | Or'
-   | Xor'
-   | Iff'
-   | Min' 
-   | Max' 
-   | Sum' 
-   | Prod'
-
-data MeasureOp' =
-     Lebesgue'
-   | Counting'
-   | Categorical'
-   | Uniform'    
-   | Normal'     
-   | Poisson'    
-   | Gamma'      
-   | Beta'       
-   | DP'         
-   | Plate'      
-   | Chain'      
 
 data Branch a = Branch (Pattern a) (AST a)
 data Pattern a =
