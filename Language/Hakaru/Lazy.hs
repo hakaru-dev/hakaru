@@ -39,6 +39,7 @@ module Language.Hakaru.Lazy
     , Context(..), emptyContext
     , Ans
     , M(..), push, pushes, pop
+    , M'(..), push', pushes', pop'
 
     -- * Lazy partial evaluation
     , evaluate
@@ -200,6 +201,7 @@ data Context abt = Context
     }
 -- TODO: to the extent that we can ignore order of statements, we could use an @IntMap (Statement abt)@ in order to speed up the lookup times in 'update'. We just need to figure out (a) what to do with 'SWeight' statements, (b) how to handle 'SBranch' so that we can just make one map modification despite possibly binding multiple variables, and (c) figure out how to recover the order (to the extent that we must).
 
+-- BUG: this probably isn't really the context we should start with in @runM@\/@runM'@. We should start off with @freshNat = 1 + max (maxBind e) (maxFree e)@ where @e@ the term we're translating...
 emptyContext :: Context abt
 emptyContext = Context 0 []
 
@@ -231,6 +233,7 @@ residualizeContext = \e h -> foldl step (fromWhnf e) (statements h)
 type Ans abt a = Context abt -> Whnf abt a
 
 -- TODO: defunctionalize the continuation. In particular, the only heap modifications we need are 'push' and a variant of 'update' for finding\/replacing a binding once we have the value in hand.
+-- TODO: give this a better, more informative name!
 newtype M abt x = M { unM :: forall a. (x -> Ans abt a) -> Ans abt a }
 
 {-
@@ -290,12 +293,13 @@ evaluate e0 =
         App_ :$ e1 :* e2 :* End -> do
             v1 <- evaluate e1
             case v1 of
+                Neutral e1'    -> return . Neutral $ P.app e1' e2
                 Head_ (WLam f) ->
                     caseBind f $ \x f' -> do
                         push (SLet x (Thunk e2))
                         -- BUG: need to freshen @x@ and rename @x@ to @x'@ in @f'@
                         evaluate f'
-                Neutral e1' -> return . Neutral $ P.app e1' e2
+                Head_ w -> case w of {} -- HACK: impossible
 
         Let_ :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' -> do
@@ -325,6 +329,7 @@ evaluate e0 =
         Expect :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
                 evaluate $ E.expect e1 (\e3 -> subst x e3 e2')
+        Expect :$ es -> case es of {} -- HACK: impossible
 
         Lub_ es -> error "TODO: evaluate{Lub_}" -- (Head_ . HLub) <$> T.for es evaluate
 
@@ -335,22 +340,79 @@ evaluate e0 =
             v <- evaluate e
             tryMatch (fromWhnf v) bs evaluate
 
+        -- HACK: these cases are impossible, and ghc can confirm that (via no warnings about the empty case analysis being incomplete), but ghc can't infer it for some reason
+        Lam_ :$ es -> case es of {}
+        App_ :$ es -> case es of {}
+        Let_ :$ es -> case es of {}
+        Fix_ :$ es -> case es of {}
+        Ann_ _ :$ es -> case es of {}
+        CoerceTo_ _ :$ es -> case es of {}
+        UnsafeFrom_ _ :$ es -> case es of {}
+
+
+----------------------------------------------------------------
+----------------------------------------------------------------
+-- HACK: how can we cleanly unify this with the implementation of 'M'?
+newtype M' abt x =
+    M' { unM' :: forall a. (x -> Ans abt ('HMeasure a)) -> Ans abt ('HMeasure a) }
+
+m2mprime :: M abt x -> M' abt x
+m2mprime (M m) = M' m
+
+-- TODO: mprime2m
+
+
+-- TODO: can we legit call the result of 'residualizeContext' a neutral term? Really we should change the definition of 'Ans', ne?
+-- BUG: shouldn't start with the 'emptyContext' per se; should bump up the 'freeNat' before we begin... (see the note at 'emptyContext')
+runM' :: (ABT abt)
+    => M' abt (Whnf abt ('HMeasure a))
+    -> Whnf abt ('HMeasure a)
+runM' m = unM' m (\x -> Neutral . residualizeContext x) emptyContext
+-- HACK: can't use @(Neutral .) . residualizeContext@; won't typecheck
+
+
+instance Functor (M' abt) where
+    fmap f (M' m)  = M' $ \c -> m (c . f)
+
+instance Applicative (M' abt) where
+    pure x          = M' $ \c -> c x
+    M' mf <*> M' mx = M' $ \c -> mf $ \f -> mx $ \x -> c (f x)
+
+instance Monad (M' abt) where
+    return     = pure
+    M' m >>= k = M' $ \c -> m $ \x -> unM' (k x) c
+
+-- BUG: we need to make sure to freshen the bound variables when we push the statement. This means returning a substitution to rename all the variables in whatever the remainder of the term is!
+push' :: Statement abt -> M' abt ()
+push' s = M' $ \c h -> c () h{statements = s : statements h}
+
+pushes' :: [Statement abt] -> M' abt ()
+pushes' ss = M' $ \c h -> c () h{statements = ss ++ statements h}
+-- pushes' = T.traverse_ push'
+
+-- | N.B., this can be unsafe. If a binding statement is returned, then the caller must be sure to push back on statements binding all the same variables!
+pop' :: M' abt (Maybe (Statement abt))
+pop' = M' $ \c h ->
+    case statements h of
+    []   -> c Nothing  h
+    s:ss -> c (Just s) h{statements = ss}
+
 
 -- N.B., that return type is correct, albeit strange. The idea is that the continuation takes in the variable of type @a@ bound by the expression of type @'HMeasure a@. However, this requires that the continuation of the 'Ans' type actually does @forall a. ...('HMeasure a)@ which is at odds with what 'evaluate' wants (or at least, what *I* think it should want.)
-perform :: (ABT abt) => abt '[] ('HMeasure a) -> M abt (Whnf abt a)
+-- BUG: eliminate the 'SingI' requirement (comes from using @(P.>>=)@)
+perform
+    :: (ABT abt, SingI a) => abt '[] ('HMeasure a) -> M' abt (Whnf abt a)
 perform e0 =
     caseVarSyn e0 (error "TODO: perform{Var}") $ \t ->
         case t of
         MeasureOp_ (Dirac _) :$ e1 :* End ->
-            evaluate e1
+            m2mprime $ evaluate e1
         MeasureOp_ _ :$ _ ->
-            -- BUG: is it actually legit to call that a neutral form?
-            -- BUG: doesn't typecheck with the current definition of 'Ans'
-            error "TODO: perform{MeasureOp_}"
-            -- M $ \c h -> Neutral (e0 P.>>= \z -> fromWhnf (c (Neutral z) h))
+            -- TODO: is it actually legit to call the result a neutral form?
+            M' $ \c h -> Neutral (e0 P.>>= \z -> fromWhnf (c (Neutral z) h))
         MBind :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' -> do
-                push (SBind x (Thunk e1))
+                push' (SBind x (Thunk e1))
                 -- BUG: need to freshen @x@ and rename @x@ to @x'@ in @e2'@
                 perform e2'
         Superpose_ es ->
@@ -360,7 +422,7 @@ perform e0 =
             -}
         _ -> error "TODO: perform: the rest of the cases" -- probably via some @isWhnf :: abt '[] a -> Maybe (Whnf abt a)@
 {-
-perform u | atomic u    = M $ \c h -> u P.>>= \z -> c z h
+perform u | atomic u    = M' $ \c h -> u P.>>= \z -> c z h
 perform e | not (hnf e) = evaluate e >>= perform
 -}
 
