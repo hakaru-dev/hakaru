@@ -23,6 +23,10 @@ data Symbol =
 
 type SymbolTable = [(Text, Symbol)]
 
+data TSym a where
+     TLam :: (U.AST a -> TSym (U.AST a)) -> TSym (U.AST a)
+     TNeu :: U.AST a -> TSym (U.AST a)
+
 primTable :: [(Text, Symbol)]
 primTable =  [("Pair",       Pair_)
              ,("True",       True_)
@@ -33,6 +37,10 @@ primTable =  [("Pair",       Pair_)
              ,("normal",     Normal_)
              ,("+",          Plus)
              ]
+
+pNormal = TLam (\x ->
+                TLam (\y ->
+                      TNeu $ U.MeasureOp_ (U.SealedOp T.Normal) [x,y]))
 
 updateSymbols :: U.Name' -> SymbolTable -> SymbolTable
 updateSymbols name sym = (name,
@@ -48,7 +56,7 @@ symbolResolution symbols ast =
                                                 U.Name (N.unsafeNat 0) name
                             Just a  -> U.Var a
       U.App f x        -> U.App (symbolResolution symbols f)
-                                (symbolResolution symbols f)
+                                (symbolResolution symbols x)
       U.Let name e1 e2 -> U.Let name (symbolResolution symbols e1)
                                      (symbolResolution
                                       (updateSymbols name symbols) e2)
@@ -58,7 +66,7 @@ symbolResolution symbols ast =
 makeAST :: U.AST' Symbol -> U.AST Symbol
 makeAST ast =
     case ast of
-      --U.Var Normal_ -> (\a b -> U.SealedOp sing T.Normal)
+      --U.Var Normal_ -> (\a b -> U.SealedOp T.Normal)
       _             -> error "TODO: Add rest of cases"
 
 data PrimOp' =
