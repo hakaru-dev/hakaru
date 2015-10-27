@@ -15,7 +15,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs -fno-warn-unused-binds -fno-warn-unused-imports #-}
 ----------------------------------------------------------------
---                                                    2015.10.26
+--                                                    2015.10.27
 -- |
 -- Module      :  Language.Hakaru.Lazy
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -113,10 +113,14 @@ fromHead (WMeasure e1)    = e1
 ----------------------------------------------------------------
 -- | Weak head-normal forms.
 data Whnf :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
-    -- | An actual head.
+    -- BUG: haddock doesn't like annotations on GADT constructors
+    -- <http://trac.haskell.org/haddock/ticket/43>
+    -- <https://github.com/haskell/haddock/issues/43>
+
+    -- An actual head.
     Head_ :: !(Head abt a) -> Whnf abt a
     
-    -- | A neutral term; i.e., a term whose reduction is blocked on some free variable.
+    -- A neutral term; i.e., a term whose reduction is blocked on some free variable.
     Neutral :: !(abt '[] a) -> Whnf abt a
 
 
@@ -129,10 +133,14 @@ fromWhnf (Neutral e) = e
 ----------------------------------------------------------------
 -- | Lazy terms are either thunks or already evaluated to WHNF.
 data Lazy :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
-    -- | An actual WHNF.
+    -- BUG: haddock doesn't like annotations on GADT constructors
+    -- <http://trac.haskell.org/haddock/ticket/43>
+    -- <https://github.com/haskell/haddock/issues/43>
+
+    -- An actual WHNF.
     Whnf_ :: !(Whnf abt a) -> Lazy abt a
 
-    -- | A thunk; i.e., any term we decide to maybe evaluate later.
+    -- A thunk; i.e., any term we decide to maybe evaluate later.
     Thunk :: !(abt '[] a) -> Lazy abt a
 
 

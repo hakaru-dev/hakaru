@@ -129,14 +129,17 @@ unImpureArray (ImpureArray p) = p
 -- normalization-by-evaluation in order to construct that linear
 -- functional with a minimum of administrative redexes.
 data Expect :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
+    -- BUG: haddock doesn't like annotations on GADT constructors
+    -- <http://trac.haskell.org/haddock/ticket/43>
+    -- <https://github.com/haskell/haddock/issues/43>
 
-    -- | The whole goal of this module is to provide the following
+    -- The whole goal of this module is to provide the following
     -- interpretation for measures.
     ExpectMeasure
         :: ((abt '[] a -> abt '[] 'HProb) -> abt '[] 'HProb)
         -> Expect abt ('HMeasure a)
 
-    -- | We interpret functions so we can (easily) interpret our
+    -- We interpret functions so we can (easily) interpret our
     -- parameterized measures. This interpretation allows us to
     -- evaluate 'App_' as needed; which is especially helpful for
     -- the case where it's a beta-redex with 'Lam_'.
@@ -148,7 +151,7 @@ data Expect :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         -> (abt '[] a -> Expect abt b)
         -> Expect abt (a ':-> b)
 
-    -- | We interpret arrays so that we can evaluate 'Index' and
+    -- We interpret arrays so that we can evaluate 'Index' and
     -- 'Reduce' as needed.
     --
     -- We keep track of the user-supplied variable name hint (if

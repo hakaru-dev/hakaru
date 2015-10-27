@@ -45,6 +45,10 @@ import qualified Text.PrettyPrint as PP
 ----------------------------------------------------------------
 
 data MatchResult :: ([Hakaru] -> Hakaru -> *) -> [Hakaru] -> Hakaru -> * where
+    -- BUG: haddock doesn't like annotations on GADT constructors
+    -- <http://trac.haskell.org/haddock/ticket/43>
+    -- <https://github.com/haskell/haddock/issues/43>
+
     -- TODO: actually store information inside GotStuck so we can
     -- force the appropriate expression and continue without needing
     -- to backtrack and redo what we've already done. (Of course,
@@ -52,12 +56,12 @@ data MatchResult :: ([Hakaru] -> Hakaru -> *) -> [Hakaru] -> Hakaru -> * where
     -- getting stuck in one branch doesn't tell us enough to avoid
     -- restarting.)
     --
-    -- | For when we encounter free variables and non-head-normal forms.
+    -- For when we encounter free variables and non-head-normal forms.
     GotStuck :: MatchResult abt vars a
 
     -- TODO: would it be helpful for anyone if we went back to using @DList1 (Pair1 Variable (abt '[])) vars1@ for the first argument?
     --
-    -- | We successfully matched everything (so far). The @vars2@
+    -- We successfully matched everything (so far). The @vars2@
     -- are for tracking variables bound by the future\/rest of the
     -- pattern (i.e., for recursing into the left part of a product,
     -- @vars2@ are the variables in the right part of the product).

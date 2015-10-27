@@ -121,9 +121,13 @@ infixr 7 `Et`, `PEt`
 -- datatypes. But as we go along, we'll be doing induction on the
 -- @[[HakaruFun]]@ functor.
 data DatumCode :: [[HakaruFun]] -> (Hakaru -> *) -> Hakaru -> * where
-    -- | Skip rightwards along the sum.
+    -- BUG: haddock doesn't like annotations on GADT constructors
+    -- <http://trac.haskell.org/haddock/ticket/43>
+    -- <https://github.com/haskell/haddock/issues/43>
+
+    -- Skip rightwards along the sum.
     Inr :: !(DatumCode  xss abt a) -> DatumCode (xs ': xss) abt a
-    -- | Inject into the sum.
+    -- Inject into the sum.
     Inl :: !(DatumStruct xs abt a) -> DatumCode (xs ': xss) abt a
 
 
@@ -159,12 +163,16 @@ instance Foldable11 (DatumCode xss) where
 
 ----------------------------------------------------------------
 data DatumStruct :: [HakaruFun] -> (Hakaru -> *) -> Hakaru -> * where
-    -- | Combine components of the product. (\"et\" means \"and\" in Latin)
+    -- BUG: haddock doesn't like annotations on GADT constructors
+    -- <http://trac.haskell.org/haddock/ticket/43>
+    -- <https://github.com/haskell/haddock/issues/43>
+
+    -- Combine components of the product. (\"et\" means \"and\" in Latin)
     Et  :: !(DatumFun    x         abt a)
         -> !(DatumStruct xs        abt a)
         ->   DatumStruct (x ': xs) abt a
 
-    -- | Close off the product.
+    -- Close off the product.
     Done :: DatumStruct '[] abt a
 
 instance Eq1 ast => Eq1 (DatumStruct xs ast) where
@@ -193,9 +201,13 @@ instance Foldable11 (DatumStruct xs) where
 ----------------------------------------------------------------
 -- TODO: do we like those constructor names? Should we change them?
 data DatumFun :: HakaruFun -> (Hakaru -> *) -> Hakaru -> * where
-    -- | Hit a leaf which isn't a recursive component of the datatype.
+    -- BUG: haddock doesn't like annotations on GADT constructors
+    -- <http://trac.haskell.org/haddock/ticket/43>
+    -- <https://github.com/haskell/haddock/issues/43>
+
+    -- Hit a leaf which isn't a recursive component of the datatype.
     Konst :: !(ast b) -> DatumFun ('K b) ast a
-    -- | Hit a leaf which is a recursive component of the datatype.
+    -- Hit a leaf which is a recursive component of the datatype.
     Ident :: !(ast a) -> DatumFun 'I     ast a
 
 instance Eq1 ast => Eq1 (DatumFun x ast) where
@@ -290,13 +302,17 @@ tdJust    = Text.pack "just"
 -- 'DatumStruct', and 'DatumFun' but rather must define our own @P@
 -- variants for pattern matching.
 data Pattern :: [Hakaru] -> Hakaru -> * where
-    -- | The \"don't care\" wildcard pattern.
+    -- BUG: haddock doesn't like annotations on GADT constructors
+    -- <http://trac.haskell.org/haddock/ticket/43>
+    -- <https://github.com/haskell/haddock/issues/43>
+
+    -- The \"don't care\" wildcard pattern.
     PWild :: Pattern '[]    a
 
-    -- | A pattern variable.
+    -- A pattern variable.
     PVar  :: Pattern '[ a ] a
 
-    -- | A data type constructor pattern. As with the 'Datum'
+    -- A data type constructor pattern. As with the 'Datum'
     -- constructor, the first component is a hint.
     PDatum
         :: {-# UNPACK #-} !Text

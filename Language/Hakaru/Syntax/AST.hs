@@ -411,7 +411,7 @@ infix  4 :$ -- Chosen to be at the same precedence as (<$>) rather than ($)
 infixr 5 :* -- Chosen to match (:)
 
 
--- | The constructor of a '(:$)' node in the 'AST'. Each of these
+-- | The constructor of a @(':$')@ node in the 'AST'. Each of these
 -- constructors denotes a \"normal\/standard\/basic\" syntactic
 -- form (i.e., a generalized quantifier). In the literature, these
 -- syntactic forms are sometimes called \"operators\", but we avoid
@@ -424,11 +424,14 @@ infixr 5 :* -- Chosen to match (:)
 -- so 'SCon' does not give a complete signature for our terms.
 --
 -- The main reason for breaking this type out and using it in
--- conjunction with '(:$)' and 'SArgs' is so that we can easily
+-- conjunction with @(':$')@ and 'SArgs' is so that we can easily
 -- pattern match on /fully saturated/ nodes. For example, we want
 -- to be able to match @MeasureOp_ Uniform :$ lo :* hi :* End@
 -- without needing to deal with 'App_' nodes nor 'viewABT'.
 data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
+    -- BUG: haddock doesn't like annotations on GADT constructors
+    -- <http://trac.haskell.org/haddock/ticket/43>
+    -- <https://github.com/haskell/haddock/issues/43>
 
     -- -- Standard lambda calculus stuff
     Lam_ :: SCon '[ '( '[ a ], b ) ] (a ':-> b)
@@ -439,7 +442,8 @@ data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
     Fix_ :: SCon '[ '( '[ a ], a ) ] a
 
     -- -- Type munging
-    -- | Explicitly given type annotations. (For the other
+
+    -- Explicitly given type annotations. (For the other
     -- change-of-direction rule in bidirectional type checking.)
     -- N.B., storing a 'Proxy' isn't enough; we need the 'Sing'.
     Ann_        :: !(Sing a)       -> SCon '[ LC a ] a
@@ -493,7 +497,7 @@ deriving instance Show (SCon args a)
 -- TODO: come up with a better name for 'End'
 -- TODO: unify this with 'List1'? However, strictness differences...
 --
--- | The arguments to a '(:$)' node in the 'AST'; that is, a list
+-- | The arguments to a @(':$')@ node in the 'AST'; that is, a list
 -- of ASTs, where the whole list is indexed by a (type-level) list
 -- of the indices of each element.
 data SArgs :: ([Hakaru] -> Hakaru -> *) -> [([Hakaru], Hakaru)] -> *
@@ -537,16 +541,19 @@ instance Foldable21 SArgs where
 
 ----------------------------------------------------------------
 data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
+    -- BUG: haddock doesn't like annotations on GADT constructors
+    -- <http://trac.haskell.org/haddock/ticket/43>
+    -- <https://github.com/haskell/haddock/issues/43>
 
-    -- | Simple syntactic forms (i.e., generalized quantifiers)
+    -- Simple syntactic forms (i.e., generalized quantifiers)
     (:$) :: !(SCon args a) -> !(SArgs abt args) -> AST abt a
 
-    -- | N-ary operators
+    -- N-ary operators
     NaryOp_ :: !(NaryOp a) -> !(Seq (abt '[] a)) -> AST abt a
 
     -- TODO: 'Value_', 'Empty_', 'Array_', and 'Datum_' are generalized quantifiers (to the same extent that 'Ann_', 'CoerceTo_', and 'UnsafeFrom_' are). Should we move them into 'SCon' just for the sake of minimizing how much lives in 'AST'? Or are they unique enough to be worth keeping here?
 
-    -- | Constant values
+    -- Constant values
     Value_ :: !(Value a) -> AST abt a
 
     -- We have the constructors for arrays here, so that they're grouped together with our other constructors 'Value_' and 'Datum_'. Though, if we introduce a new @ArrayOp@ type, these should probably move there
@@ -556,7 +563,8 @@ data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
 
     -- -- User-defined data types
     -- BUG: even though the 'Datum' type has a single constructor, we get a warning about not being able to UNPACK it in 'Datum_'...
-    -- | A data constructor applied to some expressions. N.B., this
+    --
+    -- A data constructor applied to some expressions. N.B., this
     -- definition only accounts for data constructors which are
     -- fully saturated. Unsaturated constructors will need to be
     -- eta-expanded.
@@ -564,15 +572,15 @@ data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         :: {-# UNPACK #-} !(Datum (abt '[]) (HData' t))
         -> AST abt (HData' t)
 
-    -- | Generic case-analysis (via ABTs and Structural Focalization).
+    -- Generic case-analysis (via ABTs and Structural Focalization).
     Case_ :: !(abt '[] a) -> [Branch a abt b] -> AST abt b
 
-    -- | Linear combinations of measures.
+    -- Linear combinations of measures.
     Superpose_
         :: [(abt '[] 'HProb, abt '[] ('HMeasure a))]
         -> AST abt ('HMeasure a)
 
-    -- | Arbitrary choice between equivalent programs
+    -- Arbitrary choice between equivalent programs
     Lub_ :: [abt '[] a] -> AST abt a
 
 

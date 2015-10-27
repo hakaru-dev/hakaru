@@ -93,14 +93,18 @@ continuous = singletonCoercion $ Continuous hContinuous
 
 -- | General proofs of the inclusions in our numeric hierarchy.
 data Coercion :: Hakaru -> Hakaru -> * where
-    -- | Added the trivial coercion so we get the Category instance.
+    -- BUG: haddock doesn't like annotations on GADT constructors
+    -- <http://trac.haskell.org/haddock/ticket/43>
+    -- <https://github.com/haskell/haddock/issues/43>
+
+    -- Added the trivial coercion so we get the Category instance.
     -- This may/should make program transformations easier to write
     -- by allowing more intermediate ASTs, but will require a cleanup
     -- pass afterwards to remove the trivial coercions.
     CNil :: Coercion a a
 
     -- TODO: but sometimes we need the snoc-based inductive hypothesis...
-    -- | We use a cons-based approach rather than append-based in
+    -- We use a cons-based approach rather than append-based in
     -- order to get a better inductive hypothesis.
     CCons :: !(PrimCoercion a b) -> !(Coercion b c) -> Coercion a c
 

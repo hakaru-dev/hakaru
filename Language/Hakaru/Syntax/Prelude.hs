@@ -195,7 +195,7 @@ infix  4 ==, /=, <, <=, >, >=
 infixl 4 <$>, <*>, <*, *> -- <$
 infixl 6 +, -
 infixl 7 *, /
-infixr 8 ^, ^^, ** -- ^+, ^*
+infixr 8 ^, ^^, **
 -- infixl9 is the default when things are unspecified
 infixl 9 !, `app`, `thRootOf`
 

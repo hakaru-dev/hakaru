@@ -28,9 +28,7 @@
 -- to this technique\/approach, see:
 --
 --    * <http://semantic-domain.blogspot.co.uk/2015/03/abstract-binding-trees.html>
---
 --    * <http://semantic-domain.blogspot.co.uk/2015/03/abstract-binding-trees-addendum.html>
---
 --    * <http://winterkoninkje.dreamwidth.org/103978.html>
 --
 -- TODO: simultaneous multiple substitution
