@@ -367,26 +367,26 @@ deriving instance Show (PrimOp args a)
 data MeasureOp :: [Hakaru] -> Hakaru -> * where
     -- TODO: Should Dirac move into SCon to be with MBind? Might help with removing the Sing value...
     -- HACK: is there any way we can avoid storing the Sing value here, while still implementing 'sing_MeasureOp'? Should we have a Hakaru class for the types which can be measurable? might not be a crazy idea...
-    Dirac :: !(Sing a) -> MeasureOp '[ a ] ('HMeasure a)
+    Dirac :: !(Sing a) -> MeasureOp '[ a ] a
 
-    Lebesgue    :: MeasureOp '[]                 ('HMeasure 'HReal)
-    Counting    :: MeasureOp '[]                 ('HMeasure 'HInt)
-    Categorical :: MeasureOp '[ 'HArray 'HProb ] ('HMeasure 'HNat)
+    Lebesgue    :: MeasureOp '[]                 'HReal
+    Counting    :: MeasureOp '[]                 'HInt
+    Categorical :: MeasureOp '[ 'HArray 'HProb ] 'HNat
     -- TODO: make Uniform polymorphic, so that if the two inputs are HProb then we know the measure must be over HProb too. More generally, if the first input is HProb (since the second input is assumed to be greater thant he first); though that would be a bit ugly IMO.
-    Uniform     :: MeasureOp '[ 'HReal, 'HReal ] ('HMeasure 'HReal)
-    Normal      :: MeasureOp '[ 'HReal, 'HProb ] ('HMeasure 'HReal)
-    Poisson     :: MeasureOp '[ 'HProb         ] ('HMeasure 'HNat)
-    Gamma       :: MeasureOp '[ 'HProb, 'HProb ] ('HMeasure 'HProb)
-    Beta        :: MeasureOp '[ 'HProb, 'HProb ] ('HMeasure 'HProb)
+    Uniform     :: MeasureOp '[ 'HReal, 'HReal ] 'HReal
+    Normal      :: MeasureOp '[ 'HReal, 'HProb ] 'HReal
+    Poisson     :: MeasureOp '[ 'HProb         ] 'HNat
+    Gamma       :: MeasureOp '[ 'HProb, 'HProb ] 'HProb
+    Beta        :: MeasureOp '[ 'HProb, 'HProb ] 'HProb
 
     -- HACK: is there any way we can avoid storing the Sing values here, while still implementing 'sing_MeasureOp'? Should we have a Hakaru class for the types which can be measurable? might not be a crazy idea...
     DirichletProcess
         :: !(Sing a)
-        -> MeasureOp '[ 'HProb, 'HMeasure a ] ('HMeasure ('HMeasure a))
+        -> MeasureOp '[ 'HProb, 'HMeasure a ] ('HMeasure a)
     -- TODO: unify Plate and Chain as @sequence@ a~la traversable?
     Plate
         :: !(Sing a)
-        -> MeasureOp '[ 'HArray ('HMeasure a) ] ('HMeasure ('HArray a))
+        -> MeasureOp '[ 'HArray ('HMeasure a) ] ('HArray a)
     -- TODO: if we swap the order of arguments to 'Chain', we could change the functional argument to be a binding form in order to avoid the need for lambdas. It'd no longer be trivial to see 'Chain' as an instance of @sequence@, but might be worth it... Of course, we also need to handle the fact that it's an array of transition functions; i.e., we could do:
     -- > chain n s0 $ \i s -> do {...}
     Chain
@@ -395,7 +395,7 @@ data MeasureOp :: [Hakaru] -> Hakaru -> * where
         -> MeasureOp
             '[ 'HArray (s ':-> 'HMeasure (HPair a s))
             ,  s
-            ] ('HMeasure (HPair ('HArray a) s))
+            ] (HPair ('HArray a) s)
 
 
 deriving instance Eq   (MeasureOp args a)
@@ -455,7 +455,7 @@ data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
         => !(PrimOp typs a) -> SCon args a
     MeasureOp_
         :: (typs ~ UnLCs args, args ~ LCs typs)
-        => !(MeasureOp typs a) -> SCon args a
+        => !(MeasureOp typs a) -> SCon args ('HMeasure a)
     -- TODO: should Dirac move back here?
     -- TODO: Does this one need to have a Sing value for @a@ (or @b@)?
     MBind :: SCon

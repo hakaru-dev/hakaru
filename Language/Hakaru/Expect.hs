@@ -390,11 +390,11 @@ expectBranch c p xs (Bind x e') = bind x $ expectBranch c p xs e'
 -- BUG: none of these use the Assocs; they must, in case we need to substitute for variables in the SArgs. Or we need to residualize the Assocs into the program we're generating...
 expectMeasure
     :: (ABT abt, typs ~ UnLCs args, args ~ LCs typs)
-    => ImpureType a 
+    => ImpureType ('HMeasure a)
     -> MeasureOp typs a
     -> SArgs abt args
     -> Assocs abt
-    -> Expect abt a
+    -> Expect abt ('HMeasure a)
 expectMeasure _ (Dirac _) es _ =
     case es of
     a :* End ->

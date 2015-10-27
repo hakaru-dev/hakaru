@@ -350,7 +350,7 @@ inferType = inferType_
           U.SealedOp _ op ->
               let (typs, typ1) = sing_MeasureOp op in do
               es' <- checkSArgs typs es
-              return $ TypedAST typ1 (syn(MeasureOp_ op :$ es'))
+              return $ TypedAST (SMeasure typ1) (syn(MeasureOp_ op :$ es'))
 
     U.MBind_ name e1 e2
         | inferable e1 -> do

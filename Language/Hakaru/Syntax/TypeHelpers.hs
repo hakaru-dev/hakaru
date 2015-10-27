@@ -143,7 +143,7 @@ sing_PrimOp (Erf theCont) =
     in  (a `Cons1` Nil1, a)
 
 sing_MeasureOp :: MeasureOp args a -> (List1 Sing args, Sing a)
-sing_MeasureOp (Dirac a)   = (a `Cons1` Nil1, SMeasure a)
+sing_MeasureOp (Dirac a)   = (a `Cons1` Nil1, a)
 sing_MeasureOp Lebesgue    = (Nil1, sing)
 sing_MeasureOp Counting    = (Nil1, sing)
 sing_MeasureOp Categorical = (sing `Cons1` Nil1, sing)
@@ -154,12 +154,12 @@ sing_MeasureOp Gamma       = (sing `Cons1` sing `Cons1` Nil1, sing)
 sing_MeasureOp Beta        = (sing `Cons1` sing `Cons1` Nil1, sing)
 sing_MeasureOp (DirichletProcess a) =
     ( SProb `Cons1` SMeasure a `Cons1` Nil1
-    , SMeasure (SMeasure a))
+    , SMeasure a)
 sing_MeasureOp (Plate a)   =
-    (SArray (SMeasure a) `Cons1` Nil1, SMeasure (SArray a))
+    (SArray (SMeasure a) `Cons1` Nil1, SArray a)
 sing_MeasureOp (Chain s a) =
     ( SArray (s `SFun` SMeasure (sPair a s)) `Cons1` s `Cons1` Nil1
-    , SMeasure (sPair (SArray a) s))
+    , sPair (SArray a) s)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

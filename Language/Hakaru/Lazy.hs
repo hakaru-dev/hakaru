@@ -50,6 +50,7 @@ import Data.Proxy           (Proxy(..)) -- TODO: Is this in Prelude for modern G
 import Data.Sequence        (Seq)
 import Data.Number.LogFloat (LogFloat)
 #if __GLASGOW_HASKELL__ < 710
+import Data.Functor         ((<$>))
 import Control.Applicative  (Applicative(..))
 #endif
 
@@ -268,11 +269,10 @@ evaluate e0 =
         Empty_            -> return . Head_ $ WEmpty
         Array_  e1 e2     -> return . Head_ $ WArray   e1 e2
         Lam_ :$ e1 :* End -> return . Head_ $ WLam     e1
-        {- -- TODO: doesn't typecheck
         MeasureOp_ _ :$ _ -> return . Head_ $ WMeasure e0
         MBind        :$ _ -> return . Head_ $ WMeasure e0 -- N.B., not HNF
         Superpose_ _      -> return . Head_ $ WMeasure e0
-        -}
+        
         
         -- Everything else needs some evaluation
         

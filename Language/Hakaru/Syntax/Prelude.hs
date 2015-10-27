@@ -87,19 +87,19 @@ primOp3_
     -> abt '[] a -> abt '[] b -> abt '[] c -> abt '[] d
 primOp3_ o e1 e2 e3 = syn (PrimOp_ o :$ e1 :* e2 :* e3 :* End)
 
-measure0_ :: (ABT abt) => MeasureOp '[] a -> abt '[] a
+measure0_ :: (ABT abt) => MeasureOp '[] a -> abt '[] ('HMeasure a)
 measure0_ o = syn (MeasureOp_ o :$ End)
 
 measure1_
     :: (ABT abt)
     => MeasureOp '[ a ] b
-    -> abt '[] a -> abt '[] b
+    -> abt '[] a -> abt '[] ('HMeasure b)
 measure1_ o e1 = syn (MeasureOp_ o :$ e1 :* End)
 
 measure2_
     :: (ABT abt)
     => MeasureOp '[ a, b ] c
-    -> abt '[] a -> abt '[] b -> abt '[] c
+    -> abt '[] a -> abt '[] b -> abt '[] ('HMeasure c)
 measure2_ o e1 e2 = syn (MeasureOp_ o :$ e1 :* e2 :* End)
 
 
