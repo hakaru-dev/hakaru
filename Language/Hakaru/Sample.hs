@@ -216,6 +216,19 @@ sampleNaryOp :: (ABT abt, PrimMonad m, Functor m) =>
 sampleNaryOp And es env = S $ F.foldr (&&) True xs
   where xs = fmap (\a -> unS $ sample (LC_ a) env) es
 
+sampleNaryOp (Sum HSemiring_Nat)  es env = S $ F.foldr (+) 0 xs
+  where xs = fmap (\a -> unS $ sample (LC_ a) env) es
+
+sampleNaryOp (Sum HSemiring_Int)  es env = S $ F.foldr (+) 0 xs
+  where xs = fmap (\a -> unS $ sample (LC_ a) env) es
+
+sampleNaryOp (Sum HSemiring_Prob) es env = S $ F.foldr (+) 0 xs
+  where xs = fmap (\a -> unS $ sample (LC_ a) env) es
+
+sampleNaryOp (Sum HSemiring_Real)  es env = S $ F.foldr (+) 0 xs
+  where xs = fmap (\a -> unS $ sample (LC_ a) env) es
+
+
 sampleMeasureOp :: (ABT abt, PrimMonad m, Functor m,
                     typs ~ UnLCs args, args ~ LCs typs) =>
                    MeasureOp typs a -> SArgs abt args ->
