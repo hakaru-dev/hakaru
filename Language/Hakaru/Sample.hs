@@ -16,11 +16,16 @@ import qualified Data.Number.LogFloat            as LF
 --import qualified Numeric.Integration.TanhSinh    as TS
 import qualified System.Random.MWC               as MWC
 import qualified System.Random.MWC.Distributions as MWCD
+
 import qualified Data.Vector                     as V
+import           Data.Sequence (Seq)
+import qualified Data.Foldable                   as F
 import Data.Maybe                                (fromMaybe)
+
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative   (Applicative(..), (<$>))
 #endif
+
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
 
@@ -48,6 +53,7 @@ type instance Sample m 'HReal         = Double
 type instance Sample m 'HProb         = LF.LogFloat
 
 type instance Sample m (HPair a b)    = (Sample m a, Sample m b)
+type instance Sample m HBool          = Bool
 
 type instance Sample m ('HMeasure a)  =
     LF.LogFloat -> PRNG m ->
@@ -143,12 +149,17 @@ normalizeVector xs = case V.length xs of
 sample :: (ABT abt, PrimMonad m, Functor m) =>
           LC_ abt a -> Env m -> S m a
 sample (LC_ e) env =
-  caseVarSyn e (sampleVar env) $ \t ->
+  caseVarSyn e (sampleVar env) $ \t -> sampleAST t env
+
+sampleAST :: (ABT abt, PrimMonad m, Functor m) =>
+             AST abt a -> Env m -> S m a
+sampleAST t env =
     case t of
-      o :$ es     -> sampleScon o es env
-      Value_ v    -> sampleValue v
-      Datum_ d    -> sampleDatum d
-      Case_  o bs -> error "in Case_"
+      o :$ es      -> sampleScon   o es env
+      NaryOp_ o es -> sampleNaryOp o es env
+      Value_  v    -> sampleValue  v
+      Datum_  d    -> sampleDatum  d env
+      Case_   o es -> error "in Case_"
 
 sampleScon :: (ABT abt, PrimMonad m, Functor m) =>
               SCon args a -> SArgs abt args ->
@@ -197,6 +208,13 @@ samplePrimUnsafe (Signed HRing_Real) (S a) = S $ LF.logFloat a
 samplePrimUnsafe (Continuous HContinuous_Prob) (S a) =
     S $ unsafeNat $ floor (LF.fromLogFloat a :: Double)
 samplePrimUnsafe (Continuous HContinuous_Real) (S a) = S $ floor a
+
+sampleNaryOp :: (ABT abt, PrimMonad m, Functor m) =>
+                NaryOp a -> Seq (abt '[] a) ->
+                Env m -> S m a
+
+sampleNaryOp And es env = S $ F.foldr (&&) True xs
+  where xs = fmap (\a -> unS $ sample (LC_ a) env) es
 
 sampleMeasureOp :: (ABT abt, PrimMonad m, Functor m,
                     typs ~ UnLCs args, args ~ LCs typs) =>
@@ -302,8 +320,13 @@ sampleValue (VProb n)  = S n
 sampleValue (VReal n)  = S n
 sampleValue (VDatum _) = error "Don't know how to sample Datum"
 
-sampleDatum :: Datum ast a -> S m a
-sampleDatum (Datum _ _) = error "in Datum_"
+-- HACK only will work for HPair
+-- sampleDatum :: Datum ast a -> Env m -> S m a
+-- sampleDatum (Datum _ (Inl (Et (Konst a)
+--                            (Et (Konst b) Done)))) env =
+--              S ( sample (LC_ (syn a)) env
+--                , sample (LC_ (syn b)) env)
+sampleDatum (Datum _ _) _ = error "TODO: Handle this case in Datum"
 
 sampleVar :: (PrimMonad m, Functor m) =>
              Env m -> Variable a -> S m a
