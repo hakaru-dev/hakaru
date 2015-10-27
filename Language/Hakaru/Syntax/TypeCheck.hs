@@ -308,7 +308,7 @@ inferType = inferType_
 
     U.PrimOp_ o es ->
         case o of
-          U.SealedOp _ op ->
+          U.SealedOp op ->
               let (typs, typ1) = sing_PrimOp op in do
               es' <- checkSArgs typs es
               return $ TypedAST typ1 (syn(PrimOp_ op :$ es'))
@@ -347,7 +347,7 @@ inferType = inferType_
 
     U.MeasureOp_ o es ->
         case o of
-          U.SealedOp _ op ->
+          U.SealedOp op ->
               let (typs, typ1) = sing_MeasureOp op in do
               es' <- checkSArgs typs es
               return $ TypedAST typ1 (syn(MeasureOp_ op :$ es'))

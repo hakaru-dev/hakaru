@@ -58,7 +58,7 @@ symbolResolution symbols ast =
 makeAST :: U.AST' Symbol -> U.AST Symbol
 makeAST ast =
     case ast of
-      -- U.Var Normal_ -> (\a b -> U.SealedOp T.Normal)
+      --U.Var Normal_ -> (\a b -> U.SealedOp sing T.Normal)
       _             -> error "TODO: Add rest of cases"
 
 data PrimOp' =

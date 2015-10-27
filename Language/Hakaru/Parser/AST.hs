@@ -43,8 +43,7 @@ hintID (Name _ t) = t
 data SealedOp op where
      SealedOp
       :: (typs ~ UnLCs args, args ~ LCs typs)
-      => !(Sing args)
-      -> !(op typs a)
+      => !(op typs a)
       -> SealedOp op
 
 data SealedDatum a = forall t.
