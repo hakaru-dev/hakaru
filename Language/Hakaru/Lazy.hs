@@ -53,6 +53,7 @@ import Data.Number.LogFloat (LogFloat)
 import Data.Functor         ((<$>))
 import Control.Applicative  (Applicative(..))
 #endif
+import qualified Data.Traversable as T
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.Nat (Nat, fromNat)
@@ -272,10 +273,10 @@ evaluate e0 =
         MeasureOp_ _ :$ _ -> return . Head_ $ WMeasure e0
         MBind        :$ _ -> return . Head_ $ WMeasure e0 -- N.B., not HNF
         Superpose_ _      -> return . Head_ $ WMeasure e0
-        
-        
+
+
         -- Everything else needs some evaluation
-        
+
         App_ :$ e1 :* e2 :* End -> do
             v1 <- evaluate e1
             case v1 of
@@ -284,16 +285,16 @@ evaluate e0 =
                         push (SLet x (Thunk e2))
                         -- BUG: need to freshen @x@ and rename @x@ to @x'@ in @f'@
                         evaluate f'
-                _ -> return . Neutral $ P.app (fromWhnf v1) e2
-        
+                Neutral e1' -> return . Neutral $ P.app e1' e2
+
         Let_ :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' -> do
                 push (SLet x (Thunk e1))
                 -- BUG: need to freshen @x@ and rename @x@ to @x'@ in @e2'@
                 evaluate e2'
-        
+
         Fix_ :$ e1 :* End -> error "TODO: evaluate{Fix_}"
-        
+
         Ann_ typ :$ e1 :* End -> error "TODO: evaluate{Ann_}"
         {-
             do
@@ -314,9 +315,9 @@ evaluate e0 =
         Expect :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
                 evaluate $ E.expect e1 (\e3 -> subst x e3 e2')
-        
+
         Lub_ es -> error "TODO: evaluate{Lub_}" -- (Head_ . HLub) <$> T.for es evaluate
-        
+
         -- TODO: in the paper there's a guard so that this only fires when @not (atomic e)@. I think that was to prevent infinite loops in case 'evaluate' returns a 'Neutral' term. We get around this in the following way... The 'matchBranches' primitive will tell us it 'GotStuck' if it turns out that the value @v@ is not already a 'Datum' (whether as 'Datum_' or as 'Value_')[1]. And whenever 'matchBranches' gets stuck, 'tryMatch' will wrap the whole case expression up as a Neutral term.
         --
         -- [1] 'matchBranches' will also tell us it 'GotStuck' if the scrutinee isn't a 'Datum' at some subterm a nested 'Pattern' is trying to match against. At present this means we won't do as much partial evaluation as we really ought to; but in the future the 'GotStuck' constructor should return some information about where it got stuck so that we can 'evaluate' that subexpression. If we were evaluating to full normal forms, this wouldn't be an issue; it's only a problem because we're only doing (W)HNFs.
@@ -325,16 +326,32 @@ evaluate e0 =
             tryMatch (fromWhnf v) bs evaluate
 
 
+-- N.B., that return type is correct, albeit strange. The idea is that the continuation takes in the variable of type @a@ bound by the expression of type @'HMeasure a@. However, this requires that the continuation of the 'Ans' type actually does @forall a. ...('HMeasure a)@ which is at odds with what 'evaluate' wants (or at least, what *I* think it should want.)
 perform :: (ABT abt) => abt '[] ('HMeasure a) -> M abt (Whnf abt a)
-perform = error "TODO: perform"
+perform e0 =
+    caseVarSyn e0 (error "TODO: perform{Var}") $ \t ->
+        case t of
+        MeasureOp_ (Dirac _) :$ e1 :* End ->
+            evaluate e1
+        MeasureOp_ _ :$ _ ->
+            -- BUG: is it actually legit to call that a neutral form?
+            -- BUG: doesn't typecheck with the current definition of 'Ans'
+            error "TODO: perform{MeasureOp_}"
+            -- M $ \c h -> Neutral (e0 P.>>= \z -> fromWhnf (c (Neutral z) h))
+        MBind :$ e1 :* e2 :* End ->
+            caseBind e2 $ \x e2' -> do
+                push (SBind x (Thunk e1))
+                -- BUG: need to freshen @x@ and rename @x@ to @x'@ in @e2'@
+                perform e2'
+        Superpose_ es ->
+            error "TODO: perform{Superpose_}"
+            {-
+            P.superpose <$> T.traverse perform es -- TODO: not quite right; need to push the SWeight in each branch. Also, 'Whnf' un\/wrapping
+            -}
+        _ -> error "TODO: perform: the rest of the cases" -- probably via some @isWhnf :: abt '[] a -> Maybe (Whnf abt a)@
 {-
-perform u | atomic u         = M $ \c h -> u P.>>= \z -> c z h
-perform Lebesgue             = M $ \c h -> P.lebesgue P.>>= \z -> c z h
-perform (Uniform lo hi)      = M $ \c h -> P.uniform lo hi P.>>= \z -> c z h
-perform (Dirac e)            = evaluate e
-perform (MBind g (bind x e)) = push (SBind x g) >> perform e
-perform (Superpose es)       = P.superpose <$> T.traverse perform es -- TODO: not quite right; need to push the SWeight in each branch
-perform e | not (hnf e)      = evaluate e >>= perform
+perform u | atomic u    = M $ \c h -> u P.>>= \z -> c z h
+perform e | not (hnf e) = evaluate e >>= perform
 -}
 
 
@@ -345,6 +362,8 @@ perform e | not (hnf e)      = evaluate e >>= perform
 -- If matching fails, then throw an error.
 --
 -- TODO: rather than throwing a Haskell error, instead capture the possibility of failure in the 'M' monad.
+--
+-- TODO: rather than giving up and residualizing the 'Case_' so quickly when we get stuck, have 'GotStuck' return some info about what needs to be forced next (or if it really is stuck because of a neutral term).
 tryMatch
     :: (ABT abt)
     => abt '[] a
