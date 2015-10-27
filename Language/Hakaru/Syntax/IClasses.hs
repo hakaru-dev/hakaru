@@ -65,7 +65,7 @@ module Language.Hakaru.Syntax.IClasses
     , Sealed2(..)
     , Pair1(..)
     -- ** List types
-    , type (++), eqAppendNil, eqAppendAssoc
+    , type (++), eqAppendIdentity, eqAppendAssoc
     , List1(..), append1
     , DList1(..), toList1, fromList1, dnil1, dsingleton1, dappend1
     ) where
@@ -516,17 +516,23 @@ instance (SingI x, SingI xs) => SingI ((x ': xs) :: [Hakaru]) where
 -}
 
 
-eqAppendNil :: proxy xs -> TypeEq xs (xs ++ '[])
+-- | The empty list is (also) a right-identity for @('++')@. Because
+-- we define @('++')@ by induction on the first argument, this
+-- identity doesn't come for free but rather must be proven.
+eqAppendIdentity :: proxy xs -> TypeEq xs (xs ++ '[])
 -- This version should be used for runtime performance
-eqAppendNil _ = unsafeCoerce Refl
+eqAppendIdentity _ = unsafeCoerce Refl
 {-
 -- This version demonstrates that our use of unsafeCoerce is sound
 -- BUG: to have an argument of type @Sing xs@, instead of an arbitrary @proxy xs@, we'd need to store the singleton somewhere (prolly in the 'Branch', for the use site in TypeCheck.hs) or else produce it somehow
-eqAppendNil :: Sing (xs :: [Hakaru]) -> TypeEq xs (xs ++ '[])
-eqAppendNil SNil        = Refl
-eqAppendNil (SCons _ s) = case eqAppendNil s of Refl -> Refl
+eqAppendIdentity :: Sing (xs :: [Hakaru]) -> TypeEq xs (xs ++ '[])
+eqAppendIdentity SNil        = Refl
+eqAppendIdentity (SCons _ s) = case eqAppendIdentity s of Refl -> Refl
 -}
 
+
+-- | @('++')@ is associative. This identity doesn't come for free
+-- but rather must be proven.
 eqAppendAssoc
     :: proxy1 xs
     -> proxy2 ys
@@ -546,6 +552,8 @@ eqAppendAssoc SNil         _  _  = Refl
 eqAppendAssoc (SCons _ sx) sy sz =
     case eqAppendAssoc sx sy sz of Refl -> Refl
 -}
+
+-- TODO: eqAppendNil :: proxy xs -> proxy ys -> TypeEq '[] (xs ++ ys) -> (TypeEq '[] xs, TypeEq '[] ys)
 
 
 ----------------------------------------------------------------
@@ -605,7 +613,7 @@ newtype DList1 a xs =
 
 toList1 :: DList1 a xs -> List1 a xs
 toList1 dx@(DList1 xs) =
-    case eqAppendNil dx of
+    case eqAppendIdentity dx of
     Refl -> xs Nil1
 
 fromList1 :: List1 a xs -> DList1 a xs

@@ -415,7 +415,7 @@ pFalse = PDatum tpFalse . PInr . PInl $ PDone
 pUnit  :: Pattern '[] HUnit
 pUnit  = PDatum tpUnit . PInl $ PDone
 
--- HACK: using undefined like that isn't going to help if we use the variant of eqAppendNil that actually needs the Sing...
+-- HACK: using undefined like that isn't going to help if we use the variant of eqAppendIdentity that actually needs the Sing...
 varsOfPattern :: Pattern vars a -> proxy vars
 varsOfPattern _ = error "TODO: varsOfPattern"
 
@@ -424,17 +424,17 @@ pPair
     -> Pattern vars2 b
     -> Pattern (vars1 ++ vars2) (HPair a b)
 pPair a b =
-    case eqAppendNil (varsOfPattern b) of
+    case eqAppendIdentity (varsOfPattern b) of
     Refl -> PDatum tpPair . PInl $ PKonst a `PEt` PKonst b `PEt` PDone
 
 pLeft :: Pattern vars a -> Pattern vars (HEither a b)
 pLeft a =
-    case eqAppendNil (varsOfPattern a) of
+    case eqAppendIdentity (varsOfPattern a) of
     Refl -> PDatum tpLeft . PInl $ PKonst a `PEt` PDone
 
 pRight :: Pattern vars b -> Pattern vars (HEither a b)
 pRight b =
-    case eqAppendNil (varsOfPattern b) of
+    case eqAppendIdentity (varsOfPattern b) of
     Refl -> PDatum tpRight . PInr . PInl $ PKonst b `PEt` PDone
 
 pNil :: Pattern '[] (HList a)
@@ -444,7 +444,7 @@ pCons :: Pattern vars1 a
     -> Pattern vars2 (HList a)
     -> Pattern (vars1 ++ vars2) (HList a)
 pCons x xs = 
-    case eqAppendNil (varsOfPattern xs) of
+    case eqAppendIdentity (varsOfPattern xs) of
     Refl -> PDatum tpCons . PInr . PInl $ PKonst x `PEt` PIdent xs `PEt` PDone
 
 pNothing :: Pattern '[] (HMaybe a)
@@ -452,7 +452,7 @@ pNothing = PDatum tpNothing . PInl $ PDone
 
 pJust :: Pattern vars a -> Pattern vars (HMaybe a)
 pJust a =
-    case eqAppendNil (varsOfPattern a) of
+    case eqAppendIdentity (varsOfPattern a) of
     Refl -> PDatum tpJust . PInr . PInl $ PKonst a `PEt` PDone
 
 ----------------------------------------------------------------

@@ -115,7 +115,7 @@ matchBranch
     -> Branch a abt b
     -> Maybe (MatchResult abt '[] b)
 matchBranch e (Branch pat body) =
-    case eqAppendNil (secondProxy body) of
+    case eqAppendIdentity (secondProxy body) of
     Refl -> matchPattern e pat body
 
 secondProxy :: f i j -> Proxy i

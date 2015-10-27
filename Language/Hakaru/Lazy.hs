@@ -218,7 +218,9 @@ residualizeContext = \e h -> foldl step (fromWhnf e) (statements h)
         SLet  x body -> Let_  :$ fromLazy body :* bind x e :* End
         SBranch xs pat body ->
             Case_ (fromLazy body)
-                [ Branch pat   (case eqAppendNil xs of Refl -> binds xs e)
+                [ Branch pat $
+                    case eqAppendIdentity xs of
+                    Refl -> binds xs e
                 , Branch PWild P.reject
                 ]
         SWeight body -> Superpose_ [(fromLazy body, e)]
