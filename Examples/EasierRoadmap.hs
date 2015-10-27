@@ -23,15 +23,21 @@
 ----------------------------------------------------------------
 module Examples.EasierRoadmap where
 
-import Prelude (($), (.), undefined, error, IO, Maybe(..))
+import Prelude (($), (.), return,
+                undefined, error, IO, Maybe(..))
+
+import qualified System.Random.MWC     as MWC
+import qualified Data.Number.LogFloat  as LF()
+import qualified Data.Vector           as V()
 
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Sing (SingI)
 import Language.Hakaru.Syntax.HClasses (HSemiring_)
 import Language.Hakaru.Syntax.ABT
+import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Prelude
 import Language.Hakaru.Disintegrate
-import Language.Hakaru.PrettyPrint
+import Language.Hakaru.Sample hiding (runSample)
 
 {-
 import Language.Hakaru.Syntax
@@ -39,9 +45,7 @@ import Language.Hakaru.Lazy (Backward, runDisintegrate, density)
 import Language.Hakaru.Expect (Expect')
 import Language.Hakaru.Simplify (simplify)
 import Language.Hakaru.Any (Any)
-import Language.Hakaru.Sample
 -}
-
 
 easierRoadmapProg1
     :: (ABT abt)
@@ -57,6 +61,9 @@ easierRoadmapProg1 =
     normal x2 noiseE >>= \m2 ->
     dirac $ pair (pair m1 m2) (pair noiseT noiseE)
 
+easierRoadmapProg1' :: TrivialABT '[]
+                       ('HMeasure (HPair (HPair 'HReal 'HReal) (HPair 'HProb 'HProb)))
+easierRoadmapProg1' = easierRoadmapProg1
 
 easierRoadmapProg2
     :: (ABT abt)
@@ -397,23 +404,24 @@ makeChain n s0 m =
     where
     dup x = pair x x
 
--- "Language.Hakaru.Sample"
-runSample
-    :: (ABT abt)
-    => abt '[] ('HMeasure a)
-    -> IO (Maybe (abt '[] a))
-runSample = error "TODO: runSample"
+runSample ::
+    MWC.GenIO -> TrivialABT '[] ('HMeasure a)
+    -> IO (Maybe (Sample IO a))
+runSample g prog = do
+  Just (s, _) <- unS (sample (LC_ prog) emptyEnv) 1 g
+  return (Just s)
 
 runEasierRoadmapProg4, runEasierRoadmapProg4'
-    :: (ABT abt)
-    => IO (Maybe (abt '[] ('HArray (HPair 'HProb 'HProb))))
-runEasierRoadmapProg4 =
-    runSample $
+    :: IO (Maybe (Sample IO ('HArray (HPair 'HProb 'HProb))))
+runEasierRoadmapProg4 = do
+    g <- MWC.create
+    runSample g $
         makeChain (nat_ 20) (pair (prob_ 4) (prob_ 2))
             (easierRoadmapProg4 `app` pair (real_ 0) (real_ 1))
 
-runEasierRoadmapProg4' =
-    runSample $
+runEasierRoadmapProg4' = do
+    g <- MWC.create
+    runSample g $
         let_ (pair (real_ 0) (real_ 1)) $ \m1m2 ->
         let_
             ( simplify
