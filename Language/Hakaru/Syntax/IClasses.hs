@@ -489,9 +489,9 @@ instance (Show1 a, Show1 b) => Show (Pair1 a b i) where
 -- TODO: move all the list stuff off somewhere else
 
 -- BUG: how do we actually use the term-level @(++)@ at the type level? Or do we have to redefine it ourselves (as below)? If we define it ourselves, how can we make sure it's usable? In particular, how can we prove associativity and that @'[]@ is a /two-sided/ identity element?
-type family (xs :: [k]) ++ (ys :: [k]) :: [k]
-type instance '[]       ++ ys = ys 
-type instance (x ': xs) ++ ys = x ': (xs ++ ys) 
+type family (xs :: [k]) ++ (ys :: [k]) :: [k] where
+    '[]       ++ ys = ys
+    (x ': xs) ++ ys = x ': (xs ++ ys) 
 
 {-
 -- BUG: having the instances for @[[HakaruFun]]@ and @[HakaruFun]@ precludes giving a general kind-polymorphic data instance for type-level lists; so we have to monomorphize it to just the @[Hakaru]@ kind.
