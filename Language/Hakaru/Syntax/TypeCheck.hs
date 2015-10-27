@@ -572,12 +572,10 @@ checkType = checkType_
             SIdent        -> do e1' <- checkType_ t e1
                                 return $ Ident e1'
             _             -> failwith "expected term of `I' type"
-        U.Konst _ e1 ->
+        U.Konst t e1 ->
             case typ of
-            SKonst typ1   -> do TypedAST t1 e1' <- inferType_ e1
-                                case jmEq1 typ1 t1 of
-                                  Nothing   -> failwith "type mismatch"
-                                  Just Refl -> return $ Konst e1'
+            SKonst typ1   -> do e1' <- checkType_ typ1 e1
+                                return $ Konst e1'
             _             -> failwith "expected term of `K' type"
 
 
