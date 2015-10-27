@@ -4,14 +4,14 @@ module Language.Hakaru.Parser.SymbolResolve where
 import Data.List
 import Data.Text
 
-import Language.Hakaru.Syntax.DataKind
+import Language.Hakaru.Syntax.DataKind hiding (Symbol)
 import qualified Language.Hakaru.Syntax.AST as T
 import qualified Language.Hakaru.Parser.AST as U
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.IClasses
 import qualified Language.Hakaru.Syntax.Nat as N
 
-data Symbol' =
+data Symbol =
      Pair_
    | True_ | False_
    | FromProb_
@@ -21,9 +21,9 @@ data Symbol' =
    | VarSym U.Name
    | Plus
 
-type SymbolTable = [(Text, Symbol')]
+type SymbolTable = [(Text, Symbol)]
 
-primTable :: [(Text, Symbol')]
+primTable :: [(Text, Symbol)]
 primTable =  [("Pair",       Pair_)
              ,("True",       True_)
              ,("False",      False_)
@@ -34,19 +34,28 @@ primTable =  [("Pair",       Pair_)
              ,("+",          Plus)
              ]
 
+updateSymbols :: U.Name' -> SymbolTable -> SymbolTable
+updateSymbols name sym = (name,
+                          VarSym (U.Name (N.unsafeNat 0) name)) : sym
+ 
+
 -- figure out symbols and types
 symbolResolution :: SymbolTable -> U.AST' Text -> U.AST' Symbol
 symbolResolution symbols ast =
     case ast of
-      U.Var name -> case lookup name symbols of
-                      Nothing -> VarSym (U.Name name $ N.unsafeNat 0)
-                      Just a  -> a
-      U.App f x  -> U.App (symbolResolution f)
-                          (symbolResolution f)
-      _          -> error "TODO: Add rest of cases"
+      U.Var name       -> case lookup name symbols of
+                            Nothing -> U.Var $ VarSym $
+                                                U.Name (N.unsafeNat 0) name
+                            Just a  -> U.Var a
+      U.App f x        -> U.App (symbolResolution symbols f)
+                                (symbolResolution symbols f)
+      U.Let name e1 e2 -> U.Let name (symbolResolution symbols e1)
+                                     (symbolResolution
+                                      (updateSymbols name symbols) e2)
+      _                -> error "TODO: Add rest of cases"
 
 -- make AST and give unique names for variables
-makeAST :: U.AST' Symbol' -> U.AST Symbol'
+makeAST :: U.AST' Symbol -> U.AST Symbol
 makeAST ast =
     case ast of
       -- U.Var Normal_ -> (\a b -> U.SealedOp T.Normal)
