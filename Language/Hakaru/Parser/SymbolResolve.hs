@@ -40,12 +40,13 @@ primTable =  [("Pair",       primPair)
              -- ,("False",      False_)
              -- ,("fromProb",   FromProb_)
              -- ,("unsafeProb", UnsafeProb_)
-             -- ,("uniform",    Uniform_)
+             ,("uniform",    primUniform)
              ,("normal",     primNormal)
              ,("+",          primPlus) -- only Nat
              ]
 
-primNormal = t2 (\x y -> U.MeasureOp_ (U.SealedOp T.Normal) [x,y])
+primNormal  = t2 (\x y -> U.MeasureOp_ (U.SealedOp T.Normal) [x,y])
+primUniform = t2 (\x y -> U.MeasureOp_ (U.SealedOp T.Normal) [x,y])
 primPlus = t2 (\a b -> U.NaryOp_ (Some1 $ T.Sum HSemiring_Nat) [a,b])
 primPair = t2 (\a b -> U.Datum_ $ U.SealedDatum $
               U.Datum "pair" (U.Inl $ U.Konst a `U.Et` U.Konst b `U.Et` U.Done))
