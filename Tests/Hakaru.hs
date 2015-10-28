@@ -65,11 +65,11 @@ illustrate s _ _ = return ("<" ++ show s ++ ">")
 
 testHakaru :: Text -> MWC.GenIO -> IO String
 testHakaru a g = case parseHakaru a of
-                 Left err -> error (show err)
+                 Left err -> return (show err)
                  Right past ->
                      let m = inferType' (pToa past) in
                      case runTCM m of
-                       Left err -> error err
+                       Left err -> return err
                        Right (TypedAST typ ast) -> do
                            putStrLn ("Type: " ++ show typ ++ "\n")
                            putStrLn ("AST: " ++ (show $ pretty ast) ++ "\n")
