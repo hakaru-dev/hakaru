@@ -134,7 +134,8 @@ mustCheck = go
     go (U.MeasureOp_ _ _)  = False
     -- TODO: I'm assuming MBind works like Let_, but we should make sure...
     -- TODO: again, it seems like if we can infer one of the options, then we should be able to check the rest against it. But for now we'll assume we must check
-    go (U.MBind_ _ _ e2) = mustCheck e2
+    go (U.MBind_  _ _ e2) = mustCheck e2
+    go (U.Expect_ _ _ e2) = mustCheck e2
     go (U.Superpose_ _)  = True
 
     go (U.Lub_ es) = error "TODO: mustCheck{Lub_}"
@@ -287,10 +288,6 @@ inferType = inferType_
             case t1 of
               TypedAST typ1 e1' ->
                 let x' = U.makeVar x typ1 in
-                -- Unsure if this is the right decision:
-                --
-                -- case jmEq1 typ1 (varType x) of
-                -- Nothing   -> failwith "type mismatch"
                 pushCtx (SomeVariable x') $ do
                 t2 <- inferType_ e2
                 case t2 of
@@ -365,6 +362,21 @@ inferType = inferType_
                          return $ TypedAST typ3 (syn(MBind :$ e1' :* bind x e2' :* End))
                      _ -> failwith "expected measure type"
               _ -> failwith "expected measure type"
+
+    U.Expect_ name m e
+        | inferable m -> do
+            TypedAST typ1 m' <- inferType_ m
+            case typ1 of
+              SMeasure typ2 ->
+                let x = U.makeVar name typ2
+                in pushCtx (SomeVariable x) $ do
+                    t2 <- inferType_ e
+                    case t2 of
+                     TypedAST SProb e2' ->
+                         return $ TypedAST SProb (syn(Expect :$ m' :* bind x e2' :* End))
+                     _ -> failwith "expected SProb type"
+              _ -> failwith "expected measure type"
+
 
     _   | mustCheck e0 -> failwith "Cannot infer types for checking terms; please add a type annotation"
         | otherwise    -> error "inferType: missing an inferable branch!"
@@ -498,6 +510,17 @@ checkType = checkType_
                             return (syn(MBind :$ e1' :* bind x e2' :* End))
                     _ -> failwith "expected measure type"
     
+        U.Expect_ name m e
+            | inferable m -> do
+                TypedAST typ1 m' <- inferType_ m
+                case (typ0, typ1) of
+                    (SProb, SMeasure typ2) ->
+                        let x = U.makeVar name typ2 in
+                        pushCtx (SomeVariable x) $ do
+                            e' <- checkType_ typ0 e
+                            return (syn(Expect :$ m' :* bind x e' :* End))
+                    _ -> failwith "expected SProb and SMeasure type"
+
         U.Superpose_ pes -> do
           case typ0 of
             (SMeasure _) -> do

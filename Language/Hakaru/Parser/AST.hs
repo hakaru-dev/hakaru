@@ -140,6 +140,7 @@ data AST a =
    | Case_       (AST a) [Branch a]
    | MeasureOp_  (SealedOp MeasureOp) [AST a]
    | MBind_      Name    (AST a) (AST a)
+   | Expect_     Name    (AST a) (AST a)
    | Superpose_  [(AST a, AST a)]
    | Lub_        (AST a)
 
