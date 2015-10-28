@@ -43,7 +43,8 @@ testTC a = case runTCM (inferType' a) of
              Left err -> err
              Right (TypedAST typ ast) -> show (typ, pretty ast)
 
-testHakaru :: Text -> MWC.GenIO -> IO (String, String, (Maybe (Sample IO 'HReal)))
+testHakaru :: Text -> MWC.GenIO ->
+              IO (String, String, (Maybe (Sample IO 'HReal)))
 testHakaru a g = case parseHakaru a of
                  Left err -> error (show err)
                  Right past ->
