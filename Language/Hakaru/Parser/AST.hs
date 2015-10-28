@@ -5,6 +5,9 @@
              PolyKinds,
              ExistentialQuantification,
              StandaloneDeriving #-}
+
+{-# OPTIONS_GHC -Wall -fwarn-tabs #-}
+
 module Language.Hakaru.Parser.AST where
 
 import qualified Language.Hakaru.Syntax.Nat as N
@@ -14,14 +17,14 @@ import Language.Hakaru.Syntax.AST    (PrimOp(..),
                                       NaryOp(..),
                                       Value(..),
                                       MeasureOp(..),
-                                      LCs(..),
-                                      UnLCs (..))
+                                      LCs(),
+                                      UnLCs ())
 import Language.Hakaru.Syntax.ABT (Variable(..))
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.IClasses
-import Language.Hakaru.Syntax.Datum (Datum(..))
 
 import Data.Text
+import qualified Data.Number.LogFloat as LF
 import Text.Parsec (SourcePos)
 
 -- N.B., because we're not using the ABT's trick for implementing a HOAS API, we can make the identifier strict.
@@ -29,7 +32,8 @@ data Name = Name {-# UNPACK #-}!N.Nat {-# UNPACK #-}!Text
     deriving (Read, Show, Eq, Ord)
 
 makeVar :: Name ->  Sing a -> Variable a
-makeVar name typ = Variable (hintID name) (nameID name) typ
+makeVar name typ =
+    Variable (hintID name) (nameID name) typ
 
 nameID :: Name -> N.Nat
 nameID (Name i _) = i
@@ -40,9 +44,11 @@ hintID (Name _ t) = t
 data SealedOp op where
      SealedOp
       :: (typs ~ UnLCs args, args ~ LCs typs)
-      => !(Sing args)
-      -> !(op typs a)
+      => !(op typs a)
       -> SealedOp op
+
+data SealedDatum a = forall t.
+     SealedDatum (Datum a (HData' t))
 
 type Name' = Text
 
@@ -61,6 +67,22 @@ newtype Meta = Meta (SourcePos, SourcePos) deriving (Eq, Show)
 
 data Datum' a = DV a [a] deriving (Eq, Show)
 
+infixr 7 `Et`
+
+data DFun a where
+     Konst :: AST a -> DFun a
+     Ident :: AST a -> DFun a
+
+data DStruct a where
+     Et   :: DFun a -> DStruct a -> DStruct a
+     Done :: DStruct a
+
+data DCode a where
+     Inr ::  DCode a   -> DCode a
+     Inl ::  DStruct a -> DCode a
+
+data Datum a t = Datum Text (DCode a)
+
 data Value' =
      Nat  Int
    | Int  Int
@@ -69,20 +91,11 @@ data Value' =
    | Datum''
  deriving (Eq)
 
-data Symbol' =
-     Fix
-   | True' | False'
-   | CoerceTo
-   | UnsafeFrom 
-   | PrimOp
-   | NaryOp
-   | Array
-   | Empty'
-   | MeasureOp'
-   | MBind
-   | Plus
-
-type SymbolTable = [(Text, Symbol')]
+val :: Value' -> Some1 Value
+val (Nat  n) = Some1 $ VNat (N.unsafeNat n)
+val (Int  n) = Some1 $ VInt n
+val (Prob n) = Some1 $ VProb (LF.logFloat n)
+val (Real n) = Some1 $ VReal n
 
 data TypeAST' a =
      TypeVar a
@@ -91,67 +104,17 @@ data TypeAST' a =
 
 data AST' a =
      Var a
-   | Lam Name'    (AST' a) 
+   | Lam a    (AST' a) 
    | App (AST' a) (AST' a)
-   | Let Name'    (AST' a) (AST' a)
+   | Let a    (AST' a) (AST' a)
    | If  (AST' a) (AST' a) (AST' a)
    | Ann (AST' a) (TypeAST' a)
    | UValue Value'
    | Empty
    | Case  (AST' a) [(Branch' a)] -- match
-   | Bind  Name' (AST' a) (AST' a)
-   | Data  Name' [TypeAST' a]
+   | Bind  a (AST' a) (AST' a)
+   | Data  a [TypeAST' a]
    | WithMeta (AST' a) Meta
-
-data PrimOp' =
-     Not'        
-   | Impl'       
-   | Diff'       
-   | Nand'  | Nor'        
-   | Pi'        
-   | Sin'   | Cos'   | Tan'        
-   | Asin'  | Acos'  | Atan'       
-   | Sinh'  | Cosh'  | Tanh'       
-   | Asinh' | Acosh' | Atanh'      
-   | RealPow'    
-   | Exp'   | Log'        
-   | Infinity'  | NegativeInfinity'
-   | GammaFunc' | BetaFunc' 
-   | Integrate' | Summate'  
-   | Index'    
-   | Size'     
-   | Reduce'   
-   | Equal'     | Less'     
-   | NatPow'   
-   | Negate'   
-   | Abs'      
-   | Signum'   
-   | Recip'    
-   | NatRoot'  
-   | Erf'      
-
-data NaryOp' =
-     And'
-   | Or'
-   | Xor'
-   | Iff'
-   | Min' 
-   | Max' 
-   | Sum' 
-   | Prod'
-
-data MeasureOp_ =
-     Lebesgue'
-   | Counting'
-   | Categorical'
-   | Uniform'    
-   | Normal'     
-   | Poisson'    
-   | Gamma'      
-   | Beta'       
-   | DP'         
-   | Plate'      
-   | Chain'      
 
 data Branch a = Branch (Pattern a) (AST a)
 data Pattern a =
@@ -166,17 +129,18 @@ data AST a =
    | Fix_        Name    (AST a)
    | Let_        Name    (AST a) (AST a)
    | Ann_        (AST a) Hakaru
-   | CoerceTo_   (Sealed2 Coercion) (AST a)
-   | UnsafeTo_   (Sealed2 Coercion) (AST a)
+   | CoerceTo_   (Some2 Coercion) (AST a)
+   | UnsafeTo_   (Some2 Coercion) (AST a)
    | PrimOp_     (SealedOp PrimOp) [AST a]
-   | NaryOp_     (Sealed1 NaryOp)  [AST a]
-   | Value_      (Sealed1 Value)
+   | NaryOp_     (Some1 NaryOp)  [AST a]
+   | Value_      (Some1 Value)
    | Empty_
    | Array_      (AST a) Name (AST a) -- not sure should binding form
-   | Datum_      (Sealed2 Datum)
+   | Datum_      (SealedDatum a)
    | Case_       (AST a) [Branch a]
    | MeasureOp_  (SealedOp MeasureOp) [AST a]
    | MBind_      Name    (AST a) (AST a)
+   | Expect_     Name    (AST a) (AST a)
    | Superpose_  [(AST a, AST a)]
    | Lub_        (AST a)
 

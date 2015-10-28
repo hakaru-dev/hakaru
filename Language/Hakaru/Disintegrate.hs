@@ -236,13 +236,13 @@ data L s abt a = L
     }
 
 -- TODO: make the length indexing explicit:
--- > data C abt a = C { unC :: forall n. Sing n -> [Vec (Some abt) n -> a] }
+-- > data C abt a = C { unC :: forall n. Sing n -> [Vec (Some1 abt) n -> a] }
 --
 -- TODO: does the old version actually mean to erase type info? or should we rather use:
 -- > data C abt a = C { unC :: forall xs. Sing xs -> [List1 abt xs -> a] }
 --
 -- TODO: should we add back in something like @C@ for interpreting\/erasing the uses of 'Lub_'?
-data C abt a = C { unC :: Nat -> [[Some abt] -> a] }
+data C abt a = C { unC :: Nat -> [[Some1 abt] -> a] }
 
 type Lazy s abt a = L s (C abt) a
 -}

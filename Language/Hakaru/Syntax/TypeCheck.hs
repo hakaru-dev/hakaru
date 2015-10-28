@@ -134,7 +134,8 @@ mustCheck = go
     go (U.MeasureOp_ _ _)  = False
     -- TODO: I'm assuming MBind works like Let_, but we should make sure...
     -- TODO: again, it seems like if we can infer one of the options, then we should be able to check the rest against it. But for now we'll assume we must check
-    go (U.MBind_ _ _ e2) = mustCheck e2
+    go (U.MBind_  _ _ e2) = mustCheck e2
+    go (U.Expect_ _ _ e2) = mustCheck e2
     go (U.Superpose_ _)  = True
 
     go (U.Lub_ es) = error "TODO: mustCheck{Lub_}"
@@ -272,7 +273,7 @@ inferType = inferType_
                 SFun typ2 typ3 -> do
                   e2' <- checkType typ2 e2
                   return $ TypedAST typ3 (syn(App_ :$ e1' :* e2' :* End))
-                _ -> failwith "expected function type"
+                _ -> failwith ("expected function type, got " ++ show typ1 ++ " instead")
         -- The above is the standard rule that everyone uses.
         -- However, if the @e1@ is a lambda (rather than a primop
         -- or a variable), then it will require a type annotation.
@@ -296,10 +297,6 @@ inferType = inferType_
             case t1 of
               TypedAST typ1 e1' ->
                 let x' = U.makeVar x typ1 in
-                -- Unsure if this is the right decision:
-                --
-                -- case jmEq1 typ1 (varType x) of
-                -- Nothing   -> failwith "type mismatch"
                 pushCtx (SomeVariable x') $ do
                 t2 <- inferType_ e2
                 case t2 of
@@ -317,14 +314,14 @@ inferType = inferType_
 
     U.PrimOp_ o es ->
         case o of
-          U.SealedOp _ op ->
+          U.SealedOp op ->
               let (typs, typ1) = sing_PrimOp op in do
               es' <- checkSArgs typs es
               return $ TypedAST typ1 (syn(PrimOp_ op :$ es'))
 
     U.NaryOp_ o es ->
         case o of
-          Sealed1 op ->
+          Some1 op ->
               let typ = sing_NaryOp op in do
               es' <- T.forM es $ checkType typ
               return $ TypedAST typ (syn(NaryOp_ op (S.fromList es')))
@@ -332,10 +329,10 @@ inferType = inferType_
     U.Value_ v ->
         -- BUG: need to finish implementing sing_Value for Datum
         case v of
-          Sealed1 v' ->
+          Some1 v' ->
               return $ TypedAST (sing_Value v') (syn(Value_ v'))
 
-    U.CoerceTo_ (Sealed2 c) e1 ->
+    U.CoerceTo_ (Some2 c) e1 ->
         case singCoerceDomCod c of
           Nothing | inferable e1 -> inferType_ e1
                   | otherwise    -> 
@@ -345,7 +342,7 @@ inferType = inferType_
             return $ TypedAST cod (syn(CoerceTo_ c :$ e1' :* End))
           
 
-    U.UnsafeTo_ (Sealed2 c) e1 ->
+    U.UnsafeTo_ (Some2 c) e1 ->
         case singCoerceDomCod c of
           Nothing | inferable e1 -> inferType_ e1
                   | otherwise    -> 
@@ -356,7 +353,7 @@ inferType = inferType_
 
     U.MeasureOp_ o es ->
         case o of
-          U.SealedOp _ op ->
+          U.SealedOp op ->
               let (typs, typ1) = sing_MeasureOp op in do
               es' <- checkSArgs typs es
               return $ TypedAST (SMeasure typ1) (syn(MeasureOp_ op :$ es'))
@@ -374,6 +371,21 @@ inferType = inferType_
                          return $ TypedAST typ3 (syn(MBind :$ e1' :* bind x e2' :* End))
                      _ -> failwith "expected measure type"
               _ -> failwith "expected measure type"
+
+    U.Expect_ name m e
+        | inferable m -> do
+            TypedAST typ1 m' <- inferType_ m
+            case typ1 of
+              SMeasure typ2 ->
+                let x = U.makeVar name typ2
+                in pushCtx (SomeVariable x) $ do
+                    t2 <- inferType_ e
+                    case t2 of
+                     TypedAST SProb e2' ->
+                         return $ TypedAST SProb (syn(Expect :$ m' :* bind x e2' :* End))
+                     _ -> failwith "expected SProb type"
+              _ -> failwith "expected measure type"
+
 
     _   | mustCheck e0 -> failwith "Cannot infer types for checking terms; please add a type annotation"
         | otherwise    -> error "inferType: missing an inferable branch!"
@@ -438,7 +450,7 @@ checkType = checkType_
               e1' <- checkType_ typ0 e1
               return (syn(Fix_ :$ bind x e1' :* End))
     
-        U.CoerceTo_ (Sealed2 c) e1 -> do
+        U.CoerceTo_ (Some2 c) e1 -> do
             case singCoerceDomCod c of
               Nothing -> do
                   e1' <- checkType_ typ0 e1
@@ -450,7 +462,7 @@ checkType = checkType_
                         e1' <- checkType_ dom e1
                         return (syn(CoerceTo_ c :$ e1' :* End))
     
-        U.UnsafeTo_ (Sealed2 c) e1 -> do
+        U.UnsafeTo_ (Some2 c) e1 -> do
           case singCoerceDomCod c of
               Nothing -> do
                   e1' <- checkType_ typ0 e1
@@ -480,13 +492,16 @@ checkType = checkType_
             _ -> failwith "expected HArray type"
     
         -- Need to do these cases
-        --
-        -- U.Datum_ (Sealed2 (Datum hint d)) ->
-        --     case typ0 of
-        --     SData _ typ2 ->
-        --         (syn . Datum_ . Datum hint)
-        --             <$> checkDatumCode d typ2 typ0
-        --     _            -> failwith "expected HData type"
+
+        U.Datum_ (U.SealedDatum (U.Datum hint d)) ->
+          case typ0 of
+            SData _ typ2 -> do
+               -- case jmEq1 typ1 typ2 of
+               --   Nothing   -> failwith "type mismatch"
+               --   Just Refl -> do
+                    (syn . Datum_ . Datum hint)
+                      <$> checkDatumCode d typ2 typ0
+            _            -> failwith "expected HData type"
     
         -- U.Case_ e1 branches -> do
         --     TypedAST typ1 e1' <- inferType_ e1
@@ -504,6 +519,17 @@ checkType = checkType_
                             return (syn(MBind :$ e1' :* bind x e2' :* End))
                     _ -> failwith "expected measure type"
     
+        U.Expect_ name m e
+            | inferable m -> do
+                TypedAST typ1 m' <- inferType_ m
+                case (typ0, typ1) of
+                    (SProb, SMeasure typ2) ->
+                        let x = U.makeVar name typ2 in
+                        pushCtx (SomeVariable x) $ do
+                            e' <- checkType_ typ0 e
+                            return (syn(Expect :$ m' :* bind x e' :* End))
+                    _ -> failwith "expected SProb and SMeasure type"
+
         U.Superpose_ pes -> do
           case typ0 of
             (SMeasure _) -> do
@@ -523,7 +549,7 @@ checkType = checkType_
                 -- the goal @typ@. This will be relevant to us for handling our coercion calculus :(
                 case jmEq1 typ0 typ' of
                     Just Refl -> return e0'
-                    Nothing   -> failwith "Type mismatch"
+                    Nothing   -> failwith ("Type mismatch: got " ++ show typ' ++ " was expecting " ++ show typ0)
             | otherwise -> error "checkType: missing an mustCheck branch!"
 
     --------------------------------------------------------
@@ -531,55 +557,57 @@ checkType = checkType_
     -- TODO: can we combine these in with the 'checkBranch' functions somehow?
     checkDatumCode
         :: forall xss t
-        .  DatumCode xss (abt '[]) (HData' t) -- CHANGE THIS
+        .  U.DCode c
         -> Sing xss
         -> Sing (HData' t)
         -> TypeCheckMonad (DatumCode xss (abt '[]) (HData' t))
     checkDatumCode d typ typA =
         case d of
-        Inr d2 ->
+        U.Inr d2 ->
             case typ of
             SPlus _ typ2  -> Inr <$> checkDatumCode d2 typ2 typA
             _             -> failwith "expected term of `inr' type"
-        Inl d1 ->
+        U.Inl d1 ->
             case typ of
             SPlus typ1 _  -> Inl <$> checkDatumStruct d1 typ1 typA
             _             -> failwith "expected term of `inl' type"
     
     checkDatumStruct
         :: forall xs t
-        .  DatumStruct xs (abt '[]) (HData' t) -- CHANGE THIS
+        .  U.DStruct c
         -> Sing xs
         -> Sing (HData' t)
         -> TypeCheckMonad (DatumStruct xs (abt '[]) (HData' t))
     checkDatumStruct d typ typA =
         case d of
-        Et d1 d2 ->
+        U.Et d1 d2 ->
             case typ of
             SEt typ1 typ2 -> Et
                 <$> checkDatumFun    d1 typ1 typA
                 <*> checkDatumStruct d2 typ2 typA
             _             -> failwith "expected term of `et' type"
-        Done ->
+        U.Done ->
             case typ of
             SDone         -> return Done
             _             -> failwith "expected term of `done' type"
     
     checkDatumFun
         :: forall x t
-        .  DatumFun x (abt '[]) (HData' t)
+        .  U.DFun c
         -> Sing x
         -> Sing (HData' t)
         -> TypeCheckMonad (DatumFun x (abt '[]) (HData' t))
     checkDatumFun d typ typA = 
         case d of
-        Ident e1 ->
+        U.Ident e1 ->
             case typ of
-            SIdent        -> return $ Ident e1
+            SIdent        -> do e1' <- checkType_ typA e1
+                                return $ Ident e1'
             _             -> failwith "expected term of `I' type"
-        Konst e1 ->
+        U.Konst e1 ->
             case typ of
-            SKonst typ1   -> return $ Konst e1
+            SKonst typ1   -> do e1' <- checkType_ typ1 e1
+                                return $ Konst e1'
             _             -> failwith "expected term of `K' type"
 
 

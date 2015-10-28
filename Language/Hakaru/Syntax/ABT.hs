@@ -538,7 +538,7 @@ instance Show (TrivialABT xs a) where
 
 ----------------------------------------------------------------
 -- TODO: replace @Set Variable@ with @Map Variable Hakaru@ or @Map
--- Variable (Some (Sing :: Hakaru -> *))@ though that belongs more
+-- Variable (Some1 (Sing :: Hakaru -> *))@ though that belongs more
 -- in a different ABT instance produced by type-checking, rather
 -- than belonging here...
 --

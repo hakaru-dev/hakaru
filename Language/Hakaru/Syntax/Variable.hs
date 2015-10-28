@@ -217,7 +217,7 @@ instance Exception VarEqTypeError
 
 
 ----------------------------------------------------------------
--- TODO: switch to using 'Some' itself? Maybe no longer a good idea, due to the need for the kind parameter...
+-- TODO: switch to using 'Some1' itself? Maybe no longer a good idea, due to the need for the kind parameter...
 
 -- | Hide an existentially quantified parameter to 'Variable'.
 --

@@ -60,9 +60,8 @@ module Language.Hakaru.Syntax.IClasses
     , Foldable22(..)
     
     -- * Helper types
-    , Some(..)
-    , Sealed1(..)
-    , Sealed2(..)
+    , Some1(..)
+    , Some2(..)
     , Pair1(..)
     -- ** List types
     , type (++), eqAppendIdentity, eqAppendAssoc
@@ -458,22 +457,27 @@ instance Eq a => Eq1 (Lift2 a i) where
 -- the data type declaration prettier\/cleaner.
 -- <https://github.com/hakaru-dev/hakaru/issues/6>
 --
--- | Existentially quantify over an index.
--- TODO: replace 'SomeVariable' with @(Some Variable)@
-data Some (a :: k -> *)
-    = forall i. Some !(a i)
+-- | Existentially quantify over a single index.
+-- TODO: replace 'SomeVariable' with @(Some1 Variable)@
+data Some1 (a :: k -> *)
+    = forall i. Some1 !(a i)
 
-instance Show1 a => Show (Some a) where
-    showsPrec p (Some x) = showParen_1 p "Some" x
+instance Show1 a => Show (Some1 a) where
+    showsPrec p (Some1 x) = showParen_1 p "Some1" x
 
-instance JmEq1 a  => Eq (Some a) where
-    Some x == Some y = maybe False (const True) (jmEq1 x y)
+instance JmEq1 a  => Eq (Some1 a) where
+    Some1 x == Some1 y = maybe False (const True) (jmEq1 x y)
 
-{-# DEPRECATED Sealed1 "use Some instead" #-}
-data Sealed1 a = forall i. Sealed1 (a i)
 
-{-# DEPRECATED Sealed2 "If we actually need this; rename to Some1 and Some2" #-}
-data Sealed2 a = forall i j. Sealed2 (a i j)
+-- | Existentially quantify over two indices.
+data Some2 (a :: k1 -> k2 -> *)
+    = forall i j. Some2 !(a i j)
+
+instance Show2 a => Show (Some2 a) where
+    showsPrec p (Some2 x) = showParen_2 p "Some2" x
+
+instance JmEq2 a  => Eq (Some2 a) where
+    Some2 x == Some2 y = maybe False (const True) (jmEq2 x y)
 
 
 ----------------------------------------------------------------
