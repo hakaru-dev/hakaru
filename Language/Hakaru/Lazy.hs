@@ -819,10 +819,22 @@ update x = loop []
                 case step s of
                 Nothing -> loop (s:ss)
                 Just mw -> do
-                    w <- mw        -- evaluate the body of @s@
-                    naivePush (SLet x (Whnf_ w)) -- push the updated binding
-                    naivePushes ss -- put the rest of the context back
-                    return w       -- TODO: return (NamedWhnf x v)
+                    -- Evaluate the body of @s@.
+                    w <- mw
+                    -- Push the updated binding, replacing the old one.
+                    naivePush (SLet x (Whnf_ w))
+                    -- Put the rest of the context back.
+                    naivePushes ss
+                    -- Finally, return the variable. We could return
+                    -- @w@ itself instead, but then we'd lose sharing.
+                    --
+                    -- TODO: return @NamedWhnf x w@ in case we want
+                    -- to perform immediate substitution for some
+                    -- reason, rather than keeping the variable
+                    -- around (e.g., if the variable is only used
+                    -- once and by inlining it we could perform
+                    -- more partial evaluation...)
+                    return (Neutral (var x))
 
     -- BUG: existential escapes; need to cps
     step (SBind y e0) = do
