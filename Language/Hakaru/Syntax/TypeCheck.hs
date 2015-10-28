@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.24
+--                                                    2015.10.27
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeCheck
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -149,22 +149,27 @@ mustCheck = go
 -- TODO: replace with an IntMap(SomeVariable), using the varID of the Variable
 type Ctx = IntMap SomeVariable
 
-data TypedPattern :: [Hakaru] -> * where
-    TP  :: !(Pattern vars a)
-        -> !(Sing a)
-        -> TypedPattern vars
-    TPC :: !(PDatumCode xss vars (HData' t))
-        -> !(Sing xss)
-        -> !(Sing (HData' t))
-        -> TypedPattern vars
-    TPS :: !(PDatumStruct xs vars (HData' t))
-        -> !(Sing xs)
-        -> !(Sing (HData' t))
-        -> TypedPattern vars
-    TPF :: !(PDatumFun x vars (HData' t))
-        -> !(Sing x)
-        -> !(Sing (HData' t))
-        -> TypedPattern vars
+
+-- BUG: haddock doesn't like annotations on GADT constructors. So
+-- here we'll avoid using the GADT syntax, even though it'd make
+-- the data type declaration prettier\/cleaner.
+-- <https://github.com/hakaru-dev/hakaru/issues/6>
+data TypedPattern (vars :: [Hakaru])
+    = forall a. TP
+        !(Pattern vars a)
+        !(Sing a)
+    | forall xss t. TPC
+        !(PDatumCode xss vars (HData' t))
+        !(Sing xss)
+        !(Sing (HData' t))
+    | forall xs t. TPS
+        !(PDatumStruct xs vars (HData' t))
+        !(Sing xs)
+        !(Sing (HData' t))
+    | forall x t. TPF
+        !(PDatumFun x vars (HData' t))
+        !(Sing x)
+        !(Sing (HData' t))
 
 -- We can't just use @[TypedPattern vars]@ because the @vars@ won't necessarily be constant for every element. Rather, what we want is \"@[TypedPattern] vars@\" where the @vars@ is collected over the whole list. That's what this type does.
 data TypedPatternList :: [Hakaru] -> * where
@@ -176,21 +181,25 @@ data TypedPatternList :: [Hakaru] -> * where
 
 infixr 5 `TPCons`
 
-data TypedDatum (ast :: Hakaru -> *) where
+-- BUG: haddock doesn't like annotations on GADT constructors. So
+-- here we'll avoid using the GADT syntax, even though it'd make
+-- the data type declaration prettier\/cleaner.
+-- <https://github.com/hakaru-dev/hakaru/issues/6>
+data TypedDatum (ast :: Hakaru -> *)
     -- N.B., we do not require that @xss ~ Code t@; so we can
     -- perform induction on it!
-    TDC :: !(DatumCode xss ast (HData' t))
-        -> !(Sing xss)
-        -> !(Sing (HData' t))
-        -> TypedDatum ast
-    TDS :: !(DatumStruct xs ast (HData' t))
-        -> !(Sing xs)
-        -> !(Sing (HData' t))
-        -> TypedDatum ast
-    TDF :: !(DatumFun x ast (HData' t))
-        -> !(Sing x)
-        -> !(Sing (HData' t))
-        -> TypedDatum ast
+    = forall xss t. TDC
+        !(DatumCode xss ast (HData' t))
+        !(Sing xss)
+        !(Sing (HData' t))
+    | forall xs t. TDS
+        !(DatumStruct xs ast (HData' t))
+        !(Sing xs)
+        !(Sing (HData' t))
+    | forall x t. TDF
+        !(DatumFun x ast (HData' t))
+        !(Sing x)
+        !(Sing (HData' t))
 
 ----------------------------------------------------------------
 type TypeCheckError = String -- TODO: something better
@@ -229,8 +238,8 @@ failwith = TCM . const . Left
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
-data TypedAST abt where
-     TypedAST ::  !(Sing b) -> !(abt '[] b) -> TypedAST abt
+data TypedAST (abt :: [Hakaru] -> Hakaru -> *)
+    = forall b. TypedAST !(Sing b) !(abt '[] b)
 
 -- | Given a typing environment and a term, synthesize the term's type.
 inferType

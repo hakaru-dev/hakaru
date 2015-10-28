@@ -233,11 +233,15 @@ varEq x y
     | otherwise          = Nothing
 -}
 
-data VarEqTypeError where
-    VarEqTypeError
-        :: {-# UNPACK #-} !(Variable a)
-        -> {-# UNPACK #-} !(Variable b)
-        -> VarEqTypeError
+
+-- BUG: haddock doesn't like annotations on GADT constructors. So
+-- here we'll avoid using the GADT syntax, even though it'd make
+-- the data type declaration prettier\/cleaner.
+-- <https://github.com/hakaru-dev/hakaru/issues/6>
+data VarEqTypeError
+    = forall a b. VarEqTypeError
+        {-# UNPACK #-} !(Variable a)
+        {-# UNPACK #-} !(Variable b)
     deriving (Typeable)
 
 deriving instance Show VarEqTypeError
@@ -245,9 +249,16 @@ instance Exception VarEqTypeError
 
 ----------------------------------------------------------------
 -- TODO: switch to using 'Some' itself
+
+-- BUG: haddock doesn't like annotations on GADT constructors. So
+-- here we'll avoid using the GADT syntax, even though it'd make
+-- the data type declaration prettier\/cleaner.
+-- <https://github.com/hakaru-dev/hakaru/issues/6>
+--
 -- | Hide an existentially quantified parameter to 'Variable'.
-data SomeVariable where
-    SomeVariable :: {-# UNPACK #-} !(Variable a) -> SomeVariable
+data SomeVariable
+    = forall a. SomeVariable
+        {-# UNPACK #-} !(Variable a)
 
 instance Eq SomeVariable where
     SomeVariable x == SomeVariable y =
@@ -815,8 +826,8 @@ binder hint typ hoas = bind x body
     -- N.B., cannot use 'maxFree' when deciding the 'varID' of @x@
 
 {-
-data Hint :: Hakaru -> * where
-    Hint :: !Text -> !(Sing a) -> Hint a
+data Hint (a :: Hakaru)
+    = Hint !Text !(Sing a)
 
 instance Show1 Hint where
     showsPrec1 p (Hint x s) = showParen_01 p "Hint" x s
@@ -825,8 +836,8 @@ instance Show (Hint a) where
     showsPrec = showsPrec1
     show      = show1
 
-data VS :: Hakaru -> * where
-    VS :: {-# UNPACK #-} !Variable -> !(Sing a) -> VS a
+data VS (a :: Hakaru)
+    = VS {-# UNPACK #-} !Variable !(Sing a)
 
 -- this typechecks, and it works!
 -- BUG: but it seems fairly unusable. We must give explicit type signatures to any lambdas passed as the second argument, otherwise it complains about not knowing enough about the types in @xs@... Also, the uncurriedness of it isn't very HOAS-like
@@ -855,10 +866,16 @@ multibinder names hoas = binds vars body
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
-
+-- BUG: haddock doesn't like annotations on GADT constructors. So
+-- here we'll avoid using the GADT syntax, even though it'd make
+-- the data type declaration prettier\/cleaner.
+-- <https://github.com/hakaru-dev/hakaru/issues/6>
+--
 -- | A pair of variable and term, both of the same Hakaru type.
-data Assoc :: ([Hakaru] -> Hakaru -> *) -> * where
-    Assoc :: {-# UNPACK #-} !(Variable a) -> !(abt '[] a) -> Assoc abt
+data Assoc (abt :: [Hakaru] -> Hakaru -> *)
+    = forall a. Assoc
+        {-# UNPACK #-} !(Variable a)
+        !(abt '[] a)
 
 
 -- BUG: since multiple 'varEq'-distinct variables could have the

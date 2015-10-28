@@ -52,6 +52,7 @@ import           Data.Proxy           (Proxy(..)) -- TODO: Is this in Prelude fo
 import           Data.Sequence        (Seq)
 import           Data.Number.LogFloat (LogFloat)
 #if __GLASGOW_HASKELL__ < 710
+import           Data.Monoid          (Monoid(..))
 import           Data.Functor         ((<$>))
 import           Control.Applicative  (Applicative(..))
 #endif
@@ -117,16 +118,20 @@ fromHead (WMeasure e1)    = e1
 
 
 ----------------------------------------------------------------
--- | Weak head-normal forms.
-data Whnf :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
-    -- BUG: haddock doesn't like annotations on GADT constructors
-    -- <https://github.com/hakaru-dev/hakaru/issues/6>
+-- BUG: haddock doesn't like annotations on GADT constructors. So
+-- here we'll avoid using the GADT syntax, even though it'd make
+-- the data type declaration prettier\/cleaner.
+-- <https://github.com/hakaru-dev/hakaru/issues/6>
 
-    -- An actual head.
-    Head_ :: !(Head abt a) -> Whnf abt a
-    
-    -- A neutral term; i.e., a term whose reduction is blocked on some free variable.
-    Neutral :: !(abt '[] a) -> Whnf abt a
+-- | Weak head-normal forms.
+data Whnf (abt :: [Hakaru] -> Hakaru -> *) (a :: Hakaru)
+    -- | An actual (weak-)head.
+    = Head_ !(Head abt a)
+
+    -- TODO: would it be helpful to track which variable it's blocked on?
+    -- | A neutral term; i.e., a term whose reduction is blocked
+    -- on some free variable.
+    | Neutral !(abt '[] a)
 
 
 -- | Forget that something is in WHNF.
@@ -136,16 +141,18 @@ fromWhnf (Neutral e) = e
 
 
 ----------------------------------------------------------------
+-- BUG: haddock doesn't like annotations on GADT constructors. So
+-- here we'll avoid using the GADT syntax, even though it'd make
+-- the data type declaration prettier\/cleaner.
+-- <https://github.com/hakaru-dev/hakaru/issues/6>
+
 -- | Lazy terms are either thunks or already evaluated to WHNF.
-data Lazy :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
-    -- BUG: haddock doesn't like annotations on GADT constructors
-    -- <https://github.com/hakaru-dev/hakaru/issues/6>
+data Lazy (abt :: [Hakaru] -> Hakaru -> *) (a :: Hakaru)
+    -- | Already evaluated to WHNF.
+    = Whnf_ !(Whnf abt a)
 
-    -- An actual WHNF.
-    Whnf_ :: !(Whnf abt a) -> Lazy abt a
-
-    -- A thunk; i.e., any term we decide to maybe evaluate later.
-    Thunk :: !(abt '[] a) -> Lazy abt a
+    -- | A thunk; i.e., any term we decide to maybe evaluate later.
+    | Thunk !(abt '[] a)
 
 
 -- | Forget that something is Lazy.
@@ -157,8 +164,14 @@ caseLazy :: Lazy abt a -> (Whnf abt a -> r) -> (abt '[] a -> r) -> r
 caseLazy (Whnf_ e) k _ = k e
 caseLazy (Thunk e) _ k = k e
 
+
 ----------------------------------------------------------------
 ----------------------------------------------------------------
+-- BUG: haddock doesn't like annotations on GADT constructors. So
+-- here we'll avoid using the GADT syntax, even though it'd make
+-- the data type declaration prettier\/cleaner.
+-- <https://github.com/hakaru-dev/hakaru/issues/6>
+
 -- | A single statement in the @HMeasure@ monad, where bound variables
 -- are considered part of the \"statement\" that binds them rather
 -- than part of the continuation. Thus, non-binding statements like
@@ -166,23 +179,32 @@ caseLazy (Thunk e) _ k = k e
 --
 -- This type was formerly called @Binding@, but that is inaccurate
 -- since it also includes non-binding statements.
-data Statement abt where
-    SBind
-        :: {-# UNPACK #-} !(Variable a)
-        -> !(Lazy abt ('HMeasure a))
-        -> Statement abt
-    SLet
-        :: {-# UNPACK #-} !(Variable a)
-        -> !(Lazy abt a)
-        -> Statement abt
-    SBranch
-        :: !(List1 Variable xs) -- could use 'SArgs' for more strictness
-        -> !(Pattern xs a)
-        -> !(Lazy abt a)
-        -> Statement abt
-    SWeight 
-        :: !(Lazy abt 'HProb)
-        -> Statement abt
+data Statement abt
+    -- | A variable bound by 'MBind' to a measure expression.
+    = forall a. SBind
+        {-# UNPACK #-} !(Variable a)
+        !(Lazy abt ('HMeasure a))
+
+    -- | A variable bound by 'Let_' to an expression.
+    | forall a. SLet
+        {-# UNPACK #-} !(Variable a)
+        !(Lazy abt a)
+
+    -- TODO: to make a proper zipper for 'AST'\/'ABT' we'd want to
+    -- also store the other branches here...
+    --
+    -- | A collection of variables bound by a 'Pattern' to
+    -- subexpressions of the some 'Case_' scrutinee.
+    | forall xs a. SBranch
+        !(List1 Variable xs) -- could use 'SArgs' for more strictness
+        !(Pattern xs a)
+        !(Lazy abt a)
+
+    -- | A weight; i.e., the first component of each argument to
+    -- 'Superpose_'.
+    | SWeight
+        !(Lazy abt 'HProb)
+
     -- TODO: if we do proper HNFs then we should add all the other binding forms (Lam_, Array_, Expect,...) as \"statements\" too
 
 

@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.23
+--                                                    2015.10.27
 -- |
 -- Module      :  Language.Hakaru.Syntax.DatumCase
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -43,31 +43,37 @@ import qualified Text.PrettyPrint as PP
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
+-- BUG: haddock doesn't like annotations on GADT constructors. So
+-- here we'll avoid using the GADT syntax, even though it'd make
+-- the data type declaration prettier\/cleaner.
+-- <https://github.com/hakaru-dev/hakaru/issues/6>
+data MatchResult
+    (abt  :: [Hakaru] -> Hakaru -> *)
+    (vars :: [Hakaru])
+    (a    :: Hakaru)
 
-data MatchResult :: ([Hakaru] -> Hakaru -> *) -> [Hakaru] -> Hakaru -> * where
-    -- BUG: haddock doesn't like annotations on GADT constructors
-    -- <https://github.com/hakaru-dev/hakaru/issues/6>
-
-    -- TODO: actually store information inside GotStuck so we can
-    -- force the appropriate expression and continue without needing
-    -- to backtrack and redo what we've already done. (Of course,
-    -- until we factor @[Branch]@ into a single pattern automaton,
-    -- getting stuck in one branch doesn't tell us enough to avoid
-    -- restarting.)
+    -- | We encountered some non-HNF (perhaps in a nested pattern).
     --
-    -- For when we encounter free variables and non-head-normal forms.
-    GotStuck :: MatchResult abt vars a
+    -- TODO: actually store some information about where we got
+    -- stuck, so the caller can evaluate the appropriate expression.
+    -- As a bonus, the caller should then be able to continue
+    -- matching the rest of the pattern without redoing the parts
+    -- that we already matched. (Of course, until we factor @[Branch]@
+    -- into a single pattern automaton, getting stuck in one branch
+    -- doesn't tell us enough to actually avoid restarting; since
+    -- some other branch could match if the rest of this one fails.)
+    = GotStuck
 
     -- TODO: would it be helpful for anyone if we went back to using @DList1 (Pair1 Variable (abt '[])) vars1@ for the first argument?
     --
-    -- We successfully matched everything (so far). The @vars2@
-    -- are for tracking variables bound by the future\/rest of the
-    -- pattern (i.e., for recursing into the left part of a product,
-    -- @vars2@ are the variables in the right part of the product).
-    Matched
-        :: DList (Assoc abt)
-        -> !(abt vars2 a)
-        -> MatchResult abt vars2 a
+    -- | We successfully matched everything (so far). The first
+    -- argument gives the bindings for all the pattern variables
+    -- we've already checked. The second argument gives the body
+    -- of the branch (where @vars@ are the pattern variables remaining
+    -- to be bound by checking the remainder of the pattern).
+    | Matched
+        (DList (Assoc abt))
+        !(abt vars a)
 
 
 type DList a = [a] -> [a]

@@ -66,6 +66,7 @@ import Language.Hakaru.Syntax.DataKind
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 -- TODO: add @Sing (HData' t)@ to the Datum constructor?
+-- TODO: change the kind to @(Hakaru -> *) -> HakaruCon Hakaru -> *@ so we can avoid the use of GADTs? Would that allow us to actually UNPACK?
 --
 -- | A fully saturated data constructor, which recurses as @ast@.
 -- We define this type as separate from 'DatumCode' for two reasons.
@@ -471,11 +472,13 @@ tpJust    = Text.pack "pJust"
 -- ever end up keeping track of local binding environments; but
 -- other than that, it should be replaced\/augmented with a type
 -- for pattern automata, so we can optimize case analysis.
-data Branch :: Hakaru -> ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
-    Branch
-        :: !(Pattern xs a)
-        -> !(abt xs b)
-        -> Branch a abt b
+data Branch
+    (a   :: Hakaru)                  -- The type of the scrutinee.
+    (abt :: [Hakaru] -> Hakaru -> *) -- The 'ABT' of the body.
+    (b   :: Hakaru)                  -- The type of the body.
+    = forall xs. Branch
+        !(Pattern xs a)
+        !(abt xs b)
 
 instance Eq2 abt => Eq1 (Branch a abt) where
     eq1 (Branch p1 e1) (Branch p2 e2) =

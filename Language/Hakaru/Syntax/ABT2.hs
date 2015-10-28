@@ -599,8 +599,8 @@ binder hint typ hoas = bind x body
     -- N.B., cannot use 'maxFree' when deciding the 'varID' of @x@
 
 {-
-data Hint :: k -> * where
-    Hint :: !Text -> !(Sing a) -> Hint a
+data Hint (a :: k)
+    = Hint !Text !(Sing a)
 
 instance Show1 Hint where
     showsPrec1 p (Hint x s) = showParen_01 p "Hint" x s
@@ -609,8 +609,8 @@ instance Show (Hint a) where
     showsPrec = showsPrec1
     show      = show1
 
-data VS :: k -> * where
-    VS :: {-# UNPACK #-} !Variable -> !(Sing a) -> VS a
+data VS (a :: k)
+    = VS {-# UNPACK #-} !Variable !(Sing a)
 
 -- this typechecks, and it works!
 -- BUG: but it seems fairly unusable. We must give explicit type signatures to any lambdas passed as the second argument, otherwise it complains about not knowing enough about the types in @xs@... Also, the uncurriedness of it isn't very HOAS-like

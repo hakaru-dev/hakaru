@@ -453,10 +453,15 @@ instance Eq a => Eq1 (Lift2 a i) where
 
 
 ----------------------------------------------------------------
+-- BUG: haddock doesn't like annotations on GADT constructors. So
+-- here we'll avoid using the GADT syntax, even though it'd make
+-- the data type declaration prettier\/cleaner.
+-- <https://github.com/hakaru-dev/hakaru/issues/6>
+--
 -- | Existentially quantify over an index.
 -- TODO: replace 'SomeVariable' with @(Some Variable)@
-data Some (a :: k -> *) where
-    Some :: !(a i) -> Some a
+data Some (a :: k -> *)
+    = forall i. Some !(a i)
 
 instance Show1 a => Show (Some a) where
     showsPrec p (Some x) = showParen_1 p "Some" x
@@ -465,11 +470,11 @@ instance JmEq1 a  => Eq (Some a) where
     Some x == Some y = maybe False (const True) (jmEq1 x y)
 
 {-# DEPRECATED Sealed1 "use Some instead" #-}
-data Sealed1 op = forall a. Sealed1 (op a)
+data Sealed1 a = forall i. Sealed1 (a i)
 
 {-# DEPRECATED Sealed2 "If we actually need this; rename to Some1 and Some2" #-}
-data Sealed2 op  where
-     Sealed2 :: op args a -> Sealed2 op
+data Sealed2 a = forall i j. Sealed2 (a i j)
+
 
 ----------------------------------------------------------------
 -- | A /strict/ pairing of identically @k@-indexed values.

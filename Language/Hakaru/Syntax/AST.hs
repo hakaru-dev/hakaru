@@ -51,7 +51,7 @@ module Language.Hakaru.Syntax.AST
 import           Data.Sequence (Seq)
 import qualified Data.Foldable as F
 #if __GLASGOW_HASKELL__ < 710
-import Data.Monoid             hiding (Sum)
+import Data.Monoid             (Monoid(..))
 #endif
 import Control.Arrow           ((***))
 import Data.Number.LogFloat    (LogFloat)

@@ -7,7 +7,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.23
+--                                                    2015.10.27
 -- |
 -- Module      :  Language.Hakaru.Syntax.Variable
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -284,9 +284,16 @@ maxVarID xs
 
 
 ----------------------------------------------------------------
+-- BUG: haddock doesn't like annotations on GADT constructors. So
+-- here we'll avoid using the GADT syntax, even though it'd make
+-- the data type declaration prettier\/cleaner.
+-- <https://github.com/hakaru-dev/hakaru/issues/6>
+--
 -- | A pair of variable and term, both of the same Hakaru type.
-data Assoc :: ([k] -> k -> *) -> * where
-    Assoc :: {-# UNPACK #-} !(Variable a) -> !(abt '[] a) -> Assoc abt
+data Assoc (abt :: [k] -> k -> *)
+    = forall a. Assoc
+        {-# UNPACK #-} !(Variable a)
+        !(abt '[] a)
 
 
 -- BUG: since multiple 'varEq'-distinct variables could have the
