@@ -202,7 +202,7 @@ sampleUnsafe (CCons c cs) (S a) = samplePrimUnsafe c (sampleUnsafe cs (S a))
 samplePrimCoerce :: (PrimCoercion a b) -> S m a -> S m b
 samplePrimCoerce (Signed HRing_Int ) (S a) = S $ fromNat a
 samplePrimCoerce (Signed HRing_Real) (S a) = S $ LF.fromLogFloat a
-samplePrimCoerce (Continuous HContinuous_Prob) (S a) = error "TODO: samplePrimCoerce{Continuous}"-- S $ LF.logFloat (fromNat a)
+samplePrimCoerce (Continuous HContinuous_Prob) (S a) = S $ LF.logFloat (fromIntegral (fromNat a) :: Double)
 samplePrimCoerce (Continuous HContinuous_Real) (S a) = S $ fromIntegral a
 
 samplePrimUnsafe :: (PrimCoercion a b) -> S m b -> S m a
