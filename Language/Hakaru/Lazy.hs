@@ -203,6 +203,7 @@ update x = loop []
     step _ = Nothing
 
 
+-- BUG: this allows the above to typecheck, but it isn't actually what I meant. Just because @elem x ys@ doesn't actually mean @TypeEq a b@; in fact, that's absurd unless the pattern just so happens to be 'PVar'. But we'll prolly need some sort of TypeEq proof to get the above to go through; so what proof do we actually need?
 varEqAnyInPattern
     :: Variable a
     -> List1 Variable xs
