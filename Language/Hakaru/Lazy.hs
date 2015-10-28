@@ -11,6 +11,7 @@
            , TypeSynonymInstances
            , FlexibleInstances
            , FunctionalDependencies
+           , BangPatterns
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs -fno-warn-unused-binds -fno-warn-unused-imports #-}
@@ -47,14 +48,16 @@ module Language.Hakaru.Lazy
     -- ** Helper functions
     ) where
 
-import Data.Proxy           (Proxy(..)) -- TODO: Is this in Prelude for modern GHC?
-import Data.Sequence        (Seq)
-import Data.Number.LogFloat (LogFloat)
+import           Data.Proxy           (Proxy(..)) -- TODO: Is this in Prelude for modern GHC?
+import           Data.Sequence        (Seq)
+import           Data.Number.LogFloat (LogFloat)
 #if __GLASGOW_HASKELL__ < 710
-import Data.Functor         ((<$>))
-import Control.Applicative  (Applicative(..))
+import           Data.Functor         ((<$>))
+import           Control.Applicative  (Applicative(..))
 #endif
-import qualified Data.Traversable as T
+import           Data.IntMap          (IntMap)
+import qualified Data.IntMap          as IM
+import qualified Data.Traversable     as T
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.Nat (Nat, fromNat)
@@ -67,6 +70,7 @@ import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Coercion
 import qualified Language.Hakaru.Syntax.Prelude as P
 import qualified Language.Hakaru.Expect         as E
+import Language.Hakaru.PrettyPrint -- HACK: for ghci use only
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -257,6 +261,58 @@ instance Monad (M abt) where
 -- BUG: we need to make sure to freshen the bound variables when we push the statement. This means returning a substitution to rename all the variables in whatever the remainder of the term is!
 push :: Statement abt -> M abt ()
 push s = M $ \c h -> c () h{statements = s : statements h}
+
+push_'
+    :: (ABT abt)
+    => Statement abt
+    -> abt xs a
+    -> (abt xs a -> M abt r)
+    -> M abt r
+push_' s e k = M $ \c (Context i ss) ->
+    case s of
+    SWeight body ->
+        unM (k e) c (Context i (SWeight body : ss))
+    SBind x body ->
+        let x' = x{varID=i}
+            e' = subst x (var x') e
+        in unM (k e') c (Context (i+1) (SBind x' body : ss))
+    SLet  x body ->
+        let x' = x{varID=i}
+            e' = subst x (var x') e
+        in unM (k e') c (Context (i+1) (SLet x' body : ss))
+    SBranch xs pat body ->
+        let (i', xs') = renameFrom xs i
+            e' = substs (toAssocs xs $ fmap11 var xs') e
+        in unM (k e') c (Context i' (SBranch xs' pat body : ss))
+
+push_ :: Statement abt -> M abt ()
+push_ s = M $ \c (Context i ss) -> c () $
+    case s of
+    SWeight body        -> Context i     (SWeight body : ss)
+    SBind x body        -> Context (i+1) (SBind (x{varID=i}) body : ss)
+    SLet  x body        -> Context (i+1) (SLet  (x{varID=i}) body : ss)
+    SBranch xs pat body ->
+        case renameFrom xs i of
+        (i', xs') -> Context i' (SBranch xs' pat body : ss)
+
+renameFrom :: List1 Variable xs -> Nat -> (Nat, List1 Variable xs)
+renameFrom = go
+    where
+    go Nil1         !i = (i, Nil1)
+    go (Cons1 x xs)  i =
+        case renameFrom xs (i+1) of
+        (i', xs') -> (i', Cons1 (x{varID=i}) xs')
+
+-- TODO: move this to IClasses.hs
+toAssocs :: List1 Variable xs -> List1 (abt '[]) xs -> Assocs abt
+toAssocs = \xs es -> Assocs (go xs es)
+    where
+    go :: List1 Variable xs -> List1 (abt '[]) xs -> IntMap (Assoc abt)
+    -- BUG: GHC claims the patterns are non-exhaustive here
+    go Nil1         Nil1         = IM.empty
+    go (Cons1 x xs) (Cons1 e es) =
+        IM.insert (fromNat $ varID x) (Assoc x e) (go xs es)
+
 
 pushes :: [Statement abt] -> M abt ()
 pushes ss = M $ \c h -> c () h{statements = ss ++ statements h}

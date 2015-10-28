@@ -43,7 +43,7 @@ module Language.Hakaru.Syntax.ABT
     , SomeVariable(..)
     -- ** Some helper types for \"heaps\", \"environments\", etc
     , Assoc(..)
-    , Assocs()
+    , Assocs(..)
     , emptyAssocs
     , insertAssoc
     , lookupAssoc
@@ -746,7 +746,7 @@ substs rho0 = start rho0
             case varEq x y of
             Just Refl     -> e'
             Nothing       -> e
-    loop rho e (Bind x body) =
+    loop rho e (Bind x _body) =
         case IM.lookup (fromNat $ varID x) (unAssocs rho) of
         Nothing          -> e
         Just (Assoc y _) ->
