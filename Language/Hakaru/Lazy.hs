@@ -272,7 +272,7 @@ newtype M abt x = M { unM :: forall a. (x -> Ans abt a) -> Ans abt a }
 -- TODO: implement 'residualizeContext' at the correct type.
 -- TODO: can we legit call the result of 'residualizeContext' a neutral term? Really we should change the definition of 'Ans', ne?
 runM :: M abt (Whnf abt a) -> Context abt -> Whnf abt a
-runM (M m) = m ((Neutral .) residualizeContext)
+runM (M m) = m (\x -> Head_ . ??? . residualizeContext x)
 -}
 
 instance Functor (M abt) where
@@ -480,8 +480,8 @@ runM' :: (ABT abt)
     => M' abt (Whnf abt ('HMeasure a))
     -> Context abt
     -> Whnf abt ('HMeasure a)
-runM' m = unM' m (\x -> Neutral . residualizeContext x)
--- HACK: can't use @(Neutral .) . residualizeContext@; won't typecheck
+runM' m = unM' m (\x -> Head_ . WMeasure . residualizeContext x)
+-- HACK: can't eta-shorten away the @x@; won't typecheck for some reason
 
 
 instance Functor (M' abt) where
@@ -533,8 +533,7 @@ perform e0 =
         MeasureOp_ (Dirac _) :$ e1 :* End ->
             m2mprime $ evaluate e1
         MeasureOp_ _ :$ _ ->
-            -- TODO: is it actually legit to call the result a neutral form?
-            M' $ \c h -> Neutral (e0 P.>>= \z -> fromWhnf (c (Neutral z) h))
+            M' $ \c h -> Head_ $ WMeasure (e0 P.>>= \z -> fromWhnf (c (Neutral z) h))
         MBind :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
                 push' (SBind x (Thunk e1)) e2' perform
