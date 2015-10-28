@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.09
+--                                                    2015.10.27
 -- |
 -- Module      :  Language.Hakaru.Expect
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -130,8 +130,7 @@ unImpureArray (ImpureArray p) = p
 -- functional with a minimum of administrative redexes.
 data Expect :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     -- BUG: haddock doesn't like annotations on GADT constructors
-    -- <http://trac.haskell.org/haddock/ticket/43>
-    -- <https://github.com/haskell/haddock/issues/43>
+    -- <https://github.com/hakaru-dev/hakaru/issues/6>
 
     -- The whole goal of this module is to provide the following
     -- interpretation for measures.

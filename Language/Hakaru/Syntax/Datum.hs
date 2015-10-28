@@ -10,7 +10,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.23
+--                                                    2015.10.27
 -- |
 -- Module      :  Language.Hakaru.Syntax.Datum
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -122,8 +122,7 @@ infixr 7 `Et`, `PEt`
 -- @[[HakaruFun]]@ functor.
 data DatumCode :: [[HakaruFun]] -> (Hakaru -> *) -> Hakaru -> * where
     -- BUG: haddock doesn't like annotations on GADT constructors
-    -- <http://trac.haskell.org/haddock/ticket/43>
-    -- <https://github.com/haskell/haddock/issues/43>
+    -- <https://github.com/hakaru-dev/hakaru/issues/6>
 
     -- Skip rightwards along the sum.
     Inr :: !(DatumCode  xss abt a) -> DatumCode (xs ': xss) abt a
@@ -164,8 +163,7 @@ instance Foldable11 (DatumCode xss) where
 ----------------------------------------------------------------
 data DatumStruct :: [HakaruFun] -> (Hakaru -> *) -> Hakaru -> * where
     -- BUG: haddock doesn't like annotations on GADT constructors
-    -- <http://trac.haskell.org/haddock/ticket/43>
-    -- <https://github.com/haskell/haddock/issues/43>
+    -- <https://github.com/hakaru-dev/hakaru/issues/6>
 
     -- Combine components of the product. (\"et\" means \"and\" in Latin)
     Et  :: !(DatumFun    x         abt a)
@@ -202,8 +200,7 @@ instance Foldable11 (DatumStruct xs) where
 -- TODO: do we like those constructor names? Should we change them?
 data DatumFun :: HakaruFun -> (Hakaru -> *) -> Hakaru -> * where
     -- BUG: haddock doesn't like annotations on GADT constructors
-    -- <http://trac.haskell.org/haddock/ticket/43>
-    -- <https://github.com/haskell/haddock/issues/43>
+    -- <https://github.com/hakaru-dev/hakaru/issues/6>
 
     -- Hit a leaf which isn't a recursive component of the datatype.
     Konst :: !(ast b) -> DatumFun ('K b) ast a
@@ -303,8 +300,7 @@ tdJust    = Text.pack "just"
 -- variants for pattern matching.
 data Pattern :: [Hakaru] -> Hakaru -> * where
     -- BUG: haddock doesn't like annotations on GADT constructors
-    -- <http://trac.haskell.org/haddock/ticket/43>
-    -- <https://github.com/haskell/haddock/issues/43>
+    -- <https://github.com/hakaru-dev/hakaru/issues/6>
 
     -- The \"don't care\" wildcard pattern.
     PWild :: Pattern '[]    a

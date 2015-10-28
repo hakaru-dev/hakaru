@@ -10,7 +10,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.22
+--                                                    2015.10.27
 -- |
 -- Module      :  Language.Hakaru.Syntax.AST
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -430,8 +430,7 @@ infixr 5 :* -- Chosen to match (:)
 -- without needing to deal with 'App_' nodes nor 'viewABT'.
 data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
     -- BUG: haddock doesn't like annotations on GADT constructors
-    -- <http://trac.haskell.org/haddock/ticket/43>
-    -- <https://github.com/haskell/haddock/issues/43>
+    -- <https://github.com/hakaru-dev/hakaru/issues/6>
 
     -- -- Standard lambda calculus stuff
     Lam_ :: SCon '[ '( '[ a ], b ) ] (a ':-> b)
@@ -542,8 +541,7 @@ instance Foldable21 SArgs where
 ----------------------------------------------------------------
 data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     -- BUG: haddock doesn't like annotations on GADT constructors
-    -- <http://trac.haskell.org/haddock/ticket/43>
-    -- <https://github.com/haskell/haddock/issues/43>
+    -- <https://github.com/hakaru-dev/hakaru/issues/6>
 
     -- Simple syntactic forms (i.e., generalized quantifiers)
     (:$) :: !(SCon args a) -> !(SArgs abt args) -> AST abt a

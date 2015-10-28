@@ -7,7 +7,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.21
+--                                                    2015.10.27
 -- |
 -- Module      :  Language.Hakaru.Syntax.Coercion
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -94,8 +94,7 @@ continuous = singletonCoercion $ Continuous hContinuous
 -- | General proofs of the inclusions in our numeric hierarchy.
 data Coercion :: Hakaru -> Hakaru -> * where
     -- BUG: haddock doesn't like annotations on GADT constructors
-    -- <http://trac.haskell.org/haddock/ticket/43>
-    -- <https://github.com/haskell/haddock/issues/43>
+    -- <https://github.com/hakaru-dev/hakaru/issues/6>
 
     -- Added the trivial coercion so we get the Category instance.
     -- This may/should make program transformations easier to write

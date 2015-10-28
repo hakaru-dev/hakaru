@@ -277,6 +277,8 @@ deriving instance Show SomeVariable
 -- their own ABT instances (without reinventing their own copy of
 -- this type)...
 data View :: ([Hakaru] -> Hakaru -> *) -> [Hakaru] -> Hakaru -> * where
+    -- BUG: haddock doesn't like annotations on GADT constructors
+    -- <https://github.com/hakaru-dev/hakaru/issues/6>
 
     Syn  :: !(AST abt a) -> View abt '[] a
 

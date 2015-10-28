@@ -120,8 +120,7 @@ fromHead (WMeasure e1)    = e1
 -- | Weak head-normal forms.
 data Whnf :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     -- BUG: haddock doesn't like annotations on GADT constructors
-    -- <http://trac.haskell.org/haddock/ticket/43>
-    -- <https://github.com/haskell/haddock/issues/43>
+    -- <https://github.com/hakaru-dev/hakaru/issues/6>
 
     -- An actual head.
     Head_ :: !(Head abt a) -> Whnf abt a
@@ -140,8 +139,7 @@ fromWhnf (Neutral e) = e
 -- | Lazy terms are either thunks or already evaluated to WHNF.
 data Lazy :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     -- BUG: haddock doesn't like annotations on GADT constructors
-    -- <http://trac.haskell.org/haddock/ticket/43>
-    -- <https://github.com/haskell/haddock/issues/43>
+    -- <https://github.com/hakaru-dev/hakaru/issues/6>
 
     -- An actual WHNF.
     Whnf_ :: !(Whnf abt a) -> Lazy abt a

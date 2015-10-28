@@ -14,7 +14,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.25
+--                                                    2015.10.27
 -- |
 -- Module      :  Language.Hakaru.Syntax.ABT
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -108,11 +108,13 @@ import Language.Hakaru.Syntax.Variable
 -- type, then clients can't define their own ABT instances (without
 -- reinventing their own copy of this type)...
 data View :: (k -> *) -> [k] -> k -> * where
+    -- BUG: haddock doesn't like annotations on GADT constructors
+    -- <https://github.com/hakaru-dev/hakaru/issues/6>
 
-    -- | Some syntax from the generating signature @rec@.
+    -- Some syntax from the generating signature @rec@.
     Syn  :: !(rec a) -> View rec '[] a
 
-    -- | A variable use.
+    -- A variable use.
     Var  :: {-# UNPACK #-} !(Variable a) -> View rec '[] a
 
     -- N.B., this constructor is recursive, thus minimizing the
@@ -125,7 +127,7 @@ data View :: (k -> *) -> [k] -> k -> * where
     -- 'Bind', rather than pushing over all of them at once and
     -- then needing to reconstruct all but the first one.
     --
-    -- | A variable binding.
+    -- A variable binding.
     Bind
         :: {-# UNPACK #-} !(Variable a)
         -> !(View rec xs b)

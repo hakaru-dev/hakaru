@@ -46,8 +46,7 @@ import qualified Text.PrettyPrint as PP
 
 data MatchResult :: ([Hakaru] -> Hakaru -> *) -> [Hakaru] -> Hakaru -> * where
     -- BUG: haddock doesn't like annotations on GADT constructors
-    -- <http://trac.haskell.org/haddock/ticket/43>
-    -- <https://github.com/haskell/haddock/issues/43>
+    -- <https://github.com/hakaru-dev/hakaru/issues/6>
 
     -- TODO: actually store information inside GotStuck so we can
     -- force the appropriate expression and continue without needing
