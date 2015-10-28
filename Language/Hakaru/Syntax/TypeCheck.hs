@@ -263,7 +263,7 @@ inferType = inferType_
                 SFun typ2 typ3 -> do
                   e2' <- checkType typ2 e2
                   return $ TypedAST typ3 (syn(App_ :$ e1' :* e2' :* End))
-                _ -> failwith "expected function type"
+                _ -> failwith ("expected function type, got " ++ show typ1 ++ " instead")
         -- The above is the standard rule that everyone uses.
         -- However, if the @e1@ is a lambda (rather than a primop
         -- or a variable), then it will require a type annotation.
@@ -517,7 +517,7 @@ checkType = checkType_
                 -- the goal @typ@. This will be relevant to us for handling our coercion calculus :(
                 case jmEq1 typ0 typ' of
                     Just Refl -> return e0'
-                    Nothing   -> failwith "Type mismatch"
+                    Nothing   -> failwith ("Type mismatch: got " ++ show typ' ++ " was expecting " ++ show typ0)
             | otherwise -> error "checkType: missing an mustCheck branch!"
 
     --------------------------------------------------------
