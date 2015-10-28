@@ -86,7 +86,7 @@ library
 -- ghc-prim is used in LH.RoundTrip
 -- filepath is used in Examples/Slam
 
-  build-depends:       base             >= 4.6  && < 5.0, 
+  build-depends:       base             >= 4.7  && < 5.0, 
                        Cabal            >= 1.16,
                        ghc-prim         >= 0.3  && < 0.5,
                        random           >= 1.0  && < 1.3,
