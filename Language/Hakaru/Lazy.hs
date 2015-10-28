@@ -57,6 +57,7 @@ import           Control.Applicative  (Applicative(..))
 #endif
 import           Data.IntMap          (IntMap)
 import qualified Data.IntMap          as IM
+import qualified Data.Foldable        as F
 import qualified Data.Traversable     as T
 
 import Language.Hakaru.Syntax.IClasses
@@ -258,35 +259,14 @@ instance Monad (M abt) where
     return    = pure
     M m >>= k = M $ \c -> m $ \x -> unM (k x) c
 
--- BUG: we need to make sure to freshen the bound variables when we push the statement. This means returning a substitution to rename all the variables in whatever the remainder of the term is!
+{-
+-- This version is buggy when the same varID is used in different places (i.e., as different variables)
 push :: Statement abt -> M abt ()
 push s = M $ \c h -> c () h{statements = s : statements h}
 
-push_'
-    :: (ABT abt)
-    => Statement abt
-    -> abt xs a
-    -> (abt xs a -> M abt r)
-    -> M abt r
-push_' s e k = M $ \c (Context i ss) ->
-    case s of
-    SWeight body ->
-        unM (k e) c (Context i (SWeight body : ss))
-    SBind x body ->
-        let x' = x{varID=i}
-            e' = subst x (var x') e
-        in unM (k e') c (Context (i+1) (SBind x' body : ss))
-    SLet  x body ->
-        let x' = x{varID=i}
-            e' = subst x (var x') e
-        in unM (k e') c (Context (i+1) (SLet x' body : ss))
-    SBranch xs pat body ->
-        let (i', xs') = renameFrom xs i
-            e' = substs (toAssocs xs $ fmap11 var xs') e
-        in unM (k e') c (Context i' (SBranch xs' pat body : ss))
-
-push_ :: Statement abt -> M abt ()
-push_ s = M $ \c (Context i ss) -> c () $
+-- This version renames variables as we push them into the context; but that means whatever term we continue with will be messed up.
+push :: Statement abt -> M abt ()
+push s = M $ \c (Context i ss) -> c () $
     case s of
     SWeight body        -> Context i     (SWeight body : ss)
     SBind x body        -> Context (i+1) (SBind (x{varID=i}) body : ss)
@@ -294,6 +274,38 @@ push_ s = M $ \c (Context i ss) -> c () $
     SBranch xs pat body ->
         case renameFrom xs i of
         (i', xs') -> Context i' (SBranch xs' pat body : ss)
+-}
+-- | Push a statement onto the context, renaming variables along the way. The second argument represents \"the rest of the term\" after we've peeled the statement off; it's passed so that we can update the variable names there so that they match with the (renamed)binding statement. The third argument is the continuation for what to do with the renamed term. Rather than taking the second and third arguments we could return an 'Assocs' giving the renaming of variables; however, doing that would make it too easy to accidentally drop the substitution on the floor rather than applying it to the term before calling the continuation.
+push
+    :: (ABT abt)
+    => Statement abt
+    -> abt xs a
+    -> (abt xs a -> M abt r)
+    -> M abt r
+push s e k = do
+    rho <- push_ s
+    k (substs rho e)
+
+push_
+    :: (ABT abt)
+    => Statement abt
+    -> M abt (Assocs abt)
+push_ s = M $ \c (Context i ss) ->
+    case s of
+    SWeight body -> c (Assocs IM.empty) (Context i (SWeight body : ss))
+    SBind x body ->
+        let x' = x{varID=i}
+            rho = IM.singleton (fromNat $ varID x) (Assoc x (var x'))
+        in c (Assocs rho) (Context (i+1) (SBind x' body : ss))
+    SLet x body ->
+        let x' = x{varID=i}
+            rho = IM.singleton (fromNat $ varID x) (Assoc x (var x'))
+        in c (Assocs rho) (Context (i+1) (SLet x' body : ss))
+    SBranch xs pat body ->
+        let (i', xs') = renameFrom xs i
+            rho = toAssocs xs $ fmap11 var xs'
+        in c rho (Context i' (SBranch xs' pat body : ss))
+
 
 renameFrom :: List1 Variable xs -> Nat -> (Nat, List1 Variable xs)
 renameFrom = go
@@ -313,10 +325,23 @@ toAssocs = \xs es -> Assocs (go xs es)
     go (Cons1 x xs) (Cons1 e es) =
         IM.insert (fromNat $ varID x) (Assoc x e) (go xs es)
 
+-- TODO: move this to IClasses.hs
+-- TODO: what is the actual monoid instance for IntMap; left-biased shadowing I assume? We should make it an error if anything's multiply defined.
+instance Monoid (Assocs abt) where
+    mempty  = Assocs IM.empty
+    mappend (Assocs xs) (Assocs ys) = Assocs (mappend xs ys)
+    mconcat = Assocs . mconcat . map unAssocs
 
-pushes :: [Statement abt] -> M abt ()
-pushes ss = M $ \c h -> c () h{statements = ss ++ statements h}
--- pushes = T.traverse_ push
+pushes
+    :: (ABT abt)
+    => [Statement abt]
+    -> abt xs a
+    -> (abt xs a -> M abt r)
+    -> M abt r
+pushes ss e k = do
+    -- TODO: is 'foldlM' the right one? or do we want 'foldrM'?
+    rho <- F.foldlM (\rho s -> mappend rho <$> push_ s) mempty ss
+    k (substs rho e)
 
 -- | N.B., this can be unsafe. If a binding statement is returned, then the caller must be sure to push back on statements binding all the same variables!
 pop :: M abt (Maybe (Statement abt))
@@ -351,17 +376,13 @@ evaluate e0 =
             case v1 of
                 Neutral e1'    -> return . Neutral $ P.app e1' e2
                 Head_ (WLam f) ->
-                    caseBind f $ \x f' -> do
-                        push (SLet x (Thunk e2))
-                        -- BUG: need to freshen @x@ and rename @x@ to @x'@ in @f'@
-                        evaluate f'
+                    caseBind f $ \x f' ->
+                        push (SLet x (Thunk e2)) f' evaluate
                 Head_ w -> case w of {} -- HACK: impossible
 
         Let_ :$ e1 :* e2 :* End ->
-            caseBind e2 $ \x e2' -> do
-                push (SLet x (Thunk e1))
-                -- BUG: need to freshen @x@ and rename @x@ to @x'@ in @e2'@
-                evaluate e2'
+            caseBind e2 $ \x e2' ->
+                push (SLet x (Thunk e1)) e2' evaluate
 
         Fix_ :$ e1 :* End -> error "TODO: evaluate{Fix_}"
 
@@ -385,7 +406,6 @@ evaluate e0 =
         Expect :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
                 evaluate $ E.expect e1 (\e3 -> subst x e3 e2')
-        Expect :$ es -> case es of {} -- HACK: impossible
 
         Lub_ es -> error "TODO: evaluate{Lub_}" -- (Head_ . HLub) <$> T.for es evaluate
 
@@ -404,6 +424,7 @@ evaluate e0 =
         Ann_ _ :$ es -> case es of {}
         CoerceTo_ _ :$ es -> case es of {}
         UnsafeFrom_ _ :$ es -> case es of {}
+        Expect :$ es -> case es of {}
 
 
 ----------------------------------------------------------------
@@ -438,15 +459,27 @@ instance Monad (M' abt) where
     return     = pure
     M' m >>= k = M' $ \c -> m $ \x -> unM' (k x) c
 
--- BUG: we need to make sure to freshen the bound variables when we push the statement. This means returning a substitution to rename all the variables in whatever the remainder of the term is!
-push' :: Statement abt -> M' abt ()
-push' s = M' $ \c h -> c () h{statements = s : statements h}
+push'
+    :: (ABT abt)
+    => Statement abt
+    -> abt xs a
+    -> (abt xs a -> M' abt r)
+    -> M' abt r
+push' s e k = do
+    rho <- m2mprime (push_ s)
+    k (substs rho e)
 
-pushes' :: [Statement abt] -> M' abt ()
-pushes' ss = M' $ \c h -> c () h{statements = ss ++ statements h}
--- pushes' = T.traverse_ push'
+pushes'
+    :: (ABT abt)
+    => [Statement abt]
+    -> abt xs a
+    -> (abt xs a -> M' abt r)
+    -> M' abt r
+pushes' ss e k = do
+    -- TODO: is 'foldlM' the right one? or do we want 'foldrM'?
+    rho <- F.foldlM (\rho s -> mappend rho <$> m2mprime (push_ s)) mempty ss
+    k (substs rho e)
 
--- | N.B., this can be unsafe. If a binding statement is returned, then the caller must be sure to push back on statements binding all the same variables!
 pop' :: M' abt (Maybe (Statement abt))
 pop' = M' $ \c h ->
     case statements h of
@@ -467,10 +500,8 @@ perform e0 =
             -- TODO: is it actually legit to call the result a neutral form?
             M' $ \c h -> Neutral (e0 P.>>= \z -> fromWhnf (c (Neutral z) h))
         MBind :$ e1 :* e2 :* End ->
-            caseBind e2 $ \x e2' -> do
-                push' (SBind x (Thunk e1))
-                -- BUG: need to freshen @x@ and rename @x@ to @x'@ in @e2'@
-                perform e2'
+            caseBind e2 $ \x e2' ->
+                push' (SBind x (Thunk e1)) e2' perform
         Superpose_ es ->
             error "TODO: perform{Superpose_}"
             {-
@@ -502,7 +533,7 @@ tryMatch e bs k =
     case matchBranches e bs of
     Nothing                 -> error "tryMatch: nothing matched!"
     Just GotStuck           -> return . Neutral . syn $ Case_ e bs
-    Just (Matched ss body') -> pushes (toStatements ss) >> k body'
+    Just (Matched ss body') -> pushes (toStatements ss) body' k
 
 
 type DList a = [a] -> [a]
@@ -719,7 +750,7 @@ update x = loop []
                 Nothing -> loop (s:ss)
                 Just mv -> do
                     v <- mv             -- evaluate the body of @s@
-                    push   (SLet x (Whnf_ v)) -- push the updated binding
+                    push   (SLet x (Whnf_ v)) -- push the updated binding -- BUG: must use the new definition of 'push'
                     pushes (reverse ss) -- put the rest of the context back
                     return v            -- TODO: return (NamedWhnf x v)
 
@@ -746,7 +777,7 @@ update x = loop []
                     Just GotStuck -> error "TODO: update: got stuck"
                     Just (Matched ss b) ->
                         if reify b
-                        then pushes ss >> update x
+                        then pushes ss x update
                         else P.reject
     step _ = Nothing
 -}
