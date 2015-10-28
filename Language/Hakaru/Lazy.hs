@@ -48,7 +48,7 @@ module Language.Hakaru.Lazy
     -- ** Helper functions
     ) where
 
-import           Data.Proxy           (Proxy(..)) -- TODO: Is this in Prelude for modern GHC?
+import           Data.Proxy           (Proxy(..))
 import           Data.Sequence        (Seq)
 import           Data.Number.LogFloat (LogFloat)
 #if __GLASGOW_HASKELL__ < 710

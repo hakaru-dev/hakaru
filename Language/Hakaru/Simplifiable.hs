@@ -24,7 +24,7 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Simplifiable (Simplifiable(mapleType)) where
 
-import Data.Proxy (Proxy(..)) -- TODO: Is this in Prelude for modern GHC?
+import Data.Proxy (Proxy(..))
 -- import Data.Typeable (Typeable)
 -- import Data.List     (intercalate)
 import Language.Hakaru.Syntax.DataKind

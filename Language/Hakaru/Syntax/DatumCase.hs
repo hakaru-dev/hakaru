@@ -29,7 +29,7 @@ module Language.Hakaru.Syntax.DatumCase
     , matchBranch
     ) where
 
-import Data.Proxy (Proxy(..)) -- TODO: Is this in Prelude for modern GHC?
+import Data.Proxy (Proxy(..))
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.DataKind
