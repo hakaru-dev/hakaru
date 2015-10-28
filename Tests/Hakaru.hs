@@ -19,9 +19,12 @@ import Language.Hakaru.PrettyPrint
 
 import Data.Text
 
+five, normal01 :: Text
+
 five = "2 + 3"
 normal01 = "normal(-0.0,1.0)"
 
+pToa :: U.AST' Text -> U.AST a
 pToa = makeAST . normAST . (symbolResolution primTable)
 
 inferType' :: U.AST a -> TypeCheckMonad (TypedAST TrivialABT)

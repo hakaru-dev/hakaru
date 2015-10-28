@@ -13,6 +13,7 @@ import qualified Language.Hakaru.Syntax.AST as T
 import qualified Language.Hakaru.Parser.AST as U
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.IClasses
+import Language.Hakaru.Syntax.HClasses
 import qualified Language.Hakaru.Syntax.Nat as N
 
    --   Pair_
@@ -34,23 +35,20 @@ t2 :: (U.AST a -> U.AST a -> U.AST a) -> Symbol a
 t2 f = TLam (\ a -> TLam (\b -> TNeu (f a b)))
 
 primTable :: [(Text, Symbol a)]
-primTable =  [("Pair",       pPair)
+primTable =  [("Pair",       primPair)
              -- ,("True",       True_)
              -- ,("False",      False_)
              -- ,("fromProb",   FromProb_)
              -- ,("unsafeProb", UnsafeProb_)
              -- ,("uniform",    Uniform_)
-             ,("normal",     pNormal)
-             -- ,("+",          Plus)
+             ,("normal",     primNormal)
+             ,("+",          primPlus) -- only Nat
              ]
 
-pNormal = TLam (\x ->
-               TLam (\y ->
-                  TNeu $ U.MeasureOp_ (U.SealedOp T.Normal) [x,y]))
-
-pPair = TLam (\a -> 
-         TLam (\b -> TNeu $ U.Datum_ $ U.SealedDatum $
-              U.Datum "pair" (U.Inl $ U.Konst a `U.Et` U.Konst b `U.Et` U.Done)))
+primNormal = t2 (\x y -> U.MeasureOp_ (U.SealedOp T.Normal) [x,y])
+primPlus = t2 (\a b -> U.NaryOp_ (Some1 $ T.Sum HSemiring_Nat) [a,b])
+primPair = t2 (\a b -> U.Datum_ $ U.SealedDatum $
+              U.Datum "pair" (U.Inl $ U.Konst a `U.Et` U.Konst b `U.Et` U.Done))
 
 pVar name = TNeu (U.Var_ (U.Name (N.unsafeNat 0) name))
 
