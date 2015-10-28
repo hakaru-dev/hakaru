@@ -843,33 +843,50 @@ update x = loop []
     step (SLet y e0) = do
         Refl <- varEq x y
         Just $ caseLazy e0 return evaluate
-    step (SBranch ys pat e0) =
-        error "TODO: update{SBranch}"
-        {-
-        Refl <- varEqAny x ys
+    step (SBranch ys pat e0) = do
+        Refl <- varEqAnyInPattern x ys pat
         Just $ caseLazy e0 return $ \e -> do
             w <- evaluate e
             case w of
                 Neutral e' -> M $ \c h ->
                     Neutral . syn $ Case_ e'
-                        [ Branch pat   (binds ys (c x h))
-                        , Branch PWild P.reject
+                        [ Branch pat $
+                            case eqAppendIdentity ys of
+                            Refl ->
+                                binds ys (fromWhnf $ c (Neutral $ var x) h)
+                        , Branch PWild $
+                            error "TODO: update{SBranch}: other branches" -- for the case where we're in the 'M'' monad rather than the 'M' monad, we can use 'P.reject' here...
                         ]
                 Head_ v ->
                     case
                         matchBranches (fromHead v)
-                            [ Branch pat   (binds ys P.true)
+                            [ Branch pat $
+                                case eqAppendIdentity ys of
+                                Refl -> binds ys P.true
                             , Branch PWild P.false
                             ]
                     of
-                    Nothing -> error "TODO: update: match failed"
-                    Just GotStuck -> error "TODO: update: got stuck"
+                    Nothing -> error "TODO: update{SBranch}: match failed"
+                    Just GotStuck -> error "TODO: update{SBranch}: got stuck"
                     Just (Matched ss b) ->
-                        if reify b
-                        then pushes ss x update
+                        error "TODO: update{SBranch}: matched"
+                        {-
+                        -- the idea here is:
+                        if reify (WValue b)
+                        then pushes (toStatements ss) x update
                         else P.reject
-        -}
+                        -- however, @b :: abt '[] HBool@ rather than @b :: Value HBool@, and 'pushes' wants an @abt@ for @x@ and for the input of @update@...
+                        -}
     step _ = Nothing
+
+
+varEqAnyInPattern
+    :: Variable a
+    -> List1 Variable xs
+    -> Pattern xs b
+    -> Maybe (TypeEq a b)
+varEqAnyInPattern x ys pat = error "TODO: varEqAnyInPattern"
+    -- if x `elem` ys then Just Refl else Nothing
 
 
 ----------------------------------------------------------------
