@@ -166,9 +166,8 @@ update x = loop []
     step (SLet y e0) = do
         Refl <- varEq x y
         Just $ caseLazy e0 return evaluate
-    step (SBranch ys pat e0) = do
-        Refl <- varEqAnyInPattern x ys pat
-        Just $ caseLazy e0 return $ \e -> do
+    step (SBranch ys pat e0) | varElem x ys = Just $
+        caseLazy e0 (error "TODO: update{SBranch}: do matchBranches to try and resolve the variable") $ \e -> do
             w <- evaluate e
             case w of
                 Neutral e' -> M $ \c h ->
@@ -203,14 +202,13 @@ update x = loop []
     step _ = Nothing
 
 
--- BUG: this allows the above to typecheck, but it isn't actually what I meant. Just because @elem x ys@ doesn't actually mean @TypeEq a b@; in fact, that's absurd unless the pattern just so happens to be 'PVar'. But we'll prolly need some sort of TypeEq proof to get the above to go through; so what proof do we actually need?
-varEqAnyInPattern
-    :: Variable a
-    -> List1 Variable xs
-    -> Pattern xs b
-    -> Maybe (TypeEq a b)
-varEqAnyInPattern x ys pat = error "TODO: varEqAnyInPattern"
-    -- if x `elem` ys then Just Refl else Nothing
+-- TODO: move this to ABT.hs\/Variable.hs
+varElem :: Variable a -> List1 Variable xs -> Bool
+varElem x Nil1         = False
+varElem x (Cons1 y ys) = varEq_ x y || varElem x ys
+
+varEq_ :: Variable a -> Variable b -> Bool
+varEq_ x y = maybe False (const True) (varEq x y)
 
 
 ----------------------------------------------------------------
