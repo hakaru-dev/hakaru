@@ -308,6 +308,7 @@ push s e k = do
     rho <- push_ s
     k (substs rho e)
 
+
 push_
     :: (ABT abt)
     => Statement abt
@@ -362,6 +363,9 @@ instance Monoid (Assocs abt) where
     mappend (Assocs xs) (Assocs ys) = Assocs (mappend xs ys)
     mconcat = Assocs . mconcat . map unAssocs
 
+
+-- | Call 'push' repeatedly. (N.B., is more efficient than actually
+-- calling 'push' repeatedly.)
 pushes
     :: (ABT abt)
     => [Statement abt]
@@ -373,7 +377,10 @@ pushes ss e k = do
     rho <- F.foldlM (\rho s -> mappend rho <$> push_ s) mempty ss
     k (substs rho e)
 
--- | N.B., this can be unsafe. If a binding statement is returned, then the caller must be sure to push back on statements binding all the same variables!
+
+-- | N.B., this can be unsafe. If a binding statement is returned,
+-- then the caller must be sure to push back on statements binding
+-- all the same variables!
 pop :: M abt (Maybe (Statement abt))
 pop = M $ \c h ->
     case statements h of
@@ -381,9 +388,25 @@ pop = M $ \c h ->
     s:ss -> c (Just s) h{statements = ss}
 
 
+-- | Push a statement onto the heap /without renaming variables/.
+-- This function should only be used to put a statement from 'pop'
+-- back onto the context.
+naivePush :: Statement abt -> M abt ()
+naivePush s = M $ \c h -> c () h{statements = s : statements h}
+
+
+-- TODO: replace this function with a @DList@ variant, to avoid the need to 'reverse' @ss@.
+-- | Call 'naivePush' repeatedly. (N.B., is more efficient than
+-- actually calling 'naivePush' repeatedly.)
+naivePushes :: [Statement abt] -> M abt ()
+naivePushes ss =
+    M $ \c h -> c () h{statements = reverse ss ++ statements h}
+
+
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
+-- BUG: we need (a) a variant of 'update' which doesn't 'perform' if it finds an 'SBind' or else, (b) better ways of converting between 'M' and 'M''.
 evaluate :: (ABT abt) => abt '[] a -> M abt (Whnf abt a)
 evaluate e0 =
     caseVarSyn e0 update $ \t ->
@@ -782,30 +805,36 @@ evaluatePrimOp _ _ = error "TODO: finish evaluatePrimOp"
 
 ----------------------------------------------------------------
 -- TODO: figure out how to abstract this so it can be reused by 'constrainValue'. Especially the 'SBranch case of 'step'
-update :: Variable a -> M abt (Whnf abt a)
-update = error "TODO: update"
-{-
+-- BUG: we need (a) a variant of 'update' which doesn't 'perform' if it finds an 'SBind' or else, (b) better ways of converting between 'M' and 'M''.
+update :: (ABT abt) => Variable a -> M abt (Whnf abt a)
 update x = loop []
     where
     loop ss = do
         ms <- pop
         case ms of
             Nothing -> do
-                pushes (reverse ss)
+                naivePushes ss
                 return (Neutral (var x))
             Just s  ->
                 case step s of
                 Nothing -> loop (s:ss)
                 Just mw -> do
-                    w <- mw             -- evaluate the body of @s@
-                    push   (SLet x (Whnf_ w)) -- push the updated binding -- BUG: must use the new definition of 'push'
-                    pushes (reverse ss) -- put the rest of the context back
-                    return w            -- TODO: return (NamedWhnf x v)
+                    w <- mw        -- evaluate the body of @s@
+                    naivePush (SLet x (Whnf_ w)) -- push the updated binding
+                    naivePushes ss -- put the rest of the context back
+                    return w       -- TODO: return (NamedWhnf x v)
 
     -- BUG: existential escapes; need to cps
-    step (SBind   y      e0) | x == y = Just $ caseLazy e0 return perform
-    step (SLet    y      e0) | x == y = Just $ caseLazy e0 return evaluate
-    step (SBranch ys pat e0) | x `elem` ys =
+    step (SBind y e0) = do
+        Refl <- varEq x y
+        Just $ error "TODO: update{SBind}" -- caseLazy e0 return perform
+    step (SLet y e0) = do
+        Refl <- varEq x y
+        Just $ caseLazy e0 return evaluate
+    step (SBranch ys pat e0) =
+        error "TODO: update{SBranch}"
+        {-
+        Refl <- varEqAny x ys
         Just $ caseLazy e0 return $ \e -> do
             w <- evaluate e
             case w of
@@ -827,8 +856,9 @@ update x = loop []
                         if reify b
                         then pushes ss x update
                         else P.reject
+        -}
     step _ = Nothing
--}
+
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
