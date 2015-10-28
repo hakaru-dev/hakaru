@@ -474,18 +474,24 @@ m2mprime (M m) = M' m
 -- neutral term? Really we should change the definition of 'Ans',
 -- ne?
 --
+-- BUG: the argument type doesn't match up with what 'perform' returns! We hack around that by using 'SingI', for now; but really should clean it all up.
+--
 -- | Run a computation in the 'M'' monad, residualizing out all the
 -- statements in the final 'Context'. The initial context argument
 -- should be constructed by 'initContext' to ensure proper hygiene;
 -- for example:
 --
 -- > \e -> runM' (perform e) (initContext [e])
-runM' :: (ABT abt)
-    => M' abt (Whnf abt ('HMeasure a))
+runM' :: (ABT abt, SingI a)
+    => M' abt (Whnf abt a)
     -> Context abt
     -> Whnf abt ('HMeasure a)
-runM' m = unM' m (\x -> Head_ . WMeasure . residualizeContext x)
+runM' m = unM' m (\x -> Head_ . WMeasure . residualizeContext (lift x))
 -- HACK: can't eta-shorten away the @x@; won't typecheck for some reason
+    where
+    lift :: (ABT abt, SingI a) => Whnf abt a -> Whnf abt ('HMeasure a)
+    lift (Head_   v) = Head_ . WMeasure $ P.dirac (fromHead v)
+    lift (Neutral e) = Neutral $ P.dirac e
 
 
 instance Functor (M' abt) where
@@ -543,12 +549,16 @@ perform e0 =
             {-
             P.superpose <$> T.traverse perform es -- TODO: not quite right; need to push the SWeight in each branch. Also, 'Whnf' un\/wrapping
             -}
-        _ -> error "TODO: perform: the rest of the cases" -- probably via some @isWhnf :: abt '[] a -> Maybe (Whnf abt a)@
-{-
--- variables not bound in the Context are \"atomic\" (others aren't...)
-perform u | atomic u    = M' $ \c h -> u P.>>= \z -> c z h
-perform e | not (hnf e) = evaluate e >>= perform
--}
+
+        -- I think this captures the logic of the following two cases from the paper:
+        -- > perform u | atomic u    = M' $ \c h -> u P.>>= \z -> c z h
+        -- > perform e | not (hnf e) = evaluate e >>= perform
+        -- TODO: But we should be careful to make sure we haven't left any cases out. Maybe we should have some sort of @mustPerform@ predicate like we have 'mustCheck' in TypeCheck.hs...?
+        _ -> do
+            w <- m2mprime (evaluate e0)
+            case w of
+                Head_   v -> perform (fromHead v)
+                Neutral e -> M' $ \c h -> Head_ $ WMeasure (e P.>>= \z -> fromWhnf (c (Neutral z) h))
 
 
 -- TODO: generalize this to return any @M abt r@
@@ -719,11 +729,10 @@ natRoot x y = x ** recip (fromIntegral (fromNat y))
 
 -- Essentially, these should all do @f <$> evaluate e1 <*> evaluate e2...@ where @f@ is the interpretation of the 'PrimOp', which residualizes as necessary if it gets stuck.
 evaluatePrimOp
-    :: (typs ~ UnLCs args, args ~ LCs typs)
+    :: (ABT abt, typs ~ UnLCs args, args ~ LCs typs)
     => PrimOp typs a
     -> SArgs abt args
     -> M abt (Whnf abt a)
-evaluatePrimOp = error "TODO: evaluatePrimOp"
 {-
 evaluatePrimOp Not  (e1 :* End)       = rr1 not  P.not  e1
 evaluatePrimOp Impl (e1 :* e2 :* End) = rr2 impl P.impl e1 e2
@@ -732,6 +741,7 @@ evaluatePrimOp Nand (e1 :* e2 :* End) = rr2 nand P.nand e1 e2
 evaluatePrimOp Nor  (e1 :* e2 :* End) = rr2 nor  P.nor  e1 e2
 -- TODO: all our magic constants (Pi, Infty,...) should be bundled together under one AST constructor called something like @Constant@; that way we can group them in the 'Head' like we do for values.
 evaluatePrimOp Pi        End               = return (Head_ HPi)
+-}
 evaluatePrimOp Sin       (e1 :* End)       = rr1 sin   P.sin   e1
 evaluatePrimOp Cos       (e1 :* End)       = rr1 cos   P.cos   e1
 evaluatePrimOp Tan       (e1 :* End)       = rr1 tan   P.tan   e1
@@ -744,6 +754,7 @@ evaluatePrimOp Tanh      (e1 :* End)       = rr1 tanh  P.tanh  e1
 evaluatePrimOp Asinh     (e1 :* End)       = rr1 asinh P.asinh e1
 evaluatePrimOp Acosh     (e1 :* End)       = rr1 acosh P.acosh e1
 evaluatePrimOp Atanh     (e1 :* End)       = rr1 atanh P.atanh e1
+{-
 evaluatePrimOp RealPow   (e1 :* e2 :* End) = rr2 (**)  _ e1 e2 -- TODO: types
 evaluatePrimOp Exp       (e1 :* End)       = rr1 exp   _ e1 -- TODO: types
 evaluatePrimOp Log       (e1 :* End)       = rr1 log   _ e1 -- TODO: types
@@ -765,9 +776,9 @@ evaluatePrimOp (Signum  _) (e1 :* End)       = rr1 signum  P.signum e1
 evaluatePrimOp (Recip   _) (e1 :* End)       = rr1 recip   P.recip  e1
 evaluatePrimOp (NatRoot _) (e1 :* e2 :* End) = rr2 natRoot _ e1 e2
 evaluatePrimOp (Erf     _) (e1 :* End)       = rr1 erf     P.erf    e1
--- HACK: GHC can't figure out that there are no other type-safe cases
-evaluatePrimOp _ _ = error "evaluatePrimOp: the impossible happened"
 -}
+evaluatePrimOp _ _ = error "TODO: finish evaluatePrimOp"
+
 
 ----------------------------------------------------------------
 -- TODO: figure out how to abstract this so it can be reused by 'constrainValue'. Especially the 'SBranch case of 'step'
