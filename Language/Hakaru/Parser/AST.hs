@@ -104,16 +104,16 @@ data TypeAST' a =
 
 data AST' a =
      Var a
-   | Lam Name'    (AST' a) 
+   | Lam a    (AST' a) 
    | App (AST' a) (AST' a)
-   | Let Name'    (AST' a) (AST' a)
+   | Let a    (AST' a) (AST' a)
    | If  (AST' a) (AST' a) (AST' a)
    | Ann (AST' a) (TypeAST' a)
    | UValue Value'
    | Empty
    | Case  (AST' a) [(Branch' a)] -- match
-   | Bind  Name' (AST' a) (AST' a)
-   | Data  Name' [TypeAST' a]
+   | Bind  a (AST' a) (AST' a)
+   | Data  a [TypeAST' a]
    | WithMeta (AST' a) Meta
 
 data Branch a = Branch (Pattern a) (AST a)

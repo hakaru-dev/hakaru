@@ -16,13 +16,20 @@ import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.PrettyPrint
+import Language.Hakaru.Sample
 
+import Prelude hiding (unlines)
 import Data.Text
+import qualified System.Random.MWC as MWC
 
-five, normal01 :: Text
+five, normal01, normalb :: Text
 
 five = "2 + 3"
 normal01 = "normal(-0.0,1.0)"
+
+normalb  = unlines [ "x <~ normal(-2.0,1.0)"
+                   , "normal(x, 1.0)"
+                   ]
 
 pToa :: U.AST' Text -> U.AST a
 pToa = makeAST . normAST . (symbolResolution primTable)

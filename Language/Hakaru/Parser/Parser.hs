@@ -41,8 +41,8 @@ style = ITok.makeIndentLanguageDef $ Tok.LanguageDef
         , Tok.opLetter       = oneOf ":!#$%&*+./<=>?@\\^|-~"
         , Tok.caseSensitive  = True
         , Tok.commentLine = "#"
-        , Tok.reservedOpNames = ops
-        , Tok.reservedNames = names ++ types
+        , Tok.reservedOpNames = ops ++ types
+        , Tok.reservedNames = names
         }
 
 lexer = ITok.makeTokenParser style
@@ -152,9 +152,9 @@ type_fun = do
    return $ TypeFun a b
 
 type_expr :: Parser (TypeAST' Text)
-type_expr = type_var
-        <|> try type_app
+type_expr = try type_var
         <|> try type_fun
+        <|> try type_app
 
 ann_expr :: Parser (AST' Text)
 ann_expr = do

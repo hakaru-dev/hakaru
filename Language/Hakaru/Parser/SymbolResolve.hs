@@ -6,7 +6,7 @@
 module Language.Hakaru.Parser.SymbolResolve where
 
 import Data.List
-import Data.Text
+import Data.Text hiding (maximum)
 
 import Language.Hakaru.Syntax.DataKind hiding (Symbol)
 import qualified Language.Hakaru.Syntax.AST as T
@@ -60,19 +60,26 @@ updateSymbols name sym = (name, pVar name) : sym
 symbolResolution :: SymbolTable a -> U.AST' Text -> U.AST' (Symbol a)
 symbolResolution symbols ast =
     case ast of
-      U.Var name       -> case lookup name symbols of
-                            Nothing -> U.Var $ pVar name
-                            Just a  -> U.Var a
+      U.Var name        -> case lookup name symbols of
+                             Nothing -> U.Var $ pVar name
+                             Just a  -> U.Var a
 
-      U.App f x        -> U.App (symbolResolution symbols f)
-                                (symbolResolution symbols x)
+      U.App f x         -> U.App (symbolResolution symbols f)
+                                 (symbolResolution symbols x)
 
-      U.Let name e1 e2 -> U.Let name (symbolResolution symbols e1)
-                                     (symbolResolution
-                                      (updateSymbols name symbols) e2)
+      U.Let name e1 e2  -> U.Let (pVar name)
+                                 (symbolResolution symbols e1)
+                                 (symbolResolution
+                                  (updateSymbols name symbols) e2)
 
-      U.UValue v       -> U.UValue v
-      _                -> error "TODO: Add rest of cases"
+      U.UValue v        -> U.UValue v
+                          
+      U.Bind name e1 e2 -> U.Bind (pVar name)
+                           (symbolResolution symbols e1)
+                           (symbolResolution
+                            (updateSymbols name symbols) e2)
+
+      _                 -> error "TODO: Add rest of cases"
 
 -- make AST and give unique names for variables
 
@@ -91,6 +98,8 @@ normAST ast =
                              v@(U.Var _) -> normAST (U.App v x)
                              f'          -> U.App f' x
 
+      U.Bind name e1 e2 -> U.Bind name (normAST e1) (normAST e2)
+
       v                 -> v
 
 makeAST :: U.AST' (Symbol a) -> U.AST a
@@ -101,6 +110,10 @@ makeAST ast =
                       TNeu e  -> e
 
       U.UValue v -> U.Value_ (U.val v) 
+
+      U.Bind (TNeu (U.Var_ name)) e1 e2 -> U.MBind_ name
+                                           (makeAST e1)
+                                           (makeAST e2)
 
       _         -> error "TODO: Add rest of cases"
 

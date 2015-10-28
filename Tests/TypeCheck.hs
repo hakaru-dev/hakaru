@@ -31,6 +31,18 @@ normal01 = U.MeasureOp_ (U.SealedOp T.Normal)
            , U.Value_ $ Some1 $ T.VProb 1
            ]
 
+xname :: U.Name
+xname =  U.Name (unsafeNat 0) "x"
+
+normalb :: U.AST a
+normalb = U.MBind_ xname
+           normal01
+           (U.MeasureOp_ (U.SealedOp T.Normal)
+                 [ U.Var_ xname
+                 , U.Value_ $ Some1 $ T.VProb 1
+                 ])
+
+
 inferType' :: U.AST a -> TypeCheckMonad (TypedAST TrivialABT)
 inferType' = inferType
 
