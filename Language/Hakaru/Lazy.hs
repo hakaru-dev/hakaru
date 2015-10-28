@@ -430,12 +430,12 @@ evaluate e0 =
                 Neutral e1'    -> return . Neutral $ P.app e1' e2
                 Head_ (WLam f) ->
                     caseBind f $ \x f' ->
-                        push (SLet x (Thunk e2)) f' evaluate
+                        push (SLet x $ Thunk e2) f' evaluate
                 Head_ v1 -> case v1 of {} -- HACK: impossible
 
         Let_ :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
-                push (SLet x (Thunk e1)) e2' evaluate
+                push (SLet x $ Thunk e1) e2' evaluate
 
         Fix_ :$ e1 :* End -> error "TODO: evaluate{Fix_}"
 
@@ -566,7 +566,7 @@ perform e0 =
             M' $ \c h -> Head_ $ WMeasure (e0 P.>>= \z -> fromWhnf (c (Neutral z) h))
         MBind :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
-                push' (SBind x (Thunk e1)) e2' perform
+                push' (SBind x $ Thunk e1) e2' perform
         Superpose_ es ->
             error "TODO: perform{Superpose_}"
             {-
@@ -611,10 +611,7 @@ type DList a = [a] -> [a]
 toStatements
     :: DList (Assoc abt)
     -> [Statement abt]
-toStatements = map toStatement . ($ [])
-
-toStatement :: Assoc abt -> Statement abt
-toStatement (Assoc x e) = SLet x (Thunk e)
+toStatements = map (\(Assoc x e) -> SLet x $ Thunk e) . ($ [])
 
 
 evaluateNaryOp :: NaryOp a -> Seq (abt '[] a) -> M abt (Whnf abt a)
@@ -814,7 +811,7 @@ update x = loop []
         case ms of
             Nothing -> do
                 naivePushes ss
-                return (Neutral (var x))
+                return (Neutral $ var x)
             Just s  ->
                 case step s of
                 Nothing -> loop (s:ss)
@@ -822,7 +819,7 @@ update x = loop []
                     -- Evaluate the body of @s@.
                     w <- mw
                     -- Push the updated binding, replacing the old one.
-                    naivePush (SLet x (Whnf_ w))
+                    naivePush (SLet x $ Whnf_ w)
                     -- Put the rest of the context back.
                     naivePushes ss
                     -- Finally, return the variable. We could return
@@ -834,7 +831,7 @@ update x = loop []
                     -- around (e.g., if the variable is only used
                     -- once and by inlining it we could perform
                     -- more partial evaluation...)
-                    return (Neutral (var x))
+                    return (Neutral $ var x)
 
     -- BUG: existential escapes; need to cps
     step (SBind y e0) = do
