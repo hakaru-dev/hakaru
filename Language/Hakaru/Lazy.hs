@@ -37,7 +37,7 @@ module Language.Hakaru.Lazy
     -- * The monad for term-to-term translations
     -- TODO: how much of this do we actually need to export?
     , Statement(..)
-    , Context(..), emptyContext
+    , Context(..), initContext
     , Ans
     , M(..), push, pushes, pop
     , M'(..), push', pushes', pop'
@@ -62,7 +62,7 @@ import qualified Data.Foldable        as F
 import qualified Data.Traversable     as T
 
 import Language.Hakaru.Syntax.IClasses
-import Language.Hakaru.Syntax.Nat (Nat, fromNat)
+import Language.Hakaru.Syntax.Nat
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.AST
@@ -226,9 +226,16 @@ data Context abt = Context
     }
 -- TODO: to the extent that we can ignore order of statements, we could use an @IntMap (Statement abt)@ in order to speed up the lookup times in 'update'. We just need to figure out (a) what to do with 'SWeight' statements, (b) how to handle 'SBranch' so that we can just make one map modification despite possibly binding multiple variables, and (c) figure out how to recover the order (to the extent that we must).
 
--- BUG: this probably isn't really the context we should start with in @runM@\/@runM'@. We should start off with @freshNat = 1 + max (maxBind e) (maxFree e)@ where @e@ the term we're translating...
-emptyContext :: Context abt
-emptyContext = Context 0 []
+
+-- | Create an initial context, making sure not to capture any of
+-- the free variables in the collection of arguments.
+--
+-- TODO: generalize the argument's type to use @Foldable20@ instead,
+-- so that the @xs@ and @a@ can vary for each term.
+initContext :: (ABT abt, F.Foldable f) => f (abt xs a) -> Context abt
+initContext es =
+    Context (unMaxNat $ F.foldMap (MaxNat . maxFree) es) []
+
 
 -- Argument order is to avoid flipping in 'runM'
 -- TODO: generalize to non-measure types too!
@@ -238,7 +245,7 @@ residualizeContext
     -> Context abt
     -> abt '[] ('HMeasure a)
 residualizeContext = \e h -> foldl step (fromWhnf e) (statements h)
-    where 
+    where
     step e s = syn $
         case s of
         SBind x body -> MBind :$ fromLazy body :* bind x e :* End
@@ -264,8 +271,8 @@ newtype M abt x = M { unM :: forall a. (x -> Ans abt a) -> Ans abt a }
 {-
 -- TODO: implement 'residualizeContext' at the correct type.
 -- TODO: can we legit call the result of 'residualizeContext' a neutral term? Really we should change the definition of 'Ans', ne?
-runM :: M abt (Whnf abt a) -> Whnf abt a
-runM (M m) = m ((Neutral .) residualizeContext) emptyContext
+runM :: M abt (Whnf abt a) -> Context abt -> Whnf abt a
+runM (M m) = m ((Neutral .) residualizeContext)
 -}
 
 instance Functor (M abt) where
@@ -459,12 +466,21 @@ m2mprime (M m) = M' m
 -- TODO: mprime2m
 
 
--- TODO: can we legit call the result of 'residualizeContext' a neutral term? Really we should change the definition of 'Ans', ne?
--- BUG: shouldn't start with the 'emptyContext' per se; should bump up the 'freeNat' before we begin... (see the note at 'emptyContext')
+-- TODO: can we legit call the result of 'residualizeContext' a
+-- neutral term? Really we should change the definition of 'Ans',
+-- ne?
+--
+-- | Run a computation in the 'M'' monad, residualizing out all the
+-- statements in the final 'Context'. The initial context argument
+-- should be constructed by 'initContext' to ensure proper hygiene;
+-- for example:
+--
+-- > \e -> runM' (perform e) (initContext [e])
 runM' :: (ABT abt)
     => M' abt (Whnf abt ('HMeasure a))
+    -> Context abt
     -> Whnf abt ('HMeasure a)
-runM' m = unM' m (\x -> Neutral . residualizeContext x) emptyContext
+runM' m = unM' m (\x -> Neutral . residualizeContext x)
 -- HACK: can't use @(Neutral .) . residualizeContext@; won't typecheck
 
 

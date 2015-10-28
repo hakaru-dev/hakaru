@@ -1,15 +1,16 @@
 -- TODO: move this somewhere else, like "Language.Hakaru.Types"
 -- TODO: merge with the Posta version. Release them as a standalone package?
+{-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.06.26
+--                                                    2015.10.27
 -- |
 -- Module      :  Language.Hakaru.Syntax.Nat
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  wren@community.haskell.org
 -- Stability   :  experimental
--- Portability :  Haskell98
+-- Portability :  Haskell98 + CPP
 --
 -- A data type for natural numbers (aka non-negative integers).
 ----------------------------------------------------------------
@@ -18,8 +19,14 @@ module Language.Hakaru.Syntax.Nat
     , fromNat
     , toNat
     , unsafeNat
+    , MaxNat(..)
     ) where
 
+#if __GLASGOW_HASKELL__ < 710
+import Data.Monoid (Monoid(..))
+#endif
+
+----------------------------------------------------------------
 ----------------------------------------------------------------
 -- | Natural numbers, with fixed-width à la 'Int'. N.B., the 'Num'
 -- instance will throw errors on subtraction, negation, and
@@ -99,6 +106,12 @@ _errmsg_fromInteger = "fromInteger@Nat: Num is a bad abstraction"
 {-# NOINLINE _errmsg_subtraction #-}
 {-# NOINLINE _errmsg_negate #-}
 {-# NOINLINE _errmsg_fromInteger #-}
+
+newtype MaxNat = MaxNat { unMaxNat :: Nat }
+
+instance Monoid MaxNat where
+    mempty                        = MaxNat 0
+    mappend (MaxNat m) (MaxNat n) = MaxNat (max m n)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

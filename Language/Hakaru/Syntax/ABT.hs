@@ -81,7 +81,7 @@ import qualified Data.IntMap       as IM
 import qualified Data.Foldable     as F
 import           Data.Function     (on)
 #if __GLASGOW_HASKELL__ < 710
-import           Data.Monoid
+import           Data.Monoid       (Monoid(..))
 #endif
 import           Control.Exception (Exception, throw)
 
@@ -788,15 +788,6 @@ substs rho0 = start rho0
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
-
-
-newtype MaxNat = MaxNat { unMaxNat :: Nat }
-
-instance Monoid MaxNat where
-    mempty                        = MaxNat 0
-    mappend (MaxNat m) (MaxNat n) = MaxNat (max m n)
-
-
 -- | A combinator for defining a HOAS-like API for our syntax.
 -- Because our 'AST' is first-order, we cannot actually have any
 -- exotic terms in our language. In principle, this function could

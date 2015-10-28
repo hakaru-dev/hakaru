@@ -561,15 +561,6 @@ subst x e = start
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
-
-
-newtype MaxNat = MaxNat { unMaxNat :: Nat }
-
-instance Monoid MaxNat where
-    mempty                        = MaxNat 0
-    mappend (MaxNat m) (MaxNat n) = MaxNat (max m n)
-
-
 -- | A combinator for defining a HOAS-like API for our syntax.
 -- Because our 'AST' is first-order, we cannot actually have any
 -- exotic terms in our language. In principle, this function could
