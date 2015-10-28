@@ -50,6 +50,8 @@ library
                        Language.Hakaru.Syntax.DatumCase,
                        Language.Hakaru.PrettyPrint,
                        Language.Hakaru.Expect,
+                       Language.Hakaru.Lazy.Types,
+                       Language.Hakaru.Lazy,
                        Language.Hakaru.Disintegrate,
                        Language.Hakaru.Inference
 

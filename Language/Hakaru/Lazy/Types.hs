@@ -1,20 +1,13 @@
 {-# LANGUAGE CPP
            , GADTs
-           , EmptyCase
            , KindSignatures
            , DataKinds
-           , PolyKinds
            , TypeOperators
-           , ScopedTypeVariables
            , RankNTypes
-           , MultiParamTypeClasses
-           , TypeSynonymInstances
-           , FlexibleInstances
-           , FunctionalDependencies
            , BangPatterns
            #-}
 
-{-# OPTIONS_GHC -Wall -fwarn-tabs -fno-warn-unused-binds -fno-warn-unused-imports #-}
+{-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
 --                                                    2015.10.28
 -- |
@@ -44,9 +37,6 @@ module Language.Hakaru.Lazy.Types
     , M'(..), m2mprime, runM', push', pushes', pop'
     ) where
 
-import           Data.Proxy           (Proxy(..))
-import           Data.Sequence        (Seq)
-import           Data.Number.LogFloat (LogFloat)
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Monoid          (Monoid(..))
 import           Data.Functor         ((<$>))
@@ -55,7 +45,6 @@ import           Control.Applicative  (Applicative(..))
 import           Data.IntMap          (IntMap)
 import qualified Data.IntMap          as IM
 import qualified Data.Foldable        as F
-import qualified Data.Traversable     as T
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.Nat
@@ -63,12 +52,8 @@ import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
-import Language.Hakaru.Syntax.DatumCase
 import Language.Hakaru.Syntax.ABT
-import Language.Hakaru.Syntax.Coercion
 import qualified Language.Hakaru.Syntax.Prelude as P
-import qualified Language.Hakaru.Expect         as E
-import Language.Hakaru.PrettyPrint -- HACK: for ghci use only
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -174,7 +159,7 @@ caseLazy (Thunk e) _ k = k e
 --
 -- This type was formerly called @Binding@, but that is inaccurate
 -- since it also includes non-binding statements.
-data Statement abt
+data Statement (abt :: [Hakaru] -> Hakaru -> *)
     -- | A variable bound by 'MBind' to a measure expression.
     = forall a. SBind
         {-# UNPACK #-} !(Variable a)
@@ -215,7 +200,7 @@ data Statement abt
 -- However, it is still like a heap inasmuch as it's a dependency
 -- graph and we may wish to change the topological sorting or remove
 -- \"garbage\" (subject to correctness criteria).
-data Context abt = Context
+data Context (abt :: [Hakaru] -> Hakaru -> *) = Context
     { freshNat   :: {-# UNPACK #-} !Nat
     , statements :: [Statement abt] -- stored in reverse order.
     }
@@ -340,10 +325,12 @@ renameFrom = go
         case renameFrom xs (i+1) of
         (i', xs') -> (i', Cons1 (x{varID=i}) xs')
 
+
 -- TODO: move this to ABT.hs\/Variable.hs
 singletonAssocs :: Variable a -> abt '[] a -> Assocs abt
 singletonAssocs x e =
     Assocs $ IM.singleton (fromNat $ varID x) (Assoc x e)
+
 
 -- TODO: move this to ABT.hs\/Variable.hs
 toAssocs :: List1 Variable xs -> List1 (abt '[]) xs -> Assocs abt
@@ -354,6 +341,8 @@ toAssocs = \xs es -> Assocs (go xs es)
     go Nil1         Nil1         = IM.empty
     go (Cons1 x xs) (Cons1 e es) =
         IM.insert (fromNat $ varID x) (Assoc x e) (go xs es)
+    go _ _ = error "toAssocs: the impossible happened"
+
 
 -- TODO: move this to ABT.hs\/Variable.hs
 -- TODO: what is the actual monoid instance for IntMap; left-biased shadowing I assume? We should make it an error if anything's multiply defined.

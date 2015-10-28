@@ -1,22 +1,14 @@
 {-# LANGUAGE CPP
            , GADTs
            , EmptyCase
-           , KindSignatures
            , DataKinds
-           , PolyKinds
-           , TypeOperators
-           , ScopedTypeVariables
-           , RankNTypes
            , MultiParamTypeClasses
-           , TypeSynonymInstances
-           , FlexibleInstances
            , FunctionalDependencies
-           , BangPatterns
            #-}
 
-{-# OPTIONS_GHC -Wall -fwarn-tabs -fno-warn-unused-binds -fno-warn-unused-imports #-}
+{-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.27
+--                                                    2015.10.28
 -- |
 -- Module      :  Language.Hakaru.Lazy
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -36,18 +28,12 @@ module Language.Hakaru.Lazy
     , update
     ) where
 
-import           Data.Proxy           (Proxy(..))
-import           Data.Sequence        (Seq)
-import           Data.Number.LogFloat (LogFloat)
+import Data.Sequence        (Seq)
+import Data.Number.LogFloat (LogFloat)
 #if __GLASGOW_HASKELL__ < 710
-import           Data.Monoid          (Monoid(..))
-import           Data.Functor         ((<$>))
-import           Control.Applicative  (Applicative(..))
+import Data.Functor         ((<$>))
+import Control.Applicative  (Applicative(..))
 #endif
-import           Data.IntMap          (IntMap)
-import qualified Data.IntMap          as IM
-import qualified Data.Foldable        as F
-import qualified Data.Traversable     as T
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.Nat
