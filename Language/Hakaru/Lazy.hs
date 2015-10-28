@@ -46,6 +46,7 @@ module Language.Hakaru.Lazy
     , evaluate
     , perform
     -- ** Helper functions
+    , update
     ) where
 
 import           Data.Proxy           (Proxy(..))
@@ -165,7 +166,6 @@ caseLazy (Whnf_ e) k _ = k e
 caseLazy (Thunk e) _ k = k e
 
 
-----------------------------------------------------------------
 ----------------------------------------------------------------
 -- BUG: haddock doesn't like annotations on GADT constructors. So
 -- here we'll avoid using the GADT syntax, even though it'd make
@@ -480,110 +480,92 @@ evaluate e0 =
         UnsafeFrom_ _ :$ es -> case es of {}
         Expect :$ es -> case es of {}
 
-
 ----------------------------------------------------------------
-----------------------------------------------------------------
--- HACK: how can we cleanly unify this with the implementation of 'M'?
-newtype M' abt x =
-    M' { unM' :: forall a. (x -> Ans abt ('HMeasure a)) -> Ans abt ('HMeasure a) }
-
-m2mprime :: M abt x -> M' abt x
-m2mprime (M m) = M' m
-
--- TODO: mprime2m
-
-
--- TODO: can we legit call the result of 'residualizeContext' a
--- neutral term? Really we should change the definition of 'Ans',
--- ne?
---
--- BUG: the argument type doesn't match up with what 'perform' returns! We hack around that by using 'SingI', for now; but really should clean it all up.
---
--- | Run a computation in the 'M'' monad, residualizing out all the
--- statements in the final 'Context'. The initial context argument
--- should be constructed by 'initContext' to ensure proper hygiene;
--- for example:
---
--- > \e -> runM' (perform e) (initContext [e])
-runM' :: (ABT abt, SingI a)
-    => M' abt (Whnf abt a)
-    -> Context abt
-    -> Whnf abt ('HMeasure a)
-runM' m = unM' m (\x -> Head_ . WMeasure . residualizeContext (lift x))
--- HACK: can't eta-shorten away the @x@; won't typecheck for some reason
+-- TODO: figure out how to abstract this so it can be reused by 'constrainValue'. Especially the 'SBranch case of 'step'
+-- BUG: we need (a) a variant of 'update' which doesn't 'perform' if it finds an 'SBind' or else, (b) better ways of converting between 'M' and 'M''.
+update :: (ABT abt) => Variable a -> M abt (Whnf abt a)
+update x = loop []
     where
-    lift :: (ABT abt, SingI a) => Whnf abt a -> Whnf abt ('HMeasure a)
-    lift (Head_   v) = Head_ . WMeasure $ P.dirac (fromHead v)
-    lift (Neutral e) = Neutral $ P.dirac e
+    loop ss = do
+        ms <- pop
+        case ms of
+            Nothing -> do
+                naivePushes ss
+                return (Neutral $ var x)
+            Just s  ->
+                case step s of
+                Nothing -> loop (s:ss)
+                Just mw -> do
+                    -- Evaluate the body of @s@.
+                    w <- mw
+                    -- Push the updated binding, replacing the old one.
+                    naivePush (SLet x $ Whnf_ w)
+                    -- Put the rest of the context back.
+                    naivePushes ss
+                    -- Finally, return the variable. We could return
+                    -- @w@ itself instead, but then we'd lose sharing.
+                    --
+                    -- TODO: return @NamedWhnf x w@ in case we want
+                    -- to perform immediate substitution for some
+                    -- reason, rather than keeping the variable
+                    -- around (e.g., if the variable is only used
+                    -- once and by inlining it we could perform
+                    -- more partial evaluation...)
+                    return (Neutral $ var x)
 
-
-instance Functor (M' abt) where
-    fmap f (M' m)  = M' $ \c -> m (c . f)
-
-instance Applicative (M' abt) where
-    pure x          = M' $ \c -> c x
-    M' mf <*> M' mx = M' $ \c -> mf $ \f -> mx $ \x -> c (f x)
-
-instance Monad (M' abt) where
-    return     = pure
-    M' m >>= k = M' $ \c -> m $ \x -> unM' (k x) c
-
-push'
-    :: (ABT abt)
-    => Statement abt
-    -> abt xs a
-    -> (abt xs a -> M' abt r)
-    -> M' abt r
-push' s e k = do
-    rho <- m2mprime (push_ s)
-    k (substs rho e)
-
-pushes'
-    :: (ABT abt)
-    => [Statement abt]
-    -> abt xs a
-    -> (abt xs a -> M' abt r)
-    -> M' abt r
-pushes' ss e k = do
-    -- TODO: is 'foldlM' the right one? or do we want 'foldrM'?
-    rho <- F.foldlM (\rho s -> mappend rho <$> m2mprime (push_ s)) mempty ss
-    k (substs rho e)
-
-pop' :: M' abt (Maybe (Statement abt))
-pop' = m2mprime pop
-
-
--- N.B., that return type is correct, albeit strange. The idea is that the continuation takes in the variable of type @a@ bound by the expression of type @'HMeasure a@. However, this requires that the continuation of the 'Ans' type actually does @forall a. ...('HMeasure a)@ which is at odds with what 'evaluate' wants (or at least, what *I* think it should want.)
--- BUG: eliminate the 'SingI' requirement (comes from using @(P.>>=)@)
-perform
-    :: (ABT abt, SingI a) => abt '[] ('HMeasure a) -> M' abt (Whnf abt a)
-perform e0 =
-    caseVarSyn e0 (error "TODO: perform{Var}") $ \t ->
-        case t of
-        MeasureOp_ (Dirac _) :$ e1 :* End ->
-            m2mprime $ evaluate e1
-        MeasureOp_ _ :$ _ ->
-            M' $ \c h -> Head_ $ WMeasure (e0 P.>>= \z -> fromWhnf (c (Neutral z) h))
-        MBind :$ e1 :* e2 :* End ->
-            caseBind e2 $ \x e2' ->
-                push' (SBind x $ Thunk e1) e2' perform
-        Superpose_ es ->
-            error "TODO: perform{Superpose_}"
-            {-
-            P.superpose <$> T.traverse perform es -- TODO: not quite right; need to push the SWeight in each branch. Also, 'Whnf' un\/wrapping
-            -}
-
-        -- I think this captures the logic of the following two cases from the paper:
-        -- > perform u | atomic u    = M' $ \c h -> u P.>>= \z -> c z h
-        -- > perform e | not (hnf e) = evaluate e >>= perform
-        -- TODO: But we should be careful to make sure we haven't left any cases out. Maybe we should have some sort of @mustPerform@ predicate like we have 'mustCheck' in TypeCheck.hs...?
-        _ -> do
-            w <- m2mprime (evaluate e0)
+    -- BUG: existential escapes; need to cps
+    step (SBind y e0) = do
+        Refl <- varEq x y
+        Just $ error "TODO: update{SBind}" -- caseLazy e0 return perform
+    step (SLet y e0) = do
+        Refl <- varEq x y
+        Just $ caseLazy e0 return evaluate
+    step (SBranch ys pat e0) = do
+        Refl <- varEqAnyInPattern x ys pat
+        Just $ caseLazy e0 return $ \e -> do
+            w <- evaluate e
             case w of
-                Head_   v -> perform (fromHead v)
-                Neutral e -> M' $ \c h -> Head_ $ WMeasure (e P.>>= \z -> fromWhnf (c (Neutral z) h))
+                Neutral e' -> M $ \c h ->
+                    Neutral . syn $ Case_ e'
+                        [ Branch pat $
+                            case eqAppendIdentity ys of
+                            Refl ->
+                                binds ys (fromWhnf $ c (Neutral $ var x) h)
+                        , Branch PWild $
+                            error "TODO: update{SBranch}: other branches" -- for the case where we're in the 'M'' monad rather than the 'M' monad, we can use 'P.reject' here...
+                        ]
+                Head_ v ->
+                    case
+                        matchBranches (fromHead v)
+                            [ Branch pat $
+                                case eqAppendIdentity ys of
+                                Refl -> binds ys P.true
+                            , Branch PWild P.false
+                            ]
+                    of
+                    Nothing -> error "TODO: update{SBranch}: match failed"
+                    Just GotStuck -> error "TODO: update{SBranch}: got stuck"
+                    Just (Matched ss b) ->
+                        error "TODO: update{SBranch}: matched"
+                        {-
+                        -- the idea here is:
+                        if reify (WValue b)
+                        then pushes (toStatements ss) x update
+                        else P.reject
+                        -- however, @b :: abt '[] HBool@ rather than @b :: Value HBool@, and 'pushes' wants an @abt@ for @x@ and for the input of @update@...
+                        -}
+    step _ = Nothing
 
 
+varEqAnyInPattern
+    :: Variable a
+    -> List1 Variable xs
+    -> Pattern xs b
+    -> Maybe (TypeEq a b)
+varEqAnyInPattern x ys pat = error "TODO: varEqAnyInPattern"
+    -- if x `elem` ys then Just Refl else Nothing
+
+----------------------------------------------------------------
 -- TODO: generalize this to return any @M abt r@
 -- | Try to match against a set of branches. If matching succeeds,
 -- then push the bindings onto the 'Context' and call the continuation.
@@ -799,96 +781,7 @@ evaluatePrimOp (Erf     _) (e1 :* End)       = rr1 erf     P.erf    e1
 -}
 evaluatePrimOp _ _ = error "TODO: finish evaluatePrimOp"
 
-
 ----------------------------------------------------------------
--- TODO: figure out how to abstract this so it can be reused by 'constrainValue'. Especially the 'SBranch case of 'step'
--- BUG: we need (a) a variant of 'update' which doesn't 'perform' if it finds an 'SBind' or else, (b) better ways of converting between 'M' and 'M''.
-update :: (ABT abt) => Variable a -> M abt (Whnf abt a)
-update x = loop []
-    where
-    loop ss = do
-        ms <- pop
-        case ms of
-            Nothing -> do
-                naivePushes ss
-                return (Neutral $ var x)
-            Just s  ->
-                case step s of
-                Nothing -> loop (s:ss)
-                Just mw -> do
-                    -- Evaluate the body of @s@.
-                    w <- mw
-                    -- Push the updated binding, replacing the old one.
-                    naivePush (SLet x $ Whnf_ w)
-                    -- Put the rest of the context back.
-                    naivePushes ss
-                    -- Finally, return the variable. We could return
-                    -- @w@ itself instead, but then we'd lose sharing.
-                    --
-                    -- TODO: return @NamedWhnf x w@ in case we want
-                    -- to perform immediate substitution for some
-                    -- reason, rather than keeping the variable
-                    -- around (e.g., if the variable is only used
-                    -- once and by inlining it we could perform
-                    -- more partial evaluation...)
-                    return (Neutral $ var x)
-
-    -- BUG: existential escapes; need to cps
-    step (SBind y e0) = do
-        Refl <- varEq x y
-        Just $ error "TODO: update{SBind}" -- caseLazy e0 return perform
-    step (SLet y e0) = do
-        Refl <- varEq x y
-        Just $ caseLazy e0 return evaluate
-    step (SBranch ys pat e0) = do
-        Refl <- varEqAnyInPattern x ys pat
-        Just $ caseLazy e0 return $ \e -> do
-            w <- evaluate e
-            case w of
-                Neutral e' -> M $ \c h ->
-                    Neutral . syn $ Case_ e'
-                        [ Branch pat $
-                            case eqAppendIdentity ys of
-                            Refl ->
-                                binds ys (fromWhnf $ c (Neutral $ var x) h)
-                        , Branch PWild $
-                            error "TODO: update{SBranch}: other branches" -- for the case where we're in the 'M'' monad rather than the 'M' monad, we can use 'P.reject' here...
-                        ]
-                Head_ v ->
-                    case
-                        matchBranches (fromHead v)
-                            [ Branch pat $
-                                case eqAppendIdentity ys of
-                                Refl -> binds ys P.true
-                            , Branch PWild P.false
-                            ]
-                    of
-                    Nothing -> error "TODO: update{SBranch}: match failed"
-                    Just GotStuck -> error "TODO: update{SBranch}: got stuck"
-                    Just (Matched ss b) ->
-                        error "TODO: update{SBranch}: matched"
-                        {-
-                        -- the idea here is:
-                        if reify (WValue b)
-                        then pushes (toStatements ss) x update
-                        else P.reject
-                        -- however, @b :: abt '[] HBool@ rather than @b :: Value HBool@, and 'pushes' wants an @abt@ for @x@ and for the input of @update@...
-                        -}
-    step _ = Nothing
-
-
-varEqAnyInPattern
-    :: Variable a
-    -> List1 Variable xs
-    -> Pattern xs b
-    -> Maybe (TypeEq a b)
-varEqAnyInPattern x ys pat = error "TODO: varEqAnyInPattern"
-    -- if x `elem` ys then Just Refl else Nothing
-
-
-----------------------------------------------------------------
-----------------------------------------------------------------
-
 coerceTo :: Coercion a b -> Whnf abt a -> Whnf abt b
 coerceTo = error "TODO: coerceTo"
 {-
@@ -925,6 +818,109 @@ unsafeFrom c e0 =
         WLam     e1    ->
         WMeasure e1    ->
 -}
+
+----------------------------------------------------------------
+----------------------------------------------------------------
+-- HACK: how can we cleanly unify this with the implementation of 'M'?
+newtype M' abt x =
+    M' { unM' :: forall a. (x -> Ans abt ('HMeasure a)) -> Ans abt ('HMeasure a) }
+
+m2mprime :: M abt x -> M' abt x
+m2mprime (M m) = M' m
+
+-- TODO: mprime2m
+
+
+-- TODO: can we legit call the result of 'residualizeContext' a
+-- neutral term? Really we should change the definition of 'Ans',
+-- ne?
+--
+-- BUG: the argument type doesn't match up with what 'perform' returns! We hack around that by using 'SingI', for now; but really should clean it all up.
+--
+-- | Run a computation in the 'M'' monad, residualizing out all the
+-- statements in the final 'Context'. The initial context argument
+-- should be constructed by 'initContext' to ensure proper hygiene;
+-- for example:
+--
+-- > \e -> runM' (perform e) (initContext [e])
+runM' :: (ABT abt, SingI a)
+    => M' abt (Whnf abt a)
+    -> Context abt
+    -> Whnf abt ('HMeasure a)
+runM' m = unM' m (\x -> Head_ . WMeasure . residualizeContext (lift x))
+-- HACK: can't eta-shorten away the @x@; won't typecheck for some reason
+    where
+    lift :: (ABT abt, SingI a) => Whnf abt a -> Whnf abt ('HMeasure a)
+    lift (Head_   v) = Head_ . WMeasure $ P.dirac (fromHead v)
+    lift (Neutral e) = Neutral $ P.dirac e
+
+
+instance Functor (M' abt) where
+    fmap f (M' m)  = M' $ \c -> m (c . f)
+
+instance Applicative (M' abt) where
+    pure x          = M' $ \c -> c x
+    M' mf <*> M' mx = M' $ \c -> mf $ \f -> mx $ \x -> c (f x)
+
+instance Monad (M' abt) where
+    return     = pure
+    M' m >>= k = M' $ \c -> m $ \x -> unM' (k x) c
+
+push'
+    :: (ABT abt)
+    => Statement abt
+    -> abt xs a
+    -> (abt xs a -> M' abt r)
+    -> M' abt r
+push' s e k = do
+    rho <- m2mprime (push_ s)
+    k (substs rho e)
+
+pushes'
+    :: (ABT abt)
+    => [Statement abt]
+    -> abt xs a
+    -> (abt xs a -> M' abt r)
+    -> M' abt r
+pushes' ss e k = do
+    -- TODO: is 'foldlM' the right one? or do we want 'foldrM'?
+    rho <- F.foldlM (\rho s -> mappend rho <$> m2mprime (push_ s)) mempty ss
+    k (substs rho e)
+
+pop' :: M' abt (Maybe (Statement abt))
+pop' = m2mprime pop
+
+
+-- N.B., that return type is correct, albeit strange. The idea is that the continuation takes in the variable of type @a@ bound by the expression of type @'HMeasure a@. However, this requires that the continuation of the 'Ans' type actually does @forall a. ...('HMeasure a)@ which is at odds with what 'evaluate' wants (or at least, what *I* think it should want.)
+-- BUG: eliminate the 'SingI' requirement (comes from using @(P.>>=)@)
+perform
+    :: (ABT abt, SingI a) => abt '[] ('HMeasure a) -> M' abt (Whnf abt a)
+perform e0 =
+    caseVarSyn e0 (error "TODO: perform{Var}") $ \t ->
+        case t of
+        MeasureOp_ (Dirac _) :$ e1 :* End ->
+            m2mprime $ evaluate e1
+        MeasureOp_ _ :$ _ ->
+            M' $ \c h -> Head_ $ WMeasure (e0 P.>>= \z -> fromWhnf (c (Neutral z) h))
+        MBind :$ e1 :* e2 :* End ->
+            caseBind e2 $ \x e2' ->
+                push' (SBind x $ Thunk e1) e2' perform
+        Superpose_ es ->
+            error "TODO: perform{Superpose_}"
+            {-
+            P.superpose <$> T.traverse perform es -- TODO: not quite right; need to push the SWeight in each branch. Also, 'Whnf' un\/wrapping
+            -}
+
+        -- I think this captures the logic of the following two cases from the paper:
+        -- > perform u | atomic u    = M' $ \c h -> u P.>>= \z -> c z h
+        -- > perform e | not (hnf e) = evaluate e >>= perform
+        -- TODO: But we should be careful to make sure we haven't left any cases out. Maybe we should have some sort of @mustPerform@ predicate like we have 'mustCheck' in TypeCheck.hs...?
+        _ -> do
+            w <- m2mprime (evaluate e0)
+            case w of
+                Head_   v -> perform (fromHead v)
+                Neutral e -> M' $ \c h -> Head_ $ WMeasure (e P.>>= \z -> fromWhnf (c (Neutral z) h))
+
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
