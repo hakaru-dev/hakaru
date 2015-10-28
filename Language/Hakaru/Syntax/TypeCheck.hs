@@ -472,14 +472,14 @@ checkType = checkType_
     
         -- Need to do these cases
 
-        U.Datum_ (U.SealedDatum typ1 (U.Datum hint d)) ->
+        U.Datum_ (U.SealedDatum (U.Datum hint d)) ->
           case typ0 of
-            SData typ2 typ3 -> do
-               case jmEq1 typ1 typ2 of
-                 Nothing   -> failwith "type mismatch"
-                 Just Refl -> do
+            SData _ typ2 -> do
+               -- case jmEq1 typ1 typ2 of
+               --   Nothing   -> failwith "type mismatch"
+               --   Just Refl -> do
                     (syn . Datum_ . Datum hint)
-                      <$> checkDatumCode d typ3 typ0
+                      <$> checkDatumCode d typ2 typ0
             _            -> failwith "expected HData type"
     
         -- U.Case_ e1 branches -> do
@@ -525,7 +525,7 @@ checkType = checkType_
     -- TODO: can we combine these in with the 'checkBranch' functions somehow?
     checkDatumCode
         :: forall xss t
-        .  U.DCode c (HData' t)
+        .  U.DCode c
         -> Sing xss
         -> Sing (HData' t)
         -> TypeCheckMonad (DatumCode xss (abt '[]) (HData' t))
@@ -542,7 +542,7 @@ checkType = checkType_
     
     checkDatumStruct
         :: forall xs t
-        .  U.DStruct c (HData' t)
+        .  U.DStruct c
         -> Sing xs
         -> Sing (HData' t)
         -> TypeCheckMonad (DatumStruct xs (abt '[]) (HData' t))
@@ -561,7 +561,7 @@ checkType = checkType_
     
     checkDatumFun
         :: forall x t
-        .  U.DFun c (HData' t)
+        .  U.DFun c
         -> Sing x
         -> Sing (HData' t)
         -> TypeCheckMonad (DatumFun x (abt '[]) (HData' t))

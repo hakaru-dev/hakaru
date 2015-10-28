@@ -37,4 +37,4 @@ inferType' = inferType
 testTC :: U.AST a -> String
 testTC a = case runTCM (inferType' a) of
              Left err -> show err
-             Right (TypedAST _ ast) -> show (pretty ast)
+             Right (TypedAST typ ast) -> show (typ, pretty ast)

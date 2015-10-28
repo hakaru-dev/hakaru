@@ -24,6 +24,7 @@ import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.IClasses
 
 import Data.Text
+import qualified Data.Number.LogFloat as LF
 import Text.Parsec (SourcePos)
 
 -- N.B., because we're not using the ABT's trick for implementing a HOAS API, we can make the identifier strict.
@@ -47,7 +48,7 @@ data SealedOp op where
       -> SealedOp op
 
 data SealedDatum a = forall t.
-     SealedDatum (Sing t) (Datum a (HData' t))
+     SealedDatum (Datum a (HData' t))
 
 type Name' = Text
 
@@ -61,24 +62,26 @@ data Pattern' a =
    | PData' (Datum' a)
    deriving (Eq, Show)
 
-data Datum' a = DV a [a] deriving (Eq, Show)
-
 -- Meta stores start and end position for AST in source code
 newtype Meta = Meta (SourcePos, SourcePos) deriving (Eq, Show)
 
-data DFun a t where
-     Konst :: AST a -> DFun a t
-     Ident :: AST a -> DFun a t
+data Datum' a = DV a [a] deriving (Eq, Show)
 
-data DStruct a t where
-     Et   :: DFun a t -> DStruct a t -> DStruct a t
-     Done :: DStruct a t
+infixr 7 `Et`
 
-data DCode a t where
-     Inr ::  DCode a t   -> DCode a t
-     Inl ::  DStruct a t -> DCode a t
+data DFun a where
+     Konst :: AST a -> DFun a
+     Ident :: AST a -> DFun a
 
-data Datum a t = Datum Text (DCode a t)
+data DStruct a where
+     Et   :: DFun a -> DStruct a -> DStruct a
+     Done :: DStruct a
+
+data DCode a where
+     Inr ::  DCode a   -> DCode a
+     Inl ::  DStruct a -> DCode a
+
+data Datum a t = Datum Text (DCode a)
 
 data Value' =
      Nat  Int
@@ -87,6 +90,12 @@ data Value' =
    | Real Double
    | Datum''
  deriving (Eq)
+
+val :: Value' -> Some1 Value
+val (Nat  n) = Some1 $ VNat (N.unsafeNat n)
+val (Int  n) = Some1 $ VInt n
+val (Prob n) = Some1 $ VProb (LF.logFloat n)
+val (Real n) = Some1 $ VReal n
 
 data TypeAST' a =
      TypeVar a
