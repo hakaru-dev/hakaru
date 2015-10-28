@@ -482,7 +482,6 @@ checkType = checkType_
                   return (syn(Array_ e1' (bind x e2')))
             _ -> failwith "expected HArray type"
     
-        -- Need to do these cases
 
         U.Datum_ (U.SealedDatum (U.Datum hint d)) ->
           case typ0 of
@@ -494,6 +493,8 @@ checkType = checkType_
                       <$> checkDatumCode d typ2 typ0
             _            -> failwith "expected HData type"
     
+        -- Need to do these cases
+
         -- U.Case_ e1 branches -> do
         --     TypedAST typ1 e1' <- inferType_ e1
         --     branches'  <- T.forM branches $ checkBranch typ1 typ0
