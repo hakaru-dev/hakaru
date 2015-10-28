@@ -194,6 +194,8 @@ class ABT (syn :: ([k] -> k -> *) -> k -> *) (abt :: [k] -> k -> *) | abt -> syn
     -- TODO: use our own VarSet type (e.g., @IntMap Variable@) instead of @Set Variable@?
     freeVars :: abt xs a -> Set (SomeVariable (KindOf a))
 
+    -- TODO: rather than returning the largest free var, return @(1+)@ that. This way, if we return 0 we know there're actually no free variables; whereas returning 1 means that the variable 0 is free. If\/when we do this, be sure to check\/change all the use sites.
+    --
     -- | Return the largest 'varID' of /free/ variables. The default
     -- implementation is to take the maximum of 'freeVars'. This
     -- is part of the class in case you want to memoize it.
@@ -205,6 +207,8 @@ class ABT (syn :: ([k] -> k -> *) -> k -> *) (abt :: [k] -> k -> *) | abt -> syn
     maxFree :: abt xs a -> Nat
     maxFree = maxVarID . freeVars
 
+    -- TODO: like for maxFree's todo, actually return @(1+)@ the maximum occuring binding; so that returning 0 means no bindings, as opposed to returning 1 to mean 0 is the largest binding. If\/when we do this, be sure to check\/change all the use sites.
+    --
     -- | Return the largest 'varID' of variable /binding sites/
     -- (i.e., of variables bound by the 'Bind' constructor). N.B.,
     -- this should return 0 for /uses/ of the bound variables

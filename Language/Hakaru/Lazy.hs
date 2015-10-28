@@ -230,11 +230,12 @@ data Context abt = Context
 -- | Create an initial context, making sure not to capture any of
 -- the free variables in the collection of arguments.
 --
--- TODO: generalize the argument's type to use @Foldable20@ instead,
--- so that the @xs@ and @a@ can vary for each term.
+-- TODO: generalize the argument's type to use @Some2@ (or @Foldable20@)
+-- instead, so that the @xs@ and @a@ can vary for each term.
 initContext :: (ABT abt, F.Foldable f) => f (abt xs a) -> Context abt
-initContext es =
-    Context (unMaxNat $ F.foldMap (MaxNat . maxFree) es) []
+initContext es
+    | F.null es = Context 0 []
+    | otherwise = Context (1 + unMaxNat (F.foldMap (MaxNat . maxFree) es)) []
 
 
 -- Argument order is to avoid flipping in 'runM'
