@@ -128,7 +128,7 @@ data Whnf (abt :: [Hakaru] -> Hakaru -> *) (a :: Hakaru)
     -- | An actual (weak-)head.
     = Head_ !(Head abt a)
 
-    -- TODO: would it be helpful to track which variable it's blocked on?
+    -- TODO: would it be helpful to track which variable it's blocked on? To do so we'd need 'GotStuck' to return that info...
     -- | A neutral term; i.e., a term whose reduction is blocked
     -- on some free variable.
     | Neutral !(abt '[] a)
@@ -233,9 +233,9 @@ data Context abt = Context
 -- TODO: generalize the argument's type to use @Some2@ (or @Foldable20@)
 -- instead, so that the @xs@ and @a@ can vary for each term.
 initContext :: (ABT abt, F.Foldable f) => f (abt xs a) -> Context abt
-initContext es
-    | F.null es = Context 0 []
-    | otherwise = Context (1 + unMaxNat (F.foldMap (MaxNat . maxFree) es)) []
+initContext es =
+    Context (1 + unMaxNat (F.foldMap (MaxNat . maxFree) es)) []
+    -- N.B., 'Foldable' doesn't get 'F.null' until ghc-7.10
 
 
 -- Argument order is to avoid flipping in 'runM'
@@ -287,23 +287,17 @@ instance Monad (M abt) where
     return    = pure
     M m >>= k = M $ \c -> m $ \x -> unM (k x) c
 
-{-
--- This version is buggy when the same varID is used in different places (i.e., as different variables)
-push :: Statement abt -> M abt ()
-push s = M $ \c h -> c () h{statements = s : statements h}
 
--- This version renames variables as we push them into the context; but that means whatever term we continue with will be messed up.
-push :: Statement abt -> M abt ()
-push s = M $ \c (Context i ss) -> c () $
-    case s of
-    SWeight body        -> Context i     (SWeight body : ss)
-    SBind x body        -> Context (i+1) (SBind (x{varID=i}) body : ss)
-    SLet  x body        -> Context (i+1) (SLet  (x{varID=i}) body : ss)
-    SBranch xs pat body ->
-        case renameFrom xs i of
-        (i', xs') -> Context i' (SBranch xs' pat body : ss)
--}
--- | Push a statement onto the context, renaming variables along the way. The second argument represents \"the rest of the term\" after we've peeled the statement off; it's passed so that we can update the variable names there so that they match with the (renamed)binding statement. The third argument is the continuation for what to do with the renamed term. Rather than taking the second and third arguments we could return an 'Assocs' giving the renaming of variables; however, doing that would make it too easy to accidentally drop the substitution on the floor rather than applying it to the term before calling the continuation.
+-- | Push a statement onto the context, renaming variables along
+-- the way. The second argument represents \"the rest of the term\"
+-- after we've peeled the statement off; it's passed so that we can
+-- update the variable names there so that they match with the
+-- (renamed)binding statement. The third argument is the continuation
+-- for what to do with the renamed term. Rather than taking the
+-- second and third arguments we could return an 'Assocs' giving
+-- the renaming of variables; however, doing that would make it too
+-- easy to accidentally drop the substitution on the floor rather
+-- than applying it to the term before calling the continuation.
 push
     :: (ABT abt)
     => Statement abt
@@ -320,19 +314,22 @@ push_
     -> M abt (Assocs abt)
 push_ s = M $ \c (Context i ss) ->
     case s of
-    SWeight body -> c (Assocs IM.empty) (Context i (SWeight body : ss))
+    SWeight body -> c mempty (Context i (SWeight body : ss))
     SBind x body ->
-        let x' = x{varID=i}
-            rho = IM.singleton (fromNat $ varID x) (Assoc x (var x'))
-        in c (Assocs rho) (Context (i+1) (SBind x' body : ss))
+        let x'  = x{varID=i}
+            rho = singletonAssocs x (var x')
+            s'  = SBind x' body
+        in c rho (Context (i+1) (s':ss))
     SLet x body ->
-        let x' = x{varID=i}
-            rho = IM.singleton (fromNat $ varID x) (Assoc x (var x'))
-        in c (Assocs rho) (Context (i+1) (SLet x' body : ss))
+        let x'  = x{varID=i}
+            rho = singletonAssocs x (var x')
+            s'  = SLet x' body
+        in c rho (Context (i+1) (s':ss))
     SBranch xs pat body ->
         let (i', xs') = renameFrom xs i
             rho = toAssocs xs $ fmap11 var xs'
-        in c rho (Context i' (SBranch xs' pat body : ss))
+            s'  = SBranch xs' pat body
+        in c rho (Context i' (s':ss))
 
 
 renameFrom :: List1 Variable xs -> Nat -> (Nat, List1 Variable xs)
@@ -343,7 +340,12 @@ renameFrom = go
         case renameFrom xs (i+1) of
         (i', xs') -> (i', Cons1 (x{varID=i}) xs')
 
--- TODO: move this to IClasses.hs
+-- TODO: move this to ABT.hs\/Variable.hs
+singletonAssocs :: Variable a -> abt '[] a -> Assocs abt
+singletonAssocs x e =
+    Assocs $ IM.singleton (fromNat $ varID x) (Assoc x e)
+
+-- TODO: move this to ABT.hs\/Variable.hs
 toAssocs :: List1 Variable xs -> List1 (abt '[]) xs -> Assocs abt
 toAssocs = \xs es -> Assocs (go xs es)
     where
@@ -353,7 +355,7 @@ toAssocs = \xs es -> Assocs (go xs es)
     go (Cons1 x xs) (Cons1 e es) =
         IM.insert (fromNat $ varID x) (Assoc x e) (go xs es)
 
--- TODO: move this to IClasses.hs
+-- TODO: move this to ABT.hs\/Variable.hs
 -- TODO: what is the actual monoid instance for IntMap; left-biased shadowing I assume? We should make it an error if anything's multiply defined.
 instance Monoid (Assocs abt) where
     mempty  = Assocs IM.empty
@@ -400,13 +402,13 @@ evaluate e0 =
         -- Everything else needs some evaluation
 
         App_ :$ e1 :* e2 :* End -> do
-            v1 <- evaluate e1
-            case v1 of
+            w1 <- evaluate e1
+            case w1 of
                 Neutral e1'    -> return . Neutral $ P.app e1' e2
                 Head_ (WLam f) ->
                     caseBind f $ \x f' ->
                         push (SLet x (Thunk e2)) f' evaluate
-                Head_ w -> case w of {} -- HACK: impossible
+                Head_ v1 -> case v1 of {} -- HACK: impossible
 
         Let_ :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
@@ -417,11 +419,12 @@ evaluate e0 =
         Ann_ typ :$ e1 :* End -> error "TODO: evaluate{Ann_}"
         {-
             do
-            v1 <- evaluate e1
+            w1 <- evaluate e1
             return $
-                if mustCheck (fromWhnf v1)
-                then Head_ $ HAnn typ v1
-                else v1
+                -- if not @mustCheck (fromWhnf w1)@, then could in principle eliminate the annotation; though it might be here so that it'll actually get pushed down to somewhere it's needed later on, so it's best to play it safe and leave it in.
+                case w1 of
+                Head_   v1  -> Head_   $ HAnn   typ v1
+                Neutral e1' -> Neutral $ P.ann_ typ e1'
         -}
 
         CoerceTo_   c :$ e1 :* End -> coerceTo   c <$> evaluate e1
@@ -441,8 +444,8 @@ evaluate e0 =
         --
         -- [1] 'matchBranches' will also tell us it 'GotStuck' if the scrutinee isn't a 'Datum' at some subterm a nested 'Pattern' is trying to match against. At present this means we won't do as much partial evaluation as we really ought to; but in the future the 'GotStuck' constructor should return some information about where it got stuck so that we can 'evaluate' that subexpression. If we were evaluating to full normal forms, this wouldn't be an issue; it's only a problem because we're only doing (W)HNFs.
         Case_ e bs -> do
-            v <- evaluate e
-            tryMatch (fromWhnf v) bs evaluate
+            w <- evaluate e
+            tryMatch (fromWhnf w) bs evaluate
 
         -- HACK: these cases are impossible, and ghc can confirm that (via no warnings about the empty case analysis being incomplete), but ghc can't infer it for some reason
         Lam_ :$ es -> case es of {}
@@ -518,10 +521,7 @@ pushes' ss e k = do
     k (substs rho e)
 
 pop' :: M' abt (Maybe (Statement abt))
-pop' = M' $ \c h ->
-    case statements h of
-    []   -> c Nothing  h
-    s:ss -> c (Just s) h{statements = ss}
+pop' = m2mprime pop
 
 
 -- N.B., that return type is correct, albeit strange. The idea is that the continuation takes in the variable of type @a@ bound by the expression of type @'HMeasure a@. However, this requires that the continuation of the 'Ans' type actually does @forall a. ...('HMeasure a)@ which is at odds with what 'evaluate' wants (or at least, what *I* think it should want.)
@@ -545,6 +545,7 @@ perform e0 =
             -}
         _ -> error "TODO: perform: the rest of the cases" -- probably via some @isWhnf :: abt '[] a -> Maybe (Whnf abt a)@
 {-
+-- variables not bound in the Context are \"atomic\" (others aren't...)
 perform u | atomic u    = M' $ \c h -> u P.>>= \z -> c z h
 perform e | not (hnf e) = evaluate e >>= perform
 -}
@@ -784,27 +785,27 @@ update x = loop []
             Just s  ->
                 case step s of
                 Nothing -> loop (s:ss)
-                Just mv -> do
-                    v <- mv             -- evaluate the body of @s@
-                    push   (SLet x (Whnf_ v)) -- push the updated binding -- BUG: must use the new definition of 'push'
+                Just mw -> do
+                    w <- mw             -- evaluate the body of @s@
+                    push   (SLet x (Whnf_ w)) -- push the updated binding -- BUG: must use the new definition of 'push'
                     pushes (reverse ss) -- put the rest of the context back
-                    return v            -- TODO: return (NamedWhnf x v)
+                    return w            -- TODO: return (NamedWhnf x v)
 
     -- BUG: existential escapes; need to cps
     step (SBind   y      e0) | x == y = Just $ caseLazy e0 return perform
     step (SLet    y      e0) | x == y = Just $ caseLazy e0 return evaluate
     step (SBranch ys pat e0) | x `elem` ys =
         Just $ caseLazy e0 return $ \e -> do
-            v <- evaluate e
-            case v of
+            w <- evaluate e
+            case w of
                 Neutral e' -> M $ \c h ->
                     Neutral . syn $ Case_ e'
                         [ Branch pat   (binds ys (c x h))
                         , Branch PWild P.reject
                         ]
-                Head_ e' ->
+                Head_ v ->
                     case
-                        matchBranches (fromHead e')
+                        matchBranches (fromHead v)
                             [ Branch pat   (binds ys P.true)
                             , Branch PWild P.false
                             ]
