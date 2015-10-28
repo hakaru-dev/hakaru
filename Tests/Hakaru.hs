@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, DataKinds #-}
+{-# LANGUAGE OverloadedStrings, DataKinds, GADTs #-}
 
 module Tests.Hakaru where
 
@@ -20,6 +20,7 @@ import Language.Hakaru.Sample
 
 import Prelude hiding (unlines)
 import Data.Text
+import Text.PrettyPrint
 import qualified System.Random.MWC as MWC
 
 five, normal01, normalb :: Text
@@ -42,11 +43,13 @@ testTC a = case runTCM (inferType' a) of
              Left err -> err
              Right (TypedAST typ ast) -> show (typ, pretty ast)
 
-testHakaru :: Text -> String
-testHakaru a = case parseHakaru a of
-                 Left err -> show err
+testHakaru :: Text -> MWC.GenIO -> IO (String, String, (Maybe (Sample IO 'HReal)))
+testHakaru a g = case parseHakaru a of
+                 Left err -> error (show err)
                  Right past ->
                      let m = inferType' (pToa past) in
                      case runTCM m of
-                       Left err -> err
-                       Right (TypedAST typ ast) -> show (typ, pretty ast)
+                       Left err -> error err
+                       Right (TypedAST typ@(SMeasure SReal) ast) -> do
+                           Just (s, _) <- unS (runSample ast) 1 g
+                           return (show typ, show $ pretty ast, Just s)
