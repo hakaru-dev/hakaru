@@ -98,6 +98,7 @@ evaluate e0 =
 
         CoerceTo_   c :$ e1 :* End -> coerceTo   c <$> evaluate e1
         UnsafeFrom_ c :$ e1 :* End -> unsafeFrom c <$> evaluate e1
+        -- TODO: will maybe clean up the code to map 'evaluate' over @es@ before calling the evaluateFooOp helpers?
         NaryOp_     o    es        -> evaluateNaryOp o es
         PrimOp_     o :$ es        -> evaluatePrimOp o es
 

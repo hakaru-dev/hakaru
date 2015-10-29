@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.28
+--                                                    2015.10.29
 -- |
 -- Module      :  Language.Hakaru.Lazy.Types
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -132,7 +132,8 @@ data Lazy (abt :: [Hakaru] -> Hakaru -> *) (a :: Hakaru)
     -- | Already evaluated to WHNF.
     = Whnf_ !(Whnf abt a)
 
-    -- | A thunk; i.e., any term we decide to maybe evaluate later.
+    -- | A thunk; i.e., any term, which we may decide to evaluate
+    -- later (or may not).
     | Thunk !(abt '[] a)
 
 
@@ -194,6 +195,10 @@ data Statement (abt :: [Hakaru] -> Hakaru -> *)
 -- need to keep track of the statements we passed along the way
 -- when reaching for the bottom.
 --
+-- The tail of the list takes scope over the head of the list. Thus,
+-- the back\/end of the list is towards the top of the program,
+-- whereas the front of the list is towards the bottom.
+--
 -- This type was formerly called @Heap@ (presumably due to the
 -- 'Statement' type being called @Binding@) but that seems like a
 -- misnomer to me since this really has nothing to do with allocation.
@@ -202,7 +207,7 @@ data Statement (abt :: [Hakaru] -> Hakaru -> *)
 -- \"garbage\" (subject to correctness criteria).
 data Context (abt :: [Hakaru] -> Hakaru -> *) = Context
     { freshNat   :: {-# UNPACK #-} !Nat
-    , statements :: [Statement abt] -- stored in reverse order.
+    , statements :: [Statement abt]
     }
 -- TODO: to the extent that we can ignore order of statements, we could use an @IntMap (Statement abt)@ in order to speed up the lookup times in 'update'. We just need to figure out (a) what to do with 'SWeight' statements, (b) how to handle 'SBranch' so that we can just make one map modification despite possibly binding multiple variables, and (c) figure out how to recover the order (to the extent that we must).
 
@@ -210,11 +215,13 @@ data Context (abt :: [Hakaru] -> Hakaru -> *) = Context
 -- | Create an initial context, making sure not to capture any of
 -- the free variables in the collection of arguments.
 --
--- TODO: generalize the argument's type to use @Some2@ (or @Foldable20@)
--- instead, so that the @xs@ and @a@ can vary for each term.
-initContext :: (ABT abt, F.Foldable f) => f (abt xs a) -> Context abt
-initContext es =
-    Context (1 + unMaxNat (F.foldMap (MaxNat . maxFree) es)) []
+-- We use 'Some2' on the inputs because it doesn't matter what their
+-- type or locally-bound variables are, so we want to allow @f@ to
+-- contain terms with different indices.
+initContext :: (ABT abt, F.Foldable f) => f (Some2 abt) -> Context abt
+initContext es = Context (1 + maximumFree es) []
+    where
+    maximumFree = unMaxNat . F.foldMap (\(Some2 e) -> MaxNat $ maxFree e)
     -- N.B., 'Foldable' doesn't get 'F.null' until ghc-7.10
 
 
@@ -242,7 +249,7 @@ residualizeContext = \e h -> foldl step (fromWhnf e) (statements h)
 
 
 ----------------------------------------------------------------
--- TODO: is that actually Whnf like the paper says? or is it just any term?
+-- TODO: is that actually Whnf like the paper says? or can it be any term?
 type Ans abt a = Context abt -> Whnf abt a
 
 -- TODO: defunctionalize the continuation. In particular, the only heap modifications we need are 'push' and a variant of 'update' for finding\/replacing a binding once we have the value in hand.
