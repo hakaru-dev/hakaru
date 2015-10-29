@@ -118,6 +118,7 @@ data AST' a =
    | UValue Value'
    | Empty
    | Case  (AST' a) [(Branch' a)] -- match
+   | Dirac (AST' a)
    | Bind  a (AST' a) (AST' a)
    | Data  a [TypeAST' a]
    | WithMeta (AST' a) Meta

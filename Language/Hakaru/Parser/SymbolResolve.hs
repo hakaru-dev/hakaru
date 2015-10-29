@@ -79,6 +79,8 @@ symbolResolution symbols ast =
                            (symbolResolution symbols e1)
                            (symbolResolution
                             (updateSymbols name symbols) e2)
+      
+      U.Dirac e1        -> U.Dirac (symbolResolution symbols e1)
 
       _                 -> error "TODO: Add rest of cases"
 
@@ -101,6 +103,8 @@ normAST ast =
 
       U.Bind name e1 e2 -> U.Bind name (normAST e1) (normAST e2)
 
+      U.Dirac e1        -> U.Dirac e1
+
       v                 -> v
 
 makeAST :: U.AST' (Symbol a) -> U.AST a
@@ -116,7 +120,9 @@ makeAST ast =
                                            (makeAST e1)
                                            (makeAST e2)
 
-      _         -> error "TODO: Add rest of cases"
+      U.Dirac e1 -> U.Dirac_ (makeAST e1)
+
+      _          -> error "TODO: Add rest of cases"
 
 -- App (App (Var "normal") (UValue (Nat 0))) (UValue (Nat 1))
 -- App (Var "normal[0]") (UValue (Nat 1))

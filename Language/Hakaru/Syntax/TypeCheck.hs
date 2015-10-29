@@ -305,7 +305,6 @@ inferType = inferType_
                   return $ TypedAST typ2
                              (syn(Let_ :$ e1' :* bind x' e2' :* End))
                     
-
     U.Ann_ e1 t1 ->
         -- N.B., this requires that @typ1@ is a 'Sing' not a 'Proxy',
         -- since we can't generate a 'Sing' from a 'Proxy'.
@@ -358,6 +357,14 @@ inferType = inferType_
               let (typs, typ1) = sing_MeasureOp op in do
               es' <- checkSArgs typs es
               return $ TypedAST (SMeasure typ1) (syn(MeasureOp_ op :$ es'))
+
+    U.Dirac_ e1
+        | inferable e1 -> do
+            t1 <- inferType_ e1
+            case t1 of
+              TypedAST typ1 e1' ->
+                return $ TypedAST (SMeasure typ1)
+                             (syn(Dirac :$ e1' :* End))
 
     U.MBind_ name e1 e2
         | inferable e1 -> do
@@ -506,6 +513,19 @@ checkType = checkType_
         --     TypedAST typ1 e1' <- inferType_ e1
         --     branches'  <- T.forM branches $ checkBranch typ1 typ0
         --     return (syn(Case_ e1' branches'))
+
+        U.Dirac_ e1
+            | inferable e1 -> do
+                TypedAST typ1 e1' <- inferType_ e1
+                case jmEq1 (SMeasure typ1) typ0 of
+                  Nothing   -> failwith "type mismatch"
+                  Just Refl -> return (syn(Dirac :$ e1' :* End))
+            | otherwise -> do
+               case typ0 of
+                  SMeasure typ1 -> do
+                      e1' <- checkType_ typ1 e1
+                      return (syn(Dirac :$ e1' :* End))
+                  _ -> failwith "expected measure type"
     
         U.MBind_ name e1 e2
             | inferable e1 -> do
