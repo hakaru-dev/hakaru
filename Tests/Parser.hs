@@ -214,10 +214,19 @@ ann2AST = Ann (App (App (Var "Pair")
                     (TypeVar "a"))
                     (TypeVar "b"))
 
+ann3 :: Text
+ann3 = "f :: a -> measure(a)"
+
+ann3AST :: AST' Text
+ann3AST = Ann (Var "f") (TypeFun (TypeVar "a")
+                         (TypeApp (TypeVar "measure")
+                                      (TypeVar "a")))
+
 testAnn :: Test
 testAnn = test
    [ testParse ann1 ann1AST
    , testParse ann2 ann2AST
+   , testParse ann3 ann3AST
    ]
 
 easyRoad1 :: Text

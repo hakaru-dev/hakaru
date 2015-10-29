@@ -10,6 +10,7 @@ import Data.Functor.Identity
 import Data.Text hiding (foldr1, foldl)
 
 import Text.Parsec hiding (Empty)
+import Text.ParserCombinators.Parsec (chainl1)
 import Text.Parsec.Combinator (eof)
 import Text.Parsec.Text hiding (Parser())
 import Text.Parsec.Indentation
@@ -146,15 +147,13 @@ type_app = do
 
 type_fun :: Parser (TypeAST' Text)
 type_fun = do
-   a <- type_expr
-   reservedOp "->"
-   b <- type_expr 
-   return $ TypeFun a b
+   chainl1 (try type_app <|> type_var)
+           (reservedOp "->" >> return TypeFun)
 
 type_expr :: Parser (TypeAST' Text)
-type_expr = try type_var
-        <|> try type_fun
+type_expr = try type_fun
         <|> try type_app
+        <|> type_var
 
 ann_expr :: Parser (AST' Text)
 ann_expr = do
