@@ -495,11 +495,8 @@ checkType = checkType_
         U.Datum_ (U.SealedDatum (U.Datum hint d)) ->
           case typ0 of
             SData _ typ2 -> do
-               -- case jmEq1 typ1 typ2 of
-               --   Nothing   -> failwith "type mismatch"
-               --   Just Refl -> do
-                    (syn . Datum_ . Datum hint)
-                      <$> checkDatumCode d typ2 typ0
+               (syn . Datum_ . Datum hint)
+               <$> checkDatumCode d typ2 typ0
             _            -> failwith "expected HData type"
     
         -- Need to do these cases
