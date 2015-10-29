@@ -1,7 +1,9 @@
 {-# LANGUAGE GADTs
            , DataKinds
            , PolyKinds
+           , FlexibleContexts
            , DeriveDataTypeable
+           , ExistentialQuantification
            , UndecidableInstances
            #-}
 

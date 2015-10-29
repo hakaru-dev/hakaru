@@ -7,6 +7,7 @@
            , PolyKinds
            , TypeOperators
            , MultiParamTypeClasses
+           , FlexibleContexts
            , FlexibleInstances
            , FunctionalDependencies
            , UndecidableInstances
@@ -36,7 +37,7 @@
 --
 -- TODO: simultaneous multiple substitution
 ----------------------------------------------------------------
-module Language.Hakaru.Syntax.ABT
+module Language.Hakaru.Syntax.ABT2
     (
     -- * Our basic notion of variables.
       module Language.Hakaru.Syntax.Variable
