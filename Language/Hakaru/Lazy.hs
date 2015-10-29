@@ -128,8 +128,18 @@ evaluate e0 =
 
 
 ----------------------------------------------------------------
--- TODO: figure out how to abstract this so it can be reused by 'constrainValue'. Especially the 'SBranch case of 'step'
--- BUG: we need (a) a variant of 'update' which doesn't 'perform' if it finds an 'SBind' or else, (b) better ways of converting between 'M' and 'M''.
+-- TODO: figure out how to abstract this so it can be reused by
+-- 'constrainValue'. Especially the 'SBranch case of 'step'
+--
+-- BUG: we need (a) a variant of 'update' which doesn't 'perform'
+-- if it finds an 'SBind' or else, (b) better ways of converting
+-- between 'M' and 'M''.
+--
+-- TODO: it's unclear what this function should really return. The
+-- simplest thing would be to return @()@ since we're always returning
+-- @Neutral(var x)@ so we can just have the caller do that themselves;
+-- but returning @()@ breaks down in the case where we have to
+-- residualize a case expression.
 update :: forall abt a. (ABT abt) => Variable a -> M abt (Whnf abt a)
 update x = loop []
     where
@@ -144,37 +154,45 @@ update x = loop []
                 case step s of
                 Nothing -> loop (s:ss)
                 Just mw -> do
-                    -- Evaluate the body of @s@.
+                    -- Evaluate the body of @s@, updating it along the way.
                     w <- mw
-                    -- Push the updated binding, replacing the old one.
-                    naivePush (SLet x $ Whnf_ w)
                     -- Put the rest of the context back.
                     naivePushes ss
-                    -- Finally, return the variable. We could return
-                    -- @w@ itself instead, but then we'd lose sharing.
-                    --
-                    -- TODO: return @NamedWhnf x w@ in case we want
-                    -- to perform immediate substitution for some
-                    -- reason, rather than keeping the variable
-                    -- around (e.g., if the variable is only used
-                    -- once and by inlining it we could perform
-                    -- more partial evaluation...)
-                    return (Neutral $ var x)
+                    return w
+                    -- TODO: rather than having @mw@ return @w =
+                    -- Neutral(var x)@ and then returning that to
+                    -- our caller; we may rather have @mw@ return
+                    -- whatever @x@ becomes bound to after evaluation.
+                    -- That would allow callers to do stuff with
+                    -- the value rather than looking it up again
+                    -- (e.g., performing immediate substitution
+                    -- because the variable is only used once, or
+                    -- something similar). This would also allow
+                    -- us to distinguish this case from the case
+                    -- where the variable isn't bound in the context
+                    -- at all.
 
 
     step :: Statement abt -> Maybe (M abt (Whnf abt a))
-    step (SBind y e0) = do
+    step (SBind y e) = do
         Refl <- varEq x y
-        Just $ error "TODO: update{SBind}" -- caseLazy e0 return perform
-    step (SLet y e0) = do
+        Just $ do
+            w <- error "TODO: update{SBind}" -- caseLazy e return perform
+            naivePush (SLet x $ Whnf_ w)
+            return (Neutral $ var x)
+    step (SLet y e) = do
         Refl <- varEq x y
-        Just $ caseLazy e0 return evaluate
-    step (SBranch ys pat e0)
-        | varElem x ys = Just $
-            caseLazy e0 return evaluate >>= updateBranch ys pat
+        Just $ do
+            w <- caseLazy e return evaluate
+            naivePush (SLet x $ Whnf_ w)
+            return (Neutral $ var x)
+    step (SBranch ys pat e)
+        | varElem x ys = Just $ do
+            w <- caseLazy e return evaluate
+            updateBranch ys pat w
     step _ = Nothing
 
-
+    -- TODO: we must be sure to push @SBranch ys pat (Whnf_ w)@ or whatever 'Assocs' it reduces to back onto the context. Otherwise, we'll lose variable bindings!
     updateBranch
         :: forall xs b
         .  List1 Variable xs
@@ -183,8 +201,8 @@ update x = loop []
         -> M abt (Whnf abt a)
     updateBranch ys pat w =
         case w of
-        Neutral e' -> M $ \c h ->
-            Neutral . syn $ Case_ e'
+        Neutral e -> M $ \c h ->
+            Neutral . syn $ Case_ e
                 [ Branch pat $
                     case eqAppendIdentity ys of
                     Refl -> binds ys (fromWhnf $ c (Neutral $ var x) h)
@@ -193,6 +211,7 @@ update x = loop []
                 ]
         Head_ v ->
             case
+                -- HACK: we'd like to just put what to do inline rather than returning an HBool and then reifying it to decide what to do!
                 matchBranches (fromHead v)
                     [ Branch pat $
                         case eqAppendIdentity ys of
@@ -200,8 +219,8 @@ update x = loop []
                     , Branch PWild P.false
                     ]
             of
-            Nothing -> error "TODO: update{SBranch}: match failed"
-            Just GotStuck -> error "TODO: update{SBranch}: got stuck"
+            Nothing -> error "TODO: update{SBranch}: match failed" -- residualize a Hakaru error? adjust the 'M' type so it includes evaluation errors (i.e., contretely with something like 'Either'; rather than throwing extensible exceptions)
+            Just GotStuck -> error "TODO: update{SBranch}: got stuck" -- Should residualize just like if @w@ was neutral.
             Just (Matched ss b) ->
                 error "TODO: update{SBranch}: matched"
                 {-
