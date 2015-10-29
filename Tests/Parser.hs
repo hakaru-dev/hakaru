@@ -85,6 +85,11 @@ def1 = unlines ["def foo(x):"
                ,"foo(5)"
                ]
 
+def2 :: Text
+def2 = unlines ["def foo(x): x + 3"
+               ,"foo(5)"
+               ]
+
 def1AST :: AST' Text
 def1AST = Let "foo"
               (Lam "x" (App (App (Var "+")
@@ -96,6 +101,7 @@ testLams :: Test
 testLams = test
    [ testParse lam1 lam1AST
    , testParse def1 def1AST
+   , testParse def2 def1AST
    ]
 
 let1 :: Text
@@ -147,22 +153,49 @@ match1 = unlines ["match e:"
                  ,"  left(a): e1"
                  ]
 
+match1AST :: AST' Text
+match1AST = Case (Var "e")
+            [Branch' (PData' (DV "left" ["a"])) (Var "e1")]
+
+-- The space between _ and : is important
 match2 :: Text
 match2 = unlines ["match e:"
-                 ,"  _: e"
+                 ,"  _ : e"
                  ]
 
+match2AST :: AST' Text
+match2AST = Case (Var "e")
+            [Branch' PWild' (Var "e")]
 
 match3 :: Text
 match3 = unlines ["match e:"
                  ,"  a: e"
                  ]
 
+match3AST :: AST' Text
+match3AST = Case (Var "e")
+            [Branch' (PVar' "a") (Var "e")]
+
 match4 :: Text
 match4 = unlines ["match e:"
                  ,"  left(a):  e1"
                  ,"  right(b): e2"
                  ]
+
+match4AST :: AST' Text
+match4AST = Case (Var "e")
+            [Branch' (PData' (DV "left" ["a"])) (Var "e1")
+            ,Branch' (PData' (DV "right" ["b"])) (Var "e2")
+            ]
+
+testMatches :: Test
+testMatches = test
+   [ testParse match1 match1AST
+   , testParse match2 match2AST
+   , testParse match3 match3AST
+   , testParse match4 match4AST
+   ]
+
 
 easyRoad1 :: Text
 easyRoad1 = unlines ["noiseT <~ uniform(3, 8)"
@@ -213,6 +246,7 @@ allTests = test
    , testLams
    , testLets
    , testBinds
+   , testMatches
    , testRoadmap
    ]
 
