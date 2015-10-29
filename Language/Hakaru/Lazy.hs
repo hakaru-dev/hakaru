@@ -4,6 +4,7 @@
            , DataKinds
            , MultiParamTypeClasses
            , FunctionalDependencies
+           , ScopedTypeVariables
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -129,9 +130,10 @@ evaluate e0 =
 ----------------------------------------------------------------
 -- TODO: figure out how to abstract this so it can be reused by 'constrainValue'. Especially the 'SBranch case of 'step'
 -- BUG: we need (a) a variant of 'update' which doesn't 'perform' if it finds an 'SBind' or else, (b) better ways of converting between 'M' and 'M''.
-update :: (ABT abt) => Variable a -> M abt (Whnf abt a)
+update :: forall abt a. (ABT abt) => Variable a -> M abt (Whnf abt a)
 update x = loop []
     where
+    loop :: [Statement abt] -> M abt (Whnf abt a)
     loop ss = do
         ms <- pop
         case ms of
@@ -159,47 +161,56 @@ update x = loop []
                     -- more partial evaluation...)
                     return (Neutral $ var x)
 
-    -- BUG: existential escapes; need to cps
+
+    step :: Statement abt -> Maybe (M abt (Whnf abt a))
     step (SBind y e0) = do
         Refl <- varEq x y
         Just $ error "TODO: update{SBind}" -- caseLazy e0 return perform
     step (SLet y e0) = do
         Refl <- varEq x y
         Just $ caseLazy e0 return evaluate
-    step (SBranch ys pat e0) | varElem x ys = Just $
-        caseLazy e0 (error "TODO: update{SBranch}: do matchBranches to try and resolve the variable") $ \e -> do
-            w <- evaluate e
-            case w of
-                Neutral e' -> M $ \c h ->
-                    Neutral . syn $ Case_ e'
-                        [ Branch pat $
-                            case eqAppendIdentity ys of
-                            Refl ->
-                                binds ys (fromWhnf $ c (Neutral $ var x) h)
-                        , Branch PWild $
-                            error "TODO: update{SBranch}: other branches" -- for the case where we're in the 'M'' monad rather than the 'M' monad, we can use 'P.reject' here...
-                        ]
-                Head_ v ->
-                    case
-                        matchBranches (fromHead v)
-                            [ Branch pat $
-                                case eqAppendIdentity ys of
-                                Refl -> binds ys P.true
-                            , Branch PWild P.false
-                            ]
-                    of
-                    Nothing -> error "TODO: update{SBranch}: match failed"
-                    Just GotStuck -> error "TODO: update{SBranch}: got stuck"
-                    Just (Matched ss b) ->
-                        error "TODO: update{SBranch}: matched"
-                        {-
-                        -- the idea here is:
-                        if reify (WValue b)
-                        then pushes (toStatements ss) x update
-                        else P.reject
-                        -- however, @b :: abt '[] HBool@ rather than @b :: Value HBool@, and 'pushes' wants an @abt@ for @x@ and for the input of @update@...
-                        -}
+    step (SBranch ys pat e0)
+        | varElem x ys = Just $
+            caseLazy e0 return evaluate >>= updateBranch ys pat
     step _ = Nothing
+
+
+    updateBranch
+        :: forall xs b
+        .  List1 Variable xs
+        -> Pattern xs b
+        -> Whnf abt b
+        -> M abt (Whnf abt a)
+    updateBranch ys pat w =
+        case w of
+        Neutral e' -> M $ \c h ->
+            Neutral . syn $ Case_ e'
+                [ Branch pat $
+                    case eqAppendIdentity ys of
+                    Refl -> binds ys (fromWhnf $ c (Neutral $ var x) h)
+                , Branch PWild $
+                    error "TODO: update{SBranch}: other branches" -- for the case where we're in the 'M'' monad rather than the 'M' monad, we can use 'P.reject' here...
+                ]
+        Head_ v ->
+            case
+                matchBranches (fromHead v)
+                    [ Branch pat $
+                        case eqAppendIdentity ys of
+                        Refl -> binds ys P.true
+                    , Branch PWild P.false
+                    ]
+            of
+            Nothing -> error "TODO: update{SBranch}: match failed"
+            Just GotStuck -> error "TODO: update{SBranch}: got stuck"
+            Just (Matched ss b) ->
+                error "TODO: update{SBranch}: matched"
+                {-
+                -- the idea here is:
+                if reify (WValue b)
+                then pushes (toStatements ss) x update
+                else P.reject
+                -- however, @b :: abt '[] HBool@ rather than @b :: Value HBool@, and 'pushes' wants an @abt@ for @x@ and for the input of @update@...
+                -}
 
 
 -- TODO: move this to ABT.hs\/Variable.hs
