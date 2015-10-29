@@ -178,6 +178,10 @@ sampleScon (UnsafeFrom_ c) (e1 :* End) env =
 
 sampleScon (MeasureOp_  m) es env = sampleMeasureOp m es env
 
+sampleScon Dirac           (e1 :* End) env =
+  let S a = sample (LC_ e1) env
+  in  S (\p _ -> return $ Just (a, p))
+
 sampleScon MBind (e1 :* e2 :* End) env =
     let S m1 = sample (LC_ e1) env in
     S (\ p g -> do
@@ -236,10 +240,6 @@ sampleMeasureOp :: (ABT abt, PrimMonad m, Functor m,
                     typs ~ UnLCs args, args ~ LCs typs) =>
                    MeasureOp typs a -> SArgs abt args ->
                    Env m -> S m ('HMeasure a)
-
-sampleMeasureOp (Dirac _)   (e1 :* End) env =
-  let S a = sample (LC_ e1) env
-  in  S (\p _ -> return $ Just (a, p))
 
 sampleMeasureOp Lebesgue    End         env =
   S (\p g -> do

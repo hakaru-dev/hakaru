@@ -509,7 +509,7 @@ perform
 perform e0 =
     caseVarSyn e0 (error "TODO: perform{Var}") $ \t ->
         case t of
-        MeasureOp_ (Dirac _) :$ e1 :* End ->
+        Dirac :$ e1 :* End ->
             m2mprime $ evaluate e1
         MeasureOp_ _ :$ _ ->
             M' $ \c h -> Head_ $ WMeasure (e0 P.>>= \z -> fromWhnf (c (Neutral z) h))

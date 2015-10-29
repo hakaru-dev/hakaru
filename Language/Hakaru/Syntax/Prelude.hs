@@ -809,15 +809,15 @@ m >>= f =
     case
         caseVarSyn m (const Nothing) $ \t ->
             case t of
-            MeasureOp_ (Dirac _) :$ e1 :* End -> Just e1
-            _                                 -> Nothing
+            Dirac :$ e1 :* End -> Just e1
+            _                  -> Nothing
     of
     Nothing -> syn (MBind :$ m :* binder Text.empty sing f :* End)
     Just e1 -> let_ e1 f
 
 -- BUG: remove the 'SingI' requirement!
-dirac :: (ABT abt, SingI a) => abt '[] a -> abt '[] ('HMeasure a)
-dirac = measure1_ $ Dirac sing
+dirac :: (ABT abt) => abt '[] a -> abt '[] ('HMeasure a)
+dirac e1 = syn (Dirac :$ e1 :* End)
 
 -- TODO: can we use let-binding instead of (>>=)-binding (i.e., for when the dirac is immediately (>>=)-bound again...)?
 -- BUG: remove the 'SingI' requirement!

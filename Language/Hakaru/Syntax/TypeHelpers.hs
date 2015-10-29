@@ -143,7 +143,6 @@ sing_PrimOp (Erf theCont) =
     in  (a `Cons1` Nil1, a)
 
 sing_MeasureOp :: MeasureOp args a -> (List1 Sing args, Sing a)
-sing_MeasureOp (Dirac a)   = (a `Cons1` Nil1, a)
 sing_MeasureOp Lebesgue    = (Nil1, sing)
 sing_MeasureOp Counting    = (Nil1, sing)
 sing_MeasureOp Categorical = (sing `Cons1` Nil1, sing)

@@ -186,6 +186,7 @@ ppSCon p (UnsafeFrom_ c) (e1 :* End) =
         , toDoc $ ppArg e1
         ]
 ppSCon p (MeasureOp_ o) es       = ppMeasureOp p o es
+ppSCon p Dirac (e1 :* End)       = ppApply1 p "dirac" e1
 ppSCon p MBind (e1 :* e2 :* End) =
     parens (p > 1) $
         adjustHead
@@ -281,7 +282,6 @@ ppPrimOp _ _ _ = error "ppPrimOp: the impossible happened"
 ppMeasureOp
     :: (ABT abt, typs ~ UnLCs args, args ~ LCs typs)
     => Int -> MeasureOp typs a -> SArgs abt args -> Docs
-ppMeasureOp p (Dirac _)   (e1 :* End)   = ppApply1 p "dirac" e1
 ppMeasureOp _ Lebesgue    End           = [PP.text "lebesgue"]
 ppMeasureOp _ Counting    End           = [PP.text "counting"]
 ppMeasureOp p Categorical (e1 :* End)   = ppApply1 p "categorical" e1

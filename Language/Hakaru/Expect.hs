@@ -342,6 +342,12 @@ expectAST p (Case_  e bs) xs =
     -- We can avoid some of that administrative stuff, by using @let_@ to name the @denotation e xs@ stuff and then use Hakaru's @Case_@ on that.
 
 expectAST p (MeasureOp_ o :$ es) xs = expectMeasure p o es xs
+expectAST _ (Dirac :$ es) _ =
+    case es of
+    a :* End ->
+        ExpectMeasure $ \c -> c a
+    _ -> error "expectMeasure: the impossible happened"
+
 expectAST p (MBind :$ es) xs =
     case es of
     e1 :* e2 :* End ->
@@ -397,11 +403,6 @@ expectMeasure
     -> SArgs abt args
     -> Assocs abt
     -> Expect abt ('HMeasure a)
-expectMeasure _ (Dirac _) es _ =
-    case es of
-    a :* End ->
-        ExpectMeasure $ \c -> c a
-    _ -> error "expectMeasure: the impossible happened"
 expectMeasure _ Lebesgue es _ =
     case es of
     End ->

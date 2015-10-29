@@ -365,10 +365,6 @@ deriving instance Show (PrimOp args a)
 -- class, except that 'MBind' and 'Superpose_' are handled elsewhere
 -- since they are not simple operators.
 data MeasureOp :: [Hakaru] -> Hakaru -> * where
-    -- TODO: Should Dirac move into SCon to be with MBind? Might help with removing the Sing value...
-    -- HACK: is there any way we can avoid storing the Sing value here, while still implementing 'sing_MeasureOp'? Should we have a Hakaru class for the types which can be measurable? might not be a crazy idea...
-    Dirac :: !(Sing a) -> MeasureOp '[ a ] a
-
     Lebesgue    :: MeasureOp '[]                 'HReal
     Counting    :: MeasureOp '[]                 'HInt
     Categorical :: MeasureOp '[ 'HArray 'HProb ] 'HNat
@@ -459,8 +455,10 @@ data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
     MeasureOp_
         :: (typs ~ UnLCs args, args ~ LCs typs)
         => !(MeasureOp typs a) -> SCon args ('HMeasure a)
-    -- TODO: should Dirac move back here?
+
     -- TODO: Does this one need to have a Sing value for @a@ (or @b@)?
+    Dirac :: SCon '[ LC a ] ('HMeasure a)
+
     MBind :: SCon
         '[ LC ('HMeasure a)
         ,  '( '[ a ], 'HMeasure b)
