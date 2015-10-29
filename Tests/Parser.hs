@@ -196,6 +196,29 @@ testMatches = test
    , testParse match4 match4AST
    ]
 
+ann1 :: Text
+ann1 = "5 :: nat"
+
+ann1AST :: AST' Text
+ann1AST = Ann (UValue (Nat 5)) (TypeVar "nat")
+
+ann2 :: Text
+ann2 = "(2,3) :: pair(a,b)"
+
+ann2AST :: AST' Text
+ann2AST = Ann (App (App (Var "Pair")
+                            (UValue (Nat 2)))
+                            (UValue (Nat 3)))
+          (TypeApp (TypeApp
+                    (TypeVar "pair")
+                    (TypeVar "a"))
+                    (TypeVar "b"))
+
+testAnn :: Test
+testAnn = test
+   [ testParse ann1 ann1AST
+   , testParse ann2 ann2AST
+   ]
 
 easyRoad1 :: Text
 easyRoad1 = unlines ["noiseT <~ uniform(3, 8)"
@@ -247,6 +270,7 @@ allTests = test
    , testLets
    , testBinds
    , testMatches
+   , testAnn
    , testRoadmap
    ]
 
