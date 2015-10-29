@@ -131,6 +131,7 @@ mustCheck = go
     -- down the wrong path?
     go (U.Case_ _ _)       = True
 
+    go (U.Dirac_ e1)       = mustCheck e1
     go (U.MeasureOp_ _ _)  = False
     -- TODO: I'm assuming MBind works like Let_, but we should make sure...
     -- TODO: again, it seems like if we can infer one of the options, then we should be able to check the rest against it. But for now we'll assume we must check

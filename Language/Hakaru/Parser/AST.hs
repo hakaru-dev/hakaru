@@ -145,6 +145,7 @@ data AST a =
    | Datum_      (SealedDatum a)
    | Case_       (AST a) [Branch a]
    | MeasureOp_  (SealedOp MeasureOp) [AST a]
+   | Dirac_      (AST a)
    | MBind_      Name    (AST a) (AST a)
    | Expect_     Name    (AST a) (AST a)
    | Superpose_  [(AST a, AST a)]
