@@ -148,16 +148,6 @@ data PrimOp' =
    | NatRoot'  
    | Erf'      
 
-data NaryOp' =
-     And'
-   | Or'
-   | Xor'
-   | Iff'
-   | Min' 
-   | Max' 
-   | Sum' 
-   | Prod'
-
 data MeasureOp' =
      Lebesgue'
    | Counting'

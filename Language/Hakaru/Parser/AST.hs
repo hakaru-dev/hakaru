@@ -91,6 +91,12 @@ data Value' =
    | Datum''
  deriving (Eq)
 
+data NaryOp' =
+     And' | Or' | Xor'
+   | Iff' | Min'| Max' 
+   | Sum' | Prod'
+ deriving (Eq)
+
 val :: Value' -> Some1 Value
 val (Nat  n) = Some1 $ VNat (N.unsafeNat n)
 val (Int  n) = Some1 $ VInt n
