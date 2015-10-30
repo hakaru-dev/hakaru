@@ -33,7 +33,8 @@ uniform01 = "uniform(-0.0,1.0)"
 normal01  = "normal(-0.0,1.0)"
 
 normalb   = unlines [ "x <~ normal(-2.0,1.0)"
-                    , "normal(x, 1.0)"
+                    , "y <~ normal(x, 1.0)"
+                    , "return y"
                     ]
 
 pToa :: U.AST' Text -> U.AST a
