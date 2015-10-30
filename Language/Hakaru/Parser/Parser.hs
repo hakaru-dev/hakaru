@@ -136,23 +136,23 @@ pairs = do
   l <- parens $ commaSep op_expr
   return $ foldr1 (binop "Pair") l
 
-type_var :: Parser (TypeAST' Text)
+type_var :: Parser TypeAST'
 type_var = do
   t <- identifier
   return (TypeVar t)
 
-type_app :: Parser (TypeAST' Text)
+type_app :: Parser TypeAST'
 type_app = do
    f    <- identifier
    args <- parens $ commaSep type_expr
    return $ foldl TypeApp (TypeVar f) args
 
-type_fun :: Parser (TypeAST' Text)
+type_fun :: Parser TypeAST'
 type_fun = do
    chainl1 (try type_app <|> type_var)
            (reservedOp "->" >> return TypeFun)
 
-type_expr :: Parser (TypeAST' Text)
+type_expr :: Parser TypeAST'
 type_expr = try type_fun
         <|> try type_app
         <|> type_var

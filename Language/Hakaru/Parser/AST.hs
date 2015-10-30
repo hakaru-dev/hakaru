@@ -99,10 +99,11 @@ val (Int  n) = Some1 $ VInt n
 val (Prob n) = Some1 $ VProb (LF.logFloat n)
 val (Real n) = Some1 $ VReal n
 
-data TypeAST' a =
-     TypeVar a
-   | TypeApp (TypeAST' a) (TypeAST' a)
-   | TypeFun (TypeAST' a) (TypeAST' a)
+data TypeAST' =
+     TypeVar Text
+   | TypeApp TypeAST' TypeAST'
+   | TypeFun TypeAST' TypeAST'
+ deriving (Eq, Show)
 
 data AST' a =
      Var a
@@ -110,14 +111,14 @@ data AST' a =
    | App (AST' a) (AST' a)
    | Let a    (AST' a) (AST' a)
    | If  (AST' a) (AST' a) (AST' a)
-   | Ann (AST' a) (TypeAST' a)
+   | Ann (AST' a) TypeAST'
    | UValue Value'
    | NaryOp NaryOp' (AST' a) (AST' a)
    | Empty
    | Case  (AST' a) [(Branch' a)] -- match
    | Dirac (AST' a)
    | Bind  a (AST' a) (AST' a)
-   | Data  a [TypeAST' a]
+   | Data  a [TypeAST']
    | WithMeta (AST' a) Meta
 
 data Branch a = Branch (Pattern a) (AST a)
@@ -152,5 +153,3 @@ data AST a =
 
 deriving instance Eq a => Eq (AST' a)
 deriving instance Show a => Show (AST' a)
-deriving instance Eq a => Eq (TypeAST' a)
-deriving instance Show a => Show (TypeAST' a)
