@@ -46,7 +46,7 @@ primTable =  [("Pair",       primPair)
 
 primNormal  = t2 (\x y -> U.MeasureOp_ (U.SealedOp T.Normal) [x,y])
 primUniform = t2 (\x y -> U.MeasureOp_ (U.SealedOp T.Normal) [x,y])
-primPair = t2 (\a b -> U.Datum_ $ U.SealedDatum $
+primPair = t2 (\a b -> U.Datum_ $
               U.Datum "pair" (U.Inl $ U.Konst a `U.Et` U.Konst b `U.Et` U.Done))
 
 pVar name = TNeu (U.Var_ (U.Name (N.unsafeNat 0) name))
@@ -77,6 +77,10 @@ symbolResolution symbols ast =
                            (symbolResolution symbols e1)
                            (symbolResolution
                             (updateSymbols name symbols) e2)
+
+      U.NaryOp op e1 e2 -> U.NaryOp op
+                           (symbolResolution symbols e1)
+                           (symbolResolution symbols e2)
       
       U.Dirac e1        -> U.Dirac (symbolResolution symbols e1)
 
@@ -117,6 +121,9 @@ makeAST ast =
       U.Bind (TNeu (U.Var_ name)) e1 e2 -> U.MBind_ name
                                            (makeAST e1)
                                            (makeAST e2)
+      U.NaryOp op e1 e2 -> U.NaryOp_ op [ makeAST e1
+                                        , makeAST e2
+                                        ]
 
       U.Dirac e1 -> U.Dirac_ (makeAST e1)
 

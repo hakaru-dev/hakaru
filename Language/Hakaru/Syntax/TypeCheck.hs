@@ -493,7 +493,7 @@ checkType = checkType_
                     return (syn(Array_ e1' (bind x e2')))
             _ -> typeMismatch (Right typ0) (Left "HArray")
 
-        U.Datum_ (U.SealedDatum (U.Datum hint d)) ->
+        U.Datum_ (U.Datum hint d) ->
             case typ0 of
             SData _ typ2 ->
                 (syn . Datum_ . Datum hint)

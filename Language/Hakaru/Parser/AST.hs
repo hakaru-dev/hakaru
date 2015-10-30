@@ -47,9 +47,6 @@ data SealedOp op where
       => !(op typs a)
       -> SealedOp op
 
-data SealedDatum a = forall t.
-     SealedDatum (Datum a (HData' t))
-
 type Name' = Text
 
 data Branch'  a =
@@ -81,7 +78,7 @@ data DCode a where
      Inr ::  DCode a   -> DCode a
      Inl ::  DStruct a -> DCode a
 
-data Datum a t = Datum Text (DCode a)
+data Datum a = Datum Text (DCode a)
 
 data Value' =
      Nat  Int
@@ -144,7 +141,7 @@ data AST a =
    | Value_      (Some1 Value)
    | Empty_
    | Array_      (AST a) Name (AST a) -- not sure should binding form
-   | Datum_      (SealedDatum a)
+   | Datum_      (Datum a)
    | Case_       (AST a) [Branch a]
    | MeasureOp_  (SealedOp MeasureOp) [AST a]
    | Dirac_      (AST a)
