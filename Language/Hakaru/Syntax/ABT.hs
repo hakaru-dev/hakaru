@@ -35,6 +35,7 @@
 -- TODO: move all the variable stuff out to a separate module that this one depends on.
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.ABT
+    {-# DEPRECATED "Use Language.Hakaru.Syntax.ABT2 instead. Eventually, that module will replace this one." #-}
     (
     -- * Our basic notion of variables.
       Variable(..)

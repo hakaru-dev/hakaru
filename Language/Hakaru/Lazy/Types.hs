@@ -220,6 +220,7 @@ data Context (abt :: [Hakaru] -> Hakaru -> *) = Context
 initContext :: (ABT AST abt, F.Foldable f) => f (Some2 abt) -> Context abt
 initContext es = Context (1 + maximumFree es) []
     where
+    maximumFree :: (ABT AST abt, F.Foldable f) => f (Some2 abt) -> Nat
     maximumFree = unMaxNat . F.foldMap (\(Some2 e) -> MaxNat $ maxFree e)
     -- N.B., 'Foldable' doesn't get 'F.null' until ghc-7.10
 
