@@ -64,7 +64,7 @@ data MatchResult
     -- some other branch could match if the rest of this one fails.)
     = GotStuck
 
-    -- TODO: would it be helpful for anyone if we went back to using @DList1 (Pair1 Variable (abt '[])) vars1@ for the first argument?
+    -- TODO: internally if we went back to using @DList1 (Pair1 Variable (abt '[])) vars1@ for the first argument, with @vars1@ another parameter to the type, it would guarantee correctness of the number and types of bindings we produce. However, because the user-facing 'matchBranch' uses 'Branch' which existentializes over @vars1@, we'd need our user-facing 'MatchResult' type to also existentialize over @vars1@. But supposing we did go back to doing that for the internal stuff; would it be helpful for anyone else?
     --
     -- | We successfully matched everything (so far). The first
     -- argument gives the bindings for all the pattern variables
@@ -167,7 +167,7 @@ matchCode
     :: (ABT abt)
     => DatumCode  xss (abt '[]) (HData' t)
     -> PDatumCode xss vars1     (HData' t)
-    -> abt (vars1 ++ vars2)  b
+    -> abt (vars1 ++ vars2) b
     -> Maybe (MatchResult abt vars2 b)
 matchCode (Inr d2) (PInr p2) body = matchCode   d2 p2 body
 matchCode (Inl d1) (PInl p1) body = matchStruct d1 p1 body

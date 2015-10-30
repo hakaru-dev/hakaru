@@ -456,7 +456,6 @@ data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
         :: (typs ~ UnLCs args, args ~ LCs typs)
         => !(MeasureOp typs a) -> SCon args ('HMeasure a)
 
-    -- TODO: Does this one need to have a Sing value for @a@ (or @b@)?
     Dirac :: SCon '[ LC a ] ('HMeasure a)
 
     MBind :: SCon

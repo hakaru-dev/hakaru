@@ -63,8 +63,9 @@ evaluate e0 =
         Empty_            -> return . Head_ $ WEmpty
         Array_  e1 e2     -> return . Head_ $ WArray   e1 e2
         Lam_ :$ e1 :* End -> return . Head_ $ WLam     e1
-        MeasureOp_ _ :$ _ -> return . Head_ $ WMeasure e0
+        Dirac        :$ _ -> return . Head_ $ WMeasure e0
         MBind        :$ _ -> return . Head_ $ WMeasure e0 -- N.B., not HNF
+        MeasureOp_ _ :$ _ -> return . Head_ $ WMeasure e0
         Superpose_ _      -> return . Head_ $ WMeasure e0
 
 
@@ -201,18 +202,21 @@ update x = loop []
         -> Whnf abt b
         -> M abt (Whnf abt a)
     updateBranch ys pat w =
+        let residualizeCase e = M $ \c h ->
+                Neutral . syn $ Case_ e
+                    [ Branch pat $
+                        case eqAppendIdentity ys of
+                        Refl -> binds ys (fromWhnf $ c (Neutral $ var x) h)
+                    , Branch PWild $
+                        error "TODO: update{SBranch}: other branches" -- for the case where we're in the 'M'' monad rather than the 'M' monad, we can use 'P.reject' here...
+                    ]
+        in
         case w of
-        Neutral e -> M $ \c h ->
-            Neutral . syn $ Case_ e
-                [ Branch pat $
-                    case eqAppendIdentity ys of
-                    Refl -> binds ys (fromWhnf $ c (Neutral $ var x) h)
-                , Branch PWild $
-                    error "TODO: update{SBranch}: other branches" -- for the case where we're in the 'M'' monad rather than the 'M' monad, we can use 'P.reject' here...
-                ]
-        Head_ v ->
+        Neutral e -> residualizeCase e
+        Head_   v ->
             case
                 -- HACK: we'd like to just put what to do inline rather than returning an HBool and then reifying it to decide what to do!
+                -- TODO: rather than having the @abt@ of the scrutinee match the @abt@ of the branches (and hence the 'MatchResult') we could have the latter be different. That way, we could use any \"@abt@\" for the latter; i.e., any @([Hakaru],Hakaru)@ indexed type! ---however, it would still need an ABT instance since we 'matchBranches' uses 'caseBind' to decrement the indices... (but that's it. So maybe we ought to separate 'caseBind'\/'bind' from the rest of the 'ABT' class?)
                 matchBranches (fromHead v)
                     [ Branch pat $
                         case eqAppendIdentity ys of
@@ -220,16 +224,16 @@ update x = loop []
                     , Branch PWild P.false
                     ]
             of
-            Nothing -> error "TODO: update{SBranch}: match failed" -- residualize a Hakaru error? adjust the 'M' type so it includes evaluation errors (i.e., contretely with something like 'Either'; rather than throwing extensible exceptions)
-            Just GotStuck -> error "TODO: update{SBranch}: got stuck" -- Should residualize just like if @w@ was neutral.
+            Nothing -> error "update: the impossible happened" -- 'PWild' matches everything, so it's impossible to get here!
+            Just GotStuck -> residualizeCase (fromHead v)
             Just (Matched ss b) ->
                 error "TODO: update{SBranch}: matched"
                 {-
                 -- the idea here is:
                 if reify (WValue b)
-                then pushes (toStatements ss) x update
+                then naivePushes (toStatements ss) >> update x
                 else P.reject
-                -- however, @b :: abt '[] HBool@ rather than @b :: Value HBool@, and 'pushes' wants an @abt@ for @x@ and for the input of @update@...
+                -- however, @b :: abt '[] HBool@ rather than @b :: Value HBool@
                 -}
 
 
