@@ -2,14 +2,16 @@
            , GADTs
            , EmptyCase
            , DataKinds
+           , KindSignatures
            , MultiParamTypeClasses
            , FunctionalDependencies
            , ScopedTypeVariables
+           , FlexibleContexts
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.28
+--                                                    2015.10.29
 -- |
 -- Module      :  Language.Hakaru.Lazy
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -43,7 +45,7 @@ import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumCase
-import Language.Hakaru.Syntax.ABT
+import Language.Hakaru.Syntax.ABT2
 import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Lazy.Types
 import qualified Language.Hakaru.Syntax.Prelude as P
@@ -53,7 +55,7 @@ import Language.Hakaru.PrettyPrint -- HACK: for ghci use only
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 -- BUG: we need (a) a variant of 'update' which doesn't 'perform' if it finds an 'SBind' or else, (b) better ways of converting between 'M' and 'M''.
-evaluate :: (ABT abt) => abt '[] a -> M abt (Whnf abt a)
+evaluate :: (ABT AST abt) => abt '[] a -> M abt (Whnf abt a)
 evaluate e0 =
     caseVarSyn e0 update $ \t ->
         case t of
@@ -142,7 +144,7 @@ evaluate e0 =
 -- @Neutral(var x)@ so we can just have the caller do that themselves;
 -- but returning @()@ breaks down in the case where we have to
 -- residualize a case expression.
-update :: forall abt a. (ABT abt) => Variable a -> M abt (Whnf abt a)
+update :: forall abt a. (ABT AST abt) => Variable a -> M abt (Whnf abt a)
 update x = loop []
     where
     loop :: [Statement abt] -> M abt (Whnf abt a)
@@ -196,7 +198,7 @@ update x = loop []
 
     -- TODO: we must be sure to push @SBranch ys pat (Whnf_ w)@ or whatever 'Assocs' it reduces to back onto the context. Otherwise, we'll lose variable bindings!
     updateBranch
-        :: forall xs b
+        :: forall (xs :: [Hakaru]) (b :: Hakaru)
         .  List1 Variable xs
         -> Pattern xs b
         -> Whnf abt b
@@ -221,11 +223,11 @@ update x = loop []
 
 
 -- TODO: move this to ABT.hs\/Variable.hs
-varElem :: Variable a -> List1 Variable xs -> Bool
+varElem :: Variable (a :: Hakaru) -> List1 Variable (xs :: [Hakaru]) -> Bool
 varElem x Nil1         = False
 varElem x (Cons1 y ys) = varEq_ x y || varElem x ys
 
-varEq_ :: Variable a -> Variable b -> Bool
+varEq_ :: Variable (a :: Hakaru) -> Variable (b :: Hakaru) -> Bool
 varEq_ x y = maybe False (const True) (varEq x y)
 
 
@@ -240,7 +242,7 @@ varEq_ x y = maybe False (const True) (varEq x y)
 --
 -- TODO: rather than giving up and residualizing the 'Case_' so quickly when we get stuck, have 'GotStuck' return some info about what needs to be forced next (or if it really is stuck because of a neutral term).
 tryMatch
-    :: (ABT abt)
+    :: (ABT AST abt)
     => abt '[] a
     -> [Branch a abt b]
     -> (abt '[] b -> M abt (Whnf abt b))
@@ -263,8 +265,8 @@ toStatements = map (\(Assoc x e) -> SLet x $ Thunk e) . ($ [])
 ----------------------------------------------------------------
 -- BUG: need to improve the types so they can capture polymorphic data types
 class Interp a a' | a -> a' where
-    reify   :: (ABT abt) => Head abt a -> a'
-    reflect :: (ABT abt) => a' -> Head abt a
+    reify   :: (ABT AST abt) => Head abt a -> a'
+    reflect :: (ABT AST abt) => a' -> Head abt a
 
 instance Interp 'HNat Nat where
     reify (WValue (VNat n)) = n
@@ -334,7 +336,7 @@ instance (Interp a a') => Interp (HList a) [a'] where
 -}
 
 
-rr1 :: (ABT abt, Interp a a', Interp b b')
+rr1 :: (ABT AST abt, Interp a a', Interp b b')
     => (a' -> b')
     -> (abt '[] a -> abt '[] b)
     -> abt '[] a
@@ -347,7 +349,7 @@ rr1 f' f e = do
         Neutral e' -> Neutral $ f e'
 
 
-rr2 :: (ABT abt, Interp a a', Interp b b', Interp c c')
+rr2 :: (ABT AST abt, Interp a a', Interp b b', Interp c c')
     => (a' -> b' -> c')
     -> (abt '[] a -> abt '[] b -> abt '[] c)
     -> abt '[] a
@@ -398,7 +400,7 @@ evaluateNaryOp o es = foldBy (interp o) <$> T.traverse evaluate es
 
 ----------------------------------------------------------------
 evaluatePrimOp
-    :: (ABT abt, typs ~ UnLCs args, args ~ LCs typs)
+    :: (ABT AST abt, typs ~ UnLCs args, args ~ LCs typs)
     => PrimOp typs a
     -> SArgs abt args
     -> M abt (Whnf abt a)
@@ -493,7 +495,8 @@ unsafeFrom c e0 =
 -- N.B., that return type is correct, albeit strange. The idea is that the continuation takes in the variable of type @a@ bound by the expression of type @'HMeasure a@. However, this requires that the continuation of the 'Ans' type actually does @forall a. ...('HMeasure a)@ which is at odds with what 'evaluate' wants (or at least, what *I* think it should want.)
 -- BUG: eliminate the 'SingI' requirement (comes from using @(P.>>=)@)
 perform
-    :: (ABT abt, SingI a) => abt '[] ('HMeasure a) -> M' abt (Whnf abt a)
+    :: (ABT AST abt, SingI a)
+    => abt '[] ('HMeasure a) -> M' abt (Whnf abt a)
 perform e0 =
     caseVarSyn e0 (error "TODO: perform{Var}") $ \t ->
         case t of

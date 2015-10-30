@@ -18,8 +18,7 @@ import Language.Hakaru.Syntax.AST    (PrimOp(..),
                                       MeasureOp(..),
                                       LCs(),
                                       UnLCs ())
-import qualified Language.Hakaru.Syntax.AST as T
-import Language.Hakaru.Syntax.ABT (Variable(..))
+import Language.Hakaru.Syntax.Variable (Variable(..))
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.IClasses
 

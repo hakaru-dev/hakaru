@@ -5,11 +5,12 @@
            , TypeOperators
            , NoImplicitPrelude
            , ScopedTypeVariables
+           , FlexibleContexts
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.27
+--                                                    2015.10.29
 -- |
 -- Module      :  Language.Hakaru.Expect
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -33,25 +34,25 @@ import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
-import Language.Hakaru.Syntax.ABT
+import Language.Hakaru.Syntax.ABT2
 import Language.Hakaru.Syntax.Prelude
 
 ----------------------------------------------------------------
 
 -- | Convert an arbitrary measure into a probability measure; i.e.,
 -- reweight things so that the total weight\/mass is 1.
-normalize :: (ABT abt) => abt '[] ('HMeasure a) -> abt '[] ('HMeasure a)
+normalize :: (ABT AST abt) => abt '[] ('HMeasure a) -> abt '[] ('HMeasure a)
 normalize m = superpose [(recip (total m), m)]
 
 
 -- | Compute the total weight\/mass of a measure.
-total :: (ABT abt) => abt '[] ('HMeasure a) -> abt '[] 'HProb
+total :: (ABT AST abt) => abt '[] ('HMeasure a) -> abt '[] 'HProb
 total m = expect m $ \_ -> prob_ 1
 
 
 -- | Convert a measure into its integrator.
 expect
-    :: (ABT abt)
+    :: (ABT AST abt)
     => abt '[] ('HMeasure a)
     -> (abt '[] a -> abt '[] 'HProb) -> abt '[] 'HProb
 expect e = apM $ expectSynDir ImpureMeasure e emptyAssocs
@@ -70,12 +71,12 @@ prettyAlmostExpect = runPrettyPrint . almostExpect
 -}
 
 
-test1 :: TrivialABT '[] ('HProb ':-> 'HProb)
+test1 :: TrivialABT AST '[] ('HProb ':-> 'HProb)
 test1 = lam $ \x -> total (weight x)
 -- Currently returns @lam $ \x -> x * prob_ 1@ which is correct, but could still be simplified further. It used to return @lam $ \x -> sum [x * prob_ 1]@ but we fixed that via smart constructors.
 
 
-test2 :: TrivialABT '[] ('HMeasure 'HProb ':-> 'HProb)
+test2 :: TrivialABT AST '[] ('HMeasure 'HProb ':-> 'HProb)
 test2 = syn (Lam_ :$ bind x (total (var x)) :* End)
     where
     x = Variable (Text.pack "x") 2 (SMeasure SProb)
@@ -83,15 +84,15 @@ test2 = syn (Lam_ :$ bind x (total (var x)) :* End)
 
 
 -- TODO: we'd rather use @lam $ \x -> total (x `app` int_ 3)@
-test3 :: TrivialABT '[] (('HInt ':-> 'HMeasure 'HProb) ':-> 'HProb)
+test3 :: TrivialABT AST '[] (('HInt ':-> 'HMeasure 'HProb) ':-> 'HProb)
 test3 = syn (Lam_ :$ bind x (total (var x `app` int_ 3)) :* End)
     where
     x = Variable (Text.pack "x") 2 (SFun SInt $ SMeasure SProb)
 
-test4 :: TrivialABT '[] 'HProb
+test4 :: TrivialABT AST '[] 'HProb
 test4 = total $ if_ true (dirac unit) (weight (prob_ 5) >> dirac unit)
 
-test5 :: TrivialABT '[] (HEither HUnit HUnit ':-> 'HProb)
+test5 :: TrivialABT AST '[] (HEither HUnit HUnit ':-> 'HProb)
 test5 =
     lam $ \x ->
         total $
@@ -100,7 +101,7 @@ test5 =
             (\_ -> weight (prob_ 5) >> dirac unit)
 
 {-
-total (array (nat_ 1) (\x -> dirac x) ! nat_ 0) :: TrivialABT '[] 'HProb
+total (array (nat_ 1) (\x -> dirac x) ! nat_ 0) :: TrivialABT AST '[] 'HProb
 syn (Value_ (VProb LogFloat 1.0))
 -}
 
@@ -166,14 +167,14 @@ data Expect :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
 
 -- | Apply a measure's integrator to a given function, removing
 -- administrative redexes if possible.
-apM :: (ABT abt)
+apM :: (ABT AST abt)
     => Expect abt ('HMeasure a)
     -> (abt '[] a -> abt '[] 'HProb) -> abt '[] 'HProb
 apM (ExpectMeasure f) c = f c
 
 -- This function is only used once, for 'expectAST' of 'App_'.
 -- | Apply a function, removing administrative redexes if possible.
-apF :: (ABT abt)
+apF :: (ABT AST abt)
     => Expect abt (a ':-> b)
     -> abt '[] a -> Expect abt b
 apF (ExpectFun _ e1) e2 = e1 e2
@@ -183,7 +184,7 @@ apF (ExpectFun _ e1) e2 = e1 e2
 -- This macro does not insert any sort of bounds checking. We assume
 -- the functional component of the 'ExpectArray' already does that
 -- wherever is appropriate.
-apA :: (ABT abt)
+apA :: (ABT AST abt)
     => Expect abt ('HArray a)
     -> abt '[] 'HNat -> Expect abt a
 apA (ExpectArray _ _ e2) ei = e2 ei
@@ -205,7 +206,7 @@ apA (ExpectArray _ _ e2) ei = e2 ei
 -- we're stuck producing a lambda for the second argument to the
 -- 'Expect' primop.
 expectSynDir
-    :: (ABT abt)
+    :: (ABT AST abt)
     => ImpureType a -- N.B., should be lazy\/irrelevant in this argument
     -> abt '[] a
     -> Assocs abt
@@ -231,7 +232,7 @@ expectSynDir p e xs =
 --   Again, this ensures that the explicit call to the 'Expect'
 --   primop ends up in the right place.
 expectTypeDir
-    :: (ABT abt)
+    :: (ABT AST abt)
     => ImpureType a -- N.B., should be lazy\/irrelevant in this argument
     -> Sing a
     -> abt '[] a
@@ -255,7 +256,7 @@ expectTypeDir _ (SMeasure a) e =
 
 
 expectAST
-    :: (ABT abt)
+    :: (ABT AST abt)
     => ImpureType a -- N.B., should be lazy\/irrelevant in this argument
     -> AST abt a
     -> Assocs abt
@@ -384,11 +385,11 @@ expectAST p (Expect :$ _) _ = case p of {}
 
 
 expectBranch
-    :: (ABT abt)
+    :: (ABT AST abt)
     => (abt '[] a -> abt '[] 'HProb)
     -> ImpureType ('HMeasure a)
     -> Assocs abt
-    -> View abt xs ('HMeasure a)
+    -> View (AST abt) xs ('HMeasure a)
     -> abt xs 'HProb
 expectBranch c p xs (Syn  t)    = expectAST    p      t  xs `apM` c
 expectBranch c p xs (Var  x)    = expectSynDir p (var x) xs `apM` c
@@ -397,7 +398,7 @@ expectBranch c p xs (Bind x e') = bind x $ expectBranch c p xs e'
 
 -- BUG: none of these use the Assocs; they must, in case we need to substitute for variables in the SArgs. Or we need to residualize the Assocs into the program we're generating...
 expectMeasure
-    :: (ABT abt, typs ~ UnLCs args, args ~ LCs typs)
+    :: (ABT AST abt, typs ~ UnLCs args, args ~ LCs typs)
     => ImpureType ('HMeasure a)
     -> MeasureOp typs a
     -> SArgs abt args

@@ -38,6 +38,7 @@ module Language.Hakaru.Syntax.TypeCheck
     , checkType
     ) where
 
+import           Data.Proxy            (KProxy(..))
 import           Data.IntMap           (IntMap)
 import qualified Data.IntMap           as IM
 import qualified Data.Traversable      as T
@@ -61,7 +62,7 @@ import Language.Hakaru.Syntax.Coercion (Coercion(..),
                                         singCoerceDomCod)
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
-import Language.Hakaru.Syntax.ABT
+import Language.Hakaru.Syntax.ABT2
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -144,7 +145,7 @@ mustCheck = go
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
-type Ctx = IntMap SomeVariable
+type Ctx = IntMap (SomeVariable ('KProxy :: KProxy Hakaru))
 
 
 -- BUG: haddock doesn't like annotations on GADT constructors. So
@@ -224,7 +225,10 @@ instance Monad TypeCheckMonad where
     mx >>= k = TCM $ \ctx -> unTCM mx ctx >>= \x -> unTCM (k x) ctx
 
 -- | Extend the typing context, but only locally.
-pushCtx :: SomeVariable -> TypeCheckMonad a -> TypeCheckMonad a
+pushCtx
+    :: SomeVariable ('KProxy :: KProxy Hakaru)
+    -> TypeCheckMonad a
+    -> TypeCheckMonad a
 pushCtx tv@(SomeVariable x) (TCM m) =
     TCM $ \ctx -> m $ IM.insert (fromNat $ varID x) tv ctx
 
@@ -255,13 +259,12 @@ data TypedAST (abt :: [Hakaru] -> Hakaru -> *)
 -- | Given a typing environment and a term, synthesize the term's type.
 inferType
     :: forall abt a
-    .  ABT abt
+    .  (ABT AST abt)
     => U.AST a
     -> TypeCheckMonad (TypedAST abt)
 inferType = inferType_
   where
-  -- HACK: We need this monomorphic binding so that GHC doesn't get
-  -- confused about which @(ABT abt)@ instance to use in recursive calls.
+  -- HACK: We need this monomorphic binding so that GHC doesn't get confused about which @(ABT AST abt)@ instance to use in recursive calls.
   inferType_ :: U.AST a -> TypeCheckMonad (TypedAST abt)
   inferType_ e0 =
     case e0 of
@@ -386,7 +389,7 @@ inferType = inferType_
 -- HACK: we must add the constraints that 'LCs' and 'UnLCs' are inverses.
 -- TODO: how can we do that in general rather than needing to repeat it here and in the various constructors of 'SCon'?
 checkSArgs
-    :: (ABT abt, typs ~ UnLCs args, args ~ LCs typs)
+    :: (ABT AST abt, typs ~ UnLCs args, args ~ LCs typs)
     => List1 Sing typs
     -> [U.AST c]
     -> TypeCheckMonad (SArgs abt args)
@@ -403,7 +406,7 @@ checkSArgs _ _ =
 -- term satisfies the type.
 checkType
     :: forall abt a c
-    .  (ABT abt)
+    .  (ABT AST abt)
     => Sing a
     -> U.AST c
     -> TypeCheckMonad (abt '[] a)
@@ -631,7 +634,7 @@ data TypedPatternList :: [Hakaru] -> * where
         -> TypedPatternList (vars1 ++ vars2)
 -}
 checkBranch
-    :: (ABT abt)
+    :: (ABT AST abt)
     => Sing a
     -> Sing b
     -> Branch a abt b -- CHANGE THIS
@@ -640,7 +643,7 @@ checkBranch pat_typ body_typ (Branch pat body) =
     Branch pat <$> checkPattern body pat_typ pat return
 
 checkPattern
-    :: (ABT abt, ABT abt')
+    :: (ABT AST abt, ABT AST abt')
     => abt vars b -- CHANGE THIS
     -> Sing a
     -> Pattern vars a
@@ -660,7 +663,7 @@ checkPattern body pat_typ pat k =
         _            -> failwith "expected term of user-defined data type"
             
 checkPatternCode
-    :: (ABT abt, ABT abt')
+    :: (ABT AST abt, ABT AST abt')
     => abt vars b -- CHANGE THIS
     -> PDatumCode xss vars (HData' t) -- CHANGE THIS
     -> Sing xss
@@ -679,7 +682,7 @@ checkPatternCode body pat typ typA k =
         _            -> failwith "expected term of `zero' type"
 
 checkPatternStruct
-    :: (ABT abt, ABT abt')
+    :: (ABT AST abt, ABT AST abt')
     => abt vars b -- CHANGE THIS
     -> PDatumStruct xs vars (HData' t) -- CHANGE THIS
     -> Sing xs
@@ -704,7 +707,7 @@ checkPatternStruct body pat typ typA k =
         _           -> failwith "expected term of `done' type"
 
 checkPatternFun
-    :: (ABT abt, ABT abt')
+    :: (ABT AST abt, ABT AST abt')
     => abt vars b -- CHANGE THIS
     -> PDatumFun x vars (HData' t) -- CHANGE THIS
     -> Sing x
@@ -724,7 +727,7 @@ checkPatternFun body pat typ typA k =
 
 {-
 checkBranch
-    :: (ABT abt, ABT abt')
+    :: (ABT AST abt, ABT AST abt')
     => Sing b
     -> abt vars b
     -> TypedPatternList vars

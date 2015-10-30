@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.18
+--                                                    2015.10.29
 -- |
 -- Module      :  Language.Hakaru.Maple
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -37,7 +37,7 @@ import Control.Monad.Trans.State.Strict (State, evalState, state)
 import Data.List (intersperse)
 
 import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.ABT
+import Language.Hakaru.Syntax.ABT2
 {-
 import Language.Hakaru.Syntax (Number(..),
     Order(..), Base(..), Integrate(..), Lambda(..), Mochastic(..), 

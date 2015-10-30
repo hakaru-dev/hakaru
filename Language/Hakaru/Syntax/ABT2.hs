@@ -50,8 +50,10 @@ module Language.Hakaru.Syntax.ABT2
     , ABT(..)
     , caseVarSyn
     , binds
+    , caseBinds
     -- ** Capture avoiding substitution for any 'ABT'
     , subst
+    , substs
     -- ** Constructing first-order trees with a HOAS-like API
     -- cf., <http://comonad.com/reader/2014/fast-circular-substitution/>
     , binder
@@ -68,8 +70,10 @@ module Language.Hakaru.Syntax.ABT2
 import           Data.Text         (Text)
 import           Data.Set          (Set)
 import qualified Data.Set          as Set
+import qualified Data.IntMap       as IM
+import qualified Data.Foldable     as F
 #if __GLASGOW_HASKELL__ < 710
-import           Data.Monoid
+import           Data.Monoid       (Monoid(..))
 #endif
 
 import Language.Hakaru.Syntax.Nat
@@ -253,6 +257,16 @@ binds :: (ABT syn abt) => List1 Variable xs -> abt ys b -> abt (xs ++ ys) b
 binds Nil1         e = e
 binds (Cons1 x xs) e = bind x (binds xs e)
 
+
+-- | Call 'caseBind' repeatedly. (Actually we use 'viewABT'.)
+caseBinds :: (ABT syn abt) => abt xs a -> (List1 Variable xs, abt '[] a)
+caseBinds = go . viewABT
+    where
+    go  :: (ABT syn abt)
+        => View (syn abt) xs a -> (List1 Variable xs, abt '[] a)
+    go (Syn  t)   = (Nil1, syn t)
+    go (Var  x)   = (Nil1, var x)
+    go (Bind x v) = let (xs,e) = go v in (Cons1 x xs, e)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -562,6 +576,67 @@ subst x e = start
             -- that overhead.
             caseBind f $ \_ f' ->
                 bind z' . loop f' . viewABT $ rename z z' f'
+
+
+-- TODO: verify that this works as advertised
+-- | The parallel version of 'subst' for performing multiple substitutions at once.
+substs
+    :: forall
+        (syn :: ([k] -> k -> *) -> k -> *)
+        (abt :: [k] -> k -> *)
+        (xs  :: [k])
+        (a   :: k)
+    .   ( ABT syn abt
+        , JmEq1 (Sing :: k -> *)
+        , Show1 (Sing :: k -> *)
+        , Functor21 syn
+        )
+    => Assocs abt
+    -> abt xs a
+    -> abt xs a
+substs rho0 = start rho0
+    where
+    fv0 :: Set (SomeVariable (KindOf a))
+    fv0 = F.foldMap (\(Assoc _ e) -> freeVars e) (unAssocs rho0)
+
+    start :: forall xs' a'. Assocs abt -> abt xs' a' -> abt xs' a'
+    start rho e = loop rho e (viewABT e)
+
+    loop :: forall xs' a'
+        . Assocs abt -> abt xs' a' -> View (syn abt) xs' a' -> abt xs' a'
+    loop rho _ (Syn t) = syn $! fmap21 (start rho) t
+    loop rho e (Var x) =
+        case IM.lookup (fromNat $ varID x) (unAssocs rho) of
+        Nothing           -> e
+        Just (Assoc y e') ->
+            case varEq x y of
+            Just Refl     -> e'
+            Nothing       -> e
+    loop rho e (Bind x _body) =
+        case IM.lookup (fromNat $ varID x) (unAssocs rho) of
+        Nothing          -> e
+        Just (Assoc y _) ->
+            case varEq x y of
+            Just Refl ->
+                let rho' = IM.delete (fromNat $ varID x) (unAssocs rho) in
+                if IM.null rho'
+                then e
+                else caseBind e $ \_x body' ->
+                        bind x . loop (Assocs rho') body' $ viewABT body'
+            Nothing   ->
+                -- TODO: even if we don't come up with a smarter way
+                -- of freshening variables, it'd be better to just pass
+                -- both sets to 'freshen' directly and then check them
+                -- each; rather than paying for taking their union every
+                -- time we go under a binder like this.
+                let x' = freshen x (fv0 `mappend` freeVars e) in
+                -- HACK: the 'rename' function requires an ABT not a
+                -- View, so we have to use 'caseBind' to give its
+                -- input and then 'viewABT' to discard the topmost
+                -- annotation. We really should find a way to eliminate
+                -- that overhead.
+                caseBind e $ \_x body' ->
+                    bind x' . loop rho body' . viewABT $ rename x x' body'
 
 
 ----------------------------------------------------------------

@@ -3,6 +3,7 @@
            , DeriveDataTypeable
            , Rank2Types
            , ExistentialQuantification
+           , FlexibleContexts
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -16,7 +17,8 @@ module Language.Hakaru.Any
 import Data.Typeable (Typeable)
 
 import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.ABT
+import Language.Hakaru.Syntax.ABT2
+import Language.Hakaru.Syntax.AST
 import Language.Hakaru.PrettyPrint
 import Language.Hakaru.Simplifiable (Simplifiable)
 
@@ -37,7 +39,7 @@ instance Show (Any a) where
 -}
 
 
-type Any' (a :: Hakaru) = forall abt. (ABT abt) => abt '[] a
+type Any' (a :: Hakaru) = forall abt. (ABT AST abt) => abt '[] a
 
 data AnySimplifiable =
     forall (a :: Hakaru) . (Simplifiable a) =>

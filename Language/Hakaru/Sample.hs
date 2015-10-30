@@ -4,6 +4,7 @@
            , TypeOperators
            , TypeFamilies
            , DataKinds
+           , FlexibleContexts
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -39,7 +40,7 @@ import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.AST
-import Language.Hakaru.Syntax.ABT
+import Language.Hakaru.Syntax.ABT2
 
 type PRNG m = MWC.Gen (PrimState m)
 
@@ -149,12 +150,12 @@ normalizeVector xs = case V.length xs of
 
 ---------------------------------------------------------------
 
-sample :: (ABT abt, PrimMonad m, Functor m) =>
+sample :: (ABT AST abt, PrimMonad m, Functor m) =>
           LC_ abt a -> Env m -> S m a
 sample (LC_ e) env =
   caseVarSyn e (sampleVar env) $ \t -> sampleAST t env
 
-sampleAST :: (ABT abt, PrimMonad m, Functor m) =>
+sampleAST :: (ABT AST abt, PrimMonad m, Functor m) =>
              AST abt a -> Env m -> S m a
 sampleAST t env =
     case t of
@@ -164,7 +165,7 @@ sampleAST t env =
       Datum_  d    -> sampleDatum  d env
       Case_   o es -> error "in Case_"
 
-sampleScon :: (ABT abt, PrimMonad m, Functor m) =>
+sampleScon :: (ABT AST abt, PrimMonad m, Functor m) =>
               SCon args a -> SArgs abt args ->
               Env m -> S m a
 
@@ -216,7 +217,7 @@ samplePrimUnsafe (Continuous HContinuous_Prob) (S a) =
     S $ unsafeNat $ floor (LF.fromLogFloat a :: Double)
 samplePrimUnsafe (Continuous HContinuous_Real) (S a) = S $ floor a
 
-sampleNaryOp :: (ABT abt, PrimMonad m, Functor m) =>
+sampleNaryOp :: (ABT AST abt, PrimMonad m, Functor m) =>
                 NaryOp a -> Seq (abt '[] a) ->
                 Env m -> S m a
 
@@ -236,7 +237,7 @@ sampleNaryOp (Sum HSemiring_Real)  es env = S $ F.foldr (+) 0 xs
   where xs = fmap (\a -> unS $ sample (LC_ a) env) es
 
 
-sampleMeasureOp :: (ABT abt, PrimMonad m, Functor m,
+sampleMeasureOp :: (ABT AST abt, PrimMonad m, Functor m,
                     typs ~ UnLCs args, args ~ LCs typs) =>
                    MeasureOp typs a -> SArgs abt args ->
                    Env m -> S m ('HMeasure a)
@@ -337,7 +338,7 @@ sampleValue (VReal n)  = S n
 sampleValue (VDatum _) = error "Don't know how to sample Datum"
 
 -- HACK only will work for HPair
-sampleDatum :: (ABT abt, PrimMonad m, Functor m) =>
+sampleDatum :: (ABT AST abt, PrimMonad m, Functor m) =>
                 Datum (abt '[]) (HData' a) ->
                 Env m -> S m (HData' a)
 
@@ -356,7 +357,7 @@ sampleVar env v = do
     Nothing -> error "variable not found!"
     Just a  -> S a
 
-runSample :: (ABT abt, Functor m, PrimMonad m) =>
+runSample :: (ABT AST abt, Functor m, PrimMonad m) =>
              abt '[] a -> S m a
 runSample prog = sample (LC_ prog) emptyEnv
 

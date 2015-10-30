@@ -1,4 +1,5 @@
-{-# LANGUAGE GADTs
+{-# LANGUAGE CPP
+           , GADTs
            , DataKinds
            , PolyKinds
            , FlexibleContexts
@@ -9,7 +10,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.27
+--                                                    2015.10.29
 -- |
 -- Module      :  Language.Hakaru.Syntax.Variable
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -33,8 +34,10 @@ module Language.Hakaru.Syntax.Variable
     
     -- * Some helper types for \"heaps\", \"environments\", etc
     , Assoc(..)
-    , Assocs()
+    , Assocs(..) -- TODO: hide the data constructors
     , emptyAssocs
+    , singletonAssocs
+    , toAssocs
     , insertAssoc
     , lookupAssoc
     ) where
@@ -48,6 +51,9 @@ import           Data.IntMap       (IntMap)
 import qualified Data.IntMap       as IM
 import           Data.Function     (on)
 import           Control.Exception (Exception, throw)
+#if __GLASGOW_HASKELL__ < 710
+import           Data.Monoid       (Monoid(..))
+#endif
 
 import Language.Hakaru.Syntax.Nat
 import Language.Hakaru.Syntax.IClasses
@@ -293,7 +299,7 @@ maxVarID xs
 --
 -- | A pair of variable and term, both of the same Hakaru type.
 data Assoc (abt :: [k] -> k -> *)
-    = forall a. Assoc
+    = forall (a :: k) . Assoc
         {-# UNPACK #-} !(Variable a)
         !(abt '[] a)
 
@@ -310,12 +316,34 @@ data Assoc (abt :: [k] -> k -> *)
 -- have a single 'varID' be shared by multiple variables (i.e., at
 -- different types). If you really want the first interpretation,
 -- then the implementation must be updated.
-newtype Assocs abt = Assocs (IntMap (Assoc abt))
+newtype Assocs abt = Assocs { unAssocs :: IntMap (Assoc abt) }
 
 
 -- | The empty set of associations.
 emptyAssocs :: Assocs abt
 emptyAssocs = Assocs IM.empty
+
+
+singletonAssocs :: Variable a -> abt '[] a -> Assocs abt
+singletonAssocs x e =
+    Assocs $ IM.singleton (fromNat $ varID x) (Assoc x e)
+
+
+toAssocs :: List1 Variable xs -> List1 (abt '[]) xs -> Assocs abt
+toAssocs = \xs es -> Assocs (go xs es)
+    where
+    go :: List1 Variable xs -> List1 (abt '[]) xs -> IntMap (Assoc abt)
+    -- BUG: GHC claims the patterns are non-exhaustive here
+    go Nil1         Nil1         = IM.empty
+    go (Cons1 x xs) (Cons1 e es) =
+        IM.insert (fromNat $ varID x) (Assoc x e) (go xs es)
+    go _ _ = error "toAssocs: the impossible happened"
+
+
+instance Monoid (Assocs abt) where
+    mempty = emptyAssocs
+    mappend (Assocs xs) (Assocs ys) = Assocs (IM.union xs ys) -- TODO: remove bias; crash if conflicting definitions
+    mconcat = Assocs . IM.unions . map unAssocs
 
 
 -- If we actually do have a list (etc) of variables for each ID,

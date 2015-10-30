@@ -1,6 +1,8 @@
 {-# LANGUAGE GADTs
            , KindSignatures
            , DataKinds
+           , FlexibleContexts
+           , UndecidableInstances
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -39,26 +41,26 @@ import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11)
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
-import Language.Hakaru.Syntax.ABT
+import Language.Hakaru.Syntax.ABT2
 ----------------------------------------------------------------
 
 -- | Pretty-print a term.
-pretty :: (ABT abt) => abt '[] a -> Doc
+pretty :: (ABT AST abt) => abt '[] a -> Doc
 pretty = prettyPrec 0
 
 
 -- | Pretty-print a term at a given precendence level.
-prettyPrec :: (ABT abt) => Int -> abt '[] a -> Doc
+prettyPrec :: (ABT AST abt) => Int -> abt '[] a -> Doc
 prettyPrec p = toDoc . prettyPrec_ p . LC_
 
 
 -- | Pretty-print a variable\/term association pair.
-prettyAssoc :: (ABT abt) => Assoc abt -> Doc
+prettyAssoc :: (ABT AST abt) => Assoc abt -> Doc
 prettyAssoc = prettyPrecAssoc 0
 
 
 -- | Pretty-print an association at a given precendence level.
-prettyPrecAssoc :: (ABT abt) => Int -> Assoc abt -> Doc
+prettyPrecAssoc :: (ABT AST abt) => Int -> Assoc abt -> Doc
 prettyPrecAssoc p (Assoc x e) =
     toDoc $ ppFun p "Assoc"
         [ ppVariable x
@@ -78,7 +80,7 @@ toDoc = PP.sep
 
 
 -- | Pretty-print a variable.
-ppVariable :: Variable a -> Doc
+ppVariable :: Variable (a :: Hakaru) -> Doc
 ppVariable x = hint <> (PP.int . fromNat . varID) x
     where
     hint
@@ -87,19 +89,21 @@ ppVariable x = hint <> (PP.int . fromNat . varID) x
 
 
 -- | Pretty-print Hakaru binders as a Haskell lambda, as per our HOAS API.
-ppBinder :: (ABT abt) => abt xs a -> Docs
+ppBinder :: (ABT AST abt) => abt xs a -> Docs
 ppBinder e =
     case go [] (viewABT e) of
     ([],  body) -> body
     (vars,body) -> PP.char '\\' <+> PP.sep vars <+> PP.text "->" : body
     where
-    go :: (ABT abt) => [Doc] -> View abt xs a -> ([Doc],Docs)
+    go :: (ABT AST abt) => [Doc] -> View (AST abt) xs a -> ([Doc],Docs)
     go xs (Bind x v) = go (ppVariable x : xs) v
     go xs (Var  x)   = (reverse xs, [ppVariable x])
     go xs (Syn  t)   = (reverse xs, prettyPrec_ 0 (LC_ (syn t)))
 
 
-instance (ABT abt) => Pretty (LC_ abt) where
+-- TODO: since switching to ABT2, this instance requires -XFlexibleContexts; we should fix that if we can
+-- BUG: since switching to ABT2, this instance requires -XUndecidableInstances; must be fixed!
+instance (ABT AST abt) => Pretty (LC_ abt) where
   prettyPrec_ p (LC_ e) =
     caseVarSyn e ((:[]) . ppVariable) $ \t -> 
         case t of
@@ -164,7 +168,7 @@ instance (ABT abt) => Pretty (LC_ abt) where
 
 
 -- | Pretty-print @(:$)@ nodes in the AST.
-ppSCon :: (ABT abt) => Int -> SCon args a -> SArgs abt args -> Docs
+ppSCon :: (ABT AST abt) => Int -> SCon args a -> SArgs abt args -> Docs
 ppSCon p Lam_ (e1 :* End) =
     parens (p > 0) $ adjustHead (PP.text "lam $" <+>) (ppBinder e1)
 ppSCon p App_ (e1 :* e2 :* End) = ppBinop "`app`" 9 LeftAssoc p e1 e2
@@ -209,7 +213,7 @@ ppSCon _ _ _ = error "ppSCon: the impossible happened"
 
 -- | Pretty-print a 'PrimOp' @(:$)@ node in the AST.
 ppPrimOp
-    :: (ABT abt, typs ~ UnLCs args, args ~ LCs typs)
+    :: (ABT AST abt, typs ~ UnLCs args, args ~ LCs typs)
     => Int -> PrimOp typs a -> SArgs abt args -> Docs
 ppPrimOp p Not  (e1 :* End)       = ppApply1 p "not" e1
 ppPrimOp p Impl (e1 :* e2 :* End) =
@@ -285,7 +289,7 @@ ppPrimOp _ _ _ = error "ppPrimOp: the impossible happened"
 
 -- | Pretty-print a 'MeasureOp' @(:$)@ node in the AST.
 ppMeasureOp
-    :: (ABT abt, typs ~ UnLCs args, args ~ LCs typs)
+    :: (ABT AST abt, typs ~ UnLCs args, args ~ LCs typs)
     => Int -> MeasureOp typs a -> SArgs abt args -> Docs
 ppMeasureOp _ Lebesgue    End           = [PP.text "lebesgue"]
 ppMeasureOp _ Counting    End           = [PP.text "counting"]
@@ -347,7 +351,7 @@ instance Pretty (Pattern xs) where
     prettyPrec_ = ppPattern
 
 
-instance (ABT abt) => Pretty (Branch a abt) where
+instance (ABT AST abt) => Pretty (Branch a abt) where
     prettyPrec_ p (Branch pat e) =
         ppFun p "Branch"
             [ toDoc $ prettyPrec_ 11 pat
@@ -381,13 +385,13 @@ ppFun _ f [] = [PP.text f]
 ppFun p f ds =
     parens (p > 9) [PP.text f <+> PP.nest (1 + length f) (PP.sep ds)]
 
-ppArg :: (ABT abt) => abt '[] a -> Docs
+ppArg :: (ABT AST abt) => abt '[] a -> Docs
 ppArg = prettyPrec_ 11 . LC_
 
-ppApply1 :: (ABT abt) => Int -> String -> abt '[] a -> Docs
+ppApply1 :: (ABT AST abt) => Int -> String -> abt '[] a -> Docs
 ppApply1 p f e1 = ppFun p f [toDoc $ ppArg e1]
 
-ppApply2 :: (ABT abt) => Int -> String -> abt '[] a -> abt '[] b -> Docs
+ppApply2 :: (ABT AST abt) => Int -> String -> abt '[] a -> abt '[] b -> Docs
 ppApply2 p f e1 e2 = ppFun p f [toDoc $ ppArg e1, toDoc $ ppArg e2]
 
 {-
@@ -422,7 +426,7 @@ showRatio p r
 data Associativity = LeftAssoc | RightAssoc | NonAssoc
 
 ppBinop
-    :: (ABT abt)
+    :: (ABT AST abt)
     => String -> Int -> Associativity
     -> Int -> abt '[] a -> abt '[] b -> Docs
 ppBinop op p0 assoc =

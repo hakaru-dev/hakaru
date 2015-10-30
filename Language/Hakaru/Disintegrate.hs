@@ -10,11 +10,12 @@
            , MultiParamTypeClasses
            , TypeSynonymInstances
            , FlexibleInstances
+           , FlexibleContexts
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs -fno-warn-unused-binds -fno-warn-unused-imports #-}
 ----------------------------------------------------------------
---                                                    2015.10.26
+--                                                    2015.10.29
 -- |
 -- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -54,7 +55,7 @@ import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumCase
-import Language.Hakaru.Syntax.ABT
+import Language.Hakaru.Syntax.ABT2
 import Language.Hakaru.Lazy.Types
 import Language.Hakaru.Lazy
 import qualified Language.Hakaru.Syntax.Prelude as P
@@ -67,7 +68,7 @@ import qualified Language.Hakaru.Expect         as E
 -- N.B., the Backward requirement is probably(?) phrased to be overly strict
 -- | This function fils the role that the old @runDisintegrate@ did. It's unclear what exactly the old @disintegrate@ was supposed to be doing...
 disintegrate
-    :: (ABT abt, SingI a, SingI b, Backward a a)
+    :: (ABT AST abt, SingI a, SingI b, Backward a a)
     => abt '[] ('HMeasure (HPair a b))
     -> abt '[] (a ':-> 'HMeasure b) -- this Hakaru function is measurable
 disintegrate m =
@@ -93,7 +94,7 @@ disintegrate m =
 -- N.B., the old version used to use the @env@ hack in order to handle the fact that free variables can change their type (eewww!!); we may need to do that again, but we should avoid it if we can possibly do so.
 -- N.B., we intentionally phrase the Backward requirement to be overly strict
 density
-    :: (ABT abt, SingI a, Backward a a)
+    :: (ABT AST abt, SingI a, Backward a a)
     => abt '[] ('HMeasure a)
     -> abt '[] (a ':-> 'HProb) -- TODO: make this a Haskell function?
 density m =
@@ -121,7 +122,7 @@ density m =
 -- TODO: what's the point of having this function instead of just using @disintegrate m `app` x@ ? I.E., what does the @scalar0@ wrapper actually achieve; i.e., how does it direct things instead of just failing when we try to go the wrong direction?
 -- BUG: come up with new names avoid name conflict vs the Prelude function.
 observe
-    :: (ABT abt, SingI a, SingI b, Backward a a)
+    :: (ABT AST abt, SingI a, SingI b, Backward a a)
     => abt '[] a
     -> abt '[] ('HMeasure (HPair a b))
     -> abt '[] ('HMeasure b)
@@ -140,7 +141,7 @@ observe x m =
 --
 -- TODO: whatever this function is supposed to do, it should probably be the one that's the primop rather than 'disintegrate'.
 conditionalize
-    :: (ABT abt, Backward ab a)
+    :: (ABT AST abt, Backward ab a)
     => abt '[] a
     -> abt '[] ('HMeasure ab)
     -> abt '[] ('HMeasure ab)
@@ -165,7 +166,7 @@ conditionalize a m =
 -- the function of the same name in "Language.Hakaru.Lazy".
 --
 -- TODO: should we return @Maybe (abt '[] a)@ or should we allow @bot@ at the very top level of the result?
-determine :: (ABT abt) => abt '[] a -> abt '[] a
+determine :: (ABT AST abt) => abt '[] a -> abt '[] a
 determine m = error "TODO: determine"
 
 
@@ -175,7 +176,7 @@ determine m = error "TODO: determine"
 
 class Backward (b :: Hakaru) (a :: Hakaru) where
     {-
-    backward_ :: (ABT abt) => Lazy s abt b -> Lazy s abt a -> M s abt ()
+    backward_ :: (ABT AST abt) => Lazy s abt b -> Lazy s abt a -> M s abt ()
     -}
 
 instance Backward a HUnit where
@@ -251,7 +252,7 @@ type Lazy s abt a = L s (C abt) a
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 -- TODO: see the todo for 'constrainOutcome'
-constrainValue :: (ABT abt) => abt '[] a -> Whnf abt a -> M abt ()
+constrainValue :: (ABT AST abt) => abt '[] a -> Whnf abt a -> M abt ()
 constrainValue = error "TODO: constrainValue"
 {-
 constrainValue e0 v0 =
@@ -289,7 +290,7 @@ constrainValue e0 v0 =
 -- all, or do we want (hnf)patterns or something to more generally
 -- capture (hnf)measurable events?
 constrainOutcome
-    :: (ABT abt) => abt '[] ('HMeasure a) -> Whnf abt a -> M abt ()
+    :: (ABT AST abt) => abt '[] ('HMeasure a) -> Whnf abt a -> M abt ()
 constrainOutcome = error "TODO: constrainOutcome"
 {-
 constrainOutcome e0 v =

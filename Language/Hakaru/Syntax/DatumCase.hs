@@ -8,6 +8,7 @@
            , Rank2Types
            , ScopedTypeVariables
            , FlexibleInstances
+           , FlexibleContexts
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -37,7 +38,7 @@ import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.AST (AST(Datum_, Value_), Value(VDatum))
-import Language.Hakaru.Syntax.ABT
+import Language.Hakaru.Syntax.ABT2
 
 import           Language.Hakaru.PrettyPrint
 import           Text.PrettyPrint (Doc, (<+>))
@@ -90,10 +91,10 @@ data MatchResult
 type DList a = [a] -> [a]
 
 
-instance (ABT abt) => Show (MatchResult abt vars) where
+instance (ABT AST abt) => Show (MatchResult abt vars) where
     showsPrec p = shows . ppMatchResult p
 
-ppMatchResult :: (ABT abt) => Int -> MatchResult abt vars -> Doc
+ppMatchResult :: (ABT AST abt) => Int -> MatchResult abt vars -> Doc
 ppMatchResult _ GotStuck = PP.text "GotStuck"
 ppMatchResult p (Matched boundVars unboundVars) =
     parens (p > 9)
@@ -107,7 +108,7 @@ ppMatchResult p (Matched boundVars unboundVars) =
     parens True  = PP.parens   . PP.nest 1
     parens False = id
 
-    ppVariables :: List1 Variable xs -> [Doc]
+    ppVariables :: List1 (Variable :: Hakaru -> *) xs -> [Doc]
     ppVariables Nil1         = []
     ppVariables (Cons1 x xs) = ppVariable x : ppVariables xs
 
@@ -120,7 +121,7 @@ ppMatchResult p (Matched boundVars unboundVars) =
 -- 'Branch' that matches. Thus, we can offer up that body even if
 -- the match itself 'GotStuck'.
 matchBranches
-    :: (ABT abt)
+    :: (ABT AST abt)
     => abt '[] a
     -> [Branch a abt b]
     -> Maybe (MatchResult abt '[], abt '[] b)
@@ -142,7 +143,7 @@ matchBranches e = go
 -- 'Branch'. Thus, we can offer up that body even if the match
 -- itself 'GotStuck'.
 matchBranch
-    :: (ABT abt)
+    :: (ABT AST abt)
     => abt '[] a
     -> Branch a abt b
     -> Maybe (MatchResult abt '[], abt '[] b)
@@ -156,7 +157,7 @@ matchBranch e (Branch pat body) = do
 -- a thin wrapper around 'matchPattern' in order to restrict the
 -- type.
 matchTopPattern
-    :: (ABT abt)
+    :: (ABT AST abt)
     => abt '[] a
     -> Pattern vars a
     -> List1 Variable vars
@@ -174,7 +175,7 @@ secondProxy _ = Proxy
 -- being able to handle nested patterns correctly. You probably
 -- don't ever need to call this function.
 matchPattern
-    :: (ABT abt)
+    :: (ABT AST abt)
     => abt '[] a
     -> Pattern vars1 a
     -> List1 Variable (vars1 ++ vars2)
@@ -194,7 +195,7 @@ matchPattern e pat vars =
 
 -- HACK: we must give this a top-level binding rather than inlining it. Again, I'm not entirely sure why...
 viewDatum
-    :: (ABT abt)
+    :: (ABT AST abt)
     => abt '[] (HData' t)
     -> Maybe (Datum (abt '[]) (HData' t))
 viewDatum e =
@@ -206,7 +207,7 @@ viewDatum e =
 
 
 matchCode
-    :: (ABT abt)
+    :: (ABT AST abt)
     => DatumCode  xss (abt '[]) (HData' t)
     -> PDatumCode xss vars1     (HData' t)
     -> List1 Variable (vars1 ++ vars2)
@@ -218,7 +219,7 @@ matchCode _        _         _    = Nothing
 
 matchStruct
     :: forall abt xs t vars1 vars2
-    .  (ABT abt)
+    .  (ABT AST abt)
     => DatumStruct  xs (abt '[]) (HData' t)
     -> PDatumStruct xs vars1     (HData' t)
     -> List1 Variable (vars1 ++ vars2)
@@ -244,7 +245,7 @@ matchStruct _ _ _ = Nothing
 
 
 matchFun
-    :: (ABT abt)
+    :: (ABT AST abt)
     => DatumFun  x (abt '[]) (HData' t)
     -> PDatumFun x vars1     (HData' t)
     -> List1 Variable (vars1 ++ vars2)

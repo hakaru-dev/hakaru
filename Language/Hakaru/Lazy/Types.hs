@@ -5,6 +5,7 @@
            , TypeOperators
            , RankNTypes
            , BangPatterns
+           , FlexibleContexts
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -42,8 +43,6 @@ import           Data.Monoid          (Monoid(..))
 import           Data.Functor         ((<$>))
 import           Control.Applicative  (Applicative(..))
 #endif
-import           Data.IntMap          (IntMap)
-import qualified Data.IntMap          as IM
 import qualified Data.Foldable        as F
 
 import Language.Hakaru.Syntax.IClasses
@@ -52,7 +51,7 @@ import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
-import Language.Hakaru.Syntax.ABT
+import Language.Hakaru.Syntax.ABT2
 import qualified Language.Hakaru.Syntax.Prelude as P
 
 ----------------------------------------------------------------
@@ -89,7 +88,7 @@ data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
 
 
 -- | Forget that something is a head.
-fromHead :: (ABT abt) => Head abt a -> abt '[] a
+fromHead :: (ABT AST abt) => Head abt a -> abt '[] a
 fromHead (WValue   v)     = syn (Value_ v)
 fromHead (WDatum   d)     = syn (Datum_ d)
 fromHead WEmpty           = syn Empty_
@@ -116,7 +115,7 @@ data Whnf (abt :: [Hakaru] -> Hakaru -> *) (a :: Hakaru)
 
 
 -- | Forget that something is in WHNF.
-fromWhnf :: (ABT abt) => Whnf abt a -> abt '[] a
+fromWhnf :: (ABT AST abt) => Whnf abt a -> abt '[] a
 fromWhnf (Head_   e) = fromHead e
 fromWhnf (Neutral e) = e
 
@@ -138,7 +137,7 @@ data Lazy (abt :: [Hakaru] -> Hakaru -> *) (a :: Hakaru)
 
 
 -- | Forget that something is Lazy.
-fromLazy :: (ABT abt) => Lazy abt a -> abt '[] a
+fromLazy :: (ABT AST abt) => Lazy abt a -> abt '[] a
 fromLazy (Whnf_ e) = fromWhnf e
 fromLazy (Thunk e) = e
 
@@ -162,12 +161,12 @@ caseLazy (Thunk e) _ k = k e
 -- since it also includes non-binding statements.
 data Statement (abt :: [Hakaru] -> Hakaru -> *)
     -- | A variable bound by 'MBind' to a measure expression.
-    = forall a. SBind
+    = forall (a :: Hakaru) . SBind
         {-# UNPACK #-} !(Variable a)
         !(Lazy abt ('HMeasure a))
 
     -- | A variable bound by 'Let_' to an expression.
-    | forall a. SLet
+    | forall (a :: Hakaru) . SLet
         {-# UNPACK #-} !(Variable a)
         !(Lazy abt a)
 
@@ -176,7 +175,7 @@ data Statement (abt :: [Hakaru] -> Hakaru -> *)
     --
     -- | A collection of variables bound by a 'Pattern' to
     -- subexpressions of the some 'Case_' scrutinee.
-    | forall xs a. SBranch
+    | forall (xs :: [Hakaru]) (a :: Hakaru) . SBranch
         !(List1 Variable xs) -- could use 'SArgs' for more strictness
         !(Pattern xs a)
         !(Lazy abt a)
@@ -218,7 +217,7 @@ data Context (abt :: [Hakaru] -> Hakaru -> *) = Context
 -- We use 'Some2' on the inputs because it doesn't matter what their
 -- type or locally-bound variables are, so we want to allow @f@ to
 -- contain terms with different indices.
-initContext :: (ABT abt, F.Foldable f) => f (Some2 abt) -> Context abt
+initContext :: (ABT AST abt, F.Foldable f) => f (Some2 abt) -> Context abt
 initContext es = Context (1 + maximumFree es) []
     where
     maximumFree = unMaxNat . F.foldMap (\(Some2 e) -> MaxNat $ maxFree e)
@@ -228,7 +227,7 @@ initContext es = Context (1 + maximumFree es) []
 -- Argument order is to avoid flipping in 'runM'
 -- TODO: generalize to non-measure types too!
 residualizeContext
-    :: (ABT abt)
+    :: (ABT AST abt)
     => Whnf abt ('HMeasure a)
     -> Context abt
     -> abt '[] ('HMeasure a)
@@ -286,7 +285,7 @@ instance Monad (M abt) where
 -- easy to accidentally drop the substitution on the floor rather
 -- than applying it to the term before calling the continuation.
 push
-    :: (ABT abt)
+    :: (ABT AST abt)
     => Statement abt
     -> abt xs a
     -> (abt xs a -> M abt r)
@@ -301,7 +300,7 @@ push s e k = do
 -- term\". You almost certainly should use 'push' or 'pushes'
 -- instead.
 push_
-    :: (ABT abt)
+    :: (ABT AST abt)
     => Statement abt
     -> M abt (Assocs abt)
 push_ s = M $ \c (Context i ss) ->
@@ -324,7 +323,8 @@ push_ s = M $ \c (Context i ss) ->
         in c rho (Context i' (s':ss))
 
 
-renameFrom :: List1 Variable xs -> Nat -> (Nat, List1 Variable xs)
+renameFrom
+    :: List1 Variable (xs :: [Hakaru]) -> Nat -> (Nat, List1 Variable xs)
 renameFrom = go
     where
     go Nil1         !i = (i, Nil1)
@@ -333,36 +333,10 @@ renameFrom = go
         (i', xs') -> (i', Cons1 (x{varID=i}) xs')
 
 
--- TODO: move this to ABT.hs\/Variable.hs
-singletonAssocs :: Variable a -> abt '[] a -> Assocs abt
-singletonAssocs x e =
-    Assocs $ IM.singleton (fromNat $ varID x) (Assoc x e)
-
-
--- TODO: move this to ABT.hs\/Variable.hs
-toAssocs :: List1 Variable xs -> List1 (abt '[]) xs -> Assocs abt
-toAssocs = \xs es -> Assocs (go xs es)
-    where
-    go :: List1 Variable xs -> List1 (abt '[]) xs -> IntMap (Assoc abt)
-    -- BUG: GHC claims the patterns are non-exhaustive here
-    go Nil1         Nil1         = IM.empty
-    go (Cons1 x xs) (Cons1 e es) =
-        IM.insert (fromNat $ varID x) (Assoc x e) (go xs es)
-    go _ _ = error "toAssocs: the impossible happened"
-
-
--- TODO: move this to ABT.hs\/Variable.hs
--- TODO: what is the actual monoid instance for IntMap; left-biased shadowing I assume? We should make it an error if anything's multiply defined.
-instance Monoid (Assocs abt) where
-    mempty  = Assocs IM.empty
-    mappend (Assocs xs) (Assocs ys) = Assocs (mappend xs ys)
-    mconcat = Assocs . mconcat . map unAssocs
-
-
 -- | Call 'push' repeatedly. (N.B., is more efficient than actually
 -- calling 'push' repeatedly.)
 pushes
-    :: (ABT abt)
+    :: (ABT AST abt)
     => [Statement abt]
     -> abt xs a
     -> (abt xs a -> M abt r)
@@ -421,14 +395,14 @@ m2mprime (M m) = M' m
 -- for example:
 --
 -- > \e -> runM' (perform e) (initContext [e])
-runM' :: (ABT abt, SingI a)
+runM' :: (ABT AST abt, SingI a)
     => M' abt (Whnf abt a)
     -> Context abt
     -> Whnf abt ('HMeasure a)
 runM' m = unM' m (\x -> Head_ . WMeasure . residualizeContext (lift x))
 -- HACK: can't eta-shorten away the @x@; won't typecheck for some reason
     where
-    lift :: (ABT abt, SingI a) => Whnf abt a -> Whnf abt ('HMeasure a)
+    lift :: (ABT AST abt, SingI a) => Whnf abt a -> Whnf abt ('HMeasure a)
     lift (Head_   v) = Head_ . WMeasure $ P.dirac (fromHead v)
     lift (Neutral e) = Neutral $ P.dirac e
 
@@ -445,7 +419,7 @@ instance Monad (M' abt) where
     M' m >>= k = M' $ \c -> m $ \x -> unM' (k x) c
 
 push'
-    :: (ABT abt)
+    :: (ABT AST abt)
     => Statement abt
     -> abt xs a
     -> (abt xs a -> M' abt r)
@@ -455,7 +429,7 @@ push' s e k = do
     k (substs rho e)
 
 pushes'
-    :: (ABT abt)
+    :: (ABT AST abt)
     => [Statement abt]
     -> abt xs a
     -> (abt xs a -> M' abt r)
