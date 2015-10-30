@@ -165,6 +165,13 @@ sing_HSemiring HSemiring_Int  = SInt
 sing_HSemiring HSemiring_Prob = SProb
 sing_HSemiring HSemiring_Real = SReal
 
+hSemiringToSing :: Sing a -> Maybe (HSemiring a)
+hSemiringToSing SNat  = Just HSemiring_Nat 
+hSemiringToSing SInt  = Just HSemiring_Int 
+hSemiringToSing SProb = Just HSemiring_Prob
+hSemiringToSing SReal = Just HSemiring_Real
+hSemiringToSing _     = Nothing
+
 -- | Haskell type class for automatic 'HSemiring' inference.
 class    HSemiring_ (a :: Hakaru) where hSemiring :: HSemiring a
 instance HSemiring_ 'HNat  where hSemiring = HSemiring_Nat 

@@ -12,12 +12,9 @@ The parser deals with concrete syntax for
 
   function definitions
   primitive distributions
-
-It still needs syntax for
   User-defined datatypes
   Patterns and pattern matching
   type annotations
-  either -- will implement with pattern matching
 
 
 literals: 1, -2, 3.0, -4.5, inf
@@ -67,4 +64,4 @@ match e:
 type annotations: 3 :: int, fn (x::nat): x
 
 types: nat, real, prob, int, unit,
-       (a, b), fun(a,b), measure(a)
+       (a, b), (a -> b), measure(a)

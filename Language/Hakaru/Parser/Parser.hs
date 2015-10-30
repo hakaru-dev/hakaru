@@ -82,7 +82,9 @@ symbol :: Text -> Parser Text
 symbol = M.liftM pack . Tok.symbol lexer . unpack
 
 binop :: Text ->  AST' Text ->  AST' Text ->  AST' Text
-binop s x y = Var s `App` x `App` y
+binop s x y | s == "+"  = NaryOp Sum' x y
+            | otherwise = Var s `App` x `App` y
+              
 
 binary s assoc = Ex.Infix (do reservedOp s
                               return $ binop (pack s)) assoc

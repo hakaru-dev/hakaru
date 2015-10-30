@@ -14,11 +14,11 @@ import qualified Language.Hakaru.Syntax.Nat as N
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.AST    (PrimOp(..),
-                                      NaryOp(..),
                                       Value(..),
                                       MeasureOp(..),
                                       LCs(),
                                       UnLCs ())
+import qualified Language.Hakaru.Syntax.AST as T
 import Language.Hakaru.Syntax.ABT (Variable(..))
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.IClasses
@@ -89,13 +89,13 @@ data Value' =
    | Prob Double
    | Real Double
    | Datum''
- deriving (Eq)
+ deriving (Eq, Show)
 
 data NaryOp' =
      And' | Or' | Xor'
    | Iff' | Min'| Max' 
    | Sum' | Prod'
- deriving (Eq)
+ deriving (Eq, Show)
 
 val :: Value' -> Some1 Value
 val (Nat  n) = Some1 $ VNat (N.unsafeNat n)
@@ -116,6 +116,7 @@ data AST' a =
    | If  (AST' a) (AST' a) (AST' a)
    | Ann (AST' a) (TypeAST' a)
    | UValue Value'
+   | NaryOp NaryOp' (AST' a) (AST' a)
    | Empty
    | Case  (AST' a) [(Branch' a)] -- match
    | Dirac (AST' a)
@@ -139,7 +140,7 @@ data AST a =
    | CoerceTo_   (Some2 Coercion) (AST a)
    | UnsafeTo_   (Some2 Coercion) (AST a)
    | PrimOp_     (SealedOp PrimOp) [AST a]
-   | NaryOp_     (Some1 NaryOp)  [AST a]
+   | NaryOp_     NaryOp'  [AST a]
    | Value_      (Some1 Value)
    | Empty_
    | Array_      (AST a) Name (AST a) -- not sure should binding form
@@ -157,4 +158,3 @@ deriving instance Eq a => Eq (AST' a)
 deriving instance Show a => Show (AST' a)
 deriving instance Eq a => Eq (TypeAST' a)
 deriving instance Show a => Show (TypeAST' a)
-deriving instance Show Value'

@@ -49,6 +49,7 @@ import qualified Language.Hakaru.Parser.AST as U
 
 import Language.Hakaru.Syntax.Nat      (fromNat)
 import Language.Hakaru.Syntax.IClasses
+import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.DataKind (Hakaru(..), HData')
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.TypeHelpers
@@ -100,7 +101,8 @@ mustCheck = go
     -- able to infer the result of a fully saturated primop by
     -- looking up it's type and then checking all the arguments.
     go (U.PrimOp_ _ _)    = False
-    go (U.NaryOp_ _ _)    = False
+
+    go (U.NaryOp_ _ _)    = True
 
     -- I return true because most folks (neelk, Pfenning, Dunfield
     -- & Pientka) say all data constructors mustCheck (even though
@@ -315,11 +317,6 @@ inferType = inferType_
         es' <- checkSArgs typs es
         return $ TypedAST typ1 (syn(PrimOp_ op :$ es'))
 
-    U.NaryOp_ (Some1 op) es -> do
-        let typ = sing_NaryOp op
-        es' <- T.forM es $ checkType typ
-        return $ TypedAST typ (syn(NaryOp_ op (S.fromList es')))
-
     U.Value_ (Some1 v) ->
         -- BUG: need to finish implementing sing_Value for Datum
         return $ TypedAST (sing_Value v) (syn(Value_ v))
@@ -467,6 +464,18 @@ checkType = checkType_
                     e1' <- checkType_ cod e1
                     return (syn(UnsafeFrom_ c :$ e1' :* End))
                 Nothing -> typeMismatch (Right typ0) (Right dom)
+
+
+        U.NaryOp_ op es -> do
+          case hSemiringToSing typ0 of
+            Nothing -> failwith "expected type with semiring"
+            Just h  -> do
+               let op' = case op of
+                           U.Sum'  -> Sum  h
+                           U.Prod' -> Prod h
+               es' <- T.forM es $ checkType typ0
+               return (syn(NaryOp_ op' (S.fromList es')))
+
 
         U.Empty_ ->
             case typ0 of
