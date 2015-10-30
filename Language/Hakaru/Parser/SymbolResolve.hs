@@ -25,7 +25,21 @@ import qualified Language.Hakaru.Syntax.Nat as N
    -- VarSym U.Name
    -- Plus
 
-type TypePrims = [(Text, Hakaru)]
+type TypeTable = [(Text, Hakaru)]
+
+primTypes :: [(Text, Hakaru)]
+primTypes =  [ ("nat",  HNat)
+             , ("int",  HInt)
+             , ("prob", HProb)
+             , ("real", HReal)
+             ]
+
+makeType :: U.TypeAST' -> Hakaru
+makeType (U.TypeVar t)   = case lookup t primTypes of
+                             Just t' -> t'
+                             Nothing -> error $ "Type " ++ show t ++ " is not a primitive"
+makeType (U.TypeFun f x) = (makeType f) :-> (makeType x)
+makeType _               = error "Not a Primitive"
 
 type SymbolTable a = [(Text, Symbol a)]
 
@@ -72,17 +86,19 @@ symbolResolution symbols ast =
                                  (symbolResolution symbols e1)
                                  (symbolResolution
                                   (updateSymbols name symbols) e2)
+      U.Ann e typ       -> U.Ann (symbolResolution symbols e) typ
 
       U.UValue v        -> U.UValue v
                           
+      U.NaryOp op e1 e2 -> U.NaryOp op
+                           (symbolResolution symbols e1)
+                           (symbolResolution symbols e2)
+
       U.Bind name e1 e2 -> U.Bind (pVar name)
                            (symbolResolution symbols e1)
                            (symbolResolution
                             (updateSymbols name symbols) e2)
 
-      U.NaryOp op e1 e2 -> U.NaryOp op
-                           (symbolResolution symbols e1)
-                           (symbolResolution symbols e2)
       
       U.Dirac e1        -> U.Dirac (symbolResolution symbols e1)
 
@@ -118,14 +134,17 @@ makeAST ast =
                       TLam f' -> error "Wat?"
                       TNeu e  -> e
 
+      U.Ann e typ -> U.Ann_ (makeAST e) (makeType typ)
+
       U.UValue v -> U.Value_ (U.val v) 
+
+      U.NaryOp op e1 e2 -> U.NaryOp_ op [ makeAST e1
+                                        , makeAST e2
+                                        ]
 
       U.Bind (TNeu (U.Var_ name)) e1 e2 -> U.MBind_ name
                                            (makeAST e1)
                                            (makeAST e2)
-      U.NaryOp op e1 e2 -> U.NaryOp_ op [ makeAST e1
-                                        , makeAST e2
-                                        ]
 
       U.Dirac e1 -> U.Dirac_ (makeAST e1)
 

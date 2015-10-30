@@ -177,6 +177,8 @@ sampleScon (UnsafeFrom_ c) (e1 :* End) env =
     let v = sample (LC_ e1) env
     in  sampleUnsafe c v
 
+sampleScon (Ann_   _)      (e1 :* End) env = sample (LC_ e1) env
+
 sampleScon (MeasureOp_  m) es env = sampleMeasureOp m es env
 
 sampleScon Dirac           (e1 :* End) env =
