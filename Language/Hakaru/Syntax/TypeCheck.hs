@@ -514,18 +514,12 @@ checkType = checkType_
         --     branches'  <- T.forM branches $ checkBranch typ1 typ0
         --     return (syn(Case_ e1' branches'))
 
-        U.Dirac_ e1
-            | inferable e1 -> do
-                TypedAST typ1 e1' <- inferType_ e1
-                case jmEq1 (SMeasure typ1) typ0 of
-                  Nothing   -> failwith "type mismatch"
-                  Just Refl -> return (syn(Dirac :$ e1' :* End))
-            | otherwise -> do
-               case typ0 of
-                  SMeasure typ1 -> do
-                      e1' <- checkType_ typ1 e1
-                      return (syn(Dirac :$ e1' :* End))
-                  _ -> failwith "expected measure type"
+        U.Dirac_ e1 ->
+            case typ0 of
+              SMeasure typ1 -> do
+                e1' <- checkType_ typ1 e1
+                return (syn(Dirac :$ e1' :* End))
+              _ -> failwith "expected measure type"
     
         U.MBind_ name e1 e2
             | inferable e1 -> do
