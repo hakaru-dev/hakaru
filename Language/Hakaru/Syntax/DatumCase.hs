@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.27
+--                                                    2015.10.29
 -- |
 -- Module      :  Language.Hakaru.Syntax.DatumCase
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -27,6 +27,8 @@ module Language.Hakaru.Syntax.DatumCase
     ( MatchResult(..)
     , matchBranches
     , matchBranch
+    , matchTopPattern
+    , matchPattern
     ) where
 
 import Data.Proxy (Proxy(..))
@@ -50,7 +52,6 @@ import qualified Text.PrettyPrint as PP
 data MatchResult
     (abt  :: [Hakaru] -> Hakaru -> *)
     (vars :: [Hakaru])
-    (a    :: Hakaru)
 
     -- | We encountered some non-HNF (perhaps in a nested pattern).
     --
@@ -64,31 +65,41 @@ data MatchResult
     -- some other branch could match if the rest of this one fails.)
     = GotStuck
 
-    -- TODO: internally if we went back to using @DList1 (Pair1 Variable (abt '[])) vars1@ for the first argument, with @vars1@ another parameter to the type, it would guarantee correctness of the number and types of bindings we produce. However, because the user-facing 'matchBranch' uses 'Branch' which existentializes over @vars1@, we'd need our user-facing 'MatchResult' type to also existentialize over @vars1@. But supposing we did go back to doing that for the internal stuff; would it be helpful for anyone else?
+    -- TODO: we used to use @DList1 (Pair1 Variable (abt '[]))
+    -- vars1@ for the first argument, with @vars1@ another parameter
+    -- to the type; this would be helpful internally for guaranteeing
+    -- that we return the right number and types of bindings.
+    -- However, because the user-facing 'matchBranch' uses 'Branch'
+    -- which existentializes over @vars1@, we'd need our user-facing
+    -- 'MatchResult' type to also existentialize over @vars1@. Also,
+    -- actually keeping track of @vars1@ makes the 'matchStruct'
+    -- function much more difficult to get to typecheck. But,
+    -- supposing we get that working, would the added guarantees
+    -- of this more specific type be helpful for anyone else?
     --
     -- | We successfully matched everything (so far). The first
     -- argument gives the bindings for all the pattern variables
-    -- we've already checked. The second argument gives the body
-    -- of the branch (where @vars@ are the pattern variables remaining
-    -- to be bound by checking the remainder of the pattern).
+    -- we've already checked. The second argument gives the pattern
+    -- variables remaining to be bound by checking the rest of the
+    -- pattern.
     | Matched
         (DList (Assoc abt))
-        !(abt vars a)
+        (List1 Variable vars)
 
 
 type DList a = [a] -> [a]
 
 
-instance ABT abt => Show (MatchResult abt '[] a) where
+instance (ABT abt) => Show (MatchResult abt vars) where
     showsPrec p = shows . ppMatchResult p
 
-ppMatchResult :: (ABT abt) => Int -> MatchResult abt '[] a -> Doc
+ppMatchResult :: (ABT abt) => Int -> MatchResult abt vars -> Doc
 ppMatchResult _ GotStuck = PP.text "GotStuck"
-ppMatchResult p (Matched xs body) =
+ppMatchResult p (Matched boundVars unboundVars) =
     parens (p > 9)
         (PP.text f <+> PP.nest (1 + length f) (PP.sep
-            [ ppList . map (prettyPrecAssoc 11) $ xs []
-            , prettyPrec 11 body
+            [ ppList . map (prettyPrecAssoc 11) $ boundVars []
+            , ppList $ ppVariables unboundVars
             ]))
     where
     f            = "Matched"
@@ -96,14 +107,23 @@ ppMatchResult p (Matched xs body) =
     parens True  = PP.parens   . PP.nest 1
     parens False = id
 
+    ppVariables :: List1 Variable xs -> [Doc]
+    ppVariables Nil1         = []
+    ppVariables (Cons1 x xs) = ppVariable x : ppVariables xs
 
 
--- | Walk through a list of branches and try matching against them in order.
+
+-- | Walk through a list of branches and try matching against them
+-- in order.
+--
+-- N.B., the second component of the pair is determined by the
+-- 'Branch' that matches. Thus, we can offer up that body even if
+-- the match itself 'GotStuck'.
 matchBranches
     :: (ABT abt)
     => abt '[] a
     -> [Branch a abt b]
-    -> Maybe (MatchResult abt '[] b)
+    -> Maybe (MatchResult abt '[], abt '[] b)
 matchBranches e = go
     where
     go []     = Nothing
@@ -113,41 +133,63 @@ matchBranches e = go
         Just m  -> Just m
 
 
--- | Try matching against a single branch.
+-- | Try matching against a single branch. This function is a thin
+-- wrapper around 'matchTopPattern'; we just take apart the 'Branch'
+-- to extract the pattern, list of variables to bind, and the body
+-- of the branch.
+--
+-- N.B., the second component of the pair is determined by the
+-- 'Branch'. Thus, we can offer up that body even if the match
+-- itself 'GotStuck'.
 matchBranch
     :: (ABT abt)
     => abt '[] a
     -> Branch a abt b
-    -> Maybe (MatchResult abt '[] b)
-matchBranch e (Branch pat body) =
-    case eqAppendIdentity (secondProxy body) of
-    Refl -> matchPattern e pat body
+    -> Maybe (MatchResult abt '[], abt '[] b)
+matchBranch e (Branch pat body) = do
+    let (vars,body') = caseBinds body
+    match <- matchTopPattern e pat vars
+    return (match,body')
+
+
+-- | Try matching against a (top-level) pattern. This function is
+-- a thin wrapper around 'matchPattern' in order to restrict the
+-- type.
+matchTopPattern
+    :: (ABT abt)
+    => abt '[] a
+    -> Pattern vars a
+    -> List1 Variable vars
+    -> Maybe (MatchResult abt '[])
+matchTopPattern e pat vars =
+    case eqAppendIdentity (secondProxy pat) of
+    Refl -> matchPattern e pat vars
 
 secondProxy :: f i j -> Proxy i
 secondProxy _ = Proxy
 
 
--- | This function must be distinguished from 'matchBranch' since
--- we allow nested patterns. If we enter this function from
--- 'matchBranch' then we know @vars2@ must be @'[]@, but we also
--- enter this function from 'matchFun' where @vars2@ could be
--- anything! Thus, this function gives us the generalize inductive hypothesis needed to define 'matchBranch'.
+-- | Try matching against a (potentially nested) pattern. This
+-- function generalizes 'matchTopPattern', which is necessary for
+-- being able to handle nested patterns correctly. You probably
+-- don't ever need to call this function.
 matchPattern
     :: (ABT abt)
     => abt '[] a
     -> Pattern vars1 a
-    -> abt (vars1 ++ vars2)  b
-    -> Maybe (MatchResult abt vars2 b)
-matchPattern e pat body =
+    -> List1 Variable (vars1 ++ vars2)
+    -> Maybe (MatchResult abt vars2)
+matchPattern e pat vars =
     case pat of
-    PWild              -> Just (Matched id body)
+    PWild              -> Just (Matched id vars)
     PVar               ->
-        caseBind body $ \x body' ->
-            Just (Matched (Assoc x e :) body')
+        case vars of
+        Cons1 x vars'  -> Just (Matched (Assoc x e :) vars')
+        _              -> error "matchPattern: the impossible happened"
     PDatum _hint1 pat1 ->
         case viewDatum e of
         Nothing               -> Just GotStuck
-        Just (Datum _hint2 d) -> matchCode d pat1 body
+        Just (Datum _hint2 d) -> matchCode d pat1 vars
 
 
 -- HACK: we must give this a top-level binding rather than inlining it. Again, I'm not entirely sure why...
@@ -167,37 +209,37 @@ matchCode
     :: (ABT abt)
     => DatumCode  xss (abt '[]) (HData' t)
     -> PDatumCode xss vars1     (HData' t)
-    -> abt (vars1 ++ vars2) b
-    -> Maybe (MatchResult abt vars2 b)
-matchCode (Inr d2) (PInr p2) body = matchCode   d2 p2 body
-matchCode (Inl d1) (PInl p1) body = matchStruct d1 p1 body
+    -> List1 Variable (vars1 ++ vars2)
+    -> Maybe (MatchResult abt vars2)
+matchCode (Inr d2) (PInr p2) vars = matchCode   d2 p2 vars
+matchCode (Inl d1) (PInl p1) vars = matchStruct d1 p1 vars
 matchCode _        _         _    = Nothing
 
 
 matchStruct
-    :: forall abt xs t vars1 vars2 b
+    :: forall abt xs t vars1 vars2
     .  (ABT abt)
     => DatumStruct  xs (abt '[]) (HData' t)
     -> PDatumStruct xs vars1     (HData' t)
-    -> abt (vars1 ++ vars2)  b
-    -> Maybe (MatchResult abt vars2 b)
-matchStruct Done       PDone       body = Just (Matched id body)
-matchStruct (Et d1 d2) (PEt p1 p2) body = do
+    -> List1 Variable (vars1 ++ vars2)
+    -> Maybe (MatchResult abt vars2)
+matchStruct Done       PDone       vars = Just (Matched id vars)
+matchStruct (Et d1 d2) (PEt p1 p2) vars = do
     m1 <- 
         case eqAppendAssoc
                 (secondProxy p1)
                 (secondProxy p2)
                 (Proxy :: Proxy vars2)
         of
-        Refl -> matchFun d1 p1 body
+        Refl -> matchFun d1 p1 vars
     case m1 of
-        GotStuck         -> return GotStuck
-        Matched xs body' -> do
-            m2 <- matchStruct d2 p2 body'
+        GotStuck          -> return GotStuck
+        Matched xs1 vars' -> do
+            m2 <- matchStruct d2 p2 vars'
             return $
                 case m2 of
-                GotStuck          -> GotStuck
-                Matched ys body'' -> Matched (xs . ys) body''
+                GotStuck           -> GotStuck
+                Matched xs2 vars'' -> Matched (xs1 . xs2) vars''
 matchStruct _ _ _ = Nothing
 
 
@@ -205,10 +247,10 @@ matchFun
     :: (ABT abt)
     => DatumFun  x (abt '[]) (HData' t)
     -> PDatumFun x vars1     (HData' t)
-    -> abt (vars1 ++ vars2)  b
-    -> Maybe (MatchResult abt vars2 b)
-matchFun (Konst d2) (PKonst p2) body = matchPattern d2 p2 body
-matchFun (Ident d1) (PIdent p1) body = matchPattern d1 p1 body
+    -> List1 Variable (vars1 ++ vars2)
+    -> Maybe (MatchResult abt vars2)
+matchFun (Konst d2) (PKonst p2) vars = matchPattern d2 p2 vars
+matchFun (Ident d1) (PIdent p1) vars = matchPattern d1 p1 vars
 matchFun _           _          _    = Nothing
 
 ----------------------------------------------------------------

@@ -5,7 +5,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.23
+--                                                    2015.10.29
 -- |
 -- Module      :  Language.Hakaru.PrettyPrint
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -17,10 +17,15 @@
 -- 
 ----------------------------------------------------------------
 module Language.Hakaru.PrettyPrint
-    ( pretty
+    (
+    -- * The user-facing API
+      pretty
     , prettyPrec
     , prettyAssoc
     , prettyPrecAssoc
+
+    -- * Helper functions (semi-public internal API)
+    , ppVariable
     ) where
 
 import           Text.PrettyPrint (Doc, (<>), (<+>))

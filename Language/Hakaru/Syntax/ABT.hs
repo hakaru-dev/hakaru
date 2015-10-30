@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.27
+--                                                    2015.10.29
 -- |
 -- Module      :  Language.Hakaru.Syntax.ABT
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -56,6 +56,7 @@ module Language.Hakaru.Syntax.ABT
     , ABT(..)
     , caseVarSyn
     , binds
+    , caseBinds
     -- ** Capture avoiding substitution for any 'ABT'
     , subst
     , substs
@@ -440,6 +441,16 @@ caseVarSyn e var_ syn_ =
 binds :: (ABT abt) => List1 Variable xs -> abt ys b -> abt (xs ++ ys) b
 binds Nil1         e = e
 binds (Cons1 x xs) e = bind x (binds xs e)
+
+
+-- | Call 'caseBind' repeatedly. (Actually we use 'viewABT'.)
+caseBinds :: (ABT abt) => abt xs a -> (List1 Variable xs, abt '[] a)
+caseBinds = go . viewABT
+    where
+    go :: (ABT abt) => View abt xs a -> (List1 Variable xs, abt '[] a)
+    go (Syn  t)   = (Nil1, syn t)
+    go (Var  x)   = (Nil1, var x)
+    go (Bind x v) = let (xs,e) = go v in (Cons1 x xs, e)
 
 
 ----------------------------------------------------------------

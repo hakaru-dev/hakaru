@@ -214,27 +214,10 @@ update x = loop []
         case w of
         Neutral e -> residualizeCase e
         Head_   v ->
-            case
-                -- HACK: we'd like to just put what to do inline rather than returning an HBool and then reifying it to decide what to do!
-                -- TODO: rather than having the @abt@ of the scrutinee match the @abt@ of the branches (and hence the 'MatchResult') we could have the latter be different. That way, we could use any \"@abt@\" for the latter; i.e., any @([Hakaru],Hakaru)@ indexed type! ---however, it would still need an ABT instance since we 'matchBranches' uses 'caseBind' to decrement the indices... (but that's it. So maybe we ought to separate 'caseBind'\/'bind' from the rest of the 'ABT' class?)
-                matchBranches (fromHead v)
-                    [ Branch pat $
-                        case eqAppendIdentity ys of
-                        Refl -> binds ys P.true
-                    , Branch PWild P.false
-                    ]
-            of
-            Nothing -> error "update: the impossible happened" -- 'PWild' matches everything, so it's impossible to get here!
-            Just GotStuck -> residualizeCase (fromHead v)
-            Just (Matched ss b) ->
-                error "TODO: update{SBranch}: matched"
-                {-
-                -- the idea here is:
-                if reify (WValue b)
-                then naivePushes (toStatements ss) >> update x
-                else P.reject
-                -- however, @b :: abt '[] HBool@ rather than @b :: Value HBool@
-                -}
+            case matchTopPattern (fromHead v) pat ys of
+            Just (Matched ss _) -> naivePushes (toStatements ss) >> update x
+            Just GotStuck       -> residualizeCase (fromHead v)
+            Nothing             -> error "TODO: updateBranch" -- P.reject
 
 
 -- TODO: move this to ABT.hs\/Variable.hs
@@ -264,9 +247,9 @@ tryMatch
     -> M abt (Whnf abt b)
 tryMatch e bs k =
     case matchBranches e bs of
-    Nothing                 -> error "tryMatch: nothing matched!"
-    Just GotStuck           -> return . Neutral . syn $ Case_ e bs
-    Just (Matched ss body') -> pushes (toStatements ss) body' k
+    Nothing                    -> error "tryMatch: nothing matched!"
+    Just (GotStuck    , _)     -> return . Neutral . syn $ Case_ e bs
+    Just (Matched ss _, body') -> pushes (toStatements ss) body' k
 
 
 type DList a = [a] -> [a]
