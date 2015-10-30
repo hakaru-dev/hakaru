@@ -292,6 +292,9 @@ TestHakaru(invgamma_gaussian, invgamma_gaussian_s, label="invgamma_gaussian conj
 gaussian_invgamma_gaussian   := Bind(GammaD(alpha,beta),tau, Bind(Gaussian(mu0*sqrt(tau),1/sqrt(nu)),mu, Weight(NewSLO:-density[Gaussian](mu*tau^(-1/2),tau^(-1/2))(x), Ret([mu,tau])))):
 gaussian_invgamma_gaussian_s := Weight(GAMMA(1/2+alpha)*sqrt(nu)*sqrt(beta)*(beta*mu0^2*nu-2*beta*mu0*nu*x+beta*nu*x^2+2*nu+2)^(-1/2-alpha)*(2*nu+2)^alpha/(GAMMA(alpha)*sqrt(Pi)), Bind(GammaD(1/2+alpha, 2*beta*(nu+1)/(beta*mu0^2*nu-2*beta*mu0*nu*x+beta*nu*x^2+2*nu+2)),tau, Bind(Gaussian(sqrt(tau)*(mu0*nu+x)/(nu+1), 1/sqrt(nu+1)),mu, Ret([mu,tau])))):
 TestHakaru(gaussian_invgamma_gaussian, gaussian_invgamma_gaussian_s, label="gaussian_invgamma_gaussian conjugacy") assuming mu0::real, nu>0, alpha>0, beta>0, x::real;
+gamma_gamma   := Bind(GammaD(alpha0,1/beta0),beta, Weight(NewSLO:-density[GammaD](alpha,1/beta)(x), Ret(beta))):
+gamma_gamma_s := Weight(beta0^alpha0*x^(alpha-1)*GAMMA(alpha+alpha0)/((1/(beta0+x))^(-alpha-alpha0)*GAMMA(alpha0)*GAMMA(alpha)), GammaD(alpha+alpha0, 1/(beta0+x))):
+TestHakaru(gamma_gamma, gamma_gamma_s, label="gamma_gamma conjugacy") assuming alpha0>0, beta0>0, alpha>0, x>0;
 
 TestHakaru(Bind(Ret(ary(n,i,i*2)), v, Ret(idx(v,42))), Ret(84), label="basic array indexing");
 
