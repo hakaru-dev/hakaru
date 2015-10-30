@@ -11,7 +11,7 @@ import qualified Language.Hakaru.Syntax.AST as T
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Nat
-import Language.Hakaru.Syntax.ABT
+import Language.Hakaru.Syntax.ABT2
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.DataKind
 
@@ -40,7 +40,7 @@ normalb   = unlines [ "x <~ normal(-2.0,1.0)"
 pToa :: U.AST' Text -> U.AST a
 pToa = makeAST . normAST . (symbolResolution primTable)
 
-inferType' :: U.AST a -> TypeCheckMonad (TypedAST TrivialABT)
+inferType' :: U.AST a -> TypeCheckMonad (TypedAST (TrivialABT T.AST))
 inferType' = inferType
 
 testTC :: U.AST a -> String
@@ -81,5 +81,5 @@ testHakaru a g = case parseHakaru a of
                                                expect ast (\x -> (prob_ 1))) ++ "\n")
                              _ -> return ()
                            illustrate typ g (unS (runSample' ast))
-  where runSample' :: TrivialABT '[] a -> S IO a
+  where runSample' :: TrivialABT T.AST '[] a -> S IO a
         runSample' = runSample
