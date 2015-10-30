@@ -3,6 +3,7 @@
            , KindSignatures
            , DataKinds
            , TypeOperators
+           , FlexibleContexts
            , NoImplicitPrelude
            , ScopedTypeVariables
            #-}

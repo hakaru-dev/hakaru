@@ -25,6 +25,8 @@ import qualified Language.Hakaru.Syntax.Nat as N
    -- VarSym U.Name
    -- Plus
 
+type TypePrims = [(Text, Hakaru)]
+
 type SymbolTable a = [(Text, Symbol a)]
 
 data Symbol a where

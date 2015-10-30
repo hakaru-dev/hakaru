@@ -20,7 +20,7 @@ import Data.Text
 import Test.HUnit
 
 five :: U.AST a
-five =  U.NaryOp_ (Some1 $ T.Sum HSemiring_Int)
+five =  U.NaryOp_ U.Sum'
         [ U.Value_ $ Some1 $ T.VInt 2
         , U.Value_ $ Some1 $ T.VInt 3
         ]
@@ -43,7 +43,7 @@ normalb = U.MBind_ xname
                  ])
 
 
-inferType' :: U.AST a -> TypeCheckMonad (TypedAST (TrivialABT AST))
+inferType' :: U.AST a -> TypeCheckMonad (TypedAST (TrivialABT T.AST))
 inferType' = inferType
 
 testTC :: U.AST a -> String
