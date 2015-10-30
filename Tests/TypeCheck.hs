@@ -10,7 +10,7 @@ import qualified Language.Hakaru.Syntax.AST as T
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Nat
-import Language.Hakaru.Syntax.ABT2
+import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.TypeCheck

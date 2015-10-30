@@ -9,7 +9,7 @@
 
 module Language.Hakaru.Syntax.U where
 
-import Language.Hakaru.Syntax.ABT2
+import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.Nat

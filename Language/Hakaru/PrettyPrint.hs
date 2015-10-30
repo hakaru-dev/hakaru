@@ -41,7 +41,7 @@ import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11)
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
-import Language.Hakaru.Syntax.ABT2
+import Language.Hakaru.Syntax.ABT
 ----------------------------------------------------------------
 
 -- | Pretty-print a term.

@@ -45,7 +45,7 @@ import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
-import Language.Hakaru.Syntax.ABT2 hiding (View(..))
+import Language.Hakaru.Syntax.ABT hiding (View(..))
 
 ----------------------------------------------------------------
 ----- Helper combinators for defining our EDSL

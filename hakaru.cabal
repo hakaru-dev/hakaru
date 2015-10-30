@@ -45,7 +45,6 @@ library
                        Language.Hakaru.Syntax.Datum,
                        Language.Hakaru.Syntax.AST,
                        Language.Hakaru.Syntax.ABT,
-                       Language.Hakaru.Syntax.ABT2,
                        Language.Hakaru.Syntax.Variable,
                        Language.Hakaru.Syntax.TypeCheck,
                        Language.Hakaru.Syntax.Prelude,

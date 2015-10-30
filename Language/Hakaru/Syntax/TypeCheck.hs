@@ -62,7 +62,7 @@ import Language.Hakaru.Syntax.Coercion (Coercion(..),
                                         singCoerceDomCod)
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
-import Language.Hakaru.Syntax.ABT2
+import Language.Hakaru.Syntax.ABT
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------

@@ -45,7 +45,7 @@ import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumCase
-import Language.Hakaru.Syntax.ABT2
+import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Lazy.Types
 import qualified Language.Hakaru.Syntax.Prelude as P

@@ -37,7 +37,7 @@ import Control.Monad.Trans.State.Strict (State, evalState, state)
 import Data.List (intersperse)
 
 import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.ABT2
+import Language.Hakaru.Syntax.ABT
 {-
 import Language.Hakaru.Syntax (Number(..),
     Order(..), Base(..), Integrate(..), Lambda(..), Mochastic(..), 

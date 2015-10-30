@@ -32,8 +32,8 @@ module Language.Hakaru.Inference
 
 import Prelude (($), (.), error)
 import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.AST  (AST)
-import Language.Hakaru.Syntax.ABT2 (ABT)
+import Language.Hakaru.Syntax.AST (AST)
+import Language.Hakaru.Syntax.ABT (ABT)
 import Language.Hakaru.Syntax.Prelude
 import Language.Hakaru.Syntax.Sing (SingI())
 import Language.Hakaru.Expect (normalize)

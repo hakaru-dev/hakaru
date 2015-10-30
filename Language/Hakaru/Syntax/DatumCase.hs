@@ -38,7 +38,7 @@ import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.AST (AST(Datum_, Value_), Value(VDatum))
-import Language.Hakaru.Syntax.ABT2
+import Language.Hakaru.Syntax.ABT
 
 import           Language.Hakaru.PrettyPrint
 import           Text.PrettyPrint (Doc, (<+>))

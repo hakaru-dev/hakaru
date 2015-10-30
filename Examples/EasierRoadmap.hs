@@ -35,7 +35,7 @@ import Text.PrettyPrint (Doc)
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Sing (SingI)
 import Language.Hakaru.Syntax.HClasses (HSemiring_)
-import Language.Hakaru.Syntax.ABT2
+import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Prelude
 import Language.Hakaru.Disintegrate

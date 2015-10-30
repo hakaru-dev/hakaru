@@ -40,7 +40,7 @@ import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.AST
-import Language.Hakaru.Syntax.ABT2
+import Language.Hakaru.Syntax.ABT
 
 type PRNG m = MWC.Gen (PrimState m)
 

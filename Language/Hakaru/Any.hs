@@ -17,7 +17,7 @@ module Language.Hakaru.Any
 import Data.Typeable (Typeable)
 
 import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.ABT2
+import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.PrettyPrint
 import Language.Hakaru.Simplifiable (Simplifiable)
