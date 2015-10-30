@@ -2,7 +2,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.22
+--                                                    2015.10.29
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeHelpers
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -20,16 +20,11 @@ module Language.Hakaru.Syntax.TypeHelpers
     , sing_Value
     ) where
 
-import Data.Number.LogFloat            (logFloat)
-
-import Language.Hakaru.Syntax.Nat      (unsafeNat)
-import Language.Hakaru.Syntax.IClasses (List1(..), Some1(..))
+import Language.Hakaru.Syntax.IClasses (List1(..))
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
-
-import qualified Language.Hakaru.Parser.AST as U
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
