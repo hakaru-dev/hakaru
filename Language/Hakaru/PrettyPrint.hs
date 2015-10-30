@@ -38,6 +38,8 @@ import qualified Data.Sequence    as Seq -- Because older versions of "Data.Fold
 
 import Language.Hakaru.Syntax.Nat      (fromNat)
 import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11)
+import Language.Hakaru.Syntax.HClasses
+import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
@@ -185,13 +187,13 @@ ppSCon p (Ann_ typ) (e1 :* End) =
         ]
 ppSCon p (PrimOp_     o) es          = ppPrimOp p o es
 ppSCon p (CoerceTo_   c) (e1 :* End) =
-    ppFun p "coerceTo_"
-        [ PP.text (showsPrec 11 c "") -- TODO: make this prettier. Add hints to the coercions?
+    ppFun p ""
+        [ PP.text (ppCoerce c) -- TODO: make this prettier. Add hints to the coercions?
         , toDoc $ ppArg e1
         ]
 ppSCon p (UnsafeFrom_ c) (e1 :* End) =
-    ppFun p "unsafeFrom_"
-        [ PP.text (showsPrec 11 c "") -- TODO: make this prettier. Add hints to the coercions?
+    ppFun p ""
+        [ PP.text (ppUnsafe c) -- TODO: make this prettier. Add hints to the coercions?
         , toDoc $ ppArg e1
         ]
 ppSCon p (MeasureOp_ o) es       = ppMeasureOp p o es
@@ -210,6 +212,18 @@ ppSCon p Expect (e1 :* e2 :* End) =
 -- HACK: GHC can't figure out that there are no other type-safe cases
 ppSCon _ _ _ = error "ppSCon: the impossible happened"
 
+
+ppCoerce :: Coercion a b -> String
+ppCoerce (CCons (Signed HRing_Real) CNil) = "fromProb"
+ppCoerce (CCons (Signed HRing_Int ) CNil) = "nat2int"
+ppCoerce (CCons (Continuous HContinuous_Real ) CNil) = "fromInt"
+ppCoerce (CCons (Continuous HContinuous_Prob  ) CNil) = "nat2prob"
+ppCoerce c = "coerceTo_ " ++ showsPrec 11 c ""
+
+ppUnsafe :: Coercion a b -> String
+ppUnsafe (CCons (Signed HRing_Real) CNil) = "unsafeProb"
+ppUnsafe (CCons (Signed HRing_Int ) CNil) = "unsafeNat"
+ppUnsafe c = "unsafeFrom_ " ++ showsPrec 11 c ""
 
 -- | Pretty-print a 'PrimOp' @(:$)@ node in the AST.
 ppPrimOp
