@@ -137,10 +137,17 @@ bind1AST = Bind "x" (App (App (Var "uniform")
                       (UValue (Nat 1)))
             (Dirac (Var "y")))
 
+ret1 :: Text
+ret1 =  "return return 3"
+
+ret1AST :: AST' Text
+ret1AST = Dirac (Dirac (UValue (Nat 3)))
+
 testBinds :: Test
 testBinds = test
    [ testParse bind1 bind1AST
    , testParse bind2 bind1AST
+   , testParse ret1  ret1AST
    ]
 
 match1 :: Text
