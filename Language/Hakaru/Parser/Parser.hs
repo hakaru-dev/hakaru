@@ -280,7 +280,7 @@ call_expr = do
 return_expr :: Parser (AST' Text)
 return_expr = do
   reserved "return"
-  arg <- basic_expr
+  arg <- expr
   return $ Dirac arg
 
 basic_expr :: Parser (AST' Text)
