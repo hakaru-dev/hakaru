@@ -270,6 +270,8 @@ class Eq2 (a :: k1 -> k2 -> *) where
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
+-- TODO: it'd be okay to use @(:~:)@ from "Data.Typeable" instead of defining our own. Except that one doesn't define the Category instance, symmetry, or congruence...
+
 -- | Concrete proofs of type equality. In order to make use of a
 -- proof @p :: TypeEq a b@, you must pattern-match on the 'Refl'
 -- constructor in order to show GHC that the types @a@ and @b@ are
