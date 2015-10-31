@@ -168,8 +168,23 @@ instance (Show1 (Sing :: k -> *), Show1 rec)
 
 -- TODO: neelk includes 'subst' as a method. Any reason we should?
 -- TODO: jon includes instantiation as a method. Any reason we should?
--- TODO: should we make the @syn@ an associated type instead? Also, the only place we use @syn@ is as @(syn abt)@, so maybe we should just make that the associated type.
 -- TODO: require @(JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Foldable21 syn)@ since all our instances will need those too?
+--
+-- | The class interface for abstract binding trees. The first
+-- argument, @syn@, gives the syntactic signature of the ABT;
+-- whereas, the second argument, @abt@, is thing being declared as
+-- an ABT for @syn@. The first three methods ('syn', 'var', 'bind')
+-- alow us to inject any 'View' into the @abt@. The other methods
+-- provide various views for extracting information from the @abt@.
+--
+-- At present we're using fundeps in order to restrict the relationship
+-- between @abt@ and @syn@. However, in the future we may move @syn@
+-- into being an associated type, if that helps to clean things up
+-- (since fundeps and type families don't play well together). The
+-- idea behind the fundep is that certain @abt@ implementations may
+-- only be able to work for particular @syn@ signatures. This isn't
+-- the case for 'TrivialABT' nor 'MemoizedABT', but isn't too
+-- far-fetched.
 class ABT (syn :: ([k] -> k -> *) -> k -> *) (abt :: [k] -> k -> *) | abt -> syn where
     -- Smart constructors for building a 'View' and then injecting it into the @abt@.
     syn  :: syn abt  a -> abt '[] a
