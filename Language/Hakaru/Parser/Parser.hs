@@ -57,6 +57,9 @@ float = Tok.float lexer
 parens :: Parser a -> Parser a
 parens x = Tok.parens lexer (localIndentation Any x)
 
+braces :: Parser a -> Parser a
+braces x = Tok.parens lexer (localIndentation Any x)
+
 brackets :: Parser a -> Parser a
 brackets x = Tok.brackets lexer (localIndentation Any x)
 

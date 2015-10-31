@@ -6,6 +6,7 @@
            , GeneralizedNewtypeDeriving
            , TypeOperators
            , FlexibleContexts
+           , FlexibleInstances
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -42,9 +43,11 @@ import           Data.Proxy            (KProxy(..))
 import           Data.IntMap           (IntMap)
 import qualified Data.IntMap           as IM
 import qualified Data.Traversable      as T
+import qualified Data.Foldable         as F
 import qualified Data.Sequence         as S
 #if __GLASGOW_HASKELL__ < 710
-import           Control.Applicative   (Applicative(..), (<$>))
+import           Control.Applicative   (Applicative(..), (<$>),
+                                        Alternative(..))
 #endif
 import qualified Language.Hakaru.Parser.AST as U
 
@@ -249,6 +252,11 @@ typeMismatch typ1 typ2 =
     msg1 = case typ1 of { Left msg -> msg; Right typ -> show1 typ }
     msg2 = case typ2 of { Left msg -> msg; Right typ -> show1 typ }
 
+instance Alternative TypeCheckMonad where
+    empty   = failwith "Need type annotation on your arguments"
+    x <|> y = TCM $ \ctx -> case unTCM x ctx of
+                              Left  e -> unTCM y ctx
+                              Right e -> Right e
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -319,6 +327,17 @@ inferType = inferType_
         let (typs, typ1) = sing_PrimOp op
         es' <- checkSArgs typs es
         return $ TypedAST typ1 (syn(PrimOp_ op :$ es'))
+
+    U.NaryOp_ op es -> do
+      TypedAST typ1 _ <- F.asum $ fmap inferType_ es
+      es'' <- T.forM es $ checkType typ1
+      case hSemiringToSing typ1 of
+        Nothing -> failwith "expected type with semiring"
+        Just h  -> do
+          let op' = case op of
+                      U.Sum'  -> Sum  h
+                      U.Prod' -> Prod h
+          return $ TypedAST typ1 (syn(NaryOp_ op' (S.fromList es'')))
 
     U.Value_ (Some1 v) ->
         -- BUG: need to finish implementing sing_Value for Datum
