@@ -28,7 +28,7 @@ ops, names :: [String]
 ops   = ["+","*","-",":","::", "<~","==", "=", "_"]
 types = ["->"]
 names = ["def","fn", "if","else","pi","inf",
-         "return", "match", "data"]
+         "return", "dirac", "match", "data"]
 
 type Parser = ParsecT (IndentStream (CharIndentStream Text)) () Identity
 
@@ -279,7 +279,7 @@ call_expr = do
 
 return_expr :: Parser (AST' Text)
 return_expr = do
-  reserved "return"
+  (reserved "return" <|> reserved "dirac")
   arg <- expr
   return $ Dirac arg
 

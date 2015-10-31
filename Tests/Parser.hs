@@ -75,9 +75,8 @@ lam1 :: Text
 lam1 = "fn x: x+3"
 
 lam1AST :: AST' Text
-lam1AST = Lam "x" (App (App (Var "+")
-                        (Var "x"))
-                   (UValue (Nat 3)))
+lam1AST = Lam "x" (NaryOp Sum' (Var "x")
+                               (UValue (Nat 3)))
 
 def1 :: Text
 def1 = unlines ["def foo(x):"
@@ -92,9 +91,7 @@ def2 = unlines ["def foo(x): x + 3"
 
 def1AST :: AST' Text
 def1AST = Let "foo"
-              (Lam "x" (App (App (Var "+")
-                             (Var "x"))
-                        (UValue (Nat 3))))
+              (Lam "x" (NaryOp Sum' (Var "x") (UValue (Nat 3))))
               (App (Var "foo") (UValue (Nat 5)))
 
 testLams :: Test
@@ -113,9 +110,7 @@ let1 = unlines ["x = 3"
 let1AST :: AST' Text
 let1AST = Let "x" (UValue (Nat 3))
           (Let "y" (UValue (Nat 2))
-           (App (App (Var "+")
-                 (Var "x"))
-            (Var "y")))
+           (NaryOp Sum' (Var "x") (Var "y")))
 
 testLets :: Test
 testLets = test
@@ -140,7 +135,7 @@ bind1AST = Bind "x" (App (App (Var "uniform")
            (Bind "y" (App (App (Var "normal")
                            (Var "x"))
                       (UValue (Nat 1)))
-            (App (Var "dirac") (Var "y")))
+            (Dirac (Var "y")))
 
 testBinds :: Test
 testBinds = test
@@ -258,14 +253,14 @@ easyRoadAST = Bind "noiseT" (App (App (Var "uniform")
                   (Bind "m2" (App (App (Var "normal")
                                            (Var "x2"))
                                            (Var "noiseE"))
-                   (App (Var "dirac")
-                            (App (App (Var "Pair")
-                                          (App (App (Var "Pair")
-                                                        (Var "m1"))
-                                                        (Var "m2")))
-                                           (App (App (Var "Pair")
-                                                         (Var "noiseT"))
-                                                         (Var "noiseE")))))))))
+                   (Dirac
+                    (App (App (Var "Pair")
+                                  (App (App (Var "Pair")
+                                                (Var "m1"))
+                                                (Var "m2")))
+                     (App (App (Var "Pair")
+                                   (Var "noiseT"))
+                                   (Var "noiseE")))))))))
 
 testRoadmap :: Test
 testRoadmap = test
