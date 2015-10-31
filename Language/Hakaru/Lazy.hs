@@ -122,14 +122,15 @@ evaluate e0 =
         -- capture the possibility of failure in the 'M' monad.
         Case_ e bs -> do
             w <- evaluate e
-            -- We don't really need to break out the 'Neutral' case since it'll 'GotStuck' anyways; but just to be clear\/efficient.
+            -- We don't really need to break out the 'Neutral' case
+            -- since it'll 'GotStuck' anyways; but just to be
+            -- clear\/efficient.
             case w of
                 Neutral e' -> return . Neutral . syn $ Case_ e' bs
                 Head_   v  ->
                     case matchBranches (fromHead v) bs of
-                    Nothing                    ->
-                        error "evaluate{Case_}: nothing matched!"
-                    Just (GotStuck    , _)     ->
+                    Nothing -> error "evaluate{Case_}: nothing matched!"
+                    Just (GotStuck, _) ->
                         return . Neutral . syn $ Case_ (fromHead v) bs
                     Just (Matched ss Nil1, body) ->
                         pushes (toStatements ss) body evaluate
