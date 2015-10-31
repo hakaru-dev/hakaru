@@ -167,6 +167,8 @@ toStatements = map (\(Assoc x e) -> SLet x $ Thunk e) . ($ [])
 -- @Neutral(var x)@ so we can just have the caller do that themselves;
 -- but returning @()@ breaks down in the case where we have to
 -- residualize a case expression.
+--
+-- TODO: More particularly, it seems like we really ought to return some sort of 'NamedWhnf' which gives both the variable and whatever it evaluated to. The reasoning is thus: when residualizing we need the variable name so that we don't lose sharing; however, we need to return the actual value so that we can dispatch on it when evaluating 'Case_'--- otherwise we'll 'GotStuck' simply because we didn't substitute the known value a variable is bound to.
 update :: forall abt a. (ABT AST abt) => Variable a -> M abt (Whnf abt a)
 update x = loop []
     where
