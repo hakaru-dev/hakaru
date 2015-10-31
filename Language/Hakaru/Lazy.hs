@@ -105,7 +105,7 @@ evaluate e0 =
         NaryOp_     o    es        -> evaluateNaryOp o es
         PrimOp_     o :$ es        -> evaluatePrimOp o es
 
-        -- TODO: avoid the chance of looping in case 'E.expect' residualizes.
+        -- BUG: avoid the chance of looping in case 'E.expect' residualizes!
         -- TODO: use 'evaluate' in 'E.expect' in order to partially-NBE @e1@
         Expect :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
@@ -113,12 +113,26 @@ evaluate e0 =
 
         Lub_ es -> error "TODO: evaluate{Lub_}" -- (Head_ . HLub) <$> T.for es evaluate
 
-        -- TODO: in the paper there's a guard so that this only fires when @not (atomic e)@. I think that was to prevent infinite loops in case 'evaluate' returns a 'Neutral' term. We get around this in the following way... The 'matchBranches' primitive will tell us it 'GotStuck' if it turns out that the value @v@ is not already a 'Datum' (whether as 'Datum_' or as 'Value_')[1]. And whenever 'matchBranches' gets stuck, 'tryMatch' will wrap the whole case expression up as a Neutral term.
+        -- TODO: capture some information about where we 'GotStuck'
+        -- so that we can 'evaluate' that subexpression. If we were
+        -- evaluating to full normal forms, this wouldn't be an
+        -- issue; it's only a problem because we're only doing (W)HNFs.
         --
-        -- [1] 'matchBranches' will also tell us it 'GotStuck' if the scrutinee isn't a 'Datum' at some subterm a nested 'Pattern' is trying to match against. At present this means we won't do as much partial evaluation as we really ought to; but in the future the 'GotStuck' constructor should return some information about where it got stuck so that we can 'evaluate' that subexpression. If we were evaluating to full normal forms, this wouldn't be an issue; it's only a problem because we're only doing (W)HNFs.
+        -- TODO: rather than throwing a Haskell error, instead
+        -- capture the possibility of failure in the 'M' monad.
         Case_ e bs -> do
             w <- evaluate e
-            tryMatch (fromWhnf w) bs evaluate
+            -- We don't really need to break out the 'Neutral' case since it'll 'GotStuck' anyways; but just to be clear\/efficient.
+            case w of
+                Neutral e' -> return . Neutral . syn $ Case_ e' bs
+                Head_   v  ->
+                    case matchBranches (fromHead v) bs of
+                    Nothing                    ->
+                        error "evaluate{Case_}: nothing matched!"
+                    Just (GotStuck    , _)     ->
+                        return . Neutral . syn $ Case_ (fromHead v) bs
+                    Just (Matched ss Nil1, body) ->
+                        pushes (toStatements ss) body evaluate
 
         -- HACK: these cases are impossible, and ghc can confirm that (via no warnings about the empty case analysis being incomplete), but ghc can't infer it for some reason
         Lam_ :$ es -> case es of {}
@@ -129,6 +143,14 @@ evaluate e0 =
         CoerceTo_ _ :$ es -> case es of {}
         UnsafeFrom_ _ :$ es -> case es of {}
         Expect :$ es -> case es of {}
+
+
+type DList a = [a] -> [a]
+
+toStatements
+    :: DList (Assoc abt)
+    -> [Statement abt]
+toStatements = map (\(Assoc x e) -> SLet x $ Thunk e) . ($ [])
 
 
 ----------------------------------------------------------------
@@ -224,42 +246,11 @@ update x = loop []
 
 -- TODO: move this to ABT.hs\/Variable.hs
 varElem :: Variable (a :: Hakaru) -> List1 Variable (xs :: [Hakaru]) -> Bool
-varElem x Nil1         = False
+varElem _ Nil1         = False
 varElem x (Cons1 y ys) = varEq_ x y || varElem x ys
 
 varEq_ :: Variable (a :: Hakaru) -> Variable (b :: Hakaru) -> Bool
 varEq_ x y = maybe False (const True) (varEq x y)
-
-
-----------------------------------------------------------------
--- TODO: generalize this to return any @M abt r@
--- | Try to match against a set of branches. If matching succeeds,
--- then push the bindings onto the 'Context' and call the continuation.
--- If matching gets stuck, then residualize the case expression.
--- If matching fails, then throw an error.
---
--- TODO: rather than throwing a Haskell error, instead capture the possibility of failure in the 'M' monad.
---
--- TODO: rather than giving up and residualizing the 'Case_' so quickly when we get stuck, have 'GotStuck' return some info about what needs to be forced next (or if it really is stuck because of a neutral term).
-tryMatch
-    :: (ABT AST abt)
-    => abt '[] a
-    -> [Branch a abt b]
-    -> (abt '[] b -> M abt (Whnf abt b))
-    -> M abt (Whnf abt b)
-tryMatch e bs k =
-    case matchBranches e bs of
-    Nothing                    -> error "tryMatch: nothing matched!"
-    Just (GotStuck    , _)     -> return . Neutral . syn $ Case_ e bs
-    Just (Matched ss _, body') -> pushes (toStatements ss) body' k
-
-
-type DList a = [a] -> [a]
-
-toStatements
-    :: DList (Assoc abt)
-    -> [Statement abt]
-toStatements = map (\(Assoc x e) -> SLet x $ Thunk e) . ($ [])
 
 
 ----------------------------------------------------------------
@@ -494,6 +485,7 @@ unsafeFrom c e0 =
 ----------------------------------------------------------------
 -- N.B., that return type is correct, albeit strange. The idea is that the continuation takes in the variable of type @a@ bound by the expression of type @'HMeasure a@. However, this requires that the continuation of the 'Ans' type actually does @forall a. ...('HMeasure a)@ which is at odds with what 'evaluate' wants (or at least, what *I* think it should want.)
 -- BUG: eliminate the 'SingI' requirement (comes from using @(P.>>=)@)
+-- BUG: use 'freshNat' when generating names for @(P.>>=)@ rather than using the HOAS API.
 perform
     :: (ABT AST abt, SingI a)
     => abt '[] ('HMeasure a) -> M' abt (Whnf abt a)
