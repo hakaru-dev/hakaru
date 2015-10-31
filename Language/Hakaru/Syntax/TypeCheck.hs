@@ -253,7 +253,7 @@ typeMismatch typ1 typ2 =
     msg2 = case typ2 of { Left msg -> msg; Right typ -> show1 typ }
 
 instance Alternative TypeCheckMonad where
-    empty   = failwith "Need type annotation on your arguments"
+    empty   = failwith "Need type annotation in one of your arguments"
     x <|> y = TCM $ \ctx -> case unTCM x ctx of
                               Left  e -> unTCM y ctx
                               Right e -> Right e
