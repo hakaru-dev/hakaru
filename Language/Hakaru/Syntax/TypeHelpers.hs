@@ -21,7 +21,7 @@ module Language.Hakaru.Syntax.TypeHelpers
     , make_NaryOp
     ) where
 
-import Language.Hakaru.Syntax.IClasses (List1(..))
+import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.AST
@@ -71,6 +71,18 @@ sing_NaryOp (Sum  theSemi) = sing_HSemiring theSemi
 sing_NaryOp (Prod theSemi) = sing_HSemiring theSemi
 
 make_NaryOp :: Sing a -> U.NaryOp' -> Maybe (NaryOp a)
+make_NaryOp a U.And'  = case jmEq1 a sBool of
+                          Nothing   -> Nothing
+                          Just Refl -> Just And
+make_NaryOp a U.Or'   = case jmEq1 a sBool of
+                          Nothing   -> Nothing
+                          Just Refl -> Just Or
+make_NaryOp a U.Xor'  = case jmEq1 a sBool of
+                          Nothing   -> Nothing
+                          Just Refl -> Just Xor
+make_NaryOp a U.Iff'  = case jmEq1 a sBool of
+                          Nothing   -> Nothing
+                          Just Refl -> Just Iff
 make_NaryOp a U.Sum'  = hSemiringToSing a >>= return . Sum
 make_NaryOp a U.Prod' = hSemiringToSing a >>= return . Prod
       
