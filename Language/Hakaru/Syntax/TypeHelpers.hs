@@ -18,12 +18,14 @@ module Language.Hakaru.Syntax.TypeHelpers
     , sing_PrimOp
     , sing_MeasureOp
     , sing_Value
+    , make_NaryOp
     ) where
 
 import Language.Hakaru.Syntax.IClasses (List1(..))
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.AST
+import qualified Language.Hakaru.Parser.AST as U
 import Language.Hakaru.Syntax.Datum
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -68,6 +70,10 @@ sing_NaryOp (Max  theOrd)  = sing_HOrd      theOrd
 sing_NaryOp (Sum  theSemi) = sing_HSemiring theSemi
 sing_NaryOp (Prod theSemi) = sing_HSemiring theSemi
 
+make_NaryOp :: Sing a -> U.NaryOp' -> Maybe (NaryOp a)
+make_NaryOp a U.Sum'  = hSemiringToSing a >>= return . Sum
+make_NaryOp a U.Prod' = hSemiringToSing a >>= return . Prod
+      
 
 -- TODO: is there any way to define a @sing_List1@ like @sing@ for automating all these monomorphic cases?
 sing_PrimOp :: PrimOp args a -> (List1 Sing args, Sing a)

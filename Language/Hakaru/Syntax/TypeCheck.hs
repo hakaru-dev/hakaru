@@ -331,12 +331,9 @@ inferType = inferType_
     U.NaryOp_ op es -> do
       TypedAST typ1 _ <- F.asum $ fmap inferType_ es
       es'' <- T.forM es $ checkType typ1
-      case hSemiringToSing typ1 of
+      case make_NaryOp typ1 op of
         Nothing -> failwith "expected type with semiring"
-        Just h  -> do
-          let op' = case op of
-                      U.Sum'  -> Sum  h
-                      U.Prod' -> Prod h
+        Just op' -> do
           return $ TypedAST typ1 (syn(NaryOp_ op' (S.fromList es'')))
 
     U.Value_ (Some1 v) ->
@@ -487,17 +484,12 @@ checkType = checkType_
                     return (syn(UnsafeFrom_ c :$ e1' :* End))
                 Nothing -> typeMismatch (Right typ0) (Right dom)
 
-
         U.NaryOp_ op es -> do
-          case hSemiringToSing typ0 of
+          case make_NaryOp typ0 op of
             Nothing -> failwith "expected type with semiring"
-            Just h  -> do
-               let op' = case op of
-                           U.Sum'  -> Sum  h
-                           U.Prod' -> Prod h
+            Just op'  -> do
                es' <- T.forM es $ checkType typ0
                return (syn(NaryOp_ op' (S.fromList es')))
-
 
         U.Empty_ ->
             case typ0 of
