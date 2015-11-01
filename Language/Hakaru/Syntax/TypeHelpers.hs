@@ -83,8 +83,10 @@ make_NaryOp a U.Xor'  = case jmEq1 a sBool of
 make_NaryOp a U.Iff'  = case jmEq1 a sBool of
                           Nothing   -> Nothing
                           Just Refl -> Just Iff
-make_NaryOp a U.Sum'  = hSemiringToSing a >>= return . Sum
-make_NaryOp a U.Prod' = hSemiringToSing a >>= return . Prod
+make_NaryOp a U.Min'  = hOrd_Sing a >>= return . Min
+make_NaryOp a U.Max'  = hOrd_Sing a >>= return . Max
+make_NaryOp a U.Sum'  = hSemiringSing a >>= return . Sum
+make_NaryOp a U.Prod' = hSemiringSing a >>= return . Prod
       
 
 -- TODO: is there any way to define a @sing_List1@ like @sing@ for automating all these monomorphic cases?

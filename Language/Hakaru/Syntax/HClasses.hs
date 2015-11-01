@@ -103,6 +103,15 @@ sing_HOrd HOrd_Unit         = sUnit
 sing_HOrd (HOrd_Pair   a b) = sPair   (sing_HOrd a) (sing_HOrd b)
 sing_HOrd (HOrd_Either a b) = sEither (sing_HOrd a) (sing_HOrd b)
 
+hOrd_Sing :: Sing a -> Maybe (HOrd a)
+hOrd_Sing SNat              = Just HOrd_Nat
+hOrd_Sing SInt              = Just HOrd_Int
+hOrd_Sing SProb             = Just HOrd_Prob
+hOrd_Sing SReal             = Just HOrd_Real
+hOrd_Sing (SArray a)        = do a' <- hOrd_Sing a
+                                 return $ HOrd_Array a'
+hOrd_Sing a                 = Nothing
+
 -- | Every 'HOrd' type is 'HEq'.
 hEq_HOrd :: HOrd a -> HEq a
 hEq_HOrd HOrd_Nat          = HEq_Nat
@@ -165,12 +174,12 @@ sing_HSemiring HSemiring_Int  = SInt
 sing_HSemiring HSemiring_Prob = SProb
 sing_HSemiring HSemiring_Real = SReal
 
-hSemiringToSing :: Sing a -> Maybe (HSemiring a)
-hSemiringToSing SNat  = Just HSemiring_Nat 
-hSemiringToSing SInt  = Just HSemiring_Int 
-hSemiringToSing SProb = Just HSemiring_Prob
-hSemiringToSing SReal = Just HSemiring_Real
-hSemiringToSing _     = Nothing
+hSemiringSing :: Sing a -> Maybe (HSemiring a)
+hSemiringSing SNat  = Just HSemiring_Nat 
+hSemiringSing SInt  = Just HSemiring_Int 
+hSemiringSing SProb = Just HSemiring_Prob
+hSemiringSing SReal = Just HSemiring_Real
+hSemiringSing _     = Nothing
 
 -- | Haskell type class for automatic 'HSemiring' inference.
 class    HSemiring_ (a :: Hakaru) where hSemiring :: HSemiring a
