@@ -36,11 +36,19 @@ data Symbol' a where
 
 type TypeTable = [(Text, Symbol' Hakaru)]
 
+hPair   a b = HData (TyCon (read "Pair")   :@ a :@ b) [ [ K a, K b] ]
+hEither a b = HData (TyCon (read "Either") :@ a :@ b) [ [ K a], [ K b] ]
+hMaybe  a   = HData (TyCon (read "Maybe")   :@ a) [ [], [ K a] ]
+
+
 primTypes :: [(Text, Symbol' Hakaru)]
 primTypes =  [ ("nat",  TNeu' HNat)
              , ("int",  TNeu' HInt)
              , ("prob", TNeu' HProb)
              , ("real", TNeu' HReal)
+             , ("either", TLam' (\ [a,b] -> hEither a b))
+             , ("pair", TLam' (\ [a,b] -> hPair a b))
+             , ("maybe", TLam' (\ [a] -> hMaybe a))
              ]
 
 makeType :: U.TypeAST' -> Hakaru
