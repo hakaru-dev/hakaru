@@ -7,7 +7,7 @@ module Language.Hakaru.Parser.SymbolResolve where
 
 import Data.List
 import Data.Text hiding (map, maximum)
-import Control.Monad.Trans.State.Strict (State, evalState, state)
+import Control.Monad.Trans.State.Strict (State, state)
 
 import Language.Hakaru.Syntax.DataKind hiding (Symbol)
 import qualified Language.Hakaru.Syntax.AST as T
@@ -85,45 +85,52 @@ pVar name = TNeu (U.Var_ (U.Name (N.unsafeNat 0) name))
 gensym :: Text -> State Int U.Name
 gensym s = state $ \i -> (U.Name (N.unsafeNat i) s, i + 1)
 
-updateSymbols :: U.Name' -> SymbolTable a -> SymbolTable a
-updateSymbols name sym = (name, pVar name) : sym
- 
+mkSym  :: U.Name -> Symbol (U.AST a)
+mkSym = TNeu . U.Var_
+
+updateSymbols :: U.Name -> SymbolTable a -> SymbolTable a
+updateSymbols n@(U.Name _ name) sym = (name, mkSym n) : sym
 
 -- figure out symbols and types
-symbolResolution :: SymbolTable a -> U.AST' Text -> U.AST' (Symbol (U.AST a))
+symbolResolution :: SymbolTable a -> U.AST' Text ->
+                    State Int (U.AST' (Symbol (U.AST a)))
 symbolResolution symbols ast =
     case ast of
       U.Var name        -> case lookup name symbols of
-                             Nothing -> U.Var $ pVar name
-                             Just a  -> U.Var a
+                             Nothing -> do name' <- gensym name
+                                           return $ U.Var (mkSym name')
+                             Just a  -> return $ U.Var a
 
-      U.App f x         -> U.App (symbolResolution symbols f)
-                                 (symbolResolution symbols x)
+      U.App f x         -> do f' <- symbolResolution symbols f
+                              x' <- symbolResolution symbols x
+                              return $ U.App f' x'
 
-      U.Let name e1 e2  -> U.Let (pVar name)
-                                 (symbolResolution symbols e1)
-                                 (symbolResolution
-                                  (updateSymbols name symbols) e2)
-      U.Ann e typ       -> U.Ann (symbolResolution symbols e) typ
+      U.Let name e1 e2  -> do name' <- gensym name
+                              e1'   <- symbolResolution symbols e1
+                              e2'   <- symbolResolution
+                                       (updateSymbols name' symbols) e2
+                              return $ U.Let (mkSym name') e1' e2'
 
-      U.Infinity        -> U.Infinity
-      U.NegInfinity     -> U.NegInfinity
+      U.Ann e typ       -> do e' <- symbolResolution symbols e
+                              return $ U.Ann e' typ
 
-      U.UValue v        -> U.UValue v
+      U.Infinity        -> return $ U.Infinity
+      U.NegInfinity     -> return $ U.NegInfinity
+
+      U.UValue v        -> return $ U.UValue v
                           
-      U.NaryOp op e1 e2 -> U.NaryOp op
-                           (symbolResolution symbols e1)
-                           (symbolResolution symbols e2)
+      U.NaryOp op e1 e2 -> do e1' <- symbolResolution symbols e1
+                              e2' <- symbolResolution symbols e2
+                              return $ U.NaryOp op e1' e2'
 
-      U.Bind name e1 e2 -> U.Bind (pVar name)
-                           (symbolResolution symbols e1)
-                           (symbolResolution
-                            (updateSymbols name symbols) e2)
-
+      U.Bind name e1 e2 -> do name' <- gensym name
+                              e1'   <- symbolResolution symbols e1
+                              e2'   <- symbolResolution
+                                       (updateSymbols name' symbols) e2
+                              return $ U.Bind (mkSym name') e1' e2'
       
-      U.Dirac e1        -> U.Dirac (symbolResolution symbols e1)
-
-      _                 -> error "TODO: Add rest of cases"
+      U.Dirac e1        -> do e1' <- symbolResolution symbols e1
+                              return $ U.Dirac e1'
 
 -- make AST and give unique names for variables
 

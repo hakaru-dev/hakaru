@@ -24,6 +24,8 @@ import Language.Hakaru.Syntax.Prelude (prob_, fromProb)
 import Prelude hiding (unlines)
 import Data.Text
 import Text.PrettyPrint
+import Control.Monad.Trans.State.Strict (evalState)
+
 import qualified System.Random.MWC as MWC
 
 five, normal01, normalb, uniform01 :: Text
@@ -38,7 +40,7 @@ normalb   = unlines [ "x <~ normal(-2.0,1.0)"
                     ]
 
 pToa :: U.AST' Text -> U.AST a
-pToa = makeAST . normAST . (symbolResolution primTable)
+pToa ast = makeAST $ normAST $ evalState (symbolResolution primTable ast) 0
 
 inferType' :: U.AST a -> TypeCheckMonad (TypedAST (TrivialABT T.AST))
 inferType' = inferType

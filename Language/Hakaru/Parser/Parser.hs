@@ -296,7 +296,7 @@ expr = if_expr
    <|> lam_expr
    <|> def_expr
    <|> try match_expr
-   <|> try data_expr
+   -- <|> try data_expr
    <|> try ann_expr
    <|> try let_expr
    <|> try bind_expr
