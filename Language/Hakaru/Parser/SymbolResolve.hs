@@ -6,7 +6,8 @@
 module Language.Hakaru.Parser.SymbolResolve where
 
 import Data.List
-import Data.Text hiding (maximum)
+import Data.Text hiding (map, maximum)
+import Control.Monad.Trans.State.Strict (State, evalState, state)
 
 import Language.Hakaru.Syntax.DataKind hiding (Symbol)
 import qualified Language.Hakaru.Syntax.AST as T
@@ -25,32 +26,38 @@ import qualified Language.Hakaru.Syntax.Nat as N
    -- VarSym U.Name
    -- Plus
 
-type TypeTable = [(Text, Hakaru)]
+data Symbol a where
+     TLam :: (a -> Symbol a) -> Symbol a
+     TNeu :: a -> Symbol a
 
-primTypes :: [(Text, Hakaru)]
-primTypes =  [ ("nat",  HNat)
-             , ("int",  HInt)
-             , ("prob", HProb)
-             , ("real", HReal)
+data Symbol' a where
+     TLam' :: ([a] -> a) -> Symbol' a
+     TNeu' :: a -> Symbol' a
+
+type TypeTable = [(Text, Symbol' Hakaru)]
+
+primTypes :: [(Text, Symbol' Hakaru)]
+primTypes =  [ ("nat",  TNeu' HNat)
+             , ("int",  TNeu' HInt)
+             , ("prob", TNeu' HProb)
+             , ("real", TNeu' HReal)
              ]
 
 makeType :: U.TypeAST' -> Hakaru
-makeType (U.TypeVar t)   = case lookup t primTypes of
-                             Just t' -> t'
-                             Nothing -> error $ "Type " ++ show t ++ " is not a primitive"
-makeType (U.TypeFun f x) = (makeType f) :-> (makeType x)
-makeType _               = error "Not a Primitive"
+makeType (U.TypeVar t)      = case lookup t primTypes of
+                                Just (TNeu' t') -> t'
+                                Nothing -> error $ "Type " ++ show t ++ " is not a primitive"
+makeType (U.TypeFun f x)    = (makeType f) :-> (makeType x)
+makeType (U.TypeApp f args) = case lookup f primTypes of
+                               Just (TLam' f') -> f' (map makeType args)
+                               Nothing -> error $ "Type " ++ show f ++ " is not a primitive"
 
-type SymbolTable a = [(Text, Symbol a)]
-
-data Symbol a where
-     TLam :: (U.AST a -> Symbol a) -> Symbol a
-     TNeu :: U.AST a -> Symbol a
-
-t2 :: (U.AST a -> U.AST a -> U.AST a) -> Symbol a
+t2 :: (U.AST a -> U.AST a -> U.AST a) -> Symbol (U.AST a)
 t2 f = TLam (\ a -> TLam (\b -> TNeu (f a b)))
 
-primTable :: [(Text, Symbol a)]
+type SymbolTable a = [(Text, Symbol (U.AST a))]
+
+primTable :: [(Text, Symbol (U.AST a))]
 primTable =  [("Pair",       primPair)
              -- ,("True",       True_)
              -- ,("False",      False_)
@@ -67,12 +74,15 @@ primPair = t2 (\a b -> U.Datum_ $
 
 pVar name = TNeu (U.Var_ (U.Name (N.unsafeNat 0) name))
 
+gensym :: Text -> State Int U.Name
+gensym s = state $ \i -> (U.Name (N.unsafeNat i) s, i + 1)
+
 updateSymbols :: U.Name' -> SymbolTable a -> SymbolTable a
 updateSymbols name sym = (name, pVar name) : sym
  
 
 -- figure out symbols and types
-symbolResolution :: SymbolTable a -> U.AST' Text -> U.AST' (Symbol a)
+symbolResolution :: SymbolTable a -> U.AST' Text -> U.AST' (Symbol (U.AST a))
 symbolResolution symbols ast =
     case ast of
       U.Var name        -> case lookup name symbols of
@@ -112,7 +122,7 @@ symbolResolution symbols ast =
 -- | The logic here is to do normalization by evaluation for our
 -- primitives. App inspects its first argument to see if it
 -- should do something special. Otherwise App behaves as normal.
-normAST :: U.AST' (Symbol a) -> U.AST' (Symbol a)
+normAST :: U.AST' (Symbol (U.AST a)) -> U.AST' (Symbol (U.AST a))
 normAST ast =
     case ast of
       U.App (U.Var t) x -> case t of
@@ -130,7 +140,7 @@ normAST ast =
 
       v                 -> v
 
-makeAST :: U.AST' (Symbol a) -> U.AST a
+makeAST :: U.AST' (Symbol (U.AST a)) -> U.AST a
 makeAST ast =
     case ast of
       U.Var t       -> case t of

@@ -148,7 +148,7 @@ type_app :: Parser TypeAST'
 type_app = do
    f    <- identifier
    args <- parens $ commaSep type_expr
-   return $ foldl TypeApp (TypeVar f) args
+   return $ TypeApp f args
 
 type_fun :: Parser TypeAST'
 type_fun = do

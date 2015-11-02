@@ -101,7 +101,7 @@ val (Real n) = Some1 $ VReal n
 
 data TypeAST' =
      TypeVar Text
-   | TypeApp TypeAST' TypeAST'
+   | TypeApp Text [TypeAST']
    | TypeFun TypeAST' TypeAST'
  deriving (Eq, Show)
 
