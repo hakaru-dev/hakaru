@@ -121,13 +121,13 @@ floating = do
              '-' -> Real (-1.0*n)
              '+' -> Prob n
 
-inf_ :: Parser Value'
+inf_ :: Parser (AST' Text)
 inf_ = do
   s <- option '+' (oneOf "+-")
   reserved "inf";
   return $ case s of
-             '-' -> Real (-1.0 / 0.0)
-             '+' -> Prob ( 1.0 / 0.0)
+             '-' -> NegInfinity
+             '+' -> Infinity
 
 var :: Parser (AST' Text)
 var = do
@@ -208,7 +208,7 @@ data_expr = do
 
 op_factor :: Parser (AST' Text)
 op_factor =     try (M.liftM UValue floating)
-            <|> try (M.liftM UValue inf_)
+            <|> try inf_
             <|> try unit_
             <|> try (M.liftM UValue int)
             <|> try var

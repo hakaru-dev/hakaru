@@ -88,6 +88,9 @@ symbolResolution symbols ast =
                                   (updateSymbols name symbols) e2)
       U.Ann e typ       -> U.Ann (symbolResolution symbols e) typ
 
+      U.Infinity        -> U.Infinity
+      U.NegInfinity     -> U.NegInfinity
+
       U.UValue v        -> U.UValue v
                           
       U.NaryOp op e1 e2 -> U.NaryOp op
@@ -130,13 +133,17 @@ normAST ast =
 makeAST :: U.AST' (Symbol a) -> U.AST a
 makeAST ast =
     case ast of
-      U.Var t    -> case t of
-                      TLam f' -> error "Wat?"
-                      TNeu e  -> e
+      U.Var t       -> case t of
+                         TLam f' -> error "Wat?"
+                         TNeu e  -> e
 
-      U.Ann e typ -> U.Ann_ (makeAST e) (makeType typ)
+      U.Ann e typ   -> U.Ann_ (makeAST e) (makeType typ)
 
-      U.UValue v -> U.Value_ (U.val v) 
+      U.Infinity    -> U.PrimOp_ (U.SealedOp $ T.Infinity) []
+
+      U.NegInfinity -> U.PrimOp_ (U.SealedOp $ T.NegativeInfinity) []
+
+      U.UValue v    -> U.Value_ (U.val v) 
 
       U.NaryOp op e1 e2 -> U.NaryOp_ op [ makeAST e1
                                         , makeAST e2

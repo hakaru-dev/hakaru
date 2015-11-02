@@ -112,6 +112,8 @@ data AST' a =
    | Let a    (AST' a) (AST' a)
    | If  (AST' a) (AST' a) (AST' a)
    | Ann (AST' a) TypeAST'
+   | Infinity
+   | NegInfinity
    | UValue Value'
    | NaryOp NaryOp' (AST' a) (AST' a)
    | Empty
