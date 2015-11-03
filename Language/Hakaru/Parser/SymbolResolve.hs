@@ -153,7 +153,7 @@ normAST ast =
     case ast of
       U.App (U.Var t) x -> case t of
                             TLam f' ->
-                                U.Var $ f' (makeAST x)
+                                U.Var $ f' (makeAST $ normAST x)
                             TNeu e -> (U.Var t)
 
       U.App f x         -> case normAST f of
