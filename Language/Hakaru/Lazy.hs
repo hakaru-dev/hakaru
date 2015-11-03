@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.02
+--                                                    2015.11.03
 -- |
 -- Module      :  Language.Hakaru.Lazy
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -93,9 +93,9 @@ evaluate e0 =
             w1 <- evaluate e1
             return $
                 -- if not @mustCheck (fromWhnf w1)@, then could in principle eliminate the annotation; though it might be here so that it'll actually get pushed down to somewhere it's needed later on, so it's best to play it safe and leave it in.
-                case w1 of
-                Head_   v1  -> Head_   $ HAnn   typ v1
-                Neutral e1' -> Neutral $ P.ann_ typ e1'
+                caseNeutralHead w1
+                    (Neutral . P.ann_ typ)
+                    (\v1 -> Head_ $ HAnn typ v1) -- or something...
         -}
 
         CoerceTo_   c :$ e1 :* End -> coerceTo   c <$> evaluate e1
@@ -120,19 +120,15 @@ evaluate e0 =
         -- TODO: rather than throwing a Haskell error, instead
         -- capture the possibility of failure in the 'M' monad.
         Case_ e bs -> do
-            w <- evaluate e
-            -- We don't really need to break out the 'Neutral' case
-            -- since it'll 'GotStuck' anyways; but just to be
-            -- clear\/efficient.
-            caseNeutralHead w
-                (\e' -> return . Neutral . syn $ Case_ e' bs)
-                $ \v ->
-                    case matchBranches (fromHead v) bs of -- BUG: shouldn't use fromHead here!
-                    Nothing -> error "evaluate{Case_}: nothing matched!"
-                    Just (GotStuck, _) ->
-                        return . Neutral . syn $ Case_ (fromWhnf w) bs
-                    Just (Matched ss Nil1, body) ->
-                        pushes (toStatements ss) body evaluate
+            match <- matchBranches evaluateDatum e bs
+            case match of
+                Nothing -> error "evaluate{Case_}: nothing matched!"
+                Just (GotStuck, _) ->
+                    -- N.B., the resuting code will repeat some work if @e@ isn't purely 'Datum' applied to variables.
+                    -- TODO: we could avoid that work if we had 'evaluateDatum' introduce new variables for each new term it forces and if 'DatumEvaluator' returned 'Either' (so we could reconstruct @e@ with variables in place)
+                    return . Neutral . syn $ Case_ e bs
+                Just (Matched ss Nil1, body) ->
+                    pushes (toStatements ss) body evaluate
 
         -- HACK: these cases are impossible, and ghc can confirm that (via no warnings about the empty case analysis being incomplete), but ghc can't infer it for some reason
         Lam_ :$ es -> case es of {}
@@ -144,6 +140,9 @@ evaluate e0 =
         UnsafeFrom_ _ :$ es -> case es of {}
         Expect :$ es -> case es of {}
 
+-- Factored out to the top level, since 'DatumEvaluator' is a rank-2 type
+evaluateDatum :: (ABT AST abt) => DatumEvaluator abt (M abt)
+evaluateDatum e = viewWhnfDatum <$> evaluate e
 
 type DList a = [a] -> [a]
 
@@ -236,12 +235,14 @@ update x = loop []
                     , Branch PWild $
                         error "TODO: update{SBranch}: other branches" -- for the case where we're in the 'M'' monad rather than the 'M' monad, we can use 'P.reject' here...
                     ]
-        in
-        caseNeutralHead w residualizeCase $ \v ->
-            case matchTopPattern (fromHead v) pat ys of -- BUG: shouldn't use fromHead here!
-            Just (Matched ss _) -> naivePushes (toStatements ss) >> update x
-            Just GotStuck       -> residualizeCase (fromWhnf w)
-            Nothing             -> error "TODO: updateBranch" -- P.reject
+        in do
+            -- BUG: should we really use @fromWhnf w@ here? Or should we prefer @caseNeutralHead w residualizeCase $ \v -> ...(fromHead v)...@?
+            match <- matchTopPattern evaluateDatum (fromWhnf w) pat ys
+            case match of
+                Just (Matched ss Nil1) ->
+                    naivePushes (toStatements ss) >> update x
+                Just GotStuck -> residualizeCase (fromWhnf w)
+                Nothing -> error "TODO: updateBranch" -- P.reject
 
 
 -- TODO: move this to ABT.hs\/Variable.hs

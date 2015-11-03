@@ -542,6 +542,11 @@ eqAppendIdentity (SCons _ s) = case eqAppendIdentity s of Refl -> Refl
 -}
 
 
+-- To make a version that doesn't require proxies, we'd need to
+-- enable -XAllowAmbiguousTypes. We'd need to do this even just to
+-- drop the second or third proxies, which aren't needed for the
+-- safe version.
+--
 -- | @('++')@ is associative. This identity doesn't come for free
 -- but rather must be proven.
 eqAppendAssoc
