@@ -177,6 +177,11 @@ sampleScon (UnsafeFrom_ c) (e1 :* End) env =
     let v = sample (LC_ e1) env
     in  sampleUnsafe c v
 
+sampleScon Let_ (e1 :* e2 :* End)      env =
+    let S v = sample (LC_ e1) env in
+    caseBind e2 $ \x e2' ->
+        sample (LC_ e2') (updateEnv (EAssoc x v) env)
+
 sampleScon (Ann_   _)      (e1 :* End) env = sample (LC_ e1) env
 
 sampleScon (MeasureOp_  m) es env = sampleMeasureOp m es env

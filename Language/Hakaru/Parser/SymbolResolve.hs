@@ -38,7 +38,7 @@ type TypeTable = [(Text, Symbol' Hakaru)]
 
 hPair   a b = HData (TyCon (read "Pair")   :@ a :@ b) [ [ K a, K b] ]
 hEither a b = HData (TyCon (read "Either") :@ a :@ b) [ [ K a], [ K b] ]
-hMaybe  a   = HData (TyCon (read "Maybe")   :@ a) [ [], [ K a] ]
+hMaybe  a   = HData (TyCon (read "Maybe")  :@ a) [ [], [ K a] ]
 
 
 primTypes :: [(Text, Symbol' Hakaru)]
@@ -101,6 +101,10 @@ symbolResolution symbols ast =
                                            return $ U.Var (mkSym name')
                              Just a  -> return $ U.Var a
 
+      U.Lam name x      -> do name' <- gensym name
+                              x'    <- symbolResolution symbols x
+                              return $ U.Lam (mkSym name') x'
+
       U.App f x         -> do f' <- symbolResolution symbols f
                               x' <- symbolResolution symbols x
                               return $ U.App f' x'
@@ -162,6 +166,14 @@ makeAST ast =
                          TLam f' -> error "Wat?"
                          TNeu e  -> e
 
+      U.Lam (TNeu (U.Var_ name)) e1 -> U.Lam_ name (makeAST e1)
+
+      U.App e1 e2 -> U.App_ (makeAST e1) (makeAST e2)
+
+      U.Let (TNeu (U.Var_ name)) e1 e2 -> U.Let_ name
+                                          (makeAST e1)
+                                          (makeAST e2)
+
       U.Ann e typ   -> U.Ann_ (makeAST e) (makeType typ)
 
       U.Infinity    -> U.PrimOp_ (U.SealedOp $ T.Infinity) []
@@ -179,11 +191,6 @@ makeAST ast =
                                            (makeAST e2)
 
       U.Dirac e1 -> U.Dirac_ (makeAST e1)
-
-      _          -> error "TODO: Add rest of cases"
-
--- App (App (Var "normal") (UValue (Nat 0))) (UValue (Nat 1))
--- App (Var "normal[0]") (UValue (Nat 1))
 
 data PrimOp' =
      Not'        
