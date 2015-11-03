@@ -10,7 +10,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.29
+--                                                    2015.11.02
 -- |
 -- Module      :  Language.Hakaru.Lazy.Types
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -25,7 +25,7 @@ module Language.Hakaru.Lazy.Types
     (
     -- * Terms in particular known forms\/formats
       Head(..), fromHead
-    , Whnf(..), fromWhnf
+    , Whnf(..), fromWhnf, caseNeutralHead, viewWhnfDatum
     , Lazy(..), fromLazy, caseLazy
 
     -- * Evaluation contexts
@@ -48,7 +48,6 @@ import qualified Data.Foldable        as F
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.Nat
 import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT
@@ -113,12 +112,58 @@ data Whnf (abt :: [Hakaru] -> Hakaru -> *) (a :: Hakaru)
     -- on some free variable.
     | Neutral !(abt '[] a)
 
+    -- | Some WHNF bound to a variable. We offer this form because
+    -- if we need to residualize, then we want to use the variable
+    -- in order to preserve sharing; but if we're branching based
+    -- on the value (e.g., in case analysis) then we need the actual
+    -- concrete value.
+    | NamedWhnf {-# UNPACK #-} !(Variable a) !(Whnf abt a)
 
--- | Forget that something is in WHNF.
+
+-- | Rezidualize a WHNF. In particular, this takes 'NamedWhnf' to
+-- its variable (ignoring the associated value).
 fromWhnf :: (ABT AST abt) => Whnf abt a -> abt '[] a
-fromWhnf (Head_   e) = fromHead e
-fromWhnf (Neutral e) = e
+fromWhnf (Head_     e)   = fromHead e
+fromWhnf (Neutral   e)   = e
+fromWhnf (NamedWhnf x _) = var x
 
+
+-- | Given some WHNF, try to extract a 'Datum' from it.
+viewWhnfDatum
+    :: (ABT AST abt)
+    => Whnf abt (HData' t)
+    -> Maybe (Datum (abt '[]) (HData' t))
+viewWhnfDatum (NamedWhnf _ v)             = viewWhnfDatum v
+viewWhnfDatum (Head_ (WValue (VDatum d))) = Just (fmap11 (syn . Value_) d)
+viewWhnfDatum (Head_ (WDatum d))          = Just d
+viewWhnfDatum (Neutral e)                 = 
+    caseVarSyn e (const Nothing) $ \t ->
+        case t of
+        Value_ (VDatum d) -> Just (fmap11 (syn . Value_) d)
+        Datum_         d  -> Just d
+        _                 -> Nothing
+
+
+-- | Call one of two continuations based on whether we have a neutral
+-- term or a head. If we have a variable bound to a neutral term,
+-- then we call the neutral-term continuation with that variable
+-- (to preserve sharing). If we have a variable bound to a head,
+-- then we call the head-term continuation with the head itself
+-- (throwing away the variable). That is, we expect that our callers
+-- will always branch on or eliminate the head itself, rather than
+-- ever needing to residualize; thus, never call 'fromHead' within
+-- the head-continuation on it's argument: instead call 'fromWhnf'
+-- on the original.
+caseNeutralHead
+    :: (ABT syn abt)
+    => Whnf abt a -> (abt '[] a -> r) -> (Head abt a -> r) -> r
+caseNeutralHead (Neutral e) k _ = k e
+caseNeutralHead (Head_   v) _ k = k v
+caseNeutralHead (NamedWhnf x w) kn kv = go (kn $ var x) kv w
+    where
+    go e _ (Neutral   _)   = e
+    go _ k (Head_     v)   = k v
+    go e k (NamedWhnf _ w) = go e k w
 
 ----------------------------------------------------------------
 -- BUG: haddock doesn't like annotations on GADT constructors. So
@@ -136,7 +181,9 @@ data Lazy (abt :: [Hakaru] -> Hakaru -> *) (a :: Hakaru)
     | Thunk !(abt '[] a)
 
 
--- | Forget that something is Lazy.
+-- | Rezidualize a lazy term. In particular, we call 'fromWhnf' for
+-- already evaluated terms, which means we'll takes 'NamedWhnf' to
+-- its variable (ignoring the associated value).
 fromLazy :: (ABT AST abt) => Lazy abt a -> abt '[] a
 fromLazy (Whnf_ e) = fromWhnf e
 fromLazy (Thunk e) = e
@@ -229,10 +276,10 @@ initContext es = Context (1 + maximumFree es) []
 -- TODO: generalize to non-measure types too!
 residualizeContext
     :: (ABT AST abt)
-    => Whnf abt ('HMeasure a)
+    => abt '[] ('HMeasure a)
     -> Context abt
     -> abt '[] ('HMeasure a)
-residualizeContext = \e h -> foldl step (fromWhnf e) (statements h)
+residualizeContext = \e h -> foldl step e (statements h)
     where
     step e s = syn $
         case s of
@@ -249,18 +296,30 @@ residualizeContext = \e h -> foldl step (fromWhnf e) (statements h)
 
 
 ----------------------------------------------------------------
--- TODO: is that actually Whnf like the paper says? or can it be any term?
+-- In the paper we say that result must be a 'Whnf'; however, in
+-- the paper it's also always @HMeasure a@ and everything of that
+-- type is a WHNF (via 'WMeasure') so that's a trivial statement
+-- to make. For now, we leave it as WHNF, only so that we can keep
+-- track of the fact that the 'residualizeCase' of 'updateBranch'
+-- of 'update' actually produces a neutral term. Whether this is
+-- actually helpful or not, who knows? In the future we should feel
+-- free to chance this to whatever seems most natural. If it remains
+-- some sort of normal form, then it should be one preserved by
+-- 'residualizeContext'; otherwise I(wrengr) don't feel comfortable
+-- calling the result of 'runM'\/'runM'' a whatever-NF.
 type Ans abt a = Context abt -> Whnf abt a
 
--- TODO: defunctionalize the continuation. In particular, the only heap modifications we need are 'push' and a variant of 'update' for finding\/replacing a binding once we have the value in hand.
+-- TODO: defunctionalize the continuation. In particular, the only
+-- heap modifications we need are 'push' and a variant of 'update'
+-- for finding\/replacing a binding once we have the value in hand.
+--
 -- TODO: give this a better, more informative name!
 newtype M abt x = M { unM :: forall a. (x -> Ans abt a) -> Ans abt a }
 
 {-
--- TODO: implement 'residualizeContext' at the correct type.
--- TODO: can we legit call the result of 'residualizeContext' a neutral term? Really we should change the definition of 'Ans', ne?
-runM :: M abt (Whnf abt a) -> Context abt -> Whnf abt a
-runM (M m) = m (\x -> Head_ . ??? . residualizeContext x)
+-- TODO: implement 'residualizeContext' without restricting it to HMeasure
+runM :: M abt (Whnf abt a) -> Context abt -> abt '[] a
+runM (M m) = fromWhnf . m ((toWhnf .) . residualizeContext . fromWhnf)
 -}
 
 instance Functor (M abt) where
@@ -384,28 +443,26 @@ m2mprime (M m) = M' m
 -- TODO: mprime2m
 
 
--- TODO: can we legit call the result of 'residualizeContext' a
--- neutral term? Really we should change the definition of 'Ans',
--- ne?
---
--- BUG: the argument type doesn't match up with what 'perform' returns! We hack around that by using 'SingI', for now; but really should clean it all up.
---
 -- | Run a computation in the 'M'' monad, residualizing out all the
 -- statements in the final 'Context'. The initial context argument
 -- should be constructed by 'initContext' to ensure proper hygiene;
 -- for example:
 --
 -- > \e -> runM' (perform e) (initContext [e])
-runM' :: (ABT AST abt, SingI a)
+runM' :: (ABT AST abt)
     => M' abt (Whnf abt a)
     -> Context abt
-    -> Whnf abt ('HMeasure a)
-runM' m = unM' m (\x -> Head_ . WMeasure . residualizeContext (lift x))
--- HACK: can't eta-shorten away the @x@; won't typecheck for some reason
+    -> abt '[] ('HMeasure a)
+runM' (M' m) = fromWhnf . m c0
     where
-    lift :: (ABT AST abt, SingI a) => Whnf abt a -> Whnf abt ('HMeasure a)
-    lift (Head_   v) = Head_ . WMeasure $ P.dirac (fromHead v)
-    lift (Neutral e) = Neutral $ P.dirac e
+    -- HACK: we only have @c0@ build up a WHNF since that's what
+    -- 'Ans' says we need (see the comment at 'Ans' for why this
+    -- may not be what we actually mean).
+    --
+    -- We could eta-shorten @x@ away, and inline this definition
+    -- of @c0@; but hopefully it's a bit clearer to break it out
+    -- like this...
+    c0 x = Head_ . WMeasure . residualizeContext (P.dirac $ fromWhnf x)
 
 
 instance Functor (M' abt) where

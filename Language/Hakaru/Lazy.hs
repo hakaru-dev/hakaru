@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.29
+--                                                    2015.11.02
 -- |
 -- Module      :  Language.Hakaru.Lazy
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -75,12 +75,11 @@ evaluate e0 =
 
         App_ :$ e1 :* e2 :* End -> do
             w1 <- evaluate e1
-            case w1 of
-                Neutral e1'    -> return . Neutral $ P.app e1' e2
-                Head_ (WLam f) ->
+            caseNeutralHead w1
+                (\e1' -> return . Neutral $ P.app e1' e2)
+                $ \(WLam f) ->
                     caseBind f $ \x f' ->
                         push (SLet x $ Thunk e2) f' evaluate
-                Head_ v1 -> case v1 of {} -- HACK: impossible
 
         Let_ :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
@@ -125,13 +124,13 @@ evaluate e0 =
             -- We don't really need to break out the 'Neutral' case
             -- since it'll 'GotStuck' anyways; but just to be
             -- clear\/efficient.
-            case w of
-                Neutral e' -> return . Neutral . syn $ Case_ e' bs
-                Head_   v  ->
-                    case matchBranches (fromHead v) bs of
+            caseNeutralHead w
+                (\e' -> return . Neutral . syn $ Case_ e' bs)
+                $ \v ->
+                    case matchBranches (fromHead v) bs of -- BUG: shouldn't use fromHead here!
                     Nothing -> error "evaluate{Case_}: nothing matched!"
                     Just (GotStuck, _) ->
-                        return . Neutral . syn $ Case_ (fromHead v) bs
+                        return . Neutral . syn $ Case_ (fromWhnf w) bs
                     Just (Matched ss Nil1, body) ->
                         pushes (toStatements ss) body evaluate
 
@@ -208,13 +207,13 @@ update x = loop []
         Just $ do
             w <- error "TODO: update{SBind}" -- caseLazy e return perform
             naivePush (SLet x $ Whnf_ w)
-            return (Neutral $ var x)
+            return (NamedWhnf x w)
     step (SLet y e) = do
         Refl <- varEq x y
         Just $ do
             w <- caseLazy e return evaluate
             naivePush (SLet x $ Whnf_ w)
-            return (Neutral $ var x)
+            return (NamedWhnf x w)
     step (SBranch ys pat e)
         | varElem x ys = Just $ do
             w <- caseLazy e return evaluate
@@ -238,12 +237,10 @@ update x = loop []
                         error "TODO: update{SBranch}: other branches" -- for the case where we're in the 'M'' monad rather than the 'M' monad, we can use 'P.reject' here...
                     ]
         in
-        case w of
-        Neutral e -> residualizeCase e
-        Head_   v ->
-            case matchTopPattern (fromHead v) pat ys of
+        caseNeutralHead w residualizeCase $ \v ->
+            case matchTopPattern (fromHead v) pat ys of -- BUG: shouldn't use fromHead here!
             Just (Matched ss _) -> naivePushes (toStatements ss) >> update x
-            Just GotStuck       -> residualizeCase (fromHead v)
+            Just GotStuck       -> residualizeCase (fromWhnf w)
             Nothing             -> error "TODO: updateBranch" -- P.reject
 
 
@@ -337,10 +334,9 @@ rr1 :: (ABT AST abt, Interp a a', Interp b b')
     -> M abt (Whnf abt b)
 rr1 f' f e = do
     w <- evaluate e
-    return $
-        case w of
-        Head_   v  -> Head_ . reflect $ f' (reify v)
-        Neutral e' -> Neutral $ f e'
+    caseNeutralHead w
+        (return . Neutral . f)
+        (return . Head_ . reflect . f' . reify)
 
 
 rr2 :: (ABT AST abt, Interp a a', Interp b b', Interp c c')
@@ -352,10 +348,12 @@ rr2 :: (ABT AST abt, Interp a a', Interp b b', Interp c c')
 rr2 f' f e1 e2 = do
     w1 <- evaluate e1
     w2 <- evaluate e2
-    return $
-        case (w1,w2) of
-        (Head_ v1, Head_ v2) -> Head_ . reflect $ f' (reify v1) (reify v2)
-        _                    -> Neutral $ f (fromWhnf w1) (fromWhnf w2)
+    caseNeutralHead w1
+        (\e1' -> return . Neutral $ f e1' (fromWhnf w2))
+        $ \v1 ->
+            caseNeutralHead w2
+                (\e2' -> return . Neutral $ f (fromWhnf w1) e2')
+                $ \v2 -> return . Head_ . reflect $ f' (reify v1) (reify v2)
 
 
 impl, diff, nand, nor :: Bool -> Bool -> Bool
@@ -514,9 +512,8 @@ perform e0 =
         -- TODO: But we should be careful to make sure we haven't left any cases out. Maybe we should have some sort of @mustPerform@ predicate like we have 'mustCheck' in TypeCheck.hs...?
         _ -> do
             w <- m2mprime (evaluate e0)
-            case w of
-                Head_   v -> perform (fromHead v)
-                Neutral e -> M' $ \c h -> Head_ $ WMeasure (e P.>>= \z -> fromWhnf (c (Neutral z) h))
+            flip (caseNeutralHead w) (perform . fromHead) $ \e0' ->
+                M' $ \c h -> Head_ $ WMeasure (e0' P.>>= \z -> fromWhnf (c (Neutral z) h))
 
 
 ----------------------------------------------------------------
