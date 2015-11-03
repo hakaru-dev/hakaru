@@ -400,14 +400,17 @@ toSing (a :-> b)    k =
     toSing b $ \b' ->
     k (SFun a' b')
 toSing (HData t xss) k =
-    let { _ = toSing_Con; _ = toSing_Code } in -- HACK: to silence "unused" warnings
-    error "TODO: toSing{HData}"
-    {-
-    -- BUG: the type index for @t' :: Sing t@ must match the one for @xss' :: Sing (Code t)@
     toSing_Con  t  $ \t' ->
     toSing_Code xss $ \xss' ->
-    k (SData t' xss')
-    -}
+    case xss' `isCodeFor` t' of
+    Just Refl -> k (SData t' xss')
+    Nothing   -> error "TODO: toSing{HData}: mismatch between Con and Code"
+
+isCodeFor
+    :: Sing (xss :: [[HakaruFun]])
+    -> Sing (t :: HakaruCon Hakaru)
+    -> Maybe (TypeEq xss (Code t))
+isCodeFor = error "TODO: isCodeFor"
 
 toSing_Con
     :: HakaruCon Hakaru
