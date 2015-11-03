@@ -13,6 +13,7 @@ import Language.Hakaru.Syntax.DataKind hiding (Symbol)
 import qualified Language.Hakaru.Syntax.AST as T
 import qualified Language.Hakaru.Parser.AST as U
 import Language.Hakaru.Syntax.Sing
+import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.HClasses
 import qualified Language.Hakaru.Syntax.Nat as N
@@ -69,8 +70,8 @@ primTable :: [(Text, Symbol (U.AST a))]
 primTable =  [("Pair",       primPair)
              -- ,("True",       True_)
              -- ,("False",      False_)
-             -- ,("fromProb",   FromProb_)
-             -- ,("unsafeProb", UnsafeProb_)
+             ,("fromProb",   primFromProb)
+             ,("unsafeProb", primUnsafeProb)
              ,("uniform",    primUniform)
              ,("normal",     primNormal)
              ]
@@ -79,6 +80,12 @@ primNormal  = t2 (\x y -> U.MeasureOp_ (U.SealedOp T.Normal) [x,y])
 primUniform = t2 (\x y -> U.MeasureOp_ (U.SealedOp T.Normal) [x,y])
 primPair = t2 (\a b -> U.Datum_ $
               U.Datum "pair" (U.Inl $ U.Konst a `U.Et` U.Konst b `U.Et` U.Done))
+
+primFromProb = TLam (\a -> TNeu $ U.CoerceTo_
+                           (Some2 $ CCons (Signed HRing_Real) CNil) a)
+primUnsafeProb = TLam (\a -> TNeu $ U.UnsafeTo_
+                             (Some2 $ CCons (Signed HRing_Real) CNil) a)
+
 
 pVar name = TNeu (U.Var_ (U.Name (N.unsafeNat 0) name))
 
