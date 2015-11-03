@@ -54,7 +54,19 @@ import Language.Hakaru.PrettyPrint -- HACK: for ghci use only
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
--- BUG: we need (a) a variant of 'update' which doesn't 'perform' if it finds an 'SBind' or else, (b) better ways of converting between 'M' and 'M''.
+-- TODO: make this function monad-polymorphic, and have it take
+-- some sort of continuation for the one case of 'update' where we
+-- need to 'perform'. This way we can generalize over the notion
+-- of \"performing\" in order to reuse this function with Sample.hs
+-- and Expect.hs
+--
+-- TODO: (eventually) accept an argument dictating the evaluation
+-- strategy (HNF, WHNF, full-beta NF,...). The strategy value should
+-- probably be a family of singletons, where the type-level strategy
+-- @s@ is also an index on the 'Context' and (the renamed) 'Whnf'.
+-- That way we don't need to define a bunch of variant 'Context',
+-- 'Statement', and 'Whnf' data types; but rather can use indexing
+-- to select out subtypes of the generic versions.
 evaluate :: (ABT AST abt) => abt '[] a -> M abt (Whnf abt a)
 evaluate e0 =
     caseVarSyn e0 update $ \t ->
@@ -105,18 +117,13 @@ evaluate e0 =
         PrimOp_     o :$ es        -> evaluatePrimOp o es
 
         -- BUG: avoid the chance of looping in case 'E.expect' residualizes!
-        -- TODO: use 'evaluate' in 'E.expect' in order to partially-NBE @e1@
+        -- TODO: use 'evaluate' in 'E.expect' for the evaluation of @e1@
         Expect :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
                 evaluate $ E.expect e1 (\e3 -> subst x e3 e2')
 
         Lub_ es -> error "TODO: evaluate{Lub_}" -- (Head_ . HLub) <$> T.for es evaluate
 
-        -- TODO: capture some information about where we 'GotStuck'
-        -- so that we can 'evaluate' that subexpression. If we were
-        -- evaluating to full normal forms, this wouldn't be an
-        -- issue; it's only a problem because we're only doing (W)HNFs.
-        --
         -- TODO: rather than throwing a Haskell error, instead
         -- capture the possibility of failure in the 'M' monad.
         Case_ e bs -> do
@@ -124,13 +131,13 @@ evaluate e0 =
             case match of
                 Nothing -> error "evaluate{Case_}: nothing matched!"
                 Just (GotStuck, _) ->
-                    -- N.B., the resuting code will repeat some work if @e@ isn't purely 'Datum' applied to variables.
-                    -- TODO: we could avoid that work if we had 'evaluateDatum' introduce new variables for each new term it forces and if 'DatumEvaluator' returned 'Either' (so we could reconstruct @e@ with variables in place)
                     return . Neutral . syn $ Case_ e bs
                 Just (Matched ss Nil1, body) ->
                     pushes (toStatements ss) body evaluate
 
-        -- HACK: these cases are impossible, and ghc can confirm that (via no warnings about the empty case analysis being incomplete), but ghc can't infer it for some reason
+        -- HACK: these cases are impossible, and ghc can confirm
+        -- that (via no warnings about the empty case analysis being
+        -- incomplete), but ghc can't infer it for some reason
         Lam_ :$ es -> case es of {}
         App_ :$ es -> case es of {}
         Let_ :$ es -> case es of {}
@@ -140,6 +147,15 @@ evaluate e0 =
         UnsafeFrom_ _ :$ es -> case es of {}
         Expect :$ es -> case es of {}
 
+
+-- TODO: At present, whenever we residualize a case expression we'll
+-- generate a 'Neutral' term which will, when run, repeat the work
+-- we're doing in the evaluation here. We could eliminate this
+-- redundancy by introducing a new variable for @e@ each time this
+-- function is called--- if only we had some way of getting those
+-- variables put into the right place for when we residualize the
+-- original scrutinee...
+--
 -- Factored out to the top level, since 'DatumEvaluator' is a rank-2 type
 evaluateDatum :: (ABT AST abt) => DatumEvaluator abt (M abt)
 evaluateDatum e = viewWhnfDatum <$> evaluate e
@@ -156,17 +172,18 @@ toStatements = map (\(Assoc x e) -> SLet x $ Thunk e) . ($ [])
 -- TODO: figure out how to abstract this so it can be reused by
 -- 'constrainValue'. Especially the 'SBranch case of 'step'
 --
--- BUG: we need (a) a variant of 'update' which doesn't 'perform'
--- if it finds an 'SBind' or else, (b) better ways of converting
--- between 'M' and 'M''.
+-- TODO: make this function monad-polymorphic, and have it take
+-- some sort of continuation for the one case where we need to
+-- 'perform'. This way we can generalize over the notion of
+-- \"performing\" in order to reuse this function with Sample.hs
+-- and Expect.hs
 --
--- TODO: it's unclear what this function should really return. The
--- simplest thing would be to return @()@ since we're always returning
--- @Neutral(var x)@ so we can just have the caller do that themselves;
--- but returning @()@ breaks down in the case where we have to
--- residualize a case expression.
---
--- TODO: More particularly, it seems like we really ought to return some sort of 'NamedWhnf' which gives both the variable and whatever it evaluated to. The reasoning is thus: when residualizing we need the variable name so that we don't lose sharing; however, we need to return the actual value so that we can dispatch on it when evaluating 'Case_'--- otherwise we'll 'GotStuck' simply because we didn't substitute the known value a variable is bound to.
+-- TODO: we could speed up the case for free variables by having
+-- the 'Context' also keep track of the largest free var. That way,
+-- we can just check up front whether @varID x <= maxFreeVarID@.
+-- Of course, we'd have to make sure we've sufficiently renamed all
+-- bound variables to be above @maxFreeVarID@; but then we have to
+-- do that anyways.
 update :: forall abt a. (ABT AST abt) => Variable a -> M abt (Whnf abt a)
 update x = loop []
     where
@@ -176,7 +193,7 @@ update x = loop []
         case ms of
             Nothing -> do
                 naivePushes ss
-                return (Neutral $ var x)
+                return (Neutral $ var x) -- turns out @x@ is a free variable
             Just s  ->
                 case step s of
                 Nothing -> loop (s:ss)
@@ -219,7 +236,8 @@ update x = loop []
             updateBranch ys pat w
     step _ = Nothing
 
-    -- TODO: we must be sure to push @SBranch ys pat (Whnf_ w)@ or whatever 'Assocs' it reduces to back onto the context. Otherwise, we'll lose variable bindings!
+    -- TODO: double check to make sure we don't accidentally drop the bindings for @ys@.
+    -- BUG: this idea seemed to work fine for the @unleft@\/@unright@ examples in the paper, but it doesn't generalize. In particular, this can cause us to recursively residualize 'SBranch' things all up the heap; but since things can have multiple branches in general, that means we can end up generating some severely bloated code! I think in general we really shouldn't have 'SBranch' as a 'Statement' (unless we're doing HNF in lieu of WHNF); it's really just a special case for source code using @unleft@\/@unright@ and 'MBind'-ing the result, and we should probably treat it like that; i.e., just like any other 'SBind'.
     updateBranch
         :: forall (xs :: [Hakaru]) (b :: Hakaru)
         .  List1 Variable xs
@@ -242,7 +260,7 @@ update x = loop []
                 Just (Matched ss Nil1) ->
                     naivePushes (toStatements ss) >> update x
                 Just GotStuck -> residualizeCase (fromWhnf w)
-                Nothing -> error "TODO: updateBranch" -- P.reject
+                Nothing -> error "TODO: update{SBranch}: match is guaranteed to fail" -- P.reject
 
 
 -- TODO: move this to ABT.hs\/Variable.hs
@@ -277,54 +295,59 @@ instance Interp 'HReal Double where -- TODO: use rational instead
     reflect = WValue . VReal
 
 {-
--- TODO: generalize matchBranches\/MatchResult to allow any sort of continuation...
--- BUG: """Could not deduce (Eq1 (abt '[])) arising from a use of ‘==’"""
+identifyDatum :: (ABT AST abt) => DatumEvaluator abt Identity
+identifyDatum = return . viewWhnfDatum
+
+foo = ...like viewWhnfDatum but with the type of fromWhnf...
+
 instance Interp HUnit () where
     reflect () = WValue $ VDatum dUnit
-    reify w =
-        -- HACK!!!
-        let d = case w of
-                WValue (VDatum d) -> fmap11 P.value_ d
-                WDatum         d  -> d
-        in
-        if d == dUnit
-        then ()
-        else error "reify{HUnit}: the impossible happened"
+    reify w = runIdentity $ do
+        match <- matchTopPattern identifyDatum (foo w) pUnit Nil1
+        case match of
+            Just (Matched _ss Nil1) -> return ()
+            _ -> error "reify{HUnit}: the impossible happened"
 
 instance Interp HBool Bool where
     reflect = WValue . VDatum . (\b -> if b then dTrue else dFalse)
-    reify w =
-        -- HACK!!!
-        let d = case w of
-                WValue (VDatum d) -> fmap11 P.value_ d
-                WDatum         d  -> d
-        in
-        if d == dTrue  then True  else
-        if d == dFalse then False else
-        error "reify{HBool}: the impossible happened"
+    reify w = runIdentity $ do
+        match <- matchTopPattern identifyDatum (foo w) pTrue Nil1
+        case match of
+            Just (Matched _ss Nil1) -> return True
+            match <- matchTopPattern identifyDatum (foo w) pFalse Nil1
+            case match of
+                Just (Matched _ss Nil1) -> return False
+                _ -> error "reify{HBool}: the impossible happened"
 
 instance (Interp a a', Interp b b')
     => Interp (HPair a b) (a',b')
     where
-    reify =
     reflect (a,b) = P.pair a b
+    reify w = runIdentity $ do
+        match <- matchTopPattern identifyDatum (foo w) (pPair PVar PVar) (Cons1 x (Cons1 y Nil1))
+        case match of
+            Just (Matched ss Nil1) ->
+                case xs [] of
+                [Assoc _x e1, Assoc _y e2] -> return (reify e1, reify e2)
+                _ -> error "reify{HPair}: the impossible happened"
+            _ -> error "reify{HPair}: the impossible happened"
 
 instance (Interp a a', Interp b b')
     => Interp (HEither a b) (Either a' b')
     where
-    reify =
     reflect (Left  a) = P.left  a
     reflect (Right b) = P.right b
+    reify =
 
 instance (Interp a a') => Interp (HMaybe a) (Maybe a') where
-    reify =
     reflect Nothing  = P.nothing
     reflect (Just a) = P.just a
+    reify =
 
 instance (Interp a a') => Interp (HList a) [a'] where
-    reify =
     reflect []     = P.nil
     reflect (x:xs) = P.cons x xs
+    reify =
 -}
 
 
