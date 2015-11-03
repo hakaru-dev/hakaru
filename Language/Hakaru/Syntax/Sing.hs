@@ -411,6 +411,7 @@ isCodeFor
     -> Sing (t :: HakaruCon Hakaru)
     -> Maybe (TypeEq xss (Code t))
 isCodeFor = error "TODO: isCodeFor"
+    -- Potential approach: define @toCodeSing :: Sing t -> Sing (Code t)@ and then use 'jmEq1'.
 
 toSing_Con
     :: HakaruCon Hakaru
