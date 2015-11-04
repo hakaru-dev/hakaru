@@ -213,6 +213,7 @@ op_factor =     try (M.liftM UValue floating)
             <|> try (M.liftM UValue int)
             <|> try var
             <|> try pairs
+            <|> parens expr
 
 op_expr :: Parser (AST' Text)
 op_expr = Ex.buildExpressionParser table op_factor

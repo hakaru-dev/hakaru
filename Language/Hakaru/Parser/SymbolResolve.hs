@@ -160,6 +160,8 @@ normAST ast =
                              v@(U.Var _) -> normAST (U.App v x)
                              f'          -> U.App f' x
 
+      U.NaryOp op e1 e2 -> U.NaryOp op (normAST e1) (normAST e2)                                        
+
       U.Bind name e1 e2 -> U.Bind name (normAST e1) (normAST e2)
 
       U.Dirac e1        -> U.Dirac e1
