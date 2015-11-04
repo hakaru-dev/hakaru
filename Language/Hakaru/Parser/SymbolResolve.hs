@@ -35,28 +35,25 @@ data Symbol' a where
      TLam' :: ([a] -> a) -> Symbol' a
      TNeu' :: a -> Symbol' a
 
-type TypeTable = [(Text, Symbol' Hakaru)]
+type TypeTable = [(Text, Symbol' U.SSing)]
 
-hPair   a b = HData (TyCon (read "Pair")   :@ a :@ b) [ [ K a, K b] ]
-hEither a b = HData (TyCon (read "Either") :@ a :@ b) [ [ K a], [ K b] ]
-hMaybe  a   = HData (TyCon (read "Maybe")  :@ a) [ [], [ K a] ]
-
-
-primTypes :: [(Text, Symbol' Hakaru)]
-primTypes =  [ ("nat",  TNeu' HNat)
-             , ("int",  TNeu' HInt)
-             , ("prob", TNeu' HProb)
-             , ("real", TNeu' HReal)
-             , ("either", TLam' (\ [a,b] -> hEither a b))
-             , ("pair", TLam' (\ [a,b] -> hPair a b))
-             , ("maybe", TLam' (\ [a] -> hMaybe a))
+primTypes :: [(Text, Symbol' U.SSing)]
+primTypes =  [ ("nat",  TNeu' $ U.SSing SNat)
+             , ("int",  TNeu' $ U.SSing SInt)
+             , ("prob", TNeu' $ U.SSing SProb)
+             , ("real", TNeu' $ U.SSing SReal)
+             , ("either", TLam' (\ [U.SSing a, U.SSing b] -> U.SSing $ sEither a b))
+             , ("pair",   TLam' (\ [U.SSing a, U.SSing b] -> U.SSing $ sPair a b))
+             , ("maybe",  TLam' (\ [U.SSing a] -> U.SSing $ sMaybe a))
              ]
 
-makeType :: U.TypeAST' -> Hakaru
+makeType :: U.TypeAST' -> U.SSing
 makeType (U.TypeVar t)      = case lookup t primTypes of
                                 Just (TNeu' t') -> t'
                                 Nothing -> error $ "Type " ++ show t ++ " is not a primitive"
-makeType (U.TypeFun f x)    = (makeType f) :-> (makeType x)
+makeType (U.TypeFun f x)    = case (makeType f, makeType x) of
+                                (U.SSing f', U.SSing x') -> U.SSing $ SFun f' x'
+
 makeType (U.TypeApp f args) = case lookup f primTypes of
                                Just (TLam' f') -> f' (map makeType args)
                                Nothing -> error $ "Type " ++ show f ++ " is not a primitive"
@@ -160,6 +157,8 @@ normAST ast =
       U.App f x         -> case normAST f of
                              v@(U.Var _) -> normAST (U.App v x)
                              f'          -> U.App f' x
+
+      U.Ann e typ1      -> U.Ann (normAST e) typ1
 
       U.NaryOp op e1 e2 -> U.NaryOp op (normAST e1) (normAST e2)                                        
 

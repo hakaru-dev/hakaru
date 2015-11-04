@@ -46,6 +46,9 @@ data SealedOp op where
       => !(op typs a)
       -> SealedOp op
 
+data SSing where 
+     SSing :: forall (a :: Hakaru). Sing a -> SSing
+
 type Name' = Text
 
 data Branch'  a =
@@ -135,7 +138,7 @@ data AST a =
    | App_        (AST a) (AST a)
    | Fix_        Name    (AST a)
    | Let_        Name    (AST a) (AST a)
-   | Ann_        (AST a) Hakaru
+   | Ann_        (AST a) SSing
    | CoerceTo_   (Some2 Coercion) (AST a)
    | UnsafeTo_   (Some2 Coercion) (AST a)
    | PrimOp_     (SealedOp PrimOp) [AST a]
