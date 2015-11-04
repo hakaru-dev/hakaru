@@ -96,6 +96,17 @@ def3 = unlines ["def foo(x):"
                ,"foo(-2.0)"
                ]
 
+def4 :: Text
+def4 = unlines ["def foo(x nat) nat:"
+               ,"    x+3"
+               ,"foo(5)"
+               ]
+
+def1AST :: AST' Text
+def1AST = Let "foo"
+              (Lam "x" (NaryOp Sum' (Var "x") (UValue (Nat 3))))
+              (App (Var "foo") (UValue (Nat 5)))
+
 def2AST :: AST' Text
 def2AST = Let "foo"
               (Lam "x" (Bind "y" (App (App
@@ -105,10 +116,12 @@ def2AST = Let "foo"
                                         (TypeVar "real")))))
               (App (Var "foo") (UValue (Real (-2.0))))
 
-def1AST :: AST' Text
-def1AST = Let "foo"
-              (Lam "x" (NaryOp Sum' (Var "x") (UValue (Nat 3))))
-              (App (Var "foo") (UValue (Nat 5)))
+def3AST :: AST' Text
+def3AST = Let "foo" (Ann
+                     (Lam "x" (NaryOp Sum' (Var "x")
+                               (UValue (Nat 3))))
+                     (TypeFun (TypeVar "nat") (TypeVar "nat")))
+          (App (Var "foo") (UValue (Nat 5)))
 
 testLams :: Test
 testLams = test
@@ -116,6 +129,7 @@ testLams = test
    , testParse def1 def1AST
    , testParse def2 def1AST
    , testParse def3 def2AST
+   , testParse def4 def3AST
    ]
 
 let1 :: Text

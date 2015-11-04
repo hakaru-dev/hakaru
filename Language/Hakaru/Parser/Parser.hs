@@ -7,7 +7,7 @@ import Prelude hiding (Real)
 import Control.Applicative ((<$>), (<*))
 import qualified Control.Monad as M
 import Data.Functor.Identity
-import Data.Text hiding (foldr1, foldl)
+import Data.Text hiding (foldr1, foldl, foldr, map)
 
 import Text.Parsec hiding (Empty)
 import Text.ParserCombinators.Parsec (chainl1)
@@ -263,17 +263,35 @@ def_expr = do
   reserved "def"
   name <- identifier
 
-  args <- parens $ commaSep identifier
+  args <- parens $ commaSep defarg
+  retType <- optionMaybe type_expr
   reservedOp ":"
-  
+
   body <- localIndentation Ge expr
   rest <- expr
 
-  return $ Let name (defargs args body) rest
+  let body' = mkLams (map fst args) body
 
-defargs :: [Text] -> AST' Text -> AST' Text
-defargs (a:as) body = Lam a (defargs as body)
-defargs []     body = body 
+  case mkDefAnn retType (map snd args) of
+    Nothing  -> return $ Let name body' rest
+    Just typ -> return $ Let name (Ann body' typ) rest
+
+defarg :: Parser (Text, Maybe TypeAST')
+defarg = do
+  name <- identifier
+  typ  <- optionMaybe type_expr
+  return (name, typ)
+
+mkLams :: [Text] -> AST' Text -> AST' Text
+mkLams (a:as) body = Lam a (mkLams as body)
+mkLams []     body = body 
+
+mkDefAnn :: Maybe TypeAST' -> [Maybe TypeAST'] -> Maybe TypeAST'
+mkDefAnn ret args = case sequence (ret:args) of
+                      Nothing ->
+                          Nothing
+                      Just (ret':args') ->
+                          Just $ foldr TypeFun ret' args'
 
 call_expr :: Parser (AST' Text)
 call_expr = do
