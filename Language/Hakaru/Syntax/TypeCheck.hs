@@ -46,9 +46,9 @@ import qualified Data.Traversable      as T
 import qualified Data.Foldable         as F
 import qualified Data.Sequence         as S
 #if __GLASGOW_HASKELL__ < 710
-import           Control.Applicative   (Applicative(..), (<$>),
-                                        Alternative(..))
+import           Control.Applicative   (Applicative(..), (<$>))
 #endif
+import           Control.Applicative   (Alternative(..))
 import qualified Language.Hakaru.Parser.AST as U
 
 import Language.Hakaru.Syntax.Nat      (fromNat)
