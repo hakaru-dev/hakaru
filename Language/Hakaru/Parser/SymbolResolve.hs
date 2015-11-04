@@ -109,7 +109,8 @@ symbolResolution symbols ast =
                              Just a  -> return $ U.Var a
 
       U.Lam name x      -> do name' <- gensym name
-                              x'    <- symbolResolution symbols x
+                              x'    <- symbolResolution
+                                       (updateSymbols name' symbols) x
                               return $ U.Lam (mkSym name') x'
 
       U.App f x         -> do f' <- symbolResolution symbols f
