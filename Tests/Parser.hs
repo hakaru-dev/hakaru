@@ -211,18 +211,17 @@ ann2AST :: AST' Text
 ann2AST = Ann (App (App (Var "Pair")
                             (UValue (Nat 2)))
                             (UValue (Nat 3)))
-          (TypeApp (TypeApp
-                    (TypeVar "pair")
-                    (TypeVar "a"))
-                    (TypeVar "b"))
+          (TypeApp "pair"
+                   [(TypeVar "a")
+                   ,(TypeVar "b")
+                   ])
 
 ann3 :: Text
 ann3 = "f :: a -> measure(a)"
 
 ann3AST :: AST' Text
 ann3AST = Ann (Var "f") (TypeFun (TypeVar "a")
-                         (TypeApp (TypeVar "measure")
-                                      (TypeVar "a")))
+                         (TypeApp "measure" [(TypeVar "a")]))
 
 testAnn :: Test
 testAnn = test
