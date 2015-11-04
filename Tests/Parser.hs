@@ -89,6 +89,22 @@ def2 = unlines ["def foo(x): x + 3"
                ,"foo(5)"
                ]
 
+def3 :: Text
+def3 = unlines ["def foo(x):"
+               ,"    y <~ normal(x,1.0)"
+               ,"    return (y + y :: real)"
+               ,"foo(-2.0)"
+               ]
+
+def2AST :: AST' Text
+def2AST = Let "foo"
+              (Lam "x" (Bind "y" (App (App
+                                       (Var "normal") (Var "x"))
+                                  (UValue (Prob 1.0)))
+                        (Dirac (Ann (NaryOp Sum' (Var "y") (Var "y"))
+                                        (TypeVar "real")))))
+              (App (Var "foo") (UValue (Real (-2.0))))
+
 def1AST :: AST' Text
 def1AST = Let "foo"
               (Lam "x" (NaryOp Sum' (Var "x") (UValue (Nat 3))))
@@ -99,6 +115,7 @@ testLams = test
    [ testParse lam1 lam1AST
    , testParse def1 def1AST
    , testParse def2 def1AST
+   , testParse def3 def2AST
    ]
 
 let1 :: Text

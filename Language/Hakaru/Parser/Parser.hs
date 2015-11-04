@@ -266,7 +266,7 @@ def_expr = do
   args <- parens $ commaSep identifier
   reservedOp ":"
   
-  body <- expr
+  body <- localIndentation Ge expr
   rest <- expr
 
   return $ Let name (defargs args body) rest
