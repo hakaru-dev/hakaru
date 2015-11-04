@@ -271,6 +271,18 @@ easyRoad1 = unlines ["noiseT <~ uniform(3, 8)"
                     ,"return ((m1, m2), (noiseT, noiseE))"
                     ]
 
+easyRoad2 :: Text
+easyRoad2 = unlines ["(noiseT <~ uniform(fromProb(3.0), fromProb(8.0))"
+                    ," noiseE <~ uniform(fromProb(1.0), fromProb(4.0))"
+                    ," x1 <~ normal(-0.0, unsafeProb(noiseT))"
+                    ," m1 <~ normal(x1, unsafeProb(noiseE))"
+                    ," x2 <~ normal(x1, unsafeProb(noiseT))"
+                    ," m2 <~ normal(x2, unsafeProb(noiseE))"
+                    ," return ((m1, m2), (noiseT, noiseE))"
+                    ,") :: measure(pair(pair(real,real),pair(real,real)))"
+                    ]
+
+
 easyRoadAST :: AST' Text
 easyRoadAST = Bind "noiseT" (App (App (Var "uniform")
                                           (UValue (Nat 3)))

@@ -42,9 +42,14 @@ primTypes =  [ ("nat",  TNeu' $ U.SSing SNat)
              , ("int",  TNeu' $ U.SSing SInt)
              , ("prob", TNeu' $ U.SSing SProb)
              , ("real", TNeu' $ U.SSing SReal)
-             , ("either", TLam' (\ [U.SSing a, U.SSing b] -> U.SSing $ sEither a b))
-             , ("pair",   TLam' (\ [U.SSing a, U.SSing b] -> U.SSing $ sPair a b))
-             , ("maybe",  TLam' (\ [U.SSing a] -> U.SSing $ sMaybe a))
+             , ("measure", TLam' (\ [U.SSing a] ->
+                                      U.SSing $ SMeasure a))
+             , ("either",  TLam' (\ [U.SSing a, U.SSing b] ->
+                                      U.SSing $ sEither a b))
+             , ("pair",    TLam' (\ [U.SSing a, U.SSing b] ->
+                                      U.SSing $ sPair a b))
+             , ("maybe",   TLam' (\ [U.SSing a] ->
+                                      U.SSing $ sMaybe a))
              ]
 
 makeType :: U.TypeAST' -> U.SSing
@@ -74,7 +79,7 @@ primTable =  [("Pair",       primPair)
              ]
 
 primNormal  = t2 (\x y -> U.MeasureOp_ (U.SealedOp T.Normal) [x,y])
-primUniform = t2 (\x y -> U.MeasureOp_ (U.SealedOp T.Normal) [x,y])
+primUniform = t2 (\x y -> U.MeasureOp_ (U.SealedOp T.Uniform) [x,y])
 primPair = t2 (\a b -> U.Datum_ $
               U.Datum "pair" (U.Inl $ U.Konst a `U.Et` U.Konst b `U.Et` U.Done))
 
@@ -164,7 +169,7 @@ normAST ast =
 
       U.Bind name e1 e2 -> U.Bind name (normAST e1) (normAST e2)
 
-      U.Dirac e1        -> U.Dirac e1
+      U.Dirac e1        -> U.Dirac (normAST e1)
 
       v                 -> v
 
