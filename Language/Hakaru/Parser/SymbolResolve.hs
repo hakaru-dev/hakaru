@@ -137,15 +137,15 @@ symbolResolution symbols ast =
                               e2' <- symbolResolution symbols e2
                               return $ U.NaryOp op e1' e2'
 
+      U.Dirac e1        -> do e1' <- symbolResolution symbols e1
+                              return $ U.Dirac e1'
+
       U.Bind name e1 e2 -> do name' <- gensym name
                               e1'   <- symbolResolution symbols e1
                               e2'   <- symbolResolution
                                        (updateSymbols name' symbols) e2
                               return $ U.Bind (mkSym name') e1' e2'
       
-      U.Dirac e1        -> do e1' <- symbolResolution symbols e1
-                              return $ U.Dirac e1'
-
 -- make AST and give unique names for variables
 
 -- | The logic here is to do normalization by evaluation for our
@@ -163,13 +163,15 @@ normAST ast =
                              v@(U.Var _) -> normAST (U.App v x)
                              f'          -> U.App f' x
 
+      U.Let name e1 e2  -> U.Let name (normAST e1) (normAST e2)
+
       U.Ann e typ1      -> U.Ann (normAST e) typ1
 
       U.NaryOp op e1 e2 -> U.NaryOp op (normAST e1) (normAST e2)                                        
 
-      U.Bind name e1 e2 -> U.Bind name (normAST e1) (normAST e2)
-
       U.Dirac e1        -> U.Dirac (normAST e1)
+
+      U.Bind name e1 e2 -> U.Bind name (normAST e1) (normAST e2)
 
       v                 -> v
 
@@ -200,11 +202,11 @@ makeAST ast =
                                         , makeAST e2
                                         ]
 
+      U.Dirac e1 -> U.Dirac_ (makeAST e1)
+
       U.Bind (TNeu (U.Var_ name)) e1 e2 -> U.MBind_ name
                                            (makeAST e1)
                                            (makeAST e2)
-
-      U.Dirac e1 -> U.Dirac_ (makeAST e1)
 
 data PrimOp' =
      Not'        
