@@ -141,7 +141,7 @@ mustCheck = go
     go (U.MBind_  _ _ e2) = mustCheck e2
     go (U.MeasureOp_ _ _) = False
     go (U.Expect_ _ _ e2) = mustCheck e2
-    go (U.Superpose_ _)   = True
+    go (U.Superpose_ _)   = True -- TODO: like NaryOp, if any of the second expressions is inferrable, then we can infer everything by checking the rest
     go (U.Lub_ es)        = error "TODO: mustCheck{Lub_}" -- TODO: inferrable iff at least one component is inferrable?
 
 
