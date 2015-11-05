@@ -154,6 +154,10 @@ symbolResolution symbols ast =
 normAST :: U.AST' (Symbol (U.AST a)) -> U.AST' (Symbol (U.AST a))
 normAST ast =
     case ast of
+      Var a             -> Var a
+
+      Lam name f        -> Lam name (normAST f)
+
       U.App (U.Var t) x -> case t of
                             TLam f' ->
                                 U.Var $ f' (makeAST $ normAST x)
@@ -165,15 +169,27 @@ normAST ast =
 
       U.Let name e1 e2  -> U.Let name (normAST e1) (normAST e2)
 
+      U.If e1 e2 e3     -> U.If (normAST e1) (normAST e2) (normAST e3)
+
       U.Ann e typ1      -> U.Ann (normAST e) typ1
 
+      U.Infinity        -> U.Infinity
+
+      U.NegInfinity     -> U.NegInfinity
+
       U.NaryOp op e1 e2 -> U.NaryOp op (normAST e1) (normAST e2)                                        
+
+      U.Empty           -> U.Empty
+
+      U.Case e1 e2      -> U.Case (normAST e1) e2
 
       U.Dirac e1        -> U.Dirac (normAST e1)
 
       U.Bind name e1 e2 -> U.Bind name (normAST e1) (normAST e2)
 
-      v                 -> v
+      U.Data name typ   -> U.Data name typ 
+
+      U.WithMeta a meta -> U.WithMeta (normAST a) meta
 
 makeAST :: U.AST' (Symbol (U.AST a)) -> U.AST a
 makeAST ast =
