@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.03
+--                                                    2015.11.05
 -- |
 -- Module      :  Language.Hakaru.Lazy
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -86,6 +86,7 @@ evaluate e0 =
         -- Everything else needs some evaluation
 
         App_ :$ e1 :* e2 :* End -> do
+            -- This implementation gives call-by-need beta-reduction.
             w1 <- evaluate e1
             caseNeutralHead w1
                 (\e1' -> return . Neutral $ P.app e1' e2)
@@ -165,7 +166,7 @@ type DList a = [a] -> [a]
 toStatements
     :: DList (Assoc abt)
     -> [Statement abt]
-toStatements = map (\(Assoc x e) -> SLet x $ Thunk e) . ($ [])
+toStatements ss = map (\(Assoc x e) -> SLet x $ Thunk e) (ss [])
 
 
 ----------------------------------------------------------------
@@ -508,6 +509,8 @@ unsafeFrom c e0 =
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
+-- TODO: 'perform' should move to Disintegrate.hs
+
 -- N.B., that return type is correct, albeit strange. The idea is that the continuation takes in the variable of type @a@ bound by the expression of type @'HMeasure a@. However, this requires that the continuation of the 'Ans' type actually does @forall a. ...('HMeasure a)@ which is at odds with what 'evaluate' wants (or at least, what *I* think it should want.)
 -- BUG: eliminate the 'SingI' requirement (comes from using @(P.>>=)@)
 -- BUG: use 'freshNat' when generating names for @(P.>>=)@ rather than using the HOAS API.

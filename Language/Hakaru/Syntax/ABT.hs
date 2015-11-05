@@ -404,13 +404,13 @@ instance (Show1 (Sing :: k -> *), Show1 (syn (TrivialABT syn)))
 -- memoized 'nextFree' must be lazy for the same reason.
 data MemoizedABT (syn :: ([k] -> k -> *) -> k -> *) (xs :: [k]) (a :: k) =
     MemoizedABT
-        { memoizedFreeVars_ :: Set (SomeVariable (KindOf a)) -- N.B., lazy!
+        { _memoizedFreeVars :: Set (SomeVariable (KindOf a)) -- N.B., lazy!
         , memoizedNextFree  :: Nat -- N.B., lazy!
         , memoizedNextBind  :: {-# UNPACK #-} !Nat
         , memoizedView      :: !(View (syn (MemoizedABT syn)) xs a)
         }
 
--- HACK: ""Cannot use record selector ‘memoizedFreeVars_’ as a function due to escaped type variables""
+-- HACK: ""Cannot use record selector ‘_memoizedFreeVars’ as a function due to escaped type variables""
 memoizedFreeVars :: MemoizedABT syn xs a -> Set (SomeVariable (KindOf a))
 memoizedFreeVars (MemoizedABT xs _ _ _) = xs
 

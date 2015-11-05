@@ -136,12 +136,20 @@ viewWhnfDatum
 viewWhnfDatum (NamedWhnf _ v)             = viewWhnfDatum v
 viewWhnfDatum (Head_ (WValue (VDatum d))) = Just (fmap11 (syn . Value_) d)
 viewWhnfDatum (Head_ (WDatum d))          = Just d
-viewWhnfDatum (Neutral e)                 = 
+viewWhnfDatum (Neutral e)                 = Nothing
+    -- N.B., we always return Nothing for Neutral terms because of
+    -- what Neutral is supposed to mean. If we wanted to be paranoid
+    -- then we could use the following code to throw an error if
+    -- we're given a \"neutral\" term which is in fact a head
+    -- (because that indicates an error in our logic of constructing
+    -- 'Neutral' values):
+    {-
     caseVarSyn e (const Nothing) $ \t ->
         case t of
-        Value_ (VDatum d) -> Just (fmap11 (syn . Value_) d)
-        Datum_         d  -> Just d
+        Value_ (VDatum d) -> error "bad \"neutral\" value!"
+        Datum_         d  -> error "bad \"neutral\" value!"
         _                 -> Nothing
+    -}
 
 
 -- | Call one of two continuations based on whether we have a neutral
@@ -265,10 +273,11 @@ data Context (abt :: [Hakaru] -> Hakaru -> *) = Context
 -- type or locally-bound variables are, so we want to allow @f@ to
 -- contain terms with different indices.
 initContext :: (ABT AST abt, F.Foldable f) => f (Some2 abt) -> Context abt
-initContext es = Context (nextimumFree es) []
+initContext es = Context (maximumNextFree es) []
     where
-    nextimumFree :: (ABT AST abt, F.Foldable f) => f (Some2 abt) -> Nat
-    nextimumFree = unMaxNat . F.foldMap (\(Some2 e) -> MaxNat $ nextFree e)
+    maximumNextFree :: (ABT AST abt, F.Foldable f) => f (Some2 abt) -> Nat
+    maximumNextFree =
+        unMaxNat . F.foldMap (\(Some2 e) -> MaxNat $ nextFree e)
     -- N.B., 'Foldable' doesn't get 'F.null' until ghc-7.10
 
 
