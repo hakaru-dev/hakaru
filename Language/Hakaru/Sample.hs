@@ -169,13 +169,10 @@ sampleScon :: (ABT AST abt, PrimMonad m, Functor m) =>
               SCon args a -> SArgs abt args ->
               Env m -> S m a
 
-sampleScon (CoerceTo_   c) (e1 :* End) env =
-    let v = sample (LC_ e1) env
-    in  sampleCoerce c v
-
-sampleScon (UnsafeFrom_ c) (e1 :* End) env =
-    let v = sample (LC_ e1) env
-    in  sampleUnsafe c v
+sampleScon App_ (e1 :* e2 :* End)      env =
+    let S f = sample (LC_ e1) env
+        S x = sample (LC_ e2) env in
+    S (f x)
 
 sampleScon Let_ (e1 :* e2 :* End)      env =
     let S v = sample (LC_ e1) env in
@@ -183,6 +180,14 @@ sampleScon Let_ (e1 :* e2 :* End)      env =
         sample (LC_ e2') (updateEnv (EAssoc x v) env)
 
 sampleScon (Ann_   _)      (e1 :* End) env = sample (LC_ e1) env
+
+sampleScon (CoerceTo_   c) (e1 :* End) env =
+    let v = sample (LC_ e1) env
+    in  sampleCoerce c v
+
+sampleScon (UnsafeFrom_ c) (e1 :* End) env =
+    let v = sample (LC_ e1) env
+    in  sampleUnsafe c v
 
 sampleScon (MeasureOp_  m) es env = sampleMeasureOp m es env
 

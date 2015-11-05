@@ -154,9 +154,9 @@ symbolResolution symbols ast =
 normAST :: U.AST' (Symbol (U.AST a)) -> U.AST' (Symbol (U.AST a))
 normAST ast =
     case ast of
-      Var a             -> Var a
+      U.Var a           -> U.Var a
 
-      Lam name f        -> Lam name (normAST f)
+      U.Lam name f      -> U.Lam name (normAST f)
 
       U.App (U.Var t) x -> case t of
                             TLam f' ->
