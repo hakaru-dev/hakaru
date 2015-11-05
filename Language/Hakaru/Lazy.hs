@@ -180,9 +180,9 @@ toStatements = map (\(Assoc x e) -> SLet x $ Thunk e) . ($ [])
 --
 -- TODO: we could speed up the case for free variables by having
 -- the 'Context' also keep track of the largest free var. That way,
--- we can just check up front whether @varID x <= maxFreeVarID@.
+-- we can just check up front whether @varID x < nextFreeVarID@.
 -- Of course, we'd have to make sure we've sufficiently renamed all
--- bound variables to be above @maxFreeVarID@; but then we have to
+-- bound variables to be above @nextFreeVarID@; but then we have to
 -- do that anyways.
 update :: forall abt a. (ABT AST abt) => Variable a -> M abt (Whnf abt a)
 update x = loop []

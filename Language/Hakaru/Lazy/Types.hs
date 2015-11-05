@@ -10,7 +10,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.02
+--                                                    2015.11.05
 -- |
 -- Module      :  Language.Hakaru.Lazy.Types
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -265,10 +265,10 @@ data Context (abt :: [Hakaru] -> Hakaru -> *) = Context
 -- type or locally-bound variables are, so we want to allow @f@ to
 -- contain terms with different indices.
 initContext :: (ABT AST abt, F.Foldable f) => f (Some2 abt) -> Context abt
-initContext es = Context (1 + maximumFree es) []
+initContext es = Context (nextimumFree es) []
     where
-    maximumFree :: (ABT AST abt, F.Foldable f) => f (Some2 abt) -> Nat
-    maximumFree = unMaxNat . F.foldMap (\(Some2 e) -> MaxNat $ maxFree e)
+    nextimumFree :: (ABT AST abt, F.Foldable f) => f (Some2 abt) -> Nat
+    nextimumFree = unMaxNat . F.foldMap (\(Some2 e) -> MaxNat $ nextFree e)
     -- N.B., 'Foldable' doesn't get 'F.null' until ghc-7.10
 
 
@@ -314,6 +314,7 @@ type Ans abt a = Context abt -> Whnf abt a
 -- for finding\/replacing a binding once we have the value in hand.
 --
 -- TODO: give this a better, more informative name!
+-- N.B., This monad is only used for 'evaluate'. Both 'perform' and 'constrainOutcome', but also 'constrainValue' must use 'M''
 newtype M abt x = M { unM :: forall a. (x -> Ans abt a) -> Ans abt a }
 
 {-
@@ -434,6 +435,7 @@ naivePushes ss =
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 -- HACK: how can we cleanly unify this with the implementation of 'M'?
+-- N.B., This monad is used not only for both 'perform' and 'constrainOutcome', but also for 'constrainValue'.
 newtype M' abt x =
     M' { unM' :: forall a. (x -> Ans abt ('HMeasure a)) -> Ans abt ('HMeasure a) }
 

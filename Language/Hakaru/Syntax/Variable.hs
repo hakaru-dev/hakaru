@@ -30,7 +30,7 @@ module Language.Hakaru.Syntax.Variable
     -- ** Variables with existentially quantified types
     , KindOf
     , SomeVariable(..)
-    , maxVarID
+    , nextVarID
     
     -- * Some helper types for \"heaps\", \"environments\", etc
     , Assoc(..)
@@ -281,14 +281,15 @@ instance Show1 (Sing :: k -> *)
 
 
 -- TODO: switch from @Set SomeVariable@ to @VarSet = IntSet SomeVariable@
--- | Return the largest 'varID' of all the variables in the set.
--- If the set is empty, then returns zero.
-maxVarID :: Set (SomeVariable kproxy) -> Nat
-maxVarID xs
+-- | Return the successor of the largest 'varID' of all the variables
+-- in the set. Thus, we return zero for the empty set and non-zero
+-- for non-empty sets.
+nextVarID :: Set (SomeVariable kproxy) -> Nat
+nextVarID xs
     | Set.null xs = 0
     | otherwise   =
         case Set.findMax xs of
-        SomeVariable x -> varID x
+        SomeVariable x -> 1 + varID x
 
 
 ----------------------------------------------------------------
