@@ -53,7 +53,6 @@ type instance Sample m 'HInt          = Int
 type instance Sample m 'HReal         = Double 
 type instance Sample m 'HProb         = LF.LogFloat
 
-type instance Sample m (HPair a b)    = (Sample m a, Sample m b)
 type instance Sample m HBool          = Bool
 
 type instance Sample m ('HMeasure a)  =
@@ -168,6 +167,11 @@ sampleAST t env =
 sampleScon :: (ABT AST abt, PrimMonad m, Functor m) =>
               SCon args a -> SArgs abt args ->
               Env m -> S m a
+
+sampleScon Lam_ (e1 :* End)            env =
+    caseBind e1 $ \x e1' ->
+        S (\v -> unS $ sample (LC_ e1')
+                              (updateEnv (EAssoc x v) env))
 
 sampleScon App_ (e1 :* e2 :* End)      env =
     let S f = sample (LC_ e1) env
