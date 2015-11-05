@@ -161,7 +161,7 @@ normAST ast =
       U.App (U.Var t) x -> case t of
                             TLam f' ->
                                 U.Var $ f' (makeAST $ normAST x)
-                            TNeu e -> (U.Var t)
+                            TNeu e -> U.App (U.Var t) (normAST x)
 
       U.App f x         -> case normAST f of
                              v@(U.Var _) -> normAST (U.App v x)
@@ -176,6 +176,8 @@ normAST ast =
       U.Infinity        -> U.Infinity
 
       U.NegInfinity     -> U.NegInfinity
+
+      U.UValue v        -> U.UValue v
 
       U.NaryOp op e1 e2 -> U.NaryOp op (normAST e1) (normAST e2)                                        
 
