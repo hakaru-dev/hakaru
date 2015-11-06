@@ -453,7 +453,6 @@ evaluateNaryOp = \o es -> do
     
     -- | The evaluation interpretation of each NaryOp
     evalOp :: NaryOp a -> Head abt a -> Head abt a -> Head abt a
-    evalOp = error "TODO: evalOp"
     {-
     evalOp And      v1 v2 = reflect (reify v1 && reify v2)
     evalOp Or       v1 v2 = reflect (reify v1 || reify v2)
@@ -464,6 +463,16 @@ evaluateNaryOp = \o es -> do
     evalOp (Sum  _) v1 v2 = reflect (reify v1 + reify v2)
     evalOp (Prod _) v1 v2 = reflect (reify v1 * reify v2)
     -}
+    -- HACK: this is just to have something to test. We really should reduce\/remove all this boilerplate...
+    evalOp (Sum  HSemiring_Nat) (WValue (VNat n1)) (WValue (VNat n2)) = WValue (VNat (n1 + n2))
+    evalOp (Sum  HSemiring_Int) (WValue (VInt i1)) (WValue (VInt i2)) = WValue (VInt (i1 + i2))
+    evalOp (Sum  HSemiring_Prob) (WValue (VProb p1)) (WValue (VProb p2)) = WValue (VProb (p1 + p2))
+    evalOp (Sum  HSemiring_Real) (WValue (VReal r1)) (WValue (VReal r2)) = WValue (VReal (r1 + r2))
+    evalOp (Prod HSemiring_Nat) (WValue (VNat n1)) (WValue (VNat n2)) = WValue (VNat (n1 * n2))
+    evalOp (Prod HSemiring_Int) (WValue (VInt i1)) (WValue (VInt i2)) = WValue (VInt (i1 * i2))
+    evalOp (Prod HSemiring_Prob) (WValue (VProb p1)) (WValue (VProb p2)) = WValue (VProb (p1 * p2))
+    evalOp (Prod HSemiring_Real) (WValue (VReal r1)) (WValue (VReal r2)) = WValue (VReal (r1 * r2))
+    evalOp _ _ _ = error "TODO: evalOp"
 
 
 ----------------------------------------------------------------
