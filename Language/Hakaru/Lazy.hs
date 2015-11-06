@@ -424,10 +424,9 @@ evaluateNaryOp = \o es -> do
     return $
         case Seq.viewl ws' of
         Seq.EmptyL     -> Neutral $ identityElement o
-        w1 Seq.:< ws'' ->
-            case Seq.viewl ws'' of
-            Seq.EmptyL -> w1 -- Avoid singleton naryOps
-            _          -> Neutral . syn . NaryOp_ o $ fmap fromWhnf ws'
+        w1 Seq.:< ws''
+            | Seq.null ws'' -> w1 -- Avoid singleton naryOps
+            | otherwise     -> Neutral . syn . NaryOp_ o $ fmap fromWhnf ws'
     where
     -- TODO: move this off to Prelude.hs or somewhere...
     identityElement :: (ABT AST abt) => NaryOp a -> abt '[] a
