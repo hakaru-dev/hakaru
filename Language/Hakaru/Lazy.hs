@@ -384,52 +384,55 @@ natRoot x y = x ** recip (fromIntegral (fromNat y))
 
 
 ----------------------------------------------------------------
--- TODO: there's got to be a more efficient way to do this...
-narySnoc
-    :: (ABT syn abt)
-    => (Head abt a -> Head abt a -> Head abt a)
-    -> Seq (Whnf abt a)
-    -> Whnf abt a
-    -> Seq (Whnf abt a)
-narySnoc op = go
-    where
-    go ws w1 =
-        case Seq.viewr ws of
-        Seq.EmptyR    -> Seq.singleton w1
-        ws' Seq.:> w2 ->
-            caseNeutralHead w1 (const (ws Seq.|> w1)) $ \v1 -> 
-            caseNeutralHead w2 (const (ws Seq.|> w1)) $ \v2 -> 
-            go ws' (Head_ (op v1 v2))
-
-naryAppend
-    :: (ABT syn abt)
-    => (Head abt a -> Head abt a -> Head abt a)
-    -> Seq (Whnf abt a)
-    -> Seq (Whnf abt a)
-    -> Seq (Whnf abt a)
-naryAppend op = go
-    where
-    go ws1 ws2 =
-        case Seq.viewl ws2 of
-        Seq.EmptyL     -> ws1
-        w' Seq.:< ws2' -> go (narySnoc op ws1 w') ws2'
-
-
 evaluateNaryOp
     :: (ABT AST abt, EvaluationMonad abt m)
     => NaryOp a
     -> Seq (abt '[] a)
     -> m (Whnf abt a)
-evaluateNaryOp = \o es -> do
-    ws <- T.traverse evaluate es
-    let ws' = naryAppend (evalOp o) Seq.empty ws
-    return $
-        case Seq.viewl ws' of
-        Seq.EmptyL          -> identityElement o
-        w1 Seq.:< ws''
-            | Seq.null ws'' -> w1 -- Avoid singleton naryOps
-            | otherwise     -> Neutral . syn . NaryOp_ o $ fmap fromWhnf ws'
+evaluateNaryOp = \o es -> mainLoop o (evalOp o) Seq.empty es
     where
+    -- TODO: there's got to be a more efficient way to do this...
+    mainLoop o op ws es =
+        case Seq.viewl es of
+        Seq.EmptyL   -> return $
+            case Seq.viewl ws of
+            Seq.EmptyL         -> identityElement o
+            w Seq.:< ws'
+                | Seq.null ws' -> w -- Avoid singleton naryOps
+                | otherwise    ->
+                    Neutral . syn . NaryOp_ o $ fmap fromWhnf ws
+        e Seq.:< es' -> do
+            w <- evaluate e
+            case matchNaryOp o w of
+                Nothing  -> mainLoop o op (snocLoop op ws w) es'
+                Just es2 -> mainLoop o op ws (es2 Seq.>< es')
+
+    snocLoop
+        :: (ABT syn abt)
+        => (Head abt a -> Head abt a -> Head abt a)
+        -> Seq (Whnf abt a)
+        -> Whnf abt a
+        -> Seq (Whnf abt a)
+    snocLoop op ws w1 =
+        case Seq.viewr ws of
+        Seq.EmptyR    -> Seq.singleton w1
+        ws' Seq.:> w2 ->
+            caseNeutralHead w1 (const (ws Seq.|> w1)) $ \v1 -> 
+            caseNeutralHead w2 (const (ws Seq.|> w1)) $ \v2 -> 
+            snocLoop op ws' (Head_ (op v1 v2))
+
+    matchNaryOp
+        :: (ABT AST abt)
+        => NaryOp a
+        -> Whnf abt a
+        -> Maybe (Seq (abt '[] a))
+    matchNaryOp o w =
+        flip (caseNeutralHead w) (const Nothing) $ \e ->
+            caseVarSyn e (const Nothing) $ \t ->
+                case t of
+                NaryOp_ o' es | o' == o -> Just es
+                _                       -> Nothing
+
     -- TODO: move this off to Prelude.hs or somewhere...
     identityElement :: (ABT AST abt) => NaryOp a -> Whnf abt a
     identityElement o =
@@ -438,8 +441,8 @@ evaluateNaryOp = \o es -> do
         Or     -> Head_ (WDatum dFalse)
         Xor    -> Head_ (WDatum dFalse)
         Iff    -> Head_ (WDatum dTrue)
-        Min  _ -> emptyNaryOp o -- no identity in general (but we could do it by cases...)
-        Max  _ -> emptyNaryOp o -- no identity in general (but we could do it by cases...)
+        Min  _ -> Neutral (syn (NaryOp_ o Seq.empty)) -- no identity in general (but we could do it by cases...)
+        Max  _ -> Neutral (syn (NaryOp_ o Seq.empty)) -- no identity in general (but we could do it by cases...)
         -- TODO: figure out how to reuse 'P.zero' and 'P.one' here
         Sum  HSemiring_Nat  -> Head_ (WValue (VNat  0))
         Sum  HSemiring_Int  -> Head_ (WValue (VInt  0))
@@ -449,9 +452,7 @@ evaluateNaryOp = \o es -> do
         Prod HSemiring_Int  -> Head_ (WValue (VInt  1))
         Prod HSemiring_Prob -> Head_ (WValue (VProb 1))
         Prod HSemiring_Real -> Head_ (WValue (VReal 1))
-    
-    emptyNaryOp o = Neutral (syn (NaryOp_ o Seq.empty))
-    
+
     -- | The evaluation interpretation of each NaryOp
     evalOp :: NaryOp a -> Head abt a -> Head abt a -> Head abt a
     {-
