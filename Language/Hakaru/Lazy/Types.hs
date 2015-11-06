@@ -529,7 +529,7 @@ instance EvaluationMonad abt (M abt) where
     getFreshNat =
         M $ \c (Context i ss) ->
             c i (Context (i+1) ss)
-    
+
     unsafePop =
         M $ \c h@(Context i ss) ->
             case ss of
@@ -539,7 +539,9 @@ instance EvaluationMonad abt (M abt) where
     unsafePush s =
         M $ \c (Context i ss) ->
             c () (Context i (s:ss))
-    
+
+    -- N.B., the use of 'reverse' is necessary so that the order
+    -- of pushing matches that of 'pushes'
     unsafePushes ss =
         M $ \c (Context i ss') ->
             c () (Context i (reverse ss ++ ss'))
