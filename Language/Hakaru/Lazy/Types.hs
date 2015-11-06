@@ -50,6 +50,7 @@ module Language.Hakaru.Lazy.Types
     -}
     , push
     , pushes
+    , select
 
     -- * The disintegration monad
     -- Maybe also used by other term-to-term translations?
@@ -325,7 +326,9 @@ residualizeContext = \e h -> foldl step e (statements h)
 ----------------------------------------------------------------
 -- | This class captures the monadic operations needed by the
 -- 'evaluate' function in "Language.Hakaru.Lazy".
-class Monad m => EvaluationMonad abt m | m -> abt where
+class (Functor m, Applicative m, Monad m)
+    => EvaluationMonad abt m | m -> abt
+    where
     -- TODO: should we have a *method* for initializing the stored 'freshNat'; or should we only rely on 'initContext'? Beware correctness issues about updating the lower bound after having called 'getFreshNat'...
 
     -- | Return a fresh natural number. When called repeatedly,
@@ -463,6 +466,40 @@ pushes ss e k = do
     rho <- F.foldlM (\rho s -> mappend rho <$> push_ s) mempty ss
     k (substs rho e)
 
+
+-- | Given some \"predicate\", @p@, we (1) scroll up through the
+-- context until we find a statement, @s@, such that @p s = Just
+-- m@, (2) if we find such an @s@, we pop @s@ off the context and
+-- evaluate @m@, finally (3) regardless of whether we found such
+-- an @s@ or not we scroll back down over the context we passed
+-- along the way. Thus, if the predicate returns 'Nothing' on all
+-- statements, then the final context is unchanged and we return
+-- 'Nothing'. Otherwise, we return 'Just' the result of evaluating
+-- @m@, and the final context will contain the statements above @s@
+-- as modified by @m@ and then all the statements below @s@ unmodified.
+--
+-- N.B., the statement @s@ itself is popped! Thus, it is up to @m@
+-- to make sure to push new statements that bind the same variables!
+select
+    :: (EvaluationMonad abt m)
+    => (Statement abt -> Maybe (m r))
+    -> m (Maybe r)
+select p = loop []
+    where
+    -- TODO: use a DList to avoid reversing inside 'unsafePushes'
+    loop ss = do
+        ms <- unsafePop
+        case ms of
+            Nothing -> do
+                unsafePushes ss
+                return Nothing
+            Just s  ->
+                case p s of
+                Nothing -> loop (s:ss)
+                Just mr -> do
+                    r <- mr
+                    unsafePushes ss
+                    return (Just r)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------

@@ -194,67 +194,43 @@ update
     .  (ABT AST abt, EvaluationMonad abt m)
     => Variable a
     -> m (Whnf abt a)
-update x = loop []
+update = \x -> do
+    mb <- select (binderFor x)
+    return $
+        case mb of
+        Nothing -> Neutral (var x) -- turns out @x@ is a free variable
+        Just w  -> w
     where
-    -- TODO: move this loop construct to Lazy/Types.hs and call it 'select' (as it's called in the documentation there)
-    loop :: [Statement abt] -> m (Whnf abt a)
-    loop ss = do
-        ms <- unsafePop
-        case ms of
-            Nothing -> do
-                unsafePushes ss -- TODO: use a DList to avoid reversing inside 'unsafePushes'
-                return (Neutral $ var x) -- turns out @x@ is a free variable
-            Just s  ->
-                case step s of
-                Nothing -> loop (s:ss)
-                Just mw -> do
-                    -- Evaluate the body of @s@, updating it along the way.
-                    w <- mw
-                    -- Put the rest of the context back.
-                    unsafePushes ss -- TODO: use a DList to avoid reversing inside 'unsafePushes'
-                    return w
-                    -- TODO: rather than having @mw@ return @w =
-                    -- Neutral(var x)@ and then returning that to
-                    -- our caller; we may rather have @mw@ return
-                    -- whatever @x@ becomes bound to after evaluation.
-                    -- That would allow callers to do stuff with
-                    -- the value rather than looking it up again
-                    -- (e.g., performing immediate substitution
-                    -- because the variable is only used once, or
-                    -- something similar). This would also allow
-                    -- us to distinguish this case from the case
-                    -- where the variable isn't bound in the context
-                    -- at all.
-
-
-    step :: Statement abt -> Maybe (m (Whnf abt a))
-    step (SBind y e) = do
+    -- | Is @s@ a binder for @x@ (i.e., does @s@ bind @x@)?
+    binderFor :: Variable a -> Statement abt -> Maybe (m (Whnf abt a))
+    binderFor x (SBind y e) = do
         Refl <- varEq x y
         Just $ do
             w <- error "TODO: update{SBind}" -- BUG: @caseLazy e return perform@ requires @m ~ M abt@
             unsafePush (SLet x $ Whnf_ w)
             return (NamedWhnf x w)
-    step (SLet y e) = do
+    binderFor x (SLet y e) = do
         Refl <- varEq x y
         Just $ do
             w <- caseLazy e return evaluate
             unsafePush (SLet x $ Whnf_ w)
             return (NamedWhnf x w)
-    step (SBranch ys pat e)
+    binderFor x (SBranch ys pat e)
         | varElem x ys = Just $ do
             w <- caseLazy e return evaluate
-            error "TODO: update{SBranch}" -- BUG: @updateBranch ys pat w@ requires @m ~ M abt@...
-    step _ = Nothing
+            error "TODO: update{SBranch}" -- BUG: @updateBranch x ys pat w@ requires @m ~ M abt@...
+    binderFor _ _ = Nothing
 
     -- TODO: double check to make sure we don't accidentally drop the bindings for @ys@.
     -- BUG: this idea seemed to work fine for the @unleft@\/@unright@ examples in the paper, but it doesn't generalize. In particular, this can cause us to recursively residualize 'SBranch' things all up the heap; but since things can have multiple branches in general, that means we can end up generating some severely bloated code! I think in general we really shouldn't have 'SBranch' as a 'Statement' (unless we're doing HNF in lieu of WHNF); it's really just a special case for source code using @unleft@\/@unright@ and 'MBind'-ing the result, and we should probably treat it like that; i.e., just like any other 'SBind'.
     updateBranch
         :: forall (xs :: [Hakaru]) (b :: Hakaru)
-        .  List1 Variable xs
+        .  Variable a
+        -> List1 Variable xs
         -> Pattern xs b
         -> Whnf abt b
         -> M abt (Whnf abt a)
-    updateBranch ys pat w =
+    updateBranch x ys pat w =
         let residualizeCase e = M $ \c h ->
                 Neutral . syn $ Case_ e
                     [ Branch pat $
