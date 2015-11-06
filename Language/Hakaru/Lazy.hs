@@ -31,11 +31,14 @@ module Language.Hakaru.Lazy
     , update
     ) where
 
-import Data.Sequence        (Seq)
-import Data.Number.LogFloat (LogFloat)
+import qualified Data.Foldable        as F
+import qualified Data.Traversable     as T
+import           Data.Sequence        (Seq)
+import qualified Data.Sequence        as Seq
+import           Data.Number.LogFloat (LogFloat)
 #if __GLASGOW_HASKELL__ < 710
-import Data.Functor         ((<$>))
-import Control.Applicative  (Applicative(..))
+import           Data.Functor         ((<$>))
+import           Control.Applicative  (Applicative(..))
 #endif
 
 import Language.Hakaru.Syntax.IClasses
@@ -243,8 +246,9 @@ update = \x -> do
             -- BUG: should we really use @fromWhnf w@ here? Or should we prefer @caseNeutralHead w residualizeCase $ \v -> ...(fromHead v)...@?
             match <- matchTopPattern evaluateDatum (fromWhnf w) pat ys
             case match of
-                Just (Matched ss Nil1) ->
-                    unsafePushes (toStatements ss) >> update x -- TODO: use a DList to avoid reversing inside 'unsafePushes'
+                Just (Matched ss Nil1) -> do
+                    unsafePushes (toStatements ss) -- TODO: use a DList to avoid reversing inside 'unsafePushes'
+                    update x -- Now we need to force the new binding for @x@
                 Just GotStuck -> residualizeCase (fromWhnf w)
                 Nothing -> error "TODO: update{SBranch}: match is guaranteed to fail" -- P.reject
 
@@ -252,10 +256,10 @@ update = \x -> do
 -- TODO: move this to ABT.hs\/Variable.hs
 varElem :: Variable (a :: Hakaru) -> List1 Variable (xs :: [Hakaru]) -> Bool
 varElem _ Nil1         = False
-varElem x (Cons1 y ys) = varEq_ x y || varElem x ys
-
-varEq_ :: Variable (a :: Hakaru) -> Variable (b :: Hakaru) -> Bool
-varEq_ x y = maybe False (const True) (varEq x y)
+varElem x (Cons1 y ys) =
+    case varEq x y of
+    Just _  -> True
+    Nothing -> varElem x ys
 
 
 ----------------------------------------------------------------
@@ -379,31 +383,80 @@ natRoot x y = x ** recip (fromIntegral (fromNat y))
 
 
 ----------------------------------------------------------------
+-- TODO: there's got to be a more efficient way to do this...
+narySnoc
+    :: (Head abt a -> Head abt a -> Head abt a)
+    -> Seq (Whnf abt a)
+    -> Whnf abt a
+    -> Seq (Whnf abt a)
+narySnoc op = go
+    where
+    go ws w =
+        case Seq.viewr ws of
+        Seq.EmptyR   -> Seq.singleton w
+        ws' Seq.:> w' ->
+            case (w',w) of
+            -- BUG: deal with NamedWhnf
+            (Head_ v1, Head_ v2) -> go ws' (Head_ (op v1 v2))
+            _                    -> ws Seq.|> w
+
+naryAppend
+    :: (Head abt a -> Head abt a -> Head abt a)
+    -> Seq (Whnf abt a)
+    -> Seq (Whnf abt a)
+    -> Seq (Whnf abt a)
+naryAppend op = go
+    where
+    go ws1 ws2 =
+        case Seq.viewl ws2 of
+        Seq.EmptyL     -> ws1
+        w' Seq.:< ws2' -> go (narySnoc op ws1 w') ws2'
+
+
 evaluateNaryOp
-    :: (EvaluationMonad abt m)
+    :: (ABT AST abt, EvaluationMonad abt m)
     => NaryOp a
     -> Seq (abt '[] a)
     -> m (Whnf abt a)
-evaluateNaryOp = error "TODO: evaluateNaryOp"
-{-
-evaluateNaryOp o es = foldBy (interp o) <$> T.traverse evaluate es
+evaluateNaryOp = \o es -> do
+    ws <- T.traverse evaluate es
+    let ws' = naryAppend (evalOp o) Seq.empty ws
+    return $
+        case Seq.viewl ws' of
+        Seq.EmptyL     -> Neutral $ identityElement o
+        w1 Seq.:< ws'' ->
+            case Seq.viewl ws'' of
+            Seq.EmptyL -> w1 -- Avoid singleton naryOps
+            _          -> Neutral . syn . NaryOp_ o $ fmap fromWhnf ws'
     where
-    -- The evaluation interpretation of each NaryOp
-    op And      =
-    op Or       =
-    op Xor      =
-    op Iff      =
-    op (Min  _) =
-    op (Max  _) =
-    op (Sum  _) =
-    op (Prod _) =
+    -- TODO: move this off to Prelude.hs or somewhere...
+    identityElement :: (ABT AST abt) => NaryOp a -> abt '[] a
+    identityElement o =
+        case o of
+        And    -> P.true
+        Or     -> P.false
+        Xor    -> emptyNaryOp o -- no identity
+        Iff    -> emptyNaryOp o -- no identity
+        Min  _ -> emptyNaryOp o -- no identity in general (but we could do it by cases...)
+        Max  _ -> emptyNaryOp o -- no identity in general (but we could do it by cases...)
+        Sum  _ -> emptyNaryOp o -- HACK: 'P.zero' is too stupid here
+        Prod _ -> emptyNaryOp o -- HACK: 'P.one' is too stupid here
     
-    -- Either actually interpret @op o x y@ or else residualize it
-    interp o x y =
+    emptyNaryOp o = syn (NaryOp_ o Seq.empty)
     
-    -- TODO: group things like values to do them all at once, keeping the neutrals til the very end
-    foldBy f vs = 
--}
+    -- | The evaluation interpretation of each NaryOp
+    evalOp :: NaryOp a -> Head abt a -> Head abt a -> Head abt a
+    evalOp = error "TODO: evalOp"
+    {-
+    evalOp And      v1 v2 = reflect (reify v1 && reify v2)
+    evalOp Or       v1 v2 = reflect (reify v1 || reify v2)
+    evalOp Xor      v1 v2 = reflect (reify v1 /= reify v2)
+    evalOp Iff      v1 v2 = reflect (reify v1 == reify v2)
+    evalOp (Min  _) v1 v2 = reflect (reify v1 `min` reify v2)
+    evalOp (Max  _) v1 v2 = reflect (reify v1 `max` reify v2)
+    evalOp (Sum  _) v1 v2 = reflect (reify v1 + reify v2)
+    evalOp (Prod _) v1 v2 = reflect (reify v1 * reify v2)
+    -}
 
 
 ----------------------------------------------------------------
