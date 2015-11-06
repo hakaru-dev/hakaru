@@ -67,7 +67,10 @@ import Language.Hakaru.PrettyPrint -- HACK: for ghci use only
 -- That way we don't need to define a bunch of variant 'Context',
 -- 'Statement', and 'Whnf' data types; but rather can use indexing
 -- to select out subtypes of the generic versions.
-evaluate :: (ABT AST abt) => abt '[] a -> M abt (Whnf abt a)
+evaluate
+    :: (ABT AST abt, EvaluationMonad abt m)
+    => abt '[] a
+    -> m (Whnf abt a)
 evaluate e0 =
     caseVarSyn e0 update $ \t ->
         case t of
@@ -158,7 +161,8 @@ evaluate e0 =
 -- original scrutinee...
 --
 -- Factored out to the top level, since 'DatumEvaluator' is a rank-2 type
-evaluateDatum :: (ABT AST abt) => DatumEvaluator abt (M abt)
+evaluateDatum
+    :: (ABT AST abt, EvaluationMonad abt m) => DatumEvaluator abt m
 evaluateDatum e = viewWhnfDatum <$> evaluate e
 
 type DList a = [a] -> [a]
@@ -185,15 +189,20 @@ toStatements ss = map (\(Assoc x e) -> SLet x $ Thunk e) (ss [])
 -- Of course, we'd have to make sure we've sufficiently renamed all
 -- bound variables to be above @nextFreeVarID@; but then we have to
 -- do that anyways.
-update :: forall abt a. (ABT AST abt) => Variable a -> M abt (Whnf abt a)
+update
+    :: forall abt m a
+    .  (ABT AST abt, EvaluationMonad abt m)
+    => Variable a
+    -> m (Whnf abt a)
 update x = loop []
     where
-    loop :: [Statement abt] -> M abt (Whnf abt a)
+    -- TODO: move this loop construct to Lazy/Types.hs and call it 'select' (as it's called in the documentation there)
+    loop :: [Statement abt] -> m (Whnf abt a)
     loop ss = do
-        ms <- pop
+        ms <- unsafePop
         case ms of
             Nothing -> do
-                naivePushes ss
+                unsafePushes ss -- TODO: use a DList to avoid reversing inside 'unsafePushes'
                 return (Neutral $ var x) -- turns out @x@ is a free variable
             Just s  ->
                 case step s of
@@ -202,7 +211,7 @@ update x = loop []
                     -- Evaluate the body of @s@, updating it along the way.
                     w <- mw
                     -- Put the rest of the context back.
-                    naivePushes ss
+                    unsafePushes ss -- TODO: use a DList to avoid reversing inside 'unsafePushes'
                     return w
                     -- TODO: rather than having @mw@ return @w =
                     -- Neutral(var x)@ and then returning that to
@@ -218,23 +227,23 @@ update x = loop []
                     -- at all.
 
 
-    step :: Statement abt -> Maybe (M abt (Whnf abt a))
+    step :: Statement abt -> Maybe (m (Whnf abt a))
     step (SBind y e) = do
         Refl <- varEq x y
         Just $ do
-            w <- error "TODO: update{SBind}" -- caseLazy e return perform
-            naivePush (SLet x $ Whnf_ w)
+            w <- error "TODO: update{SBind}" -- BUG: @caseLazy e return perform@ requires @m ~ M abt@
+            unsafePush (SLet x $ Whnf_ w)
             return (NamedWhnf x w)
     step (SLet y e) = do
         Refl <- varEq x y
         Just $ do
             w <- caseLazy e return evaluate
-            naivePush (SLet x $ Whnf_ w)
+            unsafePush (SLet x $ Whnf_ w)
             return (NamedWhnf x w)
     step (SBranch ys pat e)
         | varElem x ys = Just $ do
             w <- caseLazy e return evaluate
-            updateBranch ys pat w
+            error "TODO: update{SBranch}" -- BUG: @updateBranch ys pat w@ requires @m ~ M abt@...
     step _ = Nothing
 
     -- TODO: double check to make sure we don't accidentally drop the bindings for @ys@.
@@ -259,7 +268,7 @@ update x = loop []
             match <- matchTopPattern evaluateDatum (fromWhnf w) pat ys
             case match of
                 Just (Matched ss Nil1) ->
-                    naivePushes (toStatements ss) >> update x
+                    unsafePushes (toStatements ss) >> update x -- TODO: use a DList to avoid reversing inside 'unsafePushes'
                 Just GotStuck -> residualizeCase (fromWhnf w)
                 Nothing -> error "TODO: update{SBranch}: match is guaranteed to fail" -- P.reject
 
@@ -275,6 +284,7 @@ varEq_ x y = maybe False (const True) (varEq x y)
 
 ----------------------------------------------------------------
 -- BUG: need to improve the types so they can capture polymorphic data types
+-- BUG: this is a gross hack. If we can avoid it, we should!
 class Interp a a' | a -> a' where
     reify   :: (ABT AST abt) => Head abt a -> a'
     reflect :: (ABT AST abt) => a' -> Head abt a
@@ -352,11 +362,11 @@ instance (Interp a a') => Interp (HList a) [a'] where
 -}
 
 
-rr1 :: (ABT AST abt, Interp a a', Interp b b')
+rr1 :: (ABT AST abt, EvaluationMonad abt m, Interp a a', Interp b b')
     => (a' -> b')
     -> (abt '[] a -> abt '[] b)
     -> abt '[] a
-    -> M abt (Whnf abt b)
+    -> m (Whnf abt b)
 rr1 f' f e = do
     w <- evaluate e
     caseNeutralHead w
@@ -364,12 +374,13 @@ rr1 f' f e = do
         (return . Head_ . reflect . f' . reify)
 
 
-rr2 :: (ABT AST abt, Interp a a', Interp b b', Interp c c')
+rr2 :: ( ABT AST abt, EvaluationMonad abt m
+       , Interp a a', Interp b b', Interp c c')
     => (a' -> b' -> c')
     -> (abt '[] a -> abt '[] b -> abt '[] c)
     -> abt '[] a
     -> abt '[] b
-    -> M abt (Whnf abt c)
+    -> m (Whnf abt c)
 rr2 f' f e1 e2 = do
     w1 <- evaluate e1
     w2 <- evaluate e2
@@ -392,7 +403,11 @@ natRoot x y = x ** recip (fromIntegral (fromNat y))
 
 
 ----------------------------------------------------------------
-evaluateNaryOp :: NaryOp a -> Seq (abt '[] a) -> M abt (Whnf abt a)
+evaluateNaryOp
+    :: (EvaluationMonad abt m)
+    => NaryOp a
+    -> Seq (abt '[] a)
+    -> m (Whnf abt a)
 evaluateNaryOp = error "TODO: evaluateNaryOp"
 {-
 evaluateNaryOp o es = foldBy (interp o) <$> T.traverse evaluate es
@@ -417,10 +432,11 @@ evaluateNaryOp o es = foldBy (interp o) <$> T.traverse evaluate es
 
 ----------------------------------------------------------------
 evaluatePrimOp
-    :: (ABT AST abt, typs ~ UnLCs args, args ~ LCs typs)
+    :: ( ABT AST abt, EvaluationMonad abt m
+       , typs ~ UnLCs args, args ~ LCs typs)
     => PrimOp typs a
     -> SArgs abt args
-    -> M abt (Whnf abt a)
+    -> m (Whnf abt a)
 {-
 evaluatePrimOp Not  (e1 :* End)       = rr1 not  P.not  e1
 evaluatePrimOp Impl (e1 :* e2 :* End) = rr2 impl P.impl e1 e2
@@ -516,17 +532,17 @@ unsafeFrom c e0 =
 -- BUG: use 'freshNat' when generating names for @(P.>>=)@ rather than using the HOAS API.
 perform
     :: (ABT AST abt, SingI a)
-    => abt '[] ('HMeasure a) -> M' abt (Whnf abt a)
+    => abt '[] ('HMeasure a) -> M abt (Whnf abt a)
 perform e0 =
     caseVarSyn e0 (error "TODO: perform{Var}") $ \t ->
         case t of
         Dirac :$ e1 :* End ->
-            m2mprime $ evaluate e1
+            evaluate e1
         MeasureOp_ _ :$ _ ->
-            M' $ \c h -> Head_ $ WMeasure (e0 P.>>= \z -> fromWhnf (c (Neutral z) h))
+            M $ \c h -> Head_ $ WMeasure (e0 P.>>= \z -> fromWhnf (c (Neutral z) h))
         MBind :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
-                push' (SBind x $ Thunk e1) e2' perform
+                push (SBind x $ Thunk e1) e2' perform
         Superpose_ es ->
             error "TODO: perform{Superpose_}"
             {-
@@ -538,9 +554,9 @@ perform e0 =
         -- > perform e | not (hnf e) = evaluate e >>= perform
         -- TODO: But we should be careful to make sure we haven't left any cases out. Maybe we should have some sort of @mustPerform@ predicate like we have 'mustCheck' in TypeCheck.hs...?
         _ -> do
-            w <- m2mprime (evaluate e0)
+            w <- evaluate e0
             flip (caseNeutralHead w) (perform . fromHead) $ \e0' ->
-                M' $ \c h -> Head_ $ WMeasure (e0' P.>>= \z -> fromWhnf (c (Neutral z) h))
+                M $ \c h -> Head_ $ WMeasure (e0' P.>>= \z -> fromWhnf (c (Neutral z) h))
 
 
 ----------------------------------------------------------------

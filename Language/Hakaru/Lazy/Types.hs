@@ -6,6 +6,9 @@
            , RankNTypes
            , BangPatterns
            , FlexibleContexts
+           , MultiParamTypeClasses
+           , FunctionalDependencies
+           , FlexibleInstances
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -20,6 +23,11 @@
 -- Portability :  GHC-only
 --
 -- The data types for "Language.Hakaru.Lazy"
+--
+-- TODO: once we figure out the exact API\/type of 'evaluate' and
+-- can separate it from Disintegrate.hs vs its other clients (i.e.,
+-- Sample.hs and Expect.hs), this file will prolly be broken up
+-- into Lazy.hs itself vs Disintegrate.hs
 ----------------------------------------------------------------
 module Language.Hakaru.Lazy.Types
     (
@@ -31,11 +39,21 @@ module Language.Hakaru.Lazy.Types
     -- * Evaluation contexts
     , Statement(..)
     , Context(..), initContext, residualizeContext
-    
-    -- * The monad(s) for term-to-term translations
-    , Ans
-    , M(..), push, pushes, pop, push_, naivePush, naivePushes
-    , M'(..), m2mprime, runM', push', pushes', pop'
+
+    -- * The monad for partial evaluation
+    , EvaluationMonad(..)
+    {- TODO: should we expose these?
+    , freshenStatement
+    , freshenVar
+    , freshenVars
+    , push_
+    -}
+    , push
+    , pushes
+
+    -- * The disintegration monad
+    -- Maybe also used by other term-to-term translations?
+    , Ans, M(..), runM
     ) where
 
 #if __GLASGOW_HASKELL__ < 710
@@ -136,7 +154,7 @@ viewWhnfDatum
 viewWhnfDatum (NamedWhnf _ v)             = viewWhnfDatum v
 viewWhnfDatum (Head_ (WValue (VDatum d))) = Just (fmap11 (syn . Value_) d)
 viewWhnfDatum (Head_ (WDatum d))          = Just d
-viewWhnfDatum (Neutral e)                 = Nothing
+viewWhnfDatum (Neutral _)                 = Nothing
     -- N.B., we always return Nothing for Neutral terms because of
     -- what Neutral is supposed to mean. If we wanted to be paranoid
     -- then we could use the following code to throw an error if
@@ -169,9 +187,9 @@ caseNeutralHead (Neutral e) k _ = k e
 caseNeutralHead (Head_   v) _ k = k v
 caseNeutralHead (NamedWhnf x w) kn kv = go (kn $ var x) kv w
     where
-    go e _ (Neutral   _)   = e
-    go _ k (Head_     v)   = k v
-    go e k (NamedWhnf _ w) = go e k w
+    go e _ (Neutral   _)    = e
+    go _ k (Head_     v)    = k v
+    go e k (NamedWhnf _ w') = go e k w'
 
 ----------------------------------------------------------------
 -- BUG: haddock doesn't like annotations on GADT constructors. So
@@ -305,43 +323,110 @@ residualizeContext = \e h -> foldl step e (statements h)
 
 
 ----------------------------------------------------------------
--- In the paper we say that result must be a 'Whnf'; however, in
--- the paper it's also always @HMeasure a@ and everything of that
--- type is a WHNF (via 'WMeasure') so that's a trivial statement
--- to make. For now, we leave it as WHNF, only so that we can keep
--- track of the fact that the 'residualizeCase' of 'updateBranch'
--- of 'update' actually produces a neutral term. Whether this is
--- actually helpful or not, who knows? In the future we should feel
--- free to chance this to whatever seems most natural. If it remains
--- some sort of normal form, then it should be one preserved by
--- 'residualizeContext'; otherwise I(wrengr) don't feel comfortable
--- calling the result of 'runM'\/'runM'' a whatever-NF.
-type Ans abt a = Context abt -> Whnf abt a
+-- | This class captures the monadic operations needed by the
+-- 'evaluate' function in "Language.Hakaru.Lazy".
+class Monad m => EvaluationMonad abt m | m -> abt where
+    -- TODO: should we have a *method* for initializing the stored 'freshNat'; or should we only rely on 'initContext'? Beware correctness issues about updating the lower bound after having called 'getFreshNat'...
 
--- TODO: defunctionalize the continuation. In particular, the only
--- heap modifications we need are 'push' and a variant of 'update'
--- for finding\/replacing a binding once we have the value in hand.
---
--- TODO: give this a better, more informative name!
--- N.B., This monad is only used for 'evaluate'. Both 'perform' and 'constrainOutcome', but also 'constrainValue' must use 'M''
-newtype M abt x = M { unM :: forall a. (x -> Ans abt a) -> Ans abt a }
+    -- | Return a fresh natural number. When called repeatedly,
+    -- this method must never return the same number twice.
+    getFreshNat :: m Nat
 
+    -- | Return the statement on the top of the context (i.e.,
+    -- closest to the current focus). This is unsafe because it may
+    -- allow you to drop bindings for variables; it is used to
+    -- implement 'select'.
+    unsafePop :: m (Maybe (Statement abt))
+
+    -- | Add a statement to the top of the context. This is unsafe
+    -- because it may allow confusion between variables with the
+    -- same name but different scopes (thus, may allow variable
+    -- capture); it is used to implement 'push_', 'push', 'pushes',
+    -- and 'select'.
+    unsafePush :: Statement abt -> m ()
+
+    -- | Call 'unsafePush' repeatedly. Is part of the class since
+    -- we may be able to do this more efficiently than actually
+    -- calling 'unsafePush' repeatedly.
+    --
+    -- N.B., this should push things in the same order as 'pushes' does; i.e., the head is pushed first and thus is the furthest away in the final context, whereas the tail is pushed last and is the closest in the final context.
+    unsafePushes :: [Statement abt] -> m ()
+    unsafePushes = mapM_ unsafePush
+
+
+-- | Internal function for renaming the variables bound by a
+-- statement. We return the renamed statement along with a substitution
+-- for mapping the old variable names to their new variable names.
+freshenStatement
+    :: (ABT AST abt, EvaluationMonad abt m)
+    => Statement abt
+    -> m (Statement abt, Assocs abt)
+freshenStatement s =
+    case s of
+    SWeight _    -> return (s, mempty)
+    SBind x body -> do
+        x' <- freshenVar x
+        return (SBind x' body, singletonAssocs x (var x'))
+    SLet x body -> do
+        x' <- freshenVar x
+        return (SLet x' body, singletonAssocs x (var x'))
+    SBranch xs pat body -> do
+        xs' <- freshenVars xs
+        return (SBranch xs' pat body, toAssocs xs (fmap11 var xs'))
+
+
+-- | Given a variable, return a new variable with the same hint and
+-- type but with a fresh 'varID'.
+freshenVar
+    :: (EvaluationMonad abt m)
+    => Variable (x :: Hakaru)
+    -> m (Variable x)
+freshenVar x = do
+    i <- getFreshNat
+    return x{varID=i}
+
+
+-- | Call 'freshenVar' repeatedly.
+-- TODO: make this more efficient than actually calling 'freshenVar'
+-- repeatedly.
+freshenVars
+    :: (EvaluationMonad abt m)
+    => List1 Variable (xs :: [Hakaru])
+    -> m (List1 Variable xs)
+freshenVars Nil1 = return Nil1
+freshenVars (Cons1 x xs) = do
+    x' <- freshenVar x
+    Cons1 x' <$> freshenVars xs
 {-
--- TODO: implement 'residualizeContext' without restricting it to HMeasure
-runM :: M abt (Whnf abt a) -> Context abt -> abt '[] a
-runM (M m) = fromWhnf . m ((toWhnf .) . residualizeContext . fromWhnf)
+-- TODO: get this faster version to typecheck! And once we do, move it to IClasses.hs or wherever 'List1'\/'DList1' end up
+freshenVars = go dnil1
+    where
+    go  :: (EvaluationMonad abt m)
+        => DList1 Variable (ys :: [Hakaru])
+        -> List1  Variable (zs :: [Hakaru])
+        -> m (List1 Variable (ys ++ zs))
+    go k Nil1         = return (unDList1 k Nil1) -- for typechecking, don't use 'toList1' here.
+    go k (Cons1 x xs) = do
+        x' <- freshenVar x
+        go (k `dsnoc1` x') xs -- BUG: type error....
 -}
 
-instance Functor (M abt) where
-    fmap f (M m)  = M $ \c -> m (c . f)
 
-instance Applicative (M abt) where
-    pure x        = M $ \c -> c x
-    M mf <*> M mx = M $ \c -> mf $ \f -> mx $ \x -> c (f x)
-
-instance Monad (M abt) where
-    return    = pure
-    M m >>= k = M $ \c -> m $ \x -> unM (k x) c
+-- | Add a statement to the top of the context, renaming any variables
+-- the statement binds and returning the substitution mapping the
+-- old variables to the new ones. This is safer than 'unsafePush'
+-- because it avoids variable confusion; but it is still somewhat
+-- unsafe since you may forget to apply the substitution to \"the
+-- rest of the term\". You almost certainly should use 'push' or
+-- 'pushes' instead.
+push_
+    :: (ABT AST abt, EvaluationMonad abt m)
+    => Statement abt
+    -> m (Assocs abt)
+push_ s = do
+    (s',rho) <- freshenStatement s
+    unsafePush s'
+    return rho
 
 
 -- | Push a statement onto the context, renaming variables along
@@ -355,116 +440,69 @@ instance Monad (M abt) where
 -- easy to accidentally drop the substitution on the floor rather
 -- than applying it to the term before calling the continuation.
 push
-    :: (ABT AST abt)
-    => Statement abt
-    -> abt xs a
-    -> (abt xs a -> M abt r)
-    -> M abt r
+    :: (ABT AST abt, EvaluationMonad abt m)
+    => Statement abt     -- ^ the statement to push
+    -> abt xs a          -- ^ the \"rest\" of the term
+    -> (abt xs a -> m r) -- ^ what to do with the renamed \"rest\"
+    -> m r               -- ^ the final result
 push s e k = do
     rho <- push_ s
     k (substs rho e)
 
 
--- | Internal function for renaming variables when we push a new
--- statement, without applying that renaming to \"the rest of the
--- term\". You almost certainly should use 'push' or 'pushes'
--- instead.
-push_
-    :: (ABT AST abt)
-    => Statement abt
-    -> M abt (Assocs abt)
-push_ s = M $ \c (Context i ss) ->
-    case s of
-    SWeight body -> c mempty (Context i (SWeight body : ss))
-    SBind x body ->
-        let x'  = x{varID=i}
-            rho = singletonAssocs x (var x')
-            s'  = SBind x' body
-        in c rho (Context (i+1) (s':ss))
-    SLet x body ->
-        let x'  = x{varID=i}
-            rho = singletonAssocs x (var x')
-            s'  = SLet x' body
-        in c rho (Context (i+1) (s':ss))
-    SBranch xs pat body ->
-        let (i', xs') = renameFrom xs i
-            rho = toAssocs xs $ fmap11 var xs'
-            s'  = SBranch xs' pat body
-        in c rho (Context i' (s':ss))
-
-
-renameFrom
-    :: List1 Variable (xs :: [Hakaru]) -> Nat -> (Nat, List1 Variable xs)
-renameFrom = go
-    where
-    go Nil1         !i = (i, Nil1)
-    go (Cons1 x xs)  i =
-        case renameFrom xs (i+1) of
-        (i', xs') -> (i', Cons1 (x{varID=i}) xs')
-
-
 -- | Call 'push' repeatedly. (N.B., is more efficient than actually
 -- calling 'push' repeatedly.)
 pushes
-    :: (ABT AST abt)
-    => [Statement abt]
-    -> abt xs a
-    -> (abt xs a -> M abt r)
-    -> M abt r
+    :: (ABT AST abt, EvaluationMonad abt m)
+    => [Statement abt]   -- ^ the statements to push
+    -> abt xs a          -- ^ the \"rest\" of the term
+    -> (abt xs a -> m r) -- ^ what to do with the renamed \"rest\"
+    -> m r               -- ^ the final result
 pushes ss e k = do
     -- TODO: is 'foldlM' the right one? or do we want 'foldrM'?
     rho <- F.foldlM (\rho s -> mappend rho <$> push_ s) mempty ss
     k (substs rho e)
 
 
--- | N.B., this can be unsafe. If a binding statement is returned,
--- then the caller must be sure to push back on statements binding
--- all the same variables!
-pop :: M abt (Maybe (Statement abt))
-pop = M $ \c h ->
-    case statements h of
-    []   -> c Nothing  h
-    s:ss -> c (Just s) h{statements = ss}
-
-
--- | Push a statement onto the heap /without renaming variables/.
--- This function should only be used to put a statement from 'pop'
--- back onto the context.
-naivePush :: Statement abt -> M abt ()
-naivePush s = M $ \c h -> c () h{statements = s : statements h}
-
-
--- TODO: replace this function with a @DList@ variant, to avoid the need to 'reverse' @ss@.
--- | Call 'naivePush' repeatedly. (N.B., is more efficient than
--- actually calling 'naivePush' repeatedly.)
-naivePushes :: [Statement abt] -> M abt ()
-naivePushes ss =
-    M $ \c h -> c () h{statements = reverse ss ++ statements h}
-
 ----------------------------------------------------------------
 ----------------------------------------------------------------
--- HACK: how can we cleanly unify this with the implementation of 'M'?
+-- In the paper we say that result must be a 'Whnf'; however, in
+-- the paper it's also always @HMeasure a@ and everything of that
+-- type is a WHNF (via 'WMeasure') so that's a trivial statement
+-- to make. For now, we leave it as WHNF, only so that we can keep
+-- track of the fact that the 'residualizeCase' of 'updateBranch'
+-- of 'update' actually produces a neutral term. Whether this is
+-- actually helpful or not, who knows? In the future we should feel
+-- free to chance this to whatever seems most natural. If it remains
+-- some sort of normal form, then it should be one preserved by
+-- 'residualizeContext'; otherwise I(wrengr) don't feel comfortable
+-- calling the result of 'runM'\/'runM'' a whatever-NF.
+type Ans abt a = Context abt -> Whnf abt ('HMeasure a)
+
+
+-- TODO: defunctionalize the continuation. In particular, the only
+-- heap modifications we need are 'push' and a variant of 'update'
+-- for finding\/replacing a binding once we have the value in hand.
+--
+-- TODO: give this a better, more informative name!
+--
 -- N.B., This monad is used not only for both 'perform' and 'constrainOutcome', but also for 'constrainValue'.
-newtype M' abt x =
-    M' { unM' :: forall a. (x -> Ans abt ('HMeasure a)) -> Ans abt ('HMeasure a) }
-
-m2mprime :: M abt x -> M' abt x
-m2mprime (M m) = M' m
-
--- TODO: mprime2m
+newtype M abt x = M { unM :: forall a. (x -> Ans abt a) -> Ans abt a }
 
 
--- | Run a computation in the 'M'' monad, residualizing out all the
+-- | Run a computation in the 'M' monad, residualizing out all the
 -- statements in the final 'Context'. The initial context argument
 -- should be constructed by 'initContext' to ensure proper hygiene;
--- for example:
+-- for example(s):
 --
--- > \e -> runM' (perform e) (initContext [e])
-runM' :: (ABT AST abt)
-    => M' abt (Whnf abt a)
+-- > \e -> runM (perform e) (initContext [e])
+-- > \e -> runM (constrainOutcome e v) (initContext [e, v])
+--
+runM :: (ABT AST abt)
+    => M abt (Whnf abt a)
     -> Context abt
     -> abt '[] ('HMeasure a)
-runM' (M' m) = fromWhnf . m c0
+runM (M m) = fromWhnf . m c0
     where
     -- HACK: we only have @c0@ build up a WHNF since that's what
     -- 'Ans' says we need (see the comment at 'Ans' for why this
@@ -476,40 +514,35 @@ runM' (M' m) = fromWhnf . m c0
     c0 x = Head_ . WMeasure . residualizeContext (P.dirac $ fromWhnf x)
 
 
-instance Functor (M' abt) where
-    fmap f (M' m)  = M' $ \c -> m (c . f)
+instance Functor (M abt) where
+    fmap f (M m)  = M $ \c -> m (c . f)
 
-instance Applicative (M' abt) where
-    pure x          = M' $ \c -> c x
-    M' mf <*> M' mx = M' $ \c -> mf $ \f -> mx $ \x -> c (f x)
+instance Applicative (M abt) where
+    pure x        = M $ \c -> c x
+    M mf <*> M mx = M $ \c -> mf $ \f -> mx $ \x -> c (f x)
 
-instance Monad (M' abt) where
-    return     = pure
-    M' m >>= k = M' $ \c -> m $ \x -> unM' (k x) c
+instance Monad (M abt) where
+    return    = pure
+    M m >>= k = M $ \c -> m $ \x -> unM (k x) c
 
-push'
-    :: (ABT AST abt)
-    => Statement abt
-    -> abt xs a
-    -> (abt xs a -> M' abt r)
-    -> M' abt r
-push' s e k = do
-    rho <- m2mprime (push_ s)
-    k (substs rho e)
+instance EvaluationMonad abt (M abt) where
+    getFreshNat =
+        M $ \c (Context i ss) ->
+            c i (Context (i+1) ss)
+    
+    unsafePop =
+        M $ \c h@(Context i ss) ->
+            case ss of
+            []    -> c Nothing  h
+            s:ss' -> c (Just s) (Context i ss')
 
-pushes'
-    :: (ABT AST abt)
-    => [Statement abt]
-    -> abt xs a
-    -> (abt xs a -> M' abt r)
-    -> M' abt r
-pushes' ss e k = do
-    -- TODO: is 'foldlM' the right one? or do we want 'foldrM'?
-    rho <- F.foldlM (\rho s -> mappend rho <$> m2mprime (push_ s)) mempty ss
-    k (substs rho e)
-
-pop' :: M' abt (Maybe (Statement abt))
-pop' = m2mprime pop
+    unsafePush s =
+        M $ \c (Context i ss) ->
+            c () (Context i (s:ss))
+    
+    unsafePushes ss =
+        M $ \c (Context i ss') ->
+            c () (Context i (reverse ss ++ ss'))
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

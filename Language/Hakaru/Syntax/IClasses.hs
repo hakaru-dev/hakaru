@@ -10,7 +10,7 @@
            #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.24
+--                                                    2015.11.05
 -- |
 -- Module      :  Language.Hakaru.Syntax.IClasses
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -66,7 +66,7 @@ module Language.Hakaru.Syntax.IClasses
     -- ** List types
     , type (++), eqAppendIdentity, eqAppendAssoc
     , List1(..), append1
-    , DList1(..), toList1, fromList1, dnil1, dsingleton1, dappend1
+    , DList1(..), toList1, fromList1, dnil1, dcons1, dsnoc1, dsingleton1, dappend1
     ) where
 
 import Prelude hiding   (id, (.))
@@ -638,6 +638,16 @@ fromList1 xs = DList1 (append1 xs)
 
 dnil1 :: DList1 a '[]
 dnil1 = DList1 id
+
+dcons1 :: a x -> DList1 a xs -> DList1 a (x ': xs)
+dcons1 x (DList1 xs) = DList1 (Cons1 x . xs)
+
+-- TODO: for this access pattern it's prolly better to define some @DListR@ where the index is in the reverse order of the list itself (or else uses type-level snoc-lists); that way we can avoid needing to use 'eqAppendAssoc' at every step...
+dsnoc1 :: DList1 a xs -> a x -> DList1 a (xs ++ '[ x ])
+dsnoc1 dx@(DList1 xs) x =
+    DList1 $ \ys ->
+        case eqAppendAssoc dx (dsingleton1 x) ys of
+        Refl -> xs (Cons1 x ys)
 
 -- HACK: we need to give this a top-level definition rather than
 -- inlining it in order to prove that the resulting index is @[x]@
