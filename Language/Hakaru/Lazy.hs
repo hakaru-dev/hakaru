@@ -386,23 +386,24 @@ natRoot x y = x ** recip (fromIntegral (fromNat y))
 ----------------------------------------------------------------
 -- TODO: there's got to be a more efficient way to do this...
 narySnoc
-    :: (Head abt a -> Head abt a -> Head abt a)
+    :: (ABT syn abt)
+    => (Head abt a -> Head abt a -> Head abt a)
     -> Seq (Whnf abt a)
     -> Whnf abt a
     -> Seq (Whnf abt a)
 narySnoc op = go
     where
-    go ws w =
+    go ws w1 =
         case Seq.viewr ws of
-        Seq.EmptyR   -> Seq.singleton w
-        ws' Seq.:> w' ->
-            case (w',w) of
-            -- BUG: deal with NamedWhnf
-            (Head_ v1, Head_ v2) -> go ws' (Head_ (op v1 v2))
-            _                    -> ws Seq.|> w
+        Seq.EmptyR    -> Seq.singleton w1
+        ws' Seq.:> w2 ->
+            caseNeutralHead w1 (const (ws Seq.|> w1)) $ \v1 -> 
+            caseNeutralHead w2 (const (ws Seq.|> w1)) $ \v2 -> 
+            go ws' (Head_ (op v1 v2))
 
 naryAppend
-    :: (Head abt a -> Head abt a -> Head abt a)
+    :: (ABT syn abt)
+    => (Head abt a -> Head abt a -> Head abt a)
     -> Seq (Whnf abt a)
     -> Seq (Whnf abt a)
     -> Seq (Whnf abt a)
