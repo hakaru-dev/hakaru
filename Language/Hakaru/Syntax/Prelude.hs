@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.29
+--                                                    2015.11.06
 -- |
 -- Module      :  Language.Hakaru.Syntax.Prelude
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -329,10 +329,19 @@ maximum = unsafeNaryOp_ $ Max hOrd
 (+) = naryOp2_ $ Sum  hSemiring
 (*) = naryOp2_ $ Prod hSemiring
 
--- TODO: more legit implementations for these two
-zero, one :: (ABT AST abt, HSemiring_ a) => abt '[] a
-zero = syn $ NaryOp_ (Sum  hSemiring) Seq.empty
-one  = syn $ NaryOp_ (Prod hSemiring) Seq.empty
+zero, one :: forall abt a. (ABT AST abt, HSemiring_ a) => abt '[] a
+zero = value_ $
+    case (hSemiring :: HSemiring a) of
+    HSemiring_Nat  -> VNat  0
+    HSemiring_Int  -> VInt  0
+    HSemiring_Prob -> VProb 0
+    HSemiring_Real -> VReal 0
+one = value_ $
+    case (hSemiring :: HSemiring a) of
+    HSemiring_Nat  -> VNat  1
+    HSemiring_Int  -> VInt  1
+    HSemiring_Prob -> VProb 1
+    HSemiring_Real -> VReal 1
 
 sum, product :: (ABT AST abt, HSemiring_ a) => [abt '[] a] -> abt '[] a
 sum     = naryOp_withIdentity (Sum  hSemiring) zero

@@ -42,6 +42,7 @@ import           Control.Applicative  (Applicative(..))
 #endif
 
 import Language.Hakaru.Syntax.IClasses
+import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Nat
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Sing
@@ -423,25 +424,32 @@ evaluateNaryOp = \o es -> do
     let ws' = naryAppend (evalOp o) Seq.empty ws
     return $
         case Seq.viewl ws' of
-        Seq.EmptyL     -> Neutral $ identityElement o
+        Seq.EmptyL          -> identityElement o
         w1 Seq.:< ws''
             | Seq.null ws'' -> w1 -- Avoid singleton naryOps
             | otherwise     -> Neutral . syn . NaryOp_ o $ fmap fromWhnf ws'
     where
     -- TODO: move this off to Prelude.hs or somewhere...
-    identityElement :: (ABT AST abt) => NaryOp a -> abt '[] a
+    identityElement :: (ABT AST abt) => NaryOp a -> Whnf abt a
     identityElement o =
         case o of
-        And    -> P.true
-        Or     -> P.false
+        And    -> Head_ (WDatum dTrue)
+        Or     -> Head_ (WDatum dFalse)
         Xor    -> emptyNaryOp o -- no identity
         Iff    -> emptyNaryOp o -- no identity
         Min  _ -> emptyNaryOp o -- no identity in general (but we could do it by cases...)
         Max  _ -> emptyNaryOp o -- no identity in general (but we could do it by cases...)
-        Sum  _ -> emptyNaryOp o -- HACK: 'P.zero' is too stupid here
-        Prod _ -> emptyNaryOp o -- HACK: 'P.one' is too stupid here
+        -- TODO: figure out how to reuse 'P.zero' and 'P.one' here
+        Sum  HSemiring_Nat  -> Head_ (WValue (VNat  0))
+        Sum  HSemiring_Int  -> Head_ (WValue (VInt  0))
+        Sum  HSemiring_Prob -> Head_ (WValue (VProb 0))
+        Sum  HSemiring_Real -> Head_ (WValue (VReal 0))
+        Prod HSemiring_Nat  -> Head_ (WValue (VNat  1))
+        Prod HSemiring_Int  -> Head_ (WValue (VInt  1))
+        Prod HSemiring_Prob -> Head_ (WValue (VProb 1))
+        Prod HSemiring_Real -> Head_ (WValue (VReal 1))
     
-    emptyNaryOp o = syn (NaryOp_ o Seq.empty)
+    emptyNaryOp o = Neutral (syn (NaryOp_ o Seq.empty))
     
     -- | The evaluation interpretation of each NaryOp
     evalOp :: NaryOp a -> Head abt a -> Head abt a -> Head abt a
