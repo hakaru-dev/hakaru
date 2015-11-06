@@ -302,6 +302,7 @@ initContext es = Context (maximumNextFree es) []
 
 -- Argument order is to avoid flipping in 'runM'
 -- TODO: generalize to non-measure types too!
+-- TODO: if any SLet bindings are unused, then drop them. If any are used exactly once, maybe inline them?
 residualizeContext
     :: (ABT AST abt)
     => abt '[] ('HMeasure a)

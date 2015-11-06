@@ -436,8 +436,8 @@ evaluateNaryOp = \o es -> do
         case o of
         And    -> Head_ (WDatum dTrue)
         Or     -> Head_ (WDatum dFalse)
-        Xor    -> emptyNaryOp o -- no identity
-        Iff    -> emptyNaryOp o -- no identity
+        Xor    -> Head_ (WDatum dFalse)
+        Iff    -> Head_ (WDatum dTrue)
         Min  _ -> emptyNaryOp o -- no identity in general (but we could do it by cases...)
         Max  _ -> emptyNaryOp o -- no identity in general (but we could do it by cases...)
         -- TODO: figure out how to reuse 'P.zero' and 'P.one' here
