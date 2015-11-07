@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.06
+--                                                    2015.11.07
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeCheck
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -53,16 +53,10 @@ import qualified Language.Hakaru.Parser.AST as U
 
 import Language.Hakaru.Syntax.Nat      (fromNat)
 import Language.Hakaru.Syntax.IClasses
-import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.DataKind (Hakaru(..), HData')
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.TypeHelpers
-import Language.Hakaru.Syntax.Coercion (Coercion(..),
-                                        singCoerceTo,
-                                        singCoerceFrom,
-                                        singCoerceDom,
-                                        singCoerceCod,
-                                        singCoerceDomCod)
+import Language.Hakaru.Syntax.Coercion (Coercion(..), singCoerceDomCod)
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT
@@ -150,63 +144,6 @@ mustCheck = go
 
 type Ctx = IntMap (SomeVariable ('KProxy :: KProxy Hakaru))
 
-
--- BUG: haddock doesn't like annotations on GADT constructors. So
--- here we'll avoid using the GADT syntax, even though it'd make
--- the data type declaration prettier\/cleaner.
--- <https://github.com/hakaru-dev/hakaru/issues/6>
-data TypedPattern (vars :: [Hakaru])
-    = forall a. TP
-        !(Pattern vars a)
-        !(Sing a)
-    | forall xss t. TPC
-        !(PDatumCode xss vars (HData' t))
-        !(Sing xss)
-        !(Sing (HData' t))
-    | forall xs t. TPS
-        !(PDatumStruct xs vars (HData' t))
-        !(Sing xs)
-        !(Sing (HData' t))
-    | forall x t. TPF
-        !(PDatumFun x vars (HData' t))
-        !(Sing x)
-        !(Sing (HData' t))
-
-
--- We can't use @List1 TypedPattern vars@ because 'List1' uses @(:)@
--- rather than @(++)@ to combine indices. If we need this sort of
--- thing elsewhere, we should move the general version to IClasses.hs
--- or wherever the list-like indexed types end up.
-data TypedPatternList :: [Hakaru] -> * where
-    TPNil :: TypedPatternList '[]
-    TPCons
-        :: !(TypedPattern vars1)
-        -> TypedPatternList vars2
-        -> TypedPatternList (vars1 ++ vars2)
-
-infixr 5 `TPCons`
-
--- BUG: haddock doesn't like annotations on GADT constructors. So
--- here we'll avoid using the GADT syntax, even though it'd make
--- the data type declaration prettier\/cleaner.
--- <https://github.com/hakaru-dev/hakaru/issues/6>
-data TypedDatum (ast :: Hakaru -> *)
-    -- N.B., we do not require that @xss ~ Code t@; so we can
-    -- perform induction on it!
-    = forall xss t. TDC
-        !(DatumCode xss ast (HData' t))
-        !(Sing xss)
-        !(Sing (HData' t))
-    | forall xs t. TDS
-        !(DatumStruct xs ast (HData' t))
-        !(Sing xs)
-        !(Sing (HData' t))
-    | forall x t. TDF
-        !(DatumFun x ast (HData' t))
-        !(Sing x)
-        !(Sing (HData' t))
-
-----------------------------------------------------------------
 type TypeCheckError = String -- TODO: something better
 
 newtype TypeCheckMonad a =
@@ -226,6 +163,14 @@ instance Applicative TypeCheckMonad where
 instance Monad TypeCheckMonad where
     return   = pure
     mx >>= k = TCM $ \ctx -> unTCM mx ctx >>= \x -> unTCM (k x) ctx
+
+instance Alternative TypeCheckMonad where
+    empty   = failwith "Need type annotation in one of your arguments"
+    x <|> y = TCM $ \ctx ->
+        case unTCM x ctx of
+        Left  _ -> unTCM y ctx
+        Right e -> Right e
+
 
 -- | Extend the typing context, but only locally.
 pushCtx
@@ -252,17 +197,16 @@ typeMismatch typ1 typ2 =
     msg1 = case typ1 of { Left msg -> msg; Right typ -> show1 typ }
     msg2 = case typ2 of { Left msg -> msg; Right typ -> show1 typ }
 
-instance Alternative TypeCheckMonad where
-    empty   = failwith "Need type annotation in one of your arguments"
-    x <|> y = TCM $ \ctx -> case unTCM x ctx of
-                              Left  e -> unTCM y ctx
-                              Right e -> Right e
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
-
+-- BUG: haddock doesn't like annotations on GADT constructors. So
+-- here we'll avoid using the GADT syntax, even though it'd make
+-- the data type declaration prettier\/cleaner.
+-- <https://github.com/hakaru-dev/hakaru/issues/6>
 data TypedAST (abt :: [Hakaru] -> Hakaru -> *)
     = forall b. TypedAST !(Sing b) !(abt '[] b)
+
 
 -- | Given a typing environment and a term, synthesize the term's type.
 inferType
@@ -492,8 +436,8 @@ checkType = checkType_
 
         U.Empty_ ->
             case typ0 of
-            SArray typ1 -> return (syn Empty_)
-            _           -> typeMismatch (Right typ0) (Left "HArray")
+            SArray _ -> return (syn Empty_)
+            _        -> typeMismatch (Right typ0) (Left "HArray")
     
         -- Not sure Array should be a binding form
         U.Array_ e1 name e2 ->
@@ -629,192 +573,130 @@ checkType = checkType_
             SKonst typ1   -> Konst <$> checkType_ typ1 e1
             _             -> failwith "expected term of `K' type"
 
-    checkBranch
-        :: forall a b
-        .  Sing a
-        -> Sing b
-        -> U.Branch c -- Branch a b
-        -> TypeCheckMonad (Branch a abt b)
-    checkBranch patTyp bodyTyp (U.Branch pat body) =
-        checkPattern patTyp pat (checkType_ bodyTyp body)
 
 ----------------------------------------------------------------
-{-
-data TypedPatternList :: [Hakaru] -> * where
-    TPNil :: TypedPatternList '[]
-    TPCons
-        :: !(TypedPattern vars1)
-        -> TypedPatternList vars2
-        -> TypedPatternList (vars1 ++ vars2)
--}
+-- BUG: haddock doesn't like annotations on GADT constructors. So
+-- here we'll avoid using the GADT syntax, even though it'd make
+-- the data type declaration prettier\/cleaner.
+-- <https://github.com/hakaru-dev/hakaru/issues/6>
+data SomePattern (a :: Hakaru) =
+    forall vars.
+        SP  !(Pattern vars a)
+            !(List1 Variable vars)
+
+data SomePatternCode xss t =
+    forall vars.
+        SPC !(PDatumCode xss vars (HData' t))
+            !(List1 Variable vars)
+
+data SomePatternStruct xs t =
+    forall vars.
+        SPS !(PDatumStruct xs vars (HData' t))
+            !(List1 Variable vars)
+
+data SomePatternFun x t =
+    forall vars.
+        SPF !(PDatumFun x vars (HData' t))
+            !(List1 Variable vars)
+
+checkBranch
+    :: (ABT AST abt)
+    => Sing a
+    -> Sing b
+    -> U.Branch c
+    -> TypeCheckMonad (Branch a abt b)
+checkBranch =
+    \patTyp bodyTyp (U.Branch pat body) -> do
+        SP pat' vars <- checkPattern patTyp pat
+        Branch pat' <$> checkBranchBody bodyTyp body vars
+    where
+    checkBranchBody
+        :: (ABT AST abt)
+        => Sing b
+        -> U.AST c
+        -> List1 Variable xs
+        -> TypeCheckMonad (abt xs b)
+    checkBranchBody bodyTyp body xs =
+        case xs of
+        Nil1        -> checkType bodyTyp body
+        Cons1 x xs' ->
+            pushCtx (SomeVariable x) $
+                bind x <$> checkBranchBody bodyTyp body xs'
 
     checkPattern
-        :: forall a b
-        .  Sing a
+        :: Sing a
         -> U.Pattern c
-        -> TypeCheckMonad (abt '[] b)
-        -> TypeCheckMonad (Branch a abt b)
-    checkPattern patTyp pat checkBody = 
+        -> TypeCheckMonad (SomePattern a)
+    checkPattern typA pat =
         case pat of
-        U.PVar name ->
-            let x = U.makeVar name patTyp in
-            (Branch PVar . bind x) <$> pushCtx (SomeVariable x) checkBody
-        U.PWild            -> Branch PWild <$> checkBody
+        U.PVar name -> return $ SP PVar  (Cons1 (U.makeVar name typA) Nil1)
+        U.PWild            -> return $ SP PWild Nil1
         U.PDatum hint pat1 ->
-            case patTyp of
-            SData _ typ2 -> do
-                PC pat1' body' <- checkPatternCode pat1 typ2 patTyp checkBody
-                return $ Branch (PDatum hint pat1') body'
-            _ -> failwith "expected term of user-defined data type"
+            case typA of
+            SData _ typ1 -> do
+                SPC pat1' xs <- checkPatternCode typA typ1 pat1
+                return $ SP (PDatum hint pat1') xs
+            _ -> typeMismatch (Right typA) (Left "HData")
 
     checkPatternCode
-        :: forall b xss t
-        .  U.PCode c
+        :: Sing (HData' t)
         -> Sing xss
-        -> Sing (HData' t)
-        -> TypeCheckMonad (abt '[] b)
-        -> TypeCheckMonad (PatternCode xss t abt b)
-    checkPatternCode pat typ typA checkBody =
+        -> U.PCode c
+        -> TypeCheckMonad (SomePatternCode xss t)
+    checkPatternCode typA typ pat =
         case pat of
         U.PInr pat2 ->
             case typ of
             SPlus _ typ2 -> do
-                PC pat2' body' <- checkPatternCode pat2 typ2 typA checkBody
-                return $ PC (PInr pat2') body'
+                SPC pat2' xs <- checkPatternCode typA typ2 pat2
+                return $ SPC (PInr pat2') xs
             _            -> failwith "expected term of `sum' type"
         U.PInl pat1 ->
             case typ of
             SPlus typ1 _ -> do
-                PS pat1' body' <- checkPatternStruct pat1 typ1 typA checkBody
-                return $ PC (PInl pat1') body'
+                SPS pat1' xs <- checkPatternStruct typA typ1 pat1
+                return $ SPC (PInl pat1') xs
             _ -> failwith "expected term of `zero' type"
 
     checkPatternStruct
-        :: forall b xs t
-        .  U.PStruct c
+        :: Sing (HData' t)
         -> Sing xs
-        -> Sing (HData' t)
-        -> TypeCheckMonad (abt '[] b)
-        -> TypeCheckMonad (PatternStruct xs t abt b)
-    checkPatternStruct pat typ typA checkBody =
+        -> U.PStruct c
+        -> TypeCheckMonad (SomePatternStruct xs t)
+    checkPatternStruct  typA typ pat =
         case pat of
         U.PEt pat1 pat2 ->
             case typ of
-            SEt typ1 typ2 -> error "TODO"
-                {-
-                checkPatternFun    pat1 typ1 typA $ \pat1' ->
-                checkPatternStruct pat2 typ2 typA $ \pat2' ->
-                PS (PEt pat1' pat2') <$> checkBody
-                -}
+            SEt typ1 typ2 -> do
+                SPF pat1' xs <- checkPatternFun    typA typ1 pat1
+                SPS pat2' ys <- checkPatternStruct typA typ2 pat2
+                return $ SPS (PEt pat1' pat2') (append1 xs ys)
             _ -> failwith "expected term of `et' type"
         U.PDone ->
             case typ of
-            SDone -> PS PDone <$> checkBody
+            SDone -> return $ SPS PDone Nil1
             _     -> failwith "expected term of `done' type"
 
     checkPatternFun
-        :: forall b x t
-        .  U.PFun c
+        :: Sing (HData' t)
         -> Sing x
-        -> Sing (HData' t)
-        -> TypeCheckMonad (abt '[] b)
-        -> TypeCheckMonad (PatternFun x t abt b)
-    checkPatternFun pat typ typA checkBody =
+        -> U.PFun c
+        -> TypeCheckMonad (SomePatternFun x t)
+    checkPatternFun typA typ pat =
         case pat of
         U.PIdent pat1 ->
             case typ of
-            SIdent      -> do
-                Branch pat1' body' <- checkPattern typA pat1 checkBody
-                return $ PF (PIdent pat1') body'
-            _           -> failwith "expected term of `I' type"
+            SIdent -> do
+                SP pat1' xs <- checkPattern typA pat1
+                return $ SPF (PIdent pat1') xs
+            _ -> failwith "expected term of `I' type"
         U.PKonst pat1 ->
             case typ of
             SKonst typ1 -> do
-                Branch pat1' body' <- checkPattern typ1 pat1 checkBody
-                return $ PF (PKonst pat1') body'
-            _           -> failwith "expected term of `K' type"
-    
-    {-
-    checkBranch
-    :: (ABT AST abt, ABT AST abt')
-    => Sing b
-    -> abt vars b
-    -> TypedPatternList vars
-    -> TypeCheckMonad ()
-checkBranch bodyTyp body = go
-    where
-    go TPNil                     = checkType bodyTyp body
-    go (TP pat typ `TPCons` pts) =
-        case pat of
-        PVar ->
-            caseBind body $ \x body' ->
-                case jmEq1 typ (varType x) of
-                Just Refl ->
-                    pushCtx (SomeVariable x) $
-                        checkBranch bodyTyp body' pts
-                Nothing   -> failwith "type mismatch"
+                SP pat1' xs <- checkPattern typ1 pat1
+                return $ SPF (PKonst pat1') xs
+            _ -> failwith "expected term of `K' type"
 
-        PWild       -> go pts
-        PDatum pat1 ->
-            case typ of
-            SData _ typ2 -> go (TPC pat1 typ2 typ `TPCons` pts)
-            _ -> failwith "expected term of user-defined data type"
-
-    -- TODO: verify that this all works the way it should!
-    -- TODO: use @typA@ to provide better error messages; particularly, the first argument to its constructor 'SData'.
-    go (TPC pat typ typA `TPCons` pts) =
-        case pat of
-        PInr pat2 ->
-            case typ of
-            SPlus _ typ2 -> go (TPC pat2 typ2 typA `TPCons` pts)
-            _            -> failwith "expected term of `sum' type"
-        PInl pat1 ->
-            case typ of
-            SPlus typ1 _ -> go (TPS pat1 typ1 typA `TPCons` pts)
-            _            -> failwith "expected term of `zero' type"
-    go (TPS pat typ typA `TPCons` pts) =
-        case pat of
-        PEt pat1 pat2 ->
-            case typ of
-            SEt typ1 typ2 -> go $
-                let p1 = TPF pat1 typ1 typA
-                    p2 = TPS pat2 typ2 typA
-                in case eqAppendAssoc p1 p2 pts of
-                    Refl -> p1 `TPCons` p2 `TPCons` pts
-            _ -> failwith "expected term of `et' type"
-        PDone ->
-            case typ of
-            SDone       -> go pts
-            _           -> failwith "expected term of `done' type"
-    go (TPF pat typ typA `TPCons` pts) =
-        case pat of
-        PIdent pat1 ->
-            case typ of
-            SIdent      -> go (TP pat1 typA `TPCons` pts)
-            _           -> failwith "expected term of `I' type"
-        PKonst pat1 ->
-            case typ of
-            SKonst typ1 -> go (TP pat1 typ1 `TPCons` pts)
-            _           -> failwith "expected term of `K' type"
--}
-
-data PatternFun x t abt b =
-    forall vars.
-        PF
-            !(PDatumFun x vars (HData' t))
-            !(abt vars b)
-
-data PatternStruct xs t abt b =
-    forall vars.
-        PS
-            !(PDatumStruct xs vars (HData' t))
-            !(abt vars b)
-
-data PatternCode xss t abt b =
-    forall vars.
-        PC
-            !(PDatumCode xss vars (HData' t))
-            !(abt vars b)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
