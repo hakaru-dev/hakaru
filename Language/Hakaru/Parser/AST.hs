@@ -66,7 +66,7 @@ newtype Meta = Meta (SourcePos, SourcePos) deriving (Eq, Show)
 
 data Datum' a = DV a [a] deriving (Eq, Show)
 
-infixr 7 `Et`
+infixr 7 `Et`, `PEt`
 
 data DFun a where
      Konst :: AST a -> DFun a
@@ -127,10 +127,23 @@ data AST' a =
    | WithMeta (AST' a) Meta
 
 data Branch a = Branch (Pattern a) (AST a)
-data Pattern a =
-     PVar (AST a)
-   | PWild
-   | PData [AST a]
+
+data Pattern a where
+     PWild  :: Pattern a
+     PVar   :: Name -> Pattern a
+     PDatum :: Text -> PCode a -> Pattern a   
+
+data PFun a where
+     PKonst :: Pattern a -> PFun a
+     PIdent :: Pattern a -> PFun a
+
+data PStruct a where
+     PEt   :: PFun a -> PStruct a -> PStruct a
+     PDone :: PStruct a
+
+data PCode a where
+     PInr ::  PCode a   -> PCode a
+     PInl ::  PStruct a -> PCode a
 
 data AST a =
      Var_        Name

@@ -37,6 +37,9 @@ bind:   x <~ m
 def foo(arg1, arg2):
     body
 
+def foo(arg1 int, arg2 int) int:
+    body
+
 primitive distributions: normal, uniform,
 	  		 lebesgue, counting,
 			 gamma, superpose, dirac
@@ -61,7 +64,7 @@ match e:
   foo(x, _): e1
   _: e2
      
-type annotations: 3 :: int, fn (x::nat): x
+type annotations: 3 :: int, fn (x.nat): x
 
 types: nat, real, prob, int, unit,
-       (a, b), (a -> b), measure(a)
+       pair(a, b), (a -> b), measure(a)

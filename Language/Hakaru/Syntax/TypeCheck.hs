@@ -513,12 +513,10 @@ checkType = checkType_
                     <$> checkDatumCode d typ2 typ0
             _ -> typeMismatch (Right typ0) (Left "HData")
     
-        -- Need to do these cases
-
-        -- U.Case_ e1 branches -> do
-        --     TypedAST typ1 e1' <- inferType_ e1
-        --     branches' <- T.forM branches $ checkBranch typ1 typ0
-        --     return (syn(Case_ e1' branches'))
+        U.Case_ e1 branches -> do
+            TypedAST typ1 e1' <- inferType_ e1
+            branches' <- T.forM branches $ checkBranch typ1 typ0
+            return (syn(Case_ e1' branches'))
 
         U.Dirac_ e1 ->
             case typ0 of
@@ -633,6 +631,15 @@ checkType = checkType_
                                 return $ Konst e1'
             _             -> failwith "expected term of `K' type"
 
+    checkBranch
+        :: forall a b
+        .  Sing a
+        -> Sing b
+        -> U.Branch c -- Branch a b
+        -> TypeCheckMonad (Branch a abt b)
+    checkBranch pat_typ body_typ (U.Branch pat body) = do
+      (pat', body') <- checkPattern body pat_typ pat (checkType_ body_typ)
+      return $ Branch pat' body'
 
 ----------------------------------------------------------------
 {-
@@ -643,100 +650,99 @@ data TypedPatternList :: [Hakaru] -> * where
         -> TypedPatternList vars2
         -> TypedPatternList (vars1 ++ vars2)
 -}
-checkBranch
-    :: (ABT AST abt)
-    => Sing a
-    -> Sing b
-    -> Branch a abt b -- CHANGE THIS
-    -> TypeCheckMonad (Branch a abt b)
-checkBranch pat_typ body_typ (Branch pat body) =
-    Branch pat <$> checkPattern body pat_typ pat return
 
-checkPattern
-    :: (ABT AST abt, ABT AST abt')
-    => abt vars b -- CHANGE THIS
-    -> Sing a
-    -> Pattern vars a
-    -> (abt '[] b -> TypeCheckMonad (abt' '[] b)) -- CHANGE THIS
-    -> TypeCheckMonad (abt' vars b)
-checkPattern body pat_typ pat k = 
-    case pat of
-    PVar ->
-        caseBind body $ \x body' ->
-            case jmEq1 pat_typ (varType x) of
-            Nothing   -> failwith "type mismatch"
-            Just Refl -> bind x <$> pushCtx (SomeVariable x) (k body')
-    PWild       -> k body
-    PDatum t pat1 ->
-        case pat_typ of
-        SData _ typ2 -> checkPatternCode body pat1 typ2 pat_typ k
-        _            -> failwith "expected term of user-defined data type"
+    checkPattern
+        :: forall a b vars 
+        .  U.AST c
+        -> Sing a
+        -> U.Pattern c
+        -> (U.AST c -> TypeCheckMonad (abt '[] b))
+        -> TypeCheckMonad (Pattern vars a, abt vars b)
+    checkPattern body pat_typ pat k = 
+        case pat of
+          U.PVar name ->
+              let x = U.makeVar name pat_typ in
+              pushCtx (SomeVariable x) $ do
+                   body' <- bind x <$> (k body)
+                   undefined -- return (PVar, body')
+          U.PWild             -> do body' <- k body
+                                    undefined -- return (PWild, body')
+          U.PDatum _hint pat1 ->
+              case pat_typ of
+                SData _ typ2  -> do (code, body') <- checkPatternCode body pat1 typ2 pat_typ k
+                                    return (PDatum _hint code, body')
+                _             -> failwith "expected term of user-defined data type"
             
-checkPatternCode
-    :: (ABT AST abt, ABT AST abt')
-    => abt vars b -- CHANGE THIS
-    -> PDatumCode xss vars (HData' t) -- CHANGE THIS
-    -> Sing xss
-    -> Sing (HData' t)
-    -> (abt '[] b -> TypeCheckMonad (abt' '[] b)) -- CHANGE THIS
-    -> TypeCheckMonad (abt' vars b)
-checkPatternCode body pat typ typA k =
-    case pat of
-    PInr pat2 ->
-        case typ of
-        SPlus _ typ2 -> checkPatternCode body pat2 typ2 typA k
-        _            -> failwith "expected term of `sum' type"
-    PInl pat1 ->
-        case typ of
-        SPlus typ1 _ -> checkPatternStruct body pat1 typ1 typA k
-        _            -> failwith "expected term of `zero' type"
+    checkPatternCode
+        :: forall b xss t vars
+        .  U.AST c
+        -> U.PCode c
+        -> Sing xss
+        -> Sing (HData' t)
+        -> (U.AST c -> TypeCheckMonad (abt '[] b))
+        -> TypeCheckMonad (PDatumCode xss vars (HData' t), abt vars b)
+    checkPatternCode body pat typ typA k =
+        case pat of
+        U.PInr pat2 ->
+            case typ of
+            SPlus _ typ2 -> do (code, body') <- checkPatternCode body pat2 typ2 typA k
+                               return (PInr code, body')
+            _            -> failwith "expected term of `sum' type"
+        U.PInl pat1 ->
+            case typ of
+            SPlus typ1 _ -> do (code, body') <- checkPatternStruct body pat1 typ1 typA k
+                               return (PInl code, body')
+            _            -> failwith "expected term of `zero' type"
 
-checkPatternStruct
-    :: (ABT AST abt, ABT AST abt')
-    => abt vars b -- CHANGE THIS
-    -> PDatumStruct xs vars (HData' t) -- CHANGE THIS
-    -> Sing xs
-    -> Sing (HData' t)
-    -> (abt '[] b -> TypeCheckMonad (abt' '[] b)) -- CHANGE THIS
-    -> TypeCheckMonad (abt' vars b)
-checkPatternStruct body pat typ typA k =
-    case pat of
-    PEt pat1 pat2 ->
-        case typ of
-        SEt typ1 typ2 ->
-            error "TODO: checkPatternStruct"
-            {-
-            -- BUG: how do we get this to typecheck?
-            checkPatternFun    body  pat1 typ1 typA $ \body' ->
-            checkPatternStruct body' pat2 typ2 typA k
-            -}
-        _ -> failwith "expected term of `et' type"
-    PDone ->
-        case typ of
-        SDone       -> k body
-        _           -> failwith "expected term of `done' type"
+    checkPatternStruct
+        :: forall b xs t vars 
+        .  U.AST c
+        -> U.PStruct c
+        -> Sing xs
+        -> Sing (HData' t)
+        -> (U.AST c -> TypeCheckMonad (abt '[] b))
+        -> TypeCheckMonad (PDatumStruct xs vars (HData' t), abt vars b)
+    checkPatternStruct body pat typ typA k =
+        case pat of
+        U.PEt pat1 pat2 ->
+            case typ of
+            SEt typ1 typ2 ->
+                error "TODO: checkPatternStruct"
+                {-
+                -- BUG: how do we get this to typecheck?
+                checkPatternFun    body  pat1 typ1 typA $ \body' ->
+                checkPatternStruct body' pat2 typ2 typA k
+                -}
+            _ -> failwith "expected term of `et' type"
+        U.PDone ->
+            case typ of
+              SDone       -> do body' <- k body
+                                undefined -- return (PDone, body')
+              _           -> failwith "expected term of `done' type"
 
-checkPatternFun
-    :: (ABT AST abt, ABT AST abt')
-    => abt vars b -- CHANGE THIS
-    -> PDatumFun x vars (HData' t) -- CHANGE THIS
-    -> Sing x
-    -> Sing (HData' t)
-    -> (abt '[] b -> TypeCheckMonad (abt' '[] b)) -- CHANGE THIS
-    -> TypeCheckMonad (abt' vars b)
-checkPatternFun body pat typ typA k =
-    case pat of
-    PIdent pat1 ->
-        case typ of
-        SIdent      -> checkPattern body typA pat1 k
-        _           -> failwith "expected term of `I' type"
-    PKonst pat1 ->
-        case typ of
-        SKonst typ1 -> checkPattern body typ1 pat1 k
-        _           -> failwith "expected term of `K' type"
-
-{-
-checkBranch
+    checkPatternFun
+        :: forall b x t vars
+        .  U.AST c
+        -> U.PFun c
+        -> Sing x
+        -> Sing (HData' t)
+        -> (U.AST c -> TypeCheckMonad (abt '[] b))
+        -> TypeCheckMonad (PDatumFun x vars (HData' t), abt vars b)
+    checkPatternFun body pat typ typA k =
+        case pat of
+        U.PIdent pat1 ->
+            case typ of
+            SIdent      -> do (code, body') <- checkPattern body typA pat1 k
+                              return (PIdent code, body')
+            _           -> failwith "expected term of `I' type"
+        U.PKonst pat1 ->
+            case typ of
+            SKonst typ1 -> do (code, body') <- checkPattern body typ1 pat1 k
+                              return (PKonst code, body')
+            _           -> failwith "expected term of `K' type"
+    
+    {-
+    checkBranch
     :: (ABT AST abt, ABT AST abt')
     => Sing b
     -> abt vars b
