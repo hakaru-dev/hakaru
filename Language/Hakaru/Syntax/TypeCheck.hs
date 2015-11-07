@@ -663,8 +663,8 @@ data TypedPatternList :: [Hakaru] -> * where
         U.PDatum hint pat1 ->
             case patTyp of
             SData _ typ2 -> do
-                PC code body' <- checkPatternCode pat1 typ2 patTyp checkBody
-                return $ Branch (PDatum hint code) body'
+                PC pat1' body' <- checkPatternCode pat1 typ2 patTyp checkBody
+                return $ Branch (PDatum hint pat1') body'
             _ -> failwith "expected term of user-defined data type"
 
     checkPatternCode
@@ -679,15 +679,15 @@ data TypedPatternList :: [Hakaru] -> * where
         U.PInr pat2 ->
             case typ of
             SPlus _ typ2 -> do
-                PC code body' <- checkPatternCode pat2 typ2 typA checkBody
-                return $ PC (PInr code) body'
+                PC pat2' body' <- checkPatternCode pat2 typ2 typA checkBody
+                return $ PC (PInr pat2') body'
             _            -> failwith "expected term of `sum' type"
         U.PInl pat1 ->
             case typ of
             SPlus typ1 _ -> do
-                PS code body' <- checkPatternStruct pat1 typ1 typA checkBody
-                return $ PC (PInl code) body'
-            _            -> failwith "expected term of `zero' type"
+                PS pat1' body' <- checkPatternStruct pat1 typ1 typA checkBody
+                return $ PC (PInl pat1') body'
+            _ -> failwith "expected term of `zero' type"
 
     checkPatternStruct
         :: forall b xs t
