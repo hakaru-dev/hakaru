@@ -724,14 +724,14 @@ data TypedPatternList :: [Hakaru] -> * where
         U.PIdent pat1 ->
             case typ of
             SIdent      -> do
-                Branch code body' <- checkPattern typA pat1 checkBody
-                return $ PF (PIdent code) body'
+                Branch pat1' body' <- checkPattern typA pat1 checkBody
+                return $ PF (PIdent pat1') body'
             _           -> failwith "expected term of `I' type"
         U.PKonst pat1 ->
             case typ of
             SKonst typ1 -> do
-                Branch code body' <- checkPattern typ1 pat1 checkBody
-                return $ PF (PKonst code) body'
+                Branch pat1' body' <- checkPattern typ1 pat1 checkBody
+                return $ PF (PKonst pat1') body'
             _           -> failwith "expected term of `K' type"
     
     {-
