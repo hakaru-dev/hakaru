@@ -13,7 +13,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.05
+--                                                    2015.11.07
 -- |
 -- Module      :  Language.Hakaru.Lazy.Types
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -24,6 +24,8 @@
 --
 -- The data types for "Language.Hakaru.Lazy"
 --
+-- BUG: completely gave up on structure sharing. Need to add that back in.
+--
 -- TODO: once we figure out the exact API\/type of 'evaluate' and
 -- can separate it from Disintegrate.hs vs its other clients (i.e.,
 -- Sample.hs and Expect.hs), this file will prolly be broken up
@@ -33,14 +35,11 @@ module Language.Hakaru.Lazy.Types
     (
     -- * Terms in particular known forms\/formats
       Head(..), fromHead
-    , Whnf(..), fromWhnf, caseNeutralHead, viewWhnfDatum
-    , Lazy(..), fromLazy, caseLazy
-
-    -- * Evaluation contexts
-    , Statement(..)
-    , Context(..), initContext, residualizeContext
+    , Whnf(..), fromWhnf, viewWhnfDatum
+    , Lazy(..), fromLazy, forceBy
 
     -- * The monad for partial evaluation
+    , Statement(..), isBoundBy
     , EvaluationMonad(..)
     {- TODO: should we expose these?
     , freshenStatement
@@ -50,11 +49,11 @@ module Language.Hakaru.Lazy.Types
     -}
     , push
     , pushes
-    , select
 
     -- * The disintegration monad
-    -- Maybe also used by other term-to-term translations?
-    , Ans, M(..), runM
+    -- ** List-based version
+    , ListContext(..), Ans, M(..), runM
+    -- ** TODO: IntMap-based version
     ) where
 
 #if __GLASGOW_HASKELL__ < 710
@@ -70,18 +69,32 @@ import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT
-import qualified Language.Hakaru.Syntax.Prelude as P
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
--- N.B., when putting things into the context, be sure to freshen the variables as if we were allocating a new location on the heap.
+-- N.B., when putting things into the context, be sure to freshen
+-- the variables as if we were allocating a new location on the
+-- heap.
+--
+-- For simplicity we don't actually distinguish between "variables"
+-- and "locations". In the old finally-tagless code we had an @s@
+-- parameter like the 'ST' monad does in order to keep track of
+-- which heap things belong to. But since we might have nested
+-- disintegration, and thus nested heaps, doing that means we'd
+-- have to do some sort of De Bruijn numbering in the @s@ parameter
+-- in order to keep track of the nested regions; and that's just
+-- too much work to bother with.
 
--- For simplicity we don't actually distinguish between "variables" and "locations". In the old finally-tagless code we had an @s@ parameter like the 'ST' monad does in order to keep track of which heap things belong to. But since we might have nested disintegration, and thus nested heaps, doing that means we'd have to do some sort of De Bruijn numbering in the @s@ parameter in order to keep track of the nested regions; and that's just too much work to bother with.
 
-
--- TODO: is there a way to integrate this into the actual 'AST' definition in order to reduce repetition?
--- HACK: can't use \"H\" as the prefix because that clashes with the Hakaru datakind
+-- TODO: is there a way to integrate this into the actual 'AST'
+-- definition in order to reduce repetition?
+--
+-- HACK: can't use \"H\" as the prefix because that clashes with
+-- the Hakaru datakind
+--
 -- | A \"weak-head\" for the sake of 'Whnf'.
+--
+-- BUG: this may not force enough evaluation for "Language.Hakaru.Disintegrate"...
 data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     WValue :: !(Value a) -> Head abt a
 
@@ -96,12 +109,8 @@ data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         -> !(abt '[ 'HNat ] a)
         -> Head abt ('HArray a)
 
-    WLam
-        :: !(abt '[ a ] b)
-        -> Head abt (a ':-> b)
+    WLam     :: !(abt '[ a ] b) -> Head abt (a ':-> b)
 
-    -- TODO: should probably be separated out, since this doesn't really fit with our usual notion of head-normal forms...
-    -- TODO: the old version just recursed as type @a@. What's up with that?
     WMeasure :: !(abt '[] ('HMeasure a)) -> Head abt ('HMeasure a)
 
 
@@ -121,30 +130,18 @@ fromHead (WMeasure e1)    = e1
 -- the data type declaration prettier\/cleaner.
 -- <https://github.com/hakaru-dev/hakaru/issues/6>
 
--- | Weak head-normal forms.
+-- | Weak head-normal forms are either heads or neutral terms (i.e.,
+-- a term whose reduction is blocked on some free variable).
 data Whnf (abt :: [Hakaru] -> Hakaru -> *) (a :: Hakaru)
-    -- | An actual (weak-)head.
-    = Head_ !(Head abt a)
-
-    -- TODO: would it be helpful to track which variable it's blocked on? To do so we'd need 'GotStuck' to return that info...
-    -- | A neutral term; i.e., a term whose reduction is blocked
-    -- on some free variable.
+    = Head_   !(Head abt a)
     | Neutral !(abt '[] a)
+    -- TODO: would it be helpful to track which variable it's blocked
+    -- on? To do so we'd need 'GotStuck' to return that info...
 
-    -- | Some WHNF bound to a variable. We offer this form because
-    -- if we need to residualize, then we want to use the variable
-    -- in order to preserve sharing; but if we're branching based
-    -- on the value (e.g., in case analysis) then we need the actual
-    -- concrete value.
-    | NamedWhnf {-# UNPACK #-} !(Variable a) !(Whnf abt a)
-
-
--- | Rezidualize a WHNF. In particular, this takes 'NamedWhnf' to
--- its variable (ignoring the associated value).
+-- | Forget that something is a WHNF.
 fromWhnf :: (ABT AST abt) => Whnf abt a -> abt '[] a
-fromWhnf (Head_     e)   = fromHead e
-fromWhnf (Neutral   e)   = e
-fromWhnf (NamedWhnf x _) = var x
+fromWhnf (Head_   e) = fromHead e
+fromWhnf (Neutral e) = e
 
 
 -- | Given some WHNF, try to extract a 'Datum' from it.
@@ -152,12 +149,11 @@ viewWhnfDatum
     :: (ABT AST abt)
     => Whnf abt (HData' t)
     -> Maybe (Datum (abt '[]) (HData' t))
-viewWhnfDatum (NamedWhnf _ v)             = viewWhnfDatum v
 viewWhnfDatum (Head_ (WValue (VDatum d))) = Just (fmap11 (syn . Value_) d)
 viewWhnfDatum (Head_ (WDatum d))          = Just d
 viewWhnfDatum (Neutral _)                 = Nothing
-    -- N.B., we always return Nothing for Neutral terms because of
-    -- what Neutral is supposed to mean. If we wanted to be paranoid
+    -- N.B., we always return Nothing for 'Neutral' terms because of
+    -- what 'Neutral' is supposed to mean. If we wanted to be paranoid
     -- then we could use the following code to throw an error if
     -- we're given a \"neutral\" term which is in fact a head
     -- (because that indicates an error in our logic of constructing
@@ -171,53 +167,32 @@ viewWhnfDatum (Neutral _)                 = Nothing
     -}
 
 
--- | Call one of two continuations based on whether we have a neutral
--- term or a head. If we have a variable bound to a neutral term,
--- then we call the neutral-term continuation with that variable
--- (to preserve sharing). If we have a variable bound to a head,
--- then we call the head-term continuation with the head itself
--- (throwing away the variable). That is, we expect that our callers
--- will always branch on or eliminate the head itself, rather than
--- ever needing to residualize; thus, never call 'fromHead' within
--- the head-continuation on it's argument: instead call 'fromWhnf'
--- on the original.
-caseNeutralHead
-    :: (ABT syn abt)
-    => Whnf abt a -> (abt '[] a -> r) -> (Head abt a -> r) -> r
-caseNeutralHead (Neutral e) k _ = k e
-caseNeutralHead (Head_   v) _ k = k v
-caseNeutralHead (NamedWhnf x w) kn kv = go (kn $ var x) kv w
-    where
-    go e _ (Neutral   _)    = e
-    go _ k (Head_     v)    = k v
-    go e k (NamedWhnf _ w') = go e k w'
-
 ----------------------------------------------------------------
 -- BUG: haddock doesn't like annotations on GADT constructors. So
 -- here we'll avoid using the GADT syntax, even though it'd make
 -- the data type declaration prettier\/cleaner.
 -- <https://github.com/hakaru-dev/hakaru/issues/6>
 
--- | Lazy terms are either thunks or already evaluated to WHNF.
+-- | Lazy terms are either thunks (i.e., any term, which we may
+-- decide to evaluate later) or are already evaluated to WHNF.
 data Lazy (abt :: [Hakaru] -> Hakaru -> *) (a :: Hakaru)
-    -- | Already evaluated to WHNF.
     = Whnf_ !(Whnf abt a)
-
-    -- | A thunk; i.e., any term, which we may decide to evaluate
-    -- later (or may not).
     | Thunk !(abt '[] a)
 
-
--- | Rezidualize a lazy term. In particular, we call 'fromWhnf' for
--- already evaluated terms, which means we'll takes 'NamedWhnf' to
--- its variable (ignoring the associated value).
+-- | Forget whether a term has been evaluated to WHNF or not.
 fromLazy :: (ABT AST abt) => Lazy abt a -> abt '[] a
 fromLazy (Whnf_ e) = fromWhnf e
 fromLazy (Thunk e) = e
 
-caseLazy :: Lazy abt a -> (Whnf abt a -> r) -> (abt '[] a -> r) -> r
-caseLazy (Whnf_ e) k _ = k e
-caseLazy (Thunk e) _ k = k e
+-- | If the term is already evaluated, return it; if not, call the
+-- function to force it.
+forceBy
+    :: (Applicative f)
+    => (abt '[] a -> f (Whnf abt a))
+    -> Lazy abt a
+    -> f (Whnf abt a)
+forceBy _ (Whnf_ e) = pure e
+forceBy k (Thunk e) = k e
 
 
 ----------------------------------------------------------------
@@ -226,13 +201,22 @@ caseLazy (Thunk e) _ k = k e
 -- the data type declaration prettier\/cleaner.
 -- <https://github.com/hakaru-dev/hakaru/issues/6>
 
--- | A single statement in the @HMeasure@ monad, where bound variables
--- are considered part of the \"statement\" that binds them rather
--- than part of the continuation. Thus, non-binding statements like
--- @Weight@ are also included here.
+-- | A single statement in the 'HMeasure' monad. In particular,
+-- note that the the first argument to 'MBind' (or 'Let_') together
+-- with the variable bound in the second argument forms the
+-- \"statement\" (leaving out the body of the second argument, which
+-- may be part of a following statement). In addition to these
+-- binding constructs, we also include a few non-binding statements
+-- like 'SWeight'.
 --
 -- This type was formerly called @Binding@, but that is inaccurate
 -- since it also includes non-binding statements.
+--
+-- TODO: figure out a way to distinguish the pure statements (namely
+-- 'SLet') from the statements which can only live in 'HMeasure';
+-- so that we can run the partial evaluator on pure code and extract
+-- an answer without needing to explain what to do with 'HMeasure'
+-- stuff...
 data Statement (abt :: [Hakaru] -> Hakaru -> *)
     -- | A variable bound by 'MBind' to a measure expression.
     = forall (a :: Hakaru) . SBind
@@ -244,118 +228,64 @@ data Statement (abt :: [Hakaru] -> Hakaru -> *)
         {-# UNPACK #-} !(Variable a)
         !(Lazy abt a)
 
-    -- TODO: to make a proper zipper for 'AST'\/'ABT' we'd want to
-    -- also store the other branches here...
-    --
-    -- | A collection of variables bound by a 'Pattern' to
-    -- subexpressions of the some 'Case_' scrutinee.
-    | forall (xs :: [Hakaru]) (a :: Hakaru) . SBranch
-        !(List1 Variable xs) -- could use 'SArgs' for more strictness
-        !(Pattern xs a)
-        !(Lazy abt a)
-
     -- | A weight; i.e., the first component of each argument to
     -- 'Superpose_'.
     | SWeight
         !(Lazy abt 'HProb)
 
-    -- TODO: if we do proper HNFs then we should add all the other binding forms (Lam_, Array_, Expect,...) as \"statements\" too
 
-
--- | An ordered collection of statements representing the context
--- surrounding the current focus of our program transformation.
--- That is, since some transformations work from the bottom up, we
--- need to keep track of the statements we passed along the way
--- when reaching for the bottom.
---
--- The tail of the list takes scope over the head of the list. Thus,
--- the back\/end of the list is towards the top of the program,
--- whereas the front of the list is towards the bottom.
---
--- This type was formerly called @Heap@ (presumably due to the
--- 'Statement' type being called @Binding@) but that seems like a
--- misnomer to me since this really has nothing to do with allocation.
--- However, it is still like a heap inasmuch as it's a dependency
--- graph and we may wish to change the topological sorting or remove
--- \"garbage\" (subject to correctness criteria).
-data Context (abt :: [Hakaru] -> Hakaru -> *) = Context
-    { freshNat   :: {-# UNPACK #-} !Nat
-    , statements :: [Statement abt]
-    }
--- TODO: to the extent that we can ignore order of statements, we could use an @IntMap (Statement abt)@ in order to speed up the lookup times in 'update'. We just need to figure out (a) what to do with 'SWeight' statements, (b) how to handle 'SBranch' so that we can just make one map modification despite possibly binding multiple variables, and (c) figure out how to recover the order (to the extent that we must).
-
-
--- | Create an initial context, making sure not to capture any of
--- the free variables in the collection of arguments.
---
--- We use 'Some2' on the inputs because it doesn't matter what their
--- type or locally-bound variables are, so we want to allow @f@ to
--- contain terms with different indices.
-initContext :: (ABT AST abt, F.Foldable f) => f (Some2 abt) -> Context abt
-initContext es = Context (maximumNextFree es) []
-    where
-    maximumNextFree :: (ABT AST abt, F.Foldable f) => f (Some2 abt) -> Nat
-    maximumNextFree =
-        unMaxNat . F.foldMap (\(Some2 e) -> MaxNat $ nextFree e)
-    -- N.B., 'Foldable' doesn't get 'F.null' until ghc-7.10
-
-
--- Argument order is to avoid flipping in 'runM'
--- TODO: generalize to non-measure types too!
--- TODO: if any SLet bindings are unused, then drop them. If any are used exactly once, maybe inline them?
-residualizeContext
-    :: (ABT AST abt)
-    => abt '[] ('HMeasure a)
-    -> Context abt
-    -> abt '[] ('HMeasure a)
-residualizeContext = \e h -> foldl step e (statements h)
-    where
-    step e s = syn $
-        case s of
-        SBind x body -> MBind :$ fromLazy body :* bind x e :* End
-        SLet  x body -> Let_  :$ fromLazy body :* bind x e :* End
-        SBranch xs pat body ->
-            Case_ (fromLazy body)
-                [ Branch pat $
-                    case eqAppendIdentity xs of
-                    Refl -> binds xs e
-                , Branch PWild P.reject
-                ]
-        SWeight body -> Superpose_ [(fromLazy body, e)]
+-- | Is the variable bound by the statement?
+isBoundBy :: Variable (a :: Hakaru) -> Statement abt -> Maybe ()
+x `isBoundBy` SBind y _ = const () <$> varEq x y
+x `isBoundBy` SLet  y _ = const () <$> varEq x y
+_ `isBoundBy` SWeight _ = Nothing
 
 
 ----------------------------------------------------------------
 -- | This class captures the monadic operations needed by the
 -- 'evaluate' function in "Language.Hakaru.Lazy".
-class (Functor m, Applicative m, Monad m)
+class (Functor m, Applicative m, Monad m, ABT AST abt)
     => EvaluationMonad abt m | m -> abt
     where
-    -- TODO: should we have a *method* for initializing the stored 'freshNat'; or should we only rely on 'initContext'? Beware correctness issues about updating the lower bound after having called 'getFreshNat'...
+    -- TODO: should we have a *method* for arbitrarily incrementing the stored 'nextFreshNat'; or should we only rely on it being initialized correctly? Beware correctness issues about updating the lower bound after having called 'freshNat'...
 
-    -- | Return a fresh natural number. When called repeatedly,
-    -- this method must never return the same number twice.
-    getFreshNat :: m Nat
-
-    -- | Return the statement on the top of the context (i.e.,
-    -- closest to the current focus). This is unsafe because it may
-    -- allow you to drop bindings for variables; it is used to
-    -- implement 'select'.
-    unsafePop :: m (Maybe (Statement abt))
+    -- | Return a fresh natural number. That is, a number which is
+    -- not the 'varID' of any free variable in the expressions of
+    -- interest, and isn't a number we've returned previously.
+    freshNat :: m Nat
 
     -- | Add a statement to the top of the context. This is unsafe
     -- because it may allow confusion between variables with the
     -- same name but different scopes (thus, may allow variable
-    -- capture); it is used to implement 'push_', 'push', 'pushes',
-    -- and 'select'.
+    -- capture). Prefer using 'push_', 'push', or 'pushes'.
     unsafePush :: Statement abt -> m ()
 
     -- | Call 'unsafePush' repeatedly. Is part of the class since
     -- we may be able to do this more efficiently than actually
     -- calling 'unsafePush' repeatedly.
     --
-    -- N.B., this should push things in the same order as 'pushes' does; i.e., the head is pushed first and thus is the furthest away in the final context, whereas the tail is pushed last and is the closest in the final context.
+    -- N.B., this should push things in the same order as 'pushes'
+    -- does.
     unsafePushes :: [Statement abt] -> m ()
     unsafePushes = mapM_ unsafePush
+
+    -- | Look for the statement @s@ binding the variable. If found,
+    -- then call the continuation with @s@ in the context where @s@
+    -- itself and everything @s@ (transitively)depends on is included
+    -- but everything that (transitively)depends on @s@ is excluded;
+    -- thus, the continuation may only alter the dependencies of
+    -- @s@. After the continuation returns, restore all the bindings
+    -- that were removed before calling the continuation. If no
+    -- such @s@ can be found, then return 'Nothing' without altering
+    -- the context at all.
+    --
+    -- N.B., the statement @s@ itself is popped! Thus, it is up to
+    -- the continuation to make sure to push new statements that
+    -- bind all the variables bound by @s@!
+    select
+        :: Variable (a :: Hakaru)
+        -> (Statement abt -> Maybe (m r))
+        -> m (Maybe r)
 
 
 -- | Internal function for renaming the variables bound by a
@@ -374,9 +304,11 @@ freshenStatement s =
     SLet x body -> do
         x' <- freshenVar x
         return (SLet x' body, singletonAssocs x (var x'))
+    {-
     SBranch xs pat body -> do
         xs' <- freshenVars xs
         return (SBranch xs' pat body, toAssocs xs (fmap11 var xs'))
+    -}
 
 
 -- | Given a variable, return a new variable with the same hint and
@@ -386,7 +318,7 @@ freshenVar
     => Variable (x :: Hakaru)
     -> m (Variable x)
 freshenVar x = do
-    i <- getFreshNat
+    i <- freshNat
     return x{varID=i}
 
 
@@ -397,10 +329,8 @@ freshenVars
     :: (EvaluationMonad abt m)
     => List1 Variable (xs :: [Hakaru])
     -> m (List1 Variable xs)
-freshenVars Nil1 = return Nil1
-freshenVars (Cons1 x xs) = do
-    x' <- freshenVar x
-    Cons1 x' <$> freshenVars xs
+freshenVars Nil1         = return Nil1
+freshenVars (Cons1 x xs) = Cons1 <$> freshenVar x <*> freshenVars xs
 {-
 -- TODO: get this faster version to typecheck! And once we do, move it to IClasses.hs or wherever 'List1'\/'DList1' end up
 freshenVars = go dnil1
@@ -455,7 +385,9 @@ push s e k = do
 
 
 -- | Call 'push' repeatedly. (N.B., is more efficient than actually
--- calling 'push' repeatedly.)
+-- calling 'push' repeatedly.) The head is pushed first and thus
+-- is the furthest away in the final context, whereas the tail is
+-- pushed last and is the closest in the final context.
 pushes
     :: (ABT AST abt, EvaluationMonad abt m)
     => [Statement abt]   -- ^ the statements to push
@@ -468,42 +400,64 @@ pushes ss e k = do
     k (substs rho e)
 
 
--- | Given some \"predicate\", @p@, we (1) scroll up through the
--- context until we find a statement, @s@, such that @p s = Just
--- m@, (2) if we find such an @s@, we pop @s@ off the context and
--- evaluate @m@, finally (3) regardless of whether we found such
--- an @s@ or not we scroll back down over the context we passed
--- along the way. Thus, if the predicate returns 'Nothing' on all
--- statements, then the final context is unchanged and we return
--- 'Nothing'. Otherwise, we return 'Just' the result of evaluating
--- @m@, and the final context will contain the statements above @s@
--- as modified by @m@ and then all the statements below @s@ unmodified.
+----------------------------------------------------------------
+----------------------------------------------------------------
+-- | An ordered collection of statements representing the context
+-- surrounding the current focus of our program transformation.
+-- That is, since some transformations work from the bottom up, we
+-- need to keep track of the statements we passed along the way
+-- when reaching for the bottom.
 --
--- N.B., the statement @s@ itself is popped! Thus, it is up to @m@
--- to make sure to push new statements that bind the same variables!
-select
-    :: (EvaluationMonad abt m)
-    => (Statement abt -> Maybe (m r))
-    -> m (Maybe r)
-select p = loop []
-    where
-    -- TODO: use a DList to avoid reversing inside 'unsafePushes'
-    loop ss = do
-        ms <- unsafePop
-        case ms of
-            Nothing -> do
-                unsafePushes ss
-                return Nothing
-            Just s  ->
-                case p s of
-                Nothing -> loop (s:ss)
-                Just mr -> do
-                    r <- mr
-                    unsafePushes ss
-                    return (Just r)
+-- The tail of the list takes scope over the head of the list. Thus,
+-- the back\/end of the list is towards the top of the program,
+-- whereas the front of the list is towards the bottom.
+--
+-- This type was formerly called @Heap@ (presumably due to the
+-- 'Statement' type being called @Binding@) but that seems like a
+-- misnomer to me since this really has nothing to do with allocation.
+-- However, it is still like a heap inasmuch as it's a dependency
+-- graph and we may wish to change the topological sorting or remove
+-- \"garbage\" (subject to correctness criteria).
+--
+-- TODO: Figure out what to do with 'SWeight' so that we can use
+-- an @IntMap (Statement abt)@ in order to speed up the lookup times
+-- in 'select'. (Assuming callers don't use 'unsafePush' unsafely:
+-- we can recover the order things were inserted from their 'varID'
+-- since we've freshened them all and therefore their IDs are
+-- monotonic in the insertion order.)
+data ListContext (abt :: [Hakaru] -> Hakaru -> *) = ListContext
+    { nextFreshNat :: {-# UNPACK #-} !Nat
+    , statements   :: [Statement abt]
+    }
 
-----------------------------------------------------------------
-----------------------------------------------------------------
+
+-- Argument order is to avoid flipping in 'runM'
+-- TODO: generalize to non-measure types too!
+-- TODO: if any SLet bindings are unused, then drop them. If any are used exactly once, maybe inline them?
+residualizeListContext
+    :: (ABT AST abt)
+    => abt '[] ('HMeasure a)
+    -> ListContext abt
+    -> abt '[] ('HMeasure a)
+residualizeListContext e0 = foldl step e0 . statements
+    where
+    step e s = syn $
+        case s of
+        SBind x body -> MBind :$ fromLazy body :* bind x e :* End
+        SLet  x body -> Let_  :$ fromLazy body :* bind x e :* End
+        {-
+        SBranch xs pat body ->
+            Case_ (fromLazy body)
+                [ Branch pat $
+                    case eqAppendIdentity xs of
+                    Refl -> binds xs e
+                , Branch PWild P.reject
+                ]
+        -}
+        SWeight body -> Superpose_ [(fromLazy body, e)]
+
+
+
 -- In the paper we say that result must be a 'Whnf'; however, in
 -- the paper it's also always @HMeasure a@ and everything of that
 -- type is a WHNF (via 'WMeasure') so that's a trivial statement
@@ -515,7 +469,7 @@ select p = loop []
 -- some sort of normal form, then it should be one preserved by
 -- 'residualizeContext'; otherwise I(wrengr) don't feel comfortable
 -- calling the result of 'runM'\/'runM'' a whatever-NF.
-type Ans abt a = Context abt -> Whnf abt ('HMeasure a)
+type Ans abt a = ListContext abt -> Whnf abt ('HMeasure a)
 
 
 -- TODO: defunctionalize the continuation. In particular, the only
@@ -529,27 +483,30 @@ newtype M abt x = M { unM :: forall a. (x -> Ans abt a) -> Ans abt a }
 
 
 -- | Run a computation in the 'M' monad, residualizing out all the
--- statements in the final 'Context'. The initial context argument
--- should be constructed by 'initContext' to ensure proper hygiene;
--- for example(s):
+-- statements in the final evaluation context. The second argument
+-- should include all the terms altered by the 'M' expression; this
+-- is necessary to ensure proper hygiene; for example(s):
 --
--- > \e -> runM (perform e) (initContext [e])
--- > \e -> runM (constrainOutcome e v) (initContext [e, v])
+-- > runM (perform e) [Some2 e]
+-- > runM (constrainOutcome e v) [Some2 e, Some2 v]
 --
-runM :: (ABT AST abt)
+-- We use 'Some2' on the inputs because it doesn't matter what their
+-- type or locally-bound variables are, so we want to allow @f@ to
+-- contain terms with different indices.
+runM :: (ABT AST abt, F.Foldable f)
     => M abt (Whnf abt a)
-    -> Context abt
+    -> f (Some2 abt)
     -> abt '[] ('HMeasure a)
-runM (M m) = fromWhnf . m c0
+runM m es = fromWhnf (unM m c0 (ListContext i0 []))
     where
     -- HACK: we only have @c0@ build up a WHNF since that's what
     -- 'Ans' says we need (see the comment at 'Ans' for why this
     -- may not be what we actually mean).
-    --
-    -- We could eta-shorten @x@ away, and inline this definition
-    -- of @c0@; but hopefully it's a bit clearer to break it out
-    -- like this...
-    c0 x = Head_ . WMeasure . residualizeContext (P.dirac $ fromWhnf x)
+    c0 x = Head_
+        . WMeasure 
+        . residualizeListContext (syn (Dirac :$ fromWhnf x :* End))
+    
+    i0 = unMaxNat (F.foldMap (\(Some2 e) -> MaxNat $ nextFree e) es)
 
 
 instance Functor (M abt) where
@@ -563,26 +520,48 @@ instance Monad (M abt) where
     return    = pure
     M m >>= k = M $ \c -> m $ \x -> unM (k x) c
 
-instance EvaluationMonad abt (M abt) where
-    getFreshNat =
-        M $ \c (Context i ss) ->
-            c i (Context (i+1) ss)
-
-    unsafePop =
-        M $ \c h@(Context i ss) ->
-            case ss of
-            []    -> c Nothing  h
-            s:ss' -> c (Just s) (Context i ss')
+instance (ABT AST abt) => EvaluationMonad abt (M abt) where
+    freshNat =
+        M $ \c (ListContext i ss) ->
+            c i (ListContext (i+1) ss)
 
     unsafePush s =
-        M $ \c (Context i ss) ->
-            c () (Context i (s:ss))
+        M $ \c (ListContext i ss) ->
+            c () (ListContext i (s:ss))
 
     -- N.B., the use of 'reverse' is necessary so that the order
     -- of pushing matches that of 'pushes'
     unsafePushes ss =
-        M $ \c (Context i ss') ->
-            c () (Context i (reverse ss ++ ss'))
+        M $ \c (ListContext i ss') ->
+            c () (ListContext i (reverse ss ++ ss'))
+
+    select x p = loop []
+        where
+        -- TODO: use a DList to avoid reversing inside 'unsafePushes'
+        loop ss = do
+            ms <- unsafePop
+            case ms of
+                Nothing -> do
+                    unsafePushes ss
+                    return Nothing
+                Just s  ->
+                    -- Alas, @p@ will have to recheck 'isBoundBy'
+                    -- in order to grab the 'Refl' proof we erased;
+                    -- but there's nothing to be done for it.
+                    case x `isBoundBy` s >> p s of
+                    Nothing -> loop (s:ss)
+                    Just mr -> do
+                        r <- mr
+                        unsafePushes ss
+                        return (Just r)
+
+-- | Not exported because we only need it for defining 'select' on 'M'.
+unsafePop :: M abt (Maybe (Statement abt))
+unsafePop =
+    M $ \c h@(ListContext i ss) ->
+        case ss of
+        []    -> c Nothing  h
+        s:ss' -> c (Just s) (ListContext i ss')
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

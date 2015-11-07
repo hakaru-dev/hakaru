@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.05
+--                                                    2015.11.07
 -- |
 -- Module      :  Language.Hakaru.Lazy
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -21,6 +21,8 @@
 -- Portability :  GHC-only
 --
 -- Lazy partial evaluation.
+--
+-- BUG: completely gave up on structure sharing. Need to add that back in.
 ----------------------------------------------------------------
 module Language.Hakaru.Lazy
     (
@@ -95,11 +97,14 @@ evaluate e0 =
         App_ :$ e1 :* e2 :* End -> do
             -- This implementation gives call-by-need beta-reduction.
             w1 <- evaluate e1
-            caseNeutralHead w1
-                (\e1' -> return . Neutral $ P.app e1' e2)
-                $ \(WLam f) ->
-                    caseBind f $ \x f' ->
-                        push (SLet x $ Thunk e2) f' evaluate
+            case w1 of
+                Neutral e1' -> return . Neutral $ P.app e1' e2
+                Head_   v1  ->
+                    case v1 of
+                    WLam f ->
+                        caseBind f $ \x f' ->
+                            push (SLet x $ Thunk e2) f' evaluate
+                    _ -> error "evaluate: the impossible happened"
 
         Let_ :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
@@ -113,9 +118,9 @@ evaluate e0 =
             w1 <- evaluate e1
             return $
                 -- if not @mustCheck (fromWhnf w1)@, then could in principle eliminate the annotation; though it might be here so that it'll actually get pushed down to somewhere it's needed later on, so it's best to play it safe and leave it in.
-                caseNeutralHead w1
-                    (Neutral . P.ann_ typ)
-                    (\v1 -> Head_ $ HAnn typ v1) -- or something...
+                case w1 of
+                    Neutral e1' -> Neutral (P.ann_ typ e1')
+                    Head_   v1  -> Head_ (HAnn typ v1) -- or something...
         -}
 
         CoerceTo_   c :$ e1 :* End -> coerceTo   c <$> evaluate e1
@@ -198,69 +203,26 @@ update
     .  (ABT AST abt, EvaluationMonad abt m)
     => Variable a
     -> m (Whnf abt a)
-update = \x -> do
-    mb <- select (binderFor x)
+update x = do
+    mb <- select x $ \s ->
+        case s of
+        SBind y e -> do
+            Refl <- varEq x y
+            Just $ do
+                w <- error "TODO: update{SBind}" -- BUG: @forceBy perform e@ requires @m ~ M abt@
+                unsafePush (SLet x $ Whnf_ w)
+                return w
+        SLet y e -> do
+            Refl <- varEq x y
+            Just $ do
+                w <- forceBy evaluate e
+                unsafePush (SLet x $ Whnf_ w)
+                return w
+        SWeight _ -> Nothing
     return $
         case mb of
         Nothing -> Neutral (var x) -- turns out @x@ is a free variable
         Just w  -> w
-    where
-    -- | Is @s@ a binder for @x@ (i.e., does @s@ bind @x@)?
-    binderFor :: Variable a -> Statement abt -> Maybe (m (Whnf abt a))
-    binderFor x (SBind y e) = do
-        Refl <- varEq x y
-        Just $ do
-            w <- error "TODO: update{SBind}" -- BUG: @caseLazy e return perform@ requires @m ~ M abt@
-            unsafePush (SLet x $ Whnf_ w)
-            return (NamedWhnf x w)
-    binderFor x (SLet y e) = do
-        Refl <- varEq x y
-        Just $ do
-            w <- caseLazy e return evaluate
-            unsafePush (SLet x $ Whnf_ w)
-            return (NamedWhnf x w)
-    binderFor x (SBranch ys pat e)
-        | varElem x ys = Just $ do
-            w <- caseLazy e return evaluate
-            error "TODO: update{SBranch}" -- BUG: @updateBranch x ys pat w@ requires @m ~ M abt@...
-    binderFor _ _ = Nothing
-
-    -- TODO: double check to make sure we don't accidentally drop the bindings for @ys@.
-    -- BUG: this idea seemed to work fine for the @unleft@\/@unright@ examples in the paper, but it doesn't generalize. In particular, this can cause us to recursively residualize 'SBranch' things all up the heap; but since things can have multiple branches in general, that means we can end up generating some severely bloated code! I think in general we really shouldn't have 'SBranch' as a 'Statement' (unless we're doing HNF in lieu of WHNF); it's really just a special case for source code using @unleft@\/@unright@ and 'MBind'-ing the result, and we should probably treat it like that; i.e., just like any other 'SBind'.
-    updateBranch
-        :: forall (xs :: [Hakaru]) (b :: Hakaru)
-        .  Variable a
-        -> List1 Variable xs
-        -> Pattern xs b
-        -> Whnf abt b
-        -> M abt (Whnf abt a)
-    updateBranch x ys pat w =
-        let residualizeCase e = M $ \c h ->
-                Neutral . syn $ Case_ e
-                    [ Branch pat $
-                        case eqAppendIdentity ys of
-                        Refl -> binds ys (fromWhnf $ c (Neutral $ var x) h)
-                    , Branch PWild $
-                        error "TODO: update{SBranch}: other branches" -- for the case where we're in the 'M'' monad rather than the 'M' monad, we can use 'P.reject' here...
-                    ]
-        in do
-            -- BUG: should we really use @fromWhnf w@ here? Or should we prefer @caseNeutralHead w residualizeCase $ \v -> ...(fromHead v)...@?
-            match <- matchTopPattern evaluateDatum (fromWhnf w) pat ys
-            case match of
-                Just (Matched ss Nil1) -> do
-                    unsafePushes (toStatements ss) -- TODO: use a DList to avoid reversing inside 'unsafePushes'
-                    update x -- Now we need to force the new binding for @x@
-                Just GotStuck -> residualizeCase (fromWhnf w)
-                Nothing -> error "TODO: update{SBranch}: match is guaranteed to fail" -- P.reject
-
-
--- TODO: move this to ABT.hs\/Variable.hs
-varElem :: Variable (a :: Hakaru) -> List1 Variable (xs :: [Hakaru]) -> Bool
-varElem _ Nil1         = False
-varElem x (Cons1 y ys) =
-    case varEq x y of
-    Just _  -> True
-    Nothing -> varElem x ys
 
 
 ----------------------------------------------------------------
@@ -350,9 +312,10 @@ rr1 :: (ABT AST abt, EvaluationMonad abt m, Interp a a', Interp b b')
     -> m (Whnf abt b)
 rr1 f' f e = do
     w <- evaluate e
-    caseNeutralHead w
-        (return . Neutral . f)
-        (return . Head_ . reflect . f' . reify)
+    return $
+        case w of
+        Neutral e' -> Neutral $ f e'
+        Head_   v  -> Head_ . reflect $ f' (reify v)
 
 
 rr2 :: ( ABT AST abt, EvaluationMonad abt m
@@ -365,12 +328,13 @@ rr2 :: ( ABT AST abt, EvaluationMonad abt m
 rr2 f' f e1 e2 = do
     w1 <- evaluate e1
     w2 <- evaluate e2
-    caseNeutralHead w1
-        (\e1' -> return . Neutral $ f e1' (fromWhnf w2))
-        $ \v1 ->
-            caseNeutralHead w2
-                (\e2' -> return . Neutral $ f (fromWhnf w1) e2')
-                $ \v2 -> return . Head_ . reflect $ f' (reify v1) (reify v2)
+    return $
+        case w1 of
+        Neutral e1' -> Neutral $ f e1' (fromWhnf w2)
+        Head_   v1  ->
+            case w2 of
+            Neutral e2' -> Neutral $ f (fromWhnf w1) e2'
+            Head_   v2  -> Head_ . reflect $ f' (reify v1) (reify v2)
 
 
 impl, diff, nand, nor :: Bool -> Bool -> Bool
@@ -417,9 +381,9 @@ evaluateNaryOp = \o es -> mainLoop o (evalOp o) Seq.empty es
         case Seq.viewr ws of
         Seq.EmptyR    -> Seq.singleton w1
         ws' Seq.:> w2 ->
-            caseNeutralHead w1 (const (ws Seq.|> w1)) $ \v1 -> 
-            caseNeutralHead w2 (const (ws Seq.|> w1)) $ \v2 -> 
-            snocLoop op ws' (Head_ (op v1 v2))
+            case (w1,w2) of
+            (Head_ v1, Head_ v2) -> snocLoop op ws' (Head_ (op v1 v2))
+            _                    -> ws Seq.|> w1
 
     matchNaryOp
         :: (ABT AST abt)
@@ -427,7 +391,9 @@ evaluateNaryOp = \o es -> mainLoop o (evalOp o) Seq.empty es
         -> Whnf abt a
         -> Maybe (Seq (abt '[] a))
     matchNaryOp o w =
-        flip (caseNeutralHead w) (const Nothing) $ \e ->
+        case w of
+        Head_   _ -> Nothing
+        Neutral e ->
             caseVarSyn e (const Nothing) $ \t ->
                 case t of
                 NaryOp_ o' es | o' == o -> Just es
@@ -602,8 +568,9 @@ perform e0 =
         -- TODO: But we should be careful to make sure we haven't left any cases out. Maybe we should have some sort of @mustPerform@ predicate like we have 'mustCheck' in TypeCheck.hs...?
         _ -> do
             w <- evaluate e0
-            flip (caseNeutralHead w) (perform . fromHead) $ \e0' ->
-                M $ \c h -> Head_ $ WMeasure (e0' P.>>= \z -> fromWhnf (c (Neutral z) h))
+            case w of
+                Head_   v -> perform $ fromHead v
+                Neutral e -> M $ \c h -> Head_ $ WMeasure (e P.>>= \z -> fromWhnf (c (Neutral z) h))
 
 
 ----------------------------------------------------------------
