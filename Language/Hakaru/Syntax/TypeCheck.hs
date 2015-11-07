@@ -622,13 +622,11 @@ checkType = checkType_
         case d of
         U.Ident e1 ->
             case typ of
-            SIdent        -> do e1' <- checkType_ typA e1
-                                return $ Ident e1'
+            SIdent        -> Ident <$> checkType_ typA e1
             _             -> failwith "expected term of `I' type"
         U.Konst e1 ->
             case typ of
-            SKonst typ1   -> do e1' <- checkType_ typ1 e1
-                                return $ Konst e1'
+            SKonst typ1   -> Konst <$> checkType_ typ1 e1
             _             -> failwith "expected term of `K' type"
 
     checkBranch
@@ -637,8 +635,8 @@ checkType = checkType_
         -> Sing b
         -> U.Branch c -- Branch a b
         -> TypeCheckMonad (Branch a abt b)
-    checkBranch pat_typ body_typ (U.Branch pat body) = do
-      checkPattern body pat_typ pat (checkType_ body_typ)
+    checkBranch patTyp bodyTyp (U.Branch pat body) =
+        checkPattern body patTyp pat (checkType_ bodyTyp)
 
 ----------------------------------------------------------------
 {-
@@ -657,21 +655,20 @@ data TypedPatternList :: [Hakaru] -> * where
         -> U.Pattern c
         -> (U.AST c -> TypeCheckMonad (abt '[] b))
         -> TypeCheckMonad (Branch a abt b)
-    checkPattern body pat_typ pat k = 
+    checkPattern body patTyp pat k = 
         case pat of
-          U.PVar name ->
-              let x = U.makeVar name pat_typ in
-              pushCtx (SomeVariable x) $ do
-                   body' <- bind x <$> (k body)
-                   return $ Branch PVar body'
-          U.PWild             -> do body' <- k body
-                                    return $ Branch PWild body'
-          U.PDatum _hint pat1 ->
-              case pat_typ of
-                SData _ typ2  -> do PatternCode code body' <- checkPatternCode body pat1 typ2 pat_typ k
-                                    return $ Branch (PDatum _hint code) body'
-                _             -> failwith "expected term of user-defined data type"
-            
+        U.PVar name ->
+            let x = U.makeVar name patTyp in
+            pushCtx (SomeVariable x) $
+                (Branch PVar . bind x) <$> k body
+        U.PWild -> Branch PWild <$> k body
+        U.PDatum _hint pat1 ->
+            case patTyp of
+            SData _ typ2 -> do
+                PC code body' <- checkPatternCode body pat1 typ2 patTyp k
+                return $ Branch (PDatum _hint code) body'
+            _ -> failwith "expected term of user-defined data type"
+
     checkPatternCode
         :: forall b xss t
         .  U.AST c
@@ -684,13 +681,15 @@ data TypedPatternList :: [Hakaru] -> * where
         case pat of
         U.PInr pat2 ->
             case typ of
-            SPlus _ typ2 -> do PatternCode code body' <- checkPatternCode body pat2 typ2 typA k
-                               return $ PatternCode (PInr code) body'
+            SPlus _ typ2 -> do
+                PC code body' <- checkPatternCode body pat2 typ2 typA k
+                return $ PC (PInr code) body'
             _            -> failwith "expected term of `sum' type"
         U.PInl pat1 ->
             case typ of
-            SPlus typ1 _ -> do PatternStruct code body' <- checkPatternStruct body pat1 typ1 typA k
-                               return $ PatternCode (PInl code) body'
+            SPlus typ1 _ -> do
+                PS code body' <- checkPatternStruct body pat1 typ1 typA k
+                return $ PC (PInl code) body'
             _            -> failwith "expected term of `zero' type"
 
     checkPatternStruct
@@ -705,18 +704,18 @@ data TypedPatternList :: [Hakaru] -> * where
         case pat of
         U.PEt pat1 pat2 ->
             case typ of
-            SEt typ1 typ2 -> do
-                -- BUG: how do we get this to typecheck?
-              PatternFun    code  body' <- checkPatternFun body  pat1 typ1 typA k              
-              PatternStruct code' body' <- checkPatternStruct body' pat2 typ2 typA k
-              return $ PatternStruct (PEt code code') body'
-                    
+            SEt typ1 typ2 ->
+                error "TODO: checkPatternStruct{PEt}"
+                {-
+                checkPatternFun    body  pat1 typ1 typA $ \(PF pat1' body') ->
+                checkPatternStruct body' pat2 typ2 typA $ \(PS pat2' body'') ->
+                k (PS (PEt pat1' pat2') body'')
+                -}
             _ -> failwith "expected term of `et' type"
         U.PDone ->
             case typ of
-              SDone       -> do body' <- k body
-                                return $ PatternStruct PDone body'
-              _           -> failwith "expected term of `done' type"
+            SDone -> PS PDone <$> k body
+            _     -> failwith "expected term of `done' type"
 
     checkPatternFun
         :: forall b x t
@@ -730,13 +729,15 @@ data TypedPatternList :: [Hakaru] -> * where
         case pat of
         U.PIdent pat1 ->
             case typ of
-            SIdent      -> do Branch code body' <- checkPattern body typA pat1 k
-                              return $ PatternFun (PIdent code) body'
+            SIdent      -> do
+                Branch code body' <- checkPattern body typA pat1 k
+                return $ PF (PIdent code) body'
             _           -> failwith "expected term of `I' type"
         U.PKonst pat1 ->
             case typ of
-            SKonst typ1 -> do Branch code body' <- checkPattern body typ1 pat1 k
-                              return $ PatternFun (PKonst code) body'
+            SKonst typ1 -> do
+                Branch code body' <- checkPattern body typ1 pat1 k
+                return $ PF (PKonst code) body'
             _           -> failwith "expected term of `K' type"
     
     {-
@@ -746,9 +747,9 @@ data TypedPatternList :: [Hakaru] -> * where
     -> abt vars b
     -> TypedPatternList vars
     -> TypeCheckMonad ()
-checkBranch body_typ body = go
+checkBranch bodyTyp body = go
     where
-    go TPNil                     = checkType body_typ body
+    go TPNil                     = checkType bodyTyp body
     go (TP pat typ `TPCons` pts) =
         case pat of
         PVar ->
@@ -756,7 +757,7 @@ checkBranch body_typ body = go
                 case jmEq1 typ (varType x) of
                 Just Refl ->
                     pushCtx (SomeVariable x) $
-                        checkBranch body_typ body' pts
+                        checkBranch bodyTyp body' pts
                 Nothing   -> failwith "type mismatch"
 
         PWild       -> go pts
@@ -805,19 +806,19 @@ checkBranch body_typ body = go
 
 data PatternFun x t abt b =
     forall vars.
-        PatternFun
+        PF
             !(PDatumFun x vars (HData' t))
             !(abt vars b)
 
 data PatternStruct xs t abt b =
     forall vars.
-        PatternStruct
+        PS
             !(PDatumStruct xs vars (HData' t))
             !(abt vars b)
 
 data PatternCode xss t abt b =
     forall vars.
-        PatternCode
+        PC
             !(PDatumCode xss vars (HData' t))
             !(abt vars b)
 
