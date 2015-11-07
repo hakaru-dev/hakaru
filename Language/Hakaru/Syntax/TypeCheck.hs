@@ -100,7 +100,7 @@ mustCheck = go
     -- looking up it's type and then checking all the arguments.
     go (U.PrimOp_ _ _)    = False
 
-    go (U.NaryOp_ _ _)    = True
+    go (U.NaryOp_ _ es)   = F.all mustCheck es
 
     -- I return true because most folks (neelk, Pfenning, Dunfield
     -- & Pientka) say all data constructors mustCheck (even though
@@ -135,7 +135,7 @@ mustCheck = go
     go (U.MBind_  _ _ e2) = mustCheck e2
     go (U.MeasureOp_ _ _) = False
     go (U.Expect_ _ _ e2) = mustCheck e2
-    go (U.Superpose_ _)   = True -- TODO: like NaryOp, if any of the second expressions is inferrable, then we can infer everything by checking the rest
+    go (U.Superpose_ pes) = F.all (mustCheck . snd) pes -- TODO: back this up, like we do for NaryOp
     go (U.Lub_ es)        = error "TODO: mustCheck{Lub_}" -- TODO: inferrable iff at least one component is inferrable?
 
 
@@ -233,7 +233,7 @@ inferType = inferType_
         case typ1 of
             SFun typ2 typ3 -> do
                 e2' <- checkType typ2 e2
-                return $ TypedAST typ3 (syn(App_ :$ e1' :* e2' :* End))
+                return . TypedAST typ3 $ syn (App_ :$ e1' :* e2' :* End)
             _ -> typeMismatch (Left "function type") (Right typ1)
         -- The above is the standard rule that everyone uses.
         -- However, if the @e1@ is a lambda (rather than a primop
@@ -257,31 +257,30 @@ inferType = inferType_
         let x' = U.makeVar x typ1
         pushCtx (SomeVariable x') $ do
             TypedAST typ2 e2' <- inferType_ e2
-            return $ TypedAST typ2
-                (syn(Let_ :$ e1' :* bind x' e2' :* End))
+            return . TypedAST typ2 $ syn (Let_ :$ e1' :* bind x' e2' :* End)
                     
     U.Ann_ e1 (U.SSing typ1) -> do
         -- N.B., this requires that @typ1@ is a 'Sing' not a 'Proxy',
         -- since we can't generate a 'Sing' from a 'Proxy'.
         e1' <- checkType typ1 e1
-        return $ TypedAST typ1 (syn(Ann_ typ1 :$ e1' :* End))
+        return . TypedAST typ1 $ syn (Ann_ typ1 :$ e1' :* End)
 
     U.PrimOp_ (U.SealedOp op) es -> do
         let (typs, typ1) = sing_PrimOp op
         es' <- checkSArgs typs es
-        return $ TypedAST typ1 (syn(PrimOp_ op :$ es'))
+        return . TypedAST typ1 $ syn (PrimOp_ op :$ es')
 
     U.NaryOp_ op es -> do
-      TypedAST typ1 _ <- F.asum $ fmap inferType_ es
-      es'' <- T.forM es $ checkType typ1
-      case make_NaryOp typ1 op of
-        Nothing -> failwith "expected type with semiring"
-        Just op' -> do
-          return $ TypedAST typ1 (syn(NaryOp_ op' (S.fromList es'')))
+        TypedAST typ1 _ <- F.asum $ fmap inferType_ es
+        es'' <- T.forM es $ checkType typ1
+        case make_NaryOp typ1 op of
+            Nothing -> failwith "expected type with semiring"
+            Just op' ->
+                return . TypedAST typ1 $ syn (NaryOp_ op' (S.fromList es''))
 
     U.Value_ (Some1 v) ->
         -- BUG: need to finish implementing sing_Value for Datum
-        return $ TypedAST (sing_Value v) (syn(Value_ v))
+        return . TypedAST (sing_Value v) $ syn (Value_ v)
 
     U.CoerceTo_ (Some2 c) e1 ->
         case singCoerceDomCod c of
@@ -291,7 +290,7 @@ inferType = inferType_
                 failwith "Cannot infer type for null-coercion over a checking term; please add a type annotation"  
         Just (dom,cod) -> do
             e1' <- checkType dom e1
-            return $ TypedAST cod (syn(CoerceTo_ c :$ e1' :* End))
+            return . TypedAST cod $ syn (CoerceTo_ c :$ e1' :* End)
 
     U.UnsafeTo_ (Some2 c) e1 ->
         case singCoerceDomCod c of
@@ -301,16 +300,16 @@ inferType = inferType_
                 failwith "Cannot infer type for null-coercion over a checking term; please add a type annotation"  
         Just (dom,cod) -> do
             e1' <- checkType cod e1
-            return $ TypedAST dom (syn(UnsafeFrom_ c :$ e1' :* End))
+            return . TypedAST dom $ syn (UnsafeFrom_ c :$ e1' :* End)
 
     U.MeasureOp_ (U.SealedOp op) es -> do
         let (typs, typ1) = sing_MeasureOp op
         es' <- checkSArgs typs es
-        return $ TypedAST (SMeasure typ1) (syn(MeasureOp_ op :$ es'))
+        return . TypedAST (SMeasure typ1) $ syn (MeasureOp_ op :$ es')
 
     U.Dirac_ e1 | inferable e1 -> do
         TypedAST typ1 e1' <- inferType_ e1
-        return $ TypedAST (SMeasure typ1) (syn(Dirac :$ e1' :* End))
+        return . TypedAST (SMeasure typ1) $ syn (Dirac :$ e1' :* End)
 
     U.MBind_ name e1 e2 -> do
         TypedAST typ1 e1' <- inferType_ e1
@@ -320,10 +319,10 @@ inferType = inferType_
                 in pushCtx (SomeVariable x) $ do
                     TypedAST typ3 e2' <- inferType_ e2
                     case typ3 of
-                      SMeasure _ ->
-                        return $ TypedAST typ3
-                            (syn(MBind :$ e1' :* bind x e2' :* End))
-                      _ -> typeMismatch (Left "HMeasure") (Right typ3)
+                        SMeasure _ ->
+                            return . TypedAST typ3 $
+                                syn (MBind :$ e1' :* bind x e2' :* End)
+                        _ -> typeMismatch (Left "HMeasure") (Right typ3)
             _ -> typeMismatch (Left "HMeasure") (Right typ1)
 
     U.Expect_ name e1 e2 -> do
@@ -333,8 +332,8 @@ inferType = inferType_
                 let x = U.makeVar name typ2
                 in pushCtx (SomeVariable x) $ do
                     e2' <- checkType SProb e2
-                    return $ TypedAST SProb
-                        (syn(Expect :$ e1' :* bind x e2' :* End))
+                    return . TypedAST SProb $
+                        syn (Expect :$ e1' :* bind x e2' :* End)
             _ -> typeMismatch (Left "HMeasure") (Right typ1)
 
 
@@ -352,11 +351,9 @@ checkSArgs
     => List1 Sing typs
     -> [U.AST c]
     -> TypeCheckMonad (SArgs abt args)
-checkSArgs Nil1             []        = return End
-checkSArgs (Cons1 typ typs) (e:es) = do
-    e'  <- checkType  typ  e
-    es' <- checkSArgs typs es
-    return (e' :* es')
+checkSArgs Nil1             []     = return End
+checkSArgs (Cons1 typ typs) (e:es) =
+    (:*) <$> checkType typ e <*> checkSArgs typs es
 checkSArgs _ _ =
     error "checkSArgs: the number of types and terms doesn't match up"
 
@@ -386,8 +383,8 @@ checkType = checkType_
             SFun typ1 typ2 ->
                 let x = U.makeVar name typ1 in
                 pushCtx (SomeVariable x) $ do
-                  e1' <- checkType_ typ2 e1
-                  return (syn(Lam_ :$ bind x e1' :* End))
+                    e1' <- checkType_ typ2 e1
+                    return $ syn (Lam_ :$ bind x e1' :* End)
             _ -> typeMismatch (Right typ0) (Left "function type")
 
         U.Let_ name e1 e2 -> do
@@ -395,48 +392,48 @@ checkType = checkType_
             let x = U.makeVar name typ1
             pushCtx (SomeVariable x) $ do
                 e2' <- checkType_ typ0 e2
-                return (syn(Let_ :$ e1' :* bind x e2' :* End))
+                return $ syn (Let_ :$ e1' :* bind x e2' :* End)
     
         U.Fix_ name e1 ->
             let x = U.makeVar name typ0 in
             pushCtx (SomeVariable x) $ do
                 e1' <- checkType_ typ0 e1
-                return (syn(Fix_ :$ bind x e1' :* End))
+                return $ syn (Fix_ :$ bind x e1' :* End)
     
         U.CoerceTo_ (Some2 c) e1 ->
             case singCoerceDomCod c of
             Nothing -> do
                 e1' <- checkType_ typ0 e1
-                return (syn(CoerceTo_ CNil :$  e1' :* End))
+                return $ syn (CoerceTo_ CNil :$  e1' :* End)
             Just (dom, cod) -> 
                 case jmEq1 typ0 cod of
                 Just Refl -> do
                     e1' <- checkType_ dom e1
-                    return (syn(CoerceTo_ c :$ e1' :* End))
+                    return $ syn (CoerceTo_ c :$ e1' :* End)
                 Nothing -> typeMismatch (Right typ0) (Right cod)
 
         U.UnsafeTo_ (Some2 c) e1 ->
             case singCoerceDomCod c of
             Nothing -> do
                 e1' <- checkType_ typ0 e1
-                return (syn(UnsafeFrom_ CNil :$  e1' :* End))
+                return $ syn (UnsafeFrom_ CNil :$  e1' :* End)
             Just (dom, cod) -> 
                 case jmEq1 typ0 dom of
                 Just Refl -> do
                     e1' <- checkType_ cod e1
-                    return (syn(UnsafeFrom_ c :$ e1' :* End))
+                    return $ syn (UnsafeFrom_ c :$ e1' :* End)
                 Nothing -> typeMismatch (Right typ0) (Right dom)
 
-        U.NaryOp_ op es -> do
-          case make_NaryOp typ0 op of
-            Nothing -> failwith "expected type with semiring"
-            Just op'  -> do
-               es' <- T.forM es $ checkType typ0
-               return (syn(NaryOp_ op' (S.fromList es')))
+        U.NaryOp_ op es ->
+            case make_NaryOp typ0 op of
+            Nothing  -> failwith "expected type with semiring"
+            Just op' -> do
+                es' <- T.forM es $ checkType typ0
+                return $ syn (NaryOp_ op' (S.fromList es'))
 
         U.Empty_ ->
             case typ0 of
-            SArray _ -> return (syn Empty_)
+            SArray _ -> return $ syn Empty_
             _        -> typeMismatch (Right typ0) (Left "HArray")
     
         -- Not sure Array should be a binding form
@@ -447,26 +444,26 @@ checkType = checkType_
                 let x = U.makeVar name SNat
                 pushCtx (SomeVariable x) $ do
                     e2' <- checkType_ typ1 e2
-                    return (syn(Array_ e1' (bind x e2')))
+                    return $ syn (Array_ e1' (bind x e2'))
             _ -> typeMismatch (Right typ0) (Left "HArray")
 
         U.Datum_ (U.Datum hint d) ->
             case typ0 of
             SData _ typ2 ->
                 (syn . Datum_ . Datum hint)
-                    <$> checkDatumCode d typ2 typ0
+                    <$> checkDatumCode typ0 typ2 d
             _ -> typeMismatch (Right typ0) (Left "HData")
     
         U.Case_ e1 branches -> do
             TypedAST typ1 e1' <- inferType_ e1
             branches' <- T.forM branches $ checkBranch typ1 typ0
-            return (syn(Case_ e1' branches'))
+            return $ syn (Case_ e1' branches')
 
         U.Dirac_ e1 ->
             case typ0 of
             SMeasure typ1 -> do
                 e1' <- checkType_ typ1 e1
-                return (syn(Dirac :$ e1' :* End))
+                return $ syn (Dirac :$ e1' :* End)
             _ -> typeMismatch (Right typ0) (Left "HMeasure")
     
         U.MBind_ name e1 e2 ->
@@ -478,7 +475,7 @@ checkType = checkType_
                         let x = U.makeVar name typ2 in
                         pushCtx (SomeVariable x) $ do
                             e2' <- checkType_ typ0 e2
-                            return (syn(MBind :$ e1' :* bind x e2' :* End))
+                            return $ syn (MBind :$ e1' :* bind x e2' :* End)
                     _ -> typeMismatch (Right typ0) (Right typ1)
             _ -> typeMismatch (Right typ0) (Left "HMeasure")
     
@@ -491,18 +488,16 @@ checkType = checkType_
                         let x = U.makeVar name typ2 in
                         pushCtx (SomeVariable x) $ do
                             e2' <- checkType_ typ0 e2
-                            return (syn(Expect :$ e1' :* bind x e2' :* End))
+                            return $ syn (Expect :$ e1' :* bind x e2' :* End)
                     _ -> typeMismatch (Left "HMeasure") (Right typ1)
             _ -> typeMismatch (Right typ0) (Left "HProb")
 
         U.Superpose_ pes ->
             case typ0 of
-            SMeasure _ -> do
-                pes' <- T.forM pes $ \(p,e) -> do
-                         p' <- checkType_ SProb p
-                         e' <- checkType_ typ0  e
-                         return (p',e')
-                return (syn(Superpose_ pes'))
+            SMeasure _ ->
+                fmap (syn . Superpose_) .
+                    T.forM pes $ \(p,e) ->
+                        (,) <$> checkType_ SProb p <*> checkType_ typ0 e
             _ -> typeMismatch (Right typ0) (Left "HMeasure")
 
         _   | inferable e0 -> do
@@ -522,56 +517,56 @@ checkType = checkType_
     -- TODO: can we combine these in with the 'checkBranch' functions somehow?
     checkDatumCode
         :: forall xss t
-        .  U.DCode c
+        .  Sing (HData' t)
         -> Sing xss
-        -> Sing (HData' t)
+        -> U.DCode c
         -> TypeCheckMonad (DatumCode xss (abt '[]) (HData' t))
-    checkDatumCode d typ typA =
+    checkDatumCode typA typ d =
         case d of
         U.Inr d2 ->
             case typ of
-            SPlus _ typ2  -> Inr <$> checkDatumCode d2 typ2 typA
-            _             -> failwith "expected term of `inr' type"
+            SPlus _ typ2 -> Inr <$> checkDatumCode typA typ2 d2
+            _            -> failwith "expected term of `inr' type"
         U.Inl d1 ->
             case typ of
-            SPlus typ1 _  -> Inl <$> checkDatumStruct d1 typ1 typA
-            _             -> failwith "expected term of `inl' type"
+            SPlus typ1 _ -> Inl <$> checkDatumStruct typA typ1 d1
+            _            -> failwith "expected term of `inl' type"
     
     checkDatumStruct
         :: forall xs t
-        .  U.DStruct c
+        .  Sing (HData' t)
         -> Sing xs
-        -> Sing (HData' t)
+        -> U.DStruct c
         -> TypeCheckMonad (DatumStruct xs (abt '[]) (HData' t))
-    checkDatumStruct d typ typA =
+    checkDatumStruct typA typ d =
         case d of
         U.Et d1 d2 ->
             case typ of
             SEt typ1 typ2 -> Et
-                <$> checkDatumFun    d1 typ1 typA
-                <*> checkDatumStruct d2 typ2 typA
-            _             -> failwith "expected term of `et' type"
+                <$> checkDatumFun    typA typ1 d1
+                <*> checkDatumStruct typA typ2 d2
+            _     -> failwith "expected term of `et' type"
         U.Done ->
             case typ of
-            SDone         -> return Done
-            _             -> failwith "expected term of `done' type"
+            SDone -> return Done
+            _     -> failwith "expected term of `done' type"
     
     checkDatumFun
         :: forall x t
-        .  U.DFun c
+        .  Sing (HData' t)
         -> Sing x
-        -> Sing (HData' t)
+        -> U.DFun c
         -> TypeCheckMonad (DatumFun x (abt '[]) (HData' t))
-    checkDatumFun d typ typA = 
+    checkDatumFun typA typ d =
         case d of
         U.Ident e1 ->
             case typ of
-            SIdent        -> Ident <$> checkType_ typA e1
-            _             -> failwith "expected term of `I' type"
+            SIdent      -> Ident <$> checkType_ typA e1
+            _           -> failwith "expected term of `I' type"
         U.Konst e1 ->
             case typ of
-            SKonst typ1   -> Konst <$> checkType_ typ1 e1
-            _             -> failwith "expected term of `K' type"
+            SKonst typ1 -> Konst <$> checkType_ typ1 e1
+            _           -> failwith "expected term of `K' type"
 
 
 ----------------------------------------------------------------
