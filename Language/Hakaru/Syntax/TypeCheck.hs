@@ -663,9 +663,9 @@ data TypedPatternList :: [Hakaru] -> * where
               let x = U.makeVar name pat_typ in
               pushCtx (SomeVariable x) $ do
                    body' <- bind x <$> (k body)
-                   undefined -- return (PVar, body')
+                   return $ Branch PVar body'
           U.PWild             -> do body' <- k body
-                                    undefined -- return (PWild, body')
+                                    return $ Branch PWild body'
           U.PDatum _hint pat1 ->
               case pat_typ of
                 SData _ typ2  -> do PatternCode code body' <- checkPatternCode body pat1 typ2 pat_typ k
@@ -705,13 +705,12 @@ data TypedPatternList :: [Hakaru] -> * where
         case pat of
         U.PEt pat1 pat2 ->
             case typ of
-            SEt typ1 typ2 ->
-                error "TODO: checkPatternStruct"
-                {-
+            SEt typ1 typ2 -> do
                 -- BUG: how do we get this to typecheck?
-                checkPatternFun    body  pat1 typ1 typA $ \body' ->
-                checkPatternStruct body' pat2 typ2 typA k
-                -}
+              PatternFun    code  body' <- checkPatternFun body  pat1 typ1 typA k              
+              PatternStruct code' body' <- checkPatternStruct body' pat2 typ2 typA k
+              return $ PatternStruct (PEt code code') body'
+                    
             _ -> failwith "expected term of `et' type"
         U.PDone ->
             case typ of
