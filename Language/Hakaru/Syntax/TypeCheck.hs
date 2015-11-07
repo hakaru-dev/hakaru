@@ -652,7 +652,7 @@ data TypedPatternList :: [Hakaru] -> * where
 -}
 
     checkPattern
-        :: forall a b vars 
+        :: forall a b vars
         .  U.AST c
         -> Sing a
         -> U.Pattern c
@@ -695,7 +695,7 @@ data TypedPatternList :: [Hakaru] -> * where
             _            -> failwith "expected term of `zero' type"
 
     checkPatternStruct
-        :: forall b xs t vars 
+        :: forall b xs t vars
         .  U.AST c
         -> U.PStruct c
         -> Sing xs
@@ -717,7 +717,7 @@ data TypedPatternList :: [Hakaru] -> * where
         U.PDone ->
             case typ of
               SDone       -> do body' <- k body
-                                undefined -- return (PDone, body')
+                                undefined --return (PDone, body')
               _           -> failwith "expected term of `done' type"
 
     checkPatternFun
