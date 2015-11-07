@@ -37,6 +37,7 @@ import qualified Data.Foldable        as F
 import qualified Data.Traversable     as T
 import           Data.Sequence        (Seq)
 import qualified Data.Sequence        as Seq
+import qualified Data.Text            as Text
 import           Data.Number.LogFloat (LogFloat)
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Functor         ((<$>))
@@ -541,18 +542,15 @@ unsafeFrom c e0 =
 -- TODO: 'perform' should move to Disintegrate.hs
 
 -- N.B., that return type is correct, albeit strange. The idea is that the continuation takes in the variable of type @a@ bound by the expression of type @'HMeasure a@. However, this requires that the continuation of the 'Ans' type actually does @forall a. ...('HMeasure a)@ which is at odds with what 'evaluate' wants (or at least, what *I* think it should want.)
--- BUG: eliminate the 'SingI' requirement (comes from using @(P.>>=)@)
--- BUG: use 'freshNat' when generating names for @(P.>>=)@ rather than using the HOAS API.
+-- BUG: eliminate the 'SingI' requirement (in 'mbindTheContinuation')
 perform
     :: (ABT AST abt, SingI a)
     => abt '[] ('HMeasure a) -> M abt (Whnf abt a)
 perform e0 =
     caseVarSyn e0 (error "TODO: perform{Var}") $ \t ->
         case t of
-        Dirac :$ e1 :* End ->
-            evaluate e1
-        MeasureOp_ _ :$ _ ->
-            M $ \c h -> Head_ $ WMeasure (e0 P.>>= \z -> fromWhnf (c (Neutral z) h))
+        Dirac :$ e1 :* End       -> evaluate e1
+        MeasureOp_ _ :$ _        -> mbindTheContinuation e0
         MBind :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
                 push (SBind x $ Thunk e1) e2' perform
@@ -563,14 +561,26 @@ perform e0 =
             -}
 
         -- I think this captures the logic of the following two cases from the paper:
-        -- > perform u | atomic u    = M' $ \c h -> u P.>>= \z -> c z h
+        -- > perform u | atomic u    = mbindTheContinuation u
         -- > perform e | not (hnf e) = evaluate e >>= perform
         -- TODO: But we should be careful to make sure we haven't left any cases out. Maybe we should have some sort of @mustPerform@ predicate like we have 'mustCheck' in TypeCheck.hs...?
         _ -> do
             w <- evaluate e0
             case w of
                 Head_   v -> perform $ fromHead v
-                Neutral e -> M $ \c h -> Head_ $ WMeasure (e P.>>= \z -> fromWhnf (c (Neutral z) h))
+                Neutral e -> mbindTheContinuation e
+    where
+    -- This is the only place (in this file) where we really need
+    -- the 'M' instance of 'EvaluationMonad'. I think it's also the
+    -- only place (anywhere) that we really need to know the internal
+    -- CPS structure of 'M'. (Though I suppose a few other places
+    -- let us short-circuit generating unused code after a 'P.bot'
+    -- or 'P.reject'.)
+    mbindTheContinuation e = do
+        z <- freshVar Text.empty sing
+        M $ \c h ->
+            let body = bind z . fromWhnf $ c (Neutral $ var z) h
+            in  Head_ . WMeasure $ syn (MBind :$ e :* body :* End)
 
 
 ----------------------------------------------------------------

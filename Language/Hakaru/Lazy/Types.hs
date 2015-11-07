@@ -41,10 +41,11 @@ module Language.Hakaru.Lazy.Types
     -- * The monad for partial evaluation
     , Statement(..), isBoundBy
     , EvaluationMonad(..)
-    {- TODO: should we expose these?
-    , freshenStatement
+    , freshVar
     , freshenVar
+    {- TODO: should we expose these?
     , freshenVars
+    , freshenStatement
     , push_
     -}
     , push
@@ -62,10 +63,12 @@ import           Data.Functor         ((<$>))
 import           Control.Applicative  (Applicative(..))
 #endif
 import qualified Data.Foldable        as F
+import           Data.Text            (Text)
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.Nat
 import Language.Hakaru.Syntax.DataKind
+import Language.Hakaru.Syntax.Sing    (Sing)
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT
@@ -309,6 +312,18 @@ freshenStatement s =
         xs' <- freshenVars xs
         return (SBranch xs' pat body, toAssocs xs (fmap11 var xs'))
     -}
+
+
+-- | Given some hint and type, generate a variable with a fresh
+-- 'varID'.
+freshVar
+    :: (EvaluationMonad abt m)
+    => Text
+    -> Sing (a :: Hakaru)
+    -> m (Variable a)
+freshVar hint typ = do
+    i <- freshNat
+    return $ Variable hint i typ
 
 
 -- | Given a variable, return a new variable with the same hint and
