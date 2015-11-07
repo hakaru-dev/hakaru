@@ -4,7 +4,8 @@ module Language.Hakaru.Parser.Parser where
 
 import Prelude hiding (Real)
 
-import Control.Applicative ((<$>), (<*))
+import Data.Functor        ((<$>), (<$))
+import Control.Applicative (Applicative(..))
 import qualified Control.Monad as M
 import Data.Functor.Identity
 import Data.Text hiding (foldr1, foldl, foldr, map)
@@ -33,18 +34,18 @@ names = ["def","fn", "if","else","pi","inf",
 type Parser = ParsecT (IndentStream (CharIndentStream Text)) () Identity
 
 style = ITok.makeIndentLanguageDef $ Tok.LanguageDef
-        { Tok.commentStart   = ""
-        , Tok.commentEnd     = ""
-        , Tok.nestedComments = True
-        , Tok.identStart     = letter <|> char '_'
-        , Tok.identLetter    = alphaNum <|> oneOf "_'"
-        , Tok.opStart        = oneOf ":!#$%&*+./<=>?@\\^|-~"
-        , Tok.opLetter       = oneOf ":!#$%&*+./<=>?@\\^|-~"
-        , Tok.caseSensitive  = True
-        , Tok.commentLine = "#"
-        , Tok.reservedOpNames = ops ++ types
-        , Tok.reservedNames = names
-        }
+    { Tok.commentStart    = ""
+    , Tok.commentEnd      = ""
+    , Tok.nestedComments  = True
+    , Tok.identStart      = letter <|> char '_'
+    , Tok.identLetter     = alphaNum <|> oneOf "_'"
+    , Tok.opStart         = oneOf ":!#$%&*+./<=>?@\\^|-~"
+    , Tok.opLetter        = oneOf ":!#$%&*+./<=>?@\\^|-~"
+    , Tok.caseSensitive   = True
+    , Tok.commentLine     = "#"
+    , Tok.reservedOpNames = ops ++ types
+    , Tok.reservedNames   = names
+    }
 
 lexer = ITok.makeTokenParser style
 
@@ -55,13 +56,13 @@ float :: Parser Double
 float = Tok.float lexer
 
 parens :: Parser a -> Parser a
-parens x = Tok.parens lexer (localIndentation Any x)
+parens = Tok.parens lexer . localIndentation Any
 
 braces :: Parser a -> Parser a
-braces x = Tok.parens lexer (localIndentation Any x)
+braces = Tok.parens lexer . localIndentation Any
 
 brackets :: Parser a -> Parser a
-brackets x = Tok.brackets lexer (localIndentation Any x)
+brackets = Tok.brackets lexer . localIndentation Any
 
 commaSep :: Parser a -> Parser [a]
 commaSep = Tok.commaSep lexer
@@ -71,7 +72,7 @@ semiSep = Tok.semiSep lexer
 
 semiSep1 :: Parser a -> Parser [a]
 semiSep1 = Tok.semiSep1 lexer
- 
+
 identifier :: Parser Text
 identifier = M.liftM pack $ Tok.identifier lexer
 
@@ -85,75 +86,74 @@ symbol :: Text -> Parser Text
 symbol = M.liftM pack . Tok.symbol lexer . unpack
 
 binop :: Text ->  AST' Text ->  AST' Text ->  AST' Text
-binop s x y | s == "+"  = NaryOp Sum' x y
-            | otherwise = Var s `App` x `App` y
-              
+binop s x y
+    | s == "+"  = NaryOp Sum' x y
+    | otherwise = Var s `App` x `App` y
 
-binary s assoc = Ex.Infix (do reservedOp s
-                              return $ binop (pack s)) assoc
+binary s = Ex.Infix $ do
+    reservedOp s
+    return $ binop (pack s)
 
 prefix s f = Ex.Prefix (reservedOp s >> return f)
 
-table = [[prefix "+"  id],
-         [binary "^"  Ex.AssocLeft]
-        ,[binary "*"  Ex.AssocLeft,
-          binary "/"  Ex.AssocLeft]
-        ,[binary "+"  Ex.AssocLeft,
-          binary "-"  Ex.AssocLeft]
-        ,[binary ">"  Ex.AssocLeft,
-          binary "==" Ex.AssocLeft]]
+table =
+    [ [ prefix "+"  id]
+    , [ binary "^"  Ex.AssocLeft]
+    , [ binary "*"  Ex.AssocLeft
+      , binary "/"  Ex.AssocLeft]
+    , [ binary "+"  Ex.AssocLeft
+      , binary "-"  Ex.AssocLeft]
+    -- TODO: add "<", "<=", ">=", "/="
+    -- TODO: do you *really* mean AssocLeft? Shouldn't they be non-assoc?
+    , [ binary ">"  Ex.AssocLeft
+      , binary "==" Ex.AssocLeft]]
 
 unit_ :: Parser (AST' a)
 unit_ = string "()" >> return Empty
 
 int :: Parser Value'
 int = do
-  n <- integer
-  return $ case (n < 0) of
-             True  -> Int (fromInteger n)
-             False -> Nat (fromInteger n)
+    n <- integer
+    return $
+        if n < 0
+        then Int (fromInteger n)
+        else Nat (fromInteger n)
 
 floating :: Parser Value'
 floating = do
-  sign <- option '+' (oneOf "+-")
-  n <- float
-  return $ case sign of
-             '-' -> Real (-1.0*n)
-             '+' -> Prob n
+    sign <- option '+' (oneOf "+-")
+    n <- float
+    return $
+        case sign of
+        '-' -> Real (negate n)
+        '+' -> Prob n
 
 inf_ :: Parser (AST' Text)
 inf_ = do
-  s <- option '+' (oneOf "+-")
-  reserved "inf";
-  return $ case s of
-             '-' -> NegInfinity
-             '+' -> Infinity
+    s <- option '+' (oneOf "+-")
+    reserved "inf";
+    return $
+        case s of
+        '-' -> NegInfinity
+        '+' -> Infinity
 
 var :: Parser (AST' Text)
-var = do
-  x <- identifier
-  return (Var x)
+var = Var <$> identifier
 
 pairs :: Parser (AST' Text)
-pairs = do
-  l <- parens $ commaSep op_expr
-  return $ foldr1 (binop "Pair") l
+pairs = foldr1 (binop "Pair") <$> parens (commaSep op_expr)
 
 type_var :: Parser TypeAST'
-type_var = do
-  t <- identifier
-  return (TypeVar t)
+type_var = TypeVar <$> identifier
 
 type_app :: Parser TypeAST'
-type_app = do
-   f    <- identifier
-   args <- parens $ commaSep type_expr
-   return $ TypeApp f args
+type_app = TypeApp <$> identifier <*> parens (commaSep type_expr)
 
 type_fun :: Parser TypeAST'
-type_fun = do
-   chainl1 (try type_app <|> type_var)
-           (reservedOp "->" >> return TypeFun)
+type_fun =
+    chainl1
+        (try type_app <|> type_var)
+        (TypeFun <$ reservedOp "->")
 
 type_expr :: Parser TypeAST'
 type_expr = try type_fun
@@ -161,50 +161,55 @@ type_expr = try type_fun
         <|> type_var
 
 ann_expr :: Parser (AST' Text)
-ann_expr = do
-  e <- basic_expr
-  reservedOp "::"
-  t <- type_expr
-  return $ Ann e t
+ann_expr = Ann <$> basic_expr <* reservedOp "::" <*> type_expr
 
 pdat_expr :: Parser (Datum' Text)
-pdat_expr = do
-   n <- identifier
-   args <- parens $ commaSep identifier
-   return $ DV n args
+pdat_expr = DV <$> identifier <*> parens (commaSep identifier)
 
 pat_expr :: Parser (Pattern' Text)
-pat_expr = do
-      try (pdat_expr >>= return . PData')
-  <|> (reservedOp "_" >> return PWild') 
-  <|> (identifier >>= return . PVar')
+pat_expr =  try (PData' <$> pdat_expr)
+        <|> (PWild' <$ reservedOp "_")
+        <|> (PVar' <$> identifier)
+
+
+-- | Blocks are indicated by colons, and must be indented.
+blockOfMany p = do
+    reservedOp ":"
+    localIndentation Gt (many $ absoluteIndentation p)
+
+
+-- | Semiblocks are like blocks, but indentation is optional. Also,
+-- there are only 'expr' semiblocks.
+semiblockExpr = reservedOp ":" *> localIndentation Ge expr
+
+
+-- | Pseudoblocks seem like semiblocks, but actually they aren't
+-- indented.
+--
+-- TODO: do we actually want this in our grammar, or did we really
+-- mean to use 'semiblockExpr' instead?
+pseudoblockExpr = reservedOp ":" *> expr
+
 
 branch_expr :: Parser (Branch' Text)
-branch_expr = do
-   p <- pat_expr
-   reservedOp ":"
-   e <- expr
-   return $ Branch' p e
+branch_expr = Branch' <$> pat_expr <*> pseudoblockExpr
 
 match_expr :: Parser (AST' Text)
-match_expr = do
-   reserved "match"
-   a <- expr
-   reservedOp ":"
-   clauses <- localIndentation Gt $
-                many $ absoluteIndentation branch_expr
-   return $ Case a clauses
+match_expr =
+    reserved "match"
+    *>  (Case
+        <$> expr
+        <*> blockOfMany branch_expr
+        )
 
 data_expr :: Parser (AST' Text)
-data_expr = do
-   reserved "data"
-   name <- identifier
-   args <- parens $ commaSep identifier
-   reservedOp ":"
-   defs <- localIndentation Gt $
-             many $ absoluteIndentation (try type_app <|> type_var)
-   return $ Data name defs
-   
+data_expr =
+    reserved "data"
+    *>  (Data
+        <$> identifier
+        <*  parens (commaSep identifier) -- TODO: why throw them away?
+        <*> blockOfMany (try type_app <|> type_var)
+        )
 
 op_factor :: Parser (AST' Text)
 op_factor =     try (M.liftM UValue floating)
@@ -219,120 +224,90 @@ op_expr :: Parser (AST' Text)
 op_expr = Ex.buildExpressionParser table op_factor
 
 if_expr :: Parser (AST' Text)
-if_expr = do
-  reserved "if"
-  test_expr <- localIndentation Ge expr
-  
-  reservedOp ":"
-  texp <- localIndentation Ge expr
-  
-  reserved "else"
-  reservedOp ":"
-  fexp <- localIndentation Ge expr
-  return $ If test_expr texp fexp
+if_expr =
+    reserved "if"
+    *>  (If
+        <$> localIndentation Ge expr
+        <*> semiblockExpr
+        <*  reserved "else"
+        <*> semiblockExpr
+        )
 
 lam_expr :: Parser (AST' Text)
-lam_expr = do
-   reserved "fn"
-   x <- identifier
-
-   reservedOp ":"
-   body <- expr
-   return $ Lam x body
+lam_expr =
+    reserved "fn"
+    *>  (Lam
+        <$> identifier
+        <*> pseudoblockExpr
+        )
 
 bind_expr :: Parser (AST' Text)
-bind_expr = do
-   x <- identifier
-   reservedOp "<~"
-   v <- expr
-
-   body <- expr
-   return $ Bind x v body
+bind_expr = Bind
+    <$> identifier
+    <*  reservedOp "<~"
+    <*> expr
+    <*> expr
 
 let_expr :: Parser (AST' Text)
-let_expr = do
-   x <- identifier
-   reservedOp "="
-   v <- expr
-
-   body <- expr
-   return $ Let x v body
+let_expr = Let
+    <$> identifier
+    <*  reservedOp "="
+    <*> expr
+    <*> expr
 
 def_expr :: Parser (AST' Text)
 def_expr = do
-  reserved "def"
-  name <- identifier
-
-  args <- parens $ commaSep defarg
-  retType <- optionMaybe type_expr
-  reservedOp ":"
-
-  body <- localIndentation Ge expr
-  rest <- expr
-
-  let body' = mkLams (map fst args) body
-
-  case mkDefAnn retType (map snd args) of
-    Nothing  -> return $ Let name body' rest
-    Just typ -> return $ Let name (Ann body' typ) rest
+    reserved "def"
+    name <- identifier
+    (vars,varTyps) <- unzip <$> parens (commaSep defarg)
+    bodyTyp <- optionMaybe type_expr
+    body    <- semiblockExpr
+    let body' = foldr Lam body vars
+        typ   = foldr TypeFun <$> bodyTyp <*> sequence varTyps
+    Let name (maybe id (flip Ann) typ body')
+        <$> expr -- the \"rest\"; i.e., where the 'def' is in scope
 
 defarg :: Parser (Text, Maybe TypeAST')
-defarg = do
-  name <- identifier
-  typ  <- optionMaybe type_expr
-  return (name, typ)
-
-mkLams :: [Text] -> AST' Text -> AST' Text
-mkLams (a:as) body = Lam a (mkLams as body)
-mkLams []     body = body 
-
-mkDefAnn :: Maybe TypeAST' -> [Maybe TypeAST'] -> Maybe TypeAST'
-mkDefAnn ret args = case sequence (ret:args) of
-                      Nothing ->
-                          Nothing
-                      Just (ret':args') ->
-                          Just $ foldr TypeFun ret' args'
+defarg = (,) <$> identifier <*> optionMaybe type_expr
 
 call_expr :: Parser (AST' Text)
-call_expr = do
-  name <- identifier
-  args <- parens $ commaSep basic_expr
-  return $ foldl App (Var name) args
+call_expr =
+    foldl App
+        <$> (Var <$> identifier)
+        <*> parens (commaSep basic_expr)
 
 return_expr :: Parser (AST' Text)
 return_expr = do
-  (reserved "return" <|> reserved "dirac")
-  arg <- expr
-  return $ Dirac arg
+    reserved "return" <|> reserved "dirac"
+    Dirac <$> expr
 
 basic_expr :: Parser (AST' Text)
 basic_expr = try call_expr
          <|> try op_expr
- 
+
 expr :: Parser (AST' Text)
-expr = if_expr
-   <|> return_expr
-   <|> lam_expr
-   <|> def_expr
-   <|> try match_expr
-   -- <|> try data_expr
-   <|> try ann_expr
-   <|> try let_expr
-   <|> try bind_expr
-   <|> try basic_expr
- 
+expr =  if_expr
+    <|> return_expr
+    <|> lam_expr
+    <|> def_expr
+    <|> try match_expr
+    -- <|> try data_expr
+    <|> try ann_expr
+    <|> try let_expr
+    <|> try bind_expr
+    <|> try basic_expr
+
 indentConfig :: Text -> IndentStream (CharIndentStream Text)
-indentConfig input = mkIndentStream 0 infIndentation True Ge (mkCharIndentStream input)
+indentConfig =
+    mkIndentStream 0 infIndentation True Ge . mkCharIndentStream
 
 parseHakaru :: Text -> Either ParseError (AST' Text)
-parseHakaru input
-  = case runParser (expr  <* eof) () "<input>" (indentConfig input) of
-      Left err -> Left err
-      Right a  -> Right a
+parseHakaru =
+    runParser (expr <* eof) () "<input>" . indentConfig
 
 withPos :: Parser (AST' a) -> Parser (AST' a)
 withPos x = do
-  s  <- getPosition
-  x' <- x
-  e  <- getPosition
-  return $ WithMeta x' (Meta (s, e))
+    s  <- getPosition
+    x' <- x
+    e  <- getPosition
+    return $ WithMeta x' (Meta (s, e))
