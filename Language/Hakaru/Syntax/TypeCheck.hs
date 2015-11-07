@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.29
+--                                                    2015.11.06
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeCheck
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -673,7 +673,7 @@ data TypedPatternList :: [Hakaru] -> * where
                 _             -> failwith "expected term of user-defined data type"
             
     checkPatternCode
-        :: forall b xss t vars
+        :: forall b xss t
         .  U.AST c
         -> U.PCode c
         -> Sing xss
@@ -694,7 +694,7 @@ data TypedPatternList :: [Hakaru] -> * where
             _            -> failwith "expected term of `zero' type"
 
     checkPatternStruct
-        :: forall b xs t vars
+        :: forall b xs t
         .  U.AST c
         -> U.PStruct c
         -> Sing xs
@@ -805,19 +805,22 @@ checkBranch body_typ body = go
 -}
 
 data PatternFun x t abt b =
-    forall vars. PatternFun
-                 (PDatumFun x vars (HData' t))
-                 (abt vars b)
+    forall vars.
+        PatternFun
+            !(PDatumFun x vars (HData' t))
+            !(abt vars b)
 
 data PatternStruct xs t abt b =
-    forall vars. PatternStruct
-                 (PDatumStruct xs vars (HData' t))
-                 (abt vars b)
+    forall vars.
+        PatternStruct
+            !(PDatumStruct xs vars (HData' t))
+            !(abt vars b)
 
 data PatternCode xss t abt b =
-    forall vars. PatternCode
-                 (PDatumCode xss vars (HData' t))
-                 (abt vars b)
+    forall vars.
+        PatternCode
+            !(PDatumCode xss vars (HData' t))
+            !(abt vars b)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
