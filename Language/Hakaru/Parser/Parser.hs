@@ -163,10 +163,10 @@ type_expr = try type_fun
 ann_expr :: Parser (AST' Text)
 ann_expr = Ann <$> basic_expr <* reservedOp "::" <*> type_expr
 
-pdat_expr :: Parser (Datum' Text)
+pdat_expr :: Parser PDatum
 pdat_expr = DV <$> identifier <*> parens (commaSep identifier)
 
-pat_expr :: Parser (Pattern' Text)
+pat_expr :: Parser Pattern'
 pat_expr =  try (PData' <$> pdat_expr)
         <|> (PWild' <$ reservedOp "_")
         <|> (PVar' <$> identifier)

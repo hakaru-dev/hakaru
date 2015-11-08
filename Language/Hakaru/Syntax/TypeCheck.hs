@@ -620,7 +620,7 @@ checkBranch =
 
     checkPattern
         :: Sing a
-        -> U.Pattern c
+        -> U.Pattern
         -> TypeCheckMonad (SomePattern a)
     checkPattern typA pat =
         case pat of
@@ -636,7 +636,7 @@ checkBranch =
     checkPatternCode
         :: Sing (HData' t)
         -> Sing xss
-        -> U.PCode c
+        -> U.PCode
         -> TypeCheckMonad (SomePatternCode xss t)
     checkPatternCode typA typ pat =
         case pat of
@@ -656,7 +656,7 @@ checkBranch =
     checkPatternStruct
         :: Sing (HData' t)
         -> Sing xs
-        -> U.PStruct c
+        -> U.PStruct
         -> TypeCheckMonad (SomePatternStruct xs t)
     checkPatternStruct  typA typ pat =
         case pat of
@@ -675,7 +675,7 @@ checkBranch =
     checkPatternFun
         :: Sing (HData' t)
         -> Sing x
-        -> U.PFun c
+        -> U.PFun
         -> TypeCheckMonad (SomePatternFun x t)
     checkPatternFun typA typ pat =
         case pat of

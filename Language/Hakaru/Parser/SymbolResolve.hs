@@ -75,9 +75,6 @@ primFromProb =
 primUnsafeProb =
     TLam $ TNeu . U.UnsafeTo_ (Some2 $ CCons (Signed HRing_Real) CNil)
 
-pVar :: Text -> Symbol (U.AST a)
-pVar name = TNeu (U.Var_ (U.Name (N.unsafeNat 0) name))
-
 gensym :: Text -> State Int U.Name
 gensym s = state $ \i -> (U.Name (N.unsafeNat i) s, i + 1)
 
@@ -183,6 +180,12 @@ makeType (U.TypeApp f args) =
     Nothing         -> error $ "Type " ++ show f ++ " is not a primitive"
 
 
+makePattern :: U.Pattern' -> U.Pattern
+makePattern = undefined
+
+makeBranch :: U.Branch' (Symbol (U.AST a)) -> U.Branch a
+makeBranch (U.Branch' pat ast) = U.Branch (makePattern pat) (makeAST ast)
+
 makeAST :: U.AST' (Symbol (U.AST a)) -> U.AST a
 makeAST ast =
     case ast of
@@ -198,6 +201,7 @@ makeAST ast =
     U.NegInfinity     -> U.PrimOp_ (U.SealedOp $ T.NegativeInfinity) []
     U.UValue v        -> U.Value_  (U.val v)
     U.NaryOp op e1 e2 -> U.NaryOp_ op [makeAST e1, makeAST e2]
+    U.Case e bs       -> U.Case_ (makeAST e) (map makeBranch bs)
     U.Dirac e1        -> U.Dirac_ (makeAST e1)
     U.Bind (TNeu (U.Var_ name)) e1 e2 ->
         U.MBind_ name (makeAST e1) (makeAST e2)

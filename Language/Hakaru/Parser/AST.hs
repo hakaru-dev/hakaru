@@ -52,19 +52,19 @@ data SSing where
 type Name' = Text
 
 data Branch'  a =
-     Branch' (Pattern' a) (AST' a)
+     Branch' Pattern' (AST' a)
      deriving (Eq, Show)
 
-data Pattern' a =
-     PVar'  a
+data Pattern' =
+     PVar'  Text
    | PWild'
-   | PData' (Datum' a)
+   | PData' PDatum
    deriving (Eq, Show)
+
+data PDatum = DV Text [Text] deriving (Eq, Show)
 
 -- Meta stores start and end position for AST in source code
 newtype Meta = Meta (SourcePos, SourcePos) deriving (Eq, Show)
-
-data Datum' a = DV a [a] deriving (Eq, Show)
 
 infixr 7 `Et`, `PEt`
 
@@ -126,24 +126,24 @@ data AST' a =
    | Data  a [TypeAST']
    | WithMeta (AST' a) Meta
 
-data Branch a = Branch (Pattern a) (AST a)
+data Branch a = Branch Pattern (AST a)
 
-data Pattern a where
-     PWild  :: Pattern a
-     PVar   :: Name -> Pattern a
-     PDatum :: Text -> PCode a -> Pattern a   
+data Pattern where
+     PWild  :: Pattern
+     PVar   :: Name -> Pattern
+     PDatum :: Text -> PCode -> Pattern
 
-data PFun a where
-     PKonst :: Pattern a -> PFun a
-     PIdent :: Pattern a -> PFun a
+data PFun where
+     PKonst :: Pattern -> PFun
+     PIdent :: Pattern -> PFun
 
-data PStruct a where
-     PEt   :: PFun a -> PStruct a -> PStruct a
-     PDone :: PStruct a
+data PStruct where
+     PEt   :: PFun -> PStruct -> PStruct
+     PDone :: PStruct
 
-data PCode a where
-     PInr ::  PCode a   -> PCode a
-     PInl ::  PStruct a -> PCode a
+data PCode where
+     PInr ::  PCode   -> PCode
+     PInl ::  PStruct -> PCode
 
 data AST a =
      Var_        Name
