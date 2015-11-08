@@ -62,7 +62,7 @@ data Pattern' a =
    | PData' (PDatum a)
    deriving (Eq, Show)
 
-data PDatum a = DV Text [a] deriving (Eq, Show)
+data PDatum a = DV Text [Pattern' a] deriving (Eq, Show)
 
 -- Meta stores start and end position for AST in source code
 newtype Meta = Meta (SourcePos, SourcePos) deriving (Eq, Show)

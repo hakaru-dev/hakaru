@@ -164,7 +164,7 @@ ann_expr :: Parser (AST' Text)
 ann_expr = Ann <$> basic_expr <* reservedOp "::" <*> type_expr
 
 pdat_expr :: Parser (PDatum Text)
-pdat_expr = DV <$> identifier <*> parens (commaSep identifier)
+pdat_expr = DV <$> identifier <*> parens (commaSep pat_expr)
 
 pat_expr :: Parser (Pattern' Text)
 pat_expr =  try (PData' <$> pdat_expr)

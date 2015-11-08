@@ -164,7 +164,7 @@ symbolResolvePat :: U.Pattern' Text ->
 symbolResolvePat (U.PVar' name) = U.PVar' <$> gensym name
 symbolResolvePat U.PWild'       = return U.PWild'
 symbolResolvePat (U.PData' (U.DV name args)) = do
-  args' <- mapM gensym args
+  args' <- mapM symbolResolvePat args
   return $ U.PData' (U.DV name args')
 
 -- | Make AST and give unique names for variables.
@@ -224,7 +224,7 @@ makePattern (U.PVar' name) = U.PVar name
 makePattern U.PWild'       = U.PWild
 makePattern (U.PData' (U.DV name args)) =
     case lookup name primPat of
-      Just (TLam' f') -> f' (map U.PVar args)
+      Just (TLam' f') -> f' (map makePattern args)
       Nothing         -> error $ "Data constructor " ++ show name ++ " not found"
 
 makeBranch :: U.Branch' (Symbol (U.AST a)) -> U.Branch a
