@@ -215,12 +215,12 @@ NewSLO := module ()
   end proc;
 
   Banish := proc(e :: Int(anything, name=anything), h :: name,
-                 levels :: extended_numeric)
+                 levels := infinity :: extended_numeric)
     local hh;
     hh := gensym('h');
     subs(int=Int,
       banish(LO(hh, int(applyintegrand(hh,op([2,1],e)), op(2,e))),
-        op([2,1],e), h, op(1,e), infinity));
+        op([2,1],e), h, op(1,e), levels));
   end proc;
 
   # Walk through integrals and simplify, recursing through grammar
