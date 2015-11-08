@@ -188,7 +188,7 @@ match1 = unlines ["match e:"
 
 match1AST :: AST' Text
 match1AST = Case (Var "e")
-            [Branch' (PData' (DV "left" ["a"])) (Var "e1")]
+            [Branch' (PData' (DV "left" [PVar' "a"])) (Var "e1")]
 
 -- The space between _ and : is important
 match2 :: Text
@@ -217,8 +217,8 @@ match4 = unlines ["match e:"
 
 match4AST :: AST' Text
 match4AST = Case (Var "e")
-            [Branch' (PData' (DV "left" ["a"])) (Var "e1")
-            ,Branch' (PData' (DV "right" ["b"])) (Var "e2")
+            [Branch' (PData' (DV "left"  [PVar' "a"])) (Var "e1")
+            ,Branch' (PData' (DV "right" [PVar' "b"])) (Var "e2")
             ]
 
 testMatches :: Test
