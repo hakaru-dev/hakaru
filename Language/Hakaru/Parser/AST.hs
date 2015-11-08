@@ -52,16 +52,17 @@ data SSing where
 type Name' = Text
 
 data Branch'  a =
-     Branch' Pattern' (AST' a)
-     deriving (Eq, Show)
-
-data Pattern' =
-     PVar'  Text
-   | PWild'
-   | PData' PDatum
+     Branch'  (Pattern' Text) (AST' a)
+   | Branch'' (Pattern' Name) (AST' a)
    deriving (Eq, Show)
 
-data PDatum = DV Text [Text] deriving (Eq, Show)
+data Pattern' a =
+     PVar'  a
+   | PWild'
+   | PData' (PDatum a)
+   deriving (Eq, Show)
+
+data PDatum a = DV Text [a] deriving (Eq, Show)
 
 -- Meta stores start and end position for AST in source code
 newtype Meta = Meta (SourcePos, SourcePos) deriving (Eq, Show)

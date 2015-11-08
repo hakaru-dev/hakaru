@@ -35,6 +35,24 @@ data Symbol' a where
     TLam' :: ([a] -> a) -> Symbol' a
     TNeu' :: a -> Symbol' a
 
+primPat :: [(Text, Symbol' U.Pattern)]
+primPat =
+    [ ("left",    TLam' $ \ [a] ->
+           U.PDatum "pLeft" . U.PInl $
+            U.PKonst a `U.PEt` U.PDone)
+    , ("right",   TLam' $ \ [b] ->
+           U.PDatum "pRight" . U.PInr . U.PInl $
+            U.PKonst b `U.PEt` U.PDone)
+    , ("pair",    TLam' $ \ [a, b] ->
+           U.PDatum "pPair" .  U.PInl $
+            U.PKonst a `U.PEt` U.PKonst b `U.PEt` U.PDone)
+    , ("just",    TLam' $ \ [a] ->
+            U.PDatum "pJust" . U.PInr . U.PInl $
+             U.PKonst a `U.PEt` U.PDone)
+    , ("nothing", TLam' $ \ [] ->
+            U.PDatum "tNothing" . U.PInl $ U.PDone)
+    ]
+
 primTypes :: [(Text, Symbol' U.SSing)]
 primTypes = 
     [ ("nat",     TNeu' $ U.SSing SNat)
@@ -121,6 +139,9 @@ symbolResolution symbols ast =
         <$> symbolResolution symbols e1
         <*> symbolResolution symbols e2
 
+    U.Case e1 bs      -> U.Case <$> symbolResolution symbols e1
+                                <*> mapM (symbolResolveBranch symbols) bs
+
     U.Dirac e1        -> U.Dirac <$> symbolResolution symbols e1
 
     U.Bind name e1 e2 -> do
@@ -129,6 +150,22 @@ symbolResolution symbols ast =
             <$> symbolResolution symbols e1
             <*> symbolResolution (updateSymbols name' symbols) e2
 
+
+symbolResolveBranch :: SymbolTable a -> U.Branch' Text ->
+                       State Int (U.Branch' (Symbol (U.AST a)))
+
+symbolResolveBranch symbols (U.Branch' pat ast) = do
+  ast' <- symbolResolution symbols ast
+  pat' <- symbolResolvePat pat
+  return $ U.Branch'' pat' ast'
+
+symbolResolvePat :: U.Pattern' Text ->
+                    State Int (U.Pattern' U.Name)
+symbolResolvePat (U.PVar' name) = U.PVar' <$> gensym name
+symbolResolvePat U.PWild'       = return U.PWild'
+symbolResolvePat (U.PData' (U.DV name args)) = do
+  args' <- mapM gensym args
+  return $ U.PData' (U.DV name args')
 
 -- | Make AST and give unique names for variables.
 --
@@ -158,7 +195,9 @@ normAST ast =
     U.UValue v        -> U.UValue v
     U.NaryOp op e1 e2 -> U.NaryOp op (normAST e1) (normAST e2)
     U.Empty           -> U.Empty
-    U.Case e1 e2      -> U.Case  (normAST e1) e2
+    U.Case e1 e2      -> U.Case  (normAST e1) (map (\(U.Branch' pat e2') ->
+                                                      U.Branch' pat (normAST e2'))
+                                               e2)
     U.Dirac e1        -> U.Dirac (normAST e1)
     U.Bind name e1 e2 -> U.Bind name (normAST e1) (normAST e2)
     U.Data name typ   -> U.Data name typ
@@ -180,11 +219,16 @@ makeType (U.TypeApp f args) =
     Nothing         -> error $ "Type " ++ show f ++ " is not a primitive"
 
 
-makePattern :: U.Pattern' -> U.Pattern
-makePattern = undefined
+makePattern :: U.Pattern' U.Name -> U.Pattern
+makePattern (U.PVar' name) = U.PVar name
+makePattern U.PWild'       = U.PWild
+makePattern (U.PData' (U.DV name args)) =
+    case lookup name primPat of
+      Just (TLam' f') -> f' (map U.PVar args)
+      Nothing         -> error $ "Data constructor " ++ show name ++ " not found"
 
 makeBranch :: U.Branch' (Symbol (U.AST a)) -> U.Branch a
-makeBranch (U.Branch' pat ast) = U.Branch (makePattern pat) (makeAST ast)
+makeBranch (U.Branch'' pat ast) = U.Branch (makePattern pat) (makeAST ast)
 
 makeAST :: U.AST' (Symbol (U.AST a)) -> U.AST a
 makeAST ast =
