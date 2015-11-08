@@ -229,6 +229,7 @@ makePattern (U.PData' (U.DV name args)) =
 
 makeBranch :: U.Branch' (Symbol (U.AST a)) -> U.Branch a
 makeBranch (U.Branch'' pat ast) = U.Branch (makePattern pat) (makeAST ast)
+makeBranch (U.Branch'  _   _)   = error "branch was not symbol resolved"
 
 makeAST :: U.AST' (Symbol (U.AST a)) -> U.AST a
 makeAST ast =
