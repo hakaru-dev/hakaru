@@ -111,28 +111,29 @@ table =
       , binary "-"  Ex.AssocLeft]
     -- TODO: add "<", "<=", ">=", "/="
     -- TODO: do you *really* mean AssocLeft? Shouldn't they be non-assoc?
+    , [ Ex.Postfix ann_expr ]
     , [ binary ">"  Ex.AssocLeft
       , binary "==" Ex.AssocLeft]]
 
 unit_ :: Parser (AST' a)
 unit_ = string "()" >> return Empty
 
-int :: Parser Value'
+int :: Parser (AST' a)
 int = do
     n <- integer
     return $
         if n < 0
-        then Int (fromInteger n)
-        else Nat (fromInteger n)
+        then UValue $ Int (fromInteger n)
+        else UValue $ Nat (fromInteger n)
 
-floating :: Parser Value'
+floating :: Parser (AST' a)
 floating = do
     sign <- option '+' (oneOf "+-")
     n <- float
     return $
         case sign of
-        '-' -> Real (negate n)
-        '+' -> Prob n
+        '-' -> UValue $ Real (negate n)
+        '+' -> UValue $ Prob n
 
 inf_ :: Parser (AST' Text)
 inf_ = do
@@ -147,7 +148,7 @@ var :: Parser (AST' Text)
 var = Var <$> identifier
 
 pairs :: Parser (AST' Text)
-pairs = foldr1 (binop "Pair") <$> parens (commaSep op_expr)
+pairs = foldr1 (binop "Pair") <$> parens (commaSep term)
 
 type_var :: Parser TypeAST'
 type_var = TypeVar <$> identifier
@@ -166,8 +167,14 @@ type_expr = try type_fun
         <|> try type_app
         <|> type_var
 
-ann_expr :: Parser (AST' Text)
-ann_expr = Ann <$> basic_expr <* reservedOp "::" <*> type_expr
+-- ann_expr :: Parser (AST' Text)
+-- ann_expr = Ann <$> expr <* reservedOp "::" <*> type_expr
+
+ann_expr :: Parser (AST' Text -> AST' Text)
+ann_expr = do
+  reservedOp "::"
+  typ <- type_expr
+  return (\ e -> Ann e typ)
 
 pdat_expr :: Parser (PDatum Text)
 pdat_expr = DV <$> identifier <*> parens (commaSep pat_expr)
@@ -217,17 +224,8 @@ data_expr =
         <*> blockOfMany (try type_app <|> type_var)
         )
 
-op_factor :: Parser (AST' Text)
-op_factor =     try (M.liftM UValue floating)
-            <|> try inf_
-            <|> try unit_
-            <|> try (M.liftM UValue int)
-            <|> try var
-            <|> try pairs
-            <|> parens expr
-
-op_expr :: Parser (AST' Text)
-op_expr = Ex.buildExpressionParser table op_factor
+expr :: Parser (AST' Text)
+expr = Ex.buildExpressionParser table term
 
 if_expr :: Parser (AST' Text)
 if_expr =
@@ -244,7 +242,7 @@ lam_expr =
     reserved "fn"
     *>  (Lam
         <$> identifier
-        <*> pseudoblockExpr
+        <*> semiblockExpr
         )
 
 bind_expr :: Parser (AST' Text)
@@ -280,28 +278,32 @@ call_expr :: Parser (AST' Text)
 call_expr =
     foldl App
         <$> (Var <$> identifier)
-        <*> parens (commaSep basic_expr)
+        <*> parens (commaSep expr)
 
 return_expr :: Parser (AST' Text)
 return_expr = do
     reserved "return" <|> reserved "dirac"
     Dirac <$> expr
 
-basic_expr :: Parser (AST' Text)
-basic_expr = try call_expr
-         <|> try op_expr
-
-expr :: Parser (AST' Text)
-expr =  if_expr
+term :: Parser (AST' Text)
+term =  if_expr
     <|> return_expr
     <|> lam_expr
     <|> def_expr
     <|> try match_expr
     -- <|> try data_expr
-    <|> try ann_expr
     <|> try let_expr
     <|> try bind_expr
-    <|> try basic_expr
+    <|> try call_expr
+    <|> try floating
+    <|> try inf_
+    <|> try unit_
+    <|> try int
+    <|> try var
+    <|> try pairs
+    <|> parens expr
+
+
 
 indentConfig :: Text -> IndentStream (CharIndentStream Text)
 indentConfig =
