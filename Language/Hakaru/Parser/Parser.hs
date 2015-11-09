@@ -200,7 +200,7 @@ pseudoblockExpr = reservedOp ":" *> expr
 
 
 branch_expr :: Parser (Branch' Text)
-branch_expr = Branch' <$> pat_expr <*> pseudoblockExpr
+branch_expr = Branch' <$> pat_expr <*> semiblockExpr
 
 match_expr :: Parser (AST' Text)
 match_expr =
