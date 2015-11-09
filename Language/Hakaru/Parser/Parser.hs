@@ -33,6 +33,9 @@ names = ["def","fn", "if","else","pi","inf",
 
 type Parser = ParsecT (IndentStream (CharIndentStream Text)) () Identity
 
+type Operator a = Ex.Operator (IndentStream (CharIndentStream Text)) () Identity a
+type OperatorTable a = [[Operator a]]
+
 style = ITok.makeIndentLanguageDef $ Tok.LanguageDef
     { Tok.commentStart    = ""
     , Tok.commentEnd      = ""
@@ -90,12 +93,15 @@ binop s x y
     | s == "+"  = NaryOp Sum' x y
     | otherwise = Var s `App` x `App` y
 
+binary :: String -> Ex.Assoc -> Operator (AST' Text)
 binary s = Ex.Infix $ do
     reservedOp s
     return $ binop (pack s)
 
+prefix :: String -> (a -> a) -> Operator a 
 prefix s f = Ex.Prefix (reservedOp s >> return f)
 
+table :: OperatorTable (AST' Text)
 table =
     [ [ prefix "+"  id]
     , [ binary "^"  Ex.AssocLeft]
