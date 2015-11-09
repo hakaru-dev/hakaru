@@ -167,14 +167,8 @@ type_expr = try type_fun
         <|> try type_app
         <|> type_var
 
--- ann_expr :: Parser (AST' Text)
--- ann_expr = Ann <$> expr <* reservedOp "::" <*> type_expr
-
 ann_expr :: Parser (AST' Text -> AST' Text)
-ann_expr = do
-  reservedOp "::"
-  typ <- type_expr
-  return (\ e -> Ann e typ)
+ann_expr = reservedOp "::" *> (flip Ann <$> type_expr)
 
 pdat_expr :: Parser (PDatum Text)
 pdat_expr = DV <$> identifier <*> parens (commaSep pat_expr)
