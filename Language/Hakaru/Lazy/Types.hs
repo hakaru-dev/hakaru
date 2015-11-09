@@ -13,7 +13,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.07
+--                                                    2015.11.08
 -- |
 -- Module      :  Language.Hakaru.Lazy.Types
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -36,7 +36,7 @@ module Language.Hakaru.Lazy.Types
     -- * Terms in particular known forms\/formats
       Head(..), fromHead
     , Whnf(..), fromWhnf, viewWhnfDatum
-    , Lazy(..), fromLazy, forceBy
+    , Lazy(..), fromLazy, caseLazy
 
     -- * The monad for partial evaluation
     , Statement(..), isBoundBy
@@ -187,15 +187,10 @@ fromLazy :: (ABT AST abt) => Lazy abt a -> abt '[] a
 fromLazy (Whnf_ e) = fromWhnf e
 fromLazy (Thunk e) = e
 
--- | If the term is already evaluated, return it; if not, call the
--- function to force it.
-forceBy
-    :: (Applicative f)
-    => (abt '[] a -> f (Whnf abt a))
-    -> Lazy abt a
-    -> f (Whnf abt a)
-forceBy _ (Whnf_ e) = pure e
-forceBy k (Thunk e) = k e
+-- | Case analysis on 'Lazy' as a combinator.
+caseLazy :: Lazy abt a -> (Whnf abt a -> r) -> (abt '[] a -> r) -> r
+caseLazy (Whnf_ e) k _ = k e
+caseLazy (Thunk e) _ k = k e
 
 
 ----------------------------------------------------------------

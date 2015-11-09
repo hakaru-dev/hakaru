@@ -7,11 +7,12 @@
            , FunctionalDependencies
            , ScopedTypeVariables
            , FlexibleContexts
+           , RankNTypes
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.07
+--                                                    2015.11.08
 -- |
 -- Module      :  Language.Hakaru.Lazy
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -27,7 +28,9 @@
 module Language.Hakaru.Lazy
     (
     -- * Lazy partial evaluation
-      evaluate
+      MeasureEvaluator
+    , TermEvaluator
+    , evaluate
     , perform
     -- ** Helper functions
     , update
@@ -61,12 +64,6 @@ import Language.Hakaru.PrettyPrint -- HACK: for ghci use only
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
--- TODO: make this function monad-polymorphic, and have it take
--- some sort of continuation for the one case of 'update' where we
--- need to 'perform'. This way we can generalize over the notion
--- of \"performing\" in order to reuse this function with Sample.hs
--- and Expect.hs
---
 -- TODO: (eventually) accept an argument dictating the evaluation
 -- strategy (HNF, WHNF, full-beta NF,...). The strategy value should
 -- probably be a family of singletons, where the type-level strategy
@@ -74,12 +71,44 @@ import Language.Hakaru.PrettyPrint -- HACK: for ghci use only
 -- That way we don't need to define a bunch of variant 'Context',
 -- 'Statement', and 'Whnf' data types; but rather can use indexing
 -- to select out subtypes of the generic versions.
+
+
+-- | A function for \"performing\" an 'HMeasure' monadic action.
+-- This could mean actual random sampling, or simulated sampling
+-- by generating a new term and returning the newly bound variable,
+-- or anything else.
+type MeasureEvaluator abt m =
+    forall a. abt '[] ('HMeasure a) -> m (Whnf abt a)
+
+
+-- | A function for evaluating any term to weak-head normal form.
+type TermEvaluator abt m =
+    forall a. abt '[] a -> m (Whnf abt a)
+
+
+-- | Lazy partial evaluation with a given \"perform\" function.
 evaluate
-    :: (ABT AST abt, EvaluationMonad abt m)
-    => abt '[] a
-    -> m (Whnf abt a)
-evaluate e0 =
-    caseVarSyn e0 update $ \t ->
+    :: forall abt m
+    .  (ABT AST abt, EvaluationMonad abt m)
+    => MeasureEvaluator abt m
+    -> TermEvaluator    abt m
+evaluate perform = evaluate_
+    where
+    -- TODO: At present, whenever we residualize a case expression we'll
+    -- generate a 'Neutral' term which will, when run, repeat the work
+    -- we're doing in the evaluation here. We could eliminate this
+    -- redundancy by introducing a new variable for @e@ each time this
+    -- function is called--- if only we had some way of getting those
+    -- variables put into the right place for when we residualize the
+    -- original scrutinee...
+    --
+    -- N.B., 'DatumEvaluator' is a rank-2 type so it requires a signature
+    evaluateDatum :: DatumEvaluator abt m
+    evaluateDatum e = viewWhnfDatum <$> evaluate_ e
+
+    evaluate_ :: TermEvaluator abt m
+    evaluate_ e0 =
+      caseVarSyn e0 (update perform evaluate_) $ \t ->
         case t of
         -- Things which are already weak head-normal forms
         Value_  v         -> return . Head_ $ WValue v
@@ -97,26 +126,26 @@ evaluate e0 =
 
         App_ :$ e1 :* e2 :* End -> do
             -- This implementation gives call-by-need beta-reduction.
-            w1 <- evaluate e1
+            w1 <- evaluate_ e1
             case w1 of
                 Neutral e1' -> return . Neutral $ P.app e1' e2
                 Head_   v1  ->
                     case v1 of
                     WLam f ->
                         caseBind f $ \x f' ->
-                            push (SLet x $ Thunk e2) f' evaluate
+                            push (SLet x $ Thunk e2) f' evaluate_
                     _ -> error "evaluate: the impossible happened"
 
         Let_ :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
-                push (SLet x $ Thunk e1) e2' evaluate
+                push (SLet x $ Thunk e1) e2' evaluate_
 
         Fix_ :$ e1 :* End -> error "TODO: evaluate{Fix_}"
 
         Ann_ typ :$ e1 :* End -> error "TODO: evaluate{Ann_}"
         {-
             do
-            w1 <- evaluate e1
+            w1 <- evaluate_ e1
             return $
                 -- if not @mustCheck (fromWhnf w1)@, then could in principle eliminate the annotation; though it might be here so that it'll actually get pushed down to somewhere it's needed later on, so it's best to play it safe and leave it in.
                 case w1 of
@@ -124,22 +153,23 @@ evaluate e0 =
                     Head_   v1  -> Head_ (HAnn typ v1) -- or something...
         -}
 
-        CoerceTo_   c :$ e1 :* End -> coerceTo   c <$> evaluate e1
-        UnsafeFrom_ c :$ e1 :* End -> unsafeFrom c <$> evaluate e1
+        CoerceTo_   c :$ e1 :* End -> coerceTo   c <$> evaluate_ e1
+        UnsafeFrom_ c :$ e1 :* End -> unsafeFrom c <$> evaluate_ e1
         -- TODO: will maybe clean up the code to map 'evaluate' over @es@ before calling the evaluateFooOp helpers?
-        NaryOp_     o    es        -> evaluateNaryOp o es
+        NaryOp_     o    es        -> evaluateNaryOp evaluate_ o es
         PrimOp_     o :$ es        -> evaluatePrimOp o es
 
         -- BUG: avoid the chance of looping in case 'E.expect' residualizes!
         -- TODO: use 'evaluate' in 'E.expect' for the evaluation of @e1@
         Expect :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
-                evaluate $ E.expect e1 (\e3 -> subst x e3 e2')
+                evaluate_ $ E.expect e1 (\e3 -> subst x e3 e2')
 
-        Lub_ es -> error "TODO: evaluate{Lub_}" -- (Head_ . HLub) <$> T.for es evaluate
+        Lub_ es -> error "TODO: evaluate{Lub_}" -- (Head_ . HLub) <$> T.for es evaluate_
 
         -- TODO: rather than throwing a Haskell error, instead
-        -- capture the possibility of failure in the 'M' monad.
+        -- capture the possibility of failure in the 'EvaluationMonad'
+        -- monad.
         Case_ e bs -> do
             match <- matchBranches evaluateDatum e bs
             case match of
@@ -147,51 +177,23 @@ evaluate e0 =
                 Just (GotStuck, _) ->
                     return . Neutral . syn $ Case_ e bs
                 Just (Matched ss Nil1, body) ->
-                    pushes (toStatements ss) body evaluate
+                    pushes (toStatements ss) body evaluate_
 
         -- HACK: these cases are impossible, and ghc can confirm
         -- that (via no warnings about the empty case analysis being
         -- incomplete), but ghc can't infer it for some reason
-        Lam_ :$ es -> case es of {}
-        App_ :$ es -> case es of {}
-        Let_ :$ es -> case es of {}
-        Fix_ :$ es -> case es of {}
-        Ann_ _ :$ es -> case es of {}
-        CoerceTo_ _ :$ es -> case es of {}
-        UnsafeFrom_ _ :$ es -> case es of {}
-        Expect :$ es -> case es of {}
+        _ :$ es -> case es of {}
 
-
--- TODO: At present, whenever we residualize a case expression we'll
--- generate a 'Neutral' term which will, when run, repeat the work
--- we're doing in the evaluation here. We could eliminate this
--- redundancy by introducing a new variable for @e@ each time this
--- function is called--- if only we had some way of getting those
--- variables put into the right place for when we residualize the
--- original scrutinee...
---
--- Factored out to the top level, since 'DatumEvaluator' is a rank-2 type
-evaluateDatum
-    :: (ABT AST abt, EvaluationMonad abt m) => DatumEvaluator abt m
-evaluateDatum e = viewWhnfDatum <$> evaluate e
 
 type DList a = [a] -> [a]
 
-toStatements
-    :: DList (Assoc abt)
-    -> [Statement abt]
+toStatements :: DList (Assoc abt) -> [Statement abt]
 toStatements ss = map (\(Assoc x e) -> SLet x $ Thunk e) (ss [])
 
 
 ----------------------------------------------------------------
 -- TODO: figure out how to abstract this so it can be reused by
 -- 'constrainValue'. Especially the 'SBranch case of 'step'
---
--- TODO: make this function monad-polymorphic, and have it take
--- some sort of continuation for the one case where we need to
--- 'perform'. This way we can generalize over the notion of
--- \"performing\" in order to reuse this function with Sample.hs
--- and Expect.hs
 --
 -- TODO: we could speed up the case for free variables by having
 -- the 'Context' also keep track of the largest free var. That way,
@@ -200,30 +202,28 @@ toStatements ss = map (\(Assoc x e) -> SLet x $ Thunk e) (ss [])
 -- bound variables to be above @nextFreeVarID@; but then we have to
 -- do that anyways.
 update
-    :: forall abt m a
-    .  (ABT AST abt, EvaluationMonad abt m)
-    => Variable a
+    :: (ABT AST abt, EvaluationMonad abt m)
+    => MeasureEvaluator abt m
+    -> TermEvaluator    abt m
+    -> Variable a
     -> m (Whnf abt a)
-update x = do
-    mb <- select x $ \s ->
+update perform evaluate_ = \x ->
+    -- If we get 'Nothing', then it turns out @x@ is a free variable
+    fmap (maybe (Neutral $ var x) id) . select x $ \s ->
         case s of
         SBind y e -> do
             Refl <- varEq x y
             Just $ do
-                w <- error "TODO: update{SBind}" -- BUG: @forceBy perform e@ requires @m ~ M abt@
+                w <- perform $ caseLazy e fromWhnf id
                 unsafePush (SLet x $ Whnf_ w)
                 return w
         SLet y e -> do
             Refl <- varEq x y
             Just $ do
-                w <- forceBy evaluate e
+                w <- caseLazy e return evaluate_
                 unsafePush (SLet x $ Whnf_ w)
                 return w
         SWeight _ -> Nothing
-    return $
-        case mb of
-        Nothing -> Neutral (var x) -- turns out @x@ is a free variable
-        Just w  -> w
 
 
 ----------------------------------------------------------------
@@ -312,7 +312,7 @@ rr1 :: (ABT AST abt, EvaluationMonad abt m, Interp a a', Interp b b')
     -> abt '[] a
     -> m (Whnf abt b)
 rr1 f' f e = do
-    w <- evaluate e
+    w <- evaluate (error "TODO: thread 'perform' through to 'rr1'") e
     return $
         case w of
         Neutral e' -> Neutral $ f e'
@@ -327,8 +327,8 @@ rr2 :: ( ABT AST abt, EvaluationMonad abt m
     -> abt '[] b
     -> m (Whnf abt c)
 rr2 f' f e1 e2 = do
-    w1 <- evaluate e1
-    w2 <- evaluate e2
+    w1 <- evaluate (error "TODO: thread 'perform' through to 'rr2'") e1
+    w2 <- evaluate (error "TODO: thread 'perform' through to 'rr2'") e2
     return $
         case w1 of
         Neutral e1' -> Neutral $ f e1' (fromWhnf w2)
@@ -351,10 +351,11 @@ natRoot x y = x ** recip (fromIntegral (fromNat y))
 ----------------------------------------------------------------
 evaluateNaryOp
     :: (ABT AST abt, EvaluationMonad abt m)
-    => NaryOp a
+    => TermEvaluator abt m
+    -> NaryOp a
     -> Seq (abt '[] a)
     -> m (Whnf abt a)
-evaluateNaryOp = \o es -> mainLoop o (evalOp o) Seq.empty es
+evaluateNaryOp evaluate_ = \o es -> mainLoop o (evalOp o) Seq.empty es
     where
     -- TODO: there's got to be a more efficient way to do this...
     mainLoop o op ws es =
@@ -367,7 +368,7 @@ evaluateNaryOp = \o es -> mainLoop o (evalOp o) Seq.empty es
                 | otherwise    ->
                     Neutral . syn . NaryOp_ o $ fmap fromWhnf ws
         e Seq.:< es' -> do
-            w <- evaluate e
+            w <- evaluate_ e
             case matchNaryOp o w of
                 Nothing  -> mainLoop o op (snocLoop op ws w) es'
                 Just es2 -> mainLoop o op ws (es2 Seq.>< es')
@@ -541,15 +542,21 @@ unsafeFrom c e0 =
 ----------------------------------------------------------------
 -- TODO: 'perform' should move to Disintegrate.hs
 
+data EverySing = EverySing (forall (a :: Hakaru). Sing a)
+
+-- HACK: to make 'perform' typecheck in spite of it really needing @SingI a@ due to 'mbindTheContinuation'
+anySing :: Sing (a :: Hakaru)
+anySing = theSing
+    where
+    EverySing theSing = error "TODO: EverySing"
+
+
 -- N.B., that return type is correct, albeit strange. The idea is that the continuation takes in the variable of type @a@ bound by the expression of type @'HMeasure a@. However, this requires that the continuation of the 'Ans' type actually does @forall a. ...('HMeasure a)@ which is at odds with what 'evaluate' wants (or at least, what *I* think it should want.)
--- BUG: eliminate the 'SingI' requirement (in 'mbindTheContinuation')
-perform
-    :: (ABT AST abt, SingI a)
-    => abt '[] ('HMeasure a) -> M abt (Whnf abt a)
+perform :: (ABT AST abt) => MeasureEvaluator abt (M abt)
 perform e0 =
     caseVarSyn e0 (error "TODO: perform{Var}") $ \t ->
         case t of
-        Dirac :$ e1 :* End       -> evaluate e1
+        Dirac :$ e1 :* End       -> evaluate perform e1
         MeasureOp_ _ :$ _        -> mbindTheContinuation e0
         MBind :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
@@ -565,7 +572,7 @@ perform e0 =
         -- > perform e | not (hnf e) = evaluate e >>= perform
         -- TODO: But we should be careful to make sure we haven't left any cases out. Maybe we should have some sort of @mustPerform@ predicate like we have 'mustCheck' in TypeCheck.hs...?
         _ -> do
-            w <- evaluate e0
+            w <- evaluate perform e0
             case w of
                 Head_   v -> perform $ fromHead v
                 Neutral e -> mbindTheContinuation e
@@ -577,7 +584,7 @@ perform e0 =
     -- let us short-circuit generating unused code after a 'P.bot'
     -- or 'P.reject'.)
     mbindTheContinuation e = do
-        z <- freshVar Text.empty sing
+        z <- freshVar Text.empty anySing
         M $ \c h ->
             let body = bind z . fromWhnf $ c (Neutral $ var z) h
             in  Head_ . WMeasure $ syn (MBind :$ e :* body :* End)

@@ -43,13 +43,13 @@ module Language.Hakaru.Disintegrate
     , constrainOutcome
     ) where
 
-import           Data.Number.LogFloat  (LogFloat)
+import Data.Number.LogFloat (LogFloat)
 #if __GLASGOW_HASKELL__ < 710
-import           Control.Applicative   (Applicative(..))
+import Control.Applicative  (Applicative(..))
 #endif
 
 import Language.Hakaru.Syntax.IClasses
-import Language.Hakaru.Syntax.Nat      (Nat)
+import Language.Hakaru.Syntax.Nat (Nat)
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.AST
@@ -153,7 +153,7 @@ conditionalize a m =
             ab <- memo (unMeasure x)
             backward_ ab a
             return ab
-    in Lazy (return . Measure $ Lazy (n >>= forward) (\t -> n >>= (`backward` t))) (\_ -> M $ \_ _ -> bot)
+    in Lazy (return . Measure $ Lazy (n >>= forward) (\t -> n >>= (`backward` t))) (\_ -> bot)
     -}
 
 
@@ -251,16 +251,93 @@ type Lazy s abt a = L s (C abt) a
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
+-- | It is impossible to satisfy the constraints, or at least we
+-- give up on trying to do so.
+bot :: (ABT AST abt) => M abt a
+bot = M $ \c h -> Head_ . WMeasure $ syn (Lub_ [])
+
+
 -- TODO: see the todo for 'constrainOutcome'
-constrainValue :: (ABT AST abt) => abt '[] a -> Whnf abt a -> M abt ()
+constrainValue :: (ABT AST abt) => Whnf abt a -> abt '[] a -> M abt ()
 constrainValue = error "TODO: constrainValue"
 {-
-constrainValue e0 v0 =
+constrainValue v0 e0 =
+    {-
     case e0 of
-    u | atomic u -> M $ \c h -> P.bot
-    Real _       -> M $ \c h -> P.bot
-    Fst e1 | not (atomic e1) -> evaluate e1 >>= ((`constrainValue` v0) . fst)
-    Snd e1 | not (atomic e1) -> evaluate e1 >>= ((`constrainValue` v0) . snd)
+    u | atomic u -> bot
+    -}
+    caseVarSyn e0 (constrainVariable v0) $ \t ->
+        case t of
+        Value_ v
+            | "dirac v has a density wrt the ambient measure" -> todo
+            | otherwise -> bot
+        
+        Datum_  d         ->
+        Empty_            ->
+        Array_  e1 e2     ->
+        Lam_ :$ e1 :* End ->
+        Dirac        :$ _ ->
+        MBind        :$ _ ->
+        MeasureOp_ _ :$ _ ->
+        Superpose_ _      ->
+
+        App_ :$ e1 :* e2 :* End ->
+        Let_ :$ e1 :* e2 :* End ->
+        Fix_ :$ e1 :* End ->
+        Ann_      typ :$ e1 :* End -> constrainValue v0 e1
+        CoerceTo_   c :$ e1 :* End -> constrainValue (unsafeFrom c v0) e1
+        UnsafeFrom_ c :$ e1 :* End -> constrainValue (coerceTo   c v0) e1
+        NaryOp_     o    es        -> constrainNaryOp v0 o es
+        PrimOp_     o :$ es        -> constrainPrimOp v0 o es
+        Expect  :$ e1 :* e2 :* End ->
+        Lub_ es ->
+
+        Case_ e bs -> do
+            match <- matchBranches evaluateDatum e bs
+            case match of
+                Nothing -> error "constrainValue{Case_}: nothing matched!"
+                Just (GotStuck, _) -> do
+                    -- TODO: if any branch returns 'bot' then the whole thing should be 'bot'
+                    -- TODO: how to percolate constraints up through the scrutinee?
+                    bs' <- T.traverse (\b -> constrainBranch v0 e b) bs
+                    return . Neutral . syn $ Case_ e bs'
+                Just (Matched ss Nil1, body) ->
+                    pushes (toStatements ss) body (constrainValue v0)
+    {-
+    Var x ->  M $ \c h ->
+        case lookup x h of
+        Found h1 binding h2 ->
+            case binding of
+            SLeft _x e1 ->
+                -- TODO: figure out how to reuse the implementation of @unleft@\/@unright@ from 'update'
+                unM (evaluate e1) (\v1 -> unleft v1 (\e2 -> unM (constrainValue e1 v0) (\h1' -> c (glue h1' (SLet x v0) h2)))) h1
+            SRight _x e1 ->
+                unM (evaluate e1) (\v1 -> unright v1 (\e2 -> unM (constrainValue e1 v0) (\h1' -> c (glue h1' (SLet x v0) h2)))) h1
+    -}
+    
+
+constrainVariable
+    :: (ABT AST abt)
+    => Whnf abt a
+    -> Variable a
+    -> M abt ()
+constrainVariable v0 x =
+    -- If we get 'Nothing', then it turns out @x@ is a free variable. If @x@ is a free variable, then it's a neutral term; and we return 'bot' for neutral terms
+    fmap (maybe bot id) . select x $ \s ->
+        case s of
+        SBind y e -> do
+            Refl <- varEq x y
+            Just $ do
+                constrainOutcome v0 e
+                unsafePush (SLet x $ Whnf_ v0)
+        SLet y e -> do
+            Refl <- varEq x y
+            Just $ do
+                constrainValue v0 e
+                unsafePush (SLet x $ Whnf_ v0)
+        SWeight _ -> Nothing
+
+
     Negate e1 -> constrainValue e1 (negate v0)
     Recip e1 -> M $ \c h -> P.weight (P.recip (v0 P.^ P.nat_ 2)) P.>> unM (constrainValue e1 (recip v0)) c h
     Plus e1 e2 -> M $ \c h ->
@@ -271,18 +348,7 @@ constrainValue e0 v0 =
         unM (evaluate e1) (\v1 -> abs v1 (\v1' h' -> P.weight (P.recip v1') P.>> unM (constrainValue e2 (v0 / v1)) c h')) h
         `P.lub`
         unM (evaluate e2) (\v2 -> abs v2 (\v2' h' -> P.weight (P.recip v2') P.>> unM (constrainValue e1 (v0 / v2)) c h')) h
-    Var x ->  M $ \c h ->
-        case lookup x h of
-        Missing -> error "constrainValue: variable is missing in heap!"
-        Found h1 binding h2 ->
-            case binding of
-            SBind _x e1 ->
-                unM (constrainOutcome e1 v0) (\h1' -> c (glue h1' (SLet x v0) h2)) h1
-            SLeft _x e1 ->
-                -- TODO: figure out how to reuse the implementation of @unleft@\/@unright@ from 'update'
-                unM (evaluate e1) (\v1 -> unleft v1 (\e2 -> unM (constrainValue e1 v0) (\h1' -> c (glue h1' (SLet x v0) h2)))) h1
-            SRight _x e1 ->
-                unM (evaluate e1) (\v1 -> unright v1 (\e2 -> unM (constrainValue e1 v0) (\h1' -> c (glue h1' (SLet x v0) h2)))) h1
+-- <https://github.com/hakaru-dev/hakaru/blob/v0.2.0/Language/Hakaru/Lazy.hs>
 -}
 
 -- TODO: do we really need to allow all Whnf, or do we just need
@@ -290,18 +356,107 @@ constrainValue e0 v0 =
 -- all, or do we want (hnf)patterns or something to more generally
 -- capture (hnf)measurable events?
 constrainOutcome
-    :: (ABT AST abt) => abt '[] ('HMeasure a) -> Whnf abt a -> M abt ()
+    :: (ABT AST abt) => Whnf abt a -> abt '[] ('HMeasure a) -> M abt ()
 constrainOutcome = error "TODO: constrainOutcome"
 {-
-constrainOutcome e0 v =
-    case e0 of
-    u | atomic u    -> M $ \c h -> P.bot
-    Lebesgue        -> M $ \c h -> c h
-    Uniform lo hi   -> M $ \c h -> P.observe (lo P.<= v P.&& v P.<= hi) P.>> P.weight (P.recip (hi P.- lo)) P.>> c h
-    Return e        -> constrainValue e v
-    MBind g (bind x e) -> push (SBind x g) >> constrainOutcome e v
-    Superpose es    -> P.superpose <$> T.traverse (`constrainOutcome` v) es -- TODO: not quite right; need to push the SWeight in each branch
-    e | not (hnf e) -> (`constrainOutcome` v) =<< evaluate e
+constrainOutcome v0 e0 = do
+    w0 <- evaluate e0
+    case w0 of
+        Neutral _ -> bot
+        Head_ v0 ->
+            case v0 of
+             WValue v
+             WDatum d
+             WEmpty
+             WArray e1 e2
+             WLam e1
+             WMeasure e1 ->
+                caseVarSyn (error "TODO") $ \t ->
+                    case t of
+                    -- Impossible cases because wrong type:
+                    -- Value_ v
+                    -- Datum_ d
+                    -- Empty_
+                    -- Array_ e1 e2
+                    -- Lam_ :$ e1 :* End
+                    -- CoerceTo_   c :$ e1 :* End
+                    -- UnsafeFrom_ c :$ e1 :* End
+                    -- NaryOp_ o es
+                    -- PrimOp o :$ es -- other than the two below
+                    -- Expect :$ e1 :* e2 :* End ->
+                    
+                    Dirac :$ e1 :* End -> constrainValue v0 e1
+
+                    MBind :$ e1 :* e2 :* End ->
+                        caseBind e2 $ \x e2' -> do
+                            push (SBind x e1) e2' (constrainOutcome v0)
+
+                    Superpose_ pes ->
+                        -- BUG: not quite right; we need to pop the weight back off again to build up the new superpose, or something...
+                        fmap P.superpose . T.for pes $ \(p,e) -> do
+                            unsafePush (SWeight p)
+                            constrainOutcome v0 e
+
+                    MeasureOp_ o :$ es -> constrainMeasureOp v0 o es
+                    
+                    
+                    PrimOp_ (Index _) :$ e1 :* e2 :* End ->
+                    PrimOp_ (Reduce _) :$ e1 :* e2 :* e3 :* End ->
+
+                    
+                    App_ :$ e1 :* e2 :* End ->
+                    Let_ :$ e1 :* e2 :* End ->
+                    Fix_ :$ e1 :* End ->
+                    Ann_      typ :$ e1 :* End -> constrainOutcome v0 e1
+                    Lub_ es ->
+                    Case_ e bs ->
+
+
+-- TODO: define helper methods of 'M' for emitting 'observe' and 'weight'
+
+constrainMeasureOp
+    :: (ABT AST abt, typs ~ UnLCs args, args ~ LCs typs)
+    => Whnf abt a
+    -> MeasureOp typs a
+    -> SCon args ('HMeasure a)
+    -> M abt ()
+constrainMeasureOp v0 = go
+    where
+    -- Per the paper
+    go Lebesgue End -> M $ \c h -> c h
+
+    -- TODO: I think, based on Hakaru v0.2.0
+    go Counting End -> M $ \c h -> c h
+
+    go Categorical (e1 :* End) ->
+
+    -- Per the paper
+    -- BUG: must make sure @lo@ and @hi@ don't have heap-bound vars!
+    -- TODO: let-bind @v0@ to avoid repeating it (ditto for @lo@,@hi@)
+    go Uniform (lo :* hi :* End) -> M $ \c h ->
+        P.observe (lo P.<= v0 P.&& v0 P.<= hi)
+        P.>> P.weight (P.recip (hi P.- lo))
+        P.>> c h
+
+    -- TODO: I think, based on Hakaru v0.2.0
+    -- BUG: where does @v0@ come into it?
+    -- BUG: must make sure @mu@ and @sd@ don't have heap-bound vars!
+    -- TODO: let-binding to avoid repeating @mu@ and @sd@
+    go Normal (mu :* sd :* End) -> M $ \c h ->
+        P.weight
+            (P.exp (P.negate (x P.- mu) P.^ P.int_ 2
+                P./ P.fromProb (2 P.* sd P.** 2))
+            P./ sd
+            P./ P.sqrt (2 P.* P.pi))
+        P.>> c h
+
+    go Poisson (e1 :* End) ->
+    go Gamma (e1 :* e2 :* End) ->
+    go Beta (e1 :* e2 :* End) ->
+    go (DirichletProcess _) (e1 :* e2 :* End) ->
+    go (Plate _) (e1 :* End) ->
+    go (Chain _ _) (e1 :* e2 :* End) ->
+    
 
 
 unleft :: Whnf abt (HEither a b) -> M abt (abt '[] a)
