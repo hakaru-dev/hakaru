@@ -90,7 +90,8 @@ symbol = M.liftM pack . Tok.symbol lexer . unpack
 
 binop :: Text ->  AST' Text ->  AST' Text ->  AST' Text
 binop s x y
-    | s == "+"  = NaryOp Sum' x y
+    | s == "+" = NaryOp Sum'  x y
+    | s == "*" = NaryOp Prod' x y
     | otherwise = Var s `App` x `App` y
 
 binary :: String -> Ex.Assoc -> Operator (AST' Text)
