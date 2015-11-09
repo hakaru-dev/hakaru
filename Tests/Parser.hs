@@ -221,12 +221,27 @@ match4AST = Case (Var "e")
             ,Branch' (PData' (DV "right" [PVar' "b"])) (Var "e2")
             ]
 
+match5 :: Text
+match5 = unlines ["match e:"
+                 ,"  left(a):"
+                 ,"   e1"
+                 ,"  right(b):"
+                 ,"   e2"
+                 ]
+
+match5AST :: AST' Text
+match5AST = Case (Var "e")
+            [Branch' (PData' (DV "left" [PVar' "a"])) (Var "e1")
+            ,Branch' (PData' (DV "right" [PVar' "b"])) (Var "e2")
+            ]
+
 testMatches :: Test
 testMatches = test
    [ testParse match1 match1AST
    , testParse match2 match2AST
    , testParse match3 match3AST
    , testParse match4 match4AST
+   , testParse match5 match5AST
    ]
 
 ann1 :: Text
