@@ -193,7 +193,7 @@ match1AST = Case (Var "e")
 -- The space between _ and : is important
 match2 :: Text
 match2 = unlines ["match e:"
-                 ,"  _ : e"
+                 ,"  _: e"
                  ]
 
 match2AST :: AST' Text

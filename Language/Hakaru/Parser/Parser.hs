@@ -42,8 +42,8 @@ style = ITok.makeIndentLanguageDef $ Tok.LanguageDef
     , Tok.nestedComments  = True
     , Tok.identStart      = letter <|> char '_'
     , Tok.identLetter     = alphaNum <|> oneOf "_'"
-    , Tok.opStart         = oneOf ":!#$%&*+./<=>?@\\^|-~"
-    , Tok.opLetter        = oneOf ":!#$%&*+./<=>?@\\^|-~"
+    , Tok.opStart         = oneOf "!#$%&*+./<=>?@\\^|-~"
+    , Tok.opLetter        = oneOf "!#$%&*+./<=>?@\\^|-~"
     , Tok.caseSensitive   = True
     , Tok.commentLine     = "#"
     , Tok.reservedOpNames = ops ++ types
