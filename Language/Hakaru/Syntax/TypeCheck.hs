@@ -52,11 +52,14 @@ import           Control.Applicative   (Alternative(..))
 import qualified Language.Hakaru.Parser.AST as U
 
 import Language.Hakaru.Syntax.Nat      (fromNat)
+import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.DataKind (Hakaru(..), HData')
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.TypeHelpers
-import Language.Hakaru.Syntax.Coercion (Coercion(..), singCoerceDomCod)
+import Language.Hakaru.Syntax.Coercion (Coercion(..),
+                                        PrimCoercion(..),
+                                        singCoerceDomCod)
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT
@@ -197,6 +200,8 @@ typeMismatch typ1 typ2 =
     msg1 = case typ1 of { Left msg -> msg; Right typ -> show1 typ }
     msg2 = case typ2 of { Left msg -> msg; Right typ -> show1 typ }
 
+
+data TypingMode = TStrictMode | TLaxMode | TUnsafeLaxMode 
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -509,7 +514,9 @@ checkType = checkType_
                 -- the goal @typ@. This will be relevant to us for handling our coercion calculus :(
                 case jmEq1 typ0 typ' of
                     Just Refl -> return e0'
-                    Nothing   -> typeMismatch (Right typ0) (Right typ')
+                    Nothing   -> case findCoercion typ' typ0 of
+                                   Just c  -> checkType typ0 $ U.CoerceTo_ (Some2 c) e0
+                                   Nothing -> typeMismatch (Right typ0) (Right typ')
             | otherwise -> error "checkType: missing an mustCheck branch!"
 
     --------------------------------------------------------
@@ -692,6 +699,15 @@ checkBranch =
                 return $ SPF (PKonst pat1') xs
             _ -> failwith "expected term of `K' type"
 
+
+findCoercion :: Sing a -> Sing b -> Maybe (Coercion a b)
+findCoercion SNat  SInt  = Just $ CCons (Signed HRing_Int) CNil
+findCoercion SProb SReal = Just $ CCons (Signed HRing_Real) CNil
+findCoercion SNat  SProb = Just $ CCons (Continuous HContinuous_Prob) CNil
+findCoercion SInt  SReal = Just $ CCons (Continuous HContinuous_Real) CNil
+findCoercion SNat  SReal = Just $ CCons (Signed HRing_Int)
+                           (CCons (Continuous HContinuous_Real) CNil)
+findCoercion _     _     = Nothing
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
