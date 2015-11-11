@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.07
+--                                                    2015.11.11
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeCheck
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -40,6 +40,8 @@ module Language.Hakaru.Syntax.TypeCheck
     , checkType
     ) where
 
+import           Prelude hiding (id, (.))
+import           Control.Category
 import           Data.Proxy            (KProxy(..))
 import           Data.IntMap           (IntMap)
 import qualified Data.IntMap           as IM
@@ -53,14 +55,11 @@ import           Control.Applicative   (Alternative(..))
 import qualified Language.Hakaru.Parser.AST as U
 
 import Language.Hakaru.Syntax.Nat      (fromNat)
-import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.DataKind (Hakaru(..), HData')
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.TypeHelpers
-import Language.Hakaru.Syntax.Coercion (Coercion(..),
-                                        PrimCoercion(..),
-                                        singCoerceDomCod)
+import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT
@@ -282,11 +281,11 @@ inferType mode = inferType_
 
     U.NaryOp_ op es -> do
         TypedAST typ1 _ <- F.asum $ fmap inferType_ es
-        es'' <- T.forM es $ checkType_ typ1
         case make_NaryOp typ1 op of
             Nothing -> failwith "expected type with semiring"
-            Just op' ->
-                return . TypedAST typ1 $ syn (NaryOp_ op' (S.fromList es''))
+            Just op' -> do
+                es'' <- T.forM es $ checkType_ typ1
+                return . TypedAST typ1 $ syn (NaryOp_ op' $ S.fromList es'')
 
     U.Value_ (Some1 v) ->
         -- BUG: need to finish implementing sing_Value for Datum
@@ -514,19 +513,16 @@ checkType mode = checkType_
 
         _   | inferable e0 -> do
                 TypedAST typ' e0' <- inferType_ e0
-                -- If we ever get evaluation at the type level, then
-                -- (==) should be the appropriate notion of type
-                -- equivalence. More generally, we should have that the
-                -- inferred @typ'@ is a subtype of (i.e., subsumed by)
-                -- the goal @typ@. This will be relevant to us for handling our coercion calculus :(
                 case mode of
-                  TStrictMode -> case jmEq1 typ0 typ' of
-                                   Just Refl -> return e0'
-                                   Nothing   -> typeMismatch (Right typ0) (Right typ')
-                  TLaxMode    -> case findCoercion typ' typ0 of
-                                   Just CNil -> return e0'
-                                   Just c    -> checkType_ typ0 $ U.CoerceTo_ (Some2 c) e0
-                                   Nothing   -> typeMismatch (Right typ0) (Right typ')
+                  TStrictMode ->
+                    case jmEq1 typ0 typ' of
+                    Just Refl -> return e0'
+                    Nothing   -> typeMismatch (Right typ0) (Right typ')
+                  TLaxMode    ->
+                    case findCoercion typ' typ0 of
+                    Just CNil -> return e0'
+                    Just c    -> checkType_ typ0 $ U.CoerceTo_ (Some2 c) e0
+                    Nothing   -> typeMismatch (Right typ0) (Right typ')
             | otherwise -> error "checkType: missing an mustCheck branch!"
 
     --------------------------------------------------------
@@ -712,15 +708,12 @@ checkBranch mode =
 
 
 findCoercion :: Sing a -> Sing b -> Maybe (Coercion a b)
-findCoercion SNat  SInt  = Just $ CCons (Signed HRing_Int) CNil
-findCoercion SProb SReal = Just $ CCons (Signed HRing_Real) CNil
-findCoercion SNat  SProb = Just $ CCons (Continuous HContinuous_Prob) CNil
-findCoercion SInt  SReal = Just $ CCons (Continuous HContinuous_Real) CNil
-findCoercion SNat  SReal = Just $ CCons (Signed HRing_Int)
-                           (CCons (Continuous HContinuous_Real) CNil)
-findCoercion a     b     = case jmEq1 a b of
-                             Just Refl -> Just CNil
-                             Nothing   -> Nothing
+findCoercion SNat  SInt  = Just signed
+findCoercion SProb SReal = Just signed
+findCoercion SNat  SProb = Just continuous
+findCoercion SInt  SReal = Just continuous
+findCoercion SNat  SReal = Just (continuous . signed)
+findCoercion a     b     = jmEq1 a b >>= \Refl -> Just CNil
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
