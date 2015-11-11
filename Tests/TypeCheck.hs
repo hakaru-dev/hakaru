@@ -44,7 +44,7 @@ normalb = U.MBind_ xname
 
 
 inferType' :: U.AST a -> TypeCheckMonad (TypedAST (TrivialABT T.AST))
-inferType' = inferType
+inferType' = inferType TStrictMode
 
 testTC :: U.AST a -> String
 testTC a = case runTCM (inferType' a) of

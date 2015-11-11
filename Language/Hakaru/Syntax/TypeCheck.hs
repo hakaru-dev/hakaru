@@ -34,6 +34,7 @@ module Language.Hakaru.Syntax.TypeCheck
     , mustCheck
     , TypeCheckError
     , TypeCheckMonad(), runTCM
+    , TypeCheckMode(..)
     , TypedAST(..)
     , inferType
     , checkType
@@ -361,7 +362,7 @@ checkSArgs
     -> List1 Sing typs
     -> [U.AST c]
     -> TypeCheckMonad (SArgs abt args)
-checkSArgs mode Nil1             []     = return End
+checkSArgs _    Nil1             []     = return End
 checkSArgs mode (Cons1 typ typs) (e:es) =
     (:*) <$> checkType mode typ e <*> checkSArgs mode typs es
 checkSArgs _ _ _ =
