@@ -43,10 +43,10 @@ pToa :: U.AST' Text -> U.AST a
 pToa ast = makeAST $ normAST $ evalState (symbolResolution primTable ast) 0
 
 inferType' :: U.AST a -> TypeCheckMonad (TypedAST (TrivialABT T.AST))
-inferType' = inferType TStrictMode
+inferType' = inferType
 
 testTC :: U.AST a -> String
-testTC a = case runTCM (inferType' a) of
+testTC a = case runTCM (inferType' a) StrictMode of
              Left err -> err
              Right (TypedAST typ ast) -> show (typ, pretty ast)
 
@@ -71,7 +71,7 @@ testHakaru a g = case parseHakaru a of
                  Left err -> return (show err)
                  Right past ->
                      let m = inferType' (pToa past) in
-                     case runTCM m of
+                     case runTCM m StrictMode of
                        Left err -> return err
                        Right (TypedAST typ ast) -> do
                            putStrLn ("Type: " ++ show typ ++ "\n")
