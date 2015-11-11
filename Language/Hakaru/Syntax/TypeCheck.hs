@@ -201,7 +201,7 @@ typeMismatch typ1 typ2 =
     msg2 = case typ2 of { Left msg -> msg; Right typ -> show1 typ }
 
 
-data TypingMode = TStrictMode | TLaxMode | TUnsafeLaxMode 
+data TypeCheckMode = TStrictMode | TLaxMode
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -217,10 +217,14 @@ data TypedAST (abt :: [Hakaru] -> Hakaru -> *)
 inferType
     :: forall abt a
     .  (ABT AST abt)
-    => U.AST a
+    => TypeCheckMode
+    -> U.AST a
     -> TypeCheckMonad (TypedAST abt)
-inferType = inferType_
+inferType mode = inferType_
   where
+  checkType_ :: forall b. Sing b -> U.AST a -> TypeCheckMonad (abt '[] b)
+  checkType_ = checkType mode
+
   -- HACK: We need this monomorphic binding so that GHC doesn't get confused about which @(ABT AST abt)@ instance to use in recursive calls.
   inferType_ :: U.AST a -> TypeCheckMonad (TypedAST abt)
   inferType_ e0 =
@@ -237,7 +241,7 @@ inferType = inferType_
         TypedAST typ1 e1' <- inferType_ e1
         case typ1 of
             SFun typ2 typ3 -> do
-                e2' <- checkType typ2 e2
+                e2' <- checkType_ typ2 e2
                 return . TypedAST typ3 $ syn (App_ :$ e1' :* e2' :* End)
             _ -> typeMismatch (Left "function type") (Right typ1)
         -- The above is the standard rule that everyone uses.
@@ -267,17 +271,17 @@ inferType = inferType_
     U.Ann_ e1 (U.SSing typ1) -> do
         -- N.B., this requires that @typ1@ is a 'Sing' not a 'Proxy',
         -- since we can't generate a 'Sing' from a 'Proxy'.
-        e1' <- checkType typ1 e1
+        e1' <- checkType_ typ1 e1
         return . TypedAST typ1 $ syn (Ann_ typ1 :$ e1' :* End)
 
     U.PrimOp_ (U.SealedOp op) es -> do
         let (typs, typ1) = sing_PrimOp op
-        es' <- checkSArgs typs es
+        es' <- checkSArgs mode typs es
         return . TypedAST typ1 $ syn (PrimOp_ op :$ es')
 
     U.NaryOp_ op es -> do
         TypedAST typ1 _ <- F.asum $ fmap inferType_ es
-        es'' <- T.forM es $ checkType typ1
+        es'' <- T.forM es $ checkType_ typ1
         case make_NaryOp typ1 op of
             Nothing -> failwith "expected type with semiring"
             Just op' ->
@@ -294,7 +298,7 @@ inferType = inferType_
             | otherwise    -> 
                 failwith "Cannot infer type for null-coercion over a checking term; please add a type annotation"  
         Just (dom,cod) -> do
-            e1' <- checkType dom e1
+            e1' <- checkType_ dom e1
             return . TypedAST cod $ syn (CoerceTo_ c :$ e1' :* End)
 
     U.UnsafeTo_ (Some2 c) e1 ->
@@ -304,12 +308,12 @@ inferType = inferType_
             | otherwise    -> 
                 failwith "Cannot infer type for null-coercion over a checking term; please add a type annotation"  
         Just (dom,cod) -> do
-            e1' <- checkType cod e1
+            e1' <- checkType_ cod e1
             return . TypedAST dom $ syn (UnsafeFrom_ c :$ e1' :* End)
 
     U.MeasureOp_ (U.SealedOp op) es -> do
         let (typs, typ1) = sing_MeasureOp op
-        es' <- checkSArgs typs es
+        es' <- checkSArgs mode typs es
         return . TypedAST (SMeasure typ1) $ syn (MeasureOp_ op :$ es')
 
     U.Dirac_ e1 | inferable e1 -> do
@@ -336,7 +340,7 @@ inferType = inferType_
             SMeasure typ2 ->
                 let x = U.makeVar name typ2
                 in pushCtx (SomeVariable x) $ do
-                    e2' <- checkType SProb e2
+                    e2' <- checkType_ SProb e2
                     return . TypedAST SProb $
                         syn (Expect :$ e1' :* bind x e2' :* End)
             _ -> typeMismatch (Left "HMeasure") (Right typ1)
@@ -353,13 +357,14 @@ inferType = inferType_
 -- TODO: how can we do that in general rather than needing to repeat it here and in the various constructors of 'SCon'?
 checkSArgs
     :: (ABT AST abt, typs ~ UnLCs args, args ~ LCs typs)
-    => List1 Sing typs
+    => TypeCheckMode
+    -> List1 Sing typs
     -> [U.AST c]
     -> TypeCheckMonad (SArgs abt args)
-checkSArgs Nil1             []     = return End
-checkSArgs (Cons1 typ typs) (e:es) =
-    (:*) <$> checkType typ e <*> checkSArgs typs es
-checkSArgs _ _ =
+checkSArgs mode Nil1             []     = return End
+checkSArgs mode (Cons1 typ typs) (e:es) =
+    (:*) <$> checkType mode typ e <*> checkSArgs mode typs es
+checkSArgs _ _ _ =
     error "checkSArgs: the number of types and terms doesn't match up"
 
 
@@ -368,16 +373,17 @@ checkSArgs _ _ =
 checkType
     :: forall abt a c
     .  (ABT AST abt)
-    => Sing a
+    => TypeCheckMode
+    -> Sing a
     -> U.AST c
     -> TypeCheckMonad (abt '[] a)
-checkType = checkType_
+checkType mode = checkType_
     where
     -- HACK: to convince GHC to stop being stupid about resolving
     -- the \"choice\" of @abt'@. I'm not sure why we don't need to
     -- use this same hack when 'inferType' calls 'checkType', but whatevs.
     inferType_ :: U.AST c -> TypeCheckMonad (TypedAST abt)
-    inferType_ = inferType
+    inferType_ = inferType mode
 
     checkType_
         :: forall b. Sing b -> U.AST c -> TypeCheckMonad (abt '[] b)
@@ -433,7 +439,7 @@ checkType = checkType_
             case make_NaryOp typ0 op of
             Nothing  -> failwith "expected type with semiring"
             Just op' -> do
-                es' <- T.forM es $ checkType typ0
+                es' <- T.forM es $ checkType_ typ0
                 return $ syn (NaryOp_ op' (S.fromList es'))
 
         U.Empty_ ->
@@ -461,7 +467,7 @@ checkType = checkType_
     
         U.Case_ e1 branches -> do
             TypedAST typ1 e1' <- inferType_ e1
-            branches' <- T.forM branches $ checkBranch typ1 typ0
+            branches' <- T.forM branches $ checkBranch mode typ1 typ0
             return $ syn (Case_ e1' branches')
 
         U.Dirac_ e1 ->
@@ -512,11 +518,14 @@ checkType = checkType_
                 -- equivalence. More generally, we should have that the
                 -- inferred @typ'@ is a subtype of (i.e., subsumed by)
                 -- the goal @typ@. This will be relevant to us for handling our coercion calculus :(
-                case jmEq1 typ0 typ' of
-                    Just Refl -> return e0'
-                    Nothing   -> case findCoercion typ' typ0 of
-                                   Just c  -> checkType typ0 $ U.CoerceTo_ (Some2 c) e0
-                                   Nothing -> typeMismatch (Right typ0) (Right typ')
+                case mode of
+                  TStrictMode -> case jmEq1 typ0 typ' of
+                                   Just Refl -> return e0'
+                                   Nothing   -> typeMismatch (Right typ0) (Right typ')
+                  TLaxMode    -> case findCoercion typ' typ0 of
+                                   Just CNil -> return e0'
+                                   Just c    -> checkType_ typ0 $ U.CoerceTo_ (Some2 c) e0
+                                   Nothing   -> typeMismatch (Right typ0) (Right typ')
             | otherwise -> error "checkType: missing an mustCheck branch!"
 
     --------------------------------------------------------
@@ -603,11 +612,12 @@ data SomePatternFun x t =
 
 checkBranch
     :: (ABT AST abt)
-    => Sing a
+    => TypeCheckMode
+    -> Sing a
     -> Sing b
     -> U.Branch c
     -> TypeCheckMonad (Branch a abt b)
-checkBranch =
+checkBranch mode =
     \patTyp bodyTyp (U.Branch pat body) -> do
         SP pat' vars <- checkPattern patTyp pat
         Branch pat' <$> checkBranchBody bodyTyp body vars
@@ -620,7 +630,7 @@ checkBranch =
         -> TypeCheckMonad (abt xs b)
     checkBranchBody bodyTyp body xs =
         case xs of
-        Nil1        -> checkType bodyTyp body
+        Nil1        -> checkType mode bodyTyp body
         Cons1 x xs' ->
             pushCtx (SomeVariable x) $
                 bind x <$> checkBranchBody bodyTyp body xs'
@@ -707,7 +717,9 @@ findCoercion SNat  SProb = Just $ CCons (Continuous HContinuous_Prob) CNil
 findCoercion SInt  SReal = Just $ CCons (Continuous HContinuous_Real) CNil
 findCoercion SNat  SReal = Just $ CCons (Signed HRing_Int)
                            (CCons (Continuous HContinuous_Real) CNil)
-findCoercion _     _     = Nothing
+findCoercion a     b     = case jmEq1 a b of
+                             Just Refl -> Just CNil
+                             Nothing   -> Nothing
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
