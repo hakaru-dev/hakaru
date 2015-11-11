@@ -327,29 +327,29 @@ inferType = inferType_
         TypedAST typ1 e1' <- inferType_ e1
         return . TypedAST (SMeasure typ1) $ syn (Dirac :$ e1' :* End)
 
-    U.MBind_ name e1 e2 -> do
+    U.MBind_ x e1 e2 -> do
         TypedAST typ1 e1' <- inferType_ e1
         case typ1 of
             SMeasure typ2 ->
-                let x = U.makeVar name typ2 in
-                pushCtx (SomeVariable x) $ do
+                let x' = U.makeVar x typ2 in
+                pushCtx (SomeVariable x') $ do
                     TypedAST typ3 e2' <- inferType_ e2
                     case typ3 of
                         SMeasure _ ->
                             return . TypedAST typ3 $
-                                syn (MBind :$ e1' :* bind x e2' :* End)
+                                syn (MBind :$ e1' :* bind x' e2' :* End)
                         _ -> typeMismatch (Left "HMeasure") (Right typ3)
             _ -> typeMismatch (Left "HMeasure") (Right typ1)
 
-    U.Expect_ name e1 e2 -> do
+    U.Expect_ x e1 e2 -> do
         TypedAST typ1 e1' <- inferType_ e1
         case typ1 of
             SMeasure typ2 ->
-                let x = U.makeVar name typ2 in
-                pushCtx (SomeVariable x) $ do
+                let x' = U.makeVar x typ2 in
+                pushCtx (SomeVariable x') $ do
                     e2' <- checkType_ SProb e2
                     return . TypedAST SProb $
-                        syn (Expect :$ e1' :* bind x e2' :* End)
+                        syn (Expect :$ e1' :* bind x' e2' :* End)
             _ -> typeMismatch (Left "HMeasure") (Right typ1)
 
 
@@ -394,27 +394,27 @@ checkType = checkType_
         :: forall b. Sing b -> U.AST c -> TypeCheckMonad (abt '[] b)
     checkType_ typ0 e0 =
         case e0 of
-        U.Lam_ name e1 ->
+        U.Lam_ x e1 ->
             case typ0 of
             SFun typ1 typ2 ->
-                let x = U.makeVar name typ1 in
-                pushCtx (SomeVariable x) $ do
+                let x' = U.makeVar x typ1 in
+                pushCtx (SomeVariable x') $ do
                     e1' <- checkType_ typ2 e1
-                    return $ syn (Lam_ :$ bind x e1' :* End)
+                    return $ syn (Lam_ :$ bind x' e1' :* End)
             _ -> typeMismatch (Right typ0) (Left "function type")
 
-        U.Let_ name e1 e2 -> do
+        U.Let_ x e1 e2 -> do
             TypedAST typ1 e1' <- inferType_ e1
-            let x = U.makeVar name typ1
-            pushCtx (SomeVariable x) $ do
+            let x' = U.makeVar x typ1
+            pushCtx (SomeVariable x') $ do
                 e2' <- checkType_ typ0 e2
-                return $ syn (Let_ :$ e1' :* bind x e2' :* End)
+                return $ syn (Let_ :$ e1' :* bind x' e2' :* End)
     
-        U.Fix_ name e1 ->
-            let x = U.makeVar name typ0 in
-            pushCtx (SomeVariable x) $ do
+        U.Fix_ x e1 ->
+            let x' = U.makeVar x typ0 in
+            pushCtx (SomeVariable x') $ do
                 e1' <- checkType_ typ0 e1
-                return $ syn (Fix_ :$ bind x e1' :* End)
+                return $ syn (Fix_ :$ bind x' e1' :* End)
     
         U.CoerceTo_ (Some2 c) e1 ->
             case singCoerceDomCod c of
@@ -453,14 +453,14 @@ checkType = checkType_
             _        -> typeMismatch (Right typ0) (Left "HArray")
     
         -- Not sure Array should be a binding form
-        U.Array_ e1 name e2 ->
+        U.Array_ e1 x e2 ->
             case typ0 of
             SArray typ1 -> do
                 e1' <- checkType_ SNat e1
-                let x = U.makeVar name SNat
-                pushCtx (SomeVariable x) $ do
+                let x' = U.makeVar x SNat
+                pushCtx (SomeVariable x') $ do
                     e2' <- checkType_ typ1 e2
-                    return $ syn (Array_ e1' (bind x e2'))
+                    return $ syn (Array_ e1' $ bind x' e2')
             _ -> typeMismatch (Right typ0) (Left "HArray")
 
         U.Datum_ (U.Datum hint d) ->
@@ -482,29 +482,29 @@ checkType = checkType_
                 return $ syn (Dirac :$ e1' :* End)
             _ -> typeMismatch (Right typ0) (Left "HMeasure")
     
-        U.MBind_ name e1 e2 ->
+        U.MBind_ x e1 e2 ->
             case typ0 of
             SMeasure _ -> do
                 TypedAST typ1 e1' <- inferType_ e1
                 case typ1 of
                     SMeasure typ2 ->
-                        let x = U.makeVar name typ2 in
-                        pushCtx (SomeVariable x) $ do
+                        let x' = U.makeVar x typ2 in
+                        pushCtx (SomeVariable x') $ do
                             e2' <- checkType_ typ0 e2
-                            return $ syn (MBind :$ e1' :* bind x e2' :* End)
+                            return $ syn (MBind :$ e1' :* bind x' e2' :* End)
                     _ -> typeMismatch (Right typ0) (Right typ1)
             _ -> typeMismatch (Right typ0) (Left "HMeasure")
     
-        U.Expect_ name e1 e2 ->
+        U.Expect_ x e1 e2 ->
             case typ0 of
             SProb -> do
                 TypedAST typ1 e1' <- inferType_ e1
                 case typ1 of
                     SMeasure typ2 ->
-                        let x = U.makeVar name typ2 in
-                        pushCtx (SomeVariable x) $ do
+                        let x' = U.makeVar x typ2 in
+                        pushCtx (SomeVariable x') $ do
                             e2' <- checkType_ typ0 e2
-                            return $ syn (Expect :$ e1' :* bind x e2' :* End)
+                            return $ syn (Expect :$ e1' :* bind x' e2' :* End)
                     _ -> typeMismatch (Left "HMeasure") (Right typ1)
             _ -> typeMismatch (Right typ0) (Left "HProb")
 
@@ -643,8 +643,8 @@ checkBranch =
         -> TypeCheckMonad (SomePattern a)
     checkPattern typA pat =
         case pat of
-        U.PVar name -> return $ SP PVar  (Cons1 (U.makeVar name typA) Nil1)
-        U.PWild            -> return $ SP PWild Nil1
+        U.PVar x -> return $ SP PVar (Cons1 (U.makeVar x typA) Nil1)
+        U.PWild  -> return $ SP PWild Nil1
         U.PDatum hint pat1 ->
             case typA of
             SData _ typ1 -> do
