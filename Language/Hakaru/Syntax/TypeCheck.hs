@@ -147,33 +147,42 @@ mustCheck = go
 
 type Ctx = IntMap (SomeVariable ('KProxy :: KProxy Hakaru))
 
+data TypeCheckMode = StrictMode | LaxMode
+
 type TypeCheckError = String -- TODO: something better
 
 newtype TypeCheckMonad a =
-    TCM { unTCM :: Ctx -> Either TypeCheckError a }
+    TCM { unTCM :: Ctx -> TypeCheckMode -> Either TypeCheckError a }
 
-runTCM :: TypeCheckMonad a -> Either TypeCheckError a 
+runTCM :: TypeCheckMonad a -> TypeCheckMode -> Either TypeCheckError a 
 runTCM m = unTCM m IM.empty
 
 instance Functor TypeCheckMonad where
-    fmap f m = TCM $ fmap f . unTCM m
+    fmap f m = TCM $ \ctx mode -> fmap f (unTCM m ctx mode)
 
 instance Applicative TypeCheckMonad where
-    pure      = TCM . const . Right
+    pure x    = TCM $ \_ _ -> Right x
     mf <*> mx = mf >>= \f -> fmap f mx
 
 -- TODO: ensure this instance has the appropriate strictness
 instance Monad TypeCheckMonad where
     return   = pure
-    mx >>= k = TCM $ \ctx -> unTCM mx ctx >>= \x -> unTCM (k x) ctx
+    mx >>= k =
+        TCM $ \ctx mode ->
+        unTCM mx ctx mode >>= \x ->
+        unTCM (k x) ctx mode
 
+-- TODO: we might want to just inline this definition into the use of 'asum'; rather than actually having an instance...
 instance Alternative TypeCheckMonad where
     empty   = failwith "Need type annotation in one of your arguments"
-    x <|> y = TCM $ \ctx ->
-        case unTCM x ctx of
-        Left  _ -> unTCM y ctx
+    x <|> y = TCM $ \ctx mode ->
+        case unTCM x ctx mode of
+        Left  _ -> unTCM y ctx mode
         Right e -> Right e
 
+-- | Return the mode in which we're checking\/inferring types.
+getMode :: TypeCheckMonad TypeCheckMode
+getMode = TCM (const Right)
 
 -- | Extend the typing context, but only locally.
 pushCtx
@@ -181,13 +190,13 @@ pushCtx
     -> TypeCheckMonad a
     -> TypeCheckMonad a
 pushCtx tv@(SomeVariable x) (TCM m) =
-    TCM $ \ctx -> m $ IM.insert (fromNat $ varID x) tv ctx
+    TCM (m . IM.insert (fromNat $ varID x) tv)
 
 getCtx :: TypeCheckMonad Ctx
-getCtx = TCM Right
+getCtx = TCM (const . Right)
 
 failwith :: TypeCheckError -> TypeCheckMonad a
-failwith = TCM . const . Left
+failwith e = TCM $ \_ _ -> Left e
 
 typeMismatch
     :: Show1 (Sing :: k -> *)
@@ -200,8 +209,6 @@ typeMismatch typ1 typ2 =
     msg1 = case typ1 of { Left msg -> msg; Right typ -> show1 typ }
     msg2 = case typ2 of { Left msg -> msg; Right typ -> show1 typ }
 
-
-data TypeCheckMode = TStrictMode | TLaxMode
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -217,13 +224,12 @@ data TypedAST (abt :: [Hakaru] -> Hakaru -> *)
 inferType
     :: forall abt a
     .  (ABT AST abt)
-    => TypeCheckMode
-    -> U.AST a
+    => U.AST a
     -> TypeCheckMonad (TypedAST abt)
-inferType mode = inferType_
+inferType = inferType_
   where
   checkType_ :: forall b. Sing b -> U.AST a -> TypeCheckMonad (abt '[] b)
-  checkType_ = checkType mode
+  checkType_ = checkType
 
   -- HACK: We need this monomorphic binding so that GHC doesn't get confused about which @(ABT AST abt)@ instance to use in recursive calls.
   inferType_ :: U.AST a -> TypeCheckMonad (TypedAST abt)
@@ -276,13 +282,14 @@ inferType mode = inferType_
 
     U.PrimOp_ (U.SealedOp op) es -> do
         let (typs, typ1) = sing_PrimOp op
-        es' <- checkSArgs mode typs es
+        es' <- checkSArgs typs es
         return . TypedAST typ1 $ syn (PrimOp_ op :$ es')
 
     U.NaryOp_ op es -> do
+        -- TODO: abstract out this infer-one-check-all pattern so we can reuse it elsewhere. Also, make it zipper-like so we don't re-check the one we inferred.
         TypedAST typ1 _ <- F.asum $ fmap inferType_ es
         case make_NaryOp typ1 op of
-            Nothing -> failwith "expected type with semiring"
+            Nothing  -> failwith "expected type with semiring"
             Just op' -> do
                 es'' <- T.forM es $ checkType_ typ1
                 return . TypedAST typ1 $ syn (NaryOp_ op' $ S.fromList es'')
@@ -313,7 +320,7 @@ inferType mode = inferType_
 
     U.MeasureOp_ (U.SealedOp op) es -> do
         let (typs, typ1) = sing_MeasureOp op
-        es' <- checkSArgs mode typs es
+        es' <- checkSArgs typs es
         return . TypedAST (SMeasure typ1) $ syn (MeasureOp_ op :$ es')
 
     U.Dirac_ e1 | inferable e1 -> do
@@ -324,8 +331,8 @@ inferType mode = inferType_
         TypedAST typ1 e1' <- inferType_ e1
         case typ1 of
             SMeasure typ2 ->
-                let x = U.makeVar name typ2
-                in pushCtx (SomeVariable x) $ do
+                let x = U.makeVar name typ2 in
+                pushCtx (SomeVariable x) $ do
                     TypedAST typ3 e2' <- inferType_ e2
                     case typ3 of
                         SMeasure _ ->
@@ -338,8 +345,8 @@ inferType mode = inferType_
         TypedAST typ1 e1' <- inferType_ e1
         case typ1 of
             SMeasure typ2 ->
-                let x = U.makeVar name typ2
-                in pushCtx (SomeVariable x) $ do
+                let x = U.makeVar name typ2 in
+                pushCtx (SomeVariable x) $ do
                     e2' <- checkType_ SProb e2
                     return . TypedAST SProb $
                         syn (Expect :$ e1' :* bind x e2' :* End)
@@ -357,14 +364,13 @@ inferType mode = inferType_
 -- TODO: how can we do that in general rather than needing to repeat it here and in the various constructors of 'SCon'?
 checkSArgs
     :: (ABT AST abt, typs ~ UnLCs args, args ~ LCs typs)
-    => TypeCheckMode
-    -> List1 Sing typs
+    => List1 Sing typs
     -> [U.AST c]
     -> TypeCheckMonad (SArgs abt args)
-checkSArgs _    Nil1             []     = return End
-checkSArgs mode (Cons1 typ typs) (e:es) =
-    (:*) <$> checkType mode typ e <*> checkSArgs mode typs es
-checkSArgs _ _ _ =
+checkSArgs Nil1             []     = return End
+checkSArgs (Cons1 typ typs) (e:es) =
+    (:*) <$> checkType typ e <*> checkSArgs typs es
+checkSArgs _ _ =
     error "checkSArgs: the number of types and terms doesn't match up"
 
 
@@ -373,17 +379,16 @@ checkSArgs _ _ _ =
 checkType
     :: forall abt a c
     .  (ABT AST abt)
-    => TypeCheckMode
-    -> Sing a
+    => Sing a
     -> U.AST c
     -> TypeCheckMonad (abt '[] a)
-checkType mode = checkType_
+checkType = checkType_
     where
     -- HACK: to convince GHC to stop being stupid about resolving
     -- the \"choice\" of @abt'@. I'm not sure why we don't need to
     -- use this same hack when 'inferType' calls 'checkType', but whatevs.
     inferType_ :: U.AST c -> TypeCheckMonad (TypedAST abt)
-    inferType_ = inferType mode
+    inferType_ = inferType
 
     checkType_
         :: forall b. Sing b -> U.AST c -> TypeCheckMonad (abt '[] b)
@@ -467,7 +472,7 @@ checkType mode = checkType_
     
         U.Case_ e1 branches -> do
             TypedAST typ1 e1' <- inferType_ e1
-            branches' <- T.forM branches $ checkBranch mode typ1 typ0
+            branches' <- T.forM branches $ checkBranch typ1 typ0
             return $ syn (Case_ e1' branches')
 
         U.Dirac_ e1 ->
@@ -513,12 +518,13 @@ checkType mode = checkType_
 
         _   | inferable e0 -> do
                 TypedAST typ' e0' <- inferType_ e0
+                mode <- getMode
                 case mode of
-                  TStrictMode ->
+                  StrictMode ->
                     case jmEq1 typ0 typ' of
                     Just Refl -> return e0'
                     Nothing   -> typeMismatch (Right typ0) (Right typ')
-                  TLaxMode    ->
+                  LaxMode ->
                     case findCoercion typ' typ0 of
                     Just CNil -> return e0'
                     Just c    -> checkType_ typ0 $ U.CoerceTo_ (Some2 c) e0
@@ -609,12 +615,11 @@ data SomePatternFun x t =
 
 checkBranch
     :: (ABT AST abt)
-    => TypeCheckMode
-    -> Sing a
+    => Sing a
     -> Sing b
     -> U.Branch c
     -> TypeCheckMonad (Branch a abt b)
-checkBranch mode =
+checkBranch =
     \patTyp bodyTyp (U.Branch pat body) -> do
         SP pat' vars <- checkPattern patTyp pat
         Branch pat' <$> checkBranchBody bodyTyp body vars
@@ -627,7 +632,7 @@ checkBranch mode =
         -> TypeCheckMonad (abt xs b)
     checkBranchBody bodyTyp body xs =
         case xs of
-        Nil1        -> checkType mode bodyTyp body
+        Nil1        -> checkType bodyTyp body
         Cons1 x xs' ->
             pushCtx (SomeVariable x) $
                 bind x <$> checkBranchBody bodyTyp body xs'
