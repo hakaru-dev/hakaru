@@ -286,13 +286,16 @@ easyRoad1 = unlines ["noiseT <~ uniform(3, 8)"
                     ,"return ((m1, m2), (noiseT, noiseE))"
                     ]
 
+-- works in lax mode
 easyRoad2 :: Text
-easyRoad2 = unlines ["(noiseT <~ uniform(fromProb(3.0), fromProb(8.0))"
-                    ," noiseE <~ uniform(fromProb(1.0), fromProb(4.0))"
-                    ," x1 <~ normal(-0.0, unsafeProb(noiseT))"
-                    ," m1 <~ normal(x1, unsafeProb(noiseE))"
-                    ," x2 <~ normal(x1, unsafeProb(noiseT))"
-                    ," m2 <~ normal(x2, unsafeProb(noiseE))"
+easyRoad2 = unlines ["(noiseT' <~ uniform(3, 8)"
+                    ," noiseE' <~ uniform(1, 4)"
+                    ," noiseT = unsafeProb(noiseT')"
+                    ," noiseE = unsafeProb(noiseE')"
+                    ," x1 <~ normal(0,  noiseT)"
+                    ," m1 <~ normal(x1, noiseE)"
+                    ," x2 <~ normal(x1, noiseT)"
+                    ," m2 <~ normal(x2, noiseE)"
                     ," return ((m1, m2), (noiseT, noiseE))"
                     ,") :: measure(pair(pair(real,real),pair(real,real)))"
                     ]
