@@ -297,7 +297,7 @@ easyRoad2 = unlines ["(noiseT' <~ uniform(3, 8)"
                     ," x2 <~ normal(x1, noiseT)"
                     ," m2 <~ normal(x2, noiseE)"
                     ," return ((m1, m2), (noiseT, noiseE))"
-                    ,") :: measure(pair(pair(real,real),pair(real,real)))"
+                    ,") :: measure(pair(pair(real,real),pair(prob,prob)))"
                     ]
 
 

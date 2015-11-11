@@ -66,22 +66,23 @@ illustrate (SMeasure s) g m = do
   illustrate s g samp
 illustrate s _ _ = return ("<" ++ show s ++ ">")
 
-testHakaru :: Text -> MWC.GenIO -> IO String
-testHakaru a g = case parseHakaru a of
-                 Left err -> return (show err)
-                 Right past ->
-                     let m = inferType' (pToa past) in
-                     case runTCM m StrictMode of
-                       Left err -> return err
-                       Right (TypedAST typ ast) -> do
-                           putStrLn ("Type: " ++ show typ ++ "\n")
-                           putStrLn ("AST: " ++ (show $ pretty ast) ++ "\n")
-                           case typ of
-                             SMeasure _ ->
-                               putStrLn ("Expectation wrt 1 as ast: " ++
-                                         (show $ pretty $
-                                               expect ast (\x -> (prob_ 1))) ++ "\n")
-                             _ -> return ()
-                           illustrate typ g (unS (runSample' ast))
+testHakaru :: Text -> TypeCheckMode ->  MWC.GenIO -> IO String
+testHakaru a mode g =
+    case parseHakaru a of
+      Left err -> return (show err)
+      Right past ->
+          let m = inferType' (pToa past) in
+          case runTCM m mode of
+            Left err -> return err
+            Right (TypedAST typ ast) -> do
+              putStrLn ("Type: " ++ show typ ++ "\n")
+              putStrLn ("AST: " ++ (show $ pretty ast) ++ "\n")
+              case typ of
+                SMeasure _ ->
+                    putStrLn ("Expectation wrt 1 as ast: " ++
+                              (show $ pretty $
+                               expect ast (\x -> (prob_ 1))) ++ "\n")
+                _ -> return ()
+              illustrate typ g (unS (runSample' ast))
   where runSample' :: TrivialABT T.AST '[] a -> S IO a
         runSample' = runSample
