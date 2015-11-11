@@ -218,6 +218,7 @@ ppCoerce (CCons (Signed HRing_Real) CNil) = "fromProb"
 ppCoerce (CCons (Signed HRing_Int ) CNil) = "nat2int"
 ppCoerce (CCons (Continuous HContinuous_Real ) CNil) = "fromInt"
 ppCoerce (CCons (Continuous HContinuous_Prob  ) CNil) = "nat2prob"
+ppCoerce (CCons (Signed HRing_Int) (CCons (Continuous HContinuous_Real) CNil)) = "nat2real"
 ppCoerce c = "coerceTo_ " ++ showsPrec 11 c ""
 
 ppUnsafe :: Coercion a b -> String
