@@ -7,6 +7,7 @@
            , TypeOperators
            , FlexibleContexts
            , FlexibleInstances
+           , RankNTypes
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -220,19 +221,40 @@ data TypedAST (abt :: [Hakaru] -> Hakaru -> *)
     = forall b. TypedAST !(Sing b) !(abt '[] b)
 
 
+inferBinderType
+    :: (ABT AST abt)
+    => Variable (a :: Hakaru)
+    -> U.AST n
+    -> (forall b. Sing b -> abt '[ a ] b -> TypeCheckMonad r)
+    -> TypeCheckMonad r
+inferBinderType x e k = do
+    TypedAST typ e' <- pushCtx (SomeVariable x) (inferType e)
+    k typ (bind x e')
+
+
+checkBinderType
+    :: (ABT AST abt)
+    => Variable (a :: Hakaru)
+    -> Sing (b :: Hakaru)
+    -> U.AST n
+    -> TypeCheckMonad (abt '[ a ] b)
+checkBinderType x eTyp e =
+    pushCtx (SomeVariable x) (bind x <$> checkType eTyp e)
+
+
 -- | Given a typing environment and a term, synthesize the term's type.
 inferType
-    :: forall abt a
+    :: forall abt n
     .  (ABT AST abt)
-    => U.AST a
+    => U.AST n
     -> TypeCheckMonad (TypedAST abt)
 inferType = inferType_
   where
-  checkType_ :: forall b. Sing b -> U.AST a -> TypeCheckMonad (abt '[] b)
+  checkType_ :: forall b. Sing b -> U.AST n -> TypeCheckMonad (abt '[] b)
   checkType_ = checkType
 
   -- HACK: We need this monomorphic binding so that GHC doesn't get confused about which @(ABT AST abt)@ instance to use in recursive calls.
-  inferType_ :: U.AST a -> TypeCheckMonad (TypedAST abt)
+  inferType_ :: U.AST n -> TypeCheckMonad (TypedAST abt)
   inferType_ e0 =
     case e0 of
     U.Var_ x -> do
@@ -269,10 +291,8 @@ inferType = inferType_
 
     U.Let_ x e1 e2 -> do
         TypedAST typ1 e1' <- inferType_ e1
-        let x' = U.makeVar x typ1
-        pushCtx (SomeVariable x') $ do
-            TypedAST typ2 e2' <- inferType_ e2
-            return . TypedAST typ2 $ syn (Let_ :$ e1' :* bind x' e2' :* End)
+        inferBinderType (U.makeVar x typ1) e2 $ \typ2 e2' ->
+            return . TypedAST typ2 $ syn (Let_ :$ e1' :* e2' :* End)
                     
     U.Ann_ e1 (U.SSing typ1) -> do
         -- N.B., this requires that @typ1@ is a 'Sing' not a 'Proxy',
@@ -339,17 +359,22 @@ inferType = inferType_
                             return . TypedAST typ3 $
                                 syn (MBind :$ e1' :* bind x' e2' :* End)
                         _ -> typeMismatch (Left "HMeasure") (Right typ3)
+                {-
+                -- BUG: the \"ambiguous\" @abt@ issue again...
+                inferBinderType (U.makeVar x typ2) e2 $ \typ3 e2' ->
+                    case typ3 of
+                    SMeasure _ -> return . TypedAST typ3 $
+                        syn (MBind :$ e1' :* e2' :* End)
+                    _ -> typeMismatch (Left "HMeasure") (Right typ3)
+                -}
             _ -> typeMismatch (Left "HMeasure") (Right typ1)
 
     U.Expect_ x e1 e2 -> do
         TypedAST typ1 e1' <- inferType_ e1
         case typ1 of
-            SMeasure typ2 ->
-                let x' = U.makeVar x typ2 in
-                pushCtx (SomeVariable x') $ do
-                    e2' <- checkType_ SProb e2
-                    return . TypedAST SProb $
-                        syn (Expect :$ e1' :* bind x' e2' :* End)
+            SMeasure typ2 -> do
+                e2' <- checkBinderType (U.makeVar x typ2) SProb e2
+                return . TypedAST SProb $ syn (Expect :$ e1' :* e2' :* End)
             _ -> typeMismatch (Left "HMeasure") (Right typ1)
 
 
@@ -396,25 +421,19 @@ checkType = checkType_
         case e0 of
         U.Lam_ x e1 ->
             case typ0 of
-            SFun typ1 typ2 ->
-                let x' = U.makeVar x typ1 in
-                pushCtx (SomeVariable x') $ do
-                    e1' <- checkType_ typ2 e1
-                    return $ syn (Lam_ :$ bind x' e1' :* End)
+            SFun typ1 typ2 -> do
+                e1' <- checkBinderType (U.makeVar x typ1) typ2 e1
+                return $ syn (Lam_ :$ e1' :* End)
             _ -> typeMismatch (Right typ0) (Left "function type")
 
         U.Let_ x e1 e2 -> do
             TypedAST typ1 e1' <- inferType_ e1
-            let x' = U.makeVar x typ1
-            pushCtx (SomeVariable x') $ do
-                e2' <- checkType_ typ0 e2
-                return $ syn (Let_ :$ e1' :* bind x' e2' :* End)
+            e2' <- checkBinderType (U.makeVar x typ1) typ0 e2
+            return $ syn (Let_ :$ e1' :* e2' :* End)
     
-        U.Fix_ x e1 ->
-            let x' = U.makeVar x typ0 in
-            pushCtx (SomeVariable x') $ do
-                e1' <- checkType_ typ0 e1
-                return $ syn (Fix_ :$ bind x' e1' :* End)
+        U.Fix_ x e1 -> do
+            e1' <- checkBinderType (U.makeVar x typ0) typ0 e1
+            return $ syn (Fix_ :$ e1' :* End)
     
         U.CoerceTo_ (Some2 c) e1 ->
             case singCoerceDomCod c of
@@ -457,10 +476,8 @@ checkType = checkType_
             case typ0 of
             SArray typ1 -> do
                 e1' <- checkType_ SNat e1
-                let x' = U.makeVar x SNat
-                pushCtx (SomeVariable x') $ do
-                    e2' <- checkType_ typ1 e2
-                    return $ syn (Array_ e1' $ bind x' e2')
+                e2' <- checkBinderType (U.makeVar x SNat) typ1 e2
+                return $ syn (Array_ e1' e2')
             _ -> typeMismatch (Right typ0) (Left "HArray")
 
         U.Datum_ (U.Datum hint d) ->
@@ -487,11 +504,9 @@ checkType = checkType_
             SMeasure _ -> do
                 TypedAST typ1 e1' <- inferType_ e1
                 case typ1 of
-                    SMeasure typ2 ->
-                        let x' = U.makeVar x typ2 in
-                        pushCtx (SomeVariable x') $ do
-                            e2' <- checkType_ typ0 e2
-                            return $ syn (MBind :$ e1' :* bind x' e2' :* End)
+                    SMeasure typ2 -> do
+                        e2' <- checkBinderType (U.makeVar x typ2) typ0 e2
+                        return $ syn (MBind :$ e1' :* e2' :* End)
                     _ -> typeMismatch (Right typ0) (Right typ1)
             _ -> typeMismatch (Right typ0) (Left "HMeasure")
     
@@ -500,11 +515,9 @@ checkType = checkType_
             SProb -> do
                 TypedAST typ1 e1' <- inferType_ e1
                 case typ1 of
-                    SMeasure typ2 ->
-                        let x' = U.makeVar x typ2 in
-                        pushCtx (SomeVariable x') $ do
-                            e2' <- checkType_ typ0 e2
-                            return $ syn (Expect :$ e1' :* bind x' e2' :* End)
+                    SMeasure typ2 -> do
+                        e2' <- checkBinderType (U.makeVar x typ2) typ0 e2
+                        return $ syn (Expect :$ e1' :* e2' :* End)
                     _ -> typeMismatch (Left "HMeasure") (Right typ1)
             _ -> typeMismatch (Right typ0) (Left "HProb")
 
