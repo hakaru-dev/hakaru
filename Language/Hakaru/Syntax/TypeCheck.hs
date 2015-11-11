@@ -7,7 +7,7 @@
            , TypeOperators
            , FlexibleContexts
            , FlexibleInstances
-           , RankNTypes
+           , Rank2Types
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -223,7 +223,7 @@ data TypedAST (abt :: [Hakaru] -> Hakaru -> *)
 
 inferBinderType
     :: (ABT AST abt)
-    => Variable (a :: Hakaru)
+    => Variable a
     -> U.AST n
     -> (forall b. Sing b -> abt '[ a ] b -> TypeCheckMonad r)
     -> TypeCheckMonad r
@@ -234,8 +234,8 @@ inferBinderType x e k = do
 
 checkBinderType
     :: (ABT AST abt)
-    => Variable (a :: Hakaru)
-    -> Sing (b :: Hakaru)
+    => Variable a
+    -> Sing b
     -> U.AST n
     -> TypeCheckMonad (abt '[ a ] b)
 checkBinderType x eTyp e =
