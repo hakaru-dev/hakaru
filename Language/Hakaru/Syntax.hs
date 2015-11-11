@@ -76,7 +76,7 @@ deriving instance Typeable 'HPair
 deriving instance Typeable 'HEither
 deriving instance Typeable 'HMu
 deriving instance Typeable 'HTag
-deriving instance Typeable (:$)
+deriving instance Typeable '(:$)
 deriving instance Typeable 'HList
 deriving instance Typeable 'HMaybe
 deriving instance Typeable 'Id
