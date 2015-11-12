@@ -162,8 +162,8 @@ evaluate perform = evaluate_
         -- BUG: avoid the chance of looping in case 'E.expect' residualizes!
         -- TODO: use 'evaluate' in 'E.expect' for the evaluation of @e1@
         Expect :$ e1 :* e2 :* End ->
-            caseBind e2 $ \x e2' ->
-                evaluate_ $ E.expect e1 (\e3 -> subst x e3 e2')
+            evaluate_ . E.expect e1 $ \e3 ->
+                syn (Let_ :$ e3 :* e2 :* End)
 
         Lub_ es -> error "TODO: evaluate{Lub_}" -- (Head_ . HLub) <$> T.for es evaluate_
 
