@@ -542,15 +542,6 @@ unsafeFrom c e0 =
 ----------------------------------------------------------------
 -- TODO: 'perform' should move to Disintegrate.hs
 
-data EverySing = EverySing (forall (a :: Hakaru). Sing a)
-
--- HACK: to make 'perform' typecheck in spite of it really needing @SingI a@ due to 'mbindTheContinuation'
-anySing :: Sing (a :: Hakaru)
-anySing = theSing
-    where
-    EverySing theSing = error "TODO: EverySing"
-
-
 -- N.B., that return type is correct, albeit strange. The idea is that the continuation takes in the variable of type @a@ bound by the expression of type @'HMeasure a@. However, this requires that the continuation of the 'Ans' type actually does @forall a. ...('HMeasure a)@ which is at odds with what 'evaluate' wants (or at least, what *I* think it should want.)
 perform :: (ABT AST abt) => MeasureEvaluator abt (M abt)
 perform e0 =
@@ -576,15 +567,23 @@ perform e0 =
             case w of
                 Head_   v -> perform $ fromHead v
                 Neutral e -> mbindTheContinuation e
-    where
-    -- This is the only place (in this file) where we really need
-    -- the 'M' instance of 'EvaluationMonad'. I think it's also the
-    -- only place (anywhere) that we really need to know the internal
-    -- CPS structure of 'M'. (Though I suppose a few other places
-    -- let us short-circuit generating unused code after a 'P.bot'
-    -- or 'P.reject'.)
-    mbindTheContinuation e = do
-        z <- freshVar Text.empty anySing
+
+
+-- HACK: to make 'perform' typecheck in spite of it really needing @SingI a@ due to 'mbindTheContinuation'
+typeOf :: (ABT AST abt) => abt '[] a -> Sing a
+typeOf = error "TODO: typeOf"
+
+-- This is the only place (in this file) where we really need
+-- the 'M' instance of 'EvaluationMonad'. I think it's also the
+-- only place (anywhere) that we really need to know the internal
+-- CPS structure of 'M'. (Though I suppose a few other places
+-- let us short-circuit generating unused code after a 'P.bot'
+-- or 'P.reject'.)
+mbindTheContinuation :: (ABT AST abt) => MeasureEvaluator abt (M abt)
+mbindTheContinuation e =
+    case typeOf e of
+    SMeasure typ -> do
+        z <- freshVar Text.empty typ
         M $ \c h ->
             let body = bind z . fromWhnf $ c (Neutral $ var z) h
             in  Head_ . WMeasure $ syn (MBind :$ e :* body :* End)
