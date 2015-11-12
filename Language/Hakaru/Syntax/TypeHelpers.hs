@@ -71,22 +71,14 @@ sing_NaryOp (Sum  theSemi) = sing_HSemiring theSemi
 sing_NaryOp (Prod theSemi) = sing_HSemiring theSemi
 
 make_NaryOp :: Sing a -> U.NaryOp' -> Maybe (NaryOp a)
-make_NaryOp a U.And'  = case jmEq1 a sBool of
-                          Nothing   -> Nothing
-                          Just Refl -> Just And
-make_NaryOp a U.Or'   = case jmEq1 a sBool of
-                          Nothing   -> Nothing
-                          Just Refl -> Just Or
-make_NaryOp a U.Xor'  = case jmEq1 a sBool of
-                          Nothing   -> Nothing
-                          Just Refl -> Just Xor
-make_NaryOp a U.Iff'  = case jmEq1 a sBool of
-                          Nothing   -> Nothing
-                          Just Refl -> Just Iff
-make_NaryOp a U.Min'  = hOrd_Sing a >>= return . Min
-make_NaryOp a U.Max'  = hOrd_Sing a >>= return . Max
-make_NaryOp a U.Sum'  = hSemiringSing a >>= return . Sum
-make_NaryOp a U.Prod' = hSemiringSing a >>= return . Prod
+make_NaryOp a U.And'  = jmEq1 a sBool >>= \Refl -> Just And
+make_NaryOp a U.Or'   = jmEq1 a sBool >>= \Refl -> Just Or
+make_NaryOp a U.Xor'  = jmEq1 a sBool >>= \Refl -> Just Xor
+make_NaryOp a U.Iff'  = jmEq1 a sBool >>= \Refl -> Just Iff
+make_NaryOp a U.Min'  = Min  <$> hOrd_Sing a
+make_NaryOp a U.Max'  = Max  <$> hOrd_Sing a
+make_NaryOp a U.Sum'  = Sum  <$> hSemiringSing a
+make_NaryOp a U.Prod' = Prod <$> hSemiringSing a
       
 
 -- TODO: is there any way to define a @sing_List1@ like @sing@ for automating all these monomorphic cases?
