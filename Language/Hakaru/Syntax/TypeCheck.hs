@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.11
+--                                                    2015.11.12
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeCheck
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -149,6 +149,7 @@ mustCheck = go
 type Ctx = IntMap (SomeVariable ('KProxy :: KProxy Hakaru))
 
 data TypeCheckMode = StrictMode | LaxMode
+    deriving (Read, Show, Eq)
 
 type TypeCheckError = String -- TODO: something better
 
@@ -219,6 +220,10 @@ typeMismatch typ1 typ2 =
 -- <https://github.com/hakaru-dev/hakaru/issues/6>
 data TypedAST (abt :: [Hakaru] -> Hakaru -> *)
     = forall b. TypedAST !(Sing b) !(abt '[] b)
+
+instance Show2 abt => Show (TypedAST abt) where
+    showsPrec p (TypedAST typ e) =
+        showParen_12 p "TypedAST" typ e
 
 
 inferBinderType
