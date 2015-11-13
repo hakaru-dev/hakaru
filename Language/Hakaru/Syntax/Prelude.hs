@@ -816,7 +816,17 @@ normalizeV x = mapV (/ sumV x) x
 constV :: (ABT AST abt) => abt '[] 'HNat -> abt '[] b -> abt '[] ('HArray b)
 constV n c = array n (const c)
 
--- TODO: zipWithV
+unitV :: (ABT AST abt) => abt '[] 'HNat -> abt '[] 'HNat -> abt '[] ('HArray 'HProb)
+unitV s i = array s (\j -> if_ (i == j) (prob_ 1) (prob_ 0))
+
+zipWithV :: (ABT AST abt, SingI a, SingI b) =>
+            (abt '[] a -> abt '[] b -> abt '[] c) ->
+            abt  '[] ('HArray a) ->
+            abt  '[] ('HArray b) ->
+            abt  '[] ('HArray c)
+zipWithV f v1 v2 =
+    array (size v1) (\i -> f (v1 ! i) (v2 ! i))
+
 
 ----------------------------------------------------------------
 -- BUG: remove the 'SingI' requirement!
@@ -1206,7 +1216,7 @@ negativeBinomial r p =
 geometric :: (ABT AST abt) => abt '[] 'HProb -> abt '[] ('HMeasure 'HNat)
 geometric = negativeBinomial (nat_ 1)
 
-{-
+
 multinomial
     :: (ABT AST abt)
     => abt '[] 'HNat
@@ -1214,9 +1224,8 @@ multinomial
     -> abt '[] ('HMeasure ('HArray 'HProb))
 multinomial n v =
     reduce (liftM2 (zipWithV (+)))
-        (dirac (constV (size v) 0))
+        (dirac (constV (size v) (prob_ 0)))
         (constV n (unitV (size v) <$> categorical v))
--}
 
 dirichlet
     :: (ABT AST abt)
