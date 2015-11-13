@@ -111,15 +111,15 @@ evaluate perform = evaluate_
       caseVarSyn e0 (update perform evaluate_) $ \t ->
         case t of
         -- Things which are already weak head-normal forms
-        Value_  v         -> return . Head_ $ WValue v
-        Datum_  d         -> return . Head_ $ WDatum d
-        Empty_            -> return . Head_ $ WEmpty
-        Array_  e1 e2     -> return . Head_ $ WArray   e1 e2
-        Lam_ :$ e1 :* End -> return . Head_ $ WLam     e1
-        Dirac        :$ _ -> return . Head_ $ WMeasure e0
-        MBind        :$ _ -> return . Head_ $ WMeasure e0 -- N.B., not HNF
-        MeasureOp_ _ :$ _ -> return . Head_ $ WMeasure e0
-        Superpose_ _      -> return . Head_ $ WMeasure e0
+        Value_ v                 -> return . Head_ $ WValue v
+        Datum_ d                 -> return . Head_ $ WDatum d
+        Empty_                   -> return . Head_ $ WEmpty
+        Array_ e1 e2             -> return . Head_ $ WArray e1 e2
+        Lam_  :$ e1 :* End       -> return . Head_ $ WLam   e1
+        Dirac :$ e1 :* End       -> return . Head_ $ WDirac e1
+        MBind :$ e1 :* e2 :* End -> return . Head_ $ WMBind e1 e2
+        MeasureOp_ o :$ es       -> return . Head_ $ WMeasureOp o es
+        Superpose_ pes           -> return . Head_ $ WSuperpose pes
 
 
         -- Everything else needs some evaluation
@@ -173,7 +173,9 @@ evaluate perform = evaluate_
         Case_ e bs -> do
             match <- matchBranches evaluateDatum e bs
             case match of
-                Nothing -> error "evaluate{Case_}: nothing matched!"
+                Nothing ->
+                    -- TODO: print more info about where this happened
+                    error "evaluate: non-exhaustive patterns in case!"
                 Just (GotStuck, _) ->
                     return . Neutral . syn $ Case_ e bs
                 Just (Matched ss Nil1, body) ->
@@ -474,9 +476,9 @@ evaluatePrimOp Asinh     (e1 :* End)       = rr1 asinh P.asinh e1
 evaluatePrimOp Acosh     (e1 :* End)       = rr1 acosh P.acosh e1
 evaluatePrimOp Atanh     (e1 :* End)       = rr1 atanh P.atanh e1
 {-
-evaluatePrimOp RealPow   (e1 :* e2 :* End) = rr2 (**)  _ e1 e2 -- TODO: types
-evaluatePrimOp Exp       (e1 :* End)       = rr1 exp   _ e1 -- TODO: types
-evaluatePrimOp Log       (e1 :* End)       = rr1 log   _ e1 -- TODO: types
+evaluatePrimOp RealPow   (e1 :* e2 :* End) = rr2 (**) (P.**) e1 e2
+evaluatePrimOp Exp       (e1 :* End)       = rr1 exp   P.exp e1 -- TODO: types
+evaluatePrimOp Log       (e1 :* End)       = rr1 log   P.log e1 -- TODO: types
 evaluatePrimOp Infinity         End        = return (Head_ HInfinity)
 evaluatePrimOp NegativeInfinity End        = return (Head_ HNegativeInfinity)
 evaluatePrimOp GammaFunc   (e1 :* End)             =
@@ -515,7 +517,10 @@ coerceTo c e0 =
         WEmpty         ->
         WArray   e1 e2 ->
         WLam     e1    ->
-        WMeasure e1    ->
+        WMeasureOp o es -> 
+        WDirac e1 -> 
+        WMBind e1 e2 -> 
+        WSuperpose pes ->
 -}
 
 
@@ -534,7 +539,10 @@ unsafeFrom c e0 =
         WEmpty         ->
         WArray   e1 e2 ->
         WLam     e1    ->
-        WMeasure e1    ->
+        WMeasureOp o es -> 
+        WDirac e1 -> 
+        WMBind e1 e2 -> 
+        WSuperpose pes ->
 -}
 
 
@@ -576,13 +584,9 @@ perform e0 =
 -- let us short-circuit generating unused code after a 'P.bot'
 -- or 'P.reject'.)
 mbindTheContinuation :: (ABT AST abt) => MeasureEvaluator abt (M abt)
-mbindTheContinuation e =
-    case typeOf e of
-    SMeasure typ -> do
-        z <- freshVar Text.empty typ
-        M $ \c h ->
-            let body = bind z . fromWhnf $ c (Neutral $ var z) h
-            in  Head_ . WMeasure $ syn (MBind :$ e :* body :* End)
+mbindTheContinuation e = do
+    z <- freshVar Text.empty (case typeOf e of SMeasure typ -> typ)
+    M $ \c h -> syn (MBind :$ e :* bind z (c (Neutral $ var z) h) :* End)
 
 
 ----------------------------------------------------------------

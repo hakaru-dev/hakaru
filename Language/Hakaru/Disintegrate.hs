@@ -254,7 +254,11 @@ type Lazy s abt a = L s (C abt) a
 -- | It is impossible to satisfy the constraints, or at least we
 -- give up on trying to do so.
 bot :: (ABT AST abt) => M abt a
-bot = M $ \c h -> Head_ . WMeasure $ syn (Lub_ [])
+bot = M $ \_ _ -> syn (Lub_ [])
+
+-- | The empty measure is a solution to the constraints.
+reject :: (ABT AST abt) => M abt a
+reject = M $ \_ _ -> syn (Superpose_ [])
 
 
 -- TODO: see the todo for 'constrainOutcome'

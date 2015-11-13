@@ -112,9 +112,26 @@ data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         -> !(abt '[ 'HNat ] a)
         -> Head abt ('HArray a)
 
-    WLam     :: !(abt '[ a ] b) -> Head abt (a ':-> b)
+    WLam :: !(abt '[ a ] b) -> Head abt (a ':-> b)
 
-    WMeasure :: !(abt '[] ('HMeasure a)) -> Head abt ('HMeasure a)
+    -- WMeasure :: !(abt '[] ('HMeasure a)) -> Head abt ('HMeasure a)
+    WMeasureOp
+        :: (typs ~ UnLCs args, args ~ LCs typs)
+        => !(MeasureOp typs a)
+        -> !(SArgs abt args)
+        -> Head abt ('HMeasure a)
+
+    WDirac :: !(abt '[] a) -> Head abt ('HMeasure a)
+    
+    -- N.B., not HNF
+    WMBind
+        :: !(abt '[] ('HMeasure a))
+        -> !(abt '[ a ] ('HMeasure b))
+        -> Head abt ('HMeasure b)
+
+    WSuperpose
+        :: [(abt '[] 'HProb, abt '[] ('HMeasure a))]
+        -> Head abt ('HMeasure a)
 
 
 -- | Forget that something is a head.
@@ -124,7 +141,10 @@ fromHead (WDatum   d)     = syn (Datum_ d)
 fromHead WEmpty           = syn Empty_
 fromHead (WArray   e1 e2) = syn (Array_ e1 e2)
 fromHead (WLam     e1)    = syn (Lam_ :$ e1 :* End)
-fromHead (WMeasure e1)    = e1
+fromHead (WMeasureOp o es) = syn (MeasureOp_ o :$ es)
+fromHead (WDirac e1)       = syn (Dirac :$ e1 :* End)
+fromHead (WMBind e1 e2)    = syn (MBind :$ e1 :* e2 :* End)
+fromHead (WSuperpose pes)  = syn (Superpose_ pes)
 
 
 ----------------------------------------------------------------
@@ -471,15 +491,9 @@ residualizeListContext e0 = foldl step e0 . statements
 -- In the paper we say that result must be a 'Whnf'; however, in
 -- the paper it's also always @HMeasure a@ and everything of that
 -- type is a WHNF (via 'WMeasure') so that's a trivial statement
--- to make. For now, we leave it as WHNF, only so that we can keep
--- track of the fact that the 'residualizeCase' of 'updateBranch'
--- of 'update' actually produces a neutral term. Whether this is
--- actually helpful or not, who knows? In the future we should feel
--- free to chance this to whatever seems most natural. If it remains
--- some sort of normal form, then it should be one preserved by
--- 'residualizeContext'; otherwise I(wrengr) don't feel comfortable
--- calling the result of 'runM'\/'runM'' a whatever-NF.
-type Ans abt a = ListContext abt -> Whnf abt ('HMeasure a)
+-- to make. If we turn it back into some sort of normal form, then
+-- it must be one preserved by 'residualizeContext'.
+type Ans abt a = ListContext abt -> abt '[] ('HMeasure a)
 
 
 -- TODO: defunctionalize the continuation. In particular, the only
@@ -507,14 +521,12 @@ runM :: (ABT AST abt, F.Foldable f)
     => M abt (Whnf abt a)
     -> f (Some2 abt)
     -> abt '[] ('HMeasure a)
-runM m es = fromWhnf (unM m c0 (ListContext i0 []))
+runM (M m) es = m c0 (ListContext i0 [])
     where
     -- HACK: we only have @c0@ build up a WHNF since that's what
     -- 'Ans' says we need (see the comment at 'Ans' for why this
     -- may not be what we actually mean).
-    c0 x = Head_
-        . WMeasure 
-        . residualizeListContext (syn (Dirac :$ fromWhnf x :* End))
+    c0 x = residualizeListContext $ syn (Dirac :$ fromWhnf x :* End)
     
     i0 = unMaxNat (F.foldMap (\(Some2 e) -> MaxNat $ nextFree e) es)
 
