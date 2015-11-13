@@ -811,7 +811,7 @@ mapV f v = array (size v) $ \i -> f (v ! i)
 
 normalizeV
     :: (ABT AST abt) => abt '[] ('HArray 'HProb) -> abt '[] ('HArray 'HProb)
-normalizeV x = mapV (/ summateV x) x -- TODO: why summateV instead of sumV?
+normalizeV x = mapV (/ sumV x) x
 
 constV :: (ABT AST abt) => abt '[] 'HNat -> abt '[] b -> abt '[] ('HArray b)
 constV n c = array n (const c)
