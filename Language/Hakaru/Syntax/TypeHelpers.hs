@@ -1,8 +1,8 @@
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE CPP, GADTs #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.29
+--                                                    2015.11.12
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeHelpers
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -12,6 +12,8 @@
 -- Portability :  GHC-only
 --
 -- Factored out from "Language.Hakaru.Syntax.AST"
+--
+-- TODO: remove the dependency on "Language.Hakaru.Parser.AST", to avoid issues of cyclic imports.
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.TypeHelpers
     ( sing_NaryOp
@@ -20,6 +22,10 @@ module Language.Hakaru.Syntax.TypeHelpers
     , sing_Value
     , make_NaryOp
     ) where
+
+#if __GLASGOW_HASKELL__ < 710
+import Data.Functor ((<$>))
+#endif
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.HClasses

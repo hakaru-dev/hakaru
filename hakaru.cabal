@@ -47,6 +47,7 @@ library
                        Language.Hakaru.Syntax.ABT,
                        Language.Hakaru.Syntax.Variable,
                        Language.Hakaru.Syntax.TypeCheck,
+                       Language.Hakaru.Syntax.TypeOf,
                        Language.Hakaru.Syntax.Prelude,
                        Language.Hakaru.Syntax.DatumCase,
                        Language.Hakaru.PrettyPrint,

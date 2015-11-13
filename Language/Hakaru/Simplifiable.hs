@@ -67,8 +67,8 @@ instance (Simplifiable a, Simplifiable b) => Simplifiable (a ':-> b) where
 class SimplifiableFun (x :: HakaruFun) where 
     mapleTypeFn :: proxy x -> String
 
-instance SimplifiableFun I where mapleTypeFn _ = "Id" 
-instance Simplifiable x => SimplifiableFun (K x) where 
+instance SimplifiableFun 'I where mapleTypeFn _ = "Id" 
+instance Simplifiable x => SimplifiableFun ('K x) where 
     mapleTypeFn _ = "Konst("  ++ mapleType (Proxy :: Proxy x) ++ ")" 
 
 {-

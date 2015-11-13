@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.08
+--                                                    2015.11.12
 -- |
 -- Module      :  Language.Hakaru.Lazy
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -52,6 +52,7 @@ import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Nat
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Sing
+import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumCase
@@ -60,7 +61,6 @@ import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Lazy.Types
 import qualified Language.Hakaru.Syntax.Prelude as P
 import qualified Language.Hakaru.Expect         as E
-import Language.Hakaru.PrettyPrint -- HACK: for ghci use only
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -568,10 +568,6 @@ perform e0 =
                 Head_   v -> perform $ fromHead v
                 Neutral e -> mbindTheContinuation e
 
-
--- HACK: to make 'perform' typecheck in spite of it really needing @SingI a@ due to 'mbindTheContinuation'
-typeOf :: (ABT AST abt) => abt '[] a -> Sing a
-typeOf = error "TODO: typeOf"
 
 -- This is the only place (in this file) where we really need
 -- the 'M' instance of 'EvaluationMonad'. I think it's also the
