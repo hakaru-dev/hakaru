@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, ScopedTypeVariables, GADTs, TypeFamilies, InstanceSigs, DataKinds #-}
+{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, ScopedTypeVariables, GADTs, TypeFamilies, InstanceSigs, DataKinds, TypeOperators #-}
 {-# OPTIONS -W #-}
 
 module Language.Hakaru.MapleNeue (Maple(..), runMaple) where
@@ -13,6 +13,8 @@ module Language.Hakaru.MapleNeue (Maple(..), runMaple) where
 -- we're squishing everything into String.
 
 import Prelude hiding (Real)
+import Language.Hakaru.Syntax.DataKind (HPair)
+
 import Language.Hakaru.Syntax (Number(..),
     Order(..), Base(..), Integrate(..), Lambda(..), Mochastic(..), 
     sumV, Hakaru(..))
@@ -22,7 +24,7 @@ import Control.Monad.Trans.State.Strict (State, evalState, state)
 -- import Language.Hakaru.Embed
 import Data.List (intersperse)
 
-newtype Maple (a :: Hakaru *) = Maple {unMaple :: State Int String}
+newtype Maple (a :: Hakaru) = Maple {unMaple :: State Int String}
 
 runMaple :: Maple a -> Int -> String
 runMaple (Maple a) = evalState a
@@ -37,14 +39,14 @@ app2 :: String -> Maple a -> Maple b -> Maple c
 app2 fn (Maple x) (Maple y) = 
   Maple $ liftM2 (\a b -> fn ++ "(" ++ a ++ ", " ++ b ++ ")") x y
 
-lam1 :: String -> (Maple a  -> Maple b) -> Maple ('HFun a b)
+lam1 :: String -> (Maple a  -> Maple b) -> Maple (a ':-> b)
 lam1 s k = Maple $ do
     x <- gensym s
     cont <- unMaple (k (constant x))
     return ("lam(" ++ x ++ ", " ++ cont ++ ")")
 
 -- uncurried 2-argument lambda
-lam2 :: String -> (Maple a -> Maple b -> Maple c) -> Maple ('HFun ('HPair a b) c)
+lam2 :: String -> (Maple a -> Maple b -> Maple c) -> Maple (HPair a b ':-> c)
 lam2 s k = Maple $ do
     x <- gensym s
     y <- gensym s
@@ -52,7 +54,7 @@ lam2 s k = Maple $ do
     return ("( (" ++ x ++ " , " ++ y ++ ") -> " ++ cont ++ ")")
 
 -- curried 2-argument lambda
-lam2c :: String -> (Maple a -> Maple b -> Maple c) -> Maple ('HFun a ('HFun b c))
+lam2c :: String -> (Maple a -> Maple b -> Maple c) -> Maple (a ':-> b ':-> c)
 lam2c s k = Maple $ do
     x <- gensym s
     y <- gensym s

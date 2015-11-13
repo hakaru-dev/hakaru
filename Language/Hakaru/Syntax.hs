@@ -1,98 +1,41 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleContexts, DefaultSignatures,
              GADTs, Rank2Types, DataKinds, KindSignatures, TypeFamilies, 
-             StandaloneDeriving, DeriveDataTypeable, PolyKinds #-}
-{-# OPTIONS -Wall -Werror #-}
+             StandaloneDeriving, DeriveDataTypeable, PolyKinds, TypeOperators, TypeSynonymInstances, FlexibleInstances #-}
+{-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 
-module Language.Hakaru.Syntax (Hakaru(..), HakaruFun(..), 
-       Order_(..), lesseq, Number(..), Fraction(..), 
-       Order(..), Base(..), ununit, fst_, snd_, swap_,
-       and_, or_, not_, min_, max_,
-       summateV, sumV, normalizeV, dirichlet,
-       mapWithIndex, mapV, zipWithV, zipV, rangeV, constV, unitV,
-       fromListV, concatV, unzipV,
-       Mochastic(..), bind_, factor, weight, bindx, bindo, liftM, liftM2,
-       positiveUniform, invgamma, exponential, chi2, bern,
-       cauchy, laplace, student, weibull, mix, geometric, negativeBinomial,
-       binomial, multinomial,
-       Integrate(..), Lambda(..), lam2, lam3, app2, app3, Lub(..)) where
+module Language.Hakaru.Syntax {-# DEPRECATED "use Language.Hakaru.Syntax.* instead" #-}
+    ( Hakaru(..), HakaruFun(..)
+    , Order_(..), lesseq, Number(..), Fraction(..)
+    , Order(..), Base(..), ununit, fst_, snd_, swap_
+    , and_, or_, not_, min_, max_
+    , summateV, sumV, normalizeV, dirichlet
+    , mapWithIndex, mapV, zipWithV, zipV, rangeV, constV, unitV
+    , fromListV, concatV, unzipV
+    , Mochastic(..), bind_, factor, weight, bindx, bindo, liftM, liftM2
+    , positiveUniform, invgamma, exponential, chi2, bern
+    , cauchy, laplace, student, weibull, mix, geometric, negativeBinomial
+    , binomial, multinomial
+    , Integrate(..), Lambda(..), lam2, lam3, app2, app3, Lub(..)
+    ) where
 
 import Prelude hiding (Real)
-import Data.Typeable (Typeable)
+import Language.Hakaru.Syntax.DataKind
 
 infix  4 `less`, `equal`, `less_`, `equal_`
 infixl 1 `bind`, `bind_`, `bindx`
 infixl 9 `app`
 infixr 9 `pair`
 
-------- The universe/kind of Hakaru types
-data Hakaru star
-    = HNat -- TODO: finish incorporating this everywhere...
-    | HInt
-    | HProb -- meaning: non-negative real number (not [0,1] !)
-    | HReal
-    | HMeasure (Hakaru star)
-    | HArray (Hakaru star)
-    | HFun (Hakaru star) (Hakaru star)
-    | HBool
-    | HUnit
-    | HPair (Hakaru star) (Hakaru star)
-    | HEither (Hakaru star) (Hakaru star)
-    -- Used in "Language.Hakaru.Embed"
-    -- The lists-of-lists are sum-of-products functors. The application
-    -- form allows us to unroll fixpoints: @HMu sop ~= sop :$ HMu sop@.
-    | HMu [[HakaruFun star]]
-    | [[HakaruFun star]] :$ Hakaru star
-    | HTag star [[HakaruFun star]]
-    -- Used in "Language.Hakaru.Expect"
-    | HList (Hakaru star)
-    -- Used in "Language.Hakaru.Sample"
-    | HMaybe (Hakaru star)
-    -- TODO: arbitrary embedding of Haskell types
-
--- | The identity and constant functors on @Hakaru*@. This gives
--- us limited access to type-variables in @Hakaru*@, for use in
--- recursive sums-of-products. Notably, however, it only allows a
--- single variable (namely the one bound by the closest binder) so
--- it can't encode mutual recursion or other non-local uses of
--- multiple binders.
---
--- Products and sums are represented as lists, so they aren't
--- in this datatype.
-data HakaruFun star = Id | K (Hakaru star)
-
--- N.B., The @Proxy@ type from "Data.Proxy" is polykinded, so it works for @Hakaru*@ too. However, it is _not_ Typeable!
-
--- TODO: these instances are only used in 'Language.Hakaru.Simplify.closeLoop'; it would be cleaner to remove these instances and reimplement that function to work without them.
-deriving instance Typeable 'HNat
-deriving instance Typeable 'HInt
-deriving instance Typeable 'HReal
-deriving instance Typeable 'HProb
-deriving instance Typeable 'HMeasure
-deriving instance Typeable 'HArray
-deriving instance Typeable 'HFun
-deriving instance Typeable 'HBool
-deriving instance Typeable 'HUnit
-deriving instance Typeable 'HPair
-deriving instance Typeable 'HEither
-deriving instance Typeable 'HMu
-deriving instance Typeable 'HTag
-deriving instance Typeable '(:$)
-deriving instance Typeable 'HList
-deriving instance Typeable 'HMaybe
-deriving instance Typeable 'Id
-deriving instance Typeable 'K
-
-
 
 -- TODO: We used to require @Typeable a@... but now what?
-class Order_ (a :: Hakaru *) where
-  less_, equal_  :: (Base repr              ) => repr a -> repr a -> repr 'HBool
-  default less_  :: (Base repr, Order repr a) => repr a -> repr a -> repr 'HBool
-  default equal_ :: (Base repr, Order repr a) => repr a -> repr a -> repr 'HBool
+class Order_ (a :: Hakaru) where
+  less_, equal_  :: (Base repr              ) => repr a -> repr a -> repr HBool
+  default less_  :: (Base repr, Order repr a) => repr a -> repr a -> repr HBool
+  default equal_ :: (Base repr, Order repr a) => repr a -> repr a -> repr HBool
   less_  = less
   equal_ = equal
 
-lesseq :: (Order_ a, Base repr) => repr a -> repr a -> repr 'HBool
+lesseq :: (Order_ a, Base repr) => repr a -> repr a -> repr HBool
 lesseq x y = or_ [less_ x y, equal_ x y]
 
 --instance Order_ 'HNat
@@ -100,15 +43,15 @@ instance Order_ 'HInt
 instance Order_ 'HReal
 instance Order_ 'HProb
 
-instance Order_ 'HUnit where
+instance Order_ HUnit where
   less_  _ _ = false
   equal_ _ _ = true
 
-instance Order_ 'HBool where
+instance Order_ HBool where
   less_  x y = if_ x false y
   equal_ x y = if_ x y (not_ y)
 
-instance (Order_ a, Order_ b) => Order_ ('HPair a b) where
+instance (Order_ a, Order_ b) => Order_ (HPair a b) where
   less_  ab1 ab2 = unpair ab1 (\a1 b1 ->
                    unpair ab2 (\a2 b2 ->
                    or_ [less_ a1 a2, and_ [equal_ a1 a2, less_ b1 b2]]))
@@ -116,7 +59,7 @@ instance (Order_ a, Order_ b) => Order_ ('HPair a b) where
                    unpair ab2 (\a2 b2 ->
                    and_ [equal_ a1 a2, equal_ b1 b2]))
 
-instance (Order_ a, Order_ b) => Order_ ('HEither a b) where
+instance (Order_ a, Order_ b) => Order_ (HEither a b) where
   less_  ab1 ab2 = uneither ab1
                      (\a1 -> uneither ab2 (\a2 -> less_ a1 a2) (\_ -> true))
                      (\b1 -> uneither ab2 (\_ -> false) (\b2 -> less_ b1 b2))
@@ -130,13 +73,13 @@ instance (Order_ a) => Order_ ('HArray a) where
 
 -- TODO: add HNat to the numberCase
 -- TODO: we can mostly get rid of this class: numberRepr isn't used anywhere, and numberCase is only used once in Lazy.hs to define fromInteger for Hnf.
-class (Order_ a) => Number (a :: Hakaru *) where
+class (Order_ a) => Number (a :: Hakaru) where
   numberCase :: f 'HInt -> f 'HReal -> f 'HProb -> f a
   numberRepr :: (Base repr) =>
                 ((Order repr a, Num (repr a)) => f repr a) -> f repr a
 
 -- TODO: we can mostly get rid of this class: fractionRepr isn't used anywhere, and fractionCase is only used once in Lazy.hs to define fromRational for Hnf. However, unsafeProbFraction is used extensively in Lazy.hs
-class (Number a) => Fraction (a :: Hakaru *) where
+class (Number a) => Fraction (a :: Hakaru) where
   fractionCase :: f 'HReal -> f 'HProb -> f a
   fractionRepr :: (Base repr) =>
                   ((Order repr a, Fractional (repr a)) => f repr a) -> f repr a
@@ -178,27 +121,27 @@ instance Fraction 'HProb where
 
 ------- Terms
 
-class (Number a) => Order (repr :: Hakaru * -> *) (a :: Hakaru *) where
-  less          ::                repr a -> repr a -> repr 'HBool
-  equal         ::                repr a -> repr a -> repr 'HBool
-  default equal :: (Base repr) => repr a -> repr a -> repr 'HBool
+class (Number a) => Order (repr :: Hakaru -> *) (a :: Hakaru) where
+  less          ::                repr a -> repr a -> repr HBool
+  equal         ::                repr a -> repr a -> repr HBool
+  default equal :: (Base repr) => repr a -> repr a -> repr HBool
   equal a b = not_ (or_ [less a b, less b a])
 
 -- TODO: incorporate HNat
 class (Order repr 'HInt , Num        (repr 'HInt ),
        Order repr 'HReal, Floating   (repr 'HReal),
        Order repr 'HProb, Fractional (repr 'HProb))
-    => Base (repr :: Hakaru * -> *) where
-  unit       :: repr 'HUnit
-  pair       :: repr a -> repr b -> repr ('HPair a b)
-  unpair     :: repr ('HPair a b) -> (repr a -> repr b -> repr c) -> repr c
-  inl        :: repr a -> repr ('HEither a b)
-  inr        :: repr b -> repr ('HEither a b)
-  uneither   :: repr ('HEither a b) ->
+    => Base (repr :: Hakaru -> *) where
+  unit       :: repr HUnit
+  pair       :: repr a -> repr b -> repr (HPair a b)
+  unpair     :: repr (HPair a b) -> (repr a -> repr b -> repr c) -> repr c
+  inl        :: repr a -> repr (HEither a b)
+  inr        :: repr b -> repr (HEither a b)
+  uneither   :: repr (HEither a b) ->
                 (repr a -> repr c) -> (repr b -> repr c) -> repr c
-  true       :: repr 'HBool
-  false      :: repr 'HBool
-  if_        :: repr 'HBool -> repr c -> repr c -> repr c
+  true       :: repr HBool
+  false      :: repr HBool
+  if_        :: repr HBool -> repr c -> repr c -> repr c
 
   unsafeProb :: repr 'HReal -> repr 'HProb
   fromProb   :: repr 'HProb -> repr 'HReal
@@ -245,36 +188,36 @@ class (Order repr 'HInt , Num        (repr 'HInt ),
   fix :: (repr a -> repr a) -> repr a
   fix f = x where x = f x
 
-ununit :: repr 'HUnit -> repr a -> repr a
+ununit :: repr HUnit -> repr a -> repr a
 ununit _ e = e
 
-fst_ :: (Base repr) => repr ('HPair a b) -> repr a
+fst_ :: (Base repr) => repr (HPair a b) -> repr a
 fst_ ab = unpair ab (\a _ -> a)
 
-snd_ :: (Base repr) => repr ('HPair a b) -> repr b
+snd_ :: (Base repr) => repr (HPair a b) -> repr b
 snd_ ab = unpair ab (\_ b -> b)
 
-swap_ :: (Base repr) => repr ('HPair a b) -> repr ('HPair b a)
+swap_ :: (Base repr) => repr (HPair a b) -> repr (HPair b a)
 swap_ ab = unpair ab (flip pair)
 
-and_ :: (Base repr) => [repr 'HBool] -> repr 'HBool
+and_ :: (Base repr) => [repr HBool] -> repr HBool
 and_ []     = true
 and_ [b]    = b
 and_ (b:bs) = if_ b (and_ bs) false
 
-or_ :: (Base repr) => [repr 'HBool] -> repr 'HBool
+or_ :: (Base repr) => [repr HBool] -> repr HBool
 or_ []      = false
 or_ [b]     = b
 or_ (b:bs)  = if_ b true (or_ bs)
 
-not_ :: (Base repr) => repr 'HBool -> repr 'HBool
+not_ :: (Base repr) => repr HBool -> repr HBool
 not_ a = if_ a false true
 
 min_, max_ :: (Order_ a, Base repr) => repr a -> repr a -> repr a
 min_ x y = if_ (less_ x y) x y
 max_ x y = if_ (less_ x y) y x
 
-class (Base repr) => Mochastic (repr :: Hakaru * -> *) where
+class (Base repr) => Mochastic (repr :: Hakaru -> *) where
   dirac         :: repr a -> repr ('HMeasure a)
   bind          :: repr ('HMeasure a) ->
                    (repr a -> repr ('HMeasure b)) -> repr ('HMeasure b)
@@ -332,8 +275,8 @@ class (Base repr) => Mochastic (repr :: Hakaru * -> *) where
   plate :: repr ('HArray ('HMeasure          a)) ->
            repr (         'HMeasure ('HArray a))
   chain :: (Lambda repr) =>
-           repr ('HArray ('HFun s ('HMeasure         ('HPair a s)))) ->
-           repr (         'HFun s ('HMeasure ('HPair ('HArray a) s)))
+           repr ('HArray (s ':-> 'HMeasure (HPair a s))) ->
+           repr (         s ':-> 'HMeasure (HPair ('HArray a) s))
   plate v = reduce r z (mapV m v)
     where r   = liftM2 concatV
           z   = dirac empty
@@ -358,7 +301,7 @@ m `bind_` n = m `bind` \_ -> n
 factor
     :: (Mochastic repr)
     => repr 'HProb
-    -> repr ('HMeasure 'HUnit)
+    -> repr ('HMeasure HUnit)
 factor p = weight p (dirac unit)
 
 weight
@@ -372,7 +315,7 @@ bindx
     :: (Mochastic repr)
     => repr ('HMeasure a)
     -> (repr a -> repr ('HMeasure b))
-    -> repr ('HMeasure ('HPair a b))
+    -> repr ('HMeasure (HPair a b))
 m `bindx` k = m `bind` \a -> k a `bind` \b -> dirac (pair a b)
 
 -- Kleisli composition
@@ -382,9 +325,9 @@ m `bindx` k = m `bind` \a -> k a `bind` \b -> dirac (pair a b)
 
 bindo
     :: (Mochastic repr, Lambda repr)
-    => repr ('HFun a ('HMeasure b))
-    -> repr ('HFun b ('HMeasure c))
-    -> repr ('HFun a ('HMeasure c))
+    => repr (a ':-> 'HMeasure b)
+    -> repr (b ':-> 'HMeasure c)
+    -> repr (a ':-> 'HMeasure c)
 bindo f g = lam (\x -> app f x `bind` app g)
 
 liftM
@@ -442,13 +385,13 @@ weibull
 weibull b k = exponential 1 `bind` \x ->
               dirac $ b * pow_ x (fromProb (recip k))
 
-bern :: (Mochastic repr) => repr 'HProb -> repr ('HMeasure 'HBool)
+bern :: (Mochastic repr) => repr 'HProb -> repr ('HMeasure HBool)
 bern p = superpose [(p, dirac true), (1-p, dirac false)]
 
 mix :: (Mochastic repr) => repr ('HArray 'HProb) -> repr ('HMeasure 'HInt)
 mix v = weight (sumV v) (categorical v)
 
-class (Base repr) => Integrate (repr :: Hakaru * -> *) where
+class (Base repr) => Integrate (repr :: Hakaru -> *) where
   integrate :: repr 'HReal -> repr 'HReal -> (repr 'HReal -> repr 'HProb) -> repr 'HProb
   summate   :: repr 'HReal -> repr 'HReal -> (repr 'HInt  -> repr 'HProb) -> repr 'HProb
 
@@ -525,7 +468,7 @@ concatV v1 v2 =
 
 unzipV
     :: (Base repr)
-    => repr ('HArray ('HPair a b)) -> repr ('HPair ('HArray a) ('HArray b))
+    => repr ('HArray (HPair a b)) -> repr (HPair ('HArray a) ('HArray b))
 unzipV v = pair (mapV fst_ v) (mapV snd_ v)
 
 mapWithIndex
@@ -551,33 +494,33 @@ zipWithV f v1 v2 =
 
 zipV
     :: (Base repr)
-    => repr ('HArray a) -> repr ('HArray b) -> repr ('HArray ('HPair a b))
+    => repr ('HArray a) -> repr ('HArray b) -> repr ('HArray (HPair a b))
 zipV = zipWithV pair
 
-class Lambda (repr :: Hakaru * -> *) where
-  lam  :: (repr a -> repr b) -> repr ('HFun a b)
-  app  :: repr ('HFun a b) -> repr a -> repr b
+class Lambda (repr :: Hakaru -> *) where
+  lam  :: (repr a -> repr b) -> repr (a ':-> b)
+  app  :: repr (a ':-> b) -> repr a -> repr b
   let_ :: (Lambda repr) => repr a -> (repr a -> repr b) -> repr b
   let_ x f = lam f `app` x
 
-lam2 :: (Lambda r) => (r a -> r b -> r c) -> r ('HFun a ('HFun b c))
+lam2 :: (Lambda r) => (r a -> r b -> r c) -> r (a ':-> b ':-> c)
 lam2 f = lam (lam . f)
 
 lam3
     :: (Lambda r)
     => (r a -> r b -> r c -> r d)
-    -> r ('HFun a ('HFun b ('HFun c d)))
+    -> r (a ':-> b ':-> c ':-> d)
 lam3 f = lam (lam2 . f)
 
-app2 :: (Lambda r) => r ('HFun a ('HFun b c)) -> (r a -> r b -> r c)
+app2 :: (Lambda r) => r (a ':-> b ':-> c) -> (r a -> r b -> r c)
 app2 f = app . app f
 
 app3
     :: (Lambda r)
-    => r ('HFun a ('HFun b ('HFun c d)))
+    => r (a ':-> b ':-> c ':-> d)
     -> (r a -> r b -> r c -> r d)
 app3 f = app2 . app f
 
-class Lub (repr :: Hakaru * -> *) where
+class Lub (repr :: Hakaru -> *) where
   lub :: repr a -> repr a -> repr a -- two ways to compute the same thing
   bot :: repr a -- no way to compute anything (left and right identity for lub)
