@@ -110,7 +110,7 @@ evaluate perform = evaluate_
     evaluate_ e0 =
       caseVarSyn e0 (update perform evaluate_) $ \t ->
         case t of
-        -- Things which are already weak head-normal forms
+        -- Things which are already WHNFs
         Value_ v                 -> return . Head_ $ WValue v
         Datum_ d                 -> return . Head_ $ WDatum d
         Empty_                   -> return . Head_ $ WEmpty
@@ -140,6 +140,7 @@ evaluate perform = evaluate_
             caseBind e2 $ \x e2' ->
                 push (SLet x $ Thunk e1) e2' evaluate_
 
+        -- TODO: should prolly count as a WHNF already?
         Fix_ :$ e1 :* End -> error "TODO: evaluate{Fix_}"
 
         Ann_ typ :$ e1 :* End -> error "TODO: evaluate{Ann_}"
@@ -150,7 +151,7 @@ evaluate perform = evaluate_
                 -- if not @mustCheck (fromWhnf w1)@, then could in principle eliminate the annotation; though it might be here so that it'll actually get pushed down to somewhere it's needed later on, so it's best to play it safe and leave it in.
                 case w1 of
                     Neutral e1' -> Neutral (P.ann_ typ e1')
-                    Head_   v1  -> Head_ (HAnn typ v1) -- or something...
+                    Head_   v1  -> Head_ (WAnn typ v1) -- or something...
         -}
 
         CoerceTo_   c :$ e1 :* End -> coerceTo   c <$> evaluate_ e1
@@ -230,25 +231,37 @@ update perform evaluate_ = \x ->
 
 ----------------------------------------------------------------
 -- BUG: need to improve the types so they can capture polymorphic data types
--- BUG: this is a gross hack. If we can avoid it, we should!
+-- BUG: this is a gross hack. If we can avoid it, we should!!!
 class Interp a a' | a -> a' where
     reify   :: (ABT AST abt) => Head abt a -> a'
     reflect :: (ABT AST abt) => a' -> Head abt a
 
 instance Interp 'HNat Nat where
     reify (WValue (VNat n)) = n
+    reify (WAnn        _ v) = reify v
+    reify (WCoerceTo   _ _) = error "TODO: reify{WCoerceTo}"
+    reify (WUnsafeFrom _ _) = error "TODO: reify{WUnsafeFrom}"
     reflect = WValue . VNat
 
 instance Interp 'HInt Int where
     reify (WValue (VInt i)) = i
+    reify (WAnn        _ v) = reify v
+    reify (WCoerceTo   _ _) = error "TODO: reify{WCoerceTo}"
+    reify (WUnsafeFrom _ _) = error "TODO: reify{WUnsafeFrom}"
     reflect = WValue . VInt
 
 instance Interp 'HProb LogFloat where -- TODO: use rational instead
     reify (WValue (VProb p)) = p
+    reify (WAnn        _ v) = reify v
+    reify (WCoerceTo   _ _) = error "TODO: reify{WCoerceTo}"
+    reify (WUnsafeFrom _ _) = error "TODO: reify{WUnsafeFrom}"
     reflect = WValue . VProb
 
 instance Interp 'HReal Double where -- TODO: use rational instead
     reify (WValue (VReal r)) = r
+    reify (WAnn        _ v) = reify v
+    reify (WCoerceTo   _ _) = error "TODO: reify{WCoerceTo}"
+    reify (WUnsafeFrom _ _) = error "TODO: reify{WUnsafeFrom}"
     reflect = WValue . VReal
 
 {-

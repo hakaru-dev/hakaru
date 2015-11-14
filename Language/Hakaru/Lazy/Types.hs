@@ -9,11 +9,12 @@
            , MultiParamTypeClasses
            , FunctionalDependencies
            , FlexibleInstances
+           , EmptyCase
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.08
+--                                                    2015.11.13
 -- |
 -- Module      :  Language.Hakaru.Lazy.Types
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -69,6 +70,7 @@ import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.Nat
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Sing    (Sing)
+import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT
@@ -101,19 +103,12 @@ import Language.Hakaru.Syntax.ABT
 data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     -- Simple heads (aka, the usual stuff)
     WValue :: !(Value a) -> Head abt a
-
     WDatum
         :: {-# UNPACK #-} !(Datum (abt '[]) (HData' t))
         -> Head abt (HData' t)
-
     WEmpty :: Head abt ('HArray a)
-
-    WArray
-        :: !(abt '[] 'HNat)
-        -> !(abt '[ 'HNat ] a)
-        -> Head abt ('HArray a)
-
-    WLam :: !(abt '[ a ] b) -> Head abt (a ':-> b)
+    WArray :: !(abt '[] 'HNat) -> !(abt '[ 'HNat] a) -> Head abt ('HArray a)
+    WLam   :: !(abt '[ a ] b) -> Head abt (a ':-> b)
 
     -- Measure heads (not just anything of 'HMeasure' type)
     WMeasureOp
@@ -121,33 +116,32 @@ data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         => !(MeasureOp typs a)
         -> !(SArgs abt args)
         -> Head abt ('HMeasure a)
-
     WDirac :: !(abt '[] a) -> Head abt ('HMeasure a)
-    
-    -- N.B., not HNF
     WMBind
         :: !(abt '[] ('HMeasure a))
         -> !(abt '[ a ] ('HMeasure b))
         -> Head abt ('HMeasure b)
-
     WSuperpose
         :: [(abt '[] 'HProb, abt '[] ('HMeasure a))]
         -> Head abt ('HMeasure a)
 
-    -- Funky stuff
+    -- Type annotation\/coercion stuff. These are transparent re head-ness; that is, they behave more like HNF than WHNF.
+    WAnn        :: !(Sing a)       -> !(Head abt a) -> Head abt a
+    WCoerceTo   :: !(Coercion a b) -> !(Head abt a) -> Head abt b
+    WUnsafeFrom :: !(Coercion a b) -> !(Head abt b) -> Head abt a
+
+    -- Other funky stuff
     {-
-    Ann_        :: !(Sing a)       -> SCon '[ LC a ] a
-    CoerceTo_   :: !(Coercion a b) -> SCon '[ LC a ] b
-    UnsafeFrom_ :: !(Coercion a b) -> SCon '[ LC b ] a
     Lub_ :: [abt '[] a] -> AST abt a
     -}
 
-    -- Quasi- (or sesqui-) normal form stuff
+    -- Quasi-/semi-/demi-/pseudo- normal form stuff
     {-
     NaryOp_ :: !(NaryOp a) -> !(Seq (abt '[] a)) -> AST abt a
     PrimOp_
         :: (typs ~ UnLCs args, args ~ LCs typs)
         => !(PrimOp typs a) -> SCon args a
+    -- N.B., not 'ArrayOp_'
     -}
 
 
@@ -162,6 +156,9 @@ fromHead (WMeasureOp o  es) = syn (MeasureOp_ o :$ es)
 fromHead (WDirac     e1)    = syn (Dirac :$ e1 :* End)
 fromHead (WMBind     e1 e2) = syn (MBind :$ e1 :* e2 :* End)
 fromHead (WSuperpose pes)   = syn (Superpose_ pes)
+fromHead (WAnn      typ e1) = syn (Ann_      typ :$ fromHead e1 :* End)
+fromHead (WCoerceTo   c e1) = syn (CoerceTo_   c :$ fromHead e1 :* End)
+fromHead (WUnsafeFrom c e1) = syn (UnsafeFrom_ c :$ fromHead e1 :* End)
 
 
 ----------------------------------------------------------------
@@ -189,9 +186,8 @@ viewWhnfDatum
     :: (ABT AST abt)
     => Whnf abt (HData' t)
     -> Maybe (Datum (abt '[]) (HData' t))
-viewWhnfDatum (Head_ (WValue (VDatum d))) = Just (fmap11 (syn . Value_) d)
-viewWhnfDatum (Head_ (WDatum d))          = Just d
-viewWhnfDatum (Neutral _)                 = Nothing
+viewWhnfDatum (Head_   v) = viewHeadDatum v
+viewWhnfDatum (Neutral _) = Nothing
     -- N.B., we always return Nothing for 'Neutral' terms because of
     -- what 'Neutral' is supposed to mean. If we wanted to be paranoid
     -- then we could use the following code to throw an error if
@@ -205,6 +201,16 @@ viewWhnfDatum (Neutral _)                 = Nothing
         Datum_         d  -> error "bad \"neutral\" value!"
         _                 -> Nothing
     -}
+
+viewHeadDatum
+    :: (ABT AST abt)
+    => Head abt (HData' t)
+    -> Maybe (Datum (abt '[]) (HData' t))
+viewHeadDatum (WAnn        _ w)   = viewHeadDatum w
+viewHeadDatum (WCoerceTo   c _)   = case c of {}
+viewHeadDatum (WUnsafeFrom c _)   = case c of {}
+viewHeadDatum (WValue (VDatum d)) = Just (fmap11 (syn . Value_) d)
+viewHeadDatum (WDatum d)          = Just d
 
 
 ----------------------------------------------------------------
