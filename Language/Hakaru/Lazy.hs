@@ -493,9 +493,11 @@ evaluatePrimOp GammaFunc   (e1 :* End)             =
 evaluatePrimOp BetaFunc    (e1 :* e2 :* End)       =
 evaluatePrimOp Integrate   (e1 :* e2 :* e3 :* End) =
 evaluatePrimOp Summate     (e1 :* e2 :* e3 :* End) =
-evaluatePrimOp (Index   _) (e1 :* e2 :* End)       =
-evaluatePrimOp (Size    _) (e1 :* End)             =
-evaluatePrimOp (Reduce  _) (e1 :* e2 :* e3 :* End) =
+{-
+evaluateArrayOp (Index   _) (e1 :* e2 :* End)       =
+evaluateArrayOp (Size    _) (e1 :* End)             =
+evaluateArrayOp (Reduce  _) (e1 :* e2 :* e3 :* End) =
+-}
 evaluatePrimOp (Equal   _) (e1 :* e2 :* End) = rr2 (==)    (P.==) e1 e2
 evaluatePrimOp (Less    _) (e1 :* e2 :* End) = rr2 (<)     (P.<)  e1 e2
 evaluatePrimOp (NatPow  _) (e1 :* e2 :* End) = rr2 (^^)    (P.^^) e1 e2

@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.27
+--                                                    2015.11.13
 -- |
 -- Module      :  Language.Hakaru.Syntax.AST
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -42,6 +42,7 @@ module Language.Hakaru.Syntax.AST
     , LC_(..)
     , NaryOp(..)
     , PrimOp(..)
+    , ArrayOp(..)
     , MeasureOp(..)
     -- * Constant values
     , Value(..)
@@ -268,16 +269,6 @@ data PrimOp :: [Hakaru] -> Hakaru -> * where
 
 
     -- -- -- Here we have the /polymorphic/ operators
-    -- -- Array stuff
-    -- TODO: do these really belong here (as PrimOps) or should they be in their own place (e.g., \"ArrayOp\")?
-    -- HACK: is there any way we can avoid storing the Sing values here, while still implementing 'sing_PrimOp'? Should we have a Hakaru class for the types which can be stored in arrays? might not be a crazy idea...
-    Index  :: !(Sing a) -> PrimOp '[ 'HArray a, 'HNat ] a
-    Size   :: !(Sing a) -> PrimOp '[ 'HArray a ] 'HNat
-    -- The first argument should be a monoid, but we don't enforce
-    -- that; it's the user's responsibility.
-    Reduce :: !(Sing a) -> PrimOp '[ a ':-> a ':-> a, a, 'HArray a ] a
-    -- TODO: would it make sense to have a specialized version for when the first argument is some \"Op\", in order to avoid the need for lambdas?
-
 
     -- -- HEq and HOrd operators
     -- TODO: equality doesn't make constructive sense on the reals...
@@ -357,6 +348,21 @@ deriving instance Eq   (PrimOp args a)
 -- TODO: instance Read (PrimOp args a)
 deriving instance Show (PrimOp args a)
 
+
+----------------------------------------------------------------
+-- | Primitive operators for consuming or transforming arrays.
+data ArrayOp :: [Hakaru] -> Hakaru -> * where
+    -- HACK: is there any way we can avoid storing the Sing values here, while still implementing 'sing_PrimOp'? Should we have a Hakaru class for the types which can be stored in arrays? might not be a crazy idea...
+    Index  :: !(Sing a) -> ArrayOp '[ 'HArray a, 'HNat ] a
+    Size   :: !(Sing a) -> ArrayOp '[ 'HArray a ] 'HNat
+    -- The first argument should be a monoid, but we don't enforce
+    -- that; it's the user's responsibility.
+    Reduce :: !(Sing a) -> ArrayOp '[ a ':-> a ':-> a, a, 'HArray a ] a
+    -- TODO: would it make sense to have a specialized version for when the first argument is some \"Op\", in order to avoid the need for lambdas?
+
+deriving instance Eq   (ArrayOp args a)
+-- TODO: instance Read (ArrayOp args a)
+deriving instance Show (ArrayOp args a)
 
 ----------------------------------------------------------------
 -- | Primitive operators to produce, consume, or transform
@@ -451,6 +457,9 @@ data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
     PrimOp_
         :: (typs ~ UnLCs args, args ~ LCs typs)
         => !(PrimOp typs a) -> SCon args a
+    ArrayOp_
+        :: (typs ~ UnLCs args, args ~ LCs typs)
+        => !(ArrayOp typs a) -> SCon args a
     MeasureOp_
         :: (typs ~ UnLCs args, args ~ LCs typs)
         => !(MeasureOp typs a) -> SCon args ('HMeasure a)
@@ -550,9 +559,10 @@ data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     -- Constant values
     Value_ :: !(Value a) -> AST abt a
 
-    -- We have the constructors for arrays here, so that they're grouped together with our other constructors 'Value_' and 'Datum_'. Though, if we introduce a new @ArrayOp@ type, these should probably move there
+    -- These two constructors are here rather than in 'ArrayOp' because 'Array_' is a binding form; though it also means they're together with the other intro forms like 'Value_' and 'Datum_'.
+    --
+    -- TODO: should we add a @Sing a@ argument to avoid ambiguity of 'Empty_'?
     Empty_ :: AST abt ('HArray a)
-    -- TODO: do we really need this to be a binding form, or could it take a Hakaru function for the second argument?
     Array_ :: !(abt '[] 'HNat) -> !(abt '[ 'HNat ] a) -> AST abt ('HArray a)
 
     -- -- User-defined data types

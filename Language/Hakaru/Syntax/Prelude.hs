@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.06
+--                                                    2015.11.13
 -- |
 -- Module      :  Language.Hakaru.Syntax.Prelude
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -87,6 +87,27 @@ primOp3_
     => PrimOp '[ a, b, c ] d
     -> abt '[] a -> abt '[] b -> abt '[] c -> abt '[] d
 primOp3_ o e1 e2 e3 = syn (PrimOp_ o :$ e1 :* e2 :* e3 :* End)
+
+arrayOp0_ :: (ABT AST abt) => ArrayOp '[] a -> abt '[] a
+arrayOp0_ o = syn (ArrayOp_ o :$ End)
+
+arrayOp1_
+    :: (ABT AST abt)
+    => ArrayOp '[ a ] b
+    -> abt '[] a -> abt '[] b
+arrayOp1_ o e1 = syn (ArrayOp_ o :$ e1 :* End)
+
+arrayOp2_
+    :: (ABT AST abt)
+    => ArrayOp '[ a, b ] c
+    -> abt '[] a -> abt '[] b -> abt '[] c
+arrayOp2_ o e1 e2 = syn (ArrayOp_ o :$ e1 :* e2 :* End)
+
+arrayOp3_
+    :: (ABT AST abt)
+    => ArrayOp '[ a, b, c ] d
+    -> abt '[] a -> abt '[] b -> abt '[] c -> abt '[] d
+arrayOp3_ o e1 e2 e3 = syn (ArrayOp_ o :$ e1 :* e2 :* e3 :* End)
 
 measure0_ :: (ABT AST abt) => MeasureOp '[] a -> abt '[] ('HMeasure a)
 measure0_ o = syn (MeasureOp_ o :$ End)
@@ -734,11 +755,11 @@ empty = syn Empty_
 -- BUG: remove the 'SingI' requirement!
 (!) :: (ABT AST abt, SingI a)
     => abt '[] ('HArray a) -> abt '[] 'HNat -> abt '[] a
-(!) = primOp2_ $ Index sing
+(!) = arrayOp2_ $ Index sing
 
 -- BUG: remove the 'SingI' requirement!
 size :: (ABT AST abt, SingI a) => abt '[] ('HArray a) -> abt '[] 'HNat
-size = primOp1_ $ Size sing
+size = arrayOp1_ $ Size sing
 
 -- BUG: remove the 'SingI' requirement!
 reduce
@@ -747,7 +768,7 @@ reduce
     -> abt '[] a
     -> abt '[] ('HArray a)
     -> abt '[] a
-reduce f = primOp3_ (Reduce sing) (lam $ \x -> lam $ \y -> f x y)
+reduce f = arrayOp3_ (Reduce sing) (lam $ \x -> lam $ \y -> f x y)
 
 -- TODO: better names for all these. The \"V\" suffix doesn't make sense anymore since we're calling these arrays, not vectors...
 -- TODO: bust these all out into their own place, since the API for arrays is gonna be huge

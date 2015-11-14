@@ -185,7 +185,8 @@ ppSCon p (Ann_ typ) (e1 :* End) =
         [ PP.text (showsPrec 11 typ "") -- TODO: make this prettier. Add hints to the singletons?
         , toDoc $ ppArg e1
         ]
-ppSCon p (PrimOp_     o) es          = ppPrimOp p o es
+ppSCon p (PrimOp_     o) es          = ppPrimOp  p o es
+ppSCon p (ArrayOp_    o) es          = ppArrayOp p o es
 ppSCon p (CoerceTo_   c) (e1 :* End) =
     ppFun p ""
         [ PP.text (ppCoerce c) -- TODO: make this prettier. Add hints to the coercions?
@@ -279,14 +280,6 @@ ppPrimOp p Summate (e1 :* e2 :* e3 :* End) =
         , toDoc $ ppArg e2
         , toDoc $ ppArg e3 -- TODO: make into a binding form!
         ]
-ppPrimOp p (Index   _) (e1 :* e2 :* End) = ppBinop "!" 9 LeftAssoc p e1 e2
-ppPrimOp p (Size    _) (e1 :* End)       = ppApply1 p "size" e1
-ppPrimOp p (Reduce  _) (e1 :* e2 :* e3 :* End) =
-    ppFun p "reduce"
-        [ toDoc $ ppArg e1 -- N.B., @e1@ uses lambdas rather than being a binding form!
-        , toDoc $ ppArg e2
-        , toDoc $ ppArg e3
-        ]
 ppPrimOp p (Equal   _) (e1 :* e2 :* End) = ppBinop "==" 4 NonAssoc   p e1 e2
 ppPrimOp p (Less    _) (e1 :* e2 :* End) = ppBinop "<"  4 NonAssoc   p e1 e2
 ppPrimOp p (NatPow  _) (e1 :* e2 :* End) = ppBinop "^"  8 RightAssoc p e1 e2
@@ -300,6 +293,21 @@ ppPrimOp p (NatRoot _) (e1 :* e2 :* End) =
 ppPrimOp p (Erf _) (e1 :* End) = ppApply1 p "erf" e1
 -- HACK: GHC can't figure out that there are no other type-safe cases
 ppPrimOp _ _ _ = error "ppPrimOp: the impossible happened"
+
+
+-- | Pretty-print a 'ArrayOp' @(:$)@ node in the AST.
+ppArrayOp
+    :: (ABT AST abt, typs ~ UnLCs args, args ~ LCs typs)
+    => Int -> ArrayOp typs a -> SArgs abt args -> Docs
+ppArrayOp p (Index   _) (e1 :* e2 :* End) = ppBinop "!" 9 LeftAssoc p e1 e2
+ppArrayOp p (Size    _) (e1 :* End)       = ppApply1 p "size" e1
+ppArrayOp p (Reduce  _) (e1 :* e2 :* e3 :* End) =
+    ppFun p "reduce"
+        [ toDoc $ ppArg e1 -- N.B., @e1@ uses lambdas rather than being a binding form!
+        , toDoc $ ppArg e2
+        , toDoc $ ppArg e3
+        ]
+ppArrayOp _ _ _ = error "ppArrayOp: the impossible happened"
 
 
 -- | Pretty-print a 'MeasureOp' @(:$)@ node in the AST.

@@ -2,7 +2,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.12
+--                                                    2015.11.13
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeHelpers
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -18,6 +18,7 @@
 module Language.Hakaru.Syntax.TypeHelpers
     ( sing_NaryOp
     , sing_PrimOp
+    , sing_ArrayOp
     , sing_MeasureOp
     , sing_Value
     , make_NaryOp
@@ -33,8 +34,6 @@ import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.AST
 import qualified Language.Hakaru.Parser.AST as U
 import Language.Hakaru.Syntax.Datum
-
-import Control.Applicative
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -125,10 +124,6 @@ sing_PrimOp Summate    = (sing `Cons1` sing `Cons1` sing `Cons1` Nil1, sing)
 --
 -- TODO: is there any way to automate building these from their
 -- respective @a@ proofs?
-sing_PrimOp (Index  a) = (SArray a `Cons1` SNat `Cons1` Nil1, a)
-sing_PrimOp (Size   a) = (SArray a `Cons1` Nil1, SNat)
-sing_PrimOp (Reduce a) =
-    ((a `SFun` a `SFun` a) `Cons1` a `Cons1` SArray a `Cons1` Nil1, a)
 sing_PrimOp (Equal theEq) =
     let a = sing_HEq theEq
     in  (a `Cons1` a `Cons1` Nil1, sBool)
@@ -157,6 +152,14 @@ sing_PrimOp (NatRoot theRad) =
 sing_PrimOp (Erf theCont) =
     let a = sing_HContinuous theCont
     in  (a `Cons1` Nil1, a)
+
+
+sing_ArrayOp :: ArrayOp args a -> (List1 Sing args, Sing a)
+sing_ArrayOp (Index  a) = (SArray a `Cons1` SNat `Cons1` Nil1, a)
+sing_ArrayOp (Size   a) = (SArray a `Cons1` Nil1, SNat)
+sing_ArrayOp (Reduce a) =
+    ((a `SFun` a `SFun` a) `Cons1` a `Cons1` SArray a `Cons1` Nil1, a)
+
 
 sing_MeasureOp :: MeasureOp args a -> (List1 Sing args, Sing a)
 sing_MeasureOp Lebesgue    = (Nil1, sing)

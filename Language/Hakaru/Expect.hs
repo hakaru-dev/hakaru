@@ -10,7 +10,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.29
+--                                                    2015.11.13
 -- |
 -- Module      :  Language.Hakaru.Expect
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -243,8 +243,8 @@ expectTypeDir p SProb        _ = case p of {}
 expectTypeDir p SReal        _ = case p of {}
 expectTypeDir p (SData  _ _) _ = case p of {}
 expectTypeDir p (SArray   a) e =
-    ExpectArray Text.empty (primOp1_ (Size a) e) $ \ei ->
-    expectTypeDir (unImpureArray p) a (primOp2_ (Index a) e ei)
+    ExpectArray Text.empty (arrayOp1_ (Size a) e) $ \ei ->
+    expectTypeDir (unImpureArray p) a (arrayOp2_ (Index a) e ei)
     -- TODO: is there any way of @Let_@-binding the @e@ expression, to guarantee we can't possibly duplicate it by someone wanting to reify the @ExpectArray@ back into a plain Hakaru array?
 expectTypeDir p (SFun   _ a) e =
     ExpectFun Text.empty $ \e2 ->
@@ -296,7 +296,8 @@ expectAST p (Ann_ _ :$ es) xs =
         expectSynDir p e xs
     _ -> error "expectAST: the impossible happened"
 
-expectAST p (PrimOp_ o :$ es) xs =
+expectAST p (PrimOp_ _ :$ _) _ = case p of {}
+expectAST p (ArrayOp_ o :$ es) xs =
     case o of
     Index _ ->
         case es of
