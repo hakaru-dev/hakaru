@@ -436,15 +436,23 @@ evaluateNaryOp evaluate_ = \o es -> mainLoop o (evalOp o) Seq.empty es
     evalOp (Prod _) v1 v2 = reflect (reify v1 * reify v2)
     -}
     -- HACK: this is just to have something to test. We really should reduce\/remove all this boilerplate...
-    evalOp (Sum  HSemiring_Nat) (WValue (VNat n1)) (WValue (VNat n2)) = WValue (VNat (n1 + n2))
-    evalOp (Sum  HSemiring_Int) (WValue (VInt i1)) (WValue (VInt i2)) = WValue (VInt (i1 + i2))
-    evalOp (Sum  HSemiring_Prob) (WValue (VProb p1)) (WValue (VProb p2)) = WValue (VProb (p1 + p2))
-    evalOp (Sum  HSemiring_Real) (WValue (VReal r1)) (WValue (VReal r2)) = WValue (VReal (r1 + r2))
-    evalOp (Prod HSemiring_Nat) (WValue (VNat n1)) (WValue (VNat n2)) = WValue (VNat (n1 * n2))
-    evalOp (Prod HSemiring_Int) (WValue (VInt i1)) (WValue (VInt i2)) = WValue (VInt (i1 * i2))
-    evalOp (Prod HSemiring_Prob) (WValue (VProb p1)) (WValue (VProb p2)) = WValue (VProb (p1 * p2))
-    evalOp (Prod HSemiring_Real) (WValue (VReal r1)) (WValue (VReal r2)) = WValue (VReal (r1 * r2))
-    evalOp _ _ _ = error "TODO: evalOp"
+    evalOp (Sum  s) (WValue v1) (WValue v2) = WValue $ evalSum  s v1 v2
+    evalOp (Prod s) (WValue v1) (WValue v2) = WValue $ evalProd s v1 v2
+    evalOp (Sum  _) _ _ = error "evalOp{Sum}: the impossible happened"
+    evalOp (Prod _) _ _ = error "evalOp{Prod}: the impossible happened"
+    evalOp _ _ _ = error "TODO: evalOp{HBool ops, HOrd ops}"
+
+    evalSum, evalProd :: HSemiring a -> Value a -> Value a -> Value a
+    evalSum  HSemiring_Nat  (VNat  n1) (VNat  n2) = VNat  (n1 + n2)
+    evalSum  HSemiring_Int  (VInt  i1) (VInt  i2) = VInt  (i1 + i2)
+    evalSum  HSemiring_Prob (VProb p1) (VProb p2) = VProb (p1 + p2)
+    evalSum  HSemiring_Real (VReal r1) (VReal r2) = VReal (r1 + r2)
+    evalSum  s _ _ = case s of {}
+    evalProd HSemiring_Nat  (VNat  n1) (VNat  n2) = VNat  (n1 * n2)
+    evalProd HSemiring_Int  (VInt  i1) (VInt  i2) = VInt  (i1 * i2)
+    evalProd HSemiring_Prob (VProb p1) (VProb p2) = VProb (p1 * p2)
+    evalProd HSemiring_Real (VReal r1) (VReal r2) = VReal (r1 * r2)
+    evalProd s _ _ = case s of {}
 
 
 ----------------------------------------------------------------

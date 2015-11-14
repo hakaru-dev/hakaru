@@ -99,6 +99,7 @@ import Language.Hakaru.Syntax.ABT
 --
 -- BUG: this may not force enough evaluation for "Language.Hakaru.Disintegrate"...
 data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
+    -- Simple heads (aka, the usual stuff)
     WValue :: !(Value a) -> Head abt a
 
     WDatum
@@ -114,7 +115,7 @@ data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
 
     WLam :: !(abt '[ a ] b) -> Head abt (a ':-> b)
 
-    -- WMeasure :: !(abt '[] ('HMeasure a)) -> Head abt ('HMeasure a)
+    -- Measure heads (not just anything of 'HMeasure' type)
     WMeasureOp
         :: (typs ~ UnLCs args, args ~ LCs typs)
         => !(MeasureOp typs a)
@@ -133,18 +134,34 @@ data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         :: [(abt '[] 'HProb, abt '[] ('HMeasure a))]
         -> Head abt ('HMeasure a)
 
+    -- Funky stuff
+    {-
+    Ann_        :: !(Sing a)       -> SCon '[ LC a ] a
+    CoerceTo_   :: !(Coercion a b) -> SCon '[ LC a ] b
+    UnsafeFrom_ :: !(Coercion a b) -> SCon '[ LC b ] a
+    Lub_ :: [abt '[] a] -> AST abt a
+    -}
+
+    -- Quasi- (or sesqui-) normal form stuff
+    {-
+    NaryOp_ :: !(NaryOp a) -> !(Seq (abt '[] a)) -> AST abt a
+    PrimOp_
+        :: (typs ~ UnLCs args, args ~ LCs typs)
+        => !(PrimOp typs a) -> SCon args a
+    -}
+
 
 -- | Forget that something is a head.
 fromHead :: (ABT AST abt) => Head abt a -> abt '[] a
-fromHead (WValue   v)     = syn (Value_ v)
-fromHead (WDatum   d)     = syn (Datum_ d)
-fromHead WEmpty           = syn Empty_
-fromHead (WArray   e1 e2) = syn (Array_ e1 e2)
-fromHead (WLam     e1)    = syn (Lam_ :$ e1 :* End)
-fromHead (WMeasureOp o es) = syn (MeasureOp_ o :$ es)
-fromHead (WDirac e1)       = syn (Dirac :$ e1 :* End)
-fromHead (WMBind e1 e2)    = syn (MBind :$ e1 :* e2 :* End)
-fromHead (WSuperpose pes)  = syn (Superpose_ pes)
+fromHead (WValue     v)     = syn (Value_ v)
+fromHead (WDatum     d)     = syn (Datum_ d)
+fromHead WEmpty             = syn Empty_
+fromHead (WArray     e1 e2) = syn (Array_ e1 e2)
+fromHead (WLam       e1)    = syn (Lam_ :$ e1 :* End)
+fromHead (WMeasureOp o  es) = syn (MeasureOp_ o :$ es)
+fromHead (WDirac     e1)    = syn (Dirac :$ e1 :* End)
+fromHead (WMBind     e1 e2) = syn (MBind :$ e1 :* e2 :* End)
+fromHead (WSuperpose pes)   = syn (Superpose_ pes)
 
 
 ----------------------------------------------------------------
