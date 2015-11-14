@@ -193,6 +193,8 @@ sampleScon (UnsafeFrom_ c) (e1 :* End) env =
     let v = sample (LC_ e1) env
     in  sampleUnsafe c v
 
+sampleScon (PrimOp_ o)     es env = samplePrimOp    o es env
+
 sampleScon (MeasureOp_  m) es env = sampleMeasureOp m es env
 
 sampleScon Dirac           (e1 :* End) env =
@@ -232,6 +234,15 @@ samplePrimUnsafe (Signed HRing_Real) (S a) = S $ LF.logFloat a
 samplePrimUnsafe (Continuous HContinuous_Prob) (S a) =
     S $ unsafeNat $ floor (LF.fromLogFloat a :: Double)
 samplePrimUnsafe (Continuous HContinuous_Real) (S a) = S $ floor a
+
+samplePrimOp :: (ABT AST abt, PrimMonad m, Functor m,
+                 typs ~ UnLCs args, args ~ LCs typs) =>
+                PrimOp typs a -> SArgs abt args ->
+                Env m -> S m a
+
+samplePrimOp Infinity         End env = S $ LF.logFloat (1/0)
+
+samplePrimOp NegativeInfinity End env = S $ -1/0
 
 sampleNaryOp :: (ABT AST abt, PrimMonad m, Functor m) =>
                 NaryOp a -> Seq (abt '[] a) ->
