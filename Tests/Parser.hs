@@ -235,6 +235,19 @@ match5AST = Case (Var "e")
             ,Branch' (PData' (DV "right" [PVar' "b"])) (Var "e2")
             ]
 
+match6 :: Text
+match6 = unlines ["(match (2,3)::pair(nat,nat):"
+                 ,"   pair(a,b): a+b)::nat"
+                 ]
+
+match6AST :: AST' Text
+match6AST = Ann (Case (Ann (App (App (Var "Pair")
+                                 (UValue (Nat 2))) (UValue (Nat 3)))
+                       (TypeApp "pair" [TypeVar "nat",TypeVar "nat"]))
+                 [Branch' (PData' (DV "pair" [PVar' "a",PVar' "b"]))
+                  (NaryOp Sum' (Var "a") (Var "b"))]) (TypeVar "nat")
+
+
 testMatches :: Test
 testMatches = test
    [ testParse match1 match1AST
@@ -242,6 +255,7 @@ testMatches = test
    , testParse match3 match3AST
    , testParse match4 match4AST
    , testParse match5 match5AST
+   , testParse match6 match6AST
    ]
 
 ann1 :: Text

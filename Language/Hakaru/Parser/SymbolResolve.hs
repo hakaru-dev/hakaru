@@ -5,7 +5,7 @@
              StandaloneDeriving #-}
 module Language.Hakaru.Parser.SymbolResolve where
 
-import Data.Text hiding (map, maximum)
+import Data.Text hiding (concat, map, maximum)
 import Data.Functor                     ((<$>))
 import Control.Applicative              ((<*>))
 import Control.Monad.Trans.State.Strict (State, state)
@@ -102,6 +102,10 @@ mkSym = TNeu . U.Var_
 updateSymbols :: U.Name -> SymbolTable a -> SymbolTable a
 updateSymbols n@(U.Name _ name) sym = (name, mkSym n) : sym
 
+updateSymbolsL :: [U.Name] -> SymbolTable a -> SymbolTable a
+updateSymbolsL []     sym = sym
+updateSymbolsL (n:ns) sym = updateSymbolsL ns (updateSymbols n sym)
+
 -- TODO: clean up by merging the @Reader (SymbolTable a)@ and @State Int@ monads
 -- | Figure out symbols and types.
 symbolResolution
@@ -155,17 +159,19 @@ symbolResolveBranch :: SymbolTable a -> U.Branch' Text ->
                        State Int (U.Branch' (Symbol (U.AST a)))
 
 symbolResolveBranch symbols (U.Branch' pat ast) = do
-  ast' <- symbolResolution symbols ast
-  pat' <- symbolResolvePat pat
+  (pat', names) <- symbolResolvePat pat
+  ast' <- symbolResolution (updateSymbolsL names symbols) ast
   return $ U.Branch'' pat' ast'
 
 symbolResolvePat :: U.Pattern' Text ->
-                    State Int (U.Pattern' U.Name)
-symbolResolvePat (U.PVar' name) = U.PVar' <$> gensym name
-symbolResolvePat U.PWild'       = return U.PWild'
+                    State Int (U.Pattern' U.Name, [U.Name])
+symbolResolvePat (U.PVar' name) = do name' <- gensym name
+                                     return (U.PVar' name', [name'])
+symbolResolvePat U.PWild'       = return (U.PWild', [])
 symbolResolvePat (U.PData' (U.DV name args)) = do
   args' <- mapM symbolResolvePat args
-  return $ U.PData' (U.DV name args')
+  let (args'', names) = unzip args'
+  return $ (U.PData' (U.DV name args''), concat names)
 
 -- | Make AST and give unique names for variables.
 --
@@ -195,15 +201,15 @@ normAST ast =
     U.UValue v        -> U.UValue v
     U.NaryOp op e1 e2 -> U.NaryOp op (normAST e1) (normAST e2)
     U.Empty           -> U.Empty
-    U.Case e1 e2      -> U.Case  (normAST e1) (map (\(U.Branch' pat e2') ->
-                                                      U.Branch' pat (normAST e2'))
-                                               e2)
+    U.Case e1 e2      -> U.Case  (normAST e1) (map branchNorm e2)
     U.Dirac e1        -> U.Dirac (normAST e1)
     U.Bind name e1 e2 -> U.Bind name (normAST e1) (normAST e2)
     U.Data name typ   -> U.Data name typ
     U.WithMeta a meta -> U.WithMeta (normAST a) meta
 
-
+branchNorm :: U.Branch' (Symbol (U.AST a)) -> U.Branch' (Symbol (U.AST a))
+branchNorm (U.Branch'  pat e2') = U.Branch'  pat (normAST e2')
+branchNorm (U.Branch'' pat e2') = U.Branch'' pat (normAST e2')
 
 makeType :: U.TypeAST' -> U.SSing
 makeType (U.TypeVar t) =
