@@ -406,7 +406,7 @@ sampleCase o es env = let w  = evaluate perform $ syn (Case_ o es)
                            case dropLets t of
                              Dirac :$ x :* End -> sample (LC_ x) env
                              t -> error (show $ pretty w1)
-    -- HACK: To remove the lets residualizeListContext
+    -- HACK: To remove the lets from residualizeListContext
     where dropLets (Let_ :$ e1 :* e2 :* End) =
               caseBind e2 $ \x e2' -> dropLets' (LC_ e2')
           dropLets e                         = e
