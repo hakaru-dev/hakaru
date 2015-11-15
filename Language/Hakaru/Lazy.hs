@@ -142,7 +142,7 @@ evaluate perform = evaluate_
 
         Fix_ :$ e1 :* End -> error "TODO: evaluate{Fix_}"
 
-        Ann_ typ :$ e1 :* End -> error "TODO: evaluate{Ann_}"
+        Ann_ typ :$ e1 :* End -> evaluate_ e1 -- error "TODO: evaluate{Ann_}"
         {-
             do
             w1 <- evaluate_ e1

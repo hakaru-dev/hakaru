@@ -42,6 +42,11 @@ import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
 
+import Language.Hakaru.Lazy
+import Language.Hakaru.Lazy.Types
+
+import Language.Hakaru.PrettyPrint
+
 type PRNG m = MWC.Gen (PrimState m)
 
 newtype S (m :: * -> *) (a :: Hakaru) =
@@ -162,7 +167,7 @@ sampleAST t env =
       NaryOp_ o es -> sampleNaryOp o es env
       Value_  v    -> sampleValue  v
       Datum_  d    -> sampleDatum  d env
-      Case_   o es -> error "in Case_"
+      Case_   o es -> sampleCase   o es env
 
 sampleScon :: (ABT AST abt, PrimMonad m, Functor m) =>
               SCon args a -> SArgs abt args ->
@@ -388,6 +393,28 @@ sampleDatum (Datum _ (Inl (Et (Konst a)
              in  S (a1, a2)
 
 sampleDatum (Datum _ _) _ = error "TODO: Handle this case in Datum"
+
+sampleCase :: (ABT AST abt, PrimMonad m, Functor m) =>
+                (abt '[] a) -> [Branch a abt b] ->
+                Env m -> S m b
+sampleCase o es env = let w  = evaluate perform $ syn (Case_ o es)
+                          w1 = runM w [Some2 $ syn (Case_ o es)] in
+                       -- HACK: We need to use the below code instead of having
+                       -- sample (LC_ w1) env, because runM and friends are not
+                       -- defined for abt '[] a but abt '[] ('HMeasure a)
+                       caseVarSyn w1 undefined $ \t ->
+                           case dropLets t of
+                             Dirac :$ x :* End -> sample (LC_ x) env
+                             t -> error (show $ pretty w1)
+    -- HACK: To remove the lets residualizeListContext
+    where dropLets (Let_ :$ e1 :* e2 :* End) =
+              caseBind e2 $ \x e2' -> dropLets' (LC_ e2')
+          dropLets e                         = e
+          dropLets' (LC_ e) =
+                  caseVarSyn e undefined $ \t ->
+                      dropLets t
+
+
 
 sampleVar :: (PrimMonad m, Functor m) =>
              Env m -> Variable a -> S m a
