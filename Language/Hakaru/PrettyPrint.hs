@@ -143,8 +143,8 @@ instance (ABT AST abt) => Pretty (LC_ abt) where
         Value_ v      -> prettyPrec_ p v
         Empty_        -> [PP.text "empty"]
         Array_ e1 e2  ->
-            ppFun p "array"
-                [ toDoc $ ppArg e1
+            ppFun 11 "array"
+                [ toDoc (ppArg e1) <+> PP.char '$'
                 , toDoc $ ppBinder e2
                 ]
         Datum_ d      -> prettyPrec_ p (fmap11 LC_ d)
@@ -179,7 +179,7 @@ ppSCon p Let_ (e1 :* e2 :* End) =
         adjustHead
             (PP.text "let_" <+> toDoc (ppArg e1) <+> PP.char '$' <+>)
             (ppBinder e2)
-ppSCon p Fix_       (e1 :* End) = ppFun p "fix"  [toDoc $ ppBinder e1]
+ppSCon _ Fix_       (e1 :* End) = ppFun 11 "fix $"  [toDoc $ ppBinder e1]
 ppSCon p (Ann_ typ) (e1 :* End) =
     ppFun p "ann_"
         [ PP.text (showsPrec 11 typ "") -- TODO: make this prettier. Add hints to the singletons?
