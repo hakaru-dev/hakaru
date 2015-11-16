@@ -38,6 +38,7 @@ module Language.Hakaru.Lazy
 
 import           Prelude hiding (id, (.))
 import           Control.Category     (Category(..))
+import qualified Data.Traversable     as T
 import           Data.Sequence        (Seq)
 import qualified Data.Sequence        as Seq
 import qualified Data.Text            as Text
@@ -153,7 +154,20 @@ evaluate perform = evaluate_
             evaluate_ . E.expect e1 $ \e3 ->
                 syn (Let_ :$ e3 :* e2 :* End)
 
-        Lub_ es -> error "TODO: evaluate{Lub_}" -- (Head_ . HLub) <$> T.for es evaluate_
+        Lub_ es -> do
+            ws <- T.traverse evaluate_ es
+            return $
+                case partitionWhnf ws of
+                ([],[]) -> Head_ (WLub []) -- Might as well call it a head
+                (vs,[]) -> Head_ (WLub vs)
+                ([],es) -> Neutral $ syn (Lub_ es)
+                (vs,es) -> Neutral $ syn (Lub_ (fmap fromHead vs ++ es)) -- TODO: make this less gross somehow...
+          where
+            partitionWhnf :: [Whnf abt a] -> ([Head abt a], [abt '[] a])
+            partitionWhnf = foldr step ([],[])
+                where
+                step (Head_   v) ~(vs, es) = (v:vs, es)
+                step (Neutral e) ~(vs, es) = (vs, e:es)
 
         -- TODO: rather than throwing a Haskell error, instead
         -- capture the possibility of failure in the 'EvaluationMonad'
@@ -276,6 +290,7 @@ instance Interp 'HNat Nat where
     reify (WAnn        _ v) = reify v
     reify (WCoerceTo   _ _) = error "TODO: reify{WCoerceTo}"
     reify (WUnsafeFrom _ _) = error "TODO: reify{WUnsafeFrom}"
+    reify (WLub        _)   = error "TODO: reify{WLub}"
     reflect = WValue . VNat
 
 instance Interp 'HInt Int where
@@ -283,6 +298,7 @@ instance Interp 'HInt Int where
     reify (WAnn        _ v) = reify v
     reify (WCoerceTo   _ _) = error "TODO: reify{WCoerceTo}"
     reify (WUnsafeFrom _ _) = error "TODO: reify{WUnsafeFrom}"
+    reify (WLub        _)   = error "TODO: reify{WLub}"
     reflect = WValue . VInt
 
 instance Interp 'HProb LogFloat where -- TODO: use rational instead
@@ -290,6 +306,7 @@ instance Interp 'HProb LogFloat where -- TODO: use rational instead
     reify (WAnn        _ v) = reify v
     reify (WCoerceTo   _ _) = error "TODO: reify{WCoerceTo}"
     reify (WUnsafeFrom _ _) = error "TODO: reify{WUnsafeFrom}"
+    reify (WLub        _)   = error "TODO: reify{WLub}"
     reflect = WValue . VProb
 
 instance Interp 'HReal Double where -- TODO: use rational instead
@@ -297,6 +314,7 @@ instance Interp 'HReal Double where -- TODO: use rational instead
     reify (WAnn        _ v) = reify v
     reify (WCoerceTo   _ _) = error "TODO: reify{WCoerceTo}"
     reify (WUnsafeFrom _ _) = error "TODO: reify{WUnsafeFrom}"
+    reify (WLub        _)   = error "TODO: reify{WLub}"
     reflect = WValue . VReal
 
 {-

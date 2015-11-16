@@ -36,7 +36,7 @@ module Language.Hakaru.Lazy.Types
     (
     -- * Terms in particular known forms\/formats
       Head(..), fromHead
-    , Whnf(..), fromWhnf, viewWhnfDatum
+    , Whnf(..), fromWhnf, caseWhnf, viewWhnfDatum
     , Lazy(..), fromLazy, caseLazy
 
     -- * The monad for partial evaluation
@@ -132,9 +132,7 @@ data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     WUnsafeFrom :: !(Coercion a b) -> !(Head abt b) -> Head abt a
 
     -- Other funky stuff
-    {-
-    Lub_ :: [abt '[] a] -> AST abt a
-    -}
+    WLub :: [Head abt a] -> Head abt a
 
     -- Quasi-/semi-/demi-/pseudo- normal form stuff
     {-
@@ -160,6 +158,7 @@ fromHead (WSuperpose pes)   = syn (Superpose_ pes)
 fromHead (WAnn      typ e1) = syn (Ann_      typ :$ fromHead e1 :* End)
 fromHead (WCoerceTo   c e1) = syn (CoerceTo_   c :$ fromHead e1 :* End)
 fromHead (WUnsafeFrom c e1) = syn (UnsafeFrom_ c :$ fromHead e1 :* End)
+fromHead (WLub es)          = syn (Lub_ (fromHead <$> es))
 
 
 ----------------------------------------------------------------
@@ -180,6 +179,11 @@ data Whnf (abt :: [Hakaru] -> Hakaru -> *) (a :: Hakaru)
 fromWhnf :: (ABT AST abt) => Whnf abt a -> abt '[] a
 fromWhnf (Head_   e) = fromHead e
 fromWhnf (Neutral e) = e
+
+-- | Case analysis on 'Whnf' as a combinator.
+caseWhnf :: Whnf abt a -> (Head abt a -> r) -> (abt '[] a -> r) -> r
+caseWhnf (Head_   e) k _ = k e
+caseWhnf (Neutral e) _ k = k e
 
 
 -- | Given some WHNF, try to extract a 'Datum' from it.
@@ -212,6 +216,7 @@ viewHeadDatum (WCoerceTo   c _)   = case c of {}
 viewHeadDatum (WUnsafeFrom c _)   = case c of {}
 viewHeadDatum (WValue (VDatum d)) = Just (fmap11 (syn . Value_) d)
 viewHeadDatum (WDatum d)          = Just d
+viewHeadDatum (WLub es) = error "TODO: viewHeadDatum{WLub}"
 
 
 ----------------------------------------------------------------
