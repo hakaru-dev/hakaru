@@ -28,7 +28,7 @@ ops, names :: [String]
 
 ops   = ["+","*","-",":","::", "<~","==", "=", "_"]
 types = ["->"]
-names = ["def","fn", "if","else","pi","inf",
+names = ["def","fn", "if","else","pi","inf", "∞",
          "return", "dirac", "match", "data"]
 
 type Parser = ParsecT (IndentStream (CharIndentStream Text)) () Identity
@@ -139,7 +139,7 @@ floating = do
 inf_ :: Parser (AST' Text)
 inf_ = do
     s <- option '+' (oneOf "+-")
-    reserved "inf";
+    reserved "inf" <|> reserved "∞"
     return $
         case s of
         '-' -> NegInfinity
