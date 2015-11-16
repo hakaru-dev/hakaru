@@ -58,7 +58,7 @@ type instance Sample m 'HInt          = Int
 type instance Sample m 'HReal         = Double 
 type instance Sample m 'HProb         = LF.LogFloat
 
-type instance Sample m HBool          = Bool
+--type instance Sample m HBool          = Bool
 
 type instance Sample m ('HMeasure a)  =
     LF.LogFloat -> PRNG m ->
@@ -68,9 +68,24 @@ type instance Sample m (a ':-> b)     = Sample m a -> Sample m b
 type instance Sample m ('HArray a)    = V.Vector (Sample m a)
 --type instance Sample m (HData' (HakaruCon a)) = SCode (Sample m a)
 
-type instance Sample m ('HData t ('[ 'K b1, 'K b2] ': xss)) =
-    (Sample m b1, Sample m b2)
+-- type instance Sample m ('HData t ('[ 'K b1, 'K b2] ': xss)) =
+--     (Sample m b1, Sample m b2)
+
+type instance Sample m ('HData t ((K b1 ': xs) ': xss)) =
+    Either (Sample m b1, Sample m ('HData t (xs ': xss)))
+           (Sample m ('HData t xss))
+
+type instance Sample m ('HData t ('[] ': xss)) =
+    Either () (Sample m ('HData t xss))
+
+type instance Sample m ('HData t '[]) = SVoid
+
 ----------------------------------------------------------------
+
+data SVoid
+
+instance Show SVoid where
+    show = undefined 
 
 data SCode a where
      SInr :: !(SCode a) -> SCode a
@@ -253,8 +268,8 @@ sampleNaryOp :: (ABT AST abt, PrimMonad m, Functor m) =>
                 NaryOp a -> Seq (abt '[] a) ->
                 Env m -> S m a
 
-sampleNaryOp And es env = S $ F.foldr (&&) True xs
-  where xs = fmap (\a -> unS $ sample (LC_ a) env) es
+-- sampleNaryOp And es env = S $ F.foldr (&&) True xs
+--   where xs = fmap (\a -> unS $ sample (LC_ a) env) es
 
 sampleNaryOp (Sum HSemiring_Nat)  es env = S $ F.foldr (+) 0 xs
   where xs = fmap (\a -> unS $ sample (LC_ a) env) es
@@ -360,16 +375,16 @@ sampleMeasureOp (Plate _)   (e1 :* End) env =
              let (v', ps) = V.unzip samples
              return (v', p * V.product ps))
 
-sampleMeasureOp (Chain _ _) (e1 :* e2 :* End) env =
-  let S v = sample (LC_ e1) env
-      S s = sample (LC_ e2) env
-  in  S (\ p g -> runMaybeT $ do
-           let convert f = StateT $ \s' -> do
-                             ((a,s''),p') <- MaybeT (f s' 1 g)
-                             return ((a,p'),s'')
-           (samples, sout) <- runStateT (V.mapM convert v) s
-           let (v', ps) = V.unzip samples
-           return ((v', sout), p * V.product ps))
+-- sampleMeasureOp (Chain _ _) (e1 :* e2 :* End) env =
+--   let S v = sample (LC_ e1) env
+--       S s = sample (LC_ e2) env
+--   in  S (\ p g -> runMaybeT $ do
+--            let convert f = StateT $ \s' -> do
+--                              ((a,s''),p') <- MaybeT (f s' 1 g)
+--                              return ((a,p'),s'')
+--            (samples, sout) <- runStateT (V.mapM convert v) s
+--            let (v', ps) = V.unzip samples
+--            return ((v', sout), p * V.product ps))
 
 sampleMeasureOp _ _ _ =
     error "sampleMeasureOP: the impossible happened"
@@ -386,13 +401,36 @@ sampleDatum :: (ABT AST abt, PrimMonad m, Functor m) =>
                 Datum (abt '[]) (HData' a) ->
                 Env m -> S m (HData' a)
 
-sampleDatum (Datum _ (Inl (Et (Konst a)
-                           (Et (Konst b) Done)))) env =
-             let S a1 = sample (LC_ a) env
-                 S a2 = sample (LC_ b) env
-             in  S (a1, a2)
+-- sampleDatum (Datum _ (Inl (Et (Konst a)
+--                            (Et (Konst b) Done)))) env =
+--              let S a1 = sample (LC_ a) env
+--                  S a2 = sample (LC_ b) env
+--              in  S (a1, a2)
+
+sampleDatum (Datum _ (Inl a)) env = sampleDCode (Inl a) env
 
 sampleDatum (Datum _ _) _ = error "TODO: Handle this case in Datum"
+
+sampleDCode   ::  (ABT AST abt, PrimMonad m, Functor m) =>
+                  DatumCode (xs1 ': xs) (abt '[]) ('HData t (xs1 ': xs)) ->
+                  Env m -> S m ('HData t (xs1 ': xs))
+
+sampleDCode (Inl a) env = sampleDStruct a env
+
+sampleDStruct ::  (ABT AST abt, PrimMonad m, Functor m) =>
+                  DatumStruct xs (abt '[])  ('HData t (xs1 ': xss)) ->
+                  Env m -> S m ('HData t (xs ': xss))
+sampleDStruct (Et (Konst a) b) env = let S a1 = sampleDKonst (Konst a) env
+                                         S a2 = sampleDStruct b env
+                                     in  S $ Left (a1, a2)
+
+sampleDStruct Done             env = S $ Left ()
+
+
+sampleDKonst ::  (ABT AST abt, PrimMonad m, Functor m) => 
+                  DatumFun ('K b) (abt '[]) (HData' a) -> Env m -> S m b
+sampleDKonst (Konst a) env = sample (LC_ a) env
+
 
 sampleCase :: (ABT AST abt, PrimMonad m, Functor m) =>
                 (abt '[] a) -> [Branch a abt b] ->
@@ -408,8 +446,8 @@ sampleCase o es env = let w  = evaluate perform $ syn (Case_ o es)
                              t -> error (show $ pretty w1)
     -- HACK: To remove the lets from residualizeListContext
     where dropLets (Let_ :$ e1 :* e2 :* End) =
-              caseBind e2 $ \x e2' -> dropLets' (LC_ e2')
-          dropLets e                         = e
+            caseBind e2 $ \x e2' -> dropLets' (LC_ e2')
+          dropLets e        = e
           dropLets' (LC_ e) =
                   caseVarSyn e undefined $ \t ->
                       dropLets t
