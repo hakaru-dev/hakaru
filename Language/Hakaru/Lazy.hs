@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.12
+--                                                    2015.11.15
 -- |
 -- Module      :  Language.Hakaru.Lazy
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -36,15 +36,14 @@ module Language.Hakaru.Lazy
     , update
     ) where
 
-import qualified Data.Foldable        as F
-import qualified Data.Traversable     as T
+import           Prelude hiding (id, (.))
+import           Control.Category     (Category(..))
 import           Data.Sequence        (Seq)
 import qualified Data.Sequence        as Seq
 import qualified Data.Text            as Text
 import           Data.Number.LogFloat (LogFloat)
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Functor         ((<$>))
-import           Control.Applicative  (Applicative(..))
 #endif
 
 import Language.Hakaru.Syntax.IClasses
@@ -125,40 +124,28 @@ evaluate perform = evaluate_
         -- Everything else needs some evaluation
 
         App_ :$ e1 :* e2 :* End -> do
-            -- This implementation gives call-by-need beta-reduction.
             w1 <- evaluate_ e1
             case w1 of
-                Neutral e1' -> return . Neutral $ P.app e1' e2
-                Head_   v1  ->
-                    case v1 of
-                    WLam f ->
-                        caseBind f $ \x f' ->
-                            push (SLet x $ Thunk e2) f' evaluate_
-                    _ -> error "evaluate: the impossible happened"
+                Neutral e1'    -> return . Neutral $ P.app e1' e2
+                Head_ (WLam f) ->
+                    caseBind f $ \x f' ->
+                        push (SLet x $ Thunk e2) f' evaluate_
+                _ -> error "evaluate: the impossible happened"
 
         Let_ :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
                 push (SLet x $ Thunk e1) e2' evaluate_
 
-        -- TODO: should prolly count as a WHNF already?
+        -- TODO: should prolly count as already a WHNF?
         Fix_ :$ e1 :* End -> error "TODO: evaluate{Fix_}"
 
-        Ann_ typ :$ e1 :* End -> error "TODO: evaluate{Ann_}"
-        {-
-            do
-            w1 <- evaluate_ e1
-            return $
-                -- if not @mustCheck (fromWhnf w1)@, then could in principle eliminate the annotation; though it might be here so that it'll actually get pushed down to somewhere it's needed later on, so it's best to play it safe and leave it in.
-                case w1 of
-                    Neutral e1' -> Neutral (P.ann_ typ e1')
-                    Head_   v1  -> Head_ (WAnn typ v1) -- or something...
-        -}
-
+        Ann_      typ :$ e1 :* End -> ann      typ <$> evaluate_ e1
         CoerceTo_   c :$ e1 :* End -> coerceTo   c <$> evaluate_ e1
         UnsafeFrom_ c :$ e1 :* End -> unsafeFrom c <$> evaluate_ e1
+
         -- TODO: will maybe clean up the code to map 'evaluate' over @es@ before calling the evaluateFooOp helpers?
-        NaryOp_     o    es        -> evaluateNaryOp evaluate_ o es
-        PrimOp_     o :$ es        -> evaluatePrimOp o es
+        NaryOp_ o    es -> evaluateNaryOp evaluate_ o es
+        PrimOp_ o :$ es -> evaluatePrimOp o es
 
         -- BUG: avoid the chance of looping in case 'E.expect' residualizes!
         -- TODO: use 'evaluate' in 'E.expect' for the evaluation of @e1@
@@ -227,6 +214,54 @@ update perform evaluate_ = \x ->
                 unsafePush (SLet x $ Whnf_ w)
                 return w
         SWeight _ -> Nothing
+
+
+----------------------------------------------------------------
+-- if not @mustCheck (fromWhnf w1)@, then could in principle eliminate the annotation; though it might be here so that it'll actually get pushed down to somewhere it's needed later on, so it's best to play it safe and leave it in.
+ann :: (ABT AST abt) => Sing a -> Whnf abt a -> Whnf abt a
+ann typ (Neutral e) = Neutral $ syn (Ann_ typ :$ e :* End)
+ann typ (Head_   v) = Head_   $ WAnn typ v
+
+-- TODO: cancellation; constant coercion
+-- TODO: better unify the two cases of Whnf
+coerceTo :: (ABT AST abt) => Coercion a b -> Whnf abt a -> Whnf abt b
+coerceTo c w =
+    case w of
+    Neutral e ->
+        Neutral . maybe (P.coerceTo_ c e) id
+            $ caseVarSyn e (const Nothing) $ \t ->
+                case t of
+                -- UnsafeFrom_ c' :$ es' -> TODO: cancellation
+                CoerceTo_ c' :$ es' ->
+                    case es' of
+                    e' :* End -> Just $ P.coerceTo_ (c . c') e'
+                    _         -> error "coerceTo: the impossible happened"
+                _ -> Nothing
+    Head_ v ->
+        case v of
+        -- WUnsafeFrom c' v' -> TODO: cancellation
+        WCoerceTo c' v' -> Head_ $ WCoerceTo (c . c') v'
+        _               -> Head_ $ WCoerceTo c v
+
+
+unsafeFrom :: (ABT AST abt) => Coercion a b -> Whnf abt b -> Whnf abt a
+unsafeFrom c w =
+    case w of
+    Neutral e ->
+        Neutral . maybe (P.unsafeFrom_ c e) id
+            $ caseVarSyn e (const Nothing) $ \t ->
+                case t of
+                -- CoerceTo_ c' :$ es' -> TODO: cancellation
+                UnsafeFrom_ c' :$ es' ->
+                    case es' of
+                    e' :* End -> Just $ P.unsafeFrom_ (c' . c) e'
+                    _         -> error "unsafeFrom: the impossible happened"
+                _ -> Nothing
+    Head_ v ->
+        case v of
+        -- WCoerceTo c' v' -> TODO: cancellation
+        WUnsafeFrom c' v' -> Head_ $ WUnsafeFrom (c' . c) v'
+        _                 -> Head_ $ WUnsafeFrom c v
 
 
 ----------------------------------------------------------------
@@ -522,51 +557,6 @@ evaluatePrimOp (NatRoot _) (e1 :* e2 :* End) = rr2 natRoot _ e1 e2
 evaluatePrimOp (Erf     _) (e1 :* End)       = rr1 erf     P.erf    e1
 -}
 evaluatePrimOp _ _ = error "TODO: finish evaluatePrimOp"
-
-
-----------------------------------------------------------------
-coerceTo :: Coercion a b -> Whnf abt a -> Whnf abt b
-coerceTo = error "TODO: coerceTo"
-{-
-coerceTo c e0 =
-    case e0 of
-    Head_   e' -> go c e'
-    Neutral e' -> return (P.coerceTo_ c e') -- TODO: inline the smartness of P.coerceTo_ here; and make the prelude version dumb.
-    where
-    go c e =
-        case e of
-        WValue   v     ->
-        WDatum   d     ->
-        WEmpty         ->
-        WArray   e1 e2 ->
-        WLam     e1    ->
-        WMeasureOp o es -> 
-        WDirac e1 -> 
-        WMBind e1 e2 -> 
-        WSuperpose pes ->
--}
-
-
-unsafeFrom :: Coercion a b -> Whnf abt b -> Whnf abt a
-unsafeFrom = error "TODO: unsafeFrom"
-{-
-unsafeFrom c e0 =
-    case e0 of
-    head_   e' -> go c e'
-    Neutral e' -> return (P.unsafeFrom_ c e') -- TODO: inline the smartness of P.unsafeFrom_ here; and make the prelude version dumb.
-    where
-    go c e =
-        case e of
-        WValue   v     ->
-        WDatum   d     ->
-        WEmpty         ->
-        WArray   e1 e2 ->
-        WLam     e1    ->
-        WMeasureOp o es -> 
-        WDirac e1 -> 
-        WMBind e1 e2 -> 
-        WSuperpose pes ->
--}
 
 
 ----------------------------------------------------------------

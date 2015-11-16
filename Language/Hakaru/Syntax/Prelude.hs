@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.13
+--                                                    2015.11.15
 -- |
 -- Module      :  Language.Hakaru.Syntax.Prelude
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -226,34 +226,11 @@ infixl 9 !, `app`, `thRootOf`
 ann_ :: (ABT AST abt) => Sing a -> abt '[] a -> abt '[] a
 ann_ typ e = syn (Ann_ typ :$ e :* End)
 
--- TODO: cancellation; constant coercion
 coerceTo_ :: (ABT AST abt) => Coercion a b -> abt '[] a -> abt '[] b
-coerceTo_ c e =
-    Prelude.maybe (syn $ CoerceTo_ c :$ e :* End) id
-        $ caseVarSyn e
-            (const Nothing)
-            $ \t ->
-                case t of
-                CoerceTo_ c' :$ es' ->
-                    case es' of
-                    e' :* End ->
-                        Just . syn $ CoerceTo_ (c . c') :$ e' :* End
-                    _ -> error "coerceTo_: the impossible happened"
-                _ -> Nothing
+coerceTo_ c e = syn (CoerceTo_ c :$ e :* End)
 
 unsafeFrom_ :: (ABT AST abt) => Coercion a b -> abt '[] b -> abt '[] a
-unsafeFrom_ c e =
-    Prelude.maybe (syn $ UnsafeFrom_ c :$ e :* End) id
-        $ caseVarSyn e
-            (const Nothing)
-            $ \t ->
-                case t of
-                UnsafeFrom_ c' :$ es' ->
-                    case es' of
-                    e' :* End ->
-                        Just . syn $ UnsafeFrom_ (c' . c) :$ e' :* End
-                    _ -> error "unsafeFrom_: the impossible happened"
-                _ -> Nothing
+unsafeFrom_ c e = syn (UnsafeFrom_ c :$ e :* End)
 
 value_ :: (ABT AST abt) => Value a  -> abt '[] a
 value_ = syn . Value_

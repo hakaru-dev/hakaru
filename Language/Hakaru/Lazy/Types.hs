@@ -14,7 +14,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.13
+--                                                    2015.11.15
 -- |
 -- Module      :  Language.Hakaru.Lazy.Types
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -126,6 +126,7 @@ data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         -> Head abt ('HMeasure a)
 
     -- Type annotation\/coercion stuff. These are transparent re head-ness; that is, they behave more like HNF than WHNF.
+    -- TODO: we prolly don't actually want\/need the coercion variants... we'd lose some proven-guarantees about cancellation, but everything should work just fine if we update 'Value' to use Integer and Rational rather than Int and Double...
     WAnn        :: !(Sing a)       -> !(Head abt a) -> Head abt a
     WCoerceTo   :: !(Coercion a b) -> !(Head abt a) -> Head abt b
     WUnsafeFrom :: !(Coercion a b) -> !(Head abt b) -> Head abt a
