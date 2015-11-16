@@ -73,7 +73,9 @@ import Language.Hakaru.Syntax.Sing    (Sing)
 import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
+import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.ABT
+import qualified Language.Hakaru.Syntax.Prelude as P
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -275,6 +277,19 @@ data Statement (abt :: [Hakaru] -> Hakaru -> *)
         {-# UNPACK #-} !(Variable a)
         !(Lazy abt a)
 
+    -- | A variable bound by 'Array_' underneath 'Index'. The first
+    -- expression gives the index at which we are evaluating the
+    -- array (i.e., the second argument to 'Index'); the second
+    -- index gives the size of the array (i.e., the first argument
+    -- to 'Array_'). If it turns out that the index expression is
+    -- out of bounds, then evaluation should throw an error.
+    --
+    -- TODO: should we 'bot' rather than throwing an error?
+    | SIndex
+        {-# UNPACK #-} !(Variable 'HNat)
+        !(Lazy abt 'HNat)
+        !(Lazy abt 'HNat)
+
     -- | A weight; i.e., the first component of each argument to
     -- 'Superpose_'.
     | SWeight
@@ -283,9 +298,10 @@ data Statement (abt :: [Hakaru] -> Hakaru -> *)
 
 -- | Is the variable bound by the statement?
 isBoundBy :: Variable (a :: Hakaru) -> Statement abt -> Maybe ()
-x `isBoundBy` SBind y _ = const () <$> varEq x y
-x `isBoundBy` SLet  y _ = const () <$> varEq x y
-_ `isBoundBy` SWeight _ = Nothing
+x `isBoundBy` SBind  y _   = const () <$> varEq x y
+x `isBoundBy` SLet   y _   = const () <$> varEq x y
+x `isBoundBy` SIndex y _ _ = const () <$> varEq x y
+_ `isBoundBy` SWeight  _   = Nothing
 
 
 ----------------------------------------------------------------
@@ -356,6 +372,9 @@ freshenStatement s =
         xs' <- freshenVars xs
         return (SBranch xs' pat body, toAssocs xs (fmap11 var xs'))
     -}
+    SIndex x index size -> do
+        x' <- freshenVar x
+        return (SIndex x' index size, singletonAssocs x (var x'))
 
 
 -- | Given some hint and type, generate a variable with a fresh
@@ -514,8 +533,23 @@ residualizeListContext e0 = foldl step e0 . statements
                 ]
         -}
         SWeight body -> Superpose_ [(fromLazy body, e)]
-
-
+        SIndex x index size ->
+            -- The obvious thing to do:
+            ArrayOp_ (Index $ typeOf e)
+                :$ syn (Array_ (fromLazy size) (bind x e))
+                :* fromLazy index
+                :* End
+            -- An alternative thing, making it clearer that we've evaluated:
+            {-
+            Let_
+                :$ fromLazy index
+                :* bind x
+                    (P.if_
+                        (P.nat_ 0 P.<= var x P.&& var x P.< fromLazy size)
+                        e
+                        P.reject)
+                :* End
+            -}
 
 -- In the paper we say that result must be a 'Whnf'; however, in
 -- the paper it's also always @HMeasure a@ and everything of that

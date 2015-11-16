@@ -1,6 +1,5 @@
 {-# LANGUAGE CPP
            , GADTs
-           , EmptyCase
            , DataKinds
            , KindSignatures
            , MultiParamTypeClasses
@@ -145,8 +144,9 @@ evaluate perform = evaluate_
         UnsafeFrom_ c :$ e1 :* End -> unsafeFrom c <$> evaluate_ e1
 
         -- TODO: will maybe clean up the code to map 'evaluate' over @es@ before calling the evaluateFooOp helpers?
-        NaryOp_ o    es -> evaluateNaryOp evaluate_ o es
-        PrimOp_ o :$ es -> evaluatePrimOp o es
+        NaryOp_  o    es -> evaluateNaryOp  evaluate_ o es
+        ArrayOp_ o :$ es -> evaluateArrayOp evaluate_ o es
+        PrimOp_  o :$ es -> evaluatePrimOp  o es
 
         -- BUG: avoid the chance of looping in case 'E.expect' residualizes!
         -- TODO: use 'evaluate' in 'E.expect' for the evaluation of @e1@
@@ -154,20 +154,21 @@ evaluate perform = evaluate_
             evaluate_ . E.expect e1 $ \e3 ->
                 syn (Let_ :$ e3 :* e2 :* End)
 
+        -- TODO: collapse nested Lub, like we do for nested NaryOp
         Lub_ es -> do
             ws <- T.traverse evaluate_ es
             return $
                 case partitionWhnf ws of
-                ([],[]) -> Head_ (WLub []) -- Might as well call it a head
+                ([],[]) -> Head_ (WLub []) -- TODO: use 'bot' instead
                 (vs,[]) -> Head_ (WLub vs)
-                ([],es) -> Neutral $ syn (Lub_ es)
-                (vs,es) -> Neutral $ syn (Lub_ (fmap fromHead vs ++ es)) -- TODO: make this less gross somehow...
+                ([],es') -> Neutral $ syn (Lub_ es')
+                (vs,es') -> Neutral $ syn (Lub_ (fmap fromHead vs ++ es')) -- TODO: make this less gross somehow...
           where
             partitionWhnf :: [Whnf abt a] -> ([Head abt a], [abt '[] a])
             partitionWhnf = foldr step ([],[])
                 where
-                step (Head_   v) ~(vs, es) = (v:vs, es)
-                step (Neutral e) ~(vs, es) = (vs, e:es)
+                step (Head_   v) ~(vs, es') = (v:vs, es')
+                step (Neutral e) ~(vs, es') = (vs, e:es')
 
         -- TODO: rather than throwing a Haskell error, instead
         -- capture the possibility of failure in the 'EvaluationMonad'
@@ -183,10 +184,7 @@ evaluate perform = evaluate_
                 Just (Matched ss Nil1, body) ->
                     pushes (toStatements ss) body evaluate_
 
-        -- HACK: these cases are impossible, and ghc can confirm
-        -- that (via no warnings about the empty case analysis being
-        -- incomplete), but ghc can't infer it for some reason
-        _ :$ es -> case es of {}
+        _ -> error "evaluate: the impossible happened"
 
 
 type DList a = [a] -> [a]
@@ -228,10 +226,23 @@ update perform evaluate_ = \x ->
                 unsafePush (SLet x $ Whnf_ w)
                 return w
         SWeight _ -> Nothing
+        SIndex y e1 e2 -> do
+            Refl <- varEq x y
+            Just $ do
+                error "TODO: update{SIndex}"
+                {-
+                w1 <- caseLazy e1 return evaluate_
+                assert (0 <= w1 && w1 < e2)
+                unsafePush (SLet x $ Whnf_ w1)
+                return w1
+                -}
 
 
 ----------------------------------------------------------------
--- if not @mustCheck (fromWhnf w1)@, then could in principle eliminate the annotation; though it might be here so that it'll actually get pushed down to somewhere it's needed later on, so it's best to play it safe and leave it in.
+-- if not @mustCheck (fromWhnf w1)@, then could in principle eliminate
+-- the annotation; though it might be here so that it'll actually
+-- get pushed down to somewhere it's needed later on, so it's best
+-- to play it safe and leave it in.
 ann :: (ABT AST abt) => Sing a -> Whnf abt a -> Whnf abt a
 ann typ (Neutral e) = Neutral $ syn (Ann_ typ :$ e :* End)
 ann typ (Head_   v) = Head_   $ WAnn typ v
@@ -430,7 +441,7 @@ evaluateNaryOp evaluate_ = \o es -> mainLoop o (evalOp o) Seq.empty es
         case Seq.viewl es of
         Seq.EmptyL   -> return $
             case Seq.viewl ws of
-            Seq.EmptyL         -> identityElement o
+            Seq.EmptyL         -> identityElement o -- Avoid empty naryOps
             w Seq.:< ws'
                 | Seq.null ws' -> w -- Avoid singleton naryOps
                 | otherwise    ->
@@ -504,8 +515,8 @@ evaluateNaryOp evaluate_ = \o es -> mainLoop o (evalOp o) Seq.empty es
     -- HACK: this is just to have something to test. We really should reduce\/remove all this boilerplate...
     evalOp (Sum  s) (WValue v1) (WValue v2) = WValue $ evalSum  s v1 v2
     evalOp (Prod s) (WValue v1) (WValue v2) = WValue $ evalProd s v1 v2
-    evalOp (Sum  _) _ _ = error "evalOp{Sum}: the impossible happened"
-    evalOp (Prod _) _ _ = error "evalOp{Prod}: the impossible happened"
+    evalOp (Sum  _) _ _ = error "evalOp: the impossible happened"
+    evalOp (Prod _) _ _ = error "evalOp: the impossible happened"
     evalOp _ _ _ = error "TODO: evalOp{HBool ops, HOrd ops}"
 
     evalSum, evalProd :: HSemiring a -> Value a -> Value a -> Value a
@@ -513,12 +524,70 @@ evaluateNaryOp evaluate_ = \o es -> mainLoop o (evalOp o) Seq.empty es
     evalSum  HSemiring_Int  (VInt  i1) (VInt  i2) = VInt  (i1 + i2)
     evalSum  HSemiring_Prob (VProb p1) (VProb p2) = VProb (p1 + p2)
     evalSum  HSemiring_Real (VReal r1) (VReal r2) = VReal (r1 + r2)
-    evalSum  s _ _ = case s of {}
+    evalSum  _ _ _ = error "evalSum: the impossible happened"
     evalProd HSemiring_Nat  (VNat  n1) (VNat  n2) = VNat  (n1 * n2)
     evalProd HSemiring_Int  (VInt  i1) (VInt  i2) = VInt  (i1 * i2)
     evalProd HSemiring_Prob (VProb p1) (VProb p2) = VProb (p1 * p2)
     evalProd HSemiring_Real (VReal r1) (VReal r2) = VReal (r1 * r2)
-    evalProd s _ _ = case s of {}
+    evalProd _ _ _ = error "evalProd: the impossible happened"
+
+
+----------------------------------------------------------------
+evaluateArrayOp
+    :: ( ABT AST abt, EvaluationMonad abt m
+       , typs ~ UnLCs args, args ~ LCs typs)
+    => TermEvaluator abt m
+    -> ArrayOp typs a
+    -> SArgs abt args
+    -> m (Whnf abt a)
+evaluateArrayOp evaluate_ o es =
+    case (o,es) of
+    (Index _, e1 :* e2 :* End) -> do
+        w1 <- evaluate_ e1
+        case w1 of
+            Neutral e1' ->
+                return . Neutral $ syn (ArrayOp_ o :$ e1' :* e2 :* End)
+            Head_   v1  ->
+                case head2array v1 of
+                Nothing ->
+                    return . Head_ $ WLub [] -- TODO: use 'bot' instead
+                Just WAEmpty ->
+                    error "evaluate: indexing into empty array!"
+                Just (WAArray e3 e4) ->
+                    -- a call-by-name approach to indexing:
+                    caseBind e4 $ \x e4' ->
+                        push (SIndex x (Thunk e2) (Thunk e3)) e4' evaluate_
+
+    (Size _, e1 :* End) -> do
+        w1 <- evaluate_ e1
+        case w1 of
+            Neutral e1' -> return . Neutral $ syn (ArrayOp_ o :$ e1' :* End)
+            Head_   v1  ->
+                case head2array v1 of
+                Nothing             -> return . Head_ $ WLub [] -- TODO: use 'bot' instead
+                Just WAEmpty        -> return . Head_ $ WValue (VNat 0)
+                Just (WAArray e3 _) -> evaluate_ e3
+
+    (Reduce _, e1 :* e2 :* e3 :* End) ->
+        error "TODO: evaluateArrayOp{Reduce}"
+
+    _ -> error "evaluateArrayOp: the impossible happened"
+
+
+data ArrayHead :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
+    WAEmpty :: ArrayHead abt a
+    WAArray
+        :: !(abt '[] 'HNat)
+        -> !(abt '[ 'HNat] a)
+        -> ArrayHead abt a
+
+head2array :: Head abt ('HArray a) -> Maybe (ArrayHead abt a)
+head2array WEmpty         = Just WAEmpty
+head2array (WArray e1 e2) = Just (WAArray e1 e2)
+head2array (WAnn _ w)     = head2array w
+head2array (WLub [])      = Nothing
+head2array (WLub vs)      = error "TODO: head2array{WLub}"
+head2array _ = error "head2array: the impossible happened"
 
 
 ----------------------------------------------------------------
@@ -559,11 +628,6 @@ evaluatePrimOp GammaFunc   (e1 :* End)             =
 evaluatePrimOp BetaFunc    (e1 :* e2 :* End)       =
 evaluatePrimOp Integrate   (e1 :* e2 :* e3 :* End) =
 evaluatePrimOp Summate     (e1 :* e2 :* e3 :* End) =
-{-
-evaluateArrayOp (Index   _) (e1 :* e2 :* End)       =
-evaluateArrayOp (Size    _) (e1 :* End)             =
-evaluateArrayOp (Reduce  _) (e1 :* e2 :* e3 :* End) =
--}
 evaluatePrimOp (Equal   _) (e1 :* e2 :* End) = rr2 (==)    (P.==) e1 e2
 evaluatePrimOp (Less    _) (e1 :* e2 :* End) = rr2 (<)     (P.<)  e1 e2
 evaluatePrimOp (NatPow  _) (e1 :* e2 :* End) = rr2 (^^)    (P.^^) e1 e2
