@@ -57,7 +57,8 @@ illustrate SProb g x = return (show x)
 illustrate SReal g x = return (show x)
 illustrate {- sPair s t -}
     (SData _ ((SKonst s `SEt` SKonst t `SEt` SDone) `SPlus` SVoid))
-    g (x,y) = do
+  g (Left (x, (Left (y, Left ())))) = do
+  --   g (x,y) = do
   str1 <- illustrate s g x
   str2 <- illustrate t g y
   return ("(" ++ str1 ++ "," ++ str2 ++ ")")
