@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.15
+--                                                    2015.11.16
 -- |
 -- Module      :  Language.Hakaru.Syntax.Prelude
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -496,7 +496,7 @@ integrate
     -> (abt '[] 'HReal -> abt '[] 'HProb)
     -> abt '[] 'HProb
 integrate lo hi f =
-    primOp3_ Integrate lo hi (lam f)
+    syn (Integrate :$ lo :* hi :* binder Text.empty sing f :* End)
 
 summate
     :: (ABT AST abt)
@@ -505,7 +505,7 @@ summate
     -> (abt '[] 'HInt -> abt '[] 'HProb)
     -> abt '[] 'HProb
 summate lo hi f =
-    primOp3_ Summate lo hi (lam f)
+    syn (Summate :$ lo :* hi :* binder Text.empty sing f :* End)
 
 
 -- HACK: we define this class in order to gain more polymorphism;

@@ -210,6 +210,18 @@ ppSCon p Expect (e1 :* e2 :* End) =
         adjustHead
             (PP.text "expect" <+> toDoc (ppArg e1) <+> PP.char '$' <+>)
             (ppBinder e2)
+ppSCon p Integrate (e1 :* e2 :* e3 :* End) =
+    ppFun p "integrate"
+        [ toDoc $ ppArg e1
+        , toDoc $ ppArg e2
+        , toDoc $ parens True (ppBinder e3)
+        ]
+ppSCon p Summate (e1 :* e2 :* e3 :* End) =
+    ppFun p "summate"
+        [ toDoc $ ppArg e1
+        , toDoc $ ppArg e2
+        , toDoc $ parens True (ppBinder e3)
+        ]
 -- HACK: GHC can't figure out that there are no other type-safe cases
 ppSCon _ _ _ = error "ppSCon: the impossible happened"
 
@@ -268,18 +280,6 @@ ppPrimOp _ Infinity         End        = [PP.text "infinity"]
 ppPrimOp _ NegativeInfinity End        = [PP.text "negativeInfinity"]
 ppPrimOp p GammaFunc (e1 :* End)       = ppApply1 p "gammaFunc" e1
 ppPrimOp p BetaFunc  (e1 :* e2 :* End) = ppApply2 p "betaFunc" e1 e2
-ppPrimOp p Integrate (e1 :* e2 :* e3 :* End) =
-    ppFun p "integrate"
-        [ toDoc $ ppArg e1
-        , toDoc $ ppArg e2
-        , toDoc $ ppArg e3 -- TODO: make into a binding form!
-        ]
-ppPrimOp p Summate (e1 :* e2 :* e3 :* End) =
-    ppFun p "summate"
-        [ toDoc $ ppArg e1
-        , toDoc $ ppArg e2
-        , toDoc $ ppArg e3 -- TODO: make into a binding form!
-        ]
 ppPrimOp p (Equal   _) (e1 :* e2 :* End) = ppBinop "==" 4 NonAssoc   p e1 e2
 ppPrimOp p (Less    _) (e1 :* e2 :* End) = ppBinop "<"  4 NonAssoc   p e1 e2
 ppPrimOp p (NatPow  _) (e1 :* e2 :* End) = ppBinop "^"  8 RightAssoc p e1 e2
@@ -388,10 +388,12 @@ adjustHead :: (Doc -> Doc) -> Docs -> Docs
 adjustHead f []     = [f (toDoc [])]
 adjustHead f (d:ds) = f d : ds
 
+{- -- unused
 -- | For the \"@lam (\x ->\n\t...)@\"  style layout.
 nestTail :: Int -> Docs -> Docs
 nestTail _ []     = []
 nestTail n (d:ds) = [d, PP.nest n (toDoc ds)]
+-}
 
 parens :: Bool -> Docs -> Docs
 parens True  ds = [PP.parens (PP.nest 1 (toDoc ds))]

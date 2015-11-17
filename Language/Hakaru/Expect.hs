@@ -10,7 +10,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.13
+--                                                    2015.11.17
 -- |
 -- Module      :  Language.Hakaru.Expect
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -382,7 +382,9 @@ expectAST p (Lub_ es) xs =
         syn $ Lub_ [ expectSynDir p e xs `apA` ei | e <- es]
     -}
 
-expectAST p (Expect :$ _) _ = case p of {}
+expectAST p (Expect    :$ _) _ = case p of {}
+expectAST p (Integrate :$ _) _ = case p of {}
+expectAST p (Summate   :$ _) _ = case p of {}
 
 
 expectBranch

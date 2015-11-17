@@ -2,7 +2,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.13
+--                                                    2015.11.17
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeHelpers
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -116,8 +116,6 @@ sing_PrimOp Infinity   = (Nil1, sing)
 sing_PrimOp NegativeInfinity = (Nil1, sing)
 sing_PrimOp GammaFunc  = (sing `Cons1` Nil1, sing)
 sing_PrimOp BetaFunc   = (sing `Cons1` sing `Cons1` Nil1, sing)
-sing_PrimOp Integrate  = (sing `Cons1` sing `Cons1` sing `Cons1` Nil1, sing)
-sing_PrimOp Summate    = (sing `Cons1` sing `Cons1` sing `Cons1` Nil1, sing)
 -- Mere case analysis isn't enough for the rest of these, because
 -- of the class constraints. We fix that by various helper functions
 -- on explicit dictionary passing.

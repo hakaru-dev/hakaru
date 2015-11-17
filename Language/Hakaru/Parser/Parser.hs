@@ -4,27 +4,23 @@ module Language.Hakaru.Parser.Parser where
 
 import Prelude hiding (Real)
 
-import Data.Functor        ((<$>), (<$))
-import Control.Applicative (Applicative(..))
-import qualified Control.Monad as M
-import Data.Functor.Identity
-import Data.Text hiding (foldr1, foldl, foldr, map)
-
-import Text.Parsec hiding (Empty)
-import Text.ParserCombinators.Parsec (chainl1)
-import Text.Parsec.Combinator (eof)
-import Text.Parsec.Text hiding (Parser())
-import Text.Parsec.Indentation
-import Text.Parsec.Indentation.Char
+import           Data.Functor                  ((<$>), (<$))
+import           Control.Applicative           (Applicative(..))
+import qualified Control.Monad                 as M
+import           Data.Functor.Identity
+import           Data.Text                     (Text)
+import qualified Data.Text                     as Text
+import           Text.Parsec                   hiding (Empty)
+import           Text.Parsec.Text              () -- instances only
+import           Text.Parsec.Indentation
+import           Text.Parsec.Indentation.Char
 import qualified Text.Parsec.Indentation.Token as ITok
-
-import qualified Text.Parsec.Expr as Ex
-import qualified Text.Parsec.Token as Tok
+import qualified Text.Parsec.Expr              as Ex
+import qualified Text.Parsec.Token             as Tok
 
 import Language.Hakaru.Parser.AST
-import Language.Hakaru.Syntax.DataKind
 
-ops, names :: [String]
+ops, types, names :: [String]
 
 ops   = ["+","*","-",":","::", "<~","==", "=", "_"]
 types = ["->"]
@@ -77,7 +73,7 @@ semiSep1 :: Parser a -> Parser [a]
 semiSep1 = Tok.semiSep1 lexer
 
 identifier :: Parser Text
-identifier = M.liftM pack $ Tok.identifier lexer
+identifier = M.liftM Text.pack $ Tok.identifier lexer
 
 reserved :: String -> Parser ()
 reserved = Tok.reserved lexer
@@ -86,21 +82,19 @@ reservedOp :: String -> Parser ()
 reservedOp = Tok.reservedOp lexer
 
 symbol :: Text -> Parser Text
-symbol = M.liftM pack . Tok.symbol lexer . unpack
+symbol = M.liftM Text.pack . Tok.symbol lexer . Text.unpack
 
 binop :: Text ->  AST' Text ->  AST' Text ->  AST' Text
 binop s x y
-    | s == "+" = NaryOp Sum'  x y
-    | s == "*" = NaryOp Prod' x y
+    | s == "+"  = NaryOp Sum'  x y
+    | s == "*"  = NaryOp Prod' x y
     | otherwise = Var s `App` x `App` y
 
 binary :: String -> Ex.Assoc -> Operator (AST' Text)
-binary s = Ex.Infix $ do
-    reservedOp s
-    return $ binop (pack s)
+binary s = Ex.Infix (binop (Text.pack s) <$ reservedOp s)
 
 prefix :: String -> (a -> a) -> Operator a 
-prefix s f = Ex.Prefix (reservedOp s >> return f)
+prefix s f = Ex.Prefix (f <$ reservedOp s)
 
 table :: OperatorTable (AST' Text)
 table =
@@ -117,7 +111,7 @@ table =
       , binary "==" Ex.AssocLeft]]
 
 unit_ :: Parser (AST' a)
-unit_ = string "()" >> return Empty
+unit_ = Empty <$ string "()"
 
 int :: Parser (AST' a)
 int = do
@@ -135,6 +129,7 @@ floating = do
         case sign of
         '-' -> UValue $ Real (negate n)
         '+' -> UValue $ Prob n
+        _   -> error "floating: the impossible happened"
 
 inf_ :: Parser (AST' Text)
 inf_ = do
@@ -144,6 +139,7 @@ inf_ = do
         case s of
         '-' -> NegInfinity
         '+' -> Infinity
+        _   -> error "inf_: the impossible happened"
 
 var :: Parser (AST' Text)
 var = Var <$> identifier
@@ -181,6 +177,7 @@ pat_expr =  try (PData' <$> pdat_expr)
 
 
 -- | Blocks are indicated by colons, and must be indented.
+blockOfMany :: Parser a -> Parser [a]
 blockOfMany p = do
     reservedOp ":"
     localIndentation Gt (many $ absoluteIndentation p)
@@ -188,6 +185,7 @@ blockOfMany p = do
 
 -- | Semiblocks are like blocks, but indentation is optional. Also,
 -- there are only 'expr' semiblocks.
+semiblockExpr :: Parser (AST' Text)
 semiblockExpr = reservedOp ":" *> localIndentation Ge expr
 
 
@@ -196,6 +194,7 @@ semiblockExpr = reservedOp ":" *> localIndentation Ge expr
 --
 -- TODO: do we actually want this in our grammar, or did we really
 -- mean to use 'semiblockExpr' instead?
+pseudoblockExpr :: Parser (AST' Text)
 pseudoblockExpr = reservedOp ":" *> expr
 
 
@@ -313,4 +312,4 @@ withPos x = do
     s  <- getPosition
     x' <- x
     e  <- getPosition
-    return $ WithMeta x' (Meta (s, e))
+    return $ WithMeta x' (Meta s e)

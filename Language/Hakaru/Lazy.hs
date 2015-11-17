@@ -151,6 +151,9 @@ evaluate perform = evaluate_
             evaluate_ . E.expect e1 $ \e3 ->
                 syn (Let_ :$ e3 :* e2 :* End)
 
+        -- Integrate :$ e1 :* e2 :* e3 :* End ->
+        -- Summate   :$ e1 :* e2 :* e3 :* End ->
+
         -- TODO: collapse nested Lub, like we do for nested NaryOp
         Lub_ es -> do
             ws <- T.traverse evaluate_ es
@@ -623,8 +626,6 @@ evaluatePrimOp Infinity         End        = return (Head_ HInfinity)
 evaluatePrimOp NegativeInfinity End        = return (Head_ HNegativeInfinity)
 evaluatePrimOp GammaFunc   (e1 :* End)             =
 evaluatePrimOp BetaFunc    (e1 :* e2 :* End)       =
-evaluatePrimOp Integrate   (e1 :* e2 :* e3 :* End) =
-evaluatePrimOp Summate     (e1 :* e2 :* e3 :* End) =
 evaluatePrimOp (Equal   _) (e1 :* e2 :* End) = rr2 (==)    (P.==) e1 e2
 evaluatePrimOp (Less    _) (e1 :* e2 :* End) = rr2 (<)     (P.<)  e1 e2
 evaluatePrimOp (NatPow  _) (e1 :* e2 :* End) = rr2 (^^)    (P.^^) e1 e2

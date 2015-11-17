@@ -14,7 +14,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.15
+--                                                    2015.11.17
 -- |
 -- Module      :  Language.Hakaru.Lazy.Types
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -75,7 +75,6 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.ABT
-import qualified Language.Hakaru.Syntax.Prelude as P
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -134,6 +133,7 @@ data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     WUnsafeFrom :: !(Coercion a b) -> !(Head abt b) -> Head abt a
 
     -- Other funky stuff
+    -- TODO: is there any way we can get rid of this? cuz dealing with it is gross
     WLub :: [Head abt a] -> Head abt a
 
     -- Quasi-/semi-/demi-/pseudo- normal form stuff
@@ -218,6 +218,7 @@ viewHeadDatum (WCoerceTo   c _)   = case c of {}
 viewHeadDatum (WUnsafeFrom c _)   = case c of {}
 viewHeadDatum (WValue (VDatum d)) = Just (fmap11 (syn . Value_) d)
 viewHeadDatum (WDatum d)          = Just d
+viewHeadDatum (WLub [])           = Nothing
 viewHeadDatum (WLub es) = error "TODO: viewHeadDatum{WLub}"
 
 

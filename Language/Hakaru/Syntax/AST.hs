@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.13
+--                                                    2015.11.16
 -- |
 -- Module      :  Language.Hakaru.Syntax.AST
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -255,19 +255,6 @@ data PrimOp :: [Hakaru] -> Hakaru -> * where
     BetaFunc  :: PrimOp '[ 'HProb, 'HProb ] 'HProb
 
 
-    -- -- Continuous and discrete integration.
-    -- TODO: turn these back into binders in order to avoid the need for lambdas! Of course, to do that, they have to move out of PrimOp and into SCon (or somewhere)
-    --
-    -- TODO: make Integrate and Summate polymorphic, so that if the
-    -- two inputs are HProb then we know the function must be over
-    -- HProb\/HNat too. More generally, if the first input is HProb
-    -- (since the second input is assumed to be greater than the
-    -- first); though that would be a bit ugly IMO.
-    Integrate :: PrimOp '[ 'HReal, 'HReal, 'HReal ':-> 'HProb ] 'HProb
-    -- TODO: the high and low bounds *should* be HInt. The only reason we use HReal is so that we can have infinite summations. Once we figure out a way to handle infinite bounds here, we can make the switch
-    Summate   :: PrimOp '[ 'HReal, 'HReal, 'HInt  ':-> 'HProb ] 'HProb
-
-
     -- -- -- Here we have the /polymorphic/ operators
 
     -- -- HEq and HOrd operators
@@ -363,6 +350,7 @@ data ArrayOp :: [Hakaru] -> Hakaru -> * where
 deriving instance Eq   (ArrayOp args a)
 -- TODO: instance Read (ArrayOp args a)
 deriving instance Show (ArrayOp args a)
+
 
 ----------------------------------------------------------------
 -- | Primitive operators to produce, consume, or transform
@@ -472,6 +460,19 @@ data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
         ] ('HMeasure b)
 
 
+    -- -- Continuous and discrete integration.
+    -- TODO: make Integrate and Summate polymorphic, so that if the
+    -- two inputs are HProb then we know the function must be over
+    -- HProb\/HNat too. More generally, if the first input is HProb
+    -- (since the second input is assumed to be greater than the
+    -- first); though that would be a bit ugly IMO.
+    Integrate
+        :: SCon '[ LC 'HReal, LC 'HReal, '( '[ 'HReal ], 'HProb) ] 'HProb
+    -- TODO: the high and low bounds *should* be HInt. The only reason we use HReal is so that we can have infinite summations. Once we figure out a way to handle infinite bounds here, we can make the switch
+    Summate
+        :: SCon '[ LC 'HReal, LC 'HReal, '( '[ 'HInt ], 'HProb) ] 'HProb
+
+
     -- -- Internalized program transformations
     -- TODO: do these belong in their own place?
     --
@@ -486,7 +487,7 @@ data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
     -- to map, say, @Lam_ x. blah (Expect x)@ into @Lam x'. blah x'@.
     -- Or, perhaps rather, transform it into @Lam_ x. App_ (Lam_ x'. blah x') (Expect x)@.
 
-    -- TODO: add the four ops for disingetration
+    -- TODO: add the four ops for disintegration
 
 
 -- TODO: instance Eq   (SCon args a)

@@ -65,7 +65,8 @@ data Pattern' a =
 data PDatum a = DV Text [Pattern' a] deriving (Eq, Show)
 
 -- Meta stores start and end position for AST in source code
-newtype Meta = Meta (SourcePos, SourcePos) deriving (Eq, Show)
+data Meta = Meta !SourcePos !SourcePos
+    deriving (Eq, Show)
 
 infixr 7 `Et`, `PEt`
 
