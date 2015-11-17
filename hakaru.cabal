@@ -32,6 +32,7 @@ library
                        Language.Hakaru.Sample,
                        Language.Hakaru.Parser.AST,
                        Language.Hakaru.Parser.Parser,
+                       Language.Hakaru.Parser.Pretty,
                        Language.Hakaru.Parser.SymbolResolve,
                        -- Old code which is not used anywhere in the library itself. These may be required by tests, in which case we should translate them to the new AST. If not, then they should be deleted from the repo.
                        -- Language.Hakaru.RoundTrip,
@@ -101,6 +102,7 @@ library
                        math-functions   >= 0.1  && < 0.2,
                        vector           >= 0.10 && < 0.11,
                        indentation      >= 0.2.1,
+                       ansi-terminal    >= 0.6,
                        cassava          >= 0.4  && < 0.5,
                        zlib             >= 0.5  && < 0.6,
                        bytestring       >= 0.10 && < 0.11,
