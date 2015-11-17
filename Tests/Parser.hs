@@ -248,6 +248,12 @@ match6AST = Ann (Case (Ann (App (App (Var "Pair")
                   (NaryOp Sum' (Var "a") (Var "b"))]) (TypeVar "nat")
 
 
+match7 :: Text
+match7 = unlines ["(match (-2.0,1.0)::pair(real,prob):"
+                 ,"   pair(a,b): normal(a,b))::measure(real)"
+                 ]
+
+
 testMatches :: Test
 testMatches = test
    [ testParse match1 match1AST
