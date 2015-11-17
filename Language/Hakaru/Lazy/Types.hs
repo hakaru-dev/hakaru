@@ -98,7 +98,11 @@ import Language.Hakaru.Syntax.ABT
 -- HACK: can't use \"H\" as the prefix because that clashes with
 -- the Hakaru datakind
 --
--- | A \"weak-head\" for the sake of 'Whnf'.
+-- | A \"weak-head\" for the sake of 'Whnf'. N.B., this doesn't
+-- exactly correlate with the usual notion of \"weak-head\"; in
+-- particular we keep track of type annotations and coercions, and
+-- don't reduce integration\/summation. So really we should use
+-- some other name for 'Whnf'...
 --
 -- BUG: this may not force enough evaluation for "Language.Hakaru.Disintegrate"...
 data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
@@ -110,6 +114,7 @@ data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     WEmpty :: Head abt ('HArray a)
     WArray :: !(abt '[] 'HNat) -> !(abt '[ 'HNat] a) -> Head abt ('HArray a)
     WLam   :: !(abt '[ a ] b) -> Head abt (a ':-> b)
+    WFix   :: !(abt '[ a ] a) -> Head abt a
 
     -- Measure heads (not just anything of 'HMeasure' type)
     WMeasureOp
@@ -133,8 +138,18 @@ data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     WUnsafeFrom :: !(Coercion a b) -> !(Head abt b) -> Head abt a
 
     -- Other funky stuff
-    -- TODO: is there any way we can get rid of this? cuz dealing with it is gross
+    -- TODO: is there any way we can get rid of 'WLub'? cuz dealing with it is gross
     WLub :: [Head abt a] -> Head abt a
+    WIntegrate
+        :: !(abt '[] 'HReal)
+        -> !(abt '[] 'HReal)
+        -> !(abt '[ 'HReal ] 'HProb)
+        -> Head abt 'HProb
+    WSummate
+        :: !(abt '[] 'HReal)
+        -> !(abt '[] 'HReal)
+        -> !(abt '[ 'HInt ] 'HProb)
+        -> Head abt 'HProb
 
     -- Quasi-/semi-/demi-/pseudo- normal form stuff
     {-
@@ -153,6 +168,7 @@ fromHead (WDatum     d)     = syn (Datum_ d)
 fromHead WEmpty             = syn Empty_
 fromHead (WArray     e1 e2) = syn (Array_ e1 e2)
 fromHead (WLam       e1)    = syn (Lam_ :$ e1 :* End)
+fromHead (WFix       e1)    = syn (Fix_ :$ e1 :* End)
 fromHead (WMeasureOp o  es) = syn (MeasureOp_ o :$ es)
 fromHead (WDirac     e1)    = syn (Dirac :$ e1 :* End)
 fromHead (WMBind     e1 e2) = syn (MBind :$ e1 :* e2 :* End)
@@ -161,6 +177,8 @@ fromHead (WAnn      typ e1) = syn (Ann_      typ :$ fromHead e1 :* End)
 fromHead (WCoerceTo   c e1) = syn (CoerceTo_   c :$ fromHead e1 :* End)
 fromHead (WUnsafeFrom c e1) = syn (UnsafeFrom_ c :$ fromHead e1 :* End)
 fromHead (WLub es)          = syn (Lub_ (fromHead <$> es))
+fromHead (WIntegrate e1 e2 e3) = syn (Integrate :$ e1 :* e2 :* e3 :* End)
+fromHead (WSummate   e1 e2 e3) = syn (Summate   :$ e1 :* e2 :* e3 :* End)
 
 
 ----------------------------------------------------------------
@@ -218,8 +236,9 @@ viewHeadDatum (WCoerceTo   c _)   = case c of {}
 viewHeadDatum (WUnsafeFrom c _)   = case c of {}
 viewHeadDatum (WValue (VDatum d)) = Just (fmap11 (syn . Value_) d)
 viewHeadDatum (WDatum d)          = Just d
+viewHeadDatum (WFix e)            = error "TODO: viewHeadDatum{WFix}" -- probably should be Nothing, if we disallow infinite data values
 viewHeadDatum (WLub [])           = Nothing
-viewHeadDatum (WLub es) = error "TODO: viewHeadDatum{WLub}"
+viewHeadDatum (WLub es)           = error "TODO: viewHeadDatum{WLub}"
 
 
 ----------------------------------------------------------------
