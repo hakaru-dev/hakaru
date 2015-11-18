@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.16
+--                                                    2015.11.18
 -- |
 -- Module      :  Language.Hakaru.Lazy
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -22,7 +22,7 @@
 --
 -- Lazy partial evaluation.
 --
--- BUG: completely gave up on structure sharing. Need to add that back in.
+-- BUG: completely gave up on structure sharing. Need to add that back in. cf., @gvidal-lopstr07lncs.pdf@ for an approach much like my old one.
 ----------------------------------------------------------------
 module Language.Hakaru.Lazy
     (
@@ -36,13 +36,13 @@ module Language.Hakaru.Lazy
 
 import           Prelude hiding (id, (.))
 import           Control.Category     (Category(..))
-import qualified Data.Traversable     as T
-import           Data.Sequence        (Seq)
-import qualified Data.Sequence        as Seq
-import           Data.Number.LogFloat (LogFloat)
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Functor         ((<$>))
 #endif
+import qualified Data.Traversable     as T
+import           Data.Sequence        (Seq)
+import qualified Data.Sequence        as Seq
+import           Data.Number.LogFloat (LogFloat, logFloat, fromLogFloat)
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.HClasses
@@ -153,9 +153,9 @@ evaluate perform = evaluate_
             caseBind e2 $ \x e2' ->
                 push (SLet x $ Thunk e1) e2' evaluate_
 
-        Ann_      typ :$ e1 :* End -> ann      typ <$> evaluate_ e1
-        CoerceTo_   c :$ e1 :* End -> coerceTo   c <$> evaluate_ e1
-        UnsafeFrom_ c :$ e1 :* End -> unsafeFrom c <$> evaluate_ e1
+        Ann_      typ :$ e1 :* End -> ann           typ <$> evaluate_ e1
+        CoerceTo_   c :$ e1 :* End -> coerceTo_Whnf   c <$> evaluate_ e1
+        UnsafeFrom_ c :$ e1 :* End -> unsafeFrom_Whnf c <$> evaluate_ e1
 
         -- TODO: will maybe clean up the code to map 'evaluate' over @es@ before calling the evaluateFooOp helpers?
         NaryOp_  o    es -> evaluateNaryOp  evaluate_ o es
@@ -170,11 +170,11 @@ evaluate perform = evaluate_
 
         -- TODO: collapse nested Lub, like we do for nested NaryOp
         Lub_ es -> do
-            ws <- T.traverse evaluate_ es
+            ws <- T.traverse evaluate_ es -- BUG: could have side effects that we don't want to let escape... TODO: use some kind of 'forkMap' instead
             return $
                 case partitionWhnf ws of
-                ([],[]) -> Head_ (WLub []) -- TODO: use 'bot' instead
-                (vs,[]) -> Head_ (WLub vs)
+                ([],[])  -> Head_ (WLub []) -- TODO: use 'bot' instead, for short-circuiting
+                (vs,[])  -> Head_ (WLub vs)
                 ([],es') -> Neutral $ syn (Lub_ es')
                 (vs,es') -> Neutral $ syn (Lub_ (fmap fromHead vs ++ es')) -- TODO: make this less gross somehow...
           where
@@ -246,8 +246,18 @@ update perform evaluate_ = \x ->
                 error "TODO: update{SIndex}"
                 {-
                 w1 <- caseLazy e1 return evaluate_
-                assert (0 <= w1 && w1 < e2)
-                unsafePush (SLet x $ Whnf_ w1)
+                case reify w1 of
+                    Just n1 -> do
+                        checkAssert (0 <= n1)
+                        w2 <- caseLazy e2 return evaluate_
+                        case reify w2 of
+                            Just n2 -> checkAssert (n1 < n2)
+                            Nothing -> emitAssert (P.nat_ n1 P.< fromWhnf w2)
+                    Nothing -> do
+                        -- if very strict, then force @e2@ too
+                        z <- emitLet (fromWhnf w1)
+                        emitAssert (P.zero P.<= z P.&& z P.< fromLazy e2)
+                unsafePush (SLet x $ Whnf_ w1) -- TODO: maybe save @w2@ too, to minimize work on reentry? Or maybe we should just SLet-bind the @e2@ before we push the original SIndex, so it happens automagically...
                 return w1
                 -}
 
@@ -261,10 +271,13 @@ ann :: (ABT AST abt) => Sing a -> Whnf abt a -> Whnf abt a
 ann typ (Neutral e) = Neutral $ syn (Ann_ typ :$ e :* End)
 ann typ (Head_   v) = Head_   $ WAnn typ v
 
--- TODO: cancellation; constant coercion
+
+-- TODO: cancellation
+-- TODO: value\/constant coercion
 -- TODO: better unify the two cases of Whnf
-coerceTo :: (ABT AST abt) => Coercion a b -> Whnf abt a -> Whnf abt b
-coerceTo c w =
+-- TODO: avoid namespace pollution by introduceing a class for these?
+coerceTo_Whnf :: (ABT AST abt) => Coercion a b -> Whnf abt a -> Whnf abt b
+coerceTo_Whnf c w =
     case w of
     Neutral e ->
         Neutral . maybe (P.coerceTo_ c e) id
@@ -274,7 +287,7 @@ coerceTo c w =
                 CoerceTo_ c' :$ es' ->
                     case es' of
                     e' :* End -> Just $ P.coerceTo_ (c . c') e'
-                    _         -> error "coerceTo: the impossible happened"
+                    _ -> error "coerceTo_Whnf: the impossible happened"
                 _ -> Nothing
     Head_ v ->
         case v of
@@ -283,8 +296,8 @@ coerceTo c w =
         _               -> Head_ $ WCoerceTo c v
 
 
-unsafeFrom :: (ABT AST abt) => Coercion a b -> Whnf abt b -> Whnf abt a
-unsafeFrom c w =
+unsafeFrom_Whnf :: (ABT AST abt) => Coercion a b -> Whnf abt b -> Whnf abt a
+unsafeFrom_Whnf c w =
     case w of
     Neutral e ->
         Neutral . maybe (P.unsafeFrom_ c e) id
@@ -294,13 +307,61 @@ unsafeFrom c w =
                 UnsafeFrom_ c' :$ es' ->
                     case es' of
                     e' :* End -> Just $ P.unsafeFrom_ (c' . c) e'
-                    _         -> error "unsafeFrom: the impossible happened"
+                    _ -> error "unsafeFrom_Whnf: the impossible happened"
                 _ -> Nothing
     Head_ v ->
         case v of
         -- WCoerceTo c' v' -> TODO: cancellation
         WUnsafeFrom c' v' -> Head_ $ WUnsafeFrom (c' . c) v'
         _                 -> Head_ $ WUnsafeFrom c v
+
+
+-- TODO: move to Coercion.hs
+-- TODO: add a class in Coercion.hs to avoid namespace pollution for all these sorts of things...
+-- TODO: first optimize the @Coercion a b@ to choose the most desirable of many equivalent paths?
+coerceTo_Value :: Coercion a b -> Value a -> Value b
+coerceTo_Value CNil         v = v
+coerceTo_Value (CCons c cs) v = coerceTo_Value cs (step c v)
+    where
+    step :: PrimCoercion a b -> Value a -> Value b
+    step (Signed     HRing_Int)        (VNat  n) = VInt  (nat2int   n)
+    step (Signed     HRing_Real)       (VProb p) = VReal (prob2real p)
+    step (Continuous HContinuous_Prob) (VNat  n) = VProb (nat2prob  n)
+    step (Continuous HContinuous_Real) (VInt  i) = VReal (int2real  i)
+    step _ _ = error "coerceTo_Value: the impossible happened"
+
+    -- HACK: type signatures needed to avoid defaulting to 'Integer'
+    nat2int   :: Nat -> Int
+    nat2int   = fromIntegral . fromNat
+    nat2prob  :: Nat -> LogFloat
+    nat2prob  = logFloat . fromIntegral . fromNat -- N.B., costs a 'log'
+    prob2real :: LogFloat -> Double
+    prob2real = fromLogFloat -- N.B., costs an 'exp' and may underflow
+    int2real  :: Int -> Double
+    int2real  = fromIntegral
+
+
+-- TODO: how to handle the errors? Generate error code in hakaru? capture it in a monad?
+unsafeFrom_Value :: Coercion a b -> Value b -> Value a
+unsafeFrom_Value CNil         v = v
+unsafeFrom_Value (CCons c cs) v = step c (unsafeFrom_Value cs v)
+    where
+    step :: PrimCoercion a b -> Value b -> Value a
+    step (Signed     HRing_Int)        (VInt  i) = VNat  (int2nat   i)
+    step (Signed     HRing_Real)       (VReal r) = VProb (real2prob r)
+    step (Continuous HContinuous_Prob) (VProb p) = VNat  (prob2nat  p)
+    step (Continuous HContinuous_Real) (VReal r) = VInt  (real2int  r)
+    step _ _ = error "unsafeFrom_Value: the impossible happened"
+
+    -- HACK: type signatures needed to avoid defaulting to 'Integer'
+    int2nat   :: Int -> Nat
+    int2nat   = unsafeNat -- TODO: maybe change the error message...
+    prob2nat  :: LogFloat -> Nat
+    prob2nat  = error "TODO: prob2nat" -- BUG: impossible unless using Rational...
+    real2prob :: Double -> LogFloat
+    real2prob = logFloat -- TODO: maybe change the error message...
+    real2int  :: Double -> Int
+    real2int  = error "TODO: real2int" -- BUG: impossible unless using Rational...
 
 
 ----------------------------------------------------------------
