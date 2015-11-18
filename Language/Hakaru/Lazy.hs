@@ -7,6 +7,8 @@
            , ScopedTypeVariables
            , FlexibleContexts
            , RankNTypes
+           , TypeSynonymInstances
+           , FlexibleInstances
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -34,15 +36,17 @@ module Language.Hakaru.Lazy
     , update
     ) where
 
-import           Prelude hiding (id, (.))
-import           Control.Category     (Category(..))
+import           Prelude                hiding (id, (.))
+import           Control.Category       (Category(..))
 #if __GLASGOW_HASKELL__ < 710
-import           Data.Functor         ((<$>))
+import           Data.Functor           ((<$>))
 #endif
-import qualified Data.Traversable     as T
-import           Data.Sequence        (Seq)
-import qualified Data.Sequence        as Seq
-import           Data.Number.LogFloat (LogFloat, logFloat, fromLogFloat)
+import qualified Data.Traversable       as T
+import           Control.Monad          ((<=<))
+import           Control.Monad.Identity (Identity, runIdentity)
+import           Data.Sequence          (Seq)
+import qualified Data.Sequence          as Seq
+import           Data.Number.LogFloat   (LogFloat, logFloat, fromLogFloat)
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.HClasses
@@ -160,7 +164,7 @@ evaluate perform = evaluate_
         -- TODO: will maybe clean up the code to map 'evaluate' over @es@ before calling the evaluateFooOp helpers?
         NaryOp_  o    es -> evaluateNaryOp  evaluate_ o es
         ArrayOp_ o :$ es -> evaluateArrayOp evaluate_ o es
-        PrimOp_  o :$ es -> evaluatePrimOp  o es
+        PrimOp_  o :$ es -> evaluatePrimOp  evaluate_ o es
 
         -- BUG: avoid the chance of looping in case 'E.expect' residualizes!
         -- TODO: use 'evaluate' in 'E.expect' for the evaluation of @e1@
@@ -246,11 +250,11 @@ update perform evaluate_ = \x ->
                 error "TODO: update{SIndex}"
                 {-
                 w1 <- caseLazy e1 return evaluate_
-                case reify w1 of
+                case tryReify w1 of
                     Just n1 -> do
                         checkAssert (0 <= n1)
                         w2 <- caseLazy e2 return evaluate_
-                        case reify w2 of
+                        case tryReify w2 of
                             Just n2 -> checkAssert (n1 < n2)
                             Nothing -> emitAssert (P.nat_ n1 P.< fromWhnf w2)
                     Nothing -> do
@@ -409,37 +413,42 @@ instance Interp 'HReal Double where -- TODO: use rational instead
     reify (WFix        _)   = error "TODO: reify{WFix}" -- almost surely undefined
     reflect = WValue . VReal
 
-{-
+
 identifyDatum :: (ABT AST abt) => DatumEvaluator abt Identity
-identifyDatum = return . viewWhnfDatum
+identifyDatum = return . (viewWhnfDatum <=< toWhnf)
 
-foo = ...like viewWhnfDatum but with the type of fromWhnf...
-
+-- HACK: this requires -XTypeSynonymInstances and -XFlexibleInstances
+-- This instance does seem to work; albeit it's trivial...
 instance Interp HUnit () where
     reflect () = WValue $ VDatum dUnit
-    reify w = runIdentity $ do
-        match <- matchTopPattern identifyDatum (foo w) pUnit Nil1
+    reify v = runIdentity $ do
+        match <- matchTopPattern identifyDatum (fromHead v) pUnit Nil1
         case match of
             Just (Matched _ss Nil1) -> return ()
             _ -> error "reify{HUnit}: the impossible happened"
 
+-- HACK: this requires -XTypeSynonymInstances and -XFlexibleInstances
+-- This instance also seems to work...
 instance Interp HBool Bool where
     reflect = WValue . VDatum . (\b -> if b then dTrue else dFalse)
-    reify w = runIdentity $ do
-        match <- matchTopPattern identifyDatum (foo w) pTrue Nil1
-        case match of
+    reify v = runIdentity $ do
+        matchT <- matchTopPattern identifyDatum (fromHead v) pTrue Nil1
+        case matchT of
             Just (Matched _ss Nil1) -> return True
-            match <- matchTopPattern identifyDatum (foo w) pFalse Nil1
-            case match of
-                Just (Matched _ss Nil1) -> return False
-                _ -> error "reify{HBool}: the impossible happened"
+            Just GotStuck -> error "reify{HBool}: the impossible happened"
+            Nothing -> do
+                matchF <- matchTopPattern identifyDatum (fromHead v) pFalse Nil1
+                case matchF of
+                    Just (Matched _ss Nil1) -> return False
+                    _ -> error "reify{HBool}: the impossible happened"
 
+{-
 instance (Interp a a', Interp b b')
     => Interp (HPair a b) (a',b')
     where
     reflect (a,b) = P.pair a b
-    reify w = runIdentity $ do
-        match <- matchTopPattern identifyDatum (foo w) (pPair PVar PVar) (Cons1 x (Cons1 y Nil1))
+    reify v = runIdentity $ do
+        match <- matchTopPattern identifyDatum (fromHead v) (pPair PVar PVar) (Cons1 x (Cons1 y Nil1))
         case match of
             Just (Matched ss Nil1) ->
                 case xs [] of
@@ -464,38 +473,6 @@ instance (Interp a a') => Interp (HList a) [a'] where
     reflect (x:xs) = P.cons x xs
     reify =
 -}
-
-
-rr1 :: (ABT AST abt, EvaluationMonad abt m, Interp a a', Interp b b')
-    => (a' -> b')
-    -> (abt '[] a -> abt '[] b)
-    -> abt '[] a
-    -> m (Whnf abt b)
-rr1 f' f e = do
-    w <- evaluate (error "TODO: thread 'perform' through to 'rr1'") e
-    return $
-        case w of
-        Neutral e' -> Neutral $ f e'
-        Head_   v  -> Head_ . reflect $ f' (reify v)
-
-
-rr2 :: ( ABT AST abt, EvaluationMonad abt m
-       , Interp a a', Interp b b', Interp c c')
-    => (a' -> b' -> c')
-    -> (abt '[] a -> abt '[] b -> abt '[] c)
-    -> abt '[] a
-    -> abt '[] b
-    -> m (Whnf abt c)
-rr2 f' f e1 e2 = do
-    w1 <- evaluate (error "TODO: thread 'perform' through to 'rr2'") e1
-    w2 <- evaluate (error "TODO: thread 'perform' through to 'rr2'") e2
-    return $
-        case w1 of
-        Neutral e1' -> Neutral $ f e1' (fromWhnf w2)
-        Head_   v1  ->
-            case w2 of
-            Neutral e2' -> Neutral $ f (fromWhnf w1) e2'
-            Head_   v2  -> Head_ . reflect $ f' (reify v1) (reify v2)
 
 
 impl, diff, nand, nor :: Bool -> Bool -> Bool
@@ -582,12 +559,13 @@ evaluateNaryOp evaluate_ = \o es -> mainLoop o (evalOp o) Seq.empty es
         Prod HSemiring_Real -> Head_ (WValue (VReal 1))
 
     -- | The evaluation interpretation of each NaryOp
-    evalOp :: NaryOp a -> Head abt a -> Head abt a -> Head abt a
-    {-
+    evalOp :: (ABT AST abt) => NaryOp a -> Head abt a -> Head abt a -> Head abt a
+    -- TODO: something more efficient\/direct if we can...
     evalOp And      v1 v2 = reflect (reify v1 && reify v2)
     evalOp Or       v1 v2 = reflect (reify v1 || reify v2)
     evalOp Xor      v1 v2 = reflect (reify v1 /= reify v2)
     evalOp Iff      v1 v2 = reflect (reify v1 == reify v2)
+    {-
     evalOp (Min  _) v1 v2 = reflect (reify v1 `min` reify v2)
     evalOp (Max  _) v1 v2 = reflect (reify v1 `max` reify v2)
     evalOp (Sum  _) v1 v2 = reflect (reify v1 + reify v2)
@@ -673,51 +651,95 @@ head2array _ = error "head2array: the impossible happened"
 
 ----------------------------------------------------------------
 evaluatePrimOp
-    :: ( ABT AST abt, EvaluationMonad abt m
+    :: forall abt m typs args a
+    .  ( ABT AST abt, EvaluationMonad abt m
        , typs ~ UnLCs args, args ~ LCs typs)
-    => PrimOp typs a
+    => TermEvaluator abt m
+    -> PrimOp typs a
     -> SArgs abt args
     -> m (Whnf abt a)
-{-
-evaluatePrimOp Not  (e1 :* End)       = rr1 not  P.not  e1
-evaluatePrimOp Impl (e1 :* e2 :* End) = rr2 impl P.impl e1 e2
-evaluatePrimOp Diff (e1 :* e2 :* End) = rr2 diff P.diff e1 e2
-evaluatePrimOp Nand (e1 :* e2 :* End) = rr2 nand P.nand e1 e2
-evaluatePrimOp Nor  (e1 :* e2 :* End) = rr2 nor  P.nor  e1 e2
--- TODO: all our magic constants (Pi, Infty,...) should be bundled together under one AST constructor called something like @Constant@; that way we can group them in the 'Head' like we do for values.
-evaluatePrimOp Pi        End               = return (Head_ HPi)
--}
-evaluatePrimOp Sin       (e1 :* End)       = rr1 sin   P.sin   e1
-evaluatePrimOp Cos       (e1 :* End)       = rr1 cos   P.cos   e1
-evaluatePrimOp Tan       (e1 :* End)       = rr1 tan   P.tan   e1
-evaluatePrimOp Asin      (e1 :* End)       = rr1 asin  P.asin  e1
-evaluatePrimOp Acos      (e1 :* End)       = rr1 acos  P.acos  e1
-evaluatePrimOp Atan      (e1 :* End)       = rr1 atan  P.atan  e1
-evaluatePrimOp Sinh      (e1 :* End)       = rr1 sinh  P.sinh  e1
-evaluatePrimOp Cosh      (e1 :* End)       = rr1 cosh  P.cosh  e1
-evaluatePrimOp Tanh      (e1 :* End)       = rr1 tanh  P.tanh  e1
-evaluatePrimOp Asinh     (e1 :* End)       = rr1 asinh P.asinh e1
-evaluatePrimOp Acosh     (e1 :* End)       = rr1 acosh P.acosh e1
-evaluatePrimOp Atanh     (e1 :* End)       = rr1 atanh P.atanh e1
-{-
-evaluatePrimOp RealPow   (e1 :* e2 :* End) = rr2 (**) (P.**) e1 e2
-evaluatePrimOp Exp       (e1 :* End)       = rr1 exp   P.exp e1 -- TODO: types
-evaluatePrimOp Log       (e1 :* End)       = rr1 log   P.log e1 -- TODO: types
-evaluatePrimOp Infinity         End        = return (Head_ HInfinity)
-evaluatePrimOp NegativeInfinity End        = return (Head_ HNegativeInfinity)
-evaluatePrimOp GammaFunc   (e1 :* End)             =
-evaluatePrimOp BetaFunc    (e1 :* e2 :* End)       =
-evaluatePrimOp (Equal   _) (e1 :* e2 :* End) = rr2 (==)    (P.==) e1 e2
-evaluatePrimOp (Less    _) (e1 :* e2 :* End) = rr2 (<)     (P.<)  e1 e2
-evaluatePrimOp (NatPow  _) (e1 :* e2 :* End) = rr2 (^^)    (P.^^) e1 e2
-evaluatePrimOp (Negate  _) (e1 :* End)       = rr1 negate  P.negate e1
-evaluatePrimOp (Abs     _) (e1 :* End)       = rr1 abs     P.abs_   e1 -- TODO: types
-evaluatePrimOp (Signum  _) (e1 :* End)       = rr1 signum  P.signum e1
-evaluatePrimOp (Recip   _) (e1 :* End)       = rr1 recip   P.recip  e1
-evaluatePrimOp (NatRoot _) (e1 :* e2 :* End) = rr2 natRoot _ e1 e2
-evaluatePrimOp (Erf     _) (e1 :* End)       = rr1 erf     P.erf    e1
--}
-evaluatePrimOp _ _ = error "TODO: finish evaluatePrimOp"
+evaluatePrimOp evaluate_ = go
+    where
+    rr1 :: forall b b' c c'
+        .  (Interp b b', Interp c c')
+        => (b' -> c')
+        -> (abt '[] b -> abt '[] c)
+        -> abt '[] b
+        -> m (Whnf abt c)
+    rr1 f' f e = do
+        w <- evaluate_ e
+        return $
+            case w of
+            Neutral e' -> Neutral $ f e'
+            Head_   v  -> Head_ . reflect $ f' (reify v)
+
+    rr2 :: forall b b' c c' d d'
+        .  (Interp b b', Interp c c', Interp d d')
+        => (b' -> c' -> d')
+        -> (abt '[] b -> abt '[] c -> abt '[] d)
+        -> abt '[] b
+        -> abt '[] c
+        -> m (Whnf abt d)
+    rr2 f' f e1 e2 = do
+        w1 <- evaluate_ e1
+        w2 <- evaluate_ e2
+        return $
+            case w1 of
+            Neutral e1' -> Neutral $ f e1' (fromWhnf w2)
+            Head_   v1  ->
+                case w2 of
+                Neutral e2' -> Neutral $ f (fromWhnf w1) e2'
+                Head_   v2  -> Head_ . reflect $ f' (reify v1) (reify v2)
+
+
+    primOp2_
+        :: forall b c d
+        .  PrimOp '[ b, c ] d -> abt '[] b -> abt '[] c -> abt '[] d
+    primOp2_ o e1 e2 = syn (PrimOp_ o :$ e1 :* e2 :* End)
+
+    -- TODO: something more efficient\/direct if we can...
+    go Not  (e1 :* End)       = rr1 not  P.not  e1
+    go Impl (e1 :* e2 :* End) = rr2 impl (primOp2_ Impl) e1 e2
+    go Diff (e1 :* e2 :* End) = rr2 diff (primOp2_ Diff) e1 e2
+    go Nand (e1 :* e2 :* End) = rr2 nand P.nand e1 e2
+    go Nor  (e1 :* e2 :* End) = rr2 nor  P.nor  e1 e2
+    {-
+    -- TODO: all our magic constants (Pi, Infty,...) should be bundled together under one AST constructor called something like @Constant@; that way we can group them in the 'Head' like we do for values.
+    go Pi        End               = return (Head_ HPi)
+    -}
+    go Sin       (e1 :* End)       = rr1 sin   P.sin   e1
+    go Cos       (e1 :* End)       = rr1 cos   P.cos   e1
+    go Tan       (e1 :* End)       = rr1 tan   P.tan   e1
+    go Asin      (e1 :* End)       = rr1 asin  P.asin  e1
+    go Acos      (e1 :* End)       = rr1 acos  P.acos  e1
+    go Atan      (e1 :* End)       = rr1 atan  P.atan  e1
+    go Sinh      (e1 :* End)       = rr1 sinh  P.sinh  e1
+    go Cosh      (e1 :* End)       = rr1 cosh  P.cosh  e1
+    go Tanh      (e1 :* End)       = rr1 tanh  P.tanh  e1
+    go Asinh     (e1 :* End)       = rr1 asinh P.asinh e1
+    go Acosh     (e1 :* End)       = rr1 acosh P.acosh e1
+    go Atanh     (e1 :* End)       = rr1 atanh P.atanh e1
+    {-
+    -- TODO: deal with how we have better types for these three ops than Haskell does...
+    go RealPow   (e1 :* e2 :* End) = rr2 (**) (P.**) e1 e2
+    go Exp       (e1 :* End)       = rr1 exp   P.exp e1
+    go Log       (e1 :* End)       = rr1 log   P.log e1
+    go Infinity         End        = return (Head_ HInfinity)
+    go NegativeInfinity End        = return (Head_ HNegativeInfinity)
+    go GammaFunc   (e1 :* End)             =
+    go BetaFunc    (e1 :* e2 :* End)       =
+    -- TODO: deal with polymorphism issues
+    go (Equal   _) (e1 :* e2 :* End) = rr2 (==)    (P.==) e1 e2
+    go (Less    _) (e1 :* e2 :* End) = rr2 (<)     (P.<)  e1 e2
+    go (NatPow  _) (e1 :* e2 :* End) = rr2 (^^)    (P.^^) e1 e2
+    go (Negate  _) (e1 :* End)       = rr1 negate  P.negate e1
+    go (Abs     _) (e1 :* End)       = rr1 abs     P.abs_   e1 -- TODO: types
+    go (Signum  _) (e1 :* End)       = rr1 signum  P.signum e1
+    go (Recip   _) (e1 :* End)       = rr1 recip   P.recip  e1
+    go (NatRoot _) (e1 :* e2 :* End) = rr2 natRoot _ e1 e2
+    go (Erf     _) (e1 :* End)       = rr1 erf     P.erf    e1
+    -}
+    go _ _ = error "TODO: finish evaluatePrimOp"
 
 
 ----------------------------------------------------------------

@@ -35,8 +35,8 @@
 module Language.Hakaru.Lazy.Types
     (
     -- * Terms in particular known forms\/formats
-      Head(..), fromHead
-    , Whnf(..), fromWhnf, caseWhnf, viewWhnfDatum
+      Head(..), fromHead, toHead
+    , Whnf(..), fromWhnf, toWhnf, caseWhnf, viewWhnfDatum
     , Lazy(..), fromLazy, caseLazy
 
     -- * The monad for partial evaluation
@@ -64,6 +64,7 @@ import           Data.Functor         ((<$>))
 import           Control.Applicative  (Applicative(..))
 #endif
 import qualified Data.Foldable        as F
+import qualified Data.Traversable     as T
 import           Data.Text            (Text)
 
 import Language.Hakaru.Syntax.IClasses
@@ -181,6 +182,29 @@ fromHead (WIntegrate e1 e2 e3) = syn (Integrate :$ e1 :* e2 :* e3 :* End)
 fromHead (WSummate   e1 e2 e3) = syn (Summate   :$ e1 :* e2 :* e3 :* End)
 
 
+-- | Identify terms which are already heads.
+toHead :: (ABT AST abt) => abt '[] a -> Maybe (Head abt a)
+toHead e =
+    caseVarSyn e (const Nothing) $ \t ->
+        case t of
+        Value_ v                           -> Just $ WValue v
+        Datum_ d                           -> Just $ WDatum d
+        Empty_                             -> Just $ WEmpty
+        Array_     e1    e2                -> Just $ WArray     e1 e2
+        Lam_    :$ e1 :* End               -> Just $ WLam       e1
+        Fix_    :$ e1 :* End               -> Just $ WFix       e1
+        MeasureOp_  o :$ es                -> Just $ WMeasureOp o  es
+        Dirac   :$ e1 :* End               -> Just $ WDirac     e1
+        MBind   :$ e1 :* e2 :* End         -> Just $ WMBind     e1 e2
+        Superpose_ pes                     -> Just $ WSuperpose pes
+        Ann_       typ :$ e1 :* End        -> WAnn typ <$> toHead e1
+        CoerceTo_    c :$ e1 :* End        -> WCoerceTo c <$> toHead e1
+        UnsafeFrom_  c :$ e1 :* End        -> WUnsafeFrom c <$> toHead e1
+        Lub_         es                    -> WLub <$> T.traverse toHead es
+        Integrate :$ e1 :* e2 :* e3 :* End -> Just $ WIntegrate e1 e2 e3
+        Summate   :$ e1 :* e2 :* e3 :* End -> Just $ WSummate   e1 e2 e3
+        _ -> Nothing
+
 ----------------------------------------------------------------
 -- BUG: haddock doesn't like annotations on GADT constructors. So
 -- here we'll avoid using the GADT syntax, even though it'd make
@@ -199,6 +223,11 @@ data Whnf (abt :: [Hakaru] -> Hakaru -> *) (a :: Hakaru)
 fromWhnf :: (ABT AST abt) => Whnf abt a -> abt '[] a
 fromWhnf (Head_   e) = fromHead e
 fromWhnf (Neutral e) = e
+
+
+-- | Identify terms which are already heads. N.B., we make no attempt to identify neutral terms, we just massage the type of 'toHead'.
+toWhnf :: (ABT AST abt) => abt '[] a -> Maybe (Whnf abt a)
+toWhnf e = Head_ <$> toHead e
 
 -- | Case analysis on 'Whnf' as a combinator.
 caseWhnf :: Whnf abt a -> (Head abt a -> r) -> (abt '[] a -> r) -> r
