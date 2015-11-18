@@ -443,32 +443,32 @@ instance Interp HBool Bool where
                     _ -> error "reify{HBool}: the impossible happened"
 
 {-
-instance (Interp a a', Interp b b')
-    => Interp (HPair a b) (a',b')
-    where
+instance Interp (HPair a b) (abt '[] a, abt '[] b) where
     reflect (a,b) = P.pair a b
     reify v = runIdentity $ do
         match <- matchTopPattern identifyDatum (fromHead v) (pPair PVar PVar) (Cons1 x (Cons1 y Nil1))
         case match of
             Just (Matched ss Nil1) ->
                 case xs [] of
-                [Assoc _x e1, Assoc _y e2] -> return (reify e1, reify e2)
+                [Assoc _x e1, Assoc _y e2] -> return (e1, e2)
                 _ -> error "reify{HPair}: the impossible happened"
             _ -> error "reify{HPair}: the impossible happened"
 
-instance (Interp a a', Interp b b')
-    => Interp (HEither a b) (Either a' b')
-    where
+instance Interp (HEither a b) (Either (abt '[] a) (abt '[] b)) where
     reflect (Left  a) = P.left  a
     reflect (Right b) = P.right b
     reify =
 
-instance (Interp a a') => Interp (HMaybe a) (Maybe a') where
+instance Interp (HMaybe a) (Maybe (abt '[] a)) where
     reflect Nothing  = P.nothing
     reflect (Just a) = P.just a
     reify =
 
-instance (Interp a a') => Interp (HList a) [a'] where
+data ListHead (a :: Hakaru)
+    = NilHead
+    | ConsHead (abt '[] a) (abt '[] (HList a)) -- modulo scoping of @abt@
+
+instance Interp (HList a) (ListHead a) where
     reflect []     = P.nil
     reflect (x:xs) = P.cons x xs
     reify =
@@ -481,6 +481,7 @@ diff x y = x && not y
 nand x y = not (x && y)
 nor  x y = not (x || y)
 
+-- BUG: no Floating instance for LogFloat, so can't actually use this...
 natRoot :: (Floating a) => a -> Nat -> a
 natRoot x y = x ** recip (fromIntegral (fromNat y))
 
@@ -691,7 +692,6 @@ evaluatePrimOp evaluate_ = go
                 Neutral e2' -> Neutral $ f (fromWhnf w1) e2'
                 Head_   v2  -> Head_ . reflect $ f' (reify v1) (reify v2)
 
-
     primOp2_
         :: forall b c d
         .  PrimOp '[ b, c ] d -> abt '[] b -> abt '[] c -> abt '[] d
@@ -707,6 +707,7 @@ evaluatePrimOp evaluate_ = go
     -- TODO: all our magic constants (Pi, Infty,...) should be bundled together under one AST constructor called something like @Constant@; that way we can group them in the 'Head' like we do for values.
     go Pi        End               = return (Head_ HPi)
     -}
+    -- TODO: don't actually evaluate these, to avoid fuzz issues
     go Sin       (e1 :* End)       = rr1 sin   P.sin   e1
     go Cos       (e1 :* End)       = rr1 cos   P.cos   e1
     go Tan       (e1 :* End)       = rr1 tan   P.tan   e1
@@ -729,15 +730,39 @@ evaluatePrimOp evaluate_ = go
     go GammaFunc   (e1 :* End)             =
     go BetaFunc    (e1 :* e2 :* End)       =
     -- TODO: deal with polymorphism issues
-    go (Equal   _) (e1 :* e2 :* End) = rr2 (==)    (P.==) e1 e2
-    go (Less    _) (e1 :* e2 :* End) = rr2 (<)     (P.<)  e1 e2
-    go (NatPow  _) (e1 :* e2 :* End) = rr2 (^^)    (P.^^) e1 e2
-    go (Negate  _) (e1 :* End)       = rr1 negate  P.negate e1
-    go (Abs     _) (e1 :* End)       = rr1 abs     P.abs_   e1 -- TODO: types
-    go (Signum  _) (e1 :* End)       = rr1 signum  P.signum e1
-    go (Recip   _) (e1 :* End)       = rr1 recip   P.recip  e1
-    go (NatRoot _) (e1 :* e2 :* End) = rr2 natRoot _ e1 e2
-    go (Erf     _) (e1 :* End)       = rr1 erf     P.erf    e1
+    go (Equal theOrd) (e1 :* e2 :* End) = rr2 (==) (P.==) e1 e2
+    go (Less  theOrd) (e1 :* e2 :* End) = rr2 (<)  (P.<)  e1 e2
+    -}
+    go (NatPow theSemi) (e1 :* e2 :* End) =
+        case theSemi of
+        HSemiring_Nat    -> rr2 (\v1 v2 -> v1 ^ fromNat v2) (P.^) e1 e2
+        HSemiring_Int    -> rr2 (\v1 v2 -> v1 ^ fromNat v2) (P.^) e1 e2
+        HSemiring_Prob   -> rr2 (\v1 v2 -> v1 ^ fromNat v2) (P.^) e1 e2
+        HSemiring_Real   -> rr2 (\v1 v2 -> v1 ^ fromNat v2) (P.^) e1 e2
+    go (Negate theRing) (e1 :* End) =
+        case theRing of
+        HRing_Int        -> rr1 negate P.negate e1
+        HRing_Real       -> rr1 negate P.negate e1
+    go (Abs    theRing) (e1 :* End) = 
+        case theRing of
+        HRing_Int        -> rr1 (unsafeNat . abs) P.abs_ e1
+        HRing_Real       -> rr1 (logFloat  . abs) P.abs_ e1
+    go (Signum theRing) (e1 :* End) =
+        case theRing of
+        HRing_Int        -> rr1 signum P.signum e1
+        HRing_Real       -> rr1 signum P.signum e1
+    go (Recip  theFractional) (e1 :* End) =
+        case theFractional of
+        HFractional_Prob -> rr1 recip  P.recip  e1
+        HFractional_Real -> rr1 recip  P.recip  e1
+    {-
+    go (NatRoot theRadical) (e1 :* e2 :* End) =
+        case theRadical of
+        HRadical_Prob -> rr2 natRoot (flip P.thRootOf) e1 e2
+    go (Erf theContinuous) (e1 :* End) =
+        case theContinuous of
+        HContinuous_Prob -> rr1 erf P.erf e1
+        HContinuous_Real -> rr1 erf P.erf e1
     -}
     go _ _ = error "TODO: finish evaluatePrimOp"
 
