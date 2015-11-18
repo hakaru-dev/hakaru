@@ -7,16 +7,16 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.29
+--                                                    2015.11.17
 -- |
--- Module      :  Language.Hakaru.PrettyPrint
+-- Module      :  Language.Hakaru.Parser.Pretty
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  wren@community.haskell.org
 -- Stability   :  experimental
 -- Portability :  GHC-only
 --
--- 
+--
 ----------------------------------------------------------------
 module Language.Hakaru.Parser.Pretty
     (
@@ -339,11 +339,11 @@ ppMeasureOp _ _ _ = error "ppMeasureOp: the impossible happened"
 
 
 instance Pretty Value where
-    prettyPrec_ p (VNat   n) = [PP.int (fromNat n)]
-    prettyPrec_ p (VInt   i) = [PP.int i]
-    prettyPrec_ p (VProb  l) = [PP.text (showsPrec 11 (fromLogFloat l) "")]
+    prettyPrec_ _ (VNat   n) = [PP.int (fromNat n)]
+    prettyPrec_ _ (VInt   i) = [PP.int i]
+    prettyPrec_ _ (VProb  l) = [PP.text (showsPrec 11 (fromLogFloat l) "")]
         -- TODO: make it prettier! (e.g., don't use LogFloat in the AST)
-    prettyPrec_ p (VReal  r) = [PP.double r]
+    prettyPrec_ _ (VReal  r) = [PP.double r]
         -- TODO: make it prettier! (i.e., don't use Double in the AST)
     prettyPrec_ p (VDatum d) = prettyPrec_ p d
 
@@ -407,9 +407,10 @@ ppList = (:[]) . PP.brackets . PP.nest 1 . PP.fsep . PP.punctuate PP.comma
 ppTuple :: [Doc] -> Doc
 ppTuple = PP.parens . PP.sep . PP.punctuate PP.comma
 
+-- TODO: why does this take the precedence argument if it doesn't care?
 ppFun :: Int -> String -> [Doc] -> Docs
-ppFun _ f [] = [PP.text f <> "()"]
-ppFun p f ds = [PP.text f] ++ [PP.nest (1 + length f) (ppTuple ds)]
+ppFun _ f [] = [PP.text f <> PP.text "()"]
+ppFun _ f ds = [PP.text f, PP.nest (1 + length f) (ppTuple ds)]
 
 ppArg :: (ABT AST abt) => abt '[] a -> Docs
 ppArg = prettyPrec_ 11 . LC_
