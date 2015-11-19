@@ -214,10 +214,10 @@ ppSCon p (UnsafeFrom_ c) (e1 :* End) =
 ppSCon p (MeasureOp_ o) es       = ppMeasureOp p o es
 ppSCon p Dirac (e1 :* End)       = ppApply1 p "dirac" e1
 ppSCon p MBind (e1 :* e2 :* End) =
-    parens (p > 1) $
-        adjustHead
-            (prettyPrec 1 e1 <+> PP.text ">>=" <+>)
-            (ppBinder e2)
+    let (vars, body) = ppBinder2 e2 in
+    [toDoc vars <+> PP.text "<~" <+> toDoc (ppArg e1)
+           PP.$$ (toDoc body)]
+
 ppSCon p Expect (e1 :* e2 :* End) =
     -- N.B., for this to be read back in correctly, "Language.Hakaru.Expect" must be in scope as well as the prelude.
     parens (p > 0) $
