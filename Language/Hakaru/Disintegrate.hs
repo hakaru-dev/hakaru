@@ -352,11 +352,8 @@ perform e0 =
             caseBind e2 $ \x e2' ->
                 push (SBind x $ Thunk e1) e2' perform
         Superpose_ pes ->
-            error "TODO: perform{Superpose_}"
-            {-
-            choice [ unsafePush (SWeight p) >> perform e | (p,e) <- pes ]
-            -- TODO: how to we get this to typecheck? The old code used @liftM unMeasure . forward@ instead of 'perform' and then used (so-called) @join@ on the result of 'choice'. 
-            -}
+            choice [ unsafePush (SWeight $ Thunk p) >> perform e
+                | (p,e) <- pes ]
 
         -- I think this captures the logic of the following two cases from the paper:
         -- > perform u | atomic u    = emitMBind_Whnf u
