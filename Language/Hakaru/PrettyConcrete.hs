@@ -191,6 +191,11 @@ ppSCon p App_ (e1 :* e2 :* End) =
     [e1' <> ppTuple (pretty e2 : vars)]
 
 ppSCon p Let_ (e1 :* e2 :* End) =
+    {-
+    caseBind e2 $ \x e2' ->
+        (ppVariable x <+> PP.equals <+> PP.nest n (pretty e1))
+        : pretty e2'
+    -}
     let (vars, body) = ppBinder2 e2 in
     [toDoc vars <+> PP.equals <+> toDoc (ppArg e1)
     PP.$$ (toDoc body)]
@@ -411,19 +416,20 @@ instance (ABT AST abt) => Pretty (Branch a abt) where
 
 ----------------------------------------------------------------
 collectApps :: (ABT AST abt) => abt '[] a -> (Doc, [Doc])
-collectApps e = caseVarSyn e (\x -> (pretty e, [])) $ \t ->
-                case t of
-                  App_ :$ (e1 :* e2 :* End) ->
-                      let (e', vars) = collectApps e1 in
-                      (e', toDoc (ppArg e2) : vars)
-                  _ -> (pretty e, [])
+collectApps e =
+    caseVarSyn e (\x -> (pretty e, [])) $ \t ->
+        case t of
+        App_ :$ e1 :* e2 :* End ->
+            let ~(e', vars) = collectApps e1 in
+            (e', toDoc (ppArg e2) : vars)
+        _ -> (pretty e, [])
 
 collectLams :: (ABT AST abt) => abt xs a -> (Doc, [Doc])
 collectLams e =
     case viewABT e of
       Bind x (Syn t) ->
           case t of
-            Lam_ :$ (e1 :* End) -> collectLams e1
+            Lam_ :$ e1 :* End -> collectLams e1
             _ -> (pretty $ syn t, [ppVariable x])
       _ -> error "TODO: collectLams"
 
