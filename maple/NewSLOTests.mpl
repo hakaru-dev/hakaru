@@ -314,7 +314,7 @@ TestHakaru(ary2, Weight(ary1w, Bind(plate(ary(n, i, Gaussian(idx(t,i),1))), zs, 
 ary3  := Bind(Gaussian(0,1), x,
          Bind(plate(ary(n, i, Bind(Gaussian(idx(t,i),1),z, Weight(density[Gaussian](x,1)(idx(t,i)), Ret(z))))), zs,
          Ret(zs))):
-TestHakaru(ary3, Weight(ary1w, plate(ary(n, i, Gaussian(idx(t,i),1)))), label="Array eta") assuming n::nonnegint;
+TestHakaru(ary3, Weight(ary1w, plate(ary(n, i, Gaussian(idx(t,i),1)))), label="Array eta (currently fails)") assuming n::nonnegint; # This currently (2015-11-19) fails
 
 bry1  := Bind(BetaD(alpha,beta), x,
          Bind(plate(ary(n, i, Weight(x    ^piecewise(idx(y,i)=true ,1) *
@@ -341,8 +341,8 @@ TestHakaru(bry2, bry2s, label="second way to express flipping a biased coin many
 fission     := Bind(plate(ary(k, i, Gaussian(0,1))), xs, plate(ary(k, i, Gaussian(idx(xs,i),1)))):
 fusion      := plate(ary(k, i, Bind(Gaussian(0,1), x, Gaussian(x,1)))):
 conjugacies := plate(ary(k, i, Gaussian(0, sqrt(2)))):
-TestHakaru(fission, conjugacies, label="Reason for fusion");
-TestHakaru(fusion,  conjugacies, label="Conjugacy in plate");
+TestHakaru(fission, conjugacies, label="Reason for fusion (currently fails)"); # This currently (2015-11-19) fails
+TestHakaru(fusion,  conjugacies, label="Conjugacy in plate (currently fails)"); # This currently (2015-11-19) fails
 
 # Simplifying gmm below is a baby step towards index manipulations we need
 gmm := Bind(plate(ary(k, c, Gaussian(0,1))), xs,
