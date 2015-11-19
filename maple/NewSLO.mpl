@@ -111,15 +111,21 @@ NewSLO := module ()
         myexpand_product,
         piecewise_if, nub_piecewise, foldr_piecewise,
         verify_measure;
-  export Integrand, applyintegrand, app, lam, map_piecewise, idx,
-         Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD, StudentT,
-         Ret, bind, Msum, weight, Plate, LO, Indicator,
-         HakaruToLO, integrate, LOToHakaru, unintegrate,
+  export 
+     # note that these first few are smart constructors (for themselves):
+         app, idx, integrate, applyintegrand,
+     # while these are "proper functions"
+         Integrand, map_piecewise,
+         bind, weight, Plate, LO, Indicator,
+         HakaruToLO, LOToHakaru, unintegrate,
          TestHakaru, measure, density, bounds,
          Simplify, ReparamDetermined, determined, Reparam, Banish;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
-  global Bind, Weight;
+  global Bind, Weight, Ret, Msum,
+         Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD, StudentT,
+         lam;
+
 
   t_pw := 'specfunc(piecewise)';
 
