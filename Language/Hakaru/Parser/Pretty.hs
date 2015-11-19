@@ -185,8 +185,9 @@ instance (ABT AST abt) => Pretty (LC_ abt) where
 -- | Pretty-print @(:$)@ nodes in the AST.
 ppSCon :: (ABT AST abt) => Int -> SCon args a -> SArgs abt args -> Docs
 ppSCon p Lam_ (e1 :* End) =
-    parens (p > 0) $ adjustHead (PP.text "lam $" <+>) (ppBinder e1)
-ppSCon p App_ (e1 :* e2 :* End) = ppBinop "`app`" 9 LeftAssoc p e1 e2
+    let (vars, body) = ppBinder2 e1 in
+    [PP.text "fn" <+> toDoc vars <> PP.colon <+> (toDoc body)]
+ppSCon p App_ (e1 :* e2 :* End) = ppArg e1 ++ parens True (ppArg e2)
 ppSCon p Let_ (e1 :* e2 :* End) =
     let (vars, body) = ppBinder2 e2 in
     [toDoc vars <+> PP.equals <+> toDoc (ppArg e1)
