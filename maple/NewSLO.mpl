@@ -108,6 +108,7 @@ NewSLO := module ()
         recognize, get_de, recognize_de, mysolve, Diffop, Recognized,
         reduce, simplify_assuming, reduce_pw, reduce_Int, get_indicators,
         indicator, extract_dom, banish, known_measures, freeze_difficult,
+        myexpand_product,
         piecewise_if, nub_piecewise, foldr_piecewise,
         verify_measure;
   export Integrand, applyintegrand, app, lam, map_piecewise, idx,
@@ -281,39 +282,16 @@ NewSLO := module ()
 
   simplify_assuming := proc(ee, constraints :: list(name=anything..anything))
     local f, e, ep;
-    global `expand/product`;
     f := proc(c)
       local var, lo, hi;
       var := op(1,c);
       lo, hi := op(op(2,c));
       (var > lo, var < hi)
     end proc;
-    ep := eval(`expand/product`);
-    try
-      `expand/product` := proc()
-        eval(ep(_passed), product = proc(body, quantifier)
-          local x, p;
-          x := op(1, quantifier);
-          p := proc(e)
-            if e :: 'exp(anything)' then
-              exp(expand(sum(op(1,e), quantifier)))
-            elif e :: ('freeof'(x) ^ 'anything') then
-              op(1,e) ^ expand(sum(op(2,e), quantifier))
-            elif e :: ('anything' ^ 'freeof'(x)) then
-              p(op(1,e)) ^ op(2,e)
-            else
-              product(e, quantifier)
-            end if
-          end proc;
-          `*`(op(map(p, convert(body, list, `*`))));
-        end proc)
-      end proc;
-      e := evalindets(ee, 'specfunc({sum, product})', expand);
-    finally
-      `expand/product` := ep;
-    end try;
+    e := evalindets(ee, 'specfunc(product)', myexpand_product);
+    e := evalindets(e, 'specfunc(sum)', expand);
     e := simplify(e) assuming op(map(f, constraints));
-    e := eval(e, exp = expand @ exp);
+    e := eval(e, exp = expand @ exp); # not sure if this is needed?
   end proc;
 
   reduce_pw := proc(ee) # ee may or may not be piecewise
@@ -814,6 +792,27 @@ NewSLO := module ()
       return NULL
     end if;
     result
+  end proc;
+
+  myexpand_product := proc(prod)
+    local x, p, body, quantifier;
+    (body, quantifier) := op(prod);
+    x := op(1, quantifier);
+    p := proc(e)
+      local ee;
+      if e :: 'exp(anything)' then
+        ee := expand(op(1,e));
+        ee := convert(ee, 'list', `+`);
+        `*`(op(map(z -> exp(sum(z, quantifier)), ee)));
+      elif e :: ('freeof'(x) ^ 'anything') then
+        op(1,e) ^ expand(sum(op(2,e), quantifier))
+      elif e :: ('anything' ^ 'freeof'(x)) then
+        p(op(1,e)) ^ op(2,e)
+      else
+        product(e, quantifier)
+      end if
+    end proc;
+    `*`(op(map(p, convert(body, list, `*`))));
   end proc;
 
   density[Lebesgue] := proc() proc(x) 1 end proc end proc;
