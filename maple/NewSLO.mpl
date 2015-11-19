@@ -116,13 +116,13 @@ NewSLO := module ()
          app, idx, integrate, applyintegrand,
      # while these are "proper functions"
          Integrand, map_piecewise,
-         bind, weight, Plate, LO, Indicator,
+         bind, weight, plate, LO, Indicator,
          HakaruToLO, LOToHakaru, unintegrate,
          TestHakaru, measure, density, bounds,
          Simplify, ReparamDetermined, determined, Reparam, Banish;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
-  global Bind, Weight, Ret, Msum,
+  global Bind, Weight, Ret, Msum, Plate,
          Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD, StudentT,
          lam;
 
@@ -543,24 +543,24 @@ NewSLO := module ()
     end if;
   end proc;
 
-  Plate := proc(a)
+  plate := proc(a)
     local xs, w, m;
     if a :: 'ary(anything, name, Ret(anything))' then
       Ret(ary(op(1,a), op(2,a), op([3,1],a)))
     elif a :: 'ary(anything, name, Bind(anything, name, anything))' then
       xs := gensym(op([3,2],a));
-      bind(Plate(ary(op(1,a), op(2,a), op([3,1],a))), xs,
-           Plate(ary(op(1,a), op(2,a),
+      bind(plate(ary(op(1,a), op(2,a), op([3,1],a))), xs,
+           plate(ary(op(1,a), op(2,a),
                  eval(op([3,3],a), op([3,2],a)=idx(xs,op(2,a))))))
     elif a :: 'ary(anything, name, anything)' then
       (w, m) := unweight(op(3,a));
       if w <> 1 then
-        weight(product(w, op(2,a)=1..op(1,a)), Plate(ary(op(1,a), op(2,a), m)))
+        weight(product(w, op(2,a)=1..op(1,a)), plate(ary(op(1,a), op(2,a), m)))
       else
-        'procname(_passed)'
+        'Plate(_passed)'
       end if
     else
-      'procname(_passed)'
+      'Plate(_passed)'
     end if;
   end proc;
 
