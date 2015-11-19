@@ -34,6 +34,11 @@ defTest = unlines ["def foo(x nat) nat:"
                   ,"foo(3)"
                   ]
 
+defTest2 = unlines ["def foo(x nat, y nat) nat:"
+                   ,"  x + y"
+                   ,"foo(2,3)"
+                   ]
+
 pToa :: U.AST' Text -> U.AST a
 pToa ast = makeAST $ normAST $ evalState (symbolResolution primTable ast) 0
 

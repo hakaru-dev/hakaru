@@ -39,7 +39,7 @@ import qualified Data.Text        as Text
 import qualified Data.Sequence    as Seq -- Because older versions of "Data.Foldable" do not export 'null' apparently...
 
 import Language.Hakaru.Syntax.Nat      (fromNat)
-import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11, List1(..))
+import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11)
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.DataKind
@@ -188,7 +188,12 @@ ppSCon :: (ABT AST abt) => Int -> SCon args a -> SArgs abt args -> Docs
 ppSCon p Lam_ (e1 :* End) =
     let (vars, body) = ppBinder2 e1 in
     [PP.text "fn" <+> toDoc vars <> PP.colon <+> (toDoc body)]
-ppSCon p App_ (e1 :* e2 :* End) = ppArg e1 ++ parens True (ppArg e2)
+
+--ppSCon p App_ (e1 :* e2 :* End) = ppArg e1 ++ parens True (ppArg e2)
+ppSCon p App_ (e1 :* e2 :* End) =
+    let (e1', vars) = collectApps e1 in
+    [e1' <> ppTuple (pretty e2 : vars)]
+
 ppSCon p Let_ (e1 :* e2 :* End) =
     let (vars, body) = ppBinder2 e2 in
     [toDoc vars <+> PP.equals <+> toDoc (ppArg e1)
@@ -212,7 +217,7 @@ ppSCon p (UnsafeFrom_ c) (e1 :* End) =
         , toDoc $ ppArg e1
         ]
 ppSCon p (MeasureOp_ o) es       = ppMeasureOp p o es
-ppSCon p Dirac (e1 :* End)       = ppApply1 p "dirac" e1
+ppSCon p Dirac (e1 :* End)       = [PP.text "return" <+> toDoc (ppArg e1)]
 ppSCon p MBind (e1 :* e2 :* End) =
     let (vars, body) = ppBinder2 e2 in
     [toDoc vars <+> PP.text "<~" <+> toDoc (ppArg e1)
@@ -412,6 +417,23 @@ instance (ABT AST abt) => Pretty (Branch a abt) where
             ]
 
 ----------------------------------------------------------------
+collectApps :: (ABT AST abt) => abt '[] a -> (Doc, [Doc])
+collectApps e = caseVarSyn e (\x -> (pretty e, [])) $ \t ->
+                case t of
+                  App_ :$ (e1 :* e2 :* End) ->
+                      let (e', vars) = collectApps e1 in
+                      (e', toDoc (ppArg e2) : vars)
+                  _ -> (pretty e, [])
+
+collectLams :: (ABT AST abt) => abt xs a -> (Doc, [Doc])
+collectLams e =
+    case viewABT e of
+      Bind x (Syn t) ->
+          case t of
+            Lam_ :$ (e1 :* End) -> collectLams e1
+            _ -> (pretty $ syn t, [ppVariable x])
+      _ -> error "TODO: collectLams"
+
 -- | For the \"@lam $ \x ->\n@\"  style layout.
 adjustHead :: (Doc -> Doc) -> Docs -> Docs
 adjustHead f []     = [f (toDoc [])]
