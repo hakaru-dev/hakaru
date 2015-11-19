@@ -117,9 +117,9 @@ NewSLO := module ()
      # while these are "proper functions"
          Integrand, map_piecewise,
          bind, weight, plate, LO, Indicator,
-         HakaruToLO, LOToHakaru, unintegrate,
+         toLO, fromLO, unintegrate,
          TestHakaru, measure, density, bounds,
-         Simplify, ReparamDetermined, determined, Reparam, Banish;
+         improve, ReparamDetermined, determined, Reparam, Banish;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
   global Bind, Weight, Ret, Msum, Plate,
@@ -148,7 +148,7 @@ NewSLO := module ()
 
 # Step 1 of 3: from Hakaru to Maple LO (linear operator)
 
-  HakaruToLO := proc(m)
+  toLO := proc(m)
     local h;
     h := gensym('h');
     LO(h, integrate(m, h))
@@ -193,7 +193,7 @@ NewSLO := module ()
 
 # Step 2 of 3: computer algebra
 
-  Simplify := proc(lo :: LO(name, anything))
+  improve := proc(lo :: LO(name, anything))
     LO(op(1,lo), reduce(op(2,lo), op(1,lo), []))
   end proc;
 
@@ -564,7 +564,7 @@ NewSLO := module ()
     end if;
   end proc;
 
-  LOToHakaru := proc(lo :: LO(name, anything))
+  fromLO := proc(lo :: LO(name, anything))
     local h;
     h := gensym(op(1,lo));
     unintegrate(h, eval(op(2,lo), op(1,lo) = h), [])
@@ -856,8 +856,8 @@ NewSLO := module ()
 
 # Testing
 
-  TestHakaru := proc(m,n::algebraic:=m,{simp:=Simplify,verify:=simplify})
-    CodeTools[Test](LOToHakaru(simp(HakaruToLO(m))), n,
+  TestHakaru := proc(m,n::algebraic:=m,{simp:=improve,verify:=simplify})
+    CodeTools[Test](fromLO(simp(toLO(m))), n,
       measure(verify), _rest)
   end proc;
 
