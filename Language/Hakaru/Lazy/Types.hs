@@ -14,7 +14,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.17
+--                                                    2015.11.18
 -- |
 -- Module      :  Language.Hakaru.Lazy.Types
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -115,7 +115,6 @@ data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     WEmpty :: Head abt ('HArray a)
     WArray :: !(abt '[] 'HNat) -> !(abt '[ 'HNat] a) -> Head abt ('HArray a)
     WLam   :: !(abt '[ a ] b) -> Head abt (a ':-> b)
-    WFix   :: !(abt '[ a ] a) -> Head abt a
 
     -- Measure heads (not just anything of 'HMeasure' type)
     WMeasureOp
@@ -169,7 +168,6 @@ fromHead (WDatum     d)     = syn (Datum_ d)
 fromHead WEmpty             = syn Empty_
 fromHead (WArray     e1 e2) = syn (Array_ e1 e2)
 fromHead (WLam       e1)    = syn (Lam_ :$ e1 :* End)
-fromHead (WFix       e1)    = syn (Fix_ :$ e1 :* End)
 fromHead (WMeasureOp o  es) = syn (MeasureOp_ o :$ es)
 fromHead (WDirac     e1)    = syn (Dirac :$ e1 :* End)
 fromHead (WMBind     e1 e2) = syn (MBind :$ e1 :* e2 :* End)
@@ -192,7 +190,6 @@ toHead e =
         Empty_                             -> Just $ WEmpty
         Array_     e1    e2                -> Just $ WArray     e1 e2
         Lam_    :$ e1 :* End               -> Just $ WLam       e1
-        Fix_    :$ e1 :* End               -> Just $ WFix       e1
         MeasureOp_  o :$ es                -> Just $ WMeasureOp o  es
         Dirac   :$ e1 :* End               -> Just $ WDirac     e1
         MBind   :$ e1 :* e2 :* End         -> Just $ WMBind     e1 e2
@@ -265,7 +262,6 @@ viewHeadDatum (WCoerceTo   c _)   = case c of {}
 viewHeadDatum (WUnsafeFrom c _)   = case c of {}
 viewHeadDatum (WValue (VDatum d)) = Just (fmap11 (syn . Value_) d)
 viewHeadDatum (WDatum d)          = Just d
-viewHeadDatum (WFix e)            = error "TODO: viewHeadDatum{WFix}" -- probably should be Nothing, if we disallow infinite data values
 viewHeadDatum (WLub [])           = Nothing
 viewHeadDatum (WLub es)           = error "TODO: viewHeadDatum{WLub}"
 

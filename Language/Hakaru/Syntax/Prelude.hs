@@ -678,9 +678,6 @@ nat2prob   = coerceTo_ continuous
 negativeInfinity :: (ABT AST abt) => abt '[] 'HReal
 negativeInfinity = primOp0_ NegativeInfinity
 
-fix :: (ABT AST abt, SingI a) => (abt '[] a -> abt '[] a) -> abt '[] a
-fix f = syn (Fix_ :$ binder Text.empty sing f :* End)
-
 -- instance (ABT AST abt) => Lambda abt where
 -- 'app' already defined
 

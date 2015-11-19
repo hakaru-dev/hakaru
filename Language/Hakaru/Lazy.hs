@@ -116,7 +116,6 @@ evaluate perform = evaluate_
         Empty_                   -> return . Head_ $ WEmpty
         Array_ e1 e2             -> return . Head_ $ WArray e1 e2
         Lam_  :$ e1 :* End       -> return . Head_ $ WLam   e1
-        Fix_  :$ e1 :* End       -> return . Head_ $ WFix   e1
         Dirac :$ e1 :* End       -> return . Head_ $ WDirac e1
         MBind :$ e1 :* e2 :* End -> return . Head_ $ WMBind e1 e2
         MeasureOp_ o :$ es       -> return . Head_ $ WMeasureOp o es
@@ -141,14 +140,6 @@ evaluate perform = evaluate_
                 -- call-by-name:
                 caseBind f $ \x f' ->
                 push (SLet x $ Thunk e2) f' evaluate_
-            evaluateApp (WFix e3) =
-                caseBind e3 $ \x e3' -> do
-                    -- HACK: need to deal with freshening specially...
-                    x' <- freshenVar x
-                    let e3'' = subst x (var x') e3'
-                    unsafePush (SLet x' . Whnf_ . Head_ . WFix $ bind x' e3'')
-                    -- BUG: could loop! we need to handle WFix-bound variables specially in 'update'...
-                    evaluate_ (P.app e3'' e2)
             evaluateApp (WLub vs) =
                 error "TODO: evaluateApp{WLub}" -- (Head_ . WLub) <$> forkMap evaluateApp vs
             evaluateApp _ = error "evaluate{App_}: the impossible happened"
@@ -381,7 +372,6 @@ instance Interp 'HNat Nat where
     reify (WCoerceTo   _ _) = error "TODO: reify{WCoerceTo}"
     reify (WUnsafeFrom _ _) = error "TODO: reify{WUnsafeFrom}"
     reify (WLub        _)   = error "TODO: reify{WLub}"
-    reify (WFix        _)   = error "TODO: reify{WFix}" -- almost surely undefined
     reflect = WValue . VNat
 
 instance Interp 'HInt Int where
@@ -390,7 +380,6 @@ instance Interp 'HInt Int where
     reify (WCoerceTo   _ _) = error "TODO: reify{WCoerceTo}"
     reify (WUnsafeFrom _ _) = error "TODO: reify{WUnsafeFrom}"
     reify (WLub        _)   = error "TODO: reify{WLub}"
-    reify (WFix        _)   = error "TODO: reify{WFix}" -- almost surely undefined
     reflect = WValue . VInt
 
 instance Interp 'HProb LogFloat where -- TODO: use rational instead
@@ -399,7 +388,6 @@ instance Interp 'HProb LogFloat where -- TODO: use rational instead
     reify (WCoerceTo   _ _)   = error "TODO: reify{WCoerceTo}"
     reify (WUnsafeFrom _ _)   = error "TODO: reify{WUnsafeFrom}"
     reify (WLub        _)     = error "TODO: reify{WLub}"
-    reify (WFix        _)     = error "TODO: reify{WFix}" -- almost surely undefined
     reify (WIntegrate  _ _ _) = error "TODO: reify{WIntegrate}"
     reify (WSummate    _ _ _) = error "TODO: reify{WSummate}"
     reflect = WValue . VProb
@@ -410,7 +398,6 @@ instance Interp 'HReal Double where -- TODO: use rational instead
     reify (WCoerceTo   _ _) = error "TODO: reify{WCoerceTo}"
     reify (WUnsafeFrom _ _) = error "TODO: reify{WUnsafeFrom}"
     reify (WLub        _)   = error "TODO: reify{WLub}"
-    reify (WFix        _)   = error "TODO: reify{WFix}" -- almost surely undefined
     reflect = WValue . VReal
 
 

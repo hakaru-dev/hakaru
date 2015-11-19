@@ -7,7 +7,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.12
+--                                                    2015.11.18
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeOf
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -60,7 +60,6 @@ typeOf_ e0 =
                 SFun _ typ3 -> return typ3
                 typ1'       -> case typ1' of {} -- The impossible happened
         Let_ :$ _  :* e2 :* End   -> caseBind e2 (const typeOf_)
-        Fix_ :$ e1 :* End         -> caseBind e1 (const typeOf_)
         Ann_      typ :$ _        -> return typ
         CoerceTo_   c :$ e1 :* End ->
             case singCoerceCod c of

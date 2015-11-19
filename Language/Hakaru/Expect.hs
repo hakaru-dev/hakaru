@@ -10,7 +10,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.17
+--                                                    2015.11.18
 -- |
 -- Module      :  Language.Hakaru.Expect
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -280,13 +280,6 @@ expectAST p (Let_ :$ es) xs =
     e1 :* e2 :* End ->
         caseBind e2 $ \x e' ->
         expectSynDir p e' $ insertAssoc (Assoc x e1) xs
-    _ -> error "expectAST: the impossible happened"
-
-expectAST p (Fix_ :$ es) xs =
-    case es of
-    e1 :* End ->
-        caseBind e1 $ \x e' ->
-        expectSynDir p e' $ insertAssoc (Assoc x $ syn (Fix_ :$ e1 :* End)) xs -- BUG: could loop
     _ -> error "expectAST: the impossible happened"
 
 expectAST p (Ann_ _ :$ es) xs =

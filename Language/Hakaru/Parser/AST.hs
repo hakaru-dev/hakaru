@@ -151,7 +151,6 @@ data AST a =
      Var_        Name
    | Lam_        Name    (AST a)
    | App_        (AST a) (AST a)
-   | Fix_        Name    (AST a)
    | Let_        Name    (AST a) (AST a)
    | Ann_        (AST a) SSing
    | CoerceTo_   (Some2 Coercion) (AST a)

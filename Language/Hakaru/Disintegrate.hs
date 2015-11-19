@@ -15,7 +15,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs -fno-warn-unused-binds -fno-warn-unused-imports #-}
 ----------------------------------------------------------------
---                                                    2015.11.16
+--                                                    2015.11.18
 -- |
 -- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -331,7 +331,6 @@ constrainValue v0 e0 =
 
         App_ :$ e1 :* e2 :* End ->
         Let_ :$ e1 :* e2 :* End ->
-        Fix_ :$ e1 :* End ->
         Ann_      typ :$ e1 :* End -> constrainValue v0 e1
         CoerceTo_   c :$ e1 :* End -> constrainValue (unsafeFrom c v0) e1
         UnsafeFrom_ c :$ e1 :* End -> constrainValue (coerceTo   c v0) e1
@@ -454,8 +453,7 @@ constrainOutcome v0 e0 = do
                     
                     App_ :$ e1 :* e2 :* End ->
                     Let_ :$ e1 :* e2 :* End ->
-                    Fix_ :$ e1 :* End ->
-                    Ann_      typ :$ e1 :* End -> constrainOutcome v0 e1
+                    Ann_ typ :$ e1 :* End -> constrainOutcome v0 e1
                     Lub_ es ->
                     Case_ e bs ->
 

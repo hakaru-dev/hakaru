@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.12
+--                                                    2015.11.18
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeCheck
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -81,8 +81,7 @@ mustCheck = go
     where
     go (U.Var_ _)    = False
     go (U.Lam_ _ _)  = True
-    go (U.Fix_ _ _)  = True
- 
+
     -- In general, applications don't require checking; however,
     -- for fully saturated data constructors they do (according to
     -- neelk; also see the note below).
@@ -441,11 +440,7 @@ checkType = checkType_
             TypedAST typ1 e1' <- inferType_ e1
             e2' <- checkBinderType (U.makeVar x typ1) typ0 e2
             return $ syn (Let_ :$ e1' :* e2' :* End)
-    
-        U.Fix_ x e1 -> do
-            e1' <- checkBinderType (U.makeVar x typ0) typ0 e1
-            return $ syn (Fix_ :$ e1' :* End)
-    
+
         U.CoerceTo_ (Some2 c) e1 ->
             case singCoerceDomCod c of
             Nothing -> do

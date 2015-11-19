@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.16
+--                                                    2015.11.18
 -- |
 -- Module      :  Language.Hakaru.Syntax.AST
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -425,9 +425,15 @@ data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
     Lam_ :: SCon '[ '( '[ a ], b ) ] (a ':-> b)
     App_ :: SCon '[ LC (a ':-> b ), LC a ] b
     Let_ :: SCon '[ LC a, '( '[ a ], b ) ] b
-    -- TODO: a general \"@let*@\" version of let-binding so we can have mutual recursion
-    -- TODO: get rid of 'Fix_' and introduce induction principles for each HData instead.
-    Fix_ :: SCon '[ '( '[ a ], a ) ] a
+    -- TODO: a general \"@letrec*@\" version of let-binding so we can have mutual recursion
+    --
+    -- TODO: if we decide to add arbitrary fixedpoints back in, we
+    -- should probably prefer only recursive-functions:
+    -- `SCon '[ '( '[ a ':-> b, a ], a ':-> b ) ] (a ':-> b)`
+    -- over than the previous recursive-everything:
+    -- `SCon '[ '( '[ a ], a ) ] a`
+    -- Or, if we really want to guarantee soundness, then we should
+    -- only have the inductive principles for each HData.
 
     -- -- Type munging
 

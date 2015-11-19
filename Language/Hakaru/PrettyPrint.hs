@@ -7,7 +7,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.29
+--                                                    2015.11.18
 -- |
 -- Module      :  Language.Hakaru.PrettyPrint
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -179,7 +179,6 @@ ppSCon p Let_ (e1 :* e2 :* End) =
         adjustHead
             (PP.text "let_" <+> toDoc (ppArg e1) <+> PP.char '$' <+>)
             (ppBinder e2)
-ppSCon _ Fix_       (e1 :* End) = ppFun 11 "fix $"  [toDoc $ ppBinder e1]
 ppSCon p (Ann_ typ) (e1 :* End) =
     ppFun p "ann_"
         [ PP.text (showsPrec 11 typ "") -- TODO: make this prettier. Add hints to the singletons?
