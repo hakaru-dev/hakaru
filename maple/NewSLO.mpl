@@ -113,13 +113,13 @@ NewSLO := module ()
         verify_measure;
   export Integrand, applyintegrand, app, lam, map_piecewise, idx,
          Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD, StudentT,
-         Ret, bind, Msum, Weight, Plate, LO, Indicator,
+         Ret, bind, Msum, weight, Plate, LO, Indicator,
          HakaruToLO, integrate, LOToHakaru, unintegrate,
          TestHakaru, measure, density, bounds,
          Simplify, ReparamDetermined, determined, Reparam, Banish;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
-  global Bind;
+  global Bind, Weight;
 
   t_pw := 'specfunc(piecewise)';
 
@@ -407,7 +407,7 @@ NewSLO := module ()
     elif g :: `*` then
       (subintegral, w) := selectremove(depends, g, h);
       if subintegral :: `*` then error "Nonlinear integral %1", g end if;
-      banish(bind(m, x, Weight(w, Ret(x))), x, h, subintegral, levels)
+      banish(bind(m, x, weight(w, Ret(x))), x, h, subintegral, levels)
     elif g :: 'And'('specfunc({Int,int})',
                     'anyfunc'('anything','name'='range'('freeof'(h)))) then
       subintegral := op(1, g);
@@ -525,15 +525,15 @@ NewSLO := module ()
     end if;
   end proc;
 
-  Weight := proc(p, m)
+  weight := proc(p, m)
     if p = 1 then
       m
     elif p = 0 then
       Msum()
     elif m :: 'Weight(anything, anything)' then
-      Weight(p * op(1,m), op(2,m))
+      weight(p * op(1,m), op(2,m))
     else
-      'procname(_passed)'
+      'Weight(_passed)'
     end if;
   end proc;
 
@@ -549,7 +549,7 @@ NewSLO := module ()
     elif a :: 'ary(anything, name, anything)' then
       (w, m) := unweight(op(3,a));
       if w <> 1 then
-        Weight(product(w, op(2,a)=1..op(1,a)), Plate(ary(op(1,a), op(2,a), m)))
+        weight(product(w, op(2,a)=1..op(1,a)), Plate(ary(op(1,a), op(2,a), m)))
       else
         'procname(_passed)'
       end if
@@ -580,18 +580,18 @@ NewSLO := module ()
       if recognition :: 'Recognized(anything, anything)' then
         # Recognition succeeded
         (w, w0) := factorize(op(2,recognition), x);
-        Weight(w0, bind(op(1,recognition), x, Weight(w, m)))
+        weight(w0, bind(op(1,recognition), x, weight(w, m)))
       else
         # Recognition failed
         (w, w0) := factorize(w, x);
-        m := Weight(w, m);
+        m := weight(w, m);
         if hi <> infinity then
           m := piecewise(x < hi, m, Msum())
         end if;
         if lo <> -infinity then
           m := piecewise(lo < x, m, Msum())
         end if;
-        Weight(w0, bind(Lebesgue(), x, m))
+        weight(w0, bind(Lebesgue(), x, m))
       end if
     elif integral :: 'applyintegrand'('identical'(h), 'freeof'(h)) then
       Ret(op(2,integral))
@@ -602,7 +602,7 @@ NewSLO := module ()
     elif integral :: `*` then
       (subintegral, w) := selectremove(depends, integral, h);
       if subintegral :: `*` then error "Nonlinear integral %1", integral end if;
-      Weight(w, unintegrate(h, subintegral, context))
+      weight(w, unintegrate(h, subintegral, context))
     elif integral :: t_pw
          and `and`(seq(not (depends(op(i,integral), h)),
                        i=1..nops(integral)-1, 2)) then
@@ -631,7 +631,7 @@ NewSLO := module ()
       (w, m) := unweight(unintegrate(h, applyintegrand(op(2,integral), x),
                                      context));
       (w, w0) := factorize(w, x);
-      Weight(w0, bind(op(1,integral), x, Weight(w, m)))
+      weight(w0, bind(op(1,integral), x, weight(w, m)))
     else
       # Failure: return residual LO
       LO(h, integral)
@@ -664,7 +664,7 @@ NewSLO := module ()
       op(m)
     elif m :: 'specfunc(Msum)' then
       total := `+`(op(map((mi -> unweight(mi)[1]), m)));
-      (total, map((mi -> Weight(1/total, mi)), m))
+      (total, map((mi -> weight(1/total, mi)), m))
     else
       # TODO: Better weight estimate for piecewise & density-recognition cases?
       (1, m)
