@@ -190,7 +190,7 @@ ppSCon p App_ (e1 :* e2 :* End) = ppBinop "`app`" 9 LeftAssoc p e1 e2
 ppSCon p Let_ (e1 :* e2 :* End) =
     let (vars, body) = ppBinder2 e2 in
     [toDoc vars <+> PP.equals <+> toDoc (ppArg e1)
-           PP.$$ (PP.nest 0 $ toDoc body)]
+           PP.$$ (toDoc body)]
 
 
 ppSCon p Fix_       (e1 :* End) = ppFun p "fix"  [toDoc $ ppBinder e1]
