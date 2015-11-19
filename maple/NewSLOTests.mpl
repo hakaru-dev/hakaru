@@ -126,7 +126,7 @@ TestHakaru(model6, model6, label = "clamped Gaussian");
 # and now models (then tests) taken from Tests.RoundTrip
 t1 := Bind(Uniform(0, 1), a0, Msum(Weight(a0, Ret(Unit)))):
 t2 := BetaD(1,1):
-t2s := Bind(Uniform(0, 1), a0, Ret(a0)):
+t2s := Uniform(0, 1):
 t3 := Gaussian(0,10):
 t4 := Bind(BetaD(1, 1), a0, 
       Bind(Msum(Weight(a0, Ret(true)), 

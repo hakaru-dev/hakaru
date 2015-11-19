@@ -113,10 +113,13 @@ NewSLO := module ()
         verify_measure;
   export Integrand, applyintegrand, app, lam, map_piecewise, idx,
          Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD, StudentT,
-         Ret, Bind, Msum, Weight, Plate, LO, Indicator,
+         Ret, bind, Msum, Weight, Plate, LO, Indicator,
          HakaruToLO, integrate, LOToHakaru, unintegrate,
          TestHakaru, measure, density, bounds,
          Simplify, ReparamDetermined, determined, Reparam, Banish;
+  # these names are not assigned (and should not be).  But they are
+  # used as global names, so document that here.
+  global Bind;
 
   t_pw := 'specfunc(piecewise)';
 
@@ -392,7 +395,7 @@ NewSLO := module ()
     # LO(h, banish(m, x, h, g)) should be equivalent to Bind(m, x, LO(h, g))
     # but performs integration over x innermost rather than outermost.
     local guard, subintegral, w, y, yRename, lo, hi, mm;
-    guard := proc(m, c) Bind(m, x, piecewise(c, Ret(x), Msum())) end proc;
+    guard := proc(m, c) bind(m, x, piecewise(c, Ret(x), Msum())) end proc;
     if g = 0 then
       0
     elif levels <= 0 then
@@ -404,7 +407,7 @@ NewSLO := module ()
     elif g :: `*` then
       (subintegral, w) := selectremove(depends, g, h);
       if subintegral :: `*` then error "Nonlinear integral %1", g end if;
-      banish(Bind(m, x, Weight(w, Ret(x))), x, h, subintegral, levels)
+      banish(bind(m, x, Weight(w, Ret(x))), x, h, subintegral, levels)
     elif g :: 'And'('specfunc({Int,int})',
                     'anyfunc'('anything','name'='range'('freeof'(h)))) then
       subintegral := op(1, g);
@@ -512,13 +515,13 @@ NewSLO := module ()
 
 # Step 3 of 3: from Maple LO (linear operator) back to Hakaru
 
-  Bind := proc(m, x, n)
+  bind := proc(m, x, n)
     if n = 'Ret'(x) then
       m # monad law: right identity
     elif m :: 'Ret(anything)' then
       eval(n, x = op(1,m)) # monad law: left identity
     else
-      'procname(_passed)'
+      'Bind(_passed)'
     end if;
   end proc;
 
@@ -540,7 +543,7 @@ NewSLO := module ()
       Ret(ary(op(1,a), op(2,a), op([3,1],a)))
     elif a :: 'ary(anything, name, Bind(anything, name, anything))' then
       xs := gensym(op([3,2],a));
-      Bind(Plate(ary(op(1,a), op(2,a), op([3,1],a))), xs,
+      bind(Plate(ary(op(1,a), op(2,a), op([3,1],a))), xs,
            Plate(ary(op(1,a), op(2,a),
                  eval(op([3,3],a), op([3,2],a)=idx(xs,op(2,a))))))
     elif a :: 'ary(anything, name, anything)' then
@@ -577,7 +580,7 @@ NewSLO := module ()
       if recognition :: 'Recognized(anything, anything)' then
         # Recognition succeeded
         (w, w0) := factorize(op(2,recognition), x);
-        Weight(w0, Bind(op(1,recognition), x, Weight(w, m)))
+        Weight(w0, bind(op(1,recognition), x, Weight(w, m)))
       else
         # Recognition failed
         (w, w0) := factorize(w, x);
@@ -588,7 +591,7 @@ NewSLO := module ()
         if lo <> -infinity then
           m := piecewise(lo < x, m, Msum())
         end if;
-        Weight(w0, Bind(Lebesgue(), x, m))
+        Weight(w0, bind(Lebesgue(), x, m))
       end if
     elif integral :: 'applyintegrand'('identical'(h), 'freeof'(h)) then
       Ret(op(2,integral))
@@ -628,7 +631,7 @@ NewSLO := module ()
       (w, m) := unweight(unintegrate(h, applyintegrand(op(2,integral), x),
                                      context));
       (w, w0) := factorize(w, x);
-      Weight(w0, Bind(op(1,integral), x, Weight(w, m)))
+      Weight(w0, bind(op(1,integral), x, Weight(w, m)))
     else
       # Failure: return residual LO
       LO(h, integral)
