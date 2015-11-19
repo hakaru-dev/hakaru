@@ -7,9 +7,9 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.17
+--                                                    2015.11.19
 -- |
--- Module      :  Language.Hakaru.Parser.Pretty
+-- Module      :  Language.Hakaru.PrettyConcrete
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  wren@community.haskell.org
