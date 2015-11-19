@@ -336,12 +336,8 @@ emitMBind_Whnf e = (Neutral . var) <$> emitMBind e
 evaluate_ :: (ABT AST abt) => TermEvaluator abt (M abt)
 evaluate_ = evaluate perform
 
--- N.B., that return type is correct, albeit strange. The idea is
--- that the continuation takes in the variable of type @a@ bound
--- by the expression of type @'HMeasure a@. However, this requires
--- that the continuation of the 'Ans' type actually does @forall
--- a. ...('HMeasure a)@ which is at odds with what 'evaluate' wants
--- (or at least, what *I* think it should want.)
+-- | Simulate performing 'HMeasure' actions by simply emiting code
+-- for those actions, returning the bound variable.
 perform :: (ABT AST abt) => MeasureEvaluator abt (M abt)
 perform e0 =
     caseVarSyn e0 (error "TODO: perform{Var}") $ \t ->
@@ -354,13 +350,19 @@ perform e0 =
         Superpose_ pes ->
             choice [ unsafePush (SWeight $ Thunk p) >> perform e
                 | (p,e) <- pes ]
-        -- N.B., be sure you've covered all the heads before falling through to this branch. (The 'WAnn' head works fine on fallthrough.)
-        -- TODO: add a @mustPerform@ predicate like we have 'mustCheck' in TypeCheck.hs...?
+
+        -- N.B., be sure you've covered all the heads before falling
+        -- through to this branch. (The 'WAnn' head works fine on
+        -- fallthrough.)
+        --
+        -- TODO: add a @mustPerform@ predicate like we have 'mustCheck'
+        -- in TypeCheck.hs...?
         _ -> do
             w <- evaluate_ e0
             case w of
                 Head_   v -> perform $ fromHead v
                 Neutral e -> emitMBind_Whnf e
+
 
 ----------------------------------------------------------------
 -- TODO: see the todo for 'constrainOutcome'
