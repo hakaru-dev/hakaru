@@ -47,6 +47,7 @@ import Data.Number.LogFloat (LogFloat)
 import Data.Functor         ((<$>))
 import Control.Applicative  (Applicative(..))
 #endif
+import Control.Monad ((<=<))
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.Nat (Nat)
@@ -357,20 +358,16 @@ perform e0 =
         --
         -- TODO: add a @mustPerform@ predicate like we have 'mustCheck'
         -- in TypeCheck.hs...?
-        _ -> do
-            w <- evaluate_ e0
-            case w of
-                Head_   v -> perform $ fromHead v
-                Neutral e -> emitMBind_Whnf e
+        _ -> evaluate_ e0 >>= performWhnf
 
 
 -- TODO: I think this is the right definition...
 performVar :: (ABT AST abt) => Variable ('HMeasure a) -> M abt (Whnf abt a)
-performVar x = do
-    w <- update perform evaluate_ x
-    case w of
-        Head_   v -> perform $ fromHead v
-        Neutral e -> emitMBind_Whnf e
+performVar = performWhnf <=< update perform evaluate_
+
+performWhnf :: (ABT AST abt) => Whnf abt ('HMeasure a) -> M abt (Whnf abt a)
+performWhnf (Head_   v) = perform $ fromHead v
+performWhnf (Neutral e) = emitMBind_Whnf e
 
 
 ----------------------------------------------------------------
