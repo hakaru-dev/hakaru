@@ -659,6 +659,17 @@ just     = datum_ . dJust
 maybe    :: (ABT AST abt) => Maybe (abt '[] a) -> abt '[] (HMaybe a)
 maybe    = Prelude.maybe nothing just
 
+unmaybe
+    :: (ABT AST abt, SingI a)
+    => abt '[] (HMaybe a)
+    -> abt '[] b
+    -> (abt '[] a -> abt '[] b)
+    -> abt '[] b
+unmaybe e n j = 
+    syn $ Case_ e
+        [ Branch pNothing     n
+        , Branch (pJust PVar) (binder Text.empty sing j)
+        ]
 
 unsafeProb :: (ABT AST abt) => abt '[] 'HReal -> abt '[] 'HProb
 unsafeProb = unsafeFrom_ signed

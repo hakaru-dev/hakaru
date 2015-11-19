@@ -31,6 +31,7 @@ module Language.Hakaru.Inference
     ) where
 
 import Prelude (($), (.), error)
+import qualified Prelude
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.AST (AST)
 import Language.Hakaru.Syntax.ABT (ABT)
@@ -63,10 +64,13 @@ mh  :: (ABT AST abt, SingI a, Backward a a)
     -> abt '[] ('HMeasure a)
     -> abt '[] (a ':-> 'HMeasure (HPair a 'HProb))
 mh proposal target =
-    let_ (determine $ density target) $ \mu ->
-    lam $ \old ->
-        proposal old >>= \new ->
-        dirac $ pair new (mu `app` {-pair-} new {-old-} / mu `app` {-pair-} old {-new-})
+    case determine $ density target of
+    Prelude.Nothing -> error "mh: couldn't get density"
+    Prelude.Just theDensity ->
+        let_ theDensity $ \mu ->
+        lam $ \old ->
+            proposal old >>= \new ->
+            dirac $ pair new (mu `app` {-pair-} new {-old-} / mu `app` {-pair-} old {-new-})
 
 
 mcmc :: (ABT AST abt, SingI a, Backward a a)
@@ -88,8 +92,11 @@ gibbsProposal
     -> abt '[] (HPair a b)
     -> abt '[] ('HMeasure (HPair a b))
 gibbsProposal p xy =
-    xy `unpair` \x _y ->
-    pair x <$> normalize (determine (disintegrate p) `app` x)
+    case determine $ disintegrate p of
+    Prelude.Nothing -> error "gibbsProposal: couldn't disintegrate"
+    Prelude.Just q ->
+        xy `unpair` \x _y ->
+        pair x <$> normalize (q `app` x)
 
 
 -- Slice sampling can be thought of:
@@ -105,13 +112,15 @@ slice
     => abt '[] ('HMeasure 'HReal)
     -> abt '[] ('HReal ':-> 'HMeasure 'HReal)
 slice target =
-    let densAt = determine (density target) in
-    lam $ \x ->
-    uniform (real_ 0) (fromProb $ app densAt x) >>= \u ->
-    normalize $
-    lebesgue >>= \x' ->
-    observe (u < (fromProb $ app densAt x')) $
-    dirac x'
+    case determine $ density target of
+    Prelude.Nothing -> error "slice: couldn't get density"
+    Prelude.Just densAt ->
+        lam $ \x ->
+        uniform (real_ 0) (fromProb $ app densAt x) >>= \u ->
+        normalize $
+        lebesgue >>= \x' ->
+        observe (u < (fromProb $ app densAt x')) $
+        dirac x'
 
 
 sliceX
@@ -119,9 +128,11 @@ sliceX
     => abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure (HPair a 'HReal))
 sliceX target =
-    let densAt = determine (density target) in
-    target `bindx` \x ->
-    uniform (real_ 0) (fromProb $ app densAt x)
+    case determine $ density target of
+    Prelude.Nothing -> error "sliceX: couldn't get density"
+    Prelude.Just densAt ->
+        target `bindx` \x ->
+        uniform (real_ 0) (fromProb $ app densAt x)
 
 
 incompleteBeta
@@ -160,19 +171,22 @@ approxMh
     -> abt '[] (a ':-> 'HMeasure a)
 approxMh _ _ [] = error "TODO: approxMh for empty list"
 approxMh proposal prior (x:xs) =
-    lam $ \old ->
-    let_ (determine . density $ bindx prior proposal) $ \mu ->
-    unsafeProb <$> uniform (real_ 0) (real_ 1) >>= \u ->
-    proposal old >>= \new ->
-    let_ (u * mu `app` pair new old / mu `app` pair old new) $ \u0 ->
-    let_ (l new new / l old old) $ \l0 ->
-    let_ (tCDF (n - real_ 1) (udif l0 u0)) $ \delta ->
-    if_ (delta < eps)
-        (if_ (u0 < l0)
-            (dirac new)
-            (dirac old))
-        (approxMh proposal prior xs `app` old)
-  where
+    case determine . density $ bindx prior proposal of 
+    Prelude.Nothing -> error "approxMh: couldn't get density"
+    Prelude.Just theDensity ->
+        lam $ \old ->
+        let_ theDensity $ \mu ->
+        unsafeProb <$> uniform (real_ 0) (real_ 1) >>= \u ->
+        proposal old >>= \new ->
+        let_ (u * mu `app` pair new old / mu `app` pair old new) $ \u0 ->
+        let_ (l new new / l old old) $ \l0 ->
+        let_ (tCDF (n - real_ 1) (udif l0 u0)) $ \delta ->
+        if_ (delta < eps)
+            (if_ (u0 < l0)
+                (dirac new)
+                (dirac old))
+            (approxMh proposal prior xs `app` old)
+    where
     n   = real_ 2000
     eps = prob_ 0.05
     udif l u = unsafeProb $ (fromProb l) - (fromProb u)

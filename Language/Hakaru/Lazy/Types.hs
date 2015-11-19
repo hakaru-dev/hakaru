@@ -65,6 +65,8 @@ import           Control.Applicative  (Applicative(..))
 #endif
 import qualified Data.Foldable        as F
 import qualified Data.Traversable     as T
+import           Control.Applicative  (Alternative(..))
+import           Control.Monad        (MonadPlus(..))
 import           Data.Text            (Text)
 
 import Language.Hakaru.Syntax.IClasses
@@ -218,7 +220,8 @@ fromWhnf (Head_   e) = fromHead e
 fromWhnf (Neutral e) = e
 
 
--- | Identify terms which are already heads. N.B., we make no attempt to identify neutral terms, we just massage the type of 'toHead'.
+-- | Identify terms which are already heads. N.B., we make no attempt
+-- to identify neutral terms, we just massage the type of 'toHead'.
 toWhnf :: (ABT AST abt) => abt '[] a -> Maybe (Whnf abt a)
 toWhnf e = Head_ <$> toHead e
 
@@ -595,17 +598,28 @@ residualizeListContext e0 = foldl step e0 . statements
 -- type is a WHNF (via 'WMeasure') so that's a trivial statement
 -- to make. If we turn it back into some sort of normal form, then
 -- it must be one preserved by 'residualizeContext'.
-type Ans abt a = ListContext abt -> abt '[] ('HMeasure a)
+--
+-- Also, we add the list in order to support "lub" without it living in the AST.
+-- TODO: really we should use ListT or the like...
+type Ans abt a = ListContext abt -> [abt '[] ('HMeasure a)]
 
 
 -- TODO: defunctionalize the continuation. In particular, the only
 -- heap modifications we need are 'push' and a variant of 'update'
--- for finding\/replacing a binding once we have the value in hand.
+-- for finding\/replacing a binding once we have the value in hand;
+-- and the only 'freshNat' modifications are to allocate new 'Nat'.
+-- We could defunctionalize the second arrow too by relying on the
+-- @Codensity (ReaderT e m) ~= StateT e (Codensity m)@ isomorphism,
+-- which makes explicit that the only thing other than 'ListContext'
+-- updates is emitting something like @[Statement]@ to serve as the
+-- beginning of the final result.
 --
 -- TODO: give this a better, more informative name!
 --
 -- N.B., This monad is used not only for both 'perform' and 'constrainOutcome', but also for 'constrainValue'.
 newtype M abt x = M { unM :: forall a. (x -> Ans abt a) -> Ans abt a }
+    -- == @Codensity (Ans abt)@, assuming 'Codensity' is poly-kinded like it should be
+    -- If we don't want to allow continuations that can make nondeterministic choices, then we should use the right Kan extension itself, rather than the Codensity specialization of it.
 
 
 -- | Run a computation in the 'M' monad, residualizing out all the
@@ -622,13 +636,13 @@ newtype M abt x = M { unM :: forall a. (x -> Ans abt a) -> Ans abt a }
 runM :: (ABT AST abt, F.Foldable f)
     => M abt (Whnf abt a)
     -> f (Some2 abt)
-    -> abt '[] ('HMeasure a)
+    -> [abt '[] ('HMeasure a)]
 runM (M m) es = m c0 (ListContext i0 [])
     where
     -- HACK: we only have @c0@ build up a WHNF since that's what
     -- 'Ans' says we need (see the comment at 'Ans' for why this
     -- may not be what we actually mean).
-    c0 x = residualizeListContext $ syn (Dirac :$ fromWhnf x :* End)
+    c0 x = (:[]) . residualizeListContext (syn(Dirac :$ fromWhnf x :* End))
     
     i0 = unMaxNat (F.foldMap (\(Some2 e) -> MaxNat $ nextFree e) es)
 
@@ -643,6 +657,14 @@ instance Applicative (M abt) where
 instance Monad (M abt) where
     return    = pure
     M m >>= k = M $ \c -> m $ \x -> unM (k x) c
+
+instance Alternative (M abt) where
+    empty       = M $ \_ _ -> []
+    M m <|> M n = M $ \c h -> m c h ++ n c h
+    
+instance MonadPlus (M abt) where
+    mzero = empty -- aka "bot"
+    mplus = (<|>) -- aka "lub"
 
 instance (ABT AST abt) => EvaluationMonad abt (M abt) where
     freshNat =

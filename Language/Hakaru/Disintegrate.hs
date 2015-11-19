@@ -47,6 +47,7 @@ module Language.Hakaru.Disintegrate
 import qualified Data.Text  as Text
 import Data.Number.LogFloat (LogFloat)
 #if __GLASGOW_HASKELL__ < 710
+import Data.Functor         ((<$>))
 import Control.Applicative  (Applicative(..))
 #endif
 
@@ -73,7 +74,7 @@ import qualified Language.Hakaru.Expect         as E
 disintegrate
     :: (ABT AST abt, SingI a, SingI b, Backward a a)
     => abt '[] ('HMeasure (HPair a b))
-    -> abt '[] (a ':-> 'HMeasure b) -- this Hakaru function is measurable
+    -> [abt '[] (a ':-> 'HMeasure b)] -- this Hakaru function is measurable
 disintegrate m =
     error "TODO: disintegrate"
 {-
@@ -99,12 +100,18 @@ disintegrate m =
 density
     :: (ABT AST abt, SingI a, Backward a a)
     => abt '[] ('HMeasure a)
-    -> abt '[] (a ':-> 'HProb) -- TODO: make this a Haskell function?
+    -> [abt '[] (a ':-> 'HProb)] -- TODO: make this a Haskell function?
 density m =
-    P.lam $ \x -> E.total (conditionalize x m)
+    let x = Variable Text.empty (nextFree m)
+            (case typeOf m of SMeasure typ -> typ)
+    in do
+        m' <- conditionalize (var x) m
+        return $ syn(Lam_ :$ bind x (E.total m') :* End)
+{-
+    -- > P.lam $ \x -> E.total (conditionalize x m)
     -- BUG: we need to wrap @x@ in the @scalar0@ wrapper before handing it to 'conditionalize'
     -- @scalar0@ means forward is no-op and backward is bot.
-{-
+-}{-
     [ \x -> total (d `app` x)
     | d <- runCompose $
         P.lam $ \x ->
@@ -128,11 +135,9 @@ observe
     :: (ABT AST abt, SingI a, SingI b, Backward a a)
     => abt '[] a
     -> abt '[] ('HMeasure (HPair a b))
-    -> abt '[] ('HMeasure b)
+    -> [abt '[] ('HMeasure b)]
 observe x m =
-    {- runCompose $ -}
-    {- runLazy $ -}
-    P.snd P.<$> conditionalize (P.pair x P.unit) m
+    (P.snd P.<$>) <$> conditionalize (P.pair x P.unit) m
     -- TODO: can we lift the @(snd <$>)@ over the @runCompose@ and @runLazy@ functions? if so, then we can make sure those functions only need to be called inside 'conditionalize'
     -- N.B., see the note at 'disintegrate' about the use of @unit@ here...
 
@@ -147,7 +152,7 @@ conditionalize
     :: (ABT AST abt, Backward ab a)
     => abt '[] a
     -> abt '[] ('HMeasure ab)
-    -> abt '[] ('HMeasure ab)
+    -> [abt '[] ('HMeasure ab)]
 conditionalize a m =
     error "TODO: conditionalize"
     {-
@@ -167,9 +172,7 @@ conditionalize a m =
 --
 -- HACK: it's unclear (to me) whether this is actually the same as
 -- the function of the same name in "Language.Hakaru.Lazy".
---
--- TODO: should we return @Maybe (abt '[] a)@ or should we allow @bot@ at the very top level of the result?
-determine :: (ABT AST abt) => abt '[] a -> abt '[] a
+determine :: (ABT AST abt) => [abt '[] a] -> Maybe (abt '[] a)
 determine m = error "TODO: determine"
 
 
@@ -254,14 +257,16 @@ type Lazy s abt a = L s (C abt) a
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
+{- -- Is called 'empty' or 'mzero'
 -- | It is impossible to satisfy the constraints, or at least we
 -- give up on trying to do so.
 bot :: (ABT AST abt) => M abt a
-bot = M $ \_ _ -> error "TODO: implement bot"
+bot = M $ \_ _ -> []
+-}
 
 -- | The empty measure is a solution to the constraints.
 reject :: (ABT AST abt) => M abt a
-reject = M $ \_ _ -> syn (Superpose_ [])
+reject = M $ \_ _ -> [syn (Superpose_ [])]
 
 
 ----------------------------------------------------------------
@@ -301,7 +306,9 @@ perform e0 =
 mbindTheContinuation :: (ABT AST abt) => MeasureEvaluator abt (M abt)
 mbindTheContinuation e = do
     z <- freshVar Text.empty (case typeOf e of SMeasure typ -> typ)
-    M $ \c h -> syn (MBind :$ e :* bind z (c (Neutral $ var z) h) :* End)
+    M $ \c h -> do
+        f <- c (Neutral $ var z) h
+        return $ syn (MBind :$ e :* bind z f :* End)
 
 
 ----------------------------------------------------------------
@@ -343,7 +350,7 @@ constrainValue v0 e0 =
             case match of
                 Nothing -> error "constrainValue{Case_}: nothing matched!"
                 Just (GotStuck, _) -> do
-                    -- TODO: if any branch returns 'bot' then the whole thing should be 'bot'
+                    -- TODO: if any branch returns 'bot' then the whole thing should be 'bot'. But we should 'lub' together against the alternative choice of trying to go forward on the scrutinee in order to eliminate the 'bot'
                     -- TODO: how to percolate constraints up through the scrutinee?
                     bs' <- T.traverse (\b -> constrainBranch v0 e b) bs
                     return . Neutral . syn $ Case_ e bs'
