@@ -7,9 +7,9 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.17
+--                                                    2015.11.19
 -- |
--- Module      :  Language.Hakaru.Parser.Pretty
+-- Module      :  Language.Hakaru.PrettyConcrete
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  wren@community.haskell.org
@@ -18,7 +18,7 @@
 --
 --
 ----------------------------------------------------------------
-module Language.Hakaru.Parser.Pretty
+module Language.Hakaru.PrettyConcrete
     (
     -- * The user-facing API
       pretty
@@ -43,6 +43,7 @@ import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11)
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.DataKind
+import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT
@@ -181,17 +182,21 @@ instance (ABT AST abt) => Pretty (LC_ abt) where
 -- | Pretty-print @(:$)@ nodes in the AST.
 ppSCon :: (ABT AST abt) => Int -> SCon args a -> SArgs abt args -> Docs
 ppSCon p Lam_ (e1 :* End) =
-    parens (p > 0) $ adjustHead (PP.text "lam $" <+>) (ppBinder e1)
-ppSCon p App_ (e1 :* e2 :* End) = ppBinop "`app`" 9 LeftAssoc p e1 e2
+    let (vars, body) = ppBinder2 e1 in
+    [PP.text "fn" <+> toDoc vars <> PP.colon <+> (toDoc body)]
+
+--ppSCon p App_ (e1 :* e2 :* End) = ppArg e1 ++ parens True (ppArg e2)
+ppSCon p App_ (e1 :* e2 :* End) =
+    let (e1', vars) = collectApps e1 in
+    [e1' <> ppTuple (pretty e2 : vars)]
+
 ppSCon p Let_ (e1 :* e2 :* End) =
     let (vars, body) = ppBinder2 e2 in
     [toDoc vars <+> PP.equals <+> toDoc (ppArg e1)
     PP.$$ (toDoc body)]
 ppSCon p (Ann_ typ) (e1 :* End) =
-    ppFun p "ann_"
-        [ PP.text (showsPrec 11 typ "") -- TODO: make this prettier. Add hints to the singletons?
-        , toDoc $ ppArg e1
-        ]
+    [toDoc (ppArg e1) <+> PP.text "::" <+> ppType typ]
+
 ppSCon p (PrimOp_     o) es          = ppPrimOp  p o es
 ppSCon p (ArrayOp_    o) es          = ppArrayOp p o es
 ppSCon p (CoerceTo_   c) (e1 :* End) =
@@ -205,7 +210,7 @@ ppSCon p (UnsafeFrom_ c) (e1 :* End) =
         , toDoc $ ppArg e1
         ]
 ppSCon p (MeasureOp_ o) es       = ppMeasureOp p o es
-ppSCon p Dirac (e1 :* End)       = ppApply1 p "dirac" e1
+ppSCon p Dirac (e1 :* End)       = [PP.text "return" <+> toDoc (ppArg e1)]
 ppSCon p MBind (e1 :* e2 :* End) =
     let (vars, body) = ppBinder2 e2 in
     [toDoc vars <+> PP.text "<~" <+> toDoc (ppArg e1)
@@ -234,6 +239,17 @@ ppSCon p Summate (e1 :* e2 :* e3 :* End) =
 -- HACK: GHC can't figure out that there are no other type-safe cases
 ppSCon _ _ _ = error "ppSCon: the impossible happened"
 
+
+ppType :: Sing (a :: Hakaru) -> Doc
+ppType SNat         = PP.text "nat"
+ppType SInt         = PP.text "int"
+ppType SProb        = PP.text "prob"
+ppType SReal        = PP.text "real"
+ppType (SMeasure a) = PP.text "measure" <> PP.parens (ppType a)
+ppType (SArray   a) = PP.text "array" <> PP.parens (ppType a)
+ppType (SFun   a b) = ppType a <+> PP.text "->" <+> ppType b  
+ppType typ  = PP.text (showsPrec 11 typ "")
+    -- TODO: make this prettier. Add hints to the singletons?typ
 
 ppCoerce :: Coercion a b -> String
 ppCoerce (CCons (Signed HRing_Real) CNil) = "fromProb"
@@ -285,8 +301,8 @@ ppPrimOp p Atanh     (e1 :* End)       = ppApply1 p "atanh" e1
 ppPrimOp p RealPow   (e1 :* e2 :* End) = ppBinop "**" 8 RightAssoc p e1 e2
 ppPrimOp p Exp       (e1 :* End)       = ppApply1 p "exp"   e1
 ppPrimOp p Log       (e1 :* End)       = ppApply1 p "log"   e1
-ppPrimOp _ Infinity         End        = [PP.text "infinity"]
-ppPrimOp _ NegativeInfinity End        = [PP.text "negativeInfinity"]
+ppPrimOp _ Infinity         End        = [PP.text "∞"]
+ppPrimOp _ NegativeInfinity End        = [PP.text "-∞"]
 ppPrimOp p GammaFunc (e1 :* End)       = ppApply1 p "gammaFunc" e1
 ppPrimOp p BetaFunc  (e1 :* e2 :* End) = ppApply2 p "betaFunc" e1 e2
 
@@ -394,6 +410,23 @@ instance (ABT AST abt) => Pretty (Branch a abt) where
             ]
 
 ----------------------------------------------------------------
+collectApps :: (ABT AST abt) => abt '[] a -> (Doc, [Doc])
+collectApps e = caseVarSyn e (\x -> (pretty e, [])) $ \t ->
+                case t of
+                  App_ :$ (e1 :* e2 :* End) ->
+                      let (e', vars) = collectApps e1 in
+                      (e', toDoc (ppArg e2) : vars)
+                  _ -> (pretty e, [])
+
+collectLams :: (ABT AST abt) => abt xs a -> (Doc, [Doc])
+collectLams e =
+    case viewABT e of
+      Bind x (Syn t) ->
+          case t of
+            Lam_ :$ (e1 :* End) -> collectLams e1
+            _ -> (pretty $ syn t, [ppVariable x])
+      _ -> error "TODO: collectLams"
+
 -- | For the \"@lam $ \x ->\n@\"  style layout.
 adjustHead :: (Doc -> Doc) -> Docs -> Docs
 adjustHead f []     = [f (toDoc [])]

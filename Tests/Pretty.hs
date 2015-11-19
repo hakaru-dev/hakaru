@@ -5,7 +5,7 @@ module Tests.Pretty where
 import           Language.Hakaru.Parser.Parser
 import qualified Language.Hakaru.Parser.AST as U
 import           Language.Hakaru.Parser.SymbolResolve
-import           Language.Hakaru.Parser.Pretty
+import           Language.Hakaru.PrettyConcrete
 
 import           Language.Hakaru.Syntax.ABT
 import qualified Language.Hakaru.Syntax.AST as T
@@ -33,6 +33,11 @@ defTest = unlines ["def foo(x nat) nat:"
                   ,"  x + 2"
                   ,"foo(3)"
                   ]
+
+defTest2 = unlines ["def foo(x nat, y nat) nat:"
+                   ,"  x + y"
+                   ,"foo(2,3)"
+                   ]
 
 pToa :: U.AST' Text -> U.AST a
 pToa ast = makeAST $ normAST $ evalState (symbolResolution primTable ast) 0
