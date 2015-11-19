@@ -11,11 +11,28 @@ import           Language.Hakaru.Syntax.ABT
 import qualified Language.Hakaru.Syntax.AST as T
 import           Language.Hakaru.Syntax.TypeCheck
 
+import Prelude hiding (unlines)
+
 import Data.Text
 import Text.PrettyPrint
 import Test.HUnit
 import Text.Parsec.Error
 import Control.Monad.Trans.State.Strict (evalState)
+
+letTest = unlines ["x = 2"
+                  ,"y = 3"
+                  ,"x"
+                  ]
+
+letTest2 = unlines ["x = y = 2"
+                   ,"    y"
+                   ,"x"
+                   ]
+
+defTest = unlines ["def foo(x nat) nat:"
+                  ,"  x + 2"
+                  ,"foo(3)"
+                  ]
 
 pToa :: U.AST' Text -> U.AST a
 pToa ast = makeAST $ normAST $ evalState (symbolResolution primTable ast) 0

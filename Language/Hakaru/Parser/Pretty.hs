@@ -107,6 +107,14 @@ ppBinder e =
     go xs (Var  x)   = (reverse xs, [ppVariable x])
     go xs (Syn  t)   = (reverse xs, prettyPrec_ 0 (LC_ (syn t)))
 
+ppBinder2 :: (ABT AST abt) => abt xs a -> ([Doc],Docs)
+ppBinder2 e = go [] (viewABT e)
+    where
+    go :: (ABT AST abt) => [Doc] -> View (AST abt) xs a -> ([Doc],Docs)
+    go xs (Bind x v) = go (ppVariable x : xs) v
+    go xs (Var  x)   = (reverse xs, [ppVariable x])
+    go xs (Syn  t)   = (reverse xs, prettyPrec_ 0 (LC_ (syn t)))
+
 
 -- TODO: since switching to ABT2, this instance requires -XFlexibleContexts; we should fix that if we can
 -- BUG: since switching to ABT2, this instance requires -XUndecidableInstances; must be fixed!
@@ -180,10 +188,11 @@ ppSCon p Lam_ (e1 :* End) =
     parens (p > 0) $ adjustHead (PP.text "lam $" <+>) (ppBinder e1)
 ppSCon p App_ (e1 :* e2 :* End) = ppBinop "`app`" 9 LeftAssoc p e1 e2
 ppSCon p Let_ (e1 :* e2 :* End) =
-    parens (p > 0) $ 
-        adjustHead
-            (toDoc (ppArg e1) <+> PP.equals <+> PP.char '$' <+>)
-            (ppBinder e2)
+    let (vars, body) = ppBinder2 e2 in
+    [toDoc vars <+> PP.equals <+> toDoc (ppArg e1)
+           PP.$$ (PP.nest 0 $ toDoc body)]
+
+
 ppSCon p Fix_       (e1 :* End) = ppFun p "fix"  [toDoc $ ppBinder e1]
 ppSCon p (Ann_ typ) (e1 :* End) =
     ppFun p "ann_"
