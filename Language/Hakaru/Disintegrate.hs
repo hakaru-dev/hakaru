@@ -354,11 +354,8 @@ perform e0 =
         Superpose_ pes ->
             choice [ unsafePush (SWeight $ Thunk p) >> perform e
                 | (p,e) <- pes ]
-
-        -- I think this captures the logic of the following two cases from the paper:
-        -- > perform u | atomic u    = emitMBind_Whnf u
-        -- > perform e | not (hnf e) = evaluate e >>= perform
-        -- TODO: But we should be careful to make sure we haven't left any cases out. Maybe we should have some sort of @mustPerform@ predicate like we have 'mustCheck' in TypeCheck.hs...?
+        -- N.B., be sure you've covered all the heads before falling through to this branch. (The 'WAnn' head works fine on fallthrough.)
+        -- TODO: add a @mustPerform@ predicate like we have 'mustCheck' in TypeCheck.hs...?
         _ -> do
             w <- evaluate_ e0
             case w of
