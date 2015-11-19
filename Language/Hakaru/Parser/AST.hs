@@ -167,7 +167,6 @@ data AST a =
    | MBind_      Name    (AST a) (AST a)
    | Expect_     Name    (AST a) (AST a)
    | Superpose_  [(AST a, AST a)]
-   | Lub_        (AST a)
 
 
 deriving instance Eq a => Eq (AST' a)

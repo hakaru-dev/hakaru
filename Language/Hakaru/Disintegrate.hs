@@ -257,7 +257,7 @@ type Lazy s abt a = L s (C abt) a
 -- | It is impossible to satisfy the constraints, or at least we
 -- give up on trying to do so.
 bot :: (ABT AST abt) => M abt a
-bot = M $ \_ _ -> syn (Lub_ [])
+bot = M $ \_ _ -> error "TODO: implement bot"
 
 -- | The empty measure is a solution to the constraints.
 reject :: (ABT AST abt) => M abt a
@@ -337,7 +337,6 @@ constrainValue v0 e0 =
         NaryOp_     o    es        -> constrainNaryOp v0 o es
         PrimOp_     o :$ es        -> constrainPrimOp v0 o es
         Expect  :$ e1 :* e2 :* End ->
-        Lub_ es ->
 
         Case_ e bs -> do
             match <- matchBranches evaluateDatum e bs
@@ -454,7 +453,6 @@ constrainOutcome v0 e0 = do
                     App_ :$ e1 :* e2 :* End ->
                     Let_ :$ e1 :* e2 :* End ->
                     Ann_ typ :$ e1 :* End -> constrainOutcome v0 e1
-                    Lub_ es ->
                     Case_ e bs ->
 
 

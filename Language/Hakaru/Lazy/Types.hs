@@ -138,8 +138,6 @@ data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     WUnsafeFrom :: !(Coercion a b) -> !(Head abt b) -> Head abt a
 
     -- Other funky stuff
-    -- TODO: is there any way we can get rid of 'WLub'? cuz dealing with it is gross
-    WLub :: [Head abt a] -> Head abt a
     WIntegrate
         :: !(abt '[] 'HReal)
         -> !(abt '[] 'HReal)
@@ -175,7 +173,6 @@ fromHead (WSuperpose pes)   = syn (Superpose_ pes)
 fromHead (WAnn      typ e1) = syn (Ann_      typ :$ fromHead e1 :* End)
 fromHead (WCoerceTo   c e1) = syn (CoerceTo_   c :$ fromHead e1 :* End)
 fromHead (WUnsafeFrom c e1) = syn (UnsafeFrom_ c :$ fromHead e1 :* End)
-fromHead (WLub es)          = syn (Lub_ (fromHead <$> es))
 fromHead (WIntegrate e1 e2 e3) = syn (Integrate :$ e1 :* e2 :* e3 :* End)
 fromHead (WSummate   e1 e2 e3) = syn (Summate   :$ e1 :* e2 :* e3 :* End)
 
@@ -197,7 +194,6 @@ toHead e =
         Ann_       typ :$ e1 :* End        -> WAnn typ <$> toHead e1
         CoerceTo_    c :$ e1 :* End        -> WCoerceTo c <$> toHead e1
         UnsafeFrom_  c :$ e1 :* End        -> WUnsafeFrom c <$> toHead e1
-        Lub_         es                    -> WLub <$> T.traverse toHead es
         Integrate :$ e1 :* e2 :* e3 :* End -> Just $ WIntegrate e1 e2 e3
         Summate   :$ e1 :* e2 :* e3 :* End -> Just $ WSummate   e1 e2 e3
         _ -> Nothing
@@ -262,8 +258,6 @@ viewHeadDatum (WCoerceTo   c _)   = case c of {}
 viewHeadDatum (WUnsafeFrom c _)   = case c of {}
 viewHeadDatum (WValue (VDatum d)) = Just (fmap11 (syn . Value_) d)
 viewHeadDatum (WDatum d)          = Just d
-viewHeadDatum (WLub [])           = Nothing
-viewHeadDatum (WLub es)           = error "TODO: viewHeadDatum{WLub}"
 
 
 ----------------------------------------------------------------

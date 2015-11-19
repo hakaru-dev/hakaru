@@ -140,8 +140,6 @@ evaluate perform = evaluate_
                 -- call-by-name:
                 caseBind f $ \x f' ->
                 push (SLet x $ Thunk e2) f' evaluate_
-            evaluateApp (WLub vs) =
-                error "TODO: evaluateApp{WLub}" -- (Head_ . WLub) <$> forkMap evaluateApp vs
             evaluateApp _ = error "evaluate{App_}: the impossible happened"
 
         Let_ :$ e1 :* e2 :* End ->
@@ -162,22 +160,6 @@ evaluate perform = evaluate_
         Expect :$ e1 :* e2 :* End ->
             evaluate_ . E.expect e1 $ \e3 ->
                 syn (Let_ :$ e3 :* e2 :* End)
-
-        -- TODO: collapse nested Lub, like we do for nested NaryOp
-        Lub_ es -> do
-            ws <- T.traverse evaluate_ es -- BUG: could have side effects that we don't want to let escape... TODO: use some kind of 'forkMap' instead
-            return $
-                case partitionWhnf ws of
-                ([],[])  -> Head_ (WLub []) -- TODO: use 'bot' instead, for short-circuiting
-                (vs,[])  -> Head_ (WLub vs)
-                ([],es') -> Neutral $ syn (Lub_ es')
-                (vs,es') -> Neutral $ syn (Lub_ (fmap fromHead vs ++ es')) -- TODO: make this less gross somehow...
-          where
-            partitionWhnf :: [Whnf abt a] -> ([Head abt a], [abt '[] a])
-            partitionWhnf = foldr step ([],[])
-                where
-                step (Head_   v) ~(vs, es') = (v:vs, es')
-                step (Neutral e) ~(vs, es') = (vs, e:es')
 
         -- TODO: rather than throwing a Haskell error, instead
         -- capture the possibility of failure in the 'EvaluationMonad'
@@ -367,38 +349,34 @@ class Interp a a' | a -> a' where
     reflect :: (ABT AST abt) => a' -> Head abt a
 
 instance Interp 'HNat Nat where
+    reflect = WValue . VNat
     reify (WValue (VNat n)) = n
     reify (WAnn        _ v) = reify v
     reify (WCoerceTo   _ _) = error "TODO: reify{WCoerceTo}"
     reify (WUnsafeFrom _ _) = error "TODO: reify{WUnsafeFrom}"
-    reify (WLub        _)   = error "TODO: reify{WLub}"
-    reflect = WValue . VNat
 
 instance Interp 'HInt Int where
+    reflect = WValue . VInt
     reify (WValue (VInt i)) = i
     reify (WAnn        _ v) = reify v
     reify (WCoerceTo   _ _) = error "TODO: reify{WCoerceTo}"
     reify (WUnsafeFrom _ _) = error "TODO: reify{WUnsafeFrom}"
-    reify (WLub        _)   = error "TODO: reify{WLub}"
-    reflect = WValue . VInt
 
 instance Interp 'HProb LogFloat where -- TODO: use rational instead
+    reflect = WValue . VProb
     reify (WValue (VProb p))  = p
     reify (WAnn        _ v)   = reify v
     reify (WCoerceTo   _ _)   = error "TODO: reify{WCoerceTo}"
     reify (WUnsafeFrom _ _)   = error "TODO: reify{WUnsafeFrom}"
-    reify (WLub        _)     = error "TODO: reify{WLub}"
     reify (WIntegrate  _ _ _) = error "TODO: reify{WIntegrate}"
     reify (WSummate    _ _ _) = error "TODO: reify{WSummate}"
-    reflect = WValue . VProb
 
 instance Interp 'HReal Double where -- TODO: use rational instead
+    reflect = WValue . VReal
     reify (WValue (VReal r)) = r
     reify (WAnn        _ v) = reify v
     reify (WCoerceTo   _ _) = error "TODO: reify{WCoerceTo}"
     reify (WUnsafeFrom _ _) = error "TODO: reify{WUnsafeFrom}"
-    reify (WLub        _)   = error "TODO: reify{WLub}"
-    reflect = WValue . VReal
 
 
 identifyDatum :: (ABT AST abt) => DatumEvaluator abt Identity
@@ -597,7 +575,7 @@ evaluateArrayOp evaluate_ o es =
             Head_   v1  ->
                 case head2array v1 of
                 Nothing ->
-                    return . Head_ $ WLub [] -- TODO: use 'bot' instead
+                    error "TODO: use bot"
                 Just WAEmpty ->
                     error "evaluate: indexing into empty array!"
                 Just (WAArray e3 e4) ->
@@ -611,7 +589,7 @@ evaluateArrayOp evaluate_ o es =
             Neutral e1' -> return . Neutral $ syn (ArrayOp_ o :$ e1' :* End)
             Head_   v1  ->
                 case head2array v1 of
-                Nothing             -> return . Head_ $ WLub [] -- TODO: use 'bot' instead
+                Nothing             -> error "TODO: use bot"
                 Just WAEmpty        -> return . Head_ $ WValue (VNat 0)
                 Just (WAArray e3 _) -> evaluate_ e3
 
@@ -632,8 +610,6 @@ head2array :: Head abt ('HArray a) -> Maybe (ArrayHead abt a)
 head2array WEmpty         = Just WAEmpty
 head2array (WArray e1 e2) = Just (WAArray e1 e2)
 head2array (WAnn _ w)     = head2array w
-head2array (WLub [])      = Nothing
-head2array (WLub vs)      = error "TODO: head2array{WLub}"
 head2array _ = error "head2array: the impossible happened"
 
 

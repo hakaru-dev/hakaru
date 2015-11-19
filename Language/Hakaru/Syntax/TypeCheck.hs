@@ -139,7 +139,6 @@ mustCheck = go
     go (U.MeasureOp_ _ _) = False
     go (U.Expect_ _ _ e2) = mustCheck e2
     go (U.Superpose_ pes) = F.all (mustCheck . snd) pes -- TODO: back this up, like we do for NaryOp
-    go (U.Lub_ es)        = error "TODO: mustCheck{Lub_}" -- TODO: inferrable iff at least one component is inferrable?
 
 
 ----------------------------------------------------------------

@@ -591,9 +591,6 @@ data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         :: [(abt '[] 'HProb, abt '[] ('HMeasure a))]
         -> AST abt ('HMeasure a)
 
-    -- Arbitrary choice between equivalent programs
-    Lub_ :: [abt '[] a] -> AST abt a
-
 
 ----------------------------------------------------------------
 -- N.B., having a @singAST :: AST abt a -> Sing a@ doesn't make
@@ -631,11 +628,11 @@ instance Show2 abt => Show1 (AST abt) where
                     . showList2 (F.toList es)
                     )
                 )
-        Value_ v        -> showParen_0   p "Value_" v
-        Empty_          -> showString      "Empty_"
-        Array_ e1 e2    -> showParen_22  p "Array_" e1 e2
-        Datum_ d        -> showParen_1   p "Datum_" (fmap11 LC_ d)
-        Case_  e bs     ->
+        Value_ v     -> showParen_0   p "Value_" v
+        Empty_       -> showString      "Empty_"
+        Array_ e1 e2 -> showParen_22  p "Array_" e1 e2
+        Datum_ d     -> showParen_1   p "Datum_" (fmap11 LC_ d)
+        Case_  e bs  ->
             showParen (p > 9)
                 ( showString "Case_ "
                 . showsPrec2 11 e
@@ -649,11 +646,6 @@ instance Show2 abt => Show1 (AST abt) where
                     (\(e1,e2) -> showTuple [shows2 e1, shows2 e2])
                     pes
                 )
-        Lub_ es ->
-            showParen (p > 9)
-                ( showString "Lub_ "
-                . showList2 es
-                )
 
 instance Show2 abt => Show (AST abt a) where
     showsPrec = showsPrec1
@@ -662,28 +654,26 @@ instance Show2 abt => Show (AST abt a) where
 
 ----------------------------------------------------------------
 instance Functor21 AST where
-    fmap21 f (o :$ es)              = o :$ fmap21 f es
-    fmap21 f (NaryOp_     o  es)    = NaryOp_     o      (fmap f es)
-    fmap21 _ (Value_      v)        = Value_      v
-    fmap21 _ Empty_                 = Empty_
-    fmap21 f (Array_      e1 e2)    = Array_      (f e1) (f e2)
-    fmap21 f (Datum_      d)        = Datum_      (fmap11 f d)
-    fmap21 f (Case_       e  bs)    = Case_       (f e)  (map (fmap21 f) bs)
-    fmap21 f (Superpose_  pes)      = Superpose_  (map (f *** f) pes)
-    fmap21 f (Lub_        es)       = Lub_        (map f es)
+    fmap21 f (o :$ es)          = o :$ fmap21 f es
+    fmap21 f (NaryOp_    o  es) = NaryOp_    o (fmap f es)
+    fmap21 _ (Value_     v)     = Value_     v
+    fmap21 _ Empty_             = Empty_
+    fmap21 f (Array_     e1 e2) = Array_     (f e1) (f e2)
+    fmap21 f (Datum_     d)     = Datum_     (fmap11 f d)
+    fmap21 f (Case_      e  bs) = Case_      (f e)  (map (fmap21 f) bs)
+    fmap21 f (Superpose_ pes)   = Superpose_ (map (f *** f) pes)
 
 
 ----------------------------------------------------------------
 instance Foldable21 AST where
-    foldMap21 f (_ :$ es)              = foldMap21 f es
-    foldMap21 f (NaryOp_     _  es)    = F.foldMap f es
-    foldMap21 _ (Value_ _)             = mempty
-    foldMap21 _ Empty_                 = mempty
-    foldMap21 f (Array_      e1 e2)    = f e1 `mappend` f e2
-    foldMap21 f (Datum_      d)        = foldMap11 f d
-    foldMap21 f (Case_       e  bs)    = f e  `mappend` F.foldMap (foldMap21 f) bs
-    foldMap21 f (Superpose_  pes)      = F.foldMap (\(e1,e2) -> f e1 `mappend` f e2) pes
-    foldMap21 f (Lub_        es)       = F.foldMap f es -- BUG: really, to handle Lub in a sensible way, we need to adjust Foldable so that it uses a semiring or something; so that we can distinguish \"multiplication\" from \"addition\".
+    foldMap21 f (_ :$ es)          = foldMap21 f es
+    foldMap21 f (NaryOp_    _  es) = F.foldMap f es
+    foldMap21 _ (Value_ _)         = mempty
+    foldMap21 _ Empty_             = mempty
+    foldMap21 f (Array_     e1 e2) = f e1 `mappend` f e2
+    foldMap21 f (Datum_     d)     = foldMap11 f d
+    foldMap21 f (Case_      e  bs) = f e  `mappend` F.foldMap (foldMap21 f) bs
+    foldMap21 f (Superpose_ pes)   = F.foldMap (\(e1,e2) -> f e1 `mappend` f e2) pes
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

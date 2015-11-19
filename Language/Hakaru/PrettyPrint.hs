@@ -163,10 +163,6 @@ instance (ABT AST abt) => Pretty (LC_ abt) where
                 . map (\(e1,e2) -> ppTuple [pretty e1, pretty e2])
                 $ pes
                 ]
-        Lub_ es ->
-            ppFun p "syn"
-                [ toDoc $ ppFun 11 "Lub_"
-                    [ toDoc $ ppList (map pretty es) ]]
 
 
 -- | Pretty-print @(:$)@ nodes in the AST.

@@ -358,23 +358,6 @@ expectAST p (Superpose_ es) xs =
     -- TODO: in the Lazy.tex paper, we use @denotation e1 xs@ and guard against that interpretation being negative...
     -- TODO: if @es@ is null, then automatically simplify to just 0
 
-expectAST p (Lub_ es) xs =
-    -- TODO: doing case analysis on @p@ is just a hack to try and get at least some things to work. We can probably get everything to work by doing induction on @p@, but it'd be better if we could grab the type of the whole case expression and do induction on that...
-    case p of
-    ImpureMeasure ->
-        ExpectMeasure $ \c ->
-        syn $ Lub_ [ expectSynDir p e xs `apM` c | e <- es ]
-    _ -> error "TODO: expectAST{Lub_}"
-    {-
-    -- BUG: these don't typecheck. We need to push the @syn . Lub_@ down over @Expect abt@.
-    ImpureFun _ ->
-        ExpectFun Text.empty $ \e2 ->
-        syn $ Lub_ [ expectSynDir p e xs `apF` e2 | e <- es]
-    ImpureArray _ ->
-        ExpectArray Text.empty (error "TODO: expectAST{Lub_}") $ \ei ->
-        syn $ Lub_ [ expectSynDir p e xs `apA` ei | e <- es]
-    -}
-
 expectAST p (Expect    :$ _) _ = case p of {}
 expectAST p (Integrate :$ _) _ = case p of {}
 expectAST p (Summate   :$ _) _ = case p of {}

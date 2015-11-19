@@ -82,9 +82,8 @@ typeOf_ e0 =
         Datum_  d      -> error "TODO: typeOf_{Datum_}"
         Case_   _  bs  -> tryAll "Case_" typeOfBranch bs
         Superpose_ pes -> tryAll "Superpose_" (typeOf_ . snd) pes
-        Lub_       es  -> tryAll "Lub_" typeOf_ es
         
-        _ :$ es -> case es of {} -- The impossible happened
+        _ :$ _ -> error "typeOf_: the impossible happened"
 
 
 typeOfBranch :: (ABT AST abt) => Branch a abt b -> Either String (Sing b)
