@@ -308,10 +308,10 @@ emit
     => Text.Text
     -> Sing a
     -> (forall b. abt '[a] ('HMeasure b) -> abt '[] ('HMeasure b))
-    -> M abt (abt '[] a)
+    -> M abt (Variable a)
 emit hint typ f = do
     x <- freshVar hint typ
-    M $ \c h -> (f . bind x) <$> c (var x) h
+    M $ \c h -> (f . bind x) <$> c x h
 
 -- This function was called @insert_@ in the old finally-tagless code. It's mainly used as a minor variant on 'emitMBind_' so as to avoid using 'dirac unit' everywhere (e.g., @ifTrue b m = P.if_ b m P.reject@)
 emit_
@@ -324,7 +324,7 @@ emitMBind_ :: (ABT AST abt) => abt '[] ('HMeasure HUnit) -> M abt ()
 emitMBind_ m = emit_ (m P.>>)
 
 -- This function was called @lift@ in the finally-tagless code.
-emitMBind :: (ABT AST abt) => abt '[] ('HMeasure a) -> M abt (abt '[] a)
+emitMBind :: (ABT AST abt) => abt '[] ('HMeasure a) -> M abt (Variable a)
 emitMBind m =
     emit Text.empty (sUnMeasure $ typeOf m)
         (\e -> syn (MBind :$ m :* e :* End))
@@ -371,10 +371,8 @@ perform e0 =
                 Head_   v -> perform $ fromHead v
                 Neutral e -> mbindTheContinuation e
 
-
 mbindTheContinuation :: (ABT AST abt) => MeasureEvaluator abt (M abt)
-mbindTheContinuation e = Neutral <$> emitMBind e
-
+mbindTheContinuation e = (Neutral . var) <$> emitMBind e
 
 ----------------------------------------------------------------
 -- TODO: see the todo for 'constrainOutcome'
