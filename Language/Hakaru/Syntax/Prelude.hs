@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.16
+--                                                    2015.11.19
 -- |
 -- Module      :  Language.Hakaru.Syntax.Prelude
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -40,7 +40,8 @@ import           Data.Number.LogFloat (LogFloat)
 
 import Language.Hakaru.Syntax.Nat
 import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.Sing (Sing, SingI(sing))
+import Language.Hakaru.Syntax.Sing (Sing(..), SingI(sing), sUnPair, sUnEither, sUnMaybe, sUnMeasure, sUnArray)
+import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.AST
@@ -585,11 +586,13 @@ pair   = (datum_ .) . dPair
 -- BUG: N.B., this doesn't work when @a@ or @b@ are HData, because the SingI instance for Symbol isn't implemented! (But other than that, this seems to work...)
 unpair
     :: forall abt a b c
-    .  (ABT AST abt, SingI a, SingI b)
+    .  (ABT AST abt)
     => abt '[] (HPair a b)
     -> (abt '[] a -> abt '[] b -> abt '[] c)
     -> abt '[] c
-unpair e f = error "TODO: unpair with the new 'Variable' type"
+unpair e f =
+    let (a,b) = sUnPair $ typeOf e in
+    error "TODO: unpair with the new 'Variable' type"
 {-
     -- HACK: the current implementation of 'multibinder' requires this explicit type signature.
     -- BUG: why do we get a warning about the pattern being non-exhaustive?
@@ -599,19 +602,19 @@ unpair e f = error "TODO: unpair with the new 'Variable' type"
     in syn $ Case_ e
         [Branch (pPair PVar PVar)
             $ multibinder
-                ( Cons (Hint Text.empty sing)
-                . Cons (Hint Text.empty sing)
+                ( Cons (Hint Text.empty a)
+                . Cons (Hint Text.empty b)
                 $ Nil)
                 f'
         ]
 -}
 
-fst :: (ABT AST abt, SingI a, SingI b)
+fst :: (ABT AST abt)
     => abt '[] (HPair a b)
     -> abt '[] a
 fst p = unpair p (\x _ -> x)
 
-snd :: (ABT AST abt, SingI a, SingI b)
+snd :: (ABT AST abt)
     => abt '[] (HPair a b)
     -> abt '[] b
 snd p = unpair p (\_ y -> y)
@@ -623,15 +626,16 @@ right :: (ABT AST abt) => abt '[] b -> abt '[] (HEither a b)
 right = datum_ . dRight
 
 uneither
-    :: (ABT AST abt, SingI a, SingI b)
+    :: (ABT AST abt)
     => abt '[] (HEither a b)
     -> (abt '[] a -> abt '[] c)
     -> (abt '[] b -> abt '[] c)
     -> abt '[] c
-uneither e l r = 
-    syn $ Case_ e
-        [ Branch (pLeft  PVar) (binder Text.empty sing l)
-        , Branch (pRight PVar) (binder Text.empty sing r)
+uneither e l r =
+    let (a,b) = sUnEither $ typeOf e
+    in syn $ Case_ e
+        [ Branch (pLeft  PVar) (binder Text.empty a l)
+        , Branch (pRight PVar) (binder Text.empty b r)
         ]
 
 if_ :: (ABT AST abt) => abt '[] HBool -> abt '[] a -> abt '[] a -> abt '[] a
@@ -660,7 +664,7 @@ maybe    :: (ABT AST abt) => Maybe (abt '[] a) -> abt '[] (HMaybe a)
 maybe    = Prelude.maybe nothing just
 
 unmaybe
-    :: (ABT AST abt, SingI a)
+    :: (ABT AST abt)
     => abt '[] (HMaybe a)
     -> abt '[] b
     -> (abt '[] a -> abt '[] b)
@@ -668,7 +672,7 @@ unmaybe
 unmaybe e n j = 
     syn $ Case_ e
         [ Branch pNothing     n
-        , Branch (pJust PVar) (binder Text.empty sing j)
+        , Branch (pJust PVar) (binder Text.empty (sUnMaybe $ typeOf e) j)
         ]
 
 unsafeProb :: (ABT AST abt) => abt '[] 'HReal -> abt '[] 'HProb
@@ -692,6 +696,7 @@ negativeInfinity = primOp0_ NegativeInfinity
 -- instance (ABT AST abt) => Lambda abt where
 -- 'app' already defined
 
+-- TODO: use 'typeOf' to remove the 'SingI' requirement somehow
 lam :: (ABT AST abt, SingI a)
     => (abt '[] a -> abt '[] b)
     -> abt '[] (a ':-> b)
@@ -718,11 +723,11 @@ lamWithType typ f = syn (Lam_ :$ binder Text.empty typ f :* End)
 -}
 
 let_
-    :: (ABT AST abt, SingI a)
+    :: (ABT AST abt)
     => abt '[] a
     -> (abt '[] a -> abt '[] b)
     -> abt '[] b
-let_ e f = syn (Let_ :$ e :* binder Text.empty sing f :* End)
+let_ e f = syn (Let_ :$ e :* binder Text.empty (typeOf e) f :* End)
 
 
 ----------------------------------------------------------------
@@ -737,29 +742,28 @@ array n =
 empty :: (ABT AST abt) => abt '[] ('HArray a)
 empty = syn Empty_
 
--- BUG: remove the 'SingI' requirement!
-(!) :: (ABT AST abt, SingI a)
+(!) :: (ABT AST abt)
     => abt '[] ('HArray a) -> abt '[] 'HNat -> abt '[] a
-(!) = arrayOp2_ $ Index sing
+(!) e = arrayOp2_ (Index . sUnArray $ typeOf e) e
 
--- BUG: remove the 'SingI' requirement!
-size :: (ABT AST abt, SingI a) => abt '[] ('HArray a) -> abt '[] 'HNat
-size = arrayOp1_ $ Size sing
+size :: (ABT AST abt) => abt '[] ('HArray a) -> abt '[] 'HNat
+size e = arrayOp1_ (Size . sUnArray $ typeOf e) e
 
--- BUG: remove the 'SingI' requirement!
 reduce
-    :: (ABT AST abt, SingI a)
+    :: (ABT AST abt)
     => (abt '[] a -> abt '[] a -> abt '[] a)
     -> abt '[] a
     -> abt '[] ('HArray a)
     -> abt '[] a
-reduce f = arrayOp3_ (Reduce sing) (lam $ \x -> lam $ \y -> f x y)
+reduce f e =
+    let a = typeOf e
+        f' = lamWithType a $ \x -> lamWithType a $ \y -> f x y
+    in arrayOp3_ (Reduce a) f' e
 
 -- TODO: better names for all these. The \"V\" suffix doesn't make sense anymore since we're calling these arrays, not vectors...
 -- TODO: bust these all out into their own place, since the API for arrays is gonna be huge
 
--- BUG: remove the 'SingI' requirement!
-sumV :: (ABT AST abt, HSemiring_ a, SingI a)
+sumV :: (ABT AST abt, HSemiring_ a)
     => abt '[] ('HArray a) -> abt '[] a
 sumV = reduce (+) zero -- equivalent to summateV if @a ~ 'HProb@
 
@@ -789,9 +793,8 @@ unsafeMinus x y =
     unsafeFrom_ signed (coerceTo_ signed x - coerceTo_ signed y)
 -}
 
--- BUG: remove the 'SingI' requirement!
 appendV
-    :: (ABT AST abt, SingI a)
+    :: (ABT AST abt)
     => abt '[] ('HArray a) -> abt '[] ('HArray a) -> abt '[] ('HArray a)
 appendV v1 v2 =
     array (size v1 + size v2) $ \i ->
@@ -799,17 +802,15 @@ appendV v1 v2 =
             (v1 ! i)
             (v2 ! (i `unsafeMinusNat` size v1))
 
--- BUG: remove the 'SingI' requirement!
 mapWithIndex
-    :: (ABT AST abt, SingI a)
+    :: (ABT AST abt)
     => (abt '[] 'HNat -> abt '[] a -> abt '[] b)
     -> abt '[] ('HArray a)
     -> abt '[] ('HArray b)
 mapWithIndex f v = array (size v) $ \i -> f i (v ! i)
 
--- BUG: remove the 'SingI' requirement!
 mapV
-    :: (ABT AST abt, SingI a)
+    :: (ABT AST abt)
     => (abt '[] a -> abt '[] b)
     -> abt '[] ('HArray a)
     -> abt '[] ('HArray b)
@@ -825,7 +826,7 @@ constV n c = array n (const c)
 unitV :: (ABT AST abt) => abt '[] 'HNat -> abt '[] 'HNat -> abt '[] ('HArray 'HProb)
 unitV s i = array s (\j -> if_ (i == j) (prob_ 1) (prob_ 0))
 
-zipWithV :: (ABT AST abt, SingI a, SingI b) =>
+zipWithV :: (ABT AST abt) =>
             (abt '[] a -> abt '[] b -> abt '[] c) ->
             abt  '[] ('HArray a) ->
             abt  '[] ('HArray b) ->
@@ -835,9 +836,8 @@ zipWithV f v1 v2 =
 
 
 ----------------------------------------------------------------
--- BUG: remove the 'SingI' requirement!
 (>>=)
-    :: (ABT AST abt, SingI a)
+    :: (ABT AST abt)
     => abt '[] ('HMeasure a)
     -> (abt '[] a -> abt '[] ('HMeasure b))
     -> abt '[] ('HMeasure b)
@@ -848,8 +848,8 @@ m >>= f =
             Dirac :$ e1 :* End -> Just e1
             _                  -> Nothing
     of
-    Nothing -> syn (MBind :$ m :* binder Text.empty sing f :* End)
     Just e1 -> let_ e1 f
+    Nothing -> syn (MBind :$ m :* binder Text.empty (sUnMeasure $ typeOf m) f :* End)
 
 
 dirac :: (ABT AST abt) => abt '[] a -> abt '[] ('HMeasure a)
@@ -857,30 +857,27 @@ dirac e1 = syn (Dirac :$ e1 :* End)
 
 
 -- TODO: can we use let-binding instead of (>>=)-binding (i.e., for when the dirac is immediately (>>=)-bound again...)?
--- BUG: remove the 'SingI' requirement!
 (<$>), liftM
-    :: (ABT AST abt, SingI a)
+    :: (ABT AST abt)
     => (abt '[] a -> abt '[] b)
     -> abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure b)
 f <$> m = m >>= dirac . f
 liftM = (<$>)
 
--- BUG: remove the 'SingI' requirement!
 -- | N.B, this function may introduce administrative redexes.
 -- Moreover, it's not clear that we should even allow the type
 -- @'HMeasure (a ':-> b)@!
 (<*>)
-    :: (ABT AST abt, SingI a, SingI b)
+    :: (ABT AST abt)
     => abt '[] ('HMeasure (a ':-> b))
     -> abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure b)
 mf <*> mx = mf >>= \f -> app f <$> mx
 
 -- TODO: ensure that @dirac a *> n@ simplifies to just @n@, regardless of @a@ but especially when @a = unit@.
--- BUG: remove the 'SingI' requirement!
 (*>), (>>)
-    :: (ABT AST abt, SingI a)
+    :: (ABT AST abt)
     => abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure b)
     -> abt '[] ('HMeasure b)
@@ -888,25 +885,22 @@ m *> n = m >>= \_ -> n
 (>>) = (*>)
 
 -- TODO: ensure that @m <* dirac a@ simplifies to just @m@, regardless of @a@ but especially when @a = unit@.
--- BUG: remove the 'SingI' requirements! especially on @b@!
 (<*)
-    :: (ABT AST abt, SingI a, SingI b)
+    :: (ABT AST abt)
     => abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure b)
     -> abt '[] ('HMeasure a)
 m <* n = m >>= \a -> n *> dirac a
 
--- BUG: remove the 'SingI' requirement!
 bindx
-    :: (ABT AST abt, SingI a, SingI b)
+    :: (ABT AST abt)
     => abt '[] ('HMeasure a)
     -> (abt '[] a -> abt '[] ('HMeasure b))
     -> abt '[] ('HMeasure (HPair a b))
 m `bindx` f = m >>= \a -> pair a <$> f a
 
--- BUG: remove the 'SingI' requirement!
 liftM2
-    :: (ABT AST abt, SingI a, SingI b, SingI c)
+    :: (ABT AST abt)
     => (abt '[] a -> abt '[] b -> abt '[] c)
     -> abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure b)
@@ -971,9 +965,8 @@ weight
     -> abt '[] ('HMeasure HUnit)
 weight p = pose p (dirac unit)
 
--- BUG: remove the 'SingI' requirement!
 weightedDirac
-    :: (ABT AST abt, SingI a)
+    :: (ABT AST abt)
     => abt '[] a
     -> abt '[] 'HProb
     -> abt '[] ('HMeasure a)
@@ -1097,20 +1090,18 @@ beta' a b =
             / betaFunc a b
 
 
--- BUG: remove the 'SingI' requirement!
-dp  :: (ABT AST abt, SingI a)
+dp  :: (ABT AST abt)
     => abt '[] 'HProb
     -> abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure ('HMeasure a))
-dp = measure2_ $ DirichletProcess sing
+dp e1 e2 = measure2_ (DirichletProcess . sUnMeasure $ typeOf e2) e1 e2
 
 
--- BUG: remove the 'SingI' requirement!
 plate, plate'
-    :: (ABT AST abt, SingI a)
+    :: (ABT AST abt)
     => abt '[] ('HArray ('HMeasure          a))
     -> abt '[] (         'HMeasure ('HArray a))
-plate = measure1_ $ Plate sing
+plate e = measure1_ (Plate . sUnMeasure . sUnArray $ typeOf e) e
 
 plate' v = reduce r z (mapV m v)
     where

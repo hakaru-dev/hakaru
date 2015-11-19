@@ -13,7 +13,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.22
+--                                                    2015.11.19
 -- |
 -- Module      :  Language.Hakaru.Syntax.Sing
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -30,12 +30,20 @@ module Language.Hakaru.Syntax.Sing
     , SingI(..)
     , toSing
     -- * Some helpful shorthands for \"built-in\" datatypes
+    -- ** Constructing singletons
     , sBool
     , sUnit
     , sPair
     , sEither
     , sList
     , sMaybe
+    -- ** Destructing singletons
+    , sUnMeasure
+    , sUnArray
+    , sUnPair
+    , sUnEither
+    , sUnList
+    , sUnMaybe
     ) where
 
 import Language.Hakaru.Syntax.IClasses
@@ -134,6 +142,13 @@ instance (sop ~ Code t, SingI t, SingI sop) => SingI ('HData t sop) where
 
 
 ----------------------------------------------------------------
+
+sUnMeasure :: Sing ('HMeasure a) -> Sing a
+sUnMeasure (SMeasure a) = a
+
+sUnArray :: Sing ('HArray a) -> Sing a
+sUnArray (SArray a) = a
+
 -- These aren't pattern synonyms (cf., the problems mentioned
 -- elsewhere about those), but they're helpful for generating
 -- singletons at least.
@@ -155,22 +170,37 @@ sPair a b =
     SData (STyCon sSymbol_Pair `STyApp` a `STyApp` b)
         ((SKonst a `SEt` SKonst b `SEt` SDone) `SPlus` SVoid)
 
+sUnPair :: Sing (HPair a b) -> (Sing a, Sing b)
+sUnPair (SData (STyApp (STyApp (STyCon _) a) b) _) = (a,b)
+sUnPair _ = error "sUnPair: the impossible happened"
+
 sEither :: Sing a -> Sing b -> Sing (HEither a b)
 sEither a b =
     SData (STyCon sSymbol_Either `STyApp` a `STyApp` b)
         ((SKonst a `SEt` SDone) `SPlus` (SKonst b `SEt` SDone)
             `SPlus` SVoid)
 
+sUnEither :: Sing (HEither a b) -> (Sing a, Sing b)
+sUnEither (SData (STyApp (STyApp (STyCon _) a) b) _) = (a,b)
+sUnEither _ = error "sUnEither: the impossible happened"
+
 sList :: Sing a -> Sing (HList a)
 sList a =
     SData (STyCon sSymbol_List `STyApp` a)
         (SDone `SPlus` (SKonst a `SEt` SIdent `SEt` SDone) `SPlus` SVoid)
+
+sUnList :: Sing (HList a) -> Sing a
+sUnList (SData (STyApp (STyCon _) a) _) = a
+sUnList _ = error "sUnList: the impossible happened"
 
 sMaybe :: Sing a -> Sing (HMaybe a)
 sMaybe a =
     SData (STyCon sSymbol_Maybe `STyApp` a)
         (SDone `SPlus` (SKonst a `SEt` SDone) `SPlus` SVoid)
 
+sUnMaybe :: Sing (HMaybe a) -> Sing a
+sUnMaybe (SData (STyApp (STyCon _) a) _) = a
+sUnMaybe _ = error "sUnMaybe: the impossible happened"
 
 ----------------------------------------------------------------
 data instance Sing (a :: HakaruCon Hakaru) where
