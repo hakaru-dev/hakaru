@@ -43,6 +43,7 @@ import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11)
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.DataKind
+import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT
@@ -196,10 +197,8 @@ ppSCon p Let_ (e1 :* e2 :* End) =
 
 ppSCon p Fix_       (e1 :* End) = ppFun p "fix"  [toDoc $ ppBinder e1]
 ppSCon p (Ann_ typ) (e1 :* End) =
-    ppFun p "ann_"
-        [ PP.text (showsPrec 11 typ "") -- TODO: make this prettier. Add hints to the singletons?
-        , toDoc $ ppArg e1
-        ]
+    [toDoc (ppArg e1) <+> PP.text "::" <+> ppType typ]
+
 ppSCon p (PrimOp_     o) es          = ppPrimOp  p o es
 ppSCon p (ArrayOp_    o) es          = ppArrayOp p o es
 ppSCon p (CoerceTo_   c) (e1 :* End) =
@@ -242,6 +241,17 @@ ppSCon p Summate (e1 :* e2 :* e3 :* End) =
 -- HACK: GHC can't figure out that there are no other type-safe cases
 ppSCon _ _ _ = error "ppSCon: the impossible happened"
 
+
+ppType :: Sing (a :: Hakaru) -> Doc
+ppType SNat         = PP.text "nat"
+ppType SInt         = PP.text "int"
+ppType SProb        = PP.text "prob"
+ppType SReal        = PP.text "real"
+ppType (SMeasure a) = PP.text "measure" <> PP.parens (ppType a)
+ppType (SArray   a) = PP.text "array" <> PP.parens (ppType a)
+ppType (SFun   a b) = ppType a <+> PP.text "->" <+> ppType b  
+ppType typ  = PP.text (showsPrec 11 typ "")
+    -- TODO: make this prettier. Add hints to the singletons?typ
 
 ppCoerce :: Coercion a b -> String
 ppCoerce (CCons (Signed HRing_Real) CNil) = "fromProb"
