@@ -18,7 +18,7 @@
 --
 --
 ----------------------------------------------------------------
-module Language.Hakaru.Parser.Pretty
+module Language.Hakaru.PrettyConcrete
     (
     -- * The user-facing API
       pretty

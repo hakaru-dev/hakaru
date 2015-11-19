@@ -5,7 +5,7 @@ module Tests.Pretty where
 import           Language.Hakaru.Parser.Parser
 import qualified Language.Hakaru.Parser.AST as U
 import           Language.Hakaru.Parser.SymbolResolve
-import           Language.Hakaru.Parser.Pretty
+import           Language.Hakaru.PrettyConcrete
 
 import           Language.Hakaru.Syntax.ABT
 import qualified Language.Hakaru.Syntax.AST as T
