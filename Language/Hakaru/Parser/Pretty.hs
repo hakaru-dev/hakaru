@@ -39,7 +39,7 @@ import qualified Data.Text        as Text
 import qualified Data.Sequence    as Seq -- Because older versions of "Data.Foldable" do not export 'null' apparently...
 
 import Language.Hakaru.Syntax.Nat      (fromNat)
-import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11)
+import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11, List1(..))
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.DataKind
@@ -303,8 +303,8 @@ ppPrimOp p Atanh     (e1 :* End)       = ppApply1 p "atanh" e1
 ppPrimOp p RealPow   (e1 :* e2 :* End) = ppBinop "**" 8 RightAssoc p e1 e2
 ppPrimOp p Exp       (e1 :* End)       = ppApply1 p "exp"   e1
 ppPrimOp p Log       (e1 :* End)       = ppApply1 p "log"   e1
-ppPrimOp _ Infinity         End        = [PP.text "infinity"]
-ppPrimOp _ NegativeInfinity End        = [PP.text "negativeInfinity"]
+ppPrimOp _ Infinity         End        = [PP.text "∞"]
+ppPrimOp _ NegativeInfinity End        = [PP.text "-∞"]
 ppPrimOp p GammaFunc (e1 :* End)       = ppApply1 p "gammaFunc" e1
 ppPrimOp p BetaFunc  (e1 :* e2 :* End) = ppApply2 p "betaFunc" e1 e2
 
