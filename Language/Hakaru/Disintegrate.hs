@@ -288,12 +288,11 @@ bot = M $ \_ _ -> []
 reject :: (ABT AST abt) => M abt a
 reject = M $ \_ _ -> [syn (Superpose_ [])]
 
-{-
 -- BUG: this was the old definition but: how to handle when any @m@ returns multiple answers? Do we take the cartesian product of them all, or what?
 choice :: (ABT AST abt) => [M abt a] -> M abt a
 choice [m] = m
-choice ms  = M $ \c h -> [P.superpose [ (P.prob_ 1, m c h) | M m <- ms ]]
--}
+choice ms  = error "TODO: choice"
+    -- M $ \c h -> [P.superpose [ (P.prob_ 1, m c h) | M m <- ms ]]
 
 -- Something essentially like this function was called @insert_@ in the finally-tagless code.
 --
@@ -329,6 +328,9 @@ emitMBind m =
     emit Text.empty (sUnMeasure $ typeOf m)
         (\e -> syn (MBind :$ m :* e :* End))
 
+emitMBind_Whnf :: (ABT AST abt) => MeasureEvaluator abt (M abt)
+emitMBind_Whnf e = (Neutral . var) <$> emitMBind e
+
 
 ----------------------------------------------------------------
 evaluate_ :: (ABT AST abt) => TermEvaluator abt (M abt)
@@ -345,34 +347,26 @@ perform e0 =
     caseVarSyn e0 (error "TODO: perform{Var}") $ \t ->
         case t of
         Dirac :$ e1 :* End       -> evaluate_ e1
-        MeasureOp_ _ :$ _        -> mbindTheContinuation e0
+        MeasureOp_ _ :$ _        -> emitMBind_Whnf e0
         MBind :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
                 push (SBind x $ Thunk e1) e2' perform
-        Superpose_ es ->
+        Superpose_ pes ->
             error "TODO: perform{Superpose_}"
             {-
-            P.superpose <$> T.traverse perform es -- TODO: not quite right; need to push the SWeight in each branch. Also, 'Whnf' un\/wrapping. Also, side-effects percolating out of the superpose...
-            {-
-            superpose pms =
-                measure $ join $ choice
-                    [ store (Weight p) >> liftM unMeasure (forward m)
-                    | (p,m) <- pms ]
-            -}
+            choice [ unsafePush (SWeight p) >> perform e | (p,e) <- pes ]
+            -- TODO: how to we get this to typecheck? The old code used @liftM unMeasure . forward@ instead of 'perform' and then used (so-called) @join@ on the result of 'choice'. 
             -}
 
         -- I think this captures the logic of the following two cases from the paper:
-        -- > perform u | atomic u    = mbindTheContinuation u
+        -- > perform u | atomic u    = emitMBind_Whnf u
         -- > perform e | not (hnf e) = evaluate e >>= perform
         -- TODO: But we should be careful to make sure we haven't left any cases out. Maybe we should have some sort of @mustPerform@ predicate like we have 'mustCheck' in TypeCheck.hs...?
         _ -> do
             w <- evaluate_ e0
             case w of
                 Head_   v -> perform $ fromHead v
-                Neutral e -> mbindTheContinuation e
-
-mbindTheContinuation :: (ABT AST abt) => MeasureEvaluator abt (M abt)
-mbindTheContinuation e = (Neutral . var) <$> emitMBind e
+                Neutral e -> emitMBind_Whnf e
 
 ----------------------------------------------------------------
 -- TODO: see the todo for 'constrainOutcome'
