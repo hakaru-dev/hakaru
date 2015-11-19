@@ -1,4 +1,5 @@
-{-# LANGUAGE GADTs
+{-# LANGUAGE CPP
+           , GADTs
            , KindSignatures
            , DataKinds
            , PolyKinds
@@ -11,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.07.04
+--                                                    2015.11.19
 -- |
 -- Module      :  Language.Hakaru.Syntax.HClasses
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -24,6 +25,9 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.HClasses where
 
+#if __GLASGOW_HASKELL__ < 710
+import Data.Functor ((<$>))
+#endif
 import Language.Hakaru.Syntax.IClasses (TypeEq(..), Eq1(..), JmEq1(..))
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Sing
@@ -108,9 +112,8 @@ hOrd_Sing SNat              = Just HOrd_Nat
 hOrd_Sing SInt              = Just HOrd_Int
 hOrd_Sing SProb             = Just HOrd_Prob
 hOrd_Sing SReal             = Just HOrd_Real
-hOrd_Sing (SArray a)        = do a' <- hOrd_Sing a
-                                 return $ HOrd_Array a'
-hOrd_Sing a                 = Nothing
+hOrd_Sing (SArray a)        = HOrd_Array <$> hOrd_Sing a
+hOrd_Sing _                 = Nothing
 
 -- | Every 'HOrd' type is 'HEq'.
 hEq_HOrd :: HOrd a -> HEq a
@@ -351,8 +354,7 @@ instance Eq1 HRadical where
     eq1 x y = maybe False (const True) (jmEq1 x y)
 instance JmEq1 HRadical where
     jmEq1 HRadical_Prob HRadical_Prob = Just Refl
-    jmEq1 _             _             = Nothing
-    
+
 -- BUG: deriving instance Read (HRadical a)
 deriving instance Show (HRadical a)
 

@@ -25,9 +25,6 @@
 -- Portability :  GHC-only
 --
 -- Disintegration via partial evaluation.
---
--- TODO: capture in the type signatures when things allow the use
--- of 'Lub' vs when they do not.
 ----------------------------------------------------------------
 module Language.Hakaru.Disintegrate
     (
@@ -67,23 +64,47 @@ import qualified Language.Hakaru.Expect         as E
 
 ----------------------------------------------------------------
 
--- BUG: get rid of the SingI requirements
+fst_Whnf :: (ABT AST abt) => Whnf abt (HPair a b) -> abt '[] a
+fst_Whnf (Neutral e) = P.fst e
+fst_Whnf (Head_   v) = fst (reifyPair v)
+
+snd_Whnf :: (ABT AST abt) => Whnf abt (HPair a b) -> abt '[] b
+snd_Whnf (Neutral e) = P.snd e
+snd_Whnf (Head_   v) = snd (reifyPair v)
+
+
 -- N.B., the old version used to use the @env@ hack in order to handle the fact that free variables can change their type (eewww!!); we may need to do that again, but we should avoid it if we can possibly do so.
 -- N.B., the Backward requirement is probably(?) phrased to be overly strict
 -- | This function fils the role that the old @runDisintegrate@ did. It's unclear what exactly the old @disintegrate@ was supposed to be doing...
 disintegrate
-    :: (ABT AST abt, SingI a, SingI b, Backward a a)
+    :: (ABT AST abt, Backward a a)
     => abt '[] ('HMeasure (HPair a b))
     -> [abt '[] (a ':-> 'HMeasure b)] -- this Hakaru function is measurable
 disintegrate m =
-    error "TODO: disintegrate"
+    [ syn (Lam_ :$ bind x m' :* End)
+    | m' <- runDisintegrate
+    ]
+    where
+    x = Variable Text.empty (nextFree m)
+            (fst . sUnPair . sUnMeasure $ typeOf m)
+
+    runDisintegrate =
+        flip runM [Some2 m, Some2 (var x)] $ do
+            ab <- perform m
+            -- TODO: improve sharing by: if @ab@ is neutral, then
+            -- generate a let-binding and return the variables;
+            -- else, project out the parts.
+            a <- evaluate_ (fst_Whnf ab) -- must factor out since 'constrainValue' asks for a 'Whnf'
+            constrainValue a (var x)
+            evaluate_ (snd_Whnf ab) -- not just 'return' since we need 'Whnf'
 {-
+-- old CPS version:
     P.lam $ \a ->
     fromWhnf $ unM (perform m) (\ab ->
       unM (constrainValue (fst ab) a) (\h' ->
         residualizeContext h' (P.dirac $ P.snd ab)))
       emptyContext
-      
+
 -- old finally-tagless version:
     runCompose $
     P.lam $ \x ->
@@ -94,19 +115,18 @@ disintegrate m =
 -}
 
 
--- BUG: get rid of the SingI requirements
 -- N.B., the old version used to use the @env@ hack in order to handle the fact that free variables can change their type (eewww!!); we may need to do that again, but we should avoid it if we can possibly do so.
 -- N.B., we intentionally phrase the Backward requirement to be overly strict
 density
-    :: (ABT AST abt, SingI a, Backward a a)
+    :: (ABT AST abt, Backward a a)
     => abt '[] ('HMeasure a)
     -> [abt '[] (a ':-> 'HProb)] -- TODO: make this a Haskell function?
 density m =
-    let x = Variable Text.empty (nextFree m)
-            (case typeOf m of SMeasure typ -> typ)
-    in do
-        m' <- conditionalize (var x) m
-        return $ syn(Lam_ :$ bind x (E.total m') :* End)
+    [ syn (Lam_ :$ bind x (E.total m') :* End)
+    | m' <- conditionalize (var x) m
+    ]
+    where
+    x = Variable Text.empty (nextFree m) (sUnMeasure $ typeOf m)
 {-
     -- > P.lam $ \x -> E.total (conditionalize x m)
     -- BUG: we need to wrap @x@ in the @scalar0@ wrapper before handing it to 'conditionalize'
@@ -127,18 +147,16 @@ density m =
 -}
 
 
--- BUG: get rid of the SingI requirements
 -- N.B., the old version used to use the @env@ hack (but not on the first argument) in order to handle the fact that free variables can change their type (eewww!!); we may need to do that again, but we should avoid it if we can possibly do so.
 -- TODO: what's the point of having this function instead of just using @disintegrate m `app` x@ ? I.E., what does the @scalar0@ wrapper actually achieve; i.e., how does it direct things instead of just failing when we try to go the wrong direction?
 -- BUG: come up with new names avoid name conflict vs the Prelude function.
 observe
-    :: (ABT AST abt, SingI a, SingI b, Backward a a)
+    :: (ABT AST abt, Backward a a)
     => abt '[] a
     -> abt '[] ('HMeasure (HPair a b))
     -> [abt '[] ('HMeasure b)]
 observe x m =
     (P.snd P.<$>) <$> conditionalize (P.pair x P.unit) m
-    -- TODO: can we lift the @(snd <$>)@ over the @runCompose@ and @runLazy@ functions? if so, then we can make sure those functions only need to be called inside 'conditionalize'
     -- N.B., see the note at 'disintegrate' about the use of @unit@ here...
 
 
@@ -161,19 +179,21 @@ conditionalize a m =
             ab <- memo (unMeasure x)
             backward_ ab a
             return ab
-    in Lazy (return . Measure $ Lazy (n >>= forward) (\t -> n >>= (`backward` t))) (\_ -> bot)
+    in Lazy
+        (return . Measure $ Lazy
+            (n >>= forward)
+            (\t -> n >>= (`backward` t)))
+        (\_ -> bot)
     -}
 
 
--- | Eliminate uses of 'Lub_' by chosing one of the alternatives
--- arbitrarily. In the future, this function should be replaced by
--- a better one that takes some sort of strategy for deciding which
--- alternative to choose.
---
--- HACK: it's unclear (to me) whether this is actually the same as
--- the function of the same name in "Language.Hakaru.Lazy".
+-- | Arbitrarily choose one of the possible alternatives. In the
+-- future, this function should be replaced by a better one that
+-- takes some sort of strategy for deciding which alternative to
+-- choose.
 determine :: (ABT AST abt) => [abt '[] a] -> Maybe (abt '[] a)
-determine m = error "TODO: determine"
+determine []    = Nothing
+determine (m:_) = Just m
 
 
 ----------------------------------------------------------------
@@ -268,14 +288,63 @@ bot = M $ \_ _ -> []
 reject :: (ABT AST abt) => M abt a
 reject = M $ \_ _ -> [syn (Superpose_ [])]
 
+{-
+-- BUG: this was the old definition but: how to handle when any @m@ returns multiple answers? Do we take the cartesian product of them all, or what?
+choice :: (ABT AST abt) => [M abt a] -> M abt a
+choice [m] = m
+choice ms  = M $ \c h -> [P.superpose [ (P.prob_ 1, m c h) | M m <- ms ]]
+-}
+
+-- Something essentially like this function was called @insert_@ in the finally-tagless code.
+--
+-- This is the only place where we really need the 'M' instance of
+-- 'EvaluationMonad' for going forward. I think it's also the only
+-- place (in any direction) that we really need to know the internal
+-- CPS structure of 'M'. (Though I suppose a few other places let
+-- us short-circuit generating unused code after a 'bot' or
+-- 'reject'.)
+emit
+    :: (ABT AST abt)
+    => Text.Text
+    -> Sing a
+    -> (forall b. abt '[a] ('HMeasure b) -> abt '[] ('HMeasure b))
+    -> M abt (abt '[] a)
+emit hint typ f = do
+    x <- freshVar hint typ
+    M $ \c h -> (f . bind x) <$> c (var x) h
+
+-- This function was called @insert_@ in the old finally-tagless code. It's mainly used as a minor variant on 'emitMBind_' so as to avoid using 'dirac unit' everywhere (e.g., @ifTrue b m = P.if_ b m P.reject@)
+emit_
+    :: (ABT AST abt)
+    => (forall r. abt '[] ('HMeasure r) -> abt '[] ('HMeasure r))
+    -> M abt ()
+emit_ f = M $ \c h -> f <$> c () h
+
+emitMBind_ :: (ABT AST abt) => abt '[] ('HMeasure HUnit) -> M abt ()
+emitMBind_ m = emit_ (m P.>>)
+
+-- This function was called @lift@ in the finally-tagless code.
+emitMBind :: (ABT AST abt) => abt '[] ('HMeasure a) -> M abt (abt '[] a)
+emitMBind m =
+    emit Text.empty (sUnMeasure $ typeOf m)
+        (\e -> syn (MBind :$ m :* e :* End))
+
 
 ----------------------------------------------------------------
--- N.B., that return type is correct, albeit strange. The idea is that the continuation takes in the variable of type @a@ bound by the expression of type @'HMeasure a@. However, this requires that the continuation of the 'Ans' type actually does @forall a. ...('HMeasure a)@ which is at odds with what 'evaluate' wants (or at least, what *I* think it should want.)
+evaluate_ :: (ABT AST abt) => TermEvaluator abt (M abt)
+evaluate_ = evaluate perform
+
+-- N.B., that return type is correct, albeit strange. The idea is
+-- that the continuation takes in the variable of type @a@ bound
+-- by the expression of type @'HMeasure a@. However, this requires
+-- that the continuation of the 'Ans' type actually does @forall
+-- a. ...('HMeasure a)@ which is at odds with what 'evaluate' wants
+-- (or at least, what *I* think it should want.)
 perform :: (ABT AST abt) => MeasureEvaluator abt (M abt)
 perform e0 =
     caseVarSyn e0 (error "TODO: perform{Var}") $ \t ->
         case t of
-        Dirac :$ e1 :* End       -> evaluate perform e1
+        Dirac :$ e1 :* End       -> evaluate_ e1
         MeasureOp_ _ :$ _        -> mbindTheContinuation e0
         MBind :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
@@ -283,7 +352,13 @@ perform e0 =
         Superpose_ es ->
             error "TODO: perform{Superpose_}"
             {-
-            P.superpose <$> T.traverse perform es -- TODO: not quite right; need to push the SWeight in each branch. Also, 'Whnf' un\/wrapping
+            P.superpose <$> T.traverse perform es -- TODO: not quite right; need to push the SWeight in each branch. Also, 'Whnf' un\/wrapping. Also, side-effects percolating out of the superpose...
+            {-
+            superpose pms =
+                measure $ join $ choice
+                    [ store (Weight p) >> liftM unMeasure (forward m)
+                    | (p,m) <- pms ]
+            -}
             -}
 
         -- I think this captures the logic of the following two cases from the paper:
@@ -291,24 +366,14 @@ perform e0 =
         -- > perform e | not (hnf e) = evaluate e >>= perform
         -- TODO: But we should be careful to make sure we haven't left any cases out. Maybe we should have some sort of @mustPerform@ predicate like we have 'mustCheck' in TypeCheck.hs...?
         _ -> do
-            w <- evaluate perform e0
+            w <- evaluate_ e0
             case w of
                 Head_   v -> perform $ fromHead v
                 Neutral e -> mbindTheContinuation e
 
 
--- This is the only place (in this file) where we really need
--- the 'M' instance of 'EvaluationMonad'. I think it's also the
--- only place (anywhere) that we really need to know the internal
--- CPS structure of 'M'. (Though I suppose a few other places
--- let us short-circuit generating unused code after a 'P.bot'
--- or 'P.reject'.)
 mbindTheContinuation :: (ABT AST abt) => MeasureEvaluator abt (M abt)
-mbindTheContinuation e = do
-    z <- freshVar Text.empty (case typeOf e of SMeasure typ -> typ)
-    M $ \c h -> do
-        f <- c (Neutral $ var z) h
-        return $ syn (MBind :$ e :* bind z f :* End)
+mbindTheContinuation e = Neutral <$> emitMBind e
 
 
 ----------------------------------------------------------------
@@ -326,7 +391,7 @@ constrainValue v0 e0 =
         Value_ v
             | "dirac v has a density wrt the ambient measure" -> todo
             | otherwise -> bot
-        
+
         Datum_  d         ->
         Empty_            ->
         Array_  e1 e2     ->

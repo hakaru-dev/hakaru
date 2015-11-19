@@ -34,6 +34,9 @@ module Language.Hakaru.Lazy
     , evaluate
     -- ** Helper functions
     , update
+
+    -- ** Helpers that should really go away
+    , Interp(..), reifyPair
     ) where
 
 import           Prelude                hiding (id, (.))
@@ -46,6 +49,7 @@ import           Control.Monad          ((<=<))
 import           Control.Monad.Identity (Identity, runIdentity)
 import           Data.Sequence          (Seq)
 import qualified Data.Sequence          as Seq
+import qualified Data.Text              as Text
 import           Data.Number.LogFloat   (LogFloat, logFloat, fromLogFloat)
 
 import Language.Hakaru.Syntax.IClasses
@@ -53,6 +57,7 @@ import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Nat
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Sing
+import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumCase
@@ -407,17 +412,33 @@ instance Interp HBool Bool where
                     Just (Matched _ss Nil1) -> return False
                     _ -> error "reify{HBool}: the impossible happened"
 
+
+-- TODO: can't we just use 'viewHeadDatum' and match on that?
+reifyPair :: (ABT AST abt) => Head abt (HPair a b) -> (abt '[] a, abt '[] b)
+reifyPair v =
+    let impossible = error "reifyPair: the impossible happened"
+        e0    = fromHead v
+        n     = nextFree e0
+        (a,b) = sUnPair $ typeOf e0
+        x = Variable Text.empty n       a
+        y = Variable Text.empty (1 + n) b
+
+    in runIdentity $ do
+        match <- matchTopPattern identifyDatum e0 (pPair PVar PVar) (Cons1 x (Cons1 y Nil1))
+        case match of
+            Just (Matched ss Nil1) ->
+                case ss [] of
+                [Assoc x' e1, Assoc y' e2] ->
+                    maybe impossible id $ do
+                        Refl <- varEq x x'
+                        Refl <- varEq y y'
+                        Just $ return (e1, e2)
+                _ -> impossible
+            _ -> impossible
 {-
 instance Interp (HPair a b) (abt '[] a, abt '[] b) where
     reflect (a,b) = P.pair a b
-    reify v = runIdentity $ do
-        match <- matchTopPattern identifyDatum (fromHead v) (pPair PVar PVar) (Cons1 x (Cons1 y Nil1))
-        case match of
-            Just (Matched ss Nil1) ->
-                case xs [] of
-                [Assoc _x e1, Assoc _y e2] -> return (e1, e2)
-                _ -> error "reify{HPair}: the impossible happened"
-            _ -> error "reify{HPair}: the impossible happened"
+    reify = reifyPair
 
 instance Interp (HEither a b) (Either (abt '[] a) (abt '[] b)) where
     reflect (Left  a) = P.left  a

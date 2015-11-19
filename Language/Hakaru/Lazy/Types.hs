@@ -14,7 +14,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.18
+--                                                    2015.11.19
 -- |
 -- Module      :  Language.Hakaru.Lazy.Types
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -35,7 +35,7 @@
 module Language.Hakaru.Lazy.Types
     (
     -- * Terms in particular known forms\/formats
-      Head(..), fromHead, toHead
+      Head(..), fromHead, toHead, viewHeadDatum
     , Whnf(..), fromWhnf, toWhnf, caseWhnf, viewWhnfDatum
     , Lazy(..), fromLazy, caseLazy
 
@@ -236,7 +236,7 @@ viewWhnfDatum
     :: (ABT AST abt)
     => Whnf abt (HData' t)
     -> Maybe (Datum (abt '[]) (HData' t))
-viewWhnfDatum (Head_   v) = viewHeadDatum v
+viewWhnfDatum (Head_   v) = Just $ viewHeadDatum v
 viewWhnfDatum (Neutral _) = Nothing
     -- N.B., we always return Nothing for 'Neutral' terms because of
     -- what 'Neutral' is supposed to mean. If we wanted to be paranoid
@@ -255,12 +255,12 @@ viewWhnfDatum (Neutral _) = Nothing
 viewHeadDatum
     :: (ABT AST abt)
     => Head abt (HData' t)
-    -> Maybe (Datum (abt '[]) (HData' t))
+    -> Datum (abt '[]) (HData' t)
 viewHeadDatum (WAnn        _ w)   = viewHeadDatum w
 viewHeadDatum (WCoerceTo   c _)   = case c of {}
 viewHeadDatum (WUnsafeFrom c _)   = case c of {}
-viewHeadDatum (WValue (VDatum d)) = Just (fmap11 (syn . Value_) d)
-viewHeadDatum (WDatum d)          = Just d
+viewHeadDatum (WValue (VDatum d)) = fmap11 (syn . Value_) d
+viewHeadDatum (WDatum d)          = d
 
 
 ----------------------------------------------------------------
