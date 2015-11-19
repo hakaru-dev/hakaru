@@ -340,7 +340,7 @@ evaluate_ = evaluate perform
 -- for those actions, returning the bound variable.
 perform :: (ABT AST abt) => MeasureEvaluator abt (M abt)
 perform e0 =
-    caseVarSyn e0 (error "TODO: perform{Var}") $ \t ->
+    caseVarSyn e0 performVar $ \t ->
         case t of
         Dirac :$ e1 :* End       -> evaluate_ e1
         MeasureOp_ _ :$ _        -> emitMBind_Whnf e0
@@ -362,6 +362,15 @@ perform e0 =
             case w of
                 Head_   v -> perform $ fromHead v
                 Neutral e -> emitMBind_Whnf e
+
+
+-- TODO: I think this is the right definition...
+performVar :: (ABT AST abt) => Variable ('HMeasure a) -> M abt (Whnf abt a)
+performVar x = do
+    w <- update perform evaluate_ x
+    case w of
+        Head_   v -> perform $ fromHead v
+        Neutral e -> emitMBind_Whnf e
 
 
 ----------------------------------------------------------------
