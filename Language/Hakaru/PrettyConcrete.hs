@@ -1,6 +1,7 @@
 {-# LANGUAGE GADTs
            , KindSignatures
            , DataKinds
+           , TypeOperators
            , FlexibleContexts
            , UndecidableInstances
            #-}
@@ -186,9 +187,7 @@ ppSCon p Lam_ (e1 :* End) =
     [PP.text "fn" <+> toDoc vars <> PP.colon <+> (toDoc body)]
 
 --ppSCon p App_ (e1 :* e2 :* End) = ppArg e1 ++ parens True (ppArg e2)
-ppSCon p App_ (e1 :* e2 :* End) =
-    let (e1', vars) = collectApps e1 in
-    [e1' <> ppTuple (pretty e2 : vars)]
+ppSCon p App_ (e1 :* e2 :* End) = prettyApps e1 e2
 
 ppSCon p Let_ (e1 :* e2 :* End) =
     {-
@@ -415,21 +414,28 @@ instance (ABT AST abt) => Pretty (Branch a abt) where
             ]
 
 ----------------------------------------------------------------
-collectApps :: (ABT AST abt) => abt '[] a -> (Doc, [Doc])
-collectApps e =
-    caseVarSyn e (\x -> (pretty e, [])) $ \t ->
-        case t of
-        App_ :$ e1 :* e2 :* End ->
-            let ~(e', vars) = collectApps e1 in
-            (e', toDoc (ppArg e2) : vars)
-        _ -> (pretty e, [])
+prettyApps :: (ABT AST abt) => abt '[] (a ':-> b) -> abt '[] a -> Docs
+prettyApps e1 e2 =
+    let (e1', vars) = collectApps e1 e2 in
+    [e1' <> ppTuple vars]
+ where defApp e1 e2 = (e1, [e2])
+       collectApps :: (ABT AST abt) =>
+                      abt '[] (a ':-> b) -> abt '[] a -> (Doc, [Doc])
+       collectApps e1 e2 = 
+           caseVarSyn e1 (\x -> defApp (ppVariable x) (pretty e2)) $ \t ->
+               case t of
+                 App_ :$ e1 :* e2 :* End ->
+                     let (e', vars) = collectApps e1 e2 in
+                     (e', pretty e2 : vars)
+                 _ -> defApp (pretty e1) (pretty e2)
 
-collectLams :: (ABT AST abt) => abt xs a -> (Doc, [Doc])
-collectLams e =
+
+prettyLams :: (ABT AST abt) => abt '[a] b -> (Doc, [Doc])
+prettyLams e =
     case viewABT e of
       Bind x (Syn t) ->
           case t of
-            Lam_ :$ e1 :* End -> collectLams e1
+            Lam_ :$ (e1 :* End) -> prettyLams e1
             _ -> (pretty $ syn t, [ppVariable x])
       _ -> error "TODO: collectLams"
 
