@@ -15,7 +15,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.05
+--                                                    2015.11.19
 -- |
 -- Module      :  Language.Hakaru.Syntax.ABT
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -48,6 +48,7 @@ module Language.Hakaru.Syntax.ABT
     , ABT(..)
     , caseVarSyn
     , binds
+    , binds_
     , caseBinds
     -- ** Capture avoiding substitution for any 'ABT'
     , subst
@@ -269,7 +270,15 @@ binds :: (ABT syn abt) => List1 Variable xs -> abt ys b -> abt (xs ++ ys) b
 binds Nil1         e = e
 binds (Cons1 x xs) e = bind x (binds xs e)
 
+-- | A specialization of 'binds' for when @ys ~ '[]@. We define
+-- this to avoid the need for using 'eqAppendIdentity' on the result
+-- of 'binds' itself.
+binds_ :: (ABT syn abt) => List1 Variable xs -> abt '[] b -> abt xs b
+binds_ Nil1         e = e
+binds_ (Cons1 x xs) e = bind x (binds_ xs e)
 
+
+-- TODO: take a continuation so that the type more closely resembles 'caseBind'; or, remove the CPSing in 'caseBind' so it more closely resembles this
 -- | Call 'caseBind' repeatedly. (Actually we use 'viewABT'.)
 caseBinds :: (ABT syn abt) => abt xs a -> (List1 Variable xs, abt '[] a)
 caseBinds = go . viewABT
@@ -278,7 +287,7 @@ caseBinds = go . viewABT
         => View (syn abt) xs a -> (List1 Variable xs, abt '[] a)
     go (Syn  t)   = (Nil1, syn t)
     go (Var  x)   = (Nil1, var x)
-    go (Bind x v) = let (xs,e) = go v in (Cons1 x xs, e)
+    go (Bind x v) = let ~(xs,e) = go v in (Cons1 x xs, e)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------

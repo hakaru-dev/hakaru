@@ -342,54 +342,121 @@ emitMBind_ m = emit_ (m P.>>)
 -- | Run each of the elements of the traversable using the same
 -- heap and continuation, then pass the results to a function for
 -- emitting code.
-emitFork
+emitFork_
     :: (ABT AST abt, Traversable t)
     => (forall r. t (abt '[] ('HMeasure r)) -> abt '[] ('HMeasure r))
     -> t (M abt a)
     -> M abt a
-emitFork f ms = M $ \c h -> f <$> T.traverse (\m -> unM m c h) ms
+emitFork_ f ms = M $ \c h -> f <$> T.traverse (\m -> unM m c h) ms
 
 -- | Emit a 'Superpose_' of the alternatives, each with unit weight.
 emitSuperpose :: (ABT AST abt) => [M abt a] -> M abt a
 emitSuperpose [m] = m
 emitSuperpose ms  =
-    emitFork (\es -> P.superpose [(P.prob_ 1, e) | e <- es]) ms
+    emitFork_ (\es -> P.superpose [(P.prob_ 1, e) | e <- es]) ms
 
 -- TODO: move this to Datum.hs; also, use it elsewhere as needed to clean up code.
 -- | A generalization of the 'Branch' type to allow a \"body\" of
 -- any Haskell type.
-data GenBranch (a :: Hakaru) (r :: *)
-    = forall xs. GenBranch
+data GBranch (a :: Hakaru) (r :: *)
+    = forall xs. GBranch
         !(Pattern xs a)
         !(List1 Variable xs)
         r
 
-fromGenBranch
+fromGBranch
     :: (ABT AST abt)
-    => GenBranch a (abt '[] b)
+    => GBranch a (abt '[] b)
     -> Branch a abt b
-fromGenBranch (GenBranch pat vars e) =
-    Branch pat $
-        case eqAppendIdentity vars of
-        Refl -> binds vars e
+fromGBranch (GBranch pat vars e) =
+    Branch pat (binds_ vars e)
 
-instance Functor (GenBranch a) where
-    fmap f (GenBranch pat vars x) = GenBranch pat vars (f x)
+toGBranch
+    :: (ABT AST abt)
+    => Branch a abt b
+    -> GBranch a (abt '[] b)
+toGBranch (Branch pat body) =
+    uncurry (GBranch pat) (caseBinds body)
 
-instance Foldable (GenBranch a) where
-    foldMap f (GenBranch _ _ x) = f x
+instance Functor (GBranch a) where
+    fmap f (GBranch pat vars x) = GBranch pat vars (f x)
 
-instance Traversable (GenBranch a) where
-    traverse f (GenBranch pat vars x) = GenBranch pat vars <$> f x
+instance Foldable (GBranch a) where
+    foldMap f (GBranch _ _ x) = f x
 
--- TODO: find a way to return the variables themselves to each GenBranch; i.e., the second argument should be something like @[GenBranch a (exists xs. List1 Variable xs -> M abt b)]@. Maybe we should really be generalizing 'GenBranch' to be indexed by @xs@; but then it's not quite 'Traversable'...
+instance Traversable (GBranch a) where
+    traverse f (GBranch pat vars x) = GBranch pat vars <$> f x
+
+-- TODO: find a way to return the variables themselves to each GBranch; i.e., the second argument should be something like @[GBranch a (exists xs. List1 Variable xs -> M abt b)]@. Maybe we should really be generalizing 'GBranch' to be indexed by @xs@; but then it's not quite 'Traversable'...
+emitCase_
+    :: (ABT AST abt)
+    => abt '[] a
+    -> [GBranch a (M abt b)]
+    -> M abt b
+emitCase_ e =
+    emitFork_ (syn . Case_ e . fmap fromGBranch . getCompose) . Compose
+
+
+data Hint (a :: Hakaru) = Hint {-# UNPACK #-} !Text.Text !(Sing a)
+
+freshVars
+    :: (EvaluationMonad abt m)
+    => List1 Hint xs
+    -> m (List1 Variable xs)
+freshVars Nil1         = return Nil1
+freshVars (Cons1 x xs) = Cons1 <$> freshVar' x <*> freshVars xs
+    where
+    freshVar' (Hint hint typ) = freshVar hint typ
+
+data GGBranch (a :: Hakaru) (r :: [Hakaru] -> *)
+    = forall xs. GGBranch
+        !(Pattern xs a)
+        !(List1 Hint xs)
+        (r xs)
+
+newtype Body (a :: *) (xs :: [Hakaru]) =
+    Body { unBody :: List1 Variable xs -> a }
+
 emitCase
     :: (ABT AST abt)
     => abt '[] a
-    -> [GenBranch a (M abt b)]
+    -> [GGBranch a (Body (M abt b))]
     -> M abt b
-emitCase e =
-    emitFork (syn . Case_ e . fmap fromGenBranch . getCompose) . Compose
+emitCase e ms =
+    M $ \c h -> (syn . Case_ e) <$> T.traverse (genBranch c h) ms
+
+
+-- This is almost @GGBranch a (Body (M abt b)) -> M abt (Branch a abt b)@ except:
+-- (1) the kind of @b@ doesn't quite work for that
+-- (2) the final result is @[Branch a abt ('HMeasure r)]@ rather than @[abt '[] ('HMeasure r)]@
+-- We can't use @M (Branch a abt)@ because that's not what the continuation returns. That is, given:
+-- > type Ans' abt f a = ListContext abt -> [f ('HMeasure a)]
+-- instead of having:
+-- > M abt = Codensity (Ans' abt (abt '[]))
+-- we actually have:
+-- > Ran (Ans' abt (abt '[])) (Ans' abt (Branch a abt))
+-- which I think is isomorphic to:
+-- > Codensity (Reader (ListContext abt)) (Ran (abt '[]) (Branch a abt))
+-- TODO: methinks, to make this typecheckable we'll need to generalize the definition of 'M' to allow more general things like this.
+genBranch
+    :: (ABT AST abt)
+    => (b -> Ans abt r)
+    -> ListContext abt
+    -> GGBranch a (Body (M abt b))
+    -> [Branch a abt ('HMeasure r)]
+genBranch c h (GGBranch pat hints m) =
+    error "TODO: genBranch" -- unM (freshVars hints) (runBranch c pat m) h
+
+runBranch
+    :: (ABT AST abt)
+    => (b -> Ans abt r)
+    -> Pattern xs a
+    -> Body (M abt b) xs
+    -> List1 Variable xs
+    -> ListContext abt
+    -> [Branch a abt ('HMeasure r)]
+runBranch c pat m vars h =
+    (Branch pat . binds_ vars) <$> unM (unBody m vars) c h
 
 
 ----------------------------------------------------------------

@@ -64,7 +64,6 @@ import           Data.Functor         ((<$>))
 import           Control.Applicative  (Applicative(..))
 #endif
 import qualified Data.Foldable        as F
-import qualified Data.Traversable     as T
 import           Control.Applicative  (Alternative(..))
 import           Control.Monad        (MonadPlus(..))
 import           Data.Text            (Text)
@@ -568,9 +567,7 @@ residualizeListContext e0 = foldl step e0 . statements
         {-
         SBranch xs pat body ->
             Case_ (fromLazy body)
-                [ Branch pat $
-                    case eqAppendIdentity xs of
-                    Refl -> binds xs e
+                [ Branch pat   (binds_ xs e)
                 , Branch PWild P.reject
                 ]
         -}
