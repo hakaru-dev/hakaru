@@ -88,6 +88,9 @@ toDoc = PP.cat
 color :: Color -> Doc -> Doc
 color c d = PP.text (setSGRCode [SetColor Foreground Dull c]) <>  d <> PP.text (setSGRCode [Reset])
 
+keyword :: Doc -> Doc
+keyword = color Red
+
 -- | Pretty-print a variable.
 ppVariable :: Variable (a :: Hakaru) -> Doc
 ppVariable x = hint <> (PP.int . fromNat . varID) x
@@ -456,8 +459,8 @@ ppTuple = PP.parens . PP.sep . PP.punctuate PP.comma
 
 -- TODO: why does this take the precedence argument if it doesn't care?
 ppFun :: Int -> String -> [Doc] -> Docs
-ppFun _ f [] = [PP.text f <> PP.text "()"]
-ppFun _ f ds = [PP.text f, PP.nest (1 + length f) (ppTuple ds)]
+ppFun _ f [] = [keyword $ PP.text f <> PP.text "()"]
+ppFun _ f ds = [keyword $ PP.text f, PP.nest (1 + length f) (ppTuple ds)]
 
 ppArg :: (ABT AST abt) => abt '[] a -> Docs
 ppArg = prettyPrec_ 11 . LC_
