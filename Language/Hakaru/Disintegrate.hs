@@ -41,13 +41,18 @@ module Language.Hakaru.Disintegrate
     , constrainOutcome
     ) where
 
-import qualified Data.Text  as Text
-import Data.Number.LogFloat (LogFloat)
 #if __GLASGOW_HASKELL__ < 710
-import Data.Functor         ((<$>))
-import Control.Applicative  (Applicative(..))
+import           Data.Functor         ((<$>))
+import           Control.Applicative  (Applicative(..))
 #endif
-import Control.Monad ((<=<))
+import           Data.Functor.Compose (Compose(..))
+import           Control.Monad        ((<=<))
+import           Data.Foldable        (Foldable)
+import qualified Data.Foldable        as F
+import           Data.Traversable     (Traversable)
+import qualified Data.Traversable     as T
+import qualified Data.Text            as Text
+import           Data.Number.LogFloat (LogFloat)
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.Nat (Nat)
@@ -278,6 +283,8 @@ type Lazy s abt a = L s (C abt) a
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
+-- TODO: move these helper functions into Lazy/Types.hs or wherever else we move the definition of the 'M' monad.
+
 {- -- Is called 'empty' or 'mzero'
 -- | It is impossible to satisfy the constraints, or at least we
 -- give up on trying to do so.
@@ -289,48 +296,100 @@ bot = M $ \_ _ -> []
 reject :: (ABT AST abt) => M abt a
 reject = M $ \_ _ -> [syn (Superpose_ [])]
 
--- BUG: this was the old definition but: how to handle when any @m@ returns multiple answers? Do we take the cartesian product of them all, or what?
-choice :: (ABT AST abt) => [M abt a] -> M abt a
-choice [m] = m
-choice ms  = error "TODO: choice"
-    -- M $ \c h -> [P.superpose [ (P.prob_ 1, m c h) | M m <- ms ]]
 
 -- Something essentially like this function was called @insert_@ in the finally-tagless code.
---
--- This is the only place where we really need the 'M' instance of
--- 'EvaluationMonad' for going forward. I think it's also the only
--- place (in any direction) that we really need to know the internal
--- CPS structure of 'M'. (Though I suppose a few other places let
--- us short-circuit generating unused code after a 'bot' or
--- 'reject'.)
+-- | Emit some code that binds a variable, and return the variable
+-- thus bound. The function says what to wrap the result of the
+-- continuation with; i.e., what we're actually emitting.
 emit
     :: (ABT AST abt)
     => Text.Text
     -> Sing a
-    -> (forall b. abt '[a] ('HMeasure b) -> abt '[] ('HMeasure b))
+    -> (forall r. abt '[a] ('HMeasure r) -> abt '[] ('HMeasure r))
     -> M abt (Variable a)
 emit hint typ f = do
     x <- freshVar hint typ
     M $ \c h -> (f . bind x) <$> c x h
 
--- This function was called @insert_@ in the old finally-tagless code. It's mainly used as a minor variant on 'emitMBind_' so as to avoid using 'dirac unit' everywhere (e.g., @ifTrue b m = P.if_ b m P.reject@)
+-- This function was called @lift@ in the finally-tagless code.
+-- | Emit an 'MBind' (i.e., \"@m >>= \x ->@\") and return the
+-- variable thus bound (i.e., @x@).
+emitMBind :: (ABT AST abt) => abt '[] ('HMeasure a) -> M abt (Variable a)
+emitMBind m =
+    emit Text.empty (sUnMeasure $ typeOf m)
+        (\e -> syn (MBind :$ m :* e :* End))
+
+-- | A variant of 'emitMBind' that returns the variable as a 'Whnf'.
+emitMBind_Whnf :: (ABT AST abt) => MeasureEvaluator abt (M abt)
+emitMBind_Whnf e = (Neutral . var) <$> emitMBind e
+
+-- This function was called @insert_@ in the old finally-tagless code.
+-- | Emit some code that doesn't bind any variables. This function
+-- provides an optimisation over using 'emit' and then discarding
+-- the generated variable.
 emit_
     :: (ABT AST abt)
     => (forall r. abt '[] ('HMeasure r) -> abt '[] ('HMeasure r))
     -> M abt ()
 emit_ f = M $ \c h -> f <$> c () h
 
+-- | Emit an 'MBind' that discards its result (i.e., \"@m >>@\").
+-- We restrict the type of the argument to be 'HUnit' so as to avoid
+-- accidentally dropping things.
 emitMBind_ :: (ABT AST abt) => abt '[] ('HMeasure HUnit) -> M abt ()
 emitMBind_ m = emit_ (m P.>>)
 
--- This function was called @lift@ in the finally-tagless code.
-emitMBind :: (ABT AST abt) => abt '[] ('HMeasure a) -> M abt (Variable a)
-emitMBind m =
-    emit Text.empty (sUnMeasure $ typeOf m)
-        (\e -> syn (MBind :$ m :* e :* End))
+-- | Run each of the elements of the traversable using the same
+-- heap and continuation, then pass the results to a function for
+-- emitting code.
+emitFork
+    :: (ABT AST abt, Traversable t)
+    => (forall r. t (abt '[] ('HMeasure r)) -> abt '[] ('HMeasure r))
+    -> t (M abt a)
+    -> M abt a
+emitFork f ms = M $ \c h -> f <$> T.traverse (\m -> unM m c h) ms
 
-emitMBind_Whnf :: (ABT AST abt) => MeasureEvaluator abt (M abt)
-emitMBind_Whnf e = (Neutral . var) <$> emitMBind e
+-- | Emit a 'Superpose_' of the alternatives, each with unit weight.
+emitSuperpose :: (ABT AST abt) => [M abt a] -> M abt a
+emitSuperpose [m] = m
+emitSuperpose ms  =
+    emitFork (\es -> P.superpose [(P.prob_ 1, e) | e <- es]) ms
+
+-- TODO: move this to Datum.hs; also, use it elsewhere as needed to clean up code.
+-- | A generalization of the 'Branch' type to allow a \"body\" of
+-- any Haskell type.
+data GenBranch (a :: Hakaru) (r :: *)
+    = forall xs. GenBranch
+        !(Pattern xs a)
+        !(List1 Variable xs)
+        r
+
+fromGenBranch
+    :: (ABT AST abt)
+    => GenBranch a (abt '[] b)
+    -> Branch a abt b
+fromGenBranch (GenBranch pat vars e) =
+    Branch pat $
+        case eqAppendIdentity vars of
+        Refl -> binds vars e
+
+instance Functor (GenBranch a) where
+    fmap f (GenBranch pat vars x) = GenBranch pat vars (f x)
+
+instance Foldable (GenBranch a) where
+    foldMap f (GenBranch _ _ x) = f x
+
+instance Traversable (GenBranch a) where
+    traverse f (GenBranch pat vars x) = GenBranch pat vars <$> f x
+
+-- TODO: find a way to return the variables themselves to each GenBranch; i.e., the second argument should be something like @[GenBranch a (exists xs. List1 Variable xs -> M abt b)]@. Maybe we should really be generalizing 'GenBranch' to be indexed by @xs@; but then it's not quite 'Traversable'...
+emitCase
+    :: (ABT AST abt)
+    => abt '[] a
+    -> [GenBranch a (M abt b)]
+    -> M abt b
+emitCase e =
+    emitFork (syn . Case_ e . fmap fromGenBranch . getCompose) . Compose
 
 
 ----------------------------------------------------------------
@@ -349,7 +408,8 @@ perform e0 =
             caseBind e2 $ \x e2' ->
                 push (SBind x $ Thunk e1) e2' perform
         Superpose_ pes ->
-            choice [ unsafePush (SWeight $ Thunk p) >> perform e
+            emitSuperpose
+                [ unsafePush (SWeight $ Thunk p) >> perform e
                 | (p,e) <- pes ]
 
         -- N.B., be sure you've covered all the heads before falling
