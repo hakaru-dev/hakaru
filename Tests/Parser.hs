@@ -12,7 +12,62 @@ import Language.Hakaru.Syntax.Nat
 
 import Data.Text
 import Test.HUnit
+import Test.QuickCheck.Arbitrary
+import Test.QuickCheck
 import Text.Parsec.Error
+import Control.Applicative
+
+arbNat  :: Gen (Positive Int)
+arbNat  = arbitrary
+
+arbProb :: Gen (Positive Double)
+arbProb = arbitrary
+
+instance Arbitrary Text where
+  arbitrary = pack <$> ("x" ++) . show <$> getPositive <$> arbNat
+  shrink xs = pack <$> shrink (unpack xs)
+
+instance Arbitrary Value' where
+  arbitrary = oneof [ Nat  <$> getPositive <$> arbNat
+                    , Int  <$> arbitrary
+                    , Prob <$> getPositive <$> arbProb
+                    , Real <$> arbitrary
+                    ]
+
+instance Arbitrary TypeAST' where
+  arbitrary = frequency [ (20, TypeVar <$> arbitrary)
+                        , ( 1, TypeApp <$> arbitrary <*> arbitrary)
+                        , ( 1, TypeFun <$> arbitrary <*> arbitrary)
+                        ]
+
+instance Arbitrary NaryOp' where
+  arbitrary = elements [ And', Or',  Xor', Iff'
+                       , Min', Max', Sum', Prod']
+
+instance Arbitrary a => Arbitrary (Pattern' a) where
+  arbitrary = oneof [ PVar' <$> arbitrary
+                    , return PWild'
+                    , PData' <$> (DV <$> arbitrary <*> arbitrary)
+                    ]
+
+instance Arbitrary a => Arbitrary (Branch' a) where
+  arbitrary = Branch' <$> arbitrary <*> arbitrary
+
+instance Arbitrary a => Arbitrary (AST' a) where
+  arbitrary = frequency [ (10, Var <$> arbitrary)
+                        , ( 1, Lam <$> arbitrary <*> arbitrary)
+                        , ( 1, App <$> arbitrary <*> arbitrary)
+                        , ( 1, Let <$> arbitrary <*> arbitrary <*> arbitrary)
+                        , ( 1, If  <$> arbitrary <*> arbitrary <*> arbitrary)
+                        , ( 1, Ann <$> arbitrary <*> arbitrary)
+                        , ( 1, return Infinity)
+                        , ( 1, return NegInfinity)
+                        , ( 1, UValue <$> arbitrary)
+                        , ( 1, NaryOp <$> arbitrary <*> arbitrary <*> arbitrary)
+                        , ( 1, return Empty)
+                        , ( 1, Dirac <$> arbitrary)
+                        , ( 1, Bind  <$> arbitrary <*> arbitrary <*> arbitrary)
+                        ]
 
 stripMetadata :: AST' Text -> AST' Text
 stripMetadata (WithMeta ast _) = ast
@@ -353,6 +408,8 @@ testRoadmap :: Test
 testRoadmap = test
    [ testParse easyRoad1 easyRoadAST
    ]
+
+
 
 allTests :: Test
 allTests = test
