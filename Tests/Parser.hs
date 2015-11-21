@@ -65,6 +65,7 @@ instance Arbitrary a => Arbitrary (AST' a) where
                         , ( 1, UValue <$> arbitrary)
                         , ( 1, NaryOp <$> arbitrary <*> arbitrary <*> arbitrary)
                         , ( 1, return Empty)
+                        , ( 1, Case  <$> arbitrary <*> arbitrary)
                         , ( 1, Dirac <$> arbitrary)
                         , ( 1, Bind  <$> arbitrary <*> arbitrary <*> arbitrary)
                         ]
