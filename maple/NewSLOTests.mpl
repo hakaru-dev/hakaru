@@ -298,26 +298,26 @@ TestHakaru(gamma_gamma, gamma_gamma_s, label="gamma_gamma conjugacy") assuming a
 
 TestHakaru(Bind(Ret(ary(n,i,i*2)), v, Ret(idx(v,42))), Ret(84), label="basic array indexing");
 
-ary0 := Bind(plate(ary(k, i, Gaussian(0,1))), xs, Ret([xs])):
+ary0 := Bind(Plate(ary(k, i, Gaussian(0,1))), xs, Ret([xs])):
 TestHakaru(ary0, ary0, label="plate roundtripping");
 
 ary1  := Bind(Gaussian(0,1), x,
-         Bind(plate(ary(n, i, Weight(density[Gaussian](x,1)(idx(t,i)), Ret(Unit)))), ys,
+         Bind(Plate(ary(n, i, Weight(density[Gaussian](x,1)(idx(t,i)), Ret(Unit)))), ys,
          Ret(x))):
 ary1w := 2^(-(1/2)*n+1/2)*exp((1/2)*((sum(idx(t,i),i=1..n))^2-(sum(idx(t,i)^2,i=1..n))*n-(sum(idx(t,i)^2,i=1..n)))/(n+1))*Pi^(-(1/2)*n)/sqrt(2+2*n):
 TestHakaru(ary1, Weight(ary1w, Gaussian((sum(idx(t, i), i = 1 .. n))/(n+1), 1/sqrt(n+1))), label="Wednesday goal") assuming n::nonnegint;
 TestHakaru(Bind(ary1, x, Ret(Unit)), Weight(ary1w, Ret(Unit)), label="Wednesday goal total") assuming n::nonnegint;
 ary2  := Bind(Gaussian(0,1), x,
-         Bind(plate(ary(n, i, Bind(Gaussian(idx(t,i),1),z, Weight(density[Gaussian](x,1)(idx(t,i)), Ret(z+1))))), ys,
+         Bind(Plate(ary(n, i, Bind(Gaussian(idx(t,i),1),z, Weight(density[Gaussian](x,1)(idx(t,i)), Ret(z+1))))), ys,
          Ret(ys))):
-TestHakaru(ary2, Weight(ary1w, Bind(plate(ary(n, i, Gaussian(idx(t,i),1))), zs, Ret(ary(n, i, idx(zs,i)+1)))), label="Reason for fission") assuming n::nonnegint;
+TestHakaru(ary2, Weight(ary1w, Bind(Plate(ary(n, i, Gaussian(idx(t,i),1))), zs, Ret(ary(n, i, idx(zs,i)+1)))), label="Reason for fission") assuming n::nonnegint;
 ary3  := Bind(Gaussian(0,1), x,
-         Bind(plate(ary(n, i, Bind(Gaussian(idx(t,i),1),z, Weight(density[Gaussian](x,1)(idx(t,i)), Ret(z))))), zs,
+         Bind(Plate(ary(n, i, Bind(Gaussian(idx(t,i),1),z, Weight(density[Gaussian](x,1)(idx(t,i)), Ret(z))))), zs,
          Ret(zs))):
-TestHakaru(ary3, Weight(ary1w, plate(ary(n, i, Gaussian(idx(t,i),1)))), label="Array eta (currently fails)") assuming n::nonnegint; # This currently (2015-11-19) fails
+TestHakaru(ary3, Weight(ary1w, Plate(ary(n, i, Gaussian(idx(t,i),1)))), label="Array eta (currently fails)") assuming n::nonnegint; # This currently (2015-11-19) fails
 
 bry1  := Bind(BetaD(alpha,beta), x,
-         Bind(plate(ary(n, i, Weight(x    ^piecewise(idx(y,i)=true ,1) *
+         Bind(Plate(ary(n, i, Weight(x    ^piecewise(idx(y,i)=true ,1) *
                                      (1-x)^piecewise(idx(y,i)=false,1),
                               Ret(Unit)))), ys,
          Ret(x))):
@@ -328,7 +328,7 @@ bry1s := Weight(Beta(alpha+sum(piecewise(idx(y,i)=true ,1), i=1..n),
 TestHakaru(bry1, bry1s, label="first way to express flipping a biased coin many times") assuming n::nonnegint;
 
 bry2  := Bind(BetaD(alpha,beta), x,
-         Bind(plate(ary(n, i, Weight(x    ^(  idx(y,i)) *
+         Bind(Plate(ary(n, i, Weight(x    ^(  idx(y,i)) *
                                      (1-x)^(1-idx(y,i)),
                               Ret(Unit)))), ys,
          Ret(x))):
@@ -338,13 +338,13 @@ bry2s := Weight(Beta(alpha+  sum(idx(y,i),i=1..n),
                beta +n-sum(idx(y,i),i=1..n))):
 TestHakaru(bry2, bry2s, label="second way to express flipping a biased coin many times") assuming n::nonnegint;
 
-fission     := Bind(plate(ary(k, i, Gaussian(0,1))), xs, plate(ary(k, i, Gaussian(idx(xs,i),1)))):
-fusion      := plate(ary(k, i, Bind(Gaussian(0,1), x, Gaussian(x,1)))):
-conjugacies := plate(ary(k, i, Gaussian(0, sqrt(2)))):
+fission     := Bind(Plate(ary(k, i, Gaussian(0,1))), xs, Plate(ary(k, i, Gaussian(idx(xs,i),1)))):
+fusion      := Plate(ary(k, i, Bind(Gaussian(0,1), x, Gaussian(x,1)))):
+conjugacies := Plate(ary(k, i, Gaussian(0, sqrt(2)))):
 TestHakaru(fission, conjugacies, label="Reason for fusion (currently fails)"); # This currently (2015-11-19) fails
 TestHakaru(fusion,  conjugacies, label="Conjugacy in plate (currently fails)"); # This currently (2015-11-19) fails
 
 # Simplifying gmm below is a baby step towards index manipulations we need
-gmm := Bind(plate(ary(k, c, Gaussian(0,1))), xs,
-       Bind(plate(ary(n, i, Weight(density[Gaussian](idx(xs,idx(cs,i)),1)(idx(t,i)), Ret(Unit)))), ys,
+gmm := Bind(Plate(ary(k, c, Gaussian(0,1))), xs,
+       Bind(Plate(ary(n, i, Weight(density[Gaussian](idx(xs,idx(cs,i)),1)(idx(t,i)), Ret(Unit)))), ys,
        Ret(xs))):
