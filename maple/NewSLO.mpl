@@ -115,14 +115,15 @@ NewSLO := module ()
      # note that these first few are smart constructors (for themselves):
          app, idx, integrate, applyintegrand,
      # while these are "proper functions"
-         Integrand, map_piecewise,
-         bind, weight, plate, LO, Indicator,
+         map_piecewise,
+         bind, weight, LO, Indicator,
+         plate, # TODO remove this one
          toLO, fromLO, unintegrate,
          TestHakaru, measure, density, bounds,
          improve, ReparamDetermined, determined, Reparam, Banish;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
-  global Bind, Weight, Ret, Msum, Plate,
+  global Bind, Weight, Ret, Msum, Integrand, Plate,
          Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD, StudentT,
          lam;
 
@@ -151,7 +152,8 @@ NewSLO := module ()
   toLO := proc(m)
     local h;
     h := gensym('h');
-    LO(h, integrate(m, h))
+#    LO(h, integrate(m, h))
+     LO(h, integrate(eval(m, Plate=plate), h)) # for now
   end proc;
 
   known_measures := '{Lebesgue(), Uniform(anything, anything), 
@@ -448,8 +450,12 @@ NewSLO := module ()
     end if
   end proc;
 
+  # first freeze (irrelevant) sums and products, then freeze (irrelevant)
+  # idx calls.  These confuse some routines (like gfun[holexprtodiffeq])
   freeze_difficult := proc(e,x)
-    evalindets(e, 'And(specfunc({product,sum}), freeof(x))', freeze)
+    local round1;
+    round1 := evalindets(e, 'And(specfunc({product,sum}), freeof(x))', freeze);
+    evalindets(round1, 'And(specfunc(idx), freeof(x))', freeze);
   end proc;
 
   # this code should not currently be used, it is just a snapshot in time
@@ -521,49 +527,6 @@ NewSLO := module ()
 
 # Step 3 of 3: from Maple LO (linear operator) back to Hakaru
 
-  bind := proc(m, x, n)
-    if n = 'Ret'(x) then
-      m # monad law: right identity
-    elif m :: 'Ret(anything)' then
-      eval(n, x = op(1,m)) # monad law: left identity
-    else
-      'Bind(_passed)'
-    end if;
-  end proc;
-
-  weight := proc(p, m)
-    if p = 1 then
-      m
-    elif p = 0 then
-      Msum()
-    elif m :: 'Weight(anything, anything)' then
-      weight(p * op(1,m), op(2,m))
-    else
-      'Weight(_passed)'
-    end if;
-  end proc;
-
-  plate := proc(a)
-    local xs, w, m;
-    if a :: 'ary(anything, name, Ret(anything))' then
-      Ret(ary(op(1,a), op(2,a), op([3,1],a)))
-    elif a :: 'ary(anything, name, Bind(anything, name, anything))' then
-      xs := gensym(op([3,2],a));
-      bind(plate(ary(op(1,a), op(2,a), op([3,1],a))), xs,
-           plate(ary(op(1,a), op(2,a),
-                 eval(op([3,3],a), op([3,2],a)=idx(xs,op(2,a))))))
-    elif a :: 'ary(anything, name, anything)' then
-      (w, m) := unweight(op(3,a));
-      if w <> 1 then
-        weight(product(w, op(2,a)=1..op(1,a)), plate(ary(op(1,a), op(2,a), m)))
-      else
-        'Plate(_passed)'
-      end if
-    else
-      'Plate(_passed)'
-    end if;
-  end proc;
-
   fromLO := proc(lo :: LO(name, anything))
     local h;
     h := gensym(op(1,lo));
@@ -571,7 +534,7 @@ NewSLO := module ()
   end proc;
 
   unintegrate := proc(h :: name, integral, context :: list)
-    local x, lo, hi, m, w, w0, recognition, subintegral,
+    local x, lo, hi, m, mm, w, w0, recognition, subintegral,
           n, i, next_context, update_context;
     if integral :: 'And'('specfunc({Int,int})',
                          'anyfunc'('anything','name'='range'('freeof'(h)))) then
@@ -599,6 +562,21 @@ NewSLO := module ()
         end if;
         weight(w0, bind(Lebesgue(), x, m))
       end if
+#    elif integral :: 'ProductIntegral(anything, anything, name = range, name, name)' then
+#      x := gensym(op([3,1,0], integral));
+#      (lo, hi) := op(op([3,2], integral));
+#      next_context := [op(context), lo<x, x<hi];
+#      w := eval(op(1,integral), op([3,1],integral) = x);
+#      m := unintegrate(h, op(2,integral), context);
+#      recognition := thaw(recognize(freeze_difficult(w,x), x, lo, hi))
+#        assuming op(next_context);
+#      if recognition :: 'Recognized(anything, anything)' then
+#        # Recognition succeeded
+#        mm := weight(op(2,recognition), op(1,recognition));
+#        bind(Plate(ary(op(4,integral), op(5, integral), mm)), op([3,1],integral), m);
+#      else
+#        error "case not done yet in unintegrate of ProductIntegral"
+#      end if;
     elif integral :: 'applyintegrand'('identical'(h), 'freeof'(h)) then
       Ret(op(2,integral))
     elif integral = 0 then
@@ -642,6 +620,53 @@ NewSLO := module ()
       # Failure: return residual LO
       LO(h, integral)
     end if
+  end proc;
+
+  ###
+  # smart constructors for our language
+
+  bind := proc(m, x, n)
+    if n = 'Ret'(x) then
+      m # monad law: right identity
+    elif m :: 'Ret(anything)' then
+      eval(n, x = op(1,m)) # monad law: left identity
+    else
+      'Bind(_passed)'
+    end if;
+  end proc;
+
+  weight := proc(p, m)
+    if p = 1 then
+      m
+    elif p = 0 then
+      Msum()
+    elif m :: 'Weight(anything, anything)' then
+      weight(p * op(1,m), op(2,m))
+    else
+      'Weight(_passed)'
+    end if;
+  end proc;
+
+  # TODO: remove this 'smart constructor'!
+  plate := proc(a)
+    local xs, w, m;
+    if a :: 'ary(anything, name, Ret(anything))' then
+      Ret(ary(op(1,a), op(2,a), op([3,1],a)))
+    elif a :: 'ary(anything, name, Bind(anything, name, anything))' then
+      xs := gensym(op([3,2],a));
+      bind(plate(ary(op(1,a), op(2,a), op([3,1],a))), xs,
+           plate(ary(op(1,a), op(2,a),
+                 eval(op([3,3],a), op([3,2],a)=idx(xs,op(2,a))))))
+    elif a :: 'ary(anything, name, anything)' then
+      (w, m) := unweight(op(3,a));
+      if w <> 1 then
+        weight(product(w, op(2,a)=1..op(1,a)), plate(ary(op(1,a), op(2,a), m)))
+      else
+        'Plate(_passed)'
+      end if
+    else
+      'Plate(_passed)'
+    end if;
   end proc;
 
   app := proc (func, argu)
