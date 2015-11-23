@@ -14,7 +14,7 @@ import qualified Language.Hakaru.Syntax.Nat as N
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.AST    (PrimOp(..),
-                                      Value(..),
+                                      Literal(..),
                                       MeasureOp(..),
                                       LCs(),
                                       UnLCs ())
@@ -84,49 +84,48 @@ data DCode a where
 
 data Datum a = Datum Text (DCode a)
 
-data Value' =
-     Nat  Int
-   | Int  Int
-   | Prob Double
-   | Real Double
-   | Datum''
- deriving (Eq, Show)
+data Literal'
+    = Nat  Int
+    | Int  Int
+    | Prob Double
+    | Real Double
+    deriving (Eq, Show)
 
-data NaryOp' =
-     And' | Or' | Xor'
-   | Iff' | Min'| Max' 
-   | Sum' | Prod'
- deriving (Eq, Show)
+data NaryOp'
+    = And' | Or' | Xor'
+    | Iff' | Min'| Max' 
+    | Sum' | Prod'
+    deriving (Eq, Show)
 
-val :: Value' -> Some1 Value
+val :: Literal' -> Some1 Literal
 val (Nat  n) = Some1 $ VNat (N.unsafeNat n)
 val (Int  n) = Some1 $ VInt n
 val (Prob n) = Some1 $ VProb (LF.logFloat n)
 val (Real n) = Some1 $ VReal n
 
-data TypeAST' =
-     TypeVar Text
-   | TypeApp Text [TypeAST']
-   | TypeFun TypeAST' TypeAST'
- deriving (Eq, Show)
+data TypeAST'
+    = TypeVar Text
+    | TypeApp Text [TypeAST']
+    | TypeFun TypeAST' TypeAST'
+    deriving (Eq, Show)
 
-data AST' a =
-     Var a
-   | Lam a    (AST' a) 
-   | App (AST' a) (AST' a)
-   | Let a    (AST' a) (AST' a)
-   | If  (AST' a) (AST' a) (AST' a)
-   | Ann (AST' a) TypeAST'
-   | Infinity
-   | NegInfinity
-   | UValue Value'
-   | NaryOp NaryOp' (AST' a) (AST' a)
-   | Empty
-   | Case  (AST' a) [(Branch' a)] -- match
-   | Dirac (AST' a)
-   | Bind  a (AST' a) (AST' a)
-   | Data  a [TypeAST']
-   | WithMeta (AST' a) Meta
+data AST' a
+    = Var a
+    | Lam a    (AST' a) 
+    | App (AST' a) (AST' a)
+    | Let a    (AST' a) (AST' a)
+    | If  (AST' a) (AST' a) (AST' a)
+    | Ann (AST' a) TypeAST'
+    | Infinity
+    | NegInfinity
+    | ULiteral Literal'
+    | NaryOp NaryOp' (AST' a) (AST' a)
+    | Empty
+    | Case  (AST' a) [(Branch' a)] -- match
+    | Dirac (AST' a)
+    | Bind  a (AST' a) (AST' a)
+    | Data  a [TypeAST']
+    | WithMeta (AST' a) Meta
 
 data Branch a = Branch Pattern (AST a)
 
@@ -147,26 +146,26 @@ data PCode where
      PInr ::  PCode   -> PCode
      PInl ::  PStruct -> PCode
 
-data AST a =
-     Var_        Name
-   | Lam_        Name    (AST a)
-   | App_        (AST a) (AST a)
-   | Let_        Name    (AST a) (AST a)
-   | Ann_        (AST a) SSing
-   | CoerceTo_   (Some2 Coercion) (AST a)
-   | UnsafeTo_   (Some2 Coercion) (AST a)
-   | PrimOp_     (SealedOp PrimOp) [AST a]
-   | NaryOp_     NaryOp'  [AST a]
-   | Value_      (Some1 Value)
-   | Empty_
-   | Array_      (AST a) Name (AST a) -- not sure should binding form
-   | Datum_      (Datum a)
-   | Case_       (AST a) [Branch a]
-   | MeasureOp_  (SealedOp MeasureOp) [AST a]
-   | Dirac_      (AST a)
-   | MBind_      Name    (AST a) (AST a)
-   | Expect_     Name    (AST a) (AST a)
-   | Superpose_  [(AST a, AST a)]
+data AST a
+    = Var_        Name
+    | Lam_        Name    (AST a)
+    | App_        (AST a) (AST a)
+    | Let_        Name    (AST a) (AST a)
+    | Ann_        (AST a) SSing
+    | CoerceTo_   (Some2 Coercion) (AST a)
+    | UnsafeTo_   (Some2 Coercion) (AST a)
+    | PrimOp_     (SealedOp PrimOp) [AST a]
+    | NaryOp_     NaryOp'  [AST a]
+    | Literal_    (Some1 Literal)
+    | Empty_
+    | Array_      (AST a) Name (AST a) -- not sure should binding form
+    | Datum_      (Datum a)
+    | Case_       (AST a) [Branch a]
+    | MeasureOp_  (SealedOp MeasureOp) [AST a]
+    | Dirac_      (AST a)
+    | MBind_      Name    (AST a) (AST a)
+    | Expect_     Name    (AST a) (AST a)
+    | Superpose_  [(AST a, AST a)]
 
 
 deriving instance Eq a => Eq (AST' a)

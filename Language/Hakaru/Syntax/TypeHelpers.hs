@@ -20,7 +20,7 @@ module Language.Hakaru.Syntax.TypeHelpers
     , sing_PrimOp
     , sing_ArrayOp
     , sing_MeasureOp
-    , sing_Value
+    , sing_Literal
     , make_NaryOp
     ) where
 
@@ -39,11 +39,11 @@ import Language.Hakaru.Syntax.Datum
 ----------------------------------------------------------------
 
 -- N.B., we do case analysis so that we don't need the class constraint!
-sing_Value :: Value a -> Sing a
-sing_Value (VNat  _) = sing
-sing_Value (VInt  _) = sing
-sing_Value (VProb _) = sing
-sing_Value (VReal _) = sing
+sing_Literal :: Literal a -> Sing a
+sing_Literal (VNat  _) = sing
+sing_Literal (VInt  _) = sing
+sing_Literal (VProb _) = sing
+sing_Literal (VReal _) = sing
 
 -- TODO: we don't need to store the HOrd\/HSemiring values here,
 -- we can recover them by typeclass, just like we use 'sing' to get

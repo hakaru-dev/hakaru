@@ -233,18 +233,18 @@ coerceTo_ c e = syn (CoerceTo_ c :$ e :* End)
 unsafeFrom_ :: (ABT AST abt) => Coercion a b -> abt '[] b -> abt '[] a
 unsafeFrom_ c e = syn (UnsafeFrom_ c :$ e :* End)
 
-value_ :: (ABT AST abt) => Value a  -> abt '[] a
-value_ = syn . Value_
-bool_  :: (ABT AST abt) => Bool     -> abt '[] HBool
-bool_  = datum_ . (\b -> if b then dTrue else dFalse)
-nat_   :: (ABT AST abt) => Nat      -> abt '[] 'HNat
-nat_   = value_ . VNat
-int_   :: (ABT AST abt) => Int      -> abt '[] 'HInt
-int_   = value_ . VInt
-prob_  :: (ABT AST abt) => LogFloat -> abt '[] 'HProb
-prob_  = value_ . VProb
-real_  :: (ABT AST abt) => Double   -> abt '[] 'HReal
-real_  = value_ . VReal
+literal_ :: (ABT AST abt) => Literal a  -> abt '[] a
+literal_ = syn . Literal_
+bool_    :: (ABT AST abt) => Bool     -> abt '[] HBool
+bool_    = datum_ . (\b -> if b then dTrue else dFalse)
+nat_     :: (ABT AST abt) => Nat      -> abt '[] 'HNat
+nat_     = literal_ . VNat
+int_     :: (ABT AST abt) => Int      -> abt '[] 'HInt
+int_     = literal_ . VInt
+prob_    :: (ABT AST abt) => LogFloat -> abt '[] 'HProb
+prob_    = literal_ . VProb
+real_    :: (ABT AST abt) => Double   -> abt '[] 'HReal
+real_    = literal_ . VReal
 
 -- Boolean operators
 true, false :: (ABT AST abt) => abt '[] HBool
@@ -272,7 +272,7 @@ not e =
                     Just . syn . NaryOp_ Iff $ Prelude.fmap not xs
                 NaryOp_ Iff xs ->
                     Just . syn . NaryOp_ Xor $ Prelude.fmap not xs
-                Value_ v ->
+                Literal_ v ->
                     case v of
                     {-
                     VDatum (Datum _ (Inl Done))       -> Just false
@@ -331,13 +331,13 @@ maximum = unsafeNaryOp_ $ Max hOrd
 (*) = naryOp2_ $ Prod hSemiring
 
 zero, one :: forall abt a. (ABT AST abt, HSemiring_ a) => abt '[] a
-zero = value_ $
+zero = literal_ $
     case (hSemiring :: HSemiring a) of
     HSemiring_Nat  -> VNat  0
     HSemiring_Int  -> VInt  0
     HSemiring_Prob -> VProb 0
     HSemiring_Real -> VReal 0
-one = value_ $
+one = literal_ $
     case (hSemiring :: HSemiring a) of
     HSemiring_Nat  -> VNat  1
     HSemiring_Int  -> VInt  1

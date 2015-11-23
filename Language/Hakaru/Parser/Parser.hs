@@ -118,8 +118,8 @@ int = do
     n <- integer
     return $
         if n < 0
-        then UValue $ Int (fromInteger n)
-        else UValue $ Nat (fromInteger n)
+        then ULiteral $ Int (fromInteger n)
+        else ULiteral $ Nat (fromInteger n)
 
 floating :: Parser (AST' a)
 floating = do
@@ -127,8 +127,8 @@ floating = do
     n <- float
     return $
         case sign of
-        '-' -> UValue $ Real (negate n)
-        '+' -> UValue $ Prob n
+        '-' -> ULiteral $ Real (negate n)
+        '+' -> ULiteral $ Prob n
         _   -> error "floating: the impossible happened"
 
 inf_ :: Parser (AST' Text)

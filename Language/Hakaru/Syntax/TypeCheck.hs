@@ -118,7 +118,7 @@ mustCheck = go
     -- HMaybe, HList), those cannot be inferred. Also, we have
     -- polymorphic product types (HPair) which can only be inferred
     -- if all their components can be inferred.
-    go (U.Value_ _)     = False
+    go (U.Literal_ _)   = False
     go U.Empty_         = True
     go (U.Array_ _ _ _) = True
     go (U.Datum_ _)     = True
@@ -318,9 +318,9 @@ inferType = inferType_
                 es'' <- T.forM es $ checkType_ typ1
                 return . TypedAST typ1 $ syn (NaryOp_ op' $ S.fromList es'')
 
-    U.Value_ (Some1 v) ->
-        -- BUG: need to finish implementing sing_Value for Datum
-        return . TypedAST (sing_Value v) $ syn (Value_ v)
+    U.Literal_ (Some1 v) ->
+        -- BUG: need to finish implementing sing_Literal for Datum
+        return . TypedAST (sing_Literal v) $ syn (Literal_ v)
 
     U.CoerceTo_ (Some2 c) e1 ->
         case singCoerceDomCod c of

@@ -7,7 +7,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.18
+--                                                    2015.11.23
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeOf
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -31,7 +31,7 @@ import Language.Hakaru.Syntax.Sing (Sing(..))
 import Language.Hakaru.Syntax.Coercion
     (singCoerceCod, singCoerceDom, singCoerceFrom, singCoerceTo)
 import Language.Hakaru.Syntax.TypeHelpers
-    (sing_PrimOp, sing_MeasureOp, sing_NaryOp, sing_Value)
+    (sing_PrimOp, sing_MeasureOp, sing_NaryOp, sing_Literal)
 import Language.Hakaru.Syntax.Datum (Branch(..))
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Variable (varType)
@@ -75,12 +75,12 @@ typeOf_ e0 =
         MBind  :$ _  :* e2 :* End -> caseBind e2 (const typeOf_)
         Expect :$ _               -> return SProb
         
-        NaryOp_ o  _   -> return $ sing_NaryOp o
-        Value_  v      -> return $ sing_Value v
+        NaryOp_  o  _  -> return $ sing_NaryOp o
+        Literal_ v     -> return $ sing_Literal v
         Empty_         -> Left "no unique type for Empty_"
-        Array_  _  e2  -> caseBind e2 $ \_ e2' -> SArray <$> typeOf_ e2'
-        Datum_  d      -> error "TODO: typeOf_{Datum_}"
-        Case_   _  bs  -> tryAll "Case_" typeOfBranch bs
+        Array_   _  e2 -> caseBind e2 $ \_ e2' -> SArray <$> typeOf_ e2'
+        Datum_   d     -> error "TODO: typeOf_{Datum_}"
+        Case_    _  bs -> tryAll "Case_" typeOfBranch bs
         Superpose_ pes -> tryAll "Superpose_" (typeOf_ . snd) pes
         
         _ :$ _ -> error "typeOf_: the impossible happened"

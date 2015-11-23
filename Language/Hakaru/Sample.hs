@@ -189,11 +189,11 @@ sampleAST :: (ABT AST abt, PrimMonad m, Functor m) =>
              AST abt a -> Env m -> S m a
 sampleAST t env =
     case t of
-      o :$ es      -> sampleScon   o es env
-      NaryOp_ o es -> sampleNaryOp o es env
-      Value_  v    -> sampleValue  v
-      Datum_  d    -> sampleDatum  d env
-      Case_   o es -> sampleCase   o es env
+      o :$ es       -> sampleScon    o es env
+      NaryOp_  o es -> sampleNaryOp  o es env
+      Literal_ v    -> sampleLiteral v
+      Datum_   d    -> sampleDatum   d env
+      Case_    o es -> sampleCase    o es env
       Superpose_ es -> sampleSuperpose es env
 
 sampleScon :: (ABT AST abt, PrimMonad m, Functor m) =>
@@ -401,11 +401,11 @@ sampleMeasureOp (Plate _)   (e1 :* End) env =
 sampleMeasureOp _ _ _ =
     error "sampleMeasureOP: the impossible happened"
 
-sampleValue :: Value a -> S m a
-sampleValue (VNat  n) = S n
-sampleValue (VInt  n) = S n
-sampleValue (VProb n) = S n
-sampleValue (VReal n) = S n
+sampleLiteral :: Literal a -> S m a
+sampleLiteral (VNat  n) = S n
+sampleLiteral (VInt  n) = S n
+sampleLiteral (VProb n) = S n
+sampleLiteral (VReal n) = S n
 
 -- HACK only will work for HPair
 sampleDatum :: (ABT AST abt, PrimMonad m, Functor m) =>

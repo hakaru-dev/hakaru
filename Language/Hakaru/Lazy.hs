@@ -116,7 +116,7 @@ evaluate perform = evaluate_
       caseVarSyn e0 (update perform evaluate_) $ \t ->
         case t of
         -- Things which are already WHNFs
-        Value_ v                 -> return . Head_ $ WValue v
+        Literal_ v               -> return . Head_ $ WLiteral v
         Datum_ d                 -> return . Head_ $ WDatum d
         Empty_                   -> return . Head_ $ WEmpty
         Array_ e1 e2             -> return . Head_ $ WArray e1 e2
@@ -301,16 +301,16 @@ unsafeFrom_Whnf c w =
 -- TODO: move to Coercion.hs
 -- TODO: add a class in Coercion.hs to avoid namespace pollution for all these sorts of things...
 -- TODO: first optimize the @Coercion a b@ to choose the most desirable of many equivalent paths?
-coerceTo_Value :: Coercion a b -> Value a -> Value b
-coerceTo_Value CNil         v = v
-coerceTo_Value (CCons c cs) v = coerceTo_Value cs (step c v)
+coerceTo_Literal :: Coercion a b -> Literal a -> Literal b
+coerceTo_Literal CNil         v = v
+coerceTo_Literal (CCons c cs) v = coerceTo_Literal cs (step c v)
     where
-    step :: PrimCoercion a b -> Value a -> Value b
+    step :: PrimCoercion a b -> Literal a -> Literal b
     step (Signed     HRing_Int)        (VNat  n) = VInt  (nat2int   n)
     step (Signed     HRing_Real)       (VProb p) = VReal (prob2real p)
     step (Continuous HContinuous_Prob) (VNat  n) = VProb (nat2prob  n)
     step (Continuous HContinuous_Real) (VInt  i) = VReal (int2real  i)
-    step _ _ = error "coerceTo_Value: the impossible happened"
+    step _ _ = error "coerceTo_Literal: the impossible happened"
 
     -- HACK: type signatures needed to avoid defaulting to 'Integer'
     nat2int   :: Nat -> Int
@@ -324,16 +324,16 @@ coerceTo_Value (CCons c cs) v = coerceTo_Value cs (step c v)
 
 
 -- TODO: how to handle the errors? Generate error code in hakaru? capture it in a monad?
-unsafeFrom_Value :: Coercion a b -> Value b -> Value a
-unsafeFrom_Value CNil         v = v
-unsafeFrom_Value (CCons c cs) v = step c (unsafeFrom_Value cs v)
+unsafeFrom_Literal :: Coercion a b -> Literal b -> Literal a
+unsafeFrom_Literal CNil         v = v
+unsafeFrom_Literal (CCons c cs) v = step c (unsafeFrom_Literal cs v)
     where
-    step :: PrimCoercion a b -> Value b -> Value a
+    step :: PrimCoercion a b -> Literal b -> Literal a
     step (Signed     HRing_Int)        (VInt  i) = VNat  (int2nat   i)
     step (Signed     HRing_Real)       (VReal r) = VProb (real2prob r)
     step (Continuous HContinuous_Prob) (VProb p) = VNat  (prob2nat  p)
     step (Continuous HContinuous_Real) (VReal r) = VInt  (real2int  r)
-    step _ _ = error "unsafeFrom_Value: the impossible happened"
+    step _ _ = error "unsafeFrom_Literal: the impossible happened"
 
     -- HACK: type signatures needed to avoid defaulting to 'Integer'
     int2nat   :: Int -> Nat
@@ -354,22 +354,22 @@ class Interp a a' | a -> a' where
     reflect :: (ABT AST abt) => a' -> Head abt a
 
 instance Interp 'HNat Nat where
-    reflect = WValue . VNat
-    reify (WValue (VNat n)) = n
+    reflect = WLiteral . VNat
+    reify (WLiteral (VNat n)) = n
     reify (WAnn        _ v) = reify v
     reify (WCoerceTo   _ _) = error "TODO: reify{WCoerceTo}"
     reify (WUnsafeFrom _ _) = error "TODO: reify{WUnsafeFrom}"
 
 instance Interp 'HInt Int where
-    reflect = WValue . VInt
-    reify (WValue (VInt i)) = i
+    reflect = WLiteral . VInt
+    reify (WLiteral (VInt i)) = i
     reify (WAnn        _ v) = reify v
     reify (WCoerceTo   _ _) = error "TODO: reify{WCoerceTo}"
     reify (WUnsafeFrom _ _) = error "TODO: reify{WUnsafeFrom}"
 
 instance Interp 'HProb LogFloat where -- TODO: use rational instead
-    reflect = WValue . VProb
-    reify (WValue (VProb p))  = p
+    reflect = WLiteral . VProb
+    reify (WLiteral (VProb p))  = p
     reify (WAnn        _ v)   = reify v
     reify (WCoerceTo   _ _)   = error "TODO: reify{WCoerceTo}"
     reify (WUnsafeFrom _ _)   = error "TODO: reify{WUnsafeFrom}"
@@ -377,8 +377,8 @@ instance Interp 'HProb LogFloat where -- TODO: use rational instead
     reify (WSummate    _ _ _) = error "TODO: reify{WSummate}"
 
 instance Interp 'HReal Double where -- TODO: use rational instead
-    reflect = WValue . VReal
-    reify (WValue (VReal r)) = r
+    reflect = WLiteral . VReal
+    reify (WLiteral (VReal r)) = r
     reify (WAnn        _ v) = reify v
     reify (WCoerceTo   _ _) = error "TODO: reify{WCoerceTo}"
     reify (WUnsafeFrom _ _) = error "TODO: reify{WUnsafeFrom}"
@@ -390,7 +390,7 @@ identifyDatum = return . (viewWhnfDatum <=< toWhnf)
 -- HACK: this requires -XTypeSynonymInstances and -XFlexibleInstances
 -- This instance does seem to work; albeit it's trivial...
 instance Interp HUnit () where
-    reflect () = error "TODO" -- WValue $ VDatum dUnit
+    reflect () = error "TODO" -- WLiteral $ VDatum dUnit
     reify v = runIdentity $ do
         match <- matchTopPattern identifyDatum (fromHead v) pUnit Nil1
         case match of
@@ -400,7 +400,7 @@ instance Interp HUnit () where
 -- HACK: this requires -XTypeSynonymInstances and -XFlexibleInstances
 -- This instance also seems to work...
 instance Interp HBool Bool where
-    reflect = error "TODO" -- WValue . VDatum . (\b -> if b then dTrue else dFalse)
+    reflect = error "TODO" -- WLiteral . VDatum . (\b -> if b then dTrue else dFalse)
     reify v = runIdentity $ do
         matchT <- matchTopPattern identifyDatum (fromHead v) pTrue Nil1
         case matchT of
@@ -536,14 +536,14 @@ evaluateNaryOp evaluate_ = \o es -> mainLoop o (evalOp o) Seq.empty es
         Min  _ -> Neutral (syn (NaryOp_ o Seq.empty)) -- no identity in general (but we could do it by cases...)
         Max  _ -> Neutral (syn (NaryOp_ o Seq.empty)) -- no identity in general (but we could do it by cases...)
         -- TODO: figure out how to reuse 'P.zero' and 'P.one' here
-        Sum  HSemiring_Nat  -> Head_ (WValue (VNat  0))
-        Sum  HSemiring_Int  -> Head_ (WValue (VInt  0))
-        Sum  HSemiring_Prob -> Head_ (WValue (VProb 0))
-        Sum  HSemiring_Real -> Head_ (WValue (VReal 0))
-        Prod HSemiring_Nat  -> Head_ (WValue (VNat  1))
-        Prod HSemiring_Int  -> Head_ (WValue (VInt  1))
-        Prod HSemiring_Prob -> Head_ (WValue (VProb 1))
-        Prod HSemiring_Real -> Head_ (WValue (VReal 1))
+        Sum  HSemiring_Nat  -> Head_ (WLiteral (VNat  0))
+        Sum  HSemiring_Int  -> Head_ (WLiteral (VInt  0))
+        Sum  HSemiring_Prob -> Head_ (WLiteral (VProb 0))
+        Sum  HSemiring_Real -> Head_ (WLiteral (VReal 0))
+        Prod HSemiring_Nat  -> Head_ (WLiteral (VNat  1))
+        Prod HSemiring_Int  -> Head_ (WLiteral (VInt  1))
+        Prod HSemiring_Prob -> Head_ (WLiteral (VProb 1))
+        Prod HSemiring_Real -> Head_ (WLiteral (VReal 1))
 
     -- | The evaluation interpretation of each NaryOp
     evalOp :: (ABT AST abt) => NaryOp a -> Head abt a -> Head abt a -> Head abt a
@@ -559,13 +559,13 @@ evaluateNaryOp evaluate_ = \o es -> mainLoop o (evalOp o) Seq.empty es
     evalOp (Prod _) v1 v2 = reflect (reify v1 * reify v2)
     -}
     -- HACK: this is just to have something to test. We really should reduce\/remove all this boilerplate...
-    evalOp (Sum  s) (WValue v1) (WValue v2) = WValue $ evalSum  s v1 v2
-    evalOp (Prod s) (WValue v1) (WValue v2) = WValue $ evalProd s v1 v2
+    evalOp (Sum  s) (WLiteral v1) (WLiteral v2) = WLiteral $ evalSum  s v1 v2
+    evalOp (Prod s) (WLiteral v1) (WLiteral v2) = WLiteral $ evalProd s v1 v2
     evalOp (Sum  _) _ _ = error "evalOp: the impossible happened"
     evalOp (Prod _) _ _ = error "evalOp: the impossible happened"
     evalOp _ _ _ = error "TODO: evalOp{HBool ops, HOrd ops}"
 
-    evalSum, evalProd :: HSemiring a -> Value a -> Value a -> Value a
+    evalSum, evalProd :: HSemiring a -> Literal a -> Literal a -> Literal a
     evalSum  HSemiring_Nat  (VNat  n1) (VNat  n2) = VNat  (n1 + n2)
     evalSum  HSemiring_Int  (VInt  i1) (VInt  i2) = VInt  (i1 + i2)
     evalSum  HSemiring_Prob (VProb p1) (VProb p2) = VProb (p1 + p2)
@@ -611,7 +611,7 @@ evaluateArrayOp evaluate_ o es =
             Head_   v1  ->
                 case head2array v1 of
                 Nothing             -> error "TODO: use bot"
-                Just WAEmpty        -> return . Head_ $ WValue (VNat 0)
+                Just WAEmpty        -> return . Head_ $ WLiteral (VNat 0)
                 Just (WAArray e3 _) -> evaluate_ e3
 
     (Reduce _, e1 :* e2 :* e3 :* End) ->

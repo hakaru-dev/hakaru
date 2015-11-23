@@ -137,7 +137,7 @@ symbolResolution symbols ast =
     U.Ann e typ       -> (`U.Ann` typ) <$> symbolResolution symbols e
     U.Infinity        -> return $ U.Infinity
     U.NegInfinity     -> return $ U.NegInfinity
-    U.UValue v        -> return $ U.UValue v
+    U.ULiteral v      -> return $ U.ULiteral v
 
     U.NaryOp op e1 e2 -> U.NaryOp op
         <$> symbolResolution symbols e1
@@ -198,7 +198,7 @@ normAST ast =
     U.Ann e typ1      -> U.Ann (normAST e) typ1
     U.Infinity        -> U.Infinity
     U.NegInfinity     -> U.NegInfinity
-    U.UValue v        -> U.UValue v
+    U.ULiteral v      -> U.ULiteral v
     U.NaryOp op e1 e2 -> U.NaryOp op (normAST e1) (normAST e2)
     U.Empty           -> U.Empty
     U.Case e1 e2      -> U.Case  (normAST e1) (map branchNorm e2)
@@ -250,7 +250,7 @@ makeAST ast =
     U.Ann e typ       -> U.Ann_ (makeAST e) (makeType typ)
     U.Infinity        -> U.PrimOp_ (U.SealedOp $ T.Infinity) []
     U.NegInfinity     -> U.PrimOp_ (U.SealedOp $ T.NegativeInfinity) []
-    U.UValue v        -> U.Value_  (U.val v)
+    U.ULiteral v      -> U.Literal_  (U.val v)
     U.NaryOp op e1 e2 -> U.NaryOp_ op [makeAST e1, makeAST e2]
     U.Case e bs       -> U.Case_ (makeAST e) (map makeBranch bs)
     U.Dirac e1        -> U.Dirac_ (makeAST e1)

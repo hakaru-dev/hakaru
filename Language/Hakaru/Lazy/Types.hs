@@ -109,7 +109,7 @@ import Language.Hakaru.Syntax.ABT
 -- BUG: this may not force enough evaluation for "Language.Hakaru.Disintegrate"...
 data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     -- Simple heads (aka, the usual stuff)
-    WValue :: !(Value a) -> Head abt a
+    WLiteral :: !(Literal a) -> Head abt a
     WDatum
         :: {-# UNPACK #-} !(Datum (abt '[]) (HData' t))
         -> Head abt (HData' t)
@@ -133,7 +133,7 @@ data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         -> Head abt ('HMeasure a)
 
     -- Type annotation\/coercion stuff. These are transparent re head-ness; that is, they behave more like HNF than WHNF.
-    -- TODO: we prolly don't actually want\/need the coercion variants... we'd lose some proven-guarantees about cancellation, but everything should work just fine if we update 'Value' to use Integer and Rational rather than Int and Double...
+    -- TODO: we prolly don't actually want\/need the coercion variants... we'd lose some proven-guarantees about cancellation, but everything should work just fine if we update 'Literal' to use Integer and Rational rather than Int and Double...
     WAnn        :: !(Sing a)       -> !(Head abt a) -> Head abt a
     WCoerceTo   :: !(Coercion a b) -> !(Head abt a) -> Head abt b
     WUnsafeFrom :: !(Coercion a b) -> !(Head abt b) -> Head abt a
@@ -162,7 +162,7 @@ data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
 
 -- | Forget that something is a head.
 fromHead :: (ABT AST abt) => Head abt a -> abt '[] a
-fromHead (WValue     v)     = syn (Value_ v)
+fromHead (WLiteral   v)     = syn (Literal_ v)
 fromHead (WDatum     d)     = syn (Datum_ d)
 fromHead WEmpty             = syn Empty_
 fromHead (WArray     e1 e2) = syn (Array_ e1 e2)
@@ -183,8 +183,8 @@ toHead :: (ABT AST abt) => abt '[] a -> Maybe (Head abt a)
 toHead e =
     caseVarSyn e (const Nothing) $ \t ->
         case t of
-        Value_ v                           -> Just $ WValue v
-        Datum_ d                           -> Just $ WDatum d
+        Literal_ v                         -> Just $ WLiteral v
+        Datum_   d                         -> Just $ WDatum   d
         Empty_                             -> Just $ WEmpty
         Array_     e1    e2                -> Just $ WArray     e1 e2
         Lam_    :$ e1 :* End               -> Just $ WLam       e1
@@ -257,7 +257,8 @@ viewHeadDatum
 viewHeadDatum (WAnn        _ w) = viewHeadDatum w
 viewHeadDatum (WCoerceTo   c _) = case c of {}
 viewHeadDatum (WUnsafeFrom c _) = case c of {}
-viewHeadDatum (WDatum d)        = d
+viewHeadDatum (WDatum      d)   = d
+viewHeadDatum (WLiteral    v)   = case v of {}
 
 
 ----------------------------------------------------------------

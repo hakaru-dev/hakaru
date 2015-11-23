@@ -140,7 +140,7 @@ instance (ABT AST abt) => Pretty (LC_ abt) where
                     . map (prettyPrec opPrec)
                     $ F.toList es
 
-        Value_ v      -> prettyPrec_ p v
+        Literal_ v    -> prettyPrec_ p v
         Empty_        -> [PP.text "empty"]
         Array_ e1 e2  ->
             ppFun 11 "array"
@@ -324,7 +324,7 @@ ppMeasureOp p (Chain _ _) (e1 :* e2 :* End) = ppApply2 p "chain" e1 e2
 ppMeasureOp _ _ _ = error "ppMeasureOp: the impossible happened"
 
 
-instance Pretty Value where
+instance Pretty Literal where
     prettyPrec_ p (VNat  n) = ppFun p "nat_"  [PP.int (fromNat n)]
     prettyPrec_ p (VInt  i) = ppFun p "int_"  [PP.int i]
     prettyPrec_ p (VProb l) = ppFun p "prob_" [PP.text (showsPrec 11 l "")]

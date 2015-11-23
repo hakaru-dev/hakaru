@@ -55,8 +55,8 @@ mapleAST :: (ABT AST abt) => LC_ abt a -> String
 mapleAST (LC_ e) =
     caseVarSyn e var1 $ \t ->
         case t of
-        o :$ es -> mapleSCon o es
-        Value_ v -> mapleValue v
+        o :$ es    -> mapleSCon o es
+        Literal_ v -> mapleLiteral v
 
 uniqID :: Variable (a :: Hakaru) -> String
 uniqID = show . fromNat . varID
@@ -80,11 +80,11 @@ mapleMeasureOp :: (ABT AST abt, typs ~ UnLCs args, args ~ LCs typs) =>
 mapleMeasureOp Uniform (e1 :* e2 :* End) = app2 "Uniform" e1 e2
 mapleMeasureOp Normal  (e1 :* e2 :* End) = app2 "Gaussian" e1 e2
 
-mapleValue :: Value (a :: Hakaru) -> String
-mapleValue (VNat  v) = show $ fromNat v
-mapleValue (VInt  v) = show v
-mapleValue (VProb v) = show (fromLogFloat v)
-mapleValue (VReal v) = show v
+mapleLiteral :: Literal a -> String
+mapleLiteral (VNat  v) = show $ fromNat v
+mapleLiteral (VInt  v) = show v
+mapleLiteral (VProb v) = show (fromLogFloat v)
+mapleLiteral (VReal v) = show v
 
 {-
 

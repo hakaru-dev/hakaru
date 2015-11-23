@@ -39,7 +39,7 @@ import Data.Proxy (Proxy(..))
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Datum
-import Language.Hakaru.Syntax.AST (AST(Datum_, Value_))
+import Language.Hakaru.Syntax.AST (AST(Datum_))
 import Language.Hakaru.Syntax.ABT
 
 import           Language.Hakaru.PrettyPrint
@@ -198,9 +198,8 @@ secondProxy _ = Proxy
 
 
 -- | A trivial \"evaluation function\". If the term is already a
--- 'Value_' or a 'Datum_', then we extract the 'Datum' value;
--- otherwise we fail. You can 'return' the result to turn this into
--- an 'DatumEvaluator'.
+-- 'Datum_', then we extract the 'Datum' value; otherwise we fail.
+-- You can 'return' the result to turn this into an 'DatumEvaluator'.
 viewDatum
     :: (ABT AST abt)
     => abt '[] (HData' t)

@@ -45,7 +45,7 @@ module Language.Hakaru.Syntax.AST
     , ArrayOp(..)
     , MeasureOp(..)
     -- * Constant values
-    , Value(..)
+    , Literal(..)
     ) where
 
 import           Data.Sequence (Seq)
@@ -70,31 +70,29 @@ import Language.Hakaru.Syntax.Datum
 
 -- TODO: is the restriction to ground terms too much? Would it be enough to just consider closed normal forms?
 
--- | Constant values for primitive numeric types and user-defined
--- data-types. In addition to being normal forms, these are also
--- ground terms: that is, not only are they closed (i.e., no free
--- variables), they also have no bound variables and thus no binding
--- forms. Hence, we do not include lambdas nor arrays, even though
--- they can be closed normal forms.
-data Value :: Hakaru -> * where
-    VNat   :: {-# UNPACK #-} !Nat      -> Value 'HNat
-    VInt   :: {-# UNPACK #-} !Int      -> Value 'HInt
-    VProb  :: {-# UNPACK #-} !LogFloat -> Value 'HProb
-    VReal  :: {-# UNPACK #-} !Double   -> Value 'HReal
+-- | Numeric literals for the primitive numeric types. In addition
+-- to being normal forms, these are also ground terms: that is, not
+-- only are they closed (i.e., no free variables), they also have
+-- no bound variables and thus no binding forms.
+data Literal :: Hakaru -> * where
+    VNat   :: {-# UNPACK #-} !Nat      -> Literal 'HNat
+    VInt   :: {-# UNPACK #-} !Int      -> Literal 'HInt
+    VProb  :: {-# UNPACK #-} !LogFloat -> Literal 'HProb
+    VReal  :: {-# UNPACK #-} !Double   -> Literal 'HReal
 
-instance Eq1 Value where
+instance Eq1 Literal where
     eq1 (VNat  v1) (VNat  v2) = v1 == v2
     eq1 (VInt  v1) (VInt  v2) = v1 == v2
     eq1 (VProb v1) (VProb v2) = v1 == v2
     eq1 (VReal v1) (VReal v2) = v1 == v2
     eq1 _          _          = False
 
-instance Eq (Value a) where
+instance Eq (Literal a) where
     (==) = eq1
 
--- TODO: instance Read (Value a)
+-- TODO: instance Read (Literal a)
 
-instance Show1 Value where
+instance Show1 Literal where
     showsPrec1 p t =
         case t of
         VNat  v -> showParen_0 p "VNat"  v
@@ -102,12 +100,12 @@ instance Show1 Value where
         VProb v -> showParen_0 p "VProb" v
         VReal v -> showParen_0 p "VReal" v
 
-instance Show (Value a) where
+instance Show (Literal a) where
     showsPrec = showsPrec1
     show      = show1
 
 ----------------------------------------------------------------
--- TODO: helper functions for splitting NaryOp_ into components to group up like things. (e.g., grouping all the Values together so we can do constant propagation)
+-- TODO: helper functions for splitting NaryOp_ into components to group up like things. (e.g., grouping all the Literals together so we can do constant propagation)
 
 -- | Primitive associative n-ary functions. By flattening the trees
 -- for associative operators, we can more easily perform equivalence
@@ -263,7 +261,7 @@ data PrimOp :: [Hakaru] -> Hakaru -> * where
     -- -- HSemiring operators (the non-n-ary ones)
     NatPow :: !(HSemiring a) -> PrimOp '[ a, 'HNat ] a
     -- TODO: would it help to have a specialized version for when
-    -- we happen to know that the 'HNat is a Value? Same goes for
+    -- we happen to know that the 'HNat is a Literal? Same goes for
     -- the other powers\/roots
     --
     -- TODO: add a specialized version which returns NonNegative
@@ -556,12 +554,12 @@ data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     -- N-ary operators
     NaryOp_ :: !(NaryOp a) -> !(Seq (abt '[] a)) -> AST abt a
 
-    -- TODO: 'Value_', 'Empty_', 'Array_', and 'Datum_' are generalized quantifiers (to the same extent that 'Ann_', 'CoerceTo_', and 'UnsafeFrom_' are). Should we move them into 'SCon' just for the sake of minimizing how much lives in 'AST'? Or are they unique enough to be worth keeping here?
+    -- TODO: 'Literal_', 'Empty_', 'Array_', and 'Datum_' are generalized quantifiers (to the same extent that 'Ann_', 'CoerceTo_', and 'UnsafeFrom_' are). Should we move them into 'SCon' just for the sake of minimizing how much lives in 'AST'? Or are they unique enough to be worth keeping here?
 
-    -- Constant values
-    Value_ :: !(Value a) -> AST abt a
+    -- Literal\/Constant values
+    Literal_ :: !(Literal a) -> AST abt a
 
-    -- These two constructors are here rather than in 'ArrayOp' because 'Array_' is a binding form; though it also means they're together with the other intro forms like 'Value_' and 'Datum_'.
+    -- These two constructors are here rather than in 'ArrayOp' because 'Array_' is a binding form; though it also means they're together with the other intro forms like 'Literal_' and 'Datum_'.
     --
     -- TODO: should we add a @Sing a@ argument to avoid ambiguity of 'Empty_'?
     Empty_ :: AST abt ('HArray a)
@@ -623,7 +621,7 @@ instance Show2 abt => Show1 (AST abt) where
                     . showList2 (F.toList es)
                     )
                 )
-        Value_ v     -> showParen_0   p "Value_" v
+        Literal_ v   -> showParen_0   p "Literal_" v
         Empty_       -> showString      "Empty_"
         Array_ e1 e2 -> showParen_22  p "Array_" e1 e2
         Datum_ d     -> showParen_1   p "Datum_" (fmap11 LC_ d)
@@ -651,7 +649,7 @@ instance Show2 abt => Show (AST abt a) where
 instance Functor21 AST where
     fmap21 f (o :$ es)          = o :$ fmap21 f es
     fmap21 f (NaryOp_    o  es) = NaryOp_    o (fmap f es)
-    fmap21 _ (Value_     v)     = Value_     v
+    fmap21 _ (Literal_   v)     = Literal_   v
     fmap21 _ Empty_             = Empty_
     fmap21 f (Array_     e1 e2) = Array_     (f e1) (f e2)
     fmap21 f (Datum_     d)     = Datum_     (fmap11 f d)
@@ -663,7 +661,7 @@ instance Functor21 AST where
 instance Foldable21 AST where
     foldMap21 f (_ :$ es)          = foldMap21 f es
     foldMap21 f (NaryOp_    _  es) = F.foldMap f es
-    foldMap21 _ (Value_ _)         = mempty
+    foldMap21 _ (Literal_   _)     = mempty
     foldMap21 _ Empty_             = mempty
     foldMap21 f (Array_     e1 e2) = f e1 `mappend` f e2
     foldMap21 f (Datum_     d)     = foldMap11 f d

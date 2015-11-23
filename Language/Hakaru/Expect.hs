@@ -10,7 +10,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.18
+--                                                    2015.11.23
 -- |
 -- Module      :  Language.Hakaru.Expect
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -102,7 +102,7 @@ test5 =
 
 {-
 total (array (nat_ 1) (\x -> dirac x) ! nat_ 0) :: TrivialABT AST '[] 'HProb
-syn (Value_ (VProb LogFloat 1.0))
+syn (Literal_ (VProb LogFloat 1.0))
 -}
 
 ----------------------------------------------------------------
@@ -302,7 +302,7 @@ expectAST p (ArrayOp_ o :$ es) xs =
     _ -> case p of {}
 
 expectAST p (NaryOp_     _ _)    _ = case p of {}
-expectAST p (Value_      _)      _ = case p of {}
+expectAST p (Literal_    _)      _ = case p of {}
 expectAST p (CoerceTo_   _ :$ _) _ = case p of {}
 expectAST p (UnsafeFrom_ _ :$ _) _ = case p of {}
 expectAST _ Empty_               _ =
