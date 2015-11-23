@@ -855,7 +855,9 @@ NewSLO := module ()
   bounds[BetaD] := proc(nu, loc, scale) 0 .. 1 end proc;
   bounds[GammaD] := proc(a, b) 0 .. infinity end proc;
 
-  RoundTripLO := proc(m) fromLO(improve(toLO(m))) end proc;
+  RoundTripLO := proc(m)
+      lprint(eval(ToInert(fromLO(improve(toLO(m)))), _Inert_ATTRIBUTE=NULL))
+  end proc;
 
 # Testing
 
