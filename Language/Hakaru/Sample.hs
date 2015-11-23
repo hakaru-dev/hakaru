@@ -158,6 +158,16 @@ poisson_rng lambda g' = make_poisson g'
         <=
         -lambda + fromIntegral k * lnlam - logFactorial k
 
+normalize :: [LF.LogFloat] ->
+             (LF.LogFloat, Double, [Double])
+normalize []  = (0, 0, [])
+normalize [x] = (x, 1, [1])
+normalize xs  = (m, y, ys)
+  where m  = maximum xs
+        ys = [ LF.fromLogFloat (x/m) | x <- xs ]
+        y  = sum ys
+
+
 normalizeVector :: V.Vector LF.LogFloat ->
                    (LF.LogFloat, Double, V.Vector Double)
 normalizeVector xs = case V.length xs of
@@ -184,6 +194,7 @@ sampleAST t env =
       Value_  v    -> sampleValue  v
       Datum_  d    -> sampleDatum  d env
       Case_   o es -> sampleCase   o es env
+      Superpose_ es -> sampleSuperpose es env
 
 sampleScon :: (ABT AST abt, PrimMonad m, Functor m) =>
               SCon args a -> SArgs abt args ->
@@ -458,7 +469,26 @@ sampleCase o es env =
                       dropLets t
     -}
 
-
+sampleSuperpose :: (ABT AST abt, PrimMonad m, Functor m) =>
+                   [(abt '[] 'HProb, abt '[] ('HMeasure a))] ->
+                   Env m -> S m ('HMeasure a)
+sampleSuperpose []       env = S (\p g -> return Nothing)
+sampleSuperpose [(q, m)] env =
+  let S q' = sample (LC_ q) env
+      S m' = sample (LC_ m) env
+  in  S (\p g -> m' (p * q') g)
+        
+sampleSuperpose pms@((q, m) : _) env =
+  let weights  = map (unS . (\x -> sample (LC_ x) env) . fst) pms
+      S m'     = sample (LC_ m) env
+      (x,y,ys) = normalize weights in
+  S (\p g ->
+   if not (y > (0::Double)) then return Nothing else do
+     u <- MWC.uniformR (0, y) g
+     case [ m1 | (v,(_,m1)) <- zip (scanl1 (+) ys) pms, u <= v ] of
+         m2 : _ -> let S m2' = sample (LC_ m2) env in
+                   m2' (p * x * LF.logFloat y) g
+         []     -> m' (p * x * LF.logFloat y) g)
 
 sampleVar :: (PrimMonad m, Functor m) =>
              Env m -> Variable a -> S m a

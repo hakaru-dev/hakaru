@@ -1,4 +1,12 @@
-{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, ScopedTypeVariables, GADTs, TypeFamilies, InstanceSigs, DataKinds, TypeOperators #-}
+{-# LANGUAGE  MultiParamTypeClasses
+            , FlexibleInstances
+            , FlexibleContexts
+            , ScopedTypeVariables
+            , GADTs
+            , TypeFamilies
+            , DataKinds
+            , TypeOperators #-}
+
 {-# OPTIONS -W #-}
 
 module Language.Hakaru.MapleNeue (Maple(..), runMaple) where
@@ -12,32 +20,76 @@ module Language.Hakaru.MapleNeue (Maple(..), runMaple) where
 -- We won't need fancy type gymnastics (which Expect requires) because
 -- we're squishing everything into String.
 
-import Prelude hiding (Real)
-import Language.Hakaru.Syntax.DataKind (HPair)
+import Language.Hakaru.Syntax.Nat      (fromNat)
+import Language.Hakaru.Syntax.Coercion
+import Language.Hakaru.Syntax.DataKind
+import Language.Hakaru.Syntax.Sing
+import Language.Hakaru.Syntax.AST
+import Language.Hakaru.Syntax.Datum
+import Language.Hakaru.Syntax.ABT
 
-import Language.Hakaru.Syntax (Number(..),
-    Order(..), Base(..), Integrate(..), Lambda(..), Mochastic(..), 
-    sumV, Hakaru(..))
-import Data.Ratio
 import Control.Monad (liftM, liftM2)
 import Control.Monad.Trans.State.Strict (State, evalState, state)
--- import Language.Hakaru.Embed
 import Data.List (intersperse)
 
-newtype Maple (a :: Hakaru) = Maple {unMaple :: State Int String}
+import qualified Data.Text as Text
+import           Data.Number.LogFloat
 
-runMaple :: Maple a -> Int -> String
-runMaple (Maple a) = evalState a
+newtype Maple (a :: Hakaru) = Maple {unMaple :: String}
+
+runMaple :: (ABT AST abt) => abt '[] a -> String
+runMaple = mapleAST . LC_
+
+app1 :: (ABT AST abt) => String -> abt '[] a -> String
+app1 fn x = fn ++ "(" ++ arg x ++ ")"
+
+app2 :: (ABT AST abt) => String -> abt '[] a -> abt '[] b -> String
+app2 fn x y = fn ++ "(" ++ arg x ++ ", " ++ arg y ++ ")"
+
+app3 :: (ABT AST abt) =>
+        String -> abt '[] a -> abt '[] b -> abt '[] c -> String
+app3 fn x y z =
+    fn ++ "(" ++ arg x ++ ", " ++ arg y ++ ", " ++ arg z ++ ")"
+
+mapleAST :: (ABT AST abt) => LC_ abt a -> String
+mapleAST (LC_ e) =
+    caseVarSyn e var1 $ \t ->
+        case t of
+        o :$ es -> mapleSCon o es
+        Value_ v -> mapleValue v
+
+uniqID :: Variable (a :: Hakaru) -> String
+uniqID = show . fromNat . varID
+
+var1 :: Variable (a :: Hakaru) -> String
+var1 x | Text.null (varHint x) = 'x' : uniqID x 
+       | otherwise = Text.unpack (varHint x) ++ uniqID x 
+
+mapleSCon :: (ABT AST abt) => SCon args a -> SArgs abt args -> String
+mapleSCon (MeasureOp_ o) es = mapleMeasureOp o es
+mapleSCon Dirac (e1 :* End) = app1 "Ret" e1
+mapleSCon MBind (e1 :* e2 :* End) =
+    caseBind e2 $ \x e2' ->
+        app3 "Bind" e1 (var x) e2'
+
+arg :: (ABT AST abt) => abt '[] a -> String
+arg = mapleAST . LC_
+
+mapleMeasureOp :: (ABT AST abt, typs ~ UnLCs args, args ~ LCs typs) =>
+                  MeasureOp typs a -> SArgs abt args -> String
+mapleMeasureOp Uniform (e1 :* e2 :* End) = app2 "Uniform" e1 e2
+mapleMeasureOp Normal  (e1 :* e2 :* End) = app2 "Gaussian" e1 e2
+
+mapleValue :: Value (a :: Hakaru) -> String
+mapleValue (VNat  v) = show $ fromNat v
+mapleValue (VInt  v) = show v
+mapleValue (VProb v) = show (fromLogFloat v)
+mapleValue (VReal v) = show v
+
+{-
 
 constant :: String -> Maple a
 constant = Maple . return
-
-app1 :: String -> Maple a -> Maple b
-app1 fn = Maple . liftM (\z -> fn ++ "(" ++ z ++ ")") . unMaple
-
-app2 :: String -> Maple a -> Maple b -> Maple c
-app2 fn (Maple x) (Maple y) = 
-  Maple $ liftM2 (\a b -> fn ++ "(" ++ a ++ ", " ++ b ++ ")") x y
 
 lam1 :: String -> (Maple a  -> Maple b) -> Maple (a ':-> b)
 lam1 s k = Maple $ do
@@ -231,3 +283,5 @@ instance Mochastic Maple where
 
 op :: Int -> Maple a -> Maple b 
 op n (Maple x) = Maple $ x >>= \x' -> return ("op(" ++ show n ++ ", " ++ x' ++ ")")
+
+-}
