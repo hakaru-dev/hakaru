@@ -116,7 +116,7 @@ NewSLO := module ()
          app, idx, integrate, applyintegrand,
      # while these are "proper functions"
          map_piecewise,
-         bind, weight, LO, Indicator,
+         bind, weight,
          plate, # TODO remove this one
          toLO, fromLO, unintegrate,
          RoundTripLO,
@@ -124,7 +124,7 @@ NewSLO := module ()
          improve, ReparamDetermined, determined, Reparam, Banish;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
-  global Bind, Weight, Ret, Msum, Integrand, Plate,
+  global Bind, Weight, Ret, Msum, Integrand, Plate, LO, Indicator, ary,
          Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD, StudentT,
          lam;
 
