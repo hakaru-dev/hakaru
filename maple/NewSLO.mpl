@@ -111,13 +111,14 @@ NewSLO := module ()
         myexpand_product,
         piecewise_if, nub_piecewise, foldr_piecewise,
         verify_measure;
-  export 
+  export
      # note that these first few are smart constructors (for themselves):
          app, idx, integrate, applyintegrand,
      # while these are "proper functions"
          Integrand, map_piecewise,
          bind, weight, plate, LO, Indicator,
          toLO, fromLO, unintegrate,
+         RoundTripLO,
          TestHakaru, measure, density, bounds,
          improve, ReparamDetermined, determined, Reparam, Banish;
   # these names are not assigned (and should not be).  But they are
@@ -154,11 +155,11 @@ NewSLO := module ()
     LO(h, integrate(m, h))
   end proc;
 
-  known_measures := '{Lebesgue(), Uniform(anything, anything), 
+  known_measures := '{Lebesgue(), Uniform(anything, anything),
     Gaussian(anything, anything), Cauchy  (anything, anything),
     StudentT(anything, anything, anything),
     BetaD(anything, anything), GammaD(anything, anything)}':
-    
+
   integrate := proc(m, h)
     local x, n, i;
     if m :: known_measures then
@@ -167,7 +168,7 @@ NewSLO := module ()
         x := op(1,h);
       end if;
       x := gensym(x);
-      Int(density[op(0,m)](op(m))(x) * applyintegrand(h, x), 
+      Int(density[op(0,m)](op(m))(x) * applyintegrand(h, x),
         x = bounds[op(0,m)](op(m)));
     elif m :: 'Ret(anything)' then
       applyintegrand(h, op(1,m))
@@ -459,11 +460,11 @@ NewSLO := module ()
     # TODO improve the checks.
     if not has(body, {Int,int}) and hastype(e,'specfunc(applyintegrand)') then
       inds := indets(body, 'applyintegrand'('identical'(h), 'dependent'(var)));
-      if nops(inds)=1 and op(2,inds[1]) :: algebraic and 
+      if nops(inds)=1 and op(2,inds[1]) :: algebraic and
          not hastype(body, t_pw) then
         xx := gensym('xx');
         inv := solve({op(2,inds[1])=xx}, {var});
-        try 
+        try
           new_e := IntegrationTools[Change](e, inv, xx);
           if not has(new_e,{'limit'}) then e := new_e end if;
         catch:
@@ -853,6 +854,8 @@ NewSLO := module ()
   bounds[StudentT] := proc(mu, sigma) -infinity .. infinity end proc;
   bounds[BetaD] := proc(nu, loc, scale) 0 .. 1 end proc;
   bounds[GammaD] := proc(a, b) 0 .. infinity end proc;
+
+  RoundTripLO := proc(m) fromLO(improve(toLO(m))) end proc;
 
 # Testing
 

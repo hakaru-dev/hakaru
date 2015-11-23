@@ -27,3 +27,6 @@ LibraryTools:-Save(`MVECTOR`, lib):
 LibraryTools:-Save(`Reduce`, lib):
 LibraryTools:-Save(`vindex`, lib):
 LibraryTools:-Save(`vsize`, lib):
+
+read("./NewSLO.mpl"):
+LibraryTools:-Save(NewSLO, lib):
