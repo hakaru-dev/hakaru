@@ -238,13 +238,13 @@ literal_ = syn . Literal_
 bool_    :: (ABT AST abt) => Bool     -> abt '[] HBool
 bool_    = datum_ . (\b -> if b then dTrue else dFalse)
 nat_     :: (ABT AST abt) => Nat      -> abt '[] 'HNat
-nat_     = literal_ . VNat
+nat_     = literal_ . LNat
 int_     :: (ABT AST abt) => Int      -> abt '[] 'HInt
-int_     = literal_ . VInt
+int_     = literal_ . LInt
 prob_    :: (ABT AST abt) => LogFloat -> abt '[] 'HProb
-prob_    = literal_ . VProb
+prob_    = literal_ . LProb
 real_    :: (ABT AST abt) => Double   -> abt '[] 'HReal
-real_    = literal_ . VReal
+real_    = literal_ . LReal
 
 -- Boolean operators
 true, false :: (ABT AST abt) => abt '[] HBool
@@ -333,16 +333,16 @@ maximum = unsafeNaryOp_ $ Max hOrd
 zero, one :: forall abt a. (ABT AST abt, HSemiring_ a) => abt '[] a
 zero = literal_ $
     case (hSemiring :: HSemiring a) of
-    HSemiring_Nat  -> VNat  0
-    HSemiring_Int  -> VInt  0
-    HSemiring_Prob -> VProb 0
-    HSemiring_Real -> VReal 0
+    HSemiring_Nat  -> LNat  0
+    HSemiring_Int  -> LInt  0
+    HSemiring_Prob -> LProb 0
+    HSemiring_Real -> LReal 0
 one = literal_ $
     case (hSemiring :: HSemiring a) of
-    HSemiring_Nat  -> VNat  1
-    HSemiring_Int  -> VInt  1
-    HSemiring_Prob -> VProb 1
-    HSemiring_Real -> VReal 1
+    HSemiring_Nat  -> LNat  1
+    HSemiring_Int  -> LInt  1
+    HSemiring_Prob -> LProb 1
+    HSemiring_Real -> LReal 1
 
 sum, product :: (ABT AST abt, HSemiring_ a) => [abt '[] a] -> abt '[] a
 sum     = naryOp_withIdentity (Sum  hSemiring) zero
@@ -821,11 +821,12 @@ constV n c = array n (const c)
 unitV :: (ABT AST abt) => abt '[] 'HNat -> abt '[] 'HNat -> abt '[] ('HArray 'HProb)
 unitV s i = array s (\j -> if_ (i == j) (prob_ 1) (prob_ 0))
 
-zipWithV :: (ABT AST abt) =>
-            (abt '[] a -> abt '[] b -> abt '[] c) ->
-            abt  '[] ('HArray a) ->
-            abt  '[] ('HArray b) ->
-            abt  '[] ('HArray c)
+zipWithV
+    :: (ABT AST abt)
+    => (abt '[] a -> abt '[] b -> abt '[] c)
+    -> abt '[] ('HArray a)
+    -> abt '[] ('HArray b)
+    -> abt '[] ('HArray c)
 zipWithV f v1 v2 =
     array (size v1) (\i -> f (v1 ! i) (v2 ! i))
 

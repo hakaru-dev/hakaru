@@ -13,7 +13,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.18
+--                                                    2015.11.23
 -- |
 -- Module      :  Language.Hakaru.Lazy
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -306,10 +306,10 @@ coerceTo_Literal CNil         v = v
 coerceTo_Literal (CCons c cs) v = coerceTo_Literal cs (step c v)
     where
     step :: PrimCoercion a b -> Literal a -> Literal b
-    step (Signed     HRing_Int)        (VNat  n) = VInt  (nat2int   n)
-    step (Signed     HRing_Real)       (VProb p) = VReal (prob2real p)
-    step (Continuous HContinuous_Prob) (VNat  n) = VProb (nat2prob  n)
-    step (Continuous HContinuous_Real) (VInt  i) = VReal (int2real  i)
+    step (Signed     HRing_Int)        (LNat  n) = LInt  (nat2int   n)
+    step (Signed     HRing_Real)       (LProb p) = LReal (prob2real p)
+    step (Continuous HContinuous_Prob) (LNat  n) = LProb (nat2prob  n)
+    step (Continuous HContinuous_Real) (LInt  i) = LReal (int2real  i)
     step _ _ = error "coerceTo_Literal: the impossible happened"
 
     -- HACK: type signatures needed to avoid defaulting to 'Integer'
@@ -329,10 +329,10 @@ unsafeFrom_Literal CNil         v = v
 unsafeFrom_Literal (CCons c cs) v = step c (unsafeFrom_Literal cs v)
     where
     step :: PrimCoercion a b -> Literal b -> Literal a
-    step (Signed     HRing_Int)        (VInt  i) = VNat  (int2nat   i)
-    step (Signed     HRing_Real)       (VReal r) = VProb (real2prob r)
-    step (Continuous HContinuous_Prob) (VProb p) = VNat  (prob2nat  p)
-    step (Continuous HContinuous_Real) (VReal r) = VInt  (real2int  r)
+    step (Signed     HRing_Int)        (LInt  i) = LNat  (int2nat   i)
+    step (Signed     HRing_Real)       (LReal r) = LProb (real2prob r)
+    step (Continuous HContinuous_Prob) (LProb p) = LNat  (prob2nat  p)
+    step (Continuous HContinuous_Real) (LReal r) = LInt  (real2int  r)
     step _ _ = error "unsafeFrom_Literal: the impossible happened"
 
     -- HACK: type signatures needed to avoid defaulting to 'Integer'
@@ -354,22 +354,22 @@ class Interp a a' | a -> a' where
     reflect :: (ABT AST abt) => a' -> Head abt a
 
 instance Interp 'HNat Nat where
-    reflect = WLiteral . VNat
-    reify (WLiteral (VNat n)) = n
+    reflect = WLiteral . LNat
+    reify (WLiteral (LNat n)) = n
     reify (WAnn        _ v) = reify v
     reify (WCoerceTo   _ _) = error "TODO: reify{WCoerceTo}"
     reify (WUnsafeFrom _ _) = error "TODO: reify{WUnsafeFrom}"
 
 instance Interp 'HInt Int where
-    reflect = WLiteral . VInt
-    reify (WLiteral (VInt i)) = i
+    reflect = WLiteral . LInt
+    reify (WLiteral (LInt i)) = i
     reify (WAnn        _ v) = reify v
     reify (WCoerceTo   _ _) = error "TODO: reify{WCoerceTo}"
     reify (WUnsafeFrom _ _) = error "TODO: reify{WUnsafeFrom}"
 
 instance Interp 'HProb LogFloat where -- TODO: use rational instead
-    reflect = WLiteral . VProb
-    reify (WLiteral (VProb p))  = p
+    reflect = WLiteral . LProb
+    reify (WLiteral (LProb p))  = p
     reify (WAnn        _ v)   = reify v
     reify (WCoerceTo   _ _)   = error "TODO: reify{WCoerceTo}"
     reify (WUnsafeFrom _ _)   = error "TODO: reify{WUnsafeFrom}"
@@ -377,8 +377,8 @@ instance Interp 'HProb LogFloat where -- TODO: use rational instead
     reify (WSummate    _ _ _) = error "TODO: reify{WSummate}"
 
 instance Interp 'HReal Double where -- TODO: use rational instead
-    reflect = WLiteral . VReal
-    reify (WLiteral (VReal r)) = r
+    reflect = WLiteral . LReal
+    reify (WLiteral (LReal r)) = r
     reify (WAnn        _ v) = reify v
     reify (WCoerceTo   _ _) = error "TODO: reify{WCoerceTo}"
     reify (WUnsafeFrom _ _) = error "TODO: reify{WUnsafeFrom}"
@@ -536,14 +536,14 @@ evaluateNaryOp evaluate_ = \o es -> mainLoop o (evalOp o) Seq.empty es
         Min  _ -> Neutral (syn (NaryOp_ o Seq.empty)) -- no identity in general (but we could do it by cases...)
         Max  _ -> Neutral (syn (NaryOp_ o Seq.empty)) -- no identity in general (but we could do it by cases...)
         -- TODO: figure out how to reuse 'P.zero' and 'P.one' here
-        Sum  HSemiring_Nat  -> Head_ (WLiteral (VNat  0))
-        Sum  HSemiring_Int  -> Head_ (WLiteral (VInt  0))
-        Sum  HSemiring_Prob -> Head_ (WLiteral (VProb 0))
-        Sum  HSemiring_Real -> Head_ (WLiteral (VReal 0))
-        Prod HSemiring_Nat  -> Head_ (WLiteral (VNat  1))
-        Prod HSemiring_Int  -> Head_ (WLiteral (VInt  1))
-        Prod HSemiring_Prob -> Head_ (WLiteral (VProb 1))
-        Prod HSemiring_Real -> Head_ (WLiteral (VReal 1))
+        Sum  HSemiring_Nat  -> Head_ (WLiteral (LNat  0))
+        Sum  HSemiring_Int  -> Head_ (WLiteral (LInt  0))
+        Sum  HSemiring_Prob -> Head_ (WLiteral (LProb 0))
+        Sum  HSemiring_Real -> Head_ (WLiteral (LReal 0))
+        Prod HSemiring_Nat  -> Head_ (WLiteral (LNat  1))
+        Prod HSemiring_Int  -> Head_ (WLiteral (LInt  1))
+        Prod HSemiring_Prob -> Head_ (WLiteral (LProb 1))
+        Prod HSemiring_Real -> Head_ (WLiteral (LReal 1))
 
     -- | The evaluation interpretation of each NaryOp
     evalOp :: (ABT AST abt) => NaryOp a -> Head abt a -> Head abt a -> Head abt a
@@ -566,15 +566,15 @@ evaluateNaryOp evaluate_ = \o es -> mainLoop o (evalOp o) Seq.empty es
     evalOp _ _ _ = error "TODO: evalOp{HBool ops, HOrd ops}"
 
     evalSum, evalProd :: HSemiring a -> Literal a -> Literal a -> Literal a
-    evalSum  HSemiring_Nat  (VNat  n1) (VNat  n2) = VNat  (n1 + n2)
-    evalSum  HSemiring_Int  (VInt  i1) (VInt  i2) = VInt  (i1 + i2)
-    evalSum  HSemiring_Prob (VProb p1) (VProb p2) = VProb (p1 + p2)
-    evalSum  HSemiring_Real (VReal r1) (VReal r2) = VReal (r1 + r2)
+    evalSum  HSemiring_Nat  (LNat  n1) (LNat  n2) = LNat  (n1 + n2)
+    evalSum  HSemiring_Int  (LInt  i1) (LInt  i2) = LInt  (i1 + i2)
+    evalSum  HSemiring_Prob (LProb p1) (LProb p2) = LProb (p1 + p2)
+    evalSum  HSemiring_Real (LReal r1) (LReal r2) = LReal (r1 + r2)
     evalSum  _ _ _ = error "evalSum: the impossible happened"
-    evalProd HSemiring_Nat  (VNat  n1) (VNat  n2) = VNat  (n1 * n2)
-    evalProd HSemiring_Int  (VInt  i1) (VInt  i2) = VInt  (i1 * i2)
-    evalProd HSemiring_Prob (VProb p1) (VProb p2) = VProb (p1 * p2)
-    evalProd HSemiring_Real (VReal r1) (VReal r2) = VReal (r1 * r2)
+    evalProd HSemiring_Nat  (LNat  n1) (LNat  n2) = LNat  (n1 * n2)
+    evalProd HSemiring_Int  (LInt  i1) (LInt  i2) = LInt  (i1 * i2)
+    evalProd HSemiring_Prob (LProb p1) (LProb p2) = LProb (p1 * p2)
+    evalProd HSemiring_Real (LReal r1) (LReal r2) = LReal (r1 * r2)
     evalProd _ _ _ = error "evalProd: the impossible happened"
 
 
@@ -611,7 +611,7 @@ evaluateArrayOp evaluate_ o es =
             Head_   v1  ->
                 case head2array v1 of
                 Nothing             -> error "TODO: use bot"
-                Just WAEmpty        -> return . Head_ $ WLiteral (VNat 0)
+                Just WAEmpty        -> return . Head_ $ WLiteral (LNat 0)
                 Just (WAArray e3 _) -> evaluate_ e3
 
     (Reduce _, e1 :* e2 :* e3 :* End) ->

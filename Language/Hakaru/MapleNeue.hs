@@ -81,10 +81,10 @@ mapleMeasureOp Uniform (e1 :* e2 :* End) = app2 "Uniform" e1 e2
 mapleMeasureOp Normal  (e1 :* e2 :* End) = app2 "Gaussian" e1 e2
 
 mapleLiteral :: Literal a -> String
-mapleLiteral (VNat  v) = show $ fromNat v
-mapleLiteral (VInt  v) = show v
-mapleLiteral (VProb v) = show (fromLogFloat v)
-mapleLiteral (VReal v) = show v
+mapleLiteral (LNat  v) = show $ fromNat v
+mapleLiteral (LInt  v) = show v
+mapleLiteral (LProb v) = show (fromLogFloat v)
+mapleLiteral (LReal v) = show v
 
 {-
 

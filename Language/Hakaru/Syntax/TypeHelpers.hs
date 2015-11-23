@@ -40,10 +40,10 @@ import Language.Hakaru.Syntax.Datum
 
 -- N.B., we do case analysis so that we don't need the class constraint!
 sing_Literal :: Literal a -> Sing a
-sing_Literal (VNat  _) = sing
-sing_Literal (VInt  _) = sing
-sing_Literal (VProb _) = sing
-sing_Literal (VReal _) = sing
+sing_Literal (LNat  _) = sing
+sing_Literal (LInt  _) = sing
+sing_Literal (LProb _) = sing
+sing_Literal (LReal _) = sing
 
 -- TODO: we don't need to store the HOrd\/HSemiring values here,
 -- we can recover them by typeclass, just like we use 'sing' to get

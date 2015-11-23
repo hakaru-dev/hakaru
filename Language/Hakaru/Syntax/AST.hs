@@ -75,16 +75,16 @@ import Language.Hakaru.Syntax.Datum
 -- only are they closed (i.e., no free variables), they also have
 -- no bound variables and thus no binding forms.
 data Literal :: Hakaru -> * where
-    VNat   :: {-# UNPACK #-} !Nat      -> Literal 'HNat
-    VInt   :: {-# UNPACK #-} !Int      -> Literal 'HInt
-    VProb  :: {-# UNPACK #-} !LogFloat -> Literal 'HProb
-    VReal  :: {-# UNPACK #-} !Double   -> Literal 'HReal
+    LNat   :: {-# UNPACK #-} !Nat      -> Literal 'HNat
+    LInt   :: {-# UNPACK #-} !Int      -> Literal 'HInt
+    LProb  :: {-# UNPACK #-} !LogFloat -> Literal 'HProb
+    LReal  :: {-# UNPACK #-} !Double   -> Literal 'HReal
 
 instance Eq1 Literal where
-    eq1 (VNat  v1) (VNat  v2) = v1 == v2
-    eq1 (VInt  v1) (VInt  v2) = v1 == v2
-    eq1 (VProb v1) (VProb v2) = v1 == v2
-    eq1 (VReal v1) (VReal v2) = v1 == v2
+    eq1 (LNat  v1) (LNat  v2) = v1 == v2
+    eq1 (LInt  v1) (LInt  v2) = v1 == v2
+    eq1 (LProb v1) (LProb v2) = v1 == v2
+    eq1 (LReal v1) (LReal v2) = v1 == v2
     eq1 _          _          = False
 
 instance Eq (Literal a) where
@@ -95,10 +95,10 @@ instance Eq (Literal a) where
 instance Show1 Literal where
     showsPrec1 p t =
         case t of
-        VNat  v -> showParen_0 p "VNat"  v
-        VInt  v -> showParen_0 p "VInt"  v
-        VProb v -> showParen_0 p "VProb" v
-        VReal v -> showParen_0 p "VReal" v
+        LNat  v -> showParen_0 p "LNat"  v
+        LInt  v -> showParen_0 p "LInt"  v
+        LProb v -> showParen_0 p "LProb" v
+        LReal v -> showParen_0 p "LReal" v
 
 instance Show (Literal a) where
     showsPrec = showsPrec1

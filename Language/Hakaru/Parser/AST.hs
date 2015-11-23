@@ -30,7 +30,7 @@ import Text.Parsec (SourcePos)
 data Name = Name {-# UNPACK #-}!N.Nat {-# UNPACK #-}!Text
     deriving (Read, Show, Eq, Ord)
 
-makeVar :: Name ->  Sing a -> Variable a
+makeVar :: Name -> Sing a -> Variable a
 makeVar name typ =
     Variable (hintID name) (nameID name) typ
 
@@ -41,26 +41,26 @@ hintID :: Name -> Text
 hintID (Name _ t) = t
 
 data SealedOp op where
-     SealedOp
-      :: (typs ~ UnLCs args, args ~ LCs typs)
-      => !(op typs a)
-      -> SealedOp op
+    SealedOp
+        :: (typs ~ UnLCs args, args ~ LCs typs)
+        => !(op typs a)
+        -> SealedOp op
 
 data SSing where 
-     SSing :: forall (a :: Hakaru). Sing a -> SSing
+    SSing :: forall (a :: Hakaru). Sing a -> SSing
 
 type Name' = Text
 
-data Branch'  a =
-     Branch'  (Pattern' Text) (AST' a)
-   | Branch'' (Pattern' Name) (AST' a)
-   deriving (Eq, Show)
+data Branch' a
+    = Branch'  (Pattern' Text) (AST' a)
+    | Branch'' (Pattern' Name) (AST' a)
+    deriving (Eq, Show)
 
-data Pattern' a =
-     PVar'  a
-   | PWild'
-   | PData' (PDatum a)
-   deriving (Eq, Show)
+data Pattern' a
+    = PVar'  a
+    | PWild'
+    | PData' (PDatum a)
+    deriving (Eq, Show)
 
 data PDatum a = DV Text [Pattern' a] deriving (Eq, Show)
 
@@ -71,16 +71,16 @@ data Meta = Meta !SourcePos !SourcePos
 infixr 7 `Et`, `PEt`
 
 data DFun a where
-     Konst :: AST a -> DFun a
-     Ident :: AST a -> DFun a
+    Konst :: AST a -> DFun a
+    Ident :: AST a -> DFun a
 
 data DStruct a where
-     Et   :: DFun a -> DStruct a -> DStruct a
-     Done :: DStruct a
+    Et   :: DFun a -> DStruct a -> DStruct a
+    Done :: DStruct a
 
 data DCode a where
-     Inr ::  DCode a   -> DCode a
-     Inl ::  DStruct a -> DCode a
+    Inr ::  DCode a   -> DCode a
+    Inl ::  DStruct a -> DCode a
 
 data Datum a = Datum Text (DCode a)
 
@@ -98,10 +98,10 @@ data NaryOp'
     deriving (Eq, Show)
 
 val :: Literal' -> Some1 Literal
-val (Nat  n) = Some1 $ VNat (N.unsafeNat n)
-val (Int  n) = Some1 $ VInt n
-val (Prob n) = Some1 $ VProb (LF.logFloat n)
-val (Real n) = Some1 $ VReal n
+val (Nat  n) = Some1 $ LNat  (N.unsafeNat n)
+val (Int  n) = Some1 $ LInt  n
+val (Prob n) = Some1 $ LProb (LF.logFloat n)
+val (Real n) = Some1 $ LReal n
 
 data TypeAST'
     = TypeVar Text
@@ -130,21 +130,21 @@ data AST' a
 data Branch a = Branch Pattern (AST a)
 
 data Pattern where
-     PWild  :: Pattern
-     PVar   :: Name -> Pattern
-     PDatum :: Text -> PCode -> Pattern
+    PWild  :: Pattern
+    PVar   :: Name -> Pattern
+    PDatum :: Text -> PCode -> Pattern
 
 data PFun where
-     PKonst :: Pattern -> PFun
-     PIdent :: Pattern -> PFun
+    PKonst :: Pattern -> PFun
+    PIdent :: Pattern -> PFun
 
 data PStruct where
-     PEt   :: PFun -> PStruct -> PStruct
-     PDone :: PStruct
+    PEt   :: PFun -> PStruct -> PStruct
+    PDone :: PStruct
 
 data PCode where
-     PInr ::  PCode   -> PCode
-     PInl ::  PStruct -> PCode
+    PInr ::  PCode   -> PCode
+    PInl ::  PStruct -> PCode
 
 data AST a
     = Var_        Name

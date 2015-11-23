@@ -364,11 +364,11 @@ ppMeasureOp _ _ _ = error "ppMeasureOp: the impossible happened"
 
 
 instance Pretty Literal where
-    prettyPrec_ _ (VNat  n) = [PP.int (fromNat n)]
-    prettyPrec_ _ (VInt  i) = [PP.int i]
-    prettyPrec_ _ (VProb l) = [PP.text (showsPrec 11 (fromLogFloat l) "")]
+    prettyPrec_ _ (LNat  n) = [PP.int (fromNat n)]
+    prettyPrec_ _ (LInt  i) = [PP.int i]
+    prettyPrec_ _ (LProb l) = [PP.text (showsPrec 11 (fromLogFloat l) "")]
         -- TODO: make it prettier! (e.g., don't use LogFloat in the AST)
-    prettyPrec_ _ (VReal r) = [PP.double r]
+    prettyPrec_ _ (LReal r) = [PP.double r]
         -- TODO: make it prettier! (i.e., don't use Double in the AST)
 
 

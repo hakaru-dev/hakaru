@@ -402,10 +402,10 @@ sampleMeasureOp _ _ _ =
     error "sampleMeasureOP: the impossible happened"
 
 sampleLiteral :: Literal a -> S m a
-sampleLiteral (VNat  n) = S n
-sampleLiteral (VInt  n) = S n
-sampleLiteral (VProb n) = S n
-sampleLiteral (VReal n) = S n
+sampleLiteral (LNat  n) = S n
+sampleLiteral (LInt  n) = S n
+sampleLiteral (LProb n) = S n
+sampleLiteral (LReal n) = S n
 
 -- HACK only will work for HPair
 sampleDatum :: (ABT AST abt, PrimMonad m, Functor m) =>
