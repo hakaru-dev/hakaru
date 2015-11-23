@@ -39,7 +39,7 @@ import Data.Proxy (Proxy(..))
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Datum
-import Language.Hakaru.Syntax.AST (AST(Datum_, Value_), Value(VDatum))
+import Language.Hakaru.Syntax.AST (AST(Datum_, Value_))
 import Language.Hakaru.Syntax.ABT
 
 import           Language.Hakaru.PrettyPrint
@@ -208,9 +208,8 @@ viewDatum
 viewDatum e =
     caseVarSyn e (const Nothing) $ \t ->
         case t of
-        Value_ (VDatum d) -> Just (fmap11 (syn . Value_) d)
-        Datum_         d  -> Just d
-        _                 -> Nothing
+        Datum_ d -> Just d
+        _        -> Nothing
 
 
 -- | Try matching against a (potentially nested) pattern. This

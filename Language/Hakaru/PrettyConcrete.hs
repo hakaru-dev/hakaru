@@ -8,7 +8,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.19
+--                                                    2015.11.23
 -- |
 -- Module      :  Language.Hakaru.PrettyConcrete
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -364,13 +364,12 @@ ppMeasureOp _ _ _ = error "ppMeasureOp: the impossible happened"
 
 
 instance Pretty Value where
-    prettyPrec_ _ (VNat   n) = [PP.int (fromNat n)]
-    prettyPrec_ _ (VInt   i) = [PP.int i]
-    prettyPrec_ _ (VProb  l) = [PP.text (showsPrec 11 (fromLogFloat l) "")]
+    prettyPrec_ _ (VNat  n) = [PP.int (fromNat n)]
+    prettyPrec_ _ (VInt  i) = [PP.int i]
+    prettyPrec_ _ (VProb l) = [PP.text (showsPrec 11 (fromLogFloat l) "")]
         -- TODO: make it prettier! (e.g., don't use LogFloat in the AST)
-    prettyPrec_ _ (VReal  r) = [PP.double r]
+    prettyPrec_ _ (VReal r) = [PP.double r]
         -- TODO: make it prettier! (i.e., don't use Double in the AST)
-    prettyPrec_ p (VDatum d) = prettyPrec_ p d
 
 
 instance Pretty f => Pretty (Datum f) where

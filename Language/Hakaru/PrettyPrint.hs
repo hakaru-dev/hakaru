@@ -325,13 +325,12 @@ ppMeasureOp _ _ _ = error "ppMeasureOp: the impossible happened"
 
 
 instance Pretty Value where
-    prettyPrec_ p (VNat   n) = ppFun p "nat_"  [PP.int (fromNat n)]
-    prettyPrec_ p (VInt   i) = ppFun p "int_"  [PP.int i]
-    prettyPrec_ p (VProb  l) = ppFun p "prob_" [PP.text (showsPrec 11 l "")]
+    prettyPrec_ p (VNat  n) = ppFun p "nat_"  [PP.int (fromNat n)]
+    prettyPrec_ p (VInt  i) = ppFun p "int_"  [PP.int i]
+    prettyPrec_ p (VProb l) = ppFun p "prob_" [PP.text (showsPrec 11 l "")]
         -- TODO: make it prettier! (e.g., don't use LogFloat in the AST)
-    prettyPrec_ p (VReal  r) = ppFun p "real_" [PP.double r]
+    prettyPrec_ p (VReal r) = ppFun p "real_" [PP.double r]
         -- TODO: make it prettier! (i.e., don't use Double in the AST)
-    prettyPrec_ p (VDatum d) = prettyPrec_ p d
 
 
 instance Pretty f => Pretty (Datum f) where

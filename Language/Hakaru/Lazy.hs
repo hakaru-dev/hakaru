@@ -390,7 +390,7 @@ identifyDatum = return . (viewWhnfDatum <=< toWhnf)
 -- HACK: this requires -XTypeSynonymInstances and -XFlexibleInstances
 -- This instance does seem to work; albeit it's trivial...
 instance Interp HUnit () where
-    reflect () = WValue $ VDatum dUnit
+    reflect () = error "TODO" -- WValue $ VDatum dUnit
     reify v = runIdentity $ do
         match <- matchTopPattern identifyDatum (fromHead v) pUnit Nil1
         case match of
@@ -400,7 +400,7 @@ instance Interp HUnit () where
 -- HACK: this requires -XTypeSynonymInstances and -XFlexibleInstances
 -- This instance also seems to work...
 instance Interp HBool Bool where
-    reflect = WValue . VDatum . (\b -> if b then dTrue else dFalse)
+    reflect = error "TODO" -- WValue . VDatum . (\b -> if b then dTrue else dFalse)
     reify v = runIdentity $ do
         matchT <- matchTopPattern identifyDatum (fromHead v) pTrue Nil1
         case matchT of

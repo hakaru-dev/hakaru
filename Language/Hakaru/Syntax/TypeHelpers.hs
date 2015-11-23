@@ -2,7 +2,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.17
+--                                                    2015.11.23
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeHelpers
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -40,30 +40,10 @@ import Language.Hakaru.Syntax.Datum
 
 -- N.B., we do case analysis so that we don't need the class constraint!
 sing_Value :: Value a -> Sing a
-sing_Value (VNat   _) = sing
-sing_Value (VInt   _) = sing
-sing_Value (VProb  _) = sing
-sing_Value (VReal  _) = sing
-sing_Value (VDatum (Datum hint d)) = error "TODO: sing_Value{VDatum}"
-    {-
-    -- @fmap1 sing_Value d@ gets us halfway there, but then what....
-    -- This seems vaguely on the right track; but how can we get
-    -- it to actually typecheck? Should we just have VDatum (or
-    -- Datum) store the Sing when it's created?
-    SData sing (goC d)
-    where
-    goC :: DatumCode xss Value a -> Sing xss
-    goC (Inr d1)   = SPlus sing (goS d1)
-    goC (Inl d1)   = SPlus (goC d1) sing
-
-    goS :: DatumStruct xs Value a -> Sing xs
-    goS (Et d1 d2) = SEt (goF d1) (goS d2)
-    goS Done       = SDone
-
-    goF :: DatumFun x Value a -> Sing x
-    goF (Konst e1) = SKonst (sing_Value e1)
-    goF (Ident e1) = SIdent -- @sing_Value e1@ is what the first argument to SData should be; assuming we actually make it to this branch...
-    -}
+sing_Value (VNat  _) = sing
+sing_Value (VInt  _) = sing
+sing_Value (VProb _) = sing
+sing_Value (VReal _) = sing
 
 -- TODO: we don't need to store the HOrd\/HSemiring values here,
 -- we can recover them by typeclass, just like we use 'sing' to get

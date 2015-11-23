@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.18
+--                                                    2015.11.23
 -- |
 -- Module      :  Language.Hakaru.Syntax.AST
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -66,11 +66,9 @@ import Language.Hakaru.Syntax.Datum
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
--- TODO: use 'Integer' instead of 'Int', 'Natural' instead of 'Nat', and 'Rational' instead of 'LogFloat' and 'Double'.
+-- BUG: use 'Integer' instead of 'Int', 'Natural' instead of 'Nat', and 'Rational' instead of 'LogFloat' and 'Double'.
 
 -- TODO: is the restriction to ground terms too much? Would it be enough to just consider closed normal forms?
-
--- BUG: even though the 'Datum' type has a single constructor, we get a warning about not being able to UNPACK it in 'VDatum'...
 
 -- | Constant values for primitive numeric types and user-defined
 -- data-types. In addition to being normal forms, these are also
@@ -79,19 +77,17 @@ import Language.Hakaru.Syntax.Datum
 -- forms. Hence, we do not include lambdas nor arrays, even though
 -- they can be closed normal forms.
 data Value :: Hakaru -> * where
-    VNat   :: {-# UNPACK #-} !Nat                      -> Value 'HNat
-    VInt   :: {-# UNPACK #-} !Int                      -> Value 'HInt
-    VProb  :: {-# UNPACK #-} !LogFloat                 -> Value 'HProb
-    VReal  :: {-# UNPACK #-} !Double                   -> Value 'HReal
-    VDatum :: {-# UNPACK #-} !(Datum Value (HData' t)) -> Value (HData' t)
+    VNat   :: {-# UNPACK #-} !Nat      -> Value 'HNat
+    VInt   :: {-# UNPACK #-} !Int      -> Value 'HInt
+    VProb  :: {-# UNPACK #-} !LogFloat -> Value 'HProb
+    VReal  :: {-# UNPACK #-} !Double   -> Value 'HReal
 
 instance Eq1 Value where
-    eq1 (VNat   v1) (VNat   v2) = v1 == v2
-    eq1 (VInt   v1) (VInt   v2) = v1 == v2
-    eq1 (VProb  v1) (VProb  v2) = v1 == v2
-    eq1 (VReal  v1) (VReal  v2) = v1 == v2
-    eq1 (VDatum v1) (VDatum v2) = v1 `eq1` v2
-    eq1 _           _           = False
+    eq1 (VNat  v1) (VNat  v2) = v1 == v2
+    eq1 (VInt  v1) (VInt  v2) = v1 == v2
+    eq1 (VProb v1) (VProb v2) = v1 == v2
+    eq1 (VReal v1) (VReal v2) = v1 == v2
+    eq1 _          _          = False
 
 instance Eq (Value a) where
     (==) = eq1
@@ -101,11 +97,10 @@ instance Eq (Value a) where
 instance Show1 Value where
     showsPrec1 p t =
         case t of
-        VNat   v -> showParen_0 p "VNat"   v
-        VInt   v -> showParen_0 p "VInt"   v
-        VProb  v -> showParen_0 p "VProb"  v
-        VReal  v -> showParen_0 p "VReal"  v
-        VDatum v -> showParen_1 p "VDatum" v
+        VNat  v -> showParen_0 p "VNat"  v
+        VInt  v -> showParen_0 p "VInt"  v
+        VProb v -> showParen_0 p "VProb" v
+        VReal v -> showParen_0 p "VReal" v
 
 instance Show (Value a) where
     showsPrec = showsPrec1

@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.18
+--                                                    2015.11.23
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeCheck
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -21,14 +21,7 @@
 -- Stability   :  experimental
 -- Portability :  GHC-only
 --
--- Bidirectional type checking for our AST. N.B., since we use a
--- GADT, most of the usual type inference\/checking is trivial; the
--- only thing we actually need to do is ensure well-formedness of
--- the 'ABT' structure and the well-typedness of binders\/variables.
---
--- TODO: we should be able to get rid of the ABT well-formedness
--- checking by having our 'View' type be indexed by the number of
--- bindings it introduces.
+-- Bidirectional type checking for our AST.
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.TypeCheck
     ( inferable
@@ -103,7 +96,10 @@ mustCheck = go
     -- looking up it's type and then checking all the arguments.
     go (U.PrimOp_ _ _)    = False
 
-    go (U.NaryOp_ _ es)   = F.all mustCheck es
+    -- In strict mode: if we can infer any of the arguments, then we can check all the rest at the same type.
+    -- BUG: in lax mode we must be able to infer all of them; otherwise we may not be able to take the lub of the types
+    go (U.NaryOp_   _ es) = F.all mustCheck es
+    go (U.Superpose_ pes) = F.all (mustCheck . snd) pes -- TODO: back this up, like we do for NaryOp
 
     -- I return true because most folks (neelk, Pfenning, Dunfield
     -- & Pientka) say all data constructors mustCheck (even though
@@ -122,7 +118,7 @@ mustCheck = go
     -- HMaybe, HList), those cannot be inferred. Also, we have
     -- polymorphic product types (HPair) which can only be inferred
     -- if all their components can be inferred.
-    go (U.Value_ _)     = False -- BUG: should be true for VDatum...
+    go (U.Value_ _)     = False
     go U.Empty_         = True
     go (U.Array_ _ _ _) = True
     go (U.Datum_ _)     = True
@@ -138,7 +134,6 @@ mustCheck = go
     go (U.MBind_  _ _ e2) = mustCheck e2
     go (U.MeasureOp_ _ _) = False
     go (U.Expect_ _ _ e2) = mustCheck e2
-    go (U.Superpose_ pes) = F.all (mustCheck . snd) pes -- TODO: back this up, like we do for NaryOp
 
 
 ----------------------------------------------------------------

@@ -402,11 +402,10 @@ sampleMeasureOp _ _ _ =
     error "sampleMeasureOP: the impossible happened"
 
 sampleValue :: Value a -> S m a
-sampleValue (VNat  n)  = S n
-sampleValue (VInt  n)  = S n
-sampleValue (VProb n)  = S n
-sampleValue (VReal n)  = S n
-sampleValue (VDatum _) = error "Don't know how to sample Datum"
+sampleValue (VNat  n) = S n
+sampleValue (VInt  n) = S n
+sampleValue (VProb n) = S n
+sampleValue (VReal n) = S n
 
 -- HACK only will work for HPair
 sampleDatum :: (ABT AST abt, PrimMonad m, Functor m) =>

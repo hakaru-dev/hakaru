@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.19
+--                                                    2015.11.23
 -- |
 -- Module      :  Language.Hakaru.Syntax.Prelude
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -236,7 +236,7 @@ unsafeFrom_ c e = syn (UnsafeFrom_ c :$ e :* End)
 value_ :: (ABT AST abt) => Value a  -> abt '[] a
 value_ = syn . Value_
 bool_  :: (ABT AST abt) => Bool     -> abt '[] HBool
-bool_  = syn . Value_ . VDatum . (\b -> if b then dTrue else dFalse)
+bool_  = datum_ . (\b -> if b then dTrue else dFalse)
 nat_   :: (ABT AST abt) => Nat      -> abt '[] 'HNat
 nat_   = value_ . VNat
 int_   :: (ABT AST abt) => Int      -> abt '[] 'HInt
@@ -274,8 +274,10 @@ not e =
                     Just . syn . NaryOp_ Xor $ Prelude.fmap not xs
                 Value_ v ->
                     case v of
+                    {-
                     VDatum (Datum _ (Inl Done))       -> Just false
                     VDatum (Datum _ (Inr (Inl Done))) -> Just true
+                    -}
                     _ -> error "not: the impossible happened"
                 _ -> Nothing
 
@@ -563,21 +565,14 @@ atanh  = primOp1_ Atanh
 
 
 ----------------------------------------------------------------
--- TODO: whenever all children are 'value_' then automagically use 'vdatum' rather than the raw syntax of 'datum_'
 datum_
     :: (ABT AST abt)
     => Datum (abt '[]) (HData' t)
     -> abt '[] (HData' t)
 datum_ = syn . Datum_
 
-vdatum
-    :: (ABT AST abt)
-    => Datum Value (HData' t)
-    -> abt '[] (HData' t)
-vdatum = value_ . VDatum
-
 unit   :: (ABT AST abt) => abt '[] HUnit
-unit   = vdatum dUnit
+unit   = datum_ dUnit
 
 pair   :: (ABT AST abt) => abt '[] a -> abt '[] b -> abt '[] (HPair a b)
 pair   = (datum_ .) . dPair
@@ -646,7 +641,7 @@ if_ b t f =
         ]
 
 nil      :: (ABT AST abt) => abt '[] (HList a)
-nil      = vdatum dNil
+nil      = datum_ dNil
 
 cons     :: (ABT AST abt) => abt '[] a -> abt '[] (HList a) -> abt '[] (HList a)
 cons     = (datum_ .) . dCons
@@ -655,7 +650,7 @@ list     :: (ABT AST abt) => [abt '[] a] -> abt '[] (HList a)
 list     = Prelude.foldr cons nil
 
 nothing  :: (ABT AST abt) => abt '[] (HMaybe a)
-nothing  = vdatum dNothing
+nothing  = datum_ dNothing
 
 just     :: (ABT AST abt) => abt '[] a -> abt '[] (HMaybe a)
 just     = datum_ . dJust

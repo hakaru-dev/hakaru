@@ -14,7 +14,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.19
+--                                                    2015.11.23
 -- |
 -- Module      :  Language.Hakaru.Lazy.Types
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -246,20 +246,18 @@ viewWhnfDatum (Neutral _) = Nothing
     {-
     caseVarSyn e (const Nothing) $ \t ->
         case t of
-        Value_ (VDatum d) -> error "bad \"neutral\" value!"
-        Datum_         d  -> error "bad \"neutral\" value!"
-        _                 -> Nothing
+        Datum_ d -> error "bad \"neutral\" value!"
+        _        -> Nothing
     -}
 
 viewHeadDatum
     :: (ABT AST abt)
     => Head abt (HData' t)
     -> Datum (abt '[]) (HData' t)
-viewHeadDatum (WAnn        _ w)   = viewHeadDatum w
-viewHeadDatum (WCoerceTo   c _)   = case c of {}
-viewHeadDatum (WUnsafeFrom c _)   = case c of {}
-viewHeadDatum (WValue (VDatum d)) = fmap11 (syn . Value_) d
-viewHeadDatum (WDatum d)          = d
+viewHeadDatum (WAnn        _ w) = viewHeadDatum w
+viewHeadDatum (WCoerceTo   c _) = case c of {}
+viewHeadDatum (WUnsafeFrom c _) = case c of {}
+viewHeadDatum (WDatum d)        = d
 
 
 ----------------------------------------------------------------
