@@ -110,7 +110,7 @@ NewSLO := module ()
         indicator, extract_dom, banish, known_measures, freeze_difficult,
         myexpand_product,
         piecewise_if, nub_piecewise, foldr_piecewise,
-        verify_measure;
+        ModuleLoad, ModuleUnload, verify_measure;
   export
      # note that these first few are smart constructors (for themselves):
          app, idx, integrate, applyintegrand,
@@ -926,6 +926,14 @@ NewSLO := module ()
     end if
   end proc;
 
-  VerifyTools[AddVerification](measure = verify_measure);
+  ModuleLoad := proc()
+    VerifyTools[AddVerification](measure = verify_measure);
+  end proc;
+
+  ModuleUnload := proc()
+    VerifyTools[RemoveVerification](measure);
+  end proc;
+
+  ModuleLoad();
 
 end module; # NewSLO

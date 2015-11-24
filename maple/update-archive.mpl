@@ -29,4 +29,16 @@ LibraryTools:-Save(`vindex`, lib):
 LibraryTools:-Save(`vsize`, lib):
 
 read("./NewSLO.mpl"):
+LibraryTools:-Save(`depends/Integrand`, lib):
+LibraryTools:-Save(`depends/LO`, lib):
+LibraryTools:-Save(`depends/lam`, lib):
+LibraryTools:-Save(`depends/Bind`, lib):
+LibraryTools:-Save(`depends/ary`, lib):
+LibraryTools:-Save(generic_evalat, lib):
+LibraryTools:-Save(`eval/Integrand`, lib):
+LibraryTools:-Save(`eval/LO`, lib):
+LibraryTools:-Save(`eval/lam`, lib):
+LibraryTools:-Save(`eval/Bind`, lib):
+LibraryTools:-Save(`eval/ary`, lib):
+#LibraryTools:-Save(`gensym`, lib): # use the one from SLO.mpl for now
 LibraryTools:-Save(NewSLO, lib):
