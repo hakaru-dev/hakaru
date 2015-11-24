@@ -22,7 +22,7 @@ LibraryTools:-Save(`Bind`, lib):
 LibraryTools:-Save(`If`, lib):
 LibraryTools:-Save('`type/Context`', lib):
 #LibraryTools:-Save(`index/TopProp`, lib):
-LibraryTools:-Save(`gensym`, lib):
+#LibraryTools:-Save(`gensym`, lib): # use the one from NewSLO.mpl
 LibraryTools:-Save(`MVECTOR`, lib):
 LibraryTools:-Save(`Reduce`, lib):
 LibraryTools:-Save(`vindex`, lib):
@@ -40,5 +40,5 @@ LibraryTools:-Save(`eval/LO`, lib):
 LibraryTools:-Save(`eval/lam`, lib):
 LibraryTools:-Save(`eval/Bind`, lib):
 LibraryTools:-Save(`eval/ary`, lib):
-#LibraryTools:-Save(`gensym`, lib): # use the one from SLO.mpl for now
+LibraryTools:-Save(`gensym`, lib):
 LibraryTools:-Save(NewSLO, lib):
