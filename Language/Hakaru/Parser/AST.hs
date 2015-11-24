@@ -10,14 +10,12 @@
 
 module Language.Hakaru.Parser.AST where
 
-import qualified Language.Hakaru.Syntax.Nat as N
+import qualified Language.Hakaru.Syntax.Nat     as N
+import qualified Language.Hakaru.Syntax.Natural as N
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Coercion
-import Language.Hakaru.Syntax.AST    (PrimOp(..),
-                                      Literal(..),
-                                      MeasureOp(..),
-                                      LCs(),
-                                      UnLCs ())
+import Language.Hakaru.Syntax.AST
+    (PrimOp(..), Literal(..), MeasureOp(..), LCs(), UnLCs ())
 import Language.Hakaru.Syntax.Variable (Variable(..))
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.IClasses
@@ -98,10 +96,10 @@ data NaryOp'
     deriving (Eq, Show)
 
 val :: Literal' -> Some1 Literal
-val (Nat  n) = Some1 $ LNat  (N.unsafeNat n)
-val (Int  n) = Some1 $ LInt  n
-val (Prob n) = Some1 $ LProb (LF.logFloat n)
-val (Real n) = Some1 $ LReal n
+val (Nat  n) = Some1 $ LNat  (N.unsafeNatural $ fromIntegral n) -- TODO: clean up
+val (Int  n) = Some1 $ LInt  (fromIntegral n) -- TODO: clean up
+val (Prob n) = Some1 $ LProb (LF.logFloat  n)
+val (Real n) = Some1 $ LReal (toRational   n) -- BUG: parse a Rational in the first place!
 
 data TypeAST'
     = TypeVar Text

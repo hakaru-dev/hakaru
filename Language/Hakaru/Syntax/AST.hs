@@ -55,8 +55,10 @@ import Data.Monoid             (Monoid(..))
 #endif
 import Control.Arrow           ((***))
 import Data.Number.LogFloat    (LogFloat)
+import Data.Ratio              (Ratio)
 
 import Language.Hakaru.Syntax.Nat
+import Language.Hakaru.Syntax.Natural
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Sing
@@ -66,19 +68,18 @@ import Language.Hakaru.Syntax.Datum
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
--- BUG: use 'Integer' instead of 'Int', 'Natural' instead of 'Nat', and 'Rational' instead of 'LogFloat' and 'Double'.
-
--- TODO: is the restriction to ground terms too much? Would it be enough to just consider closed normal forms?
+-- BUG: can't UNPACK 'Integer' and 'Natural' like we can for 'Int' and 'Nat'
+-- TODO: replace 'LogFloat' with something like @Ratio Natural@; excepting that Natural isn't Integral!!!
 
 -- | Numeric literals for the primitive numeric types. In addition
 -- to being normal forms, these are also ground terms: that is, not
 -- only are they closed (i.e., no free variables), they also have
 -- no bound variables and thus no binding forms.
 data Literal :: Hakaru -> * where
-    LNat   :: {-# UNPACK #-} !Nat      -> Literal 'HNat
-    LInt   :: {-# UNPACK #-} !Int      -> Literal 'HInt
+    LNat   :: !Natural -> Literal 'HNat
+    LInt   :: !Integer -> Literal 'HInt
     LProb  :: {-# UNPACK #-} !LogFloat -> Literal 'HProb
-    LReal  :: {-# UNPACK #-} !Double   -> Literal 'HReal
+    LReal  :: {-# UNPACK #-} !Rational -> Literal 'HReal
 
 instance Eq1 Literal where
     eq1 (LNat  v1) (LNat  v2) = v1 == v2
@@ -97,8 +98,8 @@ instance Show1 Literal where
         case t of
         LNat  v -> showParen_0 p "LNat"  v
         LInt  v -> showParen_0 p "LInt"  v
-        LProb v -> showParen_0 p "LProb" v
-        LReal v -> showParen_0 p "LReal" v
+        LProb v -> showParen_0 p "LProb" v -- TODO: pretty print as decimals instead of using the Show Rational instance
+        LReal v -> showParen_0 p "LReal" v -- TODO: pretty print as decimals instead of using the Show Rational instance
 
 instance Show (Literal a) where
     showsPrec = showsPrec1

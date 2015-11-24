@@ -30,6 +30,7 @@ library
                        -- Language.Hakaru.RoundTrip,
                        -- The new AST stuff. As the above are migrated to the new infrastructure I'll move them below.
                        Language.Hakaru.Syntax.Nat,
+                       Language.Hakaru.Syntax.Natural,
                        Language.Hakaru.Syntax.IClasses,
                        Language.Hakaru.Syntax.DataKind,
                        Language.Hakaru.Syntax.Sing,

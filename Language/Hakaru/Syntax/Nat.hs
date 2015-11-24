@@ -96,6 +96,10 @@ instance Num Nat where
     {-# INLINE signum #-}
     {-# INLINE fromInteger #-}
 
+instance Enum Nat where
+instance Real Nat where
+instance Integral Nat where
+
 _errmsg_unsafeNat, _errmsg_subtraction, _errmsg_negate, _errmsg_fromInteger
     :: String
 _errmsg_unsafeNat   = "unsafeNat: negative input"

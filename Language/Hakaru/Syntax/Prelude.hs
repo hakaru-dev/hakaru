@@ -30,7 +30,7 @@
 module Language.Hakaru.Syntax.Prelude where
 
 -- TODO: implement and use Prelude's fromInteger and fromRational, so we can use numeric literals!
-import Prelude (Maybe(..), Bool(..), Int, Double, ($), flip, const, error)
+import Prelude (Maybe(..), Bool(..), Integer, Rational, ($), flip, const, error)
 import qualified Prelude
 import           Data.Sequence        (Seq)
 import qualified Data.Sequence        as Seq
@@ -38,7 +38,7 @@ import qualified Data.Text            as Text
 import           Control.Category     (Category(..))
 import           Data.Number.LogFloat (LogFloat)
 
-import Language.Hakaru.Syntax.Nat
+import Language.Hakaru.Syntax.Natural
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Sing (Sing(..), SingI(sing), sUnPair, sUnEither, sUnMaybe, sUnMeasure, sUnArray)
 import Language.Hakaru.Syntax.TypeOf
@@ -237,13 +237,13 @@ literal_ :: (ABT AST abt) => Literal a  -> abt '[] a
 literal_ = syn . Literal_
 bool_    :: (ABT AST abt) => Bool     -> abt '[] HBool
 bool_    = datum_ . (\b -> if b then dTrue else dFalse)
-nat_     :: (ABT AST abt) => Nat      -> abt '[] 'HNat
+nat_     :: (ABT AST abt) => Natural  -> abt '[] 'HNat
 nat_     = literal_ . LNat
-int_     :: (ABT AST abt) => Int      -> abt '[] 'HInt
+int_     :: (ABT AST abt) => Integer  -> abt '[] 'HInt
 int_     = literal_ . LInt
 prob_    :: (ABT AST abt) => LogFloat -> abt '[] 'HProb
 prob_    = literal_ . LProb
-real_    :: (ABT AST abt) => Double   -> abt '[] 'HReal
+real_    :: (ABT AST abt) => Rational -> abt '[] 'HReal
 real_    = literal_ . LReal
 
 -- Boolean operators

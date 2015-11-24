@@ -20,7 +20,8 @@ module Language.Hakaru.MapleNeue (Maple(..), runMaple) where
 -- We won't need fancy type gymnastics (which Expect requires) because
 -- we're squishing everything into String.
 
-import Language.Hakaru.Syntax.Nat      (fromNat)
+import Language.Hakaru.Syntax.Nat     (fromNat)
+import Language.Hakaru.Syntax.Natural (fromNatural)
 import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Sing
@@ -86,7 +87,7 @@ mapleMeasureOp Gamma   (e1 :* e2 :* End) = app2 "BetaD" e1 e2
 mapleMeasureOp Beta    (e1 :* e2 :* End) = app2 "GammaD" e1 e2
 
 mapleLiteral :: Literal a -> String
-mapleLiteral (LNat  v) = show $ fromNat v
+mapleLiteral (LNat  v) = show $ fromNatural v
 mapleLiteral (LInt  v) = show v
 mapleLiteral (LProb v) = show (fromLogFloat v)
 mapleLiteral (LReal v) = show v

@@ -55,6 +55,7 @@ import           Data.Number.LogFloat   (LogFloat, logFloat, fromLogFloat)
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Nat
+import Language.Hakaru.Syntax.Natural
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.TypeOf
@@ -312,14 +313,14 @@ coerceTo_Literal (CCons c cs) v = coerceTo_Literal cs (step c v)
     step (Continuous HContinuous_Real) (LInt  i) = LReal (int2real  i)
     step _ _ = error "coerceTo_Literal: the impossible happened"
 
-    -- HACK: type signatures needed to avoid defaulting to 'Integer'
-    nat2int   :: Nat -> Int
-    nat2int   = fromIntegral . fromNat
-    nat2prob  :: Nat -> LogFloat
-    nat2prob  = logFloat . fromIntegral . fromNat -- N.B., costs a 'log'
-    prob2real :: LogFloat -> Double
-    prob2real = fromLogFloat -- N.B., costs an 'exp' and may underflow
-    int2real  :: Int -> Double
+    -- HACK: type signatures needed to avoid defaulting
+    nat2int   :: Natural -> Integer
+    nat2int   = fromNatural
+    nat2prob  :: Natural -> LogFloat
+    nat2prob  = logFloat . fromIntegral . fromNatural -- N.B., costs a 'log'
+    prob2real :: LogFloat -> Rational
+    prob2real = toRational . fromLogFloat -- N.B., costs an 'exp' and may underflow
+    int2real  :: Integer -> Rational
     int2real  = fromIntegral
 
 
@@ -335,14 +336,14 @@ unsafeFrom_Literal (CCons c cs) v = step c (unsafeFrom_Literal cs v)
     step (Continuous HContinuous_Real) (LReal r) = LInt  (real2int  r)
     step _ _ = error "unsafeFrom_Literal: the impossible happened"
 
-    -- HACK: type signatures needed to avoid defaulting to 'Integer'
-    int2nat   :: Int -> Nat
-    int2nat   = unsafeNat -- TODO: maybe change the error message...
-    prob2nat  :: LogFloat -> Nat
+    -- HACK: type signatures needed to avoid defaulting
+    int2nat   :: Integer -> Natural
+    int2nat   = unsafeNatural -- TODO: maybe change the error message...
+    prob2nat  :: LogFloat -> Natural
     prob2nat  = error "TODO: prob2nat" -- BUG: impossible unless using Rational...
-    real2prob :: Double -> LogFloat
-    real2prob = logFloat -- TODO: maybe change the error message...
-    real2int  :: Double -> Int
+    real2prob :: Rational -> LogFloat
+    real2prob = logFloat . fromRational -- TODO: maybe change the error message...
+    real2int  :: Rational -> Integer
     real2int  = error "TODO: real2int" -- BUG: impossible unless using Rational...
 
 
@@ -353,21 +354,21 @@ class Interp a a' | a -> a' where
     reify   :: (ABT AST abt) => Head abt a -> a'
     reflect :: (ABT AST abt) => a' -> Head abt a
 
-instance Interp 'HNat Nat where
+instance Interp 'HNat Natural where
     reflect = WLiteral . LNat
     reify (WLiteral (LNat n)) = n
     reify (WAnn        _ v) = reify v
     reify (WCoerceTo   _ _) = error "TODO: reify{WCoerceTo}"
     reify (WUnsafeFrom _ _) = error "TODO: reify{WUnsafeFrom}"
 
-instance Interp 'HInt Int where
+instance Interp 'HInt Integer where
     reflect = WLiteral . LInt
     reify (WLiteral (LInt i)) = i
     reify (WAnn        _ v) = reify v
     reify (WCoerceTo   _ _) = error "TODO: reify{WCoerceTo}"
     reify (WUnsafeFrom _ _) = error "TODO: reify{WUnsafeFrom}"
 
-instance Interp 'HProb LogFloat where -- TODO: use rational instead
+instance Interp 'HProb LogFloat where -- TODO: use Ratio Natural instead
     reflect = WLiteral . LProb
     reify (WLiteral (LProb p))  = p
     reify (WAnn        _ v)   = reify v
@@ -376,7 +377,7 @@ instance Interp 'HProb LogFloat where -- TODO: use rational instead
     reify (WIntegrate  _ _ _) = error "TODO: reify{WIntegrate}"
     reify (WSummate    _ _ _) = error "TODO: reify{WSummate}"
 
-instance Interp 'HReal Double where -- TODO: use rational instead
+instance Interp 'HReal Rational where
     reflect = WLiteral . LReal
     reify (WLiteral (LReal r)) = r
     reify (WAnn        _ v) = reify v
@@ -690,7 +691,6 @@ evaluatePrimOp evaluate_ = go
     {-
     -- TODO: all our magic constants (Pi, Infty,...) should be bundled together under one AST constructor called something like @Constant@; that way we can group them in the 'Head' like we do for values.
     go Pi        End               = return (Head_ HPi)
-    -}
     -- TODO: don't actually evaluate these, to avoid fuzz issues
     go Sin       (e1 :* End)       = rr1 sin   P.sin   e1
     go Cos       (e1 :* End)       = rr1 cos   P.cos   e1
@@ -704,7 +704,6 @@ evaluatePrimOp evaluate_ = go
     go Asinh     (e1 :* End)       = rr1 asinh P.asinh e1
     go Acosh     (e1 :* End)       = rr1 acosh P.acosh e1
     go Atanh     (e1 :* End)       = rr1 atanh P.atanh e1
-    {-
     -- TODO: deal with how we have better types for these three ops than Haskell does...
     go RealPow   (e1 :* e2 :* End) = rr2 (**) (P.**) e1 e2
     go Exp       (e1 :* End)       = rr1 exp   P.exp e1
@@ -719,26 +718,35 @@ evaluatePrimOp evaluate_ = go
     -}
     go (NatPow theSemi) (e1 :* e2 :* End) =
         case theSemi of
-        HSemiring_Nat    -> rr2 (\v1 v2 -> v1 ^ fromNat v2) (P.^) e1 e2
-        HSemiring_Int    -> rr2 (\v1 v2 -> v1 ^ fromNat v2) (P.^) e1 e2
-        HSemiring_Prob   -> rr2 (\v1 v2 -> v1 ^ fromNat v2) (P.^) e1 e2
-        HSemiring_Real   -> rr2 (\v1 v2 -> v1 ^ fromNat v2) (P.^) e1 e2
+        HSemiring_Nat    -> rr2 (\v1 v2 -> v1 ^ fromNatural v2) (P.^) e1 e2
+        HSemiring_Int    -> rr2 (\v1 v2 -> v1 ^ fromNatural v2) (P.^) e1 e2
+        HSemiring_Prob   -> rr2 (\v1 v2 -> v1 ^ fromNatural v2) (P.^) e1 e2
+        HSemiring_Real   -> rr2 (\v1 v2 -> v1 ^ fromNatural v2) (P.^) e1 e2
     go (Negate theRing) (e1 :* End) =
         case theRing of
         HRing_Int        -> rr1 negate P.negate e1
         HRing_Real       -> rr1 negate P.negate e1
     go (Abs    theRing) (e1 :* End) = 
+        error "TODO"
+        {-
         case theRing of
         HRing_Int        -> rr1 (unsafeNat . abs) P.abs_ e1
         HRing_Real       -> rr1 (logFloat  . abs) P.abs_ e1
+        -}
     go (Signum theRing) (e1 :* End) =
+        error "TODO"
+        {-
         case theRing of
         HRing_Int        -> rr1 signum P.signum e1
         HRing_Real       -> rr1 signum P.signum e1
+        -}
     go (Recip  theFractional) (e1 :* End) =
+        error "TODO"
+        {-
         case theFractional of
         HFractional_Prob -> rr1 recip  P.recip  e1
         HFractional_Real -> rr1 recip  P.recip  e1
+        -}
     {-
     go (NatRoot theRadical) (e1 :* e2 :* End) =
         case theRadical of
