@@ -18,15 +18,6 @@ import           Language.Hakaru.Syntax.IClasses
 import           Language.Hakaru.Syntax.HClasses
 import qualified Language.Hakaru.Syntax.Nat as N
 
-   -- Pair_
-   -- True_ | False_
-   -- FromProb_
-   -- UnsafeProb_
-   -- Uniform_
-   -- Normal_
-   -- VarSym U.Name
-   -- Plus
-
 data Symbol a where
     TLam :: (a -> Symbol a) -> Symbol a
     TNeu :: a -> Symbol a
