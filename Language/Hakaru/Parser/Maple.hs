@@ -35,7 +35,7 @@ type TokenParser a = Token.GenTokenParser Text a Identity
 
 data InertExpr =
      InertName Text
-   | InertNum  Integer
+   | InertNum  Text Integer
    | InertArgs Text [InertExpr]
  deriving (Eq, Show)
 
@@ -84,7 +84,8 @@ expr :: Parser InertExpr
 expr =  try func
     <|> try name
     <|> try expseq
-    <|> intpos
+    <|> try intpos
+    <|> intneg
 
 func :: Parser InertExpr
 func = InertArgs <$> text "_Inert_FUNCTION" <*> arg expr
@@ -96,8 +97,10 @@ expseq :: Parser InertExpr
 expseq = InertArgs <$> text "_Inert_EXPSEQ" <*> arg expr
 
 intpos :: Parser InertExpr
-intpos = InertNum <$>
-         (text "_Inert_INTPOS" *> apply1 integer)
+intpos = InertNum <$> text "_Inert_INTPOS" <*>  apply1 integer
+
+intneg :: Parser InertExpr
+intneg = InertNum <$>  text "_Inert_INTNEG" <*> apply1 integer
 
 parseMaple :: Text -> Either ParseError InertExpr
 parseMaple = runParser (expr <* eof) () "<input>"
