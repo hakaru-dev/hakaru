@@ -37,6 +37,7 @@ data InertExpr =
      InertName Text
    | InertNum  Integer
    | InertArgs Text [InertExpr]
+ deriving (Eq, Show)
 
 lexer :: TokenParser ()
 lexer = Token.makeTokenParser style
@@ -82,6 +83,7 @@ text = liftM Text.pack <$> string <$> Text.unpack
 expr :: Parser InertExpr
 expr =  try func
     <|> try name
+    <|> try expseq
     <|> intpos
 
 func :: Parser InertExpr
