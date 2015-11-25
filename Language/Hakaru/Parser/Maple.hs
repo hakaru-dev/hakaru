@@ -33,6 +33,11 @@ style = Token.LanguageDef
 
 type TokenParser a = Token.GenTokenParser Text a Identity
 
+data InertExpr =
+     InertName Text
+   | InertNum  Integer
+   | InertArgs Text [InertExpr]
+
 lexer :: TokenParser ()
 lexer = Token.makeTokenParser style
 
@@ -71,26 +76,26 @@ apply2 e = do
     [e1, e2] -> return (e1, e2)
     _        -> error "Expected only two arguments"
 
-
 text :: Text -> Parser Text
 text = liftM Text.pack <$> string <$> Text.unpack
 
-expr :: Parser (AST' Text)
+expr :: Parser InertExpr
 expr =  try func
     <|> try name
     <|> intpos
 
-func :: Parser (AST' Text)
-func = do text "_Inert_FUNCTION"
-          (f, x) <- apply2 expr
-          return $ App f x
+func :: Parser InertExpr
+func = InertArgs <$> text "_Inert_FUNCTION" <*> arg expr
 
-name :: Parser (AST' Text)
-name = Var <$> (text "_Inert_NAME" *> apply1 stringLiteral)
+name :: Parser InertExpr
+name = InertName <$> (text "_Inert_NAME" *> apply1 stringLiteral)
 
-intpos :: Parser (AST' Text)
-intpos = (ULiteral . Nat . fromInteger) <$>
+expseq :: Parser InertExpr
+expseq = InertArgs <$> text "_Inert_EXPSEQ" <*> arg expr
+
+intpos :: Parser InertExpr
+intpos = InertNum <$>
          (text "_Inert_INTPOS" *> apply1 integer)
 
-parseMaple :: Text -> Either ParseError (AST' Text)
+parseMaple :: Text -> Either ParseError InertExpr
 parseMaple = runParser (expr <* eof) () "<input>"
