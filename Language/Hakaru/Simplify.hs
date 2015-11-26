@@ -25,15 +25,11 @@
 module Language.Hakaru.Simplify
     ( simplify
     , toMaple
-    , openLoop
-    , main
-    , Simplifiable(mapleType)
     , MapleException(MapleException)
     ) where
 
 import Control.Exception
 
-import Language.Hakaru.Simplifiable (Simplifiable(mapleType))
 import Language.Hakaru.MapleNeue (Maple, runMaple)
 import Language.Hakaru.Any (Any(Any), AnySimplifiable(AnySimplifiable))
 import Language.Hakaru.PrettyPrint (pretty)
@@ -103,28 +99,6 @@ simplify e = do
 
 toMaple :: (ABT AST abt) => abt '[] a -> String
 toMaple = runMaple 
-
-main :: IO ()
-main = action `catch` handler0 where
-    action :: IO ()
-    action = do
-        s <- readFile "/tmp/t" -- getContents
-        let (before, middle, after) = trim s
-        middle' <- undefined -- simplifyAny middle
-        putStr (before ++ middle' ++ after)
-
-    handler0 :: SomeException -> IO ()
-    handler0 = hPrint stderr
-
-trim :: String -> (String, String, String)
-trim s =
-    let (before, s') = span isSpace s
-        (after', middle') = span isSpace (reverse s')
-    in (before, reverse middle', reverse after')
-
-openLoop :: [String] -> String -> IO ([String], AnySimplifiable)
-openLoop names s =
-    fmap ((,) names) (undefined {- closeLoop ("AnySimplifiable (" ++ s ++ ")") -})
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
