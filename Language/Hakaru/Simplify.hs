@@ -78,7 +78,7 @@ simplify :: forall abt a. (ABT AST abt) => abt '[] a -> IO (abt '[] a)
 simplify e = do
     hakaru <- simplify' e
     TypedAST typ ast <- closeLoop' hakaru
-    -- TODO: convince Haskell I can return ast
+    -- TODO: convince Haskell I can return ast without typeOf
     case jmEq1 (typeOf e) typ of
       Just Refl  -> return ast
       Nothing    -> return e
