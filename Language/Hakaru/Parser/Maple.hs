@@ -33,9 +33,11 @@ style = Token.LanguageDef
 
 type TokenParser a = Token.GenTokenParser Text a Identity
 
+data NumOp = Pos | Neg deriving (Eq, Show)
+
 data InertExpr =
      InertName Text
-   | InertNum  Text Integer
+   | InertNum  NumOp Integer
    | InertArgs Text [InertExpr]
  deriving (Eq, Show)
 
@@ -97,10 +99,14 @@ expseq :: Parser InertExpr
 expseq = InertArgs <$> text "_Inert_EXPSEQ" <*> arg expr
 
 intpos :: Parser InertExpr
-intpos = InertNum <$> text "_Inert_INTPOS" <*>  apply1 integer
+intpos = InertNum <$> (text "_Inert_INTPOS" *> return Pos) <*> apply1 integer
 
 intneg :: Parser InertExpr
-intneg = InertNum <$>  text "_Inert_INTNEG" <*> apply1 integer
+intneg = InertNum <$> (text "_Inert_INTNEG" *> return Neg) <*> fmap negate (apply1 integer)
 
 parseMaple :: Text -> Either ParseError InertExpr
 parseMaple = runParser (expr <* eof) () "<input>"
+
+maple2AST :: InertExpr -> AST' Text
+maple2AST (InertNum Pos i) = ULiteral $ Nat $ fromInteger i
+maple2AST (InertNum Neg i) = ULiteral $ Int $ fromInteger i
