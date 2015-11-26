@@ -79,7 +79,9 @@ simplify e = do
     hakaru <- simplify' e
     TypedAST typ ast <- closeLoop' hakaru
     -- TODO: convince Haskell I can return ast
-    return e
+    case jmEq1 (typeOf e) typ of
+      Just Refl  -> return ast
+      Nothing    -> return e
 
  where simplify' :: abt '[] a -> IO String
        simplify' e = do
