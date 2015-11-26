@@ -4,7 +4,7 @@ module Tests.Hakaru where
 
 import qualified Language.Hakaru.Parser.AST as U
 import Language.Hakaru.Parser.Parser
-import Language.Hakaru.Parser.SymbolResolve
+import Language.Hakaru.Parser.SymbolResolve (resolveAST)
 
 
 import qualified Language.Hakaru.Syntax.AST as T
@@ -24,7 +24,6 @@ import Language.Hakaru.Syntax.Prelude (prob_, fromProb)
 import Prelude hiding (unlines)
 import Data.Text
 import Text.PrettyPrint
-import Control.Monad.Trans.State.Strict (evalState)
 
 import qualified System.Random.MWC as MWC
 
@@ -38,9 +37,6 @@ normalb   = unlines [ "x <~ normal(-2.0,1.0)"
                     , "y <~ normal(x, 1.0)"
                     , "return y"
                     ]
-
-pToa :: U.AST' Text -> U.AST a
-pToa ast = makeAST $ normAST $ evalState (symbolResolution primTable ast) 0
 
 inferType' :: U.AST a -> TypeCheckMonad (TypedAST (TrivialABT T.AST))
 inferType' = inferType
@@ -72,7 +68,7 @@ testHakaru a mode g =
     case parseHakaru a of
       Left err -> return (show err)
       Right past ->
-          let m = inferType' (pToa past) in
+          let m = inferType' (resolveAST past) in
           case runTCM m mode of
             Left err -> return err
             Right (TypedAST typ ast) -> do

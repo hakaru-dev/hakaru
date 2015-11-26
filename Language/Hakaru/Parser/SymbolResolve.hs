@@ -8,7 +8,7 @@ module Language.Hakaru.Parser.SymbolResolve where
 import Data.Text hiding (concat, map, maximum)
 import Data.Functor                     ((<$>))
 import Control.Applicative              ((<*>))
-import Control.Monad.Trans.State.Strict (State, state)
+import Control.Monad.Trans.State.Strict (State, state, evalState)
 
 import qualified Language.Hakaru.Syntax.AST as T
 import qualified Language.Hakaru.Parser.AST as U
@@ -247,6 +247,10 @@ makeAST ast =
     U.Dirac e1        -> U.Dirac_ (makeAST e1)
     U.Bind (TNeu (U.Var_ name)) e1 e2 ->
         U.MBind_ name (makeAST e1) (makeAST e2)
+
+
+resolveAST :: U.AST' Text -> U.AST a
+resolveAST ast = makeAST $ normAST $ evalState (symbolResolution primTable ast) 0
 
 data PrimOp'
     = Not'
