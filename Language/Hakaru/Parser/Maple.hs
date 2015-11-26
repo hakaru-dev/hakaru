@@ -31,14 +31,22 @@ style = Token.LanguageDef
         , Token.caseSensitive  = False
         }
 
+symTable :: [(Text, Text)]
+symTable =  [ ("Gaussian", "normal")
+            , ("BetaD", "beta")
+            , ("Uniform", "uniform")
+            ]
+
 type TokenParser a = Token.GenTokenParser Text a Identity
 
 data NumOp = Pos | Neg deriving (Eq, Show)
 
+data ArgOp = Func | ExpSeq deriving (Eq, Show)
+
 data InertExpr =
      InertName Text
    | InertNum  NumOp Integer
-   | InertArgs Text [InertExpr]
+   | InertArgs ArgOp [InertExpr]
  deriving (Eq, Show)
 
 lexer :: TokenParser ()
@@ -90,13 +98,13 @@ expr =  try func
     <|> intneg
 
 func :: Parser InertExpr
-func = InertArgs <$> text "_Inert_FUNCTION" <*> arg expr
+func = InertArgs <$> (text "_Inert_FUNCTION" *> return Func) <*> arg expr
 
 name :: Parser InertExpr
 name = InertName <$> (text "_Inert_NAME" *> apply1 stringLiteral)
 
 expseq :: Parser InertExpr
-expseq = InertArgs <$> text "_Inert_EXPSEQ" <*> arg expr
+expseq = InertArgs <$> (text "_Inert_EXPSEQ" *> return ExpSeq) <*> arg expr
 
 intpos :: Parser InertExpr
 intpos = InertNum <$> (text "_Inert_INTPOS" *> return Pos) <*> apply1 integer
@@ -104,9 +112,17 @@ intpos = InertNum <$> (text "_Inert_INTPOS" *> return Pos) <*> apply1 integer
 intneg :: Parser InertExpr
 intneg = InertNum <$> (text "_Inert_INTNEG" *> return Neg) <*> fmap negate (apply1 integer)
 
+rename :: Text -> Text
+rename x = case lookup x symTable of
+             Just x' -> x'
+             Nothing -> x
+
 parseMaple :: Text -> Either ParseError InertExpr
 parseMaple = runParser (expr <* eof) () "<input>"
 
 maple2AST :: InertExpr -> AST' Text
 maple2AST (InertNum Pos i) = ULiteral $ Nat $ fromInteger i
 maple2AST (InertNum Neg i) = ULiteral $ Int $ fromInteger i
+maple2AST (InertName t)    = Var (rename t)
+maple2AST (InertArgs Func [f, (InertArgs ExpSeq a)]) =
+    foldl App (maple2AST f) (map maple2AST a)
