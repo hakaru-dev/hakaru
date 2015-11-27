@@ -73,7 +73,7 @@ testHakaru a mode g =
           case runTCM m mode of
             Left err -> return err
             Right (TypedAST typ ast) -> do
-              putStrLn ("Type: " ++ show typ ++ "\n")
+              putStrLn ("Type: " ++ (show $ prettyType typ) ++ "\n")
               putStrLn ("AST:\n" ++ (show $ pretty ast) ++ "\n")
               ast' <- simplify ast
               putStrLn ("AST + Simplify:\n" ++ (show $ pretty ast') ++ "\n")

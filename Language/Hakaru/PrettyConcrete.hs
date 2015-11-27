@@ -24,6 +24,7 @@ module Language.Hakaru.PrettyConcrete
     -- * The user-facing API
       pretty
     , prettyPrec
+    , prettyType
     , prettyAssoc
     , prettyPrecAssoc
 
@@ -72,6 +73,9 @@ prettyPrecAssoc p (Assoc x e) =
         [ ppVariable x
         , prettyPrec 11 e
         ]
+
+prettyType :: Sing (a :: Hakaru) -> Doc
+prettyType = ppType
 
 ----------------------------------------------------------------
 class Pretty (f :: Hakaru -> *) where
