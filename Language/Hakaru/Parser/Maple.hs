@@ -42,7 +42,9 @@ type TokenParser a = Token.GenTokenParser Text a Identity
 
 data NumOp = Pos | Neg deriving (Eq, Show)
 
-data ArgOp = Float | Func | ExpSeq deriving (Eq, Show)
+data ArgOp = Float | Power | Rational
+           | Func  | ExpSeq
+  deriving (Eq, Show)
 
 data InertExpr =
      InertName Text
@@ -94,7 +96,9 @@ expr =  try func
     <|> try expseq
     <|> try intpos
     <|> try intneg
-    <|> try float
+    <|> try power
+    <|> try rational
+    <|> float
 
 func :: Parser InertExpr
 func = InertArgs <$> (text "_Inert_FUNCTION" *> return Func) <*> arg expr
@@ -113,6 +117,12 @@ intneg = InertNum <$> (text "_Inert_INTNEG" *> return Neg) <*> fmap negate (appl
 
 float :: Parser InertExpr
 float  = InertArgs <$> (text "_Inert_FLOAT" *> return Float) <*> arg expr
+
+power :: Parser InertExpr
+power = InertArgs <$> (text "_Inert_POWER" *> return Power) <*> arg expr
+
+rational :: Parser InertExpr
+rational = InertArgs <$> (text "_Inert_RATIONAL" *> return Rational) <*> arg expr
 
 rename :: Text -> Text
 rename x = case lookup x symTable of
