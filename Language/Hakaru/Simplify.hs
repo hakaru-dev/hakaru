@@ -93,7 +93,7 @@ simplify e = do
              Right past ->
                  let m = inferType (resolveAST $ maple2AST past) in
                  case runTCM m LaxMode of
-                   Left err -> error (show err)
+                   Left err -> throw $ MapleException (toMaple e) (show err)
                    Right e  -> return e
 
 toMaple :: (ABT AST abt) => abt '[] a -> String

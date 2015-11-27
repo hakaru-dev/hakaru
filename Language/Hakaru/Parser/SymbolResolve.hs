@@ -70,9 +70,10 @@ primTable =
     ,("unsafeProb", primUnsafeProb)
     ,("uniform",    primUniform)
     ,("normal",     primNormal)
+    ,("weight",     primWeight)
     ]
 
-primNormal, primUniform, primPair, primFromProb, primUnsafeProb
+primNormal, primUniform, primPair, primFromProb, primUnsafeProb, primWeight
     :: Symbol (U.AST a)
 primNormal  = t2 $ \x y -> U.MeasureOp_ (U.SealedOp T.Normal)  [x,y]
 primUniform = t2 $ \x y -> U.MeasureOp_ (U.SealedOp T.Uniform) [x,y]
@@ -83,6 +84,7 @@ primFromProb =
     TLam $ TNeu . U.CoerceTo_ (Some2 $ CCons (Signed HRing_Real) CNil)
 primUnsafeProb =
     TLam $ TNeu . U.UnsafeTo_ (Some2 $ CCons (Signed HRing_Real) CNil)
+primWeight  = t2 $ \w m -> U.Superpose_ [(w, m)]
 
 gensym :: Text -> State Int U.Name
 gensym s = state $ \i -> (U.Name (N.unsafeNat i) s, i + 1)
