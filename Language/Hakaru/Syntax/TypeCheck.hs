@@ -381,6 +381,10 @@ inferType = inferType_
                 return . TypedAST SProb $ syn (Expect :$ e1' :* e2' :* End)
             _ -> typeMismatch (Left "HMeasure") (Right typ1)
 
+    U.Superpose_ pes -> do
+      TypedAST typ1 _ <- F.asum $ fmap inferType_ (map snd pes)
+      pes' <- checkType_ typ1 (U.Superpose_ pes)
+      return $ TypedAST typ1 pes'
 
     _   | mustCheck e0 -> failwith "Cannot infer types for checking terms; please add a type annotation"
         | otherwise    -> error "inferType: missing an inferable branch!"
