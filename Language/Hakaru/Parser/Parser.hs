@@ -22,7 +22,7 @@ import Language.Hakaru.Parser.AST
 
 ops, types, names :: [String]
 
-ops   = ["+","*","-",":","::", "<~","==", "=", "_"]
+ops   = ["+","*","-","^", "**", ":","::", "<~","==", "=", "_"]
 types = ["->"]
 names = ["def","fn", "if","else","pi","inf", "∞",
          "return", "dirac", "match", "data"]
@@ -99,7 +99,8 @@ prefix s f = Ex.Prefix (f <$ reservedOp s)
 table :: OperatorTable (AST' Text)
 table =
     [ [ prefix "+"  id]
-    , [ binary "^"  Ex.AssocLeft]
+    , [ binary "^"  Ex.AssocRight
+      , binary "**" Ex.AssocRight]
     , [ binary "*"  Ex.AssocLeft
       , binary "/"  Ex.AssocLeft]
     , [ binary "+"  Ex.AssocLeft

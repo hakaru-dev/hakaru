@@ -145,3 +145,9 @@ maple2AST (InertArgs Float [InertNum Neg a, InertNum p b]) =
 
 maple2AST (InertArgs Func [f, (InertArgs ExpSeq a)]) =
     foldl App (maple2AST f) (map maple2AST a)
+
+maple2AST (InertArgs Power [x, y]) =
+    App (App (Var "**") (maple2AST x)) (maple2AST y)
+maple2AST (InertArgs Rational [InertNum _ x, InertNum _ y]) =
+    ULiteral $ Real $ fromInteger x / fromInteger y
+    

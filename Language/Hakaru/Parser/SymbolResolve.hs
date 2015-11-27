@@ -71,9 +71,13 @@ primTable =
     ,("uniform",    primUniform)
     ,("normal",     primNormal)
     ,("weight",     primWeight)
+    -- This should probably be in U.AST'
+    ,("**",         primRealPow)
     ]
 
-primNormal, primUniform, primPair, primFromProb, primUnsafeProb, primWeight
+primNormal, primUniform, primPair, primFromProb, primUnsafeProb
+    :: Symbol (U.AST a)
+primWeight, primRealPow
     :: Symbol (U.AST a)
 primNormal  = t2 $ \x y -> U.MeasureOp_ (U.SealedOp T.Normal)  [x,y]
 primUniform = t2 $ \x y -> U.MeasureOp_ (U.SealedOp T.Uniform) [x,y]
@@ -85,6 +89,7 @@ primFromProb =
 primUnsafeProb =
     TLam $ TNeu . U.UnsafeTo_ (Some2 $ CCons (Signed HRing_Real) CNil)
 primWeight  = t2 $ \w m -> U.Superpose_ [(w, m)]
+primRealPow = t2 $ \x y -> U.PrimOp_ (U.SealedOp T.RealPow) [x, y]
 
 gensym :: Text -> State Int U.Name
 gensym s = state $ \i -> (U.Name (N.unsafeNat i) s, i + 1)
