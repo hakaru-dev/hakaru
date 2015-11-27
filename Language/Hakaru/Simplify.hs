@@ -54,7 +54,6 @@ import Data.Text (replace, pack, unpack)
 import Data.Char (isSpace)
 import System.MapleSSH (maple)
 
-import Language.Hakaru.Util.Lex (readMapleString)
 ----------------------------------------------------------------
 
 data MapleException       = MapleException String String
@@ -82,15 +81,15 @@ simplify e = do
  where simplify' :: abt '[] a -> IO String
        simplify' e = do
          let slo = toMaple e
-         hopeString <- maple ("timelimit(15,NewSLO:-RoundTripLO(" ++ slo ++ "));")
-         case readMapleString hopeString of
-           Just hakaru -> return hakaru
-           Nothing     -> throw (MapleException slo hopeString)
+         maple ("timelimit(15,NewSLO:-RoundTripLO(" ++ slo ++ "));")
+         -- case readMapleString hopeString of
+         --   Just hakaru -> return hakaru
+         --   Nothing     -> throw (MapleException slo hopeString)
                           
        closeLoop' :: String -> IO (TypedAST abt)
        closeLoop' s = do
            case parseMaple (pack s) of
-             Left err -> error (show err)
+             Left err -> throw $ MapleException (toMaple e) (show err)
              Right past ->
                  let m = inferType (resolveAST $ maple2AST past) in
                  case runTCM m LaxMode of

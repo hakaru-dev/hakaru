@@ -20,6 +20,7 @@ import Language.Hakaru.PrettyPrint
 import Language.Hakaru.Sample hiding (SData, SKonst, SEt, SDone, SPlus, SVoid)
 import Language.Hakaru.Expect
 import Language.Hakaru.Syntax.Prelude (prob_, fromProb)
+import Language.Hakaru.Simplify
 
 import Prelude hiding (unlines)
 import Data.Text
@@ -74,6 +75,8 @@ testHakaru a mode g =
             Right (TypedAST typ ast) -> do
               putStrLn ("Type: " ++ show typ ++ "\n")
               putStrLn ("AST: " ++ (show $ pretty ast) ++ "\n")
+              ast' <- simplify ast
+              putStrLn ("AST + Simplify: " ++ (show $ pretty ast') ++ "\n")
               case typ of
                 SMeasure _ ->
                     putStrLn ("Expectation wrt 1 as ast: " ++
