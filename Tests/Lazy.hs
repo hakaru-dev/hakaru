@@ -181,8 +181,10 @@ burgalarm = bern 0.0001 `bind` \burglary ->
             bern (if_ burglary 0.95 0.01) `bind` \alarm ->
             dirac (pair alarm burglary)
 
-burgRaw = (print . runPrettyPrint) (disintegrate burgalarm)
-
+burgCond :: (Mochastic repr, Lambda repr)
+            => repr (HFun HBool (HMeasure HBool))
+burgCond = disintegrate burgalarm
+           
 burgSimpl = simplify $ disintegrate burgalarm
 
 -- burgObs b = simplify (d `app` unit `app` b)
