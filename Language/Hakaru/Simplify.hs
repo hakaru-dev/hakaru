@@ -82,9 +82,6 @@ simplify e = do
        simplify' e = do
          let slo = toMaple e
          maple ("timelimit(15,NewSLO:-RoundTripLO(" ++ slo ++ "));")
-         -- case readMapleString hopeString of
-         --   Just hakaru -> return hakaru
-         --   Nothing     -> throw (MapleException slo hopeString)
                           
        closeLoop' :: String -> IO (TypedAST abt)
        closeLoop' s = do
