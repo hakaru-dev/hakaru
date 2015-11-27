@@ -66,9 +66,12 @@ var1 x | Text.null (varHint x) = 'x' : uniqID x
        | otherwise = Text.unpack (varHint x) ++ uniqID x 
 
 mapleSCon :: (ABT AST abt) => SCon args a -> SArgs abt args -> String
-mapleSCon (MeasureOp_ o) es = mapleMeasureOp o es
-mapleSCon Dirac (e1 :* End) = app1 "Ret" e1
-mapleSCon MBind (e1 :* e2 :* End) =
+mapleSCon (CoerceTo_   c) (e :* End) = mapleAST (LC_ e)
+mapleSCon (UnsafeFrom_ c) (e :* End) = mapleAST (LC_ e)
+mapleSCon (Ann_ a)        (e :* End) = mapleAST (LC_ e)
+mapleSCon (MeasureOp_ o) es          = mapleMeasureOp o es
+mapleSCon Dirac (e1 :* End)          = app1 "Ret" e1
+mapleSCon MBind (e1 :* e2 :* End)    =
     caseBind e2 $ \x e2' ->
         app3 "Bind" e1 (var x) e2'
 
