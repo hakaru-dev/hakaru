@@ -15,19 +15,14 @@ build-type:          Custom
 -- extra-source-files:  
 cabal-version:       >=1.16
 
-Flag patchedHint
-    Default:     False
-    Description: Using the patched version of Hint. 
-
 library
   exposed-modules:     Language.Hakaru.Syntax,
                        Language.Hakaru.Maple,
                        Language.Hakaru.MapleNeue,
                        Language.Hakaru.Lambda,
                        Language.Hakaru.Simplifiable,
-                       -- BUG: we need to solve the Typeable issue in order to get Simplify.hs to typecheck again
                        Language.Hakaru.Simplify,
-                       Language.Hakaru.Any,
+                       --Language.Hakaru.Any,
                        Language.Hakaru.Util.Csv,
                        Language.Hakaru.Sample,
                        Language.Hakaru.Parser.AST,
@@ -73,7 +68,6 @@ library
 
 -- LH == Language.Hakaru
 -- primitive is used in LH.Types
--- hint is used in Maple
 -- process is used in System/MapleSSH
 -- containers used for Data.Map.String in LH.Mixture
 -- pretty used in LH.PrettyPrint
@@ -125,14 +119,6 @@ library
                        -- singletons    >= 1.0
 
 
-  if flag(patchedHint)
-    CPP-Options: -DPATCHED_HINT
-    -- Available from: <https://github.com/hakaru-dev/hint-exts>
-    build-depends: hint-exts >= 0.4.0.0 && < 0.5
-  else 
-    build-depends: hint >= 0.4.0.0 && < 0.5
-    
-
   -- hs-source-dirs:      
   default-language:    Haskell2010
   ghc-options:         -Wall
@@ -161,12 +147,6 @@ test-suite roundtrip_test
                        cassava          >= 0.4  && < 0.5,
                        zlib             >= 0.5  && < 0.6,
                        bytestring       >= 0.10 && < 0.11
-
-    if flag(patchedHint)
-      CPP-Options: -DPATCHED_HINT
-      build-depends: hint-exts >= 0.4.0.0 && < 0.5
-    else 
-      build-depends: hint >= 0.4.0.0 && < 0.5
 
     default-language:  Haskell2010
     ghc-options:         -Wall
