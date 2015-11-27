@@ -16,7 +16,7 @@ import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.DataKind
 
 import Language.Hakaru.Syntax.TypeCheck
-import Language.Hakaru.PrettyPrint
+import Language.Hakaru.PrettyConcrete
 import Language.Hakaru.Sample hiding (SData, SKonst, SEt, SDone, SPlus, SVoid)
 import Language.Hakaru.Expect
 import Language.Hakaru.Syntax.Prelude (prob_, fromProb)
@@ -74,12 +74,12 @@ testHakaru a mode g =
             Left err -> return err
             Right (TypedAST typ ast) -> do
               putStrLn ("Type: " ++ show typ ++ "\n")
-              putStrLn ("AST: " ++ (show $ pretty ast) ++ "\n")
+              putStrLn ("AST:\n" ++ (show $ pretty ast) ++ "\n")
               ast' <- simplify ast
-              putStrLn ("AST + Simplify: " ++ (show $ pretty ast') ++ "\n")
+              putStrLn ("AST + Simplify:\n" ++ (show $ pretty ast') ++ "\n")
               case typ of
                 SMeasure _ ->
-                    putStrLn ("Expectation wrt 1 as ast: " ++
+                    putStrLn ("Expectation wrt 1 as ast:\n" ++
                               (show $ pretty $
                                expect ast (\x -> (prob_ 1))) ++ "\n")
                 _ -> return ()

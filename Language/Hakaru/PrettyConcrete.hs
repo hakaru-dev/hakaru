@@ -207,15 +207,9 @@ ppSCon p (Ann_ typ) (e1 :* End) =
 ppSCon p (PrimOp_     o) es          = ppPrimOp  p o es
 ppSCon p (ArrayOp_    o) es          = ppArrayOp p o es
 ppSCon p (CoerceTo_   c) (e1 :* End) =
-    ppFun p ""
-        [ PP.text (ppCoerce c) -- TODO: make this prettier. Add hints to the coercions?
-        , toDoc $ ppArg e1
-        ]
+    ppFun p (ppCoerce c) [ toDoc $ ppArg e1 ]
 ppSCon p (UnsafeFrom_ c) (e1 :* End) =
-    ppFun p ""
-        [ PP.text (ppUnsafe c) -- TODO: make this prettier. Add hints to the coercions?
-        , toDoc $ ppArg e1
-        ]
+    ppFun p (ppUnsafe c) [ toDoc $ ppArg e1 ]
 ppSCon p (MeasureOp_ o) es       = ppMeasureOp p o es
 ppSCon p Dirac (e1 :* End)       = [PP.text "return" <+> toDoc (ppArg e1)]
 ppSCon p MBind (e1 :* e2 :* End) =
@@ -458,8 +452,8 @@ ppTuple = PP.parens . PP.sep . PP.punctuate PP.comma
 
 -- TODO: why does this take the precedence argument if it doesn't care?
 ppFun :: Int -> String -> [Doc] -> Docs
-ppFun _ f [] = [keyword $ PP.text f <> PP.text "()"]
-ppFun _ f ds = [keyword $ PP.text f, PP.nest (1 + length f) (ppTuple ds)]
+ppFun _ f [] = [PP.text f <> PP.text "()"]
+ppFun _ f ds = [PP.text f, PP.nest (1 + length f) (ppTuple ds)]
 
 ppArg :: (ABT AST abt) => abt '[] a -> Docs
 ppArg = prettyPrec_ 11 . LC_
