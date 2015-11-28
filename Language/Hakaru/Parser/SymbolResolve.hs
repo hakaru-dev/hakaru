@@ -68,19 +68,21 @@ primTable =
     -- ,("False",      False_)
     ,("fromProb",   primFromProb)
     ,("unsafeProb", primUnsafeProb)
-    ,("uniform",    primUniform)
-    ,("normal",     primNormal)
+    ,("uniform",    primMeasure2 (U.SealedOp T.Uniform))
+    ,("normal",     primMeasure2 (U.SealedOp T.Normal))
+    ,("gamma",      primMeasure2 (U.SealedOp T.Gamma))
+    ,("beta",       primMeasure2 (U.SealedOp T.Beta))
     ,("weight",     primWeight)
     -- This should probably be in U.AST'
     ,("**",         primRealPow)
     ]
 
-primNormal, primUniform, primPair, primFromProb, primUnsafeProb
-    :: Symbol (U.AST a)
-primWeight, primRealPow
-    :: Symbol (U.AST a)
-primNormal  = t2 $ \x y -> U.MeasureOp_ (U.SealedOp T.Normal)  [x,y]
-primUniform = t2 $ \x y -> U.MeasureOp_ (U.SealedOp T.Uniform) [x,y]
+
+primMeasure2 :: U.SealedOp T.MeasureOp -> Symbol (U.AST a)
+primMeasure2 m = t2 $ \x y -> U.MeasureOp_ m [x, y]
+
+primPair, primFromProb, primUnsafeProb :: Symbol (U.AST a)
+primWeight, primRealPow :: Symbol (U.AST a)
 primPair    = t2 $ \a b ->
     U.Datum_ $ U.Datum "pair"
         (U.Inl $ U.Konst a `U.Et` U.Konst b `U.Et` U.Done)

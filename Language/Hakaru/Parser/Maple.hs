@@ -34,6 +34,7 @@ style = Token.LanguageDef
 symTable :: [(Text, Text)]
 symTable =  [ ("Gaussian", "normal")
             , ("BetaD", "beta")
+            , ("GammaD", "gamma")
             , ("Weight", "weight")
             , ("Uniform", "uniform")
             ]
