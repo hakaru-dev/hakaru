@@ -27,7 +27,7 @@ instance Arbitrary Text where
   arbitrary = pack <$> ("x" ++) . show <$> getPositive <$> arbNat
   shrink xs = pack <$> shrink (unpack xs)
 
-instance Arbitrary Value' where
+instance Arbitrary Literal' where
   arbitrary = oneof [ Nat  <$> getPositive <$> arbNat
                     , Int  <$> arbitrary
                     , Prob <$> getPositive <$> arbProb
@@ -62,7 +62,7 @@ instance Arbitrary a => Arbitrary (AST' a) where
                         , ( 1, Ann <$> arbitrary <*> arbitrary)
                         , ( 1, return Infinity)
                         , ( 1, return NegInfinity)
-                        , ( 1, UValue <$> arbitrary)
+                        , ( 1, ULiteral <$> arbitrary)
                         , ( 1, NaryOp <$> arbitrary <*> arbitrary <*> arbitrary)
                         , ( 1, return Empty)
                         , ( 1, Case  <$> arbitrary <*> arbitrary)
@@ -109,14 +109,14 @@ if5 = unlines ["if True:"
               ]
 
 ifAST1 = If (Var "True")
-         (UValue (Nat 1))
-         (UValue (Nat 2))
+         (ULiteral (Nat 1))
+         (ULiteral (Nat 2))
 
 ifAST2 = If (Var "True")
-         (UValue (Nat 4))
+         (ULiteral (Nat 4))
          (If (Var "False")
-             (UValue (Nat 2))
-             (UValue (Nat 3)))
+             (ULiteral (Nat 2))
+             (ULiteral (Nat 3)))
 
 testIfs :: Test
 testIfs = test
@@ -132,7 +132,7 @@ lam1 = "fn x: x+3"
 
 lam1AST :: AST' Text
 lam1AST = Lam "x" (NaryOp Sum' (Var "x")
-                               (UValue (Nat 3)))
+                               (ULiteral (Nat 3)))
 
 def1 :: Text
 def1 = unlines ["def foo(x):"
@@ -160,24 +160,24 @@ def4 = unlines ["def foo(x nat) nat:"
 
 def1AST :: AST' Text
 def1AST = Let "foo"
-              (Lam "x" (NaryOp Sum' (Var "x") (UValue (Nat 3))))
-              (App (Var "foo") (UValue (Nat 5)))
+              (Lam "x" (NaryOp Sum' (Var "x") (ULiteral (Nat 3))))
+              (App (Var "foo") (ULiteral (Nat 5)))
 
 def2AST :: AST' Text
 def2AST = Let "foo"
               (Lam "x" (Bind "y" (App (App
                                        (Var "normal") (Var "x"))
-                                  (UValue (Prob 1.0)))
+                                  (ULiteral (Prob 1.0)))
                         (Dirac (Ann (NaryOp Sum' (Var "y") (Var "y"))
                                         (TypeVar "real")))))
-              (App (Var "foo") (UValue (Real (-2.0))))
+              (App (Var "foo") (ULiteral (Real (-2.0))))
 
 def3AST :: AST' Text
 def3AST = Let "foo" (Ann
                      (Lam "x" (NaryOp Sum' (Var "x")
-                               (UValue (Nat 3))))
+                               (ULiteral (Nat 3))))
                      (TypeFun (TypeVar "nat") (TypeVar "nat")))
-          (App (Var "foo") (UValue (Nat 5)))
+          (App (Var "foo") (ULiteral (Nat 5)))
 
 testLams :: Test
 testLams = test
@@ -195,8 +195,8 @@ let1 = unlines ["x = 3"
                ]
 
 let1AST :: AST' Text
-let1AST = Let "x" (UValue (Nat 3))
-          (Let "y" (UValue (Nat 2))
+let1AST = Let "x" (ULiteral (Nat 3))
+          (Let "y" (ULiteral (Nat 2))
            (NaryOp Sum' (Var "x") (Var "y")))
 
 testLets :: Test
@@ -217,18 +217,18 @@ bind2 = unlines ["x <~ uniform(0,1)"
 
 bind1AST :: AST' Text
 bind1AST = Bind "x" (App (App (Var "uniform")
-                          (UValue (Nat 0)))
-                     (UValue (Nat 1)))
+                          (ULiteral (Nat 0)))
+                     (ULiteral (Nat 1)))
            (Bind "y" (App (App (Var "normal")
                            (Var "x"))
-                      (UValue (Nat 1)))
+                      (ULiteral (Nat 1)))
             (Dirac (Var "y")))
 
 ret1 :: Text
 ret1 =  "return return 3"
 
 ret1AST :: AST' Text
-ret1AST = Dirac (Dirac (UValue (Nat 3)))
+ret1AST = Dirac (Dirac (ULiteral (Nat 3)))
 
 testBinds :: Test
 testBinds = test
@@ -298,7 +298,7 @@ match6 = unlines ["(match (2,3)::pair(nat,nat):"
 
 match6AST :: AST' Text
 match6AST = Ann (Case (Ann (App (App (Var "Pair")
-                                 (UValue (Nat 2))) (UValue (Nat 3)))
+                                 (ULiteral (Nat 2))) (ULiteral (Nat 3)))
                        (TypeApp "pair" [TypeVar "nat",TypeVar "nat"]))
                  [Branch' (PData' (DV "pair" [PVar' "a",PVar' "b"]))
                   (NaryOp Sum' (Var "a") (Var "b"))]) (TypeVar "nat")
@@ -324,15 +324,15 @@ ann1 :: Text
 ann1 = "5 :: nat"
 
 ann1AST :: AST' Text
-ann1AST = Ann (UValue (Nat 5)) (TypeVar "nat")
+ann1AST = Ann (ULiteral (Nat 5)) (TypeVar "nat")
 
 ann2 :: Text
 ann2 = "(2,3) :: pair(a,b)"
 
 ann2AST :: AST' Text
 ann2AST = Ann (App (App (Var "Pair")
-                            (UValue (Nat 2)))
-                            (UValue (Nat 3)))
+                            (ULiteral (Nat 2)))
+                            (ULiteral (Nat 3)))
           (TypeApp "pair"
                    [(TypeVar "a")
                    ,(TypeVar "b")
@@ -379,13 +379,13 @@ easyRoad2 = unlines ["(noiseT' <~ uniform(3, 8)"
 
 easyRoadAST :: AST' Text
 easyRoadAST = Bind "noiseT" (App (App (Var "uniform")
-                                          (UValue (Nat 3)))
-                                          (UValue (Nat 8)))
+                                          (ULiteral (Nat 3)))
+                                          (ULiteral (Nat 8)))
               (Bind "noiseE" (App (App (Var "uniform")
-                                           (UValue (Nat 1)))
-                              (UValue (Nat 4)))
+                                           (ULiteral (Nat 1)))
+                              (ULiteral (Nat 4)))
                (Bind "x1" (App (App (Var "normal")
-                                        (UValue (Nat 0)))
+                                        (ULiteral (Nat 0)))
                                         (Var "noiseT"))
                 (Bind "m1" (App (App (Var "normal")
                                          (Var "x1"))

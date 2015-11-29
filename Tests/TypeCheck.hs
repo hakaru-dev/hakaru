@@ -21,14 +21,14 @@ import Test.HUnit
 
 five :: U.AST a
 five =  U.NaryOp_ U.Sum'
-        [ U.Value_ $ Some1 $ T.VInt 2
-        , U.Value_ $ Some1 $ T.VInt 3
+        [ U.Literal_ $ Some1 $ T.LInt 2
+        , U.Literal_ $ Some1 $ T.LInt 3
         ]
 
 normal01 :: U.AST a
 normal01 = U.MeasureOp_ (U.SealedOp T.Normal)
-           [ U.Value_ $ Some1 $ T.VReal 0
-           , U.Value_ $ Some1 $ T.VProb 1
+           [ U.Literal_ $ Some1 $ T.LReal 0
+           , U.Literal_ $ Some1 $ T.LProb 1
            ]
 
 xname :: U.Name
@@ -39,7 +39,7 @@ normalb = U.MBind_ xname
            normal01
            (U.MeasureOp_ (U.SealedOp T.Normal)
                  [ U.Var_ xname
-                 , U.Value_ $ Some1 $ T.VProb 1
+                 , U.Literal_ $ Some1 $ T.LProb 1
                  ])
 
 

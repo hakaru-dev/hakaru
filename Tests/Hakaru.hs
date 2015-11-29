@@ -75,10 +75,11 @@ testHakaru a mode g =
             Right (TypedAST typ ast) -> do
               putStrLn ("Type: " ++ (show $ prettyType typ) ++ "\n")
               putStrLn ("AST:\n" ++ (show $ pretty ast) ++ "\n")
-              ast' <- simplify ast
-              putStrLn ("AST + Simplify:\n" ++ (show $ pretty ast') ++ "\n")
               case typ of
-                SMeasure _ ->
+                SMeasure _ -> do
+                    ast' <- simplify ast
+                    putStrLn ("AST + Simplify:\n" ++ (show $ pretty ast') ++ "\n")
+                    
                     putStrLn ("Expectation wrt 1 as ast:\n" ++
                               (show $ pretty $
                                expect ast (\x -> (prob_ 1))) ++ "\n")
