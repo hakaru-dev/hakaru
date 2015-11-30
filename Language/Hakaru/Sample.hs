@@ -4,6 +4,7 @@
            , TypeOperators
            , TypeFamilies
            , DataKinds
+           , RankNTypes
            , FlexibleContexts
            #-}
 
@@ -27,6 +28,7 @@ import Data.Maybe                                (fromMaybe)
 import           Control.Applicative   (Applicative(..), (<$>))
 #endif
 
+import Control.Monad.Identity
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
 
@@ -39,12 +41,12 @@ import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Datum
+import Language.Hakaru.Syntax.DatumCase
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
 
 import Language.Hakaru.Lazy.Types
 import Language.Hakaru.Lazy
-import Language.Hakaru.Disintegrate (perform)
 
 import Language.Hakaru.PrettyPrint
 
@@ -447,7 +449,15 @@ sampleCase :: (ABT AST abt, PrimMonad m, Functor m) =>
                 (abt '[] a) -> [Branch a abt b] ->
                 Env m -> S m b
 sampleCase o es env =
-    error "TODO: sampleCase"
+    case runIdentity $ matchBranches undefined o es of
+      Just (Matched as Nil1, b) -> sample (LC_ $ extendFromMatch (as []) b) env
+  where extendFromMatch :: (ABT AST abt) =>
+                           [Assoc abt] -> abt '[] b -> abt '[] b 
+        extendFromMatch []                e2 = e2
+        extendFromMatch ((Assoc x e1):as) e2 =
+            syn (Let_ :$ e1 :*
+                         bind x (extendFromMatch as e2) :* End)
+
     {-
     -- BUG: using 'perform' means using the 'M' EvaluationMonad, which returns the lub of results rather than just one!
     let w  = evaluate perform $ syn (Case_ o es)
