@@ -150,13 +150,3 @@ test-suite roundtrip_test
 
     default-language:  Haskell2010
     ghc-options:         -Wall
-
--- Bench.hs does not exist!
--- benchmark bench-all
---     type:              exitcode-stdio-1.0
---     hs-source-dirs:    Bench
---     main-is:           Bench.hs
---     build-depends:     base, deepseq, ghc-prim,
---                        criterion, hakaru >= 0.1.3
---     ghc-options:       -O2
---     default-language:  Haskell2010
