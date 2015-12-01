@@ -44,6 +44,7 @@ module Language.Hakaru.Lazy.Types
     , EvaluationMonad(..)
     , freshVar
     , freshenVar
+    , Hint(..), freshVars
     {- TODO: should we expose these?
     , freshenVars
     , freshenStatement
@@ -94,6 +95,8 @@ import Language.Hakaru.Syntax.ABT
 -- too much work to bother with.
 
 
+-- TODO: for forward disintegration (which is not just partial evaluation) we really do mean proper HNFs not just WHNFs. This falls out from our needing to guarantee that heap-bound variables can't possibly escape; whence the assumption that the result of forward disintegration contains no heap-bound variables.
+--
 -- TODO: is there a way to integrate this into the actual 'AST'
 -- definition in order to reduce repetition?
 --
@@ -417,6 +420,9 @@ freshenStatement s =
         return (SIndex x' index size, singletonAssocs x (var x'))
 
 
+-- TODO: define a new NameSupply monad in "Language.Hakaru.Syntax.Variable" for encapsulating these four fresh(en) functions?
+
+
 -- | Given some hint and type, generate a variable with a fresh
 -- 'varID'.
 freshVar
@@ -424,20 +430,32 @@ freshVar
     => Text
     -> Sing (a :: Hakaru)
     -> m (Variable a)
-freshVar hint typ = do
-    i <- freshNat
-    return $ Variable hint i typ
+freshVar hint typ = (\i -> Variable hint i typ) <$> freshNat
+
+
+-- TODO: move to "Language.Hakaru.Syntax.Variable" in case anyone else wants it too.
+data Hint (a :: Hakaru) = Hint {-# UNPACK #-} !Text !(Sing a)
+
+-- | Call 'freshVar' repeatedly.
+-- TODO: make this more efficient than actually calling 'freshVar'
+-- repeatedly.
+freshVars
+    :: (EvaluationMonad abt m)
+    => List1 Hint xs
+    -> m (List1 Variable xs)
+freshVars Nil1         = return Nil1
+freshVars (Cons1 x xs) = Cons1 <$> freshVar' x <*> freshVars xs
+    where
+    freshVar' (Hint hint typ) = freshVar hint typ
 
 
 -- | Given a variable, return a new variable with the same hint and
 -- type but with a fresh 'varID'.
 freshenVar
     :: (EvaluationMonad abt m)
-    => Variable (x :: Hakaru)
-    -> m (Variable x)
-freshenVar x = do
-    i <- freshNat
-    return x{varID=i}
+    => Variable (a :: Hakaru)
+    -> m (Variable a)
+freshenVar x = (\i -> x{varID=i}) <$> freshNat
 
 
 -- | Call 'freshenVar' repeatedly.

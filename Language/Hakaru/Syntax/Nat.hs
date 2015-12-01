@@ -97,25 +97,70 @@ instance Num Nat where
     {-# INLINE fromInteger #-}
 
 instance Enum Nat where
+    succ (Nat i) = if i /= maxBound then Nat (i+1) else error _errmsg_succ
+    pred (Nat i) = if i /= 0        then Nat (i-1) else error _errmsg_pred
+    toEnum n     = if n >= 0        then Nat n     else error _errmsg_toEnum
+    fromEnum (Nat i) = i
+
+    enumFrom       (Nat i)                 = map Nat (enumFrom       i)
+    enumFromThen   (Nat i) (Nat j)         = map Nat (enumFromThen   i j)
+    enumFromTo     (Nat i)         (Nat k) = map Nat (enumFromTo     i   k)
+    enumFromThenTo (Nat i) (Nat j) (Nat k) = map Nat (enumFromThenTo i j k)
+    {-# INLINE succ #-}
+    {-# INLINE pred #-}
+    {-# INLINE toEnum #-}
+    {-# INLINE fromEnum #-}
+    {-# INLINE enumFrom #-}
+    {-# INLINE enumFromThen #-}
+    {-# INLINE enumFromTo #-}
+    {-# INLINE enumFromThenTo #-}
+
 instance Real Nat where
+    toRational (Nat i) = toRational i
+    {-# INLINE toRational #-}
+
 instance Integral Nat where
+    quot    (Nat i) (Nat j) = Nat (quot i j)
+    rem     (Nat i) (Nat j) = Nat (rem  i j)
+    quotRem (Nat i) (Nat j) = case quotRem i j of (q,r) -> (Nat q, Nat r)
+    div    = quot
+    mod    = rem
+    divMod = quotRem
+    toInteger (Nat i) = toInteger i
+    {-# INLINE quot #-}
+    {-# INLINE rem #-}
+    {-# INLINE div #-}
+    {-# INLINE mod #-}
+    {-# INLINE quotRem #-}
+    {-# INLINE divMod #-}
+    {-# INLINE toInteger #-}
 
-_errmsg_unsafeNat, _errmsg_subtraction, _errmsg_negate, _errmsg_fromInteger
-    :: String
-_errmsg_unsafeNat   = "unsafeNat: negative input"
-_errmsg_subtraction = "(-)@Nat: Num is a bad abstraction"
-_errmsg_negate      = "negate@Nat: Num is a bad abstraction"
-_errmsg_fromInteger = "fromInteger@Nat: Num is a bad abstraction"
-{-# NOINLINE _errmsg_unsafeNat #-}
-{-# NOINLINE _errmsg_subtraction #-}
-{-# NOINLINE _errmsg_negate #-}
-{-# NOINLINE _errmsg_fromInteger #-}
 
+----------------------------------------------------------------
 newtype MaxNat = MaxNat { unMaxNat :: Nat }
 
 instance Monoid MaxNat where
     mempty                        = MaxNat 0
     mappend (MaxNat m) (MaxNat n) = MaxNat (max m n)
+
+
+----------------------------------------------------------------
+_errmsg_unsafeNat, _errmsg_subtraction, _errmsg_negate, _errmsg_fromInteger, _errmsg_succ, _errmsg_pred, _errmsg_toEnum
+    :: String
+_errmsg_unsafeNat   = "unsafeNat: negative input"
+_errmsg_subtraction = "(-)@Nat: Num is a bad abstraction"
+_errmsg_negate      = "negate@Nat: Num is a bad abstraction"
+_errmsg_fromInteger = "fromInteger@Nat: Num is a bad abstraction"
+_errmsg_succ        = "succ@Nat: No successor of the maxBound"
+_errmsg_pred        = "pred@Nat: No predecessor of zero"
+_errmsg_toEnum      = "toEnum@Nat: negative input"
+{-# NOINLINE _errmsg_unsafeNat #-}
+{-# NOINLINE _errmsg_subtraction #-}
+{-# NOINLINE _errmsg_negate #-}
+{-# NOINLINE _errmsg_fromInteger #-}
+{-# NOINLINE _errmsg_succ #-}
+{-# NOINLINE _errmsg_pred #-}
+{-# NOINLINE _errmsg_toEnum #-}
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

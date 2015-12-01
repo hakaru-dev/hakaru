@@ -36,7 +36,7 @@ import qualified Data.Text        as T
 import qualified Data.IntMap      as IM
 
 import Language.Hakaru.Syntax.Nat      (fromNat, unsafeNat, Nat())
-import Language.Hakaru.Syntax.Natural  (fromNatural)
+import Language.Hakaru.Syntax.Natural  (fromNatural, fromNonNegativeRational)
 import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.HClasses
@@ -407,7 +407,7 @@ sampleMeasureOp _ _ _ =
 sampleLiteral :: Literal a -> S m a
 sampleLiteral (LNat  n) = S (fromInteger $ fromNatural n) -- TODO: catch overflow errors
 sampleLiteral (LInt  n) = S (fromInteger n) -- TODO: catch overflow errors
-sampleLiteral (LProb n) = S n
+sampleLiteral (LProb n) = S (fromRational $ fromNonNegativeRational n)
 sampleLiteral (LReal n) = S (fromRational n)
 
 -- HACK only will work for HPair

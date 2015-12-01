@@ -339,6 +339,8 @@ emit_ f = M $ \c h -> f <$> c () h
 emitMBind_ :: (ABT AST abt) => abt '[] ('HMeasure HUnit) -> M abt ()
 emitMBind_ m = emit_ (m P.>>)
 
+-- BUG: Ken says do it some other way, because 'traverse' is the wrong semantics, and broadly speaking there's the partial evaluation issue of needing to duplicate the downstream work because of there being no general way to combine the resulting heaps from each branch.
+--
 -- | Run each of the elements of the traversable using the same
 -- heap and continuation, then pass the results to a function for
 -- emitting code.
@@ -397,17 +399,6 @@ emitCase_ e =
     emitFork_ (syn . Case_ e . fmap fromGBranch . getCompose) . Compose
 
 
-data Hint (a :: Hakaru) = Hint {-# UNPACK #-} !Text.Text !(Sing a)
-
-freshVars
-    :: (EvaluationMonad abt m)
-    => List1 Hint xs
-    -> m (List1 Variable xs)
-freshVars Nil1         = return Nil1
-freshVars (Cons1 x xs) = Cons1 <$> freshVar' x <*> freshVars xs
-    where
-    freshVar' (Hint hint typ) = freshVar hint typ
-
 data GGBranch (a :: Hakaru) (r :: [Hakaru] -> *)
     = forall xs. GGBranch
         !(Pattern xs a)
@@ -417,6 +408,7 @@ data GGBranch (a :: Hakaru) (r :: [Hakaru] -> *)
 newtype Body (a :: *) (xs :: [Hakaru]) =
     Body { unBody :: List1 Variable xs -> a }
 
+-- BUG: Ken says do it some other way, because 'traverse' is the wrong semantics, and broadly speaking there's the partial evaluation issue of needing to duplicate the downstream work because of there being no general way to combine the resulting heaps from each branch.
 emitCase
     :: (ABT AST abt)
     => abt '[] a

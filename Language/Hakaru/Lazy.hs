@@ -13,7 +13,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.23
+--                                                    2015.12.01
 -- |
 -- Module      :  Language.Hakaru.Lazy
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -44,13 +44,13 @@ import           Control.Category       (Category(..))
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Functor           ((<$>))
 #endif
+import           Data.Ratio             (numerator, denominator)
 import qualified Data.Traversable       as T
 import           Control.Monad          ((<=<))
 import           Control.Monad.Identity (Identity, runIdentity)
 import           Data.Sequence          (Seq)
 import qualified Data.Sequence          as Seq
 import qualified Data.Text              as Text
-import           Data.Number.LogFloat   (LogFloat, logFloat, fromLogFloat)
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.HClasses
@@ -181,7 +181,7 @@ evaluate perform = evaluate_
                 Just (Matched ss Nil1, body) ->
                     pushes (toStatements ss) body evaluate_
 
-        _ -> error "evaluate: the impossible happened"
+        _ :$ _ -> error "evaluate: the impossible happened"
 
 
 type DList a = [a] -> [a]
@@ -316,10 +316,10 @@ coerceTo_Literal (CCons c cs) v = coerceTo_Literal cs (step c v)
     -- HACK: type signatures needed to avoid defaulting
     nat2int   :: Natural -> Integer
     nat2int   = fromNatural
-    nat2prob  :: Natural -> LogFloat
-    nat2prob  = logFloat . fromIntegral . fromNatural -- N.B., costs a 'log'
-    prob2real :: LogFloat -> Rational
-    prob2real = toRational . fromLogFloat -- N.B., costs an 'exp' and may underflow
+    nat2prob  :: Natural -> NonNegativeRational
+    nat2prob  = unsafeNonNegativeRational . toRational -- N.B., is safe here
+    prob2real :: NonNegativeRational -> Rational
+    prob2real = fromNonNegativeRational
     int2real  :: Integer -> Rational
     int2real  = fromIntegral
 
@@ -337,14 +337,20 @@ unsafeFrom_Literal (CCons c cs) v = step c (unsafeFrom_Literal cs v)
     step _ _ = error "unsafeFrom_Literal: the impossible happened"
 
     -- HACK: type signatures needed to avoid defaulting
-    int2nat   :: Integer -> Natural
-    int2nat   = unsafeNatural -- TODO: maybe change the error message...
-    prob2nat  :: LogFloat -> Natural
-    prob2nat  = error "TODO: prob2nat" -- BUG: impossible unless using Rational...
-    real2prob :: Rational -> LogFloat
-    real2prob = logFloat . fromRational -- TODO: maybe change the error message...
-    real2int  :: Rational -> Integer
-    real2int  = error "TODO: real2int" -- BUG: impossible unless using Rational...
+    int2nat  :: Integer -> Natural
+    int2nat  = unsafeNatural -- TODO: maybe change the error message...
+    prob2nat :: NonNegativeRational -> Natural
+    prob2nat x =
+        if denominator x == 1
+        then numerator x
+        else error "unsafeFrom_Literal: non-integral HProb"
+    real2prob :: Rational -> NonNegativeRational
+    real2prob = unsafeNonNegativeRational -- TODO: maybe change the error message...
+    real2int :: Rational -> Integer
+    real2int x =
+        if denominator x == 1
+        then numerator x
+        else error "unsafeFrom_Literal: non-integral HReal"
 
 
 ----------------------------------------------------------------
@@ -368,9 +374,9 @@ instance Interp 'HInt Integer where
     reify (WCoerceTo   _ _) = error "TODO: reify{WCoerceTo}"
     reify (WUnsafeFrom _ _) = error "TODO: reify{WUnsafeFrom}"
 
-instance Interp 'HProb LogFloat where -- TODO: use Ratio Natural instead
+instance Interp 'HProb NonNegativeRational where
     reflect = WLiteral . LProb
-    reify (WLiteral (LProb p))  = p
+    reify (WLiteral (LProb p)) = p
     reify (WAnn        _ v)   = reify v
     reify (WCoerceTo   _ _)   = error "TODO: reify{WCoerceTo}"
     reify (WUnsafeFrom _ _)   = error "TODO: reify{WUnsafeFrom}"
@@ -468,7 +474,7 @@ diff x y = x && not y
 nand x y = not (x && y)
 nor  x y = not (x || y)
 
--- BUG: no Floating instance for LogFloat, so can't actually use this...
+-- BUG: no Floating instance for LogFloat (nor NonNegativeRational), so can't actually use this...
 natRoot :: (Floating a) => a -> Nat -> a
 natRoot x y = x ** recip (fromIntegral (fromNat y))
 

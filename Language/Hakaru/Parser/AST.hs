@@ -21,7 +21,6 @@ import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.IClasses
 
 import Data.Text
-import qualified Data.Number.LogFloat as LF
 import Text.Parsec (SourcePos)
 
 -- N.B., because we're not using the ABT's trick for implementing a HOAS API, we can make the identifier strict.
@@ -98,7 +97,7 @@ data NaryOp'
 val :: Literal' -> Some1 Literal
 val (Nat  n) = Some1 $ LNat  (N.unsafeNatural $ fromIntegral n) -- TODO: clean up
 val (Int  n) = Some1 $ LInt  (fromIntegral n) -- TODO: clean up
-val (Prob n) = Some1 $ LProb (LF.logFloat  n)
+val (Prob n) = Some1 $ LProb (N.unsafeNonNegativeRational $ toRational n) -- BUG: parse a Rational in the first place!
 val (Real n) = Some1 $ LReal (toRational   n) -- BUG: parse a Rational in the first place!
 
 data TypeAST'

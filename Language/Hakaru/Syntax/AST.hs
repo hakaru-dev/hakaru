@@ -51,13 +51,10 @@ module Language.Hakaru.Syntax.AST
 import           Data.Sequence (Seq)
 import qualified Data.Foldable as F
 #if __GLASGOW_HASKELL__ < 710
-import Data.Monoid             (Monoid(..))
+import           Data.Monoid   (Monoid(..))
 #endif
-import Control.Arrow           ((***))
-import Data.Number.LogFloat    (LogFloat)
-import Data.Ratio              (Ratio)
+import           Control.Arrow ((***))
 
-import Language.Hakaru.Syntax.Nat
 import Language.Hakaru.Syntax.Natural
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.DataKind
@@ -69,7 +66,6 @@ import Language.Hakaru.Syntax.Datum
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 -- BUG: can't UNPACK 'Integer' and 'Natural' like we can for 'Int' and 'Nat'
--- TODO: replace 'LogFloat' with something like @Ratio Natural@; excepting that Natural isn't Integral!!!
 
 -- | Numeric literals for the primitive numeric types. In addition
 -- to being normal forms, these are also ground terms: that is, not
@@ -78,8 +74,8 @@ import Language.Hakaru.Syntax.Datum
 data Literal :: Hakaru -> * where
     LNat   :: !Natural -> Literal 'HNat
     LInt   :: !Integer -> Literal 'HInt
-    LProb  :: {-# UNPACK #-} !LogFloat -> Literal 'HProb
-    LReal  :: {-# UNPACK #-} !Rational -> Literal 'HReal
+    LProb  :: {-# UNPACK #-} !NonNegativeRational -> Literal 'HProb
+    LReal  :: {-# UNPACK #-} !Rational            -> Literal 'HReal
 
 instance Eq1 Literal where
     eq1 (LNat  v1) (LNat  v2) = v1 == v2

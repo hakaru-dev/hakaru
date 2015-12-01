@@ -32,11 +32,10 @@ module Language.Hakaru.Syntax.Prelude where
 -- TODO: implement and use Prelude's fromInteger and fromRational, so we can use numeric literals!
 import Prelude (Maybe(..), Bool(..), Integer, Rational, ($), flip, const, error)
 import qualified Prelude
-import           Data.Sequence        (Seq)
-import qualified Data.Sequence        as Seq
-import qualified Data.Text            as Text
-import           Control.Category     (Category(..))
-import           Data.Number.LogFloat (LogFloat)
+import           Data.Sequence    (Seq)
+import qualified Data.Sequence    as Seq
+import qualified Data.Text        as Text
+import           Control.Category (Category(..))
 
 import Language.Hakaru.Syntax.Natural
 import Language.Hakaru.Syntax.DataKind
@@ -241,7 +240,7 @@ nat_     :: (ABT AST abt) => Natural  -> abt '[] 'HNat
 nat_     = literal_ . LNat
 int_     :: (ABT AST abt) => Integer  -> abt '[] 'HInt
 int_     = literal_ . LInt
-prob_    :: (ABT AST abt) => LogFloat -> abt '[] 'HProb
+prob_    :: (ABT AST abt) => NonNegativeRational -> abt '[] 'HProb
 prob_    = literal_ . LProb
 real_    :: (ABT AST abt) => Rational -> abt '[] 'HReal
 real_    = literal_ . LReal

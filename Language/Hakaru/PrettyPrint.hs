@@ -7,7 +7,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.23
+--                                                    2015.12.01
 -- |
 -- Module      :  Language.Hakaru.PrettyPrint
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -37,7 +37,7 @@ import qualified Data.Text        as Text
 import qualified Data.Sequence    as Seq -- Because older versions of "Data.Foldable" do not export 'null' apparently...
 
 import Language.Hakaru.Syntax.Nat      (fromNat)
-import Language.Hakaru.Syntax.Natural  (fromNatural)
+import Language.Hakaru.Syntax.Natural  (fromNatural, fromNonNegativeRational)
 import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11)
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Coercion
@@ -328,8 +328,8 @@ ppMeasureOp _ _ _ = error "ppMeasureOp: the impossible happened"
 instance Pretty Literal where
     prettyPrec_ p (LNat  n) = ppFun p "nat_"  [PP.integer (fromNatural n)]
     prettyPrec_ p (LInt  i) = ppFun p "int_"  [PP.integer i]
-    prettyPrec_ p (LProb l) = ppFun p "prob_" [PP.text (showsPrec 11 l "")]
-        -- TODO: make it prettier! (e.g., don't use LogFloat in the AST)
+    prettyPrec_ p (LProb l) = ppFun p "prob_" [PP.rational $ fromNonNegativeRational l]
+        -- TODO: make it prettier! (i.e., print as decimal notation)
     prettyPrec_ p (LReal r) = ppFun p "real_" [PP.rational r]
         -- TODO: make it prettier! (i.e., print as decimal notation)
 

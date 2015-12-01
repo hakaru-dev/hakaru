@@ -8,7 +8,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.23
+--                                                    2015.12.01
 -- |
 -- Module      :  Language.Hakaru.PrettyConcrete
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -36,12 +36,11 @@ import           System.Console.ANSI
 import           Text.PrettyPrint (Doc, (<>), (<+>))
 import qualified Text.PrettyPrint as PP
 import qualified Data.Foldable    as F
-import           Data.Number.LogFloat
 import qualified Data.Text        as Text
 import qualified Data.Sequence    as Seq -- Because older versions of "Data.Foldable" do not export 'null' apparently...
 
 import Language.Hakaru.Syntax.Nat      (fromNat)
-import Language.Hakaru.Syntax.Natural  (fromNatural)
+import Language.Hakaru.Syntax.Natural  (fromNatural, fromNonNegativeRational)
 import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11)
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Coercion
@@ -365,8 +364,8 @@ ppMeasureOp _ _ _ = error "ppMeasureOp: the impossible happened"
 instance Pretty Literal where
     prettyPrec_ _ (LNat  n) = [PP.integer (fromNatural n)]
     prettyPrec_ _ (LInt  i) = [PP.integer i]
-    prettyPrec_ _ (LProb l) = [PP.text (showsPrec 11 (fromLogFloat l) "")]
-        -- TODO: make it prettier! (e.g., don't use LogFloat in the AST)
+    prettyPrec_ _ (LProb l) = [PP.rational $ fromNonNegativeRational l]
+        -- TODO: make it prettier! (i.e., print as decimal notation)
     prettyPrec_ _ (LReal r) = [PP.rational r]
         -- TODO: make it prettier! (i.e., print as decimal notation)
 
