@@ -19,8 +19,6 @@ library
   exposed-modules:     Language.Hakaru.Syntax,
                        Language.Hakaru.Maple,
                        Language.Hakaru.MapleNeue,
-                       Language.Hakaru.Lambda,
-                       Language.Hakaru.Simplifiable,
                        Language.Hakaru.Simplify,
                        --Language.Hakaru.Any,
                        Language.Hakaru.Util.Csv,
