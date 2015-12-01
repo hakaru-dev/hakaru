@@ -454,9 +454,7 @@ NewSLO := module ()
   # first freeze (irrelevant) sums and products, then freeze (irrelevant)
   # idx calls.  These confuse some routines (like gfun[holexprtodiffeq])
   freeze_difficult := proc(e,x)
-    local round1;
-    round1 := evalindets(e, 'And(specfunc({product,sum}), freeof(x))', freeze);
-    evalindets(round1, 'And(specfunc(idx), freeof(x))', freeze);
+    evalindets(e, 'And(specfunc({product,sum,idx}), freeof(x))', freeze);
   end proc;
 
   # this code should not currently be used, it is just a snapshot in time
