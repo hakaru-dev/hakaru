@@ -31,27 +31,19 @@ module Language.Hakaru.Simplify
 import Control.Exception
 
 import Language.Hakaru.MapleNeue (Maple, runMaple)
-import Language.Hakaru.Any (Any(Any), AnySimplifiable(AnySimplifiable))
-import Language.Hakaru.PrettyPrint (pretty)
 
 import Language.Hakaru.Parser.Maple
 import Language.Hakaru.Parser.SymbolResolve (resolveAST)
 
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
-import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Syntax.TypeOf
 
 import Data.Typeable (Typeable)
 
-import Control.Monad.Trans.State.Strict (evalState)
-
-import System.IO (stderr, hPrint, hPutStrLn)
-import Data.List (tails, stripPrefix)
-import Data.Text (replace, pack, unpack)
-import Data.Char (isSpace)
+import Data.Text (replace, pack)
 import System.MapleSSH (maple)
 
 ----------------------------------------------------------------
