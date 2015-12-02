@@ -201,6 +201,18 @@ instance JmEq2 PrimCoercion where
     jmEq2 _ _ = Nothing
 
 
+instance Eq2 Coercion where
+    eq2 CNil         CNil         = True
+    eq2 (CCons a as) (CCons b bs) =
+      case jmEq2 a b of
+         Just (Refl, Refl) -> eq2 as bs
+         Nothing -> False
+instance Eq1 (Coercion a) where
+    eq1 = eq2
+instance Eq  (Coercion a b) where
+    (==) = eq1
+
+
 data CoerceTo_UnsafeFrom :: Hakaru -> Hakaru -> * where
     CTUF :: !(Coercion b c) -> !(Coercion b a) -> CoerceTo_UnsafeFrom a c
 
