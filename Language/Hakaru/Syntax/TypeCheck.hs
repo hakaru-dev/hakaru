@@ -69,6 +69,17 @@ inferable = not . mustCheck
 
 -- | Those terms whose types must be checked analytically. We cannot
 -- synthesize (unambiguous) types for these terms.
+--
+-- N.B., this function assumes we're in 'StrictMode'. If we're
+-- actually in 'LaxMode' then a handful of AST nodes behave
+-- differently: in particular, 'U.NaryOp_', 'U.Superpose', and
+-- 'U.Case_'. In strict mode those cases can just infer one of their
+-- arguments and then check the rest against the inferred type.
+-- (For case-expressions, we must also check the scrutinee since
+-- it's type cannot be unambiguously inferred from the patterns.)
+-- Whereas in lax mode we must infer all arguments and then take
+-- the lub of their types in order to know which coercions to
+-- introduce.
 mustCheck :: U.AST a -> Bool
 mustCheck = go
     where
@@ -193,6 +204,7 @@ getCtx = TCM (const . Right)
 failwith :: TypeCheckError -> TypeCheckMonad a
 failwith e = TCM $ \_ _ -> Left e
 
+-- | Fail with a type-mismatch error.
 typeMismatch
     :: Show1 (Sing :: k -> *)
     => Either String (Sing (a :: k))
