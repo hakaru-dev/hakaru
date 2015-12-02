@@ -338,14 +338,20 @@ unsafeFrom_Literal (CCons c cs) v = step c (unsafeFrom_Literal cs v)
 
     -- HACK: type signatures needed to avoid defaulting
     int2nat  :: Integer -> Natural
-    int2nat  = unsafeNatural -- TODO: maybe change the error message...
+    int2nat x =
+        case toNatural x of
+        Just y  -> y
+        Nothing -> error "unsafeFrom_Literal: negative HInt"
     prob2nat :: NonNegativeRational -> Natural
     prob2nat x =
         if denominator x == 1
         then numerator x
         else error "unsafeFrom_Literal: non-integral HProb"
     real2prob :: Rational -> NonNegativeRational
-    real2prob = unsafeNonNegativeRational -- TODO: maybe change the error message...
+    real2prob x =
+        case toNonNegativeRational x of
+        Just y  -> y
+        Nothing -> error "unsafeFrom_Literal: negative HReal"
     real2int :: Rational -> Integer
     real2int x =
         if denominator x == 1
