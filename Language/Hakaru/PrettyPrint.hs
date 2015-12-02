@@ -170,7 +170,7 @@ instance (ABT AST abt) => Pretty (LC_ abt) where
 ppSCon :: (ABT AST abt) => Int -> SCon args a -> SArgs abt args -> Docs
 ppSCon p Lam_ (e1 :* End) =
     parens (p > 0) $ adjustHead (PP.text "lam $" <+>) (ppBinder e1)
-ppSCon p App_ (e1 :* e2 :* End) = ppBinop "`app`" 9 LeftAssoc p e1 e2
+ppSCon p App_ (e1 :* e2 :* End) = ppBinop "`app`" 9 LeftAssoc p e1 e2 -- BUG: this puts extraneous parentheses around e2 when it's a function application...
 ppSCon p Let_ (e1 :* e2 :* End) =
     parens (p > 0) $ 
         adjustHead
@@ -328,9 +328,9 @@ ppMeasureOp _ _ _ = error "ppMeasureOp: the impossible happened"
 instance Pretty Literal where
     prettyPrec_ p (LNat  n) = ppFun p "nat_"  [PP.integer (fromNatural n)]
     prettyPrec_ p (LInt  i) = ppFun p "int_"  [PP.integer i]
-    prettyPrec_ p (LProb l) = ppFun p "prob_" [PP.rational $ fromNonNegativeRational l]
+    prettyPrec_ p (LProb l) = ppFun p "prob_" [PP.parens . PP.rational $ fromNonNegativeRational l]
         -- TODO: make it prettier! (i.e., print as decimal notation)
-    prettyPrec_ p (LReal r) = ppFun p "real_" [PP.rational r]
+    prettyPrec_ p (LReal r) = ppFun p "real_" [PP.parens $ PP.rational r]
         -- TODO: make it prettier! (i.e., print as decimal notation)
 
 

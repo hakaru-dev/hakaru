@@ -102,7 +102,7 @@ test5 =
 
 {-
 total (array (nat_ 1) (\x -> dirac x) ! nat_ 0) :: TrivialABT AST '[] 'HProb
-syn (Literal_ (VProb LogFloat 1.0))
+syn (Literal_ (VProb 1.0))
 -}
 
 ----------------------------------------------------------------

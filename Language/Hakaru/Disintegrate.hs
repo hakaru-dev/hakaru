@@ -15,7 +15,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs -fno-warn-unused-binds -fno-warn-unused-imports #-}
 ----------------------------------------------------------------
---                                                    2015.11.18
+--                                                    2015.12.01
 -- |
 -- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -24,7 +24,21 @@
 -- Stability   :  experimental
 -- Portability :  GHC-only
 --
--- Disintegration via partial evaluation.
+-- Disintegration via lazy partial evaluation.
+--
+-- N.B., the forward direction of disintegration is /not/ just
+-- partial evaluation! In the version discussed in the paper we
+-- must also ensure that no heap-bound variables occur in the result,
+-- which requires using HNFs rather than WHNFs. That condition is
+-- sound, but a bit too strict; we could generalize this to handle
+-- cases where there may be heap-bound variables remaining in neutral
+-- terms, provided we (a) don't end up trying to go both forward
+-- and backward on the same variable, and (more importantly) (b)
+-- end up with the proper Jacobian. The paper version is rigged to
+-- ensure that whenever we recurse into two subexpressions (e.g.,
+-- the arguments to addition) one of them has a Jacobian of zero,
+-- thus when going from @x*y@ to @dx*y + x*dy@ one of the terms
+-- cancels out.
 ----------------------------------------------------------------
 module Language.Hakaru.Disintegrate
     (
@@ -52,7 +66,6 @@ import qualified Data.Foldable        as F
 import           Data.Traversable     (Traversable)
 import qualified Data.Traversable     as T
 import qualified Data.Text            as Text
-import           Data.Number.LogFloat (LogFloat)
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.Nat (Nat)

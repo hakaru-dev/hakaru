@@ -364,9 +364,9 @@ ppMeasureOp _ _ _ = error "ppMeasureOp: the impossible happened"
 instance Pretty Literal where
     prettyPrec_ _ (LNat  n) = [PP.integer (fromNatural n)]
     prettyPrec_ _ (LInt  i) = [PP.integer i]
-    prettyPrec_ _ (LProb l) = [PP.rational $ fromNonNegativeRational l]
+    prettyPrec_ _ (LProb l) = [PP.parens . PP.rational $ fromNonNegativeRational l]
         -- TODO: make it prettier! (i.e., print as decimal notation)
-    prettyPrec_ _ (LReal r) = [PP.rational r]
+    prettyPrec_ _ (LReal r) = [PP.parens $ PP.rational r]
         -- TODO: make it prettier! (i.e., print as decimal notation)
 
 
