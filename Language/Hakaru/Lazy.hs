@@ -576,7 +576,7 @@ evaluateNaryOp evaluate_ = \o es -> mainLoop o (evalOp o) Seq.empty es
     evalOp (Prod s) (WLiteral v1) (WLiteral v2) = WLiteral $ evalProd s v1 v2
     evalOp (Sum  _) _ _ = error "evalOp: the impossible happened"
     evalOp (Prod _) _ _ = error "evalOp: the impossible happened"
-    evalOp _ _ _ = error "TODO: evalOp{HBool ops, HOrd ops}"
+    evalOp _ _ _ = error "TODO: evalOp{Min,Max}"
 
     evalSum, evalProd :: HSemiring a -> Literal a -> Literal a -> Literal a
     evalSum  HSemiring_Nat  (LNat  n1) (LNat  n2) = LNat  (n1 + n2)
@@ -738,27 +738,18 @@ evaluatePrimOp evaluate_ = go
         case theRing of
         HRing_Int        -> rr1 negate P.negate e1
         HRing_Real       -> rr1 negate P.negate e1
-    go (Abs    theRing) (e1 :* End) = 
-        error "TODO"
-        {-
+    go (Abs    theRing) (e1 :* End) =
         case theRing of
-        HRing_Int        -> rr1 (unsafeNat . abs) P.abs_ e1
-        HRing_Real       -> rr1 (logFloat  . abs) P.abs_ e1
-        -}
+        HRing_Int        -> rr1 (unsafeNatural . abs) P.abs_ e1
+        HRing_Real       -> rr1 (unsafeNonNegativeRational  . abs) P.abs_ e1
     go (Signum theRing) (e1 :* End) =
-        error "TODO"
-        {-
         case theRing of
         HRing_Int        -> rr1 signum P.signum e1
         HRing_Real       -> rr1 signum P.signum e1
-        -}
     go (Recip  theFractional) (e1 :* End) =
-        error "TODO"
-        {-
         case theFractional of
         HFractional_Prob -> rr1 recip  P.recip  e1
         HFractional_Real -> rr1 recip  P.recip  e1
-        -}
     {-
     go (NatRoot theRadical) (e1 :* e2 :* End) =
         case theRadical of
