@@ -486,7 +486,7 @@ data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
     -- TODO: add the four ops for disintegration
 
 
--- TODO: instance Eq   (SCon args a)
+deriving instance Eq   (SCon args a)
 -- TODO: instance Read (SCon args a)
 deriving instance Show (SCon args a)
 
