@@ -35,6 +35,7 @@ import Data.List (intersperse)
 
 import qualified Data.Text as Text
 import           Data.Number.LogFloat
+import           Data.Ratio
 
 newtype Maple (a :: Hakaru) = Maple {unMaple :: String}
 
@@ -87,10 +88,13 @@ mapleMeasureOp Gamma   (e1 :* e2 :* End) = app2 "BetaD"    e1 e2
 mapleMeasureOp Beta    (e1 :* e2 :* End) = app2 "GammaD"   e1 e2
 
 mapleLiteral :: Literal a -> String
-mapleLiteral (LNat  v) = show $ fromNatural v
+mapleLiteral (LNat  v) = show v
 mapleLiteral (LInt  v) = show v
-mapleLiteral (LProb v) = show v -- BUG: does Maple accept that syntax?
-mapleLiteral (LReal v) = show v -- BUG: does Maple accept that syntax?
+mapleLiteral (LProb v) = showRational v -- BUG: does Maple accept that syntax?
+mapleLiteral (LReal v) = showRational v -- BUG: does Maple accept that syntax?
+
+showRational :: (Integral a, Show a) => Ratio a -> String
+showRational a = "("++ show (numerator a) ++ "/" ++ show (denominator a) ++ ")"
 
 {-
 

@@ -37,7 +37,10 @@ import Data.Ratio
 -- the 'Num' instance will throw errors on subtraction, negation,
 -- and 'fromInteger' when the result is not a natural number.
 newtype Natural = Natural Integer
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord)
+
+instance Show Natural where
+    show (Natural i) = show i
 
 -- TODO: should we define our own Show instance, in order to just
 -- show the Integer itself, relying on our 'fromInteger' definition
