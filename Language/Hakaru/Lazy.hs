@@ -658,6 +658,12 @@ evaluatePrimOp
     -> m (Whnf abt a)
 evaluatePrimOp evaluate_ = go
     where
+    neu1 :: forall b c
+        .  (abt '[] b -> abt '[] c)
+        -> abt '[] b
+        -> m (Whnf abt c)
+    neu1 f e = (Neutral . f . fromWhnf) <$> evaluate_ e
+
     rr1 :: forall b b' c c'
         .  (Interp b b', Interp c c')
         => (b' -> c')
@@ -703,19 +709,27 @@ evaluatePrimOp evaluate_ = go
     {-
     -- TODO: all our magic constants (Pi, Infty,...) should be bundled together under one AST constructor called something like @Constant@; that way we can group them in the 'Head' like we do for values.
     go Pi        End               = return (Head_ HPi)
-    -- TODO: don't actually evaluate these, to avoid fuzz issues
-    go Sin       (e1 :* End)       = rr1 sin   P.sin   e1
-    go Cos       (e1 :* End)       = rr1 cos   P.cos   e1
-    go Tan       (e1 :* End)       = rr1 tan   P.tan   e1
-    go Asin      (e1 :* End)       = rr1 asin  P.asin  e1
-    go Acos      (e1 :* End)       = rr1 acos  P.acos  e1
-    go Atan      (e1 :* End)       = rr1 atan  P.atan  e1
-    go Sinh      (e1 :* End)       = rr1 sinh  P.sinh  e1
-    go Cosh      (e1 :* End)       = rr1 cosh  P.cosh  e1
-    go Tanh      (e1 :* End)       = rr1 tanh  P.tanh  e1
-    go Asinh     (e1 :* End)       = rr1 asinh P.asinh e1
-    go Acosh     (e1 :* End)       = rr1 acosh P.acosh e1
-    go Atanh     (e1 :* End)       = rr1 atanh P.atanh e1
+    -}
+    -- We treat trig functions as strict, thus forcing their
+    -- arguments; however, to avoid fuzz issues we don't actually
+    -- evaluate the trig functions.
+    --
+    -- TODO: we might should have some other way to make these
+    -- 'Whnf' rather than calling them neutral terms; since they
+    -- aren't, in fact, neutral!
+    go Sin       (e1 :* End)       = neu1 P.sin   e1
+    go Cos       (e1 :* End)       = neu1 P.cos   e1
+    go Tan       (e1 :* End)       = neu1 P.tan   e1
+    go Asin      (e1 :* End)       = neu1 P.asin  e1
+    go Acos      (e1 :* End)       = neu1 P.acos  e1
+    go Atan      (e1 :* End)       = neu1 P.atan  e1
+    go Sinh      (e1 :* End)       = neu1 P.sinh  e1
+    go Cosh      (e1 :* End)       = neu1 P.cosh  e1
+    go Tanh      (e1 :* End)       = neu1 P.tanh  e1
+    go Asinh     (e1 :* End)       = neu1 P.asinh e1
+    go Acosh     (e1 :* End)       = neu1 P.acosh e1
+    go Atanh     (e1 :* End)       = neu1 P.atanh e1
+    {-
     -- TODO: deal with how we have better types for these three ops than Haskell does...
     go RealPow   (e1 :* e2 :* End) = rr2 (**) (P.**) e1 e2
     go Exp       (e1 :* End)       = rr1 exp   P.exp e1
