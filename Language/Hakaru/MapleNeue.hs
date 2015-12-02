@@ -90,8 +90,8 @@ mapleMeasureOp Beta    (e1 :* e2 :* End) = app2 "GammaD"   e1 e2
 mapleLiteral :: Literal a -> String
 mapleLiteral (LNat  v) = show v
 mapleLiteral (LInt  v) = show v
-mapleLiteral (LProb v) = showRational v -- BUG: does Maple accept that syntax?
-mapleLiteral (LReal v) = showRational v -- BUG: does Maple accept that syntax?
+mapleLiteral (LProb v) = showRational v
+mapleLiteral (LReal v) = showRational v
 
 showRational :: (Integral a, Show a) => Ratio a -> String
 showRational a = "("++ show (numerator a) ++ "/" ++ show (denominator a) ++ ")"

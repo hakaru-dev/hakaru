@@ -365,9 +365,7 @@ instance Pretty Literal where
     prettyPrec_ _ (LNat  n) = [PP.integer (fromNatural n)]
     prettyPrec_ _ (LInt  i) = [PP.integer i]
     prettyPrec_ _ (LProb l) = [PP.double $ fromRational $ fromNonNegativeRational l]
-        -- TODO: make it prettier! (i.e., print as decimal notation)
     prettyPrec_ _ (LReal r) = [PP.double $ fromRational r]
-        -- TODO: make it prettier! (i.e., print as decimal notation)
 
 
 instance Pretty f => Pretty (Datum f) where
