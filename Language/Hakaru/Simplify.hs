@@ -69,7 +69,7 @@ simplify e = do
     case jmEq1 (typeOf e) typ of
       Just Refl  -> return ast
       Nothing    -> -- return e
-          error $ "Expected:" ++ show (typeOf e) ++ ", got: " ++ (show typ)
+          error $ "Expected: " ++ show (typeOf e) ++ ", got: " ++ (show typ)
 
  where simplify' :: abt '[] a -> IO String
        simplify' e = do
