@@ -61,25 +61,18 @@ instance Show MapleException where
 
 instance Exception MapleException
 
-simplify :: forall abt a. (ABT AST abt) => abt '[] a -> IO (abt '[] a)
+simplify :: (ABT AST abt) => abt '[] a -> IO (abt '[] a)
 simplify e = do
-    hakaru <- simplify' e
-    closeLoop' hakaru
-
- where simplify' :: abt '[] a -> IO String
-       simplify' e = do
-         let slo = toMaple e
-         maple ("timelimit(15,NewSLO:-RoundTripLO(" ++ slo ++ "));")
-                          
-       closeLoop' :: String -> IO (abt '[] a)
-       closeLoop' s = do
-           case parseMaple (pack s) of
-             Left err -> throw $ MapleException (toMaple e) (show err)
-             Right past ->
-                 let m = checkType (typeOf e) (resolveAST $ maple2AST past)
-                 in case runTCM m LaxMode of
-                   Left err -> throw $ MapleException (toMaple e) (show err)
-                   Right e  -> return e
+    let slo = toMaple e
+    hakaru <- maple ("timelimit(15,NewSLO:-RoundTripLO(" ++ slo ++ "));")
+    either (throw . MapleException slo) return $ do
+        past <- leftShow $ parseMaple (pack hakaru)
+        leftShow . flip runTCM LaxMode $
+            checkType (typeOf e) (resolveAST $ maple2AST past)
+    where
+    leftShow :: Show a => Either a b -> Either String b
+    leftShow (Left err) = Left (show err)
+    leftShow (Right x)  = Right x
 
 toMaple :: (ABT AST abt) => abt '[] a -> String
 toMaple = runMaple 
