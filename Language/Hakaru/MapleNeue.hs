@@ -53,12 +53,16 @@ app3 :: (ABT AST abt) =>
 app3 fn x y z =
     fn ++ "(" ++ arg x ++ ", " ++ arg y ++ ", " ++ arg z ++ ")"
 
+meq :: (ABT AST abt) => abt '[] a -> abt '[] b -> String
+meq x y = arg x ++ "=" ++ arg y
+
 mapleAST :: (ABT AST abt) => LC_ abt a -> String
 mapleAST (LC_ e) =
     caseVarSyn e var1 $ \t ->
         case t of
         o :$ es    -> mapleSCon o es
         Literal_ v -> mapleLiteral v
+        Datum_ d   -> error "TODO: Add mapleAST{Datum}"
 
 uniqID :: Variable (a :: Hakaru) -> String
 uniqID = show . fromNat . varID
@@ -68,6 +72,9 @@ var1 x | Text.null (varHint x) = 'x' : uniqID x
        | otherwise = Text.unpack (varHint x) ++ uniqID x 
 
 mapleSCon :: (ABT AST abt) => SCon args a -> SArgs abt args -> String
+mapleSCon Let_     (e1 :* e2 :* End) =
+    caseBind e2 $ \x e2' ->
+        "eval(" ++ arg e2' ++ ", " ++  (var x `meq` e1) ++ ")"
 mapleSCon (CoerceTo_   c) (e :* End) = mapleAST (LC_ e)
 mapleSCon (UnsafeFrom_ c) (e :* End) = mapleAST (LC_ e)
 mapleSCon (Ann_ a)        (e :* End) = mapleAST (LC_ e)
