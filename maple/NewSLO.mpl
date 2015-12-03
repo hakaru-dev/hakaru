@@ -107,7 +107,7 @@ NewSLO := module ()
   local t_pw, unweight, factorize,
         recognize, get_de, recognize_de, mysolve, Diffop, Recognized,
         reduce, simplify_assuming, reduce_pw, reduce_Int, get_indicators,
-        indicator, extract_dom, banish, known_measures, freeze_difficult,
+        indicator, extract_dom, banish, known_measures,
         myexpand_product,
         piecewise_if, nub_piecewise, foldr_piecewise,
         ModuleLoad, ModuleUnload, verify_measure;
@@ -451,12 +451,6 @@ NewSLO := module ()
     end if
   end proc;
 
-  # first freeze (irrelevant) sums and products, then freeze (irrelevant)
-  # idx calls.  These confuse some routines (like gfun[holexprtodiffeq])
-  freeze_difficult := proc(e,x)
-    evalindets(e, 'And(specfunc({product,sum,idx}), freeof(x))', freeze);
-  end proc;
-
   # this code should not currently be used, it is just a snapshot in time
   Reparam := proc(e::Int(anything,name=range), h::name)
     local body, var, inds, xx, inv, new_e;
@@ -543,8 +537,7 @@ NewSLO := module ()
       # TODO: enrich context with x (measure class lebesgue)
       subintegral := eval(op(1,integral), op([2,1],integral) = x);
       (w, m) := unweight(unintegrate(h, subintegral, next_context));
-      recognition := thaw(recognize(freeze_difficult(w,x), x, lo, hi))
-        assuming op(next_context);
+      recognition := recognize(w, x, lo, hi) assuming op(next_context);
       if recognition :: 'Recognized(anything, anything)' then
         # Recognition succeeded
         (w, w0) := factorize(op(2,recognition), x);
@@ -567,8 +560,7 @@ NewSLO := module ()
 #      next_context := [op(context), lo<x, x<hi];
 #      w := eval(op(1,integral), op([3,1],integral) = x);
 #      m := unintegrate(h, op(2,integral), context);
-#      recognition := thaw(recognize(freeze_difficult(w,x), x, lo, hi))
-#        assuming op(next_context);
+#      recognition := recognize(w, x, lo, hi) assuming op(next_context);
 #      if recognition :: 'Recognized(anything, anything)' then
 #        # Recognition succeeded
 #        mm := weight(op(2,recognition), op(1,recognition));
@@ -712,9 +704,14 @@ NewSLO := module ()
     end if
   end proc;
 
-  recognize := proc(weight, x, lo, hi)
-    local de, Dx, f, w, res, rng;
+  recognize := proc(weight0, x, lo, hi)
+    local Constant, weight, de, Dx, f, w, res, rng;
     res := FAIL;
+    weight := evalindets[flat](weight0,
+                And(# Not(radfun), Not(algfun),
+                    'specfunc({product, sum, idx})',
+                    'freeof'(x)),
+                e->Constant[e]);
     de := get_de(weight, x, Dx, f);
     if de :: 'Diffop(anything, anything)' then
       res := recognize_de(op(de), Dx, f, x, lo, hi)
@@ -728,7 +725,7 @@ NewSLO := module ()
         res := Recognized(Uniform(lo, hi), w)
       end if
     end if;
-    res
+    evalindets[flat,2](res, 'Constant[anything]', 1, op)
   end proc;
 
   get_de := proc(dens, var, Dx, f)
