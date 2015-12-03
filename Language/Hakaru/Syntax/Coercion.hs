@@ -48,11 +48,8 @@ import Data.Functor     ((<$>))
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.HClasses
-import Language.Hakaru.Syntax.IClasses (TypeEq(..),
-                                        Eq1(..),
-                                        Eq2(..),
-                                        JmEq1(..),
-                                        JmEq2(..))
+import Language.Hakaru.Syntax.IClasses
+    (TypeEq(..), Eq1(..), Eq2(..), JmEq1(..), JmEq2(..))
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------

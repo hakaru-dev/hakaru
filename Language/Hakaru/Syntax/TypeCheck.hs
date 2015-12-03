@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.23
+--                                                    2015.12.03
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeCheck
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -37,7 +37,6 @@ module Language.Hakaru.Syntax.TypeCheck
 import           Prelude hiding (id, (.))
 import           Control.Category
 import           Data.Proxy            (KProxy(..))
-import           Data.IntMap           (IntMap)
 import qualified Data.IntMap           as IM
 import qualified Data.Traversable      as T
 import qualified Data.Foldable         as F
@@ -150,7 +149,7 @@ mustCheck = go
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
-type Ctx = IntMap (SomeVariable ('KProxy :: KProxy Hakaru))
+type Ctx = VarSet ('KProxy :: KProxy Hakaru)
 
 data TypeCheckMode = StrictMode | LaxMode
     deriving (Read, Show, Eq)
@@ -161,7 +160,7 @@ newtype TypeCheckMonad a =
     TCM { unTCM :: Ctx -> TypeCheckMode -> Either TypeCheckError a }
 
 runTCM :: TypeCheckMonad a -> TypeCheckMode -> Either TypeCheckError a 
-runTCM m = unTCM m IM.empty
+runTCM m = unTCM m emptyVarSet
 
 instance Functor TypeCheckMonad where
     fmap f m = TCM $ \ctx mode -> fmap f (unTCM m ctx mode)
@@ -192,11 +191,10 @@ getMode = TCM (const Right)
 
 -- | Extend the typing context, but only locally.
 pushCtx
-    :: SomeVariable ('KProxy :: KProxy Hakaru)
-    -> TypeCheckMonad a
-    -> TypeCheckMonad a
-pushCtx tv@(SomeVariable x) (TCM m) =
-    TCM (m . IM.insert (fromNat $ varID x) tv)
+    :: Variable (a :: Hakaru)
+    -> TypeCheckMonad b
+    -> TypeCheckMonad b
+pushCtx x (TCM m) = TCM (m . insertVarSet x)
 
 getCtx :: TypeCheckMonad Ctx
 getCtx = TCM (const . Right)
@@ -238,7 +236,7 @@ inferBinderType
     -> (forall b. Sing b -> abt '[ a ] b -> TypeCheckMonad r)
     -> TypeCheckMonad r
 inferBinderType x e k = do
-    TypedAST typ e' <- pushCtx (SomeVariable x) (inferType e)
+    TypedAST typ e' <- pushCtx x (inferType e)
     k typ (bind x e')
 
 
@@ -249,7 +247,7 @@ checkBinderType
     -> U.AST n
     -> TypeCheckMonad (abt '[ a ] b)
 checkBinderType x eTyp e =
-    pushCtx (SomeVariable x) (bind x <$> checkType eTyp e)
+    pushCtx x (bind x <$> checkType eTyp e)
 
 
 -- | Given a typing environment and a term, synthesize the term's type.
@@ -269,7 +267,7 @@ inferType = inferType_
     case e0 of
     U.Var_ x -> do
         ctx <- getCtx
-        case IM.lookup (fromNat $ U.nameID x) ctx of
+        case IM.lookup (fromNat $ U.nameID x) (unVarSet ctx) of
             Just (SomeVariable x') ->
                 return $ TypedAST (varType x') (var x')
             Nothing ->
@@ -296,7 +294,7 @@ inferType = inferType_
         {-
     U.App_ (U.Lam_ name e1) e2 -> do
         TypedAST typ2 e2' <- inferType_ e2
-        caseBind e1 $ \x -> pushCtx (SomeVariable x typ2) . inferType_
+        caseBind e1 $ \x -> pushCtx x typ2 . inferType_
         -}
 
     U.Let_ x e1 e2 -> do
@@ -368,7 +366,7 @@ inferType = inferType_
         case typ1 of
             SMeasure typ2 ->
                 let x' = U.makeVar x typ2 in
-                pushCtx (SomeVariable x') $ do
+                pushCtx x' $ do
                     TypedAST typ3 e2' <- inferType_ e2
                     case typ3 of
                         SMeasure _ ->
@@ -663,7 +661,7 @@ checkBranch =
         case xs of
         Nil1        -> checkType bodyTyp body
         Cons1 x xs' ->
-            pushCtx (SomeVariable x) $
+            pushCtx x $
                 bind x <$> checkBranchBody bodyTyp body xs'
 
     checkPattern

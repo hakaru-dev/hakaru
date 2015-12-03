@@ -67,8 +67,6 @@ module Language.Hakaru.Syntax.ABT
     ) where
 
 import           Data.Text         (Text)
-import           Data.Set          (Set)
-import qualified Data.Set          as Set
 import qualified Data.IntMap       as IM
 import qualified Data.Foldable     as F
 #if __GLASGOW_HASKELL__ < 710
@@ -210,8 +208,7 @@ class ABT (syn :: ([k] -> k -> *) -> k -> *) (abt :: [k] -> k -> *) | abt -> syn
     -- We could replace 'viewABT' with a case-elimination version...
     viewABT  :: abt xs a -> View (syn abt) xs a
 
-    -- TODO: use our own VarSet type (e.g., @IntMap Variable@) instead of @Set Variable@?
-    freeVars :: abt xs a -> Set (SomeVariable (KindOf a))
+    freeVars :: abt xs a -> VarSet (KindOf a)
 
     -- | Return the successor of the largest 'varID' of /free/
     -- variables. Thus, if there are no free variables we return
@@ -329,10 +326,10 @@ instance (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Foldable21 syn)
     freeVars = go . viewABT
         where
         go  :: View (syn (TrivialABT syn)) xs a
-            -> Set (SomeVariable (KindOf a))
+            -> VarSet (KindOf a)
         go (Syn  t)   = foldMap21 freeVars t
-        go (Var  x)   = Set.singleton (SomeVariable x)
-        go (Bind x v) = Set.delete (SomeVariable x) (go v)
+        go (Var  x)   = singletonVarSet x
+        go (Bind x v) = deleteVarSet x (go v)
 
     nextBind = go 0 . viewABT
         where
@@ -399,12 +396,7 @@ instance (Show1 (Sing :: k -> *), Show1 (syn (TrivialABT syn)))
     show      = show1
 
 ----------------------------------------------------------------
--- TODO: replace @Set Variable@ with @Map Variable k@ or @Map
--- Variable (Some (Sing :: k -> *))@ though that belongs more
--- in a different ABT instance produced by type-checking, rather
--- than belonging here...
---
--- TODO: replace @Set Variable@ with @Map Variable Nat@ where the
+-- TODO: replace @VarSet@ with @VarMap Nat@ where the
 -- Nat is the number of times the variable occurs. That way, we can
 -- tell when a bound variable is unused or only used only once (and
 -- hence performing beta\/let reduction would be a guaranteed win),
@@ -429,14 +421,14 @@ instance (Show1 (Sing :: k -> *), Show1 (syn (TrivialABT syn)))
 -- memoized 'nextFree' must be lazy for the same reason.
 data MemoizedABT (syn :: ([k] -> k -> *) -> k -> *) (xs :: [k]) (a :: k) =
     MemoizedABT
-        { _memoizedFreeVars :: Set (SomeVariable (KindOf a)) -- N.B., lazy!
+        { _memoizedFreeVars :: VarSet (KindOf a) -- N.B., lazy!
         , memoizedNextFree  :: Nat -- N.B., lazy!
         , memoizedNextBind  :: {-# UNPACK #-} !Nat
         , memoizedView      :: !(View (syn (MemoizedABT syn)) xs a)
         }
 
 -- HACK: ""Cannot use record selector ‘_memoizedFreeVars’ as a function due to escaped type variables""
-memoizedFreeVars :: MemoizedABT syn xs a -> Set (SomeVariable (KindOf a))
+memoizedFreeVars :: MemoizedABT syn xs a -> VarSet (KindOf a)
 memoizedFreeVars (MemoizedABT xs _ _ _) = xs
 
 
@@ -452,13 +444,13 @@ instance (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Foldable21 syn)
 
     var x =
         MemoizedABT
-            (Set.singleton $ SomeVariable x)
+            (singletonVarSet x)
             (varID x)
             0
             (Var x)
 
     bind x (MemoizedABT xs _ mb v) =
-        let xs' = Set.delete (SomeVariable x) xs
+        let xs' = deleteVarSet x xs
         in MemoizedABT
             xs'
             (nextVarID xs')
@@ -486,7 +478,7 @@ instance (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Foldable21 syn)
         case v of
         Bind x v' ->
             k x $ MemoizedABT
-                (Set.insert (SomeVariable x) xs)
+                (insertVarSet x xs)
                 (varID x `max` mf)
                 mb
                 v'
@@ -537,12 +529,11 @@ instance (Show1 (Sing :: k -> *), Show1 (syn (MemoizedABT syn)))
 freshen
     :: (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *))
     => Variable (a :: k)
-    -> Set (SomeVariable (KindOf a))
+    -> VarSet (KindOf a)
     -> Variable a
 freshen x xs
-    | SomeVariable x `Set.member` xs =
-        let i = nextVarID xs in i `seq` x{varID = i}
-    | otherwise = x
+    | x `memberVarSet` xs = let i = nextVarID xs in i `seq` x{varID = i}
+    | otherwise           = x
 
 
 -- | Rename a free variable. Does nothing if the variable is bound.
@@ -636,7 +627,7 @@ substs
     -> abt xs a
 substs rho0 = start rho0
     where
-    fv0 :: Set (SomeVariable (KindOf a))
+    fv0 :: VarSet (KindOf a)
     fv0 = F.foldMap (\(Assoc _ e) -> freeVars e) (unAssocs rho0)
 
     start :: forall xs' a'. Assocs abt -> abt xs' a' -> abt xs' a'

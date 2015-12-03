@@ -10,7 +10,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.29
+--                                                    2015.12.03
 -- |
 -- Module      :  Language.Hakaru.Syntax.Variable
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -30,9 +30,18 @@ module Language.Hakaru.Syntax.Variable
     -- ** Variables with existentially quantified types
     , KindOf
     , SomeVariable(..)
-    , nextVarID
     
     -- * Some helper types for \"heaps\", \"environments\", etc
+    -- ** Typing environments; aka: sets of (typed) variables
+    , VarSet(..)
+    , emptyVarSet
+    , singletonVarSet
+    , toVarSet
+    , insertVarSet
+    , deleteVarSet
+    , memberVarSet
+    , nextVarID
+    -- ** Substitutions; aka: maps from variables to their definitions
     , Assoc(..)
     , Assocs(..) -- TODO: hide the data constructors
     , emptyAssocs
@@ -45,8 +54,6 @@ module Language.Hakaru.Syntax.Variable
 import           Data.Proxy        (KProxy(..))
 import           Data.Typeable     (Typeable)
 import           Data.Text         (Text)
-import           Data.Set          (Set)
-import qualified Data.Set          as Set
 import           Data.IntMap       (IntMap)
 import qualified Data.IntMap       as IM
 import           Data.Function     (on)
@@ -280,17 +287,99 @@ instance Show1 (Sing :: k -> *)
             )
 
 
--- TODO: switch from @Set SomeVariable@ to @VarSet = IntSet SomeVariable@
+----------------------------------------------------------------
+-- | A set of (typed) variables.
+newtype VarSet (kproxy :: KProxy k) =
+    VarSet { unVarSet :: IntMap (SomeVariable kproxy) }
+
+instance Show1 (Sing :: k -> *) => Show (VarSet (kproxy :: KProxy k)) where
+    showsPrec p (VarSet xs) =
+        showParen (p > 9)
+            ( showString "VarSet "
+            . showsPrec 11 xs
+            )
+
 -- | Return the successor of the largest 'varID' of all the variables
 -- in the set. Thus, we return zero for the empty set and non-zero
 -- for non-empty sets.
-nextVarID :: Set (SomeVariable kproxy) -> Nat
-nextVarID xs
-    | Set.null xs = 0
-    | otherwise   =
-        case Set.findMax xs of
-        SomeVariable x -> 1 + varID x
+nextVarID :: VarSet kproxy -> Nat
+nextVarID (VarSet xs)
+    | IM.null xs = 0
+    | otherwise  =
+        case IM.findMax xs of
+        (_, SomeVariable x) -> 1 + varID x
 
+
+emptyVarSet :: VarSet kproxy
+emptyVarSet = VarSet IM.empty
+
+singletonVarSet :: Variable a -> VarSet (KindOf a)
+singletonVarSet x =
+    VarSet $ IM.singleton (fromNat $ varID x) (SomeVariable x)
+
+
+toVarSet :: [SomeVariable kproxy] -> VarSet kproxy
+toVarSet = VarSet . go IM.empty
+    where
+    go vars _ | vars `seq` False = error "toVarSet: the impossible happened"
+    go vars []     = vars
+    go vars (x:xs) = go (IM.insert (fromNat $ someVarID x) x vars) xs
+
+    someVarID :: SomeVariable kproxy -> Nat
+    someVarID (SomeVariable x) = varID x
+
+{- -- TODO:
+toVarSet :: List1 Variable (xs :: [k]) -> VarSet (kproxy :: KProxy k)
+toVarSet = \xs -> VarSet (go IM.empty xs)
+    where
+    go  :: IntMap (SomeVariable (kproxy :: KProxy k))
+        -> List1 Variable (xs :: [k])
+        -> IntMap (SomeVariable (kproxy :: KProxy k))
+    go vars _ | vars `seq` False = error "toVarSet: the impossible happened"
+    go vars Nil1         = vars
+    go vars (Cons1 x xs) =
+        go (IM.insert (fromNat $ varID x) (SomeVariable x) vars) xs
+-}
+
+
+instance Monoid (VarSet kproxy) where
+    mempty = emptyVarSet
+    mappend (VarSet xs) (VarSet ys) = VarSet (IM.union xs ys) -- TODO: remove bias; crash if conflicting definitions
+    mconcat = VarSet . IM.unions . map unVarSet
+
+
+insertVarSet :: Variable a -> VarSet (KindOf a) -> VarSet (KindOf a)
+insertVarSet x (VarSet xs) =
+    case
+        IM.insertLookupWithKey
+            (\_ v' _ -> v')
+            (fromNat $ varID x)
+            (SomeVariable x)
+            xs
+    of
+    (Nothing, xs') -> VarSet xs'
+    (Just _,  _)   -> error "insertVarSet: variable is already assigned!"
+
+
+deleteVarSet :: Variable a -> VarSet (KindOf a) -> VarSet (KindOf a)
+deleteVarSet x (VarSet xs) =
+    --- BUG: use some sort of deleteLookupWithKey to make sure we got the right one...
+    VarSet $ IM.delete (fromNat $ varID x) xs
+
+
+memberVarSet
+    :: (Show1 (Sing :: k -> *), JmEq1 (Sing :: k -> *))
+    => Variable (a :: k)
+    -> VarSet (kproxy :: KProxy k)
+    -> Bool
+memberVarSet x (VarSet xs) =
+    -- HACK: can't use do-notation here for GADT reasons
+    case IM.lookup (fromNat $ varID x) xs of
+    Nothing                -> False
+    Just (SomeVariable x') -> 
+        case varEq x x' of
+        Nothing -> False
+        Just _  -> True
 
 ----------------------------------------------------------------
 -- BUG: haddock doesn't like annotations on GADT constructors. So
