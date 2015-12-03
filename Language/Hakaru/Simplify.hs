@@ -64,25 +64,20 @@ instance Exception MapleException
 simplify :: forall abt a. (ABT AST abt) => abt '[] a -> IO (abt '[] a)
 simplify e = do
     hakaru <- simplify' e
-    TypedAST typ ast <- closeLoop' hakaru
-    -- TODO: convince Haskell I can return ast without typeOf
-    case jmEq1 (typeOf e) typ of
-      Just Refl  -> return ast
-      Nothing    -> -- return e
-          error $ "Expected: " ++ show (typeOf e) ++ ", got: " ++ (show typ)
+    closeLoop' hakaru
 
  where simplify' :: abt '[] a -> IO String
        simplify' e = do
          let slo = toMaple e
          maple ("timelimit(15,NewSLO:-RoundTripLO(" ++ slo ++ "));")
                           
-       closeLoop' :: String -> IO (TypedAST abt)
+       closeLoop' :: String -> IO (abt '[] a)
        closeLoop' s = do
            case parseMaple (pack s) of
              Left err -> throw $ MapleException (toMaple e) (show err)
              Right past ->
-                 let m = inferType (resolveAST $ maple2AST past) in
-                 case runTCM m LaxMode of
+                 let m = checkType (typeOf e) (resolveAST $ maple2AST past)
+                 in case runTCM m LaxMode of
                    Left err -> throw $ MapleException (toMaple e) (show err)
                    Right e  -> return e
 
