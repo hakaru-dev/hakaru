@@ -27,7 +27,7 @@ module Language.Hakaru.Syntax.TypeCheck
     ( inferable
     , mustCheck
     , TypeCheckError
-    , TypeCheckMonad(), runTCM
+    , TypeCheckMonad(), runTCM, unTCM
     , TypeCheckMode(..)
     , TypedAST(..)
     , inferType

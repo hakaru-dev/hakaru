@@ -30,20 +30,19 @@ module Language.Hakaru.Simplify
 
 import Control.Exception
 
-import Language.Hakaru.MapleNeue (Maple, runMaple)
+import Language.Hakaru.MapleNeue (runMaple)
 
 import Language.Hakaru.Parser.Maple
 import Language.Hakaru.Parser.SymbolResolve (resolveAST)
 
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
-import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Syntax.TypeOf
 
 import Data.Typeable (Typeable)
 
-import Data.Text (replace, pack)
+import Data.Text (pack)
 import System.MapleSSH (maple)
 
 ----------------------------------------------------------------
@@ -67,8 +66,9 @@ simplify e = do
     hakaru <- maple ("timelimit(15,NewSLO:-RoundTripLO(" ++ slo ++ "));")
     either (throw . MapleException slo) return $ do
         past <- leftShow $ parseMaple (pack hakaru)
-        leftShow . flip runTCM LaxMode $
-            checkType (typeOf e) (resolveAST $ maple2AST past)
+        let m = checkType (typeOf e) (resolveAST $ maple2AST past) 
+        leftShow $ unTCM m (freeVars e) LaxMode
+            
     where
     leftShow :: Show a => Either a b -> Either String b
     leftShow (Left err) = Left (show err)
