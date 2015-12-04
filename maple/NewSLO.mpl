@@ -707,6 +707,16 @@ NewSLO := module ()
   recognize := proc(weight0, x, lo, hi)
     local Constant, weight, de, Dx, f, w, res, rng;
     res := FAIL;
+    # gfun[holexprtodiffeq] contains a test for {radfun,algfun} that seems like
+    # it should test for {radfun(anything,x),algfun(anything,x)} instead.
+    # Consequently, it issues the error "expression is not holonomic: %1" for
+    # actually holonomic expressions such as exp(x*sum(g(i,j),j=1..n)).
+    # Moreover, mysolve has trouble solve-ing constraints involving sum, etc.
+    # To work around these weaknesses, we wrap sum(...), etc. in Constant[...].
+    # Unlike sum(...), Constant[sum(...)] passes the type test {radfun,algfun},
+    # which we need to handle exp(x*sum(...)) using gfun[holexprtodiffeq].
+    # Like sum(...i...), Constant[sum(...i...)] depends on i, which we need so
+    # that product(sum(...i...),i=1..m) doesn't simplify to ...^m.
     weight := evalindets[flat](weight0,
                 And(# Not(radfun), Not(algfun),
                     'specfunc({product, sum, idx})',
@@ -725,6 +735,7 @@ NewSLO := module ()
         res := Recognized(Uniform(lo, hi), w)
       end if
     end if;
+    # Undo Constant[...] wrapping
     evalindets[flat,2](res, 'Constant[anything]', 1, op)
   end proc;
 
