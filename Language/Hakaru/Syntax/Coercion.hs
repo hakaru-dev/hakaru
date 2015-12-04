@@ -204,6 +204,7 @@ instance Eq2 Coercion where
       case jmEq2 a b of
          Just (Refl, Refl) -> eq2 as bs
          Nothing -> False
+    eq2 _            _            = False
 instance Eq1 (Coercion a) where
     eq1 = eq2
 instance Eq  (Coercion a b) where
