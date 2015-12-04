@@ -79,7 +79,9 @@ instance Eq2 PrimOp where
     eq2 x y = maybe False (const True) (jmEq2 x y)
 
 instance JmEq2 ArrayOp where
-    jmEq2 = undefined
+    jmEq2 (Index  x) (Index  y) = jmEq1 x y >>= \Refl -> Just (Refl, Refl)
+    jmEq2 (Size   x) (Size   y) = jmEq1 x y >>= \Refl -> Just (Refl, Refl)
+    jmEq2 (Reduce x) (Reduce y) = jmEq1 x y >>= \Refl -> Just (Refl, Refl)
 
 instance Eq2 ArrayOp where
     eq2 x y = maybe False (const True) (jmEq2 x y)
