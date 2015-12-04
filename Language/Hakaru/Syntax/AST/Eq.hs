@@ -9,6 +9,7 @@
 
 module Language.Hakaru.Syntax.AST.Eq where
 
+import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.ABT
@@ -73,7 +74,52 @@ instance JmEq2 abt => JmEq1 (SArgs abt) where
     jmEq1 _         _         = Nothing
 
 instance JmEq2 PrimOp where
-    jmEq2 = undefined
+    jmEq2 Not       Not            = Just (Refl, Refl)
+    jmEq2 Impl      Impl           = Just (Refl, Refl)
+    jmEq2 Diff      Diff           = Just (Refl, Refl)
+    jmEq2 Nand      Nand           = Just (Refl, Refl)
+    jmEq2 Nor       Nor            = Just (Refl, Refl)
+    jmEq2 Pi        Pi             = Just (Refl, Refl)
+    jmEq2 Sin       Sin            = Just (Refl, Refl)
+    jmEq2 Cos       Cos            = Just (Refl, Refl)
+    jmEq2 Tan       Tan            = Just (Refl, Refl)
+    jmEq2 Asin      Asin           = Just (Refl, Refl)
+    jmEq2 Acos      Acos           = Just (Refl, Refl)
+    jmEq2 Atan      Atan           = Just (Refl, Refl)
+    jmEq2 Sinh      Sinh           = Just (Refl, Refl)
+    jmEq2 Cosh      Cosh           = Just (Refl, Refl)
+    jmEq2 Tanh      Tanh           = Just (Refl, Refl)
+    jmEq2 Asinh     Asinh          = Just (Refl, Refl)
+    jmEq2 Acosh     Acosh          = Just (Refl, Refl)
+    jmEq2 Atanh     Atanh          = Just (Refl, Refl)
+    jmEq2 RealPow   RealPow        = Just (Refl, Refl)
+    jmEq2 Exp       Exp            = Just (Refl, Refl)
+    jmEq2 Log       Log            = Just (Refl, Refl)
+    jmEq2 Infinity  Infinity       = Just (Refl, Refl)
+    jmEq2 NegativeInfinity NegativeInfinity = Just (Refl, Refl)
+    jmEq2 GammaFunc GammaFunc      = Just (Refl, Refl)
+    jmEq2 BetaFunc  BetaFunc       = Just (Refl, Refl)
+    jmEq2 (Equal a)   (Equal a')   =
+        jmEq1 (sing_HEq a) (sing_HEq a') >>= \Refl ->
+        Just (Refl, Refl)
+    jmEq2 (Less a)    (Less a')    =
+        jmEq1 (sing_HOrd a) (sing_HOrd a') >>= \Refl ->
+        Just (Refl, Refl)
+    jmEq2 (NatPow a)  (NatPow a')  =
+        jmEq1 a a' >>= \Refl -> Just (Refl, Refl)
+    jmEq2 (Negate a)  (Negate a')  =
+        jmEq1 a a' >>= \Refl -> Just (Refl, Refl)
+    jmEq2 (Abs a)     (Abs a')     =
+        jmEq1 a a' >>= \Refl -> Just (Refl, Refl)
+    jmEq2 (Signum a)  (Signum a')  =
+        jmEq1 a a' >>= \Refl -> Just (Refl, Refl)
+    jmEq2 (Recip a)   (Recip a')   =
+        jmEq1 a a' >>= \Refl -> Just (Refl, Refl)
+    jmEq2 (NatRoot a) (NatRoot a') =
+        jmEq1 a a' >>= \Refl -> Just (Refl, Refl)
+    jmEq2 (Erf a) (Erf a') =
+        jmEq1 a a' >>= \Refl -> Just (Refl, Refl)
+
 
 instance Eq2 PrimOp where
     eq2 x y = maybe False (const True) (jmEq2 x y)
@@ -87,7 +133,21 @@ instance Eq2 ArrayOp where
     eq2 x y = maybe False (const True) (jmEq2 x y)
 
 instance JmEq2 MeasureOp where
-    jmEq2 = undefined
+    jmEq2 Lebesgue    Lebesgue    = Just (Refl, Refl)
+    jmEq2 Counting    Counting    = Just (Refl, Refl)
+    jmEq2 Categorical Categorical = Just (Refl, Refl)
+    jmEq2 Uniform     Uniform     = Just (Refl, Refl)
+    jmEq2 Normal      Normal      = Just (Refl, Refl)
+    jmEq2 Poisson     Poisson     = Just (Refl, Refl)
+    jmEq2 Gamma       Gamma       = Just (Refl, Refl)
+    jmEq2 (DirichletProcess a) (DirichletProcess a') =
+        jmEq1 a a' >>= \Refl -> Just (Refl, Refl)
+    jmEq2 (Plate a) (Plate a') =
+        jmEq1 a a' >>= \Refl -> Just (Refl, Refl)
+    jmEq2 (Chain s a) (Chain s' a') =
+        jmEq1 s s' >>= \Refl ->
+        jmEq1 a a' >>= \Refl ->
+        Just (Refl, Refl)
 
 instance Eq2 MeasureOp where
     eq2 x y = maybe False (const True) (jmEq2 x y)
