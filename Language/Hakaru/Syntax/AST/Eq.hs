@@ -16,7 +16,6 @@ import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.TypeOf
 
-
 jmEq_S :: (ABT AST abt, JmEq2 abt) 
          =>  SCon args a   -> SArgs abt args  ->
              SCon args' a' -> SArgs abt args' ->
@@ -119,6 +118,7 @@ instance JmEq2 PrimOp where
         jmEq1 a a' >>= \Refl -> Just (Refl, Refl)
     jmEq2 (Erf a) (Erf a') =
         jmEq1 a a' >>= \Refl -> Just (Refl, Refl)
+    jmEq2 _       _        = Nothing
 
 
 instance Eq2 PrimOp where
@@ -128,6 +128,7 @@ instance JmEq2 ArrayOp where
     jmEq2 (Index  x) (Index  y) = jmEq1 x y >>= \Refl -> Just (Refl, Refl)
     jmEq2 (Size   x) (Size   y) = jmEq1 x y >>= \Refl -> Just (Refl, Refl)
     jmEq2 (Reduce x) (Reduce y) = jmEq1 x y >>= \Refl -> Just (Refl, Refl)
+    jmEq2 _          _          = Nothing
 
 instance Eq2 ArrayOp where
     eq2 x y = maybe False (const True) (jmEq2 x y)
@@ -140,6 +141,7 @@ instance JmEq2 MeasureOp where
     jmEq2 Normal      Normal      = Just (Refl, Refl)
     jmEq2 Poisson     Poisson     = Just (Refl, Refl)
     jmEq2 Gamma       Gamma       = Just (Refl, Refl)
+    jmEq2 Beta        Beta        = Just (Refl, Refl)
     jmEq2 (DirichletProcess a) (DirichletProcess a') =
         jmEq1 a a' >>= \Refl -> Just (Refl, Refl)
     jmEq2 (Plate a) (Plate a') =
@@ -148,21 +150,50 @@ instance JmEq2 MeasureOp where
         jmEq1 s s' >>= \Refl ->
         jmEq1 a a' >>= \Refl ->
         Just (Refl, Refl)
+    jmEq2 _           _ = Nothing
 
 instance Eq2 MeasureOp where
     eq2 x y = maybe False (const True) (jmEq2 x y)
+
+instance JmEq1 NaryOp where
+    jmEq1 And And = Just Refl
+    jmEq1 Or  Or  = Just Refl
+    jmEq1 Xor Xor = Just Refl
+    jmEq1 Iff Iff = Just Refl
+    jmEq1 (Min a)  (Min a')  = jmEq1 (sing_HOrd a) (sing_HOrd a')
+    jmEq1 (Max a)  (Max a')  = jmEq1 (sing_HOrd a) (sing_HOrd a')
+    jmEq1 (Sum a)  (Sum a')  = jmEq1 a a'
+    jmEq1 (Prod a) (Prod a') = jmEq1 a a'
+    jmEq1 _        _         = Nothing
+
+
+instance Eq1 NaryOp where
+    eq1 x y = maybe False (const True) (jmEq1 x y)
+
+instance JmEq1 Literal where
+    jmEq1 (LNat _)  (LNat _)  = Just Refl
+    jmEq1 (LInt _)  (LInt _)  = Just Refl
+    jmEq1 (LProb _) (LProb _) = Just Refl
+    jmEq1 (LReal _) (LReal _) = Just Refl
+    jmEq1 _         _         = Nothing
 
 instance (ABT AST abt, JmEq2 abt) => JmEq1 (AST abt) where
     jmEq1 (o :$ es) (o' :$ es') = do
         (Refl, Refl) <- jmEq_S o es o' es'
         return Refl
-    jmEq1 _         _           = undefined
+    jmEq1 (NaryOp_ o _) (NaryOp_ o' _) = jmEq1 o o'
+    jmEq1 (Literal_ v)  (Literal_ v')  = jmEq1 v v'
+    jmEq1 (Empty_ a)    (Empty_ a')    = jmEq1 a a'
+    jmEq1 (Array_ _ a)  (Array_ _ a')  =
+        jmEq2 a a' >>= \(Refl, Refl) -> Just Refl
+    jmEq1 _              _             = undefined
 
 -- TODO: a more general function of type:
 --   (JmEq2 abt) => AST abt a -> AST abt b -> Maybe (Sing a, TypeEq a b)
 -- This can then be used to define typeOf and instance JmEq2 AST
 
 instance (ABT AST abt, JmEq2 abt) => Eq1 (AST abt) where
+    -- TODO: Add NaryOp args here
     eq1 x y = maybe False (const True) (jmEq1 x y)
 
 instance (ABT AST abt, JmEq2 abt) => Eq (AST abt a) where
