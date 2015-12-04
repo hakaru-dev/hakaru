@@ -16,6 +16,9 @@ import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.TypeOf
 
+import qualified Data.Foldable as F
+import qualified Data.Sequence as S
+
 jmEq_S :: (ABT AST abt, JmEq2 abt) 
          =>  SCon args a   -> SArgs abt args  ->
              SCon args' a' -> SArgs abt args' ->
@@ -181,12 +184,15 @@ instance (ABT AST abt, JmEq2 abt) => JmEq1 (AST abt) where
     jmEq1 (o :$ es) (o' :$ es') = do
         (Refl, Refl) <- jmEq_S o es o' es'
         return Refl
-    jmEq1 (NaryOp_ o _) (NaryOp_ o' _) = jmEq1 o o'
-    jmEq1 (Literal_ v)  (Literal_ v')  = jmEq1 v v'
-    jmEq1 (Empty_ a)    (Empty_ a')    = jmEq1 a a'
-    jmEq1 (Array_ _ a)  (Array_ _ a')  =
+    jmEq1 (NaryOp_ o _) (NaryOp_ o' _)  = jmEq1 o o'
+    jmEq1 (Literal_ v)  (Literal_ v')   = jmEq1 v v'
+    jmEq1 (Empty_ a)    (Empty_ a')     = jmEq1 a a'
+    jmEq1 (Array_ _ a)  (Array_ _ a')   =
         jmEq2 a a' >>= \(Refl, Refl) -> Just Refl
-    jmEq1 _              _             = undefined
+    jmEq1 (Datum_ _)    (Datum_ _)      = error "TODO jmEq1{Datum}"
+    jmEq1 (Case_ _ _)   (Case_ _ _)     = error "TODO jmEq1{Case}"
+    jmEq1 (Superpose_ _) (Superpose_ _) = error "TODO jmEq1{Superpose}"
+    jmEq1 _              _              = Nothing
 
 -- TODO: a more general function of type:
 --   (JmEq2 abt) => AST abt a -> AST abt b -> Maybe (Sing a, TypeEq a b)
@@ -194,6 +200,8 @@ instance (ABT AST abt, JmEq2 abt) => JmEq1 (AST abt) where
 
 instance (ABT AST abt, JmEq2 abt) => Eq1 (AST abt) where
     -- TODO: Add NaryOp args here
+    eq1 (NaryOp_ _ es) (NaryOp_ _ es') =
+        F.all (\(x,y) -> eq2 x y) (S.zip es es')
     eq1 x y = maybe False (const True) (jmEq1 x y)
 
 instance (ABT AST abt, JmEq2 abt) => Eq (AST abt a) where
