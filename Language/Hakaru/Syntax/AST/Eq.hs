@@ -200,8 +200,10 @@ instance (ABT AST abt, JmEq2 abt) => JmEq1 (AST abt) where
 
 instance (ABT AST abt, JmEq2 abt) => Eq1 (AST abt) where
     -- TODO: Add NaryOp args here
-    eq1 (NaryOp_ _ es) (NaryOp_ _ es') =
-        F.all (\(x,y) -> eq2 x y) (S.zip es es')
+    eq1 (NaryOp_ o es) (NaryOp_ o' es') =
+        case jmEq1 o o' of
+             Just Refl -> F.all (\(x,y) -> eq2 x y) (S.zip es es')
+             Nothing   -> False
     eq1 x y = maybe False (const True) (jmEq1 x y)
 
 instance (ABT AST abt, JmEq2 abt) => Eq (AST abt a) where
