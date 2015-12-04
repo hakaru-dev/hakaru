@@ -733,8 +733,8 @@ array
 array n =
     syn . Array_ n . binder Text.empty sing
 
-empty :: (ABT AST abt) => abt '[] ('HArray a)
-empty = syn Empty_
+empty :: (ABT AST abt, SingI a) => abt '[] ('HArray a)
+empty = syn (Empty_ sing)
 
 (!) :: (ABT AST abt)
     => abt '[] ('HArray a) -> abt '[] 'HNat -> abt '[] a
@@ -1093,7 +1093,7 @@ dp e1 e2 = measure2_ (DirichletProcess . sUnMeasure $ typeOf e2) e1 e2
 
 
 plate, plate'
-    :: (ABT AST abt)
+    :: (ABT AST abt, SingI a)
     => abt '[] ('HArray ('HMeasure          a))
     -> abt '[] (         'HMeasure ('HArray a))
 plate e = measure1_ (Plate . sUnMeasure . sUnArray $ typeOf e) e

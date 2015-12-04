@@ -116,7 +116,7 @@ data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     WDatum
         :: {-# UNPACK #-} !(Datum (abt '[]) (HData' t))
         -> Head abt (HData' t)
-    WEmpty :: Head abt ('HArray a)
+    WEmpty :: !(Sing ('HArray a)) -> Head abt ('HArray a)
     WArray :: !(abt '[] 'HNat) -> !(abt '[ 'HNat] a) -> Head abt ('HArray a)
     WLam   :: !(abt '[ a ] b) -> Head abt (a ':-> b)
 
@@ -167,7 +167,7 @@ data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
 fromHead :: (ABT AST abt) => Head abt a -> abt '[] a
 fromHead (WLiteral   v)     = syn (Literal_ v)
 fromHead (WDatum     d)     = syn (Datum_ d)
-fromHead WEmpty             = syn Empty_
+fromHead (WEmpty t)         = syn (Empty_ t)
 fromHead (WArray     e1 e2) = syn (Array_ e1 e2)
 fromHead (WLam       e1)    = syn (Lam_ :$ e1 :* End)
 fromHead (WMeasureOp o  es) = syn (MeasureOp_ o :$ es)
@@ -188,7 +188,7 @@ toHead e =
         case t of
         Literal_ v                         -> Just $ WLiteral v
         Datum_   d                         -> Just $ WDatum   d
-        Empty_                             -> Just $ WEmpty
+        Empty_   t                         -> Just $ WEmpty   t
         Array_     e1    e2                -> Just $ WArray     e1 e2
         Lam_    :$ e1 :* End               -> Just $ WLam       e1
         MeasureOp_  o :$ es                -> Just $ WMeasureOp o  es

@@ -119,7 +119,7 @@ evaluate perform = evaluate_
         -- Things which are already WHNFs
         Literal_ v               -> return . Head_ $ WLiteral v
         Datum_ d                 -> return . Head_ $ WDatum d
-        Empty_                   -> return . Head_ $ WEmpty
+        Empty_ t                 -> return . Head_ $ WEmpty t
         Array_ e1 e2             -> return . Head_ $ WArray e1 e2
         Lam_  :$ e1 :* End       -> return . Head_ $ WLam   e1
         Dirac :$ e1 :* End       -> return . Head_ $ WDirac e1
@@ -641,7 +641,7 @@ data ArrayHead :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         -> ArrayHead abt a
 
 head2array :: Head abt ('HArray a) -> Maybe (ArrayHead abt a)
-head2array WEmpty         = Just WAEmpty
+head2array (WEmpty t)     = Just WAEmpty
 head2array (WArray e1 e2) = Just (WAArray e1 e2)
 head2array (WAnn _ w)     = head2array w
 head2array _ = error "head2array: the impossible happened"

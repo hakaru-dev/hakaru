@@ -163,7 +163,7 @@ instance (ABT AST abt) => Pretty (LC_ abt) where
                     $ F.toList es
 
         Literal_ v    -> prettyPrec_ p v
-        Empty_        -> [PP.text "empty"]
+        Empty_   t    -> [PP.text "empty"]
         Array_ e1 e2  ->
             ppFun p "array"
                 [ toDoc $ ppArg e1

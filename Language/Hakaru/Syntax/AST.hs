@@ -559,7 +559,7 @@ data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     -- These two constructors are here rather than in 'ArrayOp' because 'Array_' is a binding form; though it also means they're together with the other intro forms like 'Literal_' and 'Datum_'.
     --
     -- TODO: should we add a @Sing a@ argument to avoid ambiguity of 'Empty_'?
-    Empty_ :: AST abt ('HArray a)
+    Empty_ :: !(Sing ('HArray a)) -> AST abt ('HArray a)
     Array_ :: !(abt '[] 'HNat) -> !(abt '[ 'HNat ] a) -> AST abt ('HArray a)
 
     -- -- User-defined data types
@@ -617,7 +617,7 @@ instance Show2 abt => Show1 (AST abt) where
                     )
                 )
         Literal_ v   -> showParen_0   p "Literal_" v
-        Empty_       -> showString      "Empty_"
+        Empty_ _     -> showString      "Empty_"
         Array_ e1 e2 -> showParen_22  p "Array_" e1 e2
         Datum_ d     -> showParen_1   p "Datum_" (fmap11 LC_ d)
         Case_  e bs  ->
@@ -645,7 +645,7 @@ instance Functor21 AST where
     fmap21 f (o :$ es)          = o :$ fmap21 f es
     fmap21 f (NaryOp_    o  es) = NaryOp_    o (fmap f es)
     fmap21 _ (Literal_   v)     = Literal_   v
-    fmap21 _ Empty_             = Empty_
+    fmap21 _ (Empty_ t)         = Empty_ t
     fmap21 f (Array_     e1 e2) = Array_     (f e1) (f e2)
     fmap21 f (Datum_     d)     = Datum_     (fmap11 f d)
     fmap21 f (Case_      e  bs) = Case_      (f e)  (map (fmap21 f) bs)
@@ -657,7 +657,7 @@ instance Foldable21 AST where
     foldMap21 f (_ :$ es)          = foldMap21 f es
     foldMap21 f (NaryOp_    _  es) = F.foldMap f es
     foldMap21 _ (Literal_   _)     = mempty
-    foldMap21 _ Empty_             = mempty
+    foldMap21 _ (Empty_     _)     = mempty
     foldMap21 f (Array_     e1 e2) = f e1 `mappend` f e2
     foldMap21 f (Datum_     d)     = foldMap11 f d
     foldMap21 f (Case_      e  bs) = f e  `mappend` F.foldMap (foldMap21 f) bs

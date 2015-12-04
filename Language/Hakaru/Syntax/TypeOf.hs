@@ -77,7 +77,7 @@ typeOf_ e0 =
         
         NaryOp_  o  _  -> return $ sing_NaryOp o
         Literal_ v     -> return $ sing_Literal v
-        Empty_         -> Left "no unique type for Empty_"
+        Empty_   _     -> Left "no unique type for Empty_"
         Array_   _  e2 -> caseBind e2 $ \_ e2' -> SArray <$> typeOf_ e2'
         Datum_   d     -> error "TODO: typeOf_{Datum_}"
         Case_    _  bs -> tryAll "Case_" typeOfBranch bs

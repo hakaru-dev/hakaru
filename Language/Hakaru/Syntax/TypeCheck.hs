@@ -482,7 +482,7 @@ checkType = checkType_
 
         U.Empty_ ->
             case typ0 of
-            SArray _ -> return $ syn Empty_
+            SArray _ -> return $ syn (Empty_ typ0)
             _        -> typeMismatch (Right typ0) (Left "HArray")
     
         -- Not sure Array should be a binding form

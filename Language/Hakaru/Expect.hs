@@ -305,7 +305,7 @@ expectAST p (NaryOp_     _ _)    _ = case p of {}
 expectAST p (Literal_    _)      _ = case p of {}
 expectAST p (CoerceTo_   _ :$ _) _ = case p of {}
 expectAST p (UnsafeFrom_ _ :$ _) _ = case p of {}
-expectAST _ Empty_               _ =
+expectAST _ (Empty_ _)           _ =
     ExpectArray Text.empty (nat_ 0)
         $ error "expect: indexing an empty array"
     -- TODO: should we instead emit the AST for buggily indexing an empty array?
