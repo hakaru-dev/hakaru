@@ -190,8 +190,6 @@ instance (ABT AST abt, JmEq2 abt) => JmEq1 (AST abt) where
     jmEq1 (Array_ _ a)  (Array_ _ a')   =
         jmEq2 a a' >>= \(Refl, Refl) -> Just Refl
     jmEq1 (Datum_ _)    (Datum_ _)      = error "TODO jmEq1{Datum}"
-    jmEq1 (Case_ _ _)   (Case_ _ _)     = error "TODO jmEq1{Case}"
-    jmEq1 (Superpose_ _) (Superpose_ _) = error "TODO jmEq1{Superpose}"
     jmEq1 _              _              = Nothing
 
 -- TODO: a more general function of type:
@@ -199,11 +197,18 @@ instance (ABT AST abt, JmEq2 abt) => JmEq1 (AST abt) where
 -- This can then be used to define typeOf and instance JmEq2 AST
 
 instance (ABT AST abt, JmEq2 abt) => Eq1 (AST abt) where
-    -- TODO: Add NaryOp args here
     eq1 (NaryOp_ o es) (NaryOp_ o' es') =
         case jmEq1 o o' of
              Just Refl -> F.all (\(x,y) -> eq2 x y) (S.zip es es')
              Nothing   -> False
+    eq1 (Case_ a b) (Case_ a' b') =
+        case jmEq2 a a' of
+          Just (Refl, Refl)  -> eq2 a a' &&
+              F.all (\(x, y) -> eq1 x y) (zip b b')
+          Nothing            -> False
+    eq1 (Superpose_ [])          (Superpose_ [])             = True
+    eq1 (Superpose_ ((p,m):pms)) (Superpose_ ((p',m'):pms')) =
+        eq2 p p' && eq1 (Superpose_ pms) (Superpose_ pms')
     eq1 x y = maybe False (const True) (jmEq1 x y)
 
 instance (ABT AST abt, JmEq2 abt) => Eq (AST abt a) where
