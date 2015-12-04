@@ -29,6 +29,7 @@ library
                        -- Old code which is not used anywhere in the library itself. These may be required by tests, in which case we should translate them to the new AST. If not, then they should be deleted from the repo.
                        -- Language.Hakaru.RoundTrip,
                        -- The new AST stuff. As the above are migrated to the new infrastructure I'll move them below.
+                       Language.Hakaru.Syntax.AST.Eq,
                        Language.Hakaru.Syntax.Nat,
                        Language.Hakaru.Syntax.Natural,
                        Language.Hakaru.Syntax.IClasses,
