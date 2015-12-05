@@ -4,6 +4,7 @@
            , TypeOperators
            , TypeFamilies
            , DataKinds
+           , PolyKinds
            , RankNTypes
            , FlexibleContexts
            #-}
@@ -62,48 +63,19 @@ type instance Sample m 'HInt          = Int
 type instance Sample m 'HReal         = Double 
 type instance Sample m 'HProb         = LF.LogFloat
 
---type instance Sample m HBool          = Bool
-
 type instance Sample m ('HMeasure a)  =
     LF.LogFloat -> PRNG m ->
     m (Maybe (Sample m a, LF.LogFloat))
 
 type instance Sample m (a ':-> b)     = Sample m a -> Sample m b
 type instance Sample m ('HArray a)    = V.Vector (Sample m a)
---type instance Sample m (HData' (HakaruCon a)) = SCode (Sample m a)
 
--- type instance Sample m ('HData t ('[ 'K b1, 'K b2] ': xss)) =
---     (Sample m b1, Sample m b2)
-
-type instance Sample m ('HData t ((K b1 ': xs) ': xss)) =
-    Either (Sample m b1, Sample m ('HData t (xs ': xss)))
-           (Sample m ('HData t xss))
-
-type instance Sample m ('HData t ('[] ': xss)) =
-    Either () (Sample m ('HData t xss))
-
-type instance Sample m ('HData t '[]) = SVoid
+type instance Sample m ('HData t xss) = SDatum AST
 
 ----------------------------------------------------------------
 
-data SVoid
-
-instance Show SVoid where
-    show = undefined 
-
-data SCode a where
-     SInr :: !(SCode a) -> SCode a
-     SInl :: SStruct a -> SCode a
-
-infixr 7 `SEt`
-
-data SStruct a where
-     SEt   :: !(SDFun a) -> !(SStruct a) -> SStruct a
-     SDone :: SStruct a
-
-data SDFun a where
-     SKonst  :: Show b => !b -> SDFun a
-     SIdent  :: Show a => !a -> SDFun a 
+data SDatum (a :: k1 -> k2 -> *)
+    = forall i j. Show (a i j) => SDatum !(a i j)
 
 ----------------------------------------------------------------
 
@@ -183,12 +155,12 @@ normalizeVector xs = case V.length xs of
 
 ---------------------------------------------------------------
 
-sample :: (ABT AST abt, PrimMonad m, Functor m) =>
+sample :: (ABT AST abt, PrimMonad m, Functor m, Show2 abt) =>
           LC_ abt a -> Env m -> S m a
 sample (LC_ e) env =
   caseVarSyn e (sampleVar env) $ \t -> sampleAST t env
 
-sampleAST :: (ABT AST abt, PrimMonad m, Functor m) =>
+sampleAST :: (ABT AST abt, PrimMonad m, Functor m, Show2 abt) =>
              AST abt a -> Env m -> S m a
 sampleAST t env =
     case t of
@@ -199,7 +171,7 @@ sampleAST t env =
       Case_    o es -> sampleCase    o es env
       Superpose_ es -> sampleSuperpose es env
 
-sampleScon :: (ABT AST abt, PrimMonad m, Functor m) =>
+sampleScon :: (ABT AST abt, PrimMonad m, Functor m, Show2 abt) =>
               SCon args a -> SArgs abt args ->
               Env m -> S m a
 
@@ -270,7 +242,7 @@ samplePrimUnsafe (Continuous HContinuous_Prob) (S a) =
     S $ unsafeNat $ floor (LF.fromLogFloat a :: Double)
 samplePrimUnsafe (Continuous HContinuous_Real) (S a) = S $ floor a
 
-samplePrimOp :: (ABT AST abt, PrimMonad m, Functor m,
+samplePrimOp :: (ABT AST abt, PrimMonad m, Functor m, Show2 abt,
                  typs ~ UnLCs args, args ~ LCs typs) =>
                 PrimOp typs a -> SArgs abt args ->
                 Env m -> S m a
@@ -279,7 +251,7 @@ samplePrimOp Infinity         End env = S $ LF.logFloat (1/0)
 
 samplePrimOp NegativeInfinity End env = S $ -1/0
 
-sampleNaryOp :: (ABT AST abt, PrimMonad m, Functor m) =>
+sampleNaryOp :: (ABT AST abt, PrimMonad m, Functor m, Show2 abt) =>
                 NaryOp a -> Seq (abt '[] a) ->
                 Env m -> S m a
 
@@ -311,7 +283,7 @@ sampleNaryOp (Prod HSemiring_Real)  es env = S $ F.foldr (*) 1 xs
   where xs = fmap (\a -> unS $ sample (LC_ a) env) es
 
 
-sampleMeasureOp :: (ABT AST abt, PrimMonad m, Functor m,
+sampleMeasureOp :: (ABT AST abt, PrimMonad m, Functor m, Show2 abt,
                     typs ~ UnLCs args, args ~ LCs typs) =>
                    MeasureOp typs a -> SArgs abt args ->
                    Env m -> S m ('HMeasure a)
@@ -410,45 +382,39 @@ sampleLiteral (LInt  n) = S (fromInteger n) -- TODO: catch overflow errors
 sampleLiteral (LProb n) = S (fromRational $ fromNonNegativeRational n)
 sampleLiteral (LReal n) = S (fromRational n)
 
--- HACK only will work for HPair
 sampleDatum
-    :: (ABT AST abt, PrimMonad m, Functor m)
+    :: (ABT AST abt, PrimMonad m, Functor m, Show2 abt)
     => Datum (abt '[]) (HData' a)
     -> Env m
     -> S m (HData' a)
+sampleDatum d env = S (SDatum (Datum_ d))
 
--- sampleDatum (Datum _ (Inl (Et (Konst a)
---                            (Et (Konst b) Done)))) env =
---              let S a1 = sample (LC_ a) env
---                  S a2 = sample (LC_ b) env
---              in  S (a1, a2)
+-- sampleDatum (Datum _ (Inl a)) env = sampleDCode (Inl a) env
 
-sampleDatum (Datum _ (Inl a)) env = sampleDCode (Inl a) env
+-- sampleDatum (Datum _ _) _ = error "TODO: Handle this case in Datum"
 
-sampleDatum (Datum _ _) _ = error "TODO: Handle this case in Datum"
+-- sampleDCode   ::  (ABT AST abt, PrimMonad m, Functor m) =>
+--                   DatumCode (xs1 ': xs) (abt '[]) ('HData t (xs1 ': xs)) ->
+--                   Env m -> S m ('HData t (xs1 ': xs))
 
-sampleDCode   ::  (ABT AST abt, PrimMonad m, Functor m) =>
-                  DatumCode (xs1 ': xs) (abt '[]) ('HData t (xs1 ': xs)) ->
-                  Env m -> S m ('HData t (xs1 ': xs))
+-- sampleDCode (Inl a) env = sampleDStruct a env
 
-sampleDCode (Inl a) env = sampleDStruct a env
+-- sampleDStruct ::  (ABT AST abt, PrimMonad m, Functor m) =>
+--                   DatumStruct xs (abt '[])  ('HData t (xs1 ': xss)) ->
+--                   Env m -> S m ('HData t (xs ': xss))
+-- sampleDStruct (Et (Konst a) b) env = let S a1 = sampleDKonst (Konst a) env
+--                                          S a2 = sampleDStruct b env
+--                                      in  S $ Left (a1, a2)
 
-sampleDStruct ::  (ABT AST abt, PrimMonad m, Functor m) =>
-                  DatumStruct xs (abt '[])  ('HData t (xs1 ': xss)) ->
-                  Env m -> S m ('HData t (xs ': xss))
-sampleDStruct (Et (Konst a) b) env = let S a1 = sampleDKonst (Konst a) env
-                                         S a2 = sampleDStruct b env
-                                     in  S $ Left (a1, a2)
-
-sampleDStruct Done             env = S $ Left ()
+-- sampleDStruct Done             env = S $ Left ()
 
 
-sampleDKonst ::  (ABT AST abt, PrimMonad m, Functor m) => 
-                  DatumFun ('K b) (abt '[]) (HData' a) -> Env m -> S m b
-sampleDKonst (Konst a) env = sample (LC_ a) env
+-- sampleDKonst ::  (ABT AST abt, PrimMonad m, Functor m) => 
+--                   DatumFun ('K b) (abt '[]) (HData' a) -> Env m -> S m b
+-- sampleDKonst (Konst a) env = sample (LC_ a) env
 
 
-sampleCase :: (ABT AST abt, PrimMonad m, Functor m) =>
+sampleCase :: (ABT AST abt, PrimMonad m, Functor m, Show2 abt) =>
                 (abt '[] a) -> [Branch a abt b] ->
                 Env m -> S m b
 sampleCase o es env =
@@ -481,7 +447,7 @@ sampleCase o es env =
                       dropLets t
     -}
 
-sampleSuperpose :: (ABT AST abt, PrimMonad m, Functor m) =>
+sampleSuperpose :: (ABT AST abt, PrimMonad m, Functor m, Show2 abt) =>
                    [(abt '[] 'HProb, abt '[] ('HMeasure a))] ->
                    Env m -> S m ('HMeasure a)
 sampleSuperpose []       env = S (\p g -> return Nothing)
@@ -509,7 +475,7 @@ sampleVar env v = do
     Nothing -> error "variable not found!"
     Just a  -> S a
 
-runSample :: (ABT AST abt, Functor m, PrimMonad m) =>
+runSample :: (ABT AST abt, Functor m, PrimMonad m, Show2 abt) =>
              abt '[] a -> S m a
 runSample prog = sample (LC_ prog) emptyEnv
 

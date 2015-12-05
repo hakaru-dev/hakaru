@@ -52,13 +52,9 @@ illustrate SNat  g x = return (show x)
 illustrate SInt  g x = return (show x)
 illustrate SProb g x = return (show x)
 illustrate SReal g x = return (show x)
-illustrate {- sPair s t -}
-    (SData _ ((SKonst s `SEt` SKonst t `SEt` SDone) `SPlus` SVoid))
-  g (Left (x, (Left (y, Left ())))) = do
-  --   g (x,y) = do
-  str1 <- illustrate s g x
-  str2 <- illustrate t g y
-  return ("(" ++ str1 ++ "," ++ str2 ++ ")")
+
+illustrate (SData _ _) g (SDatum d) = return (show d)
+
 illustrate (SMeasure s) g m = do
   Just (samp,_) <- m 1 g
   illustrate s g samp
