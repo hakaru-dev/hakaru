@@ -345,30 +345,6 @@ instance (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Foldable21 syn)
         go n (Bind x v) = go (n `max` (1 + varID x)) v
 
 
----------------------------------------------------------------------
--- TODO: Move these instances to Language.Syntax.AST.Eq
----------------------------------------------------------------------
-
-instance Eq1 (syn (TrivialABT syn)) =>
-         Eq2 (TrivialABT (syn :: ([k] -> k -> *) -> k -> *))
-    where
-    eq2 (TrivialABT (Syn t1)) (TrivialABT (Syn t2)) = eq1 t1 t2
-    eq2 (TrivialABT (Var t1)) (TrivialABT (Var t2)) = eq1 t1 t2
-    eq2 (TrivialABT (Bind x1 v1)) (TrivialABT (Bind x2 v2)) =
-        x1 `eq1` x2 && (TrivialABT v1) `eq2` (TrivialABT v2)
-    eq2 _                     _                     = False
-
-instance Eq1 (syn (TrivialABT syn)) =>
-         Eq1 (TrivialABT (syn :: ([k] -> k -> *) -> k -> *) xs)
-    where
-    eq1 = eq2
-
-instance Eq1 (syn (TrivialABT syn)) =>
-         Eq (TrivialABT (syn :: ([k] -> k -> *) -> k -> *) xs a)
-    where
-    (==) = eq1
-----------------------------------------------------------------------
-
 -- BUG: requires UndecidableInstances
 instance (Show1 (Sing :: k -> *), Show1 (syn (TrivialABT syn)))
     => Show2 (TrivialABT (syn :: ([k] -> k -> *) -> k -> *))

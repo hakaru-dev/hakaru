@@ -243,3 +243,35 @@ instance ( Show1 (Sing :: k -> *)
          JmEq1 (TrivialABT (syn :: ([k] -> k -> *) -> k -> *) xs)
     where
     jmEq1 x y = jmEq2 x y >>= \(Refl, Refl) -> Just Refl
+
+
+instance ( Show1 (Sing :: k ->  *)
+         , JmEq1 (Sing :: k -> *)
+         , Foldable21 syn
+         , Eq1 (syn (TrivialABT syn))) =>
+         Eq2 (TrivialABT (syn :: ([k] -> k -> *) -> k -> *))
+    where
+    eq2 x y = case (viewABT x, viewABT y) of
+                (Syn t1, Syn t2) -> eq1 t1 t2
+                (Var t1, Var t2) -> eq1 t1 t2
+                (Bind x1 v1, Bind x2 v2) ->
+                    x1 `eq1` x2 &&
+                    (unviewABT v1) `eq2` (unviewABT v2)
+    eq2 _ _ = False
+
+
+instance ( Show1 (Sing :: k ->  *)
+         , JmEq1 (Sing :: k -> *)
+         , Foldable21 syn
+         , Eq1 (syn (TrivialABT syn))) =>
+         Eq1 (TrivialABT (syn :: ([k] -> k -> *) -> k -> *) xs)
+    where
+    eq1 = eq2
+
+instance ( Show1 (Sing :: k ->  *)
+         , JmEq1 (Sing :: k -> *)
+         , Foldable21 syn
+         , Eq1 (syn (TrivialABT syn))) =>
+         Eq (TrivialABT (syn :: ([k] -> k -> *) -> k -> *) xs a)
+    where
+    (==) = eq1
