@@ -218,7 +218,28 @@ instance (ABT AST abt, JmEq2 abt) => Eq1 (AST abt) where
 instance (ABT AST abt, JmEq2 abt) => Eq (AST abt a) where
     (==) = eq1
 
-instance (JmEq1 (Sing :: k -> *), JmEq1 (syn (TrivialABT syn))) =>
+instance ( Show1 (Sing :: k -> *)
+         , JmEq1 (Sing :: k -> *)
+         , JmEq1 (syn (TrivialABT syn))
+         , Foldable21 syn) =>
+         JmEq2 (TrivialABT (syn :: ([k] -> k -> *) -> k -> *))
+    where
+    jmEq2 x y = case (viewABT x, viewABT y) of
+                  (Syn t1, Syn t2) ->
+                      jmEq1 t1 t2 >>= \Refl -> Just (Refl, Refl) 
+                  (Var (Variable _ _ t1), Var (Variable _ _ t2)) ->
+                      jmEq1 t1 t2 >>= \Refl -> Just (Refl, Refl)
+                  (Bind (Variable _ _ x1) v1, Bind (Variable _ _ x2) v2) -> do
+                      Refl <- jmEq1 x1 x2
+                      (Refl,Refl) <- jmEq2 (unviewABT v1) (unviewABT v2)
+                      return (Refl, Refl)
+    jmEq2 _ _ = Nothing
+
+
+instance ( Show1 (Sing :: k -> *)
+         , JmEq1 (Sing :: k -> *)
+         , JmEq1 (syn (TrivialABT syn))
+         , Foldable21 syn) =>
          JmEq1 (TrivialABT (syn :: ([k] -> k -> *) -> k -> *) xs)
     where
     jmEq1 x y = jmEq2 x y >>= \(Refl, Refl) -> Just Refl
