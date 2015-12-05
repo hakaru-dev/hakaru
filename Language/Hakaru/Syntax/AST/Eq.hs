@@ -7,7 +7,13 @@
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
-
+---------------------------------------------------------------------
+--
+-- Warning: The following module is for testing purposes only.
+--   These instances are inefficient and using them will usually
+--   lead to inefficient solutions.
+--
+---------------------------------------------------------------------
 module Language.Hakaru.Syntax.AST.Eq where
 
 import Language.Hakaru.Syntax.HClasses
