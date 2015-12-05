@@ -218,7 +218,9 @@ instance (ABT AST abt, JmEq2 abt) => Eq1 (AST abt) where
           Nothing            -> False
     eq1 (Superpose_ [])          (Superpose_ [])             = True
     eq1 (Superpose_ ((p,m):pms)) (Superpose_ ((p',m'):pms')) =
-        eq2 p p' && eq1 (Superpose_ pms) (Superpose_ pms')
+        eq2 p p' &&
+        eq2 m m' &&
+        eq1 (Superpose_ pms) (Superpose_ pms')
     eq1 x y = maybe False (const True) (jmEq1 x y)
 
 instance (ABT AST abt, JmEq2 abt) => Eq (AST abt a) where
@@ -239,7 +241,7 @@ instance ( Show1 (Sing :: k -> *)
                       Refl <- jmEq1 x1 x2
                       (Refl,Refl) <- jmEq2 (unviewABT v1) (unviewABT v2)
                       return (Refl, Refl)
-    jmEq2 _ _ = Nothing
+                  _ -> Nothing
 
 
 instance ( Show1 (Sing :: k -> *)
@@ -263,7 +265,7 @@ instance ( Show1 (Sing :: k ->  *)
                 (Bind x1 v1, Bind x2 v2) ->
                     x1 `eq1` x2 &&
                     (unviewABT v1) `eq2` (unviewABT v2)
-    eq2 _ _ = False
+                _                -> False
 
 
 instance ( Show1 (Sing :: k ->  *)
