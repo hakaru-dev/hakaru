@@ -11,18 +11,15 @@ import Prelude hiding (unlines)
 import qualified Language.Hakaru.Parser.AST as U
 import qualified Language.Hakaru.Syntax.AST as T
 
-import Language.Hakaru.Syntax.AST.Eq
+import Language.Hakaru.Syntax.AST.Eq()
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Nat
 import Language.Hakaru.Syntax.ABT
-import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.TypeCheck
-import Language.Hakaru.PrettyPrint
 
-import Data.Text
 import Data.Sequence
 import Test.HUnit
 

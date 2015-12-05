@@ -7,14 +7,10 @@ import Prelude hiding (unlines)
 import Language.Hakaru.Parser.Parser
 import Language.Hakaru.Parser.AST
 
-import Language.Hakaru.Syntax.IClasses
-import Language.Hakaru.Syntax.Nat
-
 import Data.Text
 import Test.HUnit
 import Test.QuickCheck.Arbitrary
 import Test.QuickCheck
-import Text.Parsec.Error
 import Control.Applicative
 
 arbNat  :: Gen (Positive Int)

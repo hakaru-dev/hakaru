@@ -2,13 +2,8 @@
 
 import System.Exit (exitFailure)
 
-import qualified Tests.RoundTrip as RT
-import qualified Tests.Syntax as SY
-import qualified Tests.Vector as TV
-import qualified Tests.Relationships as RE
--- import qualified Tests.Embed as E
-import qualified Tests.Lazy as L
-import qualified Tests.Function as F
+import qualified Tests.Parser    as P
+import qualified Tests.TypeCheck as TC
 
 import Test.HUnit
 
@@ -16,13 +11,8 @@ import Test.HUnit
 
 allTests :: Test
 allTests = test
-  [ RT.allTests
-  , SY.allTests
-  -- , RE.allTests
-  -- , TV.allTests
-  -- , E.allTests
-  , L.important
-  -- , F.allTests
+  [ P.allTests
+  , TC.allTests
   ]
 
 main :: IO ()
