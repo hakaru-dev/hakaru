@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds
            , GADTs
            , TypeOperators
+           , PolyKinds
            , FlexibleContexts
            , UndecidableInstances
            #-}
@@ -14,6 +15,7 @@ import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
+import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.TypeOf
 
 import qualified Data.Foldable as F
@@ -201,7 +203,9 @@ instance (ABT AST abt, JmEq2 abt) => Eq1 (AST abt) where
         case jmEq1 o o' of
              Just Refl -> F.all (\(x,y) -> eq2 x y) (S.zip es es')
              Nothing   -> False
-    eq1 (Case_ a b) (Case_ a' b') =
+    eq1 (Literal_ a)   (Literal_ a')    = eq1 a a'
+    eq1 (Array_ n a)   (Array_ n' a')   = eq2 n n' && eq2 a a'
+    eq1 (Case_ a b)    (Case_ a' b')    =
         case jmEq2 a a' of
           Just (Refl, Refl)  -> eq2 a a' &&
               F.all (\(x, y) -> eq1 x y) (zip b b')
@@ -213,3 +217,8 @@ instance (ABT AST abt, JmEq2 abt) => Eq1 (AST abt) where
 
 instance (ABT AST abt, JmEq2 abt) => Eq (AST abt a) where
     (==) = eq1
+
+instance (JmEq1 (Sing :: k -> *), JmEq1 (syn (TrivialABT syn))) =>
+         JmEq1 (TrivialABT (syn :: ([k] -> k -> *) -> k -> *) xs)
+    where
+    jmEq1 x y = jmEq2 x y >>= \(Refl, Refl) -> Just Refl
