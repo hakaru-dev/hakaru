@@ -42,19 +42,12 @@ normalb   = unlines [ "x <~ normal(-2.0,1.0)"
 inferType' :: U.AST a -> TypeCheckMonad (TypedAST (TrivialABT T.AST))
 inferType' = inferType
 
-testTC :: U.AST a -> String
-testTC a = case runTCM (inferType' a) StrictMode of
-             Left err -> err
-             Right (TypedAST typ ast) -> show (typ, pretty ast)
-
 illustrate :: Sing a -> MWC.GenIO -> Sample IO a -> IO String
 illustrate SNat  g x = return (show x)
 illustrate SInt  g x = return (show x)
 illustrate SProb g x = return (show x)
 illustrate SReal g x = return (show x)
-
 illustrate (SData _ _) g (SDatum d) = return (show d)
-
 illustrate (SMeasure s) g m = do
   Just (samp,_) <- m 1 g
   illustrate s g samp
