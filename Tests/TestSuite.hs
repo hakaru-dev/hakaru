@@ -4,6 +4,7 @@ import System.Exit (exitFailure)
 
 import qualified Tests.Parser    as P
 import qualified Tests.TypeCheck as TC
+import qualified Tests.Simplify  as S
 
 import Test.HUnit
 
@@ -13,6 +14,7 @@ allTests :: Test
 allTests = test
   [ P.allTests
   , TC.allTests
+  , S.allTests
   ]
 
 main :: IO ()
