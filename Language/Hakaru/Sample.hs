@@ -389,36 +389,11 @@ sampleDatum
     -> S m (HData' a)
 sampleDatum d env = S (SDatum (Datum_ d))
 
--- sampleDatum (Datum _ (Inl a)) env = sampleDCode (Inl a) env
-
--- sampleDatum (Datum _ _) _ = error "TODO: Handle this case in Datum"
-
--- sampleDCode   ::  (ABT AST abt, PrimMonad m, Functor m) =>
---                   DatumCode (xs1 ': xs) (abt '[]) ('HData t (xs1 ': xs)) ->
---                   Env m -> S m ('HData t (xs1 ': xs))
-
--- sampleDCode (Inl a) env = sampleDStruct a env
-
--- sampleDStruct ::  (ABT AST abt, PrimMonad m, Functor m) =>
---                   DatumStruct xs (abt '[])  ('HData t (xs1 ': xss)) ->
---                   Env m -> S m ('HData t (xs ': xss))
--- sampleDStruct (Et (Konst a) b) env = let S a1 = sampleDKonst (Konst a) env
---                                          S a2 = sampleDStruct b env
---                                      in  S $ Left (a1, a2)
-
--- sampleDStruct Done             env = S $ Left ()
-
-
--- sampleDKonst ::  (ABT AST abt, PrimMonad m, Functor m) => 
---                   DatumFun ('K b) (abt '[]) (HData' a) -> Env m -> S m b
--- sampleDKonst (Konst a) env = sample (LC_ a) env
-
-
 sampleCase :: (ABT AST abt, PrimMonad m, Functor m, Show2 abt) =>
                 (abt '[] a) -> [Branch a abt b] ->
                 Env m -> S m b
 sampleCase o es env =
-    case runIdentity $ matchBranches undefined o es of
+    case runIdentity $ matchBranches evaluateDatum o es of
       Just (Matched as Nil1, b) -> sample (LC_ $ extendFromMatch (as []) b) env
   where extendFromMatch :: (ABT AST abt) =>
                            [Assoc abt] -> abt '[] b -> abt '[] b 
@@ -427,25 +402,7 @@ sampleCase o es env =
             syn (Let_ :$ e1 :*
                          bind x (extendFromMatch as e2) :* End)
 
-    {-
-    -- BUG: using 'perform' means using the 'M' EvaluationMonad, which returns the lub of results rather than just one!
-    let w  = evaluate perform $ syn (Case_ o es)
-        w1 = runM w [Some2 $ syn (Case_ o es)] in
-    -- HACK: We need to use the below code instead of having
-    -- sample (LC_ w1) env, because runM and friends are not
-    -- defined for abt '[] a but abt '[] ('HMeasure a)
-    caseVarSyn w1 undefined $ \t ->
-        case dropLets t of
-        Dirac :$ x :* End -> sample (LC_ x) env
-        t -> error (show $ pretty w1)
-    -- HACK: To remove the lets from residualizeListContext
-    where dropLets (Let_ :$ e1 :* e2 :* End) =
-            caseBind e2 $ \x e2' -> dropLets' (LC_ e2')
-          dropLets e        = e
-          dropLets' (LC_ e) =
-                  caseVarSyn e undefined $ \t ->
-                      dropLets t
-    -}
+        evaluateDatum = undefined
 
 sampleSuperpose :: (ABT AST abt, PrimMonad m, Functor m, Show2 abt) =>
                    [(abt '[] 'HProb, abt '[] ('HMeasure a))] ->
