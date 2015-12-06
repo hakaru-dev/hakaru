@@ -944,7 +944,7 @@ pose
     -> abt '[] ('HMeasure w)
 pose p m = superpose [(p, m)]
 
--- TODO: we should ensure that @m >> weight p@ simplifies to @pose p m@.
+-- TODO: we should ensure that @weight p >> m@ simplifies to @pose p m@.
 -- | Adjust the weight of the current measure.
 --
 -- /N.B.,/ the name for this function is terribly inconsistent
