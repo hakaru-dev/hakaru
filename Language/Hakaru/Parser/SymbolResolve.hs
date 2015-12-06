@@ -64,6 +64,8 @@ type SymbolTable a = [(Text, Symbol (U.AST a))]
 primTable :: SymbolTable a
 primTable =
     [("Pair",       primPair)
+    ,("left",       primLeft)
+    ,("right",      primRight)
     -- ,("True",       True_)
     -- ,("False",      False_)
     ,("fromProb",   primFromProb)
@@ -81,11 +83,16 @@ primTable =
 primMeasure2 :: U.SealedOp T.MeasureOp -> Symbol (U.AST a)
 primMeasure2 m = t2 $ \x y -> U.MeasureOp_ m [x, y]
 
-primPair, primFromProb, primUnsafeProb :: Symbol (U.AST a)
+primPair, primLeft, primRight :: Symbol (U.AST a)
+primFromProb, primUnsafeProb  :: Symbol (U.AST a)
 primWeight, primRealPow :: Symbol (U.AST a)
 primPair    = t2 $ \a b ->
     U.Datum_ $ U.Datum "pair"
         (U.Inl $ U.Konst a `U.Et` U.Konst b `U.Et` U.Done)
+primLeft    = TLam $ TNeu . U.Datum_ .
+                     U.Datum "left" . U.Inl . (`U.Et` U.Done) . U.Konst
+primRight   = TLam $ TNeu . U.Datum_ .
+                     U.Datum "right" . U.Inr . U.Inl . (`U.Et` U.Done) . U.Konst
 primFromProb =
     TLam $ TNeu . U.CoerceTo_ (Some2 $ CCons (Signed HRing_Real) CNil)
 primUnsafeProb =
