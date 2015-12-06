@@ -603,7 +603,7 @@ instance Show2 abt => Show1 (AST abt) where
         o :$ es ->
             showParen (p > 4)
                 ( showsPrec  (p+1) o
-                . showString " :* "
+                . showString " :$ "
                 . showsPrec1 (p+1) es
                 )
         NaryOp_ o es ->
