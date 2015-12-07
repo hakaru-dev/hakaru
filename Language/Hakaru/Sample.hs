@@ -402,7 +402,14 @@ sampleCase o es env =
             syn (Let_ :$ e1 :*
                          bind x (extendFromMatch as e2) :* End)
 
-        evaluateDatum = undefined
+        evaluateDatum :: (ABT AST abt, Monad m) => DatumEvaluator abt m
+        evaluateDatum e =
+            caseVarSyn e undefined $ \t ->
+                case t of
+                  Datum_ d            -> return . Just  $ d
+                  Ann_ _ :$ e1 :* End -> evaluateDatum e1 
+                  _ -> error "TODO: finish evaluate"
+
 
 sampleSuperpose :: (ABT AST abt, PrimMonad m, Functor m, Show2 abt) =>
                    [(abt '[] 'HProb, abt '[] ('HMeasure a))] ->
