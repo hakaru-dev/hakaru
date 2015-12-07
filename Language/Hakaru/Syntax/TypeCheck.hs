@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.03
+--                                                    2015.12.07
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeCheck
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -221,6 +221,8 @@ typeMismatch typ1 typ2 =
 -- here we'll avoid using the GADT syntax, even though it'd make
 -- the data type declaration prettier\/cleaner.
 -- <https://github.com/hakaru-dev/hakaru/issues/6>
+--
+-- | The @e' ∈ τ@ portion of the inference judgement.
 data TypedAST (abt :: [Hakaru] -> Hakaru -> *)
     = forall b. TypedAST !(Sing b) !(abt '[] b)
 
@@ -250,7 +252,9 @@ checkBinderType x eTyp e =
     pushCtx x (bind x <$> checkType eTyp e)
 
 
--- | Given a typing environment and a term, synthesize the term's type.
+-- | Given a typing environment and a term, synthesize the term's type:
+--
+-- > Γ ⊢ e ⇒ e' ∈ τ
 inferType
     :: forall abt n
     .  (ABT AST abt)
@@ -418,7 +422,9 @@ checkSArgs _ _ =
 
 
 -- | Given a typing environment, a term, and a type, check that the
--- term satisfies the type.
+-- term satisfies the type:
+--
+-- > Γ ⊢ τ ∋ e ⇒ e'
 checkType
     :: forall abt a c
     .  (ABT AST abt)
