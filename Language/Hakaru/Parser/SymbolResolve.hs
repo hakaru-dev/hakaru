@@ -34,6 +34,8 @@ primPat =
     , ("right",   TLam' $ \ [b] ->
            U.PDatum "pRight" . U.PInr . U.PInl $
             U.PKonst b `U.PEt` U.PDone)
+    , ("true",    TNeu' . U.PDatum "pTrue"  . U.PInl $ U.PDone)
+    , ("false",   TNeu' . U.PDatum "pFalse" . U.PInr . U.PInl $ U.PDone)
     , ("pair",    TLam' $ \ [a, b] ->
            U.PDatum "pPair" .  U.PInl $
             U.PKonst a `U.PEt` U.PKonst b `U.PEt` U.PDone)
@@ -50,6 +52,7 @@ primTypes =
     , ("int",     TNeu' $ U.SSing SInt)
     , ("prob",    TNeu' $ U.SSing SProb)
     , ("real",    TNeu' $ U.SSing SReal)
+    , ("bool",    TNeu' $ U.SSing sBool)
     , ("measure", TLam' $ \ [U.SSing a] -> U.SSing $ SMeasure a)
     , ("either",  TLam' $ \ [U.SSing a, U.SSing b] -> U.SSing $ sEither a b)
     , ("pair",    TLam' $ \ [U.SSing a, U.SSing b] -> U.SSing $ sPair a b)
@@ -66,8 +69,8 @@ primTable =
     [("Pair",       primPair)
     ,("left",       primLeft)
     ,("right",      primRight)
-    -- ,("True",       True_)
-    -- ,("False",      False_)
+    ,("True",       primTrue)
+    ,("False",      primFalse)
     ,("fromProb",   primFromProb)
     ,("unsafeProb", primUnsafeProb)
     ,("uniform",    primMeasure2 (U.SealedOp T.Uniform))
@@ -83,7 +86,7 @@ primTable =
 primMeasure2 :: U.SealedOp T.MeasureOp -> Symbol (U.AST a)
 primMeasure2 m = t2 $ \x y -> U.MeasureOp_ m [x, y]
 
-primPair, primLeft, primRight :: Symbol (U.AST a)
+primPair, primLeft, primRight, primTrue, primFalse :: Symbol (U.AST a)
 primFromProb, primUnsafeProb  :: Symbol (U.AST a)
 primWeight, primRealPow :: Symbol (U.AST a)
 primPair    = t2 $ \a b ->
@@ -93,6 +96,8 @@ primLeft    = TLam $ TNeu . U.Datum_ .
                      U.Datum "left" . U.Inl . (`U.Et` U.Done) . U.Konst
 primRight   = TLam $ TNeu . U.Datum_ .
                      U.Datum "right" . U.Inr . U.Inl . (`U.Et` U.Done) . U.Konst
+primTrue    = TNeu . U.Datum_ . U.Datum "true"  . U.Inl $ U.Done
+primFalse   = TNeu . U.Datum_ . U.Datum "false" . U.Inr . U.Inl $ U.Done
 primFromProb =
     TLam $ TNeu . U.CoerceTo_ (Some2 $ CCons (Signed HRing_Real) CNil)
 primUnsafeProb =
@@ -140,6 +145,10 @@ symbolResolution symbols ast =
         U.Let (mkSym name')
             <$> symbolResolution symbols e1
             <*> symbolResolution (updateSymbols name' symbols) e2
+    U.If e1 e2 e3     -> U.If
+        <$> symbolResolution symbols e1
+        <*> symbolResolution symbols e2
+        <*> symbolResolution symbols e3
 
     U.Ann e typ       -> (`U.Ann` typ) <$> symbolResolution symbols e
     U.Infinity        -> return $ U.Infinity
@@ -238,11 +247,16 @@ makePattern U.PWild'       = U.PWild
 makePattern (U.PData' (U.DV name args)) =
     case lookup name primPat of
       Just (TLam' f') -> f' (map makePattern args)
+      Just (TNeu' p') -> p'
       Nothing         -> error $ "Data constructor " ++ show name ++ " not found"
 
 makeBranch :: U.Branch' (Symbol (U.AST a)) -> U.Branch a
 makeBranch (U.Branch'' pat ast) = U.Branch (makePattern pat) (makeAST ast)
 makeBranch (U.Branch'  _   _)   = error "branch was not symbol resolved"
+
+makeTrue, makeFalse :: U.AST' (Symbol (U.AST a)) -> U.Branch a
+makeTrue  e = U.Branch (makePattern (U.PData' (U.DV "true"  []))) (makeAST e)
+makeFalse e = U.Branch (makePattern (U.PData' (U.DV "false" []))) (makeAST e)
 
 makeAST :: U.AST' (Symbol (U.AST a)) -> U.AST a
 makeAST ast =
@@ -253,7 +267,7 @@ makeAST ast =
     U.App e1 e2                   -> U.App_ (makeAST e1) (makeAST e2)
     U.Let (TNeu (U.Var_ name)) e1 e2 ->
         U.Let_ name (makeAST e1) (makeAST e2)
-
+    U.If e1 e2 e3     -> U.Case_ (makeAST e1) [(makeTrue e2), (makeFalse e3)]
     U.Ann e typ       -> U.Ann_ (makeAST e) (makeType typ)
     U.Infinity        -> U.PrimOp_ (U.SealedOp $ T.Infinity) []
     U.NegInfinity     -> U.PrimOp_ (U.SealedOp $ T.NegativeInfinity) []
