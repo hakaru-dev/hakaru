@@ -16,14 +16,14 @@
 ----------------------------------------------------------------
 --                                                    2015.11.23
 -- |
--- Module      :  Language.Hakaru.Lazy.Types
+-- Module      :  Language.Hakaru.Evaluation.Types
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  wren@community.haskell.org
 -- Stability   :  experimental
 -- Portability :  GHC-only
 --
--- The data types for "Language.Hakaru.Lazy"
+-- The data types for "Language.Hakaru.Evaluation.Lazy"
 --
 -- BUG: completely gave up on structure sharing. Need to add that back in.
 --
@@ -32,7 +32,7 @@
 -- Sample.hs and Expect.hs), this file will prolly be broken up
 -- into Lazy.hs itself vs Disintegrate.hs
 ----------------------------------------------------------------
-module Language.Hakaru.Lazy.Types
+module Language.Hakaru.Evaluation.Types
     (
     -- * Terms in particular known forms\/formats
       Head(..), fromHead, toHead, viewHeadDatum

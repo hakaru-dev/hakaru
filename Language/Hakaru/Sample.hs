@@ -47,8 +47,8 @@ import Language.Hakaru.Syntax.DatumCase
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
 
-import Language.Hakaru.Lazy.Types
-import Language.Hakaru.Lazy
+import Language.Hakaru.Evaluation.Types
+import Language.Hakaru.Evaluation.Lazy
 
 import Language.Hakaru.PrettyPrint
 

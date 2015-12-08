@@ -43,8 +43,8 @@ library
                        Language.Hakaru.PrettyPrint,
                        Language.Hakaru.PrettyConcrete,
                        Language.Hakaru.Expect,
-                       Language.Hakaru.Lazy.Types,
-                       Language.Hakaru.Lazy,
+                       Language.Hakaru.Evaluation.Types,
+                       Language.Hakaru.Evaluation.Lazy,
                        Language.Hakaru.Disintegrate,
                        Language.Hakaru.Inference
 

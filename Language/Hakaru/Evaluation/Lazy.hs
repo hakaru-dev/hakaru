@@ -13,9 +13,9 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.01
+--                                                    2015.12.08
 -- |
--- Module      :  Language.Hakaru.Lazy
+-- Module      :  Language.Hakaru.Evaluation.Lazy
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  wren@community.haskell.org
@@ -26,7 +26,7 @@
 --
 -- BUG: completely gave up on structure sharing. Need to add that back in. cf., @gvidal-lopstr07lncs.pdf@ for an approach much like my old one.
 ----------------------------------------------------------------
-module Language.Hakaru.Lazy
+module Language.Hakaru.Evaluation.Lazy
     (
     -- * Lazy partial evaluation
       MeasureEvaluator
@@ -64,7 +64,7 @@ import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumCase
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Coercion
-import Language.Hakaru.Lazy.Types
+import Language.Hakaru.Evaluation.Types
 import qualified Language.Hakaru.Syntax.Prelude as P
 import qualified Language.Hakaru.Expect         as E
 

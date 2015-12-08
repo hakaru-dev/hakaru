@@ -349,6 +349,7 @@ deriving instance Show (ArrayOp args a)
 -- since they are not simple operators.
 data MeasureOp :: [Hakaru] -> Hakaru -> * where
     Lebesgue    :: MeasureOp '[]                 'HReal
+    -- BUG: to make Counting polymorphic we'll need a new HClass. Using the HIntegral type family with an HContinuous proof term breaks our standalone deriving.
     Counting    :: MeasureOp '[]                 'HInt
     Categorical :: MeasureOp '[ 'HArray 'HProb ] 'HNat
     -- TODO: make Uniform polymorphic, so that if the two inputs are HProb then we know the measure must be over HProb too. More generally, if the first input is HProb (since the second input is assumed to be greater thant he first); though that would be a bit ugly IMO.
