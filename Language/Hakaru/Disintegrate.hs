@@ -92,9 +92,16 @@ snd_Whnf (Neutral e) = P.snd e
 snd_Whnf (Head_   v) = snd (reifyPair v)
 
 
--- N.B., the old version used to use the @env@ hack in order to handle the fact that free variables can change their type (eewww!!); we may need to do that again, but we should avoid it if we can possibly do so.
+-- N.B., the old version used to use the @env@ hack in order to
+-- handle the fact that free variables can change their type
+-- (eewww!!); we may need to do that again, but we should avoid it
+-- if we can possibly do so.
+--
 -- N.B., the Backward requirement is probably(?) phrased to be overly strict
--- | This function fils the role that the old @runDisintegrate@ did. It's unclear what exactly the old @disintegrate@ was supposed to be doing...
+--
+-- | This function fils the role that the old @runDisintegrate@
+-- did. It's unclear what exactly the old @disintegrate@ was supposed
+-- to be doing...
 disintegrate
     :: (ABT Term abt, Backward a a)
     => abt '[] ('HMeasure (HPair a b))
@@ -134,8 +141,13 @@ disintegrate m =
 -}
 
 
--- N.B., the old version used to use the @env@ hack in order to handle the fact that free variables can change their type (eewww!!); we may need to do that again, but we should avoid it if we can possibly do so.
--- N.B., we intentionally phrase the Backward requirement to be overly strict
+-- N.B., the old version used to use the @env@ hack in order to
+-- handle the fact that free variables can change their type
+-- (eewww!!); we may need to do that again, but we should avoid it
+-- if we can possibly do so.
+--
+-- N.B., we intentionally phrase the Backward requirement to be
+-- overly strict
 density
     :: (ABT Term abt, Backward a a)
     => abt '[] ('HMeasure a)
@@ -166,9 +178,18 @@ density m =
 -}
 
 
--- N.B., the old version used to use the @env@ hack (but not on the first argument) in order to handle the fact that free variables can change their type (eewww!!); we may need to do that again, but we should avoid it if we can possibly do so.
--- TODO: what's the point of having this function instead of just using @disintegrate m `app` x@ ? I.E., what does the @scalar0@ wrapper actually achieve; i.e., how does it direct things instead of just failing when we try to go the wrong direction?
--- BUG: come up with new names avoid name conflict vs the Prelude function.
+-- N.B., the old version used to use the @env@ hack (but not on the
+-- first argument) in order to handle the fact that free variables
+-- can change their type (eewww!!); we may need to do that again,
+-- but we should avoid it if we can possibly do so.
+--
+-- TODO: what's the point of having this function instead of just
+-- using @disintegrate m `app` x@ ? I.E., what does the @scalar0@
+-- wrapper actually achieve; i.e., how does it direct things instead
+-- of just failing when we try to go the wrong direction?
+--
+-- BUG: come up with new names avoid name conflict vs the Prelude
+-- function.
 observe
     :: (ABT Term abt, Backward a a)
     => abt '[] a
@@ -180,11 +201,18 @@ observe x m =
 
 
 -- N.B., all arguments used to have type @Lazy s repr@ instead of @abt '[]@
--- | This is what used to be called @disintegrate@. I think this new name captures whatever it is that funtion was actually supposed to be doing?
 --
--- The first argument is a representation of a projection function followed by equality; for example @(pair x unit)@ rather than @(x ==) . fst@. This trick isn't used in the paper, and probably doesn't generalize...
+-- | This is what used to be called @disintegrate@. I think this
+-- new name captures whatever it is that funtion was actually
+-- supposed to be doing?
 --
--- TODO: whatever this function is supposed to do, it should probably be the one that's the primop rather than 'disintegrate'.
+-- The first argument is a representation of a projection function
+-- followed by equality; for example @(pair x unit)@ rather than
+-- @(x ==) . fst@. This trick isn't used in the paper, and probably
+-- doesn't generalize...
+--
+-- TODO: whatever this function is supposed to do, it should probably
+-- be the one that's the primop rather than 'disintegrate'.
 conditionalize
     :: (ABT Term abt, Backward ab a)
     => abt '[] a
@@ -310,7 +338,9 @@ reject :: (ABT Term abt) => M abt a
 reject = M $ \_ _ -> [syn (Superpose_ [])]
 
 
--- Something essentially like this function was called @insert_@ in the finally-tagless code.
+-- Something essentially like this function was called @insert_@
+-- in the finally-tagless code.
+--
 -- | Emit some code that binds a variable, and return the variable
 -- thus bound. The function says what to wrap the result of the
 -- continuation with; i.e., what we're actually emitting.
@@ -352,11 +382,23 @@ emit_ f = M $ \c h -> f <$> c () h
 emitMBind_ :: (ABT Term abt) => abt '[] ('HMeasure HUnit) -> M abt ()
 emitMBind_ m = emit_ (m P.>>)
 
--- BUG: Ken says do it some other way, because 'traverse' is the wrong semantics, and broadly speaking there's the partial evaluation issue of needing to duplicate the downstream work because of there being no general way to combine the resulting heaps from each branch.
+
+-- N.B., this use of 'T.traverse' is definitely correct. It's
+-- sequentializing @t [abt '[] ('HMeasure a)]@ into @[t (abt '[]
+-- ('HMeasure a))]@ by chosing one of the possibilities at each
+-- position in @t@. No heap\/context effects can escape to mess
+-- things up. In contrast, using 'T.traverse' to sequentialize @t
+-- (M abt a)@ as @M abt (t a)@ is /wrong/! Doing that would give
+-- the conjunctive semantics where we have effects from one position
+-- in @t@ escape to affect the other positions. This has to do with
+-- the general issue in partial evaluation where we need to duplicate
+-- downstream work (as we do by passing the same heap to everyone)
+-- because there's no general way to combing the resulting heaps
+-- for each branch.
 --
 -- | Run each of the elements of the traversable using the same
--- heap and continuation, then pass the results to a function for
--- emitting code.
+-- heap and continuation for each one, then pass the results to a
+-- function for emitting code.
 emitFork_
     :: (ABT Term abt, Traversable t)
     => (forall r. t (abt '[] ('HMeasure r)) -> abt '[] ('HMeasure r))
@@ -421,7 +463,9 @@ data GGBranch (a :: Hakaru) (r :: [Hakaru] -> *)
 newtype Body (a :: *) (xs :: [Hakaru]) =
     Body { unBody :: List1 Variable xs -> a }
 
--- BUG: Ken says do it some other way, because 'traverse' is the wrong semantics, and broadly speaking there's the partial evaluation issue of needing to duplicate the downstream work because of there being no general way to combine the resulting heaps from each branch.
+-- N.B., just like above for 'emitFork_' we're using 'T.traverse'
+-- to sequentialize @t [...]@ into @[t (...)]@ where each branch
+-- gets the same heap and continuation.
 emitCase
     :: (ABT Term abt)
     => abt '[] a
@@ -431,18 +475,27 @@ emitCase e ms =
     M $ \c h -> (syn . Case_ e) <$> T.traverse (genBranch c h) ms
 
 
--- This is almost @GGBranch a (Body (M abt b)) -> M abt (Branch a abt b)@ except:
--- (1) the kind of @b@ doesn't quite work for that
--- (2) the final result is @[Branch a abt ('HMeasure r)]@ rather than @[abt '[] ('HMeasure r)]@
--- We can't use @M (Branch a abt)@ because that's not what the continuation returns. That is, given:
+-- This is almost @GGBranch a (Body (M abt b)) -> M abt (Branch a
+-- abt b)@ except:
+--     (1) the kind of @b@ doesn't quite work for that
+--     (2) the final result is @[Branch a abt ('HMeasure r)]@ rather
+--         than @[abt '[] ('HMeasure r)]@
+--
+-- We can't use @M (Branch a abt)@ because that's not what the
+-- continuation returns. That is, given:
+--
 -- > type Ans' abt f a = ListContext abt -> [f ('HMeasure a)]
+--
 -- instead of having:
+--
 -- > M abt = Codensity (Ans' abt (abt '[]))
+--
 -- we actually have:
+--
 -- > Ran (Ans' abt (abt '[])) (Ans' abt (Branch a abt))
--- which I think is isomorphic to:
--- > Codensity (Reader (ListContext abt)) (Ran (abt '[]) (Branch a abt))
--- TODO: methinks, to make this typecheckable we'll need to generalize the definition of 'M' to allow more general things like this.
+--
+-- TODO: methinks, to make this typecheckable we'll need to generalize
+-- the definition of 'M' to allow more general things like this.
 genBranch
     :: (ABT Term abt)
     => (b -> Ans abt r)
@@ -450,7 +503,15 @@ genBranch
     -> GGBranch a (Body (M abt b))
     -> [Branch a abt ('HMeasure r)]
 genBranch c h (GGBranch pat hints m) =
-    error "TODO: genBranch" -- unM (freshVars hints) (runBranch c pat m) h
+    error "TODO: genBranch"
+    -- The morally correct definition is:
+    -- > unM (freshVars hints) (runBranch c pat m) h
+    -- But the problem is that @runBranch c pat m@ doesn't have the
+    -- right type to be a continuation we pass to 'unM'. Conversely,
+    -- the problem is that in order to turn the @abt@ into a @Branch
+    -- a abt@ we need to have our hands on the @vars@ generated by
+    -- @freshVars hints@, so we can't just do @unM (freshVars hints)
+    -- c h@ and then patch things up after the fact.
 
 runBranch
     :: (ABT Term abt)
