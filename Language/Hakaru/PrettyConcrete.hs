@@ -163,7 +163,7 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
                     $ F.toList es
 
         Literal_ v    -> prettyPrec_ p v
-        Empty_   t    -> [PP.text "empty"]
+        Empty_   _    -> [PP.text "empty"]
         Array_ e1 e2  ->
             ppFun p "array"
                 [ toDoc $ ppArg e1
@@ -413,7 +413,7 @@ instance (ABT Term abt) => Pretty (Branch a abt) where
 
 ----------------------------------------------------------------
 prettyApps :: (ABT Term abt) => abt '[] (a ':-> b) -> abt '[] a -> Docs
-prettyApps e1 e2 =
+prettyApps = \ e1 e2 ->
     let (e1', vars) = collectApps e1 e2 in
     [e1' <> ppTuple vars]
     where

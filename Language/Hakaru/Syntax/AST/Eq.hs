@@ -210,9 +210,6 @@ instance JmEq1 Literal where
     jmEq1 (LReal x) (LReal y) = if x == y then Just Refl else Nothing
     jmEq1 _         _         = Nothing
 
-instance Eq1 Literal where
-    eq1 x y = maybe False (const True) (jmEq1 x y)
-
 
 instance (ABT Term abt, JmEq2 abt) => JmEq1 (Term abt) where
     jmEq1 (o :$ es) (o' :$ es') = do
@@ -225,11 +222,11 @@ instance (ABT Term abt, JmEq2 abt) => JmEq1 (Term abt) where
     jmEq1 (Literal_ v)  (Literal_ w)   = jmEq1 v w
     jmEq1 (Empty_ a)    (Empty_ b)     = jmEq1 a b
     jmEq1 (Array_ i f)  (Array_ j g)   = do
-        Refl <- jmEq1 i j
+        (Refl, Refl) <- jmEq2 i j
         (Refl, Refl) <- jmEq2 f g
         Just Refl
     jmEq1 (Datum_ _)     (Datum_ _)     = error "TODO jmEq1{Datum_}"
-    jmEq1 (Case_  _)     (Case_  _)     = error "TODO jmEq1{Case_}"
+    jmEq1 (Case_  _ _)   (Case_  _ _)   = error "TODO jmEq1{Case_}"
     jmEq1 (Superpose_ _) (Superpose_ _) = error "TODO jmEq1{Superpose_}"
     jmEq1 _              _              = Nothing
 
@@ -272,7 +269,7 @@ instance ( Show1 (Sing :: k -> *)
 instance ( Show1 (Sing :: k ->  *)
          , JmEq1 (Sing :: k -> *)
          , Foldable21 syn
-         , Eq1 (syn (TrivialABT syn))
+         , JmEq1 (syn (TrivialABT syn))
          ) => Eq2 (TrivialABT (syn :: ([k] -> k -> *) -> k -> *))
     where
     eq2 x y = maybe False (const True) (jmEq2 x y)
@@ -280,7 +277,7 @@ instance ( Show1 (Sing :: k ->  *)
 instance ( Show1 (Sing :: k ->  *)
          , JmEq1 (Sing :: k -> *)
          , Foldable21 syn
-         , Eq1 (syn (TrivialABT syn))
+         , JmEq1 (syn (TrivialABT syn))
          ) => Eq1 (TrivialABT (syn :: ([k] -> k -> *) -> k -> *) xs)
     where
     eq1 = eq2
@@ -288,7 +285,7 @@ instance ( Show1 (Sing :: k ->  *)
 instance ( Show1 (Sing :: k ->  *)
          , JmEq1 (Sing :: k -> *)
          , Foldable21 syn
-         , Eq1 (syn (TrivialABT syn))
+         , JmEq1 (syn (TrivialABT syn))
          ) => Eq (TrivialABT (syn :: ([k] -> k -> *) -> k -> *) xs a)
     where
     (==) = eq1
