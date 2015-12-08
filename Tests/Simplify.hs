@@ -17,13 +17,13 @@ import Language.Hakaru.Syntax.AST.Eq()
 
 import Test.HUnit
 
-v :: (ABT AST abt) => abt '[] 'HNat
+v :: (ABT Term abt) => abt '[] 'HNat
 v = var (Variable "x" 0 SNat)
 
-freevar :: TrivialABT AST '[] 'HNat
+freevar :: TrivialABT Term '[] 'HNat
 freevar = v
 
-normal01T :: TrivialABT AST '[] ('HMeasure 'HReal)
+normal01T :: TrivialABT Term '[] ('HMeasure 'HReal)
 normal01T = syn (MeasureOp_ Normal
                  :$ syn (CoerceTo_ (CCons (Continuous HContinuous_Real) CNil) :$
                            (syn (Literal_ (LInt (-2))) :* End))
@@ -31,7 +31,7 @@ normal01T = syn (MeasureOp_ Normal
                            (syn (Literal_ (LNat 1)) :* End))
                  :* End)
 
-testSimplify :: ( ABT AST abt
+testSimplify :: ( ABT Term abt
                 , Show (abt '[] a)
                 , Eq   (abt '[] a))
                => abt '[] a -> abt '[] a -> Assertion
