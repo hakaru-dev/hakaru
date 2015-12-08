@@ -30,17 +30,19 @@ import qualified System.Random.MWC as MWC
 
 five, normal01, normalb, uniform01 :: Text
 
-five = "2 + 3"
+five      = "2 + 3"
 uniform01 = "uniform(-0.0,1.0)"
 normal01  = "normal(-0.0,1.0)"
+normalb   = unlines
+    [ "x <~ normal(-2.0,1.0)"
+    , "y <~ normal(x, 1.0)"
+    , "return y"
+    ]
 
-normalb   = unlines [ "x <~ normal(-2.0,1.0)"
-                    , "y <~ normal(x, 1.0)"
-                    , "return y"
-                    ]
-
-inferType' :: U.AST a -> TypeCheckMonad (TypedAST (TrivialABT T.AST))
+                    
+inferType' :: U.AST a -> TypeCheckMonad (TypedAST (TrivialABT T.Term))
 inferType' = inferType
+
 
 illustrate :: Sing a -> MWC.GenIO -> Sample IO a -> IO String
 illustrate SNat  g x = return (show x)
@@ -49,30 +51,37 @@ illustrate SProb g x = return (show x)
 illustrate SReal g x = return (show x)
 illustrate (SData _ _) g (SDatum d) = return (show d)
 illustrate (SMeasure s) g m = do
-  Just (samp,_) <- m 1 g
-  illustrate s g samp
+    Just (samp,_) <- m 1 g
+    illustrate s g samp
 illustrate s _ _ = return ("<" ++ show s ++ ">")
+
 
 testHakaru :: Text -> TypeCheckMode ->  MWC.GenIO -> IO String
 testHakaru a mode g =
     case parseHakaru a of
-      Left err -> return (show err)
-      Right past ->
-          let m = inferType' (resolveAST past) in
-          case runTCM m mode of
-            Left err -> return err
-            Right (TypedAST typ ast) -> do
-              putStrLn ("Type: " ++ (show $ prettyType typ) ++ "\n")
-              putStrLn ("AST:\n" ++ (show $ pretty ast) ++ "\n")
-              case typ of
+    Left err -> return (show err)
+    Right past ->
+        let m = inferType' (resolveAST past) in
+        case runTCM m mode of
+        Left err                 -> return err
+        Right (TypedAST typ ast) -> do
+            putStr   "Type: "
+            putStrLn . show $ prettyType typ
+            putStrLn ""
+            putStrLn "AST:"
+            putStrLn . show $ pretty ast
+            putStrLn ""
+            case typ of
                 SMeasure _ -> do
                     ast' <- simplify ast
-                    putStrLn ("AST + Simplify:\n" ++ (show $ pretty ast') ++ "\n")
-                    
-                    putStrLn ("Expectation wrt 1 as ast:\n" ++
-                              (show $ pretty $
-                               expect ast (\x -> (prob_ 1))) ++ "\n")
+                    putStrLn "AST + Simplify:"
+                    putStrLn . show $ pretty ast'
+                    putStrLn ""
+                    putStrLn "Expectation wrt 1 as ast:"
+                    putStrLn . show . pretty $ total ast
+                    putStrLn ""
                 _ -> return ()
-              illustrate typ g (unS (runSample' ast))
-  where runSample' :: TrivialABT T.AST '[] a -> S IO a
-        runSample' = runSample
+            illustrate typ g . unS $ runSample' ast
+    where
+    runSample' :: TrivialABT T.Term '[] a -> S IO a
+    runSample' = runSample
