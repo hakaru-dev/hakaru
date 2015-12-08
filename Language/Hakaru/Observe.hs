@@ -8,28 +8,30 @@ module Language.Hakaru.Observe where
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.DataKind
+import Language.Hakaru.Syntax.HClasses
 import qualified Language.Hakaru.Syntax.Prelude as P
 import qualified Language.Hakaru.Expect         as E
 
-observe :: (ABT AST abt)
+observe :: (ABT Term abt, HEq_ a)
         => abt '[] ('HMeasure a)
         -> abt '[] a 
         -> abt '[] ('HMeasure HUnit)
 observe m a = observeAST (LC_ m) (LC_ a)
 
-observeAST :: (ABT AST abt)
+observeAST :: (ABT Term abt, HEq_ a)
            => LC_ abt ('HMeasure a)
            -> LC_ abt a
            -> abt '[] ('HMeasure HUnit)
 observeAST (LC_ m) (LC_ a) =
     caseVarSyn m observeVar $ \ast ->
         case ast of
+          Dirac :$ (e :* End) -> P.if_ (e P.== a) (P.dirac P.unit) P.reject
           MeasureOp_ op :$ es -> observeMeasureOp op es a
           _ -> error "observe can only be applied to measure primitive"
 
 observeVar = error "observe can only be applied measure primitive"
 
-observeMeasureOp :: (ABT AST abt, typs ~ UnLCs args, args ~ LCs typs)
+observeMeasureOp :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
                  => MeasureOp typs a
                  -> SArgs abt args
                  -> abt '[] a

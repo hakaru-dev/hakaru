@@ -62,6 +62,9 @@ mapleAST (LC_ e) =
         case t of
         o :$ es    -> mapleSCon o es
         Literal_ v -> mapleLiteral v
+        -- Special case pair
+        Datum_ (Datum _ (Inl (Et (Konst a) (Et (Konst b) Done)))) ->
+            app2 "Pair" a b
         Datum_ d   -> error "TODO: Add mapleAST{Datum}"
 
 uniqID :: Variable (a :: Hakaru) -> String
