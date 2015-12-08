@@ -39,7 +39,7 @@ import Data.Proxy (Proxy(..))
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Datum
-import Language.Hakaru.Syntax.AST (AST(Datum_))
+import Language.Hakaru.Syntax.AST (Term(Datum_))
 import Language.Hakaru.Syntax.ABT
 
 import           Language.Hakaru.PrettyPrint
@@ -87,10 +87,10 @@ data MatchResult
 type DList a = [a] -> [a]
 
 
-instance (ABT AST abt) => Show (MatchResult abt vars) where
+instance (ABT Term abt) => Show (MatchResult abt vars) where
     showsPrec p = shows . ppMatchResult p
 
-ppMatchResult :: (ABT AST abt) => Int -> MatchResult abt vars -> Doc
+ppMatchResult :: (ABT Term abt) => Int -> MatchResult abt vars -> Doc
 ppMatchResult _ GotStuck = PP.text "GotStuck"
 ppMatchResult p (Matched boundVars unboundVars) =
     parens (p > 9)
@@ -142,7 +142,7 @@ type DatumEvaluator abt m =
 -- the 'Branch' that doesn't fail. Thus, we can offer up that body
 -- even if that branch 'GotStuck' rather than fully matching.
 matchBranches
-    :: (ABT AST abt, Monad m)
+    :: (ABT Term abt, Monad m)
     => DatumEvaluator abt m
     -> abt '[] a
     -> [Branch a abt b]
@@ -168,7 +168,7 @@ matchBranches getDatum e = go
 -- the 'Branch' itself. Thus, we can offer up that body even if the
 -- branch 'GotStuck' rather than fully matching.
 matchBranch
-    :: (ABT AST abt, Monad m)
+    :: (ABT Term abt, Monad m)
     => DatumEvaluator abt m
     -> abt '[] a
     -> Branch a abt b
@@ -183,7 +183,7 @@ matchBranch getDatum e (Branch pat body) = do
 -- a thin wrapper around 'matchPattern' in order to restrict the
 -- type.
 matchTopPattern
-    :: (ABT AST abt, Monad m)
+    :: (ABT Term abt, Monad m)
     => DatumEvaluator abt m
     -> abt '[] a
     -> Pattern vars a
@@ -201,7 +201,7 @@ secondProxy _ = Proxy
 -- 'Datum_', then we extract the 'Datum' value; otherwise we fail.
 -- You can 'return' the result to turn this into an 'DatumEvaluator'.
 viewDatum
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] (HData' t)
     -> Maybe (Datum (abt '[]) (HData' t))
 viewDatum e =
@@ -216,7 +216,7 @@ viewDatum e =
 -- being able to handle nested patterns correctly. You probably
 -- don't ever need to call this function.
 matchPattern
-    :: (ABT AST abt, Monad m)
+    :: (ABT Term abt, Monad m)
     => DatumEvaluator abt m
     -> abt '[] a
     -> Pattern vars1 a
@@ -237,7 +237,7 @@ matchPattern getDatum e pat vars =
 
 
 matchCode
-    :: (ABT AST abt, Monad m)
+    :: (ABT Term abt, Monad m)
     => DatumEvaluator abt m
     -> DatumCode  xss (abt '[]) (HData' t)
     -> PDatumCode xss vars1     (HData' t)
@@ -252,7 +252,7 @@ matchCode getDatum d pat vars =
 
 matchStruct
     :: forall m abt xs t vars1 vars2
-    .  (ABT AST abt, Monad m)
+    .  (ABT Term abt, Monad m)
     => DatumEvaluator abt m
     -> DatumStruct  xs (abt '[]) (HData' t)
     -> PDatumStruct xs vars1     (HData' t)
@@ -284,7 +284,7 @@ matchStruct getDatum d pat vars =
             Just (Matched xs vars') -> k xs vars'
 
 matchFun
-    :: (ABT AST abt, Monad m)
+    :: (ABT Term abt, Monad m)
     => DatumEvaluator abt m
     -> DatumFun  x (abt '[]) (HData' t)
     -> PDatumFun x vars1     (HData' t)

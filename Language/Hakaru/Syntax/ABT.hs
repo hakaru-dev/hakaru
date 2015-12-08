@@ -25,7 +25,7 @@
 -- Portability :  GHC-only
 --
 -- The interface for abstract binding trees. Given the generating
--- functor 'AST': the non-recursive 'View' type extends 'AST' by
+-- functor 'Term': the non-recursive 'View' type extends 'Term' by
 -- adding variables and binding; and each 'ABT' type (1) provides
 -- some additional annotations at each recursion site, and then (2)
 -- ties the knot to produce the recursive trees. For an introduction
@@ -96,7 +96,7 @@ import Language.Hakaru.Syntax.Variable
 
 ----------------------------------------------------------------
 -- | The raw view of abstract binding trees, to separate out variables
--- and binders from (1) the rest of syntax (cf., 'AST'), and (2)
+-- and binders from (1) the rest of syntax (cf., 'Term'), and (2)
 -- whatever annotations (cf., the 'ABT' instances).
 --
 -- The first parameter gives the generating signature for the
@@ -551,7 +551,7 @@ rename x y = start
 -- | Perform capture-avoiding substitution. This function will
 -- either preserve type-safety or else throw an 'VarEqTypeError'
 -- (depending on which interpretation of 'varEq' is chosen). N.B.,
--- to ensure timely throwing of exceptions, the 'AST' and 'ABT'
+-- to ensure timely throwing of exceptions, the 'Term' and 'ABT'
 -- should have strict 'fmap21' definitions.
 subst
     :: forall syn abt (a :: k) xs (b :: k)
@@ -655,7 +655,7 @@ substs rho0 = start rho0
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 -- | A combinator for defining a HOAS-like API for our syntax.
--- Because our 'AST' is first-order, we cannot actually have any
+-- Because our 'Term' is first-order, we cannot actually have any
 -- exotic terms in our language. In principle, this function could
 -- be used to do exotic things when constructing those non-exotic
 -- terms; however, trying to do anything other than change the

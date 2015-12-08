@@ -33,7 +33,7 @@ module Language.Hakaru.Inference
 import Prelude (($), (.), error)
 import qualified Prelude
 import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.AST (AST)
+import Language.Hakaru.Syntax.AST (Term)
 import Language.Hakaru.Syntax.ABT (ABT)
 import Language.Hakaru.Syntax.Prelude
 import Language.Hakaru.Syntax.Sing (SingI())
@@ -43,7 +43,7 @@ import Language.Hakaru.Disintegrate (determine, density, disintegrate, Backward(
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 priorAsProposal
-    :: (ABT AST abt, SingI a, SingI b)
+    :: (ABT Term abt, SingI a, SingI b)
     => abt '[] ('HMeasure (HPair a b))
     -> abt '[] (HPair a b)
     -> abt '[] ('HMeasure (HPair a b))
@@ -59,7 +59,7 @@ priorAsProposal p x =
 -- We don't do the accept\/reject part of MCMC here, because @min@ and @bern@ don't do well in @simplify@! So we'll be passing the resulting AST of 'mh' to 'simplify' before plugging that into @mcmc@; that's why 'easierRoadmapProg4' and 'easierRoadmapProg4'' have different types.
 -- TODO: the @a@ type should be pure (aka @a ~ Expect' a@ in the old parlance).
 -- BUG: get rid of the SingI requirements due to using 'lam'
-mh  :: (ABT AST abt, SingI a, Backward a a)
+mh  :: (ABT Term abt, SingI a, Backward a a)
     => (abt '[] a -> abt '[] ('HMeasure a))
     -> abt '[] ('HMeasure a)
     -> abt '[] (a ':-> 'HMeasure (HPair a 'HProb))
@@ -73,7 +73,7 @@ mh proposal target =
             dirac $ pair new (mu `app` {-pair-} new {-old-} / mu `app` {-pair-} old {-new-})
 
 
-mcmc :: (ABT AST abt, SingI a, Backward a a)
+mcmc :: (ABT Term abt, SingI a, Backward a a)
     => (abt '[] a -> abt '[] ('HMeasure a))
     -> abt '[] ('HMeasure a)
     -> abt '[] (a ':-> 'HMeasure a)
@@ -87,7 +87,7 @@ mcmc proposal target =
 
 
 gibbsProposal
-    :: (ABT AST abt, SingI a, SingI b, Backward a a)
+    :: (ABT Term abt, SingI a, SingI b, Backward a a)
     => abt '[] ('HMeasure (HPair a b))
     -> abt '[] (HPair a b)
     -> abt '[] ('HMeasure (HPair a b))
@@ -108,7 +108,7 @@ gibbsProposal p xy =
 --      return x'
 
 slice
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] ('HMeasure 'HReal)
     -> abt '[] ('HReal ':-> 'HMeasure 'HReal)
 slice target =
@@ -124,7 +124,7 @@ slice target =
 
 
 sliceX
-    :: (ABT AST abt, SingI a, Backward a a)
+    :: (ABT Term abt, SingI a, Backward a a)
     => abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure (HPair a 'HReal))
 sliceX target =
@@ -136,7 +136,7 @@ sliceX target =
 
 
 incompleteBeta
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] 'HProb
     -> abt '[] 'HProb
     -> abt '[] 'HProb
@@ -149,7 +149,7 @@ incompleteBeta x a b =
 
 
 regBeta -- TODO: rename 'regularBeta'
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] 'HProb
     -> abt '[] 'HProb
     -> abt '[] 'HProb
@@ -157,14 +157,14 @@ regBeta -- TODO: rename 'regularBeta'
 regBeta x a b = incompleteBeta x a b / betaFunc a b
 
 
-tCDF :: (ABT AST abt) => abt '[] 'HReal -> abt '[] 'HProb -> abt '[] 'HProb
+tCDF :: (ABT Term abt) => abt '[] 'HReal -> abt '[] 'HProb -> abt '[] 'HProb
 tCDF x v =
     let b = regBeta (v / (unsafeProb (x*x) + v)) (v / prob_ 2) (prob_ 0.5)
     in  unsafeProb $ real_ 1 - real_ 0.5 * fromProb b
     
 
 approxMh
-    :: (ABT AST abt, SingI a, Backward a a)
+    :: (ABT Term abt, SingI a, Backward a a)
     => (abt '[] a -> abt '[] ('HMeasure a))
     -> abt '[] ('HMeasure a)
     -> [abt '[] a -> abt '[] ('HMeasure a)]

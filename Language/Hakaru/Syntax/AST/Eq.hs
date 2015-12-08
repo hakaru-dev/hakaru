@@ -27,7 +27,7 @@ import Language.Hakaru.Syntax.TypeOf
 import qualified Data.Foldable as F
 import qualified Data.Sequence as S
 
-jmEq_S :: (ABT AST abt, JmEq2 abt) 
+jmEq_S :: (ABT Term abt, JmEq2 abt) 
          =>  SCon args a   -> SArgs abt args  ->
              SCon args' a' -> SArgs abt args' ->
              Maybe (TypeEq a a', TypeEq args args')
@@ -188,7 +188,7 @@ instance JmEq1 Literal where
     jmEq1 (LReal _) (LReal _) = Just Refl
     jmEq1 _         _         = Nothing
 
-instance (ABT AST abt, JmEq2 abt) => JmEq1 (AST abt) where
+instance (ABT Term abt, JmEq2 abt) => JmEq1 (Term abt) where
     jmEq1 (o :$ es) (o' :$ es') = do
         (Refl, Refl) <- jmEq_S o es o' es'
         return Refl
@@ -201,10 +201,10 @@ instance (ABT AST abt, JmEq2 abt) => JmEq1 (AST abt) where
     jmEq1 _              _              = Nothing
 
 -- TODO: a more general function of type:
---   (JmEq2 abt) => AST abt a -> AST abt b -> Maybe (Sing a, TypeEq a b)
--- This can then be used to define typeOf and instance JmEq2 AST
+--   (JmEq2 abt) => Term abt a -> Term abt b -> Maybe (Sing a, TypeEq a b)
+-- This can then be used to define typeOf and instance JmEq2 Term
 
-instance (ABT AST abt, JmEq2 abt) => Eq1 (AST abt) where
+instance (ABT Term abt, JmEq2 abt) => Eq1 (Term abt) where
     eq1 (NaryOp_ o es) (NaryOp_ o' es') =
         case jmEq1 o o' of
              Just Refl -> F.all (\(x,y) -> eq2 x y) (S.zip es es')
@@ -223,7 +223,7 @@ instance (ABT AST abt, JmEq2 abt) => Eq1 (AST abt) where
         eq1 (Superpose_ pms) (Superpose_ pms')
     eq1 x y = maybe False (const True) (jmEq1 x y)
 
-instance (ABT AST abt, JmEq2 abt) => Eq (AST abt a) where
+instance (ABT Term abt, JmEq2 abt) => Eq (Term abt a) where
     (==) = eq1
 
 instance ( Show1 (Sing :: k -> *)

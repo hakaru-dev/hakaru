@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.23
+--                                                    2015.12.08
 -- |
 -- Module      :  Language.Hakaru.Syntax.AST
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -36,7 +36,7 @@ module Language.Hakaru.Syntax.AST
     -- * Syntactic forms
       SCon(..)
     , SArgs(..)
-    , AST(..)
+    , Term(..)
     -- * Operators
     , LC, LCs, UnLCs
     , LC_(..)
@@ -391,7 +391,7 @@ infix  4 :$ -- Chosen to be at the same precedence as (<$>) rather than ($)
 infixr 5 :* -- Chosen to match (:)
 
 
--- | The constructor of a @(':$')@ node in the 'AST'. Each of these
+-- | The constructor of a @(':$')@ node in the 'Term'. Each of these
 -- constructors denotes a \"normal\/standard\/basic\" syntactic
 -- form (i.e., a generalized quantifier). In the literature, these
 -- syntactic forms are sometimes called \"operators\", but we avoid
@@ -400,7 +400,7 @@ infixr 5 :* -- Chosen to match (:)
 -- function or constant; that is, non-binding syntactic forms. Also
 -- in the literature, the 'SCon' type itself is usually called the
 -- \"signature\" of the term language. However, we avoid calling
--- it that since our 'AST' has constructors other than just @(:$)@,
+-- it that since our 'Term' has constructors other than just @(:$)@,
 -- so 'SCon' does not give a complete signature for our terms.
 --
 -- The main reason for breaking this type out and using it in
@@ -434,7 +434,7 @@ data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
     Ann_        :: !(Sing a)       -> SCon '[ LC a ] a
     CoerceTo_   :: !(Coercion a b) -> SCon '[ LC a ] b
     UnsafeFrom_ :: !(Coercion a b) -> SCon '[ LC b ] a
-    -- TODO: add something like @SafeFrom_ :: Coercion a b -> abt b -> AST abt ('HMaybe a)@ so we can capture the safety of patterns like @if_ (0 <= x) (let x_ = unsafeFrom signed x in...) (...)@ Of course, since we're just going to do case analysis on the result; why not make it a binding form directly?
+    -- TODO: add something like @SafeFrom_ :: Coercion a b -> abt b -> Term abt ('HMaybe a)@ so we can capture the safety of patterns like @if_ (0 <= x) (let x_ = unsafeFrom signed x in...) (...)@ Of course, since we're just going to do case analysis on the result; why not make it a binding form directly?
     -- TODO: we'll probably want some more general thing to capture these sorts of patterns. For example, in the default implementation of Uniform we see: @if_ (lo < x && x < hi) (... unsafeFrom_ signed (hi - lo) ...) (...)@
 
     -- HACK: we must add the constraints that 'LCs' and 'UnLCs' are inverses, so that we have those in scope when doing case analysis (e.g., in TypeCheck.hs).
@@ -499,7 +499,7 @@ deriving instance Show (SCon args a)
 -- TODO: come up with a better name for 'End'
 -- TODO: unify this with 'List1'? However, strictness differences...
 --
--- | The arguments to a @(':$')@ node in the 'AST'; that is, a list
+-- | The arguments to a @(':$')@ node in the 'Term'; that is, a list
 -- of ASTs, where the whole list is indexed by a (type-level) list
 -- of the indices of each element.
 data SArgs :: ([Hakaru] -> Hakaru -> *) -> [([Hakaru], Hakaru)] -> *
@@ -542,26 +542,35 @@ instance Foldable21 SArgs where
 
 
 ----------------------------------------------------------------
-data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
+-- | The generating functor for Hakaru ASTs. This type is given in
+-- open-recursive form, where the first type argument gives the
+-- recursive form. The recursive form @abt@ does not have exactly
+-- the same kind as @Term abt@ because every 'Term' represents a
+-- locally-closed term whereas the underlying @abt@ may bind some
+-- variables.
+data Term :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     -- BUG: haddock doesn't like annotations on GADT constructors
     -- <https://github.com/hakaru-dev/hakaru/issues/6>
 
     -- Simple syntactic forms (i.e., generalized quantifiers)
-    (:$) :: !(SCon args a) -> !(SArgs abt args) -> AST abt a
+    (:$) :: !(SCon args a) -> !(SArgs abt args) -> Term abt a
 
     -- N-ary operators
-    NaryOp_ :: !(NaryOp a) -> !(Seq (abt '[] a)) -> AST abt a
+    NaryOp_ :: !(NaryOp a) -> !(Seq (abt '[] a)) -> Term abt a
 
-    -- TODO: 'Literal_', 'Empty_', 'Array_', and 'Datum_' are generalized quantifiers (to the same extent that 'Ann_', 'CoerceTo_', and 'UnsafeFrom_' are). Should we move them into 'SCon' just for the sake of minimizing how much lives in 'AST'? Or are they unique enough to be worth keeping here?
+    -- TODO: 'Literal_', 'Empty_', 'Array_', and 'Datum_' are generalized quantifiers (to the same extent that 'Ann_', 'CoerceTo_', and 'UnsafeFrom_' are). Should we move them into 'SCon' just for the sake of minimizing how much lives in 'Term'? Or are they unique enough to be worth keeping here?
 
     -- Literal\/Constant values
-    Literal_ :: !(Literal a) -> AST abt a
+    Literal_ :: !(Literal a) -> Term abt a
 
     -- These two constructors are here rather than in 'ArrayOp' because 'Array_' is a binding form; though it also means they're together with the other intro forms like 'Literal_' and 'Datum_'.
     --
     -- TODO: should we add a @Sing a@ argument to avoid ambiguity of 'Empty_'?
-    Empty_ :: !(Sing ('HArray a)) -> AST abt ('HArray a)
-    Array_ :: !(abt '[] 'HNat) -> !(abt '[ 'HNat ] a) -> AST abt ('HArray a)
+    Empty_ :: !(Sing ('HArray a)) -> Term abt ('HArray a)
+    Array_
+        :: !(abt '[] 'HNat)
+        -> !(abt '[ 'HNat ] a)
+        -> Term abt ('HArray a)
 
     -- -- User-defined data types
     -- BUG: even though the 'Datum' type has a single constructor, we get a warning about not being able to UNPACK it in 'Datum_'...
@@ -572,19 +581,19 @@ data AST :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     -- eta-expanded.
     Datum_
         :: {-# UNPACK #-} !(Datum (abt '[]) (HData' t))
-        -> AST abt (HData' t)
+        -> Term abt (HData' t)
 
     -- Generic case-analysis (via ABTs and Structural Focalization).
-    Case_ :: !(abt '[] a) -> [Branch a abt b] -> AST abt b
+    Case_ :: !(abt '[] a) -> [Branch a abt b] -> Term abt b
 
     -- Linear combinations of measures.
     Superpose_
         :: [(abt '[] 'HProb, abt '[] ('HMeasure a))]
-        -> AST abt ('HMeasure a)
+        -> Term abt ('HMeasure a)
 
 
 ----------------------------------------------------------------
--- N.B., having a @singAST :: AST abt a -> Sing a@ doesn't make
+-- N.B., having a @singTerm :: Term abt a -> Sing a@ doesn't make
 -- sense: That's what 'inferType' is for, but not all terms can be
 -- inferred; some must be checked... Similarly, we can't derive
 -- Read, since that's what typechecking is all about.
@@ -598,7 +607,7 @@ instance Show2 abt => Show1 (LC_ abt) where
     show1        = show2        . unLC_
 
 
-instance Show2 abt => Show1 (AST abt) where
+instance Show2 abt => Show1 (Term abt) where
     showsPrec1 p t =
         case t of
         o :$ es ->
@@ -636,13 +645,13 @@ instance Show2 abt => Show1 (AST abt) where
                     pes
                 )
 
-instance Show2 abt => Show (AST abt a) where
+instance Show2 abt => Show (Term abt a) where
     showsPrec = showsPrec1
     show      = show1
 
 
 ----------------------------------------------------------------
-instance Functor21 AST where
+instance Functor21 Term where
     fmap21 f (o :$ es)          = o :$ fmap21 f es
     fmap21 f (NaryOp_    o  es) = NaryOp_    o (fmap f es)
     fmap21 _ (Literal_   v)     = Literal_   v
@@ -654,7 +663,7 @@ instance Functor21 AST where
 
 
 ----------------------------------------------------------------
-instance Foldable21 AST where
+instance Foldable21 Term where
     foldMap21 f (_ :$ es)          = foldMap21 f es
     foldMap21 f (NaryOp_    _  es) = F.foldMap f es
     foldMap21 _ (Literal_   _)     = mempty

@@ -83,11 +83,11 @@ import qualified Language.Hakaru.Expect         as E
 
 ----------------------------------------------------------------
 
-fst_Whnf :: (ABT AST abt) => Whnf abt (HPair a b) -> abt '[] a
+fst_Whnf :: (ABT Term abt) => Whnf abt (HPair a b) -> abt '[] a
 fst_Whnf (Neutral e) = P.fst e
 fst_Whnf (Head_   v) = fst (reifyPair v)
 
-snd_Whnf :: (ABT AST abt) => Whnf abt (HPair a b) -> abt '[] b
+snd_Whnf :: (ABT Term abt) => Whnf abt (HPair a b) -> abt '[] b
 snd_Whnf (Neutral e) = P.snd e
 snd_Whnf (Head_   v) = snd (reifyPair v)
 
@@ -96,7 +96,7 @@ snd_Whnf (Head_   v) = snd (reifyPair v)
 -- N.B., the Backward requirement is probably(?) phrased to be overly strict
 -- | This function fils the role that the old @runDisintegrate@ did. It's unclear what exactly the old @disintegrate@ was supposed to be doing...
 disintegrate
-    :: (ABT AST abt, Backward a a)
+    :: (ABT Term abt, Backward a a)
     => abt '[] ('HMeasure (HPair a b))
     -> [abt '[] (a ':-> 'HMeasure b)] -- this Hakaru function is measurable
 disintegrate m =
@@ -137,7 +137,7 @@ disintegrate m =
 -- N.B., the old version used to use the @env@ hack in order to handle the fact that free variables can change their type (eewww!!); we may need to do that again, but we should avoid it if we can possibly do so.
 -- N.B., we intentionally phrase the Backward requirement to be overly strict
 density
-    :: (ABT AST abt, Backward a a)
+    :: (ABT Term abt, Backward a a)
     => abt '[] ('HMeasure a)
     -> [abt '[] (a ':-> 'HProb)] -- TODO: make this a Haskell function?
 density m =
@@ -170,7 +170,7 @@ density m =
 -- TODO: what's the point of having this function instead of just using @disintegrate m `app` x@ ? I.E., what does the @scalar0@ wrapper actually achieve; i.e., how does it direct things instead of just failing when we try to go the wrong direction?
 -- BUG: come up with new names avoid name conflict vs the Prelude function.
 observe
-    :: (ABT AST abt, Backward a a)
+    :: (ABT Term abt, Backward a a)
     => abt '[] a
     -> abt '[] ('HMeasure (HPair a b))
     -> [abt '[] ('HMeasure b)]
@@ -186,7 +186,7 @@ observe x m =
 --
 -- TODO: whatever this function is supposed to do, it should probably be the one that's the primop rather than 'disintegrate'.
 conditionalize
-    :: (ABT AST abt, Backward ab a)
+    :: (ABT Term abt, Backward ab a)
     => abt '[] a
     -> abt '[] ('HMeasure ab)
     -> [abt '[] ('HMeasure ab)]
@@ -210,7 +210,7 @@ conditionalize a m =
 -- future, this function should be replaced by a better one that
 -- takes some sort of strategy for deciding which alternative to
 -- choose.
-determine :: (ABT AST abt) => [abt '[] a] -> Maybe (abt '[] a)
+determine :: (ABT Term abt) => [abt '[] a] -> Maybe (abt '[] a)
 determine []    = Nothing
 determine (m:_) = Just m
 
@@ -221,7 +221,7 @@ determine (m:_) = Just m
 
 class Backward (b :: Hakaru) (a :: Hakaru) where
     {-
-    backward_ :: (ABT AST abt) => Lazy s abt b -> Lazy s abt a -> M s abt ()
+    backward_ :: (ABT Term abt) => Lazy s abt b -> Lazy s abt a -> M s abt ()
     -}
 
 instance Backward a HUnit where
@@ -301,12 +301,12 @@ type Lazy s abt a = L s (C abt) a
 {- -- Is called 'empty' or 'mzero'
 -- | It is impossible to satisfy the constraints, or at least we
 -- give up on trying to do so.
-bot :: (ABT AST abt) => M abt a
+bot :: (ABT Term abt) => M abt a
 bot = M $ \_ _ -> []
 -}
 
 -- | The empty measure is a solution to the constraints.
-reject :: (ABT AST abt) => M abt a
+reject :: (ABT Term abt) => M abt a
 reject = M $ \_ _ -> [syn (Superpose_ [])]
 
 
@@ -315,7 +315,7 @@ reject = M $ \_ _ -> [syn (Superpose_ [])]
 -- thus bound. The function says what to wrap the result of the
 -- continuation with; i.e., what we're actually emitting.
 emit
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => Text.Text
     -> Sing a
     -> (forall r. abt '[a] ('HMeasure r) -> abt '[] ('HMeasure r))
@@ -327,13 +327,13 @@ emit hint typ f = do
 -- This function was called @lift@ in the finally-tagless code.
 -- | Emit an 'MBind' (i.e., \"@m >>= \x ->@\") and return the
 -- variable thus bound (i.e., @x@).
-emitMBind :: (ABT AST abt) => abt '[] ('HMeasure a) -> M abt (Variable a)
+emitMBind :: (ABT Term abt) => abt '[] ('HMeasure a) -> M abt (Variable a)
 emitMBind m =
     emit Text.empty (sUnMeasure $ typeOf m)
         (\e -> syn (MBind :$ m :* e :* End))
 
 -- | A variant of 'emitMBind' that returns the variable as a 'Whnf'.
-emitMBind_Whnf :: (ABT AST abt) => MeasureEvaluator abt (M abt)
+emitMBind_Whnf :: (ABT Term abt) => MeasureEvaluator abt (M abt)
 emitMBind_Whnf e = (Neutral . var) <$> emitMBind e
 
 -- This function was called @insert_@ in the old finally-tagless code.
@@ -341,7 +341,7 @@ emitMBind_Whnf e = (Neutral . var) <$> emitMBind e
 -- provides an optimisation over using 'emit' and then discarding
 -- the generated variable.
 emit_
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => (forall r. abt '[] ('HMeasure r) -> abt '[] ('HMeasure r))
     -> M abt ()
 emit_ f = M $ \c h -> f <$> c () h
@@ -349,7 +349,7 @@ emit_ f = M $ \c h -> f <$> c () h
 -- | Emit an 'MBind' that discards its result (i.e., \"@m >>@\").
 -- We restrict the type of the argument to be 'HUnit' so as to avoid
 -- accidentally dropping things.
-emitMBind_ :: (ABT AST abt) => abt '[] ('HMeasure HUnit) -> M abt ()
+emitMBind_ :: (ABT Term abt) => abt '[] ('HMeasure HUnit) -> M abt ()
 emitMBind_ m = emit_ (m P.>>)
 
 -- BUG: Ken says do it some other way, because 'traverse' is the wrong semantics, and broadly speaking there's the partial evaluation issue of needing to duplicate the downstream work because of there being no general way to combine the resulting heaps from each branch.
@@ -358,14 +358,14 @@ emitMBind_ m = emit_ (m P.>>)
 -- heap and continuation, then pass the results to a function for
 -- emitting code.
 emitFork_
-    :: (ABT AST abt, Traversable t)
+    :: (ABT Term abt, Traversable t)
     => (forall r. t (abt '[] ('HMeasure r)) -> abt '[] ('HMeasure r))
     -> t (M abt a)
     -> M abt a
 emitFork_ f ms = M $ \c h -> f <$> T.traverse (\m -> unM m c h) ms
 
 -- | Emit a 'Superpose_' of the alternatives, each with unit weight.
-emitSuperpose :: (ABT AST abt) => [M abt a] -> M abt a
+emitSuperpose :: (ABT Term abt) => [M abt a] -> M abt a
 emitSuperpose [m] = m
 emitSuperpose ms  =
     emitFork_ (\es -> P.superpose [(P.prob_ 1, e) | e <- es]) ms
@@ -380,14 +380,14 @@ data GBranch (a :: Hakaru) (r :: *)
         r
 
 fromGBranch
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => GBranch a (abt '[] b)
     -> Branch a abt b
 fromGBranch (GBranch pat vars e) =
     Branch pat (binds_ vars e)
 
 toGBranch
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => Branch a abt b
     -> GBranch a (abt '[] b)
 toGBranch (Branch pat body) =
@@ -404,7 +404,7 @@ instance Traversable (GBranch a) where
 
 -- TODO: find a way to return the variables themselves to each GBranch; i.e., the second argument should be something like @[GBranch a (exists xs. List1 Variable xs -> M abt b)]@. Maybe we should really be generalizing 'GBranch' to be indexed by @xs@; but then it's not quite 'Traversable'...
 emitCase_
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] a
     -> [GBranch a (M abt b)]
     -> M abt b
@@ -423,7 +423,7 @@ newtype Body (a :: *) (xs :: [Hakaru]) =
 
 -- BUG: Ken says do it some other way, because 'traverse' is the wrong semantics, and broadly speaking there's the partial evaluation issue of needing to duplicate the downstream work because of there being no general way to combine the resulting heaps from each branch.
 emitCase
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] a
     -> [GGBranch a (Body (M abt b))]
     -> M abt b
@@ -444,7 +444,7 @@ emitCase e ms =
 -- > Codensity (Reader (ListContext abt)) (Ran (abt '[]) (Branch a abt))
 -- TODO: methinks, to make this typecheckable we'll need to generalize the definition of 'M' to allow more general things like this.
 genBranch
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => (b -> Ans abt r)
     -> ListContext abt
     -> GGBranch a (Body (M abt b))
@@ -453,7 +453,7 @@ genBranch c h (GGBranch pat hints m) =
     error "TODO: genBranch" -- unM (freshVars hints) (runBranch c pat m) h
 
 runBranch
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => (b -> Ans abt r)
     -> Pattern xs a
     -> Body (M abt b) xs
@@ -465,12 +465,12 @@ runBranch c pat m vars h =
 
 
 ----------------------------------------------------------------
-evaluate_ :: (ABT AST abt) => TermEvaluator abt (M abt)
+evaluate_ :: (ABT Term abt) => TermEvaluator abt (M abt)
 evaluate_ = evaluate perform
 
 -- | Simulate performing 'HMeasure' actions by simply emiting code
 -- for those actions, returning the bound variable.
-perform :: (ABT AST abt) => MeasureEvaluator abt (M abt)
+perform :: (ABT Term abt) => MeasureEvaluator abt (M abt)
 perform e0 =
     caseVarSyn e0 performVar $ \t ->
         case t of
@@ -494,17 +494,18 @@ perform e0 =
 
 
 -- TODO: I think this is the right definition...
-performVar :: (ABT AST abt) => Variable ('HMeasure a) -> M abt (Whnf abt a)
+performVar :: (ABT Term abt) => Variable ('HMeasure a) -> M abt (Whnf abt a)
 performVar = performWhnf <=< update perform evaluate_
 
-performWhnf :: (ABT AST abt) => Whnf abt ('HMeasure a) -> M abt (Whnf abt a)
+performWhnf
+    :: (ABT Term abt) => Whnf abt ('HMeasure a) -> M abt (Whnf abt a)
 performWhnf (Head_   v) = perform $ fromHead v
 performWhnf (Neutral e) = emitMBind_Whnf e
 
 
 ----------------------------------------------------------------
 -- TODO: see the todo for 'constrainOutcome'
-constrainValue :: (ABT AST abt) => Whnf abt a -> abt '[] a -> M abt ()
+constrainValue :: (ABT Term abt) => Whnf abt a -> abt '[] a -> M abt ()
 constrainValue = error "TODO: constrainValue"
 {-
 constrainValue v0 e0 =
@@ -561,7 +562,7 @@ constrainValue v0 e0 =
     
 
 constrainVariable
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => Whnf abt a
     -> Variable a
     -> M abt ()
@@ -600,7 +601,7 @@ constrainVariable v0 x =
 -- all, or do we want (hnf)patterns or something to more generally
 -- capture (hnf)measurable events?
 constrainOutcome
-    :: (ABT AST abt) => Whnf abt a -> abt '[] ('HMeasure a) -> M abt ()
+    :: (ABT Term abt) => Whnf abt a -> abt '[] ('HMeasure a) -> M abt ()
 constrainOutcome = error "TODO: constrainOutcome"
 {-
 constrainOutcome v0 e0 = do
@@ -657,7 +658,7 @@ constrainOutcome v0 e0 = do
 -- TODO: define helper methods of 'M' for emitting 'observe' and 'weight'
 
 constrainMeasureOp
-    :: (ABT AST abt, typs ~ UnLCs args, args ~ LCs typs)
+    :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => Whnf abt a
     -> MeasureOp typs a
     -> SCon args ('HMeasure a)

@@ -95,7 +95,7 @@ type TermEvaluator abt m =
 -- | Lazy partial evaluation with a given \"perform\" function.
 evaluate
     :: forall abt m
-    .  (ABT AST abt, EvaluationMonad abt m)
+    .  (ABT Term abt, EvaluationMonad abt m)
     => MeasureEvaluator abt m
     -> TermEvaluator    abt m
 evaluate perform = evaluate_
@@ -201,7 +201,7 @@ toStatements ss = map (\(Assoc x e) -> SLet x $ Thunk e) (ss [])
 -- bound variables to be above @nextFreeVarID@; but then we have to
 -- do that anyways.
 update
-    :: (ABT AST abt, EvaluationMonad abt m)
+    :: (ABT Term abt, EvaluationMonad abt m)
     => MeasureEvaluator abt m
     -> TermEvaluator    abt m
     -> Variable a
@@ -250,7 +250,7 @@ update perform evaluate_ = \x ->
 -- the annotation; though it might be here so that it'll actually
 -- get pushed down to somewhere it's needed later on, so it's best
 -- to play it safe and leave it in.
-ann :: (ABT AST abt) => Sing a -> Whnf abt a -> Whnf abt a
+ann :: (ABT Term abt) => Sing a -> Whnf abt a -> Whnf abt a
 ann typ (Neutral e) = Neutral $ syn (Ann_ typ :$ e :* End)
 ann typ (Head_   v) = Head_   $ WAnn typ v
 
@@ -259,7 +259,7 @@ ann typ (Head_   v) = Head_   $ WAnn typ v
 -- TODO: value\/constant coercion
 -- TODO: better unify the two cases of Whnf
 -- TODO: avoid namespace pollution by introduceing a class for these?
-coerceTo_Whnf :: (ABT AST abt) => Coercion a b -> Whnf abt a -> Whnf abt b
+coerceTo_Whnf :: (ABT Term abt) => Coercion a b -> Whnf abt a -> Whnf abt b
 coerceTo_Whnf c w =
     case w of
     Neutral e ->
@@ -279,7 +279,8 @@ coerceTo_Whnf c w =
         _               -> Head_ $ WCoerceTo c v
 
 
-unsafeFrom_Whnf :: (ABT AST abt) => Coercion a b -> Whnf abt b -> Whnf abt a
+unsafeFrom_Whnf
+    :: (ABT Term abt) => Coercion a b -> Whnf abt b -> Whnf abt a
 unsafeFrom_Whnf c w =
     case w of
     Neutral e ->
@@ -363,8 +364,8 @@ unsafeFrom_Literal (CCons c cs) v = step c (unsafeFrom_Literal cs v)
 -- BUG: need to improve the types so they can capture polymorphic data types
 -- BUG: this is a **really gross** hack. If we can avoid it, we should!!!
 class Interp a a' | a -> a' where
-    reify   :: (ABT AST abt) => Head abt a -> a'
-    reflect :: (ABT AST abt) => a' -> Head abt a
+    reify   :: (ABT Term abt) => Head abt a -> a'
+    reflect :: (ABT Term abt) => a' -> Head abt a
 
 instance Interp 'HNat Natural where
     reflect = WLiteral . LNat
@@ -397,7 +398,7 @@ instance Interp 'HReal Rational where
     reify (WUnsafeFrom _ _) = error "TODO: reify{WUnsafeFrom}"
 
 
-identifyDatum :: (ABT AST abt) => DatumEvaluator abt Identity
+identifyDatum :: (ABT Term abt) => DatumEvaluator abt Identity
 identifyDatum = return . (viewWhnfDatum <=< toWhnf)
 
 -- HACK: this requires -XTypeSynonymInstances and -XFlexibleInstances
@@ -427,7 +428,8 @@ instance Interp HBool Bool where
 
 
 -- TODO: can't we just use 'viewHeadDatum' and match on that?
-reifyPair :: (ABT AST abt) => Head abt (HPair a b) -> (abt '[] a, abt '[] b)
+reifyPair
+    :: (ABT Term abt) => Head abt (HPair a b) -> (abt '[] a, abt '[] b)
 reifyPair v =
     let impossible = error "reifyPair: the impossible happened"
         e0    = fromHead v
@@ -487,7 +489,7 @@ natRoot x y = x ** recip (fromIntegral (fromNat y))
 
 ----------------------------------------------------------------
 evaluateNaryOp
-    :: (ABT AST abt, EvaluationMonad abt m)
+    :: (ABT Term abt, EvaluationMonad abt m)
     => TermEvaluator abt m
     -> NaryOp a
     -> Seq (abt '[] a)
@@ -525,7 +527,7 @@ evaluateNaryOp evaluate_ = \o es -> mainLoop o (evalOp o) Seq.empty es
             _                    -> ws Seq.|> w1
 
     matchNaryOp
-        :: (ABT AST abt)
+        :: (ABT Term abt)
         => NaryOp a
         -> Whnf abt a
         -> Maybe (Seq (abt '[] a))
@@ -539,7 +541,7 @@ evaluateNaryOp evaluate_ = \o es -> mainLoop o (evalOp o) Seq.empty es
                 _                       -> Nothing
 
     -- TODO: move this off to Prelude.hs or somewhere...
-    identityElement :: (ABT AST abt) => NaryOp a -> Whnf abt a
+    identityElement :: (ABT Term abt) => NaryOp a -> Whnf abt a
     identityElement o =
         case o of
         And    -> Head_ (WDatum dTrue)
@@ -559,7 +561,12 @@ evaluateNaryOp evaluate_ = \o es -> mainLoop o (evalOp o) Seq.empty es
         Prod HSemiring_Real -> Head_ (WLiteral (LReal 1))
 
     -- | The evaluation interpretation of each NaryOp
-    evalOp :: (ABT AST abt) => NaryOp a -> Head abt a -> Head abt a -> Head abt a
+    evalOp
+        :: (ABT Term abt)
+        => NaryOp a
+        -> Head abt a
+        -> Head abt a
+        -> Head abt a
     -- TODO: something more efficient\/direct if we can...
     evalOp And      v1 v2 = reflect (reify v1 && reify v2)
     evalOp Or       v1 v2 = reflect (reify v1 || reify v2)
@@ -593,7 +600,7 @@ evaluateNaryOp evaluate_ = \o es -> mainLoop o (evalOp o) Seq.empty es
 
 ----------------------------------------------------------------
 evaluateArrayOp
-    :: ( ABT AST abt, EvaluationMonad abt m
+    :: ( ABT Term abt, EvaluationMonad abt m
        , typs ~ UnLCs args, args ~ LCs typs)
     => TermEvaluator abt m
     -> ArrayOp typs a
@@ -650,7 +657,7 @@ head2array _ = error "head2array: the impossible happened"
 ----------------------------------------------------------------
 evaluatePrimOp
     :: forall abt m typs args a
-    .  ( ABT AST abt, EvaluationMonad abt m
+    .  ( ABT Term abt, EvaluationMonad abt m
        , typs ~ UnLCs args, args ~ LCs typs)
     => TermEvaluator abt m
     -> PrimOp typs a

@@ -41,18 +41,19 @@ import Language.Hakaru.Syntax.Prelude
 
 -- | Convert an arbitrary measure into a probability measure; i.e.,
 -- reweight things so that the total weight\/mass is 1.
-normalize :: (ABT AST abt) => abt '[] ('HMeasure a) -> abt '[] ('HMeasure a)
+normalize
+    :: (ABT Term abt) => abt '[] ('HMeasure a) -> abt '[] ('HMeasure a)
 normalize m = superpose [(recip (total m), m)]
 
 
 -- | Compute the total weight\/mass of a measure.
-total :: (ABT AST abt) => abt '[] ('HMeasure a) -> abt '[] 'HProb
+total :: (ABT Term abt) => abt '[] ('HMeasure a) -> abt '[] 'HProb
 total m = expect m $ \_ -> prob_ 1
 
 
 -- | Convert a measure into its integrator.
 expect
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] ('HMeasure a)
     -> (abt '[] a -> abt '[] 'HProb) -> abt '[] 'HProb
 expect e = apM $ expectSynDir ImpureMeasure e emptyAssocs
@@ -71,12 +72,12 @@ prettyAlmostExpect = runPrettyPrint . almostExpect
 -}
 
 
-test1 :: TrivialABT AST '[] ('HProb ':-> 'HProb)
+test1 :: TrivialABT Term '[] ('HProb ':-> 'HProb)
 test1 = lam $ \x -> total (weight x)
 -- Currently returns @lam $ \x -> x * prob_ 1@ which is correct, but could still be simplified further. It used to return @lam $ \x -> sum [x * prob_ 1]@ but we fixed that via smart constructors.
 
 
-test2 :: TrivialABT AST '[] ('HMeasure 'HProb ':-> 'HProb)
+test2 :: TrivialABT Term '[] ('HMeasure 'HProb ':-> 'HProb)
 test2 = syn (Lam_ :$ bind x (total (var x)) :* End)
     where
     x = Variable (Text.pack "x") 2 (SMeasure SProb)
@@ -84,15 +85,15 @@ test2 = syn (Lam_ :$ bind x (total (var x)) :* End)
 
 
 -- TODO: we'd rather use @lam $ \x -> total (x `app` int_ 3)@
-test3 :: TrivialABT AST '[] (('HInt ':-> 'HMeasure 'HProb) ':-> 'HProb)
+test3 :: TrivialABT Term '[] (('HInt ':-> 'HMeasure 'HProb) ':-> 'HProb)
 test3 = syn (Lam_ :$ bind x (total (var x `app` int_ 3)) :* End)
     where
     x = Variable (Text.pack "x") 2 (SFun SInt $ SMeasure SProb)
 
-test4 :: TrivialABT AST '[] 'HProb
+test4 :: TrivialABT Term '[] 'HProb
 test4 = total $ if_ true (dirac unit) (weight (prob_ 5) >> dirac unit)
 
-test5 :: TrivialABT AST '[] (HEither HUnit HUnit ':-> 'HProb)
+test5 :: TrivialABT Term '[] (HEither HUnit HUnit ':-> 'HProb)
 test5 =
     lam $ \x ->
         total $
@@ -101,13 +102,13 @@ test5 =
             (\_ -> weight (prob_ 5) >> dirac unit)
 
 {-
-total (array (nat_ 1) (\x -> dirac x) ! nat_ 0) :: TrivialABT AST '[] 'HProb
+total (array (nat_ 1) (\x -> dirac x) ! nat_ 0) :: TrivialABT Term '[] 'HProb
 syn (Literal_ (VProb 1.0))
 -}
 
 ----------------------------------------------------------------
 -- | Explicit proof that a given Hakaru type is impure. We use this
--- to eliminate unreachable branches in 'expectAST'.
+-- to eliminate unreachable branches in 'expectTerm'.
 data ImpureType :: Hakaru -> * where
     ImpureMeasure :: ImpureType ('HMeasure a)
     ImpureFun     :: !(ImpureType a) -> ImpureType (b ':-> a)
@@ -167,24 +168,24 @@ data Expect :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
 
 -- | Apply a measure's integrator to a given function, removing
 -- administrative redexes if possible.
-apM :: (ABT AST abt)
+apM :: (ABT Term abt)
     => Expect abt ('HMeasure a)
     -> (abt '[] a -> abt '[] 'HProb) -> abt '[] 'HProb
 apM (ExpectMeasure f) c = f c
 
--- This function is only used once, for 'expectAST' of 'App_'.
+-- This function is only used once, for 'expectTerm' of 'App_'.
 -- | Apply a function, removing administrative redexes if possible.
-apF :: (ABT AST abt)
+apF :: (ABT Term abt)
     => Expect abt (a ':-> b)
     -> abt '[] a -> Expect abt b
 apF (ExpectFun _ e1) e2 = e1 e2
 
--- This function is only used once, for 'expectAST' of the 'Index' primop.
+-- This function is only used once, for 'expectTerm' of the 'Index' primop.
 -- | Index into an array, removing administrative redexes if possible.
 -- This macro does not insert any sort of bounds checking. We assume
 -- the functional component of the 'ExpectArray' already does that
 -- wherever is appropriate.
-apA :: (ABT AST abt)
+apA :: (ABT Term abt)
     => Expect abt ('HArray a)
     -> abt '[] 'HNat -> Expect abt a
 apA (ExpectArray _ _ e2) ei = e2 ei
@@ -206,14 +207,14 @@ apA (ExpectArray _ _ e2) ei = e2 ei
 -- we're stuck producing a lambda for the second argument to the
 -- 'Expect' primop.
 expectSynDir
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => ImpureType a -- N.B., should be lazy\/irrelevant in this argument
     -> abt '[] a
     -> Assocs abt
     -> Expect abt a
 expectSynDir p e xs =
     case resolveVar e xs of
-    Right t -> expectAST p t xs
+    Right t -> expectTerm p t xs
     Left  x -> expectTypeDir p (varType x) (var x)
 
 
@@ -232,7 +233,7 @@ expectSynDir p e xs =
 --   Again, this ensures that the explicit call to the 'Expect'
 --   primop ends up in the right place.
 expectTypeDir
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => ImpureType a -- N.B., should be lazy\/irrelevant in this argument
     -> Sing a
     -> abt '[] a
@@ -255,68 +256,68 @@ expectTypeDir _ (SMeasure a) e =
     syn (Expect :$ e :* binder Text.empty a c :* End)
 
 
-expectAST
-    :: (ABT AST abt)
+expectTerm
+    :: (ABT Term abt)
     => ImpureType a -- N.B., should be lazy\/irrelevant in this argument
-    -> AST abt a
+    -> Term abt a
     -> Assocs abt
     -> Expect abt a
-expectAST p (Lam_ :$ es) xs =
+expectTerm p (Lam_ :$ es) xs =
     case es of
     e1 :* End ->
         caseBind e1 $ \x e' ->
         ExpectFun (varHint x) $ \e2 ->
         expectSynDir (unImpureFun p) e' $ insertAssoc (Assoc x e2) xs
-    _ -> error "expectAST: the impossible happened"
+    _ -> error "expectTerm: the impossible happened"
 
-expectAST p (App_ :$ es) xs =
+expectTerm p (App_ :$ es) xs =
     case es of
     e1 :* e2 :* End ->
         expectSynDir (ImpureFun p) e1 xs `apF` e2
-    _ -> error "expectAST: the impossible happened"
+    _ -> error "expectTerm: the impossible happened"
 
-expectAST p (Let_ :$ es) xs =
+expectTerm p (Let_ :$ es) xs =
     case es of
     e1 :* e2 :* End ->
         caseBind e2 $ \x e' ->
         expectSynDir p e' $ insertAssoc (Assoc x e1) xs
-    _ -> error "expectAST: the impossible happened"
+    _ -> error "expectTerm: the impossible happened"
 
-expectAST p (Ann_ _ :$ es) xs =
+expectTerm p (Ann_ _ :$ es) xs =
     case es of
     e :* End ->
         -- TODO: should we re-wrap it up in a type annotation?
         expectSynDir p e xs
-    _ -> error "expectAST: the impossible happened"
+    _ -> error "expectTerm: the impossible happened"
 
-expectAST p (PrimOp_ _ :$ _) _ = case p of {}
-expectAST p (ArrayOp_ o :$ es) xs =
+expectTerm p (PrimOp_ _ :$ _) _ = case p of {}
+expectTerm p (ArrayOp_ o :$ es) xs =
     case o of
     Index _ ->
         case es of
         arr :* ei :* End -> expectSynDir (ImpureArray p) arr xs `apA` ei
-        _ -> error "expectAST: the impossible happened"
+        _ -> error "expectTerm: the impossible happened"
 
-    Reduce a -> error "TODO: expectAST{Reduce}"
+    Reduce a -> error "TODO: expectTerm{Reduce}"
     
     _ -> case p of {}
 
-expectAST p (NaryOp_     _ _)    _ = case p of {}
-expectAST p (Literal_    _)      _ = case p of {}
-expectAST p (CoerceTo_   _ :$ _) _ = case p of {}
-expectAST p (UnsafeFrom_ _ :$ _) _ = case p of {}
-expectAST _ (Empty_ _)           _ =
+expectTerm p (NaryOp_     _ _)    _ = case p of {}
+expectTerm p (Literal_    _)      _ = case p of {}
+expectTerm p (CoerceTo_   _ :$ _) _ = case p of {}
+expectTerm p (UnsafeFrom_ _ :$ _) _ = case p of {}
+expectTerm _ (Empty_ _)           _ =
     ExpectArray Text.empty (nat_ 0)
         $ error "expect: indexing an empty array"
     -- TODO: should we instead emit the AST for buggily indexing an empty array?
-expectAST p (Array_ e1 e2) xs =
+expectTerm p (Array_ e1 e2) xs =
     caseBind e2 $ \x e' ->
     ExpectArray (varHint x) e1 $ \ei ->
     -- BUG: we should wrap this in a guard that @ei < e1@, instead of just performing the substitution arbitrarily.
     expectSynDir (unImpureArray p) e' $ insertAssoc (Assoc x ei) xs
 
-expectAST p (Datum_ _)    _  = case p of {}
-expectAST p (Case_  e bs) xs =
+expectTerm p (Datum_ _)    _  = case p of {}
+expectTerm p (Case_  e bs) xs =
     -- TODO: doing case analysis on @p@ is just a hack to try and get at least some things to work. We can probably get everything to work by doing induction on @p@, but it'd be better if we could grab the type of the whole case expression and do induction on that...
     case p of
     ImpureMeasure ->
@@ -336,48 +337,48 @@ expectAST p (Case_  e bs) xs =
     -- where @denotation e xs@ is the constant interpretation for non-measures, and the @expect@ integrator interpretation for measures
     -- We can avoid some of that administrative stuff, by using @let_@ to name the @denotation e xs@ stuff and then use Hakaru's @Case_@ on that.
 
-expectAST p (MeasureOp_ o :$ es) xs = expectMeasure p o es xs
-expectAST _ (Dirac :$ es) _ =
+expectTerm p (MeasureOp_ o :$ es) xs = expectMeasure p o es xs
+expectTerm _ (Dirac :$ es) _ =
     case es of
     a :* End ->
         ExpectMeasure $ \c -> c a
-    _ -> error "expectMeasure: the impossible happened"
+    _ -> error "expectTerm: the impossible happened"
 
-expectAST p (MBind :$ es) xs =
+expectTerm p (MBind :$ es) xs =
     case es of
     e1 :* e2 :* End ->
         ExpectMeasure $ \c ->
         expectSynDir ImpureMeasure e1 xs `apM` \a ->
         caseBind e2 $ \x e' ->
         (expectSynDir p e' $ insertAssoc (Assoc x a) xs) `apM` c
-    _ -> error "expectAST: the impossible happened"
+    _ -> error "expectTerm: the impossible happened"
 
-expectAST p (Superpose_ es) xs =
+expectTerm p (Superpose_ es) xs =
     ExpectMeasure $ \c ->
     sum [ e1 * (expectSynDir p e2 xs `apM` c) | (e1, e2) <- es ]
     -- TODO: in the Lazy.tex paper, we use @denotation e1 xs@ and guard against that interpretation being negative...
     -- TODO: if @es@ is null, then automatically simplify to just 0
 
-expectAST p (Expect    :$ _) _ = case p of {}
-expectAST p (Integrate :$ _) _ = case p of {}
-expectAST p (Summate   :$ _) _ = case p of {}
+expectTerm p (Expect    :$ _) _ = case p of {}
+expectTerm p (Integrate :$ _) _ = case p of {}
+expectTerm p (Summate   :$ _) _ = case p of {}
 
 
 expectBranch
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => (abt '[] a -> abt '[] 'HProb)
     -> ImpureType ('HMeasure a)
     -> Assocs abt
-    -> View (AST abt) xs ('HMeasure a)
+    -> View (Term abt) xs ('HMeasure a)
     -> abt xs 'HProb
-expectBranch c p xs (Syn  t)    = expectAST    p      t  xs `apM` c
+expectBranch c p xs (Syn  t)    = expectTerm   p      t  xs `apM` c
 expectBranch c p xs (Var  x)    = expectSynDir p (var x) xs `apM` c
 expectBranch c p xs (Bind x e') = bind x $ expectBranch c p xs e'
 
 
 -- BUG: none of these use the Assocs; they must, in case we need to substitute for variables in the SArgs. Or we need to residualize the Assocs into the program we're generating...
 expectMeasure
-    :: (ABT AST abt, typs ~ UnLCs args, args ~ LCs typs)
+    :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => ImpureType ('HMeasure a)
     -> MeasureOp typs a
     -> SArgs abt args

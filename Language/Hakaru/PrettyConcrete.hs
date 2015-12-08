@@ -52,22 +52,22 @@ import Language.Hakaru.Syntax.ABT
 ----------------------------------------------------------------
 
 -- | Pretty-print a term.
-pretty :: (ABT AST abt) => abt '[] a -> Doc
+pretty :: (ABT Term abt) => abt '[] a -> Doc
 pretty = prettyPrec 0
 
 
 -- | Pretty-print a term at a given precendence level.
-prettyPrec :: (ABT AST abt) => Int -> abt '[] a -> Doc
+prettyPrec :: (ABT Term abt) => Int -> abt '[] a -> Doc
 prettyPrec p = toDoc . prettyPrec_ p . LC_
 
 
 -- | Pretty-print a variable\/term association pair.
-prettyAssoc :: (ABT AST abt) => Assoc abt -> Doc
+prettyAssoc :: (ABT Term abt) => Assoc abt -> Doc
 prettyAssoc = prettyPrecAssoc 0
 
 
 -- | Pretty-print an association at a given precendence level.
-prettyPrecAssoc :: (ABT AST abt) => Int -> Assoc abt -> Doc
+prettyPrecAssoc :: (ABT Term abt) => Int -> Assoc abt -> Doc
 prettyPrecAssoc p (Assoc x e) =
     toDoc $ ppFun p "Assoc"
         [ ppVariable x
@@ -105,21 +105,21 @@ ppVariable x = hint <> (PP.int . fromNat . varID) x
 
 
 -- | Pretty-print Hakaru binders as a Haskell lambda, as per our HOAS API.
-ppBinder :: (ABT AST abt) => abt xs a -> Docs
+ppBinder :: (ABT Term abt) => abt xs a -> Docs
 ppBinder e =
     case go [] (viewABT e) of
     ([],  body) -> body
     (vars,body) -> PP.char '\\' <> PP.sep vars <+> PP.text "-> " : body
     where
-    go :: (ABT AST abt) => [Doc] -> View (AST abt) xs a -> ([Doc],Docs)
+    go :: (ABT Term abt) => [Doc] -> View (Term abt) xs a -> ([Doc],Docs)
     go xs (Bind x v) = go (ppVariable x : xs) v
     go xs (Var  x)   = (reverse xs, [ppVariable x])
     go xs (Syn  t)   = (reverse xs, prettyPrec_ 0 (LC_ (syn t)))
 
-ppBinder2 :: (ABT AST abt) => abt xs a -> ([Doc],Docs)
+ppBinder2 :: (ABT Term abt) => abt xs a -> ([Doc],Docs)
 ppBinder2 e = go [] (viewABT e)
     where
-    go :: (ABT AST abt) => [Doc] -> View (AST abt) xs a -> ([Doc],Docs)
+    go :: (ABT Term abt) => [Doc] -> View (Term abt) xs a -> ([Doc],Docs)
     go xs (Bind x v) = go (ppVariable x : xs) v
     go xs (Var  x)   = (reverse xs, [ppVariable x])
     go xs (Syn  t)   = (reverse xs, prettyPrec_ 0 (LC_ (syn t)))
@@ -127,7 +127,7 @@ ppBinder2 e = go [] (viewABT e)
 
 -- TODO: since switching to ABT2, this instance requires -XFlexibleContexts; we should fix that if we can
 -- BUG: since switching to ABT2, this instance requires -XUndecidableInstances; must be fixed!
-instance (ABT AST abt) => Pretty (LC_ abt) where
+instance (ABT Term abt) => Pretty (LC_ abt) where
   prettyPrec_ p (LC_ e) =
     caseVarSyn e ((:[]) . ppVariable) $ \t -> 
         case t of
@@ -188,7 +188,7 @@ instance (ABT AST abt) => Pretty (LC_ abt) where
 
 
 -- | Pretty-print @(:$)@ nodes in the AST.
-ppSCon :: (ABT AST abt) => Int -> SCon args a -> SArgs abt args -> Docs
+ppSCon :: (ABT Term abt) => Int -> SCon args a -> SArgs abt args -> Docs
 ppSCon p Lam_ (e1 :* End) =
     let (vars, body) = ppBinder2 e1 in
     [PP.text "fn" <+> toDoc vars <> PP.colon <+> (toDoc body)]
@@ -271,7 +271,7 @@ ppUnsafe c = "unsafeFrom_ " ++ showsPrec 11 c ""
 
 -- | Pretty-print a 'PrimOp' @(:$)@ node in the AST.
 ppPrimOp
-    :: (ABT AST abt, typs ~ UnLCs args, args ~ LCs typs)
+    :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => Int -> PrimOp typs a -> SArgs abt args -> Docs
 ppPrimOp p Not  (e1 :* End)       = ppApply1 p "not" e1
 ppPrimOp p Impl (e1 :* e2 :* End) =
@@ -328,7 +328,7 @@ ppPrimOp _ _ _ = error "ppPrimOp: the impossible happened"
 
 -- | Pretty-print a 'ArrayOp' @(:$)@ node in the AST.
 ppArrayOp
-    :: (ABT AST abt, typs ~ UnLCs args, args ~ LCs typs)
+    :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => Int -> ArrayOp typs a -> SArgs abt args -> Docs
 ppArrayOp p (Index   _) (e1 :* e2 :* End) = ppBinop "!" 9 LeftAssoc p e1 e2
 ppArrayOp p (Size    _) (e1 :* End)       = ppApply1 p "size" e1
@@ -344,7 +344,7 @@ ppArrayOp _ _ _ = error "ppArrayOp: the impossible happened"
 
 -- | Pretty-print a 'MeasureOp' @(:$)@ node in the AST.
 ppMeasureOp
-    :: (ABT AST abt, typs ~ UnLCs args, args ~ LCs typs)
+    :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => Int -> MeasureOp typs a -> SArgs abt args -> Docs
 ppMeasureOp _ Lebesgue    End           = [PP.text "lebesgue"]
 ppMeasureOp _ Counting    End           = [PP.text "counting"]
@@ -403,7 +403,7 @@ instance Pretty (Pattern xs) where
     prettyPrec_ = ppPattern
 
 
-instance (ABT AST abt) => Pretty (Branch a abt) where
+instance (ABT Term abt) => Pretty (Branch a abt) where
     prettyPrec_ p (Branch pat e) =
         ppFun p "Branch"
             [ toDoc $ prettyPrec_ 11 pat
@@ -412,30 +412,32 @@ instance (ABT AST abt) => Pretty (Branch a abt) where
             ]
 
 ----------------------------------------------------------------
-prettyApps :: (ABT AST abt) => abt '[] (a ':-> b) -> abt '[] a -> Docs
+prettyApps :: (ABT Term abt) => abt '[] (a ':-> b) -> abt '[] a -> Docs
 prettyApps e1 e2 =
     let (e1', vars) = collectApps e1 e2 in
     [e1' <> ppTuple vars]
- where defApp e1 e2 = (e1, [e2])
-       collectApps :: (ABT AST abt) =>
-                      abt '[] (a ':-> b) -> abt '[] a -> (Doc, [Doc])
-       collectApps e1 e2 = 
-           caseVarSyn e1 (\x -> defApp (ppVariable x) (pretty e2)) $ \t ->
-               case t of
-                 App_ :$ e1 :* e2 :* End ->
-                     let (e', vars) = collectApps e1 e2 in
-                     (e', pretty e2 : vars)
-                 _ -> defApp (pretty e1) (pretty e2)
+    where
+    defApp e1 e2 = (e1, [e2])
+    collectApps
+        :: (ABT Term abt)
+        => abt '[] (a ':-> b) -> abt '[] a -> (Doc, [Doc])
+    collectApps e1 e2 = 
+        caseVarSyn e1 (\x -> defApp (ppVariable x) (pretty e2)) $ \t ->
+            case t of
+            App_ :$ e1 :* e2 :* End ->
+                let ~(e', vars) = collectApps e1 e2
+                in  (e', pretty e2 : vars)
+            _ -> defApp (pretty e1) (pretty e2)
 
 
-prettyLams :: (ABT AST abt) => abt '[a] b -> (Doc, [Doc])
+prettyLams :: (ABT Term abt) => abt '[a] b -> (Doc, [Doc])
 prettyLams e =
     case viewABT e of
-      Bind x (Syn t) ->
-          case t of
-            Lam_ :$ (e1 :* End) -> prettyLams e1
-            _ -> (pretty $ syn t, [ppVariable x])
-      _ -> error "TODO: collectLams"
+    Bind x (Syn t) ->
+        case t of
+        Lam_ :$ e1 :* End -> prettyLams e1
+        _ -> (pretty $ syn t, [ppVariable x])
+    _ -> error "TODO: collectLams"
 
 -- | For the \"@lam $ \x ->\n@\"  style layout.
 adjustHead :: (Doc -> Doc) -> Docs -> Docs
@@ -457,13 +459,14 @@ ppFun :: Int -> String -> [Doc] -> Docs
 ppFun _ f [] = [PP.text f <> PP.text "()"]
 ppFun _ f ds = [PP.text f, PP.nest (1 + length f) (ppTuple ds)]
 
-ppArg :: (ABT AST abt) => abt '[] a -> Docs
+ppArg :: (ABT Term abt) => abt '[] a -> Docs
 ppArg = prettyPrec_ 11 . LC_
 
-ppApply1 :: (ABT AST abt) => Int -> String -> abt '[] a -> Docs
+ppApply1 :: (ABT Term abt) => Int -> String -> abt '[] a -> Docs
 ppApply1 p f e1 = ppFun p f [toDoc $ ppArg e1]
 
-ppApply2 :: (ABT AST abt) => Int -> String -> abt '[] a -> abt '[] b -> Docs
+ppApply2
+    :: (ABT Term abt) => Int -> String -> abt '[] a -> abt '[] b -> Docs
 ppApply2 p f e1 e2 = ppFun p f [toDoc $ ppArg e1, toDoc $ ppArg e2]
 
 {-
@@ -498,7 +501,7 @@ showRatio p r
 data Associativity = LeftAssoc | RightAssoc | NonAssoc
 
 ppBinop
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => String -> Int -> Associativity
     -> Int -> abt '[] a -> abt '[] b -> Docs
 ppBinop op p0 assoc =

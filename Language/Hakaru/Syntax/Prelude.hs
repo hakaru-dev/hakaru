@@ -58,68 +58,68 @@ performs these sorts of optimizations, as a program transformation.
 -- TODO: constant propogation
 
 -- TODO: NBE to get rid of administrative redexes.
-app :: (ABT AST abt) => abt '[] (a ':-> b) -> abt '[] a -> abt '[] b
+app :: (ABT Term abt) => abt '[] (a ':-> b) -> abt '[] a -> abt '[] b
 app e1 e2 = syn (App_ :$ e1 :* e2 :* End)
 
-app2 :: (ABT AST abt) => abt '[] (a ':-> b ':-> c) -> abt '[] a -> abt '[] b -> abt '[] c
+app2 :: (ABT Term abt) => abt '[] (a ':-> b ':-> c) -> abt '[] a -> abt '[] b -> abt '[] c
 app2 = (app .) . app
 
-app3 :: (ABT AST abt) => abt '[] (a ':-> b ':-> c ':-> d) -> abt '[] a -> abt '[] b -> abt '[] c -> abt '[] d
+app3 :: (ABT Term abt) => abt '[] (a ':-> b ':-> c ':-> d) -> abt '[] a -> abt '[] b -> abt '[] c -> abt '[] d
 app3 = (app2 .) . app
 
-primOp0_ :: (ABT AST abt) => PrimOp '[] a -> abt '[] a
+primOp0_ :: (ABT Term abt) => PrimOp '[] a -> abt '[] a
 primOp0_ o = syn (PrimOp_ o :$ End)
 
 primOp1_
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => PrimOp '[ a ] b
     -> abt '[] a -> abt '[] b
 primOp1_ o e1 = syn (PrimOp_ o :$ e1 :* End)
 
 primOp2_
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => PrimOp '[ a, b ] c
     -> abt '[] a -> abt '[] b -> abt '[] c
 primOp2_ o e1 e2 = syn (PrimOp_ o :$ e1 :* e2 :* End)
 
 primOp3_
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => PrimOp '[ a, b, c ] d
     -> abt '[] a -> abt '[] b -> abt '[] c -> abt '[] d
 primOp3_ o e1 e2 e3 = syn (PrimOp_ o :$ e1 :* e2 :* e3 :* End)
 
-arrayOp0_ :: (ABT AST abt) => ArrayOp '[] a -> abt '[] a
+arrayOp0_ :: (ABT Term abt) => ArrayOp '[] a -> abt '[] a
 arrayOp0_ o = syn (ArrayOp_ o :$ End)
 
 arrayOp1_
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => ArrayOp '[ a ] b
     -> abt '[] a -> abt '[] b
 arrayOp1_ o e1 = syn (ArrayOp_ o :$ e1 :* End)
 
 arrayOp2_
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => ArrayOp '[ a, b ] c
     -> abt '[] a -> abt '[] b -> abt '[] c
 arrayOp2_ o e1 e2 = syn (ArrayOp_ o :$ e1 :* e2 :* End)
 
 arrayOp3_
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => ArrayOp '[ a, b, c ] d
     -> abt '[] a -> abt '[] b -> abt '[] c -> abt '[] d
 arrayOp3_ o e1 e2 e3 = syn (ArrayOp_ o :$ e1 :* e2 :* e3 :* End)
 
-measure0_ :: (ABT AST abt) => MeasureOp '[] a -> abt '[] ('HMeasure a)
+measure0_ :: (ABT Term abt) => MeasureOp '[] a -> abt '[] ('HMeasure a)
 measure0_ o = syn (MeasureOp_ o :$ End)
 
 measure1_
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => MeasureOp '[ a ] b
     -> abt '[] a -> abt '[] ('HMeasure b)
 measure1_ o e1 = syn (MeasureOp_ o :$ e1 :* End)
 
 measure2_
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => MeasureOp '[ a, b ] c
     -> abt '[] a -> abt '[] b -> abt '[] ('HMeasure c)
 measure2_ o e1 e2 = syn (MeasureOp_ o :$ e1 :* e2 :* End)
@@ -147,7 +147,7 @@ measure2_ o e1 e2 = syn (MeasureOp_ o :$ e1 :* e2 :* End)
 -- sequence evaluates to the identity element). However, if the
 -- operator doesn't have an identity, then the generated code will
 -- error whenever we attempt to run it.
-unsafeNaryOp_ :: (ABT AST abt) => NaryOp a -> [abt '[] a] -> abt '[] a
+unsafeNaryOp_ :: (ABT Term abt) => NaryOp a -> [abt '[] a] -> abt '[] a
 unsafeNaryOp_ o = naryOp_withIdentity o (syn $ NaryOp_ o Seq.empty)
 
 
@@ -160,7 +160,7 @@ unsafeNaryOp_ o = naryOp_withIdentity o (syn $ NaryOp_ o Seq.empty)
 -- if it exists in the flattened sequence! We should add that in
 -- the future.
 naryOp_withIdentity
-    :: (ABT AST abt) => NaryOp a -> abt '[] a -> [abt '[] a] -> abt '[] a
+    :: (ABT Term abt) => NaryOp a -> abt '[] a -> [abt '[] a] -> abt '[] a
 naryOp_withIdentity o i = go Seq.empty
     where
     go es [] =
@@ -178,7 +178,8 @@ naryOp_withIdentity o i = go Seq.empty
 
 -- TODO: is this actually worth breaking out, performance-wise? Or should we simply use:
 -- > naryOp2_ o x y = unsafeNaryOp_ o [x,y]
-naryOp2_ :: (ABT AST abt) => NaryOp a -> abt '[] a -> abt '[] a -> abt '[] a
+naryOp2_
+    :: (ABT Term abt) => NaryOp a -> abt '[] a -> abt '[] a -> abt '[] a
 naryOp2_ o x y =
     case (matchNaryOp o x, matchNaryOp o y) of
     (Just xs, Just ys) -> syn . NaryOp_ o $ xs Seq.>< ys
@@ -188,7 +189,7 @@ naryOp2_ o x y =
 
 
 matchNaryOp
-    :: (ABT AST abt) => NaryOp a -> abt '[] a -> Maybe (Seq (abt '[] a))
+    :: (ABT Term abt) => NaryOp a -> abt '[] a -> Maybe (Seq (abt '[] a))
 matchNaryOp o e =
     caseVarSyn e
         (const Nothing)
@@ -223,36 +224,36 @@ infixr 8 ^, ^^, **
 infixl 9 !, `app`, `thRootOf`
 
 -- TODO: some infix notation reminiscent of \"::\"
-ann_ :: (ABT AST abt) => Sing a -> abt '[] a -> abt '[] a
+ann_ :: (ABT Term abt) => Sing a -> abt '[] a -> abt '[] a
 ann_ typ e = syn (Ann_ typ :$ e :* End)
 
-coerceTo_ :: (ABT AST abt) => Coercion a b -> abt '[] a -> abt '[] b
+coerceTo_ :: (ABT Term abt) => Coercion a b -> abt '[] a -> abt '[] b
 coerceTo_ c e = syn (CoerceTo_ c :$ e :* End)
 
-unsafeFrom_ :: (ABT AST abt) => Coercion a b -> abt '[] b -> abt '[] a
+unsafeFrom_ :: (ABT Term abt) => Coercion a b -> abt '[] b -> abt '[] a
 unsafeFrom_ c e = syn (UnsafeFrom_ c :$ e :* End)
 
-literal_ :: (ABT AST abt) => Literal a  -> abt '[] a
+literal_ :: (ABT Term abt) => Literal a  -> abt '[] a
 literal_ = syn . Literal_
-bool_    :: (ABT AST abt) => Bool     -> abt '[] HBool
+bool_    :: (ABT Term abt) => Bool     -> abt '[] HBool
 bool_    = datum_ . (\b -> if b then dTrue else dFalse)
-nat_     :: (ABT AST abt) => Natural  -> abt '[] 'HNat
+nat_     :: (ABT Term abt) => Natural  -> abt '[] 'HNat
 nat_     = literal_ . LNat
-int_     :: (ABT AST abt) => Integer  -> abt '[] 'HInt
+int_     :: (ABT Term abt) => Integer  -> abt '[] 'HInt
 int_     = literal_ . LInt
-prob_    :: (ABT AST abt) => NonNegativeRational -> abt '[] 'HProb
+prob_    :: (ABT Term abt) => NonNegativeRational -> abt '[] 'HProb
 prob_    = literal_ . LProb
-real_    :: (ABT AST abt) => Rational -> abt '[] 'HReal
+real_    :: (ABT Term abt) => Rational -> abt '[] 'HReal
 real_    = literal_ . LReal
 
 -- Boolean operators
-true, false :: (ABT AST abt) => abt '[] HBool
+true, false :: (ABT Term abt) => abt '[] HBool
 true  = bool_ True
 false = bool_ False
 
 -- TODO: simplifications: distribution, constant-propogation
 -- TODO: do we really want to distribute /by default/? Clearly we'll want to do that in some optimization\/partial-evaluation pass, but do note that it makes terms larger in general...
-not :: (ABT AST abt) => abt '[] HBool -> abt '[] HBool
+not :: (ABT Term abt) => abt '[] HBool -> abt '[] HBool
 not e =
     Prelude.maybe (primOp1_ Not e) id
         $ caseVarSyn e
@@ -280,14 +281,14 @@ not e =
                     _ -> error "not: the impossible happened"
                 _ -> Nothing
 
-and, or :: (ABT AST abt) => [abt '[] HBool] -> abt '[] HBool
+and, or :: (ABT Term abt) => [abt '[] HBool] -> abt '[] HBool
 and = naryOp_withIdentity And true
 or  = naryOp_withIdentity Or  false
 
 (&&), (||),
     -- (</=>), (<==>), (==>), (<==), (\\), (//) -- TODO: better names?
     nand, nor
-    :: (ABT AST abt) => abt '[] HBool -> abt '[] HBool -> abt '[] HBool
+    :: (ABT Term abt) => abt '[] HBool -> abt '[] HBool -> abt '[] HBool
 (&&) = naryOp2_ And
 (||) = naryOp2_ Or
 -- (</=>) = naryOp2_ Xor
@@ -302,34 +303,34 @@ nor    = primOp2_ Nor
 
 -- HEq & HOrder operators
 (==), (/=)
-    :: (ABT AST abt, HEq_ a) => abt '[] a -> abt '[] a -> abt '[] HBool
+    :: (ABT Term abt, HEq_ a) => abt '[] a -> abt '[] a -> abt '[] HBool
 (==) = primOp2_ $ Equal hEq
 (/=) = (not .) . (==)
 
 (<), (<=), (>), (>=)
-    :: (ABT AST abt, HOrd_ a) => abt '[] a -> abt '[] a -> abt '[] HBool
+    :: (ABT Term abt, HOrd_ a) => abt '[] a -> abt '[] a -> abt '[] HBool
 (<)    = primOp2_ $ Less hOrd
 x <= y = not (x > y) -- or: @(x < y) || (x == y)@
 (>)    = flip (<)
 (>=)   = flip (<=)
 
-min, max :: (ABT AST abt, HOrd_ a) => abt '[] a -> abt '[] a -> abt '[] a
+min, max :: (ABT Term abt, HOrd_ a) => abt '[] a -> abt '[] a -> abt '[] a
 min = naryOp2_ $ Min hOrd
 max = naryOp2_ $ Max hOrd
 
 -- TODO: if @a@ is bounded, then we can make these safe...
-minimum, maximum :: (ABT AST abt, HOrd_ a) => [abt '[] a] -> abt '[] a
+minimum, maximum :: (ABT Term abt, HOrd_ a) => [abt '[] a] -> abt '[] a
 minimum = unsafeNaryOp_ $ Min hOrd
 maximum = unsafeNaryOp_ $ Max hOrd
 
 
 -- HSemiring operators
 (+), (*)
-    :: (ABT AST abt, HSemiring_ a) => abt '[] a -> abt '[] a -> abt '[] a
+    :: (ABT Term abt, HSemiring_ a) => abt '[] a -> abt '[] a -> abt '[] a
 (+) = naryOp2_ $ Sum  hSemiring
 (*) = naryOp2_ $ Prod hSemiring
 
-zero, one :: forall abt a. (ABT AST abt, HSemiring_ a) => abt '[] a
+zero, one :: forall abt a. (ABT Term abt, HSemiring_ a) => abt '[] a
 zero = literal_ $
     case (hSemiring :: HSemiring a) of
     HSemiring_Nat  -> LNat  0
@@ -343,19 +344,19 @@ one = literal_ $
     HSemiring_Prob -> LProb 1
     HSemiring_Real -> LReal 1
 
-sum, product :: (ABT AST abt, HSemiring_ a) => [abt '[] a] -> abt '[] a
+sum, product :: (ABT Term abt, HSemiring_ a) => [abt '[] a] -> abt '[] a
 sum     = naryOp_withIdentity (Sum  hSemiring) zero
 product = naryOp_withIdentity (Prod hSemiring) one
 
 {-
-sum, product :: (ABT AST abt, HSemiring_ a) => [abt '[] a] -> abt '[] a
+sum, product :: (ABT Term abt, HSemiring_ a) => [abt '[] a] -> abt '[] a
 sum     = unsafeNaryOp_ $ Sum  hSemiring
 product = unsafeNaryOp_ $ Prod hSemiring
 -}
 
 
 -- TODO: simplifications
-(^) :: (ABT AST abt, HSemiring_ a)
+(^) :: (ABT Term abt, HSemiring_ a)
     => abt '[] a -> abt '[] 'HNat -> abt '[] a
 (^) = primOp2_ $ NatPow hSemiring
 
@@ -363,12 +364,12 @@ product = unsafeNaryOp_ $ Prod hSemiring
 -- TODO: is this type restruction actually helpful anywhere for us?
 -- If so, we ought to make this function polymorphic so that we can
 -- use it for non-HRing HSemirings too...
-square :: (ABT AST abt, HRing_ a) => abt '[] a -> abt '[] (NonNegative a)
+square :: (ABT Term abt, HRing_ a) => abt '[] a -> abt '[] (NonNegative a)
 square e = unsafeFrom_ signed (e ^ nat_ 2)
 
 
 -- HRing operators
-(-) :: (ABT AST abt, HRing_ a) => abt '[] a -> abt '[] a -> abt '[] a
+(-) :: (ABT Term abt, HRing_ a) => abt '[] a -> abt '[] a -> abt '[] a
 x - y = x + negate y
 
 
@@ -376,7 +377,7 @@ x - y = x + negate y
 -- default/? Clearly we'll want to do that in some
 -- optimization\/partial-evaluation pass, but do note that it makes
 -- terms larger in general...
-negate :: (ABT AST abt, HRing_ a) => abt '[] a -> abt '[] a
+negate :: (ABT Term abt, HRing_ a) => abt '[] a -> abt '[] a
 negate e =
     Prelude.maybe (primOp1_ (Negate hRing) e) id
         $ caseVarSyn e
@@ -397,14 +398,14 @@ negate e =
 -- TODO: test case: @negative . square@ simplifies away the intermediate coercions. (cf., normal')
 -- BUG: this can lead to ambiguity when used with the polymorphic functions of RealProb.
 -- | An occasionally helpful variant of 'negate'.
-negative :: (ABT AST abt, HRing_ a) => abt '[] (NonNegative a) -> abt '[] a
+negative :: (ABT Term abt, HRing_ a) => abt '[] (NonNegative a) -> abt '[] a
 negative = negate . coerceTo_ signed
 
 
-abs :: (ABT AST abt, HRing_ a) => abt '[] a -> abt '[] a
+abs :: (ABT Term abt, HRing_ a) => abt '[] a -> abt '[] a
 abs = coerceTo_ signed . abs_
 
-abs_ :: (ABT AST abt, HRing_ a) => abt '[] a -> abt '[] (NonNegative a)
+abs_ :: (ABT Term abt, HRing_ a) => abt '[] a -> abt '[] (NonNegative a)
 abs_ e = 
     Prelude.maybe (primOp1_ (Abs hRing) e) id
         $ caseVarSyn e
@@ -421,12 +422,12 @@ abs_ e =
 
 
 -- TODO: any obvious simplifications? idempotent?
-signum :: (ABT AST abt, HRing_ a) => abt '[] a -> abt '[] a
+signum :: (ABT Term abt, HRing_ a) => abt '[] a -> abt '[] a
 signum = primOp1_ $ Signum hRing
 
 
 -- HFractional operators
-(/) :: (ABT AST abt, HFractional_ a) => abt '[] a -> abt '[] a -> abt '[] a
+(/) :: (ABT Term abt, HFractional_ a) => abt '[] a -> abt '[] a -> abt '[] a
 x / y = x * recip y
 
 
@@ -436,7 +437,7 @@ x / y = x * recip y
 -- /by default/? Clearly we'll want to do that in some
 -- optimization\/partial-evaluation pass, but do note that it makes
 -- terms larger in general...
-recip :: (ABT AST abt, HFractional_ a) => abt '[] a -> abt '[] a
+recip :: (ABT Term abt, HFractional_ a) => abt '[] a -> abt '[] a
 recip e0 =
     Prelude.maybe (primOp1_ (Recip hFractional) e0) id
         $ caseVarSyn e0
@@ -456,7 +457,7 @@ recip e0 =
 
 -- TODO: simplifications
 -- TODO: a variant of 'if_' which gives us the evidence that the argument is non-negative, so we don't need to coerce or use 'abs_'
-(^^) :: (ABT AST abt, HFractional_ a)
+(^^) :: (ABT Term abt, HFractional_ a)
     => abt '[] a -> abt '[] 'HInt -> abt '[] a
 x ^^ y =
     if_ (y < int_ 0)
@@ -468,31 +469,31 @@ x ^^ y =
 -- N.B., HProb is the only HRadical type (for now...)
 -- TODO: simplifications
 thRootOf
-    :: (ABT AST abt, HRadical_ a)
+    :: (ABT Term abt, HRadical_ a)
     => abt '[] 'HNat -> abt '[] a -> abt '[] a
 n `thRootOf` x = primOp2_ (NatRoot hRadical) x n
 
-sqrt :: (ABT AST abt, HRadical_ a) => abt '[] a -> abt '[] a
+sqrt :: (ABT Term abt, HRadical_ a) => abt '[] a -> abt '[] a
 sqrt = (nat_ 2 `thRootOf`)
 
 {-
 -- TODO: simplifications
-(^+) :: (ABT AST abt, HRadical_ a)
+(^+) :: (ABT Term abt, HRadical_ a)
     => abt '[] a -> abt '[] 'HPositiveRational -> abt '[] a
 x ^+ y = casePositiveRational y $ \n d -> d `thRootOf` (x ^ n)
 
-(^*) :: (ABT AST abt, HRadical_ a)
+(^*) :: (ABT Term abt, HRadical_ a)
     => abt '[] a -> abt '[] 'HRational -> abt '[] a
 x ^* y = caseRational y $ \n d -> d `thRootOf` (x ^^ n)
 -}
 
 betaFunc
-    :: (ABT AST abt) => abt '[] 'HProb -> abt '[] 'HProb -> abt '[] 'HProb
+    :: (ABT Term abt) => abt '[] 'HProb -> abt '[] 'HProb -> abt '[] 'HProb
 betaFunc = primOp2_ BetaFunc
 
 
 integrate
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] 'HReal
     -> abt '[] 'HReal
     -> (abt '[] 'HReal -> abt '[] 'HProb)
@@ -501,7 +502,7 @@ integrate lo hi f =
     syn (Integrate :$ lo :* hi :* binder Text.empty sing f :* End)
 
 summate
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] 'HReal
     -> abt '[] 'HReal
     -> (abt '[] 'HInt -> abt '[] 'HProb)
@@ -514,13 +515,13 @@ summate lo hi f =
 -- but, will it cause type inferencing issues? Excepting 'log'
 -- (which should be moved out of the class) these are all safe.
 class RealProb (a :: Hakaru) where
-    (**) :: (ABT AST abt) => abt '[] 'HProb -> abt '[] a -> abt '[] 'HProb
-    exp  :: (ABT AST abt) => abt '[] a -> abt '[] 'HProb
-    log  :: (ABT AST abt) => abt '[] 'HProb -> abt '[] a -- HACK
-    erf  :: (ABT AST abt) => abt '[] a -> abt '[] a
-    pi   :: (ABT AST abt) => abt '[] a
-    infinity :: (ABT AST abt) => abt '[] a
-    gammaFunc :: (ABT AST abt) => abt '[] a -> abt '[] 'HProb
+    (**) :: (ABT Term abt) => abt '[] 'HProb -> abt '[] a -> abt '[] 'HProb
+    exp  :: (ABT Term abt) => abt '[] a -> abt '[] 'HProb
+    log  :: (ABT Term abt) => abt '[] 'HProb -> abt '[] a -- HACK
+    erf  :: (ABT Term abt) => abt '[] a -> abt '[] a
+    pi   :: (ABT Term abt) => abt '[] a
+    infinity :: (ABT Term abt) => abt '[] a
+    gammaFunc :: (ABT Term abt) => abt '[] a -> abt '[] 'HProb
 
 instance RealProb 'HReal where
     (**)      = primOp2_ RealPow
@@ -541,14 +542,14 @@ instance RealProb 'HProb where
     gammaFunc = primOp1_ GammaFunc . fromProb
 
 logBase
-    :: (ABT AST abt, RealProb a, HFractional_ a)
+    :: (ABT Term abt, RealProb a, HFractional_ a)
     => abt '[] 'HProb
     -> abt '[] 'HProb
     -> abt '[] a
 logBase b x = log x / log b -- undefined when b == 1
 
 sin, cos, tan, asin, acos, atan, sinh, cosh, tanh, asinh, acosh, atanh
-    :: (ABT AST abt) => abt '[] 'HReal -> abt '[] 'HReal
+    :: (ABT Term abt) => abt '[] 'HReal -> abt '[] 'HReal
 sin    = primOp1_ Sin
 cos    = primOp1_ Cos
 tan    = primOp1_ Tan
@@ -565,22 +566,22 @@ atanh  = primOp1_ Atanh
 
 ----------------------------------------------------------------
 datum_
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => Datum (abt '[]) (HData' t)
     -> abt '[] (HData' t)
 datum_ = syn . Datum_
 
-unit   :: (ABT AST abt) => abt '[] HUnit
+unit   :: (ABT Term abt) => abt '[] HUnit
 unit   = datum_ dUnit
 
-pair   :: (ABT AST abt) => abt '[] a -> abt '[] b -> abt '[] (HPair a b)
+pair   :: (ABT Term abt) => abt '[] a -> abt '[] b -> abt '[] (HPair a b)
 pair   = (datum_ .) . dPair
 
 
 -- BUG: N.B., this doesn't work when @a@ or @b@ are HData, because the SingI instance for Symbol isn't implemented! (But other than that, this seems to work...)
 unpair
     :: forall abt a b c
-    .  (ABT AST abt)
+    .  (ABT Term abt)
     => abt '[] (HPair a b)
     -> (abt '[] a -> abt '[] b -> abt '[] c)
     -> abt '[] c
@@ -603,24 +604,24 @@ unpair e f =
         ]
 -}
 
-fst :: (ABT AST abt)
+fst :: (ABT Term abt)
     => abt '[] (HPair a b)
     -> abt '[] a
 fst p = unpair p (\x _ -> x)
 
-snd :: (ABT AST abt)
+snd :: (ABT Term abt)
     => abt '[] (HPair a b)
     -> abt '[] b
 snd p = unpair p (\_ y -> y)
 
-left :: (ABT AST abt) => abt '[] a -> abt '[] (HEither a b)
+left :: (ABT Term abt) => abt '[] a -> abt '[] (HEither a b)
 left = datum_ . dLeft
 
-right :: (ABT AST abt) => abt '[] b -> abt '[] (HEither a b)
+right :: (ABT Term abt) => abt '[] b -> abt '[] (HEither a b)
 right = datum_ . dRight
 
 uneither
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] (HEither a b)
     -> (abt '[] a -> abt '[] c)
     -> (abt '[] b -> abt '[] c)
@@ -632,33 +633,37 @@ uneither e l r =
         , Branch (pRight PVar) (binder Text.empty b r)
         ]
 
-if_ :: (ABT AST abt) => abt '[] HBool -> abt '[] a -> abt '[] a -> abt '[] a
+if_ :: (ABT Term abt)
+    => abt '[] HBool
+    -> abt '[] a
+    -> abt '[] a
+    -> abt '[] a
 if_ b t f =
     syn $ Case_ b
         [ Branch pTrue  t
         , Branch pFalse f
         ]
 
-nil      :: (ABT AST abt) => abt '[] (HList a)
+nil      :: (ABT Term abt) => abt '[] (HList a)
 nil      = datum_ dNil
 
-cons     :: (ABT AST abt) => abt '[] a -> abt '[] (HList a) -> abt '[] (HList a)
+cons     :: (ABT Term abt) => abt '[] a -> abt '[] (HList a) -> abt '[] (HList a)
 cons     = (datum_ .) . dCons
 
-list     :: (ABT AST abt) => [abt '[] a] -> abt '[] (HList a)
+list     :: (ABT Term abt) => [abt '[] a] -> abt '[] (HList a)
 list     = Prelude.foldr cons nil
 
-nothing  :: (ABT AST abt) => abt '[] (HMaybe a)
+nothing  :: (ABT Term abt) => abt '[] (HMaybe a)
 nothing  = datum_ dNothing
 
-just     :: (ABT AST abt) => abt '[] a -> abt '[] (HMaybe a)
+just     :: (ABT Term abt) => abt '[] a -> abt '[] (HMaybe a)
 just     = datum_ . dJust
 
-maybe    :: (ABT AST abt) => Maybe (abt '[] a) -> abt '[] (HMaybe a)
+maybe    :: (ABT Term abt) => Maybe (abt '[] a) -> abt '[] (HMaybe a)
 maybe    = Prelude.maybe nothing just
 
 unmaybe
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] (HMaybe a)
     -> abt '[] b
     -> (abt '[] a -> abt '[] b)
@@ -669,35 +674,35 @@ unmaybe e n j =
         , Branch (pJust PVar) (binder Text.empty (sUnMaybe $ typeOf e) j)
         ]
 
-unsafeProb :: (ABT AST abt) => abt '[] 'HReal -> abt '[] 'HProb
+unsafeProb :: (ABT Term abt) => abt '[] 'HReal -> abt '[] 'HProb
 unsafeProb = unsafeFrom_ signed
 
-fromProb   :: (ABT AST abt) => abt '[] 'HProb -> abt '[] 'HReal
+fromProb   :: (ABT Term abt) => abt '[] 'HProb -> abt '[] 'HReal
 fromProb   = coerceTo_ signed
 
-nat2int    :: (ABT AST abt) => abt '[] 'HNat -> abt '[] 'HInt
+nat2int    :: (ABT Term abt) => abt '[] 'HNat -> abt '[] 'HInt
 nat2int    = coerceTo_ signed
 
-fromInt    :: (ABT AST abt) => abt '[] 'HInt  -> abt '[] 'HReal
+fromInt    :: (ABT Term abt) => abt '[] 'HInt  -> abt '[] 'HReal
 fromInt    = coerceTo_ continuous
 
-nat2prob   :: (ABT AST abt) => abt '[] 'HNat  -> abt '[] 'HProb
+nat2prob   :: (ABT Term abt) => abt '[] 'HNat  -> abt '[] 'HProb
 nat2prob   = coerceTo_ continuous
 
-negativeInfinity :: (ABT AST abt) => abt '[] 'HReal
+negativeInfinity :: (ABT Term abt) => abt '[] 'HReal
 negativeInfinity = primOp0_ NegativeInfinity
 
--- instance (ABT AST abt) => Lambda abt where
+-- instance (ABT Term abt) => Lambda abt where
 -- 'app' already defined
 
 -- TODO: use 'typeOf' to remove the 'SingI' requirement somehow
-lam :: (ABT AST abt, SingI a)
+lam :: (ABT Term abt, SingI a)
     => (abt '[] a -> abt '[] b)
     -> abt '[] (a ':-> b)
 lam = lamWithType sing
 
 lamWithType
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => Sing a
     -> (abt '[] a -> abt '[] b)
     -> abt '[] (a ':-> b)
@@ -706,18 +711,18 @@ lamWithType typ f = syn (Lam_ :$ binder Text.empty typ f :* End)
 {-
 -- some test cases to make sure we tied-the-knot successfully:
 > let
-    lam :: (ABT AST abt)
+    lam :: (ABT Term abt)
         => String
         -> Sing a
         -> (abt '[] a -> abt '[] b)
         -> abt '[] (a ':-> b)
     lam name typ f = syn (Lam_ :$ binder name typ f :* End)
-> lam "x" SInt (\x -> x) :: TrivialABT AST ('HInt ':-> 'HInt)
-> lam "x" SInt (\x -> lam "y" SInt $ \y -> x < y) :: TrivialABT AST ('HInt ':-> 'HInt ':-> 'HBool)
+> lam "x" SInt (\x -> x) :: TrivialABT Term ('HInt ':-> 'HInt)
+> lam "x" SInt (\x -> lam "y" SInt $ \y -> x < y) :: TrivialABT Term ('HInt ':-> 'HInt ':-> 'HBool)
 -}
 
 let_
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] a
     -> (abt '[] a -> abt '[] b)
     -> abt '[] b
@@ -726,25 +731,25 @@ let_ e f = syn (Let_ :$ e :* binder Text.empty (typeOf e) f :* End)
 
 ----------------------------------------------------------------
 array
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] 'HNat
     -> (abt '[] 'HNat -> abt '[] a)
     -> abt '[] ('HArray a)
 array n =
     syn . Array_ n . binder Text.empty sing
 
-empty :: (ABT AST abt, SingI a) => abt '[] ('HArray a)
+empty :: (ABT Term abt, SingI a) => abt '[] ('HArray a)
 empty = syn (Empty_ sing)
 
-(!) :: (ABT AST abt)
+(!) :: (ABT Term abt)
     => abt '[] ('HArray a) -> abt '[] 'HNat -> abt '[] a
 (!) e = arrayOp2_ (Index . sUnArray $ typeOf e) e
 
-size :: (ABT AST abt) => abt '[] ('HArray a) -> abt '[] 'HNat
+size :: (ABT Term abt) => abt '[] ('HArray a) -> abt '[] 'HNat
 size e = arrayOp1_ (Size . sUnArray $ typeOf e) e
 
 reduce
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => (abt '[] a -> abt '[] a -> abt '[] a)
     -> abt '[] a
     -> abt '[] ('HArray a)
@@ -757,11 +762,11 @@ reduce f e =
 -- TODO: better names for all these. The \"V\" suffix doesn't make sense anymore since we're calling these arrays, not vectors...
 -- TODO: bust these all out into their own place, since the API for arrays is gonna be huge
 
-sumV :: (ABT AST abt, HSemiring_ a)
+sumV :: (ABT Term abt, HSemiring_ a)
     => abt '[] ('HArray a) -> abt '[] a
 sumV = reduce (+) zero -- equivalent to summateV if @a ~ 'HProb@
 
-summateV :: (ABT AST abt) => abt '[] ('HArray 'HProb) -> abt '[] 'HProb
+summateV :: (ABT Term abt) => abt '[] ('HArray 'HProb) -> abt '[] 'HProb
 summateV x =
     summate (real_ 0) (fromInt $ nat2int (size x) - int_ 1)
         (\i -> x ! unsafeFrom_ signed i)
@@ -769,17 +774,17 @@ summateV x =
 -- TODO: a variant of 'if_' for giving us evidence that the subtraction is sound.
 
 unsafeMinusNat
-    :: (ABT AST abt) => abt '[] 'HNat -> abt '[] 'HNat -> abt '[] 'HNat
+    :: (ABT Term abt) => abt '[] 'HNat -> abt '[] 'HNat -> abt '[] 'HNat
 unsafeMinusNat x y = unsafeFrom_ signed (nat2int x - nat2int y)
 
 unsafeMinusProb
-    :: (ABT AST abt) => abt '[] 'HProb -> abt '[] 'HProb -> abt '[] 'HProb
+    :: (ABT Term abt) => abt '[] 'HProb -> abt '[] 'HProb -> abt '[] 'HProb
 unsafeMinusProb x y = unsafeProb (fromProb x - fromProb y)
 
 {-
 -- BUG: the general version won't typecheck because we run into ambiguity issues due to NonNegative not being injective... Basically, we need to concretize the choice of @a@ given @NonNegative a@
 unsafeMinus
-    :: (ABT AST abt, HRing_ a)
+    :: (ABT Term abt, HRing_ a)
     => abt '[] (NonNegative a)
     -> abt '[] (NonNegative a)
     -> abt '[] (NonNegative a)
@@ -788,7 +793,7 @@ unsafeMinus x y =
 -}
 
 appendV
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] ('HArray a) -> abt '[] ('HArray a) -> abt '[] ('HArray a)
 appendV v1 v2 =
     array (size v1 + size v2) $ \i ->
@@ -797,31 +802,38 @@ appendV v1 v2 =
             (v2 ! (i `unsafeMinusNat` size v1))
 
 mapWithIndex
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => (abt '[] 'HNat -> abt '[] a -> abt '[] b)
     -> abt '[] ('HArray a)
     -> abt '[] ('HArray b)
 mapWithIndex f v = array (size v) $ \i -> f i (v ! i)
 
 mapV
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => (abt '[] a -> abt '[] b)
     -> abt '[] ('HArray a)
     -> abt '[] ('HArray b)
 mapV f v = array (size v) $ \i -> f (v ! i)
 
 normalizeV
-    :: (ABT AST abt) => abt '[] ('HArray 'HProb) -> abt '[] ('HArray 'HProb)
+    :: (ABT Term abt)
+    => abt '[] ('HArray 'HProb)
+    -> abt '[] ('HArray 'HProb)
 normalizeV x = mapV (/ sumV x) x
 
-constV :: (ABT AST abt) => abt '[] 'HNat -> abt '[] b -> abt '[] ('HArray b)
+constV
+    :: (ABT Term abt) => abt '[] 'HNat -> abt '[] b -> abt '[] ('HArray b)
 constV n c = array n (const c)
 
-unitV :: (ABT AST abt) => abt '[] 'HNat -> abt '[] 'HNat -> abt '[] ('HArray 'HProb)
+unitV
+    :: (ABT Term abt)
+    => abt '[] 'HNat
+    -> abt '[] 'HNat
+    -> abt '[] ('HArray 'HProb)
 unitV s i = array s (\j -> if_ (i == j) (prob_ 1) (prob_ 0))
 
 zipWithV
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => (abt '[] a -> abt '[] b -> abt '[] c)
     -> abt '[] ('HArray a)
     -> abt '[] ('HArray b)
@@ -832,7 +844,7 @@ zipWithV f v1 v2 =
 
 ----------------------------------------------------------------
 (>>=)
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] ('HMeasure a)
     -> (abt '[] a -> abt '[] ('HMeasure b))
     -> abt '[] ('HMeasure b)
@@ -847,13 +859,13 @@ m >>= f =
     Nothing -> syn (MBind :$ m :* binder Text.empty (sUnMeasure $ typeOf m) f :* End)
 
 
-dirac :: (ABT AST abt) => abt '[] a -> abt '[] ('HMeasure a)
+dirac :: (ABT Term abt) => abt '[] a -> abt '[] ('HMeasure a)
 dirac e1 = syn (Dirac :$ e1 :* End)
 
 
 -- TODO: can we use let-binding instead of (>>=)-binding (i.e., for when the dirac is immediately (>>=)-bound again...)?
 (<$>), liftM
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => (abt '[] a -> abt '[] b)
     -> abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure b)
@@ -864,7 +876,7 @@ liftM = (<$>)
 -- Moreover, it's not clear that we should even allow the type
 -- @'HMeasure (a ':-> b)@!
 (<*>)
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] ('HMeasure (a ':-> b))
     -> abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure b)
@@ -872,7 +884,7 @@ mf <*> mx = mf >>= \f -> app f <$> mx
 
 -- TODO: ensure that @dirac a *> n@ simplifies to just @n@, regardless of @a@ but especially when @a = unit@.
 (*>), (>>)
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure b)
     -> abt '[] ('HMeasure b)
@@ -881,21 +893,21 @@ m *> n = m >>= \_ -> n
 
 -- TODO: ensure that @m <* dirac a@ simplifies to just @m@, regardless of @a@ but especially when @a = unit@.
 (<*)
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure b)
     -> abt '[] ('HMeasure a)
 m <* n = m >>= \a -> n *> dirac a
 
 bindx
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] ('HMeasure a)
     -> (abt '[] a -> abt '[] ('HMeasure b))
     -> abt '[] ('HMeasure (HPair a b))
 m `bindx` f = m >>= \a -> pair a <$> f a
 
 liftM2
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => (abt '[] a -> abt '[] b -> abt '[] c)
     -> abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure b)
@@ -904,21 +916,21 @@ liftM2 f m n = m >>= \x -> f x <$> n
     -- or @(lam . f) <$> m <*> n@ but that would introduce administrative redexes
 
 
-lebesgue :: (ABT AST abt) => abt '[] ('HMeasure 'HReal)
+lebesgue :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
 lebesgue = measure0_ Lebesgue
 
-counting :: (ABT AST abt) => abt '[] ('HMeasure 'HInt)
+counting :: (ABT Term abt) => abt '[] ('HMeasure 'HInt)
 counting = measure0_ Counting
 
 -- TODO: make this smarter by collapsing nested @Superpose_@ similar to how we collapse nested NaryOps. Though beware, that could cause duplication of the computation for the probabilities\/weights; thus may want to only do it when the weights are constant values, or \"simplify\" things by generating let-bindings in order to share work.
 superpose
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => [(abt '[] 'HProb, abt '[] ('HMeasure a))]
     -> abt '[] ('HMeasure a)
 superpose = syn . Superpose_
 
 -- | The empty measure. Is called @fail@ in the Core Hakaru paper.
-reject :: (ABT AST abt) => abt '[] ('HMeasure a)
+reject :: (ABT Term abt) => abt '[] ('HMeasure a)
 reject = superpose []
 
 -- TODO: define @mplus@ to better mimic Core Hakaru
@@ -938,7 +950,7 @@ reject = superpose []
 -- TODO: would @withWeight@ be a better name than @pose@?
 -- TODO: ideally we'll be able to get rid of this function entirely, relying on 'weight' instead. Doing this effectively requires having certain optimizations for our ASTs.
 pose
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] 'HProb
     -> abt '[] ('HMeasure w)
     -> abt '[] ('HMeasure w)
@@ -955,13 +967,13 @@ pose p m = superpose [(p, m)]
 --
 -- (was formerly called @factor@ in this branch, as per the old Syntax.hs)
 weight
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] 'HProb
     -> abt '[] ('HMeasure HUnit)
 weight p = pose p (dirac unit)
 
 weightedDirac
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] a
     -> abt '[] 'HProb
     -> abt '[] ('HMeasure a)
@@ -984,7 +996,7 @@ weightedDirac e p = pose p (dirac e)
 --
 -- (was formerly called @factor_@ in this branch; wasn't abstracted out in the old Syntax.hs)
 observe
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] HBool
     -> abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure a)
@@ -992,7 +1004,7 @@ observe b m = if_ b m reject
 
 
 categorical, categorical'
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] ('HArray 'HProb)
     -> abt '[] ('HMeasure 'HNat)
 categorical = measure1_ Categorical
@@ -1008,7 +1020,7 @@ categorical' v =
 -- TODO: make Uniform polymorphic, so that if the two inputs are
 -- HProb then we know the measure must be over HProb too
 uniform, uniform'
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] 'HReal
     -> abt '[] 'HReal
     -> abt '[] ('HMeasure 'HReal)
@@ -1022,7 +1034,7 @@ uniform' lo hi =
 
 
 normal, normal'
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] 'HReal
     -> abt '[] 'HProb
     -> abt '[] ('HMeasure 'HReal)
@@ -1038,7 +1050,7 @@ normal' mu sd  =
 
 
 poisson, poisson'
-    :: (ABT AST abt) => abt '[] 'HProb -> abt '[] ('HMeasure 'HNat)
+    :: (ABT Term abt) => abt '[] 'HProb -> abt '[] ('HMeasure 'HNat)
 poisson = measure1_ Poisson
 
 poisson' l = 
@@ -1052,7 +1064,7 @@ poisson' l =
 
 
 gamma, gamma'
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] 'HProb
     -> abt '[] 'HProb
     -> abt '[] ('HMeasure 'HProb)
@@ -1070,7 +1082,7 @@ gamma' shape scale =
 
 
 beta, beta'
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] 'HProb
     -> abt '[] 'HProb
     -> abt '[] ('HMeasure 'HProb)
@@ -1085,7 +1097,7 @@ beta' a b =
             / betaFunc a b
 
 
-dp  :: (ABT AST abt)
+dp  :: (ABT Term abt)
     => abt '[] 'HProb
     -> abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure ('HMeasure a))
@@ -1093,7 +1105,7 @@ dp e1 e2 = measure2_ (DirichletProcess . sUnMeasure $ typeOf e2) e1 e2
 
 
 plate, plate'
-    :: (ABT AST abt, SingI a)
+    :: (ABT Term abt, SingI a)
     => abt '[] ('HArray ('HMeasure          a))
     -> abt '[] (         'HMeasure ('HArray a))
 plate e = measure1_ (Plate . sUnMeasure . sUnArray $ typeOf e) e
@@ -1107,7 +1119,7 @@ plate' v = reduce r z (mapV m v)
 
 -- BUG: remove the 'SingI' requirement!
 chain, chain'
-    :: (ABT AST abt, SingI s, SingI a)
+    :: (ABT Term abt, SingI s, SingI a)
     => abt '[] ('HArray (s ':-> 'HMeasure (HPair a s)))
     -> abt '[] s
     -> abt '[] ('HMeasure (HPair ('HArray a) s))
@@ -1126,20 +1138,21 @@ chain' v s0 = reduce r z (mapV m v) `app` s0
 
 
 invgamma
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] 'HProb
     -> abt '[] 'HProb
     -> abt '[] ('HMeasure 'HProb)
 invgamma k t = recip <$> gamma k (recip t)
 
-exponential :: (ABT AST abt) => abt '[] 'HProb -> abt '[] ('HMeasure 'HProb)
+exponential
+    :: (ABT Term abt) => abt '[] 'HProb -> abt '[] ('HMeasure 'HProb)
 exponential = gamma (prob_ 1)
 
-chi2 :: (ABT AST abt) => abt '[] 'HProb -> abt '[] ('HMeasure 'HProb)
+chi2 :: (ABT Term abt) => abt '[] 'HProb -> abt '[] ('HMeasure 'HProb)
 chi2 v = gamma (v / prob_ 2) (prob_ 2)
 
 cauchy
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] 'HReal
     -> abt '[] 'HProb
     -> abt '[] ('HMeasure 'HReal)
@@ -1149,7 +1162,7 @@ cauchy loc scale =
     dirac $ loc + fromProb scale * x / y
 
 laplace
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] 'HReal
     -> abt '[] 'HProb
     -> abt '[] ('HMeasure 'HReal)
@@ -1159,7 +1172,7 @@ laplace loc scale =
     dirac $ loc + z * fromProb (scale * sqrt (prob_ 2 * v))
 
 student
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] 'HReal
     -> abt '[] 'HProb
     -> abt '[] ('HMeasure 'HReal)
@@ -1169,7 +1182,7 @@ student loc v =
     dirac $ z * fromProb (sqrt (v / df))
 
 weibull
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] 'HProb
     -> abt '[] 'HProb
     -> abt '[] ('HMeasure 'HProb)
@@ -1178,18 +1191,18 @@ weibull b k =
     dirac $ b * x ** recip k
 
 -- BUG: would it be better to 'observe' that @p <= 1@ before doing the superpose? At least that way things would be /defined/ for all inputs...
-bern :: (ABT AST abt) => abt '[] 'HProb -> abt '[] ('HMeasure HBool)
+bern :: (ABT Term abt) => abt '[] 'HProb -> abt '[] ('HMeasure HBool)
 bern p = superpose
     [ (p, dirac true)
     , (prob_ 1 `unsafeMinusProb` p, dirac false)
     ]
 
-mix :: (ABT AST abt)
+mix :: (ABT Term abt)
     => abt '[] ('HArray 'HProb) -> abt '[] ('HMeasure 'HNat)
 mix v = pose (sumV v) (categorical v)
 
 binomial
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] 'HNat
     -> abt '[] 'HProb
     -> abt '[] ('HMeasure 'HInt)
@@ -1198,19 +1211,19 @@ binomial n p =
 
 -- BUG: would it be better to 'observe' that @p >= 1@ before doing everything? At least that way things would be /defined/ for all inputs...
 negativeBinomial
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] 'HNat
     -> abt '[] 'HProb -- N.B., must actually be >= 1
     -> abt '[] ('HMeasure 'HNat)
 negativeBinomial r p =
     gamma (nat2prob r) (recip p `unsafeMinusProb` prob_ 1) >>= poisson
 
-geometric :: (ABT AST abt) => abt '[] 'HProb -> abt '[] ('HMeasure 'HNat)
+geometric :: (ABT Term abt) => abt '[] 'HProb -> abt '[] ('HMeasure 'HNat)
 geometric = negativeBinomial (nat_ 1)
 
 
 multinomial
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] 'HNat
     -> abt '[] ('HArray 'HProb)
     -> abt '[] ('HMeasure ('HArray 'HProb))
@@ -1220,7 +1233,7 @@ multinomial n v =
         (constV n (unitV (size v) <$> categorical v))
 
 dirichlet
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] ('HArray 'HProb)
     -> abt '[] ('HMeasure ('HArray 'HProb))
 dirichlet a = normalizeV <$> plate (mapV (`gamma` prob_ 1) a)

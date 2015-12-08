@@ -232,7 +232,7 @@ instance Show2 abt => Show (TypedAST abt) where
 
 
 inferBinderType
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => Variable a
     -> U.AST n
     -> (forall b. Sing b -> abt '[ a ] b -> TypeCheckMonad r)
@@ -243,7 +243,7 @@ inferBinderType x e k = do
 
 
 checkBinderType
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => Variable a
     -> Sing b
     -> U.AST n
@@ -257,7 +257,7 @@ checkBinderType x eTyp e =
 -- > Γ ⊢ e ⇒ e' ∈ τ
 inferType
     :: forall abt n
-    .  (ABT AST abt)
+    .  (ABT Term abt)
     => U.AST n
     -> TypeCheckMonad (TypedAST abt)
 inferType = inferType_
@@ -410,7 +410,7 @@ inferType = inferType_
 -- HACK: we must add the constraints that 'LCs' and 'UnLCs' are inverses.
 -- TODO: how can we do that in general rather than needing to repeat it here and in the various constructors of 'SCon'?
 checkSArgs
-    :: (ABT AST abt, typs ~ UnLCs args, args ~ LCs typs)
+    :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => List1 Sing typs
     -> [U.AST c]
     -> TypeCheckMonad (SArgs abt args)
@@ -427,7 +427,7 @@ checkSArgs _ _ =
 -- > Γ ⊢ τ ∋ e ⇒ e'
 checkType
     :: forall abt a c
-    .  (ABT AST abt)
+    .  (ABT Term abt)
     => Sing a
     -> U.AST c
     -> TypeCheckMonad (abt '[] a)
@@ -647,7 +647,7 @@ data SomePatternFun x t =
             !(List1 Variable vars)
 
 checkBranch
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => Sing a
     -> Sing b
     -> U.Branch c
@@ -658,7 +658,7 @@ checkBranch =
         Branch pat' <$> checkBranchBody bodyTyp body vars
     where
     checkBranchBody
-        :: (ABT AST abt)
+        :: (ABT Term abt)
         => Sing b
         -> U.AST c
         -> List1 Variable xs

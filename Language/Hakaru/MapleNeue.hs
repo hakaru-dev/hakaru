@@ -39,24 +39,24 @@ import           Data.Ratio
 
 newtype Maple (a :: Hakaru) = Maple {unMaple :: String}
 
-runMaple :: (ABT AST abt) => abt '[] a -> String
+runMaple :: (ABT Term abt) => abt '[] a -> String
 runMaple = mapleAST . LC_
 
-app1 :: (ABT AST abt) => String -> abt '[] a -> String
+app1 :: (ABT Term abt) => String -> abt '[] a -> String
 app1 fn x = fn ++ "(" ++ arg x ++ ")"
 
-app2 :: (ABT AST abt) => String -> abt '[] a -> abt '[] b -> String
+app2 :: (ABT Term abt) => String -> abt '[] a -> abt '[] b -> String
 app2 fn x y = fn ++ "(" ++ arg x ++ ", " ++ arg y ++ ")"
 
-app3 :: (ABT AST abt) =>
+app3 :: (ABT Term abt) =>
         String -> abt '[] a -> abt '[] b -> abt '[] c -> String
 app3 fn x y z =
     fn ++ "(" ++ arg x ++ ", " ++ arg y ++ ", " ++ arg z ++ ")"
 
-meq :: (ABT AST abt) => abt '[] a -> abt '[] b -> String
+meq :: (ABT Term abt) => abt '[] a -> abt '[] b -> String
 meq x y = arg x ++ "=" ++ arg y
 
-mapleAST :: (ABT AST abt) => LC_ abt a -> String
+mapleAST :: (ABT Term abt) => LC_ abt a -> String
 mapleAST (LC_ e) =
     caseVarSyn e var1 $ \t ->
         case t of
@@ -71,7 +71,7 @@ var1 :: Variable (a :: Hakaru) -> String
 var1 x | Text.null (varHint x) = 'x' : uniqID x 
        | otherwise = Text.unpack (varHint x) ++ uniqID x 
 
-mapleSCon :: (ABT AST abt) => SCon args a -> SArgs abt args -> String
+mapleSCon :: (ABT Term abt) => SCon args a -> SArgs abt args -> String
 mapleSCon Let_     (e1 :* e2 :* End) =
     caseBind e2 $ \x e2' ->
         "eval(" ++ arg e2' ++ ", " ++  (var x `meq` e1) ++ ")"
@@ -84,11 +84,12 @@ mapleSCon MBind (e1 :* e2 :* End)    =
     caseBind e2 $ \x e2' ->
         app3 "Bind" e1 (var x) e2'
 
-arg :: (ABT AST abt) => abt '[] a -> String
+arg :: (ABT Term abt) => abt '[] a -> String
 arg = mapleAST . LC_
 
-mapleMeasureOp :: (ABT AST abt, typs ~ UnLCs args, args ~ LCs typs) =>
-                  MeasureOp typs a -> SArgs abt args -> String
+mapleMeasureOp
+    :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
+    => MeasureOp typs a -> SArgs abt args -> String
 mapleMeasureOp Uniform (e1 :* e2 :* End) = app2 "Uniform"  e1 e2
 mapleMeasureOp Normal  (e1 :* e2 :* End) = app2 "Gaussian" e1 e2
 mapleMeasureOp Gamma   (e1 :* e2 :* End) = app2 "BetaD"    e1 e2

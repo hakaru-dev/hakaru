@@ -40,14 +40,14 @@ import Language.Hakaru.Syntax.ABT (ABT, caseVarSyn, caseBind, caseBinds)
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
-typeOf :: (ABT AST abt) => abt '[] a -> Sing a
+typeOf :: (ABT Term abt) => abt '[] a -> Sing a
 typeOf e0 =
     case typeOf_ e0 of
     Left  err -> error $ "typeOf: " ++ err
     Right typ -> typ
 
 
-typeOf_ :: (ABT AST abt) => abt '[] a -> Either String (Sing a)
+typeOf_ :: (ABT Term abt) => abt '[] a -> Either String (Sing a)
 typeOf_ e0 =
     caseVarSyn e0 (return . varType) $ \t ->
         case t of
@@ -86,7 +86,7 @@ typeOf_ e0 =
         _ :$ _ -> error "typeOf_: the impossible happened"
 
 
-typeOfBranch :: (ABT AST abt) => Branch a abt b -> Either String (Sing b)
+typeOfBranch :: (ABT Term abt) => Branch a abt b -> Either String (Sing b)
 typeOfBranch (Branch _ e0) = typeOf_ . snd $ caseBinds e0
 
 

@@ -97,7 +97,7 @@ import Language.Hakaru.Syntax.ABT
 
 -- TODO: for forward disintegration (which is not just partial evaluation) we really do mean proper HNFs not just WHNFs. This falls out from our needing to guarantee that heap-bound variables can't possibly escape; whence the assumption that the result of forward disintegration contains no heap-bound variables.
 --
--- TODO: is there a way to integrate this into the actual 'AST'
+-- TODO: is there a way to integrate this into the actual 'Term'
 -- definition in order to reduce repetition?
 --
 -- HACK: can't use \"H\" as the prefix because that clashes with
@@ -155,7 +155,7 @@ data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
 
     -- Quasi-/semi-/demi-/pseudo- normal form stuff
     {-
-    NaryOp_ :: !(NaryOp a) -> !(Seq (abt '[] a)) -> AST abt a
+    NaryOp_ :: !(NaryOp a) -> !(Seq (abt '[] a)) -> Term abt a
     PrimOp_
         :: (typs ~ UnLCs args, args ~ LCs typs)
         => !(PrimOp typs a) -> SCon args a
@@ -164,7 +164,7 @@ data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
 
 
 -- | Forget that something is a head.
-fromHead :: (ABT AST abt) => Head abt a -> abt '[] a
+fromHead :: (ABT Term abt) => Head abt a -> abt '[] a
 fromHead (WLiteral   v)     = syn (Literal_ v)
 fromHead (WDatum     d)     = syn (Datum_ d)
 fromHead (WEmpty t)         = syn (Empty_ t)
@@ -182,7 +182,7 @@ fromHead (WSummate   e1 e2 e3) = syn (Summate   :$ e1 :* e2 :* e3 :* End)
 
 
 -- | Identify terms which are already heads.
-toHead :: (ABT AST abt) => abt '[] a -> Maybe (Head abt a)
+toHead :: (ABT Term abt) => abt '[] a -> Maybe (Head abt a)
 toHead e =
     caseVarSyn e (const Nothing) $ \t ->
         case t of
@@ -217,14 +217,14 @@ data Whnf (abt :: [Hakaru] -> Hakaru -> *) (a :: Hakaru)
     -- on? To do so we'd need 'GotStuck' to return that info...
 
 -- | Forget that something is a WHNF.
-fromWhnf :: (ABT AST abt) => Whnf abt a -> abt '[] a
+fromWhnf :: (ABT Term abt) => Whnf abt a -> abt '[] a
 fromWhnf (Head_   e) = fromHead e
 fromWhnf (Neutral e) = e
 
 
 -- | Identify terms which are already heads. N.B., we make no attempt
 -- to identify neutral terms, we just massage the type of 'toHead'.
-toWhnf :: (ABT AST abt) => abt '[] a -> Maybe (Whnf abt a)
+toWhnf :: (ABT Term abt) => abt '[] a -> Maybe (Whnf abt a)
 toWhnf e = Head_ <$> toHead e
 
 -- | Case analysis on 'Whnf' as a combinator.
@@ -235,7 +235,7 @@ caseWhnf (Neutral e) _ k = k e
 
 -- | Given some WHNF, try to extract a 'Datum' from it.
 viewWhnfDatum
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => Whnf abt (HData' t)
     -> Maybe (Datum (abt '[]) (HData' t))
 viewWhnfDatum (Head_   v) = Just $ viewHeadDatum v
@@ -254,7 +254,7 @@ viewWhnfDatum (Neutral _) = Nothing
     -}
 
 viewHeadDatum
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => Head abt (HData' t)
     -> Datum (abt '[]) (HData' t)
 viewHeadDatum (WAnn        _ w) = viewHeadDatum w
@@ -277,7 +277,7 @@ data Lazy (abt :: [Hakaru] -> Hakaru -> *) (a :: Hakaru)
     | Thunk !(abt '[] a)
 
 -- | Forget whether a term has been evaluated to WHNF or not.
-fromLazy :: (ABT AST abt) => Lazy abt a -> abt '[] a
+fromLazy :: (ABT Term abt) => Lazy abt a -> abt '[] a
 fromLazy (Whnf_ e) = fromWhnf e
 fromLazy (Thunk e) = e
 
@@ -350,7 +350,7 @@ _ `isBoundBy` SWeight  _   = Nothing
 ----------------------------------------------------------------
 -- | This class captures the monadic operations needed by the
 -- 'evaluate' function in "Language.Hakaru.Lazy".
-class (Functor m, Applicative m, Monad m, ABT AST abt)
+class (Functor m, Applicative m, Monad m, ABT Term abt)
     => EvaluationMonad abt m | m -> abt
     where
     -- TODO: should we have a *method* for arbitrarily incrementing the stored 'nextFreshNat'; or should we only rely on it being initialized correctly? Beware correctness issues about updating the lower bound after having called 'freshNat'...
@@ -398,7 +398,7 @@ class (Functor m, Applicative m, Monad m, ABT AST abt)
 -- statement. We return the renamed statement along with a substitution
 -- for mapping the old variable names to their new variable names.
 freshenStatement
-    :: (ABT AST abt, EvaluationMonad abt m)
+    :: (ABT Term abt, EvaluationMonad abt m)
     => Statement abt
     -> m (Statement abt, Assocs abt)
 freshenStatement s =
@@ -490,7 +490,7 @@ freshenVars = go dnil1
 -- rest of the term\". You almost certainly should use 'push' or
 -- 'pushes' instead.
 push_
-    :: (ABT AST abt, EvaluationMonad abt m)
+    :: (ABT Term abt, EvaluationMonad abt m)
     => Statement abt
     -> m (Assocs abt)
 push_ s = do
@@ -510,7 +510,7 @@ push_ s = do
 -- easy to accidentally drop the substitution on the floor rather
 -- than applying it to the term before calling the continuation.
 push
-    :: (ABT AST abt, EvaluationMonad abt m)
+    :: (ABT Term abt, EvaluationMonad abt m)
     => Statement abt     -- ^ the statement to push
     -> abt xs a          -- ^ the \"rest\" of the term
     -> (abt xs a -> m r) -- ^ what to do with the renamed \"rest\"
@@ -525,7 +525,7 @@ push s e k = do
 -- is the furthest away in the final context, whereas the tail is
 -- pushed last and is the closest in the final context.
 pushes
-    :: (ABT AST abt, EvaluationMonad abt m)
+    :: (ABT Term abt, EvaluationMonad abt m)
     => [Statement abt]   -- ^ the statements to push
     -> abt xs a          -- ^ the \"rest\" of the term
     -> (abt xs a -> m r) -- ^ what to do with the renamed \"rest\"
@@ -571,7 +571,7 @@ data ListContext (abt :: [Hakaru] -> Hakaru -> *) = ListContext
 -- TODO: generalize to non-measure types too!
 -- TODO: if any SLet bindings are unused, then drop them. If any are used exactly once, maybe inline them?
 residualizeListContext
-    :: (ABT AST abt)
+    :: (ABT Term abt)
     => abt '[] ('HMeasure a)
     -> ListContext abt
     -> abt '[] ('HMeasure a)
@@ -647,7 +647,7 @@ newtype M abt x = M { unM :: forall a. (x -> Ans abt a) -> Ans abt a }
 -- We use 'Some2' on the inputs because it doesn't matter what their
 -- type or locally-bound variables are, so we want to allow @f@ to
 -- contain terms with different indices.
-runM :: (ABT AST abt, F.Foldable f)
+runM :: (ABT Term abt, F.Foldable f)
     => M abt (Whnf abt a)
     -> f (Some2 abt)
     -> [abt '[] ('HMeasure a)]
@@ -680,7 +680,7 @@ instance MonadPlus (M abt) where
     mzero = empty -- aka "bot"
     mplus = (<|>) -- aka "lub"
 
-instance (ABT AST abt) => EvaluationMonad abt (M abt) where
+instance (ABT Term abt) => EvaluationMonad abt (M abt) where
     freshNat =
         M $ \c (ListContext i ss) ->
             c i (ListContext (i+1) ss)
