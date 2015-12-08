@@ -62,7 +62,7 @@ import Language.Hakaru.Syntax.ABT
 
 -- | Those terms from which we can synthesize a unique type. We are
 -- also allowed to check them, via the change-of-direction rule.
-inferable :: U.AST a -> Bool
+inferable :: U.AST n -> Bool
 inferable = not . mustCheck
 
 
@@ -79,7 +79,7 @@ inferable = not . mustCheck
 -- Whereas in lax mode we must infer all arguments and then take
 -- the lub of their types in order to know which coercions to
 -- introduce.
-mustCheck :: U.AST a -> Bool
+mustCheck :: U.AST n -> Bool
 mustCheck = go
     where
     go (U.Var_ _)    = False
@@ -265,7 +265,9 @@ inferType = inferType_
   checkType_ :: forall b. Sing b -> U.AST n -> TypeCheckMonad (abt '[] b)
   checkType_ = checkType
 
-  -- HACK: We need this monomorphic binding so that GHC doesn't get confused about which @(ABT AST abt)@ instance to use in recursive calls.
+  -- HACK: We need this monomorphic binding so that GHC doesn't get
+  -- confused about which @(ABT AST abt)@ instance to use in recursive
+  -- calls.
   inferType_ :: U.AST n -> TypeCheckMonad (TypedAST abt)
   inferType_ e0 =
     case e0 of
@@ -327,13 +329,12 @@ inferType = inferType_
         -- TODO: abstract out this infer-one-check-all pattern so we can reuse it elsewhere. Also, make it zipper-like so we don't re-check the one we inferred.
         TypedAST typ1 _ <- F.asum $ fmap inferType_ es
         case make_NaryOp typ1 op of
-            Nothing  -> failwith "expected type with semiring"
+            Nothing  -> failwith "can't make NaryOp" -- TODO: better error message
             Just op' -> do
-                es'' <- T.forM es $ checkType_ typ1
-                return . TypedAST typ1 $ syn (NaryOp_ op' $ S.fromList es'')
+                es' <- T.forM es $ checkType_ typ1
+                return . TypedAST typ1 $ syn (NaryOp_ op' $ S.fromList es')
 
     U.Literal_ (Some1 v) ->
-        -- BUG: need to finish implementing sing_Literal for Datum
         return . TypedAST (sing_Literal v) $ syn (Literal_ v)
 
     U.CoerceTo_ (Some2 c) e1 ->
@@ -412,7 +413,7 @@ inferType = inferType_
 checkSArgs
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => List1 Sing typs
-    -> [U.AST c]
+    -> [U.AST n]
     -> TypeCheckMonad (SArgs abt args)
 checkSArgs Nil1             []     = return End
 checkSArgs (Cons1 typ typs) (e:es) =
@@ -426,21 +427,21 @@ checkSArgs _ _ =
 --
 -- > Γ ⊢ τ ∋ e ⇒ e'
 checkType
-    :: forall abt a c
+    :: forall abt a n
     .  (ABT Term abt)
     => Sing a
-    -> U.AST c
+    -> U.AST n
     -> TypeCheckMonad (abt '[] a)
 checkType = checkType_
     where
     -- HACK: to convince GHC to stop being stupid about resolving
     -- the \"choice\" of @abt'@. I'm not sure why we don't need to
     -- use this same hack when 'inferType' calls 'checkType', but whatevs.
-    inferType_ :: U.AST c -> TypeCheckMonad (TypedAST abt)
+    inferType_ :: U.AST n -> TypeCheckMonad (TypedAST abt)
     inferType_ = inferType
 
     checkType_
-        :: forall b. Sing b -> U.AST c -> TypeCheckMonad (abt '[] b)
+        :: forall b. Sing b -> U.AST n -> TypeCheckMonad (abt '[] b)
     checkType_ typ0 e0 =
         case e0 of
         U.Lam_ x e1 ->
@@ -579,7 +580,7 @@ checkType = checkType_
         :: forall xss t
         .  Sing (HData' t)
         -> Sing xss
-        -> U.DCode c
+        -> U.DCode n
         -> TypeCheckMonad (DatumCode xss (abt '[]) (HData' t))
     checkDatumCode typA typ d =
         case d of
@@ -596,7 +597,7 @@ checkType = checkType_
         :: forall xs t
         .  Sing (HData' t)
         -> Sing xs
-        -> U.DStruct c
+        -> U.DStruct n
         -> TypeCheckMonad (DatumStruct xs (abt '[]) (HData' t))
     checkDatumStruct typA typ d =
         case d of
@@ -615,7 +616,7 @@ checkType = checkType_
         :: forall x t
         .  Sing (HData' t)
         -> Sing x
-        -> U.DFun c
+        -> U.DFun n
         -> TypeCheckMonad (DatumFun x (abt '[]) (HData' t))
     checkDatumFun typA typ d =
         case d of
@@ -668,7 +669,7 @@ checkBranch =
     checkBranchBody
         :: (ABT Term abt)
         => Sing b
-        -> U.AST c
+        -> U.AST n
         -> List1 Variable xs
         -> TypeCheckMonad (abt xs b)
     checkBranchBody bodyTyp body xs =
