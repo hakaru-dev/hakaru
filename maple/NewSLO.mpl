@@ -801,7 +801,7 @@ NewSLO := module ()
         constraints := eval(ii, f = (x -> w*density[op(0,dist)](op(dist))(x)));
         w := eval(w, mysolve(simplify(constraints), w));
         if not (has(w, 'w')) then
-          return Recognized(dist, w)
+          return Recognized(dist, simplify(w))
         end if
       catch: # do nothing
       end try;
