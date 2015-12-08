@@ -5,6 +5,7 @@
            , StandaloneDeriving
            , OverloadedStrings
            #-}
+{-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Language.Hakaru.Parser.Maple where
 
 import           Language.Hakaru.Parser.AST

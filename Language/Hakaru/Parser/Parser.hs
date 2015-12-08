@@ -1,5 +1,11 @@
-{-# LANGUAGE CPP, RankNTypes, GADTs, ExistentialQuantification,
-             StandaloneDeriving, OverloadedStrings #-}
+{-# LANGUAGE CPP
+           , RankNTypes
+           , GADTs
+           , ExistentialQuantification
+           , StandaloneDeriving
+           , OverloadedStrings
+           #-}
+{-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Language.Hakaru.Parser.Parser where
 
 import Prelude hiding (Real)

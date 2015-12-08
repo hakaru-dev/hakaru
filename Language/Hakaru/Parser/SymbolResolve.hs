@@ -5,6 +5,7 @@
            , ExistentialQuantification
            , StandaloneDeriving
            #-}
+{-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Language.Hakaru.Parser.SymbolResolve where
 
 import Data.Text hiding (concat, map, maximum)

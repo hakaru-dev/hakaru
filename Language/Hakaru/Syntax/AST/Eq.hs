@@ -217,7 +217,7 @@ instance (ABT Term abt, JmEq2 abt) => JmEq1 (Term abt) where
         return Refl
     jmEq1 (NaryOp_ o es) (NaryOp_ o' es') = do
         Refl <- jmEq1 o o'
-        error "TODO jmEq1{NaryOp_}" -- Refl <- allRefl (zipWith jmEq es es')
+        () <- all_jmEq2 es es'
         return Refl
     jmEq1 (Literal_ v)  (Literal_ w)   = jmEq1 v w
     jmEq1 (Empty_ a)    (Empty_ b)     = jmEq1 a b
@@ -229,6 +229,17 @@ instance (ABT Term abt, JmEq2 abt) => JmEq1 (Term abt) where
     jmEq1 (Case_  _ _)   (Case_  _ _)   = error "TODO jmEq1{Case_}"
     jmEq1 (Superpose_ _) (Superpose_ _) = error "TODO jmEq1{Superpose_}"
     jmEq1 _              _              = Nothing
+
+
+all_jmEq2
+    :: (ABT Term abt, JmEq2 abt)
+    => S.Seq (abt '[] a)
+    -> S.Seq (abt '[] a)
+    -> Maybe ()
+all_jmEq2 xs ys =
+    let eq x y = maybe False (const True) (jmEq2 x y)
+    in if F.and (S.zipWith eq xs ys) then Just () else Nothing
+
 
 -- TODO: a more general function of type:
 --   (JmEq2 abt) => Term abt a -> Term abt b -> Maybe (Sing a, TypeEq a b)
