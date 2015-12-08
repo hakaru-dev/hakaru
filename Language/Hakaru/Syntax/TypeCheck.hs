@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.07
+--                                                    2015.12.08
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeCheck
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -151,8 +151,8 @@ mustCheck = go
 
 type Ctx = VarSet ('KProxy :: KProxy Hakaru)
 
-data TypeCheckMode = StrictMode | LaxMode
-    deriving (Read, Show, Eq)
+data TypeCheckMode = StrictMode | LaxMode | UnsafeMode
+    deriving (Read, Show)
 
 type TypeCheckError = String -- TODO: something better
 
@@ -559,10 +559,18 @@ checkType = checkType_
                     Nothing   -> typeMismatch (Right typ0) (Right typ')
                   LaxMode ->
                     case findCoercion typ' typ0 of
-                    Just CNil -> return e0'
-                    Just c    -> checkType_ typ0 $ U.CoerceTo_ (Some2 c) e0
-                    Nothing   -> typeMismatch (Right typ0) (Right typ')
+                    Just c  -> return . unLC_ . coerceTo c $ LC_ e0'
+                    Nothing -> typeMismatch (Right typ0) (Right typ')
+                  UnsafeMode ->
+                    case findUnsafeCoercion typ' typ0 of
+                    Just (Left  c) ->
+                        return . unLC_ . coerceFrom c $ LC_ e0'
+                    Just (Right c) ->
+                        return . unLC_ . coerceTo c $ LC_ e0'
+                    Nothing ->
+                        typeMismatch (Right typ0) (Right typ')
             | otherwise -> error "checkType: missing an mustCheck branch!"
+
 
     --------------------------------------------------------
     -- We make these local to 'checkType' for the same reason we have 'checkType_'
@@ -752,6 +760,15 @@ findCoercion SNat  SProb = Just continuous
 findCoercion SInt  SReal = Just continuous
 findCoercion SNat  SReal = Just (continuous . signed)
 findCoercion a     b     = jmEq1 a b >>= \Refl -> Just CNil
+
+findUnsafeCoercion
+    :: Sing a
+    -> Sing b
+    -> Maybe (Either (Coercion b a) (Coercion a b))
+findUnsafeCoercion a b =
+    case findCoercion a b of
+    Just c  -> Just (Right c)
+    Nothing -> Left <$> findCoercion b a
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

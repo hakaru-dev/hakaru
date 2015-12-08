@@ -5,6 +5,8 @@
            , StandaloneDeriving
            , TypeOperators
            , TypeFamilies
+           , FlexibleContexts
+           , UndecidableInstances
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -63,6 +65,7 @@ import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.Datum
+import Language.Hakaru.Syntax.ABT (ABT(syn))
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -657,7 +660,12 @@ data Term :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
 -- inferred; some must be checked... Similarly, we can't derive
 -- Read, since that's what typechecking is all about.
 
--- HACK: so we can print 'Datum_' nodes. Namely, we need to derive @Show1 (abt '[])@ from @Show2 abt@. Alas, we'll also need this same hack for lowering @Eq2 abt@ to @Eq1 (abt '[])@, etc...
+
+-- | A newtype of @abt '[]@, because sometimes we need this in order
+-- to give instances for things. In particular, this is often used
+-- to derive the obvious @Foo1 (abt '[])@ instance from an underlying
+-- @Foo2 abt@ instance. The primary motivating example is to give
+-- the 'Datum_' branch of the @Show1 (Term abt)@ instance.
 newtype LC_ (abt :: [Hakaru] -> Hakaru -> *) (a :: Hakaru) =
     LC_ { unLC_ :: abt '[] a }
 
@@ -665,6 +673,21 @@ instance Show2 abt => Show1 (LC_ abt) where
     showsPrec1 p = showsPrec2 p . unLC_
     show1        = show2        . unLC_
 
+-- Alas, these two instances require importing ABT.hs
+-- HACK: these instances require -XUndecidableInstances
+instance ABT Term abt => Coerce (LC_ abt) where
+    coerceTo   CNil e       = e
+    coerceTo   c    (LC_ e) = LC_ (syn (CoerceTo_ c :$ e :* End))
+
+    coerceFrom CNil e       = e
+    coerceFrom c    (LC_ e) = LC_ (syn (UnsafeFrom_ c :$ e :* End))
+
+instance ABT Term abt => Coerce (Term abt) where
+    coerceTo   CNil e = e
+    coerceTo   c    e = CoerceTo_ c :$ syn e :* End
+
+    coerceFrom CNil e = e
+    coerceFrom c    e = UnsafeFrom_ c :$ syn e :* End
 
 instance Show2 abt => Show1 (Term abt) where
     showsPrec1 p t =
