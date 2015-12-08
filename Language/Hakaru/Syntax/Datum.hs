@@ -368,7 +368,14 @@ data PDatumStruct :: [HakaruFun] -> [Hakaru] -> Hakaru -> * where
 {-
 -- This code typechecks, and may offer some way forward towards
 -- implementing @Eq1 (PDatumStruct xs vars)@. The only lingering
--- problem is the 'PVar' case of 'jmEq_P'.
+-- problem is the 'PVar' case of 'jmEq_P'. We could eliminate that
+-- problem if we had these functions jus return a proof that the
+-- /lengths/ of @vs@ and @ws@ are the same; from which, given the
+-- top-level proof that we started with the same list of hakaru
+-- types, the equality of lengths tells us where we need to split
+-- things. Unfortunately, without some sort of type-level @take@
+-- and @drop@ functions, we prolly can't exploit that avenue of
+-- reasoning...
 
 jmEq_P :: Pattern vs a -> Pattern ws a -> Maybe (TypeEq vs ws)
 jmEq_P PWild         PWild         = Just Refl
