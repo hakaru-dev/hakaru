@@ -367,35 +367,38 @@ data PDatumStruct :: [HakaruFun] -> [Hakaru] -> Hakaru -> * where
 
 {-
 -- This code typechecks, and may offer some way forward towards
--- implementing @Eq1 (PDatumStruct xs vars)@. Excepting, of course,
--- that we can't actually return 'Refl' for the 'PDone' and 'PKonst'
--- cases, nor can we define 'JmEq2' for 'Pattern' (because of similar
--- issues with 'PWild' and 'PVar').
+-- implementing @Eq1 (PDatumStruct xs vars)@. The only lingering
+-- problem is the 'PVar' case of 'jmEq_P'.
 
-jmEq_PDatumFun
-    :: JmEq2 Pattern
-    => PDatumFun f vs a
-    -> PDatumFun f ws b
-    -> Maybe (TypeEq vs ws, TypeEq a b)
-jmEq_PDatumFun (PKonst p1) (PKonst p2) = do
-    (Refl,Refl) <- jmEq2 p1 p2
-    Just (Refl, error "Cannot prove")
-jmEq_PDatumFun (PIdent p1) (PIdent p2) = do
-    (Refl,Refl) <- jmEq2 p1 p2
-    Just (Refl,Refl)
-jmEq_PDatumFun _ _ = Nothing
+jmEq_P :: Pattern vs a -> Pattern ws a -> Maybe (TypeEq vs ws)
+jmEq_P PWild         PWild         = Just Refl
+jmEq_P PVar          PVar          = Just (error "Cannot Prove")
+jmEq_P (PDatum _ p1) (PDatum _ p2) = jmEq_PCode p1 p2 >>= \Refl -> Just Refl
+jmEq_P _             _             = Nothing
 
-jmEq_PDatumStruct
-    :: JmEq2 Pattern
-    => PDatumStruct xs vs a
-    -> PDatumStruct xs ws b
-    -> Maybe (TypeEq vs ws, TypeEq a b)
-jmEq_PDatumStruct (PEt c1 c2) (PEt d1 d2) = do
-    (Refl, Refl) <- jmEq_PDatumFun    c1 d1
-    (Refl, Refl) <- jmEq_PDatumStruct c2 d2
-    Just (Refl, Refl)
-jmEq_PDatumStruct PDone PDone = Just (Refl, error "Cannot prove")
-jmEq_PDatumStruct _ _ = Nothing
+jmEq_PCode
+    :: PDatumCode xss vs a
+    -> PDatumCode xss ws a
+    -> Maybe (TypeEq vs ws)
+jmEq_PCode (PInr p1) (PInr p2) = jmEq_PCode   p1 p2 >>= \Refl -> Just Refl
+jmEq_PCode (PInl p1) (PInl p2) = jmEq_PStruct p1 p2 >>= \Refl -> Just Refl
+jmEq_PCode _         _         = Nothing
+
+jmEq_PStruct
+    :: PDatumStruct xs vs a
+    -> PDatumStruct xs ws a
+    -> Maybe (TypeEq vs ws)
+jmEq_PStruct (PEt c1 c2) (PEt d1 d2) = do
+    Refl <- jmEq_PFun    c1 d1
+    Refl <- jmEq_PStruct c2 d2
+    Just Refl
+jmEq_PStruct PDone PDone = Just Refl
+jmEq_PStruct _     _     = Nothing
+
+jmEq_PFun :: PDatumFun f vs a -> PDatumFun f ws a -> Maybe (TypeEq vs ws)
+jmEq_PFun (PKonst p1) (PKonst p2) = jmEq_P p1 p2 >>= \Refl -> Just Refl
+jmEq_PFun (PIdent p1) (PIdent p2) = jmEq_P p1 p2 >>= \Refl -> Just Refl
+jmEq_PFun _           _           = Nothing
 -}
 
 instance Eq1 (PDatumStruct xs vars) where
