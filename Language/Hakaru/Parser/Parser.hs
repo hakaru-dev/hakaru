@@ -28,18 +28,19 @@ import qualified Text.Parsec.Token             as Tok
 
 import Language.Hakaru.Parser.AST
 
-ops, types, names :: [String]
 
+ops, types, names :: [String]
 ops   = ["+","*","-","^", "**", ":","::", "<~","==", "=", "_"]
 types = ["->"]
 names = ["def","fn", "if","else","pi","inf", "∞",
          "return", "dirac", "match", "data"]
 
-type Parser = ParsecT (IndentStream (CharIndentStream Text)) () Identity
-
-type Operator a = Ex.Operator (IndentStream (CharIndentStream Text)) () Identity a
+type ParserStream    = IndentStream (CharIndentStream Text)
+type Parser          = ParsecT     ParserStream () Identity
+type Operator a      = Ex.Operator ParserStream () Identity a
 type OperatorTable a = [[Operator a]]
 
+style :: Tok.GenLanguageDef ParserStream st Identity
 style = ITok.makeIndentLanguageDef $ Tok.LanguageDef
     { Tok.commentStart    = ""
     , Tok.commentEnd      = ""
@@ -54,6 +55,7 @@ style = ITok.makeIndentLanguageDef $ Tok.LanguageDef
     , Tok.reservedNames   = names
     }
 
+lexer :: Tok.GenTokenParser ParserStream () Identity
 lexer = ITok.makeTokenParser style
 
 integer :: Parser Integer
@@ -308,7 +310,7 @@ term =  if_expr
 
 
 
-indentConfig :: Text -> IndentStream (CharIndentStream Text)
+indentConfig :: Text -> ParserStream
 indentConfig =
     mkIndentStream 0 infIndentation True Ge . mkCharIndentStream
 
