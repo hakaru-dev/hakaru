@@ -398,9 +398,9 @@ inferType = inferType_
             _ -> typeMismatch (Left "HMeasure") (Right typ1)
 
     U.Superpose_ pes -> do
-      TypedAST typ1 _ <- F.asum $ fmap inferType_ (map snd pes)
-      pes' <- checkType_ typ1 (U.Superpose_ pes)
-      return $ TypedAST typ1 pes'
+        TypedAST typ1 _ <- F.asum $ fmap inferType_ (map snd pes)
+        pes' <- checkType_ typ1 (U.Superpose_ pes)
+        return $ TypedAST typ1 pes'
 
     _   | mustCheck e0 -> failwith "Cannot infer types for checking terms; please add a type annotation"
         | otherwise    -> error "inferType: missing an inferable branch!"
@@ -519,7 +519,6 @@ checkType = checkType_
             SArray _ -> return $ syn (Empty_ typ0)
             _        -> typeMismatch (Right typ0) (Left "HArray")
     
-        -- Not sure Array should be a binding form
         U.Array_ e1 x e2 ->
             case typ0 of
             SArray typ1 -> do
@@ -614,11 +613,11 @@ checkType = checkType_
         U.Inr d2 ->
             case typ of
             SPlus _ typ2 -> Inr <$> checkDatumCode typA typ2 d2
-            _            -> failwith "expected term of `inr' type"
+            _            -> failwith "expected datum of `inr' type"
         U.Inl d1 ->
             case typ of
             SPlus typ1 _ -> Inl <$> checkDatumStruct typA typ1 d1
-            _            -> failwith "expected term of `inl' type"
+            _            -> failwith "expected datum of `inl' type"
     
     checkDatumStruct
         :: forall xs t
@@ -633,11 +632,11 @@ checkType = checkType_
             SEt typ1 typ2 -> Et
                 <$> checkDatumFun    typA typ1 d1
                 <*> checkDatumStruct typA typ2 d2
-            _     -> failwith "expected term of `et' type"
+            _     -> failwith "expected datum of `et' type"
         U.Done ->
             case typ of
             SDone -> return Done
-            _     -> failwith "expected term of `done' type"
+            _     -> failwith "expected datum of `done' type"
     
     checkDatumFun
         :: forall x t
@@ -650,11 +649,11 @@ checkType = checkType_
         U.Ident e1 ->
             case typ of
             SIdent      -> Ident <$> checkType_ typA e1
-            _           -> failwith "expected term of `I' type"
+            _           -> failwith "expected datum of `I' type"
         U.Konst e1 ->
             case typ of
             SKonst typ1 -> Konst <$> checkType_ typ1 e1
-            _           -> failwith "expected term of `K' type"
+            _           -> failwith "expected datum of `K' type"
 
 
 ----------------------------------------------------------------
@@ -733,13 +732,13 @@ checkBranch =
             SPlus _ typ2 -> do
                 SPC pat2' xs <- checkPatternCode typA typ2 pat2
                 return $ SPC (PInr pat2') xs
-            _            -> failwith "expected term of `sum' type"
+            _            -> failwith "expected pattern of `sum' type"
         U.PInl pat1 ->
             case typ of
             SPlus typ1 _ -> do
                 SPS pat1' xs <- checkPatternStruct typA typ1 pat1
                 return $ SPC (PInl pat1') xs
-            _ -> failwith "expected term of `zero' type"
+            _ -> failwith "expected pattern of `zero' type"
 
     checkPatternStruct
         :: Sing (HData' t)
@@ -754,11 +753,11 @@ checkBranch =
                 SPF pat1' xs <- checkPatternFun    typA typ1 pat1
                 SPS pat2' ys <- checkPatternStruct typA typ2 pat2
                 return $ SPS (PEt pat1' pat2') (append1 xs ys)
-            _ -> failwith "expected term of `et' type"
+            _ -> failwith "expected pattern of `et' type"
         U.PDone ->
             case typ of
             SDone -> return $ SPS PDone Nil1
-            _     -> failwith "expected term of `done' type"
+            _     -> failwith "expected pattern of `done' type"
 
     checkPatternFun
         :: Sing (HData' t)
@@ -772,13 +771,13 @@ checkBranch =
             SIdent -> do
                 SP pat1' xs <- checkPattern typA pat1
                 return $ SPF (PIdent pat1') xs
-            _ -> failwith "expected term of `I' type"
+            _ -> failwith "expected pattern of `I' type"
         U.PKonst pat1 ->
             case typ of
             SKonst typ1 -> do
                 SP pat1' xs <- checkPattern typ1 pat1
                 return $ SPF (PKonst pat1') xs
-            _ -> failwith "expected term of `K' type"
+            _ -> failwith "expected pattern of `K' type"
 
 
 findCoercion :: Sing a -> Sing b -> Maybe (Coercion a b)
