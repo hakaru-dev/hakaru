@@ -54,6 +54,7 @@ import qualified Data.Foldable as F
 import           Data.Monoid   (Monoid(..))
 #endif
 import           Control.Arrow ((***))
+import           Data.Ratio    (numerator, denominator)
 
 import Language.Hakaru.Syntax.Natural
 import Language.Hakaru.Syntax.IClasses
@@ -66,7 +67,7 @@ import Language.Hakaru.Syntax.Datum
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 -- BUG: can't UNPACK 'Integer' and 'Natural' like we can for 'Int' and 'Nat'
-
+--
 -- | Numeric literals for the primitive numeric types. In addition
 -- to being normal forms, these are also ground terms: that is, not
 -- only are they closed (i.e., no free variables), they also have
@@ -100,6 +101,66 @@ instance Show1 Literal where
 instance Show (Literal a) where
     showsPrec = showsPrec1
     show      = show1
+
+
+-- TODO: first optimize the @Coercion a b@ to choose the most desirable of many equivalent paths?
+instance Coerce Literal where
+    coerceTo   CNil         v = v
+    coerceTo   (CCons c cs) v = coerceTo cs (primCoerceTo c v)
+
+    coerceFrom CNil         v = v
+    coerceFrom (CCons c cs) v = primCoerceFrom c (coerceFrom cs v)
+
+instance PrimCoerce Literal where
+    primCoerceTo c l =
+        case (c,l) of
+        (Signed     HRing_Int,        LNat  n) -> LInt  (nat2int   n)
+        (Signed     HRing_Real,       LProb p) -> LReal (prob2real p)
+        (Continuous HContinuous_Prob, LNat  n) -> LProb (nat2prob  n)
+        (Continuous HContinuous_Real, LInt  i) -> LReal (int2real  i)
+        _ -> error "primCoerceTo@Literal: the impossible happened"
+        where
+        -- HACK: type signatures needed to avoid defaulting
+        nat2int   :: Natural -> Integer
+        nat2int   = fromNatural
+        nat2prob  :: Natural -> NonNegativeRational
+        nat2prob  = unsafeNonNegativeRational . toRational -- N.B., is actually safe here
+        prob2real :: NonNegativeRational -> Rational
+        prob2real = fromNonNegativeRational
+        int2real  :: Integer -> Rational
+        int2real  = fromIntegral
+
+    primCoerceFrom c l =
+        case (c,l) of
+        (Signed     HRing_Int,        LInt  i) -> LNat  (int2nat   i)
+        (Signed     HRing_Real,       LReal r) -> LProb (real2prob r)
+        (Continuous HContinuous_Prob, LProb p) -> LNat  (prob2nat  p)
+        (Continuous HContinuous_Real, LReal r) -> LInt  (real2int  r)
+        _ -> error "primCoerceFrom@Literal: the impossible happened"
+        where
+        -- HACK: type signatures needed to avoid defaulting
+        -- TODO: how to handle the errors? Generate error code in hakaru? capture it in a monad?
+        int2nat  :: Integer -> Natural
+        int2nat x =
+            case toNatural x of
+            Just y  -> y
+            Nothing -> error "primCoerceFrom@Literal: negative HInt"
+        prob2nat :: NonNegativeRational -> Natural
+        prob2nat x =
+            if denominator x == 1
+            then numerator x
+            else error "primCoerceFrom@Literal: non-integral HProb"
+        real2prob :: Rational -> NonNegativeRational
+        real2prob x =
+            case toNonNegativeRational x of
+            Just y  -> y
+            Nothing -> error "primCoerceFrom@Literal: negative HReal"
+        real2int :: Rational -> Integer
+        real2int x =
+            if denominator x == 1
+            then numerator x
+            else error "primCoerceFrom@Literal: non-integral HReal"
+
 
 ----------------------------------------------------------------
 -- TODO: helper functions for splitting NaryOp_ into components to group up like things. (e.g., grouping all the Literals together so we can do constant propagation)
@@ -573,15 +634,13 @@ data Term :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         -> Term abt ('HArray a)
 
     -- -- User-defined data types
-    -- BUG: even though the 'Datum' type has a single constructor, we get a warning about not being able to UNPACK it in 'Datum_'...
+    -- BUG: even though the 'Datum' type has a single constructor, we get a warning about not being able to UNPACK it in 'Datum_'... wtf?
     --
     -- A data constructor applied to some expressions. N.B., this
     -- definition only accounts for data constructors which are
     -- fully saturated. Unsaturated constructors will need to be
     -- eta-expanded.
-    Datum_
-        :: {-# UNPACK #-} !(Datum (abt '[]) (HData' t))
-        -> Term abt (HData' t)
+    Datum_ :: !(Datum (abt '[]) (HData' t)) -> Term abt (HData' t)
 
     -- Generic case-analysis (via ABTs and Structural Focalization).
     Case_ :: !(abt '[] a) -> [Branch a abt b] -> Term abt b

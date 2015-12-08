@@ -1,13 +1,17 @@
-{-# LANGUAGE RankNTypes,
-             GADTs,
-             OverloadedStrings,
-             ExistentialQuantification,
-             StandaloneDeriving #-}
+{-# LANGUAGE CPP
+           , RankNTypes
+           , GADTs
+           , OverloadedStrings
+           , ExistentialQuantification
+           , StandaloneDeriving
+           #-}
 module Language.Hakaru.Parser.SymbolResolve where
 
 import Data.Text hiding (concat, map, maximum)
+#if __GLASGOW_HASKELL__ < 710
 import Data.Functor                     ((<$>))
 import Control.Applicative              ((<*>))
+#endif
 import Control.Monad.Trans.State.Strict (State, state, evalState)
 
 import qualified Language.Hakaru.Syntax.AST as T

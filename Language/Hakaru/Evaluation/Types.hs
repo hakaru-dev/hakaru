@@ -9,12 +9,13 @@
            , MultiParamTypeClasses
            , FunctionalDependencies
            , FlexibleInstances
+           , UndecidableInstances
            , EmptyCase
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.23
+--                                                    2015.12.08
 -- |
 -- Module      :  Language.Hakaru.Evaluation.Types
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -59,6 +60,8 @@ module Language.Hakaru.Evaluation.Types
     -- ** TODO: IntMap-based version
     ) where
 
+import           Prelude              hiding (id, (.))
+import           Control.Category     (Category(..))
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Monoid          (Monoid(..))
 import           Data.Functor         ((<$>))
@@ -78,6 +81,7 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.ABT
+import qualified Language.Hakaru.Syntax.Prelude as P
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -113,9 +117,8 @@ import Language.Hakaru.Syntax.ABT
 data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     -- Simple heads (aka, the usual stuff)
     WLiteral :: !(Literal a) -> Head abt a
-    WDatum
-        :: {-# UNPACK #-} !(Datum (abt '[]) (HData' t))
-        -> Head abt (HData' t)
+    -- BUG: even though the 'Datum' type has a single constructor, we get a warning about not being able to UNPACK it in 'WDatum'... wtf?
+    WDatum :: !(Datum (abt '[]) (HData' t)) -> Head abt (HData' t)
     WEmpty :: !(Sing ('HArray a)) -> Head abt ('HArray a)
     WArray :: !(abt '[] 'HNat) -> !(abt '[ 'HNat] a) -> Head abt ('HArray a)
     WLam   :: !(abt '[ a ] b) -> Head abt (a ':-> b)
@@ -165,20 +168,20 @@ data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
 
 -- | Forget that something is a head.
 fromHead :: (ABT Term abt) => Head abt a -> abt '[] a
-fromHead (WLiteral   v)     = syn (Literal_ v)
-fromHead (WDatum     d)     = syn (Datum_ d)
-fromHead (WEmpty t)         = syn (Empty_ t)
-fromHead (WArray     e1 e2) = syn (Array_ e1 e2)
-fromHead (WLam       e1)    = syn (Lam_ :$ e1 :* End)
-fromHead (WMeasureOp o  es) = syn (MeasureOp_ o :$ es)
-fromHead (WDirac     e1)    = syn (Dirac :$ e1 :* End)
-fromHead (WMBind     e1 e2) = syn (MBind :$ e1 :* e2 :* End)
-fromHead (WSuperpose pes)   = syn (Superpose_ pes)
-fromHead (WAnn      typ e1) = syn (Ann_      typ :$ fromHead e1 :* End)
-fromHead (WCoerceTo   c e1) = syn (CoerceTo_   c :$ fromHead e1 :* End)
-fromHead (WUnsafeFrom c e1) = syn (UnsafeFrom_ c :$ fromHead e1 :* End)
-fromHead (WIntegrate e1 e2 e3) = syn (Integrate :$ e1 :* e2 :* e3 :* End)
-fromHead (WSummate   e1 e2 e3) = syn (Summate   :$ e1 :* e2 :* e3 :* End)
+fromHead (WLiteral    v)        = syn (Literal_ v)
+fromHead (WDatum      d)        = syn (Datum_ d)
+fromHead (WEmpty      typ)      = syn (Empty_ typ)
+fromHead (WArray      e1 e2)    = syn (Array_ e1 e2)
+fromHead (WLam        e1)       = syn (Lam_ :$ e1 :* End)
+fromHead (WMeasureOp  o  es)    = syn (MeasureOp_ o :$ es)
+fromHead (WDirac      e1)       = syn (Dirac :$ e1 :* End)
+fromHead (WMBind      e1 e2)    = syn (MBind :$ e1 :* e2 :* End)
+fromHead (WSuperpose  pes)      = syn (Superpose_ pes)
+fromHead (WAnn        typ e1)   = syn (Ann_      typ :$ fromHead e1 :* End)
+fromHead (WCoerceTo   c e1)     = syn (CoerceTo_   c :$ fromHead e1 :* End)
+fromHead (WUnsafeFrom c e1)     = syn (UnsafeFrom_ c :$ fromHead e1 :* End)
+fromHead (WIntegrate  e1 e2 e3) = syn (Integrate :$ e1 :* e2 :* e3 :* End)
+fromHead (WSummate    e1 e2 e3) = syn (Summate   :$ e1 :* e2 :* e3 :* End)
 
 
 -- | Identify terms which are already heads.
@@ -186,20 +189,20 @@ toHead :: (ABT Term abt) => abt '[] a -> Maybe (Head abt a)
 toHead e =
     caseVarSyn e (const Nothing) $ \t ->
         case t of
-        Literal_ v                         -> Just $ WLiteral v
-        Datum_   d                         -> Just $ WDatum   d
-        Empty_   t                         -> Just $ WEmpty   t
-        Array_     e1    e2                -> Just $ WArray     e1 e2
-        Lam_    :$ e1 :* End               -> Just $ WLam       e1
-        MeasureOp_  o :$ es                -> Just $ WMeasureOp o  es
-        Dirac   :$ e1 :* End               -> Just $ WDirac     e1
-        MBind   :$ e1 :* e2 :* End         -> Just $ WMBind     e1 e2
-        Superpose_ pes                     -> Just $ WSuperpose pes
-        Ann_       typ :$ e1 :* End        -> WAnn typ <$> toHead e1
-        CoerceTo_    c :$ e1 :* End        -> WCoerceTo c <$> toHead e1
-        UnsafeFrom_  c :$ e1 :* End        -> WUnsafeFrom c <$> toHead e1
-        Integrate :$ e1 :* e2 :* e3 :* End -> Just $ WIntegrate e1 e2 e3
-        Summate   :$ e1 :* e2 :* e3 :* End -> Just $ WSummate   e1 e2 e3
+        Literal_     v                      -> Just $ WLiteral   v
+        Datum_       d                      -> Just $ WDatum     d
+        Empty_       typ                    -> Just $ WEmpty     typ
+        Array_       e1     e2              -> Just $ WArray     e1 e2
+        Lam_      :$ e1  :* End             -> Just $ WLam       e1
+        MeasureOp_   o   :$ es              -> Just $ WMeasureOp o  es
+        Dirac     :$ e1  :* End             -> Just $ WDirac     e1
+        MBind     :$ e1  :* e2 :* End       -> Just $ WMBind     e1 e2
+        Superpose_   pes                    -> Just $ WSuperpose pes
+        Ann_         typ :$ e1 :* End       -> WAnn      typ <$> toHead e1
+        CoerceTo_    c   :$ e1 :* End       -> WCoerceTo   c <$> toHead e1
+        UnsafeFrom_  c   :$ e1 :* End       -> WUnsafeFrom c <$> toHead e1
+        Integrate :$ e1  :* e2 :* e3 :* End -> Just $ WIntegrate e1 e2 e3
+        Summate   :$ e1  :* e2 :* e3 :* End -> Just $ WSummate   e1 e2 e3
         _ -> Nothing
 
 ----------------------------------------------------------------
@@ -262,6 +265,49 @@ viewHeadDatum (WCoerceTo   c _) = case c of {}
 viewHeadDatum (WUnsafeFrom c _) = case c of {}
 viewHeadDatum (WDatum      d)   = d
 viewHeadDatum (WLiteral    v)   = case v of {}
+
+
+-- Alas, to avoid the orphanage, this instance must live here rather than in Lazy.hs where it more conceptually belongs.
+-- TODO: cancellation
+-- TODO: value\/constant coercion
+-- TODO: better unify the two cases of Whnf
+-- HACK: this instance requires -XUndecidableInstances
+instance (ABT Term abt) => Coerce (Whnf abt) where
+    coerceTo c w =
+        case w of
+        Neutral e ->
+            Neutral . maybe (P.coerceTo_ c e) id
+                $ caseVarSyn e (const Nothing) $ \t ->
+                    case t of
+                    -- UnsafeFrom_ c' :$ es' -> TODO: cancellation
+                    CoerceTo_ c' :$ es' ->
+                        case es' of
+                        e' :* End -> Just $ P.coerceTo_ (c . c') e'
+                        _ -> error "coerceTo@Whnf: the impossible happened"
+                    _ -> Nothing
+        Head_ v ->
+            case v of
+            -- WUnsafeFrom c' v' -> TODO: cancellation
+            WCoerceTo c' v' -> Head_ $ WCoerceTo (c . c') v'
+            _               -> Head_ $ WCoerceTo c v
+    
+    coerceFrom c w =
+        case w of
+        Neutral e ->
+            Neutral . maybe (P.unsafeFrom_ c e) id
+                $ caseVarSyn e (const Nothing) $ \t ->
+                    case t of
+                    -- CoerceTo_ c' :$ es' -> TODO: cancellation
+                    UnsafeFrom_ c' :$ es' ->
+                        case es' of
+                        e' :* End -> Just $ P.unsafeFrom_ (c' . c) e'
+                        _ -> error "unsafeFrom@Whnf: the impossible happened"
+                    _ -> Nothing
+        Head_ v ->
+            case v of
+            -- WCoerceTo c' v' -> TODO: cancellation
+            WUnsafeFrom c' v' -> Head_ $ WUnsafeFrom (c' . c) v'
+            _                 -> Head_ $ WUnsafeFrom c v
 
 
 ----------------------------------------------------------------

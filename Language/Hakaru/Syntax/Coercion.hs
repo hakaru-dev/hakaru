@@ -7,7 +7,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.27
+--                                                    2015.12.08
 -- |
 -- Module      :  Language.Hakaru.Syntax.Coercion
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -24,8 +24,7 @@ module Language.Hakaru.Syntax.Coercion
     , continuous
     , Coercion(..)
     , singletonCoercion
-    , singCoerceTo
-    , singCoerceFrom
+    , PrimCoerce(..), Coerce(..)
     , singCoerceDom
     , singCoerceCod
     , singCoerceDomCod
@@ -115,37 +114,39 @@ instance Category Coercion where
     xs . CCons y ys = CCons y (xs . ys)
 
 ----------------------------------------------------------------
-singPrimCoerceTo :: PrimCoercion a b -> Sing a -> Sing b
-singPrimCoerceTo (Signed theRing) s =
-    case jmEq1 s (sing_NonNegative theRing) of
-    Just Refl -> sing_HRing theRing
-    Nothing   -> error "singPrimCoerceTo: the impossible happened"
-singPrimCoerceTo (Continuous theCont) s =
-    case jmEq1 s (sing_HIntegral theCont) of
-    Just Refl -> sing_HContinuous theCont
-    Nothing   -> error "singPrimCoerceTo: the impossible happened"
+class PrimCoerce (f :: Hakaru -> *) where
+    primCoerceTo   :: PrimCoercion a b -> f a -> f b
+    primCoerceFrom :: PrimCoercion a b -> f b -> f a
 
+instance PrimCoerce (Sing :: Hakaru -> *) where
+    primCoerceTo (Signed theRing) s =
+        case jmEq1 s (sing_NonNegative theRing) of
+        Just Refl -> sing_HRing theRing
+        Nothing   -> error "primCoerceTo@Sing: the impossible happened"
+    primCoerceTo (Continuous theCont) s =
+        case jmEq1 s (sing_HIntegral theCont) of
+        Just Refl -> sing_HContinuous theCont
+        Nothing   -> error "primCoerceTo@Sing: the impossible happened"
 
-singPrimCoerceFrom :: PrimCoercion a b -> Sing b -> Sing a
-singPrimCoerceFrom (Signed theRing) s =
-    case jmEq1 s (sing_HRing theRing) of
-    Just Refl -> sing_NonNegative theRing
-    Nothing   -> error "singPrimCoerceFrom: the impossible happened"
-singPrimCoerceFrom (Continuous theCont) s =
-    case jmEq1 s (sing_HContinuous theCont) of
-    Just Refl -> sing_HIntegral theCont
-    Nothing   -> error "singPrimCoerceFrom: the impossible happened"
+    primCoerceFrom (Signed theRing) s =
+        case jmEq1 s (sing_HRing theRing) of
+        Just Refl -> sing_NonNegative theRing
+        Nothing   -> error "primCoerceFrom@Sing: the impossible happened"
+    primCoerceFrom (Continuous theCont) s =
+        case jmEq1 s (sing_HContinuous theCont) of
+        Just Refl -> sing_HIntegral theCont
+        Nothing   -> error "primCoerceFrom@Sing: the impossible happened"
 
+class Coerce (f :: Hakaru -> *) where
+    coerceTo   :: Coercion a b -> f a -> f b
+    coerceFrom :: Coercion a b -> f b -> f a
 
-singCoerceTo :: Coercion a b -> Sing a -> Sing b
-singCoerceTo CNil         s = s
-singCoerceTo (CCons c cs) s =
-    singCoerceTo cs (singPrimCoerceTo c s)
+instance Coerce (Sing :: Hakaru -> *) where
+    coerceTo   CNil         s = s
+    coerceTo   (CCons c cs) s = coerceTo cs (primCoerceTo c s)
 
-singCoerceFrom :: Coercion a b -> Sing b -> Sing a
-singCoerceFrom CNil         s = s
-singCoerceFrom (CCons c cs) s =
-    singPrimCoerceFrom c (singCoerceFrom cs s)
+    coerceFrom CNil         s = s
+    coerceFrom (CCons c cs) s = primCoerceFrom c (coerceFrom cs s)
 
 ----------------------------------------------------------------
 singPrimCoerceDom :: PrimCoercion a b -> Sing a
@@ -160,12 +161,12 @@ singPrimCoerceCod (Continuous theCont) = sing_HContinuous theCont
 singCoerceDom :: Coercion a b -> Maybe (Sing a)
 singCoerceDom CNil           = Nothing
 singCoerceDom (CCons c CNil) = Just $ singPrimCoerceDom c
-singCoerceDom (CCons c cs)   = singPrimCoerceFrom c <$> singCoerceDom cs
+singCoerceDom (CCons c cs)   = primCoerceFrom c <$> singCoerceDom cs
 
 singCoerceCod :: Coercion a b -> Maybe (Sing b)
 singCoerceCod CNil           = Nothing
 singCoerceCod (CCons c CNil) = Just $ singPrimCoerceCod c
-singCoerceCod (CCons c cs)   = Just . singCoerceTo cs $ singPrimCoerceCod c
+singCoerceCod (CCons c cs)   = Just . coerceTo cs $ singPrimCoerceCod c
 
 
 singCoerceDomCod :: Coercion a b -> Maybe (Sing a, Sing b)
@@ -174,8 +175,8 @@ singCoerceDomCod (CCons c CNil) =
     Just (singPrimCoerceDom c, singPrimCoerceCod c)
 singCoerceDomCod (CCons c cs)   = do
     dom <- singCoerceDom cs
-    Just (singPrimCoerceFrom c dom
-        , singCoerceTo cs $ singPrimCoerceCod c
+    Just (primCoerceFrom c dom
+        , coerceTo cs $ singPrimCoerceCod c
         )
 
 ----------------------------------------------------------------

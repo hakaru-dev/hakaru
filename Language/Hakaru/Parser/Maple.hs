@@ -1,57 +1,63 @@
-{-# LANGUAGE  RankNTypes
-            , GADTs
-            , ExistentialQuantification
-            , StandaloneDeriving
-            , OverloadedStrings #-}
+{-# LANGUAGE CPP
+           , RankNTypes
+           , GADTs
+           , ExistentialQuantification
+           , StandaloneDeriving
+           , OverloadedStrings
+           #-}
 module Language.Hakaru.Parser.Maple where
 
 import           Language.Hakaru.Parser.AST
 import           Control.Monad.Identity
-import           Data.Text                     (Text)
-import qualified Data.Text                     as Text
-import           Data.Functor                  ((<$>), (<$))
-import           Control.Applicative           (Applicative(..))
+import           Data.Text           (Text)
+import qualified Data.Text           as Text
+#if __GLASGOW_HASKELL__ < 710
+import           Data.Functor        ((<$>))
+import           Control.Applicative (Applicative(..))
+#endif
 import           Text.Parsec
 import           Text.Parsec.Text
-import qualified Text.Parsec.Token as Token
+import qualified Text.Parsec.Token   as Token
 import           Text.Parsec.Language
 
 style :: GenLanguageDef Text st Identity
 style = Token.LanguageDef
-        { Token.commentStart   = "(*"
-        , Token.commentEnd     = "*)"
-        , Token.commentLine    = "#"
-        , Token.nestedComments = True
-        , Token.identStart     = letter <|> char '_'
-        , Token.identLetter    = alphaNum <|> oneOf "_"
-        , Token.opStart        = Token.opLetter style
-        , Token.opLetter       = oneOf "+-*/<>="
-        , Token.reservedOpNames= []
-        , Token.reservedNames  = []
-        , Token.caseSensitive  = False
-        }
+    { Token.commentStart   = "(*"
+    , Token.commentEnd     = "*)"
+    , Token.commentLine    = "#"
+    , Token.nestedComments = True
+    , Token.identStart     = letter <|> char '_'
+    , Token.identLetter    = alphaNum <|> oneOf "_"
+    , Token.opStart        = Token.opLetter style
+    , Token.opLetter       = oneOf "+-*/<>="
+    , Token.reservedOpNames= []
+    , Token.reservedNames  = []
+    , Token.caseSensitive  = False
+    }
 
 symTable :: [(Text, Text)]
-symTable =  [ ("Gaussian", "normal")
-            , ("BetaD", "beta")
-            , ("GammaD", "gamma")
-            , ("Weight", "weight")
-            , ("Uniform", "uniform")
-            ]
+symTable =
+    [ ("Gaussian", "normal")
+    , ("BetaD", "beta")
+    , ("GammaD", "gamma")
+    , ("Weight", "weight")
+    , ("Uniform", "uniform")
+    ]
 
 type TokenParser a = Token.GenTokenParser Text a Identity
 
 data NumOp = Pos | Neg deriving (Eq, Show)
 
-data ArgOp = Float | Power | Rational
-           | Func  | ExpSeq
-  deriving (Eq, Show)
+data ArgOp
+    = Float | Power | Rational
+    | Func  | ExpSeq
+    deriving (Eq, Show)
 
-data InertExpr =
-     InertName Text
-   | InertNum  NumOp Integer
-   | InertArgs ArgOp [InertExpr]
- deriving (Eq, Show)
+data InertExpr
+    = InertName Text
+    | InertNum  NumOp Integer
+    | InertArgs ArgOp [InertExpr]
+    deriving (Eq, Show)
 
 lexer :: TokenParser ()
 lexer = Token.makeTokenParser style
@@ -76,17 +82,17 @@ arg e = parens (commaSep e)
 
 apply1 :: Parser a -> Parser a
 apply1 e = do
-  args <- arg e
-  case args of
-    [e'] -> return e'
-    _    -> error "Expected only one argument"
+    args <- arg e
+    case args of
+        [e'] -> return e'
+        _    -> error "Expected only one argument"
 
 apply2 :: Parser a -> Parser (a, a)
 apply2 e = do
-  args <- arg e
-  case args of
-    [e1, e2] -> return (e1, e2)
-    _        -> error "Expected only two arguments"
+    args <- arg e
+    case args of
+        [e1, e2] -> return (e1, e2)
+        _        -> error "Expected only two arguments"
 
 text :: Text -> Parser Text
 text = liftM Text.pack <$> string <$> Text.unpack
@@ -126,9 +132,10 @@ rational :: Parser InertExpr
 rational = InertArgs <$> (text "_Inert_RATIONAL" *> return Rational) <*> arg expr
 
 rename :: Text -> Text
-rename x = case lookup x symTable of
-             Just x' -> x'
-             Nothing -> x
+rename x =
+    case lookup x symTable of
+    Just x' -> x'
+    Nothing -> x
 
 parseMaple :: Text -> Either ParseError InertExpr
 parseMaple = runParser (expr <* eof) () "<input>"

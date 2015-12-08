@@ -190,9 +190,9 @@ sampleScon Let_ (e1 :* e2 :* End)      env =
         sample (LC_ e2') (updateEnv (EAssoc x v) env)
 sampleScon (Ann_   _)      (e1 :* End) env = sample (LC_ e1) env
 sampleScon (CoerceTo_   c) (e1 :* End) env =
-    sampleCoerce c $ sample (LC_ e1) env
+    coerceTo c $ sample (LC_ e1) env
 sampleScon (UnsafeFrom_ c) (e1 :* End) env =
-    sampleUnsafe c $ sample (LC_ e1) env
+    coerceFrom c $ sample (LC_ e1) env
 sampleScon (PrimOp_ o)     es env = samplePrimOp    o es env
 sampleScon (MeasureOp_  m) es env = sampleMeasureOp m es env
 sampleScon Dirac           (e1 :* End) env =
@@ -209,27 +209,29 @@ sampleScon MBind (e1 :* e2 :* End) env =
                     let y = sample (LC_ e2') (updateEnv (EAssoc x a) env)
                     in  unS y p' g
 
-sampleCoerce :: Coercion a b -> S m a -> S m b
-sampleCoerce CNil         (S a) = S a
-sampleCoerce (CCons c cs) (S a) = sampleCoerce cs (samplePrimCoerce c (S a))
+instance Coerce (S m) where
+    coerceTo   CNil         v = v
+    coerceTo   (CCons c cs) v = coerceTo cs (primCoerceTo c v)
 
-sampleUnsafe :: Coercion a b -> S m b -> S m a
-sampleUnsafe CNil         (S a) = S a
-sampleUnsafe (CCons c cs) (S a) = samplePrimUnsafe c (sampleUnsafe cs (S a))
+    coerceFrom CNil         v = v
+    coerceFrom (CCons c cs) v = primCoerceFrom c (coerceFrom cs v)
 
-samplePrimCoerce :: (PrimCoercion a b) -> S m a -> S m b
-samplePrimCoerce (Signed HRing_Int )           (S a) = S $ fromNat a
-samplePrimCoerce (Signed HRing_Real)           (S a) = S $ LF.fromLogFloat a
-samplePrimCoerce (Continuous HContinuous_Prob) (S a) =
-    S $ LF.logFloat (fromIntegral (fromNat a) :: Double)
-samplePrimCoerce (Continuous HContinuous_Real) (S a) = S $ fromIntegral a
+instance PrimCoerce (S m) where
+    primCoerceTo c l =
+        case (c,l) of
+        (Signed HRing_Int,            S a) -> S $ fromNat a
+        (Signed HRing_Real,           S a) -> S $ LF.fromLogFloat a
+        (Continuous HContinuous_Prob, S a) ->
+            S $ LF.logFloat (fromIntegral (fromNat a) :: Double)
+        (Continuous HContinuous_Real, S a) -> S $ fromIntegral a
 
-samplePrimUnsafe :: (PrimCoercion a b) -> S m b -> S m a
-samplePrimUnsafe (Signed HRing_Int )           (S a) = S $ unsafeNat a
-samplePrimUnsafe (Signed HRing_Real)           (S a) = S $ LF.logFloat a
-samplePrimUnsafe (Continuous HContinuous_Prob) (S a) =
-    S $ unsafeNat $ floor (LF.fromLogFloat a :: Double)
-samplePrimUnsafe (Continuous HContinuous_Real) (S a) = S $ floor a
+    primCoerceFrom c l =
+        case (c,l) of
+        (Signed HRing_Int,            S a) -> S $ unsafeNat a
+        (Signed HRing_Real,           S a) -> S $ LF.logFloat a
+        (Continuous HContinuous_Prob, S a) ->
+            S $ unsafeNat $ floor (LF.fromLogFloat a :: Double)
+        (Continuous HContinuous_Real, S a) -> S $ floor a
 
 
 samplePrimOp

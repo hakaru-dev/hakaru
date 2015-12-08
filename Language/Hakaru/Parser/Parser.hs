@@ -1,11 +1,13 @@
-{-# LANGUAGE RankNTypes, GADTs, ExistentialQuantification,
+{-# LANGUAGE CPP, RankNTypes, GADTs, ExistentialQuantification,
              StandaloneDeriving, OverloadedStrings #-}
 module Language.Hakaru.Parser.Parser where
 
 import Prelude hiding (Real)
 
+#if __GLASGOW_HASKELL__ < 710
 import           Data.Functor                  ((<$>), (<$))
 import           Control.Applicative           (Applicative(..))
+#endif
 import qualified Control.Monad                 as M
 import           Data.Functor.Identity
 import           Data.Text                     (Text)

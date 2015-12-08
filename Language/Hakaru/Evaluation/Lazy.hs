@@ -44,7 +44,6 @@ import           Control.Category       (Category(..))
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Functor           ((<$>))
 #endif
-import           Data.Ratio             (numerator, denominator)
 import qualified Data.Traversable       as T
 import           Control.Monad          ((<=<))
 import           Control.Monad.Identity (Identity, runIdentity)
@@ -152,9 +151,9 @@ evaluate perform = evaluate_
             caseBind e2 $ \x e2' ->
                 push (SLet x $ Thunk e1) e2' evaluate_
 
-        Ann_      typ :$ e1 :* End -> ann           typ <$> evaluate_ e1
-        CoerceTo_   c :$ e1 :* End -> coerceTo_Whnf   c <$> evaluate_ e1
-        UnsafeFrom_ c :$ e1 :* End -> unsafeFrom_Whnf c <$> evaluate_ e1
+        Ann_      typ :$ e1 :* End -> ann      typ <$> evaluate_ e1
+        CoerceTo_   c :$ e1 :* End -> coerceTo   c <$> evaluate_ e1
+        UnsafeFrom_ c :$ e1 :* End -> coerceFrom c <$> evaluate_ e1
 
         -- TODO: will maybe clean up the code to map 'evaluate' over @es@ before calling the evaluateFooOp helpers?
         NaryOp_  o    es -> evaluateNaryOp  evaluate_ o es
@@ -253,111 +252,6 @@ update perform evaluate_ = \x ->
 ann :: (ABT Term abt) => Sing a -> Whnf abt a -> Whnf abt a
 ann typ (Neutral e) = Neutral $ syn (Ann_ typ :$ e :* End)
 ann typ (Head_   v) = Head_   $ WAnn typ v
-
-
--- TODO: cancellation
--- TODO: value\/constant coercion
--- TODO: better unify the two cases of Whnf
--- TODO: avoid namespace pollution by introduceing a class for these?
-coerceTo_Whnf :: (ABT Term abt) => Coercion a b -> Whnf abt a -> Whnf abt b
-coerceTo_Whnf c w =
-    case w of
-    Neutral e ->
-        Neutral . maybe (P.coerceTo_ c e) id
-            $ caseVarSyn e (const Nothing) $ \t ->
-                case t of
-                -- UnsafeFrom_ c' :$ es' -> TODO: cancellation
-                CoerceTo_ c' :$ es' ->
-                    case es' of
-                    e' :* End -> Just $ P.coerceTo_ (c . c') e'
-                    _ -> error "coerceTo_Whnf: the impossible happened"
-                _ -> Nothing
-    Head_ v ->
-        case v of
-        -- WUnsafeFrom c' v' -> TODO: cancellation
-        WCoerceTo c' v' -> Head_ $ WCoerceTo (c . c') v'
-        _               -> Head_ $ WCoerceTo c v
-
-
-unsafeFrom_Whnf
-    :: (ABT Term abt) => Coercion a b -> Whnf abt b -> Whnf abt a
-unsafeFrom_Whnf c w =
-    case w of
-    Neutral e ->
-        Neutral . maybe (P.unsafeFrom_ c e) id
-            $ caseVarSyn e (const Nothing) $ \t ->
-                case t of
-                -- CoerceTo_ c' :$ es' -> TODO: cancellation
-                UnsafeFrom_ c' :$ es' ->
-                    case es' of
-                    e' :* End -> Just $ P.unsafeFrom_ (c' . c) e'
-                    _ -> error "unsafeFrom_Whnf: the impossible happened"
-                _ -> Nothing
-    Head_ v ->
-        case v of
-        -- WCoerceTo c' v' -> TODO: cancellation
-        WUnsafeFrom c' v' -> Head_ $ WUnsafeFrom (c' . c) v'
-        _                 -> Head_ $ WUnsafeFrom c v
-
-
--- TODO: move to Coercion.hs
--- TODO: add a class in Coercion.hs to avoid namespace pollution for all these sorts of things...
--- TODO: first optimize the @Coercion a b@ to choose the most desirable of many equivalent paths?
-coerceTo_Literal :: Coercion a b -> Literal a -> Literal b
-coerceTo_Literal CNil         v = v
-coerceTo_Literal (CCons c cs) v = coerceTo_Literal cs (step c v)
-    where
-    step :: PrimCoercion a b -> Literal a -> Literal b
-    step (Signed     HRing_Int)        (LNat  n) = LInt  (nat2int   n)
-    step (Signed     HRing_Real)       (LProb p) = LReal (prob2real p)
-    step (Continuous HContinuous_Prob) (LNat  n) = LProb (nat2prob  n)
-    step (Continuous HContinuous_Real) (LInt  i) = LReal (int2real  i)
-    step _ _ = error "coerceTo_Literal: the impossible happened"
-
-    -- HACK: type signatures needed to avoid defaulting
-    nat2int   :: Natural -> Integer
-    nat2int   = fromNatural
-    nat2prob  :: Natural -> NonNegativeRational
-    nat2prob  = unsafeNonNegativeRational . toRational -- N.B., is safe here
-    prob2real :: NonNegativeRational -> Rational
-    prob2real = fromNonNegativeRational
-    int2real  :: Integer -> Rational
-    int2real  = fromIntegral
-
-
--- TODO: how to handle the errors? Generate error code in hakaru? capture it in a monad?
-unsafeFrom_Literal :: Coercion a b -> Literal b -> Literal a
-unsafeFrom_Literal CNil         v = v
-unsafeFrom_Literal (CCons c cs) v = step c (unsafeFrom_Literal cs v)
-    where
-    step :: PrimCoercion a b -> Literal b -> Literal a
-    step (Signed     HRing_Int)        (LInt  i) = LNat  (int2nat   i)
-    step (Signed     HRing_Real)       (LReal r) = LProb (real2prob r)
-    step (Continuous HContinuous_Prob) (LProb p) = LNat  (prob2nat  p)
-    step (Continuous HContinuous_Real) (LReal r) = LInt  (real2int  r)
-    step _ _ = error "unsafeFrom_Literal: the impossible happened"
-
-    -- HACK: type signatures needed to avoid defaulting
-    int2nat  :: Integer -> Natural
-    int2nat x =
-        case toNatural x of
-        Just y  -> y
-        Nothing -> error "unsafeFrom_Literal: negative HInt"
-    prob2nat :: NonNegativeRational -> Natural
-    prob2nat x =
-        if denominator x == 1
-        then numerator x
-        else error "unsafeFrom_Literal: non-integral HProb"
-    real2prob :: Rational -> NonNegativeRational
-    real2prob x =
-        case toNonNegativeRational x of
-        Just y  -> y
-        Nothing -> error "unsafeFrom_Literal: negative HReal"
-    real2int :: Rational -> Integer
-    real2int x =
-        if denominator x == 1
-        then numerator x
-        else error "unsafeFrom_Literal: non-integral HReal"
 
 
 ----------------------------------------------------------------

@@ -21,20 +21,20 @@ module Language.Hakaru.MapleNeue (Maple(..), runMaple) where
 -- we're squishing everything into String.
 
 import Language.Hakaru.Syntax.Nat     (fromNat)
-import Language.Hakaru.Syntax.Natural (fromNatural)
-import Language.Hakaru.Syntax.Coercion
+-- import Language.Hakaru.Syntax.Natural (fromNatural)
+-- import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.Sing
+-- import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.AST
-import Language.Hakaru.Syntax.Datum
+-- import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT
 
-import Control.Monad (liftM, liftM2)
-import Control.Monad.Trans.State.Strict (State, evalState, state)
-import Data.List (intersperse)
+-- import Control.Monad (liftM, liftM2)
+-- import Control.Monad.Trans.State.Strict (State, evalState, state)
+-- import Data.List (intersperse)
 
 import qualified Data.Text as Text
-import           Data.Number.LogFloat
+-- import           Data.Number.LogFloat
 import           Data.Ratio
 
 newtype Maple (a :: Hakaru) = Maple {unMaple :: String}

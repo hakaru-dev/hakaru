@@ -7,7 +7,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.23
+--                                                    2015.12.08
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeOf
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -29,7 +29,7 @@ import Data.Functor ((<$>))
 
 import Language.Hakaru.Syntax.Sing (Sing(..))
 import Language.Hakaru.Syntax.Coercion
-    (singCoerceCod, singCoerceDom, singCoerceFrom, singCoerceTo)
+    (singCoerceCod, singCoerceDom, Coerce(..))
 import Language.Hakaru.Syntax.TypeHelpers
     (sing_PrimOp, sing_MeasureOp, sing_NaryOp, sing_Literal)
 import Language.Hakaru.Syntax.Datum (Branch(..))
@@ -63,11 +63,11 @@ typeOf_ e0 =
         Ann_      typ :$ _        -> return typ
         CoerceTo_   c :$ e1 :* End ->
             case singCoerceCod c of
-            Nothing  -> singCoerceTo c <$> typeOf_ e1
+            Nothing  -> coerceTo c <$> typeOf_ e1
             Just typ -> return typ
         UnsafeFrom_ c :$ e1 :* End ->
             case singCoerceDom c of
-            Nothing  -> singCoerceFrom c <$> typeOf_ e1
+            Nothing  -> coerceFrom c <$> typeOf_ e1
             Just typ -> return typ
         PrimOp_     o :$ _        -> return . snd $ sing_PrimOp o
         MeasureOp_  o :$ _        -> return . SMeasure . snd $ sing_MeasureOp o

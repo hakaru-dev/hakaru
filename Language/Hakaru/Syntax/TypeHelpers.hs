@@ -33,7 +33,6 @@ import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.AST
 import qualified Language.Hakaru.Parser.AST as U
-import Language.Hakaru.Syntax.Datum
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
