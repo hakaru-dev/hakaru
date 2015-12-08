@@ -13,27 +13,23 @@
 
 module Language.Hakaru.Sample where
 
-import Control.Monad.Primitive                   (PrimState, PrimMonad)
-import Numeric.SpecFunctions                     (logGamma, logBeta, logFactorial)
+import           Control.Monad.Primitive         (PrimState, PrimMonad)
+import           Numeric.SpecFunctions           (logGamma, logBeta, logFactorial)
 import qualified Data.Number.LogFloat            as LF
---import qualified Numeric.Integration.TanhSinh    as TS
+-- import qualified Numeric.Integration.TanhSinh    as TS
 import qualified System.Random.MWC               as MWC
 import qualified System.Random.MWC.Distributions as MWCD
-
 import qualified Data.Vector                     as V
 import           Data.Sequence (Seq)
 import qualified Data.Foldable                   as F
-import Data.Maybe                                (fromMaybe)
-
+import           Data.Maybe                      (fromMaybe)
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative   (Applicative(..), (<$>))
 #endif
-
 import Control.Monad.Identity
-import Control.Monad.State
+-- import Control.Monad.State
 import Control.Monad.Trans.Maybe
-
-import qualified Data.Text        as T
+-- import qualified Data.Text        as T
 import qualified Data.IntMap      as IM
 
 import Language.Hakaru.Syntax.Nat      (fromNat, unsafeNat, Nat())
@@ -46,11 +42,9 @@ import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumCase
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
-
-import Language.Hakaru.Evaluation.Types
-import Language.Hakaru.Evaluation.Lazy
-
-import Language.Hakaru.PrettyPrint
+-- import Language.Hakaru.Evaluation.Types
+-- import Language.Hakaru.Evaluation.Lazy
+-- import Language.Hakaru.PrettyPrint
 
 type PRNG m = MWC.Gen (PrimState m)
 
@@ -241,8 +235,8 @@ samplePrimOp
     -> SArgs abt args
     -> Env m
     -> S m a
-samplePrimOp Infinity         End env = S $ LF.logFloat (1/0)
-samplePrimOp NegativeInfinity End env = S $ -1/0
+samplePrimOp Infinity         End _ = S $ LF.logFloat (1/0)
+samplePrimOp NegativeInfinity End _ = S $ -1/0
 
 
 sampleNaryOp
@@ -269,14 +263,14 @@ sampleMeasureOp
         , typs ~ UnLCs args, args ~ LCs typs)
     => MeasureOp typs a -> SArgs abt args -> Env m -> S m ('HMeasure a)
 
-sampleMeasureOp Lebesgue    End         env =
+sampleMeasureOp Lebesgue End _ =
     S $ \p g -> do
         (u,b) <- MWC.uniform g
         let l = log u
         let n = -l
         return $ Just (if b then n else l, 2 * LF.logToLogFloat n)
 
-sampleMeasureOp Counting    End         env =
+sampleMeasureOp Counting End _ =
     S $ \p g -> do
         let success = LF.logToLogFloat (-3 :: Double)
         let pow x y = LF.logToLogFloat (LF.logFromLogFloat x *
@@ -310,37 +304,37 @@ sampleMeasureOp Uniform (e1 :* e2 :* End) env =
             x <- MWC.uniformR (v1, v2) g
             return $ Just (x, p)
 
-sampleMeasureOp Normal  (e1 :* e2 :* End) env =
+sampleMeasureOp Normal (e1 :* e2 :* End) env =
     let S v1 = sample (LC_ e1) env
         S v2 = sample (LC_ e2) env
     in  S $ \ p g -> do
             x <- MWCD.normal v1 (LF.fromLogFloat v2) g
             return $ Just (x, p)
 
-sampleMeasureOp Poisson (e1 :* End)       env =
+sampleMeasureOp Poisson (e1 :* End) env =
     let S v1 = sample (LC_ e1) env
     in  S $ \ p g -> do
             x <- poisson_rng (LF.fromLogFloat v1) g
             return $ Just (unsafeNat x, p)
 
-sampleMeasureOp Gamma   (e1 :* e2 :* End) env =
+sampleMeasureOp Gamma (e1 :* e2 :* End) env =
     let S v1 = sample (LC_ e1) env
         S v2 = sample (LC_ e2) env
     in  S $ \ p g -> do
             x <- MWCD.gamma (LF.fromLogFloat v1) (LF.fromLogFloat v2) g
             return $ Just (LF.logFloat x, p)
 
-sampleMeasureOp Beta    (e1 :* e2 :* End) env =
+sampleMeasureOp Beta (e1 :* e2 :* End) env =
     let S v1 = sample (LC_ e1) env
         S v2 = sample (LC_ e2) env
     in  S $ \ p g -> do
             x <- MWCD.beta (LF.fromLogFloat v1) (LF.fromLogFloat v2) g
             return $ Just (LF.logFloat x, p)
 
-sampleMeasureOp (DirichletProcess _)  _ env =
+sampleMeasureOp (DirichletProcess _) _ env =
     error "sampleMeasureOp: Dirichlet Processes not implemented yet"
 
-sampleMeasureOp (Plate _)   (e1 :* End) env =
+sampleMeasureOp (Plate _) (e1 :* End) env =
     let S v = sample (LC_ e1) env
     in  S $ \ p g -> runMaybeT $ do
             samples <- V.mapM (\m -> MaybeT $ m 1 g) v
@@ -375,7 +369,7 @@ sampleDatum
     => Datum (abt '[]) (HData' a)
     -> Env m
     -> S m (HData' a)
-sampleDatum d env = S (SDatum (Datum_ d))
+sampleDatum d _ = S (SDatum (Datum_ d))
 
 
 sampleCase
@@ -409,7 +403,7 @@ sampleSuperpose
     => [(abt '[] 'HProb, abt '[] ('HMeasure a))]
     -> Env m
     -> S m ('HMeasure a)
-sampleSuperpose []       env = S (\p g -> return Nothing)
+sampleSuperpose []       _   = S $ \_ _ -> return Nothing
 sampleSuperpose [(q, m)] env =
     let S q' = sample (LC_ q) env
         S m' = sample (LC_ m) env

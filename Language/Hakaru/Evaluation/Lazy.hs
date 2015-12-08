@@ -44,7 +44,6 @@ import           Control.Category       (Category(..))
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Functor           ((<$>))
 #endif
-import qualified Data.Traversable       as T
 import           Control.Monad          ((<=<))
 import           Control.Monad.Identity (Identity, runIdentity)
 import           Data.Sequence          (Seq)
@@ -117,9 +116,9 @@ evaluate perform = evaluate_
         case t of
         -- Things which are already WHNFs
         Literal_ v               -> return . Head_ $ WLiteral v
-        Datum_ d                 -> return . Head_ $ WDatum d
-        Empty_ t                 -> return . Head_ $ WEmpty t
-        Array_ e1 e2             -> return . Head_ $ WArray e1 e2
+        Datum_   d               -> return . Head_ $ WDatum   d
+        Empty_   typ             -> return . Head_ $ WEmpty   typ
+        Array_   e1 e2           -> return . Head_ $ WArray e1 e2
         Lam_  :$ e1 :* End       -> return . Head_ $ WLam   e1
         Dirac :$ e1 :* End       -> return . Head_ $ WDirac e1
         MBind :$ e1 :* e2 :* End -> return . Head_ $ WMBind e1 e2
@@ -298,7 +297,7 @@ identifyDatum = return . (viewWhnfDatum <=< toWhnf)
 -- HACK: this requires -XTypeSynonymInstances and -XFlexibleInstances
 -- This instance does seem to work; albeit it's trivial...
 instance Interp HUnit () where
-    reflect () = error "TODO" -- WLiteral $ VDatum dUnit
+    reflect () = WDatum dUnit
     reify v = runIdentity $ do
         match <- matchTopPattern identifyDatum (fromHead v) pUnit Nil1
         case match of
@@ -308,7 +307,7 @@ instance Interp HUnit () where
 -- HACK: this requires -XTypeSynonymInstances and -XFlexibleInstances
 -- This instance also seems to work...
 instance Interp HBool Bool where
-    reflect = error "TODO" -- WLiteral . VDatum . (\b -> if b then dTrue else dFalse)
+    reflect = WDatum . (\b -> if b then dTrue else dFalse)
     reify v = runIdentity $ do
         matchT <- matchTopPattern identifyDatum (fromHead v) pTrue Nil1
         case matchT of
@@ -542,7 +541,7 @@ data ArrayHead :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         -> ArrayHead abt a
 
 head2array :: Head abt ('HArray a) -> Maybe (ArrayHead abt a)
-head2array (WEmpty t)     = Just WAEmpty
+head2array (WEmpty _)     = Just WAEmpty
 head2array (WArray e1 e2) = Just (WAArray e1 e2)
 head2array (WAnn _ w)     = head2array w
 head2array _ = error "head2array: the impossible happened"

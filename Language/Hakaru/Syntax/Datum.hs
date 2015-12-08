@@ -10,7 +10,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.27
+--                                                    2015.12.08
 -- |
 -- Module      :  Language.Hakaru.Syntax.Datum
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -365,12 +365,44 @@ data PDatumStruct :: [HakaruFun] -> [Hakaru] -> Hakaru -> * where
 
     PDone :: PDatumStruct '[] '[] a
 
+{-
+-- This code typechecks, and may offer some way forward towards
+-- implementing @Eq1 (PDatumStruct xs vars)@. Excepting, of course,
+-- that we can't actually return 'Refl' for the 'PDone' and 'PKonst'
+-- cases, nor can we define 'JmEq2' for 'Pattern' (because of similar
+-- issues with 'PWild' and 'PVar').
+
+jmEq_PDatumFun
+    :: JmEq2 Pattern
+    => PDatumFun f vs a
+    -> PDatumFun f ws b
+    -> Maybe (TypeEq vs ws, TypeEq a b)
+jmEq_PDatumFun (PKonst p1) (PKonst p2) = do
+    (Refl,Refl) <- jmEq2 p1 p2
+    Just (Refl, error "Cannot prove")
+jmEq_PDatumFun (PIdent p1) (PIdent p2) = do
+    (Refl,Refl) <- jmEq2 p1 p2
+    Just (Refl,Refl)
+jmEq_PDatumFun _ _ = Nothing
+
+jmEq_PDatumStruct
+    :: JmEq2 Pattern
+    => PDatumStruct xs vs a
+    -> PDatumStruct xs ws b
+    -> Maybe (TypeEq vs ws, TypeEq a b)
+jmEq_PDatumStruct (PEt c1 c2) (PEt d1 d2) = do
+    (Refl, Refl) <- jmEq_PDatumFun    c1 d1
+    (Refl, Refl) <- jmEq_PDatumStruct c2 d2
+    Just (Refl, Refl)
+jmEq_PDatumStruct PDone PDone = Just (Refl, error "Cannot prove")
+jmEq_PDatumStruct _ _ = Nothing
+-}
+
 instance Eq1 (PDatumStruct xs vars) where
     eq1 (PEt c1 c2) (PEt d1 d2) =
         error "TODO: Eq1{PEt}: make sure existentials match up"
         -- > eq1 c1 d1 && eq1 c2 d2
-        -- TODO: we could do it with some instance of @jmEq@; which is just further begging for making @jmEq@ into a kind-class (i.e., a typeclass indexed by a kind instead of by a type). /Could/ do it without that kind-class, but will be namespace ugliness
-        -- TODO: maybe we could just push @jmEq@ into the 'Eq1' class like the other abt library on Haskage does?
+        -- BUG: we can't just do it with a 'JmEq1' instance instead, since we can't always return @Just Refl@ for comparing 'PDone' to itself, since they may be at different types. Also, the real problem with doing that is it's not given how we should be splitting @vars@ in two as we recurse... Really, we need @vars1@ and @vars2@ to be considered \"output\" variables...
     eq1 PDone       PDone       = True
     eq1 _           _           = False
 
