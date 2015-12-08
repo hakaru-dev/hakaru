@@ -49,9 +49,12 @@ import qualified Language.Hakaru.Parser.AST as U
 
 import Language.Hakaru.Syntax.Nat      (fromNat)
 import Language.Hakaru.Syntax.IClasses
-import Language.Hakaru.Syntax.DataKind (Hakaru(..), HData')
+import Language.Hakaru.Syntax.HClasses
+    (HOrd, hOrd_Sing, HSemiring, hSemiring_Sing)
+import Language.Hakaru.Syntax.DataKind (Hakaru(..), HData', HBool)
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.TypeHelpers
+    (sing_Literal, sing_PrimOp, sing_MeasureOp)
 import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
@@ -328,11 +331,9 @@ inferType = inferType_
     U.NaryOp_ op es -> do
         -- TODO: abstract out this infer-one-check-all pattern so we can reuse it elsewhere. Also, make it zipper-like so we don't re-check the one we inferred.
         TypedAST typ1 _ <- F.asum $ fmap inferType_ es
-        case make_NaryOp typ1 op of
-            Nothing  -> failwith "can't make NaryOp" -- TODO: better error message
-            Just op' -> do
-                es' <- T.forM es $ checkType_ typ1
-                return . TypedAST typ1 $ syn (NaryOp_ op' $ S.fromList es')
+        op' <- make_NaryOp typ1 op
+        es' <- T.forM es $ checkType_ typ1
+        return . TypedAST typ1 $ syn (NaryOp_ op' $ S.fromList es')
 
     U.Literal_ (Some1 v) ->
         return . TypedAST (sing_Literal v) $ syn (Literal_ v)
@@ -404,6 +405,34 @@ inferType = inferType_
     _   | mustCheck e0 -> failwith "Cannot infer types for checking terms; please add a type annotation"
         | otherwise    -> error "inferType: missing an inferable branch!"
 
+
+make_NaryOp :: Sing a -> U.NaryOp' -> TypeCheckMonad (NaryOp a)
+make_NaryOp a U.And'  = isBool a >>= \Refl -> return And
+make_NaryOp a U.Or'   = isBool a >>= \Refl -> return Or
+make_NaryOp a U.Xor'  = isBool a >>= \Refl -> return Xor
+make_NaryOp a U.Iff'  = isBool a >>= \Refl -> return Iff
+make_NaryOp a U.Min'  = Min  <$> getHOrd a
+make_NaryOp a U.Max'  = Max  <$> getHOrd a
+make_NaryOp a U.Sum'  = Sum  <$> getHSemiring a
+make_NaryOp a U.Prod' = Prod <$> getHSemiring a
+
+isBool :: Sing a -> TypeCheckMonad (TypeEq a HBool)
+isBool typ =
+    case jmEq1 typ sBool of
+    Just proof -> return proof
+    Nothing    -> typeMismatch (Left "HBool") (Right typ)
+
+getHOrd :: Sing a -> TypeCheckMonad (HOrd a)
+getHOrd typ =
+    case hOrd_Sing typ of
+    Just theOrd -> return theOrd
+    Nothing     -> failwith $ "No HOrd instance for type " ++ show typ
+
+getHSemiring :: Sing a -> TypeCheckMonad (HSemiring a)
+getHSemiring typ =
+    case hSemiring_Sing typ of
+    Just theSemi -> return theSemi
+    Nothing      -> failwith $ "No HSemiring instance for type " ++ show typ
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -480,12 +509,10 @@ checkType = checkType_
                     return $ syn (UnsafeFrom_ c :$ e1' :* End)
                 Nothing -> typeMismatch (Right typ0) (Right dom)
 
-        U.NaryOp_ op es ->
-            case make_NaryOp typ0 op of
-            Nothing  -> failwith "expected type with semiring"
-            Just op' -> do
-                es' <- T.forM es $ checkType_ typ0
-                return $ syn (NaryOp_ op' (S.fromList es'))
+        U.NaryOp_ op es -> do
+            op' <- make_NaryOp typ0 op
+            es' <- T.forM es $ checkType_ typ0
+            return $ syn (NaryOp_ op' (S.fromList es'))
 
         U.Empty_ ->
             case typ0 of

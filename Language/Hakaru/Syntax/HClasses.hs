@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.19
+--                                                    2015.12.08
 -- |
 -- Module      :  Language.Hakaru.Syntax.HClasses
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -23,7 +23,59 @@
 --
 -- A collection of type classes for encoding Hakaru's numeric hierarchy.
 ----------------------------------------------------------------
-module Language.Hakaru.Syntax.HClasses where
+module Language.Hakaru.Syntax.HClasses
+    (
+    -- * Equality
+      HEq(..)
+    , HEq_(..)
+    , sing_HEq
+    , hEq_Sing
+
+    -- * Ordering
+    , HOrd(..)
+    , hEq_HOrd
+    , HOrd_(..)
+    , sing_HOrd
+    , hOrd_Sing
+
+    -- * Semirings
+    , HSemiring(..)
+    , HSemiring_(..)
+    , sing_HSemiring
+    , hSemiring_Sing
+
+    -- * Rings
+    , HRing(..)
+    , hSemiring_HRing
+    , hSemiring_NonNegativeHRing
+    , HRing_(..)
+    , sing_HRing
+    , hRing_Sing
+    , sing_NonNegative
+
+    -- * Fractional types
+    , HFractional(..)
+    , hSemiring_HFractional
+    , HFractional_(..)
+    , sing_HFractional
+    , hFractional_Sing
+
+    -- * Radical types
+    , HRadical(..)
+    , hSemiring_HRadical
+    , HRadical_(..)
+    , sing_HRadical
+    , hRadical_Sing
+
+    -- * Continuous types
+    , HContinuous(..)
+    , hFractional_HContinuous
+    , hSemiring_HIntegralContinuous
+    , HContinuous_(..)
+    , sing_HContinuous
+    , hContinuous_Sing
+    , sing_HIntegral
+    ) where
 
 #if __GLASGOW_HASKELL__ < 710
 import Data.Functor ((<$>))
@@ -61,6 +113,21 @@ sing_HEq HEq_Bool         = sBool
 sing_HEq HEq_Unit         = sUnit
 sing_HEq (HEq_Pair   a b) = sPair   (sing_HEq a) (sing_HEq b)
 sing_HEq (HEq_Either a b) = sEither (sing_HEq a) (sing_HEq b)
+
+hEq_Sing :: Sing a -> Maybe (HEq a)
+hEq_Sing SNat        = Just HEq_Nat
+hEq_Sing SInt        = Just HEq_Int
+hEq_Sing SProb       = Just HEq_Prob
+hEq_Sing SReal       = Just HEq_Real
+hEq_Sing (SArray a)  = HEq_Array <$> hEq_Sing a
+hEq_Sing (SData _ _) = error "TODO: hEq_Sing for built-in data types"
+{-
+hEq_Sing sBool         = Just HEq_Bool
+hEq_Sing sUnit         = Just HEq_Unit
+hEq_Sing (sPair   a b) = HEq_Pair <$> hEq_Sing a <*> hEq_Sing b
+hEq_Sing (sEither a b) = HEq_Either <$> hEq_Sing a <*> hEq_Sing b
+-}
+hEq_Sing _ = Nothing
 
 -- | Haskell type class for automatic 'HEq' inference.
 class    HEq_ (a :: Hakaru) where hEq :: HEq a
@@ -177,12 +244,12 @@ sing_HSemiring HSemiring_Int  = SInt
 sing_HSemiring HSemiring_Prob = SProb
 sing_HSemiring HSemiring_Real = SReal
 
-hSemiringSing :: Sing a -> Maybe (HSemiring a)
-hSemiringSing SNat  = Just HSemiring_Nat 
-hSemiringSing SInt  = Just HSemiring_Int 
-hSemiringSing SProb = Just HSemiring_Prob
-hSemiringSing SReal = Just HSemiring_Real
-hSemiringSing _     = Nothing
+hSemiring_Sing :: Sing a -> Maybe (HSemiring a)
+hSemiring_Sing SNat  = Just HSemiring_Nat 
+hSemiring_Sing SInt  = Just HSemiring_Int 
+hSemiring_Sing SProb = Just HSemiring_Prob
+hSemiring_Sing SReal = Just HSemiring_Real
+hSemiring_Sing _     = Nothing
 
 -- | Haskell type class for automatic 'HSemiring' inference.
 class    HSemiring_ (a :: Hakaru) where hSemiring :: HSemiring a
@@ -219,8 +286,15 @@ sing_HRing :: HRing a -> Sing a
 sing_HRing HRing_Int  = SInt
 sing_HRing HRing_Real = SReal
 
+hRing_Sing :: Sing a -> Maybe (HRing a)
+hRing_Sing SInt  = Just HRing_Int
+hRing_Sing SReal = Just HRing_Real
+hRing_Sing _     = Nothing
+
 sing_NonNegative :: HRing a -> Sing (NonNegative a)
 sing_NonNegative = sing_HSemiring . hSemiring_NonNegativeHRing
+
+-- hNonNegative_Sing :: Sing (NonNegative a) -> Maybe (HRing a)
 
 -- | Every 'HRing' is a 'HSemiring'.
 hSemiring_HRing :: HRing a -> HSemiring a
@@ -305,6 +379,11 @@ sing_HFractional :: HFractional a -> Sing a
 sing_HFractional HFractional_Prob = SProb
 sing_HFractional HFractional_Real = SReal
 
+hFractional_Sing :: Sing a -> Maybe (HFractional a)
+hFractional_Sing SProb = Just HFractional_Prob
+hFractional_Sing SReal = Just HFractional_Real
+hFractional_Sing _     = Nothing
+
 -- | Every 'HFractional' is a 'HSemiring'.
 hSemiring_HFractional :: HFractional a -> HSemiring a
 hSemiring_HFractional HFractional_Prob = HSemiring_Prob
@@ -361,6 +440,10 @@ deriving instance Show (HRadical a)
 sing_HRadical :: HRadical a -> Sing a
 sing_HRadical HRadical_Prob = SProb
 
+hRadical_Sing :: Sing a -> Maybe (HRadical a)
+hRadical_Sing SProb = Just HRadical_Prob
+hRadical_Sing _     = Nothing
+
 -- | Every 'HRadical' is a 'HSemiring'.
 hSemiring_HRadical :: HRadical a -> HSemiring a
 hSemiring_HRadical HRadical_Prob = HSemiring_Prob
@@ -409,8 +492,15 @@ sing_HContinuous :: HContinuous a -> Sing a
 sing_HContinuous HContinuous_Prob = SProb
 sing_HContinuous HContinuous_Real = SReal
 
+hContinuous_Sing :: Sing a -> Maybe (HContinuous a)
+hContinuous_Sing SProb = Just HContinuous_Prob
+hContinuous_Sing SReal = Just HContinuous_Real
+hContinuous_Sing _     = Nothing
+
 sing_HIntegral :: HContinuous a -> Sing (HIntegral a)
 sing_HIntegral = sing_HSemiring . hSemiring_HIntegralContinuous
+
+-- hIntegral_Sing :: Sing (HIntegral a) -> Maybe (HContinuous a)
 
 -- | Every 'HContinuous' is a 'HFractional'.
 hFractional_HContinuous :: HContinuous a -> HFractional a

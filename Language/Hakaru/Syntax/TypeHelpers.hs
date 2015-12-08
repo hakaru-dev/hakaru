@@ -2,7 +2,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.23
+--                                                    2015.12.08
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeHelpers
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -21,7 +21,6 @@ module Language.Hakaru.Syntax.TypeHelpers
     , sing_ArrayOp
     , sing_MeasureOp
     , sing_Literal
-    , make_NaryOp
     ) where
 
 #if __GLASGOW_HASKELL__ < 710
@@ -56,17 +55,6 @@ sing_NaryOp (Min  theOrd)  = sing_HOrd      theOrd
 sing_NaryOp (Max  theOrd)  = sing_HOrd      theOrd
 sing_NaryOp (Sum  theSemi) = sing_HSemiring theSemi
 sing_NaryOp (Prod theSemi) = sing_HSemiring theSemi
-
-make_NaryOp :: Sing a -> U.NaryOp' -> Maybe (NaryOp a)
-make_NaryOp a U.And'  = jmEq1 a sBool >>= \Refl -> Just And
-make_NaryOp a U.Or'   = jmEq1 a sBool >>= \Refl -> Just Or
-make_NaryOp a U.Xor'  = jmEq1 a sBool >>= \Refl -> Just Xor
-make_NaryOp a U.Iff'  = jmEq1 a sBool >>= \Refl -> Just Iff
-make_NaryOp a U.Min'  = Min  <$> hOrd_Sing a
-make_NaryOp a U.Max'  = Max  <$> hOrd_Sing a
-make_NaryOp a U.Sum'  = Sum  <$> hSemiringSing a
-make_NaryOp a U.Prod' = Prod <$> hSemiringSing a
-      
 
 -- TODO: is there any way to define a @sing_List1@ like @sing@ for automating all these monomorphic cases?
 sing_PrimOp :: PrimOp args a -> (List1 Sing args, Sing a)
