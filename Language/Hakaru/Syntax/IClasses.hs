@@ -254,7 +254,15 @@ showParen_111 p s e1 e2 e3 =
 -- N.B., we keep this separate from the 'JmEq1' class because for
 -- some types we may be able to decide 'eq1' while not being able
 -- to decide 'jmEq1' (e.g., if using phantom types rather than
--- GADTs).
+-- GADTs). N.B., this function returns value\/term equality! That
+-- is, the following four laws must hold relating the 'Eq1' class
+-- to the 'Eq' class:
+--     (1) if @eq1 x y == True@, then @x@ and @y@ have the same
+--         type index and @(x == y) == True@
+--     (2) if @eq1 x y == False@ where @x@ and @y@ have the same
+--         type index, then @(x == y) == False@
+--     (3) if @(x == y) == True@, then @eq1 x y == True@
+--     (4) if @(x == y) == False@, then @eq1 x y == False@
 --
 -- Alas, I don't think there's any way to derive instances the way
 -- we can derive for 'Eq'.
@@ -292,10 +300,18 @@ congruence :: TypeEq a b -> TypeEq (f a) (f b)
 congruence Refl = Refl
 
 
--- TODO: Should we add a method which only checks for index equality, ignoring possible differences at the term\/value level?
+-- TODO: Should we add an additional method which only checks for index equality, ignoring possible differences at the term\/value level?
 --
 -- | Uniform variant of 'Eq' for heterogeneous @k@-indexed types.
--- N.B., this function returns value\/term equality!
+-- N.B., this function returns value\/term equality! That is, the
+-- following four laws must hold relating the 'JmEq1' class to the
+-- 'Eq1' class:
+--     (1) if @jmEq1 x y == Just Refl@, then @x@ and @y@ have the
+--         same type index and @eq1 x y == True@
+--     (2) if @jmEq1 x y == Nothing@ where @x@ and @y@ have the
+--         same type index, then @eq1 x y == False@
+--     (3) if @eq1 x y == True@, then @jmEq1 x y == Just Refl@
+--     (4) if @eq1 x y == False@, then @jmEq1 x y == Nothing@
 --
 -- Alas, I don't think there's any way to derive instances the way
 -- we can derive for 'Eq'.
