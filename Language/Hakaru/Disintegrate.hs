@@ -444,35 +444,27 @@ instance Foldable (GBranch a) where
 instance Traversable (GBranch a) where
     traverse f (GBranch pat vars x) = GBranch pat vars <$> f x
 
-emitCase_
+-- N.B., this function does not freshen the variables bound by each
+-- 'GBranch'. It's the caller's responsability to perform that
+-- freshening when turning each original @Branch a abt b@ into
+-- @GBranch a (M abt x)@. This organization is necessary since we
+-- need to have already done the renaming when we turn the underlying
+-- @abt xs b@ into @(List1 Variable xs, M abt x)@.
+--
+-- TODO: we want a variant of this function which returns the list
+-- of bound variables along with the @b@; since that's required for
+-- the continuation to do things that might vary depending on the
+-- bound variables.
+emitCase
     :: (ABT Term abt)
     => abt '[] a
     -> [GBranch a (M abt b)]
     -> M abt b
-emitCase_ e =
+emitCase e =
     emitFork_ (syn . Case_ e . fmap fromGBranch . getCompose) . Compose
-
--- N.B., there are three uses of 'traverse' here. The first one is
--- pulling the 'EvaluationMonad' monad of 'freshenBranch' out over
--- the set-of-branches list; thus, this renaming will have effects
--- on subsequent branches. The second one is is pulling the
--- nondeterminism-monad list of 'runBranch' out over the set-of-branches
--- list; thus, none of the side-effects of the @M abt@ in each
--- 'GBranch' will be visible to the subsequent branches, because
--- we run all of them with the same heap and continuation. The third
--- one is pulling the nondeterminism-monad list of 'unM' out over
--- the 'GBranch' functor, which we then convert into the 'Branch'
--- functor.
-
--- N.B., this function does not freshen the variables bound by each 'GBranch'. It's the caller's responsability to perform that freshening when turning each original @Branch a abt b@ into @GBranch a (M abt x)@. This organization is necessary since we need to have already done the renaming when we turn the underlying @abt xs b@ into @(List1 Variable xs, M abt x)@.
-emitCase
-    :: forall abt a x
-    .  (ABT Term abt)
-    => abt '[] a
-    -> [GBranch a (M abt x)]
-    -> M abt x
-emitCase e ms = do
-    -- ms <- T.traverse freshenGBranch ms
+{-
+-- Alternative implementation which I believe has the same semantics:
+emitCase e ms =
     M $ \c h -> (syn . Case_ e) <$> T.traverse (runBranch c h) ms
     where
     -- This function has a type isomorphic to:
@@ -482,17 +474,8 @@ emitCase e ms = do
     -- This is very similar to but not quite the same as:
     -- > GBranch a (M abt b) -> M abt b
     -- Since @M abt = Codensity (Ans abt) = Ran (Ans abt) (Ans abt)@.
-    --
-    -- N.B., this type signature isn't actually required to make
-    -- things typecheck. It's only provided to try and help clarify
-    -- things.
-    runBranch
-        :: forall r
-        .  (x -> Ans abt r)
-        -> ListContext abt
-        -> GBranch a (M abt x)
-        -> [Branch a abt ('HMeasure r)]
     runBranch c h = fmap fromGBranch . T.traverse (\m -> unM m c h)
+-}
 
 freshenBranch
     :: (ABT Term abt, EvaluationMonad abt m)
@@ -512,9 +495,29 @@ freshenGBranch (GBranch pat vars x) = do
     vars' <- freshenVars vars
     return $ GBranch pat vars' x
 
+-- We should have that:
+-- > fmap fromGBranch . freshenBranchG = freshenBranch
+-- > freshenBranchG . fromGBranch = freshenGBranch
+freshenBranchG
+    :: (ABT Term abt, EvaluationMonad abt m)
+    => Branch a abt b
+    -> m (GBranch a (abt '[] b))
+freshenBranchG (Branch pat e) = do
+    let (vars, body) = caseBinds e
+    vars' <- freshenVars vars
+    let rho = toAssocs vars (fmap11 var vars')
+    return . GBranch pat vars' $ substs rho body
+
 
 -- | This function will freshen the variables bound by the branch,
--- and then map the function over the body.
+-- and then map the function over the body. This only really does
+-- what you want provided the function can safely (and does) treat
+-- the case-bound variables as if they were free variables.
+--
+-- We should have that:
+-- > T.sequence <=< applyBranch return = freshenBranchG
+-- or more generally that:
+-- > T.sequence <=< applyBranch f = f <=< freshenBranchG
 applyBranch
     :: (ABT Term abt, EvaluationMonad abt m)
     => (abt '[] b -> r)
@@ -532,7 +535,9 @@ applyBranch f (Branch pat e) = do
 -- is the result of evaluating the body of whichever branch you
 -- happen to be in. We should prolly also return some sort of
 -- information about what branch it happens to be, since folks may
--- wish to make decisions based on that.
+-- wish to make decisions based on that. (N.B., using 'emitCase'
+-- directly gives you that information via the lexical context since
+-- we's give the bodies inline within the 'GBranch'es.)
 foo :: (ABT Term abt)
     => abt '[] a
     -> [Branch a abt b]
@@ -540,7 +545,11 @@ foo :: (ABT Term abt)
 foo e bs =
     emitCase e =<< T.traverse (applyBranch evaluate_) bs
 
--- This function should be equivalent to 'foo', just moving the call to 'evaluate_' from the argument of 'applyBranch' to the continuation...
+-- This function should be equivalent to 'foo', just moving the
+-- call to 'evaluate_' from the argument of 'applyBranch' to the
+-- continuation. Assuming that's actually true and works, then we
+-- can implement @applyBranch return@ by @fmap toGBranch .
+-- freshenBranch@
 foo' :: (ABT Term abt)
     => abt '[] a
     -> [Branch a abt b]
