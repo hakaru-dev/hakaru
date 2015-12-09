@@ -559,6 +559,10 @@ foo' e bs = do
     evaluate_ myBody
 
 ----------------------------------------------------------------
+-- BUG: forward disintegration is not identical to partial evaluation,
+-- as noted at the top of the file. We need to ensure that no
+-- heap-bound variables remain in the result; namely, we need to
+-- ensure that in the two places where we call 'emitMBind_Whnf'
 evaluate_ :: (ABT Term abt) => TermEvaluator abt (M abt)
 evaluate_ = evaluate perform
 
@@ -570,6 +574,12 @@ perform e0 =
         case t of
         Dirac :$ e1 :* End       -> evaluate_ e1
         MeasureOp_ _ :$ _        -> emitMBind_Whnf e0
+        {- -- TODO: something more like this:
+        MeasureOp_ o :$ es -> do
+            es' <- traverse21 evaluate_ es
+            emitMBind_Whnf (MeasureOp_ o :$ es')
+        -- where that call to 'evaluate_' only does whatever work is needed to ensure that no heap-bound variables occur in @es'@; doesn't need to generate a 'Whnf' or anything
+        -}
         MBind :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
                 push (SBind x $ Thunk e1) e2' perform
