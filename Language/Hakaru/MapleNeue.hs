@@ -11,15 +11,6 @@
 
 module Language.Hakaru.MapleNeue (Maple(..), runMaple) where
 
--- Expect-Maple printing interpretation
--- This fuses two operations:
--- 1. the Expect program transformation
--- 2. the "Expect repr" instantiation at repr = Maple
--- where Maple is a "printing in Maple syntax" interpretation
-
--- We won't need fancy type gymnastics (which Expect requires) because
--- we're squishing everything into String.
-
 import Language.Hakaru.Syntax.Nat     (fromNat)
 -- import Language.Hakaru.Syntax.Natural (fromNatural)
 -- import Language.Hakaru.Syntax.Coercion
