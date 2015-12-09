@@ -545,5 +545,10 @@ instance Functor21 (Branch a) where
 instance Foldable21 (Branch a) where
     foldMap21 f (Branch _ e) = f e
 
+{-
+instance Traversable21 (Branch a) where
+    traverse21 f (Branch pat e) = Branch pat <$> f e
+-}
+
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

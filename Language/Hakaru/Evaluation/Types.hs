@@ -46,8 +46,8 @@ module Language.Hakaru.Evaluation.Types
     , freshVar
     , freshenVar
     , Hint(..), freshVars
-    {- TODO: should we expose these?
     , freshenVars
+    {- TODO: should we expose these?
     , freshenStatement
     , push_
     -}

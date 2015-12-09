@@ -15,7 +15,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs -fno-warn-unused-binds -fno-warn-unused-imports #-}
 ----------------------------------------------------------------
---                                                    2015.12.01
+--                                                    2015.12.08
 -- |
 -- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -444,7 +444,6 @@ instance Foldable (GBranch a) where
 instance Traversable (GBranch a) where
     traverse f (GBranch pat vars x) = GBranch pat vars <$> f x
 
--- TODO: find a way to return the variables themselves to each GBranch; i.e., the second argument should be something like @[GBranch a (exists xs. List1 Variable xs -> M abt b)]@. Maybe we should really be generalizing 'GBranch' to be indexed by @xs@; but then it's not quite 'Traversable'...
 emitCase_
     :: (ABT Term abt)
     => abt '[] a
@@ -453,77 +452,102 @@ emitCase_
 emitCase_ e =
     emitFork_ (syn . Case_ e . fmap fromGBranch . getCompose) . Compose
 
+-- N.B., there are three uses of 'traverse' here. The first one is
+-- pulling the 'EvaluationMonad' monad of 'freshenBranch' out over
+-- the set-of-branches list; thus, this renaming will have effects
+-- on subsequent branches. The second one is is pulling the
+-- nondeterminism-monad list of 'runBranch' out over the set-of-branches
+-- list; thus, none of the side-effects of the @M abt@ in each
+-- 'GBranch' will be visible to the subsequent branches, because
+-- we run all of them with the same heap and continuation. The third
+-- one is pulling the nondeterminism-monad list of 'unM' out over
+-- the 'GBranch' functor, which we then convert into the 'Branch'
+-- functor.
 
-data GGBranch (a :: Hakaru) (r :: [Hakaru] -> *)
-    = forall xs. GGBranch
-        !(Pattern xs a)
-        !(List1 Hint xs)
-        (r xs)
-
-newtype Body (a :: *) (xs :: [Hakaru]) =
-    Body { unBody :: List1 Variable xs -> a }
-
--- N.B., just like above for 'emitFork_' we're using 'T.traverse'
--- to sequentialize @t [...]@ into @[t (...)]@ where each branch
--- gets the same heap and continuation.
+-- N.B., this function does not freshen the variables bound by each 'GBranch'. It's the caller's responsability to perform that freshening when turning each original @Branch a abt b@ into @GBranch a (M abt x)@. This organization is necessary since we need to have already done the renaming when we turn the underlying @abt xs b@ into @(List1 Variable xs, M abt x)@.
 emitCase
-    :: (ABT Term abt)
+    :: forall abt a x
+    .  (ABT Term abt)
     => abt '[] a
-    -> [GGBranch a (Body (M abt b))]
-    -> M abt b
-emitCase e ms =
-    M $ \c h -> (syn . Case_ e) <$> T.traverse (genBranch c h) ms
+    -> [GBranch a (M abt x)]
+    -> M abt x
+emitCase e ms = do
+    -- ms <- T.traverse freshenGBranch ms
+    M $ \c h -> (syn . Case_ e) <$> T.traverse (runBranch c h) ms
+    where
+    -- This function has a type isomorphic to:
+    -- > GBranch a (M abt b) -> Ran (Ans abt) (Ans' abt) b
+    -- where:
+    -- > Ans' abt b = ListContext abt -> [Branch a abt ('HMeasure b)]
+    -- This is very similar to but not quite the same as:
+    -- > GBranch a (M abt b) -> M abt b
+    -- Since @M abt = Codensity (Ans abt) = Ran (Ans abt) (Ans abt)@.
+    --
+    -- N.B., this type signature isn't actually required to make
+    -- things typecheck. It's only provided to try and help clarify
+    -- things.
+    runBranch
+        :: forall r
+        .  (x -> Ans abt r)
+        -> ListContext abt
+        -> GBranch a (M abt x)
+        -> [Branch a abt ('HMeasure r)]
+    runBranch c h = fmap fromGBranch . T.traverse (\m -> unM m c h)
+
+freshenBranch
+    :: (ABT Term abt, EvaluationMonad abt m)
+    => Branch a abt b
+    -> m (Branch a abt b)
+freshenBranch (Branch pat e) = do
+    let (vars, body) = caseBinds e
+    vars' <- freshenVars vars
+    let rho = toAssocs vars (fmap11 var vars')
+    return . Branch pat . binds_ vars' $ substs rho body
+
+freshenGBranch
+    :: (ABT Term abt, EvaluationMonad abt m)
+    => GBranch a b
+    -> m (GBranch a b)
+freshenGBranch (GBranch pat vars x) = do
+    vars' <- freshenVars vars
+    return $ GBranch pat vars' x
 
 
--- This is almost @GGBranch a (Body (M abt b)) -> M abt (Branch a
--- abt b)@ except:
---     (1) the kind of @b@ doesn't quite work for that
---     (2) the final result is @[Branch a abt ('HMeasure r)]@ rather
---         than @[abt '[] ('HMeasure r)]@
---
--- We can't use @M (Branch a abt)@ because that's not what the
--- continuation returns. That is, given:
---
--- > type Ans' abt f a = ListContext abt -> [f ('HMeasure a)]
---
--- instead of having:
---
--- > M abt = Codensity (Ans' abt (abt '[]))
---
--- we actually have:
---
--- > Ran (Ans' abt (abt '[])) (Ans' abt (Branch a abt))
---
--- TODO: methinks, to make this typecheckable we'll need to generalize
--- the definition of 'M' to allow more general things like this.
-genBranch
-    :: (ABT Term abt)
-    => (b -> Ans abt r)
-    -> ListContext abt
-    -> GGBranch a (Body (M abt b))
-    -> [Branch a abt ('HMeasure r)]
-genBranch c h (GGBranch pat hints m) =
-    error "TODO: genBranch"
-    -- The morally correct definition is:
-    -- > unM (freshVars hints) (runBranch c pat m) h
-    -- But the problem is that @runBranch c pat m@ doesn't have the
-    -- right type to be a continuation we pass to 'unM'. Conversely,
-    -- the problem is that in order to turn the @abt@ into a @Branch
-    -- a abt@ we need to have our hands on the @vars@ generated by
-    -- @freshVars hints@, so we can't just do @unM (freshVars hints)
-    -- c h@ and then patch things up after the fact.
+-- | This function will freshen the variables bound by the branch,
+-- and then map the function over the body.
+applyBranch
+    :: (ABT Term abt, EvaluationMonad abt m)
+    => (abt '[] b -> r)
+    -> Branch a abt b
+    -> m (GBranch a r)
+applyBranch f (Branch pat e) = do
+    let (vars, body) = caseBinds e
+    vars' <- freshenVars vars
+    let rho = toAssocs vars (fmap11 var vars')
+    return . GBranch pat vars' . f $ substs rho body
 
-runBranch
-    :: (ABT Term abt)
-    => (b -> Ans abt r)
-    -> Pattern xs a
-    -> Body (M abt b) xs
-    -> List1 Variable xs
-    -> ListContext abt
-    -> [Branch a abt ('HMeasure r)]
-runBranch c pat m vars h =
-    (Branch pat . binds_ vars) <$> unM (unBody m vars) c h
+-- This typechecks! It gives an example of how we might use the
+-- above in order to do evaluation of the branches under case. Of
+-- course, the control flow is a bit strange; the 'Whnf' returned
+-- is the result of evaluating the body of whichever branch you
+-- happen to be in. We should prolly also return some sort of
+-- information about what branch it happens to be, since folks may
+-- wish to make decisions based on that.
+foo :: (ABT Term abt)
+    => abt '[] a
+    -> [Branch a abt b]
+    -> M abt (Whnf abt b)
+foo e bs =
+    emitCase e =<< T.traverse (applyBranch evaluate_) bs
 
+-- This function should be equivalent to 'foo', just moving the call to 'evaluate_' from the argument of 'applyBranch' to the continuation...
+foo' :: (ABT Term abt)
+    => abt '[] a
+    -> [Branch a abt b]
+    -> M abt (Whnf abt b)
+foo' e bs = do
+    myBody <- emitCase e =<< T.traverse (applyBranch return) bs
+    evaluate_ myBody
 
 ----------------------------------------------------------------
 evaluate_ :: (ABT Term abt) => TermEvaluator abt (M abt)
