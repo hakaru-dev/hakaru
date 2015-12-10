@@ -101,6 +101,7 @@ text = liftM Text.pack <$> string <$> Text.unpack
 expr :: Parser InertExpr
 expr =  try func
     <|> try name
+    <|> try assignedname
     <|> try expseq
     <|> try intpos
     <|> try intneg
@@ -113,6 +114,9 @@ func = InertArgs <$> (text "_Inert_FUNCTION" *> return Func) <*> arg expr
 
 name :: Parser InertExpr
 name = InertName <$> (text "_Inert_NAME" *> apply1 stringLiteral)
+
+assignedname :: Parser InertExpr
+assignedname = InertName <$> (text "_Inert_ASSIGNEDNAME" *> (fst <$> apply2 stringLiteral))
 
 expseq :: Parser InertExpr
 expseq = InertArgs <$> (text "_Inert_EXPSEQ" *> return ExpSeq) <*> arg expr
