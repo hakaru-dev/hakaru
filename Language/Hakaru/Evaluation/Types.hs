@@ -581,6 +581,27 @@ pushes ss e k = do
     rho <- F.foldlM (\rho s -> mappend rho <$> push_ s) mempty ss
     k (substs rho e)
 
+{-
+-- The old finally-tagless code also had the equivalents of these functions (called @memo@ in that code). Would they be helpful for us?
+
+pushLet
+    :: (ABT Term abt, EvaluationMonad abt m)
+    => Lazy abt a     -- ^ the expression to push
+    -> m (Variable a) -- ^ the variable the expression is bound to
+pushLet e = do
+    x <- freshVar Text.empty (typeOf e)
+    unsafePush (SLet x e)
+    return x
+
+pushBind
+    :: (ABT Term abt, EvaluationMonad abt m)
+    => Lazy abt ('HMeasure a) -- ^ the expression to push
+    -> m (Variable a)         -- ^ the variable the expression is bound to
+pushBind e = do
+    x <- freshVar Text.empty (sUnMeasure $ typeOf e)
+    unsafePush (SBind x e)
+    return x
+-}
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------

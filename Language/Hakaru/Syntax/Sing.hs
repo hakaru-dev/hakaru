@@ -13,7 +13,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.19
+--                                                    2015.12.09
 -- |
 -- Module      :  Language.Hakaru.Syntax.Sing
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -63,6 +63,19 @@ data family Sing (a :: k) :: *
 -- Hakaru type.
 class SingI (a :: k) where sing :: Sing a
 
+{-
+-- TODO: we'd much rather have something like this, to prove that
+-- we have a SingI instance for /every/ @a :: Hakaru@. Is there any
+-- possible way of actually doing this?
+
+class SingI1 (kproxy :: KProxy k) where
+    sing1 :: Sing (a :: k)
+    -- or, if it helps at all:
+    -- > sing1 :: forall (a :: k). proxy a -> Sing a
+
+instance SingI1 ('KProxy :: KProxy Hakaru) where
+    sing1 = undefined
+-}
 
 ----------------------------------------------------------------
 -- BUG: data family instances must be fully saturated, but since

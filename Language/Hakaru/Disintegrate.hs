@@ -15,7 +15,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs -fno-warn-unused-binds -fno-warn-unused-imports #-}
 ----------------------------------------------------------------
---                                                    2015.12.08
+--                                                    2015.12.09
 -- |
 -- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -49,7 +49,8 @@ module Language.Hakaru.Disintegrate
     , determine
     
     -- * Implementation details
-    , Backward(..)
+    , Condition(..)
+    , conditionalize
     , perform
     , constrainValue
     , constrainOutcome
@@ -57,21 +58,24 @@ module Language.Hakaru.Disintegrate
 
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Functor         ((<$>))
-import           Control.Applicative  (Applicative(..))
+import           Control.Applicative  (Applicative(..), Alternative(..))
 #endif
 import           Data.Functor.Compose (Compose(..))
-import           Control.Monad        ((<=<))
+import           Control.Monad        ((<=<), MonadPlus(..))
 import           Data.Foldable        (Foldable)
 import qualified Data.Foldable        as F
 import           Data.Traversable     (Traversable)
 import qualified Data.Traversable     as T
 import qualified Data.Text            as Text
+import           Data.Sequence        (Seq)
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.Nat (Nat)
 import Language.Hakaru.Syntax.DataKind
+import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.TypeOf
+import Language.Hakaru.Syntax.Coercion (Coerce(..))
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumCase
@@ -82,122 +86,88 @@ import qualified Language.Hakaru.Syntax.Prelude as P
 import qualified Language.Hakaru.Expect         as E
 
 ----------------------------------------------------------------
-
-fst_Whnf :: (ABT Term abt) => Whnf abt (HPair a b) -> abt '[] a
-fst_Whnf (Neutral e) = P.fst e
-fst_Whnf (Head_   v) = fst (reifyPair v)
-
-snd_Whnf :: (ABT Term abt) => Whnf abt (HPair a b) -> abt '[] b
-snd_Whnf (Neutral e) = P.snd e
-snd_Whnf (Head_   v) = snd (reifyPair v)
+-- N.B., for all these functions the old version used to use the
+-- @env@ hack in order to handle the fact that free variables can
+-- change their type (eewww!!); we may need to do that again, but
+-- we should avoid it if we can possibly do so.
 
 
--- N.B., the old version used to use the @env@ hack in order to
--- handle the fact that free variables can change their type
--- (eewww!!); we may need to do that again, but we should avoid it
--- if we can possibly do so.
+
+-- | Disintegrate a measure over pairs with respect to the lebesgue
+-- measure on the first component. That is, for each measure kernel
+-- @n <- disintegrate m@ we have that @m == bindx lebesgue n@.
 --
--- N.B., the Backward requirement is probably(?) phrased to be overly strict
---
--- | This function fils the role that the old @runDisintegrate@
--- did. It's unclear what exactly the old @disintegrate@ was supposed
--- to be doing...
+-- This function fills the role that the old @runDisintegrate@ did.
+-- It's unclear what exactly the old function called @disintegrate@
+-- was supposed to be doing...
 disintegrate
-    :: (ABT Term abt, Backward a a)
+    :: (ABT Term abt)
     => abt '[] ('HMeasure (HPair a b))
     -> [abt '[] (a ':-> 'HMeasure b)] -- this Hakaru function is measurable
-disintegrate m =
-    [ syn (Lam_ :$ bind x m' :* End)
-    | m' <- runDisintegrate
-    ]
-    where
-    x = Variable Text.empty (nextFree m)
+disintegrate m = do
+    let x = Variable Text.empty (nextFree m)
             (fst . sUnPair . sUnMeasure $ typeOf m)
-
-    runDisintegrate =
-        flip runM [Some2 m, Some2 (var x)] $ do
-            ab <- perform m
-            -- TODO: improve sharing by: if @ab@ is neutral, then
-            -- generate a let-binding and return the variables;
-            -- else, project out the parts.
-            a <- evaluate_ (fst_Whnf ab) -- must factor out since 'constrainValue' asks for a 'Whnf'
-            constrainValue a (var x)
-            evaluate_ (snd_Whnf ab) -- not just 'return' since we need 'Whnf'
-{-
--- old CPS version:
-    P.lam $ \a ->
-    fromWhnf $ unM (perform m) (\ab ->
-      unM (constrainValue (fst ab) a) (\h' ->
-        residualizeContext h' (P.dirac $ P.snd ab)))
-      emptyContext
-
--- old finally-tagless version:
-    runCompose $
-    P.lam $ \x ->
-    runLazy $
-    P.snd <$> conditionalize (P.pair (lazy . return $ Value x) P.unit) m
-    -- N.B., I think that use of @unit@ is for giving a "don't care" pattern; rather than actually having anything to do with the @HUnit@ type. We should avoid this by having 'conditionalize' actually accept some form of pattern (for possible observations) rather than accepting terms.
-    -- TODO: can we lift the @lam(\x ->@ over the @runCompose@? if so, then we can make sure those functions only need to be called inside 'conditionalize'
--}
+    m' <- flip runM [Some2 m, Some2 (var x)] $ do
+        -- We use @(evaluate_ . nth_Whnf)@ instead of 'return'
+        -- because 'constrainValue' and 'runM' demand 'Whnf'.
+        --
+        -- TODO: improve sharing by: if @ab@ is neutral, then
+        -- generate a let-binding and return the variables;
+        -- else, project out the parts.
+        ab <- perform m
+        a  <- evaluate_ (fst_Whnf ab)
+        constrainValue a (var x)
+        evaluate_ (snd_Whnf ab)
+    return $ syn (Lam_ :$ bind x m' :* End)
 
 
--- N.B., the old version used to use the @env@ hack in order to
--- handle the fact that free variables can change their type
--- (eewww!!); we may need to do that again, but we should avoid it
--- if we can possibly do so.
+-- TODO: is the resulting function guaranteed to be measurable? if
+-- not, should we make it into a Haskell function instead?
 --
--- N.B., we intentionally phrase the Backward requirement to be
--- overly strict
+-- | Return the density function for a given measure.
 density
-    :: (ABT Term abt, Backward a a)
+    :: (ABT Term abt)
     => abt '[] ('HMeasure a)
-    -> [abt '[] (a ':-> 'HProb)] -- TODO: make this a Haskell function?
-density m =
-    [ syn (Lam_ :$ bind x (E.total m') :* End)
-    | m' <- conditionalize (var x) m
-    ]
-    where
-    x = Variable Text.empty (nextFree m) (sUnMeasure $ typeOf m)
-{-
-    -- > P.lam $ \x -> E.total (conditionalize x m)
-    -- BUG: we need to wrap @x@ in the @scalar0@ wrapper before handing it to 'conditionalize'
-    -- @scalar0@ means forward is no-op and backward is bot.
--}{-
-    [ \x -> total (d `app` x)
-    | d <- runCompose $
-        P.lam $ \x ->
-        runLazy $
-        conditionalize (lazy . return $ Value x) m
-    ]
-=== {assuming: (`app` x) <$> runCompose f == runCompose (f `app` x) }
-    P.lam $ \x ->
-    total $
-    runCompose $
-    runLazy $
-    conditionalize (lazy . return $ Value x) m
--}
+    -> [abt '[] (a ':-> 'HProb)]
+density m = do
+    let x = Variable Text.empty (nextFree m) (sUnMeasure $ typeOf m)
+    m' <- conditionalize (Condition PVar (var x)) m
+    return $ syn (Lam_ :$ bind x (E.total m') :* End)
+
+    -- TODO: In the old code we wrapped @x@ in @scalar0@ before
+    -- handing it to 'conditionalize'; where @scalar0@ means forward
+    -- is no-op and backward is bot. Do we still need to do anything
+    -- like that?
 
 
--- N.B., the old version used to use the @env@ hack (but not on the
--- first argument) in order to handle the fact that free variables
--- can change their type (eewww!!); we may need to do that again,
--- but we should avoid it if we can possibly do so.
---
 -- TODO: what's the point of having this function instead of just
--- using @disintegrate m `app` x@ ? I.E., what does the @scalar0@
--- wrapper actually achieve; i.e., how does it direct things instead
--- of just failing when we try to go the wrong direction?
+-- using @observe x m = disintegrate m `app` x@?
 --
 -- BUG: come up with new names avoid name conflict vs the Prelude
 -- function.
 observe
-    :: (ABT Term abt, Backward a a)
+    :: (ABT Term abt)
     => abt '[] a
     -> abt '[] ('HMeasure (HPair a b))
     -> [abt '[] ('HMeasure b)]
 observe x m =
-    (P.snd P.<$>) <$> conditionalize (P.pair x P.unit) m
-    -- N.B., see the note at 'disintegrate' about the use of @unit@ here...
+    (P.snd P.<$>) <$> conditionalize (Condition (pPair PVar PWild) x) m
+
+
+-- | A condition is a projection function followed by an equality
+-- constraint. This serves the same role as the old @Backward@
+-- class. That class used an ad-hoc representation of projection
+-- functions where we take an arbitrary term and consider it a
+-- pattern, using 'P.unit' as the \"don't care\" wildcard; for
+-- example @(P.pair e P.unit)@ is the old representation of the
+-- constraint @\x -> P.fst x == e@. We replace the old encoding by using
+-- an actual 'Pattern' (with a single variable) to make things a
+-- bit more explicit\/clear; thus @(Condition pat e)@ represents
+-- the constraint @\x -> case x of { pat y -> y == e ; _ -> False }@.
+--
+-- This trick isn't used in the paper, and probably doesn't generalize.
+data Condition (abt :: [Hakaru] -> Hakaru -> *) (a :: Hakaru) =
+    forall b. Condition (Pattern '[b] a) (abt '[] b)
 
 
 -- N.B., all arguments used to have type @Lazy s repr@ instead of @abt '[]@
@@ -206,25 +176,30 @@ observe x m =
 -- new name captures whatever it is that funtion was actually
 -- supposed to be doing?
 --
--- The first argument is a representation of a projection function
--- followed by equality; for example @(pair x unit)@ rather than
--- @(x ==) . fst@. This trick isn't used in the paper, and probably
--- doesn't generalize...
---
 -- TODO: whatever this function is supposed to do, it should probably
 -- be the one that's the primop rather than 'disintegrate'.
 conditionalize
-    :: (ABT Term abt, Backward ab a)
-    => abt '[] a
-    -> abt '[] ('HMeasure ab)
-    -> [abt '[] ('HMeasure ab)]
-conditionalize a m =
-    error "TODO: conditionalize"
-    {-
+    :: (ABT Term abt)
+    => Condition abt a
+    -> abt '[] ('HMeasure a)
+    -> [abt '[] ('HMeasure a)]
+conditionalize (Condition pat a) m =
+    -- TODO: is this at all right??
+    flip runM [Some2 a, Some2 m] $ do
+        ab <- perform m
+        x  <- freshVar Text.empty (typeOf a)
+        -- TODO: we might could partially evaluate this case expression away. But really, that's the job of 'emitCase' itself, and it should give us the bindings as either neutral variables (when the case is stuck) or else as the actual terms (perhaps evaluating them along the way, if desired). In order to do that in a nice clean way, we'll have to go back to trying to implement my previous @GGBranch@ approach.
+        emitCase (fromWhnf ab)
+            [ GBranch pat (Cons1 x Nil1) $ do
+                constrainValue (Neutral (var x)) a
+                return ab
+            , GBranch PWild Nil1 $ reject
+            ]
+    {- -- The old code was:
     let n = do
             x  <- forward m
             ab <- memo (unMeasure x)
-            backward_ ab a
+            backward_ ab a -- 'backward_' is the 'Backward' class; in general, @backward_ a x = forward x >>= backward a@
             return ab
     in Lazy
         (return . Measure $ Lazy
@@ -242,65 +217,6 @@ determine :: (ABT Term abt) => [abt '[] a] -> Maybe (abt '[] a)
 determine []    = Nothing
 determine (m:_) = Just m
 
-
-----------------------------------------------------------------
-----------------------------------------------------------------
--- BUG: replace all the -XTypeSynonymInstances with a single general instance for all @'HData@
-
-class Backward (b :: Hakaru) (a :: Hakaru) where
-    {-
-    backward_ :: (ABT Term abt) => Lazy s abt b -> Lazy s abt a -> M s abt ()
-    -}
-
-instance Backward a HUnit where
-    {-
-    backward_ _ _ = return ()
-    -}
-
-instance Backward HBool HBool where
-    {-
-    backward_ a x =
-        ifM (equal_ a x) >>= \b -> if b then return () else P.reject
-    -}
-
-instance Backward 'HInt 'HInt where
-    {-
-    backward_ a x = forward x >>= backward a
-    -}
-
-instance Backward 'HReal 'HReal where
-    {-
-    backward_ a x = forward x >>= backward a
-    -}
-
-instance Backward 'HProb 'HProb where
-    {-
-    backward_ a x = forward x >>= backward a
-    -}
-
-instance (Backward a x, Backward b y)
-    => Backward (HPair a b) (HPair x y)
-    where
-    {-
-    backward_ ab xy = do
-        (a,b) <- unpairM ab
-        (x,y) <- unpairM xy
-        backward_ a x
-        backward_ b y
-    -}
-
-instance (Backward a x, Backward b y)
-    => Backward (HEither a b) (HEither x y)
-    where
-    {-
-    backward_ ab xy = do
-        a_b <- uneitherM ab
-        x_y <- uneitherM xy
-        case (a_b, x_y) of
-            (Left  a, Left  x) -> backward_ a x
-            (Right b, Right y) -> backward_ b y
-            _                  -> P.reject
-    -}
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -325,6 +241,23 @@ type Lazy s abt a = L s (C abt) a
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 -- TODO: move these helper functions into Lazy/Types.hs or wherever else we move the definition of the 'M' monad.
+
+fst_Whnf :: (ABT Term abt) => Whnf abt (HPair a b) -> abt '[] a
+fst_Whnf (Neutral e) = P.fst e
+fst_Whnf (Head_   v) = fst (reifyPair v)
+
+snd_Whnf :: (ABT Term abt) => Whnf abt (HPair a b) -> abt '[] b
+snd_Whnf (Neutral e) = P.snd e
+snd_Whnf (Head_   v) = snd (reifyPair v)
+
+-- TODO: rephrase as unpair_Whnf? Could reintroduce structure sharing by generating a binding whenever it's Neutral and returning the pair of variables. (Can guarantee sharing even if the results are used multiple times, by generating two let bindings for the case where it's actually a Head_. Might want a second pass to remove extraneous let-bindings though...)
+
+ifte_Whnf :: (ABT Term abt) => Whnf abt HBool -> abt '[] a -> abt '[] a -> abt '[] a
+ifte_Whnf (Neutral e) t f = P.if_ e t f
+ifte_Whnf (Head_   v) t f = if reify v then t else f
+
+-- TODO: uneither_Whnf
+
 
 {- -- Is called 'empty' or 'mzero'
 -- | It is impossible to satisfy the constraints, or at least we
@@ -381,6 +314,11 @@ emit_ f = M $ \c h -> f <$> c () h
 -- accidentally dropping things.
 emitMBind_ :: (ABT Term abt) => abt '[] ('HMeasure HUnit) -> M abt ()
 emitMBind_ m = emit_ (m P.>>)
+
+
+-- | Emit an assertion that the condition is true.
+emitObserve :: (ABT Term abt) => abt '[] HBool -> M abt ()
+emitObserve b = emit_ (P.observe b) -- == emit_ $ \m -> P.if_ b m P.reject
 
 
 -- N.B., this use of 'T.traverse' is definitely correct. It's
@@ -584,6 +522,7 @@ perform e0 =
             caseBind e2 $ \x e2' ->
                 push (SBind x $ Thunk e1) e2' perform
         Superpose_ pes ->
+            -- TODO: may want to do this directly rather than using 'emitSuperpose' and then adjusting the weight...
             emitSuperpose
                 [ unsafePush (SWeight $ Thunk p) >> perform e
                 | (p,e) <- pes ]
@@ -608,40 +547,53 @@ performWhnf (Neutral e) = emitMBind_Whnf e
 
 
 ----------------------------------------------------------------
+----------------------------------------------------------------
 -- TODO: see the todo for 'constrainOutcome'
 constrainValue :: (ABT Term abt) => Whnf abt a -> abt '[] a -> M abt ()
-constrainValue = error "TODO: constrainValue"
-{-
 constrainValue v0 e0 =
-    {-
-    case e0 of
-    u | atomic u -> bot
-    -}
     caseVarSyn e0 (constrainVariable v0) $ \t ->
         case t of
-        Value_ v
-            | "dirac v has a density wrt the ambient measure" -> todo
-            | otherwise -> bot
+        -- There's a bunch of stuff we don't even bother trying to handle
+        Empty_   _               -> error "TODO: disintegrate arrays"
+        Array_   _ _             -> error "TODO: disintegrate arrays"
+        ArrayOp_ _ :$ _          -> error "TODO: disintegrate arrays"
+        Lam_  :$ _  :* End       -> error "TODO: disintegrate lambdas"
+        App_  :$ _  :* _ :* End  -> error "TODO: disintegrate lambdas"
+        Integrate :$ _ :* _ :* _ :* End ->
+            error "TODO: disintegrate integration"
+        Summate   :$ _ :* _ :* _ :* End ->
+            error "TODO: disintegrate integration"
 
-        Datum_  d         ->
-        Empty_            ->
-        Array_  e1 e2     ->
-        Lam_ :$ e1 :* End ->
-        Dirac        :$ _ ->
-        MBind        :$ _ ->
-        MeasureOp_ _ :$ _ ->
-        Superpose_ _      ->
 
-        App_ :$ e1 :* e2 :* End ->
+        -- TODO: where to fit this in?
+        -- > u | atomic u -> mzero
+
+        -- TODO: Actually, the semantically correct definition is:
+        -- > Literal_ v
+        -- >     | "dirac v has a density wrt the ambient measure" -> ...
+        -- >     | otherwise -> mzero
+        Literal_ v               -> mzero
+
+        Datum_   d               -> mzero -- according to the old code. THough there's some discrepancy about whether they used @lazy foo@ vs @scalar0 foo@...
+        -- These 'mzero's are according to the old finally-tagless code...
+        Dirac :$ _ :* End        -> mzero
+        MBind :$ _ :* _ :* End   -> mzero
+        MeasureOp_ o :$ es       -> constrainMeasureOp v0 o es
+        Superpose_ pes           -> mzero
         Let_ :$ e1 :* e2 :* End ->
-        Ann_      typ :$ e1 :* End -> constrainValue v0 e1
-        CoerceTo_   c :$ e1 :* End -> constrainValue (unsafeFrom c v0) e1
-        UnsafeFrom_ c :$ e1 :* End -> constrainValue (coerceTo   c v0) e1
+            caseBind e2 $ \x e2' ->
+                error "TODO: constrainValue{Let_}"
+        
+        Ann_      typ :$ e1 :* End -> constrainValue  v0 e1
+        CoerceTo_   c :$ e1 :* End -> constrainValue  (coerceFrom c v0) e1 -- TODO: we should \"atomize\" v0 first
+        -- BUG: for the safe coercions we need to 'emitObserve' as well!
+        UnsafeFrom_ c :$ e1 :* End -> constrainValue  (coerceTo   c v0) e1 -- TODO: we should \"atomize\" v0 first
         NaryOp_     o    es        -> constrainNaryOp v0 o es
         PrimOp_     o :$ es        -> constrainPrimOp v0 o es
-        Expect  :$ e1 :* e2 :* End ->
+        Expect  :$ e1 :* e2 :* End -> error "TODO: constrainValue{Expect}"
 
-        Case_ e bs -> do
+        Case_ e bs -> error "TODO: constrainValue{Case_}"
+            {- -- something like:
             match <- matchBranches evaluateDatum e bs
             case match of
                 Nothing -> error "constrainValue{Case_}: nothing matched!"
@@ -652,8 +604,16 @@ constrainValue v0 e0 =
                     return . Neutral . syn $ Case_ e bs'
                 Just (Matched ss Nil1, body) ->
                     pushes (toStatements ss) body (constrainValue v0)
-    {-
-    Var x ->  M $ \c h ->
+                -}
+
+        _ :$ _ -> error "constrainValue: the impossible happened"
+
+
+----------------------------------------------------------------
+constrainVariable :: (ABT Term abt) => Whnf abt a -> Variable a -> M abt ()
+constrainVariable v0 x = error "TODO: constrainVariable"
+    {- -- something like:
+    M $ \c h ->
         case lookup x h of
         Found h1 binding h2 ->
             case binding of
@@ -662,15 +622,8 @@ constrainValue v0 e0 =
                 unM (evaluate e1) (\v1 -> unleft v1 (\e2 -> unM (constrainValue e1 v0) (\h1' -> c (glue h1' (SLet x v0) h2)))) h1
             SRight _x e1 ->
                 unM (evaluate e1) (\v1 -> unright v1 (\e2 -> unM (constrainValue e1 v0) (\h1' -> c (glue h1' (SLet x v0) h2)))) h1
-    -}
-    
 
-constrainVariable
-    :: (ABT Term abt)
-    => Whnf abt a
-    -> Variable a
-    -> M abt ()
-constrainVariable v0 x =
+    -- Or something like:
     -- If we get 'Nothing', then it turns out @x@ is a free variable. If @x@ is a free variable, then it's a neutral term; and we return 'bot' for neutral terms
     fmap (maybe bot id) . select x $ \s ->
         case s of
@@ -685,8 +638,228 @@ constrainVariable v0 x =
                 constrainValue v0 e
                 unsafePush (SLet x $ Whnf_ v0)
         SWeight _ -> Nothing
+    -}
+
+----------------------------------------------------------------
+constrainMeasureOp
+    :: forall abt typs args a
+    .  (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
+    => Whnf abt ('HMeasure a)
+    -> MeasureOp typs a
+    -> SArgs abt args
+    -> M abt ()
+constrainMeasureOp v0 = go
+    where
+    -- HACK: we need the -XScopedTypeVariables in order to remove \"ambiguity\" about the choice of 'ABT' instance
+    go :: MeasureOp typs a -> SArgs abt args -> M abt ()
+    go Lebesgue    End               = mzero
+    go Counting    End               = mzero
+    go Categorical (e1 :* End)       = constrainValue v0 (P.categorical e1)
+    go Uniform     (e1 :* e2 :* End) = constrainValue v0 (P.uniform' e1 e2)
+    go Normal      (e1 :* e2 :* End) = constrainValue v0 (P.normal'  e1 e2)
+    go Poisson     (e1 :* End)       = constrainValue v0 (P.poisson' e1)
+    go Gamma       (e1 :* e2 :* End) = constrainValue v0 (P.gamma'   e1 e2)
+    go Beta        (e1 :* e2 :* End) = constrainValue v0 (P.beta'    e1 e2)
+    go (DirichletProcess a) (e1 :* e2 :* End) = error "TODO: constrainMeasureOp{DirichletProcess}"
+    go (Plate a)   (e1 :* End)       = mzero -- TODO: can we use P.plate'?
+    go (Chain s a) (e1 :* e2 :* End) = error "TODO: constrainMeasureOp{Chain}" -- We might could use P.chain' except that has a SingI constraint
+    go _ _ = error "constrainMeasureOp: the impossible happened"
+
+            
+constrainNaryOp
+    :: (ABT Term abt)
+    => Whnf abt a
+    -> NaryOp a
+    -> Seq (abt '[] a)
+    -> M abt ()
+constrainNaryOp v0 o es = error "TODO: constrainNaryOp"
 
 
+----------------------------------------------------------------
+constrainPrimOp
+    :: forall abt typs args a
+    .  (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
+    => Whnf abt a
+    -> PrimOp typs a
+    -> SArgs abt args
+    -> M abt ()
+constrainPrimOp v0 = go
+    where
+    -- HACK: we need the -XScopedTypeVariables in order to remove \"ambiguity\" about the choice of 'ABT' instance
+    go :: PrimOp typs a -> SArgs abt args -> M abt ()
+    go Not  (e1 :* End)       = undefined
+    go Impl (e1 :* e2 :* End) = undefined
+    go Diff (e1 :* e2 :* End) = undefined
+    go Nand (e1 :* e2 :* End) = undefined
+    go Nor  (e1 :* e2 :* End) = undefined
+    go Pi        End               = mzero
+    go Sin       (e1 :* End)       = undefined
+        {- -- something like:
+        n <- (Value . fromInt) <$> emitMBind_Whnf counting
+        u <- atomize v0
+        emitObserve ((-1) < u && u < 1)
+        -- TODO: shouldn't we use @u@ rather than @v0@?
+        r1 <- atomize (2*n*pi + asin v0)
+        -- TODO: shouldn't we use @u@ rather than @v0@?
+        r2 <- atomize (2*n*pi + pi - asin v0)
+        -- TODO: shouldn't we use @u@ rather than @v0@?
+        j  <- (sqrt_ . unsafeProb) <$> atomize (1 - v0^2)
+        r  <- emitSuperpose [dirac r1, dirac r2]
+        emitWeight (recip j)
+        constrainValue r e1
+        -}
+    go Cos       (e1 :* End)       = undefined
+        {- -- something like:
+        n <- (Value . fromInt) <$> emitMBind_Whnf counting
+        u <- atomize v0
+        emitObserve ((-1) < u && u < 1)
+        -- TODO: shouldn't we use @u@ rather than @v0@?
+        r1 <- atomize (2*n*pi + acos v0)
+        -- TODO: shouldn't we use @u@ rather than @v0@?
+        j <- (sqrt_ . unsafeProb) <$> atomize (1 - v0^2)
+        r <- emitSuperpose [dirac r1, dirac (r1 + pi)]
+        emitWeight (recip j)
+        constrainValue r e1
+        -}
+    go Tan       (e1 :* End)       = undefined
+        {- -- something like:
+        n <- (Value . fromInt) <$> emitMBind_Whnf counting
+        v <- atomize (n*pi + atan v0)
+        r <- emitMBind_Whnf (dirac v) -- TODO: Why do this?
+        j <- (recip . unsafeProb) <$> atomize (1 + v0^2)
+        emitWeight j
+        constrainValue r e1
+        -}
+    go Asin      (e1 :* End)       = undefined
+        {- -- something like:
+        j <- atomize (cos v0)
+        emitWeight (unsafeProb j)
+        -- TODO bounds check for -pi/2 <= v0 < pi/2
+        constrainValue (sin v0) e1
+        -}
+    go Acos      (e1 :* End)       = undefined
+        {- -- something like:
+        j <- atomize (sin v0)
+        emitWeight (unsafeProb j)
+        constrainValue (cos v0) e1
+        -}
+    go Atan      (e1 :* End)       = undefined
+        {- -- something like:
+        j <- unsafeProb <$> atomize (cos v0 ^ 2)
+        emitWeight (recip j)
+        constrainValue (tan v0) e1
+        -}
+    go Sinh      (e1 :* End)       = undefined
+    go Cosh      (e1 :* End)       = undefined
+    go Tanh      (e1 :* End)       = undefined
+    go Asinh     (e1 :* End)       = undefined
+    go Acosh     (e1 :* End)       = undefined
+    go Atanh     (e1 :* End)       = undefined
+    go RealPow   (e1 :* e2 :* End) = undefined
+        {- -- something like:
+        -- TODO: There's a discrepancy between @(**)@ and @pow_@ in the old code...
+        do
+            v1 <- evaluate_ e1
+            -- TODO: if @v1@ is 0 or 1 then bot. Maybe the @log v1@ in @w@ takes care of the 0 case?
+            u <- atomize v0
+            -- either this from @(**)@:
+            emitObserve  $ P.zero P.< u
+            w <- atomize $ recip (abs (v0 * log v1))
+            emitWeight $ unsafeProb w
+            constrainValue (logBase v1 v0) e2
+            -- or this from @pow_@:
+            w <- atomize $ recip (u * unsafeProb (abs (log v1))
+            emitWeight w
+            constrainValue (log u / log v1) e2
+            -- end.
+        <|> do
+            v2 <- evaluate_ e2
+            -- TODO: if @v2@ is 0 then bot. Maybe the weight @w@ takes care of this case?
+            u <- atomize v0
+            let ex = v0 ** recip v2
+            -- either this from @(**)@:
+            emitObserve $ P.zero P.< u
+            w <- atomize $ abs (ex / (v2 * v0))
+            -- or this from @pow_@:
+            let w = abs (fromProb ex / (v2 * fromProb u))
+            -- end.
+            emitWeight $ unsafeProb w
+            constrainValue ex e1
+        -}
+    go Exp       (e1 :* End)       = undefined
+        {- -- something like:
+        -- TODO: There's a discrepancy between @exp@ and @exp_@ in the old code about whether we use @u@ or @v0@ in the recursive call...
+        u <- atomize v0
+        emitObserve $ P.zero P.< u -- TODO: this shouldn't be necessary, thanks to types.
+        emitWeight  $ P.recip (P.unsafeProb u)
+        constrainValue (log u) e1
+        -}
+    go Log       (e1 :* End)       = undefined
+        {- -- something like:
+        -- TODO: There's a discrepancy between @exp@ and @exp_@ in the old code about whether we use @u@ or @v0@ in the recursive call...
+        u <- atomize v0
+        emitWeight (P.exp u)
+        constrainValue (exp u) e1
+        -}
+    go Infinity         End        = undefined -- scalar0 infinity
+    go NegativeInfinity End        = undefined -- scalar0 negativeInfinity
+    go GammaFunc        (e1 :* End)       = undefined -- scalar1 gammaFunc
+    go BetaFunc         (e1 :* e2 :* End) = undefined -- scalar2 betaFunc
+    go (Equal  theOrd)  (e1 :* e2 :* End) = undefined
+    go (Less   theOrd)  (e1 :* e2 :* End) = undefined
+    go (NatPow theSemi) (e1 :* e2 :* End) = undefined
+    go (Negate theRing) (e1 :* End) =
+        -- TODO: figure out how to merge this implementation of @rr1 negate@ with the one in 'evaluatePrimOp' to DRY
+        let negate_v0 =
+                case v0 of
+                Neutral e ->
+                    Neutral $ syn (PrimOp_ (Negate theRing) :$ e :* End)
+                Head_ v ->
+                    case theRing of
+                    HRing_Int  -> Head_ . reflect . negate $ reify v
+                    HRing_Real -> Head_ . reflect . negate $ reify v
+        in constrainValue negate_v0 e1
+    go (Abs    theRing) (e1 :* End) = undefined
+        {- -- something like:
+        u <- atomize v0
+        v <- emitMBind_Whnf $
+            P.if_ (P.zero P.< u)
+                (P.superpose
+                    [ (P.one, P.dirac u)
+                    , (P.one, P.dirac (P.negate u))
+                    ])
+                (P.if_ (P.zero P.== u)
+                    (P.dirac P.zero)
+                    P.reject)
+        constrainValue v e1
+        -}
+    go (Signum theRing) (e1 :* End) = undefined
+        {- -- something like:
+        case theRing of
+        HRing_Int -> do
+            n <- emitMBind_Whnf counting
+            u <- atomize v0
+            emitObserve $ P.signum n P.== u
+            constrainValue e1 n
+        HRing_Real -> mzero
+        -}
+    go (Recip  theFractional) (e1 :* End) = undefined
+        {- -- something like:
+        u <- atomize (v0 ^ 2)
+        emitWeight (recip $ unsafeProbFraction u) -- where @unsafeProbFraction :: HFractional_ a => a -> Prob@
+        constrainValue (recip v0) e1
+        -}
+    go (NatRoot theRadical) (e1 :* e2 :* End) = undefined
+        {- -- something like:
+        u <- atomize (e2 * v0)
+        emitWeight u
+        constrainValue (v0 ^ e2) e1
+        -}
+    go (Erf theContinuous) (e1 :* End) =
+        error "TODO: constrainPrimOp: need InvErf to disintegrate Erf"
+    go _ _ = error "TODO: finish constrainPrimOp"
+
+{-
     Negate e1 -> constrainValue e1 (negate v0)
     Recip e1 -> M $ \c h -> P.weight (P.recip (v0 P.^ P.nat_ 2)) P.>> unM (constrainValue e1 (recip v0)) c h
     Plus e1 e2 -> M $ \c h ->
@@ -700,6 +873,9 @@ constrainVariable v0 x =
 -- <https://github.com/hakaru-dev/hakaru/blob/v0.2.0/Language/Hakaru/Lazy.hs>
 -}
 
+                    
+----------------------------------------------------------------
+----------------------------------------------------------------
 -- TODO: do we really need to allow all Whnf, or do we just need
 -- variables (or neutral terms)? Do we actually want (hnf)terms at
 -- all, or do we want (hnf)patterns or something to more generally

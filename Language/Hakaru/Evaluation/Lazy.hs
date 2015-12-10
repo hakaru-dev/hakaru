@@ -478,6 +478,7 @@ evaluateNaryOp evaluate_ = \o es -> mainLoop o (evalOp o) Seq.empty es
     evalOp (Prod _) _ _ = error "evalOp: the impossible happened"
     evalOp _ _ _ = error "TODO: evalOp{Min,Max}"
 
+    -- TODO: even if only one of the arguments is a literal, if that literal is zero\/one, then we can still partially evaluate it. (As is done in the old finally-tagless code)
     evalSum, evalProd :: HSemiring a -> Literal a -> Literal a -> Literal a
     evalSum  HSemiring_Nat  (LNat  n1) (LNat  n2) = LNat  (n1 + n2)
     evalSum  HSemiring_Int  (LInt  i1) (LInt  i2) = LInt  (i1 + i2)
