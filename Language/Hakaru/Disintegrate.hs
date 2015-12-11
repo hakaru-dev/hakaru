@@ -15,7 +15,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs -fno-warn-unused-binds -fno-warn-unused-imports #-}
 ----------------------------------------------------------------
---                                                    2015.12.09
+--                                                    2015.12.11
 -- |
 -- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -91,7 +91,6 @@ import qualified Language.Hakaru.Expect         as E
 -- @env@ hack in order to handle the fact that free variables can
 -- change their type (eewww!!); we may need to do that again, but
 -- we should avoid it if we can possibly do so.
-
 
 
 -- | Disintegrate a measure over pairs with respect to the lebesgue
@@ -253,12 +252,13 @@ ifte_Whnf (Head_   v) t f = if reify v then t else f
 -}
 
 
-{- -- Is called 'empty' or 'mzero'
 -- | It is impossible to satisfy the constraints, or at least we
--- give up on trying to do so.
+-- give up on trying to do so. This function is identical to 'empty'
+-- and 'mzero' for 'M'; we just give it its own name since this is
+-- the name used in our papers.
 bot :: (ABT Term abt) => M abt a
 bot = M $ \_ _ -> []
--}
+
 
 -- | The empty measure is a solution to the constraints.
 reject :: (ABT Term abt) => M abt a
@@ -556,13 +556,10 @@ perform e0 =
     caseVarSyn e0 performVar $ \t ->
         case t of
         Dirac :$ e1 :* End       -> evaluate_ e1
-        MeasureOp_ _ :$ _        -> (Neutral . var) <$> emitMBind e0
-        {- -- TODO: something more like this:
-        MeasureOp_ o :$ es -> do
-            es' <- traverse21 evaluate_ es
-            (Neutral . var) <$> emitMBind (MeasureOp_ o :$ es')
-        -- where that call to 'evaluate_' only does whatever work is needed to ensure that no heap-bound variables occur in @es'@; doesn't need to generate a 'Whnf' or anything
-        -}
+        MeasureOp_ o :$ es       -> do
+            es' <- traverse21 atomizeCore es
+            x   <- emitMBind $ syn (MeasureOp_ o :$ es')
+            return (Neutral $ var x)
         MBind :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
                 push (SBind x $ Thunk e1) e2' perform
@@ -592,15 +589,26 @@ performWhnf (Head_   v) = perform $ fromHead v
 performWhnf (Neutral e) = (Neutral . var) <$> emitMBind e
 
 
+-- TODO: now that we've broken 'atomize' and 'atomizeCore' out into
+-- separate top-level functions, we should check to make sure we
+-- don't pay too much for passing the dictionaries back and forth.
+-- If we do, then we should inline the definitions into each other
+-- and use -XScopedTypeVaribles to ensure the recursive calls close
+-- over the dictionary parameter.
+
 -- | This name is taken from the old finally tagless code. This
 -- does something like giving us full-beta reduction, which should
 -- really be the purview of 'evaluate', but the goal of which is
 -- to ensure that no heap-bound variables occur in the input term.
-atomize :: forall abt. (ABT Term abt) => TermEvaluator abt (M abt)
-atomize = traverse21 go <=< evaluate_
-    where
-    go :: forall xs a. abt xs a -> M abt (abt xs a)
-    go = (\(xs, e) -> (binds_ xs . fromWhnf) <$> atomize e) . caseBinds
+atomize :: (ABT Term abt) => TermEvaluator abt (M abt)
+atomize e = traverse21 atomizeCore =<< evaluate_ e
+
+-- | Factored out from 'atomize' because we often need this more
+-- polymorphic variant when using our indexed 'Traversable' classes.
+atomizeCore :: (ABT Term abt) => abt xs a -> M abt (abt xs a)
+atomizeCore e =
+    let (xs, e') = caseBinds e
+    in  (binds_ xs . fromWhnf) <$> atomize e'
 
 
 ----------------------------------------------------------------
@@ -623,20 +631,20 @@ constrainValue v0 e0 =
 
 
         -- TODO: where to fit this in?
-        -- > u | atomic u -> mzero
+        -- > u | atomic u -> bot
 
         -- TODO: Actually, the semantically correct definition is:
         -- > Literal_ v
         -- >     | "dirac v has a density wrt the ambient measure" -> ...
-        -- >     | otherwise -> mzero
-        Literal_ v               -> mzero
+        -- >     | otherwise -> bot
+        Literal_ v               -> bot
 
-        Datum_   d               -> mzero -- according to the old code. THough there's some discrepancy about whether they used @lazy foo@ vs @scalar0 foo@...
-        -- These 'mzero's are according to the old finally-tagless code...
-        Dirac :$ _ :* End        -> mzero
-        MBind :$ _ :* _ :* End   -> mzero
+        Datum_   d               -> bot -- according to the old code. Though there's some discrepancy about whether they used @lazy foo@ vs @scalar0 foo@...
+        -- These 'bot's are according to the old finally-tagless code...
+        Dirac :$ _ :* End        -> bot
+        MBind :$ _ :* _ :* End   -> bot
         MeasureOp_ o :$ es       -> constrainMeasureOp v0 o es
-        Superpose_ pes           -> mzero
+        Superpose_ pes           -> bot
         Let_ :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
                 error "TODO: constrainValue{Let_}"
@@ -710,8 +718,8 @@ constrainMeasureOp v0 = go
     where
     -- HACK: we need the -XScopedTypeVariables in order to remove \"ambiguity\" about the choice of 'ABT' instance
     go :: MeasureOp typs a -> SArgs abt args -> M abt ()
-    go Lebesgue    End               = mzero
-    go Counting    End               = mzero
+    go Lebesgue    End               = bot
+    go Counting    End               = bot
     go Categorical (e1 :* End)       = constrainValue v0 (P.categorical e1)
     go Uniform     (e1 :* e2 :* End) = constrainValue v0 (P.uniform' e1 e2)
     go Normal      (e1 :* e2 :* End) = constrainValue v0 (P.normal'  e1 e2)
@@ -719,7 +727,7 @@ constrainMeasureOp v0 = go
     go Gamma       (e1 :* e2 :* End) = constrainValue v0 (P.gamma'   e1 e2)
     go Beta        (e1 :* e2 :* End) = constrainValue v0 (P.beta'    e1 e2)
     go (DirichletProcess a) (e1 :* e2 :* End) = error "TODO: constrainMeasureOp{DirichletProcess}"
-    go (Plate a)   (e1 :* End)       = mzero -- TODO: can we use P.plate'?
+    go (Plate a)   (e1 :* End)       = bot -- TODO: can we use P.plate'?
     go (Chain s a) (e1 :* e2 :* End) = error "TODO: constrainMeasureOp{Chain}" -- We might could use P.chain' except that has a SingI constraint
     go _ _ = error "constrainMeasureOp: the impossible happened"
 
@@ -774,7 +782,7 @@ constrainPrimOp v0 = go
     go Nand (e1 :* e2 :* End) = error_TODO "Nand"
     go Nor  (e1 :* e2 :* End) = error_TODO "Nor"
 
-    go Pi End = mzero -- because @dirac pi@ has no density wrt lebesgue
+    go Pi End = bot -- because @dirac pi@ has no density wrt lebesgue
 
     go Sin (e1 :* End) = do
         x0 <- var <$> emitLet (fromWhnf v0)
@@ -933,7 +941,7 @@ constrainPrimOp v0 = go
 
     go (Signum theRing) (e1 :* End) =
         case theRing of
-        HRing_Real -> mzero
+        HRing_Real -> bot
         HRing_Int  -> do
             x <- var <$> emitMBind P.counting
             emitObserve $ P.signum x P.== fromWhnf v0
