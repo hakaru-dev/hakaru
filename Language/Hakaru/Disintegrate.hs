@@ -675,11 +675,11 @@ constrainValue v0 e0 =
 
 
 ----------------------------------------------------------------
--- TODO: I believe this is correct, but we should double-check to see that the @(id =<<) . fmap (maybe bot return)@ part does what I mean it to.
+-- TODO: I believe this is correct, but we should double-check to see that the @(maybe bot return =<<)@ part does what I mean it to.
 constrainVariable :: (ABT Term abt) => Whnf abt a -> Variable a -> M abt ()
 constrainVariable v0 x =
     -- If we get 'Nothing', then it turns out @x@ is a free variable. If @x@ is a free variable, then it's a neutral term; and we return 'bot' for neutral terms
-    (id =<<) . fmap (maybe bot return) . select x $ \s ->
+    (maybe bot return =<<) . select x $ \s ->
         case s of
         SBind y e -> do
             Refl <- varEq x y
