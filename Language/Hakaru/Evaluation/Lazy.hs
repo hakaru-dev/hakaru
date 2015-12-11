@@ -13,7 +13,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.08
+--                                                    2015.12.11
 -- |
 -- Module      :  Language.Hakaru.Evaluation.Lazy
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -461,35 +461,34 @@ evaluateNaryOp evaluate_ = \o es -> mainLoop o (evalOp o) Seq.empty es
         -> Head abt a
         -> Head abt a
     -- TODO: something more efficient\/direct if we can...
-    evalOp And      v1 v2 = reflect (reify v1 && reify v2)
-    evalOp Or       v1 v2 = reflect (reify v1 || reify v2)
-    evalOp Xor      v1 v2 = reflect (reify v1 /= reify v2)
-    evalOp Iff      v1 v2 = reflect (reify v1 == reify v2)
+    evalOp And      = \v1 v2 -> reflect (reify v1 && reify v2)
+    evalOp Or       = \v1 v2 -> reflect (reify v1 || reify v2)
+    evalOp Xor      = \v1 v2 -> reflect (reify v1 /= reify v2)
+    evalOp Iff      = \v1 v2 -> reflect (reify v1 == reify v2)
+    evalOp (Min  _) = error "TODO: evalOp{Min}"
+    evalOp (Max  _) = error "TODO: evalOp{Max}"
     {-
-    evalOp (Min  _) v1 v2 = reflect (reify v1 `min` reify v2)
-    evalOp (Max  _) v1 v2 = reflect (reify v1 `max` reify v2)
-    evalOp (Sum  _) v1 v2 = reflect (reify v1 + reify v2)
-    evalOp (Prod _) v1 v2 = reflect (reify v1 * reify v2)
+    evalOp (Min  _) = \v1 v2 -> reflect (reify v1 `min` reify v2)
+    evalOp (Max  _) = \v1 v2 -> reflect (reify v1 `max` reify v2)
+    evalOp (Sum  _) = \v1 v2 -> reflect (reify v1 + reify v2)
+    evalOp (Prod _) = \v1 v2 -> reflect (reify v1 * reify v2)
     -}
     -- HACK: this is just to have something to test. We really should reduce\/remove all this boilerplate...
-    evalOp (Sum  s) (WLiteral v1) (WLiteral v2) = WLiteral $ evalSum  s v1 v2
-    evalOp (Prod s) (WLiteral v1) (WLiteral v2) = WLiteral $ evalProd s v1 v2
-    evalOp (Sum  _) _ _ = error "evalOp: the impossible happened"
-    evalOp (Prod _) _ _ = error "evalOp: the impossible happened"
-    evalOp _ _ _ = error "TODO: evalOp{Min,Max}"
+    evalOp (Sum  s) =
+        \(WLiteral v1) (WLiteral v2) -> WLiteral $ evalSum  s v1 v2
+    evalOp (Prod s) =
+        \(WLiteral v1) (WLiteral v2) -> WLiteral $ evalProd s v1 v2
 
     -- TODO: even if only one of the arguments is a literal, if that literal is zero\/one, then we can still partially evaluate it. (As is done in the old finally-tagless code)
     evalSum, evalProd :: HSemiring a -> Literal a -> Literal a -> Literal a
-    evalSum  HSemiring_Nat  (LNat  n1) (LNat  n2) = LNat  (n1 + n2)
-    evalSum  HSemiring_Int  (LInt  i1) (LInt  i2) = LInt  (i1 + i2)
-    evalSum  HSemiring_Prob (LProb p1) (LProb p2) = LProb (p1 + p2)
-    evalSum  HSemiring_Real (LReal r1) (LReal r2) = LReal (r1 + r2)
-    evalSum  _ _ _ = error "evalSum: the impossible happened"
-    evalProd HSemiring_Nat  (LNat  n1) (LNat  n2) = LNat  (n1 * n2)
-    evalProd HSemiring_Int  (LInt  i1) (LInt  i2) = LInt  (i1 * i2)
-    evalProd HSemiring_Prob (LProb p1) (LProb p2) = LProb (p1 * p2)
-    evalProd HSemiring_Real (LReal r1) (LReal r2) = LReal (r1 * r2)
-    evalProd _ _ _ = error "evalProd: the impossible happened"
+    evalSum  HSemiring_Nat  = \(LNat  n1) (LNat  n2) -> LNat  (n1 + n2)
+    evalSum  HSemiring_Int  = \(LInt  i1) (LInt  i2) -> LInt  (i1 + i2)
+    evalSum  HSemiring_Prob = \(LProb p1) (LProb p2) -> LProb (p1 + p2)
+    evalSum  HSemiring_Real = \(LReal r1) (LReal r2) -> LReal (r1 + r2)
+    evalProd HSemiring_Nat  = \(LNat  n1) (LNat  n2) -> LNat  (n1 * n2)
+    evalProd HSemiring_Int  = \(LInt  i1) (LInt  i2) -> LInt  (i1 * i2)
+    evalProd HSemiring_Prob = \(LProb p1) (LProb p2) -> LProb (p1 * p2)
+    evalProd HSemiring_Real = \(LReal r1) (LReal r2) -> LReal (r1 * r2)
 
 
 ----------------------------------------------------------------
@@ -500,9 +499,9 @@ evaluateArrayOp
     -> ArrayOp typs a
     -> SArgs abt args
     -> m (Whnf abt a)
-evaluateArrayOp evaluate_ o es =
-    case (o,es) of
-    (Index _, e1 :* e2 :* End) -> do
+evaluateArrayOp evaluate_ = go
+    where
+    go o@(Index _) = \(e1 :* e2 :* End) -> do
         w1 <- evaluate_ e1
         case w1 of
             Neutral e1' ->
@@ -518,7 +517,7 @@ evaluateArrayOp evaluate_ o es =
                     caseBind e4 $ \x e4' ->
                         push (SIndex x (Thunk e2) (Thunk e3)) e4' evaluate_
 
-    (Size _, e1 :* End) -> do
+    go o@(Size _) = \(e1 :* End) -> do
         w1 <- evaluate_ e1
         case w1 of
             Neutral e1' -> return . Neutral $ syn (ArrayOp_ o :$ e1' :* End)
@@ -528,10 +527,8 @@ evaluateArrayOp evaluate_ o es =
                 Just WAEmpty        -> return . Head_ $ WLiteral (LNat 0)
                 Just (WAArray e3 _) -> evaluate_ e3
 
-    (Reduce _, e1 :* e2 :* e3 :* End) ->
+    go (Reduce _) = \(e1 :* e2 :* e3 :* End) ->
         error "TODO: evaluateArrayOp{Reduce}"
-
-    _ -> error "evaluateArrayOp: the impossible happened"
 
 
 data ArrayHead :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
@@ -545,7 +542,7 @@ head2array :: Head abt ('HArray a) -> Maybe (ArrayHead abt a)
 head2array (WEmpty _)     = Just WAEmpty
 head2array (WArray e1 e2) = Just (WAArray e1 e2)
 head2array (WAnn _ w)     = head2array w
-head2array _ = error "head2array: the impossible happened"
+head2array _              = error "head2array: the impossible happened"
 
 
 ----------------------------------------------------------------

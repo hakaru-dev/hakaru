@@ -10,7 +10,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.23
+--                                                    2015.12.11
 -- |
 -- Module      :  Language.Hakaru.Expect
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -384,92 +384,59 @@ expectMeasure
     -> SArgs abt args
     -> Assocs abt
     -> Expect abt ('HMeasure a)
-expectMeasure _ Lebesgue es _ =
-    case es of
-    End ->
-        ExpectMeasure $ \c ->
-        integrate negativeInfinity infinity c
-    _ -> error "expectMeasure: the impossible happened"
-expectMeasure _ Counting es _ =
-    case es of
-    End ->
-        ExpectMeasure $ \c ->
-        summate negativeInfinity infinity c
-    _ -> error "expectMeasure: the impossible happened"
-expectMeasure _ Categorical es _ =
-    case es of
-    ps :* End ->
-        ExpectMeasure $ \c ->
-        let_ (summateV ps) $ \tot ->
-        flip (if_ (prob_ 0 < tot)) (prob_ 0)
-            $ summateV (mapWithIndex (\i p -> p * c i) ps) / tot
-    _ -> error "expectMeasure: the impossible happened"
-expectMeasure _ Uniform  es _ =
-    case es of
-    lo :* hi :* End ->
-        ExpectMeasure $ \c ->
-        integrate lo hi $ \x ->
-            c x / unsafeProb (hi - lo)
-    _ -> error "expectMeasure: the impossible happened"
-expectMeasure _ Normal es _ =
-    case es of
-    mu :* sd :* End ->
-        ExpectMeasure $ \c ->
-        integrate negativeInfinity infinity $ \x ->
-            exp (negate ((x - mu) ^ nat_ 2)
-                / fromProb (prob_ 2 * sd ^ nat_ 2))
-            / sd / sqrt (prob_ 2 * pi) * c x
-    _ -> error "expectMeasure: the impossible happened"
-expectMeasure _ Poisson es _ =
-    case es of
-    l :* End ->
-        ExpectMeasure $ \c ->
-        flip (if_ (prob_ 0 < l)) (prob_ 0)
-            $ summate (real_ 0) infinity $ \x ->
-                l ^^ x
-                / gammaFunc (fromInt x + real_ 1)
-                / exp (fromProb l)
-                * c (unsafeFrom_ signed x)
-    _ -> error "expectMeasure: the impossible happened"
-expectMeasure _ Gamma es _ =
-    case es of
-    shape :* scale :* End ->
-        ExpectMeasure $ \c ->
-        integrate (real_ 0) infinity $ \x ->
-            let x_ = unsafeProb x in
-            x_ ** (fromProb shape - real_ 1)
-            * exp (negate . fromProb $ x_ / scale)
-            / (scale ** shape * gammaFunc shape)
-            * c x_
-    _ -> error "expectMeasure: the impossible happened"
-expectMeasure _ Beta es _ =
-    case es of
-    a :* b :* End ->
-        ExpectMeasure $ \c ->
-        integrate (real_ 0) (real_ 1) $ \x ->
-            let x_ = unsafeProb x in
-            x_ ** (fromProb a - real_ 1)
-            * (unsafeProb (real_ 1 - x) ** (fromProb b - real_ 1))
-            / betaFunc a b * c (unsafeProb x)
-    _ -> error "expectMeasure: the impossible happened"
-expectMeasure _ (DirichletProcess _) es _ =
-    case es of
-    p :* m :* End ->
-        ExpectMeasure $ \c ->
-        error "TODO: expectMeasure{DirichletProcess}"
-    _ -> error "expectMeasure: the impossible happened"
-expectMeasure _ (Plate _) es _ =
-    case es of
-    ms :* End ->
-        ExpectMeasure $ \c ->
-        error "TODO: expectMeasure{Plate}"
-    _ -> error "expectMeasure: the impossible happened"
-expectMeasure _ (Chain _ _) es _ =
-    case es of
-    mz :* s0 :* End ->
-        ExpectMeasure $ \c ->
-        error "TODO: expectMeasure{Chain}"
-    _ -> error "expectMeasure: the impossible happened"
+expectMeasure _ Lebesgue = \End _ ->
+    ExpectMeasure $ \c ->
+    integrate negativeInfinity infinity c
+expectMeasure _ Counting = \End _ ->
+    ExpectMeasure $ \c ->
+    summate negativeInfinity infinity c
+expectMeasure _ Categorical = \(ps :* End) _ ->
+    ExpectMeasure $ \c ->
+    let_ (summateV ps) $ \tot ->
+    flip (if_ (prob_ 0 < tot)) (prob_ 0)
+        $ summateV (mapWithIndex (\i p -> p * c i) ps) / tot
+expectMeasure _ Uniform = \(lo :* hi :* End) _ ->
+    ExpectMeasure $ \c ->
+    integrate lo hi $ \x ->
+        c x / unsafeProb (hi - lo)
+expectMeasure _ Normal = \(mu :* sd :* End) _ ->
+    ExpectMeasure $ \c ->
+    integrate negativeInfinity infinity $ \x ->
+        exp (negate ((x - mu) ^ nat_ 2)
+            / fromProb (prob_ 2 * sd ^ nat_ 2))
+        / sd / sqrt (prob_ 2 * pi) * c x
+expectMeasure _ Poisson = \(l :* End) _ ->
+    ExpectMeasure $ \c ->
+    flip (if_ (prob_ 0 < l)) (prob_ 0)
+        $ summate (real_ 0) infinity $ \x ->
+            l ^^ x
+            / gammaFunc (fromInt x + real_ 1)
+            / exp (fromProb l)
+            * c (unsafeFrom_ signed x)
+expectMeasure _ Gamma = \(shape :* scale :* End) _ ->
+    ExpectMeasure $ \c ->
+    integrate (real_ 0) infinity $ \x ->
+        let x_ = unsafeProb x in
+        x_ ** (fromProb shape - real_ 1)
+        * exp (negate . fromProb $ x_ / scale)
+        / (scale ** shape * gammaFunc shape)
+        * c x_
+expectMeasure _ Beta = \(a :* b :* End) _ ->
+    ExpectMeasure $ \c ->
+    integrate (real_ 0) (real_ 1) $ \x ->
+        let x_ = unsafeProb x in
+        x_ ** (fromProb a - real_ 1)
+        * (unsafeProb (real_ 1 - x) ** (fromProb b - real_ 1))
+        / betaFunc a b * c (unsafeProb x)
+expectMeasure _ (DirichletProcess _) = \(p :* m :* End) _ ->
+    ExpectMeasure $ \c ->
+    error "TODO: expectMeasure{DirichletProcess}"
+expectMeasure _ (Plate _) = \(ms :* End) _ ->
+    ExpectMeasure $ \c ->
+    error "TODO: expectMeasure{Plate}"
+expectMeasure _ (Chain _ _) = \(mz :* s0 :* End) _ ->
+    ExpectMeasure $ \c ->
+    error "TODO: expectMeasure{Chain}"
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

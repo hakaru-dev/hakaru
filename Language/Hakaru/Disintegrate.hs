@@ -709,18 +709,25 @@ constrainMeasureOp v0 = go
     where
     -- HACK: we need the -XScopedTypeVariables in order to remove \"ambiguity\" about the choice of 'ABT' instance
     go :: MeasureOp typs a -> SArgs abt args -> M abt ()
-    go Lebesgue    End               = bot
-    go Counting    End               = bot
-    go Categorical (e1 :* End)       = constrainValue v0 (P.categorical e1)
-    go Uniform     (e1 :* e2 :* End) = constrainValue v0 (P.uniform' e1 e2)
-    go Normal      (e1 :* e2 :* End) = constrainValue v0 (P.normal'  e1 e2)
-    go Poisson     (e1 :* End)       = constrainValue v0 (P.poisson' e1)
-    go Gamma       (e1 :* e2 :* End) = constrainValue v0 (P.gamma'   e1 e2)
-    go Beta        (e1 :* e2 :* End) = constrainValue v0 (P.beta'    e1 e2)
-    go (DirichletProcess a) (e1 :* e2 :* End) = error "TODO: constrainMeasureOp{DirichletProcess}"
-    go (Plate a)   (e1 :* End)       = bot -- TODO: can we use P.plate'?
-    go (Chain s a) (e1 :* e2 :* End) = error "TODO: constrainMeasureOp{Chain}" -- We might could use P.chain' except that has a SingI constraint
-    go _ _ = error "constrainMeasureOp: the impossible happened"
+    go Lebesgue    = \End               -> bot
+    go Counting    = \End               -> bot
+    go Categorical = \(e1 :* End)       ->
+        constrainValue v0 (P.categorical e1)
+    go Uniform     = \(e1 :* e2 :* End) ->
+        constrainValue v0 (P.uniform' e1 e2)
+    go Normal      = \(e1 :* e2 :* End) ->
+        constrainValue v0 (P.normal'  e1 e2)
+    go Poisson     = \(e1 :* End)       ->
+        constrainValue v0 (P.poisson' e1)
+    go Gamma       = \(e1 :* e2 :* End) ->
+        constrainValue v0 (P.gamma'   e1 e2)
+    go Beta        = \(e1 :* e2 :* End) ->
+        constrainValue v0 (P.beta'    e1 e2)
+    go (DirichletProcess a) = \(e1 :* e2 :* End) ->
+        error "TODO: constrainMeasureOp{DirichletProcess}"
+    go (Plate a)   = \(e1 :* End)       -> bot -- TODO: can we use P.plate'?
+    go (Chain s a) = \(e1 :* e2 :* End) ->
+        error "TODO: constrainMeasureOp{Chain}" -- We might could use P.chain' except that has a SingI constraint
 
 
 ----------------------------------------------------------------
@@ -767,15 +774,15 @@ constrainPrimOp v0 = go
 
     -- HACK: we need the -XScopedTypeVariables in order to remove \"ambiguity\" about the choice of 'ABT' instance
     go :: PrimOp typs a -> SArgs abt args -> M abt ()
-    go Not  (e1 :* End)       = error_TODO "Not"
-    go Impl (e1 :* e2 :* End) = error_TODO "Impl"
-    go Diff (e1 :* e2 :* End) = error_TODO "Diff"
-    go Nand (e1 :* e2 :* End) = error_TODO "Nand"
-    go Nor  (e1 :* e2 :* End) = error_TODO "Nor"
+    go Not  = \(e1 :* End)       -> error_TODO "Not"
+    go Impl = \(e1 :* e2 :* End) -> error_TODO "Impl"
+    go Diff = \(e1 :* e2 :* End) -> error_TODO "Diff"
+    go Nand = \(e1 :* e2 :* End) -> error_TODO "Nand"
+    go Nor  = \(e1 :* e2 :* End) -> error_TODO "Nor"
 
-    go Pi End = bot -- because @dirac pi@ has no density wrt lebesgue
+    go Pi = \End -> bot -- because @dirac pi@ has no density wrt lebesgue
 
-    go Sin (e1 :* End) = do
+    go Sin = \(e1 :* End) -> do
         x0 <- var <$> emitLet (fromWhnf v0)
         n  <- var <$> emitMBind P.counting
         let tau_n = P.real_ 2 P.* P.fromInt n P.* P.pi -- TODO: emitLet?
@@ -791,7 +798,7 @@ constrainPrimOp v0 = go
             $ (P.one P.- x0 P.^ P.nat_ 2)
         constrainValue (Neutral v) e1
 
-    go Cos (e1 :* End) = do
+    go Cos = \(e1 :* End) -> do
         x0 <- var <$> emitLet (fromWhnf v0)
         n  <- var <$> emitMBind P.counting
         let tau_n = P.real_ 2 P.* P.fromInt n P.* P.pi
@@ -805,39 +812,39 @@ constrainPrimOp v0 = go
             $ (P.one P.- x0 P.^ P.nat_ 2)
         constrainValue (Neutral v) e1
 
-    go Tan (e1 :* End) = do
+    go Tan = \(e1 :* End) -> do
         x0 <- var <$> emitLet (fromWhnf v0)
         n  <- var <$> emitMBind P.counting
         r  <- var <$> emitLet (P.fromInt n P.* P.pi P.+ P.atan x0)
         emitWeight $ P.recip (P.one P.+ P.square x0)
         constrainValue (Neutral r) e1
 
-    go Asin (e1 :* End) = do
+    go Asin = \(e1 :* End) -> do
         x0 <- var <$> emitLet (fromWhnf v0)
         -- TODO: may want to evaluate @cos v0@ before emitting the weight
         emitWeight $ P.unsafeProb (P.cos x0)
         -- TODO: bounds check for -pi/2 <= v0 < pi/2
         constrainValue (Neutral $ P.sin x0) e1
 
-    go Acos (e1 :* End) = do
+    go Acos = \(e1 :* End) -> do
         x0 <- var <$> emitLet (fromWhnf v0)
         -- TODO: may want to evaluate @sin v0@ before emitting the weight
         emitWeight $ P.unsafeProb (P.sin x0)
         constrainValue (Neutral $ P.cos x0) e1
 
-    go Atan (e1 :* End) = do
+    go Atan = \(e1 :* End) -> do
         x0 <- var <$> emitLet (fromWhnf v0)
         -- TODO: may want to evaluate @cos v0 ^ 2@ before emitting the weight
         emitWeight $ P.recip (P.unsafeProb (P.cos x0 P.^ P.nat_ 2))
         constrainValue (Neutral $ P.tan x0) e1
 
-    go Sinh      (e1 :* End)       = error_TODO "Sinh"
-    go Cosh      (e1 :* End)       = error_TODO "Cosh"
-    go Tanh      (e1 :* End)       = error_TODO "Tanh"
-    go Asinh     (e1 :* End)       = error_TODO "Asinh"
-    go Acosh     (e1 :* End)       = error_TODO "Acosh"
-    go Atanh     (e1 :* End)       = error_TODO "Atanh"
-    go RealPow   (e1 :* e2 :* End) = error_TODO "RealPow"
+    go Sinh      = \(e1 :* End)       -> error_TODO "Sinh"
+    go Cosh      = \(e1 :* End)       -> error_TODO "Cosh"
+    go Tanh      = \(e1 :* End)       -> error_TODO "Tanh"
+    go Asinh     = \(e1 :* End)       -> error_TODO "Asinh"
+    go Acosh     = \(e1 :* End)       -> error_TODO "Acosh"
+    go Atanh     = \(e1 :* End)       -> error_TODO "Atanh"
+    go RealPow   = \(e1 :* e2 :* End) -> error_TODO "RealPow"
         {- -- something like:
         -- TODO: There's a discrepancy between @(**)@ and @pow_@ in the old code...
         do
@@ -868,25 +875,25 @@ constrainPrimOp v0 = go
             emitWeight $ unsafeProb w
             constrainValue ex e1
         -}
-    go Exp (e1 :* End) = do
+    go Exp = \(e1 :* End) -> do
         x0 <- var <$> emitLet (fromWhnf v0)
         -- TODO: do we still want/need the @emitObserve (0 < x0)@ which is now equivalent to @emitObserve (0 /= x0)@ thanks to the types?
         emitWeight (P.recip x0)
         constrainValue (Neutral $ P.log x0) e1
 
-    go Log (e1 :* End) = do
+    go Log = \(e1 :* End) -> do
         exp_x0 <- var <$> emitLet (P.exp $ fromWhnf v0)
         emitWeight exp_x0
         constrainValue (Neutral exp_x0) e1
 
-    go Infinity         End               = error_TODO "Infinity" -- scalar0
-    go NegativeInfinity End               = error_TODO "NegativeInfinity" -- scalar0
-    go GammaFunc        (e1 :* End)       = error_TODO "GammaFunc" -- scalar1
-    go BetaFunc         (e1 :* e2 :* End) = error_TODO "BetaFunc" -- scalar2
-    go (Equal  theOrd)  (e1 :* e2 :* End) = error_TODO "Equal"
-    go (Less   theOrd)  (e1 :* e2 :* End) = error_TODO "Less"
-    go (NatPow theSemi) (e1 :* e2 :* End) = error_TODO "NatPow"
-    go (Negate theRing) (e1 :* End) =
+    go Infinity         = \End               -> error_TODO "Infinity" -- scalar0
+    go NegativeInfinity = \End               -> error_TODO "NegativeInfinity" -- scalar0
+    go GammaFunc        = \(e1 :* End)       -> error_TODO "GammaFunc" -- scalar1
+    go BetaFunc         = \(e1 :* e2 :* End) -> error_TODO "BetaFunc" -- scalar2
+    go (Equal  theOrd)  = \(e1 :* e2 :* End) -> error_TODO "Equal"
+    go (Less   theOrd)  = \(e1 :* e2 :* End) -> error_TODO "Less"
+    go (NatPow theSemi) = \(e1 :* e2 :* End) -> error_TODO "NatPow"
+    go (Negate theRing) = \(e1 :* End) ->
         -- TODO: figure out how to merge this implementation of @rr1 negate@ with the one in 'evaluatePrimOp' to DRY
         -- TODO: just emitLet the @v0@ and pass the neutral term to the recursive call?
         let negate_v0 =
@@ -905,7 +912,7 @@ constrainPrimOp v0 = go
         constrainValue (Neutral $ neg x0) e1
         -}
 
-    go (Abs theRing) (e1 :* End) = do
+    go (Abs theRing) = \(e1 :* End) -> do
         let theSemi = hSemiring_HRing theRing
             theOrd  =
                 case theRing of
@@ -930,7 +937,7 @@ constrainPrimOp v0 = go
                     P.reject))
         constrainValue (Neutral v) e1
 
-    go (Signum theRing) (e1 :* End) =
+    go (Signum theRing) = \(e1 :* End) ->
         case theRing of
         HRing_Real -> bot
         HRing_Int  -> do
@@ -938,7 +945,7 @@ constrainPrimOp v0 = go
             emitObserve $ P.signum x P.== fromWhnf v0
             constrainValue (Neutral x) e1
 
-    go (Recip theFractional) (e1 :* End) = do
+    go (Recip theFractional) = \(e1 :* End) -> do
         -- TODO: may want to inline @x0@ and try evaluating @e0 ^ 2@ and @recip e0@...
         x0 <- var <$> emitLet (fromWhnf v0)
         emitWeight
@@ -948,7 +955,7 @@ constrainPrimOp v0 = go
             $ square (hSemiring_HFractional theFractional) x0
         constrainValue (Neutral $ P.primOp1_ (Recip theFractional) x0) e1
 
-    go (NatRoot theRadical) (e1 :* e2 :* End) =
+    go (NatRoot theRadical) = \(e1 :* e2 :* End) ->
         case theRadical of
         HRadical_Prob -> do
             -- TODO: may want to inline @x0@ and try evaluating @u2 * e0@ and @e0 ^ u2@...
@@ -957,10 +964,8 @@ constrainPrimOp v0 = go
             emitWeight (P.nat2prob u2 P.* x0)
             constrainValue (Neutral $ x0 P.^ u2) e1
 
-    go (Erf theContinuous) (e1 :* End) =
+    go (Erf theContinuous) = \(e1 :* End) ->
         error "TODO: constrainPrimOp: need InvErf to disintegrate Erf"
-
-    go _ _ = error "constrainPrimOp: the impossible happened"
 
 
 -- HACK: can't use @(P.^)@ because Haskell can't figure out our polymorphism

@@ -263,14 +263,14 @@ sampleMeasureOp
         , typs ~ UnLCs args, args ~ LCs typs)
     => MeasureOp typs a -> SArgs abt args -> Env m -> S m ('HMeasure a)
 
-sampleMeasureOp Lebesgue End _ =
+sampleMeasureOp Lebesgue = \End _ ->
     S $ \p g -> do
         (u,b) <- MWC.uniform g
         let l = log u
         let n = -l
         return $ Just (if b then n else l, 2 * LF.logToLogFloat n)
 
-sampleMeasureOp Counting End _ =
+sampleMeasureOp Counting = \End _ ->
     S $ \p g -> do
         let success = LF.logToLogFloat (-3 :: Double)
         let pow x y = LF.logToLogFloat (LF.logFromLogFloat x *
@@ -281,7 +281,7 @@ sampleMeasureOp Counting End _ =
             ( if b then -1-u else u
             , 2 / pow (1-success) u / success)
 
-sampleMeasureOp Categorical (e1 :* End) env =
+sampleMeasureOp Categorical = \(e1 :* End) env ->
     S $ \p g -> do
         let S v = sample (LC_ e1) env
         let (_,y,ys) = normalizeVector v
@@ -297,51 +297,52 @@ sampleMeasureOp Categorical (e1 :* End) env =
                     $ ys
                     , p)
 
-sampleMeasureOp Uniform (e1 :* e2 :* End) env =
+sampleMeasureOp Uniform = \(e1 :* e2 :* End) env ->
     let S v1 = sample (LC_ e1) env
         S v2 = sample (LC_ e2) env
     in  S $ \ p g -> do
             x <- MWC.uniformR (v1, v2) g
             return $ Just (x, p)
 
-sampleMeasureOp Normal (e1 :* e2 :* End) env =
+sampleMeasureOp Normal = \(e1 :* e2 :* End) env ->
     let S v1 = sample (LC_ e1) env
         S v2 = sample (LC_ e2) env
     in  S $ \ p g -> do
             x <- MWCD.normal v1 (LF.fromLogFloat v2) g
             return $ Just (x, p)
 
-sampleMeasureOp Poisson (e1 :* End) env =
+sampleMeasureOp Poisson = \(e1 :* End) env ->
     let S v1 = sample (LC_ e1) env
     in  S $ \ p g -> do
             x <- poisson_rng (LF.fromLogFloat v1) g
             return $ Just (unsafeNat x, p)
 
-sampleMeasureOp Gamma (e1 :* e2 :* End) env =
+sampleMeasureOp Gamma = \(e1 :* e2 :* End) env ->
     let S v1 = sample (LC_ e1) env
         S v2 = sample (LC_ e2) env
     in  S $ \ p g -> do
             x <- MWCD.gamma (LF.fromLogFloat v1) (LF.fromLogFloat v2) g
             return $ Just (LF.logFloat x, p)
 
-sampleMeasureOp Beta (e1 :* e2 :* End) env =
+sampleMeasureOp Beta = \(e1 :* e2 :* End) env ->
     let S v1 = sample (LC_ e1) env
         S v2 = sample (LC_ e2) env
     in  S $ \ p g -> do
             x <- MWCD.beta (LF.fromLogFloat v1) (LF.fromLogFloat v2) g
             return $ Just (LF.logFloat x, p)
 
-sampleMeasureOp (DirichletProcess _) _ env =
+sampleMeasureOp (DirichletProcess _) = \_ _ ->
     error "sampleMeasureOp: Dirichlet Processes not implemented yet"
 
-sampleMeasureOp (Plate _) (e1 :* End) env =
+sampleMeasureOp (Plate _) = \(e1 :* End) env ->
     let S v = sample (LC_ e1) env
     in  S $ \ p g -> runMaybeT $ do
             samples <- V.mapM (\m -> MaybeT $ m 1 g) v
             let (v', ps) = V.unzip samples
             return (v', p * V.product ps)
 
--- sampleMeasureOp (Chain _ _) (e1 :* e2 :* End) env =
+sampleMeasureOp (Chain _ _) = \(e1 :* e2 :* End) env ->
+    error "sampleMeasureOp: Chain not implemented yet"
 --   let S v = sample (LC_ e1) env
 --       S s = sample (LC_ e2) env
 --   in  S (\ p g -> runMaybeT $ do
@@ -352,8 +353,7 @@ sampleMeasureOp (Plate _) (e1 :* End) env =
 --            let (v', ps) = V.unzip samples
 --            return ((v', sout), p * V.product ps))
 
-sampleMeasureOp _ _ _ =
-    error "sampleMeasureOP: the impossible happened"
+
 
 sampleLiteral :: Literal a -> S m a
 sampleLiteral (LNat  n) = S . fromInteger $ fromNatural n -- TODO: catch overflow errors

@@ -7,7 +7,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.01
+--                                                    2015.12.11
 -- |
 -- Module      :  Language.Hakaru.PrettyPrint
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -168,58 +168,56 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
 
 -- | Pretty-print @(:$)@ nodes in the AST.
 ppSCon :: (ABT Term abt) => Int -> SCon args a -> SArgs abt args -> Docs
-ppSCon p Lam_ (e1 :* End) =
+ppSCon p Lam_ = \(e1 :* End) ->
     parens (p > 0) $ adjustHead (PP.text "lam $" <+>) (ppBinder e1)
-ppSCon p App_ (e1 :* e2 :* End) = ppBinop "`app`" 9 LeftAssoc p e1 e2 -- BUG: this puts extraneous parentheses around e2 when it's a function application...
-ppSCon p Let_ (e1 :* e2 :* End) =
+ppSCon p App_ = \(e1 :* e2 :* End) -> ppBinop "`app`" 9 LeftAssoc p e1 e2 -- BUG: this puts extraneous parentheses around e2 when it's a function application...
+ppSCon p Let_ = \(e1 :* e2 :* End) ->
     parens (p > 0) $ 
         adjustHead
             (PP.text "let_" <+> toDoc (ppArg e1) <+> PP.char '$' <+>)
             (ppBinder e2)
-ppSCon p (Ann_ typ) (e1 :* End) =
+ppSCon p (Ann_ typ) = \(e1 :* End) ->
     ppFun p "ann_"
         [ PP.text (showsPrec 11 typ "") -- TODO: make this prettier. Add hints to the singletons?
         , toDoc $ ppArg e1
         ]
-ppSCon p (PrimOp_     o) es          = ppPrimOp  p o es
-ppSCon p (ArrayOp_    o) es          = ppArrayOp p o es
-ppSCon p (CoerceTo_   c) (e1 :* End) =
+ppSCon p (PrimOp_     o) = \es          -> ppPrimOp  p o es
+ppSCon p (ArrayOp_    o) = \es          -> ppArrayOp p o es
+ppSCon p (CoerceTo_   c) = \(e1 :* End) ->
     ppFun p ""
         [ PP.text (ppCoerce c) -- TODO: make this prettier. Add hints to the coercions?
         , toDoc $ ppArg e1
         ]
-ppSCon p (UnsafeFrom_ c) (e1 :* End) =
+ppSCon p (UnsafeFrom_ c) = \(e1 :* End) ->
     ppFun p ""
         [ PP.text (ppUnsafe c) -- TODO: make this prettier. Add hints to the coercions?
         , toDoc $ ppArg e1
         ]
-ppSCon p (MeasureOp_ o) es       = ppMeasureOp p o es
-ppSCon p Dirac (e1 :* End)       = ppApply1 p "dirac" e1
-ppSCon p MBind (e1 :* e2 :* End) =
+ppSCon p (MeasureOp_ o) = \es       -> ppMeasureOp p o es
+ppSCon p Dirac = \(e1 :* End)       -> ppApply1 p "dirac" e1
+ppSCon p MBind = \(e1 :* e2 :* End) ->
     parens (p > 1) $
         adjustHead
             (prettyPrec 1 e1 <+> PP.text ">>=" <+>)
             (ppBinder e2)
-ppSCon p Expect (e1 :* e2 :* End) =
+ppSCon p Expect = \(e1 :* e2 :* End) ->
     -- N.B., for this to be read back in correctly, "Language.Hakaru.Expect" must be in scope as well as the prelude.
     parens (p > 0) $
         adjustHead
             (PP.text "expect" <+> toDoc (ppArg e1) <+> PP.char '$' <+>)
             (ppBinder e2)
-ppSCon p Integrate (e1 :* e2 :* e3 :* End) =
+ppSCon p Integrate = \(e1 :* e2 :* e3 :* End) ->
     ppFun p "integrate"
         [ toDoc $ ppArg e1
         , toDoc $ ppArg e2
         , toDoc $ parens True (ppBinder e3)
         ]
-ppSCon p Summate (e1 :* e2 :* e3 :* End) =
+ppSCon p Summate = \(e1 :* e2 :* e3 :* End) ->
     ppFun p "summate"
         [ toDoc $ ppArg e1
         , toDoc $ ppArg e2
         , toDoc $ parens True (ppBinder e3)
         ]
--- HACK: GHC can't figure out that there are no other type-safe cases
-ppSCon _ _ _ = error "ppSCon: the impossible happened"
 
 
 ppCoerce :: Coercion a b -> String
@@ -239,90 +237,88 @@ ppUnsafe c = "unsafeFrom_ " ++ showsPrec 11 c ""
 ppPrimOp
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => Int -> PrimOp typs a -> SArgs abt args -> Docs
-ppPrimOp p Not  (e1 :* End)       = ppApply1 p "not" e1
-ppPrimOp p Impl (e1 :* e2 :* End) =
+ppPrimOp p Not  = \(e1 :* End)       -> ppApply1 p "not" e1
+ppPrimOp p Impl = \(e1 :* e2 :* End) ->
     -- TODO: make prettier
     ppFun p "syn"
         [ toDoc $ ppFun 11 "Impl"
             [ toDoc $ ppArg e1
             , toDoc $ ppArg e2
             ]]
-ppPrimOp p Diff (e1 :* e2 :* End) =
+ppPrimOp p Diff = \(e1 :* e2 :* End) ->
     -- TODO: make prettier
     ppFun p "syn"
         [ toDoc $ ppFun 11 "Diff"
             [ toDoc $ ppArg e1
             , toDoc $ ppArg e2
             ]]
-ppPrimOp p Nand (e1 :* e2 :* End) = ppApply2 p "nand" e1 e2 -- TODO: make infix...
-ppPrimOp p Nor  (e1 :* e2 :* End) = ppApply2 p "nor" e1 e2 -- TODO: make infix...
-ppPrimOp _ Pi        End               = [PP.text "pi"]
-ppPrimOp p Sin       (e1 :* End)       = ppApply1 p "sin"   e1
-ppPrimOp p Cos       (e1 :* End)       = ppApply1 p "cos"   e1
-ppPrimOp p Tan       (e1 :* End)       = ppApply1 p "tan"   e1
-ppPrimOp p Asin      (e1 :* End)       = ppApply1 p "asin"  e1
-ppPrimOp p Acos      (e1 :* End)       = ppApply1 p "acos"  e1
-ppPrimOp p Atan      (e1 :* End)       = ppApply1 p "atan"  e1
-ppPrimOp p Sinh      (e1 :* End)       = ppApply1 p "sinh"  e1
-ppPrimOp p Cosh      (e1 :* End)       = ppApply1 p "cosh"  e1
-ppPrimOp p Tanh      (e1 :* End)       = ppApply1 p "tanh"  e1
-ppPrimOp p Asinh     (e1 :* End)       = ppApply1 p "asinh" e1
-ppPrimOp p Acosh     (e1 :* End)       = ppApply1 p "acosh" e1
-ppPrimOp p Atanh     (e1 :* End)       = ppApply1 p "atanh" e1
-ppPrimOp p RealPow   (e1 :* e2 :* End) = ppBinop "**" 8 RightAssoc p e1 e2
-ppPrimOp p Exp       (e1 :* End)       = ppApply1 p "exp"   e1
-ppPrimOp p Log       (e1 :* End)       = ppApply1 p "log"   e1
-ppPrimOp _ Infinity         End        = [PP.text "infinity"]
-ppPrimOp _ NegativeInfinity End        = [PP.text "negativeInfinity"]
-ppPrimOp p GammaFunc (e1 :* End)       = ppApply1 p "gammaFunc" e1
-ppPrimOp p BetaFunc  (e1 :* e2 :* End) = ppApply2 p "betaFunc" e1 e2
-ppPrimOp p (Equal   _) (e1 :* e2 :* End) = ppBinop "==" 4 NonAssoc   p e1 e2
-ppPrimOp p (Less    _) (e1 :* e2 :* End) = ppBinop "<"  4 NonAssoc   p e1 e2
-ppPrimOp p (NatPow  _) (e1 :* e2 :* End) = ppBinop "^"  8 RightAssoc p e1 e2
-ppPrimOp p (Negate  _) (e1 :* End)       = ppApply1 p "negate" e1
-ppPrimOp p (Abs     _) (e1 :* End)       = ppApply1 p "abs_"   e1
-ppPrimOp p (Signum  _) (e1 :* End)       = ppApply1 p "signum" e1
-ppPrimOp p (Recip   _) (e1 :* End)       = ppApply1 p "recip"  e1
-ppPrimOp p (NatRoot _) (e1 :* e2 :* End) =
+ppPrimOp p Nand = \(e1 :* e2 :* End) -> ppApply2 p "nand" e1 e2 -- TODO: make infix...
+ppPrimOp p Nor  = \(e1 :* e2 :* End) -> ppApply2 p "nor" e1 e2 -- TODO: make infix...
+ppPrimOp _ Pi        = \End               -> [PP.text "pi"]
+ppPrimOp p Sin       = \(e1 :* End)       -> ppApply1 p "sin"   e1
+ppPrimOp p Cos       = \(e1 :* End)       -> ppApply1 p "cos"   e1
+ppPrimOp p Tan       = \(e1 :* End)       -> ppApply1 p "tan"   e1
+ppPrimOp p Asin      = \(e1 :* End)       -> ppApply1 p "asin"  e1
+ppPrimOp p Acos      = \(e1 :* End)       -> ppApply1 p "acos"  e1
+ppPrimOp p Atan      = \(e1 :* End)       -> ppApply1 p "atan"  e1
+ppPrimOp p Sinh      = \(e1 :* End)       -> ppApply1 p "sinh"  e1
+ppPrimOp p Cosh      = \(e1 :* End)       -> ppApply1 p "cosh"  e1
+ppPrimOp p Tanh      = \(e1 :* End)       -> ppApply1 p "tanh"  e1
+ppPrimOp p Asinh     = \(e1 :* End)       -> ppApply1 p "asinh" e1
+ppPrimOp p Acosh     = \(e1 :* End)       -> ppApply1 p "acosh" e1
+ppPrimOp p Atanh     = \(e1 :* End)       -> ppApply1 p "atanh" e1
+ppPrimOp p RealPow   = \(e1 :* e2 :* End) -> ppBinop "**" 8 RightAssoc p e1 e2
+ppPrimOp p Exp       = \(e1 :* End)       -> ppApply1 p "exp"   e1
+ppPrimOp p Log       = \(e1 :* End)       -> ppApply1 p "log"   e1
+ppPrimOp _ Infinity         = \End        -> [PP.text "infinity"]
+ppPrimOp _ NegativeInfinity = \End        -> [PP.text "negativeInfinity"]
+ppPrimOp p GammaFunc = \(e1 :* End)       -> ppApply1 p "gammaFunc" e1
+ppPrimOp p BetaFunc  = \(e1 :* e2 :* End) -> ppApply2 p "betaFunc" e1 e2
+ppPrimOp p (Equal   _) = \(e1 :* e2 :* End) -> ppBinop "==" 4 NonAssoc   p e1 e2
+ppPrimOp p (Less    _) = \(e1 :* e2 :* End) -> ppBinop "<"  4 NonAssoc   p e1 e2
+ppPrimOp p (NatPow  _) = \(e1 :* e2 :* End) -> ppBinop "^"  8 RightAssoc p e1 e2
+ppPrimOp p (Negate  _) = \(e1 :* End)       -> ppApply1 p "negate" e1
+ppPrimOp p (Abs     _) = \(e1 :* End)       -> ppApply1 p "abs_"   e1
+ppPrimOp p (Signum  _) = \(e1 :* End)       -> ppApply1 p "signum" e1
+ppPrimOp p (Recip   _) = \(e1 :* End)       -> ppApply1 p "recip"  e1
+ppPrimOp p (NatRoot _) = \(e1 :* e2 :* End) ->
     -- N.B., argument order is swapped!
     ppBinop "`thRootOf`" 9 LeftAssoc p e2 e1
-ppPrimOp p (Erf _) (e1 :* End) = ppApply1 p "erf" e1
--- HACK: GHC can't figure out that there are no other type-safe cases
-ppPrimOp _ _ _ = error "ppPrimOp: the impossible happened"
+ppPrimOp p (Erf _) = \(e1 :* End) -> ppApply1 p "erf" e1
 
 
 -- | Pretty-print a 'ArrayOp' @(:$)@ node in the AST.
 ppArrayOp
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => Int -> ArrayOp typs a -> SArgs abt args -> Docs
-ppArrayOp p (Index   _) (e1 :* e2 :* End) = ppBinop "!" 9 LeftAssoc p e1 e2
-ppArrayOp p (Size    _) (e1 :* End)       = ppApply1 p "size" e1
-ppArrayOp p (Reduce  _) (e1 :* e2 :* e3 :* End) =
+ppArrayOp p (Index   _) = \(e1 :* e2 :* End) ->
+    ppBinop "!" 9 LeftAssoc p e1 e2
+ppArrayOp p (Size    _) = \(e1 :* End) ->
+    ppApply1 p "size" e1
+ppArrayOp p (Reduce  _) = \(e1 :* e2 :* e3 :* End) ->
     ppFun p "reduce"
         [ toDoc $ ppArg e1 -- N.B., @e1@ uses lambdas rather than being a binding form!
         , toDoc $ ppArg e2
         , toDoc $ ppArg e3
         ]
-ppArrayOp _ _ _ = error "ppArrayOp: the impossible happened"
 
 
 -- | Pretty-print a 'MeasureOp' @(:$)@ node in the AST.
 ppMeasureOp
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => Int -> MeasureOp typs a -> SArgs abt args -> Docs
-ppMeasureOp _ Lebesgue    End           = [PP.text "lebesgue"]
-ppMeasureOp _ Counting    End           = [PP.text "counting"]
-ppMeasureOp p Categorical (e1 :* End)   = ppApply1 p "categorical" e1
-ppMeasureOp p Uniform (e1 :* e2 :* End) = ppApply2 p "uniform"     e1 e2
-ppMeasureOp p Normal  (e1 :* e2 :* End) = ppApply2 p "normal"      e1 e2
-ppMeasureOp p Poisson (e1 :* End)       = ppApply1 p "poisson"     e1
-ppMeasureOp p Gamma   (e1 :* e2 :* End) = ppApply2 p "gamma"       e1 e2
-ppMeasureOp p Beta    (e1 :* e2 :* End) = ppApply2 p "beta"        e1 e2
-ppMeasureOp p (DirichletProcess _) (e1 :* e2 :* End) = ppApply2 p "dp" e1 e2
-ppMeasureOp p (Plate _)   (e1 :* End)       = ppApply1 p "plate" e1
-ppMeasureOp p (Chain _ _) (e1 :* e2 :* End) = ppApply2 p "chain" e1 e2
--- HACK: GHC can't figure out that there are no other type-safe cases
-ppMeasureOp _ _ _ = error "ppMeasureOp: the impossible happened"
+ppMeasureOp _ Lebesgue    = \End           -> [PP.text "lebesgue"]
+ppMeasureOp _ Counting    = \End           -> [PP.text "counting"]
+ppMeasureOp p Categorical = \(e1 :* End)   -> ppApply1 p "categorical" e1
+ppMeasureOp p Uniform = \(e1 :* e2 :* End) -> ppApply2 p "uniform"     e1 e2
+ppMeasureOp p Normal  = \(e1 :* e2 :* End) -> ppApply2 p "normal"      e1 e2
+ppMeasureOp p Poisson = \(e1 :* End)       -> ppApply1 p "poisson"     e1
+ppMeasureOp p Gamma   = \(e1 :* e2 :* End) -> ppApply2 p "gamma"       e1 e2
+ppMeasureOp p Beta    = \(e1 :* e2 :* End) -> ppApply2 p "beta"        e1 e2
+ppMeasureOp p (DirichletProcess _) = \(e1 :* e2 :* End) ->
+    ppApply2 p "dp" e1 e2
+ppMeasureOp p (Plate _)   = \(e1 :* End)       -> ppApply1 p "plate" e1
+ppMeasureOp p (Chain _ _) = \(e1 :* e2 :* End) -> ppApply2 p "chain" e1 e2
 
 
 instance Pretty Literal where

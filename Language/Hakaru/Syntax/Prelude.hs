@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.10
+--                                                    2015.12.11
 -- |
 -- Module      :  Language.Hakaru.Syntax.Prelude
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -272,13 +272,7 @@ not e =
                     Just . syn . NaryOp_ Iff $ Prelude.fmap not xs
                 NaryOp_ Iff xs ->
                     Just . syn . NaryOp_ Xor $ Prelude.fmap not xs
-                Literal_ v ->
-                    case v of
-                    {-
-                    VDatum (Datum _ (Inl Done))       -> Just false
-                    VDatum (Datum _ (Inr (Inl Done))) -> Just true
-                    -}
-                    _ -> error "not: the impossible happened"
+                Literal_ v -> error "not: the impossible happened"
                 _ -> Nothing
 
 and, or :: (ABT Term abt) => [abt '[] HBool] -> abt '[] HBool

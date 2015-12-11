@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.10
+--                                                    2015.12.11
 -- |
 -- Module      :  Language.Hakaru.Syntax.AST
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -123,13 +123,12 @@ instance Coerce Literal where
     coerceFrom (CCons c cs) v = primCoerceFrom c (coerceFrom cs v)
 
 instance PrimCoerce Literal where
-    primCoerceTo c l =
-        case (c,l) of
-        (Signed     HRing_Int,        LNat  n) -> LInt  (nat2int   n)
-        (Signed     HRing_Real,       LProb p) -> LReal (prob2real p)
-        (Continuous HContinuous_Prob, LNat  n) -> LProb (nat2prob  n)
-        (Continuous HContinuous_Real, LInt  i) -> LReal (int2real  i)
-        _ -> error "primCoerceTo@Literal: the impossible happened"
+    primCoerceTo c =
+        case c of
+        Signed     HRing_Int        -> \(LNat  n) -> LInt  (nat2int   n)
+        Signed     HRing_Real       -> \(LProb p) -> LReal (prob2real p)
+        Continuous HContinuous_Prob -> \(LNat  n) -> LProb (nat2prob  n)
+        Continuous HContinuous_Real -> \(LInt  i) -> LReal (int2real  i)
         where
         -- HACK: type signatures needed to avoid defaulting
         nat2int   :: Natural -> Integer
@@ -141,13 +140,12 @@ instance PrimCoerce Literal where
         int2real  :: Integer -> Rational
         int2real  = fromIntegral
 
-    primCoerceFrom c l =
-        case (c,l) of
-        (Signed     HRing_Int,        LInt  i) -> LNat  (int2nat   i)
-        (Signed     HRing_Real,       LReal r) -> LProb (real2prob r)
-        (Continuous HContinuous_Prob, LProb p) -> LNat  (prob2nat  p)
-        (Continuous HContinuous_Real, LReal r) -> LInt  (real2int  r)
-        _ -> error "primCoerceFrom@Literal: the impossible happened"
+    primCoerceFrom c =
+        case c of
+        Signed     HRing_Int        -> \(LInt  i) -> LNat  (int2nat   i)
+        Signed     HRing_Real       -> \(LReal r) -> LProb (real2prob r)
+        Continuous HContinuous_Prob -> \(LProb p) -> LNat  (prob2nat  p)
+        Continuous HContinuous_Real -> \(LReal r) -> LInt  (real2int  r)
         where
         -- HACK: type signatures needed to avoid defaulting
         -- TODO: how to handle the errors? Generate error code in hakaru? capture it in a monad?
