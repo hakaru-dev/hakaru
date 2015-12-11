@@ -6,7 +6,13 @@
            , UndecidableInstances
            #-}
 
-{-# OPTIONS_GHC -Wall -fwarn-tabs #-}
+-- TODO: all the instances here are orphans. To ensure that we don't
+-- have issues about orphan instances, we should give them all
+-- newtypes and only provide the instance for those newtypes!
+-- (and\/or: for the various op types, it's okay to move them to
+-- AST.hs to avoid orphanage. It's just the instances for 'Term'
+-- itself which are morally suspect outside of testing.)
+{-# OPTIONS_GHC -Wall -fwarn-tabs -fno-warn-orphans #-}
 ---------------------------------------------------------------------
 --
 -- Warning: The following module is for testing purposes only.
@@ -84,13 +90,6 @@ jmEq_S Expect    es Expect     es' =
     jmEq1 es es' >>= \Refl -> Just (Refl, Refl)
 jmEq_S _         _  _          _   = Nothing
 
-
--- BUG: all the following instances are orphans. To ensure that we
--- don't have issues about orphan instances, give them all newtypes
--- and only provide the instance for those newtypes! (and\/or: for
--- the various op types, it's okay to move them to AST.hs to avoid
--- orphanage. It's just the instances for 'Term' itself which are
--- morally suspect outside of testing.)
 
 instance JmEq2 abt => JmEq1 (SArgs abt) where
     jmEq1 End       End       = Just Refl
