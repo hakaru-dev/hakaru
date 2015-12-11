@@ -15,7 +15,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.08
+--                                                    2015.12.10
 -- |
 -- Module      :  Language.Hakaru.Evaluation.Types
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -67,6 +67,7 @@ import           Data.Monoid          (Monoid(..))
 import           Data.Functor         ((<$>))
 import           Control.Applicative  (Applicative(..))
 #endif
+import           Control.Arrow        ((***))
 import qualified Data.Foldable        as F
 import           Control.Applicative  (Alternative(..))
 import           Control.Monad        (MonadPlus(..))
@@ -205,6 +206,55 @@ toHead e =
         Summate   :$ e1  :* e2 :* e3 :* End -> Just $ WSummate   e1 e2 e3
         _ -> Nothing
 
+instance Functor21 Head where
+    fmap21 _ (WLiteral    v)        = WLiteral v
+    fmap21 f (WDatum      d)        = WDatum (fmap11 f d)
+    fmap21 _ (WEmpty      typ)      = WEmpty typ
+    fmap21 f (WArray      e1 e2)    = WArray (f e1) (f e2)
+    fmap21 f (WLam        e1)       = WLam (f e1)
+    fmap21 f (WMeasureOp  o  es)    = WMeasureOp o (fmap21 f es)
+    fmap21 f (WDirac      e1)       = WDirac (f e1)
+    fmap21 f (WMBind      e1 e2)    = WMBind (f e1) (f e2)
+    fmap21 f (WSuperpose  pes)      = WSuperpose (map (f *** f) pes)
+    fmap21 f (WAnn        typ e1)   = WAnn      typ (fmap21 f e1)
+    fmap21 f (WCoerceTo   c e1)     = WCoerceTo   c (fmap21 f e1)
+    fmap21 f (WUnsafeFrom c e1)     = WUnsafeFrom c (fmap21 f e1)
+    fmap21 f (WIntegrate  e1 e2 e3) = WIntegrate (f e1) (f e2) (f e3)
+    fmap21 f (WSummate    e1 e2 e3) = WSummate   (f e1) (f e2) (f e3)
+
+instance Foldable21 Head where
+    foldMap21 _ (WLiteral    _)        = mempty
+    foldMap21 f (WDatum      d)        = foldMap11 f d
+    foldMap21 _ (WEmpty      _)        = mempty
+    foldMap21 f (WArray      e1 e2)    = f e1 `mappend` f e2
+    foldMap21 f (WLam        e1)       = f e1
+    foldMap21 f (WMeasureOp  _  es)    = foldMap21 f es
+    foldMap21 f (WDirac      e1)       = f e1
+    foldMap21 f (WMBind      e1 e2)    = f e1 `mappend` f e2
+    foldMap21 f (WSuperpose  pes)      = foldMapPairs f pes
+    foldMap21 f (WAnn        _ e1)     = foldMap21 f e1
+    foldMap21 f (WCoerceTo   _ e1)     = foldMap21 f e1
+    foldMap21 f (WUnsafeFrom _ e1)     = foldMap21 f e1
+    foldMap21 f (WIntegrate  e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
+    foldMap21 f (WSummate    e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
+
+instance Traversable21 Head where
+    traverse21 _ (WLiteral    v)        = pure $ WLiteral v
+    traverse21 f (WDatum      d)        = WDatum <$> traverse11 f d
+    traverse21 _ (WEmpty      typ)      = pure $ WEmpty typ
+    traverse21 f (WArray      e1 e2)    = WArray <$> f e1 <*> f e2
+    traverse21 f (WLam        e1)       = WLam <$> f e1
+    traverse21 f (WMeasureOp  o  es)    = WMeasureOp o <$> traverse21 f es
+    traverse21 f (WDirac      e1)       = WDirac <$> f e1
+    traverse21 f (WMBind      e1 e2)    = WMBind <$> f e1 <*> f e2
+    traverse21 f (WSuperpose  pes)      = WSuperpose <$> traversePairs f pes
+    traverse21 f (WAnn        typ e1)   = WAnn      typ <$> traverse21 f e1
+    traverse21 f (WCoerceTo   c e1)     = WCoerceTo   c <$> traverse21 f e1
+    traverse21 f (WUnsafeFrom c e1)     = WUnsafeFrom c <$> traverse21 f e1
+    traverse21 f (WIntegrate  e1 e2 e3) = WIntegrate <$> f e1 <*> f e2 <*> f e3
+    traverse21 f (WSummate    e1 e2 e3) = WSummate   <$> f e1 <*> f e2 <*> f e3
+
+
 ----------------------------------------------------------------
 -- BUG: haddock doesn't like annotations on GADT constructors. So
 -- here we'll avoid using the GADT syntax, even though it'd make
@@ -234,6 +284,19 @@ toWhnf e = Head_ <$> toHead e
 caseWhnf :: Whnf abt a -> (Head abt a -> r) -> (abt '[] a -> r) -> r
 caseWhnf (Head_   e) k _ = k e
 caseWhnf (Neutral e) _ k = k e
+
+
+instance Functor21 Whnf where
+    fmap21 f (Head_   v) = Head_ (fmap21 f v)
+    fmap21 f (Neutral e) = Neutral (f e)
+
+instance Foldable21 Whnf where
+    foldMap21 f (Head_   v) = foldMap21 f v
+    foldMap21 f (Neutral e) = f e
+
+instance Traversable21 Whnf where
+    traverse21 f (Head_   v) = Head_ <$> traverse21 f v
+    traverse21 f (Neutral e) = Neutral <$> f e
 
 
 -- | Given some WHNF, try to extract a 'Datum' from it.
@@ -332,6 +395,17 @@ caseLazy :: Lazy abt a -> (Whnf abt a -> r) -> (abt '[] a -> r) -> r
 caseLazy (Whnf_ e) k _ = k e
 caseLazy (Thunk e) _ k = k e
 
+instance Functor21 Lazy where
+    fmap21 f (Whnf_ v) = Whnf_ (fmap21 f v)
+    fmap21 f (Thunk e) = Thunk (f e)
+
+instance Foldable21 Lazy where
+    foldMap21 f (Whnf_ v) = foldMap21 f v
+    foldMap21 f (Thunk e) = f e
+
+instance Traversable21 Lazy where
+    traverse21 f (Whnf_ v) = Whnf_ <$> traverse21 f v
+    traverse21 f (Thunk e) = Thunk <$> f e
 
 ----------------------------------------------------------------
 -- BUG: haddock doesn't like annotations on GADT constructors. So

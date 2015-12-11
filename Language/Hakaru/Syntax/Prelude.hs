@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.23
+--                                                    2015.12.10
 -- |
 -- Module      :  Language.Hakaru.Syntax.Prelude
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -331,18 +331,18 @@ maximum = unsafeNaryOp_ $ Max hOrd
 (*) = naryOp2_ $ Prod hSemiring
 
 zero, one :: forall abt a. (ABT Term abt, HSemiring_ a) => abt '[] a
-zero = literal_ $
-    case (hSemiring :: HSemiring a) of
-    HSemiring_Nat  -> LNat  0
-    HSemiring_Int  -> LInt  0
-    HSemiring_Prob -> LProb 0
-    HSemiring_Real -> LReal 0
-one = literal_ $
-    case (hSemiring :: HSemiring a) of
-    HSemiring_Nat  -> LNat  1
-    HSemiring_Int  -> LInt  1
-    HSemiring_Prob -> LProb 1
-    HSemiring_Real -> LReal 1
+zero = zero_ (hSemiring :: HSemiring a)
+one  = one_  (hSemiring :: HSemiring a)
+
+zero_, one_ :: (ABT Term abt) => HSemiring a -> abt '[] a
+zero_ HSemiring_Nat  = literal_ $ LNat  0
+zero_ HSemiring_Int  = literal_ $ LInt  0
+zero_ HSemiring_Prob = literal_ $ LProb 0
+zero_ HSemiring_Real = literal_ $ LReal 0
+one_  HSemiring_Nat  = literal_ $ LNat  1
+one_  HSemiring_Int  = literal_ $ LInt  1
+one_  HSemiring_Prob = literal_ $ LProb 1
+one_  HSemiring_Real = literal_ $ LReal 1
 
 sum, product :: (ABT Term abt, HSemiring_ a) => [abt '[] a] -> abt '[] a
 sum     = naryOp_withIdentity (Sum  hSemiring) zero
@@ -688,6 +688,32 @@ fromInt    = coerceTo_ continuous
 
 nat2prob   :: (ABT Term abt) => abt '[] 'HNat  -> abt '[] 'HProb
 nat2prob   = coerceTo_ continuous
+
+{- -- Uncomment only if we actually end up needing this anywhere
+class FromNat (a :: Hakaru) where
+    fromNat :: (ABT Term abt) => abt '[] 'HNat  -> abt '[] a
+
+instance FromNat 'HNat  where fromNat = id
+instance FromNat 'HInt  where fromNat = nat2int
+instance FromNat 'HProb where fromNat = nat2prob
+instance FromNat 'HReal where fromNat = fromProb . nat2prob
+-}
+
+unsafeProbFraction
+    :: forall abt a
+    .  (ABT Term abt, HFractional_ a)
+    => abt '[] a
+    -> abt '[] 'HProb
+unsafeProbFraction e =
+    unsafeProbFraction_ (hFractional :: HFractional a) e
+
+unsafeProbFraction_
+    :: (ABT Term abt)
+    => HFractional a
+    -> abt '[] a
+    -> abt '[] 'HProb
+unsafeProbFraction_ HFractional_Prob = id
+unsafeProbFraction_ HFractional_Real = unsafeProb
 
 negativeInfinity :: (ABT Term abt) => abt '[] 'HReal
 negativeInfinity = primOp0_ NegativeInfinity

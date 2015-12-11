@@ -110,6 +110,9 @@ instance Functor11 Datum where
 instance Foldable11 Datum where
     foldMap11 f (Datum _ d) = foldMap11 f d
 
+instance Traversable11 Datum where
+    traverse11 f (Datum hint d) = Datum hint <$> traverse11 f d
+
 
 ----------------------------------------------------------------
 infixr 7 `Et`, `PEt`
@@ -160,6 +163,10 @@ instance Foldable11 (DatumCode xss) where
     foldMap11 f (Inr d) = foldMap11 f d
     foldMap11 f (Inl d) = foldMap11 f d
 
+instance Traversable11 (DatumCode xss) where
+    traverse11 f (Inr d) = Inr <$> traverse11 f d
+    traverse11 f (Inl d) = Inl <$> traverse11 f d
+
 
 ----------------------------------------------------------------
 data DatumStruct :: [HakaruFun] -> (Hakaru -> *) -> Hakaru -> * where
@@ -196,6 +203,10 @@ instance Foldable11 (DatumStruct xs) where
     foldMap11 f (Et d1 d2) = foldMap11 f d1 `mappend` foldMap11 f d2
     foldMap11 _ Done       = mempty
 
+instance Traversable11 (DatumStruct xs) where
+    traverse11 f (Et d1 d2) = Et <$> traverse11 f d1 <*> traverse11 f d2
+    traverse11 _ Done       = pure Done
+
 
 ----------------------------------------------------------------
 -- TODO: do we like those constructor names? Should we change them?
@@ -229,6 +240,10 @@ instance Functor11 (DatumFun x) where
 instance Foldable11 (DatumFun x) where
     foldMap11 f (Konst e) = f e
     foldMap11 f (Ident e) = f e
+
+instance Traversable11 (DatumFun x) where
+    traverse11 f (Konst e) = Konst <$> f e
+    traverse11 f (Ident e) = Ident <$> f e
 
 
 ----------------------------------------------------------------
@@ -545,10 +560,8 @@ instance Functor21 (Branch a) where
 instance Foldable21 (Branch a) where
     foldMap21 f (Branch _ e) = f e
 
-{-
 instance Traversable21 (Branch a) where
     traverse21 f (Branch pat e) = Branch pat <$> f e
--}
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

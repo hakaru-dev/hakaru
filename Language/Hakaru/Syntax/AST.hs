@@ -7,11 +7,12 @@
            , TypeFamilies
            , FlexibleContexts
            , UndecidableInstances
+           , RankNTypes
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.08
+--                                                    2015.12.10
 -- |
 -- Module      :  Language.Hakaru.Syntax.AST
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -48,6 +49,10 @@ module Language.Hakaru.Syntax.AST
     , MeasureOp(..)
     -- * Constant values
     , Literal(..)
+    
+    -- * implementation details
+    , foldMapPairs
+    , traversePairs
     ) where
 
 import           Data.Sequence (Seq)
@@ -604,6 +609,10 @@ instance Foldable21 SArgs where
     foldMap21 f (e :* es) = f e `mappend` foldMap21 f es
     foldMap21 _ End       = mempty
 
+instance Traversable21 SArgs where
+    traverse21 f (e :* es) = (:*) <$> f e <*> traverse21 f es
+    traverse21 _ End       = pure End
+
 
 ----------------------------------------------------------------
 -- | The generating functor for Hakaru ASTs. This type is given in
@@ -753,7 +762,33 @@ instance Foldable21 Term where
     foldMap21 f (Array_     e1 e2) = f e1 `mappend` f e2
     foldMap21 f (Datum_     d)     = foldMap11 f d
     foldMap21 f (Case_      e  bs) = f e  `mappend` F.foldMap (foldMap21 f) bs
-    foldMap21 f (Superpose_ pes)   = F.foldMap (\(e1,e2) -> f e1 `mappend` f e2) pes
+    foldMap21 f (Superpose_ pes)   = foldMapPairs f pes
+
+foldMapPairs
+    :: Monoid m
+    => (forall h i. abt h i -> m)
+    -> [(abt xs a, abt ys b)]
+    -> m
+foldMapPairs f = F.foldMap $ \(e1,e2) -> f e1 `mappend` f e2
+
+
+----------------------------------------------------------------
+instance Traversable21 Term where
+    traverse21 f (o :$ es)          = (o :$) <$> traverse21 f es
+    traverse21 f (NaryOp_    o  es) = NaryOp_  o <$> traverse f es
+    traverse21 _ (Literal_   v)     = pure $ Literal_ v
+    traverse21 _ (Empty_     typ)   = pure $ Empty_   typ
+    traverse21 f (Array_     e1 e2) = Array_ <$> f e1 <*> f e2
+    traverse21 f (Datum_     d)     = Datum_ <$> traverse11 f d
+    traverse21 f (Case_      e  bs) = Case_  <$> f e <*> traverse (traverse21 f) bs
+    traverse21 f (Superpose_ pes)   = Superpose_ <$> traversePairs f pes
+
+traversePairs
+    :: Applicative f
+    => (forall h i. abt1 h i -> f (abt2 h i))
+    -> [(abt1 xs a, abt1 ys b)]
+    -> f [(abt2 xs a, abt2 ys b)]
+traversePairs f = traverse $ \(x,y) -> (,) <$> f x <*> f y
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

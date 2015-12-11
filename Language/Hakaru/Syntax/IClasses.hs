@@ -10,7 +10,7 @@
            #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.05
+--                                                    2015.12.10
 -- |
 -- Module      :  Language.Hakaru.Syntax.IClasses
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -58,6 +58,9 @@ module Language.Hakaru.Syntax.IClasses
     , Foldable11(..), Lift1(..)
     , Foldable21(..), Lift2(..)
     , Foldable22(..)
+    , Traversable11(..)
+    , Traversable21(..)
+    , Traversable22(..)
     
     -- * Helper types
     , Some1(..)
@@ -419,7 +422,7 @@ class Functor21 f => Foldable21 (f :: (k1 -> k2 -> *) -> k3 -> *) where
 
     foldMap21 :: (Monoid m) => (forall h i. a h i -> m) -> f a j -> m
     foldMap21 f = fold21 . fmap21 (Lift2 . f)
-    
+
 
 class Functor22 f =>
     Foldable22 (f :: (k1 -> k2 -> *) -> k3 -> k4 -> *)
@@ -431,6 +434,39 @@ class Functor22 f =>
 
     foldMap22 :: (Monoid m) => (forall h i. a h i -> m) -> f a j l -> m
     foldMap22 f = fold22 . fmap22 (Lift2 . f)
+
+
+----------------------------------------------------------------
+----------------------------------------------------------------
+class Foldable11 t => Traversable11 (t :: (k1 -> *) -> k2 -> *) where
+    traverse11
+        :: Applicative f
+        => (forall i. a i -> f (b i))
+        -> t a j
+        -> f (t b j)
+    {-
+    sequenceA :: Applicative f => t (f a) -> f (t a)
+    mapM :: Monad m => (a -> m b) -> t a -> m (t b)
+    sequence :: Monad m => t (m a) -> m (t a)
+    -}
+
+
+class Foldable21 t => Traversable21 (t :: (k1 -> k2 -> *) -> k3 -> *) where
+    traverse21
+        :: Applicative f
+        => (forall h i. a h i -> f (b h i))
+        -> t a j
+        -> f (t b j)
+    
+
+class Foldable22 t =>
+    Traversable22 (t :: (k1 -> k2 -> *) -> k3 -> k4 -> *)
+    where
+    traverse22
+        :: Applicative f
+        => (forall h i. a h i -> f (b h i))
+        -> t a j l
+        -> f (t b j l)
 
 
 ----------------------------------------------------------------
@@ -635,6 +671,10 @@ instance Foldable11 List1 where
     foldMap11 _ Nil1         = mempty
     foldMap11 f (Cons1 x xs) = f x `mappend` foldMap11 f xs
 
+instance Traversable11 List1 where
+    traverse11 _ Nil1         = pure Nil1
+    traverse11 f (Cons1 x xs) = Cons1 <$> f x <*> traverse11 f xs
+
 
 ----------------------------------------------------------------
 -- TODO: cf the interface of <https://hackage.haskell.org/package/dlist-0.7.1.2/docs/Data-DList.html>
@@ -700,6 +740,9 @@ instance Functor11 DList1 where
 
 instance Foldable11 DList1 where
     foldMap11 f xs =
+
+instance Traversable11 DList1 where
+    traverse11 f xs =
 -}
 
 ----------------------------------------------------------------

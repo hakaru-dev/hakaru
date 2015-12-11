@@ -443,7 +443,7 @@ evaluateNaryOp evaluate_ = \o es -> mainLoop o (evalOp o) Seq.empty es
         Iff    -> Head_ (WDatum dTrue)
         Min  _ -> Neutral (syn (NaryOp_ o Seq.empty)) -- no identity in general (but we could do it by cases...)
         Max  _ -> Neutral (syn (NaryOp_ o Seq.empty)) -- no identity in general (but we could do it by cases...)
-        -- TODO: figure out how to reuse 'P.zero' and 'P.one' here
+        -- TODO: figure out how to reuse 'P.zero_' and 'P.one_' here
         Sum  HSemiring_Nat  -> Head_ (WLiteral (LNat  0))
         Sum  HSemiring_Int  -> Head_ (WLiteral (LInt  0))
         Sum  HSemiring_Prob -> Head_ (WLiteral (LProb 0))

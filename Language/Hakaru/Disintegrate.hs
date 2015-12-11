@@ -52,6 +52,7 @@ module Language.Hakaru.Disintegrate
     , Condition(..)
     , conditionalize
     , perform
+    , atomize
     , constrainValue
     , constrainOutcome
     ) where
@@ -75,7 +76,7 @@ import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.TypeOf
-import Language.Hakaru.Syntax.Coercion (Coerce(..))
+import qualified Language.Hakaru.Syntax.Coercion as C
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumCase
@@ -299,6 +300,15 @@ emitMBind m =
 emitMBind_Whnf :: (ABT Term abt) => MeasureEvaluator abt (M abt)
 emitMBind_Whnf e = (Neutral . var) <$> emitMBind e
 
+emitLet :: (ABT Term abt) => abt '[] a -> M abt (Variable a)
+emitLet e =
+    emit Text.empty (typeOf e)
+        (\m -> syn (Let_ :$ e :* m :* End))
+
+emitLet_Whnf :: (ABT Term abt) => TermEvaluator abt (M abt)
+emitLet_Whnf e = (Neutral . var) <$> emitLet e
+
+
 -- This function was called @insert_@ in the old finally-tagless code.
 -- | Emit some code that doesn't bind any variables. This function
 -- provides an optimisation over using 'emit' and then discarding
@@ -319,6 +329,10 @@ emitMBind_ m = emit_ (m P.>>)
 -- | Emit an assertion that the condition is true.
 emitObserve :: (ABT Term abt) => abt '[] HBool -> M abt ()
 emitObserve b = emit_ (P.observe b) -- == emit_ $ \m -> P.if_ b m P.reject
+
+
+emitWeight :: (ABT Term abt) => abt '[] 'HProb -> M abt ()
+emitWeight w = emit_ (P.pose w)
 
 
 -- N.B., this use of 'T.traverse' is definitely correct. It's
@@ -345,9 +359,27 @@ emitFork_
 emitFork_ f ms = M $ \c h -> f <$> T.traverse (\m -> unM m c h) ms
 
 -- | Emit a 'Superpose_' of the alternatives, each with unit weight.
-emitSuperpose :: (ABT Term abt) => [M abt a] -> M abt a
-emitSuperpose [m] = m
-emitSuperpose ms  =
+emitSuperpose
+    :: (ABT Term abt)
+    => [abt '[] ('HMeasure a)]
+    -> M abt (Variable a)
+emitSuperpose es =
+    emitMBind (P.superpose [(P.prob_ 1, e) | e <- es])
+
+
+-- | Emit a 'Superpose_' of the alternatives, each with unit weight.
+emitSuperpose_Whnf
+    :: (ABT Term abt)
+    => [abt '[] ('HMeasure a)]
+    -> M abt (Whnf abt a)
+emitSuperpose_Whnf es =
+    emitMBind_Whnf (P.superpose [(P.prob_ 1, e) | e <- es])
+
+
+-- | Emit a 'Superpose_' of the alternatives, each with unit weight.
+choose :: (ABT Term abt) => [M abt a] -> M abt a
+choose [m] = m
+choose ms  =
     emitFork_ (\es -> P.superpose [(P.prob_ 1, e) | e <- es]) ms
 
 -- TODO: move this to Datum.hs; also, use it elsewhere as needed to clean up code.
@@ -522,8 +554,8 @@ perform e0 =
             caseBind e2 $ \x e2' ->
                 push (SBind x $ Thunk e1) e2' perform
         Superpose_ pes ->
-            -- TODO: may want to do this directly rather than using 'emitSuperpose' and then adjusting the weight...
-            emitSuperpose
+            -- TODO: may want to do this directly rather than using 'choose' and then adjusting the weight...
+            choose
                 [ unsafePush (SWeight $ Thunk p) >> perform e
                 | (p,e) <- pes ]
 
@@ -544,6 +576,17 @@ performWhnf
     :: (ABT Term abt) => Whnf abt ('HMeasure a) -> M abt (Whnf abt a)
 performWhnf (Head_   v) = perform $ fromHead v
 performWhnf (Neutral e) = emitMBind_Whnf e
+
+
+-- | This name is taken from the old finally tagless code. This
+-- does something like giving us full-beta reduction, which should
+-- really be the purview of 'evaluate', but the goal of which is
+-- to ensure that no heap-bound variables occur in the input term.
+atomize :: forall abt. (ABT Term abt) => TermEvaluator abt (M abt)
+atomize = traverse21 go <=< evaluate_
+    where
+    go :: forall xs a. abt xs a -> M abt (abt xs a)
+    go = (\(xs, e) -> (binds_ xs . fromWhnf) <$> atomize e) . caseBinds
 
 
 ----------------------------------------------------------------
@@ -585,9 +628,9 @@ constrainValue v0 e0 =
                 error "TODO: constrainValue{Let_}"
         
         Ann_      typ :$ e1 :* End -> constrainValue  v0 e1
-        CoerceTo_   c :$ e1 :* End -> constrainValue  (coerceFrom c v0) e1 -- TODO: we should \"atomize\" v0 first
+        CoerceTo_   c :$ e1 :* End -> constrainValue  (C.coerceFrom c v0) e1 -- TODO: we should \"atomize\" v0 first
         -- BUG: for the safe coercions we need to 'emitObserve' as well!
-        UnsafeFrom_ c :$ e1 :* End -> constrainValue  (coerceTo   c v0) e1 -- TODO: we should \"atomize\" v0 first
+        UnsafeFrom_ c :$ e1 :* End -> constrainValue  (C.coerceTo   c v0) e1 -- TODO: we should \"atomize\" v0 first
         NaryOp_     o    es        -> constrainNaryOp v0 o es
         PrimOp_     o :$ es        -> constrainPrimOp v0 o es
         Expect  :$ e1 :* e2 :* End -> error "TODO: constrainValue{Expect}"
@@ -676,6 +719,9 @@ constrainNaryOp v0 o es = error "TODO: constrainNaryOp"
 
 
 ----------------------------------------------------------------
+-- N.B., We assume that the first argument, @v0@, is already atomized. So, this must be ensured before recursing, but we can assume it's already been done by the IH.
+--
+-- HACK: for a lot of these, we can't use the prelude functions because Haskell can't figure out our polymorphism, so we have to define our own versions for manually passing dictionaries around.
 constrainPrimOp
     :: forall abt typs args a
     .  (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
@@ -685,77 +731,80 @@ constrainPrimOp
     -> M abt ()
 constrainPrimOp v0 = go
     where
+    error_TODO op = error $ "TODO: constrainPrimOp{" ++ op ++"}"
+    
     -- HACK: we need the -XScopedTypeVariables in order to remove \"ambiguity\" about the choice of 'ABT' instance
     go :: PrimOp typs a -> SArgs abt args -> M abt ()
-    go Not  (e1 :* End)       = undefined
-    go Impl (e1 :* e2 :* End) = undefined
-    go Diff (e1 :* e2 :* End) = undefined
-    go Nand (e1 :* e2 :* End) = undefined
-    go Nor  (e1 :* e2 :* End) = undefined
-    go Pi        End               = mzero
-    go Sin       (e1 :* End)       = undefined
-        {- -- something like:
-        n <- (Value . fromInt) <$> emitMBind_Whnf counting
-        u <- atomize v0
-        emitObserve ((-1) < u && u < 1)
-        -- TODO: shouldn't we use @u@ rather than @v0@?
-        r1 <- atomize (2*n*pi + asin v0)
-        -- TODO: shouldn't we use @u@ rather than @v0@?
-        r2 <- atomize (2*n*pi + pi - asin v0)
-        -- TODO: shouldn't we use @u@ rather than @v0@?
-        j  <- (sqrt_ . unsafeProb) <$> atomize (1 - v0^2)
-        r  <- emitSuperpose [dirac r1, dirac r2]
-        emitWeight (recip j)
+    go Not  (e1 :* End)       = error_TODO "Not"
+    go Impl (e1 :* e2 :* End) = error_TODO "Impl"
+    go Diff (e1 :* e2 :* End) = error_TODO "Diff"
+    go Nand (e1 :* e2 :* End) = error_TODO "Nand"
+    go Nor  (e1 :* e2 :* End) = error_TODO "Nor"
+
+    go Pi End = mzero
+
+    go Sin (e1 :* End) = do
+        x0 <- var <$> emitLet (fromWhnf v0)
+        n  <- (P.fromInt . var) <$> emitMBind P.counting
+        let tau_n = P.real_ 2 P.* n P.* P.pi -- TODO: emitLet?
+        emitObserve (P.negate P.one P.< x0 P.&& x0 P.< P.one)
+        v  <- emitSuperpose_Whnf
+            [ P.dirac (tau_n P.+ P.asin x0)
+            , P.dirac (tau_n P.+ P.pi P.- P.asin x0)
+            ]
+        emitWeight
+            . P.recip
+            . P.sqrt
+            . P.unsafeProb
+            $ (P.one P.- x0 P.^ P.nat_ 2)
+        constrainValue v e1
+
+    go Cos (e1 :* End) = do
+        x0 <- var <$> emitLet (fromWhnf v0)
+        n  <- (P.fromInt . var) <$> emitMBind P.counting
+        emitObserve (P.negate P.one P.< x0 P.&& x0 P.< P.one)
+        r  <- var <$> emitLet (P.real_ 2 P.* n P.* P.pi P.+ P.acos x0)
+        v  <- emitSuperpose_Whnf [P.dirac r, P.dirac (r P.+ P.pi)]
+        emitWeight
+            . P.recip
+            . P.sqrt
+            . P.unsafeProb
+            $ (P.one P.- x0 P.^ P.nat_ 2)
+        constrainValue v e1
+
+    go Tan (e1 :* End) = do
+        x0 <- var <$> emitLet (fromWhnf v0)
+        n  <- var <$> emitMBind P.counting
+        r  <- emitLet_Whnf (P.fromInt n P.* P.pi P.+ P.atan x0)
+        emitWeight $ P.recip (P.one P.+ P.square x0)
         constrainValue r e1
-        -}
-    go Cos       (e1 :* End)       = undefined
-        {- -- something like:
-        n <- (Value . fromInt) <$> emitMBind_Whnf counting
-        u <- atomize v0
-        emitObserve ((-1) < u && u < 1)
-        -- TODO: shouldn't we use @u@ rather than @v0@?
-        r1 <- atomize (2*n*pi + acos v0)
-        -- TODO: shouldn't we use @u@ rather than @v0@?
-        j <- (sqrt_ . unsafeProb) <$> atomize (1 - v0^2)
-        r <- emitSuperpose [dirac r1, dirac (r1 + pi)]
-        emitWeight (recip j)
-        constrainValue r e1
-        -}
-    go Tan       (e1 :* End)       = undefined
-        {- -- something like:
-        n <- (Value . fromInt) <$> emitMBind_Whnf counting
-        v <- atomize (n*pi + atan v0)
-        r <- emitMBind_Whnf (dirac v) -- TODO: Why do this?
-        j <- (recip . unsafeProb) <$> atomize (1 + v0^2)
-        emitWeight j
-        constrainValue r e1
-        -}
-    go Asin      (e1 :* End)       = undefined
-        {- -- something like:
-        j <- atomize (cos v0)
-        emitWeight (unsafeProb j)
-        -- TODO bounds check for -pi/2 <= v0 < pi/2
-        constrainValue (sin v0) e1
-        -}
-    go Acos      (e1 :* End)       = undefined
-        {- -- something like:
-        j <- atomize (sin v0)
-        emitWeight (unsafeProb j)
-        constrainValue (cos v0) e1
-        -}
-    go Atan      (e1 :* End)       = undefined
-        {- -- something like:
-        j <- unsafeProb <$> atomize (cos v0 ^ 2)
-        emitWeight (recip j)
-        constrainValue (tan v0) e1
-        -}
-    go Sinh      (e1 :* End)       = undefined
-    go Cosh      (e1 :* End)       = undefined
-    go Tanh      (e1 :* End)       = undefined
-    go Asinh     (e1 :* End)       = undefined
-    go Acosh     (e1 :* End)       = undefined
-    go Atanh     (e1 :* End)       = undefined
-    go RealPow   (e1 :* e2 :* End) = undefined
+
+    go Asin (e1 :* End) = do
+        x0 <- var <$> emitLet (fromWhnf v0)
+        -- TODO: may want to evaluate @cos v0@ before emitting the weight
+        emitWeight $ P.unsafeProb (P.cos x0)
+        -- TODO: bounds check for -pi/2 <= v0 < pi/2
+        constrainValue (Neutral $ P.sin x0) e1
+
+    go Acos (e1 :* End) = do
+        x0 <- var <$> emitLet (fromWhnf v0)
+        -- TODO: may want to evaluate @sin v0@ before emitting the weight
+        emitWeight $ P.unsafeProb (P.sin x0)
+        constrainValue (Neutral $ P.cos x0) e1
+
+    go Atan (e1 :* End) = do
+        x0 <- var <$> emitLet (fromWhnf v0)
+        -- TODO: may want to evaluate @cos v0 ^ 2@ before emitting the weight
+        emitWeight $ P.recip (P.unsafeProb (P.cos x0 P.^ P.nat_ 2))
+        constrainValue (Neutral $ P.tan x0) e1
+
+    go Sinh      (e1 :* End)       = error_TODO "Sinh"
+    go Cosh      (e1 :* End)       = error_TODO "Cosh"
+    go Tanh      (e1 :* End)       = error_TODO "Tanh"
+    go Asinh     (e1 :* End)       = error_TODO "Asinh"
+    go Acosh     (e1 :* End)       = error_TODO "Acosh"
+    go Atanh     (e1 :* End)       = error_TODO "Atanh"
+    go RealPow   (e1 :* e2 :* End) = error_TODO "RealPow"
         {- -- something like:
         -- TODO: There's a discrepancy between @(**)@ and @pow_@ in the old code...
         do
@@ -786,30 +835,27 @@ constrainPrimOp v0 = go
             emitWeight $ unsafeProb w
             constrainValue ex e1
         -}
-    go Exp       (e1 :* End)       = undefined
-        {- -- something like:
-        -- TODO: There's a discrepancy between @exp@ and @exp_@ in the old code about whether we use @u@ or @v0@ in the recursive call...
-        u <- atomize v0
-        emitObserve $ P.zero P.< u -- TODO: this shouldn't be necessary, thanks to types.
-        emitWeight  $ P.recip (P.unsafeProb u)
-        constrainValue (log u) e1
-        -}
-    go Log       (e1 :* End)       = undefined
-        {- -- something like:
-        -- TODO: There's a discrepancy between @exp@ and @exp_@ in the old code about whether we use @u@ or @v0@ in the recursive call...
-        u <- atomize v0
-        emitWeight (P.exp u)
-        constrainValue (exp u) e1
-        -}
-    go Infinity         End        = undefined -- scalar0 infinity
-    go NegativeInfinity End        = undefined -- scalar0 negativeInfinity
-    go GammaFunc        (e1 :* End)       = undefined -- scalar1 gammaFunc
-    go BetaFunc         (e1 :* e2 :* End) = undefined -- scalar2 betaFunc
-    go (Equal  theOrd)  (e1 :* e2 :* End) = undefined
-    go (Less   theOrd)  (e1 :* e2 :* End) = undefined
-    go (NatPow theSemi) (e1 :* e2 :* End) = undefined
+    go Exp (e1 :* End) = do
+        x0 <- var <$> emitLet (fromWhnf v0)
+        -- TODO: do we still want/need the @emitObserve (0 < x0)@ which is now equivalent to @emitObserve (0 /= x0)@ thanks to the types?
+        emitWeight (P.recip x0)
+        constrainValue (Neutral $ P.log x0) e1
+
+    go Log (e1 :* End) = do
+        exp_x0 <- var <$> emitLet (P.exp $ fromWhnf v0)
+        emitWeight exp_x0
+        constrainValue (Neutral exp_x0) e1
+
+    go Infinity         End               = error_TODO "Infinity" -- scalar0
+    go NegativeInfinity End               = error_TODO "NegativeInfinity" -- scalar0
+    go GammaFunc        (e1 :* End)       = error_TODO "GammaFunc" -- scalar1
+    go BetaFunc         (e1 :* e2 :* End) = error_TODO "BetaFunc" -- scalar2
+    go (Equal  theOrd)  (e1 :* e2 :* End) = error_TODO "Equal"
+    go (Less   theOrd)  (e1 :* e2 :* End) = error_TODO "Less"
+    go (NatPow theSemi) (e1 :* e2 :* End) = error_TODO "NatPow"
     go (Negate theRing) (e1 :* End) =
         -- TODO: figure out how to merge this implementation of @rr1 negate@ with the one in 'evaluatePrimOp' to DRY
+        -- TODO: just emitLet the @v0@ and pass the neutral term to the recursive call?
         let negate_v0 =
                 case v0 of
                 Neutral e ->
@@ -819,45 +865,69 @@ constrainPrimOp v0 = go
                     HRing_Int  -> Head_ . reflect . negate $ reify v
                     HRing_Real -> Head_ . reflect . negate $ reify v
         in constrainValue negate_v0 e1
-    go (Abs    theRing) (e1 :* End) = undefined
-        {- -- something like:
-        u <- atomize v0
-        v <- emitMBind_Whnf $
-            P.if_ (P.zero P.< u)
+        {-
+        -- We could use this instead, if we don't care about the verbosity of so many let-bindings (or if we were willing to lie about the first argument to 'constrainValue' being \"neutral\"
+        let neg = P.primOp1_ $ Negate theRing
+        x0 <- var <$> emitLet (fromWhnf v0)
+        constrainValue (Neutral $ neg x0) e1
+        -}
+
+    go (Abs theRing) (e1 :* End) = do
+        let theSemi = hSemiring_HRing theRing
+            theOrd  =
+                case theRing of
+                HRing_Int  -> HOrd_Int
+                HRing_Real -> HOrd_Real
+            theEq   = hEq_HOrd theOrd
+            signed  = C.singletonCoercion (C.Signed theRing)
+            zero    = P.zero_ theSemi
+            lt      = P.primOp2_ $ Less   theOrd
+            eq      = P.primOp2_ $ Equal  theEq
+            neg     = P.primOp1_ $ Negate theRing
+
+        x0 <- var <$> emitLet (P.coerceTo_ signed $ fromWhnf v0)
+        v  <- emitMBind_Whnf $
+            P.if_ (lt zero x0)
                 (P.superpose
-                    [ (P.one, P.dirac u)
-                    , (P.one, P.dirac (P.negate u))
+                    [ (P.one, P.dirac x0)
+                    , (P.one, P.dirac (neg x0))
                     ])
-                (P.if_ (P.zero P.== u)
-                    (P.dirac P.zero)
+                (P.if_ (eq zero x0)
+                    (P.dirac zero)
                     P.reject)
         constrainValue v e1
-        -}
-    go (Signum theRing) (e1 :* End) = undefined
-        {- -- something like:
+
+    go (Signum theRing) (e1 :* End) =
         case theRing of
-        HRing_Int -> do
-            n <- emitMBind_Whnf counting
-            u <- atomize v0
-            emitObserve $ P.signum n P.== u
-            constrainValue e1 n
         HRing_Real -> mzero
-        -}
-    go (Recip  theFractional) (e1 :* End) = undefined
-        {- -- something like:
-        u <- atomize (v0 ^ 2)
-        emitWeight (recip $ unsafeProbFraction u) -- where @unsafeProbFraction :: HFractional_ a => a -> Prob@
-        constrainValue (recip v0) e1
-        -}
-    go (NatRoot theRadical) (e1 :* e2 :* End) = undefined
-        {- -- something like:
-        u <- atomize (e2 * v0)
-        emitWeight u
-        constrainValue (v0 ^ e2) e1
-        -}
+        HRing_Int  -> do
+            x <- var <$> emitMBind P.counting
+            emitObserve $ P.signum x P.== fromWhnf v0
+            constrainValue (Neutral x) e1
+
+    go (Recip theFractional) (e1 :* End) = do
+        -- TODO: may want to inline @x0@ and try evaluating @e0 ^ 2@ and @recip e0@...
+        x0 <- var <$> emitLet (fromWhnf v0)
+        emitWeight
+            . P.recip
+            . P.unsafeProbFraction_ theFractional
+            -- TODO: define a dictionary-passing variant of 'P.square' instead, to include the coercion in there explicitly...
+            $ square (hSemiring_HFractional theFractional) x0
+        constrainValue (Neutral $ P.primOp1_ (Recip theFractional) x0) e1
+
+    go (NatRoot theRadical) (e1 :* e2 :* End) =
+        case theRadical of
+        HRadical_Prob -> do
+            -- TODO: may want to inline @x0@ and try evaluating @u2 * e0@ and @e0 ^ u2@...
+            x0 <- var <$> emitLet (fromWhnf v0)
+            u2 <- fromWhnf <$> atomize e2
+            emitWeight (P.nat2prob u2 P.* x0)
+            constrainValue (Neutral $ x0 P.^ u2) e1
+
     go (Erf theContinuous) (e1 :* End) =
         error "TODO: constrainPrimOp: need InvErf to disintegrate Erf"
-    go _ _ = error "TODO: finish constrainPrimOp"
+
+    go _ _ = error "constrainPrimOp: the impossible happened"
 
 {-
     Negate e1 -> constrainValue e1 (negate v0)
@@ -873,6 +943,10 @@ constrainPrimOp v0 = go
 -- <https://github.com/hakaru-dev/hakaru/blob/v0.2.0/Language/Hakaru/Lazy.hs>
 -}
 
+-- HACK: can't use @(P.^)@ because Haskell can't figure out our polymorphism
+square :: (ABT Term abt) => HSemiring a -> abt '[] a -> abt '[] a
+square theSemiring e =
+    syn (PrimOp_ (NatPow theSemiring) :$ e :* P.nat_ 2 :* End)
                     
 ----------------------------------------------------------------
 ----------------------------------------------------------------
