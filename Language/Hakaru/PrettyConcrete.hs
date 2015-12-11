@@ -414,20 +414,19 @@ instance (ABT Term abt) => Pretty (Branch a abt) where
 ----------------------------------------------------------------
 prettyApps :: (ABT Term abt) => abt '[] (a ':-> b) -> abt '[] a -> Docs
 prettyApps = \ e1 e2 ->
-    let (e1', vars) = collectApps e1 e2 in
-    [e1' <> ppTuple vars]
+    let (e', vars) = collectApps e1 e2 in
+    [e' <> ppTuple vars]
     where
-    defApp e1 e2 = (e1, [e2])
     collectApps
         :: (ABT Term abt)
         => abt '[] (a ':-> b) -> abt '[] a -> (Doc, [Doc])
     collectApps e1 e2 = 
-        caseVarSyn e1 (\x -> defApp (ppVariable x) (pretty e2)) $ \t ->
+        caseVarSyn e1 (\x -> (ppVariable x, [pretty e2])) $ \t ->
             case t of
-            App_ :$ e1 :* e2 :* End ->
-                let ~(e', vars) = collectApps e1 e2
+            App_ :$ e11 :* e12 :* End ->
+                let ~(e', vars) = collectApps e11 e12
                 in  (e', pretty e2 : vars)
-            _ -> defApp (pretty e1) (pretty e2)
+            _ -> (pretty e1, [pretty e2])
 
 
 prettyLams :: (ABT Term abt) => abt '[a] b -> (Doc, [Doc])
