@@ -109,16 +109,11 @@ disintegrate m = do
     let x = Variable Text.empty (nextFree m)
             (fst . sUnPair . sUnMeasure $ typeOf m)
     m' <- flip runM [Some2 m, Some2 (var x)] $ do
-        -- We use @(evaluate_ . nth_Whnf)@ instead of 'return'
-        -- because 'constrainValue' and 'runM' demand 'Whnf'.
-        --
-        -- TODO: improve sharing by: if @ab@ is neutral, then
-        -- generate a let-binding and return the variables;
-        -- else, project out the parts.
-        ab <- perform m
-        a  <- evaluate_ (fst_Whnf ab)
-        constrainValue a (var x)
-        evaluate_ (snd_Whnf ab)
+        ab    <- perform m
+        (a,b) <- emitUnpair ab
+        a'    <- evaluate_ a -- TODO: 'atomize' instead?
+        constrainValue a' (var x)
+        evaluate_ b
     return $ syn (Lam_ :$ bind x m' :* End)
 
 
@@ -192,7 +187,7 @@ conditionalize (Condition pat a) m =
         -- TODO: we might could partially evaluate this case expression away. But really, that's the job of 'emitCase' itself, and it should give us the bindings as either neutral variables (when the case is stuck) or else as the actual terms (perhaps evaluating them along the way, if desired). In order to do that in a nice clean way, we'll have to go back to trying to implement my previous @GGBranch@ approach.
         emitCase (fromWhnf ab)
             [ GBranch pat (Cons1 x Nil1) $ do
-                constrainValue (Neutral (var x)) a
+                constrainValue (Neutral $ var x) a
                 return ab
             , GBranch PWild Nil1 $ reject
             ]
@@ -243,6 +238,7 @@ type Lazy s abt a = L s (C abt) a
 ----------------------------------------------------------------
 -- TODO: move these helper functions into Lazy/Types.hs or wherever else we move the definition of the 'M' monad.
 
+{-
 fst_Whnf :: (ABT Term abt) => Whnf abt (HPair a b) -> abt '[] a
 fst_Whnf (Neutral e) = P.fst e
 fst_Whnf (Head_   v) = fst (reifyPair v)
@@ -251,13 +247,10 @@ snd_Whnf :: (ABT Term abt) => Whnf abt (HPair a b) -> abt '[] b
 snd_Whnf (Neutral e) = P.snd e
 snd_Whnf (Head_   v) = snd (reifyPair v)
 
--- TODO: rephrase as unpair_Whnf? Could reintroduce structure sharing by generating a binding whenever it's Neutral and returning the pair of variables. (Can guarantee sharing even if the results are used multiple times, by generating two let bindings for the case where it's actually a Head_. Might want a second pass to remove extraneous let-bindings though...)
-
 ifte_Whnf :: (ABT Term abt) => Whnf abt HBool -> abt '[] a -> abt '[] a -> abt '[] a
 ifte_Whnf (Neutral e) t f = P.if_ e t f
 ifte_Whnf (Head_   v) t f = if reify v then t else f
-
--- TODO: uneither_Whnf
+-}
 
 
 {- -- Is called 'empty' or 'mzero'
@@ -288,6 +281,7 @@ emit hint typ f = do
     x <- freshVar hint typ
     M $ \c h -> (f . bind x) <$> c x h
 
+
 -- This function was called @lift@ in the finally-tagless code.
 -- | Emit an 'MBind' (i.e., \"@m >>= \x ->@\") and return the
 -- variable thus bound (i.e., @x@).
@@ -296,17 +290,40 @@ emitMBind m =
     emit Text.empty (sUnMeasure $ typeOf m)
         (\e -> syn (MBind :$ m :* e :* End))
 
--- | A variant of 'emitMBind' that returns the variable as a 'Whnf'.
-emitMBind_Whnf :: (ABT Term abt) => MeasureEvaluator abt (M abt)
-emitMBind_Whnf e = (Neutral . var) <$> emitMBind e
 
+-- | A smart constructor for emitting let-bindings. If the input
+-- is already a variable then we just return it; otherwise we emit
+-- the let-binding.
 emitLet :: (ABT Term abt) => abt '[] a -> M abt (Variable a)
 emitLet e =
-    emit Text.empty (typeOf e)
-        (\m -> syn (Let_ :$ e :* m :* End))
+    caseVarSyn e return $ \_ ->
+        emit Text.empty (typeOf e)
+            (\m -> syn (Let_ :$ e :* m :* End))
 
-emitLet_Whnf :: (ABT Term abt) => TermEvaluator abt (M abt)
-emitLet_Whnf e = (Neutral . var) <$> emitLet e
+
+-- | A smart constructor for emitting \"unpair\". If the input
+-- argument is actually a constructor then we project out the two
+-- components; otherwise we emit the case-binding and return the
+-- two variables.
+emitUnpair
+    :: (ABT Term abt)
+    => Whnf abt (HPair a b)
+    -> M abt (abt '[] a, abt '[] b)
+emitUnpair (Head_   e) = return $ reifyPair e
+emitUnpair (Neutral e) = do
+    let (a,b) = sUnPair (typeOf e)
+    x <- freshVar Text.empty a
+    y <- freshVar Text.empty b
+    M $ \c h ->
+        ( syn
+        . Case_ e
+        . (:[])
+        . Branch (pPair PVar PVar)
+        . bind x
+        . bind y
+        ) <$> c (var x, var y) h
+
+-- TODO: emitUneither
 
 
 -- This function was called @insert_@ in the old finally-tagless code.
@@ -318,6 +335,7 @@ emit_
     => (forall r. abt '[] ('HMeasure r) -> abt '[] ('HMeasure r))
     -> M abt ()
 emit_ f = M $ \c h -> f <$> c () h
+
 
 -- | Emit an 'MBind' that discards its result (i.e., \"@m >>@\").
 -- We restrict the type of the argument to be 'HUnit' so as to avoid
@@ -358,6 +376,7 @@ emitFork_
     -> M abt a
 emitFork_ f ms = M $ \c h -> f <$> T.traverse (\m -> unM m c h) ms
 
+
 -- | Emit a 'Superpose_' of the alternatives, each with unit weight.
 emitSuperpose
     :: (ABT Term abt)
@@ -368,19 +387,11 @@ emitSuperpose es =
 
 
 -- | Emit a 'Superpose_' of the alternatives, each with unit weight.
-emitSuperpose_Whnf
-    :: (ABT Term abt)
-    => [abt '[] ('HMeasure a)]
-    -> M abt (Whnf abt a)
-emitSuperpose_Whnf es =
-    emitMBind_Whnf (P.superpose [(P.prob_ 1, e) | e <- es])
-
-
--- | Emit a 'Superpose_' of the alternatives, each with unit weight.
 choose :: (ABT Term abt) => [M abt a] -> M abt a
 choose [m] = m
 choose ms  =
     emitFork_ (\es -> P.superpose [(P.prob_ 1, e) | e <- es]) ms
+
 
 -- TODO: move this to Datum.hs; also, use it elsewhere as needed to clean up code.
 -- | A generalization of the 'Branch' type to allow a \"body\" of
@@ -528,13 +539,15 @@ foo' e bs = do
     myBody <- emitCase e =<< T.traverse (applyBranch return) bs
     evaluate_ myBody
 
+
 ----------------------------------------------------------------
 -- BUG: forward disintegration is not identical to partial evaluation,
 -- as noted at the top of the file. We need to ensure that no
 -- heap-bound variables remain in the result; namely, we need to
--- ensure that in the two places where we call 'emitMBind_Whnf'
+-- ensure that in the two places where we call 'emitMBind'
 evaluate_ :: (ABT Term abt) => TermEvaluator abt (M abt)
 evaluate_ = evaluate perform
+
 
 -- | Simulate performing 'HMeasure' actions by simply emiting code
 -- for those actions, returning the bound variable.
@@ -543,11 +556,11 @@ perform e0 =
     caseVarSyn e0 performVar $ \t ->
         case t of
         Dirac :$ e1 :* End       -> evaluate_ e1
-        MeasureOp_ _ :$ _        -> emitMBind_Whnf e0
+        MeasureOp_ _ :$ _        -> (Neutral . var) <$> emitMBind e0
         {- -- TODO: something more like this:
         MeasureOp_ o :$ es -> do
             es' <- traverse21 evaluate_ es
-            emitMBind_Whnf (MeasureOp_ o :$ es')
+            (Neutral . var) <$> emitMBind (MeasureOp_ o :$ es')
         -- where that call to 'evaluate_' only does whatever work is needed to ensure that no heap-bound variables occur in @es'@; doesn't need to generate a 'Whnf' or anything
         -}
         MBind :$ e1 :* e2 :* End ->
@@ -572,10 +585,11 @@ perform e0 =
 performVar :: (ABT Term abt) => Variable ('HMeasure a) -> M abt (Whnf abt a)
 performVar = performWhnf <=< update perform evaluate_
 
+
 performWhnf
     :: (ABT Term abt) => Whnf abt ('HMeasure a) -> M abt (Whnf abt a)
 performWhnf (Head_   v) = perform $ fromHead v
-performWhnf (Neutral e) = emitMBind_Whnf e
+performWhnf (Neutral e) = (Neutral . var) <$> emitMBind e
 
 
 -- | This name is taken from the old finally tagless code. This
@@ -626,7 +640,7 @@ constrainValue v0 e0 =
         Let_ :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
                 error "TODO: constrainValue{Let_}"
-        
+
         Ann_      typ :$ e1 :* End -> constrainValue  v0 e1
         CoerceTo_   c :$ e1 :* End -> constrainValue  (C.coerceFrom c v0) e1 -- TODO: we should \"atomize\" v0 first
         -- BUG: for the safe coercions we need to 'emitObserve' as well!
@@ -683,6 +697,7 @@ constrainVariable v0 x = error "TODO: constrainVariable"
         SWeight _ -> Nothing
     -}
 
+
 ----------------------------------------------------------------
 constrainMeasureOp
     :: forall abt typs args a
@@ -708,7 +723,8 @@ constrainMeasureOp v0 = go
     go (Chain s a) (e1 :* e2 :* End) = error "TODO: constrainMeasureOp{Chain}" -- We might could use P.chain' except that has a SingI constraint
     go _ _ = error "constrainMeasureOp: the impossible happened"
 
-            
+
+----------------------------------------------------------------
 constrainNaryOp
     :: (ABT Term abt)
     => Whnf abt a
@@ -717,11 +733,28 @@ constrainNaryOp
     -> M abt ()
 constrainNaryOp v0 o es = error "TODO: constrainNaryOp"
 
+{-
+    Plus e1 e2 -> M $ \c h ->
+        unM (evaluate e1) (\v1 -> unM (constrainValue e2 (v0 - v1)) c) h
+        `P.lub`
+        unM (evaluate e2) (\v2 -> unM (constrainValue e1 (v0 - v2)) c) h
+    Times e1 e2 -> M $ \c h ->
+        unM (evaluate e1) (\v1 -> abs v1 (\v1' h' -> P.weight (P.recip v1') P.>> unM (constrainValue e2 (v0 / v1)) c h')) h
+        `P.lub`
+        unM (evaluate e2) (\v2 -> abs v2 (\v2' h' -> P.weight (P.recip v2') P.>> unM (constrainValue e1 (v0 / v2)) c h')) h
+-- <https://github.com/hakaru-dev/hakaru/blob/v0.2.0/Language/Hakaru/Lazy.hs>
+-}
+
 
 ----------------------------------------------------------------
--- N.B., We assume that the first argument, @v0@, is already atomized. So, this must be ensured before recursing, but we can assume it's already been done by the IH.
+-- N.B., We assume that the first argument, @v0@, is already atomized.
+-- So, this must be ensured before recursing, but we can assume
+-- it's already been done by the IH.
 --
--- HACK: for a lot of these, we can't use the prelude functions because Haskell can't figure out our polymorphism, so we have to define our own versions for manually passing dictionaries around.
+-- HACK: for a lot of these, we can't use the prelude functions
+-- because Haskell can't figure out our polymorphism, so we have
+-- to define our own versions for manually passing dictionaries
+-- around.
 constrainPrimOp
     :: forall abt typs args a
     .  (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
@@ -732,7 +765,7 @@ constrainPrimOp
 constrainPrimOp v0 = go
     where
     error_TODO op = error $ "TODO: constrainPrimOp{" ++ op ++"}"
-    
+
     -- HACK: we need the -XScopedTypeVariables in order to remove \"ambiguity\" about the choice of 'ABT' instance
     go :: PrimOp typs a -> SArgs abt args -> M abt ()
     go Not  (e1 :* End)       = error_TODO "Not"
@@ -741,14 +774,14 @@ constrainPrimOp v0 = go
     go Nand (e1 :* e2 :* End) = error_TODO "Nand"
     go Nor  (e1 :* e2 :* End) = error_TODO "Nor"
 
-    go Pi End = mzero
+    go Pi End = mzero -- because @dirac pi@ has no density wrt lebesgue
 
     go Sin (e1 :* End) = do
         x0 <- var <$> emitLet (fromWhnf v0)
-        n  <- (P.fromInt . var) <$> emitMBind P.counting
-        let tau_n = P.real_ 2 P.* n P.* P.pi -- TODO: emitLet?
+        n  <- var <$> emitMBind P.counting
+        let tau_n = P.real_ 2 P.* P.fromInt n P.* P.pi -- TODO: emitLet?
         emitObserve (P.negate P.one P.< x0 P.&& x0 P.< P.one)
-        v  <- emitSuperpose_Whnf
+        v  <- var <$> emitSuperpose
             [ P.dirac (tau_n P.+ P.asin x0)
             , P.dirac (tau_n P.+ P.pi P.- P.asin x0)
             ]
@@ -757,27 +790,28 @@ constrainPrimOp v0 = go
             . P.sqrt
             . P.unsafeProb
             $ (P.one P.- x0 P.^ P.nat_ 2)
-        constrainValue v e1
+        constrainValue (Neutral v) e1
 
     go Cos (e1 :* End) = do
         x0 <- var <$> emitLet (fromWhnf v0)
-        n  <- (P.fromInt . var) <$> emitMBind P.counting
+        n  <- var <$> emitMBind P.counting
+        let tau_n = P.real_ 2 P.* P.fromInt n P.* P.pi
         emitObserve (P.negate P.one P.< x0 P.&& x0 P.< P.one)
-        r  <- var <$> emitLet (P.real_ 2 P.* n P.* P.pi P.+ P.acos x0)
-        v  <- emitSuperpose_Whnf [P.dirac r, P.dirac (r P.+ P.pi)]
+        r  <- var <$> emitLet (tau_n P.+ P.acos x0)
+        v  <- var <$> emitSuperpose [P.dirac r, P.dirac (r P.+ P.pi)]
         emitWeight
             . P.recip
             . P.sqrt
             . P.unsafeProb
             $ (P.one P.- x0 P.^ P.nat_ 2)
-        constrainValue v e1
+        constrainValue (Neutral v) e1
 
     go Tan (e1 :* End) = do
         x0 <- var <$> emitLet (fromWhnf v0)
         n  <- var <$> emitMBind P.counting
-        r  <- emitLet_Whnf (P.fromInt n P.* P.pi P.+ P.atan x0)
+        r  <- var <$> emitLet (P.fromInt n P.* P.pi P.+ P.atan x0)
         emitWeight $ P.recip (P.one P.+ P.square x0)
-        constrainValue r e1
+        constrainValue (Neutral r) e1
 
     go Asin (e1 :* End) = do
         x0 <- var <$> emitLet (fromWhnf v0)
@@ -886,16 +920,16 @@ constrainPrimOp v0 = go
             neg     = P.primOp1_ $ Negate theRing
 
         x0 <- var <$> emitLet (P.coerceTo_ signed $ fromWhnf v0)
-        v  <- emitMBind_Whnf $
-            P.if_ (lt zero x0)
+        v  <- var <$> emitMBind
+            (P.if_ (lt zero x0)
                 (P.superpose
                     [ (P.one, P.dirac x0)
                     , (P.one, P.dirac (neg x0))
                     ])
                 (P.if_ (eq zero x0)
                     (P.dirac zero)
-                    P.reject)
-        constrainValue v e1
+                    P.reject))
+        constrainValue (Neutral v) e1
 
     go (Signum theRing) (e1 :* End) =
         case theRing of
@@ -929,25 +963,13 @@ constrainPrimOp v0 = go
 
     go _ _ = error "constrainPrimOp: the impossible happened"
 
-{-
-    Negate e1 -> constrainValue e1 (negate v0)
-    Recip e1 -> M $ \c h -> P.weight (P.recip (v0 P.^ P.nat_ 2)) P.>> unM (constrainValue e1 (recip v0)) c h
-    Plus e1 e2 -> M $ \c h ->
-        unM (evaluate e1) (\v1 -> unM (constrainValue e2 (v0 - v1)) c) h
-        `P.lub`
-        unM (evaluate e2) (\v2 -> unM (constrainValue e1 (v0 - v2)) c) h
-    Times e1 e2 -> M $ \c h ->
-        unM (evaluate e1) (\v1 -> abs v1 (\v1' h' -> P.weight (P.recip v1') P.>> unM (constrainValue e2 (v0 / v1)) c h')) h
-        `P.lub`
-        unM (evaluate e2) (\v2 -> abs v2 (\v2' h' -> P.weight (P.recip v2') P.>> unM (constrainValue e1 (v0 / v2)) c h')) h
--- <https://github.com/hakaru-dev/hakaru/blob/v0.2.0/Language/Hakaru/Lazy.hs>
--}
 
 -- HACK: can't use @(P.^)@ because Haskell can't figure out our polymorphism
 square :: (ABT Term abt) => HSemiring a -> abt '[] a -> abt '[] a
 square theSemiring e =
     syn (PrimOp_ (NatPow theSemiring) :$ e :* P.nat_ 2 :* End)
-                    
+
+
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 -- TODO: do we really need to allow all Whnf, or do we just need
@@ -983,7 +1005,7 @@ constrainOutcome v0 e0 = do
                     -- NaryOp_ o es
                     -- PrimOp o :$ es -- other than the two below
                     -- Expect :$ e1 :* e2 :* End ->
-                    
+
                     Dirac :$ e1 :* End -> constrainValue v0 e1
 
                     MBind :$ e1 :* e2 :* End ->
@@ -997,12 +1019,12 @@ constrainOutcome v0 e0 = do
                             constrainOutcome v0 e
 
                     MeasureOp_ o :$ es -> constrainMeasureOp v0 o es
-                    
-                    
+
+
                     PrimOp_ (Index _) :$ e1 :* e2 :* End ->
                     PrimOp_ (Reduce _) :$ e1 :* e2 :* e3 :* End ->
 
-                    
+
                     App_ :$ e1 :* e2 :* End ->
                     Let_ :$ e1 :* e2 :* End ->
                     Ann_ typ :$ e1 :* End -> constrainOutcome v0 e1
@@ -1053,7 +1075,7 @@ constrainMeasureOp v0 = go
     go (DirichletProcess _) (e1 :* e2 :* End) ->
     go (Plate _) (e1 :* End) ->
     go (Chain _ _) (e1 :* e2 :* End) ->
-    
+
 
 
 unleft :: Whnf abt (HEither a b) -> M abt (abt '[] a)
