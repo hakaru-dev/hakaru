@@ -416,8 +416,8 @@ type DList a = [a] -> [a]
 
 prettyApps :: (ABT Term abt) => abt '[] (a ':-> b) -> abt '[] a -> Docs
 prettyApps = \ e1 e2 ->
-    let (e', vars) = collectApps e1 (pretty e2 :) in
-    [e' <> ppTuple (vars [])]
+    let (d, vars) = collectApps e1 (pretty e2 :) in
+    [d <> ppTuple (vars [])]
     where
     collectApps
         :: (ABT Term abt)
@@ -429,14 +429,22 @@ prettyApps = \ e1 e2 ->
             _                       -> (pretty e, es)
 
 
-prettyLams :: (ABT Term abt) => abt '[a] b -> (Doc, [Doc])
-prettyLams e =
-    case viewABT e of
-    Bind x (Syn t) ->
-        case t of
-        Lam_ :$ e1 :* End -> prettyLams e1
-        _ -> (pretty $ syn t, [ppVariable x])
-    _ -> error "TODO: collectLams"
+prettyLams :: (ABT Term abt) => abt '[a] b -> Doc
+prettyLams = \e ->
+    let (d, vars) = collectLams e id in
+    PP.char '\\' <+> PP.sep (vars []) <+> PP.text "->" <+> d
+    where
+    collectLams
+        :: (ABT Term abt)
+        => abt '[a] b -> DList Doc -> (Doc, DList Doc)
+    collectLams e xs = 
+        caseBind e $ \x e' ->
+            let xs' = xs . (ppVariable x :) in
+            caseVarSyn e' (\y -> (ppVariable y, xs')) $ \t ->
+                case t of
+                Lam_ :$ e1 :* End -> collectLams e1 xs'
+                _                 -> (pretty e', xs')
+
 
 -- | For the \"@lam $ \x ->\n@\"  style layout.
 adjustHead :: (Doc -> Doc) -> Docs -> Docs
