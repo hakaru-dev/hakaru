@@ -77,6 +77,7 @@ import Control.Category (Category(..))
 import Unsafe.Coerce    (unsafeCoerce)
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid      (Monoid(..))
+import Control.Applicative
 #endif
 
 ----------------------------------------------------------------

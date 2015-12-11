@@ -58,6 +58,7 @@ import qualified Data.Text     as Text
 import           Data.Text     (Text)
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid             (Monoid(..))
+import Control.Applicative
 #endif
 
 import Language.Hakaru.Syntax.IClasses

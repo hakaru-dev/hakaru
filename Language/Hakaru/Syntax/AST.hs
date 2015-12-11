@@ -59,7 +59,10 @@ import           Data.Sequence (Seq)
 import qualified Data.Foldable as F
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Monoid   (Monoid(..))
+import           Control.Applicative
+import           Data.Traversable
 #endif
+
 import           Control.Arrow ((***))
 import           Data.Ratio    (numerator, denominator)
 
