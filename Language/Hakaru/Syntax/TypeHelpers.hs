@@ -23,15 +23,10 @@ module Language.Hakaru.Syntax.TypeHelpers
     , sing_Literal
     ) where
 
-#if __GLASGOW_HASKELL__ < 710
-import Data.Functor ((<$>))
-#endif
-
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.AST
-import qualified Language.Hakaru.Parser.AST as U
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
