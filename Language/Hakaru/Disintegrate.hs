@@ -675,35 +675,26 @@ constrainValue v0 e0 =
 
 
 ----------------------------------------------------------------
+-- TODO: I believe this is correct, but we should double-check to see that the @(id =<<) . fmap (maybe bot return)@ part does what I mean it to.
 constrainVariable :: (ABT Term abt) => Whnf abt a -> Variable a -> M abt ()
-constrainVariable v0 x = error "TODO: constrainVariable"
-    {- -- something like:
-    M $ \c h ->
-        case lookup x h of
-        Found h1 binding h2 ->
-            case binding of
-            SLeft _x e1 ->
-                -- TODO: figure out how to reuse the implementation of @unleft@\/@unright@ from 'update'
-                unM (evaluate e1) (\v1 -> unleft v1 (\e2 -> unM (constrainValue e1 v0) (\h1' -> c (glue h1' (SLet x v0) h2)))) h1
-            SRight _x e1 ->
-                unM (evaluate e1) (\v1 -> unright v1 (\e2 -> unM (constrainValue e1 v0) (\h1' -> c (glue h1' (SLet x v0) h2)))) h1
-
-    -- Or something like:
+constrainVariable v0 x =
     -- If we get 'Nothing', then it turns out @x@ is a free variable. If @x@ is a free variable, then it's a neutral term; and we return 'bot' for neutral terms
-    fmap (maybe bot id) . select x $ \s ->
+    (id =<<) . fmap (maybe bot return) . select x $ \s ->
         case s of
         SBind y e -> do
             Refl <- varEq x y
             Just $ do
-                constrainOutcome v0 e
+                constrainOutcome v0 (fromLazy e)
                 unsafePush (SLet x $ Whnf_ v0)
         SLet y e -> do
             Refl <- varEq x y
             Just $ do
-                constrainValue v0 e
+                constrainValue v0 (fromLazy e)
                 unsafePush (SLet x $ Whnf_ v0)
         SWeight _ -> Nothing
-    -}
+        SIndex y e1 e2 -> do
+            Refl <- varEq x y
+            Just $ error "TODO: constrainVariable{SIndex}"
 
 
 ----------------------------------------------------------------
