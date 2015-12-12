@@ -742,6 +742,10 @@ constrainValueMeasureOp v0 = go
 -- | N.B., We assume that the first argument, @v0@, is already
 -- atomized. So, this must be ensured before recursing, but we can
 -- assume it's already been done by the IH.
+--
+-- N.B., we also rely on the fact that our 'HSemiring' instances
+-- are actually all /commutative/ semirings. If that ever becomes
+-- not the case, then we'll need to fix things here.
 constrainNaryOp
     :: (ABT Term abt)
     => Whnf abt a
