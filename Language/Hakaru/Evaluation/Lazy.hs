@@ -474,10 +474,10 @@ evaluateNaryOp evaluate_ = \o es -> mainLoop o (evalOp o) Seq.empty es
     evalOp (Prod _) = \v1 v2 -> reflect (reify v1 * reify v2)
     -}
     -- HACK: this is just to have something to test. We really should reduce\/remove all this boilerplate...
-    evalOp (Sum  s) =
-        \(WLiteral v1) (WLiteral v2) -> WLiteral $ evalSum  s v1 v2
-    evalOp (Prod s) =
-        \(WLiteral v1) (WLiteral v2) -> WLiteral $ evalProd s v1 v2
+    evalOp (Sum  theSemi) =
+        \(WLiteral v1) (WLiteral v2) -> WLiteral $ evalSum  theSemi v1 v2
+    evalOp (Prod theSemi) =
+        \(WLiteral v1) (WLiteral v2) -> WLiteral $ evalProd theSemi v1 v2
 
     -- TODO: even if only one of the arguments is a literal, if that literal is zero\/one, then we can still partially evaluate it. (As is done in the old finally-tagless code)
     evalSum, evalProd :: HSemiring a -> Literal a -> Literal a -> Literal a

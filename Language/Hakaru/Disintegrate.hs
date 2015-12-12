@@ -13,7 +13,7 @@
            , FlexibleContexts
            #-}
 
-{-# OPTIONS_GHC -Wall -fwarn-tabs -fno-warn-unused-binds -fno-warn-unused-imports #-}
+{-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
 --                                                    2015.12.11
 -- |
@@ -59,19 +59,19 @@ module Language.Hakaru.Disintegrate
 
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Functor         ((<$>))
-import           Control.Applicative  (Applicative(..), Alternative(..))
-#endif
-import           Data.Functor.Compose (Compose(..))
-import           Control.Monad        ((<=<), MonadPlus(..))
 import           Data.Foldable        (Foldable)
-import qualified Data.Foldable        as F
 import           Data.Traversable     (Traversable)
+import           Control.Applicative  (Applicative(..))
+#endif
+import           Control.Applicative  (Alternative(..))
+import           Data.Functor.Compose (Compose(..))
+import           Control.Monad        ((<=<))
 import qualified Data.Traversable     as T
 import qualified Data.Text            as Text
 import           Data.Sequence        (Seq)
+import qualified Data.Sequence        as S
 
 import Language.Hakaru.Syntax.IClasses
-import Language.Hakaru.Syntax.Nat (Nat)
 import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Sing
@@ -79,7 +79,6 @@ import Language.Hakaru.Syntax.TypeOf
 import qualified Language.Hakaru.Syntax.Coercion as C
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
-import Language.Hakaru.Syntax.DatumCase
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Evaluation.Types
 import Language.Hakaru.Evaluation.Lazy
@@ -614,6 +613,10 @@ atomizeCore e =
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 -- TODO: see the todo for 'constrainOutcome'
+--
+-- | N.B., We assume that the first argument, @v0@, is already
+-- atomized. So, this must be ensured before recursing, but we can
+-- assume it's already been done by the IH.
 constrainValue :: (ABT Term abt) => Whnf abt a -> abt '[] a -> M abt ()
 constrainValue v0 e0 =
     caseVarSyn e0 (constrainVariable v0) $ \t ->
@@ -643,16 +646,16 @@ constrainValue v0 e0 =
         -- These 'bot's are according to the old finally-tagless code...
         Dirac :$ _ :* End        -> bot
         MBind :$ _ :* _ :* End   -> bot
-        MeasureOp_ o :$ es       -> constrainMeasureOp v0 o es
+        MeasureOp_ o :$ es       -> constrainValueMeasureOp v0 o es
         Superpose_ pes           -> bot
         Let_ :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
-                error "TODO: constrainValue{Let_}"
+                push (SLet x $ Thunk e1) e2' (constrainValue v0)
 
         Ann_      typ :$ e1 :* End -> constrainValue  v0 e1
-        CoerceTo_   c :$ e1 :* End -> constrainValue  (C.coerceFrom c v0) e1 -- TODO: we should \"atomize\" v0 first
+        CoerceTo_   c :$ e1 :* End -> constrainValue  (C.coerceFrom c v0) e1
         -- BUG: for the safe coercions we need to 'emitObserve' as well!
-        UnsafeFrom_ c :$ e1 :* End -> constrainValue  (C.coerceTo   c v0) e1 -- TODO: we should \"atomize\" v0 first
+        UnsafeFrom_ c :$ e1 :* End -> constrainValue  (C.coerceTo   c v0) e1
         NaryOp_     o    es        -> constrainNaryOp v0 o es
         PrimOp_     o :$ es        -> constrainPrimOp v0 o es
         Expect  :$ e1 :* e2 :* End -> error "TODO: constrainValue{Expect}"
@@ -675,7 +678,9 @@ constrainValue v0 e0 =
 
 
 ----------------------------------------------------------------
--- TODO: I believe this is correct, but we should double-check to see that the @(maybe bot return =<<)@ part does what I mean it to.
+-- | N.B., We assume that the first argument, @v0@, is already
+-- atomized. So, this must be ensured before recursing, but we can
+-- assume it's already been done by the IH.
 constrainVariable :: (ABT Term abt) => Whnf abt a -> Variable a -> M abt ()
 constrainVariable v0 x =
     -- If we get 'Nothing', then it turns out @x@ is a free variable. If @x@ is a free variable, then it's a neutral term; and we return 'bot' for neutral terms
@@ -698,14 +703,17 @@ constrainVariable v0 x =
 
 
 ----------------------------------------------------------------
-constrainMeasureOp
+-- | N.B., We assume that the first argument, @v0@, is already
+-- atomized. So, this must be ensured before recursing, but we can
+-- assume it's already been done by the IH.
+constrainValueMeasureOp
     :: forall abt typs args a
     .  (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => Whnf abt ('HMeasure a)
     -> MeasureOp typs a
     -> SArgs abt args
     -> M abt ()
-constrainMeasureOp v0 = go
+constrainValueMeasureOp v0 = go
     where
     -- HACK: we need the -XScopedTypeVariables in order to remove \"ambiguity\" about the choice of 'ABT' instance
     go :: MeasureOp typs a -> SArgs abt args -> M abt ()
@@ -724,43 +732,101 @@ constrainMeasureOp v0 = go
     go Beta        = \(e1 :* e2 :* End) ->
         constrainValue v0 (P.beta'    e1 e2)
     go (DirichletProcess a) = \(e1 :* e2 :* End) ->
-        error "TODO: constrainMeasureOp{DirichletProcess}"
+        error "TODO: constrainValueMeasureOp{DirichletProcess}"
     go (Plate a)   = \(e1 :* End)       -> bot -- TODO: can we use P.plate'?
     go (Chain s a) = \(e1 :* e2 :* End) ->
-        error "TODO: constrainMeasureOp{Chain}" -- We might could use P.chain' except that has a SingI constraint
+        error "TODO: constrainValueMeasureOp{Chain}" -- We might could use P.chain' except that has a SingI constraint
 
 
 ----------------------------------------------------------------
+-- | N.B., We assume that the first argument, @v0@, is already
+-- atomized. So, this must be ensured before recursing, but we can
+-- assume it's already been done by the IH.
 constrainNaryOp
     :: (ABT Term abt)
     => Whnf abt a
     -> NaryOp a
     -> Seq (abt '[] a)
     -> M abt ()
-constrainNaryOp v0 o es = error "TODO: constrainNaryOp"
+constrainNaryOp v0 o =
+    case o of
+    Sum theSemi ->
+        lubSeq $ \es1 e es2 -> do
+            u <- atomize $ syn (NaryOp_ (Sum theSemi) (es1 S.>< es2))
+            v <- evaluate_ $ unsafeMinus_ theSemi (fromWhnf v0) (fromWhnf u)
+            constrainValue v e
+    Prod theSemi ->
+        lubSeq $ \es1 e es2 -> do
+            u <- atomize $ syn (NaryOp_ (Prod theSemi) (es1 S.>< es2))
+            let u' = fromWhnf u -- TODO: emitLet?
+            emitWeight $ P.recip (toProb_abs theSemi u')
+            v <- evaluate_ $ unsafeDiv_ theSemi (fromWhnf v0) u'
+            constrainValue v e
+    _ -> error "TODO: constrainNaryOp"
 
-{-
-    Plus e1 e2 -> M $ \c h ->
-        unM (evaluate e1) (\v1 -> unM (constrainValue e2 (v0 - v1)) c) h
-        `P.lub`
-        unM (evaluate e2) (\v2 -> unM (constrainValue e1 (v0 - v2)) c) h
-    Times e1 e2 -> M $ \c h ->
-        unM (evaluate e1) (\v1 -> abs v1 (\v1' h' -> P.weight (P.recip v1') P.>> unM (constrainValue e2 (v0 / v1)) c h')) h
-        `P.lub`
-        unM (evaluate e2) (\v2 -> abs v2 (\v2' h' -> P.weight (P.recip v2') P.>> unM (constrainValue e1 (v0 / v2)) c h')) h
--- <https://github.com/hakaru-dev/hakaru/blob/v0.2.0/Language/Hakaru/Lazy.hs>
--}
 
+-- TODO: move to Prelude? is this generally useful? Or should we factor out the @toProb@ and @semiringAbs@ parts of it?
+toProb_abs :: (ABT Term abt) => HSemiring a -> abt '[] a -> abt '[] 'HProb
+toProb_abs HSemiring_Nat  = P.nat2prob
+toProb_abs HSemiring_Int  = P.nat2prob . P.abs_
+toProb_abs HSemiring_Prob = id
+toProb_abs HSemiring_Real = P.abs_
+
+
+-- TODO: (a) simplify the logic here, (b) move this to Prelude
+unsafeMinus_
+    :: (ABT Term abt) => HSemiring a -> abt '[] a -> abt '[] a -> abt '[] a
+unsafeMinus_ HSemiring_Nat  e1 e2 =
+    let signed  = C.singletonCoercion (C.Signed HRing_Int)
+        e1' = P.coerceTo_ signed e1
+        e2' = P.coerceTo_ signed e2
+    in P.unsafeFrom_ signed (e1' P.- e2')
+unsafeMinus_ HSemiring_Int  e1 e2 = e1 P.- e2
+unsafeMinus_ HSemiring_Prob e1 e2 =
+    let signed  = C.singletonCoercion (C.Signed HRing_Real)
+        e1' = P.coerceTo_ signed e1
+        e2' = P.coerceTo_ signed e2
+    in P.unsafeFrom_ signed (e1' P.- e2')
+unsafeMinus_ HSemiring_Real e1 e2 = e1 P.- e2
+
+
+-- TODO: (a) simplify the logic here, (b) move this to Prelude
+-- BUG: beware, this is /really unsafe/! We can't rely on unsafe coercions to get things back to the original type when dealing with Nat\/Int. It'd be safer (though no doubt less correct) to use some analog of 'div'\/'quot' rather than @(/)@... but really, we should just handle the 'Prod' cases separately for integral\/non-fractional types.
+unsafeDiv_
+    :: (ABT Term abt) => HSemiring a -> abt '[] a -> abt '[] a -> abt '[] a
+unsafeDiv_ HSemiring_Nat  e1 e2 =
+    let continuous  = C.singletonCoercion (C.Continuous HContinuous_Prob)
+        e1' = P.coerceTo_ continuous e1
+        e2' = P.coerceTo_ continuous e2
+    in P.unsafeFrom_ continuous (e1' P./ e2')
+unsafeDiv_ HSemiring_Int  e1 e2 =
+    let continuous  = C.singletonCoercion (C.Continuous HContinuous_Real)
+        e1' = P.coerceTo_ continuous e1
+        e2' = P.coerceTo_ continuous e2
+    in P.unsafeFrom_ continuous (e1' P./ e2')
+unsafeDiv_ HSemiring_Prob e1 e2 = e1 P./ e2
+unsafeDiv_ HSemiring_Real e1 e2 = e1 P./ e2
+
+
+-- TODO: is there any way to optimise the zippering over the Seq, a la 'S.inits' or 'S.tails'?
+-- TODO: really we want a dynamic programming approach to avoid unnecessary repetition of calling @evaluateNaryOp evaluate_@ on the two subsequences...
+lubSeq :: (Alternative m) => (Seq a -> a -> Seq a -> m b) -> Seq a -> m b
+lubSeq f = go S.empty
+    where
+    go xs ys =
+        case S.viewl ys of
+        S.EmptyL   -> empty
+        y S.:< ys' -> f xs y ys' <|> go (xs S.|> y) ys'
 
 ----------------------------------------------------------------
--- N.B., We assume that the first argument, @v0@, is already atomized.
--- So, this must be ensured before recursing, but we can assume
--- it's already been done by the IH.
---
 -- HACK: for a lot of these, we can't use the prelude functions
 -- because Haskell can't figure out our polymorphism, so we have
 -- to define our own versions for manually passing dictionaries
 -- around.
+--
+-- | N.B., We assume that the first argument, @v0@, is already
+-- atomized. So, this must be ensured before recursing, but we can
+-- assume it's already been done by the IH.
 constrainPrimOp
     :: forall abt typs args a
     .  (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
@@ -980,6 +1046,10 @@ square theSemiring e =
 -- variables (or neutral terms)? Do we actually want (hnf)terms at
 -- all, or do we want (hnf)patterns or something to more generally
 -- capture (hnf)measurable events?
+--
+-- | N.B., We assume that the first argument, @v0@, is already
+-- atomized. So, this must be ensured before recursing, but we can
+-- assume it's already been done by the IH.
 constrainOutcome
     :: (ABT Term abt) => Whnf abt a -> abt '[] ('HMeasure a) -> M abt ()
 constrainOutcome = error "TODO: constrainOutcome"
@@ -1022,7 +1092,7 @@ constrainOutcome v0 e0 = do
                             unsafePush (SWeight p)
                             constrainOutcome v0 e
 
-                    MeasureOp_ o :$ es -> constrainMeasureOp v0 o es
+                    MeasureOp_ o :$ es -> constrainOutcomeMeasureOp v0 o es
 
 
                     PrimOp_ (Index _) :$ e1 :* e2 :* End ->
@@ -1035,15 +1105,14 @@ constrainOutcome v0 e0 = do
                     Case_ e bs ->
 
 
--- TODO: define helper methods of 'M' for emitting 'observe' and 'weight'
-
-constrainMeasureOp
+-- TODO: should this really be different from 'constrainValueMeasureOp'?
+constrainOutcomeMeasureOp
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => Whnf abt a
     -> MeasureOp typs a
     -> SCon args ('HMeasure a)
     -> M abt ()
-constrainMeasureOp v0 = go
+constrainOutcomeMeasureOp v0 = go
     where
     -- Per the paper
     go Lebesgue End -> M $ \c h -> c h

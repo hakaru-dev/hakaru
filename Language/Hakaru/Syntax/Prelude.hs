@@ -709,6 +709,25 @@ unsafeProbFraction_
 unsafeProbFraction_ HFractional_Prob = id
 unsafeProbFraction_ HFractional_Real = unsafeProb
 
+unsafeProbSemiring
+    :: forall abt a
+    .  (ABT Term abt, HSemiring_ a)
+    => abt '[] a
+    -> abt '[] 'HProb
+unsafeProbSemiring e =
+    unsafeProbSemiring_ (hSemiring :: HSemiring a) e
+
+unsafeProbSemiring_
+    :: (ABT Term abt)
+    => HSemiring a
+    -> abt '[] a
+    -> abt '[] 'HProb
+unsafeProbSemiring_ HSemiring_Nat  = nat2prob
+unsafeProbSemiring_ HSemiring_Int  = coerceTo_ continuous . unsafeFrom_ signed
+unsafeProbSemiring_ HSemiring_Prob = id
+unsafeProbSemiring_ HSemiring_Real = unsafeProb
+
+
 negativeInfinity :: (ABT Term abt) => abt '[] 'HReal
 negativeInfinity = primOp0_ NegativeInfinity
 
