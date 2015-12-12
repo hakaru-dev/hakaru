@@ -49,7 +49,11 @@ the following will work in a command prompt:
 
 Note the escaped backslashes.
 
-Example
--------
+Citing us
+---------
+When referring to Hakaru please cite:
 
-Coming soon.
+> Probabilistic inference by program transformation in Hakaru (system description).
+> Praveen Narayanan, Jacques Carette, Wren Romano, Chung-chieh Shan, and Robert Zinkov, 2015. To appear at FLOPS 2016 (13th international symposium on functional and logic programming).
+
+
