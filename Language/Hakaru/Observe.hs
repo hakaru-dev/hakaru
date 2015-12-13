@@ -36,10 +36,15 @@ observeMeasureOp :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
                  -> SArgs abt args
                  -> abt '[] a
                  -> abt '[] ('HMeasure HUnit)
-observeMeasureOp Normal (mu :* sd :* End) x =
+observeMeasureOp Normal  (mu :* sd :* End) x =
     P.weight
             (P.exp (P.negate (x P.- mu) P.^ P.nat_ 2
                 P./ P.fromProb (P.prob_ 2 P.* sd P.** (P.real_ 2)))
             P./ sd
             P./ P.sqrt (P.prob_ 2 P.* P.pi))
+observeMeasureOp Uniform (lo :* hi :* End) x =
+    P.if_ (lo P.<= x P.&& x P.<= hi)
+          (P.weight $ P.unsafeProb $ P.recip $ hi P.- lo)
+          P.reject
+
 observeMeasureOp _      _                 _ = error "Add other cases"
