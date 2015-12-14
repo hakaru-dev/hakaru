@@ -94,6 +94,8 @@ mapleType SNat         = "Nat"
 mapleType SInt         = "Int"
 mapleType SProb        = "Prob"
 mapleType SReal        = "Real"
+mapleType (SFun a b)   = "Arrow(" ++ mapleType a ++ "," ++ mapleType b ++ ")"
+mapleType (SArray a)   = "Array(" ++ mapleType a ++ ")"
 mapleType (SMeasure a) = "Measure(" ++ mapleType a ++ ")"
 
 mapleLiteral :: Literal a -> String
