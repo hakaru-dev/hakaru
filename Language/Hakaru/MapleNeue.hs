@@ -15,7 +15,7 @@ import Language.Hakaru.Syntax.Nat     (fromNat)
 -- import Language.Hakaru.Syntax.Natural (fromNatural)
 -- import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.DataKind
--- import Language.Hakaru.Syntax.Sing
+import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT
@@ -71,7 +71,7 @@ mapleSCon Let_     (e1 :* e2 :* End) =
         "eval(" ++ arg e2' ++ ", " ++  (var x `meq` e1) ++ ")"
 mapleSCon (CoerceTo_   c) (e :* End) = mapleAST (LC_ e)
 mapleSCon (UnsafeFrom_ c) (e :* End) = mapleAST (LC_ e)
-mapleSCon (Ann_ a)        (e :* End) = mapleAST (LC_ e)
+mapleSCon (Ann_ a)        (e :* End) = "Ann("  ++ mapleType a ++ "," ++ arg e ++ ")"
 mapleSCon (MeasureOp_ o) es          = mapleMeasureOp o es
 mapleSCon Dirac (e1 :* End)          = app1 "Ret" e1
 mapleSCon MBind (e1 :* e2 :* End)    =
@@ -88,6 +88,13 @@ mapleMeasureOp Uniform (e1 :* e2 :* End) = app2 "Uniform"  e1 e2
 mapleMeasureOp Normal  (e1 :* e2 :* End) = app2 "Gaussian" e1 e2
 mapleMeasureOp Gamma   (e1 :* e2 :* End) = app2 "BetaD"    e1 e2
 mapleMeasureOp Beta    (e1 :* e2 :* End) = app2 "GammaD"   e1 e2
+
+mapleType :: Sing (a :: Hakaru) -> String
+mapleType SNat         = "Nat"
+mapleType SInt         = "Int"
+mapleType SProb        = "Prob"
+mapleType SReal        = "Real"
+mapleType (SMeasure a) = "Measure(" ++ mapleType a ++ ")"
 
 mapleLiteral :: Literal a -> String
 mapleLiteral (LNat  v) = show v
