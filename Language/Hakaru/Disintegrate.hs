@@ -59,7 +59,7 @@ module Language.Hakaru.Disintegrate
 
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Functor         ((<$>))
-import           Data.Foldable        (Foldable)
+import           Data.Foldable        (Foldable, foldMap)
 import           Data.Traversable     (Traversable)
 import           Control.Applicative  (Applicative(..))
 #endif
