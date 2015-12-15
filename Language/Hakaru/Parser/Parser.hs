@@ -166,14 +166,17 @@ type_app = TypeApp <$> identifier <*> parens (commaSep type_expr)
 
 type_fun :: Parser TypeAST'
 type_fun =
-    chainl1
-        (try type_app <|> type_var)
+    chainr1
+        (    try type_app
+         <|> try type_var
+         <|> parens type_fun)
         (TypeFun <$ reservedOp "->")
 
 type_expr :: Parser TypeAST'
 type_expr = try type_fun
         <|> try type_app
-        <|> type_var
+        <|> try type_var
+        <|> parens type_expr
 
 ann_expr :: Parser (AST' Text -> AST' Text)
 ann_expr = reservedOp "::" *> (flip Ann <$> type_expr)
