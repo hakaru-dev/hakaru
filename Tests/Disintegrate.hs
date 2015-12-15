@@ -16,26 +16,37 @@ import Language.Hakaru.Evaluation.Types (runM)
 import Language.Hakaru.Syntax.IClasses  (Some2(..))
 import Language.Hakaru.Disintegrate
 
-spreal :: Sing ('HMeasure (HPair 'HReal 'HReal))
-spreal = SMeasure (sPair SReal SReal)
-
+-- | A very simple program. Is sufficient for testing escape and
+-- capture of substitution.
 norm :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
 norm =
     normal (real_ 0) (prob_ 1) >>= \x ->
     normal x         (prob_ 1) >>= \y ->
     dirac (pair x y)
 
+-- | The original test program, useful for testing that using 'Ann_'
+-- doesn't loop.
 normA :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
-normA = ann_ spreal norm
+normA = ann_ (SMeasure (sPair SReal SReal)) norm
 
-test0 :: [TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))]
-test0 = runM (perform norm) [Some2 norm]
+-- | An attempt to deal with the @typeOf_{Datum_}@ issue without
+-- changing the 'Datum' type nor the 'typeOf' definition.
+normB :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
+normB =
+    normal (real_ 0) (prob_ 1) >>= \x ->
+    normal x         (prob_ 1) >>= \y ->
+    dirac (ann_ (sPair SReal SReal) (pair x y))
 
-test0a :: [TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))]
+test0, test0a, test0b
+    :: [TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))]
+test0  = runM (perform norm)  [Some2 norm]
 test0a = runM (perform normA) [Some2 normA]
+test0b = runM (perform normB) [Some2 normB]
 
-test1 :: [TrivialABT Term '[] ('HReal ':-> 'HMeasure 'HReal)]
-test1 = disintegrate norm
-
-test1a :: [TrivialABT Term '[] ('HReal ':-> 'HMeasure 'HReal)]
+-- BUG: at present, both 'test1' and 'test1a' throw errors about
+-- @typeOf_{Datum_}@. Whereas 'test1b' loops.
+test1, test1a, test1b
+    :: [TrivialABT Term '[] ('HReal ':-> 'HMeasure 'HReal)]
+test1  = disintegrate norm
 test1a = disintegrate normA
+test1b = disintegrate normB

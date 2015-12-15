@@ -590,17 +590,21 @@ performVar = performWhnf <=< update perform evaluate_
 -- themselves). We'd prolly have the same issue with coercions
 -- excepting that there are no coercions for 'HMeasure' types.
 --
--- BUG: for 'WAnn', we just drop the annotations on the floor, even
--- though they may still be necessary for the output to typecheck
--- (or for 'typeOf' to work). We could easily add an annotation to
--- the 'Whnf' we return; but that wouldn't necessarily help since
--- it'd be pushing the annotation inward, which may be the wrong
--- place to have it.
+-- TODO: for the 'WAnn' constructor we push the annotation down
+-- into the 'Whnf' result. This is better than dropping it on the
+-- floor, but may still end up producing programs which don't
+-- typecheck (or don't behave nicely with 'typeOf') since it moves
+-- the annotation around. To keep the annotation in the same place
+-- as the input, we need to pass it to 'perform' somehow so that
+-- it can emit the annotation when it emits 'MBind' etc. (That
+-- prolly means we shouldn't handle 'WAnn' here, but rather should
+-- handle it in the definition of 'perform' itself...)
 performWhnf
     :: (ABT Term abt) => Whnf abt ('HMeasure a) -> M abt (Whnf abt a)
-performWhnf (Head_   (WAnn _ v)) = performWhnf (Head_ v)
-performWhnf (Head_   v)          = perform $ fromHead v
-performWhnf (Neutral e)          = (Neutral . var) <$> emitMBind e
+performWhnf (Head_ (WAnn typ v)) =
+    ann (sUnMeasure typ) <$> performWhnf (Head_ v)
+performWhnf (Head_   v) = perform $ fromHead v
+performWhnf (Neutral e) = (Neutral . var) <$> emitMBind e
 
 
 -- TODO: now that we've broken 'atomize' and 'atomizeCore' out into
