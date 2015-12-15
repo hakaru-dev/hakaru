@@ -109,9 +109,9 @@ disintegrate m = do
     m' <- flip runM [Some2 m, Some2 (var x)] $ do
         ab    <- perform m
         (a,b) <- emitUnpair ab
-        a'    <- evaluate_ a -- TODO: 'atomize' instead?
+        a'    <- atomize a
         constrainValue a' (var x)
-        evaluate_ b
+        evaluate_ b -- TODO: 'atomize' instead?
     return $ syn (Lam_ :$ bind x m' :* End)
 
 
@@ -154,18 +154,26 @@ observe x m =
 -- functions where we take an arbitrary term and consider it a
 -- pattern, using 'P.unit' as the \"don't care\" wildcard; for
 -- example @(P.pair e P.unit)@ is the old representation of the
--- constraint @\x -> P.fst x == e@. We replace the old encoding by using
--- an actual 'Pattern' (with a single variable) to make things a
--- bit more explicit\/clear; thus @(Condition pat e)@ represents
+-- constraint @\x -> P.fst x == e@. We replace the old encoding by
+-- using an actual 'Pattern' (with a single variable) to make things
+-- a bit more explicit\/clear; thus @(Condition pat e)@ represents
 -- the constraint @\x -> case x of { pat y -> y == e ; _ -> False }@.
+-- Naturally, this doesn't account for other non-structural forms
+-- of \"projection functions\", but then neither did the old code.
 --
 -- This trick isn't used in the paper, and probably doesn't generalize.
+--
+-- TODO: If we're trying to generalize what 'disintegrate' does
+-- (rather than what 'observe' does), then we just need the pattern
+-- and can treat the value of type @b@ at that position as a
+-- lambda-bound variable. Of course, ideally, we'd want some sort
+-- of dual projection function allowing us to return something of
+-- \"@a - b@\" type (i.e., the appropriate one-hole version of the
+-- \"@∂a/∂b@\" type).
 data Condition (abt :: [Hakaru] -> Hakaru -> *) (a :: Hakaru) =
     forall b. Condition (Pattern '[b] a) (abt '[] b)
 
 
--- N.B., all arguments used to have type @Lazy s repr@ instead of @abt '[]@
---
 -- | This is what used to be called @disintegrate@. I think this
 -- new name captures whatever it is that funtion was actually
 -- supposed to be doing?
@@ -177,30 +185,23 @@ conditionalize
     => Condition abt a
     -> abt '[] ('HMeasure a)
     -> [abt '[] ('HMeasure a)]
-conditionalize (Condition pat a) m =
+conditionalize (Condition pat b) m =
     -- TODO: is this at all right??
-    flip runM [Some2 a, Some2 m] $ do
-        ab <- perform m
-        x  <- freshVar Text.empty (typeOf a)
-        -- TODO: we might could partially evaluate this case expression away. But really, that's the job of 'emitCase' itself, and it should give us the bindings as either neutral variables (when the case is stuck) or else as the actual terms (perhaps evaluating them along the way, if desired). In order to do that in a nice clean way, we'll have to go back to trying to implement my previous @GGBranch@ approach.
-        emitCase (fromWhnf ab)
-            [ GBranch pat (Cons1 x Nil1) $ do
-                constrainValue (Neutral $ var x) a
-                return ab
+    flip runM [Some2 b, Some2 m] $ do
+        a <- perform m
+        -- According to the old code, we should memoize here...
+        -- TODO: what was the purpose of using @unMeasure@ before memoizing?
+        x <- var <$> emitLet (fromWhnf a)
+        -- TODO: maybe just store the @typeOf b@ rather than computing it?
+        y <- freshVar Text.empty (typeOf b)
+        -- TODO: get 'emitCase' to partially evaluate the case expression away when it can (assuming we don't @emitLet a@). In order to do this in a nice clean way, we'll have to go back to trying to implement my previous @GGBranch@ approach.
+        emitCase x
+            [ GBranch pat (Cons1 y Nil1) $ do
+                b' <- atomize b
+                constrainValue b' (var y)
+                return (Neutral x)
             , GBranch PWild Nil1 $ reject
             ]
-    {- -- The old code was:
-    let n = do
-            x  <- forward m
-            ab <- memo (unMeasure x)
-            backward_ ab a -- 'backward_' is the 'Backward' class; in general, @backward_ a x = forward x >>= backward a@
-            return ab
-    in Lazy
-        (return . Measure $ Lazy
-            (n >>= forward)
-            (\t -> n >>= (`backward` t)))
-        (\_ -> bot)
-    -}
 
 
 -- | Arbitrarily choose one of the possible alternatives. In the
@@ -574,6 +575,10 @@ perform e0 =
         --
         -- TODO: add a @mustPerform@ predicate like we have 'mustCheck'
         -- in TypeCheck.hs...?
+        --
+        -- TODO: we should jump right into the 'Term'-analyzing part of 'evaluate' rather than repeating the 'caseVarSyn' there...
+        --
+        -- BUG: for annotations and coercions, they'll just evaluate to annotations\/coercions, so then we'll loop forever!!!
         _ -> evaluate_ e0 >>= performWhnf
 
 
@@ -746,6 +751,19 @@ constrainValueMeasureOp v0 = go
 -- N.B., we also rely on the fact that our 'HSemiring' instances
 -- are actually all /commutative/ semirings. If that ever becomes
 -- not the case, then we'll need to fix things here.
+--
+-- As written, this will do a lot of redundant work in atomizing
+-- the subterms other than the one we choose to go backward on.
+-- Because evaluation has side-effects on the heap and is heap
+-- dependent, it seems like there may not be a way around that
+-- issue. (I.e., we could use dynamic programming to efficiently
+-- build up the 'M' computations, but not to evaluate them.) Of
+-- course, really we shouldn't be relying on the structure of the
+-- program here; really we should be looking at the heap-bound
+-- variables in the term: choosing each @x@ to go backward on, treat
+-- the term as a function of @x@, atomize that function (hence going
+-- forward on the rest of the variables), and then invert it and
+-- get the Jacobian.
 constrainNaryOp
     :: (ABT Term abt)
     => Whnf abt a
