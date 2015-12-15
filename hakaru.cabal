@@ -16,8 +16,7 @@ build-type:          Custom
 cabal-version:       >=1.16
 
 library
-  exposed-modules:     Language.Hakaru.Maple,
-                       Language.Hakaru.MapleNeue,
+  exposed-modules:     Language.Hakaru.Pretty.Maple,
                        Language.Hakaru.Simplify,
                        Language.Hakaru.Util.Csv,
                        Language.Hakaru.Sample,
@@ -40,8 +39,8 @@ library
                        Language.Hakaru.Syntax.TypeOf,
                        Language.Hakaru.Syntax.Prelude,
                        Language.Hakaru.Syntax.DatumCase,
-                       Language.Hakaru.PrettyPrint,
-                       Language.Hakaru.PrettyConcrete,
+                       Language.Hakaru.Pretty.Haskell,
+                       Language.Hakaru.Pretty.Concrete,
                        Language.Hakaru.Expect,
                        Language.Hakaru.Evaluation.Types,
                        Language.Hakaru.Evaluation.Lazy,

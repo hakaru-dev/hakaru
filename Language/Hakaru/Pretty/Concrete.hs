@@ -1,6 +1,7 @@
 {-# LANGUAGE GADTs
            , KindSignatures
            , DataKinds
+           , TypeOperators
            , FlexibleContexts
            , UndecidableInstances
            #-}
@@ -9,20 +10,21 @@
 ----------------------------------------------------------------
 --                                                    2015.12.11
 -- |
--- Module      :  Language.Hakaru.PrettyPrint
+-- Module      :  Language.Hakaru.PrettyConcrete
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  wren@community.haskell.org
 -- Stability   :  experimental
 -- Portability :  GHC-only
 --
--- 
+--
 ----------------------------------------------------------------
-module Language.Hakaru.PrettyPrint
+module Language.Hakaru.Pretty.Concrete
     (
     -- * The user-facing API
       pretty
     , prettyPrec
+    , prettyType
     , prettyAssoc
     , prettyPrecAssoc
 
@@ -30,6 +32,7 @@ module Language.Hakaru.PrettyPrint
     , ppVariable
     ) where
 
+import           System.Console.ANSI
 import           Text.PrettyPrint (Doc, (<>), (<+>))
 import qualified Text.PrettyPrint as PP
 import qualified Data.Foldable    as F
@@ -42,6 +45,7 @@ import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11)
 import Language.Hakaru.Syntax.HClasses
 import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.DataKind
+import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT
@@ -70,6 +74,9 @@ prettyPrecAssoc p (Assoc x e) =
         , prettyPrec 11 e
         ]
 
+prettyType :: Sing (a :: Hakaru) -> Doc
+prettyType = ppType
+
 ----------------------------------------------------------------
 class Pretty (f :: Hakaru -> *) where
     -- | A polymorphic variant if 'prettyPrec', for internal use.
@@ -79,15 +86,21 @@ type Docs = [Doc]
 
 -- So far as I can tell from the documentation, if the input is a singleton list then the result is the same as that singleton.
 toDoc :: Docs -> Doc
-toDoc = PP.sep
+toDoc = PP.cat
 
+-- | Color a Doc
+color :: Color -> Doc -> Doc
+color c d = PP.text (setSGRCode [SetColor Foreground Dull c]) <>  d <> PP.text (setSGRCode [Reset])
+
+keyword :: Doc -> Doc
+keyword = color Red
 
 -- | Pretty-print a variable.
 ppVariable :: Variable (a :: Hakaru) -> Doc
 ppVariable x = hint <> (PP.int . fromNat . varID) x
     where
     hint
-        | Text.null (varHint x) = PP.char '_'
+        | Text.null (varHint x) = PP.char 'x'
         | otherwise             = (PP.text . Text.unpack . varHint) x
 
 
@@ -96,7 +109,15 @@ ppBinder :: (ABT Term abt) => abt xs a -> Docs
 ppBinder e =
     case go [] (viewABT e) of
     ([],  body) -> body
-    (vars,body) -> PP.char '\\' <+> PP.sep vars <+> PP.text "->" : body
+    (vars,body) -> PP.char '\\' <> PP.sep vars <+> PP.text "-> " : body
+    where
+    go :: (ABT Term abt) => [Doc] -> View (Term abt) xs a -> ([Doc],Docs)
+    go xs (Bind x v) = go (ppVariable x : xs) v
+    go xs (Var  x)   = (reverse xs, [ppVariable x])
+    go xs (Syn  t)   = (reverse xs, prettyPrec_ 0 (LC_ (syn t)))
+
+ppBinder2 :: (ABT Term abt) => abt xs a -> ([Doc],Docs)
+ppBinder2 e = go [] (viewABT e)
     where
     go :: (ABT Term abt) => [Doc] -> View (Term abt) xs a -> ([Doc],Docs)
     go xs (Bind x v) = go (ppVariable x : xs) v
@@ -121,8 +142,8 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
                 prettyNaryOp Iff      = ("`iff`", 0, Just "true")
                 prettyNaryOp (Min  _) = ("`min`", 5, Nothing)
                 prettyNaryOp (Max  _) = ("`max`", 5, Nothing)
-                prettyNaryOp (Sum  _) = ("+",     6, Just "zero")
-                prettyNaryOp (Prod _) = ("*",     7, Just "one")
+                prettyNaryOp (Sum  _) = ("+ ",     6, Just "zero")
+                prettyNaryOp (Prod _) = ("* ",     7, Just "one")
             in
             let (opName,opPrec,maybeIdentity) = prettyNaryOp o in
             if Seq.null es
@@ -144,8 +165,8 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
         Literal_ v    -> prettyPrec_ p v
         Empty_   _    -> [PP.text "empty"]
         Array_ e1 e2  ->
-            ppFun 11 "array"
-                [ toDoc (ppArg e1) <+> PP.char '$'
+            ppFun p "array"
+                [ toDoc $ ppArg e1
                 , toDoc $ ppBinder e2
                 ]
         Datum_ d      -> prettyPrec_ p (fmap11 LC_ d)
@@ -168,44 +189,45 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
 
 -- | Pretty-print @(:$)@ nodes in the AST.
 ppSCon :: (ABT Term abt) => Int -> SCon args a -> SArgs abt args -> Docs
-ppSCon p Lam_ = \(e1 :* End) ->
-    parens (p > 0) $ adjustHead (PP.text "lam $" <+>) (ppBinder e1)
-ppSCon p App_ = \(e1 :* e2 :* End) -> ppBinop "`app`" 9 LeftAssoc p e1 e2 -- BUG: this puts extraneous parentheses around e2 when it's a function application...
-ppSCon p Let_ = \(e1 :* e2 :* End) ->
-    parens (p > 0) $ 
-        adjustHead
-            (PP.text "let_" <+> toDoc (ppArg e1) <+> PP.char '$' <+>)
-            (ppBinder e2)
-ppSCon p (Ann_ typ) = \(e1 :* End) ->
-    ppFun p "ann_"
-        [ PP.text (showsPrec 11 typ "") -- TODO: make this prettier. Add hints to the singletons?
-        , toDoc $ ppArg e1
-        ]
+ppSCon _ Lam_ = \(e1 :* End) ->
+    let (vars, body) = ppBinder2 e1 in
+    [PP.text "fn" <+> toDoc vars <> PP.colon <+> (toDoc body)]
+
+--ppSCon p App_ = \(e1 :* e2 :* End) -> ppArg e1 ++ parens True (ppArg e2)
+ppSCon _ App_ = \(e1 :* e2 :* End) -> prettyApps e1 e2
+
+ppSCon _ Let_ = \(e1 :* e2 :* End) ->
+    {-
+    caseBind e2 $ \x e2' ->
+        (ppVariable x <+> PP.equals <+> PP.nest n (pretty e1))
+        : pretty e2'
+    -}
+    let (vars, body) = ppBinder2 e2 in
+    [toDoc vars <+> PP.equals <+> toDoc (ppArg e1)
+    PP.$$ (toDoc body)]
+ppSCon _ (Ann_ typ) = \(e1 :* End) ->
+    [toDoc (ppArg e1) <+> PP.text "::" <+> ppType typ]
+
 ppSCon p (PrimOp_     o) = \es          -> ppPrimOp  p o es
 ppSCon p (ArrayOp_    o) = \es          -> ppArrayOp p o es
 ppSCon p (CoerceTo_   c) = \(e1 :* End) ->
-    ppFun p ""
-        [ PP.text (ppCoerce c) -- TODO: make this prettier. Add hints to the coercions?
-        , toDoc $ ppArg e1
-        ]
+    ppFun p (ppCoerce c) [ toDoc $ ppArg e1 ]
 ppSCon p (UnsafeFrom_ c) = \(e1 :* End) ->
-    ppFun p ""
-        [ PP.text (ppUnsafe c) -- TODO: make this prettier. Add hints to the coercions?
-        , toDoc $ ppArg e1
-        ]
-ppSCon p (MeasureOp_ o) = \es       -> ppMeasureOp p o es
-ppSCon p Dirac = \(e1 :* End)       -> ppApply1 p "dirac" e1
-ppSCon p MBind = \(e1 :* e2 :* End) ->
-    parens (p > 1) $
-        adjustHead
-            (prettyPrec 1 e1 <+> PP.text ">>=" <+>)
-            (ppBinder e2)
+    ppFun p (ppUnsafe c) [ toDoc $ ppArg e1 ]
+ppSCon p (MeasureOp_ o) = \es -> ppMeasureOp p o es
+ppSCon _ Dirac = \(e1 :* End) -> [PP.text "return" <+> toDoc (ppArg e1)]
+ppSCon _ MBind = \(e1 :* e2 :* End) ->
+    let (vars, body) = ppBinder2 e2 in
+    [toDoc vars <+> PP.text "<~" <+> toDoc (ppArg e1)
+        PP.$$ (toDoc body)]
+
 ppSCon p Expect = \(e1 :* e2 :* End) ->
     -- N.B., for this to be read back in correctly, "Language.Hakaru.Expect" must be in scope as well as the prelude.
     parens (p > 0) $
         adjustHead
             (PP.text "expect" <+> toDoc (ppArg e1) <+> PP.char '$' <+>)
             (ppBinder e2)
+
 ppSCon p Integrate = \(e1 :* e2 :* e3 :* End) ->
     ppFun p "integrate"
         [ toDoc $ ppArg e1
@@ -219,6 +241,17 @@ ppSCon p Summate = \(e1 :* e2 :* e3 :* End) ->
         , toDoc $ parens True (ppBinder e3)
         ]
 
+
+ppType :: Sing (a :: Hakaru) -> Doc
+ppType SNat         = PP.text "nat"
+ppType SInt         = PP.text "int"
+ppType SProb        = PP.text "prob"
+ppType SReal        = PP.text "real"
+ppType (SMeasure a) = PP.text "measure" <> PP.parens (ppType a)
+ppType (SArray   a) = PP.text "array" <> PP.parens (ppType a)
+ppType (SFun   a b) = ppType a <+> PP.text "->" <+> ppType b  
+ppType typ  = PP.text (showsPrec 11 typ "")
+    -- TODO: make this prettier. Add hints to the singletons?typ
 
 ppCoerce :: Coercion a b -> String
 ppCoerce (CCons (Signed HRing_Real) CNil) = "fromProb"
@@ -270,10 +303,11 @@ ppPrimOp p Atanh     = \(e1 :* End)       -> ppApply1 p "atanh" e1
 ppPrimOp p RealPow   = \(e1 :* e2 :* End) -> ppBinop "**" 8 RightAssoc p e1 e2
 ppPrimOp p Exp       = \(e1 :* End)       -> ppApply1 p "exp"   e1
 ppPrimOp p Log       = \(e1 :* End)       -> ppApply1 p "log"   e1
-ppPrimOp _ Infinity         = \End        -> [PP.text "infinity"]
-ppPrimOp _ NegativeInfinity = \End        -> [PP.text "negativeInfinity"]
+ppPrimOp _ Infinity         = \End        -> [PP.text "∞"]
+ppPrimOp _ NegativeInfinity = \End        -> [PP.text "-∞"]
 ppPrimOp p GammaFunc = \(e1 :* End)       -> ppApply1 p "gammaFunc" e1
 ppPrimOp p BetaFunc  = \(e1 :* e2 :* End) -> ppApply2 p "betaFunc" e1 e2
+
 ppPrimOp p (Equal   _) = \(e1 :* e2 :* End) -> ppBinop "==" 4 NonAssoc   p e1 e2
 ppPrimOp p (Less    _) = \(e1 :* e2 :* End) -> ppBinop "<"  4 NonAssoc   p e1 e2
 ppPrimOp p (NatPow  _) = \(e1 :* e2 :* End) -> ppBinop "^"  8 RightAssoc p e1 e2
@@ -291,10 +325,8 @@ ppPrimOp p (Erf _) = \(e1 :* End) -> ppApply1 p "erf" e1
 ppArrayOp
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => Int -> ArrayOp typs a -> SArgs abt args -> Docs
-ppArrayOp p (Index   _) = \(e1 :* e2 :* End) ->
-    ppBinop "!" 9 LeftAssoc p e1 e2
-ppArrayOp p (Size    _) = \(e1 :* End) ->
-    ppApply1 p "size" e1
+ppArrayOp p (Index   _) = \(e1 :* e2 :* End) -> ppBinop "!" 9 LeftAssoc p e1 e2
+ppArrayOp p (Size    _) = \(e1 :* End)       -> ppApply1 p "size" e1
 ppArrayOp p (Reduce  _) = \(e1 :* e2 :* e3 :* End) ->
     ppFun p "reduce"
         [ toDoc $ ppArg e1 -- N.B., @e1@ uses lambdas rather than being a binding form!
@@ -315,19 +347,16 @@ ppMeasureOp p Normal  = \(e1 :* e2 :* End) -> ppApply2 p "normal"      e1 e2
 ppMeasureOp p Poisson = \(e1 :* End)       -> ppApply1 p "poisson"     e1
 ppMeasureOp p Gamma   = \(e1 :* e2 :* End) -> ppApply2 p "gamma"       e1 e2
 ppMeasureOp p Beta    = \(e1 :* e2 :* End) -> ppApply2 p "beta"        e1 e2
-ppMeasureOp p (DirichletProcess _) = \(e1 :* e2 :* End) ->
-    ppApply2 p "dp" e1 e2
+ppMeasureOp p (DirichletProcess _) = \(e1 :* e2 :* End) -> ppApply2 p "dp" e1 e2
 ppMeasureOp p (Plate _)   = \(e1 :* End)       -> ppApply1 p "plate" e1
 ppMeasureOp p (Chain _ _) = \(e1 :* e2 :* End) -> ppApply2 p "chain" e1 e2
 
 
 instance Pretty Literal where
-    prettyPrec_ p (LNat  n) = ppFun p "nat_"  [PP.integer (fromNatural n)]
-    prettyPrec_ p (LInt  i) = ppFun p "int_"  [PP.integer i]
-    prettyPrec_ p (LProb l) = ppFun p "prob_" [PP.parens . PP.rational $ fromNonNegativeRational l]
-        -- TODO: make it prettier! (i.e., print as decimal notation)
-    prettyPrec_ p (LReal r) = ppFun p "real_" [PP.parens $ PP.rational r]
-        -- TODO: make it prettier! (i.e., print as decimal notation)
+    prettyPrec_ _ (LNat  n) = [PP.integer (fromNatural n)]
+    prettyPrec_ _ (LInt  i) = [PP.integer i]
+    prettyPrec_ _ (LProb l) = [PP.double $ fromRational $ fromNonNegativeRational l]
+    prettyPrec_ _ (LReal r) = [PP.double $ fromRational r]
 
 
 instance Pretty f => Pretty (Datum f) where
@@ -374,21 +403,48 @@ instance (ABT Term abt) => Pretty (Branch a abt) where
             ]
 
 ----------------------------------------------------------------
+type DList a = [a] -> [a]
+
+prettyApps :: (ABT Term abt) => abt '[] (a ':-> b) -> abt '[] a -> Docs
+prettyApps = \ e1 e2 ->
+    let (d, vars) = collectApps e1 (pretty e2 :) in
+    [d <> ppTuple (vars [])]
+    where
+    collectApps
+        :: (ABT Term abt)
+        => abt '[] (a ':-> b) -> DList Doc -> (Doc, DList Doc)
+    collectApps e es = 
+        caseVarSyn e (\x -> (ppVariable x, es)) $ \t ->
+            case t of
+            App_ :$ e1 :* e2 :* End -> collectApps e1 (es . (pretty e2 :))
+            _                       -> (pretty e, es)
+
+
+prettyLams :: (ABT Term abt) => abt '[a] b -> Doc
+prettyLams = \e ->
+    let (d, vars) = collectLams e id in
+    PP.char '\\' <+> PP.sep (vars []) <+> PP.text "->" <+> d
+    where
+    collectLams
+        :: (ABT Term abt)
+        => abt '[a] b -> DList Doc -> (Doc, DList Doc)
+    collectLams e xs = 
+        caseBind e $ \x e' ->
+            let xs' = xs . (ppVariable x :) in
+            caseVarSyn e' (\y -> (ppVariable y, xs')) $ \t ->
+                case t of
+                Lam_ :$ e1 :* End -> collectLams e1 xs'
+                _                 -> (pretty e', xs')
+
+
 -- | For the \"@lam $ \x ->\n@\"  style layout.
 adjustHead :: (Doc -> Doc) -> Docs -> Docs
 adjustHead f []     = [f (toDoc [])]
 adjustHead f (d:ds) = f d : ds
 
-{- -- unused
--- | For the \"@lam (\x ->\n\t...)@\"  style layout.
-nestTail :: Int -> Docs -> Docs
-nestTail _ []     = []
-nestTail n (d:ds) = [d, PP.nest n (toDoc ds)]
--}
-
 parens :: Bool -> Docs -> Docs
 parens True  ds = [PP.parens (PP.nest 1 (toDoc ds))]
-parens False ds = ds
+parens False ds = [PP.parens (toDoc ds)]
 
 ppList :: [Doc] -> Docs
 ppList = (:[]) . PP.brackets . PP.nest 1 . PP.fsep . PP.punctuate PP.comma
@@ -396,10 +452,10 @@ ppList = (:[]) . PP.brackets . PP.nest 1 . PP.fsep . PP.punctuate PP.comma
 ppTuple :: [Doc] -> Doc
 ppTuple = PP.parens . PP.sep . PP.punctuate PP.comma
 
+-- TODO: why does this take the precedence argument if it doesn't care?
 ppFun :: Int -> String -> [Doc] -> Docs
-ppFun _ f [] = [PP.text f]
-ppFun p f ds =
-    parens (p > 9) [PP.text f <+> PP.nest (1 + length f) (PP.sep ds)]
+ppFun _ f [] = [PP.text f <> PP.text "()"]
+ppFun _ f ds = [PP.text f, PP.nest (1 + length f) (ppTuple ds)]
 
 ppArg :: (ABT Term abt) => abt '[] a -> Docs
 ppArg = prettyPrec_ 11 . LC_

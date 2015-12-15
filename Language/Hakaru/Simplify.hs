@@ -30,7 +30,7 @@ module Language.Hakaru.Simplify
 
 import Control.Exception
 
-import Language.Hakaru.MapleNeue (runMaple)
+import Language.Hakaru.Pretty.Maple (runMaple)
 
 import Language.Hakaru.Parser.Maple
 import Language.Hakaru.Parser.SymbolResolve (resolveAST)

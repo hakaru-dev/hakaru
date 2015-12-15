@@ -9,7 +9,7 @@
 
 {-# OPTIONS -W #-}
 
-module Language.Hakaru.MapleNeue (Maple(..), runMaple) where
+module Language.Hakaru.Pretty.Maple (Maple(..), runMaple) where
 
 import Language.Hakaru.Syntax.Nat     (fromNat)
 -- import Language.Hakaru.Syntax.Natural (fromNatural)

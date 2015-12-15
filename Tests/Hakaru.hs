@@ -16,7 +16,7 @@ import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.DataKind
 
 import Language.Hakaru.Syntax.TypeCheck
-import Language.Hakaru.PrettyConcrete
+import Language.Hakaru.Pretty.Concrete
 import Language.Hakaru.Sample hiding (SData, SKonst, SEt, SDone, SPlus, SVoid)
 import Language.Hakaru.Expect
 import Language.Hakaru.Syntax.Prelude (prob_, fromProb)

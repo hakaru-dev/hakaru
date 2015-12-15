@@ -42,7 +42,7 @@ import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.AST (Term(Datum_))
 import Language.Hakaru.Syntax.ABT
 
-import           Language.Hakaru.PrettyPrint
+import           Language.Hakaru.Pretty.Haskell
 import           Text.PrettyPrint (Doc, (<+>))
 import qualified Text.PrettyPrint as PP
 
