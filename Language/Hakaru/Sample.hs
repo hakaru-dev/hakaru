@@ -382,6 +382,7 @@ sampleCase o es env =
     case runIdentity $ matchBranches evaluateDatum o es of
     Just (Matched as Nil1, b) ->
         sample (LC_ $ extendFromMatch (as []) b) env
+    Nothing -> error "Missing cases in match expression"
     where
     extendFromMatch
         :: (ABT Term abt) => [Assoc abt] -> abt '[] b -> abt '[] b 

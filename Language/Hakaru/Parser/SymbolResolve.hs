@@ -74,8 +74,8 @@ primTable =
     [("Pair",       primPair)
     ,("left",       primLeft)
     ,("right",      primRight)
-    ,("True",       primTrue)
-    ,("False",      primFalse)
+    ,("true",       primTrue)
+    ,("false",      primFalse)
     ,("fromProb",   primFromProb)
     ,("unsafeProb", primUnsafeProb)
     ,("uniform",    primMeasure2 (U.SealedOp T.Uniform))
@@ -247,8 +247,12 @@ makeType (U.TypeApp f args) =
 
 
 makePattern :: U.Pattern' U.Name -> U.Pattern
-makePattern (U.PVar' name) = U.PVar name
 makePattern U.PWild'       = U.PWild
+makePattern (U.PVar' name) =
+    case lookup (U.hintID name) primPat of
+      Just (TLam' _)  -> error "TODO{makePattern:PVar:TLam}"
+      Just (TNeu' p') -> p'
+      Nothing         -> U.PVar name
 makePattern (U.PData' (U.DV name args)) =
     case lookup name primPat of
       Just (TLam' f') -> f' (map makePattern args)
