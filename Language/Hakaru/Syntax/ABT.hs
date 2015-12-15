@@ -15,7 +15,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.19
+--                                                    2015.12.14
 -- |
 -- Module      :  Language.Hakaru.Syntax.ABT
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -591,7 +591,7 @@ subst x e = start
                 bind z' . loop f' . viewABT $ rename z z' f'
 
 
--- TODO: verify that this works as advertised
+-- BUG: This appears to have both capture and escape issues as demonstrated by 'Tests.Disintegrate.test0' and commented on at 'Language.Hakaru.Evaluation.Types.runM'.
 -- | The parallel version of 'subst' for performing multiple substitutions at once.
 substs
     :: forall
@@ -607,7 +607,11 @@ substs
     => Assocs abt
     -> abt xs a
     -> abt xs a
-substs rho0 = start rho0
+substs rho0 =
+    -- Guaranteed correct (since 'subst' is correct) but very inefficient
+    \e0 -> F.foldl (\e (Assoc x v) -> subst x v e) e0 (unAssocs rho0)
+    {- -- old buggy version
+    start rho0
     where
     fv0 :: VarSet (KindOf a)
     fv0 = F.foldMap (\(Assoc _ e) -> freeVars e) (unAssocs rho0)
@@ -650,6 +654,7 @@ substs rho0 = start rho0
                 -- that overhead.
                 caseBind e $ \_x body' ->
                     bind x' . loop rho body' . viewABT $ rename x x' body'
+    -}
 
 
 ----------------------------------------------------------------

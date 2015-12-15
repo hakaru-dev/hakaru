@@ -15,7 +15,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.11
+--                                                    2015.12.14
 -- |
 -- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -577,8 +577,6 @@ perform e0 =
         -- in TypeCheck.hs...?
         --
         -- TODO: we should jump right into the 'Term'-analyzing part of 'evaluate' rather than repeating the 'caseVarSyn' there...
-        --
-        -- BUG: for annotations and coercions, they'll just evaluate to annotations\/coercions, so then we'll loop forever!!!
         _ -> evaluate_ e0 >>= performWhnf
 
 
@@ -587,10 +585,22 @@ performVar :: (ABT Term abt) => Variable ('HMeasure a) -> M abt (Whnf abt a)
 performVar = performWhnf <=< update perform evaluate_
 
 
+-- HACK: we have to special case the 'WAnn' constructor in order
+-- to avoid looping forever (since annotations just evaluate to
+-- themselves). We'd prolly have the same issue with coercions
+-- excepting that there are no coercions for 'HMeasure' types.
+--
+-- BUG: for 'WAnn', we just drop the annotations on the floor, even
+-- though they may still be necessary for the output to typecheck
+-- (or for 'typeOf' to work). We could easily add an annotation to
+-- the 'Whnf' we return; but that wouldn't necessarily help since
+-- it'd be pushing the annotation inward, which may be the wrong
+-- place to have it.
 performWhnf
     :: (ABT Term abt) => Whnf abt ('HMeasure a) -> M abt (Whnf abt a)
-performWhnf (Head_   v) = perform $ fromHead v
-performWhnf (Neutral e) = (Neutral . var) <$> emitMBind e
+performWhnf (Head_   (WAnn _ v)) = performWhnf (Head_ v)
+performWhnf (Head_   v)          = perform $ fromHead v
+performWhnf (Neutral e)          = (Neutral . var) <$> emitMBind e
 
 
 -- TODO: now that we've broken 'atomize' and 'atomizeCore' out into

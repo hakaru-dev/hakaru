@@ -19,18 +19,23 @@ import Language.Hakaru.Disintegrate
 spreal :: Sing ('HMeasure (HPair 'HReal 'HReal))
 spreal = SMeasure (sPair SReal SReal)
 
-norm' :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
-norm' = 
+norm :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
+norm =
     normal (real_ 0) (prob_ 1) >>= \x ->
     normal x         (prob_ 1) >>= \y ->
     dirac (pair x y)
 
--- BUG: the current code for 'perform' will loop on annotations and coercions!
-norm :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
-norm = ann_ spreal norm'
+normA :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
+normA = ann_ spreal norm
 
 test0 :: [TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))]
 test0 = runM (perform norm) [Some2 norm]
 
+test0a :: [TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))]
+test0a = runM (perform normA) [Some2 normA]
+
 test1 :: [TrivialABT Term '[] ('HReal ':-> 'HMeasure 'HReal)]
 test1 = disintegrate norm
+
+test1a :: [TrivialABT Term '[] ('HReal ':-> 'HMeasure 'HReal)]
+test1a = disintegrate normA

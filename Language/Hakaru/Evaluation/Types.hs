@@ -15,7 +15,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.10
+--                                                    2015.12.14
 -- |
 -- Module      :  Language.Hakaru.Evaluation.Types
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -140,7 +140,7 @@ data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         -> Head abt ('HMeasure a)
 
     -- Type annotation\/coercion stuff. These are transparent re head-ness; that is, they behave more like HNF than WHNF.
-    -- TODO: we prolly don't actually want\/need the coercion variants... we'd lose some proven-guarantees about cancellation, but everything should work just fine if we update 'Literal' to use Integer and Rational rather than Int and Double...
+    -- TODO: we prolly don't actually want\/need the coercion variants... we'd lose some proven-guarantees about cancellation, but everything should work just fine. The one issue that remains is if we have coercion of 'WIntegrate' or 'WSummate', since without the 'WCoerceTo'\/'WUnsafeFrom' constructors we'd be forced to call the coercion of an integration \"neutral\"--- even though it's not actually a neutral term!
     WAnn        :: !(Sing a)       -> !(Head abt a) -> Head abt a
     WCoerceTo   :: !(Coercion a b) -> !(Head abt a) -> Head abt b
     WUnsafeFrom :: !(Coercion a b) -> !(Head abt b) -> Head abt a
@@ -331,8 +331,6 @@ viewHeadDatum (WLiteral    v)   = case v of {}
 
 
 -- Alas, to avoid the orphanage, this instance must live here rather than in Lazy.hs where it more conceptually belongs.
--- TODO: cancellation
--- TODO: value\/constant coercion
 -- TODO: better unify the two cases of Whnf
 -- HACK: this instance requires -XUndecidableInstances
 instance (ABT Term abt) => Coerce (Whnf abt) where
@@ -342,6 +340,7 @@ instance (ABT Term abt) => Coerce (Whnf abt) where
             Neutral . maybe (P.coerceTo_ c e) id
                 $ caseVarSyn e (const Nothing) $ \t ->
                     case t of
+                    -- TODO: 'Literal' coercion
                     -- UnsafeFrom_ c' :$ es' -> TODO: cancellation
                     CoerceTo_ c' :$ es' ->
                         case es' of
@@ -350,6 +349,7 @@ instance (ABT Term abt) => Coerce (Whnf abt) where
                     _ -> Nothing
         Head_ v ->
             case v of
+            -- TODO: 'Literal' coercion
             -- WUnsafeFrom c' v' -> TODO: cancellation
             WCoerceTo c' v' -> Head_ $ WCoerceTo (c . c') v'
             _               -> Head_ $ WCoerceTo c v
@@ -360,6 +360,7 @@ instance (ABT Term abt) => Coerce (Whnf abt) where
             Neutral . maybe (P.unsafeFrom_ c e) id
                 $ caseVarSyn e (const Nothing) $ \t ->
                     case t of
+                    -- TODO: 'Literal' coercion
                     -- CoerceTo_ c' :$ es' -> TODO: cancellation
                     UnsafeFrom_ c' :$ es' ->
                         case es' of
@@ -368,6 +369,7 @@ instance (ABT Term abt) => Coerce (Whnf abt) where
                     _ -> Nothing
         Head_ v ->
             case v of
+            -- TODO: 'Literal' coercion
             -- WCoerceTo c' v' -> TODO: cancellation
             WUnsafeFrom c' v' -> Head_ $ WUnsafeFrom (c' . c) v'
             _                 -> Head_ $ WUnsafeFrom c v
