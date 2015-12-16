@@ -38,11 +38,11 @@ import qualified Data.Text        as Text
 import           Control.Category (Category(..))
 
 import Language.Hakaru.Syntax.Natural
-import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.Sing (Sing(..), SingI(sing), sUnPair, sUnEither, sUnMaybe, sUnMeasure, sUnArray)
+import Language.Hakaru.Types.DataKind
+import Language.Hakaru.Types.Sing (Sing(..), SingI(sing), sUnPair, sUnEither, sUnMaybe, sUnMeasure, sUnArray)
 import Language.Hakaru.Syntax.TypeOf
-import Language.Hakaru.Syntax.HClasses
-import Language.Hakaru.Syntax.Coercion
+import Language.Hakaru.Types.HClasses
+import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT hiding (View(..))

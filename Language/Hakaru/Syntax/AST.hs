@@ -68,10 +68,10 @@ import           Data.Ratio    (numerator, denominator)
 
 import Language.Hakaru.Syntax.Natural
 import Language.Hakaru.Syntax.IClasses
-import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.Sing
-import Language.Hakaru.Syntax.HClasses
-import Language.Hakaru.Syntax.Coercion
+import Language.Hakaru.Types.DataKind
+import Language.Hakaru.Types.Sing
+import Language.Hakaru.Types.HClasses
+import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT (ABT(syn))
 

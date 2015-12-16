@@ -27,8 +27,8 @@ import qualified Data.Foldable as F
 import Data.Functor ((<$>))
 #endif
 
-import Language.Hakaru.Syntax.Sing (Sing(..))
-import Language.Hakaru.Syntax.Coercion
+import Language.Hakaru.Types.Sing (Sing(..))
+import Language.Hakaru.Types.Coercion
     (singCoerceCod, singCoerceDom, Coerce(..))
 import Language.Hakaru.Syntax.TypeHelpers
     (sing_PrimOp, sing_MeasureOp, sing_NaryOp, sing_Literal)

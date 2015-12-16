@@ -7,9 +7,9 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.08
+--                                                    2015.12.15
 -- |
--- Module      :  Language.Hakaru.Syntax.Coercion
+-- Module      :  Language.Hakaru.Types.Coercion
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  wren@community.haskell.org
@@ -18,7 +18,7 @@
 --
 -- Our theory of coercions for Hakaru's numeric hierarchy.
 ----------------------------------------------------------------
-module Language.Hakaru.Syntax.Coercion
+module Language.Hakaru.Types.Coercion
     ( PrimCoercion(..)
     , signed
     , continuous
@@ -44,9 +44,9 @@ import Control.Category (Category(..))
 #if __GLASGOW_HASKELL__ < 710
 import Data.Functor     ((<$>))
 #endif
-import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.Sing
-import Language.Hakaru.Syntax.HClasses
+import Language.Hakaru.Types.DataKind
+import Language.Hakaru.Types.Sing
+import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Syntax.IClasses
     (TypeEq(..), Eq1(..), Eq2(..), JmEq1(..), JmEq2(..))
 

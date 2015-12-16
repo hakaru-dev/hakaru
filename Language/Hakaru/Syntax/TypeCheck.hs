@@ -49,13 +49,13 @@ import qualified Language.Hakaru.Parser.AST as U
 
 import Language.Hakaru.Syntax.Nat      (fromNat)
 import Language.Hakaru.Syntax.IClasses
-import Language.Hakaru.Syntax.HClasses
+import Language.Hakaru.Types.DataKind (Hakaru(..), HData', HBool)
+import Language.Hakaru.Types.Sing
+import Language.Hakaru.Types.Coercion
+import Language.Hakaru.Types.HClasses
     (HOrd, hOrd_Sing, HSemiring, hSemiring_Sing)
-import Language.Hakaru.Syntax.DataKind (Hakaru(..), HData', HBool)
-import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.TypeHelpers
     (sing_Literal, sing_PrimOp, sing_MeasureOp)
-import Language.Hakaru.Syntax.Coercion
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT

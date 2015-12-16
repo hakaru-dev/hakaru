@@ -75,9 +75,9 @@ import           Data.Text            (Text)
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.Nat
-import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.Sing    (Sing)
-import Language.Hakaru.Syntax.Coercion
+import Language.Hakaru.Types.DataKind
+import Language.Hakaru.Types.Sing    (Sing)
+import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.TypeOf

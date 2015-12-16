@@ -72,11 +72,11 @@ import           Data.Sequence        (Seq)
 import qualified Data.Sequence        as S
 
 import Language.Hakaru.Syntax.IClasses
-import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.HClasses
-import Language.Hakaru.Syntax.Sing
+import Language.Hakaru.Types.DataKind
+import Language.Hakaru.Types.Sing
+import qualified Language.Hakaru.Types.Coercion as C
+import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Syntax.TypeOf
-import qualified Language.Hakaru.Syntax.Coercion as C
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT

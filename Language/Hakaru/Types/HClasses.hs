@@ -12,9 +12,9 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.08
+--                                                    2015.12.15
 -- |
--- Module      :  Language.Hakaru.Syntax.HClasses
+-- Module      :  Language.Hakaru.Types.HClasses
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  wren@community.haskell.org
@@ -23,7 +23,7 @@
 --
 -- A collection of type classes for encoding Hakaru's numeric hierarchy.
 ----------------------------------------------------------------
-module Language.Hakaru.Syntax.HClasses
+module Language.Hakaru.Types.HClasses
     (
     -- * Equality
       HEq(..)
@@ -81,8 +81,8 @@ module Language.Hakaru.Syntax.HClasses
 import Data.Functor ((<$>))
 #endif
 import Language.Hakaru.Syntax.IClasses (TypeEq(..), Eq1(..), JmEq1(..))
-import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.Sing
+import Language.Hakaru.Types.DataKind
+import Language.Hakaru.Types.Sing
 
 ----------------------------------------------------------------
 -- | Concrete dictionaries for Hakaru types with decidable equality.

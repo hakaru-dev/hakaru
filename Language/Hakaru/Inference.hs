@@ -32,11 +32,11 @@ module Language.Hakaru.Inference
 
 import Prelude (($), (.), error)
 import qualified Prelude
-import Language.Hakaru.Syntax.DataKind
+import Language.Hakaru.Types.DataKind
+import Language.Hakaru.Types.Sing (SingI())
 import Language.Hakaru.Syntax.AST (Term)
 import Language.Hakaru.Syntax.ABT (ABT)
 import Language.Hakaru.Syntax.Prelude
-import Language.Hakaru.Syntax.Sing (SingI())
 import Language.Hakaru.Expect (normalize)
 import Language.Hakaru.Disintegrate (determine, density, disintegrate)
 

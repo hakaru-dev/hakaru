@@ -24,8 +24,8 @@ module Language.Hakaru.Syntax.TypeHelpers
     ) where
 
 import Language.Hakaru.Syntax.IClasses
-import Language.Hakaru.Syntax.HClasses
-import Language.Hakaru.Syntax.Sing
+import Language.Hakaru.Types.HClasses
+import Language.Hakaru.Types.Sing
 import Language.Hakaru.Syntax.AST
 
 ----------------------------------------------------------------

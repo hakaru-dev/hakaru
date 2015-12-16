@@ -9,9 +9,9 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.06.30
+--                                                    2015.12.15
 -- |
--- Module      :  Language.Hakaru.Syntax.DataKind
+-- Module      :  Language.Hakaru.Types.DataKind
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  wren@community.haskell.org
@@ -20,7 +20,7 @@
 --
 -- A data-kind for the universe of Hakaru types.
 ----------------------------------------------------------------
-module Language.Hakaru.Syntax.DataKind
+module Language.Hakaru.Types.DataKind
     (
     -- * The core definition of Hakaru types
       Hakaru(..)

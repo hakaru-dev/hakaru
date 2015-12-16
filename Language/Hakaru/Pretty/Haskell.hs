@@ -39,9 +39,9 @@ import qualified Data.Sequence    as Seq -- Because older versions of "Data.Fold
 import Language.Hakaru.Syntax.Nat      (fromNat)
 import Language.Hakaru.Syntax.Natural  (fromNatural, fromNonNegativeRational)
 import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11)
-import Language.Hakaru.Syntax.HClasses
-import Language.Hakaru.Syntax.Coercion
-import Language.Hakaru.Syntax.DataKind
+import Language.Hakaru.Types.DataKind
+import Language.Hakaru.Types.Coercion
+import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT

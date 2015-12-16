@@ -15,13 +15,13 @@ import Control.Applicative              ((<*>))
 #endif
 import Control.Monad.Trans.State.Strict (State, state, evalState)
 
+import           Language.Hakaru.Types.Sing
+import           Language.Hakaru.Types.Coercion
+import           Language.Hakaru.Types.HClasses
+import           Language.Hakaru.Syntax.IClasses
+import qualified Language.Hakaru.Syntax.Nat as N
 import qualified Language.Hakaru.Syntax.AST as T
 import qualified Language.Hakaru.Parser.AST as U
-import           Language.Hakaru.Syntax.Sing
-import           Language.Hakaru.Syntax.Coercion
-import           Language.Hakaru.Syntax.IClasses
-import           Language.Hakaru.Syntax.HClasses
-import qualified Language.Hakaru.Syntax.Nat as N
 
 data Symbol a where
     TLam :: (a -> Symbol a) -> Symbol a

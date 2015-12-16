@@ -12,12 +12,12 @@ module Language.Hakaru.Parser.AST where
 
 import qualified Language.Hakaru.Syntax.Nat     as N
 import qualified Language.Hakaru.Syntax.Natural as N
-import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.Coercion
+import Language.Hakaru.Types.DataKind
+import Language.Hakaru.Types.Sing
+import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Syntax.AST
     (PrimOp(..), Literal(..), MeasureOp(..), LCs(), UnLCs ())
 import Language.Hakaru.Syntax.Variable (Variable(..))
-import Language.Hakaru.Syntax.Sing
 import Language.Hakaru.Syntax.IClasses
 
 import Data.Text

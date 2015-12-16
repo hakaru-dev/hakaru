@@ -62,7 +62,8 @@ import Control.Applicative
 #endif
 
 import Language.Hakaru.Syntax.IClasses
-import Language.Hakaru.Syntax.DataKind
+-- TODO: make things polykinded so we can make our ABT implementation independend of Hakaru's type system.
+import Language.Hakaru.Types.DataKind
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------

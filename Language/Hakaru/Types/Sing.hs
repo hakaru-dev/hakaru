@@ -13,9 +13,9 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.09
+--                                                    2015.12.15
 -- |
--- Module      :  Language.Hakaru.Syntax.Sing
+-- Module      :  Language.Hakaru.Types.Sing
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  wren@community.haskell.org
@@ -25,7 +25,7 @@
 -- Singleton types for the @Hakaru@ kind, and a decision procedure
 -- for @Hakaru@ type-equality.
 ----------------------------------------------------------------
-module Language.Hakaru.Syntax.Sing
+module Language.Hakaru.Types.Sing
     ( Sing(..)
     , SingI(..)
     , toSing
@@ -47,7 +47,7 @@ module Language.Hakaru.Syntax.Sing
     ) where
 
 import Language.Hakaru.Syntax.IClasses
-import Language.Hakaru.Syntax.DataKind
+import Language.Hakaru.Types.DataKind
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 infixr 0 `SFun`

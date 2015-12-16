@@ -34,10 +34,10 @@ import qualified Data.IntMap      as IM
 
 import Language.Hakaru.Syntax.Nat      (fromNat, unsafeNat, Nat())
 import Language.Hakaru.Syntax.Natural  (fromNatural, fromNonNegativeRational)
-import Language.Hakaru.Syntax.Coercion
+import Language.Hakaru.Types.DataKind
+import Language.Hakaru.Types.Coercion
+import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Syntax.IClasses
-import Language.Hakaru.Syntax.HClasses
-import Language.Hakaru.Syntax.DataKind
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumCase
 import Language.Hakaru.Syntax.AST
