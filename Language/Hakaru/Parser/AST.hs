@@ -16,7 +16,8 @@ import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Syntax.AST
-    (PrimOp(..), Literal(..), MeasureOp(..), LCs(), UnLCs ())
+    (PrimOp(..), Literal(..), ArrayOp(..),
+     MeasureOp(..), LCs(), UnLCs ())
 import Language.Hakaru.Syntax.Variable (Variable(..))
 import Language.Hakaru.Syntax.IClasses
 
@@ -151,7 +152,8 @@ data AST a
     | Ann_        (AST a) SSing
     | CoerceTo_   (Some2 Coercion) (AST a)
     | UnsafeTo_   (Some2 Coercion) (AST a)
-    | PrimOp_     (SealedOp PrimOp) [AST a]
+    | PrimOp_     (SealedOp PrimOp)  [AST a]
+    | ArrayOp_    (SealedOp ArrayOp) [AST a]
     | NaryOp_     NaryOp'  [AST a]
     | Literal_    (Some1 Literal)
     | Empty_

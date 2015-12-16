@@ -55,7 +55,7 @@ import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.HClasses
     (HOrd, hOrd_Sing, HSemiring, hSemiring_Sing)
 import Language.Hakaru.Syntax.TypeHelpers
-    (sing_Literal, sing_PrimOp, sing_MeasureOp)
+    (sing_Literal, sing_PrimOp, sing_ArrayOp, sing_MeasureOp)
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT
@@ -321,12 +321,11 @@ inferType = inferType_
         let (typs, typ1) = sing_PrimOp op
         es' <- checkSArgs typs es
         return . TypedAST typ1 $ syn (PrimOp_ op :$ es')
-    {- -- TODO:
+
     U.ArrayOp_ (U.SealedOp op) es -> do
         let (typs, typ1) = sing_ArrayOp op
         es' <- checkSArgs typs es
         return . TypedAST typ1 $ syn (ArrayOp_ op :$ es')
-    -}
 
     U.NaryOp_ op es -> do
         -- TODO: abstract out this infer-one-check-all pattern so we can reuse it elsewhere. Also, make it zipper-like so we don't re-check the one we inferred.
