@@ -85,6 +85,7 @@ primTable =
     ,("weight",     primWeight)
     -- This should probably be in U.AST'
     ,("**",         primRealPow)
+    --,("^",          primNatPow)
     ]
 
 
@@ -94,21 +95,22 @@ primMeasure2 m = t2 $ \x y -> U.MeasureOp_ m [x, y]
 primPair, primLeft, primRight, primTrue, primFalse :: Symbol (U.AST a)
 primFromProb, primUnsafeProb  :: Symbol (U.AST a)
 primWeight, primRealPow :: Symbol (U.AST a)
-primPair    = t2 $ \a b ->
+primPair       = t2 $ \a b ->
     U.Datum_ $ U.Datum "pair"
         (U.Inl $ U.Konst a `U.Et` U.Konst b `U.Et` U.Done)
-primLeft    = TLam $ TNeu . U.Datum_ .
-                     U.Datum "left" . U.Inl . (`U.Et` U.Done) . U.Konst
-primRight   = TLam $ TNeu . U.Datum_ .
-                     U.Datum "right" . U.Inr . U.Inl . (`U.Et` U.Done) . U.Konst
-primTrue    = TNeu . U.Datum_ . U.Datum "true"  . U.Inl $ U.Done
-primFalse   = TNeu . U.Datum_ . U.Datum "false" . U.Inr . U.Inl $ U.Done
-primFromProb =
+primLeft       = TLam $ TNeu . U.Datum_ .
+                        U.Datum "left" . U.Inl . (`U.Et` U.Done) . U.Konst
+primRight      = TLam $ TNeu . U.Datum_ .
+                        U.Datum "right" . U.Inr . U.Inl . (`U.Et` U.Done) . U.Konst
+primTrue       = TNeu . U.Datum_ . U.Datum "true"  . U.Inl $ U.Done
+primFalse      = TNeu . U.Datum_ . U.Datum "false" . U.Inr . U.Inl $ U.Done
+primFromProb   =
     TLam $ TNeu . U.CoerceTo_ (Some2 $ CCons (Signed HRing_Real) CNil)
 primUnsafeProb =
     TLam $ TNeu . U.UnsafeTo_ (Some2 $ CCons (Signed HRing_Real) CNil)
-primWeight  = t2 $ \w m -> U.Superpose_ [(w, m)]
-primRealPow = t2 $ \x y -> U.PrimOp_ (U.SealedOp T.RealPow) [x, y]
+primWeight     = t2 $ \w m -> U.Superpose_ [(w, m)]
+primRealPow    = t2 $ \x y -> U.PrimOp_ (U.SealedOp T.RealPow) [x, y]
+--primNatPow     = t2 $ \x y -> U.PrimOp_ (U.SealedOp T.NatPow) [x, y]
 
 gensym :: Text -> State Int U.Name
 gensym s = state $ \i -> (U.Name (N.unsafeNat i) s, i + 1)
