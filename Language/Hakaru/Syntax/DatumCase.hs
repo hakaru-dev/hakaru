@@ -37,7 +37,8 @@ module Language.Hakaru.Syntax.DatumCase
 import Data.Proxy (Proxy(..))
 
 import Language.Hakaru.Syntax.IClasses
--- TODO: make things polykinded so we can make our ABT implementation independend of Hakaru's type system.
+-- TODO: make things polykinded so we can make our ABT implementation
+-- independend of Hakaru's type system.
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.AST (Term(Datum_))

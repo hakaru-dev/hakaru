@@ -64,7 +64,9 @@ import           Data.Monoid       (Monoid(..))
 
 import Language.Hakaru.Syntax.Nat
 import Language.Hakaru.Syntax.IClasses
--- TODO: factor the definition of the 'Sing' type family out from the instances, so that we can make our ABT stuff totally independent of the definition of Hakaru's types.
+-- TODO: factor the definition of the 'Sing' type family out from
+-- the instances, so that we can make our ABT stuff totally independent
+-- of the definition of Hakaru's types.
 import Language.Hakaru.Types.Sing
 
 ----------------------------------------------------------------
