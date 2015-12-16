@@ -6,7 +6,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.29
+--                                                    2015.12.15
 -- |
 -- Module      :  Language.Hakaru.Inference
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -15,7 +15,8 @@
 -- Stability   :  experimental
 -- Portability :  GHC-only
 --
--- TODO: we may want to give these longer\/more-explicit names so as to be a bit less ambiguous in the larger Haskell ecosystem.
+-- TODO: we may want to give these longer\/more-explicit names so
+-- as to be a bit less ambiguous in the larger Haskell ecosystem.
 ----------------------------------------------------------------
 module Language.Hakaru.Inference
     ( priorAsProposal
@@ -30,8 +31,7 @@ module Language.Hakaru.Inference
     , approxMh
     ) where
 
-import Prelude (($), (.), error)
-import qualified Prelude
+import Prelude (($), (.), error, Maybe(..))
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing (SingI())
 import Language.Hakaru.Syntax.AST (Term)
@@ -43,7 +43,7 @@ import Language.Hakaru.Disintegrate (determine, density, disintegrate)
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 priorAsProposal
-    :: (ABT Term abt, SingI a, SingI b)
+    :: (ABT Term abt)
     => abt '[] ('HMeasure (HPair a b))
     -> abt '[] (HPair a b)
     -> abt '[] ('HMeasure (HPair a b))
@@ -56,7 +56,12 @@ priorAsProposal p x =
             (pair (fst x') (snd x ))
 
 
--- We don't do the accept\/reject part of MCMC here, because @min@ and @bern@ don't do well in @simplify@! So we'll be passing the resulting AST of 'mh' to 'simplify' before plugging that into @mcmc@; that's why 'easierRoadmapProg4' and 'easierRoadmapProg4'' have different types.
+-- We don't do the accept\/reject part of MCMC here, because @min@
+-- and @bern@ don't do well in @simplify@! So we'll be passing the
+-- resulting AST of 'mh' to 'simplify' before plugging that into
+-- @mcmc@; that's why 'easierRoadmapProg4' and 'easierRoadmapProg4''
+-- have different types.
+--
 -- TODO: the @a@ type should be pure (aka @a ~ Expect' a@ in the old parlance).
 -- BUG: get rid of the SingI requirements due to using 'lam'
 mh  :: (ABT Term abt, SingI a)
@@ -65,14 +70,15 @@ mh  :: (ABT Term abt, SingI a)
     -> abt '[] (a ':-> 'HMeasure (HPair a 'HProb))
 mh proposal target =
     case determine $ density target of
-    Prelude.Nothing -> error "mh: couldn't get density"
-    Prelude.Just theDensity ->
+    Nothing -> error "mh: couldn't get density"
+    Just theDensity ->
         let_ theDensity $ \mu ->
         lam $ \old ->
             proposal old >>= \new ->
             dirac $ pair new (mu `app` {-pair-} new {-old-} / mu `app` {-pair-} old {-new-})
 
 
+-- BUG: get rid of the SingI requirements due to using 'lam' in 'mh'
 mcmc :: (ABT Term abt, SingI a)
     => (abt '[] a -> abt '[] ('HMeasure a))
     -> abt '[] ('HMeasure a)
@@ -87,14 +93,14 @@ mcmc proposal target =
 
 
 gibbsProposal
-    :: (ABT Term abt, SingI a, SingI b)
+    :: (ABT Term abt)
     => abt '[] ('HMeasure (HPair a b))
     -> abt '[] (HPair a b)
     -> abt '[] ('HMeasure (HPair a b))
 gibbsProposal p xy =
     case determine $ disintegrate p of
-    Prelude.Nothing -> error "gibbsProposal: couldn't disintegrate"
-    Prelude.Just q ->
+    Nothing -> error "gibbsProposal: couldn't disintegrate"
+    Just q ->
         xy `unpair` \x _y ->
         pair x <$> normalize (q `app` x)
 
@@ -102,7 +108,7 @@ gibbsProposal p xy =
 -- Slice sampling can be thought of:
 --
 -- slice target x = do
---      u  <- uniform(0, density(target, x))  
+--      u  <- uniform(0, density(target, x))
 --      x' <- lebesgue
 --      condition (density(target, x') >= u) true
 --      return x'
@@ -113,8 +119,8 @@ slice
     -> abt '[] ('HReal ':-> 'HMeasure 'HReal)
 slice target =
     case determine $ density target of
-    Prelude.Nothing -> error "slice: couldn't get density"
-    Prelude.Just densAt ->
+    Nothing -> error "slice: couldn't get density"
+    Just densAt ->
         lam $ \x ->
         uniform (real_ 0) (fromProb $ app densAt x) >>= \u ->
         normalize $
@@ -124,13 +130,13 @@ slice target =
 
 
 sliceX
-    :: (ABT Term abt, SingI a)
+    :: (ABT Term abt)
     => abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure (HPair a 'HReal))
 sliceX target =
     case determine $ density target of
-    Prelude.Nothing -> error "sliceX: couldn't get density"
-    Prelude.Just densAt ->
+    Nothing -> error "sliceX: couldn't get density"
+    Just densAt ->
         target `bindx` \x ->
         uniform (real_ 0) (fromProb $ app densAt x)
 
@@ -161,8 +167,9 @@ tCDF :: (ABT Term abt) => abt '[] 'HReal -> abt '[] 'HProb -> abt '[] 'HProb
 tCDF x v =
     let b = regBeta (v / (unsafeProb (x*x) + v)) (v / prob_ 2) (prob_ 0.5)
     in  unsafeProb $ real_ 1 - real_ 0.5 * fromProb b
-    
 
+
+-- BUG: get rid of the SingI requirements due to using 'lam'
 approxMh
     :: (ABT Term abt, SingI a)
     => (abt '[] a -> abt '[] ('HMeasure a))
@@ -171,9 +178,9 @@ approxMh
     -> abt '[] (a ':-> 'HMeasure a)
 approxMh _ _ [] = error "TODO: approxMh for empty list"
 approxMh proposal prior (x:xs) =
-    case determine . density $ bindx prior proposal of 
-    Prelude.Nothing -> error "approxMh: couldn't get density"
-    Prelude.Just theDensity ->
+    case determine . density $ bindx prior proposal of
+    Nothing -> error "approxMh: couldn't get density"
+    Just theDensity ->
         lam $ \old ->
         let_ theDensity $ \mu ->
         unsafeProb <$> uniform (real_ 0) (real_ 1) >>= \u ->
@@ -189,5 +196,5 @@ approxMh proposal prior (x:xs) =
     where
     n   = real_ 2000
     eps = prob_ 0.05
-    udif l u = unsafeProb $ (fromProb l) - (fromProb u)
+    udif l u = unsafeProb $ fromProb l - fromProb u
     l   = \d1 d2 -> prob_ 2 -- determine (density (\theta -> x theta))
