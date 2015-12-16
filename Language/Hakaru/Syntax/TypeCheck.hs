@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.08
+--                                                    2015.12.15
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeCheck
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -435,6 +435,70 @@ getHSemiring typ =
     Nothing      -> failwith $ "No HSemiring instance for type " ++ show typ
 
 ----------------------------------------------------------------
+data TypedASTs (abt :: [Hakaru] -> Hakaru -> *)
+    = forall b. TypedASTs !(Sing b) [abt '[] b]
+
+{-
+instance Show2 abt => Show (TypedASTs abt) where
+    showsPrec p (TypedASTs typ es) =
+        showParen_1x p "TypedASTs" typ es
+-}
+
+-- TODO: move to "Language.Hakaru.Syntax.Coercion"
+data Lub (a :: Hakaru) (b :: Hakaru)
+    = forall c. Lub !(Sing c) !(Coercion a c) !(Coercion b c)
+
+-- TODO: move to "Language.Hakaru.Syntax.Coercion"
+-- TODO: is there any way we can reuse 'findCoercion' to define this?
+findLub :: Sing a -> Sing b -> Maybe (Lub a b)
+-- cases where @a < b@:
+findLub SNat  SInt  = Just $ Lub SInt  signed CNil
+findLub SProb SReal = Just $ Lub SReal signed CNil
+findLub SNat  SProb = Just $ Lub SProb continuous CNil
+findLub SInt  SReal = Just $ Lub SReal continuous CNil
+findLub SNat  SReal = Just $ Lub SReal (continuous . signed) CNil
+-- the symmetric cases where @b < a@:
+findLub SInt  SNat  = Just $ Lub SInt  CNil signed
+findLub SReal SProb = Just $ Lub SReal CNil signed
+findLub SProb SNat  = Just $ Lub SProb CNil continuous
+findLub SReal SInt  = Just $ Lub SReal CNil continuous
+findLub SReal SNat  = Just $ Lub SReal CNil (continuous . signed)
+-- cases where the lub is different from both @a@ and @b@:
+findLub SInt  SProb = Just $ Lub SReal continuous signed
+findLub SProb SInt  = Just $ Lub SReal signed continuous
+-- case where @a == b@:
+findLub a     b     = jmEq1 a b >>= \Refl -> Just $ Lub a CNil CNil
+
+
+-- TODO: use this for the 'NaryOp' case of 'inferType' when in 'LaxMode'
+inferLubType
+    :: forall abt n
+    .  (ABT Term abt)
+    => [U.AST n]
+    -> TypeCheckMonad (TypedASTs abt)
+inferLubType = start
+    where
+    start :: [U.AST n] -> TypeCheckMonad (TypedASTs abt)
+    start []     =
+        failwith "Cannot infer unambiguous type for empty n-ary operator"
+    start (u:us) = do
+        TypedAST  typ1 e1 <- inferType u
+        TypedASTs typ2 es <- F.foldlM step (TypedASTs typ1 [e1]) us
+        return (TypedASTs typ2 (reverse es))
+
+    -- TODO: inline 'F.foldlM' and then inline this, to unpack the first argument.
+    step :: TypedASTs abt -> U.AST n -> TypeCheckMonad (TypedASTs abt)
+    step (TypedASTs typ1 es) u = do
+        TypedAST typ2 e2 <- inferType u
+        case findLub typ1 typ2 of
+            Nothing -> failwith $ "could not find lub of types " ++ show typ1 ++ " and " ++ show typ2
+            Just (Lub typ c1 c2) ->
+                let es' = map (unLC_ . coerceTo c1 . LC_) es
+                    e2' = unLC_ . coerceTo c2 $ LC_ e2
+                in return (TypedASTs typ (e2' : es'))
+
+
+----------------------------------------------------------------
 ----------------------------------------------------------------
 
 -- HACK: we must add the constraints that 'LCs' and 'UnLCs' are inverses.
@@ -780,6 +844,7 @@ checkBranch =
             _ -> failwith "expected pattern of `K' type"
 
 
+-- TODO: move to "Language.Hakaru.Syntax.Coercion"
 findCoercion :: Sing a -> Sing b -> Maybe (Coercion a b)
 findCoercion SNat  SInt  = Just signed
 findCoercion SProb SReal = Just signed
@@ -788,6 +853,7 @@ findCoercion SInt  SReal = Just continuous
 findCoercion SNat  SReal = Just (continuous . signed)
 findCoercion a     b     = jmEq1 a b >>= \Refl -> Just CNil
 
+-- TODO: move to "Language.Hakaru.Syntax.Coercion"
 findUnsafeCoercion
     :: Sing a
     -> Sing b
