@@ -39,10 +39,11 @@ style = Token.LanguageDef
 symTable :: [(Text, Text)]
 symTable =
     [ ("Gaussian", "normal")
-    , ("BetaD", "beta")
-    , ("GammaD", "gamma")
-    , ("Weight", "weight")
-    , ("Uniform", "uniform")
+    , ("BetaD",    "beta")
+    , ("GammaD",   "gamma")
+    , ("Weight",   "weight")
+    , ("Uniform",  "uniform")
+    , ("Ret",      "dirac")
     ]
 
 type TokenParser a = Token.GenTokenParser Text a Identity

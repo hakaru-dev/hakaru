@@ -33,7 +33,7 @@ ops, types, names :: [String]
 ops   = ["+","*","-","^", "**", ":","::", "<~","==", "=", "_"]
 types = ["->"]
 names = ["def","fn", "if","else","pi","inf", "∞",
-         "return", "dirac", "match", "data"]
+         "return", "match", "data"]
 
 type ParserStream    = IndentStream (CharIndentStream Text)
 type Parser          = ParsecT     ParserStream () Identity
