@@ -1,8 +1,14 @@
-{-# OPTIONS -Wall #-}
+{-# LANGUAGE NoImplicitPrelude, DataKinds #-}
+{-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Examples.HMMContinuous where
 
-import Prelude hiding (Real)
-import Language.Hakaru.Syntax
+import Prelude ((.), id, ($))
+
+import Language.Hakaru.Syntax.Prelude
+import Language.Hakaru.Types.DataKind
+import Language.Hakaru.Syntax.AST   (Term)
+import Language.Hakaru.Syntax.ABT   (ABT)
+
 import Language.Hakaru.Simplify
 import Language.Hakaru.Any
 import Language.Hakaru.Maple
@@ -16,22 +22,28 @@ type Time  = Int
 -- Query: Given that the state is observed noisily to be 8 at time 6,
 --        what's the posterior distribution over states at time 12?
 
-hmmContinuous :: (Mochastic repr, Lambda repr) => repr (Measure Real)
-hmmContinuous = liftM snd_ (app (chain (vector (12+1) $ \t ->
-                                        lam $ \s ->
-                                        emissionContinuous t s `bind_`
-                                        transitionContinuous s `bind` \s' ->
-                                        dirac (pair unit s')))
-                                10)
+hmmContinuous :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
+hmmContinuous =
+    snd `liftM` app (chain (vector (12+1) $ \t ->
+        lam $ \s ->
+        emissionContinuous t s >>
+        transitionContinuous s >>= \s' ->
+        dirac (pair unit s')))
+    10
 
-emissionContinuous :: (Mochastic repr) =>
-                      repr Time -> repr Real -> repr (Measure ())
-emissionContinuous t s = if_ (equal t 6)
-                             (factor (exp_ (- (s - 8) ^ (2 :: Int))))
-                             (dirac unit)
+emissionContinuous
+    :: (ABT Term abt)
+    => abt '[] Time
+    -> abt '[] 'HReal
+    -> abt '[] ('HMeasure HUnit)
+emissionContinuous t s =
+    if_ (t == 6)
+        (factor (exp_ (- (s - 8) ^ (2 :: Int))))
+        (dirac unit)
 
-transitionContinuous :: (Mochastic repr) => repr Real -> repr (Measure Real)
-transitionContinuous s = normal s 1
+transitionContinuous
+    :: (ABT Term abt) => abt '[] 'HReal -> abt '[] ('HMeasure 'HReal)
+transitionContinuous s = normal s one
 
 -- To compute hmmContinuous efficiently, again we should specialize "bindo" to
 -- values of type "Real -> Measure Real" that are of a certain form.  The form
@@ -39,19 +51,19 @@ transitionContinuous s = normal s 1
 --                                      (normal (? * s + ?) ?))"
 -- in which each ? is a real number.
 
-type M = (Prob, (Prob, (Real, (Real, (Real, Prob)))))
+type M = HPair 'HProb (HPair 'HProb (HPair 'HReal (HPair 'HReal (HPair 'HReal 'HProb))))
 
-reflect :: (Mochastic repr, Lambda repr) =>
-           repr M -> repr (Real -> Measure Real)
+reflect
+    :: (ABT Term abt) => abt '[] M -> abt '[] ('HReal ':-> 'HMeasure 'HReal)
 reflect m =
-  unpair m $ \a m ->
-  unpair m $ \b m ->
-  unpair m $ \c m ->
-  unpair m $ \d m ->
-  unpair m $ \e f ->
-  lam $ \s ->
-  weight (a * exp_ (- fromProb b * (s - c) ** 2)) $
-  normal (d * s + e) f
+    m `unpair` \a m ->
+    m `unpair` \b m ->
+    m `unpair` \c m ->
+    m `unpair` \d m ->
+    m `unpair` \e f ->
+    lam $ \s ->
+    weight (a * exp (negate (fromProb b) * (s - c) ** 2)) $
+    normal (d * s + e) f
 
 -- We can use "simplify" to help with writing bindo':
 --  > simplify (lam $ \m -> lam $ \n -> reflect m `bindo` reflect n)

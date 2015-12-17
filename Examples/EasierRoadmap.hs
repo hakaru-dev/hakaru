@@ -1,16 +1,16 @@
-{-# LANGUAGE GADTs
+{-# LANGUAGE NoImplicitPrelude
+           , GADTs
            , EmptyCase
            , KindSignatures
            , DataKinds
            , TypeOperators
            , FlexibleContexts
-           , NoImplicitPrelude
            , ScopedTypeVariables
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.29
+--                                                    2015.12.17
 -- |
 -- Module      :  Examples.EasierRoadmap
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -24,32 +24,24 @@
 ----------------------------------------------------------------
 module Examples.EasierRoadmap where
 
-import Prelude (($), (.), return,
-                undefined, error, IO, Maybe(..))
+import Prelude ((.), id, ($), return, undefined, error, IO, Maybe(..))
 
-import qualified System.Random.MWC     as MWC
-import qualified Data.Number.LogFloat  as LF()
-import qualified Data.Vector           as V()
-import Text.PrettyPrint (Doc)
-
-import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.Sing (SingI)
-import Language.Hakaru.Syntax.HClasses (HSemiring_)
-import Language.Hakaru.Syntax.ABT
-import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Prelude
+import Language.Hakaru.Types.DataKind
+import Language.Hakaru.Types.Sing     (SingI)
+import Language.Hakaru.Types.HClasses (HSemiring_)
+import Language.Hakaru.Syntax.AST     (Term)
+import Language.Hakaru.Syntax.ABT     (ABT)
 import Language.Hakaru.Disintegrate
-
 import Language.Hakaru.Sample hiding (runSample)
 import Language.Hakaru.PrettyPrint
 import Language.Hakaru.Expect
 
-{-
-import Language.Hakaru.Syntax
-import Language.Hakaru.Lazy (Backward, runDisintegrate, density)
-import Language.Hakaru.Simplify (simplify)
-import Language.Hakaru.Any (Any)
--}
+import qualified System.Random.MWC     as MWC
+import qualified Data.Number.LogFloat  as LF()
+import qualified Data.Vector           as V()
+import Text.PrettyPrint                (Doc)
+
 
 easierRoadmapProg1
     :: (ABT AST abt)
@@ -67,8 +59,7 @@ easierRoadmapProg1 =
 
 easierRoadmapProg1', easierRoadmapProg1'' ::
     TrivialABT AST '[]
-                ('HMeasure (HPair (HPair 'HReal 'HReal)
-                                  (HPair 'HProb 'HProb)))
+        ('HMeasure (HPair (HPair 'HReal 'HReal) (HPair 'HProb 'HProb)))
 
 easierRoadmapProg1'  = easierRoadmapProg1
 easierRoadmapProg1'' = normalize easierRoadmapProg1'
