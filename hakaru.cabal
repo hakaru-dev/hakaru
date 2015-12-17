@@ -1,22 +1,32 @@
 -- To understand this, see http://haskell.org/cabal/users-guide/
 
+cabal-version:       >=1.16
+build-type:          Custom
 name:                hakaru
 version:             0.3.0
-synopsis:            A probabilistic programming embedded DSL   
--- description:         
+synopsis:            A probabilistic programming embedded DSL
+-- description:
 homepage:            http://indiana.edu/~ppaml/
 license:             BSD3
 license-file:        LICENSE
 author:              The Hakaru Team
 maintainer:          ppaml@indiana.edu
--- copyright:           
+-- copyright:
 category:            Language
-build-type:          Custom 
--- extra-source-files:  
-cabal-version:       >=1.16
+-- extra-source-files:
 
-library
-  exposed-modules:     Language.Hakaru.Pretty.Maple,
+----------------------------------------------------------------
+Source-Repository head
+    Type:     git
+    Location: https://github.com/hakaru-dev/hakaru
+
+----------------------------------------------------------------
+Library
+    Hs-Source-Dirs:    haskell
+    Default-Language:  Haskell2010
+    GHC-Options:       -Wall -fwarn-tabs
+
+    exposed-modules:   Language.Hakaru.Pretty.Maple,
                        Language.Hakaru.Simplify,
                        Language.Hakaru.Util.Csv,
                        Language.Hakaru.Sample,
@@ -48,12 +58,12 @@ library
                        Language.Hakaru.Disintegrate,
                        Language.Hakaru.Inference
 
-  other-modules:       Language.Hakaru.Util.Extras,
+    other-modules:     Language.Hakaru.Util.Extras,
                        Language.Hakaru.Util.Lex,
                        Language.Hakaru.Util.Visual,
                        System.MapleSSH
 
-  other-extensions:    RankNTypes, BangPatterns, GADTs, TypeFamilies, TypeOperators,
+    other-extensions:  RankNTypes, BangPatterns, GADTs, TypeFamilies, TypeOperators,
                        ConstraintKinds, FlexibleContexts, NoMonomorphismRestriction,
                        DeriveDataTypeable, ScopedTypeVariables, ExistentialQuantification,
                        StandaloneDeriving, OverloadedStrings,
@@ -77,7 +87,7 @@ library
 -- ghc-prim is used in LH.RoundTrip
 -- filepath is used in Examples/Slam
 
-  build-depends:       base             >= 4.7  && < 5.0, 
+    build-depends:     base             >= 4.7  && < 5.0, 
                        Cabal            >= 1.16,
                        ghc-prim         >= 0.3  && < 0.5,
                        random           >= 1.0  && < 1.3,
@@ -111,15 +121,15 @@ library
                        filepath         >= 1.1.0.2
                        -- singletons    >= 1.0
 
+----------------------------------------------------------------
+Test-Suite system-testsuite
+    Type:              exitcode-stdio-1.0
+    Main-is:           Tests/TestSuite.hs
+    Hs-Source-Dirs:    haskell
+    Default-Language:  Haskell2010
+    GHC-Options:       -Wall -fwarn-tabs
 
-  -- hs-source-dirs:      
-  default-language:    Haskell2010
-  ghc-options:         -Wall
-
-test-suite system-testsuite
-    type:              exitcode-stdio-1.0
-    main-is:           Tests/TestSuite.hs
-    build-depends:     base             >= 4.6  && < 5.0, 
+    Build-Depends:     base             >= 4.6  && < 5.0, 
                        Cabal            >= 1.16, 
                        ghc-prim         >= 0.3  && < 0.5,
                        indentation      >= 0.2.1,
@@ -144,15 +154,14 @@ test-suite system-testsuite
                        zlib             >= 0.5  && < 0.6,
                        bytestring       >= 0.10 && < 0.11
 
-    default-language:  Haskell2010
-    ghc-options:         -Wall
-
+----------------------------------------------------------------
 Executable hakaru
-  ghc-options:         -O2 -Wall
-  default-language:    Haskell2010
-  Main-is:             Hakaru.hs
+    Main-is:           Hakaru.hs
+    Hs-Source-Dirs:    haskell
+    Default-Language:  Haskell2010
+    GHC-Options:       -O2 -Wall -fwarn-tabs
 
-  build-depends:       base             >= 4.7  && < 5.0, 
+    build-depends:     base             >= 4.7  && < 5.0, 
                        Cabal            >= 1.16,
                        ghc-prim         >= 0.3  && < 0.5,
                        random           >= 1.0  && < 1.3,
@@ -182,3 +191,6 @@ Executable hakaru
                        mtl              >= 2.1,
                        generics-sop     >= 0.1.0,
                        filepath         >= 1.1.0.2
+
+----------------------------------------------------------------
+----------------------------------------------------------- fin.
