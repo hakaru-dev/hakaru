@@ -32,7 +32,7 @@ module Language.Hakaru.Syntax.U where
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Variable
-import Language.Hakaru.Syntax.Sing (Sing, SingI(..))
+import Language.Hakaru.Types.Sing (Sing, SingI(..))
 
 import Data.Typeable hiding (Refl)
 #if __GLASGOW_HASKELL__ < 710

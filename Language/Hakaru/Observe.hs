@@ -5,7 +5,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.14
+--                                                    2015.12.15
 -- |
 -- Module      :  Language.Hakaru.Observe
 -- Copyright   :  Copyright (c) 2015 the Hakaru team

@@ -19,7 +19,7 @@ module Language.Hakaru.Syntax {-# DEPRECATED "use Language.Hakaru.Syntax.* inste
     ) where
 
 import Prelude hiding (Real)
-import Language.Hakaru.Syntax.DataKind
+import Language.Hakaru.Types.DataKind
 
 infix  4 `less`, `equal`, `less_`, `equal_`
 infixl 1 `bind`, `bind_`, `bindx`
