@@ -6,15 +6,18 @@ module Tests.Disintegrate where
 
 import Prelude hiding ((>>=))
 
+import Language.Hakaru.Syntax.AST.Eq()
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
-import Language.Hakaru.Syntax.DataKind
-import Language.Hakaru.Syntax.Sing
+import Language.Hakaru.Types.DataKind
+import Language.Hakaru.Types.Sing
 import Language.Hakaru.Syntax.Prelude
-import Language.Hakaru.PrettyPrint      (pretty)
+import Language.Hakaru.Pretty.Haskell   (pretty)
 import Language.Hakaru.Evaluation.Types (runM)
 import Language.Hakaru.Syntax.IClasses  (Some2(..))
 import Language.Hakaru.Disintegrate
+
+import qualified Language.Hakaru.Observe as O
 
 -- | A very simple program. Is sufficient for testing escape and
 -- capture of substitution.
@@ -22,7 +25,7 @@ norm :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
 norm =
     normal (real_ 0) (prob_ 1) >>= \x ->
     normal x         (prob_ 1) >>= \y ->
-    dirac (pair x y)
+    dirac (pair y x)
 
 -- | The original test program, useful for testing that using 'Ann_'
 -- doesn't loop.
@@ -35,7 +38,14 @@ normB :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
 normB =
     normal (real_ 0) (prob_ 1) >>= \x ->
     normal x         (prob_ 1) >>= \y ->
-    dirac (ann_ (sPair SReal SReal) (pair x y))
+    dirac (ann_ (sPair SReal SReal) (pair y x))
+
+-- | What we expect norm{A,B} to disintegrate to
+normC :: TrivialABT Term '[] ('HReal ':-> 'HMeasure 'HReal)
+normC = lam $ \y ->
+        normal (real_ 0) (prob_ 1) >>= \x ->
+        O.observe (normal x (prob_ 1)) y >>= \_ ->
+        dirac x
 
 test0, test0a, test0b
     :: [TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))]
