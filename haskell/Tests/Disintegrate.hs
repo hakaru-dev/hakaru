@@ -44,7 +44,7 @@ normB =
 normC :: TrivialABT Term '[] ('HReal ':-> 'HMeasure 'HReal)
 normC = lam $ \y ->
         normal (real_ 0) (prob_ 1) >>= \x ->
-        O.observe (normal x (prob_ 1)) y >>
+        ann_ (SMeasure sUnit) (O.observe (normal x (prob_ 1)) y) >>
         dirac x
 
 test0, test0a, test0b
