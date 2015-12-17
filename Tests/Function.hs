@@ -1,30 +1,31 @@
-{-# LANGUAGE DataKinds #-}
-module Tests.Function(allTests) where
+{-# LANGUAGE DataKinds, NoImplicitPrelude #-}
+{-# OPTIONS_GHC -Wall -fwarn-tabs #-}
+module Tests.Function (allTests) where
 
-import Prelude hiding (Real)
+import Prelude ((.), id, ($), asTypeOf)
 
-import Language.Hakaru.Syntax
-import Language.Hakaru.Expect (unExpect)
+import Language.Hakaru.Syntax.Prelude
+import Language.Hakaru.Types.DataKind
+import Language.Hakaru.Syntax.AST (Term)
+import Language.Hakaru.Syntax.ABT (ABT)
+import Language.Hakaru.Expect     (expect)
 
 import Test.HUnit
 import Tests.TestTools
 
-testHigherOrder :: Test
-testHigherOrder = test [
+allTests :: Test
+allTests = test [
     "t41"            ~: testS t41,
-    "pairFun"        ~: testSS [] (pair (lam exp_) pi_),
-    "pairFunSimp"    ~: testSS [pair (lam exp_) (lam (log_.exp_))]
-                               (pair (lam exp_) (lam id)),
-    "unknownMeasure" ~: testSS [lam $ \m ->
-                                normal 0 1 `bind_`
-                                asTypeOf m (dirac (pair pi_ pi_))]
-                               (lam id)
+    "pairFun"        ~: testSS [] (pair (lam exp) pi),
+    "pairFunSimp"    ~: testSS [pair (lam exp) (lam (log . exp))]
+                               (pair (lam exp) (lam id)),
+    "unknownMeasure" ~: testSS
+        [lam $ \m ->
+            normal zero one >>
+            asTypeOf m (dirac (pair pi pi))
+        ] (lam id)
     ]
 
-allTests :: Test
-allTests = testHigherOrder
-
-t41 :: (Lambda repr, Integrate repr, Mochastic repr)
-    => repr (HMeasure (HFun (HFun HProb HProb) HProb))
-t41 = dirac $ snd_ $ unExpect $ uniform 0 2 `bind` dirac . unsafeProb
-
+t41 :: (ABT Term abt)
+    => abt '[] ('HMeasure (('HProb ':-> 'HProb) ':-> 'HProb))
+t41 = dirac $ expect (unsafeProb <$> uniform zero (prob_ 2)) lam

@@ -1,26 +1,70 @@
-{- These are here because they are shared between tests -}
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DataKinds, NoImplicitPrelude #-}
+{-# OPTIONS_GHC -Wall -fwarn-tabs #-}
+----------------------------------------------------------------
+--                                                    2015.12.16
+-- |
+-- Module      :  Tests.Models
+-- Copyright   :  Copyright (c) 2015 the Hakaru team
+-- License     :  BSD3
+-- Maintainer  :  wren@community.haskell.org
+-- Stability   :  experimental
+-- Portability :  GHC-only
+--
+-- Some common models used in many different tests.
+--
+-- TODO: we might should adjust our use of 'pair' to include a type
+-- annotation, to avoid issues about 'Language.Hakaru.Syntax.TypeOf.typeOf'
+-- on 'Datum'.
+----------------------------------------------------------------
 module Tests.Models where
 
-import Prelude hiding (Real)
+import Language.Hakaru.Types.DataKind
+import Language.Hakaru.Syntax.AST (Term)
+import Language.Hakaru.Syntax.ABT (ABT)
+import Language.Hakaru.Syntax.Prelude
 
-import Language.Hakaru.Syntax
+----------------------------------------------------------------
+----------------------------------------------------------------
+uniform_0_1 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
+uniform_0_1 = uniform zero one
 
-t4 :: Mochastic repr => repr (HMeasure (HPair HProb HBool))
-t4 = beta 1 1 `bind` \bias -> bern bias `bind` \coin -> dirac (pair bias coin)
+normal_0_1 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
+normal_0_1 = normal zero one
 
-t4' :: Mochastic repr => repr (HMeasure (HPair HProb HBool))
-t4' = (uniform  0 1) `bind` \x3 ->
-      superpose [((unsafeProb x3)               ,(dirac (pair (unsafeProb x3) true))),
-                 ((unsafeProb (1 + (x3 * (-1)))),(dirac (pair (unsafeProb x3) false)))]
+gamma_1_1 :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
+gamma_1_1 = gamma one one
 
-norm :: Mochastic repr => repr (HMeasure (HPair HReal HReal))
-norm = normal 0 1 `bind` \x ->
-       normal x 1 `bind` \y ->
-       dirac (pair x y)
+beta_1_1 :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
+beta_1_1 = beta one one
 
-unif2 :: Mochastic repr => repr (HMeasure (HPair HReal HReal))
-unif2 = uniform (-1) 1 `bind` \x ->
-        uniform (x-1) (x+1) `bind` \y ->
-        dirac (pair x y)
 
+-- TODO: a better name for this
+t4 :: (ABT Term abt) => abt '[] ('HMeasure (HPair 'HProb HBool))
+t4 =
+    beta one one >>= \bias ->
+    bern bias >>= \coin ->
+    dirac (pair bias coin)
+
+t4' :: (ABT Term abt) => abt '[] ('HMeasure (HPair 'HProb HBool))
+t4' =
+    uniform zero one >>= \x ->
+    let x' = unsafeProb x in
+    superpose
+        [ (x'                  , dirac (pair x' true))
+        , (unsafeProb (one - x), dirac (pair x' false))
+        ]
+
+norm :: (ABT Term abt) => abt '[] ('HMeasure (HPair 'HReal 'HReal))
+norm =
+    normal zero one >>= \x ->
+    normal x one >>= \y ->
+    dirac (pair x y)
+
+unif2 :: (ABT Term abt) => abt '[] ('HMeasure (HPair 'HReal 'HReal))
+unif2 =
+    uniform (negate one) one >>= \x ->
+    uniform (x - one) (x + one) >>= \y ->
+    dirac (pair x y)
+
+----------------------------------------------------------------
+----------------------------------------------------------- fin.

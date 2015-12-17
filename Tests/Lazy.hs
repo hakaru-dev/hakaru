@@ -122,7 +122,7 @@ allTests = test
     , "prog3s" ~: testL prog3s []
     , "pair1fst" ~: testL pair1fst []
     , "pair1fstSwap" ~: testL pair1fstSwap []
-    , "borelishSub" ~: testL borelishSub [(unit, 0, Any (uniform 0 1))]
+    , "borelishSub" ~: testL borelishSub [(unit, 0, Any uniform_0_1)]
     , "borelishDiv" ~: testL borelishDiv
             [(unit, 1, Any
                 (superpose [(1/2, liftM fromProb (beta 2 1))]))]
@@ -194,7 +194,7 @@ normalFB1
     :: (Mochastic repr)
     => Cond repr HUnit (HMeasure (HPair HReal HUnit))
 normalFB1 = \u -> ununit u $
-            normal 0 1 `bind` \x ->
+            normal_0_1 `bind` \x ->
             normal x 1 `bind` \y ->
             dirac (pair ((y + y) + x) unit)
 
@@ -202,7 +202,7 @@ normalFB2
     :: (Mochastic repr)
     => Cond repr HUnit (HMeasure (HPair HReal HUnit))
 normalFB2 = \u -> ununit u $
-            normal 0 1 `bind` \x ->
+            normal_0_1 `bind` \x ->
             normal x 1 `bind` \y ->
             dirac (pair (y + x) unit)
 
@@ -216,12 +216,12 @@ zeroDiv
     :: (Mochastic repr)
     => Cond repr HUnit (HMeasure (HPair HReal HReal))
 zeroDiv = \u -> ununit u $
-          normal 0 1 `bind` \x ->
+          normal_0_1 `bind` \x ->
           dirac (pair x (0 / x))
             
 cushing :: (Mochastic repr) => Cond repr HUnit (HMeasure (HPair HReal HReal))
 cushing = \u -> ununit u $
-          uniform 0 1 `bind` \x ->
+          uniform_0_1 `bind` \x ->
           if_ (not_ (equal_ x (1/2)))
               (uniform 0 x)
               (uniform x 1) `bind` \y ->
@@ -234,7 +234,7 @@ cushingSimpl = mapM simplify (runDisintegrate cushing)
 
 cobb :: (Mochastic repr) => Cond repr HUnit (HMeasure (HPair HReal HReal))
 cobb = \u -> ununit u $
-       uniform 0 1 `bind` \x ->
+       uniform_0_1 `bind` \x ->
        uniform (-x) x `bind` \y ->
        dirac (pair y x)
 
@@ -245,7 +245,7 @@ cobbObs n = simplify (d `app` unit `app` n)
 
 cobb0 :: (Mochastic repr, Lambda repr, Integrate repr)
          => Expect repr (HMeasure HProb)
-cobb0 = uniform 0 1 `bind` \x0 ->
+cobb0 = uniform_0_1 `bind` \x0 ->
         weight (recip (unsafeProb x0) * (1/2)) $
         dirac (unsafeProb x0)
 
@@ -277,7 +277,7 @@ zeroPlusSnd
     :: (Mochastic repr)
     => Cond repr HUnit (HMeasure (HPair HUnit HReal))
 zeroPlusSnd = \u -> ununit u $
-              normal 0 1 `bind` \x ->
+              normal_0_1 `bind` \x ->
               dirac (pair unit (0 + x))                   
 
 -- Jacques on 2014-11-18: "From an email of Oleg's, could someone please
@@ -288,18 +288,17 @@ prog1s, prog2s, prog3s
     => Cond repr HUnit (HMeasure (HPair HReal HBool))
 prog1s = \u -> ununit u $
          bern 0.5 `bind` \c ->
-         if_ c (normal 0 1)
-               (uniform 10 20) `bind` \x ->
+         if_ c normal_0_1 (uniform 10 20) `bind` \x ->
          dirac (pair x c)
 prog2s = \u -> ununit u $
          bern 0.5 `bind` \c ->
-         if_ c (normal 0 1)
+         if_ c normal_0_1
                (dirac 10 `bind` \d ->
                 uniform d 20) `bind` \x ->
          dirac (pair x c)
 prog3s = \u -> ununit u $
          bern 0.5 `bind` \c ->
-         if_ c (normal 0 1)
+         if_ c normal_0_1
                (dirac false `bind` \e ->
                 uniform (10 + if_ e 1 0) 20) `bind` \x ->
          dirac (pair x c)               
@@ -336,8 +335,8 @@ borelish
     => (repr HReal -> repr HReal -> repr a)
     -> repr (HMeasure (HPair a HReal))
 borelish comp =
-    uniform 0 1 `bind` \x ->
-    uniform 0 1 `bind` \y ->
+    uniform_0_1 `bind` \x ->
+    uniform_0_1 `bind` \y ->
     dirac (pair (comp x y) x)
 
 culpepper :: (Mochastic repr) => repr (HMeasure (HPair HReal HBool))
@@ -396,8 +395,8 @@ density1
     => Cond repr HUnit (HMeasure (HPair HReal HUnit))
 density1 = \u -> ununit u $
            liftM (`pair` unit) $
-           uniform 0 1 `bind` \x ->
-           uniform 0 1 `bind` \y ->
+           uniform_0_1 `bind` \x ->
+           uniform_0_1 `bind` \y ->
            dirac (x + exp (-y))
 
 density2
@@ -405,80 +404,80 @@ density2
     => Cond repr HUnit (HMeasure (HPair HReal HUnit))
 density2 = \u -> ununit u $
            liftM (`pair` unit) $
-           liftM2 (*) (uniform 0 1) $
-           liftM2 (+) (uniform 0 1) (uniform 0 1)
+           liftM2 (*) uniform_0_1 $
+           liftM2 (+) uniform_0_1 uniform_0_1
 
 -- density3
 --     :: (Mochastic repr)
 --     => Cond repr HUnit (HMeasure (HPair HReal HUnit))
 -- density3 = \u -> ununit u $
 --            liftM (`pair` unit) $
---            mix [(7, liftM (\x -> x - 1/2 + 0) (uniform 0 1)),
---                 (3, liftM (\x -> (x - 1/2) * 10) (uniform 0 1))]
+--            mix [(7, liftM (\x -> x - 1/2 + 0) uniform_0_1),
+--                 (3, liftM (\x -> (x - 1/2) * 10) uniform_0_1)]
 
 norm :: (Mochastic repr) => Cond repr HUnit (HMeasure (HPair HReal HReal))
 norm = \u -> ununit u $ RT.norm
                  
 t0 :: (Mochastic repr) => Cond repr HUnit (HMeasure (HPair HReal HReal))
 t0 = \u -> ununit u $
-     normal 0 1 `bind` \x ->
+     normal_0_1 `bind` \x ->
      normal x 1 `bind` \y ->
      dirac (pair y x)
 
 t1 :: (Mochastic repr) => Cond repr HUnit (HMeasure (HPair HReal HReal))
 t1 = \u -> ununit u $
-     uniform 0 1 `bind` \x ->
-     uniform 0 1 `bind` \y ->
+     uniform_0_1 `bind` \x ->
+     uniform_0_1 `bind` \y ->
      dirac (pair (exp x) (y + x))
 
 t2 :: (Mochastic repr) => Cond repr HUnit (HMeasure (HPair HReal HReal))
 t2 = \u -> ununit u $
-     uniform 0 1 `bind` \x ->
-     uniform 0 1 `bind` \y ->
+     uniform_0_1 `bind` \x ->
+     uniform_0_1 `bind` \y ->
      dirac (pair (y + x) (exp x))
 
 t3  :: (Mochastic repr)
     => Cond repr HUnit (HMeasure (HPair HReal (HPair HReal HReal)))
 t3 = \u -> ununit u $
-     uniform 0 1 `bind` \x ->
-     uniform 0 1 `bind` \y ->
+     uniform_0_1 `bind` \x ->
+     uniform_0_1 `bind` \y ->
      dirac (pair (max_ x y) (pair x y))
 
 t4 :: (Mochastic repr) => Cond repr HUnit (HMeasure (HPair HReal HReal))
 t4 = \u -> ununit u $
-     uniform 0 1 `bind` \x ->
+     uniform_0_1 `bind` \x ->
      dirac (pair (exp x) (-x))
 
 t5 :: (Mochastic repr) => Cond repr HUnit (HMeasure (HPair HReal HUnit))
 t5 = \u -> ununit u $
      liftM (`pair` unit) $
-     let m = superpose (replicate 2 (1, uniform 0 1))
+     let m = superpose (replicate 2 (1, uniform_0_1))
      in let add = liftM2 (+)
         in add (add m m) m
 
 t6 :: (Mochastic repr) => Cond repr HUnit (HMeasure (HPair HReal HReal))
 t6 = \u -> ununit u $
-     uniform 0 1 `bind` \x ->
-     uniform 0 1 `bind` \y ->
+     uniform_0_1 `bind` \x ->
+     uniform_0_1 `bind` \y ->
      dirac (pair (x+y) (x-y))
 
 t7  :: (Mochastic repr)
     => Cond repr HUnit (HMeasure (HPair HReal (HMeasure HReal)))
 t7 = \u -> ununit u $
-     uniform 0 1 `bind` \y ->
-     uniform 0 1 `bind` \x ->
-     dirac (pair (x+y) (uniform 0 1 `bind_` dirac y))
+     uniform_0_1 `bind` \y ->
+     uniform_0_1 `bind` \x ->
+     dirac (pair (x+y) (uniform_0_1 `bind_` dirac y))
 
 t8 :: (Mochastic repr) => Cond repr HUnit (HMeasure (HPair HReal HReal))
 t8 = \u -> ununit u $
-     dirac (uniform 0 1 `bind` \x -> dirac (1+x)) `bind` \m ->
+     dirac (uniform_0_1 `bind` \x -> dirac (1+x)) `bind` \m ->
      m `bind` \x ->
      m `bind` \y ->
      dirac (pair x y)
 
 t9 :: (Mochastic repr) => Cond repr HUnit (HMeasure (HPair HReal HReal))
 t9 = \u -> ununit u $
-     (uniform 0 1 `bind` \x -> dirac (dirac (1+x))) `bind` \m ->
+     (uniform_0_1 `bind` \x -> dirac (dirac (1+x))) `bind` \m ->
      m `bind` \x ->
      m `bind` \y ->
      dirac (pair x y)
@@ -486,7 +485,7 @@ t9 = \u -> ununit u $
 t10 :: (Mochastic repr)
     => Cond repr HUnit (HMeasure (HPair (HPair HReal HReal) HReal))
 t10 = \u -> ununit u $
-      normal 0 1 `bind` \x ->
+      normal_0_1 `bind` \x ->
       plate (vector 10 (\i -> normal x (unsafeProb (fromInt i) + 1))) `bind` \ys ->
       dirac (pair (pair (index ys 3) (index ys 4)) x)
 
@@ -508,7 +507,7 @@ marsaglia _ =
 -- (which evaluates the lower bound x)
 t11 :: (Mochastic repr) => Cond repr HUnit (HMeasure (HPair HReal HUnit))
 t11 = \u -> ununit u $
-      uniform 0 1 `bind` \x ->
+      uniform_0_1 `bind` \x ->
       uniform x 1 `bind` \y ->
       dirac (pair (x + (y + y)) unit)
 

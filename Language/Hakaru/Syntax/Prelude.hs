@@ -338,6 +338,8 @@ one_  HSemiring_Int  = literal_ $ LInt  1
 one_  HSemiring_Prob = literal_ $ LProb 1
 one_  HSemiring_Real = literal_ $ LReal 1
 
+-- TODO: add a smart constructor for @HSemiring_ a => Natural -> abt '[] a@ and\/or @HRing_ a => Integer -> abt '[] a@
+
 sum, product :: (ABT Term abt, HSemiring_ a) => [abt '[] a] -> abt '[] a
 sum     = naryOp_withIdentity (Sum  hSemiring) zero
 product = naryOp_withIdentity (Prod hSemiring) one
