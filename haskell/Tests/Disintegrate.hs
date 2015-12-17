@@ -4,7 +4,7 @@
 
 module Tests.Disintegrate where
 
-import Prelude hiding ((>>=))
+import Prelude hiding ((>>=), (>>))
 
 import Language.Hakaru.Syntax.AST.Eq()
 import Language.Hakaru.Syntax.ABT

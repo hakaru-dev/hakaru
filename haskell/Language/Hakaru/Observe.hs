@@ -46,9 +46,9 @@ observeAST (LC_ m) (LC_ a) =
         case ast of
           Dirac :$ (e :* End) -> P.if_ (e P.== a) (P.dirac P.unit) P.reject
           MeasureOp_ op :$ es -> observeMeasureOp op es a
-          _ -> error "observe can only be applied to measure primitive"
+          _ -> error "observe can only be applied to measure primitives"
 
-observeVar = error "observe can only be applied measure primitive"
+observeVar = error "observe can only be applied measure primitives"
 
 observeMeasureOp :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
                  => MeasureOp typs a
