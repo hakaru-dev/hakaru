@@ -9,17 +9,18 @@ import Language.Hakaru.Parser.SymbolResolve (resolveAST)
 
 import qualified Language.Hakaru.Syntax.AST as T
 import Language.Hakaru.Syntax.IClasses
-import Language.Hakaru.Syntax.HClasses
+import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Syntax.Nat
 import Language.Hakaru.Syntax.ABT
-import Language.Hakaru.Syntax.Sing
-import Language.Hakaru.Syntax.DataKind
+import Language.Hakaru.Types.Sing
+import Language.Hakaru.Types.DataKind
 
 import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Pretty.Concrete
 import Language.Hakaru.Sample hiding (SData, SKonst, SEt, SDone, SPlus, SVoid)
+import Language.Hakaru.Observe
 import Language.Hakaru.Expect
-import Language.Hakaru.Syntax.Prelude (prob_, fromProb)
+import Language.Hakaru.Syntax.Prelude (prob_, fromProb, real_)
 import Language.Hakaru.Simplify
 
 import Prelude hiding (unlines)
@@ -72,7 +73,7 @@ testHakaru a mode g =
             putStrLn . show $ pretty ast
             putStrLn ""
             case typ of
-                SMeasure _ -> do
+                SMeasure SReal -> do
                     ast' <- simplify ast
                     putStrLn "AST + Simplify:"
                     putStrLn . show $ pretty ast'
@@ -80,6 +81,8 @@ testHakaru a mode g =
                     putStrLn "Expectation wrt 1 as ast:"
                     putStrLn . show . pretty $ total ast
                     putStrLn ""
+                    putStrLn "Observe to be 1:"
+                    putStrLn . show . pretty $ observe ast (real_ 1)
                 _ -> return ()
             illustrate typ g . unS $ runSample' ast
     where

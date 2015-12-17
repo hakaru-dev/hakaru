@@ -42,6 +42,7 @@ library
                        Language.Hakaru.Pretty.Haskell,
                        Language.Hakaru.Pretty.Concrete,
                        Language.Hakaru.Expect,
+                       Language.Hakaru.Observe,
                        Language.Hakaru.Evaluation.Types,
                        Language.Hakaru.Evaluation.Lazy,
                        Language.Hakaru.Disintegrate,
