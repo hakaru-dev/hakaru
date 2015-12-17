@@ -97,6 +97,12 @@ mapleType SReal        = "Real"
 mapleType (SFun a b)   = "Arrow(" ++ mapleType a ++ "," ++ mapleType b ++ ")"
 mapleType (SArray a)   = "Array(" ++ mapleType a ++ ")"
 mapleType (SMeasure a) = "Measure(" ++ mapleType a ++ ")"
+-- Special case pair
+mapleType (SData _ (SPlus (SEt (SKonst a)
+                           (SEt (SKonst b)
+                            SDone))
+                    SVoid))
+    = "Pair(" ++ mapleType a ++ "," ++ mapleType b ++ ")"
 
 mapleLiteral :: Literal a -> String
 mapleLiteral (LNat  v) = show v
