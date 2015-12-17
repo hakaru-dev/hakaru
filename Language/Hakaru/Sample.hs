@@ -32,8 +32,8 @@ import Control.Monad.Trans.Maybe
 -- import qualified Data.Text        as T
 import qualified Data.IntMap      as IM
 
-import Language.Hakaru.Syntax.Nat      (fromNat, unsafeNat, Nat())
-import Language.Hakaru.Syntax.Natural  (fromNatural, fromNonNegativeRational)
+import Data.Number.Nat     (fromNat, unsafeNat, Nat())
+import Data.Number.Natural (fromNatural, fromNonNegativeRational)
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.HClasses

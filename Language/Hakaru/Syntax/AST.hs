@@ -66,7 +66,7 @@ import           Data.Traversable
 import           Control.Arrow ((***))
 import           Data.Ratio    (numerator, denominator)
 
-import Language.Hakaru.Syntax.Natural
+import Data.Number.Natural
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing

@@ -47,7 +47,7 @@ import           Control.Applicative   (Applicative(..), (<$>))
 import           Control.Applicative   (Alternative(..))
 import qualified Language.Hakaru.Parser.AST as U
 
-import Language.Hakaru.Syntax.Nat      (fromNat)
+import Data.Number.Nat                (fromNat)
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.DataKind (Hakaru(..), HData', HBool)
 import Language.Hakaru.Types.Sing

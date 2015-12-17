@@ -19,7 +19,7 @@ import           Language.Hakaru.Types.Sing
 import           Language.Hakaru.Types.Coercion
 import           Language.Hakaru.Types.HClasses
 import           Language.Hakaru.Syntax.IClasses
-import qualified Language.Hakaru.Syntax.Nat as N
+import qualified Data.Number.Nat as N
 import qualified Language.Hakaru.Syntax.AST as T
 import qualified Language.Hakaru.Parser.AST as U
 

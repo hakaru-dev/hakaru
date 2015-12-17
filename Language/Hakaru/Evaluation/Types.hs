@@ -74,7 +74,7 @@ import           Control.Monad        (MonadPlus(..))
 import           Data.Text            (Text)
 
 import Language.Hakaru.Syntax.IClasses
-import Language.Hakaru.Syntax.Nat
+import Data.Number.Nat
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing    (Sing)
 import Language.Hakaru.Types.Coercion

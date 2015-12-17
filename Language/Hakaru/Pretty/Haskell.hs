@@ -36,8 +36,8 @@ import qualified Data.Foldable    as F
 import qualified Data.Text        as Text
 import qualified Data.Sequence    as Seq -- Because older versions of "Data.Foldable" do not export 'null' apparently...
 
-import Language.Hakaru.Syntax.Nat      (fromNat)
-import Language.Hakaru.Syntax.Natural  (fromNatural, fromNonNegativeRational)
+import Data.Number.Nat      (fromNat)
+import Data.Number.Natural  (fromNatural, fromNonNegativeRational)
 import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11)
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Coercion

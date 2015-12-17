@@ -15,7 +15,7 @@ import Language.Hakaru.Syntax.AST.Eq()
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.HClasses
-import Language.Hakaru.Syntax.Nat
+import Data.Number.Nat
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Syntax.TypeCheck

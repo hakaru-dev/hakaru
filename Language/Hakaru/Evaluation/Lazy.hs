@@ -52,8 +52,8 @@ import qualified Data.Sequence          as Seq
 import qualified Data.Text              as Text
 
 import Language.Hakaru.Syntax.IClasses
-import Language.Hakaru.Syntax.Nat
-import Language.Hakaru.Syntax.Natural
+import Data.Number.Nat
+import Data.Number.Natural
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion

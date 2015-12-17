@@ -62,7 +62,7 @@ import           Control.Exception (Exception, throw)
 import           Data.Monoid       (Monoid(..))
 #endif
 
-import Language.Hakaru.Syntax.Nat
+import Data.Number.Nat
 import Language.Hakaru.Syntax.IClasses
 -- TODO: factor the definition of the 'Sing' type family out from
 -- the instances, so that we can make our ABT stuff totally independent

@@ -10,7 +10,7 @@ import Language.Hakaru.Parser.SymbolResolve (resolveAST)
 import qualified Language.Hakaru.Syntax.AST as T
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.HClasses
-import Language.Hakaru.Syntax.Nat
+import Data.Number.Nat
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.DataKind

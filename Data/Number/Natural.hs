@@ -1,11 +1,10 @@
--- TODO: move this somewhere else, like "Language.Hakaru.Types"
--- TODO: merge with the Posta version. Release them as a standalone package?
+-- TODO: merge with the Posta version. And release them as a standalone package
 {-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.01
+--                                                    2015.12.17
 -- |
--- Module      :  Language.Hakaru.Syntax.Natural
+-- Module      :  Data.Number.Natural
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  wren@community.haskell.org
@@ -14,7 +13,7 @@
 --
 -- A data type for natural numbers (aka non-negative integers).
 ----------------------------------------------------------------
-module Language.Hakaru.Syntax.Natural
+module Data.Number.Natural
     ( Natural()
     , fromNatural
     , toNatural

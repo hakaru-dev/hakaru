@@ -37,7 +37,7 @@ import qualified Data.Sequence    as Seq
 import qualified Data.Text        as Text
 import           Control.Category (Category(..))
 
-import Language.Hakaru.Syntax.Natural
+import Data.Number.Natural
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing (Sing(..), SingI(sing), sUnPair, sUnEither, sUnMaybe, sUnMeasure, sUnArray)
 import Language.Hakaru.Syntax.TypeOf

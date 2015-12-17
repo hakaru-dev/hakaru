@@ -11,8 +11,8 @@
 
 module Language.Hakaru.Pretty.Maple (Maple(..), runMaple) where
 
-import Language.Hakaru.Syntax.Nat     (fromNat)
--- import Language.Hakaru.Syntax.Natural (fromNatural)
+import Data.Number.Nat     (fromNat)
+-- import Data.Number.Natural (fromNatural)
 -- import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing

@@ -10,8 +10,8 @@
 
 module Language.Hakaru.Parser.AST where
 
-import qualified Language.Hakaru.Syntax.Nat     as N
-import qualified Language.Hakaru.Syntax.Natural as N
+import qualified Data.Number.Nat     as N
+import qualified Data.Number.Natural as N
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
