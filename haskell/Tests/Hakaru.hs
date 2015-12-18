@@ -73,7 +73,7 @@ testHakaru a mode g =
             putStrLn . show $ pretty ast
             putStrLn ""
             case typ of
-                SMeasure SReal -> do
+                SMeasure _ -> do
                     ast' <- simplify ast
                     putStrLn "AST + Simplify:"
                     putStrLn . show $ pretty ast'
@@ -81,8 +81,11 @@ testHakaru a mode g =
                     putStrLn "Expectation wrt 1 as ast:"
                     putStrLn . show . pretty $ total ast
                     putStrLn ""
-                    putStrLn "Observe to be 1:"
-                    putStrLn . show . pretty $ observe ast (real_ 1)
+                    case typ of
+                      SMeasure SReal -> do 
+                          putStrLn "Observe to be 1:"
+                          putStrLn . show . pretty $ observe ast (real_ 1)
+                      _ -> return ()
                 _ -> return ()
             illustrate typ g . unS $ runSample' ast
     where

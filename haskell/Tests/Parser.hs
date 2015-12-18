@@ -394,10 +394,10 @@ easyRoad1 = unlines
 -- works in lax mode
 easyRoad2 :: Text
 easyRoad2 = unlines
-    ["(noiseT' <~ uniform(3, 8)"
-    ," noiseE' <~ uniform(1, 4)"
-    ," noiseT = unsafeProb(noiseT')"
-    ," noiseE = unsafeProb(noiseE')"
+    ["(noiseT_ <~ uniform(3, 8)"
+    ," noiseE_ <~ uniform(1, 4)"
+    ," noiseT = unsafeProb(noiseT_)"
+    ," noiseE = unsafeProb(noiseE_)"
     ," x1 <~ normal(0,  noiseT)"
     ," m1 <~ normal(x1, noiseE)"
     ," x2 <~ normal(x1, noiseT)"
