@@ -71,7 +71,7 @@ type SymbolTable a = [(Text, Symbol (U.AST a))]
 
 primTable :: SymbolTable a
 primTable =
-    [("Pair",       primPair)
+    [("pair",       primPair)
     ,("left",       primLeft)
     ,("right",      primRight)
     ,("true",       primTrue)

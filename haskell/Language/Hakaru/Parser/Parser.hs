@@ -156,7 +156,7 @@ var :: Parser (AST' Text)
 var = Var <$> identifier
 
 pairs :: Parser (AST' Text)
-pairs = foldr1 (binop "Pair") <$> parens (commaSep expr)
+pairs = foldr1 (binop "pair") <$> parens (commaSep expr)
 
 type_var :: Parser TypeAST'
 type_var = TypeVar <$> identifier
