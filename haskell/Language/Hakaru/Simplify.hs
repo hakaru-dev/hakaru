@@ -68,7 +68,7 @@ simplify e = do
     either (throw . MapleException slo) return $ do
         past <- leftShow $ parseMaple (pack . removeWhitespace $ hakaru)
         let m = checkType (typeOf e) (resolveAST $ maple2AST past) 
-        leftShow $ unTCM m (freeVars e) LaxMode
+        leftShow $ unTCM m (freeVars e) UnsafeMode
             
     where
     leftShow :: Show a => Either a b -> Either String b
