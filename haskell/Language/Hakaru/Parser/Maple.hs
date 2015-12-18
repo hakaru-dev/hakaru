@@ -44,6 +44,11 @@ symTable =
     , ("Weight",   "weight")
     , ("Uniform",  "uniform")
     , ("Ret",      "dirac")
+    -- Type symbols
+    , ("Real",     "real")
+    , ("Prob",     "prob")
+    , ("Measure",  "measure")
+    , ("Pair",     "pair")
     ]
 
 type TokenParser a = Token.GenTokenParser Text a Identity
@@ -149,6 +154,7 @@ parseMaple = runParser (expr <* eof) () "<input>"
 maple2AST :: InertExpr -> AST' Text
 maple2AST (InertNum Pos i) = ULiteral $ Nat $ fromInteger i
 maple2AST (InertNum Neg i) = ULiteral $ Int $ fromInteger i
+
 maple2AST (InertName t)    = Var (rename t)
 
 maple2AST (InertArgs Float [InertNum Pos a, InertNum p b]) = 
@@ -156,6 +162,13 @@ maple2AST (InertArgs Float [InertNum Pos a, InertNum p b]) =
 
 maple2AST (InertArgs Float [InertNum Neg a, InertNum p b]) = 
     ULiteral $ Real $ fromInteger a * (10 ** (fromInteger b))
+
+maple2AST (InertArgs Func [InertName "Ann", InertArgs ExpSeq [typ, e]]) =
+    Ann (maple2AST e) (maple2Type typ)
+
+maple2AST (InertArgs Func [InertName "Bind",
+                           InertArgs ExpSeq [e1, InertName x, e2]]) =
+    Bind x (maple2AST e1) (maple2AST e2)
 
 maple2AST (InertArgs Func [f, (InertArgs ExpSeq a)]) =
     foldl App (maple2AST f) (map maple2AST a)
@@ -165,3 +178,9 @@ maple2AST (InertArgs Power [x, y]) =
 maple2AST (InertArgs Rational [InertNum _ x, InertNum _ y]) =
     ULiteral $ Real $ fromInteger x / fromInteger y
     
+maple2Type :: InertExpr -> TypeAST'
+-- TODO: Add Arrow
+maple2Type (InertName t) = TypeVar (rename t)
+maple2Type (InertArgs Func [InertName f, InertArgs ExpSeq args]) =
+    TypeApp (rename f) (map maple2Type args)
+
