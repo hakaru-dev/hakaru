@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.15
+--                                                    2015.12.18
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeCheck
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -44,7 +44,6 @@ import qualified Data.Sequence         as S
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative   (Applicative(..), (<$>))
 #endif
-import           Control.Applicative   (Alternative(..))
 import qualified Language.Hakaru.Parser.AST as U
 
 import Data.Number.Nat                (fromNat)
@@ -107,12 +106,16 @@ mustCheck = go
     -- In general (according to Dunfield & Pientka), we should be
     -- able to infer the result of a fully saturated primop by
     -- looking up it's type and then checking all the arguments.
-    go (U.PrimOp_ _ _)    = False
+    go (U.PrimOp_  _ _)   = False
+    go (U.ArrayOp_ _ _)   = False
 
-    -- In strict mode: if we can infer any of the arguments, then we can check all the rest at the same type.
-    -- BUG: in lax mode we must be able to infer all of them; otherwise we may not be able to take the lub of the types
+    -- In strict mode: if we can infer any of the arguments, then
+    -- we can check all the rest at the same type.
+    --
+    -- BUG: in lax mode we must be able to infer all of them;
+    -- otherwise we may not be able to take the lub of the types
     go (U.NaryOp_   _ es) = F.all mustCheck es
-    go (U.Superpose_ pes) = F.all (mustCheck . snd) pes -- TODO: back this up, like we do for NaryOp
+    go (U.Superpose_ pes) = F.all (mustCheck . snd) pes
 
     -- I return true because most folks (neelk, Pfenning, Dunfield
     -- & Pientka) say all data constructors mustCheck (even though
@@ -162,7 +165,7 @@ type TypeCheckError = String -- TODO: something better
 newtype TypeCheckMonad a =
     TCM { unTCM :: Ctx -> TypeCheckMode -> Either TypeCheckError a }
 
-runTCM :: TypeCheckMonad a -> TypeCheckMode -> Either TypeCheckError a 
+runTCM :: TypeCheckMonad a -> TypeCheckMode -> Either TypeCheckError a
 runTCM m = unTCM m emptyVarSet
 
 instance Functor TypeCheckMonad where
@@ -180,13 +183,18 @@ instance Monad TypeCheckMonad where
         unTCM mx ctx mode >>= \x ->
         unTCM (k x) ctx mode
 
--- TODO: we might want to just inline this definition into the use of 'asum'; rather than actually having an instance...
+{-
+-- We could provide this instance, but there's no decent error
+-- message to give for the 'empty' case that works in all circumstances.
+-- Because we only would need this to define 'inferOneCheckOthers',
+-- we inline the definition there instead.
 instance Alternative TypeCheckMonad where
-    empty   = failwith "Need type annotation in one of your arguments"
+    empty   = failwith "Alternative.empty"
     x <|> y = TCM $ \ctx mode ->
         case unTCM x ctx mode of
         Left  _ -> unTCM y ctx mode
         Right e -> Right e
+-}
 
 -- | Return the mode in which we're checking\/inferring types.
 getMode :: TypeCheckMonad TypeCheckMode
@@ -265,8 +273,13 @@ inferType
     -> TypeCheckMonad (TypedAST abt)
 inferType = inferType_
   where
+  -- HACK: we need to give these local definitions to avoid
+  -- \"ambiguity\" in the choice of ABT instance...
   checkType_ :: forall b. Sing b -> U.AST n -> TypeCheckMonad (abt '[] b)
   checkType_ = checkType
+
+  inferOneCheckOthers_ :: [U.AST n] -> TypeCheckMonad (TypedASTs abt)
+  inferOneCheckOthers_ = inferOneCheckOthers
 
   -- HACK: We need this monomorphic binding so that GHC doesn't get
   -- confused about which @(ABT AST abt)@ instance to use in recursive
@@ -310,7 +323,7 @@ inferType = inferType_
         TypedAST typ1 e1' <- inferType_ e1
         inferBinderType (U.makeVar x typ1) e2 $ \typ2 e2' ->
             return . TypedAST typ2 $ syn (Let_ :$ e1' :* e2' :* End)
-                    
+
     U.Ann_ e1 (U.SSing typ1) -> do
         -- N.B., this requires that @typ1@ is a 'Sing' not a 'Proxy',
         -- since we can't generate a 'Sing' from a 'Proxy'.
@@ -328,11 +341,9 @@ inferType = inferType_
         return . TypedAST typ1 $ syn (ArrayOp_ op :$ es')
 
     U.NaryOp_ op es -> do
-        -- TODO: abstract out this infer-one-check-all pattern so we can reuse it elsewhere. Also, make it zipper-like so we don't re-check the one we inferred.
-        TypedAST typ1 _ <- F.asum $ fmap inferType_ es
-        op' <- make_NaryOp typ1 op
-        es' <- T.forM es $ checkType_ typ1
-        return . TypedAST typ1 $ syn (NaryOp_ op' $ S.fromList es')
+        TypedASTs typ es' <- inferOneCheckOthers_ es
+        op'               <- make_NaryOp typ op
+        return . TypedAST typ $ syn (NaryOp_ op' $ S.fromList es')
 
     U.Literal_ (Some1 v) ->
         return . TypedAST (sing_Literal v) $ syn (Literal_ v)
@@ -341,8 +352,8 @@ inferType = inferType_
         case singCoerceDomCod c of
         Nothing
             | inferable e1 -> inferType_ e1
-            | otherwise    -> 
-                failwith "Cannot infer type for null-coercion over a checking term; please add a type annotation"  
+            | otherwise    ->
+                failwith "Cannot infer type for null-coercion over a checking term; please add a type annotation"
         Just (dom,cod) -> do
             e1' <- checkType_ dom e1
             return . TypedAST cod $ syn (CoerceTo_ c :$ e1' :* End)
@@ -351,8 +362,8 @@ inferType = inferType_
         case singCoerceDomCod c of
         Nothing
             | inferable e1 -> inferType_ e1
-            | otherwise    -> 
-                failwith "Cannot infer type for null-coercion over a checking term; please add a type annotation"  
+            | otherwise    ->
+                failwith "Cannot infer type for null-coercion over a checking term; please add a type annotation"
         Just (dom,cod) -> do
             e1' <- checkType_ cod e1
             return . TypedAST dom $ syn (UnsafeFrom_ c :$ e1' :* End)
@@ -397,9 +408,13 @@ inferType = inferType_
             _ -> typeMismatch (Left "HMeasure") (Right typ1)
 
     U.Superpose_ pes -> do
-        TypedAST typ1 _ <- F.asum $ fmap inferType_ (map snd pes)
-        pes' <- checkType_ typ1 (U.Superpose_ pes)
-        return $ TypedAST typ1 pes'
+        -- TODO: clean up all this @map fst@, @map snd@, @zip@ stuff
+        TypedASTs typ es' <- inferOneCheckOthers_ (map snd pes)
+        case typ of
+            SMeasure _ -> do
+                ps' <- T.traverse (checkType SProb) (map fst pes)
+                return $ TypedAST typ (syn (Superpose_ (zip ps' es')))
+            _ -> typeMismatch (Left "measure type") (Right typ)
 
     _   | mustCheck e0 -> failwith "Cannot infer types for checking terms; please add a type annotation"
         | otherwise    -> error "inferType: missing an inferable branch!"
@@ -433,6 +448,7 @@ getHSemiring typ =
     Just theSemi -> return theSemi
     Nothing      -> failwith $ "No HSemiring instance for type " ++ show typ
 
+
 ----------------------------------------------------------------
 data TypedASTs (abt :: [Hakaru] -> Hakaru -> *)
     = forall b. TypedASTs !(Sing b) [abt '[] b]
@@ -442,6 +458,58 @@ instance Show2 abt => Show (TypedASTs abt) where
     showsPrec p (TypedASTs typ es) =
         showParen_1x p "TypedASTs" typ es
 -}
+
+
+-- TODO: can we make this lazier in the second component of 'TypedASTs'
+-- so that we can perform case analysis on the type component before
+-- actually evaluating 'checkOthers'? Problem is, even though we
+-- have the type to return we don't know whether the whole thing
+-- will succeed or not until after calling 'checkOthers'... We could
+-- handle this by changing the return type to @TypeCheckMonad (exists
+-- b. (Sing b, TypeCheckMonad [abt '[] b]))@ thereby making the
+-- staging explicit.
+--
+-- | Given a list of terms which must all have the same type, try
+-- inferring each term in order until one of them succeeds and then
+-- check all the others against that type. This is appropriate for
+-- 'StrictMode' where we won't need to insert coercions; for
+-- 'LaxMode', see 'inferLubType' instead.
+inferOneCheckOthers
+    :: forall abt n
+    .  (ABT Term abt)
+    => [U.AST n]
+    -> TypeCheckMonad (TypedASTs abt)
+inferOneCheckOthers = inferOne []
+    where
+    inferOne :: [U.AST n] -> [U.AST n] -> TypeCheckMonad (TypedASTs abt)
+    inferOne _ [] = failwith "Could not infer any of the arguments. Try adding a type annotation to at least one of them."
+    inferOne ls (e:rs) = do
+        m <- try $ inferType e
+        case m of
+            Nothing                -> inferOne (e:ls) rs
+            Just (TypedAST typ e') -> do
+                ls' <- checkOthers typ ls
+                rs' <- checkOthers typ rs
+                return (TypedASTs typ (reverse ls' ++ e' : rs'))
+
+    checkOthers
+        :: forall a. Sing a -> [U.AST n] -> TypeCheckMonad [abt '[] a]
+    checkOthers typ = T.traverse (checkType typ)
+
+
+-- TODO: some day we may want a variant of this function which
+-- returns the error message in the event that the computation fails
+-- (e.g., to provide all of them if 'inferOneCheckOthers' ultimately
+-- fails.
+--
+-- | a la @optional :: Alternative f => f a -> f (Maybe a)@ but
+-- without needing the 'empty' of the 'Alternative' class.
+try :: TypeCheckMonad a -> TypeCheckMonad (Maybe a)
+try m = TCM $ \ctx mode -> Right $
+    case unTCM m ctx mode of
+    Left  _ -> Nothing -- Don't worry; no side effects to unwind
+    Right e -> Just e
+
 
 -- TODO: move to "Language.Hakaru.Syntax.Coercion"
 data Lub (a :: Hakaru) (b :: Hakaru)
@@ -469,7 +537,12 @@ findLub SProb SInt  = Just $ Lub SReal signed continuous
 findLub a     b     = jmEq1 a b >>= \Refl -> Just $ Lub a CNil CNil
 
 
--- TODO: use this for the 'NaryOp' case of 'inferType' when in 'LaxMode'
+-- TODO: actually use this for the 'NaryOp' and 'Superpose' cases of 'inferType' when in 'LaxMode'
+--
+-- | Given a list of terms which must all have the same type, infer
+-- all the terms in order and coerce them to the lub of all their
+-- types. This is appropriate for 'LaxMode' where we need to insert
+-- coercions; for 'StrictMode', see 'inferOneCheckOthers' instead.
 inferLubType
     :: forall abt n
     .  (ABT Term abt)
@@ -501,7 +574,8 @@ inferLubType = start
 ----------------------------------------------------------------
 
 -- HACK: we must add the constraints that 'LCs' and 'UnLCs' are inverses.
--- TODO: how can we do that in general rather than needing to repeat it here and in the various constructors of 'SCon'?
+-- TODO: how can we do that in general rather than needing to repeat
+-- it here and in the various constructors of 'SCon'?
 checkSArgs
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => List1 Sing typs
@@ -553,7 +627,7 @@ checkType = checkType_
             Nothing -> do
                 e1' <- checkType_ typ0 e1
                 return $ syn (CoerceTo_ CNil :$  e1' :* End)
-            Just (dom, cod) -> 
+            Just (dom, cod) ->
                 case jmEq1 typ0 cod of
                 Just Refl -> do
                     e1' <- checkType_ dom e1
@@ -565,7 +639,7 @@ checkType = checkType_
             Nothing -> do
                 e1' <- checkType_ typ0 e1
                 return $ syn (UnsafeFrom_ CNil :$  e1' :* End)
-            Just (dom, cod) -> 
+            Just (dom, cod) ->
                 case jmEq1 typ0 dom of
                 Just Refl -> do
                     e1' <- checkType_ cod e1
@@ -581,7 +655,7 @@ checkType = checkType_
             case typ0 of
             SArray _ -> return $ syn (Empty_ typ0)
             _        -> typeMismatch (Right typ0) (Left "HArray")
-    
+
         U.Array_ e1 x e2 ->
             case typ0 of
             SArray typ1 -> do
@@ -596,7 +670,7 @@ checkType = checkType_
                 (syn . Datum_ . Datum hint)
                     <$> checkDatumCode typ0 typ2 d
             _ -> typeMismatch (Right typ0) (Left "HData")
-    
+
         U.Case_ e1 branches -> do
             TypedAST typ1 e1' <- inferType_ e1
             branches' <- T.forM branches $ checkBranch typ1 typ0
@@ -608,7 +682,7 @@ checkType = checkType_
                 e1' <- checkType_ typ1 e1
                 return $ syn (Dirac :$ e1' :* End)
             _ -> typeMismatch (Right typ0) (Left "HMeasure")
-    
+
         U.MBind_ x e1 e2 ->
             case typ0 of
             SMeasure _ -> do
@@ -619,7 +693,7 @@ checkType = checkType_
                         return $ syn (MBind :$ e1' :* e2' :* End)
                     _ -> typeMismatch (Right typ0) (Right typ1)
             _ -> typeMismatch (Right typ0) (Left "HMeasure")
-    
+
         U.Expect_ x e1 e2 ->
             case typ0 of
             SProb -> do
@@ -681,7 +755,7 @@ checkType = checkType_
             case typ of
             SPlus typ1 _ -> Inl <$> checkDatumStruct typA typ1 d1
             _            -> failwith "expected datum of `inl' type"
-    
+
     checkDatumStruct
         :: forall xs t
         .  Sing (HData' t)
@@ -700,7 +774,7 @@ checkType = checkType_
             case typ of
             SDone -> return Done
             _     -> failwith "expected datum of `done' type"
-    
+
     checkDatumFun
         :: forall x t
         .  Sing (HData' t)
