@@ -341,8 +341,13 @@ inferType = inferType_
         return . TypedAST typ1 $ syn (ArrayOp_ op :$ es')
 
     U.NaryOp_ op es -> do
-        TypedASTs typ es' <- inferOneCheckOthers_ es
-        op'               <- make_NaryOp typ op
+        mode <- getMode
+        TypedASTs typ es' <-
+            case mode of
+            StrictMode -> inferOneCheckOthers_ es
+            LaxMode    -> inferLubType es
+            UnsafeMode -> error "TODO: inferType{NaryOp_} in UnsafeMode"
+        op' <- make_NaryOp typ op
         return . TypedAST typ $ syn (NaryOp_ op' $ S.fromList es')
 
     U.Literal_ (Some1 v) ->
@@ -409,7 +414,12 @@ inferType = inferType_
 
     U.Superpose_ pes -> do
         -- TODO: clean up all this @map fst@, @map snd@, @zip@ stuff
-        TypedASTs typ es' <- inferOneCheckOthers_ (map snd pes)
+        mode <- getMode
+        TypedASTs typ es' <-
+            case mode of
+            StrictMode -> inferOneCheckOthers_ (map snd pes)
+            LaxMode    -> inferLubType         (map snd pes)
+            UnsafeMode -> error "TODO: inferType{Superpose_} in UnsafeMode"
         case typ of
             SMeasure _ -> do
                 ps' <- T.traverse (checkType SProb) (map fst pes)
