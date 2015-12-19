@@ -87,14 +87,22 @@ mustCheck = go
     go (U.Var_ _)    = False
     go (U.Lam_ _ _)  = True
 
-    -- In general, applications don't require checking; however,
-    -- for fully saturated data constructors they do (according to
-    -- neelk; also see the note below).
+    -- In general, applications don't require checking; we infer
+    -- the first applicand to get the type of the second and of the
+    -- result, then we check the second and return the result type.
+    -- Thus, applications will only yield \"must check\" errors if
+    -- the function does; but that's the responsability of the
+    -- function term, not of the application term it's embedded
+    -- within.
+    --
+    -- However, do note that the above only applies to lambda-defined
+    -- functions, not to all \"function-like\" things. In particular,
+    -- data constructors require checking (see the note below).
     go (U.App_ _  _) = False
 
     -- We follow Dunfield & Pientka and \Pi\Sigma in inferring or
     -- checking depending on what the body requires. This is as
-    -- opposed to the TLDI'05 paper, which always inders @e2@ but
+    -- opposed to the TLDI'05 paper, which always infers @e2@ but
     -- will check or infer the @e1@ depending on whether it has a
     -- type annotation or not.
     go (U.Let_ _ _ e2)    = mustCheck e2
