@@ -2,7 +2,7 @@
            , ScopedTypeVariables
            , GADTs
            , DataKinds
-           , PolyKinds
+           , KindSignatures
            , GeneralizedNewtypeDeriving
            , TypeOperators
            , FlexibleContexts
@@ -215,16 +215,48 @@ failwith e = TCM $ \_ _ -> Left e
 
 -- | Fail with a type-mismatch error.
 typeMismatch
-    :: Show1 (Sing :: k -> *)
-    => Either String (Sing (a :: k))
-    -> Either String (Sing (b :: k))
-    -> TypeCheckMonad c
+    :: Either String (Sing (a :: Hakaru))
+    -> Either String (Sing (b :: Hakaru))
+    -> TypeCheckMonad r
 typeMismatch typ1 typ2 =
     failwith $ "Type Mismatch: expected " ++ msg1 ++ ", found " ++ msg2
     where
     msg1 = case typ1 of { Left msg -> msg; Right typ -> show1 typ }
     msg2 = case typ2 of { Left msg -> msg; Right typ -> show1 typ }
 
+missingInstance
+    :: String
+    -> Sing (a :: Hakaru)
+    -> TypeCheckMonad r
+missingInstance clas typ =
+    failwith $ "No " ++ clas ++ " instance for type " ++ show typ
+
+missingLub
+    :: Sing (a :: Hakaru)
+    -> Sing (b :: Hakaru)
+    -> TypeCheckMonad r
+missingLub typ1 typ2 =
+    failwith $ "No lub of types " ++ show typ1 ++ " and " ++ show typ2
+
+ambiguousFreeVariable :: U.Name -> TypeCheckMonad r
+ambiguousFreeVariable x =
+    failwith $ "Cannot infer unambiguous type of free variable: " ++ show x
+
+ambiguousNullCoercion :: TypeCheckMonad r
+ambiguousNullCoercion =
+    failwith "Cannot infer type for null-coercion over a checking term. Please add a type annotation to either the term being coerced or the result of the coercion."
+
+ambiguousEmptyNary :: TypeCheckMonad r
+ambiguousEmptyNary =
+    failwith "Cannot infer unambiguous type for empty n-ary operator. Try adding an annotation on the result of the operator."
+
+ambiguousMustCheckNary :: TypeCheckMonad r
+ambiguousMustCheckNary =
+    failwith "Could not infer any of the arguments. Try adding a type annotation to at least one of them."
+
+ambiguousMustCheck :: TypeCheckMonad r
+ambiguousMustCheck =
+    failwith "Cannot infer types for checking terms. Please add a type annotation."
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -292,8 +324,7 @@ inferType = inferType_
         case IM.lookup (fromNat $ U.nameID x) (unVarSet ctx) of
             Just (SomeVariable x') ->
                 return $ TypedAST (varType x') (var x')
-            Nothing ->
-                failwith $ "cannot infer type of free variable: " ++ show x
+            Nothing -> ambiguousFreeVariable x
 
     U.App_ e1 e2 -> do
         TypedAST typ1 e1' <- inferType_ e1
@@ -357,8 +388,7 @@ inferType = inferType_
         case singCoerceDomCod c of
         Nothing
             | inferable e1 -> inferType_ e1
-            | otherwise    ->
-                failwith "Cannot infer type for null-coercion over a checking term; please add a type annotation"
+            | otherwise    -> ambiguousNullCoercion
         Just (dom,cod) -> do
             e1' <- checkType_ dom e1
             return . TypedAST cod $ syn (CoerceTo_ c :$ e1' :* End)
@@ -367,8 +397,7 @@ inferType = inferType_
         case singCoerceDomCod c of
         Nothing
             | inferable e1 -> inferType_ e1
-            | otherwise    ->
-                failwith "Cannot infer type for null-coercion over a checking term; please add a type annotation"
+            | otherwise    -> ambiguousNullCoercion
         Just (dom,cod) -> do
             e1' <- checkType_ cod e1
             return . TypedAST dom $ syn (UnsafeFrom_ c :$ e1' :* End)
@@ -426,7 +455,7 @@ inferType = inferType_
                 return $ TypedAST typ (syn (Superpose_ (zip ps' es')))
             _ -> typeMismatch (Left "measure type") (Right typ)
 
-    _   | mustCheck e0 -> failwith "Cannot infer types for checking terms; please add a type annotation"
+    _   | mustCheck e0 -> ambiguousMustCheck
         | otherwise    -> error "inferType: missing an inferable branch!"
 
 
@@ -450,13 +479,13 @@ getHOrd :: Sing a -> TypeCheckMonad (HOrd a)
 getHOrd typ =
     case hOrd_Sing typ of
     Just theOrd -> return theOrd
-    Nothing     -> failwith $ "No HOrd instance for type " ++ show typ
+    Nothing     -> missingInstance "HOrd" typ
 
 getHSemiring :: Sing a -> TypeCheckMonad (HSemiring a)
 getHSemiring typ =
     case hSemiring_Sing typ of
     Just theSemi -> return theSemi
-    Nothing      -> failwith $ "No HSemiring instance for type " ++ show typ
+    Nothing      -> missingInstance "HSemiring" typ
 
 
 ----------------------------------------------------------------
@@ -492,7 +521,9 @@ inferOneCheckOthers
 inferOneCheckOthers = inferOne []
     where
     inferOne :: [U.AST n] -> [U.AST n] -> TypeCheckMonad (TypedASTs abt)
-    inferOne _ [] = failwith "Could not infer any of the arguments. Try adding a type annotation to at least one of them."
+    inferOne ls []
+        | null ls   = ambiguousEmptyNary
+        | otherwise = ambiguousMustCheckNary
     inferOne ls (e:rs) = do
         m <- try $ inferType e
         case m of
@@ -535,8 +566,7 @@ inferLubType
 inferLubType = start
     where
     start :: [U.AST n] -> TypeCheckMonad (TypedASTs abt)
-    start []     =
-        failwith "Cannot infer unambiguous type for empty n-ary operator"
+    start []     = ambiguousEmptyNary
     start (u:us) = do
         TypedAST  typ1 e1 <- inferType u
         TypedASTs typ2 es <- F.foldlM step (TypedASTs typ1 [e1]) us
@@ -547,7 +577,7 @@ inferLubType = start
     step (TypedASTs typ1 es) u = do
         TypedAST typ2 e2 <- inferType u
         case findLub typ1 typ2 of
-            Nothing -> failwith $ "could not find lub of types " ++ show typ1 ++ " and " ++ show typ2
+            Nothing              -> missingLub typ1 typ2
             Just (Lub typ c1 c2) ->
                 let es' = map (unLC_ . coerceTo c1 . LC_) es
                     e2' = unLC_ . coerceTo c2 $ LC_ e2
