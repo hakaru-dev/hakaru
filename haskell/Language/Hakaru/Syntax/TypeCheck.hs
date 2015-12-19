@@ -117,6 +117,15 @@ mustCheck = go
     go (U.NaryOp_   _ es) = F.all mustCheck es
     go (U.Superpose_ pes) = F.all (mustCheck . snd) pes
 
+    -- Our numeric literals aren't polymorphic, so we can infer
+    -- them just fine. Or rather, according to our AST they aren't;
+    -- in truth, they are in the surface language. Which is part
+    -- of the reason for needing 'LaxMode'
+    --
+    -- TODO: correctly capture our surface-language semantics by
+    -- always treating literals as if we're in 'LaxMode'.
+    go (U.Literal_ _) = False
+
     -- I return true because most folks (neelk, Pfenning, Dunfield
     -- & Pientka) say all data constructors mustCheck. The main
     -- issue here is dealing with (polymorphic) sum types and phantom
@@ -134,7 +143,6 @@ mustCheck = go
     -- typing issue. Thus, for non-empty arrays and non-phantom
     -- record types, we should be able to infer the whole type
     -- provided we can infer the various subterms.
-    go (U.Literal_ _)   = False
     go U.Empty_         = True
     go (U.Array_ _ _ _) = True
     go (U.Datum_ _)     = True
@@ -382,6 +390,13 @@ inferType = inferType_
         return . TypedAST typ $ syn (NaryOp_ op' $ S.fromList es')
 
     U.Literal_ (Some1 v) ->
+        -- TODO: in truth, we can infer this to be any supertype
+        -- (adjusting the concrete @v@ as necessary). That is, the
+        -- surface language treats numeric literals as polymorphic,
+        -- so we should capture that somehow--- even if we're not
+        -- in 'LaxMode'. We'll prolly need to handle this
+        -- subtype-polymorphism the same way as we do for for
+        -- everything when in 'UnsafeMode'.
         return . TypedAST (sing_Literal v) $ syn (Literal_ v)
 
     -- TODO: we can try to do 'U.Case_' by using branch-based
