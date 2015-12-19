@@ -1,10 +1,4 @@
-{-# LANGUAGE CPP
-           , RankNTypes
-           , GADTs
-           , ExistentialQuantification
-           , StandaloneDeriving
-           , OverloadedStrings
-           #-}
+{-# LANGUAGE CPP, OverloadedStrings #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Language.Hakaru.Parser.Maple where
 
@@ -53,7 +47,8 @@ symTable =
 
 type TokenParser a = Token.GenTokenParser Text a Identity
 
-data NumOp = Pos | Neg deriving (Eq, Show)
+data NumOp = Pos | Neg
+    deriving (Eq, Show)
 
 data ArgOp
     = Float | Power | Rational

@@ -1,7 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude
            , DataKinds
            , TypeFamilies
-           , Rank2Types
            , FlexibleContexts
            #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}

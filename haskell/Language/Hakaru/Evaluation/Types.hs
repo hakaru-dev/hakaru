@@ -3,7 +3,7 @@
            , KindSignatures
            , DataKinds
            , TypeOperators
-           , RankNTypes
+           , Rank2Types
            , BangPatterns
            , FlexibleContexts
            , MultiParamTypeClasses

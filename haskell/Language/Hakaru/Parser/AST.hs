@@ -1,10 +1,8 @@
-{-# LANGUAGE RankNTypes,
-             GADTs,
-             Rank2Types,
-             DataKinds,
-             PolyKinds,
-             ExistentialQuantification,
-             StandaloneDeriving #-}
+{-# LANGUAGE GADTs
+           , DataKinds
+           , PolyKinds
+           , ExistentialQuantification
+           #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 
@@ -44,8 +42,8 @@ data SealedOp op where
         => !(op typs a)
         -> SealedOp op
 
-data SSing where 
-    SSing :: forall (a :: Hakaru). Sing a -> SSing
+data SSing =
+    forall (a :: Hakaru). SSing !(Sing a)
 
 type Name' = Text
 
@@ -60,7 +58,8 @@ data Pattern' a
     | PData' (PDatum a)
     deriving (Eq, Show)
 
-data PDatum a = DV Text [Pattern' a] deriving (Eq, Show)
+data PDatum a = DV Text [Pattern' a]
+    deriving (Eq, Show)
 
 -- Meta stores start and end position for AST in source code
 data Meta = Meta !SourcePos !SourcePos
@@ -68,17 +67,17 @@ data Meta = Meta !SourcePos !SourcePos
 
 infixr 7 `Et`, `PEt`
 
-data DFun a where
-    Konst :: AST a -> DFun a
-    Ident :: AST a -> DFun a
+data DFun a
+    = Konst (AST a)
+    | Ident (AST a)
 
-data DStruct a where
-    Et   :: DFun a -> DStruct a -> DStruct a
-    Done :: DStruct a
+data DStruct a
+    = Et (DFun a) (DStruct a)
+    | Done
 
-data DCode a where
-    Inr ::  DCode a   -> DCode a
-    Inl ::  DStruct a -> DCode a
+data DCode a
+    = Inr (DCode a)
+    | Inl (DStruct a)
 
 data Datum a = Datum Text (DCode a)
 
@@ -124,25 +123,26 @@ data AST' a
     | Bind  a (AST' a) (AST' a)
     | Data  a [TypeAST']
     | WithMeta (AST' a) Meta
+    deriving (Eq, Show)
 
 data Branch a = Branch Pattern (AST a)
 
-data Pattern where
-    PWild  :: Pattern
-    PVar   :: Name -> Pattern
-    PDatum :: Text -> PCode -> Pattern
+data Pattern
+    = PWild
+    | PVar Name
+    | PDatum Text PCode
 
-data PFun where
-    PKonst :: Pattern -> PFun
-    PIdent :: Pattern -> PFun
+data PFun
+    = PKonst Pattern
+    | PIdent Pattern
 
-data PStruct where
-    PEt   :: PFun -> PStruct -> PStruct
-    PDone :: PStruct
+data PStruct
+    = PEt PFun PStruct
+    | PDone
 
-data PCode where
-    PInr ::  PCode   -> PCode
-    PInl ::  PStruct -> PCode
+data PCode
+    = PInr PCode
+    | PInl PStruct
 
 data AST a
     = Var_        Name
@@ -165,7 +165,3 @@ data AST a
     | MBind_      Name    (AST a) (AST a)
     | Expect_     Name    (AST a) (AST a)
     | Superpose_  [(AST a, AST a)]
-
-
-deriving instance Eq a => Eq (AST' a)
-deriving instance Show a => Show (AST' a)

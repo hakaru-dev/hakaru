@@ -6,7 +6,7 @@
            , PolyKinds
            , TypeOperators
            , ScopedTypeVariables
-           , RankNTypes
+           , Rank2Types
            , MultiParamTypeClasses
            , TypeSynonymInstances
            , FlexibleInstances

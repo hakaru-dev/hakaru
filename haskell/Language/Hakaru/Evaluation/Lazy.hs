@@ -6,7 +6,7 @@
            , FunctionalDependencies
            , ScopedTypeVariables
            , FlexibleContexts
-           , RankNTypes
+           , Rank2Types
            , TypeSynonymInstances
            , FlexibleInstances
            #-}

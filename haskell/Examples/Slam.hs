@@ -238,29 +238,35 @@ withinLaser n b = and_ [ lessOrEq (convert (fromInt n - 0.5)) tb2
 
 type Rand = MWC.Gen (PrimState IO)
 
-data Particle = PL { dims :: V.Vector Double  -- ^ l,h,a,b
-                   , bLats :: V.Vector Double
-                   , bLons :: V.Vector Double }
+data Particle = PL
+    { dims :: V.Vector Double  -- ^ l,h,a,b
+    , bLats :: V.Vector Double
+    , bLons :: V.Vector Double
+    }
 
-data Params = PM { sensors :: [Sensor]
-                 , controls :: [Control]
-                 , lasers :: [Laser]
-                 , coords :: (Double,(Double,Double)) -- ^ phi, lon, lat
-                 , steer :: (Double,Double)           -- ^ vel, alpha
-                 , tm :: Double }    
+data Params = PM
+    { sensors :: [Sensor]
+    , controls :: [Control]
+    , lasers :: [Laser]
+    , coords :: (Double,(Double,Double)) -- ^ phi, lon, lat
+    , steer :: (Double,Double)           -- ^ vel, alpha
+    , tm :: Double
+    }
     
 type Generator = Particle -> Params -> IO ()
 
-data Gen = Conditioned | Unconditioned deriving Eq
+data Gen = Conditioned | Unconditioned
+    deriving Eq
 
 -- | Returns the pair (longitudes, latitudes)
 genBeacons :: Rand -> Maybe FilePath -> IO (V.Vector Double, V.Vector Double)
-genBeacons _ Nothing         = return ( V.fromList [1,3]
-                                      , V.fromList [2,4] )
+genBeacons _ Nothing         =
+    return ( V.fromList [1,3]
+           , V.fromList [2,4] )
 genBeacons g (Just evalPath) = do
-  trueBeacons <- obstacles evalPath
-  return ( V.map lon trueBeacons
-         , V.map lat trueBeacons )
+    trueBeacons <- obstacles evalPath
+    return ( V.map lon trueBeacons
+           , V.map lat trueBeacons )
 
 updateParams :: Params -> (Double,(Double,Double)) -> Double -> Params
 updateParams prms cds tcurr =
@@ -270,27 +276,29 @@ updateParams prms cds tcurr =
                                 
 plotPoint :: FilePath -> (Double,(Double,Double)) -> IO ()
 plotPoint out (_,(lon,lat)) = do
-  dExist <- doesDirectoryExist out
-  unless dExist $ createDirectory out
-  let fp = out </> "slam_out_path.txt"
-  appendFile fp $ show lon ++ "," ++ show lat ++ "\n"
+    dExist <- doesDirectoryExist out
+    unless dExist $ createDirectory out
+    let fp = out </> "slam_out_path.txt"
+    appendFile fp $ show lon ++ "," ++ show lat ++ "\n"
 
 generate :: Gen -> FilePath -> FilePath -> Maybe FilePath -> IO ()
 generate c input output eval = do
-  g <- MWC.createSystemRandom
-  Init ds phi ilt iln <- initialVals input
-  controls <- controlData input
-  sensors <- sensorData input
-  lasers <- if c==Unconditioned then return [] else laserReadings input
-  (lons, lats) <- genBeacons g eval
+    g <- MWC.createSystemRandom
+    Init ds phi ilt iln <- initialVals input
+    controls <- controlData input
+    sensors <- sensorData input
+    lasers <- if c==Unconditioned then return [] else laserReadings input
+    (lons, lats) <- genBeacons g eval
                   
-  gen c output g (PL ds lons lats)
-                 (PM sensors controls lasers (iln,(ilt,phi)) (0,0) 0)
+    gen c output g (PL ds lons lats)
+        (PM sensors controls lasers (iln,(ilt,phi)) (0,0) 0)
 
 gen :: Gen -> FilePath -> Rand -> Generator
 gen c out g prtcl params = go params
-    where go prms | null $ sensors prms = putStrLn "Finished reading input_sensor"
-                  | otherwise = do
+    where
+    go prms
+        | null $ sensors prms = putStrLn "Finished reading input_sensor"
+        | otherwise = do
             let (Sensor tcurr snum) = head $ sensors prms
             case snum of
               1 -> do (_,coords) <- sampleState prtcl prms tcurr g
@@ -326,18 +334,20 @@ gen c out g prtcl params = go params
 --  UNCONDITIONED
 ------------------                   
 
-type SimLaser = Dims -> Vector GPS -> Vector GPS
-              -> Coords -> Steering -> DelTime
-              -> Measure State
+type SimLaser
+    = Dims -> Vector GPS -> Vector GPS
+    -> Coords -> Steering -> DelTime
+    -> Measure State
 
 simLasers :: (Mochastic repr, Lambda repr) => repr SimLaser
-simLasers = lam $ \ds -> lam $ \blons -> lam $ \blats ->
-            lam $ \cds -> lam $ \s -> lam $ \delT ->
-            simulate ds blons blats cds s delT
+simLasers =
+    lam $ \ds -> lam $ \blons -> lam $ \blats ->
+    lam $ \cds -> lam $ \s -> lam $ \delT ->
+    simulate ds blons blats cds s delT
                               
-sampleState :: Particle -> Params -> Double -> Rand
-            -> IO ( (V.Vector Double, V.Vector Double)
-                  , (Double, (Double, Double)) )
+sampleState
+    :: Particle -> Params -> Double -> Rand
+    -> IO ((V.Vector Double, V.Vector Double) , (Double, (Double, Double)))
 sampleState prtcl prms tcurr g =
     fmap (\(Just (s,1)) -> s) $
          (unSample $ simLasers) ds blons blats cds s (tcurr-tprev) 1 g
@@ -346,13 +356,14 @@ sampleState prtcl prms tcurr g =
 
 plotReads :: FilePath -> V.Vector Double -> V.Vector Double -> IO ()
 plotReads out rads ints = do
-  dExist <- doesDirectoryExist out
-  unless dExist $ createDirectory out
-  let file = out </> "slam_simulated_laser.txt"
-  go file (V.toList $ rads V.++ ints)
-    where go fp []     = appendFile fp "\n"
-          go fp [l]    = appendFile fp ((show l) ++ "\n")
-          go fp (l:ls) = appendFile fp ((show l) ++ ",") >> go fp ls
+    dExist <- doesDirectoryExist out
+    unless dExist $ createDirectory out
+    let file = out </> "slam_simulated_laser.txt"
+    go file (V.toList $ rads V.++ ints)
+    where
+    go fp []     = appendFile fp "\n"
+    go fp [l]    = appendFile fp ((show l) ++ "\n")
+    go fp (l:ls) = appendFile fp ((show l) ++ ",") >> go fp ls
 
 ----------------------------------
 --  CONDITIONED ON LASER READINGS
@@ -360,8 +371,10 @@ plotReads out rads ints = do
 
 type Env = (Dims, (Vector GPS, (Vector GPS, (Coords, (Steering, DelTime)))))
 
-evolve :: (Mochastic repr) => repr Env
-       -> [ repr (LaserReads -> (Measure Coords)) ]
+evolve
+    :: (Mochastic repr)
+    => repr Env
+    -> [ repr (LaserReads -> (Measure Coords)) ]
 evolve env = undefined
 -- TODO the code below would work if Lazy supported Vector
     -- [ app d env
@@ -373,8 +386,9 @@ evolve env = undefined
     --          unpair e4  $ \s   delT  ->
     --          simulate ds blons blats cds s delT ]
 
-readLasers :: (Mochastic repr, Lambda repr) =>
-              repr (Env -> LaserReads -> Measure Coords)
+readLasers
+    :: (Mochastic repr, Lambda repr)
+    => repr (Env -> LaserReads -> Measure Coords)
 readLasers = lam $ \env -> lam $ \lrs -> app (head (evolve env)) lrs
 
 sampleCoords prtcl prms lreads tcurr g =
@@ -391,33 +405,36 @@ sampleCoords prtcl prms lreads tcurr g =
 
 main :: IO ()
 main = do
-  args <- getArgs
-  case args of
-    [input, output]       -> generate Unconditioned input output Nothing
-    [input, output, eval] -> generate Unconditioned input output (Just eval)
-    _ -> usageExit
+    args <- getArgs
+    case args of
+        [input, output]       -> generate Unconditioned input output Nothing
+        [input, output, eval] -> generate Unconditioned input output (Just eval)
+        _ -> usageExit
     
 usageExit :: IO ()
 usageExit = do
-  pname <- getProgName
-  putStrLn (usage pname) >> exitSuccess
-      where usage pname = "Usage: " ++ pname ++ " input_dir output_dir [eval_dir]\n"
+    pname <- getProgName
+    putStrLn (usage pname) >> exitSuccess
+    where usage pname = "Usage: " ++ pname ++ " input_dir output_dir [eval_dir]\n"
                           
 --------------------------------------------------------------------------------
 --                                DATA IO                                     --
 --------------------------------------------------------------------------------
 
-data Initial = Init { dimensions :: V.Vector Double -- ^ l,h,a,b
-                    , initPhi :: Double
-                    , initLat :: Double
-                    , initLon :: Double } deriving Show
+data Initial = Init
+    { dimensions :: V.Vector Double -- ^ l,h,a,b
+    , initPhi :: Double
+    , initLat :: Double
+    , initLon :: Double
+    } deriving Show
 
 instance FromRecord Initial where
     parseRecord v
-        | V.length v == 7 = Init A.<$> parseRecord (V.slice 0 4 v)
-                                 A.<*> v .! 4
-                                 A.<*> v .! 5
-                                 A.<*> v .! 6
+        | V.length v == 7 =
+            Init A.<$> parseRecord (V.slice 0 4 v)
+                A.<*> v .! 4
+                A.<*> v .! 5
+                A.<*> v .! 6
         | otherwise = fail "wrong number of fields in input_properties"
     
 noFileBye :: FilePath -> IO ()
@@ -425,25 +442,27 @@ noFileBye fp = putStrLn ("Could not find " ++ fp) >> exitFailure
 
 initialVals :: FilePath -> IO Initial
 initialVals inpath = do
-  let input = inpath </> "input_properties.csv"
-  doesFileExist input >>= flip unless (noFileBye input)
-  bytestr <- B.readFile input
-  case decode HasHeader bytestr of
-    Left msg -> fail msg
-    Right v -> if V.length v == 1
-               then return $ v V.! 0
-               else fail "wrong number of rows in input_properties"
+    let input = inpath </> "input_properties.csv"
+    doesFileExist input >>= flip unless (noFileBye input)
+    bytestr <- B.readFile input
+    case decode HasHeader bytestr of
+        Left msg -> fail msg
+        Right v
+            | V.length v == 1 -> return $ v V.! 0
+            | otherwise -> fail "wrong number of rows in input_properties"
 
-data Laser = L { timestamp :: Double
-               , zrads :: [Double]
-               , intensities :: [Double] }
+data Laser = L
+    { timestamp :: Double
+    , zrads :: [Double]
+    , intensities :: [Double]
+    }
 
 instance FromRecord Laser where
     parseRecord v
-        | V.length v == 1 + 2*range
-            = L A.<$> v .! 0
-              A.<*> parseRecord (V.slice 1 range v)
-              A.<*> parseRecord (V.slice (range+1) range v)
+        | V.length v == 1 + 2*range =
+            L   A.<$> v .! 0
+                A.<*> parseRecord (V.slice 1 range v)
+                A.<*> parseRecord (V.slice (range+1) range v)
         | otherwise = fail "wrong number of fields in input_laser"
 
 laserReadings :: FilePath -> IO [Laser]
@@ -452,7 +471,11 @@ laserReadings inpath = do
   doesFileExist input >>= flip unless (noFileBye input)
   decodeFileStream input                        
 
-data Sensor = Sensor {sensetime :: Double, sensorID :: Int} deriving (Show)
+data Sensor = Sensor
+    { sensetime :: Double
+    , sensorID  :: Int
+    }
+    deriving (Show)
 
 instance FromRecord Sensor where
     parseRecord v
@@ -461,13 +484,15 @@ instance FromRecord Sensor where
 
 sensorData :: FilePath -> IO [Sensor]
 sensorData inpath = do
-  let input = inpath </> "input_sensor.csv"
-  doesFileExist input >>= flip unless (noFileBye input)
-  decodeFileStream input
+    let input = inpath </> "input_sensor.csv"
+    doesFileExist input >>= flip unless (noFileBye input)
+    decodeFileStream input
 
-data Control = Control { contime :: Double
-                       , velocity :: Double
-                       , steering :: Double } deriving (Show)
+data Control = Control
+    { contime  :: Double
+    , velocity :: Double
+    , steering :: Double
+    } deriving (Show)
 
 instance FromRecord Control where
     parseRecord v
@@ -476,9 +501,9 @@ instance FromRecord Control where
 
 controlData :: FilePath -> IO [Control]
 controlData inpath = do
-  let input = inpath </> "input_control.csv"
-  doesFileExist input >>= flip unless (noFileBye input)
-  decodeFileStream input       
+    let input = inpath </> "input_control.csv"
+    doesFileExist input >>= flip unless (noFileBye input)
+    decodeFileStream input       
 
 -- | True beacon positions (from eval_data/eval_obstacles.csv for each path type)
 -- This is for simulation purposes only!
@@ -492,9 +517,9 @@ instance FromRecord Obstacle where
 
 obstacles :: FilePath -> IO (V.Vector Obstacle)
 obstacles evalPath = do
-  let evalObs = evalPath </> "eval_obstacles.csv"
-  doesFileExist evalObs >>= flip unless (noFileBye evalObs)
-  fmap V.fromList $ decodeFileStream evalObs
+    let evalObs = evalPath </> "eval_obstacles.csv"
+    doesFileExist evalObs >>= flip unless (noFileBye evalObs)
+    fmap V.fromList $ decodeFileStream evalObs
                    
 --------------------------------------------------------------------------------
 --                               MISC MINI-TESTS                              --
@@ -502,17 +527,17 @@ obstacles evalPath = do
 
 testIO :: FilePath -> IO ()
 testIO inpath = do
-  -- initialVals "test" >>= print
-  laserReads <- laserReadings inpath
-  let laserVector = V.fromList laserReads
-  print . (V.slice 330 31) . V.fromList . zrads $ laserVector V.! 50
-  V.mapM_ ((printf "%.6f\n") . timestamp) $ V.take 10 laserVector
-  sensors <- sensorData inpath
-  putStrLn "-------- Here are some sensors -----------"
-  print $ V.slice 0 20 (V.fromList sensors)
-  controls <- controlData inpath
-  putStrLn "-------- Here are some controls -----------"
-  print $ V.slice 0 20 (V.fromList controls)
+    -- initialVals "test" >>= print
+    laserReads <- laserReadings inpath
+    let laserVector = V.fromList laserReads
+    print . (V.slice 330 31) . V.fromList . zrads $ laserVector V.! 50
+    V.mapM_ ((printf "%.6f\n") . timestamp) $ V.take 10 laserVector
+    sensors <- sensorData inpath
+    putStrLn "-------- Here are some sensors -----------"
+    print $ V.slice 0 20 (V.fromList sensors)
+    controls <- controlData inpath
+    putStrLn "-------- Here are some controls -----------"
+    print $ V.slice 0 20 (V.fromList controls)
         
 hakvec :: (Mochastic repr) => repr (Measure (Vector H.Real))
 hakvec = plate $ vector 11 (const (normal 0 1))

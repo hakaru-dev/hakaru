@@ -4,7 +4,7 @@
            , GADTs
            , TypeFamilies
            , FlexibleInstances
-           , RankNTypes
+           , Rank2Types
            #-}
 
 {- -- DEBUG

@@ -63,12 +63,6 @@ Library
                        Language.Hakaru.Util.Visual,
                        System.MapleSSH
 
-    other-extensions:  RankNTypes, BangPatterns, GADTs, TypeFamilies, TypeOperators,
-                       ConstraintKinds, FlexibleContexts, NoMonomorphismRestriction,
-                       DeriveDataTypeable, ScopedTypeVariables, ExistentialQuantification,
-                       StandaloneDeriving, OverloadedStrings,
-                       FlexibleInstances, RebindableSyntax
-
 -- LH == Language.Hakaru
 -- primitive is used in LH.Types
 -- process is used in System/MapleSSH

@@ -3,10 +3,11 @@
            , GADTs
            , OverloadedStrings
            , TypeFamilies
-           , StandaloneDeriving
            , KindSignatures
            , FlexibleContexts
-           , DeriveDataTypeable #-}
+           , StandaloneDeriving
+           , DeriveDataTypeable
+           #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------

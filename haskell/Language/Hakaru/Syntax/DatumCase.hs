@@ -2,7 +2,6 @@
            , DataKinds
            , PolyKinds
            , GADTs
-           , StandaloneDeriving
            , TypeOperators
            , TypeFamilies
            , Rank2Types

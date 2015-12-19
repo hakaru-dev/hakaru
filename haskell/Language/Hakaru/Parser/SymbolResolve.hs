@@ -1,10 +1,4 @@
-{-# LANGUAGE CPP
-           , RankNTypes
-           , GADTs
-           , OverloadedStrings
-           , ExistentialQuantification
-           , StandaloneDeriving
-           #-}
+{-# LANGUAGE CPP, OverloadedStrings #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Language.Hakaru.Parser.SymbolResolve where
 
@@ -23,13 +17,13 @@ import qualified Data.Number.Nat as N
 import qualified Language.Hakaru.Syntax.AST as T
 import qualified Language.Hakaru.Parser.AST as U
 
-data Symbol a where
-    TLam :: (a -> Symbol a) -> Symbol a
-    TNeu :: a -> Symbol a
+data Symbol a
+    = TLam (a -> Symbol a)
+    | TNeu a
 
-data Symbol' a where
-    TLam' :: ([a] -> a) -> Symbol' a
-    TNeu' :: a -> Symbol' a
+data Symbol' a
+    = TLam' ([a] -> a)
+    | TNeu' a
 
 primPat :: [(Text, Symbol' U.Pattern)]
 primPat =

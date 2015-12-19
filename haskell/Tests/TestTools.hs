@@ -1,6 +1,5 @@
-{-# LANGUAGE Rank2Types, ScopedTypeVariables, DeriveDataTypeable #-}
-{-# OPTIONS -Wall #-}
-
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Tests.TestTools where
 
 -- import Language.Hakaru.Syntax (Measure, Lambda(lam), Order_)
@@ -26,11 +25,11 @@ instance Show Result where
   showsPrec _ (Result a) =                 showsPrec 0 a
 
 data TestException = TestSimplifyException String SomeException
-                     deriving Typeable
+    deriving Typeable
 instance Exception TestException
 instance Show TestException where
-  show (TestSimplifyException prettyHakaru e) =
-    show e ++ "\nwhile simplifying Hakaru:\n" ++ prettyHakaru
+    show (TestSimplifyException prettyHakaru e) =
+        show e ++ "\nwhile simplifying Hakaru:\n" ++ prettyHakaru
 
 -- assert that we get a result and that no error is thrown
 assertResult :: [a] -> Assertion

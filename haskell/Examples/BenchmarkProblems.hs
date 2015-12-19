@@ -1,6 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude
            , DataKinds
-           , RankNTypes
+           , Rank2Types
            , TypeOperators
            , ScopedTypeVariables
            , TypeFamilies

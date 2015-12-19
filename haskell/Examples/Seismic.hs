@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, TypeOperators, ScopedTypeVariables, TypeFamilies, FlexibleContexts, DataKinds #-}
+{-# LANGUAGE TypeOperators, ScopedTypeVariables, TypeFamilies, FlexibleContexts, DataKinds #-}
 {-# OPTIONS -Wall -fno-warn-name-shadowing #-}
 module Examples.Seismic where
 

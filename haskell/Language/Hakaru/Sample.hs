@@ -1,11 +1,10 @@
 {-# LANGUAGE CPP
-           , GADTs
            , KindSignatures
            , TypeOperators
            , TypeFamilies
            , DataKinds
            , PolyKinds
-           , RankNTypes
+           , ExistentialQuantification
            , FlexibleContexts
            #-}
 
@@ -69,8 +68,8 @@ data SDatum (a :: k1 -> k2 -> *)
 
 ----------------------------------------------------------------
 
-data EAssoc m where
-    EAssoc :: {-# UNPACK #-} !(Variable a) -> !(Sample m a) -> EAssoc m
+data EAssoc m
+    = forall a. EAssoc {-# UNPACK #-} !(Variable a) !(Sample m a)
 
 newtype Env m = Env (IM.IntMap (EAssoc m))
 

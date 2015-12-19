@@ -7,7 +7,7 @@
            , TypeFamilies
            , FlexibleContexts
            , UndecidableInstances
-           , RankNTypes
+           , Rank2Types
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}

@@ -2,10 +2,9 @@
            , DataKinds
            , PolyKinds
            , GADTs
-           , StandaloneDeriving
            , TypeOperators
            , TypeFamilies
-           , Rank2Types
+           , ExistentialQuantification
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}

@@ -1,8 +1,6 @@
 {-# LANGUAGE CPP
-           , RankNTypes
            , ScopedTypeVariables
            , GADTs
-           , StandaloneDeriving
            , DataKinds
            , PolyKinds
            , TypeOperators

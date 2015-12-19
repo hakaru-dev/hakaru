@@ -1,6 +1,5 @@
 {-# LANGUAGE DataKinds, GADTs, MultiParamTypeClasses,
-             FlexibleInstances, StandaloneDeriving, 
-             GeneralizedNewtypeDeriving, FlexibleContexts, UndecidableInstances #-}
+             FlexibleInstances, FlexibleContexts, UndecidableInstances #-}
 
 -- {-# OPTIONS_GHC -ftype-function-depth=400 #-}
 -- {-# OPTIONS_GHC -fcontext-stack=400 #-}

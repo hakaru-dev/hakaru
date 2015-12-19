@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings, DataKinds #-}
+{-# OPTIONS_GHC -Wall -fwarn-tabs -fno-warn-orphans #-}
 
 module Tests.Parser where
 

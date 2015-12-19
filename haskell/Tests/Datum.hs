@@ -1,5 +1,4 @@
 {-# LANGUAGE TypeFamilies
-           , Rank2Types
            , FlexibleContexts
            , DeriveGeneric
            , TemplateHaskell
