@@ -3,11 +3,12 @@
            , DataKinds
            , GADTs
            , StandaloneDeriving
+           , ExistentialQuantification
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.15
+--                                                    2015.12.18
 -- |
 -- Module      :  Language.Hakaru.Types.Coercion
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -19,15 +20,27 @@
 -- Our theory of coercions for Hakaru's numeric hierarchy.
 ----------------------------------------------------------------
 module Language.Hakaru.Types.Coercion
-    ( PrimCoercion(..)
-    , signed
-    , continuous
+    (
+    -- * The primitive coercions
+      PrimCoercion(..)
+    , PrimCoerce(..)
+
+    -- * The category of general coercions
     , Coercion(..)
     , singletonCoercion
-    , PrimCoerce(..), Coerce(..)
+    , signed
+    , continuous
+    , Coerce(..)
     , singCoerceDom
     , singCoerceCod
     , singCoerceDomCod
+
+    -- * The induced coercion hierarchy
+    , findCoercion
+    , findEitherCoercion
+    , Lub(..)
+    , findLub
+
     -- * Experimental optimization functions
     {-
     , CoerceTo_UnsafeFrom(..)
@@ -64,30 +77,32 @@ data PrimCoercion :: Hakaru -> Hakaru -> * where
     Signed     :: !(HRing a)       -> PrimCoercion (NonNegative a) a
     Continuous :: !(HContinuous a) -> PrimCoercion (HIntegral   a) a
 
--- BUG: deriving instance Read (PrimCoercion a b)
+-- TODO: instance Read (PrimCoercion a b)
 deriving instance Show (PrimCoercion a b)
 
-
--- BUG: GHC 7.8 does not allow making these into pattern synonyms:
--- (1) it disallows standalone type signatures for pattern synonyms,
--- so we'd need to give it as an annotation, which isn't too terrible;
--- but, (2) it does not allow polymorphic pattern synonyms :(
-
-
--- | A smart constructor for lifting 'PrimCoercion' into 'Coercion'
-singletonCoercion :: PrimCoercion a b -> Coercion a b
-singletonCoercion c = CCons c CNil
-
--- | A smart constructor for 'Signed'.
-signed :: (HRing_ a) => Coercion (NonNegative a) a
-signed = singletonCoercion $ Signed hRing
-
--- | A smart constructor for 'Continuous'.
-continuous :: (HContinuous_ a) => Coercion (HIntegral a) a
-continuous = singletonCoercion $ Continuous hContinuous
+instance Eq (PrimCoercion a b) where -- this one could be derived
+    (==) = eq1
+instance Eq1 (PrimCoercion a) where
+    eq1 = eq2
+instance Eq2 PrimCoercion where
+    eq2 x y = maybe False (const True) (jmEq2 x y)
+instance JmEq1 (PrimCoercion a) where
+    jmEq1 x y = snd <$> jmEq2 x y
+instance JmEq2 PrimCoercion where
+    jmEq2 (Signed r1) (Signed r2) =
+        jmEq1 r1 r2 >>= \Refl -> Just (Refl, Refl)
+    jmEq2 (Continuous c1) (Continuous c2) =
+        jmEq1 c1 c2 >>= \Refl -> Just (Refl, Refl)
+    jmEq2 _ _ = Nothing
 
 
+----------------------------------------------------------------
 -- | General proofs of the inclusions in our numeric hierarchy.
+-- Notably, being a partial order, 'Coercion' forms a category. In
+-- addition to the 'Category' instance, we also have the class
+-- 'Coerce' for functors from 'Coercion' to the category of Haskell
+-- functions, and you can get the co\/domain objects (via
+-- 'singCoerceDom', 'singCoerceCod', or 'singCoerceDomCod').
 data Coercion :: Hakaru -> Hakaru -> * where
     -- BUG: haddock doesn't like annotations on GADT constructors
     -- <https://github.com/hakaru-dev/hakaru/issues/6>
@@ -103,9 +118,22 @@ data Coercion :: Hakaru -> Hakaru -> * where
     -- order to get a better inductive hypothesis.
     CCons :: !(PrimCoercion a b) -> !(Coercion b c) -> Coercion a c
 
--- BUG: deriving instance Eq   (Coercion a b)
--- BUG: deriving instance Read (Coercion a b)
+-- TODO: instance Read (Coercion a b)
 deriving instance Show (Coercion a b)
+
+instance Eq  (Coercion a b) where
+    (==) = eq1
+instance Eq1 (Coercion a) where
+    eq1 = eq2
+instance Eq2 Coercion where
+    eq2 CNil         CNil         = True
+    eq2 (CCons x xs) (CCons y ys) =
+      case jmEq2 x y of
+         Just (Refl, Refl) -> eq2 xs ys
+         Nothing -> False
+    eq2 _            _            = False
+
+-- TODO: the JmEq2 and JmEq1 instances
 
 
 instance Category Coercion where
@@ -113,7 +141,40 @@ instance Category Coercion where
     xs . CNil       = xs
     xs . CCons y ys = CCons y (xs . ys)
 
+
+-- BUG: GHC 7.8 does not allow making these into pattern synonyms:
+-- (1) it disallows standalone type signatures for pattern synonyms,
+-- so we'd need to give it as an annotation, which isn't too terrible;
+-- but, (2) it does not allow polymorphic pattern synonyms :(
+
+-- | A smart constructor for lifting 'PrimCoercion' into 'Coercion'
+singletonCoercion :: PrimCoercion a b -> Coercion a b
+singletonCoercion c = CCons c CNil
+
+-- | A smart constructor for 'Signed'.
+signed :: (HRing_ a) => Coercion (NonNegative a) a
+signed = singletonCoercion $ Signed hRing
+
+-- | A smart constructor for 'Continuous'.
+continuous :: (HContinuous_ a) => Coercion (HIntegral a) a
+continuous = singletonCoercion $ Continuous hContinuous
+
+
 ----------------------------------------------------------------
+-- | This class defines a mapping from 'PrimCoercion' to the @(->)@
+-- category. (Technically these mappings aren't functors, since
+-- 'PrimCoercion' doesn't form a category.) It's mostly used for
+-- defining the analogous 'Coerce' instance; that is, given a
+-- @PrimCoerce F@ instance, we have the following canonical @Coerce
+-- F@ instance:
+--
+-- > instance Coerce F where
+-- >     coerceTo   CNil         s = s
+-- >     coerceTo   (CCons c cs) s = coerceTo cs (primCoerceTo c s)
+-- >
+-- >     coerceFrom CNil         s = s
+-- >     coerceFrom (CCons c cs) s = primCoerceFrom c (coerceFrom cs s)
+--
 class PrimCoerce (f :: Hakaru -> *) where
     primCoerceTo   :: PrimCoercion a b -> f a -> f b
     primCoerceFrom :: PrimCoercion a b -> f b -> f a
@@ -137,6 +198,18 @@ instance PrimCoerce (Sing :: Hakaru -> *) where
         Just Refl -> sing_HIntegral theCont
         Nothing   -> error "primCoerceFrom@Sing: the impossible happened"
 
+
+-- | This class defines functors from the 'Coercion' category to
+-- the @(->)@ category. It's mostly used for defining smart
+-- constructors that implement the coercion in @f@. We don't require
+-- a 'PrimCoerce' constraint (because we never need it), but given
+-- a @Coerce F@ instance, we have the following canonical @PrimCoerce
+-- F@ instance:
+--
+-- > instance PrimCoerce F where
+-- >     primCoerceTo   c = coerceTo   (singletonCoercion c)
+-- >     primCoerceFrom c = coerceFrom (singletonCoercion c)
+--
 class Coerce (f :: Hakaru -> *) where
     coerceTo   :: Coercion a b -> f a -> f b
     coerceFrom :: Coercion a b -> f b -> f a
@@ -158,17 +231,24 @@ singPrimCoerceCod (Signed     theRing) = sing_HRing       theRing
 singPrimCoerceCod (Continuous theCont) = sing_HContinuous theCont
 
 
+-- | Return a singleton for the domain type, or 'Nothing' if it's
+-- the 'CNil' coercion.
 singCoerceDom :: Coercion a b -> Maybe (Sing a)
 singCoerceDom CNil           = Nothing
 singCoerceDom (CCons c CNil) = Just $ singPrimCoerceDom c
 singCoerceDom (CCons c cs)   = primCoerceFrom c <$> singCoerceDom cs
 
+-- | Return a singleton for the codomain type, or 'Nothing' if it's
+-- the 'CNil' coercion.
 singCoerceCod :: Coercion a b -> Maybe (Sing b)
 singCoerceCod CNil           = Nothing
 singCoerceCod (CCons c CNil) = Just $ singPrimCoerceCod c
 singCoerceCod (CCons c cs)   = Just . coerceTo cs $ singPrimCoerceCod c
 
-
+-- | Return singletons for the domain and codomain types, or 'Nothing'
+-- if it's the 'CNil' coercion. If you need both types, this is a
+-- bit more efficient than calling 'singCoerceDom' and 'singCoerceCod'
+-- separately.
 singCoerceDomCod :: Coercion a b -> Maybe (Sing a, Sing b)
 singCoerceDomCod CNil           = Nothing
 singCoerceDomCod (CCons c CNil) =
@@ -179,38 +259,71 @@ singCoerceDomCod (CCons c cs)   = do
         , coerceTo cs $ singPrimCoerceCod c
         )
 
+
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
-
-instance Eq (PrimCoercion a b) where -- this one could be derived
-    (==) = eq2
-instance Eq1 (PrimCoercion a) where
-    eq1 x y = maybe False (const True) (jmEq2 x y)
-instance Eq2 PrimCoercion where
-    eq2 x y = maybe False (const True) (jmEq2 x y)
-instance JmEq1 (PrimCoercion a) where
-    jmEq1 x y = jmEq2 x y >>= \(Refl,Refl) -> Just Refl
-instance JmEq2 PrimCoercion where
-    jmEq2 (Signed r1) (Signed r2) =
-        jmEq1 r1 r2 >>= \Refl -> Just (Refl, Refl)
-    jmEq2 (Continuous c1) (Continuous c2) =
-        jmEq1 c1 c2 >>= \Refl -> Just (Refl, Refl)
-    jmEq2 _ _ = Nothing
+-- | Given two types, find a coercion from the first to the second,
+-- or return 'Nothing' if there is no such coercion.
+findCoercion :: Sing a -> Sing b -> Maybe (Coercion a b)
+findCoercion SNat  SInt  = Just signed
+findCoercion SProb SReal = Just signed
+findCoercion SNat  SProb = Just continuous
+findCoercion SInt  SReal = Just continuous
+findCoercion SNat  SReal = Just (continuous . signed)
+findCoercion a     b     = jmEq1 a b >>= \Refl -> Just CNil
 
 
-instance Eq2 Coercion where
-    eq2 CNil         CNil         = True
-    eq2 (CCons a as) (CCons b bs) =
-      case jmEq2 a b of
-         Just (Refl, Refl) -> eq2 as bs
-         Nothing -> False
-    eq2 _            _            = False
-instance Eq1 (Coercion a) where
-    eq1 = eq2
-instance Eq  (Coercion a b) where
-    (==) = eq1
+-- | Given two types, find either a coercion from the first to the
+-- second or a coercion from the second to the first, or returns
+-- 'Nothing' if there is neither such coercion.
+--
+-- If the two types are equal, then we preferentially return the
+-- @Coercion a b@. The ordering of the 'Either' is so that we
+-- consider the @Coercion a b@ direction \"success\" in the 'Either'
+-- monad (which also expresses our bias when the types are equal).
+findEitherCoercion
+    :: Sing a
+    -> Sing b
+    -> Maybe (Either (Coercion b a) (Coercion a b))
+findEitherCoercion a b =
+    case findCoercion a b of
+    Just c  -> Just (Right c)
+    Nothing -> Left <$> findCoercion b a
 
+
+-- | An upper bound of two types, with the coercions witnessing its
+-- upperbound-ness. The type itself ensures that we have /some/
+-- upper bound; but in practice we assume it is in fact the /least/
+-- upper bound.
+data Lub (a :: Hakaru) (b :: Hakaru)
+    = forall c. Lub !(Sing c) !(Coercion a c) !(Coercion b c)
+
+
+-- TODO: is there any way we can reuse 'findCoercion' to DRY?
+-- | Given two types, find their least upper bound.
+findLub :: Sing a -> Sing b -> Maybe (Lub a b)
+-- cases where @a < b@:
+findLub SNat  SInt  = Just $ Lub SInt  signed CNil
+findLub SProb SReal = Just $ Lub SReal signed CNil
+findLub SNat  SProb = Just $ Lub SProb continuous CNil
+findLub SInt  SReal = Just $ Lub SReal continuous CNil
+findLub SNat  SReal = Just $ Lub SReal (continuous . signed) CNil
+-- the symmetric cases where @b < a@:
+findLub SInt  SNat  = Just $ Lub SInt  CNil signed
+findLub SReal SProb = Just $ Lub SReal CNil signed
+findLub SProb SNat  = Just $ Lub SProb CNil continuous
+findLub SReal SInt  = Just $ Lub SReal CNil continuous
+findLub SReal SNat  = Just $ Lub SReal CNil (continuous . signed)
+-- cases where the lub is different from both @a@ and @b@:
+findLub SInt  SProb = Just $ Lub SReal continuous signed
+findLub SProb SInt  = Just $ Lub SReal signed continuous
+-- case where @a == b@:
+findLub a     b     = jmEq1 a b >>= \Refl -> Just $ Lub a CNil CNil
+
+
+----------------------------------------------------------------
+----------------------------------------------------------------
 
 data CoerceTo_UnsafeFrom :: Hakaru -> Hakaru -> * where
     CTUF :: !(Coercion b c) -> !(Coercion b a) -> CoerceTo_UnsafeFrom a c

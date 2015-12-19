@@ -511,32 +511,6 @@ try m = TCM $ \ctx mode -> Right $
     Right e -> Just e
 
 
--- TODO: move to "Language.Hakaru.Syntax.Coercion"
-data Lub (a :: Hakaru) (b :: Hakaru)
-    = forall c. Lub !(Sing c) !(Coercion a c) !(Coercion b c)
-
--- TODO: move to "Language.Hakaru.Syntax.Coercion"
--- TODO: is there any way we can reuse 'findCoercion' to define this?
-findLub :: Sing a -> Sing b -> Maybe (Lub a b)
--- cases where @a < b@:
-findLub SNat  SInt  = Just $ Lub SInt  signed CNil
-findLub SProb SReal = Just $ Lub SReal signed CNil
-findLub SNat  SProb = Just $ Lub SProb continuous CNil
-findLub SInt  SReal = Just $ Lub SReal continuous CNil
-findLub SNat  SReal = Just $ Lub SReal (continuous . signed) CNil
--- the symmetric cases where @b < a@:
-findLub SInt  SNat  = Just $ Lub SInt  CNil signed
-findLub SReal SProb = Just $ Lub SReal CNil signed
-findLub SProb SNat  = Just $ Lub SProb CNil continuous
-findLub SReal SInt  = Just $ Lub SReal CNil continuous
-findLub SReal SNat  = Just $ Lub SReal CNil (continuous . signed)
--- cases where the lub is different from both @a@ and @b@:
-findLub SInt  SProb = Just $ Lub SReal continuous signed
-findLub SProb SInt  = Just $ Lub SReal signed continuous
--- case where @a == b@:
-findLub a     b     = jmEq1 a b >>= \Refl -> Just $ Lub a CNil CNil
-
-
 -- TODO: actually use this for the 'NaryOp' and 'Superpose' cases of 'inferType' when in 'LaxMode'
 --
 -- | Given a list of terms which must all have the same type, infer
@@ -726,7 +700,7 @@ checkType = checkType_
                     Just c  -> return . unLC_ . coerceTo c $ LC_ e0'
                     Nothing -> typeMismatch (Right typ0) (Right typ')
                   UnsafeMode ->
-                    case findUnsafeCoercion typ' typ0 of
+                    case findEitherCoercion typ' typ0 of
                     Just (Left  c) ->
                         return . unLC_ . coerceFrom c $ LC_ e0'
                     Just (Right c) ->
@@ -915,26 +889,6 @@ checkBranch =
                 SP pat1' xs <- checkPattern typ1 pat1
                 return $ SPF (PKonst pat1') xs
             _ -> failwith "expected pattern of `K' type"
-
-
--- TODO: move to "Language.Hakaru.Syntax.Coercion"
-findCoercion :: Sing a -> Sing b -> Maybe (Coercion a b)
-findCoercion SNat  SInt  = Just signed
-findCoercion SProb SReal = Just signed
-findCoercion SNat  SProb = Just continuous
-findCoercion SInt  SReal = Just continuous
-findCoercion SNat  SReal = Just (continuous . signed)
-findCoercion a     b     = jmEq1 a b >>= \Refl -> Just CNil
-
--- TODO: move to "Language.Hakaru.Syntax.Coercion"
-findUnsafeCoercion
-    :: Sing a
-    -> Sing b
-    -> Maybe (Either (Coercion b a) (Coercion a b))
-findUnsafeCoercion a b =
-    case findCoercion a b of
-    Just c  -> Just (Right c)
-    Nothing -> Left <$> findCoercion b a
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
