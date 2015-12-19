@@ -384,6 +384,12 @@ inferType = inferType_
     U.Literal_ (Some1 v) ->
         return . TypedAST (sing_Literal v) $ syn (Literal_ v)
 
+    -- TODO: we can try to do 'U.Case_' by using branch-based
+    -- variants of 'inferOneCheckOthers' and 'inferLubType' depending
+    -- on the mode; provided we can in fact infer the type of the
+    -- scrutinee. N.B., if we add this case, then we need to update
+    -- 'mustCheck' to return the right thing.
+
     U.CoerceTo_ (Some2 c) e1 ->
         case singCoerceDomCod c of
         Nothing
@@ -453,7 +459,7 @@ inferType = inferType_
             SMeasure _ -> do
                 ps' <- T.traverse (checkType SProb) (map fst pes)
                 return $ TypedAST typ (syn (Superpose_ (zip ps' es')))
-            _ -> typeMismatch (Left "measure type") (Right typ)
+            _ -> typeMismatch (Left "HMeasure") (Right typ)
 
     _   | mustCheck e0 -> ambiguousMustCheck
         | otherwise    -> error "inferType: missing an inferable branch!"
