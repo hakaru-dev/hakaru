@@ -8,25 +8,25 @@ import Language.Hakaru.Parser.SymbolResolve (resolveAST)
 
 
 import qualified Language.Hakaru.Syntax.AST as T
-import Language.Hakaru.Syntax.IClasses
-import Language.Hakaru.Types.HClasses
-import Data.Number.Nat
+-- import Language.Hakaru.Syntax.IClasses
+-- import Language.Hakaru.Types.HClasses
+-- import Data.Number.Nat
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Types.Sing
-import Language.Hakaru.Types.DataKind
+-- import Language.Hakaru.Types.DataKind
 
 import Language.Hakaru.Syntax.TypeCheck
-import Language.Hakaru.Pretty.Concrete
-import Language.Hakaru.Sample hiding (SData, SKonst, SEt, SDone, SPlus, SVoid)
-import Language.Hakaru.Observe
-import Language.Hakaru.Expect
+-- import Language.Hakaru.Pretty.Concrete
+import Language.Hakaru.Sample
+-- import Language.Hakaru.Observe
+-- import Language.Hakaru.Expect
 import Language.Hakaru.Syntax.Prelude (prob_, fromProb, real_)
-import Language.Hakaru.Simplify
+-- import Language.Hakaru.Simplify
 
 import           Control.Monad
 import           Data.Text
 import qualified Data.Text.IO as IO
-import           Text.PrettyPrint
+-- import           Text.PrettyPrint
 
 import qualified System.Random.MWC as MWC
 import           System.Environment
