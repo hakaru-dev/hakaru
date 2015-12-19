@@ -93,7 +93,8 @@ syn keyword hakaruBoolean		True False
 "
 
 syn keyword hakaruBuiltinFunc	pow sin cos
-syn keyword hakaruBuiltinFunc	normal bern uniform dirac
+syn keyword hakaruBuiltinFunc	normal bern uniform dirac gamma beta
+syn keyword hakaruBuiltinFunc	nat int prob real
 
 hi def link hakaruStatement        Statement
 hi def link hakaruImport           Include
