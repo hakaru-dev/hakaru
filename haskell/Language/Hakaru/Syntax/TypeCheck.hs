@@ -118,22 +118,22 @@ mustCheck = go
     go (U.Superpose_ pes) = F.all (mustCheck . snd) pes
 
     -- I return true because most folks (neelk, Pfenning, Dunfield
-    -- & Pientka) say all data constructors mustCheck (even though
-    -- that doesn't seem right to me; also, cf.,
-    -- <http://jozefg.bitbucket.org/posts/2014-11-22-bidir.html>).
+    -- & Pientka) say all data constructors mustCheck. The main
+    -- issue here is dealing with (polymorphic) sum types and phantom
+    -- types, since these mean the term doesn't contain enough
+    -- information for all the type indices. Even for record types,
+    -- there's the additional issue of the term (perhaps) not giving
+    -- enough information about the nominal type even if it does
+    -- give enough info for the structural type.
     --
-    -- TODO: For 'Array_', it seems to me that if we can infer the
-    -- body, then we should be able to infer the whole thing, right?
-    -- Or maybe the problem is that the change-of-direction rule
-    -- might send us down the wrong path? Usually I'd assume the
-    -- binder is what does it, but here we know the type of the
-    -- bound variable, because it's the same for every array.
-    --
-    -- TODO: For 'Datum_', all atomic types should be inferable.
-    -- However, because we have polymorphic sum data types (HEither,
-    -- HMaybe, HList), those cannot be inferred. Also, we have
-    -- polymorphic product types (HPair) which can only be inferred
-    -- if all their components can be inferred.
+    -- Still, given those limitations, we should be able to infer
+    -- a subset of data constructors which happen to avoid the
+    -- problem areas. In particular, given that our surface syntax
+    -- doesn't use the sum-of-products representation, we should
+    -- be able to rely on symbol resolution to avoid the nominal
+    -- typing issue. Thus, for non-empty arrays and non-phantom
+    -- record types, we should be able to infer the whole type
+    -- provided we can infer the various subterms.
     go (U.Literal_ _)   = False
     go U.Empty_         = True
     go (U.Array_ _ _ _) = True
