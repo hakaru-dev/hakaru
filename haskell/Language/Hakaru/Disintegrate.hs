@@ -15,7 +15,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.14
+--                                                    2015.12.19
 -- |
 -- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -551,6 +551,8 @@ evaluate_ = evaluate perform
 
 -- | Simulate performing 'HMeasure' actions by simply emiting code
 -- for those actions, returning the bound variable.
+--
+-- This is the function called @(|>>)@ in the paper.
 perform :: (ABT Term abt) => MeasureEvaluator abt (M abt)
 perform e0 =
     caseVarSyn e0 performVar $ \t ->
@@ -618,6 +620,10 @@ performWhnf (Neutral e) = (Neutral . var) <$> emitMBind e
 -- does something like giving us full-beta reduction, which should
 -- really be the purview of 'evaluate', but the goal of which is
 -- to ensure that no heap-bound variables occur in the input term.
+--
+-- This is the function called @(|>)@ in the paper. The core idea
+-- of this function is @'evaluate' 'perform'@, but we call that
+-- recursively in order to guarantee correctness.
 atomize :: (ABT Term abt) => TermEvaluator abt (M abt)
 atomize e = traverse21 atomizeCore =<< evaluate_ e
 
@@ -636,6 +642,8 @@ atomizeCore e =
 -- | N.B., We assume that the first argument, @v0@, is already
 -- atomized. So, this must be ensured before recursing, but we can
 -- assume it's already been done by the IH.
+--
+-- This is the function called @(<|)@ in the paper.
 constrainValue :: (ABT Term abt) => Whnf abt a -> abt '[] a -> M abt ()
 constrainValue v0 e0 =
     caseVarSyn e0 (constrainVariable v0) $ \t ->
@@ -1086,6 +1094,8 @@ square theSemiring e =
 -- | N.B., We assume that the first argument, @v0@, is already
 -- atomized. So, this must be ensured before recursing, but we can
 -- assume it's already been done by the IH.
+--
+-- This is the function called @(<<|)@ in the paper.
 constrainOutcome
     :: (ABT Term abt) => Whnf abt a -> abt '[] ('HMeasure a) -> M abt ()
 constrainOutcome = error "TODO: constrainOutcome"
