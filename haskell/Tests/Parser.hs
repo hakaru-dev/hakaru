@@ -327,7 +327,7 @@ match6AST :: AST' Text
 match6AST =
     Ann (Case
             (Ann
-                (App (App (Var "Pair")
+                (App (App (Var "pair")
                           (ULiteral (Nat 2)))
                           (ULiteral (Nat 3)))
                 (TypeApp "pair" [TypeVar "nat",TypeVar "nat"]))
@@ -363,7 +363,7 @@ ann2 = "(2,3) :: pair(a,b)"
 
 ann2AST :: AST' Text
 ann2AST =
-    Ann (App (App (Var "Pair") (ULiteral (Nat 2))) (ULiteral (Nat 3)))
+    Ann (App (App (Var "pair") (ULiteral (Nat 2))) (ULiteral (Nat 3)))
         (TypeApp "pair" [TypeVar "a", TypeVar "b"])
 
 ann3 :: Text
@@ -429,11 +429,11 @@ easyRoadAST =
                          (Var "x2"))
                          (Var "noiseE"))
     (Dirac
-        (App (App (Var "Pair")
-            (App (App (Var "Pair")
+        (App (App (Var "pair")
+            (App (App (Var "pair")
                 (Var "m1"))
                 (Var "m2")))
-            (App (App (Var "Pair")
+            (App (App (Var "pair")
                 (Var "noiseT"))
                 (Var "noiseE")))))))))
 
