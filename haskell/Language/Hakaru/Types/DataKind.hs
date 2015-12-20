@@ -52,6 +52,7 @@ instance Read Symbol where
 
 
 ----------------------------------------------------------------
+-- BUG: can't define the fixity of @(':->)@
 infixr 0 :->
 
 -- | The universe\/kind of Hakaru types.

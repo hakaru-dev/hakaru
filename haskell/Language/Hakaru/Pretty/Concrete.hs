@@ -74,9 +74,6 @@ prettyPrecAssoc p (Assoc x e) =
         , prettyPrec 11 e
         ]
 
-prettyType :: Sing (a :: Hakaru) -> Doc
-prettyType = ppType
-
 ----------------------------------------------------------------
 class Pretty (f :: Hakaru -> *) where
     -- | A polymorphic variant if 'prettyPrec', for internal use.
@@ -206,7 +203,7 @@ ppSCon _ Let_ = \(e1 :* e2 :* End) ->
     [toDoc vars <+> PP.equals <+> toDoc (ppArg e1)
     PP.$$ (toDoc body)]
 ppSCon _ (Ann_ typ) = \(e1 :* End) ->
-    [toDoc (ppArg e1) <+> PP.text "::" <+> ppType typ]
+    [toDoc (ppArg e1) <+> PP.text "::" <+> prettyType typ]
 
 ppSCon p (PrimOp_     o) = \es          -> ppPrimOp  p o es
 ppSCon p (ArrayOp_    o) = \es          -> ppArrayOp p o es
@@ -242,15 +239,16 @@ ppSCon p Summate = \(e1 :* e2 :* e3 :* End) ->
         ]
 
 
-ppType :: Sing (a :: Hakaru) -> Doc
-ppType SNat         = PP.text "nat"
-ppType SInt         = PP.text "int"
-ppType SProb        = PP.text "prob"
-ppType SReal        = PP.text "real"
-ppType (SMeasure a) = PP.text "measure" <> PP.parens (ppType a)
-ppType (SArray   a) = PP.text "array" <> PP.parens (ppType a)
-ppType (SFun   a b) = ppType a <+> PP.text "->" <+> ppType b  
-ppType typ  = PP.text (showsPrec 11 typ "")
+-- | Pretty-print a type.
+prettyType :: Sing (a :: Hakaru) -> Doc
+prettyType SNat         = PP.text "nat"
+prettyType SInt         = PP.text "int"
+prettyType SProb        = PP.text "prob"
+prettyType SReal        = PP.text "real"
+prettyType (SMeasure a) = PP.text "measure" <> PP.parens (prettyType a)
+prettyType (SArray   a) = PP.text "array" <> PP.parens (prettyType a)
+prettyType (SFun   a b) = prettyType a <+> PP.text "->" <+> prettyType b  
+prettyType typ  = PP.text (showsPrec 11 typ "")
     -- TODO: make this prettier. Add hints to the singletons?typ
 
 ppCoerce :: Coercion a b -> String

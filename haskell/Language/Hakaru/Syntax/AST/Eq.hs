@@ -13,13 +13,37 @@
 -- AST.hs to avoid orphanage. It's just the instances for 'Term'
 -- itself which are morally suspect outside of testing.)
 {-# OPTIONS_GHC -Wall -fwarn-tabs -fno-warn-orphans #-}
----------------------------------------------------------------------
+----------------------------------------------------------------
+--                                                    2015.12.19
+-- |
+-- Module      :  Language.Hakaru.Syntax.ABT.Eq
+-- Copyright   :  Copyright (c) 2015 the Hakaru team
+-- License     :  BSD3
+-- Maintainer  :  wren@community.haskell.org
+-- Stability   :  experimental
+-- Portability :  GHC-only
 --
--- Warning: The following module is for testing purposes only.
---   These instances are inefficient and using them will usually
---   lead to inefficient solutions.
+-- Warning: The following module is for testing purposes only. Using
+-- the 'JmEq1' instance for 'Term' is inefficient and should not
+-- be done accidentally. To implement that (orphan) instance we
+-- also provide the following (orphan) instances:
 --
----------------------------------------------------------------------
+-- > PrimOp     : JmEq2, Eq2, Eq1
+-- > ArrayOp    : JmEq2, Eq2, Eq1
+-- > MeasureOp  : JmEq2, Eq2, Eq1
+-- > NaryOp     : JmEq1, Eq1
+-- > Literal    : JmEq1
+-- > SArgs      : JmEq1
+-- > Term       : JmEq1, Eq1, Eq
+-- > TrivialABT : JmEq2, JmEq1, Eq2, Eq1, Eq
+--
+-- TODO: the instances for operators and literals are perfectly
+-- efficient and safe to have on hand. So we should move them to
+-- their declaration sites.
+--
+-- TODO: because this is only for testing, everything else should
+-- move to the @Tests@ directory.
+----------------------------------------------------------------
 module Language.Hakaru.Syntax.AST.Eq where
 
 import Language.Hakaru.Types.Sing

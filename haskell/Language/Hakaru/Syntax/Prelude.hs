@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.11
+--                                                    2015.12.19
 -- |
 -- Module      :  Language.Hakaru.Syntax.Prelude
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -27,7 +27,100 @@
 --
 -- TODO: is there a way to get rid of the need to specify @'[]@ everywhere in here? Some sort of distinction between the Var vs the Open parts of View?
 ----------------------------------------------------------------
-module Language.Hakaru.Syntax.Prelude where
+module Language.Hakaru.Syntax.Prelude
+    (
+    -- * Basic syntax
+    -- ** Types and coercions
+      ann_
+    , coerceTo_, fromProb, nat2int, nat2prob, fromInt
+    , unsafeFrom_, unsafeProb, unsafeProbFraction, unsafeProbFraction_, unsafeProbSemiring, unsafeProbSemiring_
+    -- ** Numeric literals
+    , literal_, nat_, int_, prob_, real_
+    -- ** Booleans
+    , true, false, bool_, if_
+    , not, (&&), and, (||), or, nand, nor
+    -- ** Equality and ordering
+    , (==), (/=), (<), (<=), (>), (>=), min, minimum, max, maximum
+    -- ** Semirings
+    , zero, zero_, one, one_, (+), sum, (*), product, (^), square
+    , unsafeMinusNat, unsafeMinusProb
+    -- ** Rings
+    , (-), negate, negative, abs, abs_, signum
+    -- ** Fractional
+    , (/), recip, (^^)
+    -- ** Radical
+    , sqrt, thRootOf
+    -- ** Integration
+    , integrate, summate
+    -- ** Continuous
+    , RealProb(..)
+    , betaFunc
+    , logBase
+    , negativeInfinity
+    -- *** Trig
+    , sin, cos, tan, asin, acos, atan, sinh, cosh, tanh, asinh, acosh, atanh
+    
+    -- * Measures
+    -- ** Abstract nonsense
+    , dirac, (<$>), (<*>), (<*), (*>), (>>=), (>>), bindx
+    -- liftM, liftM2
+    -- ** Linear operators
+    , superpose, pose, weight, weightedDirac, reject, observe
+    -- ** Measure operators
+    -- | When two versions of the same operator are given, the one without the prime builds an AST using the built-in operator, whereas the one with the prime is a default definition in terms of more primitive measure operators.
+    , lebesgue
+    , counting
+    , categorical, categorical'
+    , uniform, uniform'
+    , normal, normal'
+    , poisson, poisson'
+    , gamma, gamma'
+    , beta, beta'
+    , dp
+    , plate, plate'
+    , chain, chain'
+    , invgamma
+    , exponential
+    , chi2
+    , cauchy
+    , laplace
+    , student
+    , weibull
+    , bern
+    , mix
+    , binomial
+    , negativeBinomial
+    , geometric
+    , multinomial
+    , dirichlet
+
+    -- * Data types (other than booleans)
+    , datum_
+    -- ** HUnit
+    , unit
+    -- ** HPair
+    , pair, unpair, fst, snd
+    -- ** HEither
+    , left, right, uneither
+    -- ** HMaybe
+    , nothing, just, maybe, unmaybe
+    -- ** HList
+    , nil, cons, list
+
+    -- * Lambda calculus
+    , lam, lamWithType, let_
+    , app, app2, app3
+
+    -- * Arrays
+    , empty, array, (!), size, reduce
+    , sumV, summateV, appendV, mapV, mapWithIndex, normalizeV, constV, unitV, zipWithV
+
+    -- * Implementation details
+    , primOp0_, primOp1_, primOp2_, primOp3_
+    , arrayOp0_, arrayOp1_, arrayOp2_, arrayOp3_
+    , measure0_, measure1_, measure2_
+    , unsafeNaryOp_, naryOp_withIdentity, naryOp2_
+    ) where
 
 -- TODO: implement and use Prelude's fromInteger and fromRational, so we can use numeric literals!
 import Prelude (Maybe(..), Bool(..), Integer, Rational, ($), flip, const, error)

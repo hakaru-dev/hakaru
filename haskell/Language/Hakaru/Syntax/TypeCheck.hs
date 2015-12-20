@@ -24,11 +24,14 @@
 -- Bidirectional type checking for our AST.
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.TypeCheck
-    ( inferable
-    , mustCheck
-    , TypeCheckError
+    (
+    -- * The type checking monad
+      TypeCheckError
     , TypeCheckMonad(), runTCM, unTCM
     , TypeCheckMode(..)
+    -- * Type checking itself
+    , inferable
+    , mustCheck
     , TypedAST(..)
     , inferType
     , checkType
@@ -311,7 +314,8 @@ checkBinderType x eTyp e =
     pushCtx x (bind x <$> checkType eTyp e)
 
 
--- | Given a typing environment and a term, synthesize the term's type:
+-- | Given a typing environment and a term, synthesize the term's
+-- type (and produce an elaborated term):
 --
 -- > Γ ⊢ e ⇒ e' ∈ τ
 inferType
@@ -631,8 +635,8 @@ checkSArgs _ _ =
     error "checkSArgs: the number of types and terms doesn't match up"
 
 
--- | Given a typing environment, a term, and a type, check that the
--- term satisfies the type:
+-- | Given a typing environment, a type, and a term, verify that
+-- the term satisfies the type (and produce an elaborated term):
 --
 -- > Γ ⊢ τ ∋ e ⇒ e'
 checkType

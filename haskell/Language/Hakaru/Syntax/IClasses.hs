@@ -261,6 +261,7 @@ showParen_111 p s e1 e2 e3 =
 -- GADTs). N.B., this function returns value\/term equality! That
 -- is, the following four laws must hold relating the 'Eq1' class
 -- to the 'Eq' class:
+--
 --     (1) if @eq1 x y == True@, then @x@ and @y@ have the same
 --         type index and @(x == y) == True@
 --     (2) if @eq1 x y == False@ where @x@ and @y@ have the same
@@ -310,6 +311,7 @@ congruence Refl = Refl
 -- N.B., this function returns value\/term equality! That is, the
 -- following four laws must hold relating the 'JmEq1' class to the
 -- 'Eq1' class:
+--
 --     (1) if @jmEq1 x y == Just Refl@, then @x@ and @y@ have the
 --         same type index and @eq1 x y == True@
 --     (2) if @jmEq1 x y == Nothing@ where @x@ and @y@ have the

@@ -11,9 +11,9 @@
 -- Stability   :  experimental
 -- Portability :  GHC-only
 --
--- Factored out from "Language.Hakaru.Syntax.AST"
+-- Factored out from "Language.Hakaru.Syntax.AST".
 --
--- TODO: remove the dependency on "Language.Hakaru.Parser.AST", to avoid issues of cyclic imports.
+-- TODO: if we're not going to have this in "Language.Hakaru.Syntax.AST", then we should rename it to @Language.Hakaru.Syntax.AST.Sing@ or the like.
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.TypeHelpers
     ( sing_NaryOp

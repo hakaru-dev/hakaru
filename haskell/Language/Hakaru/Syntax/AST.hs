@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.11
+--                                                    2015.12.18
 -- |
 -- Module      :  Language.Hakaru.Syntax.AST
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -82,7 +82,9 @@ import Language.Hakaru.Syntax.ABT (ABT(syn))
 -- | Numeric literals for the primitive numeric types. In addition
 -- to being normal forms, these are also ground terms: that is, not
 -- only are they closed (i.e., no free variables), they also have
--- no bound variables and thus no binding forms.
+-- no bound variables and thus no binding forms. Notably, we store
+-- literals using exact types so that none of our program transformations
+-- have to worry about issues like overflow or floating-point fuzz.
 data Literal :: Hakaru -> * where
     LNat   :: !Natural -> Literal 'HNat
     LInt   :: !Integer -> Literal 'HInt
@@ -232,8 +234,8 @@ type family UnLCs (xs :: [([Hakaru], Hakaru)]) :: [Hakaru] where
 
 
 -- | Simple primitive functions, and constants. N.B., nothing in
--- here should produce or consume things of @HMeasure@ type (except
--- perhaps in a totally polymorphic way).
+-- here should produce or consume things of 'HMeasure' or 'HArray'
+-- type (except perhaps in a totally polymorphic way).
 data PrimOp :: [Hakaru] -> Hakaru -> * where
 
     -- -- -- Here we have /monomorphic/ operators
@@ -398,8 +400,15 @@ deriving instance Show (PrimOp args a)
 
 ----------------------------------------------------------------
 -- | Primitive operators for consuming or transforming arrays.
+--
+-- TODO: we may want to replace the 'Sing' arguments with something
+-- more specific in order to capture any restrictions on what can
+-- be stored in an array. Or, if we can get rid of them entirely
+-- while still implementing all the use sites of
+-- 'Language.Hakaru.Syntax.TypeHelpers.sing_ArrayOp', that'd be
+-- better still.
 data ArrayOp :: [Hakaru] -> Hakaru -> * where
-    -- HACK: is there any way we can avoid storing the Sing values here, while still implementing 'sing_PrimOp'? Should we have a Hakaru class for the types which can be stored in arrays? might not be a crazy idea...
+    -- HACK: is there any way we can avoid storing the Sing values here, while still implementing 'sing_PrimOp'?
     Index  :: !(Sing a) -> ArrayOp '[ 'HArray a, 'HNat ] a
     Size   :: !(Sing a) -> ArrayOp '[ 'HArray a ] 'HNat
     -- The first argument should be a monoid, but we don't enforce
@@ -416,20 +425,36 @@ deriving instance Show (ArrayOp args a)
 -- | Primitive operators to produce, consume, or transform
 -- distributions\/measures. This corresponds to the old @Mochastic@
 -- class, except that 'MBind' and 'Superpose_' are handled elsewhere
--- since they are not simple operators.
+-- since they are not simple operators. (Also 'Dirac' is handled
+-- elsewhere since it naturally fits with 'MBind', even though it
+-- is a siple operator.)
+--
+-- TODO: we may want to replace the 'Sing' arguments with something
+-- more specific in order to capture any restrictions on what can
+-- be a measure space (e.g., to exclude functions). Or, if we can
+-- get rid of them entirely while still implementing all the use
+-- sites of 'Language.Hakaru.Syntax.TypeHelpers.sing_MeasureOp',
+-- that'd be better still.
 data MeasureOp :: [Hakaru] -> Hakaru -> * where
+    -- We might consider making Lebesgue and Counting polymorphic,
+    -- since their restrictions to HProb and HNat are perfectly
+    -- valid primitive measures. However, there are many other
+    -- restrictions on measures we may want to consider, so handling
+    -- these two here would only complicate matters.
     Lebesgue    :: MeasureOp '[]                 'HReal
-    -- BUG: to make Counting polymorphic we'll need a new HClass. Using the HIntegral type family with an HContinuous proof term breaks our standalone deriving.
     Counting    :: MeasureOp '[]                 'HInt
     Categorical :: MeasureOp '[ 'HArray 'HProb ] 'HNat
-    -- TODO: make Uniform polymorphic, so that if the two inputs are HProb then we know the measure must be over HProb too. More generally, if the first input is HProb (since the second input is assumed to be greater thant he first); though that would be a bit ugly IMO.
+    -- TODO: make Uniform polymorphic, so that if the two inputs
+    -- are HProb then we know the measure must be over HProb too.
+    -- More generally, if the first input is HProb (since the second
+    -- input is assumed to be greater thant he first); though that
+    -- would be a bit ugly IMO.
     Uniform     :: MeasureOp '[ 'HReal, 'HReal ] 'HReal
     Normal      :: MeasureOp '[ 'HReal, 'HProb ] 'HReal
     Poisson     :: MeasureOp '[ 'HProb         ] 'HNat
     Gamma       :: MeasureOp '[ 'HProb, 'HProb ] 'HProb
     Beta        :: MeasureOp '[ 'HProb, 'HProb ] 'HProb
 
-    -- HACK: is there any way we can avoid storing the Sing values here, while still implementing 'sing_MeasureOp'? Should we have a Hakaru class for the types which can be measurable? might not be a crazy idea...
     DirichletProcess
         :: !(Sing a)
         -> MeasureOp '[ 'HProb, 'HMeasure a ] ('HMeasure a)
@@ -437,7 +462,12 @@ data MeasureOp :: [Hakaru] -> Hakaru -> * where
     Plate
         :: !(Sing a)
         -> MeasureOp '[ 'HArray ('HMeasure a) ] ('HArray a)
-    -- TODO: if we swap the order of arguments to 'Chain', we could change the functional argument to be a binding form in order to avoid the need for lambdas. It'd no longer be trivial to see 'Chain' as an instance of @sequence@, but might be worth it... Of course, we also need to handle the fact that it's an array of transition functions; i.e., we could do:
+    -- TODO: if we swap the order of arguments to 'Chain', we could
+    -- change the functional argument to be a binding form in order
+    -- to avoid the need for lambdas. It'd no longer be trivial to
+    -- see 'Chain' as an instance of @sequence@, but might be worth
+    -- it... Of course, we also need to handle the fact that it's
+    -- an array of transition functions; i.e., we could do:
     -- > chain n s0 $ \i s -> do {...}
     Chain
         :: !(Sing s)

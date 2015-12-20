@@ -7,7 +7,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.11
+--                                                    2015.12.19
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeOf
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -40,6 +40,14 @@ import Language.Hakaru.Syntax.ABT (ABT, caseVarSyn, caseBind, caseBinds)
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
+-- | Given any well-typed term, produce the type. N.B., this is a
+-- bit of a hack in order to avoid using 'SingI' or needing to
+-- memoize the types of everything. You should really avoid using
+-- this function if at all possible since it's very expensive.
+--
+-- BUG: we currently do not handle 'Datum_'. You should be able to
+-- circumvent this by putting an 'Ann_' immediately before any
+-- 'Datum_'.
 typeOf :: (ABT Term abt) => abt '[] a -> Sing a
 typeOf e0 =
     case typeOf_ e0 of
