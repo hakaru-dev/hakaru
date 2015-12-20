@@ -46,7 +46,7 @@ module Language.Hakaru.Syntax.IClasses
     -- * Equality
     , Eq1(..)
     , Eq2(..)
-    , TypeEq(..), symmetry, congruence
+    , TypeEq(..), symmetry, transitivity, congruence
     , JmEq1(..)
     , JmEq2(..)
 
@@ -299,6 +299,11 @@ instance Category TypeEq where
 -- | Type equality is symmetric.
 symmetry :: TypeEq a b -> TypeEq b a
 symmetry Refl = Refl
+
+-- | Type equality is transitive. N.B., this is has a more general
+-- type than @(.)@
+transitivity :: TypeEq a b -> TypeEq b c -> TypeEq a c
+transitivity Refl Refl = Refl
 
 -- | Type constructors are extensional.
 congruence :: TypeEq a b -> TypeEq (f a) (f b)
