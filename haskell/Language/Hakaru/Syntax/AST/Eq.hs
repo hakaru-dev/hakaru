@@ -28,18 +28,9 @@
 -- be done accidentally. To implement that (orphan) instance we
 -- also provide the following (orphan) instances:
 --
--- > PrimOp     : JmEq2, Eq2, Eq1
--- > ArrayOp    : JmEq2, Eq2, Eq1
--- > MeasureOp  : JmEq2, Eq2, Eq1
--- > NaryOp     : JmEq1, Eq1
--- > Literal    : JmEq1
 -- > SArgs      : JmEq1
 -- > Term       : JmEq1, Eq1, Eq
 -- > TrivialABT : JmEq2, JmEq1, Eq2, Eq1, Eq
---
--- TODO: the instances for operators and literals are perfectly
--- efficient and safe to have on hand. So we should move them to
--- their declaration sites.
 --
 -- TODO: because this is only for testing, everything else should
 -- move to the @Tests@ directory.
@@ -48,7 +39,6 @@ module Language.Hakaru.Syntax.AST.Eq where
 
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
-import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
@@ -121,116 +111,6 @@ instance JmEq2 abt => JmEq1 (SArgs abt) where
         jmEq2 x  y  >>= \(Refl, Refl) ->
         jmEq1 xs ys >>= \Refl ->
         Just Refl
-    jmEq1 _         _         = Nothing
-
-
-instance JmEq2 PrimOp where
-    jmEq2 Not         Not         = Just (Refl, Refl)
-    jmEq2 Impl        Impl        = Just (Refl, Refl)
-    jmEq2 Diff        Diff        = Just (Refl, Refl)
-    jmEq2 Nand        Nand        = Just (Refl, Refl)
-    jmEq2 Nor         Nor         = Just (Refl, Refl)
-    jmEq2 Pi          Pi          = Just (Refl, Refl)
-    jmEq2 Sin         Sin         = Just (Refl, Refl)
-    jmEq2 Cos         Cos         = Just (Refl, Refl)
-    jmEq2 Tan         Tan         = Just (Refl, Refl)
-    jmEq2 Asin        Asin        = Just (Refl, Refl)
-    jmEq2 Acos        Acos        = Just (Refl, Refl)
-    jmEq2 Atan        Atan        = Just (Refl, Refl)
-    jmEq2 Sinh        Sinh        = Just (Refl, Refl)
-    jmEq2 Cosh        Cosh        = Just (Refl, Refl)
-    jmEq2 Tanh        Tanh        = Just (Refl, Refl)
-    jmEq2 Asinh       Asinh       = Just (Refl, Refl)
-    jmEq2 Acosh       Acosh       = Just (Refl, Refl)
-    jmEq2 Atanh       Atanh       = Just (Refl, Refl)
-    jmEq2 RealPow     RealPow     = Just (Refl, Refl)
-    jmEq2 Exp         Exp         = Just (Refl, Refl)
-    jmEq2 Log         Log         = Just (Refl, Refl)
-    jmEq2 Infinity    Infinity    = Just (Refl, Refl)
-    jmEq2 NegativeInfinity NegativeInfinity = Just (Refl, Refl)
-    jmEq2 GammaFunc   GammaFunc   = Just (Refl, Refl)
-    jmEq2 BetaFunc    BetaFunc    = Just (Refl, Refl)
-    jmEq2 (Equal a)   (Equal b)   =
-        jmEq1 (sing_HEq a) (sing_HEq b) >>= \Refl ->
-        Just (Refl, Refl)
-    jmEq2 (Less a)    (Less b)    =
-        jmEq1 (sing_HOrd a) (sing_HOrd b) >>= \Refl ->
-        Just (Refl, Refl)
-    jmEq2 (NatPow  a) (NatPow  b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
-    jmEq2 (Negate  a) (Negate  b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
-    jmEq2 (Abs     a) (Abs     b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
-    jmEq2 (Signum  a) (Signum  b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
-    jmEq2 (Recip   a) (Recip   b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
-    jmEq2 (NatRoot a) (NatRoot b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
-    jmEq2 (Erf     a) (Erf     b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
-    jmEq2 _ _ = Nothing
-
-instance Eq2 PrimOp where
-    eq2 x y = maybe False (const True) (jmEq2 x y)
-    
-instance Eq1 (PrimOp args) where
-    eq1 x y = maybe False (const True) (jmEq2 x y)
-
-
-instance JmEq2 ArrayOp where
-    jmEq2 (Index  a) (Index  b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
-    jmEq2 (Size   a) (Size   b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
-    jmEq2 (Reduce a) (Reduce b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
-    jmEq2 _          _          = Nothing
-
-instance Eq2 ArrayOp where
-    eq2 x y = maybe False (const True) (jmEq2 x y)
-    
-instance Eq1 (ArrayOp args) where
-    eq1 x y = maybe False (const True) (jmEq2 x y)
-
-
-instance JmEq2 MeasureOp where
-    jmEq2 Lebesgue    Lebesgue    = Just (Refl, Refl)
-    jmEq2 Counting    Counting    = Just (Refl, Refl)
-    jmEq2 Categorical Categorical = Just (Refl, Refl)
-    jmEq2 Uniform     Uniform     = Just (Refl, Refl)
-    jmEq2 Normal      Normal      = Just (Refl, Refl)
-    jmEq2 Poisson     Poisson     = Just (Refl, Refl)
-    jmEq2 Gamma       Gamma       = Just (Refl, Refl)
-    jmEq2 Beta        Beta        = Just (Refl, Refl)
-    jmEq2 (DirichletProcess a) (DirichletProcess b) =
-        jmEq1 a b >>= \Refl -> Just (Refl, Refl)
-    jmEq2 (Plate a) (Plate b) =
-        jmEq1 a b >>= \Refl -> Just (Refl, Refl)
-    jmEq2 (Chain s a) (Chain t b) =
-        jmEq1 s t >>= \Refl ->
-        jmEq1 a b >>= \Refl ->
-        Just (Refl, Refl)
-    jmEq2 _           _ = Nothing
-
-instance Eq2 MeasureOp where
-    eq2 x y = maybe False (const True) (jmEq2 x y)
-    
-instance Eq1 (MeasureOp args) where
-    eq1 x y = maybe False (const True) (jmEq2 x y)
-
-
-instance JmEq1 NaryOp where
-    jmEq1 And      And      = Just Refl
-    jmEq1 Or       Or       = Just Refl
-    jmEq1 Xor      Xor      = Just Refl
-    jmEq1 Iff      Iff      = Just Refl
-    jmEq1 (Min  a) (Min  b) = jmEq1 (sing_HOrd a) (sing_HOrd b)
-    jmEq1 (Max  a) (Max  b) = jmEq1 (sing_HOrd a) (sing_HOrd b)
-    jmEq1 (Sum  a) (Sum  b) = jmEq1 a b
-    jmEq1 (Prod a) (Prod b) = jmEq1 a b
-    jmEq1 _        _        = Nothing
-
-instance Eq1 NaryOp where
-    eq1 x y = maybe False (const True) (jmEq1 x y)
-
-
-instance JmEq1 Literal where
-    jmEq1 (LNat  x) (LNat  y) = if x == y then Just Refl else Nothing
-    jmEq1 (LInt  x) (LInt  y) = if x == y then Just Refl else Nothing
-    jmEq1 (LProb x) (LProb y) = if x == y then Just Refl else Nothing
-    jmEq1 (LReal x) (LReal y) = if x == y then Just Refl else Nothing
     jmEq1 _         _         = Nothing
 
 

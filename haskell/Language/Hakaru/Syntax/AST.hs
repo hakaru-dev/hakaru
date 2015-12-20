@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.18
+--                                                    2015.12.19
 -- |
 -- Module      :  Language.Hakaru.Syntax.AST
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -91,12 +91,19 @@ data Literal :: Hakaru -> * where
     LProb  :: {-# UNPACK #-} !NonNegativeRational -> Literal 'HProb
     LReal  :: {-# UNPACK #-} !Rational            -> Literal 'HReal
 
+instance JmEq1 Literal where
+    jmEq1 (LNat  x) (LNat  y) = if x == y then Just Refl else Nothing
+    jmEq1 (LInt  x) (LInt  y) = if x == y then Just Refl else Nothing
+    jmEq1 (LProb x) (LProb y) = if x == y then Just Refl else Nothing
+    jmEq1 (LReal x) (LReal y) = if x == y then Just Refl else Nothing
+    jmEq1 _         _         = Nothing
+
 instance Eq1 Literal where
-    eq1 (LNat  v1) (LNat  v2) = v1 == v2
-    eq1 (LInt  v1) (LInt  v2) = v1 == v2
-    eq1 (LProb v1) (LProb v2) = v1 == v2
-    eq1 (LReal v1) (LReal v2) = v1 == v2
-    eq1 _          _          = False
+    eq1 (LNat  x) (LNat  y) = x == y
+    eq1 (LInt  x) (LInt  y) = x == y
+    eq1 (LProb x) (LProb y) = x == y
+    eq1 (LReal x) (LReal y) = x == y
+    eq1 _         _          = False
 
 instance Eq (Literal a) where
     (==) = eq1
@@ -211,12 +218,29 @@ data NaryOp :: Hakaru -> * where
     LCM  :: !(GCD_Domain a) -> NaryOp a
     -}
 
-deriving instance Eq   (NaryOp a)
 -- TODO: instance Read (NaryOp a)
 deriving instance Show (NaryOp a)
 
-----------------------------------------------------------------
+instance JmEq1 NaryOp where
+    jmEq1 And      And      = Just Refl
+    jmEq1 Or       Or       = Just Refl
+    jmEq1 Xor      Xor      = Just Refl
+    jmEq1 Iff      Iff      = Just Refl
+    jmEq1 (Min  a) (Min  b) = jmEq1 (sing_HOrd a) (sing_HOrd b)
+    jmEq1 (Max  a) (Max  b) = jmEq1 (sing_HOrd a) (sing_HOrd b)
+    jmEq1 (Sum  a) (Sum  b) = jmEq1 a b
+    jmEq1 (Prod a) (Prod b) = jmEq1 a b
+    jmEq1 _        _        = Nothing
 
+-- TODO: We could optimize this like we do for 'Literal'
+instance Eq1 NaryOp where
+    eq1 x y = maybe False (const True) (jmEq1 x y)
+
+instance Eq (NaryOp a) where -- This one can be derived
+    (==) = eq1
+
+
+----------------------------------------------------------------
 -- TODO: should we define our own datakind for @([Hakaru], Hakaru)@ or perhaps for the @/\a -> ([a], Hakaru)@ part of it?
 
 -- | Locally closed values (i.e., not binding forms) of a given type.
@@ -393,10 +417,59 @@ data PrimOp :: [Hakaru] -> Hakaru -> * where
     -- TODO: make Pi and Infinity HContinuous-polymorphic so that we can avoid the explicit coercion? Probably more mess than benefit.
 
 
-deriving instance Eq   (PrimOp args a)
 -- TODO: instance Read (PrimOp args a)
 deriving instance Show (PrimOp args a)
 
+instance JmEq2 PrimOp where
+    jmEq2 Not         Not         = Just (Refl, Refl)
+    jmEq2 Impl        Impl        = Just (Refl, Refl)
+    jmEq2 Diff        Diff        = Just (Refl, Refl)
+    jmEq2 Nand        Nand        = Just (Refl, Refl)
+    jmEq2 Nor         Nor         = Just (Refl, Refl)
+    jmEq2 Pi          Pi          = Just (Refl, Refl)
+    jmEq2 Sin         Sin         = Just (Refl, Refl)
+    jmEq2 Cos         Cos         = Just (Refl, Refl)
+    jmEq2 Tan         Tan         = Just (Refl, Refl)
+    jmEq2 Asin        Asin        = Just (Refl, Refl)
+    jmEq2 Acos        Acos        = Just (Refl, Refl)
+    jmEq2 Atan        Atan        = Just (Refl, Refl)
+    jmEq2 Sinh        Sinh        = Just (Refl, Refl)
+    jmEq2 Cosh        Cosh        = Just (Refl, Refl)
+    jmEq2 Tanh        Tanh        = Just (Refl, Refl)
+    jmEq2 Asinh       Asinh       = Just (Refl, Refl)
+    jmEq2 Acosh       Acosh       = Just (Refl, Refl)
+    jmEq2 Atanh       Atanh       = Just (Refl, Refl)
+    jmEq2 RealPow     RealPow     = Just (Refl, Refl)
+    jmEq2 Exp         Exp         = Just (Refl, Refl)
+    jmEq2 Log         Log         = Just (Refl, Refl)
+    jmEq2 Infinity    Infinity    = Just (Refl, Refl)
+    jmEq2 NegativeInfinity NegativeInfinity = Just (Refl, Refl)
+    jmEq2 GammaFunc   GammaFunc   = Just (Refl, Refl)
+    jmEq2 BetaFunc    BetaFunc    = Just (Refl, Refl)
+    jmEq2 (Equal a)   (Equal b)   =
+        jmEq1 (sing_HEq a) (sing_HEq b) >>= \Refl ->
+        Just (Refl, Refl)
+    jmEq2 (Less a)    (Less b)    =
+        jmEq1 (sing_HOrd a) (sing_HOrd b) >>= \Refl ->
+        Just (Refl, Refl)
+    jmEq2 (NatPow  a) (NatPow  b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
+    jmEq2 (Negate  a) (Negate  b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
+    jmEq2 (Abs     a) (Abs     b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
+    jmEq2 (Signum  a) (Signum  b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
+    jmEq2 (Recip   a) (Recip   b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
+    jmEq2 (NatRoot a) (NatRoot b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
+    jmEq2 (Erf     a) (Erf     b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
+    jmEq2 _ _ = Nothing
+
+-- TODO: We could optimize this like we do for 'Literal'
+instance Eq2 PrimOp where
+    eq2 x y = maybe False (const True) (jmEq2 x y)
+
+instance Eq1 (PrimOp args) where
+    eq1 = eq2
+
+instance Eq (PrimOp args a) where -- This one can be derived
+    (==) = eq1
 
 ----------------------------------------------------------------
 -- | Primitive operators for consuming or transforming arrays.
@@ -416,9 +489,24 @@ data ArrayOp :: [Hakaru] -> Hakaru -> * where
     Reduce :: !(Sing a) -> ArrayOp '[ a ':-> a ':-> a, a, 'HArray a ] a
     -- TODO: would it make sense to have a specialized version for when the first argument is some \"Op\", in order to avoid the need for lambdas?
 
-deriving instance Eq   (ArrayOp args a)
 -- TODO: instance Read (ArrayOp args a)
 deriving instance Show (ArrayOp args a)
+
+instance JmEq2 ArrayOp where
+    jmEq2 (Index  a) (Index  b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
+    jmEq2 (Size   a) (Size   b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
+    jmEq2 (Reduce a) (Reduce b) = jmEq1 a b >>= \Refl -> Just (Refl, Refl)
+    jmEq2 _          _          = Nothing
+
+-- TODO: We could optimize this like we do for 'Literal'
+instance Eq2 ArrayOp where
+    eq2 x y = maybe False (const True) (jmEq2 x y)
+
+instance Eq1 (ArrayOp args) where
+    eq1 = eq2
+
+instance Eq (ArrayOp args a) where -- This one can be derived
+    (==) = eq1
 
 
 ----------------------------------------------------------------
@@ -478,9 +566,37 @@ data MeasureOp :: [Hakaru] -> Hakaru -> * where
             ] (HPair ('HArray a) s)
 
 
-deriving instance Eq   (MeasureOp args a)
 -- TODO: instance Read (MeasureOp args a)
 deriving instance Show (MeasureOp args a)
+
+instance JmEq2 MeasureOp where
+    jmEq2 Lebesgue    Lebesgue    = Just (Refl, Refl)
+    jmEq2 Counting    Counting    = Just (Refl, Refl)
+    jmEq2 Categorical Categorical = Just (Refl, Refl)
+    jmEq2 Uniform     Uniform     = Just (Refl, Refl)
+    jmEq2 Normal      Normal      = Just (Refl, Refl)
+    jmEq2 Poisson     Poisson     = Just (Refl, Refl)
+    jmEq2 Gamma       Gamma       = Just (Refl, Refl)
+    jmEq2 Beta        Beta        = Just (Refl, Refl)
+    jmEq2 (DirichletProcess a) (DirichletProcess b) =
+        jmEq1 a b >>= \Refl -> Just (Refl, Refl)
+    jmEq2 (Plate a) (Plate b) =
+        jmEq1 a b >>= \Refl -> Just (Refl, Refl)
+    jmEq2 (Chain s a) (Chain t b) =
+        jmEq1 s t >>= \Refl ->
+        jmEq1 a b >>= \Refl ->
+        Just (Refl, Refl)
+    jmEq2 _           _ = Nothing
+
+-- TODO: We could optimize this like we do for 'Literal'
+instance Eq2 MeasureOp where
+    eq2 x y = maybe False (const True) (jmEq2 x y)
+
+instance Eq1 (MeasureOp args) where
+    eq1 = eq2
+
+instance Eq (MeasureOp args a) where -- This one can be derived
+    (==) = eq1
 
 
 ----------------------------------------------------------------
