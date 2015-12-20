@@ -56,11 +56,11 @@ import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.HClasses
     (HOrd, hOrd_Sing, HSemiring, hSemiring_Sing)
-import Language.Hakaru.Syntax.TypeHelpers
-    (sing_Literal, sing_PrimOp, sing_ArrayOp, sing_MeasureOp)
-import Language.Hakaru.Syntax.AST
-import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT
+import Language.Hakaru.Syntax.Datum
+import Language.Hakaru.Syntax.AST
+import Language.Hakaru.Syntax.AST.Sing
+    (sing_Literal, sing_PrimOp, sing_ArrayOp, sing_MeasureOp)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------

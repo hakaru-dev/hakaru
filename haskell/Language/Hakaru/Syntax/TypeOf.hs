@@ -16,7 +16,7 @@
 -- Stability   :  experimental
 -- Portability :  GHC-only
 --
--- BUG: can't put this in "Language.Hakaru.Syntax.TypeHelpers" because of some sort of cyclic dependency...
+-- BUG: can't put this in "Language.Hakaru.Syntax.AST.Sing" because of some sort of cyclic dependency...
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.TypeOf
     ( typeOf
@@ -30,7 +30,7 @@ import Data.Functor ((<$>))
 import Language.Hakaru.Types.Sing (Sing(..))
 import Language.Hakaru.Types.Coercion
     (singCoerceCod, singCoerceDom, Coerce(..))
-import Language.Hakaru.Syntax.TypeHelpers
+import Language.Hakaru.Syntax.AST.Sing
     (sing_PrimOp, sing_MeasureOp, sing_NaryOp, sing_Literal)
 import Language.Hakaru.Syntax.Datum (Branch(..))
 import Language.Hakaru.Syntax.AST

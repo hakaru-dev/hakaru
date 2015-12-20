@@ -405,7 +405,7 @@ deriving instance Show (PrimOp args a)
 -- more specific in order to capture any restrictions on what can
 -- be stored in an array. Or, if we can get rid of them entirely
 -- while still implementing all the use sites of
--- 'Language.Hakaru.Syntax.TypeHelpers.sing_ArrayOp', that'd be
+-- 'Language.Hakaru.Syntax.AST.Sing.sing_ArrayOp', that'd be
 -- better still.
 data ArrayOp :: [Hakaru] -> Hakaru -> * where
     -- HACK: is there any way we can avoid storing the Sing values here, while still implementing 'sing_PrimOp'?
@@ -433,7 +433,7 @@ deriving instance Show (ArrayOp args a)
 -- more specific in order to capture any restrictions on what can
 -- be a measure space (e.g., to exclude functions). Or, if we can
 -- get rid of them entirely while still implementing all the use
--- sites of 'Language.Hakaru.Syntax.TypeHelpers.sing_MeasureOp',
+-- sites of 'Language.Hakaru.Syntax.AST.Sing.sing_MeasureOp',
 -- that'd be better still.
 data MeasureOp :: [Hakaru] -> Hakaru -> * where
     -- We might consider making Lebesgue and Counting polymorphic,

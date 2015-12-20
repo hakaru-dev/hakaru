@@ -2,9 +2,9 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.08
+--                                                    2015.12.19
 -- |
--- Module      :  Language.Hakaru.Syntax.TypeHelpers
+-- Module      :  Language.Hakaru.Syntax.AST.Sing
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  wren@community.haskell.org
@@ -15,7 +15,7 @@
 --
 -- TODO: if we're not going to have this in "Language.Hakaru.Syntax.AST", then we should rename it to @Language.Hakaru.Syntax.AST.Sing@ or the like.
 ----------------------------------------------------------------
-module Language.Hakaru.Syntax.TypeHelpers
+module Language.Hakaru.Syntax.AST.Sing
     ( sing_NaryOp
     , sing_PrimOp
     , sing_ArrayOp
