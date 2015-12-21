@@ -17,7 +17,7 @@ import qualified Data.Foldable as F
 import qualified Data.ByteString.Lazy as B
 import qualified Data.Vector as V
 #if __GLASGOW_HASKELL__ < 710
-import Control.Functor     ((<$>))
+import Data.Functor     ((<$>))
 import Control.Applicative ((<*>))
 #endif
 
