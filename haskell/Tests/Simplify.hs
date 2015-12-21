@@ -5,12 +5,15 @@
 
 module Tests.Simplify where
 
+import Prelude hiding ((>>=))
+
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
+import Language.Hakaru.Syntax.Prelude
 import Language.Hakaru.Simplify
 
 import Language.Hakaru.Syntax.AST.Eq()
@@ -31,6 +34,13 @@ normal01T = syn (MeasureOp_ Normal
                            (syn (Literal_ (LNat 1)) :* End))
                  :* End)
 
+realpair :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
+realpair = ann_ (SMeasure $ sPair SReal SReal)
+                (dirac (pair (real_ 1) (real_ 2)))
+
+unifprob :: TrivialABT Term '[] ('HMeasure 'HProb)
+unifprob = uniform (real_ 1) (real_ 2) >>= \x -> dirac (unsafeProb x)
+
 testSimplify :: ( ABT Term abt
                 , Show (abt '[] a)
                 , Eq   (abt '[] a))
@@ -43,4 +53,6 @@ allTests :: Test
 allTests = test
    [ testSimplify freevar freevar
    , testSimplify normal01T normal01T
+   , testSimplify realpair realpair
+   , testSimplify unifprob unifprob
    ]
