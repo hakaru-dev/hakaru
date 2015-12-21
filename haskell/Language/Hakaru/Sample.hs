@@ -245,7 +245,7 @@ sampleNaryOp
 sampleNaryOp (Sum HSemiring_Nat)   es = S . F.foldr (+) 0 . mapSample es
 sampleNaryOp (Sum HSemiring_Int)   es = S . F.foldr (+) 0 . mapSample es
 sampleNaryOp (Sum HSemiring_Prob)  es = S . F.foldr (+) 0 . mapSample es
-sampleNaryOp (Sum HSemiring_Real)  es = S . F.foldr (*) 0 . mapSample es
+sampleNaryOp (Sum HSemiring_Real)  es = S . F.foldr (+) 0 . mapSample es
 sampleNaryOp (Prod HSemiring_Nat)  es = S . F.foldr (*) 1 . mapSample es
 sampleNaryOp (Prod HSemiring_Int)  es = S . F.foldr (*) 1 . mapSample es
 sampleNaryOp (Prod HSemiring_Prob) es = S . F.foldr (*) 1 . mapSample es
