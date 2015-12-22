@@ -296,6 +296,12 @@ gamma_gamma   := Bind(GammaD(alpha0,1/beta0),beta, Weight(NewSLO:-density[GammaD
 gamma_gamma_s := Weight(beta0^alpha0*x^(alpha-1)*GAMMA(alpha+alpha0)/((1/(beta0+x))^(-alpha-alpha0)*GAMMA(alpha0)*GAMMA(alpha)), GammaD(alpha+alpha0, 1/(beta0+x))):
 TestHakaru(gamma_gamma, gamma_gamma_s, label="gamma_gamma conjugacy") assuming alpha0>0, beta0>0, alpha>0, x>0;
 
+# For the following test, banishing fails because Maple currently evaluates
+#   int(piecewise(x < y, 1/(1-x), 0), x = 0 .. 1) assuming y<1
+# to "undefined".  (See ppaml-l discussion "NewSLO giving weird output"
+# around 2015-12-10.)  The test is that we handle the failure gracefully.
+TestHakaru(Bind(Uniform(0,1), x, Uniform(x,1)), label="roundtrip despite banishing failure");
+
 TestHakaru(Bind(Ret(ary(n,i,i*2)), v, Ret(idx(v,42))), Ret(84), label="basic array indexing");
 
 ary0 := Bind(Plate(ary(k, i, Gaussian(0,1))), xs, Ret([xs])):

@@ -252,9 +252,10 @@ NewSLO := module ()
       elim := eval(banish(LO(hh, myint(applyintegrand(hh,op([2,1],e)),op(2,e))),
                           op([2,1],e), h, op(1,e), infinity),
                    myint = proc(e,r)
-                     subs(int=Int, int(simplify_assuming(e,constraints),r))
+                     subs(int=Int, simplify_assuming(int(e,r), constraints))
                    end proc);
-      if has(elim, {MeijerG}) or numboccur(elim,Int) >= numboccur(e,Int) then
+      if has(elim, {MeijerG, undefined})
+         or numboccur(elim,Int) >= numboccur(e,Int) then
         # Maple was too good at integration
         break;
       end if;
