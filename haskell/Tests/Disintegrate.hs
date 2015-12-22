@@ -19,6 +19,8 @@ import Language.Hakaru.Disintegrate
 
 import qualified Language.Hakaru.Observe as O
 
+import Test.HUnit
+
 -- | A very simple program. Is sufficient for testing escape and
 -- capture of substitution.
 norm :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
@@ -60,3 +62,9 @@ test1, test1a, test1b
 test1  = disintegrate norm
 test1a = disintegrate normA
 test1b = disintegrate normB
+
+allTests :: Test
+allTests = test
+   [ assertEqual "" test1a normC
+   , assertEqual "" test1b normC
+   ]
