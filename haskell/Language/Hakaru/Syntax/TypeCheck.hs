@@ -440,6 +440,18 @@ inferType = inferType_
         es' <- checkSArgs typs es
         return . TypedAST (SMeasure typ1) $ syn (MeasureOp_ op :$ es')
 
+    U.Case_ e1 branches -> do
+        TypedAST typ1 e1' <- inferType_ e1
+        let es = map (\(U.Branch _ a) -> a) branches
+        mode <- getMode
+        TypedASTs typ _ <-
+            case mode of
+            StrictMode -> inferOneCheckOthers_ es
+            LaxMode    -> inferLubType es
+            UnsafeMode -> error "TODO: inferType{Case_} in UnsafeMode"
+        branches' <- T.forM branches $ checkBranch typ1 typ
+        return . TypedAST typ $ syn (Case_ e1' branches')
+
     U.Dirac_ e1 | inferable e1 -> do
         TypedAST typ1 e1' <- inferType_ e1
         return . TypedAST (SMeasure typ1) $ syn (Dirac :$ e1' :* End)
