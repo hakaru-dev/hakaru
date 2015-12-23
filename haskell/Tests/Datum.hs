@@ -63,4 +63,39 @@ t3 :: (ABT Term abt) => abt '[] ('HMeasure (HPair 'HInt 'HReal))
 t3 = dirac (pair 1 2)
 
 ----------------------------------------------------------------
+-- The following at not all Datum-related, but were 'generated'
+-- through an analysis of Datum-related test failures.
+-- Recorded here to that these eventually all pass, and no
+-- future regressions happen.  JC (but tests from WR)
+
+-- All of these fail due to the typeOf{Datum} issue
+test2a = runM (perform m)  [Some2 m]
+    where
+    m :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
+    m = dirac (pair zero zero) >>= \x -> dirac x
+
+test2b = runM (perform m)  [Some2 m]
+    where
+    m :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
+    m = ann_ sing (dirac (pair zero zero) >>= \x -> dirac x)
+
+test2c = runM (perform m)  [Some2 m]
+    where
+    m :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
+    m = dirac (pair zero zero) >>= \x -> dirac (ann_ sing x)
+
+-- Whereas these do not fail from the typeOf{Datum} issue.
+-- However, they still fail for other reasons (which look to be the same
+-- SomeSymbol issues as with roundtripping through Maple):
+test2d = runM (perform m)  [Some2 m]
+    where
+    m :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
+    m = ann_ sing (dirac (pair zero zero)) >>= \x -> dirac x
+
+test2e = runM (perform m)  [Some2 m]
+    where
+    m :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
+    m = dirac (ann_ sing (pair zero zero)) >>= \x -> dirac x
+
+----------------------------------------------------------------
 ----------------------------------------------------------- fin.
