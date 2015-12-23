@@ -2,9 +2,10 @@
 
 import System.Exit (exitFailure)
 
-import qualified Tests.Parser    as P
-import qualified Tests.TypeCheck as TC
-import qualified Tests.Simplify  as S
+import qualified Tests.Parser       as P
+import qualified Tests.TypeCheck    as TC
+import qualified Tests.Simplify     as S
+import qualified Tests.Disintegrate as D
 
 import Test.HUnit
 
@@ -15,6 +16,7 @@ allTests = test
   [ P.allTests
   , TC.allTests
   , S.allTests
+  , D.allTests
   ]
 
 main :: IO ()
