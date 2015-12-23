@@ -583,6 +583,34 @@ inferOneCheckOthers = inferOne []
     checkOthers typ = T.traverse (checkType typ)
 
 
+inferOneCheckOthersM
+    :: forall abt n
+    .  (ABT Term abt)
+    => [TypeCheckMonad (U.AST n)]
+    -> TypeCheckMonad (TypedASTs abt)
+inferOneCheckOthersM = inferOne []
+    where
+    inferOne ::
+        [TypeCheckMonad (U.AST n)] ->
+        [TypeCheckMonad (U.AST n)] ->
+        TypeCheckMonad (TypedASTs abt)
+    inferOne ls []
+        | null ls   = ambiguousEmptyNary
+        | otherwise = ambiguousMustCheckNary
+    inferOne ls (e:rs) = do
+        m <- try $ e >>= inferType
+        case m of
+            Nothing                -> inferOne (e:ls) rs
+            Just (TypedAST typ e') -> do
+                ls' <- checkOthers typ ls
+                rs' <- checkOthers typ rs
+                return (TypedASTs typ (reverse ls' ++ e' : rs'))
+
+    checkOthers
+        :: forall a. Sing a -> [TypeCheckMonad (U.AST n)] -> TypeCheckMonad [abt '[] a]
+    checkOthers typ = T.traverse (>>= checkType typ)
+
+
 -- TODO: some day we may want a variant of this function which
 -- returns the error message in the event that the computation fails
 -- (e.g., to provide all of them if 'inferOneCheckOthers' ultimately
@@ -597,8 +625,6 @@ try m = TCM $ \ctx mode -> Right $
     Right e -> Just e
 
 
--- TODO: actually use this for the 'NaryOp' and 'Superpose' cases of 'inferType' when in 'LaxMode'
---
 -- | Given a list of terms which must all have the same type, infer
 -- all the terms in order and coerce them to the lub of all their
 -- types. This is appropriate for 'LaxMode' where we need to insert
@@ -621,6 +647,32 @@ inferLubType = start
     step :: TypedASTs abt -> U.AST n -> TypeCheckMonad (TypedASTs abt)
     step (TypedASTs typ1 es) u = do
         TypedAST typ2 e2 <- inferType u
+        case findLub typ1 typ2 of
+            Nothing              -> missingLub typ1 typ2
+            Just (Lub typ c1 c2) ->
+                let es' = map (unLC_ . coerceTo c1 . LC_) es
+                    e2' = unLC_ . coerceTo c2 $ LC_ e2
+                in return (TypedASTs typ (e2' : es'))
+
+
+inferLubTypeM
+    :: forall abt n
+    .  (ABT Term abt)
+    => [TypeCheckMonad (U.AST n)]
+    -> TypeCheckMonad (TypedASTs abt)
+inferLubTypeM = start
+    where
+    start :: [TypeCheckMonad (U.AST n)] -> TypeCheckMonad (TypedASTs abt)
+    start []     = ambiguousEmptyNary
+    start (u:us) = do
+        TypedAST  typ1 e1 <- u >>= inferType
+        TypedASTs typ2 es <- F.foldlM step (TypedASTs typ1 [e1]) us
+        return (TypedASTs typ2 (reverse es))
+
+    -- TODO: inline 'F.foldlM' and then inline this, to unpack the first argument.
+    step :: TypedASTs abt -> TypeCheckMonad (U.AST n) -> TypeCheckMonad (TypedASTs abt)
+    step (TypedASTs typ1 es) u = do
+        TypedAST typ2 e2 <- u >>= inferType
         case findLub typ1 typ2 of
             Nothing              -> missingLub typ1 typ2
             Just (Lub typ c1 c2) ->
