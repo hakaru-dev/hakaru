@@ -58,10 +58,10 @@ primTypes =
     , ("maybe",   TLam' $ \ [U.SSing a] -> U.SSing $ sMaybe a)
     ]
 
-t2 :: (U.AST a -> U.AST a -> U.AST a) -> Symbol (U.AST a)
+t2 :: (U.AST -> U.AST -> U.AST) -> Symbol U.AST
 t2 f = TLam $ \a -> TLam $ \b -> TNeu (f a b)
 
-type SymbolTable a = [(Text, Symbol (U.AST a))]
+type SymbolTable a = [(Text, Symbol U.AST)]
 
 primTable :: SymbolTable a
 primTable =
@@ -84,12 +84,12 @@ primTable =
     ]
 
 
-primMeasure2 :: U.SealedOp T.MeasureOp -> Symbol (U.AST a)
+primMeasure2 :: U.SealedOp T.MeasureOp -> Symbol U.AST
 primMeasure2 m = t2 $ \x y -> U.MeasureOp_ m [x, y]
 
-primPair, primLeft, primRight, primTrue, primFalse :: Symbol (U.AST a)
-primFromProb, primUnsafeProb  :: Symbol (U.AST a)
-primWeight, primRealPow :: Symbol (U.AST a)
+primPair, primLeft, primRight, primTrue, primFalse :: Symbol U.AST
+primFromProb, primUnsafeProb  :: Symbol U.AST
+primWeight, primRealPow :: Symbol U.AST
 primPair       = t2 $ \a b ->
     U.Datum_ $ U.Datum "pair"
         (U.Inl $ U.Konst a `U.Et` U.Konst b `U.Et` U.Done)
@@ -110,7 +110,7 @@ primRealPow    = t2 $ \x y -> U.PrimOp_ (U.SealedOp T.RealPow) [x, y]
 gensym :: Text -> State Int U.Name
 gensym s = state $ \i -> (U.Name (N.unsafeNat i) s, i + 1)
 
-mkSym  :: U.Name -> Symbol (U.AST a)
+mkSym  :: U.Name -> Symbol U.AST
 mkSym = TNeu . U.Var_
 
 updateSymbols :: U.Name -> SymbolTable a -> SymbolTable a
@@ -125,7 +125,7 @@ updateSymbolsL (n:ns) sym = updateSymbolsL ns (updateSymbols n sym)
 symbolResolution
     :: SymbolTable a
     -> U.AST' Text
-    -> State Int (U.AST' (Symbol (U.AST a)))
+    -> State Int (U.AST' (Symbol U.AST))
 symbolResolution symbols ast =
     case ast of
     U.Var name ->
@@ -174,7 +174,7 @@ symbolResolution symbols ast =
 
 
 symbolResolveBranch :: SymbolTable a -> U.Branch' Text ->
-                       State Int (U.Branch' (Symbol (U.AST a)))
+                       State Int (U.Branch' (Symbol U.AST))
 
 symbolResolveBranch symbols (U.Branch' pat ast) = do
   (pat', names) <- symbolResolvePat pat
@@ -196,7 +196,7 @@ symbolResolvePat (U.PData' (U.DV name args)) = do
 -- The logic here is to do normalization by evaluation for our
 -- primitives. App inspects its first argument to see if it should
 -- do something special. Otherwise App behaves as normal.
-normAST :: U.AST' (Symbol (U.AST a)) -> U.AST' (Symbol (U.AST a))
+normAST :: U.AST' (Symbol U.AST) -> U.AST' (Symbol U.AST)
 normAST ast =
     case ast of
     U.Var a           -> U.Var a
@@ -225,7 +225,7 @@ normAST ast =
     U.Data name typ   -> U.Data name typ
     U.WithMeta a meta -> U.WithMeta (normAST a) meta
 
-branchNorm :: U.Branch' (Symbol (U.AST a)) -> U.Branch' (Symbol (U.AST a))
+branchNorm :: U.Branch' (Symbol U.AST) -> U.Branch' (Symbol U.AST)
 branchNorm (U.Branch'  pat e2') = U.Branch'  pat (normAST e2')
 branchNorm (U.Branch'' pat e2') = U.Branch'' pat (normAST e2')
 
@@ -256,15 +256,15 @@ makePattern (U.PData' (U.DV name args)) =
       Just (TNeu' p') -> p'
       Nothing         -> error $ "Data constructor " ++ show name ++ " not found"
 
-makeBranch :: U.Branch' (Symbol (U.AST a)) -> U.Branch a
+makeBranch :: U.Branch' (Symbol U.AST) -> U.Branch
 makeBranch (U.Branch'' pat ast) = U.Branch (makePattern pat) (makeAST ast)
 makeBranch (U.Branch'  _   _)   = error "branch was not symbol resolved"
 
-makeTrue, makeFalse :: U.AST' (Symbol (U.AST a)) -> U.Branch a
+makeTrue, makeFalse :: U.AST' (Symbol U.AST) -> U.Branch
 makeTrue  e = U.Branch (makePattern (U.PData' (U.DV "true"  []))) (makeAST e)
 makeFalse e = U.Branch (makePattern (U.PData' (U.DV "false" []))) (makeAST e)
 
-makeAST :: U.AST' (Symbol (U.AST a)) -> U.AST a
+makeAST :: U.AST' (Symbol U.AST) -> U.AST
 makeAST ast =
     case ast of
     U.Var (TLam _)                -> error "makeAST: Wat?"
@@ -285,7 +285,7 @@ makeAST ast =
         U.MBind_ name (makeAST e1) (makeAST e2)
 
 
-resolveAST :: U.AST' Text -> U.AST a
+resolveAST :: U.AST' Text -> U.AST
 resolveAST ast = makeAST $ normAST $ evalState (symbolResolution primTable ast) 0
 
 data PrimOp'

@@ -41,7 +41,7 @@ normalb   = unlines
     ]
 
                     
-inferType' :: U.AST a -> TypeCheckMonad (TypedAST (TrivialABT T.Term))
+inferType' :: U.AST -> TypeCheckMonad (TypedAST (TrivialABT T.Term))
 inferType' = inferType
 
 

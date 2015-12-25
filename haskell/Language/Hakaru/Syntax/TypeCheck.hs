@@ -62,12 +62,14 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.AST.Sing
     (sing_Literal, sing_PrimOp, sing_ArrayOp, sing_MeasureOp)
 
+import Debug.Trace
+
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
 -- | Those terms from which we can synthesize a unique type. We are
 -- also allowed to check them, via the change-of-direction rule.
-inferable :: U.AST n -> Bool
+inferable :: U.AST -> Bool
 inferable = not . mustCheck
 
 
@@ -84,7 +86,7 @@ inferable = not . mustCheck
 -- Whereas in lax mode we must infer all arguments and then take
 -- the lub of their types in order to know which coercions to
 -- introduce.
-mustCheck :: U.AST n -> Bool
+mustCheck :: U.AST -> Bool
 mustCheck = go
     where
     go (U.Var_ _)    = False
@@ -296,7 +298,7 @@ instance Show2 abt => Show (TypedAST abt) where
 inferBinderType
     :: (ABT Term abt)
     => Variable a
-    -> U.AST n
+    -> U.AST
     -> (forall b. Sing b -> abt '[ a ] b -> TypeCheckMonad r)
     -> TypeCheckMonad r
 inferBinderType x e k = do
@@ -308,7 +310,7 @@ checkBinderType
     :: (ABT Term abt)
     => Variable a
     -> Sing b
-    -> U.AST n
+    -> U.AST
     -> TypeCheckMonad (abt '[ a ] b)
 checkBinderType x eTyp e =
     pushCtx x (bind x <$> checkType eTyp e)
@@ -321,22 +323,24 @@ checkBinderType x eTyp e =
 inferType
     :: forall abt n
     .  (ABT Term abt)
-    => U.AST n
+    => U.AST
     -> TypeCheckMonad (TypedAST abt)
 inferType = inferType_
   where
   -- HACK: we need to give these local definitions to avoid
   -- \"ambiguity\" in the choice of ABT instance...
-  checkType_ :: forall b. Sing b -> U.AST n -> TypeCheckMonad (abt '[] b)
+  checkType_ :: forall b. Sing b -> U.AST -> TypeCheckMonad (abt '[] b)
   checkType_ = checkType
 
-  inferOneCheckOthers_ :: [U.AST n] -> TypeCheckMonad (TypedASTs abt)
+  inferOneCheckOthers_ ::
+      [U.AST] -> TypeCheckMonad (TypedASTs abt)
   inferOneCheckOthers_ = inferOneCheckOthers
+
 
   -- HACK: We need this monomorphic binding so that GHC doesn't get
   -- confused about which @(ABT AST abt)@ instance to use in recursive
   -- calls.
-  inferType_ :: U.AST n -> TypeCheckMonad (TypedAST abt)
+  inferType_ :: U.AST -> TypeCheckMonad (TypedAST abt)
   inferType_ e0 =
     case e0 of
     U.Var_ x -> do
@@ -442,7 +446,9 @@ inferType = inferType_
 
     U.Case_ e1 branches -> do
         TypedAST typ1 e1' <- inferType_ e1
-        let es = map (\(U.Branch _ a) -> a) branches
+        let es = map (\(U.Branch pat a) ->
+                          --SP pat' vars <- checkPattern typ1 pat
+                          a) branches
         mode <- getMode
         TypedASTs typ _ <-
             case mode of
@@ -561,11 +567,11 @@ instance Show2 abt => Show (TypedASTs abt) where
 inferOneCheckOthers
     :: forall abt n
     .  (ABT Term abt)
-    => [U.AST n]
+    => [U.AST]
     -> TypeCheckMonad (TypedASTs abt)
 inferOneCheckOthers = inferOne []
     where
-    inferOne :: [U.AST n] -> [U.AST n] -> TypeCheckMonad (TypedASTs abt)
+    inferOne :: [U.AST] -> [U.AST] -> TypeCheckMonad (TypedASTs abt)
     inferOne ls []
         | null ls   = ambiguousEmptyNary
         | otherwise = ambiguousMustCheckNary
@@ -579,36 +585,8 @@ inferOneCheckOthers = inferOne []
                 return (TypedASTs typ (reverse ls' ++ e' : rs'))
 
     checkOthers
-        :: forall a. Sing a -> [U.AST n] -> TypeCheckMonad [abt '[] a]
+        :: forall a. Sing a -> [U.AST] -> TypeCheckMonad [abt '[] a]
     checkOthers typ = T.traverse (checkType typ)
-
-
-inferOneCheckOthersM
-    :: forall abt n
-    .  (ABT Term abt)
-    => [TypeCheckMonad (U.AST n)]
-    -> TypeCheckMonad (TypedASTs abt)
-inferOneCheckOthersM = inferOne []
-    where
-    inferOne ::
-        [TypeCheckMonad (U.AST n)] ->
-        [TypeCheckMonad (U.AST n)] ->
-        TypeCheckMonad (TypedASTs abt)
-    inferOne ls []
-        | null ls   = ambiguousEmptyNary
-        | otherwise = ambiguousMustCheckNary
-    inferOne ls (e:rs) = do
-        m <- try $ e >>= inferType
-        case m of
-            Nothing                -> inferOne (e:ls) rs
-            Just (TypedAST typ e') -> do
-                ls' <- checkOthers typ ls
-                rs' <- checkOthers typ rs
-                return (TypedASTs typ (reverse ls' ++ e' : rs'))
-
-    checkOthers
-        :: forall a. Sing a -> [TypeCheckMonad (U.AST n)] -> TypeCheckMonad [abt '[] a]
-    checkOthers typ = T.traverse (>>= checkType typ)
 
 
 -- TODO: some day we may want a variant of this function which
@@ -632,11 +610,11 @@ try m = TCM $ \ctx mode -> Right $
 inferLubType
     :: forall abt n
     .  (ABT Term abt)
-    => [U.AST n]
+    => [U.AST]
     -> TypeCheckMonad (TypedASTs abt)
 inferLubType = start
     where
-    start :: [U.AST n] -> TypeCheckMonad (TypedASTs abt)
+    start :: [U.AST] -> TypeCheckMonad (TypedASTs abt)
     start []     = ambiguousEmptyNary
     start (u:us) = do
         TypedAST  typ1 e1 <- inferType u
@@ -644,7 +622,7 @@ inferLubType = start
         return (TypedASTs typ2 (reverse es))
 
     -- TODO: inline 'F.foldlM' and then inline this, to unpack the first argument.
-    step :: TypedASTs abt -> U.AST n -> TypeCheckMonad (TypedASTs abt)
+    step :: TypedASTs abt -> U.AST -> TypeCheckMonad (TypedASTs abt)
     step (TypedASTs typ1 es) u = do
         TypedAST typ2 e2 <- inferType u
         case findLub typ1 typ2 of
@@ -654,32 +632,15 @@ inferLubType = start
                     e2' = unLC_ . coerceTo c2 $ LC_ e2
                 in return (TypedASTs typ (e2' : es'))
 
-
-inferLubTypeM
-    :: forall abt n
-    .  (ABT Term abt)
-    => [TypeCheckMonad (U.AST n)]
-    -> TypeCheckMonad (TypedASTs abt)
-inferLubTypeM = start
-    where
-    start :: [TypeCheckMonad (U.AST n)] -> TypeCheckMonad (TypedASTs abt)
-    start []     = ambiguousEmptyNary
-    start (u:us) = do
-        TypedAST  typ1 e1 <- u >>= inferType
-        TypedASTs typ2 es <- F.foldlM step (TypedASTs typ1 [e1]) us
-        return (TypedASTs typ2 (reverse es))
-
-    -- TODO: inline 'F.foldlM' and then inline this, to unpack the first argument.
-    step :: TypedASTs abt -> TypeCheckMonad (U.AST n) -> TypeCheckMonad (TypedASTs abt)
-    step (TypedASTs typ1 es) u = do
-        TypedAST typ2 e2 <- u >>= inferType
-        case findLub typ1 typ2 of
-            Nothing              -> missingLub typ1 typ2
-            Just (Lub typ c1 c2) ->
-                let es' = map (unLC_ . coerceTo c1 . LC_) es
-                    e2' = unLC_ . coerceTo c2 $ LC_ e2
-                in return (TypedASTs typ (e2' : es'))
-
+addVarsCtx
+    :: (ABT Term abt)
+    => List1 Variable (xs :: [Hakaru])
+    -> abt '[] a
+    -> TypeCheckMonad (abt xs a)
+addVarsCtx xs a =
+    case xs of
+      Nil1        -> return a
+      Cons1 x xs' -> pushCtx x (bind x <$> addVarsCtx xs' a)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -690,7 +651,7 @@ inferLubTypeM = start
 checkSArgs
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => List1 Sing typs
-    -> [U.AST n]
+    -> [U.AST]
     -> TypeCheckMonad (SArgs abt args)
 checkSArgs Nil1             []     = return End
 checkSArgs (Cons1 typ typs) (e:es) =
@@ -707,18 +668,18 @@ checkType
     :: forall abt a n
     .  (ABT Term abt)
     => Sing a
-    -> U.AST n
+    -> U.AST
     -> TypeCheckMonad (abt '[] a)
 checkType = checkType_
     where
     -- HACK: to convince GHC to stop being stupid about resolving
     -- the \"choice\" of @abt'@. I'm not sure why we don't need to
     -- use this same hack when 'inferType' calls 'checkType', but whatevs.
-    inferType_ :: U.AST n -> TypeCheckMonad (TypedAST abt)
+    inferType_ :: U.AST -> TypeCheckMonad (TypedAST abt)
     inferType_ = inferType
 
     checkType_
-        :: forall b. Sing b -> U.AST n -> TypeCheckMonad (abt '[] b)
+        :: forall b. Sing b -> U.AST -> TypeCheckMonad (abt '[] b)
     checkType_ typ0 e0 =
         case e0 of
         U.Lam_ x e1 ->
@@ -854,7 +815,7 @@ checkType = checkType_
         :: forall xss t
         .  Sing (HData' t)
         -> Sing xss
-        -> U.DCode n
+        -> U.DCode
         -> TypeCheckMonad (DatumCode xss (abt '[]) (HData' t))
     checkDatumCode typA typ d =
         case d of
@@ -871,7 +832,7 @@ checkType = checkType_
         :: forall xs t
         .  Sing (HData' t)
         -> Sing xs
-        -> U.DStruct n
+        -> U.DStruct
         -> TypeCheckMonad (DatumStruct xs (abt '[]) (HData' t))
     checkDatumStruct typA typ d =
         case d of
@@ -890,7 +851,7 @@ checkType = checkType_
         :: forall x t
         .  Sing (HData' t)
         -> Sing x
-        -> U.DFun n
+        -> U.DFun
         -> TypeCheckMonad (DatumFun x (abt '[]) (HData' t))
     checkDatumFun typA typ d =
         case d of
@@ -933,7 +894,7 @@ checkBranch
     :: (ABT Term abt)
     => Sing a
     -> Sing b
-    -> U.Branch c
+    -> U.Branch
     -> TypeCheckMonad (Branch a abt b)
 checkBranch =
     \patTyp bodyTyp (U.Branch pat body) -> do
@@ -943,7 +904,7 @@ checkBranch =
     checkBranchBody
         :: (ABT Term abt)
         => Sing b
-        -> U.AST n
+        -> U.AST
         -> List1 Variable xs
         -> TypeCheckMonad (abt xs b)
     checkBranchBody bodyTyp body xs =
@@ -953,21 +914,21 @@ checkBranch =
             pushCtx x $
                 bind x <$> checkBranchBody bodyTyp body xs'
 
-    checkPattern
-        :: Sing a
-        -> U.Pattern
-        -> TypeCheckMonad (SomePattern a)
-    checkPattern typA pat =
-        case pat of
-        U.PVar x -> return $ SP PVar (Cons1 (U.makeVar x typA) Nil1)
-        U.PWild  -> return $ SP PWild Nil1
-        U.PDatum hint pat1 ->
-            case typA of
-            SData _ typ1 -> do
-                SPC pat1' xs <- checkPatternCode typA typ1 pat1
-                return $ SP (PDatum hint pat1') xs
-            _ -> typeMismatch (Right typA) (Left "HData")
-
+checkPattern
+    :: Sing a
+    -> U.Pattern
+    -> TypeCheckMonad (SomePattern a)
+checkPattern typA pat =
+    case pat of
+    U.PVar x -> return $ SP PVar (Cons1 (U.makeVar x typA) Nil1)
+    U.PWild  -> return $ SP PWild Nil1
+    U.PDatum hint pat1 ->
+        case typA of
+        SData _ typ1 -> do
+            SPC pat1' xs <- checkPatternCode typA typ1 pat1
+            return $ SP (PDatum hint pat1') xs
+        _ -> typeMismatch (Right typA) (Left "HData")
+    where
     checkPatternCode
         :: Sing (HData' t)
         -> Sing xss

@@ -67,19 +67,19 @@ data Meta = Meta !SourcePos !SourcePos
 
 infixr 7 `Et`, `PEt`
 
-data DFun a
-    = Konst (AST a)
-    | Ident (AST a)
+data DFun
+    = Konst AST
+    | Ident AST
 
-data DStruct a
-    = Et (DFun a) (DStruct a)
+data DStruct
+    = Et DFun DStruct
     | Done
 
-data DCode a
-    = Inr (DCode a)
-    | Inl (DStruct a)
+data DCode
+    = Inr DCode
+    | Inl DStruct
 
-data Datum a = Datum Text (DCode a)
+data Datum = Datum Text DCode
 
 data Literal'
     = Nat  Int
@@ -125,7 +125,7 @@ data AST' a
     | WithMeta (AST' a) Meta
     deriving (Eq, Show)
 
-data Branch a = Branch Pattern (AST a)
+data Branch = Branch Pattern AST
 
 data Pattern
     = PWild
@@ -144,24 +144,24 @@ data PCode
     = PInr PCode
     | PInl PStruct
 
-data AST a
+data AST
     = Var_        Name
-    | Lam_        Name    (AST a)
-    | App_        (AST a) (AST a)
-    | Let_        Name    (AST a) (AST a)
-    | Ann_        (AST a) SSing
-    | CoerceTo_   (Some2 Coercion) (AST a)
-    | UnsafeTo_   (Some2 Coercion) (AST a)
-    | PrimOp_     (SealedOp PrimOp)  [AST a]
-    | ArrayOp_    (SealedOp ArrayOp) [AST a]
-    | NaryOp_     NaryOp'  [AST a]
+    | Lam_        Name      AST
+    | App_        AST       AST
+    | Let_        Name      AST AST
+    | Ann_        AST SSing
+    | CoerceTo_   (Some2 Coercion) AST
+    | UnsafeTo_   (Some2 Coercion) AST
+    | PrimOp_     (SealedOp PrimOp)  [AST]
+    | ArrayOp_    (SealedOp ArrayOp) [AST]
+    | NaryOp_     NaryOp'  [AST]
     | Literal_    (Some1 Literal)
     | Empty_
-    | Array_      (AST a) Name (AST a) -- not sure should binding form
-    | Datum_      (Datum a)
-    | Case_       (AST a) [Branch a]
-    | MeasureOp_  (SealedOp MeasureOp) [AST a]
-    | Dirac_      (AST a)
-    | MBind_      Name    (AST a) (AST a)
-    | Expect_     Name    (AST a) (AST a)
-    | Superpose_  [(AST a, AST a)]
+    | Array_      AST Name AST -- not sure should binding form
+    | Datum_      Datum 
+    | Case_       AST [Branch]
+    | MeasureOp_  (SealedOp MeasureOp) [AST]
+    | Dirac_      AST
+    | MBind_      Name    AST AST
+    | Expect_     Name    AST AST
+    | Superpose_  [(AST, AST)]
