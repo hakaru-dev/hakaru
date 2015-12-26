@@ -22,7 +22,7 @@ import Language.Hakaru.Syntax.ABT
 
 -- import Control.Monad (liftM, liftM2)
 -- import Control.Monad.Trans.State.Strict (State, evalState, state)
--- import Data.List (intersperse)
+import Data.List (intercalate)
 
 import qualified Data.Text as Text
 -- import           Data.Number.LogFloat
@@ -51,12 +51,14 @@ mapleAST :: (ABT Term abt) => LC_ abt a -> String
 mapleAST (LC_ e) =
     caseVarSyn e var1 $ \t ->
         case t of
-        o :$ es    -> mapleSCon o es
-        Literal_ v -> mapleLiteral v
+        o :$ es        -> mapleSCon o es
+        Literal_ v     -> mapleLiteral v
         -- Special case pair
         Datum_ (Datum _ (Inl (Et (Konst a) (Et (Konst b) Done)))) ->
             app2 "Pair" a b
-        Datum_ d   -> error "TODO: Add mapleAST{Datum}"
+        Datum_ d       -> error "TODO: Add mapleAST{Datum}"
+        Superpose_ pms ->
+            "Msum(" ++ intercalate ", " (map wmtom pms) ++ ")"
 
 uniqID :: Variable (a :: Hakaru) -> String
 uniqID = show . fromNat . varID
@@ -81,13 +83,16 @@ mapleSCon MBind (e1 :* e2 :* End)    =
 arg :: (ABT Term abt) => abt '[] a -> String
 arg = mapleAST . LC_
 
+wmtom :: (ABT Term abt) => (abt '[] 'HProb, abt '[] ('HMeasure a)) -> String
+wmtom (w, m) = app2 "Weight" w m
+
 mapleMeasureOp
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => MeasureOp typs a -> SArgs abt args -> String
 mapleMeasureOp Uniform (e1 :* e2 :* End) = app2 "Uniform"  e1 e2
 mapleMeasureOp Normal  (e1 :* e2 :* End) = app2 "Gaussian" e1 e2
-mapleMeasureOp Gamma   (e1 :* e2 :* End) = app2 "GammaD"    e1 e2
-mapleMeasureOp Beta    (e1 :* e2 :* End) = app2 "BetaD"   e1 e2
+mapleMeasureOp Gamma   (e1 :* e2 :* End) = app2 "GammaD"   e1 e2
+mapleMeasureOp Beta    (e1 :* e2 :* End) = app2 "BetaD"    e1 e2
 
 mapleType :: Sing (a :: Hakaru) -> String
 mapleType SNat         = "Nat"
