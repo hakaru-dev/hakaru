@@ -86,8 +86,8 @@ mapleMeasureOp
     => MeasureOp typs a -> SArgs abt args -> String
 mapleMeasureOp Uniform (e1 :* e2 :* End) = app2 "Uniform"  e1 e2
 mapleMeasureOp Normal  (e1 :* e2 :* End) = app2 "Gaussian" e1 e2
-mapleMeasureOp Gamma   (e1 :* e2 :* End) = app2 "BetaD"    e1 e2
-mapleMeasureOp Beta    (e1 :* e2 :* End) = app2 "GammaD"   e1 e2
+mapleMeasureOp Gamma   (e1 :* e2 :* End) = app2 "GammaD"    e1 e2
+mapleMeasureOp Beta    (e1 :* e2 :* End) = app2 "BetaD"   e1 e2
 
 mapleType :: Sing (a :: Hakaru) -> String
 mapleType SNat         = "Nat"
