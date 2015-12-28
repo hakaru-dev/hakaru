@@ -90,6 +90,7 @@ mapleMeasureOp
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => MeasureOp typs a -> SArgs abt args -> String
 mapleMeasureOp Lebesgue End               = "Lebesgue()"
+mapleMeasureOp Counting End               = "Counting()"
 mapleMeasureOp Uniform  (e1 :* e2 :* End) = app2 "Uniform"  e1 e2
 mapleMeasureOp Normal   (e1 :* e2 :* End) = app2 "Gaussian" e1 e2
 mapleMeasureOp Gamma    (e1 :* e2 :* End) = app2 "GammaD"   e1 e2
