@@ -380,6 +380,23 @@ testAnn = test
     , testParse ann3 ann3AST
     ]
 
+expect1 :: Text
+expect1 = unlines
+    ["expect x normal(0,1):"
+    ,"   1"
+    ]
+
+expect1AST :: AST' Text
+expect1AST = Expect "x" (App (App (Var "normal")
+                              (ULiteral (Nat 0)))
+                         (ULiteral (Nat 1)))
+             (ULiteral (Nat 1))
+
+testExpect :: Test
+testExpect = test
+    [ testParse expect1 expect1AST
+    ]
+
 easyRoad1 :: Text
 easyRoad1 = unlines
     ["noiseT <~ uniform(3, 8)"

@@ -121,6 +121,7 @@ data AST' a
     | Case  (AST' a) [(Branch' a)] -- match
     | Dirac (AST' a)
     | Bind  a (AST' a) (AST' a)
+    | Expect a (AST' a) (AST' a)
     | Data  a [TypeAST']
     | WithMeta (AST' a) Meta
     deriving (Eq, Show)

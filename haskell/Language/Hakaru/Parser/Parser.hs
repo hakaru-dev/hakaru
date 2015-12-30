@@ -226,8 +226,14 @@ data_expr =
         <*> blockOfMany (try type_app <|> type_var)
         )
 
-expr :: Parser (AST' Text)
-expr = Ex.buildExpressionParser table term
+expect_expr :: Parser (AST' Text)
+expect_expr =
+    reserved "expect"
+    *> (Expect
+        <$> identifier
+        <*> expr
+        <*> semiblockExpr
+        )
 
 if_expr :: Parser (AST' Text)
 if_expr =
@@ -294,6 +300,7 @@ term =  if_expr
     <|> def_expr
     <|> try match_expr
     -- <|> try data_expr
+    <|> try expect_expr
     <|> try let_expr
     <|> try bind_expr
     <|> try call_expr
@@ -305,6 +312,8 @@ term =  if_expr
     <|> try pairs
     <|> parens expr
 
+expr :: Parser (AST' Text)
+expr = Ex.buildExpressionParser table term
 
 
 indentConfig :: Text -> ParserStream

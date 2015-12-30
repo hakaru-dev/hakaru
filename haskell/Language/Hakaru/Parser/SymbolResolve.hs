@@ -171,6 +171,13 @@ symbolResolution symbols ast =
         U.Bind (mkSym name')
             <$> symbolResolution symbols e1
             <*> symbolResolution (updateSymbols name' symbols) e2
+            
+    U.Expect name e1 e2 ->  do
+        name' <- gensym name
+        U.Expect (mkSym name')
+            <$> symbolResolution symbols e1
+            <*> symbolResolution (updateSymbols name' symbols) e2
+            
 
 
 symbolResolveBranch :: SymbolTable a -> U.Branch' Text ->
@@ -211,19 +218,20 @@ normAST ast =
         v@(U.Var _) -> normAST (U.App v x)
         f'          -> U.App f' x
 
-    U.Let name e1 e2  -> U.Let name (normAST e1) (normAST e2)
-    U.If e1 e2 e3     -> U.If  (normAST e1) (normAST e2) (normAST e3)
-    U.Ann e typ1      -> U.Ann (normAST e) typ1
-    U.Infinity        -> U.Infinity
-    U.NegInfinity     -> U.NegInfinity
-    U.ULiteral v      -> U.ULiteral v
-    U.NaryOp op e1 e2 -> U.NaryOp op (normAST e1) (normAST e2)
-    U.Empty           -> U.Empty
-    U.Case e1 e2      -> U.Case  (normAST e1) (map branchNorm e2)
-    U.Dirac e1        -> U.Dirac (normAST e1)
-    U.Bind name e1 e2 -> U.Bind name (normAST e1) (normAST e2)
-    U.Data name typ   -> U.Data name typ
-    U.WithMeta a meta -> U.WithMeta (normAST a) meta
+    U.Let name e1 e2    -> U.Let name (normAST e1) (normAST e2)
+    U.If e1 e2 e3       -> U.If  (normAST e1) (normAST e2) (normAST e3)
+    U.Ann e typ1        -> U.Ann (normAST e) typ1
+    U.Infinity          -> U.Infinity
+    U.NegInfinity       -> U.NegInfinity
+    U.ULiteral v        -> U.ULiteral v
+    U.NaryOp op e1 e2   -> U.NaryOp op (normAST e1) (normAST e2)
+    U.Empty             -> U.Empty
+    U.Case e1 e2        -> U.Case  (normAST e1) (map branchNorm e2)
+    U.Dirac e1          -> U.Dirac (normAST e1)
+    U.Bind   name e1 e2 -> U.Bind name (normAST e1) (normAST e2)
+    U.Expect name e1 e2 -> U.Expect name (normAST e1) (normAST e2)
+    U.Data name typ     -> U.Data name typ
+    U.WithMeta a meta   -> U.WithMeta (normAST a) meta
 
 branchNorm :: U.Branch' (Symbol U.AST) -> U.Branch' (Symbol U.AST)
 branchNorm (U.Branch'  pat e2') = U.Branch'  pat (normAST e2')
@@ -283,6 +291,8 @@ makeAST ast =
     U.Dirac e1        -> U.Dirac_ (makeAST e1)
     U.Bind (TNeu (U.Var_ name)) e1 e2 ->
         U.MBind_ name (makeAST e1) (makeAST e2)
+    U.Expect (TNeu (U.Var_ name)) e1 e2 ->
+        U.Expect_ name (makeAST e1) (makeAST e2)
 
 
 resolveAST :: U.AST' Text -> U.AST
