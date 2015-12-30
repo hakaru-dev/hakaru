@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.18
+--                                                    2015.12.29
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeCheck
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -295,33 +295,64 @@ instance Show2 abt => Show (TypedAST abt) where
         showParen_12 p "TypedAST" typ e
 
 
-inferBinderType
+inferBinder
     :: (ABT Term abt)
     => Variable a
     -> U.AST
     -> (forall b. Sing b -> abt '[ a ] b -> TypeCheckMonad r)
     -> TypeCheckMonad r
-inferBinderType x e k = do
+inferBinder x e k = do
     TypedAST typ e' <- pushCtx x (inferType e)
     k typ (bind x e')
 
+inferBinders
+    :: (ABT Term abt)
+    => List1 Variable xs
+    -> U.AST
+    -> (forall a. Sing a -> abt xs a -> TypeCheckMonad r)
+    -> TypeCheckMonad r
+inferBinders xs e k = do
+    TypedAST typ e' <- pushesCtx xs (inferType e)
+    k typ (binds_ xs e')
+    where
+    -- TODO: make sure the 'TCM'\/'unTCM' stuff doesn't do stupid asymptotic things
+    pushesCtx
+        :: List1 Variable (xs :: [Hakaru])
+        -> TypeCheckMonad b
+        -> TypeCheckMonad b
+    pushesCtx Nil1         m = m
+    pushesCtx (Cons1 x xs) m = pushesCtx xs (TCM (unTCM m . insertVarSet x))
 
-checkBinderType
+
+checkBinder
     :: (ABT Term abt)
     => Variable a
     -> Sing b
     -> U.AST
     -> TypeCheckMonad (abt '[ a ] b)
-checkBinderType x eTyp e =
+checkBinder x eTyp e =
     pushCtx x (bind x <$> checkType eTyp e)
 
 
+checkBinders
+    :: (ABT Term abt)
+    => List1 Variable xs
+    -> Sing a
+    -> U.AST
+    -> TypeCheckMonad (abt xs a)
+checkBinders xs eTyp e =
+    case xs of
+    Nil1        -> checkType eTyp e
+    Cons1 x xs' -> pushCtx x (bind x <$> checkBinders xs' eTyp e)
+
+
+----------------------------------------------------------------
 -- | Given a typing environment and a term, synthesize the term's
 -- type (and produce an elaborated term):
 --
 -- > Γ ⊢ e ⇒ e' ∈ τ
 inferType
-    :: forall abt n
+    :: forall abt
     .  (ABT Term abt)
     => U.AST
     -> TypeCheckMonad (TypedAST abt)
@@ -376,7 +407,7 @@ inferType = inferType_
 
     U.Let_ x e1 e2 -> do
         TypedAST typ1 e1' <- inferType_ e1
-        inferBinderType (U.makeVar x typ1) e2 $ \typ2 e2' ->
+        inferBinder (U.makeVar x typ1) e2 $ \typ2 e2' ->
             return . TypedAST typ2 $ syn (Let_ :$ e1' :* e2' :* End)
 
     U.Ann_ e1 (U.SSing typ1) -> do
@@ -476,7 +507,7 @@ inferType = inferType_
                         _ -> typeMismatch (Left "HMeasure") (Right typ3)
                 {-
                 -- BUG: the \"ambiguous\" @abt@ issue again...
-                inferBinderType (U.makeVar x typ2) e2 $ \typ3 e2' ->
+                inferBinder (U.makeVar x typ2) e2 $ \typ3 e2' ->
                     case typ3 of
                     SMeasure _ -> return . TypedAST typ3 $
                         syn (MBind :$ e1' :* e2' :* End)
@@ -488,7 +519,7 @@ inferType = inferType_
         TypedAST typ1 e1' <- inferType_ e1
         case typ1 of
             SMeasure typ2 -> do
-                e2' <- checkBinderType (U.makeVar x typ2) SProb e2
+                e2' <- checkBinder (U.makeVar x typ2) SProb e2
                 return . TypedAST SProb $ syn (Expect :$ e1' :* e2' :* End)
             _ -> typeMismatch (Left "HMeasure") (Right typ1)
 
@@ -565,7 +596,7 @@ instance Show2 abt => Show (TypedASTs abt) where
 -- 'StrictMode' where we won't need to insert coercions; for
 -- 'LaxMode', see 'inferLubType' instead.
 inferOneCheckOthers
-    :: forall abt n
+    :: forall abt
     .  (ABT Term abt)
     => [U.AST]
     -> TypeCheckMonad (TypedASTs abt)
@@ -608,7 +639,7 @@ try m = TCM $ \ctx mode -> Right $
 -- types. This is appropriate for 'LaxMode' where we need to insert
 -- coercions; for 'StrictMode', see 'inferOneCheckOthers' instead.
 inferLubType
-    :: forall abt n
+    :: forall abt
     .  (ABT Term abt)
     => [U.AST]
     -> TypeCheckMonad (TypedASTs abt)
@@ -632,15 +663,6 @@ inferLubType = start
                     e2' = unLC_ . coerceTo c2 $ LC_ e2
                 in return (TypedASTs typ (e2' : es'))
 
-addVarsCtx
-    :: (ABT Term abt)
-    => List1 Variable (xs :: [Hakaru])
-    -> abt '[] a
-    -> TypeCheckMonad (abt xs a)
-addVarsCtx xs a =
-    case xs of
-      Nil1        -> return a
-      Cons1 x xs' -> pushCtx x (bind x <$> addVarsCtx xs' a)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -665,7 +687,7 @@ checkSArgs _ _ =
 --
 -- > Γ ⊢ τ ∋ e ⇒ e'
 checkType
-    :: forall abt a n
+    :: forall abt a
     .  (ABT Term abt)
     => Sing a
     -> U.AST
@@ -685,13 +707,13 @@ checkType = checkType_
         U.Lam_ x e1 ->
             case typ0 of
             SFun typ1 typ2 -> do
-                e1' <- checkBinderType (U.makeVar x typ1) typ2 e1
+                e1' <- checkBinder (U.makeVar x typ1) typ2 e1
                 return $ syn (Lam_ :$ e1' :* End)
             _ -> typeMismatch (Right typ0) (Left "function type")
 
         U.Let_ x e1 e2 -> do
             TypedAST typ1 e1' <- inferType_ e1
-            e2' <- checkBinderType (U.makeVar x typ1) typ0 e2
+            e2' <- checkBinder (U.makeVar x typ1) typ0 e2
             return $ syn (Let_ :$ e1' :* e2' :* End)
 
         U.CoerceTo_ (Some2 c) e1 ->
@@ -732,7 +754,7 @@ checkType = checkType_
             case typ0 of
             SArray typ1 -> do
                 e1' <- checkType_ SNat e1
-                e2' <- checkBinderType (U.makeVar x SNat) typ1 e2
+                e2' <- checkBinder (U.makeVar x SNat) typ1 e2
                 return $ syn (Array_ e1' e2')
             _ -> typeMismatch (Right typ0) (Left "HArray")
 
@@ -761,7 +783,7 @@ checkType = checkType_
                 TypedAST typ1 e1' <- inferType_ e1
                 case typ1 of
                     SMeasure typ2 -> do
-                        e2' <- checkBinderType (U.makeVar x typ2) typ0 e2
+                        e2' <- checkBinder (U.makeVar x typ2) typ0 e2
                         return $ syn (MBind :$ e1' :* e2' :* End)
                     _ -> typeMismatch (Right typ0) (Right typ1)
             _ -> typeMismatch (Right typ0) (Left "HMeasure")
@@ -772,7 +794,7 @@ checkType = checkType_
                 TypedAST typ1 e1' <- inferType_ e1
                 case typ1 of
                     SMeasure typ2 -> do
-                        e2' <- checkBinderType (U.makeVar x typ2) typ0 e2
+                        e2' <- checkBinder (U.makeVar x typ2) typ0 e2
                         return $ syn (Expect :$ e1' :* e2' :* End)
                     _ -> typeMismatch (Left "HMeasure") (Right typ1)
             _ -> typeMismatch (Right typ0) (Left "HProb")
@@ -896,29 +918,15 @@ checkBranch
     -> Sing b
     -> U.Branch
     -> TypeCheckMonad (Branch a abt b)
-checkBranch =
-    \patTyp bodyTyp (U.Branch pat body) -> do
-        SP pat' vars <- checkPattern patTyp pat
-        Branch pat' <$> checkBranchBody bodyTyp body vars
-    where
-    checkBranchBody
-        :: (ABT Term abt)
-        => Sing b
-        -> U.AST
-        -> List1 Variable xs
-        -> TypeCheckMonad (abt xs b)
-    checkBranchBody bodyTyp body xs =
-        case xs of
-        Nil1        -> checkType bodyTyp body
-        Cons1 x xs' ->
-            pushCtx x $
-                bind x <$> checkBranchBody bodyTyp body xs'
+checkBranch patTyp bodyTyp (U.Branch pat body) = do
+    SP pat' vars <- checkPattern patTyp pat
+    Branch pat' <$> checkBinders vars bodyTyp body
 
 checkPattern
     :: Sing a
     -> U.Pattern
     -> TypeCheckMonad (SomePattern a)
-checkPattern typA pat =
+checkPattern = \typA pat ->
     case pat of
     U.PVar x -> return $ SP PVar (Cons1 (U.makeVar x typA) Nil1)
     U.PWild  -> return $ SP PWild Nil1

@@ -30,7 +30,7 @@ main = do
       [prog] -> IO.readFile prog >>= runHakaru g
       _      -> IO.putStrLn "Usage: hakaru <file>"
 
-inferType' :: U.AST a -> TypeCheckMonad (TypedAST (TrivialABT T.Term))
+inferType' :: U.AST -> TypeCheckMonad (TypedAST (TrivialABT T.Term))
 inferType' = inferType
 
 
