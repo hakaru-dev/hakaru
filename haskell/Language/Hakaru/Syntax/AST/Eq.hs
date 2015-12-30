@@ -130,7 +130,9 @@ instance (ABT Term abt, JmEq2 abt) => JmEq1 (Term abt) where
         Just Refl
     jmEq1 (Datum_ _)     (Datum_ _)     = error "TODO jmEq1{Datum_}"
     jmEq1 (Case_  _ _)   (Case_  _ _)   = error "TODO jmEq1{Case_}"
-    jmEq1 (Superpose_ _) (Superpose_ _) = error "TODO jmEq1{Superpose_}"
+    jmEq1 (Superpose_ pms) (Superpose_ pms') = do
+      () <- sequence_ $ map jmEq_Tuple (zip pms pms')
+      return Refl
     jmEq1 _              _              = Nothing
 
 
@@ -142,6 +144,16 @@ all_jmEq2
 all_jmEq2 xs ys =
     let eq x y = maybe False (const True) (jmEq2 x y)
     in if F.and (S.zipWith eq xs ys) then Just () else Nothing
+
+
+jmEq_Tuple :: (ABT Term abt, JmEq2 abt)
+           => ((abt '[] a , abt '[] b), 
+               (abt '[] a', abt '[] b'))
+           -> Maybe (TypeEq a a', TypeEq b b')
+jmEq_Tuple ((a,b), (a',b')) = do
+  a'' <- jmEq2 a a' >>= (\(Refl, Refl) -> Just Refl)
+  b'' <- jmEq2 b b' >>= (\(Refl, Refl) -> Just Refl)
+  return (a'', b'')
 
 
 -- TODO: a more general function of type:
