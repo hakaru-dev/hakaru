@@ -23,7 +23,7 @@ import Language.Hakaru.Syntax.TypeCheck
 import Data.Sequence
 import Test.HUnit
 
-five :: U.AST a
+five :: U.AST
 five =
     U.NaryOp_ U.Sum'
         [ U.Literal_ $ Some1 $ T.LInt 2
@@ -37,7 +37,7 @@ fiveT =
         , syn $ T.Literal_ $ T.LInt 3
         ]
 
-normal01 :: U.AST a
+normal01 :: U.AST
 normal01 =
     U.MeasureOp_ (U.SealedOp T.Normal)
         [ U.Literal_ $ Some1 $ T.LReal 0
@@ -54,7 +54,7 @@ normal01T =
 xname :: U.Name
 xname =  U.Name (unsafeNat 0) "x"
 
-normalb :: U.AST a
+normalb :: U.AST
 normalb =
     U.MBind_ xname
         normal01
@@ -64,10 +64,10 @@ normalb =
             ])
 
 
-inferType' :: U.AST a -> TypeCheckMonad (TypedAST (TrivialABT T.Term))
+inferType' :: U.AST -> TypeCheckMonad (TypedAST (TrivialABT T.Term))
 inferType' = inferType
 
-testTC :: U.AST a -> TrivialABT T.Term '[] b -> Assertion
+testTC :: U.AST -> TrivialABT T.Term '[] b -> Assertion
 testTC uast tast =
     case runTCM (inferType' uast) StrictMode of
     Left _err                 -> assertFailure (show tast)
