@@ -392,9 +392,23 @@ expect1AST = Expect "x" (App (App (Var "normal")
                          (ULiteral (Nat 1)))
              (ULiteral (Nat 1))
 
+expect2 :: Text
+expect2 = unlines
+    ["expect x normal(0,1):"
+    ,"   unsafeProb(x*x)"
+    ]
+
+expect2AST :: AST' Text
+expect2AST = Expect "x" (App (App (Var "normal")
+                              (ULiteral (Nat 0)))
+                         (ULiteral (Nat 1)))
+             (App (Var "unsafeProb")
+              (NaryOp Prod' (Var "x") (Var "x")))
+
 testExpect :: Test
 testExpect = test
     [ testParse expect1 expect1AST
+    , testParse expect2 expect2AST
     ]
 
 easyRoad1 :: Text
