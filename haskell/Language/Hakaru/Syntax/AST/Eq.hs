@@ -131,7 +131,7 @@ instance (ABT Term abt, JmEq2 abt) => JmEq1 (Term abt) where
     jmEq1 (Datum_ _)     (Datum_ _)     = error "TODO jmEq1{Datum_}"
     jmEq1 (Case_  _ _)   (Case_  _ _)   = error "TODO jmEq1{Case_}"
     jmEq1 (Superpose_ pms) (Superpose_ pms') = do
-      () <- sequence_ $ map jmEq_Tuple (zip pms pms')
+      (Refl,Refl):_ <- sequence $ map jmEq_Tuple (zip pms pms')
       return Refl
     jmEq1 _              _              = Nothing
 
