@@ -118,6 +118,7 @@ data AST' a
     | ULiteral Literal'
     | NaryOp NaryOp' (AST' a) (AST' a)
     | Empty
+    | Array a (AST' a) (AST' a)
     | Case  (AST' a) [(Branch' a)] -- match
     | Dirac (AST' a)
     | Bind  a (AST' a) (AST' a)

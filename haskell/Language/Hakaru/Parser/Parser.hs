@@ -235,6 +235,15 @@ expect_expr =
         <*> semiblockExpr
         )
 
+array_expr :: Parser (AST' Text)
+array_expr =
+    reserved "array"
+    *> (Array
+        <$> identifier
+        <*> expr
+        <*> semiblockExpr
+        )
+
 if_expr :: Parser (AST' Text)
 if_expr =
     reserved "if"
@@ -301,6 +310,7 @@ term =  if_expr
     <|> try match_expr
     -- <|> try data_expr
     <|> try expect_expr
+    <|> try array_expr
     <|> try let_expr
     <|> try bind_expr
     <|> try call_expr

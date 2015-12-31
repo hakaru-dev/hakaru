@@ -120,6 +120,24 @@ updateSymbolsL :: [U.Name] -> SymbolTable a -> SymbolTable a
 updateSymbolsL []     sym = sym
 updateSymbolsL (n:ns) sym = updateSymbolsL ns (updateSymbols n sym)
 
+
+resolveBinder
+    :: SymbolTable a
+    -> Text
+    -> U.AST' Text
+    -> U.AST' Text
+    -> (Symbol U.AST ->
+        U.AST' (Symbol U.AST) ->
+        U.AST' (Symbol U.AST) ->
+        U.AST' (Symbol U.AST))
+    -> State Int (U.AST' (Symbol U.AST))
+resolveBinder symbols name e1 e2 f = do
+  name' <- gensym name
+  f (mkSym name')
+        <$> symbolResolution symbols e1
+        <*> symbolResolution (updateSymbols name' symbols) e2        
+    
+
 -- TODO: clean up by merging the @Reader (SymbolTable a)@ and @State Int@ monads
 -- | Figure out symbols and types.
 symbolResolution
@@ -142,42 +160,31 @@ symbolResolution symbols ast =
         <$> symbolResolution symbols f
         <*> symbolResolution symbols x
 
-    U.Let name e1 e2 -> do
-        name' <- gensym name
-        U.Let (mkSym name')
-            <$> symbolResolution symbols e1
-            <*> symbolResolution (updateSymbols name' symbols) e2
-    U.If e1 e2 e3     -> U.If
+    U.Let name e1 e2    -> resolveBinder symbols name e1 e2 U.Let
+    U.If e1 e2 e3       -> U.If
         <$> symbolResolution symbols e1
         <*> symbolResolution symbols e2
         <*> symbolResolution symbols e3
 
-    U.Ann e typ       -> (`U.Ann` typ) <$> symbolResolution symbols e
-    U.Infinity        -> return $ U.Infinity
-    U.NegInfinity     -> return $ U.NegInfinity
-    U.ULiteral v      -> return $ U.ULiteral v
+    U.Ann e typ         -> (`U.Ann` typ) <$> symbolResolution symbols e
+    U.Infinity          -> return $ U.Infinity
+    U.NegInfinity       -> return $ U.NegInfinity
+    U.ULiteral v        -> return $ U.ULiteral v
 
-    U.NaryOp op e1 e2 -> U.NaryOp op
+    U.NaryOp op e1 e2   -> U.NaryOp op
         <$> symbolResolution symbols e1
         <*> symbolResolution symbols e2
 
-    U.Case e1 bs      -> U.Case <$> symbolResolution symbols e1
-                                <*> mapM (symbolResolveBranch symbols) bs
+    U.Array name e1 e2  -> resolveBinder symbols name e1 e2 U.Array
 
-    U.Dirac e1        -> U.Dirac <$> symbolResolution symbols e1
+    U.Case e1 bs        -> U.Case <$> symbolResolution symbols e1
+                                  <*> mapM (symbolResolveBranch symbols) bs
 
-    U.Bind name e1 e2 -> do
-        name' <- gensym name
-        U.Bind (mkSym name')
-            <$> symbolResolution symbols e1
-            <*> symbolResolution (updateSymbols name' symbols) e2
+    U.Dirac e1          -> U.Dirac <$> symbolResolution symbols e1
+
+    U.Bind name e1 e2   -> resolveBinder symbols name e1 e2 U.Bind
             
-    U.Expect name e1 e2 ->  do
-        name' <- gensym name
-        U.Expect (mkSym name')
-            <$> symbolResolution symbols e1
-            <*> symbolResolution (updateSymbols name' symbols) e2
-            
+    U.Expect name e1 e2 -> resolveBinder symbols name e1 e2 U.Expect            
 
 
 symbolResolveBranch :: SymbolTable a -> U.Branch' Text ->
@@ -226,6 +233,7 @@ normAST ast =
     U.ULiteral v        -> U.ULiteral v
     U.NaryOp op e1 e2   -> U.NaryOp op (normAST e1) (normAST e2)
     U.Empty             -> U.Empty
+    U.Array name e1 e2  -> U.Array name (normAST e1) (normAST e2)
     U.Case e1 e2        -> U.Case  (normAST e1) (map branchNorm e2)
     U.Dirac e1          -> U.Dirac (normAST e1)
     U.Bind   name e1 e2 -> U.Bind name (normAST e1) (normAST e2)
@@ -287,6 +295,8 @@ makeAST ast =
     U.NegInfinity     -> U.PrimOp_ (U.SealedOp $ T.NegativeInfinity) []
     U.ULiteral v      -> U.Literal_  (U.val v)
     U.NaryOp op e1 e2 -> U.NaryOp_ op [makeAST e1, makeAST e2]
+    U.Array (TNeu (U.Var_ name)) e1 e2 ->
+        U.Array_ (makeAST e1) name (makeAST e2)
     U.Case e bs       -> U.Case_ (makeAST e) (map makeBranch bs)
     U.Dirac e1        -> U.Dirac_ (makeAST e1)
     U.Bind (TNeu (U.Var_ name)) e1 e2 ->
