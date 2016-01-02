@@ -411,6 +411,21 @@ testExpect = test
     , testParse expect2 expect2AST
     ]
 
+array1 :: Text
+array1 = unlines
+   ["array x 12:"
+   ,"   x + 1"
+   ]
+
+array1AST :: AST' Text
+array1AST = Array "x" (ULiteral (Nat 12))
+            (NaryOp Sum' (Var "x") (ULiteral (Nat 1)))
+
+testArray :: Test
+testArray = test
+    [ testParse array1 array1AST
+    ]
+
 easyRoad1 :: Text
 easyRoad1 = unlines
     ["noiseT <~ uniform(3, 8)"
@@ -482,6 +497,8 @@ allTests = test
     , testBinds
     , testMatches
     , testAnn
+    , testExpect
+    , testArray
     , testRoadmap
     ]
 
