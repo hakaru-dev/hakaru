@@ -172,10 +172,13 @@ maple2AST (InertArgs Power [x, y]) =
     App (App (Var "**") (maple2AST x)) (maple2AST y)
 maple2AST (InertArgs Rational [InertNum _ x, InertNum _ y]) =
     ULiteral $ Real $ fromInteger x / fromInteger y
+
+maple2AST x = error $ "Can't handle: " ++ show x
     
 maple2Type :: InertExpr -> TypeAST'
 -- TODO: Add Arrow
 maple2Type (InertName t) = TypeVar (rename t)
 maple2Type (InertArgs Func [InertName f, InertArgs ExpSeq args]) =
     TypeApp (rename f) (map maple2Type args)
+
 
