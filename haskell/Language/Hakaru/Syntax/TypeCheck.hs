@@ -62,7 +62,6 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.AST.Sing
     (sing_Literal, sing_PrimOp, sing_ArrayOp, sing_MeasureOp)
 
-import Debug.Trace
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -663,6 +662,21 @@ inferLubType = start
                     e2' = unLC_ . coerceTo c2 $ LC_ e2
                 in return (TypedASTs typ (e2' : es'))
 
+
+data SomeBranch abt   = forall a b. SomeBranch !(Sing b) (Branch a abt b)
+data SomePattern1 xs  = forall a. SomePattern1 (Pattern xs a)
+
+inferBranch
+    :: forall abt xs
+    .  (ABT Term abt)
+    => List1 Variable (xs :: [Hakaru])
+    -> SomePattern1 xs
+    -> U.AST
+    -> TypeCheckMonad (SomeBranch abt)
+inferBranch vars (SomePattern1 pat) u =
+    inferBinders vars u $ \typ e -> do
+      return $ SomeBranch typ (Branch pat e)
+        
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
