@@ -476,17 +476,11 @@ inferType = inferType_
 
     U.Case_ e1 branches -> do
         TypedAST typ1 e1' <- inferType_ e1
-        let es = map (\(U.Branch pat a) ->
-                          --SP pat' vars <- checkPattern typ1 pat
-                          a) branches
         mode <- getMode
-        TypedASTs typ _ <-
-            case mode of
-            StrictMode -> inferOneCheckOthers_ es
-            LaxMode    -> inferLubType es
+        case mode of
+            StrictMode -> inferCaseStrict typ1 e1' branches
+            LaxMode    -> error "TODO: inferType{Case_} in LaxMode"
             UnsafeMode -> error "TODO: inferType{Case_} in UnsafeMode"
-        branches' <- T.forM branches $ checkBranch typ1 typ
-        return . TypedAST typ $ syn (Case_ e1' branches')
 
     U.Dirac_ e1 | inferable e1 -> do
         TypedAST typ1 e1' <- inferType_ e1
@@ -663,20 +657,34 @@ inferLubType = start
                 in return (TypedASTs typ (e2' : es'))
 
 
-data SomeBranch abt   = forall a b. SomeBranch !(Sing b) (Branch a abt b)
-data SomePattern1 xs  = forall a. SomePattern1 (Pattern xs a)
-
-inferBranch
-    :: forall abt xs
+inferCaseStrict
+    :: forall abt a
     .  (ABT Term abt)
-    => List1 Variable (xs :: [Hakaru])
-    -> SomePattern1 xs
-    -> U.AST
-    -> TypeCheckMonad (SomeBranch abt)
-inferBranch vars (SomePattern1 pat) u =
-    inferBinders vars u $ \typ e -> do
-      return $ SomeBranch typ (Branch pat e)
-        
+    => Sing a
+    -> abt '[] a
+    -> [U.Branch]
+    -> TypeCheckMonad (TypedAST abt)
+inferCaseStrict typA e1 = inferOne []
+    where
+    inferOne :: [U.Branch] -> [U.Branch] -> TypeCheckMonad (TypedAST abt)
+    inferOne ls []
+        | null ls   = ambiguousEmptyNary
+        | otherwise = ambiguousMustCheckNary
+    inferOne ls (b@(U.Branch pat e):rs) = do
+        SP pat' vars <- checkPattern typA pat
+        m <- try $ inferBinders vars e $ \typ e' -> do
+                    ls' <- checkOthers typ ls
+                    rs' <- checkOthers typ rs
+                    return (TypedAST typ $ syn (Case_ e1 (reverse ls' ++ (Branch pat' e') : rs')))
+        case m of
+            Nothing -> inferOne (b:ls) rs
+            Just m' -> return m'
+
+    checkOthers
+        :: forall b. Sing b -> [U.Branch] -> TypeCheckMonad [Branch a abt b]
+    checkOthers typ = T.traverse (checkBranch typA typ)
+
+
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
