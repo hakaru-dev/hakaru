@@ -1,9 +1,17 @@
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveDataTypeable
+           , FlexibleContexts #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Tests.TestTools where
 
+import Language.Hakaru.Parser.Parser
+import Language.Hakaru.Parser.SymbolResolve (resolveAST)
+import Language.Hakaru.Syntax.ABT
+import Language.Hakaru.Syntax.AST
+import Language.Hakaru.Syntax.TypeCheck
+
 import Data.Maybe (isJust)
 import Data.List
+import qualified Data.Text as T
 import Data.Typeable (Typeable)
 import Control.Exception
 
@@ -39,6 +47,21 @@ assertJust = assertBool "expected Just but got Nothing" . isJust
 
 -- testMaple :: Maple a -> IO ()
 -- testMaple t = assertResult $ runMaple t 0
+
+testWithConcrete ::
+    (ABT Term abt)
+    => T.Text
+    -> TypeCheckMode
+    -> (TypedAST abt -> Assertion)
+    -> Assertion
+testWithConcrete s mode k =
+    case parseHakaru s of
+      Left  err  -> assertFailure (show err)
+      Right past ->
+          let m = inferType (resolveAST past) in
+          case runTCM m mode of
+            Left err   -> assertFailure err
+            Right tast -> k tast
 
 -- testMapleEqual :: Maple a -> Maple a -> IO ()
 -- testMapleEqual t1 t2 = do

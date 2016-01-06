@@ -21,20 +21,25 @@ import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Syntax.TypeCheck
 
 import Data.Sequence
+import Data.Text
 import Test.HUnit
+import Tests.TestTools
 
-five :: U.AST
-five =
+five :: Text
+five = "2 + 3"
+
+fiveU :: U.AST
+fiveU =
     U.NaryOp_ U.Sum'
-        [ U.Literal_ $ Some1 $ T.LInt 2
-        , U.Literal_ $ Some1 $ T.LInt 3
+        [ U.Literal_ $ Some1 $ T.LNat 2
+        , U.Literal_ $ Some1 $ T.LNat 3
         ]
 
-fiveT :: TrivialABT T.Term '[] 'HInt
+fiveT :: TrivialABT T.Term '[] 'HNat
 fiveT =
-    syn . T.NaryOp_ (T.Sum HSemiring_Int) $ fromList
-        [ syn $ T.Literal_ $ T.LInt 2
-        , syn $ T.Literal_ $ T.LInt 3
+    syn . T.NaryOp_ (T.Sum HSemiring_Nat) $ fromList
+        [ syn $ T.Literal_ $ T.LNat 2
+        , syn $ T.Literal_ $ T.LNat 3
         ]
 
 normal01 :: U.AST
@@ -77,8 +82,19 @@ testTC uast tast =
         Nothing   -> assertFailure
             (show ast ++ " does not have same type as " ++ show tast)
 
+testConcreteTC :: Text -> TrivialABT T.Term '[] b -> Assertion
+testConcreteTC s ast =
+    testWithConcrete s StrictMode
+         (\(TypedAST _typ tast) ->
+              case jmEq1 ast tast of
+                Just Refl -> assertEqual "" ast tast
+                Nothing   -> assertFailure
+                  (show ast ++ " does not have same type as " ++ show tast))
+
+
 allTests :: Test
 allTests = test
-    [ testTC five fiveT
+    [ testTC fiveU fiveT
     , testTC normal01 normal01T
+    , testConcreteTC five fiveT
     ]
