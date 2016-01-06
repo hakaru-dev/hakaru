@@ -479,7 +479,7 @@ inferType = inferType_
         mode <- getMode
         case mode of
             StrictMode -> inferCaseStrict typ1 e1' branches
-            LaxMode    -> error "TODO: inferType{Case_} in LaxMode"
+            LaxMode    -> inferCaseLax typ1 e1' branches
             UnsafeMode -> error "TODO: inferType{Case_} in UnsafeMode"
 
     U.Dirac_ e1 | inferable e1 -> do
@@ -684,6 +684,42 @@ inferCaseStrict typA e1 = inferOne []
         :: forall b. Sing b -> [U.Branch] -> TypeCheckMonad [Branch a abt b]
     checkOthers typ = T.traverse (checkBranch typA typ)
 
+data SomeBranch a abt = forall b. SomeBranch !(Sing b) [Branch a abt b]
+
+inferCaseLax
+    :: forall abt a
+    .  (ABT Term abt)
+    => Sing a
+    -> abt '[] a
+    -> [U.Branch]
+    -> TypeCheckMonad (TypedAST abt)
+inferCaseLax typA e1 = start
+    where
+    start :: [U.Branch] -> TypeCheckMonad (TypedAST abt)
+    start []     = ambiguousEmptyNary
+    start ((U.Branch pat e):us) = do
+        SP pat' vars <- checkPattern typA pat
+        inferBinders vars e $ \typ1 e' -> do
+          SomeBranch typ2 bs <- F.foldlM step (SomeBranch typ1 [Branch pat' e']) us
+          return (TypedAST typ2 $ syn (Case_ e1 (reverse bs)))
+
+    -- TODO: inline 'F.foldlM' and then inline this, to unpack the first argument.
+    step :: SomeBranch a abt -> U.Branch -> TypeCheckMonad (SomeBranch a abt)
+    step (SomeBranch typ1 bs) (U.Branch pat e) = do
+        SP pat' vars <- checkPattern typA pat
+        inferBinders vars e $ \typ2 e2 ->
+         case findLub typ1 typ2 of
+            Nothing              -> missingLub typ1 typ2
+            Just (Lub typ c1 c2) ->
+                let bs' = map (\(Branch pat e) ->
+                                   let (vars', e') = caseBinds e in
+                                   let e'' = binds_ vars'
+                                             (syn $ CoerceTo_ c1 :$ e' :* End) in
+                                   Branch pat e'') bs
+                    (vars', e2') = caseBinds e2
+                    e2'' = Branch pat' (binds_ vars'
+                                        (syn $ CoerceTo_ c2 :$ e2' :* End)) 
+                in return (SomeBranch typ (e2'' : bs'))
 
 
 ----------------------------------------------------------------
