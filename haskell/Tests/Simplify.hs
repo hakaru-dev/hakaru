@@ -41,6 +41,9 @@ realpair = ann_ (SMeasure $ sPair SReal SReal)
 unifprob :: TrivialABT Term '[] ('HMeasure 'HProb)
 unifprob = uniform (real_ 1) (real_ 2) >>= \x -> dirac (unsafeProb x)
 
+true' :: TrivialABT Term '[] HBool
+true' = true
+
 testSimplify :: ( ABT Term abt
                 , Show (abt '[] a)
                 , Eq   (abt '[] a))
@@ -55,4 +58,5 @@ allTests = test
    , testSimplify normal01T normal01T
    , testSimplify realpair realpair
    , testSimplify unifprob unifprob
+   , testSimplify true' true'
    ]
