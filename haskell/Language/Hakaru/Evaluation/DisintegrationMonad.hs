@@ -398,7 +398,7 @@ emitWeight w = emit_ (P.pose w)
 -- heap and continuation for each one, then pass the results to a
 -- function for emitting code.
 emitFork_
-    :: (ABT Term abt, Traversable t)
+    :: (ABT Term abt, T.Traversable t)
     => (forall r. t (abt '[] ('HMeasure r)) -> abt '[] ('HMeasure r))
     -> t (Dis abt a)
     -> Dis abt a
@@ -447,10 +447,10 @@ toGBranch (Branch pat body) =
 instance Functor (GBranch a) where
     fmap f (GBranch pat vars x) = GBranch pat vars (f x)
 
-instance Foldable (GBranch a) where
+instance F.Foldable (GBranch a) where
     foldMap f (GBranch _ _ x) = f x
 
-instance Traversable (GBranch a) where
+instance T.Traversable (GBranch a) where
     traverse f (GBranch pat vars x) = GBranch pat vars <$> f x
 
 -- N.B., this function does not freshen the variables bound by each
