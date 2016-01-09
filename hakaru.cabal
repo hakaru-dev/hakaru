@@ -1,7 +1,7 @@
 -- To understand this, see http://haskell.org/cabal/users-guide/
 
 cabal-version:       >=1.16
-build-type:          Custom
+build-type:          Simple
 name:                hakaru
 version:             0.3.0
 synopsis:            A probabilistic programming embedded DSL
