@@ -15,7 +15,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.14
+--                                                    2016.01.08
 -- |
 -- Module      :  Language.Hakaru.Evaluation.Types
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -53,11 +53,6 @@ module Language.Hakaru.Evaluation.Types
     -}
     , push
     , pushes
-
-    -- * The disintegration monad
-    -- ** List-based version
-    , ListContext(..), Ans, M(..), runM
-    -- ** TODO: IntMap-based version
     ) where
 
 import           Prelude              hiding (id, (.))
@@ -69,8 +64,6 @@ import           Control.Applicative  (Applicative(..))
 #endif
 import           Control.Arrow        ((***))
 import qualified Data.Foldable        as F
-import           Control.Applicative  (Alternative(..))
-import           Control.Monad        (MonadPlus(..))
 import           Data.Text            (Text)
 
 import Language.Hakaru.Syntax.IClasses
@@ -80,7 +73,7 @@ import Language.Hakaru.Types.Sing    (Sing)
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
-import Language.Hakaru.Syntax.TypeOf
+-- import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.ABT
 import qualified Language.Hakaru.Syntax.Prelude as P
 
@@ -678,193 +671,6 @@ pushBind e = do
     unsafePush (SBind x e)
     return x
 -}
-
-----------------------------------------------------------------
-----------------------------------------------------------------
--- | An ordered collection of statements representing the context
--- surrounding the current focus of our program transformation.
--- That is, since some transformations work from the bottom up, we
--- need to keep track of the statements we passed along the way
--- when reaching for the bottom.
---
--- The tail of the list takes scope over the head of the list. Thus,
--- the back\/end of the list is towards the top of the program,
--- whereas the front of the list is towards the bottom.
---
--- This type was formerly called @Heap@ (presumably due to the
--- 'Statement' type being called @Binding@) but that seems like a
--- misnomer to me since this really has nothing to do with allocation.
--- However, it is still like a heap inasmuch as it's a dependency
--- graph and we may wish to change the topological sorting or remove
--- \"garbage\" (subject to correctness criteria).
---
--- TODO: Figure out what to do with 'SWeight' so that we can use
--- an @IntMap (Statement abt)@ in order to speed up the lookup times
--- in 'select'. (Assuming callers don't use 'unsafePush' unsafely:
--- we can recover the order things were inserted from their 'varID'
--- since we've freshened them all and therefore their IDs are
--- monotonic in the insertion order.)
-data ListContext (abt :: [Hakaru] -> Hakaru -> *) = ListContext
-    { nextFreshNat :: {-# UNPACK #-} !Nat
-    , statements   :: [Statement abt]
-    }
-
-
--- Argument order is to avoid flipping in 'runM'
--- TODO: generalize to non-measure types too!
--- TODO: if any SLet bindings are unused, then drop them. If any are used exactly once, maybe inline them?
-residualizeListContext
-    :: (ABT Term abt)
-    => abt '[] ('HMeasure a)
-    -> ListContext abt
-    -> abt '[] ('HMeasure a)
-residualizeListContext e0 = foldl step e0 . statements
-    where
-    step e s = syn $
-        case s of
-        SBind x body -> MBind :$ fromLazy body :* bind x e :* End
-        SLet  x body -> Let_  :$ fromLazy body :* bind x e :* End
-        {-
-        SBranch xs pat body ->
-            Case_ (fromLazy body)
-                [ Branch pat   (binds_ xs e)
-                , Branch PWild P.reject
-                ]
-        -}
-        SWeight body -> Superpose_ [(fromLazy body, e)]
-        SIndex x index size ->
-            -- The obvious thing to do:
-            ArrayOp_ (Index $ typeOf e)
-                :$ syn (Array_ (fromLazy size) (bind x e))
-                :* fromLazy index
-                :* End
-            -- An alternative thing, making it clearer that we've evaluated:
-            {-
-            Let_
-                :$ fromLazy index
-                :* bind x
-                    (P.if_
-                        (P.nat_ 0 P.<= var x P.&& var x P.< fromLazy size)
-                        e
-                        P.reject)
-                :* End
-            -}
-
--- In the paper we say that result must be a 'Whnf'; however, in
--- the paper it's also always @HMeasure a@ and everything of that
--- type is a WHNF (via 'WMeasure') so that's a trivial statement
--- to make. If we turn it back into some sort of normal form, then
--- it must be one preserved by 'residualizeContext'.
---
--- Also, we add the list in order to support "lub" without it living in the AST.
--- TODO: really we should use ListT or the like...
-type Ans abt a = ListContext abt -> [abt '[] ('HMeasure a)]
-
-
--- TODO: defunctionalize the continuation. In particular, the only
--- heap modifications we need are 'push' and a variant of 'update'
--- for finding\/replacing a binding once we have the value in hand;
--- and the only 'freshNat' modifications are to allocate new 'Nat'.
--- We could defunctionalize the second arrow too by relying on the
--- @Codensity (ReaderT e m) ~= StateT e (Codensity m)@ isomorphism,
--- which makes explicit that the only thing other than 'ListContext'
--- updates is emitting something like @[Statement]@ to serve as the
--- beginning of the final result.
---
--- TODO: give this a better, more informative name!
---
--- N.B., This monad is used not only for both 'perform' and 'constrainOutcome', but also for 'constrainValue'.
-newtype M abt x = M { unM :: forall a. (x -> Ans abt a) -> Ans abt a }
-    -- == @Codensity (Ans abt)@, assuming 'Codensity' is poly-kinded like it should be
-    -- If we don't want to allow continuations that can make nondeterministic choices, then we should use the right Kan extension itself, rather than the Codensity specialization of it.
-
-
--- | Run a computation in the 'M' monad, residualizing out all the
--- statements in the final evaluation context. The second argument
--- should include all the terms altered by the 'M' expression; this
--- is necessary to ensure proper hygiene; for example(s):
---
--- > runM (perform e) [Some2 e]
--- > runM (constrainOutcome e v) [Some2 e, Some2 v]
---
--- We use 'Some2' on the inputs because it doesn't matter what their
--- type or locally-bound variables are, so we want to allow @f@ to
--- contain terms with different indices.
-runM :: (ABT Term abt, F.Foldable f)
-    => M abt (Whnf abt a)
-    -> f (Some2 abt)
-    -> [abt '[] ('HMeasure a)]
-runM (M m) es = m c0 (ListContext i0 [])
-    where
-    -- HACK: we only have @c0@ build up a WHNF since that's what
-    -- 'Ans' says we need (see the comment at 'Ans' for why this
-    -- may not be what we actually mean).
-    c0 x = (:[]) . residualizeListContext (syn(Dirac :$ fromWhnf x :* End))
-    
-    i0 = unMaxNat (F.foldMap (\(Some2 e) -> MaxNat $ nextFree e) es)
-
-
-instance Functor (M abt) where
-    fmap f (M m)  = M $ \c -> m (c . f)
-
-instance Applicative (M abt) where
-    pure x        = M $ \c -> c x
-    M mf <*> M mx = M $ \c -> mf $ \f -> mx $ \x -> c (f x)
-
-instance Monad (M abt) where
-    return    = pure
-    M m >>= k = M $ \c -> m $ \x -> unM (k x) c
-
-instance Alternative (M abt) where
-    empty       = M $ \_ _ -> []
-    M m <|> M n = M $ \c h -> m c h ++ n c h
-    
-instance MonadPlus (M abt) where
-    mzero = empty -- aka "bot"
-    mplus = (<|>) -- aka "lub"
-
-instance (ABT Term abt) => EvaluationMonad abt (M abt) where
-    freshNat =
-        M $ \c (ListContext i ss) ->
-            c i (ListContext (i+1) ss)
-
-    unsafePush s =
-        M $ \c (ListContext i ss) ->
-            c () (ListContext i (s:ss))
-
-    -- N.B., the use of 'reverse' is necessary so that the order
-    -- of pushing matches that of 'pushes'
-    unsafePushes ss =
-        M $ \c (ListContext i ss') ->
-            c () (ListContext i (reverse ss ++ ss'))
-
-    select x p = loop []
-        where
-        -- TODO: use a DList to avoid reversing inside 'unsafePushes'
-        loop ss = do
-            ms <- unsafePop
-            case ms of
-                Nothing -> do
-                    unsafePushes ss
-                    return Nothing
-                Just s  ->
-                    -- Alas, @p@ will have to recheck 'isBoundBy'
-                    -- in order to grab the 'Refl' proof we erased;
-                    -- but there's nothing to be done for it.
-                    case x `isBoundBy` s >> p s of
-                    Nothing -> loop (s:ss)
-                    Just mr -> do
-                        r <- mr
-                        unsafePushes ss
-                        return (Just r)
-
--- | Not exported because we only need it for defining 'select' on 'M'.
-unsafePop :: M abt (Maybe (Statement abt))
-unsafePop =
-    M $ \c h@(ListContext i ss) ->
-        case ss of
-        []    -> c Nothing  h
-        s:ss' -> c (Just s) (ListContext i ss')
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

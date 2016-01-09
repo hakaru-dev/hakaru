@@ -15,7 +15,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.19
+--                                                    2016.01.08
 -- |
 -- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -64,7 +64,6 @@ import           Data.Traversable     (Traversable)
 import           Control.Applicative  (Applicative(..))
 #endif
 import           Control.Applicative  (Alternative(..))
-import           Data.Functor.Compose (Compose(..))
 import           Control.Monad        ((<=<))
 import qualified Data.Traversable     as T
 import qualified Data.Text            as Text
@@ -82,6 +81,7 @@ import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Evaluation.Types
 import Language.Hakaru.Evaluation.Lazy
+import Language.Hakaru.Evaluation.DisintegrationMonad
 import qualified Language.Hakaru.Syntax.Prelude as P
 import qualified Language.Hakaru.Expect         as E
 
@@ -106,7 +106,7 @@ disintegrate
 disintegrate m = do
     let x = Variable Text.empty (nextFree m)
             (fst . sUnPair . sUnMeasure $ typeOf m)
-    m' <- flip runM [Some2 m, Some2 (var x)] $ do
+    m' <- flip runDis [Some2 m, Some2 (var x)] $ do
         ab    <- perform m
         (a,b) <- emitUnpair ab
         a'    <- atomize a
@@ -187,7 +187,7 @@ conditionalize
     -> [abt '[] ('HMeasure a)]
 conditionalize (Condition pat b) m =
     -- TODO: is this at all right??
-    flip runM [Some2 b, Some2 m] $ do
+    flip runDis [Some2 b, Some2 m] $ do
         a <- perform m
         -- According to the old code, we should memoize here...
         -- TODO: what was the purpose of using @unMeasure@ before memoizing?
@@ -217,8 +217,8 @@ determine (m:_) = Just m
 ----------------------------------------------------------------
 {-
 data L s abt a = L
-    { forward  :: M s abt (Whnf (L s abt) a)
-    , backward :: Whnf (L s abt) a -> M s abt ()
+    { forward  :: Dis s abt (Whnf (L s abt) a)
+    , backward :: Whnf (L s abt) a -> Dis s abt ()
     }
 
 -- TODO: make the length indexing explicit:
@@ -252,300 +252,12 @@ ifte_Whnf (Head_   v) t f = if reify v then t else f
 -}
 
 
--- | It is impossible to satisfy the constraints, or at least we
--- give up on trying to do so. This function is identical to 'empty'
--- and 'mzero' for 'M'; we just give it its own name since this is
--- the name used in our papers.
-bot :: (ABT Term abt) => M abt a
-bot = M $ \_ _ -> []
-
-
--- | The empty measure is a solution to the constraints.
-reject :: (ABT Term abt) => M abt a
-reject = M $ \_ _ -> [syn (Superpose_ [])]
-
-
--- Something essentially like this function was called @insert_@
--- in the finally-tagless code.
---
--- | Emit some code that binds a variable, and return the variable
--- thus bound. The function says what to wrap the result of the
--- continuation with; i.e., what we're actually emitting.
-emit
-    :: (ABT Term abt)
-    => Text.Text
-    -> Sing a
-    -> (forall r. abt '[a] ('HMeasure r) -> abt '[] ('HMeasure r))
-    -> M abt (Variable a)
-emit hint typ f = do
-    x <- freshVar hint typ
-    M $ \c h -> (f . bind x) <$> c x h
-
-
--- This function was called @lift@ in the finally-tagless code.
--- | Emit an 'MBind' (i.e., \"@m >>= \x ->@\") and return the
--- variable thus bound (i.e., @x@).
-emitMBind :: (ABT Term abt) => abt '[] ('HMeasure a) -> M abt (Variable a)
-emitMBind m =
-    emit Text.empty (sUnMeasure $ typeOf m)
-        (\e -> syn (MBind :$ m :* e :* End))
-
-
--- | A smart constructor for emitting let-bindings. If the input
--- is already a variable then we just return it; otherwise we emit
--- the let-binding.
-emitLet :: (ABT Term abt) => abt '[] a -> M abt (Variable a)
-emitLet e =
-    caseVarSyn e return $ \_ ->
-        emit Text.empty (typeOf e)
-            (\m -> syn (Let_ :$ e :* m :* End))
-
-
--- | A smart constructor for emitting \"unpair\". If the input
--- argument is actually a constructor then we project out the two
--- components; otherwise we emit the case-binding and return the
--- two variables.
-emitUnpair
-    :: (ABT Term abt)
-    => Whnf abt (HPair a b)
-    -> M abt (abt '[] a, abt '[] b)
-emitUnpair (Head_   e) = return $ reifyPair e
-emitUnpair (Neutral e) = do
-    let (a,b) = sUnPair (typeOf e)
-    x <- freshVar Text.empty a
-    y <- freshVar Text.empty b
-    M $ \c h ->
-        ( syn
-        . Case_ e
-        . (:[])
-        . Branch (pPair PVar PVar)
-        . bind x
-        . bind y
-        ) <$> c (var x, var y) h
-
--- TODO: emitUneither
-
-
--- This function was called @insert_@ in the old finally-tagless code.
--- | Emit some code that doesn't bind any variables. This function
--- provides an optimisation over using 'emit' and then discarding
--- the generated variable.
-emit_
-    :: (ABT Term abt)
-    => (forall r. abt '[] ('HMeasure r) -> abt '[] ('HMeasure r))
-    -> M abt ()
-emit_ f = M $ \c h -> f <$> c () h
-
-
--- | Emit an 'MBind' that discards its result (i.e., \"@m >>@\").
--- We restrict the type of the argument to be 'HUnit' so as to avoid
--- accidentally dropping things.
-emitMBind_ :: (ABT Term abt) => abt '[] ('HMeasure HUnit) -> M abt ()
-emitMBind_ m = emit_ (m P.>>)
-
-
--- | Emit an assertion that the condition is true.
-emitObserve :: (ABT Term abt) => abt '[] HBool -> M abt ()
-emitObserve b = emit_ (P.observe b) -- == emit_ $ \m -> P.if_ b m P.reject
-
-
-emitWeight :: (ABT Term abt) => abt '[] 'HProb -> M abt ()
-emitWeight w = emit_ (P.pose w)
-
-
--- N.B., this use of 'T.traverse' is definitely correct. It's
--- sequentializing @t [abt '[] ('HMeasure a)]@ into @[t (abt '[]
--- ('HMeasure a))]@ by chosing one of the possibilities at each
--- position in @t@. No heap\/context effects can escape to mess
--- things up. In contrast, using 'T.traverse' to sequentialize @t
--- (M abt a)@ as @M abt (t a)@ is /wrong/! Doing that would give
--- the conjunctive semantics where we have effects from one position
--- in @t@ escape to affect the other positions. This has to do with
--- the general issue in partial evaluation where we need to duplicate
--- downstream work (as we do by passing the same heap to everyone)
--- because there's no general way to combing the resulting heaps
--- for each branch.
---
--- | Run each of the elements of the traversable using the same
--- heap and continuation for each one, then pass the results to a
--- function for emitting code.
-emitFork_
-    :: (ABT Term abt, Traversable t)
-    => (forall r. t (abt '[] ('HMeasure r)) -> abt '[] ('HMeasure r))
-    -> t (M abt a)
-    -> M abt a
-emitFork_ f ms = M $ \c h -> f <$> T.traverse (\m -> unM m c h) ms
-
-
--- | Emit a 'Superpose_' of the alternatives, each with unit weight.
-emitSuperpose
-    :: (ABT Term abt)
-    => [abt '[] ('HMeasure a)]
-    -> M abt (Variable a)
-emitSuperpose es =
-    emitMBind (P.superpose [(P.prob_ 1, e) | e <- es])
-
-
--- | Emit a 'Superpose_' of the alternatives, each with unit weight.
-choose :: (ABT Term abt) => [M abt a] -> M abt a
-choose [m] = m
-choose ms  =
-    emitFork_ (\es -> P.superpose [(P.prob_ 1, e) | e <- es]) ms
-
-
--- TODO: move this to Datum.hs; also, use it elsewhere as needed to clean up code.
--- | A generalization of the 'Branch' type to allow a \"body\" of
--- any Haskell type.
-data GBranch (a :: Hakaru) (r :: *)
-    = forall xs. GBranch
-        !(Pattern xs a)
-        !(List1 Variable xs)
-        r
-
-fromGBranch
-    :: (ABT Term abt)
-    => GBranch a (abt '[] b)
-    -> Branch a abt b
-fromGBranch (GBranch pat vars e) =
-    Branch pat (binds_ vars e)
-
-toGBranch
-    :: (ABT Term abt)
-    => Branch a abt b
-    -> GBranch a (abt '[] b)
-toGBranch (Branch pat body) =
-    uncurry (GBranch pat) (caseBinds body)
-
-instance Functor (GBranch a) where
-    fmap f (GBranch pat vars x) = GBranch pat vars (f x)
-
-instance Foldable (GBranch a) where
-    foldMap f (GBranch _ _ x) = f x
-
-instance Traversable (GBranch a) where
-    traverse f (GBranch pat vars x) = GBranch pat vars <$> f x
-
--- N.B., this function does not freshen the variables bound by each
--- 'GBranch'. It's the caller's responsability to perform that
--- freshening when turning each original @Branch a abt b@ into
--- @GBranch a (M abt x)@. This organization is necessary since we
--- need to have already done the renaming when we turn the underlying
--- @abt xs b@ into @(List1 Variable xs, M abt x)@.
---
--- TODO: we want a variant of this function which returns the list
--- of bound variables along with the @b@; since that's required for
--- the continuation to do things that might vary depending on the
--- bound variables.
-emitCase
-    :: (ABT Term abt)
-    => abt '[] a
-    -> [GBranch a (M abt b)]
-    -> M abt b
-emitCase e =
-    emitFork_ (syn . Case_ e . fmap fromGBranch . getCompose) . Compose
-{-
--- Alternative implementation which I believe has the same semantics:
-emitCase e ms =
-    M $ \c h -> (syn . Case_ e) <$> T.traverse (runBranch c h) ms
-    where
-    -- This function has a type isomorphic to:
-    -- > GBranch a (M abt b) -> Ran (Ans abt) (Ans' abt) b
-    -- where:
-    -- > Ans' abt b = ListContext abt -> [Branch a abt ('HMeasure b)]
-    -- This is very similar to but not quite the same as:
-    -- > GBranch a (M abt b) -> M abt b
-    -- Since @M abt = Codensity (Ans abt) = Ran (Ans abt) (Ans abt)@.
-    runBranch c h = fmap fromGBranch . T.traverse (\m -> unM m c h)
--}
-
-freshenBranch
-    :: (ABT Term abt, EvaluationMonad abt m)
-    => Branch a abt b
-    -> m (Branch a abt b)
-freshenBranch (Branch pat e) = do
-    let (vars, body) = caseBinds e
-    vars' <- freshenVars vars
-    let rho = toAssocs vars (fmap11 var vars')
-    return . Branch pat . binds_ vars' $ substs rho body
-
-freshenGBranch
-    :: (ABT Term abt, EvaluationMonad abt m)
-    => GBranch a b
-    -> m (GBranch a b)
-freshenGBranch (GBranch pat vars x) = do
-    vars' <- freshenVars vars
-    return $ GBranch pat vars' x
-
--- We should have that:
--- > fmap fromGBranch . freshenBranchG = freshenBranch
--- > freshenBranchG . fromGBranch = freshenGBranch
-freshenBranchG
-    :: (ABT Term abt, EvaluationMonad abt m)
-    => Branch a abt b
-    -> m (GBranch a (abt '[] b))
-freshenBranchG (Branch pat e) = do
-    let (vars, body) = caseBinds e
-    vars' <- freshenVars vars
-    let rho = toAssocs vars (fmap11 var vars')
-    return . GBranch pat vars' $ substs rho body
-
-
--- | This function will freshen the variables bound by the branch,
--- and then map the function over the body. This only really does
--- what you want provided the function can safely (and does) treat
--- the case-bound variables as if they were free variables.
---
--- We should have that:
--- > T.sequence <=< applyBranch return = freshenBranchG
--- or more generally that:
--- > T.sequence <=< applyBranch f = f <=< freshenBranchG
-applyBranch
-    :: (ABT Term abt, EvaluationMonad abt m)
-    => (abt '[] b -> r)
-    -> Branch a abt b
-    -> m (GBranch a r)
-applyBranch f (Branch pat e) = do
-    let (vars, body) = caseBinds e
-    vars' <- freshenVars vars
-    let rho = toAssocs vars (fmap11 var vars')
-    return . GBranch pat vars' . f $ substs rho body
-
--- This typechecks! It gives an example of how we might use the
--- above in order to do evaluation of the branches under case. Of
--- course, the control flow is a bit strange; the 'Whnf' returned
--- is the result of evaluating the body of whichever branch you
--- happen to be in. We should prolly also return some sort of
--- information about what branch it happens to be, since folks may
--- wish to make decisions based on that. (N.B., using 'emitCase'
--- directly gives you that information via the lexical context since
--- we's give the bodies inline within the 'GBranch'es.)
-foo :: (ABT Term abt)
-    => abt '[] a
-    -> [Branch a abt b]
-    -> M abt (Whnf abt b)
-foo e bs =
-    emitCase e =<< T.traverse (applyBranch evaluate_) bs
-
--- This function should be equivalent to 'foo', just moving the
--- call to 'evaluate_' from the argument of 'applyBranch' to the
--- continuation. Assuming that's actually true and works, then we
--- can implement @applyBranch return@ by @fmap toGBranch .
--- freshenBranch@
-foo' :: (ABT Term abt)
-    => abt '[] a
-    -> [Branch a abt b]
-    -> M abt (Whnf abt b)
-foo' e bs = do
-    myBody <- emitCase e =<< T.traverse (applyBranch return) bs
-    evaluate_ myBody
-
-
 ----------------------------------------------------------------
 -- BUG: forward disintegration is not identical to partial evaluation,
 -- as noted at the top of the file. We need to ensure that no
 -- heap-bound variables remain in the result; namely, we need to
 -- ensure that in the two places where we call 'emitMBind'
-evaluate_ :: (ABT Term abt) => TermEvaluator abt (M abt)
+evaluate_ :: (ABT Term abt) => TermEvaluator abt (Dis abt)
 evaluate_ = evaluate perform
 
 
@@ -553,7 +265,7 @@ evaluate_ = evaluate perform
 -- for those actions, returning the bound variable.
 --
 -- This is the function called @(|>>)@ in the paper.
-perform :: (ABT Term abt) => MeasureEvaluator abt (M abt)
+perform :: (ABT Term abt) => MeasureEvaluator abt (Dis abt)
 perform e0 =
     caseVarSyn e0 performVar $ \t ->
         case t of
@@ -583,7 +295,8 @@ perform e0 =
 
 
 -- TODO: I think this is the right definition...
-performVar :: (ABT Term abt) => Variable ('HMeasure a) -> M abt (Whnf abt a)
+performVar
+    :: (ABT Term abt) => Variable ('HMeasure a) -> Dis abt (Whnf abt a)
 performVar = performWhnf <=< update perform evaluate_
 
 
@@ -602,7 +315,7 @@ performVar = performWhnf <=< update perform evaluate_
 -- prolly means we shouldn't handle 'WAnn' here, but rather should
 -- handle it in the definition of 'perform' itself...)
 performWhnf
-    :: (ABT Term abt) => Whnf abt ('HMeasure a) -> M abt (Whnf abt a)
+    :: (ABT Term abt) => Whnf abt ('HMeasure a) -> Dis abt (Whnf abt a)
 performWhnf (Head_ (WAnn typ v)) =
     ann (sUnMeasure typ) <$> performWhnf (Head_ v)
 performWhnf (Head_   v) = perform $ fromHead v
@@ -624,12 +337,12 @@ performWhnf (Neutral e) = (Neutral . var) <$> emitMBind e
 -- This is the function called @(|>)@ in the paper. The core idea
 -- of this function is @'evaluate' 'perform'@, but we call that
 -- recursively in order to guarantee correctness.
-atomize :: (ABT Term abt) => TermEvaluator abt (M abt)
+atomize :: (ABT Term abt) => TermEvaluator abt (Dis abt)
 atomize e = traverse21 atomizeCore =<< evaluate_ e
 
 -- | Factored out from 'atomize' because we often need this more
 -- polymorphic variant when using our indexed 'Traversable' classes.
-atomizeCore :: (ABT Term abt) => abt xs a -> M abt (abt xs a)
+atomizeCore :: (ABT Term abt) => abt xs a -> Dis abt (abt xs a)
 atomizeCore e =
     let (xs, e') = caseBinds e
     in  (binds_ xs . fromWhnf) <$> atomize e'
@@ -644,7 +357,7 @@ atomizeCore e =
 -- assume it's already been done by the IH.
 --
 -- This is the function called @(<|)@ in the paper.
-constrainValue :: (ABT Term abt) => Whnf abt a -> abt '[] a -> M abt ()
+constrainValue :: (ABT Term abt) => Whnf abt a -> abt '[] a -> Dis abt ()
 constrainValue v0 e0 =
     caseVarSyn e0 (constrainVariable v0) $ \t ->
         case t of
@@ -708,7 +421,8 @@ constrainValue v0 e0 =
 -- | N.B., We assume that the first argument, @v0@, is already
 -- atomized. So, this must be ensured before recursing, but we can
 -- assume it's already been done by the IH.
-constrainVariable :: (ABT Term abt) => Whnf abt a -> Variable a -> M abt ()
+constrainVariable
+    :: (ABT Term abt) => Whnf abt a -> Variable a -> Dis abt ()
 constrainVariable v0 x =
     -- If we get 'Nothing', then it turns out @x@ is a free variable. If @x@ is a free variable, then it's a neutral term; and we return 'bot' for neutral terms
     (maybe bot return =<<) . select x $ \s ->
@@ -739,11 +453,11 @@ constrainValueMeasureOp
     => Whnf abt ('HMeasure a)
     -> MeasureOp typs a
     -> SArgs abt args
-    -> M abt ()
+    -> Dis abt ()
 constrainValueMeasureOp v0 = go
     where
     -- HACK: we need the -XScopedTypeVariables in order to remove \"ambiguity\" about the choice of 'ABT' instance
-    go :: MeasureOp typs a -> SArgs abt args -> M abt ()
+    go :: MeasureOp typs a -> SArgs abt args -> Dis abt ()
     go Lebesgue    = \End               -> bot
     go Counting    = \End               -> bot
     go Categorical = \(e1 :* End)       ->
@@ -791,7 +505,7 @@ constrainNaryOp
     => Whnf abt a
     -> NaryOp a
     -> Seq (abt '[] a)
-    -> M abt ()
+    -> Dis abt ()
 constrainNaryOp v0 o =
     case o of
     Sum theSemi ->
@@ -877,13 +591,13 @@ constrainPrimOp
     => Whnf abt a
     -> PrimOp typs a
     -> SArgs abt args
-    -> M abt ()
+    -> Dis abt ()
 constrainPrimOp v0 = go
     where
     error_TODO op = error $ "TODO: constrainPrimOp{" ++ op ++"}"
 
     -- HACK: we need the -XScopedTypeVariables in order to remove \"ambiguity\" about the choice of 'ABT' instance
-    go :: PrimOp typs a -> SArgs abt args -> M abt ()
+    go :: PrimOp typs a -> SArgs abt args -> Dis abt ()
     go Not  = \(e1 :* End)       -> error_TODO "Not"
     go Impl = \(e1 :* e2 :* End) -> error_TODO "Impl"
     go Diff = \(e1 :* e2 :* End) -> error_TODO "Diff"
@@ -1097,7 +811,7 @@ square theSemiring e =
 --
 -- This is the function called @(<<|)@ in the paper.
 constrainOutcome
-    :: (ABT Term abt) => Whnf abt a -> abt '[] ('HMeasure a) -> M abt ()
+    :: (ABT Term abt) => Whnf abt a -> abt '[] ('HMeasure a) -> Dis abt ()
 constrainOutcome = error "TODO: constrainOutcome"
 {-
 constrainOutcome v0 e0 = do
@@ -1157,21 +871,21 @@ constrainOutcomeMeasureOp
     => Whnf abt a
     -> MeasureOp typs a
     -> SCon args ('HMeasure a)
-    -> M abt ()
+    -> Dis abt ()
 constrainOutcomeMeasureOp v0 = go
     where
     -- Per the paper
-    go Lebesgue End -> M $ \c h -> c h
+    go Lebesgue End -> Dis $ \c h -> c h
 
     -- TODO: I think, based on Hakaru v0.2.0
-    go Counting End -> M $ \c h -> c h
+    go Counting End -> Dis $ \c h -> c h
 
     go Categorical (e1 :* End) ->
 
     -- Per the paper
     -- BUG: must make sure @lo@ and @hi@ don't have heap-bound vars!
     -- TODO: let-bind @v0@ to avoid repeating it (ditto for @lo@,@hi@)
-    go Uniform (lo :* hi :* End) -> M $ \c h ->
+    go Uniform (lo :* hi :* End) -> Dis $ \c h ->
         P.observe (lo P.<= v0 P.&& v0 P.<= hi)
         P.>> P.weight (P.recip (hi P.- lo))
         P.>> c h
@@ -1180,7 +894,7 @@ constrainOutcomeMeasureOp v0 = go
     -- BUG: where does @v0@ come into it?
     -- BUG: must make sure @mu@ and @sd@ don't have heap-bound vars!
     -- TODO: let-binding to avoid repeating @mu@ and @sd@
-    go Normal (mu :* sd :* End) -> M $ \c h ->
+    go Normal (mu :* sd :* End) -> Dis $ \c h ->
         P.weight
             (P.exp (P.negate (x P.- mu) P.^ P.int_ 2
                 P./ P.fromProb (2 P.* sd P.** 2))
@@ -1197,15 +911,15 @@ constrainOutcomeMeasureOp v0 = go
 
 
 
-unleft :: Whnf abt (HEither a b) -> M abt (abt '[] a)
-unleft (Left  e) = M $ \c h -> c e h
-unleft (Right e) = M $ \c h -> P.reject
-unleft u         = M $ \c h -> P.uneither u (\x -> c x h) (\_ -> P.reject)
+unleft :: Whnf abt (HEither a b) -> Dis abt (abt '[] a)
+unleft (Left  e) = Dis $ \c h -> c e h
+unleft (Right e) = Dis $ \c h -> P.reject
+unleft u         = Dis $ \c h -> P.uneither u (\x -> c x h) (\_ -> P.reject)
 
-unright :: Whnf abt (HEither a b) -> M abt (abt '[] a)
-unright (Right e) = M $ \c h -> c e h
-unright (Left  e) = M $ \c h -> P.reject
-unright u         = M $ \c h -> P.uneither u (\_ -> P.reject) (\x -> c x h)
+unright :: Whnf abt (HEither a b) -> Dis abt (abt '[] a)
+unright (Right e) = Dis $ \c h -> c e h
+unright (Left  e) = Dis $ \c h -> P.reject
+unright u         = Dis $ \c h -> P.uneither u (\_ -> P.reject) (\x -> c x h)
 -}
 
 ----------------------------------------------------------------

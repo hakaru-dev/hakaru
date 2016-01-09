@@ -365,7 +365,7 @@ not e =
                     Just . syn . NaryOp_ Iff $ Prelude.fmap not xs
                 NaryOp_ Iff xs ->
                     Just . syn . NaryOp_ Xor $ Prelude.fmap not xs
-                Literal_ v -> error "not: the impossible happened"
+                Literal_ _ -> error "not: the impossible happened"
                 _ -> Nothing
 
 and, or :: (ABT Term abt) => [abt '[] HBool] -> abt '[] HBool

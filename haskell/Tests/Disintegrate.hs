@@ -13,7 +13,7 @@ import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Syntax.Prelude
 import Language.Hakaru.Pretty.Haskell   (pretty)
-import Language.Hakaru.Evaluation.Types (runM)
+import Language.Hakaru.Evaluation.DisintegrationMonad (runDis)
 import Language.Hakaru.Syntax.IClasses  (Some2(..))
 import Language.Hakaru.Disintegrate
 
@@ -51,9 +51,9 @@ normC = lam $ \y ->
 
 test0, test0a, test0b
     :: [TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))]
-test0  = runM (perform norm)  [Some2 norm]
-test0a = runM (perform normA) [Some2 normA]
-test0b = runM (perform normB) [Some2 normB]
+test0  = runDis (perform norm)  [Some2 norm]
+test0a = runDis (perform normA) [Some2 normA]
+test0b = runDis (perform normB) [Some2 normB]
 
 -- BUG: at present, both 'test1' and 'test1a' throw errors about
 -- @typeOf_{Datum_}@. Whereas 'test1b' loops.

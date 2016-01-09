@@ -310,7 +310,7 @@ inferBinders
     -> U.AST
     -> (forall a. Sing a -> abt xs a -> TypeCheckMonad r)
     -> TypeCheckMonad r
-inferBinders xs e k = do
+inferBinders = \xs e k -> do
     TypedAST typ e' <- pushesCtx xs (inferType e)
     k typ (binds_ xs e')
     where
@@ -686,6 +686,32 @@ inferCaseStrict typA e1 = inferOne []
 
 data SomeBranch a abt = forall b. SomeBranch !(Sing b) [Branch a abt b]
 
+-- TODO: move this elsewhere (and prolly rename to something better)
+underBinders
+    :: (ABT Term abt)
+    => (abt '[] a -> abt '[] b)
+    -> abt xs a
+    -> abt xs b
+underBinders f e =
+    let (vars, e') = caseBinds e
+    in binds_ vars (f e')
+
+-- TODO: find a better name, and move to where 'LC_' is defined.
+lc :: (LC_ abt a -> LC_ abt b) -> abt '[] a -> abt '[] b
+lc f = unLC_ . f . LC_
+
+coerceTo_nonLC :: (ABT Term abt) => Coercion a b -> abt xs a -> abt xs b
+coerceTo_nonLC = underBinders . lc . coerceTo
+
+coerceFrom_nonLC :: (ABT Term abt) => Coercion a b -> abt xs b -> abt xs a
+coerceFrom_nonLC = underBinders . lc . coerceFrom
+
+-- BUG: how to make this not an orphan, without dealing with cyclic imports between AST.hs (for the 'LC_' instance), Datum.hs, and Coercion.hs?
+instance (ABT Term abt) => Coerce (Branch a abt) where
+    coerceTo   c (Branch pat e) = Branch pat (coerceTo_nonLC   c e)
+    coerceFrom c (Branch pat e) = Branch pat (coerceFrom_nonLC c e)
+
+
 inferCaseLax
     :: forall abt a
     .  (ABT Term abt)
@@ -700,27 +726,23 @@ inferCaseLax typA e1 = start
     start ((U.Branch pat e):us) = do
         SP pat' vars <- checkPattern typA pat
         inferBinders vars e $ \typ1 e' -> do
-          SomeBranch typ2 bs <- F.foldlM step (SomeBranch typ1 [Branch pat' e']) us
-          return (TypedAST typ2 $ syn (Case_ e1 (reverse bs)))
+            SomeBranch typ2 bs <- F.foldlM step (SomeBranch typ1 [Branch pat' e']) us
+            return . TypedAST typ2 . syn . Case_ e1 $ reverse bs
 
     -- TODO: inline 'F.foldlM' and then inline this, to unpack the first argument.
-    step :: SomeBranch a abt -> U.Branch -> TypeCheckMonad (SomeBranch a abt)
-    step (SomeBranch typ1 bs) (U.Branch pat e) = do
+    step :: SomeBranch a abt
+        -> U.Branch
+        -> TypeCheckMonad (SomeBranch a abt)
+    step (SomeBranch typB bs) (U.Branch pat e) = do
         SP pat' vars <- checkPattern typA pat
-        inferBinders vars e $ \typ2 e2 ->
-         case findLub typ1 typ2 of
-            Nothing              -> missingLub typ1 typ2
-            Just (Lub typ c1 c2) ->
-                let bs' = map (\(Branch pat e) ->
-                                   let (vars', e') = caseBinds e in
-                                   let e'' = binds_ vars'
-                                             (syn $ CoerceTo_ c1 :$ e' :* End) in
-                                   Branch pat e'') bs
-                    (vars', e2') = caseBinds e2
-                    e2'' = Branch pat' (binds_ vars'
-                                        (syn $ CoerceTo_ c2 :$ e2' :* End)) 
-                in return (SomeBranch typ (e2'' : bs'))
-
+        inferBinders vars e $ \typE e' ->
+            case findLub typB typE of
+            Nothing                     -> missingLub typB typE
+            Just (Lub typLub coeB coeE) ->
+                return $ SomeBranch typLub
+                    ( Branch pat' (coerceTo_nonLC coeE e')
+                    : map (coerceTo coeB) bs
+                    )
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
