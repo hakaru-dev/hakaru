@@ -85,6 +85,9 @@ import Language.Hakaru.Evaluation.DisintegrationMonad
 import qualified Language.Hakaru.Syntax.Prelude as P
 import qualified Language.Hakaru.Expect         as E
 
+import Language.Hakaru.Pretty.Haskell (pretty)
+import Debug.Trace (trace)
+
 ----------------------------------------------------------------
 -- N.B., for all these functions the old version used to use the
 -- @env@ hack in order to handle the fact that free variables can
@@ -267,6 +270,7 @@ evaluate_ = evaluate perform
 -- This is the function called @(|>>)@ in the paper.
 perform :: (ABT Term abt) => MeasureEvaluator abt (Dis abt)
 perform e0 =
+    trace ("perform: " ++ show (pretty e0)) $
     caseVarSyn e0 performVar $ \t ->
         case t of
         Dirac :$ e1 :* End       -> evaluate_ e1
@@ -337,8 +341,17 @@ performWhnf (Neutral e) = (Neutral . var) <$> emitMBind e
 -- This is the function called @(|>)@ in the paper. The core idea
 -- of this function is @'evaluate' 'perform'@, but we call that
 -- recursively in order to guarantee correctness.
+--
+-- BUG: this function infinitely loops on variables (because
+-- 'traverse21' doesn't do what we actually want here). To get the
+-- behavior necessary for correctness, we'll prolly need to (a) not
+-- use 'evaluate', or else (b) define a version that accepts an
+-- argument dictating the evaluation strategy; since it seems like
+-- we can't easily clean things up afterwards like I was thinking...
 atomize :: (ABT Term abt) => TermEvaluator abt (Dis abt)
-atomize e = traverse21 atomizeCore =<< evaluate_ e
+atomize e =
+    trace ("atomize: " ++ show (pretty e)) $
+    traverse21 atomizeCore =<< evaluate_ e
 
 -- | Factored out from 'atomize' because we often need this more
 -- polymorphic variant when using our indexed 'Traversable' classes.
@@ -359,6 +372,7 @@ atomizeCore e =
 -- This is the function called @(<|)@ in the paper.
 constrainValue :: (ABT Term abt) => Whnf abt a -> abt '[] a -> Dis abt ()
 constrainValue v0 e0 =
+    trace ("constrainValue: " ++ show (pretty (fromWhnf v0)) ++ "\n" ++ show (pretty e0)) $
     caseVarSyn e0 (constrainVariable v0) $ \t ->
         case t of
         -- There's a bunch of stuff we don't even bother trying to handle
