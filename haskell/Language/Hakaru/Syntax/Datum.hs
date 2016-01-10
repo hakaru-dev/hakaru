@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.08
+--                                                    2016.01.09
 -- |
 -- Module      :  Language.Hakaru.Syntax.Datum
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -68,7 +68,7 @@ import Language.Hakaru.Types.DataKind
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 -- TODO: add @Sing (HData' t)@ to the Datum constructor?
--- TODO: change the kind to @(Hakaru -> *) -> HakaruCon Hakaru -> *@ so we can avoid the use of GADTs? Would that allow us to actually UNPACK?
+-- TODO: change the kind to @(Hakaru -> *) -> HakaruCon -> *@ so we can avoid the use of GADTs? Would that allow us to actually UNPACK?
 --
 -- | A fully saturated data constructor, which recurses as @ast@.
 -- We define this type as separate from 'DatumCode' for two reasons.

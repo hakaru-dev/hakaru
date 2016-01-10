@@ -223,16 +223,16 @@ sUnMaybe (SData (STyApp (STyCon _) a) _) = a
 sUnMaybe _ = error "sUnMaybe: the impossible happened"
 
 ----------------------------------------------------------------
-data instance Sing (a :: HakaruCon Hakaru) where
-    STyCon :: !(Sing s)              -> Sing ('TyCon s :: HakaruCon Hakaru)
-    STyApp :: !(Sing a) -> !(Sing b) -> Sing (a ':@ b  :: HakaruCon Hakaru)
+data instance Sing (a :: HakaruCon) where
+    STyCon :: !(Sing s)              -> Sing ('TyCon s :: HakaruCon)
+    STyApp :: !(Sing a) -> !(Sing b) -> Sing (a ':@ b  :: HakaruCon)
 
 
-instance Eq (Sing (a :: HakaruCon Hakaru)) where
+instance Eq (Sing (a :: HakaruCon)) where
     (==) = eq1
-instance Eq1 (Sing :: HakaruCon Hakaru -> *) where
+instance Eq1 (Sing :: HakaruCon -> *) where
     eq1 x y = maybe False (const True) (jmEq1 x y)
-instance JmEq1 (Sing :: HakaruCon Hakaru -> *) where
+instance JmEq1 (Sing :: HakaruCon -> *) where
     jmEq1 (STyCon s)   (STyCon z)   = jmEq1 s z >>= \Refl -> Just Refl
     jmEq1 (STyApp f a) (STyApp g b) =
         jmEq1 f g >>= \Refl ->
@@ -241,22 +241,22 @@ instance JmEq1 (Sing :: HakaruCon Hakaru -> *) where
     jmEq1 _ _ = Nothing
 
 
--- TODO: instance Read (Sing (a :: HakaruCon Hakaru))
+-- TODO: instance Read (Sing (a :: HakaruCon))
 
 
-instance Show (Sing (a :: HakaruCon Hakaru)) where
+instance Show (Sing (a :: HakaruCon)) where
     showsPrec = showsPrec1
     show      = show1
-instance Show1 (Sing :: HakaruCon Hakaru -> *) where
+instance Show1 (Sing :: HakaruCon -> *) where
     showsPrec1 p s =
         case s of
         STyCon s1    -> showParen_1  p "STyCon" s1
         STyApp s1 s2 -> showParen_11 p "STyApp" s1 s2
 
 
-instance TL.KnownSymbol s => SingI ('TyCon s :: HakaruCon Hakaru) where
+instance TL.KnownSymbol s => SingI ('TyCon s :: HakaruCon) where
     sing = STyCon sing
-instance (SingI a, SingI b) => SingI ((a ':@ b) :: HakaruCon Hakaru) where
+instance (SingI a, SingI b) => SingI ((a ':@ b) :: HakaruCon) where
     sing = STyApp sing sing
 
 
@@ -444,14 +444,14 @@ toSing (HData t xss) k =
 
 isCodeFor
     :: Sing (xss :: [[HakaruFun]])
-    -> Sing (t :: HakaruCon Hakaru)
+    -> Sing (t :: HakaruCon)
     -> Maybe (TypeEq xss (Code t))
 isCodeFor = error "TODO: isCodeFor"
     -- Potential approach: define @toCodeSing :: Sing t -> Sing (Code t)@ and then use 'jmEq1'.
 
 toSing_Con
-    :: HakaruCon Hakaru
-    -> (forall t. Sing (t :: HakaruCon Hakaru) -> r) -> r
+    :: HakaruCon
+    -> (forall t. Sing (t :: HakaruCon) -> r) -> r
 toSing_Con (TyCon s)  k = toSing_Symbol s $ \s' -> k (STyCon s')
 toSing_Con (t :@ a) k =
     toSing_Con t $ \t' ->

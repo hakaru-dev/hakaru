@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.15
+--                                                    2016.01.09
 -- |
 -- Module      :  Language.Hakaru.Types.DataKind
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -83,10 +83,8 @@ data Hakaru
 
     -- TODO: do we need to actually store the code? or can we get away with just requiring that the particular HakaruCon has a Code instance defined?
     -- | A user-defined polynomial datatype. Each such type is
-    -- specified by a \"tag\" (the @HakaruCon Hakaru@) which names
-    -- the type, and a sum-of-product representation of the type
-    -- itself.
-    | HData !(HakaruCon Hakaru) [[HakaruFun]]
+    -- specified by a \"tag\" (the @HakaruCon@) which names the type, and a sum-of-product representation of the type itself.
+    | HData !HakaruCon [[HakaruFun]]
 
     deriving (Read, Show)
 
@@ -137,7 +135,7 @@ deriving instance Typeable 'K
 -- of the constructor. The argument positions are necessary to do
 -- variable binding in Code. 'Symbol' is the kind of \"type level
 -- strings\".
-data HakaruCon a = TyCon !Symbol | HakaruCon a :@ a
+data HakaruCon = TyCon !Symbol | HakaruCon :@ Hakaru
     deriving (Read, Show)
 infixl 0 :@
 
@@ -148,7 +146,7 @@ deriving instance Typeable '(:@)
 -- | The Code type family allows users to extend the Hakaru language
 -- by adding new types. The right hand side is the sum-of-products
 -- representation of that type. See the \"built-in\" types for examples.
-type family   Code (a :: HakaruCon Hakaru) :: [[HakaruFun]]
+type family   Code (a :: HakaruCon) :: [[HakaruFun]]
 type instance Code ('TyCon "Bool")               = '[ '[], '[] ]
 type instance Code ('TyCon "Unit")               = '[ '[] ]
 type instance Code ('TyCon "Maybe"  ':@ a)       = '[ '[] , '[ 'K a ] ]
