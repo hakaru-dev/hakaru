@@ -261,12 +261,6 @@ instance (SingI a, SingI b) => SingI ((a ':@ b) :: HakaruCon) where
 
 
 ----------------------------------------------------------------
--- BUG: this whole section is a gross hack! the singletons for
--- symbols conveys no information, and thus is useless as a singleton.
--- 'jmEq_Symb' will always return false; but that should be easier
--- to work around than 'sing' always throwing an undefined-ness
--- exception.
-
 data instance Sing (s :: Symbol) where
     SingSymbol :: TL.KnownSymbol s => Proxy s -> Sing (s :: Symbol)
 
