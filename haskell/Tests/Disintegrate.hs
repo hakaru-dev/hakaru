@@ -48,6 +48,17 @@ normC = lam $ \y ->
         normal (real_ 0) (prob_ 1) >>= \x ->
         ann_ (SMeasure sUnit) (O.observe (normal x (prob_ 1)) y) >>
         dirac x
+{-
+-- Eliminating some redexes of 'normC', that is:
+    lam $ \y ->
+    normal (real_ 0) (prob_ 1) >>= \x ->
+    pose
+        (exp ((x - y) ^ nat_ 2 / real_ 4)
+        / (nat_ 2 `thRootOf` (prob_ 2 * pi)))
+    $ dirac x
+
+-- BUG: calling 'evaluate' on 'normC' doesn't seem to catch those redexes. Is that just because we're using call-by-need rather than CBV\/full-beta?
+-}
 
 test0, test0a, test0b
     :: [TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))]

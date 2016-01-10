@@ -121,6 +121,7 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
                 prettyNaryOp Iff      = ("`iff`", 0, Just "true")
                 prettyNaryOp (Min  _) = ("`min`", 5, Nothing)
                 prettyNaryOp (Max  _) = ("`max`", 5, Nothing)
+                -- TODO: pretty print @(+ negate)@ as @(-)@ and @(* recip)@ as @(/)@
                 prettyNaryOp (Sum  _) = ("+",     6, Just "zero")
                 prettyNaryOp (Prod _) = ("*",     7, Just "one")
             in
