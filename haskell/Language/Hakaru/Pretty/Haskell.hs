@@ -7,7 +7,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.11
+--                                                    2016.01.10
 -- |
 -- Module      :  Language.Hakaru.PrettyPrint
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -157,13 +157,20 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
                     , toDoc $ ppList (map (toDoc . prettyPrec_ 0) bs)
                     ]]
         Superpose_ pes ->
-            -- TODO: use the old PrettyPrint.hs's hack for when there's exactly one thing in the list; i.e., print as @weight w *> m@ with the appropriate do-notation indentation for @(*>)@ (or using 'pose' and @($)@)
-            ppFun p "superpose"
-                [ toDoc
-                . ppList
-                . map (\(e1,e2) -> ppTuple [pretty e1, pretty e2])
-                $ pes
-                ]
+            case pes of
+            [(e1,e2)] ->
+                -- Or we could print it as @weight e1 *> e2@ excepting that has an extra redex in it compared to the AST itself.
+                ppFun 11 "pose"
+                    [ toDoc (ppArg e1) <+> PP.char '$'
+                    , toDoc (ppArg e2)
+                    ]
+            _ ->
+                ppFun p "superpose"
+                    [ toDoc
+                    . ppList
+                    . map (\(e1,e2) -> ppTuple [pretty e1, pretty e2])
+                    $ pes
+                    ]
 
 
 -- | Pretty-print @(:$)@ nodes in the AST.
