@@ -5,6 +5,7 @@
            , TypeFamilies
            , FlexibleInstances
            , Rank2Types
+           , UndecidableInstances
            #-}
 
 {- -- DEBUG
@@ -13,7 +14,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.15
+--                                                    2016.01.09
 -- |
 -- Module      :  Language.Hakaru.Types.Sing
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -45,6 +46,12 @@ module Language.Hakaru.Types.Sing
     , sUnList
     , sUnMaybe
     ) where
+
+import qualified GHC.TypeLits as TL
+-- TODO: should we use 'GHC.Prim.Proxy#' instead?
+import Data.Proxy (Proxy(Proxy))
+-- TODO: should we just use @(TE.:~:)@ everywhere instead of our own 'TypeEq'?
+import qualified Data.Type.Equality as TE
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.DataKind
@@ -247,7 +254,7 @@ instance Show1 (Sing :: HakaruCon Hakaru -> *) where
         STyApp s1 s2 -> showParen_11 p "STyApp" s1 s2
 
 
-instance SingI ('TyCon s :: HakaruCon Hakaru) where
+instance TL.KnownSymbol s => SingI ('TyCon s :: HakaruCon Hakaru) where
     sing = STyCon sing
 instance (SingI a, SingI b) => SingI ((a ':@ b) :: HakaruCon Hakaru) where
     sing = STyApp sing sing
@@ -261,60 +268,46 @@ instance (SingI a, SingI b) => SingI ((a ':@ b) :: HakaruCon Hakaru) where
 -- exception.
 
 data instance Sing (s :: Symbol) where
-    SomeSymbol :: Sing (s :: Symbol)
-
+    SingSymbol :: TL.KnownSymbol s => Proxy s -> Sing (s :: Symbol)
 
 sSymbol_Bool   :: Sing "Bool"
-sSymbol_Bool = SomeSymbol
+sSymbol_Bool   = SingSymbol Proxy
 sSymbol_Unit   :: Sing "Unit"
-sSymbol_Unit = SomeSymbol
+sSymbol_Unit   = SingSymbol Proxy
 sSymbol_Pair   :: Sing "Pair"
-sSymbol_Pair = SomeSymbol
+sSymbol_Pair   = SingSymbol Proxy
 sSymbol_Either :: Sing "Either"
-sSymbol_Either = SomeSymbol
+sSymbol_Either = SingSymbol Proxy
 sSymbol_List   :: Sing "List"
-sSymbol_List = SomeSymbol
+sSymbol_List   = SingSymbol Proxy
 sSymbol_Maybe  :: Sing "Maybe"
-sSymbol_Maybe = SomeSymbol
+sSymbol_Maybe  = SingSymbol Proxy
 
 
-instance Eq (Sing (a :: Symbol)) where
+instance Eq (Sing (s :: Symbol)) where
     (==) = eq1
 instance Eq1 (Sing :: Symbol -> *) where
     eq1 x y = maybe False (const True) (jmEq1 x y)
 instance JmEq1 (Sing :: Symbol -> *) where
-    {-
-    jmEq1 SSymbol_Bool   SSymbol_Bool   = Just Refl
-    jmEq1 SSymbol_Unit   SSymbol_Unit   = Just Refl
-    jmEq1 SSymbol_Pair   SSymbol_Pair   = Just Refl
-    jmEq1 SSymbol_Either SSymbol_Either = Just Refl
-    jmEq1 SSymbol_List   SSymbol_List   = Just Refl
-    jmEq1 SSymbol_Maybe  SSymbol_Maybe  = Just Refl
-    -}
-    jmEq1 _ _ = Nothing
+     jmEq1 (SingSymbol p1) (SingSymbol p2) = do
+        TE.Refl <- TL.sameSymbol p1 p2
+        return Refl
 
+-- TODO: is any meaningful Read (Sing (a :: Symbol)) instance possible?
 
--- TODO: instance Read (Sing (a :: Symbol))
-
-
-instance Show (Sing (a :: Symbol)) where
+instance Show (Sing (s :: Symbol)) where
     showsPrec = showsPrec1
     show      = show1
 instance Show1 (Sing :: Symbol -> *) where
-    showsPrec1 _ s = showString "SomeSymbol"
-    {-
-        case s of
-        SSymbol_Bool   -> showString "SSymbol_Bool"
-        SSymbol_Unit   -> showString "SSymbol_Unit"
-        SSymbol_Pair   -> showString "SSymbol_Pair"
-        SSymbol_Either -> showString "SSymbol_Either"
-        SSymbol_List   -> showString "SSymbol_List"
-        SSymbol_Maybe  -> showString "SSymbol_Maybe"
-    -}
+    showsPrec1 _ (SingSymbol s) =
+        showParen True
+            ( showString "SingSymbol Proxy :: Sing "
+            . showString (show $ TL.symbolVal s)
+            )
 
-
-instance SingI (s :: Symbol) where
-    sing = SomeSymbol
+-- Alas, this requires UndecidableInstances
+instance TL.KnownSymbol s => SingI (s :: Symbol) where
+    sing = SingSymbol Proxy
 
 
 ----------------------------------------------------------------
@@ -466,10 +459,15 @@ toSing_Con (t :@ a) k =
     k (STyApp t' a')
 
 
+-- BUG: The first argument must be of (the uninhabited) type 'Symbol' for 'toSing_Con' to use it; however, it only makes sense as being type 'String' (for which the given definition does what we want).
 toSing_Symbol
     :: Symbol
-    -> (forall s. Sing (s :: Symbol) -> r) -> r
-toSing_Symbol s k = k SomeSymbol
+    -> (forall (s :: Symbol). Sing s -> r) -> r
+toSing_Symbol s k = error "TODO: toSing_Symbol"
+    {-
+    case TL.someSymbolVal s of
+    TL.SomeSymbol p -> k (SingSymbol p)
+    -}
 
 
 toSing_Code
