@@ -15,7 +15,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.01.08
+--                                                    2016.01.09
 -- |
 -- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -67,8 +67,10 @@ import           Control.Applicative  (Alternative(..))
 import           Control.Monad        ((<=<))
 import qualified Data.Traversable     as T
 import qualified Data.Text            as Text
+import qualified Data.IntMap          as IM
 import           Data.Sequence        (Seq)
 import qualified Data.Sequence        as S
+import           Data.Proxy           (KProxy(..))
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.DataKind
@@ -356,10 +358,30 @@ atomize e =
 -- | Factored out from 'atomize' because we often need this more
 -- polymorphic variant when using our indexed 'Traversable' classes.
 atomizeCore :: (ABT Term abt) => abt xs a -> Dis abt (abt xs a)
-atomizeCore e =
-    let (xs, e') = caseBinds e
-    in  (binds_ xs . fromWhnf) <$> atomize e'
+atomizeCore e = do
+    -- HACK: this is only an ad-hoc solution. If the call to 'evaluate_' in 'atomize' returns a neutral term which contains heap-bound variables, then we'll still loop forever since we don't traverse\/fmap over the top-level term constructor of neutral terms.
+    xs <- getHeapVars
+    if disjointVarSet xs (freeVars e)
+        then return e
+        else
+            let (xs, e') = caseBinds e
+            in  (binds_ xs . fromWhnf) <$> atomize e'
+    where
+    -- TODO: does @IM.null . IM.intersection@ fuse correctly?
+    disjointVarSet xs ys =
+        IM.null (IM.intersection (unVarSet xs) (unVarSet ys))
 
+
+statementVars :: Statement abt -> VarSet ('KProxy :: KProxy Hakaru)
+statementVars (SBind x _)    = singletonVarSet x
+statementVars (SLet  x _)    = singletonVarSet x
+statementVars (SIndex x _ _) = singletonVarSet x
+statementVars (SWeight _)    = emptyVarSet
+
+-- HACK: if we really want to go through with this approach, then we should memoize the set of heap-bound variables in the 'ListContext' itself rather than recomputing it every time!
+getHeapVars :: Dis abt (VarSet ('KProxy :: KProxy Hakaru))
+getHeapVars =
+    Dis $ \c h -> c (foldMap statementVars (statements h)) h
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------

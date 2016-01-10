@@ -563,6 +563,7 @@ subst
     -> abt xs   b
 subst x e = start
     where
+    -- TODO: we could use the director-strings approach to optimize this (for MemoizedABT, but pessimizing for TrivialABT) by first checking whether @x@ is free in @f@; if so then recurse, if not then we're done.
     start :: forall xs' b'. abt xs' b' -> abt xs' b'
     start f = loop f (viewABT f)
 
