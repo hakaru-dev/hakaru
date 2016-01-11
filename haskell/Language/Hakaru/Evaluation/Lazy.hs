@@ -176,6 +176,7 @@ evaluate perform = evaluate_
                     -- TODO: print more info about where this happened
                     error "evaluate: non-exhaustive patterns in case!"
                 Just (GotStuck, _) ->
+                    -- TODO: we should still try to go and evaluate @bs@, treating the pattern-bound variables as free vars (and if the scrutinee is a free var, then binding it to the pattern viewed as a value; (if the scrutinee is some other neutral term, then we'd need to invert it to be able to propagate the information inwards...))
                     return . Neutral . syn $ Case_ e bs
                 Just (Matched ss Nil1, body) ->
                     pushes (toStatements ss) body evaluate_
@@ -548,7 +549,7 @@ head2array _              = error "head2array: the impossible happened"
 
 
 ----------------------------------------------------------------
--- TODO: maybe we should adjust 'Whnf' to have a third option for closed terms of the atomic\/literal types, so that we can avoid reducing them just yet. Of course, we'll have to reduce them eventually, but we can leave that for the runtime evaluation or Maple or whatever.
+-- TODO: maybe we should adjust 'Whnf' to have a third option for closed terms of the atomic\/literal types, so that we can avoid reducing them just yet. Of course, we'll have to reduce them eventually, but we can leave that for the runtime evaluation or Maple or whatever. These are called \"annotated\" terms in Fischer et al 2008 (though they allow anything to be annotated, not just closed terms of atomic type).
 evaluatePrimOp
     :: forall abt m typs args a
     .  ( ABT Term abt, EvaluationMonad abt m
