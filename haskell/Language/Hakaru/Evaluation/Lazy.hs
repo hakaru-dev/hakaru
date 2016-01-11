@@ -140,7 +140,7 @@ evaluate perform = evaluate_
                 Neutral e1' -> return . Neutral $ P.app e1' e2
                 Head_   v1  -> evaluateApp v1
             where
-            evaluateApp (WAnn _ v) = evaluateApp v
+            evaluateApp (WAnn _ v) = evaluateApp v -- TODO: should we add the annotation back onto the result?
             evaluateApp (WLam f)   =
                 -- call-by-name:
                 caseBind f $ \x f' ->
@@ -413,6 +413,7 @@ evaluateNaryOp evaluate_ = \o es -> mainLoop o (evalOp o) Seq.empty es
         -> Whnf abt a
         -> Seq (Whnf abt a)
     snocLoop op ws w1 =
+        -- TODO: immediately return @ws@ if @w1 == identityElement o@ (whenever identityElement is defined)
         case Seq.viewr ws of
         Seq.EmptyR    -> Seq.singleton w1
         ws' Seq.:> w2 ->
@@ -444,7 +445,7 @@ evaluateNaryOp evaluate_ = \o es -> mainLoop o (evalOp o) Seq.empty es
         Iff    -> Head_ (WDatum dTrue)
         Min  _ -> Neutral (syn (NaryOp_ o Seq.empty)) -- no identity in general (but we could do it by cases...)
         Max  _ -> Neutral (syn (NaryOp_ o Seq.empty)) -- no identity in general (but we could do it by cases...)
-        -- TODO: figure out how to reuse 'P.zero_' and 'P.one_' here
+        -- TODO: figure out how to reuse 'P.zero_' and 'P.one_' here; requires converting thr @(syn . Literal_)@ into @(Head_ . WLiteral)@. Maybe we should change 'P.zero_' and 'P.one_' so they just return the 'Literal' itself rather than the @abt@?
         Sum  HSemiring_Nat  -> Head_ (WLiteral (LNat  0))
         Sum  HSemiring_Int  -> Head_ (WLiteral (LInt  0))
         Sum  HSemiring_Prob -> Head_ (WLiteral (LProb 0))
@@ -510,7 +511,7 @@ evaluateArrayOp evaluate_ = go
             Head_   v1  ->
                 case head2array v1 of
                 Nothing ->
-                    error "TODO: use bot"
+                    error "TODO: evaluateArrayOp{Index}: use bot"
                 Just WAEmpty ->
                     error "evaluate: indexing into empty array!"
                 Just (WAArray e3 e4) ->
@@ -524,7 +525,7 @@ evaluateArrayOp evaluate_ = go
             Neutral e1' -> return . Neutral $ syn (ArrayOp_ o :$ e1' :* End)
             Head_   v1  ->
                 case head2array v1 of
-                Nothing             -> error "TODO: use bot"
+                Nothing             -> error "TODO: evaluateArrayOp{Size}: use bot"
                 Just WAEmpty        -> return . Head_ $ WLiteral (LNat 0)
                 Just (WAArray e3 _) -> evaluate_ e3
 
@@ -547,6 +548,7 @@ head2array _              = error "head2array: the impossible happened"
 
 
 ----------------------------------------------------------------
+-- TODO: maybe we should adjust 'Whnf' to have a third option for closed terms of the atomic\/literal types, so that we can avoid reducing them just yet. Of course, we'll have to reduce them eventually, but we can leave that for the runtime evaluation or Maple or whatever.
 evaluatePrimOp
     :: forall abt m typs args a
     .  ( ABT Term abt, EvaluationMonad abt m
