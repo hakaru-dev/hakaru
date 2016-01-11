@@ -109,15 +109,15 @@ jmEq_S _         _  _          _   = Nothing
 -- TODO: Handle jmEq2 of pat and pat'
 jmEq_Branch
     :: (ABT Term abt, JmEq2 abt)
-    => [Branch a abt b]
-    -> [Branch a abt b']
+    => [(Branch a abt b, Branch a abt b')]
     -> Maybe (TypeEq b b')
-jmEq_Branch [Branch pat e] [Branch pat' e'] = do
+jmEq_Branch []                                  = Nothing
+jmEq_Branch [(Branch pat e, Branch pat' e')]    = do
     (Refl, Refl) <- jmEq2 e e'
     return Refl
-jmEq_Branch ((Branch pat e):es) ((Branch pat' e'):es') = do
+jmEq_Branch ((Branch pat e, Branch pat' e'):es) = do
     (Refl, Refl) <- jmEq2 e e'
-    jmEq_Branch es es'
+    jmEq_Branch es
 
 instance JmEq2 abt => JmEq1 (SArgs abt) where
     jmEq1 End       End       = Just Refl
@@ -145,7 +145,7 @@ instance (ABT Term abt, JmEq2 abt) => JmEq1 (Term abt) where
     jmEq1 (Datum_ _)     (Datum_ _)    = error "TODO jmEq1{Datum_}"
     jmEq1 (Case_  a bs)  (Case_  a' bs')     = do
         (Refl, Refl) <- jmEq2 a a'
-        jmEq_Branch bs bs'
+        jmEq_Branch (zip bs bs')
     jmEq1 (Superpose_ pms) (Superpose_ pms') = do
       (Refl,Refl):_ <- sequence $ map jmEq_Tuple (zip pms pms')
       return Refl
