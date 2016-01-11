@@ -45,6 +45,7 @@ symTable =
     , ("Prob",     "prob")
     , ("Measure",  "measure")
     , ("Pair",     "pair")
+    , ("Bool",     "bool")
     ]
 
 type TokenParser a = Token.GenTokenParser Text a Identity

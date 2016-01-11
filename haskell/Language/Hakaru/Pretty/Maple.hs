@@ -58,6 +58,7 @@ mapleAST (LC_ e) =
         -- Special case pair
         Datum_ (Datum "pair" (Inl (Et (Konst a) (Et (Konst b) Done)))) ->
             app2 "Pair" a b
+        Datum_ (Datum "true" (Inl Done)) -> "True"
         Datum_ d       -> error "TODO: Add mapleAST{Datum}"
         Superpose_ pms ->
             "Msum(" ++ intercalate ", " (map wmtom pms) ++ ")"
@@ -112,6 +113,9 @@ mapleType (SData _ (SPlus (SEt (SKonst a)
                             SDone))
                     SVoid))
     = "Pair(" ++ mapleType a ++ "," ++ mapleType b ++ ")"
+-- Special case bool
+mapleType (SData _ (SPlus SDone (SPlus SDone SVoid)))
+    = "Bool"
 
 mapleLiteral :: Literal a -> String
 mapleLiteral (LNat  v) = show v
