@@ -142,8 +142,8 @@ instance (ABT Term abt, JmEq2 abt) => JmEq1 (Term abt) where
         (Refl, Refl) <- jmEq2 i j
         (Refl, Refl) <- jmEq2 f g
         Just Refl
-    jmEq1 (Datum_ _)     (Datum_ _)    = error "TODO jmEq1{Datum_}"
-    jmEq1 (Case_  a bs)  (Case_  a' bs')     = do
+    jmEq1 (Datum_ _)    (Datum_ _)     = error "TODO jmEq1{Datum_}"
+    jmEq1 (Case_  a bs) (Case_  a' bs')      = do
         (Refl, Refl) <- jmEq2 a a'
         jmEq_Branch (zip bs bs')
     jmEq1 (Superpose_ pms) (Superpose_ pms') = do
