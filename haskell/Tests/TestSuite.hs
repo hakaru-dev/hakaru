@@ -13,10 +13,10 @@ import Test.HUnit
 
 allTests :: Test
 allTests = test
-  [ P.allTests
-  , TC.allTests
-  , S.allTests
-  , D.allTests
+  [ TestLabel "Parser"       P.allTests
+  , TestLabel "TypeCheck"    TC.allTests
+  , TestLabel "Simplify"     S.allTests
+  , TestLabel "Disintegrate" D.allTests
   ]
 
 main :: IO ()
