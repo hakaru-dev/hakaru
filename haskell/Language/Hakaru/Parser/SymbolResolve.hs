@@ -97,8 +97,11 @@ primLeft       = TLam $ TNeu . U.Datum_ .
                         U.Datum "left" . U.Inl . (`U.Et` U.Done) . U.Konst
 primRight      = TLam $ TNeu . U.Datum_ .
                         U.Datum "right" . U.Inr . U.Inl . (`U.Et` U.Done) . U.Konst
-primTrue       = TNeu . U.Datum_ . U.Datum "true"  . U.Inl $ U.Done
-primFalse      = TNeu . U.Datum_ . U.Datum "false" . U.Inr . U.Inl $ U.Done
+primTrue       = TNeu $ U.Ann_ (U.Datum_ . U.Datum "true"  . U.Inl $ U.Done)
+                               (U.SSing sBool)
+primFalse      = TNeu $ U.Ann_
+                            (U.Datum_ . U.Datum "false" . U.Inr . U.Inl $ U.Done)
+                            (U.SSing sBool)
 primFromProb   =
     TLam $ TNeu . U.CoerceTo_ (Some2 $ CCons (Signed HRing_Real) CNil)
 primUnsafeProb =
