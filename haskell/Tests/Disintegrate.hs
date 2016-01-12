@@ -12,7 +12,7 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Syntax.Prelude
-import Language.Hakaru.Pretty.Haskell   (pretty)
+-- import Language.Hakaru.Pretty.Haskell   (pretty)
 import Language.Hakaru.Evaluation.DisintegrationMonad (runDis)
 import Language.Hakaru.Syntax.IClasses  (Some2(..))
 import Language.Hakaru.Disintegrate
