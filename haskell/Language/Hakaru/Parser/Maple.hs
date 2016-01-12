@@ -147,7 +147,7 @@ rename x =
     Nothing -> x
 
 parseMaple :: Text -> Either ParseError InertExpr
-parseMaple = runParser (expr <* eof) () "<input>"
+parseMaple txt = runParser (expr <* eof) () (show txt) txt
 
 maple2AST :: InertExpr -> AST' Text
 maple2AST (InertNum Pos i) = ULiteral $ Nat $ fromInteger i
