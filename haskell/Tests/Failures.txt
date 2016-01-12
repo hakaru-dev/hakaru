@@ -1,110 +1,40 @@
-As of Wed. May. 27th, the failures are as follows:
+[Note: this is a completely different test suite than the old
+one.  See history for an analysis of the tests related to the
+SLO version of simplify rather than NewSLO]
 
-Rob would like test rmProg4 to roundtrip
-  -- Jacques replies: this is a prototypical case where we 
-     really need 'constrain'.
-  -- what is in the test currently roundtrips, but it is far
-     from fully simplified.
+As of Tue. Jan. 12th 2016, the failures are as follows.  The list
+include the name of the test, the person(s) most likely responsible for
+looking at the failures, and the diagnosis:
 
-Real bugs:
-testTrueDetectionL, testTrueDetectionR : due to fundamental 
-  assumptions inside simp routines that frozen expressions 
-  are 'polynomial'.  This assumption is *wrong*.
+Parser (none)
+TypeCheck (none)
+Simplify
+- realpair (Wren)
+  TODO jmEq1{Datum_}
+- unifprob (Jacques)
+  "Type Mismatch: expected SMeasure SProb, found SMeasure SReal"
+- true' (Wren)
+  TODO typeOf_{Datum_}
 
-t50, t21
+Disintegrate
+- test1 (Wren)
+  TODO typeOf_{Datum_}
+- test1a (Praveen?  Ken?)
+(looks like this returns an answer where none is expected)
+expected: []
+ but got: [syn (Lam_ :$ ((bind (Variable "" (Nat 2) SReal) (syn (MBind :$ ((syn ((MeasureOp_ Normal) :$ ((syn (Literal_ (LReal (0 % 1)))) :* ((syn (Literal_ (LProb (1 % 1)))) :* End)))) :* ((bind (Variable "" (Nat 1) SReal) (syn (MBind :$ ((syn ((Ann_ (SMeasure (SData (STyCon (SingSymbol Proxy :: Sing "Unit")) (SPlus SDone SVoid)))) :$ ((syn (Superpose_ [(syn (NaryOp_ (Prod HSemiring_Prob) (Seq.fromList [syn ((PrimOp_ Exp) :$ ((syn (NaryOp_ (Prod HSemiring_Real) (Seq.fromList [syn ((PrimOp_ (NatPow HSemiring_Real)) :$ ((syn (NaryOp_ (Sum HSemiring_Real) (Seq.fromList [syn ((PrimOp_ (Negate HRing_Real)) :$ ((var (Variable "" (Nat 2) SReal)) :* End)),var (Variable "" (Nat 1) SReal)]))) :* ((syn (Literal_ (LNat 2))) :* End))),syn ((PrimOp_ (Recip HFractional_Real)) :$ ((syn ((CoerceTo_ (CCons (Signed HRing_Real) CNil)) :$ ((syn (NaryOp_ (Prod HSemiring_Prob) (Seq.fromList [syn (Literal_ (LProb (2 % 1))),syn ((PrimOp_ RealPow) :$ ((syn (Literal_ (LProb (1 % 1)))) :* ((syn (Literal_ (LReal (2 % 1)))) :* End)))]))) :* End))) :* End))]))) :* End)),syn ((PrimOp_ (Recip HFractional_Prob)) :$ ((syn (Literal_ (LProb (1 % 1)))) :* End)),syn ((PrimOp_ (Recip HFractional_Prob)) :$ ((syn ((PrimOp_ (NatRoot HRadical_Prob)) :$ ((syn (NaryOp_ (Prod HSemiring_Prob) (Seq.fromList [syn (Literal_ (LProb (2 % 1))),syn ((PrimOp_ Pi) :$ End)]))) :* ((syn (Literal_ (LNat 2))) :* End)))) :* End))])),syn (Dirac :$ ((syn (Datum_ (Datum "unit" (Inl Done)))) :* End)))])) :* End))) :* ((bind (Variable "" (Nat 0) (SData (STyCon (SingSymbol Proxy :: Sing "Unit")) (SPlus SDone SVoid))) (syn (Dirac :$ ((var (Variable "" (Nat 1) SReal)) :* End)))) :* End))))) :* End))))) :* End))]
+- test1b (Praveen? Ken?)
+expected: []
+(also looks like this returns an answer where none is expected)
+ but got: [syn (Lam_ :$ ((bind (Variable "" (Nat 2) SReal) (syn (MBind :$ ((syn ((MeasureOp_ Normal) :$ ((syn (Literal_ (LReal (0 % 1)))) :* ((syn (Literal_ (LProb (1 % 1)))) :* End)))) :* ((bind (Variable "" (Nat 1) SReal) (syn (MBind :$ ((syn ((Ann_ (SMeasure (SData (STyCon (SingSymbol Proxy :: Sing "Unit")) (SPlus SDone SVoid)))) :$ ((syn (Superpose_ [(syn (NaryOp_ (Prod HSemiring_Prob) (Seq.fromList [syn ((PrimOp_ Exp) :$ ((syn (NaryOp_ (Prod HSemiring_Real) (Seq.fromList [syn ((PrimOp_ (NatPow HSemiring_Real)) :$ ((syn (NaryOp_ (Sum HSemiring_Real) (Seq.fromList [syn ((PrimOp_ (Negate HRing_Real)) :$ ((var (Variable "" (Nat 2) SReal)) :* End)),var (Variable "" (Nat 1) SReal)]))) :* ((syn (Literal_ (LNat 2))) :* End))),syn ((PrimOp_ (Recip HFractional_Real)) :$ ((syn ((CoerceTo_ (CCons (Signed HRing_Real) CNil)) :$ ((syn (NaryOp_ (Prod HSemiring_Prob) (Seq.fromList [syn (Literal_ (LProb (2 % 1))),syn ((PrimOp_ RealPow) :$ ((syn (Literal_ (LProb (1 % 1)))) :* ((syn (Literal_ (LReal (2 % 1)))) :* End)))]))) :* End))) :* End))]))) :* End)),syn ((PrimOp_ (Recip HFractional_Prob)) :$ ((syn (Literal_ (LProb (1 % 1)))) :* End)),syn ((PrimOp_ (Recip HFractional_Prob)) :$ ((syn ((PrimOp_ (NatRoot HRadical_Prob)) :$ ((syn (NaryOp_ (Prod HSemiring_Prob) (Seq.fromList [syn (Literal_ (LProb (2 % 1))),syn ((PrimOp_ Pi) :$ End)]))) :* ((syn (Literal_ (LNat 2))) :* End)))) :* End))])),syn (Dirac :$ ((syn (Datum_ (Datum "unit" (Inl Done)))) :* End)))])) :* End))) :* ((bind (Variable "" (Nat 0) (SData (STyCon (SingSymbol Proxy :: Sing "Unit")) (SPlus SDone SVoid))) (syn (Dirac :$ ((var (Variable "" (Nat 1) SReal)) :* End)))) :* End))))) :* End))))) :* End))]
 
-Needs investigation:
-t57, t58, t9
+=========
 
-Unimplemented features:
-Vector: t19, t20, t29, all in Vector
-First-class functions: all in Function
-Change of variables: t1, t3, t4, t5, t12, t13, t16, 
-  t17, t18, t23, t27, t28
+Notes: there seems to be some debugging output by default, as I see items
+like
 
-all others - sub-optimal simplification, or ordering problem
-==================
+perform: normal (real_ (0 % 1)) (prob_ (1 % 1)) >>= \ _1 ->
+normal _1 (prob_ (1 % 1)) >>= \ _0 ->
+dirac (pair _0 _1)
 
-RoundTrip:
-t56 - ordering difference
-t57 - probable bug in convert/Heaviside
-t58 - probable bug in convert/Heaviside
-t60 - ordering difference
-t62 - round-trips, but normalizes differently
-t63 - round-trips, but normalizes differently
-t64 - t64 and t64' don't simplify to the same t64'', just close!
-t65 - different now, need to investigate
-t45 - pw/domain interaction with density recognition
-t50 - Prob/Real inference issue
-t78 - expects a change of variables?
-t80 - how do I infer a type from csgn(h1)
-t81 - maple converts pi to pi_ but expects HReal not HProb
-seismic - time expired
-t52 - ordering issue
-mhPriorProp - difference in result (not analyzed yet)
-easyHMM - time expired
-t75 - time expired
-t75' - time expired
-exceptionCounting - counting mis-simplifies
-testRoadMapProg1 - time expired
-                 - too many levels of recursion
-testKernel - failure to recognize a normal under a conditional
-testFalseDetection: time expired
-testTrueDetectionL: 1 <= FAIL
-testTrueDetectionR: 1 <= FAIL
-
-Syntax:
-pair1fst/snd - beta instead of list/categorical
-testLinregSimp - time expired
-testdistLinregSimp - ordering problem
-testLinreg - ignored
-gamalonDis - time expired
-
-Relationships:
-t1 - no simplification because change of variables not implemented
-t3 - no simplification because change of variables not implemented
-t4 - no simplification because change of variables not implemented
-t5 - no simplification because change of variables not implemented
-t8 - normalization difference
-t9 - gets a funky looking answer now 
-t11 - fromProb maps too far in?
-t12 - no simplification because change of variables not implemented
-t13 - no simplification because change of variables not implemented
-t14 - just printing issue
-t16 - no simplification because change of variables not implemented
-t17 - ordering problem
-t18 - no simplification because change of variables not implemented
-t19 - reasoning about Reduce
-t20 - reasoning about Reduce
-t21 - GAMMA(h3+1) in mkProb
-t22 - first factor is not normalized
-t23 - no simplification because change of variables not implemented
-t24 - slightly different printing (fromProb farther in)
-t25 - need to analyse further
-t26 - difference in printing
-t27 - no simplification because change of variables not implemented
-t28 - no simplification because change of variables not implemented
-t29 - reasoning about Reduce
-
-Vector: (not all fail anymore!)
-testUnrolling - reasoning about Reduce
-testUnity - no simplification of counting (to categorical)
-testInside - Vector return type not implemented
-testPull - reasoning about Reduce
-t75 - reasoning about Reduce
-testConj - reasoning about Reduce
-testPlateDirac - Vector type inference missing
-
-Embed:
-P2-id: parse error?
-
-Lazy:
-zeroAddInt: counting simplification not done
-easierRoadmapProg1: time expired
-
-Function:
-t41 - first class functions
-pairFun - first class functions
-pairFunSimp - first class functions
-unknownMeasure - first class functions
-
+interspersed in the output.  This appears to come from test1 ?
