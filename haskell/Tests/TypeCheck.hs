@@ -78,7 +78,7 @@ testTC uast tast =
     Left _err                 -> assertFailure (show tast)
     Right (TypedAST _typ ast) ->
         case jmEq1 ast tast of
-        Just Refl -> assertEqual "" ast tast
+        Just Refl -> assertEqual "" tast ast
         Nothing   -> assertFailure
             (show ast ++ " does not have same type as " ++ show tast)
 
@@ -87,7 +87,7 @@ testConcreteTC s ast =
     testWithConcrete s StrictMode
          (\(TypedAST _typ tast) ->
               case jmEq1 ast tast of
-                Just Refl -> assertEqual "" ast tast
+                Just Refl -> assertEqual "" tast ast
                 Nothing   -> assertFailure
                   (show ast ++ " does not have same type as " ++ show tast))
 

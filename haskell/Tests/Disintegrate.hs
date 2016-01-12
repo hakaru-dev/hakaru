@@ -76,7 +76,7 @@ test1b = disintegrate normB
 
 allTests :: Test
 allTests = test
-   [ assertEqual "" test1  [normC]
-   , assertEqual "" test1a [normC]
-   , assertEqual "" test1b [normC]
+   [ assertEqual "" [normC] test1 
+   , assertEqual "" [normC] test1a
+   , assertEqual "" [normC] test1b
    ]
