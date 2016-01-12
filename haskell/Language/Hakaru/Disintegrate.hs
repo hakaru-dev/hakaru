@@ -340,16 +340,8 @@ performWhnf (Neutral e) = (Neutral . var) <$> emitMBind e
 -- really be the purview of 'evaluate', but the goal of which is
 -- to ensure that no heap-bound variables occur in the input term.
 --
--- This is the function called @(|>)@ in the paper. The core idea
--- of this function is @'evaluate' 'perform'@, but we call that
--- recursively in order to guarantee correctness.
---
--- BUG: this function infinitely loops on variables (because
--- 'traverse21' doesn't do what we actually want here). To get the
--- behavior necessary for correctness, we'll prolly need to (a) not
--- use 'evaluate', or else (b) define a version that accepts an
--- argument dictating the evaluation strategy; since it seems like
--- we can't easily clean things up afterwards like I was thinking...
+-- BUG: this function infinitely loops in certain circumstances
+-- (namely when dealing with neutral terms)
 atomize :: (ABT Term abt) => TermEvaluator abt (Dis abt)
 atomize e =
     trace ("atomize: " ++ show (pretty e)) $
@@ -359,7 +351,11 @@ atomize e =
 -- polymorphic variant when using our indexed 'Traversable' classes.
 atomizeCore :: (ABT Term abt) => abt xs a -> Dis abt (abt xs a)
 atomizeCore e = do
-    -- HACK: this is only an ad-hoc solution. If the call to 'evaluate_' in 'atomize' returns a neutral term which contains heap-bound variables, then we'll still loop forever since we don't traverse\/fmap over the top-level term constructor of neutral terms.
+    -- HACK: this is only an ad-hoc solution. If the call to
+    -- 'evaluate_' in 'atomize' returns a neutral term which contains
+    -- heap-bound variables, then we'll still loop forever since
+    -- we don't traverse\/fmap over the top-level term constructor
+    -- of neutral terms.
     xs <- getHeapVars
     if disjointVarSet xs (freeVars e)
         then return e
