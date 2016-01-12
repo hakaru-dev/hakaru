@@ -47,16 +47,16 @@ true' = true
 testSimplify :: ( ABT Term abt
                 , Show (abt '[] a)
                 , Eq   (abt '[] a))
-               => abt '[] a -> abt '[] a -> Assertion
-testSimplify x y = do
+               => String -> abt '[] a -> abt '[] a -> Assertion
+testSimplify nm x y = do
   x' <- simplify x
-  assertEqual "" x' y 
+  assertEqual nm x' y 
 
 allTests :: Test
 allTests = test
-   [ testSimplify freevar freevar
-   , testSimplify normal01T normal01T
-   , testSimplify realpair realpair
-   , testSimplify unifprob unifprob
-   , testSimplify true' true'
+   [ testSimplify "freevar" freevar freevar
+   , testSimplify "normal01T" normal01T normal01T
+   , testSimplify "realpair" realpair realpair
+   , testSimplify "unifprob" unifprob unifprob
+   , testSimplify "true'" true' true'
    ]

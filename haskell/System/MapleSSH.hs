@@ -45,8 +45,9 @@ maple cmd = do
     c <- hGetContents outH
     length c `seq` hClose outH
     exit <- waitForProcess p'
-    case exit of ExitSuccess -> return $ trim c
-                 _ -> error ("maple:" ++ show exit)
+    case exit of
+      ExitSuccess -> return $ trim c
+      _           -> error ("maple returned exit code: " ++ show exit)
 
 trim :: String -> String
 trim = dropWhile isSpace

@@ -12,7 +12,7 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Syntax.Prelude
-import Language.Hakaru.Pretty.Haskell   (pretty)
+-- import Language.Hakaru.Pretty.Haskell   (pretty)
 import Language.Hakaru.Evaluation.DisintegrationMonad (runDis)
 import Language.Hakaru.Syntax.IClasses  (Some2(..))
 import Language.Hakaru.Disintegrate
@@ -76,7 +76,7 @@ test1b = disintegrate normB
 
 allTests :: Test
 allTests = test
-   [ assertEqual "" [normC] test1 
-   , assertEqual "" [normC] test1a
-   , assertEqual "" [normC] test1b
+   [ assertEqual "test1"  [normC] test1 
+   , assertEqual "test1a" [normC] test1a
+   , assertEqual "test1b" [normC] test1b
    ]
