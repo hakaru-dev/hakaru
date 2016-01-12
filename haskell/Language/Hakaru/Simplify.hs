@@ -66,7 +66,7 @@ simplify e = do
     let slo = toMaple e
     hakaru <- maple ("timelimit(15,NewSLO:-RoundTripLO(" ++ slo ++ "));")
     either (throw . MapleException slo) return $ do
-        past <- leftShow $ parseMaple (pack . removeWhitespace $ hakaru)
+        past <- leftShow $ parseMaple (pack . trim $ hakaru)
         let m = checkType (typeOf e) (resolveAST $ maple2AST past) 
         leftShow $ unTCM m (freeVars e) UnsafeMode
             
@@ -75,8 +75,8 @@ simplify e = do
     leftShow (Left err) = Left (show err)
     leftShow (Right x)  = Right x
 
-    removeWhitespace :: String -> String
-    removeWhitespace = filter (not . isSpace)
+    trim :: String -> String
+    trim = dropWhile isSpace
 
 toMaple :: (ABT Term abt) => abt '[] a -> String
 toMaple = runMaple 
