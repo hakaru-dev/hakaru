@@ -274,6 +274,7 @@ showParen_111 p s e1 e2 e3 =
 class Eq1 (a :: k -> *) where
     eq1 :: a i -> a i -> Bool
     -- TODO: how do we give the default instance for whenever we have a JmEq1 instance?
+    -- TODO: is there a way to require the induced @Eq (a i)@ instance to be given?
 
 
 class Eq2 (a :: k1 -> k2 -> *) where

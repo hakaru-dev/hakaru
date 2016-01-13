@@ -92,7 +92,11 @@ datumHint :: Datum ast (HData' t) -> Text
 datumHint (Datum hint _) = hint
 
 instance JmEq1 ast => JmEq1 (Datum ast) where
-    jmEq1 (Datum _ d1) (Datum _ d2) = undefined
+    jmEq1 (Datum _ d1) (Datum _ d2) =
+        error "TODO: JmEq1@Datum"
+        {- BUG: type error due to 'Code' being a typefamily
+        jmEq1 d1 d2
+        -}
 
 instance Eq1 ast => Eq1 (Datum ast) where
     eq1 (Datum _ d1) (Datum _ d2) = eq1 d1 d2
@@ -146,10 +150,18 @@ data DatumCode :: [[HakaruFun]] -> (Hakaru -> *) -> Hakaru -> * where
 -- codes, and (2) the code is always getting smaller; so we have
 -- a good enough inductive hypothesis from polymorphism alone.
 
+instance JmEq1 ast => JmEq1 (DatumCode xss ast) where
+    jmEq1 (Inr c) (Inr d) = jmEq1 c d
+    jmEq1 (Inl c) (Inl d) = jmEq1 c d
+    jmEq1 _       _       = Nothing
+
 instance Eq1 ast => Eq1 (DatumCode xss ast) where
     eq1 (Inr c) (Inr d) = eq1 c d
     eq1 (Inl c) (Inl d) = eq1 c d
     eq1 _       _       = False
+
+instance Eq1 ast => Eq (DatumCode xss ast a) where
+    (==) = eq1
 
 -- TODO: instance Read (DatumCode xss abt a)
 
@@ -186,10 +198,26 @@ data DatumStruct :: [HakaruFun] -> (Hakaru -> *) -> Hakaru -> * where
     -- Close off the product.
     Done :: DatumStruct '[] abt a
 
+
+instance JmEq1 ast => JmEq1 (DatumStruct xs ast) where
+    jmEq1 (Et c1 c2) (Et d1 d2) = do
+        Refl <- jmEq1 c1 d1
+        Refl <- jmEq1 c2 d2
+        Just Refl
+    jmEq1 Done       Done       =
+        error "TODO: JmEq1@DatumStruct{Done}"
+        {- BUG: type error due to phantomness of the type index in 'Done'
+        Just Refl
+        -}
+    jmEq1 _          _          = Nothing
+
 instance Eq1 ast => Eq1 (DatumStruct xs ast) where
     eq1 (Et c1 c2) (Et d1 d2) = eq1 c1 d1 && eq1 c2 d2
     eq1 Done       Done       = True
     eq1 _          _          = False
+
+instance Eq1 ast => Eq (DatumStruct xs ast a) where
+    (==) = eq1
 
 -- TODO: instance Read (DatumStruct xs abt a)
 
@@ -224,10 +252,23 @@ data DatumFun :: HakaruFun -> (Hakaru -> *) -> Hakaru -> * where
     -- Hit a leaf which is a recursive component of the datatype.
     Ident :: !(ast a) -> DatumFun 'I     ast a
 
+
+instance JmEq1 ast => JmEq1 (DatumFun x ast) where
+    jmEq1 (Konst e) (Konst f) =
+        error "TODO: JmEq1@DatumFun{Konst}"
+        {- BUG: type error due to @TypeEq b1 b2@ not implying @TypeEq a1 a2@
+        jmEq1 e f >>= \Refl -> Just Refl
+        -}
+    jmEq1 (Ident e) (Ident f) = jmEq1 e f
+    jmEq1 _         _         = Nothing
+
 instance Eq1 ast => Eq1 (DatumFun x ast) where
     eq1 (Konst e) (Konst f) = eq1 e f
     eq1 (Ident e) (Ident f) = eq1 e f
     eq1 _         _         = False
+
+instance Eq1 ast => Eq (DatumFun x ast a) where
+    (==) = eq1
 
 -- TODO: instance Read (DatumFun x abt a)
 
@@ -336,6 +377,16 @@ data Pattern :: [Hakaru] -> Hakaru -> * where
         -> !(PDatumCode (Code t) vars (HData' t))
         -> Pattern vars (HData' t)
 
+instance JmEq1 (Pattern vars) where
+    jmEq1 = error "TODO: JmEq1@Pattern"
+    {-
+    -- BUG: neither the 'PWild' nor 'PVar' cases typecheck, due to the phantomness of their indices. And the 'PDatum' case doesn't typecheck because of 'Code' being a typefamily.
+    jmEq1 PWild         PWild         = Just Refl
+    jmEq1 PVar          PVar          = Just Refl
+    jmEq1 (PDatum _ d1) (PDatum _ d2) = jmEq1 d1 d2
+    jmEq1 _           _               = Nothing
+    -}
+
 instance Eq1 (Pattern vars) where
     eq1 PWild         PWild         = True
     eq1 PVar          PVar          = True
@@ -361,6 +412,11 @@ instance Show (Pattern vars a) where
 data PDatumCode :: [[HakaruFun]] -> [Hakaru] -> Hakaru -> * where
     PInr :: !(PDatumCode  xss vars a) -> PDatumCode (xs ': xss) vars a
     PInl :: !(PDatumStruct xs vars a) -> PDatumCode (xs ': xss) vars a
+
+instance JmEq1 (PDatumCode xss vars) where
+    jmEq1 (PInr c) (PInr d) = jmEq1 c d
+    jmEq1 (PInl c) (PInl d) = jmEq1 c d
+    jmEq1 _        _        = Nothing
 
 instance Eq1 (PDatumCode xss vars) where
     eq1 (PInr c) (PInr d) = eq1 c d
@@ -428,6 +484,18 @@ jmEq_PFun (PIdent p1) (PIdent p2) = jmEq_P p1 p2 >>= \Refl -> Just Refl
 jmEq_PFun _           _           = Nothing
 -}
 
+instance JmEq1 (PDatumStruct xs vars) where
+    jmEq1 = error "TODO: JmEq1@PDatumStruct"
+    {-
+    -- BUG: type error due to phantomness of the type index in 'Done'. Also, the 'PEt' case has other issues about ensuring the existentials line up
+    jmEq1 (PEt c1 c2) (PEt d1 d2) = do
+        Refl <- jmEq1 c1 d1
+        Refl <- jmEq1 c2 d2
+        Just Refl
+    jmEq1 PDone       PDone       = Just Refl
+    jmEq1 _           _           = Nothing
+    -}
+
 instance Eq1 (PDatumStruct xs vars) where
     eq1 (PEt c1 c2) (PEt d1 d2) =
         error "TODO: Eq1{PEt}: make sure existentials match up"
@@ -435,6 +503,9 @@ instance Eq1 (PDatumStruct xs vars) where
         -- BUG: we can't just do it with a 'JmEq1' instance instead, since we can't always return @Just Refl@ for comparing 'PDone' to itself, since they may be at different types. Also, the real problem with doing that is it's not given how we should be splitting @vars@ in two as we recurse... Really, we need @vars1@ and @vars2@ to be considered \"output\" variables...
     eq1 PDone       PDone       = True
     eq1 _           _           = False
+
+instance Eq (PDatumStruct xs vars a) where
+    (==) = eq1
 
 -- TODO: instance Read (PDatumStruct xs vars a)
 
@@ -451,10 +522,22 @@ data PDatumFun :: HakaruFun -> [Hakaru] -> Hakaru -> * where
     PKonst :: !(Pattern vars b) -> PDatumFun ('K b) vars a
     PIdent :: !(Pattern vars a) -> PDatumFun 'I     vars a
 
+instance JmEq1 (PDatumFun x vars) where
+    jmEq1 (PKonst e) (PKonst f) =
+        error "TODO: JmEq1@PDatumFun{Konst}"
+        {- BUG: type error due to @TypeEq b1 b2@ not implying @TypeEq a1 a2@
+        jmEq1 e f >>= \Refl -> Just Refl
+        -}
+    jmEq1 (PIdent e) (PIdent f) = jmEq1 e f
+    jmEq1 _          _          = Nothing
+
 instance Eq1 (PDatumFun x vars) where
     eq1 (PKonst e) (PKonst f) = eq1 e f
     eq1 (PIdent e) (PIdent f) = eq1 e f
     eq1 _          _          = False
+
+instance Eq (PDatumFun x vars a) where
+    (==) = eq1
 
 -- TODO: instance Read (PDatumFun x vars a)
 
