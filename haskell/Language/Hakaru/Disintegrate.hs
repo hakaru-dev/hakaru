@@ -114,8 +114,7 @@ disintegrate m = do
     m' <- flip runDis [Some2 m, Some2 (var x)] $ do
         ab    <- perform m
         (a,b) <- emitUnpair ab
-        a'    <- atomize a
-        constrainValue a' (var x)
+        constrainValue (Neutral $ var x) a
         evaluate_ b -- TODO: 'atomize' instead?
     return $ syn (Lam_ :$ bind x m' :* End)
 
@@ -203,6 +202,7 @@ conditionalize (Condition pat b) m =
         emitCase x
             [ GBranch pat (Cons1 y Nil1) $ do
                 b' <- atomize b
+                -- TODO: make sure this is the correct argument order
                 constrainValue b' (var y)
                 return (Neutral x)
             , GBranch PWild Nil1 $ reject
@@ -272,11 +272,12 @@ evaluate_ = evaluate perform
 -- This is the function called @(|>>)@ in the paper.
 perform :: (ABT Term abt) => MeasureEvaluator abt (Dis abt)
 perform e0 =
-    trace ("perform: " ++ show (pretty e0)) $
+    trace ("\nperform: " ++ show (pretty e0)) $
     caseVarSyn e0 performVar $ \t ->
         case t of
         Dirac :$ e1 :* End       -> evaluate_ e1
         MeasureOp_ o :$ es       -> do
+            -- TODO: this needs to be factored out because we do funny things with Uniform (etc) to emit cleaner code
             es' <- traverse21 atomizeCore es
             x   <- emitMBind $ syn (MeasureOp_ o :$ es')
             return (Neutral $ var x)
@@ -344,7 +345,7 @@ performWhnf (Neutral e) = (Neutral . var) <$> emitMBind e
 -- (namely when dealing with neutral terms)
 atomize :: (ABT Term abt) => TermEvaluator abt (Dis abt)
 atomize e =
-    trace ("atomize: " ++ show (pretty e)) $
+    trace ("\natomize: " ++ show (pretty e)) $
     traverse21 atomizeCore =<< evaluate_ e
 
 -- | Factored out from 'atomize' because we often need this more
@@ -390,7 +391,7 @@ getHeapVars =
 -- This is the function called @(<|)@ in the paper.
 constrainValue :: (ABT Term abt) => Whnf abt a -> abt '[] a -> Dis abt ()
 constrainValue v0 e0 =
-    trace ("constrainValue: " ++ show (pretty (fromWhnf v0)) ++ "\n" ++ show (pretty e0)) $
+    trace ("\nconstrainValue: " ++ show (pretty (fromWhnf v0)) ++ "\n" ++ show (pretty e0)) $
     caseVarSyn e0 (constrainVariable v0) $ \t ->
         case t of
         -- There's a bunch of stuff we don't even bother trying to handle
