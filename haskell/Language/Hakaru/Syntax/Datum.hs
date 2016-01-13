@@ -91,6 +91,9 @@ data Datum :: (Hakaru -> *) -> Hakaru -> * where
 datumHint :: Datum ast (HData' t) -> Text
 datumHint (Datum hint _) = hint
 
+instance JmEq1 ast => JmEq1 (Datum ast) where
+    jmEq1 (Datum _ d1) (Datum _ d2) = undefined
+
 instance Eq1 ast => Eq1 (Datum ast) where
     eq1 (Datum _ d1) (Datum _ d2) = eq1 d1 d2
 
