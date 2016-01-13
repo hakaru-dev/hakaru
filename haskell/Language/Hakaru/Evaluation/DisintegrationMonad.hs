@@ -121,7 +121,7 @@ data ListContext (abt :: [Hakaru] -> Hakaru -> *) = ListContext
 
 -- Argument order is to avoid flipping in 'runDis'
 -- TODO: generalize to non-measure types too!
--- TODO: if any SLet bindings are unused, then drop them. If any are used exactly once, maybe inline them?
+-- TODO: if any SLet bindings are unused, then drop them. If any are used exactly once, inline them. If they just bind a variable to another variable, inline them. If they just bind a variable to a literal constant, inline them.
 residualizeListContext
     :: (ABT Term abt)
     => abt '[] ('HMeasure a)
@@ -322,6 +322,8 @@ emitMBind m =
 -- | A smart constructor for emitting let-bindings. If the input
 -- is already a variable then we just return it; otherwise we emit
 -- the let-binding.
+--
+-- TODO: if the input is already a literal constant, then we should forgo the binding there too...
 emitLet :: (ABT Term abt) => abt '[] a -> Dis abt (Variable a)
 emitLet e =
     caseVarSyn e return $ \_ ->

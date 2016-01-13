@@ -10,7 +10,7 @@
 ----------------------------------------------------------------
 --                                                    2015.12.11
 -- |
--- Module      :  Language.Hakaru.PrettyConcrete
+-- Module      :  Language.Hakaru.Pretty.Concrete
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  wren@community.haskell.org

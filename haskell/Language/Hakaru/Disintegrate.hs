@@ -375,7 +375,9 @@ statementVars (SLet  x _)    = singletonVarSet x
 statementVars (SIndex x _ _) = singletonVarSet x
 statementVars (SWeight _)    = emptyVarSet
 
--- HACK: if we really want to go through with this approach, then we should memoize the set of heap-bound variables in the 'ListContext' itself rather than recomputing it every time!
+-- HACK: if we really want to go through with this approach, then
+-- we should memoize the set of heap-bound variables in the
+-- 'ListContext' itself rather than recomputing it every time!
 getHeapVars :: Dis abt (VarSet ('KProxy :: KProxy Hakaru))
 getHeapVars =
     Dis $ \c h -> c (foldMap statementVars (statements h)) h
@@ -388,10 +390,16 @@ getHeapVars =
 -- atomized. So, this must be ensured before recursing, but we can
 -- assume it's already been done by the IH.
 --
--- This is the function called @(<|)@ in the paper.
+-- This is the function called @(<|)@ in the paper, though notably
+-- we swap the argument order.
 constrainValue :: (ABT Term abt) => Whnf abt a -> abt '[] a -> Dis abt ()
 constrainValue v0 e0 =
-    trace ("\nconstrainValue: " ++ show (pretty (fromWhnf v0)) ++ "\n" ++ show (pretty e0)) $
+    trace (
+        let s = "constrainValue"
+        in "\n" ++ s ++ ": "
+            ++ show (pretty (fromWhnf v0))
+            ++ "\n" ++ replicate (length s) ' ' ++ ": "
+            ++ show (pretty e0)) $
     caseVarSyn e0 (constrainVariable v0) $ \t ->
         case t of
         -- There's a bunch of stuff we don't even bother trying to handle
@@ -833,69 +841,65 @@ square theSemiring e =
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
--- TODO: do we really need to allow all Whnf, or do we just need
--- variables (or neutral terms)? Do we actually want (hnf)terms at
--- all, or do we want (hnf)patterns or something to more generally
--- capture (hnf)measurable events?
+-- TODO: do we really want the first argument to be a term at all,
+-- or do we want something more general like patters for capturing
+-- measurable events?
 --
--- | N.B., We assume that the first argument, @v0@, is already
+-- | This is a helper function for 'constrainValue' to handle 'SBind'
+-- statements (just as the 'perform' argument to 'evaluate' is a
+-- helper for handling 'SBind' statements).
+--
+-- N.B., We assume that the first argument, @v0@, is already
 -- atomized. So, this must be ensured before recursing, but we can
--- assume it's already been done by the IH.
+-- assume it's already been done by the IH. Technically, we con't
+-- care whether the first argument is in normal form or not, just
+-- so long as it doesn't contain any heap-bound variables.
 --
--- This is the function called @(<<|)@ in the paper.
+-- This is the function called @(<<|)@ in the paper, though notably
+-- we swap the argument order.
 constrainOutcome
     :: (ABT Term abt) => Whnf abt a -> abt '[] ('HMeasure a) -> Dis abt ()
-constrainOutcome = error "TODO: constrainOutcome"
-{-
-constrainOutcome v0 e0 = do
-    w0 <- evaluate e0
+constrainOutcome v0 e0 =
+    trace (
+        let s = "constrainOutcome"
+        in "\n" ++ s ++ ": "
+            ++ show (pretty (fromWhnf v0))
+            ++ "\n" ++ replicate (length s) ' ' ++ ": "
+            ++ show (pretty e0)) $ do
+    w0 <- evaluate_ e0
     case w0 of
         Neutral _ -> bot
-        Head_ v0 ->
-            case v0 of
-             WValue v
-             WDatum d
-             WEmpty
-             WArray e1 e2
-             WLam e1
-             WMeasure e1 ->
-                caseVarSyn (error "TODO") $ \t ->
-                    case t of
-                    -- Impossible cases because wrong type:
-                    -- Value_ v
-                    -- Datum_ d
-                    -- Empty_
-                    -- Array_ e1 e2
-                    -- Lam_ :$ e1 :* End
-                    -- CoerceTo_   c :$ e1 :* End
-                    -- UnsafeFrom_ c :$ e1 :* End
-                    -- NaryOp_ o es
-                    -- PrimOp o :$ es -- other than the two below
-                    -- Expect :$ e1 :* e2 :* End ->
+        Head_ (WLiteral v) ->
+            error "constrainOutcome: the impossible happened"
+        -- Head_ (WDatum d)     -> impossible
+        -- Head_ (WEmpty typ)   -> impossible
+        -- Head_ (WArray e1 e2) -> impossible
+        -- Head_ (WLam e1)      -> impossible
+        -- Head_ (WIntegrate e1 e2 e3) -> impossible
+        -- Head_ (WSummate   e1 e2 e3) -> impossible
 
-                    Dirac :$ e1 :* End -> constrainValue v0 e1
-
-                    MBind :$ e1 :* e2 :* End ->
-                        caseBind e2 $ \x e2' -> do
-                            push (SBind x e1) e2' (constrainOutcome v0)
-
-                    Superpose_ pes ->
-                        -- BUG: not quite right; we need to pop the weight back off again to build up the new superpose, or something...
-                        fmap P.superpose . T.for pes $ \(p,e) -> do
-                            unsafePush (SWeight p)
-                            constrainOutcome v0 e
-
-                    MeasureOp_ o :$ es -> constrainOutcomeMeasureOp v0 o es
-
-
-                    PrimOp_ (Index _) :$ e1 :* e2 :* End ->
-                    PrimOp_ (Reduce _) :$ e1 :* e2 :* e3 :* End ->
-
-
-                    App_ :$ e1 :* e2 :* End ->
-                    Let_ :$ e1 :* e2 :* End ->
-                    Ann_ typ :$ e1 :* End -> constrainOutcome v0 e1
-                    Case_ e bs ->
+        {- TODO: fix the IH for these
+        Head_ (WAnn        _ e1) ->
+            constrainOutcome v0 e1 -- TODO: reinsert the annotation?
+        Head_ (WCoerceTo   c e1)    ->
+            error "TODO: constrainOutcome{WCoerceTo}"
+        Head_ (WUnsafeFrom c e1)    ->
+            error "TODO: constrainOutcome{WUnsafeFrom}"
+        -}
+        
+        Head_ (WMeasureOp o es) -> constrainOutcomeMeasureOp v0 o es
+        Head_ (WDirac e1)       -> constrainValue v0 e1
+        Head_ (WMBind e1 e2)    ->
+            caseBind e2 $ \x e2' ->
+                push (SBind x $ Thunk e1) e2' (constrainOutcome v0)
+        Head_ (WSuperpose pes)  ->
+            error "TODO: constrainOutcome{WSuperpose}"
+            {-
+            -- BUG: not quite right; we need to pop the weight back off again to build up the new superpose, or something...
+            fmap P.superpose . T.for pes $ \(p,e) -> do
+                unsafePush (SWeight p)
+                constrainOutcome v0 e
+            -}
 
 
 -- TODO: should this really be different from 'constrainValueMeasureOp'?
@@ -903,47 +907,54 @@ constrainOutcomeMeasureOp
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => Whnf abt a
     -> MeasureOp typs a
-    -> SCon args ('HMeasure a)
+    -> SArgs abt args
     -> Dis abt ()
 constrainOutcomeMeasureOp v0 = go
     where
     -- Per the paper
-    go Lebesgue End -> Dis $ \c h -> c h
+    go Lebesgue = \End -> return ()
 
     -- TODO: I think, based on Hakaru v0.2.0
-    go Counting End -> Dis $ \c h -> c h
+    go Counting = \End -> return ()
 
-    go Categorical (e1 :* End) ->
+    go Categorical = \(e1 :* End) ->
+        error "TODO: constrainOutcomeMeasureOp{Categorical}"
 
     -- Per the paper
-    -- BUG: must make sure @lo@ and @hi@ don't have heap-bound vars!
-    -- TODO: let-bind @v0@ to avoid repeating it (ditto for @lo@,@hi@)
-    go Uniform (lo :* hi :* End) -> Dis $ \c h ->
-        P.observe (lo P.<= v0 P.&& v0 P.<= hi)
-        P.>> P.weight (P.recip (hi P.- lo))
-        P.>> c h
+    go Uniform = \(lo :* hi :* End) -> do
+        v0' <- var <$> (emitLet . fromWhnf) v0
+        lo' <- var <$> ((emitLet . fromWhnf) =<< atomize lo)
+        hi' <- var <$> ((emitLet . fromWhnf) =<< atomize hi)
+        emitObserve (lo' P.<= v0' P.&& v0' P.<= hi')
+        emitWeight  (P.recip (P.unsafeProb (hi' P.- lo')))
 
     -- TODO: I think, based on Hakaru v0.2.0
     -- BUG: where does @v0@ come into it?
-    -- BUG: must make sure @mu@ and @sd@ don't have heap-bound vars!
-    -- TODO: let-binding to avoid repeating @mu@ and @sd@
-    go Normal (mu :* sd :* End) -> Dis $ \c h ->
-        P.weight
-            (P.exp (P.negate (x P.- mu) P.^ P.int_ 2
-                P./ P.fromProb (2 P.* sd P.** 2))
-            P./ sd
-            P./ P.sqrt (2 P.* P.pi))
-        P.>> c h
+    go Normal = \(mu :* sd :* End) -> do
+        mu' <- fromWhnf <$> atomize mu
+        sd' <- var <$> ((emitLet . fromWhnf) =<< atomize sd)
+        x   <- var <$> emitMBind P.lebesgue
+        emitWeight
+            (P.exp (P.negate (x P.- mu') P.^ P.nat_ 2
+                    P./ P.fromProb (P.prob_ 2 P.* sd' P.^ P.nat_ 2))
+                P./ sd'
+                P./ P.sqrt (P.prob_ 2 P.* P.pi))
 
-    go Poisson (e1 :* End) ->
-    go Gamma (e1 :* e2 :* End) ->
-    go Beta (e1 :* e2 :* End) ->
-    go (DirichletProcess _) (e1 :* e2 :* End) ->
-    go (Plate _) (e1 :* End) ->
-    go (Chain _ _) (e1 :* e2 :* End) ->
+    go Poisson = \(e1 :* End) ->
+        error "TODO: constrainOutcomeMeasureOp{Poisson}"
+    go Gamma = \(e1 :* e2 :* End) ->
+        error "TODO: constrainOutcomeMeasureOp{Gamma}"
+    go Beta = \(e1 :* e2 :* End) ->
+        error "TODO: constrainOutcomeMeasureOp{Beta}"
+    go (DirichletProcess _) = \(e1 :* e2 :* End) ->
+        error "TODO: constrainOutcomeMeasureOp{DirichletProcess}"
+    go (Plate _) = \(e1 :* End) ->
+        error "TODO: constrainOutcomeMeasureOp{Plate}"
+    go (Chain _ _) = \(e1 :* e2 :* End) ->
+        error "TODO: constrainOutcomeMeasureOp{Chain}"
 
 
-
+{-
 unleft :: Whnf abt (HEither a b) -> Dis abt (abt '[] a)
 unleft (Left  e) = Dis $ \c h -> c e h
 unleft (Right e) = Dis $ \c h -> P.reject

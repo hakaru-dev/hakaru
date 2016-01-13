@@ -9,7 +9,7 @@
 ----------------------------------------------------------------
 --                                                    2016.01.10
 -- |
--- Module      :  Language.Hakaru.PrettyPrint
+-- Module      :  Language.Hakaru.Pretty.Haskell
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  wren@community.haskell.org
