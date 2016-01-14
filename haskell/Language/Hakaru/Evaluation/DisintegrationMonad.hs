@@ -16,7 +16,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.01.08
+--                                                    2016.01.13
 -- |
 -- Module      :  Language.Hakaru.Evaluation.DisintegrationMonad
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -42,6 +42,7 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     , emit
     , emitMBind
     , emitLet
+    , emitLet'
     , emitUnpair
     -- TODO: emitUneither
     , emit_
@@ -350,14 +351,29 @@ emitMBind m =
 
 -- | A smart constructor for emitting let-bindings. If the input
 -- is already a variable then we just return it; otherwise we emit
--- the let-binding.
---
--- TODO: if the input is already a literal constant, then we should forgo the binding there too (n.b., that requires changing the return type...)
+-- the let-binding. N.B., this function provides the invariant that
+-- the result is in fact a variable; whereas 'emitLet'' does not.
 emitLet :: (ABT Term abt) => abt '[] a -> Dis abt (Variable a)
 emitLet e =
     caseVarSyn e return $ \_ ->
         emit Text.empty (typeOf e) $ \m ->
             syn (Let_ :$ e :* m :* End)
+
+-- | A smart constructor for emitting let-bindings. If the input
+-- is already a variable or a literal constant, then we just return
+-- it; otherwise we emit the let-binding. N.B., this function
+-- provides weaker guarantees on the type of the result; if you
+-- require the result to always be a variable, then see 'emitLet'
+-- instead.
+emitLet' :: (ABT Term abt) => abt '[] a -> Dis abt (abt '[] a)
+emitLet' e =
+    caseVarSyn e (const $ return e) $ \t ->
+        case t of
+        Literal_ _ -> return e
+        _          -> do
+            x <- emit Text.empty (typeOf e) $ \m ->
+                syn (Let_ :$ e :* m :* End)
+            return (var x)
 
 -- | A smart constructor for emitting \"unpair\". If the input
 -- argument is actually a constructor then we project out the two
@@ -402,11 +418,12 @@ emitMBind_ :: (ABT Term abt) => abt '[] ('HMeasure HUnit) -> Dis abt ()
 emitMBind_ m = emit_ (m P.>>)
 
 
+-- TODO: if the argument is a value, then we can evaluate the 'P.if_' immediately rather than emitting it.
 -- | Emit an assertion that the condition is true.
 emitObserve :: (ABT Term abt) => abt '[] HBool -> Dis abt ()
 emitObserve b = emit_ (P.observe b) -- == emit_ $ \m -> P.if_ b m P.reject
 
-
+-- TODO: if the argument is the literal 1, then we can avoid emitting anything.
 emitWeight :: (ABT Term abt) => abt '[] 'HProb -> Dis abt ()
 emitWeight w = emit_ (P.pose w)
 

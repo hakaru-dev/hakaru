@@ -15,7 +15,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.01.09
+--                                                    2016.01.13
 -- |
 -- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -195,7 +195,7 @@ conditionalize (Condition pat b) m =
         a <- perform m
         -- According to the old code, we should memoize here...
         -- TODO: what was the purpose of using @unMeasure@ before memoizing?
-        x <- var <$> emitLet (fromWhnf a)
+        x <- emitLet' (fromWhnf a)
         -- TODO: maybe just store the @typeOf b@ rather than computing it?
         y <- freshVar Text.empty (typeOf b)
         -- TODO: get 'emitCase' to partially evaluate the case expression away when it can (assuming we don't @emitLet a@). In order to do this in a nice clean way, we'll have to go back to trying to implement my previous @GGBranch@ approach.
@@ -648,7 +648,7 @@ constrainPrimOp v0 = go
     go Pi = \End -> bot -- because @dirac pi@ has no density wrt lebesgue
 
     go Sin = \(e1 :* End) -> do
-        x0 <- var <$> emitLet (fromWhnf v0)
+        x0 <- emitLet' (fromWhnf v0)
         n  <- var <$> emitMBind P.counting
         let tau_n = P.real_ 2 P.* P.fromInt n P.* P.pi -- TODO: emitLet?
         emitObserve (P.negate P.one P.< x0 P.&& x0 P.< P.one)
@@ -664,11 +664,11 @@ constrainPrimOp v0 = go
         constrainValue (Neutral v) e1
 
     go Cos = \(e1 :* End) -> do
-        x0 <- var <$> emitLet (fromWhnf v0)
+        x0 <- emitLet' (fromWhnf v0)
         n  <- var <$> emitMBind P.counting
         let tau_n = P.real_ 2 P.* P.fromInt n P.* P.pi
         emitObserve (P.negate P.one P.< x0 P.&& x0 P.< P.one)
-        r  <- var <$> emitLet (tau_n P.+ P.acos x0)
+        r  <- emitLet' (tau_n P.+ P.acos x0)
         v  <- var <$> emitSuperpose [P.dirac r, P.dirac (r P.+ P.pi)]
         emitWeight
             . P.recip
@@ -678,27 +678,27 @@ constrainPrimOp v0 = go
         constrainValue (Neutral v) e1
 
     go Tan = \(e1 :* End) -> do
-        x0 <- var <$> emitLet (fromWhnf v0)
+        x0 <- emitLet' (fromWhnf v0)
         n  <- var <$> emitMBind P.counting
-        r  <- var <$> emitLet (P.fromInt n P.* P.pi P.+ P.atan x0)
+        r  <- emitLet' (P.fromInt n P.* P.pi P.+ P.atan x0)
         emitWeight $ P.recip (P.one P.+ P.square x0)
         constrainValue (Neutral r) e1
 
     go Asin = \(e1 :* End) -> do
-        x0 <- var <$> emitLet (fromWhnf v0)
+        x0 <- emitLet' (fromWhnf v0)
         -- TODO: may want to evaluate @cos v0@ before emitting the weight
         emitWeight $ P.unsafeProb (P.cos x0)
         -- TODO: bounds check for -pi/2 <= v0 < pi/2
         constrainValue (Neutral $ P.sin x0) e1
 
     go Acos = \(e1 :* End) -> do
-        x0 <- var <$> emitLet (fromWhnf v0)
+        x0 <- emitLet' (fromWhnf v0)
         -- TODO: may want to evaluate @sin v0@ before emitting the weight
         emitWeight $ P.unsafeProb (P.sin x0)
         constrainValue (Neutral $ P.cos x0) e1
 
     go Atan = \(e1 :* End) -> do
-        x0 <- var <$> emitLet (fromWhnf v0)
+        x0 <- emitLet' (fromWhnf v0)
         -- TODO: may want to evaluate @cos v0 ^ 2@ before emitting the weight
         emitWeight $ P.recip (P.unsafeProb (P.cos x0 P.^ P.nat_ 2))
         constrainValue (Neutral $ P.tan x0) e1
@@ -741,13 +741,13 @@ constrainPrimOp v0 = go
             constrainValue ex e1
         -}
     go Exp = \(e1 :* End) -> do
-        x0 <- var <$> emitLet (fromWhnf v0)
+        x0 <- emitLet' (fromWhnf v0)
         -- TODO: do we still want/need the @emitObserve (0 < x0)@ which is now equivalent to @emitObserve (0 /= x0)@ thanks to the types?
         emitWeight (P.recip x0)
         constrainValue (Neutral $ P.log x0) e1
 
     go Log = \(e1 :* End) -> do
-        exp_x0 <- var <$> emitLet (P.exp $ fromWhnf v0)
+        exp_x0 <- emitLet' (P.exp $ fromWhnf v0)
         emitWeight exp_x0
         constrainValue (Neutral exp_x0) e1
 
@@ -773,7 +773,7 @@ constrainPrimOp v0 = go
         {-
         -- We could use this instead, if we don't care about the verbosity of so many let-bindings (or if we were willing to lie about the first argument to 'constrainValue' being \"neutral\"
         let neg = P.primOp1_ $ Negate theRing
-        x0 <- var <$> emitLet (fromWhnf v0)
+        x0 <- emitLet' (fromWhnf v0)
         constrainValue (Neutral $ neg x0) e1
         -}
 
@@ -790,7 +790,7 @@ constrainPrimOp v0 = go
             eq      = P.primOp2_ $ Equal  theEq
             neg     = P.primOp1_ $ Negate theRing
 
-        x0 <- var <$> emitLet (P.coerceTo_ signed $ fromWhnf v0)
+        x0 <- emitLet' (P.coerceTo_ signed $ fromWhnf v0)
         v  <- var <$> emitMBind
             (P.if_ (lt zero x0)
                 (P.superpose
@@ -812,7 +812,7 @@ constrainPrimOp v0 = go
 
     go (Recip theFractional) = \(e1 :* End) -> do
         -- TODO: may want to inline @x0@ and try evaluating @e0 ^ 2@ and @recip e0@...
-        x0 <- var <$> emitLet (fromWhnf v0)
+        x0 <- emitLet' (fromWhnf v0)
         emitWeight
             . P.recip
             . P.unsafeProbFraction_ theFractional
@@ -824,7 +824,7 @@ constrainPrimOp v0 = go
         case theRadical of
         HRadical_Prob -> do
             -- TODO: may want to inline @x0@ and try evaluating @u2 * e0@ and @e0 ^ u2@...
-            x0 <- var <$> emitLet (fromWhnf v0)
+            x0 <- emitLet' (fromWhnf v0)
             u2 <- fromWhnf <$> atomize e2
             emitWeight (P.nat2prob u2 P.* x0)
             constrainValue (Neutral $ x0 P.^ u2) e1
@@ -922,16 +922,16 @@ constrainOutcomeMeasureOp v0 = go
 
     -- Per the paper
     go Uniform = \(lo :* hi :* End) -> do
-        v0' <- var <$> (emitLet . fromWhnf) v0
-        lo' <- var <$> ((emitLet . fromWhnf) =<< atomize lo)
-        hi' <- var <$> ((emitLet . fromWhnf) =<< atomize hi)
+        v0' <- (emitLet' . fromWhnf) v0
+        lo' <- (emitLet' . fromWhnf) =<< atomize lo
+        hi' <- (emitLet' . fromWhnf) =<< atomize hi
         emitObserve (lo' P.<= v0' P.&& v0' P.<= hi')
         emitWeight  (P.recip (P.unsafeProb (hi' P.- lo')))
 
     -- TODO: I think, based on Hakaru v0.2.0
     go Normal = \(mu :* sd :* End) -> do
         mu' <- fromWhnf <$> atomize mu
-        sd' <- var <$> ((emitLet . fromWhnf) =<< atomize sd)
+        sd' <- (emitLet' . fromWhnf) =<< atomize sd
         emitWeight
             (P.exp (P.negate (fromWhnf v0 P.- mu') P.^ P.nat_ 2
                     P./ P.fromProb (P.prob_ 2 P.* sd' P.^ P.nat_ 2))

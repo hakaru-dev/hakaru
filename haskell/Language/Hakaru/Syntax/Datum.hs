@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.01.09
+--                                                    2016.01.13
 -- |
 -- Module      :  Language.Hakaru.Syntax.Datum
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
