@@ -65,6 +65,7 @@ import           Control.Applicative  (Applicative(..))
 #endif
 import           Control.Applicative  (Alternative(..))
 import           Control.Monad        ((<=<))
+import           Data.Functor.Compose (Compose(..))
 import qualified Data.Traversable     as T
 import qualified Data.Text            as Text
 import qualified Data.IntMap          as IM
@@ -893,14 +894,10 @@ constrainOutcome v0 e0 =
     go (WMBind e1 e2)        =
         caseBind e2 $ \x e2' ->
             push (SBind x $ Thunk e1) e2' (constrainOutcome v0)
-    go (WSuperpose pes)  =
-        error "TODO: constrainOutcome{WSuperpose}"
-        {-
-        -- BUG: not quite right; we need to pop the weight back off again to build up the new superpose, or something...
-        fmap P.superpose . T.for pes $ \(p,e) -> do
-            unsafePush (SWeight p)
-            constrainOutcome v0 e
-        -}
+    go (WSuperpose pes) =
+        -- TODO: double-check that this does the right thing
+        emitFork_ (P.superpose . getCompose)
+            (constrainOutcome v0 <$> Compose pes)
 
 
 -- TODO: should this really be different from 'constrainValueMeasureOp'?
