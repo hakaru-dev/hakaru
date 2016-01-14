@@ -11,6 +11,7 @@
            , FlexibleInstances
            , UndecidableInstances
            , EmptyCase
+           , ScopedTypeVariables
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -119,44 +120,72 @@ data ListContext (abt :: [Hakaru] -> Hakaru -> *) = ListContext
     }
 
 
+lazyIsVariable :: (ABT Term abt) => Lazy abt a -> Bool
+lazyIsVariable e =
+    case e of
+    Whnf_ (Head_   _)  -> False
+    Whnf_ (Neutral e') -> isVariable e'
+    Thunk e'           -> isVariable e'
+    where
+    isVariable :: (ABT Term abt) => abt '[] a -> Bool
+    isVariable e' = caseVarSyn e' (const True) (const False)
+
+lazyIsLiteral :: (ABT Term abt) => Lazy abt a -> Bool
+lazyIsLiteral e =
+    case e of
+    Whnf_ (Head_ (WLiteral _)) -> True
+    Whnf_ _                    -> False -- by construction
+    Thunk e' ->
+        caseVarSyn e' (const False) $ \t ->
+            case t of
+            Literal_ _ -> True
+            _          -> False
+
 -- Argument order is to avoid flipping in 'runDis'
 -- TODO: generalize to non-measure types too!
--- TODO: if any SLet bindings are unused, then drop them. If any are used exactly once, inline them. If they just bind a variable to another variable, inline them. If they just bind a variable to a literal constant, inline them.
 residualizeListContext
-    :: (ABT Term abt)
+    :: forall abt a
+    .  (ABT Term abt)
     => abt '[] ('HMeasure a)
     -> ListContext abt
     -> abt '[] ('HMeasure a)
 residualizeListContext e0 = foldl step e0 . statements
     where
-    step e s = syn $
+    step :: abt '[] ('HMeasure a) -> Statement abt -> abt '[] ('HMeasure a)
+    step e s =
         case s of
-        SBind x body -> MBind :$ fromLazy body :* bind x e :* End
-        SLet  x body -> Let_  :$ fromLazy body :* bind x e :* End
+        SBind x body -> syn (MBind :$ fromLazy body :* bind x e :* End)
+        SLet  x body
+            | not (x `memberVarSet` freeVars e) -> e
+            -- TODO: if used exactly once in @e@, then inline.
+            | lazyIsVariable body -> subst x (fromLazy body) e
+            | lazyIsLiteral  body -> subst x (fromLazy body) e
+            | otherwise ->
+                syn (Let_ :$ fromLazy body :* bind x e :* End)
         {-
         SBranch xs pat body ->
-            Case_ (fromLazy body)
+            syn $ Case_ (fromLazy body)
                 [ Branch pat   (binds_ xs e)
                 , Branch PWild P.reject
                 ]
         -}
-        SWeight body -> Superpose_ [(fromLazy body, e)]
+        SWeight body -> syn $ Superpose_ [(fromLazy body, e)]
         SIndex x index size ->
             -- The obvious thing to do:
-            ArrayOp_ (Index $ typeOf e)
+            syn (ArrayOp_ (Index $ typeOf e)
                 :$ syn (Array_ (fromLazy size) (bind x e))
                 :* fromLazy index
-                :* End
+                :* End)
             -- An alternative thing, making it clearer that we've evaluated:
             {-
-            Let_
+            syn (Let_
                 :$ fromLazy index
                 :* bind x
                     (P.if_
                         (P.nat_ 0 P.<= var x P.&& var x P.< fromLazy size)
                         e
                         P.reject)
-                :* End
+                :* End)
             -}
 
 ----------------------------------------------------------------
@@ -323,13 +352,12 @@ emitMBind m =
 -- is already a variable then we just return it; otherwise we emit
 -- the let-binding.
 --
--- TODO: if the input is already a literal constant, then we should forgo the binding there too...
+-- TODO: if the input is already a literal constant, then we should forgo the binding there too (n.b., that requires changing the return type...)
 emitLet :: (ABT Term abt) => abt '[] a -> Dis abt (Variable a)
 emitLet e =
     caseVarSyn e return $ \_ ->
         emit Text.empty (typeOf e) $ \m ->
             syn (Let_ :$ e :* m :* End)
-
 
 -- | A smart constructor for emitting \"unpair\". If the input
 -- argument is actually a constructor then we project out the two
