@@ -66,13 +66,26 @@ test0  = runDis (perform norm)  [Some2 norm]
 test0a = runDis (perform normA) [Some2 normA]
 test0b = runDis (perform normB) [Some2 normB]
 
--- BUG: at present, both 'test1' and 'test1a' throw errors about
--- @typeOf_{Datum_}@. Whereas 'test1b' loops.
+-- BUG: at present, both 'test1' throws errors about @typeOf_{Datum_}@.
 test1, test1a, test1b
     :: [TrivialABT Term '[] ('HReal ':-> 'HMeasure 'HReal)]
 test1  = disintegrate norm
 test1a = disintegrate normA
 test1b = disintegrate normB
+
+-- | The goal of this test is to be sure we maintain proper hygiene
+-- for the weight component when disintegrating superpose.
+--
+-- BUG: this currently throws VarEqTypeError. This isn't really a
+-- problem with disintegration per se, but rather with the use of
+-- 'binder' in 'let_' or with the way we initialize 'nextFreshNat'
+-- in 'disintegrate'.
+test2
+    :: [TrivialABT Term '[] ('HReal ':-> 'HMeasure 'HReal)]
+test2 =
+    disintegrate $
+        let_ (prob_ 1) $ \x ->
+        pose x normA
 
 allTests :: Test
 allTests = test

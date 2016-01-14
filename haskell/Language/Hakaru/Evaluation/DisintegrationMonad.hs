@@ -457,15 +457,14 @@ emitSuperpose
     :: (ABT Term abt)
     => [abt '[] ('HMeasure a)]
     -> Dis abt (Variable a)
-emitSuperpose es =
-    emitMBind (P.superpose [(P.prob_ 1, e) | e <- es])
+emitSuperpose [e] = emitMBind e
+emitSuperpose es  = emitMBind (P.superpose [(P.prob_ 1, e) | e <- es])
 
 
 -- | Emit a 'Superpose_' of the alternatives, each with unit weight.
 choose :: (ABT Term abt) => [Dis abt a] -> Dis abt a
 choose [m] = m
-choose ms  =
-    emitFork_ (\es -> P.superpose [(P.prob_ 1, e) | e <- es]) ms
+choose ms  = emitFork_ (\es -> P.superpose [(P.prob_ 1, e) | e <- es]) ms
 
 
 -- TODO: move this to Datum.hs; also, use it elsewhere as needed to clean up code.

@@ -895,9 +895,16 @@ constrainOutcome v0 e0 =
         caseBind e2 $ \x e2' ->
             push (SBind x $ Thunk e1) e2' (constrainOutcome v0)
     go (WSuperpose pes) =
-        -- TODO: double-check that this does the right thing
-        emitFork_ (P.superpose . getCompose)
-            (constrainOutcome v0 <$> Compose pes)
+        case pes of
+        [(p,e)] -> do
+            p' <- fromWhnf <$> atomize p
+            emitWeight p'
+            constrainOutcome v0 e
+        _ ->
+            -- TODO: double-check that this does the right thing.
+            -- BUG: It seems to push the weight down to the very bottom of each branch (i.e., after whatever emit commands), rather than leaving it at the top like we'd want\/expect...
+            emitFork_ (P.superpose . getCompose)
+                (constrainOutcome v0 <$> Compose pes)
 
 
 -- TODO: should this really be different from 'constrainValueMeasureOp'?
