@@ -60,7 +60,7 @@ observeMeasureOp
 observeMeasureOp Normal  (mu :* sd :* End) x =
     P.weight
         (P.exp (P.negate (x P.- mu) P.^ P.nat_ 2
-        P./ P.fromProb (P.prob_ 2 P.* sd P.** (P.real_ 2)))
+        P./ P.fromProb (P.prob_ 2 P.* sd P.^ (P.nat_ 2)))
         P./ sd
         P./ P.sqrt (P.prob_ 2 P.* P.pi))
 observeMeasureOp Uniform (lo :* hi :* End) x =

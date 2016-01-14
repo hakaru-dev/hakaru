@@ -929,13 +929,11 @@ constrainOutcomeMeasureOp v0 = go
         emitWeight  (P.recip (P.unsafeProb (hi' P.- lo')))
 
     -- TODO: I think, based on Hakaru v0.2.0
-    -- BUG: where does @v0@ come into it?
     go Normal = \(mu :* sd :* End) -> do
         mu' <- fromWhnf <$> atomize mu
         sd' <- var <$> ((emitLet . fromWhnf) =<< atomize sd)
-        x   <- var <$> emitMBind P.lebesgue
         emitWeight
-            (P.exp (P.negate (x P.- mu') P.^ P.nat_ 2
+            (P.exp (P.negate (fromWhnf v0 P.- mu') P.^ P.nat_ 2
                     P./ P.fromProb (P.prob_ 2 P.* sd' P.^ P.nat_ 2))
                 P./ sd'
                 P./ P.sqrt (P.prob_ 2 P.* P.pi))

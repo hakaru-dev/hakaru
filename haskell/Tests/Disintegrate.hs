@@ -53,7 +53,7 @@ normC = lam $ \y ->
     lam $ \y ->
     normal (real_ 0) (prob_ 1) >>= \x ->
     pose
-        (exp ((x - y) ^ nat_ 2 / real_ 4)
+        (exp ((x - y) ^ nat_ 2 / real_ 2)
         / (nat_ 2 `thRootOf` (prob_ 2 * pi)))
     $ dirac x
 
