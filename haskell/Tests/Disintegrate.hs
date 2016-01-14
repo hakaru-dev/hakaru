@@ -1,10 +1,12 @@
 {-# LANGUAGE DataKinds
            , TypeOperators
+           , NoImplicitPrelude
            #-}
 
 module Tests.Disintegrate where
 
-import Prelude hiding ((>>=), (>>))
+import           Prelude (($))
+import qualified Prelude
 
 import Language.Hakaru.Syntax.AST.Eq()
 import Language.Hakaru.Syntax.ABT
@@ -74,12 +76,11 @@ test1a = disintegrate normA
 test1b = disintegrate normB
 
 -- | The goal of this test is to be sure we maintain proper hygiene
--- for the weight component when disintegrating superpose.
---
--- BUG: this currently throws VarEqTypeError. This isn't really a
--- problem with disintegration per se, but rather with the use of
--- 'binder' in 'let_' or with the way we initialize 'nextFreshNat'
--- in 'disintegrate'.
+-- for the weight component when disintegrating superpose. Moreover,
+-- in earlier versions it used to throw VarEqTypeError due to
+-- 'disintegrate' not choosing a sufficiently fresh variable name
+-- for its lambda; thus this also serves as a regression test to
+-- make sure we don't run into that problem again.
 test2
     :: [TrivialABT Term '[] ('HReal ':-> 'HMeasure 'HReal)]
 test2 =

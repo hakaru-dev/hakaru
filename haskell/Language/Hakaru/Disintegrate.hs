@@ -110,8 +110,12 @@ disintegrate
     => abt '[] ('HMeasure (HPair a b))
     -> [abt '[] (a ':-> 'HMeasure b)] -- this Hakaru function is measurable
 disintegrate m = do
-    let x = Variable Text.empty (nextFree m)
-            (fst . sUnPair . sUnMeasure $ typeOf m)
+    let typ = fst . sUnPair . sUnMeasure $ typeOf m
+        -- HACK: for some reason, just using 'nextFree' isn't enough;
+        -- we also need to use 'nextBind' to avoid issues about
+        -- 'VarEqTypeError'
+        i   = nextFree m `max` nextBind m
+        x   = Variable Text.empty i typ
     m' <- flip runDis [Some2 m, Some2 (var x)] $ do
         ab    <- perform m
         (a,b) <- emitUnpair ab
@@ -901,8 +905,8 @@ constrainOutcome v0 e0 =
             emitWeight p'
             constrainOutcome v0 e
         _ ->
-            -- TODO: double-check that this does the right thing.
             -- BUG: It seems to push the weight down to the very bottom of each branch (i.e., after whatever emit commands), rather than leaving it at the top like we'd want\/expect...
+            -- BUG: it doesn't do anything to the weight component, which means (a) it might break hygiene, and (b) it differs from the singleton case above which makes sure to maintain hygyene...
             emitFork_ (P.superpose . getCompose)
                 (constrainOutcome v0 <$> Compose pes)
 
