@@ -361,8 +361,8 @@ atomizeCore e = do
     if disjointVarSet xs (freeVars e)
         then return e
         else
-            let (xs, e') = caseBinds e
-            in  (binds_ xs . fromWhnf) <$> atomize e'
+            let (ys, e') = caseBinds e
+            in  (binds_ ys . fromWhnf) <$> atomize e'
     where
     -- TODO: does @IM.null . IM.intersection@ fuse correctly?
     disjointVarSet xs ys =
@@ -858,7 +858,11 @@ square theSemiring e =
 -- This is the function called @(<<|)@ in the paper, though notably
 -- we swap the argument order.
 constrainOutcome
-    :: (ABT Term abt) => Whnf abt a -> abt '[] ('HMeasure a) -> Dis abt ()
+    :: forall abt a
+    .  (ABT Term abt)
+    => Whnf abt a
+    -> abt '[] ('HMeasure a)
+    -> Dis abt ()
 constrainOutcome v0 e0 =
     trace (
         let s = "constrainOutcome"
@@ -869,37 +873,34 @@ constrainOutcome v0 e0 =
     w0 <- evaluate_ e0
     case w0 of
         Neutral _ -> bot
-        Head_ (WLiteral v) ->
-            error "constrainOutcome: the impossible happened"
-        -- Head_ (WDatum d)     -> impossible
-        -- Head_ (WEmpty typ)   -> impossible
-        -- Head_ (WArray e1 e2) -> impossible
-        -- Head_ (WLam e1)      -> impossible
-        -- Head_ (WIntegrate e1 e2 e3) -> impossible
-        -- Head_ (WSummate   e1 e2 e3) -> impossible
+        Head_   v -> go v
+    where
+    impossible = error "constrainOutcome: the impossible happened"
 
-        {- TODO: fix the IH for these
-        Head_ (WAnn        _ e1) ->
-            constrainOutcome v0 e1 -- TODO: reinsert the annotation?
-        Head_ (WCoerceTo   c e1)    ->
-            error "TODO: constrainOutcome{WCoerceTo}"
-        Head_ (WUnsafeFrom c e1)    ->
-            error "TODO: constrainOutcome{WUnsafeFrom}"
+    go :: Head abt ('HMeasure a) -> Dis abt ()
+    go (WLiteral _)          = impossible
+    -- go (WDatum _)         = impossible
+    -- go (WEmpty _)         = impossible
+    -- go (WArray _ _)       = impossible
+    -- go (WLam _)           = impossible
+    -- go (WIntegrate _ _ _) = impossible
+    -- go (WSummate   _ _ _) = impossible
+    go (WAnn        _ e1)    = go e1 -- TODO: reinsert the annotation?
+    go (WCoerceTo   _ _)     = impossible
+    go (WUnsafeFrom _ _)     = impossible
+    go (WMeasureOp o es)     = constrainOutcomeMeasureOp v0 o es
+    go (WDirac e1)           = constrainValue v0 e1
+    go (WMBind e1 e2)        =
+        caseBind e2 $ \x e2' ->
+            push (SBind x $ Thunk e1) e2' (constrainOutcome v0)
+    go (WSuperpose pes)  =
+        error "TODO: constrainOutcome{WSuperpose}"
+        {-
+        -- BUG: not quite right; we need to pop the weight back off again to build up the new superpose, or something...
+        fmap P.superpose . T.for pes $ \(p,e) -> do
+            unsafePush (SWeight p)
+            constrainOutcome v0 e
         -}
-        
-        Head_ (WMeasureOp o es) -> constrainOutcomeMeasureOp v0 o es
-        Head_ (WDirac e1)       -> constrainValue v0 e1
-        Head_ (WMBind e1 e2)    ->
-            caseBind e2 $ \x e2' ->
-                push (SBind x $ Thunk e1) e2' (constrainOutcome v0)
-        Head_ (WSuperpose pes)  ->
-            error "TODO: constrainOutcome{WSuperpose}"
-            {-
-            -- BUG: not quite right; we need to pop the weight back off again to build up the new superpose, or something...
-            fmap P.superpose . T.for pes $ \(p,e) -> do
-                unsafePush (SWeight p)
-                constrainOutcome v0 e
-            -}
 
 
 -- TODO: should this really be different from 'constrainValueMeasureOp'?
