@@ -84,11 +84,18 @@ testTC typ uast tast =
         Nothing   -> assertFailure
             (show ast ++ " does not have same type as " ++ show tast)
 
-testConcreteTC :: Text -> TrivialABT T.Term '[] b -> Assertion
-testConcreteTC s ast =
-    testWithConcrete s StrictMode
+testWithConcrete'
+    :: Text
+    -> TypeCheckMode
+    -> (TypedAST (TrivialABT T.Term) -> Assertion)
+    -> Assertion
+testWithConcrete' = testWithConcrete
+
+testConcreteTC :: Sing b -> Text -> TrivialABT T.Term '[] b -> Assertion
+testConcreteTC typ s ast =
+    testWithConcrete' s StrictMode
          (\(TypedAST _typ tast) ->
-              case jmEq1 ast tast of
+              case jmEq1 _typ typ of
                 Just Refl -> assertEqual "" tast ast
                 Nothing   -> assertFailure
                   (show ast ++ " does not have same type as " ++ show tast))
@@ -98,5 +105,5 @@ allTests :: Test
 allTests = test
     [ testTC SNat fiveU fiveT
     , testTC (SMeasure SReal) normal01 normal01T
-    , testConcreteTC five fiveT
+    , testConcreteTC SNat five fiveT
     ]
