@@ -140,6 +140,7 @@ Test-Suite system-testsuite
                        math-functions   >= 0.1  && < 0.2,
                        monad-loops      >= 0.3.0.2,
                        integration      >= 0.2  && < 0.3,
+                       ansi-terminal    >= 0.6,
                        HUnit            >= 1.2  && < 2.0,
                        QuickCheck       >= 2.6,
                        process          >= 1.1  && < 2.0,

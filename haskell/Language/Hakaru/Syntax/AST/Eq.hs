@@ -3,6 +3,7 @@
            , TypeOperators
            , PolyKinds
            , FlexibleContexts
+           , ScopedTypeVariables
            , UndecidableInstances
            #-}
 
@@ -44,6 +45,8 @@ import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.TypeOf
+
+import Control.Monad.Reader
 
 import qualified Data.Foldable as F
 import qualified Data.Sequence as S
@@ -231,3 +234,37 @@ instance ( Show1 (Sing :: k ->  *)
          ) => Eq (TrivialABT (syn :: ([k] -> k -> *) -> k -> *) xs a)
     where
     (==) = eq1
+
+alphaEq :: forall abt a
+         . (JmEq2 abt, ABT Term abt)
+        => abt '[] a
+        -> abt '[] a
+        -> Bool
+alphaEq e1 e2 = runReader (go (viewABT e1) (viewABT e2)) emptyAssocs
+    where
+      -- Don't compare @x@ to @y@ directly; instead,
+      -- look up whatever @x@ renames to (i.e., @y'@)
+      -- and then see whether that is equal to @y@.
+      go :: forall xs
+          . View (Term abt) xs a
+         -> View (Term abt) xs a
+         -> Reader (Assocs abt) Bool
+      go (Var x) (Var y) = do
+          s <- ask
+          return $
+              case lookupAssoc x s of
+                Nothing -> maybe False (const True) (varEq x y) -- free variables
+                Just e  ->
+                    caseVarSyn e
+                        (\y' -> maybe False (const True) (varEq y' y))
+                        (error "the impossible happened")
+
+      -- remember that @x@ renames to @y@ and recurse
+      go (Bind x e1) (Bind y e2) =
+          local (insertAssoc (Assoc x (var y))) (go e1 e2)
+
+      -- perform the core comparison for syntactic equality
+      go (Syn t1) (Syn t2) = return (t1 == t2)
+
+      -- if the views don't match, then clearly they are not equal.
+      go _ _ = return False
