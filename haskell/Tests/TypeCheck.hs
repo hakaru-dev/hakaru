@@ -13,12 +13,14 @@ import qualified Language.Hakaru.Syntax.AST as T
 
 import Language.Hakaru.Syntax.AST.Eq()
 
+import Language.Hakaru.Syntax.ABT
+import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.HClasses
-import Data.Number.Nat
-import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Types.DataKind
-import Language.Hakaru.Syntax.TypeCheck
+import Language.Hakaru.Types.Sing
+
+import Data.Number.Nat
 
 import Data.Sequence
 import Data.Text
@@ -72,12 +74,12 @@ normalb =
 inferType' :: U.AST -> TypeCheckMonad (TypedAST (TrivialABT T.Term))
 inferType' = inferType
 
-testTC :: U.AST -> TrivialABT T.Term '[] b -> Assertion
-testTC uast tast =
+testTC :: Sing b -> U.AST -> TrivialABT T.Term '[] b -> Assertion
+testTC typ uast tast =
     case runTCM (inferType' uast) StrictMode of
     Left _err                 -> assertFailure (show tast)
     Right (TypedAST _typ ast) ->
-        case jmEq1 ast tast of
+        case jmEq1 _typ typ of
         Just Refl -> assertEqual "" tast ast
         Nothing   -> assertFailure
             (show ast ++ " does not have same type as " ++ show tast)
@@ -94,7 +96,7 @@ testConcreteTC s ast =
 
 allTests :: Test
 allTests = test
-    [ testTC fiveU fiveT
-    , testTC normal01 normal01T
+    [ testTC SNat fiveU fiveT
+    , testTC (SMeasure SReal) normal01 normal01T
     , testConcreteTC five fiveT
     ]
