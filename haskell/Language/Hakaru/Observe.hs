@@ -34,18 +34,18 @@ observe
     :: (ABT Term abt, HEq_ a)
     => abt '[] ('HMeasure a)
     -> abt '[] a 
-    -> abt '[] ('HMeasure HUnit)
+    -> abt '[] ('HMeasure a)
 observe m a = observeAST (LC_ m) (LC_ a)
 
 observeAST
     :: (ABT Term abt, HEq_ a)
     => LC_ abt ('HMeasure a)
     -> LC_ abt a
-    -> abt '[] ('HMeasure HUnit)
+    -> abt '[] ('HMeasure a)
 observeAST (LC_ m) (LC_ a) =
     caseVarSyn m observeVar $ \ast ->
         case ast of
-        Dirac :$ (e :* End) -> P.if_ (e P.== a) (P.dirac P.unit) P.reject
+        Dirac :$ (e :* End) -> P.if_ (e P.== a) (P.dirac a) P.reject
         MeasureOp_ op :$ es -> observeMeasureOp op es a
         _ -> error "observe can only be applied to measure primitives"
 
@@ -56,15 +56,15 @@ observeMeasureOp
     => MeasureOp typs a
     -> SArgs abt args
     -> abt '[] a
-    -> abt '[] ('HMeasure HUnit)
+    -> abt '[] ('HMeasure a)
 observeMeasureOp Normal  (mu :* sd :* End) x =
-    P.weight
+    P.pose
         (P.exp (P.negate (x P.- mu) P.^ P.nat_ 2
         P./ P.fromProb (P.prob_ 2 P.* sd P.^ (P.nat_ 2)))
         P./ sd
-        P./ P.sqrt (P.prob_ 2 P.* P.pi))
+        P./ P.sqrt (P.prob_ 2 P.* P.pi)) (P.dirac x)
 observeMeasureOp Uniform (lo :* hi :* End) x =
     P.if_ (lo P.<= x P.&& x P.<= hi)
-          (P.weight $ P.unsafeProb $ P.recip $ hi P.- lo)
+          (P.pose (P.unsafeProb $ P.recip $ hi P.- lo) (P.dirac x))
           P.reject
 observeMeasureOp _ _ _ = error "Add other cases"
