@@ -1,13 +1,13 @@
 {-# LANGUAGE CPP
            , DataKinds
+           , KindSignatures
            , GADTs
-           , EmptyCase
            , FlexibleContexts
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.01.14
+--                                                    2016.01.15
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeOf
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -19,8 +19,14 @@
 -- BUG: can't put this in "Language.Hakaru.Syntax.AST.Sing" because of some sort of cyclic dependency...
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.TypeOf
-    ( typeOf
-    , typeOfTerm
+    (
+    -- * Get singletons for well-typed ABTs
+      typeOf
+    , typeOf_
+    
+    -- * Implementation details
+    , LiftSing(..)
+    , getTermSing
     ) where
 
 import qualified Data.Foldable as F
@@ -28,15 +34,17 @@ import qualified Data.Foldable as F
 import Data.Functor ((<$>))
 #endif
 
-import Language.Hakaru.Types.Sing (Sing(..))
+import Language.Hakaru.Syntax.IClasses (Pair2(..), fst2, snd2)
+import Language.Hakaru.Syntax.Variable (varType)
+import Language.Hakaru.Syntax.ABT      (ABT, caseBind, paraABT)
+import Language.Hakaru.Types.DataKind  (Hakaru())
+import Language.Hakaru.Types.Sing      (Sing(..))
 import Language.Hakaru.Types.Coercion
     (singCoerceCod, singCoerceDom, Coerce(..))
+import Language.Hakaru.Syntax.Datum    (Branch(..))
+import Language.Hakaru.Syntax.AST      (Term(..), SCon(..), SArgs(..))
 import Language.Hakaru.Syntax.AST.Sing
     (sing_PrimOp, sing_MeasureOp, sing_NaryOp, sing_Literal)
-import Language.Hakaru.Syntax.Datum (Branch(..))
-import Language.Hakaru.Syntax.AST
-import Language.Hakaru.Syntax.Variable (varType)
-import Language.Hakaru.Syntax.ABT (ABT, caseVarSyn, caseBind, caseBinds)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -56,60 +64,83 @@ typeOf e0 =
     Right typ -> typ
 
 
+-- | A safe variant of 'typeOf', which returns the error message
+-- as a string rather than throwing it as an exception. N.B., there
+-- are only two ways this can fail (other than the bug about not
+-- handling 'Datum_', which throws a TODO exeption rather than
+-- returning an error message string): for 'Case_' and 'Superpose_'
+-- if they are empty or all their branches fail.
 typeOf_ :: (ABT Term abt) => abt '[] a -> Either String (Sing a)
-typeOf_ e0 =
-    caseVarSyn e0 (return . varType) typeOfTerm_
+typeOf_
+    = unLiftSing
+    . paraABT
+        (LiftSing . return . varType)
+        (\_ _ -> LiftSing . unLiftSing) -- cast out phantoms
+        (LiftSing . getTermSing)
 
 
--- | A variant of 'typeOf' for when you already know that something
--- is a 'Term' instead of @abt@.
-typeOfTerm :: (ABT Term abt) => Term abt a -> Sing a
-typeOfTerm t0 =
-    case typeOfTerm_ t0 of
-    Left  err -> error $ "typeOfTerm: " ++ err
-    Right typ -> typ
+----------------------------------------------------------------
+-- | This newtype serves two roles. First we add the phantom @xs@
+-- so that we can fit this in with the types of 'paraABT'. And
+-- second, we wrap up the 'Sing' in a monad for capturing errors,
+-- so that we can bring them all the way to the top of the term
+-- before deciding whether to throw them or not.
+newtype LiftSing (xs :: [Hakaru]) (a :: Hakaru) =
+    LiftSing { unLiftSing :: Either String (Sing a) }
 
-typeOfTerm_ :: (ABT Term abt) => Term abt a -> Either String (Sing a)
-typeOfTerm_ t0 =
+
+getSing :: Pair2 abt LiftSing xs a -> Either String (Sing a)
+getSing = unLiftSing . snd2
+{-# INLINE getSing #-}
+
+
+getBranchSing
+    :: (ABT Term abt)
+    => Branch a (Pair2 abt LiftSing) b
+    -> Either String (Sing b)
+getBranchSing (Branch _ e) = unLiftSing (snd2 e)
+{-# INLINE getBranchSing #-}
+
+
+-- | This is the core of the 'Term'-algebra for computing 'typeOf_'.
+-- It is exported because it is useful for constructing other
+-- 'Term'-algebras for use with 'paraABT'; namely, for callers who
+-- need singletons for every subterm while converting an ABT to
+-- something else (e.g., pretty printing).
+getTermSing
+    :: (ABT Term abt)
+    => Term (Pair2 abt LiftSing) a
+    -> Either String (Sing a)
+getTermSing t0 =
     case t0 of
-    Lam_ :$ e1 :* End ->
-        caseBind e1 $ \x e1' ->
-            SFun (varType x) <$> typeOf_ e1'
-    App_ :$ e1 :* _ :* End -> do
-        typ1 <- typeOf_ e1
+    Lam_ :$ r1 :* End ->
+        caseBind (fst2 r1) $ \x _ ->
+            SFun (varType x) <$> getSing r1
+    App_ :$ r1 :* _ :* End -> do
+        typ1 <- getSing r1
         case typ1 of
-            SFun _ typ3 -> return typ3
-            _ -> error "typeOfTerm_: the impossible happened"
-    Let_ :$ _  :* e2 :* End   -> caseBind e2 (const typeOf_)
-    Ann_      typ :$ _        -> return typ
-    CoerceTo_   c :$ e1 :* End ->
-        case singCoerceCod c of
-        Nothing  -> coerceTo c <$> typeOf_ e1
-        Just typ -> return typ
-    UnsafeFrom_ c :$ e1 :* End ->
-        case singCoerceDom c of
-        Nothing  -> coerceFrom c <$> typeOf_ e1
-        Just typ -> return typ
-    PrimOp_     o :$ _        -> return . snd $ sing_PrimOp o
-    MeasureOp_  o :$ _        -> return . SMeasure . snd $ sing_MeasureOp o
-    Dirac  :$ e1 :* End       -> SMeasure <$> typeOf_ e1
-    MBind  :$ _  :* e2 :* End -> caseBind e2 (const typeOf_)
-    Expect :$ _               -> return SProb
+            SFun _ typ3        -> return typ3
+            _ -> error "getTermSing: the impossible happened"
+    Let_ :$ _  :* r2 :* End    -> getSing r2
+    Ann_      typ :$ _         -> return typ
+    CoerceTo_   c :$ r1 :* End ->
+        maybe (coerceTo   c <$> getSing r1) return (singCoerceCod c)
+    UnsafeFrom_ c :$ r1 :* End ->
+        maybe (coerceFrom c <$> getSing r1) return (singCoerceDom c)
+    PrimOp_     o :$ _         -> return . snd $ sing_PrimOp o
+    MeasureOp_  o :$ _         -> return . SMeasure . snd $ sing_MeasureOp o
+    Dirac  :$ r1 :* End        -> SMeasure <$> getSing r1
+    MBind  :$ _  :* r2 :* End  -> getSing r2
+    Expect :$ _                -> return SProb
+    NaryOp_  o  _              -> return $ sing_NaryOp o
+    Literal_ v                 -> return $ sing_Literal v
+    Empty_   typ               -> return typ
+    Array_   _  r2             -> SArray <$> getSing r2
+    Datum_   d                 -> error "TODO: getTermSing{Datum_}"
+    Case_    _  bs -> tryAll "Case_"      getBranchSing   bs
+    Superpose_ pes -> tryAll "Superpose_" (getSing . snd) pes
 
-    NaryOp_  o  _  -> return $ sing_NaryOp o
-    Literal_ v     -> return $ sing_Literal v
-    Empty_   typ   -> return typ
-    Array_   _  e2 -> caseBind e2 $ \_ e2' -> SArray <$> typeOf_ e2'
-    Datum_   d     -> error "TODO: typeOfTerm_{Datum_}"
-    Case_    _  bs -> tryAll "Case_" typeOfBranch_ bs
-    Superpose_ pes -> tryAll "Superpose_" (typeOf_ . snd) pes
-
-    _ :$ _ -> error "typeOfTerm_: the impossible happened"
-
-
-typeOfBranch_ :: (ABT Term abt) => Branch a abt b -> Either String (Sing b)
-typeOfBranch_ (Branch _ e0) = typeOf_ . snd $ caseBinds e0
-
+    _ :$ _ -> error "getTermSing: the impossible happened"
 
 tryAll
     :: F.Foldable f
@@ -124,6 +155,7 @@ tryAll name f =
         case f x of
         r@(Right _) -> r
         Left _      -> rest
+{-# INLINE tryAll #-}
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
