@@ -365,6 +365,7 @@ expectMeasure _ Uniform = \(lo :* hi :* End) _ ->
     integrate lo hi $ \x ->
         c x / unsafeProb (hi - lo)
 expectMeasure _ Normal = \(mu :* sd :* End) _ ->
+    -- N.B., if\/when extending this to higher dimensions, the real equation is @recip (sqrt (2*pi*sd^2) ^ n) * integrate$\x -> c x * exp (negate (norm_n (x - mu) ^ 2) / (2*sd^2))@ for @Real^n@.
     ExpectMeasure $ \c ->
     integrate negativeInfinity infinity $ \x ->
         exp (negate ((x - mu) ^ nat_ 2)

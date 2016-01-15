@@ -4,6 +4,7 @@
            , DataKinds
            , PolyKinds
            , TypeOperators
+           , Rank2Types
            , MultiParamTypeClasses
            , FlexibleContexts
            , FlexibleInstances
@@ -13,7 +14,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.14
+--                                                    2016.01.15
 -- |
 -- Module      :  Language.Hakaru.Syntax.ABT
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -59,7 +60,11 @@ module Language.Hakaru.Syntax.ABT
     , Hint(..)
     , multibinder
     -}
-    -- ** Some ABT instances
+    -- ** Abstract nonsense
+    , cataABT
+    , paraABT
+
+    -- * Some ABT instances
     , TrivialABT()
     , MemoizedABT()
     ) where
@@ -519,6 +524,10 @@ freshen x xs
     | otherwise           = x
 
 
+-- TODO: reimplement this using 'cataABT' or 'paraABT'. Possibly make
+-- strict versions of them in order to match the semantics we already
+-- have about throwing 'VarEqTypeError' in a timely manner.
+--
 -- | Rename a free variable. Does nothing if the variable is bound.
 rename
     :: forall syn abt (a :: k) xs (b :: k)
@@ -545,9 +554,17 @@ rename x y = start
         Nothing   -> bind z $ loop (caseBind e $ const id) v
 
 
--- TODO: keep track of a variable renaming environment, and do renaming on the fly rather than traversing the ABT repeatedly.
+-- TODO: reimplement this using 'cataABT' or 'paraABT'. Possibly make
+-- strict versions of them in order to match the semantics we already
+-- have about throwing 'VarEqTypeError' in a timely manner.
 --
--- TODO: make an explicit distinction between substitution in general vs instantiation of the top-level bound variable (i.e., the function of type @abt (x ': xs) a -> abt '[] x -> abt xs a@). cf., <http://hackage.haskell.org/package/abt>
+-- TODO: keep track of a variable renaming environment, and do
+-- renaming on the fly rather than traversing the ABT repeatedly.
+--
+-- TODO: make an explicit distinction between substitution in general
+-- vs instantiation of the top-level bound variable (i.e., the
+-- function of type @abt (x ': xs) a -> abt '[] x -> abt xs a@).
+-- cf., <http://hackage.haskell.org/package/abt>
 --
 -- | Perform capture-avoiding substitution. This function will
 -- either preserve type-safety or else throw an 'VarEqTypeError'
@@ -727,6 +744,75 @@ multibinder names hoas = binds vars body
     binds Nil                  = id
     binds (Cons (VS x _) rest) = bind x . binds rest
 -}
+
+----------------------------------------------------------------
+----------------------------------------------------------------
+-- | The catamorphism (aka: iterator) for ABTs. While this is
+-- equivalent to 'paraABT' in terms of the definable /functions/,
+-- it is weaker in terms of definable /algorithms/. If you need
+-- access to (subterms of) the original ABT, it is more efficient
+-- to use 'paraABT' than to rebuild them. However, if you never
+-- need access to the original ABT, then this function has somewhat
+-- less overhead.
+cataABT
+    :: forall
+        (abt :: [k] -> k -> *)
+        (syn :: ([k] -> k -> *) -> k -> *)
+        (r   :: [k] -> k -> *)
+    .  (ABT syn abt, Functor21 syn)
+    => (forall a.      Variable a -> r '[] a)
+    -> (forall x xs a. Variable x -> r xs a -> r (x ': xs) a)
+    -> (forall a.      syn r a    -> r '[] a)
+    -> forall  xs a.   abt xs a   -> r xs a
+cataABT var_ bind_ syn_ = start
+    where
+    start :: forall ys b. abt ys b -> r ys b
+    start = loop . viewABT
+
+    loop :: forall ys b. View (syn abt) ys b -> r ys b
+    loop (Syn  t)   = syn_  (fmap21 start t)
+    loop (Var  x)   = var_  x
+    loop (Bind x e) = bind_ x (loop e)
+{-# INLINE cataABT #-}
+
+
+-- | The paramorphism (aka: recursor) for ABTs. While this is
+-- equivalent to 'cataABT' in terms of the definable /functions/,
+-- it is stronger in terms of definable /algorithms/. If you need
+-- access to (subterms of) the original ABT, it is more efficient
+-- to use this function than to use 'cataABT' and rebuild them.
+-- However, if you never need access to the original ABT, then
+-- 'cataABT' has somewhat less overhead.
+--
+-- The provided type is slightly non-uniform since we inline (i.e.,
+-- curry) the definition of 'Pair2' in the type of the @bind_@
+-- argument. But we can't inline 'Pair2' away in the type of the
+-- @syn_@ argument. N.B., if you treat the second component of the
+-- 'Pair2' (either the real ones or the curried ones) lazily, then
+-- this is a top-down function; however, if you treat them strictly
+-- then it becomes a bottom-up function.
+paraABT
+    :: forall
+        (abt :: [k] -> k -> *)
+        (syn :: ([k] -> k -> *) -> k -> *)
+        (r   :: [k] -> k -> *)
+    .  (ABT syn abt, Functor21 syn)
+    => (forall a.      Variable a -> r '[] a)
+    -> (forall x xs a. Variable x -> abt xs a -> r xs a -> r (x ': xs) a)
+    -> (forall a.      syn (Pair2 abt r) a -> r '[] a)
+    -> forall  xs a.   abt xs a -> r xs a
+paraABT var_ bind_ syn_ = start
+    where
+    start :: forall ys b. abt ys b -> r ys b
+    start = loop . viewABT
+
+    loop :: forall ys b. View (syn abt) ys b -> r ys b
+    loop (Syn  t)   = syn_  (fmap21 (\e -> Pair2 e (start e)) t)
+    loop (Var  x)   = var_  x
+    loop (Bind x e) = bind_ x (unviewABT e) (loop e)
+        -- HACK: how can we avoid that call to 'unviewABT'?
+{-# INLINE paraABT #-}
+
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------

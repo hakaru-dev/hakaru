@@ -939,6 +939,7 @@ constrainOutcomeMeasureOp v0 = go
 
     -- TODO: I think, based on Hakaru v0.2.0
     go Normal = \(mu :* sd :* End) -> do
+        -- N.B., if\/when extending this to higher dimensions, the real equation is @recip (sqrt (2*pi*sd^2) ^ n) * exp (negate (norm_n (v0 - mu) ^ 2) / (2*sd^2))@ for @Real^n@.
         mu' <- fromWhnf <$> atomize mu
         sd' <- (emitLet' . fromWhnf) =<< atomize sd
         emitWeight

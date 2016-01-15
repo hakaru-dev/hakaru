@@ -7,7 +7,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.19
+--                                                    2016.01.14
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeOf
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -20,6 +20,7 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.TypeOf
     ( typeOf
+    , typeOfTerm
     ) where
 
 import qualified Data.Foldable as F
@@ -57,45 +58,57 @@ typeOf e0 =
 
 typeOf_ :: (ABT Term abt) => abt '[] a -> Either String (Sing a)
 typeOf_ e0 =
-    caseVarSyn e0 (return . varType) $ \t ->
-        case t of
-        Lam_ :$ e1 :* End ->
-            caseBind e1 $ \x e1' ->
-                SFun (varType x) <$> typeOf_ e1'
-        App_ :$ e1 :* _ :* End -> do
-            typ1 <- typeOf_ e1
-            case typ1 of
-                SFun _ typ3 -> return typ3
-                _ -> error "typeOf_: the impossible happened"
-        Let_ :$ _  :* e2 :* End   -> caseBind e2 (const typeOf_)
-        Ann_      typ :$ _        -> return typ
-        CoerceTo_   c :$ e1 :* End ->
-            case singCoerceCod c of
-            Nothing  -> coerceTo c <$> typeOf_ e1
-            Just typ -> return typ
-        UnsafeFrom_ c :$ e1 :* End ->
-            case singCoerceDom c of
-            Nothing  -> coerceFrom c <$> typeOf_ e1
-            Just typ -> return typ
-        PrimOp_     o :$ _        -> return . snd $ sing_PrimOp o
-        MeasureOp_  o :$ _        -> return . SMeasure . snd $ sing_MeasureOp o
-        Dirac  :$ e1 :* End       -> SMeasure <$> typeOf_ e1
-        MBind  :$ _  :* e2 :* End -> caseBind e2 (const typeOf_)
-        Expect :$ _               -> return SProb
-        
-        NaryOp_  o  _  -> return $ sing_NaryOp o
-        Literal_ v     -> return $ sing_Literal v
-        Empty_   typ   -> return typ
-        Array_   _  e2 -> caseBind e2 $ \_ e2' -> SArray <$> typeOf_ e2'
-        Datum_   d     -> error "TODO: typeOf_{Datum_}"
-        Case_    _  bs -> tryAll "Case_" typeOfBranch bs
-        Superpose_ pes -> tryAll "Superpose_" (typeOf_ . snd) pes
-        
-        _ :$ _ -> error "typeOf_: the impossible happened"
+    caseVarSyn e0 (return . varType) typeOfTerm_
 
 
-typeOfBranch :: (ABT Term abt) => Branch a abt b -> Either String (Sing b)
-typeOfBranch (Branch _ e0) = typeOf_ . snd $ caseBinds e0
+-- | A variant of 'typeOf' for when you already know that something
+-- is a 'Term' instead of @abt@.
+typeOfTerm :: (ABT Term abt) => Term abt a -> Sing a
+typeOfTerm t0 =
+    case typeOfTerm_ t0 of
+    Left  err -> error $ "typeOfTerm: " ++ err
+    Right typ -> typ
+
+typeOfTerm_ :: (ABT Term abt) => Term abt a -> Either String (Sing a)
+typeOfTerm_ t0 =
+    case t0 of
+    Lam_ :$ e1 :* End ->
+        caseBind e1 $ \x e1' ->
+            SFun (varType x) <$> typeOf_ e1'
+    App_ :$ e1 :* _ :* End -> do
+        typ1 <- typeOf_ e1
+        case typ1 of
+            SFun _ typ3 -> return typ3
+            _ -> error "typeOfTerm_: the impossible happened"
+    Let_ :$ _  :* e2 :* End   -> caseBind e2 (const typeOf_)
+    Ann_      typ :$ _        -> return typ
+    CoerceTo_   c :$ e1 :* End ->
+        case singCoerceCod c of
+        Nothing  -> coerceTo c <$> typeOf_ e1
+        Just typ -> return typ
+    UnsafeFrom_ c :$ e1 :* End ->
+        case singCoerceDom c of
+        Nothing  -> coerceFrom c <$> typeOf_ e1
+        Just typ -> return typ
+    PrimOp_     o :$ _        -> return . snd $ sing_PrimOp o
+    MeasureOp_  o :$ _        -> return . SMeasure . snd $ sing_MeasureOp o
+    Dirac  :$ e1 :* End       -> SMeasure <$> typeOf_ e1
+    MBind  :$ _  :* e2 :* End -> caseBind e2 (const typeOf_)
+    Expect :$ _               -> return SProb
+
+    NaryOp_  o  _  -> return $ sing_NaryOp o
+    Literal_ v     -> return $ sing_Literal v
+    Empty_   typ   -> return typ
+    Array_   _  e2 -> caseBind e2 $ \_ e2' -> SArray <$> typeOf_ e2'
+    Datum_   d     -> error "TODO: typeOfTerm_{Datum_}"
+    Case_    _  bs -> tryAll "Case_" typeOfBranch_ bs
+    Superpose_ pes -> tryAll "Superpose_" (typeOf_ . snd) pes
+
+    _ :$ _ -> error "typeOfTerm_: the impossible happened"
+
+
+typeOfBranch_ :: (ABT Term abt) => Branch a abt b -> Either String (Sing b)
+typeOfBranch_ (Branch _ e0) = typeOf_ . snd $ caseBinds e0
 
 
 tryAll

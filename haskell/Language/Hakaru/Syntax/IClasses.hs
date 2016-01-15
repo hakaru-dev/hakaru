@@ -10,7 +10,7 @@
            #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.10
+--                                                    2016.01.15
 -- |
 -- Module      :  Language.Hakaru.Syntax.IClasses
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -65,7 +65,8 @@ module Language.Hakaru.Syntax.IClasses
     -- * Helper types
     , Some1(..)
     , Some2(..)
-    , Pair1(..)
+    , Pair1(..), fst1, snd1
+    , Pair2(..), fst2, snd2
     -- ** List types
     , type (++), eqAppendIdentity, eqAppendAssoc
     , List1(..), append1
@@ -544,9 +545,15 @@ instance JmEq2 a  => Eq (Some2 a) where
 
 
 ----------------------------------------------------------------
--- | A /strict/ pairing of identically @k@-indexed values.
+-- | A lazy pairing of identically @k@-indexed values.
 data Pair1 (a :: k -> *) (b :: k -> *) (i :: k) =
-    Pair1 !(a i) !(b i)
+    Pair1 (a i) (b i)
+
+fst1 :: Pair1 a b i -> a i
+fst1 (Pair1 x _) = x
+
+snd1 :: Pair1 a b i -> b i
+snd1 (Pair1 _ y) = y
 
 instance (Show1 a, Show1 b) => Show1 (Pair1 a b) where
     showsPrec1 p (Pair1 x y) = showParen_11 p "Pair1" x y
@@ -554,6 +561,32 @@ instance (Show1 a, Show1 b) => Show1 (Pair1 a b) where
 instance (Show1 a, Show1 b) => Show (Pair1 a b i) where
     showsPrec = showsPrec1
     show      = show1
+
+-- TODO: derived Eq, JmEq, functor, foldable, traversable instances
+
+----------------------------------------------------------------
+-- | A lazy pairing of identically @(k1,k2)@-indexed values.
+data Pair2 (a :: k1 -> k2 -> *) (b :: k1 -> k2 -> *) (i :: k1) (j :: k2) =
+    Pair2 (a i j) (b i j)
+
+fst2 :: Pair2 a b i j -> a i j
+fst2 (Pair2 x _) = x
+
+snd2 :: Pair2 a b i j -> b i j
+snd2 (Pair2 _ y) = y
+
+instance (Show2 a, Show2 b) => Show2 (Pair2 a b) where
+    showsPrec2 p (Pair2 x y) = showParen_22 p "Pair2" x y
+
+instance (Show2 a, Show2 b) => Show1 (Pair2 a b i) where
+    showsPrec1 = showsPrec2
+    show1      = show2
+
+instance (Show2 a, Show2 b) => Show (Pair2 a b i j) where
+    showsPrec = showsPrec1
+    show      = show1
+
+-- TODO: derived Eq, JmEq, functor, foldable, traversable instances
 
 
 ----------------------------------------------------------------
