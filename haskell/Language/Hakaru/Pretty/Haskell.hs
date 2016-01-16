@@ -104,9 +104,14 @@ ppBinder e =
     (vars,body) -> PP.char '\\' <+> PP.sep vars <+> PP.text "->" : body
     where
     go :: (ABT Term abt) => [Doc] -> View (Term abt) xs a -> ([Doc],Docs)
-    go xs (Bind x v) = go (ppVariable x : xs) v
-    go xs (Var  x)   = (reverse xs, [ppVariable x])
     go xs (Syn  t)   = (reverse xs, prettyPrec_ 0 (LC_ (syn t)))
+    go xs (Var  x)   = (reverse xs, [ppVariable x])
+    go xs (Bind x v) =
+        -- HACK: how can we avoid calling 'unviewABT' here?
+        let x' = if x `memberVarSet` freeVars (unviewABT v)
+                then ppVariable x
+                else PP.char '_'
+        in go (x' : xs) v
 
 
 -- TODO: since switching to ABT2, this instance requires -XFlexibleContexts; we should fix that if we can
