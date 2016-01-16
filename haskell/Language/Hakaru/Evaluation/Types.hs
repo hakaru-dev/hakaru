@@ -333,7 +333,7 @@ instance (ABT Term abt) => Coerce (Whnf abt) where
             Neutral . maybe (P.coerceTo_ c e) id
                 $ caseVarSyn e (const Nothing) $ \t ->
                     case t of
-                    -- TODO: 'Literal' coercion
+                    Literal_ x          -> Just $ P.literal_ (coerceTo c x)
                     -- UnsafeFrom_ c' :$ es' -> TODO: cancellation
                     CoerceTo_ c' :$ es' ->
                         case es' of
@@ -342,7 +342,7 @@ instance (ABT Term abt) => Coerce (Whnf abt) where
                     _ -> Nothing
         Head_ v ->
             case v of
-            -- TODO: 'Literal' coercion
+            WLiteral x      -> Head_ $ WLiteral (coerceTo c x)
             -- WUnsafeFrom c' v' -> TODO: cancellation
             WCoerceTo c' v' -> Head_ $ WCoerceTo (c . c') v'
             _               -> Head_ $ WCoerceTo c v
@@ -353,7 +353,7 @@ instance (ABT Term abt) => Coerce (Whnf abt) where
             Neutral . maybe (P.unsafeFrom_ c e) id
                 $ caseVarSyn e (const Nothing) $ \t ->
                     case t of
-                    -- TODO: 'Literal' coercion
+                    Literal_ x -> Just $ P.literal_ (coerceFrom c x)
                     -- CoerceTo_ c' :$ es' -> TODO: cancellation
                     UnsafeFrom_ c' :$ es' ->
                         case es' of
@@ -362,7 +362,7 @@ instance (ABT Term abt) => Coerce (Whnf abt) where
                     _ -> Nothing
         Head_ v ->
             case v of
-            -- TODO: 'Literal' coercion
+            WLiteral x        -> Head_ $ WLiteral (coerceFrom c x)
             -- WCoerceTo c' v' -> TODO: cancellation
             WUnsafeFrom c' v' -> Head_ $ WUnsafeFrom (c' . c) v'
             _                 -> Head_ $ WUnsafeFrom c v

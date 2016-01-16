@@ -63,7 +63,6 @@ module Language.Hakaru.Syntax.Prelude
     -- * Measures
     -- ** Abstract nonsense
     , dirac, (<$>), (<*>), (<*), (*>), (>>=), (>>), bindx
-    -- liftM, liftM2
     -- ** Linear operators
     , superpose, pose, weight, weightedDirac, reject, observe
     -- ** Measure operators
@@ -998,13 +997,12 @@ dirac e1 = syn (Dirac :$ e1 :* End)
 
 
 -- TODO: can we use let-binding instead of (>>=)-binding (i.e., for when the dirac is immediately (>>=)-bound again...)?
-(<$>), liftM
+(<$>)
     :: (ABT Term abt)
     => (abt '[] a -> abt '[] b)
     -> abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure b)
 f <$> m = m >>= dirac . f
-liftM = (<$>)
 
 -- | N.B, this function may introduce administrative redexes.
 -- Moreover, it's not clear that we should even allow the type
@@ -1040,6 +1038,7 @@ bindx
     -> abt '[] ('HMeasure (HPair a b))
 m `bindx` f = m >>= \a -> pair a <$> f a
 
+-- Defined because using @(<$>)@ and @(<*>)@ would introduce administrative redexes
 liftM2
     :: (ABT Term abt)
     => (abt '[] a -> abt '[] b -> abt '[] c)
@@ -1047,7 +1046,6 @@ liftM2
     -> abt '[] ('HMeasure b)
     -> abt '[] ('HMeasure c)
 liftM2 f m n = m >>= \x -> f x <$> n
-    -- or @(lam . f) <$> m <*> n@ but that would introduce administrative redexes
 
 
 lebesgue :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
