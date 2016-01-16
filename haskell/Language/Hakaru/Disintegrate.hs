@@ -88,8 +88,10 @@ import Language.Hakaru.Evaluation.DisintegrationMonad
 import qualified Language.Hakaru.Syntax.Prelude as P
 import qualified Language.Hakaru.Expect         as E
 
+{-
 import Language.Hakaru.Pretty.Haskell (pretty)
 import Debug.Trace (trace)
+-}
 
 ----------------------------------------------------------------
 -- N.B., for all these functions the old version used to use the
@@ -120,7 +122,7 @@ disintegrate m = do
         ab    <- perform m
         (a,b) <- emitUnpair ab
         constrainValue (Neutral $ var x) a
-        evaluate_ b -- TODO: 'atomize' instead?
+        return b
     return $ syn (Lam_ :$ bind x m' :* End)
 
 
@@ -209,7 +211,7 @@ conditionalize (Condition pat b) m =
                 b' <- atomize b
                 -- TODO: make sure this is the correct argument order
                 constrainValue b' (var y)
-                return (Neutral x)
+                return x
             , GBranch PWild Nil1 $ reject
             ]
 
@@ -277,7 +279,9 @@ evaluate_ = evaluate perform
 -- This is the function called @(|>>)@ in the paper.
 perform :: (ABT Term abt) => MeasureEvaluator abt (Dis abt)
 perform e0 =
+    {-
     trace ("\nperform: " ++ show (pretty e0)) $
+    -}
     caseVarSyn e0 performVar $ \t ->
         case t of
         Dirac :$ e1 :* End       -> evaluate_ e1
@@ -350,7 +354,9 @@ performWhnf (Neutral e) = (Neutral . var) <$> emitMBind e
 -- (namely when dealing with neutral terms)
 atomize :: (ABT Term abt) => TermEvaluator abt (Dis abt)
 atomize e =
+    {-
     trace ("\natomize: " ++ show (pretty e)) $
+    -}
     traverse21 atomizeCore =<< evaluate_ e
 
 -- | Factored out from 'atomize' because we often need this more
@@ -399,12 +405,14 @@ getHeapVars =
 -- we swap the argument order.
 constrainValue :: (ABT Term abt) => Whnf abt a -> abt '[] a -> Dis abt ()
 constrainValue v0 e0 =
+    {-
     trace (
         let s = "constrainValue"
         in "\n" ++ s ++ ": "
             ++ show (pretty (fromWhnf v0))
             ++ "\n" ++ replicate (length s) ' ' ++ ": "
             ++ show (pretty e0)) $
+    -}
     caseVarSyn e0 (constrainVariable v0) $ \t ->
         case t of
         -- There's a bunch of stuff we don't even bother trying to handle
@@ -869,12 +877,13 @@ constrainOutcome
     -> abt '[] ('HMeasure a)
     -> Dis abt ()
 constrainOutcome v0 e0 =
+    {-
     trace (
         let s = "constrainOutcome"
         in "\n" ++ s ++ ": "
             ++ show (pretty (fromWhnf v0))
             ++ "\n" ++ replicate (length s) ' ' ++ ": "
-            ++ show (pretty e0)) $ do
+            ++ show (pretty e0)) $ -} do
     w0 <- evaluate_ e0
     case w0 of
         Neutral _ -> bot

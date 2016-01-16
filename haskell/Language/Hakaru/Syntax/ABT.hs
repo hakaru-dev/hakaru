@@ -747,6 +747,8 @@ multibinder names hoas = binds vars body
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
+-- TODO: versions of 'cataABT' and 'paraABT' which memoize the results for variables rather than recomputing them each time.
+
 -- | The catamorphism (aka: iterator) for ABTs. While this is
 -- equivalent to 'paraABT' in terms of the definable /functions/,
 -- it is weaker in terms of definable /algorithms/. If you need

@@ -15,6 +15,7 @@ import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Syntax.Prelude
 -- import Language.Hakaru.Pretty.Haskell   (pretty)
+import Language.Hakaru.Evaluation.Types               (fromWhnf)
 import Language.Hakaru.Evaluation.DisintegrationMonad (runDis)
 import Language.Hakaru.Syntax.IClasses  (Some2(..))
 import Language.Hakaru.Disintegrate
@@ -63,9 +64,9 @@ normC = lam $ \y ->
 
 test0, test0a, test0b
     :: [TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))]
-test0  = runDis (perform norm)  [Some2 norm]
-test0a = runDis (perform normA) [Some2 normA]
-test0b = runDis (perform normB) [Some2 normB]
+test0  = runDis (fromWhnf `Prelude.fmap` perform norm)  [Some2 norm]
+test0a = runDis (fromWhnf `Prelude.fmap` perform normA) [Some2 normA]
+test0b = runDis (fromWhnf `Prelude.fmap` perform normB) [Some2 normB]
 
 -- BUG: at present, both 'test1' throws errors about @typeOf_{Datum_}@.
 test1, test1a, test1b

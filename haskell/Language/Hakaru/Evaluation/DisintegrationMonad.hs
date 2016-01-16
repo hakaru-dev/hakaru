@@ -16,7 +16,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.01.13
+--                                                    2016.01.15
 -- |
 -- Module      :  Language.Hakaru.Evaluation.DisintegrationMonad
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -232,15 +232,13 @@ newtype Dis abt x = Dis { unDis :: forall a. (x -> Ans abt a) -> Ans abt a }
 -- type or locally-bound variables are, so we want to allow @f@ to
 -- contain terms with different indices.
 runDis :: (ABT Term abt, F.Foldable f)
-    => Dis abt (Whnf abt a)
+    => Dis abt (abt '[] a)
     -> f (Some2 abt)
     -> [abt '[] ('HMeasure a)]
 runDis (Dis m) es = m c0 (ListContext i0 [])
     where
-    -- HACK: we only have @c0@ build up a WHNF since that's what
-    -- 'Ans' says we need (see the comment at 'Ans' for why this
-    -- may not be what we actually mean).
-    c0 x = (:[]) . residualizeListContext (syn(Dirac :$ fromWhnf x :* End))
+    -- TODO: we only use dirac because 'residualizeListContext' requires it to already be a measure; unfortunately this can result in an extraneous @(>>= \x -> dirac x)@ redex at the end of the program. In principle, we should be able to eliminate that redex by changing the type of 'residualizeListContext'...
+    c0 e = (:[]) . residualizeListContext (syn(Dirac :$ e :* End))
     
     i0 = unMaxNat (F.foldMap (\(Some2 e) -> MaxNat $ nextFree e) es)
 
