@@ -8,7 +8,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.11
+--                                                    2016.01.15
 -- |
 -- Module      :  Language.Hakaru.Pretty.Concrete
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -39,7 +39,6 @@ import qualified Data.Foldable    as F
 import qualified Data.Text        as Text
 import qualified Data.Sequence    as Seq -- Because older versions of "Data.Foldable" do not export 'null' apparently...
 
-import Data.Number.Nat      (fromNat)
 import Data.Number.Natural  (fromNatural, fromNonNegativeRational)
 import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11)
 import Language.Hakaru.Types.DataKind
@@ -49,8 +48,10 @@ import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT
-----------------------------------------------------------------
+import Language.Hakaru.Pretty.Haskell
+    (prettyAssoc, prettyPrecAssoc, ppVariable, Associativity(..), ppBinop)
 
+----------------------------------------------------------------
 -- | Pretty-print a term.
 pretty :: (ABT Term abt) => abt '[] a -> Doc
 pretty = prettyPrec 0
@@ -59,20 +60,6 @@ pretty = prettyPrec 0
 -- | Pretty-print a term at a given precendence level.
 prettyPrec :: (ABT Term abt) => Int -> abt '[] a -> Doc
 prettyPrec p = toDoc . prettyPrec_ p . LC_
-
-
--- | Pretty-print a variable\/term association pair.
-prettyAssoc :: (ABT Term abt) => Assoc abt -> Doc
-prettyAssoc = prettyPrecAssoc 0
-
-
--- | Pretty-print an association at a given precendence level.
-prettyPrecAssoc :: (ABT Term abt) => Int -> Assoc abt -> Doc
-prettyPrecAssoc p (Assoc x e) =
-    toDoc $ ppFun p "Assoc"
-        [ ppVariable x
-        , prettyPrec 11 e
-        ]
 
 ----------------------------------------------------------------
 class Pretty (f :: Hakaru -> *) where
@@ -87,21 +74,15 @@ toDoc = PP.cat
 
 -- | Color a Doc
 color :: Color -> Doc -> Doc
-color c d = PP.text (setSGRCode [SetColor Foreground Dull c]) <>  d <> PP.text (setSGRCode [Reset])
+color c d =
+    PP.text (setSGRCode [SetColor Foreground Dull c])
+    <> d
+    <> PP.text (setSGRCode [Reset])
 
 keyword :: Doc -> Doc
 keyword = color Red
 
--- | Pretty-print a variable.
-ppVariable :: Variable (a :: Hakaru) -> Doc
-ppVariable x = hint <> (PP.int . fromNat . varID) x
-    where
-    hint
-        | Text.null (varHint x) = PP.char 'x'
-        | otherwise             = (PP.text . Text.unpack . varHint) x
-
-
--- | Pretty-print Hakaru binders as a Haskell lambda, as per our HOAS API.
+-- BUG: we still use this in a few places. I'm pretty sure they should all actually be 'ppBinder2', in which case we can delete this function and just use that one.
 ppBinder :: (ABT Term abt) => abt xs a -> Docs
 ppBinder e =
     case go [] (viewABT e) of
@@ -112,6 +93,7 @@ ppBinder e =
     go xs (Bind x v) = go (ppVariable x : xs) v
     go xs (Var  x)   = (reverse xs, [ppVariable x])
     go xs (Syn  t)   = (reverse xs, prettyPrec_ 0 (LC_ (syn t)))
+
 
 ppBinder2 :: (ABT Term abt) => abt xs a -> ([Doc],Docs)
 ppBinder2 e = go [] (viewABT e)
@@ -248,20 +230,20 @@ prettyType SReal        = PP.text "real"
 prettyType (SMeasure a) = PP.text "measure" <> PP.parens (prettyType a)
 prettyType (SArray   a) = PP.text "array" <> PP.parens (prettyType a)
 prettyType (SFun   a b) = prettyType a <+> PP.text "->" <+> prettyType b  
-prettyType typ  = PP.text (showsPrec 11 typ "")
+prettyType typ          = PP.text (showsPrec 11 typ "")
     -- TODO: make this prettier. Add hints to the singletons?typ
 
 ppCoerce :: Coercion a b -> String
-ppCoerce (CCons (Signed HRing_Real) CNil) = "fromProb"
-ppCoerce (CCons (Signed HRing_Int ) CNil) = "nat2int"
-ppCoerce (CCons (Continuous HContinuous_Real ) CNil) = "fromInt"
-ppCoerce (CCons (Continuous HContinuous_Prob  ) CNil) = "nat2prob"
+ppCoerce (CCons (Signed HRing_Real) CNil)           = "fromProb"
+ppCoerce (CCons (Signed HRing_Int)  CNil)           = "nat2int"
+ppCoerce (CCons (Continuous HContinuous_Real) CNil) = "fromInt"
+ppCoerce (CCons (Continuous HContinuous_Prob) CNil) = "nat2prob"
 ppCoerce (CCons (Signed HRing_Int) (CCons (Continuous HContinuous_Real) CNil)) = "nat2real"
 ppCoerce c = "coerceTo_ " ++ showsPrec 11 c ""
 
 ppUnsafe :: Coercion a b -> String
 ppUnsafe (CCons (Signed HRing_Real) CNil) = "unsafeProb"
-ppUnsafe (CCons (Signed HRing_Int ) CNil) = "unsafeNat"
+ppUnsafe (CCons (Signed HRing_Int)  CNil) = "unsafeNat"
 ppUnsafe c = "unsafeFrom_ " ++ showsPrec 11 c ""
 
 -- | Pretty-print a 'PrimOp' @(:$)@ node in the AST.
@@ -348,10 +330,12 @@ ppMeasureOp p (Plate _)   = \(e1 :* End)       -> ppApply1 p "plate" e1
 ppMeasureOp p (Chain _ _) = \(e1 :* e2 :* End) -> ppApply2 p "chain" e1 e2
 
 
+-- BUG: doubles may not properly and unambiguously represent the correct rational! Consider using 'ppRatio' instead.
 instance Pretty Literal where
     prettyPrec_ _ (LNat  n) = [PP.integer (fromNatural n)]
     prettyPrec_ _ (LInt  i) = [PP.integer i]
-    prettyPrec_ _ (LProb l) = [PP.double $ fromRational $ fromNonNegativeRational l]
+    prettyPrec_ _ (LProb l) =
+        [PP.double $ fromRational $ fromNonNegativeRational l]
     prettyPrec_ _ (LReal r) = [PP.double $ fromRational r]
 
 
@@ -462,54 +446,6 @@ ppApply1 p f e1 = ppFun p f [toDoc $ ppArg e1]
 ppApply2
     :: (ABT Term abt) => Int -> String -> abt '[] a -> abt '[] b -> Docs
 ppApply2 p f e1 e2 = ppFun p f [toDoc $ ppArg e1, toDoc $ ppArg e2]
-
-{-
--- TODO: for when we update the representation of HReal\/HProb values to use rationals rather than Double\/LogFloat.
-ppRational :: Int -> Rational -> Doc
-ppRational p r
-    | d == 1    = ppInteger n
-    | otherwise = PP.cat [ppInteger n, PP.char '/' <> ppInteger d ]
-    where
-    ppInteger = PP.text . show
-    d = denominator r
-    n = numerator   r
-
--- If we decide to generalize the above to all Ratio, then we'd need something like:
-showRatio :: (Show a, Integral a) => Int -> Ratio a -> ShowS
-showRatio p r
-    | num < 0    =
-        showParen (p > 6)
-            $ showChar '-'
-            . showRatio 7 (-r)
-    | denom == 1 = showsPrec p n
-    | otherwise  =
-        showParen (p > 7)
-            $ showsPrec 8 n 
-            . showChar '/' 
-            . showsPrec 8 d
-    where
-    d = denominator r
-    n = numerator   r
--}
-
-data Associativity = LeftAssoc | RightAssoc | NonAssoc
-
-ppBinop
-    :: (ABT Term abt)
-    => String -> Int -> Associativity
-    -> Int -> abt '[] a -> abt '[] b -> Docs
-ppBinop op p0 assoc =
-    let (p1,p2) =
-            case assoc of
-            LeftAssoc  -> (p0, 1 + p0)
-            RightAssoc -> (1 + p0, p0)
-            NonAssoc   -> (1 + p0, 1 + p0)
-    in \p e1 e2 -> 
-        parens (p > p0)
-            [ prettyPrec p1 e1
-            , PP.text op
-                <+> prettyPrec p2 e2
-            ]
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

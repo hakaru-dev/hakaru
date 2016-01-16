@@ -7,7 +7,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.01.10
+--                                                    2016.01.15
 -- |
 -- Module      :  Language.Hakaru.Pretty.Haskell
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -16,7 +16,7 @@
 -- Stability   :  experimental
 -- Portability :  GHC-only
 --
--- 
+--
 ----------------------------------------------------------------
 module Language.Hakaru.Pretty.Haskell
     (
@@ -28,16 +28,19 @@ module Language.Hakaru.Pretty.Haskell
 
     -- * Helper functions (semi-public internal API)
     , ppVariable
+    , ppRatio
+    , Associativity(..)
+    , ppBinop
     ) where
-
+import           Data.Ratio
 import           Text.PrettyPrint (Doc, (<>), (<+>))
 import qualified Text.PrettyPrint as PP
 import qualified Data.Foldable    as F
 import qualified Data.Text        as Text
 import qualified Data.Sequence    as Seq -- Because older versions of "Data.Foldable" do not export 'null' apparently...
 
-import Data.Number.Nat      (fromNat)
-import Data.Number.Natural  (fromNatural, fromNonNegativeRational)
+import Data.Number.Nat                 (fromNat)
+import Data.Number.Natural             (fromNatural)
 import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11)
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Coercion
@@ -87,7 +90,7 @@ ppVariable :: Variable (a :: Hakaru) -> Doc
 ppVariable x = hint <> (PP.int . fromNat . varID) x
     where
     hint
-        | Text.null (varHint x) = PP.char '_'
+        | Text.null (varHint x) = PP.char 'x' -- We used to use '_' but...
         | otherwise             = (PP.text . Text.unpack . varHint) x
 
 
@@ -332,10 +335,8 @@ ppMeasureOp p (Chain _ _) = \(e1 :* e2 :* End) -> ppApply2 p "chain" e1 e2
 instance Pretty Literal where
     prettyPrec_ p (LNat  n) = ppFun p "nat_"  [PP.integer (fromNatural n)]
     prettyPrec_ p (LInt  i) = ppFun p "int_"  [PP.integer i]
-    prettyPrec_ p (LProb l) = ppFun p "prob_" [PP.parens . PP.rational $ fromNonNegativeRational l]
-        -- TODO: make it prettier! (i.e., print as decimal notation)
-    prettyPrec_ p (LReal r) = ppFun p "real_" [PP.parens $ PP.rational r]
-        -- TODO: make it prettier! (i.e., print as decimal notation)
+    prettyPrec_ p (LProb l) = ppFun p "prob_" [ppRatio 11 l]
+    prettyPrec_ p (LReal r) = ppFun p "real_" [ppRatio 11 r]
 
 
 instance Pretty f => Pretty (Datum f) where
@@ -419,34 +420,41 @@ ppApply2
     :: (ABT Term abt) => Int -> String -> abt '[] a -> abt '[] b -> Docs
 ppApply2 p f e1 e2 = ppFun p f [toDoc $ ppArg e1, toDoc $ ppArg e2]
 
-{-
--- TODO: for when we update the representation of HReal\/HProb values to use rationals rather than Double\/LogFloat.
-ppRational :: Int -> Rational -> Doc
-ppRational p r
-    | d == 1    = ppInteger n
-    | otherwise = PP.cat [ppInteger n, PP.char '/' <> ppInteger d ]
-    where
-    ppInteger = PP.text . show
-    d = denominator r
-    n = numerator   r
 
--- If we decide to generalize the above to all Ratio, then we'd need something like:
-showRatio :: (Show a, Integral a) => Int -> Ratio a -> ShowS
-showRatio p r
-    | num < 0    =
-        showParen (p > 6)
-            $ showChar '-'
-            . showRatio 7 (-r)
-    | denom == 1 = showsPrec p n
-    | otherwise  =
-        showParen (p > 7)
-            $ showsPrec 8 n 
-            . showChar '/' 
+-- | Something prettier than 'PP.rational'. This works correctly
+-- for both 'Rational' and 'NonNegativeRational', though it may not
+-- work for other @a@ types.
+--
+-- N.B., the resulting string assumes prefix negation and the
+-- 'Fractional' @(/)@ operator are both in scope.
+ppRatio :: (Show a, Integral a) => Int -> Ratio a -> Doc
+ppRatio p r
+    | d == 1    = ppShowS $ showsPrec p n
+    | n < 0     =
+        ppShowS
+        . showParen (p > 7)
+            $ showChar '-' -- TODO: is this guaranteed valid no matter @a@?
+            . showsPrec 8 (negate n)
+            . showChar '/'
+            . showsPrec 8 d
+    | otherwise =
+        ppShowS
+        . showParen (p > 7)
+            $ showsPrec 8 n
+            . showChar '/'
             . showsPrec 8 d
     where
     d = denominator r
     n = numerator   r
--}
+
+    ppShowS s = PP.text (s [])
+
+    {-
+    -- TODO: we might prefer to use something like:
+    PP.cat [ppIntegral n, PP.char '/' <> ppIntegral d ]
+    where ppIntegral = PP.text . show
+    -}
+
 
 data Associativity = LeftAssoc | RightAssoc | NonAssoc
 
