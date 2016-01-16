@@ -43,13 +43,11 @@ import Data.Number.Natural  (fromNatural, fromNonNegativeRational)
 import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11)
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
-import Language.Hakaru.Types.Coercion
-import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Pretty.Haskell
-    (prettyAssoc, prettyPrecAssoc, ppVariable, Associativity(..), ppBinop)
+    (prettyAssoc, prettyPrecAssoc, ppVariable, ppCoerceTo, ppUnsafeFrom, Associativity(..), ppBinop)
 
 ----------------------------------------------------------------
 -- | Pretty-print a term.
@@ -187,13 +185,11 @@ ppSCon _ Let_ = \(e1 :* e2 :* End) ->
 ppSCon _ (Ann_ typ) = \(e1 :* End) ->
     [toDoc (ppArg e1) <+> PP.text "::" <+> prettyType typ]
 
-ppSCon p (PrimOp_     o) = \es          -> ppPrimOp  p o es
-ppSCon p (ArrayOp_    o) = \es          -> ppArrayOp p o es
-ppSCon p (CoerceTo_   c) = \(e1 :* End) ->
-    ppFun p (ppCoerce c) [ toDoc $ ppArg e1 ]
-ppSCon p (UnsafeFrom_ c) = \(e1 :* End) ->
-    ppFun p (ppUnsafe c) [ toDoc $ ppArg e1 ]
-ppSCon p (MeasureOp_ o) = \es -> ppMeasureOp p o es
+ppSCon p (PrimOp_     o) = \es          -> ppPrimOp     p o es
+ppSCon p (ArrayOp_    o) = \es          -> ppArrayOp    p o es
+ppSCon p (CoerceTo_   c) = \(e1 :* End) -> ppCoerceTo   p c e1
+ppSCon p (UnsafeFrom_ c) = \(e1 :* End) -> ppUnsafeFrom p c e1
+ppSCon p (MeasureOp_  o) = \es          -> ppMeasureOp  p o es
 ppSCon _ Dirac = \(e1 :* End) -> [PP.text "return" <+> toDoc (ppArg e1)]
 ppSCon _ MBind = \(e1 :* e2 :* End) ->
     let (vars, body) = ppBinder2 e2 in
@@ -233,18 +229,6 @@ prettyType (SFun   a b) = prettyType a <+> PP.text "->" <+> prettyType b
 prettyType typ          = PP.text (showsPrec 11 typ "")
     -- TODO: make this prettier. Add hints to the singletons?typ
 
-ppCoerce :: Coercion a b -> String
-ppCoerce (CCons (Signed HRing_Real) CNil)           = "fromProb"
-ppCoerce (CCons (Signed HRing_Int)  CNil)           = "nat2int"
-ppCoerce (CCons (Continuous HContinuous_Real) CNil) = "fromInt"
-ppCoerce (CCons (Continuous HContinuous_Prob) CNil) = "nat2prob"
-ppCoerce (CCons (Signed HRing_Int) (CCons (Continuous HContinuous_Real) CNil)) = "nat2real"
-ppCoerce c = "coerceTo_ " ++ showsPrec 11 c ""
-
-ppUnsafe :: Coercion a b -> String
-ppUnsafe (CCons (Signed HRing_Real) CNil) = "unsafeProb"
-ppUnsafe (CCons (Signed HRing_Int)  CNil) = "unsafeNat"
-ppUnsafe c = "unsafeFrom_ " ++ showsPrec 11 c ""
 
 -- | Pretty-print a 'PrimOp' @(:$)@ node in the AST.
 ppPrimOp

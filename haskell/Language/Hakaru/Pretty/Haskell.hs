@@ -28,6 +28,8 @@ module Language.Hakaru.Pretty.Haskell
 
     -- * Helper functions (semi-public internal API)
     , ppVariable
+    , ppCoerceTo
+    , ppUnsafeFrom
     , ppRatio
     , Associativity(..)
     , ppBinop
@@ -192,20 +194,12 @@ ppSCon p (Ann_ typ) = \(e1 :* End) ->
         [ PP.text (showsPrec 11 typ "") -- TODO: make this prettier. Add hints to the singletons?
         , toDoc $ ppArg e1
         ]
-ppSCon p (PrimOp_     o) = \es          -> ppPrimOp  p o es
-ppSCon p (ArrayOp_    o) = \es          -> ppArrayOp p o es
-ppSCon p (CoerceTo_   c) = \(e1 :* End) ->
-    ppFun p ""
-        [ PP.text (ppCoerce c) -- TODO: make this prettier. Add hints to the coercions?
-        , toDoc $ ppArg e1
-        ]
-ppSCon p (UnsafeFrom_ c) = \(e1 :* End) ->
-    ppFun p ""
-        [ PP.text (ppUnsafe c) -- TODO: make this prettier. Add hints to the coercions?
-        , toDoc $ ppArg e1
-        ]
-ppSCon p (MeasureOp_ o) = \es       -> ppMeasureOp p o es
-ppSCon p Dirac = \(e1 :* End)       -> ppApply1 p "dirac" e1
+ppSCon p (PrimOp_     o) = \es          -> ppPrimOp     p o es
+ppSCon p (ArrayOp_    o) = \es          -> ppArrayOp    p o es
+ppSCon p (CoerceTo_   c) = \(e1 :* End) -> ppCoerceTo   p c e1
+ppSCon p (UnsafeFrom_ c) = \(e1 :* End) -> ppUnsafeFrom p c e1
+ppSCon p (MeasureOp_  o) = \es          -> ppMeasureOp  p o es
+ppSCon p Dirac           = \(e1 :* End) -> ppApply1 p "dirac" e1
 ppSCon p MBind = \(e1 :* e2 :* End) ->
     parens (p > 1) $
         adjustHead
@@ -231,18 +225,31 @@ ppSCon p Summate = \(e1 :* e2 :* e3 :* End) ->
         ]
 
 
-ppCoerce :: Coercion a b -> String
-ppCoerce (CCons (Signed HRing_Real) CNil) = "fromProb"
-ppCoerce (CCons (Signed HRing_Int ) CNil) = "nat2int"
-ppCoerce (CCons (Continuous HContinuous_Real ) CNil) = "fromInt"
-ppCoerce (CCons (Continuous HContinuous_Prob  ) CNil) = "nat2prob"
-ppCoerce (CCons (Signed HRing_Int) (CCons (Continuous HContinuous_Real) CNil)) = "nat2real"
-ppCoerce c = "coerceTo_ " ++ showsPrec 11 c ""
+ppCoerceTo :: ABT Term abt => Int -> Coercion a b -> abt '[] a -> Docs
+ppCoerceTo =
+    -- BUG: this may not work quite right when the coercion isn't one of the special named ones...
+    \p c e -> ppFun p (prettyShow c) [toDoc $ ppArg e]
+    where
+    prettyShow (CCons (Signed HRing_Real) CNil)           = "fromProb"
+    prettyShow (CCons (Signed HRing_Int)  CNil)           = "nat2int"
+    prettyShow (CCons (Continuous HContinuous_Real) CNil) = "fromInt"
+    prettyShow (CCons (Continuous HContinuous_Prob) CNil) = "nat2prob"
+    prettyShow (CCons (Continuous HContinuous_Prob)
+        (CCons (Signed HRing_Real) CNil))                  = "nat2real"
+    prettyShow (CCons (Signed HRing_Int)
+        (CCons (Continuous HContinuous_Real) CNil))       = "nat2real"
+    prettyShow c = "coerceTo_ " ++ showsPrec 11 c ""
 
-ppUnsafe :: Coercion a b -> String
-ppUnsafe (CCons (Signed HRing_Real) CNil) = "unsafeProb"
-ppUnsafe (CCons (Signed HRing_Int ) CNil) = "unsafeNat"
-ppUnsafe c = "unsafeFrom_ " ++ showsPrec 11 c ""
+
+ppUnsafeFrom :: ABT Term abt => Int -> Coercion a b -> abt '[] b -> Docs
+ppUnsafeFrom =
+    -- BUG: this may not work quite right when the coercion isn't one of the special named ones...
+    \p c e -> ppFun p (prettyShow c) [toDoc $ ppArg e]
+    where
+    prettyShow (CCons (Signed HRing_Real) CNil) = "unsafeProb"
+    prettyShow (CCons (Signed HRing_Int)  CNil) = "unsafeNat"
+    prettyShow c = "unsafeFrom_ " ++ showsPrec 11 c ""
+
 
 -- | Pretty-print a 'PrimOp' @(:$)@ node in the AST.
 ppPrimOp
