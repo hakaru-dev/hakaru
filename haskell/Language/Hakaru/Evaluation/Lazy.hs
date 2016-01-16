@@ -560,6 +560,7 @@ evaluatePrimOp
     -> m (Whnf abt a)
 evaluatePrimOp evaluate_ = go
     where
+    -- HACK: we don't have any way of saying these functions haven't reduced even though it's not actually a neutral term.
     neu1 :: forall b c
         .  (abt '[] b -> abt '[] c)
         -> abt '[] b
@@ -608,15 +609,15 @@ evaluatePrimOp evaluate_ = go
     go Diff (e1 :* e2 :* End) = rr2 diff (primOp2_ Diff) e1 e2
     go Nand (e1 :* e2 :* End) = rr2 nand P.nand e1 e2
     go Nor  (e1 :* e2 :* End) = rr2 nor  P.nor  e1 e2
-    {-
-    -- TODO: all our magic constants (Pi, Infty,...) should be bundled together under one AST constructor called something like @Constant@; that way we can group them in the 'Head' like we do for values.
-    go Pi        End               = return (Head_ HPi)
-    -}
+
+    -- HACK: we don't have a way of saying that 'Pi' (or 'Infinity',...) is in fact a head; so we're forced to call it neutral which is a lie. We should add constructor(s) to 'Head' to cover these magic constants; probably grouped together under a single constructor called something like @Constant@. Maybe should group them like that in the AST as well?
+    go Pi        End               = return $ Neutral P.pi
+
     -- We treat trig functions as strict, thus forcing their
     -- arguments; however, to avoid fuzz issues we don't actually
     -- evaluate the trig functions.
     --
-    -- TODO: we might should have some other way to make these
+    -- HACK: we might should have some other way to make these
     -- 'Whnf' rather than calling them neutral terms; since they
     -- aren't, in fact, neutral!
     go Sin       (e1 :* End)       = neu1 P.sin   e1
@@ -631,13 +632,20 @@ evaluatePrimOp evaluate_ = go
     go Asinh     (e1 :* End)       = neu1 P.asinh e1
     go Acosh     (e1 :* End)       = neu1 P.acosh e1
     go Atanh     (e1 :* End)       = neu1 P.atanh e1
-    {-
+
     -- TODO: deal with how we have better types for these three ops than Haskell does...
+    {-
     go RealPow   (e1 :* e2 :* End) = rr2 (**) (P.**) e1 e2
-    go Exp       (e1 :* End)       = rr1 exp   P.exp e1
-    go Log       (e1 :* End)       = rr1 log   P.log e1
-    go Infinity         End        = return (Head_ HInfinity)
-    go NegativeInfinity End        = return (Head_ HNegativeInfinity)
+    -}
+    -- HACK: these aren't actually neutral!
+    -- BUG: we should try to cancel out @(exp . log)@ and @(log . exp)@
+    go Exp       (e1 :* End)       = neu1 P.exp e1
+    go Log       (e1 :* End)       = neu1 P.log e1
+
+    -- HACK: these aren't actually neutral!
+    go Infinity         End        = return $ Neutral P.infinity
+    go NegativeInfinity End        = return $ Neutral P.negativeInfinity
+    {-
     go GammaFunc   (e1 :* End)             =
     go BetaFunc    (e1 :* e2 :* End)       =
     -- TODO: deal with polymorphism issues

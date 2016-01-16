@@ -53,6 +53,7 @@ Library
                        Language.Hakaru.Sample,
                        Language.Hakaru.Evaluation.Types,
                        Language.Hakaru.Evaluation.Lazy,
+                       Language.Hakaru.Evaluation.ConstantPropagation,
                        Language.Hakaru.Evaluation.DisintegrationMonad,
                        Language.Hakaru.Disintegrate,
                        Language.Hakaru.Inference,

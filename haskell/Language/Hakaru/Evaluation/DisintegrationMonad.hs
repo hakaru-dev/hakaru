@@ -121,27 +121,6 @@ data ListContext (abt :: [Hakaru] -> Hakaru -> *) = ListContext
     }
 
 
-lazyIsVariable :: (ABT Term abt) => Lazy abt a -> Bool
-lazyIsVariable e =
-    case e of
-    Whnf_ (Head_   _)  -> False
-    Whnf_ (Neutral e') -> isVariable e'
-    Thunk e'           -> isVariable e'
-    where
-    isVariable :: (ABT Term abt) => abt '[] a -> Bool
-    isVariable e' = caseVarSyn e' (const True) (const False)
-
-lazyIsLiteral :: (ABT Term abt) => Lazy abt a -> Bool
-lazyIsLiteral e =
-    case e of
-    Whnf_ (Head_ (WLiteral _)) -> True
-    Whnf_ _                    -> False -- by construction
-    Thunk e' ->
-        caseVarSyn e' (const False) $ \t ->
-            case t of
-            Literal_ _ -> True
-            _          -> False
-
 -- Argument order is to avoid flipping in 'runDis'
 -- TODO: generalize to non-measure types too!
 residualizeListContext
@@ -155,14 +134,20 @@ residualizeListContext e0 = foldl step e0 . statements
     step :: abt '[] ('HMeasure a) -> Statement abt -> abt '[] ('HMeasure a)
     step e s =
         case s of
-        SBind x body -> syn (MBind :$ fromLazy body :* bind x e :* End)
-        SLet  x body
+        SBind x body ->
+            -- TODO: if @body@ is dirac, then treat as 'SLet'
+            syn (MBind :$ fromLazy body :* bind x e :* End)
+        SLet x body
             | not (x `memberVarSet` freeVars e) -> e
             -- TODO: if used exactly once in @e@, then inline.
-            | lazyIsVariable body -> subst x (fromLazy body) e
-            | lazyIsLiteral  body -> subst x (fromLazy body) e
             | otherwise ->
-                syn (Let_ :$ fromLazy body :* bind x e :* End)
+                case getLazyVariable body of
+                Just y  -> subst x (var y) e
+                Nothing ->
+                    case getLazyLiteral body of
+                    Just v  -> subst x (syn $ Literal_ v) e
+                    Nothing ->
+                        syn (Let_ :$ fromLazy body :* bind x e :* End)
         {-
         SBranch xs pat body ->
             syn $ Case_ (fromLazy body)
@@ -170,7 +155,7 @@ residualizeListContext e0 = foldl step e0 . statements
                 , Branch PWild P.reject
                 ]
         -}
-        SWeight body -> syn $ Superpose_ [(fromLazy body, e)]
+        SWeight body        -> syn $ Superpose_ [(fromLazy body, e)]
         SIndex x index size ->
             -- The obvious thing to do:
             syn (ArrayOp_ (Index $ typeOf e)
@@ -215,7 +200,8 @@ type Ans abt a = ListContext abt -> [abt '[] ('HMeasure a)]
 -- TODO: give this a better, more informative name!
 --
 -- N.B., This monad is used not only for both 'perform' and 'constrainOutcome', but also for 'constrainValue'.
-newtype Dis abt x = Dis { unDis :: forall a. (x -> Ans abt a) -> Ans abt a }
+newtype Dis abt x =
+    Dis { unDis :: forall a. (x -> Ans abt a) -> Ans abt a }
     -- == @Codensity (Ans abt)@, assuming 'Codensity' is poly-kinded like it should be
     -- If we don't want to allow continuations that can make nondeterministic choices, then we should use the right Kan extension itself, rather than the Codensity specialization of it.
 

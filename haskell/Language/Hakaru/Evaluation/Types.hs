@@ -39,6 +39,8 @@ module Language.Hakaru.Evaluation.Types
       Head(..), fromHead, toHead, viewHeadDatum
     , Whnf(..), fromWhnf, toWhnf, caseWhnf, viewWhnfDatum
     , Lazy(..), fromLazy, caseLazy
+    , getLazyVariable, isLazyVariable
+    , getLazyLiteral,  isLazyLiteral
 
     -- * The monad for partial evaluation
     , Statement(..), isBoundBy
@@ -401,6 +403,36 @@ instance Foldable21 Lazy where
 instance Traversable21 Lazy where
     traverse21 f (Whnf_ v) = Whnf_ <$> traverse21 f v
     traverse21 f (Thunk e) = Thunk <$> f e
+
+
+-- | Is the lazy value a variable?
+getLazyVariable :: (ABT Term abt) => Lazy abt a -> Maybe (Variable a)
+getLazyVariable e =
+    case e of
+    Whnf_ (Head_   _)  -> Nothing
+    Whnf_ (Neutral e') -> caseVarSyn e' Just (const Nothing)
+    Thunk e'           -> caseVarSyn e' Just (const Nothing)
+
+-- | Boolean-blind variant of 'getLazyVariable'
+isLazyVariable :: (ABT Term abt) => Lazy abt a -> Bool
+isLazyVariable = maybe False (const True) . getLazyVariable
+
+
+-- | Is the lazy value a literal?
+getLazyLiteral :: (ABT Term abt) => Lazy abt a -> Maybe (Literal a)
+getLazyLiteral e =
+    case e of
+    Whnf_ (Head_ (WLiteral v)) -> Just v
+    Whnf_ _                    -> Nothing -- by construction
+    Thunk e' ->
+        caseVarSyn e' (const Nothing) $ \t ->
+            case t of
+            Literal_ v -> Just v
+            _          -> Nothing
+
+-- | Boolean-blind variant of 'getLazyLiteral'
+isLazyLiteral :: (ABT Term abt) => Lazy abt a -> Bool
+isLazyLiteral = maybe False (const True) . getLazyLiteral
 
 ----------------------------------------------------------------
 -- BUG: haddock doesn't like annotations on GADT constructors. So
