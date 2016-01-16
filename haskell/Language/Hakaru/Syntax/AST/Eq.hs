@@ -264,7 +264,10 @@ alphaEq e1 e2 = runReader (go (viewABT e1) (viewABT e2)) emptyAssocs
           local (insertAssoc (Assoc x (var y))) (go e1 e2)
 
       -- perform the core comparison for syntactic equality
-      go (Syn t1) (Syn t2) = return (t1 == t2)
+      go (Syn t1) (Syn t2) = termEq t1 t2
 
       -- if the views don't match, then clearly they are not equal.
       go _ _ = return False
+
+      termEq :: Term abt a -> Term abt a -> Reader (Assocs abt) Bool
+      termEq t1 t2 = return (t1 == t2)
