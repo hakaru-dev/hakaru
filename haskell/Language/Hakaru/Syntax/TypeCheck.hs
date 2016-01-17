@@ -40,6 +40,7 @@ module Language.Hakaru.Syntax.TypeCheck
 import           Prelude hiding (id, (.))
 import           Control.Category
 import           Data.Proxy            (KProxy(..))
+import           Data.Text             (pack)
 import qualified Data.IntMap           as IM
 import qualified Data.Traversable      as T
 import qualified Data.Foldable         as F
@@ -906,7 +907,12 @@ checkType = checkType_
                     Just (Right c) ->
                         return . unLC_ . coerceTo c $ LC_ e0'
                     Nothing ->
-                        typeMismatch (Right typ0) (Right typ')
+                        case (typ', typ0) of
+                          -- mighty, mighty hack!
+                          (SMeasure _, SMeasure _) -> 
+                            let x = U.Name 0 (pack "") in
+                            checkType_ typ0 (U.MBind_ x e0 (U.Dirac_ $ U.Var_ x))
+                          (_ ,  _) -> typeMismatch (Right typ0) (Right typ')
             | otherwise -> error "checkType: missing an mustCheck branch!"
 
 
