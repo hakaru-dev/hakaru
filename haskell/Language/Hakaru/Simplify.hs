@@ -29,7 +29,6 @@ module Language.Hakaru.Simplify
     ) where
 
 import Control.Exception
-import GHC.Unicode
 
 import Language.Hakaru.Pretty.Maple (runMaple)
 
