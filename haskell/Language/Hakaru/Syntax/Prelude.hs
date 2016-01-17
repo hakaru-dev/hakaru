@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.19
+--                                                    2016.01.17
 -- |
 -- Module      :  Language.Hakaru.Syntax.Prelude
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -32,7 +32,7 @@ module Language.Hakaru.Syntax.Prelude
     -- * Basic syntax
     -- ** Types and coercions
       ann_
-    , coerceTo_, fromProb, nat2int, nat2prob, fromInt
+    , coerceTo_, fromProb, nat2int, nat2prob, fromInt, nat2real
     , unsafeFrom_, unsafeProb, unsafeProbFraction, unsafeProbFraction_, unsafeProbSemiring, unsafeProbSemiring_
     -- ** Numeric literals
     , literal_, nat_, int_, prob_, real_
@@ -776,6 +776,9 @@ fromInt    = coerceTo_ continuous
 
 nat2prob   :: (ABT Term abt) => abt '[] 'HNat  -> abt '[] 'HProb
 nat2prob   = coerceTo_ continuous
+
+nat2real   :: (ABT Term abt) => abt '[] 'HNat  -> abt '[] 'HReal
+nat2real   = coerceTo_ (continuous . signed)
 
 {- -- Uncomment only if we actually end up needing this anywhere
 class FromNat (a :: Hakaru) where

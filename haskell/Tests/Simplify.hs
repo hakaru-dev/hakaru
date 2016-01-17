@@ -40,10 +40,9 @@ realpair = ann_ (SMeasure $ sPair SReal SReal)
 
 unifprob, unifprob' :: TrivialABT Term '[] ('HMeasure 'HProb)
 unifprob = uniform (real_ 1) (real_ 2) >>= \x -> dirac (unsafeProb x)
-unifprob' = uniform 
-  (coerceTo_ (CCons (Signed HRing_Int) (CCons (Continuous HContinuous_Real) CNil)) (nat_ 1)) 
-  (coerceTo_ (CCons (Signed HRing_Int) (CCons (Continuous HContinuous_Real) CNil)) (nat_ 2)) >>=
-  \x -> dirac (unsafeProb x)
+
+unifprob' = uniform (nat2real (nat_ 1)) (nat2real (nat_ 2)) >>= \x->
+            dirac (unsafeProb x)
 
 true' :: TrivialABT Term '[] HBool
 true' = true
