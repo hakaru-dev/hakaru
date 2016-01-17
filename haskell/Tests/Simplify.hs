@@ -38,8 +38,12 @@ realpair :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
 realpair = ann_ (SMeasure $ sPair SReal SReal)
                 (dirac (pair (real_ 1) (real_ 2)))
 
-unifprob :: TrivialABT Term '[] ('HMeasure 'HProb)
+unifprob, unifprob' :: TrivialABT Term '[] ('HMeasure 'HProb)
 unifprob = uniform (real_ 1) (real_ 2) >>= \x -> dirac (unsafeProb x)
+unifprob' = uniform 
+  (coerceTo_ (CCons (Signed HRing_Int) (CCons (Continuous HContinuous_Real) CNil)) (nat_ 1)) 
+  (coerceTo_ (CCons (Signed HRing_Int) (CCons (Continuous HContinuous_Real) CNil)) (nat_ 2)) >>=
+  \x -> dirac (unsafeProb x)
 
 true' :: TrivialABT Term '[] HBool
 true' = true
@@ -50,13 +54,13 @@ testSimplify :: ( ABT Term abt
                => String -> abt '[] a -> abt '[] a -> Assertion
 testSimplify nm x y = do
   x' <- simplify x
-  assertEqual nm x' y 
+  assertEqual nm y x' 
 
 allTests :: Test
 allTests = test
    [ testSimplify "freevar" freevar freevar
    , testSimplify "normal01T" normal01T normal01T
    , testSimplify "realpair" realpair realpair
-   , testSimplify "unifprob" unifprob unifprob
+   , testSimplify "unifprob" unifprob unifprob'
    , testSimplify "true'" true' true'
    ]
