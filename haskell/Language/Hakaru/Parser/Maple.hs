@@ -36,6 +36,7 @@ symTable =
     , ("BetaD",    "beta")
     , ("GammaD",   "gamma")
     , ("Weight",   "weight")
+    , ("Msum",     "msum")
     , ("Uniform",  "uniform")
     , ("Ret",      "dirac")
     , ("True",     "true")
