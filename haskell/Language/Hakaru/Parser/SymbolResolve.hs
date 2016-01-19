@@ -286,6 +286,7 @@ makeFalse e = U.Branch (makePattern (U.PData' (U.DV "false" []))) (makeAST e)
 makeAST :: U.AST' (Symbol U.AST) -> U.AST
 makeAST ast =
     case ast of
+    -- TODO: Add to Symbol datatype: gensymed names and types for primitives
     U.Var (TLam _)                -> error "makeAST: Passed primitive with wrong number of arguments"
     U.Var (TNeu e)                -> e
     U.Lam (TNeu (U.Var_ name)) e1 -> U.Lam_ name (makeAST e1)
