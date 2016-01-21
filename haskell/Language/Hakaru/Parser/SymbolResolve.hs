@@ -187,7 +187,9 @@ symbolResolution symbols ast =
 
     U.Bind name e1 e2   -> resolveBinder symbols name e1 e2 U.Bind
             
-    U.Expect name e1 e2 -> resolveBinder symbols name e1 e2 U.Expect            
+    U.Expect name e1 e2 -> resolveBinder symbols name e1 e2 U.Expect
+
+    U.Msum es           -> U.Msum <$> mapM (symbolResolution symbols) es
 
 
 symbolResolveBranch :: SymbolTable a -> U.Branch' Text ->
@@ -241,6 +243,7 @@ normAST ast =
     U.Dirac e1          -> U.Dirac (normAST e1)
     U.Bind   name e1 e2 -> U.Bind name (normAST e1) (normAST e2)
     U.Expect name e1 e2 -> U.Expect name (normAST e1) (normAST e2)
+    U.Msum es           -> U.Msum (map normAST es)
     U.Data name typ     -> U.Data name typ
     U.WithMeta a meta   -> U.WithMeta (normAST a) meta
 
@@ -307,10 +310,23 @@ makeAST ast =
         U.MBind_ name (makeAST e1) (makeAST e2)
     U.Expect (TNeu (U.Var_ name)) e1 e2 ->
         U.Expect_ name (makeAST e1) (makeAST e2)
+    U.Msum es         -> U.Superpose_ (map (\e -> (U.Literal_ $ U.val $ U.Prob 1,
+                                                   makeAST e)) es)
 
 
 resolveAST :: U.AST' Text -> U.AST
-resolveAST ast = makeAST $ normAST $ evalState (symbolResolution primTable ast) 0
+resolveAST ast = makeAST $
+                 normAST $
+                 evalState (symbolResolution primTable ast) 0
+
+removeNestedAnnotations :: U.AST -> U.AST
+removeNestedAnnotations = undefined
+
+collapseNestedSuperposes :: U.AST -> U.AST
+collapseNestedSuperposes = undefined
+
+reduceAST :: U.AST -> U.AST
+reduceAST = removeNestedAnnotations . collapseNestedSuperposes
 
 data PrimOp'
     = Not'
