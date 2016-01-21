@@ -168,7 +168,7 @@ maple2AST (InertArgs Func [InertName "Bind",
                            InertArgs ExpSeq [e1, InertName x, e2]]) =
     Bind x (maple2AST e1) (maple2AST e2)
 
-maple2AST (InertArgs Func [InertName "Bind",
+maple2AST (InertArgs Func [InertName "Msum",
                            InertArgs ExpSeq es]) =
     Msum (map maple2AST es)
 

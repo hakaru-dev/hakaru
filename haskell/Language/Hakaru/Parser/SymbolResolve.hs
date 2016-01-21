@@ -311,7 +311,8 @@ makeAST ast =
     U.Expect (TNeu (U.Var_ name)) e1 e2 ->
         U.Expect_ name (makeAST e1) (makeAST e2)
     U.Msum es         -> U.Superpose_ (map (\e -> (U.Literal_ $ U.val $ U.Prob 1,
-                                                   makeAST e)) es)
+                                                   makeAST e))
+                                       es)
 
 
 resolveAST :: U.AST' Text -> U.AST
