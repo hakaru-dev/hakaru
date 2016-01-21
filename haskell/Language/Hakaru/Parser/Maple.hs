@@ -36,7 +36,6 @@ symTable =
     , ("BetaD",    "beta")
     , ("GammaD",   "gamma")
     , ("Weight",   "weight")
-    , ("Msum",     "msum")
     , ("Uniform",  "uniform")
     , ("Ret",      "dirac")
     , ("True",     "true")
@@ -168,6 +167,10 @@ maple2AST (InertArgs Func [InertName "Ann", InertArgs ExpSeq [typ, e]]) =
 maple2AST (InertArgs Func [InertName "Bind",
                            InertArgs ExpSeq [e1, InertName x, e2]]) =
     Bind x (maple2AST e1) (maple2AST e2)
+
+maple2AST (InertArgs Func [InertName "Bind",
+                           InertArgs ExpSeq es]) =
+    Msum (map maple2AST es)
 
 maple2AST (InertArgs Func [f, (InertArgs ExpSeq a)]) =
     foldl App (maple2AST f) (map maple2AST a)
