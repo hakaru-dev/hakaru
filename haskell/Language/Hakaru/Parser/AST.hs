@@ -123,6 +123,7 @@ data AST' a
     | Dirac (AST' a)
     | Bind  a (AST' a) (AST' a)
     | Expect a (AST' a) (AST' a)
+    | Msum  [AST' a]
     | Data  a [TypeAST']
     | WithMeta (AST' a) Meta
     deriving (Eq, Show)
