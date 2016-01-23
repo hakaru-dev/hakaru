@@ -48,6 +48,7 @@ Library
                        Language.Hakaru.Pretty.Concrete,
                        Language.Hakaru.Pretty.Maple,
                        Language.Hakaru.Expect,
+                       Language.Hakaru.Normalize,
                        Language.Hakaru.Observe,
                        Language.Hakaru.Simplify,
                        Language.Hakaru.Sample,

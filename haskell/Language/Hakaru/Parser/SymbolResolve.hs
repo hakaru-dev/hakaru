@@ -320,15 +320,6 @@ resolveAST ast = makeAST $
                  normAST $
                  evalState (symbolResolution primTable ast) 0
 
-removeNestedAnnotations :: U.AST -> U.AST
-removeNestedAnnotations = undefined
-
-collapseNestedSuperposes :: U.AST -> U.AST
-collapseNestedSuperposes = undefined
-
-reduceAST :: U.AST -> U.AST
-reduceAST = removeNestedAnnotations . collapseNestedSuperposes
-
 data PrimOp'
     = Not'
     | Impl'
