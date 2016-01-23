@@ -9,10 +9,10 @@ import Language.Hakaru.Syntax.AST
 
 
 removeNestedAnnotations :: ABT Term abt => abt '[] a -> abt '[] a
-removeNestedAnnotations  = undefined
+removeNestedAnnotations  = cataABT var bind syn
 
 collapseNestedSuperposes :: ABT Term abt => abt '[] a -> abt '[] a
-collapseNestedSuperposes = undefined
+collapseNestedSuperposes = cataABT var bind syn
 
 reduceAST :: ABT Term abt => abt '[] a -> abt '[] a
 reduceAST = removeNestedAnnotations . collapseNestedSuperposes
