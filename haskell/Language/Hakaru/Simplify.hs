@@ -24,7 +24,6 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Simplify
     ( simplify
-    , toMaple
     , MapleException(MapleException)
     ) where
 
@@ -62,7 +61,7 @@ instance Exception MapleException
 
 simplify :: (ABT Term abt) => abt '[] a -> IO (abt '[] a)
 simplify e = do
-    let slo = toMaple e
+    let slo = runMaple e
     hakaru <- maple ("timelimit(15,NewSLO:-RoundTripLO(" ++ slo ++ "));")
     either (throw . MapleException slo) return $ do
         past <- leftShow $ parseMaple (pack hakaru)
@@ -73,9 +72,6 @@ simplify e = do
     leftShow :: Show a => Either a b -> Either String b
     leftShow (Left err) = Left (show err)
     leftShow (Right x)  = Right x
-
-toMaple :: (ABT Term abt) => abt '[] a -> String
-toMaple = runMaple 
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
