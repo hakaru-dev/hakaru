@@ -40,14 +40,17 @@ import qualified Data.Text        as Text
 import qualified Data.Sequence    as Seq -- Because older versions of "Data.Foldable" do not export 'null' apparently...
 
 import Data.Number.Natural  (fromNatural, fromNonNegativeRational)
+
 import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11)
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
+import Language.Hakaru.Types.Coercion
+import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Pretty.Haskell
-    (prettyAssoc, prettyPrecAssoc, ppVariable, ppCoerceTo, ppUnsafeFrom, Associativity(..), ppBinop)
+    (prettyAssoc, prettyPrecAssoc, ppVariable, Associativity(..), ppBinop)
 
 ----------------------------------------------------------------
 -- | Pretty-print a term.
@@ -215,6 +218,32 @@ ppSCon p Summate = \(e1 :* e2 :* e3 :* End) ->
         , toDoc $ ppArg e2
         , toDoc $ parens True (ppBinder e3)
         ]
+
+
+ppCoerceTo :: ABT Term abt => Int -> Coercion a b -> abt '[] a -> Docs
+ppCoerceTo =
+    -- BUG: this may not work quite right when the coercion isn't one of the special named ones...
+    \p c e -> ppFun p (prettyShow c) [toDoc $ ppArg e]
+    where
+    prettyShow (CCons (Signed HRing_Real) CNil)           = "fromProb"
+    prettyShow (CCons (Signed HRing_Int)  CNil)           = "nat2int"
+    prettyShow (CCons (Continuous HContinuous_Real) CNil) = "fromInt"
+    prettyShow (CCons (Continuous HContinuous_Prob) CNil) = "nat2prob"
+    prettyShow (CCons (Continuous HContinuous_Prob)
+        (CCons (Signed HRing_Real) CNil))                  = "nat2real"
+    prettyShow (CCons (Signed HRing_Int)
+        (CCons (Continuous HContinuous_Real) CNil))       = "nat2real"
+    prettyShow c = "coerceTo_ " ++ showsPrec 11 c ""
+
+
+ppUnsafeFrom :: ABT Term abt => Int -> Coercion a b -> abt '[] b -> Docs
+ppUnsafeFrom =
+    -- BUG: this may not work quite right when the coercion isn't one of the special named ones...
+    \p c e -> ppFun p (prettyShow c) [toDoc $ ppArg e]
+    where
+    prettyShow (CCons (Signed HRing_Real) CNil) = "unsafeProb"
+    prettyShow (CCons (Signed HRing_Int)  CNil) = "unsafeNat"
+    prettyShow c = "unsafeFrom_ " ++ showsPrec 11 c ""
 
 
 -- | Pretty-print a type.
