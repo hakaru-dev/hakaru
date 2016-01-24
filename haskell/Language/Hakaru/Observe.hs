@@ -51,9 +51,16 @@ observeAST (LC_ m) (LC_ a) =
                                              observe (subst x x' e2') a) :*
                                          End)
         Dirac :$ e  :* End       -> P.if_ (e P.== a) (P.dirac a) P.reject
-        MeasureOp_ op :$ es        -> observeMeasureOp op es a
+        MBind :$ e1 :* e2 :* End -> syn (MBind :$ e1 :*
+                                         (caseBind e2 $ \x e2' ->
+                                             binder "" (varType x) $ \x' ->
+                                             observe (subst x x' e2') a) :*
+                                         End)
+        MeasureOp_ op :$ es      -> observeMeasureOp op es a
         _ -> error "observe can only be applied to measure primitives"
 
+-- This function can't inspect a variable due to
+-- calls to subst that happens in Let_ and Bind_
 observeVar = error "observe can only be applied measure primitives"
 
 observeMeasureOp
