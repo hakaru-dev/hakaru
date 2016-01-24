@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 
-module Language.Hakaru.Pretty.Maple (Maple(..), runMaple) where
+module Language.Hakaru.Pretty.Maple (Maple(..), pretty) where
 
 import Data.Number.Nat     (fromNat)
 -- import Data.Number.Natural (fromNatural)
@@ -32,8 +32,8 @@ import           Data.Ratio
 
 newtype Maple (a :: Hakaru) = Maple {unMaple :: String}
 
-runMaple :: (ABT Term abt) => abt '[] a -> String
-runMaple = mapleAST . LC_
+pretty :: (ABT Term abt) => abt '[] a -> String
+pretty = mapleAST . LC_
 
 app1 :: (ABT Term abt) => String -> abt '[] a -> String
 app1 fn x = fn ++ "(" ++ arg x ++ ")"

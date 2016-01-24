@@ -29,7 +29,7 @@ module Language.Hakaru.Simplify
 
 import Control.Exception
 
-import Language.Hakaru.Pretty.Maple (runMaple)
+import qualified Language.Hakaru.Pretty.Maple as Maple
 
 import Language.Hakaru.Parser.Maple
 import Language.Hakaru.Parser.SymbolResolve (resolveAST)
@@ -61,7 +61,7 @@ instance Exception MapleException
 
 simplify :: (ABT Term abt) => abt '[] a -> IO (abt '[] a)
 simplify e = do
-    let slo = runMaple e
+    let slo = Maple.pretty e
     hakaru <- maple ("timelimit(15,NewSLO:-RoundTripLO(" ++ slo ++ "));")
     either (throw . MapleException slo) return $ do
         past <- leftShow $ parseMaple (pack hakaru)
