@@ -45,12 +45,14 @@ observeAST
 observeAST (LC_ m) (LC_ a) =
     caseVarSyn m observeVar $ \ast ->
         case ast of
+        -- TODO: Figure out why this infinite loops
         Let_  :$ e1 :* e2 :* End -> syn (Let_ :$ e1 :*
                                          (caseBind e2 $ \x e2' ->
                                              binder "" (varType x) $ \x' ->
                                              observe (subst x x' e2') a) :*
                                          End)
         Dirac :$ e  :* End       -> P.if_ (e P.== a) (P.dirac a) P.reject
+        -- TODO: Figure out why this infinite loops
         MBind :$ e1 :* e2 :* End -> syn (MBind :$ e1 :*
                                          (caseBind e2 $ \x e2' ->
                                              binder "" (varType x) $ \x' ->
