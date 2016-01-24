@@ -45,8 +45,13 @@ observeAST
 observeAST (LC_ m) (LC_ a) =
     caseVarSyn m observeVar $ \ast ->
         case ast of
-        Dirac :$ (e :* End) -> P.if_ (e P.== a) (P.dirac a) P.reject
-        MeasureOp_ op :$ es -> observeMeasureOp op es a
+        Let_  :$ e1 :* e2 :* End -> syn (Let_ :$ e1 :*
+                                         (caseBind e2 $ \x e2' ->
+                                             binder "" (varType x) $ \x' ->
+                                             observe (subst x x' e2') a) :*
+                                         End)
+        Dirac :$ e  :* End       -> P.if_ (e P.== a) (P.dirac a) P.reject
+        MeasureOp_ op :$ es        -> observeMeasureOp op es a
         _ -> error "observe can only be applied to measure primitives"
 
 observeVar = error "observe can only be applied measure primitives"
