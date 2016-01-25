@@ -54,7 +54,7 @@ normC = lam $ \y ->
 -- Eliminating some redexes of 'normC', that is:
     lam $ \y ->
     normal (real_ 0) (prob_ 1) >>= \x ->
-    weight
+    withWeight
         (exp ((x - y) ^ nat_ 2 / real_ 2)
         / (nat_ 2 `thRootOf` (prob_ 2 * pi)))
     $ dirac x
@@ -86,7 +86,7 @@ test2
 test2 =
     disintegrate $
         let_ (prob_ 1) $ \x ->
-        weight x normA
+        withWeight x normA
 
 allTests :: Test
 allTests = test

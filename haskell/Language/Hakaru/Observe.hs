@@ -73,13 +73,13 @@ observeMeasureOp
     -> abt '[] a
     -> abt '[] ('HMeasure a)
 observeMeasureOp Normal  (mu :* sd :* End) x =
-    P.weight
+    P.withWeight
         (P.exp (P.negate (x P.- mu) P.^ P.nat_ 2
         P./ P.fromProb (P.prob_ 2 P.* sd P.^ (P.nat_ 2)))
         P./ sd
         P./ P.sqrt (P.prob_ 2 P.* P.pi)) (P.dirac x)
 observeMeasureOp Uniform (lo :* hi :* End) x =
     P.if_ (lo P.<= x P.&& x P.<= hi)
-          (P.weight (P.unsafeProb $ P.recip $ hi P.- lo) (P.dirac x))
+          (P.withWeight (P.unsafeProb $ P.recip $ hi P.- lo) (P.dirac x))
           P.reject
 observeMeasureOp _ _ _ = error "Add other cases"

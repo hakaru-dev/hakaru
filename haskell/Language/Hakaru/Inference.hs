@@ -125,7 +125,7 @@ slice target =
         uniform (real_ 0) (fromProb $ app densAt x) >>= \u ->
         normalize $
         lebesgue >>= \x' ->
-        guard (u < (fromProb $ app densAt x')) $
+        withGuard (u < (fromProb $ app densAt x')) $
         dirac x'
 
 

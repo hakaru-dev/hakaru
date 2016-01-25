@@ -64,7 +64,9 @@ module Language.Hakaru.Syntax.Prelude
     -- ** Abstract nonsense
     , dirac, (<$>), (<*>), (<*), (*>), (>>=), (>>), bindx
     -- ** Linear operators
-    , superpose, weight, weight_, weightedDirac, reject, guard
+    , superpose
+    , weight, withWeight, weightedDirac
+    , reject, guard, withGuard
     -- ** Measure operators
     -- | When two versions of the same operator are given, the one without the prime builds an AST using the built-in operator, whereas the one with the prime is a default definition in terms of more primitive measure operators.
     , lebesgue
@@ -1068,11 +1070,17 @@ superpose = syn . Superpose_
 reject :: (ABT Term abt) => abt '[] ('HMeasure a)
 reject = superpose []
 
--- TODO: define @mplus@ to better mimic Core Hakaru
 
--- TODO: we should ensure that @pose p m >> n@ simplifies to @pose p (m >> n)@; also ensure that @m >> pose p n@ simplifies to @pose p (m >> n)@; also that @pose 1 m@ simplifies to @m@ and @pose p (pose q m)@ simplifies to @pose (p*q) m@.
--- | Pose a given measure with some given weight. This generates
--- the singleton \"positions\" of 'superpose'.
+-- TODO: define @mplus@ to better mimic Core Hakaru?
+
+-- TODO: we should ensure that the following reductions happen:
+-- > (withWeight p m >> n) ---> withWeight p (m >> n)
+-- > (m >> withWeight p n) ---> withWeight p (m >> n)
+-- > withWeight 1 m ---> m
+-- > withWeight p (withWeight q m) ---> withWeight (p*q) m
+-- > (weight p >> m) ---> withWeight p m
+--
+-- | Adjust the weight of the current measure.
 --
 -- /N.B.,/ the name for this function is terribly inconsistent
 -- across the literature, even just the Hakaru literature, let alone
@@ -1080,47 +1088,45 @@ reject = superpose []
 -- \"weight\"; though \"factor\" is also used to mean the function
 -- 'factor' or the function 'observe', and \"weight\" is also used
 -- to mean the 'weight' function.
---
--- (was formerly called @weight@ in this branch, as per the old Syntax.hs)
--- TODO: would @withWeight@ be a better name than @pose@?
--- TODO: ideally we'll be able to get rid of this function entirely, relying on 'weight' instead. Doing this effectively requires having certain optimizations for our ASTs.
 weight
     :: (ABT Term abt)
     => abt '[] 'HProb
-    -> abt '[] ('HMeasure w)
-    -> abt '[] ('HMeasure w)
-weight p m = superpose [(p, m)]
+    -> abt '[] ('HMeasure HUnit)
+weight p = withWeight p (dirac unit)
 
--- TODO: we should ensure that @weight p >> m@ simplifies to @pose p m@.
--- | Adjust the weight of the current measure.
+
+-- | A variant of 'weight' which removes an administrative @(dirac
+-- unit >>)@ redex.
 --
--- /N.B.,/ the name for this function is terribly inconsistent
--- across the literature, even just the Hakaru literature, let alone
--- the Hakaru code base. It is often called \"factor\", though that
--- name is variously used to mean the 'pose' function or the 'observe'
--- function instead.
---
--- (was formerly called @factor@ in this branch, as per the old Syntax.hs)
-weight_
+-- TODO: ideally we'll be able to get rid of this function entirely,
+-- and be able to trust optimization to clean up any redexes
+-- introduced by 'weight'.
+withWeight
     :: (ABT Term abt)
     => abt '[] 'HProb
-    -> abt '[] ('HMeasure HUnit)
-weight_ p = weight p (dirac unit)
+    -> abt '[] ('HMeasure w)
+    -> abt '[] ('HMeasure w)
+withWeight p m = superpose [(p, m)]
 
+
+-- | A particularly common use case of 'weight':
+--
+-- > weightedDirac e p
+-- >     == weight p (dirac e)
+-- >     == weight p *> dirac e
+-- >     == dirac e <* weight p
 weightedDirac
     :: (ABT Term abt)
     => abt '[] a
     -> abt '[] 'HProb
     -> abt '[] ('HMeasure a)
-weightedDirac e p = weight p (dirac e)
-    -- == weight p *> dirac e
-    -- == dirac e <* weight p
+weightedDirac e p = withWeight p (dirac e)
+
 
 -- TODO: this taking of two arguments is as per the Core Hakaru specification; but for the EDSL, can we rephrase this as just taking the first argument, using @dirac unit@ for the else-branch, and then, making @(>>)@ work in the right way to plug the continuation measure in place of the @dirac unit@.
 -- TODO: would it help inference\/simplification at all to move this into the AST as a primitive? I mean, it is a primitive of Core Hakaru afterall... Also, that would help clarify whether the (first)argument should actually be an @HBool@ or whether it should be some sort of proposition.
+
 -- | Assert that a condition is true.
---
--- TODO: rephrase to have the type @abt '[] HBool -> abt '[] ('HMeasure HUnit)@. Doing this effectively requires having certain optimizations for our ASTs.
 --
 -- /N.B.,/ the name for this function is terribly inconsistent
 -- across the literature, even just the Hakaru literature, let alone
@@ -1128,14 +1134,25 @@ weightedDirac e p = weight p (dirac e)
 -- \"observe\"; though \"factor\" is also used to mean the function
 -- 'pose', and \"observe\" is also used to mean the backwards part
 -- of Lazy.hs.
---
--- (was formerly called @factor_@ in this branch; wasn't abstracted out in the old Syntax.hs)
 guard
+    :: (ABT Term abt)
+    => abt '[] HBool
+    -> abt '[] ('HMeasure HUnit)
+guard b = withGuard b (dirac unit)
+
+
+-- | A variant of 'guard' which removes an administrative @(dirac
+-- unit >>)@ redex.
+--
+-- TODO: ideally we'll be able to get rid of this function entirely,
+-- and be able to trust optimization to clean up any redexes
+-- introduced by 'guard'.
+withGuard
     :: (ABT Term abt)
     => abt '[] HBool
     -> abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure a)
-guard b m = if_ b m reject
+withGuard b m = if_ b m reject
 
 
 categorical, categorical'
@@ -1147,7 +1164,7 @@ categorical = measure1_ Categorical
 -- TODO: a variant of 'if_' which gives us the evidence that the argument is non-negative, so we don't need to coerce or use 'abs_'
 categorical' v =
     counting >>= \i ->
-    guard (int_ 0 <= i && i < nat2int (size v)) $
+    withGuard (int_ 0 <= i && i < nat2int (size v)) $
     let_ (abs_ i) $ \j ->
     weightedDirac j (v!j / sumV v)
 
@@ -1163,7 +1180,7 @@ uniform = measure2_ Uniform
 
 uniform' lo hi = 
     lebesgue >>= \x ->
-    guard (lo < x && x < hi)
+    withGuard (lo < x && x < hi)
         -- TODO: how can we capture that this 'unsafeProb' is safe? (and that this 'recip' isn't Infinity, for that matter)
         $ weightedDirac x (recip . unsafeProb $ hi - lo)
 
@@ -1191,7 +1208,7 @@ poisson = measure1_ Poisson
 poisson' l = 
     counting >>= \x ->
     -- TODO: use 'SafeFrom_' instead of @if_ (x >= int_ 0)@ so we can prove that @unsafeFrom_ signed x@ is actually always safe.
-    guard (int_ 0 <= x && prob_ 0 < l) -- N.B., @0 < l@ means simply that @l /= 0@; why phrase it the other way?
+    withGuard (int_ 0 <= x && prob_ 0 < l) -- N.B., @0 < l@ means simply that @l /= 0@; why phrase it the other way?
         $ weightedDirac (unsafeFrom_ signed x)
             $ l ^^ x
                 / gammaFunc (fromInt (x + int_ 1)) -- TODO: use factorial instead of gammaFunc...
@@ -1208,7 +1225,7 @@ gamma = measure2_ Gamma
 gamma' shape scale =
     lebesgue >>= \x ->
     -- TODO: use 'SafeFrom_' instead of @if_ (real_ 0 < x)@ so we can prove that @unsafeProb x@ is actually always safe. Of course, then we'll need to mess around with checking (/=0) which'll get ugly... Use another SafeFrom_ with an associated NonZero type?
-    guard (real_ 0 < x) $
+    withGuard (real_ 0 < x) $
     let_ (unsafeProb x) $ \ x_ ->
     weightedDirac x_
         $ x_ ** (fromProb shape - real_ 1)
@@ -1334,7 +1351,7 @@ bern p = superpose
 
 mix :: (ABT Term abt)
     => abt '[] ('HArray 'HProb) -> abt '[] ('HMeasure 'HNat)
-mix v = weight (sumV v) (categorical v)
+mix v = withWeight (sumV v) (categorical v)
 
 binomial
     :: (ABT Term abt)
