@@ -3,7 +3,7 @@
 module Tests.Hakaru where
 
 import qualified Language.Hakaru.Parser.AST as U
-import Language.Hakaru.Parser.Parser
+import Language.Hakaru.Parser.Parser hiding (var)
 import Language.Hakaru.Parser.SymbolResolve (resolveAST)
 
 
@@ -18,13 +18,13 @@ import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Pretty.Concrete
 import Language.Hakaru.Sample hiding (SData, SKonst, SEt, SDone, SPlus, SVoid)
-import Language.Hakaru.Observe
+import Language.Hakaru.Disintegrate
 import Language.Hakaru.Expect
 import Language.Hakaru.Syntax.Prelude (prob_, fromProb, real_)
 import Language.Hakaru.Simplify
 
 import Prelude hiding (unlines)
-import Data.Text
+import Data.Text hiding (head)
 import Text.PrettyPrint
 
 import qualified System.Random.MWC as MWC
@@ -39,6 +39,9 @@ normalb   = unlines
     , "y <~ normal(x, 1.0)"
     , "return y"
     ]
+
+x :: TrivialABT T.Term '[] 'HReal
+x = var (Variable "x" 0 SReal)
 
                     
 inferType' :: U.AST -> TypeCheckMonad (TypedAST (TrivialABT T.Term))
@@ -83,8 +86,8 @@ testHakaru a mode g =
                     putStrLn ""
                     case typ of
                       SMeasure SReal -> do 
-                          putStrLn "Observe to be 1:"
-                          putStrLn . show . pretty $ observe ast (real_ 1)
+                          putStrLn $ "Observe to be " ++ (show $ pretty x) ++ ":"
+                          putStrLn . show . pretty . head $ observe ast x
                       _ -> return ()
                 _ -> return ()
             illustrate typ g . unS $ runSample' ast

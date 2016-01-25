@@ -44,6 +44,7 @@ module Language.Hakaru.Disintegrate
     (
     -- * the Hakaru API
       disintegrate
+    , disintegrateWithType
     , density
     , observe
     , determine
@@ -110,14 +111,22 @@ import Debug.Trace (trace)
 disintegrate
     :: (ABT Term abt)
     => abt '[] ('HMeasure (HPair a b))
+    -> [abt '[] (a ':-> 'HMeasure b)]
+disintegrate m = disintegrateWithType m Text.empty typ
+   where typ = fst . sUnPair . sUnMeasure $ typeOf m
+
+disintegrateWithType
+    :: (ABT Term abt)
+    => abt '[] ('HMeasure (HPair a b))
+    -> Text.Text
+    -> Sing a
     -> [abt '[] (a ':-> 'HMeasure b)] -- this Hakaru function is measurable
-disintegrate m = do
-    let typ = fst . sUnPair . sUnMeasure $ typeOf m
-        -- HACK: for some reason, just using 'nextFree' isn't enough;
-        -- we also need to use 'nextBind' to avoid issues about
-        -- 'VarEqTypeError'
-        i   = nextFree m `max` nextBind m
-        x   = Variable Text.empty i typ
+disintegrateWithType m hint typ = do
+    -- HACK: for some reason, just using 'nextFree' isn't enough;
+    -- we also need to use 'nextBind' to avoid issues about
+    -- 'VarEqTypeError'
+    let i   = nextFree m `max` nextBind m
+        x   = Variable hint i typ
     m' <- flip runDis [Some2 m, Some2 (var x)] $ do
         ab    <- perform m
         (a,b) <- emitUnpair ab
