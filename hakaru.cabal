@@ -42,6 +42,7 @@ Library
                        Language.Hakaru.Syntax.TypeOf,
                        Language.Hakaru.Syntax.Prelude,
                        Language.Hakaru.Parser.AST,
+                       Language.Hakaru.Parser.Maple,
                        Language.Hakaru.Parser.Parser,
                        Language.Hakaru.Parser.SymbolResolve,
                        Language.Hakaru.Pretty.Haskell,
