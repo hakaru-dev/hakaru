@@ -448,7 +448,7 @@ constrainValue v0 e0 =
 
         Ann_      typ :$ e1 :* End -> constrainValue  v0 e1
         CoerceTo_   c :$ e1 :* End -> constrainValue  (C.coerceFrom c v0) e1
-        -- BUG: for the safe coercions we need to 'emitObserve' as well!
+        -- BUG: for the safe coercions we need to 'emitGuard' as well!
         UnsafeFrom_ c :$ e1 :* End -> constrainValue  (C.coerceTo   c v0) e1
         NaryOp_     o    es        -> constrainNaryOp v0 o es
         PrimOp_     o :$ es        -> constrainPrimOp v0 o es
@@ -664,7 +664,7 @@ constrainPrimOp v0 = go
         x0 <- emitLet' (fromWhnf v0)
         n  <- var <$> emitMBind P.counting
         let tau_n = P.real_ 2 P.* P.fromInt n P.* P.pi -- TODO: emitLet?
-        emitObserve (P.negate P.one P.< x0 P.&& x0 P.< P.one)
+        emitGuard (P.negate P.one P.< x0 P.&& x0 P.< P.one)
         v  <- var <$> emitSuperpose
             [ P.dirac (tau_n P.+ P.asin x0)
             , P.dirac (tau_n P.+ P.pi P.- P.asin x0)
@@ -680,7 +680,7 @@ constrainPrimOp v0 = go
         x0 <- emitLet' (fromWhnf v0)
         n  <- var <$> emitMBind P.counting
         let tau_n = P.real_ 2 P.* P.fromInt n P.* P.pi
-        emitObserve (P.negate P.one P.< x0 P.&& x0 P.< P.one)
+        emitGuard (P.negate P.one P.< x0 P.&& x0 P.< P.one)
         r  <- emitLet' (tau_n P.+ P.acos x0)
         v  <- var <$> emitSuperpose [P.dirac r, P.dirac (r P.+ P.pi)]
         emitWeight
@@ -730,7 +730,7 @@ constrainPrimOp v0 = go
             -- TODO: if @v1@ is 0 or 1 then bot. Maybe the @log v1@ in @w@ takes care of the 0 case?
             u <- atomize v0
             -- either this from @(**)@:
-            emitObserve  $ P.zero P.< u
+            emitGuard  $ P.zero P.< u
             w <- atomize $ recip (abs (v0 * log v1))
             emitWeight $ unsafeProb w
             constrainValue (logBase v1 v0) e2
@@ -745,7 +745,7 @@ constrainPrimOp v0 = go
             u <- atomize v0
             let ex = v0 ** recip v2
             -- either this from @(**)@:
-            emitObserve $ P.zero P.< u
+            emitGuard $ P.zero P.< u
             w <- atomize $ abs (ex / (v2 * v0))
             -- or this from @pow_@:
             let w = abs (fromProb ex / (v2 * fromProb u))
@@ -755,7 +755,7 @@ constrainPrimOp v0 = go
         -}
     go Exp = \(e1 :* End) -> do
         x0 <- emitLet' (fromWhnf v0)
-        -- TODO: do we still want/need the @emitObserve (0 < x0)@ which is now equivalent to @emitObserve (0 /= x0)@ thanks to the types?
+        -- TODO: do we still want/need the @emitGuard (0 < x0)@ which is now equivalent to @emitGuard (0 /= x0)@ thanks to the types?
         emitWeight (P.recip x0)
         constrainValue (Neutral $ P.log x0) e1
 
@@ -820,7 +820,7 @@ constrainPrimOp v0 = go
         HRing_Real -> bot
         HRing_Int  -> do
             x <- var <$> emitMBind P.counting
-            emitObserve $ P.signum x P.== fromWhnf v0
+            emitGuard $ P.signum x P.== fromWhnf v0
             constrainValue (Neutral x) e1
 
     go (Recip theFractional) = \(e1 :* End) -> do
@@ -943,7 +943,7 @@ constrainOutcomeMeasureOp v0 = go
         v0' <- (emitLet' . fromWhnf) v0
         lo' <- (emitLet' . fromWhnf) =<< atomize lo
         hi' <- (emitLet' . fromWhnf) =<< atomize hi
-        emitObserve (lo' P.<= v0' P.&& v0' P.<= hi')
+        emitGuard (lo' P.<= v0' P.&& v0' P.<= hi')
         emitWeight  (P.recip (P.unsafeProb (hi' P.- lo')))
 
     -- TODO: I think, based on Hakaru v0.2.0

@@ -64,7 +64,7 @@ module Language.Hakaru.Syntax.Prelude
     -- ** Abstract nonsense
     , dirac, (<$>), (<*>), (<*), (*>), (>>=), (>>), bindx
     -- ** Linear operators
-    , superpose, pose, weight, weightedDirac, reject, observe
+    , superpose, weight, weight_, weightedDirac, reject, guard
     -- ** Measure operators
     -- | When two versions of the same operator are given, the one without the prime builds an AST using the built-in operator, whereas the one with the prime is a default definition in terms of more primitive measure operators.
     , lebesgue
@@ -1084,12 +1084,12 @@ reject = superpose []
 -- (was formerly called @weight@ in this branch, as per the old Syntax.hs)
 -- TODO: would @withWeight@ be a better name than @pose@?
 -- TODO: ideally we'll be able to get rid of this function entirely, relying on 'weight' instead. Doing this effectively requires having certain optimizations for our ASTs.
-pose
+weight
     :: (ABT Term abt)
     => abt '[] 'HProb
     -> abt '[] ('HMeasure w)
     -> abt '[] ('HMeasure w)
-pose p m = superpose [(p, m)]
+weight p m = superpose [(p, m)]
 
 -- TODO: we should ensure that @weight p >> m@ simplifies to @pose p m@.
 -- | Adjust the weight of the current measure.
@@ -1101,18 +1101,18 @@ pose p m = superpose [(p, m)]
 -- function instead.
 --
 -- (was formerly called @factor@ in this branch, as per the old Syntax.hs)
-weight
+weight_
     :: (ABT Term abt)
     => abt '[] 'HProb
     -> abt '[] ('HMeasure HUnit)
-weight p = pose p (dirac unit)
+weight_ p = weight p (dirac unit)
 
 weightedDirac
     :: (ABT Term abt)
     => abt '[] a
     -> abt '[] 'HProb
     -> abt '[] ('HMeasure a)
-weightedDirac e p = pose p (dirac e)
+weightedDirac e p = weight p (dirac e)
     -- == weight p *> dirac e
     -- == dirac e <* weight p
 
@@ -1130,12 +1130,12 @@ weightedDirac e p = pose p (dirac e)
 -- of Lazy.hs.
 --
 -- (was formerly called @factor_@ in this branch; wasn't abstracted out in the old Syntax.hs)
-observe
+guard
     :: (ABT Term abt)
     => abt '[] HBool
     -> abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure a)
-observe b m = if_ b m reject
+guard b m = if_ b m reject
 
 
 categorical, categorical'
@@ -1147,7 +1147,7 @@ categorical = measure1_ Categorical
 -- TODO: a variant of 'if_' which gives us the evidence that the argument is non-negative, so we don't need to coerce or use 'abs_'
 categorical' v =
     counting >>= \i ->
-    observe (int_ 0 <= i && i < nat2int (size v)) $
+    guard (int_ 0 <= i && i < nat2int (size v)) $
     let_ (abs_ i) $ \j ->
     weightedDirac j (v!j / sumV v)
 
@@ -1163,7 +1163,7 @@ uniform = measure2_ Uniform
 
 uniform' lo hi = 
     lebesgue >>= \x ->
-    observe (lo < x && x < hi)
+    guard (lo < x && x < hi)
         -- TODO: how can we capture that this 'unsafeProb' is safe? (and that this 'recip' isn't Infinity, for that matter)
         $ weightedDirac x (recip . unsafeProb $ hi - lo)
 
@@ -1191,7 +1191,7 @@ poisson = measure1_ Poisson
 poisson' l = 
     counting >>= \x ->
     -- TODO: use 'SafeFrom_' instead of @if_ (x >= int_ 0)@ so we can prove that @unsafeFrom_ signed x@ is actually always safe.
-    observe (int_ 0 <= x && prob_ 0 < l) -- N.B., @0 < l@ means simply that @l /= 0@; why phrase it the other way?
+    guard (int_ 0 <= x && prob_ 0 < l) -- N.B., @0 < l@ means simply that @l /= 0@; why phrase it the other way?
         $ weightedDirac (unsafeFrom_ signed x)
             $ l ^^ x
                 / gammaFunc (fromInt (x + int_ 1)) -- TODO: use factorial instead of gammaFunc...
@@ -1208,7 +1208,7 @@ gamma = measure2_ Gamma
 gamma' shape scale =
     lebesgue >>= \x ->
     -- TODO: use 'SafeFrom_' instead of @if_ (real_ 0 < x)@ so we can prove that @unsafeProb x@ is actually always safe. Of course, then we'll need to mess around with checking (/=0) which'll get ugly... Use another SafeFrom_ with an associated NonZero type?
-    observe (real_ 0 < x) $
+    guard (real_ 0 < x) $
     let_ (unsafeProb x) $ \ x_ ->
     weightedDirac x_
         $ x_ ** (fromProb shape - real_ 1)
@@ -1334,7 +1334,7 @@ bern p = superpose
 
 mix :: (ABT Term abt)
     => abt '[] ('HArray 'HProb) -> abt '[] ('HMeasure 'HNat)
-mix v = pose (sumV v) (categorical v)
+mix v = weight (sumV v) (categorical v)
 
 binomial
     :: (ABT Term abt)

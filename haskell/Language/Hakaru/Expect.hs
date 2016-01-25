@@ -43,7 +43,7 @@ import Language.Hakaru.Syntax.Prelude
 -- reweight things so that the total weight\/mass is 1.
 normalize
     :: (ABT Term abt) => abt '[] ('HMeasure a) -> abt '[] ('HMeasure a)
-normalize m = pose (recip $ total m) m
+normalize m = weight (recip $ total m) m
 
 
 -- | Compute the total weight\/mass of a measure.
