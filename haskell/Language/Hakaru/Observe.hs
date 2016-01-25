@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds
            , GADTs
+           , OverloadedStrings
            , FlexibleContexts
            #-}
 
