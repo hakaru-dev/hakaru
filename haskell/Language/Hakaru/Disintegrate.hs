@@ -45,7 +45,6 @@ module Language.Hakaru.Disintegrate
     -- * the Hakaru API
       disintegrate
     , density
-    , observe
     , determine
     
     -- * Implementation details
@@ -145,6 +144,7 @@ density m = do
     -- like that?
 
 
+{-
 -- TODO: what's the point of having this function instead of just
 -- using @observe x m = disintegrate m `app` x@?
 --
@@ -157,7 +157,7 @@ observe
     -> [abt '[] ('HMeasure b)]
 observe x m =
     (P.snd P.<$>) <$> conditionalize (Condition (pPair PVar PWild) x) m
-
+-}
 
 -- | A condition is a projection function followed by an equality
 -- constraint. This serves the same role as the old @Backward@
