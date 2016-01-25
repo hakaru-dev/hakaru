@@ -15,7 +15,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.01.13
+--                                                    2016.01.25
 -- |
 -- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -43,8 +43,8 @@
 module Language.Hakaru.Disintegrate
     (
     -- * the Hakaru API
-      disintegrate
-    , disintegrateWithType
+      disintegrateWithVar
+    , disintegrate
     , density
     , observe
     , determine
@@ -103,30 +103,22 @@ import Debug.Trace (trace)
 
 -- | Disintegrate a measure over pairs with respect to the lebesgue
 -- measure on the first component. That is, for each measure kernel
--- @n <- disintegrate m@ we have that @m == bindx lebesgue n@.
+-- @n <- disintegrate m@ we have that @m == bindx lebesgue n@. The
+-- first two arguments give the hint and type of the lambda-bound
+-- variable in the result. If you want to automatically fill those
+-- in, then see 'disintegrate'.
 --
 -- This function fills the role that the old @runDisintegrate@ did.
 -- It's unclear what exactly the old function called @disintegrate@
 -- was supposed to be doing...
-disintegrate
+disintegrateWithVar
     :: (ABT Term abt)
-    => abt '[] ('HMeasure (HPair a b))
-    -> [abt '[] (a ':-> 'HMeasure b)]
-disintegrate m = disintegrateWithType m Text.empty typ
-   where typ = fst . sUnPair . sUnMeasure $ typeOf m
-
-disintegrateWithType
-    :: (ABT Term abt)
-    => abt '[] ('HMeasure (HPair a b))
-    -> Text.Text
+    => Text.Text
     -> Sing a
+    -> abt '[] ('HMeasure (HPair a b))
     -> [abt '[] (a ':-> 'HMeasure b)] -- this Hakaru function is measurable
-disintegrateWithType m hint typ = do
-    -- HACK: for some reason, just using 'nextFree' isn't enough;
-    -- we also need to use 'nextBind' to avoid issues about
-    -- 'VarEqTypeError'
-    let i   = nextFree m `max` nextBind m
-        x   = Variable hint i typ
+disintegrateWithVar hint typ m = do
+    let x = Variable hint (nextFree m `max` nextBind m) typ
     m' <- flip runDis [Some2 m, Some2 (var x)] $ do
         ab    <- perform m
         (a,b) <- emitUnpair ab
@@ -135,10 +127,25 @@ disintegrateWithType m hint typ = do
     return $ syn (Lam_ :$ bind x m' :* End)
 
 
+-- | A variant of 'disintegrateWithVar' which automatically computes
+-- the type via 'typeOf'.
+disintegrate
+    :: (ABT Term abt)
+    => abt '[] ('HMeasure (HPair a b))
+    -> [abt '[] (a ':-> 'HMeasure b)] -- this Hakaru function is measurable
+disintegrate m =
+    disintegrateWithVar
+        Text.empty
+        (fst . sUnPair . sUnMeasure $ typeOf m)
+        m
+
+
+-- | Return the density function for a given measure.
+--
 -- TODO: is the resulting function guaranteed to be measurable? if
 -- not, should we make it into a Haskell function instead?
 --
--- | Return the density function for a given measure.
+-- TODO: provide a @WithVar@ variant to avoid relying on 'typeOf'.
 density
     :: (ABT Term abt)
     => abt '[] ('HMeasure a)
@@ -155,14 +162,17 @@ density m = do
 
 
 
--- | Replaces a measure with a value weighted by its density at that point
+-- | Constrain a measure such that it must return the observed
+-- value. In other words, the resulting measure returns the observed
+-- value with weight according to its density in the original
+-- measure, and gives all other values weight zero.
 observe
     :: (ABT Term abt)
     => abt '[] ('HMeasure a)
     -> abt '[] a
     -> [abt '[] ('HMeasure a)]
-observe m x = do
-  runDis (constrainOutcome x m >> return x) [Some2 m, Some2 x]
+observe m x =
+    runDis (constrainOutcome x m >> return x) [Some2 m, Some2 x]
 
 
 -- | A condition is a projection function followed by an equality
@@ -230,26 +240,6 @@ determine :: (ABT Term abt) => [abt '[] a] -> Maybe (abt '[] a)
 determine []    = Nothing
 determine (m:_) = Just m
 
-
-----------------------------------------------------------------
-----------------------------------------------------------------
-{-
-data L s abt a = L
-    { forward  :: Dis s abt (Whnf (L s abt) a)
-    , backward :: Whnf (L s abt) a -> Dis s abt ()
-    }
-
--- TODO: make the length indexing explicit:
--- > data C abt a = C { unC :: forall n. Sing n -> [Vec (Some1 abt) n -> a] }
---
--- TODO: does the old version actually mean to erase type info? or should we rather use:
--- > data C abt a = C { unC :: forall xs. Sing xs -> [List1 abt xs -> a] }
---
--- TODO: should we add back in something like @C@ for interpreting\/erasing the uses of 'Lub_'?
-data C abt a = C { unC :: Nat -> [[Some1 abt] -> a] }
-
-type Lazy s abt a = L s (C abt) a
--}
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -409,6 +399,10 @@ getHeapVars =
 --
 -- This is the function called @(<|)@ in the paper, though notably
 -- we swap the argument order.
+--
+-- TODO: find some way to capture in the type that the first argument
+-- must be emissible, to help avoid accidentally passing the arguments
+-- in the wrong order!
 constrainValue :: (ABT Term abt) => abt '[] a -> abt '[] a -> Dis abt ()
 constrainValue v0 e0 =
     {-
@@ -481,6 +475,9 @@ constrainValue v0 e0 =
 -- | N.B., We assume that the first argument, @v0@, is already
 -- atomized. So, this must be ensured before recursing, but we can
 -- assume it's already been done by the IH.
+--
+-- TODO: find some way to capture in the type that the first argument
+-- must be emissible.
 constrainVariable
     :: (ABT Term abt) => abt '[] a -> Variable a -> Dis abt ()
 constrainVariable v0 x =
@@ -507,6 +504,9 @@ constrainVariable v0 x =
 -- | N.B., We assume that the first argument, @v0@, is already
 -- atomized. So, this must be ensured before recursing, but we can
 -- assume it's already been done by the IH.
+--
+-- TODO: find some way to capture in the type that the first argument
+-- must be emissible.
 constrainValueMeasureOp
     :: forall abt typs args a
     .  (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
@@ -560,6 +560,9 @@ constrainValueMeasureOp v0 = go
 -- the term as a function of @x@, atomize that function (hence going
 -- forward on the rest of the variables), and then invert it and
 -- get the Jacobian.
+--
+-- TODO: find some way to capture in the type that the first argument
+-- must be emissible.
 constrainNaryOp
     :: (ABT Term abt)
     => abt '[] a
@@ -645,6 +648,9 @@ lubSeq f = go S.empty
 -- | N.B., We assume that the first argument, @v0@, is already
 -- atomized. So, this must be ensured before recursing, but we can
 -- assume it's already been done by the IH.
+--
+-- TODO: find some way to capture in the type that the first argument
+-- must be emissible.
 constrainPrimOp
     :: forall abt typs args a
     .  (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
@@ -876,6 +882,10 @@ square theSemiring e =
 --
 -- This is the function called @(<<|)@ in the paper, though notably
 -- we swap the argument order.
+--
+-- TODO: find some way to capture in the type that the first argument
+-- must be emissible, to help avoid accidentally passing the arguments
+-- in the wrong order!
 constrainOutcome
     :: forall abt a
     .  (ABT Term abt)
@@ -927,6 +937,9 @@ constrainOutcome v0 e0 =
 
 
 -- TODO: should this really be different from 'constrainValueMeasureOp'?
+--
+-- TODO: find some way to capture in the type that the first argument
+-- must be emissible.
 constrainOutcomeMeasureOp
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => abt '[] a

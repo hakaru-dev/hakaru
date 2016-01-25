@@ -43,7 +43,7 @@ import Language.Hakaru.Syntax.Prelude
 -- reweight things so that the total weight\/mass is 1.
 normalize
     :: (ABT Term abt) => abt '[] ('HMeasure a) -> abt '[] ('HMeasure a)
-normalize m = weight (recip $ total m) m
+normalize m = withWeight (recip $ total m) m
 
 
 -- | Compute the total weight\/mass of a measure.
@@ -217,7 +217,6 @@ expectTypeDir p (SFun   _ a) e =
     expectTypeDir (unImpureFun p) a (e `app` e2)
 expectTypeDir _ (SMeasure a) e =
     ExpectMeasure $ \c ->
-    -- measure2_ (Expect a) e (lamWithType a c)
     syn (Expect :$ e :* binder Text.empty a c :* End)
 
 

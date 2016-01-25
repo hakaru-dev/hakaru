@@ -405,11 +405,11 @@ emitMBind_ m = emit_ (m P.>>)
 -- TODO: if the argument is a value, then we can evaluate the 'P.if_' immediately rather than emitting it.
 -- | Emit an assertion that the condition is true.
 emitGuard :: (ABT Term abt) => abt '[] HBool -> Dis abt ()
-emitGuard b = emit_ (P.guard b) -- == emit_ $ \m -> P.if_ b m P.reject
+emitGuard b = emit_ (P.withGuard b) -- == emit_ $ \m -> P.if_ b m P.reject
 
 -- TODO: if the argument is the literal 1, then we can avoid emitting anything.
 emitWeight :: (ABT Term abt) => abt '[] 'HProb -> Dis abt ()
-emitWeight w = emit_ (P.weight w)
+emitWeight w = emit_ (P.withWeight w)
 
 
 -- N.B., this use of 'T.traverse' is definitely correct. It's
