@@ -43,7 +43,8 @@
 module Language.Hakaru.Disintegrate
     (
     -- * the Hakaru API
-      disintegrate
+      disintegrateWithVar
+    , disintegrate
     , density
     , observe
     , determine
@@ -102,28 +103,41 @@ import Debug.Trace (trace)
 
 -- | Disintegrate a measure over pairs with respect to the lebesgue
 -- measure on the first component. That is, for each measure kernel
--- @n <- disintegrate m@ we have that @m == bindx lebesgue n@.
+-- @n <- disintegrate m@ we have that @m == bindx lebesgue n@. The
+-- first two arguments give the hint and type of the lambda-bound
+-- variable in the result. If you want to automatically fill those
+-- in, then see 'disintegrate'.
 --
 -- This function fills the role that the old @runDisintegrate@ did.
 -- It's unclear what exactly the old function called @disintegrate@
 -- was supposed to be doing...
-disintegrate
+disintegrateWithVar
     :: (ABT Term abt)
-    => abt '[] ('HMeasure (HPair a b))
+    => Text.Text
+    -> Sing a
+    -> abt '[] ('HMeasure (HPair a b))
     -> [abt '[] (a ':-> 'HMeasure b)] -- this Hakaru function is measurable
-disintegrate m = do
-    let typ = fst . sUnPair . sUnMeasure $ typeOf m
-        -- HACK: for some reason, just using 'nextFree' isn't enough;
-        -- we also need to use 'nextBind' to avoid issues about
-        -- 'VarEqTypeError'
-        i   = nextFree m `max` nextBind m
-        x   = Variable Text.empty i typ
+disintegrateWithVar hint typ m = do
+    let x = Variable hint (nextFree m `max` nextBind m) typ
     m' <- flip runDis [Some2 m, Some2 (var x)] $ do
         ab    <- perform m
         (a,b) <- emitUnpair ab
         constrainValue (var x) a
         return b
     return $ syn (Lam_ :$ bind x m' :* End)
+
+
+-- | A variant of 'disintegrateWithVar' which automatically computes
+-- the type via 'typeOf'.
+disintegrate
+    :: (ABT Term abt)
+    => abt '[] ('HMeasure (HPair a b))
+    -> [abt '[] (a ':-> 'HMeasure b)] -- this Hakaru function is measurable
+disintegrate m =
+    disintegrateWithVar
+        Text.empty
+        (fst . sUnPair . sUnMeasure $ typeOf m)
+        m
 
 
 -- TODO: is the resulting function guaranteed to be measurable? if

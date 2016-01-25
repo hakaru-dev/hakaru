@@ -217,7 +217,6 @@ expectTypeDir p (SFun   _ a) e =
     expectTypeDir (unImpureFun p) a (e `app` e2)
 expectTypeDir _ (SMeasure a) e =
     ExpectMeasure $ \c ->
-    -- measure2_ (Expect a) e (lamWithType a c)
     syn (Expect :$ e :* binder Text.empty a c :* End)
 
 

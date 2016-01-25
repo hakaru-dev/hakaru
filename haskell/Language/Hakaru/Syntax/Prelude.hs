@@ -109,7 +109,7 @@ module Language.Hakaru.Syntax.Prelude
     , nil, cons, list
 
     -- * Lambda calculus
-    , lam, lamWithType, let_
+    , lam, lamWithVar, let_
     , app, app2, app3
 
     -- * Arrays
@@ -834,17 +834,23 @@ negativeInfinity = primOp0_ NegativeInfinity
 -- 'app' already defined
 
 -- TODO: use 'typeOf' to remove the 'SingI' requirement somehow
+-- | A variant of 'lamWithVar' for automatically computing the type
+-- via 'sing'.
 lam :: (ABT Term abt, SingI a)
     => (abt '[] a -> abt '[] b)
     -> abt '[] (a ':-> b)
-lam = lamWithType sing
+lam = lamWithVar Text.empty sing
 
-lamWithType
+-- | Create a lambda abstraction. The first two arguments give the
+-- hint and type of the lambda-bound variable in the result. If you
+-- want to automatically fill those in, then see 'lam'.
+lamWithVar
     :: (ABT Term abt)
-    => Sing a
+    => Text.Text
+    -> Sing a
     -> (abt '[] a -> abt '[] b)
     -> abt '[] (a ':-> b)
-lamWithType typ f = syn (Lam_ :$ binder Text.empty typ f :* End)
+lamWithVar hint typ f = syn (Lam_ :$ binder hint typ f :* End)
 
 {-
 -- some test cases to make sure we tied-the-knot successfully:
@@ -893,8 +899,9 @@ reduce
     -> abt '[] ('HArray a)
     -> abt '[] a
 reduce f e =
-    let a = typeOf e
-        f' = lamWithType a $ \x -> lamWithType a $ \y -> f x y
+    let a  = typeOf e
+        f' = lamWithVar Text.empty a $ \x ->
+                lamWithVar Text.empty a $ \y -> f x y
     in arrayOp3_ (Reduce a) f' e
 
 -- TODO: better names for all these. The \"V\" suffix doesn't make sense anymore since we're calling these arrays, not vectors...
