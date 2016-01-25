@@ -45,6 +45,7 @@ module Language.Hakaru.Disintegrate
     -- * the Hakaru API
       disintegrate
     , density
+    , observe
     , determine
     
     -- * Implementation details
@@ -120,7 +121,7 @@ disintegrate m = do
     m' <- flip runDis [Some2 m, Some2 (var x)] $ do
         ab    <- perform m
         (a,b) <- emitUnpair ab
-        constrainValue (Neutral $ var x) a
+        constrainValue (var x) a
         return b
     return $ syn (Lam_ :$ bind x m' :* End)
 
@@ -144,20 +145,16 @@ density m = do
     -- like that?
 
 
-{-
--- TODO: what's the point of having this function instead of just
--- using @observe x m = disintegrate m `app` x@?
---
--- BUG: come up with new names avoid name conflict vs the Prelude
--- function.
+
+-- | Replaces a measure with a value weighted by its density at that point
 observe
     :: (ABT Term abt)
-    => abt '[] a
-    -> abt '[] ('HMeasure (HPair a b))
-    -> [abt '[] ('HMeasure b)]
-observe x m =
-    (P.snd P.<$>) <$> conditionalize (Condition (pPair PVar PWild) x) m
--}
+    => abt '[] ('HMeasure a)
+    -> abt '[] a
+    -> [abt '[] ('HMeasure a)]
+observe m x = do
+  runDis (constrainOutcome x m >> return x) [Some2 m, Some2 x]
+
 
 -- | A condition is a projection function followed by an equality
 -- constraint. This serves the same role as the old @Backward@
@@ -210,7 +207,7 @@ conditionalize (Condition pat b) m =
             [ GBranch pat (Cons1 y Nil1) $ do
                 b' <- atomize b
                 -- TODO: make sure this is the correct argument order
-                constrainValue b' (var y)
+                constrainValue (fromWhnf b') (var y)
                 return x
             , GBranch PWild Nil1 $ reject
             ]
@@ -403,7 +400,7 @@ getHeapVars =
 --
 -- This is the function called @(<|)@ in the paper, though notably
 -- we swap the argument order.
-constrainValue :: (ABT Term abt) => Whnf abt a -> abt '[] a -> Dis abt ()
+constrainValue :: (ABT Term abt) => abt '[] a -> abt '[] a -> Dis abt ()
 constrainValue v0 e0 =
     {-
     trace (
@@ -447,9 +444,9 @@ constrainValue v0 e0 =
                 push (SLet x $ Thunk e1) e2' (constrainValue v0)
 
         Ann_      typ :$ e1 :* End -> constrainValue  v0 e1
-        CoerceTo_   c :$ e1 :* End -> constrainValue  (C.coerceFrom c v0) e1
+        CoerceTo_   c :$ e1 :* End -> constrainValue  (P.unsafeFrom_ c v0) e1
         -- BUG: for the safe coercions we need to 'emitGuard' as well!
-        UnsafeFrom_ c :$ e1 :* End -> constrainValue  (C.coerceTo   c v0) e1
+        UnsafeFrom_ c :$ e1 :* End -> constrainValue  (P.coerceTo_   c v0) e1
         NaryOp_     o    es        -> constrainNaryOp v0 o es
         PrimOp_     o :$ es        -> constrainPrimOp v0 o es
         Expect  :$ e1 :* e2 :* End -> error "TODO: constrainValue{Expect}"
@@ -476,7 +473,7 @@ constrainValue v0 e0 =
 -- atomized. So, this must be ensured before recursing, but we can
 -- assume it's already been done by the IH.
 constrainVariable
-    :: (ABT Term abt) => Whnf abt a -> Variable a -> Dis abt ()
+    :: (ABT Term abt) => abt '[] a -> Variable a -> Dis abt ()
 constrainVariable v0 x =
     -- If we get 'Nothing', then it turns out @x@ is a free variable. If @x@ is a free variable, then it's a neutral term; and we return 'bot' for neutral terms
     (maybe bot return =<<) . select x $ \s ->
@@ -485,12 +482,12 @@ constrainVariable v0 x =
             Refl <- varEq x y
             Just $ do
                 constrainOutcome v0 (fromLazy e)
-                unsafePush (SLet x $ Whnf_ v0)
+                unsafePush (SLet x $ Whnf_ (Neutral v0))
         SLet y e -> do
             Refl <- varEq x y
             Just $ do
                 constrainValue v0 (fromLazy e)
-                unsafePush (SLet x $ Whnf_ v0)
+                unsafePush (SLet x $ Whnf_ (Neutral v0))
         SWeight _ -> Nothing
         SIndex y e1 e2 -> do
             Refl <- varEq x y
@@ -504,7 +501,7 @@ constrainVariable v0 x =
 constrainValueMeasureOp
     :: forall abt typs args a
     .  (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
-    => Whnf abt ('HMeasure a)
+    => abt '[] ('HMeasure a)
     -> MeasureOp typs a
     -> SArgs abt args
     -> Dis abt ()
@@ -556,7 +553,7 @@ constrainValueMeasureOp v0 = go
 -- get the Jacobian.
 constrainNaryOp
     :: (ABT Term abt)
-    => Whnf abt a
+    => abt '[] a
     -> NaryOp a
     -> Seq (abt '[] a)
     -> Dis abt ()
@@ -565,15 +562,15 @@ constrainNaryOp v0 o =
     Sum theSemi ->
         lubSeq $ \es1 e es2 -> do
             u <- atomize $ syn (NaryOp_ (Sum theSemi) (es1 S.>< es2))
-            v <- evaluate_ $ unsafeMinus_ theSemi (fromWhnf v0) (fromWhnf u)
-            constrainValue v e
+            v <- evaluate_ $ unsafeMinus_ theSemi v0 (fromWhnf u)
+            constrainValue (fromWhnf v) e
     Prod theSemi ->
         lubSeq $ \es1 e es2 -> do
             u <- atomize $ syn (NaryOp_ (Prod theSemi) (es1 S.>< es2))
             let u' = fromWhnf u -- TODO: emitLet?
             emitWeight $ P.recip (toProb_abs theSemi u')
-            v <- evaluate_ $ unsafeDiv_ theSemi (fromWhnf v0) u'
-            constrainValue v e
+            v <- evaluate_ $ unsafeDiv_ theSemi v0 u'
+            constrainValue (fromWhnf v) e
     _ -> error "TODO: constrainNaryOp"
 
 
@@ -642,7 +639,7 @@ lubSeq f = go S.empty
 constrainPrimOp
     :: forall abt typs args a
     .  (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
-    => Whnf abt a
+    => abt '[] a
     -> PrimOp typs a
     -> SArgs abt args
     -> Dis abt ()
@@ -661,7 +658,7 @@ constrainPrimOp v0 = go
     go Pi = \End -> bot -- because @dirac pi@ has no density wrt lebesgue
 
     go Sin = \(e1 :* End) -> do
-        x0 <- emitLet' (fromWhnf v0)
+        x0 <- emitLet' v0
         n  <- var <$> emitMBind P.counting
         let tau_n = P.real_ 2 P.* P.fromInt n P.* P.pi -- TODO: emitLet?
         emitGuard (P.negate P.one P.< x0 P.&& x0 P.< P.one)
@@ -674,10 +671,10 @@ constrainPrimOp v0 = go
             . P.sqrt
             . P.unsafeProb
             $ (P.one P.- x0 P.^ P.nat_ 2)
-        constrainValue (Neutral v) e1
+        constrainValue v e1
 
     go Cos = \(e1 :* End) -> do
-        x0 <- emitLet' (fromWhnf v0)
+        x0 <- emitLet' v0
         n  <- var <$> emitMBind P.counting
         let tau_n = P.real_ 2 P.* P.fromInt n P.* P.pi
         emitGuard (P.negate P.one P.< x0 P.&& x0 P.< P.one)
@@ -688,33 +685,33 @@ constrainPrimOp v0 = go
             . P.sqrt
             . P.unsafeProb
             $ (P.one P.- x0 P.^ P.nat_ 2)
-        constrainValue (Neutral v) e1
+        constrainValue v e1
 
     go Tan = \(e1 :* End) -> do
-        x0 <- emitLet' (fromWhnf v0)
+        x0 <- emitLet' v0
         n  <- var <$> emitMBind P.counting
         r  <- emitLet' (P.fromInt n P.* P.pi P.+ P.atan x0)
         emitWeight $ P.recip (P.one P.+ P.square x0)
-        constrainValue (Neutral r) e1
+        constrainValue r e1
 
     go Asin = \(e1 :* End) -> do
-        x0 <- emitLet' (fromWhnf v0)
+        x0 <- emitLet' v0
         -- TODO: may want to evaluate @cos v0@ before emitting the weight
         emitWeight $ P.unsafeProb (P.cos x0)
         -- TODO: bounds check for -pi/2 <= v0 < pi/2
-        constrainValue (Neutral $ P.sin x0) e1
+        constrainValue (P.sin x0) e1
 
     go Acos = \(e1 :* End) -> do
-        x0 <- emitLet' (fromWhnf v0)
+        x0 <- emitLet' v0
         -- TODO: may want to evaluate @sin v0@ before emitting the weight
         emitWeight $ P.unsafeProb (P.sin x0)
-        constrainValue (Neutral $ P.cos x0) e1
+        constrainValue (P.cos x0) e1
 
     go Atan = \(e1 :* End) -> do
-        x0 <- emitLet' (fromWhnf v0)
+        x0 <- emitLet' v0
         -- TODO: may want to evaluate @cos v0 ^ 2@ before emitting the weight
         emitWeight $ P.recip (P.unsafeProb (P.cos x0 P.^ P.nat_ 2))
-        constrainValue (Neutral $ P.tan x0) e1
+        constrainValue (P.tan x0) e1
 
     go Sinh      = \(e1 :* End)       -> error_TODO "Sinh"
     go Cosh      = \(e1 :* End)       -> error_TODO "Cosh"
@@ -754,15 +751,15 @@ constrainPrimOp v0 = go
             constrainValue ex e1
         -}
     go Exp = \(e1 :* End) -> do
-        x0 <- emitLet' (fromWhnf v0)
+        x0 <- emitLet' v0
         -- TODO: do we still want/need the @emitGuard (0 < x0)@ which is now equivalent to @emitGuard (0 /= x0)@ thanks to the types?
         emitWeight (P.recip x0)
-        constrainValue (Neutral $ P.log x0) e1
+        constrainValue (P.log x0) e1
 
     go Log = \(e1 :* End) -> do
-        exp_x0 <- emitLet' (P.exp $ fromWhnf v0)
+        exp_x0 <- emitLet' (P.exp v0)
         emitWeight exp_x0
-        constrainValue (Neutral exp_x0) e1
+        constrainValue exp_x0 e1
 
     go Infinity         = \End               -> error_TODO "Infinity" -- scalar0
     go NegativeInfinity = \End               -> error_TODO "NegativeInfinity" -- scalar0
@@ -774,14 +771,14 @@ constrainPrimOp v0 = go
     go (Negate theRing) = \(e1 :* End) ->
         -- TODO: figure out how to merge this implementation of @rr1 negate@ with the one in 'evaluatePrimOp' to DRY
         -- TODO: just emitLet the @v0@ and pass the neutral term to the recursive call?
-        let negate_v0 =
-                case v0 of
-                Neutral e ->
-                    Neutral $ syn (PrimOp_ (Negate theRing) :$ e :* End)
-                Head_ v ->
-                    case theRing of
-                    HRing_Int  -> Head_ . reflect . negate $ reify v
-                    HRing_Real -> Head_ . reflect . negate $ reify v
+        let negate_v0 = syn (PrimOp_ (Negate theRing) :$ v0 :* End)
+                -- case v0 of
+                -- Neutral e ->
+                --     Neutral $ syn (PrimOp_ (Negate theRing) :$ e :* End)
+                -- Head_ v ->
+                --     case theRing of
+                --     HRing_Int  -> Head_ . reflect . negate $ reify v
+                --     HRing_Real -> Head_ . reflect . negate $ reify v
         in constrainValue negate_v0 e1
         {-
         -- We could use this instead, if we don't care about the verbosity of so many let-bindings (or if we were willing to lie about the first argument to 'constrainValue' being \"neutral\"
@@ -803,7 +800,7 @@ constrainPrimOp v0 = go
             eq      = P.primOp2_ $ Equal  theEq
             neg     = P.primOp1_ $ Negate theRing
 
-        x0 <- emitLet' (P.coerceTo_ signed $ fromWhnf v0)
+        x0 <- emitLet' (P.coerceTo_ signed v0)
         v  <- var <$> emitMBind
             (P.if_ (lt zero x0)
                 (P.superpose
@@ -813,34 +810,34 @@ constrainPrimOp v0 = go
                 (P.if_ (eq zero x0)
                     (P.dirac zero)
                     P.reject))
-        constrainValue (Neutral v) e1
+        constrainValue v e1
 
     go (Signum theRing) = \(e1 :* End) ->
         case theRing of
         HRing_Real -> bot
         HRing_Int  -> do
             x <- var <$> emitMBind P.counting
-            emitGuard $ P.signum x P.== fromWhnf v0
-            constrainValue (Neutral x) e1
+            emitGuard $ P.signum x P.== v0
+            constrainValue x e1
 
     go (Recip theFractional) = \(e1 :* End) -> do
         -- TODO: may want to inline @x0@ and try evaluating @e0 ^ 2@ and @recip e0@...
-        x0 <- emitLet' (fromWhnf v0)
+        x0 <- emitLet' v0
         emitWeight
             . P.recip
             . P.unsafeProbFraction_ theFractional
             -- TODO: define a dictionary-passing variant of 'P.square' instead, to include the coercion in there explicitly...
             $ square (hSemiring_HFractional theFractional) x0
-        constrainValue (Neutral $ P.primOp1_ (Recip theFractional) x0) e1
+        constrainValue (P.primOp1_ (Recip theFractional) x0) e1
 
     go (NatRoot theRadical) = \(e1 :* e2 :* End) ->
         case theRadical of
         HRadical_Prob -> do
             -- TODO: may want to inline @x0@ and try evaluating @u2 * e0@ and @e0 ^ u2@...
-            x0 <- emitLet' (fromWhnf v0)
+            x0 <- emitLet' v0
             u2 <- fromWhnf <$> atomize e2
             emitWeight (P.nat2prob u2 P.* x0)
-            constrainValue (Neutral $ x0 P.^ u2) e1
+            constrainValue (x0 P.^ u2) e1
 
     go (Erf theContinuous) = \(e1 :* End) ->
         error "TODO: constrainPrimOp: need InvErf to disintegrate Erf"
@@ -873,7 +870,7 @@ square theSemiring e =
 constrainOutcome
     :: forall abt a
     .  (ABT Term abt)
-    => Whnf abt a
+    => abt '[] a
     -> abt '[] ('HMeasure a)
     -> Dis abt ()
 constrainOutcome v0 e0 =
@@ -923,7 +920,7 @@ constrainOutcome v0 e0 =
 -- TODO: should this really be different from 'constrainValueMeasureOp'?
 constrainOutcomeMeasureOp
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
-    => Whnf abt a
+    => abt '[] a
     -> MeasureOp typs a
     -> SArgs abt args
     -> Dis abt ()
@@ -940,7 +937,7 @@ constrainOutcomeMeasureOp v0 = go
 
     -- Per the paper
     go Uniform = \(lo :* hi :* End) -> do
-        v0' <- (emitLet' . fromWhnf) v0
+        v0' <- emitLet' v0
         lo' <- (emitLet' . fromWhnf) =<< atomize lo
         hi' <- (emitLet' . fromWhnf) =<< atomize hi
         emitGuard (lo' P.<= v0' P.&& v0' P.<= hi')
@@ -952,7 +949,7 @@ constrainOutcomeMeasureOp v0 = go
         mu' <- fromWhnf <$> atomize mu
         sd' <- (emitLet' . fromWhnf) =<< atomize sd
         emitWeight
-            (P.exp (P.negate (fromWhnf v0 P.- mu') P.^ P.nat_ 2
+            (P.exp (P.negate (v0 P.- mu') P.^ P.nat_ 2
                     P./ P.fromProb (P.prob_ 2 P.* sd' P.^ P.nat_ 2))
                 P./ sd'
                 P./ P.sqrt (P.prob_ 2 P.* P.pi))
