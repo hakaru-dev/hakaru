@@ -155,7 +155,7 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
             [ PP.text "match"
               <+> (toDoc $ ppArg e1)
               <> PP.colon
-            , PP.nest 1 (toDoc $ ppList (map (toDoc . prettyPrec_ 0) bs))
+            , PP.nest 1 (PP.vcat (map (toDoc . prettyPrec_ 0) bs))
             ]
         Superpose_ pes ->
             -- TODO: use the old PrettyPrint.hs's hack for when there's exactly one thing in the list; i.e., print as @weight w *> m@ with the appropriate do-notation indentation for @(*>)@ (or using 'pose' and @($)@)
