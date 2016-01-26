@@ -152,11 +152,11 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
         Datum_ d      -> prettyPrec_ p (fmap11 LC_ d)
         Case_  e1 bs  ->
             -- TODO: should we also add hints to the 'Case_' constructor to know whether it came from 'if_', 'unpair', etc?
-            ppFun p "syn"
-                [ toDoc $ ppFun 11 "Case_"
-                    [ toDoc $ ppArg e1
-                    , toDoc $ ppList (map (toDoc . prettyPrec_ 0) bs)
-                    ]]
+            [ PP.text "match"
+              <+> (toDoc $ ppArg e1)
+              <> PP.colon
+            , PP.nest 1 (toDoc $ ppList (map (toDoc . prettyPrec_ 0) bs))
+            ]
         Superpose_ pes ->
             -- TODO: use the old PrettyPrint.hs's hack for when there's exactly one thing in the list; i.e., print as @weight w *> m@ with the appropriate do-notation indentation for @(*>)@ (or using 'pose' and @($)@)
             ppFun p "superpose"
