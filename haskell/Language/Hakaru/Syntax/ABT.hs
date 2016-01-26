@@ -50,6 +50,7 @@ module Language.Hakaru.Syntax.ABT
     , binds_
     , caseBinds
     -- ** Capture avoiding substitution for any 'ABT'
+    , rename
     , subst
     , substs
     -- ** Constructing first-order trees with a HOAS-like API
