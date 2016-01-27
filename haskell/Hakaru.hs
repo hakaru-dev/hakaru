@@ -28,6 +28,7 @@ main = do
   g    <- MWC.create
   case args of
       [prog] -> IO.readFile prog >>= runHakaru g
+      []     -> IO.getContents   >>= runHakaru g
       _      -> IO.putStrLn "Usage: hakaru <file>"
 
 inferType' :: U.AST -> TypeCheckMonad (TypedAST (TrivialABT T.Term))
