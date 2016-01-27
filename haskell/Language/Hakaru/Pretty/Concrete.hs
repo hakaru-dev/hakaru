@@ -50,7 +50,7 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Pretty.Haskell
-    (prettyAssoc, prettyPrecAssoc, ppVariable, Associativity(..), ppBinop)
+    (prettyAssoc, prettyPrecAssoc, ppVariable, Associativity(..))
 
 ----------------------------------------------------------------
 -- | Pretty-print a term.
@@ -230,7 +230,7 @@ ppCoerceTo =
     prettyShow (CCons (Continuous HContinuous_Real) CNil) = "fromInt"
     prettyShow (CCons (Continuous HContinuous_Prob) CNil) = "nat2prob"
     prettyShow (CCons (Continuous HContinuous_Prob)
-        (CCons (Signed HRing_Real) CNil))                  = "nat2real"
+        (CCons (Signed HRing_Real) CNil))                 = "nat2real"
     prettyShow (CCons (Signed HRing_Int)
         (CCons (Continuous HContinuous_Real) CNil))       = "nat2real"
     prettyShow c = "coerceTo_ " ++ showsPrec 11 c ""
@@ -459,6 +459,23 @@ ppApply1 p f e1 = ppFun p f [toDoc $ ppArg e1]
 ppApply2
     :: (ABT Term abt) => Int -> String -> abt '[] a -> abt '[] b -> Docs
 ppApply2 p f e1 e2 = ppFun p f [toDoc $ ppArg e1, toDoc $ ppArg e2]
+
+ppBinop
+    :: (ABT Term abt)
+    => String -> Int -> Associativity
+    -> Int -> abt '[] a -> abt '[] b -> Docs
+ppBinop op p0 assoc =
+    let (p1,p2) =
+            case assoc of
+            LeftAssoc  -> (p0, 1 + p0)
+            RightAssoc -> (1 + p0, p0)
+            NonAssoc   -> (1 + p0, 1 + p0)
+    in \p e1 e2 -> 
+        parens (p > p0)
+            [ prettyPrec p1 e1
+            , PP.text op
+                <+> prettyPrec p2 e2
+            ]
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
