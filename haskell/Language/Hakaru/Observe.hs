@@ -52,14 +52,20 @@ observeAST (LC_ m) (LC_ a) =
         -- TODO: Figure out why this infinite loops
         Let_  :$ e1 :* e2 :* End -> syn (Let_ :$ e1 :*
                                          (caseBind e2 $ \x e2' ->
-                                             binder "" (varType x) $ \x' ->
-                                             observe (subst x x' e2') a) :*
+                                             let x' = Variable
+                                                        ""
+                                                        (nextFree m `max` nextBind m)
+                                                        (varType x)
+                                             in bind x' $ observe (rename x x' e2') a) :*
                                          End)
         Dirac :$ e  :* End       -> P.if_ (e P.== a) (P.dirac a) P.reject
         -- TODO: Add a name supply
         MBind :$ e1 :* e2 :* End -> syn (MBind :$ e1 :*
                                          (caseBind e2 $ \x e2' ->
-                                             let x' = Variable "" (unsafeNat 42) (varType x)
+                                             let x' = Variable
+                                                        ""
+                                                        (nextFree m `max` nextBind m)
+                                                        (varType x)
                                              in bind x' $ observe (rename x x' e2') a) :*
                                          End)
         MeasureOp_ op :$ es      -> observeMeasureOp op es a
