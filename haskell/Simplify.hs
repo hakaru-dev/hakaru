@@ -9,12 +9,10 @@ import           Language.Hakaru.Pretty.Concrete
 import qualified Language.Hakaru.Syntax.AST as T
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.TypeCheck
-import           Language.Hakaru.Syntax.Prelude (prob_, fromProb, real_)
 
 import           Language.Hakaru.Types.Sing
 import           Language.Hakaru.Simplify
   
-import           Control.Monad
 import           Data.Text
 import qualified Data.Text.IO as IO
 
