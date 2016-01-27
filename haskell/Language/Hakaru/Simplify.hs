@@ -39,6 +39,8 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Syntax.TypeOf
 
+import Language.Hakaru.Types.DataKind
+
 import Data.Typeable (Typeable)
 
 import Data.Text (pack)
