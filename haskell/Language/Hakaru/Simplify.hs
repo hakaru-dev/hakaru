@@ -59,7 +59,7 @@ instance Show MapleException where
 
 instance Exception MapleException
 
-simplify :: (ABT Term abt) => abt '[] a -> IO (abt '[] a)
+simplify :: (ABT Term abt) => abt '[] ('HMeasure a) -> IO (abt '[] ('HMeasure a))
 simplify e = do
     let slo = Maple.pretty e
     hakaru <- maple ("timelimit(15,NewSLO:-RoundTripLO(" ++ slo ++ "));")
