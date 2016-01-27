@@ -50,24 +50,26 @@ observeAST (LC_ m) (LC_ a) =
     caseVarSyn m observeVar $ \ast ->
         case ast of
         -- TODO: Figure out why this infinite loops
-        Let_  :$ e1 :* e2 :* End -> syn (Let_ :$ e1 :*
-                                         (caseBind e2 $ \x e2' ->
-                                             let x' = Variable
-                                                        ""
-                                                        (nextFree m `max` nextBind m)
-                                                        (varType x)
-                                             in bind x' $ observe (rename x x' e2') a) :*
-                                         End)
+        Let_  :$ e1 :* e2 :* End ->
+            syn (Let_ :$ e1 :*
+                (caseBind e2 $ \x e2' ->
+                          let x' = Variable
+                                     ""
+                                     (nextFree m `max` nextBind m)
+                                     (varType x)
+                          in bind x' $ observe (rename x x' e2') a) :*
+                End)
         Dirac :$ e  :* End       -> P.if_ (e P.== a) (P.dirac a) P.reject
         -- TODO: Add a name supply
-        MBind :$ e1 :* e2 :* End -> syn (MBind :$ e1 :*
-                                         (caseBind e2 $ \x e2' ->
-                                             let x' = Variable
-                                                        ""
-                                                        (nextFree m `max` nextBind m)
-                                                        (varType x)
-                                             in bind x' $ observe (rename x x' e2') a) :*
-                                         End)
+        MBind :$ e1 :* e2 :* End ->
+             syn (MBind :$ e1 :*
+                 (caseBind e2 $ \x e2' ->
+                           let x' = Variable
+                                      ""
+                                      (nextFree m `max` nextBind m)
+                                      (varType x)
+                           in bind x' $ observe (rename x x' e2') a) :*
+                 End)
         MeasureOp_ op :$ es      -> observeMeasureOp op es a
         _ -> error "observe can only be applied to measure primitives"
 
