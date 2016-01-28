@@ -10,5 +10,6 @@ packages:
 extra-deps:
  - indentation-0.2.1.1
  - logfloat-0.13.3.3
+ - pretty-1.1.3.2
 
 flags: {}
