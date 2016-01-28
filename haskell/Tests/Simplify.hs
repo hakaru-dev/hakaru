@@ -20,10 +20,10 @@ import Language.Hakaru.Syntax.AST.Eq()
 
 import Test.HUnit
 
-v :: (ABT Term abt) => abt '[] 'HNat
-v = var (Variable "x" 0 SNat)
+v :: (ABT Term abt) => abt '[] ('HMeasure 'HNat)
+v = var (Variable "x" 0 (SMeasure SNat))
 
-freevar :: TrivialABT Term '[] 'HNat
+freevar :: TrivialABT Term '[] ('HMeasure 'HNat)
 freevar = v
 
 normal01T :: TrivialABT Term '[] ('HMeasure 'HReal)
@@ -44,13 +44,10 @@ unifprob = uniform (real_ 1) (real_ 2) >>= \x -> dirac (unsafeProb x)
 unifprob' = uniform (nat2real (nat_ 1)) (nat2real (nat_ 2)) >>= \x->
             dirac (unsafeProb x)
 
-true' :: TrivialABT Term '[] HBool
-true' = true
-
 testSimplify :: ( ABT Term abt
-                , Show (abt '[] a)
-                , Eq   (abt '[] a))
-               => String -> abt '[] a -> abt '[] a -> Assertion
+                , Show (abt '[] ('HMeasure a))
+                , Eq   (abt '[] ('HMeasure a)))
+               => String -> abt '[] ('HMeasure a) -> abt '[] ('HMeasure a) -> Assertion
 testSimplify nm x y = do
   x' <- simplify x
   assertEqual nm y x' 
@@ -61,5 +58,4 @@ allTests = test
    , testSimplify "normal01T" normal01T normal01T
    , testSimplify "realpair" realpair realpair
    , testSimplify "unifprob" unifprob unifprob'
-   , testSimplify "true'" true' true'
    ]
