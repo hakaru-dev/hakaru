@@ -31,9 +31,6 @@ import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.HClasses
 import qualified Language.Hakaru.Syntax.Prelude as P
 
-import Data.Number.Nat
-import Language.Hakaru.Syntax.Variable
-
 observe
     :: (ABT Term abt, HEq_ a)
     => abt '[] ('HMeasure a)
