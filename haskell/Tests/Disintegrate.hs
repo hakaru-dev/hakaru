@@ -5,24 +5,25 @@
 
 module Tests.Disintegrate where
 
-import           Prelude (($))
+import           Prelude (($), (.), head)
 import qualified Prelude
 
 import Language.Hakaru.Syntax.AST.Eq()
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
+import Language.Hakaru.Syntax.Prelude
+import Language.Hakaru.Syntax.IClasses  (Some2(..))
+import Language.Hakaru.Pretty.Concrete
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
-import Language.Hakaru.Syntax.Prelude
--- import Language.Hakaru.Pretty.Haskell   (pretty)
 import Language.Hakaru.Evaluation.Types               (fromWhnf)
 import Language.Hakaru.Evaluation.DisintegrationMonad (runDis)
-import Language.Hakaru.Syntax.IClasses  (Some2(..))
 import Language.Hakaru.Disintegrate
 
 import qualified Language.Hakaru.Observe as O
 
-import Test.HUnit
+import qualified Data.Text as Text
+import           Test.HUnit
 
 -- | A very simple program. Is sufficient for testing escape and
 -- capture of substitution.
@@ -90,7 +91,7 @@ test2 =
 
 allTests :: Test
 allTests = test
-   [ assertEqual "test1"  [normC] test1 
-   , assertEqual "test1a" [normC] test1a
-   , assertEqual "test1b" [normC] test1b
+   [ assertEqual "test1"  (pretty normC) (pretty . head $ test1)
+   , assertEqual "test1a" (pretty normC) (pretty . head $ test1a)
+   , assertEqual "test1b" (pretty normC) (pretty . head $ test1b)
    ]
