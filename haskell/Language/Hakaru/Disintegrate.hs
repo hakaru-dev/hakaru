@@ -82,6 +82,7 @@ import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
+import Language.Hakaru.Syntax.DatumCase (matchBranches, DatumEvaluator)
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Evaluation.Types
 import Language.Hakaru.Evaluation.Lazy
@@ -269,6 +270,10 @@ evaluate_ :: (ABT Term abt) => TermEvaluator abt (Dis abt)
 evaluate_ = evaluate perform
 
 
+evaluateDatum :: (ABT Term abt) => DatumEvaluator abt (Dis abt)
+evaluateDatum e = viewWhnfDatum <$> evaluate_ e
+
+
 -- | Simulate performing 'HMeasure' actions by simply emiting code
 -- for those actions, returning the bound variable.
 --
@@ -334,17 +339,19 @@ performWhnf (Head_   v) = perform $ fromHead v
 performWhnf (Neutral e) = (Neutral . var) <$> emitMBind e
 
 
--- TODO: now that we've broken 'atomize' and 'atomizeCore' out into
--- separate top-level functions, we should check to make sure we
--- don't pay too much for passing the dictionaries back and forth.
--- If we do, then we should inline the definitions into each other
--- and use -XScopedTypeVaribles to ensure the recursive calls close
--- over the dictionary parameter.
-
--- | This name is taken from the old finally tagless code. This
--- does something like giving us full-beta reduction, which should
--- really be the purview of 'evaluate', but the goal of which is
--- to ensure that no heap-bound variables occur in the input term.
+-- | The goal of this function is to ensure the correctness criterion
+-- that given any term to be emitted, the resulting term is
+-- semantically equivalent but contains no heap-bound variables.
+-- That correctness criterion is necessary to ensure hygiene\/scoping.
+--
+-- This particular implementation calls 'evaluate' recursively,
+-- giving us something similar to full-beta reduction. However,
+-- that is considered an implementation detail rather than part of
+-- the specification of what the function should do.
+--
+-- This name is taken from the old finally tagless code, where
+-- \"atomic\" terms are (among other things) emissible (i.e., contain
+-- no heap-bound variables).
 --
 -- BUG: this function infinitely loops in certain circumstances
 -- (namely when dealing with neutral terms)
@@ -355,6 +362,14 @@ atomize e =
     -}
     traverse21 atomizeCore =<< evaluate_ e
 
+
+-- TODO: now that we've broken 'atomize' and 'atomizeCore' out into
+-- separate top-level functions, we should check to make sure we
+-- don't pay too much for passing the dictionaries back and forth.
+-- If we do, then we should inline the definitions into each other
+-- and use -XScopedTypeVaribles to ensure the recursive calls close
+-- over the dictionary parameter.
+--
 -- | Factored out from 'atomize' because we often need this more
 -- polymorphic variant when using our indexed 'Traversable' classes.
 atomizeCore :: (ABT Term abt) => abt xs a -> Dis abt (abt xs a)
@@ -466,7 +481,7 @@ constrainValue v0 e0 =
                     return . Neutral . syn $ Case_ e bs'
                 Just (Matched ss Nil1, body) ->
                     pushes (toStatements ss) body (constrainValue v0)
-                -}
+            -}
 
         _ :$ _ -> error "constrainValue: the impossible happened"
 
