@@ -90,5 +90,9 @@ observeMeasureOp Uniform (lo :* hi :* End) x =
     P.if_ (lo P.<= x P.&& x P.<= hi)
           (P.withWeight (P.unsafeProb $ P.recip $ hi P.- lo) (P.dirac x))
           P.reject
-observeMeasureOp (Plate _) (e1 :* End) x = undefined
-observeMeasureOp _ _ _ = error "Add other cases"
+observeMeasureOp (Plate _) (e1 :* End) x =
+    caseVarSyn e1 observeVar $ \ast ->
+      case ast of
+        Array_ n e1 -> undefined
+        _ -> error "TODO other cases"
+observeMeasureOp _ _ _ = error "TODO{Observe:observeMeasureOp}"
