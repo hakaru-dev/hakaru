@@ -82,7 +82,7 @@ import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
-import Language.Hakaru.Syntax.DatumCase (matchBranches, DatumEvaluator)
+import Language.Hakaru.Syntax.DatumCase
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Evaluation.Types
 import Language.Hakaru.Evaluation.Lazy
@@ -469,19 +469,20 @@ constrainValue v0 e0 =
         PrimOp_     o :$ es        -> constrainPrimOp v0 o es
         Expect  :$ e1 :* e2 :* End -> error "TODO: constrainValue{Expect}"
 
-        Case_ e bs -> error "TODO: constrainValue{Case_}"
-            {- -- something like:
+        Case_ e bs -> do
             match <- matchBranches evaluateDatum e bs
             case match of
                 Nothing -> error "constrainValue{Case_}: nothing matched!"
-                Just (GotStuck, _) -> do
-                    -- TODO: if any branch returns 'bot' then the whole thing should be 'bot'. But we should 'lub' together against the alternative choice of trying to go forward on the scrutinee in order to eliminate the 'bot'
+                Just (GotStuck, _) ->
+                    error "TODO: constrainValue{Case_}{GotStuck}"
+                    {-
+                    -- BUG: this typechecks, but it doesn't seem to work as intended.
+                    -- N.B., if any branch returns 'bot' then the whole thing should return 'bot'. TODO: verify that actually happens.
                     -- TODO: how to percolate constraints up through the scrutinee?
-                    bs' <- T.traverse (\b -> constrainBranch v0 e b) bs
-                    return . Neutral . syn $ Case_ e bs'
+                    emitCase e =<< T.traverse (applyBranch (constrainValue v0)) bs
+                    -}
                 Just (Matched ss Nil1, body) ->
                     pushes (toStatements ss) body (constrainValue v0)
-            -}
 
         _ :$ _ -> error "constrainValue: the impossible happened"
 

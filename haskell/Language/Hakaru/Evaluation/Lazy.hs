@@ -35,6 +35,7 @@ module Language.Hakaru.Evaluation.Lazy
     -- ** Helper functions
     , update
     , ann
+    , toStatements
 
     -- ** Helpers that should really go away
     , Interp(..), reifyPair
