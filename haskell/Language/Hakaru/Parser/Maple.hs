@@ -15,6 +15,8 @@ import           Text.Parsec.Text
 import qualified Text.Parsec.Token   as Token
 import           Text.Parsec.Language
 
+import           Prelude             hiding (sum, product)
+
 style :: GenLanguageDef Text st Identity
 style = Token.LanguageDef
     { Token.commentStart   = "(*"
@@ -54,8 +56,9 @@ data NumOp = Pos | Neg
     deriving (Eq, Show)
 
 data ArgOp
-    = Float | Power | Rational
-    | Func  | ExpSeq
+    = Float   | Power  | Rational
+    | Func    | ExpSeq | Sum
+    | Product
     deriving (Eq, Show)
 
 data InertExpr
@@ -110,6 +113,8 @@ expr =  try func
     <|> try intpos
     <|> try intneg
     <|> try power
+    <|> try sum
+    <|> try product
     <|> try rational
     <|> float
 
@@ -137,6 +142,12 @@ float  = InertArgs <$> (text "_Inert_FLOAT" *> return Float) <*> arg expr
 power :: Parser InertExpr
 power = InertArgs <$> (text "_Inert_POWER" *> return Power) <*> arg expr
 
+sum :: Parser InertExpr
+sum = InertArgs <$> (text "_Inert_SUM" *> return Sum) <*> arg expr
+
+product :: Parser InertExpr
+product = InertArgs <$> (text "_Inert_PROD" *> return Product) <*> arg expr
+
 rational :: Parser InertExpr
 rational = InertArgs <$> (text "_Inert_RATIONAL" *> return Rational) <*> arg expr
 
@@ -147,7 +158,7 @@ rename x =
     Nothing -> x
 
 parseMaple :: Text -> Either ParseError InertExpr
-parseMaple txt = runParser (expr <* eof) () (show txt) txt
+parseMaple txt = runParser (expr <* eof) () (Text.unpack txt) (Text.filter (/= '\n') txt)
 
 maple2AST :: InertExpr -> AST' Text
 maple2AST (InertNum Pos i) = ULiteral $ Nat $ fromInteger i
@@ -174,6 +185,11 @@ maple2AST (InertArgs Func [InertName "Msum",
 
 maple2AST (InertArgs Func [f, (InertArgs ExpSeq a)]) =
     foldl App (maple2AST f) (map maple2AST a)
+
+maple2AST (InertArgs Sum es) = NaryOp Sum' (map maple2AST es)
+
+maple2AST (InertArgs Product es) = NaryOp Prod' (map maple2AST es)
+
 -- Add special case for NatPow for Power
 maple2AST (InertArgs Power [x, y]) =
     App (App (Var "**") (maple2AST x)) (maple2AST y)
