@@ -32,14 +32,14 @@ import Language.Hakaru.Types.HClasses
 import qualified Language.Hakaru.Syntax.Prelude as P
 
 observe
-    :: (ABT Term abt, HEq_ a)
+    :: (ABT Term abt)
     => abt '[] ('HMeasure a)
     -> abt '[] a 
     -> abt '[] ('HMeasure a)
 observe m a = observeAST (LC_ m) (LC_ a)
 
 observeAST
-    :: (ABT Term abt, HEq_ a)
+    :: (ABT Term abt)
     => LC_ abt ('HMeasure a)
     -> LC_ abt a
     -> abt '[] ('HMeasure a)
@@ -56,7 +56,7 @@ observeAST (LC_ m) (LC_ a) =
                                      (varType x)
                           in bind x' $ observe (rename x x' e2') a) :*
                 End)
-        Dirac :$ e  :* End       -> P.if_ (e P.== a) (P.dirac a) P.reject
+        --Dirac :$ e  :* End       -> P.if_ (e P.== a) (P.dirac a) P.reject
         -- TODO: Add a name supply
         MBind :$ e1 :* e2 :* End ->
              syn (MBind :$ e1 :*
@@ -90,9 +90,12 @@ observeMeasureOp Uniform (lo :* hi :* End) x =
     P.if_ (lo P.<= x P.&& x P.<= hi)
           (P.withWeight (P.unsafeProb $ P.recip $ hi P.- lo) (P.dirac x))
           P.reject
-observeMeasureOp (Plate _) (e1 :* End) x =
+observeMeasureOp (Plate t) (e1 :* End) x =
     caseVarSyn e1 observeVar $ \ast ->
       case ast of
-        Array_ n e1 -> undefined
+        Array_ n e1 -> caseBind e1 $ \i e1' ->
+          syn $ MeasureOp_ (Plate t)
+           :$ (syn $ Array_ n $ bind i $ observe e1' (syn $ ArrayOp_  (Index t) :$ x :* (var i) :* End))
+           :* End
         _ -> error "TODO other cases"
 observeMeasureOp _ _ _ = error "TODO{Observe:observeMeasureOp}"
