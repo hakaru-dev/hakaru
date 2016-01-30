@@ -31,7 +31,7 @@ module Language.Hakaru.Syntax.Prelude
     (
     -- * Basic syntax
     -- ** Types and coercions
-      ann_
+      ann_, triv, memo
     , coerceTo_, fromProb, nat2int, nat2prob, fromInt, nat2real
     , unsafeFrom_, unsafeProb, unsafeProbFraction, unsafeProbFraction_, unsafeProbSemiring, unsafeProbSemiring_
     -- ** Numeric literals
@@ -160,6 +160,12 @@ app2 = (app .) . app
 
 app3 :: (ABT Term abt) => abt '[] (a ':-> b ':-> c ':-> d) -> abt '[] a -> abt '[] b -> abt '[] c -> abt '[] d
 app3 = (app2 .) . app
+
+triv :: TrivialABT Term '[] a -> TrivialABT Term '[] a
+triv = id
+
+memo :: MemoizedABT Term '[] a -> MemoizedABT Term '[] a
+memo = id
 
 primOp0_ :: (ABT Term abt) => PrimOp '[] a -> abt '[] a
 primOp0_ o = syn (PrimOp_ o :$ End)
