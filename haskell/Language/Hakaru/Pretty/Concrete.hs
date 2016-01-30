@@ -474,7 +474,7 @@ ppBinop op p0 assoc =
         parens (p > p0)
             [ prettyPrec p1 e1
             , PP.text op
-                <+> prettyPrec p2 e2
+            , prettyPrec p2 e2
             ]
 
 ----------------------------------------------------------------
