@@ -115,7 +115,7 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
         NaryOp_ o es ->
             -- TODO: make sure these ops actually have those precedences in the Prelude!!
             let prettyNaryOp :: NaryOp a -> (String, Int, Maybe String)
-                prettyNaryOp And  = ("&&", 3, Just "true")
+                prettyNaryOp And  = ("&& ", 3, Just "true")
                 prettyNaryOp Or   = ("||", 2, Just "false")
                 prettyNaryOp Xor  = ("`xor`", 0, Just "false")
                 -- BUG: even though 'Iff' is associative (in Boolean algebras), we should not support n-ary uses in our *surface* syntax. Because it's too easy for folks to confuse "a <=> b <=> c" with "(a <=> b) /\ (b <=> c)".
