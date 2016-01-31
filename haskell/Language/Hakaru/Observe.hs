@@ -46,7 +46,7 @@ observeAST
 observeAST (LC_ m) (LC_ a) =
     caseVarSyn m observeVar $ \ast ->
         case ast of
-        -- TODO: Figure out why this infinite loops
+        -- TODO: Add a name supply
         Let_  :$ e1 :* e2 :* End ->
             syn (Let_ :$ e1 :*
                 (caseBind e2 $ \x e2' ->
