@@ -19,6 +19,7 @@ import Language.Hakaru.Simplify
 import Language.Hakaru.Syntax.AST.Eq()
 
 import Test.HUnit
+import Language.Hakaru.Normalize
 
 v :: (ABT Term abt) => abt '[] ('HMeasure 'HNat)
 v = var (Variable "x" 0 (SMeasure SNat))
@@ -50,7 +51,7 @@ testSimplify :: ( ABT Term abt
                => String -> abt '[] ('HMeasure a) -> abt '[] ('HMeasure a) -> Assertion
 testSimplify nm x y = do
   x' <- simplify x
-  assertEqual nm y x' 
+  assertEqual nm (stripTypeAnnotations y) (stripTypeAnnotations x') 
 
 allTests :: Test
 allTests = test
