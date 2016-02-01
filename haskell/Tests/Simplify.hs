@@ -36,7 +36,7 @@ normal01T = syn (MeasureOp_ Normal
 
 realpair :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
 realpair = ann_ (SMeasure $ sPair SReal SReal)
-                (dirac (pair (real_ 1) (real_ 2)))
+                (dirac (pair (nat2real $ nat_ 1) (nat2real $ nat_ 2)))
 
 unifprob, unifprob' :: TrivialABT Term '[] ('HMeasure 'HProb)
 unifprob = uniform (real_ 1) (real_ 2) >>= \x -> dirac (unsafeProb x)

@@ -8,7 +8,6 @@ module Tests.Disintegrate where
 import           Prelude (($), (.), head)
 import qualified Prelude
 
-import Language.Hakaru.Syntax.AST.Eq()
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Prelude
@@ -24,6 +23,7 @@ import qualified Language.Hakaru.Observe as O
 
 import qualified Data.Text as Text
 import           Test.HUnit
+import           Tests.TestTools
 
 -- | A very simple program. Is sufficient for testing escape and
 -- capture of substitution.
@@ -91,7 +91,7 @@ test2 =
 
 allTests :: Test
 allTests = test
-   [ assertEqual "test1"  (pretty normC) (pretty . head $ test1)
-   , assertEqual "test1a" (pretty normC) (pretty . head $ test1a)
-   , assertEqual "test1b" (pretty normC) (pretty . head $ test1b)
+   [ assertAlphaEq "test1"  normC (head test1)
+   , assertAlphaEq "test1a" normC (head test1a)
+   , assertAlphaEq "test1b" normC (head test1b)
    ]

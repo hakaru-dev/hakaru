@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable
+           , DataKinds
            , FlexibleContexts #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Tests.TestTools where
@@ -8,12 +9,15 @@ import Language.Hakaru.Parser.SymbolResolve (resolveAST)
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.TypeCheck
+import Language.Hakaru.Syntax.AST.Eq
+import Language.Hakaru.Pretty.Concrete
 
 import Data.Maybe (isJust)
 import Data.List
 import qualified Data.Text as T
 import Data.Typeable (Typeable)
 import Control.Exception
+import Control.Monad
 
 import Test.HUnit
 
@@ -48,6 +52,29 @@ assertJust = assertBool "expected Just but got Nothing" . isJust
 -- testMaple :: Maple a -> IO ()
 -- testMaple t = assertResult $ runMaple t 0
 
+-- testMapleEqual :: Maple a -> Maple a -> IO ()
+-- testMapleEqual t1 t2 = do
+--     let r1 = rm t1
+--     let r2 = rm t2
+--     assertEqual "testMapleEqual: false" r1 r2
+--     where rm t = runMaple t 0
+
+assertAlphaEq ::
+    (ABT Term abt)
+    => String
+    -> abt '[] a
+    -> abt '[] a
+    -> Assertion
+assertAlphaEq preface a b =
+   unless (alphaEq a b) (assertFailure msg)
+ where msg = concat [ p
+                    , "expected:\n"
+                    , show (pretty a)
+                    , "\nbut got:\n"
+                    , show (pretty b)
+                    ]
+       p = if null preface then "" else preface ++ "\n"
+
 testWithConcrete ::
     (ABT Term abt)
     => T.Text
@@ -62,13 +89,6 @@ testWithConcrete s mode k =
           case runTCM m mode of
             Left err   -> assertFailure err
             Right tast -> k tast
-
--- testMapleEqual :: Maple a -> Maple a -> IO ()
--- testMapleEqual t1 t2 = do
---     let r1 = rm t1
---     let r2 = rm t2
---     assertEqual "testMapleEqual: false" r1 r2
---     where rm t = runMaple t 0
 
 ignore :: a -> Assertion
 ignore _ = assertFailure "ignored"  -- ignoring a test reports as a failure

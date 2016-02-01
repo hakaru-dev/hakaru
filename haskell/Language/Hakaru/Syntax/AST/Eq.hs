@@ -51,6 +51,8 @@ import Control.Monad.Reader
 import qualified Data.Foldable as F
 import qualified Data.Sequence as S
 
+import Data.Maybe
+
 ---------------------------------------------------------------------
 -- | This function performs 'jmEq' on a @(:$)@ node of the AST.
 -- It's necessary to break it out like this since we can't just
@@ -161,7 +163,7 @@ all_jmEq2
     -> S.Seq (abt '[] a)
     -> Maybe ()
 all_jmEq2 xs ys =
-    let eq x y = maybe False (const True) (jmEq2 x y)
+    let eq x y = isJust (jmEq2 x y)
     in if F.and (S.zipWith eq xs ys) then Just () else Nothing
 
 
@@ -180,7 +182,7 @@ jmEq_Tuple ((a,b), (a',b')) = do
 -- This can then be used to define typeOf and instance JmEq2 Term
 
 instance (ABT Term abt, JmEq2 abt) => Eq1 (Term abt) where
-    eq1 x y = maybe False (const True) (jmEq1 x y)
+    eq1 x y = isJust (jmEq1 x y)
 
 instance (ABT Term abt, JmEq2 abt) => Eq (Term abt a) where
     (==) = eq1
@@ -217,7 +219,7 @@ instance ( Show1 (Sing :: k ->  *)
          , JmEq1 (syn (TrivialABT syn))
          ) => Eq2 (TrivialABT (syn :: ([k] -> k -> *) -> k -> *))
     where
-    eq2 x y = maybe False (const True) (jmEq2 x y)
+    eq2 x y = isJust (jmEq2 x y)
 
 instance ( Show1 (Sing :: k ->  *)
          , JmEq1 (Sing :: k -> *)
@@ -236,7 +238,7 @@ instance ( Show1 (Sing :: k ->  *)
     (==) = eq1
 
 alphaEq :: forall abt a
-         . (JmEq2 abt, ABT Term abt)
+         . (ABT Term abt)
         => abt '[] a
         -> abt '[] a
         -> Bool
@@ -245,7 +247,7 @@ alphaEq e1 e2 = runReader (go (viewABT e1) (viewABT e2)) emptyAssocs
       -- Don't compare @x@ to @y@ directly; instead,
       -- look up whatever @x@ renames to (i.e., @y'@)
       -- and then see whether that is equal to @y@.
-      go :: forall xs
+      go :: forall xs a
           . View (Term abt) xs a
          -> View (Term abt) xs a
          -> Reader (Assocs abt) Bool
@@ -253,10 +255,10 @@ alphaEq e1 e2 = runReader (go (viewABT e1) (viewABT e2)) emptyAssocs
           s <- ask
           return $
               case lookupAssoc x s of
-                Nothing -> maybe False (const True) (varEq x y) -- free variables
+                Nothing -> isJust (varEq x y) -- free variables
                 Just e  ->
                     caseVarSyn e
-                        (\y' -> maybe False (const True) (varEq y' y))
+                        (\y' -> isJust (varEq y' y))
                         (error "the impossible happened")
 
       -- remember that @x@ renames to @y@ and recurse
@@ -269,5 +271,96 @@ alphaEq e1 e2 = runReader (go (viewABT e1) (viewABT e2)) emptyAssocs
       -- if the views don't match, then clearly they are not equal.
       go _ _ = return False
 
-      termEq :: Term abt a -> Term abt a -> Reader (Assocs abt) Bool
-      termEq t1 t2 = return (t1 == t2)
+      termEq :: forall a
+             .  Term abt a
+             -> Term abt a
+             -> Reader (Assocs abt) Bool
+      termEq e1 e2 = case (e1, e2) of
+                     (o1 :$ es1, o2 :$ es2)     -> sConEq e1 e2
+                     (Literal_ x, Literal_ y)   -> return (x == y)
+                     (Empty_ _, Empty_ _)       -> return True
+                     (Datum_ d1, Datum_ d2)     -> datumEq d1 d2
+                     _ -> error "TODO{alphaEq:termEq}"
+
+      sArgsEq :: forall args
+               . SArgs abt args
+              -> SArgs abt args
+              -> Reader (Assocs abt) Bool
+      sArgsEq End         End         = return True
+      sArgsEq (e1 :* es1) (e2 :* es2) = do
+        m  <- go (viewABT e1) (viewABT e2)
+        ms <- sArgsEq es1 es2
+        return (m && ms)
+      sArgsEq _ _ = return False
+
+      sConEq
+          :: forall a
+          .  Term abt a
+          -> Term abt a
+          -> Reader (Assocs abt) Bool
+      sConEq (Lam_   :$ e1) (Lam_   :$ e2) = sArgsEq e1 e2
+      --sConEq (App_   :$ e1) (App_   :$ e2) = sArgsEq e1 e2
+      --sConEq (Let_   :$ e1) (Let_   :$ e2) = sArgsEq e1 e2
+      sConEq (Ann_ _ :$ e1) (Ann_ _ :$ e2) = sArgsEq e1 e2
+      sConEq e1@(PrimOp_ o1 :$ es1)
+             e2@(PrimOp_ o2 :$ es2)        = primOpEq e1 e2
+      sConEq e1@(MeasureOp_ o1 :$ es1)
+             e2@(MeasureOp_ o2 :$ es2)     = measureOpEq e1 e2
+      sConEq (Dirac :$ e1)  (Dirac :$ e2)  = sArgsEq e1 e2
+      --sConEq (MBind :$ e1)  (MBind :$ e2)  = sArgsEq e1 e2
+      sConEq _ _ = error "TODO{alphaEq:sConEq}"
+
+      primOpEq
+          :: forall a
+          .  Term abt a
+          -> Term abt a
+          -> Reader (Assocs abt) Bool
+      primOpEq (PrimOp_ Sin :$ e1)
+               (PrimOp_ Sin :$ e2) = sArgsEq e1 e2
+      primOpEq _ _ = error "TODO{alphaEq:primOpEq}"
+
+      measureOpEq
+          :: forall a
+          .  Term abt a
+          -> Term abt a
+          -> Reader (Assocs abt) Bool
+      measureOpEq (MeasureOp_ Normal :$ e1)
+                  (MeasureOp_ Normal :$ e2) = sArgsEq e1 e2
+      measureOpEq _ _ = error "TODO{alphaEq:measureOpEq}"
+
+
+      datumEq :: forall a
+              .  Datum (abt '[]) a
+              -> Datum (abt '[]) a
+              -> Reader (Assocs abt) Bool
+      datumEq (Datum _ d1) (Datum _ d2) = datumCodeEq d1 d2
+
+      datumCodeEq
+          :: forall xss a
+          .  DatumCode xss (abt '[]) a
+          -> DatumCode xss (abt '[]) a
+          -> Reader (Assocs abt) Bool
+      datumCodeEq (Inr c) (Inr d) = datumCodeEq c d
+      datumCodeEq (Inl c) (Inl d) = datumStructEq c d
+      datumCodeEq _       _       = return False
+
+      datumStructEq
+          :: forall xs a
+          .  DatumStruct xs (abt '[]) a
+          -> DatumStruct xs (abt '[]) a
+          -> Reader (Assocs abt) Bool
+      datumStructEq (Et c1 c2) (Et d1 d2) = do
+          m  <- datumFunEq c1 d1
+          ms <- datumStructEq c2 d2
+          return (m && ms)
+      datumStructEq Done       Done       = return True
+      datumStructEq _          _          = return False
+
+      datumFunEq
+          :: forall x a
+          .  DatumFun x (abt '[]) a
+          -> DatumFun x (abt '[]) a
+          -> Reader (Assocs abt) Bool
+      datumFunEq (Konst e) (Konst f) = go (viewABT e) (viewABT f) 
+      datumFunEq (Ident e) (Ident f) = go (viewABT e) (viewABT f) 
+      datumFunEq _          _        = return False
