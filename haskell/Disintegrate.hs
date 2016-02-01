@@ -13,7 +13,8 @@ import           Language.Hakaru.Syntax.IClasses
 
 import           Language.Hakaru.Types.Sing
 import           Language.Hakaru.Disintegrate
-  
+
+import           Data.Proxy  
 import           Data.Text
 import qualified Data.Text.IO as IO
 
@@ -40,9 +41,11 @@ runDisintegrate prog =
         Left err                 -> putStrLn err
         Right (TypedAST typ ast) -> do
           case typ of
-            SMeasure _ ->
-                case determine (disintegrate ast) of
-                Nothing   -> error "No disintegration found"
-                Just ast' -> print (pretty ast')
+            SMeasure (SData (STyCon sym `STyApp` _ `STyApp` _) _) ->
+                case jmEq1 sym (SingSymbol Proxy :: Sing "Pair") of
+                  Just Refl -> case determine (disintegrate ast) of
+                                 Nothing   -> error "No disintegration found"
+                                 Just ast' -> print (pretty ast')
+                  Nothing   -> error "Can only disintegrate a measure over pairs"
             _             -> error "Can only disintegrate a measure over pairs"
 
