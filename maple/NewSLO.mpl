@@ -110,7 +110,9 @@ NewSLO := module ()
         indicator, extract_dom, banish, known_measures,
         myexpand_product,
         piecewise_if, nub_piecewise, foldr_piecewise,
-        ModuleLoad, ModuleUnload, verify_measure;
+        ModuleLoad, ModuleUnload, verify_measure,
+        find_vars, find_constraints, interpret, reconstruct, invert, get_var_pos, 
+        promote, change_var, disint2;
   export
      # note that these first few are smart constructors (for themselves):
          app, idx, integrate, applyintegrand,
@@ -121,7 +123,8 @@ NewSLO := module ()
          toLO, fromLO, unintegrate,
          RoundTripLO,
          TestHakaru, measure, density, bounds,
-         improve, ReparamDetermined, determined, Reparam, Banish;
+         improve, ReparamDetermined, determined, Reparam, Banish,
+         disint;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
   global Bind, Weight, Ret, Msum, Integrand, Plate, LO, Indicator, ary,
@@ -356,6 +359,10 @@ NewSLO := module ()
     end if
   end proc;
 
+  # TODO: generalize the patterns of lo/hi to also catch
+  # numeric < numeric + positive*v
+  # numeric + negative * v < numeric
+  # as both being about 'lo', for example.
   extract_dom := proc(spec :: set, v :: name)
     local lo, hi, i, rest;
     lo, rest := selectremove(type, spec, '{numeric <  identical(v),
@@ -365,16 +372,36 @@ NewSLO := module ()
     max(map2(op,1,lo)) .. min(map2(op,2,hi)), rest;
   end proc;
 
-  indicator := proc(b)
+  indicator := module()
+    export ModuleApply;
     local to_set, co_set;
 
     to_set := proc(a) # Make a set whose conjunction is equivalent to a
+      local x;
       if a :: '{specfunc(And), specop(anything, `and`)}' then
         map(op @ to_set, {op(a)})
       elif a :: 'And(specfunc(Not), anyfunc(anything))' then
         co_set(op(1,a))
       elif a = true then
         {}
+      elif a :: (('negint' &* 'name') < 'numeric') then
+        {op([1,2],a) > op(2,a)/op([1,1],a)};
+      elif a :: ((negint &* name) <= numeric) then
+        {op([1,2],a) >= op(2,a)/op([1,1],a)};
+      elif a :: (numeric < numeric &+ (negint &* name)) then
+        {(op(1,a) - op([2,1],a))/op([2,2,1],a) > op([2,2,2],a)}
+      elif a :: (numeric <= numeric &+ (negint &* name)) then
+        {(op(1,a) - op([2,1],a))/op([2,2,1],a) >= op([2,2,2],a)}
+      elif a :: (anything < identical(infinity)) then
+        {}
+      elif a :: (identical(-infinity) < anything) then
+        {}
+      elif a :: (numeric < name ^ identical(-1)) then
+        x := op([2,1],a);
+        {x < 1/op(1,a), x > 0}
+      elif a :: (numeric <= name ^ identical(-1)) then
+        x := op([2,1],a);
+        {x <= 1/op(1,a), x > 0}
       else
         {a}
       end if;
@@ -386,9 +413,9 @@ NewSLO := module ()
       elif a :: 'And(specfunc(Not), anyfunc(anything))' then
         to_set(op(1,a))
       elif a :: 'anything < anything' then
-        {op(1,a) >= op(2,a)}
+        to_set(op(1,a) >= op(2,a))
       elif a :: 'anything <= anything' then
-        {op(1,a) > op(2,a)}
+        to_set(op(1,a) > op(2,a))
       elif a = false then
         {}
       elif a = true then
@@ -398,8 +425,10 @@ NewSLO := module ()
       end if;
     end proc;
 
-    Indicator(to_set(b))
-  end proc;
+    ModuleApply := proc(b)
+      Indicator(to_set(b))
+    end proc;
+  end module;
 
   banish := proc(m, x :: name, h :: name, g, levels :: extended_numeric)
     # LO(h, banish(m, x, h, g)) should be equivalent to Bind(m, x, LO(h, g))
@@ -614,6 +643,235 @@ NewSLO := module ()
     end if
   end proc;
 
+  ###
+  # prototype disintegrator - main entry point
+  disint := proc(lo :: LO(name,anything), t::name)
+    local h, integ, occurs, oper_call, ret, var, plan;
+    h := gensym(op(1,lo));
+    integ := eval(op(2,lo), op(1,lo) = h);
+    map2(LO, h, disint2(integ, h, t, []));
+  end proc;
+
+  find_vars := proc(l)
+    map(proc(x) 
+          if type(x, specfunc(%int)) then op([1,1],x)
+          else error "don't know about command (%1)", x
+          end if end proc,
+         l);
+  end proc;
+
+  find_constraints := proc(l)
+    map(proc(x) 
+          if type(x, specfunc(%int)) then op(1,x)
+          else error "don't know about command (%1)", x
+          end if end proc,
+         l);
+  end proc;
+
+  # only care about bound variables, not globals
+  get_var_pos := proc(v, l)
+    local p;
+    if member(v, l, 'p') then VarPos(v,p) else NULL end if;
+  end proc;
+
+  invert := proc(to_invert, main_var, integral, h, path, t)
+    local sol, dxdt, vars, in_sol, r_in_sol, p_mv, to_promote, flip;
+    if type(to_invert, 'linear'(main_var)) then
+      sol := solve([t = to_invert], {main_var})[1];
+
+    else
+      # TODO: split domain.
+      # right now, assume that if solve returns a single answer, it's ok!
+      sol := solve([t = to_invert], {main_var});
+      if not (nops(sol) = 1) then
+        error "non-linear inversion needed: %1 over %2", to_invert, main_var;
+      else
+        sol := sol[1];
+      end if;
+    end if;
+
+    dxdt := diff(op(2, sol), t);
+    flip := simplify_assuming(signum(dxdt), 
+      [t = -infinity .. infinity, op(find_constraints(path))]);
+    if not member(flip, {1,-1}) then
+      error "derivative has symbolic sign (%1), what do we do?", flip
+    end if;
+
+    # we need to figure out what variables the solution depends on,
+    # and what plan that entails
+    vars := find_vars(path);
+    in_sol := indets(vars, 'name') minus {t, main_var};
+    
+    member(main_var, vars, 'p_mv');
+    r_in_sol := map(get_var_pos, in_sol, vars);
+    to_promote := map(x -> `if`(op(2,x)>p_mv, x, NULL), r_in_sol);
+    # may have to do a bunch of promotions, or none
+    interpret(
+      [ %Promote(seq(VPP(op(i),p_mv), i in to_promote))
+      , %Change(main_var, t = to_invert, sol, flip)],
+      path, abs(dxdt) * 'applyintegrand'(h, eval(op([2,2],integral), sol)));
+  end proc;
+
+  # basic algorithm:
+  # - follow the syntax
+  # - collect the 'path' traversed (aka the "heap"); allows reconstruction
+  # - when we hit a Ret, figure out the change of variables
+  # - note that the callee is responsible for "finishing up"
+  disint2 := proc(integral, h::name, t::name, path)
+    local x, lo, hi, subintegral, w, n, m, w0, perform, script, vars,
+      to_invert, sol, occurs, dxdt, next_context, update_context;
+    if integral :: 'And'('specfunc({Int,int})',
+                         'anyfunc'('anything','name'='range'('freeof'(h)))) then
+      x := op([2,1],integral);
+      (lo, hi) := op(op([2,2],integral));
+      perform := %int(op(2,integral));
+      # TODO: enrich context with x (measure class lebesgue)
+      disint2(op(1,integral), h, t, [perform, op(path)]);
+    elif integral :: 'applyintegrand'('identical'(h), 'freeof'(h)) then
+      if not type(op(2,integral), specfunc(Pair)) then
+        # this should probably be type-checked at the top!
+        error "must return a Pair to enable disintegration";
+      end if;
+      to_invert := op([2,1], integral);
+      vars := convert(find_vars(path),'set');
+      occurs := remove(type, indets(to_invert, 'name'), 'constant') intersect vars;
+      if nops(occurs) = 0 then
+        error "cannot invert constant (%1)", to_invert
+      else
+        map[2](invert, to_invert, occurs, integral, h, path, t);
+      end if;
+    elif integral = 0 then
+      error "cannot disintegrate 0 measure"
+    elif integral :: `+` then
+      error "need to split on a `+`"
+      # Msum(op(map2(unintegrate, h, convert(integral, 'list'), context)))
+    elif integral :: `*` then
+      (subintegral, w) := selectremove(depends, integral, h);
+      if subintegral :: `*` then error "Nonlinear integral %1", integral end if;
+      error "need to track weight";
+      weight(w, unintegrate(h, subintegral, context))
+    elif integral :: t_pw
+         and `and`(seq(not (depends(op(i,integral), h)),
+                       i=1..nops(integral)-1, 2)) then
+      n := nops(integral);
+      next_context := context;
+      update_context := proc(c)
+        local then_context;
+        then_context := [op(next_context), c];
+        next_context := [op(next_context), Not(c)]; # Mutation!
+        then_context
+      end proc;
+      error "need to map into piecewise";
+      piecewise(seq(piecewise(i::even,
+                              unintegrate(h, op(i,integral),
+                                          update_context(op(i-1,integral))),
+                              i=n,
+                              unintegrate(h, op(i,integral), next_context),
+                              op(i,integral)),
+                    i=1..n))
+    elif integral :: 'integrate'('freeof'(h), 'anything') then
+      x := 'x';
+      if op(2,integral) :: 'Integrand(name, anything)' then
+        x := op([2,1],integral);
+      end if;
+      x := gensym(x);
+      error "what to do with (%1)", integral;
+      # TODO is there any way to enrich context in this case?
+      (w, m) := unweight(unintegrate(h, applyintegrand(op(2,integral), x),
+                                     context));
+      (w, w0) := factorize(w, x);
+      weight(w0, bind(op(1,integral), x, weight(w, m)))
+    else
+      # Failure
+      # LO(h, integral)
+      error "why are we here?";
+    end if
+  end proc;
+
+  # single step of reconstruction
+  reconstruct := proc(step, part)
+    if type(step, specfunc(%int)) then
+      Int(part, op(1, step));
+    else
+      error "how to reconstruct (%1)", step
+    end if;
+  end proc;
+
+  change_var := proc(act, chg, path, part)
+    local bds, new_upper, new_lower, flip;
+
+    if type(path[-1], specfunc(%int)) then
+      if op(1, act) = op([-1,1,1], path) then
+	bds := op([-1,1,2], path);
+	new_upper := limit(op([2,2], act), op(1, act) = op(2,bds), left);
+	new_lower := limit(op([2,2], act), op(1, act) = op(1,bds), right);
+	flip := op(4,act);
+	if flip=-1 then
+	  (new_lower, new_upper) := (new_upper, new_lower);
+	end if;
+	if new_upper = infinity and new_lower = -infinity then
+	  # we're done with this integral
+	  interpret(chg, path[1..-2], part)
+	else
+	  interpret(chg, path[1..-2], 
+	    piecewise(And(new_lower < t, t < new_upper), part, 0));
+	end if;
+      else
+	# this is an integral we don't care about, emit it
+	interpret(chg, path[1..-2], Int(part, op([-1,1], path)));
+      end if;
+    else
+      error "%Change"
+    end if;
+  end proc;
+
+  promote := proc(promotions, chg, path, part)
+    local x, p, ref, i1, i2, vars, danger, new_path;
+    if nops(promotions)=0 then # nothing to do, next
+      interpret(chg, path, part)
+    elif nops(promotions)>1 then
+      error "multiple promotions (%1) not yet implemented", promotions;
+    else
+      # move variable x, at position p, above that at position ref.
+      (x, p, ref) := op(op(1,promotions));
+      i1 := path[p];
+      i2 := path[ref];
+      # need to make sure these don't escape their scope:
+      vars := find_vars(path[ref .. p-1]);
+      danger := indets(op([1,2], i1), 'name') intersect {op(vars)};
+      if danger = {} then
+	# just go ahead
+	new_path := [op(1..ref-1, path), i1, op(ref..p-1,path),
+	  op(p+1..-1, path)];
+	interpret(chg, new_path, part);
+      else
+	# need to internalize bounds as Indicator
+	error "Promote %1 over %2 must take care of %3", chg[1], vars, danger;
+      end if;
+    end if;
+  end proc;
+
+  # interpret a plan
+  # chg : plan of what needs to be done
+  # path : context, allows one to reconstruct the incoming expression
+  # part: partial answer
+  interpret := proc(chg, path, part)
+    local i, ans;
+    if path=[] then part
+    elif chg=[] then # finished changes, just reconstruct
+      ans := part;
+      for i from 1 to nops(path) do
+        ans := reconstruct(path[-i], ans);
+      end do;
+      return ans;
+    elif type(chg[1], specfunc(%Change)) then
+      change_var(chg[1], chg[2..-1], path, part);
+    elif type(chg[1], specfunc(%Promote)) then
+      promote(chg[1], chg[2..-1], path, part);
+    else
+      error "unknown plan step: %1", chg[1]
+    end if;
+  end proc;
   ###
   # smart constructors for our language
 

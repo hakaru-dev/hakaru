@@ -395,7 +395,7 @@ constrainValue v0 e0 =
     trace (
         let s = "constrainValue"
         in "\n" ++ s ++ ": "
-            ++ show (pretty (fromWhnf v0))
+            ++ show (pretty v0)
             ++ "\n" ++ replicate (length s) ' ' ++ ": "
             ++ show (pretty e0)) $
     -}
@@ -910,7 +910,7 @@ constrainOutcome v0 e0 =
     trace (
         let s = "constrainOutcome"
         in "\n" ++ s ++ ": "
-            ++ show (pretty (fromWhnf v0))
+            ++ show (pretty v0)
             ++ "\n" ++ replicate (length s) ' ' ++ ": "
             ++ show (pretty e0)) $ -} do
     w0 <- evaluate_ e0

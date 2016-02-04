@@ -158,13 +158,16 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
             , PP.nest 1 (PP.vcat (map (toDoc . prettyPrec_ 0) bs))
             ]
         Superpose_ pes ->
-            -- TODO: use the old PrettyPrint.hs's hack for when there's exactly one thing in the list; i.e., print as @weight w *> m@ with the appropriate do-notation indentation for @(*>)@ (or using 'pose' and @($)@)
-            ppFun p "superpose"
-                [ toDoc
-                . ppList
-                . map (\(e1,e2) -> ppTuple [pretty e1, pretty e2])
-                $ pes
-                ]
+            case pes of
+              []       -> [ PP.text "reject" ]
+              [(w, m)] -> ppFun p "weight" [pretty w, pretty m]
+              pes      ->
+                 ppFun p "superpose"
+                 [ toDoc
+                 . ppList
+                 . map (\(e1,e2) -> ppTuple [pretty e1, pretty e2])
+                 $ pes
+                 ]
 
 
 -- | Pretty-print @(:$)@ nodes in the AST.

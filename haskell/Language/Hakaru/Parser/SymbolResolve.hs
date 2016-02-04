@@ -78,6 +78,7 @@ primTable =
     ,("beta",       primMeasure2 (U.SealedOp T.Beta))
     ,("weight",     primWeight)
     ,("dirac",      TLam $ TNeu . U.Dirac_)
+    ,("reject",     TNeu $ U.Superpose_ [])
     -- This should probably be in U.AST'
     ,("**",         primRealPow)
     --,("^",          primNatPow)
