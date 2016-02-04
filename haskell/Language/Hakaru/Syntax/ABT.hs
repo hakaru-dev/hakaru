@@ -434,16 +434,16 @@ instance (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Foldable21 syn)
     var x =
         MemoizedABT
             (singletonVarSet x)
-            (varID x)
+            (1 + varID x)
             0
             (Var x)
 
-    bind x (MemoizedABT xs _ mb v) =
+    bind x (MemoizedABT xs _ nb v) =
         let xs' = deleteVarSet x xs
         in MemoizedABT
             xs'
             (nextVarID xs')
-            (varID x `max` mb)
+            ((1 + varID x) `max` nb)
             (Bind x v)
 
     -- N.B., when we go under the binder, the variable @x@ may not
@@ -463,13 +463,13 @@ instance (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Foldable21 syn)
     --
     -- TODO: we could actually compute things exactly, similar to
     -- how we do it in 'syn'; but unclear if that's really worth it...
-    caseBind (MemoizedABT xs mf mb v) k =
+    caseBind (MemoizedABT xs nf nb v) k =
         case v of
         Bind x v' ->
             k x $ MemoizedABT
                 (insertVarSet x xs)
-                (varID x `max` mf)
-                mb
+                ((1 + varID x) `max` nf)
+                nb
                 v'
 
     viewABT  = memoizedView
@@ -481,14 +481,14 @@ instance (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), Foldable21 syn)
 instance (Show1 (Sing :: k -> *), Show1 (syn (MemoizedABT syn)))
     => Show2 (MemoizedABT (syn :: ([k] -> k -> *) -> k -> *))
     where
-    showsPrec2 p (MemoizedABT xs mf mb v) =
+    showsPrec2 p (MemoizedABT xs nf nb v) =
         showParen (p > 9)
             ( showString "MemoizedABT "
             . showsPrec  11 xs
             . showString " "
-            . showsPrec  11 mf
+            . showsPrec  11 nf
             . showString " "
-            . showsPrec  11 mb
+            . showsPrec  11 nb
             . showString " "
             . showsPrec1 11 v
             )
