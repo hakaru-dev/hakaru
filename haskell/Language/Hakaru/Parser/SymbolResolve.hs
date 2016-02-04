@@ -88,6 +88,12 @@ primTable =
 primMeasure2 :: U.SealedOp T.MeasureOp -> Symbol U.AST
 primMeasure2 m = t2 $ \x y -> U.MeasureOp_ m [x, y]
 
+true_, false_ :: U.AST
+true_  = U.Ann_ (U.Datum_ . U.Datum "true"  . U.Inl $ U.Done)
+         (U.SSing sBool)
+false_ = U.Ann_ (U.Datum_ . U.Datum "false" . U.Inr . U.Inl $ U.Done)
+         (U.SSing sBool)
+
 primPair, primLeft, primRight, primTrue, primFalse :: Symbol U.AST
 primFromProb, primUnsafeProb  :: Symbol U.AST
 primWeight, primRealPow :: Symbol U.AST
@@ -98,11 +104,8 @@ primLeft       = TLam $ TNeu . U.Datum_ .
                         U.Datum "left" . U.Inl . (`U.Et` U.Done) . U.Konst
 primRight      = TLam $ TNeu . U.Datum_ .
                         U.Datum "right" . U.Inr . U.Inl . (`U.Et` U.Done) . U.Konst
-primTrue       = TNeu $ U.Ann_ (U.Datum_ . U.Datum "true"  . U.Inl $ U.Done)
-                               (U.SSing sBool)
-primFalse      = TNeu $ U.Ann_
-                            (U.Datum_ . U.Datum "false" . U.Inr . U.Inl $ U.Done)
-                            (U.SSing sBool)
+primTrue       = TNeu $ true_
+primFalse      = TNeu $ false_
 primFromProb   =
     TLam $ TNeu . U.CoerceTo_ (Some2 $ CCons (Signed HRing_Real) CNil)
 primUnsafeProb =
