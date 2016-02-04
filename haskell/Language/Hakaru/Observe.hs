@@ -28,7 +28,6 @@ module Language.Hakaru.Observe where
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Types.DataKind
-import Language.Hakaru.Types.HClasses
 import qualified Language.Hakaru.Syntax.Prelude as P
 
 observe

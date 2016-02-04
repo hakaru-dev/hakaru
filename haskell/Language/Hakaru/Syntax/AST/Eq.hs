@@ -242,6 +242,7 @@ instance ( Show1 (Sing :: k ->  *)
     where
     (==) = eq1
 
+{-
 alphaEq :: forall abt a
          . (ABT Term abt)
         => abt '[] a
@@ -369,3 +370,4 @@ alphaEq e1 e2 = runReader (go (viewABT e1) (viewABT e2)) emptyAssocs
       datumFunEq (Konst e) (Konst f) = go (viewABT e) (viewABT f) 
       datumFunEq (Ident e) (Ident f) = go (viewABT e) (viewABT f) 
       datumFunEq _          _        = return False
+-}
