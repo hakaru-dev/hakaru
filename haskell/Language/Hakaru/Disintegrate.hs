@@ -15,7 +15,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.02.02
+--                                                    2016.02.03
 -- |
 -- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -275,7 +275,7 @@ perform = \e0 ->
     -- floor, but may still end up producing programs which don't
     -- typecheck (or don't behave nicely with 'typeOf') since it moves
     -- the annotation around. To keep the annotation in the same place
-    -- as the input, we need to pass it to 'perform' somehow so that
+    -- as the input, we'd need to pass it to 'perform' somehow so that
     -- it can emit the annotation when it emits 'MBind' etc. (That
     -- prolly means we shouldn't handle 'WAnn' here, but rather should
     -- handle it in the definition of 'perform' itself...)
@@ -312,7 +312,9 @@ perform = \e0 ->
 -- This particular implementation calls 'evaluate' recursively,
 -- giving us something similar to full-beta reduction. However,
 -- that is considered an implementation detail rather than part of
--- the specification of what the function should do.
+-- the specification of what the function should do. Also, it's a
+-- gross hack and prolly a big part of why we keep running into
+-- infinite looping issues.
 --
 -- This name is taken from the old finally tagless code, where
 -- \"atomic\" terms are (among other things) emissible; i.e., contain
@@ -328,22 +330,19 @@ atomize e =
     traverse21 atomizeCore =<< evaluate_ e
 
 
--- TODO: now that we've broken 'atomize' and 'atomizeCore' out into
--- separate top-level functions, we should check to make sure we
--- don't pay too much for passing the dictionaries back and forth.
--- If we do, then we should inline the definitions into each other
--- and use -XScopedTypeVaribles to ensure the recursive calls close
--- over the dictionary parameter.
---
--- | Factored out from 'atomize' because we often need this more
--- polymorphic variant when using our indexed 'Traversable' classes.
+-- | A variant of 'atomize' which is polymorphic in the locally
+-- bound variables @xs@ (whereas 'atomize' requires @xs ~ '[]@).
+-- We factored this out because we often want this more polymorphic
+-- variant when using our indexed @TraversableMN@ classes.
 atomizeCore :: (ABT Term abt) => abt xs a -> Dis abt (abt xs a)
 atomizeCore e = do
-    -- HACK: this is only an ad-hoc solution. If the call to
-    -- 'evaluate_' in 'atomize' returns a neutral term which contains
-    -- heap-bound variables, then we'll still loop forever since
-    -- we don't traverse\/fmap over the top-level term constructor
-    -- of neutral terms.
+    -- HACK: this check for 'disjointVarSet' is sufficient to catch
+    -- the particular infinite loops we were encountering, but it
+    -- will not catch all of them. If the call to 'evaluate_' in
+    -- 'atomize' returns a neutral term which contains heap-bound
+    -- variables, then we'll still loop forever since we don't
+    -- traverse\/fmap over the top-level term constructor of neutral
+    -- terms.
     xs <- getHeapVars
     if disjointVarSet xs (freeVars e)
         then return e
@@ -374,8 +373,6 @@ getHeapVars =
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
--- TODO: see the todo for 'constrainOutcome'
---
 -- | Given an emissible term @v0@ (the first argument) and another
 -- term @e0@ (the second argument), compute the constraints such
 -- that @e0@ must evaluate to @v0@. This is the function called
@@ -413,10 +410,6 @@ constrainValue v0 e0 =
             error "TODO: disintegrate integration"
 
 
-        -- TODO: where to fit this in?
-        -- > u | atomic u -> bot
-
-
         -- N.B., the semantically correct definition is:
         --
         -- > Literal_ v
@@ -427,22 +420,30 @@ constrainValue v0 e0 =
         -- doesn't have a density, so we return 'bot'. However, we
         -- will need to generalize this when we start handling other
         -- ambient measures.
-        Literal_ v               -> bot
-        Datum_   d               -> bot -- according to the old code. Though there's some discrepancy about whether they used @lazy foo@ vs @scalar0 foo@...
+        Literal_ v               -> bot -- unsolvable. (kinda; see note)
+        Datum_   d               -> bot -- unsolvable. (kinda; see note)
 
-        -- These 'bot's are according to the old finally-tagless code...
-        Dirac :$ _ :* End        -> bot
-        MBind :$ _ :* _ :* End   -> bot
+        Dirac :$ _ :* End        -> bot -- giving up.
+        MBind :$ _ :* _ :* End   -> bot -- giving up.
         MeasureOp_ o :$ es       -> constrainValueMeasureOp v0 o es
-        Superpose_ pes           -> bot
+        Superpose_ pes           -> bot -- giving up.
         Let_ :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
                 push (SLet x $ Thunk e1) e2' (constrainValue v0)
 
         Ann_      typ :$ e1 :* End -> constrainValue  v0 e1
-        CoerceTo_   c :$ e1 :* End -> constrainValue  (P.unsafeFrom_ c v0) e1
-        -- BUG: for the safe coercions we need to 'emitGuard' as well!
-        UnsafeFrom_ c :$ e1 :* End -> constrainValue  (P.coerceTo_   c v0) e1
+        CoerceTo_   c :$ e1 :* End ->
+            -- TODO: we need to insert some kind of guard that says
+            -- @v0@ is in the range of @coerceTo c@, or equivalently
+            -- that @unsafeFrom c v0@ will always succeed. We need
+            -- to emit this guard because if @v0@ isn't in the range
+            -- of the coercion, then there's no possible way the
+            -- program @e1@ could in fact be observed at @v0@. The
+            -- only question is how to perform that check; for the
+            -- 'Signed' coercions it's easy enough, but for the
+            -- 'Continuous' coercions it's not really clear.
+            constrainValue (P.unsafeFrom_ c v0) e1
+        UnsafeFrom_ c :$ e1 :* End -> constrainValue  (P.coerceTo_ c v0) e1
         NaryOp_     o    es        -> constrainNaryOp v0 o es
         PrimOp_     o :$ es        -> constrainPrimOp v0 o es
         Expect  :$ e1 :* e2 :* End -> error "TODO: constrainValue{Expect}"
@@ -467,13 +468,6 @@ constrainValue v0 e0 =
                             pushStatement (SGuard vars pat e)
                             constrainValue v0 body'
                         -- where the interpretation of @SGuard e pat@ is to wrap the ultimately returned value @r@ with @syn (Case_ e [Branch pat r, Branch PWild reject])@
-
-                    {-
-                    -- BUG: this typechecks, but it doesn't seem to work as intended.
-                    -- N.B., if any branch returns 'bot' then the whole thing should return 'bot'. TODO: verify that actually happens.
-                    -- TODO: how to percolate constraints up through the scrutinee?
-                    emitCase e =<< T.traverse (applyBranch (constrainValue v0)) bs
-                    -}
                     -}
                 Just (Matched ss Nil1, body) ->
                     pushes (toStatements ss) body (constrainValue v0)
@@ -588,59 +582,26 @@ constrainNaryOp v0 o =
     Sum theSemi ->
         lubSeq $ \es1 e es2 -> do
             u <- atomize $ syn (NaryOp_ (Sum theSemi) (es1 S.>< es2))
-            v <- evaluate_ $ unsafeMinus_ theSemi v0 (fromWhnf u)
+            v <- evaluate_ $ P.unsafeMinus_ theSemi v0 (fromWhnf u)
             constrainValue (fromWhnf v) e
     Prod theSemi ->
         lubSeq $ \es1 e es2 -> do
             u <- atomize $ syn (NaryOp_ (Prod theSemi) (es1 S.>< es2))
             let u' = fromWhnf u -- TODO: emitLet?
             emitWeight $ P.recip (toProb_abs theSemi u')
-            v <- evaluate_ $ unsafeDiv_ theSemi v0 u'
+            v <- evaluate_ $ P.unsafeDiv_ theSemi v0 u'
             constrainValue (fromWhnf v) e
-    _ -> error "TODO: constrainNaryOp"
+    _ -> error $ "TODO: constrainNaryOp{" ++ show o ++ "}"
 
 
--- TODO: move to Prelude? is this generally useful? Or should we factor out the @toProb@ and @semiringAbs@ parts of it?
+-- TODO: if this function (or the component @toProb@ and @semiringAbs@
+-- parts) turn out to be useful elsewhere, then we should move it
+-- to the Prelude.
 toProb_abs :: (ABT Term abt) => HSemiring a -> abt '[] a -> abt '[] 'HProb
 toProb_abs HSemiring_Nat  = P.nat2prob
 toProb_abs HSemiring_Int  = P.nat2prob . P.abs_
 toProb_abs HSemiring_Prob = id
 toProb_abs HSemiring_Real = P.abs_
-
-
--- TODO: (a) simplify the logic here, (b) move this to Prelude
-unsafeMinus_
-    :: (ABT Term abt) => HSemiring a -> abt '[] a -> abt '[] a -> abt '[] a
-unsafeMinus_ HSemiring_Nat  e1 e2 =
-    let signed  = C.singletonCoercion (C.Signed HRing_Int)
-        e1' = P.coerceTo_ signed e1
-        e2' = P.coerceTo_ signed e2
-    in P.unsafeFrom_ signed (e1' P.- e2')
-unsafeMinus_ HSemiring_Int  e1 e2 = e1 P.- e2
-unsafeMinus_ HSemiring_Prob e1 e2 =
-    let signed  = C.singletonCoercion (C.Signed HRing_Real)
-        e1' = P.coerceTo_ signed e1
-        e2' = P.coerceTo_ signed e2
-    in P.unsafeFrom_ signed (e1' P.- e2')
-unsafeMinus_ HSemiring_Real e1 e2 = e1 P.- e2
-
-
--- TODO: (a) simplify the logic here, (b) move this to Prelude
--- BUG: beware, this is /really unsafe/! We can't rely on unsafe coercions to get things back to the original type when dealing with Nat\/Int. It'd be safer (though no doubt less correct) to use some analog of 'div'\/'quot' rather than @(/)@... but really, we should just handle the 'Prod' cases separately for integral\/non-fractional types.
-unsafeDiv_
-    :: (ABT Term abt) => HSemiring a -> abt '[] a -> abt '[] a -> abt '[] a
-unsafeDiv_ HSemiring_Nat  e1 e2 =
-    let continuous  = C.singletonCoercion (C.Continuous HContinuous_Prob)
-        e1' = P.coerceTo_ continuous e1
-        e2' = P.coerceTo_ continuous e2
-    in P.unsafeFrom_ continuous (e1' P./ e2')
-unsafeDiv_ HSemiring_Int  e1 e2 =
-    let continuous  = C.singletonCoercion (C.Continuous HContinuous_Real)
-        e1' = P.coerceTo_ continuous e1
-        e2' = P.coerceTo_ continuous e2
-    in P.unsafeFrom_ continuous (e1' P./ e2')
-unsafeDiv_ HSemiring_Prob e1 e2 = e1 P./ e2
-unsafeDiv_ HSemiring_Real e1 e2 = e1 P./ e2
 
 
 -- TODO: is there any way to optimise the zippering over the Seq, a la 'S.inits' or 'S.tails'?

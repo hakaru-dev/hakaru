@@ -58,7 +58,7 @@ normC = lam $ \y ->
         / (nat_ 2 `thRootOf` (prob_ 2 * pi)))
     $ dirac x
 
--- BUG: calling 'evaluate' on 'normC' doesn't seem to catch those redexes. Is that just because we're using call-by-need rather than CBV\/full-beta?
+-- N.B., calling 'evaluate' on 'normC' doesn't catch those redexes because they're not on the way to computing stuff. need to call 'constantPropagation' to get rid of them.
 -}
 
 test0, test0a, test0b
