@@ -12,7 +12,7 @@ import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Prelude
 import Language.Hakaru.Syntax.IClasses  (Some2(..))
-import Language.Hakaru.Pretty.Concrete
+import Language.Hakaru.Pretty.Haskell
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Evaluation.Types               (fromWhnf)
@@ -21,9 +21,8 @@ import Language.Hakaru.Disintegrate
 
 import qualified Language.Hakaru.Observe as O
 
-import qualified Data.Text as Text
-import           Test.HUnit
-import           Tests.TestTools
+import Test.HUnit
+import Tests.TestTools
 
 -- | A very simple program. Is sufficient for testing escape and
 -- capture of substitution.

@@ -137,6 +137,9 @@ residualizePureListContext e0 =
         SBind   _ _   -> brokenInvariant "residualizePureListContext"
         SWeight _     -> brokenInvariant "residualizePureListContext"
         SIndex  _ _ _ -> error "TODO: residualizePureListContext{SIndex}"
+        {-
+        SGuard
+        -}
         SLet x body
             | not (x `memberVarSet` freeVars e) -> e
             -- TODO: if used exactly once in @e@, then inline.

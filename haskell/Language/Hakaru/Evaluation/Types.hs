@@ -485,6 +485,14 @@ data Statement (abt :: [Hakaru] -> Hakaru -> *)
     | SWeight
         !(Lazy abt 'HProb)
 
+    {-
+    -- | A guard statement. If the scrutinee matches the pattern, then we bind the variables as usual; otherwise, we return the empty measure.
+    | forall (xs :: [Hakaru]) (a :: Hakaru) . SGuard
+        !(List1 Variable xs)
+        !(Pattern xs a)
+        !(Lazy abt a)
+    -}
+
 
 -- | Is the variable bound by the statement?
 isBoundBy :: Variable (a :: Hakaru) -> Statement abt -> Maybe ()
@@ -492,6 +500,9 @@ x `isBoundBy` SBind  y _   = const () <$> varEq x y
 x `isBoundBy` SLet   y _   = const () <$> varEq x y
 x `isBoundBy` SIndex y _ _ = const () <$> varEq x y
 _ `isBoundBy` SWeight  _   = Nothing
+{-
+x `isBoundBy` SGuard ys _ _ = memberVarSet x ys -- TODO: except we want the 'List1' version rather than the 'VarSet' version
+-}
 
 
 ----------------------------------------------------------------
@@ -558,9 +569,9 @@ freshenStatement s =
         x' <- freshenVar x
         return (SLet x' body, singletonAssocs x (var x'))
     {-
-    SBranch xs pat body -> do
+    SGuard xs pat scrutinee -> do
         xs' <- freshenVars xs
-        return (SBranch xs' pat body, toAssocs xs (fmap11 var xs'))
+        return (SGuard xs' pat scrutinee, toAssocs xs (fmap11 var xs'))
     -}
     SIndex x index size -> do
         x' <- freshenVar x

@@ -15,7 +15,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.01.25
+--                                                    2016.02.02
 -- |
 -- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -39,19 +39,34 @@
 -- the arguments to addition) one of them has a Jacobian of zero,
 -- thus when going from @x*y@ to @dx*y + x*dy@ one of the terms
 -- cancels out.
+--
+-- /Developer's Note:/ To help keep the code clean, we use the
+-- worker\/wrapper transform. However, due to complexities in
+-- typechecking GADTs, this often confuses GHC if you don't give
+-- just the right type signature on definitions. This confusion
+-- shows up whenever you get error messages about an \"ambiguous\"
+-- choice of 'ABT' instance, or certain types of \"couldn't match
+-- @a@ with @a1@\" error messages. To eliminate these issues we use
+-- @-XScopedTypeVariables@. In particular, the @abt@ type variable
+-- must be bound by the wrapper (i.e., the top-level definition),
+-- and the workers should just refer to that same type variable
+-- rather than quantifying over abother @abt@ type. In addition,
+-- whatever other type variables there are (e.g., the @xs@ and @a@
+-- of an @abt xs a@ argument) should be polymorphic in the workers
+-- and should /not/ reuse the other analogous type variables bound
+-- by the wrapper.
 ----------------------------------------------------------------
 module Language.Hakaru.Disintegrate
     (
     -- * the Hakaru API
       disintegrateWithVar
     , disintegrate
+    , densityWithVar
     , density
     , observe
     , determine
     
     -- * Implementation details
-    , Condition(..)
-    , conditionalize
     , perform
     , atomize
     , constrainValue
@@ -96,10 +111,9 @@ import Debug.Trace (trace)
 -}
 
 ----------------------------------------------------------------
--- N.B., for all these functions the old version used to use the
--- @env@ hack in order to handle the fact that free variables can
--- change their type (eewww!!); we may need to do that again, but
--- we should avoid it if we can possibly do so.
+
+lam_ :: (ABT Term abt) => Variable a -> abt '[] b -> abt '[] (a ':-> b)
+lam_ x e = syn (Lam_ :$ bind x e :* End)
 
 
 -- | Disintegrate a measure over pairs with respect to the lebesgue
@@ -109,23 +123,33 @@ import Debug.Trace (trace)
 -- variable in the result. If you want to automatically fill those
 -- in, then see 'disintegrate'.
 --
--- This function fills the role that the old @runDisintegrate@ did.
--- It's unclear what exactly the old function called @disintegrate@
--- was supposed to be doing...
+-- N.B., the resulting functions from @a@ to @'HMeasure b@ are
+-- indeed measurable, thus it is safe\/appropriate to use Hakaru's
+-- @(':->)@ rather than Haskell's @(->)@.
+--
+-- BUG: Actually, disintegration is with respect to the /Borel/
+-- measure on the first component of the pair! Alas, we don't really
+-- have a clean way of describing this since we've no primitive
+-- 'MeasureOp' for Borel measures.
+--
+-- /Developer's Note:/ This function fills the role that the old
+-- @runDisintegrate@ did (as opposed to the old function called
+-- @disintegrate@). [Once people are familiar enough with the new
+-- code base and no longer recall what the old code base was doing,
+-- this note should be deleted.]
 disintegrateWithVar
     :: (ABT Term abt)
     => Text.Text
     -> Sing a
     -> abt '[] ('HMeasure (HPair a b))
-    -> [abt '[] (a ':-> 'HMeasure b)] -- this Hakaru function is measurable
-disintegrateWithVar hint typ m = do
+    -> [abt '[] (a ':-> 'HMeasure b)]
+disintegrateWithVar hint typ m =
     let x = Variable hint (nextFree m `max` nextBind m) typ
-    m' <- flip runDis [Some2 m, Some2 (var x)] $ do
+    in map (lam_ x) . flip runDis [Some2 m, Some2 (var x)] $ do
         ab    <- perform m
         (a,b) <- emitUnpair ab
         constrainValue (var x) a
         return b
-    return $ syn (Lam_ :$ bind x m' :* End)
 
 
 -- | A variant of 'disintegrateWithVar' which automatically computes
@@ -133,7 +157,7 @@ disintegrateWithVar hint typ m = do
 disintegrate
     :: (ABT Term abt)
     => abt '[] ('HMeasure (HPair a b))
-    -> [abt '[] (a ':-> 'HMeasure b)] -- this Hakaru function is measurable
+    -> [abt '[] (a ':-> 'HMeasure b)]
 disintegrate m =
     disintegrateWithVar
         Text.empty
@@ -141,26 +165,36 @@ disintegrate m =
         m
 
 
--- | Return the density function for a given measure.
+-- | Return the density function for a given measure. The first two
+-- arguments give the hint and type of the lambda-bound variable
+-- in the result. If you want to automatically fill those in, then
+-- see 'density'.
 --
--- TODO: is the resulting function guaranteed to be measurable? if
--- not, should we make it into a Haskell function instead?
---
--- TODO: provide a @WithVar@ variant to avoid relying on 'typeOf'.
+-- TODO: is the resulting function guaranteed to be measurable? If
+-- so, update this documentation to reflect that fact; if not, then
+-- we should make it into a Haskell function instead.
+densityWithVar
+    :: (ABT Term abt)
+    => Text.Text
+    -> Sing a
+    -> abt '[] ('HMeasure a)
+    -> [abt '[] (a ':-> 'HProb)]
+densityWithVar hint typ m =
+    let x = Variable hint (nextFree m `max` nextBind m) typ
+    in (lam_ x . E.total) <$> observe m (var x)
+
+
+-- | A variant of 'densityWithVar' which automatically computes the
+-- type via 'typeOf'.
 density
     :: (ABT Term abt)
     => abt '[] ('HMeasure a)
     -> [abt '[] (a ':-> 'HProb)]
-density m = do
-    let x = Variable Text.empty (nextFree m) (sUnMeasure $ typeOf m)
-    m' <- conditionalize (Condition PVar (var x)) m
-    return $ syn (Lam_ :$ bind x (E.total m') :* End)
-
-    -- TODO: In the old code we wrapped @x@ in @scalar0@ before
-    -- handing it to 'conditionalize'; where @scalar0@ means forward
-    -- is no-op and backward is bot. Do we still need to do anything
-    -- like that?
-
+density m =
+    densityWithVar
+        Text.empty
+        (sUnMeasure $ typeOf m)
+        m
 
 
 -- | Constrain a measure such that it must return the observed
@@ -176,63 +210,6 @@ observe m x =
     runDis (constrainOutcome x m >> return x) [Some2 m, Some2 x]
 
 
--- | A condition is a projection function followed by an equality
--- constraint. This serves the same role as the old @Backward@
--- class. That class used an ad-hoc representation of projection
--- functions where we take an arbitrary term and consider it a
--- pattern, using 'P.unit' as the \"don't care\" wildcard; for
--- example @(P.pair e P.unit)@ is the old representation of the
--- constraint @\x -> P.fst x == e@. We replace the old encoding by
--- using an actual 'Pattern' (with a single variable) to make things
--- a bit more explicit\/clear; thus @(Condition pat e)@ represents
--- the constraint @\x -> case x of { pat y -> y == e ; _ -> False }@.
--- Naturally, this doesn't account for other non-structural forms
--- of \"projection functions\", but then neither did the old code.
---
--- This trick isn't used in the paper, and probably doesn't generalize.
---
--- TODO: If we're trying to generalize what 'disintegrate' does
--- (rather than what 'observe' does), then we just need the pattern
--- and can treat the value of type @b@ at that position as a
--- lambda-bound variable. Of course, ideally, we'd want some sort
--- of dual projection function allowing us to return something of
--- \"@a - b@\" type (i.e., the appropriate one-hole version of the
--- \"@∂a/∂b@\" type).
-data Condition (abt :: [Hakaru] -> Hakaru -> *) (a :: Hakaru) =
-    forall b. Condition (Pattern '[b] a) (abt '[] b)
-
-
--- | This is what used to be called @disintegrate@. I think this
--- new name captures whatever it is that funtion was actually
--- supposed to be doing?
---
--- TODO: whatever this function is supposed to do, it should probably
--- be the one that's the primop rather than 'disintegrate'.
-conditionalize
-    :: (ABT Term abt)
-    => Condition abt a
-    -> abt '[] ('HMeasure a)
-    -> [abt '[] ('HMeasure a)]
-conditionalize (Condition pat b) m =
-    -- TODO: is this at all right??
-    flip runDis [Some2 b, Some2 m] $ do
-        a <- perform m
-        -- According to the old code, we should memoize here...
-        -- TODO: what was the purpose of using @unMeasure@ before memoizing?
-        x <- emitLet' (fromWhnf a)
-        -- TODO: maybe just store the @typeOf b@ rather than computing it?
-        y <- freshVar Text.empty (typeOf b)
-        -- TODO: get 'emitCase' to partially evaluate the case expression away when it can (assuming we don't @emitLet a@). In order to do this in a nice clean way, we'll have to go back to trying to implement my previous @GGBranch@ approach.
-        emitCase x
-            [ GBranch pat (Cons1 y Nil1) $ do
-                b' <- atomize b
-                -- TODO: make sure this is the correct argument order
-                constrainValue (fromWhnf b') (var y)
-                return x
-            , GBranch PWild Nil1 $ reject
-            ]
-
-
 -- | Arbitrarily choose one of the possible alternatives. In the
 -- future, this function should be replaced by a better one that
 -- takes some sort of strategy for deciding which alternative to
@@ -244,28 +221,11 @@ determine (m:_) = Just m
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
--- TODO: move these helper functions into Lazy/Types.hs or wherever else we move the definition of the 'M' monad.
-
-{-
-fst_Whnf :: (ABT Term abt) => Whnf abt (HPair a b) -> abt '[] a
-fst_Whnf (Neutral e) = P.fst e
-fst_Whnf (Head_   v) = fst (reifyPair v)
-
-snd_Whnf :: (ABT Term abt) => Whnf abt (HPair a b) -> abt '[] b
-snd_Whnf (Neutral e) = P.snd e
-snd_Whnf (Head_   v) = snd (reifyPair v)
-
-ifte_Whnf :: (ABT Term abt) => Whnf abt HBool -> abt '[] a -> abt '[] a -> abt '[] a
-ifte_Whnf (Neutral e) t f = P.if_ e t f
-ifte_Whnf (Head_   v) t f = if reify v then t else f
--}
-
-
-----------------------------------------------------------------
--- BUG: forward disintegration is not identical to partial evaluation,
--- as noted at the top of the file. We need to ensure that no
--- heap-bound variables remain in the result; namely, we need to
--- ensure that in the two places where we call 'emitMBind'
+-- N.B., forward disintegration is not identical to partial evaluation,
+-- as noted at the top of the file. For correctness we need to
+-- ensure the result is emissible (i.e., has no heap-bound variables).
+-- More specifically, we need to ensure emissibility in the places
+-- where we call 'emitMBind'
 evaluate_ :: (ABT Term abt) => TermEvaluator abt (Dis abt)
 evaluate_ = evaluate perform
 
@@ -277,66 +237,71 @@ evaluateDatum e = viewWhnfDatum <$> evaluate_ e
 -- | Simulate performing 'HMeasure' actions by simply emiting code
 -- for those actions, returning the bound variable.
 --
--- This is the function called @(|>>)@ in the paper.
-perform :: (ABT Term abt) => MeasureEvaluator abt (Dis abt)
-perform e0 =
+-- This is the function called @(|>>)@ in the disintegration paper.
+perform :: forall abt. (ABT Term abt) => MeasureEvaluator abt (Dis abt)
+perform = \e0 ->
     {-
     trace ("\nperform: " ++ show (pretty e0)) $
     -}
-    caseVarSyn e0 performVar $ \t ->
-        case t of
-        Dirac :$ e1 :* End       -> evaluate_ e1
-        MeasureOp_ o :$ es       -> do
-            -- TODO: this needs to be factored out because we do funny things with Uniform (etc) to emit cleaner code
-            es' <- traverse21 atomizeCore es
-            x   <- emitMBind $ syn (MeasureOp_ o :$ es')
-            return (Neutral $ var x)
-        MBind :$ e1 :* e2 :* End ->
-            caseBind e2 $ \x e2' ->
-                push (SBind x $ Thunk e1) e2' perform
-        Superpose_ pes ->
-            -- TODO: may want to do this directly rather than using 'choose' and then adjusting the weight...
-            choose
-                [ unsafePush (SWeight $ Thunk p) >> perform e
-                | (p,e) <- pes ]
+    caseVarSyn e0 performVar performTerm
+    where
+    performTerm :: forall a. Term abt ('HMeasure a) -> Dis abt (Whnf abt a)
+    performTerm (Dirac :$ e1 :* End)       = evaluate_ e1
+    performTerm (MeasureOp_ o :$ es)       = performMeasureOp o es
+    performTerm (MBind :$ e1 :* e2 :* End) =
+        caseBind e2 $ \x e2' ->
+            push (SBind x $ Thunk e1) e2' perform
+    performTerm (Superpose_ pes) =
+        emitFork_ (P.superpose . getCompose) (perform <$> Compose pes)
 
-        -- N.B., be sure you've covered all the heads before falling
-        -- through to this branch. (The 'WAnn' head works fine on
-        -- fallthrough.)
-        --
-        -- TODO: add a @mustPerform@ predicate like we have 'mustCheck'
-        -- in TypeCheck.hs...?
-        --
-        -- TODO: we should jump right into the 'Term'-analyzing part of 'evaluate' rather than repeating the 'caseVarSyn' there...
-        _ -> evaluate_ e0 >>= performWhnf
+    -- TODO: we could optimize this by calling some @evaluateTerm@
+    -- directly, rather than calling 'syn' to rebuild @e0@ from
+    -- @t0@ and then calling 'evaluate_' (which will just use
+    -- 'caseVarSyn' to get the @t0@ back out from the @e0@).
+    performTerm t0 = performWhnf =<< evaluate_ (syn t0)
 
 
--- TODO: I think this is the right definition...
-performVar
-    :: (ABT Term abt) => Variable ('HMeasure a) -> Dis abt (Whnf abt a)
-performVar = performWhnf <=< update perform evaluate_
+    performVar :: forall a. Variable ('HMeasure a) -> Dis abt (Whnf abt a)
+    performVar = performWhnf <=< update perform evaluate_
 
 
--- HACK: we have to special case the 'WAnn' constructor in order
--- to avoid looping forever (since annotations just evaluate to
--- themselves). We'd prolly have the same issue with coercions
--- excepting that there are no coercions for 'HMeasure' types.
---
--- TODO: for the 'WAnn' constructor we push the annotation down
--- into the 'Whnf' result. This is better than dropping it on the
--- floor, but may still end up producing programs which don't
--- typecheck (or don't behave nicely with 'typeOf') since it moves
--- the annotation around. To keep the annotation in the same place
--- as the input, we need to pass it to 'perform' somehow so that
--- it can emit the annotation when it emits 'MBind' etc. (That
--- prolly means we shouldn't handle 'WAnn' here, but rather should
--- handle it in the definition of 'perform' itself...)
-performWhnf
-    :: (ABT Term abt) => Whnf abt ('HMeasure a) -> Dis abt (Whnf abt a)
-performWhnf (Head_ (WAnn typ v)) =
-    ann (sUnMeasure typ) <$> performWhnf (Head_ v)
-performWhnf (Head_   v) = perform $ fromHead v
-performWhnf (Neutral e) = (Neutral . var) <$> emitMBind e
+    -- HACK: we have to special case the 'WAnn' constructor in order
+    -- to avoid looping forever (since annotations just evaluate to
+    -- themselves). We'd prolly have the same issue with coercions
+    -- excepting that there are no coercions for 'HMeasure' types.
+    --
+    -- TODO: for the 'WAnn' constructor we push the annotation down
+    -- into the 'Whnf' result. This is better than dropping it on the
+    -- floor, but may still end up producing programs which don't
+    -- typecheck (or don't behave nicely with 'typeOf') since it moves
+    -- the annotation around. To keep the annotation in the same place
+    -- as the input, we need to pass it to 'perform' somehow so that
+    -- it can emit the annotation when it emits 'MBind' etc. (That
+    -- prolly means we shouldn't handle 'WAnn' here, but rather should
+    -- handle it in the definition of 'perform' itself...)
+    performWhnf
+        :: forall a. Whnf abt ('HMeasure a) -> Dis abt (Whnf abt a)
+    performWhnf (Head_ (WAnn typ v)) =
+        ann (sUnMeasure typ) <$> performWhnf (Head_ v)
+    performWhnf (Head_   v) = perform $ fromHead v
+    performWhnf (Neutral e) = (Neutral . var) <$> emitMBind e
+
+
+    -- TODO: right now we do the simplest thing. However, for better
+    -- coverage and cleaner produced code we'll need to handle each
+    -- of the ops separately. (For example, see how 'Uniform' is
+    -- handled in the old code; how it has two options for what to
+    -- do.)
+    performMeasureOp
+        :: forall typs args a
+        .  (typs ~ UnLCs args, args ~ LCs typs)
+        => MeasureOp typs a
+        -> SArgs abt args
+        -> Dis abt (Whnf abt a)
+    performMeasureOp o es = do
+        es' <- traverse21 atomizeCore es
+        x   <- emitMBind $ syn (MeasureOp_ o :$ es')
+        return (Neutral $ var x)
 
 
 -- | The goal of this function is to ensure the correctness criterion
@@ -350,8 +315,8 @@ performWhnf (Neutral e) = (Neutral . var) <$> emitMBind e
 -- the specification of what the function should do.
 --
 -- This name is taken from the old finally tagless code, where
--- \"atomic\" terms are (among other things) emissible (i.e., contain
--- no heap-bound variables).
+-- \"atomic\" terms are (among other things) emissible; i.e., contain
+-- no heap-bound variables.
 --
 -- BUG: this function infinitely loops in certain circumstances
 -- (namely when dealing with neutral terms)
@@ -396,6 +361,9 @@ statementVars (SBind x _)    = singletonVarSet x
 statementVars (SLet  x _)    = singletonVarSet x
 statementVars (SIndex x _ _) = singletonVarSet x
 statementVars (SWeight _)    = emptyVarSet
+{-
+statementVars (SGuard xs _ _) = toVarSet xs
+-}
 
 -- HACK: if we really want to go through with this approach, then
 -- we should memoize the set of heap-bound variables in the
@@ -408,15 +376,18 @@ getHeapVars =
 ----------------------------------------------------------------
 -- TODO: see the todo for 'constrainOutcome'
 --
--- | N.B., We assume that the first argument, @v0@, is already
--- atomized. So, this must be ensured before recursing, but we can
--- assume it's already been done by the IH.
+-- | Given an emissible term @v0@ (the first argument) and another
+-- term @e0@ (the second argument), compute the constraints such
+-- that @e0@ must evaluate to @v0@. This is the function called
+-- @(<|)@ in the disintegration paper, though notably we swap the
+-- argument order so that the \"value\" is the first argument.
 --
--- This is the function called @(<|)@ in the paper, though notably
--- we swap the argument order.
+-- N.B., this function assumes (and does not verify) that the first
+-- argument is emissible. So callers (including recursive calls)
+-- must guarantee this invariant, by calling 'atomize' as necessary.
 --
--- TODO: find some way to capture in the type that the first argument
--- must be emissible, to help avoid accidentally passing the arguments
+-- TODO: capture the emissibility requirement on the first argument
+-- in the types, to help avoid accidentally passing the arguments
 -- in the wrong order!
 constrainValue :: (ABT Term abt) => abt '[] a -> abt '[] a -> Dis abt ()
 constrainValue v0 e0 =
@@ -445,13 +416,20 @@ constrainValue v0 e0 =
         -- TODO: where to fit this in?
         -- > u | atomic u -> bot
 
-        -- TODO: Actually, the semantically correct definition is:
+
+        -- N.B., the semantically correct definition is:
+        --
         -- > Literal_ v
         -- >     | "dirac v has a density wrt the ambient measure" -> ...
         -- >     | otherwise -> bot
+        --
+        -- For the case where the ambient measure is Lebesgue, dirac
+        -- doesn't have a density, so we return 'bot'. However, we
+        -- will need to generalize this when we start handling other
+        -- ambient measures.
         Literal_ v               -> bot
-
         Datum_   d               -> bot -- according to the old code. Though there's some discrepancy about whether they used @lazy foo@ vs @scalar0 foo@...
+
         -- These 'bot's are according to the old finally-tagless code...
         Dirac :$ _ :* End        -> bot
         MBind :$ _ :* _ :* End   -> bot
@@ -472,14 +450,30 @@ constrainValue v0 e0 =
         Case_ e bs -> do
             match <- matchBranches evaluateDatum e bs
             case match of
-                Nothing -> error "constrainValue{Case_}: nothing matched!"
+                Nothing ->
+                    -- If desired, we could return the Hakaru program
+                    -- that always crashes, instead of throwing a
+                    -- Haskell error.
+                    error "constrainValue{Case_}: nothing matched!"
                 Just (GotStuck, _) ->
                     error "TODO: constrainValue{Case_}{GotStuck}"
+                    {-
+                    -- N.B., we should emit the superpose right now, but we should push the @SGuard@ (or equivalently, wrap the result of the recursive call to 'constrainValue').
+                    choose $ map (constrainBranch v0) bs
+                        where
+                        constrainBranch v0 (Branch pat body) = do
+                            let (vars,body') = caseBinds body
+                            -- TODO: freshen
+                            pushStatement (SGuard vars pat e)
+                            constrainValue v0 body'
+                        -- where the interpretation of @SGuard e pat@ is to wrap the ultimately returned value @r@ with @syn (Case_ e [Branch pat r, Branch PWild reject])@
+
                     {-
                     -- BUG: this typechecks, but it doesn't seem to work as intended.
                     -- N.B., if any branch returns 'bot' then the whole thing should return 'bot'. TODO: verify that actually happens.
                     -- TODO: how to percolate constraints up through the scrutinee?
                     emitCase e =<< T.traverse (applyBranch (constrainValue v0)) bs
+                    -}
                     -}
                 Just (Matched ss Nil1, body) ->
                     pushes (toStatements ss) body (constrainValue v0)
@@ -488,16 +482,18 @@ constrainValue v0 e0 =
 
 
 ----------------------------------------------------------------
--- | N.B., We assume that the first argument, @v0@, is already
--- atomized. So, this must be ensured before recursing, but we can
--- assume it's already been done by the IH.
+-- | N.B., as with 'constrainValue', we assume that the first
+-- argument is emissible. So it is the caller's responsibility to
+-- ensure this (by calling 'atomize' as appropriate).
 --
--- TODO: find some way to capture in the type that the first argument
--- must be emissible.
+-- TODO: capture the emissibility requirement on the first argument
+-- in the types.
 constrainVariable
     :: (ABT Term abt) => abt '[] a -> Variable a -> Dis abt ()
 constrainVariable v0 x =
-    -- If we get 'Nothing', then it turns out @x@ is a free variable. If @x@ is a free variable, then it's a neutral term; and we return 'bot' for neutral terms
+    -- If we get 'Nothing', then it turns out @x@ is a free variable.
+    -- If @x@ is a free variable, then it's a neutral term; and we
+    -- return 'bot' for neutral terms
     (maybe bot return =<<) . select x $ \s ->
         case s of
         SBind y e -> do
@@ -511,18 +507,21 @@ constrainVariable v0 x =
                 constrainValue v0 (fromLazy e)
                 unsafePush (SLet x $ Whnf_ (Neutral v0))
         SWeight _ -> Nothing
+        {-
+        SGuard ys pat scrutinee ->
+        -}
         SIndex y e1 e2 -> do
             Refl <- varEq x y
             Just $ error "TODO: constrainVariable{SIndex}"
 
 
 ----------------------------------------------------------------
--- | N.B., We assume that the first argument, @v0@, is already
--- atomized. So, this must be ensured before recursing, but we can
--- assume it's already been done by the IH.
+-- | N.B., as with 'constrainValue', we assume that the first
+-- argument is emissible. So it is the caller's responsibility to
+-- ensure this (by calling 'atomize' as appropriate).
 --
--- TODO: find some way to capture in the type that the first argument
--- must be emissible.
+-- TODO: capture the emissibility requirement on the first argument
+-- in the types.
 constrainValueMeasureOp
     :: forall abt typs args a
     .  (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
@@ -532,7 +531,6 @@ constrainValueMeasureOp
     -> Dis abt ()
 constrainValueMeasureOp v0 = go
     where
-    -- HACK: we need the -XScopedTypeVariables in order to remove \"ambiguity\" about the choice of 'ABT' instance
     go :: MeasureOp typs a -> SArgs abt args -> Dis abt ()
     go Lebesgue    = \End               -> bot
     go Counting    = \End               -> bot
@@ -678,7 +676,6 @@ constrainPrimOp v0 = go
     where
     error_TODO op = error $ "TODO: constrainPrimOp{" ++ op ++"}"
 
-    -- HACK: we need the -XScopedTypeVariables in order to remove \"ambiguity\" about the choice of 'ABT' instance
     go :: PrimOp typs a -> SArgs abt args -> Dis abt ()
     go Not  = \(e1 :* End)       -> error_TODO "Not"
     go Impl = \(e1 :* e2 :* End) -> error_TODO "Impl"

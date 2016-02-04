@@ -149,8 +149,9 @@ residualizeListContext e0 = foldl step e0 . statements
                     Nothing ->
                         syn (Let_ :$ fromLazy body :* bind x e :* End)
         {-
-        SBranch xs pat body ->
-            syn $ Case_ (fromLazy body)
+        SGuard xs pat scrutinee ->
+            -- TODO: if the scrutinee is a value, then try evaluating this case right away. But if it isn't a value, don't bother doing anything special.
+            syn $ Case_ (fromLazy scrutinee)
                 [ Branch pat   (binds_ xs e)
                 , Branch PWild P.reject
                 ]

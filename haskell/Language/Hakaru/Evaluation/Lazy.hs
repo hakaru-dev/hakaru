@@ -224,6 +224,9 @@ update perform evaluate_ = \x ->
                 unsafePush (SLet x $ Whnf_ w)
                 return w
         SWeight _ -> Nothing
+        {-
+        SGuard ys pat scrutinee -> 
+        -}
         SIndex y e1 e2 -> do
             Refl <- varEq x y
             Just $ do
