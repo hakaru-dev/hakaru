@@ -38,6 +38,7 @@ Library
                        Language.Hakaru.Syntax.AST,
                        Language.Hakaru.Syntax.AST.Sing,
                        Language.Hakaru.Syntax.AST.Eq,
+                       Language.Hakaru.Syntax.AST.AlphaEq,
                        Language.Hakaru.Syntax.TypeCheck,
                        Language.Hakaru.Syntax.TypeOf,
                        Language.Hakaru.Syntax.Prelude,
