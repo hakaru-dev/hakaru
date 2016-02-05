@@ -396,12 +396,12 @@ sampleCase o es env =
 
     evaluateDatum :: (ABT Term abt, Monad m) => DatumEvaluator abt m
     evaluateDatum e =
-        caseVarSyn e undefined $ \t ->
+        caseVarSyn e (error "evalueDatumVar: ¯\\_(ツ)_/¯") $ \t ->
             case t of
             Datum_ d            -> return . Just  $ d
             Ann_ _ :$ e1 :* End -> evaluateDatum e1 
             _ -> error "TODO: finish evaluate"
-
+    
 
 sampleSuperpose
     :: (ABT Term abt, PrimMonad m, Functor m, Show2 abt)

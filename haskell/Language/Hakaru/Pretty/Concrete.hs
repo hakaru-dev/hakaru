@@ -1,5 +1,6 @@
 {-# LANGUAGE GADTs
            , KindSignatures
+           , OverloadedStrings
            , DataKinds
            , TypeOperators
            , FlexibleContexts
@@ -360,9 +361,16 @@ instance Pretty f => Pretty (Datum f) where
         | Text.null hint =
             ppFun p "datum_"
                 [error "TODO: prettyPrec_@Datum"]
-        | otherwise = 
-            ppFun p (Text.unpack hint)
-                (foldMap11 ((:[]) . toDoc . prettyPrec_ 11) d)
+        | otherwise =
+            case hint of
+              -- Special cases for certain datums
+              "pair"  -> ppFun p ""
+                         (foldMap11 ((:[]) . toDoc . prettyPrec_ 11) d) 
+              "true"  -> [PP.text "true"]
+              "false" -> [PP.text "false"]
+              -- General case
+              _       -> ppFun p (Text.unpack hint)
+                         (foldMap11 ((:[]) . toDoc . prettyPrec_ 11) d)
 
 
 -- HACK: need to pull this out in order to get polymorphic recursion over @xs@
