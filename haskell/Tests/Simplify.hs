@@ -70,4 +70,5 @@ allTests = test
    , testSimplify "normal01T" normal01T normal01T
    , testSimplify "realpair" realpair realpair
    , testSimplify "unifprob" unifprob unifprob'
+   , testS "true" (triv $ ann_ (SMeasure sBool) (dirac true))
    ]
