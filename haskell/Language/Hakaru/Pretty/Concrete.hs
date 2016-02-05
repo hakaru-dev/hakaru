@@ -1,6 +1,5 @@
 {-# LANGUAGE GADTs
            , KindSignatures
-           , OverloadedStrings
            , DataKinds
            , TypeOperators
            , FlexibleContexts
@@ -39,10 +38,11 @@ import qualified Text.PrettyPrint as PP
 import qualified Data.Foldable    as F
 import qualified Data.Text        as Text
 import qualified Data.Sequence    as Seq -- Because older versions of "Data.Foldable" do not export 'null' apparently...
+import           Data.Proxy
 
 import Data.Number.Natural  (fromNatural, fromNonNegativeRational)
 
-import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11)
+import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11, jmEq1, TypeEq(..))
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
@@ -189,8 +189,8 @@ ppSCon _ Let_ = \(e1 :* e2 :* End) ->
     let (vars, body) = ppBinder2 e2 in
     [toDoc vars <+> PP.equals <+> toDoc (ppArg e1)
     PP.$$ (toDoc body)]
-ppSCon _ (Ann_ typ) = \(e1 :* End) ->
-    [toDoc (ppArg e1) <+> PP.text "::" <+> prettyType typ]
+ppSCon p (Ann_ typ) = \(e1 :* End) ->
+    [toDoc (ppArg e1) <+> PP.text "::" <+> prettyType p typ]
 
 ppSCon p (PrimOp_     o) = \es          -> ppPrimOp     p o es
 ppSCon p (ArrayOp_    o) = \es          -> ppArrayOp    p o es
@@ -251,15 +251,25 @@ ppUnsafeFrom =
 
 
 -- | Pretty-print a type.
-prettyType :: Sing (a :: Hakaru) -> Doc
-prettyType SNat         = PP.text "nat"
-prettyType SInt         = PP.text "int"
-prettyType SProb        = PP.text "prob"
-prettyType SReal        = PP.text "real"
-prettyType (SMeasure a) = PP.text "measure" <> PP.parens (prettyType a)
-prettyType (SArray   a) = PP.text "array" <> PP.parens (prettyType a)
-prettyType (SFun   a b) = prettyType a <+> PP.text "->" <+> prettyType b  
-prettyType typ          = PP.text (showsPrec 11 typ "")
+prettyType :: Int -> Sing (a :: Hakaru) -> Doc
+prettyType _ SNat         = PP.text "nat"
+prettyType _ SInt         = PP.text "int"
+prettyType _ SProb        = PP.text "prob"
+prettyType _ SReal        = PP.text "real"
+prettyType p (SMeasure a) = PP.text "measure" <> PP.parens (prettyType p a)
+prettyType p (SArray   a) = PP.text "array" <> PP.parens (prettyType p a)
+prettyType p (SFun   a b) = prettyType p a <+> PP.text "->" <+> prettyType p b  
+prettyType p typ          =
+    case typ of
+      SData (STyCon sym `STyApp` a `STyApp` b) _ ->
+          case jmEq1 sym (SingSymbol Proxy :: Sing "Pair") of
+            Just Refl -> toDoc $ ppFun p "pair" [prettyType p a, prettyType p b]
+            Nothing   -> PP.text (showsPrec 11 typ "")
+      SData (STyCon sym) _ ->
+          case jmEq1 sym (SingSymbol Proxy :: Sing "Bool") of
+            Just Refl -> PP.text "bool"
+            Nothing   -> PP.text (showsPrec 11 typ "")
+      _ -> PP.text (showsPrec 11 typ "")
     -- TODO: make this prettier. Add hints to the singletons?typ
 
 
@@ -362,7 +372,7 @@ instance Pretty f => Pretty (Datum f) where
             ppFun p "datum_"
                 [error "TODO: prettyPrec_@Datum"]
         | otherwise =
-            case hint of
+            case Text.unpack hint of
               -- Special cases for certain datums
               "pair"  -> ppFun p ""
                          (foldMap11 ((:[]) . toDoc . prettyPrec_ 11) d) 
