@@ -60,6 +60,9 @@ mapleAST (LC_ e) =
             app2 "Pair" a b
         Datum_ (Datum "true" (Inl Done)) -> "True"
         Datum_ d       -> error "TODO: Add mapleAST{Datum}"
+        Case_ e bs     -> "Case(" ++ arg e ++ "," ++
+                            "Branches(" ++
+                              intercalate ", " (map mapleBranch bs) ++ "))"
         Superpose_ pms ->
             "Msum(" ++ intercalate ", " (map wmtom pms) ++ ")"
 
@@ -82,6 +85,13 @@ mapleSCon Dirac (e1 :* End)          = app1 "Ret" e1
 mapleSCon MBind (e1 :* e2 :* End)    =
     caseBind e2 $ \x e2' ->
         app3 "Bind" e1 (var x) e2'
+
+mapleBranch :: (ABT Term abt) => Branch a abt b -> String
+mapleBranch (Branch pat e) = "Branch(" ++ maplePattern pat ++
+                              "," ++ (arg . snd . caseBinds $ e) ++ ")"
+
+maplePattern :: Pattern xs a -> String
+maplePattern = show
 
 arg :: (ABT Term abt) => abt '[] a -> String
 arg = mapleAST . LC_
