@@ -15,7 +15,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.02.03
+--                                                    2016.02.05
 -- |
 -- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -449,6 +449,7 @@ constrainValue v0 e0 =
         Expect  :$ e1 :* e2 :* End -> error "TODO: constrainValue{Expect}"
 
         Case_ e bs -> do
+            -- BUG: we can't always go forward on the scrutinee. Whenever we figure out what to do in the GotStuck case, we should lub together two options: this one where we try going forward on the scrutinee, and one where we just immediately assume it'll GotStuck
             match <- matchBranches evaluateDatum e bs
             case match of
                 Nothing ->

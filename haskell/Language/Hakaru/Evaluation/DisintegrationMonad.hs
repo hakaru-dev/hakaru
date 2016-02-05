@@ -16,7 +16,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.01.15
+--                                                    2016.02.05
 -- |
 -- Module      :  Language.Hakaru.Evaluation.DisintegrationMonad
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -299,6 +299,9 @@ unsafePop =
 -- give up on trying to do so. This function is identical to 'empty'
 -- and 'mzero' for 'Dis'; we just give it its own name since this is
 -- the name used in our papers.
+--
+-- TODO: add some sort of trace information so we can get a better
+-- idea what caused a disintegration to fail.
 bot :: (ABT Term abt) => Dis abt a
 bot = Dis $ \_ _ -> []
 
