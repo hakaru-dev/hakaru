@@ -91,7 +91,23 @@ mapleBranch (Branch pat e) = "Branch(" ++ maplePattern pat ++
                               "," ++ (arg . snd . caseBinds $ e) ++ ")"
 
 maplePattern :: Pattern xs a -> String
-maplePattern = show
+maplePattern PWild = "PWild"
+maplePattern PVar  = "PVar"
+maplePattern (PDatum hint d) = "PDatum(" ++ Text.unpack hint ++
+                               "," ++ maplePDatumCode d ++ ")"
+
+maplePDatumCode :: PDatumCode xss vars a -> String
+maplePDatumCode (PInr x) = "PInr(" ++ maplePDatumCode x ++ ")"
+maplePDatumCode (PInl x) = "PInl(" ++ maplePDatumStruct x ++ ")"
+
+maplePDatumStruct :: PDatumStruct xs vars a -> String
+maplePDatumStruct (PEt x y) = "PEt(" ++ maplePDatumFun x ++ ","
+                              ++ maplePDatumStruct y ++ ")"
+maplePDatumStruct PDone     = "PDone"
+
+maplePDatumFun :: PDatumFun x vars a -> String
+maplePDatumFun (PKonst pat) = "PKonst(" ++ maplePattern pat ++ ")"
+maplePDatumFun (PIdent pat) = "PIdent(" ++ maplePattern pat ++ ")"
 
 arg :: (ABT Term abt) => abt '[] a -> String
 arg = mapleAST . LC_
