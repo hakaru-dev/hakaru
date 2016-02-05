@@ -236,7 +236,12 @@ samplePrimOp
     -> S m a
 samplePrimOp Infinity         End _ = S $ LF.logFloat (1/0)
 samplePrimOp NegativeInfinity End _ = S $ -1/0
-
+samplePrimOp (Negate HRing_Int)  (e1 :* End) env = 
+    let S v = sample (LC_ e1) env
+    in  S (negate v)
+samplePrimOp (Negate HRing_Real) (e1 :* End) env = 
+    let S v = sample (LC_ e1) env
+    in  S (negate v)
 
 sampleNaryOp
     :: (ABT Term abt, PrimMonad m, Functor m, Show2 abt)
