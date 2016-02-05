@@ -56,7 +56,7 @@ import Language.Hakaru.Types.DataKind (Hakaru(..), HData', HBool)
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.HClasses
-    (HOrd, hOrd_Sing, HSemiring, hSemiring_Sing)
+    (HOrd, hOrd_Sing, HSemiring, hSemiring_Sing, HRing, hRing_Sing)
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.AST
@@ -563,6 +563,11 @@ getHSemiring typ =
     Just theSemi -> return theSemi
     Nothing      -> missingInstance "HSemiring" typ
 
+getHRing :: Sing a -> TypeCheckMonad (HRing a)
+getHRing typ =
+    case hRing_Sing typ of
+    Just theRing -> return theRing
+    Nothing      -> missingInstance "HRing" typ
 
 ----------------------------------------------------------------
 data TypedASTs (abt :: [Hakaru] -> Hakaru -> *)

@@ -76,6 +76,7 @@ primTable =
     ,("normal",     primMeasure2 (U.SealedOp T.Normal))
     ,("gamma",      primMeasure2 (U.SealedOp T.Gamma))
     ,("beta",       primMeasure2 (U.SealedOp T.Beta))
+    ,("bern",       primBern)
     ,("weight",     primWeight)
     ,("dirac",      TLam $ TNeu . U.Dirac_)
     ,("reject",     TNeu $ U.Superpose_ [])
@@ -93,6 +94,9 @@ true_  = U.Ann_ (U.Datum_ . U.Datum "true"  . U.Inl $ U.Done)
          (U.SSing sBool)
 false_ = U.Ann_ (U.Datum_ . U.Datum "false" . U.Inr . U.Inl $ U.Done)
          (U.SSing sBool)
+
+unsafeFrom_ :: U.AST -> U.AST
+unsafeFrom_ = U.UnsafeTo_ (Some2 $ CCons (Signed HRing_Real) CNil)
 
 primPair, primLeft, primRight, primTrue, primFalse :: Symbol U.AST
 primFromProb, primUnsafeProb  :: Symbol U.AST
@@ -113,6 +117,13 @@ primUnsafeProb =
 primWeight     = t2 $ \w m -> U.Superpose_ [(w, m)]
 primRealPow    = t2 $ \x y -> U.PrimOp_ (U.SealedOp T.RealPow) [x, y]
 --primNatPow     = t2 $ \x y -> U.PrimOp_ (U.SealedOp T.NatPow) [x, y]
+primBern       = TLam $ \p -> TNeu
+                 (U.Superpose_ [(p, U.Dirac_ true_),
+                                (unsafeFrom_ $ U.NaryOp_ U.Sum'
+                                 [ U.Literal_ (Some1 $ T.LReal 1.0)
+                                 , U.PrimOp_ (U.SealedOp $ T.Negate HRing_Real) [p]
+                                 ]
+                                , U.Dirac_ false_)])
 
 gensym :: Text -> State Int U.Name
 gensym s = state $ \i -> (U.Name (N.unsafeNat i) s, i + 1)
