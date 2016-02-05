@@ -225,7 +225,7 @@ update perform evaluate_ = \x ->
                 return w
         SWeight _ -> Nothing
         {-
-        SGuard ys pat scrutinee -> 
+        SGuard ys pat scrutinee ->
         -}
         SIndex y e1 e2 -> do
             Refl <- varEq x y
@@ -553,7 +553,13 @@ head2array _              = error "head2array: the impossible happened"
 
 
 ----------------------------------------------------------------
--- TODO: maybe we should adjust 'Whnf' to have a third option for closed terms of the atomic\/literal types, so that we can avoid reducing them just yet. Of course, we'll have to reduce them eventually, but we can leave that for the runtime evaluation or Maple or whatever. These are called \"annotated\" terms in Fischer et al 2008 (though they allow anything to be annotated, not just closed terms of atomic type).
+-- TODO: maybe we should adjust 'Whnf' to have a third option for
+-- closed terms of the atomic\/literal types, so that we can avoid
+-- reducing them just yet. Of course, we'll have to reduce them
+-- eventually, but we can leave that for the runtime evaluation or
+-- Maple or whatever. These are called \"annotated\" terms in Fischer
+-- et al 2008 (though they allow anything to be annotated, not just
+-- closed terms of atomic type).
 evaluatePrimOp
     :: forall abt m typs args a
     .  ( ABT Term abt, EvaluationMonad abt m
@@ -653,10 +659,8 @@ evaluatePrimOp evaluate_ = go
     go GammaFunc   (e1 :* End)             =
     go BetaFunc    (e1 :* e2 :* End)       =
     -}
-    go (Equal theEq)  (e1 :* e2 :* End) = rrEqual theEq e1 e2
-    {-
-    go (Less  theOrd) (e1 :* e2 :* End) = rr2 (<)  (P.<)  e1 e2
-    -}
+    go (Equal  theEq)   (e1 :* e2 :* End) = rrEqual theEq  e1 e2
+    go (Less   theOrd)  (e1 :* e2 :* End) = rrLess  theOrd e1 e2
     go (NatPow theSemi) (e1 :* e2 :* End) =
         case theSemi of
         HSemiring_Nat    -> rr2 (\v1 v2 -> v1 ^ fromNatural v2) (P.^) e1 e2
@@ -703,7 +707,6 @@ evaluatePrimOp evaluate_ = go
         HEq_Bool   -> rr2 (==) (P.==)
         HEq_Unit   -> rr2 (==) (P.==)
         HEq_Pair   aEq bEq ->
-            -- error "TODO: rrEqual{HEq_Pair}"
             \e1 e2 -> do
                 w1 <- evaluate_ e1
                 w2 <- evaluate_ e2
@@ -723,7 +726,7 @@ evaluatePrimOp evaluate_ = go
                             wb <- rrEqual bEq v1b v2b
                             return $
                                 case wa of
-                                Neutral ea -> 
+                                Neutral ea ->
                                     case wb of
                                     Neutral eb -> Neutral (ea P.&& eb)
                                     Head_   vb
@@ -734,6 +737,37 @@ evaluatePrimOp evaluate_ = go
                                     | otherwise -> Head_ $ WDatum dFalse
 
         HEq_Either aEq bEq -> error "TODO: rrEqual{HEq_Either}"
+
+    rrLess
+        :: forall a. HOrd a -> abt '[] a -> abt '[] a -> m (Whnf abt HBool)
+    rrLess theOrd =
+        case theOrd of
+        HOrd_Nat    -> rr2 (<) (P.<)
+        HOrd_Int    -> rr2 (<) (P.<)
+        HOrd_Prob   -> rr2 (<) (P.<)
+        HOrd_Real   -> rr2 (<) (P.<)
+        HOrd_Array aOrd -> error "TODO: rrLess{HOrd_Array}"
+        HOrd_Bool   -> rr2 (<) (P.<)
+        HOrd_Unit   -> rr2 (<) (P.<)
+        HOrd_Pair aOrd bOrd ->
+            \e1 e2 -> do
+                w1 <- evaluate_ e1
+                w2 <- evaluate_ e2
+                case w1 of
+                    Neutral e1' ->
+                        return . Neutral
+                            $ P.primOp2_ (Less theOrd) e1' (fromWhnf w2)
+                    Head_   v1  ->
+                        case w2 of
+                        Neutral e2' ->
+                            return . Neutral
+                                $ P.primOp2_ (Less theOrd) (fromHead v1) e2'
+                        Head_ v2 -> do
+                            let (v1a, v1b) = reifyPair v1
+                            let (v2a, v2b) = reifyPair v2
+                            error "TODO: rrLess{HOrd_Pair}"
+                            -- BUG: The obvious recursion won't work because we need to know when the first components are equal before recursing (to implement lexicographic ordering). We really need a ternary comparison operator like 'compare'.
+        HOrd_Either aOrd bOrd -> error "TODO: rrLess{HOrd_Either}"
 
 
 ----------------------------------------------------------------
