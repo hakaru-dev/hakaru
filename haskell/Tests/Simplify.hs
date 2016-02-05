@@ -14,12 +14,15 @@ import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Prelude
+import Language.Hakaru.Syntax.AST.Eq()
 import Language.Hakaru.Simplify
 
-import Language.Hakaru.Syntax.AST.Eq()
+import Language.Hakaru.Normalize
 
 import Test.HUnit
-import Language.Hakaru.Normalize
+import Tests.TestTools
+
+import Control.Exception
 
 v :: (ABT Term abt) => abt '[] ('HMeasure 'HNat)
 v = var (Variable "x" 0 (SMeasure SNat))
@@ -44,6 +47,14 @@ unifprob = uniform (real_ 1) (real_ 2) >>= \x -> dirac (unsafeProb x)
 
 unifprob' = uniform (nat2real (nat_ 1)) (nat2real (nat_ 2)) >>= \x->
             dirac (unsafeProb x)
+
+testS :: (ABT Term abt)
+      => String
+      -> abt '[] ('HMeasure a)
+      -> Assertion
+testS p x = do
+    _ <- simplify x `catch` handleException (p ++ ": simplify failed")
+    return ()
 
 testSimplify :: ( ABT Term abt
                 , Show (abt '[] ('HMeasure a))

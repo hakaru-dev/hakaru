@@ -35,6 +35,9 @@ assertResult s = assertBool "no result" $ not $ null s
 assertJust :: Maybe a -> Assertion
 assertJust = assertBool "expected Just but got Nothing" . isJust
 
+handleException :: String -> SomeException -> IO a
+handleException t e = throw (TestSimplifyException t e)
+
 -- Assert that a given Hakaru program roundtrips (aka simplifies) without error
 -- testS :: (Simplifiable a) => Any' a -> Assertion
 -- testS t = do
@@ -59,7 +62,6 @@ assertJust = assertBool "expected Just but got Nothing" . isJust
 --     assertEqual "testMapleEqual: false" r1 r2
 --     where rm t = runMaple t 0
 
--- Tests that disintegration finds a solution
 
 assertAlphaEq ::
     (ABT Term abt)
