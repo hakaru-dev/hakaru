@@ -221,6 +221,10 @@ determine (m:_) = Just m
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
+firstM :: Functor f => (a -> f b) -> (a,c) -> f (b,c)
+firstM f (x,y) = (\z -> (z, y)) <$> f x
+
+
 -- N.B., forward disintegration is not identical to partial evaluation,
 -- as noted at the top of the file. For correctness we need to
 -- ensure the result is emissible (i.e., has no heap-bound variables).
@@ -251,8 +255,10 @@ perform = \e0 ->
     performTerm (MBind :$ e1 :* e2 :* End) =
         caseBind e2 $ \x e2' ->
             push (SBind x $ Thunk e1) e2' perform
-    performTerm (Superpose_ pes) =
-        emitFork_ (P.superpose . getCompose) (perform <$> Compose pes)
+    performTerm (Superpose_ pes) = do
+        -- TODO: we should combine the multiple traversals of @pes@/@pes'@
+        pes' <- T.traverse (firstM (fmap fromWhnf . atomize)) pes
+        emitFork_ (P.superpose . getCompose) (perform <$> Compose pes')
 
     -- TODO: we could optimize this by calling some @evaluateTerm@
     -- directly, rather than calling 'syn' to rebuild @e0@ from
@@ -526,9 +532,12 @@ constrainValueMeasureOp
     -> Dis abt ()
 constrainValueMeasureOp v0 = go
     where
+    -- TODO: for Lebesgue and Counting we use @bot@ because that's
+    -- what the old finally-tagless code seems to have been doing.
+    -- But is that right, or should they really be @return ()@?
     go :: MeasureOp typs a -> SArgs abt args -> Dis abt ()
-    go Lebesgue    = \End               -> bot
-    go Counting    = \End               -> bot
+    go Lebesgue    = \End               -> bot -- TODO: see note above
+    go Counting    = \End               -> bot -- TODO: see note above
     go Categorical = \(e1 :* End)       ->
         constrainValue v0 (P.categorical e1)
     go Uniform     = \(e1 :* e2 :* End) ->
@@ -861,6 +870,11 @@ square theSemiring e =
 -- TODO: find some way to capture in the type that the first argument
 -- must be emissible, to help avoid accidentally passing the arguments
 -- in the wrong order!
+--
+-- TODO: under what circumstances is @constrainOutcome x m@ different
+-- from @constrainValue x =<< perform m@? If they're always the
+-- same, then we should just use that as the definition in order
+-- to avoid repeating ourselves
 constrainOutcome
     :: forall abt a
     .  (ABT Term abt)
@@ -904,11 +918,11 @@ constrainOutcome v0 e0 =
             p' <- fromWhnf <$> atomize p
             emitWeight p'
             constrainOutcome v0 e
-        _ ->
-            -- BUG: It seems to push the weight down to the very bottom of each branch (i.e., after whatever emit commands), rather than leaving it at the top like we'd want\/expect...
-            -- BUG: it doesn't do anything to the weight component, which means (a) it might break hygiene, and (b) it differs from the singleton case above which makes sure to maintain hygyene...
+        _ -> do
+            -- TODO: we should combine the multiple traversals of @pes@/@pes'@
+            pes' <- T.traverse (firstM (fmap fromWhnf . atomize)) pes
             emitFork_ (P.superpose . getCompose)
-                (constrainOutcome v0 <$> Compose pes)
+                (constrainOutcome v0 <$> Compose pes')
 
 
 -- TODO: should this really be different from 'constrainValueMeasureOp'?
