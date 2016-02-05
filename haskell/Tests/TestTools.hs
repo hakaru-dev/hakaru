@@ -59,6 +59,8 @@ assertJust = assertBool "expected Just but got Nothing" . isJust
 --     assertEqual "testMapleEqual: false" r1 r2
 --     where rm t = runMaple t 0
 
+-- Tests that disintegration finds a solution
+
 assertAlphaEq ::
     (ABT Term abt)
     => String
@@ -89,6 +91,13 @@ testWithConcrete s mode k =
           case runTCM m mode of
             Left err   -> assertFailure err
             Right tast -> k tast
+
+testWithConcrete'
+    :: T.Text
+    -> TypeCheckMode
+    -> (TypedAST (TrivialABT Term) -> Assertion)
+    -> Assertion
+testWithConcrete' = testWithConcrete
 
 ignore :: a -> Assertion
 ignore _ = assertFailure "ignored"  -- ignoring a test reports as a failure

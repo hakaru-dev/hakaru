@@ -1,4 +1,7 @@
-{-# LANGUAGE DataKinds, NoImplicitPrelude #-}
+{-# LANGUAGE DataKinds
+           , NoImplicitPrelude
+           , OverloadedStrings
+           , FlexibleContexts #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
 --                                                    2015.12.16
@@ -72,12 +75,12 @@ match_norm_unif :: Text
 match_norm_unif = unlines
     [ "x <~ bern(0.5)"
     , "y <~ match x:"
-    , "true:  normal(0,1)"
-    , "false: uniform(0,1)"
+    , "       true:  normal(0,1)"
+    , "       false: uniform(0,1)"
     , "return ((y,x) :: pair(real, bool))"
     ]
 
-match_norm_bool :: Test
+match_norm_bool :: Text
 match_norm_bool = unlines
     [ "x <~ normal(3,2)"
     , "return (match x < 0:"

@@ -1,19 +1,23 @@
 {-# LANGUAGE DataKinds
+           , GADTs
            , TypeOperators
            , NoImplicitPrelude
+           , FlexibleContexts
            #-}
 
 module Tests.Disintegrate where
 
-import           Prelude (($), head)
+import           Prelude (($), (++), (>), head,
+                          length, String, Maybe(..))
 import qualified Prelude
 
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
-import Language.Hakaru.Syntax.Prelude
-import Language.Hakaru.Syntax.IClasses  (Some2(..))
+import Language.Hakaru.Syntax.Prelude hiding ((>))
+import Language.Hakaru.Syntax.IClasses  (Some2(..), TypeEq(..), jmEq1)
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
+import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Evaluation.Types               (fromWhnf)
 import Language.Hakaru.Evaluation.DisintegrationMonad (runDis)
 import Language.Hakaru.Disintegrate
@@ -22,6 +26,15 @@ import qualified Language.Hakaru.Observe as O
 
 import Test.HUnit
 import Tests.TestTools
+import Tests.Models (match_norm_unif)
+
+-- | Tests that a disintegration is produced without error
+testDis :: (ABT Term abt)
+        => String
+        -> abt '[] ('HMeasure (HPair a b))
+        -> Assertion
+testDis p a = assertBool (p ++ ": no disintegration found")
+               (length (disintegrate a) > 0)
 
 -- | A very simple program. Is sufficient for testing escape and
 -- capture of substitution.
@@ -92,4 +105,9 @@ allTests = test
    [ assertAlphaEq "test1a" normC (head test1a)
    , assertAlphaEq "test1b" normC (head test1b)
    --, assertAlphaEq "test1"  normC (head test1)
+   , testWithConcrete' match_norm_unif LaxMode
+      (\(TypedAST _typ ast) ->
+           case jmEq1 _typ (SMeasure $ sPair SReal sBool) of
+             Just Refl -> testDis "testMatchNormUnif" ast
+             Nothing   -> assertFailure "Bug: jmEq1 got the wrong type")
    ]
