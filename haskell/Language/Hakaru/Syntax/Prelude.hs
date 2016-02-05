@@ -1048,6 +1048,7 @@ zipWithV f v1 v2 =
 
 
 ----------------------------------------------------------------
+-- BUG: this use of 'typeOf' causes problems in practice (for unknown reasons since I do have an annotation on the relevant Datum constructors). So we should go back to using SingI
 (>>=)
     :: (ABT Term abt)
     => abt '[] ('HMeasure a)

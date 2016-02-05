@@ -687,7 +687,7 @@ evaluatePrimOp evaluate_ = go
         HContinuous_Prob -> rr1 erf P.erf e1
         HContinuous_Real -> rr1 erf P.erf e1
     -}
-    go _ _ = error "TODO: finish evaluatePrimOp"
+    go op _ = error $ "TODO: evaluatePrimOp{" ++ show op ++ "}"
 
 
 ----------------------------------------------------------------
