@@ -652,8 +652,9 @@ evaluatePrimOp evaluate_ = go
     {-
     go GammaFunc   (e1 :* End)             =
     go BetaFunc    (e1 :* e2 :* End)       =
-    -- TODO: deal with polymorphism issues
-    go (Equal theOrd) (e1 :* e2 :* End) = rr2 (==) (P.==) e1 e2
+    -}
+    go (Equal theEq)  (e1 :* e2 :* End) = rrEqual theEq e1 e2
+    {-
     go (Less  theOrd) (e1 :* e2 :* End) = rr2 (<)  (P.<)  e1 e2
     -}
     go (NatPow theSemi) (e1 :* e2 :* End) =
@@ -688,6 +689,51 @@ evaluatePrimOp evaluate_ = go
         HContinuous_Real -> rr1 erf P.erf e1
     -}
     go op _ = error $ "TODO: evaluatePrimOp{" ++ show op ++ "}"
+
+
+    rrEqual
+        :: forall a. HEq a -> abt '[] a -> abt '[] a -> m (Whnf abt HBool)
+    rrEqual theEq =
+        case theEq of
+        HEq_Nat    -> rr2 (==) (P.==)
+        HEq_Int    -> rr2 (==) (P.==)
+        HEq_Prob   -> rr2 (==) (P.==)
+        HEq_Real   -> rr2 (==) (P.==)
+        HEq_Array aEq -> error "TODO: rrEqual{HEq_Array}"
+        HEq_Bool   -> rr2 (==) (P.==)
+        HEq_Unit   -> rr2 (==) (P.==)
+        HEq_Pair   aEq bEq ->
+            -- error "TODO: rrEqual{HEq_Pair}"
+            \e1 e2 -> do
+                w1 <- evaluate_ e1
+                w2 <- evaluate_ e2
+                case w1 of
+                    Neutral e1' ->
+                        return . Neutral
+                            $ P.primOp2_ (Equal theEq) e1' (fromWhnf w2)
+                    Head_   v1  ->
+                        case w2 of
+                        Neutral e2' ->
+                            return . Neutral
+                                $ P.primOp2_ (Equal theEq) (fromHead v1) e2'
+                        Head_ v2 -> do
+                            let (v1a, v1b) = reifyPair v1
+                            let (v2a, v2b) = reifyPair v2
+                            wa <- rrEqual aEq v1a v2a
+                            wb <- rrEqual bEq v1b v2b
+                            return $
+                                case wa of
+                                Neutral ea -> 
+                                    case wb of
+                                    Neutral eb -> Neutral (ea P.&& eb)
+                                    Head_   vb
+                                        | reify vb  -> wa
+                                        | otherwise -> Head_ $ WDatum dFalse
+                                Head_ va
+                                    | reify va  -> wb
+                                    | otherwise -> Head_ $ WDatum dFalse
+
+        HEq_Either aEq bEq -> error "TODO: rrEqual{HEq_Either}"
 
 
 ----------------------------------------------------------------
