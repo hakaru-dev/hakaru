@@ -160,7 +160,7 @@ data AST
     | NaryOp_     NaryOp'  [AST]
     | Literal_    (Some1 Literal)
     | Empty_
-    | Array_      AST Name AST -- not sure should binding form
+    | Array_      AST Name AST
     | Datum_      Datum 
     | Case_       AST [Branch]
     | MeasureOp_  (SealedOp MeasureOp) [AST]
