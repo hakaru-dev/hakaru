@@ -68,8 +68,8 @@ primTable =
     [("pair",       primPair)
     ,("left",       primLeft)
     ,("right",      primRight)
-    ,("true",       primTrue)
-    ,("false",      primFalse)
+    ,("true",       TNeu $ true_)
+    ,("false",      TNeu $ false_)
     ,("fromProb",   primFromProb)
     ,("unsafeProb", primUnsafeProb)
     ,("uniform",    primMeasure2 (U.SealedOp T.Uniform))
@@ -98,7 +98,7 @@ false_ = U.Ann_ (U.Datum_ . U.Datum "false" . U.Inr . U.Inl $ U.Done)
 unsafeFrom_ :: U.AST -> U.AST
 unsafeFrom_ = U.UnsafeTo_ (Some2 $ CCons (Signed HRing_Real) CNil)
 
-primPair, primLeft, primRight, primTrue, primFalse :: Symbol U.AST
+primPair, primLeft, primRight :: Symbol U.AST
 primFromProb, primUnsafeProb  :: Symbol U.AST
 primWeight, primRealPow :: Symbol U.AST
 primPair       = t2 $ \a b ->
@@ -108,8 +108,6 @@ primLeft       = TLam $ TNeu . U.Datum_ .
                         U.Datum "left" . U.Inl . (`U.Et` U.Done) . U.Konst
 primRight      = TLam $ TNeu . U.Datum_ .
                         U.Datum "right" . U.Inr . U.Inl . (`U.Et` U.Done) . U.Konst
-primTrue       = TNeu $ true_
-primFalse      = TNeu $ false_
 primFromProb   =
     TLam $ TNeu . U.CoerceTo_ (Some2 $ CCons (Signed HRing_Real) CNil)
 primUnsafeProb =
