@@ -332,35 +332,7 @@ resolveAST ast = makeAST $
                  normAST $
                  evalState (symbolResolution primTable ast) 0
 
-data PrimOp'
-    = Not'
-    | Impl'
-    | Diff'
-    | Nand'      | Nor'
-    | Pi'
-    | Sin'       | Cos'   | Tan'
-    | Asin'      | Acos'  | Atan'
-    | Sinh'      | Cosh'  | Tanh'
-    | Asinh'     | Acosh' | Atanh'
-    | RealPow'
-    | Exp'       | Log'
-    | Infinity'  | NegativeInfinity'
-    | GammaFunc' | BetaFunc'
-    | Integrate' | Summate'
-    | Equal'     | Less'
-    | NatPow'
-    | Negate'
-    | Abs'
-    | Signum'
-    | Recip'
-    | NatRoot'
-    | Erf'
-
-data ArrayOp'
-    = Index'
-    | Size'
-    | Reduce'
-
+data ArrayOp' = Index' | Size' | Reduce'
 
 data MeasureOp'
     = Lebesgue'

@@ -94,6 +94,23 @@ data NaryOp'
     | Sum' | Prod'
     deriving (Eq, Show)
 
+data PrimOp'
+    = Not' | Impl' | Diff' | Nand' | Nor'
+    | Pi'
+    | Sin'       | Cos'   | Tan'
+    | Asin'      | Acos'  | Atan'
+    | Sinh'      | Cosh'  | Tanh'
+    | Asinh'     | Acosh' | Atanh'
+    | RealPow'   | NatPow'
+    | Exp'       | Log'
+    | Infinity'  | NegativeInfinity'
+    | GammaFunc' | BetaFunc'
+    | Integrate' | Summate'
+    | Equal'     | Less'
+    | Negate'    | Recip'
+    | Abs'       | Signum' | NatRoot' | Erf'
+
+
 val :: Literal' -> Some1 Literal
 val (Nat  n) = Some1 $ LNat  (N.unsafeNatural $ fromIntegral n) -- TODO: clean up
 val (Int  n) = Some1 $ LInt  (fromIntegral n) -- TODO: clean up
