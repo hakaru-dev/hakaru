@@ -1,5 +1,4 @@
-# RRN: Problem with unticked promoted constructor in 7.10:
-resolver: lts-3.9
+resolver: lts-5.1
 
 # Local packages, usually specified by relative directory name
 packages:
