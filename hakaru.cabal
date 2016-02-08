@@ -157,112 +157,37 @@ Test-Suite system-testsuite
 ----------------------------------------------------------------
 Executable hakaru
     Main-is:           Hakaru.hs
-    Hs-Source-Dirs:    haskell
+    Hs-Source-Dirs:    commands
     Default-Language:  Haskell2010
     GHC-Options:       -O2 -Wall -fwarn-tabs
 
     build-depends:     base             >= 4.7  && < 5.0, 
-                       Cabal            >= 1.16,
-                       ghc-prim         >= 0.3  && < 0.5,
-                       random           >= 1.0  && < 1.3,
-                       transformers     >= 0.3  && < 0.6,
-                       containers       >= 0.5  && < 0.6,
-                       pretty           >= 1.1  && < 1.2,
-                       logfloat         >= 0.13 && < 0.14,
-                       math-functions   >= 0.1  && < 0.2,
-                       vector           >= 0.10 && < 0.12,
-                       indentation      >= 0.2.1,
-                       ansi-terminal    >= 0.6,
-                       cassava          >= 0.4  && < 0.5,
-                       zlib             >= 0.5  && < 0.7,
-                       bytestring       >= 0.10 && < 0.11,
-                       aeson            >= 0.7  && < 0.11,
-                       text             >= 0.11 && < 1.3,
-                       parsec           >= 3.1  && < 3.2,
-                       async            >= 2.0  && < 2.1,
                        mwc-random       >= 0.13 && < 0.14,
-                       directory        >= 1.2  && < 1.3,
-                       integration      >= 0.2.0 && < 0.3.0,
-                       primitive        >= 0.5  && < 0.7,
-                       parallel         >= 3.2  && < 3.3,
-                       monad-loops      >= 0.3.0.2,
-                       process          >= 1.1  && < 2.0,
-                       HUnit            >= 1.2  && < 2.0,
-                       mtl              >= 2.1,
-                       filepath         >= 1.1.0.2
+                       text             >= 0.11 && < 1.3,
+                       hakaru           >= 0.3
 
 ----------------------------------------------------------------
 Executable simplify
     Main-is:           Simplify.hs
-    Hs-Source-Dirs:    haskell
+    Hs-Source-Dirs:    commands
     Default-Language:  Haskell2010
     GHC-Options:       -O2 -Wall -fwarn-tabs
 
     build-depends:     base             >= 4.7  && < 5.0, 
-                       Cabal            >= 1.16,
-                       ghc-prim         >= 0.3  && < 0.5,
-                       random           >= 1.0  && < 1.3,
-                       transformers     >= 0.3  && < 0.6,
-                       containers       >= 0.5  && < 0.6,
-                       pretty           >= 1.1  && < 1.2,
-                       logfloat         >= 0.13 && < 0.14,
-                       math-functions   >= 0.1  && < 0.2,
-                       vector           >= 0.10 && < 0.12,
-                       indentation      >= 0.2.1,
-                       ansi-terminal    >= 0.6,
-                       cassava          >= 0.4  && < 0.5,
-                       zlib             >= 0.5  && < 0.7,
-                       bytestring       >= 0.10 && < 0.11,
-                       aeson            >= 0.7  && < 0.11,
-                       text             >= 0.11 && < 1.3,
-                       parsec           >= 3.1  && < 3.2,
-                       async            >= 2.0  && < 2.1,
                        mwc-random       >= 0.13 && < 0.14,
-                       directory        >= 1.2  && < 1.3,
-                       integration      >= 0.2.0 && < 0.3.0,
-                       primitive        >= 0.5  && < 0.7,
-                       parallel         >= 3.2  && < 3.3,
-                       monad-loops      >= 0.3.0.2,
-                       process          >= 1.1  && < 2.0,
-                       HUnit            >= 1.2  && < 2.0,
-                       mtl              >= 2.1,
-                       filepath         >= 1.1.0.2
+                       text             >= 0.11 && < 1.3,
+                       hakaru           >= 0.3
 
 Executable disintegrate
     Main-is:           Disintegrate.hs
-    Hs-Source-Dirs:    haskell
+    Hs-Source-Dirs:    commands
     Default-Language:  Haskell2010
     GHC-Options:       -O2 -Wall -fwarn-tabs
 
     build-depends:     base             >= 4.7  && < 5.0, 
-                       Cabal            >= 1.16,
-                       ghc-prim         >= 0.3  && < 0.5,
-                       random           >= 1.0  && < 1.3,
-                       transformers     >= 0.3  && < 0.6,
-                       containers       >= 0.5  && < 0.6,
-                       pretty           >= 1.1  && < 1.2,
-                       logfloat         >= 0.13 && < 0.14,
-                       math-functions   >= 0.1  && < 0.2,
-                       vector           >= 0.10 && < 0.12,
-                       indentation      >= 0.2.1,
-                       ansi-terminal    >= 0.6,
-                       cassava          >= 0.4  && < 0.5,
-                       zlib             >= 0.5  && < 0.7,
-                       bytestring       >= 0.10 && < 0.11,
-                       aeson            >= 0.7  && < 0.11,
-                       text             >= 0.11 && < 1.3,
-                       parsec           >= 3.1  && < 3.2,
-                       async            >= 2.0  && < 2.1,
                        mwc-random       >= 0.13 && < 0.14,
-                       directory        >= 1.2  && < 1.3,
-                       integration      >= 0.2.0 && < 0.3.0,
-                       primitive        >= 0.5  && < 0.7,
-                       parallel         >= 3.2  && < 3.3,
-                       monad-loops      >= 0.3.0.2,
-                       process          >= 1.1  && < 2.0,
-                       HUnit            >= 1.2  && < 2.0,
-                       mtl              >= 2.1,
-                       filepath         >= 1.1.0.2
+                       text             >= 0.11 && < 1.3,
+                       hakaru           >= 0.3
 
 
 ----------------------------------------------------------------
