@@ -181,14 +181,11 @@ residualizeListContext =
                     Just v  -> subst x (syn $ Literal_ v) e
                     Nothing ->
                         syn (Let_ :$ fromLazy body :* bind x e :* End)
-        {-
         SGuard xs pat scrutinee ->
-            -- TODO: if the scrutinee is a value, then try evaluating this case right away. But if it isn't a value, don't bother doing anything special.
             syn $ Case_ (fromLazy scrutinee)
                 [ Branch pat   (binds_ xs e)
                 , Branch PWild P.reject
                 ]
-        -}
         SWeight body        -> syn $ Superpose_ [(fromLazy body, e)]
         SIndex x index size ->
             -- The obvious thing to do:

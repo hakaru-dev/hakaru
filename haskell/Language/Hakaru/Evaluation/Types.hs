@@ -505,7 +505,6 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
         .  !(Lazy abt 'HProb)
         -> Statement abt 'Impure
 
-    {-
     -- A monadic guard statement. If the scrutinee matches the
     -- pattern, then we bind the variables as usual; otherwise, we
     -- return the empty measure. N.B., this statement type is only
@@ -518,18 +517,25 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
         -> !(Pattern xs a)
         -> !(Lazy abt a)
         -> Statement abt 'Impure
-    -}
 
 
 -- | Is the variable bound by the statement?
+--
+-- We return @Maybe ()@ rather than @Bool@ because in our primary
+-- use case we're already in the @Maybe@ monad and so it's easier
+-- to just stick with that. If we find other situations where we'd
+-- really rather have the @Bool@, then we can easily change things
+-- and use some @boolToMaybe@ function to do the coercion wherever
+-- needed.
 isBoundBy :: Variable (a :: Hakaru) -> Statement abt p -> Maybe ()
-x `isBoundBy` SBind  y _   = const () <$> varEq x y
-x `isBoundBy` SLet   y _   = const () <$> varEq x y
-x `isBoundBy` SIndex y _ _ = const () <$> varEq x y
-_ `isBoundBy` SWeight  _   = Nothing
-{-
-x `isBoundBy` SGuard ys _ _ = memberVarSet x ys -- TODO: except we want the 'List1' version rather than the 'VarSet' version
--}
+x `isBoundBy` SBind  y _    = const () <$> varEq x y
+x `isBoundBy` SLet   y _    = const () <$> varEq x y
+x `isBoundBy` SIndex y _ _  = const () <$> varEq x y
+_ `isBoundBy` SWeight  _    = Nothing
+x `isBoundBy` SGuard ys _ _ =
+    if memberVarSet x (toVarSet1 ys) -- TODO: just check membership directly, rather than going through VarSet
+    then Just ()
+    else Nothing
 
 
 ----------------------------------------------------------------
@@ -595,11 +601,9 @@ freshenStatement s =
     SLet x body -> do
         x' <- freshenVar x
         return (SLet x' body, singletonAssocs x (var x'))
-    {-
     SGuard xs pat scrutinee -> do
         xs' <- freshenVars xs
         return (SGuard xs' pat scrutinee, toAssocs xs (fmap11 var xs'))
-    -}
     SIndex x index size -> do
         x' <- freshenVar x
         return (SIndex x' index size, singletonAssocs x (var x'))

@@ -362,13 +362,11 @@ atomizeCore e = do
 
 
 statementVars :: Statement abt p -> VarSet ('KProxy :: KProxy Hakaru)
-statementVars (SBind x _)    = singletonVarSet x
-statementVars (SLet  x _)    = singletonVarSet x
-statementVars (SIndex x _ _) = singletonVarSet x
-statementVars (SWeight _)    = emptyVarSet
-{-
-statementVars (SGuard xs _ _) = toVarSet xs
--}
+statementVars (SBind x _)     = singletonVarSet x
+statementVars (SLet  x _)     = singletonVarSet x
+statementVars (SIndex x _ _)  = singletonVarSet x
+statementVars (SWeight _)     = emptyVarSet
+statementVars (SGuard xs _ _) = toVarSet1 xs
 
 -- HACK: if we really want to go through with this approach, then
 -- we should memoize the set of heap-bound variables in the
@@ -454,32 +452,48 @@ constrainValue v0 e0 =
         PrimOp_     o :$ es        -> constrainPrimOp v0 o es
         Expect  :$ e1 :* e2 :* End -> error "TODO: constrainValue{Expect}"
 
-        Case_ e bs -> do
-            -- BUG: we can't always go forward on the scrutinee. Whenever we figure out what to do in the GotStuck case, we should lub together two options: this one where we try going forward on the scrutinee, and one where we just immediately assume it'll GotStuck
-            match <- matchBranches evaluateDatum e bs
-            case match of
-                Nothing ->
-                    -- If desired, we could return the Hakaru program
-                    -- that always crashes, instead of throwing a
-                    -- Haskell error.
-                    error "constrainValue{Case_}: nothing matched!"
-                Just (GotStuck, _) ->
-                    error "TODO: constrainValue{Case_}{GotStuck}"
-                    {-
-                    -- N.B., we should emit the superpose right now, but we should push the @SGuard@ (or equivalently, wrap the result of the recursive call to 'constrainValue').
-                    choose $ map (constrainBranch v0) bs
-                        where
-                        constrainBranch v0 (Branch pat body) = do
-                            let (vars,body') = caseBinds body
-                            -- TODO: freshen
-                            pushStatement (SGuard vars pat e)
-                            constrainValue v0 body'
-                        -- where the interpretation of @SGuard e pat@ is to wrap the ultimately returned value @r@ with @syn (Case_ e [Branch pat r, Branch PWild reject])@
-                    -}
-                Just (Matched ss Nil1, body) ->
-                    pushes (toStatements ss) body (constrainValue v0)
+        Case_ e bs ->
+            -- First we try going forward on the scrutinee, to make
+            -- pretty resulting programs; but if that doesn't work
+            -- out, we fall back to just constraining the branches.
+            do  match <- matchBranches evaluateDatum e bs
+                case match of
+                    Nothing ->
+                        -- If desired, we could return the Hakaru program
+                        -- that always crashes, instead of throwing a
+                        -- Haskell error.
+                        error "constrainValue{Case_}: nothing matched!"
+                    Just (GotStuck, _) ->
+                        constrainBranches v0 e bs
+                    Just (Matched ss Nil1, body) ->
+                        pushes (toStatements ss) body (constrainValue v0)
+            <|> constrainBranches v0 e bs
 
         _ :$ _ -> error "constrainValue: the impossible happened"
+
+
+-- | The default way of doing 'constrainValue' on a 'Case_' expression:
+-- by constraining each branch. To do this we rely on the fact that
+-- we're in a 'HMeasure' context (i.e., the continuation produces
+-- programs of 'HMeasure' type). For each branch we first assert the
+-- branch's pattern holds (via 'SGuard') and then call 'constrainValue'
+-- on the body of the branch; and the final program is the superposition
+-- of all these branches.
+--
+-- TODO: how can we avoid duplicating the scrutinee expression?
+-- Would pushing a 'SLet' statement before the superpose be sufficient
+-- to achieve maximal sharing?
+constrainBranches
+    :: (ABT Term abt)
+    => abt '[] a
+    -> abt '[] b
+    -> [Branch b abt a]
+    -> Dis abt ()
+constrainBranches v0 e = choose . map constrainBranch
+    where
+    constrainBranch (Branch pat body) =
+        let (vars,body') = caseBinds body
+        in push (SGuard vars pat (Thunk e)) body' (constrainValue v0)
 
 
 ----------------------------------------------------------------
@@ -508,9 +522,8 @@ constrainVariable v0 x =
                 constrainValue v0 (fromLazy e)
                 unsafePush (SLet x $ Whnf_ (Neutral v0))
         SWeight _ -> Nothing
-        {-
         SGuard ys pat scrutinee ->
-        -}
+            error "TODO: constrainVariable{SGuard}"
         SIndex y e1 e2 -> do
             Refl <- varEq x y
             Just $ error "TODO: constrainVariable{SIndex}"
