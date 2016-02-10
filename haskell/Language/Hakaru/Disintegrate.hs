@@ -440,14 +440,24 @@ constrainValue v0 e0 =
             -- TODO: we need to insert some kind of guard that says
             -- @v0@ is in the range of @coerceTo c@, or equivalently
             -- that @unsafeFrom c v0@ will always succeed. We need
-            -- to emit this guard because if @v0@ isn't in the range
-            -- of the coercion, then there's no possible way the
-            -- program @e1@ could in fact be observed at @v0@. The
-            -- only question is how to perform that check; for the
+            -- to emit this guard (for correctness of the generated
+            -- program) because if @v0@ isn't in the range of the
+            -- coercion, then there's no possible way the program
+            -- @e1@ could in fact be observed at @v0@. The only
+            -- question is how to perform that check; for the
             -- 'Signed' coercions it's easy enough, but for the
             -- 'Continuous' coercions it's not really clear.
             constrainValue (P.unsafeFrom_ c v0) e1
-        UnsafeFrom_ c :$ e1 :* End -> constrainValue  (P.coerceTo_ c v0) e1
+        UnsafeFrom_ c :$ e1 :* End ->
+            -- TODO: to avoid returning garbage, we'd need to place
+            -- some constraint on @e1@ so that if the original
+            -- program would've crashed due to a bad unsafe-coercion,
+            -- then we won't return a disintegrated program (since
+            -- it too should always crash). Avoiding this check is
+            -- sound (i.e., if the input program is well-formed
+            -- then the output program is a well-formed disintegration),
+            -- it just overgeneralizes.
+            constrainValue  (P.coerceTo_ c v0) e1
         NaryOp_     o    es        -> constrainNaryOp v0 o es
         PrimOp_     o :$ es        -> constrainPrimOp v0 o es
         Expect  :$ e1 :* e2 :* End -> error "TODO: constrainValue{Expect}"
