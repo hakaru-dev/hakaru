@@ -49,6 +49,7 @@ module Language.Hakaru.Syntax.ABT
     , binds
     , binds_
     , caseBinds
+    , underBinders
     -- ** Capture avoiding substitution for any 'ABT'
     , rename
     , subst
@@ -296,7 +297,7 @@ caseBinds = go . viewABT
 -- TODO: give better name
 -- | Transform expression under binds
 underBinders
-    :: (ABT Term abt)
+    :: (ABT syn abt)
     => (abt '[] a -> abt '[] b)
     -> abt xs a
     -> abt xs b
