@@ -535,6 +535,20 @@ inferType = inferType_
         | otherwise    -> error "inferType: missing an inferable branch!"
 
 
+make_PrimOp :: Sing a -> U.PrimOp' -> TypeCheckMonad (U.SealedOp PrimOp)
+make_PrimOp _ U.Not'    = return (U.SealedOp Not)
+make_PrimOp _ U.Impl'   = return (U.SealedOp Impl)
+make_PrimOp _ U.Diff'   = return (U.SealedOp Diff)
+make_PrimOp _ U.Nand'   = return (U.SealedOp Nand)
+make_PrimOp _ U.Nor'    = return (U.SealedOp Nor)
+
+make_PrimOp _ U.Pi'     = return (U.SealedOp Pi)
+make_PrimOp _ U.Sin'    = return (U.SealedOp Sin)
+make_PrimOp _ U.Cos'    = return (U.SealedOp Cos)
+make_PrimOp _ U.Tan'    = return (U.SealedOp Tan)
+make_PrimOp _ U.Asin'   = return (U.SealedOp Asin)
+make_PrimOp _ _         = error "TODO: make_PrimOp"
+
 make_NaryOp :: Sing a -> U.NaryOp' -> TypeCheckMonad (NaryOp a)
 make_NaryOp a U.And'  = isBool a >>= \Refl -> return And
 make_NaryOp a U.Or'   = isBool a >>= \Refl -> return Or

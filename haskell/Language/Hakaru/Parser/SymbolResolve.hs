@@ -326,19 +326,6 @@ makeAST ast =
                                                    makeAST e))
                                        es)
 
-
-make_PrimOp :: (Monad m) => Sing a -> U.PrimOp' -> m (U.SealedOp T.PrimOp)
-make_PrimOp _ U.Not'  = return (U.SealedOp T.Not)
-make_PrimOp _ U.Impl' = return (U.SealedOp T.Impl)
-make_PrimOp _ U.Diff' = return (U.SealedOp T.Diff)
-make_PrimOp _ U.Nand' = return (U.SealedOp T.Nand)
-make_PrimOp _ U.Nor'  = return (U.SealedOp T.Nor)
-
-make_PrimOp _ U.Pi'   = return (U.SealedOp T.Pi)
-make_PrimOp _ U.Sin'  = return (U.SealedOp T.Sin)
-make_PrimOp _ _       = error "TODO: make_PrimOp"
-
-
 resolveAST :: U.AST' Text -> U.AST
 resolveAST ast = makeAST $
                  normAST $
