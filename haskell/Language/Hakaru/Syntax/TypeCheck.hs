@@ -735,16 +735,6 @@ inferCaseStrict typA e1 = inferOne []
 
 data SomeBranch a abt = forall b. SomeBranch !(Sing b) [Branch a abt b]
 
--- TODO: move this elsewhere (and prolly rename to something better)
-underBinders
-    :: (ABT Term abt)
-    => (abt '[] a -> abt '[] b)
-    -> abt xs a
-    -> abt xs b
-underBinders f e =
-    let (vars, e') = caseBinds e
-    in binds_ vars (f e')
-
 -- TODO: find a better name, and move to where 'LC_' is defined.
 lc :: (LC_ abt a -> LC_ abt b) -> abt '[] a -> abt '[] b
 lc f = unLC_ . f . LC_

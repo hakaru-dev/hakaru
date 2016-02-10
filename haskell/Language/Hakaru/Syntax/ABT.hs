@@ -293,6 +293,17 @@ caseBinds = go . viewABT
     go (Var  x)   = (Nil1, var x)
     go (Bind x v) = let ~(xs,e) = go v in (Cons1 x xs, e)
 
+-- TODO: give better name
+-- | Transform expression under binds
+underBinders
+    :: (ABT Term abt)
+    => (abt '[] a -> abt '[] b)
+    -> abt xs a
+    -> abt xs b
+underBinders f e =
+    let (vars, e') = caseBinds e
+    in binds_ vars (f e')
+
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 -- | A trivial ABT with no annotations.
