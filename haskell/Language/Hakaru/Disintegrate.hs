@@ -990,18 +990,5 @@ constrainOutcomeMeasureOp v0 = go
     go (Chain _ _) = \(e1 :* e2 :* End) ->
         error "TODO: constrainOutcomeMeasureOp{Chain}"
 
-
-{-
-unleft :: Whnf abt (HEither a b) -> Dis abt (abt '[] a)
-unleft (Left  e) = Dis $ \c h -> c e h
-unleft (Right e) = Dis $ \c h -> P.reject
-unleft u         = Dis $ \c h -> P.uneither u (\x -> c x h) (\_ -> P.reject)
-
-unright :: Whnf abt (HEither a b) -> Dis abt (abt '[] a)
-unright (Right e) = Dis $ \c h -> c e h
-unright (Left  e) = Dis $ \c h -> P.reject
-unright u         = Dis $ \c h -> P.uneither u (\_ -> P.reject) (\x -> c x h)
--}
-
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
