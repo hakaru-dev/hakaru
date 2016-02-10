@@ -718,20 +718,17 @@ constrainPrimOp v0 = go
 
     go Asin = \(e1 :* End) -> do
         x0 <- emitLet' v0
-        -- TODO: may want to evaluate @cos v0@ before emitting the weight
         emitWeight $ P.unsafeProb (P.cos x0)
         -- TODO: bounds check for -pi/2 <= v0 < pi/2
         constrainValue (P.sin x0) e1
 
     go Acos = \(e1 :* End) -> do
         x0 <- emitLet' v0
-        -- TODO: may want to evaluate @sin v0@ before emitting the weight
         emitWeight $ P.unsafeProb (P.sin x0)
         constrainValue (P.cos x0) e1
 
     go Atan = \(e1 :* End) -> do
         x0 <- emitLet' v0
-        -- TODO: may want to evaluate @cos v0 ^ 2@ before emitting the weight
         emitWeight $ P.recip (P.unsafeProb (P.cos x0 P.^ P.nat_ 2))
         constrainValue (P.tan x0) e1
 
@@ -774,7 +771,7 @@ constrainPrimOp v0 = go
         -}
     go Exp = \(e1 :* End) -> do
         x0 <- emitLet' v0
-        -- TODO: do we still want/need the @emitGuard (0 < x0)@ which is now equivalent to @emitGuard (0 /= x0)@ thanks to the types?
+        -- TODO: do we still want\/need the @emitGuard (0 < x0)@ which is now equivalent to @emitGuard (0 /= x0)@ thanks to the types?
         emitWeight (P.recip x0)
         constrainValue (P.log x0) e1
 
@@ -802,12 +799,6 @@ constrainPrimOp v0 = go
                 --     HRing_Int  -> Head_ . reflect . negate $ reify v
                 --     HRing_Real -> Head_ . reflect . negate $ reify v
         in constrainValue negate_v0 e1
-        {-
-        -- We could use this instead, if we don't care about the verbosity of so many let-bindings (or if we were willing to lie about the first argument to 'constrainValue' being \"neutral\"
-        let neg = P.primOp1_ $ Negate theRing
-        x0 <- emitLet' (fromWhnf v0)
-        constrainValue (Neutral $ neg x0) e1
-        -}
 
     go (Abs theRing) = \(e1 :* End) -> do
         let theSemi = hSemiring_HRing theRing
@@ -843,7 +834,6 @@ constrainPrimOp v0 = go
             constrainValue x e1
 
     go (Recip theFractional) = \(e1 :* End) -> do
-        -- TODO: may want to inline @x0@ and try evaluating @e0 ^ 2@ and @recip e0@...
         x0 <- emitLet' v0
         emitWeight
             . P.recip
@@ -855,7 +845,6 @@ constrainPrimOp v0 = go
     go (NatRoot theRadical) = \(e1 :* e2 :* End) ->
         case theRadical of
         HRadical_Prob -> do
-            -- TODO: may want to inline @x0@ and try evaluating @u2 * e0@ and @e0 ^ u2@...
             x0 <- emitLet' v0
             u2 <- fromWhnf <$> atomize e2
             emitWeight (P.nat2prob u2 P.* x0)
