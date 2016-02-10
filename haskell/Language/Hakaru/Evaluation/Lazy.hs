@@ -13,7 +13,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.02.05
+--                                                    2016.02.09
 -- |
 -- Module      :  Language.Hakaru.Evaluation.Lazy
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -24,7 +24,9 @@
 --
 -- Lazy partial evaluation.
 --
--- BUG: completely gave up on structure sharing. Need to add that back in. cf., @gvidal-lopstr07lncs.pdf@ for an approach much like my old one.
+-- BUG: completely gave up on structure sharing. Need to add that
+-- back in. cf., @gvidal-lopstr07lncs.pdf@ for an approach much
+-- like my old one.
 ----------------------------------------------------------------
 module Language.Hakaru.Evaluation.Lazy
     (
@@ -93,9 +95,11 @@ type TermEvaluator abt m =
 
 
 -- | Lazy partial evaluation with a given \"perform\" function.
+-- N.B., if we have @p ~ 'Pure@ then the \"perform\" function will
+-- never be called.
 evaluate
-    :: forall abt m
-    .  (ABT Term abt, EvaluationMonad abt m)
+    :: forall abt m p
+    .  (ABT Term abt, EvaluationMonad abt m p)
     => MeasureEvaluator abt m
     -> TermEvaluator    abt m
 evaluate perform = evaluate_
@@ -145,7 +149,7 @@ evaluate perform = evaluate_
             evaluateApp (WLam f)   =
                 -- call-by-name:
                 caseBind f $ \x f' ->
-                push (SLet x $ Thunk e2) f' evaluate_
+                    push (SLet x $ Thunk e2) f' evaluate_
             evaluateApp _ = error "evaluate{App_}: the impossible happened"
 
         Let_ :$ e1 :* e2 :* End ->
@@ -187,7 +191,7 @@ evaluate perform = evaluate_
 
 type DList a = [a] -> [a]
 
-toStatements :: DList (Assoc abt) -> [Statement abt]
+toStatements :: DList (Assoc abt) -> [Statement abt p]
 toStatements ss = map (\(Assoc x e) -> SLet x $ Thunk e) (ss [])
 
 
@@ -202,7 +206,7 @@ toStatements ss = map (\(Assoc x e) -> SLet x $ Thunk e) (ss [])
 -- bound variables to be above @nextFreeVarID@; but then we have to
 -- do that anyways.
 update
-    :: (ABT Term abt, EvaluationMonad abt m)
+    :: (ABT Term abt, EvaluationMonad abt m p)
     => MeasureEvaluator abt m
     -> TermEvaluator    abt m
     -> Variable a
@@ -388,7 +392,7 @@ natRoot x y = x ** recip (fromIntegral (fromNat y))
 
 ----------------------------------------------------------------
 evaluateNaryOp
-    :: (ABT Term abt, EvaluationMonad abt m)
+    :: (ABT Term abt, EvaluationMonad abt m p)
     => TermEvaluator abt m
     -> NaryOp a
     -> Seq (abt '[] a)
@@ -500,7 +504,7 @@ evaluateNaryOp evaluate_ = \o es -> mainLoop o (evalOp o) Seq.empty es
 
 ----------------------------------------------------------------
 evaluateArrayOp
-    :: ( ABT Term abt, EvaluationMonad abt m
+    :: ( ABT Term abt, EvaluationMonad abt m p
        , typs ~ UnLCs args, args ~ LCs typs)
     => TermEvaluator abt m
     -> ArrayOp typs a
@@ -561,8 +565,8 @@ head2array _              = error "head2array: the impossible happened"
 -- et al 2008 (though they allow anything to be annotated, not just
 -- closed terms of atomic type).
 evaluatePrimOp
-    :: forall abt m typs args a
-    .  ( ABT Term abt, EvaluationMonad abt m
+    :: forall abt m p typs args a
+    .  ( ABT Term abt, EvaluationMonad abt m p
        , typs ~ UnLCs args, args ~ LCs typs)
     => TermEvaluator abt m
     -> PrimOp typs a
@@ -696,7 +700,7 @@ evaluatePrimOp evaluate_ = go
 
 
     rrEqual
-        :: forall a. HEq a -> abt '[] a -> abt '[] a -> m (Whnf abt HBool)
+        :: forall b. HEq b -> abt '[] b -> abt '[] b -> m (Whnf abt HBool)
     rrEqual theEq =
         case theEq of
         HEq_Nat    -> rr2 (==) (P.==)
@@ -739,7 +743,7 @@ evaluatePrimOp evaluate_ = go
         HEq_Either aEq bEq -> error "TODO: rrEqual{HEq_Either}"
 
     rrLess
-        :: forall a. HOrd a -> abt '[] a -> abt '[] a -> m (Whnf abt HBool)
+        :: forall b. HOrd b -> abt '[] b -> abt '[] b -> m (Whnf abt HBool)
     rrLess theOrd =
         case theOrd of
         HOrd_Nat    -> rr2 (<) (P.<)

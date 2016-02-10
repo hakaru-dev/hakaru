@@ -15,7 +15,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.02.05
+--                                                    2016.02.09
 -- |
 -- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -361,7 +361,7 @@ atomizeCore e = do
         IM.null (IM.intersection (unVarSet xs) (unVarSet ys))
 
 
-statementVars :: Statement abt -> VarSet ('KProxy :: KProxy Hakaru)
+statementVars :: Statement abt p -> VarSet ('KProxy :: KProxy Hakaru)
 statementVars (SBind x _)    = singletonVarSet x
 statementVars (SLet  x _)    = singletonVarSet x
 statementVars (SIndex x _ _) = singletonVarSet x

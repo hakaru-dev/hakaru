@@ -15,7 +15,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.01.08
+--                                                    2016.02.09
 -- |
 -- Module      :  Language.Hakaru.Evaluation.Types
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -43,7 +43,7 @@ module Language.Hakaru.Evaluation.Types
     , getLazyLiteral,  isLazyLiteral
 
     -- * The monad for partial evaluation
-    , Statement(..), isBoundBy
+    , Purity(..), Statement(..), isBoundBy
     , EvaluationMonad(..)
     , freshVar
     , freshenVar
@@ -108,8 +108,6 @@ import qualified Language.Hakaru.Syntax.Prelude as P
 -- particular we keep track of type annotations and coercions, and
 -- don't reduce integration\/summation. So really we should use
 -- some other name for 'Whnf'...
---
--- BUG: this may not force enough evaluation for "Language.Hakaru.Disintegrate"...
 data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     -- Simple heads (aka, the usual stuff)
     WLiteral :: !(Literal a) -> Head abt a
@@ -435,67 +433,96 @@ isLazyLiteral :: (ABT Term abt) => Lazy abt a -> Bool
 isLazyLiteral = maybe False (const True) . getLazyLiteral
 
 ----------------------------------------------------------------
--- BUG: haddock doesn't like annotations on GADT constructors. So
--- here we'll avoid using the GADT syntax, even though it'd make
--- the data type declaration prettier\/cleaner.
--- <https://github.com/hakaru-dev/hakaru/issues/6>
 
--- | A single statement in the 'HMeasure' monad. In particular,
--- note that the the first argument to 'MBind' (or 'Let_') together
--- with the variable bound in the second argument forms the
--- \"statement\" (leaving out the body of the second argument, which
--- may be part of a following statement). In addition to these
--- binding constructs, we also include a few non-binding statements
--- like 'SWeight'.
+-- TODO: better names?
+-- | A kind for indexing 'Statement' to know whether the statement
+-- is pure (and thus can be evaluated in any ambient monad) vs
+-- impure (i.e., must be evaluated in the 'HMeasure' monad).
+data Purity = Pure | Impure
+    deriving (Eq, Read, Show)
+
+
+-- | A single statement in some ambient monad (specified by the @p@
+-- type index). In particular, note that the the first argument to
+-- 'MBind' (or 'Let_') together with the variable bound in the
+-- second argument forms the \"statement\" (leaving out the body
+-- of the second argument, which may be part of a following statement).
+-- In addition to these binding constructs, we also include a few
+-- non-binding statements like 'SWeight'.
 --
--- This type was formerly called @Binding@, but that is inaccurate
--- since it also includes non-binding statements.
---
--- TODO: figure out a way to distinguish the pure statements (namely
--- 'SLet') from the statements which can only live in 'HMeasure';
--- so that we can run the partial evaluator on pure code and extract
--- an answer without needing to explain what to do with 'HMeasure'
--- stuff...
-data Statement (abt :: [Hakaru] -> Hakaru -> *)
-    -- | A variable bound by 'MBind' to a measure expression.
-    = forall (a :: Hakaru) . SBind
-        {-# UNPACK #-} !(Variable a)
-        !(Lazy abt ('HMeasure a))
+-- The semantics of this type are as follows. Let @ss :: [Statement
+-- abt p]@ be a sequence of statements. We have @Γ@: the collection
+-- of all free variables that occur in the term expressions in @ss@,
+-- viewed as a measureable space (namely the product of the measureable
+-- spaces for each variable). And we have @Δ@: the collection of
+-- all variables bound by the statements in @ss@, also viewed as a
+-- measurable space. The semantic interpretation of @ss@ is a
+-- measurable function of type @Γ ':-> M Δ@ where @M@ is either
+-- @HMeasure@ (if @p ~ 'Impure@) or @Identity@ (if @p ~ 'Pure@).
+data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
+    -- BUG: haddock doesn't like annotations on GADT constructors. So we can't make the constructor descriptions below available to Haddock.
+    -- <https://github.com/hakaru-dev/hakaru/issues/6>
+    
+    -- A variable bound by 'MBind' to a measure expression.
+    SBind
+        :: forall abt (a :: Hakaru)
+        . {-# UNPACK #-} !(Variable a)
+        -> !(Lazy abt ('HMeasure a))
+        -> Statement abt 'Impure
 
-    -- | A variable bound by 'Let_' to an expression.
-    | forall (a :: Hakaru) . SLet
-        {-# UNPACK #-} !(Variable a)
-        !(Lazy abt a)
+    -- A variable bound by 'Let_' to an expression.
+    SLet
+        :: forall abt p (a :: Hakaru)
+        . {-# UNPACK #-} !(Variable a)
+        -> !(Lazy abt a)
+        -> Statement abt p
 
-    -- | A variable bound by 'Array_' underneath 'Index'. The first
+    -- A variable bound by 'Array_' underneath 'Index'. The first
     -- expression gives the index at which we are evaluating the
     -- array (i.e., the second argument to 'Index'); the second
     -- index gives the size of the array (i.e., the first argument
     -- to 'Array_'). If it turns out that the index expression is
-    -- out of bounds, then evaluation should throw an error.
+    -- out of bounds, then evaluation should throw an error or bot
+    -- or something.
     --
-    -- TODO: should we 'bot' rather than throwing an error?
-    | SIndex
-        {-# UNPACK #-} !(Variable 'HNat)
-        !(Lazy abt 'HNat)
-        !(Lazy abt 'HNat)
+    -- N.B., although this constructor is defined here, we don't
+    -- actually handle it anywhere. Once Praveen figures out how
+    -- to disintegrate arrays, we'll want to update this constructor
+    -- as appropriate.
+    SIndex
+        :: forall abt p
+        .  {-# UNPACK #-} !(Variable 'HNat)
+        -> !(Lazy abt 'HNat)
+        -> !(Lazy abt 'HNat)
+        -> Statement abt p
 
-    -- | A weight; i.e., the first component of each argument to
-    -- 'Superpose_'.
-    | SWeight
-        !(Lazy abt 'HProb)
+
+    -- A weight; i.e., the first component of each argument to
+    -- 'Superpose_'. This is a statement just so that we can avoid
+    -- needing to atomize the weight itself.
+    SWeight
+        :: forall abt
+        .  !(Lazy abt 'HProb)
+        -> Statement abt 'Impure
 
     {-
-    -- | A guard statement. If the scrutinee matches the pattern, then we bind the variables as usual; otherwise, we return the empty measure.
-    | forall (xs :: [Hakaru]) (a :: Hakaru) . SGuard
-        !(List1 Variable xs)
-        !(Pattern xs a)
-        !(Lazy abt a)
+    -- A monadic guard statement. If the scrutinee matches the
+    -- pattern, then we bind the variables as usual; otherwise, we
+    -- return the empty measure. N.B., this statement type is only
+    -- for capturing constraints that some pattern matches /in a/
+    -- /monadic context/. In pure contexts we should be able to
+    -- handle case analysis without putting anything onto the heap.
+    SGuard
+        :: forall abt (xs :: [Hakaru]) (a :: Hakaru)
+        .  !(List1 Variable xs)
+        -> !(Pattern xs a)
+        -> !(Lazy abt a)
+        -> Statement abt 'Impure
     -}
 
 
 -- | Is the variable bound by the statement?
-isBoundBy :: Variable (a :: Hakaru) -> Statement abt -> Maybe ()
+isBoundBy :: Variable (a :: Hakaru) -> Statement abt p -> Maybe ()
 x `isBoundBy` SBind  y _   = const () <$> varEq x y
 x `isBoundBy` SLet   y _   = const () <$> varEq x y
 x `isBoundBy` SIndex y _ _ = const () <$> varEq x y
@@ -509,7 +536,7 @@ x `isBoundBy` SGuard ys _ _ = memberVarSet x ys -- TODO: except we want the 'Lis
 -- | This class captures the monadic operations needed by the
 -- 'evaluate' function in "Language.Hakaru.Lazy".
 class (Functor m, Applicative m, Monad m, ABT Term abt)
-    => EvaluationMonad abt m | m -> abt
+    => EvaluationMonad abt m p | m -> abt p
     where
     -- TODO: should we have a *method* for arbitrarily incrementing the stored 'nextFreshNat'; or should we only rely on it being initialized correctly? Beware correctness issues about updating the lower bound after having called 'freshNat'...
 
@@ -522,7 +549,7 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
     -- because it may allow confusion between variables with the
     -- same name but different scopes (thus, may allow variable
     -- capture). Prefer using 'push_', 'push', or 'pushes'.
-    unsafePush :: Statement abt -> m ()
+    unsafePush :: Statement abt p -> m ()
 
     -- | Call 'unsafePush' repeatedly. Is part of the class since
     -- we may be able to do this more efficiently than actually
@@ -530,7 +557,7 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
     --
     -- N.B., this should push things in the same order as 'pushes'
     -- does.
-    unsafePushes :: [Statement abt] -> m ()
+    unsafePushes :: [Statement abt p] -> m ()
     unsafePushes = mapM_ unsafePush
 
     -- | Look for the statement @s@ binding the variable. If found,
@@ -548,7 +575,7 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
     -- bind all the variables bound by @s@!
     select
         :: Variable (a :: Hakaru)
-        -> (Statement abt -> Maybe (m r))
+        -> (Statement abt p -> Maybe (m r))
         -> m (Maybe r)
 
 
@@ -556,9 +583,9 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
 -- statement. We return the renamed statement along with a substitution
 -- for mapping the old variable names to their new variable names.
 freshenStatement
-    :: (ABT Term abt, EvaluationMonad abt m)
-    => Statement abt
-    -> m (Statement abt, Assocs abt)
+    :: (ABT Term abt, EvaluationMonad abt m p)
+    => Statement abt p
+    -> m (Statement abt p, Assocs abt)
 freshenStatement s =
     case s of
     SWeight _    -> return (s, mempty)
@@ -584,7 +611,7 @@ freshenStatement s =
 -- | Given some hint and type, generate a variable with a fresh
 -- 'varID'.
 freshVar
-    :: (EvaluationMonad abt m)
+    :: (EvaluationMonad abt m p)
     => Text
     -> Sing (a :: Hakaru)
     -> m (Variable a)
@@ -598,7 +625,7 @@ data Hint (a :: Hakaru) = Hint {-# UNPACK #-} !Text !(Sing a)
 -- TODO: make this more efficient than actually calling 'freshVar'
 -- repeatedly.
 freshVars
-    :: (EvaluationMonad abt m)
+    :: (EvaluationMonad abt m p)
     => List1 Hint xs
     -> m (List1 Variable xs)
 freshVars Nil1         = return Nil1
@@ -610,7 +637,7 @@ freshVars (Cons1 x xs) = Cons1 <$> freshVar' x <*> freshVars xs
 -- | Given a variable, return a new variable with the same hint and
 -- type but with a fresh 'varID'.
 freshenVar
-    :: (EvaluationMonad abt m)
+    :: (EvaluationMonad abt m p)
     => Variable (a :: Hakaru)
     -> m (Variable a)
 freshenVar x = (\i -> x{varID=i}) <$> freshNat
@@ -620,7 +647,7 @@ freshenVar x = (\i -> x{varID=i}) <$> freshNat
 -- TODO: make this more efficient than actually calling 'freshenVar'
 -- repeatedly.
 freshenVars
-    :: (EvaluationMonad abt m)
+    :: (EvaluationMonad abt m p)
     => List1 Variable (xs :: [Hakaru])
     -> m (List1 Variable xs)
 freshenVars Nil1         = return Nil1
@@ -629,7 +656,7 @@ freshenVars (Cons1 x xs) = Cons1 <$> freshenVar x <*> freshenVars xs
 -- TODO: get this faster version to typecheck! And once we do, move it to IClasses.hs or wherever 'List1'\/'DList1' end up
 freshenVars = go dnil1
     where
-    go  :: (EvaluationMonad abt m)
+    go  :: (EvaluationMonad abt m p)
         => DList1 Variable (ys :: [Hakaru])
         -> List1  Variable (zs :: [Hakaru])
         -> m (List1 Variable (ys ++ zs))
@@ -648,8 +675,8 @@ freshenVars = go dnil1
 -- rest of the term\". You almost certainly should use 'push' or
 -- 'pushes' instead.
 push_
-    :: (ABT Term abt, EvaluationMonad abt m)
-    => Statement abt
+    :: (ABT Term abt, EvaluationMonad abt m p)
+    => Statement abt p
     -> m (Assocs abt)
 push_ s = do
     (s',rho) <- freshenStatement s
@@ -668,8 +695,8 @@ push_ s = do
 -- easy to accidentally drop the substitution on the floor rather
 -- than applying it to the term before calling the continuation.
 push
-    :: (ABT Term abt, EvaluationMonad abt m)
-    => Statement abt     -- ^ the statement to push
+    :: (ABT Term abt, EvaluationMonad abt m p)
+    => Statement abt p   -- ^ the statement to push
     -> abt xs a          -- ^ the \"rest\" of the term
     -> (abt xs a -> m r) -- ^ what to do with the renamed \"rest\"
     -> m r               -- ^ the final result
@@ -683,8 +710,8 @@ push s e k = do
 -- is the furthest away in the final context, whereas the tail is
 -- pushed last and is the closest in the final context.
 pushes
-    :: (ABT Term abt, EvaluationMonad abt m)
-    => [Statement abt]   -- ^ the statements to push
+    :: (ABT Term abt, EvaluationMonad abt m p)
+    => [Statement abt p] -- ^ the statements to push
     -> abt xs a          -- ^ the \"rest\" of the term
     -> (abt xs a -> m r) -- ^ what to do with the renamed \"rest\"
     -> m r               -- ^ the final result
@@ -692,28 +719,6 @@ pushes ss e k = do
     -- TODO: is 'foldlM' the right one? or do we want 'foldrM'?
     rho <- F.foldlM (\rho s -> mappend rho <$> push_ s) mempty ss
     k (substs rho e)
-
-{-
--- The old finally-tagless code also had the equivalents of these functions (called @memo@ in that code). Would they be helpful for us?
-
-pushLet
-    :: (ABT Term abt, EvaluationMonad abt m)
-    => Lazy abt a     -- ^ the expression to push
-    -> m (Variable a) -- ^ the variable the expression is bound to
-pushLet e = do
-    x <- freshVar Text.empty (typeOf e)
-    unsafePush (SLet x e)
-    return x
-
-pushBind
-    :: (ABT Term abt, EvaluationMonad abt m)
-    => Lazy abt ('HMeasure a) -- ^ the expression to push
-    -> m (Variable a)         -- ^ the variable the expression is bound to
-pushBind e = do
-    x <- freshVar Text.empty (sUnMeasure $ typeOf e)
-    unsafePush (SBind x e)
-    return x
--}
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

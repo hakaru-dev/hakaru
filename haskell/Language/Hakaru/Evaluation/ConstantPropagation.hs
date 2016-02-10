@@ -10,7 +10,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.01.15
+--                                                    2016.02.09
 -- |
 -- Module      :  Language.Hakaru.Evaluation.ConstantPropagation
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -94,7 +94,7 @@ pureEvaluate e =
 -- fact that it's type doesn't include 'Alternative' nor 'MonadPlus'
 -- constraints. So non-singularity of results could only come from
 -- calling @perform@; but we never call @perform@.
-type PureAns abt a = ListContext abt -> abt '[] a
+type PureAns abt a = ListContext abt 'Pure -> abt '[] a
 
 newtype Eval abt x =
     Eval { unEval :: forall a. (x -> PureAns abt a) -> PureAns abt a }
@@ -126,20 +126,16 @@ residualizePureListContext
     :: forall abt a
     .  (ABT Term abt)
     => abt '[] a
-    -> ListContext abt
+    -> ListContext abt 'Pure
     -> abt '[] a
 residualizePureListContext e0 =
     foldl step e0 . statements
     where
-    step :: abt '[] a -> Statement abt -> abt '[] a
+    -- TODO: make paremetric in the purity
+    step :: abt '[] a -> Statement abt 'Pure -> abt '[] a
     step e s =
         case s of
-        SBind   _ _   -> brokenInvariant "residualizePureListContext"
-        SWeight _     -> brokenInvariant "residualizePureListContext"
         SIndex  _ _ _ -> error "TODO: residualizePureListContext{SIndex}"
-        {-
-        SGuard
-        -}
         SLet x body
             | not (x `memberVarSet` freeVars e) -> e
             -- TODO: if used exactly once in @e@, then inline.
@@ -165,7 +161,7 @@ instance Monad (Eval abt) where
     return       = pure
     Eval m >>= k = Eval $ \c -> m $ \x -> unEval (k x) c
 
-instance (ABT Term abt) => EvaluationMonad abt (Eval abt) where
+instance (ABT Term abt) => EvaluationMonad abt (Eval abt) 'Pure where
     freshNat =
         Eval $ \c (ListContext i ss) ->
             c i (ListContext (i+1) ss)
@@ -202,8 +198,9 @@ instance (ABT Term abt) => EvaluationMonad abt (Eval abt) where
                         unsafePushes ss
                         return (Just r)
 
+-- TODO: make paremetric in the purity
 -- | Not exported because we only need it for defining 'select' on 'Eval'.
-unsafePop :: Eval abt (Maybe (Statement abt))
+unsafePop :: Eval abt (Maybe (Statement abt 'Pure))
 unsafePop =
     Eval $ \c h@(ListContext i ss) ->
         case ss of
