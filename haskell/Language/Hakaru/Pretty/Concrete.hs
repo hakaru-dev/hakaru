@@ -410,9 +410,8 @@ instance Pretty (Pattern xs) where
 
 instance (ABT Term abt) => Pretty (Branch a abt) where
     prettyPrec_ p (Branch pat e) =
-        ppFun p "Branch"
-            [ toDoc $ prettyPrec_ 11 pat
-            , PP.parens . toDoc $ ppBinder e -- BUG: we can't actually use the HOAS API here, since we aren't using a Prelude-defined @branch@...
+            [ (toDoc $ prettyPrec_ 11 pat) <> PP.colon <> PP.space
+            , PP.nest 1 $ toDoc $ ppBinder e -- BUG: we can't actually use the HOAS API here, since we aren't using a Prelude-defined @branch@...
             -- HACK: don't *always* print parens; pass down the precedence to 'ppBinder' to have them decide if they need to or not.
             ]
 
