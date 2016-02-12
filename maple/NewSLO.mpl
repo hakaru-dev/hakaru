@@ -775,6 +775,9 @@ NewSLO := module ()
         x := op([2,1],integral);
       end if;
       x := gensym(x);
+      # we would be here mostly if the measure being passed in is
+      # not known.  So error is fine, and should likely be caught
+      # elsewhere
       error "what to do with (%1)", integral;
       # TODO is there any way to enrich context in this case?
       (w, m) := unweight(unintegrate(h, applyintegrand(op(2,integral), x),
