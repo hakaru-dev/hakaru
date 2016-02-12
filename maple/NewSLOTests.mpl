@@ -321,8 +321,8 @@ ary1  := Bind(Gaussian(0,1), x,
          Bind(Plate(ary(n, i, Weight(density[Gaussian](x,1)(idx(t,i)), Ret(Unit)))), ys,
          Ret(x))):
 ary1w := 2^(-(1/2)*n+1/2)*exp((1/2)*((sum(idx(t,i),i=1..n))^2-(sum(idx(t,i)^2,i=1..n))*n-(sum(idx(t,i)^2,i=1..n)))/(n+1))*Pi^(-(1/2)*n)/sqrt(2+2*n):
-# TestHakaru(ary1, Weight(ary1w, Gaussian((sum(idx(t, i), i = 1 .. n))/(n+1), 1/sqrt(n+1))), label="Wednesday goal") assuming n::nonnegint;
-# TestHakaru(Bind(ary1, x, Ret(Unit)), Weight(ary1w, Ret(Unit)), label="Wednesday goal total") assuming n::nonnegint;
+TestHakaru(ary1, Weight(ary1w, Gaussian((sum(idx(t, i), i = 1 .. n))/(n+1), 1/sqrt(n+1))), label="Wednesday goal") assuming n::nonnegint;
+TestHakaru(Bind(ary1, x, Ret(Unit)), Weight(ary1w, Ret(Unit)), label="Wednesday goal total") assuming n::nonnegint;
 ary2  := Bind(Gaussian(0,1), x,
          Bind(Plate(ary(n, i, Bind(Gaussian(idx(t,i),1),z, Weight(density[Gaussian](x,1)(idx(t,i)), Ret(z+1))))), ys,
          Ret(ys))):
@@ -364,19 +364,3 @@ TestHakaru(fusion,  conjugacies, label="Conjugacy in plate (currently fails)"); 
 gmm := Bind(Plate(ary(k, c, Gaussian(0,1))), xs,
        Bind(Plate(ary(n, i, Weight(density[Gaussian](idx(xs,idx(cs,i)),1)(idx(t,i)), Ret(Unit)))), ys,
        Ret(xs))):
-
-#####################################################################
-#
-# disintegration tests
-#
-#####################################################################
-
-# this uses a *global* variable 't'.
-TestDisint := proc(m,n)
-  global t;
-  CodeTools[Test](fromLO(disint(toLO(m),t)), n, measure(simplify), _rest)
-end proc:
-d1 := Bind(Lebesgue(), x, Ret(Pair(-5*x,3/x))):
-d1r := {Weight(1/5,Ret(-15/t))};
-
-TestDisint(d1, d1r);
