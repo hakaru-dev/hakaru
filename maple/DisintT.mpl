@@ -29,14 +29,18 @@ d2r := {Weight(7, Ret(3))}:
 
 d3 := Bind(Uniform(0,1), x, Bind(Uniform(0,1), y, Ret(Pair(x-y,f(x,y))))):
 d3r := {
- LO(h, Int(Indicator({t < x, x-1 < t})*applyintegrand(h, f(x, x-t)), x = 0 .. 1)),
- LO(h, Int(Indicator({t < 1-y, -y < t})*applyintegrand(h, f(y+t, y)), y = 0 .. 1))
- }:
+ Bind(Uniform(0, 1), x丅丏, 
+      piecewise(And(x丅丏-1 < t, t < x丅丏), Ret(f(x丅丏, x丅丏-t)), Msum())), 
+ Bind(Uniform(0, 1), y七下, 
+     piecewise(And(-y七下 < t, t < 1-y七下), Ret(f(y七下+t, y七下)), Msum()))
+}:
 
 d4 := Bind(Uniform(0,1), x, Bind(Uniform(0,1), y, Ret(Pair(x/y,x)))):
 d4r := {
-  LO(h, Int(piecewise(And(0 < t, t < 1/y), abs(y)*applyintegrand(h, t*y), 0), y = 0 .. 1)), 
-  LO(h, Int(piecewise(And(x < t, t < signum(x)*infinity), abs(x/t^2)*applyintegrand(h, x), 0), x = 0 .. 1))
+  Bind(Uniform(0, 1), x丕丟, 
+    piecewise(And(x丕丟 < t, t < signum(x丕丟)*infinity), Weight(abs(x丕丟/t^2), Ret(x丕丟)), Msum())), 
+  Bind(Uniform(0, 1), y专丛, 
+    piecewise(And(0 < t, t < 1/y专丛), Weight(abs(y专丛), Ret(t*y专丛)), Msum()))
 }:
 
 d5 := Bind(NormalD(0,1), x, Bind(NormalD(x,1), y, Ret(Pair(y,x)))):
