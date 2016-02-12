@@ -389,7 +389,13 @@ ppPattern _ PWild = [PP.text "PWild"]
 ppPattern _ PVar  = [PP.text "PVar"]
 ppPattern p (PDatum hint d0)
     | Text.null hint = error "TODO: prettyPrec_@Pattern"
-    | otherwise      = ppFun p (Text.unpack hint) (goCode d0)
+    | otherwise      =
+        case Text.unpack hint of
+          -- Special cases for certain pDatums
+          "pTrue"  -> [PP.text "true"]
+          "pFalse" -> [PP.text "false"]
+          -- General case
+          _        -> ppFun p (Text.unpack hint) (goCode d0)
     where
     goCode :: PDatumCode xss vars a -> Docs
     goCode (PInr d) = goCode   d
