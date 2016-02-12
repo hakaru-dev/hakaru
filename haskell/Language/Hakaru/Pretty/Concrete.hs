@@ -474,7 +474,7 @@ ppTuple = PP.parens . PP.sep . PP.punctuate PP.comma
 -- TODO: why does this take the precedence argument if it doesn't care?
 ppFun :: Int -> String -> [Doc] -> Docs
 ppFun _ f [] = [PP.text f <> PP.text "()"]
-ppFun _ f ds = [PP.text f, PP.nest (1 + length f) (ppTuple ds)]
+ppFun _ f ds = [PP.text f <> ppTuple ds]
 
 ppArg :: (ABT Term abt) => abt '[] a -> Docs
 ppArg = prettyPrec_ 11 . LC_
