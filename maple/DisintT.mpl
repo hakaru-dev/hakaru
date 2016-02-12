@@ -43,7 +43,7 @@ d4r := {
     piecewise(And(0 < t, t < 1/y专丛), Weight(abs(y专丛), Ret(t*y专丛)), Msum()))
 }:
 
-d5 := Bind(NormalD(0,1), x, Bind(NormalD(x,1), y, Ret(Pair(y,x)))):
+d5 := Bind(Gaussian(0,1), x, Bind(Gaussian(x,1), y, Ret(Pair(y,x)))):
 d5r := {}:  # soon!
 
 TestDisint(d1, d1r, label = "Disintegrate linear function");
