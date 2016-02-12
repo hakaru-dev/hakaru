@@ -655,6 +655,7 @@ NewSLO := module ()
   find_vars := proc(l)
     map(proc(x) 
           if type(x, specfunc(%int)) then op([1,1],x)
+          elif type(x, specfunc(%weight)) then NULL
           else error "don't know about command (%1)", x
           end if end proc,
          l);
@@ -663,6 +664,7 @@ NewSLO := module ()
   find_constraints := proc(l)
     map(proc(x) 
           if type(x, specfunc(%int)) then op(1,x)
+          elif type(x, specfunc(%weight)) then NULL
           else error "don't know about command (%1)", x
           end if end proc,
          l);
@@ -748,8 +750,7 @@ NewSLO := module ()
     elif integral :: `*` then
       (subintegral, w) := selectremove(depends, integral, h);
       if subintegral :: `*` then error "Nonlinear integral %1", integral end if;
-      error "need to track weight";
-      weight(w, unintegrate(h, subintegral, context))
+      disint2(subintegral, h, t, [%weight(w), op(path)]);
     elif integral :: t_pw
          and `and`(seq(not (depends(op(i,integral), h)),
                        i=1..nops(integral)-1, 2)) then
@@ -795,15 +796,19 @@ NewSLO := module ()
   reconstruct := proc(step, part)
     if type(step, specfunc(%int)) then
       Int(part, op(1, step));
+    elif type(step, specfunc(%weight)) then
+      op(1, step) * part
     else
       error "how to reconstruct (%1)", step
     end if;
   end proc;
 
   change_var := proc(act, chg, path, part)
-    local bds, new_upper, new_lower, flip;
+    local bds, new_upper, new_lower, new_path, flip;
 
     if type(path[-1], specfunc(%int)) then
+      # no matter what, do the change on the path
+      new_path := eval(path[1..-2], op(3,act));
       if op(1, act) = op([-1,1,1], path) then
 	bds := op([-1,1,2], path);
 	new_upper := limit(op([2,2], act), op(1, act) = op(2,bds), left);
@@ -814,14 +819,14 @@ NewSLO := module ()
 	end if;
 	if new_upper = infinity and new_lower = -infinity then
 	  # we're done with this integral
-	  interpret(chg, path[1..-2], part)
+	  interpret(chg, new_path, part)
 	else
-	  interpret(chg, path[1..-2], 
+	  interpret(chg, new_path,
 	    piecewise(And(new_lower < t, t < new_upper), part, 0));
 	end if;
       else
 	# this is an integral we don't care about, emit it
-	interpret(chg, path[1..-2], Int(part, op([-1,1], path)));
+	interpret(chg, new_path, Int(part, op([-1,1], path)));
       end if;
     else
       error "%Change"
@@ -864,7 +869,7 @@ NewSLO := module ()
     elif chg=[] then # finished changes, just reconstruct
       ans := part;
       for i from 1 to nops(path) do
-        ans := reconstruct(path[-i], ans);
+        ans := reconstruct(path[i], ans);
       end do;
       return ans;
     elif type(chg[1], specfunc(%Change)) then
