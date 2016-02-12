@@ -84,13 +84,6 @@ testTC typ uast tast =
         Nothing   -> assertFailure
             (show ast ++ " does not have same type as " ++ show tast)
 
-testWithConcrete'
-    :: Text
-    -> TypeCheckMode
-    -> (TypedAST (TrivialABT T.Term) -> Assertion)
-    -> Assertion
-testWithConcrete' = testWithConcrete
-
 testConcreteTC :: Sing b -> Text -> TrivialABT T.Term '[] b -> Assertion
 testConcreteTC typ s ast =
     testWithConcrete' s StrictMode

@@ -26,7 +26,7 @@ import Language.Hakaru.Parser.AST
 ops, types, names :: [String]
 ops   = ["+","*","-","^", "**", ":","::", "<~","==", "=", "_"]
 types = ["->"]
-names = ["def","fn", "if","else","pi","inf", "∞",
+names = ["def","fn", "if","else","inf", "∞",
          "return", "match", "data"]
 
 type ParserStream    = IndentStream (CharIndentStream Text)
@@ -303,10 +303,10 @@ return_expr = do
     Dirac <$> expr
 
 term :: Parser (AST' Text)
-term =  if_expr
-    <|> return_expr
-    <|> lam_expr
-    <|> def_expr
+term =  try if_expr
+    <|> try return_expr
+    <|> try lam_expr
+    <|> try def_expr
     <|> try match_expr
     -- <|> try data_expr
     <|> try expect_expr

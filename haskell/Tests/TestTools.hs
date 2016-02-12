@@ -9,7 +9,7 @@ import Language.Hakaru.Parser.SymbolResolve (resolveAST)
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.TypeCheck
-import Language.Hakaru.Syntax.AST.Eq
+import Language.Hakaru.Syntax.AST.AlphaEq
 import Language.Hakaru.Pretty.Concrete
 
 import Data.Maybe (isJust)
@@ -35,6 +35,9 @@ assertResult s = assertBool "no result" $ not $ null s
 assertJust :: Maybe a -> Assertion
 assertJust = assertBool "expected Just but got Nothing" . isJust
 
+handleException :: String -> SomeException -> IO a
+handleException t e = throw (TestSimplifyException t e)
+
 -- Assert that a given Hakaru program roundtrips (aka simplifies) without error
 -- testS :: (Simplifiable a) => Any' a -> Assertion
 -- testS t = do
@@ -58,6 +61,7 @@ assertJust = assertBool "expected Just but got Nothing" . isJust
 --     let r2 = rm t2
 --     assertEqual "testMapleEqual: false" r1 r2
 --     where rm t = runMaple t 0
+
 
 assertAlphaEq ::
     (ABT Term abt)
@@ -89,6 +93,13 @@ testWithConcrete s mode k =
           case runTCM m mode of
             Left err   -> assertFailure err
             Right tast -> k tast
+
+testWithConcrete'
+    :: T.Text
+    -> TypeCheckMode
+    -> (TypedAST (TrivialABT Term) -> Assertion)
+    -> Assertion
+testWithConcrete' = testWithConcrete
 
 ignore :: a -> Assertion
 ignore _ = assertFailure "ignored"  -- ignoring a test reports as a failure

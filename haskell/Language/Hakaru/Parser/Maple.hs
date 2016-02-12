@@ -183,6 +183,12 @@ maple2AST (InertArgs Func [InertName "Msum",
                            InertArgs ExpSeq es]) =
     Msum (map maple2AST es)
 
+maple2AST (InertArgs Func [InertName "Case",
+                           InertArgs ExpSeq
+                           [e1, InertArgs Func [InertName "Branches",
+                                                InertArgs ExpSeq bs]]]) =
+    Case (maple2AST e1) (map branch bs)
+
 maple2AST (InertArgs Func [f, (InertArgs ExpSeq a)]) =
     foldl App (maple2AST f) (map maple2AST a)
 
@@ -205,3 +211,5 @@ maple2Type (InertArgs Func [InertName f, InertArgs ExpSeq args]) =
     TypeApp (rename f) (map maple2Type args)
 
 
+branch :: InertExpr -> Branch' Text
+branch = error "TODO: maple2AST{branch}"

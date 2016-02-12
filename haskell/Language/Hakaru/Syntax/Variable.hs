@@ -10,7 +10,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.03
+--                                                    2016.02.09
 -- |
 -- Module      :  Language.Hakaru.Syntax.Variable
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -36,7 +36,7 @@ module Language.Hakaru.Syntax.Variable
     , VarSet(..)
     , emptyVarSet
     , singletonVarSet
-    , toVarSet
+    , toVarSet, toVarSet1
     , insertVarSet
     , deleteVarSet
     , memberVarSet
@@ -250,8 +250,9 @@ instance Exception VarEqTypeError
 -- second or third interpretation. If 'varEq' uses the first
 -- interpretation then, the 'Eq' instance (which uses 'varEq') will
 -- be inconsistent with the 'Ord' instance!
-data SomeVariable kproxy where
-    SomeVariable :: {-# UNPACK #-} !(Variable a) -> SomeVariable (KindOf a)
+data SomeVariable (kproxy :: KProxy k) =
+    forall (a :: k) . SomeVariable
+        {-# UNPACK #-} !(Variable (a :: k))
 
 
 -- | Convenient synonym to refer to the kind of a type variable:
@@ -331,18 +332,15 @@ toVarSet = VarSet . go IM.empty
     someVarID :: SomeVariable kproxy -> Nat
     someVarID (SomeVariable x) = varID x
 
-{- -- TODO:
-toVarSet :: List1 Variable (xs :: [k]) -> VarSet (kproxy :: KProxy k)
-toVarSet = \xs -> VarSet (go IM.empty xs)
+
+toVarSet1 :: List1 Variable (xs :: [k]) -> VarSet (kproxy :: KProxy k)
+toVarSet1 = toVarSet . someVariables
     where
-    go  :: IntMap (SomeVariable (kproxy :: KProxy k))
-        -> List1 Variable (xs :: [k])
-        -> IntMap (SomeVariable (kproxy :: KProxy k))
-    go vars _ | vars `seq` False = error "toVarSet: the impossible happened"
-    go vars Nil1         = vars
-    go vars (Cons1 x xs) =
-        go (IM.insert (fromNat $ varID x) (SomeVariable x) vars) xs
--}
+    someVariables
+        :: List1 Variable (xs :: [k])
+        -> [SomeVariable (kproxy :: KProxy k)]
+    someVariables Nil1         = []
+    someVariables (Cons1 x xs) = SomeVariable x : someVariables xs
 
 
 instance Monoid (VarSet kproxy) where

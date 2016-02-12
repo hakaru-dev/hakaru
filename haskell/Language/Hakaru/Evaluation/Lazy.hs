@@ -13,7 +13,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.11
+--                                                    2016.02.09
 -- |
 -- Module      :  Language.Hakaru.Evaluation.Lazy
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -24,7 +24,9 @@
 --
 -- Lazy partial evaluation.
 --
--- BUG: completely gave up on structure sharing. Need to add that back in. cf., @gvidal-lopstr07lncs.pdf@ for an approach much like my old one.
+-- BUG: completely gave up on structure sharing. Need to add that
+-- back in. cf., @gvidal-lopstr07lncs.pdf@ for an approach much
+-- like my old one.
 ----------------------------------------------------------------
 module Language.Hakaru.Evaluation.Lazy
     (
@@ -93,9 +95,11 @@ type TermEvaluator abt m =
 
 
 -- | Lazy partial evaluation with a given \"perform\" function.
+-- N.B., if we have @p ~ 'Pure@ then the \"perform\" function will
+-- never be called.
 evaluate
-    :: forall abt m
-    .  (ABT Term abt, EvaluationMonad abt m)
+    :: forall abt m p
+    .  (ABT Term abt, EvaluationMonad abt m p)
     => MeasureEvaluator abt m
     -> TermEvaluator    abt m
 evaluate perform = evaluate_
@@ -145,7 +149,7 @@ evaluate perform = evaluate_
             evaluateApp (WLam f)   =
                 -- call-by-name:
                 caseBind f $ \x f' ->
-                push (SLet x $ Thunk e2) f' evaluate_
+                    push (SLet x $ Thunk e2) f' evaluate_
             evaluateApp _ = error "evaluate{App_}: the impossible happened"
 
         Let_ :$ e1 :* e2 :* End ->
@@ -187,7 +191,7 @@ evaluate perform = evaluate_
 
 type DList a = [a] -> [a]
 
-toStatements :: DList (Assoc abt) -> [Statement abt]
+toStatements :: DList (Assoc abt) -> [Statement abt p]
 toStatements ss = map (\(Assoc x e) -> SLet x $ Thunk e) (ss [])
 
 
@@ -202,7 +206,7 @@ toStatements ss = map (\(Assoc x e) -> SLet x $ Thunk e) (ss [])
 -- bound variables to be above @nextFreeVarID@; but then we have to
 -- do that anyways.
 update
-    :: (ABT Term abt, EvaluationMonad abt m)
+    :: (ABT Term abt, EvaluationMonad abt m p)
     => MeasureEvaluator abt m
     -> TermEvaluator    abt m
     -> Variable a
@@ -223,7 +227,10 @@ update perform evaluate_ = \x ->
                 w <- caseLazy e return evaluate_
                 unsafePush (SLet x $ Whnf_ w)
                 return w
-        SWeight _ -> Nothing
+        SWeight _ ->
+            Nothing
+        SGuard ys pat scrutinee ->
+            error "TODO: update{SGuard}"
         SIndex y e1 e2 -> do
             Refl <- varEq x y
             Just $ do
@@ -385,7 +392,7 @@ natRoot x y = x ** recip (fromIntegral (fromNat y))
 
 ----------------------------------------------------------------
 evaluateNaryOp
-    :: (ABT Term abt, EvaluationMonad abt m)
+    :: (ABT Term abt, EvaluationMonad abt m p)
     => TermEvaluator abt m
     -> NaryOp a
     -> Seq (abt '[] a)
@@ -497,7 +504,7 @@ evaluateNaryOp evaluate_ = \o es -> mainLoop o (evalOp o) Seq.empty es
 
 ----------------------------------------------------------------
 evaluateArrayOp
-    :: ( ABT Term abt, EvaluationMonad abt m
+    :: ( ABT Term abt, EvaluationMonad abt m p
        , typs ~ UnLCs args, args ~ LCs typs)
     => TermEvaluator abt m
     -> ArrayOp typs a
@@ -550,10 +557,16 @@ head2array _              = error "head2array: the impossible happened"
 
 
 ----------------------------------------------------------------
--- TODO: maybe we should adjust 'Whnf' to have a third option for closed terms of the atomic\/literal types, so that we can avoid reducing them just yet. Of course, we'll have to reduce them eventually, but we can leave that for the runtime evaluation or Maple or whatever. These are called \"annotated\" terms in Fischer et al 2008 (though they allow anything to be annotated, not just closed terms of atomic type).
+-- TODO: maybe we should adjust 'Whnf' to have a third option for
+-- closed terms of the atomic\/literal types, so that we can avoid
+-- reducing them just yet. Of course, we'll have to reduce them
+-- eventually, but we can leave that for the runtime evaluation or
+-- Maple or whatever. These are called \"annotated\" terms in Fischer
+-- et al 2008 (though they allow anything to be annotated, not just
+-- closed terms of atomic type).
 evaluatePrimOp
-    :: forall abt m typs args a
-    .  ( ABT Term abt, EvaluationMonad abt m
+    :: forall abt m p typs args a
+    .  ( ABT Term abt, EvaluationMonad abt m p
        , typs ~ UnLCs args, args ~ LCs typs)
     => TermEvaluator abt m
     -> PrimOp typs a
@@ -649,10 +662,9 @@ evaluatePrimOp evaluate_ = go
     {-
     go GammaFunc   (e1 :* End)             =
     go BetaFunc    (e1 :* e2 :* End)       =
-    -- TODO: deal with polymorphism issues
-    go (Equal theOrd) (e1 :* e2 :* End) = rr2 (==) (P.==) e1 e2
-    go (Less  theOrd) (e1 :* e2 :* End) = rr2 (<)  (P.<)  e1 e2
     -}
+    go (Equal  theEq)   (e1 :* e2 :* End) = rrEqual theEq  e1 e2
+    go (Less   theOrd)  (e1 :* e2 :* End) = rrLess  theOrd e1 e2
     go (NatPow theSemi) (e1 :* e2 :* End) =
         case theSemi of
         HSemiring_Nat    -> rr2 (\v1 v2 -> v1 ^ fromNatural v2) (P.^) e1 e2
@@ -684,7 +696,82 @@ evaluatePrimOp evaluate_ = go
         HContinuous_Prob -> rr1 erf P.erf e1
         HContinuous_Real -> rr1 erf P.erf e1
     -}
-    go _ _ = error "TODO: finish evaluatePrimOp"
+    go op _ = error $ "TODO: evaluatePrimOp{" ++ show op ++ "}"
+
+
+    rrEqual
+        :: forall b. HEq b -> abt '[] b -> abt '[] b -> m (Whnf abt HBool)
+    rrEqual theEq =
+        case theEq of
+        HEq_Nat    -> rr2 (==) (P.==)
+        HEq_Int    -> rr2 (==) (P.==)
+        HEq_Prob   -> rr2 (==) (P.==)
+        HEq_Real   -> rr2 (==) (P.==)
+        HEq_Array aEq -> error "TODO: rrEqual{HEq_Array}"
+        HEq_Bool   -> rr2 (==) (P.==)
+        HEq_Unit   -> rr2 (==) (P.==)
+        HEq_Pair   aEq bEq ->
+            \e1 e2 -> do
+                w1 <- evaluate_ e1
+                w2 <- evaluate_ e2
+                case w1 of
+                    Neutral e1' ->
+                        return . Neutral
+                            $ P.primOp2_ (Equal theEq) e1' (fromWhnf w2)
+                    Head_   v1  ->
+                        case w2 of
+                        Neutral e2' ->
+                            return . Neutral
+                                $ P.primOp2_ (Equal theEq) (fromHead v1) e2'
+                        Head_ v2 -> do
+                            let (v1a, v1b) = reifyPair v1
+                            let (v2a, v2b) = reifyPair v2
+                            wa <- rrEqual aEq v1a v2a
+                            wb <- rrEqual bEq v1b v2b
+                            return $
+                                case wa of
+                                Neutral ea ->
+                                    case wb of
+                                    Neutral eb -> Neutral (ea P.&& eb)
+                                    Head_   vb
+                                        | reify vb  -> wa
+                                        | otherwise -> Head_ $ WDatum dFalse
+                                Head_ va
+                                    | reify va  -> wb
+                                    | otherwise -> Head_ $ WDatum dFalse
+
+        HEq_Either aEq bEq -> error "TODO: rrEqual{HEq_Either}"
+
+    rrLess
+        :: forall b. HOrd b -> abt '[] b -> abt '[] b -> m (Whnf abt HBool)
+    rrLess theOrd =
+        case theOrd of
+        HOrd_Nat    -> rr2 (<) (P.<)
+        HOrd_Int    -> rr2 (<) (P.<)
+        HOrd_Prob   -> rr2 (<) (P.<)
+        HOrd_Real   -> rr2 (<) (P.<)
+        HOrd_Array aOrd -> error "TODO: rrLess{HOrd_Array}"
+        HOrd_Bool   -> rr2 (<) (P.<)
+        HOrd_Unit   -> rr2 (<) (P.<)
+        HOrd_Pair aOrd bOrd ->
+            \e1 e2 -> do
+                w1 <- evaluate_ e1
+                w2 <- evaluate_ e2
+                case w1 of
+                    Neutral e1' ->
+                        return . Neutral
+                            $ P.primOp2_ (Less theOrd) e1' (fromWhnf w2)
+                    Head_   v1  ->
+                        case w2 of
+                        Neutral e2' ->
+                            return . Neutral
+                                $ P.primOp2_ (Less theOrd) (fromHead v1) e2'
+                        Head_ v2 -> do
+                            let (v1a, v1b) = reifyPair v1
+                            let (v2a, v2b) = reifyPair v2
+                            error "TODO: rrLess{HOrd_Pair}"
+                            -- BUG: The obvious recursion won't work because we need to know when the first components are equal before recursing (to implement lexicographic ordering). We really need a ternary comparison operator like 'compare'.
+        HOrd_Either aOrd bOrd -> error "TODO: rrLess{HOrd_Either}"
 
 
 ----------------------------------------------------------------

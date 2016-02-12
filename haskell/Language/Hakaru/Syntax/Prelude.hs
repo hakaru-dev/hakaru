@@ -7,11 +7,12 @@
            , NoImplicitPrelude
            , ScopedTypeVariables
            , FlexibleContexts
+           , Rank2Types
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.01.17
+--                                                    2016.02.03
 -- |
 -- Module      :  Language.Hakaru.Syntax.Prelude
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -43,7 +44,8 @@ module Language.Hakaru.Syntax.Prelude
     , (==), (/=), (<), (<=), (>), (>=), min, minimum, max, maximum
     -- ** Semirings
     , zero, zero_, one, one_, (+), sum, (*), product, (^), square
-    , unsafeMinusNat, unsafeMinusProb
+    , unsafeMinusNat, unsafeMinusProb, unsafeMinus, unsafeMinus_
+    , unsafeDiv, unsafeDiv_
     -- ** Rings
     , (-), negate, negative, abs, abs_, signum
     -- ** Fractional
@@ -328,10 +330,12 @@ ann_ :: (ABT Term abt) => Sing a -> abt '[] a -> abt '[] a
 ann_ typ e = syn (Ann_ typ :$ e :* End)
 
 coerceTo_ :: (ABT Term abt) => Coercion a b -> abt '[] a -> abt '[] b
-coerceTo_ c e = syn (CoerceTo_ c :$ e :* End)
+coerceTo_ CNil e = e
+coerceTo_ c    e = syn (CoerceTo_ c :$ e :* End)
 
 unsafeFrom_ :: (ABT Term abt) => Coercion a b -> abt '[] b -> abt '[] a
-unsafeFrom_ c e = syn (UnsafeFrom_ c :$ e :* End)
+unsafeFrom_ CNil e = e
+unsafeFrom_ c    e = syn (UnsafeFrom_ c :$ e :* End)
 
 literal_ :: (ABT Term abt) => Literal a  -> abt '[] a
 literal_ = syn . Literal_
@@ -932,16 +936,66 @@ unsafeMinusProb
     :: (ABT Term abt) => abt '[] 'HProb -> abt '[] 'HProb -> abt '[] 'HProb
 unsafeMinusProb x y = unsafeProb (fromProb x - fromProb y)
 
-{-
--- BUG: the general version won't typecheck because we run into ambiguity issues due to NonNegative not being injective... Basically, we need to concretize the choice of @a@ given @NonNegative a@
+-- | For any semiring we can attempt subtraction by lifting to a
+-- ring, subtracting there, and then lowering back to the semiring.
+-- Of course, the lowering step may well fail.
 unsafeMinus
-    :: (ABT Term abt, HRing_ a)
-    => abt '[] (NonNegative a)
-    -> abt '[] (NonNegative a)
-    -> abt '[] (NonNegative a)
-unsafeMinus x y =
-    unsafeFrom_ signed (coerceTo_ signed x - coerceTo_ signed y)
--}
+    :: (ABT Term abt, HSemiring_ a) => abt '[] a -> abt '[] a -> abt '[] a
+unsafeMinus = unsafeMinus_ hSemiring
+
+-- | A variant of 'unsafeMinus' for explicitly passing the semiring
+-- instance.
+unsafeMinus_
+    :: (ABT Term abt) => HSemiring a -> abt '[] a -> abt '[] a -> abt '[] a
+unsafeMinus_ theSemi =
+    signed_HSemiring theSemi $ \c ->
+        let lift  = coerceTo_   c
+            lower = unsafeFrom_ c
+        in \e1 e2 -> lower (lift e1 - lift e2)
+
+-- TODO: move to Coercion.hs?
+-- | For any semiring, return a coercion to its ring completion.
+-- Because this completion is existentially quantified, we must use
+-- a cps trick to eliminate the existential.
+signed_HSemiring
+    :: HSemiring a -> (forall b. (HRing_ b) => Coercion a b -> r) -> r
+signed_HSemiring c k =
+    case c of
+    HSemiring_Nat  -> k $ singletonCoercion (Signed HRing_Int)
+    HSemiring_Int  -> k CNil
+    HSemiring_Prob -> k $ singletonCoercion (Signed HRing_Real)
+    HSemiring_Real -> k CNil
+
+-- | For any semiring we can attempt division by lifting to a
+-- semifield, dividing there, and then lowering back to the semiring.
+-- Of course, the lowering step may well fail.
+unsafeDiv
+    :: (ABT Term abt, HSemiring_ a) => abt '[] a -> abt '[] a -> abt '[] a
+unsafeDiv = unsafeDiv_ hSemiring
+
+-- | A variant of 'unsafeDiv' for explicitly passing the semiring
+-- instance.
+unsafeDiv_
+    :: (ABT Term abt) => HSemiring a -> abt '[] a -> abt '[] a -> abt '[] a
+unsafeDiv_ theSemi =
+    continuous_HSemiring theSemi $ \c ->
+        let lift  = coerceTo_   c
+            lower = unsafeFrom_ c
+        in \e1 e2 -> lower (lift e1 / lift e2)
+
+-- TODO: move to Coercion.hs?
+-- | For any semiring, return a coercion to its semifield completion.
+-- Because this completion is existentially quantified, we must use
+-- a cps trick to eliminate the existential.
+continuous_HSemiring
+    :: HSemiring a -> (forall b. (HFractional_ b) => Coercion a b -> r) -> r
+continuous_HSemiring c k =
+    case c of
+    HSemiring_Nat  -> k $ singletonCoercion (Continuous HContinuous_Prob)
+    HSemiring_Int  -> k $ singletonCoercion (Continuous HContinuous_Real)
+    HSemiring_Prob -> k CNil
+    HSemiring_Real -> k CNil
+
 
 appendV
     :: (ABT Term abt)
@@ -994,6 +1048,7 @@ zipWithV f v1 v2 =
 
 
 ----------------------------------------------------------------
+-- BUG: this use of 'typeOf' causes problems in practice (for unknown reasons since I do have an annotation on the relevant Datum constructors). So we should go back to using SingI
 (>>=)
     :: (ABT Term abt)
     => abt '[] ('HMeasure a)

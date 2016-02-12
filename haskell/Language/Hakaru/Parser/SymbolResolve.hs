@@ -68,16 +68,18 @@ primTable =
     [("pair",       primPair)
     ,("left",       primLeft)
     ,("right",      primRight)
-    ,("true",       primTrue)
-    ,("false",      primFalse)
+    ,("true",       TNeu $ true_)
+    ,("false",      TNeu $ false_)
     ,("fromProb",   primFromProb)
     ,("unsafeProb", primUnsafeProb)
     ,("uniform",    primMeasure2 (U.SealedOp T.Uniform))
     ,("normal",     primMeasure2 (U.SealedOp T.Normal))
     ,("gamma",      primMeasure2 (U.SealedOp T.Gamma))
     ,("beta",       primMeasure2 (U.SealedOp T.Beta))
+    ,("bern",       primBern)
     ,("weight",     primWeight)
     ,("dirac",      TLam $ TNeu . U.Dirac_)
+    ,("reject",     TNeu $ U.Superpose_ [])
     -- This should probably be in U.AST'
     ,("**",         primRealPow)
     --,("^",          primNatPow)
@@ -87,7 +89,16 @@ primTable =
 primMeasure2 :: U.SealedOp T.MeasureOp -> Symbol U.AST
 primMeasure2 m = t2 $ \x y -> U.MeasureOp_ m [x, y]
 
-primPair, primLeft, primRight, primTrue, primFalse :: Symbol U.AST
+true_, false_ :: U.AST
+true_  = U.Ann_ (U.Datum_ . U.Datum "true"  . U.Inl $ U.Done)
+         (U.SSing sBool)
+false_ = U.Ann_ (U.Datum_ . U.Datum "false" . U.Inr . U.Inl $ U.Done)
+         (U.SSing sBool)
+
+unsafeFrom_ :: U.AST -> U.AST
+unsafeFrom_ = U.UnsafeTo_ (Some2 $ CCons (Signed HRing_Real) CNil)
+
+primPair, primLeft, primRight :: Symbol U.AST
 primFromProb, primUnsafeProb  :: Symbol U.AST
 primWeight, primRealPow :: Symbol U.AST
 primPair       = t2 $ \a b ->
@@ -97,11 +108,6 @@ primLeft       = TLam $ TNeu . U.Datum_ .
                         U.Datum "left" . U.Inl . (`U.Et` U.Done) . U.Konst
 primRight      = TLam $ TNeu . U.Datum_ .
                         U.Datum "right" . U.Inr . U.Inl . (`U.Et` U.Done) . U.Konst
-primTrue       = TNeu $ U.Ann_ (U.Datum_ . U.Datum "true"  . U.Inl $ U.Done)
-                               (U.SSing sBool)
-primFalse      = TNeu $ U.Ann_
-                            (U.Datum_ . U.Datum "false" . U.Inr . U.Inl $ U.Done)
-                            (U.SSing sBool)
 primFromProb   =
     TLam $ TNeu . U.CoerceTo_ (Some2 $ CCons (Signed HRing_Real) CNil)
 primUnsafeProb =
@@ -109,6 +115,13 @@ primUnsafeProb =
 primWeight     = t2 $ \w m -> U.Superpose_ [(w, m)]
 primRealPow    = t2 $ \x y -> U.PrimOp_ (U.SealedOp T.RealPow) [x, y]
 --primNatPow     = t2 $ \x y -> U.PrimOp_ (U.SealedOp T.NatPow) [x, y]
+primBern       = TLam $ \p -> TNeu
+                 (U.Superpose_ [(p, U.Dirac_ true_),
+                                (unsafeFrom_ $ U.NaryOp_ U.Sum'
+                                 [ U.Literal_ (Some1 $ T.LReal 1.0)
+                                 , U.PrimOp_ (U.SealedOp $ T.Negate HRing_Real) [p]
+                                 ]
+                                , U.Dirac_ false_)])
 
 gensym :: Text -> State Int U.Name
 gensym s = state $ \i -> (U.Name (N.unsafeNat i) s, i + 1)
@@ -313,41 +326,12 @@ makeAST ast =
                                                    makeAST e))
                                        es)
 
-
 resolveAST :: U.AST' Text -> U.AST
 resolveAST ast = makeAST $
                  normAST $
                  evalState (symbolResolution primTable ast) 0
 
-data PrimOp'
-    = Not'
-    | Impl'
-    | Diff'
-    | Nand'      | Nor'
-    | Pi'
-    | Sin'       | Cos'   | Tan'
-    | Asin'      | Acos'  | Atan'
-    | Sinh'      | Cosh'  | Tanh'
-    | Asinh'     | Acosh' | Atanh'
-    | RealPow'
-    | Exp'       | Log'
-    | Infinity'  | NegativeInfinity'
-    | GammaFunc' | BetaFunc'
-    | Integrate' | Summate'
-    | Equal'     | Less'
-    | NatPow'
-    | Negate'
-    | Abs'
-    | Signum'
-    | Recip'
-    | NatRoot'
-    | Erf'
-
-data ArrayOp'
-    = Index'
-    | Size'
-    | Reduce'
-
+data ArrayOp' = Index' | Size' | Reduce'
 
 data MeasureOp'
     = Lebesgue'

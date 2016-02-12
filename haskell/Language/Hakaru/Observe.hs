@@ -28,22 +28,23 @@ module Language.Hakaru.Observe where
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Types.DataKind
-import Language.Hakaru.Types.HClasses
 import qualified Language.Hakaru.Syntax.Prelude as P
 
 observe
     :: (ABT Term abt)
     => abt '[] ('HMeasure a)
     -> abt '[] a 
+    -> abt '[] a
     -> abt '[] ('HMeasure a)
-observe m a = observeAST (LC_ m) (LC_ a)
+observe m a b = observeAST (LC_ m) (LC_ a) (LC_ b)
 
 observeAST
     :: (ABT Term abt)
     => LC_ abt ('HMeasure a)
     -> LC_ abt a
+    -> LC_ abt a
     -> abt '[] ('HMeasure a)
-observeAST (LC_ m) (LC_ a) =
+observeAST (LC_ m) (LC_ a) (LC_ b) =
     caseVarSyn m observeVar $ \ast ->
         case ast of
         -- TODO: Add a name supply
@@ -54,7 +55,7 @@ observeAST (LC_ m) (LC_ a) =
                                      ""
                                      (nextFree m `max` nextBind m)
                                      (varType x)
-                          in bind x' $ observe (rename x x' e2') a) :*
+                          in bind x' $ observe (rename x x' e2') a b) :*
                 End)
         --Dirac :$ e  :* End       -> P.if_ (e P.== a) (P.dirac a) P.reject
         -- TODO: Add a name supply
@@ -65,9 +66,9 @@ observeAST (LC_ m) (LC_ a) =
                                       ""
                                       (nextFree m `max` nextBind m)
                                       (varType x)
-                           in bind x' $ observe (rename x x' e2') a) :*
+                           in bind x' $ observe (rename x x' e2') a b) :*
                  End)
-        MeasureOp_ op :$ es      -> observeMeasureOp op es a
+        MeasureOp_ op :$ es      -> observeMeasureOp op es a b
         _ -> error "observe can only be applied to measure primitives"
 
 -- This function can't inspect a variable due to
@@ -79,23 +80,25 @@ observeMeasureOp
     => MeasureOp typs a
     -> SArgs abt args
     -> abt '[] a
+    -> abt '[] a
     -> abt '[] ('HMeasure a)
-observeMeasureOp Normal  (mu :* sd :* End) x =
+observeMeasureOp Normal  (mu :* sd :* End) a b =
     P.withWeight
-        (P.exp (P.negate (x P.- mu) P.^ P.nat_ 2
+        (P.exp (P.negate (a P.- mu) P.^ P.nat_ 2
         P./ P.fromProb (P.prob_ 2 P.* sd P.^ (P.nat_ 2)))
         P./ sd
-        P./ P.sqrt (P.prob_ 2 P.* P.pi)) (P.dirac x)
-observeMeasureOp Uniform (lo :* hi :* End) x =
-    P.if_ (lo P.<= x P.&& x P.<= hi)
-          (P.withWeight (P.unsafeProb $ P.recip $ hi P.- lo) (P.dirac x))
+        P./ P.sqrt (P.prob_ 2 P.* P.pi)) (P.dirac b)
+observeMeasureOp Uniform (lo :* hi :* End) a b =
+    P.if_ (lo P.<= a P.&& a P.<= hi)
+          (P.withWeight (P.unsafeProb $ P.recip $ hi P.- lo) (P.dirac b))
           P.reject
-observeMeasureOp (Plate t) (e1 :* End) x =
+observeMeasureOp (Plate t) (e1 :* End) a b =
     caseVarSyn e1 observeVar $ \ast ->
       case ast of
         Array_ n e1 -> caseBind e1 $ \i e1' ->
           syn $ MeasureOp_ (Plate t)
-           :$ (syn $ Array_ n $ bind i $ observe e1' (syn $ ArrayOp_  (Index t) :$ x :* (var i) :* End))
+           :$ (syn $ Array_ n $ bind i $ observe e1' (syn $ ArrayOp_  (Index t) :$ a :* (var i) :* End)
+                                                     (syn $ ArrayOp_  (Index t) :$ b :* (var i) :* End))
            :* End
         _ -> error "TODO other cases"
-observeMeasureOp _ _ _ = error "TODO{Observe:observeMeasureOp}"
+observeMeasureOp _ _ _ _ = error "TODO{Observe:observeMeasureOp}"

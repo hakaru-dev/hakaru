@@ -16,7 +16,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.01.15
+--                                                    2016.02.09
 -- |
 -- Module      :  Language.Hakaru.Evaluation.DisintegrationMonad
 -- Copyright   :  Copyright (c) 2015 the Hakaru team
@@ -115,23 +115,56 @@ import Language.Hakaru.Evaluation.Lazy (reifyPair)
 -- we can recover the order things were inserted from their 'varID'
 -- since we've freshened them all and therefore their IDs are
 -- monotonic in the insertion order.)
-data ListContext (abt :: [Hakaru] -> Hakaru -> *) = ListContext
+data ListContext (abt :: [Hakaru] -> Hakaru -> *) (p :: Purity) =
+    ListContext
     { nextFreshNat :: {-# UNPACK #-} !Nat
-    , statements   :: [Statement abt]
+    , statements   :: [Statement abt p]
     }
 
 
--- Argument order is to avoid flipping in 'runDis'
--- TODO: generalize to non-measure types too!
+{-
+-- BUG: this declaration works fine, but because we can't
+-- guarantee\/prove it's injective, it doesn't actually work out
+-- in practice. E.g., when we adjust the types of 'residualizeListContext'
+-- we start running into abscure \"ambiguity\" issues. If we can
+-- get things to work for 'residualizeListContext' then we can
+-- generalize 'Ans' to be polymorphic in the purity, and so can
+-- generalize 'Dis' to also be polymorphic in the purity; thus
+-- allowing us to reuse 'Dis' for constant propagation, rather than
+-- needing to copy everything over for the definition of the @Eval@
+-- type.
+--
+-- TODO: how to make it work out? If we had some way of naming the
+-- type level identity function (i.e., the actual identity function,
+-- not a hack like using the @Identity@ newtype) then we could be
+-- parameterized just on @p@ which is what we actually want.
+
+type family PurityMonad (p :: Purity) (a :: Hakaru) :: Hakaru where
+    PurityMonad 'Pure   a = a
+    PurityMonad 'Impure a = 'HMeasure a
+-}
+
+-- TODO: generalize to non-measure types too! See the note above
+-- re the @PurityMonad@ type family.
+--
+-- | Plug a term into a context. That is, the 'statements' of the
+-- context specifies a program with a hole in it; so we plug the
+-- given term into that hole, returning the complete program.
 residualizeListContext
     :: forall abt a
     .  (ABT Term abt)
-    => abt '[] ('HMeasure a)
-    -> ListContext abt
+    => ListContext abt 'Impure
     -> abt '[] ('HMeasure a)
-residualizeListContext e0 = foldl step e0 . statements
+    -> abt '[] ('HMeasure a)
+residualizeListContext =
+    -- N.B., we use a left fold because the head of the list of
+    -- statements is the one closest to the hole.
+    \ss e0 -> foldl step e0 (statements ss)
     where
-    step :: abt '[] ('HMeasure a) -> Statement abt -> abt '[] ('HMeasure a)
+    step
+        :: abt '[] ('HMeasure a)
+        -> Statement abt 'Impure
+        -> abt '[] ('HMeasure a)
     step e s =
         case s of
         SBind x body ->
@@ -148,13 +181,11 @@ residualizeListContext e0 = foldl step e0 . statements
                     Just v  -> subst x (syn $ Literal_ v) e
                     Nothing ->
                         syn (Let_ :$ fromLazy body :* bind x e :* End)
-        {-
-        SBranch xs pat body ->
-            syn $ Case_ (fromLazy body)
+        SGuard xs pat scrutinee ->
+            syn $ Case_ (fromLazy scrutinee)
                 [ Branch pat   (binds_ xs e)
                 , Branch PWild P.reject
                 ]
-        -}
         SWeight body        -> syn $ Superpose_ [(fromLazy body, e)]
         SIndex x index size ->
             -- The obvious thing to do:
@@ -182,8 +213,8 @@ residualizeListContext e0 = foldl step e0 . statements
 -- it must be one preserved by 'residualizeContext'.
 --
 -- Also, we add the list in order to support "lub" without it living in the AST.
--- TODO: really we should use ListT or the like...
-type Ans abt a = ListContext abt -> [abt '[] ('HMeasure a)]
+-- TODO: really we should use LogicT...
+type Ans abt a = ListContext abt 'Impure -> [abt '[] ('HMeasure a)]
 
 
 ----------------------------------------------------------------
@@ -224,7 +255,7 @@ runDis :: (ABT Term abt, F.Foldable f)
 runDis (Dis m) es = m c0 (ListContext i0 [])
     where
     -- TODO: we only use dirac because 'residualizeListContext' requires it to already be a measure; unfortunately this can result in an extraneous @(>>= \x -> dirac x)@ redex at the end of the program. In principle, we should be able to eliminate that redex by changing the type of 'residualizeListContext'...
-    c0 e = (:[]) . residualizeListContext (syn(Dirac :$ e :* End))
+    c0 e ss = [residualizeListContext ss (syn(Dirac :$ e :* End))]
     
     i0 = unMaxNat (F.foldMap (\(Some2 e) -> MaxNat $ nextFree e) es)
 
@@ -248,7 +279,7 @@ instance MonadPlus (Dis abt) where
     mzero = empty -- aka "bot"
     mplus = (<|>) -- aka "lub"
 
-instance (ABT Term abt) => EvaluationMonad abt (Dis abt) where
+instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
     freshNat =
         Dis $ \c (ListContext i ss) ->
             c i (ListContext (i+1) ss)
@@ -284,7 +315,7 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) where
                         return (Just r)
 
 -- | Not exported because we only need it for defining 'select' on 'Dis'.
-unsafePop :: Dis abt (Maybe (Statement abt))
+unsafePop :: Dis abt (Maybe (Statement abt 'Impure))
 unsafePop =
     Dis $ \c h@(ListContext i ss) ->
         case ss of
@@ -298,6 +329,9 @@ unsafePop =
 -- give up on trying to do so. This function is identical to 'empty'
 -- and 'mzero' for 'Dis'; we just give it its own name since this is
 -- the name used in our papers.
+--
+-- TODO: add some sort of trace information so we can get a better
+-- idea what caused a disintegration to fail.
 bot :: (ABT Term abt) => Dis abt a
 bot = Dis $ \_ _ -> []
 
@@ -509,7 +543,7 @@ emitCase e ms =
     -- This function has a type isomorphic to:
     -- > GBranch a (Dis abt b) -> Ran (Ans abt) (Ans' abt) b
     -- where:
-    -- > Ans' abt b = ListContext abt -> [Branch a abt ('HMeasure b)]
+    -- > Ans' abt b = ListContext abt p -> [Branch a abt ('HMeasure b)]
     -- This is very similar to but not quite the same as:
     -- > GBranch a (Dis abt b) -> Dis abt b
     -- Since @Dis abt = Codensity (Ans abt) = Ran (Ans abt) (Ans abt)@.
@@ -517,7 +551,7 @@ emitCase e ms =
 -}
 
 freshenBranch
-    :: (ABT Term abt, EvaluationMonad abt m)
+    :: (ABT Term abt, EvaluationMonad abt m p)
     => Branch a abt b
     -> m (Branch a abt b)
 freshenBranch (Branch pat e) = do
@@ -527,7 +561,7 @@ freshenBranch (Branch pat e) = do
     return . Branch pat . binds_ vars' $ substs rho body
 
 freshenGBranch
-    :: (ABT Term abt, EvaluationMonad abt m)
+    :: (ABT Term abt, EvaluationMonad abt m p)
     => GBranch a b
     -> m (GBranch a b)
 freshenGBranch (GBranch pat vars x) = do
@@ -538,7 +572,7 @@ freshenGBranch (GBranch pat vars x) = do
 -- > fmap fromGBranch . freshenBranchG = freshenBranch
 -- > freshenBranchG . fromGBranch = freshenGBranch
 freshenBranchG
-    :: (ABT Term abt, EvaluationMonad abt m)
+    :: (ABT Term abt, EvaluationMonad abt m p)
     => Branch a abt b
     -> m (GBranch a (abt '[] b))
 freshenBranchG (Branch pat e) = do
@@ -558,7 +592,7 @@ freshenBranchG (Branch pat e) = do
 -- or more generally that:
 -- > T.sequence <=< applyBranch f = f <=< freshenBranchG
 applyBranch
-    :: (ABT Term abt, EvaluationMonad abt m)
+    :: (ABT Term abt, EvaluationMonad abt m p)
     => (abt '[] b -> r)
     -> Branch a abt b
     -> m (GBranch a r)

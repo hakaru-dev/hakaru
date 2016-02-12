@@ -38,10 +38,11 @@ import qualified Text.PrettyPrint as PP
 import qualified Data.Foldable    as F
 import qualified Data.Text        as Text
 import qualified Data.Sequence    as Seq -- Because older versions of "Data.Foldable" do not export 'null' apparently...
+import           Data.Proxy
 
 import Data.Number.Natural  (fromNatural, fromNonNegativeRational)
 
-import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11)
+import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11, jmEq1, TypeEq(..))
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
@@ -158,13 +159,16 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
             , PP.nest 1 (PP.vcat (map (toDoc . prettyPrec_ 0) bs))
             ]
         Superpose_ pes ->
-            -- TODO: use the old PrettyPrint.hs's hack for when there's exactly one thing in the list; i.e., print as @weight w *> m@ with the appropriate do-notation indentation for @(*>)@ (or using 'pose' and @($)@)
-            ppFun p "superpose"
-                [ toDoc
-                . ppList
-                . map (\(e1,e2) -> ppTuple [pretty e1, pretty e2])
-                $ pes
-                ]
+            case pes of
+              []       -> [ PP.text "reject" ]
+              [(w, m)] -> ppFun p "weight" [pretty w, pretty m]
+              pes      ->
+                 ppFun p "superpose"
+                 [ toDoc
+                 . ppList
+                 . map (\(e1,e2) -> ppTuple [pretty e1, pretty e2])
+                 $ pes
+                 ]
 
 
 -- | Pretty-print @(:$)@ nodes in the AST.
@@ -185,8 +189,8 @@ ppSCon _ Let_ = \(e1 :* e2 :* End) ->
     let (vars, body) = ppBinder2 e2 in
     [toDoc vars <+> PP.equals <+> toDoc (ppArg e1)
     PP.$$ (toDoc body)]
-ppSCon _ (Ann_ typ) = \(e1 :* End) ->
-    [toDoc (ppArg e1) <+> PP.text "::" <+> prettyType typ]
+ppSCon p (Ann_ typ) = \(e1 :* End) ->
+    [toDoc (ppArg e1) <+> PP.text "::" <+> prettyType p typ]
 
 ppSCon p (PrimOp_     o) = \es          -> ppPrimOp     p o es
 ppSCon p (ArrayOp_    o) = \es          -> ppArrayOp    p o es
@@ -247,15 +251,25 @@ ppUnsafeFrom =
 
 
 -- | Pretty-print a type.
-prettyType :: Sing (a :: Hakaru) -> Doc
-prettyType SNat         = PP.text "nat"
-prettyType SInt         = PP.text "int"
-prettyType SProb        = PP.text "prob"
-prettyType SReal        = PP.text "real"
-prettyType (SMeasure a) = PP.text "measure" <> PP.parens (prettyType a)
-prettyType (SArray   a) = PP.text "array" <> PP.parens (prettyType a)
-prettyType (SFun   a b) = prettyType a <+> PP.text "->" <+> prettyType b  
-prettyType typ          = PP.text (showsPrec 11 typ "")
+prettyType :: Int -> Sing (a :: Hakaru) -> Doc
+prettyType _ SNat         = PP.text "nat"
+prettyType _ SInt         = PP.text "int"
+prettyType _ SProb        = PP.text "prob"
+prettyType _ SReal        = PP.text "real"
+prettyType p (SMeasure a) = PP.text "measure" <> PP.parens (prettyType p a)
+prettyType p (SArray   a) = PP.text "array" <> PP.parens (prettyType p a)
+prettyType p (SFun   a b) = prettyType p a <+> PP.text "->" <+> prettyType p b  
+prettyType p typ          =
+    case typ of
+      SData (STyCon sym `STyApp` a `STyApp` b) _ ->
+          case jmEq1 sym (SingSymbol Proxy :: Sing "Pair") of
+            Just Refl -> toDoc $ ppFun p "pair" [prettyType p a, prettyType p b]
+            Nothing   -> PP.text (showsPrec 11 typ "")
+      SData (STyCon sym) _ ->
+          case jmEq1 sym (SingSymbol Proxy :: Sing "Bool") of
+            Just Refl -> PP.text "bool"
+            Nothing   -> PP.text (showsPrec 11 typ "")
+      _ -> PP.text (showsPrec 11 typ "")
     -- TODO: make this prettier. Add hints to the singletons?typ
 
 
@@ -357,9 +371,16 @@ instance Pretty f => Pretty (Datum f) where
         | Text.null hint =
             ppFun p "datum_"
                 [error "TODO: prettyPrec_@Datum"]
-        | otherwise = 
-            ppFun p (Text.unpack hint)
-                (foldMap11 ((:[]) . toDoc . prettyPrec_ 11) d)
+        | otherwise =
+            case Text.unpack hint of
+              -- Special cases for certain datums
+              "pair"  -> ppFun p ""
+                         (foldMap11 ((:[]) . toDoc . prettyPrec_ 11) d) 
+              "true"  -> [PP.text "true"]
+              "false" -> [PP.text "false"]
+              -- General case
+              _       -> ppFun p (Text.unpack hint)
+                         (foldMap11 ((:[]) . toDoc . prettyPrec_ 11) d)
 
 
 -- HACK: need to pull this out in order to get polymorphic recursion over @xs@
@@ -368,7 +389,13 @@ ppPattern _ PWild = [PP.text "PWild"]
 ppPattern _ PVar  = [PP.text "PVar"]
 ppPattern p (PDatum hint d0)
     | Text.null hint = error "TODO: prettyPrec_@Pattern"
-    | otherwise      = ppFun p (Text.unpack hint) (goCode d0)
+    | otherwise      =
+        case Text.unpack hint of
+          -- Special cases for certain pDatums
+          "pTrue"  -> [PP.text "true"]
+          "pFalse" -> [PP.text "false"]
+          -- General case
+          _        -> ppFun p (Text.unpack hint) (goCode d0)
     where
     goCode :: PDatumCode xss vars a -> Docs
     goCode (PInr d) = goCode   d
@@ -389,9 +416,8 @@ instance Pretty (Pattern xs) where
 
 instance (ABT Term abt) => Pretty (Branch a abt) where
     prettyPrec_ p (Branch pat e) =
-        ppFun p "Branch"
-            [ toDoc $ prettyPrec_ 11 pat
-            , PP.parens . toDoc $ ppBinder e -- BUG: we can't actually use the HOAS API here, since we aren't using a Prelude-defined @branch@...
+            [ (toDoc $ prettyPrec_ 11 pat) <> PP.colon <> PP.space
+            , PP.nest 1 $ toDoc $ ppBinder e -- BUG: we can't actually use the HOAS API here, since we aren't using a Prelude-defined @branch@...
             -- HACK: don't *always* print parens; pass down the precedence to 'ppBinder' to have them decide if they need to or not.
             ]
 
@@ -448,7 +474,7 @@ ppTuple = PP.parens . PP.sep . PP.punctuate PP.comma
 -- TODO: why does this take the precedence argument if it doesn't care?
 ppFun :: Int -> String -> [Doc] -> Docs
 ppFun _ f [] = [PP.text f <> PP.text "()"]
-ppFun _ f ds = [PP.text f, PP.nest (1 + length f) (ppTuple ds)]
+ppFun _ f ds = [PP.text f <> ppTuple ds]
 
 ppArg :: (ABT Term abt) => abt '[] a -> Docs
 ppArg = prettyPrec_ 11 . LC_

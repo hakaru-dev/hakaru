@@ -56,7 +56,8 @@ import Language.Hakaru.Types.DataKind (Hakaru(..), HData', HBool)
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.HClasses
-    (HOrd, hOrd_Sing, HSemiring, hSemiring_Sing)
+    ( HOrd, hOrd_Sing, HSemiring, hSemiring_Sing, HRing, hRing_Sing
+    , HFractional, hFractional_Sing)
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.AST
@@ -535,6 +536,41 @@ inferType = inferType_
         | otherwise    -> error "inferType: missing an inferable branch!"
 
 
+make_PrimOp
+    :: Sing a
+    -> List1 Sing typs
+    -> U.PrimOp'
+    -> TypeCheckMonad (PrimOp typs a)
+make_PrimOp a lt U.Not'    = do Refl <- isBool a
+                                Refl <- isListEq (sBool `Cons1` Nil1) lt
+                                return Not
+-- make_PrimOp _ U.Impl'   = return (U.SealedOp Impl)
+-- make_PrimOp _ U.Diff'   = return (U.SealedOp Diff)
+-- make_PrimOp _ U.Nand'   = return (U.SealedOp Nand)
+-- make_PrimOp _ U.Nor'    = return (U.SealedOp Nor)
+
+-- make_PrimOp _ U.Pi'     = return (U.SealedOp Pi)
+-- make_PrimOp _ U.Sin'    = return (U.SealedOp Sin)
+-- make_PrimOp _ U.Cos'    = return (U.SealedOp Cos)
+-- make_PrimOp _ U.Tan'    = return (U.SealedOp Tan)
+-- make_PrimOp _ U.Asin'   = return (U.SealedOp Asin)
+-- make_PrimOp _ U.Acos'   = return (U.SealedOp Acos)
+-- make_PrimOp _ U.Atan'   = return (U.SealedOp Atan)
+
+make_PrimOp a lt U.Negate' = do Refl <- isListEq (a `Cons1` Nil1) lt
+                                Negate <$> getHRing a
+make_PrimOp a lt U.Recip'  = do Refl <- isListEq (a `Cons1` Nil1) lt
+                                Recip <$> getHFractional a
+make_PrimOp _ _ _          = error "TODO: make_PrimOp"
+
+isListEq :: List1 (Sing :: Hakaru -> *) typs1 ->
+          List1 (Sing :: Hakaru -> *) typs2 ->
+          TypeCheckMonad (TypeEq typs1 typs2)
+isListEq t1 t2 =
+    case jmEq1 t1 t2 of
+      Just proof -> return proof
+      Nothing    -> typeMismatch (Left (show t1)) (Left (show t2))
+
 make_NaryOp :: Sing a -> U.NaryOp' -> TypeCheckMonad (NaryOp a)
 make_NaryOp a U.And'  = isBool a >>= \Refl -> return And
 make_NaryOp a U.Or'   = isBool a >>= \Refl -> return Or
@@ -562,6 +598,18 @@ getHSemiring typ =
     case hSemiring_Sing typ of
     Just theSemi -> return theSemi
     Nothing      -> missingInstance "HSemiring" typ
+
+getHRing :: Sing a -> TypeCheckMonad (HRing a)
+getHRing typ =
+    case hRing_Sing typ of
+    Just theRing -> return theRing
+    Nothing      -> missingInstance "HRing" typ
+
+getHFractional :: Sing a -> TypeCheckMonad (HFractional a)
+getHFractional typ =
+    case hFractional_Sing typ of
+    Just theFrac -> return theFrac
+    Nothing      -> missingInstance "HFractional" typ
 
 
 ----------------------------------------------------------------
@@ -686,16 +734,6 @@ inferCaseStrict typA e1 = inferOne []
     checkOthers typ = T.traverse (checkBranch typA typ)
 
 data SomeBranch a abt = forall b. SomeBranch !(Sing b) [Branch a abt b]
-
--- TODO: move this elsewhere (and prolly rename to something better)
-underBinders
-    :: (ABT Term abt)
-    => (abt '[] a -> abt '[] b)
-    -> abt xs a
-    -> abt xs b
-underBinders f e =
-    let (vars, e') = caseBinds e
-    in binds_ vars (f e')
 
 -- TODO: find a better name, and move to where 'LC_' is defined.
 lc :: (LC_ abt a -> LC_ abt b) -> abt '[] a -> abt '[] b

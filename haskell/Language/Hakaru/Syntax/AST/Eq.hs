@@ -52,6 +52,9 @@ import qualified Data.Foldable as F
 import qualified Data.Sequence as S
 
 import Data.Maybe
+import Data.Number.Nat
+
+import Unsafe.Coerce
 
 ---------------------------------------------------------------------
 -- | This function performs 'jmEq' on a @(:$)@ node of the AST.
@@ -147,7 +150,9 @@ instance (ABT Term abt, JmEq2 abt) => JmEq1 (Term abt) where
         (Refl, Refl) <- jmEq2 i j
         (Refl, Refl) <- jmEq2 f g
         Just Refl
-    jmEq1 (Datum_ _)    (Datum_ _)     = error "TODO jmEq1@Term{Datum_}"
+    jmEq1 (Datum_ (Datum h _))    (Datum_ (Datum h' _)) =
+      -- TODO: Structurally compare Datums
+      if h == h' then unsafeCoerce (Just Refl) else Nothing 
     jmEq1 (Case_  a bs) (Case_  a' bs')      = do
         (Refl, Refl) <- jmEq2 a a'
         jmEq_Branch (zip bs bs')
@@ -237,6 +242,7 @@ instance ( Show1 (Sing :: k ->  *)
     where
     (==) = eq1
 
+{-
 alphaEq :: forall abt a
          . (ABT Term abt)
         => abt '[] a
@@ -364,3 +370,4 @@ alphaEq e1 e2 = runReader (go (viewABT e1) (viewABT e2)) emptyAssocs
       datumFunEq (Konst e) (Konst f) = go (viewABT e) (viewABT f) 
       datumFunEq (Ident e) (Ident f) = go (viewABT e) (viewABT f) 
       datumFunEq _          _        = return False
+-}
