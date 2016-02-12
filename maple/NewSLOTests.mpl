@@ -282,7 +282,11 @@ module()
   TestHakaru(app(app(rmProg4,Pair(r1,r2)),Pair(p1,p2)), Msum(Weight(1/2, Bind(Uniform(3, 8), a5, Ret(Pair(Pair(a5, p2), exp((1/2)*(-p1+a5)*(a5+p1)*(p1^2*p2^2*r1^2+p1^2*p2^2*r2^2+2*p1^2*r1^2*a5^2-2*p1^2*r1*r2*a5^2+p1^2*r2^2*a5^2+p2^4*r1^2+2*p2^4*r1*r2+2*p2^4*r2^2+p2^2*r1^2*a5^2+p2^2*r2^2*a5^2)/((p2^4+3*p2^2*a5^2+a5^4)*(p1^4+3*p1^2*p2^2+p2^4)))*sqrt(p1^4+3*p1^2*p2^2+p2^4)/sqrt(p2^4+3*p2^2*a5^2+a5^4))))), Weight(1/2, Bind(Uniform(1, 4), a6, Ret(Pair(Pair(p1, a6), exp((1/2)*(-p2+a6)*(a6+p2)*(5*p1^4*r1^2-6*p1^4*r1*r2+2*p1^4*r2^2+2*p1^2*p2^2*r1^2-2*p1^2*p2^2*r1*r2+p1^2*p2^2*r2^2+2*p1^2*r1^2*a6^2-2*p1^2*r1*r2*a6^2+p1^2*r2^2*a6^2+p2^2*r1^2*a6^2+p2^2*r2^2*a6^2)/((p1^4+3*p1^2*a6^2+a6^4)*(p1^4+3*p1^2*p2^2+p2^4)))*sqrt(p1^4+3*p1^2*p2^2+p2^4)/sqrt(p1^4+3*p1^2*a6^2+a6^4)))))), label="rmProg4") assuming 3<p1, p1<8, 1<p2, p2<4;
 end module:
 
-# conjugacies
+#####################################################################
+#
+# conjugacy tests
+#
+#####################################################################
 gaussian_gaussian   := Bind(Gaussian(mu0,sigma0),mu, Weight(NewSLO:-density[Gaussian](mu,sigma1)(x), Ret(mu))):
 gaussian_gaussian_s := Weight((1/2)*sqrt(2)*exp(-(1/2)*(mu0-x)^2/(sigma0^2+sigma1^2))/(sqrt(Pi)*sqrt(sigma0^2+sigma1^2)), Gaussian((mu0*sigma1^2+sigma0^2*x)/(sigma0^2+sigma1^2), sigma0*sigma1/sqrt(sigma0^2+sigma1^2))):
 TestHakaru(gaussian_gaussian, gaussian_gaussian_s, label="gaussian_gaussian conjugacy") assuming mu0::real, sigma0>0, sigma1>0, x::real;
@@ -304,6 +308,12 @@ TestHakaru(Bind(Uniform(0,1), x, Uniform(x,1)), label="roundtrip despite banishi
 
 TestHakaru(Bind(Ret(ary(n,i,i*2)), v, Ret(idx(v,42))), Ret(84), label="basic array indexing");
 
+#####################################################################
+#
+# plate/array tests
+#
+#####################################################################
+
 ary0 := Bind(Plate(ary(k, i, Gaussian(0,1))), xs, Ret([xs])):
 TestHakaru(ary0, ary0, label="plate roundtripping");
 
@@ -311,8 +321,8 @@ ary1  := Bind(Gaussian(0,1), x,
          Bind(Plate(ary(n, i, Weight(density[Gaussian](x,1)(idx(t,i)), Ret(Unit)))), ys,
          Ret(x))):
 ary1w := 2^(-(1/2)*n+1/2)*exp((1/2)*((sum(idx(t,i),i=1..n))^2-(sum(idx(t,i)^2,i=1..n))*n-(sum(idx(t,i)^2,i=1..n)))/(n+1))*Pi^(-(1/2)*n)/sqrt(2+2*n):
-TestHakaru(ary1, Weight(ary1w, Gaussian((sum(idx(t, i), i = 1 .. n))/(n+1), 1/sqrt(n+1))), label="Wednesday goal") assuming n::nonnegint;
-TestHakaru(Bind(ary1, x, Ret(Unit)), Weight(ary1w, Ret(Unit)), label="Wednesday goal total") assuming n::nonnegint;
+# TestHakaru(ary1, Weight(ary1w, Gaussian((sum(idx(t, i), i = 1 .. n))/(n+1), 1/sqrt(n+1))), label="Wednesday goal") assuming n::nonnegint;
+# TestHakaru(Bind(ary1, x, Ret(Unit)), Weight(ary1w, Ret(Unit)), label="Wednesday goal total") assuming n::nonnegint;
 ary2  := Bind(Gaussian(0,1), x,
          Bind(Plate(ary(n, i, Bind(Gaussian(idx(t,i),1),z, Weight(density[Gaussian](x,1)(idx(t,i)), Ret(z+1))))), ys,
          Ret(ys))):
@@ -354,3 +364,19 @@ TestHakaru(fusion,  conjugacies, label="Conjugacy in plate (currently fails)"); 
 gmm := Bind(Plate(ary(k, c, Gaussian(0,1))), xs,
        Bind(Plate(ary(n, i, Weight(density[Gaussian](idx(xs,idx(cs,i)),1)(idx(t,i)), Ret(Unit)))), ys,
        Ret(xs))):
+
+#####################################################################
+#
+# disintegration tests
+#
+#####################################################################
+
+# this uses a *global* variable 't'.
+TestDisint := proc(m,n)
+  global t;
+  CodeTools[Test](fromLO(disint(toLO(m),t)), n, measure(simplify), _rest)
+end proc:
+d1 := Bind(Lebesgue(), x, Ret(Pair(-5*x,3/x))):
+d1r := {Weight(1/5,Ret(-15/t))};
+
+TestDisint(d1, d1r);
