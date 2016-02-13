@@ -3,17 +3,19 @@
 module Main where
 
 import qualified Language.Hakaru.Parser.AST as U
-import Language.Hakaru.Parser.Parser
-import Language.Hakaru.Parser.SymbolResolve (resolveAST)
+import           Language.Hakaru.Parser.Parser
+import           Language.Hakaru.Parser.SymbolResolve (resolveAST)
 
 
 import qualified Language.Hakaru.Syntax.AST as T
-import Language.Hakaru.Syntax.ABT
-import Language.Hakaru.Types.Sing
+import           Language.Hakaru.Syntax.ABT
+import           Language.Hakaru.Syntax.TypeCheck
+import           Language.Hakaru.Syntax.Prelude (prob_, fromProb, real_)
 
-import Language.Hakaru.Syntax.TypeCheck
-import Language.Hakaru.Sample
-import Language.Hakaru.Syntax.Prelude (prob_, fromProb, real_)
+import           Language.Hakaru.Types.Sing
+
+import           Language.Hakaru.Sample
+import           Language.Hakaru.Pretty.Concrete
 
 import           Control.Monad
 import           Data.Text
