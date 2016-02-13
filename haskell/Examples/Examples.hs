@@ -77,3 +77,9 @@ gaussian_process = undefined
 hawkes_process = undefined
 
 bayesian_neural_network = undefined
+
+cipher = undefined
+
+hierarchical_dirichlet_process = undefined
+
+pcfg = undefined
