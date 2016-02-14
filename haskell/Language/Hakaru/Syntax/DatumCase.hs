@@ -43,8 +43,9 @@ import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.AST (Term(Datum_))
 import Language.Hakaru.Syntax.ABT
 
-import           Language.Hakaru.Pretty.Haskell
-import           Text.PrettyPrint (Doc, (<+>))
+import qualified Data.Text        as Text
+import           Data.Number.Nat  (fromNat)
+import           Text.PrettyPrint (Doc, (<+>), (<>))
 import qualified Text.PrettyPrint as PP
 
 ----------------------------------------------------------------
@@ -88,26 +89,44 @@ data MatchResult
 type DList a = [a] -> [a]
 
 
-instance Show (MatchResult ast vars) where
+instance Show1 ast => Show (MatchResult ast vars) where
     showsPrec p = shows . ppMatchResult p
 
-ppMatchResult ::  Int -> MatchResult ast vars -> Doc
+ppMatchResult :: Int -> MatchResult ast vars -> Doc
 ppMatchResult _ GotStuck = PP.text "GotStuck"
-ppMatchResult p (Matched boundVars unboundVars) = PP.text "TODO: Matched"
-    -- parens (p > 9)
-    --     (PP.text f <+> PP.nest (1 + length f) (PP.sep
-    --         [ ppList . map (prettyPrecAssoc 11) $ boundVars []
-    --         , ppList $ ppVariables unboundVars
-    --         ]))
-    -- where
-    -- f            = "Matched"
-    -- ppList       = PP.brackets . PP.nest 1 . PP.fsep . PP.punctuate PP.comma
-    -- parens True  = PP.parens   . PP.nest 1
-    -- parens False = id
+ppMatchResult p (Matched boundVars unboundVars) =
+    parens (p > 9)
+        (PP.text f <+> PP.nest (1 + length f) (PP.sep
+            [ ppList . map prettyPrecAssoc $ boundVars []
+            , ppList $ ppVariables unboundVars
+            ]))
+    where
+    f            = "Matched"
+    ppList       = PP.brackets . PP.nest 1 . PP.fsep . PP.punctuate PP.comma
+    parens True  = PP.parens   . PP.nest 1
+    parens False = id
 
-    -- ppVariables :: List1 (Variable :: Hakaru -> *) xs -> [Doc]
-    -- ppVariables Nil1         = []
-    -- ppVariables (Cons1 x xs) = ppVariable x : ppVariables xs
+    prettyPrecAssoc :: Assoc ast -> Doc
+    prettyPrecAssoc (Assoc x e) =
+        PP.cat $ ppFun 11 "Assoc"
+            [ ppVariable x
+            {-, PP.text $ showsPrec1 11 e ""-} -- TODO: Show1 Assoc
+            ]
+
+    ppVariables :: List1 Variable xs -> [Doc]
+    ppVariables Nil1         = []
+    ppVariables (Cons1 x xs) = ppVariable x : ppVariables xs
+
+    ppVariable :: Variable a -> Doc
+    ppVariable x = hint <> (PP.int . fromNat . varID) x
+        where
+        hint
+            | Text.null (varHint x) = PP.char 'x' -- We used to use '_' but...
+            | otherwise             = (PP.text . Text.unpack . varHint) x
+
+    ppFun :: Int -> String -> [Doc] -> [Doc]
+    ppFun _ f [] = [PP.text f]
+    ppFun p f ds = [PP.text f <+> PP.nest (1 + length f) (PP.sep ds)]
 
 
 
