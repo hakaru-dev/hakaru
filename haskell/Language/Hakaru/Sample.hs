@@ -183,15 +183,16 @@ normalize xs  = (m, y, ys)
 
 
 normalizeVector
-    :: V.Vector LF.LogFloat -> (LF.LogFloat, Double, V.Vector Double)
-normalizeVector xs =
+    :: Value ('HArray 'HProb) -> (LF.LogFloat, Double, V.Vector Double)
+normalizeVector (VArray xs) =
+    let xs' = V.map (\(VProb x) -> x) xs in
     case V.length xs of
     0 -> (0, 0, V.empty)
-    1 -> (V.unsafeHead xs, 1, V.singleton 1)
+    1 -> (V.unsafeHead xs', 1, V.singleton 1)
     _ ->
-        let m  = V.maximum xs
-            ys = V.map (\x -> LF.fromLogFloat (x/m)) xs
-            y  = V.sum ys
+        let m   = V.maximum xs'
+            ys  = V.map (\x -> LF.fromLogFloat (x/m)) xs'
+            y   = V.sum ys
         in (m, y, ys)
 
 ---------------------------------------------------------------
@@ -228,9 +229,10 @@ evaluateTerm :: forall abt a
              -> Value a
 evaluateTerm t env =
     case t of
-    o :$ es       -> evaluateScon  o es env
-    Datum_   d    -> evaluateDatum d env
-    Case_    o es -> evaluateCase  o es env
+    o :$ es       -> evaluateScon    o es env
+    Literal_ v    -> evaluateLiteral v
+    Datum_   d    -> evaluateDatum   d env
+    Case_    o es -> evaluateCase    o es env
     _             -> error "TODO: evaluateTerm"
 
 sampleScon
@@ -253,7 +255,7 @@ sampleScon (Ann_   _)      (e1 :* End) env = sample (LC_ e1) env
 -- sampleScon (UnsafeFrom_ c) (e1 :* End) env =
 --     coerceFrom c $ sample (LC_ e1) env
 sampleScon (PrimOp_ o)     es env = samplePrimOp    o es env
-sampleScon (MeasureOp_  m) es env = sampleMeasureOp m es env
+--sampleScon (MeasureOp_  m) es env = sampleMeasureOp m es env
 sampleScon Dirac           (e1 :* End) env =
     let S a = sample (LC_ e1) env
     in  S $ \p _ -> return $ Just (a, p)
@@ -308,6 +310,7 @@ instance PrimCoerce Value where
         (Continuous HContinuous_Prob, VNat  a) ->
             VProb $ LF.logFloat (fromIntegral (fromNat a) :: Double)
         (Continuous HContinuous_Real, VInt  a) -> VReal $ fromIntegral a
+        _ -> error "no a defined primitive coercion"
 
     primCoerceFrom c l =
         case (c,l) of
@@ -316,7 +319,7 @@ instance PrimCoerce Value where
         (Continuous HContinuous_Prob, VProb a) ->
             VNat $ unsafeNat $ floor (LF.fromLogFloat a :: Double)
         (Continuous HContinuous_Real, VReal a) -> VInt  $ floor a
-
+        _ -> error "no a defined primitive coercion"
 
 samplePrimOp
     ::  ( ABT Term abt, PrimMonad m, Functor m, Show2 abt
@@ -353,102 +356,6 @@ mapSample
 mapSample es env = fmap (\a -> unS $ sample (LC_ a) env) es
 
 
-sampleMeasureOp
-    ::  ( ABT Term abt, PrimMonad m, Functor m, Show2 abt
-        , typs ~ UnLCs args, args ~ LCs typs)
-    => MeasureOp typs a -> SArgs abt args -> Env m -> S m ('HMeasure a)
-
-sampleMeasureOp Lebesgue = \End _ ->
-    S $ \p g -> do
-        (u,b) <- MWC.uniform g
-        let l = log u
-        let n = -l
-        return $ Just (if b then n else l, 2 * LF.logToLogFloat n)
-
-sampleMeasureOp Counting = \End _ ->
-    S $ \p g -> do
-        let success = LF.logToLogFloat (-3 :: Double)
-        let pow x y = LF.logToLogFloat (LF.logFromLogFloat x *
-                                       (fromIntegral y :: Double))
-        u <- MWCD.geometric0 (LF.fromLogFloat success) g
-        b <- MWC.uniform g
-        return $ Just
-            ( if b then -1-u else u
-            , 2 / pow (1-success) u / success)
-
-sampleMeasureOp Categorical = \(e1 :* End) env ->
-    S $ \p g -> do
-        let S v = sample (LC_ e1) env
-        let (_,y,ys) = normalizeVector v
-        if not (y > (0::Double)) -- TODO: why not use @y <= 0@ ??
-            then error "Categorical needs positive weights"
-            else do
-                u <- MWC.uniformR (0, y) g
-                return $ Just
-                    ( unsafeNat
-                    . fromMaybe 0
-                    . V.findIndex (u <=) 
-                    . V.scanl1' (+)
-                    $ ys
-                    , p)
-
-sampleMeasureOp Uniform = \(e1 :* e2 :* End) env ->
-    let S v1 = sample (LC_ e1) env
-        S v2 = sample (LC_ e2) env
-    in  S $ \ p g -> do
-            x <- MWC.uniformR (v1, v2) g
-            return $ Just (x, p)
-
-sampleMeasureOp Normal = \(e1 :* e2 :* End) env ->
-    let S v1 = sample (LC_ e1) env
-        S v2 = sample (LC_ e2) env
-    in  S $ \ p g -> do
-            x <- MWCD.normal v1 (LF.fromLogFloat v2) g
-            return $ Just (x, p)
-
-sampleMeasureOp Poisson = \(e1 :* End) env ->
-    let S v1 = sample (LC_ e1) env
-    in  S $ \ p g -> do
-            x <- poisson_rng (LF.fromLogFloat v1) g
-            return $ Just (unsafeNat x, p)
-
-sampleMeasureOp Gamma = \(e1 :* e2 :* End) env ->
-    let S v1 = sample (LC_ e1) env
-        S v2 = sample (LC_ e2) env
-    in  S $ \ p g -> do
-            x <- MWCD.gamma (LF.fromLogFloat v1) (LF.fromLogFloat v2) g
-            return $ Just (LF.logFloat x, p)
-
-sampleMeasureOp Beta = \(e1 :* e2 :* End) env ->
-    let S v1 = sample (LC_ e1) env
-        S v2 = sample (LC_ e2) env
-    in  S $ \ p g -> do
-            x <- MWCD.beta (LF.fromLogFloat v1) (LF.fromLogFloat v2) g
-            return $ Just (LF.logFloat x, p)
-
-sampleMeasureOp (DirichletProcess _) = \_ _ ->
-    error "sampleMeasureOp: Dirichlet Processes not implemented yet"
-
-sampleMeasureOp (Plate _) = \(e1 :* End) env ->
-    let S v = sample (LC_ e1) env
-    in  S $ \ p g -> runMaybeT $ do
-            samples <- V.mapM (\m -> MaybeT $ m 1 g) v
-            let (v', ps) = V.unzip samples
-            return (v', p * V.product ps)
-
-sampleMeasureOp (Chain _ _) = \(e1 :* e2 :* End) env ->
-    error "sampleMeasureOp: Chain not implemented yet"
---   let S v = sample (LC_ e1) env
---       S s = sample (LC_ e2) env
---   in  S (\ p g -> runMaybeT $ do
---            let convert f = StateT $ \s' -> do
---                              ((a,s''),p') <- MaybeT (f s' 1 g)
---                              return ((a,p'),s'')
---            (samples, sout) <- runStateT (V.mapM convert v) s
---            let (v', ps) = V.unzip samples
---            return ((v', sout), p * V.product ps))
-
-
 evaluateMeasureOp
     :: ( ABT Term abt
        , typs ~ UnLCs args
@@ -457,18 +364,120 @@ evaluateMeasureOp
     -> SArgs abt args
     -> Env2
     -> Value ('HMeasure a)
-evaluateMeasureOp Normal = \(e1 :* e2 :* End) env ->
+
+evaluateMeasureOp Lebesgue End _ =
+    VMeasure $ \p g -> do
+        (u,b) <- MWC.uniform g
+        let l = log u
+        let n = -l
+        return $ Just ( if b
+                        then VReal n
+                        else VReal l
+                      , VProb $ 2 * LF.logToLogFloat n
+                      )
+
+evaluateMeasureOp Counting End _ =
+    VMeasure $ \p g -> do
+        let success = LF.logToLogFloat (-3 :: Double)
+        let pow x y = LF.logToLogFloat (LF.logFromLogFloat x *
+                                       (fromIntegral y :: Double))
+        u <- MWCD.geometric0 (LF.fromLogFloat success) g
+        b <- MWC.uniform g
+        return $ Just
+            ( VInt  $ if b then -1-u else u
+            , VProb $ 2 / pow (1-success) u / success)
+
+evaluateMeasureOp Categorical (e1 :* End) env =
+    VMeasure $ \p g -> do
+        let (_,y,ys) = normalizeVector (evaluate e1 env)
+        if not (y > (0::Double)) -- TODO: why not use @y <= 0@ ??
+            then error "Categorical needs positive weights"
+            else do
+                u <- MWC.uniformR (0, y) g
+                return $ Just
+                    ( VNat
+                    . unsafeNat
+                    . fromMaybe 0
+                    . V.findIndex (u <=) 
+                    . V.scanl1' (+)
+                    $ ys
+                    , p)
+
+evaluateMeasureOp Uniform (e1 :* e2 :* End) env =
+    case (evaluate e1 env, evaluate e2 env) of
+        (VReal v1, VReal v2) -> VMeasure $ \p g -> do
+            x <- MWC.uniformR (v1, v2) g
+            return $ Just (VReal x, p)
+        _ -> error "the impossible happened"
+
+evaluateMeasureOp Normal (e1 :* e2 :* End) env =
     case (evaluate e1 env, evaluate e2 env) of 
         (VReal v1, VProb v2) -> VMeasure $ \ p g -> do
             x <- MWCD.normal v1 (LF.fromLogFloat v2) g
             return $ Just (VReal x, p)
+        _ -> error "the impossible happened"
 
+evaluateMeasureOp Poisson (e1 :* End) env =
+    case evaluate e1 env of
+        VProb v1 -> VMeasure $ \ p g -> do
+            x <- poisson_rng (LF.fromLogFloat v1) g
+            return $ Just (VNat $ unsafeNat x, p)
+        _ -> error "the impossible happened"
+
+evaluateMeasureOp Gamma (e1 :* e2 :* End) env =
+    case (evaluate e1 env, evaluate e2 env) of 
+        (VProb v1, VProb v2) -> VMeasure $ \ p g -> do
+            x <- MWCD.gamma (LF.fromLogFloat v1) (LF.fromLogFloat v2) g
+            return $ Just (VProb $ LF.logFloat x, p)
+        _ -> error "the impossible happened"
+
+evaluateMeasureOp Beta (e1 :* e2 :* End) env =
+    case (evaluate e1 env, evaluate e2 env) of 
+        (VProb v1, VProb v2) -> VMeasure $ \ p g -> do
+            x <- MWCD.beta (LF.fromLogFloat v1) (LF.fromLogFloat v2) g
+            return $ Just (VProb $ LF.logFloat x, p)
+        _ -> error "the impossible happened"
+
+evaluateMeasureOp (DirichletProcess _) _ _ =
+    error "evaluateMeasureOp: Dirichlet Processes not implemented yet"
+
+evaluateMeasureOp (Plate _) (e1 :* End) env =
+    case evaluate e1 env of
+        VArray a -> VMeasure $ \(VProb p) g -> runMaybeT $ do
+          evaluates <- V.mapM (performMaybe g) a
+          let (v', ps) = V.unzip evaluates
+          return ( VArray v'
+                 , VProb $ p * V.product (V.map (\(VProb x) -> x) ps)
+                 )
+  where performMaybe
+            :: MWC.GenIO
+            -> Value ('HMeasure a)
+            -> MaybeT IO (Value a, Value 'HProb)
+        performMaybe g (VMeasure m) = MaybeT $ m (VProb 1) g
+
+evaluateMeasureOp (Chain _ _) (e1 :* e2 :* End) env =
+    error "evaluateMeasureOp: Chain not implemented yet"
+--   let S v = evaluate (LC_ e1) env
+--       S s = evaluate (LC_ e2) env
+--   in  S (\ p g -> runMaybeT $ do
+--            let convert f = StateT $ \s' -> do
+--                              ((a,s''),p') <- MaybeT (f s' 1 g)
+--                              return ((a,p'),s'')
+--            (evaluates, sout) <- runStateT (V.mapM convert v) s
+--            let (v', ps) = V.unzip evaluates
+--            return ((v', sout), p * V.product ps))
 
 sampleLiteral :: Literal a -> S m a
 sampleLiteral (LNat  n) = S . fromInteger $ fromNatural n -- TODO: catch overflow errors
 sampleLiteral (LInt  n) = S $ fromInteger n -- TODO: catch overflow errors
 sampleLiteral (LProb n) = S . fromRational $ fromNonNegativeRational n
 sampleLiteral (LReal n) = S $ fromRational n
+
+evaluateLiteral :: Literal a -> Value a
+evaluateLiteral (LNat  n) = VNat  . fromInteger $ fromNatural n -- TODO: catch overflow errors
+evaluateLiteral (LInt  n) = VInt  $ fromInteger n -- TODO: catch overflow errors
+evaluateLiteral (LProb n) = VProb . fromRational $ fromNonNegativeRational n
+evaluateLiteral (LReal n) = VReal $ fromRational n
 
 
 -- This function (or, rather, its use od 'SDatum') is the reason
