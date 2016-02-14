@@ -591,7 +591,7 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
 freshenStatement
     :: (ABT Term abt, EvaluationMonad abt m p)
     => Statement abt p
-    -> m (Statement abt p, Assocs abt)
+    -> m (Statement abt p, Assocs (abt '[]))
 freshenStatement s =
     case s of
     SWeight _    -> return (s, mempty)
@@ -681,7 +681,7 @@ freshenVars = go dnil1
 push_
     :: (ABT Term abt, EvaluationMonad abt m p)
     => Statement abt p
-    -> m (Assocs abt)
+    -> m (Assocs (abt '[]))
 push_ s = do
     (s',rho) <- freshenStatement s
     unsafePush s'

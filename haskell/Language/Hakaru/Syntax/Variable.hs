@@ -389,10 +389,10 @@ memberVarSet x (VarSet xs) =
 -- <https://github.com/hakaru-dev/hakaru/issues/6>
 --
 -- | A pair of variable and term, both of the same Hakaru type.
-data Assoc (abt :: [k] -> k -> *)
+data Assoc (ast :: k -> *)
     = forall (a :: k) . Assoc
         {-# UNPACK #-} !(Variable a)
-        !(abt '[] a)
+        !(ast a)
 
 
 -- BUG: since multiple 'varEq'-distinct variables could have the
@@ -407,7 +407,7 @@ data Assoc (abt :: [k] -> k -> *)
 -- have a single 'varID' be shared by multiple variables (i.e., at
 -- different types). If you really want the first interpretation,
 -- then the implementation must be updated.
-newtype Assocs abt = Assocs { unAssocs :: IntMap (Assoc abt) }
+newtype Assocs ast = Assocs { unAssocs :: IntMap (Assoc ast) }
 
 
 -- | The empty set of associations.
@@ -415,15 +415,15 @@ emptyAssocs :: Assocs abt
 emptyAssocs = Assocs IM.empty
 
 
-singletonAssocs :: Variable a -> abt '[] a -> Assocs abt
+singletonAssocs :: Variable a -> abt '[] a -> Assocs (abt '[])
 singletonAssocs x e =
     Assocs $ IM.singleton (fromNat $ varID x) (Assoc x e)
 
 
-toAssocs :: List1 Variable xs -> List1 (abt '[]) xs -> Assocs abt
+toAssocs :: List1 Variable xs -> List1 ast xs -> Assocs ast
 toAssocs = \xs es -> Assocs (go xs es)
     where
-    go :: List1 Variable xs -> List1 (abt '[]) xs -> IntMap (Assoc abt)
+    go :: List1 Variable xs -> List1 ast xs -> IntMap (Assoc ast)
     -- BUG: GHC claims the patterns are non-exhaustive here
     go Nil1         Nil1         = IM.empty
     go (Cons1 x xs) (Cons1 e es) =
@@ -462,8 +462,8 @@ insertAssoc v@(Assoc x _) (Assocs xs) =
 lookupAssoc
     :: (Show1 (Sing :: k -> *), JmEq1 (Sing :: k -> *))
     => Variable (a :: k)
-    -> Assocs abt
-    -> Maybe (abt '[] a)
+    -> Assocs ast
+    -> Maybe (ast a)
 lookupAssoc x (Assocs xs) = do
     Assoc x' e' <- IM.lookup (fromNat $ varID x) xs
     Refl        <- varEq x x'

@@ -437,18 +437,18 @@ sampleCase
 sampleCase o es env =
     case runIdentity $ matchBranches evaluateDatum o es of
     Just (Matched as Nil1, b) ->
-        sample (LC_ $ extendFromMatch (as []) b) env
-    Nothing -> error "Missing cases in match expression"
+        sample (LC_ $ extendFromMatch (as []) b) env    
+    _ -> error "Missing cases in match expression"
     where
     extendFromMatch
-        :: (ABT Term abt) => [Assoc abt] -> abt '[] b -> abt '[] b 
+        :: (ABT Term abt) => [Assoc (abt '[])] -> abt '[] b -> abt '[] b 
     extendFromMatch []                e2 = e2
     extendFromMatch ((Assoc x e1):as) e2 =
         syn (Let_ :$ e1 :* bind x (extendFromMatch as e2) :* End)
 
     evaluateDatum :: (ABT Term abt) => DatumEvaluator (abt '[]) Identity
     evaluateDatum e =
-        caseVarSyn e (error "evalueDatumVar: ¯\\_(ツ)_/¯") $ \t ->
+        caseVarSyn e (return . const Nothing) $ \t ->
             case t of
             Datum_ d            -> return . Just  $ d
             Ann_ _ :$ e1 :* End -> evaluateDatum e1 
@@ -461,7 +461,21 @@ evaluateCase
     -> [Branch a abt b]
     -> Env2
     -> Value b
-evaluateCase o es env = undefined
+evaluateCase o es env =
+    case runIdentity $ matchBranches evaluateDatum' (evaluate o env) es of
+    Just (Matched as Nil1, b) ->
+        evaluate b (extendFromMatch (as []) env)    
+    _ -> error "Missing cases in match expression"
+    where
+    extendFromMatch :: [Assoc Value] -> Env2 -> Env2 
+    extendFromMatch []                env = env
+    extendFromMatch ((Assoc x v1):as) env = updateEnv2 (EAssoc2 x v1) env
+
+    evaluateDatum' :: DatumEvaluator Value Identity
+    evaluateDatum' = return . Just . getVDatum
+
+    getVDatum :: Value (HData' a) -> Datum Value (HData' a)
+    getVDatum (VDatum a) = a
 
 sampleSuperpose
     :: (ABT Term abt, PrimMonad m, Functor m, Show2 abt)

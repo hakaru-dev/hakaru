@@ -175,7 +175,7 @@ expectSynDir
     :: (ABT Term abt)
     => ImpureType a -- N.B., should be lazy\/irrelevant in this argument
     -> abt '[] a
-    -> Assocs abt
+    -> Assocs (abt '[])
     -> Expect abt a
 expectSynDir p e xs =
     case resolveVar e xs of
@@ -224,7 +224,7 @@ expectTerm
     :: (ABT Term abt)
     => ImpureType a -- N.B., should be lazy\/irrelevant in this argument
     -> Term abt a
-    -> Assocs abt
+    -> Assocs (abt '[])
     -> Expect abt a
 expectTerm p (Lam_ :$ es) xs =
     case es of
@@ -332,7 +332,7 @@ expectBranch
     :: (ABT Term abt)
     => (abt '[] a -> abt '[] 'HProb)
     -> ImpureType ('HMeasure a)
-    -> Assocs abt
+    -> Assocs (abt '[])
     -> View (Term abt) xs ('HMeasure a)
     -> abt xs 'HProb
 expectBranch c p xs (Syn  t)    = expectTerm   p      t  xs `apM` c
@@ -346,7 +346,7 @@ expectMeasure
     => ImpureType ('HMeasure a)
     -> MeasureOp typs a
     -> SArgs abt args
-    -> Assocs abt
+    -> Assocs (abt '[])
     -> Expect abt ('HMeasure a)
 expectMeasure _ Lebesgue = \End _ ->
     ExpectMeasure $ \c ->

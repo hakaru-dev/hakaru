@@ -56,7 +56,7 @@ import qualified Text.PrettyPrint as PP
 -- the data type declaration prettier\/cleaner.
 -- <https://github.com/hakaru-dev/hakaru/issues/6>
 data MatchResult
-    (abt  :: [Hakaru] -> Hakaru -> *)
+    (ast  :: Hakaru -> *)
     (vars :: [Hakaru])
 
     -- | Our 'DatumEvaluator' failed (perhaps in a nested pattern),
@@ -81,33 +81,33 @@ data MatchResult
     -- variables remaining to be bound by checking the rest of the
     -- pattern.
     | Matched
-        (DList (Assoc abt))
+        (DList (Assoc ast))
         (List1 Variable vars)
 
 
 type DList a = [a] -> [a]
 
 
-instance (ABT Term abt) => Show (MatchResult abt vars) where
+instance Show (MatchResult ast vars) where
     showsPrec p = shows . ppMatchResult p
 
-ppMatchResult :: (ABT Term abt) => Int -> MatchResult abt vars -> Doc
+ppMatchResult ::  Int -> MatchResult ast vars -> Doc
 ppMatchResult _ GotStuck = PP.text "GotStuck"
-ppMatchResult p (Matched boundVars unboundVars) =
-    parens (p > 9)
-        (PP.text f <+> PP.nest (1 + length f) (PP.sep
-            [ ppList . map (prettyPrecAssoc 11) $ boundVars []
-            , ppList $ ppVariables unboundVars
-            ]))
-    where
-    f            = "Matched"
-    ppList       = PP.brackets . PP.nest 1 . PP.fsep . PP.punctuate PP.comma
-    parens True  = PP.parens   . PP.nest 1
-    parens False = id
+ppMatchResult p (Matched boundVars unboundVars) = PP.text "TODO: Matched"
+    -- parens (p > 9)
+    --     (PP.text f <+> PP.nest (1 + length f) (PP.sep
+    --         [ ppList . map (prettyPrecAssoc 11) $ boundVars []
+    --         , ppList $ ppVariables unboundVars
+    --         ]))
+    -- where
+    -- f            = "Matched"
+    -- ppList       = PP.brackets . PP.nest 1 . PP.fsep . PP.punctuate PP.comma
+    -- parens True  = PP.parens   . PP.nest 1
+    -- parens False = id
 
-    ppVariables :: List1 (Variable :: Hakaru -> *) xs -> [Doc]
-    ppVariables Nil1         = []
-    ppVariables (Cons1 x xs) = ppVariable x : ppVariables xs
+    -- ppVariables :: List1 (Variable :: Hakaru -> *) xs -> [Doc]
+    -- ppVariables Nil1         = []
+    -- ppVariables (Cons1 x xs) = ppVariable x : ppVariables xs
 
 
 
@@ -144,10 +144,10 @@ type DatumEvaluator ast m =
 -- even if that branch 'GotStuck' rather than fully matching.
 matchBranches
     :: (ABT Term abt, Monad m)
-    => DatumEvaluator (abt '[]) m
-    -> abt '[] a
+    => DatumEvaluator ast m
+    -> ast a
     -> [Branch a abt b]
-    -> m (Maybe (MatchResult abt '[], abt '[] b))
+    -> m (Maybe (MatchResult ast '[], abt '[] b))
 matchBranches getDatum e = go
     where
     -- TODO: isn't there a combinator in "Control.Monad" for this?
@@ -170,10 +170,10 @@ matchBranches getDatum e = go
 -- branch 'GotStuck' rather than fully matching.
 matchBranch
     :: (ABT Term abt, Monad m)
-    => DatumEvaluator (abt '[]) m
-    -> abt '[] a
+    => DatumEvaluator ast m
+    -> ast a
     -> Branch a abt b
-    -> m (Maybe (MatchResult abt '[], abt '[] b))
+    -> m (Maybe (MatchResult ast '[], abt '[] b))
 matchBranch getDatum e (Branch pat body) = do
     let (vars,body') = caseBinds body
     match <- matchTopPattern getDatum e pat vars
@@ -184,12 +184,12 @@ matchBranch getDatum e (Branch pat body) = do
 -- a thin wrapper around 'matchPattern' in order to restrict the
 -- type.
 matchTopPattern
-    :: (ABT Term abt, Monad m)
-    => DatumEvaluator (abt '[]) m
-    -> abt '[] a
+    :: (Monad m)
+    => DatumEvaluator ast m
+    -> ast a
     -> Pattern vars a
     -> List1 Variable vars
-    -> m (Maybe (MatchResult abt '[]))
+    -> m (Maybe (MatchResult ast '[]))
 matchTopPattern getDatum e pat vars =
     case eqAppendIdentity (secondProxy pat) of
     Refl -> matchPattern getDatum e pat vars
@@ -217,12 +217,12 @@ viewDatum e =
 -- being able to handle nested patterns correctly. You probably
 -- don't ever need to call this function.
 matchPattern
-    :: (ABT Term abt, Monad m)
-    => DatumEvaluator (abt '[]) m
-    -> abt '[] a
+    :: (Monad m)
+    => DatumEvaluator ast m
+    -> ast a
     -> Pattern vars1 a
     -> List1 Variable (vars1 ++ vars2)
-    -> m (Maybe (MatchResult abt vars2))
+    -> m (Maybe (MatchResult ast vars2))
 matchPattern getDatum e pat vars =
     case pat of
     PWild              -> return . Just $ Matched id vars
@@ -238,12 +238,12 @@ matchPattern getDatum e pat vars =
 
 
 matchCode
-    :: (ABT Term abt, Monad m)
-    => DatumEvaluator (abt '[]) m
-    -> DatumCode  xss (abt '[]) (HData' t)
+    :: (Monad m)
+    => DatumEvaluator ast m
+    -> DatumCode  xss ast (HData' t)
     -> PDatumCode xss vars1     (HData' t)
     -> List1 Variable (vars1 ++ vars2)
-    -> m (Maybe (MatchResult abt vars2))
+    -> m (Maybe (MatchResult ast vars2))
 matchCode getDatum d pat vars =
     case (d,pat) of
     (Inr d2, PInr pat2) -> matchCode   getDatum d2 pat2 vars
@@ -252,13 +252,13 @@ matchCode getDatum d pat vars =
 
 
 matchStruct
-    :: forall m abt xs t vars1 vars2
-    .  (ABT Term abt, Monad m)
-    => DatumEvaluator (abt '[]) m
-    -> DatumStruct  xs (abt '[]) (HData' t)
+    :: forall m ast xs t vars1 vars2
+    .  (Monad m)
+    => DatumEvaluator ast m
+    -> DatumStruct  xs ast (HData' t)
     -> PDatumStruct xs vars1     (HData' t)
     -> List1 Variable (vars1 ++ vars2)
-    -> m (Maybe (MatchResult abt vars2))
+    -> m (Maybe (MatchResult ast vars2))
 matchStruct getDatum d pat vars =
     case (d,pat) of
     (Done,     PDone)     -> return . Just $ Matched id vars
@@ -285,12 +285,12 @@ matchStruct getDatum d pat vars =
             Just (Matched xs vars') -> k xs vars'
 
 matchFun
-    :: (ABT Term abt, Monad m)
-    => DatumEvaluator (abt '[]) m
-    -> DatumFun  x (abt '[]) (HData' t)
+    :: (Monad m)
+    => DatumEvaluator ast m
+    -> DatumFun  x ast (HData' t)
     -> PDatumFun x vars1     (HData' t)
     -> List1 Variable (vars1 ++ vars2)
-    -> m (Maybe (MatchResult abt vars2))
+    -> m (Maybe (MatchResult ast vars2))
 matchFun getDatum d pat vars =
     case (d,pat) of
     (Konst d2, PKonst p2) -> matchPattern getDatum d2 p2 vars

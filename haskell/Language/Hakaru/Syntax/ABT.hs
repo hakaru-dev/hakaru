@@ -635,7 +635,7 @@ substs
         , Show1 (Sing :: k -> *)
         , Functor21 syn
         )
-    => Assocs abt
+    => Assocs (abt '[])
     -> abt xs a
     -> abt xs a
 substs rho0 =
@@ -837,7 +837,7 @@ paraABT var_ bind_ syn_ = start
 resolveVar
     :: (JmEq1 (Sing :: k -> *), Show1 (Sing :: k -> *), ABT syn abt)
     => abt '[] (a :: k)
-    -> Assocs abt
+    -> Assocs (abt '[])
     -> Either (Variable a) (syn abt a)
 resolveVar e xs =
     flip (caseVarSyn e) Right $ \x ->

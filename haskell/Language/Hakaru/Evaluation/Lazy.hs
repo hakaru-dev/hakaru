@@ -191,7 +191,7 @@ evaluate perform = evaluate_
 
 type DList a = [a] -> [a]
 
-toStatements :: DList (Assoc abt) -> [Statement abt p]
+toStatements :: DList (Assoc (abt '[])) -> [Statement abt p]
 toStatements ss = map (\(Assoc x e) -> SLet x $ Thunk e) (ss [])
 
 

@@ -63,17 +63,17 @@ prettyPrec p = toDoc . prettyPrec_ p . LC_
 
 
 -- | Pretty-print a variable\/term association pair.
-prettyAssoc :: (ABT Term abt) => Assoc abt -> Doc
+prettyAssoc :: Assoc ast -> Doc
 prettyAssoc = prettyPrecAssoc 0
 
 
 -- | Pretty-print an association at a given precendence level.
-prettyPrecAssoc :: (ABT Term abt) => Int -> Assoc abt -> Doc
-prettyPrecAssoc p (Assoc x e) =
-    toDoc $ ppFun p "Assoc"
-        [ ppVariable x
-        , prettyPrec 11 e
-        ]
+prettyPrecAssoc :: Int -> Assoc ast -> Doc
+prettyPrecAssoc p (Assoc x e) = PP.text "TODO: prettyPrecAssoc"
+    -- toDoc $ ppFun p "Assoc"
+    --     [ ppVariable x
+    --     , prettyPrec 11 e
+    --     ]
 
 ----------------------------------------------------------------
 class Pretty (f :: Hakaru -> *) where
