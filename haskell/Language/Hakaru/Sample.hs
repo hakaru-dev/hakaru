@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP
+           , GADTs
            , KindSignatures
            , TypeOperators
            , TypeFamilies
@@ -25,11 +26,9 @@ import           Data.Maybe                      (fromMaybe)
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative   (Applicative(..), (<$>))
 #endif
-import Control.Monad.Identity
--- import Control.Monad.State
-import Control.Monad.Trans.Maybe
--- import qualified Data.Text        as T
-import qualified Data.IntMap      as IM
+import           Control.Monad.Identity
+import           Control.Monad.Trans.Maybe
+import qualified Data.IntMap                     as IM
 
 import Data.Number.Nat     (fromNat, unsafeNat, Nat())
 import Data.Number.Natural (fromNatural, fromNonNegativeRational)
@@ -41,9 +40,6 @@ import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumCase
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
--- import Language.Hakaru.Evaluation.Types
--- import Language.Hakaru.Evaluation.Lazy
--- import Language.Hakaru.PrettyPrint
 
 type PRNG m = MWC.Gen (PrimState m)
 
@@ -66,6 +62,20 @@ type instance Sample m ('HData t xss) = SDatum Term
 data SDatum (a :: k1 -> k2 -> *)
     = forall i j. Show (a i j) => SDatum !(a i j)
 
+data Value :: Hakaru -> * where
+        VNat   :: {-# UNPACK #-} !Nat -> Value 'HNat
+        VInt   :: {-# UNPACK #-} !Int -> Value 'HInt
+        VProb  :: {-# UNPACK #-} !LF.LogFloat -> Value 'HProb
+        VReal  :: {-# UNPACK #-} !Double -> Value 'HReal
+
+        VDatum :: !(Datum Value (HData' t)) -> Value (HData' t)
+
+        -- Assuming you want to consider lambdas/closures to be values.
+        -- N.B., the type below is larger than is correct; that is,
+        VLam :: (Value a -> Value b) -> Value (a ':-> b)
+
+        VArray :: {-# UNPACK #-} !(V.Vector (Value a)) -> Value ('HArray a)
+
 ----------------------------------------------------------------
 
 data EAssoc m
@@ -85,6 +95,25 @@ lookupVar x (Env env) = do
     EAssoc x' e' <- IM.lookup (fromNat $ varID x) env
     Refl         <- varEq x x'
     return e'
+
+data EAssoc2
+    = forall a. EAssoc2 {-# UNPACK #-} !(Variable a) !(Value a)
+
+newtype Env2 = Env2 (IM.IntMap EAssoc2)
+
+emptyEnv2 :: Env2
+emptyEnv2 = Env2 IM.empty
+
+updateEnv2 :: EAssoc2 -> Env2 -> Env2
+updateEnv2 v@(EAssoc2 x _) (Env2 xs) =
+    Env2 $ IM.insert (fromNat $ varID x) v xs
+
+lookupVar2 :: Variable a -> Env2 -> Maybe (Value a)
+lookupVar2 x (Env2 env) = do
+    EAssoc2 x' e' <- IM.lookup (fromNat $ varID x) env
+    Refl          <- varEq x x'
+    return e'
+
 
 ---------------------------------------------------------------
 
@@ -151,8 +180,14 @@ sample
     :: (ABT Term abt, PrimMonad m, Functor m, Show2 abt)
     => LC_ abt a -> Env m -> S m a
 sample (LC_ e) env =
-    caseVarSyn e (sampleVar env) $ \t -> sampleTerm t env
+    caseVarSyn e (sampleVar env) (flip sampleTerm env)
 
+evaluate :: forall abt a
+         .  (ABT Term abt)
+         => abt '[] a
+         -> Env2
+         -> Value a
+evaluate e env = caseVarSyn e (evaluateVar env) (flip evaluateTerm env)
 
 sampleTerm
     :: (ABT Term abt, PrimMonad m, Functor m, Show2 abt)
@@ -166,6 +201,16 @@ sampleTerm t env =
     Case_    o es -> sampleCase    o es env
     Superpose_ es -> sampleSuperpose es env
 
+evaluateTerm :: forall abt a
+             .  (ABT Term abt)
+             => Term abt a
+             -> Env2
+             -> Value a
+evaluateTerm t env =
+    case t of
+    Datum_   d    -> evaluateDatum d env
+    Case_    o es -> evaluateCase  o es env
+    _             -> error "TODO: evaluateTerm"
 
 sampleScon
     :: (ABT Term abt, PrimMonad m, Functor m, Show2 abt)
@@ -375,6 +420,13 @@ sampleDatum
     -> S m (HData' a)
 sampleDatum d _ = S (SDatum (Datum_ d))
 
+evaluateDatum
+    :: (ABT Term abt)
+    => Datum (abt '[]) (HData' a)
+    -> Env2
+    -> Value (HData' a)
+evaluateDatum d env = VDatum (fmap11 (flip evaluate env) d)
+
 
 sampleCase
     :: (ABT Term abt, PrimMonad m, Functor m, Show2 abt)
@@ -401,7 +453,15 @@ sampleCase o es env =
             Datum_ d            -> return . Just  $ d
             Ann_ _ :$ e1 :* End -> evaluateDatum e1 
             _ -> error "TODO: finish evaluate"
-    
+
+evaluateCase
+    :: forall abt a b
+    .  (ABT Term abt)
+    => abt '[] a
+    -> [Branch a abt b]
+    -> Env2
+    -> Value b
+evaluateCase o es env = undefined
 
 sampleSuperpose
     :: (ABT Term abt, PrimMonad m, Functor m, Show2 abt)
@@ -432,6 +492,12 @@ sampleVar env v =
     case lookupVar v env of
     Nothing -> error "variable not found!"
     Just a  -> S a
+
+evaluateVar :: Env2 -> Variable a -> Value a
+evaluateVar env v =
+    case lookupVar2 v env of
+    Nothing -> error "variable not found!"
+    Just a  -> a
 
 runSample
     :: (ABT Term abt, Functor m, PrimMonad m, Show2 abt)
