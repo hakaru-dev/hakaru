@@ -234,7 +234,7 @@ evaluate_ :: (ABT Term abt) => TermEvaluator abt (Dis abt)
 evaluate_ = evaluate perform
 
 
-evaluateDatum :: (ABT Term abt) => DatumEvaluator abt (Dis abt)
+evaluateDatum :: (ABT Term abt) => DatumEvaluator (abt '[]) (Dis abt)
 evaluateDatum e = viewWhnfDatum <$> evaluate_ e
 
 

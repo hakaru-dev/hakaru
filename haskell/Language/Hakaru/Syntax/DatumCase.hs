@@ -129,10 +129,10 @@ ppMatchResult p (Matched boundVars unboundVars) =
 -- TODO: we could change this from returning 'Maybe' to returning
 -- 'Either', that way the evaluator could give some reason for its
 -- failure (we would store it in the 'GotStuck' constructor).
-type DatumEvaluator abt m =
+type DatumEvaluator ast m =
     forall t
-    .  abt '[] (HData' t)
-    -> m (Maybe (Datum (abt '[]) (HData' t)))
+    .  ast (HData' t)
+    -> m (Maybe (Datum ast (HData' t)))
 
 
 -- | Walk through a list of branches and try matching against them
@@ -144,7 +144,7 @@ type DatumEvaluator abt m =
 -- even if that branch 'GotStuck' rather than fully matching.
 matchBranches
     :: (ABT Term abt, Monad m)
-    => DatumEvaluator abt m
+    => DatumEvaluator (abt '[]) m
     -> abt '[] a
     -> [Branch a abt b]
     -> m (Maybe (MatchResult abt '[], abt '[] b))
@@ -170,7 +170,7 @@ matchBranches getDatum e = go
 -- branch 'GotStuck' rather than fully matching.
 matchBranch
     :: (ABT Term abt, Monad m)
-    => DatumEvaluator abt m
+    => DatumEvaluator (abt '[]) m
     -> abt '[] a
     -> Branch a abt b
     -> m (Maybe (MatchResult abt '[], abt '[] b))
@@ -185,7 +185,7 @@ matchBranch getDatum e (Branch pat body) = do
 -- type.
 matchTopPattern
     :: (ABT Term abt, Monad m)
-    => DatumEvaluator abt m
+    => DatumEvaluator (abt '[]) m
     -> abt '[] a
     -> Pattern vars a
     -> List1 Variable vars
@@ -218,7 +218,7 @@ viewDatum e =
 -- don't ever need to call this function.
 matchPattern
     :: (ABT Term abt, Monad m)
-    => DatumEvaluator abt m
+    => DatumEvaluator (abt '[]) m
     -> abt '[] a
     -> Pattern vars1 a
     -> List1 Variable (vars1 ++ vars2)
@@ -239,7 +239,7 @@ matchPattern getDatum e pat vars =
 
 matchCode
     :: (ABT Term abt, Monad m)
-    => DatumEvaluator abt m
+    => DatumEvaluator (abt '[]) m
     -> DatumCode  xss (abt '[]) (HData' t)
     -> PDatumCode xss vars1     (HData' t)
     -> List1 Variable (vars1 ++ vars2)
@@ -254,7 +254,7 @@ matchCode getDatum d pat vars =
 matchStruct
     :: forall m abt xs t vars1 vars2
     .  (ABT Term abt, Monad m)
-    => DatumEvaluator abt m
+    => DatumEvaluator (abt '[]) m
     -> DatumStruct  xs (abt '[]) (HData' t)
     -> PDatumStruct xs vars1     (HData' t)
     -> List1 Variable (vars1 ++ vars2)
@@ -286,7 +286,7 @@ matchStruct getDatum d pat vars =
 
 matchFun
     :: (ABT Term abt, Monad m)
-    => DatumEvaluator abt m
+    => DatumEvaluator (abt '[]) m
     -> DatumFun  x (abt '[]) (HData' t)
     -> PDatumFun x vars1     (HData' t)
     -> List1 Variable (vars1 ++ vars2)

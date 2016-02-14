@@ -446,7 +446,7 @@ sampleCase o es env =
     extendFromMatch ((Assoc x e1):as) e2 =
         syn (Let_ :$ e1 :* bind x (extendFromMatch as e2) :* End)
 
-    evaluateDatum :: (ABT Term abt, Monad m) => DatumEvaluator abt m
+    evaluateDatum :: (ABT Term abt) => DatumEvaluator (abt '[]) Identity
     evaluateDatum e =
         caseVarSyn e (error "evalueDatumVar: ¯\\_(ツ)_/¯") $ \t ->
             case t of

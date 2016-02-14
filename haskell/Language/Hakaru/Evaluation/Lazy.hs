@@ -113,7 +113,7 @@ evaluate perform = evaluate_
     -- original scrutinee...
     --
     -- N.B., 'DatumEvaluator' is a rank-2 type so it requires a signature
-    evaluateDatum :: DatumEvaluator abt m
+    evaluateDatum :: DatumEvaluator (abt '[]) m
     evaluateDatum e = viewWhnfDatum <$> evaluate_ e
 
     evaluate_ :: TermEvaluator abt m
@@ -301,7 +301,7 @@ instance Interp 'HReal Rational where
     reify (WUnsafeFrom _ _) = error "TODO: reify{WUnsafeFrom}"
 
 
-identifyDatum :: (ABT Term abt) => DatumEvaluator abt Identity
+identifyDatum :: (ABT Term abt) => DatumEvaluator (abt '[]) Identity
 identifyDatum = return . (viewWhnfDatum <=< toWhnf)
 
 -- HACK: this requires -XTypeSynonymInstances and -XFlexibleInstances
