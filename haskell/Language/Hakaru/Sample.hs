@@ -63,27 +63,33 @@ data SDatum (a :: k1 -> k2 -> *)
     = forall i j. Show (a i j) => SDatum !(a i j)
 
 data Value :: Hakaru -> * where
-     VNat   :: {-# UNPACK #-} !Nat -> Value 'HNat
-     VInt   :: {-# UNPACK #-} !Int -> Value 'HInt
-     VProb  :: {-# UNPACK #-} !LF.LogFloat -> Value 'HProb
-     VReal  :: {-# UNPACK #-} !Double -> Value 'HReal
+     VNat     :: {-# UNPACK #-} !Nat -> Value 'HNat
+     VInt     :: {-# UNPACK #-} !Int -> Value 'HInt
+     VProb    :: {-# UNPACK #-} !LF.LogFloat -> Value 'HProb
+     VReal    :: {-# UNPACK #-} !Double -> Value 'HReal
 
-     VDatum :: !(Datum Value (HData' t)) -> Value (HData' t)
+     VDatum   :: !(Datum Value (HData' t)) -> Value (HData' t)
 
      -- Assuming you want to consider lambdas/closures to be values.
      -- N.B., the type below is larger than is correct; that is,
-     VLam :: (Value a -> Value b) -> Value (a ':-> b)
+     VLam     :: (Value a -> Value b) -> Value (a ':-> b)
 
-     VArray :: {-# UNPACK #-} !(V.Vector (Value a)) -> Value ('HArray a)
+     -- Measures hold their importance weight and random seed
+     VMeasure :: (Value 'HProb ->
+                  MWC.GenIO    ->
+                  IO (Maybe (Value a, Value 'HProb))
+                 ) -> Value ('HMeasure a)
+     VArray   :: {-# UNPACK #-} !(V.Vector (Value a)) -> Value ('HArray a)
 
 instance Show1 Value where
-    showsPrec1 p (VNat   v) = showsPrec  p v
-    showsPrec1 p (VInt   v) = showsPrec  p v
-    showsPrec1 p (VProb  v) = showsPrec  p v
-    showsPrec1 p (VReal  v) = showsPrec  p v
-    showsPrec1 p (VDatum d) = showsPrec1 p d
-    showsPrec1 p (VLam   _) = showString "<function>"
-    showsPrec1 p (VArray e) = showsPrec  p e
+    showsPrec1 p (VNat   v)   = showsPrec  p v
+    showsPrec1 p (VInt   v)   = showsPrec  p v
+    showsPrec1 p (VProb  v)   = showsPrec  p v
+    showsPrec1 p (VReal  v)   = showsPrec  p v
+    showsPrec1 p (VDatum d)   = showsPrec1 p d
+    showsPrec1 _ (VLam   _)   = showString "<function>"
+    showsPrec1 _ (VMeasure _) = showString "<measure>"
+    showsPrec1 p (VArray e)   = showsPrec  p e
 
 instance Show (Value a) where
     showsPrec = showsPrec1
@@ -222,6 +228,7 @@ evaluateTerm :: forall abt a
              -> Value a
 evaluateTerm t env =
     case t of
+    o :$ es       -> evaluateScon  o es env
     Datum_   d    -> evaluateDatum d env
     Case_    o es -> evaluateCase  o es env
     _             -> error "TODO: evaluateTerm"
@@ -241,10 +248,10 @@ sampleScon Let_ (e1 :* e2 :* End)      env =
     in caseBind e2 $ \x e2' ->
         sample (LC_ e2') (updateEnv (EAssoc x v) env)
 sampleScon (Ann_   _)      (e1 :* End) env = sample (LC_ e1) env
-sampleScon (CoerceTo_   c) (e1 :* End) env =
-    coerceTo c $ sample (LC_ e1) env
-sampleScon (UnsafeFrom_ c) (e1 :* End) env =
-    coerceFrom c $ sample (LC_ e1) env
+-- sampleScon (CoerceTo_   c) (e1 :* End) env =
+--     coerceTo c $ sample (LC_ e1) env
+-- sampleScon (UnsafeFrom_ c) (e1 :* End) env =
+--     coerceFrom c $ sample (LC_ e1) env
 sampleScon (PrimOp_ o)     es env = samplePrimOp    o es env
 sampleScon (MeasureOp_  m) es env = sampleMeasureOp m es env
 sampleScon Dirac           (e1 :* End) env =
@@ -261,29 +268,54 @@ sampleScon MBind (e1 :* e2 :* End) env =
                     let y = sample (LC_ e2') (updateEnv (EAssoc x a) env)
                     in  unS y p' g
 
-instance Coerce (S m) where
+evaluateScon
+    :: (ABT Term abt)
+    => SCon args a
+    -> SArgs abt args
+    -> Env2
+    -> Value a
+evaluateScon Lam_ (e1 :* End)            env =
+    caseBind e1 $ \x e1' ->
+        VLam $ \v -> evaluate e1' (updateEnv2 (EAssoc2 x v) env)
+evaluateScon (MeasureOp_  m) es env = evaluateMeasureOp m es env
+evaluateScon Dirac           (e1 :* End) env =
+    VMeasure $ \p _ -> return $ Just (evaluate e1 env, p)
+evaluateScon MBind (e1 :* e2 :* End) env =
+    case evaluate e1 env of
+      VMeasure m1 ->
+        VMeasure $ \ p g -> do
+          x <- m1 p g
+          case x of
+            Nothing -> return Nothing
+            Just (a, p') ->
+               caseBind e2 $ \x e2' ->
+                   case evaluate e2' (updateEnv2 (EAssoc2 x a) env) of
+                     VMeasure y -> y p' g
+
+
+instance Coerce Value where
     coerceTo   CNil         v = v
     coerceTo   (CCons c cs) v = coerceTo cs (primCoerceTo c v)
 
     coerceFrom CNil         v = v
     coerceFrom (CCons c cs) v = primCoerceFrom c (coerceFrom cs v)
 
-instance PrimCoerce (S m) where
+instance PrimCoerce Value where
     primCoerceTo c l =
         case (c,l) of
-        (Signed HRing_Int,            S a) -> S $ fromNat a
-        (Signed HRing_Real,           S a) -> S $ LF.fromLogFloat a
-        (Continuous HContinuous_Prob, S a) ->
-            S $ LF.logFloat (fromIntegral (fromNat a) :: Double)
-        (Continuous HContinuous_Real, S a) -> S $ fromIntegral a
+        (Signed HRing_Int,            VNat  a) -> VInt  $ fromNat a
+        (Signed HRing_Real,           VProb a) -> VReal $ LF.fromLogFloat a
+        (Continuous HContinuous_Prob, VNat  a) ->
+            VProb $ LF.logFloat (fromIntegral (fromNat a) :: Double)
+        (Continuous HContinuous_Real, VInt  a) -> VReal $ fromIntegral a
 
     primCoerceFrom c l =
         case (c,l) of
-        (Signed HRing_Int,            S a) -> S $ unsafeNat a
-        (Signed HRing_Real,           S a) -> S $ LF.logFloat a
-        (Continuous HContinuous_Prob, S a) ->
-            S $ unsafeNat $ floor (LF.fromLogFloat a :: Double)
-        (Continuous HContinuous_Real, S a) -> S $ floor a
+        (Signed HRing_Int,            VInt  a) -> VNat  $ unsafeNat a
+        (Signed HRing_Real,           VReal a) -> VProb $ LF.logFloat a
+        (Continuous HContinuous_Prob, VProb a) ->
+            VNat $ unsafeNat $ floor (LF.fromLogFloat a :: Double)
+        (Continuous HContinuous_Real, VReal a) -> VInt  $ floor a
 
 
 samplePrimOp
@@ -417,6 +449,20 @@ sampleMeasureOp (Chain _ _) = \(e1 :* e2 :* End) env ->
 --            return ((v', sout), p * V.product ps))
 
 
+evaluateMeasureOp
+    :: ( ABT Term abt
+       , typs ~ UnLCs args
+       , args ~ LCs typs)
+    => MeasureOp typs a
+    -> SArgs abt args
+    -> Env2
+    -> Value ('HMeasure a)
+evaluateMeasureOp Normal = \(e1 :* e2 :* End) env ->
+    case (evaluate e1 env, evaluate e2 env) of 
+        (VReal v1, VProb v2) -> VMeasure $ \ p g -> do
+            x <- MWCD.normal v1 (LF.fromLogFloat v2) g
+            return $ Just (VReal x, p)
+
 
 sampleLiteral :: Literal a -> S m a
 sampleLiteral (LNat  n) = S . fromInteger $ fromNatural n -- TODO: catch overflow errors
@@ -533,3 +579,8 @@ runSample
     -> S m a
 runSample prog = sample (LC_ prog) emptyEnv
 
+runEvaluate
+    :: (ABT Term abt)
+    => abt '[] a
+    -> Value a
+runEvaluate prog = evaluate prog emptyEnv2
