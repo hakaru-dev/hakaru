@@ -82,7 +82,8 @@ instance Show1 Value where
     showsPrec1 p (VProb  v) = showsPrec  p v
     showsPrec1 p (VReal  v) = showsPrec  p v
     showsPrec1 p (VDatum d) = showsPrec1 p d
-    showsPrec1 _ _ = showString "<TODO: Show1{Value}>"
+    showsPrec1 p (VLam   _) = showString "<function>"
+    showsPrec1 p (VArray e) = showsPrec  p e
 
 instance Show (Value a) where
     showsPrec = showsPrec1
