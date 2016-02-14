@@ -92,7 +92,7 @@ type DList a = [a] -> [a]
 instance Show1 ast => Show (MatchResult ast vars) where
     showsPrec p = shows . ppMatchResult p
 
-ppMatchResult :: Int -> MatchResult ast vars -> Doc
+ppMatchResult :: Show1 ast => Int -> MatchResult ast vars -> Doc
 ppMatchResult _ GotStuck = PP.text "GotStuck"
 ppMatchResult p (Matched boundVars unboundVars) =
     parens (p > 9)
@@ -106,11 +106,11 @@ ppMatchResult p (Matched boundVars unboundVars) =
     parens True  = PP.parens   . PP.nest 1
     parens False = id
 
-    prettyPrecAssoc :: Assoc ast -> Doc
+    prettyPrecAssoc :: Show1 ast => Assoc ast -> Doc
     prettyPrecAssoc (Assoc x e) =
         PP.cat $ ppFun 11 "Assoc"
             [ ppVariable x
-            {-, PP.text $ showsPrec1 11 e ""-} -- TODO: Show1 Assoc
+            , PP.text $ showsPrec1 11 e ""
             ]
 
     ppVariables :: List1 Variable xs -> [Doc]
