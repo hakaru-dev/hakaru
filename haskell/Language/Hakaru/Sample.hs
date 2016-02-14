@@ -76,6 +76,19 @@ data Value :: Hakaru -> * where
 
      VArray :: {-# UNPACK #-} !(V.Vector (Value a)) -> Value ('HArray a)
 
+instance Show1 Value where
+    showsPrec1 p (VNat   v) = showsPrec  p v
+    showsPrec1 p (VInt   v) = showsPrec  p v
+    showsPrec1 p (VProb  v) = showsPrec  p v
+    showsPrec1 p (VReal  v) = showsPrec  p v
+    showsPrec1 p (VDatum d) = showsPrec1 p d
+    showsPrec1 _ _ = showString "<TODO: Show1{Value}>"
+
+instance Show (Value a) where
+    showsPrec = showsPrec1
+    show      = show1
+
+
 ----------------------------------------------------------------
 
 data EAssoc m
