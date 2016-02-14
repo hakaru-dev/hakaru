@@ -63,18 +63,18 @@ data SDatum (a :: k1 -> k2 -> *)
     = forall i j. Show (a i j) => SDatum !(a i j)
 
 data Value :: Hakaru -> * where
-        VNat   :: {-# UNPACK #-} !Nat -> Value 'HNat
-        VInt   :: {-# UNPACK #-} !Int -> Value 'HInt
-        VProb  :: {-# UNPACK #-} !LF.LogFloat -> Value 'HProb
-        VReal  :: {-# UNPACK #-} !Double -> Value 'HReal
+     VNat   :: {-# UNPACK #-} !Nat -> Value 'HNat
+     VInt   :: {-# UNPACK #-} !Int -> Value 'HInt
+     VProb  :: {-# UNPACK #-} !LF.LogFloat -> Value 'HProb
+     VReal  :: {-# UNPACK #-} !Double -> Value 'HReal
 
-        VDatum :: !(Datum Value (HData' t)) -> Value (HData' t)
+     VDatum :: !(Datum Value (HData' t)) -> Value (HData' t)
 
-        -- Assuming you want to consider lambdas/closures to be values.
-        -- N.B., the type below is larger than is correct; that is,
-        VLam :: (Value a -> Value b) -> Value (a ':-> b)
+     -- Assuming you want to consider lambdas/closures to be values.
+     -- N.B., the type below is larger than is correct; that is,
+     VLam :: (Value a -> Value b) -> Value (a ':-> b)
 
-        VArray :: {-# UNPACK #-} !(V.Vector (Value a)) -> Value ('HArray a)
+     VArray :: {-# UNPACK #-} !(V.Vector (Value a)) -> Value ('HArray a)
 
 ----------------------------------------------------------------
 
