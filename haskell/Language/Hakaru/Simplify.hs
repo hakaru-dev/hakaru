@@ -7,6 +7,7 @@
            , DataKinds
            , OverloadedStrings
            , ScopedTypeVariables
+           , TypeOperators
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -24,6 +25,7 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Simplify
     ( simplify
+    , simplifyLam
     , MapleException(MapleException)
     ) where
 
@@ -74,6 +76,18 @@ simplify e = do
     leftShow :: Show a => Either a b -> Either String b
     leftShow (Left err) = Left (show err)
     leftShow (Right x)  = Right x
+
+simplifyLam :: (ABT Term abt)
+            => abt '[] (a ':-> 'HMeasure b)
+            -> IO (abt '[] (a ':-> 'HMeasure b))
+simplifyLam e = caseVarSyn e (return . var) $ \t ->
+                   case t of
+                   Lam_ :$ (e1 :* End) ->
+                       caseBind e1 $ \x e1' -> do
+                           e1'' <- simplify e1'
+                           return . syn $
+                                  Lam_  :$ (bind x e1'' :* End)
+                   _ -> error "TODO: simplifyLam"
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
