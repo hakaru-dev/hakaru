@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, OverloadedStrings #-}
+{-# LANGUAGE CPP, OverloadedStrings, DataKinds #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Language.Hakaru.Parser.SymbolResolve where
 
@@ -9,13 +9,14 @@ import Control.Applicative              ((<*>))
 #endif
 import Control.Monad.Trans.State.Strict (State, state, evalState)
 
+import qualified Data.Number.Nat                 as N
 import           Language.Hakaru.Types.Sing
 import           Language.Hakaru.Types.Coercion
+import           Language.Hakaru.Types.DataKind  hiding (Symbol)
 import           Language.Hakaru.Types.HClasses
+import qualified Language.Hakaru.Syntax.AST      as T
 import           Language.Hakaru.Syntax.IClasses
-import qualified Data.Number.Nat as N
-import qualified Language.Hakaru.Syntax.AST as T
-import qualified Language.Hakaru.Parser.AST as U
+import qualified Language.Hakaru.Parser.AST      as U
 
 data Symbol a
     = TLam (a -> Symbol a)
@@ -70,8 +71,10 @@ primTable =
     ,("right",      primRight)
     ,("true",       TNeu $ true_)
     ,("false",      TNeu $ false_)
-    ,("fromProb",   primFromProb)
-    ,("unsafeProb", primUnsafeProb)
+    ,("fromProb",   primCoerce cFromProb)
+    ,("unsafeProb", primUnsafe cFromProb)
+    ,("nat2real",   primCoerce cNat2Real)
+    ,("nat2prob",   primCoerce cNat2Prob)
     ,("uniform",    primMeasure2 (U.SealedOp T.Uniform))
     ,("normal",     primMeasure2 (U.SealedOp T.Normal))
     ,("gamma",      primMeasure2 (U.SealedOp T.Gamma))
@@ -89,6 +92,27 @@ primTable =
 primMeasure2 :: U.SealedOp T.MeasureOp -> Symbol U.AST
 primMeasure2 m = t2 $ \x y -> U.MeasureOp_ m [x, y]
 
+primCoerce :: Coercion a b -> Symbol U.AST
+primCoerce c = TLam $ TNeu . U.CoerceTo_  (Some2 c)
+
+primUnsafe :: Coercion a b -> Symbol U.AST
+primUnsafe c = TLam $ TNeu . U.UnsafeTo_  (Some2 c)
+
+cFromProb :: Coercion 'HProb 'HReal
+cFromProb = signed
+
+cNat2Prob :: Coercion 'HNat 'HProb
+cNat2Prob = continuous
+
+cNat2Int  :: Coercion 'HNat 'HInt
+cNat2Int  = signed
+
+cFromInt  :: Coercion 'HInt 'HReal
+cFromInt  = continuous
+
+cNat2Real :: Coercion 'HNat 'HReal
+cNat2Real = CCons (Signed HRing_Int) continuous
+
 true_, false_ :: U.AST
 true_  = U.Ann_ (U.Datum_ . U.Datum "true"  . U.Inl $ U.Done)
          (U.SSing sBool)
@@ -99,8 +123,6 @@ unsafeFrom_ :: U.AST -> U.AST
 unsafeFrom_ = U.UnsafeTo_ (Some2 $ CCons (Signed HRing_Real) CNil)
 
 primPair, primLeft, primRight :: Symbol U.AST
-primFromProb, primUnsafeProb  :: Symbol U.AST
-primWeight, primRealPow :: Symbol U.AST
 primPair       = t2 $ \a b ->
     U.Datum_ $ U.Datum "pair"
         (U.Inl $ U.Konst a `U.Et` U.Konst b `U.Et` U.Done)
@@ -108,10 +130,8 @@ primLeft       = TLam $ TNeu . U.Datum_ .
                         U.Datum "left" . U.Inl . (`U.Et` U.Done) . U.Konst
 primRight      = TLam $ TNeu . U.Datum_ .
                         U.Datum "right" . U.Inr . U.Inl . (`U.Et` U.Done) . U.Konst
-primFromProb   =
-    TLam $ TNeu . U.CoerceTo_ (Some2 $ CCons (Signed HRing_Real) CNil)
-primUnsafeProb =
-    TLam $ TNeu . U.UnsafeTo_ (Some2 $ CCons (Signed HRing_Real) CNil)
+
+primWeight, primRealPow, primBern :: Symbol U.AST
 primWeight     = t2 $ \w m -> U.Superpose_ [(w, m)]
 primRealPow    = t2 $ \x y -> U.PrimOp_ (U.SealedOp T.RealPow) [x, y]
 --primNatPow     = t2 $ \x y -> U.PrimOp_ (U.SealedOp T.NatPow) [x, y]
