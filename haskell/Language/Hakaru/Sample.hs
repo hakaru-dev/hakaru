@@ -96,7 +96,6 @@ instance Show (Value a) where
     showsPrec = showsPrec1
     show      = show1
 
-
 ----------------------------------------------------------------
 
 data EAssoc m
@@ -294,6 +293,8 @@ evaluateScon MBind (e1 :* e2 :* End) env =
                caseBind e2 $ \x e2' ->
                    case evaluate e2' (updateEnv2 (EAssoc2 x a) env) of
                      VMeasure y -> y p' g
+                     _ -> error "the impossible happened"
+      _ -> error "the impossible happened"
 
 
 instance Coerce Value where
@@ -356,6 +357,13 @@ mapSample
     => Seq (abt '[] a) -> Env m -> Seq (Sample m a)
 mapSample es env = fmap (\a -> unS $ sample (LC_ a) env) es
 
+mapEvaluate
+    :: (ABT Term abt)
+    => Seq (abt '[] a) -> Env2 -> Seq (Value a)
+mapEvaluate es env = fmap (flip evaluate env) es
+
+identityElement :: NaryOp a -> Value a
+identityElement = undefined
 
 evaluateMeasureOp
     :: ( ABT Term abt
@@ -470,7 +478,7 @@ evaluateMeasureOp (Chain _ _) (e1 :* e2 :* End) env =
 
    where convert :: MWC.GenIO
                  -> Value (s ':-> 'HMeasure (HPair a s))
-             -> StateT (Value s) (MaybeT IO) (Value a, Value 'HProb)
+                 -> StateT (Value s) (MaybeT IO) (Value a, Value 'HProb)
          convert g (VLam f) =
              StateT $ \s' ->
               case f s' of
