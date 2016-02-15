@@ -18,7 +18,7 @@ import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Syntax.Value
 import Language.Hakaru.Pretty.Concrete
-import Language.Hakaru.Sample hiding (SData, SKonst, SEt, SDone, SPlus, SVoid)
+import Language.Hakaru.Sample
 import Language.Hakaru.Disintegrate
 import Language.Hakaru.Expect
 import Language.Hakaru.Syntax.Prelude (prob_, fromProb, real_)
