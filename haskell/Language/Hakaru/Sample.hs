@@ -28,6 +28,7 @@ import           Control.Applicative   (Applicative(..), (<$>))
 #endif
 import           Control.Monad.Identity
 import           Control.Monad.Trans.Maybe
+import           Control.Monad.State.Strict
 import qualified Data.IntMap                     as IM
 
 import Data.Number.Nat     (fromNat, unsafeNat, Nat())
@@ -449,6 +450,8 @@ evaluateMeasureOp (Plate _) (e1 :* End) env =
           return ( VArray v'
                  , VProb $ p * V.product (V.map (\(VProb x) -> x) ps)
                  )
+        _ -> error "the impossible happened"
+
   where performMaybe
             :: MWC.GenIO
             -> Value ('HMeasure a)
@@ -456,16 +459,33 @@ evaluateMeasureOp (Plate _) (e1 :* End) env =
         performMaybe g (VMeasure m) = MaybeT $ m (VProb 1) g
 
 evaluateMeasureOp (Chain _ _) (e1 :* e2 :* End) env =
-    error "evaluateMeasureOp: Chain not implemented yet"
---   let S v = evaluate (LC_ e1) env
---       S s = evaluate (LC_ e2) env
---   in  S (\ p g -> runMaybeT $ do
---            let convert f = StateT $ \s' -> do
---                              ((a,s''),p') <- MaybeT (f s' 1 g)
---                              return ((a,p'),s'')
---            (evaluates, sout) <- runStateT (V.mapM convert v) s
---            let (v', ps) = V.unzip evaluates
---            return ((v', sout), p * V.product ps))
+    case (evaluate e1 env, evaluate e2 env) of
+        (VArray v, s) -> VMeasure (\(VProb p) g -> runMaybeT $ do
+             (evaluates, sout) <- runStateT (V.mapM (convert g) v) s
+             let (v', ps) = V.unzip evaluates
+             return ( VDatum $ dPair (VArray v') sout
+                    , VProb $ p * V.product (V.map (\(VProb x) -> x) ps)
+                    ))
+        _ -> error "the impossible happened"
+
+   where convert :: MWC.GenIO
+                 -> Value (s ':-> 'HMeasure (HPair a s))
+             -> StateT (Value s) (MaybeT IO) (Value a, Value 'HProb)
+         convert g (VLam f) =
+             StateT $ \s' ->
+              case f s' of
+                   VMeasure f' -> do
+                       (as'',p') <- MaybeT (f' (VProb 1) g)
+                       let (a, s'') = unPair as''
+                       return ((a,p'),s'')
+                   _ -> error "the impossible happened"
+
+         unPair :: Value (HPair a b) -> (Value a, Value b)
+         unPair (VDatum (Datum "pair"
+                         (Inl (Et (Konst a)
+                               (Et (Konst b) Done))))) =
+             (a, b)
+         unPair _ = error "the impossible happened"
 
 sampleLiteral :: Literal a -> S m a
 sampleLiteral (LNat  n) = S . fromInteger $ fromNatural n -- TODO: catch overflow errors
