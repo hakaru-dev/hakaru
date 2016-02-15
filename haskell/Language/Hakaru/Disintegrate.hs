@@ -972,7 +972,7 @@ constrainOutcomeMeasureOp v0 = go
         mu' <- fromWhnf <$> atomize mu
         sd' <- (emitLet' . fromWhnf) =<< atomize sd
         emitWeight
-            (P.exp (P.negate (v0 P.- mu') P.^ P.nat_ 2
+            (P.exp (P.negate ((v0 P.- mu') P.^ P.nat_ 2)
                     P./ P.fromProb (P.prob_ 2 P.* sd' P.^ P.nat_ 2))
                 P./ sd'
                 P./ P.sqrt (P.prob_ 2 P.* P.pi))
