@@ -10,7 +10,6 @@ import           Language.Hakaru.Parser.SymbolResolve (resolveAST)
 import qualified Language.Hakaru.Syntax.AST as T
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.TypeCheck
-import           Language.Hakaru.Syntax.Prelude (prob_, fromProb, real_)
 
 import           Language.Hakaru.Types.Sing
 
@@ -37,14 +36,14 @@ inferType' :: U.AST -> TypeCheckMonad (TypedAST (TrivialABT T.Term))
 inferType' = inferType
 
 
-illustrate :: Sing a -> MWC.GenIO -> Sample IO a -> IO ()
+illustrate :: Sing a -> MWC.GenIO -> Value a -> IO ()
 illustrate SNat  g x = print x
 illustrate SInt  g x = print x
 illustrate SProb g x = print x
 illustrate SReal g x = print x
-illustrate (SData _ _) g (SDatum d) = print d
-illustrate (SMeasure s) g m = do
-    Just (samp,_) <- m 1 g
+illustrate (SData _ _) g d = print d
+illustrate (SMeasure s) g (VMeasure m) = do
+    Just (samp,_) <- m (VProb 1) g
     illustrate s g samp
 illustrate s _ _ = putStrLn ("<" ++ show s ++ ">")
 
@@ -58,9 +57,9 @@ runHakaru g prog =
         Left err                 -> putStrLn err
         Right (TypedAST typ ast) -> do
           case typ of
-            SMeasure _ -> forever (illustrate typ g . unS $ runSample' ast)
-            _          -> illustrate typ g . unS $ runSample' ast
+            SMeasure _ -> forever (illustrate typ g $ run ast)
+            _          -> illustrate typ g $ run ast
     where
-    runSample' :: TrivialABT T.Term '[] a -> S IO a
-    runSample' = runSample
+    run :: TrivialABT T.Term '[] a -> Value a
+    run = runEvaluate
 

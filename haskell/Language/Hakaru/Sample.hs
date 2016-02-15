@@ -7,6 +7,7 @@
            , PolyKinds
            , ExistentialQuantification
            , FlexibleContexts
+           , OverloadedStrings
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -167,6 +168,12 @@ normalizeVector (VArray xs) =
         in (m, y, ys)
 
 ---------------------------------------------------------------
+
+runEvaluate
+    :: (ABT Term abt)
+    => abt '[] a
+    -> Value a
+runEvaluate prog = evaluate prog emptyEnv
 
 evaluate :: forall abt a
          .  (ABT Term abt)
