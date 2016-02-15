@@ -82,6 +82,16 @@ data Value :: Hakaru -> * where
                  ) -> Value ('HMeasure a)
      VArray   :: {-# UNPACK #-} !(V.Vector (Value a)) -> Value ('HArray a)
 
+instance Eq1 Value where
+    eq1 (VNat  a) (VNat  b) = a == b
+    eq1 (VInt  a) (VInt  b) = a == b
+    eq1 (VProb a) (VProb b) = a == b
+    eq1 (VReal a) (VReal b) = a == b
+    eq1 _        _        = False
+
+instance Eq (Value a) where
+    (==) = eq1
+
 instance Show1 Value where
     showsPrec1 p (VNat   v)   = showsPrec  p v
     showsPrec1 p (VInt   v)   = showsPrec  p v
@@ -279,6 +289,15 @@ evaluateScon
 evaluateScon Lam_ (e1 :* End)            env =
     caseBind e1 $ \x e1' ->
         VLam $ \v -> evaluate e1' (updateEnv2 (EAssoc2 x v) env)
+evaluateScon App_ (e1 :* e2 :* End)      env =
+    case evaluate e1 env of
+      VLam f -> f (evaluate e2 env)
+      _      -> error "the impossible happened"
+evaluateScon Let_ (e1 :* e2 :* End)      env =
+    let v = evaluate e1 env
+    in caseBind e2 $ \x e2' ->
+        evaluate e2' (updateEnv2 (EAssoc2 x v) env)
+evaluateScon (Ann_   _)      (e1 :* End) env = evaluate e1 env
 evaluateScon (MeasureOp_  m) es env = evaluateMeasureOp m es env
 evaluateScon Dirac           (e1 :* End) env =
     VMeasure $ \p _ -> return $ Just (evaluate e1 env, p)
@@ -352,6 +371,37 @@ sampleNaryOp (Prod HSemiring_Int)  es = S . F.foldr (*) 1 . mapSample es
 sampleNaryOp (Prod HSemiring_Prob) es = S . F.foldr (*) 1 . mapSample es
 sampleNaryOp (Prod HSemiring_Real) es = S . F.foldr (*) 1 . mapSample es
 
+evaluateNaryOp
+    :: (ABT Term abt)
+    => NaryOp a -> Seq (abt '[] a) -> Env2 -> Value a
+evaluateNaryOp s es = F.foldr (evalOp s) (identityElement s) . mapEvaluate es
+
+identityElement :: NaryOp a -> Value a
+identityElement And                   = VDatum dTrue
+identityElement (Sum HSemiring_Nat)   = VNat  0
+identityElement (Sum HSemiring_Int)   = VInt  0
+identityElement (Sum HSemiring_Prob)  = VProb 0
+identityElement (Sum HSemiring_Real)  = VReal 0
+identityElement (Prod HSemiring_Nat)  = VNat  1
+identityElement (Prod HSemiring_Int)  = VInt  1
+identityElement (Prod HSemiring_Prob) = VProb 1
+identityElement (Prod HSemiring_Real) = VReal 1
+
+
+evalOp
+    :: NaryOp a -> Value a -> Value a -> Value a
+evalOp And (VDatum a) (VDatum b)        
+    | a == dTrue && b == dTrue = VDatum dTrue
+    | otherwise = VDatum dFalse
+evalOp (Sum  HSemiring_Nat)  (VNat   a) (VNat  b) = VNat  (a + b)
+evalOp (Sum  HSemiring_Int)  (VInt   a) (VInt  b) = VInt  (a + b)
+evalOp (Sum  HSemiring_Prob) (VProb  a) (VProb b) = VProb (a + b)
+evalOp (Sum  HSemiring_Real) (VReal  a) (VReal b) = VReal (a + b)
+evalOp (Prod HSemiring_Nat)  (VNat   a) (VNat  b) = VNat  (a * b)
+evalOp (Prod HSemiring_Int)  (VInt   a) (VInt  b) = VInt  (a * b)  
+evalOp (Prod HSemiring_Prob) (VProb  a) (VProb b) = VProb (a * b)  
+evalOp (Prod HSemiring_Real) (VReal  a) (VReal b) = VReal (a * b)
+
 mapSample
     :: (ABT Term abt, PrimMonad m, Functor m, Show2 abt)
     => Seq (abt '[] a) -> Env m -> Seq (Sample m a)
@@ -361,9 +411,6 @@ mapEvaluate
     :: (ABT Term abt)
     => Seq (abt '[] a) -> Env2 -> Seq (Value a)
 mapEvaluate es env = fmap (flip evaluate env) es
-
-identityElement :: NaryOp a -> Value a
-identityElement = undefined
 
 evaluateMeasureOp
     :: ( ABT Term abt
