@@ -29,6 +29,7 @@ Library
     exposed-modules:   Language.Hakaru.Syntax.IClasses,
                        Language.Hakaru.Syntax.ABT,
                        Language.Hakaru.Syntax.Variable,
+                       Language.Hakaru.Syntax.Value,
                        Language.Hakaru.Syntax.Datum,
                        Language.Hakaru.Syntax.DatumCase,
                        Language.Hakaru.Types.DataKind,

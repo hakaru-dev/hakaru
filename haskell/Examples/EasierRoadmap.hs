@@ -32,6 +32,7 @@ import Language.Hakaru.Types.Sing      (SingI)
 import Language.Hakaru.Types.HClasses  (HSemiring_)
 import Language.Hakaru.Syntax.AST      (Term)
 import Language.Hakaru.Syntax.ABT      (ABT, TrivialABT)
+import Language.Hakaru.Syntax.Value
 import Language.Hakaru.Pretty.Concrete
 import Language.Hakaru.Disintegrate
 import Language.Hakaru.Sample hiding (normalize)
