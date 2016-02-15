@@ -23,9 +23,6 @@ removeNestedTypeAnnotations  =
                  _ -> syn t1 
         x -> syn x
 
-collapseNestedSuperposes :: ABT Term abt => abt '[] a -> abt '[] a
-collapseNestedSuperposes = cataABT var bind syn
-
 stripTypeAnnotations :: ABT Term abt => abt '[] a -> abt '[] a
 stripTypeAnnotations =
     cataABT var bind $ \t1 ->
@@ -43,7 +40,3 @@ renameABT ast = cataABT var bind_ syn ast
               .  Variable x -> abt xs a -> abt (x ': xs) a
           bind_ x e = bind x' (rename x x' e)
            where x' = x { varID = nextBind e}      
-
-
-reduceAST :: ABT Term abt => abt '[] a -> abt '[] a
-reduceAST = removeNestedTypeAnnotations . collapseNestedSuperposes
