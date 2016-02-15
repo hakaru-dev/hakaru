@@ -182,14 +182,15 @@ poisson_rng lambda g' = make_poisson g'
         -lambda + fromIntegral k * lnlam - logFactorial k
 
 
-normalize :: [LF.LogFloat] -> (LF.LogFloat, Double, [Double])
-normalize []  = (0, 0, [])
-normalize [x] = (x, 1, [1])
-normalize xs  = (m, y, ys)
+normalize :: [Value 'HProb] -> (LF.LogFloat, Double, [Double])
+normalize []          = (0, 0, [])
+normalize [(VProb x)] = (x, 1, [1])
+normalize xs          = (m, y, ys)
     where
-    m  = maximum xs
-    ys = [ LF.fromLogFloat (x/m) | x <- xs ]
-    y  = sum ys
+    xs' = map (\(VProb x) -> x) xs
+    m   = maximum xs'
+    ys  = [ LF.fromLogFloat (x/m) | x <- xs' ]
+    y   = sum ys
 
 
 normalizeVector
@@ -226,11 +227,9 @@ sampleTerm
 sampleTerm t env =
     case t of
     o :$ es       -> sampleScon    o es env
-    NaryOp_  o es -> sampleNaryOp  o es env
     Literal_ v    -> sampleLiteral v
     Datum_   d    -> sampleDatum   d env
     Case_    o es -> sampleCase    o es env
-    Superpose_ es -> sampleSuperpose es env
 
 evaluateTerm :: forall abt a
              .  (ABT Term abt)
@@ -240,9 +239,11 @@ evaluateTerm :: forall abt a
 evaluateTerm t env =
     case t of
     o :$ es       -> evaluateScon    o es env
+    NaryOp_  o es -> evaluateNaryOp  o es env
     Literal_ v    -> evaluateLiteral v
     Datum_   d    -> evaluateDatum   d env
     Case_    o es -> evaluateCase    o es env
+    Superpose_ es -> evaluateSuperpose es env
     _             -> error "TODO: evaluateTerm"
 
 sampleScon
@@ -260,10 +261,6 @@ sampleScon Let_ (e1 :* e2 :* End)      env =
     in caseBind e2 $ \x e2' ->
         sample (LC_ e2') (updateEnv (EAssoc x v) env)
 sampleScon (Ann_   _)      (e1 :* End) env = sample (LC_ e1) env
--- sampleScon (CoerceTo_   c) (e1 :* End) env =
---     coerceTo c $ sample (LC_ e1) env
--- sampleScon (UnsafeFrom_ c) (e1 :* End) env =
---     coerceFrom c $ sample (LC_ e1) env
 sampleScon (PrimOp_ o)     es env = samplePrimOp    o es env
 --sampleScon (MeasureOp_  m) es env = sampleMeasureOp m es env
 sampleScon Dirac           (e1 :* End) env =
@@ -298,6 +295,11 @@ evaluateScon Let_ (e1 :* e2 :* End)      env =
     in caseBind e2 $ \x e2' ->
         evaluate e2' (updateEnv2 (EAssoc2 x v) env)
 evaluateScon (Ann_   _)      (e1 :* End) env = evaluate e1 env
+evaluateScon (CoerceTo_   c) (e1 :* End) env =
+    coerceTo c $ evaluate e1 env
+evaluateScon (UnsafeFrom_ c) (e1 :* End) env =
+    coerceFrom c $ evaluate e1 env
+evaluateScon (PrimOp_ o)     es env = evaluatePrimOp    o es env
 evaluateScon (MeasureOp_  m) es env = evaluateMeasureOp m es env
 evaluateScon Dirac           (e1 :* End) env =
     VMeasure $ \p _ -> return $ Just (evaluate e1 env, p)
@@ -357,6 +359,21 @@ samplePrimOp (Negate HRing_Int)  (e1 :* End) env =
 samplePrimOp (Negate HRing_Real) (e1 :* End) env = 
     let S v = sample (LC_ e1) env
     in  S (negate v)
+
+evaluatePrimOp
+    ::  ( ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
+    => PrimOp typs a
+    -> SArgs abt args
+    -> Env2
+    -> Value a
+evaluatePrimOp Infinity         End _ = VProb $ LF.logFloat (1/0)
+evaluatePrimOp NegativeInfinity End _ = VReal $ -1/0
+evaluatePrimOp (Negate _) (e1 :* End) env = 
+    case evaluate e1 env of
+      VInt  v -> VInt  (negate v)
+      VReal v -> VReal (negate v)
+      _       -> error "the impossible happened"
+
 
 sampleNaryOp
     :: (ABT Term abt, PrimMonad m, Functor m, Show2 abt)
@@ -621,29 +638,32 @@ evaluateCase o es env =
     getVDatum :: Value (HData' a) -> Datum Value (HData' a)
     getVDatum (VDatum a) = a
 
-sampleSuperpose
-    :: (ABT Term abt, PrimMonad m, Functor m, Show2 abt)
+evaluateSuperpose
+    :: (ABT Term abt)
     => [(abt '[] 'HProb, abt '[] ('HMeasure a))]
-    -> Env m
-    -> S m ('HMeasure a)
-sampleSuperpose []       _   = S $ \_ _ -> return Nothing
-sampleSuperpose [(q, m)] env =
-    let S q' = sample (LC_ q) env
-        S m' = sample (LC_ m) env
-    in  S (\p g -> m' (p * q') g)
+    -> Env2
+    -> Value ('HMeasure a)
+evaluateSuperpose []       _   = VMeasure $ \_ _ -> return Nothing
+evaluateSuperpose [(q, m)] env =
+    case evaluate m env of
+         VMeasure m' ->
+             let VProb q' = evaluate q env
+             in  VMeasure (\(VProb p) g -> m' (VProb $ p * q') g)
         
-sampleSuperpose pms@((q, m) : _) env =
-    let weights  = map (unS . (\x -> sample (LC_ x) env) . fst) pms
-        S m'     = sample (LC_ m) env
-        (x,y,ys) = normalize weights
-    in S $ \p g ->
-        if not (y > (0::Double)) then return Nothing else do
-            u <- MWC.uniformR (0, y) g
-            case [ m1 | (v,(_,m1)) <- zip (scanl1 (+) ys) pms, u <= v ] of
-                m2 : _ ->
-                    let S m2' = sample (LC_ m2) env
-                    in m2' (p * x * LF.logFloat y) g
-                []     -> m' (p * x * LF.logFloat y) g
+evaluateSuperpose pms@((q, m) : _) env =
+    case evaluate m env of
+      VMeasure m' ->
+          let weights  = map ((flip evaluate env) . fst) pms
+              (x,y,ys) = normalize weights
+          in VMeasure $ \(VProb p) g ->
+              if not (y > (0::Double)) then return Nothing else do
+                  u <- MWC.uniformR (0, y) g
+                  case [ m1 | (v,(_,m1)) <- zip (scanl1 (+) ys) pms, u <= v ] of
+                    m2 : _ ->
+                        case evaluate m2 env of
+                          VMeasure m2' -> m2' (VProb $ p * x * LF.logFloat y) g
+                    []     -> m' (VProb $ p * x * LF.logFloat y) g
+
 
 sampleVar :: (PrimMonad m, Functor m) => Env m -> Variable a -> S m a
 sampleVar env v =
