@@ -210,6 +210,8 @@ symbolResolution symbols ast =
     U.NaryOp op es      -> U.NaryOp op
         <$> mapM (symbolResolution symbols) es
 
+    U.Empty             -> return $ U.Empty
+
     U.Array name e1 e2  -> resolveBinder symbols name e1 e2 U.Array
 
     U.Case e1 bs        -> U.Case <$> symbolResolution symbols e1
@@ -334,6 +336,7 @@ makeAST ast =
     U.NegInfinity     -> U.PrimOp_ (U.SealedOp $ T.NegativeInfinity) []
     U.ULiteral v      -> U.Literal_  (U.val v)
     U.NaryOp op es    -> U.NaryOp_ op (map makeAST es)
+    U.Empty           -> U.Empty_
     U.Array (TNeu (U.Var_ name)) e1 e2 ->
         U.Array_ (makeAST e1) name (makeAST e2)
     U.Case e bs       -> U.Case_ (makeAST e) (map makeBranch bs)
