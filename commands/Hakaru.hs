@@ -10,9 +10,7 @@ import           Language.Hakaru.Parser.SymbolResolve (resolveAST)
 import qualified Language.Hakaru.Syntax.AST as T
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.TypeCheck
-import           Language.Hakaru.Syntax.Datum
 import           Language.Hakaru.Syntax.Value
-import           Language.Hakaru.Syntax.IClasses
 
 import           Language.Hakaru.Types.Sing
 
@@ -20,9 +18,8 @@ import           Language.Hakaru.Sample
 import           Language.Hakaru.Pretty.Concrete
 
 import           Control.Monad
-import           Data.Text hiding (intercalate)
+import           Data.Text
 import qualified Data.Text.IO as IO
-import           Data.List (intercalate)
 
 import qualified System.Random.MWC as MWC
 import           System.Environment
@@ -41,21 +38,10 @@ inferType' = inferType
 
 
 illustrate :: Sing a -> MWC.GenIO -> Value a -> IO ()
-illustrate SNat  _ x = print x
-illustrate SInt  _ x = print x
-illustrate SProb _ x = print x
-illustrate SReal _ x = print x
-illustrate (SData _ _) _ v@(VDatum (Datum hint d)) =
-    case unpack hint of
-      "pair"  -> putStrLn ("(" ++ intercalate ", "
-                                   (foldMap11 ((:[]) . show) d) ++ ")")
-      "true"  -> putStrLn "true"
-      "false" -> putStrLn "false"
-      _       -> print v
 illustrate (SMeasure s) g (VMeasure m) = do
     Just (samp,_) <- m (VProb 1) g
     illustrate s g samp
-illustrate s _ _ = putStrLn ("<" ++ show s ++ ">")
+illustrate _ _ x = print . prettyValue $ x
 
 runHakaru :: MWC.GenIO -> Text -> IO ()
 runHakaru g prog =

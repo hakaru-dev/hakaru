@@ -27,7 +27,7 @@ module Language.Hakaru.Pretty.Concrete
     , prettyType
     , prettyAssoc
     , prettyPrecAssoc
-
+    , prettyValue
     -- * Helper functions (semi-public internal API)
     , ppVariable
     ) where
@@ -38,9 +38,12 @@ import qualified Text.PrettyPrint as PP
 import qualified Data.Foldable    as F
 import qualified Data.Text        as Text
 import qualified Data.Sequence    as Seq -- Because older versions of "Data.Foldable" do not export 'null' apparently...
+import qualified Data.Vector                     as V
 import           Data.Proxy
 
-import Data.Number.Natural  (fromNatural, fromNonNegativeRational)
+import           Data.Number.Natural  (fromNatural, fromNonNegativeRational)
+import           Data.Number.Nat
+import qualified Data.Number.LogFloat            as LF
 
 import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11, jmEq1, TypeEq(..))
 import Language.Hakaru.Types.DataKind
@@ -49,6 +52,7 @@ import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
+import Language.Hakaru.Syntax.Value
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Pretty.Haskell
     (prettyAssoc, prettyPrecAssoc, ppVariable, Associativity(..))
@@ -365,6 +369,20 @@ instance Pretty Literal where
         [PP.double $ fromRational $ fromNonNegativeRational l]
     prettyPrec_ _ (LReal r) = [PP.double $ fromRational r]
 
+instance Pretty Value where
+    prettyPrec_ _ (VNat  n)    = [PP.int (fromNat n)]
+    prettyPrec_ _ (VInt  i)    = [PP.int i]
+    prettyPrec_ _ (VProb l)    =
+        [PP.double $ LF.fromLogFloat l]
+    prettyPrec_ _ (VReal r)    = [PP.double r]
+    prettyPrec_ p (VDatum d)   = prettyPrec_ p d
+    prettyPrec_ _ (VLam _)     = [PP.text "<function>"]
+    prettyPrec_ _ (VMeasure _) = [PP.text "<measure>"]
+    prettyPrec_ p (VArray a)   =
+        ppList . V.toList $ V.map (toDoc . prettyPrec_ p) a
+
+prettyValue :: Value a -> Doc
+prettyValue = toDoc . prettyPrec_ 0
 
 instance Pretty f => Pretty (Datum f) where
     prettyPrec_ p (Datum hint d)
