@@ -48,14 +48,14 @@ inferType' :: U.AST -> TypeCheckMonad (TypedAST (TrivialABT T.Term))
 inferType' = inferType
 
 
-illustrate :: Sing a -> MWC.GenIO -> Sample IO a -> IO String
+illustrate :: Sing a -> MWC.GenIO -> Value a -> IO String
 illustrate SNat  g x = return (show x)
 illustrate SInt  g x = return (show x)
 illustrate SProb g x = return (show x)
 illustrate SReal g x = return (show x)
-illustrate (SData _ _) g (SDatum d) = return (show d)
-illustrate (SMeasure s) g m = do
-    Just (samp,_) <- m 1 g
+illustrate (SData _ _) g d = return (show d)
+illustrate (SMeasure s) g (VMeasure m) = do
+    Just (samp,_) <- m (VProb 1) g
     illustrate s g samp
 illustrate s _ _ = return ("<" ++ show s ++ ">")
 
@@ -70,7 +70,7 @@ testHakaru a mode g =
         Left err                 -> return err
         Right (TypedAST typ ast) -> do
             putStr   "Type: "
-            putStrLn . show $ prettyType typ
+            putStrLn . show $ prettyType 0 typ
             putStrLn ""
             putStrLn "AST:"
             putStrLn . show $ pretty ast
@@ -90,7 +90,7 @@ testHakaru a mode g =
                           putStrLn . show . pretty . head $ observe ast x
                       _ -> return ()
                 _ -> return ()
-            illustrate typ g . unS $ runSample' ast
+            illustrate typ g $ run ast
     where
-    runSample' :: TrivialABT T.Term '[] a -> S IO a
-    runSample' = runSample
+    run :: TrivialABT T.Term '[] a -> Value a
+    run = runEvaluate
