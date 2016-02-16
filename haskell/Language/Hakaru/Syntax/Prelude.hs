@@ -1048,21 +1048,13 @@ zipWithV f v1 v2 =
 
 
 ----------------------------------------------------------------
--- BUG: this use of 'typeOf' causes problems in practice (for unknown reasons since I do have an annotation on the relevant Datum constructors). So we should go back to using SingI
 (>>=)
-    :: (ABT Term abt)
+    :: (ABT Term abt, SingI a)
     => abt '[] ('HMeasure a)
     -> (abt '[] a -> abt '[] ('HMeasure b))
     -> abt '[] ('HMeasure b)
 m >>= f =
-    case
-        caseVarSyn m (const Nothing) $ \t ->
-            case t of
-            Dirac :$ e1 :* End -> Just e1
-            _                  -> Nothing
-    of
-    Just e1 -> let_ e1 f
-    Nothing -> syn (MBind :$ m :* binder Text.empty (sUnMeasure $ typeOf m) f :* End)
+    syn (MBind :$ m :* binder Text.empty sing f :* End)
 
 
 dirac :: (ABT Term abt) => abt '[] a -> abt '[] ('HMeasure a)
@@ -1071,7 +1063,7 @@ dirac e1 = syn (Dirac :$ e1 :* End)
 
 -- TODO: can we use let-binding instead of (>>=)-binding (i.e., for when the dirac is immediately (>>=)-bound again...)?
 (<$>)
-    :: (ABT Term abt)
+    :: (ABT Term abt, SingI a)
     => (abt '[] a -> abt '[] b)
     -> abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure b)
@@ -1081,7 +1073,7 @@ f <$> m = m >>= dirac . f
 -- Moreover, it's not clear that we should even allow the type
 -- @'HMeasure (a ':-> b)@!
 (<*>)
-    :: (ABT Term abt)
+    :: (ABT Term abt, SingI a, SingI b)
     => abt '[] ('HMeasure (a ':-> b))
     -> abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure b)
@@ -1089,7 +1081,7 @@ mf <*> mx = mf >>= \f -> app f <$> mx
 
 -- TODO: ensure that @dirac a *> n@ simplifies to just @n@, regardless of @a@ but especially when @a = unit@.
 (*>), (>>)
-    :: (ABT Term abt)
+    :: (ABT Term abt, SingI a)
     => abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure b)
     -> abt '[] ('HMeasure b)
@@ -1098,14 +1090,14 @@ m *> n = m >>= \_ -> n
 
 -- TODO: ensure that @m <* dirac a@ simplifies to just @m@, regardless of @a@ but especially when @a = unit@.
 (<*)
-    :: (ABT Term abt)
+    :: (ABT Term abt, SingI a, SingI b)
     => abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure b)
     -> abt '[] ('HMeasure a)
 m <* n = m >>= \a -> n *> dirac a
 
 bindx
-    :: (ABT Term abt)
+    :: (ABT Term abt, SingI a, SingI b)
     => abt '[] ('HMeasure a)
     -> (abt '[] a -> abt '[] ('HMeasure b))
     -> abt '[] ('HMeasure (HPair a b))
@@ -1113,7 +1105,7 @@ m `bindx` f = m >>= \a -> pair a <$> f a
 
 -- Defined because using @(<$>)@ and @(<*>)@ would introduce administrative redexes
 liftM2
-    :: (ABT Term abt)
+    :: (ABT Term abt, SingI a, SingI b)
     => (abt '[] a -> abt '[] b -> abt '[] c)
     -> abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure b)
