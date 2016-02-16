@@ -966,13 +966,19 @@ constrainOutcomeMeasureOp v0 = go
         emitGuard (lo' P.<= v0' P.&& v0' P.<= hi')
         emitWeight  (P.recip (P.unsafeProb (hi' P.- lo')))
 
-    -- TODO: I think, based on Hakaru v0.2.0
+    -- TODO: Add fallback handling of Normal that does not atomize mu,sd.
+    -- This fallback is as if Normal were defined in terms of Lebesgue
+    -- and a density Weight.  This fallback is present in Hakaru v0.2.0
+    -- in order to disintegrate a program such as
+    --  x <~ normal(0,1)
+    --  y <~ normal(x,1)
+    --  return ((x+(y+y),x)::pair(real,real))
     go Normal = \(mu :* sd :* End) -> do
         -- N.B., if\/when extending this to higher dimensions, the real equation is @recip (sqrt (2*pi*sd^2) ^ n) * exp (negate (norm_n (v0 - mu) ^ 2) / (2*sd^2))@ for @Real^n@.
         mu' <- fromWhnf <$> atomize mu
         sd' <- (emitLet' . fromWhnf) =<< atomize sd
         emitWeight
-            (P.exp (P.negate (v0 P.- mu') P.^ P.nat_ 2
+            (P.exp (P.negate ((v0 P.- mu') P.^ P.nat_ 2)
                     P./ P.fromProb (P.prob_ 2 P.* sd' P.^ P.nat_ 2))
                 P./ sd'
                 P./ P.sqrt (P.prob_ 2 P.* P.pi))
