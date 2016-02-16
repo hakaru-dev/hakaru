@@ -447,7 +447,7 @@ NewSLO := module ()
       local res;
 
       res := to_set(b);
-      `if`(res={}, 1, Indicator(res));
+      `if`(res={}, 1, 'Indicator'(res));
     end proc;
   end module;
 
