@@ -337,9 +337,15 @@ NewSLO := module ()
       e := 0;
     else
       (dom_spec, rest) := selectremove(depends, dom_spec, var);
-      if dom_spec <> {} then e := Indicator(dom_spec) * e end if;
-      e := Int(e, var=new_rng);
-      if rest <> {} then e := Indicator(rest) * e end if;
+      if dom_spec <> {} then 
+        e := Int(piecewise(And(op(dom_spec)), e, 0), var = new_rng);
+      else
+        e := Int(e, var=new_rng);
+      end if;
+      if rest <> {} then 
+        # don't turn this into a piecewise yet!
+        e := Indicator(rest)*e;
+      end if;
     end if;
     e
   end proc;
@@ -606,6 +612,7 @@ NewSLO := module ()
       Msum(op(map2(unintegrate, h, convert(integral, 'list'), context)))
     elif integral :: `*` then
       (subintegral, w) := selectremove(depends, integral, h);
+
       if subintegral :: `*` then error "Nonlinear integral %1", integral end if;
       weight(w, unintegrate(h, subintegral, context))
     elif integral :: t_pw
@@ -1005,7 +1012,7 @@ NewSLO := module ()
                 And(# Not(radfun), Not(algfun),
                     'specfunc({product, sum, idx})',
                     'freeof'(x)),
-                e->Constant[e]);
+                proc(e) Constant[e] end);
     de := get_de(weight, x, Dx, f);
     if de :: 'Diffop(anything, anything)' then
       res := recognize_de(op(de), Dx, f, x, lo, hi)
@@ -1020,7 +1027,7 @@ NewSLO := module ()
       end if
     end if;
     # Undo Constant[...] wrapping
-    evalindets[flat,2](res, 'Constant[anything]', 1, op)
+    evalindets[flat](res, 'specindex'(anything, Constant), x -> op(1,x))
   end proc;
 
   get_de := proc(dens, var, Dx, f)
