@@ -3,6 +3,7 @@
            , KindSignatures
            , TypeOperators
            , TypeFamilies
+           , EmptyCase
            , DataKinds
            , PolyKinds
            , ExistentialQuantification
@@ -170,7 +171,7 @@ evaluateScon Lam_ (e1 :* End)            env =
 evaluateScon App_ (e1 :* e2 :* End)      env =
     case evaluate e1 env of
       VLam f -> f (evaluate e2 env)
-      _      -> error "the impossible happened"
+      v      -> case v of {}
 evaluateScon Let_ (e1 :* e2 :* End)      env =
     let v = evaluate e1 env
     in caseBind e2 $ \x e2' ->
@@ -192,11 +193,11 @@ evaluateScon MBind (e1 :* e2 :* End) env =
           case x of
             Nothing -> return Nothing
             Just (a, p') ->
-               caseBind e2 $ \x e2' ->
-                   case evaluate e2' (updateEnv (EAssoc x a) env) of
+               caseBind e2 $ \x' e2' ->
+                   case evaluate e2' (updateEnv (EAssoc x' a) env) of
                      VMeasure y -> y p' g
-                     _ -> error "the impossible happened"
-      _ -> error "the impossible happened"
+                     v -> case v of {}
+      v -> case v of {}
 
 evaluatePrimOp
     ::  ( ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
@@ -210,7 +211,7 @@ evaluatePrimOp (Negate _) (e1 :* End) env =
     case evaluate e1 env of
       VInt  v -> VInt  (negate v)
       VReal v -> VReal (negate v)
-      _       -> error "the impossible happened"
+      v       -> case v of {}
 
 
 evaluateNaryOp
@@ -259,18 +260,18 @@ evaluateMeasureOp
     -> Value ('HMeasure a)
 
 evaluateMeasureOp Lebesgue End _ =
-    VMeasure $ \p g -> do
+    VMeasure $ \(VProb p) g -> do
         (u,b) <- MWC.uniform g
         let l = log u
         let n = -l
         return $ Just ( if b
                         then VReal n
                         else VReal l
-                      , VProb $ 2 * LF.logToLogFloat n
+                      , VProb $ p * 2 * LF.logToLogFloat n
                       )
 
 evaluateMeasureOp Counting End _ =
-    VMeasure $ \p g -> do
+    VMeasure $ \(VProb p) g -> do
         let success = LF.logToLogFloat (-3 :: Double)
         let pow x y = LF.logToLogFloat (LF.logFromLogFloat x *
                                        (fromIntegral y :: Double))
@@ -278,7 +279,7 @@ evaluateMeasureOp Counting End _ =
         b <- MWC.uniform g
         return $ Just
             ( VInt  $ if b then -1-u else u
-            , VProb $ 2 / pow (1-success) u / success)
+            , VProb $ p * 2 / pow (1-success) u / success)
 
 evaluateMeasureOp Categorical (e1 :* End) env =
     VMeasure $ \p g -> do
@@ -406,9 +407,9 @@ evaluateCase o es env =
     _ -> error "Missing cases in match expression"
     where
     extendFromMatch :: [Assoc Value] -> Env -> Env 
-    extendFromMatch []                env = env
-    extendFromMatch ((Assoc x v1):as) env =
-        extendFromMatch as (updateEnv (EAssoc x v1) env)
+    extendFromMatch []                env' = env'
+    extendFromMatch ((Assoc x v1):as) env' =
+        extendFromMatch as (updateEnv (EAssoc x v1) env')
 
     evaluateDatum' :: DatumEvaluator Value Identity
     evaluateDatum' = return . Just . getVDatum
@@ -428,7 +429,7 @@ evaluateSuperpose [(q, m)] env =
              let VProb q' = evaluate q env
              in  VMeasure (\(VProb p) g -> m' (VProb $ p * q') g)
         
-evaluateSuperpose pms@((q, m) : _) env =
+evaluateSuperpose pms@((_, m) : _) env =
     case evaluate m env of
       VMeasure m' ->
           let weights  = map ((flip evaluate env) . fst) pms
