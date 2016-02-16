@@ -38,12 +38,15 @@ d3r := {
 
 d4 := Bind(Uniform(0,1), x, Bind(Uniform(0,1), y, Ret(Pair(x/y,x)))):
 d4r := {
-  Weight(1/abs(t)^2, 
-  Bind(Uniform(0, 1), x丅丏, 
-       Weight(Indicator({x丅丏 < t})*x丅丏, Ret(x丅丏)))), 
-  Weight(Indicator({0 < t}), 
-  Bind(Uniform(0, 1), y七下, 
-       Weight(Indicator({t < 1/y七下})*y七下, Ret(t*y七下))))
+  Weight(1/abs(t)^2,
+    Bind(Uniform(0,1),`x丫丵`,
+         piecewise(`x丫丵` < t,Weight(`x丫丵`,Ret(`x丫丵`)),Msum()))), 
+  piecewise(0 < t,
+    Bind(Uniform(0,1),`y丩丱`,
+         piecewise(t < 1/`y丩丱`,
+           Weight(`y丩丱`,Ret(t*`y丩丱`)),
+           Msum())),
+    Msum())
 }:
 
 d5 := Bind(Gaussian(0,1), x, Bind(Gaussian(x,1), y, Ret(Pair(y,x)))):
