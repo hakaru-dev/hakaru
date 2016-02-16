@@ -326,7 +326,7 @@ NewSLO := module ()
   end proc;
 
   reduce_Int := proc(ee, var :: name, rng, h :: name, constraints :: list)
-    local e, dom_spec, new_rng, rest, w;
+    local e, dom_spec, new_rng, rest, w, bound, indep, i;
 
     # if there are domain restrictions, try to apply them
     (dom_spec, e) := get_indicators(ee);
@@ -349,9 +349,14 @@ NewSLO := module ()
       else
         e := Int(w*e, var=new_rng);
       end if;
-      if rest <> {} then 
-        # don't turn this into a piecewise yet!
-        e := Indicator(rest)*e;
+      # what does rest depend on?
+      bound := [var, op(map2(op, 1, constraints))];
+      (rest, indep) := selectremove(depends, rest, bound);
+      # don't turn 'rest' into piecewise (yet), but indep is ok
+      if indep = {} then
+        e := mul(indicator(i), i in rest)*e;
+      else
+        e := mul(indicator(i), i in rest)*piecewise(And(op(indep)), e, 0);
       end if;
     end if;
     e
@@ -439,7 +444,10 @@ NewSLO := module ()
     end proc;
 
     ModuleApply := proc(b)
-      Indicator(to_set(b))
+      local res;
+
+      res := to_set(b);
+      `if`(res={}, 1, Indicator(res));
     end proc;
   end module;
 
