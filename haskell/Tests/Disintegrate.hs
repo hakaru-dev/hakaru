@@ -74,6 +74,21 @@ normC = lam $ \y ->
 -- N.B., calling 'evaluate' on 'normC' doesn't catch those redexes because they're not on the way to computing stuff. need to call 'constantPropagation' to get rid of them.
 -}
 
+normD :: TrivialABT Term '[] ('HMeasure (HPair 'HReal HUnit))
+normD =
+    normal (real_ 3) (prob_ 2) >>= \x ->
+    dirac (if_ (x < real_ 0)
+               (pair (negate x) unit)
+               (pair         x  unit))
+
+normE :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
+normE =
+    normal (real_ 3) (prob_ 2) >>= \x ->
+    normal (real_ 5) (prob_ 4) >>= \y ->
+    dirac (if_ (x < y)
+               (pair y x)
+               (pair x x))
+
 test0, test0a, test0b
     :: [TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))]
 test0  = runDis (fromWhnf `Prelude.fmap` perform norm)  [Some2 norm]
