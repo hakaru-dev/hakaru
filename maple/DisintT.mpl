@@ -17,7 +17,8 @@ with(NewSLO):
 # this uses a *global* variable 't'.
 TestDisint := proc(m,n)
   global t;
-  CodeTools[Test](map(fromLO,disint(toLO(m),t)), n, set(measure(simplify)), _rest)
+  CodeTools[Test](map(fromLO@improve,disint(toLO(m),t)), n, 
+                  set(measure(simplify)), _rest)
 end proc:
 
 d1 := Bind(Lebesgue(), x, Ret(Pair(-5*x,3/x))):
@@ -29,25 +30,30 @@ d2r := {Weight(7, Ret(3))}:
 
 d3 := Bind(Uniform(0,1), x, Bind(Uniform(0,1), y, Ret(Pair(x-y,f(x,y))))):
 d3r := {
- Bind(Uniform(0, 1), x丅丏, 
-      piecewise(And(x丅丏-1 < t, t < x丅丏), Ret(f(x丅丏, x丅丏-t)), Msum())), 
- Bind(Uniform(0, 1), y七下, 
-     piecewise(And(-y七下 < t, t < 1-y七下), Ret(f(y七下+t, y七下)), Msum()))
+  Bind(Uniform(0, 1), x丅下, 
+       Weight(Indicator({t < x丅下, x丅下-1 < t}), Ret(f(x丅下, x丅下-t)))),
+  Bind(Uniform(0, 1), y七丏, 
+       Weight(Indicator({t < 1-y七丏, -y七丏 < t}), Ret(f(y七丏+t, y七丏))))
 }:
 
 d4 := Bind(Uniform(0,1), x, Bind(Uniform(0,1), y, Ret(Pair(x/y,x)))):
 d4r := {
-  Bind(Uniform(0, 1), x丕丟, 
-    piecewise(And(x丕丟 < t, t < signum(x丕丟)*infinity), Weight(abs(x丕丟/t^2), Ret(x丕丟)), Msum())), 
-  Bind(Uniform(0, 1), y专丛, 
-    piecewise(And(0 < t, t < 1/y专丛), Weight(abs(y专丛), Ret(t*y专丛)), Msum()))
+  Weight(1/abs(t)^2, 
+  Bind(Uniform(0, 1), x丅丏, 
+       Weight(Indicator({x丅丏 < t})*x丅丏, Ret(x丅丏)))), 
+  Weight(Indicator({0 < t}), 
+  Bind(Uniform(0, 1), y七下, 
+       Weight(Indicator({t < 1/y七下})*y七下, Ret(t*y七下))))
 }:
 
 d5 := Bind(Gaussian(0,1), x, Bind(Gaussian(x,1), y, Ret(Pair(y,x)))):
 d5r := {}:  # soon!
+d6 := Bind(Gaussian(0,1), x, Bind(Gaussian(x,1), y, Ret(Pair(x,y)))):
+d6r := {Weight(1/2*2^(1/2)/Pi^(1/2)*exp(-1/2*t^2),Gaussian(t,1))}:
 
 TestDisint(d1, d1r, label = "Disintegrate linear function");
 TestDisint(d2, d2r, label = "Disintegrate linear function II");
 TestDisint(d3, d3r, label = "Disintegrate U(0,1) twice, over x-y");
 TestDisint(d4, d4r, label = "Disintegrate U(0,1) twice, over x/y");
 TestDisint(d5, d5r, label = "Disintegrate N(0,1)*N(x,1), over y");
+TestDisint(d6, d6r, label = "Disintegrate N(0,1)*N(x,1), over x");
