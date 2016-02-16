@@ -536,32 +536,6 @@ inferType = inferType_
         | otherwise    -> error "inferType: missing an inferable branch!"
 
 
-makePrimOp1 :: Sing a
-            -> Sing b
-            -> U.PrimOp'
-            -> TypeCheckMonad (PrimOp '[ a ] b)
-makePrimOp1 a b U.Not' = do
-    Refl <- isBool a
-    Refl <- isBool b
-    return Not
-
-makePrimOp1 a b U.Negate' =
-    case jmEq1 a b of
-      Just Refl -> Negate <$> getHRing a
-      Nothing   -> typeMismatch (Right a) (Right b)
-
-makePrimOp2 :: Sing a
-            -> Sing b
-            -> Sing c
-            -> U.PrimOp'
-            -> TypeCheckMonad (PrimOp '[ a, b ] c)
-makePrimOp2 a b c U.Less'  =
-    case jmEq1 a b of
-      Nothing   -> typeMismatch (Right a) (Right b) 
-      Just Refl -> case jmEq1 c sBool of
-                     Just Refl -> Less <$> getHOrd a
-                     Nothing   -> typeMismatch (Right c) (Right sBool)
-
 makePrimOp :: List1 Sing typs
            -> Sing a
            -> U.PrimOp'
@@ -571,14 +545,16 @@ makePrimOp (Cons1 a Nil1) b U.Not' = do
     Refl <- isBool b
     return Not
 
-makePrimOp (Cons1 a (Cons1 b Nil1)) c U.Less' =
-    case jmEq1 a b of
-      Nothing   -> typeMismatch (Right a) (Right b) 
-      Just Refl -> case jmEq1 c sBool of
-                     Just Refl -> Less <$> getHOrd a
-                     Nothing   -> typeMismatch (Right c) (Right sBool)
+makePrimOp (Cons1 a (Cons1 b Nil1)) c U.Less' = do
+    Refl <- jmEq1_ a b
+    Refl <- jmEq1_ c sBool
+    Less <$> getHOrd a
 
-makePrimOp _ _ _          = error "TODO: makePrimOp"
+makePrimOp (Cons1 a Nil1) b U.Negate' = do
+    Refl <- jmEq1_ a b
+    Negate <$> getHRing a
+
+makePrimOp _ _ _ = error "TODO: makePrimOp"
 
 -- make_PrimOp _ U.Impl'   = return (U.SealedOp Impl)
 -- make_PrimOp _ U.Diff'   = return (U.SealedOp Diff)
@@ -612,6 +588,15 @@ isBool typ =
     case jmEq1 typ sBool of
     Just proof -> return proof
     Nothing    -> typeMismatch (Left "HBool") (Right typ)
+
+jmEq1_ :: Sing (a :: Hakaru)
+       -> Sing (b :: Hakaru)
+       -> TypeCheckMonad (TypeEq a b)
+jmEq1_ typA typB =
+    case jmEq1 typA typB of
+    Just proof -> return proof
+    Nothing    -> typeMismatch (Right typA) (Right typB)
+
 
 getHOrd :: Sing a -> TypeCheckMonad (HOrd a)
 getHOrd typ =
