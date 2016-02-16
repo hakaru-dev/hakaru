@@ -111,7 +111,8 @@ NewSLO := module ()
         myexpand_product,
         piecewise_if, nub_piecewise, foldr_piecewise,
         ModuleLoad, ModuleUnload, verify_measure,
-        find_vars, find_constraints, interpret, reconstruct, invert, get_var_pos, 
+        find_vars, find_constraints, interpret, reconstruct, invert, 
+        get_var_pos, get_int_pos,
         promote, change_var, disint2;
   export
      # note that these first few are smart constructors (for themselves):
@@ -675,9 +676,10 @@ NewSLO := module ()
   end proc;
 
   find_vars := proc(l)
+    local NONE; # used as a placeholder
     map(proc(x) 
           if type(x, specfunc(%int)) then op([1,1],x)
-          elif type(x, specfunc(%weight)) then NULL
+          elif type(x, specfunc(%weight)) then NONE
           else error "don't know about command (%1)", x
           end if end proc,
          l);
@@ -827,39 +829,52 @@ NewSLO := module ()
     end if;
   end proc;
 
-  change_var := proc(act, chg, path, part)
-    local bds, new_upper, new_lower, new_path, flip;
-
-    # check if the *outermost* integral is the 'good' one
-    if type(path[-1], specfunc(%int)) then
-      if op(1, act) = op([-1,1,1], path) then
-        new_path := eval(path[1..-2], op(3,act));
-	bds := op([-1,1,2], path);
-	new_upper := limit(op([2,2], act), op(1, act) = op(2,bds), left);
-	new_lower := limit(op([2,2], act), op(1, act) = op(1,bds), right);
-	flip := op(4,act);
-	if flip=-1 then
-	  (new_lower, new_upper) := (new_upper, new_lower);
-	end if;
-	if new_upper = infinity and new_lower = -infinity then
-	  # we're done with this integral, put it back on path
-	  interpret(chg, [op(new_path), %int(t = -infinity..infinity)], part)
-	else
-          # right now, putting in new constraints "innermost", while
-          # they really ought to be floated up as far as possible.
-          # Probably leave that to improve?
-	  interpret(chg, [op(new_path),%int(t=new_lower..new_upper)],
-	    piecewise(And(new_lower < t, t < new_upper), part, 0));
-	end if;
+  get_int_pos := proc(var, path)
+    local finder;
+    finder := proc(loc) 
+      if type(op(loc,path),specfunc(%int)) and op([loc,1,1], path) = var then
+        loc
       else
-        error "Outer integral is not the one we want!";
-	# interpret(chg, new_path, Int(part, op([-1,1], path)));
-      end if;
+        NULL # cheating...
+      end if
+    end proc;
+    seq(finder(i),i=1..nops(path)); 
+  end proc;
+
+  change_var := proc(act, chg, path, part)
+    local bds, new_upper, new_lower, new_path, flip, var, finder, pos,
+       DUMMY;
+
+    # first step, find where the relevant integral is
+    var := op(1,act);
+    pos := get_int_pos(var, path);
+    new_path := eval(subsop(pos=DUMMY, path), op(3,act));
+
+    bds := op([pos,1,2], path);
+    new_upper := limit(op([2,2], act), op(1, act) = op(2,bds), left);
+    new_lower := limit(op([2,2], act), op(1, act) = op(1,bds), right);
+    flip := op(4,act);
+    if flip=-1 then
+      (new_lower, new_upper) := (new_upper, new_lower);
+    end if;
+    if new_upper = infinity and new_lower = -infinity then
+      # we're done with this integral, put it back on path
+      new_path := subsop(pos = %int(t = -infinity .. infinity), new_path);
+      interpret(chg, new_path, part)
     else
-      error "%Change"
+      # right now, putting in new constraints "innermost", while
+      # they really ought to be floated up as far as possible.
+      # Probably leave that to improve?
+      new_path := subsop(pos = %int(t = new_lower.. new_upper), new_path);
+      interpret(chg, new_path,
+	piecewise(And(new_lower < t, t < new_upper), part, 0));
     end if;
   end proc;
 
+  # this is actually not quite "right".  What this should do is to
+  # take an absolute position and a movement distance, and the 
+  # result is to take the thing at the position and move it that
+  # much; movement can then actually be positive or negative.
   promote := proc(promotions, chg, path, part)
     local x, p, ref, i1, i2, vars, danger, new_path;
     if nops(promotions)=0 then # nothing to do, next
@@ -875,13 +890,13 @@ NewSLO := module ()
       vars := find_vars(path[ref .. p-1]);
       danger := indets(op([1,2], i1), 'name') intersect {op(vars)};
       if danger = {} then
-	# just go ahead
-	new_path := [op(1..ref-1, path), i1, op(ref..p-1,path),
-	  op(p+1..-1, path)];
-	interpret(chg, new_path, part);
+        # just go ahead
+        new_path := [op(1..ref-1, path), i1, op(ref..p-1,path),
+          op(p+1..-1, path)];
+        interpret(chg, new_path, part);
       else
-	# need to internalize bounds as Indicator
-	error "Promote %1 over %2 must take care of %3", chg[1], vars, danger;
+        # need to internalize bounds as Indicator
+        error "Promote %1 over %2 must take care of %3", chg[1], vars, danger;
       end if;
     end if;
   end proc;
@@ -891,7 +906,7 @@ NewSLO := module ()
   # path : context, allows one to reconstruct the incoming expression
   # part: partial answer
   interpret := proc(chg, path, part)
-    local i, ans;
+    local i, ans, pos;
     if path=[] then part
     elif chg=[] then # finished changes, just reconstruct
       ans := part;
@@ -907,7 +922,9 @@ NewSLO := module ()
       if type(path[-1], specfunc(%int)) and op([-1,1,1], path) = op([1,1], chg) then
         interpret(chg[2..-1], path, part)
       else
-        error "must float t-integral to top"
+        pos := get_int_pos(op([1,1],chg), path);
+        interpret([%Promote(VPP(t, nops(path), pos)), op(2..-1,chg)], path, part); 
+        # error "must float t-integral to top"
       end if;
     elif type(chg[1], specfunc(%Drop)) then
       if type(path[-1], specfunc(%int)) and op([-1,1,1], path) = op([1,1], chg) then
