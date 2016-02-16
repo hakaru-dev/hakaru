@@ -1,4 +1,8 @@
-{-# LANGUAGE CPP, OverloadedStrings, DataKinds #-}
+{-# LANGUAGE CPP
+           , OverloadedStrings
+           , DataKinds
+           , GADTs
+           #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Language.Hakaru.Parser.SymbolResolve where
 
@@ -66,15 +70,18 @@ type SymbolTable a = [(Text, Symbol U.AST)]
 
 primTable :: SymbolTable a
 primTable =
-    [("pair",       primPair)
+    [-- Datatype constructors
+     ("pair",       primPair)
     ,("left",       primLeft)
     ,("right",      primRight)
     ,("true",       TNeu $ true_)
     ,("false",      TNeu $ false_)
+     -- Coercions
     ,("fromProb",   primCoerce cFromProb)
     ,("unsafeProb", primUnsafe cFromProb)
     ,("nat2real",   primCoerce cNat2Real)
     ,("nat2prob",   primCoerce cNat2Prob)
+     -- Measures
     ,("uniform",    primMeasure2 (U.SealedOp T.Uniform))
     ,("normal",     primMeasure2 (U.SealedOp T.Normal))
     ,("gamma",      primMeasure2 (U.SealedOp T.Gamma))
@@ -82,12 +89,20 @@ primTable =
     ,("bern",       primBern)
     ,("weight",     primWeight)
     ,("dirac",      TLam $ TNeu . U.Dirac_)
-    ,("reject",     TNeu $ U.Superpose_ [])
-    -- This should probably be in U.AST'
+    ,("reject",     TNeu $ U.Superpose_ [])    
+    -- PrimOps
     ,("**",         primRealPow)
-    --,("^",          primNatPow)
+    ,("^",          primNatPow)
+    ,("exp",        primPrimOp1 T.Exp)
     ]
 
+primPrimOp1, primPrimOp2
+    :: ( typs ~ T.UnLCs args
+       , args ~ T.LCs typs)
+    => T.PrimOp typs a
+    -> Symbol U.AST
+primPrimOp1 a = TLam $ \x -> TNeu $ U.PrimOp_ (U.SealedOp a) [x]
+primPrimOp2 a = t2 $ \x y -> U.PrimOp_ (U.SealedOp a) [x, y]
 
 primMeasure2 :: U.SealedOp T.MeasureOp -> Symbol U.AST
 primMeasure2 m = t2 $ \x y -> U.MeasureOp_ m [x, y]
@@ -134,7 +149,7 @@ primRight      = TLam $ TNeu . U.Datum_ .
 primWeight, primRealPow, primBern :: Symbol U.AST
 primWeight     = t2 $ \w m -> U.Superpose_ [(w, m)]
 primRealPow    = t2 $ \x y -> U.PrimOp_ (U.SealedOp T.RealPow) [x, y]
---primNatPow     = t2 $ \x y -> U.PrimOp_ (U.SealedOp T.NatPow) [x, y]
+primNatPow     = t2 $ \x y -> U.PrimOp_ (U.SealedOp (T.NatPow HSemiring_Nat)) [x, y]
 primBern       = TLam $ \p -> TNeu
                  (U.Superpose_ [(p, U.Dirac_ true_),
                                 (unsafeFrom_ $ U.NaryOp_ U.Sum'
