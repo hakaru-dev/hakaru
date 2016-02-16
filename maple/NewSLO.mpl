@@ -326,10 +326,16 @@ NewSLO := module ()
   end proc;
 
   reduce_Int := proc(ee, var :: name, rng, h :: name, constraints :: list)
-    local e, dom_spec, new_rng, rest;
+    local e, dom_spec, new_rng, rest, w;
 
     # if there are domain restrictions, try to apply them
     (dom_spec, e) := get_indicators(ee);
+    if type(e, `*`) then
+      (e, w) := selectremove(depends, e, var); # pull out weight
+      w := simplify_assuming(w, constraints);
+    else
+      w := 1;
+    end if;
     (new_rng, dom_spec) := extract_dom(dom_spec, var);
     new_rng := map((b -> min(max(b, op(1,new_rng)), op(2,new_rng))), rng);
     if Testzero(op(2,new_rng)-op(1,new_rng)) then
@@ -337,10 +343,11 @@ NewSLO := module ()
       e := 0;
     else
       (dom_spec, rest) := selectremove(depends, dom_spec, var);
+      # don't pull the w too far out (yet)
       if dom_spec <> {} then 
-        e := Int(piecewise(And(op(dom_spec)), e, 0), var = new_rng);
+        e := Int(w*piecewise(And(op(dom_spec)), e, 0), var = new_rng);
       else
-        e := Int(e, var=new_rng);
+        e := Int(w*e, var=new_rng);
       end if;
       if rest <> {} then 
         # don't turn this into a piecewise yet!
