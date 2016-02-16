@@ -536,14 +536,50 @@ inferType = inferType_
         | otherwise    -> error "inferType: missing an inferable branch!"
 
 
-make_PrimOp
-    :: Sing a
-    -> List1 Sing typs
-    -> U.PrimOp'
-    -> TypeCheckMonad (PrimOp typs a)
-make_PrimOp a lt U.Not'    = do Refl <- isBool a
-                                Refl <- isListEq (sBool `Cons1` Nil1) lt
-                                return Not
+makePrimOp1 :: Sing a
+            -> Sing b
+            -> U.PrimOp'
+            -> TypeCheckMonad (PrimOp '[ a ] b)
+makePrimOp1 a b U.Not' = do
+    Refl <- isBool a
+    Refl <- isBool b
+    return Not
+
+makePrimOp1 a b U.Negate' =
+    case jmEq1 a b of
+      Just Refl -> Negate <$> getHRing a
+      Nothing   -> typeMismatch (Right a) (Right b)
+
+makePrimOp2 :: Sing a
+            -> Sing b
+            -> Sing c
+            -> U.PrimOp'
+            -> TypeCheckMonad (PrimOp '[ a, b ] c)
+makePrimOp2 a b c U.Less'  =
+    case jmEq1 a b of
+      Nothing   -> typeMismatch (Right a) (Right b) 
+      Just Refl -> case jmEq1 c sBool of
+                     Just Refl -> Less <$> getHOrd a
+                     Nothing   -> typeMismatch (Right c) (Right sBool)
+
+makePrimOp :: List1 Sing typs
+           -> Sing a
+           -> U.PrimOp'
+           -> TypeCheckMonad (PrimOp typs a)
+makePrimOp (Cons1 a Nil1) b U.Not' = do
+    Refl <- isBool a
+    Refl <- isBool b
+    return Not
+
+makePrimOp (Cons1 a (Cons1 b Nil1)) c U.Less' =
+    case jmEq1 a b of
+      Nothing   -> typeMismatch (Right a) (Right b) 
+      Just Refl -> case jmEq1 c sBool of
+                     Just Refl -> Less <$> getHOrd a
+                     Nothing   -> typeMismatch (Right c) (Right sBool)
+
+makePrimOp _ _ _          = error "TODO: makePrimOp"
+
 -- make_PrimOp _ U.Impl'   = return (U.SealedOp Impl)
 -- make_PrimOp _ U.Diff'   = return (U.SealedOp Diff)
 -- make_PrimOp _ U.Nand'   = return (U.SealedOp Nand)
@@ -557,19 +593,9 @@ make_PrimOp a lt U.Not'    = do Refl <- isBool a
 -- make_PrimOp _ U.Acos'   = return (U.SealedOp Acos)
 -- make_PrimOp _ U.Atan'   = return (U.SealedOp Atan)
 
-make_PrimOp a lt U.Negate' = do Refl <- isListEq (a `Cons1` Nil1) lt
-                                Negate <$> getHRing a
-make_PrimOp a lt U.Recip'  = do Refl <- isListEq (a `Cons1` Nil1) lt
-                                Recip <$> getHFractional a
-make_PrimOp _ _ _          = error "TODO: make_PrimOp"
+-- make_PrimOp a lt U.Recip'  = do Refl <- isListEq (a `Cons1` Nil1) lt
+--                                 Recip <$> getHFractional a
 
-isListEq :: List1 (Sing :: Hakaru -> *) typs1 ->
-          List1 (Sing :: Hakaru -> *) typs2 ->
-          TypeCheckMonad (TypeEq typs1 typs2)
-isListEq t1 t2 =
-    case jmEq1 t1 t2 of
-      Just proof -> return proof
-      Nothing    -> typeMismatch (Left (show t1)) (Left (show t2))
 
 make_NaryOp :: Sing a -> U.NaryOp' -> TypeCheckMonad (NaryOp a)
 make_NaryOp a U.And'  = isBool a >>= \Refl -> return And
