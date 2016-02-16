@@ -702,7 +702,7 @@ NewSLO := module ()
     # we need to figure out what variables the solution depends on,
     # and what plan that entails
     vars := find_vars(path);
-    in_sol := indets(vars, 'name') minus {t, main_var};
+    in_sol := indets(sol, 'name') minus {t, main_var};
     
     member(main_var, vars, 'p_mv');
     r_in_sol := map(get_var_pos, in_sol, vars);
@@ -710,7 +710,9 @@ NewSLO := module ()
     # may have to do a bunch of promotions, or none
     interpret(
       [ %Promote(seq(VPP(op(i),p_mv), i in to_promote))
-      , %Change(main_var, t = to_invert, sol, flip)],
+      , %Change(main_var, t = to_invert, sol, flip)
+      , %ToTop(t)
+      , %Drop(t)],
       path, abs(dxdt) * 'applyintegrand'(h, eval(op([2,2],integral), sol)));
   end proc;
 
@@ -806,10 +808,10 @@ NewSLO := module ()
   change_var := proc(act, chg, path, part)
     local bds, new_upper, new_lower, new_path, flip;
 
+    # check if the *outermost* integral is the 'good' one
     if type(path[-1], specfunc(%int)) then
-      # no matter what, do the change on the path
-      new_path := eval(path[1..-2], op(3,act));
       if op(1, act) = op([-1,1,1], path) then
+        new_path := eval(path[1..-2], op(3,act));
 	bds := op([-1,1,2], path);
 	new_upper := limit(op([2,2], act), op(1, act) = op(2,bds), left);
 	new_lower := limit(op([2,2], act), op(1, act) = op(1,bds), right);
@@ -818,15 +820,18 @@ NewSLO := module ()
 	  (new_lower, new_upper) := (new_upper, new_lower);
 	end if;
 	if new_upper = infinity and new_lower = -infinity then
-	  # we're done with this integral
-	  interpret(chg, new_path, part)
+	  # we're done with this integral, put it back on path
+	  interpret(chg, [op(new_path), %int(t = -infinity..infinity)], part)
 	else
-	  interpret(chg, new_path,
+          # right now, putting in new constraints "innermost", while
+          # they really ought to be floated up as far as possible.
+          # Probably leave that to improve?
+	  interpret(chg, [op(new_path),%int(t=new_lower..new_upper)],
 	    piecewise(And(new_lower < t, t < new_upper), part, 0));
 	end if;
       else
-	# this is an integral we don't care about, emit it
-	interpret(chg, new_path, Int(part, op([-1,1], path)));
+        error "Outer integral is not the one we want!";
+	# interpret(chg, new_path, Int(part, op([-1,1], path)));
       end if;
     else
       error "%Change"
@@ -876,6 +881,18 @@ NewSLO := module ()
       change_var(chg[1], chg[2..-1], path, part);
     elif type(chg[1], specfunc(%Promote)) then
       promote(chg[1], chg[2..-1], path, part);
+    elif type(chg[1], specfunc(%ToTop)) then
+      if type(path[-1], specfunc(%int)) and op([-1,1,1], path) = op([1,1], chg) then
+        interpret(chg[2..-1], path, part)
+      else
+        error "must float t-integral to top"
+      end if;
+    elif type(chg[1], specfunc(%Drop)) then
+      if type(path[-1], specfunc(%int)) and op([-1,1,1], path) = op([1,1], chg) then
+        interpret(chg[2..-1], path[1..-2], part)
+      else
+        error "asked to drop t-integral, but it is not at top"
+      end if;
     else
       error "unknown plan step: %1", chg[1]
     end if;
