@@ -30,10 +30,10 @@ d2r := {Weight(7, Ret(3))}:
 
 d3 := Bind(Uniform(0,1), x, Bind(Uniform(0,1), y, Ret(Pair(x-y,f(x,y))))):
 d3r := {
-  Bind(Uniform(0, 1), x丅下, 
-       Weight(Indicator({t < x丅下, x丅下-1 < t}), Ret(f(x丅下, x丅下-t)))),
-  Bind(Uniform(0, 1), y七丏, 
-       Weight(Indicator({t < 1-y七丏, -y七丏 < t}), Ret(f(y七丏+t, y七丏))))
+  Bind(Uniform(0,1),`x丕丟`,
+       piecewise(And(t < `x丕丟`,`x丕丟`-1 < t),Ret(f(`x丕丟`,`x丕丟`-t)),Msum())), 
+  Bind(Uniform(0,1),`y专丛`,
+       piecewise(And(t < 1-`y专丛`,-`y专丛` < t),Ret(f(`y专丛`+t,`y专丛`)),Msum()))
 }:
 
 d4 := Bind(Uniform(0,1), x, Bind(Uniform(0,1), y, Ret(Pair(x/y,x)))):
