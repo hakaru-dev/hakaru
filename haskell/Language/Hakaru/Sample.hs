@@ -157,7 +157,6 @@ evaluateTerm t env =
     Datum_   d    -> evaluateDatum   d env
     Case_    o es -> evaluateCase    o es env
     Superpose_ es -> evaluateSuperpose es env
-    _             -> error "TODO: evaluateTerm"
 
 evaluateScon
     :: (ABT Term abt)
@@ -302,35 +301,35 @@ evaluateMeasureOp Uniform (e1 :* e2 :* End) env =
         (VReal v1, VReal v2) -> VMeasure $ \p g -> do
             x <- MWC.uniformR (v1, v2) g
             return $ Just (VReal x, p)
-        _ -> error "the impossible happened"
+        v -> case v of {}
 
 evaluateMeasureOp Normal (e1 :* e2 :* End) env =
     case (evaluate e1 env, evaluate e2 env) of 
         (VReal v1, VProb v2) -> VMeasure $ \ p g -> do
             x <- MWCD.normal v1 (LF.fromLogFloat v2) g
             return $ Just (VReal x, p)
-        _ -> error "the impossible happened"
+        v -> case v of {}
 
 evaluateMeasureOp Poisson (e1 :* End) env =
     case evaluate e1 env of
         VProb v1 -> VMeasure $ \ p g -> do
             x <- poisson_rng (LF.fromLogFloat v1) g
             return $ Just (VNat $ unsafeNat x, p)
-        _ -> error "the impossible happened"
+        v -> case v of {}
 
 evaluateMeasureOp Gamma (e1 :* e2 :* End) env =
     case (evaluate e1 env, evaluate e2 env) of 
         (VProb v1, VProb v2) -> VMeasure $ \ p g -> do
             x <- MWCD.gamma (LF.fromLogFloat v1) (LF.fromLogFloat v2) g
             return $ Just (VProb $ LF.logFloat x, p)
-        _ -> error "the impossible happened"
+        v -> case v of {}
 
 evaluateMeasureOp Beta (e1 :* e2 :* End) env =
     case (evaluate e1 env, evaluate e2 env) of 
         (VProb v1, VProb v2) -> VMeasure $ \ p g -> do
             x <- MWCD.beta (LF.fromLogFloat v1) (LF.fromLogFloat v2) g
             return $ Just (VProb $ LF.logFloat x, p)
-        _ -> error "the impossible happened"
+        v -> case v of {}
 
 evaluateMeasureOp (DirichletProcess _) _ _ =
     error "evaluateMeasureOp: Dirichlet Processes not implemented yet"
@@ -343,7 +342,7 @@ evaluateMeasureOp (Plate _) (e1 :* End) env =
           return ( VArray v'
                  , VProb $ p * V.product (V.map (\(VProb x) -> x) ps)
                  )
-        _ -> error "the impossible happened"
+        v -> case v of {}
 
   where performMaybe
             :: MWC.GenIO
@@ -359,7 +358,7 @@ evaluateMeasureOp (Chain _ _) (e1 :* e2 :* End) env =
              return ( VDatum $ dPair (VArray v') sout
                     , VProb $ p * V.product (V.map (\(VProb x) -> x) ps)
                     ))
-        _ -> error "the impossible happened"
+        v -> case v of {}
 
    where convert :: MWC.GenIO
                  -> Value (s ':-> 'HMeasure (HPair a s))
@@ -371,14 +370,14 @@ evaluateMeasureOp (Chain _ _) (e1 :* e2 :* End) env =
                        (as'',p') <- MaybeT (f' (VProb 1) g)
                        let (a, s'') = unPair as''
                        return ((a,p'),s'')
-                   _ -> error "the impossible happened"
+                   v -> case v of {}
 
          unPair :: Value (HPair a b) -> (Value a, Value b)
          unPair (VDatum (Datum "pair"
                          (Inl (Et (Konst a)
                                (Et (Konst b) Done))))) =
              (a, b)
-         unPair _ = error "the impossible happened"
+         unPair x = case x of {}
 
 evaluateLiteral :: Literal a -> Value a
 evaluateLiteral (LNat  n) = VNat  . fromInteger $ fromNatural n -- TODO: catch overflow errors
