@@ -154,7 +154,7 @@ evaluateTerm t env =
     o :$ es       -> evaluateScon    o es env
     NaryOp_  o es -> evaluateNaryOp  o es env
     Literal_ v    -> evaluateLiteral v
-    Datum_   d    -> evaluateDatum   d env
+    Datum_   d    -> evaluateDatum   d    env
     Case_    o es -> evaluateCase    o es env
     Superpose_ es -> evaluateSuperpose es env
 
