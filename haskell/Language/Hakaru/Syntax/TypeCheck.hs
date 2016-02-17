@@ -565,12 +565,14 @@ inferType = inferType_
   inferPrimOp U.Negate es =
       case es of
         [e] -> do TypedAST typ e' <- inferType_ e
-                  SomeRing ring c <- case findRing typ of
-                                       Just r  -> return r
-                                       Nothing -> missingInstance "HRing" typ
+                  mode <- getMode
+                  SomeRing ring c <- getHRing typ mode
                   primop <- Negate <$> return ring
+                  let e'' = case c of
+                              CNil -> e'
+                              c    -> unLC_ . coerceTo c $ LC_ e'
                   return . TypedAST (sing_HRing ring) $
-                         syn (PrimOp_ primop :$ (unLC_ . coerceTo c $ LC_ e') :* End)
+                         syn (PrimOp_ primop :$ e'' :* End)
         _   -> failwith "Passed wrong number of arguments"
 
   inferPrimOp U.Recip es =
@@ -618,11 +620,16 @@ getHSemiring typ =
     Just theSemi -> return theSemi
     Nothing      -> missingInstance "HSemiring" typ
 
-getHRing :: Sing a -> TypeCheckMonad (HRing a)
-getHRing typ =
-    case hRing_Sing typ of
-    Just theRing -> return theRing
-    Nothing      -> missingInstance "HRing" typ
+getHRing :: Sing a -> TypeCheckMode -> TypeCheckMonad (SomeRing a)
+getHRing typ mode =
+    case mode of
+    StrictMode -> case hRing_Sing typ of
+                    Just theRing -> return (SomeRing theRing CNil)
+                    Nothing      -> missingInstance "HRing" typ
+    LaxMode    -> case findRing typ of
+                    Just proof   -> return proof
+                    Nothing      -> missingInstance "HRing" typ
+    UnsafeMode -> error "TODO: getHRing in UnsafeMode"
 
 getHFractional :: Sing a -> TypeCheckMonad (HFractional a)
 getHFractional typ =
