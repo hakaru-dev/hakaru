@@ -9,7 +9,7 @@
 --                                                    2015.12.15
 -- |
 -- Module      :  Language.Hakaru.Inference
--- Copyright   :  Copyright (c) 2015 the Hakaru team
+-- Copyright   :  Copyright (c) 2016 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  wren@community.haskell.org
 -- Stability   :  experimental

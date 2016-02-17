@@ -10,7 +10,7 @@
 --                                                    2016.01.15
 -- |
 -- Module      :  Language.Hakaru.Pretty.Haskell
--- Copyright   :  Copyright (c) 2015 the Hakaru team
+-- Copyright   :  Copyright (c) 2016 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  wren@community.haskell.org
 -- Stability   :  experimental

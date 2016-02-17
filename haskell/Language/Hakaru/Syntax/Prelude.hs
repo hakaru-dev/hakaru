@@ -15,7 +15,7 @@
 --                                                    2016.02.03
 -- |
 -- Module      :  Language.Hakaru.Syntax.Prelude
--- Copyright   :  Copyright (c) 2015 the Hakaru team
+-- Copyright   :  Copyright (c) 2016 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  wren@community.haskell.org
 -- Stability   :  experimental
