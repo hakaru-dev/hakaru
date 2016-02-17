@@ -1320,7 +1320,7 @@ plate, plate'
     :: (ABT Term abt, SingI a)
     => abt '[] ('HArray ('HMeasure          a))
     -> abt '[] (         'HMeasure ('HArray a))
-plate e = measure1_ (Plate . sUnMeasure . sUnArray $ typeOf e) e
+plate e = measure1_ (Plate sing) e
 
 plate' v = reduce r z (mapV m v)
     where
