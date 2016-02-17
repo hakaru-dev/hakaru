@@ -84,7 +84,7 @@ observeMeasureOp
     -> abt '[] ('HMeasure a)
 observeMeasureOp Normal  (mu :* sd :* End) a b =
     P.withWeight
-        (P.exp (P.negate (a P.- mu) P.^ P.nat_ 2
+        (P.exp (P.negate ((a P.- mu) P.^ P.nat_ 2)
         P./ P.fromProb (P.prob_ 2 P.* sd P.^ (P.nat_ 2)))
         P./ sd
         P./ P.sqrt (P.prob_ 2 P.* P.pi)) (P.dirac b)
