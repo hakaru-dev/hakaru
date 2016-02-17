@@ -154,6 +154,8 @@ evaluateTerm t env =
     o :$ es       -> evaluateScon    o es env
     NaryOp_  o es -> evaluateNaryOp  o es env
     Literal_ v    -> evaluateLiteral v
+    Empty_   _    -> evaluateEmpty
+    Array_   n es -> evaluateArray   n es env
     Datum_   d    -> evaluateDatum   d    env
     Case_    o es -> evaluateCase    o es env
     Superpose_ es -> evaluateSuperpose es env
@@ -388,6 +390,23 @@ evaluateLiteral (LNat  n) = VNat  . fromInteger $ fromNatural n -- TODO: catch o
 evaluateLiteral (LInt  n) = VInt  $ fromInteger n -- TODO: catch overflow errors
 evaluateLiteral (LProb n) = VProb . fromRational $ fromNonNegativeRational n
 evaluateLiteral (LReal n) = VReal $ fromRational n
+
+evaluateEmpty :: Value ('HArray a)
+evaluateEmpty = VArray V.empty
+
+evaluateArray
+    :: (ABT Term abt)
+    => (abt '[] 'HNat)
+    -> (abt '[ 'HNat ] a)
+    -> Env
+    -> Value ('HArray a)
+evaluateArray n e env =
+    case evaluate n env of
+      VNat n' -> caseBind e $ \x e' ->
+                     VArray $ V.generate (fromNat n') $ \v ->
+                                 let v' = VNat $ unsafeNat v in
+                                 evaluate e' (updateEnv (EAssoc x v') env)
+      v       -> case v of {}
 
 evaluateDatum
     :: (ABT Term abt)

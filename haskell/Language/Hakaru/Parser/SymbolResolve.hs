@@ -58,6 +58,7 @@ primTypes =
     , ("real",    TNeu' $ U.SSing SReal)
     , ("unit",    TNeu' $ U.SSing sUnit)
     , ("bool",    TNeu' $ U.SSing sBool)
+    , ("array",   TLam' $ \ [U.SSing a] -> U.SSing $ SArray a)
     , ("measure", TLam' $ \ [U.SSing a] -> U.SSing $ SMeasure a)
     , ("either",  TLam' $ \ [U.SSing a, U.SSing b] -> U.SSing $ sEither a b)
     , ("pair",    TLam' $ \ [U.SSing a, U.SSing b] -> U.SSing $ sPair a b)
