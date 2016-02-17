@@ -148,7 +148,7 @@ primRealPow    = t2 $ \x y -> U.PrimOp_ U.RealPow [x, y]
 primNatPow     = t2 $ \x y -> U.PrimOp_ U.NatPow  [x, y]
 primBern       = TLam $ \p -> TNeu
                  (U.Superpose_ [(p, U.Dirac_ true_),
-                                (unsafeFrom_ $ U.NaryOp_ U.Sum'
+                                (unsafeFrom_ $ U.NaryOp_ U.Sum
                                  [ U.Literal_ (Some1 $ T.LReal 1.0)
                                  , U.PrimOp_ U.Negate [p]
                                  ]

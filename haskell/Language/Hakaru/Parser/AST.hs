@@ -87,27 +87,27 @@ data Literal'
     | Real Double
     deriving (Eq, Show)
 
-data NaryOp'
-    = And' | Or' | Xor'
-    | Iff' | Min'| Max' 
-    | Sum' | Prod'
+data NaryOp
+    = And | Or   | Xor
+    | Iff | Min  | Max 
+    | Sum | Prod
     deriving (Eq, Show)
 
 data PrimOp
-    = Not | Impl | Diff | Nand | Nor
+    = Not | Impl | Diff   | Nand | Nor
     | Pi
-    | Sin       | Cos   | Tan
-    | Asin      | Acos  | Atan
-    | Sinh      | Cosh  | Tanh
-    | Asinh     | Acosh | Atanh
-    | RealPow   | NatPow
-    | Exp       | Log
-    | Infinity  | NegativeInfinity
-    | GammaFunc | BetaFunc
-    | Integrate | Summate
-    | Equal     | Less
-    | Negate    | Recip
-    | Abs       | Signum | NatRoot | Erf
+    | Sin        | Cos    | Tan
+    | Asin       | Acos   | Atan
+    | Sinh       | Cosh   | Tanh
+    | Asinh      | Acosh  | Atanh
+    | RealPow    | NatPow
+    | Exp        | Log
+    | Infinity   | NegativeInfinity
+    | GammaFunc  | BetaFunc
+    | Integrate  | Summate
+    | Equal      | Less
+    | Negate     | Recip
+    | Abs        | Signum | NatRoot | Erf
 
 
 val :: Literal' -> Some1 Literal
@@ -132,7 +132,7 @@ data AST' a
     | Infinity'
     | NegInfinity'
     | ULiteral Literal'
-    | NaryOp NaryOp' [AST' a]
+    | NaryOp NaryOp [AST' a]
     | Empty
     | Array a (AST' a) (AST' a)
     | Case  (AST' a) [(Branch' a)] -- match
@@ -173,7 +173,7 @@ data AST
     | UnsafeTo_   (Some2 Coercion) AST
     | PrimOp_     PrimOp  [AST]
     | ArrayOp_    (SealedOp ArrayOp) [AST]
-    | NaryOp_     NaryOp'  [AST]
+    | NaryOp_     NaryOp  [AST]
     | Literal_    (Some1 Literal)
     | Empty_
     | Array_      AST Name AST

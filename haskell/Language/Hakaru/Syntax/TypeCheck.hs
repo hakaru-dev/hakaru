@@ -581,15 +581,15 @@ inferType = inferType_
 --                                 Recip <$> getHFractional a
 
 
-make_NaryOp :: Sing a -> U.NaryOp' -> TypeCheckMonad (NaryOp a)
-make_NaryOp a U.And'  = isBool a >>= \Refl -> return And
-make_NaryOp a U.Or'   = isBool a >>= \Refl -> return Or
-make_NaryOp a U.Xor'  = isBool a >>= \Refl -> return Xor
-make_NaryOp a U.Iff'  = isBool a >>= \Refl -> return Iff
-make_NaryOp a U.Min'  = Min  <$> getHOrd a
-make_NaryOp a U.Max'  = Max  <$> getHOrd a
-make_NaryOp a U.Sum'  = Sum  <$> getHSemiring a
-make_NaryOp a U.Prod' = Prod <$> getHSemiring a
+make_NaryOp :: Sing a -> U.NaryOp -> TypeCheckMonad (NaryOp a)
+make_NaryOp a U.And  = isBool a >>= \Refl -> return And
+make_NaryOp a U.Or   = isBool a >>= \Refl -> return Or
+make_NaryOp a U.Xor  = isBool a >>= \Refl -> return Xor
+make_NaryOp a U.Iff  = isBool a >>= \Refl -> return Iff
+make_NaryOp a U.Min  = Min  <$> getHOrd a
+make_NaryOp a U.Max  = Max  <$> getHOrd a
+make_NaryOp a U.Sum  = Sum  <$> getHSemiring a
+make_NaryOp a U.Prod = Prod <$> getHSemiring a
 
 isBool :: Sing a -> TypeCheckMonad (TypeEq a HBool)
 isBool typ =

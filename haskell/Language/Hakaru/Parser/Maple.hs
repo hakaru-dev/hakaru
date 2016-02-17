@@ -57,7 +57,7 @@ data NumOp = Pos | Neg
 
 data ArgOp
     = Float   | Power  | Rational
-    | Func    | ExpSeq | Sum
+    | Func    | ExpSeq | Sum_
     | Product
     deriving (Eq, Show)
 
@@ -143,7 +143,7 @@ power :: Parser InertExpr
 power = InertArgs <$> (text "_Inert_POWER" *> return Power) <*> arg expr
 
 sum :: Parser InertExpr
-sum = InertArgs <$> (text "_Inert_SUM" *> return Sum) <*> arg expr
+sum = InertArgs <$> (text "_Inert_SUM" *> return Sum_) <*> arg expr
 
 product :: Parser InertExpr
 product = InertArgs <$> (text "_Inert_PROD" *> return Product) <*> arg expr
@@ -192,9 +192,9 @@ maple2AST (InertArgs Func [InertName "Case",
 maple2AST (InertArgs Func [f, (InertArgs ExpSeq a)]) =
     foldl App (maple2AST f) (map maple2AST a)
 
-maple2AST (InertArgs Sum es) = NaryOp Sum' (map maple2AST es)
+maple2AST (InertArgs Sum_ es) = NaryOp Sum (map maple2AST es)
 
-maple2AST (InertArgs Product es) = NaryOp Prod' (map maple2AST es)
+maple2AST (InertArgs Product es) = NaryOp Prod (map maple2AST es)
 
 -- Add special case for NatPow for Power
 maple2AST (InertArgs Power [x, y]) =
