@@ -32,7 +32,7 @@ five = "2 + 3"
 
 fiveU :: U.AST
 fiveU =
-    U.NaryOp_ U.Sum'
+    U.NaryOp_ U.Sum
         [ U.Literal_ $ Some1 $ T.LNat 2
         , U.Literal_ $ Some1 $ T.LNat 3
         ]

@@ -39,9 +39,9 @@ instance Arbitrary TypeAST' where
         , ( 1, TypeFun <$> arbitrary <*> arbitrary)
         ]
 
-instance Arbitrary NaryOp' where
+instance Arbitrary NaryOp where
     arbitrary = elements
-        [And', Or',  Xor', Iff', Min', Max', Sum', Prod']
+        [And, Or,  Xor, Iff, Min, Max, Sum, Prod]
 
 instance Arbitrary a => Arbitrary (Pattern' a) where
     arbitrary = oneof
@@ -61,8 +61,8 @@ instance Arbitrary a => Arbitrary (AST' a) where
         , ( 1, Let <$> arbitrary <*> arbitrary <*> arbitrary)
         , ( 1, If  <$> arbitrary <*> arbitrary <*> arbitrary)
         , ( 1, Ann <$> arbitrary <*> arbitrary)
-        , ( 1, return Infinity)
-        , ( 1, return NegInfinity)
+        , ( 1, return Infinity')
+        , ( 1, return NegInfinity')
         , ( 1, ULiteral <$> arbitrary)
         --, ( 1, NaryOp <$> arbitrary)
         , ( 1, return Empty)
@@ -78,7 +78,7 @@ stripMetadata ast              = ast
 testParse :: Text -> AST' Text -> Assertion
 testParse s p =
     case parseHakaru s of
-    Left  m  -> assertFailure (show m)
+    Left  m  -> assertFailure (unpack s ++ "\n" ++ show m)
     Right p' -> assertEqual "" p (stripMetadata p')
 
 if1, if2, if3, if4, if5 :: Text
@@ -139,7 +139,7 @@ lam1 :: Text
 lam1 = "fn x: x+3"
 
 lam1AST :: AST' Text
-lam1AST = Lam "x" (NaryOp Sum' [ Var "x"
+lam1AST = Lam "x" (NaryOp Sum [ Var "x"
                                , ULiteral (Nat 3)
                                ])
 
@@ -173,21 +173,21 @@ def4 = unlines
 
 def1AST :: AST' Text
 def1AST =
-    Let "foo" (Lam "x" (NaryOp Sum' [Var "x", ULiteral (Nat 3)]))
+    Let "foo" (Lam "x" (NaryOp Sum [Var "x", ULiteral (Nat 3)]))
     (App (Var "foo") (ULiteral (Nat 5)))
 
 def2AST :: AST' Text
 def2AST =
     Let "foo" (Lam "x"
         (Bind "y" (App (App (Var "normal") (Var "x")) (ULiteral (Prob 1.0)))
-        (Dirac (Ann (NaryOp Sum' [Var "y", Var "y"])
+        (Dirac (Ann (NaryOp Sum [Var "y", Var "y"])
                     (TypeVar "real")))))
-    (App (Var "foo") (ULiteral (Real (-2.0))))
+    (App (Var "foo") (App (Var "negate") (ULiteral (Prob 2.0))))
 
 def3AST :: AST' Text
 def3AST =
     Let "foo" (Ann
-        (Lam "x" (NaryOp Sum' [Var "x", ULiteral (Nat 3)]))
+        (Lam "x" (NaryOp Sum [Var "x", ULiteral (Nat 3)]))
         (TypeFun (TypeVar "nat") (TypeVar "nat")))
     (App (Var "foo") (ULiteral (Nat 5)))
 
@@ -211,7 +211,7 @@ let1AST :: AST' Text
 let1AST =
     Let "x" (ULiteral (Nat 3))
     (Let "y" (ULiteral (Nat 2))
-    (NaryOp Sum' [Var "x", Var "y"]))
+    (NaryOp Sum [Var "x", Var "y"]))
 
 testLets :: Test
 testLets = test
@@ -332,7 +332,7 @@ match6AST =
            (ULiteral (Nat 3)))
      (TypeApp "pair" [TypeVar "nat",TypeVar "nat"]))
     [Branch' (PData' (DV "pair" [PVar' "a",PVar' "b"]))
-     (NaryOp Sum' [Var "a", Var "b"])]
+     (NaryOp Sum [Var "a", Var "b"])]
 
 
 match7 :: Text
@@ -404,7 +404,7 @@ expect2AST = Expect "x" (App (App (Var "normal")
                               (ULiteral (Nat 0)))
                          (ULiteral (Nat 1)))
              (App (Var "unsafeProb")
-              (NaryOp Prod' [Var "x", Var "x"]))
+              (NaryOp Prod [Var "x", Var "x"]))
 
 testExpect :: Test
 testExpect = test
@@ -414,13 +414,13 @@ testExpect = test
 
 array1 :: Text
 array1 = unlines
-   ["array x 12:"
+   ["array x of 12:"
    ,"   x + 1"
    ]
 
 array1AST :: AST' Text
 array1AST = Array "x" (ULiteral (Nat 12))
-            (NaryOp Sum' [Var "x", ULiteral (Nat 1)])
+            (NaryOp Sum [Var "x", ULiteral (Nat 1)])
 
 testArray :: Test
 testArray = test

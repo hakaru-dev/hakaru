@@ -96,6 +96,7 @@ primTable =
     ,("exp",        primPrimOp1 U.Exp)
     ,("less",       primPrimOp2 U.Less)
     ,("negate",     primPrimOp1 U.Negate)
+    ,("recip",      primPrimOp1 U.Recip)
     ,("^",          primPrimOp2 U.NatPow)
     ]
 
