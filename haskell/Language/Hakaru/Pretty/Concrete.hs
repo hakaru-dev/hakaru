@@ -396,6 +396,7 @@ instance Pretty f => Pretty (Datum f) where
                          (foldMap11 ((:[]) . toDoc . prettyPrec_ 11) d) 
               "true"  -> [PP.text "true"]
               "false" -> [PP.text "false"]
+              "unit"  -> [PP.text "()"]
               -- General case
               _       -> ppFun p (Text.unpack hint)
                          (foldMap11 ((:[]) . toDoc . prettyPrec_ 11) d)
