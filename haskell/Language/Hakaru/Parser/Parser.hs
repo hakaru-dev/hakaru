@@ -240,6 +240,7 @@ array_expr =
     reserved "array"
     *> (Array
         <$> identifier
+        <*  symbol "of"
         <*> expr
         <*> semiblockExpr
         )
