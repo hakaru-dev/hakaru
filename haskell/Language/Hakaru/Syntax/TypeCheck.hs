@@ -543,7 +543,7 @@ inferType = inferType_
         [e] -> do TypedAST typ e' <- inferType_ e
                   Refl <- isBool typ 
                   return . TypedAST sBool $ syn (PrimOp_ Not :$ e' :* End)
-        _    -> failwith "Passed wrong number of arguments"
+        _   -> failwith "Passed wrong number of arguments"
 
   inferPrimOp U.Negate' es =
       case es of
@@ -551,9 +551,17 @@ inferType = inferType_
                   Refl <- isBool typ 
                   primop <- Negate <$> getHRing typ
                   return . TypedAST sBool $ syn (PrimOp_ primop :$ e' :* End)
-        _    -> failwith "Passed wrong number of arguments"
+        _   -> failwith "Passed wrong number of arguments"
 
-
+  inferPrimOp U.Less' es =
+      case es of
+        [e1, e2] -> do TypedAST typ1 e1' <- inferType_ e1
+                       TypedAST typ2 e2' <- inferType_ e2
+                       Refl <- jmEq1_ typ1 typ2
+                       primop <- Less <$> getHOrd typ1
+                       return . TypedAST sBool $
+                              syn (PrimOp_ primop :$ e1' :* e2' :* End)
+        _        -> failwith "Passed wrong number of arguments"
 
 -- TODO: ask about this
 makePrimOp :: List1 Sing typs
@@ -576,31 +584,6 @@ makePrimOp (Cons1 a Nil1) b U.Negate' = do
 
 makePrimOp _ _ _ = error "TODO: makePrimOp"
 
-
--- inferSArgs :: ( ABT Term abt
---               , typs ~ UnLCs args
---               , args ~ LCs typs)
---            => [U.AST]
---            -> TypeCheckMonad (List1 Sing typs, SArgs abt args)
--- inferSArgs []     = return (Nil1, End)
--- inferSArgs (e:es) = do
---   TypedAST typ e' <- inferType e
---   (typs, es')     <- inferSArgs es
---   return (Cons1 typ typs, e' :* es') 
-
-
--- make_PrimOp _ U.Impl'   = return (U.SealedOp Impl)
--- make_PrimOp _ U.Diff'   = return (U.SealedOp Diff)
--- make_PrimOp _ U.Nand'   = return (U.SealedOp Nand)
--- make_PrimOp _ U.Nor'    = return (U.SealedOp Nor)
-
--- make_PrimOp _ U.Pi'     = return (U.SealedOp Pi)
--- make_PrimOp _ U.Sin'    = return (U.SealedOp Sin)
--- make_PrimOp _ U.Cos'    = return (U.SealedOp Cos)
--- make_PrimOp _ U.Tan'    = return (U.SealedOp Tan)
--- make_PrimOp _ U.Asin'   = return (U.SealedOp Asin)
--- make_PrimOp _ U.Acos'   = return (U.SealedOp Acos)
--- make_PrimOp _ U.Atan'   = return (U.SealedOp Atan)
 
 -- make_PrimOp a lt U.Recip'  = do Refl <- isListEq (a `Cons1` Nil1) lt
 --                                 Recip <$> getHFractional a
