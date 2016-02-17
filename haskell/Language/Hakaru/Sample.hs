@@ -204,8 +204,12 @@ evaluatePrimOp
     -> SArgs abt args
     -> Env
     -> Value a
-evaluatePrimOp Infinity         End _ = VProb $ LF.logFloat (1/0)
-evaluatePrimOp NegativeInfinity End _ = VReal $ -1/0
+evaluatePrimOp Infinity         End _ = VProb $ LF.logFloat LF.infinity
+evaluatePrimOp NegativeInfinity End _ = VReal $ -LF.infinity
+evaluatePrimOp (Less _) (e1 :* e2 :* End) env =
+    case (evaluate e1 env, evaluate e2 env) of
+      (VReal v1, VReal v2) -> VDatum $ if v1 < v2 then dTrue else dFalse
+      v                    -> error "TODO: evaluatePrimOp{Less}"
 evaluatePrimOp (Negate _) (e1 :* End) env = 
     case evaluate e1 env of
       VInt  v -> VInt  (negate v)
