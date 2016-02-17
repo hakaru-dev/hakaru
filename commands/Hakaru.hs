@@ -27,7 +27,7 @@ import           System.Environment
 main :: IO ()
 main = do
   args <- getArgs
-  g    <- MWC.create
+  g    <- MWC.createSystemRandom
   case args of
       [prog] -> IO.readFile prog >>= runHakaru g
       []     -> IO.getContents   >>= runHakaru g
