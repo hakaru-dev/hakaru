@@ -563,27 +563,6 @@ inferType = inferType_
                               syn (PrimOp_ primop :$ e1' :* e2' :* End)
         _        -> failwith "Passed wrong number of arguments"
 
--- TODO: ask about this
-makePrimOp :: List1 Sing typs
-           -> Sing a
-           -> U.PrimOp'
-           -> TypeCheckMonad (PrimOp typs a)
-makePrimOp (Cons1 a Nil1) b U.Not' = do
-    Refl <- isBool a
-    Refl <- isBool b
-    return Not
-
-makePrimOp (Cons1 a (Cons1 b Nil1)) c U.Less' = do
-    Refl <- jmEq1_ a b
-    Refl <- jmEq1_ c sBool
-    Less <$> getHOrd a
-
-makePrimOp (Cons1 a Nil1) b U.Negate' = do
-    Refl <- jmEq1_ a b
-    Negate <$> getHRing a
-
-makePrimOp _ _ _ = error "TODO: makePrimOp"
-
 
 -- make_PrimOp a lt U.Recip'  = do Refl <- isListEq (a `Cons1` Nil1) lt
 --                                 Recip <$> getHFractional a
