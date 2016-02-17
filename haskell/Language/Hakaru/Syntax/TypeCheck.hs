@@ -535,7 +535,27 @@ inferType = inferType_
     _   | mustCheck e0 -> ambiguousMustCheck
         | otherwise    -> error "inferType: missing an inferable branch!"
 
+  inferPrimOp :: U.PrimOp'
+          -> [U.AST]
+          -> TypeCheckMonad (TypedAST abt)
+  inferPrimOp U.Not' es =
+      case es of
+        [e] -> do TypedAST typ e' <- inferType_ e
+                  Refl <- isBool typ 
+                  return . TypedAST sBool $ syn (PrimOp_ Not :$ e' :* End)
+        _    -> failwith "Passed wrong number of arguments"
 
+  inferPrimOp U.Negate' es =
+      case es of
+        [e] -> do TypedAST typ e' <- inferType_ e
+                  Refl <- isBool typ 
+                  primop <- Negate <$> getHRing typ
+                  return . TypedAST sBool $ syn (PrimOp_ primop :$ e' :* End)
+        _    -> failwith "Passed wrong number of arguments"
+
+
+
+-- TODO: ask about this
 makePrimOp :: List1 Sing typs
            -> Sing a
            -> U.PrimOp'
@@ -555,6 +575,19 @@ makePrimOp (Cons1 a Nil1) b U.Negate' = do
     Negate <$> getHRing a
 
 makePrimOp _ _ _ = error "TODO: makePrimOp"
+
+
+-- inferSArgs :: ( ABT Term abt
+--               , typs ~ UnLCs args
+--               , args ~ LCs typs)
+--            => [U.AST]
+--            -> TypeCheckMonad (List1 Sing typs, SArgs abt args)
+-- inferSArgs []     = return (Nil1, End)
+-- inferSArgs (e:es) = do
+--   TypedAST typ e' <- inferType e
+--   (typs, es')     <- inferSArgs es
+--   return (Cons1 typ typs, e' :* es') 
+
 
 -- make_PrimOp _ U.Impl'   = return (U.SealedOp Impl)
 -- make_PrimOp _ U.Diff'   = return (U.SealedOp Diff)
