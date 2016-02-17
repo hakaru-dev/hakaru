@@ -14,8 +14,7 @@ import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Syntax.AST
-    (PrimOp(..), Literal(..), ArrayOp(..),
-     MeasureOp(..), LCs(), UnLCs ())
+    (Literal(..), ArrayOp(..), MeasureOp(..), LCs(), UnLCs ())
 import Language.Hakaru.Syntax.Variable (Variable(..))
 import Language.Hakaru.Syntax.IClasses
 
@@ -94,21 +93,21 @@ data NaryOp'
     | Sum' | Prod'
     deriving (Eq, Show)
 
-data PrimOp'
-    = Not' | Impl' | Diff' | Nand' | Nor'
-    | Pi'
-    | Sin'       | Cos'   | Tan'
-    | Asin'      | Acos'  | Atan'
-    | Sinh'      | Cosh'  | Tanh'
-    | Asinh'     | Acosh' | Atanh'
-    | RealPow'   | NatPow'
-    | Exp'       | Log'
-    | Infinity'  | NegativeInfinity'
-    | GammaFunc' | BetaFunc'
-    | Integrate' | Summate'
-    | Equal'     | Less'
-    | Negate'    | Recip'
-    | Abs'       | Signum' | NatRoot' | Erf'
+data PrimOp
+    = Not | Impl | Diff | Nand | Nor
+    | Pi
+    | Sin       | Cos   | Tan
+    | Asin      | Acos  | Atan
+    | Sinh      | Cosh  | Tanh
+    | Asinh     | Acosh | Atanh
+    | RealPow   | NatPow
+    | Exp       | Log
+    | Infinity  | NegativeInfinity
+    | GammaFunc | BetaFunc
+    | Integrate | Summate
+    | Equal     | Less
+    | Negate    | Recip
+    | Abs       | Signum | NatRoot | Erf
 
 
 val :: Literal' -> Some1 Literal
@@ -130,8 +129,8 @@ data AST' a
     | Let a    (AST' a) (AST' a)
     | If  (AST' a) (AST' a) (AST' a)
     | Ann (AST' a) TypeAST'
-    | Infinity
-    | NegInfinity
+    | Infinity'
+    | NegInfinity'
     | ULiteral Literal'
     | NaryOp NaryOp' [AST' a]
     | Empty
@@ -172,7 +171,7 @@ data AST
     | Ann_        AST SSing
     | CoerceTo_   (Some2 Coercion) AST
     | UnsafeTo_   (Some2 Coercion) AST
-    | PrimOp_     (SealedOp PrimOp)  [AST]
+    | PrimOp_     PrimOp  [AST]
     | ArrayOp_    (SealedOp ArrayOp) [AST]
     | NaryOp_     NaryOp'  [AST]
     | Literal_    (Some1 Literal)

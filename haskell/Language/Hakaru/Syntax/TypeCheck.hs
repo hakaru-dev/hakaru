@@ -417,10 +417,7 @@ inferType = inferType_
         e1' <- checkType_ typ1 e1
         return . TypedAST typ1 $ syn (Ann_ typ1 :$ e1' :* End)
 
-    U.PrimOp_ (U.SealedOp op) es -> do
-        let (typs, typ1) = sing_PrimOp op
-        es' <- checkSArgs typs es
-        return . TypedAST typ1 $ syn (PrimOp_ op :$ es')
+    U.PrimOp_ op es -> inferPrimOp op es
 
     U.ArrayOp_ (U.SealedOp op) es -> do
         let (typs, typ1) = sing_ArrayOp op
@@ -535,25 +532,27 @@ inferType = inferType_
     _   | mustCheck e0 -> ambiguousMustCheck
         | otherwise    -> error "inferType: missing an inferable branch!"
 
-  inferPrimOp :: U.PrimOp'
+  inferPrimOp :: U.PrimOp
           -> [U.AST]
           -> TypeCheckMonad (TypedAST abt)
-  inferPrimOp U.Not' es =
+  inferPrimOp U.Not es =
       case es of
         [e] -> do TypedAST typ e' <- inferType_ e
                   Refl <- isBool typ 
                   return . TypedAST sBool $ syn (PrimOp_ Not :$ e' :* End)
         _   -> failwith "Passed wrong number of arguments"
 
-  inferPrimOp U.Negate' es =
+  inferPrimOp U.Infinity es =
       case es of
-        [e] -> do TypedAST typ e' <- inferType_ e
-                  Refl <- isBool typ 
-                  primop <- Negate <$> getHRing typ
-                  return . TypedAST sBool $ syn (PrimOp_ primop :$ e' :* End)
-        _   -> failwith "Passed wrong number of arguments"
+        [] -> return . TypedAST SProb $ syn (PrimOp_ Infinity :$ End)
+        _  -> failwith "Passed wrong number of arguments"
 
-  inferPrimOp U.Less' es =
+  inferPrimOp U.NegativeInfinity es =
+      case es of
+        [] -> return . TypedAST SReal $ syn (PrimOp_ NegativeInfinity :$ End)
+        _  -> failwith "Passed wrong number of arguments"
+
+  inferPrimOp U.Less es =
       case es of
         [e1, e2] -> do TypedAST typ1 e1' <- inferType_ e1
                        TypedAST typ2 e2' <- inferType_ e2
@@ -562,6 +561,20 @@ inferType = inferType_
                        return . TypedAST sBool $
                               syn (PrimOp_ primop :$ e1' :* e2' :* End)
         _        -> failwith "Passed wrong number of arguments"
+
+  inferPrimOp U.Negate es =
+      case es of
+        [e] -> do TypedAST typ e' <- inferType_ e
+                  primop <- Negate <$> getHRing typ
+                  return . TypedAST typ $ syn (PrimOp_ primop :$ e' :* End)
+        _   -> failwith "Passed wrong number of arguments"
+
+  inferPrimOp U.Recip es =
+      case es of
+        [e] -> do TypedAST typ e' <- inferType_ e
+                  primop <- Recip <$> getHFractional typ
+                  return . TypedAST typ $ syn (PrimOp_ primop :$ e' :* End)
+        _   -> failwith "Passed wrong number of arguments"
 
 
 -- make_PrimOp a lt U.Recip'  = do Refl <- isListEq (a `Cons1` Nil1) lt

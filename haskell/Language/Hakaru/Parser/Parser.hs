@@ -142,8 +142,8 @@ inf_ = do
     reserved "inf" <|> reserved "∞"
     return $
         case s of
-        '-' -> NegInfinity
-        '+' -> Infinity
+        '-' -> NegInfinity'
+        '+' -> Infinity'
         _   -> error "inf_: the impossible happened"
 
 var :: Parser (AST' Text)

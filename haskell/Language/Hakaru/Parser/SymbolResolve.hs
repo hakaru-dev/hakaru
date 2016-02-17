@@ -93,16 +93,12 @@ primTable =
     -- PrimOps
     ,("**",         primRealPow)
     ,("^",          primNatPow)
-    ,("exp",        primPrimOp1 T.Exp)
+    ,("exp",        primPrimOp1 U.Exp)
     ]
 
-primPrimOp1, primPrimOp2
-    :: ( typs ~ T.UnLCs args
-       , args ~ T.LCs typs)
-    => T.PrimOp typs a
-    -> Symbol U.AST
-primPrimOp1 a = TLam $ \x -> TNeu $ U.PrimOp_ (U.SealedOp a) [x]
-primPrimOp2 a = t2 $ \x y -> U.PrimOp_ (U.SealedOp a) [x, y]
+primPrimOp1, primPrimOp2 :: U.PrimOp -> Symbol U.AST
+primPrimOp1 a = TLam $ \x -> TNeu $ U.PrimOp_ a [x]
+primPrimOp2 a = t2 $ \x y -> U.PrimOp_ a [x, y]
 
 primMeasure2 :: U.SealedOp T.MeasureOp -> Symbol U.AST
 primMeasure2 m = t2 $ \x y -> U.MeasureOp_ m [x, y]
@@ -148,13 +144,13 @@ primRight      = TLam $ TNeu . U.Datum_ .
 
 primWeight, primRealPow, primBern :: Symbol U.AST
 primWeight     = t2 $ \w m -> U.Superpose_ [(w, m)]
-primRealPow    = t2 $ \x y -> U.PrimOp_ (U.SealedOp T.RealPow) [x, y]
-primNatPow     = t2 $ \x y -> U.PrimOp_ (U.SealedOp (T.NatPow HSemiring_Nat)) [x, y]
+primRealPow    = t2 $ \x y -> U.PrimOp_ U.RealPow [x, y]
+primNatPow     = t2 $ \x y -> U.PrimOp_ U.NatPow  [x, y]
 primBern       = TLam $ \p -> TNeu
                  (U.Superpose_ [(p, U.Dirac_ true_),
                                 (unsafeFrom_ $ U.NaryOp_ U.Sum'
                                  [ U.Literal_ (Some1 $ T.LReal 1.0)
-                                 , U.PrimOp_ (U.SealedOp $ T.Negate HRing_Real) [p]
+                                 , U.PrimOp_ U.Negate [p]
                                  ]
                                 , U.Dirac_ false_)])
 
@@ -218,8 +214,8 @@ symbolResolution symbols ast =
         <*> symbolResolution symbols e3
 
     U.Ann e typ         -> (`U.Ann` typ) <$> symbolResolution symbols e
-    U.Infinity          -> return $ U.Infinity
-    U.NegInfinity       -> return $ U.NegInfinity
+    U.Infinity'         -> return $ U.Infinity'
+    U.NegInfinity'      -> return $ U.NegInfinity'
     U.ULiteral v        -> return $ U.ULiteral v
 
     U.NaryOp op es      -> U.NaryOp op
@@ -282,8 +278,8 @@ normAST ast =
     U.Let name e1 e2    -> U.Let name (normAST e1) (normAST e2)
     U.If e1 e2 e3       -> U.If  (normAST e1) (normAST e2) (normAST e3)
     U.Ann e typ1        -> U.Ann (normAST e) typ1
-    U.Infinity          -> U.Infinity
-    U.NegInfinity       -> U.NegInfinity
+    U.Infinity'         -> U.Infinity'
+    U.NegInfinity'      -> U.NegInfinity'
     U.ULiteral v        -> U.ULiteral v
     U.NaryOp op es      -> U.NaryOp op (map normAST es)
     U.Empty             -> U.Empty
@@ -347,8 +343,8 @@ makeAST ast =
         U.Let_ name (makeAST e1) (makeAST e2)
     U.If e1 e2 e3     -> U.Case_ (makeAST e1) [(makeTrue e2), (makeFalse e3)]
     U.Ann e typ       -> U.Ann_ (makeAST e) (makeType typ)
-    U.Infinity        -> U.PrimOp_ (U.SealedOp $ T.Infinity) []
-    U.NegInfinity     -> U.PrimOp_ (U.SealedOp $ T.NegativeInfinity) []
+    U.Infinity'       -> U.PrimOp_ U.Infinity []
+    U.NegInfinity'    -> U.PrimOp_ U.NegativeInfinity []
     U.ULiteral v      -> U.Literal_  (U.val v)
     U.NaryOp op es    -> U.NaryOp_ op (map makeAST es)
     U.Empty           -> U.Empty_
