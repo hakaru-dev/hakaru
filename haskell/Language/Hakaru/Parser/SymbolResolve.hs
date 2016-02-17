@@ -56,6 +56,7 @@ primTypes =
     , ("int",     TNeu' $ U.SSing SInt)
     , ("prob",    TNeu' $ U.SSing SProb)
     , ("real",    TNeu' $ U.SSing SReal)
+    , ("unit",    TNeu' $ U.SSing sUnit)
     , ("bool",    TNeu' $ U.SSing sBool)
     , ("measure", TLam' $ \ [U.SSing a] -> U.SSing $ SMeasure a)
     , ("either",  TLam' $ \ [U.SSing a, U.SSing b] -> U.SSing $ sEither a b)
@@ -93,6 +94,7 @@ primTable =
     -- PrimOps
     ,("**",         primPrimOp2 U.RealPow)
     ,("exp",        primPrimOp1 U.Exp)
+    ,("less",       primPrimOp2 U.Less)
     ,("negate",     primPrimOp1 U.Negate)
     ,("^",          primPrimOp2 U.NatPow)
     ]
@@ -220,6 +222,7 @@ symbolResolution symbols ast =
     U.NaryOp op es      -> U.NaryOp op
         <$> mapM (symbolResolution symbols) es
 
+    U.Unit              -> return $ U.Unit
     U.Empty             -> return $ U.Empty
 
     U.Array name e1 e2  -> resolveBinder symbols name e1 e2 U.Array
@@ -281,6 +284,7 @@ normAST ast =
     U.NegInfinity'      -> U.NegInfinity'
     U.ULiteral v        -> U.ULiteral v
     U.NaryOp op es      -> U.NaryOp op (map normAST es)
+    U.Unit              -> U.Unit
     U.Empty             -> U.Empty
     U.Array name e1 e2  -> U.Array name (normAST e1) (normAST e2)
     U.Case e1 e2        -> U.Case  (normAST e1) (map branchNorm e2)
@@ -346,6 +350,7 @@ makeAST ast =
     U.NegInfinity'    -> U.PrimOp_ U.NegativeInfinity []
     U.ULiteral v      -> U.Literal_  (U.val v)
     U.NaryOp op es    -> U.NaryOp_ op (map makeAST es)
+    U.Unit            -> U.Datum_ (U.Datum "unit" . U.Inl $ U.Done)
     U.Empty           -> U.Empty_
     U.Array (TNeu (U.Var_ name)) e1 e2 ->
         U.Array_ (makeAST e1) name (makeAST e2)

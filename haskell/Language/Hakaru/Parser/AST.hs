@@ -133,6 +133,7 @@ data AST' a
     | NegInfinity'
     | ULiteral Literal'
     | NaryOp NaryOp [AST' a]
+    | Unit
     | Empty
     | Array a (AST' a) (AST' a)
     | Case  (AST' a) [(Branch' a)] -- match

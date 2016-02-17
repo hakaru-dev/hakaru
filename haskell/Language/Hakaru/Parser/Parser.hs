@@ -93,6 +93,7 @@ binop s x y
     | s == "+"  = NaryOp Sum  [x, y]
     | s == "-"  = NaryOp Sum  [x, Var "negate" `App` y]
     | s == "*"  = NaryOp Prod [x, y]
+    | s == "<"  = Var "less" `App` x `App` y
     | otherwise = Var s `App` x `App` y
 
 binary :: String -> Ex.Assoc -> Operator (AST' Text)
@@ -103,7 +104,8 @@ prefix s f = Ex.Prefix (f <$ reservedOp s)
 
 table :: OperatorTable (AST' Text)
 table =
-    [ [ prefix "+"  id]
+    [ [ prefix "+"  id
+      , prefix "-"  (App (Var "negate"))]
     , [ binary "^"  Ex.AssocRight
       , binary "**" Ex.AssocRight]
     , [ binary "*"  Ex.AssocLeft
@@ -113,11 +115,14 @@ table =
     -- TODO: add "<", "<=", ">=", "/="
     -- TODO: do you *really* mean AssocLeft? Shouldn't they be non-assoc?
     , [ Ex.Postfix ann_expr ]
-    , [ binary ">"  Ex.AssocLeft
+    , [ binary "<"  Ex.AssocLeft
       , binary "==" Ex.AssocLeft]]
 
 unit_ :: Parser (AST' a)
-unit_ = Empty <$ string "()"
+unit_ = Unit <$ symbol "()"
+
+empty_ :: Parser (AST' a)
+empty_ = Empty <$ symbol "[]"
 
 int :: Parser (AST' a)
 int = do
