@@ -1,44 +1,50 @@
-{-# LANGUAGE DataKinds, NoImplicitPrelude, NoMonomorphismRestriction #-}
+{-# LANGUAGE DataKinds
+           , GADTs
+           , FlexibleContexts
+           #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
-module Tests.Sample (runPriorProg) where
+module Tests.Sample where
 
-import Prelude ((.), id, ($), asTypeOf)
-import Language.Hakaru.Syntax.Prelude
-import Language.Hakaru.Types.DataKind
-import Language.Hakaru.Syntax.AST (Term)
-import Language.Hakaru.Syntax.ABT (ABT)
-import Language.Hakaru.Sample
+import           Prelude                        hiding ((+))
+import           GHC.Word (Word32)
+import qualified Data.Vector as V
+
+import           Language.Hakaru.Types.DataKind
+import           Language.Hakaru.Syntax.Prelude
+import           Language.Hakaru.Syntax.Value
+import           Language.Hakaru.Syntax.AST
+import           Language.Hakaru.Syntax.ABT
+import           Language.Hakaru.Sample
+
+import           Tests.Models
 
 import qualified System.Random.MWC as MWC
-import qualified Data.Number.LogFloat as LF
+import           Test.HUnit
 
-half :: (ABT Term abt, HFractional_ a) => abt '[] a
-half = one / (one + one)
+seed :: V.Vector Word32
+seed = V.singleton 42
 
-testPriorProp'
-    :: (ABT Term abt)
-    => abt '[] (HPair 'HReal 'HReal
-        ':-> 'HMeasure (HPair (HPair 'HReal 'HReal) 'HProb))
-testPriorProp' =
-    lam $ \old ->
-    superpose
-        [ (half,
-            normal zero one >>= \x1 ->
-            dirac (pair (pair x1 (snd old))
-                (exp
-                    ( (fst old - x1)
-                    * (fst old - 2 * snd old + x1)
-                    * half))))
-        , (half,
-            normal zero (sqrt (prob_ 2)) >>= \x1 ->
-            dirac (pair (pair (fst old) x1)
-                (exp
-                    ( (snd old - x1)
-                    * (4 * fst old - x1 - snd old)
-                    * real_ (-1/4)))))
-        ]
+testMeasure :: String
+          -> Value ('HMeasure a)
+          -> Value a
+          -> Assertion
+testMeasure p (VMeasure m) a = do
+  g <- MWC.initialize seed
+  Just (v, _) <- m (VProb 1) g
+  assertEqual p v a
 
-runPriorProg :: IO (Maybe (((Double,Double), LF.LogFloat), LF.LogFloat))
-runPriorProg = do
-    g <- MWC.create
-    unSample (testPriorProp' `app` pair one one) 1 g
+testEvaluate :: (ABT Term abt)
+             => String
+             -> abt '[] a
+             -> Value a
+             -> Assertion
+testEvaluate p prog = assertEqual p (runEvaluate prog)
+
+normal01Value :: Value ('HMeasure 'HReal)
+normal01Value = runEvaluate (triv normal_0_1)
+
+allTests :: Test
+allTests = test
+   [ testMeasure "normal01" normal01Value (VReal 0.35378756491616103)
+   , testEvaluate "1+1" (triv $ real_ 1 + real_ 1) (VReal 2)
+   ]
