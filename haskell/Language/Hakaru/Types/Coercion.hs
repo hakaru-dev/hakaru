@@ -40,6 +40,8 @@ module Language.Hakaru.Types.Coercion
     , findEitherCoercion
     , Lub(..)
     , findLub
+    , SomeRing(..)
+    , findRing
 
     -- * Experimental optimization functions
     {-
@@ -321,6 +323,18 @@ findLub SProb SInt  = Just $ Lub SReal signed continuous
 -- case where @a == b@:
 findLub a     b     = jmEq1 a b >>= \Refl -> Just $ Lub a CNil CNil
 
+
+data SomeRing (a :: Hakaru)
+    = forall b. SomeRing !(HRing b) !(Coercion a b)
+
+-- | Give a type, finds the smallest coercion to another
+-- with a HRing instance
+findRing :: Sing a -> Maybe (SomeRing a)
+findRing SNat  = Just (SomeRing HRing_Int  signed)
+findRing SInt  = Just (SomeRing HRing_Int  CNil)
+findRing SProb = Just (SomeRing HRing_Real signed)
+findRing SReal = Just (SomeRing HRing_Real CNil)
+findRing _     = Nothing
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------

@@ -56,7 +56,7 @@ import Language.Hakaru.Types.DataKind (Hakaru(..), HData', HBool)
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.HClasses
-    ( HOrd, hOrd_Sing, HSemiring, hSemiring_Sing, HRing, hRing_Sing
+    ( HOrd, hOrd_Sing, HSemiring, hSemiring_Sing, HRing, hRing_Sing, sing_HRing
     , HFractional, hFractional_Sing)
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Datum
@@ -565,8 +565,12 @@ inferType = inferType_
   inferPrimOp U.Negate es =
       case es of
         [e] -> do TypedAST typ e' <- inferType_ e
-                  primop <- Negate <$> getHRing typ
-                  return . TypedAST typ $ syn (PrimOp_ primop :$ e' :* End)
+                  SomeRing ring c <- case findRing typ of
+                                       Just r  -> return r
+                                       Nothing -> missingInstance "HRing" typ
+                  primop <- Negate <$> return ring
+                  return . TypedAST (sing_HRing ring) $
+                         syn (PrimOp_ primop :$ (unLC_ . coerceTo c $ LC_ e') :* End)
         _   -> failwith "Passed wrong number of arguments"
 
   inferPrimOp U.Recip es =
@@ -575,10 +579,6 @@ inferType = inferType_
                   primop <- Recip <$> getHFractional typ
                   return . TypedAST typ $ syn (PrimOp_ primop :$ e' :* End)
         _   -> failwith "Passed wrong number of arguments"
-
-
--- make_PrimOp a lt U.Recip'  = do Refl <- isListEq (a `Cons1` Nil1) lt
---                                 Recip <$> getHFractional a
 
 
 make_NaryOp :: Sing a -> U.NaryOp -> TypeCheckMonad (NaryOp a)

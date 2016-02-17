@@ -91,9 +91,10 @@ primTable =
     ,("dirac",      TLam $ TNeu . U.Dirac_)
     ,("reject",     TNeu $ U.Superpose_ [])    
     -- PrimOps
-    ,("**",         primRealPow)
-    ,("^",          primNatPow)
+    ,("**",         primPrimOp2 U.RealPow)
     ,("exp",        primPrimOp1 U.Exp)
+    ,("negate",     primPrimOp1 U.Negate)
+    ,("^",          primPrimOp2 U.NatPow)
     ]
 
 primPrimOp1, primPrimOp2 :: U.PrimOp -> Symbol U.AST
@@ -142,10 +143,8 @@ primLeft       = TLam $ TNeu . U.Datum_ .
 primRight      = TLam $ TNeu . U.Datum_ .
                         U.Datum "right" . U.Inr . U.Inl . (`U.Et` U.Done) . U.Konst
 
-primWeight, primRealPow, primBern :: Symbol U.AST
+primWeight, primBern :: Symbol U.AST
 primWeight     = t2 $ \w m -> U.Superpose_ [(w, m)]
-primRealPow    = t2 $ \x y -> U.PrimOp_ U.RealPow [x, y]
-primNatPow     = t2 $ \x y -> U.PrimOp_ U.NatPow  [x, y]
 primBern       = TLam $ \p -> TNeu
                  (U.Superpose_ [(p, U.Dirac_ true_),
                                 (unsafeFrom_ $ U.NaryOp_ U.Sum

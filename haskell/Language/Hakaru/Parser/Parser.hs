@@ -91,6 +91,7 @@ symbol = M.liftM Text.pack . Tok.symbol lexer . Text.unpack
 binop :: Text ->  AST' Text ->  AST' Text ->  AST' Text
 binop s x y
     | s == "+"  = NaryOp Sum  [x, y]
+    | s == "-"  = NaryOp Sum  [x, Var "negate" `App` y]
     | s == "*"  = NaryOp Prod [x, y]
     | otherwise = Var s `App` x `App` y
 
