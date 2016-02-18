@@ -24,7 +24,7 @@ import Language.Hakaru.Parser.AST
 
 
 ops, types, names :: [String]
-ops   = ["+","*","-","^", "**", ":","::", "<~","==", "=", "_"]
+ops   = ["+","*","-","^", "**", ":",".", "<~","==", "=", "_"]
 types = ["->"]
 names = ["def","fn", "if","else","inf", "∞",
          "return", "match", "data"]
@@ -179,7 +179,7 @@ type_expr = try type_fun
         <|> parens type_expr
 
 ann_expr :: Parser (AST' Text -> AST' Text)
-ann_expr = reservedOp "::" *> (flip Ann <$> type_expr)
+ann_expr = reservedOp "." *> (flip Ann <$> type_expr)
 
 pdat_expr :: Parser (PDatum Text)
 pdat_expr = DV <$> identifier <*> parens (commaSep pat_expr)
