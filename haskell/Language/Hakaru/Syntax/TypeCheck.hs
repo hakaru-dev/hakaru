@@ -400,11 +400,6 @@ inferType = inferType_
         -- environments?) Is this at all related to what Dunfield
         -- & Neelk are doing in their ICFP'13 paper with that
         -- \"=>=>\" judgment? (prolly not, but...)
-        {-
-    U.App_ (U.Lam_ name e1) e2 -> do
-        TypedAST typ2 e2' <- inferType_ e2
-        caseBind e1 $ \x -> pushCtx x typ2 . inferType_
-        -}
 
     U.Let_ x e1 e2 -> do
         TypedAST typ1 e1' <- inferType_ e1
