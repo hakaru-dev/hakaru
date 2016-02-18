@@ -77,7 +77,7 @@ match_norm_unif = unlines
     , "y <~ match x:"
     , "       true:  normal(0,1)"
     , "       false: uniform(0,1)"
-    , "return ((y,x) :: pair(real, bool))"
+    , "return ((y,x). pair(real, bool))"
     ]
 
 match_norm_bool :: Text

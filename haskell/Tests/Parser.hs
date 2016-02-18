@@ -160,7 +160,7 @@ def3 :: Text
 def3 = unlines
     ["def foo(x):"
     ,"    y <~ normal(x,1.0)"
-    ,"    return (y + y :: real)"
+    ,"    return (y + y. real)"
     ,"foo(-2.0)"
     ]
 
@@ -320,7 +320,7 @@ match5AST =
 
 match6 :: Text
 match6 = unlines
-    ["match (2,3)::pair(nat,nat):"
+    ["match (2,3). pair(nat,nat):"
     ,"   pair(a,b): a+b"
     ]
 
@@ -337,7 +337,7 @@ match6AST =
 
 match7 :: Text
 match7 = unlines
-    ["match (-2.0,1.0)::pair(real,prob):"
+    ["match (-2.0,1.0). pair(real,prob):"
     ,"   pair(a,b): normal(a,b)"
     ]
 
@@ -353,13 +353,13 @@ testMatches = test
     ]
 
 ann1 :: Text
-ann1 = "5 :: nat"
+ann1 = "5. nat"
 
 ann1AST :: AST' Text
 ann1AST = Ann (ULiteral (Nat 5)) (TypeVar "nat")
 
 ann2 :: Text
-ann2 = "(2,3) :: pair(a,b)"
+ann2 = "(2,3). pair(a,b)"
 
 ann2AST :: AST' Text
 ann2AST =
@@ -367,7 +367,7 @@ ann2AST =
         (TypeApp "pair" [TypeVar "a", TypeVar "b"])
 
 ann3 :: Text
-ann3 = "f :: a -> measure(a)"
+ann3 = "f. a -> measure(a)"
 
 ann3AST :: AST' Text
 ann3AST =
