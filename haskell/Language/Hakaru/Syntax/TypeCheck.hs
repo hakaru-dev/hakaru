@@ -157,9 +157,9 @@ mustCheck = go
     -- typing issue. Thus, for non-empty arrays and non-phantom
     -- record types, we should be able to infer the whole type
     -- provided we can infer the various subterms.
-    go U.Empty_         = True
-    go (U.Array_ _ _ _) = True
-    go (U.Datum_ _)     = True
+    go U.Empty_          = True
+    go (U.Array_ _ _ e1) = mustCheck e1
+    go (U.Datum_ _)      = True
 
     -- TODO: everyone says this, but it seems to me that if we can
     -- infer any of the branches (and check the rest to agree) then
@@ -473,6 +473,11 @@ inferType = inferType_
         es' <- checkSArgs typs es
         return . TypedAST (SMeasure typ1) $ syn (MeasureOp_ op :$ es')
 
+    U.Array_ e1 x e2 -> do
+        e1' <- checkType_ SNat e1
+        inferBinder (U.makeVar x SNat) e2 $ \typ2 e2' ->
+            return . TypedAST (SArray typ2) $ syn (Array_ e1' e2')
+
     U.Case_ e1 branches -> do
         TypedAST typ1 e1' <- inferType_ e1
         mode <- getMode
@@ -581,6 +586,8 @@ inferType = inferType_
                   primop <- Recip <$> getHFractional typ
                   return . TypedAST typ $ syn (PrimOp_ primop :$ e' :* End)
         _   -> failwith "Passed wrong number of arguments"
+
+  inferPrimOp _ _ = error "TODO: inferPrimOp"
 
 
 make_NaryOp :: Sing a -> U.NaryOp -> TypeCheckMonad (NaryOp a)
