@@ -183,6 +183,7 @@ evaluateScon (CoerceTo_   c) (e1 :* End) env =
 evaluateScon (UnsafeFrom_ c) (e1 :* End) env =
     coerceFrom c $ evaluate e1 env
 evaluateScon (PrimOp_ o)     es env = evaluatePrimOp    o es env
+evaluateScon (ArrayOp_ o)    es env = evaluateArrayOp   o es env
 evaluateScon (MeasureOp_  m) es env = evaluateMeasureOp m es env
 evaluateScon Dirac           (e1 :* End) env =
     VMeasure $ \p _ -> return $ Just (evaluate e1 env, p)
@@ -217,43 +218,37 @@ evaluatePrimOp (Negate _) (e1 :* End) env =
       VInt  v -> VInt  (negate v)
       VReal v -> VReal (negate v)
       v       -> case v of {}
+evaluatePrimOp (Recip _) (e1 :* End) env = 
+    case evaluate e1 env of
+      VProb v -> VProb (recip v)
+      VReal v -> VReal (recip v)
+      v       -> case v of {}
+evaluatePrimOp prim _ _ = error ("TODO: evaluatePrimOp{" ++ show prim ++ "}")
 
+evaluateArrayOp
+    :: ( ABT Term abt
+       , typs ~ UnLCs args
+       , args ~ LCs typs)
+    => ArrayOp typs a
+    -> SArgs abt args
+    -> Env
+    -> Value a
+evaluateArrayOp (Index _)  (e1 :* e2 :* End) env =
+    case (evaluate e1 env, evaluate e2 env) of
+      (VArray v, VNat n) -> v V.! (fromNat n)
+      v                  -> case v of {}
 
-evaluateNaryOp
-    :: (ABT Term abt)
-    => NaryOp a -> Seq (abt '[] a) -> Env -> Value a
-evaluateNaryOp s es = F.foldr (evalOp s) (identityElement s) . mapEvaluate es
+evaluateArrayOp (Size _)   (e1 :* End) env =
+    case evaluate e1 env of
+      VArray v -> VNat . unsafeNat $ V.length v
+      v        -> case v of {}
 
-identityElement :: NaryOp a -> Value a
-identityElement And                   = VDatum dTrue
-identityElement (Sum HSemiring_Nat)   = VNat  0
-identityElement (Sum HSemiring_Int)   = VInt  0
-identityElement (Sum HSemiring_Prob)  = VProb 0
-identityElement (Sum HSemiring_Real)  = VReal 0
-identityElement (Prod HSemiring_Nat)  = VNat  1
-identityElement (Prod HSemiring_Int)  = VInt  1
-identityElement (Prod HSemiring_Prob) = VProb 1
-identityElement (Prod HSemiring_Real) = VReal 1
-
-
-evalOp
-    :: NaryOp a -> Value a -> Value a -> Value a
-evalOp And (VDatum a) (VDatum b)        
-    | a == dTrue && b == dTrue = VDatum dTrue
-    | otherwise = VDatum dFalse
-evalOp (Sum  HSemiring_Nat)  (VNat   a) (VNat  b) = VNat  (a + b)
-evalOp (Sum  HSemiring_Int)  (VInt   a) (VInt  b) = VInt  (a + b)
-evalOp (Sum  HSemiring_Prob) (VProb  a) (VProb b) = VProb (a + b)
-evalOp (Sum  HSemiring_Real) (VReal  a) (VReal b) = VReal (a + b)
-evalOp (Prod HSemiring_Nat)  (VNat   a) (VNat  b) = VNat  (a * b)
-evalOp (Prod HSemiring_Int)  (VInt   a) (VInt  b) = VInt  (a * b)  
-evalOp (Prod HSemiring_Prob) (VProb  a) (VProb b) = VProb (a * b)  
-evalOp (Prod HSemiring_Real) (VReal  a) (VReal b) = VReal (a * b)
-
-mapEvaluate
-    :: (ABT Term abt)
-    => Seq (abt '[] a) -> Env -> Seq (Value a)
-mapEvaluate es env = fmap (flip evaluate env) es
+evaluateArrayOp (Reduce _) (e1 :* e2 :* e3 :* End) env =
+    case ( evaluate e1 env
+         , evaluate e2 env
+         , evaluate e3 env) of
+      (f, a, VArray v) -> V.foldl' (lam2 f) a v
+      v        -> case v of {}
 
 evaluateMeasureOp
     :: ( ABT Term abt
@@ -384,6 +379,44 @@ evaluateMeasureOp (Chain _ _) (e1 :* e2 :* End) env =
                                (Et (Konst b) Done))))) =
              (a, b)
          unPair x = case x of {}
+
+
+evaluateNaryOp
+    :: (ABT Term abt)
+    => NaryOp a -> Seq (abt '[] a) -> Env -> Value a
+evaluateNaryOp s es = F.foldr (evalOp s) (identityElement s) . mapEvaluate es
+
+identityElement :: NaryOp a -> Value a
+identityElement And                   = VDatum dTrue
+identityElement (Sum HSemiring_Nat)   = VNat  0
+identityElement (Sum HSemiring_Int)   = VInt  0
+identityElement (Sum HSemiring_Prob)  = VProb 0
+identityElement (Sum HSemiring_Real)  = VReal 0
+identityElement (Prod HSemiring_Nat)  = VNat  1
+identityElement (Prod HSemiring_Int)  = VInt  1
+identityElement (Prod HSemiring_Prob) = VProb 1
+identityElement (Prod HSemiring_Real) = VReal 1
+
+
+evalOp
+    :: NaryOp a -> Value a -> Value a -> Value a
+evalOp And (VDatum a) (VDatum b)        
+    | a == dTrue && b == dTrue = VDatum dTrue
+    | otherwise = VDatum dFalse
+evalOp (Sum  HSemiring_Nat)  (VNat   a) (VNat  b) = VNat  (a + b)
+evalOp (Sum  HSemiring_Int)  (VInt   a) (VInt  b) = VInt  (a + b)
+evalOp (Sum  HSemiring_Prob) (VProb  a) (VProb b) = VProb (a + b)
+evalOp (Sum  HSemiring_Real) (VReal  a) (VReal b) = VReal (a + b)
+evalOp (Prod HSemiring_Nat)  (VNat   a) (VNat  b) = VNat  (a * b)
+evalOp (Prod HSemiring_Int)  (VInt   a) (VInt  b) = VInt  (a * b)  
+evalOp (Prod HSemiring_Prob) (VProb  a) (VProb b) = VProb (a * b)  
+evalOp (Prod HSemiring_Real) (VReal  a) (VReal b) = VReal (a * b)
+
+mapEvaluate
+    :: (ABT Term abt)
+    => Seq (abt '[] a) -> Env -> Seq (Value a)
+mapEvaluate es env = fmap (flip evaluate env) es
+
 
 evaluateLiteral :: Literal a -> Value a
 evaluateLiteral (LNat  n) = VNat  . fromInteger $ fromNatural n -- TODO: catch overflow errors
