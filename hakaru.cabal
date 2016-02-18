@@ -50,6 +50,7 @@ Library
                        Language.Hakaru.Pretty.Haskell,
                        Language.Hakaru.Pretty.Concrete,
                        Language.Hakaru.Pretty.Maple,
+                       Language.Hakaru.Runtime.Prelude,
                        Language.Hakaru.Expect,
                        Language.Hakaru.Normalize,
                        Language.Hakaru.Observe,
