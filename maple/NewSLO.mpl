@@ -772,8 +772,8 @@ NewSLO := module ()
     elif integral = 0 then
       error "cannot disintegrate 0 measure"
     elif integral :: `+` then
-      error "need to split on a `+`"
-      # Msum(op(map2(unintegrate, h, convert(integral, 'list'), context)))
+      sol := map(disint2, convert(integral, 'list'), h, t, path);
+      error "on a `+`, got", sol;
     elif integral :: `*` then
       (subintegral, w) := selectremove(depends, integral, h);
       if subintegral :: `*` then error "Nonlinear integral %1", integral end if;
