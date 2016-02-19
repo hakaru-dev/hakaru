@@ -55,9 +55,36 @@ d5r := {Weight((1/2)*exp(-(1/4)*t^2)/Pi^(1/2),
 d6 := Bind(Gaussian(0,1), x, Bind(Gaussian(x,1), y, Ret(Pair(x,y)))):
 d6r := {Weight(1/2*2^(1/2)/Pi^(1/2)*exp(-1/2*t^2),Gaussian(t,1))}:
 
+# great test: scope extrusion!
+normalFB1 := 
+  Bind(Gaussian(0,1), x, 
+  Bind(Gaussian(x,1), y, 
+  Ret(Pair((y+y)+x, Unit)))):
+
+normalFB1r := {}:
+
+###########
+#
+#  Convenient short-hands.  These come in this way from Hakaru too.
+#
+###########
+
+bern := proc(p) Msum(Weight(p, Ret(true)), Weight(1-p, Ret(false))) end proc:
+
+###########
+
+burgalarm := 
+  Bind(bern(10^(-4)), burglary,
+  Bind(bern(piecewise(burglary = true, 95/100, 1/100)), alarm,
+  Ret(Pair(alarm, burglary)))):
+burgalarmr := {}:
+
 TestDisint(d1, d1r, label = "Disintegrate linear function");
 TestDisint(d2, d2r, label = "Disintegrate linear function II");
 TestDisint(d3, d3r, label = "Disintegrate U(0,1) twice, over x-y");
 TestDisint(d4, d4r, label = "Disintegrate U(0,1) twice, over x/y");
 TestDisint(d5, d5r, label = "Disintegrate N(0,1)*N(x,1), over y");
 TestDisint(d6, d6r, label = "Disintegrate N(0,1)*N(x,1), over x");
+TestDisint(normalFB1, normalFB1r, label = "Disintegrate N(0,1)*N(x,1), over (y+y)+x");
+
+TestDisint(burgalarm, burgalarmr, label = "D Burgler Alarm example");
