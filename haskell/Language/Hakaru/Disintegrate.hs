@@ -977,11 +977,7 @@ constrainOutcomeMeasureOp v0 = go
         -- N.B., if\/when extending this to higher dimensions, the real equation is @recip (sqrt (2*pi*sd^2) ^ n) * exp (negate (norm_n (v0 - mu) ^ 2) / (2*sd^2))@ for @Real^n@.
         mu' <- fromWhnf <$> atomize mu
         sd' <- (emitLet' . fromWhnf) =<< atomize sd
-        emitWeight
-            (P.exp (P.negate ((v0 P.- mu') P.^ P.nat_ 2)
-                    P./ P.fromProb (P.prob_ 2 P.* sd' P.^ P.nat_ 2))
-                P./ sd'
-                P./ P.sqrt (P.prob_ 2 P.* P.pi))
+        emitWeight (P.densityNormal mu' sd' v0)
 
     go Poisson = \(e1 :* End) ->
         error "TODO: constrainOutcomeMeasureOp{Poisson}"

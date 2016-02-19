@@ -75,6 +75,7 @@ module Language.Hakaru.Syntax.Prelude
     , counting
     , categorical, categorical'
     , uniform, uniform'
+    , densityNormal
     , normal, normal'
     , poisson, poisson'
     , gamma, gamma'
@@ -1245,6 +1246,18 @@ uniform' lo hi =
         $ weightedDirac x (recip . unsafeProb $ hi - lo)
 
 
+densityNormal
+    :: (ABT Term abt)
+    => abt '[] 'HReal
+    -> abt '[] 'HProb
+    -> abt '[] 'HReal
+    -> abt '[] 'HProb
+densityNormal mu sd x = 
+    exp (negate ((x - mu) ^ nat_ 2)  -- TODO: use negative\/square instead of negate\/(^2)
+         / fromProb (prob_ 2 * sd ^ nat_ 2)) -- TODO: use square?
+     / sd / sqrt (prob_ 2 * pi)
+
+
 normal, normal'
     :: (ABT Term abt)
     => abt '[] 'HReal
@@ -1254,12 +1267,7 @@ normal = measure2_ Normal
 
 normal' mu sd  = 
     lebesgue >>= \x ->
-    weightedDirac x
-        -- alas, we loose syntactic negation...
-        $ exp (negate ((x - mu) ^ nat_ 2)  -- TODO: use negative\/square instead of negate\/(^2)
-            / fromProb (prob_ 2 * sd ^ nat_ 2)) -- TODO: use square?
-            / sd / sqrt (prob_ 2 * pi)
-
+    weightedDirac x (densityNormal mu sd x)
 
 poisson, poisson'
     :: (ABT Term abt) => abt '[] 'HProb -> abt '[] ('HMeasure 'HNat)
