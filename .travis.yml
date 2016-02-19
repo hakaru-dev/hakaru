@@ -122,7 +122,7 @@ script:
       stack --no-terminal $ARGS test --haddock --no-haddock-deps
       ;;
     cabal)
-      cabal configure --enable-tests --enable-benchmarks -v2 --ghc-options="-O0 -Werror"
+      cabal configure --enable-tests --enable-benchmarks -v2 --ghc-options="-O0" # removed -Werror
       cabal build
       cabal check || [ "$CABALVER" == "1.16" ]
       cabal test
