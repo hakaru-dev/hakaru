@@ -22,8 +22,6 @@ import Language.Hakaru.Evaluation.Types               (fromWhnf)
 import Language.Hakaru.Evaluation.DisintegrationMonad (runDis)
 import Language.Hakaru.Disintegrate
 
-import qualified Language.Hakaru.Observe as O
-
 import Test.HUnit
 import Tests.TestTools
 import Tests.Models (match_norm_unif)
