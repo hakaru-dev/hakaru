@@ -56,7 +56,9 @@ primTypes =
     , ("int",     TNeu' $ U.SSing SInt)
     , ("prob",    TNeu' $ U.SSing SProb)
     , ("real",    TNeu' $ U.SSing SReal)
+    , ("unit",    TNeu' $ U.SSing sUnit)
     , ("bool",    TNeu' $ U.SSing sBool)
+    , ("array",   TLam' $ \ [U.SSing a] -> U.SSing $ SArray a)
     , ("measure", TLam' $ \ [U.SSing a] -> U.SSing $ SMeasure a)
     , ("either",  TLam' $ \ [U.SSing a, U.SSing b] -> U.SSing $ sEither a b)
     , ("pair",    TLam' $ \ [U.SSing a, U.SSing b] -> U.SSing $ sPair a b)
@@ -91,18 +93,17 @@ primTable =
     ,("dirac",      TLam $ TNeu . U.Dirac_)
     ,("reject",     TNeu $ U.Superpose_ [])    
     -- PrimOps
-    ,("**",         primRealPow)
-    ,("^",          primNatPow)
-    ,("exp",        primPrimOp1 T.Exp)
+    ,("**",         primPrimOp2 U.RealPow)
+    ,("exp",        primPrimOp1 U.Exp)
+    ,("less",       primPrimOp2 U.Less)
+    ,("negate",     primPrimOp1 U.Negate)
+    ,("recip",      primPrimOp1 U.Recip)
+    ,("^",          primPrimOp2 U.NatPow)
     ]
 
-primPrimOp1, primPrimOp2
-    :: ( typs ~ T.UnLCs args
-       , args ~ T.LCs typs)
-    => T.PrimOp typs a
-    -> Symbol U.AST
-primPrimOp1 a = TLam $ \x -> TNeu $ U.PrimOp_ (U.SealedOp a) [x]
-primPrimOp2 a = t2 $ \x y -> U.PrimOp_ (U.SealedOp a) [x, y]
+primPrimOp1, primPrimOp2 :: U.PrimOp -> Symbol U.AST
+primPrimOp1 a = TLam $ \x -> TNeu $ U.PrimOp_ a [x]
+primPrimOp2 a = t2 $ \x y -> U.PrimOp_ a [x, y]
 
 primMeasure2 :: U.SealedOp T.MeasureOp -> Symbol U.AST
 primMeasure2 m = t2 $ \x y -> U.MeasureOp_ m [x, y]
@@ -146,15 +147,13 @@ primLeft       = TLam $ TNeu . U.Datum_ .
 primRight      = TLam $ TNeu . U.Datum_ .
                         U.Datum "right" . U.Inr . U.Inl . (`U.Et` U.Done) . U.Konst
 
-primWeight, primRealPow, primBern :: Symbol U.AST
+primWeight, primBern :: Symbol U.AST
 primWeight     = t2 $ \w m -> U.Superpose_ [(w, m)]
-primRealPow    = t2 $ \x y -> U.PrimOp_ (U.SealedOp T.RealPow) [x, y]
-primNatPow     = t2 $ \x y -> U.PrimOp_ (U.SealedOp (T.NatPow HSemiring_Nat)) [x, y]
 primBern       = TLam $ \p -> TNeu
                  (U.Superpose_ [(p, U.Dirac_ true_),
-                                (unsafeFrom_ $ U.NaryOp_ U.Sum'
+                                (unsafeFrom_ $ U.NaryOp_ U.Sum
                                  [ U.Literal_ (Some1 $ T.LReal 1.0)
-                                 , U.PrimOp_ (U.SealedOp $ T.Negate HRing_Real) [p]
+                                 , U.PrimOp_ U.Negate [p]
                                  ]
                                 , U.Dirac_ false_)])
 
@@ -202,9 +201,9 @@ symbolResolution symbols ast =
         Nothing -> (U.Var . mkSym) <$> gensym name
         Just a  -> return $ U.Var a
 
-    U.Lam name x -> do
+    U.Lam name typ x -> do
         name' <- gensym name
-        U.Lam (mkSym name')
+        U.Lam (mkSym name') typ
             <$> symbolResolution (updateSymbols name' symbols) x
 
     U.App f x -> U.App
@@ -218,13 +217,14 @@ symbolResolution symbols ast =
         <*> symbolResolution symbols e3
 
     U.Ann e typ         -> (`U.Ann` typ) <$> symbolResolution symbols e
-    U.Infinity          -> return $ U.Infinity
-    U.NegInfinity       -> return $ U.NegInfinity
+    U.Infinity'         -> return $ U.Infinity'
+    U.NegInfinity'      -> return $ U.NegInfinity'
     U.ULiteral v        -> return $ U.ULiteral v
 
     U.NaryOp op es      -> U.NaryOp op
         <$> mapM (symbolResolution symbols) es
 
+    U.Unit              -> return $ U.Unit
     U.Empty             -> return $ U.Empty
 
     U.Array name e1 e2  -> resolveBinder symbols name e1 e2 U.Array
@@ -268,7 +268,7 @@ normAST :: U.AST' (Symbol U.AST) -> U.AST' (Symbol U.AST)
 normAST ast =
     case ast of
     U.Var a           -> U.Var a
-    U.Lam name f      -> U.Lam name (normAST f)
+    U.Lam name typ f  -> U.Lam name typ (normAST f)
     U.App (U.Var t) x ->
         case t of
         TLam f -> U.Var $ f (makeAST $ normAST x)
@@ -282,10 +282,11 @@ normAST ast =
     U.Let name e1 e2    -> U.Let name (normAST e1) (normAST e2)
     U.If e1 e2 e3       -> U.If  (normAST e1) (normAST e2) (normAST e3)
     U.Ann e typ1        -> U.Ann (normAST e) typ1
-    U.Infinity          -> U.Infinity
-    U.NegInfinity       -> U.NegInfinity
+    U.Infinity'         -> U.Infinity'
+    U.NegInfinity'      -> U.NegInfinity'
     U.ULiteral v        -> U.ULiteral v
     U.NaryOp op es      -> U.NaryOp op (map normAST es)
+    U.Unit              -> U.Unit
     U.Empty             -> U.Empty
     U.Array name e1 e2  -> U.Array name (normAST e1) (normAST e2)
     U.Case e1 e2        -> U.Case  (normAST e1) (map branchNorm e2)
@@ -339,18 +340,20 @@ makeAST :: U.AST' (Symbol U.AST) -> U.AST
 makeAST ast =
     case ast of
     -- TODO: Add to Symbol datatype: gensymed names and types for primitives (type for arg on lam, return type in neu)
-    U.Var (TLam _)                -> error "makeAST: Passed primitive with wrong number of arguments"
-    U.Var (TNeu e)                -> e
-    U.Lam (TNeu (U.Var_ name)) e1 -> U.Lam_ name (makeAST e1)
-    U.App e1 e2                   -> U.App_ (makeAST e1) (makeAST e2)
-    U.Let (TNeu (U.Var_ name)) e1 e2 ->
+    U.Var (TLam _)                    ->
+        error "makeAST: Passed primitive with wrong number of arguments"
+    U.Var (TNeu e)                    -> e
+    U.Lam (TNeu (U.Var_ name)) typ e1 -> U.Lam_ name (makeType typ) (makeAST e1)
+    U.App e1 e2                       -> U.App_ (makeAST e1) (makeAST e2)
+    U.Let (TNeu (U.Var_ name)) e1 e2  ->
         U.Let_ name (makeAST e1) (makeAST e2)
     U.If e1 e2 e3     -> U.Case_ (makeAST e1) [(makeTrue e2), (makeFalse e3)]
     U.Ann e typ       -> U.Ann_ (makeAST e) (makeType typ)
-    U.Infinity        -> U.PrimOp_ (U.SealedOp $ T.Infinity) []
-    U.NegInfinity     -> U.PrimOp_ (U.SealedOp $ T.NegativeInfinity) []
+    U.Infinity'       -> U.PrimOp_ U.Infinity []
+    U.NegInfinity'    -> U.PrimOp_ U.NegativeInfinity []
     U.ULiteral v      -> U.Literal_  (U.val v)
     U.NaryOp op es    -> U.NaryOp_ op (map makeAST es)
+    U.Unit            -> U.Datum_ (U.Datum "unit" . U.Inl $ U.Done)
     U.Empty           -> U.Empty_
     U.Array (TNeu (U.Var_ name)) e1 e2 ->
         U.Array_ (makeAST e1) name (makeAST e2)

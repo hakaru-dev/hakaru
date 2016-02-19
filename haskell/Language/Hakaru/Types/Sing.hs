@@ -17,7 +17,7 @@
 --                                                    2016.01.09
 -- |
 -- Module      :  Language.Hakaru.Types.Sing
--- Copyright   :  Copyright (c) 2015 the Hakaru team
+-- Copyright   :  Copyright (c) 2016 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  wren@community.haskell.org
 -- Stability   :  experimental

@@ -22,8 +22,6 @@ import Language.Hakaru.Evaluation.Types               (fromWhnf)
 import Language.Hakaru.Evaluation.DisintegrationMonad (runDis)
 import Language.Hakaru.Disintegrate
 
-import qualified Language.Hakaru.Observe as O
-
 import Test.HUnit
 import Tests.TestTools
 import Tests.Models (match_norm_unif)
@@ -61,7 +59,8 @@ normB =
 normC :: TrivialABT Term '[] ('HReal ':-> 'HMeasure 'HReal)
 normC = lam $ \y ->
         normal (real_ 0) (prob_ 1) >>= \x ->
-        ann_ (SMeasure SReal) (O.observe (normal x (prob_ 1)) y x)
+        ann_ (SMeasure SReal)
+             (withWeight (densityNormal x (prob_ 1) y) (dirac x))
 {-
 -- Eliminating some redexes of 'normC', that is:
     lam $ \y ->

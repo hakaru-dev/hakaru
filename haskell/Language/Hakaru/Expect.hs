@@ -13,7 +13,7 @@
 --                                                    2015.12.11
 -- |
 -- Module      :  Language.Hakaru.Expect
--- Copyright   :  Copyright (c) 2015 the Hakaru team
+-- Copyright   :  Copyright (c) 2016 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  wren@community.haskell.org
 -- Stability   :  experimental
@@ -367,9 +367,7 @@ expectMeasure _ Normal = \(mu :* sd :* End) _ ->
     -- N.B., if\/when extending this to higher dimensions, the real equation is @recip (sqrt (2*pi*sd^2) ^ n) * integrate$\x -> c x * exp (negate (norm_n (x - mu) ^ 2) / (2*sd^2))@ for @Real^n@.
     ExpectMeasure $ \c ->
     integrate negativeInfinity infinity $ \x ->
-        exp (negate ((x - mu) ^ nat_ 2)
-            / fromProb (prob_ 2 * sd ^ nat_ 2))
-        / sd / sqrt (prob_ 2 * pi) * c x
+        densityNormal mu sd x * c x
 expectMeasure _ Poisson = \(l :* End) _ ->
     ExpectMeasure $ \c ->
     flip (if_ (prob_ 0 < l)) (prob_ 0)

@@ -15,7 +15,7 @@
 --                                                    2015.12.29
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeCheck
--- Copyright   :  Copyright (c) 2015 the Hakaru team
+-- Copyright   :  Copyright (c) 2016 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  wren@community.haskell.org
 -- Stability   :  experimental
@@ -56,7 +56,7 @@ import Language.Hakaru.Types.DataKind (Hakaru(..), HData', HBool)
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.HClasses
-    ( HOrd, hOrd_Sing, HSemiring, hSemiring_Sing, HRing, hRing_Sing
+    ( HOrd, hOrd_Sing, HSemiring, hSemiring_Sing, HRing, hRing_Sing, sing_HRing
     , HFractional, hFractional_Sing)
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Datum
@@ -90,8 +90,8 @@ inferable = not . mustCheck
 mustCheck :: U.AST -> Bool
 mustCheck = go
     where
-    go (U.Var_ _)    = False
-    go (U.Lam_ _ _)  = True
+    go (U.Var_ _)       = False
+    go (U.Lam_ _ _ e2)  = mustCheck e2
 
     -- In general, applications don't require checking; we infer
     -- the first applicand to get the type of the second and of the
@@ -157,9 +157,9 @@ mustCheck = go
     -- typing issue. Thus, for non-empty arrays and non-phantom
     -- record types, we should be able to infer the whole type
     -- provided we can infer the various subterms.
-    go U.Empty_         = True
-    go (U.Array_ _ _ _) = True
-    go (U.Datum_ _)     = True
+    go U.Empty_          = True
+    go (U.Array_ _ _ e1) = mustCheck e1
+    go (U.Datum_ _)      = True
 
     -- TODO: everyone says this, but it seems to me that if we can
     -- infer any of the branches (and check the rest to agree) then
@@ -382,6 +382,10 @@ inferType = inferType_
                 return $ TypedAST (varType x') (var x')
             Nothing -> ambiguousFreeVariable x
 
+    U.Lam_ x (U.SSing typ) e -> do
+        inferBinder (U.makeVar x typ) e $ \typ2 e' ->
+            return . TypedAST (SFun typ typ2) $ syn (Lam_ :$ e' :* End)
+
     U.App_ e1 e2 -> do
         TypedAST typ1 e1' <- inferType_ e1
         case typ1 of
@@ -400,11 +404,6 @@ inferType = inferType_
         -- environments?) Is this at all related to what Dunfield
         -- & Neelk are doing in their ICFP'13 paper with that
         -- \"=>=>\" judgment? (prolly not, but...)
-        {-
-    U.App_ (U.Lam_ name e1) e2 -> do
-        TypedAST typ2 e2' <- inferType_ e2
-        caseBind e1 $ \x -> pushCtx x typ2 . inferType_
-        -}
 
     U.Let_ x e1 e2 -> do
         TypedAST typ1 e1' <- inferType_ e1
@@ -417,10 +416,7 @@ inferType = inferType_
         e1' <- checkType_ typ1 e1
         return . TypedAST typ1 $ syn (Ann_ typ1 :$ e1' :* End)
 
-    U.PrimOp_ (U.SealedOp op) es -> do
-        let (typs, typ1) = sing_PrimOp op
-        es' <- checkSArgs typs es
-        return . TypedAST typ1 $ syn (PrimOp_ op :$ es')
+    U.PrimOp_ op es -> inferPrimOp op es
 
     U.ArrayOp_ (U.SealedOp op) es -> do
         let (typs, typ1) = sing_ArrayOp op
@@ -475,6 +471,11 @@ inferType = inferType_
         let (typs, typ1) = sing_MeasureOp op
         es' <- checkSArgs typs es
         return . TypedAST (SMeasure typ1) $ syn (MeasureOp_ op :$ es')
+
+    U.Array_ e1 x e2 -> do
+        e1' <- checkType_ SNat e1
+        inferBinder (U.makeVar x SNat) e2 $ \typ2 e2' ->
+            return . TypedAST (SArray typ2) $ syn (Array_ e1' e2')
 
     U.Case_ e1 branches -> do
         TypedAST typ1 e1' <- inferType_ e1
@@ -535,53 +536,68 @@ inferType = inferType_
     _   | mustCheck e0 -> ambiguousMustCheck
         | otherwise    -> error "inferType: missing an inferable branch!"
 
+  inferPrimOp :: U.PrimOp
+          -> [U.AST]
+          -> TypeCheckMonad (TypedAST abt)
+  inferPrimOp U.Not es =
+      case es of
+        [e] -> do TypedAST typ e' <- inferType_ e
+                  Refl <- isBool typ 
+                  return . TypedAST sBool $ syn (PrimOp_ Not :$ e' :* End)
+        _   -> failwith "Passed wrong number of arguments"
 
-makePrimOp :: List1 Sing typs
-           -> Sing a
-           -> U.PrimOp'
-           -> TypeCheckMonad (PrimOp typs a)
-makePrimOp (Cons1 a Nil1) b U.Not' = do
-    Refl <- isBool a
-    Refl <- isBool b
-    return Not
+  inferPrimOp U.Infinity es =
+      case es of
+        [] -> return . TypedAST SProb $ syn (PrimOp_ Infinity :$ End)
+        _  -> failwith "Passed wrong number of arguments"
 
-makePrimOp (Cons1 a (Cons1 b Nil1)) c U.Less' = do
-    Refl <- jmEq1_ a b
-    Refl <- jmEq1_ c sBool
-    Less <$> getHOrd a
+  inferPrimOp U.NegativeInfinity es =
+      case es of
+        [] -> return . TypedAST SReal $ syn (PrimOp_ NegativeInfinity :$ End)
+        _  -> failwith "Passed wrong number of arguments"
 
-makePrimOp (Cons1 a Nil1) b U.Negate' = do
-    Refl <- jmEq1_ a b
-    Negate <$> getHRing a
+  inferPrimOp U.Less es =
+      case es of
+        [e1, e2] -> do TypedAST typ1 e1' <- inferType_ e1
+                       TypedAST typ2 e2' <- inferType_ e2
+                       Refl <- jmEq1_ typ1 typ2
+                       primop <- Less <$> getHOrd typ1
+                       return . TypedAST sBool $
+                              syn (PrimOp_ primop :$ e1' :* e2' :* End)
+        _        -> failwith "Passed wrong number of arguments"
 
-makePrimOp _ _ _ = error "TODO: makePrimOp"
+  inferPrimOp U.Negate es =
+      case es of
+        [e] -> do TypedAST typ e' <- inferType_ e
+                  mode <- getMode
+                  SomeRing ring c <- getHRing typ mode
+                  primop <- Negate <$> return ring
+                  let e'' = case c of
+                              CNil -> e'
+                              c    -> unLC_ . coerceTo c $ LC_ e'
+                  return . TypedAST (sing_HRing ring) $
+                         syn (PrimOp_ primop :$ e'' :* End)
+        _   -> failwith "Passed wrong number of arguments"
 
--- make_PrimOp _ U.Impl'   = return (U.SealedOp Impl)
--- make_PrimOp _ U.Diff'   = return (U.SealedOp Diff)
--- make_PrimOp _ U.Nand'   = return (U.SealedOp Nand)
--- make_PrimOp _ U.Nor'    = return (U.SealedOp Nor)
+  inferPrimOp U.Recip es =
+      case es of
+        [e] -> do TypedAST typ e' <- inferType_ e
+                  primop <- Recip <$> getHFractional typ
+                  return . TypedAST typ $ syn (PrimOp_ primop :$ e' :* End)
+        _   -> failwith "Passed wrong number of arguments"
 
--- make_PrimOp _ U.Pi'     = return (U.SealedOp Pi)
--- make_PrimOp _ U.Sin'    = return (U.SealedOp Sin)
--- make_PrimOp _ U.Cos'    = return (U.SealedOp Cos)
--- make_PrimOp _ U.Tan'    = return (U.SealedOp Tan)
--- make_PrimOp _ U.Asin'   = return (U.SealedOp Asin)
--- make_PrimOp _ U.Acos'   = return (U.SealedOp Acos)
--- make_PrimOp _ U.Atan'   = return (U.SealedOp Atan)
-
--- make_PrimOp a lt U.Recip'  = do Refl <- isListEq (a `Cons1` Nil1) lt
---                                 Recip <$> getHFractional a
+  inferPrimOp _ _ = error "TODO: inferPrimOp"
 
 
-make_NaryOp :: Sing a -> U.NaryOp' -> TypeCheckMonad (NaryOp a)
-make_NaryOp a U.And'  = isBool a >>= \Refl -> return And
-make_NaryOp a U.Or'   = isBool a >>= \Refl -> return Or
-make_NaryOp a U.Xor'  = isBool a >>= \Refl -> return Xor
-make_NaryOp a U.Iff'  = isBool a >>= \Refl -> return Iff
-make_NaryOp a U.Min'  = Min  <$> getHOrd a
-make_NaryOp a U.Max'  = Max  <$> getHOrd a
-make_NaryOp a U.Sum'  = Sum  <$> getHSemiring a
-make_NaryOp a U.Prod' = Prod <$> getHSemiring a
+make_NaryOp :: Sing a -> U.NaryOp -> TypeCheckMonad (NaryOp a)
+make_NaryOp a U.And  = isBool a >>= \Refl -> return And
+make_NaryOp a U.Or   = isBool a >>= \Refl -> return Or
+make_NaryOp a U.Xor  = isBool a >>= \Refl -> return Xor
+make_NaryOp a U.Iff  = isBool a >>= \Refl -> return Iff
+make_NaryOp a U.Min  = Min  <$> getHOrd a
+make_NaryOp a U.Max  = Max  <$> getHOrd a
+make_NaryOp a U.Sum  = Sum  <$> getHSemiring a
+make_NaryOp a U.Prod = Prod <$> getHSemiring a
 
 isBool :: Sing a -> TypeCheckMonad (TypeEq a HBool)
 isBool typ =
@@ -610,11 +626,16 @@ getHSemiring typ =
     Just theSemi -> return theSemi
     Nothing      -> missingInstance "HSemiring" typ
 
-getHRing :: Sing a -> TypeCheckMonad (HRing a)
-getHRing typ =
-    case hRing_Sing typ of
-    Just theRing -> return theRing
-    Nothing      -> missingInstance "HRing" typ
+getHRing :: Sing a -> TypeCheckMode -> TypeCheckMonad (SomeRing a)
+getHRing typ mode =
+    case mode of
+    StrictMode -> case hRing_Sing typ of
+                    Just theRing -> return (SomeRing theRing CNil)
+                    Nothing      -> missingInstance "HRing" typ
+    LaxMode    -> case findRing typ of
+                    Just proof   -> return proof
+                    Nothing      -> missingInstance "HRing" typ
+    UnsafeMode -> error "TODO: getHRing in UnsafeMode"
 
 getHFractional :: Sing a -> TypeCheckMonad (HFractional a)
 getHFractional typ =
@@ -834,11 +855,13 @@ checkType = checkType_
         :: forall b. Sing b -> U.AST -> TypeCheckMonad (abt '[] b)
     checkType_ typ0 e0 =
         case e0 of
-        U.Lam_ x e1 ->
+        U.Lam_ x (U.SSing typ) e1 ->
             case typ0 of
-            SFun typ1 typ2 -> do
-                e1' <- checkBinder (U.makeVar x typ1) typ2 e1
-                return $ syn (Lam_ :$ e1' :* End)
+            SFun typ1 typ2 ->
+                case jmEq1 typ1 typ of
+                  Just Refl -> do e1' <- checkBinder (U.makeVar x typ1) typ2 e1
+                                  return $ syn (Lam_ :$ e1' :* End)
+                  Nothing   -> typeMismatch (Right typ1) (Right typ)
             _ -> typeMismatch (Right typ0) (Left "function type")
 
         U.Let_ x e1 e2 -> do

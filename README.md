@@ -1,4 +1,7 @@
-hakaru
+[![Hackage](https://img.shields.io/hackage/v/hakaru.svg)](https://hackage.haskell.org/package/hakaru)
+[![licence](http://img.shields.io/badge/licence-BSD-blue.svg?style=flat)](https://github.com/hakaru-dev/hakaru/blob/master/LICENSE)
+
+Hakaru
 ======
 
 A probabilistic programming language.
@@ -54,6 +57,7 @@ Citing us
 When referring to Hakaru please cite the following [paper](http://homes.soic.indiana.edu/ccshan/rational/system.pdf):
 
 > Probabilistic inference by program transformation in Hakaru (system description).
-> Praveen Narayanan, Jacques Carette, Wren Romano, Chung-chieh Shan, and Robert Zinkov, 2015. To appear at FLOPS 2016 (13th international symposium on functional and logic programming).
+> Praveen Narayanan, Jacques Carette, Wren Romano, Chung-chieh Shan, and Robert Zinkov,
+> FLOPS 2016 (13th international symposium on functional and logic programming).
 
 

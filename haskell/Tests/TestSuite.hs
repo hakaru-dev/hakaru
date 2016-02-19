@@ -6,6 +6,7 @@ import qualified Tests.Parser       as P
 import qualified Tests.TypeCheck    as TC
 import qualified Tests.Simplify     as S
 import qualified Tests.Disintegrate as D
+import qualified Tests.Sample       as E
 
 import Test.HUnit
 
@@ -17,6 +18,7 @@ allTests = test
   , TestLabel "TypeCheck"    TC.allTests
   , TestLabel "Simplify"     S.allTests
   , TestLabel "Disintegrate" D.allTests
+  , TestLabel "Evaluate"     E.allTests
   ]
 
 main :: IO ()

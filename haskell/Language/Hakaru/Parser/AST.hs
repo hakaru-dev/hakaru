@@ -14,8 +14,7 @@ import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Syntax.AST
-    (PrimOp(..), Literal(..), ArrayOp(..),
-     MeasureOp(..), LCs(), UnLCs ())
+    (Literal(..), ArrayOp(..), MeasureOp(..), LCs(), UnLCs ())
 import Language.Hakaru.Syntax.Variable (Variable(..))
 import Language.Hakaru.Syntax.IClasses
 
@@ -88,27 +87,27 @@ data Literal'
     | Real Double
     deriving (Eq, Show)
 
-data NaryOp'
-    = And' | Or' | Xor'
-    | Iff' | Min'| Max' 
-    | Sum' | Prod'
+data NaryOp
+    = And | Or   | Xor
+    | Iff | Min  | Max 
+    | Sum | Prod
     deriving (Eq, Show)
 
-data PrimOp'
-    = Not' | Impl' | Diff' | Nand' | Nor'
-    | Pi'
-    | Sin'       | Cos'   | Tan'
-    | Asin'      | Acos'  | Atan'
-    | Sinh'      | Cosh'  | Tanh'
-    | Asinh'     | Acosh' | Atanh'
-    | RealPow'   | NatPow'
-    | Exp'       | Log'
-    | Infinity'  | NegativeInfinity'
-    | GammaFunc' | BetaFunc'
-    | Integrate' | Summate'
-    | Equal'     | Less'
-    | Negate'    | Recip'
-    | Abs'       | Signum' | NatRoot' | Erf'
+data PrimOp
+    = Not | Impl | Diff   | Nand | Nor
+    | Pi
+    | Sin        | Cos    | Tan
+    | Asin       | Acos   | Atan
+    | Sinh       | Cosh   | Tanh
+    | Asinh      | Acosh  | Atanh
+    | RealPow    | NatPow
+    | Exp        | Log
+    | Infinity   | NegativeInfinity
+    | GammaFunc  | BetaFunc
+    | Integrate  | Summate
+    | Equal      | Less
+    | Negate     | Recip
+    | Abs        | Signum | NatRoot | Erf
 
 
 val :: Literal' -> Some1 Literal
@@ -125,15 +124,16 @@ data TypeAST'
 
 data AST' a
     = Var a
-    | Lam a    (AST' a) 
+    | Lam a TypeAST' (AST' a) 
     | App (AST' a) (AST' a)
     | Let a    (AST' a) (AST' a)
     | If  (AST' a) (AST' a) (AST' a)
     | Ann (AST' a) TypeAST'
-    | Infinity
-    | NegInfinity
+    | Infinity'
+    | NegInfinity'
     | ULiteral Literal'
-    | NaryOp NaryOp' [AST' a]
+    | NaryOp NaryOp [AST' a]
+    | Unit
     | Empty
     | Array a (AST' a) (AST' a)
     | Case  (AST' a) [(Branch' a)] -- match
@@ -166,15 +166,15 @@ data PCode
 
 data AST
     = Var_        Name
-    | Lam_        Name      AST
-    | App_        AST       AST
-    | Let_        Name      AST AST
+    | Lam_        Name SSing AST
+    | App_        AST        AST
+    | Let_        Name       AST AST
     | Ann_        AST SSing
     | CoerceTo_   (Some2 Coercion) AST
     | UnsafeTo_   (Some2 Coercion) AST
-    | PrimOp_     (SealedOp PrimOp)  [AST]
+    | PrimOp_     PrimOp  [AST]
     | ArrayOp_    (SealedOp ArrayOp) [AST]
-    | NaryOp_     NaryOp'  [AST]
+    | NaryOp_     NaryOp  [AST]
     | Literal_    (Some1 Literal)
     | Empty_
     | Array_      AST Name AST

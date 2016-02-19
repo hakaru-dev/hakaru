@@ -24,7 +24,7 @@ import Language.Hakaru.Parser.AST
 
 
 ops, types, names :: [String]
-ops   = ["+","*","-","^", "**", ":","::", "<~","==", "=", "_"]
+ops   = ["+","*","-","^", "**", ":",".", "<~","==", "=", "_"]
 types = ["->"]
 names = ["def","fn", "if","else","inf", "∞",
          "return", "match", "data"]
@@ -90,8 +90,10 @@ symbol = M.liftM Text.pack . Tok.symbol lexer . Text.unpack
 
 binop :: Text ->  AST' Text ->  AST' Text ->  AST' Text
 binop s x y
-    | s == "+"  = NaryOp Sum'  [x, y]
-    | s == "*"  = NaryOp Prod' [x, y]
+    | s == "+"  = NaryOp Sum  [x, y]
+    | s == "-"  = NaryOp Sum  [x, Var "negate" `App` y]
+    | s == "*"  = NaryOp Prod [x, y]
+    | s == "<"  = Var "less" `App` x `App` y
     | otherwise = Var s `App` x `App` y
 
 binary :: String -> Ex.Assoc -> Operator (AST' Text)
@@ -102,7 +104,8 @@ prefix s f = Ex.Prefix (f <$ reservedOp s)
 
 table :: OperatorTable (AST' Text)
 table =
-    [ [ prefix "+"  id]
+    [ [ prefix "+"  id
+      , prefix "-"  (App (Var "negate"))]
     , [ binary "^"  Ex.AssocRight
       , binary "**" Ex.AssocRight]
     , [ binary "*"  Ex.AssocLeft
@@ -112,11 +115,14 @@ table =
     -- TODO: add "<", "<=", ">=", "/="
     -- TODO: do you *really* mean AssocLeft? Shouldn't they be non-assoc?
     , [ Ex.Postfix ann_expr ]
-    , [ binary ">"  Ex.AssocLeft
+    , [ binary "<"  Ex.AssocLeft
       , binary "==" Ex.AssocLeft]]
 
 unit_ :: Parser (AST' a)
-unit_ = Empty <$ string "()"
+unit_ = Unit <$ symbol "()"
+
+empty_ :: Parser (AST' a)
+empty_ = Empty <$ symbol "[]"
 
 int :: Parser (AST' a)
 int = do
@@ -142,8 +148,8 @@ inf_ = do
     reserved "inf" <|> reserved "∞"
     return $
         case s of
-        '-' -> NegInfinity
-        '+' -> Infinity
+        '-' -> NegInfinity'
+        '+' -> Infinity'
         _   -> error "inf_: the impossible happened"
 
 var :: Parser (AST' Text)
@@ -173,7 +179,7 @@ type_expr = try type_fun
         <|> parens type_expr
 
 ann_expr :: Parser (AST' Text -> AST' Text)
-ann_expr = reservedOp "::" *> (flip Ann <$> type_expr)
+ann_expr = reservedOp "." *> (flip Ann <$> type_expr)
 
 pdat_expr :: Parser (PDatum Text)
 pdat_expr = DV <$> identifier <*> parens (commaSep pat_expr)
@@ -240,6 +246,7 @@ array_expr =
     reserved "array"
     *> (Array
         <$> identifier
+        <*  symbol "of"
         <*> expr
         <*> semiblockExpr
         )
@@ -259,6 +266,7 @@ lam_expr =
     reserved "fn"
     *>  (Lam
         <$> identifier
+        <*> type_expr
         <*> semiblockExpr
         )
 
@@ -280,16 +288,16 @@ def_expr :: Parser (AST' Text)
 def_expr = do
     reserved "def"
     name <- identifier
-    (vars,varTyps) <- unzip <$> parens (commaSep defarg)
+    vars <- parens (commaSep defarg)
     bodyTyp <- optionMaybe type_expr
     body    <- semiblockExpr
-    let body' = foldr Lam body vars
-        typ   = foldr TypeFun <$> bodyTyp <*> sequence varTyps
+    let body' = foldr (\(var, varTyp) e -> Lam var varTyp e) body vars
+        typ   = foldr TypeFun <$> bodyTyp <*> return (map snd vars)
     Let name (maybe id (flip Ann) typ body')
         <$> expr -- the \"rest\"; i.e., where the 'def' is in scope
 
-defarg :: Parser (Text, Maybe TypeAST')
-defarg = (,) <$> identifier <*> optionMaybe type_expr
+defarg :: Parser (Text, TypeAST')
+defarg = (,) <$> identifier <*> type_expr
 
 call_expr :: Parser (AST' Text)
 call_expr =

@@ -9,7 +9,7 @@
 --                                                    2015.12.15
 -- |
 -- Module      :  Language.Hakaru.Observe
--- Copyright   :  Copyright (c) 2015 the Hakaru team
+-- Copyright   :  Copyright (c) 2016 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  ppaml@indiana.edu
 -- Stability   :  experimental
@@ -83,11 +83,7 @@ observeMeasureOp
     -> abt '[] a
     -> abt '[] ('HMeasure a)
 observeMeasureOp Normal  (mu :* sd :* End) a b =
-    P.withWeight
-        (P.exp (P.negate (a P.- mu) P.^ P.nat_ 2
-        P./ P.fromProb (P.prob_ 2 P.* sd P.^ (P.nat_ 2)))
-        P./ sd
-        P./ P.sqrt (P.prob_ 2 P.* P.pi)) (P.dirac b)
+    P.withWeight (P.densityNormal mu sd a) (P.dirac b)
 observeMeasureOp Uniform (lo :* hi :* End) a b =
     P.if_ (lo P.<= a P.&& a P.<= hi)
           (P.withWeight (P.unsafeProb $ P.recip $ hi P.- lo) (P.dirac b))

@@ -15,7 +15,7 @@
 --                                                    2016.02.03
 -- |
 -- Module      :  Language.Hakaru.Syntax.Prelude
--- Copyright   :  Copyright (c) 2015 the Hakaru team
+-- Copyright   :  Copyright (c) 2016 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  wren@community.haskell.org
 -- Stability   :  experimental
@@ -75,6 +75,7 @@ module Language.Hakaru.Syntax.Prelude
     , counting
     , categorical, categorical'
     , uniform, uniform'
+    , densityNormal
     , normal, normal'
     , poisson, poisson'
     , gamma, gamma'
@@ -1245,6 +1246,18 @@ uniform' lo hi =
         $ weightedDirac x (recip . unsafeProb $ hi - lo)
 
 
+densityNormal
+    :: (ABT Term abt)
+    => abt '[] 'HReal
+    -> abt '[] 'HProb
+    -> abt '[] 'HReal
+    -> abt '[] 'HProb
+densityNormal mu sd x = 
+    exp (negate ((x - mu) ^ nat_ 2)  -- TODO: use negative\/square instead of negate\/(^2)
+         / fromProb (prob_ 2 * sd ^ nat_ 2)) -- TODO: use square?
+     / sd / sqrt (prob_ 2 * pi)
+
+
 normal, normal'
     :: (ABT Term abt)
     => abt '[] 'HReal
@@ -1254,12 +1267,7 @@ normal = measure2_ Normal
 
 normal' mu sd  = 
     lebesgue >>= \x ->
-    weightedDirac x
-        -- alas, we loose syntactic negation...
-        $ exp (negate ((x - mu) ^ nat_ 2)  -- TODO: use negative\/square instead of negate\/(^2)
-            / fromProb (prob_ 2 * sd ^ nat_ 2)) -- TODO: use square?
-            / sd / sqrt (prob_ 2 * pi)
-
+    weightedDirac x (densityNormal mu sd x)
 
 poisson, poisson'
     :: (ABT Term abt) => abt '[] 'HProb -> abt '[] ('HMeasure 'HNat)
@@ -1320,7 +1328,7 @@ plate, plate'
     :: (ABT Term abt, SingI a)
     => abt '[] ('HArray ('HMeasure          a))
     -> abt '[] (         'HMeasure ('HArray a))
-plate e = measure1_ (Plate . sUnMeasure . sUnArray $ typeOf e) e
+plate e = measure1_ (Plate sing) e
 
 plate' v = reduce r z (mapV m v)
     where

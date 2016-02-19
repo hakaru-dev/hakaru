@@ -9,7 +9,7 @@
 --                                                    2015.12.15
 -- |
 -- Module      :  Language.Hakaru.Inference
--- Copyright   :  Copyright (c) 2015 the Hakaru team
+-- Copyright   :  Copyright (c) 2016 the Hakaru team
 -- License     :  BSD3
 -- Maintainer  :  wren@community.haskell.org
 -- Stability   :  experimental
@@ -43,7 +43,7 @@ import Language.Hakaru.Disintegrate (determine, density, disintegrate)
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 priorAsProposal
-    :: (ABT Term abt)
+    :: (ABT Term abt, SingI a, SingI b)
     => abt '[] ('HMeasure (HPair a b))
     -> abt '[] (HPair a b)
     -> abt '[] ('HMeasure (HPair a b))
@@ -93,7 +93,7 @@ mcmc proposal target =
 
 
 gibbsProposal
-    :: (ABT Term abt)
+    :: (ABT Term abt, SingI a, SingI b)
     => abt '[] ('HMeasure (HPair a b))
     -> abt '[] (HPair a b)
     -> abt '[] ('HMeasure (HPair a b))
@@ -130,7 +130,7 @@ slice target =
 
 
 sliceX
-    :: (ABT Term abt)
+    :: (ABT Term abt, SingI a)
     => abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure (HPair a 'HReal))
 sliceX target =

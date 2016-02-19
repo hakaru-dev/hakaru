@@ -3,6 +3,7 @@
            , PolyKinds
            , GADTs
            , TypeOperators
+           , EmptyCase
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -88,3 +89,12 @@ instance PrimCoerce Value where
             VNat $ unsafeNat $ floor (LF.fromLogFloat a :: Double)
         (Continuous HContinuous_Real, VReal a) -> VInt  $ floor a
         _ -> error "no a defined primitive coercion"
+
+
+lam2 :: Value (a ':-> b ':-> c)
+     -> (Value a -> Value b -> Value c)
+lam2 (VLam f1) = \v1 ->
+    case f1 v1 of
+        VLam f2 -> f2
+        v       -> case v of {}
+lam2 v = case v of {}
