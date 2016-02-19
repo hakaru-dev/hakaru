@@ -88,6 +88,13 @@ color c d =
 keyword :: Doc -> Doc
 keyword = color Red
 
+ppVariableWithType :: Variable (a :: Hakaru) -> (Doc, Doc)
+ppVariableWithType x = (hint <> (PP.int . fromNat . varID) x, (prettyType 0 . varType) x)
+    where
+    hint
+        | Text.null (varHint x) = PP.char 'x' -- We used to use '_' but...
+        | otherwise             = (PP.text . Text.unpack . varHint) x
+
 -- BUG: we still use this in a few places. I'm pretty sure they should all actually be 'ppBinder2', in which case we can delete this function and just use that one.
 ppBinder :: (ABT Term abt) => abt xs a -> Docs
 ppBinder e =
@@ -101,11 +108,14 @@ ppBinder e =
     go xs (Syn  t)   = (reverse xs, prettyPrec_ 0 (LC_ (syn t)))
 
 
-ppBinder2 :: (ABT Term abt) => abt xs a -> ([Doc],Docs)
-ppBinder2 e = go [] (viewABT e)
+ppBinder2 :: (ABT Term abt) => abt xs a -> ([Doc], [Doc], Docs)
+ppBinder2 e = unpackVarTypes $ go [] (viewABT e)
     where
-    go :: (ABT Term abt) => [Doc] -> View (Term abt) xs a -> ([Doc],Docs)
-    go xs (Bind x v) = go (ppVariable x : xs) v
+    unpackVarTypes (varTypes, body) =
+        (map fst varTypes, map snd varTypes, body)
+
+    go :: (ABT Term abt) => [(Doc, Doc)] -> View (Term abt) xs a -> ([(Doc, Doc)],Docs)
+    go xs (Bind x v) = go (ppVariableWithType x : xs) v
     go xs (Var  x)   = (reverse xs, [ppVariable x])
     go xs (Syn  t)   = (reverse xs, prettyPrec_ 0 (LC_ (syn t)))
 
@@ -178,8 +188,8 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
 -- | Pretty-print @(:$)@ nodes in the AST.
 ppSCon :: (ABT Term abt) => Int -> SCon args a -> SArgs abt args -> Docs
 ppSCon _ Lam_ = \(e1 :* End) ->
-    let (vars, body) = ppBinder2 e1 in
-    [PP.text "fn" <+> toDoc vars <> PP.colon <+> (toDoc body)]
+    let (vars, types, body) = ppBinder2 e1 in
+    [PP.text "fn" <+> toDoc vars <+> toDoc types <> PP.colon <+> (toDoc body)]
 
 --ppSCon p App_ = \(e1 :* e2 :* End) -> ppArg e1 ++ parens True (ppArg e2)
 ppSCon _ App_ = \(e1 :* e2 :* End) -> prettyApps e1 e2
@@ -190,7 +200,7 @@ ppSCon _ Let_ = \(e1 :* e2 :* End) ->
         (ppVariable x <+> PP.equals <+> PP.nest n (pretty e1))
         : pretty e2'
     -}
-    let (vars, body) = ppBinder2 e2 in
+    let (vars, _, body) = ppBinder2 e2 in
     [toDoc vars <+> PP.equals <+> toDoc (ppArg e1)
     PP.$$ (toDoc body)]
 ppSCon p (Ann_ typ) = \(e1 :* End) ->
@@ -203,7 +213,7 @@ ppSCon p (UnsafeFrom_ c) = \(e1 :* End) -> ppUnsafeFrom p c e1
 ppSCon p (MeasureOp_  o) = \es          -> ppMeasureOp  p o es
 ppSCon _ Dirac = \(e1 :* End) -> [PP.text "return" <+> toDoc (ppArg e1)]
 ppSCon _ MBind = \(e1 :* e2 :* End) ->
-    let (vars, body) = ppBinder2 e2 in
+    let (vars, _, body) = ppBinder2 e2 in
     [toDoc vars <+> PP.text "<~" <+> toDoc (ppArg e1)
         PP.$$ (toDoc body)]
 
