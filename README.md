@@ -1,4 +1,6 @@
-hakaru
+[![licence](http://img.shields.io/badge/licence-BSD-blue.svg?style=flat)](https://github.com/hakaru-dev/hakaru/blob/master/LICENSE)
+
+Hakaru
 ======
 
 A probabilistic programming language.
