@@ -1,4 +1,5 @@
 [![Hackage](https://img.shields.io/hackage/v/hakaru.svg)](https://hackage.haskell.org/package/hakaru)
+[![Build Status](https://travis-ci.org/hakaru-dev/hakaru.svg?branch=master)](https://travis-ci.org/hakaru-dev/hakaru)
 [![licence](http://img.shields.io/badge/licence-BSD-blue.svg?style=flat)](https://github.com/hakaru-dev/hakaru/blob/master/LICENSE)
 
 Hakaru

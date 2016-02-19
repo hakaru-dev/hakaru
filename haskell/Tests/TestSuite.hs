@@ -13,6 +13,7 @@ import Test.HUnit
 
 -- master test suite
 
+ignored :: Assertion
 ignored = putStrLn "Warning: maple tests will be ignored"
 
 simplifyTests :: Maybe String -> Test
