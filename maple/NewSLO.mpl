@@ -232,7 +232,7 @@ NewSLO := module ()
   end proc;
 
   Banish := proc(e :: Int(anything, name=anything), h :: name,
-                 levels := infinity :: extended_numeric)
+                 levels :: extended_numeric := infinity)
     local hh;
     hh := gensym('h');
     subs(int=Int,
@@ -701,7 +701,7 @@ NewSLO := module ()
   end proc;
 
   invert := proc(to_invert, main_var, integral, h, path, t)
-    local sol, dxdt, vars, in_sol, r_in_sol, p_mv, to_promote, flip;
+    local sol, dxdt, vars, in_sol, r_in_sol, p_mv, would_capture, flip;
     if type(to_invert, 'linear'(main_var)) then
       sol := solve([t = to_invert], {main_var})[1];
 
@@ -727,13 +727,14 @@ NewSLO := module ()
     # and what plan that entails
     vars := find_vars(path);
     in_sol := indets(sol, 'name') minus {t, main_var};
-    
+
     member(main_var, vars, 'p_mv');
     r_in_sol := map(get_var_pos, in_sol, vars);
-    to_promote := map(x -> `if`(op(2,x)>p_mv, x, NULL), r_in_sol);
-    # may have to do a bunch of promotions, or none
+    would_capture := map(x -> `if`(op(2,x) > p_mv, x, NULL), r_in_sol);
+
+    # May have to pull the integral for main_var up a few levels
     interpret(
-      [ %Promote(seq(VPP(op(i),p_mv), i in to_promote))
+      [ %Promote(main_var, p_mv, [seq(i, i in would_capture)])
       , %Change(main_var, t = to_invert, sol, flip)
       , %ToTop(t)
       , %Drop(t)],
@@ -871,33 +872,60 @@ NewSLO := module ()
     end if;
   end proc;
 
-  # this is actually not quite "right".  What this should do is to
-  # take an absolute position and a movement distance, and the 
-  # result is to take the thing at the position and move it that
-  # much; movement can then actually be positive or negative.
-  promote := proc(promotions, chg, path, part)
-    local x, p, ref, i1, i2, vars, danger, new_path;
-    if nops(promotions)=0 then # nothing to do, next
+  # promote is essentially "inverse banish", where we pull integrals
+  # up rather than pushing them down.  The list contains which variables
+  # to promote over; %Top is a special variable that means "promote all
+  # the way to the top"
+  promote := proc(task :: %Promote(name, posint, list), chg, path, part)
+    local x, p, here, vars, new_path, go_past, to_top, work, n, pos, y, v;
+
+    go_past := convert(map2(op, 1, op(3,task)), 'set');
+    to_top := member(%Top, go_past);
+    if to_top and nops(go_past)>1 then
+      error "cannot ask to promote to top and past some variables";
+    end if;
+
+    if nops(go_past)=0 then # nothing to do, next
       interpret(chg, path, part)
-    elif nops(promotions)>1 then
-      error "multiple promotions (%1) not yet implemented", promotions;
     else
-      # move variable x, at position p, above that at position ref.
-      (x, p, ref) := op(op(1,promotions));
-      i1 := path[p];
-      i2 := path[ref];
-      # need to make sure these don't escape their scope:
-      vars := find_vars(path[ref .. p-1]);
-      danger := indets(op([1,2], i1), 'name') intersect {op(vars)};
-      if danger = {} then
-        # just go ahead
-        new_path := [op(1..ref-1, path), i1, op(ref..p-1,path),
-          op(p+1..-1, path)];
-        interpret(chg, new_path, part);
-      else
-        # need to internalize bounds as Indicator
-        error "Promote %1 over %2 must take care of %3", chg[1], vars, danger;
+      n := nops(path);
+      x := op(1,task);
+      p := op(2,task);
+
+      if p = n then
+        if to_top then
+          return interpret(chg, path, part)
+        else
+          error "already at top, but asking to go past %1", go_past;
+        end if;
       end if;
+
+      # for efficiency, work with a table, not a list
+      pos := p+1;
+      work := evalb(pos <= n);
+      new_path := table(path);
+      here  := path[p];
+
+      while work do
+        y := new_path[pos];
+        if type(y, specfunc(%weight)) then
+          new_path[pos-1] := y;
+          new_path[pos] := here;
+          pos := pos + 1;
+        elif type(y, specfunc(%int)) then
+          v := op([1,1], y);
+          go_past := go_past minus {v};
+          # surely we're missing a test here?
+          new_path[pos-1] := y;
+          new_path[pos] := here;
+          pos := pos + 1;
+          work := evalb(go_past = {} and pos <= n);
+        else
+          error "How do I move past a %1 ?", eval(y);
+        end if;
+      end do;
+
+      interpret(chg, [seq(new_path[i], i=1..nops(path))], part);
     end if;
   end proc;
 
@@ -906,7 +934,7 @@ NewSLO := module ()
   # path : context, allows one to reconstruct the incoming expression
   # part: partial answer
   interpret := proc(chg, path, part)
-    local i, ans, pos;
+    local i, ans, pos, var;
     if path=[] then part
     elif chg=[] then # finished changes, just reconstruct
       ans := part;
@@ -919,18 +947,20 @@ NewSLO := module ()
     elif type(chg[1], specfunc(%Promote)) then
       promote(chg[1], chg[2..-1], path, part);
     elif type(chg[1], specfunc(%ToTop)) then
-      if type(path[-1], specfunc(%int)) and op([-1,1,1], path) = op([1,1], chg) then
+      var := op([1,1], chg);
+      if type(path[-1], specfunc(%int)) and op([-1,1,1], path) = var then
         interpret(chg[2..-1], path, part)
       else
-        pos := get_int_pos(op([1,1],chg), path);
-        interpret([%Promote(VPP(t, nops(path), pos)), op(2..-1,chg)], path, part); 
-        # error "must float t-integral to top"
+
+        pos := get_int_pos(var, path);
+        interpret([%Promote(var, pos, [%Top]), op(2..-1,chg)], path, part); 
       end if;
     elif type(chg[1], specfunc(%Drop)) then
       if type(path[-1], specfunc(%int)) and op([-1,1,1], path) = op([1,1], chg) then
         interpret(chg[2..-1], path[1..-2], part)
       else
-        error "asked to drop t-integral, but it is not at top"
+        error "asked to drop t-integral (%1, %2), but it is not at top ",
+          path, part
       end if;
     else
       error "unknown plan step: %1", chg[1]
