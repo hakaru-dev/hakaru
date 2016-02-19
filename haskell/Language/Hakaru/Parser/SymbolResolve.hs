@@ -201,9 +201,9 @@ symbolResolution symbols ast =
         Nothing -> (U.Var . mkSym) <$> gensym name
         Just a  -> return $ U.Var a
 
-    U.Lam name x -> do
+    U.Lam name typ x -> do
         name' <- gensym name
-        U.Lam (mkSym name')
+        U.Lam (mkSym name') typ
             <$> symbolResolution (updateSymbols name' symbols) x
 
     U.App f x -> U.App
@@ -268,7 +268,7 @@ normAST :: U.AST' (Symbol U.AST) -> U.AST' (Symbol U.AST)
 normAST ast =
     case ast of
     U.Var a           -> U.Var a
-    U.Lam name f      -> U.Lam name (normAST f)
+    U.Lam name typ f  -> U.Lam name typ (normAST f)
     U.App (U.Var t) x ->
         case t of
         TLam f -> U.Var $ f (makeAST $ normAST x)
@@ -340,11 +340,12 @@ makeAST :: U.AST' (Symbol U.AST) -> U.AST
 makeAST ast =
     case ast of
     -- TODO: Add to Symbol datatype: gensymed names and types for primitives (type for arg on lam, return type in neu)
-    U.Var (TLam _)                -> error "makeAST: Passed primitive with wrong number of arguments"
-    U.Var (TNeu e)                -> e
-    U.Lam (TNeu (U.Var_ name)) e1 -> U.Lam_ name (makeAST e1)
-    U.App e1 e2                   -> U.App_ (makeAST e1) (makeAST e2)
-    U.Let (TNeu (U.Var_ name)) e1 e2 ->
+    U.Var (TLam _)                    ->
+        error "makeAST: Passed primitive with wrong number of arguments"
+    U.Var (TNeu e)                    -> e
+    U.Lam (TNeu (U.Var_ name)) typ e1 -> U.Lam_ name (makeType typ) (makeAST e1)
+    U.App e1 e2                       -> U.App_ (makeAST e1) (makeAST e2)
+    U.Let (TNeu (U.Var_ name)) e1 e2  ->
         U.Let_ name (makeAST e1) (makeAST e2)
     U.If e1 e2 e3     -> U.Case_ (makeAST e1) [(makeTrue e2), (makeFalse e3)]
     U.Ann e typ       -> U.Ann_ (makeAST e) (makeType typ)

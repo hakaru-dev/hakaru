@@ -124,7 +124,7 @@ data TypeAST'
 
 data AST' a
     = Var a
-    | Lam a    (AST' a) 
+    | Lam a TypeAST' (AST' a) 
     | App (AST' a) (AST' a)
     | Let a    (AST' a) (AST' a)
     | If  (AST' a) (AST' a) (AST' a)
@@ -166,9 +166,9 @@ data PCode
 
 data AST
     = Var_        Name
-    | Lam_        Name      AST
-    | App_        AST       AST
-    | Let_        Name      AST AST
+    | Lam_        Name SSing AST
+    | App_        AST        AST
+    | Let_        Name       AST AST
     | Ann_        AST SSing
     | CoerceTo_   (Some2 Coercion) AST
     | UnsafeTo_   (Some2 Coercion) AST

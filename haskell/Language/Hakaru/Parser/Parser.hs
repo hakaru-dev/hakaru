@@ -266,6 +266,7 @@ lam_expr =
     reserved "fn"
     *>  (Lam
         <$> identifier
+        <*> type_expr
         <*> semiblockExpr
         )
 
@@ -287,16 +288,16 @@ def_expr :: Parser (AST' Text)
 def_expr = do
     reserved "def"
     name <- identifier
-    (vars,varTyps) <- unzip <$> parens (commaSep defarg)
+    vars <- parens (commaSep defarg)
     bodyTyp <- optionMaybe type_expr
     body    <- semiblockExpr
-    let body' = foldr Lam body vars
-        typ   = foldr TypeFun <$> bodyTyp <*> sequence varTyps
+    let body' = foldr (\(var, varTyp) e -> Lam var varTyp e) body vars
+        typ   = foldr TypeFun <$> bodyTyp <*> return (map snd vars)
     Let name (maybe id (flip Ann) typ body')
         <$> expr -- the \"rest\"; i.e., where the 'def' is in scope
 
-defarg :: Parser (Text, Maybe TypeAST')
-defarg = (,) <$> identifier <*> optionMaybe type_expr
+defarg :: Parser (Text, TypeAST')
+defarg = (,) <$> identifier <*> type_expr
 
 call_expr :: Parser (AST' Text)
 call_expr =

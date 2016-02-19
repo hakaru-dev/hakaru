@@ -90,8 +90,8 @@ inferable = not . mustCheck
 mustCheck :: U.AST -> Bool
 mustCheck = go
     where
-    go (U.Var_ _)    = False
-    go (U.Lam_ _ _)  = True
+    go (U.Var_ _)       = False
+    go (U.Lam_ _ _ e2)  = mustCheck e2
 
     -- In general, applications don't require checking; we infer
     -- the first applicand to get the type of the second and of the
@@ -851,11 +851,13 @@ checkType = checkType_
         :: forall b. Sing b -> U.AST -> TypeCheckMonad (abt '[] b)
     checkType_ typ0 e0 =
         case e0 of
-        U.Lam_ x e1 ->
+        U.Lam_ x (U.SSing typ) e1 ->
             case typ0 of
-            SFun typ1 typ2 -> do
-                e1' <- checkBinder (U.makeVar x typ1) typ2 e1
-                return $ syn (Lam_ :$ e1' :* End)
+            SFun typ1 typ2 ->
+                case jmEq1 typ1 typ of
+                  Just Refl -> do e1' <- checkBinder (U.makeVar x typ1) typ2 e1
+                                  return $ syn (Lam_ :$ e1' :* End)
+                  Nothing   -> typeMismatch (Right typ1) (Right typ)
             _ -> typeMismatch (Right typ0) (Left "function type")
 
         U.Let_ x e1 e2 -> do

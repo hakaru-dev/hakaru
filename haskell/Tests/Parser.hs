@@ -56,7 +56,7 @@ instance Arbitrary a => Arbitrary (Branch' a) where
 instance Arbitrary a => Arbitrary (AST' a) where
     arbitrary = frequency
         [ (10, Var <$> arbitrary)
-        , ( 1, Lam <$> arbitrary <*> arbitrary)
+        , ( 1, Lam <$> arbitrary <*> arbitrary <*> arbitrary)
         , ( 1, App <$> arbitrary <*> arbitrary)
         , ( 1, Let <$> arbitrary <*> arbitrary <*> arbitrary)
         , ( 1, If  <$> arbitrary <*> arbitrary <*> arbitrary)
@@ -136,29 +136,30 @@ testIfs = test
     ]
 
 lam1 :: Text
-lam1 = "fn x: x+3"
+lam1 = "fn x nat: x+3"
 
 lam1AST :: AST' Text
-lam1AST = Lam "x" (NaryOp Sum [ Var "x"
-                               , ULiteral (Nat 3)
-                               ])
+lam1AST = Lam "x" (TypeVar "nat")
+          (NaryOp Sum [ Var "x"
+                      , ULiteral (Nat 3)
+                      ])
 
 def1 :: Text
 def1 = unlines
-    ["def foo(x):"
+    ["def foo(x nat):"
     ,"    x + 3"
     ,"foo(5)"
     ]
 
 def2 :: Text
 def2 = unlines
-    ["def foo(x): x + 3"
+    ["def foo(x nat): x + 3"
     ,"foo(5)"
     ]
 
 def3 :: Text
 def3 = unlines
-    ["def foo(x):"
+    ["def foo(x real):"
     ,"    y <~ normal(x,1.0)"
     ,"    return (y + y. real)"
     ,"foo(-2.0)"
@@ -173,12 +174,13 @@ def4 = unlines
 
 def1AST :: AST' Text
 def1AST =
-    Let "foo" (Lam "x" (NaryOp Sum [Var "x", ULiteral (Nat 3)]))
+    Let "foo" (Lam "x" (TypeVar "nat")
+               (NaryOp Sum [Var "x", ULiteral (Nat 3)]))
     (App (Var "foo") (ULiteral (Nat 5)))
 
 def2AST :: AST' Text
 def2AST =
-    Let "foo" (Lam "x"
+    Let "foo" (Lam "x" (TypeVar "real")
         (Bind "y" (App (App (Var "normal") (Var "x")) (ULiteral (Prob 1.0)))
         (Dirac (Ann (NaryOp Sum [Var "y", Var "y"])
                     (TypeVar "real")))))
@@ -187,7 +189,8 @@ def2AST =
 def3AST :: AST' Text
 def3AST =
     Let "foo" (Ann
-        (Lam "x" (NaryOp Sum [Var "x", ULiteral (Nat 3)]))
+        (Lam "x" (TypeVar "nat")
+                 (NaryOp Sum [Var "x", ULiteral (Nat 3)]))
         (TypeFun (TypeVar "nat") (TypeVar "nat")))
     (App (Var "foo") (ULiteral (Nat 5)))
 
