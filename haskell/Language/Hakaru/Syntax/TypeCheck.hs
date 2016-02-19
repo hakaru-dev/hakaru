@@ -382,6 +382,10 @@ inferType = inferType_
                 return $ TypedAST (varType x') (var x')
             Nothing -> ambiguousFreeVariable x
 
+    U.Lam_ x (U.SSing typ) e -> do
+        inferBinder (U.makeVar x typ) e $ \typ2 e' ->
+            return . TypedAST (SFun typ typ2) $ syn (Lam_ :$ e' :* End)
+
     U.App_ e1 e2 -> do
         TypedAST typ1 e1' <- inferType_ e1
         case typ1 of
