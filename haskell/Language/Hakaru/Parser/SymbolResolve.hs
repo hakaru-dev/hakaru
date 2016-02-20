@@ -229,6 +229,10 @@ symbolResolution symbols ast =
 
     U.Array name e1 e2  -> resolveBinder symbols name e1 e2 U.Array
 
+    U.Index a i -> U.Index
+        <$> symbolResolution symbols a
+        <*> symbolResolution symbols i
+
     U.Case e1 bs        -> U.Case <$> symbolResolution symbols e1
                                   <*> mapM (symbolResolveBranch symbols) bs
 
@@ -289,8 +293,9 @@ normAST ast =
     U.Unit              -> U.Unit
     U.Empty             -> U.Empty
     U.Array name e1 e2  -> U.Array name (normAST e1) (normAST e2)
-    U.Case e1 e2        -> U.Case  (normAST e1) (map branchNorm e2)
-    U.Dirac e1          -> U.Dirac (normAST e1)
+    U.Index      e1 e2  -> U.Index (normAST e1) (normAST e2)    
+    U.Case       e1 e2  -> U.Case  (normAST e1) (map branchNorm e2)
+    U.Dirac      e1     -> U.Dirac (normAST e1)
     U.Bind   name e1 e2 -> U.Bind name (normAST e1) (normAST e2)
     U.Expect name e1 e2 -> U.Expect name (normAST e1) (normAST e2)
     U.Msum es           -> U.Msum (map normAST es)
@@ -357,6 +362,7 @@ makeAST ast =
     U.Empty           -> U.Empty_
     U.Array (TNeu (U.Var_ name)) e1 e2 ->
         U.Array_ (makeAST e1) name (makeAST e2)
+    U.Index e1 e2     -> U.ArrayOp_ U.Index_ [(makeAST e1), (makeAST e2)]
     U.Case e bs       -> U.Case_ (makeAST e) (map makeBranch bs)
     U.Dirac e1        -> U.Dirac_ (makeAST e1)
     U.Bind (TNeu (U.Var_ name)) e1 e2 ->
@@ -371,19 +377,3 @@ resolveAST :: U.AST' Text -> U.AST
 resolveAST ast = makeAST $
                  normAST $
                  evalState (symbolResolution primTable ast) 0
-
-data ArrayOp' = Index' | Size' | Reduce'
-
-data MeasureOp'
-    = Lebesgue'
-    | Counting'
-    | Categorical'
-    | Uniform'
-    | Normal'
-    | Poisson'
-    | Gamma'
-    | Beta'
-    | DP'
-    | Plate'
-    | Chain'
-

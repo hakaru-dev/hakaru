@@ -14,7 +14,7 @@ import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Syntax.AST
-    (Literal(..), ArrayOp(..), MeasureOp(..), LCs(), UnLCs ())
+    (Literal(..), MeasureOp(..), LCs(), UnLCs ())
 import Language.Hakaru.Syntax.Variable (Variable(..))
 import Language.Hakaru.Syntax.IClasses
 
@@ -109,6 +109,7 @@ data PrimOp
     | Negate     | Recip
     | Abs        | Signum | NatRoot | Erf
 
+data ArrayOp = Index_ | Size | Reduce
 
 val :: Literal' -> Some1 Literal
 val (Nat  n) = Some1 $ LNat  (N.unsafeNatural $ fromIntegral n) -- TODO: clean up
@@ -136,6 +137,7 @@ data AST' a
     | Unit
     | Empty
     | Array a (AST' a) (AST' a)
+    | Index (AST' a) (AST' a)
     | Case  (AST' a) [(Branch' a)] -- match
     | Dirac (AST' a)
     | Bind  a (AST' a) (AST' a)
@@ -173,7 +175,7 @@ data AST
     | CoerceTo_   (Some2 Coercion) AST
     | UnsafeTo_   (Some2 Coercion) AST
     | PrimOp_     PrimOp  [AST]
-    | ArrayOp_    (SealedOp ArrayOp) [AST]
+    | ArrayOp_    ArrayOp [AST]
     | NaryOp_     NaryOp  [AST]
     | Literal_    (Some1 Literal)
     | Empty_

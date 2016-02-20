@@ -416,14 +416,11 @@ inferType = inferType_
         e1' <- checkType_ typ1 e1
         return . TypedAST typ1 $ syn (Ann_ typ1 :$ e1' :* End)
 
-    U.PrimOp_ op es -> inferPrimOp op es
+    U.PrimOp_  op es -> inferPrimOp  op es
 
-    U.ArrayOp_ (U.SealedOp op) es -> do
-        let (typs, typ1) = sing_ArrayOp op
-        es' <- checkSArgs typs es
-        return . TypedAST typ1 $ syn (ArrayOp_ op :$ es')
+    U.ArrayOp_ op es -> inferArrayOp op es
 
-    U.NaryOp_ op es -> do
+    U.NaryOp_  op es -> do
         mode <- getMode
         TypedASTs typ es' <-
             case mode of
@@ -588,6 +585,42 @@ inferType = inferType_
 
   inferPrimOp _ _ = error "TODO: inferPrimOp"
 
+
+  inferArrayOp :: U.ArrayOp
+               -> [U.AST]
+               -> TypeCheckMonad (TypedAST abt)
+  inferArrayOp U.Index_ es =
+      case es of
+        [e1, e2] -> do TypedAST typ1 e1' <- inferType_ e1
+                       case typ1 of
+                         SArray typ2 -> do
+                           e2' <- checkType_ SNat e2
+                           return . TypedAST typ2 $
+                                  syn (ArrayOp_ (Index typ2) :$ e1' :* e2' :* End)
+                         _ -> typeMismatch (Left "HArray") (Right typ1)
+        _        -> failwith "Passed wrong number of arguments"
+
+  inferArrayOp U.Size es =
+      case es of
+        [e] -> do TypedAST typ e' <- inferType_ e
+                  case typ of
+                    SArray typ1 -> do
+                       return . TypedAST SNat $
+                              syn (ArrayOp_ (Size typ1) :$ e' :* End)
+                    _ -> typeMismatch (Left "HArray") (Right typ)
+        _   -> failwith "Passed wrong number of arguments"
+
+  inferArrayOp U.Reduce es =
+      case es of
+        [e1, e2, e3] -> do TypedAST typ e2' <- inferType_ e2
+                           e3' <- checkType_ (SArray typ) e3
+                           e1' <- checkType_ (SFun typ (SFun typ typ)) e1
+                           return . TypedAST typ $
+                                  syn (ArrayOp_ (Reduce typ) :$ e1'
+                                                             :* e2'
+                                                             :* e3'
+                                                             :* End)
+        _            -> failwith "Passed wrong number of arguments"
 
 make_NaryOp :: Sing a -> U.NaryOp -> TypeCheckMonad (NaryOp a)
 make_NaryOp a U.And  = isBool a >>= \Refl -> return And
@@ -855,6 +888,9 @@ checkType = checkType_
         :: forall b. Sing b -> U.AST -> TypeCheckMonad (abt '[] b)
     checkType_ typ0 e0 =
         case e0 of
+        -- Change of direction rule suggests this doesn't need to be here
+        -- We keep it here in case, we later use a U.Lam which doesn't
+        -- carry the type of its variable 
         U.Lam_ x (U.SSing typ) e1 ->
             case typ0 of
             SFun typ1 typ2 ->

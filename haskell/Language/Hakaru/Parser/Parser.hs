@@ -104,7 +104,8 @@ prefix s f = Ex.Prefix (f <$ reservedOp s)
 
 table :: OperatorTable (AST' Text)
 table =
-    [ [ prefix "+"  id
+    [ [ Ex.Postfix array_index ]
+    , [ prefix "+"  id
       , prefix "-"  (App (Var "negate"))]
     , [ binary "^"  Ex.AssocRight
       , binary "**" Ex.AssocRight]
@@ -250,6 +251,10 @@ array_expr =
         <*> expr
         <*> semiblockExpr
         )
+
+array_index :: Parser (AST' Text -> AST' Text)
+array_index = flip Index <$> brackets expr
+
 
 if_expr :: Parser (AST' Text)
 if_expr =
