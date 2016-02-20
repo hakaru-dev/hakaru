@@ -93,6 +93,7 @@ binop s x y
     | s == "+"  = NaryOp Sum  [x, y]
     | s == "-"  = NaryOp Sum  [x, Var "negate" `App` y]
     | s == "*"  = NaryOp Prod [x, y]
+    | s == "/"  = NaryOp Prod [x, Var "recip" `App` y]
     | s == "<"  = Var "less" `App` x `App` y
     | otherwise = Var s `App` x `App` y
 
@@ -255,6 +256,26 @@ array_expr =
 array_index :: Parser (AST' Text -> AST' Text)
 array_index = flip Index <$> brackets expr
 
+plate_expr :: Parser (AST' Text)
+plate_expr =
+    reserved "plate"
+    *> (Plate
+        <$> identifier
+        <*  symbol "of"
+        <*> expr
+        <*> semiblockExpr
+        )
+
+chain_expr :: Parser (AST' Text)
+chain_expr =
+    reserved "chain"
+    *> (Chain
+        <$> identifier
+        <*> expr
+        <*> expr
+        <*> semiblockExpr
+        )
+
 
 if_expr :: Parser (AST' Text)
 if_expr =
@@ -324,6 +345,8 @@ term =  try if_expr
     -- <|> try data_expr
     <|> try expect_expr
     <|> try array_expr
+    <|> try plate_expr
+    <|> try chain_expr
     <|> try let_expr
     <|> try bind_expr
     <|> try call_expr

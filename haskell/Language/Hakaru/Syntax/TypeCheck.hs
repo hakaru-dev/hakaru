@@ -168,10 +168,12 @@ mustCheck = go
     -- down the wrong path?
     go (U.Case_ _ _)      = True
 
-    go (U.Dirac_  e1)     = mustCheck e1
-    go (U.MBind_  _ _ e2) = mustCheck e2
-    go (U.MeasureOp_ _ _) = False
-    go (U.Expect_ _ _ e2) = mustCheck e2
+    go (U.Dirac_  e1)        = mustCheck e1
+    go (U.MBind_  _ _ e2)    = mustCheck e2
+    go (U.Plate_  _ _ e2)    = mustCheck e2
+    go (U.Chain_  _ _ e2 e3) = mustCheck e2 && mustCheck e3
+    go (U.MeasureOp_ _ _)    = False
+    go (U.Expect_ _ _ e2)    = mustCheck e2
 
 
 ----------------------------------------------------------------
@@ -507,6 +509,17 @@ inferType = inferType_
                     _ -> typeMismatch (Left "HMeasure") (Right typ3)
                 -}
             _ -> typeMismatch (Left "HMeasure") (Right typ1)
+
+    U.Plate_ x e1 e2 -> do
+        e1' <- checkType_ SNat e1
+        let x' = U.makeVar x SNat
+        pushCtx x' $ do
+            TypedAST typ2 e2' <- inferType_ e2
+            case typ2 of
+                SMeasure typ3 ->
+                    return . TypedAST (SMeasure . SArray $ typ3) $
+                           syn (Plate :$ e1' :* bind x' e2' :* End)
+                _ -> typeMismatch (Left "HMeasure") (Right typ2)
 
     U.Expect_ x e1 e2 -> do
         TypedAST typ1 e1' <- inferType_ e1
@@ -975,6 +988,17 @@ checkType = checkType_
                         e2' <- checkBinder (U.makeVar x typ2) typ0 e2
                         return $ syn (MBind :$ e1' :* e2' :* End)
                     _ -> typeMismatch (Right typ0) (Right typ1)
+            _ -> typeMismatch (Right typ0) (Left "HMeasure")
+
+        U.Plate_ x e1 e2 ->
+            case typ0 of
+            SMeasure typ1 -> do
+                e1' <- checkType_ SNat e1
+                case typ1 of
+                    SArray typ2 -> do
+                        e2' <- checkBinder (U.makeVar x SNat) (SMeasure typ2) e2
+                        return $ syn (Plate :$ e1' :* e2' :* End)
+                    _ -> typeMismatch (Right typ1) (Left "HArray")
             _ -> typeMismatch (Right typ0) (Left "HMeasure")
 
         U.Expect_ x e1 e2 ->

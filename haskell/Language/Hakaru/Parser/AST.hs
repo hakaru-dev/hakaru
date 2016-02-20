@@ -141,6 +141,8 @@ data AST' a
     | Case  (AST' a) [(Branch' a)] -- match
     | Dirac (AST' a)
     | Bind  a (AST' a) (AST' a)
+    | Plate a (AST' a) (AST' a)
+    | Chain a (AST' a) (AST' a) (AST' a)
     | Expect a (AST' a) (AST' a)
     | Msum  [AST' a]
     | Data  a [TypeAST']
@@ -185,5 +187,7 @@ data AST
     | MeasureOp_  (SealedOp MeasureOp) [AST]
     | Dirac_      AST
     | MBind_      Name    AST AST
+    | Plate_      Name    AST AST
+    | Chain_      Name    AST AST AST
     | Expect_     Name    AST AST
     | Superpose_  [(AST, AST)]
