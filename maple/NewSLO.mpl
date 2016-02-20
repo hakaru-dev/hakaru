@@ -113,7 +113,7 @@ NewSLO := module ()
         ModuleLoad, ModuleUnload, verify_measure,
         find_vars, find_constraints, interpret, reconstruct, invert, 
         get_var_pos, get_int_pos,
-        promote, change_var, disint2;
+        avoid_capture, change_var, disint2;
   export
      # note that these first few are smart constructors (for themselves):
          app, idx, integrate, applyintegrand,
@@ -730,11 +730,11 @@ NewSLO := module ()
 
     member(main_var, vars, 'p_mv');
     r_in_sol := map(get_var_pos, in_sol, vars);
-    would_capture := map(x -> `if`(op(2,x) > p_mv, x, NULL), r_in_sol);
+    would_capture := map2(op, 1, r_in_sol);
 
     # May have to pull the integral for main_var up a few levels
     interpret(
-      [ %Promote(main_var, p_mv, [seq(i, i in would_capture)])
+      [ %WouldCapture(main_var, p_mv, [seq(i, i in would_capture)])
       , %Change(main_var, t = to_invert, sol, flip)
       , %ToTop(t)
       , %Drop(t)],
@@ -872,12 +872,14 @@ NewSLO := module ()
     end if;
   end proc;
 
-  # promote is essentially "inverse banish", where we pull integrals
+  # avoid_capture is essentially "inverse banish", where we pull integrals
   # up rather than pushing them down.  The list contains which variables
-  # to promote over; %Top is a special variable that means "promote all
-  # the way to the top"
-  promote := proc(task :: %Promote(name, posint, list), chg, path, part)
-    local x, p, here, vars, new_path, go_past, to_top, work, n, pos, y, v;
+  # would be captured by the 'main' one.  %Top is a special variable that
+  # just means that we should just push the one integral to the top, but
+  # there's no need to rearrange anything else.
+  avoid_capture := proc(task :: %WouldCapture(name, posint, list), chg, path, part)
+    local x, p, here, there, vars, new_path, go_past, to_top, work, n, pos, 
+      y, v, scope;
 
     go_past := convert(map2(op, 1, op(3,task)), 'set');
     to_top := member(%Top, go_past);
@@ -892,13 +894,13 @@ NewSLO := module ()
       x := op(1,task);
       p := op(2,task);
 
-      if p = n then
-        if to_top then
-          return interpret(chg, path, part)
-        else
-          error "already at top, but asking to go past %1", go_past;
-        end if;
+      if p = n and to_top then
+        return interpret(chg, path, part)
       end if;
+
+      # two-pass algorithm:
+      # 1. push the integral on the main variable "up", past the others
+      # 2. push all the weights "down" into scope
 
       # for efficiency, work with a table, not a list
       pos := p+1;
@@ -906,6 +908,7 @@ NewSLO := module ()
       new_path := table(path);
       here  := path[p];
 
+      # first pass
       while work do
         y := new_path[pos];
         if type(y, specfunc(%weight)) then
@@ -915,13 +918,42 @@ NewSLO := module ()
         elif type(y, specfunc(%int)) then
           v := op([1,1], y);
           go_past := go_past minus {v};
-          # surely we're missing a test here?
+          # TODO: surely we're missing a test here for the bounds
           new_path[pos-1] := y;
           new_path[pos] := here;
           pos := pos + 1;
           work := evalb(go_past = {} and pos <= n);
         else
           error "How do I move past a %1 ?", eval(y);
+        end if;
+      end do;
+
+      # second pass
+      scope := NULL;
+      for pos from n to 2 by -1 do
+        y := new_path[pos];
+        if type(y, specfunc(%int)) then
+          scope := op([1,1], y), scope;
+        elif type(y, specfunc(%weight)) then
+          vars := indets(y, 'name');
+          vars := `if`(member(x, vars), vars union go_past, vars);
+          vars := vars intersect go_past;
+          if vars <> {} then # if no problem vars, keep going
+            there := new_path[pos-1];
+            if type(there, specfunc(%int)) then
+              # TODO: surely we're missing a test here for the bounds
+              scope := op([1,1], there), scope;
+              new_path[pos-1] := y;
+              new_path[pos] := there;
+            elif type(there, specfunc(%weight)) then
+              new_path[pos-1] := %weight(op(1,y) * op(1, there));
+              new_path[pos] := %weight(1); # don't mess up the length
+            else
+              error "how do I move a weight below a %1", there;
+            end if;
+          end if;
+        else
+          error "How do I move below a %1 ?", y;
         end if;
       end do;
 
@@ -944,8 +976,8 @@ NewSLO := module ()
       return ans;
     elif type(chg[1], specfunc(%Change)) then
       change_var(chg[1], chg[2..-1], path, part);
-    elif type(chg[1], specfunc(%Promote)) then
-      promote(chg[1], chg[2..-1], path, part);
+    elif type(chg[1], specfunc(%WouldCapture)) then
+      avoid_capture(chg[1], chg[2..-1], path, part);
     elif type(chg[1], specfunc(%ToTop)) then
       var := op([1,1], chg);
       if type(path[-1], specfunc(%int)) and op([-1,1,1], path) = var then
@@ -953,7 +985,7 @@ NewSLO := module ()
       else
 
         pos := get_int_pos(var, path);
-        interpret([%Promote(var, pos, [%Top]), op(2..-1,chg)], path, part); 
+        interpret([%WouldCapture(var, pos, [%Top]), op(2..-1,chg)], path, part); 
       end if;
     elif type(chg[1], specfunc(%Drop)) then
       if type(path[-1], specfunc(%int)) and op([-1,1,1], path) = op([1,1], chg) then

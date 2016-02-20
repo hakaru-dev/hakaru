@@ -61,7 +61,7 @@ normalFB1 :=
   Bind(Gaussian(x,1), y, 
   Ret(Pair((y+y)+x, Unit)))):
 
-normalFB1r := {}:
+normalFB1r := {Weight(1/26*exp(-1/26*t^2)/Pi^(1/2)*13^(1/2)*2^(1/2),Ret(Unit))}:
 
 ###########
 #
