@@ -68,6 +68,9 @@ primTypes =
 t2 :: (U.AST -> U.AST -> U.AST) -> Symbol U.AST
 t2 f = TLam $ \a -> TLam $ \b -> TNeu (f a b)
 
+t3 :: (U.AST -> U.AST -> U.AST -> U.AST) -> Symbol U.AST
+t3 f = TLam $ \a -> TLam $ \b -> TLam $ \c -> TNeu (f a b c)
+
 type SymbolTable a = [(Text, Symbol U.AST)]
 
 primTable :: SymbolTable a
@@ -99,6 +102,9 @@ primTable =
     ,("negate",     primPrimOp1 U.Negate)
     ,("recip",      primPrimOp1 U.Recip)
     ,("^",          primPrimOp2 U.NatPow)
+    -- ArrayOps
+    ,("size",       TLam $ \x -> TNeu $ U.ArrayOp_ U.Size [x])
+    ,("reduce",     t3 $ \x y z -> U.ArrayOp_ U.Reduce [x, y, z])
     ]
 
 primPrimOp1, primPrimOp2 :: U.PrimOp -> Symbol U.AST
