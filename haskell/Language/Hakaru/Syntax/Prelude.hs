@@ -80,7 +80,6 @@ module Language.Hakaru.Syntax.Prelude
     , poisson, poisson'
     , gamma, gamma'
     , beta, beta'
-    , dp
     , plate, plate'
     , chain, chain'
     , invgamma
@@ -1315,13 +1314,6 @@ beta' a b =
         $ x ** (fromProb a - real_ 1)
             * unsafeProb (real_ 1 - fromProb x) ** (fromProb b - real_ 1)
             / betaFunc a b
-
-
-dp  :: (ABT Term abt)
-    => abt '[] 'HProb
-    -> abt '[] ('HMeasure a)
-    -> abt '[] ('HMeasure ('HMeasure a))
-dp e1 e2 = measure2_ (DirichletProcess . sUnMeasure $ typeOf e2) e1 e2
 
 
 plate, plate'

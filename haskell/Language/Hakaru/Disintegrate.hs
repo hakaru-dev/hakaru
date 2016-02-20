@@ -573,8 +573,6 @@ constrainValueMeasureOp v0 = go
         constrainValue v0 (P.gamma'   e1 e2)
     go Beta        = \(e1 :* e2 :* End) ->
         constrainValue v0 (P.beta'    e1 e2)
-    go (DirichletProcess a) = \(e1 :* e2 :* End) ->
-        error "TODO: constrainValueMeasureOp{DirichletProcess}"
     go (Plate a)   = \(e1 :* End)       -> bot -- TODO: can we use P.plate'?
     go (Chain s a) = \(e1 :* e2 :* End) ->
         error "TODO: constrainValueMeasureOp{Chain}" -- We might could use P.chain' except that has a SingI constraint
@@ -985,8 +983,6 @@ constrainOutcomeMeasureOp v0 = go
         error "TODO: constrainOutcomeMeasureOp{Gamma}"
     go Beta = \(e1 :* e2 :* End) ->
         error "TODO: constrainOutcomeMeasureOp{Beta}"
-    go (DirichletProcess _) = \(e1 :* e2 :* End) ->
-        error "TODO: constrainOutcomeMeasureOp{DirichletProcess}"
     go (Plate _) = \(e1 :* End) ->
         error "TODO: constrainOutcomeMeasureOp{Plate}"
     go (Chain _ _) = \(e1 :* e2 :* End) ->

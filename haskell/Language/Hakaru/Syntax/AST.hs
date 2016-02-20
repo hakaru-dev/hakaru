@@ -543,9 +543,6 @@ data MeasureOp :: [Hakaru] -> Hakaru -> * where
     Gamma       :: MeasureOp '[ 'HProb, 'HProb ] 'HProb
     Beta        :: MeasureOp '[ 'HProb, 'HProb ] 'HProb
 
-    DirichletProcess
-        :: !(Sing a)
-        -> MeasureOp '[ 'HProb, 'HMeasure a ] ('HMeasure a)
     -- TODO: unify Plate and Chain as @sequence@ a~la traversable?
     Plate
         :: !(Sing a)
@@ -578,8 +575,6 @@ instance JmEq2 MeasureOp where
     jmEq2 Poisson     Poisson     = Just (Refl, Refl)
     jmEq2 Gamma       Gamma       = Just (Refl, Refl)
     jmEq2 Beta        Beta        = Just (Refl, Refl)
-    jmEq2 (DirichletProcess a) (DirichletProcess b) =
-        jmEq1 a b >>= \Refl -> Just (Refl, Refl)
     jmEq2 (Plate a) (Plate b) =
         jmEq1 a b >>= \Refl -> Just (Refl, Refl)
     jmEq2 (Chain s a) (Chain t b) =

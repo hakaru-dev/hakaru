@@ -130,9 +130,6 @@ sing_MeasureOp Normal      = (sing `Cons1` sing `Cons1` Nil1, sing)
 sing_MeasureOp Poisson     = (sing `Cons1` Nil1, sing)
 sing_MeasureOp Gamma       = (sing `Cons1` sing `Cons1` Nil1, sing)
 sing_MeasureOp Beta        = (sing `Cons1` sing `Cons1` Nil1, sing)
-sing_MeasureOp (DirichletProcess a) =
-    ( SProb `Cons1` SMeasure a `Cons1` Nil1
-    , SMeasure a)
 sing_MeasureOp (Plate a)   =
     (SArray (SMeasure a) `Cons1` Nil1, SArray a)
 sing_MeasureOp (Chain s a) =

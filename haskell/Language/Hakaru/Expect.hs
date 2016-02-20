@@ -391,9 +391,6 @@ expectMeasure _ Beta = \(a :* b :* End) _ ->
         x_ ** (fromProb a - real_ 1)
         * (unsafeProb (real_ 1 - x) ** (fromProb b - real_ 1))
         / betaFunc a b * c (unsafeProb x)
-expectMeasure _ (DirichletProcess _) = \(p :* m :* End) _ ->
-    ExpectMeasure $ \c ->
-    error "TODO: expectMeasure{DirichletProcess}"
 expectMeasure _ (Plate _) = \(ms :* End) _ ->
     ExpectMeasure $ \c ->
     error "TODO: expectMeasure{Plate}"

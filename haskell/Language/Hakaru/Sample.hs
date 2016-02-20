@@ -332,9 +332,6 @@ evaluateMeasureOp Beta (e1 :* e2 :* End) env =
             return $ Just (VProb $ LF.logFloat x, p)
         v -> case v of {}
 
-evaluateMeasureOp (DirichletProcess _) _ _ =
-    error "evaluateMeasureOp: Dirichlet Processes not implemented yet"
-
 evaluateMeasureOp (Plate _) (e1 :* End) env =
     case evaluate e1 env of
         VArray a -> VMeasure $ \(VProb p) g -> runMaybeT $ do

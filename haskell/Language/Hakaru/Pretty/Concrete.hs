@@ -366,7 +366,6 @@ ppMeasureOp p Normal  = \(e1 :* e2 :* End) -> ppApply2 p "normal"      e1 e2
 ppMeasureOp p Poisson = \(e1 :* End)       -> ppApply1 p "poisson"     e1
 ppMeasureOp p Gamma   = \(e1 :* e2 :* End) -> ppApply2 p "gamma"       e1 e2
 ppMeasureOp p Beta    = \(e1 :* e2 :* End) -> ppApply2 p "beta"        e1 e2
-ppMeasureOp p (DirichletProcess _) = \(e1 :* e2 :* End) -> ppApply2 p "dp" e1 e2
 ppMeasureOp p (Plate _)   = \(e1 :* End)       -> ppApply1 p "plate" e1
 ppMeasureOp p (Chain _ _) = \(e1 :* e2 :* End) -> ppApply2 p "chain" e1 e2
 
