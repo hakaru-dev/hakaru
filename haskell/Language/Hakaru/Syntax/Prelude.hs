@@ -1315,12 +1315,16 @@ beta' a b =
             * unsafeProb (real_ 1 - fromProb x) ** (fromProb b - real_ 1)
             / betaFunc a b
 
+plate :: (ABT Term abt)
+      => abt '[] 'HNat
+      -> (abt '[] 'HNat -> abt '[] ('HMeasure a))
+      -> abt '[] ('HMeasure ('HArray a))
+plate e f = syn (Plate :$ e :* binder Text.empty sing f :* End)
 
-plate, plate'
+plate'
     :: (ABT Term abt, SingI a)
     => abt '[] ('HArray ('HMeasure          a))
     -> abt '[] (         'HMeasure ('HArray a))
-plate e = measure1_ (Plate sing) e
 
 plate' v = reduce r z (mapV m v)
     where
@@ -1330,12 +1334,18 @@ plate' v = reduce r z (mapV m v)
 
 
 -- BUG: remove the 'SingI' requirement!
-chain, chain'
+chain :: (ABT Term abt, SingI s)
+      => abt '[] 'HNat
+      -> abt '[] s
+      -> (abt '[] s -> abt '[] ('HMeasure (HPair a s)))
+      -> abt '[] ('HMeasure (HPair ('HArray a) s))
+chain n s f = syn (Chain :$ n :* s :* binder Text.empty sing f :* End)
+
+chain'
     :: (ABT Term abt, SingI s, SingI a)
     => abt '[] ('HArray (s ':-> 'HMeasure (HPair a s)))
     -> abt '[] s
     -> abt '[] ('HMeasure (HPair ('HArray a) s))
-chain = measure2_ $ Chain sing sing
 
 chain' v s0 = reduce r z (mapV m v) `app` s0
     where
@@ -1419,7 +1429,7 @@ binomial
     -> abt '[] 'HProb
     -> abt '[] ('HMeasure 'HInt)
 binomial n p =
-    sumV <$> plate (constV n ((\b -> if_ b (int_ 1) (int_ 0)) <$> bern p))
+    sumV <$> plate n (const $ ((\b -> if_ b (int_ 1) (int_ 0)) <$> bern p))
 
 -- BUG: would it be better to 'observe' that @p >= 1@ before doing everything? At least that way things would be /defined/ for all inputs...
 negativeBinomial
@@ -1448,7 +1458,7 @@ dirichlet
     :: (ABT Term abt)
     => abt '[] ('HArray 'HProb)
     -> abt '[] ('HMeasure ('HArray 'HProb))
-dirichlet a = normalizeV <$> plate (mapV (`gamma` prob_ 1) a)
+dirichlet a = normalizeV <$> plate (size a) (\ i -> a ! i  `gamma` prob_ 1)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

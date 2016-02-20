@@ -237,6 +237,18 @@ ppSCon p Summate = \(e1 :* e2 :* e3 :* End) ->
         , toDoc $ parens True (ppBinder e3)
         ]
 
+ppSCon p Plate = \(e1 :* e2 :* End) -> 
+    ppFun 11 "plate"
+        [ toDoc (ppArg e1) <+> PP.char '$'
+        , toDoc $ ppBinder e2
+        ]
+
+ppSCon p Chain = \(e1 :* e2 :* e3 :* End) ->
+    ppFun 11 "chain"
+        [ toDoc (ppArg e1)
+        , toDoc (ppArg e2) <+> PP.char '$'
+        , toDoc $ ppBinder e2
+        ]
 
 ppCoerceTo :: ABT Term abt => Int -> Coercion a b -> abt '[] a -> Docs
 ppCoerceTo =
@@ -366,9 +378,6 @@ ppMeasureOp p Normal  = \(e1 :* e2 :* End) -> ppApply2 p "normal"      e1 e2
 ppMeasureOp p Poisson = \(e1 :* End)       -> ppApply1 p "poisson"     e1
 ppMeasureOp p Gamma   = \(e1 :* e2 :* End) -> ppApply2 p "gamma"       e1 e2
 ppMeasureOp p Beta    = \(e1 :* e2 :* End) -> ppApply2 p "beta"        e1 e2
-ppMeasureOp p (Plate _)   = \(e1 :* End)       -> ppApply1 p "plate" e1
-ppMeasureOp p (Chain _ _) = \(e1 :* e2 :* End) -> ppApply2 p "chain" e1 e2
-
 
 -- BUG: doubles may not properly and unambiguously represent the correct rational! Consider using 'ppRatio' instead.
 instance Pretty Literal where

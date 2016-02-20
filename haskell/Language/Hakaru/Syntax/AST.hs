@@ -543,26 +543,6 @@ data MeasureOp :: [Hakaru] -> Hakaru -> * where
     Gamma       :: MeasureOp '[ 'HProb, 'HProb ] 'HProb
     Beta        :: MeasureOp '[ 'HProb, 'HProb ] 'HProb
 
-    -- TODO: unify Plate and Chain as @sequence@ a~la traversable?
-    Plate
-        :: !(Sing a)
-        -> MeasureOp '[ 'HArray ('HMeasure a) ] ('HArray a)
-    -- TODO: if we swap the order of arguments to 'Chain', we could
-    -- change the functional argument to be a binding form in order
-    -- to avoid the need for lambdas. It'd no longer be trivial to
-    -- see 'Chain' as an instance of @sequence@, but might be worth
-    -- it... Of course, we also need to handle the fact that it's
-    -- an array of transition functions; i.e., we could do:
-    -- > chain n s0 $ \i s -> do {...}
-    Chain
-        :: !(Sing s)
-        -> !(Sing a)
-        -> MeasureOp
-            '[ 'HArray (s ':-> 'HMeasure (HPair a s))
-            ,  s
-            ] (HPair ('HArray a) s)
-
-
 -- TODO: instance Read (MeasureOp args a)
 deriving instance Show (MeasureOp args a)
 
@@ -575,13 +555,7 @@ instance JmEq2 MeasureOp where
     jmEq2 Poisson     Poisson     = Just (Refl, Refl)
     jmEq2 Gamma       Gamma       = Just (Refl, Refl)
     jmEq2 Beta        Beta        = Just (Refl, Refl)
-    jmEq2 (Plate a) (Plate b) =
-        jmEq1 a b >>= \Refl -> Just (Refl, Refl)
-    jmEq2 (Chain s a) (Chain t b) =
-        jmEq1 s t >>= \Refl ->
-        jmEq1 a b >>= \Refl ->
-        Just (Refl, Refl)
-    jmEq2 _           _ = Nothing
+    jmEq2 _           _           = Nothing
 
 -- TODO: We could optimize this like we do for 'Literal'
 instance Eq2 MeasureOp where
@@ -666,6 +640,25 @@ data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
         '[ LC ('HMeasure a)
         ,  '( '[ a ], 'HMeasure b)
         ] ('HMeasure b)
+
+    -- TODO: unify Plate and Chain as @sequence@ a~la traversable?
+    Plate :: SCon 
+        '[ LC 'HNat
+        , '( '[ 'HNat ], 'HMeasure a)
+        ] ('HMeasure ('HArray a))
+
+
+    -- TODO: if we swap the order of arguments to 'Chain', we could
+    -- change the functional argument to be a binding form in order
+    -- to avoid the need for lambdas. It'd no longer be trivial to
+    -- see 'Chain' as an instance of @sequence@, but might be worth
+    -- it... Of course, we also need to handle the fact that it's
+    -- an array of transition functions; i.e., we could do:
+    -- > chain n s0 $ \i s -> do {...}
+    Chain :: SCon
+        '[ LC 'HNat, LC s
+        , '( '[ s ],  'HMeasure (HPair a s))
+        ] ('HMeasure (HPair ('HArray a) s))
 
 
     -- -- Continuous and discrete integration.

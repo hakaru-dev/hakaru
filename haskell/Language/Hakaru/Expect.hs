@@ -326,6 +326,8 @@ expectTerm p (Superpose_ es) xs =
 expectTerm p (Expect    :$ _) _ = case p of {}
 expectTerm p (Integrate :$ _) _ = case p of {}
 expectTerm p (Summate   :$ _) _ = case p of {}
+expectTerm p (Plate     :$ _) _ = error "TODO: expectTerm{Plate}"
+expectTerm p (Chain     :$ _) _ = error "TODO: expectTerm{Chain}"
 
 
 expectBranch
@@ -391,12 +393,6 @@ expectMeasure _ Beta = \(a :* b :* End) _ ->
         x_ ** (fromProb a - real_ 1)
         * (unsafeProb (real_ 1 - x) ** (fromProb b - real_ 1))
         / betaFunc a b * c (unsafeProb x)
-expectMeasure _ (Plate _) = \(ms :* End) _ ->
-    ExpectMeasure $ \c ->
-    error "TODO: expectMeasure{Plate}"
-expectMeasure _ (Chain _ _) = \(mz :* s0 :* End) _ ->
-    ExpectMeasure $ \c ->
-    error "TODO: expectMeasure{Chain}"
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

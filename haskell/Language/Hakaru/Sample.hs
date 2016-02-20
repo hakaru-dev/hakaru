@@ -201,6 +201,60 @@ evaluateScon MBind (e1 :* e2 :* End) env =
                      v -> case v of {}
       v -> case v of {}
 
+evaluateScon Plate (n :* e2 :* End) env =
+    case evaluate n env of
+      VNat n' -> caseBind e2 $ \x e' ->
+                     VMeasure $ \(VProb p) g -> runMaybeT $ do
+                        let a = V.generate (fromNat n') $ \v ->
+                                  let v' = VNat $ unsafeNat v in
+                                  evaluate e' (updateEnv (EAssoc x v') env)
+                        evaluates <- V.mapM (performMaybe g) a
+                        let (v', ps) = V.unzip evaluates
+                        return ( VArray v'
+                               , VProb $ p * V.product (V.map (\(VProb x) -> x) ps)
+                               )
+      v       -> case v of {}
+
+  where performMaybe
+            :: MWC.GenIO
+            -> Value ('HMeasure a)
+            -> MaybeT IO (Value a, Value 'HProb)
+        performMaybe g (VMeasure m) = MaybeT $ m (VProb 1) g
+
+evaluateScon Chain (n :* s :* e :* End) env =
+    case (evaluate n env, evaluate s env) of
+        (VNat n', start) ->
+            caseBind e $ \x e' ->
+            let s = VLam $ \v -> evaluate e' (updateEnv (EAssoc x v) env) in
+            VMeasure (\(VProb p) g -> runMaybeT $ do
+             (evaluates, sout) <- runStateT (replicateM (fromNat n') $ convert g s) start
+             let (v', ps) = unzip evaluates
+             return ( VDatum $ dPair (VArray . V.fromList $ v') sout
+                    , VProb $ p * product (map (\(VProb x) -> x) ps)
+                    ))
+        v -> case v of {}
+
+   where convert :: MWC.GenIO
+                 -> Value (s ':-> 'HMeasure (HPair a s))
+                 -> StateT (Value s) (MaybeT IO) (Value a, Value 'HProb)
+         convert g (VLam f) =
+             StateT $ \s' ->
+              case f s' of
+                   VMeasure f' -> do
+                       (as'',p') <- MaybeT (f' (VProb 1) g)
+                       let (a, s'') = unPair as''
+                       return ((a,p'),s'')
+                   v -> case v of {}
+
+         unPair :: Value (HPair a b) -> (Value a, Value b)
+         unPair (VDatum (Datum "pair"
+                         (Inl (Et (Konst a)
+                               (Et (Konst b) Done))))) =
+             (a, b)
+         unPair x = case x of {}
+
+
+
 evaluatePrimOp
     ::  ( ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => PrimOp typs a
@@ -331,52 +385,6 @@ evaluateMeasureOp Beta (e1 :* e2 :* End) env =
             x <- MWCD.beta (LF.fromLogFloat v1) (LF.fromLogFloat v2) g
             return $ Just (VProb $ LF.logFloat x, p)
         v -> case v of {}
-
-evaluateMeasureOp (Plate _) (e1 :* End) env =
-    case evaluate e1 env of
-        VArray a -> VMeasure $ \(VProb p) g -> runMaybeT $ do
-          evaluates <- V.mapM (performMaybe g) a
-          let (v', ps) = V.unzip evaluates
-          return ( VArray v'
-                 , VProb $ p * V.product (V.map (\(VProb x) -> x) ps)
-                 )
-        v -> case v of {}
-
-  where performMaybe
-            :: MWC.GenIO
-            -> Value ('HMeasure a)
-            -> MaybeT IO (Value a, Value 'HProb)
-        performMaybe g (VMeasure m) = MaybeT $ m (VProb 1) g
-
-evaluateMeasureOp (Chain _ _) (e1 :* e2 :* End) env =
-    case (evaluate e1 env, evaluate e2 env) of
-        (VArray v, s) -> VMeasure (\(VProb p) g -> runMaybeT $ do
-             (evaluates, sout) <- runStateT (V.mapM (convert g) v) s
-             let (v', ps) = V.unzip evaluates
-             return ( VDatum $ dPair (VArray v') sout
-                    , VProb $ p * V.product (V.map (\(VProb x) -> x) ps)
-                    ))
-        v -> case v of {}
-
-   where convert :: MWC.GenIO
-                 -> Value (s ':-> 'HMeasure (HPair a s))
-                 -> StateT (Value s) (MaybeT IO) (Value a, Value 'HProb)
-         convert g (VLam f) =
-             StateT $ \s' ->
-              case f s' of
-                   VMeasure f' -> do
-                       (as'',p') <- MaybeT (f' (VProb 1) g)
-                       let (a, s'') = unPair as''
-                       return ((a,p'),s'')
-                   v -> case v of {}
-
-         unPair :: Value (HPair a b) -> (Value a, Value b)
-         unPair (VDatum (Datum "pair"
-                         (Inl (Et (Konst a)
-                               (Et (Konst b) Done))))) =
-             (a, b)
-         unPair x = case x of {}
-
 
 evaluateNaryOp
     :: (ABT Term abt)
