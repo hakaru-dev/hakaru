@@ -121,7 +121,7 @@ mustCheck = go
     -- able to infer the result of a fully saturated primop by
     -- looking up it's type and then checking all the arguments.
     go (U.PrimOp_  _ _)   = False
-    go (U.ArrayOp_ _ _)   = False
+    go (U.ArrayOp_ _ es)  = F.all mustCheck es
 
     -- In strict mode: if we can infer any of the arguments, then
     -- we can check all the rest at the same type.
@@ -625,14 +625,17 @@ inferType = inferType_
 
   inferArrayOp U.Reduce es =
       case es of
-        [e1, e2, e3] -> do TypedAST typ e2' <- inferType_ e2
-                           e3' <- checkType_ (SArray typ) e3
-                           e1' <- checkType_ (SFun typ (SFun typ typ)) e1
-                           return . TypedAST typ $
-                                  syn (ArrayOp_ (Reduce typ) :$ e1'
-                                                             :* e2'
-                                                             :* e3'
-                                                             :* End)
+        [e1, e2, e3] -> do
+           TypedAST typ e1' <- inferType_ e1
+           case typ of
+             SFun typ1 typ2 -> do
+               Refl <- jmEq1_ typ2 (SFun typ1 typ1)
+               e2' <- checkType_ typ1 e2
+               e3' <- checkType_ (SArray typ1) e3
+               return . TypedAST typ1 $
+                      syn (ArrayOp_ (Reduce typ1)
+                           :$ e1' :* e2' :* e3' :* End)
+             _ -> typeMismatch (Right typ) (Left "HFun")
         _            -> failwith "Passed wrong number of arguments"
 
 make_NaryOp :: Sing a -> U.NaryOp -> TypeCheckMonad (NaryOp a)
