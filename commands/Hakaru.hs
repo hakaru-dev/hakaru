@@ -3,7 +3,7 @@
 module Main where
 
 import qualified Language.Hakaru.Parser.AST as U
-import           Language.Hakaru.Parser.Parser
+import           Language.Hakaru.Parser.Parser hiding (style)
 import           Language.Hakaru.Parser.SymbolResolve (resolveAST)
 
 
@@ -20,6 +20,7 @@ import           Language.Hakaru.Pretty.Concrete
 import           Control.Monad
 import           Data.Text
 import qualified Data.Text.IO as IO
+import           Text.PrettyPrint
 
 import qualified System.Random.MWC as MWC
 import           System.Environment
@@ -41,7 +42,9 @@ illustrate :: Sing a -> MWC.GenIO -> Value a -> IO ()
 illustrate (SMeasure s) g (VMeasure m) = do
     Just (samp,_) <- m (VProb 1) g
     illustrate s g samp
-illustrate _ _ x = print . prettyValue $ x
+illustrate _ _ x =   putStrLn
+                   . renderStyle style {mode = LeftMode}
+                   . prettyValue $ x
 
 runHakaru :: MWC.GenIO -> Text -> IO ()
 runHakaru g prog =
