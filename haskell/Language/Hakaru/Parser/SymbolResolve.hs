@@ -76,35 +76,37 @@ type SymbolTable a = [(Text, Symbol U.AST)]
 primTable :: SymbolTable a
 primTable =
     [-- Datatype constructors
-     ("pair",       primPair)
-    ,("left",       primLeft)
-    ,("right",      primRight)
-    ,("true",       TNeu $ true_)
-    ,("false",      TNeu $ false_)
+     ("pair",        primPair)
+    ,("left",        primLeft)
+    ,("right",       primRight)
+    ,("true",        TNeu $ true_)
+    ,("false",       TNeu $ false_)
      -- Coercions
-    ,("fromProb",   primCoerce cFromProb)
-    ,("unsafeProb", primUnsafe cFromProb)
-    ,("nat2real",   primCoerce cNat2Real)
-    ,("nat2prob",   primCoerce cNat2Prob)
+    ,("fromProb",    primCoerce cFromProb)
+    ,("unsafeProb",  primUnsafe cFromProb)
+    ,("nat2real",    primCoerce cNat2Real)
+    ,("nat2prob",    primCoerce cNat2Prob)
      -- Measures
-    ,("uniform",    primMeasure2 (U.SealedOp T.Uniform))
-    ,("normal",     primMeasure2 (U.SealedOp T.Normal))
-    ,("gamma",      primMeasure2 (U.SealedOp T.Gamma))
-    ,("beta",       primMeasure2 (U.SealedOp T.Beta))
-    ,("bern",       primBern)
-    ,("weight",     primWeight)
-    ,("dirac",      TLam $ TNeu . U.Dirac_)
-    ,("reject",     TNeu $ U.Superpose_ [])    
+    ,("uniform",     primMeasure2 (U.SealedOp T.Uniform))
+    ,("normal",      primMeasure2 (U.SealedOp T.Normal))
+    ,("gamma",       primMeasure2 (U.SealedOp T.Gamma))
+    ,("beta",        primMeasure2 (U.SealedOp T.Beta))
+    ,("categorical", TLam $ \x -> TNeu $ U.MeasureOp_
+                                  (U.SealedOp T.Categorical) [x])
+    ,("bern",        primBern)
+    ,("weight",      primWeight)
+    ,("dirac",       TLam $ TNeu . U.Dirac_)
+    ,("reject",      TNeu $ U.Superpose_ [])    
     -- PrimOps
-    ,("**",         primPrimOp2 U.RealPow)
-    ,("exp",        primPrimOp1 U.Exp)
-    ,("less",       primPrimOp2 U.Less)
-    ,("negate",     primPrimOp1 U.Negate)
-    ,("recip",      primPrimOp1 U.Recip)
-    ,("^",          primPrimOp2 U.NatPow)
+    ,("**",          primPrimOp2 U.RealPow)
+    ,("exp",         primPrimOp1 U.Exp)
+    ,("less",        primPrimOp2 U.Less)
+    ,("negate",      primPrimOp1 U.Negate)
+    ,("recip",       primPrimOp1 U.Recip)
+    ,("^",           primPrimOp2 U.NatPow)
     -- ArrayOps
-    ,("size",       TLam $ \x -> TNeu $ U.ArrayOp_ U.Size [x])
-    ,("reduce",     t3 $ \x y z -> U.ArrayOp_ U.Reduce [x, y, z])
+    ,("size",        TLam $ \x -> TNeu $ U.ArrayOp_ U.Size [x])
+    ,("reduce",      t3 $ \x y z -> U.ArrayOp_ U.Reduce [x, y, z])
     ]
 
 primPrimOp1, primPrimOp2 :: U.PrimOp -> Symbol U.AST

@@ -41,13 +41,18 @@ style = ITok.makeIndentLanguageDef $ Tok.LanguageDef
     , Tok.nestedComments  = True
     , Tok.identStart      = letter <|> char '_'
     , Tok.identLetter     = alphaNum <|> oneOf "_'"
-    , Tok.opStart         = oneOf "!#$%&*+./<=>?@\\^|-~"
-    , Tok.opLetter        = oneOf "!#$%&*+./<=>?@\\^|-~"
+    , Tok.opStart         = oneOf "!$%&*+./<=>?@\\^|-~"
+    , Tok.opLetter        = oneOf "!$%&*+./<=>?@\\^|-~"
     , Tok.caseSensitive   = True
     , Tok.commentLine     = "#"
     , Tok.reservedOpNames = ops ++ types
     , Tok.reservedNames   = names
     }
+
+comments :: Parser Text
+comments = string "#"
+           *> manyTill anyChar newline
+           *> return ""
 
 lexer :: Tok.GenTokenParser ParserStream () Identity
 lexer = ITok.makeTokenParser style
@@ -368,7 +373,7 @@ indentConfig =
 
 parseHakaru :: Text -> Either ParseError (AST' Text)
 parseHakaru =
-    runParser (expr <* eof) () "<input>" . indentConfig
+    runParser (skipMany comments *> expr <* eof) () "<input>" . indentConfig
 
 withPos :: Parser (AST' a) -> Parser (AST' a)
 withPos x = do
