@@ -49,10 +49,13 @@ style = ITok.makeIndentLanguageDef $ Tok.LanguageDef
     , Tok.reservedNames   = names
     }
 
-comments :: Parser Text
+comments :: Parser ()
 comments = string "#"
            *> manyTill anyChar newline
-           *> return ""
+           *> return ()
+
+emptyLine :: Parser ()
+emptyLine = newline *> return ()
 
 lexer :: Tok.GenTokenParser ParserStream () Identity
 lexer = ITok.makeTokenParser style
@@ -373,7 +376,8 @@ indentConfig =
 
 parseHakaru :: Text -> Either ParseError (AST' Text)
 parseHakaru =
-    runParser (skipMany comments *> expr <* eof) () "<input>" . indentConfig
+    runParser (skipMany (comments <|> emptyLine) *>
+               expr <* eof) () "<input>" . indentConfig
 
 withPos :: Parser (AST' a) -> Parser (AST' a)
 withPos x = do
