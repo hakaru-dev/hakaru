@@ -15,7 +15,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.02.09
+--                                                    2016.02.21
 -- |
 -- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -105,10 +105,11 @@ import Language.Hakaru.Evaluation.DisintegrationMonad
 import qualified Language.Hakaru.Syntax.Prelude as P
 import qualified Language.Hakaru.Expect         as E
 
-{-
+#ifdef __TRACE_DISINTEGRATE__
 import Language.Hakaru.Pretty.Haskell (pretty)
 import Debug.Trace (trace)
--}
+#endif
+
 
 ----------------------------------------------------------------
 
@@ -147,6 +148,9 @@ disintegrateWithVar hint typ m =
     let x = Variable hint (nextFree m `max` nextBind m) typ
     in map (lam_ x) . flip runDis [Some2 m, Some2 (var x)] $ do
         ab    <- perform m
+#ifdef __TRACE_DISINTEGRATE__
+        trace "returned form perform" $ return ()
+#endif
         (a,b) <- emitUnpair ab
         constrainValue (var x) a
         return b
@@ -161,7 +165,7 @@ disintegrate
 disintegrate m =
     disintegrateWithVar
         Text.empty
-        (fst . sUnPair . sUnMeasure $ typeOf m)
+        (fst . sUnPair . sUnMeasure $ typeOf m) -- TODO: change the exception thrown form 'typeOf' so that we know it comes from here
         m
 
 
@@ -244,9 +248,9 @@ evaluateDatum e = viewWhnfDatum <$> evaluate_ e
 -- This is the function called @(|>>)@ in the disintegration paper.
 perform :: forall abt. (ABT Term abt) => MeasureEvaluator abt (Dis abt)
 perform = \e0 ->
-    {-
+#ifdef __TRACE_DISINTEGRATE__
     trace ("\nperform: " ++ show (pretty e0)) $
-    -}
+#endif
     caseVarSyn e0 performVar performTerm
     where
     performTerm :: forall a. Term abt ('HMeasure a) -> Dis abt (Whnf abt a)
@@ -330,9 +334,9 @@ perform = \e0 ->
 -- (namely when dealing with neutral terms)
 atomize :: (ABT Term abt) => TermEvaluator abt (Dis abt)
 atomize e =
-    {-
+#ifdef __TRACE_DISINTEGRATE__
     trace ("\natomize: " ++ show (pretty e)) $
-    -}
+#endif
     traverse21 atomizeCore =<< evaluate_ e
 
 
@@ -392,14 +396,14 @@ getHeapVars =
 -- in the wrong order!
 constrainValue :: (ABT Term abt) => abt '[] a -> abt '[] a -> Dis abt ()
 constrainValue v0 e0 =
-    {-
+#ifdef __TRACE_DISINTEGRATE__
     trace (
         let s = "constrainValue"
         in "\n" ++ s ++ ": "
             ++ show (pretty v0)
             ++ "\n" ++ replicate (length s) ' ' ++ ": "
             ++ show (pretty e0)) $
-    -}
+#endif
     caseVarSyn e0 (constrainVariable v0) $ \t ->
         case t of
         -- There's a bunch of stuff we don't even bother trying to handle
@@ -888,17 +892,18 @@ constrainOutcome
     -> abt '[] ('HMeasure a)
     -> Dis abt ()
 constrainOutcome v0 e0 =
-    {-
+#ifdef __TRACE_DISINTEGRATE__
     trace (
         let s = "constrainOutcome"
         in "\n" ++ s ++ ": "
             ++ show (pretty v0)
             ++ "\n" ++ replicate (length s) ' ' ++ ": "
-            ++ show (pretty e0)) $ -} do
-    w0 <- evaluate_ e0
-    case w0 of
-        Neutral _ -> bot
-        Head_   v -> go v
+            ++ show (pretty e0)) $
+#endif
+    do  w0 <- evaluate_ e0
+        case w0 of
+            Neutral _ -> bot
+            Head_   v -> go v
     where
     impossible = error "constrainOutcome: the impossible happened"
 

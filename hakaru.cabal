@@ -21,10 +21,18 @@ Source-Repository head
     Location: https://github.com/hakaru-dev/hakaru
 
 ----------------------------------------------------------------
+Flag traceDisintegrate
+    Default:     False
+    Description: Insert tracing code to help debug disintegration.
+
+----------------------------------------------------------------
 Library
     Hs-Source-Dirs:    haskell
     Default-Language:  Haskell2010
     GHC-Options:       -Wall -fwarn-tabs
+
+    if flag(traceDisintegrate)
+        Cpp-Options:   -D__TRACE_DISINTEGRATE__
 
     exposed-modules:   Language.Hakaru.Syntax.IClasses,
                        Language.Hakaru.Syntax.ABT,
@@ -180,6 +188,7 @@ Executable simplify
                        pretty           >= 1.1  && < 1.2,
                        hakaru           >= 0.3
 
+----------------------------------------------------------------
 Executable disintegrate
     Main-is:           Disintegrate.hs
     Hs-Source-Dirs:    commands
