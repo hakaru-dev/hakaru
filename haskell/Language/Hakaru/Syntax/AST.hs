@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.19
+--                                                    2016.02.21
 -- |
 -- Module      :  Language.Hakaru.Syntax.AST
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -612,11 +612,6 @@ data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
     -- only have the inductive principles for each HData.
 
     -- -- Type munging
-
-    -- Explicitly given type annotations. (For the other
-    -- change-of-direction rule in bidirectional type checking.)
-    -- N.B., storing a 'Proxy' isn't enough; we need the 'Sing'.
-    Ann_        :: !(Sing a)       -> SCon '[ LC a ] a
     CoerceTo_   :: !(Coercion a b) -> SCon '[ LC a ] b
     UnsafeFrom_ :: !(Coercion a b) -> SCon '[ LC b ] a
     -- TODO: add something like @SafeFrom_ :: Coercion a b -> abt b -> Term abt ('HMaybe a)@ so we can capture the safety of patterns like @if_ (0 <= x) (let x_ = unsafeFrom signed x in...) (...)@ Of course, since we're just going to do case analysis on the result; why not make it a binding form directly?

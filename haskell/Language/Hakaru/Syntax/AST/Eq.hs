@@ -75,8 +75,6 @@ jmEq_S App_      es App_       es' =
     jmEq1 es es' >>= \Refl -> Just (Refl, Refl)
 jmEq_S Let_      es Let_       es' =
     jmEq1 es es' >>= \Refl -> Just (Refl, Refl)
-jmEq_S (Ann_ _)  es (Ann_ _)  es' =
-    jmEq1 es es' >>= \Refl -> Just (Refl, Refl)
 jmEq_S (CoerceTo_ c) (es :* End) (CoerceTo_ c') (es' :* End) = do
     (Refl, Refl) <- jmEq2 es es'
     let t1 = coerceTo c  (typeOf es)
@@ -308,7 +306,6 @@ alphaEq e1 e2 = runReader (go (viewABT e1) (viewABT e2)) emptyAssocs
       sConEq (Lam_   :$ e1) (Lam_   :$ e2) = sArgsEq e1 e2
       --sConEq (App_   :$ e1) (App_   :$ e2) = sArgsEq e1 e2
       --sConEq (Let_   :$ e1) (Let_   :$ e2) = sArgsEq e1 e2
-      sConEq (Ann_ _ :$ e1) (Ann_ _ :$ e2) = sArgsEq e1 e2
       sConEq e1@(PrimOp_ o1 :$ es1)
              e2@(PrimOp_ o2 :$ es2)        = primOpEq e1 e2
       sConEq e1@(MeasureOp_ o1 :$ es1)

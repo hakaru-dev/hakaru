@@ -291,8 +291,10 @@ perform = \e0 ->
     -- handle it in the definition of 'perform' itself...)
     performWhnf
         :: forall a. Whnf abt ('HMeasure a) -> Dis abt (Whnf abt a)
+    {-
     performWhnf (Head_ (WAnn typ v)) =
         ann (sUnMeasure typ) <$> performWhnf (Head_ v)
+    -}
     performWhnf (Head_   v) = perform $ fromHead v
     performWhnf (Neutral e) = (Neutral . var) <$> emitMBind e
 
@@ -439,7 +441,6 @@ constrainValue v0 e0 =
             caseBind e2 $ \x e2' ->
                 push (SLet x $ Thunk e1) e2' (constrainValue v0)
 
-        Ann_      typ :$ e1 :* End -> constrainValue  v0 e1
         CoerceTo_   c :$ e1 :* End ->
             -- TODO: we need to insert some kind of guard that says
             -- @v0@ is in the range of @coerceTo c@, or equivalently
@@ -915,7 +916,6 @@ constrainOutcome v0 e0 =
     -- go (WLam _)           = impossible
     -- go (WIntegrate _ _ _) = impossible
     -- go (WSummate   _ _ _) = impossible
-    go (WAnn        _ e1)    = go e1 -- TODO: reinsert the annotation?
     go (WCoerceTo   _ _)     = impossible
     go (WUnsafeFrom _ _)     = impossible
     go (WMeasureOp o es)     = constrainOutcomeMeasureOp v0 o es

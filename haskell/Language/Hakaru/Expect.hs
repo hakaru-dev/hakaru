@@ -10,7 +10,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.11
+--                                                    2016.02.21
 -- |
 -- Module      :  Language.Hakaru.Expect
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -245,13 +245,6 @@ expectTerm p (Let_ :$ es) xs =
     e1 :* e2 :* End ->
         caseBind e2 $ \x e' ->
         expectSynDir p e' $ insertAssoc (Assoc x e1) xs
-    _ -> error "expectTerm: the impossible happened"
-
-expectTerm p (Ann_ _ :$ es) xs =
-    case es of
-    e :* End ->
-        -- TODO: should we re-wrap it up in a type annotation?
-        expectSynDir p e xs
     _ -> error "expectTerm: the impossible happened"
 
 expectTerm p (PrimOp_ _ :$ _) _ = case p of {}

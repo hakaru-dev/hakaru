@@ -194,11 +194,13 @@ ppSCon p Let_ = \(e1 :* e2 :* End) ->
         adjustHead
             (PP.text "let_" <+> toDoc (ppArg e1) <+> PP.char '$' <+>)
             (ppBinder e2)
+{-
 ppSCon p (Ann_ typ) = \(e1 :* End) ->
     ppFun p "ann_"
         [ PP.text (showsPrec 11 typ "") -- TODO: make this prettier. Add hints to the singletons?
         , toDoc $ ppArg e1
         ]
+-}
 ppSCon p (PrimOp_     o) = \es          -> ppPrimOp     p o es
 ppSCon p (ArrayOp_    o) = \es          -> ppArrayOp    p o es
 ppSCon p (CoerceTo_   c) = \(e1 :* End) -> ppCoerceTo   p c e1

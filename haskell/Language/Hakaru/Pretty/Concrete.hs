@@ -203,8 +203,10 @@ ppSCon _ Let_ = \(e1 :* e2 :* End) ->
     let (vars, _, body) = ppBinder2 e2 in
     [toDoc vars <+> PP.equals <+> toDoc (ppArg e1)
     PP.$$ (toDoc body)]
+{-
 ppSCon p (Ann_ typ) = \(e1 :* End) ->
     [toDoc (ppArg e1) <+> PP.text "::" <+> prettyType p typ]
+-}
 
 ppSCon p (PrimOp_     o) = \es          -> ppPrimOp     p o es
 ppSCon p (ArrayOp_    o) = \es          -> ppArrayOp    p o es

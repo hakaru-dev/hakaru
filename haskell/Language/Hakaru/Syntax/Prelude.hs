@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.02.03
+--                                                    2016.02.21
 -- |
 -- Module      :  Language.Hakaru.Syntax.Prelude
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -326,8 +326,9 @@ infixr 8 ^, ^^, **
 infixl 9 !, `app`, `thRootOf`
 
 -- TODO: some infix notation reminiscent of \"::\"
+-- TODO: actually do something with the type argument?
 ann_ :: (ABT Term abt) => Sing a -> abt '[] a -> abt '[] a
-ann_ typ e = syn (Ann_ typ :$ e :* End)
+ann_ _ e = e
 
 coerceTo_ :: (ABT Term abt) => Coercion a b -> abt '[] a -> abt '[] b
 coerceTo_ CNil e = e

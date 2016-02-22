@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.01.15
+--                                                    2016.02.21
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeOf
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -126,7 +126,6 @@ getTermSing singify = go
             SFun _ typ3            -> return typ3
             _ -> error "getTermSing: the impossible happened"
     go (Let_ :$ _  :* r2 :* End)    = getSing r2
-    go (Ann_      typ :$ _)         = return typ
     go (CoerceTo_   c :$ r1 :* End) =
         maybe (coerceTo   c <$> getSing r1) return (singCoerceCod c)
     go (UnsafeFrom_ c :$ r1 :* End) =

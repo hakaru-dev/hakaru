@@ -13,7 +13,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.02.09
+--                                                    2016.02.21
 -- |
 -- Module      :  Language.Hakaru.Evaluation.Lazy
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -36,7 +36,6 @@ module Language.Hakaru.Evaluation.Lazy
     , evaluate
     -- ** Helper functions
     , update
-    , ann
     , toStatements
 
     -- ** Helpers that should really go away
@@ -145,7 +144,6 @@ evaluate perform = evaluate_
                 Neutral e1' -> return . Neutral $ P.app e1' e2
                 Head_   v1  -> evaluateApp v1
             where
-            evaluateApp (WAnn _ v) = evaluateApp v -- TODO: should we add the annotation back onto the result?
             evaluateApp (WLam f)   =
                 -- call-by-name:
                 caseBind f $ \x f' ->
@@ -156,7 +154,6 @@ evaluate perform = evaluate_
             caseBind e2 $ \x e2' ->
                 push (SLet x $ Thunk e1) e2' evaluate_
 
-        Ann_      typ :$ e1 :* End -> ann      typ <$> evaluate_ e1
         CoerceTo_   c :$ e1 :* End -> coerceTo   c <$> evaluate_ e1
         UnsafeFrom_ c :$ e1 :* End -> coerceFrom c <$> evaluate_ e1
 
@@ -254,16 +251,6 @@ update perform evaluate_ = \x ->
 
 
 ----------------------------------------------------------------
--- if not @mustCheck (fromWhnf w1)@, then could in principle eliminate
--- the annotation; though it might be here so that it'll actually
--- get pushed down to somewhere it's needed later on, so it's best
--- to play it safe and leave it in.
-ann :: (ABT Term abt) => Sing a -> Whnf abt a -> Whnf abt a
-ann typ (Neutral e) = Neutral $ syn (Ann_ typ :$ e :* End)
-ann typ (Head_   v) = Head_   $ WAnn typ v
-
-
-----------------------------------------------------------------
 -- BUG: need to improve the types so they can capture polymorphic data types
 -- BUG: this is a **really gross** hack. If we can avoid it, we should!!!
 class Interp a a' | a -> a' where
@@ -273,21 +260,18 @@ class Interp a a' | a -> a' where
 instance Interp 'HNat Natural where
     reflect = WLiteral . LNat
     reify (WLiteral (LNat n)) = n
-    reify (WAnn        _ v) = reify v
     reify (WCoerceTo   _ _) = error "TODO: reify{WCoerceTo}"
     reify (WUnsafeFrom _ _) = error "TODO: reify{WUnsafeFrom}"
 
 instance Interp 'HInt Integer where
     reflect = WLiteral . LInt
     reify (WLiteral (LInt i)) = i
-    reify (WAnn        _ v) = reify v
     reify (WCoerceTo   _ _) = error "TODO: reify{WCoerceTo}"
     reify (WUnsafeFrom _ _) = error "TODO: reify{WUnsafeFrom}"
 
 instance Interp 'HProb NonNegativeRational where
     reflect = WLiteral . LProb
     reify (WLiteral (LProb p)) = p
-    reify (WAnn        _ v)   = reify v
     reify (WCoerceTo   _ _)   = error "TODO: reify{WCoerceTo}"
     reify (WUnsafeFrom _ _)   = error "TODO: reify{WUnsafeFrom}"
     reify (WIntegrate  _ _ _) = error "TODO: reify{WIntegrate}"
@@ -296,7 +280,6 @@ instance Interp 'HProb NonNegativeRational where
 instance Interp 'HReal Rational where
     reflect = WLiteral . LReal
     reify (WLiteral (LReal r)) = r
-    reify (WAnn        _ v) = reify v
     reify (WCoerceTo   _ _) = error "TODO: reify{WCoerceTo}"
     reify (WUnsafeFrom _ _) = error "TODO: reify{WUnsafeFrom}"
 
@@ -552,7 +535,6 @@ data ArrayHead :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
 head2array :: Head abt ('HArray a) -> Maybe (ArrayHead abt a)
 head2array (WEmpty _)     = Just WAEmpty
 head2array (WArray e1 e2) = Just (WAArray e1 e2)
-head2array (WAnn _ w)     = head2array w
 head2array _              = error "head2array: the impossible happened"
 
 

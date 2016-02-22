@@ -79,7 +79,7 @@ mapleSCon Let_     (e1 :* e2 :* End) =
         "eval(" ++ arg e2' ++ ", " ++  (var x `meq` e1) ++ ")"
 mapleSCon (CoerceTo_   _) (e :* End) = mapleAST (LC_ e)
 mapleSCon (UnsafeFrom_ _) (e :* End) = mapleAST (LC_ e)
-mapleSCon (Ann_ a)        (e :* End) = arg e --"Ann("  ++ mapleType a ++ "," ++ arg e ++ ")"
+-- mapleSCon (Ann_ a)        (e :* End) = arg e --"Ann("  ++ mapleType a ++ "," ++ arg e ++ ")"
 mapleSCon (MeasureOp_ o) es          = mapleMeasureOp o es
 mapleSCon Dirac (e1 :* End)          = app1 "Ret" e1
 mapleSCon MBind (e1 :* e2 :* End)    =

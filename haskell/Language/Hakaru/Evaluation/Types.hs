@@ -15,7 +15,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.02.09
+--                                                    2016.02.21
 -- |
 -- Module      :  Language.Hakaru.Evaluation.Types
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -132,9 +132,8 @@ data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         :: [(abt '[] 'HProb, abt '[] ('HMeasure a))]
         -> Head abt ('HMeasure a)
 
-    -- Type annotation\/coercion stuff. These are transparent re head-ness; that is, they behave more like HNF than WHNF.
+    -- Type coercion stuff. These are transparent re head-ness; that is, they behave more like HNF than WHNF.
     -- TODO: we prolly don't actually want\/need the coercion variants... we'd lose some proven-guarantees about cancellation, but everything should work just fine. The one issue that remains is if we have coercion of 'WIntegrate' or 'WSummate', since without the 'WCoerceTo'\/'WUnsafeFrom' constructors we'd be forced to call the coercion of an integration \"neutral\"--- even though it's not actually a neutral term!
-    WAnn        :: !(Sing a)       -> !(Head abt a) -> Head abt a
     WCoerceTo   :: !(Coercion a b) -> !(Head abt a) -> Head abt b
     WUnsafeFrom :: !(Coercion a b) -> !(Head abt b) -> Head abt a
 
@@ -171,7 +170,6 @@ fromHead (WMeasureOp  o  es)    = syn (MeasureOp_ o :$ es)
 fromHead (WDirac      e1)       = syn (Dirac :$ e1 :* End)
 fromHead (WMBind      e1 e2)    = syn (MBind :$ e1 :* e2 :* End)
 fromHead (WSuperpose  pes)      = syn (Superpose_ pes)
-fromHead (WAnn        typ e1)   = syn (Ann_      typ :$ fromHead e1 :* End)
 fromHead (WCoerceTo   c e1)     = syn (CoerceTo_   c :$ fromHead e1 :* End)
 fromHead (WUnsafeFrom c e1)     = syn (UnsafeFrom_ c :$ fromHead e1 :* End)
 fromHead (WIntegrate  e1 e2 e3) = syn (Integrate :$ e1 :* e2 :* e3 :* End)
@@ -192,7 +190,6 @@ toHead e =
         Dirac     :$ e1  :* End             -> Just $ WDirac     e1
         MBind     :$ e1  :* e2 :* End       -> Just $ WMBind     e1 e2
         Superpose_   pes                    -> Just $ WSuperpose pes
-        Ann_         typ :$ e1 :* End       -> WAnn      typ <$> toHead e1
         CoerceTo_    c   :$ e1 :* End       -> WCoerceTo   c <$> toHead e1
         UnsafeFrom_  c   :$ e1 :* End       -> WUnsafeFrom c <$> toHead e1
         Integrate :$ e1  :* e2 :* e3 :* End -> Just $ WIntegrate e1 e2 e3
@@ -209,7 +206,6 @@ instance Functor21 Head where
     fmap21 f (WDirac      e1)       = WDirac (f e1)
     fmap21 f (WMBind      e1 e2)    = WMBind (f e1) (f e2)
     fmap21 f (WSuperpose  pes)      = WSuperpose (map (f *** f) pes)
-    fmap21 f (WAnn        typ e1)   = WAnn      typ (fmap21 f e1)
     fmap21 f (WCoerceTo   c e1)     = WCoerceTo   c (fmap21 f e1)
     fmap21 f (WUnsafeFrom c e1)     = WUnsafeFrom c (fmap21 f e1)
     fmap21 f (WIntegrate  e1 e2 e3) = WIntegrate (f e1) (f e2) (f e3)
@@ -225,7 +221,6 @@ instance Foldable21 Head where
     foldMap21 f (WDirac      e1)       = f e1
     foldMap21 f (WMBind      e1 e2)    = f e1 `mappend` f e2
     foldMap21 f (WSuperpose  pes)      = foldMapPairs f pes
-    foldMap21 f (WAnn        _ e1)     = foldMap21 f e1
     foldMap21 f (WCoerceTo   _ e1)     = foldMap21 f e1
     foldMap21 f (WUnsafeFrom _ e1)     = foldMap21 f e1
     foldMap21 f (WIntegrate  e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
@@ -241,7 +236,6 @@ instance Traversable21 Head where
     traverse21 f (WDirac      e1)       = WDirac <$> f e1
     traverse21 f (WMBind      e1 e2)    = WMBind <$> f e1 <*> f e2
     traverse21 f (WSuperpose  pes)      = WSuperpose <$> traversePairs f pes
-    traverse21 f (WAnn        typ e1)   = WAnn      typ <$> traverse21 f e1
     traverse21 f (WCoerceTo   c e1)     = WCoerceTo   c <$> traverse21 f e1
     traverse21 f (WUnsafeFrom c e1)     = WUnsafeFrom c <$> traverse21 f e1
     traverse21 f (WIntegrate  e1 e2 e3) = WIntegrate <$> f e1 <*> f e2 <*> f e3
@@ -316,11 +310,8 @@ viewHeadDatum
     :: (ABT Term abt)
     => Head abt (HData' t)
     -> Datum (abt '[]) (HData' t)
-viewHeadDatum (WAnn        _ w) = viewHeadDatum w
-viewHeadDatum (WCoerceTo   c _) = case c of {}
-viewHeadDatum (WUnsafeFrom c _) = case c of {}
-viewHeadDatum (WDatum      d)   = d
-viewHeadDatum (WLiteral    v)   = case v of {}
+viewHeadDatum (WDatum d) = d
+viewHeadDatum _          = error "viewHeadDatum: the impossible happened"
 
 
 -- Alas, to avoid the orphanage, this instance must live here rather than in Lazy.hs where it more conceptually belongs.

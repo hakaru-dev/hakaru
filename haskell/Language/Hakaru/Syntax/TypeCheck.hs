@@ -415,8 +415,7 @@ inferType = inferType_
     U.Ann_ e1 (U.SSing typ1) -> do
         -- N.B., this requires that @typ1@ is a 'Sing' not a 'Proxy',
         -- since we can't generate a 'Sing' from a 'Proxy'.
-        e1' <- checkType_ typ1 e1
-        return . TypedAST typ1 $ syn (Ann_ typ1 :$ e1' :* End)
+        TypedAST typ1 <$> checkType_ typ1 e1
 
     U.PrimOp_  op es -> inferPrimOp  op es
 

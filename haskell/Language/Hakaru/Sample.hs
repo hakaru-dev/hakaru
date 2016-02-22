@@ -177,7 +177,6 @@ evaluateScon Let_ (e1 :* e2 :* End) env =
     let v = evaluate e1 env
     in caseBind e2 $ \x e2' ->
         evaluate e2' (updateEnv (EAssoc x v) env)
-evaluateScon (Ann_   _)      (e1 :* End) env = evaluate e1 env
 evaluateScon (CoerceTo_   c) (e1 :* End) env =
     coerceTo c $ evaluate e1 env
 evaluateScon (UnsafeFrom_ c) (e1 :* End) env =
