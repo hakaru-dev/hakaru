@@ -115,6 +115,7 @@ norm1b =
         (ann_ sing . dirac $ pair         x  unit)
 
 
+-- BUG: 'testPerform1b' breaks hygiene! It drops the variable bound by 'normal' and has all the uses of @x@ become free.
 testPerform1a, testPerform1b
     :: [TrivialABT Term '[] ('HMeasure (HPair 'HReal HUnit))]
 testPerform1a = runPerform norm1a
