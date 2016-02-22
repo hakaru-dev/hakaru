@@ -42,7 +42,7 @@ import Language.Hakaru.Types.DataKind  (Hakaru())
 import Language.Hakaru.Types.Sing      (Sing(..))
 import Language.Hakaru.Types.Coercion
     (singCoerceCod, singCoerceDom, Coerce(..))
-import Language.Hakaru.Syntax.Datum    (Branch(..))
+import Language.Hakaru.Syntax.Datum    (Datum(..), Branch(..))
 import Language.Hakaru.Syntax.AST      (Term(..), SCon(..), SArgs(..))
 import Language.Hakaru.Syntax.AST.Sing
     (sing_PrimOp, sing_MeasureOp, sing_NaryOp, sing_Literal)
@@ -54,10 +54,6 @@ import Language.Hakaru.Syntax.AST.Sing
 -- bit of a hack in order to avoid using 'SingI' or needing to
 -- memoize the types of everything. You should really avoid using
 -- this function if at all possible since it's very expensive.
---
--- BUG: we currently do not handle 'Datum_'. You should be able to
--- circumvent this by putting an 'Ann_' immediately before any
--- 'Datum_'.
 typeOf :: (ABT Term abt) => abt '[] a -> Sing a
 typeOf e0 =
     case typeOf_ e0 of
@@ -67,9 +63,7 @@ typeOf e0 =
 
 -- | A safe variant of 'typeOf', which returns the error message
 -- as a string rather than throwing it as an exception. N.B., there
--- are only two ways this can fail (other than the bug about not
--- handling 'Datum_', which throws a TODO exeption rather than
--- returning an error message string): for 'Case_' and 'Superpose_'
+-- are only two ways this can fail: for 'Case_' and 'Superpose_'
 -- if they are empty or all their branches fail.
 typeOf_ :: (ABT Term abt) => abt '[] a -> Either String (Sing a)
 typeOf_
@@ -147,7 +141,7 @@ getTermSing singify = go
     go (Literal_ v)                 = return $ sing_Literal v
     go (Empty_   typ)               = return typ
     go (Array_   _  r2)             = SArray <$> getSing r2
-    go (Datum_   d)                 = error "TODO: getTermSing{Datum_}"
+    go (Datum_ (Datum _ typ _))     = return typ
     go (Case_    _  bs) = tryAll "Case_"      getBranchSing   bs
     go (Superpose_ pes) = tryAll "Superpose_" (getSing . snd) pes
     go (_ :$ _) = error "getTermSing: the impossible happened"
