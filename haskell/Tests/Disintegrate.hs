@@ -172,7 +172,7 @@ allTests :: Test
 allTests = test
     [ assertAlphaEq "testDisintegrate0a" norm0' (head testDisintegrate0a)
     , assertAlphaEq "testDisintegrate0b" norm0' (head testDisintegrate0b)
-    --, assertAlphaEq "testDisintegrate0"  norm0' (head testDisintegrate0)
+    , assertAlphaEq "testDisintegrate0"  norm0' (head testDisintegrate0)
     , testWithConcrete' match_norm_unif LaxMode $ \(TypedAST _typ ast) ->
         case jmEq1 _typ (SMeasure $ sPair SReal sBool) of
         Just Refl -> testDis "testMatchNormUnif" ast
