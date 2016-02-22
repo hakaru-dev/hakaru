@@ -227,8 +227,11 @@ evaluateScon Chain (n :* s :* e :* End) env =
             VMeasure (\(VProb p) g -> runMaybeT $ do
                 (evaluates, sout) <- runStateT (replicateM (fromNat n') $ convert g s) start
                 let (v', ps) = unzip evaluates
+                    fakeType :: a
+                    fakeType = error "TODO: evaluateScon{Chain}: need singleton"
                 return
-                    ( VDatum $ dPair_ (error "TODO: need singleton") (error "TODO: need singleton") (VArray . V.fromList $ v') sout
+                    ( VDatum $ dPair_ fakeType fakeType
+                        (VArray . V.fromList $ v') sout
                     , VProb $ p * product (map (\(VProb x) -> x) ps)
                     ))
     v -> case v of {}
