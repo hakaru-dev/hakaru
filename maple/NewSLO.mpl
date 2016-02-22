@@ -104,7 +104,8 @@ end module: # gensym
 
 NewSLO := module ()
   option package;
-  local t_pw, unweight, factorize,
+  local t_pw,
+        unweight, factorize,
         recognize, get_de, recognize_de, mysolve, Diffop, Recognized,
         reduce, simplify_assuming, reduce_pw, reduce_Int, get_indicators,
         indicator, extract_dom, banish, known_measures,
@@ -121,17 +122,19 @@ NewSLO := module ()
          map_piecewise,
          bind, weight,
          plate, # TODO remove this one
-         toLO, fromLO, unintegrate,
+         toLO, fromLO, improve,
          RoundTripLO,
+         toCLO, fromCLO, cimprove,
          TestHakaru, measure, density, bounds,
-         improve, ReparamDetermined, determined, Reparam, Banish,
+         unintegrate,
+         ReparamDetermined, determined, Reparam, Banish,
          disint;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
   global Bind, Weight, Ret, Msum, Integrand, Plate, LO, Indicator, ary,
          Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD, StudentT,
+         Context, t_ctx,
          lam;
-
 
   t_pw := 'specfunc(piecewise)';
 
@@ -159,6 +162,11 @@ NewSLO := module ()
     h := gensym('h');
 #    LO(h, integrate(m, h))
      LO(h, integrate(eval(m, Plate=plate), h)) # for now
+  end proc;
+
+  # toLO does not use the context, so just map in
+  toCLO := proc(c :: Context(list, anything))
+    Context(op(1,c), toLO(op(2,c)));
   end proc;
 
   known_measures := '{Lebesgue(), Uniform(anything, anything),
@@ -200,8 +208,12 @@ NewSLO := module ()
 
 # Step 2 of 3: computer algebra
 
-  improve := proc(lo :: LO(name, anything))
-    LO(op(1,lo), reduce(op(2,lo), op(1,lo), []))
+  improve := proc(lo :: LO(name, anything), ctx :: list := [])
+    LO(op(1,lo), reduce(op(2,lo), op(1,lo), ctx))
+  end proc;
+
+  cimprove := proc(c :: Context(list, LO(name, anything)))
+    Context(op(1,c), improve(op(2,c), op(1,c)))
   end proc;
 
   ReparamDetermined := proc(lo :: LO(name, anything))
@@ -244,7 +256,7 @@ NewSLO := module ()
   # h - name of the linear operator above us
   # constraints - domain information
   # TODO unify constraints with unintegrate's context
-  reduce := proc(ee, h :: name, constraints :: list(name=anything))
+  reduce := proc(ee, h :: name, constraints :: list(t_ctx))
     # option remember, system;
     local e, elim, hh, subintegral, w, n, i, x, myint;
     e := ee;
@@ -297,18 +309,26 @@ NewSLO := module ()
     end if;
   end proc;
 
-  simplify_assuming := proc(ee, constraints :: list(name=anything..anything))
+  simplify_assuming := proc(ee, constraints :: list(t_ctx))
     local f, e, ep;
     f := proc(c)
       local var, lo, hi;
-      var := op(1,c);
-      lo, hi := op(op(2,c));
-      (var > lo, var < hi)
+      if type(c, name = anything .. anything) then
+        var := op(1,c);
+        lo, hi := op(op(2,c));
+        (var > lo, var < hi)
+      elif type(c, name :: property) then
+        c
+      elif type(c, '{name < anything, name <= anything, name > anything,
+                     name >= anything}') then
+        c
+      else
+        error "is %1 a valid constraint?";
+      end if;
     end proc;
     e := evalindets(ee, 'specfunc(product)', myexpand_product);
     e := evalindets(e, 'specfunc(sum)', expand);
     e := simplify(e) assuming op(map(f, constraints));
-    e := eval(e, exp = expand @ exp); # not sure if this is needed?
   end proc;
 
   reduce_pw := proc(ee) # ee may or may not be piecewise
@@ -572,10 +592,14 @@ NewSLO := module ()
 
 # Step 3 of 3: from Maple LO (linear operator) back to Hakaru
 
-  fromLO := proc(lo :: LO(name, anything))
+  fromLO := proc(lo :: LO(name, anything), ctx :: list(t_ctx) := [])
     local h;
     h := gensym(op(1,lo));
-    unintegrate(h, eval(op(2,lo), op(1,lo) = h), [])
+    unintegrate(h, eval(op(2,lo), op(1,lo) = h), ctx)
+  end proc;
+
+  fromCLO := proc(c :: Context(list, LO(name, anything)))
+    Context(op(1,c), fromLO(op(2,c), op(1,c)))
   end proc;
 
   unintegrate := proc(h :: name, integral, context :: list)
@@ -1277,8 +1301,8 @@ NewSLO := module ()
 
 # Testing
 
-  TestHakaru := proc(m,n::algebraic:=m,{simp:=improve,verify:=simplify})
-    CodeTools[Test](fromLO(simp(toLO(m))), n,
+  TestHakaru := proc(m,n::algebraic:=m,{simp:=improve,verify:=simplify,ctx:=[]})
+    CodeTools[Test](fromLO(simp(toLO(m), ctx), ctx), n,
       measure(verify), _rest)
   end proc;
 
@@ -1318,10 +1342,14 @@ NewSLO := module ()
   end proc;
 
   ModuleLoad := proc()
+    TypeTools[AddType](t_ctx, 
+      '{name :: anything, name = anything .. anything, name < anything,
+        name <= anything, name > anything, name >= anything}');
     VerifyTools[AddVerification](measure = verify_measure);
   end proc;
 
   ModuleUnload := proc()
+    TypeTools[RemoveType](t_ctx);
     VerifyTools[RemoveVerification](measure);
   end proc;
 
