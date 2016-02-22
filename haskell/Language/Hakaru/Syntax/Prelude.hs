@@ -671,11 +671,13 @@ datum_
     -> abt '[] (HData' t)
 datum_ = syn . Datum_
 
-unit   :: (ABT Term abt) => abt '[] HUnit
-unit   = datum_ dUnit
+unit :: (ABT Term abt) => abt '[] HUnit
+unit = datum_ dUnit
 
-pair   :: (ABT Term abt) => abt '[] a -> abt '[] b -> abt '[] (HPair a b)
-pair   = (datum_ .) . dPair
+pair
+    :: (ABT Term abt, SingI a, SingI b)
+    => abt '[] a -> abt '[] b -> abt '[] (HPair a b)
+pair = (datum_ .) . dPair
 
 
 -- BUG: N.B., this doesn't work when @a@ or @b@ are HData, because the SingI instance for Symbol isn't implemented! (But other than that, this seems to work...)
@@ -714,10 +716,14 @@ snd :: (ABT Term abt)
     -> abt '[] b
 snd p = unpair p (\_ y -> y)
 
-left :: (ABT Term abt) => abt '[] a -> abt '[] (HEither a b)
+left
+    :: (ABT Term abt, SingI a, SingI b)
+    => abt '[] a -> abt '[] (HEither a b)
 left = datum_ . dLeft
 
-right :: (ABT Term abt) => abt '[] b -> abt '[] (HEither a b)
+right
+    :: (ABT Term abt, SingI a, SingI b)
+    => abt '[] b -> abt '[] (HEither a b)
 right = datum_ . dRight
 
 uneither
@@ -744,23 +750,25 @@ if_ b t f =
         , Branch pFalse f
         ]
 
-nil      :: (ABT Term abt) => abt '[] (HList a)
-nil      = datum_ dNil
+nil :: (ABT Term abt, SingI a) => abt '[] (HList a)
+nil = datum_ dNil
 
-cons     :: (ABT Term abt) => abt '[] a -> abt '[] (HList a) -> abt '[] (HList a)
-cons     = (datum_ .) . dCons
+cons
+    :: (ABT Term abt, SingI a)
+    => abt '[] a -> abt '[] (HList a) -> abt '[] (HList a)
+cons = (datum_ .) . dCons
 
-list     :: (ABT Term abt) => [abt '[] a] -> abt '[] (HList a)
-list     = Prelude.foldr cons nil
+list :: (ABT Term abt, SingI a) => [abt '[] a] -> abt '[] (HList a)
+list = Prelude.foldr cons nil
 
-nothing  :: (ABT Term abt) => abt '[] (HMaybe a)
-nothing  = datum_ dNothing
+nothing :: (ABT Term abt, SingI a) => abt '[] (HMaybe a)
+nothing = datum_ dNothing
 
-just     :: (ABT Term abt) => abt '[] a -> abt '[] (HMaybe a)
-just     = datum_ . dJust
+just :: (ABT Term abt, SingI a) => abt '[] a -> abt '[] (HMaybe a)
+just = datum_ . dJust
 
-maybe    :: (ABT Term abt) => Maybe (abt '[] a) -> abt '[] (HMaybe a)
-maybe    = Prelude.maybe nothing just
+maybe :: (ABT Term abt, SingI a) => Maybe (abt '[] a) -> abt '[] (HMaybe a)
+maybe = Prelude.maybe nothing just
 
 unmaybe
     :: (ABT Term abt)

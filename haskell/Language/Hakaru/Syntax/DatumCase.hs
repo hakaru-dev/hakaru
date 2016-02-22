@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.11.03
+--                                                    2016.02.21
 -- |
 -- Module      :  Language.Hakaru.Syntax.DatumCase
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -252,8 +252,8 @@ matchPattern getDatum e pat vars =
     PDatum _hint1 pat1 -> do
         mb <- getDatum e
         case mb of
-            Nothing               -> return $ Just GotStuck
-            Just (Datum _hint2 d) -> matchCode getDatum d pat1 vars
+            Nothing                     -> return $ Just GotStuck
+            Just (Datum _hint2 _typ2 d) -> matchCode getDatum d pat1 vars
 
 
 matchCode

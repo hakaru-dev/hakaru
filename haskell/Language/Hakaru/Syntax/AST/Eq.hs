@@ -15,7 +15,7 @@
 -- itself which are morally suspect outside of testing.)
 {-# OPTIONS_GHC -Wall -fwarn-tabs -fno-warn-orphans #-}
 ----------------------------------------------------------------
---                                                    2015.12.19
+--                                                    2016.02.21
 -- |
 -- Module      :  Language.Hakaru.Syntax.ABT.Eq
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -150,9 +150,10 @@ instance (ABT Term abt, JmEq2 abt) => JmEq1 (Term abt) where
         (Refl, Refl) <- jmEq2 i j
         (Refl, Refl) <- jmEq2 f g
         Just Refl
-    jmEq1 (Datum_ (Datum h _))    (Datum_ (Datum h' _)) =
-      -- TODO: Structurally compare Datums
-      if h == h' then unsafeCoerce (Just Refl) else Nothing 
+    jmEq1 (Datum_ (Datum hint _ _)) (Datum_ (Datum hint' _ _))
+        -- BUG: We need to compare structurally rather than using the hint
+        | hint == hint' = unsafeCoerce (Just Refl)
+        | otherwise     = Nothing
     jmEq1 (Case_  a bs) (Case_  a' bs')      = do
         (Refl, Refl) <- jmEq2 a a'
         jmEq_Branch (zip bs bs')
@@ -339,7 +340,7 @@ alphaEq e1 e2 = runReader (go (viewABT e1) (viewABT e2)) emptyAssocs
               .  Datum (abt '[]) a
               -> Datum (abt '[]) a
               -> Reader (Assocs abt) Bool
-      datumEq (Datum _ d1) (Datum _ d2) = datumCodeEq d1 d2
+      datumEq (Datum _ _ d1) (Datum _ _ d2) = datumCodeEq d1 d2
 
       datumCodeEq
           :: forall xss a

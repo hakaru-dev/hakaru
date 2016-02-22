@@ -56,9 +56,9 @@ mapleAST (LC_ e) =
         o :$ es        -> mapleSCon o es
         Literal_ v     -> mapleLiteral v
         -- Special case pair
-        Datum_ (Datum "pair" (Inl (Et (Konst a) (Et (Konst b) Done)))) ->
+        Datum_ (Datum "pair" _typ (Inl (Et (Konst a) (Et (Konst b) Done)))) ->
             app2 "Pair" a b
-        Datum_ (Datum "true" (Inl Done)) -> "True"
+        Datum_ (Datum "true" _typ (Inl Done)) -> "True"
         Datum_ d       -> error "TODO: Add mapleAST{Datum}"
         Case_ e bs     -> "Case(" ++ arg e ++ "," ++
                             "Branches(" ++

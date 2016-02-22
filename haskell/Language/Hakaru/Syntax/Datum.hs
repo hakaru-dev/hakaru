@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.01.13
+--                                                    2016.02.21
 -- |
 -- Module      :  Language.Hakaru.Syntax.Datum
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -26,7 +26,7 @@
 module Language.Hakaru.Syntax.Datum
     (
     -- * Data constructors
-      Datum(..), datumHint
+      Datum(..), datumHint, datumType
     , DatumCode(..)
     , DatumStruct(..)
     , DatumFun(..)
@@ -37,6 +37,11 @@ module Language.Hakaru.Syntax.Datum
     , dLeft, dRight
     , dNil, dCons
     , dNothing, dJust
+    -- *** Variants which allow explicit type passing.
+    , dPair_
+    , dLeft_, dRight_
+    , dNil_, dCons_
+    , dNothing_, dJust_
 
     -- * Pattern constructors
     , Branch(..)
@@ -64,6 +69,7 @@ import Language.Hakaru.Syntax.IClasses
 -- TODO: make things polykinded so we can make our ABT implementation
 -- independent of Hakaru's type system.
 import Language.Hakaru.Types.DataKind
+import Language.Hakaru.Types.Sing
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -85,21 +91,25 @@ import Language.Hakaru.Types.DataKind
 data Datum :: (Hakaru -> *) -> Hakaru -> * where
     Datum
         :: {-# UNPACK #-} !Text
+        -> !(Sing (HData' t))
         -> !(DatumCode (Code t) ast (HData' t))
         -> Datum ast (HData' t)
 
 datumHint :: Datum ast (HData' t) -> Text
-datumHint (Datum hint _) = hint
+datumHint (Datum hint _ _) = hint
+
+datumType :: Datum ast (HData' t) -> Sing (HData' t)
+datumType (Datum _ typ _) = typ
 
 instance JmEq1 ast => JmEq1 (Datum ast) where
-    jmEq1 (Datum _ d1) (Datum _ d2) =
+    jmEq1 (Datum _ _ d1) (Datum _ _ d2) =
         error "TODO: JmEq1@Datum"
         {- BUG: type error due to 'Code' being a typefamily
         jmEq1 d1 d2
         -}
 
 instance Eq1 ast => Eq1 (Datum ast) where
-    eq1 (Datum _ d1) (Datum _ d2) = eq1 d1 d2
+    eq1 (Datum _ _ d1) (Datum _ _ d2) = eq1 d1 d2
 
 instance Eq1 ast => Eq (Datum ast a) where
     (==) = eq1
@@ -107,20 +117,22 @@ instance Eq1 ast => Eq (Datum ast a) where
 -- TODO: instance Read (Datum ast a)
 
 instance Show1 ast => Show1 (Datum ast) where
-    showsPrec1 p (Datum hint d) = showParen_01 p "Datum" hint d
+    showsPrec1 p (Datum hint _typ d) =
+        -- TODO: show the type as well...
+        showParen_01 p "Datum" hint d
 
 instance Show1 ast => Show (Datum ast a) where
     showsPrec = showsPrec1
     show      = show1
 
 instance Functor11 Datum where
-    fmap11 f (Datum hint d) = Datum hint (fmap11 f d)
+    fmap11 f (Datum hint typ d) = Datum hint typ (fmap11 f d)
 
 instance Foldable11 Datum where
-    foldMap11 f (Datum _ d) = foldMap11 f d
+    foldMap11 f (Datum _ _ d) = foldMap11 f d
 
 instance Traversable11 Datum where
-    traverse11 f (Datum hint d) = Datum hint <$> traverse11 f d
+    traverse11 f (Datum hint typ d) = Datum hint typ <$> traverse11 f d
 
 
 ----------------------------------------------------------------
@@ -302,32 +314,57 @@ instance Traversable11 (DatumFun x) where
 -- values, so the pattern synonyms wouldn't even be helpful.
 
 dTrue, dFalse :: Datum ast HBool
-dTrue      = Datum tdTrue  . Inl $ Done
-dFalse     = Datum tdFalse . Inr . Inl $ Done
+dTrue  = Datum tdTrue  sBool . Inl $ Done
+dFalse = Datum tdFalse sBool . Inr . Inl $ Done
 
-dUnit      :: Datum ast HUnit
-dUnit      = Datum tdUnit . Inl $ Done
+dUnit  :: Datum ast HUnit
+dUnit  = Datum tdUnit sUnit . Inl $ Done
 
-dPair      :: ast a -> ast b -> Datum ast (HPair a b)
-dPair a b  = Datum tdPair . Inl $ Konst a `Et` Konst b `Et` Done
+dPair :: (SingI a, SingI b) => ast a -> ast b -> Datum ast (HPair a b)
+dPair = dPair_ sing sing
 
-dLeft      :: ast a -> Datum ast (HEither a b)
-dLeft      = Datum tdLeft . Inl . (`Et` Done) . Konst
+dPair_ :: Sing a -> Sing b -> ast a -> ast b -> Datum ast (HPair a b)
+dPair_ a b x y =
+    Datum tdPair (sPair a b) . Inl $ Konst x `Et` Konst y `Et` Done
 
-dRight     :: ast b -> Datum ast (HEither a b)
-dRight     = Datum tdRight . Inr . Inl . (`Et` Done) . Konst
+dLeft :: (SingI a, SingI b) => ast a -> Datum ast (HEither a b)
+dLeft = dLeft_ sing sing
 
-dNil       :: Datum ast (HList a)
-dNil       = Datum tdNil. Inl $ Done
+dLeft_ :: Sing a -> Sing b -> ast a -> Datum ast (HEither a b)
+dLeft_ a b =
+    Datum tdLeft (sEither a b) . Inl . (`Et` Done) . Konst
 
-dCons      :: ast a -> ast (HList a) -> Datum ast (HList a)
-dCons x xs = Datum tdCons . Inr . Inl $ Konst x `Et` Ident xs `Et` Done
+dRight :: (SingI a, SingI b) => ast b -> Datum ast (HEither a b)
+dRight = dRight_ sing sing
 
-dNothing   :: Datum ast (HMaybe a)
-dNothing   = Datum tdNothing . Inl $ Done
+dRight_ :: Sing a -> Sing b -> ast b -> Datum ast (HEither a b)
+dRight_ a b =
+    Datum tdRight (sEither a b) . Inr . Inl . (`Et` Done) . Konst
 
-dJust      :: ast a -> Datum ast (HMaybe a)
-dJust      = Datum tdJust . Inr . Inl . (`Et` Done) . Konst
+dNil :: (SingI a) => Datum ast (HList a)
+dNil = dNil_ sing
+
+dNil_ :: Sing a -> Datum ast (HList a)
+dNil_ a = Datum tdNil (sList a) . Inl $ Done
+
+dCons :: (SingI a) => ast a -> ast (HList a) -> Datum ast (HList a)
+dCons = dCons_ sing
+
+dCons_ :: Sing a -> ast a -> ast (HList a) -> Datum ast (HList a)
+dCons_ a x xs =
+    Datum tdCons (sList a) . Inr . Inl $ Konst x `Et` Ident xs `Et` Done
+
+dNothing :: (SingI a) => Datum ast (HMaybe a)
+dNothing = dNothing_ sing
+
+dNothing_ :: Sing a -> Datum ast (HMaybe a)
+dNothing_ a = Datum tdNothing (sMaybe a) $ Inl Done
+
+dJust :: (SingI a) => ast a -> Datum ast (HMaybe a)
+dJust = dJust_ sing
+
+dJust_ :: Sing a -> ast a -> Datum ast (HMaybe a)
+dJust_ a = Datum tdJust (sMaybe a)  . Inr . Inl . (`Et` Done) . Konst
 
 
 ----------------------------------------------------------------
@@ -565,19 +602,19 @@ pPair
     :: Pattern vars1 a
     -> Pattern vars2 b
     -> Pattern (vars1 ++ vars2) (HPair a b)
-pPair a b =
-    case eqAppendIdentity (varsOfPattern b) of
-    Refl -> PDatum tpPair . PInl $ PKonst a `PEt` PKonst b `PEt` PDone
+pPair x y =
+    case eqAppendIdentity (varsOfPattern y) of
+    Refl -> PDatum tpPair . PInl $ PKonst x `PEt` PKonst y `PEt` PDone
 
 pLeft :: Pattern vars a -> Pattern vars (HEither a b)
-pLeft a =
-    case eqAppendIdentity (varsOfPattern a) of
-    Refl -> PDatum tpLeft . PInl $ PKonst a `PEt` PDone
+pLeft x =
+    case eqAppendIdentity (varsOfPattern x) of
+    Refl -> PDatum tpLeft . PInl $ PKonst x `PEt` PDone
 
 pRight :: Pattern vars b -> Pattern vars (HEither a b)
-pRight b =
-    case eqAppendIdentity (varsOfPattern b) of
-    Refl -> PDatum tpRight . PInr . PInl $ PKonst b `PEt` PDone
+pRight y =
+    case eqAppendIdentity (varsOfPattern y) of
+    Refl -> PDatum tpRight . PInr . PInl $ PKonst y `PEt` PDone
 
 pNil :: Pattern '[] (HList a)
 pNil = PDatum tpNil . PInl $ PDone
@@ -593,9 +630,9 @@ pNothing :: Pattern '[] (HMaybe a)
 pNothing = PDatum tpNothing . PInl $ PDone
 
 pJust :: Pattern vars a -> Pattern vars (HMaybe a)
-pJust a =
-    case eqAppendIdentity (varsOfPattern a) of
-    Refl -> PDatum tpJust . PInr . PInl $ PKonst a `PEt` PDone
+pJust x =
+    case eqAppendIdentity (varsOfPattern x) of
+    Refl -> PDatum tpJust . PInr . PInl $ PKonst x `PEt` PDone
 
 ----------------------------------------------------------------
 tpTrue, tpFalse, tpUnit, tpPair, tpLeft, tpRight, tpNil, tpCons, tpNothing, tpJust :: Text

@@ -44,8 +44,8 @@ import Language.Hakaru.Syntax.DatumCase
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.ABT
 
-data EAssoc
-    = forall a. EAssoc {-# UNPACK #-} !(Variable a) !(Value a)
+data EAssoc =
+    forall a. EAssoc {-# UNPACK #-} !(Variable a) !(Value a)
 
 newtype Env = Env (IM.IntMap EAssoc)
 
@@ -131,11 +131,11 @@ runEvaluate
     -> Value a
 runEvaluate prog = evaluate prog emptyEnv
 
-evaluate :: forall abt a
-         .  (ABT Term abt)
-         => abt '[] a
-         -> Env
-         -> Value a
+evaluate
+    :: (ABT Term abt)
+    => abt '[] a
+    -> Env
+    -> Value a
 evaluate e env = caseVarSyn e (evaluateVar env) (flip evaluateTerm env)
 
 evaluateVar :: Env -> Variable a -> Value a
@@ -144,11 +144,11 @@ evaluateVar env v =
     Nothing -> error "variable not found!"
     Just a  -> a
 
-evaluateTerm :: forall abt a
-             .  (ABT Term abt)
-             => Term abt a
-             -> Env
-             -> Value a
+evaluateTerm
+    :: (ABT Term abt)
+    => Term abt a
+    -> Env
+    -> Value a
 evaluateTerm t env =
     case t of
     o :$ es       -> evaluateScon    o es env
@@ -166,14 +166,14 @@ evaluateScon
     -> SArgs abt args
     -> Env
     -> Value a
-evaluateScon Lam_ (e1 :* End)            env =
+evaluateScon Lam_ (e1 :* End) env =
     caseBind e1 $ \x e1' ->
         VLam $ \v -> evaluate e1' (updateEnv (EAssoc x v) env)
-evaluateScon App_ (e1 :* e2 :* End)      env =
+evaluateScon App_ (e1 :* e2 :* End) env =
     case evaluate e1 env of
-      VLam f -> f (evaluate e2 env)
-      v      -> case v of {}
-evaluateScon Let_ (e1 :* e2 :* End)      env =
+    VLam f -> f (evaluate e2 env)
+    v      -> case v of {}
+evaluateScon Let_ (e1 :* e2 :* End) env =
     let v = evaluate e1 env
     in caseBind e2 $ \x e2' ->
         evaluate e2' (updateEnv (EAssoc x v) env)
@@ -189,69 +189,68 @@ evaluateScon Dirac           (e1 :* End) env =
     VMeasure $ \p _ -> return $ Just (evaluate e1 env, p)
 evaluateScon MBind (e1 :* e2 :* End) env =
     case evaluate e1 env of
-      VMeasure m1 ->
-        VMeasure $ \ p g -> do
-          x <- m1 p g
-          case x of
+    VMeasure m1 -> VMeasure $ \ p g -> do
+        x <- m1 p g
+        case x of
             Nothing -> return Nothing
             Just (a, p') ->
-               caseBind e2 $ \x' e2' ->
-                   case evaluate e2' (updateEnv (EAssoc x' a) env) of
-                     VMeasure y -> y p' g
-                     v -> case v of {}
-      v -> case v of {}
+                caseBind e2 $ \x' e2' ->
+                    case evaluate e2' (updateEnv (EAssoc x' a) env) of
+                    VMeasure y -> y p' g
+                    v          -> case v of {}
+    v -> case v of {}
 
 evaluateScon Plate (n :* e2 :* End) env =
     case evaluate n env of
-      VNat n' -> caseBind e2 $ \x e' ->
-                     VMeasure $ \(VProb p) g -> runMaybeT $ do
-                        let a = V.generate (fromNat n') $ \v ->
-                                  let v' = VNat $ unsafeNat v in
-                                  evaluate e' (updateEnv (EAssoc x v') env)
-                        evaluates <- V.mapM (performMaybe g) a
-                        let (v', ps) = V.unzip evaluates
-                        return ( VArray v'
-                               , VProb $ p * V.product (V.map (\(VProb x) -> x) ps)
-                               )
-      v       -> case v of {}
-
-  where performMaybe
-            :: MWC.GenIO
-            -> Value ('HMeasure a)
-            -> MaybeT IO (Value a, Value 'HProb)
-        performMaybe g (VMeasure m) = MaybeT $ m (VProb 1) g
+    VNat n' -> caseBind e2 $ \x e' ->
+        VMeasure $ \(VProb p) g -> runMaybeT $ do
+            (v', ps) <- fmap V.unzip . V.mapM (performMaybe g) $
+                V.generate (fromNat n') $ \v ->
+                    evaluate e' $
+                    updateEnv (EAssoc x . VNat $ unsafeNat v) env
+            return
+                ( VArray v'
+                , VProb $ p * V.product (V.map (\(VProb x) -> x) ps)
+                )
+    v -> case v of {}
+    where
+    performMaybe
+        :: MWC.GenIO
+        -> Value ('HMeasure a)
+        -> MaybeT IO (Value a, Value 'HProb)
+    performMaybe g (VMeasure m) = MaybeT $ m (VProb 1) g
 
 evaluateScon Chain (n :* s :* e :* End) env =
     case (evaluate n env, evaluate s env) of
-        (VNat n', start) ->
-            caseBind e $ \x e' ->
+    (VNat n', start) ->
+        caseBind e $ \x e' ->
             let s = VLam $ \v -> evaluate e' (updateEnv (EAssoc x v) env) in
             VMeasure (\(VProb p) g -> runMaybeT $ do
-             (evaluates, sout) <- runStateT (replicateM (fromNat n') $ convert g s) start
-             let (v', ps) = unzip evaluates
-             return ( VDatum $ dPair (VArray . V.fromList $ v') sout
+                (evaluates, sout) <- runStateT (replicateM (fromNat n') $ convert g s) start
+                let (v', ps) = unzip evaluates
+                return
+                    ( VDatum $ dPair_ (error "TODO: need singleton") (error "TODO: need singleton") (VArray . V.fromList $ v') sout
                     , VProb $ p * product (map (\(VProb x) -> x) ps)
                     ))
+    v -> case v of {}
+    where
+    convert
+        :: MWC.GenIO
+        -> Value (s ':-> 'HMeasure (HPair a s))
+        -> StateT (Value s) (MaybeT IO) (Value a, Value 'HProb)
+    convert g (VLam f) = StateT $ \s' ->
+        case f s' of
+        VMeasure f' -> do
+            (as'', p') <- MaybeT (f' (VProb 1) g)
+            let (a, s'') = unPair as''
+            return ((a, p'), s'')
         v -> case v of {}
 
-   where convert :: MWC.GenIO
-                 -> Value (s ':-> 'HMeasure (HPair a s))
-                 -> StateT (Value s) (MaybeT IO) (Value a, Value 'HProb)
-         convert g (VLam f) =
-             StateT $ \s' ->
-              case f s' of
-                   VMeasure f' -> do
-                       (as'',p') <- MaybeT (f' (VProb 1) g)
-                       let (a, s'') = unPair as''
-                       return ((a,p'),s'')
-                   v -> case v of {}
-
-         unPair :: Value (HPair a b) -> (Value a, Value b)
-         unPair (VDatum (Datum "pair"
-                         (Inl (Et (Konst a)
-                               (Et (Konst b) Done))))) =
-             (a, b)
-         unPair x = case x of {}
+    unPair :: Value (HPair a b) -> (Value a, Value b)
+    unPair (VDatum (Datum "pair" _typ
+        (Inl (Et (Konst a)
+            (Et (Konst b) Done))))) = (a, b)
+    unPair x = case x of {}
 
 
 
@@ -262,22 +261,23 @@ evaluatePrimOp
     -> Env
     -> Value a
 evaluatePrimOp Infinity         End _ = VProb $ LF.logFloat LF.infinity
-evaluatePrimOp NegativeInfinity End _ = VReal $ -LF.infinity
+evaluatePrimOp NegativeInfinity End _ = VReal $ LF.negativeInfinity
 evaluatePrimOp (Less _) (e1 :* e2 :* End) env =
     case (evaluate e1 env, evaluate e2 env) of
-      (VReal v1, VReal v2) -> VDatum $ if v1 < v2 then dTrue else dFalse
-      v                    -> error "TODO: evaluatePrimOp{Less}"
+    (VReal v1, VReal v2) -> VDatum $ if v1 < v2 then dTrue else dFalse
+    v                    -> error "TODO: evaluatePrimOp{Less}"
 evaluatePrimOp (Negate _) (e1 :* End) env = 
     case evaluate e1 env of
-      VInt  v -> VInt  (negate v)
-      VReal v -> VReal (negate v)
-      v       -> case v of {}
+    VInt  v -> VInt  (negate v)
+    VReal v -> VReal (negate v)
+    v       -> case v of {}
 evaluatePrimOp (Recip _) (e1 :* End) env = 
     case evaluate e1 env of
-      VProb v -> VProb (recip v)
-      VReal v -> VReal (recip v)
-      v       -> case v of {}
-evaluatePrimOp prim _ _ = error ("TODO: evaluatePrimOp{" ++ show prim ++ "}")
+    VProb v -> VProb (recip v)
+    VReal v -> VReal (recip v)
+    v       -> case v of {}
+evaluatePrimOp prim _ _ =
+    error ("TODO: evaluatePrimOp{" ++ show prim ++ "}")
 
 evaluateArrayOp
     :: ( ABT Term abt
@@ -289,20 +289,20 @@ evaluateArrayOp
     -> Value a
 evaluateArrayOp (Index _)  (e1 :* e2 :* End) env =
     case (evaluate e1 env, evaluate e2 env) of
-      (VArray v, VNat n) -> v V.! (fromNat n)
-      v                  -> case v of {}
+    (VArray v, VNat n) -> v V.! fromNat n
+    v                  -> case v of {}
 
 evaluateArrayOp (Size _)   (e1 :* End) env =
     case evaluate e1 env of
-      VArray v -> VNat . unsafeNat $ V.length v
-      v        -> case v of {}
+    VArray v -> VNat . unsafeNat $ V.length v
+    v        -> case v of {}
 
 evaluateArrayOp (Reduce _) (e1 :* e2 :* e3 :* End) env =
     case ( evaluate e1 env
          , evaluate e2 env
          , evaluate e3 env) of
-      (f, a, VArray v) -> V.foldl' (lam2 f) a v
-      v        -> case v of {}
+    (f, a, VArray v) -> V.foldl' (lam2 f) a v
+    v        -> case v of {}
 
 evaluateMeasureOp
     :: ( ABT Term abt
@@ -318,11 +318,10 @@ evaluateMeasureOp Lebesgue End _ =
         (u,b) <- MWC.uniform g
         let l = log u
         let n = -l
-        return $ Just ( if b
-                        then VReal n
-                        else VReal l
-                      , VProb $ p * 2 * LF.logToLogFloat n
-                      )
+        return $ Just
+            ( VReal $ if b then n else l
+            , VProb $ p * 2 * LF.logToLogFloat n
+            )
 
 evaluateMeasureOp Counting End _ =
     VMeasure $ \(VProb p) g -> do
@@ -339,57 +338,58 @@ evaluateMeasureOp Categorical (e1 :* End) env =
     VMeasure $ \p g -> do
         let (_,y,ys) = normalizeVector (evaluate e1 env)
         if not (y > (0::Double)) -- TODO: why not use @y <= 0@ ??
-            then error "Categorical needs positive weights"
-            else do
-                u <- MWC.uniformR (0, y) g
-                return $ Just
-                    ( VNat
-                    . unsafeNat
-                    . fromMaybe 0
-                    . V.findIndex (u <=) 
-                    . V.scanl1' (+)
-                    $ ys
-                    , p)
+        then error "Categorical needs positive weights"
+        else do
+            u <- MWC.uniformR (0, y) g
+            return $ Just
+                ( VNat
+                . unsafeNat
+                . fromMaybe 0
+                . V.findIndex (u <=) 
+                . V.scanl1' (+)
+                $ ys
+                , p)
 
 evaluateMeasureOp Uniform (e1 :* e2 :* End) env =
     case (evaluate e1 env, evaluate e2 env) of
-        (VReal v1, VReal v2) -> VMeasure $ \p g -> do
-            x <- MWC.uniformR (v1, v2) g
-            return $ Just (VReal x, p)
-        v -> case v of {}
+    (VReal v1, VReal v2) -> VMeasure $ \p g -> do
+        x <- MWC.uniformR (v1, v2) g
+        return $ Just (VReal x, p)
+    v -> case v of {}
 
 evaluateMeasureOp Normal (e1 :* e2 :* End) env =
     case (evaluate e1 env, evaluate e2 env) of 
-        (VReal v1, VProb v2) -> VMeasure $ \ p g -> do
-            x <- MWCD.normal v1 (LF.fromLogFloat v2) g
-            return $ Just (VReal x, p)
-        v -> case v of {}
+    (VReal v1, VProb v2) -> VMeasure $ \ p g -> do
+        x <- MWCD.normal v1 (LF.fromLogFloat v2) g
+        return $ Just (VReal x, p)
+    v -> case v of {}
 
 evaluateMeasureOp Poisson (e1 :* End) env =
     case evaluate e1 env of
-        VProb v1 -> VMeasure $ \ p g -> do
-            x <- poisson_rng (LF.fromLogFloat v1) g
-            return $ Just (VNat $ unsafeNat x, p)
-        v -> case v of {}
+    VProb v1 -> VMeasure $ \ p g -> do
+        x <- poisson_rng (LF.fromLogFloat v1) g
+        return $ Just (VNat $ unsafeNat x, p)
+    v -> case v of {}
 
 evaluateMeasureOp Gamma (e1 :* e2 :* End) env =
     case (evaluate e1 env, evaluate e2 env) of 
-        (VProb v1, VProb v2) -> VMeasure $ \ p g -> do
-            x <- MWCD.gamma (LF.fromLogFloat v1) (LF.fromLogFloat v2) g
-            return $ Just (VProb $ LF.logFloat x, p)
-        v -> case v of {}
+    (VProb v1, VProb v2) -> VMeasure $ \ p g -> do
+        x <- MWCD.gamma (LF.fromLogFloat v1) (LF.fromLogFloat v2) g
+        return $ Just (VProb $ LF.logFloat x, p)
+    v -> case v of {}
 
 evaluateMeasureOp Beta (e1 :* e2 :* End) env =
     case (evaluate e1 env, evaluate e2 env) of 
-        (VProb v1, VProb v2) -> VMeasure $ \ p g -> do
-            x <- MWCD.beta (LF.fromLogFloat v1) (LF.fromLogFloat v2) g
-            return $ Just (VProb $ LF.logFloat x, p)
-        v -> case v of {}
+    (VProb v1, VProb v2) -> VMeasure $ \ p g -> do
+        x <- MWCD.beta (LF.fromLogFloat v1) (LF.fromLogFloat v2) g
+        return $ Just (VProb $ LF.logFloat x, p)
+    v -> case v of {}
 
 evaluateNaryOp
     :: (ABT Term abt)
     => NaryOp a -> Seq (abt '[] a) -> Env -> Value a
-evaluateNaryOp s es = F.foldr (evalOp s) (identityElement s) . mapEvaluate es
+evaluateNaryOp s es =
+    F.foldr (evalOp s) (identityElement s) . mapEvaluate es
 
 identityElement :: NaryOp a -> Value a
 identityElement And                   = VDatum dTrue
@@ -440,11 +440,11 @@ evaluateArray
     -> Value ('HArray a)
 evaluateArray n e env =
     case evaluate n env of
-      VNat n' -> caseBind e $ \x e' ->
-                     VArray $ V.generate (fromNat n') $ \v ->
-                                 let v' = VNat $ unsafeNat v in
-                                 evaluate e' (updateEnv (EAssoc x v') env)
-      v       -> case v of {}
+    VNat n' -> caseBind e $ \x e' ->
+        VArray $ V.generate (fromNat n') $ \v ->
+            let v' = VNat $ unsafeNat v in
+            evaluate e' (updateEnv (EAssoc x v') env)
+    v -> case v of {}
 
 evaluateDatum
     :: (ABT Term abt)
@@ -485,23 +485,23 @@ evaluateSuperpose
 evaluateSuperpose []       _   = VMeasure $ \_ _ -> return Nothing
 evaluateSuperpose [(q, m)] env =
     case evaluate m env of
-         VMeasure m' ->
-             let VProb q' = evaluate q env
-             in  VMeasure (\(VProb p) g -> m' (VProb $ p * q') g)
+    VMeasure m' ->
+        let VProb q' = evaluate q env
+        in  VMeasure (\(VProb p) g -> m' (VProb $ p * q') g)
         
 evaluateSuperpose pms@((_, m) : _) env =
     case evaluate m env of
-      VMeasure m' ->
-          let weights  = map ((flip evaluate env) . fst) pms
-              (x,y,ys) = normalize weights
-          in VMeasure $ \(VProb p) g ->
-              if not (y > (0::Double)) then return Nothing else do
-                  u <- MWC.uniformR (0, y) g
-                  case [ m1 | (v,(_,m1)) <- zip (scanl1 (+) ys) pms, u <= v ] of
-                    m2 : _ ->
-                        case evaluate m2 env of
-                          VMeasure m2' -> m2' (VProb $ p * x * LF.logFloat y) g
-                    []     -> m' (VProb $ p * x * LF.logFloat y) g
+    VMeasure m' ->
+        let weights  = map ((flip evaluate env) . fst) pms
+            (x,y,ys) = normalize weights
+        in VMeasure $ \(VProb p) g ->
+            if not (y > (0::Double)) then return Nothing else do
+            u <- MWC.uniformR (0, y) g
+            case [ m1 | (v,(_,m1)) <- zip (scanl1 (+) ys) pms, u <= v ] of
+                m2 : _ ->
+                    case evaluate m2 env of
+                    VMeasure m2' -> m2' (VProb $ p * x * LF.logFloat y) g
+                []     -> m' (VProb $ p * x * LF.logFloat y) g
 
----------------------------------------------------------------------------------
----------------------------------------------------------------------------- fin.
+----------------------------------------------------------------
+----------------------------------------------------------- fin.

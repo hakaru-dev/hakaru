@@ -403,21 +403,21 @@ prettyValue :: Value a -> Doc
 prettyValue = toDoc . prettyPrec_ 0
 
 instance Pretty f => Pretty (Datum f) where
-    prettyPrec_ p (Datum hint d)
+    prettyPrec_ p (Datum hint _typ d)
         | Text.null hint =
             ppFun p "datum_"
                 [error "TODO: prettyPrec_@Datum"]
         | otherwise =
             case Text.unpack hint of
-              -- Special cases for certain datums
-              "pair"  -> ppFun p ""
-                         (foldMap11 ((:[]) . toDoc . prettyPrec_ 11) d) 
-              "true"  -> [PP.text "true"]
-              "false" -> [PP.text "false"]
-              "unit"  -> [PP.text "()"]
-              -- General case
-              _       -> ppFun p (Text.unpack hint)
-                         (foldMap11 ((:[]) . toDoc . prettyPrec_ 11) d)
+            -- Special cases for certain datums
+            "pair"  -> ppFun p ""
+                (foldMap11 ((:[]) . toDoc . prettyPrec_ 11) d) 
+            "true"  -> [PP.text "true"]
+            "false" -> [PP.text "false"]
+            "unit"  -> [PP.text "()"]
+            -- General case
+            _       -> ppFun p (Text.unpack hint)
+                (foldMap11 ((:[]) . toDoc . prettyPrec_ 11) d)
 
 
 -- HACK: need to pull this out in order to get polymorphic recursion over @xs@
@@ -428,11 +428,11 @@ ppPattern p (PDatum hint d0)
     | Text.null hint = error "TODO: prettyPrec_@Pattern"
     | otherwise      =
         case Text.unpack hint of
-          -- Special cases for certain pDatums
-          "pTrue"  -> [PP.text "true"]
-          "pFalse" -> [PP.text "false"]
-          -- General case
-          _        -> ppFun p (Text.unpack hint) (goCode d0)
+        -- Special cases for certain pDatums
+        "pTrue"  -> [PP.text "true"]
+        "pFalse" -> [PP.text "false"]
+        -- General case
+        _        -> ppFun p (Text.unpack hint) (goCode d0)
     where
     goCode :: PDatumCode xss vars a -> Docs
     goCode (PInr d) = goCode   d
@@ -453,10 +453,10 @@ instance Pretty (Pattern xs) where
 
 instance (ABT Term abt) => Pretty (Branch a abt) where
     prettyPrec_ p (Branch pat e) =
-            [ (toDoc $ prettyPrec_ 11 pat) <> PP.colon <> PP.space
-            , PP.nest 1 $ toDoc $ ppBinder e -- BUG: we can't actually use the HOAS API here, since we aren't using a Prelude-defined @branch@...
-            -- HACK: don't *always* print parens; pass down the precedence to 'ppBinder' to have them decide if they need to or not.
-            ]
+        [ (toDoc $ prettyPrec_ 11 pat) <> PP.colon <> PP.space
+        , PP.nest 1 $ toDoc $ ppBinder e -- BUG: we can't actually use the HOAS API here, since we aren't using a Prelude-defined @branch@...
+        -- HACK: don't *always* print parens; pass down the precedence to 'ppBinder' to have them decide if they need to or not.
+        ]
 
 ----------------------------------------------------------------
 type DList a = [a] -> [a]

@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.29
+--                                                    2016.02.21
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeCheck
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -966,7 +966,7 @@ checkType = checkType_
         U.Datum_ (U.Datum hint d) ->
             case typ0 of
             SData _ typ2 ->
-                (syn . Datum_ . Datum hint)
+                (syn . Datum_ . Datum hint typ0)
                     <$> checkDatumCode typ0 typ2 d
             _ -> typeMismatch (Right typ0) (Left "HData")
 

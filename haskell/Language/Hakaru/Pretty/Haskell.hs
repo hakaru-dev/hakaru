@@ -7,7 +7,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.01.15
+--                                                    2016.02.21
 -- |
 -- Module      :  Language.Hakaru.Pretty.Haskell
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -359,7 +359,7 @@ instance Pretty Literal where
 
 
 instance Pretty f => Pretty (Datum f) where
-    prettyPrec_ p (Datum hint d)
+    prettyPrec_ p (Datum hint _typ d)
         | Text.null hint =
             ppFun p "datum_"
                 [error "TODO: prettyPrec_@Datum"]
