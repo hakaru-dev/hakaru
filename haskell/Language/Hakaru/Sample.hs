@@ -36,8 +36,10 @@ import Data.Number.Nat     (fromNat, unsafeNat)
 import Data.Number.Natural (fromNatural, fromNonNegativeRational)
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Coercion
+import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Syntax.IClasses
+import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.Value
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumCase
@@ -223,14 +225,14 @@ evaluateScon Chain (n :* s :* e :* End) env =
     case (evaluate n env, evaluate s env) of
     (VNat n', start) ->
         caseBind e $ \x e' ->
-            let s = VLam $ \v -> evaluate e' (updateEnv (EAssoc x v) env) in
+            let s' = VLam $ \v -> evaluate e' (updateEnv (EAssoc x v) env) in
             VMeasure (\(VProb p) g -> runMaybeT $ do
-                (evaluates, sout) <- runStateT (replicateM (fromNat n') $ convert g s) start
+                (evaluates, sout) <- runStateT (replicateM (fromNat n') $ convert g s') start
                 let (v', ps) = unzip evaluates
-                    fakeType :: a
-                    fakeType = error "TODO: evaluateScon{Chain}: need singleton"
+                    bodyType :: Sing ('HMeasure (HPair a b)) -> Sing ('HArray a)
+                    bodyType = SArray . fst . sUnPair . sUnMeasure
                 return
-                    ( VDatum $ dPair_ fakeType fakeType
+                    ( VDatum $ dPair_ (bodyType $ caseBind e (const typeOf)) (typeOf s)
                         (VArray . V.fromList $ v') sout
                     , VProb $ p * product (map (\(VProb x) -> x) ps)
                     ))
