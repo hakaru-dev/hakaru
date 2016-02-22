@@ -60,7 +60,6 @@ Library
                        Language.Hakaru.Pretty.Maple,
                        -- Language.Hakaru.Runtime.Prelude,
                        Language.Hakaru.Expect,
-                       Language.Hakaru.Normalize,
                        Language.Hakaru.Observe,
                        Language.Hakaru.Simplify,
                        Language.Hakaru.Sample,
