@@ -123,13 +123,13 @@ norm1c =
 
 
 -- BUG: 'testPerform1b' breaks hygiene! It drops the variable bound by 'normal' and has all the uses of @x@ become free.
-testPerform1a, testPerform1b
+testPerform1a, testPerform1b, testPerform1c
     :: [TrivialABT Term '[] ('HMeasure (HPair 'HReal HUnit))]
 testPerform1a = runPerform norm1a
 testPerform1b = runPerform norm1b
 testPerform1c = runPerform norm1c
 
-testDisintegrate1a, testDisintegrate1b
+testDisintegrate1a, testDisintegrate1b, testDisintegrate1c
     :: [TrivialABT Term '[] ('HReal ':-> 'HMeasure HUnit)]
 testDisintegrate1a = disintegrate norm1a
 testDisintegrate1b = disintegrate norm1b
