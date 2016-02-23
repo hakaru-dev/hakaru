@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.02.21
+--                                                    2016.02.23
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeOf
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -18,13 +18,13 @@
 -- Stability   :  experimental
 -- Portability :  GHC-only
 --
--- BUG: can't put this in "Language.Hakaru.Syntax.AST.Sing" because of some sort of cyclic dependency...
+-- BUG: can't put this in "Language.Hakaru.Syntax.AST.Sing" because
+-- of some sort of cyclic dependency...
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.TypeOf
     (
     -- * Get singletons for well-typed ABTs
       typeOf
-    , typeOf_
     
     -- * Implementation details
     , getTermSing
@@ -50,10 +50,30 @@ import Language.Hakaru.Syntax.AST.Sing
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
--- | Given any well-typed term, produce the type. N.B., this is a
--- bit of a hack in order to avoid using 'SingI' or needing to
--- memoize the types of everything. You should really avoid using
--- this function if at all possible since it's very expensive.
+-- | Given any well-typed term, produce its type.
+--
+-- TODO: at present this function may throw errors; in particular,
+-- whenever encountering a 'Case_' or 'Superpose_' which is either
+-- empty or where all the branches fail. This is considered a bug
+-- (since all well-typed terms should be able to produce their
+-- types), however it only arises on programs which are (at least
+-- partially) undefined or (where defined) are the zero measure,
+-- so fixing this is a low priority. When working to correct this
+-- bug, it is strongly discouraged to try correcting it by adding
+-- singletons to the 'Case_' and 'Superpose_' constructors; since
+-- doing so will cause a lot of code to break (and therefore is not
+-- a lightweight change), as well as greatly increasing the memory
+-- cost for storing ASTs. It would be much better to consider whole
+-- programs as being something more than just the AST, thus when
+-- trying to get the type of subterms (which should be the only
+-- time we ever call this function) we should have access to some
+-- sort of context, or intern-table for type singletons, or whatever
+-- else makes something a whole program.
+--
+-- N.B., this is a bit of a hack in order to avoid using 'SingI'
+-- or needing to memoize the types of everything. You should really
+-- avoid using this function if at all possible since it's very
+-- expensive.
 typeOf :: (ABT Term abt) => abt '[] a -> Sing a
 typeOf e0 =
     case typeOf_ e0 of
@@ -61,10 +81,7 @@ typeOf e0 =
     Right typ -> typ
 
 
--- | A safe variant of 'typeOf', which returns the error message
--- as a string rather than throwing it as an exception. N.B., there
--- are only two ways this can fail: for 'Case_' and 'Superpose_'
--- if they are empty or all their branches fail.
+-- | For private use only.
 typeOf_ :: (ABT Term abt) => abt '[] a -> Either String (Sing a)
 typeOf_
     = unLiftSing
@@ -84,7 +101,7 @@ newtype LiftSing (xs :: [Hakaru]) (a :: Hakaru) =
 
 
 ----------------------------------------------------------------
--- | This is the core of the 'Term'-algebra for computing 'typeOf_'.
+-- | This is the core of the 'Term'-algebra for computing 'typeOf'.
 -- It is exported because it is useful for constructing other
 -- 'Term'-algebras for use with 'paraABT'; namely, for callers who
 -- need singletons for every subterm while converting an ABT to
@@ -96,6 +113,11 @@ newtype LiftSing (xs :: [Hakaru]) (a :: Hakaru) =
 -- over the term before calling 'getTermSing'). You can then use
 -- the resulting singleton for constructing the overall @r@ to be
 -- returned.
+--
+-- If this function returns 'Left', this is considered an error
+-- (see the description of 'typeOf'). We pose things in this form
+-- (rather than throwing the error immediately) because it enables
+-- us to automatically recover from certain error situations.
 getTermSing
     :: forall abt r
     .  (ABT Term abt)
