@@ -108,6 +108,8 @@ NewSLO := module ()
         unweight, factorize,
         recognize, get_de, recognize_de, mysolve, Diffop, Recognized,
         reduce, simplify_assuming, reduce_pw, reduce_Int, get_indicators,
+        flip_cond,
+        reduce_PI, elim_int,
         indicator, extract_dom, banish, known_measures,
         myexpand_product,
         piecewise_if, nub_piecewise, foldr_piecewise,
@@ -121,7 +123,6 @@ NewSLO := module ()
      # while these are "proper functions"
          map_piecewise,
          bind, weight,
-         plate, # TODO remove this one
          toLO, fromLO, improve,
          RoundTripLO,
          toCLO, fromCLO, cimprove,
@@ -160,8 +161,7 @@ NewSLO := module ()
   toLO := proc(m)
     local h;
     h := gensym('h');
-#    LO(h, integrate(m, h))
-     LO(h, integrate(eval(m, Plate=plate), h)) # for now
+    LO(h, integrate(m, h))
   end proc;
 
   # toLO does not use the context, so just map in
@@ -198,6 +198,24 @@ NewSLO := module ()
                     i=1..n))
     elif m :: 'LO(name, anything)' then
       eval(op(2,m), op(1,m) = h)
+    elif m :: 'Plate'(anything) then
+      x := 'pp';
+      if h :: 'Integrand(name, anything)' then
+        x := op(1,h);
+      end if;
+      x := gensym(x);
+      # we don't know the dimension, so use x as a vector variable.
+      ProductIntegral(integrate(op(1,m),h), x, applyintegrand(h, x));
+    # note that if we get here, we're at type M, so this is an array
+    # of measures
+    elif m :: 'ary'(anything, name, anything) then
+      x := 'hh';
+      if h :: 'Integrand(name, anything)' then
+        x := op(1,h);
+      end if;
+      x := gensym(x);
+      # aryM = array of Measures
+      aryM(op(1,m), op(2,m), x, integrate(op(3,m), x));
     elif h :: procedure then
       x := gensym('xa');
       'integrate'(m, Integrand(x, h(x)))
@@ -208,12 +226,12 @@ NewSLO := module ()
 
 # Step 2 of 3: computer algebra
 
-  improve := proc(lo :: LO(name, anything), ctx :: list := [])
-    LO(op(1,lo), reduce(op(2,lo), op(1,lo), ctx))
+  improve := proc(lo :: LO(name, anything), {_ctx :: list := []})
+    LO(op(1,lo), reduce(op(2,lo), op(1,lo), _ctx))
   end proc;
 
   cimprove := proc(c :: Context(list, LO(name, anything)))
-    Context(op(1,c), improve(op(2,c), op(1,c)))
+    Context(op(1,c), improve(op(2,c), _ctx = op(1,c)))
   end proc;
 
   ReparamDetermined := proc(lo :: LO(name, anything))
@@ -258,29 +276,19 @@ NewSLO := module ()
   # TODO unify constraints with unintegrate's context
   reduce := proc(ee, h :: name, constraints :: list(t_ctx))
     # option remember, system;
-    local e, elim, hh, subintegral, w, n, i, x, myint;
+    local e, elim, hh, subintegral, w, n, i, x, myint, res;
     e := ee;
 
-    while e :: Int(anything, name=anything) and not hastype(op(1,e),
-       'applyintegrand'('identical'(h), 'dependent'(op([2,1],e)))) do
-      # try to eliminate unused var
-      hh := gensym('h');
-      elim := eval(banish(LO(hh, myint(applyintegrand(hh,op([2,1],e)),op(2,e))),
-                          op([2,1],e), h, op(1,e), infinity),
-                   myint = proc(e,r)
-                     subs(int=Int, simplify_assuming(int(e,r), constraints))
-                   end proc);
-      if has(elim, {MeijerG, undefined})
-         or numboccur(elim,Int) >= numboccur(e,Int) then
-        # Maple was too good at integration
-        break;
-      end if;
-      e := elim;
-    end do;
-
     if e :: Int(anything, name=anything) then
-      reduce_Int(reduce(op(1,e), h, [op(2,e), op(constraints)]),
-               op([2,1],e), op([2,2],e), h, constraints)
+      e := elim_int(e, h, constraints);
+      if e :: Int(anything, name = anything) then
+        reduce_Int(reduce(op(1,e), h, [op(2,e), op(constraints)]),
+                 op([2,1],e), op([2,2],e), h, constraints)
+      elif e <> ee then
+        reduce(e, h, constraints)
+      else
+        e
+      end if;
     elif e :: `+` then
       map(reduce, e, h, constraints)
     elif e :: `*` then
@@ -304,9 +312,34 @@ NewSLO := module ()
       # TODO is there any way to enrich constraints in this case?
       subsop(2=Integrand(x, reduce(subs(op([2,1],e)=x, op([2,2],e)),
                                    h, constraints)), e)
+    elif e :: 'ProductIntegral'(anything, name, anything) then
+      reduce_PI(e, h, constraints);
     else
       simplify_assuming(e, constraints)
     end if;
+  end proc;
+
+  elim_int := proc(ee, h :: name, constraints :: list(t_ctx))
+    local e, hh, elim;
+
+    e := ee;
+    while e :: Int(anything, name=anything) and not hastype(op(1,e),
+       'applyintegrand'('identical'(h), 'dependent'(op([2,1],e)))) do
+      # try to eliminate unused var
+      hh := gensym('h');
+      elim := eval(banish(LO(hh, myint(applyintegrand(hh,op([2,1],e)),op(2,e))),
+                          op([2,1],e), h, op(1,e), infinity),
+                   myint = proc(e,r)
+                     subs(int=Int, simplify_assuming(int(e,r), constraints))
+                   end proc);
+      if has(elim, {MeijerG, undefined})
+         or numboccur(elim,Int) >= numboccur(e,Int) then
+        # Maple was too good at integration
+        break;
+      end if;
+      e := elim;
+    end do;
+    e;
   end proc;
 
   simplify_assuming := proc(ee, constraints :: list(t_ctx))
@@ -323,12 +356,13 @@ NewSLO := module ()
                      name >= anything}') then
         c
       else
-        error "is %1 a valid constraint?";
+        error "is %1 a valid constraint?", c;
       end if;
     end proc;
     e := evalindets(ee, 'specfunc(product)', myexpand_product);
     e := evalindets(e, 'specfunc(sum)', expand);
     e := simplify(e) assuming op(map(f, constraints));
+    eval(e, exp = expand @ exp);
   end proc;
 
   reduce_pw := proc(ee) # ee may or may not be piecewise
@@ -364,12 +398,12 @@ NewSLO := module ()
       e := 0;
     else
       (dom_spec, rest) := selectremove(depends, dom_spec, var);
-      # don't pull the w too far out (yet)
       if dom_spec <> {} then 
-        e := Int(w*piecewise(And(op(dom_spec)), e, 0), var = new_rng);
+        e := Int(piecewise(And(op(dom_spec)), e, 0), var = new_rng);
       else
-        e := Int(w*e, var=new_rng);
+        e := Int(e, var=new_rng);
       end if;
+      e := w*elim_int(e, h, constraints);
       # what does rest depend on?
       bound := [var, op(map2(op, 1, constraints))];
       (rest, indep) := selectremove(depends, rest, bound);
@@ -382,6 +416,50 @@ NewSLO := module ()
     end if;
     e
   end proc;
+
+  reduce_PI := proc(ee, h, constraints)
+    local e, nm, hh, w, m, n, i, var, a, xs, aa, bb;
+    (e, nm, hh) := op(ee);
+    e := reduce(e, h, constraints);
+
+    # by construction, the inner and outer h are different
+    if type(e,'aryM'(anything, name, name, 'applyintegrand'(name,anything))) then
+      eval(hh, nm = 'ary'(op(1,e), op(2,e), op([4,2],e)))
+    elif type(e, 'aryM'(anything, name, name, anything)) then
+      (n, i, var, a) := op(e);
+      a := reduce(a, h, constraints);
+      if type(a, `*`) then
+        (m, w) := selectremove(depends, a, var);
+      else
+        (m, w) := (a, 1);
+      end if;
+
+      w := simplify_assuming(product(w, i=1..n), constraints);
+      # special case; could do Integrand too.
+      # if a :: 'Int'(anything, name = range) then
+      #   xs := gensym(op([2,1], a));
+      #   aa := ProductIntegral('aryM'(n, i, var, xs, Int(
+      #   error "opportunity to un-nest";
+      # end if;
+
+      if normal(a/m) <> 1 then # something changed
+        w * reduce(ProductIntegral(aryM(n, i, var, m), nm, hh), h, constraints)
+      else
+        w * 'ProductIntegral'(e, nm, hh)
+      end if;
+    else
+      ee
+    end if;
+  end proc;
+#  plate := proc(a)
+#    local xs, w, m;
+#    elif a :: 'ary(anything, name, Bind(anything, name, anything))' then
+#      xs := gensym(op([3,2],a));
+#      bind(plate(ary(op(1,a), op(2,a), op([3,1],a))), xs,
+#           plate(ary(op(1,a), op(2,a),
+#                 eval(op([3,3],a), op([3,2],a)=idx(xs,op(2,a))))))
+#    end if;
+#  end proc;
 
   get_indicators := proc(e)
     local sub, inds, rest;
@@ -471,6 +549,11 @@ NewSLO := module ()
       `if`(res={}, 1, 'Indicator'(res));
     end proc;
   end module;
+
+  # flip an actual condition.  Might fail if it is trivially unsat.
+  flip_cond := proc(c)
+    op(op(1,indicator(c)))
+  end proc;
 
   banish := proc(m, x :: name, h :: name, g, levels :: extended_numeric)
     # LO(h, banish(m, x, h, g)) should be equivalent to Bind(m, x, LO(h, g))
@@ -592,10 +675,10 @@ NewSLO := module ()
 
 # Step 3 of 3: from Maple LO (linear operator) back to Hakaru
 
-  fromLO := proc(lo :: LO(name, anything), ctx :: list(t_ctx) := [])
+  fromLO := proc(lo :: LO(name, anything), {_ctx :: list(t_ctx) := []})
     local h;
     h := gensym(op(1,lo));
-    unintegrate(h, eval(op(2,lo), op(1,lo) = h), ctx)
+    unintegrate(h, eval(op(2,lo), op(1,lo) = h), _ctx)
   end proc;
 
   fromCLO := proc(c :: Context(list, LO(name, anything)))
@@ -630,20 +713,13 @@ NewSLO := module ()
         end if;
         weight(w0, bind(Lebesgue(), x, m))
       end if
-#    elif integral :: 'ProductIntegral(anything, anything, name = range, name, name)' then
-#      x := gensym(op([3,1,0], integral));
-#      (lo, hi) := op(op([3,2], integral));
-#      next_context := [op(context), lo<x, x<hi];
-#      w := eval(op(1,integral), op([3,1],integral) = x);
-#      m := unintegrate(h, op(2,integral), context);
-#      recognition := recognize(w, x, lo, hi) assuming op(next_context);
-#      if recognition :: 'Recognized(anything, anything)' then
-#        # Recognition succeeded
-#        mm := weight(op(2,recognition), op(1,recognition));
-#        bind(Plate(ary(op(4,integral), op(5, integral), mm)), op([3,1],integral), m);
-#      else
-#        error "case not done yet in unintegrate of ProductIntegral"
-#      end if;
+    elif integral :: 'aryM'(anything, name, name, anything) then
+      m := unintegrate(op(3,integral), op(4, integral), context);
+      'ary'(op(1,integral), op(2, integral), m);
+    elif integral :: 'ProductIntegral'(anything, name, anything) then
+      m := unintegrate(h, op(1, integral), context);
+      mm := unintegrate(h, op(3, integral), context);
+      bind(Plate(m), op(2,integral), mm);
     elif integral :: 'applyintegrand'('identical'(h), 'freeof'(h)) then
       Ret(op(2,integral))
     elif integral = 0 then
@@ -654,7 +730,11 @@ NewSLO := module ()
       (subintegral, w) := selectremove(depends, integral, h);
 
       if subintegral :: `*` then error "Nonlinear integral %1", integral end if;
-      weight(w, unintegrate(h, subintegral, context))
+      m := weight(w, unintegrate(h, subintegral, context));
+      if m :: Weight(anything, anything) then
+        m := weight(simplify_assuming(op(1,m), context), op(2,m));
+      end if;
+      m
     elif integral :: t_pw
          and `and`(seq(not (depends(op(i,integral), h)),
                        i=1..nops(integral)-1, 2)) then
@@ -663,7 +743,7 @@ NewSLO := module ()
       update_context := proc(c)
         local then_context;
         then_context := [op(next_context), c];
-        next_context := [op(next_context), Not(c)]; # Mutation!
+        next_context := [op(next_context), flip_cond(c)]; # Mutation!
         then_context
       end proc;
       piecewise(seq(piecewise(i::even,
@@ -810,7 +890,7 @@ NewSLO := module ()
       update_context := proc(c)
         local then_context;
         then_context := [op(next_context), c];
-        next_context := [op(next_context), Not(c)]; # Mutation!
+        next_context := [op(next_context), flip_cond(c)]; # Mutation!
         then_context
       end proc;
       error "need to map into piecewise";
@@ -1047,28 +1127,6 @@ NewSLO := module ()
     end if;
   end proc;
 
-  # TODO: remove this 'smart constructor'!
-  plate := proc(a)
-    local xs, w, m;
-    if a :: 'ary(anything, name, Ret(anything))' then
-      Ret(ary(op(1,a), op(2,a), op([3,1],a)))
-    elif a :: 'ary(anything, name, Bind(anything, name, anything))' then
-      xs := gensym(op([3,2],a));
-      bind(plate(ary(op(1,a), op(2,a), op([3,1],a))), xs,
-           plate(ary(op(1,a), op(2,a),
-                 eval(op([3,3],a), op([3,2],a)=idx(xs,op(2,a))))))
-    elif a :: 'ary(anything, name, anything)' then
-      (w, m) := unweight(op(3,a));
-      if w <> 1 then
-        weight(product(w, op(2,a)=1..op(1,a)), plate(ary(op(1,a), op(2,a), m)))
-      else
-        'Plate(_passed)'
-      end if
-    else
-      'Plate(_passed)'
-    end if;
-  end proc;
-
   app := proc (func, argu)
     if func :: lam(name, anything) then
       eval(op(2,func), op(1,func)=argu)
@@ -1302,7 +1360,7 @@ NewSLO := module ()
 # Testing
 
   TestHakaru := proc(m,n::algebraic:=m,{simp:=improve,verify:=simplify,ctx:=[]})
-    CodeTools[Test](fromLO(simp(toLO(m), ctx), ctx), n,
+    CodeTools[Test](fromLO(simp(toLO(m), _ctx = ctx), _ctx = ctx), n,
       measure(verify), _rest)
   end proc;
 

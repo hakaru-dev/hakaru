@@ -84,7 +84,7 @@ TestHakaru(Bind(Uniform(0,1),x,Weight((1-x)^beta,Ret(x))), Weight(1/(1+beta),Bet
 TestHakaru(Bind(Uniform(0,1),x,Weight(x*2,Ret(x))), BetaD(2,1),
   label="BetaD(2,1) recog");
 TestHakaru(BetaD(alpha,beta), label="BetaD recog.");
-TestHakaru(GammaD(a,b), label="GammaD recog.");
+TestHakaru(GammaD(a,b), label="GammaD recog.", ctx = [a>0,b>0]);
 TestHakaru(GammaD(1/2,2), label="GammaD(1/2,2) recog.");
 TestHakaru(LO(h, int(exp(-x/2)*applyintegrand(h,x),x=0..infinity)), Weight(2,GammaD(1,2)));
 TestHakaru(LO(h, int(x*exp(-x/2)*applyintegrand(h,x),x=0..infinity)), Weight(4,GammaD(2,2)));
@@ -325,8 +325,11 @@ TestHakaru(Bind(Ret(ary(n,i,i*2)), v, Ret(idx(v,42))), Ret(84), label="basic arr
 #
 #####################################################################
 
+triv := Plate(ary(k, i, Ret(i))):
+TestHakaru(triv, Ret(ary(k, i, i)), label="Dirac Plate");
+
 ary0 := Bind(Plate(ary(k, i, Gaussian(0,1))), xs, Ret([xs])):
-TestHakaru(ary0, ary0, label="plate roundtripping");
+TestHakaru(ary0, ary0, label="plate roundtripping", ctx = [k::nonnegint]);
 
 ary1  := Bind(Gaussian(0,1), x,
          Bind(Plate(ary(n, i, Weight(density[Gaussian](x,1)(idx(t,i)), Ret(Unit)))), ys,
