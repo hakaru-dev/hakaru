@@ -114,17 +114,26 @@ norm1b =
         (ann_ sing . dirac $ pair (negate x) unit)
         (ann_ sing . dirac $ pair         x  unit)
 
+norm1c :: TrivialABT Term '[] ('HMeasure (HPair 'HReal HUnit))
+norm1c =
+    normal (real_ 3) (prob_ 2) >>= \x ->
+    if_ (x < real_ 0)
+        (dirac . ann_ sing $ pair (negate x) unit)
+        (dirac . ann_ sing $ pair         x  unit)
+
 
 -- BUG: 'testPerform1b' breaks hygiene! It drops the variable bound by 'normal' and has all the uses of @x@ become free.
 testPerform1a, testPerform1b
     :: [TrivialABT Term '[] ('HMeasure (HPair 'HReal HUnit))]
 testPerform1a = runPerform norm1a
 testPerform1b = runPerform norm1b
+testPerform1c = runPerform norm1c
 
 testDisintegrate1a, testDisintegrate1b
     :: [TrivialABT Term '[] ('HReal ':-> 'HMeasure HUnit)]
 testDisintegrate1a = disintegrate norm1a
 testDisintegrate1b = disintegrate norm1b
+testDisintegrate1c = disintegrate norm1c
 
 
 ----------------------------------------------------------------
