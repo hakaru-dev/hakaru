@@ -418,7 +418,7 @@ NewSLO := module ()
   end proc;
 
   reduce_PI := proc(ee, h, constraints)
-    local e, nm, hh, w, m, n, i, var, a, xs, aa, bb;
+    local e, nm, hh, nh, w, m, n, i, var, x, a, xs, aa, mm, ww;
     (e, nm, hh) := op(ee);
     e := reduce(e, h, constraints);
 
@@ -436,11 +436,18 @@ NewSLO := module ()
 
       w := simplify_assuming(product(w, i=1..n), constraints);
       # special case; could do Integrand too.
-      # if a :: 'Int'(anything, name = range) then
-      #   xs := gensym(op([2,1], a));
-      #   aa := ProductIntegral('aryM'(n, i, var, xs, Int(
-      #   error "opportunity to un-nest";
-      # end if;
+      if a :: 'Int'(anything, name = range) then
+        (mm, ww) := selectremove(depends, op(1,a), var);
+        if not type(mm, 'applyintegrand'(name, name)) then
+          x := op([2,1], a);
+          xs := gensym(x);
+          aa := ProductIntegral('aryM'(n, i, var,
+                 Int(ww * applyintegrand(var, x),op(2,a)), xs,
+                 ProductIntegral('aryM'(n, i, var,
+                   eval(mm, x = idx(xs, i))), nm, hh)));
+          return aa; # recurse?  only on inner?
+        end if;
+      end if;
 
       if normal(a/m) <> 1 then # something changed
         w * reduce(ProductIntegral(aryM(n, i, var, m), nm, hh), h, constraints)
@@ -718,8 +725,9 @@ NewSLO := module ()
       'ary'(op(1,integral), op(2, integral), m);
     elif integral :: 'ProductIntegral'(anything, name, anything) then
       m := unintegrate(h, op(1, integral), context);
+      (w,m) := unweight(m);
       mm := unintegrate(h, op(3, integral), context);
-      bind(Plate(m), op(2,integral), mm);
+      weight(w, bind(Plate(m), op(2,integral), mm));
     elif integral :: 'applyintegrand'('identical'(h), 'freeof'(h)) then
       Ret(op(2,integral))
     elif integral = 0 then
@@ -1110,6 +1118,8 @@ NewSLO := module ()
       m # monad law: right identity
     elif m :: 'Ret(anything)' then
       eval(n, x = op(1,m)) # monad law: left identity
+    elif m :: 'Weight(anything, anything)' then
+      op(1,m)*bind(op(2,m), x, n)
     else
       'Bind(_passed)'
     end if;
@@ -1138,7 +1148,7 @@ NewSLO := module ()
   end proc;
 
   idx := proc (a, i)
-    if a :: ary(anything, name, anything) then
+    if a :: 'ary'(anything, name, anything) then
       eval(op(3,a), op(2,a)=i)
     elif a :: t_pw then
       map_piecewise(procname, _passed)
@@ -1148,12 +1158,15 @@ NewSLO := module ()
   end proc;
 
   unweight := proc(m)
-    local unweights, total;
+    local total, ww, mm;
     if m :: 'Weight(anything, anything)' then
       op(m)
     elif m :: 'specfunc(Msum)' then
       total := `+`(op(map((mi -> unweight(mi)[1]), m)));
       (total, map((mi -> weight(1/total, mi)), m))
+    elif m :: 'specfunc(ary)' then
+      (ww,mm) := unweight(op(3,m));
+      (product(ww, op(2,m)=1..op(1,m)), 'ary'(op(1,m), op(2,m), mm))
     else
       # TODO: Better weight estimate for piecewise & density-recognition cases?
       (1, m)
