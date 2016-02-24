@@ -124,7 +124,7 @@ NewSLO := module ()
          map_piecewise,
          bind, weight,
          toLO, fromLO, improve,
-         RoundTripLO,
+         RoundTripLO, RoundTripCLO,
          toCLO, fromCLO, cimprove,
          TestHakaru, measure, density, bounds,
          unintegrate,
@@ -165,7 +165,7 @@ NewSLO := module ()
   end proc;
 
   # toLO does not use the context, so just map in
-  toCLO := proc(c :: Context(list, anything))
+  toCLO := proc(c :: Context(list(t_ctx), anything))
     Context(op(1,c), toLO(op(2,c)));
   end proc;
 
@@ -230,7 +230,7 @@ NewSLO := module ()
     LO(op(1,lo), reduce(op(2,lo), op(1,lo), _ctx))
   end proc;
 
-  cimprove := proc(c :: Context(list, LO(name, anything)))
+  cimprove := proc(c :: Context(list(t_ctx), LO(name, anything)))
     Context(op(1,c), improve(op(2,c), _ctx = op(1,c)))
   end proc;
 
@@ -688,7 +688,7 @@ NewSLO := module ()
     unintegrate(h, eval(op(2,lo), op(1,lo) = h), _ctx)
   end proc;
 
-  fromCLO := proc(c :: Context(list, LO(name, anything)))
+  fromCLO := proc(c :: Context(list(t_ctx), LO(name, anything)))
     Context(op(1,c), fromLO(op(2,c), op(1,c)))
   end proc;
 
@@ -1366,8 +1366,13 @@ NewSLO := module ()
   bounds[BetaD] := proc(nu, loc, scale) 0 .. 1 end proc;
   bounds[GammaD] := proc(a, b) 0 .. infinity end proc;
 
-  RoundTripLO := proc(m, {_ctx :: list := []})
-      lprint(eval(ToInert(fromLO(improve(toLO(m), _ctx), _ctx)), _Inert_ATTRIBUTE=NULL))
+  RoundTripLO := proc(m, {ctx :: list(t_ctx) := []})
+      lprint(eval(ToInert(fromLO(improve(toLO(m), _ctx = ctx), _ctx = ctx)), 
+        _Inert_ATTRIBUTE=NULL))
+  end proc;
+
+  RoundTripCLO := proc(m :: Context(list(t_ctx), anything))
+      sprintf("%a",(eval(ToInert(fromCLO(cimprove(toCLO(m)))), _Inert_ATTRIBUTE=NULL)))
   end proc;
 
 # Testing
