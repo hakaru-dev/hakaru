@@ -88,5 +88,19 @@ match_norm_bool = unlines
     , "          false: ( x, ()))"
     ]
 
+easyRoad :: Text
+easyRoad = unlines
+    ["noiseT_ <~ uniform(3, 8)"
+    ,"noiseE_ <~ uniform(1, 4)"
+    ,"noiseT = unsafeProb(noiseT_)"
+    ,"noiseE = unsafeProb(noiseE_)"
+    ,"x1 <~ normal(0,  noiseT)"
+    ,"m1 <~ normal(x1, noiseE)"
+    ,"x2 <~ normal(x1, noiseT)"
+    ,"m2 <~ normal(x2, noiseE)"
+    ,"return ((m1, m2), (noiseT, noiseE)"
+    ,"       ). measure(pair(pair(real,real),pair(prob,prob)))"
+    ]
+
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
