@@ -13,7 +13,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.02.21
+--                                                    2016.02.23
 -- |
 -- Module      :  Language.Hakaru.Evaluation.Lazy
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -69,6 +69,11 @@ import Language.Hakaru.Evaluation.Types
 import qualified Language.Hakaru.Syntax.Prelude as P
 import qualified Language.Hakaru.Expect         as E
 
+#ifdef __TRACE_DISINTEGRATE__
+import Language.Hakaru.Pretty.Haskell (pretty)
+import Debug.Trace (trace)
+#endif
+
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 -- TODO: (eventually) accept an argument dictating the evaluation
@@ -117,6 +122,9 @@ evaluate perform = evaluate_
 
     evaluate_ :: TermEvaluator abt m
     evaluate_ e0 =
+#ifdef __TRACE_DISINTEGRATE__
+      trace ("-- evaluate_: " ++ show (pretty e0)) $
+#endif
       caseVarSyn e0 (update perform evaluate_) $ \t ->
         case t of
         -- Things which are already WHNFs
@@ -203,7 +211,8 @@ toStatements ss = map (\(Assoc x e) -> SLet x $ Thunk e) (ss [])
 -- bound variables to be above @nextFreeVarID@; but then we have to
 -- do that anyways.
 update
-    :: (ABT Term abt, EvaluationMonad abt m p)
+    :: forall abt m p a
+    .  (ABT Term abt, EvaluationMonad abt m p)
     => MeasureEvaluator abt m
     -> TermEvaluator    abt m
     -> Variable a
@@ -217,6 +226,13 @@ update perform evaluate_ = \x ->
             Just $ do
                 w <- perform $ caseLazy e fromWhnf id
                 unsafePush (SLet x $ Whnf_ w)
+#ifdef __TRACE_DISINTEGRATE__
+                trace ("-- updated "
+                    ++ show (ppStatement 11 s)
+                    ++ " to "
+                    ++ show (ppStatement 11 (SLet x $ Whnf_ w))
+                    ) $ return ()
+#endif
                 return w
         SLet y e -> do
             Refl <- varEq x y

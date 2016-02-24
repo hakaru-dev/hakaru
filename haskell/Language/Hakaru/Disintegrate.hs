@@ -282,65 +282,10 @@ evaluateDatum :: (ABT Term abt) => DatumEvaluator (abt '[]) (Dis abt)
 evaluateDatum e = viewWhnfDatum <$> evaluate_ e
 
 
+-- TODO: do we want to move this to the public API of "Language.Hakaru.Evaluation.DisintegrationMonad"?
 #ifdef __TRACE_DISINTEGRATE__
 getStatements :: Dis abt [Statement abt 'Impure]
 getStatements = Dis $ \c h -> c (statements h) h
-
-instance (ABT Term abt) => Pretty (Whnf abt) where
-    prettyPrec_ p (Head_   w) = ppApply1 p "Head_" (fromHead w) -- HACK
-    prettyPrec_ p (Neutral e) = ppApply1 p "Neutral" e
-    
-instance (ABT Term abt) => Pretty (Lazy abt) where
-    prettyPrec_ p (Whnf_ w) = ppApply1 p "Whnf_" (fromWhnf w) -- HACK
-    prettyPrec_ p (Thunk e) = ppApply1 p "Thunk" e
-
-ppApply1 :: (ABT Term abt) => Int -> String -> abt '[] a -> [PP.Doc]
-ppApply1 p f e1 =
-    let d = PP.text f PP.<+> PP.nest (1 + length f) (prettyPrec 11 e1)
-    in [if p > 9 then PP.parens (PP.nest 1 d) else d]
-
-ppFun0 :: String -> [PP.Doc] -> PP.Doc
-ppFun0 f [] = PP.text f
-ppFun0 f ds = PP.text f PP.<+> PP.nest (1 + length f) (PP.sep ds)
-
-pretty_Statement :: (ABT Term abt) => Statement abt p -> PP.Doc
-pretty_Statement s =
-    case s of
-    SBind x e ->
-        ppFun0 "SBind"
-            [ ppVariable x
-            , PP.sep $ prettyPrec_ 11 e
-            ]
-    SLet x e ->
-        ppFun0 "SLet"
-            [ ppVariable x
-            , PP.sep $ prettyPrec_ 11 e
-            ]
-    SIndex x e1 e2 ->
-        ppFun0 "SIndex"
-            [ ppVariable x
-            , PP.sep $ prettyPrec_ 11 e1
-            , PP.sep $ prettyPrec_ 11 e2
-            ]
-    SWeight e ->
-        ppFun0 "SWeight"
-            [ PP.sep $ prettyPrec_ 11 e
-            ]
-    SGuard xs pat e ->
-        ppFun0 "SGuard"
-            [ PP.sep $ ppVariables xs
-            , PP.sep $ prettyPrec_ 11 pat
-            , PP.sep $ prettyPrec_ 11 e
-            ]
-
-pretty_Statements :: (ABT Term abt) => [Statement abt p] -> PP.Doc
-pretty_Statements []     = PP.text "[]"
-pretty_Statements (s:ss) =
-    foldl
-        (\d s' -> d PP.$+$ PP.comma PP.<+> pretty_Statement s')
-        (PP.text "[" PP.<+> pretty_Statement s)
-        ss
-    PP.$+$ PP.text "]"
 #endif
 
 -- | Simulate performing 'HMeasure' actions by simply emiting code
@@ -352,7 +297,7 @@ perform = \e0 ->
 #ifdef __TRACE_DISINTEGRATE__
     getStatements >>= \ss ->
     trace ("\n-- perform --\n"
-        ++ show (pretty_Statements ss PP.$+$ pretty e0)
+        ++ show (pretty_Statements_withTerm ss e0)
         ++ "\n") $
 #endif
     caseVarSyn e0 performVar performTerm
@@ -378,33 +323,20 @@ perform = \e0 ->
     -- we cannot use 'emitCaseWith' here since that would require
     -- the scrutinee to be emissible; but we'd want something pretty
     -- similar...
-    performTerm t0 = performWhnf =<< evaluate_ (syn t0)
+    performTerm t0 = do
+        w <- evaluate_ (syn t0)
+#ifdef __TRACE_DISINTEGRATE__
+        trace ("-- perform: finished evaluate, with:\n" ++ show (PP.sep(prettyPrec_ 11 w))) $ return ()
+#endif
+        performWhnf w
 
 
     performVar :: forall a. Variable ('HMeasure a) -> Dis abt (Whnf abt a)
     performVar = performWhnf <=< update perform evaluate_
 
-
-    -- HACK: we have to special case the 'WAnn' constructor in order
-    -- to avoid looping forever (since annotations just evaluate to
-    -- themselves). We'd prolly have the same issue with coercions
-    -- excepting that there are no coercions for 'HMeasure' types.
-    --
-    -- TODO: for the 'WAnn' constructor we push the annotation down
-    -- into the 'Whnf' result. This is better than dropping it on the
-    -- floor, but may still end up producing programs which don't
-    -- typecheck (or don't behave nicely with 'typeOf') since it moves
-    -- the annotation around. To keep the annotation in the same place
-    -- as the input, we'd need to pass it to 'perform' somehow so that
-    -- it can emit the annotation when it emits 'MBind' etc. (That
-    -- prolly means we shouldn't handle 'WAnn' here, but rather should
-    -- handle it in the definition of 'perform' itself...)
+    -- BUG: it's not clear this is actually doing the right thing for its call-sites. In particular, we should handle 'Case_' specially, to deal with the hygiene bug in 'testPerform1b'...
     performWhnf
         :: forall a. Whnf abt ('HMeasure a) -> Dis abt (Whnf abt a)
-    {-
-    performWhnf (Head_ (WAnn typ v)) =
-        ann (sUnMeasure typ) <$> performWhnf (Head_ v)
-    -}
     performWhnf (Head_   v) = perform $ fromHead v
     performWhnf (Neutral e) = (Neutral . var) <$> emitMBind e
 
@@ -421,28 +353,30 @@ perform = \e0 ->
         -> SArgs abt args
         -> Dis abt (Whnf abt a)
     performMeasureOp = \o es -> nice o es <|> complete o es
-      where
-      nice :: MeasureOp typs a
-           -> SArgs abt args
-           -> Dis abt (Whnf abt a)
-      nice o es = do
-        es' <- traverse21 atomizeCore es
-        x   <- emitMBind $ syn (MeasureOp_ o :$ es')
-        return (Neutral $ var x)
+        where
+        nice
+            :: MeasureOp typs a
+            -> SArgs abt args
+            -> Dis abt (Whnf abt a)
+        nice o es = do
+            es' <- traverse21 atomizeCore es
+            x   <- emitMBind $ syn (MeasureOp_ o :$ es')
+            return (Neutral $ var x)
 
-      complete :: MeasureOp typs a
-               -> SArgs abt args
-               -> Dis abt (Whnf abt a)
-      complete Normal = \(mu :* sd :* End) -> do
-        x <- var <$> emitMBind P.lebesgue
-        emitWeight (P.densityNormal mu sd x)
-        return (Neutral x)
-      complete Uniform = \(lo :* hi :* End) -> do
-        x <- var <$> emitMBind P.lebesgue
-        emitGuard (lo P.< x P.&& x P.< hi)
-        emitWeight (P.densityUniform lo hi x)
-        return (Neutral x)
-      complete o = \es -> nice o es
+        complete
+            :: MeasureOp typs a
+            -> SArgs abt args
+            -> Dis abt (Whnf abt a)
+        complete Normal = \(mu :* sd :* End) -> do
+            x <- var <$> emitMBind P.lebesgue
+            emitWeight (P.densityNormal mu sd x)
+            return (Neutral x)
+        complete Uniform = \(lo :* hi :* End) -> do
+            x <- var <$> emitMBind P.lebesgue
+            emitGuard (lo P.< x P.&& x P.< hi)
+            emitWeight (P.densityUniform lo hi x)
+            return (Neutral x)
+        complete _ = \_ -> bot
 
 -- | The goal of this function is to ensure the correctness criterion
 -- that given any term to be emitted, the resulting term is
@@ -529,7 +463,7 @@ constrainValue v0 e0 =
 #ifdef __TRACE_DISINTEGRATE__
     getStatements >>= \ss ->
     trace ("\n-- constrainValue: " ++ show (pretty v0) ++ "\n"
-        ++ show (pretty_Statements ss PP.$+$ pretty e0)
+        ++ show (pretty_Statements_withTerm ss e0)
         ++ "\n") $
 #endif
     caseVarSyn e0 (constrainVariable v0) $ \t ->

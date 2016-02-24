@@ -44,6 +44,11 @@ module Language.Hakaru.Evaluation.Types
 
     -- * The monad for partial evaluation
     , Purity(..), Statement(..), isBoundBy
+#ifdef __TRACE_DISINTEGRATE__
+    , ppStatement
+    , pretty_Statements
+    , pretty_Statements_withTerm
+#endif
     , EvaluationMonad(..)
     , freshVar
     , freshenVar
@@ -78,6 +83,11 @@ import Language.Hakaru.Syntax.Datum
 -- import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.ABT
 import qualified Language.Hakaru.Syntax.Prelude as P
+
+#ifdef __TRACE_DISINTEGRATE__
+import qualified Text.PrettyPrint     as PP
+import Language.Hakaru.Pretty.Haskell
+#endif
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -528,6 +538,75 @@ x `isBoundBy` SGuard ys _ _ =
     then Just ()
     else Nothing
 
+
+-- TODO: remove this CPP guard, provided we don't end up with a cyclic dependency...
+#ifdef __TRACE_DISINTEGRATE__
+instance (ABT Term abt) => Pretty (Whnf abt) where
+    prettyPrec_ p (Head_   w) = ppApply1 p "Head_" (fromHead w) -- HACK
+    prettyPrec_ p (Neutral e) = ppApply1 p "Neutral" e
+
+instance (ABT Term abt) => Pretty (Lazy abt) where
+    prettyPrec_ p (Whnf_ w) = ppFun p "Whnf_" [PP.sep (prettyPrec_ 11 w)]
+    prettyPrec_ p (Thunk e) = ppApply1 p "Thunk" e
+
+ppApply1 :: (ABT Term abt) => Int -> String -> abt '[] a -> [PP.Doc]
+ppApply1 p f e1 =
+    let d = PP.text f PP.<+> PP.nest (1 + length f) (prettyPrec 11 e1)
+    in [if p > 9 then PP.parens (PP.nest 1 d) else d]
+
+ppFun :: Int -> String -> [PP.Doc] -> [PP.Doc]
+ppFun _ f [] = [PP.text f]
+ppFun p f ds =
+    parens (p > 9) [PP.text f PP.<+> PP.nest (1 + length f) (PP.sep ds)]
+
+parens :: Bool -> [PP.Doc] -> [PP.Doc]
+parens True  ds = [PP.parens (PP.nest 1 (PP.sep ds))]
+parens False ds = ds
+
+ppStatement :: (ABT Term abt) => Int -> Statement abt p -> PP.Doc
+ppStatement p s =
+    case s of
+    SBind x e ->
+        PP.sep $ ppFun p "SBind"
+            [ ppVariable x
+            , PP.sep $ prettyPrec_ 11 e
+            ]
+    SLet x e ->
+        PP.sep $ ppFun p "SLet"
+            [ ppVariable x
+            , PP.sep $ prettyPrec_ 11 e
+            ]
+    SIndex x e1 e2 ->
+        PP.sep $ ppFun p "SIndex"
+            [ ppVariable x
+            , PP.sep $ prettyPrec_ 11 e1
+            , PP.sep $ prettyPrec_ 11 e2
+            ]
+    SWeight e ->
+        PP.sep $ ppFun p "SWeight"
+            [ PP.sep $ prettyPrec_ 11 e
+            ]
+    SGuard xs pat e ->
+        PP.sep $ ppFun p "SGuard"
+            [ PP.sep $ ppVariables xs
+            , PP.sep $ prettyPrec_ 11 pat
+            , PP.sep $ prettyPrec_ 11 e
+            ]
+
+pretty_Statements :: (ABT Term abt) => [Statement abt p] -> PP.Doc
+pretty_Statements []     = PP.text "[]"
+pretty_Statements (s:ss) =
+    foldl
+        (\d s' -> d PP.$+$ PP.comma PP.<+> ppStatement 0 s')
+        (PP.text "[" PP.<+> ppStatement 0 s)
+        ss
+    PP.$+$ PP.text "]"
+
+pretty_Statements_withTerm
+    :: (ABT Term abt) => [Statement abt p] -> abt '[] a -> PP.Doc
+pretty_Statements_withTerm ss e =
+    pretty_Statements ss PP.$+$ pretty e
+#endif
 
 ----------------------------------------------------------------
 -- | This class captures the monadic operations needed by the
