@@ -335,6 +335,8 @@ perform = \e0 ->
     performVar = performWhnf <=< update perform evaluate_
 
     -- BUG: it's not clear this is actually doing the right thing for its call-sites. In particular, we should handle 'Case_' specially, to deal with the hygiene bug in 'testPerform1b'...
+    --
+    -- BUG: found the 'testPerform1b' hygiene bug! We can't simply call 'emitMBind' on @e@, because @e@ may not be emissible!
     performWhnf
         :: forall a. Whnf abt ('HMeasure a) -> Dis abt (Whnf abt a)
     performWhnf (Head_   v) = perform $ fromHead v
