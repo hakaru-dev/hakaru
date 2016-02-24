@@ -420,6 +420,7 @@ instance Pretty f => Pretty (Datum f) where
             -- General case
             _       -> ppFun p (Text.unpack hint)
                 (foldMap11 ((:[]) . toDoc . prettyPrec_ 11) d)
+                ++ [PP.text "." <+> prettyType p _typ]
 
 
 -- HACK: need to pull this out in order to get polymorphic recursion over @xs@
