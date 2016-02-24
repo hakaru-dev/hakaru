@@ -52,7 +52,7 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     , emitFork_
     , emitSuperpose
     , choose
-    -- ** Case analysis stuff
+    -- ** Case analysis stuff (mostly unused)
     , GBranch(..)
     , fromGBranch
     , toGBranch
@@ -90,6 +90,9 @@ import qualified Language.Hakaru.Syntax.Prelude as P
 import Language.Hakaru.Evaluation.Types
 import Language.Hakaru.Evaluation.Lazy (reifyPair)
 
+#ifdef __TRACE_DISINTEGRATE__
+import Debug.Trace (trace)
+#endif
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -257,7 +260,7 @@ runDis (Dis m) es = m c0 (ListContext i0 [])
     where
     -- TODO: we only use dirac because 'residualizeListContext' requires it to already be a measure; unfortunately this can result in an extraneous @(>>= \x -> dirac x)@ redex at the end of the program. In principle, we should be able to eliminate that redex by changing the type of 'residualizeListContext'...
     c0 e ss = [residualizeListContext ss (syn(Dirac :$ e :* End))]
-    
+
     i0 = unMaxNat (F.foldMap (\(Some2 e) -> MaxNat $ nextFree e) es)
 
 
@@ -275,7 +278,7 @@ instance Monad (Dis abt) where
 instance Alternative (Dis abt) where
     empty           = Dis $ \_ _ -> []
     Dis m <|> Dis n = Dis $ \c h -> m c h ++ n c h
-    
+
 instance MonadPlus (Dis abt) where
     mzero = empty -- aka "bot"
     mplus = (<|>) -- aka "lub"
@@ -402,19 +405,62 @@ emitUnpair
     :: (ABT Term abt)
     => Whnf abt (HPair a b)
     -> Dis abt (abt '[] a, abt '[] b)
-emitUnpair (Head_   e) = return $ reifyPair e
+emitUnpair (Head_   w) = return $ reifyPair w
 emitUnpair (Neutral e) = do
     let (a,b) = sUnPair (typeOf e)
     x <- freshVar Text.empty a
     y <- freshVar Text.empty b
-    Dis $ \c h ->
-        ( syn
-        . Case_ e
-        . (:[])
-        . Branch (pPair PVar PVar)
-        . bind x
-        . bind y
-        ) <$> c (var x, var y) h
+    emitUnpair_ x y e
+
+emitUnpair_
+    :: forall abt a b
+    .  (ABT Term abt)
+    => Variable a
+    -> Variable b
+    -> abt '[] (HPair a b)
+    -> Dis abt (abt '[] a, abt '[] b)
+emitUnpair_ x y = loop
+    where
+    done :: abt '[] (HPair a b) -> Dis abt (abt '[] a, abt '[] b)
+    done e =
+#ifdef __TRACE_DISINTEGRATE__
+        trace "-- emitUnpair: done (term is not Datum_ nor Case_)" $
+#endif
+        Dis $ \c h ->
+            ( syn
+            . Case_ e
+            . (:[])
+            . Branch (pPair PVar PVar)
+            . bind x
+            . bind y
+            ) <$> c (var x, var y) h
+
+    loop :: abt '[] (HPair a b) -> Dis abt (abt '[] a, abt '[] b)
+    loop e0 =
+        caseVarSyn e0 (done . var) $ \t ->
+            case t of
+            Datum_ d   -> do
+#ifdef __TRACE_DISINTEGRATE__
+                trace "-- emitUnpair: found Datum_" $ return ()
+#endif
+                return $ reifyPair (WDatum d)
+            Case_ e bs -> do
+#ifdef __TRACE_DISINTEGRATE__
+                trace "-- emitUnpair: going under Case_" $ return ()
+#endif
+                -- TODO: we want this to duplicate the current
+                -- continuation for (the evaluation of @loop@ in)
+                -- all branches. So far our traces all end up
+                -- returning @bot@ on the first branch, and hence
+                -- @bot@ for the whole case-expression, so we can't
+                -- quite tell whether it does what is intended.
+                --
+                -- N.B., the only 'Dis'-effects in 'applyBranch'
+                -- are to freshen variables; thus this use of
+                -- 'traverse' is perfectly sound.
+                emitCase e =<< T.traverse (applyBranch loop) bs
+            _ -> done e0
+
 
 -- TODO: emitUneither
 
@@ -603,36 +649,6 @@ applyBranch f (Branch pat e) = do
     let rho = toAssocs vars (fmap11 var vars')
     return . GBranch pat vars' . f $ substs rho body
 
-{-
--- This typechecks! It gives an example of how we might use the
--- above in order to do evaluation of the branches under case. Of
--- course, the control flow is a bit strange; the 'Whnf' returned
--- is the result of evaluating the body of whichever branch you
--- happen to be in. We should prolly also return some sort of
--- information about what branch it happens to be, since folks may
--- wish to make decisions based on that. (N.B., using 'emitCase'
--- directly gives you that information via the lexical context since
--- we's give the bodies inline within the 'GBranch'es.)
-foo :: (ABT Term abt)
-    => abt '[] a
-    -> [Branch a abt b]
-    -> Dis abt (Whnf abt b)
-foo e bs =
-    emitCase e =<< T.traverse (applyBranch evaluate_) bs
-
--- This function should be equivalent to 'foo', just moving the
--- call to 'evaluate_' from the argument of 'applyBranch' to the
--- continuation. Assuming that's actually true and works, then we
--- can implement @applyBranch return@ by @fmap toGBranch .
--- freshenBranch@
-foo' :: (ABT Term abt)
-    => abt '[] a
-    -> [Branch a abt b]
-    -> Dis abt (Whnf abt b)
-foo' e bs = do
-    myBody <- emitCase e =<< T.traverse (applyBranch return) bs
-    evaluate_ myBody
--}
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

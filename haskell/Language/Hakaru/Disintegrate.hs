@@ -16,7 +16,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.02.21
+--                                                    2016.02.23
 -- |
 -- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -156,7 +156,34 @@ disintegrateWithVar hint typ m =
             ++ show (pretty_Statements ss PP.$+$ PP.sep(prettyPrec_ 11 ab))
             ++ "\n") $ return ()
 #endif
-        -- BUG: Why does 'testDisintegrate1a' return no solutions? It's because 'emitUnpair' isn't quite smart enough. When the @ab@ expression is a 'Neutral' case expression, we need to go underneath the case expression and call 'constrainValue' on each branch. Instead, what we currently do is emit an @unpair@ case statement with the scrutinee being the 'Neutral' case expression, and then just return the pair of variables bound by the emitted @unpair@; but, of course, 'constrainValue' can't do anything with those variables (since they appear to be free, given as they've already been emitted). Another way to think about what it is we need to do to correct this is that we need to perform the case-of-case transformation (where one of the cases is the 'Neutral' one, and the other is the @unpair@).
+        -- BUG: Why does 'testDisintegrate1a' return no solutions?
+        --
+        -- In older code (up to git#38889a5): It's because 'emitUnpair'
+        -- isn't quite smart enough. When the @ab@ expression is a
+        -- 'Neutral' case expression, we need to go underneath the
+        -- case expression and call 'constrainValue' on each branch.
+        -- Instead, what we currently do is emit an @unpair@ case
+        -- statement with the scrutinee being the 'Neutral' case
+        -- expression, and then just return the pair of variables
+        -- bound by the emitted @unpair@; but, of course,
+        -- 'constrainValue' can't do anything with those variables
+        -- (since they appear to be free, given as they've already
+        -- been emitted). Another way to think about what it is we
+        -- need to do to correct this is that we need to perform
+        -- the case-of-case transformation (where one of the cases
+        -- is the 'Neutral' one, and the other is the @unpair@).
+        --
+        -- In newer code (after git#38889a5): When we call 'perform'
+        -- on an 'SBind' statement we emit some code and update the
+        -- binding to become an 'SLet' of some local variable to
+        -- the emitted variable. Later on when we call 'constrainVariable'
+        -- on the local variable, we will look that 'SLet' statement
+        -- up; and then when we call 'constrainVariable' on the
+        -- emitted variable, things will @bot@ because we cannot
+        -- constrain free variables in general. It's not entirely
+        -- clear to me(wrengr) whether this indicates disintegration
+        -- is still wrong, or whether the 'testDisintegrate1a'
+        -- program really /should/ be returning @bot@.
         (a,b) <- emitUnpair ab
 #ifdef __TRACE_DISINTEGRATE__
         trace ("-- disintegrate: finished emitUnpair: "
