@@ -372,6 +372,12 @@ perform = \e0 ->
     -- directly, rather than calling 'syn' to rebuild @e0@ from
     -- @t0@ and then calling 'evaluate_' (which will just use
     -- 'caseVarSyn' to get the @t0@ back out from the @e0@).
+    --
+    -- BUG: when @t0@ is a 'Case_', this doesn't work right. This
+    -- is the source of the hygiene bug in 'testPerform1b'. Alas,
+    -- we cannot use 'emitCaseWith' here since that would require
+    -- the scrutinee to be emissible; but we'd want something pretty
+    -- similar...
     performTerm t0 = performWhnf =<< evaluate_ (syn t0)
 
 
