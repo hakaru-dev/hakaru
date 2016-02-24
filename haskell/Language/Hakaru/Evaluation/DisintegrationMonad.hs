@@ -45,6 +45,7 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     , emitLet'
     , emitUnpair
     -- TODO: emitUneither
+    -- emitCaseWith
     , emit_
     , emitMBind_
     , emitGuard
@@ -52,15 +53,6 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     , emitFork_
     , emitSuperpose
     , choose
-    -- ** Case analysis stuff (mostly unused)
-    , GBranch(..)
-    , fromGBranch
-    , toGBranch
-    , emitCase
-    , freshenBranch
-    , freshenGBranch
-    , freshenBranchG
-    , applyBranch
     ) where
 
 import           Prelude              hiding (id, (.))
@@ -458,7 +450,7 @@ emitUnpair_ x y = loop
                 -- N.B., the only 'Dis'-effects in 'applyBranch'
                 -- are to freshen variables; thus this use of
                 -- 'traverse' is perfectly sound.
-                emitCase e =<< T.traverse (applyBranch loop) bs
+                emitCaseWith loop e bs
             _ -> done e0
 
 
@@ -548,12 +540,14 @@ fromGBranch
 fromGBranch (GBranch pat vars e) =
     Branch pat (binds_ vars e)
 
+{-
 toGBranch
     :: (ABT Term abt)
     => Branch a abt b
     -> GBranch a (abt '[] b)
 toGBranch (Branch pat body) =
     uncurry (GBranch pat) (caseBinds body)
+-}
 
 instance Functor (GBranch a) where
     fmap f (GBranch pat vars x) = GBranch pat vars (f x)
@@ -564,90 +558,40 @@ instance F.Foldable (GBranch a) where
 instance T.Traversable (GBranch a) where
     traverse f (GBranch pat vars x) = GBranch pat vars <$> f x
 
--- N.B., this function does not freshen the variables bound by each
--- 'GBranch'. It's the caller's responsability to perform that
--- freshening when turning each original @Branch a abt b@ into
--- @GBranch a (Dis abt x)@. This organization is necessary since we
--- need to have already done the renaming when we turn the underlying
--- @abt xs b@ into @(List1 Variable xs, Dis abt x)@.
+
+-- | Given some function we can call on the bodies of the branches,
+-- freshen all the pattern-bound variables and then run the function
+-- on all the branches in parallel (i.e., with the same continuation
+-- and heap) and then emit a case-analysis expression with the
+-- results of the continuations as the bodies of the branches. This
+-- function is useful for when we really do want to emit a 'Case_'
+-- expression, rather than doing the superpose of guard patterns
+-- thing that 'constrainValue' does.
 --
--- TODO: we want a variant of this function which returns the list
--- of bound variables along with the @b@; since that's required for
--- the continuation to do things that might vary depending on the
--- bound variables.
-emitCase
+-- N.B., this function assumes (and does not verify) that the second
+-- argument is emissible. So callers must guarantee this invariant,
+-- by calling 'atomize' as necessary.
+--
+-- TODO: capture the emissibility requirement on the second argument
+-- in the types.
+emitCaseWith
     :: (ABT Term abt)
-    => abt '[] a
-    -> [GBranch a (Dis abt b)]
-    -> Dis abt b
-emitCase e =
-    emitFork_ (syn . Case_ e . fmap fromGBranch . getCompose) . Compose
-{-
--- Alternative implementation which I believe has the same semantics:
-emitCase e ms =
-    Dis $ \c h -> (syn . Case_ e) <$> T.traverse (runBranch c h) ms
-    where
-    -- This function has a type isomorphic to:
-    -- > GBranch a (Dis abt b) -> Ran (Ans abt) (Ans' abt) b
-    -- where:
-    -- > Ans' abt b = ListContext abt p -> [Branch a abt ('HMeasure b)]
-    -- This is very similar to but not quite the same as:
-    -- > GBranch a (Dis abt b) -> Dis abt b
-    -- Since @Dis abt = Codensity (Ans abt) = Ran (Ans abt) (Ans abt)@.
-    runBranch c h = fmap fromGBranch . T.traverse (\m -> unDis m c h)
--}
-
-freshenBranch
-    :: (ABT Term abt, EvaluationMonad abt m p)
-    => Branch a abt b
-    -> m (Branch a abt b)
-freshenBranch (Branch pat e) = do
-    let (vars, body) = caseBinds e
-    vars' <- freshenVars vars
-    let rho = toAssocs vars (fmap11 var vars')
-    return . Branch pat . binds_ vars' $ substs rho body
-
-freshenGBranch
-    :: (ABT Term abt, EvaluationMonad abt m p)
-    => GBranch a b
-    -> m (GBranch a b)
-freshenGBranch (GBranch pat vars x) = do
-    vars' <- freshenVars vars
-    return $ GBranch pat vars' x
-
--- We should have that:
--- > fmap fromGBranch . freshenBranchG = freshenBranch
--- > freshenBranchG . fromGBranch = freshenGBranch
-freshenBranchG
-    :: (ABT Term abt, EvaluationMonad abt m p)
-    => Branch a abt b
-    -> m (GBranch a (abt '[] b))
-freshenBranchG (Branch pat e) = do
-    let (vars, body) = caseBinds e
-    vars' <- freshenVars vars
-    let rho = toAssocs vars (fmap11 var vars')
-    return . GBranch pat vars' $ substs rho body
-
-
--- | This function will freshen the variables bound by the branch,
--- and then map the function over the body. This only really does
--- what you want provided the function can safely (and does) treat
--- the case-bound variables as if they were free variables.
---
--- We should have that:
--- > T.sequence <=< applyBranch return = freshenBranchG
--- or more generally that:
--- > T.sequence <=< applyBranch f = f <=< freshenBranchG
-applyBranch
-    :: (ABT Term abt, EvaluationMonad abt m p)
-    => (abt '[] b -> r)
-    -> Branch a abt b
-    -> m (GBranch a r)
-applyBranch f (Branch pat e) = do
-    let (vars, body) = caseBinds e
-    vars' <- freshenVars vars
-    let rho = toAssocs vars (fmap11 var vars')
-    return . GBranch pat vars' . f $ substs rho body
+    => (abt '[] b -> Dis abt r)
+    -> abt '[] a
+    -> [Branch a abt b]
+    -> Dis abt r
+emitCaseWith f e bs = do
+    gms <- T.for bs $ \(Branch pat body) ->
+        let (vars, body') = caseBinds body
+        in  (\vars' ->
+                let rho = toAssocs vars (fmap11 var vars')
+                in  GBranch pat vars' (f $ substs rho body')
+            ) <$> freshenVars vars
+    Dis $ \c h ->
+        (syn . Case_ e) <$> T.for gms (\gm ->
+            fromGBranch <$> T.for gm (\m ->
+                unDis m c h))
+{-# INLINE emitCaseWith #-}
 
 
 ----------------------------------------------------------------

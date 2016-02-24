@@ -173,7 +173,7 @@ disintegrateWithVar hint typ m =
         -- the case-of-case transformation (where one of the cases
         -- is the 'Neutral' one, and the other is the @unpair@).
         --
-        -- In newer code (after git#38889a5): When we call 'perform'
+        -- In newer code (git#e8a0c66 and later): When we call 'perform'
         -- on an 'SBind' statement we emit some code and update the
         -- binding to become an 'SLet' of some local variable to
         -- the emitted variable. Later on when we call 'constrainVariable'
