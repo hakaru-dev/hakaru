@@ -310,11 +310,23 @@ perform = \e0 ->
         => MeasureOp typs a
         -> SArgs abt args
         -> Dis abt (Whnf abt a)
-    performMeasureOp o es = do
+    performMeasureOp = \o es -> nice o es <|> complete o es
+      where
+      nice o es = do
         es' <- traverse21 atomizeCore es
         x   <- emitMBind $ syn (MeasureOp_ o :$ es')
         return (Neutral $ var x)
 
+      complete Normal \(mu :* sd :* End) = do
+        x <- var <$> emitMBind P.lebesgue
+        emitWeight (P.densityNormal mu sd x)
+        return (Neutral x)
+      complete Uniform \(lo :* hi :* End) = do
+        x <- var <$> emitMBind P.lebesgue
+        emitGuard (lo P.< x P.&& x P.< hi)
+        emitWeight (P.densityUniform lo hi x)
+        return (Neutral x)
+      complete o es = nice o es
 
 -- | The goal of this function is to ensure the correctness criterion
 -- that given any term to be emitted, the resulting term is

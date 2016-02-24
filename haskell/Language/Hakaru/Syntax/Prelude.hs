@@ -74,6 +74,7 @@ module Language.Hakaru.Syntax.Prelude
     , lebesgue
     , counting
     , categorical, categorical'
+    , densityUniform
     , uniform, uniform'
     , densityNormal
     , normal, normal'
@@ -1238,6 +1239,15 @@ categorical' v =
     weightedDirac j (v!j / sumV v)
 
 
+densityUniform
+    :: (ABT Term abt)
+    => abt '[] 'HReal
+    -> abt '[] 'HReal
+    -> abt '[] 'HReal
+    -> abt '[] 'HProb
+densityUniform lo hi x = recip . unsafeProb $ hi - lo
+
+
 -- TODO: make Uniform polymorphic, so that if the two inputs are
 -- HProb then we know the measure must be over HProb too
 uniform, uniform'
@@ -1249,10 +1259,9 @@ uniform = measure2_ Uniform
 
 uniform' lo hi = 
     lebesgue >>= \x ->
-    withGuard (lo < x && x < hi)
+    withGuard (lo < x && x < hi) $
         -- TODO: how can we capture that this 'unsafeProb' is safe? (and that this 'recip' isn't Infinity, for that matter)
-        $ weightedDirac x (recip . unsafeProb $ hi - lo)
-
+    weightedDirac x (densityUniform lo hi x)
 
 densityNormal
     :: (ABT Term abt)
