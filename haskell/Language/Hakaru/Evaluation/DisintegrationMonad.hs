@@ -16,7 +16,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.02.21
+--                                                    2016.02.23
 -- |
 -- Module      :  Language.Hakaru.Evaluation.DisintegrationMonad
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -90,9 +90,6 @@ import qualified Language.Hakaru.Syntax.Prelude as P
 import Language.Hakaru.Evaluation.Types
 import Language.Hakaru.Evaluation.Lazy (reifyPair)
 
-#ifdef __TRACE_DISINTEGRATE__
-import Debug.Trace (trace)
-#endif
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -405,9 +402,6 @@ emitUnpair
     :: (ABT Term abt)
     => Whnf abt (HPair a b)
     -> Dis abt (abt '[] a, abt '[] b)
-#ifdef __TRACE_DISINTEGRATE__
-emitUnpair _ | trace "inside emitUnpair" False = undefined
-#endif
 emitUnpair (Head_   e) = return $ reifyPair e
 emitUnpair (Neutral e) = do
     let (a,b) = sUnPair (typeOf e)

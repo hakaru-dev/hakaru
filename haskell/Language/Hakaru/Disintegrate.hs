@@ -11,6 +11,7 @@
            , TypeSynonymInstances
            , FlexibleInstances
            , FlexibleContexts
+           , UndecidableInstances
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -106,8 +107,9 @@ import qualified Language.Hakaru.Syntax.Prelude as P
 import qualified Language.Hakaru.Expect         as E
 
 #ifdef __TRACE_DISINTEGRATE__
-import Language.Hakaru.Pretty.Haskell (pretty)
-import Debug.Trace (trace)
+import qualified Text.PrettyPrint     as PP
+import Language.Hakaru.Pretty.Haskell
+import Debug.Trace                    (trace)
 #endif
 
 
@@ -149,10 +151,21 @@ disintegrateWithVar hint typ m =
     in map (lam_ x) . flip runDis [Some2 m, Some2 (var x)] $ do
         ab    <- perform m
 #ifdef __TRACE_DISINTEGRATE__
-        trace "returned form perform" $ return ()
+        ss <- getStatements
+        trace ("-- disintegrate: finished perform\n"
+            ++ show (pretty_Statements ss PP.$+$ PP.sep(prettyPrec_ 11 ab))
+            ++ "\n") $ return ()
 #endif
+        -- BUG: Why does 'testDisintegrate1a' return no solutions? It's because 'emitUnpair' isn't quite smart enough. When the @ab@ expression is a 'Neutral' case expression, we need to go underneath the case expression and call 'constrainValue' on each branch. Instead, what we currently do is emit an @unpair@ case statement with the scrutinee being the 'Neutral' case expression, and then just return the pair of variables bound by the emitted @unpair@; but, of course, 'constrainValue' can't do anything with those variables (since they appear to be free, given as they've already been emitted). Another way to think about what it is we need to do to correct this is that we need to perform the case-of-case transformation (where one of the cases is the 'Neutral' one, and the other is the @unpair@).
         (a,b) <- emitUnpair ab
+#ifdef __TRACE_DISINTEGRATE__
+        trace ("-- disintegrate: finished emitUnpair: "
+            ++ show (pretty a, pretty b)) $ return ()
+#endif
         constrainValue (var x) a
+#ifdef __TRACE_DISINTEGRATE__
+        trace "-- disintegrate: finished constrainValue" $ return ()
+#endif
         return b
 
 
@@ -242,6 +255,67 @@ evaluateDatum :: (ABT Term abt) => DatumEvaluator (abt '[]) (Dis abt)
 evaluateDatum e = viewWhnfDatum <$> evaluate_ e
 
 
+#ifdef __TRACE_DISINTEGRATE__
+getStatements :: Dis abt [Statement abt 'Impure]
+getStatements = Dis $ \c h -> c (statements h) h
+
+instance (ABT Term abt) => Pretty (Whnf abt) where
+    prettyPrec_ p (Head_   w) = ppApply1 p "Head_" (fromHead w) -- HACK
+    prettyPrec_ p (Neutral e) = ppApply1 p "Neutral" e
+    
+instance (ABT Term abt) => Pretty (Lazy abt) where
+    prettyPrec_ p (Whnf_ w) = ppApply1 p "Whnf_" (fromWhnf w) -- HACK
+    prettyPrec_ p (Thunk e) = ppApply1 p "Thunk" e
+
+ppApply1 :: (ABT Term abt) => Int -> String -> abt '[] a -> [PP.Doc]
+ppApply1 p f e1 =
+    let d = PP.text f PP.<+> PP.nest (1 + length f) (prettyPrec 11 e1)
+    in [if p > 9 then PP.parens (PP.nest 1 d) else d]
+
+ppFun0 :: String -> [PP.Doc] -> PP.Doc
+ppFun0 f [] = PP.text f
+ppFun0 f ds = PP.text f PP.<+> PP.nest (1 + length f) (PP.sep ds)
+
+pretty_Statement :: (ABT Term abt) => Statement abt p -> PP.Doc
+pretty_Statement s =
+    case s of
+    SBind x e ->
+        ppFun0 "SBind"
+            [ ppVariable x
+            , PP.sep $ prettyPrec_ 11 e
+            ]
+    SLet x e ->
+        ppFun0 "SLet"
+            [ ppVariable x
+            , PP.sep $ prettyPrec_ 11 e
+            ]
+    SIndex x e1 e2 ->
+        ppFun0 "SIndex"
+            [ ppVariable x
+            , PP.sep $ prettyPrec_ 11 e1
+            , PP.sep $ prettyPrec_ 11 e2
+            ]
+    SWeight e ->
+        ppFun0 "SWeight"
+            [ PP.sep $ prettyPrec_ 11 e
+            ]
+    SGuard xs pat e ->
+        ppFun0 "SGuard"
+            [ PP.sep $ ppVariables xs
+            , PP.sep $ prettyPrec_ 11 pat
+            , PP.sep $ prettyPrec_ 11 e
+            ]
+
+pretty_Statements :: (ABT Term abt) => [Statement abt p] -> PP.Doc
+pretty_Statements []     = PP.text "[]"
+pretty_Statements (s:ss) =
+    foldl
+        (\d s' -> d PP.$+$ PP.comma PP.<+> pretty_Statement s')
+        (PP.text "[" PP.<+> pretty_Statement s)
+        ss
+    PP.$+$ PP.text "]"
+#endif
+
 -- | Simulate performing 'HMeasure' actions by simply emiting code
 -- for those actions, returning the bound variable.
 --
@@ -249,7 +323,10 @@ evaluateDatum e = viewWhnfDatum <$> evaluate_ e
 perform :: forall abt. (ABT Term abt) => MeasureEvaluator abt (Dis abt)
 perform = \e0 ->
 #ifdef __TRACE_DISINTEGRATE__
-    trace ("\nperform: " ++ show (pretty e0)) $
+    getStatements >>= \ss ->
+    trace ("\n-- perform --\n"
+        ++ show (pretty_Statements ss PP.$+$ pretty e0)
+        ++ "\n") $
 #endif
     caseVarSyn e0 performVar performTerm
     where
@@ -355,7 +432,7 @@ perform = \e0 ->
 atomize :: (ABT Term abt) => TermEvaluator abt (Dis abt)
 atomize e =
 #ifdef __TRACE_DISINTEGRATE__
-    trace ("\natomize: " ++ show (pretty e)) $
+    trace ("\n-- atomize --\n" ++ show (pretty e)) $
 #endif
     traverse21 atomizeCore =<< evaluate_ e
 
@@ -417,12 +494,10 @@ getHeapVars =
 constrainValue :: (ABT Term abt) => abt '[] a -> abt '[] a -> Dis abt ()
 constrainValue v0 e0 =
 #ifdef __TRACE_DISINTEGRATE__
-    trace (
-        let s = "constrainValue"
-        in "\n" ++ s ++ ": "
-            ++ show (pretty v0)
-            ++ "\n" ++ replicate (length s) ' ' ++ ": "
-            ++ show (pretty e0)) $
+    getStatements >>= \ss ->
+    trace ("\n-- constrainValue: " ++ show (pretty v0) ++ "\n"
+        ++ show (pretty_Statements ss PP.$+$ pretty e0)
+        ++ "\n") $
 #endif
     caseVarSyn e0 (constrainVariable v0) $ \t ->
         case t of
@@ -913,7 +988,7 @@ constrainOutcome
 constrainOutcome v0 e0 =
 #ifdef __TRACE_DISINTEGRATE__
     trace (
-        let s = "constrainOutcome"
+        let s = "-- constrainOutcome"
         in "\n" ++ s ++ ": "
             ++ show (pretty v0)
             ++ "\n" ++ replicate (length s) ' ' ++ ": "

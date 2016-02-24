@@ -129,6 +129,7 @@ testPerform1a = runPerform norm1a
 testPerform1b = runPerform norm1b
 testPerform1c = runPerform norm1c
 
+-- BUG: Why do these return no solutions? See the note in 'disintegrate' about the 'emitUnpair' call.
 testDisintegrate1a, testDisintegrate1b, testDisintegrate1c
     :: [TrivialABT Term '[] ('HReal ':-> 'HMeasure HUnit)]
 testDisintegrate1a = disintegrate norm1a
