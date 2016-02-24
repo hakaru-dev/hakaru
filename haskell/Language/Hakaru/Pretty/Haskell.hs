@@ -28,11 +28,14 @@ module Language.Hakaru.Pretty.Haskell
 
     -- * Helper functions (semi-public internal API)
     , ppVariable
+    , ppVariables
+    , ppBinder
     , ppCoerceTo
     , ppUnsafeFrom
     , ppRatio
     , Associativity(..)
     , ppBinop
+    , Pretty(..)
     ) where
 import           Data.Ratio
 import           Text.PrettyPrint (Doc, (<>), (<+>))
@@ -43,7 +46,7 @@ import qualified Data.Sequence    as Seq -- Because older versions of "Data.Fold
 
 import Data.Number.Nat                 (fromNat)
 import Data.Number.Natural             (fromNatural)
-import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11)
+import Language.Hakaru.Syntax.IClasses (fmap11, foldMap11, List1(..))
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.HClasses
@@ -94,6 +97,14 @@ ppVariable x = hint <> (PP.int . fromNat . varID) x
     hint
         | Text.null (varHint x) = PP.char 'x' -- We used to use '_' but...
         | otherwise             = (PP.text . Text.unpack . varHint) x
+
+-- | Pretty-print a list of variables as a list of variables. N.B., the output is not valid Haskell code since it uses the special built-in list syntax rather than using the 'List1' constructors...
+ppVariables :: List1 Variable (xs :: [Hakaru]) -> Docs
+ppVariables = ppList . go
+    where
+    go :: List1 Variable (xs :: [Hakaru]) -> Docs
+    go Nil1         = []
+    go (Cons1 x xs) = ppVariable x : go xs
 
 
 -- | Pretty-print Hakaru binders as a Haskell lambda, as per our HOAS API.
@@ -156,7 +167,7 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
         Empty_   _    -> [PP.text "empty"]
         Array_ e1 e2  ->
             ppFun 11 "array"
-                [ toDoc (ppArg e1) <+> PP.char '$'
+                [ ppArg e1 <+> PP.char '$'
                 , toDoc $ ppBinder e2
                 ]
         Datum_ d      -> prettyPrec_ p (fmap11 LC_ d)
@@ -164,7 +175,7 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
             -- TODO: should we also add hints to the 'Case_' constructor to know whether it came from 'if_', 'unpair', etc?
             ppFun p "syn"
                 [ toDoc $ ppFun 11 "Case_"
-                    [ toDoc $ ppArg e1
+                    [ ppArg e1
                     , toDoc $ ppList (map (toDoc . prettyPrec_ 0) bs)
                     ]]
         Superpose_ pes ->
@@ -172,8 +183,8 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
             [(e1,e2)] ->
                 -- Or we could print it as @weight e1 *> e2@ excepting that has an extra redex in it compared to the AST itself.
                 ppFun 11 "pose"
-                    [ toDoc (ppArg e1) <+> PP.char '$'
-                    , toDoc (ppArg e2)
+                    [ ppArg e1 <+> PP.char '$'
+                    , ppArg e2
                     ]
             _ ->
                 ppFun p "superpose"
@@ -192,13 +203,13 @@ ppSCon p App_ = \(e1 :* e2 :* End) -> ppBinop "`app`" 9 LeftAssoc p e1 e2 -- BUG
 ppSCon p Let_ = \(e1 :* e2 :* End) ->
     parens (p > 0) $ 
         adjustHead
-            (PP.text "let_" <+> toDoc (ppArg e1) <+> PP.char '$' <+>)
+            (PP.text "let_" <+> ppArg e1 <+> PP.char '$' <+>)
             (ppBinder e2)
 {-
 ppSCon p (Ann_ typ) = \(e1 :* End) ->
     ppFun p "ann_"
         [ PP.text (showsPrec 11 typ "") -- TODO: make this prettier. Add hints to the singletons?
-        , toDoc $ ppArg e1
+        , ppArg e1
         ]
 -}
 ppSCon p (PrimOp_     o) = \es          -> ppPrimOp     p o es
@@ -216,38 +227,38 @@ ppSCon p Expect = \(e1 :* e2 :* End) ->
     -- N.B., for this to be read back in correctly, "Language.Hakaru.Expect" must be in scope as well as the prelude.
     parens (p > 0) $
         adjustHead
-            (PP.text "expect" <+> toDoc (ppArg e1) <+> PP.char '$' <+>)
+            (PP.text "expect" <+> ppArg e1 <+> PP.char '$' <+>)
             (ppBinder e2)
 ppSCon p Integrate = \(e1 :* e2 :* e3 :* End) ->
     ppFun p "integrate"
-        [ toDoc $ ppArg e1
-        , toDoc $ ppArg e2
+        [ ppArg e1
+        , ppArg e2
         , toDoc $ parens True (ppBinder e3)
         ]
 ppSCon p Summate = \(e1 :* e2 :* e3 :* End) ->
     ppFun p "summate"
-        [ toDoc $ ppArg e1
-        , toDoc $ ppArg e2
+        [ ppArg e1
+        , ppArg e2
         , toDoc $ parens True (ppBinder e3)
         ]
 
-ppSCon p Plate = \(e1 :* e2 :* End) -> 
+ppSCon _ Plate = \(e1 :* e2 :* End) -> 
     ppFun 11 "plate"
-        [ toDoc (ppArg e1) <+> PP.char '$'
+        [ ppArg e1 <+> PP.char '$'
         , toDoc $ ppBinder e2
         ]
 
-ppSCon p Chain = \(e1 :* e2 :* e3 :* End) ->
+ppSCon _ Chain = \(e1 :* e2 :* e3 :* End) ->
     ppFun 11 "chain"
-        [ toDoc (ppArg e1)
-        , toDoc (ppArg e2) <+> PP.char '$'
-        , toDoc $ ppBinder e2
+        [ ppArg e1
+        , ppArg e2 <+> PP.char '$'
+        , toDoc $ ppBinder e3
         ]
 
 ppCoerceTo :: ABT Term abt => Int -> Coercion a b -> abt '[] a -> Docs
 ppCoerceTo =
     -- BUG: this may not work quite right when the coercion isn't one of the special named ones...
-    \p c e -> ppFun p (prettyShow c) [toDoc $ ppArg e]
+    \p c e -> ppFun p (prettyShow c) [ppArg e]
     where
     prettyShow (CCons (Signed HRing_Real) CNil)           = "fromProb"
     prettyShow (CCons (Signed HRing_Int)  CNil)           = "nat2int"
@@ -263,7 +274,7 @@ ppCoerceTo =
 ppUnsafeFrom :: ABT Term abt => Int -> Coercion a b -> abt '[] b -> Docs
 ppUnsafeFrom =
     -- BUG: this may not work quite right when the coercion isn't one of the special named ones...
-    \p c e -> ppFun p (prettyShow c) [toDoc $ ppArg e]
+    \p c e -> ppFun p (prettyShow c) [ppArg e]
     where
     prettyShow (CCons (Signed HRing_Real) CNil) = "unsafeProb"
     prettyShow (CCons (Signed HRing_Int)  CNil) = "unsafeNat"
@@ -279,15 +290,15 @@ ppPrimOp p Impl = \(e1 :* e2 :* End) ->
     -- TODO: make prettier
     ppFun p "syn"
         [ toDoc $ ppFun 11 "Impl"
-            [ toDoc $ ppArg e1
-            , toDoc $ ppArg e2
+            [ ppArg e1
+            , ppArg e2
             ]]
 ppPrimOp p Diff = \(e1 :* e2 :* End) ->
     -- TODO: make prettier
     ppFun p "syn"
         [ toDoc $ ppFun 11 "Diff"
-            [ toDoc $ ppArg e1
-            , toDoc $ ppArg e2
+            [ ppArg e1
+            , ppArg e2
             ]]
 ppPrimOp p Nand = \(e1 :* e2 :* End) -> ppApply2 p "nand" e1 e2 -- TODO: make infix...
 ppPrimOp p Nor  = \(e1 :* e2 :* End) -> ppApply2 p "nor" e1 e2 -- TODO: make infix...
@@ -334,9 +345,9 @@ ppArrayOp p (Size    _) = \(e1 :* End) ->
     ppApply1 p "size" e1
 ppArrayOp p (Reduce  _) = \(e1 :* e2 :* e3 :* End) ->
     ppFun p "reduce"
-        [ toDoc $ ppArg e1 -- N.B., @e1@ uses lambdas rather than being a binding form!
-        , toDoc $ ppArg e2
-        , toDoc $ ppArg e3
+        [ ppArg e1 -- N.B., @e1@ uses lambdas rather than being a binding form!
+        , ppArg e2
+        , ppArg e3
         ]
 
 
@@ -431,15 +442,15 @@ ppFun _ f [] = [PP.text f]
 ppFun p f ds =
     parens (p > 9) [PP.text f <+> PP.nest (1 + length f) (PP.sep ds)]
 
-ppArg :: (ABT Term abt) => abt '[] a -> Docs
-ppArg = prettyPrec_ 11 . LC_
+ppArg :: (ABT Term abt) => abt '[] a -> Doc
+ppArg = prettyPrec 11
 
 ppApply1 :: (ABT Term abt) => Int -> String -> abt '[] a -> Docs
-ppApply1 p f e1 = ppFun p f [toDoc $ ppArg e1]
+ppApply1 p f e1 = ppFun p f [ppArg e1]
 
 ppApply2
     :: (ABT Term abt) => Int -> String -> abt '[] a -> abt '[] b -> Docs
-ppApply2 p f e1 e2 = ppFun p f [toDoc $ ppArg e1, toDoc $ ppArg e2]
+ppApply2 p f e1 e2 = ppFun p f [ppArg e1, ppArg e2]
 
 
 -- | Something prettier than 'PP.rational'. This works correctly
