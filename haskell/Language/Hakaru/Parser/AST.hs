@@ -136,6 +136,7 @@ data AST' a
     | NaryOp NaryOp [AST' a]
     | Unit
     | Empty
+    | Pair (AST' a) (AST' a)
     | Array a (AST' a) (AST' a)
     | Index (AST' a) (AST' a)
     | Case  (AST' a) [(Branch' a)] -- match
