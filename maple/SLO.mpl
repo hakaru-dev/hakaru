@@ -558,7 +558,7 @@ SLO := module ()
   # - simplifies simple cases of nested pw
   # [note that it can be called on a non-pw, at which time it just returns]
   simp_pw := proc(pw)
-    local res, res1, cond, l, r, b1, b2, b3, rel, new_cond, vars, subst;
+    local res, cond, l, r, b1, b2, b3, rel, new_cond, vars, subst;
     if not type(pw,t_pw) then return pw end if;
     res := simp_pw_equal(pw);
     if not res::t_pw then return res end if;
@@ -604,9 +604,7 @@ SLO := module ()
       end if;
       if res::t_pw and op(2,res)::t_pw and nops(op(2,res))=3 and
          normal(op([2,2],res) - op(3,res)) = 0 then
-          res1 := simp_pw(piecewise(And(op(1,res),flip_cond(op([2,1],res))), op([2,3],res), op(3,res)));
-          lprint(res, res1);
-          res := res1;
+          res := simp_pw(piecewise(And(op(1,res),flip_cond(op([2,1],res))), op([2,3],res), op(3,res)));
       end if;
       if res::t_pw and op(3,res)::t_pw and nops(op(3,res))=3 and
          normal(op([3,2],res) - op(2,res)) = 0 then
