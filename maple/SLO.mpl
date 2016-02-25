@@ -102,6 +102,8 @@ SLO := module ()
       return Superpose()
     elif (e = infinity) then # yep, that's a measure!
       return WeightedM(infinity, Superpose())
+    elif (e = undefined) then # oh my.  Hack it.  It was probably 0*infinity
+      return Superpose()
     # we might have done something odd, and there is no x anymore (and not 0)
     elif type(e, 'numeric') then
       error "the constant %1 is not a measure", e
@@ -136,6 +138,11 @@ SLO := module ()
           return do_pw(map(simplify, [op(e)]), ctx);
         elif type(ee, `+`) then
           Superpose(op(map(ToAST, [op(e)], ctx)));
+        # elif type(ee, `*`) then
+          # if we're here, it is because we have a product of 2 (or more)
+          # pw, but only one should be a measure (contain x); re-start on e.
+        #   (ee, weight) := selectremove(depends, e, c);
+        #   WeightedM(simplify(weight), ToAST(ee, ctx));
         else
           error "(%1) has no binders, but is still not a polynomial?", ee
         end if;
@@ -550,7 +557,7 @@ SLO := module ()
   # - simplifies simple cases of nested pw
   # [note that it can be called on a non-pw, at which time it just returns]
   simp_pw := proc(pw)
-    local res, cond, l, r, b1, b2, b3, rel, new_cond;
+    local res, cond, l, r, b1, b2, b3, rel, new_cond, vars, subst;
     if not type(pw,t_pw) then return pw end if;
     res := simp_pw_equal(pw);
     if not res::t_pw then return res end if;
@@ -594,6 +601,10 @@ SLO := module ()
          normal(op([2,3],res) - op(3,res)) = 0 then
           res := simp_pw(piecewise(And(op(1,res),op([2,1],res)), op([2,2],res), op(3,res)));
       end if;
+      if res::t_pw and op(2,res)::t_pw and nops(op(2,res))=3 and
+         normal(op([2,2],res) - op(3,res)) = 0 then
+          res := simp_pw(piecewise(And(op(1,res),flip_cond(op([2,1],res))), op([2,3],res), op(3,res)));
+      end if;
       if res::t_pw and op(3,res)::t_pw and nops(op(3,res))=3 and
          normal(op([3,2],res) - op(2,res)) = 0 then
           b1 := simp_Or(op(1,res),op([3,1],res));
@@ -608,6 +619,21 @@ SLO := module ()
       res := simp_pw(piecewise(And(flip_cond(op(1,res)), op(3,res)),
                                op(4,res), op(2,res)));
     end if;
+    # massive hack alert!  Just expand out boolean piecewises
+    if nops(res) = 3 and
+      type(op(1, res), {specfunc(name = boolean, And),
+                        specfunc(name = boolean, Or)}) then
+      vars := convert(remove(type,indets(op(1,res), 'name'), 'constant'),list);
+      subst := {{vars[1]=true}, {vars[1]=false}};
+      vars := vars[2..-1];
+      while vars <> [] do
+        subst := map(x->{vars[1] = true} union x, subst) union
+                 map(x->{vars[1] = false} union x, subst);
+        vars := vars[2..-1];
+      end do;
+      res := piecewise(seq(op([And(op(i)), eval(res, i)]), i in subst));
+    end if;
+
     res;
   end proc;
 
@@ -1303,7 +1329,10 @@ SLO := module ()
   flip_cond := proc(cond)
     if type(cond, `<`) then op(2,cond) <= op(1,cond)
     elif type(cond, `<=`) then op(2,cond) < op(1,cond)
-    elif type(cond, `=`) then op(1,cond) <> op(2,cond)
+    elif type(cond, `=`) then 
+      if type(op(2,cond), 'boolean') then op(1,cond) = not op(2,cond)
+      else op(1,cond) <> op(2,cond)
+      end if
     elif type(cond, `<>`) then op(1,cond) = op(2,cond)
     elif cond::specfunc(anything, 'And') and nops(cond)=2 then
       Or(flip_cond(op(1,cond)), flip_cond(op(2,cond)))
@@ -1972,6 +2001,10 @@ If := module()
 
   patch_eb := proc(eb2, cond2)
     local fcond, new_cond, rest_cond, t1, t2, rest;
+
+    if type(cond2, 'specfunc(name = boolean, And)') then
+      return eb2;
+    end if;
 
     fcond := SLO:-flip_cond(cond2);
     new_cond := And(op(1,eb2), fcond);
