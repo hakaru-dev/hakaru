@@ -166,7 +166,7 @@ var :: Parser (AST' Text)
 var = Var <$> identifier
 
 pairs :: Parser (AST' Text)
-pairs = foldr1 (binop "pair") <$> parens (commaSep expr)
+pairs = foldr1 Pair <$> parens (commaSep expr)
 
 type_var :: Parser TypeAST'
 type_var = TypeVar <$> identifier
@@ -325,7 +325,7 @@ def_expr = do
     vars <- parens (commaSep defarg)
     bodyTyp <- optionMaybe type_expr
     body    <- semiblockExpr
-    let body' = foldr (\(var, varTyp) e -> Lam var varTyp e) body vars
+    let body' = foldr (\(var', varTyp) e -> Lam var' varTyp e) body vars
         typ   = foldr TypeFun <$> bodyTyp <*> return (map snd vars)
     Let name (maybe id (flip Ann) typ body')
         <$> expr -- the \"rest\"; i.e., where the 'def' is in scope

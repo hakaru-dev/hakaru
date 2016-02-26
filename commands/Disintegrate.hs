@@ -47,5 +47,5 @@ runDisintegrate prog =
                                  Nothing   -> error "No disintegration found"
                                  Just ast' -> print (pretty ast')
                   Nothing   -> error "Can only disintegrate a measure over pairs"
-            _             -> error "Can only disintegrate a measure over pairs"
+            _               -> error "Can only disintegrate a measure over pairs"
 

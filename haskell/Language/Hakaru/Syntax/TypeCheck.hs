@@ -39,7 +39,7 @@ module Language.Hakaru.Syntax.TypeCheck
 
 import           Prelude hiding (id, (.))
 import           Control.Category
-import           Data.Proxy            (KProxy(..))
+import           Data.Proxy            (KProxy(..), Proxy(..))
 import           Data.Text             (pack)
 import qualified Data.IntMap           as IM
 import qualified Data.Traversable      as T
@@ -56,13 +56,13 @@ import Language.Hakaru.Types.DataKind (Hakaru(..), HData', HBool)
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.HClasses
-    ( HOrd, hOrd_Sing, HSemiring, hSemiring_Sing, HRing, hRing_Sing, sing_HRing
+    ( HOrd, hOrd_Sing, HSemiring, hSemiring_Sing, hRing_Sing, sing_HRing
     , HFractional, hFractional_Sing)
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.AST.Sing
-    (sing_Literal, sing_PrimOp, sing_ArrayOp, sing_MeasureOp)
+    (sing_Literal, sing_MeasureOp)
 
 
 ----------------------------------------------------------------
@@ -158,6 +158,7 @@ mustCheck = go
     -- record types, we should be able to infer the whole type
     -- provided we can infer the various subterms.
     go U.Empty_          = True
+    go (U.Pair_ e1 e2)   = mustCheck e1 && mustCheck e2
     go (U.Array_ _ _ e1) = mustCheck e1
     go (U.Datum_ _)      = True
 
@@ -469,6 +470,12 @@ inferType = inferType_
         let (typs, typ1) = sing_MeasureOp op
         es' <- checkSArgs typs es
         return . TypedAST (SMeasure typ1) $ syn (MeasureOp_ op :$ es')
+               
+    U.Pair_ e1 e2 -> do
+        TypedAST typ1 e1' <- inferType_ e1
+        TypedAST typ2 e2' <- inferType_ e2
+        return . TypedAST (sPair typ1 typ2) $
+               syn (Datum_ $ dPair_ typ1 typ2 e1' e2')
 
     U.Array_ e1 x e2 -> do
         e1' <- checkType_ SNat e1
@@ -953,6 +960,17 @@ checkType = checkType_
             case typ0 of
             SArray _ -> return $ syn (Empty_ typ0)
             _        -> typeMismatch (Right typ0) (Left "HArray")
+
+        U.Pair_ e1 e2 ->
+            case typ0 of
+            SData (STyCon sym `STyApp` a `STyApp` b) _ ->
+                case jmEq1 sym (SingSymbol Proxy :: Sing "Pair") of
+                  Just Refl  -> do
+                    e1' <- checkType_ a e1
+                    e2' <- checkType_ b e2
+                    return $ syn (Datum_ $ dPair_ a b e1' e2')
+                  Nothing    -> typeMismatch (Right typ0) (Left "HPair")
+            _                -> typeMismatch (Right typ0) (Left "HPair")
 
         U.Array_ e1 x e2 ->
             case typ0 of

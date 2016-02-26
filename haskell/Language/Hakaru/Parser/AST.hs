@@ -182,6 +182,7 @@ data AST
     | NaryOp_     NaryOp  [AST]
     | Literal_    (Some1 Literal)
     | Empty_
+    | Pair_       AST AST
     | Array_      AST Name AST
     | Datum_      Datum 
     | Case_       AST [Branch]

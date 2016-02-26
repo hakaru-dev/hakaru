@@ -76,8 +76,7 @@ type SymbolTable a = [(Text, Symbol U.AST)]
 primTable :: SymbolTable a
 primTable =
     [-- Datatype constructors
-     ("pair",        primPair)
-    ,("left",        primLeft)
+     ("left",        primLeft)
     ,("right",       primRight)
     ,("true",        TNeu $ true_)
     ,("false",       TNeu $ false_)
@@ -146,10 +145,7 @@ false_ = U.Ann_ (U.Datum_ . U.Datum "false" . U.Inr . U.Inl $ U.Done)
 unsafeFrom_ :: U.AST -> U.AST
 unsafeFrom_ = U.UnsafeTo_ (Some2 $ CCons (Signed HRing_Real) CNil)
 
-primPair, primLeft, primRight :: Symbol U.AST
-primPair       = t2 $ \a b ->
-    U.Datum_ $ U.Datum "pair"
-        (U.Inl $ U.Konst a `U.Et` U.Konst b `U.Et` U.Done)
+primLeft, primRight :: Symbol U.AST
 primLeft       = TLam $ TNeu . U.Datum_ .
                         U.Datum "left" . U.Inl . (`U.Et` U.Done) . U.Konst
 primRight      = TLam $ TNeu . U.Datum_ .
@@ -234,6 +230,9 @@ symbolResolution symbols ast =
 
     U.Unit              -> return $ U.Unit
     U.Empty             -> return $ U.Empty
+    U.Pair  e1 e2       -> U.Pair
+        <$> symbolResolution symbols e1
+        <*> symbolResolution symbols e2
 
     U.Array name e1 e2  -> resolveBinder symbols name e1 e2 U.Array
 
@@ -306,6 +305,7 @@ normAST ast =
     U.NaryOp op es         -> U.NaryOp op (map normAST es)
     U.Unit                 -> U.Unit
     U.Empty                -> U.Empty
+    U.Pair e1 e2           -> U.Pair (normAST e1) (normAST e2)
     U.Array name e1 e2     -> U.Array name (normAST e1) (normAST e2)
     U.Index      e1 e2     -> U.Index (normAST e1) (normAST e2)    
     U.Case       e1 e2     -> U.Case  (normAST e1) (map branchNorm e2)
@@ -326,14 +326,14 @@ makeType :: U.TypeAST' -> U.SSing
 makeType (U.TypeVar t) =
     case lookup t primTypes of
     Just (TNeu' t') -> t'
-    Nothing         -> error $ "Type " ++ show t ++ " is not a primitive"
+    _               -> error $ "Type " ++ show t ++ " is not a primitive"
 makeType (U.TypeFun f x) =
     case (makeType f, makeType x) of
     (U.SSing f', U.SSing x') -> U.SSing $ SFun f' x'
 makeType (U.TypeApp f args) =
     case lookup f primTypes of
     Just (TLam' f') -> f' (map makeType args)
-    Nothing         -> error $ "Type " ++ show f ++ " is not a primitive"
+    _               -> error $ "Type " ++ show f ++ " is not a primitive"
 
 
 makePattern :: U.Pattern' U.Name -> U.Pattern
@@ -360,7 +360,8 @@ makeFalse e = U.Branch (makePattern (U.PData' (U.DV "false" []))) (makeAST e)
 makeAST :: U.AST' (Symbol U.AST) -> U.AST
 makeAST ast =
     case ast of
-    -- TODO: Add to Symbol datatype: gensymed names and types for primitives (type for arg on lam, return type in neu)
+    -- TODO: Add to Symbol datatype: gensymed names and types
+    -- for primitives (type for arg on lam, return type in neu)
     U.Var (TLam _)                    ->
         error "makeAST: Passed primitive with wrong number of arguments"
     U.Var (TNeu e)                    -> e
@@ -376,6 +377,7 @@ makeAST ast =
     U.NaryOp op es    -> U.NaryOp_ op (map makeAST es)
     U.Unit            -> U.Datum_ (U.Datum "unit" . U.Inl $ U.Done)
     U.Empty           -> U.Empty_
+    U.Pair e1 e2      -> U.Pair_ (makeAST e1) (makeAST e2)
     U.Array (TNeu (U.Var_ name)) e1 e2 ->
         U.Array_ (makeAST e1) name (makeAST e2)
     U.Index e1 e2     -> U.ArrayOp_ U.Index_ [(makeAST e1), (makeAST e2)]
