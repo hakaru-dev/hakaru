@@ -46,7 +46,6 @@ symTable =
     , ("Real",     "real")
     , ("Prob",     "prob")
     , ("Measure",  "measure")
-    , ("Pair",     "pair")
     , ("Bool",     "bool")
     ]
 
@@ -178,6 +177,10 @@ maple2AST (InertArgs Func [InertName "Ann", InertArgs ExpSeq [typ, e]]) =
 maple2AST (InertArgs Func [InertName "Bind",
                            InertArgs ExpSeq [e1, InertName x, e2]]) =
     Bind x (maple2AST e1) (maple2AST e2)
+
+maple2AST (InertArgs Func [InertName "Pair",
+                           InertArgs ExpSeq [e1, e2]]) =
+    Pair (maple2AST e1) (maple2AST e2)
 
 maple2AST (InertArgs Func [InertName "Msum",
                            InertArgs ExpSeq es]) =

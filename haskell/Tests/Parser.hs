@@ -330,8 +330,8 @@ match6 = unlines
 match6AST :: AST' Text
 match6AST =
     Case (Ann
-          (App (App (Var "pair")
-                (ULiteral (Nat 2)))
+          (Pair
+           (ULiteral (Nat 2))
            (ULiteral (Nat 3)))
      (TypeApp "pair" [TypeVar "nat",TypeVar "nat"]))
     [Branch' (PData' (DV "pair" [PVar' "a",PVar' "b"]))
@@ -366,7 +366,7 @@ ann2 = "(2,3). pair(a,b)"
 
 ann2AST :: AST' Text
 ann2AST =
-    Ann (App (App (Var "pair") (ULiteral (Nat 2))) (ULiteral (Nat 3)))
+    Ann (Pair (ULiteral (Nat 2)) (ULiteral (Nat 3)))
         (TypeApp "pair" [TypeVar "a", TypeVar "b"])
 
 ann3 :: Text
@@ -477,13 +477,13 @@ easyRoadAST =
                          (Var "x2"))
                          (Var "noiseE"))
     (Dirac
-        (App (App (Var "pair")
-            (App (App (Var "pair")
-                (Var "m1"))
-                (Var "m2")))
-            (App (App (Var "pair")
-                (Var "noiseT"))
-                (Var "noiseE")))))))))
+        (Pair
+         (Pair
+          (Var "m1")
+          (Var "m2"))
+         (Pair
+          (Var "noiseT")
+          (Var "noiseE")))))))))
 
 testRoadmap :: Test
 testRoadmap = test
