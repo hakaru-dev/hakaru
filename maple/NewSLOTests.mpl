@@ -391,9 +391,10 @@ gmm := Bind(Plate(ary(k, c, Gaussian(0,1))), xs,
 
 ###########
 #
-# RoundTrip tests
+# RoundTrip tests; due to bug in CodeTest, use lower-level function directly
 
+TestTools:-SetRecord(false):
 rt1 := Context([x::real], Bind(Gaussian(0,1), x, Ret(0))):
-rt1r := "_Inert_FUNCTION(_Inert_NAME(\"Context\"),_Inert_EXPSEQ(_Inert_LIST(_Inert_EXPSEQ(_Inert_DCOLON(_Inert_NAME(\"x\"),_Inert_NAME(\"real\")))),_Inert_FUNCTION(_Inert_NAME(\"Ret\"),_Inert_EXPSEQ(_Inert_INTPOS(0)))))";
-# horrible hack because of bug in CodeTools[Test] with string (reported)
-CodeTools[Test](verify(RoundTripCLO(rt1), rt1r), true, label = "RoundTripCLO 1");
+rt1r := "_Inert_FUNCTION(_Inert_NAME(\"Context\"),_Inert_EXPSEQ(_Inert_LIST(_Inert_EXPSEQ(_Inert_DCOLON(_Inert_NAME(\"x\"),_Inert_NAME(\"real\")))),_Inert_FUNCTION(_Inert_NAME(\"Ret\"),_Inert_EXPSEQ(_Inert_INTPOS(0)))))":
+TestTools:-Try("simple case of RoundTripCLO", RoundTripCLO(rt1), rt1r);
+quit
