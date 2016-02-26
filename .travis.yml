@@ -132,3 +132,9 @@ script:
         (cd dist && cabal install --force-reinstalls "$SRC_TGZ")
       ;;
   esac
+
+notifications:
+  email:
+    - hakaru-dev-l@list.indiana.edu
+  on_success: change
+  on_failure: always
