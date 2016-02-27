@@ -527,6 +527,23 @@ inferType = inferType_
                            syn (Plate :$ e1' :* bind x' e2' :* End)
                 _ -> typeMismatch (Left "HMeasure") (Right typ2)
 
+    U.Chain_ x e1 e2 e3 -> do
+        e1' <- checkType_ SNat e1
+        TypedAST typ2 e2' <- inferType_ e2
+        let x' = U.makeVar x typ2
+        pushCtx x' $ do
+            TypedAST typ3 e3' <- inferType_ e3
+            case typ3 of
+                SMeasure (SData (STyCon sym `STyApp` a `STyApp` b) _) ->
+                    case ( jmEq1 sym (SingSymbol Proxy :: Sing "Pair")
+                         , jmEq1 b typ2) of
+                    (Just Refl, Just Refl) ->
+                        return . TypedAST (SMeasure $ sPair (SArray a) typ2) $
+                               syn (Chain :$ e1' :* e2' :* bind x' e3' :* End)
+                    _ -> typeMismatch (Left "HMeasure(HPair)") (Right typ3)
+                _     -> typeMismatch (Left "HMeasure(HPair)") (Right typ3)
+
+
     U.Expect_ x e1 e2 -> do
         TypedAST typ1 e1' <- inferType_ e1
         case typ1 of
@@ -1020,6 +1037,19 @@ checkType = checkType_
                         return $ syn (Plate :$ e1' :* e2' :* End)
                     _ -> typeMismatch (Right typ1) (Left "HArray")
             _ -> typeMismatch (Right typ0) (Left "HMeasure")
+
+        U.Chain_ x e1 e2 e3 ->
+            case typ0 of
+            SMeasure (SData (STyCon sym `STyApp` (SArray a) `STyApp` s) _) ->
+                case jmEq1 sym (SingSymbol Proxy :: Sing "Pair") of
+                Just Refl -> do
+                  e1' <- checkType_ SNat e1
+                  e2' <- checkType_ s e2
+                  e3' <- checkBinder (U.makeVar x s) (SMeasure $ sPair a s) e3
+                  return $ syn (Chain :$ e1' :* e2' :* e3' :* End)
+                Nothing -> typeMismatch (Right typ0) (Left "HMeasure(HPair(HArray, s)")
+            _           -> typeMismatch (Right typ0) (Left "HMeasure(HPair(HArray, s)")
+
 
         U.Expect_ x e1 e2 ->
             case typ0 of
