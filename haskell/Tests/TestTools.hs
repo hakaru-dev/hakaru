@@ -46,7 +46,10 @@ handleException t e = throw (TestSimplifyException t e)
 --     assertResult (show s)
 
 -- Assert that all the given Hakaru programs simplify to the given one
--- testSS :: (Simplifiable a) => [Maple a] -> Any' a -> Assertion
+-- testSS :: (ABT Term abt)
+--        => [abt '[] ('HMeasure a)]
+--        -> abt '[] ('HMeasure a)
+--        -> Assertion
 -- testSS ts t' =
 --     mapM_ (\t -> do p <- simplify t --`catch` handleSimplify t
 --                     (assertEqual "testSS" `on` result) t' (unAny p))
