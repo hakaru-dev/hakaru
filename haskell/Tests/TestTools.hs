@@ -38,13 +38,6 @@ assertJust = assertBool "expected Just but got Nothing" . isJust
 handleException :: String -> SomeException -> IO a
 handleException t e = throw (TestSimplifyException t e)
 
--- Assert that a given Hakaru program roundtrips (aka simplifies) without error
--- testS :: (Simplifiable a) => Any' a -> Assertion
--- testS t = do
---     p <- simplify t `catch` handleSimplify t
---     let s = result (unAny p)
---     assertResult (show s)
-
 -- Assert that all the given Hakaru programs simplify to the given one
 -- testSS :: (ABT Term abt)
 --        => [abt '[] ('HMeasure a)]
