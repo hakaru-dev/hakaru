@@ -48,17 +48,6 @@ handleException t e = throw (TestSimplifyException t e)
 --                     (assertEqual "testSS" `on` result) t' (unAny p))
 --           (t' : ts)
 
--- testMaple :: Maple a -> IO ()
--- testMaple t = assertResult $ runMaple t 0
-
--- testMapleEqual :: Maple a -> Maple a -> IO ()
--- testMapleEqual t1 t2 = do
---     let r1 = rm t1
---     let r2 = rm t2
---     assertEqual "testMapleEqual: false" r1 r2
---     where rm t = runMaple t 0
-
-
 assertAlphaEq ::
     (ABT Term abt)
     => String
