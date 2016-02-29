@@ -138,6 +138,15 @@ data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         :: !(abt '[] ('HMeasure a))
         -> !(abt '[ a ] ('HMeasure b))
         -> Head abt ('HMeasure b)
+    WPlate
+        :: !(abt '[] 'HNat)
+        -> !(abt '[ 'HNat ] ('HMeasure a))
+        -> Head abt ('HMeasure ('HArray a))
+    WChain
+        :: !(abt '[] 'HNat)
+        -> !(abt '[] s)
+        -> !(abt '[ s ] ('HMeasure (HPair a s)))
+        -> Head abt ('HMeasure (HPair ('HArray a) s))
     WSuperpose
         :: [(abt '[] 'HProb, abt '[] ('HMeasure a))]
         -> Head abt ('HMeasure a)
@@ -179,6 +188,8 @@ fromHead (WLam        e1)       = syn (Lam_ :$ e1 :* End)
 fromHead (WMeasureOp  o  es)    = syn (MeasureOp_ o :$ es)
 fromHead (WDirac      e1)       = syn (Dirac :$ e1 :* End)
 fromHead (WMBind      e1 e2)    = syn (MBind :$ e1 :* e2 :* End)
+fromHead (WPlate      e1 e2)    = syn (Plate :$ e1 :* e2 :* End)
+fromHead (WChain      e1 e2 e3) = syn (Chain :$ e1 :* e2 :* e3 :* End)
 fromHead (WSuperpose  pes)      = syn (Superpose_ pes)
 fromHead (WCoerceTo   c e1)     = syn (CoerceTo_   c :$ fromHead e1 :* End)
 fromHead (WUnsafeFrom c e1)     = syn (UnsafeFrom_ c :$ fromHead e1 :* End)
@@ -199,6 +210,8 @@ toHead e =
         MeasureOp_   o   :$ es              -> Just $ WMeasureOp o  es
         Dirac     :$ e1  :* End             -> Just $ WDirac     e1
         MBind     :$ e1  :* e2 :* End       -> Just $ WMBind     e1 e2
+        Plate     :$ e1  :* e2 :* End       -> Just $ WPlate     e1 e2
+        Chain     :$ e1  :* e2 :* e3 :* End -> Just $ WChain     e1 e2 e3 
         Superpose_   pes                    -> Just $ WSuperpose pes
         CoerceTo_    c   :$ e1 :* End       -> WCoerceTo   c <$> toHead e1
         UnsafeFrom_  c   :$ e1 :* End       -> WUnsafeFrom c <$> toHead e1
@@ -215,6 +228,8 @@ instance Functor21 Head where
     fmap21 f (WMeasureOp  o  es)    = WMeasureOp o (fmap21 f es)
     fmap21 f (WDirac      e1)       = WDirac (f e1)
     fmap21 f (WMBind      e1 e2)    = WMBind (f e1) (f e2)
+    fmap21 f (WPlate      e1 e2)    = WPlate (f e1) (f e2)
+    fmap21 f (WChain      e1 e2 e3) = WChain (f e1) (f e2) (f e3)
     fmap21 f (WSuperpose  pes)      = WSuperpose (map (f *** f) pes)
     fmap21 f (WCoerceTo   c e1)     = WCoerceTo   c (fmap21 f e1)
     fmap21 f (WUnsafeFrom c e1)     = WUnsafeFrom c (fmap21 f e1)
@@ -230,6 +245,8 @@ instance Foldable21 Head where
     foldMap21 f (WMeasureOp  _  es)    = foldMap21 f es
     foldMap21 f (WDirac      e1)       = f e1
     foldMap21 f (WMBind      e1 e2)    = f e1 `mappend` f e2
+    foldMap21 f (WPlate      e1 e2)    = f e1 `mappend` f e2
+    foldMap21 f (WChain      e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
     foldMap21 f (WSuperpose  pes)      = foldMapPairs f pes
     foldMap21 f (WCoerceTo   _ e1)     = foldMap21 f e1
     foldMap21 f (WUnsafeFrom _ e1)     = foldMap21 f e1
@@ -245,6 +262,8 @@ instance Traversable21 Head where
     traverse21 f (WMeasureOp  o  es)    = WMeasureOp o <$> traverse21 f es
     traverse21 f (WDirac      e1)       = WDirac <$> f e1
     traverse21 f (WMBind      e1 e2)    = WMBind <$> f e1 <*> f e2
+    traverse21 f (WPlate      e1 e2)    = WPlate <$> f e1 <*> f e2
+    traverse21 f (WChain      e1 e2 e3) = WChain <$> f e1 <*> f e2 <*> f e3
     traverse21 f (WSuperpose  pes)      = WSuperpose <$> traversePairs f pes
     traverse21 f (WCoerceTo   c e1)     = WCoerceTo   c <$> traverse21 f e1
     traverse21 f (WUnsafeFrom c e1)     = WUnsafeFrom c <$> traverse21 f e1
