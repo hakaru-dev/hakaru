@@ -107,7 +107,8 @@ NewSLO := module ()
   local t_pw,
         unweight, factorize,
         recognize, get_de, recognize_de, mysolve, Diffop, Recognized,
-        reduce, simplify_assuming, reduce_pw, reduce_Int, get_indicators,
+        reduce, to_assumption, simplify_assuming, convert_piecewise,
+        reduce_pw, reduce_Int, get_indicators,
         flip_cond,
         reduce_PI, elim_int,
         indicator, extract_dom, banish, known_measures,
@@ -276,7 +277,7 @@ NewSLO := module ()
   # TODO unify constraints with unintegrate's context
   reduce := proc(ee, h :: name, constraints :: list(t_ctx))
     # option remember, system;
-    local e, elim, hh, subintegral, w, n, i, x, myint, res;
+    local e, elim, hh, subintegral, w, ww, n, i, x, myint, res;
     e := ee;
 
     if e :: Int(anything, name=anything) then
@@ -294,15 +295,23 @@ NewSLO := module ()
     elif e :: `*` then
       (subintegral, w) := selectremove(depends, e, h);
       if subintegral :: `*` then error "Nonlinear integral %1", e end if;
-      reduce_pw(simplify_assuming(w, constraints))
-        * reduce(subintegral, h, constraints)
+      subintegral := convert(reduce(subintegral, h, constraints), 'list', `*`);
+      (subintegral, ww) := selectremove(depends, subintegral, h);
+      reduce_pw(simplify_assuming(`*`(w, op(ww)), constraints))
+        * `*`(op(subintegral));
     elif e :: t_pw then
-      n := nops(e);
-      e := piecewise(seq(`if`(i::even or i=n,
-                              reduce(op(i,e), h, constraints),
-                                # TODO: update_context like unintegrate does
-                              simplify_assuming(op(i,e), constraints)),
-                         i=1..n));
+      x := select(type, constraints, name=anything..anything);
+      if nops(x) > 0 then
+        e := convert_piecewise(e, op([1,1],x), constraints);
+      end if;
+      if e :: t_pw then
+        n := nops(e);
+        e := piecewise(seq(`if`(i::even or i=n,
+                                reduce(op(i,e), h, constraints),
+                                  # TODO: update_context like unintegrate does
+                                simplify_assuming(op(i,e), constraints)),
+                           i=1..n));
+      end if;
       # big hammer: simplify knows about bound variables, amongst many
       # other things
       Testzero := x -> evalb(simplify(x) = 0);
@@ -342,27 +351,53 @@ NewSLO := module ()
     e;
   end proc;
 
+  to_assumption := proc(c :: t_ctx)
+    local var, lo, hi;
+    if type(c, name = anything .. anything) then
+      var := op(1,c);
+      lo, hi := op(op(2,c));
+      (var > lo, var < hi)
+    elif type(c, name :: property) then
+      c
+    elif type(c, '{name < anything, name <= anything, name > anything,
+                   name >= anything}') then
+      c
+    else
+      error "is %1 a valid constraint?", c;
+    end if;
+  end proc;
+
   simplify_assuming := proc(ee, constraints :: list(t_ctx))
-    local f, e, ep;
-    f := proc(c)
-      local var, lo, hi;
-      if type(c, name = anything .. anything) then
-        var := op(1,c);
-        lo, hi := op(op(2,c));
-        (var > lo, var < hi)
-      elif type(c, name :: property) then
-        c
-      elif type(c, '{name < anything, name <= anything, name > anything,
-                     name >= anything}') then
-        c
-      else
-        error "is %1 a valid constraint?", c;
-      end if;
-    end proc;
+    local e, ep;
     e := evalindets(ee, 'specfunc(product)', myexpand_product);
     e := evalindets(e, 'specfunc(sum)', expand);
-    e := simplify(e) assuming op(map(f, constraints));
+    e := simplify(e) assuming op(map(to_assumption, constraints));
     eval(e, exp = expand @ exp);
+  end proc;
+
+  convert_piecewise := proc (expr :: specfunc(piecewise),
+                             var :: name, constraints :: list)
+    local e, i, assumptions;
+    e := expr;
+    assumptions := map(to_assumption, constraints);
+    # Reduce inequality between exp(a) and exp(b) to inequality between a and b
+    # [ccshan 2016-02-29]
+    e := piecewise(seq(`if`(i::odd and i<nops(e)
+                              and op(i,e) :: '{exp(anything) <  exp(anything),
+                                               exp(anything) <= exp(anything)}'
+                              and ((is(op([i,1,1],e), real) and
+                                    is(op([i,2,1],e), real))
+                                   assuming op(assumptions)),
+                            op([i,0],e)(op([i,1,1],e), op([i,2,1],e)),
+                            op(i,e)),
+                       i=1..nops(e)));
+    if e :: t_pw then
+      try
+        e := convert(e, 'piecewise', var) assuming op(assumptions);
+      catch:
+      end try;
+    end if;
+    e;
   end proc;
 
   reduce_pw := proc(ee) # ee may or may not be piecewise
@@ -489,10 +524,10 @@ NewSLO := module ()
   # as both being about 'lo', for example.
   extract_dom := proc(spec :: set, v :: name)
     local lo, hi, i, rest;
-    lo, rest := selectremove(type, spec, '{numeric <  identical(v),
-                                           numeric <= identical(v)}');
-    hi, rest := selectremove(type, rest, '{identical(v) <  numeric,
-                                           identical(v) <= numeric}');
+    lo, rest := selectremove(type, spec, '{freeof(v) <  identical(v),
+                                           freeof(v) <= identical(v)}');
+    hi, rest := selectremove(type, rest, '{identical(v) <  freeof(v),
+                                           identical(v) <= freeof(v)}');
     max(map2(op,1,lo)) .. min(map2(op,2,hi)), rest;
   end proc;
 

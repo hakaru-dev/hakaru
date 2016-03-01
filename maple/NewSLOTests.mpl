@@ -61,6 +61,23 @@ model4s := Bind(Gaussian(0,1),x,piecewise(x<0,Ret(0),4<x,Ret(16),Ret(x^2))):
 
 TestHakaru(model4, model4s, label = "piecewise test");
 
+sliced :=
+  Weight(exp(-lu),
+  Bind(Gaussian(0,1), x,
+  Weight(1/exp(-x^2/2),
+  piecewise(exp(-lu) < exp(-x^2/2), piecewise(0<exp(-lu), Ret(x)))))):
+sliceds :=
+  Weight(2*sqrt(lu)*exp(-lu)/sqrt(Pi),
+  Uniform(-sqrt(2*lu),sqrt(2*lu))):
+TestHakaru(sliced, sliceds, label = "slice sampling") assuming lu>0;
+
+# The failure of the following test reminds us to fix inconsistencies among
+# notions of constraints and assumptions in our code.
+TestHakaru(Bind(Gaussian(0,1), x,
+            piecewise(sin(x)>1/42,
+             Weight(sin(x)^2, Ret(x)))),
+           label = "notions of constraints and assumptions");
+
 # test with uniform.  No change without simplifier, eliminates it with
 # call to value.
 introLO := 
