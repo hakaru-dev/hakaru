@@ -30,8 +30,8 @@ import Tests.Models (match_norm_unif)
 
 -- | A very simple program. Is sufficient for testing escape and
 -- capture of substitution.
-norm0 :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
-norm0 =
+norm0a :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
+norm0a =
     normal (real_ 0) (prob_ 1) >>= \x ->
     normal x         (prob_ 1) >>= \y ->
     dirac (pair y x)
@@ -39,20 +39,20 @@ norm0 =
 -- | A version of 'norm0' which adds a type annotation at the
 -- top-level; useful for testing that using 'Ann_' doesn't cause
 -- perform\/disintegrate to loop.
-norm0a :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
-norm0a = ann_ sing norm0
+norm0b :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
+norm0b = ann_ sing norm0a
 
 -- | A version of 'norm0' which inserts an annotation around the
 -- 'Datum' constructor itself. The goal here is to circumvent the
 -- @typeOf_{Datum_}@ issue without needing to change the 'Datum'
 -- type nor the 'typeOf' definition.
-norm0b :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
-norm0b =
+norm0c :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
+norm0c =
     normal (real_ 0) (prob_ 1) >>= \x ->
     normal x         (prob_ 1) >>= \y ->
     dirac (ann_ sing $ pair y x)
 
--- | What we expect 'norm0' (and variants) to disintegrate to.
+-- | What we expect 'norm0a' (and variants) to disintegrate to.
 norm0' :: TrivialABT Term '[] ('HReal ':-> 'HMeasure 'HReal)
 norm0' =
     lam $ \y ->
@@ -72,18 +72,17 @@ norm0' =
 -}
 
 
-testPerform0, testPerform0a, testPerform0b
+testPerform0a, testPerform0b, testPerform0c
     :: [TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))]
-testPerform0  = runPerform norm0
 testPerform0a = runPerform norm0a
 testPerform0b = runPerform norm0b
+testPerform0c = runPerform norm0c
 
--- BUG: at present, these throw errors about @typeOf_{Datum_}@.
-testDisintegrate0, testDisintegrate0a, testDisintegrate0b
+testDisintegrate0a, testDisintegrate0b, testDisintegrate0c
     :: [TrivialABT Term '[] ('HReal ':-> 'HMeasure 'HReal)]
-testDisintegrate0  = disintegrate norm0
 testDisintegrate0a = disintegrate norm0a
 testDisintegrate0b = disintegrate norm0b
+testDisintegrate0c = disintegrate norm0c
 
 -- | The goal of this test is to be sure we maintain proper hygiene
 -- for the weight component when disintegrating superpose. Moreover,
@@ -91,11 +90,11 @@ testDisintegrate0b = disintegrate norm0b
 -- 'disintegrate' not choosing a sufficiently fresh variable name
 -- for its lambda; thus this also serves as a regression test to
 -- make sure we don't run into that problem again.
-testHygiene0a :: [TrivialABT Term '[] ('HReal ':-> 'HMeasure 'HReal)]
-testHygiene0a =
+testHygiene0b :: [TrivialABT Term '[] ('HReal ':-> 'HMeasure 'HReal)]
+testHygiene0b =
     disintegrate $
         let_ (prob_ 1) $ \x ->
-        withWeight x norm0a
+        withWeight x norm0b
 
 ----------------------------------------------------------------
 -- | This simple progam is to check for disintegrating case analysis
@@ -122,14 +121,13 @@ norm1c =
         (dirac . ann_ sing $ pair         x  unit)
 
 
--- BUG: 'testPerform1b' breaks hygiene! It drops the variable bound by 'normal' and has all the uses of @x@ become free.
+-- BUG: the first solutions returned by 'testPerform1b' and 'testPerform1c' break hygiene! They drops the variable bound by 'normal' and has all the uses of @x@ become free.
 testPerform1a, testPerform1b, testPerform1c
     :: [TrivialABT Term '[] ('HMeasure (HPair 'HReal HUnit))]
 testPerform1a = runPerform norm1a
 testPerform1b = runPerform norm1b
 testPerform1c = runPerform norm1c
 
--- BUG: Why do these return no solutions? See the note in 'disintegrate' about the 'emitUnpair' call.
 testDisintegrate1a, testDisintegrate1b, testDisintegrate1c
     :: [TrivialABT Term '[] ('HReal ':-> 'HMeasure HUnit)]
 testDisintegrate1a = disintegrate norm1a
@@ -180,14 +178,21 @@ testDis p =
 -- TODO: actually put all the above tests in here!
 allTests :: Test
 allTests = test
-    [ assertAlphaEq "testDisintegrate0a" norm0' (head testDisintegrate0a)
+    [ testDis "testDisintegrate0a" norm0a
+    , testDis "testDisintegrate0b" norm0b
+    , testDis "testDisintegrate0c" norm0c
+    , testDis "testDisintegrate1a" norm1a
+    , testDis "testDisintegrate1b" norm1b
+    , testDis "testDisintegrate1c" norm1c
     , assertAlphaEq "testDisintegrate0b" norm0' (head testDisintegrate0b)
-    , assertAlphaEq "testDisintegrate0"  norm0' (head testDisintegrate0)
+    , assertAlphaEq "testDisintegrate0c" norm0' (head testDisintegrate0c)
+    , assertAlphaEq "testDisintegrate0a" norm0' (head testDisintegrate0a)
     , testWithConcrete' match_norm_unif LaxMode $ \(TypedAST _typ ast) ->
         case jmEq1 _typ (SMeasure $ sPair SReal sBool) of
         Just Refl -> testDis "testMatchNormUnif" ast
         Nothing   -> assertFailure "BUG: jmEq1 got the wrong type"
     ]
+
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
