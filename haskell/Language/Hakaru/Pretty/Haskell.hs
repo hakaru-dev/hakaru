@@ -377,9 +377,11 @@ instance Pretty f => Pretty (Datum f) where
             ppFun p "datum_"
                 [error "TODO: prettyPrec_@Datum"]
         | otherwise = 
-            ppFun p (Text.unpack hint)
+          ppFun p "ann_"
+            [ PP.parens . PP.text . show $ _typ
+            , PP.parens . toDoc $ ppFun p (Text.unpack hint)
                 (foldMap11 ((:[]) . toDoc . prettyPrec_ 11) d)
-
+            ]
 
 -- HACK: need to pull this out in order to get polymorphic recursion over @xs@
 ppPattern :: Int -> Pattern xs a -> Docs
