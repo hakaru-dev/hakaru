@@ -152,6 +152,26 @@ testDisintegrate2
     :: [TrivialABT Term '[] ('HReal ':-> 'HMeasure 'HReal)]
 testDisintegrate2 = disintegrate norm2
 
+----------------------------------------------------------------
+easyRoad
+    :: TrivialABT Term '[]
+        ('HMeasure (HPair (HPair 'HReal 'HReal) (HPair 'HProb 'HProb)))
+easyRoad =
+    uniform (real_ 3) (real_ 8) >>= \noiseT_ ->
+    uniform (real_ 1) (real_ 4) >>= \noiseE_ ->
+    let_ (unsafeProb noiseT_) $ \noiseT ->
+    let_ (unsafeProb noiseE_) $ \noiseE ->
+    normal (real_ 0) noiseT >>= \x1 ->
+    normal x1 noiseE >>= \m1 ->
+    normal x1 noiseT >>= \x2 ->
+    normal x2 noiseE >>= \m2 ->
+    dirac (pair (pair m1 m2) (pair noiseT noiseE))
+
+-- BUG: this throws a 'VarEqTypeError'
+testPerformEasyRoad = runPerform easyRoad
+
+-- BUG: this is returning bot instead of any solutions...
+testDisintegrateEasyRoad = disintegrate easyRoad
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------

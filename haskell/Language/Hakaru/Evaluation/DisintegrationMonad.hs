@@ -16,7 +16,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.02.23
+--                                                    2016.03.01
 -- |
 -- Module      :  Language.Hakaru.Evaluation.DisintegrationMonad
 -- Copyright   :  Copyright (c) 2016 the Hakaru team

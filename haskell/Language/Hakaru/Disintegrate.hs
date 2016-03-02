@@ -16,7 +16,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.02.23
+--                                                    2016.03.01
 -- |
 -- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -340,6 +340,11 @@ perform = \e0 ->
         pes' <- T.traverse (firstM (fmap fromWhnf . atomize)) pes
         emitFork_ (P.superpose . getCompose) (perform <$> Compose pes')
 
+    -- Avoid falling through to the @performWhnf <=< evaluate_@ case
+    performTerm (Let_ :$ e1 :* e2 :* End) =
+        caseBind e2 $ \x e2' ->
+            push (SLet x $ Thunk e1) e2' perform
+
     -- TODO: we could optimize this by calling some @evaluateTerm@
     -- directly, rather than calling 'syn' to rebuild @e0@ from
     -- @t0@ and then calling 'evaluate_' (which will just use
@@ -520,8 +525,7 @@ constrainValue v0 e0 =
         -- will need to generalize this when we start handling other
         -- ambient measures.
         Literal_ v               -> bot -- unsolvable. (kinda; see note)
-        Datum_   d               -> bot -- unsolvable. (kinda; see note)
-
+        Datum_   d               -> constrainDatum v0 d
         Dirac :$ _ :* End        -> bot -- giving up.
         MBind :$ _ :* _ :* End   -> bot -- giving up.
         MeasureOp_ o :$ es       -> constrainValueMeasureOp v0 o es
@@ -598,6 +602,68 @@ constrainBranches v0 e = choose . map constrainBranch
     constrainBranch (Branch pat body) =
         let (vars,body') = caseBinds body
         in push (SGuard vars pat (Thunk e)) body' (constrainValue v0)
+
+
+constrainDatum
+    :: (ABT Term abt) => abt '[] a -> Datum (abt '[]) a -> Dis abt ()
+constrainDatum v0 d =
+    case patternOfDatum d of
+    PatternOfDatum pat es -> do
+        xs <- freshVars $ fmap11 (Hint Text.empty . typeOf) es
+        emit_ $ \body ->
+            syn $ Case_ v0
+                [ Branch pat (binds_ xs body)
+                , Branch PWild P.reject
+                ]
+        constrainValues xs es
+
+constrainValues
+    :: (ABT Term abt)
+    => List1 Variable  xs
+    -> List1 (abt '[]) xs
+    -> Dis abt ()
+constrainValues (Cons1 x xs) (Cons1 e es) =
+    constrainValue (var x) e >> constrainValues xs es
+constrainValues Nil1 Nil1 = return ()
+constrainValues _ _ = error "constrainValues: the impossible happened"
+
+
+data PatternOfDatum (ast :: Hakaru -> *) (a :: Hakaru) =
+    forall xs. PatternOfDatum
+        !(Pattern xs a)
+        !(List1 ast xs)
+
+-- | Given a datum, return the pattern which will match it along
+-- with the subexpressions which would be bound to patter-variables.
+patternOfDatum :: Datum ast a -> PatternOfDatum ast a
+patternOfDatum =
+    \(Datum hint _typ d) ->
+        podCode d $ \p es ->
+        PatternOfDatum (PDatum hint p) es -- BUG: that datum hint is surely wrong for use as a pattern hint!
+    where
+    podCode
+        :: DatumCode xss ast a
+        -> (forall bs. PDatumCode xss bs a -> List1 ast bs -> r)
+        -> r
+    podCode (Inr d) k = podCode   d $ \ p es -> k (PInr p) es
+    podCode (Inl d) k = podStruct d $ \ p es -> k (PInl p) es
+
+    podStruct
+        :: DatumStruct xs ast a
+        -> (forall bs. PDatumStruct xs bs a -> List1 ast bs -> r)
+        -> r
+    podStruct (Et d1 d2) k =
+        podFun    d1 $ \p1 es1 ->
+        podStruct d2 $ \p2 es2 ->
+        k (PEt p1 p2) (es1 `append1` es2)
+    podStruct Done k = k PDone Nil1
+
+    podFun
+        :: DatumFun x ast a
+        -> (forall bs. PDatumFun x bs a -> List1 ast bs -> r)
+        -> r
+    podFun (Konst e) k = k (PKonst PVar) (Cons1 e Nil1)
+    podFun (Ident e) k = k (PIdent PVar) (Cons1 e Nil1)
 
 
 ----------------------------------------------------------------
