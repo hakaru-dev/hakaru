@@ -167,11 +167,19 @@ easyRoad =
     normal x2 noiseE >>= \m2 ->
     dirac (pair (pair m1 m2) (pair noiseT noiseE))
 
+                                     
 -- BUG: this throws a 'VarEqTypeError'
+testPerformEasyRoad
+    :: [TrivialABT Term '[]
+        ('HMeasure (HPair (HPair 'HReal 'HReal) (HPair 'HProb 'HProb)))]
 testPerformEasyRoad = runPerform easyRoad
 
--- BUG: this is returning bot instead of any solutions...
+
+testDisintegrateEasyRoad
+    :: [TrivialABT Term '[]
+        (HPair 'HReal 'HReal ':-> 'HMeasure (HPair 'HProb 'HProb))]
 testDisintegrateEasyRoad = disintegrate easyRoad
+
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
