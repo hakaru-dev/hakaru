@@ -13,7 +13,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.02.23
+--                                                    2016.03.01
 -- |
 -- Module      :  Language.Hakaru.Evaluation.Lazy
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -31,11 +31,14 @@
 module Language.Hakaru.Evaluation.Lazy
     (
     -- * Lazy partial evaluation
-      MeasureEvaluator
-    , TermEvaluator
+      TermEvaluator
+    , MeasureEvaluator
+    , CaseEvaluator
+    , VariableEvaluator
     , evaluate
     -- ** Helper functions
     , update
+    , defaultCaseEvaluator
     , toStatements
 
     -- ** Helpers that should really go away
@@ -85,6 +88,10 @@ import Debug.Trace (trace)
 -- to select out subtypes of the generic versions.
 
 
+-- | A function for evaluating any term to weak-head normal form.
+type TermEvaluator abt m =
+    forall a. abt '[] a -> m (Whnf abt a)
+
 -- | A function for \"performing\" an 'HMeasure' monadic action.
 -- This could mean actual random sampling, or simulated sampling
 -- by generating a new term and returning the newly bound variable,
@@ -92,33 +99,36 @@ import Debug.Trace (trace)
 type MeasureEvaluator abt m =
     forall a. abt '[] ('HMeasure a) -> m (Whnf abt a)
 
+-- | A function for evaluating any case-expression to weak-head
+-- normal form.
+type CaseEvaluator abt m =
+    forall a b. abt '[] a -> [Branch a abt b] -> m (Whnf abt b)
 
--- | A function for evaluating any term to weak-head normal form.
-type TermEvaluator abt m =
-    forall a. abt '[] a -> m (Whnf abt a)
+-- | A function for evaluating any variable to weak-head normal form.
+type VariableEvaluator abt m =
+    forall a. Variable a -> m (Whnf abt a)
 
 
--- | Lazy partial evaluation with a given \"perform\" function.
--- N.B., if we have @p ~ 'Pure@ then the \"perform\" function will
+-- | Lazy partial evaluation with some given \"perform\" and
+-- \"evaluateCase\" functions. The first argument to @evaluateCase@
+-- will be the 'TermEvaluator' we're constructing (thus tying the
+-- knot). N.B., if @p ~ 'Pure@ then the \"perform\" function will
 -- never be called.
+--
+-- We factor out the 'CaseEvaluator' because some code (e.g.,
+-- disintegration) may need to do something special rather than
+-- just relying on the 'defaultCaseEvaluator' implementation.
 evaluate
     :: forall abt m p
     .  (ABT Term abt, EvaluationMonad abt m p)
     => MeasureEvaluator abt m
+    -> (TermEvaluator abt m -> CaseEvaluator abt m)
     -> TermEvaluator    abt m
-evaluate perform = evaluate_
+{-# INLINE evaluate #-}
+evaluate perform evaluateCase = evaluate_
     where
-    -- TODO: At present, whenever we residualize a case expression we'll
-    -- generate a 'Neutral' term which will, when run, repeat the work
-    -- we're doing in the evaluation here. We could eliminate this
-    -- redundancy by introducing a new variable for @e@ each time this
-    -- function is called--- if only we had some way of getting those
-    -- variables put into the right place for when we residualize the
-    -- original scrutinee...
-    --
-    -- N.B., 'DatumEvaluator' is a rank-2 type so it requires a signature
-    evaluateDatum :: DatumEvaluator (abt '[]) m
-    evaluateDatum e = viewWhnfDatum <$> evaluate_ e
+    evaluateCase_ :: CaseEvaluator abt m
+    evaluateCase_ = evaluateCase evaluate_
 
     evaluate_ :: TermEvaluator abt m
     evaluate_ e0 =
@@ -176,22 +186,55 @@ evaluate perform = evaluate_
             evaluate_ . E.expect e1 $ \e3 ->
                 syn (Let_ :$ e3 :* e2 :* End)
 
-        -- TODO: rather than throwing a Haskell error, instead
-        -- capture the possibility of failure in the 'EvaluationMonad'
-        -- monad.
-        Case_ e bs -> do
-            match <- matchBranches evaluateDatum e bs
-            case match of
-                Nothing ->
-                    -- TODO: print more info about where this happened
-                    error "evaluate: non-exhaustive patterns in case!"
-                Just (GotStuck, _) ->
-                    -- TODO: we should still try to go and evaluate @bs@, treating the pattern-bound variables as free vars (and if the scrutinee is a free var, then binding it to the pattern viewed as a value; (if the scrutinee is some other neutral term, then we'd need to invert it to be able to propagate the information inwards...))
-                    return . Neutral . syn $ Case_ e bs
-                Just (Matched ss Nil1, body) ->
-                    pushes (toStatements ss) body evaluate_
+        Case_ e bs -> evaluateCase_ e bs
 
         _ :$ _ -> error "evaluate: the impossible happened"
+
+
+-- | A simple 'CaseEvaluator' which uses the 'DatumEvaluator' to
+-- force the scrutinee, and if 'matchBranches' succeeds then we
+-- call the 'TermEvaluator' to continue evaluating the body of the
+-- matched branch. If we 'GotStuck' then we return a 'Neutral' term
+-- of the case expression itself (n.b, any side effects from having
+-- called the 'DatumEvaluator' will still persist when returning
+-- this neutral term). If we didn't get stuck and yet none of the
+-- branches matches, then we throw an exception.
+defaultCaseEvaluator
+    :: forall abt m p
+    .  (ABT Term abt, EvaluationMonad abt m p)
+    => TermEvaluator abt m
+    -> CaseEvaluator abt m
+{-# INLINE defaultCaseEvaluator #-}
+defaultCaseEvaluator evaluate_ = evaluateCase_
+    where
+    -- TODO: At present, whenever we residualize a case expression we'll
+    -- generate a 'Neutral' term which will, when run, repeat the work
+    -- we're doing in the evaluation here. We could eliminate this
+    -- redundancy by introducing a new variable for @e@ each time this
+    -- function is called--- if only we had some way of getting those
+    -- variables put into the right place for when we residualize the
+    -- original scrutinee...
+    --
+    -- N.B., 'DatumEvaluator' is a rank-2 type so it requires a signature
+    evaluateDatum :: DatumEvaluator (abt '[]) m
+    evaluateDatum e = viewWhnfDatum <$> evaluate_ e
+
+    evaluateCase_ :: CaseEvaluator abt m
+    evaluateCase_ e bs = do
+        match <- matchBranches evaluateDatum e bs
+        case match of
+            Nothing ->
+                -- TODO: print more info about where this error
+                -- happened
+                --
+                -- TODO: rather than throwing a Haskell error,
+                -- instead capture the possibility of failure in
+                -- the 'EvaluationMonad' monad.
+                error "defaultCaseEvaluator: non-exhaustive patterns in case!"
+            Just (GotStuck, _) ->
+                return . Neutral . syn $ Case_ e bs
+            Just (Matched ss Nil1, body) ->
+                pushes (toStatements ss) body evaluate_
 
 
 type DList a = [a] -> [a]
@@ -211,12 +254,11 @@ toStatements ss = map (\(Assoc x e) -> SLet x $ Thunk e) (ss [])
 -- bound variables to be above @nextFreeVarID@; but then we have to
 -- do that anyways.
 update
-    :: forall abt m p a
+    :: forall abt m p
     .  (ABT Term abt, EvaluationMonad abt m p)
-    => MeasureEvaluator abt m
-    -> TermEvaluator    abt m
-    -> Variable a
-    -> m (Whnf abt a)
+    => MeasureEvaluator  abt m
+    -> TermEvaluator     abt m
+    -> VariableEvaluator abt m
 update perform evaluate_ = \x ->
     -- If we get 'Nothing', then it turns out @x@ is a free variable
     fmap (maybe (Neutral $ var x) id) . select x $ \s ->

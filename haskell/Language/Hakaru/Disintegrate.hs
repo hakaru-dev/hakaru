@@ -149,7 +149,7 @@ disintegrateWithVar
 disintegrateWithVar hint typ m =
     let x = Variable hint (nextFree m `max` nextBind m) typ
     in map (lam_ x) . flip runDis [Some2 m, Some2 (var x)] $ do
-        ab    <- perform m
+        ab <- perform m
 #ifdef __TRACE_DISINTEGRATE__
         ss <- getStatements
         trace ("-- disintegrate: finished perform\n"
@@ -180,10 +180,7 @@ disintegrateWithVar hint typ m =
         -- on the local variable, we will look that 'SLet' statement
         -- up; and then when we call 'constrainVariable' on the
         -- emitted variable, things will @bot@ because we cannot
-        -- constrain free variables in general. It's not entirely
-        -- clear to me(wrengr) whether this indicates disintegration
-        -- is still wrong, or whether the 'testDisintegrate1a'
-        -- program really /should/ be returning @bot@.
+        -- constrain free variables in general.
         (a,b) <- emitUnpair ab
 #ifdef __TRACE_DISINTEGRATE__
         trace ("-- disintegrate: finished emitUnpair: "
@@ -275,14 +272,44 @@ firstM f (x,y) = (\z -> (z, y)) <$> f x
 -- More specifically, we need to ensure emissibility in the places
 -- where we call 'emitMBind'
 evaluate_ :: (ABT Term abt) => TermEvaluator abt (Dis abt)
-evaluate_ = evaluate perform
+evaluate_ = evaluate perform evaluateCase
+
+
+-- | The forward disintegrator's function for evaluating case
+-- expressions. First we try calling 'defaultCaseEvaluator' which
+-- will evaluate the scrutinee and select the matching branch (if
+-- any). But that doesn't work out in general, since the scrutinee
+-- may contain heap-bound variables. So our fallback definition
+-- will push a 'SGuard' onto the heap and then continue evaluating
+-- each branch (thereby duplicating the continuation, calling it
+-- once on each branch).
+evaluateCase
+    :: forall abt
+    .  (ABT Term abt)
+    => TermEvaluator abt (Dis abt)
+    -> CaseEvaluator abt (Dis abt)
+{-# INLINE evaluateCase #-}
+evaluateCase evaluate_ = evaluateCase_
+    where
+    evaluateCase_ :: CaseEvaluator abt (Dis abt)
+    evaluateCase_ e bs =
+        defaultCaseEvaluator evaluate_ e bs
+        <|> evaluateBranches e bs
+
+    evaluateBranches :: CaseEvaluator abt (Dis abt)
+    evaluateBranches e = choose . map evaluateBranch
+        where
+        evaluateBranch (Branch pat body) =
+            let (vars,body') = caseBinds body
+            in push (SGuard vars pat (Thunk e)) body' evaluate_
 
 
 evaluateDatum :: (ABT Term abt) => DatumEvaluator (abt '[]) (Dis abt)
 evaluateDatum e = viewWhnfDatum <$> evaluate_ e
 
 
--- TODO: do we want to move this to the public API of "Language.Hakaru.Evaluation.DisintegrationMonad"?
+-- TODO: do we want to move this to the public API of
+-- "Language.Hakaru.Evaluation.DisintegrationMonad"?
 #ifdef __TRACE_DISINTEGRATE__
 getStatements :: Dis abt [Statement abt 'Impure]
 getStatements = Dis $ \c h -> c (statements h) h

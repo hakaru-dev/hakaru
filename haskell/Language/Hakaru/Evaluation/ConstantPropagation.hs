@@ -40,7 +40,7 @@ import Language.Hakaru.Syntax.Variable (memberVarSet)
 import Language.Hakaru.Syntax.ABT      (View(..), ABT(..), subst, cataABT)
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Evaluation.Types
-import Language.Hakaru.Evaluation.Lazy (evaluate)
+import Language.Hakaru.Evaluation.Lazy (evaluate, defaultCaseEvaluator)
 import Language.Hakaru.Evaluation.DisintegrationMonad (ListContext(..))
 
 ----------------------------------------------------------------
@@ -86,7 +86,10 @@ constantPropagation =
 -- even though the type doesn't capture that invariant. We use this function for implementing 'constantPropagation', and expose it because it's surely helpful in other contexts. We do not, however, expose its implementation details because doing so would enable breaking our invariants.
 pureEvaluate :: (ABT Term abt) => abt '[] a -> abt '[] a
 pureEvaluate e =
-    runEval (fromWhnf <$> evaluate (brokenInvariant "perform") e) [Some2 e]
+    runEval
+        (fromWhnf <$>
+            evaluate (brokenInvariant "perform") defaultCaseEvaluator e)
+        [Some2 e]
 
 
 ----------------------------------------------------------------
