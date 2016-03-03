@@ -365,9 +365,10 @@ term =  try if_expr
     <|> try var
     <|> try pairs
     <|> parens expr
+    <?> "an expression"
 
 expr :: Parser (AST' Text)
-expr = Ex.buildExpressionParser table term
+expr = Ex.buildExpressionParser table term <?> "an expression"
 
 
 indentConfig :: Text -> ParserStream
