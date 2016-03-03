@@ -40,7 +40,7 @@ primPat =
             U.PKonst b `U.PEt` U.PDone)
     , ("true",    TNeu' . U.PDatum "pTrue"  . U.PInl $ U.PDone)
     , ("false",   TNeu' . U.PDatum "pFalse" . U.PInr . U.PInl $ U.PDone)
-    , ("pair",    TLam' $ \ [a, b] -> pairPat a b)
+    --, ("pair",    TLam' $ \ [a, b] -> pairPat a b)
     , ("just",    TLam' $ \ [a] ->
             U.PDatum "pJust" . U.PInr . U.PInl $
              U.PKonst a `U.PEt` U.PDone)

@@ -324,7 +324,7 @@ match5AST =
 match6 :: Text
 match6 = unlines
     ["match (2,3). pair(nat,nat):"
-    ,"   pair(a,b): a+b"
+    ,"   (a,b): a+b"
     ]
 
 match6AST :: AST' Text
@@ -334,16 +334,24 @@ match6AST =
            (ULiteral (Nat 2))
            (ULiteral (Nat 3)))
      (TypeApp "pair" [TypeVar "nat",TypeVar "nat"]))
-    [Branch' (PData' (DV "pair" [PVar' "a",PVar' "b"]))
+    [Branch' (PPair' [PVar' "a",PVar' "b"])
      (NaryOp Sum [Var "a", Var "b"])]
 
 
 match7 :: Text
 match7 = unlines
     ["match (-2.0,1.0). pair(real,prob):"
-    ,"   pair(a,b): normal(a,b)"
+    ,"   (a,b): normal(a,b)"
     ]
 
+match7AST :: AST' Text
+match7AST = Case (Ann
+                  (Pair
+                   (App (Var "negate") (ULiteral (Prob 2.0)))
+                   (ULiteral (Prob 1.0)))
+             (TypeApp "pair" [TypeVar "real",TypeVar "prob"]))
+            [Branch' (PPair' [PVar' "a",PVar' "b"])
+             (App (App (Var "normal") (Var "a")) (Var "b"))]
 
 testMatches :: Test
 testMatches = test
@@ -353,6 +361,7 @@ testMatches = test
     , testParse match4 match4AST
     , testParse match5 match5AST
     , testParse match6 match6AST
+    , testParse match7 match7AST
     ]
 
 ann1 :: Text
