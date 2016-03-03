@@ -53,6 +53,7 @@ data Branch' a
 
 data Pattern' a
     = PVar'  a
+    | PPair' [Pattern' a]
     | PWild'
     | PData' (PDatum a)
     deriving (Eq, Show)

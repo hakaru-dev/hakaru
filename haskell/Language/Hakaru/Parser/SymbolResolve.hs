@@ -6,7 +6,7 @@
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Language.Hakaru.Parser.SymbolResolve where
 
-import Data.Text hiding (concat, map, maximum)
+import Data.Text hiding (concat, map, maximum, foldr1)
 #if __GLASGOW_HASKELL__ < 710
 import Data.Functor                     ((<$>))
 import Control.Applicative              ((<*>))
@@ -40,15 +40,16 @@ primPat =
             U.PKonst b `U.PEt` U.PDone)
     , ("true",    TNeu' . U.PDatum "pTrue"  . U.PInl $ U.PDone)
     , ("false",   TNeu' . U.PDatum "pFalse" . U.PInr . U.PInl $ U.PDone)
-    , ("pair",    TLam' $ \ [a, b] ->
-           U.PDatum "pPair" .  U.PInl $
-            U.PKonst a `U.PEt` U.PKonst b `U.PEt` U.PDone)
+    , ("pair",    TLam' $ \ [a, b] -> pairPat a b)
     , ("just",    TLam' $ \ [a] ->
             U.PDatum "pJust" . U.PInr . U.PInl $
              U.PKonst a `U.PEt` U.PDone)
     , ("nothing", TLam' $ \ [] ->
             U.PDatum "tNothing" . U.PInl $ U.PDone)
     ]
+
+pairPat a b = U.PDatum "pPair" .  U.PInl $
+              U.PKonst a `U.PEt` U.PKonst b `U.PEt` U.PDone
 
 primTypes :: [(Text, Symbol' U.SSing)]
 primTypes = 
@@ -268,9 +269,13 @@ symbolResolveBranch symbols (U.Branch' pat ast) = do
 
 symbolResolvePat :: U.Pattern' Text ->
                     State Int (U.Pattern' U.Name, [U.Name])
-symbolResolvePat (U.PVar' name) = do name' <- gensym name
-                                     return (U.PVar' name', [name'])
-symbolResolvePat U.PWild'       = return (U.PWild', [])
+symbolResolvePat (U.PVar' name)  = do name' <- gensym name
+                                      return (U.PVar' name', [name'])
+symbolResolvePat (U.PPair' args) = do
+  args' <- mapM symbolResolvePat args
+  let (args'', names) = unzip args'
+  return $ (U.PPair' args'', concat names)
+symbolResolvePat U.PWild'        = return (U.PWild', [])
 symbolResolvePat (U.PData' (U.DV name args)) = do
   args' <- mapM symbolResolvePat args
   let (args'', names) = unzip args'
@@ -337,12 +342,14 @@ makeType (U.TypeApp f args) =
 
 
 makePattern :: U.Pattern' U.Name -> U.Pattern
-makePattern U.PWild'       = U.PWild
-makePattern (U.PVar' name) =
+makePattern U.PWild'        = U.PWild
+makePattern (U.PVar' name)  =
     case lookup (U.hintID name) primPat of
       Just (TLam' _)  -> error "TODO{makePattern:PVar:TLam}"
       Just (TNeu' p') -> p'
       Nothing         -> U.PVar name
+makePattern (U.PPair' args) =
+      foldr1 pairPat (map makePattern args)
 makePattern (U.PData' (U.DV name args)) =
     case lookup name primPat of
       Just (TLam' f') -> f' (map makePattern args)

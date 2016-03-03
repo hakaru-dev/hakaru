@@ -196,6 +196,7 @@ pdat_expr = DV <$> identifier <*> parens (commaSep pat_expr)
 
 pat_expr :: Parser (Pattern' Text)
 pat_expr =  try (PData' <$> pdat_expr)
+        <|> (PPair' <$> parens (commaSep pat_expr))
         <|> (PWild' <$ reservedOp "_")
         <|> (PVar' <$> identifier)
 
