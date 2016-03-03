@@ -490,7 +490,7 @@ inferType = inferType_
             LaxMode    -> inferCaseLax typ1 e1' branches
             UnsafeMode -> error "TODO: inferType{Case_} in UnsafeMode"
 
-    U.Dirac_ e1 | inferable e1 -> do
+    U.Dirac_ e1 -> do
         TypedAST typ1 e1' <- inferType_ e1
         return . TypedAST (SMeasure typ1) $ syn (Dirac :$ e1' :* End)
 
