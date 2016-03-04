@@ -169,7 +169,7 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
             -- TODO: should we also add hints to the 'Case_' constructor to know whether it came from 'if_', 'unpair', etc?
             [ PP.text "match"
               <+> (toDoc $ ppArg e1)
-              <> PP.colon
+              <> PP.colon <> PP.space
             , PP.nest 1 (PP.vcat (map (toDoc . prettyPrec_ 0) bs))
             ]
         Superpose_ pes ->
