@@ -189,7 +189,10 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
 ppSCon :: (ABT Term abt) => Int -> SCon args a -> SArgs abt args -> Docs
 ppSCon _ Lam_ = \(e1 :* End) ->
     let (vars, types, body) = ppBinder2 e1 in
-    [PP.text "fn" <+> toDoc vars <+> toDoc types <> PP.colon <+> (toDoc body)]
+    [ PP.text "fn" <+> toDoc vars
+                   <+> toDoc types
+                    <> PP.colon
+    , PP.nest 1 (toDoc body)]
 
 --ppSCon p App_ = \(e1 :* e2 :* End) -> ppArg e1 ++ parens True (ppArg e2)
 ppSCon _ App_ = \(e1 :* e2 :* End) -> prettyApps e1 e2
@@ -424,41 +427,42 @@ instance Pretty f => Pretty (Datum f) where
 
 
 -- HACK: need to pull this out in order to get polymorphic recursion over @xs@
-ppPattern :: Int -> Pattern xs a -> Docs
-ppPattern _ PWild = [PP.text "PWild"]
-ppPattern _ PVar  = [PP.text "PVar"]
-ppPattern p (PDatum hint d0)
+ppPattern :: Int -> [Doc] -> Pattern xs a -> Docs
+ppPattern _ _     PWild = [PP.text "_"]
+ppPattern _ [var] PVar  = [var]
+ppPattern p vars  (PDatum hint d0)
     | Text.null hint = error "TODO: prettyPrec_@Pattern"
     | otherwise      =
         case Text.unpack hint of
         -- Special cases for certain pDatums
         "pTrue"  -> [PP.text "true"]
         "pFalse" -> [PP.text "false"]
+        "pPair"  -> ppFun p "" (goCode d0 vars)
         -- General case
-        _        -> ppFun p (Text.unpack hint) (goCode d0)
+        _        -> ppFun p (Text.unpack hint) (goCode d0 vars)
     where
-    goCode :: PDatumCode xss vars a -> Docs
+    goCode :: PDatumCode xss vars a -> [Doc] -> Docs
     goCode (PInr d) = goCode   d
     goCode (PInl d) = goStruct d
 
-    goStruct :: PDatumStruct xs vars a -> Docs
-    goStruct PDone       = []
-    goStruct (PEt d1 d2) = goFun d1 ++ goStruct d2
+    goStruct :: PDatumStruct xs vars a -> [Doc] -> Docs
+    goStruct PDone       _      = []
+    goStruct (PEt d1 d2) (v:vs) = goFun d1 [v] ++ goStruct d2 vs
 
-    goFun :: PDatumFun x vars a -> Docs
-    goFun (PKonst d) = [toDoc $ ppPattern 11 d]
-    goFun (PIdent d) = [toDoc $ ppPattern 11 d]
-
-
-instance Pretty (Pattern xs) where
-    prettyPrec_ = ppPattern
+    goFun :: PDatumFun x vars a -> [Doc] -> Docs
+    goFun (PKonst d) vars = [toDoc $ ppPattern 11 vars d]
+    goFun (PIdent d) vars = [toDoc $ ppPattern 11 vars d]
 
 
 instance (ABT Term abt) => Pretty (Branch a abt) where
+    -- BUG: we can't actually use the HOAS API here, since we
+    --      aren't using a Prelude-defined @branch@...
+    -- HACK: don't *always* print parens; pass down the precedence to
+    --       'ppBinder' to have them decide if they need to or not.
     prettyPrec_ p (Branch pat e) =
-        [ (toDoc $ prettyPrec_ 11 pat) <> PP.colon <> PP.space
-        , PP.nest 1 $ toDoc $ ppBinder e -- BUG: we can't actually use the HOAS API here, since we aren't using a Prelude-defined @branch@...
-        -- HACK: don't *always* print parens; pass down the precedence to 'ppBinder' to have them decide if they need to or not.
+        let (vars, _, body) = ppBinder2 e in
+        [ (toDoc $ ppPattern 11 vars pat) <> PP.colon <> PP.space
+        , PP.nest 1 $ toDoc $ body
         ]
 
 ----------------------------------------------------------------
