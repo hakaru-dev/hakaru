@@ -325,7 +325,7 @@ dPair = dPair_ sing sing
 
 dPair_ :: Sing a -> Sing b -> ast a -> ast b -> Datum ast (HPair a b)
 dPair_ a b x y =
-    Datum tdPair (sPair a b) . Inl $ Konst x `Et` Konst y `Et` Done
+    Datum tpPair (sPair a b) . Inl $ Konst x `Et` Konst y `Et` Done
 
 dLeft :: (SingI a, SingI b) => ast a -> Datum ast (HEither a b)
 dLeft = dLeft_ sing sing
