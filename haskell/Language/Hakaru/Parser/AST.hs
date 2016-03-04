@@ -15,7 +15,6 @@ import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Syntax.AST
     (Literal(..), MeasureOp(..), LCs(), UnLCs ())
-import Language.Hakaru.Syntax.Variable (Variable(..))
 import Language.Hakaru.Syntax.IClasses
 
 import Data.Text
@@ -25,24 +24,14 @@ import Text.Parsec (SourcePos)
 data Name = Name {-# UNPACK #-}!N.Nat {-# UNPACK #-}!Text
     deriving (Read, Show, Eq, Ord)
 
-makeVar :: Name -> Sing a -> Variable a
-makeVar name typ =
-    Variable (hintID name) (nameID name) typ
-
 nameID :: Name -> N.Nat
 nameID (Name i _) = i
 
 hintID :: Name -> Text
 hintID (Name _ t) = t
 
-data SealedOp op where
-    SealedOp
-        :: (typs ~ UnLCs args, args ~ LCs typs)
-        => !(op typs a)
-        -> SealedOp op
-
-data SSing =
-    forall (a :: Hakaru). SSing !(Sing a)
+----------------------------------------------------------------
+----------------------------------------------------------------
 
 type Name' = Text
 
@@ -64,22 +53,6 @@ data PDatum a = DV Text [Pattern' a]
 -- Meta stores start and end position for AST in source code
 data Meta = Meta !SourcePos !SourcePos
     deriving (Eq, Show)
-
-infixr 7 `Et`, `PEt`
-
-data DFun
-    = Konst AST
-    | Ident AST
-
-data DStruct
-    = Et DFun DStruct
-    | Done
-
-data DCode
-    = Inr DCode
-    | Inl DStruct
-
-data Datum = Datum Text DCode
 
 data Literal'
     = Nat  Int
@@ -111,12 +84,6 @@ data PrimOp
     | Abs        | Signum | NatRoot | Erf
 
 data ArrayOp = Index_ | Size | Reduce
-
-val :: Literal' -> Some1 Literal
-val (Nat  n) = Some1 $ LNat  (N.unsafeNatural $ fromIntegral n) -- TODO: clean up
-val (Int  n) = Some1 $ LInt  (fromIntegral n) -- TODO: clean up
-val (Prob n) = Some1 $ LProb (N.unsafeNonNegativeRational $ toRational n) -- BUG: parse a Rational in the first place!
-val (Real n) = Some1 $ LReal (toRational   n) -- BUG: parse a Rational in the first place!
 
 data TypeAST'
     = TypeVar Text
@@ -151,6 +118,24 @@ data AST' a
     | WithMeta (AST' a) Meta
     deriving (Eq, Show)
 
+----------------------------------------------------------------
+----------------------------------------------------------------
+
+val :: Literal' -> Some1 Literal
+val (Nat  n) = Some1 $ LNat  (N.unsafeNatural $ fromIntegral n) -- TODO: clean up
+val (Int  n) = Some1 $ LInt  (fromIntegral n) -- TODO: clean up
+val (Prob n) = Some1 $ LProb (N.unsafeNonNegativeRational $ toRational n) -- BUG: parse a Rational in the first place!
+val (Real n) = Some1 $ LReal (toRational   n) -- BUG: parse a Rational in the first place!
+
+data SealedOp op where
+    SealedOp
+        :: (typs ~ UnLCs args, args ~ LCs typs)
+        => !(op typs a)
+        -> SealedOp op
+
+data SSing =
+    forall (a :: Hakaru). SSing !(Sing a)
+
 data Branch = Branch Pattern AST
 
 data Pattern
@@ -169,6 +154,22 @@ data PStruct
 data PCode
     = PInr PCode
     | PInl PStruct
+
+infixr 7 `Et`, `PEt`
+
+data DFun
+    = Konst AST
+    | Ident AST
+
+data DStruct
+    = Et DFun DStruct
+    | Done
+
+data DCode
+    = Inr DCode
+    | Inl DStruct
+
+data Datum = Datum Text DCode
 
 data AST
     = Var_        Name
@@ -194,3 +195,6 @@ data AST
     | Chain_      Name    AST AST AST
     | Expect_     Name    AST AST
     | Superpose_  [(AST, AST)]
+
+----------------------------------------------------------------
+---------------------------------------------------------- fin.

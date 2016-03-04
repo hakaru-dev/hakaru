@@ -50,7 +50,7 @@ import           Control.Applicative   (Applicative(..), (<$>))
 #endif
 import qualified Language.Hakaru.Parser.AST as U
 
-import Data.Number.Nat                (fromNat)
+import Data.Number.Nat                (fromNat, Nat)
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.DataKind (Hakaru(..), HData', HBool)
 import Language.Hakaru.Types.Sing
@@ -299,6 +299,11 @@ instance Show2 abt => Show (TypedAST abt) where
         showParen_12 p "TypedAST" typ e
 
 
+makeVar :: forall (a :: Hakaru). U.Name -> Sing a -> Variable a
+makeVar name typ =
+    Variable (U.hintID name) (U.nameID name) typ
+
+
 inferBinder
     :: (ABT Term abt)
     => Variable a
@@ -386,7 +391,7 @@ inferType = inferType_
             Nothing -> ambiguousFreeVariable x
 
     U.Lam_ x (U.SSing typ) e -> do
-        inferBinder (U.makeVar x typ) e $ \typ2 e' ->
+        inferBinder (makeVar x typ) e $ \typ2 e' ->
             return . TypedAST (SFun typ typ2) $ syn (Lam_ :$ e' :* End)
 
     U.App_ e1 e2 -> do
@@ -410,7 +415,7 @@ inferType = inferType_
 
     U.Let_ x e1 e2 -> do
         TypedAST typ1 e1' <- inferType_ e1
-        inferBinder (U.makeVar x typ1) e2 $ \typ2 e2' ->
+        inferBinder (makeVar x typ1) e2 $ \typ2 e2' ->
             return . TypedAST typ2 $ syn (Let_ :$ e1' :* e2' :* End)
 
     U.Ann_ e1 (U.SSing typ1) -> do
@@ -479,7 +484,7 @@ inferType = inferType_
 
     U.Array_ e1 x e2 -> do
         e1' <- checkType_ SNat e1
-        inferBinder (U.makeVar x SNat) e2 $ \typ2 e2' ->
+        inferBinder (makeVar x SNat) e2 $ \typ2 e2' ->
             return . TypedAST (SArray typ2) $ syn (Array_ e1' e2')
 
     U.Case_ e1 branches -> do
@@ -498,7 +503,7 @@ inferType = inferType_
         TypedAST typ1 e1' <- inferType_ e1
         case typ1 of
             SMeasure typ2 ->
-                let x' = U.makeVar x typ2 in
+                let x' = makeVar x typ2 in
                 pushCtx x' $ do
                     TypedAST typ3 e2' <- inferType_ e2
                     case typ3 of
@@ -508,7 +513,7 @@ inferType = inferType_
                         _ -> typeMismatch (Left "HMeasure") (Right typ3)
                 {-
                 -- BUG: the \"ambiguous\" @abt@ issue again...
-                inferBinder (U.makeVar x typ2) e2 $ \typ3 e2' ->
+                inferBinder (makeVar x typ2) e2 $ \typ3 e2' ->
                     case typ3 of
                     SMeasure _ -> return . TypedAST typ3 $
                         syn (MBind :$ e1' :* e2' :* End)
@@ -518,7 +523,7 @@ inferType = inferType_
 
     U.Plate_ x e1 e2 -> do
         e1' <- checkType_ SNat e1
-        let x' = U.makeVar x SNat
+        let x' = makeVar x SNat
         pushCtx x' $ do
             TypedAST typ2 e2' <- inferType_ e2
             case typ2 of
@@ -530,7 +535,7 @@ inferType = inferType_
     U.Chain_ x e1 e2 e3 -> do
         e1' <- checkType_ SNat e1
         TypedAST typ2 e2' <- inferType_ e2
-        let x' = U.makeVar x typ2
+        let x' = makeVar x typ2
         pushCtx x' $ do
             TypedAST typ3 e3' <- inferType_ e3
             case typ3 of
@@ -548,7 +553,7 @@ inferType = inferType_
         TypedAST typ1 e1' <- inferType_ e1
         case typ1 of
             SMeasure typ2 -> do
-                e2' <- checkBinder (U.makeVar x typ2) SProb e2
+                e2' <- checkBinder (makeVar x typ2) SProb e2
                 return . TypedAST SProb $ syn (Expect :$ e1' :* e2' :* End)
             _ -> typeMismatch (Left "HMeasure") (Right typ1)
 
@@ -934,14 +939,14 @@ checkType = checkType_
             case typ0 of
             SFun typ1 typ2 ->
                 case jmEq1 typ1 typ of
-                  Just Refl -> do e1' <- checkBinder (U.makeVar x typ1) typ2 e1
+                  Just Refl -> do e1' <- checkBinder (makeVar x typ1) typ2 e1
                                   return $ syn (Lam_ :$ e1' :* End)
                   Nothing   -> typeMismatch (Right typ1) (Right typ)
             _ -> typeMismatch (Right typ0) (Left "function type")
 
         U.Let_ x e1 e2 -> do
             TypedAST typ1 e1' <- inferType_ e1
-            e2' <- checkBinder (U.makeVar x typ1) typ0 e2
+            e2' <- checkBinder (makeVar x typ1) typ0 e2
             return $ syn (Let_ :$ e1' :* e2' :* End)
 
         U.CoerceTo_ (Some2 c) e1 ->
@@ -993,7 +998,7 @@ checkType = checkType_
             case typ0 of
             SArray typ1 -> do
                 e1' <- checkType_ SNat e1
-                e2' <- checkBinder (U.makeVar x SNat) typ1 e2
+                e2' <- checkBinder (makeVar x SNat) typ1 e2
                 return $ syn (Array_ e1' e2')
             _ -> typeMismatch (Right typ0) (Left "HArray")
 
@@ -1022,7 +1027,7 @@ checkType = checkType_
                 TypedAST typ1 e1' <- inferType_ e1
                 case typ1 of
                     SMeasure typ2 -> do
-                        e2' <- checkBinder (U.makeVar x typ2) typ0 e2
+                        e2' <- checkBinder (makeVar x typ2) typ0 e2
                         return $ syn (MBind :$ e1' :* e2' :* End)
                     _ -> typeMismatch (Right typ0) (Right typ1)
             _ -> typeMismatch (Right typ0) (Left "HMeasure")
@@ -1033,7 +1038,7 @@ checkType = checkType_
                 e1' <- checkType_ SNat e1
                 case typ1 of
                     SArray typ2 -> do
-                        e2' <- checkBinder (U.makeVar x SNat) (SMeasure typ2) e2
+                        e2' <- checkBinder (makeVar x SNat) (SMeasure typ2) e2
                         return $ syn (Plate :$ e1' :* e2' :* End)
                     _ -> typeMismatch (Right typ1) (Left "HArray")
             _ -> typeMismatch (Right typ0) (Left "HMeasure")
@@ -1045,7 +1050,7 @@ checkType = checkType_
                 Just Refl -> do
                   e1' <- checkType_ SNat e1
                   e2' <- checkType_ s e2
-                  e3' <- checkBinder (U.makeVar x s) (SMeasure $ sPair a s) e3
+                  e3' <- checkBinder (makeVar x s) (SMeasure $ sPair a s) e3
                   return $ syn (Chain :$ e1' :* e2' :* e3' :* End)
                 Nothing -> typeMismatch (Right typ0) (Left "HMeasure(HPair(HArray, s)")
             _           -> typeMismatch (Right typ0) (Left "HMeasure(HPair(HArray, s)")
@@ -1057,7 +1062,7 @@ checkType = checkType_
                 TypedAST typ1 e1' <- inferType_ e1
                 case typ1 of
                     SMeasure typ2 -> do
-                        e2' <- checkBinder (U.makeVar x typ2) typ0 e2
+                        e2' <- checkBinder (makeVar x typ2) typ0 e2
                         return $ syn (Expect :$ e1' :* e2' :* End)
                     _ -> typeMismatch (Left "HMeasure") (Right typ1)
             _ -> typeMismatch (Right typ0) (Left "HProb")
@@ -1196,7 +1201,7 @@ checkPattern
     -> TypeCheckMonad (SomePattern a)
 checkPattern = \typA pat ->
     case pat of
-    U.PVar x -> return $ SP PVar (Cons1 (U.makeVar x typA) Nil1)
+    U.PVar x -> return $ SP PVar (Cons1 (makeVar x typA) Nil1)
     U.PWild  -> return $ SP PWild Nil1
     U.PDatum hint pat1 ->
         case typA of
