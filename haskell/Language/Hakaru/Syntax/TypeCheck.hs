@@ -50,7 +50,7 @@ import           Control.Applicative   (Applicative(..), (<$>))
 #endif
 import qualified Language.Hakaru.Parser.AST as U
 
-import Data.Number.Nat                (fromNat, Nat)
+import Data.Number.Nat                (fromNat)
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.DataKind (Hakaru(..), HData', HBool)
 import Language.Hakaru.Types.Sing
