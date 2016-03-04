@@ -639,7 +639,7 @@ patternOfDatum :: Datum ast a -> PatternOfDatum ast a
 patternOfDatum =
     \(Datum hint _typ d) ->
         podCode d $ \p es ->
-        PatternOfDatum (PDatum hint p) es -- BUG: that datum hint is surely wrong for use as a pattern hint!
+        PatternOfDatum (PDatum hint p) es
     where
     podCode
         :: DatumCode xss ast a

@@ -435,9 +435,9 @@ ppPattern p vars  (PDatum hint d0)
     | otherwise      =
         case Text.unpack hint of
         -- Special cases for certain pDatums
-        "pTrue"  -> [PP.text "true"]
-        "pFalse" -> [PP.text "false"]
-        "pPair"  -> ppFun p "" (goCode d0 vars)
+        "true"  -> [PP.text "true"]
+        "false" -> [PP.text "false"]
+        "pair"  -> ppFun p "" (goCode d0 vars)
         -- General case
         _        -> ppFun p (Text.unpack hint) (goCode d0 vars)
     where

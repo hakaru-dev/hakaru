@@ -33,22 +33,22 @@ data Symbol' a
 primPat :: [(Text, Symbol' U.Pattern)]
 primPat =
     [ ("left",    TLam' $ \ [a] ->
-           U.PDatum "pLeft" . U.PInl $
+           U.PDatum "left" . U.PInl $
             U.PKonst a `U.PEt` U.PDone)
     , ("right",   TLam' $ \ [b] ->
-           U.PDatum "pRight" . U.PInr . U.PInl $
+           U.PDatum "right" . U.PInr . U.PInl $
             U.PKonst b `U.PEt` U.PDone)
-    , ("true",    TNeu' . U.PDatum "pTrue"  . U.PInl $ U.PDone)
-    , ("false",   TNeu' . U.PDatum "pFalse" . U.PInr . U.PInl $ U.PDone)
+    , ("true",    TNeu' . U.PDatum "true"  . U.PInl $ U.PDone)
+    , ("false",   TNeu' . U.PDatum "false" . U.PInr . U.PInl $ U.PDone)
     --, ("pair",    TLam' $ \ [a, b] -> pairPat a b)
     , ("just",    TLam' $ \ [a] ->
-            U.PDatum "pJust" . U.PInr . U.PInl $
+            U.PDatum "just" . U.PInr . U.PInl $
              U.PKonst a `U.PEt` U.PDone)
     , ("nothing", TLam' $ \ [] ->
-            U.PDatum "tNothing" . U.PInl $ U.PDone)
+            U.PDatum "nothing" . U.PInl $ U.PDone)
     ]
 
-pairPat a b = U.PDatum "pPair" .  U.PInl $
+pairPat a b = U.PDatum "pair" .  U.PInl $
               U.PKonst a `U.PEt` U.PKonst b `U.PEt` U.PDone
 
 primTypes :: [(Text, Symbol' U.SSing)]

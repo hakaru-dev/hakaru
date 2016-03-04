@@ -325,7 +325,7 @@ dPair = dPair_ sing sing
 
 dPair_ :: Sing a -> Sing b -> ast a -> ast b -> Datum ast (HPair a b)
 dPair_ a b x y =
-    Datum tpPair (sPair a b) . Inl $ Konst x `Et` Konst y `Et` Done
+    Datum tdPair (sPair a b) . Inl $ Konst x `Et` Konst y `Et` Done
 
 dLeft :: (SingI a, SingI b) => ast a -> Datum ast (HEither a b)
 dLeft = dLeft_ sing sing
@@ -588,11 +588,11 @@ instance Show (PDatumFun x vars a) where
 
 ----------------------------------------------------------------
 pTrue, pFalse :: Pattern '[] HBool
-pTrue  = PDatum tpTrue  . PInl $ PDone
-pFalse = PDatum tpFalse . PInr . PInl $ PDone
+pTrue  = PDatum tdTrue  . PInl $ PDone
+pFalse = PDatum tdFalse . PInr . PInl $ PDone
 
 pUnit  :: Pattern '[] HUnit
-pUnit  = PDatum tpUnit . PInl $ PDone
+pUnit  = PDatum tdUnit . PInl $ PDone
 
 -- HACK: using undefined like that isn't going to help if we use the variant of eqAppendIdentity that actually needs the Sing...
 varsOfPattern :: Pattern vars a -> proxy vars
@@ -604,50 +604,36 @@ pPair
     -> Pattern (vars1 ++ vars2) (HPair a b)
 pPair x y =
     case eqAppendIdentity (varsOfPattern y) of
-    Refl -> PDatum tpPair . PInl $ PKonst x `PEt` PKonst y `PEt` PDone
+    Refl -> PDatum tdPair . PInl $ PKonst x `PEt` PKonst y `PEt` PDone
 
 pLeft :: Pattern vars a -> Pattern vars (HEither a b)
 pLeft x =
     case eqAppendIdentity (varsOfPattern x) of
-    Refl -> PDatum tpLeft . PInl $ PKonst x `PEt` PDone
+    Refl -> PDatum tdLeft . PInl $ PKonst x `PEt` PDone
 
 pRight :: Pattern vars b -> Pattern vars (HEither a b)
 pRight y =
     case eqAppendIdentity (varsOfPattern y) of
-    Refl -> PDatum tpRight . PInr . PInl $ PKonst y `PEt` PDone
+    Refl -> PDatum tdRight . PInr . PInl $ PKonst y `PEt` PDone
 
 pNil :: Pattern '[] (HList a)
-pNil = PDatum tpNil . PInl $ PDone
+pNil = PDatum tdNil . PInl $ PDone
 
 pCons :: Pattern vars1 a
     -> Pattern vars2 (HList a)
     -> Pattern (vars1 ++ vars2) (HList a)
 pCons x xs = 
     case eqAppendIdentity (varsOfPattern xs) of
-    Refl -> PDatum tpCons . PInr . PInl $ PKonst x `PEt` PIdent xs `PEt` PDone
+    Refl -> PDatum tdCons . PInr . PInl $ PKonst x `PEt` PIdent xs `PEt` PDone
 
 pNothing :: Pattern '[] (HMaybe a)
-pNothing = PDatum tpNothing . PInl $ PDone
+pNothing = PDatum tdNothing . PInl $ PDone
 
 pJust :: Pattern vars a -> Pattern vars (HMaybe a)
 pJust x =
     case eqAppendIdentity (varsOfPattern x) of
-    Refl -> PDatum tpJust . PInr . PInl $ PKonst x `PEt` PDone
+    Refl -> PDatum tdJust . PInr . PInl $ PKonst x `PEt` PDone
 
-----------------------------------------------------------------
-tpTrue, tpFalse, tpUnit, tpPair, tpLeft, tpRight, tpNil, tpCons, tpNothing, tpJust :: Text
-tpTrue    = Text.pack "pTrue"
-tpFalse   = Text.pack "pFalse"
-tpUnit    = Text.pack "pUnit"
-tpPair    = Text.pack "pPair"
-tpLeft    = Text.pack "pLeft"
-tpRight   = Text.pack "pRight"
-tpNil     = Text.pack "pNil"
-tpCons    = Text.pack "pCons"
-tpNothing = Text.pack "pNothing"
-tpJust    = Text.pack "pJust"
-
-----------------------------------------------------------------
 ----------------------------------------------------------------
 -- TODO: a pretty infix syntax, like (:=>) or something
 -- TODO: this type is helpful for capturing the existential, if we
