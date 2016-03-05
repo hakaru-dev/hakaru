@@ -246,9 +246,9 @@ symbolResolution symbols ast =
 
     U.Dirac e1          -> U.Dirac <$> symbolResolution symbols e1
 
-    U.Bind   name e1 e2    -> resolveBinder symbols name e1 e2    U.Bind
-    U.Plate  name e1 e2    -> resolveBinder symbols name e1 e2    U.Plate
-    U.Expect name e1 e2    -> resolveBinder symbols name e1 e2    U.Expect
+    U.Bind   name e1 e2    -> resolveBinder symbols name e1 e2 U.Bind
+    U.Plate  name e1 e2    -> resolveBinder symbols name e1 e2 U.Plate
+    U.Expect name e1 e2    -> resolveBinder symbols name e1 e2 U.Expect
     U.Chain  name e1 e2 e3 -> do       
       name' <- gensym name
       U.Chain (mkSym name')
