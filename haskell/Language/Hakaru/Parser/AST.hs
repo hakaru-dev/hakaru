@@ -36,8 +36,8 @@ hintID (Name _ t) = t
 type Name' = Text
 
 data Branch' a
-    = Branch'  (Pattern' Text) (AST' a)
-    | Branch'' (Pattern' Name) (AST' a)
+    = Branch'  (Pattern' Name') (AST' a)
+    | Branch'' (Pattern' Name)  (AST' a)
     deriving (Eq, Show)
 
 data Pattern' a
@@ -47,7 +47,7 @@ data Pattern' a
     | PData' (PDatum a)
     deriving (Eq, Show)
 
-data PDatum a = DV Text [Pattern' a]
+data PDatum a = DV Name' [Pattern' a]
     deriving (Eq, Show)
 
 -- Meta stores start and end position for AST in source code
@@ -67,27 +67,11 @@ data NaryOp
     | Sum | Prod
     deriving (Eq, Show)
 
-data PrimOp
-    = Not | Impl | Diff   | Nand | Nor
-    | Pi
-    | Sin        | Cos    | Tan
-    | Asin       | Acos   | Atan
-    | Sinh       | Cosh   | Tanh
-    | Asinh      | Acosh  | Atanh
-    | RealPow    | NatPow
-    | Exp        | Log
-    | Infinity   | NegativeInfinity
-    | GammaFunc  | BetaFunc
-    | Integrate  | Summate
-    | Equal      | Less
-    | Negate     | Recip
-    | Abs        | Signum | NatRoot | Erf
-
 data ArrayOp = Index_ | Size | Reduce
 
 data TypeAST'
-    = TypeVar Text
-    | TypeApp Text [TypeAST']
+    = TypeVar Name'
+    | TypeApp Name'    [TypeAST']
     | TypeFun TypeAST' TypeAST'
     deriving (Eq, Show)
 
@@ -126,6 +110,23 @@ val (Nat  n) = Some1 $ LNat  (N.unsafeNatural $ fromIntegral n) -- TODO: clean u
 val (Int  n) = Some1 $ LInt  (fromIntegral n) -- TODO: clean up
 val (Prob n) = Some1 $ LProb (N.unsafeNonNegativeRational $ toRational n) -- BUG: parse a Rational in the first place!
 val (Real n) = Some1 $ LReal (toRational   n) -- BUG: parse a Rational in the first place!
+
+data PrimOp
+    = Not | Impl | Diff   | Nand | Nor
+    | Pi
+    | Sin        | Cos    | Tan
+    | Asin       | Acos   | Atan
+    | Sinh       | Cosh   | Tanh
+    | Asinh      | Acosh  | Atanh
+    | RealPow    | NatPow
+    | Exp        | Log
+    | Infinity   | NegativeInfinity
+    | GammaFunc  | BetaFunc
+    | Integrate  | Summate
+    | Equal      | Less
+    | Negate     | Recip
+    | Abs        | Signum | NatRoot | Erf
+    deriving (Eq, Show)
 
 data SealedOp op where
     SealedOp

@@ -57,7 +57,7 @@ import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.HClasses
     ( HOrd, hOrd_Sing, HSemiring, hSemiring_Sing, hRing_Sing, sing_HRing
-    , HFractional, hFractional_Sing)
+    , HFractional, hFractional_Sing, HRadical(..))
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.AST
@@ -584,6 +584,18 @@ inferType = inferType_
                   return . TypedAST sBool $ syn (PrimOp_ Not :$ e' :* End)
         _   -> failwith "Passed wrong number of arguments"
 
+  inferPrimOp U.Pi es =
+      case es of
+        [] -> return . TypedAST SProb $ syn (PrimOp_ Pi :$ End)
+        _  -> failwith "Passed wrong number of arguments"
+
+  inferPrimOp U.Exp es =
+      case es of
+        [e] -> do TypedAST typ e' <- inferType_ e
+                  Refl <- jmEq1_ typ SReal 
+                  return . TypedAST SProb $ syn (PrimOp_ Exp :$ e' :* End)
+        _   -> failwith "Passed wrong number of arguments"
+
   inferPrimOp U.Infinity es =
       case es of
         [] -> return . TypedAST SProb $ syn (PrimOp_ Infinity :$ End)
@@ -604,6 +616,15 @@ inferType = inferType_
                               syn (PrimOp_ primop :$ e1' :* e2' :* End)
         _        -> failwith "Passed wrong number of arguments"
 
+  inferPrimOp U.NatPow es =
+      case es of
+        [e1, e2] -> do TypedAST typ e1' <- inferType_ e1
+                       e2' <- checkType_ SNat e2
+                       primop <- NatPow <$> getHSemiring typ
+                       return . TypedAST typ $
+                              syn (PrimOp_ primop :$ e1' :* e2' :* End)
+        _        -> failwith "Passed wrong number of arguments"
+
   inferPrimOp U.Negate es =
       case es of
         [e] -> do TypedAST typ e' <- inferType_ e
@@ -612,7 +633,7 @@ inferType = inferType_
                   primop <- Negate <$> return ring
                   let e'' = case c of
                               CNil -> e'
-                              c    -> unLC_ . coerceTo c $ LC_ e'
+                              c'   -> unLC_ . coerceTo c' $ LC_ e'
                   return . TypedAST (sing_HRing ring) $
                          syn (PrimOp_ primop :$ e'' :* End)
         _   -> failwith "Passed wrong number of arguments"
@@ -624,7 +645,16 @@ inferType = inferType_
                   return . TypedAST typ $ syn (PrimOp_ primop :$ e' :* End)
         _   -> failwith "Passed wrong number of arguments"
 
-  inferPrimOp _ _ = error "TODO: inferPrimOp"
+  inferPrimOp U.NatRoot es =
+      case es of
+        [e1, e2] -> do e1' <- checkType_ SProb e1
+                       e2' <- checkType_ SNat  e2
+                       return . TypedAST SProb $
+                              syn (PrimOp_ (NatRoot HRadical_Prob)
+                                   :$ e1' :* e2' :* End)
+        _   -> failwith "Passed wrong number of arguments"
+
+  inferPrimOp x _ = error ("TODO: inferPrimOp: " ++ show x)
 
 
   inferArrayOp :: U.ArrayOp

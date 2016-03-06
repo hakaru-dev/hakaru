@@ -98,12 +98,14 @@ primTable =
     ,("dirac",       TLam $ TNeu . U.Dirac_)
     ,("reject",      TNeu $ U.Superpose_ [])    
     -- PrimOps
+    ,("pi",          TNeu $ U.PrimOp_ U.Pi [])
     ,("**",          primPrimOp2 U.RealPow)
     ,("exp",         primPrimOp1 U.Exp)
     ,("less",        primPrimOp2 U.Less)
     ,("negate",      primPrimOp1 U.Negate)
     ,("recip",       primPrimOp1 U.Recip)
     ,("^",           primPrimOp2 U.NatPow)
+    ,("natroot",     primPrimOp2 U.NatRoot)
     -- ArrayOps
     ,("size",        TLam $ \x -> TNeu $ U.ArrayOp_ U.Size [x])
     ,("reduce",      t3 $ \x y z -> U.ArrayOp_ U.Reduce [x, y, z])
