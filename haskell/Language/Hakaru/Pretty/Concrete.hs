@@ -54,7 +54,7 @@ import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.Value
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Pretty.Haskell
-    (prettyAssoc, prettyPrecAssoc, ppVariable, Associativity(..))
+    (prettyAssoc, prettyPrecAssoc, Associativity(..))
 
 ----------------------------------------------------------------
 -- | Pretty-print a term.
@@ -89,17 +89,17 @@ keyword = color Red
 
 -- | Pretty-print a variable.
 ppVariable :: Variable (a :: Hakaru) -> Doc
-ppVariable x = hint <> (PP.int . fromNat . varID) x
+ppVariable x = hint
     where
     hint
-        | Text.null (varHint x) = PP.char 'x' -- We used to use '_' but...
+        | Text.null (varHint x) = PP.char 'x'  <> (PP.int . fromNat . varID) x -- We used to use '_' but...
         | otherwise             = (PP.text . Text.unpack . varHint) x
 
 ppVariableWithType :: Variable (a :: Hakaru) -> (Doc, Doc)
-ppVariableWithType x = (hint <> (PP.int . fromNat . varID) x, (prettyType 0 . varType) x)
+ppVariableWithType x = (hint, (prettyType 0 . varType) x)
     where
     hint
-        | Text.null (varHint x) = PP.char 'x' -- We used to use '_' but...
+        | Text.null (varHint x) = PP.char 'x' <> (PP.int . fromNat . varID) x -- We used to use '_' but...
         | otherwise             = (PP.text . Text.unpack . varHint) x
 
 -- BUG: we still use this in a few places. I'm pretty sure they should all actually be 'ppBinder2', in which case we can delete this function and just use that one.
