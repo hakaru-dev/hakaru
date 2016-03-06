@@ -13,8 +13,11 @@
 
 module Language.Hakaru.Pretty.Maple (Maple(..), pretty) where
 
-import Data.Number.Nat     (fromNat)
+import           Data.Number.Nat     (fromNat)
 -- import Data.Number.Natural (fromNatural)
+import           Data.Sequence (Seq)
+import qualified Data.Foldable                   as F
+
 -- import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
@@ -49,11 +52,15 @@ app3 fn x y z =
 meq :: (ABT Term abt) => abt '[] a -> abt '[] b -> String
 meq x y = arg x ++ "=" ++ arg y
 
+parens :: String -> String
+parens a = "(" ++ a ++ ")"
+
 mapleAST :: (ABT Term abt) => LC_ abt a -> String
 mapleAST (LC_ e) =
     caseVarSyn e var1 $ \t ->
         case t of
-        o :$ es        -> mapleSCon o es
+        o :$ es        -> mapleSCon o  es
+        NaryOp_ op es  -> mapleNary op es
         Literal_ v     -> mapleLiteral v
         -- Special case pair
         Datum_ (Datum "pair" _typ (Inl (Et (Konst a) (Et (Konst b) Done)))) ->
@@ -71,7 +78,7 @@ uniqID = show . fromNat . varID
 
 var1 :: Variable (a :: Hakaru) -> String
 var1 x | Text.null (varHint x) = 'x' : uniqID x 
-       | otherwise = Text.unpack (varHint x) ++ uniqID x 
+       | otherwise = Text.unpack (varHint x)
 
 mapleSCon :: (ABT Term abt) => SCon args a -> SArgs abt args -> String
 mapleSCon Let_     (e1 :* e2 :* End) =
@@ -79,12 +86,19 @@ mapleSCon Let_     (e1 :* e2 :* End) =
         "eval(" ++ arg e2' ++ ", " ++  (var x `meq` e1) ++ ")"
 mapleSCon (CoerceTo_   _) (e :* End) = mapleAST (LC_ e)
 mapleSCon (UnsafeFrom_ _) (e :* End) = mapleAST (LC_ e)
--- mapleSCon (Ann_ a)        (e :* End) = arg e --"Ann("  ++ mapleType a ++ "," ++ arg e ++ ")"
+mapleSCon (PrimOp_    o) es          = maplePrimOp o es
 mapleSCon (MeasureOp_ o) es          = mapleMeasureOp o es
 mapleSCon Dirac (e1 :* End)          = app1 "Ret" e1
 mapleSCon MBind (e1 :* e2 :* End)    =
     caseBind e2 $ \x e2' ->
         app3 "Bind" e1 (var x) e2'
+
+mapleNary :: (ABT Term abt) => NaryOp a -> Seq (abt '[] a) -> String
+mapleNary (Sum  _) es = F.foldr1 (\a b -> a ++ " + " ++ b)
+                        (fmap arg es)
+mapleNary (Prod _) es = F.foldr1 (\a b -> a ++ " * " ++ b)
+                        (fmap arg es)
+mapleNary _        _  = "TODO: mapleNary:"
 
 mapleBranch :: (ABT Term abt) => Branch a abt b -> String
 mapleBranch (Branch pat e) = "Branch(" ++ maplePattern pat ++
@@ -114,6 +128,23 @@ arg = mapleAST . LC_
 
 wmtom :: (ABT Term abt) => (abt '[] 'HProb, abt '[] ('HMeasure a)) -> String
 wmtom (w, m) = app2 "Weight" w m
+
+maplePrimOp
+    :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
+    => PrimOp typs a -> SArgs abt args -> String
+maplePrimOp Pi          End               = "Pi"
+maplePrimOp Exp         (e1 :* End)       = 
+    app1 "exp"  e1
+maplePrimOp (NatPow _)  (e1 :* e2 :* End) =
+    arg e1 ++ " ^ " ++ arg e2
+maplePrimOp (Negate _)  (e1 :* End)       =
+    parens (app1 "-" e1)
+maplePrimOp (Recip   _) (e1 :* End)       =
+    app1 "1/"   e1
+maplePrimOp (NatRoot _) (e1 :* e2 :* End) =
+    app2 "root" e1 e2
+maplePrimOp x   _                         =
+    error ("maplePrimOp: TODO: " ++ show x)
 
 mapleMeasureOp
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)

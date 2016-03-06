@@ -29,7 +29,6 @@ module Language.Hakaru.Pretty.Concrete
     , prettyPrecAssoc
     , prettyValue
     -- * Helper functions (semi-public internal API)
-    , ppVariable
     ) where
 
 import           System.Console.ANSI
@@ -87,6 +86,14 @@ color c d =
 
 keyword :: Doc -> Doc
 keyword = color Red
+
+-- | Pretty-print a variable.
+ppVariable :: Variable (a :: Hakaru) -> Doc
+ppVariable x = hint <> (PP.int . fromNat . varID) x
+    where
+    hint
+        | Text.null (varHint x) = PP.char 'x' -- We used to use '_' but...
+        | otherwise             = (PP.text . Text.unpack . varHint) x
 
 ppVariableWithType :: Variable (a :: Hakaru) -> (Doc, Doc)
 ppVariableWithType x = (hint <> (PP.int . fromNat . varID) x, (prettyType 0 . varType) x)

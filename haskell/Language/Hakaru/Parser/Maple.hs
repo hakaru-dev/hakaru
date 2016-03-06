@@ -42,6 +42,7 @@ symTable =
     , ("Ret",      "dirac")
     , ("True",     "true")
     , ("False",    "false")
+    , ("Pi",       "pi")
     -- Type symbols
     , ("Real",     "real")
     , ("Prob",     "prob")

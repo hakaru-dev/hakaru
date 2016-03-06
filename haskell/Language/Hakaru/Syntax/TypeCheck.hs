@@ -433,7 +433,7 @@ inferType = inferType_
             case mode of
             StrictMode -> inferOneCheckOthers_ es
             LaxMode    -> inferLubType es
-            UnsafeMode -> error "TODO: inferType{NaryOp_} in UnsafeMode"
+            UnsafeMode -> inferLubType es -- error "TODO: inferType{NaryOp_} in UnsafeMode"
         op' <- make_NaryOp typ op
         return . TypedAST typ $ syn (NaryOp_ op' $ S.fromList es')
 
@@ -588,6 +588,14 @@ inferType = inferType_
       case es of
         [] -> return . TypedAST SProb $ syn (PrimOp_ Pi :$ End)
         _  -> failwith "Passed wrong number of arguments"
+
+  inferPrimOp U.RealPow es =
+      case es of
+        [e1, e2] -> do e1' <- checkType_ SProb e1
+                       e2' <- checkType_ SReal e2
+                       return . TypedAST SProb $
+                              syn (PrimOp_ RealPow :$ e1' :* e2' :* End)
+        _        -> failwith "Passed wrong number of arguments"
 
   inferPrimOp U.Exp es =
       case es of
