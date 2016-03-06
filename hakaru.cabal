@@ -96,7 +96,7 @@ Library
 
     build-depends:     base             >= 4.7  && < 5.0, 
                        Cabal            >= 1.16,
-                       ghc-prim         >= 0.3  && < 0.5,
+                       ghc-prim         >= 0.3  && < 0.6,
                        transformers     >= 0.3  && < 0.6,
                        containers       >= 0.5  && < 0.6,
                        pretty           >= 1.1  && < 1.2,
@@ -133,7 +133,7 @@ Test-Suite system-testsuite
 
     Build-Depends:     base             >= 4.6  && < 5.0, 
                        Cabal            >= 1.16, 
-                       ghc-prim         >= 0.3  && < 0.5,
+                       ghc-prim         >= 0.3  && < 0.6,
                        indentation      >= 0.2.1,
                        transformers     >= 0.3  && < 0.6,
                        containers       >= 0.5  && < 0.6,
