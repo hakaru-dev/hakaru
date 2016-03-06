@@ -39,6 +39,7 @@ runSimplify prog =
         Left err                 -> putStrLn err
         Right (TypedAST typ ast) -> do
           case typ of
-            SMeasure _ -> simplify ast >>= print . pretty
-            _          -> print (pretty ast)
+            SFun _ (SMeasure _) -> simplifyLam ast >>= print . pretty
+            SMeasure _          -> simplify    ast >>= print . pretty
+            _                   -> print (pretty ast)
 
