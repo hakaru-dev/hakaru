@@ -148,10 +148,10 @@ incompleteBeta
     -> abt '[] 'HProb
     -> abt '[] 'HProb
 incompleteBeta x a b =
-    let one = real_ 1 in
+    let one' = real_ 1 in
     integrate (real_ 0) (fromProb x) $ \t ->
-        unsafeProb t ** (fromProb a - one)
-        * unsafeProb (one - t) ** (fromProb b - one)
+        unsafeProb t ** (fromProb a - one')
+        * unsafeProb (one' - t) ** (fromProb b - one')
 
 
 regBeta -- TODO: rename 'regularBeta'
@@ -177,7 +177,7 @@ approxMh
     -> [abt '[] a -> abt '[] ('HMeasure a)]
     -> abt '[] (a ':-> 'HMeasure a)
 approxMh _ _ [] = error "TODO: approxMh for empty list"
-approxMh proposal prior (x:xs) =
+approxMh proposal prior (_:xs) =
     case determine . density $ bindx prior proposal of
     Nothing -> error "approxMh: couldn't get density"
     Just theDensity ->
