@@ -616,13 +616,15 @@ inferType = inferType_
 
   inferPrimOp U.Less es =
       case es of
-        [e1, e2] -> do TypedAST typ1 e1' <- inferType_ e1
-                       TypedAST typ2 e2' <- inferType_ e2
-                       Refl <- jmEq1_ typ1 typ2
-                       primop <- Less <$> getHOrd typ1
-                       return . TypedAST sBool $
-                              syn (PrimOp_ primop :$ e1' :* e2' :* End)
-        _        -> failwith "Passed wrong number of arguments"
+        [_, _] -> do mode <- getMode
+                     TypedASTs typ [e1', e2'] <-
+                         case mode of
+                           StrictMode -> inferOneCheckOthers_ es
+                           _          -> inferLubType es
+                     primop <- Less <$> getHOrd typ
+                     return . TypedAST sBool $
+                            syn (PrimOp_ primop :$ e1' :* e2' :* End)
+        _      -> failwith "Passed wrong number of arguments"
 
   inferPrimOp U.NatPow es =
       case es of
