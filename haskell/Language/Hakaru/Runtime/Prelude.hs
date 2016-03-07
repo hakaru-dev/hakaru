@@ -1,3 +1,9 @@
+{-# LANGUAGE GADTs
+           , DataKinds
+           , OverloadedStrings
+           #-}
+
+{-# OPTIONS_GHC -Wall -fwarn-tabs -fsimpl-tick-factor=1000 #-}
 module Language.Hakaru.Runtime.Prelude where
 
 import qualified System.Random.MWC               as MWC
