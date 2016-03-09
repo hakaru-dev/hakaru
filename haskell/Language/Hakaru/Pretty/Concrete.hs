@@ -557,7 +557,7 @@ ppBinop op p0 assoc =
     in \p e1 e2 -> 
         parens (p > p0)
             [ prettyPrec p1 e1
-            , PP.text op
+            , PP.space <> PP.text op <> PP.space
             , prettyPrec p2 e2
             ]
 
