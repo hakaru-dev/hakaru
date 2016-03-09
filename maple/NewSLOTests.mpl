@@ -1,6 +1,5 @@
 kernelopts(assertlevel=2): # be strict on all assertions while testing
 kernelopts(opaquemodules=false): # allow testing of internal routines
-read "NewSLO.mpl":
 if not (NewSLO :: `module`) then
   WARNING("loading NewSLO failed");
   `quit`(3);
