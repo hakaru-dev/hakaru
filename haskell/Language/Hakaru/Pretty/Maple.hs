@@ -133,6 +133,8 @@ maplePrimOp
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => PrimOp typs a -> SArgs abt args -> String
 maplePrimOp Pi          End               = "Pi"
+maplePrimOp RealPow     (e1 :* e2 :* End) =
+    arg e1 ++ " ^ " ++ arg e2
 maplePrimOp Exp         (e1 :* End)       = 
     app1 "exp"  e1
 maplePrimOp (NatPow _)  (e1 :* e2 :* End) =
