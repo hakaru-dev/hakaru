@@ -87,6 +87,8 @@ primTable =
     ,("nat2real",    primCoerce cNat2Real)
     ,("nat2prob",    primCoerce cNat2Prob)
      -- Measures
+    ,("lebesgue",    TNeu $ U.MeasureOp_
+                            (U.SealedOp T.Lebesgue) [])
     ,("uniform",     primMeasure2 (U.SealedOp T.Uniform))
     ,("normal",      primMeasure2 (U.SealedOp T.Normal))
     ,("gamma",       primMeasure2 (U.SealedOp T.Gamma))
