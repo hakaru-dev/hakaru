@@ -216,4 +216,4 @@ maple2Type (InertArgs Func [InertName f, InertArgs ExpSeq args]) =
 
 
 branch :: InertExpr -> Branch' Text
-branch = error "TODO: maple2AST{branch}"
+branch e = error ("TODO: maple2AST{branch} " ++ show e)
