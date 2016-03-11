@@ -166,10 +166,10 @@ maple2AST (InertNum Neg i) = ULiteral $ Int $ fromInteger i
 
 maple2AST (InertName t)    = Var (rename t)
 
-maple2AST (InertArgs Float [InertNum Pos a, InertNum p b]) = 
+maple2AST (InertArgs Float [InertNum Pos a, InertNum _ b]) = 
     ULiteral $ Prob $ fromInteger a * (10 ** (fromInteger b))
 
-maple2AST (InertArgs Float [InertNum Neg a, InertNum p b]) = 
+maple2AST (InertArgs Float [InertNum Neg a, InertNum _ b]) = 
     ULiteral $ Real $ fromInteger a * (10 ** (fromInteger b))
 
 maple2AST (InertArgs Func [InertName "Ann", InertArgs ExpSeq [typ, e]]) =
@@ -216,4 +216,39 @@ maple2Type (InertArgs Func [InertName f, InertArgs ExpSeq args]) =
 
 
 branch :: InertExpr -> Branch' Text
-branch e = error ("TODO: maple2AST{branch} " ++ show e)
+branch (InertArgs Func
+        [InertName "Branch",
+         InertArgs ExpSeq [pat, e]]) =
+ Branch' (maple2Pattern pat) (maple2AST e)
+
+
+maple2Pattern :: InertExpr -> Pattern' Text
+maple2Pattern (InertName "PWild") = PWild'
+maple2Pattern (InertArgs Func
+               [InertName "PVar",
+                InertArgs ExpSeq
+                [InertName x]]) = PVar' x
+maple2Pattern (InertArgs Func
+               [InertName "PDatum",
+                InertArgs ExpSeq
+                [InertName "pair", args]]) =
+  PPair' (map maple2Pattern (unpairPat args))
+maple2Pattern e = error ("TODO: maple2AST{pattern} " ++ show e)
+
+unpairPat :: InertExpr -> [InertExpr]
+unpairPat (InertArgs Func [InertName "PInl",
+ InertArgs ExpSeq
+ [InertArgs Func
+  [InertName "PEt",
+   InertArgs ExpSeq
+   [InertArgs Func
+    [InertName "PKonst",
+     InertArgs ExpSeq [x]],
+    InertArgs Func
+    [InertName "PEt",
+     InertArgs ExpSeq
+     [InertArgs Func
+      [InertName "PKonst",
+       InertArgs ExpSeq [y]],
+      InertName "PDone"]]]]]]) = [x,y]
+unpairPat _ = error "unpairPat: not InertExpr of a pair pattern"
