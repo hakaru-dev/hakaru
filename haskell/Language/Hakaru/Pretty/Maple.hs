@@ -106,28 +106,35 @@ mapleNary (Prod _) es = F.foldr1 (\a b -> a ++ " * " ++ b)
 mapleNary _        _  = "TODO: mapleNary:"
 
 mapleBranch :: (ABT Term abt) => Branch a abt b -> String
-mapleBranch (Branch pat e) = let (vars, e') = caseBinds e in
-                             "Branch(" ++ maplePattern (list1vars vars) pat ++
-                                   "," ++ arg e' ++ ")"
+mapleBranch (Branch pat e) = let (vars, e') = caseBinds e
+                                 (v', _) = maplePattern (list1vars vars) pat
+                             in "Branch(" ++ v' ++
+                                      "," ++ arg e' ++ ")"
 
-maplePattern :: [String] -> Pattern xs a -> String
-maplePattern _    PWild = "PWild"
-maplePattern vars PVar  = "PVar"
-maplePattern vars (PDatum hint d) = "PDatum(" ++ Text.unpack hint ++
-                               "," ++ maplePDatumCode vars d ++ ")"
+maplePattern :: [String] -> Pattern xs a -> (String, [String])
+maplePattern vs     PWild = ("PWild", vs)
+maplePattern (v:vs) PVar  = ("PVar(" ++ v ++ ")", vs)
+maplePattern vars (PDatum hint d) = let (v', res) = maplePDatumCode vars d
+                                    in ("PDatum(" ++ Text.unpack hint ++
+                                        "," ++ v'  ++ ")", res)
 
-maplePDatumCode :: [String] -> PDatumCode xss vars a -> String
-maplePDatumCode vars (PInr x) = "PInr(" ++ maplePDatumCode vars x ++ ")"
-maplePDatumCode vars (PInl x) = "PInl(" ++ maplePDatumStruct vars x ++ ")"
+maplePDatumCode :: [String] -> PDatumCode xss vars a -> (String, [String])
+maplePDatumCode vars (PInr x) = let (v', res) = maplePDatumCode vars x
+                                in ("PInr(" ++ v' ++ ")", res)
+maplePDatumCode vars (PInl x) = let (v', res) = maplePDatumStruct vars x
+                                in ("PInl(" ++ v' ++ ")", res)
 
-maplePDatumStruct :: [String] -> PDatumStruct xs vars a -> String
-maplePDatumStruct vars (PEt x y) = "PEt(" ++ maplePDatumFun vars x ++ ","
-                              ++ maplePDatumStruct vars y ++ ")"
-maplePDatumStruct vars PDone     = "PDone"
+maplePDatumStruct :: [String] -> PDatumStruct xs vars a -> (String, [String])
+maplePDatumStruct vars (PEt x y) = let (v',  res)  = maplePDatumFun vars x
+                                       (v'', res') = maplePDatumStruct res y
+                                   in ("PEt(" ++ v' ++ "," ++ v'' ++ ")", res')
+maplePDatumStruct vars PDone     = ("PDone", vars)
 
-maplePDatumFun :: [String] -> PDatumFun x vars a -> String
-maplePDatumFun vars (PKonst pat) = "PKonst(" ++ maplePattern vars pat ++ ")"
-maplePDatumFun vars (PIdent pat) = "PIdent(" ++ maplePattern vars pat ++ ")"
+maplePDatumFun :: [String] -> PDatumFun x vars a -> (String, [String])
+maplePDatumFun vars (PKonst pat) = let (v, res) = maplePattern vars pat
+                                   in ("PKonst(" ++ v ++ ")", res)
+maplePDatumFun vars (PIdent pat) = let (v, res) = maplePattern vars pat
+                                   in ("PIdent(" ++ v ++ ")", res)
 
 arg :: (ABT Term abt) => abt '[] a -> String
 arg = mapleAST . LC_
