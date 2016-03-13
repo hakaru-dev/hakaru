@@ -13,6 +13,7 @@ import           Language.Hakaru.Syntax.IClasses
 
 import           Language.Hakaru.Types.Sing
 import           Language.Hakaru.Disintegrate
+import           Language.Hakaru.Evaluation.ConstantPropagation
 
 import           Data.Proxy  
 import           Data.Text
@@ -45,7 +46,7 @@ runDisintegrate prog =
                 case jmEq1 sym (SingSymbol Proxy :: Sing "Pair") of
                   Just Refl -> case determine (disintegrate ast) of
                                  Nothing   -> error "No disintegration found"
-                                 Just ast' -> print (pretty ast')
+                                 Just ast' -> print . pretty $ constantPropagation ast'
                   Nothing   -> error "Can only disintegrate a measure over pairs"
             _               -> error "Can only disintegrate a measure over pairs"
 
