@@ -90,6 +90,8 @@ primTable =
      -- Measures
     ,("lebesgue",    TNeu $ U.MeasureOp_
                             (U.SealedOp T.Lebesgue) [])
+    ,("counting",    TNeu $ U.MeasureOp_
+                            (U.SealedOp T.Counting) [])
     ,("uniform",     primMeasure2 (U.SealedOp T.Uniform))
     ,("normal",      primMeasure2 (U.SealedOp T.Normal))
     ,("gamma",       primMeasure2 (U.SealedOp T.Gamma))
