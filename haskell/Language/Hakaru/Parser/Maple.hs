@@ -232,7 +232,7 @@ maple2Pattern (InertArgs Func
                [InertName "PDatum",
                 InertArgs ExpSeq
                 [InertName "pair", args]]) =
-  PPair' (map maple2Pattern (unpairPat args))
+  PData' (DV "pair" (map maple2Pattern (unpairPat args)))
 maple2Pattern e = error ("TODO: maple2AST{pattern} " ++ show e)
 
 unpairPat :: InertExpr -> [InertExpr]

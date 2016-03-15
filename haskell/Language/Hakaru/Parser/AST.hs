@@ -40,10 +40,8 @@ data Branch' a
     | Branch'' (Pattern' Name)  (AST' a)
     deriving (Eq, Show)
 
--- todo: remove ppair'
 data Pattern' a
     = PVar'  a
-    | PPair' [Pattern' a]
     | PWild'
     | PData' (PDatum a)
     deriving (Eq, Show)

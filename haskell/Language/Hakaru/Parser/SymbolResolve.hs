@@ -40,7 +40,7 @@ primPat =
             U.PKonst b `U.PEt` U.PDone)
     , ("true",    TNeu' . U.PDatum "true"  . U.PInl $ U.PDone)
     , ("false",   TNeu' . U.PDatum "false" . U.PInr . U.PInl $ U.PDone)
-    --, ("pair",    TLam' $ \ [a, b] -> pairPat a b)
+    , ("pair",    TLam' $ \es -> foldr1 pairPat es)
     , ("just",    TLam' $ \ [a] ->
             U.PDatum "just" . U.PInr . U.PInl $
              U.PKonst a `U.PEt` U.PDone)
@@ -278,10 +278,6 @@ symbolResolvePat :: U.Pattern' Text ->
                     State Int (U.Pattern' U.Name, [U.Name])
 symbolResolvePat (U.PVar' name)  = do name' <- gensym name
                                       return (U.PVar' name', [name'])
-symbolResolvePat (U.PPair' args) = do
-  args' <- mapM symbolResolvePat args
-  let (args'', names) = unzip args'
-  return $ (U.PPair' args'', concat names)
 symbolResolvePat U.PWild'        = return (U.PWild', [])
 symbolResolvePat (U.PData' (U.DV name args)) = do
   args' <- mapM symbolResolvePat args
@@ -355,8 +351,6 @@ makePattern (U.PVar' name)  =
       Just (TLam' _)  -> error "TODO{makePattern:PVar:TLam}"
       Just (TNeu' p') -> p'
       Nothing         -> U.PVar name
-makePattern (U.PPair' args) =
-      foldr1 pairPat (map makePattern args)
 makePattern (U.PData' (U.DV name args)) =
     case lookup name primPat of
       Just (TLam' f') -> f' (map makePattern args)
