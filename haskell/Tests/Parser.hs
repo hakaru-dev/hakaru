@@ -334,7 +334,7 @@ match6AST =
            (ULiteral (Nat 2))
            (ULiteral (Nat 3)))
      (TypeApp "pair" [TypeVar "nat",TypeVar "nat"]))
-    [Branch' (PPair' [PVar' "a",PVar' "b"])
+    [Branch' (PData' (DV "pair" [PVar' "a",PVar' "b"]))
      (NaryOp Sum [Var "a", Var "b"])]
 
 
@@ -350,7 +350,7 @@ match7AST = Case (Ann
                    (App (Var "negate") (ULiteral (Prob 2.0)))
                    (ULiteral (Prob 1.0)))
              (TypeApp "pair" [TypeVar "real",TypeVar "prob"]))
-            [Branch' (PPair' [PVar' "a",PVar' "b"])
+            [Branch' (PData' (DV "pair" [PVar' "a",PVar' "b"]))
              (App (App (Var "normal") (Var "a")) (Var "b"))]
 
 testMatches :: Test
