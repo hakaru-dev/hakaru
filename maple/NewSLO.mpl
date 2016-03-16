@@ -140,7 +140,7 @@ end module: # gensym
 
 NewSLO := module ()
   option package;
-  local t_pw,
+  local t_pw, t_case,
         unweight, factorize,
         recognize, get_de, recognize_de, mysolve, Diffop, Recognized,
         reduce, to_assumption, simplify_assuming, convert_piecewise,
@@ -172,9 +172,11 @@ NewSLO := module ()
   global Bind, Weight, Ret, Msum, Integrand, Plate, LO, Indicator, ary,
          Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD, StudentT,
          Context, t_ctx,
-         lam;
+         lam,
+         Case, Branches, Branch, PWild, PVar, PDatum, PInr, PInl, PEt, PDone, PKonst, PIdent;
 
   t_pw := 'specfunc(piecewise)';
+  t_case := 'Case(anything, specfunc(Branch(anything, anything), Branches))';
 
 # An integrand h is either an Integrand (our own binding construct for a
 # measurable function to be integrated) or something that can be applied
@@ -233,6 +235,12 @@ NewSLO := module ()
       n := nops(m);
       piecewise(seq(`if`(i::even or i=n, integrate(op(i,m), h), op(i,m)),
                     i=1..n))
+    elif m :: t_case then
+      subsop(2=map(proc(b :: Branch(anything, anything))
+                     eval(subsop(2='integrate'(op(2,b),x),b), x=h)
+                   end proc,
+                   op(2,m)),
+             m);
     elif m :: 'LO(name, anything)' then
       eval(op(2,m), op(1,m) = h)
     elif m :: 'Plate'(anything) then
@@ -313,7 +321,7 @@ NewSLO := module ()
   # TODO unify constraints with unintegrate's context
   reduce := proc(ee, h :: name, constraints :: list(t_ctx))
     # option remember, system;
-    local e, elim, hh, subintegral, w, ww, n, i, x, myint, res;
+    local e, elim, hh, subintegral, w, ww, n, i, x, c, myint, res;
     e := ee;
 
     if e :: Int(anything, name=anything) then
@@ -352,6 +360,13 @@ NewSLO := module ()
       # other things
       Testzero := x -> evalb(simplify(x) = 0);
       reduce_pw(e)
+    elif e :: t_case then
+      subsop(2=map(proc(b :: Branch(anything, anything))
+                     eval(subsop(2='reduce'(op(2,b),x,c),b),
+                          {x=h, c=constraints})
+                   end proc,
+                   op(2,e)),
+             e);
     elif e :: 'integrate(anything, Integrand(name, anything))' then
       x := gensym(op([2,1],e));
       # TODO is there any way to enrich constraints in this case?
@@ -636,7 +651,7 @@ NewSLO := module ()
   banish := proc(m, x :: name, h :: name, g, levels :: extended_numeric)
     # LO(h, banish(m, x, h, g)) should be equivalent to Bind(m, x, LO(h, g))
     # but performs integration over x innermost rather than outermost.
-    local guard, subintegral, w, y, yRename, lo, hi, mm;
+    local guard, subintegral, w, y, yRename, lo, hi, mm, xx, hh, gg, ll;
     guard := proc(m, c) bind(m, x, piecewise(c, Ret(x), Msum())) end proc;
     if g = 0 then
       0
@@ -675,6 +690,13 @@ NewSLO := module ()
         end proc end proc,
         proc(m) 0 end proc,
         g)(m)
+    elif g :: t_case then
+      subsop(2=map(proc(b :: Branch(anything, anything))
+                     eval(subsop(2='banish'(op(2,b),xx,hh,gg,ll),b),
+                          {xx=x, hh=h, gg=g, ll=l})
+                   end proc,
+                   op(2,integral)),
+             integral);
     elif g :: 'integrate(freeof(x), Integrand(name, anything))' then
       y := gensym(op([2,1],g));
       subsop(2=Integrand(y, banish(m, x, h,
@@ -764,7 +786,7 @@ NewSLO := module ()
   end proc;
 
   unintegrate := proc(h :: name, integral, context :: list)
-    local x, lo, hi, m, mm, w, w0, recognition, subintegral,
+    local x, c, lo, hi, m, mm, w, w0, recognition, subintegral,
           n, i, next_context, update_context;
     if integral :: 'And'('specfunc({Int,int})',
                          'anyfunc'('anything','name'='range'('freeof'(h)))) then
@@ -832,6 +854,13 @@ NewSLO := module ()
                               unintegrate(h, op(i,integral), next_context),
                               op(i,integral)),
                     i=1..n))
+    elif integral :: t_case then
+      subsop(2=map(proc(b :: Branch(anything, anything))
+                     eval(subsop(2='unintegrate'(x,op(2,b),c),b),
+                          {x=h, c=context})
+                   end proc,
+                   op(2,integral)),
+             integral);
     elif integral :: 'integrate'('freeof'(h), 'anything') then
       x := 'x';
       if op(2,integral) :: 'Integrand(name, anything)' then
