@@ -29,15 +29,16 @@ module Language.Hakaru.Inference
     , regBeta
     , tCDF
     , approxMh
+    , kl
     ) where
 
-import Prelude (($), (.), error, Maybe(..))
+import Prelude (($), (.), error, Maybe(..), return)
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing (SingI())
 import Language.Hakaru.Syntax.AST (Term)
 import Language.Hakaru.Syntax.ABT (ABT)
 import Language.Hakaru.Syntax.Prelude
-import Language.Hakaru.Expect (normalize)
+import Language.Hakaru.Expect (expect, normalize)
 import Language.Hakaru.Disintegrate (determine, density, disintegrate)
 
 ----------------------------------------------------------------
@@ -198,3 +199,12 @@ approxMh proposal prior (_:xs) =
     eps = prob_ 0.05
     udif l u = unsafeProb $ fromProb l - fromProb u
     l   = \d1 d2 -> prob_ 2 -- determine (density (\theta -> x theta))
+
+kl :: (ABT Term abt)
+   => abt '[] ('HMeasure a)
+   -> abt '[] ('HMeasure a)
+   -> Maybe (abt '[] 'HProb)
+kl p q = do
+  dp <- determine $ density p
+  dq <- determine $ density q
+  return $ expect p (\i -> log (app dp i / app dq i))
