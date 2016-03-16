@@ -253,6 +253,7 @@ NewSLO := module ()
       ProductIntegral(integrate(op(1,m),h), x, applyintegrand(h, x));
     # note that if we get here, we're at type M, so this is an array
     # of measures
+    # [ccshan: It doesn't make sense to get here with an array of measures. My perhaps outdated understanding of this function is we should only get here with a measure. An array of measures is never a measure.]
     elif m :: 'ary'(anything, name, anything) then
       x := 'hh';
       if h :: 'Integrand(name, anything)' then
