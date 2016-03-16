@@ -99,10 +99,10 @@ mapleSCon MBind (e1 :* e2 :* End)    =
         app3 "Bind" e1 (var x) e2'
 
 mapleNary :: (ABT Term abt) => NaryOp a -> Seq (abt '[] a) -> String
-mapleNary (Sum  _) es = F.foldr1 (\a b -> a ++ " + " ++ b)
-                        (fmap arg es)
-mapleNary (Prod _) es = F.foldr1 (\a b -> a ++ " * " ++ b)
-                        (fmap arg es)
+mapleNary (Sum  _) es = parens $ F.foldr1 (\a b -> a ++ " + " ++ b)
+                                 (fmap arg es)
+mapleNary (Prod _) es = parens $ F.foldr1 (\a b -> a ++ " * " ++ b)
+                                 (fmap arg es)
 mapleNary _        _  = "TODO: mapleNary:"
 
 mapleBranch :: (ABT Term abt) => Branch a abt b -> String
@@ -147,11 +147,11 @@ maplePrimOp
     => PrimOp typs a -> SArgs abt args -> String
 maplePrimOp Pi          End               = "Pi"
 maplePrimOp RealPow     (e1 :* e2 :* End) =
-    arg e1 ++ " ^ " ++ arg e2
+    parens (arg e1 ++ " ^ " ++ arg e2)
 maplePrimOp Exp         (e1 :* End)       = 
     app1 "exp"  e1
 maplePrimOp (NatPow _)  (e1 :* e2 :* End) =
-    arg e1 ++ " ^ " ++ arg e2
+    parens (arg e1 ++ " ^ " ++ arg e2)
 maplePrimOp (Negate _)  (e1 :* End)       =
     parens (app1 "-" e1)
 maplePrimOp (Recip   _) (e1 :* End)       =
