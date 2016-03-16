@@ -1,11 +1,29 @@
-# We create 4 new binding forms.  Teach Maple (through depends and eval)
-# about them.
-# Integrand, LO, and lam bind from 1st arg to 2nd arg, whereas Bind
-# binds from 2nd arg to 3rd arg.
+# Teach Maple (through depends and eval) about our new binding forms.
+# Integrand, LO, and lam bind from 1st arg to 2nd arg.
+# Branch binds from 1st arg (a pattern) to 2nd arg.
+# Bind and ary bind from 2nd arg to 3rd arg.
 
-`depends/Integrand` := proc(h, e, x) depends(e, x minus {h}) end proc:
-`depends/LO`        := proc(h, e, x) depends(e, x minus {h}) end proc:
-`depends/lam`       := proc(h, e, x) depends(e, x minus {h}) end proc:
+`depends/Integrand` := proc(v, e, x) depends(e, x minus {v}) end proc:
+`depends/LO`        := proc(v, e, x) depends(e, x minus {v}) end proc:
+`depends/lam`       := proc(v, e, x) depends(e, x minus {v}) end proc:
+
+`depends/Branch`    := proc(p, e, x) depends(e, x minus {pattern_binds(p)}) end proc:
+pattern_binds := proc(p)
+  if p = PWild or p = PDone then
+    NULL
+  elif p :: PVar(anything) then
+    op(1,p)
+  elif p :: PDatum(anything, anything) then
+    pattern_binds(op(2,p))
+  elif p :: {PInl(anything), PInr(anything),
+             PKonst(anything), PIdent(anything)} then
+    pattern_binds(op(1,p))
+  elif p :: PEt(anything, anything) then
+    pattern_binds(op(1,p)), pattern_binds(op(2,p))
+  else
+    error "not a pattern: %1", p
+  end if
+end proc:
 
 # note that v _can_ occur in m1.
 `depends/Bind` := proc(m1, v::name, m2, x)
@@ -17,18 +35,28 @@ end proc:
   depends(n, x) or depends(e, x minus {i})
 end proc:
 
-generic_evalat := proc(vv, mm, eqs)
-  local v, m, eqsRemain, subsEq, eq, vRename, funs;
-  v, m := vv, mm;
+generic_evalat := proc(vv::{name,list(name)}, mm, eqs)
+  local v, m, eqsRemain, subsEq, eq, rename, funs;
   funs := map2(op, 0, indets(mm, 'function'));
   eqsRemain := remove((eq -> op(1,eq) = op(2,eq)), eqs);
   eqsRemain, subsEq := selectremove((eq -> type(op(1,eq), 'name')), eqsRemain);
-  eqsRemain := select((eq -> op(1,eq) <> v and
+  eqsRemain := select((eq -> not has(op(1,eq), vv) and
     (depends(mm, op(1,eq)) or member(op(1,eq), funs))), eqsRemain);
-  if depends(eqsRemain, v) then
-    vRename := gensym(v);
-    m := subs(v=vRename, m);
-    v := vRename;
+  m := mm;
+  rename := proc(v::name)
+    local vRename;
+    if depends(eqsRemain, v) then
+      vRename := gensym(v);
+      m := subs(v=vRename, m);
+      vRename
+    else
+      v
+    end if
+  end proc;
+  if vv :: name then
+    v := rename(vv)
+  else
+    v := map(rename, vv);
   end if;
   m := subs(subsEq,m);
   if nops(eqsRemain) > 0 then
@@ -38,21 +66,29 @@ generic_evalat := proc(vv, mm, eqs)
 end proc:
 
 `eval/Integrand` := proc(e, eqs)
-  local v, m2;
-  v, m2 := op(e);
-  eval(op(0,e), eqs)(generic_evalat(v, m2, eqs))
+  local v, ee;
+  v, ee := op(e);
+  eval(op(0,e), eqs)(generic_evalat(v, ee, eqs))
 end proc:
 
 `eval/LO` := proc(e, eqs)
-  local v, m2;
-  v, m2 := op(e);
-  eval(op(0,e), eqs)(generic_evalat(v, m2, eqs))
+  local v, ee;
+  v, ee := op(e);
+  eval(op(0,e), eqs)(generic_evalat(v, ee, eqs))
 end proc:
 
 `eval/lam` := proc(e, eqs)
-  local v, m2;
-  v, m2 := op(e);
-  eval(op(0,e), eqs)(generic_evalat(v, m2, eqs))
+  local v, ee;
+  v, ee := op(e);
+  eval(op(0,e), eqs)(generic_evalat(v, ee, eqs))
+end proc:
+
+`eval/Branch` := proc(e, eqs)
+  local p, ee, vBefore, vAfter;
+  p, ee := op(e);
+  vBefore := [pattern_binds(p)];
+  vAfter, ee := generic_evalat(vBefore, ee, eqs);
+  eval(op(0,e), eqs)(subs(op(zip(`=`, vBefore, vAfter)), p), ee)
 end proc:
 
 `eval/Bind` := proc(e, eqs)
