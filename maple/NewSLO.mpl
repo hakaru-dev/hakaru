@@ -226,7 +226,7 @@ NewSLO := module ()
     elif m :: 'Ret(anything)' then
       applyintegrand(h, op(1,m))
     elif m :: 'Bind(anything, name, anything)' then
-      integrate(op(1,m), Integrand(op(2,m), integrate(op(3,m), h)))
+      integrate(op(1,m), eval(Integrand(op(2,m), 'integrate'(op(3,m), x)), x=h))
     elif m :: 'specfunc(Msum)' then
       `+`(op(map(integrate, [op(m)], h)))
     elif m :: 'Weight(anything, anything)' then

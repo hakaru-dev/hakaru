@@ -32,6 +32,11 @@ u2 := Bind(Gaussian(0,1), x, m(x)):
 TestHakaru(u1, label = "binding unknown m");
 TestHakaru(u2, u2, label = "sending to unknown m");
 
+# hygiene for Bind
+TestHakaru(Bind(Bind(Uniform(0,1),x,Ret(x^2)),y,Ret(x^3)),
+           Ret(x^3),
+           label = "hygiene for Bind");
+
 # example with an elaborate simplifier to do reordering of
 # integration, which in turn integrates out a variable
 model3 := Bind(Gaussian(0,1),x,Gaussian(x,1)):
