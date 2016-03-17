@@ -34,7 +34,9 @@ import Control.Exception
 import qualified Language.Hakaru.Pretty.Maple as Maple
 
 import Language.Hakaru.Parser.Maple
-import Language.Hakaru.Parser.SymbolResolve (resolveAST)
+import Language.Hakaru.Parser.AST (Name)
+import Language.Hakaru.Parser.SymbolResolve (resolveASTWithSymTable,
+                                             fromVarSet)
 
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
@@ -42,6 +44,7 @@ import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Syntax.TypeOf
 
 import Language.Hakaru.Types.DataKind
+import Language.Hakaru.Types.Sing
 
 import Data.Typeable (Typeable)
 
@@ -63,19 +66,28 @@ instance Show MapleException where
 
 instance Exception MapleException
 
-simplify :: (ABT Term abt) => abt '[] ('HMeasure a) -> IO (abt '[] ('HMeasure a))
+simplify :: forall abt a
+         .  (ABT Term abt) 
+         => abt '[] ('HMeasure a)
+         -> IO (abt '[] ('HMeasure a))
 simplify e = do
     let slo = Maple.pretty e
     hakaru <- maple ("timelimit(15,NewSLO:-RoundTripLO(" ++ slo ++ "));")
     either (throw . MapleException slo) return $ do
         past <- leftShow $ parseMaple (pack hakaru)
-        let m = checkType (typeOf e) (resolveAST $ maple2AST past) 
+        let m = checkType (typeOf e)
+                 (resolveASTWithSymTable (getNames e) (maple2AST past))
         leftShow $ unTCM m (freeVars e) UnsafeMode
             
     where
-    leftShow :: Show a => Either a b -> Either String b
+    leftShow :: forall a b
+             .  Show a
+             => Either a b -> Either String b
     leftShow (Left err) = Left (show err)
     leftShow (Right x)  = Right x
+
+    getNames :: abt '[] ('HMeasure a) -> [Name]
+    getNames = fromVarSet . freeVars
 
 simplifyLam :: (ABT Term abt)
             => abt '[] (a ':-> 'HMeasure b)
@@ -87,6 +99,18 @@ simplifyLam e = caseVarSyn e (return . var) $ \t ->
                            e1'' <- simplify e1'
                            return . syn $
                                   Lam_  :$ (bind x e1'' :* End)
+
+                   Let_ :$ e1 :* e2 :* End ->
+                        case typeOf e1 of
+                          SFun _ (SMeasure _) -> do
+                               e1' <- simplifyLam e1
+                               return . syn $
+                                      Let_ :$ e1' :* e2 :* End
+                          _ -> caseBind e2 $ \x e2' -> do
+                                   e2'' <- simplifyLam e2'
+                                   return . syn $
+                                          Let_ :$ e1 :* (bind x e2'') :* End
+
                    _ -> error "TODO: simplifyLam"
 
 ----------------------------------------------------------------

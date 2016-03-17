@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP
            , OverloadedStrings
            , DataKinds
+           , KindSignatures
            , GADTs
            #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
@@ -15,6 +16,7 @@ import Control.Monad.Trans.State.Strict (State, state, evalState)
 
 import qualified Data.Number.Nat                 as N
 import qualified Data.IntMap                     as IM
+import           Data.Proxy                      (KProxy(..))
 import           Language.Hakaru.Types.Sing
 import           Language.Hakaru.Types.Coercion
 import           Language.Hakaru.Types.DataKind  hiding (Symbol)
@@ -420,8 +422,8 @@ resolveASTWithSymTable syms ast =
                (insertSymbols syms primTable) ast)
               (N.fromNat . maximum $ map U.nameID syms)
 
-makeName :: SomeVariable k -> U.Name
+makeName :: SomeVariable ('KProxy :: KProxy Hakaru) -> U.Name
 makeName (SomeVariable (Variable hint vID typ)) = U.Name vID hint
 
-fromVarSet :: VarSet k -> [U.Name]
+fromVarSet :: VarSet ('KProxy :: KProxy Hakaru) -> [U.Name]
 fromVarSet (VarSet xs) = map makeName (IM.elems xs)
