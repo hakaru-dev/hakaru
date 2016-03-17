@@ -14,6 +14,7 @@ import Control.Applicative              ((<*>))
 import Control.Monad.Trans.State.Strict (State, state, evalState)
 
 import qualified Data.Number.Nat                 as N
+import qualified Data.IntMap                     as IM
 import           Language.Hakaru.Types.Sing
 import           Language.Hakaru.Types.Coercion
 import           Language.Hakaru.Types.DataKind  hiding (Symbol)
@@ -408,3 +409,19 @@ resolveAST :: U.AST' Text -> U.AST
 resolveAST ast = makeAST $
                  normAST $
                  evalState (symbolResolution primTable ast) 0
+
+resolveASTWithSymTable :: [U.Name]
+                       -> U.AST' Text
+                       -> U.AST
+resolveASTWithSymTable syms ast =
+    makeAST $
+    normAST $
+    evalState (symbolResolution
+               (insertSymbols syms primTable) ast)
+              (N.fromNat . maximum $ map U.nameID syms)
+
+makeName :: SomeVariable k -> U.Name
+makeName (SomeVariable (Variable hint vID typ)) = U.Name vID hint
+
+fromVarSet :: VarSet k -> [U.Name]
+fromVarSet (VarSet xs) = map makeName (IM.elems xs)
