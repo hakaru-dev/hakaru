@@ -20,6 +20,7 @@ import           Language.Hakaru.Types.DataKind  hiding (Symbol)
 import           Language.Hakaru.Types.HClasses
 import qualified Language.Hakaru.Syntax.AST      as T
 import           Language.Hakaru.Syntax.IClasses
+import           Language.Hakaru.Syntax.Variable
 import qualified Language.Hakaru.Parser.AST      as U
 
 data Symbol a
@@ -175,12 +176,12 @@ gensym s = state $ \i -> (U.Name (N.unsafeNat i) s, i + 1)
 mkSym  :: U.Name -> Symbol U.AST
 mkSym = TNeu . U.Var_
 
-updateSymbols :: U.Name -> SymbolTable a -> SymbolTable a
-updateSymbols n@(U.Name _ name) sym = (name, mkSym n) : sym
+insertSymbol :: U.Name -> SymbolTable a -> SymbolTable a
+insertSymbol n@(U.Name _ name) sym = (name, mkSym n) : sym
 
-updateSymbolsL :: [U.Name] -> SymbolTable a -> SymbolTable a
-updateSymbolsL []     sym = sym
-updateSymbolsL (n:ns) sym = updateSymbolsL ns (updateSymbols n sym)
+insertSymbols :: [U.Name] -> SymbolTable a -> SymbolTable a
+insertSymbols []     sym = sym
+insertSymbols (n:ns) sym = insertSymbols ns (insertSymbol n sym)
 
 
 resolveBinder
@@ -197,7 +198,7 @@ resolveBinder symbols name e1 e2 f = do
   name' <- gensym name
   f (mkSym name')
         <$> symbolResolution symbols e1
-        <*> symbolResolution (updateSymbols name' symbols) e2        
+        <*> symbolResolution (insertSymbol name' symbols) e2        
     
 
 -- TODO: clean up by merging the @Reader (SymbolTable a)@ and @State Int@ monads
@@ -216,7 +217,7 @@ symbolResolution symbols ast =
     U.Lam name typ x -> do
         name' <- gensym name
         U.Lam (mkSym name') typ
-            <$> symbolResolution (updateSymbols name' symbols) x
+            <$> symbolResolution (insertSymbol name' symbols) x
 
     U.App f x -> U.App
         <$> symbolResolution symbols f
@@ -261,7 +262,7 @@ symbolResolution symbols ast =
       U.Chain (mkSym name')
         <$> symbolResolution symbols e1
         <*> symbolResolution symbols e2
-        <*> symbolResolution (updateSymbols name' symbols) e3     
+        <*> symbolResolution (insertSymbol name' symbols) e3     
 
     U.Msum es           -> U.Msum <$> mapM (symbolResolution symbols) es
 
@@ -271,7 +272,7 @@ symbolResolveBranch :: SymbolTable a -> U.Branch' Text ->
 
 symbolResolveBranch symbols (U.Branch' pat ast) = do
   (pat', names) <- symbolResolvePat pat
-  ast' <- symbolResolution (updateSymbolsL names symbols) ast
+  ast' <- symbolResolution (insertSymbols names symbols) ast
   return $ U.Branch'' pat' ast'
 
 symbolResolvePat :: U.Pattern' Text ->
