@@ -412,10 +412,10 @@ resolveAST ast = makeAST $
                  normAST $
                  evalState (symbolResolution primTable ast) 0
 
-resolveASTWithSymTable :: [U.Name]
-                       -> U.AST' Text
-                       -> U.AST
-resolveASTWithSymTable syms ast =
+resolveAST' :: [U.Name]
+            -> U.AST' Text
+            -> U.AST
+resolveAST' syms ast =
     makeAST $
     normAST $
     evalState (symbolResolution

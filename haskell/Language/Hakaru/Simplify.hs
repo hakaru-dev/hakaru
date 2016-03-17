@@ -35,8 +35,7 @@ import qualified Language.Hakaru.Pretty.Maple as Maple
 
 import Language.Hakaru.Parser.Maple
 import Language.Hakaru.Parser.AST (Name)
-import Language.Hakaru.Parser.SymbolResolve (resolveASTWithSymTable,
-                                             fromVarSet)
+import Language.Hakaru.Parser.SymbolResolve (resolveAST', fromVarSet)
 
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
@@ -76,7 +75,7 @@ simplify e = do
     either (throw . MapleException slo) return $ do
         past <- leftShow $ parseMaple (pack hakaru)
         let m = checkType (typeOf e)
-                 (resolveASTWithSymTable (getNames e) (maple2AST past))
+                 (resolveAST' (getNames e) (maple2AST past))
         leftShow $ unTCM m (freeVars e) UnsafeMode
             
     where
