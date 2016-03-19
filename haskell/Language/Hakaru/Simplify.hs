@@ -25,7 +25,6 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Simplify
     ( simplify
-    , simplifyLam
     , MapleException(MapleException)
     ) where
 
@@ -87,30 +86,6 @@ simplify e = do
 
     getNames :: abt '[] ('HMeasure a) -> [Name]
     getNames = fromVarSet . freeVars
-
-simplifyLam :: (ABT Term abt)
-            => abt '[] (a ':-> 'HMeasure b)
-            -> IO (abt '[] (a ':-> 'HMeasure b))
-simplifyLam e = caseVarSyn e (return . var) $ \t ->
-                   case t of
-                   Lam_ :$ (e1 :* End) ->
-                       caseBind e1 $ \x e1' -> do
-                           e1'' <- simplify e1'
-                           return . syn $
-                                  Lam_  :$ (bind x e1'' :* End)
-
-                   Let_ :$ e1 :* e2 :* End ->
-                        case typeOf e1 of
-                          SFun _ (SMeasure _) -> do
-                               e1' <- simplifyLam e1
-                               return . syn $
-                                      Let_ :$ e1' :* e2 :* End
-                          _ -> caseBind e2 $ \x e2' -> do
-                                   e2'' <- simplifyLam e2'
-                                   return . syn $
-                                          Let_ :$ e1 :* (bind x e2'') :* End
-
-                   _ -> error "TODO: simplifyLam"
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
