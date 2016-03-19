@@ -1240,15 +1240,26 @@ NewSLO := module ()
   end proc;
 
   case := proc(e, bs :: specfunc(Branch(anything, anything), Branches))
-    'case'(e, map(proc(b :: Branch(anything, anything))
-                    local substs, eSubst, pSubst;
-                    substs := pattern_match(e, e, op(1,b));
-                    if substs = NULL then return NULL end if;
-                    eSubst, pSubst := substs;
-                    'Branch'(subs(pSubst, op(1,b)),
-                             eval(eval(op(2,b), pSubst), eSubst))
-                  end proc,
-                  bs))
+    local ret, b, substs, eSubst, pSubst, p, binds, uncertain;
+    ret := Branches();
+    for b in bs do
+      substs := pattern_match(e, e, op(1,b));
+      if substs <> NULL then
+        eSubst, pSubst := substs;
+        p := subs(pSubst, op(1,b));
+        binds := {pattern_binds(p)};
+        uncertain := remove((eq -> lhs(eq) in binds), eSubst);
+        if nops(uncertain) = 0 then p := PWild end if;
+        ret := Branches(op(ret),
+                        Branch(p, eval(eval(op(2,b), pSubst), eSubst)));
+        if nops(uncertain) = 0 then break end if;
+      end if
+    end do;
+    if ret :: Branches(Branch(identical(PWild), anything)) then
+      op([1,2], ret)
+    else
+      'case'(e, ret)
+    end if
   end proc;
 
   app := proc (func, argu)
