@@ -187,7 +187,7 @@ maple2AST (InertArgs Func [InertName "Msum",
                            InertArgs ExpSeq es]) =
     Msum (map maple2AST es)
 
-maple2AST (InertArgs Func [InertName "Case",
+maple2AST (InertArgs Func [InertName "case",
                            InertArgs ExpSeq
                            [e1, InertArgs Func [InertName "Branches",
                                                 InertArgs ExpSeq bs]]]) =

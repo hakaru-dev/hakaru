@@ -68,7 +68,7 @@ mapleAST (LC_ e) =
             app2 "Pair" a b
         Datum_ (Datum "true" _typ (Inl Done)) -> "True"
         Datum_ d       -> error "TODO: Add mapleAST{Datum}"
-        Case_ e bs     -> "Case(" ++ arg e ++ "," ++
+        Case_ e bs     -> "case(" ++ arg e ++ "," ++
                             "Branches(" ++
                               intercalate ", " (map mapleBranch bs) ++ "))"
         Superpose_ pms ->
