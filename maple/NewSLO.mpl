@@ -21,7 +21,7 @@ pattern_binds := proc(p)
   elif p :: PEt(anything, anything) then
     pattern_binds(op(1,p)), pattern_binds(op(2,p))
   else
-    error "not a pattern: %1", p
+    error "pattern_binds: %1 is not a pattern", p
   end if
 end proc:
 
@@ -141,7 +141,7 @@ end module: # gensym
 NewSLO := module ()
   option package;
   local t_pw, t_case,
-        unweight, factorize,
+        unweight, factorize, pattern_match,
         recognize, get_de, recognize_de, mysolve, Diffop, Recognized,
         reduce, to_assumption, simplify_assuming, convert_piecewise,
         reduce_pw, reduce_Int, get_indicators,
@@ -156,7 +156,7 @@ NewSLO := module ()
         avoid_capture, change_var, disint2;
   export
      # note that these first few are smart constructors (for themselves):
-         app, idx, integrate, applyintegrand,
+         case, app, idx, integrate, applyintegrand,
      # while these are "proper functions"
          map_piecewise,
          bind, weight,
@@ -173,10 +173,11 @@ NewSLO := module ()
          Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD, StudentT,
          Context, t_ctx,
          lam,
-         Case, Branches, Branch, PWild, PVar, PDatum, PInr, PInl, PEt, PDone, PKonst, PIdent;
+         Datum, Inr, Inl, Et, Done, Konst, Ident,
+         Branches, Branch, PWild, PVar, PDatum, PInr, PInl, PEt, PDone, PKonst, PIdent;
 
   t_pw := 'specfunc(piecewise)';
-  t_case := 'Case(anything, specfunc(Branch(anything, anything), Branches))';
+  t_case := 'case(anything, specfunc(Branch(anything, anything), Branches))';
 
 # An integrand h is either an Integrand (our own binding construct for a
 # measurable function to be integrated) or something that can be applied
@@ -1238,6 +1239,18 @@ NewSLO := module ()
     end if;
   end proc;
 
+  case := proc(e, bs :: specfunc(Branch(anything, anything), Branches))
+    'case'(e, map(proc(b :: Branch(anything, anything))
+                    local substs, eSubst, pSubst;
+                    substs := pattern_match(e, e, op(1,b));
+                    if substs = NULL then return NULL end if;
+                    eSubst, pSubst := substs;
+                    'Branch'(subs(pSubst, op(1,b)),
+                             eval(eval(op(2,b), pSubst), eSubst))
+                  end proc,
+                  bs))
+  end proc;
+
   app := proc (func, argu)
     if func :: lam(name, anything) then
       eval(op(2,func), op(1,func)=argu)
@@ -1283,6 +1296,65 @@ NewSLO := module ()
     else
       (1, weight)
     end if
+  end proc;
+
+  pattern_match := proc(e0, e, p)
+    local x, substs, eSubst, pSubst;
+    if p = PWild then return {}, {}
+    elif p :: PVar(anything) then
+      x := op(1,p);
+      pSubst := {`if`(depends(e0,x), x=gensym(x), NULL)};
+      return {subs(pSubst,x)=e}, pSubst;
+    elif p :: PDatum(anything, anything) then
+      if e :: Datum(anything, anything) then
+        if op(1,e) = op(1,p) then return pattern_match(e0, op(2,e), op(2,p))
+        else return NULL
+        end if
+      end if
+    elif p :: PInl(anything) then
+      if e :: Inl(anything) then return pattern_match(e0, op(1,e), op(1,p))
+      elif e :: Inr(anything) then return NULL
+      end if
+    elif p :: PInr(anything) then
+      if e :: Inr(anything) then return pattern_match(e0, op(1,e), op(1,p))
+      elif e :: Inl(anything) then return NULL
+      end if
+    elif p :: PEt(anything, anything) then
+      if e :: Et(anything, anything) then
+        substs := pattern_match(e0, op(1,e), op(1,p));
+        if substs = NULL then return NULL end if;
+        eSubst, pSubst := substs;
+        substs := pattern_match(e0, eval(op(2,e),eSubst), op(2,p));
+        if substs = NULL then return NULL end if;
+        return eSubst union substs[1], pSubst union substs[2];
+      elif e = Done then return NULL
+      end if
+    elif p = PDone then
+      if e = Done then return {}, {}
+      elif e :: Et(anything, anything) then return NULL
+      end if
+    elif p :: PKonst(anything) then
+      if e :: Konst(anything) then return pattern_match(e0, op(1,e), op(1,p))
+      end if
+    elif p :: PIdent(anything) then
+      if e :: Ident(anything) then return pattern_match(e0, op(1,e), op(1,p))
+      end if
+    else
+      error "pattern_match: %1 is not a pattern", p
+    end if;
+    pSubst := map((x -> `if`(depends(e0,x), x=gensym(x), NULL)),
+                  {pattern_binds(p)});
+    eSubst := {e=evalindets(
+                   evalindets[nocache](
+                     subs(pSubst,
+                          PDatum=Datum, PInr=Inr, PInl=Inl, PEt=Et, PDone=Done,
+                          PKonst=Konst, PIdent=Ident,
+                          p),
+                     identical(PWild),
+                     p -> gensym(_)),
+                   PVar(anything),
+                   p -> op(1,p))};
+    eSubst, pSubst
   end proc;
 
   recognize := proc(weight0, x, lo, hi)
