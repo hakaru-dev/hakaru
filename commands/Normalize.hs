@@ -13,6 +13,7 @@ import           Language.Hakaru.Syntax.TypeCheck
 import           Language.Hakaru.Types.Sing
 
 import           Language.Hakaru.Expect (normalize)
+import           Language.Hakaru.Evaluation.ConstantPropagation
 
 import           Data.Text
 import qualified Data.Text.IO as IO
@@ -41,7 +42,7 @@ runNormalize prog =
         Left err                 -> putStrLn err
         Right (TypedAST typ ast) -> do
           case typ of
-            SMeasure _          -> print . pretty . normalize $ ast
+            SMeasure _          -> print . pretty . constantPropagation . normalize $ ast
             SFun _ (SMeasure _) -> print . pretty . runIdentity $
-                                    underLam (return . normalize) ast
+                                    underLam (return . constantPropagation . normalize) ast
             _                   -> error "Can only normalize measures"
