@@ -1059,12 +1059,14 @@ zipWithV f v1 v2 =
 
 ----------------------------------------------------------------
 (>>=)
-    :: (ABT Term abt, SingI a)
+    :: (ABT Term abt)
     => abt '[] ('HMeasure a)
     -> (abt '[] a -> abt '[] ('HMeasure b))
     -> abt '[] ('HMeasure b)
 m >>= f =
-    syn (MBind :$ m :* binder Text.empty sing f :* End)
+    syn (MBind :$ m
+               :* binder Text.empty (sUnMeasure $ typeOf m) f
+               :* End)
 
 
 dirac :: (ABT Term abt) => abt '[] a -> abt '[] ('HMeasure a)
@@ -1245,7 +1247,7 @@ densityUniform
     -> abt '[] 'HReal
     -> abt '[] 'HReal
     -> abt '[] 'HProb
-densityUniform lo hi x = recip . unsafeProb $ hi - lo
+densityUniform lo hi _ = recip . unsafeProb $ hi - lo
 
 
 -- TODO: make Uniform polymorphic, so that if the two inputs are
