@@ -26,8 +26,8 @@ import Language.Hakaru.Parser.AST
 ops, types, names :: [String]
 ops   = ["+","*","-","^", "**", ":",".", "<~","==", "=", "_"]
 types = ["->"]
-names = ["def","fn", "if","else","inf", "∞",
-         "return", "match", "data"]
+names = ["def","fn", "if","else","inf", "∞", "expect",
+         "return", "match", "integrate", "data"]
 
 type ParserStream    = IndentStream (CharIndentStream Text)
 type Parser          = ParsecT     ParserStream () Identity
@@ -245,6 +245,18 @@ data_expr =
         <*> blockOfMany (try type_app <|> type_var)
         )
 
+integrate_expr :: Parser (AST' Text)
+integrate_expr =
+    reserved "integrate"
+    *> (Integrate'
+        <$> identifier
+        <*  symbol "from"        
+        <*> expr
+        <*  symbol "to"
+        <*> expr     
+        <*> semiblockExpr
+        )
+
 expect_expr :: Parser (AST' Text)
 expect_expr =
     reserved "expect"
@@ -354,6 +366,7 @@ term =  try if_expr
     <|> try def_expr
     <|> try match_expr
     -- <|> try data_expr
+    <|> try integrate_expr
     <|> try expect_expr
     <|> try array_expr
     <|> try plate_expr

@@ -83,6 +83,7 @@ data AST' a
     | Ann (AST' a) TypeAST'
     | Infinity'
     | NegInfinity'
+    | Integrate' a (AST' a) (AST' a) (AST' a)
     | ULiteral Literal'
     | NaryOp NaryOp [AST' a]
     | Unit
@@ -92,9 +93,9 @@ data AST' a
     | Index (AST' a) (AST' a)
     | Case  (AST' a) [(Branch' a)] -- match
     | Dirac (AST' a)
-    | Bind  a (AST' a) (AST' a)
-    | Plate a (AST' a) (AST' a)
-    | Chain a (AST' a) (AST' a) (AST' a)
+    | Bind  a  (AST' a) (AST' a)
+    | Plate a  (AST' a) (AST' a)
+    | Chain a  (AST' a) (AST' a) (AST' a)
     | Expect a (AST' a) (AST' a)
     | Msum  [AST' a]
     | Data  a [TypeAST']
