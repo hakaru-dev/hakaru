@@ -248,7 +248,7 @@ data_expr =
 integrate_expr :: Parser (AST' Text)
 integrate_expr =
     reserved "integrate"
-    *> (Integrate'
+    *> (Integrate
         <$> identifier
         <*  symbol "from"        
         <*> expr

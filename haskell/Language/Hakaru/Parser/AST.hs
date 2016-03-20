@@ -83,7 +83,6 @@ data AST' a
     | Ann (AST' a) TypeAST'
     | Infinity'
     | NegInfinity'
-    | Integrate' a (AST' a) (AST' a) (AST' a)
     | ULiteral Literal'
     | NaryOp NaryOp [AST' a]
     | Unit
@@ -96,6 +95,7 @@ data AST' a
     | Bind  a  (AST' a) (AST' a)
     | Plate a  (AST' a) (AST' a)
     | Chain a  (AST' a) (AST' a) (AST' a)
+    | Integrate a (AST' a) (AST' a) (AST' a)
     | Expect a (AST' a) (AST' a)
     | Msum  [AST' a]
     | Data  a [TypeAST']
@@ -122,7 +122,6 @@ data PrimOp
     | Exp        | Log
     | Infinity   | NegativeInfinity
     | GammaFunc  | BetaFunc
-    | Integrate  | Summate
     | Equal      | Less
     | Negate     | Recip
     | Abs        | Signum | NatRoot | Erf
@@ -194,6 +193,7 @@ data AST
     | MBind_      Name    AST AST
     | Plate_      Name    AST AST
     | Chain_      Name    AST AST AST
+    | Integrate_  Name    AST AST AST
     | Expect_     Name    AST AST
     | Superpose_  [(AST, AST)]
 

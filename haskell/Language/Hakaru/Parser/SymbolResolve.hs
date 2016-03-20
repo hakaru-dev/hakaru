@@ -237,9 +237,9 @@ symbolResolution symbols ast =
     U.NegInfinity'      -> return $ U.NegInfinity'
     U.ULiteral v        -> return $ U.ULiteral v
 
-    U.Integrate'  name e1 e2 e3 -> do       
+    U.Integrate  name e1 e2 e3 -> do       
       name' <- gensym name
-      U.Integrate' (mkSym name')
+      U.Integrate (mkSym name')
         <$> symbolResolution symbols e1
         <*> symbolResolution symbols e2
         <*> symbolResolution (insertSymbol name' symbols) e3     
@@ -315,28 +315,28 @@ normAST ast =
         v@(U.Var _) -> normAST (U.App v x)
         f'          -> U.App f' x
 
-    U.Let name e1 e2           -> U.Let name (normAST e1) (normAST e2)
-    U.If e1 e2 e3              -> U.If  (normAST e1) (normAST e2) (normAST e3)
-    U.Ann e typ1               -> U.Ann (normAST e) typ1
-    U.Infinity'                -> U.Infinity'
-    U.NegInfinity'             -> U.NegInfinity'
-    U.Integrate' name e1 e2 e3 -> U.Integrate' name (normAST e1) (normAST e2) (normAST e3)
-    U.ULiteral v               -> U.ULiteral v
-    U.NaryOp op es             -> U.NaryOp op (map normAST es)
-    U.Unit                     -> U.Unit
-    U.Empty                    -> U.Empty
-    U.Pair e1 e2               -> U.Pair (normAST e1) (normAST e2)
-    U.Array name e1 e2         -> U.Array name (normAST e1) (normAST e2)
-    U.Index      e1 e2         -> U.Index (normAST e1) (normAST e2)    
-    U.Case       e1 e2         -> U.Case  (normAST e1) (map branchNorm e2)
-    U.Dirac      e1            -> U.Dirac (normAST e1)
-    U.Bind   name e1 e2        -> U.Bind   name (normAST e1) (normAST e2)
-    U.Plate  name e1 e2        -> U.Plate  name (normAST e1) (normAST e2)
-    U.Chain  name e1 e2 e3     -> U.Chain  name (normAST e1) (normAST e2) (normAST e3)
-    U.Expect name e1 e2        -> U.Expect name (normAST e1) (normAST e2)
-    U.Msum es                  -> U.Msum (map normAST es)
-    U.Data name typ            -> U.Data name typ
-    U.WithMeta a meta          -> U.WithMeta (normAST a) meta
+    U.Let name e1 e2          -> U.Let name (normAST e1) (normAST e2)
+    U.If e1 e2 e3             -> U.If  (normAST e1) (normAST e2) (normAST e3)
+    U.Ann e typ1              -> U.Ann (normAST e) typ1
+    U.Infinity'               -> U.Infinity'
+    U.NegInfinity'            -> U.NegInfinity'
+    U.Integrate name e1 e2 e3 -> U.Integrate name (normAST e1) (normAST e2) (normAST e3)
+    U.ULiteral v              -> U.ULiteral v
+    U.NaryOp op es            -> U.NaryOp op (map normAST es)
+    U.Unit                    -> U.Unit
+    U.Empty                   -> U.Empty
+    U.Pair e1 e2              -> U.Pair (normAST e1) (normAST e2)
+    U.Array  name e1 e2       -> U.Array name (normAST e1) (normAST e2)
+    U.Index       e1 e2       -> U.Index (normAST e1) (normAST e2)    
+    U.Case        e1 e2       -> U.Case  (normAST e1) (map branchNorm e2)
+    U.Dirac       e1          -> U.Dirac (normAST e1)
+    U.Bind   name e1 e2       -> U.Bind   name (normAST e1) (normAST e2)
+    U.Plate  name e1 e2       -> U.Plate  name (normAST e1) (normAST e2)
+    U.Chain  name e1 e2 e3    -> U.Chain  name (normAST e1) (normAST e2) (normAST e3)
+    U.Expect name e1 e2       -> U.Expect name (normAST e1) (normAST e2)
+    U.Msum es                 -> U.Msum (map normAST es)
+    U.Data name typ           -> U.Data name typ
+    U.WithMeta a meta         -> U.WithMeta (normAST a) meta
 
 branchNorm :: U.Branch' (Symbol U.AST) -> U.Branch' (Symbol U.AST)
 branchNorm (U.Branch'  pat e2') = U.Branch'  pat (normAST e2')
@@ -393,12 +393,6 @@ makeAST ast =
     U.Ann e typ       -> U.Ann_ (makeAST e) (makeType typ)
     U.Infinity'       -> U.PrimOp_ U.Infinity []
     U.NegInfinity'    -> U.PrimOp_ U.NegativeInfinity []
-    U.Integrate' (TNeu name) e1 e2 e3 ->
-        U.PrimOp_ U.Integrate [ name
-                              , (makeAST e1)
-                              , (makeAST e2)
-                              , (makeAST e3)
-                              ]
     U.ULiteral v      -> U.Literal_  (U.val v)
     U.NaryOp op es    -> U.NaryOp_ op (map makeAST es)
     U.Unit            -> U.Datum_ (U.Datum "unit" . U.Inl $ U.Done)
@@ -415,6 +409,8 @@ makeAST ast =
         U.Plate_ name (makeAST e1) (makeAST e2)
     U.Chain (TNeu (U.Var_ name)) e1 e2 e3 ->
         U.Chain_ name (makeAST e1) (makeAST e2) (makeAST e3)
+    U.Integrate (TNeu (U.Var_ name)) e1 e2 e3 ->
+        U.Integrate_ name (makeAST e1) (makeAST e2) (makeAST e3)
     U.Expect (TNeu (U.Var_ name)) e1 e2 ->
         U.Expect_ name (makeAST e1) (makeAST e2)
     U.Msum es         -> U.Superpose_ (map (\e -> (U.Literal_ $ U.val $ U.Prob 1,
@@ -434,7 +430,9 @@ resolveAST' syms ast =
     normAST $
     evalState (symbolResolution
                (insertSymbols syms primTable) ast)
-              (N.fromNat . maximum $ map U.nameID syms)
+              (nextVarID syms)
+  where nextVarID [] = N.fromNat 0
+        nextVarID x  = N.fromNat . (+1) . maximum $ map U.nameID x
 
 makeName :: SomeVariable ('KProxy :: KProxy Hakaru) -> U.Name
 makeName (SomeVariable (Variable hint vID typ)) = U.Name vID hint

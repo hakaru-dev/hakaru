@@ -64,7 +64,6 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.AST.Sing
     (sing_Literal, sing_MeasureOp)
 
-
 ----------------------------------------------------------------
 ----------------------------------------------------------------
 
@@ -169,12 +168,13 @@ mustCheck = go
     -- down the wrong path?
     go (U.Case_ _ _)      = True
 
-    go (U.Dirac_  e1)        = mustCheck e1
-    go (U.MBind_  _ _ e2)    = mustCheck e2
-    go (U.Plate_  _ _ e2)    = mustCheck e2
-    go (U.Chain_  _ _ e2 e3) = mustCheck e2 && mustCheck e3
-    go (U.MeasureOp_ _ _)    = False
-    go (U.Expect_ _ _ e2)    = mustCheck e2
+    go (U.Dirac_  e1)          = mustCheck e1
+    go (U.MBind_  _ _ e2)      = mustCheck e2
+    go (U.Plate_  _ _ e2)      = mustCheck e2
+    go (U.Chain_  _ _ e2 e3)   = mustCheck e2 && mustCheck e3
+    go (U.MeasureOp_ _ _)      = False
+    go (U.Integrate_  _ _ _ _) = False
+    go (U.Expect_ _ _ e2)      = mustCheck e2
 
 
 ----------------------------------------------------------------
@@ -548,6 +548,13 @@ inferType = inferType_
                     _ -> typeMismatch (Left "HMeasure(HPair)") (Right typ3)
                 _     -> typeMismatch (Left "HMeasure(HPair)") (Right typ3)
 
+    U.Integrate_ x e1 e2 e3 -> do
+        e1' <- checkType_ SReal e1
+        e2' <- checkType_ SReal e2
+        let x' = makeVar x SReal
+        e3' <- checkBinder (makeVar x SReal) SProb e3
+        return . TypedAST SProb $ 
+               syn (Integrate :$ e1' :* e2' :* e3' :* End)
 
     U.Expect_ x e1 e2 -> do
         TypedAST typ1 e1' <- inferType_ e1

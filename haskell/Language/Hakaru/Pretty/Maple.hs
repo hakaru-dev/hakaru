@@ -89,14 +89,20 @@ mapleSCon :: (ABT Term abt) => SCon args a -> SArgs abt args -> String
 mapleSCon Let_     (e1 :* e2 :* End) =
     caseBind e2 $ \x e2' ->
         "eval(" ++ arg e2' ++ ", " ++  (var x `meq` e1) ++ ")"
-mapleSCon (CoerceTo_   _) (e :* End) = mapleAST (LC_ e)
-mapleSCon (UnsafeFrom_ _) (e :* End) = mapleAST (LC_ e)
+mapleSCon (CoerceTo_   _) (e :* End) = arg e
+mapleSCon (UnsafeFrom_ _) (e :* End) = arg e
 mapleSCon (PrimOp_    o) es          = maplePrimOp o es
 mapleSCon (MeasureOp_ o) es          = mapleMeasureOp o es
 mapleSCon Dirac (e1 :* End)          = app1 "Ret" e1
 mapleSCon MBind (e1 :* e2 :* End)    =
     caseBind e2 $ \x e2' ->
         app3 "Bind" e1 (var x) e2'
+mapleSCon Integrate (e1 :* e2 :* e3 :* End) =
+    caseBind e3 $ \x e3' ->
+        "int(" ++ arg e3' ++ ", ["
+               ++ var1 x  ++ "="
+               ++ arg e1  ++ ".." 
+               ++ arg e2  ++ "])" 
 
 mapleNary :: (ABT Term abt) => NaryOp a -> Seq (abt '[] a) -> String
 mapleNary (Sum  _) es = parens $ F.foldr1 (\a b -> a ++ " + " ++ b)
@@ -145,20 +151,22 @@ wmtom (w, m) = app2 "Weight" w m
 maplePrimOp
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => PrimOp typs a -> SArgs abt args -> String
-maplePrimOp Pi          End               = "Pi"
-maplePrimOp RealPow     (e1 :* e2 :* End) =
+maplePrimOp Pi               End               = "Pi"
+maplePrimOp RealPow          (e1 :* e2 :* End) =
     parens (arg e1 ++ " ^ " ++ arg e2)
-maplePrimOp Exp         (e1 :* End)       = 
+maplePrimOp Exp              (e1 :* End)       = 
     app1 "exp"  e1
-maplePrimOp (NatPow _)  (e1 :* e2 :* End) =
+maplePrimOp Infinity         End               = "infinity"
+maplePrimOp NegativeInfinity End               = "-infinity"
+maplePrimOp (NatPow _)       (e1 :* e2 :* End) =
     parens (arg e1 ++ " ^ " ++ arg e2)
-maplePrimOp (Negate _)  (e1 :* End)       =
+maplePrimOp (Negate _)       (e1 :* End)       =
     parens (app1 "-" e1)
-maplePrimOp (Recip   _) (e1 :* End)       =
+maplePrimOp (Recip   _)      (e1 :* End)       =
     app1 "1/"   e1
-maplePrimOp (NatRoot _) (e1 :* e2 :* End) =
+maplePrimOp (NatRoot _)      (e1 :* e2 :* End) =
     app2 "root" e1 e2
-maplePrimOp x   _                         =
+maplePrimOp x                _                 =
     error ("maplePrimOp: TODO: " ++ show x)
 
 mapleMeasureOp
