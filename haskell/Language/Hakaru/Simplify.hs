@@ -42,7 +42,6 @@ import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Syntax.TypeOf
 
 import Language.Hakaru.Types.DataKind
-import Language.Hakaru.Types.Sing
 
 import Data.Typeable (Typeable)
 
