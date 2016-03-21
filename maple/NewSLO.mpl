@@ -540,9 +540,9 @@ NewSLO := module ()
           x := op([2,1], a);
           xs := gensym(x);
           aa := ProductIntegral('aryM'(n, i, var,
-                 Int(ww * applyintegrand(var, x),op(2,a)), xs,
+                 Int(ww * applyintegrand(var, x),op(2,a))), xs,
                  ProductIntegral('aryM'(n, i, var,
-                   eval(mm, x = idx(xs, i))), nm, hh)));
+                   eval(mm, x = idx(xs, i))), nm, hh));
           return aa; # recurse?  only on inner?
         end if;
       end if;
