@@ -513,7 +513,7 @@ NewSLO := module ()
   end proc;
 
   reduce_PI := proc(ee, h, constraints)
-    local e, nm, hh, nh, w, m, n, i, var, x, a, xs, aa, mm, ww;
+    local e, nm, hh, nh, w, m, n, i, var, x, a, xs, aa, mm, ww, inner;
     (e, nm, hh) := op(ee);
 
     # by construction, the inner and outer h are different
@@ -543,10 +543,11 @@ NewSLO := module ()
         if not type(mm, 'applyintegrand'(name, name)) then
           x := op([2,1], a);
           xs := gensym(x);
+          inner := ProductIntegral('aryM'(n, i, var,
+                   eval(mm, x = idx(xs, i))), nm, hh);
           aa := ProductIntegral('aryM'(n, i, var,
                  Int(ww * applyintegrand(var, x),op(2,a))), xs,
-                 ProductIntegral('aryM'(n, i, var,
-                   eval(mm, x = idx(xs, i))), nm, hh));
+                 reduce_PI(inner, var, constraints));
           return aa; # recurse?  only on inner?
         end if;
       end if;

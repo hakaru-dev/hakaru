@@ -366,7 +366,7 @@ ary2  := Bind(Gaussian(0,1), x,
          Ret(ys))):
 TestHakaru(ary2, 
   Weight(ary1w, Bind(Plate(ary(n, i, Gaussian(idx(t,i),1))), zs, Ret(ary(n, i, idx(zs,i)+1)))), 
-  label="Reason for fission (currently fails)", ctx = [n::nonnegint]);
+  label="Reason for fission", ctx = [n::nonnegint]);
 ary3  := Bind(Gaussian(0,1), x,
          Bind(Plate(ary(n, i, Bind(Gaussian(idx(t,i),1),z, Weight(density[Gaussian](x,1)(idx(t,i)), Ret(z))))), zs,
          Ret(zs))):
