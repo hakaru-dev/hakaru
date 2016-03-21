@@ -179,9 +179,9 @@ maple2AST (InertArgs Func [InertName "Bind",
                            InertArgs ExpSeq [e1, InertName x, e2]]) =
     Bind x (maple2AST e1) (maple2AST e2)
 
-maple2AST (InertArgs Func [InertName "Pair",
-                           InertArgs ExpSeq [e1, e2]]) =
-    Pair (maple2AST e1) (maple2AST e2)
+maple2AST (InertArgs Func [InertName "Datum",
+                           InertArgs ExpSeq [InertName h, d]]) =
+    mapleDatum2AST h d
 
 maple2AST (InertArgs Func [InertName "Msum",
                            InertArgs ExpSeq es]) =
@@ -207,6 +207,11 @@ maple2AST (InertArgs Rational [InertNum _ x, InertNum _ y]) =
     ULiteral $ Real $ fromInteger x / fromInteger y
 
 maple2AST x = error $ "Can't handle: " ++ show x
+
+mapleDatum2AST :: Text -> InertExpr -> AST' Text
+mapleDatum2AST "Pair" d = let [x, y] = unPairDatum d in
+                          Pair (maple2AST x) (maple2AST y)
+mapleDatum2AST h _ = error ("TODO: mapleDatum " ++ Text.unpack h)
     
 maple2Type :: InertExpr -> TypeAST'
 -- TODO: Add Arrow
@@ -234,6 +239,23 @@ maple2Pattern (InertArgs Func
                 [InertName "pair", args]]) =
   PData' (DV "pair" (map maple2Pattern (unpairPat args)))
 maple2Pattern e = error ("TODO: maple2AST{pattern} " ++ show e)
+
+unPairDatum :: InertExpr -> [InertExpr]
+unPairDatum (InertArgs Func [InertName "PInl",
+ InertArgs ExpSeq
+ [InertArgs Func
+  [InertName "Et",
+   InertArgs ExpSeq
+   [InertArgs Func
+    [InertName "Konst",
+     InertArgs ExpSeq [x]],
+    InertArgs Func
+    [InertName "Et",
+     InertArgs ExpSeq
+     [InertArgs Func
+      [InertName "Konst",
+       InertArgs ExpSeq [y]],
+      InertName "Done"]]]]]]) = [x,y]
 
 unpairPat :: InertExpr -> [InertExpr]
 unpairPat (InertArgs Func [InertName "PInl",
