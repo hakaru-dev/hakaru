@@ -59,18 +59,6 @@ expect
 expect e = apM $ expectSynDir ImpureMeasure e emptyAssocs
 -- TODO: we should prolly grab the @c@ here and pass it down through 'expectSynDir'; rather than gluing things together with just the 'Expect' data type. Maybe that'll make it easier to handle 'Case_'
 
-{- For debugging via the old Expect.hs:
-
--- Must rely on the Mochastic instance to define the @Expect repr@. Not clear how to build one directly from a plain @repr@.
-almostExpect
-    :: (Mochastic repr, Lambda repr)
-    => Expect repr ('HMeasure a)
-    -> repr ('HFun ('HFun (Expect' a) 'HProb) 'HProb)
-almostExpect m = lam (\c -> unpair (unExpect m) (\_ m2 -> m2 `app` c))
-
-prettyAlmostExpect = runPrettyPrint . almostExpect
--}
-
 ----------------------------------------------------------------
 -- | Explicit proof that a given Hakaru type is impure. We use this
 -- to eliminate unreachable branches in 'expectTerm'.
