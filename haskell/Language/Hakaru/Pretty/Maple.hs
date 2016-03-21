@@ -67,8 +67,8 @@ mapleAST (LC_ e) =
         Datum_ (Datum "pair" _typ (Inl (Et (Konst a) (Et (Konst b) Done)))) ->
             app2 "Pair" a b
         Datum_ (Datum "true" _typ (Inl Done)) -> "True"
-        Datum_ d       -> error "TODO: Add mapleAST{Datum}"
-        Case_ e bs     -> "case(" ++ arg e ++ "," ++
+        Datum_ d       -> mapleDatum d
+        Case_  e'  bs  -> "case(" ++ arg e' ++ "," ++
                             "Branches(" ++
                               intercalate ", " (map mapleBranch bs) ++ "))"
         Superpose_ pms ->
@@ -110,6 +110,27 @@ mapleNary (Sum  _) es = parens $ F.foldr1 (\a b -> a ++ " + " ++ b)
 mapleNary (Prod _) es = parens $ F.foldr1 (\a b -> a ++ " * " ++ b)
                                  (fmap arg es)
 mapleNary _        _  = "TODO: mapleNary:"
+
+mapleDatum :: (ABT Term abt)
+           => Datum (abt '[]) t -> String
+mapleDatum (Datum hint _ d) = "Datum(" ++ Text.unpack hint
+                                       ++ ", " ++ mapleDatumCode d
+                                       ++ ")"
+mapleDatumCode :: (ABT Term abt)
+               => DatumCode xss (abt '[]) a -> String
+mapleDatumCode (Inr d) = "Inr(" ++ mapleDatumCode   d ++ ")"
+mapleDatumCode (Inl d) = "Inl(" ++ mapleDatumStruct d ++ ")"
+
+mapleDatumStruct :: (ABT Term abt)
+                 => DatumStruct xs (abt '[]) a -> String
+mapleDatumStruct (Et d1 d2) = "Et(" ++ mapleDatumFun d1 ++ ", "
+                                    ++ mapleDatumStruct d2 ++ ")"
+mapleDatumStruct Done       = "Done"
+
+mapleDatumFun :: (ABT Term abt)
+              => DatumFun x (abt '[]) a -> String
+mapleDatumFun (Konst a) = app1 "Konst" a
+mapleDatumFun (Ident a) = app1 "Ident" a
 
 mapleBranch :: (ABT Term abt) => Branch a abt b -> String
 mapleBranch (Branch pat e) = let (vars, e') = caseBinds e
