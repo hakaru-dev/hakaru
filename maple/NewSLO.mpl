@@ -252,7 +252,7 @@ NewSLO := module ()
       end if;
       x := gensym(x);
       # we don't know the dimension, so use x as a vector variable.
-      ProductIntegral(integrate_ary(op(1,m),h), x, applyintegrand(h, x));
+      ProductIntegral(integrate_ary(op(1,m)), x, applyintegrand(h, x));
     elif h :: procedure then
       x := gensym('xa');
       'integrate'(m, Integrand(x, h(x)))
@@ -262,15 +262,13 @@ NewSLO := module ()
   end proc;
 
   # integrates programs that denote arrays of measures
-  integrate_ary := proc(m, h)
-    local x;
+  integrate_ary := proc(m)
+    local h;
 
     if m :: 'ary'(anything, name, anything) then
-      x := 'hh';
-      if h :: 'Integrand(name, anything)' then x := op(1,h); end if;
-      x := gensym(x);
+      h := gensym('hh');
       # aryM = array of Measures
-      aryM(op(1,m), op(2,m), x, integrate(op(3,m), x));
+      aryM(op(1,m), op(2,m), h, integrate(op(3,m), h));
     else
       # right now, throw a hard error rather than just passing things
       # through; once we understand this better, we'll revert.
