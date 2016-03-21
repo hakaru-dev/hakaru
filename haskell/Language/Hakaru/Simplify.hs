@@ -69,7 +69,7 @@ simplify :: forall abt a
          -> IO (abt '[] ('HMeasure a))
 simplify e = do
     let slo = Maple.pretty e
-    hakaru <- maple ("timelimit(15,NewSLO:-RoundTripLO(" ++ slo ++ "));")
+    hakaru <- maple ("use NewSLO in timelimit(15, RoundTripLO(" ++ slo ++ ")) end use;")
     either (throw . MapleException slo) return $ do
         past <- leftShow $ parseMaple (pack hakaru)
         let m = checkType (typeOf e)

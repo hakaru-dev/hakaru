@@ -82,25 +82,14 @@ identifier = Text.pack <$> Token.identifier lexer
 stringLiteral :: Parser Text
 stringLiteral = Text.pack <$> Token.stringLiteral lexer
 
+comma :: Parser String
+comma = Token.comma lexer
+
 commaSep :: Parser a -> Parser [a]
 commaSep = Token.commaSep lexer
 
 arg :: Parser a -> Parser [a]
 arg e = parens (commaSep e)
-
-apply1 :: Parser a -> Parser a
-apply1 e = do
-    args <- arg e
-    case args of
-        [e'] -> return e'
-        _    -> error "Expected only one argument"
-
-apply2 :: Parser a -> Parser (a, a)
-apply2 e = do
-    args <- arg e
-    case args of
-        [e1, e2] -> return (e1, e2)
-        _        -> error "Expected only two arguments"
 
 text :: Text -> Parser Text
 text = liftM Text.pack <$> string <$> Text.unpack
@@ -109,6 +98,7 @@ expr :: Parser InertExpr
 expr =  try func
     <|> try name
     <|> try assignedname
+    <|> try assignedlocalname
     <|> try expseq
     <|> try intpos
     <|> try intneg
@@ -122,19 +112,22 @@ func :: Parser InertExpr
 func = InertArgs <$> (text "_Inert_FUNCTION" *> return Func) <*> arg expr
 
 name :: Parser InertExpr
-name = InertName <$> (text "_Inert_NAME" *> apply1 stringLiteral)
+name = InertName <$> (text "_Inert_NAME" *> parens stringLiteral)
 
 assignedname :: Parser InertExpr
-assignedname = InertName <$> (text "_Inert_ASSIGNEDNAME" *> (fst <$> apply2 stringLiteral))
+assignedname = InertName <$> (text "_Inert_ASSIGNEDNAME" *> parens (stringLiteral <* comma <* stringLiteral))
+
+assignedlocalname :: Parser InertExpr
+assignedlocalname = InertName <$> (text "_Inert_ASSIGNEDLOCALNAME" *> parens (stringLiteral <* comma <* stringLiteral <* comma <* integer))
 
 expseq :: Parser InertExpr
 expseq = InertArgs <$> (text "_Inert_EXPSEQ" *> return ExpSeq) <*> arg expr
 
 intpos :: Parser InertExpr
-intpos = InertNum <$> (text "_Inert_INTPOS" *> return Pos) <*> apply1 integer
+intpos = InertNum <$> (text "_Inert_INTPOS" *> return Pos) <*> parens integer
 
 intneg :: Parser InertExpr
-intneg = InertNum <$> (text "_Inert_INTNEG" *> return Neg) <*> fmap negate (apply1 integer)
+intneg = InertNum <$> (text "_Inert_INTNEG" *> return Neg) <*> fmap negate (parens integer)
 
 float :: Parser InertExpr
 float  = InertArgs <$> (text "_Inert_FLOAT" *> return Float) <*> arg expr
