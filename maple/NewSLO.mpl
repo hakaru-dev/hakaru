@@ -535,7 +535,11 @@ NewSLO := module ()
       w := simplify_assuming(product(w, i=1..n), constraints);
       # special case; could do Integrand too.
       if a :: 'Int'(anything, name = range) then
-        (mm, ww) := selectremove(depends, op(1,a), var);
+        if type(op(1,a), `*`) then
+          (mm, ww) := selectremove(depends, op(1,a), var);
+        else
+          (mm, ww) := (op(1,a), 1);
+        end if;
         if not type(mm, 'applyintegrand'(name, name)) then
           x := op([2,1], a);
           xs := gensym(x);
