@@ -63,8 +63,8 @@ mapleAST (LC_ e) =
         o :$ es        -> mapleSCon o  es
         NaryOp_ op es  -> mapleNary op es
         Literal_ v     -> mapleLiteral v
-        -- Special case true
-        Datum_ (Datum "true" _typ (Inl Done)) -> "True"
+        Datum_ (Datum "true"  _typ (Inl Done)      ) -> "true"
+        Datum_ (Datum "false" _typ (Inr (Inl Done))) -> "false"
         Datum_ d       -> mapleDatum d
         Case_  e'  bs  -> "case(" ++ arg e' ++ "," ++
                             "Branches(" ++

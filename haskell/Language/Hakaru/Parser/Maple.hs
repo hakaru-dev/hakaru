@@ -40,8 +40,6 @@ symTable =
     , ("Weight",   "weight")
     , ("Uniform",  "uniform")
     , ("Ret",      "dirac")
-    , ("True",     "true")
-    , ("False",    "false")
     , ("Pi",       "pi")
     -- Type symbols
     , ("Real",     "real")

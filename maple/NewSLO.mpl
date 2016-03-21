@@ -140,8 +140,8 @@ end module: # gensym
 
 NewSLO := module ()
   option package;
-  local t_pw, t_case,
-        unweight, factorize, pattern_match,
+  local t_pw, t_case, p_true, p_false,
+        unweight, factorize, pattern_match, make_piece,
         recognize, get_de, recognize_de, mysolve, Diffop, Recognized,
         reduce, to_assumption, simplify_assuming, convert_piecewise,
         reduce_pw, reduce_Int, get_indicators,
@@ -177,8 +177,10 @@ NewSLO := module ()
          Datum, Inr, Inl, Et, Done, Konst, Ident,
          Branches, Branch, PWild, PVar, PDatum, PInr, PInl, PEt, PDone, PKonst, PIdent;
 
-  t_pw := 'specfunc(piecewise)';
-  t_case := 'case(anything, specfunc(Branch(anything, anything), Branches))';
+  t_pw    := 'specfunc(piecewise)';
+  t_case  := 'case(anything, specfunc(Branch(anything, anything), Branches))';
+  p_true  := 'PDatum(true,PInl(PDone))';
+  p_false := 'PDatum(false,PInr(PInl(PDone)))';
 
 # An integrand h is either an Integrand (our own binding construct for a
 # measurable function to be integrated) or something that can be applied
@@ -1273,6 +1275,16 @@ NewSLO := module ()
     end do;
     if ret :: Branches(Branch(identical(PWild), anything)) then
       op([1,2], ret)
+    elif ret :: Branches(Branch(identical(p_true), anything),
+                         Branch({identical(p_false),
+                                 identical(PWild),
+                                 PVar(anything)}, anything)) then
+      piecewise(make_piece(e), op([1,2], ret), op([2,2], ret))
+    elif ret :: Branches(Branch(identical(p_false), anything),
+                         Branch({identical(p_true),
+                                 identical(PWild),
+                                 PVar(anything)}, anything)) then
+      piecewise(make_piece(e), op([2,2], ret), op([1,2], ret))
     else
       'case'(e, ret)
     end if
@@ -1332,6 +1344,14 @@ NewSLO := module ()
       x := op(1,p);
       pSubst := {`if`(depends(e0,x), x=gensym(x), NULL)};
       return {subs(pSubst,x)=e}, pSubst;
+    elif p = p_true then
+      if e = true then return {}, {}
+      elif e = false then return NULL
+      end if
+    elif p = p_false then
+      if e = false then return {}, {}
+      elif e = true then return NULL
+      end if
     elif p :: PDatum(anything, anything) then
       if e :: Datum(anything, anything) then
         if op(1,e) = op(1,p) then return pattern_match(e0, op(2,e), op(2,p))
@@ -1374,6 +1394,8 @@ NewSLO := module ()
     eSubst := {e=evalindets(
                    evalindets[nocache](
                      subs(pSubst,
+                          p_true=true,
+                          p_false=false,
                           PDatum=Datum, PInr=Inr, PInl=Inl, PEt=Et, PDone=Done,
                           PKonst=Konst, PIdent=Ident,
                           p),
@@ -1382,6 +1404,18 @@ NewSLO := module ()
                    PVar(anything),
                    p -> op(1,p))};
     eSubst, pSubst
+  end proc;
+
+  make_piece := proc(rel)
+    # Try to prevent PiecewiseTools:-Is from complaining
+    # "Wrong kind of parameters in piecewise"
+    if rel :: {'`::`', 'boolean', '`in`'} then
+      rel
+    elif rel :: {specfunc(anything, {And,Or,Not}), `and`, `or`, `not`} then
+      map(make_piece, rel)
+    else
+      rel = true
+    end if
   end proc;
 
   recognize := proc(weight0, x, lo, hi)
