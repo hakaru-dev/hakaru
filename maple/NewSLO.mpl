@@ -515,14 +515,17 @@ NewSLO := module ()
   reduce_PI := proc(ee, h, constraints)
     local e, nm, hh, nh, w, m, n, i, var, x, a, xs, aa, mm, ww;
     (e, nm, hh) := op(ee);
-    e := reduce(e, h, constraints);
 
     # by construction, the inner and outer h are different
     if type(e,'aryM'(anything, name, name, 'applyintegrand'(name,anything))) then
-      eval(hh, nm = 'ary'(op(1,e), op(2,e), op([4,2],e)))
+      if op(3,e) = op([4,1],e) then
+        eval(hh, nm = 'ary'(op(1,e), op(2,e), op([4,2],e)))
+      else
+        error "reduce_PI: %1 is not patently linear in %2", op(4,e), op(3,e)
+      end if
     elif type(e, 'aryM'(anything, name, name, anything)) then
       (n, i, var, a) := op(e);
-      a := reduce(a, h, constraints);
+      a := reduce(a, var, constraints);
       if type(a, `*`) then
         (m, w) := selectremove(depends, a, var);
       else
