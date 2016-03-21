@@ -63,9 +63,7 @@ mapleAST (LC_ e) =
         o :$ es        -> mapleSCon o  es
         NaryOp_ op es  -> mapleNary op es
         Literal_ v     -> mapleLiteral v
-        -- Special case pair
-        Datum_ (Datum "pair" _typ (Inl (Et (Konst a) (Et (Konst b) Done)))) ->
-            app2 "Pair" a b
+        -- Special case true
         Datum_ (Datum "true" _typ (Inl Done)) -> "True"
         Datum_ d       -> mapleDatum d
         Case_  e'  bs  -> "case(" ++ arg e' ++ "," ++

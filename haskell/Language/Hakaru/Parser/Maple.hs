@@ -209,7 +209,7 @@ maple2AST (InertArgs Rational [InertNum _ x, InertNum _ y]) =
 maple2AST x = error $ "Can't handle: " ++ show x
 
 mapleDatum2AST :: Text -> InertExpr -> AST' Text
-mapleDatum2AST "Pair" d = let [x, y] = unPairDatum d in
+mapleDatum2AST "pair" d = let [x, y] = unPairDatum d in
                           Pair (maple2AST x) (maple2AST y)
 mapleDatum2AST h _ = error ("TODO: mapleDatum " ++ Text.unpack h)
     
@@ -241,7 +241,7 @@ maple2Pattern (InertArgs Func
 maple2Pattern e = error ("TODO: maple2AST{pattern} " ++ show e)
 
 unPairDatum :: InertExpr -> [InertExpr]
-unPairDatum (InertArgs Func [InertName "PInl",
+unPairDatum (InertArgs Func [InertName "Inl",
  InertArgs ExpSeq
  [InertArgs Func
   [InertName "Et",
