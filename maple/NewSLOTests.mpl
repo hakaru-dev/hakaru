@@ -366,12 +366,12 @@ ary2  := Bind(Gaussian(0,1), x,
          Ret(ys))):
 TestHakaru(ary2, 
   Weight(ary1w, Bind(Plate(ary(n, i, Gaussian(idx(t,i),1))), zs, Ret(ary(n, i, idx(zs,i)+1)))), 
-  label="Reason for fission", ctx = [n::nonnegint]);
+  label="Reason for fission (currently fails)", ctx = [n::nonnegint]);
 ary3  := Bind(Gaussian(0,1), x,
          Bind(Plate(ary(n, i, Bind(Gaussian(idx(t,i),1),z, Weight(density[Gaussian](x,1)(idx(t,i)), Ret(z))))), zs,
          Ret(zs))):
 TestHakaru(ary3, Weight(ary1w, Plate(ary(n, i, Gaussian(idx(t,i),1)))),
-  label="Array eta (currently fails)", ctx = [n::nonnegint]);
+  label="Array eta", ctx = [n::nonnegint]);
 
 bry1  := Bind(BetaD(alpha,beta), x,
          Bind(Plate(ary(n, i, Weight(x    ^piecewise(idx(y,i)=true ,1) *
@@ -383,7 +383,7 @@ bry1s := Weight(Beta(alpha+sum(piecewise(idx(y,i)=true ,1), i=1..n),
          BetaD(alpha+sum(piecewise(idx(y,i)=true ,1), i=1..n),
                beta +sum(piecewise(idx(y,i)=false,1), i=1..n))):
 TestHakaru(bry1, bry1s, 
-  label="first way to express flipping a biased coin many times", 
+  label="first way to express flipping a biased coin many times (currently fails)",
   ctx = [n::nonnegint]);
 
 bry2  := Bind(BetaD(alpha,beta), x,
