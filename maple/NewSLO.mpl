@@ -796,12 +796,15 @@ NewSLO := module ()
 
   unintegrate := proc(h :: name, integral, context :: list(t_ctx))
     local x, c, lo, hi, m, mm, w, w0, recognition, subintegral,
-          n, i, next_context, update_context;
+          n, i, next_context, update_context, lower, upper;
     if integral :: 'And'('specfunc({Int,int})',
                          'anyfunc'('anything','name'='range'('freeof'(h)))) then
       x := gensym(op([2,1],integral));
       (lo, hi) := op(op([2,2],integral));
-      next_context := [op(context), lo<x, x<hi];
+      lower := `if`(not (lo = -infinity), lo < x, NULL);
+      upper := `if`(not (hi = infinity), x < hi, NULL);
+      if [lower, upper] = [] then lower := x :: real end if;
+      next_context := [op(context), lower, upper];
       # TODO: enrich context with x (measure class lebesgue)
       subintegral := eval(op(1,integral), op([2,1],integral) = x);
       (w, m) := unweight(unintegrate(h, subintegral, next_context));
