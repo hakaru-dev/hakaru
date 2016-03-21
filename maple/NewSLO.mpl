@@ -145,6 +145,7 @@ NewSLO := module ()
         recognize, get_de, recognize_de, mysolve, Diffop, Recognized,
         reduce, to_assumption, simplify_assuming, convert_piecewise,
         reduce_pw, reduce_Int, get_indicators,
+        integrate_ary,
         flip_cond,
         reduce_PI, elim_int,
         indicator, extract_dom, banish, known_measures,
@@ -251,24 +252,30 @@ NewSLO := module ()
       end if;
       x := gensym(x);
       # we don't know the dimension, so use x as a vector variable.
-      ProductIntegral(integrate(op(1,m),h), x, applyintegrand(h, x));
-    # note that if we get here, we're at type M, so this is an array
-    # of measures
-    # [ccshan: It doesn't make sense to get here with an array of measures. My perhaps outdated understanding of this function is we should only get here with a measure. An array of measures is never a measure.]
-    elif m :: 'ary'(anything, name, anything) then
-      x := 'hh';
-      if h :: 'Integrand(name, anything)' then
-        x := op(1,h);
-      end if;
-      x := gensym(x);
-      # aryM = array of Measures
-      aryM(op(1,m), op(2,m), x, integrate(op(3,m), x));
+      ProductIntegral(integrate_ary(op(1,m),h), x, applyintegrand(h, x));
     elif h :: procedure then
       x := gensym('xa');
       'integrate'(m, Integrand(x, h(x)))
     else
       'procname(_passed)'
     end if
+  end proc;
+
+  # integrates programs that denote arrays of measures
+  integrate_ary := proc(m, h)
+    local x;
+
+    if m :: 'ary'(anything, name, anything) then
+      x := 'hh';
+      if h :: 'Integrand(name, anything)' then x := op(1,h); end if;
+      x := gensym(x);
+      # aryM = array of Measures
+      aryM(op(1,m), op(2,m), x, integrate(op(3,m), x));
+    else
+      # right now, throw a hard error rather than just passing things
+      # through; once we understand this better, we'll revert.
+      error "was expecting an array program but got %1 instead", m;
+    end if;
   end proc;
 
 # Step 2 of 3: computer algebra
@@ -787,7 +794,7 @@ NewSLO := module ()
     Context(op(1,c), fromLO(op(2,c), op(1,c)))
   end proc;
 
-  unintegrate := proc(h :: name, integral, context :: list)
+  unintegrate := proc(h :: name, integral, context :: list(t_ctx))
     local x, c, lo, hi, m, mm, w, w0, recognition, subintegral,
           n, i, next_context, update_context;
     if integral :: 'And'('specfunc({Int,int})',
