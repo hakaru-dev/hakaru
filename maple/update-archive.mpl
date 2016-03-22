@@ -19,4 +19,5 @@ LibraryTools:-Save(`eval/Branch`, lib):
 LibraryTools:-Save(`eval/Bind`, lib):
 LibraryTools:-Save(`eval/ary`, lib):
 LibraryTools:-Save(`gensym`, lib):
+LibraryTools:-Save('KB', lib):
 LibraryTools:-Save('NewSLO', lib):

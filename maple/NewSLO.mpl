@@ -138,6 +138,234 @@ end module: # gensym
 
 #############################################################################
 
+KB := module ()
+  option package;
+  local KB,
+        assert_deny,
+        ge_assuming, le_assuming, gt_assuming, lt_assuming,
+        binder_ge, binder_le, binder_gt, binder_lt,
+        ModuleLoad, ModuleUnload;
+  export empty, genLebesgue, genType, assert, simplify_assuming;
+  global t_kb, t_type, t_datum, t_struct,
+         HReal, HInt, Open, Closed, HData, HMeasure, HArray, HFunction,
+         Inr, Inl, Et, Done, Konst, Ident;
+
+  empty := KB();
+
+  genLebesgue := proc(x::name, lo, hi, kb::t_kb, e0)
+    # The value of a variable created using genLebesgue is respected only up to
+    # negligible changes
+    local xx;
+    xx := `if`(depends({kb,e0}, x), gensym(x), x);
+    xx, KB(xx=lo..hi, op(kb));
+  end proc;
+
+  genType := proc(x::name, t::t_type, kb::t_kb, e0)
+    # A variable created using genType is a parameter, in the sense that its
+    # value is completely respected
+    local xx;
+    xx := `if`(depends({kb,e0}, x), gensym(x), x);
+    xx, KB(xx::t, op(kb));
+  end proc;
+
+  assert := proc(b, kb::t_kb) assert_deny(b, true, kb) end proc;
+
+  assert_deny := proc(bb, pol::identical(true,false), kb::t_kb)
+    # Add `if`(pol,bb,Not(bb)) to kb
+    local b, i, k, x, e, ty, kb0;
+    if bb :: `if`(pol, {specfunc(anything, And), `and`},
+                       {specfunc(anything, Or ), `or` }) then
+      kb0 := kb;
+      for b in bb do kb0 := assert_deny(b, pol, kb0) end do;
+      return kb0;
+    elif bb :: {specfunc(anything, Not), `not`} then
+      kb0 := kb;
+      for b in bb do kb0 := assert_deny(b, not pol, kb0) end do;
+      return kb0;
+    else
+      b := simplify_assuming(bb, kb);
+      # Look through kb for the outermost scope where b makes sense
+      for i from 1 to nops(kb) do
+        k := op(i,kb);
+        if k :: {name::anything, name=anything..anything} then
+          x := lhs(k);
+          if depends(b,x) then
+            # Found the outermost scope where b makes sense
+            if typematch(b, `if`(pol, {identical(x)= e::freeof(x),
+                                       e::freeof(x)= identical(x)},
+                                      {identical(x)<>e::freeof(x),
+                                       e::freeof(x)<>identical(x)})) then
+              kb0 := KB(op(i..-1,kb));
+              ty := binder_ge(e, rhs(k), kb0);
+              if ty <> FAIL then k := subsop(2=ty,k) end if;
+              ty := binder_le(e, rhs(k), kb0);
+              if ty <> FAIL then k := subsop(2=ty,k) end if;
+              return subsop(1=(op(eval([op(1..i-1,kb)],x=e)), b, k), kb0);
+            elif typematch(b, `if`(pol, e::freeof(x)<=identical(x),
+                                        identical(x)< e::freeof(x))) then
+              ty := binder_ge(e, rhs(k), KB(op(i..-1,kb)));
+              if ty <> FAIL then k := subsop(2=ty,k) else k := (b,k) end if;
+            elif typematch(b, `if`(pol, identical(x)<=e::freeof(x),
+                                        e::freeof(x)< identical(x))) then
+              ty := binder_le(e, rhs(k), KB(op(i..-1,kb)));
+              if ty <> FAIL then k := subsop(2=ty,k) else k := (b,k) end if;
+            elif typematch(b, `if`(pol, e::freeof(x)< identical(x),
+                                        identical(x)<=e::freeof(x))) then
+              ty := binder_gt(e, rhs(k), KB(op(i..-1,kb)));
+              if ty <> FAIL then k := subsop(2=ty,k) else k := (b,k) end if;
+            elif typematch(b, `if`(pol, identical(x)< e::freeof(x),
+                                        e::freeof(x)<=identical(x))) then
+              ty := binder_lt(e, rhs(k), KB(op(i..-1,kb)));
+              if ty <> FAIL then k := subsop(2=ty,k) else k := (b,k) end if;
+            end if;
+            return subsop(i=k, kb);
+          end if;
+        end if;
+      end do;
+      # The outermost scope where b makes sense is the empty KB
+      return KB(op(kb), b);
+    end if;
+  end proc:
+
+  ge_assuming := proc(e1, e2, kb::t_kb)
+    simplify_assuming(signum(0, e1-e2,  1), kb) >= 0
+  end proc;
+
+  le_assuming := proc(e1, e2, kb::t_kb)
+    simplify_assuming(signum(0, e1-e2, -1), kb) <= 0
+  end proc;
+
+  gt_assuming := proc(e1, e2, kb::t_kb)
+    simplify_assuming(signum(0, e1-e2, -1), kb) >  0
+  end proc;
+
+  lt_assuming := proc(e1, e2, kb::t_kb)
+    simplify_assuming(signum(0, e1-e2,  1), kb) <  0
+  end proc;
+
+  binder_ge := proc(e, bi::{t_type,range}, kb::t_kb)
+    if bi :: HReal(identical(Closed(-infinity)), anything)
+       or bi :: HReal(anything, anything)
+          and gt_assuming(e, op([1,1],bi), kb) then
+      subsop(1=Closed(e), bi);
+    elif bi :: {HInt(identical(-infinity), anything),
+                identical(-infinity) .. anything}
+         or bi :: {HInt(anything, anything), range}
+            and gt_assuming(e, op(1,bi), kb) then
+      subsop(1=e, bi);
+    else
+      FAIL;
+    end if
+  end proc;
+
+  binder_le := proc(e, bi::{t_type,range}, kb::t_kb)
+    if bi :: HReal(anything, identical(Closed(infinity)))
+       or bi :: HReal(anything, anything)
+          and lt_assuming(e, op([2,1],bi), kb) then
+      subsop(2=Closed(e), bi);
+    elif bi :: {HInt(anything, identical(infinity)),
+                anything .. identical(infinity)}
+         or bi :: {HInt(anything, anything), range}
+            and lt_assuming(e, op(2,bi), kb) then
+      subsop(2=e, bi);
+    else
+      FAIL;
+    end if
+  end proc;
+
+  binder_gt := proc(e, bi::{t_type,range}, kb::t_kb)
+    if bi :: HReal(identical(Closed(-infinity), Open(-infinity)), anything)
+       or bi :: HReal(anything, anything)
+          and ge_assuming(e, op([1,1],bi), kb) then
+      subsop(1=Open(e), bi);
+    elif bi :: HInt(identical(-infinity), anything)
+         or bi :: HInt(anything, anything)
+            and ge_assuming(e, op(1,bi), kb) then
+      subsop(1=simplify_assuming(floor(e)+1, kb), bi);
+    elif bi :: (identical(-infinity) .. anything)
+         or bi :: range and gt_assuming(e, op(1,bi), kb) then
+      subsop(1=e, bi);
+    else
+      FAIL;
+    end if
+  end proc;
+
+  binder_lt := proc(e, bi::{t_type,range}, kb::t_kb)
+    if bi :: HReal(anything, identical(Closed(-infinity), Open(-infinity)))
+       or bi :: HReal(anything, anything)
+          and le_assuming(e, op([2,1],bi), kb) then
+      subsop(2=Open(e), bi);
+    elif bi :: HInt(anything, identical(infinity))
+         or bi :: HInt(anything, anything)
+            and le_assuming(e, op(2,bi), kb) then
+      subsop(2=simplify_assuming(floor(e)+1, kb), bi);
+    elif bi :: (anything .. identical(infinity))
+         or bi :: range and lt_assuming(e, op(2,bi), kb) then
+      subsop(2=e, bi);
+    else
+      FAIL;
+    end if
+  end proc;
+
+  simplify_assuming := proc(e, kb::t_kb)
+    simplify(e) assuming op(map(proc(k)
+      local x, lo, hi, ty;
+      if typematch(k, x::name = lo::anything .. hi::anything) then
+        `if`(lo=-infinity, NULL, lo<x),
+        `if`(hi= infinity, NULL, x<hi),
+        x::real
+      elif k :: (name :: anything) then
+        x, ty := op(k);
+        if typematch(ty, HReal(lo::anything, hi::anything)) then
+          `if`(lo=Closed(-infinity), NULL, `if`(op(0,lo)=Closed, op(1,lo)<=x,
+                                                                 op(1,lo)< x)),
+          `if`(hi=Closed( infinity), NULL, `if`(op(0,hi)=Closed, x<=op(1,hi),
+                                                                 x< op(1,hi))),
+          x::real
+        elif typematch(ty, HInt(lo::anything, hi::anything)) then
+          `if`(lo=-infinity, NULL, lo<x),
+          `if`(hi= infinity, NULL, x<hi),
+          x::integer
+        else
+          NULL; # Maple doesn't understand our other types
+        end if
+      else
+        k
+      end if
+    end proc, kb))
+  end proc;
+
+  ModuleLoad := proc()
+    TypeTools[AddType](t_kb,
+      'specfunc({name::t_type,
+                 name=range,
+                 boolean, specfunc(anything, {Or,Not})}, KB)');
+    TypeTools[AddType](t_type,
+      '{HReal({Open(anything), Closed(anything)},
+              {Open(anything), Closed(anything)}),
+        HInt(anything, anything),
+        HData(anything, t_datum),
+        HMeasure(t_type),
+        HArray(t_type),
+        HFunction(t_type, t_type)}');
+    TypeTools[AddType](t_datum,
+      '{Inr(t_datum), Inl(t_struct)}');
+    TypeTools[AddType](t_struct,
+      '{Et({Konst(t_type), Ident(t_type)}, t_struct), identical(Done)}');
+  end proc;
+
+  ModuleUnload := proc()
+    TypeTools[RemoveType](t_kb);
+    TypeTools[RemoveType](t_type);
+    TypeTools[RemoveType](t_datum);
+    TypeTools[RemoveType](t_struct);
+  end proc;
+
+  ModuleLoad();
+end module; # KB
+
+#############################################################################
+
 NewSLO := module ()
   option package;
   local t_pw, t_case, p_true, p_false,
