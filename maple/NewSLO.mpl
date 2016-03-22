@@ -140,7 +140,7 @@ end module: # gensym
 
 KB := module ()
   option package;
-  local KB, AlmostEverywhere,
+  local KB, HType, AlmostEverywhere,
         assert_deny,
         ge_assuming, le_assuming, gt_assuming, lt_assuming,
         binder_ge, binder_le, binder_gt, binder_lt,
@@ -165,7 +165,7 @@ KB := module ()
     # value is completely respected
     local xx;
     xx := `if`(depends({kb,e0}, x), gensym(x), x);
-    xx, KB(xx::t, op(kb));
+    xx, KB(HType(xx,t), op(kb));
   end proc;
 
   assert := proc(b, kb::t_kb) assert_deny(b, true, kb) end proc;
@@ -187,7 +187,7 @@ KB := module ()
       # Look through kb for the outermost scope where b makes sense
       for i from 1 to nops(kb) do
         k := op(i,kb);
-        if k :: {name::anything, AlmostEverywhere(name,range)} then
+        if k :: {HType(name,anything), AlmostEverywhere(name,range)} then
           x := op(1,k);
           if depends(b,x) then
             # Found the outermost scope where b makes sense
@@ -314,8 +314,7 @@ KB := module ()
         `if`(lo=-infinity, NULL, lo<x),
         `if`(hi= infinity, NULL, x<hi),
         x::real
-      elif k :: (name :: anything) then
-        x, ty := op(k);
+      elif typematch(k, HType(x::name, ty::anything)) then
         if typematch(ty, HReal(lo::anything, hi::anything)) then
           `if`(lo=Closed(-infinity), NULL, `if`(op(0,lo)=Closed, op(1,lo)<=x,
                                                                  op(1,lo)< x)),
@@ -337,7 +336,7 @@ KB := module ()
 
   ModuleLoad := proc()
     TypeTools[AddType](t_kb,
-      'specfunc({name::t_type,
+      'specfunc({HType(name,t_type),
                  AlmostEverywhere(name,range),
                  boolean, specfunc(anything, {Or,Not})}, KB)');
     TypeTools[AddType](t_type,
