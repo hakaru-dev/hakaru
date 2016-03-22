@@ -140,7 +140,7 @@ end module: # gensym
 
 KB := module ()
   option package;
-  local KB,
+  local KB, AlmostEverywhere,
         assert_deny,
         ge_assuming, le_assuming, gt_assuming, lt_assuming,
         binder_ge, binder_le, binder_gt, binder_lt,
@@ -157,7 +157,7 @@ KB := module ()
     # negligible changes
     local xx;
     xx := `if`(depends({kb,e0}, x), gensym(x), x);
-    xx, KB(xx=lo..hi, op(kb));
+    xx, KB(AlmostEverywhere(xx,lo..hi), op(kb));
   end proc;
 
   genType := proc(x::name, t::t_type, kb::t_kb, e0)
@@ -187,8 +187,8 @@ KB := module ()
       # Look through kb for the outermost scope where b makes sense
       for i from 1 to nops(kb) do
         k := op(i,kb);
-        if k :: {name::anything, name=anything..anything} then
-          x := lhs(k);
+        if k :: {name::anything, AlmostEverywhere(name,range)} then
+          x := op(1,k);
           if depends(b,x) then
             # Found the outermost scope where b makes sense
             if typematch(b, `if`(pol, {identical(x)= e::freeof(x),
@@ -196,26 +196,26 @@ KB := module ()
                                       {identical(x)<>e::freeof(x),
                                        e::freeof(x)<>identical(x)})) then
               kb0 := KB(op(i..-1,kb));
-              ty := binder_ge(e, rhs(k), kb0);
+              ty := binder_ge(e, op(2,k), kb0);
               if ty <> FAIL then k := subsop(2=ty,k) end if;
-              ty := binder_le(e, rhs(k), kb0);
+              ty := binder_le(e, op(2,k), kb0);
               if ty <> FAIL then k := subsop(2=ty,k) end if;
               return subsop(1=(op(eval([op(1..i-1,kb)],x=e)), b, k), kb0);
             elif typematch(b, `if`(pol, e::freeof(x)<=identical(x),
                                         identical(x)< e::freeof(x))) then
-              ty := binder_ge(e, rhs(k), KB(op(i..-1,kb)));
+              ty := binder_ge(e, op(2,k), KB(op(i..-1,kb)));
               if ty <> FAIL then b := NULL; k := subsop(2=ty,k) end if;
             elif typematch(b, `if`(pol, identical(x)<=e::freeof(x),
                                         e::freeof(x)< identical(x))) then
-              ty := binder_le(e, rhs(k), KB(op(i..-1,kb)));
+              ty := binder_le(e, op(2,k), KB(op(i..-1,kb)));
               if ty <> FAIL then b := NULL; k := subsop(2=ty,k) end if;
             elif typematch(b, `if`(pol, e::freeof(x)< identical(x),
                                         identical(x)<=e::freeof(x))) then
-              ty := binder_gt(e, rhs(k), KB(op(i..-1,kb)));
+              ty := binder_gt(e, op(2,k), KB(op(i..-1,kb)));
               if ty <> FAIL then b := NULL; k := subsop(2=ty,k) end if;
             elif typematch(b, `if`(pol, identical(x)< e::freeof(x),
                                         e::freeof(x)<=identical(x))) then
-              ty := binder_lt(e, rhs(k), KB(op(i..-1,kb)));
+              ty := binder_lt(e, op(2,k), KB(op(i..-1,kb)));
               if ty <> FAIL then b := NULL; k := subsop(2=ty,k) end if;
             end if;
             return subsop(i=(b,k), kb);
@@ -310,7 +310,7 @@ KB := module ()
   simplify_assuming := proc(e, kb::t_kb)
     simplify(e) assuming op(map(proc(k)
       local x, lo, hi, ty;
-      if typematch(k, x::name = lo::anything .. hi::anything) then
+      if typematch(k, AlmostEverywhere(x::name,lo::anything..hi::anything)) then
         `if`(lo=-infinity, NULL, lo<x),
         `if`(hi= infinity, NULL, x<hi),
         x::real
@@ -338,7 +338,7 @@ KB := module ()
   ModuleLoad := proc()
     TypeTools[AddType](t_kb,
       'specfunc({name::t_type,
-                 name=range,
+                 AlmostEverywhere(name,range),
                  boolean, specfunc(anything, {Or,Not})}, KB)');
     TypeTools[AddType](t_type,
       '{HReal({Open(anything), Closed(anything)},
