@@ -204,21 +204,21 @@ KB := module ()
             elif typematch(b, `if`(pol, e::freeof(x)<=identical(x),
                                         identical(x)< e::freeof(x))) then
               ty := binder_ge(e, rhs(k), KB(op(i..-1,kb)));
-              if ty <> FAIL then k := subsop(2=ty,k) else k := (b,k) end if;
+              if ty <> FAIL then b := NULL; k := subsop(2=ty,k) end if;
             elif typematch(b, `if`(pol, identical(x)<=e::freeof(x),
                                         e::freeof(x)< identical(x))) then
               ty := binder_le(e, rhs(k), KB(op(i..-1,kb)));
-              if ty <> FAIL then k := subsop(2=ty,k) else k := (b,k) end if;
+              if ty <> FAIL then b := NULL; k := subsop(2=ty,k) end if;
             elif typematch(b, `if`(pol, e::freeof(x)< identical(x),
                                         identical(x)<=e::freeof(x))) then
               ty := binder_gt(e, rhs(k), KB(op(i..-1,kb)));
-              if ty <> FAIL then k := subsop(2=ty,k) else k := (b,k) end if;
+              if ty <> FAIL then b := NULL; k := subsop(2=ty,k) end if;
             elif typematch(b, `if`(pol, identical(x)< e::freeof(x),
                                         e::freeof(x)<=identical(x))) then
               ty := binder_lt(e, rhs(k), KB(op(i..-1,kb)));
-              if ty <> FAIL then k := subsop(2=ty,k) else k := (b,k) end if;
+              if ty <> FAIL then b := NULL; k := subsop(2=ty,k) end if;
             end if;
-            return subsop(i=k, kb);
+            return subsop(i=(b,k), kb);
           end if;
         end if;
       end do;
