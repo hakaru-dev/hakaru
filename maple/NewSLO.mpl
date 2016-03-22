@@ -1409,10 +1409,10 @@ NewSLO := module ()
   make_piece := proc(rel)
     # Try to prevent PiecewiseTools:-Is from complaining
     # "Wrong kind of parameters in piecewise"
-    if rel :: {'`::`', 'boolean', '`in`'} then
-      rel
-    elif rel :: {specfunc(anything, {And,Or,Not}), `and`, `or`, `not`} then
+    if rel :: {specfunc(anything, {And,Or,Not}), `and`, `or`, `not`} then
       map(make_piece, rel)
+    elif rel :: {'`::`', 'boolean', '`in`'} then
+      rel
     else
       rel = true
     end if
