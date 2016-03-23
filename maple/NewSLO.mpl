@@ -154,10 +154,10 @@ end module: # gensym
 KB := module ()
   option package;
   local KB, Introduce, Constrain,
-        assert_deny, htype_to_property,
+        assert_deny, coalesce_bounds, htype_to_property,
         ModuleLoad, ModuleUnload;
   export empty, genLebesgue, genType, assert,
-         simplify_assuming, kb_to_assumptions;
+         kb_subtract, simplify_assuming, kb_to_assumptions;
   global t_kb, t_type, t_datum, t_struct, Bound,
          AlmostEveryReal, HReal, HInt, HData, HMeasure, HArray, HFunction,
          Inr, Inl, Et, Done, Konst, Ident;
@@ -278,42 +278,85 @@ KB := module ()
     end if
   end proc:
 
+  kb_subtract := proc(kb::t_kb, kb0::t_kb)
+    local cut;
+    cut := nops(kb) - nops(kb0);
+    if cut < 0 or KB(op(cut+1..-1, kb)) <> kb0 then
+      error "%1 is not an extension of %2", kb, kb0;
+    end if;
+    map(proc(k)
+      local x, t;
+      if k :: Introduce(name, anything) then
+        x, t := op(k);
+        if t :: specfunc(AlmostEveryReal) then
+          [genLebesgue, x,
+           op([1,2], select(type, t, Bound(identical(`>`), anything))),
+           op([1,2], select(type, t, Bound(identical(`<`), anything)))]
+        else
+          [genType, x, t]
+        end if
+      elif k :: Bound(name, anything, anything) then
+        [assert, op(2,k)(op(1,k),op(3,k))]
+      elif k :: Constrain(anything) then
+        [assert, op(1,k)]
+      end if
+    end proc, [op(coalesce_bounds(KB(op(1..cut, kb))))])
+  end proc;
+
+  coalesce_bounds := proc(kb::t_kb)
+    local t_intro, t_lo, t_hi, lo, hi, rest, k, x, t, b, s, r;
+    t_intro := 'Introduce(name, specfunc({AlmostEveryReal,HReal,HInt}))';
+    t_lo    := 'identical(`>`,`>=`)';
+    t_hi    := 'identical(`<`,`<=`)';
+    for k in select(type, kb, t_intro) do
+      x, t := op(k);
+      b, t := selectremove(type, t, Bound(t_lo, anything));
+      if nops(b) > 0 then lo[x] := op(1,b) end if;
+      b, t := selectremove(type, t, Bound(t_hi, anything));
+      if nops(b) > 0 then hi[x] := op(1,b) end if;
+      rest[x] := [op(t)];
+    end do;
+    for k in select(type, kb, Bound(name, t_lo, anything)) do
+      lo[op(1,k)] := subsop(1=NULL,k);
+    end do;
+    for k in select(type, kb, Bound(name, t_hi, anything)) do
+      hi[op(1,k)] := subsop(1=NULL,k);
+    end do;
+    map(proc(k)
+      if k :: t_intro then
+        x := op(1,k);
+        subsop(2=op([2,0],k)(op(select(type, [lo[x], hi[x]], specfunc(Bound))),
+                             op(rest[x])),
+               k);
+      elif k :: Bound(name, anything, anything) and rest[op(1,k)] :: list then
+        NULL;
+      else
+        k;
+      end if;
+    end proc, kb);
+  end proc;
+
   simplify_assuming := proc(e, kb::t_kb)
     simplify(e) assuming op(kb_to_assumptions(kb))
   end proc;
 
   kb_to_assumptions := proc(kb)
-    local lo, hi, k, x, t, b, subst;
-    for k in select(type, kb,
-                    Introduce(name, specfunc({AlmostEveryReal,HReal,HInt}))) do
-      x, t := op(k);
-      b := select(type, t, Bound(identical(`>`,`>=`), anything));
-      if nops(b) > 0 then lo[x] := op(1,b) end if;
-      b := select(type, t, Bound(identical(`<`,`<=`), anything));
-      if nops(b) > 0 then hi[x] := op(1,b) end if;
-    end do;
-    for k in select(type, kb, Bound(name, identical(`>`,`>=`), anything)) do
-      lo[op(1,k)] := subsop(1=NULL,k);
-    end do;
-    for k in select(type, kb, Bound(name, identical(`<`,`<=`), anything)) do
-      hi[op(1,k)] := subsop(1=NULL,k);
-    end do;
-    subst := {op(map2(op, 1, select(type, kb, Constrain(name=anything))))};
+    local t_intro;
+    t_intro := 'Introduce(name, specfunc({AlmostEveryReal,HReal,HInt}))';
     map(proc(k)
       local x;
-      if k :: Introduce(name, anything) then
+      if k :: t_intro then
         x := op(1,k);
-        op(map((b -> op(1,b)(x, eval(op(2,b), subst))),
-               select(type, [lo[x], hi[x]], specfunc(Bound)))),
-        (x :: htype_to_property(op(2,k)))
-      elif k :: Constrain(`=`) then
-        op(1,k)
+        (x :: htype_to_property(op(2,k))),
+        op(map((b -> op(1,b)(x, op(2,b))), op(2,k)))
+      elif k :: Bound(anything, anything, anything) then
+        op(2,k)(op(1,k), op(3,k))
       elif k :: Constrain(anything) then
-        eval(op(1,k), subst)
+        op(1,k)
       else
-        NULL
+        NULL # Maple doesn't understand our other types
       end if
-    end proc, [op(kb)])
+    end proc, [op(coalesce_bounds(kb))])
   end proc;
 
   htype_to_property := proc(t::t_type)
