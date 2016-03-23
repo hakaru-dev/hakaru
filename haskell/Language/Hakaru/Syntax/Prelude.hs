@@ -73,14 +73,12 @@ module Language.Hakaru.Syntax.Prelude
     -- | When two versions of the same operator are given, the one without the prime builds an AST using the built-in operator, whereas the one with the prime is a default definition in terms of more primitive measure operators.
     , lebesgue
     , counting
-    , categorical, categorical'
-    , densityUniform
-    , uniform, uniform'
-    , densityNormal
-    , normal, normal'
-    , poisson, poisson'
-    , gamma, gamma'
-    , beta, beta'
+    , densityCategorical, categorical, categorical'
+    , densityUniform, uniform, uniform'
+    , densityNormal, normal, normal'
+    , densityPoisson, poisson, poisson'
+    , densityGamma, gamma, gamma'
+    , densityBeta, beta, beta'
     , plate, plate'
     , chain, chain'
     , invgamma
@@ -1227,6 +1225,13 @@ withGuard
 withGuard b m = if_ b m reject
 
 
+densityCategorical
+    :: (ABT Term abt)
+    => abt '[] ('HArray 'HProb)
+    -> abt '[] 'HNat
+    -> abt '[] 'HProb
+densityCategorical v i = v ! i / sumV v
+
 categorical, categorical'
     :: (ABT Term abt)
     => abt '[] ('HArray 'HProb)
@@ -1237,8 +1242,8 @@ categorical = measure1_ Categorical
 categorical' v =
     counting >>= \i ->
     withGuard (int_ 0 <= i && i < nat2int (size v)) $
-    let_ (abs_ i) $ \j ->
-    weightedDirac j (v!j / sumV v)
+    let_ (unsafeFrom_ signed i) $ \i_ ->
+    weightedDirac i_ (densityCategorical v i_)
 
 
 densityUniform
@@ -1288,6 +1293,18 @@ normal' mu sd  =
     lebesgue >>= \x ->
     weightedDirac x (densityNormal mu sd x)
 
+
+densityPoisson
+    :: (ABT Term abt)
+    => abt '[] 'HProb
+    -> abt '[] 'HNat
+    -> abt '[] 'HProb
+densityPoisson l x =
+     l ^ x
+       / gammaFunc (nat2real (x + nat_ 1)) -- TODO: use factorial instead of gammaFunc...
+       / exp l
+
+
 poisson, poisson'
     :: (ABT Term abt) => abt '[] 'HProb -> abt '[] ('HMeasure 'HNat)
 poisson = measure1_ Poisson
@@ -1295,11 +1312,20 @@ poisson = measure1_ Poisson
 poisson' l = 
     counting >>= \x ->
     -- TODO: use 'SafeFrom_' instead of @if_ (x >= int_ 0)@ so we can prove that @unsafeFrom_ signed x@ is actually always safe.
-    withGuard (int_ 0 <= x && prob_ 0 < l) -- N.B., @0 < l@ means simply that @l /= 0@; why phrase it the other way?
-        $ weightedDirac (unsafeFrom_ signed x)
-            $ l ^^ x
-                / gammaFunc (fromInt (x + int_ 1)) -- TODO: use factorial instead of gammaFunc...
-                / exp l
+    withGuard (int_ 0 <= x && prob_ 0 < l) $ -- N.B., @0 < l@ means simply that @l /= 0@; why phrase it the other way?
+    let_ (unsafeFrom_ signed x) $ \x_ ->
+        weightedDirac x_ (densityPoisson l x_)
+
+densityGamma
+    :: (ABT Term abt)
+    => abt '[] 'HProb
+    -> abt '[] 'HProb
+    -> abt '[] 'HProb
+    -> abt '[] 'HProb
+densityGamma shape scale x =
+    x ** (fromProb shape - real_ 1)
+    * exp (negate . fromProb $ x / scale)
+    / (scale ** shape * gammaFunc shape)
 
 
 gamma, gamma'
@@ -1314,11 +1340,18 @@ gamma' shape scale =
     -- TODO: use 'SafeFrom_' instead of @if_ (real_ 0 < x)@ so we can prove that @unsafeProb x@ is actually always safe. Of course, then we'll need to mess around with checking (/=0) which'll get ugly... Use another SafeFrom_ with an associated NonZero type?
     withGuard (real_ 0 < x) $
     let_ (unsafeProb x) $ \ x_ ->
-    weightedDirac x_
-        $ x_ ** (fromProb shape - real_ 1)
-            * exp (negate . fromProb $ x_ / scale)
-            / (scale ** shape * gammaFunc shape)
+    weightedDirac x_ (densityGamma shape scale x_)
 
+densityBeta
+    :: (ABT Term abt)
+    => abt '[] 'HProb
+    -> abt '[] 'HProb
+    -> abt '[] 'HProb
+    -> abt '[] 'HProb
+densityBeta a b x =
+    x ** (fromProb a - real_ 1)
+    * unsafeProb (real_ 1 - fromProb x) ** (fromProb b - real_ 1)
+    / betaFunc a b
 
 beta, beta'
     :: (ABT Term abt)
@@ -1330,11 +1363,8 @@ beta = measure2_ Beta
 beta' a b =
     -- TODO: make Uniform polymorphic, so that if the two inputs are HProb then we know the measure must be over HProb too, and hence @unsafeProb x@ must always be safe. Alas, capturing the safety of @unsafeProb (1-x)@ would take a lot more work...
     unsafeProb <$> uniform (real_ 0) (real_ 1) >>= \x ->
-    weightedDirac x
-        $ x ** (fromProb a - real_ 1)
-            * unsafeProb (real_ 1 - fromProb x) ** (fromProb b - real_ 1)
-            / betaFunc a b
-
+    weightedDirac x (densityBeta a b x)
+        
 plate :: (ABT Term abt)
       => abt '[] 'HNat
       -> (abt '[] 'HNat -> abt '[] ('HMeasure a))

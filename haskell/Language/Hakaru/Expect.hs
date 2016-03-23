@@ -345,7 +345,7 @@ expectMeasure _ Categorical = \(ps :* End) _ ->
 expectMeasure _ Uniform = \(lo :* hi :* End) _ ->
     ExpectMeasure $ \c ->
     integrate lo hi $ \x ->
-        c x / unsafeProb (hi - lo)
+        densityUniform hi lo x * c x
 expectMeasure _ Normal = \(mu :* sd :* End) _ ->
     -- N.B., if\/when extending this to higher dimensions, the real equation is @recip (sqrt (2*pi*sd^2) ^ n) * integrate$\x -> c x * exp (negate (norm_n (x - mu) ^ 2) / (2*sd^2))@ for @Real^n@.
     ExpectMeasure $ \c ->
@@ -355,25 +355,18 @@ expectMeasure _ Poisson = \(l :* End) _ ->
     ExpectMeasure $ \c ->
     flip (if_ (prob_ 0 < l)) (prob_ 0)
         $ summate (real_ 0) infinity $ \x ->
-            l ^^ x
-            / gammaFunc (fromInt x + real_ 1)
-            / exp (fromProb l)
-            * c (unsafeFrom_ signed x)
+            let x_ = unsafeFrom_ signed x in
+            densityPoisson l x_ * c x_
 expectMeasure _ Gamma = \(shape :* scale :* End) _ ->
     ExpectMeasure $ \c ->
     integrate (real_ 0) infinity $ \x ->
         let x_ = unsafeProb x in
-        x_ ** (fromProb shape - real_ 1)
-        * exp (negate . fromProb $ x_ / scale)
-        / (scale ** shape * gammaFunc shape)
-        * c x_
+        densityGamma shape scale x_ * c x_
 expectMeasure _ Beta = \(a :* b :* End) _ ->
     ExpectMeasure $ \c ->
     integrate (real_ 0) (real_ 1) $ \x ->
         let x_ = unsafeProb x in
-        x_ ** (fromProb a - real_ 1)
-        * (unsafeProb (real_ 1 - x) ** (fromProb b - real_ 1))
-        / betaFunc a b * c (unsafeProb x)
+        densityBeta a b x_ * c x_
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
