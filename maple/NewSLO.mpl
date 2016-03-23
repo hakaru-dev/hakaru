@@ -443,8 +443,8 @@ NewSLO := module ()
     StudentT(anything, anything, anything),
     BetaD(anything, anything), GammaD(anything, anything)}':
 
-  integrate := proc(m, h, loops :: list(range))
-    local x, n, i, aa;
+  integrate := proc(m, h, loops :: list(name = range))
+    local x, n, i, res;
     if m :: known_measures then
       x := 'xx';
       if h :: 'Integrand(name, anything)' then
@@ -454,7 +454,15 @@ NewSLO := module ()
       Int(density[op(0,m)](op(m))(x) * applyintegrand(h, x),
         x = bounds[op(0,m)](op(m)));
     elif m :: 'Ret(anything)' then
-      applyintegrand(h, op(1,m))
+      if loops = [] then
+        applyintegrand(h, op(1,m))
+      else
+        res := op(1,m);
+        for i in loops do
+          res := ary(op([2,2],i), op(1, i), res);
+        end do;
+        applyintegrand(h, res);
+      end if
     elif m :: 'Bind(anything, name, anything)' then
       integrate(op(1,m), eval(Integrand(op(2,m), 'integrate'(op(3,m), x)), x=h), loops)
     elif m :: 'specfunc(Msum)' then
@@ -474,15 +482,7 @@ NewSLO := module ()
     elif m :: 'LO(name, anything)' then
       eval(op(2,m), op(1,m) = h)
     elif m :: 'Plate'('ary'(anything, name, anything)) then
-      x := 'pp';
-      if h :: 'Integrand(name, anything)' then
-        x := op(1,h);
-      end if;
-      x := gensym(x);
-      h := gensym('hh');
-      aa := aryM(op([1,1],m), op([1,2],m), h, integrate(op([1,3],m), h, loops));
-      # we don't know the dimension, so use x as a vector variable.
-      ProductIntegral(aa, x, applyintegrand(h, x));
+      integrate(op([1,3],m), h, [op([1,2], m) = 1 .. op([1,1],m)]);
     elif h :: procedure then
       x := gensym('xa');
       'integrate'(m, Integrand(x, h(x)), loops)
@@ -1046,9 +1046,9 @@ NewSLO := module ()
         end if;
         weight(w0, bind(Lebesgue(), x, m))
       end if
-    elif integral :: 'aryM'(anything, name, name, anything) then
-      m := unintegrate(op(3,integral), op(4, integral), context);
-      'ary'(op(1,integral), op(2, integral), m);
+    # elif integral :: 'ary'(anything, name, anything) then
+    #   m := unintegrate(h, op(3, integral), context);
+    #   'ary'(op(1,integral), op(2, integral), m);
     elif integral :: 'ProductIntegral'(anything, name, anything) then
       m := unintegrate(h, op(1, integral), context);
       (w,m) := unweight(m);
