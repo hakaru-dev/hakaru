@@ -105,6 +105,19 @@ end proc:
 
 #############################################################################
 
+foldr_piecewise := proc(cons, nil, pw) # pw may or may not be piecewise
+  # View pw as a piecewise and foldr over its arms
+  if pw :: specfunc(piecewise) then
+    foldr(proc(i,x) cons(op(i,pw), op(i+1,pw), x) end proc,
+          `if`(nops(pw)::odd, cons(true, op(-1,pw), nil), nil),
+          seq(1..nops(pw)-1, 2))
+  else
+    cons(true, pw, nil)
+  end if
+end proc;
+
+#############################################################################
+
 # make gensym global, so that it can be shared with other 'global' routines
 gensym := module()
   export ModuleApply;
@@ -140,209 +153,185 @@ end module: # gensym
 
 KB := module ()
   option package;
-  local KB, HType, AlmostEverywhere,
-        assert_deny,
-        ge_assuming, le_assuming, gt_assuming, lt_assuming,
-        binder_ge, binder_le, binder_gt, binder_lt,
+  local KB, Introduce, Constrain,
+        assert_deny, htype_to_property,
         ModuleLoad, ModuleUnload;
-  export empty, genLebesgue, genType, assert, simplify_assuming;
-  global t_kb, t_type, t_datum, t_struct,
-         HReal, HInt, Open, Closed, HData, HMeasure, HArray, HFunction,
+  export empty, genLebesgue, genType, assert,
+         simplify_assuming, kb_to_assumptions;
+  global t_kb, t_type, t_datum, t_struct, Bound,
+         AlmostEveryReal, HReal, HInt, HData, HMeasure, HArray, HFunction,
          Inr, Inl, Et, Done, Konst, Ident;
 
   empty := KB();
 
-  genLebesgue := proc(x::name, lo, hi, kb::t_kb, e0)
+  genLebesgue := proc(xx::name, lo, hi, kb::t_kb)
     # The value of a variable created using genLebesgue is respected only up to
     # negligible changes
-    local xx;
-    xx := `if`(depends({kb,e0}, x), gensym(x), x);
-    xx, KB(AlmostEverywhere(xx,lo..hi), op(kb));
+    genType(xx, AlmostEveryReal(Bound(`>`,lo), Bound(`<`,hi)), kb, _rest)
   end proc;
 
-  genType := proc(x::name, t::t_type, kb::t_kb, e0)
+  genType := proc(xx::name, t::t_type, kb::t_kb)
     # A variable created using genType is a parameter, in the sense that its
     # value is completely respected
-    local xx;
-    xx := `if`(depends({kb,e0}, x), gensym(x), x);
-    xx, KB(HType(xx,t), op(kb));
+    local x;
+    x := `if`(depends([t,kb,_rest], xx), gensym(xx), xx);
+    x, KB(Introduce(x, t), op(kb));
   end proc;
 
   assert := proc(b, kb::t_kb) assert_deny(b, true, kb) end proc;
 
   assert_deny := proc(bb, pol::identical(true,false), kb::t_kb)
-    # Add `if`(pol,bb,Not(bb)) to kb
-    local b, i, k, x, e, ty, kb0;
-    if bb :: `if`(pol, {specfunc(anything, And), `and`},
-                       {specfunc(anything, Or ), `or` }) then
-      kb0 := kb;
-      for b in bb do kb0 := assert_deny(b, pol, kb0) end do;
-      return kb0;
+    # Add `if`(pol,bb,Not(bb)) to kb and return the resulting KB.
+    local as, b, k, x, rel, e, c, y;
+    if bb = pol then
+      # Ignore literal true and Not(false).
+      kb
+    elif bb :: `if`(pol, {specfunc(anything, And), `and`},
+                         {specfunc(anything, Or ), `or` }) then
+      foldr(((b,kb) -> assert_deny(b, pol, kb)), kb, op(bb))
     elif bb :: {specfunc(anything, Not), `not`} then
-      kb0 := kb;
-      for b in bb do kb0 := assert_deny(b, not pol, kb0) end do;
-      return kb0;
+      foldr(((b,kb) -> assert_deny(b, not pol, kb)), kb, op(bb))
     else
-      b := simplify_assuming(bb, kb);
-      # Look through kb for the outermost scope where b makes sense
-      for i from 1 to nops(kb) do
-        k := op(i,kb);
-        if k :: {HType(name,anything), AlmostEverywhere(name,range)} then
-          x := op(1,k);
-          if depends(b,x) then
-            # Found the outermost scope where b makes sense
-            if typematch(b, `if`(pol, {identical(x)= e::freeof(x),
-                                       e::freeof(x)= identical(x)},
-                                      {identical(x)<>e::freeof(x),
-                                       e::freeof(x)<>identical(x)})) then
-              kb0 := KB(op(i..-1,kb));
-              ty := binder_ge(e, op(2,k), kb0);
-              if ty <> FAIL then k := subsop(2=ty,k) end if;
-              ty := binder_le(e, op(2,k), kb0);
-              if ty <> FAIL then k := subsop(2=ty,k) end if;
-              return subsop(1=(op(eval([op(1..i-1,kb)],x=e)), b, k), kb0);
-            elif typematch(b, `if`(pol, e::freeof(x)<=identical(x),
-                                        identical(x)< e::freeof(x))) then
-              ty := binder_ge(e, op(2,k), KB(op(i..-1,kb)));
-              if ty <> FAIL then b := NULL; k := subsop(2=ty,k) end if;
-            elif typematch(b, `if`(pol, identical(x)<=e::freeof(x),
-                                        e::freeof(x)< identical(x))) then
-              ty := binder_le(e, op(2,k), KB(op(i..-1,kb)));
-              if ty <> FAIL then b := NULL; k := subsop(2=ty,k) end if;
-            elif typematch(b, `if`(pol, e::freeof(x)< identical(x),
-                                        identical(x)<=e::freeof(x))) then
-              ty := binder_gt(e, op(2,k), KB(op(i..-1,kb)));
-              if ty <> FAIL then b := NULL; k := subsop(2=ty,k) end if;
-            elif typematch(b, `if`(pol, identical(x)< e::freeof(x),
-                                        e::freeof(x)<=identical(x))) then
-              ty := binder_lt(e, op(2,k), KB(op(i..-1,kb)));
-              if ty <> FAIL then b := NULL; k := subsop(2=ty,k) end if;
-            end if;
-            return subsop(i=(b,k), kb);
+      as := kb_to_assumptions(kb);
+      b := simplify(bb) assuming op(as);
+      # Reduce (in)equality between exp(a) and exp(b) to between a and b.
+      while b :: 'relation(exp(anything))'
+        and (is(op([1,1], b), real) and is(op([2,1], b), real) assuming op(as))
+      do b := map2(op, 1, b) end do;
+      # Look through kb for the innermost scope where b makes sense.
+      k := select((k -> k :: Introduce(name, anything) and depends(b, op(1,k))),
+                  kb);
+      if nops(k) > 0 then
+        x, k := op(op(1,k));
+        # Found the innermost scope where b makes sense.
+        if b :: And(Or(`<`, `<=`),
+                    Or(anyop(identical(x), freeof(x)),
+                       anyop(freeof(x), identical(x)))) then
+          # b is a bound on x, so compare it against the current bound on x.
+          # First, express `if`(pol,b,Not(b)) as rel(x,e)
+          rel := op(0,b);
+          if x = lhs(b) then
+            e := rhs(b);
+          else#x=rhs(b)
+            e := lhs(b);
+            rel := subs({`<`=`>`, `<=`=`>=`}, rel);
           end if;
-        end if;
-      end do;
-      # The outermost scope where b makes sense is the empty KB
-      return KB(op(kb), b);
-    end if;
+          if not pol then
+            rel := subs({`<`=`>=`, `<=`=`>`, `>`=`<=`, `>=`=`<`}, rel);
+          end if;
+          if k :: specfunc(AlmostEveryReal) then
+            rel := subs({`<=`=`<`, `>=`=`>`}, rel);
+          end if;
+          # Second, look up the current bound on x, if any.
+          c := `if`(rel in {`>`, `>=`}, identical(`>`, `>=`), identical(`<`, `<=`));
+          c := [op(map2(subsop, 1=NULL,
+                   select(type, kb, Bound(identical(x), c, anything)))),
+                op(select(type, k , Bound(              c, anything)) )];
+          # Compare the new bound rel        (x,e          )
+          # against the old bound op([1,1],c)(x,op([1,2],c))
+          if nops(c)>0
+            and (is(rel(y,e)) assuming op([1,1],c)(y,op([1,2],c)),
+                   y::htype_to_property(k), op(as)) then
+            # The old bound renders the new bound superfluous.
+            return kb
+          elif nops(c)=0
+            or (is(op([1,1],c)(y,op([1,2],c))) assuming rel(y,e),
+                  y::htype_to_property(k), op(as)) then
+            # The new bound supersedes the old bound.
+            return KB(Bound(x,rel,e), op(kb))
+          end if
+        else
+          # Try to make b about x using convert/piecewise.
+          try
+            c := convert(piecewise(b, true, false), 'piecewise', x)
+              assuming op(as);
+            if c :: specfunc(boolean, piecewise) then
+              c := foldr_piecewise(
+                     proc(cond, th, el)
+                       # cond and th or not cond and el
+                       local a, o, n;
+                       a := (x,y)-> `if`(x=true,y, `if`(x=false,x,
+                                    `if`(y=true,x, `if`(y=false,y, And(x,y)))));
+                       o := (x,y)-> `if`(x=false,y, `if`(x=true,x,
+                                    `if`(y=false,x, `if`(y=true,y, Or (x,y)))));
+                       n := x    -> `if`(x=false,true,
+                                    `if`(x=true,false,             Not(x)));
+                       o(a(cond,th), a(n(cond),el));
+                     end proc,
+                     false,
+                     c);
+            end if
+          catch: c := b;
+          end try;
+          if c <> b then return assert_deny(c, pol, kb) end if
+        end if
+      end if;
+      # Normalize `=` and `<>` constraints a bit.
+      if not pol then
+        if   b :: `=`  then pol, b := true, `<>`(op(b))
+        elif b :: `<>` then pol, b := true, `=` (op(b))
+        end if
+      end if;
+      if b :: (anything=name) then b := (rhs(b)=lhs(b)) end if;
+      # Add constraint to KB.
+      KB(Constrain(`if`(pol,b,Not(b))), op(kb))
+    end if
   end proc:
 
-  ge_assuming := proc(e1, e2, kb::t_kb)
-    simplify_assuming(signum(0, e1-e2,  1), kb) >= 0
-  end proc;
-
-  le_assuming := proc(e1, e2, kb::t_kb)
-    simplify_assuming(signum(0, e1-e2, -1), kb) <= 0
-  end proc;
-
-  gt_assuming := proc(e1, e2, kb::t_kb)
-    simplify_assuming(signum(0, e1-e2, -1), kb) >  0
-  end proc;
-
-  lt_assuming := proc(e1, e2, kb::t_kb)
-    simplify_assuming(signum(0, e1-e2,  1), kb) <  0
-  end proc;
-
-  binder_ge := proc(e, bi::{t_type,range}, kb::t_kb)
-    if bi :: HReal(identical(Closed(-infinity)), anything)
-       or bi :: HReal(anything, anything)
-          and gt_assuming(e, op([1,1],bi), kb) then
-      subsop(1=Closed(e), bi);
-    elif bi :: {HInt(identical(-infinity), anything),
-                identical(-infinity) .. anything}
-         or bi :: {HInt(anything, anything), range}
-            and gt_assuming(e, op(1,bi), kb) then
-      subsop(1=e, bi);
-    else
-      FAIL;
-    end if
-  end proc;
-
-  binder_le := proc(e, bi::{t_type,range}, kb::t_kb)
-    if bi :: HReal(anything, identical(Closed(infinity)))
-       or bi :: HReal(anything, anything)
-          and lt_assuming(e, op([2,1],bi), kb) then
-      subsop(2=Closed(e), bi);
-    elif bi :: {HInt(anything, identical(infinity)),
-                anything .. identical(infinity)}
-         or bi :: {HInt(anything, anything), range}
-            and lt_assuming(e, op(2,bi), kb) then
-      subsop(2=e, bi);
-    else
-      FAIL;
-    end if
-  end proc;
-
-  binder_gt := proc(e, bi::{t_type,range}, kb::t_kb)
-    if bi :: HReal(identical(Closed(-infinity), Open(-infinity)), anything)
-       or bi :: HReal(anything, anything)
-          and ge_assuming(e, op([1,1],bi), kb) then
-      subsop(1=Open(e), bi);
-    elif bi :: HInt(identical(-infinity), anything)
-         or bi :: HInt(anything, anything)
-            and ge_assuming(e, op(1,bi), kb) then
-      subsop(1=simplify_assuming(floor(e)+1, kb), bi);
-    elif bi :: (identical(-infinity) .. anything)
-         or bi :: range and gt_assuming(e, op(1,bi), kb) then
-      subsop(1=e, bi);
-    else
-      FAIL;
-    end if
-  end proc;
-
-  binder_lt := proc(e, bi::{t_type,range}, kb::t_kb)
-    if bi :: HReal(anything, identical(Closed(-infinity), Open(-infinity)))
-       or bi :: HReal(anything, anything)
-          and le_assuming(e, op([2,1],bi), kb) then
-      subsop(2=Open(e), bi);
-    elif bi :: HInt(anything, identical(infinity))
-         or bi :: HInt(anything, anything)
-            and le_assuming(e, op(2,bi), kb) then
-      subsop(2=simplify_assuming(floor(e)+1, kb), bi);
-    elif bi :: (anything .. identical(infinity))
-         or bi :: range and lt_assuming(e, op(2,bi), kb) then
-      subsop(2=e, bi);
-    else
-      FAIL;
-    end if
-  end proc;
-
   simplify_assuming := proc(e, kb::t_kb)
-    simplify(e) assuming op(map(proc(k)
-      local x, lo, hi, ty;
-      if typematch(k, AlmostEverywhere(x::name,lo::anything..hi::anything)) then
-        `if`(lo=-infinity, NULL, lo<x),
-        `if`(hi= infinity, NULL, x<hi),
-        x::real
-      elif typematch(k, HType(x::name, ty::anything)) then
-        if typematch(ty, HReal(lo::anything, hi::anything)) then
-          `if`(lo=Closed(-infinity), NULL, `if`(op(0,lo)=Closed, op(1,lo)<=x,
-                                                                 op(1,lo)< x)),
-          `if`(hi=Closed( infinity), NULL, `if`(op(0,hi)=Closed, x<=op(1,hi),
-                                                                 x< op(1,hi))),
-          x::real
-        elif typematch(ty, HInt(lo::anything, hi::anything)) then
-          `if`(lo=-infinity, NULL, lo<x),
-          `if`(hi= infinity, NULL, x<hi),
-          x::integer
-        else
-          NULL; # Maple doesn't understand our other types
-        end if
+    simplify(e) assuming op(kb_to_assumptions(kb))
+  end proc;
+
+  kb_to_assumptions := proc(kb)
+    local lo, hi, k, x, t, b, subst;
+    for k in select(type, kb,
+                    Introduce(name, specfunc({AlmostEveryReal,HReal,HInt}))) do
+      x, t := op(k);
+      b := select(type, t, Bound(identical(`>`,`>=`), anything));
+      if nops(b) > 0 then lo[x] := op(1,b) end if;
+      b := select(type, t, Bound(identical(`<`,`<=`), anything));
+      if nops(b) > 0 then hi[x] := op(1,b) end if;
+    end do;
+    for k in select(type, kb, Bound(name, identical(`>`,`>=`), anything)) do
+      lo[op(1,k)] := subsop(1=NULL,k);
+    end do;
+    for k in select(type, kb, Bound(name, identical(`<`,`<=`), anything)) do
+      hi[op(1,k)] := subsop(1=NULL,k);
+    end do;
+    subst := {op(map2(op, 1, select(type, kb, Constrain(name=anything))))};
+    map(proc(k)
+      local x;
+      if k :: Introduce(name, anything) then
+        x := op(1,k);
+        op(map((b -> op(1,b)(x, eval(op(2,b), subst))),
+               select(type, [lo[x], hi[x]], specfunc(Bound)))),
+        (x :: htype_to_property(op(2,k)))
+      elif k :: Constrain(`=`) then
+        op(1,k)
+      elif k :: Constrain(anything) then
+        eval(op(1,k), subst)
       else
-        k
+        NULL
       end if
-    end proc, kb))
+    end proc, [op(kb)])
+  end proc;
+
+  htype_to_property := proc(t::t_type)
+    if t :: specfunc({AlmostEveryReal, HReal}) then real
+    elif t :: specfunc(HInt) then integer
+    else TopProp end if
   end proc;
 
   ModuleLoad := proc()
     TypeTools[AddType](t_kb,
-      'specfunc({HType(name,t_type),
-                 AlmostEverywhere(name,range),
-                 boolean, specfunc(anything, {Or,Not})}, KB)');
+      'specfunc({
+         Introduce(name, t_type),
+         Bound(name, identical(`<`,`<=`,`>`,`>=`), anything),
+         Constrain({boolean, specfunc(anything,{Or,Not})})
+       }, KB)');
     TypeTools[AddType](t_type,
-      '{HReal({Open(anything), Closed(anything)},
-              {Open(anything), Closed(anything)}),
-        HInt(anything, anything),
+      '{specfunc(Bound(identical(`<`,`<=`,`>`,`>=`), anything),
+                 {AlmostEveryReal, HReal, HInt}),
         HData(anything, t_datum),
         HMeasure(t_type),
         HArray(t_type),
@@ -377,7 +366,7 @@ NewSLO := module ()
         reduce_PI, elim_int,
         indicator, extract_dom, banish, known_measures,
         myexpand_product,
-        piecewise_if, nub_piecewise, foldr_piecewise,
+        piecewise_if, nub_piecewise,
         ModuleLoad, ModuleUnload, verify_measure,
         find_vars, find_constraints, interpret, reconstruct, invert, 
         get_var_pos, get_int_pos,
@@ -995,17 +984,6 @@ NewSLO := module ()
 
   nub_piecewise := proc(pw) # pw may or may not be piecewise
     foldr_piecewise(piecewise_if, 0, pw)
-  end proc;
-
-  foldr_piecewise := proc(cons, nil, pw) # pw may or may not be piecewise
-    # View pw as a piecewise and foldr over its arms
-    if pw :: t_pw then
-      foldr(proc(i,x) cons(op(i,pw), op(i+1,pw), x) end proc,
-            `if`(nops(pw)::odd, cons(true, op(-1,pw), nil), nil),
-            seq(1..nops(pw)-1, 2))
-    else
-      cons(true, pw, nil)
-    end if
   end proc;
 
   map_piecewise := proc(f,p)
