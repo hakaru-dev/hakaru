@@ -1544,9 +1544,6 @@ NewSLO := module ()
     elif m :: 'specfunc(Msum)' then
       total := `+`(op(map((mi -> unweight(mi)[1]), m)));
       (total, map((mi -> weight(1/total, mi)), m))
-    elif m :: 'specfunc(ary)' then
-      (ww,mm) := unweight(op(3,m));
-      (product(ww, op(2,m)=1..op(1,m)), 'ary'(op(1,m), op(2,m), mm))
     else
       # TODO: Better weight estimate for piecewise & density-recognition cases?
       (1, m)
