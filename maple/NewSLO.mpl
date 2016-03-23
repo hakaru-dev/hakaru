@@ -444,15 +444,21 @@ NewSLO := module ()
     BetaD(anything, anything), GammaD(anything, anything)}':
 
   integrate := proc(m, h, loops :: list(name = range))
-    local x, n, i, res;
+    local x, n, i, res, dens, bds, l;
     if m :: known_measures then
       x := 'xx';
       if h :: 'Integrand(name, anything)' then
         x := op(1,h);
       end if;
       x := gensym(x);
-      Int(density[op(0,m)](op(m))(x) * applyintegrand(h, x),
-        x = bounds[op(0,m)](op(m)));
+      dens := density[op(0,m)](op(m));
+      bds := bounds[op(0,m)](op(m));
+      if loops = [] then
+        Int(dens(x) * applyintegrand(h, x), x = bds );
+      else
+        Ints([seq(PROD(dens(idx(x,op(1,l))), l), l in loops)],
+          applyintegrand(h, x), x, bds);
+      end if;
     elif m :: 'Ret(anything)' then
       if loops = [] then
         applyintegrand(h, op(1,m))
@@ -464,7 +470,7 @@ NewSLO := module ()
         applyintegrand(h, res);
       end if
     elif m :: 'Bind(anything, name, anything)' then
-      integrate(op(1,m), eval(Integrand(op(2,m), 'integrate'(op(3,m), x)), x=h), loops)
+      integrate(op(1,m), eval(Integrand(op(2,m), 'integrate'(op(3,m), x, loops)), x=h), loops)
     elif m :: 'specfunc(Msum)' then
       `+`(op(map(integrate, [op(m)], h, loops)))
     elif m :: 'Weight(anything, anything)' then
@@ -475,7 +481,7 @@ NewSLO := module ()
                     i=1..n))
     elif m :: t_case then
       subsop(2=map(proc(b :: Branch(anything, anything))
-                     eval(subsop(2='integrate'(op(2,b),x, loops),b), x=h)
+                     eval(subsop(2='integrate'(op(2,b), x, loops),b), x=h)
                    end proc,
                    op(2,m)),
              m);
