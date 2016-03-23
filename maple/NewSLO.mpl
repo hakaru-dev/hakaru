@@ -372,7 +372,6 @@ NewSLO := module ()
         recognize, get_de, recognize_de, mysolve, Diffop, Recognized,
         reduce, to_assumption, simplify_assuming, convert_piecewise,
         reduce_pw, reduce_Int, get_indicators,
-        integrate_ary,
         flip_cond,
         reduce_PI, elim_int,
         indicator, extract_dom, banish, known_measures,
@@ -431,7 +430,7 @@ NewSLO := module ()
   toLO := proc(m)
     local h;
     h := gensym('h');
-    LO(h, integrate(m, h))
+    LO(h, integrate(m, h, []))
   end proc;
 
   # toLO does not use the context, so just map in
@@ -444,8 +443,8 @@ NewSLO := module ()
     StudentT(anything, anything, anything),
     BetaD(anything, anything), GammaD(anything, anything)}':
 
-  integrate := proc(m, h)
-    local x, n, i;
+  integrate := proc(m, h, loops :: list(range))
+    local x, n, i, aa;
     if m :: known_measures then
       x := 'xx';
       if h :: 'Integrand(name, anything)' then
@@ -457,52 +456,39 @@ NewSLO := module ()
     elif m :: 'Ret(anything)' then
       applyintegrand(h, op(1,m))
     elif m :: 'Bind(anything, name, anything)' then
-      integrate(op(1,m), eval(Integrand(op(2,m), 'integrate'(op(3,m), x)), x=h))
+      integrate(op(1,m), eval(Integrand(op(2,m), 'integrate'(op(3,m), x)), x=h), loops)
     elif m :: 'specfunc(Msum)' then
-      `+`(op(map(integrate, [op(m)], h)))
+      `+`(op(map(integrate, [op(m)], h, loops)))
     elif m :: 'Weight(anything, anything)' then
-      op(1,m) * integrate(op(2,m), h)
+      op(1,m) * integrate(op(2,m), h, loops)
     elif m :: t_pw then
       n := nops(m);
-      piecewise(seq(`if`(i::even or i=n, integrate(op(i,m), h), op(i,m)),
+      piecewise(seq(`if`(i::even or i=n, integrate(op(i,m), h, loops), op(i,m)),
                     i=1..n))
     elif m :: t_case then
       subsop(2=map(proc(b :: Branch(anything, anything))
-                     eval(subsop(2='integrate'(op(2,b),x),b), x=h)
+                     eval(subsop(2='integrate'(op(2,b),x, loops),b), x=h)
                    end proc,
                    op(2,m)),
              m);
     elif m :: 'LO(name, anything)' then
       eval(op(2,m), op(1,m) = h)
-    elif m :: 'Plate'(anything) then
+    elif m :: 'Plate'('ary'(anything, name, anything)) then
       x := 'pp';
       if h :: 'Integrand(name, anything)' then
         x := op(1,h);
       end if;
       x := gensym(x);
+      h := gensym('hh');
+      aa := aryM(op([1,1],m), op([1,2],m), h, integrate(op([1,3],m), h, loops));
       # we don't know the dimension, so use x as a vector variable.
-      ProductIntegral(integrate_ary(op(1,m)), x, applyintegrand(h, x));
+      ProductIntegral(aa, x, applyintegrand(h, x));
     elif h :: procedure then
       x := gensym('xa');
-      'integrate'(m, Integrand(x, h(x)))
+      'integrate'(m, Integrand(x, h(x)), loops)
     else
       'procname(_passed)'
     end if
-  end proc;
-
-  # integrates programs that denote arrays of measures
-  integrate_ary := proc(m)
-    local h;
-
-    if m :: 'ary'(anything, name, anything) then
-      h := gensym('hh');
-      # aryM = array of Measures
-      aryM(op(1,m), op(2,m), h, integrate(op(3,m), h));
-    else
-      # right now, throw a hard error rather than just passing things
-      # through; once we understand this better, we'll revert.
-      error "was expecting an array program but got %1 instead", m;
-    end if;
   end proc;
 
 # Step 2 of 3: computer algebra
@@ -603,7 +589,7 @@ NewSLO := module ()
                    end proc,
                    op(2,e)),
              e);
-    elif e :: 'integrate(anything, Integrand(name, anything))' then
+    elif e :: 'integrate(anything, Integrand(name, anything), list)' then
       x := gensym(op([2,1],e));
       # TODO is there any way to enrich constraints in this case?
       subsop(2=Integrand(x, reduce(subs(op([2,1],e)=x, op([2,2],e)),
@@ -900,9 +886,9 @@ NewSLO := module ()
     if g = 0 then
       0
     elif levels <= 0 then
-      integrate(m, Integrand(x, g))
+      integrate(m, Integrand(x, g), []) # is [] right ?
     elif not depends(g, x) then
-      integrate(m, x->1) * g
+      integrate(m, x->1, []) * g
     elif g :: `+` then
       map[4](banish, m, x, h, g, levels)
     elif g :: `*` then
@@ -941,12 +927,12 @@ NewSLO := module ()
                    end proc,
                    op(2,integral)),
              integral);
-    elif g :: 'integrate(freeof(x), Integrand(name, anything))' then
+    elif g :: 'integrate(freeof(x), Integrand(name, anything), list)' then
       y := gensym(op([2,1],g));
       subsop(2=Integrand(y, banish(m, x, h,
         subs(op([2,1],g)=y, op([2,2],g)), levels-1)), g)
     else
-      integrate(m, Integrand(x, g))
+      integrate(m, Integrand(x, g), [])
     end if
   end proc;
 
@@ -1108,7 +1094,7 @@ NewSLO := module ()
                    end proc,
                    op(2,integral)),
              integral);
-    elif integral :: 'integrate'('freeof'(h), 'anything') then
+    elif integral :: 'integrate'('freeof'(h), 'anything', []) then
       x := 'x';
       if op(2,integral) :: 'Integrand(name, anything)' then
         x := op([2,1],integral);
@@ -1256,7 +1242,7 @@ NewSLO := module ()
                               unintegrate(h, op(i,integral), next_context),
                               op(i,integral)),
                     i=1..n))
-    elif integral :: 'integrate'('freeof'(h), 'anything') then
+    elif integral :: 'integrate'('freeof'(h), 'anything', []) then
       x := 'x';
       if op(2,integral) :: 'Integrand(name, anything)' then
         x := op([2,1],integral);
