@@ -186,15 +186,6 @@ allTests = test
 
 -- TODO: move to Prelude.hs
 -- HACK: will throw errors if the input is negative and the required output is 'HProb'
-fromRational
-    :: forall abt a
-    . (ABT Term abt, HFractional_ a)
-    -> Rational
-    => abt '[] a
-fromRational =
-    case (hFractional :: HFractional a) of
-    HFractional_Prob -> prob_ . unsafeNonNegativeRational
-    HFractional_Real -> real_
 
 half :: (ABT Term abt, HFractional_ a) => abt '[] a
 half = fromRational (1/2)
