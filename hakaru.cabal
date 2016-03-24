@@ -70,7 +70,7 @@ Library
                        Language.Hakaru.Evaluation.DisintegrationMonad,
                        Language.Hakaru.Disintegrate,
                        Language.Hakaru.Inference,
-                       Language.Hakaru.Util.Csv,
+                       --Language.Hakaru.Util.Csv,
                        Data.Number.Nat,
                        Data.Number.Natural
 
@@ -85,7 +85,6 @@ Library
 -- pretty used in LH.PrettyPrint
 -- transformer used in LH.Maple
 -- math-functions used in LH.Distributions (and in Maple)
--- monad-loops used in LH.Distributions
 -- vector used in LH.Util.Csv
 -- bytestring used in LH.Util.Csv
 -- zlib used in LH.Util.Csv
@@ -106,9 +105,9 @@ Library
                        vector           >= 0.10,
                        indentation      >= 0.2.1,
                        ansi-terminal    >= 0.6,
-                       cassava          >= 0.4  && < 0.5,
-                       zlib             >= 0.5  && < 0.7,
-                       bytestring       >= 0.10 && < 0.11,
+                       -- cassava       >= 0.4  && < 0.5,
+                       -- zlib          >= 0.5  && < 0.7,
+                       -- bytestring    >= 0.10 && < 0.11,
                        -- aeson         >= 0.7  && < 0.12,
                        text             >= 0.11 && < 1.3,
                        -- statistics    >= 0.11 && < 0.14,
@@ -118,7 +117,6 @@ Library
                        directory        >= 1.2  && < 1.3,
                        integration      >= 0.2.0 && < 0.3.0,
                        primitive        >= 0.5  && < 0.7,
-                       monad-loops      >= 0.3.0.2,
                        process          >= 1.1  && < 2.0,
                        HUnit            >= 1.2  && < 2.0,
                        mtl              >= 2.1,
@@ -144,7 +142,6 @@ Test-Suite system-testsuite
                        pretty           >= 1.1  && < 1.2,
                        mwc-random       >= 0.13 && < 0.14,
                        math-functions   >= 0.1  && < 0.2,
-                       monad-loops      >= 0.3.0.2,
                        integration      >= 0.2  && < 0.3,
                        ansi-terminal    >= 0.6,
                        HUnit            >= 1.2  && < 2.0,
@@ -152,10 +149,10 @@ Test-Suite system-testsuite
                        process          >= 1.1  && < 2.0,
                        mtl              >= 2.1,
                        vector           >= 0.10,
-                       text             >= 0.11 && < 1.3,
-                       cassava          >= 0.4  && < 0.5,
-                       zlib             >= 0.5  && < 0.7,
-                       bytestring       >= 0.10 && < 0.11
+                       -- cassava       >= 0.4  && < 0.5,
+                       -- zlib          >= 0.5  && < 0.7,
+                       -- bytestring    >= 0.10 && < 0.11,
+                       text             >= 0.11 && < 1.3
 
 ----------------------------------------------------------------
 Executable hakaru
