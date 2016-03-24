@@ -11,4 +11,6 @@ extra-deps:
  - logfloat-0.13.3.3
  - pretty-1.1.3.2
 
-flags: {}
+flags:
+  indentation:
+    trifecta: false
