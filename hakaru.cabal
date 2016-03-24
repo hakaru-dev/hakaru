@@ -130,7 +130,7 @@ Test-Suite system-testsuite
     Main-is:           Tests/TestSuite.hs
     Hs-Source-Dirs:    haskell
     Default-Language:  Haskell2010
-    GHC-Options:       -Wall -fwarn-tabs
+    GHC-Options:       -w -fwarn-tabs
 
     Build-Depends:     base             >= 4.6  && < 5.0, 
                        Cabal            >= 1.16, 

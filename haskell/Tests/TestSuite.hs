@@ -8,6 +8,7 @@ import qualified Tests.TypeCheck    as TC
 import qualified Tests.Simplify     as S
 import qualified Tests.Disintegrate as D
 import qualified Tests.Sample       as E
+import qualified Tests.RoundTrip    as RT
 
 import Test.HUnit
 
@@ -29,10 +30,17 @@ allTests env = test
   , TestLabel "Simplify"     (simplifyTests env)
   , TestLabel "Disintegrate" D.allTests
   , TestLabel "Evaluate"     E.allTests
+  , TestLabel "RoundTrip"    RT.allTests
   ]
 
+--t1 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
+--t1 = uniform_0_1 >>= \x -> factor (unsafeProb x)
+
+--t5 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
+--t5 = factor half >> dirac unit
+
 main :: IO ()
-main = do
+main  = do
     env <- lookupEnv "LOCAL_MAPLE"
     Counts _ _ e f <- runTestTT (allTests env)
     if (e>0) || (f>0) then exitFailure else return ()

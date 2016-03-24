@@ -65,7 +65,7 @@ module Language.Hakaru.Syntax.Prelude
     
     -- * Measures
     -- ** Abstract nonsense
-    , dirac, (<$>), (<*>), (<*), (*>), (>>=), (>>), bindx
+    , dirac, (<$>), (<*>), (<*), (*>), (>>=), (>>), bindx, liftM2
     -- ** Linear operators
     , superpose
     , weight, withWeight, weightedDirac
@@ -102,7 +102,7 @@ module Language.Hakaru.Syntax.Prelude
     -- ** HUnit
     , unit
     -- ** HPair
-    , pair, unpair, fst, snd
+    , pair, unpair, fst, snd, swap
     -- ** HEither
     , left, right, uneither
     -- ** HMaybe
@@ -726,6 +726,11 @@ snd :: (ABT Term abt)
     => abt '[] (HPair a b)
     -> abt '[] b
 snd p = unpair p (\_ y -> y)
+
+swap :: (ABT Term abt, SingI a, SingI b)
+    => abt '[] (HPair a b)
+    -> abt '[] (HPair b a)
+swap ab = unpair ab (flip pair)
 
 left
     :: (ABT Term abt, SingI a, SingI b)

@@ -11,6 +11,9 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Syntax.AST.AlphaEq
 import Language.Hakaru.Pretty.Concrete
+import Language.Hakaru.Simplify
+import Language.Hakaru.Types.DataKind
+import Language.Hakaru.Syntax.AST.Eq()
 
 import Data.Maybe (isJust)
 import Data.List
@@ -38,18 +41,43 @@ assertJust = assertBool "expected Just but got Nothing" . isJust
 handleException :: String -> SomeException -> IO a
 handleException t e = throw (TestSimplifyException t e)
 
+testS
+    :: (ABT Term abt)
+    => String
+    -> abt '[] ('HMeasure a)
+    -> Assertion
+testS p x = do
+    _ <- simplify x `catch` handleException (p ++ ": simplify failed")
+    return ()
+
+testStriv 
+    :: TrivialABT Term '[] ('HMeasure a)
+    -> Assertion
+testStriv = testS ""
+
 -- Assert that all the given Hakaru programs simplify to the given one
--- testSS :: (ABT Term abt)
---        => [abt '[] ('HMeasure a)]
---        -> abt '[] ('HMeasure a)
---        -> Assertion
--- testSS ts t' =
---     mapM_ (\t -> do p <- simplify t --`catch` handleSimplify t
---                     (assertEqual "testSS" `on` result) t' (unAny p))
---           (t' : ts)
+testSS 
+    ::  ( ABT Term abt
+        , Show (abt '[] ('HMeasure a))
+        , Eq   (abt '[] ('HMeasure a))
+        )
+    => String
+    -> [(abt '[] ('HMeasure a))] 
+    -> abt '[] ('HMeasure a) 
+    -> Assertion
+testSS nm ts t' = 
+     mapM_ (\t -> do p <- simplify t 
+                     assertEqual nm p t')
+           ts
+
+testSStriv 
+    :: [(TrivialABT Term '[] ('HMeasure a))] 
+    -> TrivialABT Term '[] ('HMeasure a) 
+    -> Assertion
+testSStriv = testSS ""
 
 assertAlphaEq ::
-    (ABT Term abt)
+    (ABT Term abt) 
     => String
     -> abt '[] a
     -> abt '[] a

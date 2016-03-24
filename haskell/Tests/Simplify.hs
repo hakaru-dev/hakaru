@@ -51,15 +51,6 @@ unifprob' =
     uniform (nat2real (nat_ 1)) (nat2real (nat_ 2)) >>= \x->
     dirac (unsafeProb x)
 
-testS
-    :: (ABT Term abt)
-    => String
-    -> abt '[] ('HMeasure a)
-    -> Assertion
-testS p x = do
-    _ <- simplify x `catch` handleException (p ++ ": simplify failed")
-    return ()
-
 testSimplify
     ::  ( ABT Term abt
         , Show (abt '[] ('HMeasure a))
