@@ -13,6 +13,7 @@ import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Syntax.Prelude
 import Language.Hakaru.Pretty.Haskell  (pretty)
 import Language.Hakaru.Expect
+import Language.Hakaru.Evaluation.ConstantPropagation (constantPropagation)
 
 
 -- | The main thing is that this should typecheck and not throw
@@ -24,7 +25,7 @@ import Language.Hakaru.Expect
 --
 -- Should return a program equivalent to @lam $ \x -> x@.
 test1 :: TrivialABT Term '[] ('HProb ':-> 'HProb)
-test1 = lam $ \x -> total (weight_ x)
+test1 = lam $ \x -> total (weight x)
 
 
 -- | Again the main thing is that this should typecheck and not
@@ -63,7 +64,7 @@ test3 = syn (Lam_ :$ bind x (total (var x `app` int_ 3)) :* End)
 -- @1@) by evaluating away the @if_ true@ part. Notably, the result
 -- should not be affected by the 'weight' in the else branch.
 test4 :: TrivialABT Term '[] 'HProb
-test4 = total $ if_ true (dirac unit) (weight_ (prob_ 5) >> dirac unit)
+test4 = total $ if_ true (dirac unit) (weight (prob_ 5) >> dirac unit)
 
 
 test5 :: TrivialABT Term '[] (HEither HUnit HUnit ':-> 'HProb)
@@ -72,9 +73,20 @@ test5 =
         total $
             uneither x
             (\_ -> dirac unit)
-            (\_ -> weight_ (prob_ 5) >> dirac unit)
+            (\_ -> weight (prob_ 5) >> dirac unit)
 
 {-
 total (array (nat_ 1) (\x -> dirac x) ! nat_ 0) :: TrivialABT Term '[] 'HProb
 syn (Literal_ (VProb 1.0))
 -}
+
+-- | Regression check for the hygiene bug:
+-- <https://github.com/hakaru-dev/hakaru/issues/14>
+test6 :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
+test6 = normalize $ 
+    normal zero one >>= \x ->
+    normal x (prob_ 2) >>= \y ->
+    dirac (pair y x)
+
+test6' :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
+test6' = constantPropagation test6
