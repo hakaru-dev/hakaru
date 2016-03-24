@@ -17,20 +17,20 @@ import Test.HUnit
 ignored :: Assertion
 ignored = putStrLn "Warning: maple tests will be ignored"
 
-simplifyTests :: Maybe String -> Test
-simplifyTests env =
+simplifyTests :: Test -> Maybe String -> Test
+simplifyTests t env =
   case env of
-    Just _  -> S.allTests
+    Just _  -> t
     Nothing -> test ignored
 
 allTests :: Maybe String -> Test
 allTests env = test
   [ TestLabel "Parser"       P.allTests
   , TestLabel "TypeCheck"    TC.allTests
-  , TestLabel "Simplify"     (simplifyTests env)
+  , TestLabel "Simplify"     (simplifyTests S.allTests env)
   , TestLabel "Disintegrate" D.allTests
   , TestLabel "Evaluate"     E.allTests
-  , TestLabel "RoundTrip"    RT.allTests
+  , TestLabel "RoundTrip"    (simplifyTests RT.allTests env)
   ]
 
 --t1 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
