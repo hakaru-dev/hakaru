@@ -92,6 +92,8 @@ primTable =
     ,("nat2real",    primCoerce cNat2Real)
     ,("nat2prob",    primCoerce cNat2Prob)
      -- Measures
+    ,("flat",        TNeu $ U.MeasureOp_
+                            (U.SealedOp T.Lebesgue) [])
     ,("lebesgue",    TNeu $ U.MeasureOp_
                             (U.SealedOp T.Lebesgue) [])
     ,("counting",    TNeu $ U.MeasureOp_
