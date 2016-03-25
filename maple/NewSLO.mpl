@@ -371,7 +371,7 @@ NewSLO := module ()
         unweight, factorize, pattern_match, make_piece,
         recognize, get_de, recognize_de, mysolve, Diffop, Recognized,
         reduce, to_assumption, simplify_assuming, convert_piecewise,
-        reduce_pw, reduce_Int, get_indicators,
+        reduce_pw, reduce_Int, reduce_wl, reduce_Ints, get_indicators,
         flip_cond,
         reduce_PI, elim_int,
         indicator, extract_dom, banish, known_measures,
@@ -445,6 +445,10 @@ NewSLO := module ()
 
   integrate := proc(m, h, loops :: list(name = range))
     local x, n, i, res, dens, bds, l;
+
+    # FIXME
+    if nops(loops)>1 then error "only single loops implemented" end if;
+
     if m :: known_measures then
       x := 'xx';
       if h :: 'Integrand(name, anything)' then
@@ -456,7 +460,8 @@ NewSLO := module ()
       if loops = [] then
         Int(dens(x) * applyintegrand(h, x), x = bds );
       else
-        Ints([seq(PROD(dens(idx(x,op(1,l))), l), l in loops)],
+        # Product, not %product, so that 'improve' doesn't get too smart!
+        Ints([seq(Product(dens(idx(x,op(1,l))), l), l in loops)],
           applyintegrand(h, x), x, bds);
       end if;
     elif m :: 'Ret(anything)' then
@@ -474,7 +479,11 @@ NewSLO := module ()
     elif m :: 'specfunc(Msum)' then
       `+`(op(map(integrate, [op(m)], h, loops)))
     elif m :: 'Weight(anything, anything)' then
-      op(1,m) * integrate(op(2,m), h, loops)
+      if loops = [] then
+        op(1,m) * integrate(op(2,m), h, loops)
+      else
+        product(op(1,m),loops[1]) * integrate(op(2,m), h, loops)
+      end if
     elif m :: t_pw then
       n := nops(m);
       piecewise(seq(`if`(i::even or i=n, integrate(op(i,m), h, loops), op(i,m)),
@@ -549,7 +558,7 @@ NewSLO := module ()
   # TODO unify constraints with unintegrate's context
   reduce := proc(ee, h :: name, constraints :: list(t_ctx))
     # option remember, system;
-    local e, elim, hh, subintegral, w, ww, n, i, x, c, myint, res;
+    local e, elim, hh, subintegral, w, ww, n, i, x, c, myint, res, rest;
     e := ee;
 
     if e :: Int(anything, name=anything) then
@@ -562,6 +571,9 @@ NewSLO := module ()
       else
         e
       end if;
+    elif e :: 'Ints'(list, anything, name, range) then
+      # TODO: we should have an elim_ints pass first
+      reduce_Ints(op(e), h, constraints);
     elif e :: `+` then
       map(reduce, e, h, constraints)
     elif e :: `*` then
@@ -601,7 +613,7 @@ NewSLO := module ()
       subsop(2=Integrand(x, reduce(subs(op([2,1],e)=x, op([2,2],e)),
                                    h, constraints)), e)
     elif e :: 'ProductIntegral'(anything, name, anything) then
-      reduce_PI(e, h, constraints);
+      error "we should never encounter this now"
     else
       simplify_assuming(e, constraints)
     end if;
@@ -648,7 +660,7 @@ NewSLO := module ()
 
   simplify_assuming := proc(ee, constraints :: list(t_ctx))
     local e, ep;
-    e := evalindets(ee, 'specfunc(product)', myexpand_product);
+    e := evalindets(ee, 'specfunc({%product, product})', myexpand_product);
     e := evalindets(e, 'specfunc(sum)', expand);
     e := simplify(e) assuming op(map(to_assumption, constraints));
     eval(e, exp = expand @ exp);
@@ -731,64 +743,34 @@ NewSLO := module ()
     e
   end proc;
 
-  reduce_PI := proc(ee, h, constraints)
-    local e, nm, hh, nh, w, m, n, i, var, x, a, xs, aa, mm, ww, inner;
-    (e, nm, hh) := op(ee);
-
-    # by construction, the inner and outer h are different
-    if type(e,'aryM'(anything, name, name, 'applyintegrand'(name,anything))) then
-      if op(3,e) = op([4,1],e) then
-        eval(hh, nm = 'ary'(op(1,e), op(2,e), op([4,2],e)))
-      else
-        error "reduce_PI: %1 is not patently linear in %2", op(4,e), op(3,e)
-      end if
-    elif type(e, 'aryM'(anything, name, name, anything)) then
-      (n, i, var, a) := op(e);
-      a := reduce(a, var, constraints);
-      if type(a, `*`) then
-        (m, w) := selectremove(depends, a, var);
-      else
-        (m, w) := (a, 1);
-      end if;
-
-      w := simplify_assuming(product(w, i=1..n), constraints);
-      # special case; could do Integrand too.
-      if a :: 'Int'(anything, name = range) then
-        if type(op(1,a), `*`) then
-          (mm, ww) := selectremove(depends, op(1,a), var);
+  reduce_wl := proc(wl :: list, var :: name, constraints :: list)
+    local w, weights;
+    weights := map(simplify_assuming, wl, constraints);
+    w := 1;
+    weights := map(proc(ww) 
+        local w1, w2;
+        if type(ww, `*`) then
+          (w1, w2) := selectremove(depends, ww, var);
+        elif depends(ww, var) then
+          (w1, w2) := (ww, 1)
         else
-          (mm, ww) := (op(1,a), 1);
+          (w1, w2) := (1, ww)
         end if;
-        if not type(mm, 'applyintegrand'(name, name)) then
-          x := op([2,1], a);
-          xs := gensym(x);
-          inner := ProductIntegral('aryM'(n, i, var,
-                   eval(mm, x = idx(xs, i))), nm, hh);
-          aa := ProductIntegral('aryM'(n, i, var,
-                 Int(ww * applyintegrand(var, x),op(2,a))), xs,
-                 reduce_PI(inner, var, constraints));
-          return aa; # recurse?  only on inner?
-        end if;
-      end if;
-
-      if normal(a/m) <> 1 then # something changed
-        w * reduce(ProductIntegral(aryM(n, i, var, m), nm, hh), h, constraints)
-      else
-        w * 'ProductIntegral'(e, nm, hh)
-      end if;
-    else
-      ee
-    end if;
+        w := w * w2;
+        w1
+      end proc, weights);
+    simplify_assuming(w,constraints), weights;
   end proc;
-#  plate := proc(a)
-#    local xs, w, m;
-#    elif a :: 'ary(anything, name, Bind(anything, name, anything))' then
-#      xs := gensym(op([3,2],a));
-#      bind(plate(ary(op(1,a), op(2,a), op([3,1],a))), xs,
-#           plate(ary(op(1,a), op(2,a),
-#                 eval(op([3,3],a), op([3,2],a)=idx(xs,op(2,a))))))
-#    end if;
-#  end proc;
+
+  reduce_Ints := proc(ww, ee, var :: name, rng, h :: name, constraints :: list)
+    local w, wl, e;
+    # TODO we should do something with domain restrictions (see above) too
+    # but right now, that is not needed by the tests, so just deal with
+    # weights.
+    e := reduce(ee, h, constraints);
+    (w, wl) := reduce_wl(ww, var, constraints);
+    w*Ints(wl, e, var, rng);
+  end proc;
 
   get_indicators := proc(e)
     local sub, inds, rest;
@@ -1023,7 +1005,8 @@ NewSLO := module ()
 
   unintegrate := proc(h :: name, integral, context :: list(t_ctx))
     local x, c, lo, hi, m, mm, w, w0, recognition, subintegral,
-          n, i, next_context, update_context, lower, upper;
+          n, i, k, next_context, update_context, lower, upper,
+          hh, pp, res, rest;
     if integral :: 'And'('specfunc({Int,int})',
                          'anyfunc'('anything','name'='range'('freeof'(h)))) then
       x := gensym(op([2,1],integral));
@@ -1052,14 +1035,56 @@ NewSLO := module ()
         end if;
         weight(w0, bind(Lebesgue(), x, m))
       end if
-    # elif integral :: 'ary'(anything, name, anything) then
-    #   m := unintegrate(h, op(3, integral), context);
-    #   'ary'(op(1,integral), op(2, integral), m);
-    elif integral :: 'ProductIntegral'(anything, name, anything) then
-      m := unintegrate(h, op(1, integral), context);
-      (w,m) := unweight(m);
-      mm := unintegrate(h, op(3, integral), context);
-      weight(w, bind(Plate(m), op(2,integral), mm));
+    elif integral :: 'Ints'(list, anything, name, range) then
+      if nops(op(1,integral)) > 1 then error "multi-dimensional array NIY" end if;
+      w := op([1,1],integral);
+      if w :: 'Product'(anything, name = range) then
+        pp := op(1, w);
+        i := op([2,1], w);
+        k := op([2,2,2], w);
+      else
+        error "weights are expected to be a Product"
+      end if;
+      # method: unintegrate 'pp' as if it were a single integral
+      # this code is stolen from the Int code above, and adapted.
+      x := gensym(op(3,integral));
+      (lo, hi) := op(op(4,integral));
+      lower := `if`(not (lo = -infinity), lo < x, NULL);
+      upper := `if`(not (hi = infinity), x < hi, NULL);
+      if [lower, upper] = [] then lower := x :: real end if;
+      next_context := [op(context), lower, upper];
+      # TODO: enrich context with x (measure class lebesgue)
+      hh := gensym('h');
+      subintegral := eval(pp*applyintegrand(hh,x), idx(op(3,integral), i) = x);
+      # note: we throw away this m term, as we know what it is
+      (w, m) := unweight(unintegrate(hh, subintegral, next_context));
+      rest := unintegrate(h, op(2,integral), context);
+      recognition := recognize(w, x, lo, hi) assuming op(next_context);
+      if recognition :: 'Recognized(anything, anything)' then
+        # Recognition succeeded
+        (w, w0) := factorize(op(2,recognition), x);
+        res := bind(op(1,recognition), x, weight(w, m));
+        res := eval(res, x = idx(op(3,integral),i));
+      else
+        # Recognition failed
+        (w, w0) := factorize(w, x);
+        m := weight(w, m);
+        if hi <> infinity then
+          m := piecewise(x < hi, m, Msum())
+        end if;
+        if lo <> -infinity then
+          m := piecewise(lo < x, m, Msum())
+        end if;
+        res := bind(Lebesgue(), x, m);
+        res := eval(res, x = idx(op(3,integral),i));
+      end if;
+      # FIXME
+      weight(w0^k, bind(Plate(ary(k, i, res)), op(3,integral), rest));
+    # elif integral :: 'ProductIntegral'(anything, name, anything) then
+    #   m := unintegrate(h, op(1, integral), context);
+    #   (w,m) := unweight(m);
+    #   mm := unintegrate(h, op(3, integral), context);
+    #   weight(w, bind(Plate(m), op(2,integral), mm));
     elif integral :: 'applyintegrand'('identical'(h), 'freeof'(h)) then
       Ret(op(2,integral))
     elif integral = 0 then
@@ -1649,7 +1674,7 @@ NewSLO := module ()
     # that product(sum(...i...),i=1..m) doesn't simplify to ...^m.
     weight := evalindets[flat](weight0,
                 And(# Not(radfun), Not(algfun),
-                    'specfunc({product, sum, idx})',
+                    'specfunc({%product, product, sum, idx})',
                     'freeof'(x)),
                 proc(e) Constant[e] end);
     de := get_de(weight, x, Dx, f);
