@@ -10,7 +10,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.02.21
+--                                                    2016.03.24
 -- |
 -- Module      :  Language.Hakaru.Expect
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -19,6 +19,7 @@
 -- Stability   :  experimental
 -- Portability :  GHC-only
 --
+-- TODO: Switch everything over to using "Language.Hakaru.Evaluation.Lazy" for getting rid of redexes, instead of the current NBE-based approach.
 ----------------------------------------------------------------
 module Language.Hakaru.Expect
     ( normalize
@@ -323,7 +324,11 @@ expectBranch c p xs (Var  x)    = expectSynDir p (var x) xs `apM` c
 expectBranch c p xs (Bind x e') = bind x $ expectBranch c p xs e'
 
 
--- BUG: none of these use the Assocs; they must, in case we need to substitute for variables in the SArgs. Or we need to residualize the Assocs into the program we're generating...
+-- TODO: right now we just use the Assocs in a hackish way in order
+-- to (hopefully) guarantee correctness. Really we should do something
+-- more efficient rather than calling 'substs' repeatedly everywhere.
+-- One possible option would be to residualize the Assocs directly
+-- as a bunch of let bindings (or whatever) in the generated program
 expectMeasure
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => ImpureType ('HMeasure a)
@@ -331,42 +336,47 @@ expectMeasure
     -> SArgs abt args
     -> Assocs (abt '[])
     -> Expect abt ('HMeasure a)
-expectMeasure _ Lebesgue = \End _ ->
+expectMeasure _ Lebesgue = \End rho ->
     ExpectMeasure $ \c ->
-    integrate negativeInfinity infinity c
-expectMeasure _ Counting = \End _ ->
+    integrate negativeInfinity infinity (substs rho . c)
+expectMeasure _ Counting = \End rho ->
     ExpectMeasure $ \c ->
-    summate negativeInfinity infinity c
-expectMeasure _ Categorical = \(ps :* End) _ ->
+    summate negativeInfinity infinity (substs rho . c)
+expectMeasure _ Categorical = \(ps :* End) rho ->
     ExpectMeasure $ \c ->
-    let_ (summateV ps) $ \tot ->
+    let ps' = substs rho ps in
+    let_ (summateV ps') $ \tot ->
     flip (if_ (prob_ 0 < tot)) (prob_ 0)
-        $ summateV (mapWithIndex (\i p -> p * c i) ps) / tot
-expectMeasure _ Uniform = \(lo :* hi :* End) _ ->
+        $ summateV (mapWithIndex (\i p -> p * substs rho (c i)) ps') / tot
+expectMeasure _ Uniform = \(lo :* hi :* End) rho ->
     ExpectMeasure $ \c ->
-    integrate lo hi $ \x ->
-        densityUniform hi lo x * c x
-expectMeasure _ Normal = \(mu :* sd :* End) _ ->
+    let lo' = substs rho lo
+        hi' = substs rho hi
+    in
+    integrate lo' hi' $ \x ->
+        densityUniform hi' lo' x * substs rho (c x)
+expectMeasure _ Normal = \(mu :* sd :* End) rho ->
     -- N.B., if\/when extending this to higher dimensions, the real equation is @recip (sqrt (2*pi*sd^2) ^ n) * integrate$\x -> c x * exp (negate (norm_n (x - mu) ^ 2) / (2*sd^2))@ for @Real^n@.
     ExpectMeasure $ \c ->
     integrate negativeInfinity infinity $ \x ->
-        densityNormal mu sd x * c x
-expectMeasure _ Poisson = \(l :* End) _ ->
+        densityNormal (substs rho mu) (substs rho sd) x * substs rho (c x)
+expectMeasure _ Poisson = \(l :* End) rho ->
     ExpectMeasure $ \c ->
-    flip (if_ (prob_ 0 < l)) (prob_ 0)
+    let l' = substs rho l in
+    flip (if_ (prob_ 0 < l')) (prob_ 0)
         $ summate (real_ 0) infinity $ \x ->
             let x_ = unsafeFrom_ signed x in
-            densityPoisson l x_ * c x_
-expectMeasure _ Gamma = \(shape :* scale :* End) _ ->
+            densityPoisson l' x_ * substs rho (c x_)
+expectMeasure _ Gamma = \(shape :* scale :* End) rho ->
     ExpectMeasure $ \c ->
     integrate (real_ 0) infinity $ \x ->
         let x_ = unsafeProb x in
-        densityGamma shape scale x_ * c x_
-expectMeasure _ Beta = \(a :* b :* End) _ ->
+        densityGamma (substs rho shape) (substs rho scale) x_ * substs rho (c x_)
+expectMeasure _ Beta = \(a :* b :* End) rho ->
     ExpectMeasure $ \c ->
     integrate (real_ 0) (real_ 1) $ \x ->
         let x_ = unsafeProb x in
-        densityBeta a b x_ * c x_
+        densityBeta (substs rho a) (substs rho b) x_ * substs rho (c x_)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
