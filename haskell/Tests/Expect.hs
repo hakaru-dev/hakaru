@@ -14,7 +14,7 @@ import Language.Hakaru.Syntax.Prelude
 import Language.Hakaru.Pretty.Haskell  (pretty)
 import Language.Hakaru.Expect
 import Language.Hakaru.Evaluation.ConstantPropagation (constantPropagation)
-
+import Language.Hakaru.Disintegrate (disintegrateWithVar)
 
 -- | The main thing is that this should typecheck and not throw
 -- errors. The easiest to obtain correct result is @lam $ \x -> sum
@@ -99,3 +99,19 @@ test6b = constantPropagation . normalize $
     where
     a = Variable (Text.pack "a") 0 SReal
     b = Variable (Text.pack "b") 1 SReal
+
+
+-- | A second test, for hitting similar bugs even though the above works.
+test7 :: [TrivialABT Term '[] ('HReal ':-> 'HMeasure 'HReal)]
+test7 =
+    [ constantPropagation . lam $ \d -> normalize (m' `app` d)
+    | m' <- disintegrateWithVar (Text.pack "c") SReal m
+    ]
+    where
+    a = Variable (Text.pack "a") 0 SReal
+    b = Variable (Text.pack "b") 1 SReal
+
+    m = syn (MBind :$ normal zero one :* bind a (
+        syn (MBind :$ normal (var a) (prob_ 2) :* bind b (
+        dirac (pair (var b) (var a))
+        ) :* End)) :* End)
