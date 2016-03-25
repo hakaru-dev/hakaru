@@ -1076,28 +1076,27 @@ NewSLO := module ()
       subintegral := eval(pp*applyintegrand(hh,x), idx(op(3,integral), i) = x);
       # note: we throw away this m term, as we know what it is
       (w, m) := unweight(unintegrate(hh, subintegral, next_context));
+      # put the dependence back in
       rest := unintegrate(h, op(2,integral), context);
       recognition := recognize(w, x, lo, hi) assuming op(next_context);
       if recognition :: 'Recognized(anything, anything)' then
         # Recognition succeeded
         (w, w0) := factorize(op(2,recognition), x);
-        res := bind(op(1,recognition), x, weight(w, m));
+        res := weight(w, op(1, recognition));
         res := eval(res, x = idx(op(3,integral),i));
       else
         # Recognition failed
         (w, w0) := factorize(w, x);
-        m := weight(w, m);
         if hi <> infinity then
           m := piecewise(x < hi, m, Msum())
         end if;
         if lo <> -infinity then
           m := piecewise(lo < x, m, Msum())
         end if;
-        res := bind(Lebesgue(), x, m);
+        res := weight(w, Lebesgue()); # bind(Lebesgue(), x, m);
         res := eval(res, x = idx(op(3,integral),i));
       end if;
-      # FIXME
-      weight(w0^k, bind(Plate(ary(k, i, res)), op(3,integral), rest));
+      weight(product(w0,i=1..k), bind(Plate(ary(k, i, res)), op(3,integral), rest));
     # elif integral :: 'ProductIntegral'(anything, name, anything) then
     #   m := unintegrate(h, op(1, integral), context);
     #   (w,m) := unweight(m);
