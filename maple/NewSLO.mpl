@@ -371,8 +371,9 @@ NewSLO := module ()
         unweight, factorize, pattern_match, make_piece,
         recognize, get_de, recognize_de, mysolve, Diffop, Recognized,
         reduce, to_assumption, simplify_assuming, convert_piecewise,
-        reduce_pw, reduce_Int, reduce_wl, reduce_Ints, get_indicators,
-        flip_cond,
+        reduce_pw, reduce_Int, reduce_wl, reduce_Ints, reduce_prod,
+        mk_idx,
+        get_indicators, flip_cond,
         reduce_PI, elim_int,
         indicator, extract_dom, banish, known_measures,
         myexpand_product,
@@ -475,7 +476,9 @@ NewSLO := module ()
         applyintegrand(h, res);
       end if
     elif m :: 'Bind(anything, name, anything)' then
-      integrate(op(1,m), eval(Integrand(op(2,m), 'integrate'(op(3,m), x, loops)), x=h), loops)
+      res := eval(op(3,m), op(2,m) = mk_idx(op(2,m), loops));
+      res := eval(Integrand(op(2,m), 'integrate'(res, x, loops)), x=h);
+      integrate(op(1,m), res , loops);
     elif m :: 'specfunc(Msum)' then
       `+`(op(map(integrate, [op(m)], h, loops)))
     elif m :: 'Weight(anything, anything)' then
@@ -506,6 +509,9 @@ NewSLO := module ()
     end if
   end proc;
 
+  mk_idx := proc(nm :: name, loops :: list(name = range))
+    foldr((x, y) -> idx(y, op(1,x)), nm, op(loops));
+  end proc;
 # Step 2 of 3: computer algebra
 
   improve := proc(lo :: LO(name, anything), {_ctx :: list := []})
@@ -743,19 +749,30 @@ NewSLO := module ()
     e
   end proc;
 
+  reduce_prod := proc(ww, var :: name)
+    local w, w1, w2, i;
+    if type(ww, `*`) then
+      w := map(x -> [reduce_prod(x, var)], convert(ww, 'list'));
+      (w1, w2) := mul(i[1], i=w), mul(i[2], i=w);
+    elif type(ww, 'Product'(anything, name = range)) then
+      (w1, w2) := reduce_prod(op(1,ww), var);
+      w1 := Product(w1, op(2,ww));
+      w2 := product(w2, op(2,ww));
+    elif depends(ww, var) then
+      (w1, w2) := (ww, 1)
+    else
+      (w1, w2) := (1, ww)
+    end if;
+    (w1, w2)
+  end proc;
+
   reduce_wl := proc(wl :: list, var :: name, constraints :: list)
     local w, weights;
     weights := map(simplify_assuming, wl, constraints);
     w := 1;
-    weights := map(proc(ww) 
+    weights := map(proc(ww)
         local w1, w2;
-        if type(ww, `*`) then
-          (w1, w2) := selectremove(depends, ww, var);
-        elif depends(ww, var) then
-          (w1, w2) := (ww, 1)
-        else
-          (w1, w2) := (1, ww)
-        end if;
+        (w1, w2) := reduce_prod(ww, var);
         w := w * w2;
         w1
       end proc, weights);
@@ -763,13 +780,14 @@ NewSLO := module ()
   end proc;
 
   reduce_Ints := proc(ww, ee, var :: name, rng, h :: name, constraints :: list)
-    local w, wl, e;
+    local w, wl, e, we, w0;
     # TODO we should do something with domain restrictions (see above) too
     # but right now, that is not needed by the tests, so just deal with
     # weights.
     e := reduce(ee, h, constraints);
+    (e, w0) := reduce_prod(e, var);
     (w, wl) := reduce_wl(ww, var, constraints);
-    w*Ints(wl, e, var, rng);
+    simplify_assuming(w*w0, constraints) * Ints(wl, e, var, rng);
   end proc;
 
   get_indicators := proc(e)
