@@ -2,7 +2,7 @@
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Language.Hakaru.Parser.Maple where
 
-import           Language.Hakaru.Parser.AST
+import           Language.Hakaru.Parser.AST hiding (Less)
 import           Control.Monad.Identity
 import           Data.Text           (Text)
 import qualified Data.Text           as Text
@@ -56,7 +56,7 @@ data NumOp = Pos | Neg
 data ArgOp
     = Float   | Power  | Rational
     | Func    | ExpSeq | Sum_
-    | Product
+    | Product | Less
     deriving (Eq, Show)
 
 data InertExpr
@@ -142,6 +142,9 @@ product = InertArgs <$> (text "_Inert_PROD" *> return Product) <*> arg expr
 rational :: Parser InertExpr
 rational = InertArgs <$> (text "_Inert_RATIONAL" *> return Rational) <*> arg expr
 
+lessthan :: Parser InertExpr
+lessthan = InertArgs <$> (text "_Inert_LESSTHAN" *> return Less) <*> arg expr
+
 rename :: Text -> Text
 rename x =
     case lookup x symTable of
@@ -190,6 +193,9 @@ maple2AST (InertArgs Func [f, (InertArgs ExpSeq a)]) =
 maple2AST (InertArgs Sum_ es) = NaryOp Sum (map maple2AST es)
 
 maple2AST (InertArgs Product es) = NaryOp Prod (map maple2AST es)
+
+maple2AST (InertArgs Less es) =
+    foldl App (Var "less") (map maple2AST es)
 
 -- Add special case for NatPow for Power
 maple2AST (InertArgs Power [x, y]) =

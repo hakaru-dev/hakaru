@@ -183,6 +183,7 @@ maplePrimOp Infinity         End               = "infinity"
 maplePrimOp NegativeInfinity End               = "-infinity"
 maplePrimOp GammaFunc        (e1 :* End)       = app1 "GAMMA" e1
 maplePrimOp BetaFunc         (e1 :* e2 :* End) = app2 "Beta" e1 e2
+maplePrimOp (Less _)         (e1 :* e2 :* End) = arg e1 ++ " < " ++ arg e2
 maplePrimOp (NatPow _)       (e1 :* e2 :* End) =
     parens (arg e1 ++ " ^ " ++ arg e2)
 maplePrimOp (Negate _)       (e1 :* End)       =
