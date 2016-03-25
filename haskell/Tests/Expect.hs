@@ -2,7 +2,7 @@
 
 module Tests.Expect where
 
-import Prelude (($))
+import Prelude (($), (.))
 import qualified Data.Text as Text
 
 import Language.Hakaru.Syntax.ABT      (ABT(..), TrivialABT)
@@ -83,10 +83,19 @@ syn (Literal_ (VProb 1.0))
 -- | Regression check for the hygiene bug:
 -- <https://github.com/hakaru-dev/hakaru/issues/14>
 test6 :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
-test6 = normalize $ 
-    normal zero one >>= \x ->
-    normal x (prob_ 2) >>= \y ->
-    dirac (pair y x)
+test6 = constantPropagation . normalize $
+    normal zero one >>= \a ->
+    normal a (prob_ 2) >>= \b ->
+    dirac (pair b a)
 
-test6' :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
-test6' = constantPropagation test6
+-- | This version makes sure to define 'varHint', so we can actually
+-- see the problem.
+test6b :: TrivialABT Term '[] ('HMeasure (HPair 'HReal 'HReal))
+test6b = constantPropagation . normalize $
+    syn (MBind :$ normal zero one :* bind a (
+    syn (MBind :$ normal (var a) (prob_ 2) :* bind b (
+    dirac (pair (var b) (var a))
+    ) :* End)) :* End)
+    where
+    a = Variable (Text.pack "a") 0 SReal
+    b = Variable (Text.pack "b") 1 SReal
