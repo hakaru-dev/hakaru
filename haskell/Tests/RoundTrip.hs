@@ -57,7 +57,7 @@ testMeasureProb = test [
     "t26" ~: testSStriv [t26] (dirac half),
     "t30" ~: testSStriv [] t30,
     "t33" ~: testSStriv [] t33,
-    "t34" ~: testSStriv [t34] (dirac (fromRational 3)),
+    "t34" ~: testSStriv [t34] (dirac (nat2prob (nat_ 3))),
     --"t35" ~: testSStriv [t35] (lam $ \x -> if_ (x < 4) (dirac 3) (dirac 5)),
     --"t38" ~: testSStriv [] t38,
     "t42" ~: testSStriv [t42] (dirac one),
@@ -773,7 +773,7 @@ t72d = uniform one (real_ 3) >>= \x -> if_ (x < (real_ 2)) (superpose []) (dirac
 t73d = uniform one (real_ 3) >>= \x -> if_ (x < one) (superpose []) (dirac x)
 t74d = uniform one (real_ 3) >>= \x -> if_ (x < zero) (superpose []) (dirac x)
 
-t75 :: (ABT Term abt) => abt '[] ('HMeasure HNat)
+t75 :: (ABT Term abt) => abt '[] ('HMeasure 'HNat)
 t75 = gamma (prob_ 6) one >>= poisson
 
 --t75' :: (ABT Term abt) => abt '[] ('HProb ':-> 'HMeasure HInt)
