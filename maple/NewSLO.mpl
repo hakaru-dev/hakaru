@@ -683,7 +683,8 @@ NewSLO := module ()
              e);
     elif e :: 'integrate(anything, Integrand(name, anything), list)' then
       x := gensym(op([2,1],e));
-      # TODO is there any way to enrich kb in this case?
+      # If we had HType information for op(1,e),
+      # then we could use it to tell kb about x.
       subsop(2=Integrand(x, reduce(subs(op([2,1],e)=x, op([2,2],e)), h, kb)), e)
     elif e :: 'ProductIntegral'(anything, name, anything) then
       error "we should never encounter this now"
@@ -1063,7 +1064,8 @@ NewSLO := module ()
         x := op([2,1],integral);
       end if;
       x := gensym(x);
-      # TODO is there any way to enrich kb in this case?
+      # If we had HType information for op(1,e),
+      # then we could use it to tell kb about x.
       (w, m) := unweight(unintegrate(h, applyintegrand(op(2,integral), x), kb));
       (w, w0) := factorize(w, x);
       weight(w0, bind(op(1,integral), x, weight(w, m)))
@@ -1214,7 +1216,8 @@ NewSLO := module ()
       # not known.  So error is fine, and should likely be caught
       # elsewhere
       error "what to do with (%1)", integral;
-      # TODO is there any way to enrich kb in this case?
+      # If we had HType information for op(1,e),
+      # then we could use it to tell kb about x.
       (w, m) := unweight(unintegrate(h, applyintegrand(op(2,integral), x), kb));
       (w, w0) := factorize(w, x);
       weight(w0, bind(op(1,integral), x, weight(w, m)))
