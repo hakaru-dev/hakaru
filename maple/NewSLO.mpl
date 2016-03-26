@@ -624,42 +624,42 @@ NewSLO := module ()
 
   # Walk through integrals and simplify, recursing through grammar
   # h - name of the linear operator above us
-  # constraints - domain information
-  reduce := proc(ee, h :: name, constraints :: t_kb)
+  # kb - domain information
+  reduce := proc(ee, h :: name, kb :: t_kb)
     # option remember, system;
     local e, elim, hh, subintegral, w, ww, n, i, x, c, myint, res, rest, kb1;
     e := ee;
 
     if e :: Int(anything, name=anything) then
-      e := elim_int(e, h, constraints);
+      e := elim_int(e, h, kb);
       if e :: Int(anything, name=range) then
         x, kb1 := genLebesgue(op([2,1],e), op([2,2,1],e),
-                                           op([2,2,2],e), constraints);
+                                           op([2,2,2],e), kb);
         reduce_Int(reduce(subs(op([2,1],e)=x, op(1,e)), h, kb1),
-                 h, kb1, constraints)
+                 h, kb1, kb)
       elif e <> ee then
-        reduce(e, h, constraints)
+        reduce(e, h, kb)
       else
         e
       end if;
     elif e :: 'Ints'(list, anything, name, range) then
       # TODO: we should have an elim_ints pass first
-      reduce_Ints(op(e), h, constraints);
+      reduce_Ints(op(e), h, kb);
     elif e :: `+` then
-      map(reduce, e, h, constraints)
+      map(reduce, e, h, kb)
     elif e :: `*` then
       (subintegral, w) := selectremove(depends, e, h);
       if subintegral :: `*` then error "Nonlinear integral %1", e end if;
-      subintegral := convert(reduce(subintegral, h, constraints), 'list', `*`);
+      subintegral := convert(reduce(subintegral, h, kb), 'list', `*`);
       (subintegral, ww) := selectremove(depends, subintegral, h);
-      reduce_pw(simplify_assuming(`*`(w, op(ww)), constraints))
+      reduce_pw(simplify_assuming(`*`(w, op(ww)), kb))
         * `*`(op(subintegral));
     elif e :: t_pw then
       n := nops(e);
       e := piecewise(seq(`if`(i::even or i=n,
-                              reduce(op(i,e), h, constraints),
-                                # TODO: update_context like unintegrate does
-                              simplify_assuming(op(i,e), constraints)),
+                              reduce(op(i,e), h, kb),
+                                # TODO: update_kb like unintegrate does
+                              simplify_assuming(op(i,e), kb)),
                          i=1..n));
       # big hammer: simplify knows about bound variables, amongst many
       # other things
@@ -668,15 +668,14 @@ NewSLO := module ()
     elif e :: t_case then
       subsop(2=map(proc(b :: Branch(anything, anything))
                      eval(subsop(2='reduce'(op(2,b),x,c),b),
-                          {x=h, c=constraints})
+                          {x=h, c=kb})
                    end proc,
                    op(2,e)),
              e);
     elif e :: 'integrate(anything, Integrand(name, anything), list)' then
       x := gensym(op([2,1],e));
-      # TODO is there any way to enrich constraints in this case?
-      subsop(2=Integrand(x, reduce(subs(op([2,1],e)=x, op([2,2],e)),
-                                   h, constraints)), e)
+      # TODO is there any way to enrich kb in this case?
+      subsop(2=Integrand(x, reduce(subs(op([2,1],e)=x, op([2,2],e)), h, kb)), e)
     elif e :: 'ProductIntegral'(anything, name, anything) then
       error "we should never encounter this now"
     elif e :: 'applyintegrand'(anything, 'ary'(anything, name, anything)) then
@@ -687,11 +686,11 @@ NewSLO := module ()
         e
       end if;
     else
-      simplify_assuming(e, constraints)
+      simplify_assuming(e, kb)
     end if;
   end proc;
 
-  elim_int := proc(ee, h :: name, constraints :: t_kb)
+  elim_int := proc(ee, h :: name, kb :: t_kb)
     local e, hh, elim;
 
     e := ee;
@@ -702,7 +701,7 @@ NewSLO := module ()
       elim := eval(banish(LO(hh, myint(applyintegrand(hh,op([2,1],e)),op(2,e))),
                           op([2,1],e), h, op(1,e), infinity),
                    myint = proc(e,r)
-                     subs(int=Int, simplify_assuming(int(e,r), constraints))
+                     subs(int=Int, simplify_assuming(int(e,r), kb))
                    end proc);
       if has(elim, {MeijerG, undefined})
          or numboccur(elim,Int) >= numboccur(e,Int) then
@@ -771,9 +770,9 @@ NewSLO := module ()
     (w1, w2)
   end proc;
 
-  reduce_wl := proc(wl :: list, var :: name, constraints :: t_kb)
+  reduce_wl := proc(wl :: list, var :: name, kb :: t_kb)
     local w, weights;
-    weights := map(simplify_assuming, wl, constraints);
+    weights := map(simplify_assuming, wl, kb);
     w := 1;
     weights := map(proc(ww)
         local w1, w2;
@@ -781,18 +780,18 @@ NewSLO := module ()
         w := w * w2;
         w1
       end proc, weights);
-    simplify_assuming(w,constraints), weights;
+    simplify_assuming(w,kb), weights;
   end proc;
 
-  reduce_Ints := proc(ww, ee, var :: name, rng, h :: name, constraints :: t_kb)
+  reduce_Ints := proc(ww, ee, var :: name, rng, h :: name, kb :: t_kb)
     local w, wl, e, we, w0;
     # TODO we should do something with domain restrictions (see above) too
     # but right now, that is not needed by the tests, so just deal with
     # weights.
-    e := reduce(ee, h, constraints);
+    e := reduce(ee, h, kb);
     (e, w0) := reduce_prod(e, var);
-    (w, wl) := reduce_wl(ww, var, constraints);
-    simplify_assuming(w*w0, constraints) * Ints(wl, e, var, rng);
+    (w, wl) := reduce_wl(ww, var, kb);
+    simplify_assuming(w*w0, kb) * Ints(wl, e, var, rng);
   end proc;
 
   get_indicators := proc(e)
@@ -936,18 +935,18 @@ NewSLO := module ()
     Context(op(1,c), fromLO(op(2,c), op(1,c)))
   end proc;
 
-  unintegrate := proc(h :: name, integral, context :: t_kb)
+  unintegrate := proc(h :: name, integral, kb :: t_kb)
     local x, c, lo, hi, m, mm, w, w0, recognition, subintegral,
-          n, i, k, next_context, update_context,
+          n, i, k, kb1, update_kb,
           hh, pp, res, rest;
     if integral :: 'And'('specfunc({Int,int})',
                          'anyfunc'('anything','name'='range'('freeof'(h)))) then
       (lo, hi) := op(op([2,2],integral));
-      x, next_context := genLebesgue(op([2,1],integral), lo, hi, context);
+      x, kb1 := genLebesgue(op([2,1],integral), lo, hi, kb);
       subintegral := eval(op(1,integral), op([2,1],integral) = x);
-      (w, m) := unweight(unintegrate(h, subintegral, next_context));
+      (w, m) := unweight(unintegrate(h, subintegral, kb1));
       recognition := recognize(w, x, lo, hi)
-        assuming op(kb_to_assumptions(next_context));
+        assuming op(kb_to_assumptions(kb1));
       if recognition :: 'Recognized(anything, anything)' then
         # Recognition succeeded
         (w, w0) := factorize(op(2,recognition), x);
@@ -977,15 +976,15 @@ NewSLO := module ()
       # method: unintegrate 'pp' as if it were a single integral
       # this code is stolen from the Int code above, and adapted.
       (lo, hi) := op(op(4,integral));
-      x, next_context := genLebesgue(op(3,integral), lo, hi, context);
+      x, kb1 := genLebesgue(op(3,integral), lo, hi, kb);
       hh := gensym('h');
       subintegral := eval(pp*applyintegrand(hh,x), idx(op(3,integral), i) = x);
       # note: we throw away this m term, as we know what it is
-      (w, m) := unweight(unintegrate(hh, subintegral, next_context));
+      (w, m) := unweight(unintegrate(hh, subintegral, kb1));
       # put the dependence back in
-      rest := unintegrate(h, op(2,integral), context);
+      rest := unintegrate(h, op(2,integral), kb);
       recognition := recognize(w, x, lo, hi)
-        assuming op(kb_to_assumptions(next_context));
+        assuming op(kb_to_assumptions(kb1));
       if recognition :: 'Recognized(anything, anything)' then
         # Recognition succeeded
         (w, w0) := factorize(op(2,recognition), x);
@@ -1005,47 +1004,47 @@ NewSLO := module ()
       end if;
       weight(product(w0,i=1..k), bind(Plate(ary(k, i, res)), op(3,integral), rest));
     # elif integral :: 'ProductIntegral'(anything, name, anything) then
-    #   m := unintegrate(h, op(1, integral), context);
+    #   m := unintegrate(h, op(1, integral), kb);
     #   (w,m) := unweight(m);
-    #   mm := unintegrate(h, op(3, integral), context);
+    #   mm := unintegrate(h, op(3, integral), kb);
     #   weight(w, bind(Plate(m), op(2,integral), mm));
     elif integral :: 'applyintegrand'('identical'(h), 'freeof'(h)) then
       Ret(op(2,integral))
     elif integral = 0 then
       Msum()
     elif integral :: `+` then
-      Msum(op(map2(unintegrate, h, convert(integral, 'list'), context)))
+      Msum(op(map2(unintegrate, h, convert(integral, 'list'), kb)))
     elif integral :: `*` then
       (subintegral, w) := selectremove(depends, integral, h);
 
       if subintegral :: `*` then error "Nonlinear integral %1", integral end if;
-      m := weight(w, unintegrate(h, subintegral, context));
+      m := weight(w, unintegrate(h, subintegral, kb));
       if m :: Weight(anything, anything) then
-        m := weight(simplify_assuming(op(1,m), context), op(2,m));
+        m := weight(simplify_assuming(op(1,m), kb), op(2,m));
       end if;
       m
     elif integral :: t_pw
          and `and`(seq(not (depends(op(i,integral), h)),
                        i=1..nops(integral)-1, 2)) then
       n := nops(integral);
-      next_context := context;
-      update_context := proc(c)
-        local then_context;
-        then_context := assert(    c , next_context);
-        next_context := assert(Not(c), next_context); # Mutation!
-        then_context
+      kb1 := kb;
+      update_kb := proc(c)
+        local kb0;
+        kb0 := assert(    c , kb1);
+        kb1 := assert(Not(c), kb1); # Mutation!
+        kb0
       end proc;
       piecewise(seq(piecewise(i::even,
                               unintegrate(h, op(i,integral),
-                                          update_context(op(i-1,integral))),
+                                          update_kb(op(i-1,integral))),
                               i=n,
-                              unintegrate(h, op(i,integral), next_context),
+                              unintegrate(h, op(i,integral), kb1),
                               op(i,integral)),
                     i=1..n))
     elif integral :: t_case then
       subsop(2=map(proc(b :: Branch(anything, anything))
                      eval(subsop(2='unintegrate'(x,op(2,b),c),b),
-                          {x=h, c=context})
+                          {x=h, c=kb})
                    end proc,
                    op(2,integral)),
              integral);
@@ -1055,9 +1054,8 @@ NewSLO := module ()
         x := op([2,1],integral);
       end if;
       x := gensym(x);
-      # TODO is there any way to enrich context in this case?
-      (w, m) := unweight(unintegrate(h, applyintegrand(op(2,integral), x),
-                                     context));
+      # TODO is there any way to enrich kb in this case?
+      (w, m) := unweight(unintegrate(h, applyintegrand(op(2,integral), x), kb));
       (w, w0) := factorize(w, x);
       weight(w0, bind(op(1,integral), x, weight(w, m)))
     else
@@ -1148,13 +1146,13 @@ NewSLO := module ()
   # - note that the callee is responsible for "finishing up"
   disint2 := proc(integral, h::name, t::name, path)
     local x, lo, hi, subintegral, w, n, m, w0, perform, script, vars,
-      to_invert, sol, occurs, dxdt, next_context, update_context;
+      to_invert, sol, occurs, dxdt, kb1, update_kb;
     if integral :: 'And'('specfunc({Int,int})',
                          'anyfunc'('anything','name'='range'('freeof'(h)))) then
       x := op([2,1],integral);
       (lo, hi) := op(op([2,2],integral));
       perform := %int(op(2,integral));
-      # TODO: enrich context with x (measure class lebesgue)
+      # TODO: enrich kb with x (measure class lebesgue)
       disint2(op(1,integral), h, t, [perform, op(path)]);
     elif integral :: 'applyintegrand'('identical'(h), 'freeof'(h)) then
       if not type(op(2,integral), specfunc(Pair)) then
@@ -1182,19 +1180,19 @@ NewSLO := module ()
          and `and`(seq(not (depends(op(i,integral), h)),
                        i=1..nops(integral)-1, 2)) then
       n := nops(integral);
-      next_context := context;
-      update_context := proc(c)
-        local then_context;
-        then_context := assert(    c , next_context);
-        next_context := assert(Not(c), next_context); # Mutation!
-        then_context
+      kb1 := kb;
+      update_kb := proc(c)
+        local kb0;
+        kb0 := assert(    c , kb1);
+        kb1 := assert(Not(c), kb1); # Mutation!
+        kb0
       end proc;
       error "need to map into piecewise";
       piecewise(seq(piecewise(i::even,
                               unintegrate(h, op(i,integral),
-                                          update_context(op(i-1,integral))),
+                                          update_kb(op(i-1,integral))),
                               i=n,
-                              unintegrate(h, op(i,integral), next_context),
+                              unintegrate(h, op(i,integral), kb1),
                               op(i,integral)),
                     i=1..n))
     elif integral :: 'integrate'('freeof'(h), 'anything', []) then
@@ -1207,9 +1205,8 @@ NewSLO := module ()
       # not known.  So error is fine, and should likely be caught
       # elsewhere
       error "what to do with (%1)", integral;
-      # TODO is there any way to enrich context in this case?
-      (w, m) := unweight(unintegrate(h, applyintegrand(op(2,integral), x),
-                                     context));
+      # TODO is there any way to enrich kb in this case?
+      (w, m) := unweight(unintegrate(h, applyintegrand(op(2,integral), x), kb));
       (w, w0) := factorize(w, x);
       weight(w0, bind(op(1,integral), x, weight(w, m)))
     else
