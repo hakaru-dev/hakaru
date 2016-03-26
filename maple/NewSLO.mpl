@@ -620,6 +620,13 @@ NewSLO := module ()
                                    h, constraints)), e)
     elif e :: 'ProductIntegral'(anything, name, anything) then
       error "we should never encounter this now"
+    elif e :: 'applyintegrand'(anything, 'ary'(anything, name, anything)) then
+      # array eta
+      if op([2,3],e) :: 'idx'(anything, name) and (op([2,2],e) = op([2,3,2],e)) then
+        applyintegrand(op(1,e), op([2,3,1], e))
+      else
+        e
+      end if;
     else
       simplify_assuming(e, constraints)
     end if;
