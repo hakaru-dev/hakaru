@@ -627,7 +627,8 @@ NewSLO := module ()
   # kb - domain information
   reduce := proc(ee, h :: name, kb :: t_kb)
     # option remember, system;
-    local e, elim, hh, subintegral, w, ww, n, i, x, c, myint, res, rest, kb1;
+    local e, elim, hh, subintegral, w, ww,
+          n, i, x, c, myint, res, rest, kb1, update_kb;
     e := ee;
 
     if e :: Int(anything, name=anything) then
@@ -656,10 +657,18 @@ NewSLO := module ()
         * `*`(op(subintegral));
     elif e :: t_pw then
       n := nops(e);
-      e := piecewise(seq(`if`(i::even or i=n,
-                              reduce(op(i,e), h, kb),
-                                # TODO: update_kb like unintegrate does
-                              simplify_assuming(op(i,e), kb)),
+      kb1 := kb;
+      update_kb := proc(c)
+        local kb0;
+        kb0 := assert(    c , kb1);
+        kb1 := assert(Not(c), kb1); # Mutation!
+        kb0
+      end proc;
+      e := piecewise(seq(`if`(i::even,
+                              reduce(op(i,e), h, update_kb(op(i-1,e))),
+                              i=n,
+                              reduce(op(i,e), h, kb1),
+                              simplify_assuming(op(i,e), kb1)),
                          i=1..n));
       # big hammer: simplify knows about bound variables, amongst many
       # other things
