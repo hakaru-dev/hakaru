@@ -198,7 +198,7 @@ KB := module ()
       # Reduce (in)equality between exp(a) and exp(b) to between a and b.
       do
         try log_b := map(ln, b) assuming op(as); catch: break; end try;
-        if length(log_b) < length(b) and
+        if length(log_b) < length(b)
            and (andmap(is, log_b, real) assuming op(as)) then
           b := log_b;
         else
@@ -275,13 +275,14 @@ KB := module ()
       end if;
       # Normalize `=` and `<>` constraints a bit.
       if not pol then
-        if   b :: `=`  then pol, b := true, `<>`(op(b))
-        elif b :: `<>` then pol, b := true, `=` (op(b))
-        end if
+        # Negate b
+        if   b :: `=`  then b := `<>`(op(b))
+        elif b :: `<>` then b := `=` (op(b))
+        else b := Not(b) end if
       end if;
       if b :: (anything=name) then b := (rhs(b)=lhs(b)) end if;
       # Add constraint to KB.
-      KB(Constrain(`if`(pol,b,Not(b))), op(kb))
+      KB(Constrain(b), op(kb))
     end if
   end proc:
 
@@ -658,11 +659,11 @@ NewSLO := module ()
         kb1 := assert(Not(c), kb1); # Mutation!
         kb0
       end proc;
-      e := piecewise(seq(`if`(i::even,
-                              reduce(op(i,e), h, update_kb(op(i-1,e))),
-                              i=n,
-                              reduce(op(i,e), h, kb1),
-                              simplify_assuming(op(i,e), kb1)),
+      e := piecewise(seq(piecewise(i::even,
+                                   reduce(op(i,e), h, update_kb(op(i-1,e))),
+                                   i=n,
+                                   reduce(op(i,e), h, kb1),
+                                   simplify_assuming(op(i,e), kb1)),
                          i=1..n));
       # big hammer: simplify knows about bound variables, amongst many
       # other things
