@@ -50,7 +50,7 @@ bry1s := Weight(Beta(alpha+sum(piecewise(idx(y,i)=true ,1), i=1..n),
          BetaD(alpha+sum(piecewise(idx(y,i)=true ,1), i=1..n),
                beta +sum(piecewise(idx(y,i)=false,1), i=1..n))):
 TestHakaru(bry1, bry1s, 
-  label="first way to express flipping a biased coin many times (currently fails)",
+  label="first way to express flipping a biased coin many times",
   ctx = [n::nonnegint]);
 
 bry2  := Bind(BetaD(alpha,beta), x,
