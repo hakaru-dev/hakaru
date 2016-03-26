@@ -155,6 +155,7 @@ KB := module ()
   option package;
   local KB, Introduce, Constrain,
         assert_deny, coalesce_bounds, htype_to_property,
+        myexpand_product,
         ModuleLoad, ModuleUnload;
   export empty, genLebesgue, genType, assert,
          kb_subtract, simplify_assuming, kb_to_assumptions;
@@ -336,8 +337,33 @@ KB := module ()
     end proc, kb);
   end proc;
 
-  simplify_assuming := proc(e, kb::t_kb)
-    simplify(e) assuming op(kb_to_assumptions(kb))
+  simplify_assuming := proc(ee, kb::t_kb)
+    local e;
+    e := evalindets(ee, 'specfunc({%product, product})', myexpand_product);
+    e := evalindets(e, 'specfunc(sum)', expand);
+    e := simplify(e) assuming op(kb_to_assumptions(kb));
+    eval(e, exp = expand @ exp);
+  end proc;
+
+  myexpand_product := proc(prod)
+    local x, p, body, quantifier;
+    (body, quantifier) := op(prod);
+    x := op(1, quantifier);
+    p := proc(e)
+      local ee;
+      if e :: 'exp(anything)' then
+        ee := expand(op(1,e));
+        ee := convert(ee, 'list', `+`);
+        `*`(op(map(z -> exp(sum(z, quantifier)), ee)));
+      elif e :: ('freeof'(x) ^ 'anything') then
+        op(1,e) ^ expand(sum(op(2,e), quantifier))
+      elif e :: ('anything' ^ 'freeof'(x)) then
+        p(op(1,e)) ^ op(2,e)
+      else
+        product(e, quantifier)
+      end if
+    end proc;
+    `*`(op(map(p, convert(body, list, `*`))));
   end proc;
 
   kb_to_assumptions := proc(kb)
@@ -402,13 +428,12 @@ NewSLO := module ()
   local t_pw, t_case, p_true, p_false,
         unweight, factorize, pattern_match, make_piece,
         recognize, get_de, recognize_de, mysolve, Diffop, Recognized,
-        reduce, to_assumption, simplify_assuming, convert_piecewise,
+        reduce,
         reduce_pw, reduce_Int, reduce_wl, reduce_Ints, reduce_prod,
         mk_idx,
-        get_indicators, flip_cond,
+        get_indicators,
         reduce_PI, elim_int,
-        indicator, extract_dom, banish, known_measures,
-        myexpand_product,
+        banish, known_measures,
         piecewise_if, nub_piecewise,
         ModuleLoad, ModuleUnload, verify_measure,
         find_vars, find_constraints, interpret, reconstruct, invert, 
@@ -431,10 +456,11 @@ NewSLO := module ()
   # used as global names, so document that here.
   global Bind, Weight, Ret, Msum, Integrand, Plate, LO, Indicator, ary,
          Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD, StudentT,
-         Context, t_ctx,
+         Context,
          lam,
          Datum, Inr, Inl, Et, Done, Konst, Ident,
          Branches, Branch, PWild, PVar, PDatum, PInr, PInl, PEt, PDone, PKonst, PIdent;
+  uses KB;
 
   t_pw    := 'specfunc(piecewise)';
   t_case  := 'case(anything, specfunc(Branch(anything, anything), Branches))';
@@ -467,7 +493,7 @@ NewSLO := module ()
   end proc;
 
   # toLO does not use the context, so just map in
-  toCLO := proc(c :: Context(list(t_ctx), anything))
+  toCLO := proc(c :: Context(t_kb, anything))
     Context(op(1,c), toLO(op(2,c)));
   end proc;
 
@@ -546,11 +572,11 @@ NewSLO := module ()
   end proc;
 # Step 2 of 3: computer algebra
 
-  improve := proc(lo :: LO(name, anything), {_ctx :: list := []})
+  improve := proc(lo :: LO(name, anything), {_ctx :: t_kb := empty})
     LO(op(1,lo), reduce(op(2,lo), op(1,lo), _ctx))
   end proc;
 
-  cimprove := proc(c :: Context(list(t_ctx), LO(name, anything)))
+  cimprove := proc(c :: Context(t_kb, LO(name, anything)))
     Context(op(1,c), improve(op(2,c), _ctx = op(1,c)))
   end proc;
 
@@ -593,17 +619,18 @@ NewSLO := module ()
   # Walk through integrals and simplify, recursing through grammar
   # h - name of the linear operator above us
   # constraints - domain information
-  # TODO unify constraints with unintegrate's context
-  reduce := proc(ee, h :: name, constraints :: list(t_ctx))
+  reduce := proc(ee, h :: name, constraints :: t_kb)
     # option remember, system;
-    local e, elim, hh, subintegral, w, ww, n, i, x, c, myint, res, rest;
+    local e, elim, hh, subintegral, w, ww, n, i, x, c, myint, res, rest, kb1;
     e := ee;
 
     if e :: Int(anything, name=anything) then
       e := elim_int(e, h, constraints);
-      if e :: Int(anything, name = anything) then
-        reduce_Int(reduce(op(1,e), h, [op(2,e), op(constraints)]),
-                 op([2,1],e), op([2,2],e), h, constraints)
+      if e :: Int(anything, name=range) then
+        x, kb1 := genLebesgue(op([2,1],e), op([2,2,1],e),
+                                           op([2,2,2],e), constraints);
+        reduce_Int(reduce(subs(op([2,1],e)=x, op(1,e)), h, kb1),
+                 h, kb1, constraints)
       elif e <> ee then
         reduce(e, h, constraints)
       else
@@ -622,18 +649,12 @@ NewSLO := module ()
       reduce_pw(simplify_assuming(`*`(w, op(ww)), constraints))
         * `*`(op(subintegral));
     elif e :: t_pw then
-      x := select(type, constraints, name=anything..anything);
-      if nops(x) > 0 then
-        e := convert_piecewise(e, op([1,1],x), constraints);
-      end if;
-      if e :: t_pw then
-        n := nops(e);
-        e := piecewise(seq(`if`(i::even or i=n,
-                                reduce(op(i,e), h, constraints),
-                                  # TODO: update_context like unintegrate does
-                                simplify_assuming(op(i,e), constraints)),
-                           i=1..n));
-      end if;
+      n := nops(e);
+      e := piecewise(seq(`if`(i::even or i=n,
+                              reduce(op(i,e), h, constraints),
+                                # TODO: update_context like unintegrate does
+                              simplify_assuming(op(i,e), constraints)),
+                         i=1..n));
       # big hammer: simplify knows about bound variables, amongst many
       # other things
       Testzero := x -> evalb(simplify(x) = 0);
@@ -657,7 +678,7 @@ NewSLO := module ()
     end if;
   end proc;
 
-  elim_int := proc(ee, h :: name, constraints :: list(t_ctx))
+  elim_int := proc(ee, h :: name, constraints :: t_kb)
     local e, hh, elim;
 
     e := ee;
@@ -680,104 +701,43 @@ NewSLO := module ()
     e;
   end proc;
 
-  to_assumption := proc(c :: t_ctx)
-    local var, lo, hi;
-    if type(c, name = anything .. anything) then
-      var := op(1,c);
-      lo, hi := op(op(2,c));
-      (var > lo, var < hi)
-    elif type(c, name :: property) then
-      c
-    elif type(c, '{name < anything, name <= anything, name > anything,
-                   name >= anything}') then
-      c
-    else
-      error "is %1 a valid constraint?", c;
-    end if;
-  end proc;
-
-  simplify_assuming := proc(ee, constraints :: list(t_ctx))
-    local e, ep;
-    e := evalindets(ee, 'specfunc({%product, product})', myexpand_product);
-    e := evalindets(e, 'specfunc(sum)', expand);
-    e := simplify(e) assuming op(map(to_assumption, constraints));
-    eval(e, exp = expand @ exp);
-  end proc;
-
-  convert_piecewise := proc (expr :: specfunc(piecewise),
-                             var :: name, constraints :: list)
-    local e, i, assumptions;
-    e := expr;
-    assumptions := map(to_assumption, constraints);
-    # Reduce inequality between exp(a) and exp(b) to inequality between a and b
-    # [ccshan 2016-02-29]
-    e := piecewise(seq(`if`(i::odd and i<nops(e)
-                              and op(i,e) :: '{exp(anything) <  exp(anything),
-                                               exp(anything) <= exp(anything)}'
-                              and ((is(op([i,1,1],e), real) and
-                                    is(op([i,2,1],e), real))
-                                   assuming op(assumptions)),
-                            op([i,0],e)(op([i,1,1],e), op([i,2,1],e)),
-                            op(i,e)),
-                       i=1..nops(e)));
-    if e :: t_pw then
-      try
-        e := convert(e, 'piecewise', var) assuming op(assumptions);
-      catch:
-      end try;
-    end if;
-    e;
-  end proc;
-
   reduce_pw := proc(ee) # ee may or may not be piecewise
     local e;
     e := nub_piecewise(ee);
     if e :: t_pw then
       if nops(e) = 2 then
-        return indicator(op(1,e)) * op(2,e)
+        return Indicator(op(1,e)) * op(2,e)
       elif nops(e) = 3 and Testzero(op(2,e)) then
-        return indicator(Not(op(1,e))) * op(3,e)
+        return Indicator(Not(op(1,e))) * op(3,e)
       elif nops(e) = 4 and Testzero(op(2,e)) then
-        return indicator(And(Not(op(1,e)),op(3,e))) * op(4,e)
+        return Indicator(And(Not(op(1,e)),op(3,e))) * op(4,e)
       end if
     end if;
     return e
   end proc;
 
-  reduce_Int := proc(ee, var :: name, rng, h :: name, constraints :: list)
-    local e, dom_spec, new_rng, rest, w, bound, indep, i;
+  reduce_Int := proc(ee, h :: name, kb1 :: t_kb, kb0 :: t_kb)
+    local e, dom_spec, w, kb2, rest, var, new_rng, bound, indep, i;
 
     # if there are domain restrictions, try to apply them
     (dom_spec, e) := get_indicators(ee);
+    rest := kb_subtract(foldr(assert, kb1, op(dom_spec)), kb0);
+    new_rng, rest := selectremove(type, rest, [identical(genLebesgue),
+                                               name, anything, anything]);
+    new_rng := op(new_rng); # There should be exactly one genLebesgue
+    var     := op(2,new_rng);
+    new_rng := op(3,new_rng)..op(4,new_rng);
+    dom_spec, rest := selectremove(depends,
+      map(proc(a::[identical(assert),anything]) op(2,a) end proc, rest), var);
     if type(e, `*`) then
       (e, w) := selectremove(depends, e, var); # pull out weight
-      w := simplify_assuming(w, constraints);
+      w := simplify_assuming(w, kb1);
     else
       w := 1;
     end if;
-    (new_rng, dom_spec) := extract_dom(dom_spec, var);
-    new_rng := map((b -> min(max(b, op(1,new_rng)), op(2,new_rng))), rng);
-    if Testzero(op(2,new_rng)-op(1,new_rng)) then
-      # trivial integration bounds
-      e := 0;
-    else
-      (dom_spec, rest) := selectremove(depends, dom_spec, var);
-      if dom_spec <> {} then 
-        e := Int(piecewise(And(op(dom_spec)), e, 0), var = new_rng);
-      else
-        e := Int(e, var=new_rng);
-      end if;
-      e := w*elim_int(e, h, constraints);
-      # what does rest depend on?
-      bound := [var, op(map2(op, 1, constraints))];
-      (rest, indep) := selectremove(depends, rest, bound);
-      # don't turn 'rest' into piecewise (yet), but indep is ok
-      if indep = {} then
-        e := mul(indicator(i), i in rest)*e;
-      else
-        e := mul(indicator(i), i in rest)*piecewise(And(op(indep)), e, 0);
-      end if;
-    end if;
+    e := Int(`if`(dom_spec=[],e,piecewise(And(op(dom_spec)),e,0)), var=new_rng);
+    e := w*elim_int(e, h, kb0);
+    e := mul(Indicator(i), i in rest)*e;
     e
   end proc;
 
@@ -798,7 +758,7 @@ NewSLO := module ()
     (w1, w2)
   end proc;
 
-  reduce_wl := proc(wl :: list, var :: name, constraints :: list)
+  reduce_wl := proc(wl :: list, var :: name, constraints :: t_kb)
     local w, weights;
     weights := map(simplify_assuming, wl, constraints);
     w := 1;
@@ -811,7 +771,7 @@ NewSLO := module ()
     simplify_assuming(w,constraints), weights;
   end proc;
 
-  reduce_Ints := proc(ww, ee, var :: name, rng, h :: name, constraints :: list)
+  reduce_Ints := proc(ww, ee, var :: name, rng, h :: name, constraints :: t_kb)
     local w, wl, e, we, w0;
     # TODO we should do something with domain restrictions (see above) too
     # but right now, that is not needed by the tests, so just deal with
@@ -835,85 +795,6 @@ NewSLO := module ()
     else
       {}, e
     end if
-  end proc;
-
-  # TODO: generalize the patterns of lo/hi to also catch
-  # numeric < numeric + positive*v
-  # numeric + negative * v < numeric
-  # as both being about 'lo', for example.
-  extract_dom := proc(spec :: set, v :: name)
-    local lo, hi, i, rest;
-    lo, rest := selectremove(type, spec, '{freeof(v) <  identical(v),
-                                           freeof(v) <= identical(v)}');
-    hi, rest := selectremove(type, rest, '{identical(v) <  freeof(v),
-                                           identical(v) <= freeof(v)}');
-    max(map2(op,1,lo)) .. min(map2(op,2,hi)), rest;
-  end proc;
-
-  indicator := module()
-    export ModuleApply;
-    local to_set, co_set;
-
-    to_set := proc(a) # Make a set whose conjunction is equivalent to a
-      local x;
-      if a :: '{specfunc(And), specop(anything, `and`)}' then
-        map(op @ to_set, {op(a)})
-      elif a :: 'And(specfunc(Not), anyfunc(anything))' then
-        co_set(op(1,a))
-      elif a = true then
-        {}
-      elif a :: (('negint' &* 'name') < 'numeric') then
-        {op([1,2],a) > op(2,a)/op([1,1],a)};
-      elif a :: ((negint &* name) <= numeric) then
-        {op([1,2],a) >= op(2,a)/op([1,1],a)};
-      elif a :: (numeric < numeric &+ (negint &* name)) then
-        {(op(1,a) - op([2,1],a))/op([2,2,1],a) > op([2,2,2],a)}
-      elif a :: (numeric <= numeric &+ (negint &* name)) then
-        {(op(1,a) - op([2,1],a))/op([2,2,1],a) >= op([2,2,2],a)}
-      elif a :: (anything < identical(infinity)) then
-        {}
-      elif a :: (identical(-infinity) < anything) then
-        {}
-      elif a :: (numeric < name ^ identical(-1)) then
-        x := op([2,1],a);
-        {x < 1/op(1,a), x > 0}
-      elif a :: (numeric <= name ^ identical(-1)) then
-        x := op([2,1],a);
-        {x <= 1/op(1,a), x > 0}
-      else
-        {a}
-      end if;
-    end proc;
-
-    co_set := proc(a) # Make a set whose conjunction is equivalent to Not(a)
-      if a :: '{specfunc(Or), specop(anything, `or`)}' then
-        map(op @ co_set, {op(a)})
-      elif a :: 'And(specfunc(Not), anyfunc(anything))' then
-        to_set(op(1,a))
-      elif a :: 'anything < anything' then
-        to_set(op(1,a) >= op(2,a))
-      elif a :: 'anything <= anything' then
-        to_set(op(1,a) > op(2,a))
-      elif a = false then
-        {}
-      elif a = true then
-        {false}
-      else
-        {Not(a)}
-      end if;
-    end proc;
-
-    ModuleApply := proc(b)
-      local res;
-
-      res := to_set(b);
-      `if`(res={}, 1, 'Indicator'(res));
-    end proc;
-  end module;
-
-  # flip an actual condition.  Might fail if it is trivially unsat.
-  flip_cond := proc(c)
-    op(op(1,indicator(c)))
   end proc;
 
   banish := proc(m, x :: name, h :: name, g, levels :: extended_numeric)
@@ -1032,32 +913,28 @@ NewSLO := module ()
 
 # Step 3 of 3: from Maple LO (linear operator) back to Hakaru
 
-  fromLO := proc(lo :: LO(name, anything), {_ctx :: list(t_ctx) := []})
+  fromLO := proc(lo :: LO(name, anything), {_ctx :: t_kb := empty})
     local h;
     h := gensym(op(1,lo));
     unintegrate(h, eval(op(2,lo), op(1,lo) = h), _ctx)
   end proc;
 
-  fromCLO := proc(c :: Context(list(t_ctx), LO(name, anything)))
+  fromCLO := proc(c :: Context(t_kb, LO(name, anything)))
     Context(op(1,c), fromLO(op(2,c), op(1,c)))
   end proc;
 
-  unintegrate := proc(h :: name, integral, context :: list(t_ctx))
+  unintegrate := proc(h :: name, integral, context :: t_kb)
     local x, c, lo, hi, m, mm, w, w0, recognition, subintegral,
-          n, i, k, next_context, update_context, lower, upper,
+          n, i, k, next_context, update_context,
           hh, pp, res, rest;
     if integral :: 'And'('specfunc({Int,int})',
                          'anyfunc'('anything','name'='range'('freeof'(h)))) then
-      x := gensym(op([2,1],integral));
       (lo, hi) := op(op([2,2],integral));
-      lower := `if`(not (lo = -infinity), lo < x, NULL);
-      upper := `if`(not (hi = infinity), x < hi, NULL);
-      if [lower, upper] = [] then lower := x :: real end if;
-      next_context := [op(context), lower, upper];
-      # TODO: enrich context with x (measure class lebesgue)
+      x, next_context := genLebesgue(op([2,1],integral), lo, hi, context);
       subintegral := eval(op(1,integral), op([2,1],integral) = x);
       (w, m) := unweight(unintegrate(h, subintegral, next_context));
-      recognition := recognize(w, x, lo, hi) assuming op(next_context);
+      recognition := recognize(w, x, lo, hi)
+        assuming op(kb_to_assumptions(next_context));
       if recognition :: 'Recognized(anything, anything)' then
         # Recognition succeeded
         (w, w0) := factorize(op(2,recognition), x);
@@ -1086,20 +963,16 @@ NewSLO := module ()
       end if;
       # method: unintegrate 'pp' as if it were a single integral
       # this code is stolen from the Int code above, and adapted.
-      x := gensym(op(3,integral));
       (lo, hi) := op(op(4,integral));
-      lower := `if`(not (lo = -infinity), lo < x, NULL);
-      upper := `if`(not (hi = infinity), x < hi, NULL);
-      if [lower, upper] = [] then lower := x :: real end if;
-      next_context := [op(context), lower, upper];
-      # TODO: enrich context with x (measure class lebesgue)
+      x, next_context := genLebesgue(op(3,integral), lo, hi, context);
       hh := gensym('h');
       subintegral := eval(pp*applyintegrand(hh,x), idx(op(3,integral), i) = x);
       # note: we throw away this m term, as we know what it is
       (w, m) := unweight(unintegrate(hh, subintegral, next_context));
       # put the dependence back in
       rest := unintegrate(h, op(2,integral), context);
-      recognition := recognize(w, x, lo, hi) assuming op(next_context);
+      recognition := recognize(w, x, lo, hi)
+        assuming op(kb_to_assumptions(next_context));
       if recognition :: 'Recognized(anything, anything)' then
         # Recognition succeeded
         (w, w0) := factorize(op(2,recognition), x);
@@ -1145,8 +1018,8 @@ NewSLO := module ()
       next_context := context;
       update_context := proc(c)
         local then_context;
-        then_context := [op(next_context), c];
-        next_context := [op(next_context), flip_cond(c)]; # Mutation!
+        then_context := assert(    c , op(next_context));
+        next_context := assert(Not(c), op(next_context)); # Mutation!
         then_context
       end proc;
       piecewise(seq(piecewise(i::even,
@@ -1299,8 +1172,8 @@ NewSLO := module ()
       next_context := context;
       update_context := proc(c)
         local then_context;
-        then_context := [op(next_context), c];
-        next_context := [op(next_context), flip_cond(c)]; # Mutation!
+        then_context := assert(    c , op(next_context));
+        next_context := assert(Not(c), op(next_context)); # Mutation!
         then_context
       end proc;
       error "need to map into piecewise";
@@ -1828,27 +1701,6 @@ NewSLO := module ()
     result
   end proc;
 
-  myexpand_product := proc(prod)
-    local x, p, body, quantifier;
-    (body, quantifier) := op(prod);
-    x := op(1, quantifier);
-    p := proc(e)
-      local ee;
-      if e :: 'exp(anything)' then
-        ee := expand(op(1,e));
-        ee := convert(ee, 'list', `+`);
-        `*`(op(map(z -> exp(sum(z, quantifier)), ee)));
-      elif e :: ('freeof'(x) ^ 'anything') then
-        op(1,e) ^ expand(sum(op(2,e), quantifier))
-      elif e :: ('anything' ^ 'freeof'(x)) then
-        p(op(1,e)) ^ op(2,e)
-      else
-        product(e, quantifier)
-      end if
-    end proc;
-    `*`(op(map(p, convert(body, list, `*`))));
-  end proc;
-
   density[Lebesgue] := proc() proc(x) 1 end proc end proc;
   density[Uniform] := proc(a,b) proc(x)
     1/(b-a)
@@ -1879,18 +1731,18 @@ NewSLO := module ()
   bounds[BetaD] := proc(nu, loc, scale) 0 .. 1 end proc;
   bounds[GammaD] := proc(a, b) 0 .. infinity end proc;
 
-  RoundTripLO := proc(m, {ctx :: list(t_ctx) := []})
+  RoundTripLO := proc(m, {ctx :: t_kb := empty})
       lprint(eval(ToInert(fromLO(improve(toLO(m), _ctx = ctx), _ctx = ctx)), 
         _Inert_ATTRIBUTE=NULL))
   end proc;
 
-  RoundTripCLO := proc(m :: Context(list(t_ctx), anything))
+  RoundTripCLO := proc(m :: Context(t_kb, anything))
       sprintf("%a",(eval(ToInert(fromCLO(cimprove(toCLO(m)))), _Inert_ATTRIBUTE=NULL)))
   end proc;
 
 # Testing
 
-  TestHakaru := proc(m,n::algebraic:=m,{simp:=improve,verify:=simplify,ctx:=[]})
+  TestHakaru := proc(m,n::algebraic:=m,{simp:=improve,verify:=simplify,ctx:=empty})
     CodeTools[Test](fromLO(simp(toLO(m), _ctx = ctx), _ctx = ctx), n,
       measure(verify), _rest)
   end proc;
@@ -1931,14 +1783,10 @@ NewSLO := module ()
   end proc;
 
   ModuleLoad := proc()
-    TypeTools[AddType](t_ctx, 
-      '{name :: anything, name = anything .. anything, name < anything,
-        name <= anything, name > anything, name >= anything}');
     VerifyTools[AddVerification](measure = verify_measure);
   end proc;
 
   ModuleUnload := proc()
-    TypeTools[RemoveType](t_ctx);
     VerifyTools[RemoveVerification](measure);
   end proc;
 
