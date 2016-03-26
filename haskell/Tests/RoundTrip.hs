@@ -213,7 +213,7 @@ t5 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
 t5 = weight half >> dirac unit
 
 t6, t6' :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-t6 = dirac (real_ 5)
+t6 = dirac (nat2real (nat_ 5))
 t6' = superpose [(one, dirac (real_ 5))]
 
 t7,t7', t7n,t7n' :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
