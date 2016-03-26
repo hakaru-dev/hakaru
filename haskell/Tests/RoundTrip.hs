@@ -7,19 +7,18 @@
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Tests.RoundTrip where
 
-import Prelude ((.), id, ($), asTypeOf, Rational, (/))
+import Prelude ((.), ($), asTypeOf, (/))
 
-import Data.Number.Natural
 import Language.Hakaru.Syntax.Prelude hiding ((/))
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Syntax.AST (Term)
 import Language.Hakaru.Syntax.ABT (ABT)
 import Language.Hakaru.Expect     (total)
-import Language.Hakaru.Inference  (priorAsProposal, mcmc, mh)
+-- import Language.Hakaru.Inference  (priorAsProposal, mcmc, mh)
 import Language.Hakaru.Types.Sing
 
---import qualified Examples.Seismic as SE
+-- import qualified Examples.Seismic as SE
 
 import Test.HUnit
 import Tests.TestTools
