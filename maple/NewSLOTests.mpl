@@ -49,12 +49,16 @@ TestHakaru(model3, Gaussian(0,sqrt(2)),
   label = "use simplifier to integrate out variable");
 
 # Kalman filter; note the parameter + assumption
-kalman := 
-  Bind(Gaussian(0,1),x,Weight(NewSLO:-density[Gaussian](x,1)(y),Ret(x))):
-
-TestHakaru( kalman, 
-  Weight(exp(-y^2/4)/2/sqrt(Pi),Gaussian(y/2,1/sqrt(2))),
-  label = "Kalman filter", ctx = [y::real]);
+module()
+  local y, kb, kalman;
+  uses KB;
+  y, kb := genType(y, HReal(), empty);
+  kalman :=
+    Bind(Gaussian(0,1),x,Weight(NewSLO:-density[Gaussian](x,1)(y),Ret(x))):
+  TestHakaru(kalman, 
+    Weight(exp(-y^2/4)/2/sqrt(Pi),Gaussian(y/2,1/sqrt(2))),
+    label = "Kalman filter", ctx = kb);
+end module:
 
 # piecewise
 model4 := 
@@ -74,13 +78,6 @@ sliceds :=
   Weight(2*sqrt(lu)*exp(-lu)/sqrt(Pi),
   Uniform(-sqrt(2*lu),sqrt(2*lu))):
 TestHakaru(sliced, sliceds, label = "slice sampling") assuming lu>0;
-
-# The failure of the following test reminds us to fix inconsistencies among
-# notions of constraints and assumptions in our code.
-TestHakaru(Bind(Gaussian(0,1), x,
-            piecewise(sin(x)>1/42,
-             Weight(sin(x)^2, Ret(x)))),
-           label = "notions of constraints and assumptions");
 
 # test with uniform.  No change without simplifier, eliminates it with
 # call to value.
@@ -105,14 +102,14 @@ TestHakaru(Bind(Uniform(0,1),x,Weight((1-x)^beta,Ret(x))), Weight(1/(1+beta),Bet
 TestHakaru(Bind(Uniform(0,1),x,Weight(x*2,Ret(x))), BetaD(2,1),
   label="BetaD(2,1) recog");
 TestHakaru(BetaD(alpha,beta), label="BetaD recog.");
-TestHakaru(GammaD(a,b), label="GammaD recog.", ctx = [a>0,b>0]);
+TestHakaru(GammaD(a,b), label="GammaD recog.", ctx = KB:-assert(And(a>0,b>0),KB:-empty));
 TestHakaru(GammaD(1/2,2), label="GammaD(1/2,2) recog.");
 TestHakaru(LO(h, int(exp(-x/2)*applyintegrand(h,x),x=0..infinity)), Weight(2,GammaD(1,2)));
 TestHakaru(LO(h, int(x*exp(-x/2)*applyintegrand(h,x),x=0..infinity)), Weight(4,GammaD(2,2)));
 TestHakaru(Bind(Lebesgue(), x, Weight(1/x^2, Ret(x))));
-TestHakaru(Cauchy(loc,scale), ctx = [scale>0], label="Cauchy recog.");
-TestHakaru(StudentT(nu,loc,scale), ctx=[scale>0], label = "StudentT recog.");
-TestHakaru(StudentT(1,loc,scale),Cauchy(loc,scale), ctx = [scale>0],
+TestHakaru(Cauchy(loc,scale), ctx = KB:-assert(scale>0,KB:-empty), label="Cauchy recog.");
+TestHakaru(StudentT(nu,loc,scale), ctx=KB:-assert(scale>0,KB:-empty), label = "StudentT recog.");
+TestHakaru(StudentT(1,loc,scale),Cauchy(loc,scale), ctx = KB:-assert(scale>0,KB:-empty),
   label = "StudentT(1,loc,scale) recog.");
 
 # how far does myint get us?
@@ -140,7 +137,7 @@ eeHMM := Bind(GammaD(1,1),t,
 ees := Weight(1/(a^2+2)^(3/2), GammaD(3/2, 1/((1/2)*a^2+1))):
 
 
-TestHakaru(eeHMM, ees, ctx = [a::real], label = "easy-easy-HMM");
+TestHakaru(eeHMM, ees, ctx = KB:-assert(a::real,KB:-empty), label = "easy-easy-HMM");
 
 # from an email conversation on Sept. 11
 model6 := Bind(Gaussian(0,1),x, piecewise(x>4,Ret(4),Ret(x))):
@@ -262,12 +259,12 @@ TestHakaru(Bind(Uniform(0,1), x, Weight(x, Uniform(0,x))), Weight(1/2, BetaD(1, 
 # t1
 # cv1 := Bind(Gaussian(mu, sigma), x, Ret((x-mu)/sigma)):
 # cv1s := Gaussian(0,1):
-# TestHakaru(cv1, cv1s, ctx = [sigma>0], label = "renormalize Gaussian");
+# TestHakaru(cv1, cv1s, ctx = KB:-assert(sigma>0,KB:-empty), label = "renormalize Gaussian");
 
 # t28
 # cv2 := Bind(BetaD(a,b), x, Ret(1-x)):
 # cv2s := BetaD(b,a):
-# TestHakaru(cv2, cv2s, ctx=[a>0,b>0], label = "swap BetaD");
+# TestHakaru(cv2, cv2s, ctx=KB:-assert(And(a>0,b>0),KB:-empty), label = "swap BetaD");
 
 unk_pw := Bind(m, y, Bind(Gaussian(0,1), x, piecewise(x<0, Ret(-x), Ret(x)))):
 unk1   := Bind(Gaussian(0,1), x, Bind(m, y, Bind(Gaussian(x,1), z, Ret([y,z])))):
@@ -304,7 +301,7 @@ module()
   rmProg4 := lam(x0, app(lam(x1, lam(x2, Bind(unpair(( (p3 , p4) -> Msum(Weight((1/2), Bind(Uniform(3, 8), a5, Ret(Pair(a5, p4)))), Weight((1/2), Bind(Uniform(1, 4), a6, Ret(Pair(p3, a6)))))), x2), a7, Ret(Pair(a7, (app(x1,a7)/app(x1,x2))))))),lam(x8, unpair(( (p151 , p152) -> app(p152,lam(x153, 1))), app(app(lam(x9, lam(x10, unpair(( (p11 , p12) -> app(lam(x13, app(lam(x14, Pair(Msum(Weight(x13, unpair(( (p15 , p16) -> p15), x14))), lam(x17, (0+(x13*app(unpair(( (p18 , p19) -> p19), x14),x17)))))),app(lam(x20, app(lam(x21, Pair(Msum(Weight(x20, unpair(( (p22 , p23) -> p22), x21))), lam(x24, (0+(x20*app(unpair(( (p25 , p26) -> p26), x21),x24)))))),app(lam(x27, app(lam(x28, app(lam(x29, app(lam(x30, Pair(Msum(Weight(x27, unpair(( (p31 , p32) -> p31), x28)), Weight(x29, unpair(( (p33 , p34) -> p33), x30))), lam(x35, ((0+(x27*app(unpair(( (p36 , p37) -> p37), x28),x35)))+(x29*app(unpair(( (p38 , p39) -> p39), x30),x35)))))),Pair(Msum(), lam(x40, 0)))),1)),app(lam(x41, app(lam(x42, Pair(Msum(Weight(x41, unpair(( (p43 , p44) -> p43), x42))), lam(x45, (0+(x41*app(unpair(( (p46 , p47) -> p47), x42),x45)))))),app(lam(x48, app(lam(x49, app(lam(x50, app(lam(x51, Pair(Msum(Weight(x48, unpair(( (p52 , p53) -> p52), x49)), Weight(x50, unpair(( (p54 , p55) -> p54), x51))), lam(x56, ((0+(x48*app(unpair(( (p57 , p58) -> p58), x49),x56)))+(x50*app(unpair(( (p59 , p60) -> p60), x51),x56)))))),Pair(Msum(), lam(x61, 0)))),1)),app(lam(x62, app(lam(x63, Pair(Msum(Weight(x62, unpair(( (p64 , p65) -> p64), x63))), lam(x66, (0+(x62*app(unpair(( (p67 , p68) -> p68), x63),x66)))))),unpair(( (p69 , p70) -> unpair(( (p71 , p72) -> unpair(( (p73 , p74) -> unpair(( (p75 , p76) -> unpair(( (p77 , p78) -> unpair(( (p79 , p80) -> unpair(( (p81 , p82) -> unpair(( (p83 , p84) -> unpair(( (p85 , p86) -> unpair(( (p87 , p88) -> app(lam(x89, app(lam(x90, Pair(Msum(Weight(x89, unpair(( (p91 , p92) -> p91), x90))), lam(x93, (0+(x89*app(unpair(( (p94 , p95) -> p95), x90),x93)))))),app(lam(x96, app(lam(x97, Pair(Msum(Weight(x96, unpair(( (p98 , p99) -> p98), x97))), lam(x100, (0+(x96*app(unpair(( (p101 , p102) -> p102), x97),x100)))))),app(lam(x103, app(lam(x104, app(lam(x105, app(lam(x106, Pair(Msum(Weight(x103, unpair(( (p107 , p108) -> p107), x104)), Weight(x105, unpair(( (p109 , p110) -> p109), x106))), lam(x111, ((0+(x103*app(unpair(( (p112 , p113) -> p113), x104),x111)))+(x105*app(unpair(( (p114 , p115) -> p115), x106),x111)))))),Pair(Msum(), lam(x116, 0)))),1)),piecewise((p12<4), piecewise((1<p12), app(lam(x117, app(lam(x118, Pair(Msum(Weight(x117, unpair(( (p119 , p120) -> p119), x118))), lam(x121, (0+(x117*app(unpair(( (p122 , p123) -> p123), x118),x121)))))),app(lam(x124, app(lam(x125, app(lam(x126, app(lam(x127, Pair(Msum(Weight(x124, unpair(( (p128 , p129) -> p128), x125)), Weight(x126, unpair(( (p130 , p131) -> p130), x127))), lam(x132, ((0+(x124*app(unpair(( (p133 , p134) -> p134), x125),x132)))+(x126*app(unpair(( (p135 , p136) -> p136), x127),x132)))))),Pair(Msum(), lam(x137, 0)))),1)),piecewise((p11<8), piecewise((3<p11), app(lam(x138, app(lam(x139, Pair(Msum(Weight(x138, unpair(( (p140 , p141) -> p140), x139))), lam(x142, (0+(x138*app(unpair(( (p143 , p144) -> p144), x139),x142)))))),app(lam(x145, Pair(Ret(x145), lam(x146, app(x146,x145)))),Pair(p11, p12)))),5), Pair(Msum(), lam(x147, 0))), Pair(Msum(), lam(x148, 0))))),1))),(1/5)), Pair(Msum(), lam(x149, 0))), Pair(Msum(), lam(x150, 0))))),1))),(1/3)))),((((1/Pi)*exp((((((((((p69*p71)*(p11*p11))*2)+((((p11*p11)*p73)*p76)*(-2)))+((p78*p80)*(p11*p11)))+((p12*p12)*(p81*p83)))+((p12*p12)*(p86*p88)))*(1/((((p11*p11)*(p11*p11))+(((p12*p12)*(p11*p11))*3))+((p12*p12)*(p12*p12)))))*(-(1/2)))))*exp((ln(((exp(((x -> piecewise(x<0, -337, ln(x)))(p11)*4))+((exp(((x -> piecewise(x<0, -337, ln(x)))(p12)*2))*exp(((x -> piecewise(x<0, -337, ln(x)))(p11)*2)))*3))+exp(((x -> piecewise(x<0, -337, ln(x)))(p12)*4))))*(-(1/2)))))*(1/10)))), x9)), x9)), x9)), x9)), x9)), x9)), x9)), x9)), x9)), x9))),1))),1))),1))),1))),1))),1)), x10))),x0),x8))))):
   TestHakaru(app(app(rmProg4,Pair(r1,r2)),Pair(p1,p2)), Msum(Weight(1/2, Bind(Uniform(3, 8), a5, Ret(Pair(Pair(a5, p2), exp((1/2)*(-p1+a5)*(a5+p1)*(p1^2*p2^2*r1^2+p1^2*p2^2*r2^2+2*p1^2*r1^2*a5^2-2*p1^2*r1*r2*a5^2+p1^2*r2^2*a5^2+p2^4*r1^2+2*p2^4*r1*r2+2*p2^4*r2^2+p2^2*r1^2*a5^2+p2^2*r2^2*a5^2)/((p2^4+3*p2^2*a5^2+a5^4)*(p1^4+3*p1^2*p2^2+p2^4)))*sqrt(p1^4+3*p1^2*p2^2+p2^4)/sqrt(p2^4+3*p2^2*a5^2+a5^4))))), Weight(1/2, Bind(Uniform(1, 4), a6, Ret(Pair(Pair(p1, a6), exp((1/2)*(-p2+a6)*(a6+p2)*(5*p1^4*r1^2-6*p1^4*r1*r2+2*p1^4*r2^2+2*p1^2*p2^2*r1^2-2*p1^2*p2^2*r1*r2+p1^2*p2^2*r2^2+2*p1^2*r1^2*a6^2-2*p1^2*r1*r2*a6^2+p1^2*r2^2*a6^2+p2^2*r1^2*a6^2+p2^2*r2^2*a6^2)/((p1^4+3*p1^2*a6^2+a6^4)*(p1^4+3*p1^2*p2^2+p2^4)))*sqrt(p1^4+3*p1^2*p2^2+p2^4)/sqrt(p1^4+3*p1^2*a6^2+a6^4)))))), 
   label="rmProg4", 
-  ctx= [3<p1, p1<8, 1<p2, p2<4]);
+  ctx= KB:-assert(And(3<p1, p1<8, 1<p2, p2<4), KB:-empty));
 end module:
 
 #####################################################################
@@ -316,21 +313,21 @@ gaussian_gaussian   := Bind(Gaussian(mu0,sigma0),mu, Weight(NewSLO:-density[Gaus
 gaussian_gaussian_s := Weight((1/2)*sqrt(2)*exp(-(1/2)*(mu0-x)^2/(sigma0^2+sigma1^2))/(sqrt(Pi)*sqrt(sigma0^2+sigma1^2)), Gaussian((mu0*sigma1^2+sigma0^2*x)/(sigma0^2+sigma1^2), sigma0*sigma1/sqrt(sigma0^2+sigma1^2))):
 TestHakaru(gaussian_gaussian, gaussian_gaussian_s, 
   label="gaussian_gaussian conjugacy", 
-  ctx = [mu0::real, sigma0>0, sigma1>0, x::real]);
+  ctx = KB:-assert(And(mu0::real, sigma0>0, sigma1>0, x::real), KB:-empty));
 invgamma_gaussian   := Bind(GammaD(alpha,beta),lambda, Weight(NewSLO:-density[Gaussian](mu,lambda^(-1/2))(x), Ret(lambda))):
 invgamma_gaussian_s := Weight(GAMMA(1/2+alpha)*sqrt(beta)*((1/2)*beta*mu^2-beta*mu*x+(1/2)*beta*x^2+1)^(-alpha)/(GAMMA(alpha)*sqrt(beta*mu^2-2*beta*mu*x+beta*x^2+2)*sqrt(Pi)), GammaD(1/2+alpha, 2*beta/(beta*mu^2-2*beta*mu*x+beta*x^2+2))):
 TestHakaru(invgamma_gaussian, invgamma_gaussian_s, 
   label="invgamma_gaussian conjugacy", 
-  ctx = [mu::real, alpha>0, beta>0, x::real]);
+  ctx = KB:-assert(And(mu::real, alpha>0, beta>0, x::real), KB:-empty));
 gaussian_invgamma_gaussian   := Bind(GammaD(alpha,beta),tau, Bind(Gaussian(mu0*sqrt(tau),1/sqrt(nu)),mu, Weight(NewSLO:-density[Gaussian](mu*tau^(-1/2),tau^(-1/2))(x), Ret([mu,tau])))):
 gaussian_invgamma_gaussian_s := Weight(GAMMA(1/2+alpha)*sqrt(nu)*sqrt(beta)*(beta*mu0^2*nu-2*beta*mu0*nu*x+beta*nu*x^2+2*nu+2)^(-1/2-alpha)*(2*nu+2)^alpha/(GAMMA(alpha)*sqrt(Pi)), Bind(GammaD(1/2+alpha, 2*beta*(nu+1)/(beta*mu0^2*nu-2*beta*mu0*nu*x+beta*nu*x^2+2*nu+2)),tau, Bind(Gaussian(sqrt(tau)*(mu0*nu+x)/(nu+1), 1/sqrt(nu+1)),mu, Ret([mu,tau])))):
 TestHakaru(gaussian_invgamma_gaussian, gaussian_invgamma_gaussian_s,
   label="gaussian_invgamma_gaussian conjugacy",
-  ctx = [mu0::real, nu>0, alpha>0, beta>0, x::real]);
+  ctx = KB:-assert(And(mu0::real, nu>0, alpha>0, beta>0, x::real), KB:-empty));
 gamma_gamma   := Bind(GammaD(alpha0,1/beta0),beta, Weight(NewSLO:-density[GammaD](alpha,1/beta)(x), Ret(beta))):
 gamma_gamma_s := Weight(beta0^alpha0*x^(alpha-1)*GAMMA(alpha+alpha0)*(beta0+x)^(-alpha-alpha0)/(GAMMA(alpha0)*GAMMA(alpha)), GammaD(alpha+alpha0, 1/(beta0+x))):
 TestHakaru(gamma_gamma, gamma_gamma_s, label="gamma_gamma conjugacy", 
-  ctx = [alpha0>0, beta0>0, alpha>0, x>0]);
+  ctx = KB:-assert(And(alpha0>0, beta0>0, alpha>0, x>0), KB:-empty));
 
 # For the following test, banishing fails because Maple currently evaluates
 #   int(piecewise(x < y, 1/(1-x), 0), x = 0 .. 1) assuming y<1
@@ -344,7 +341,11 @@ TestHakaru(Bind(Ret(ary(n,i,i*2)), v, Ret(idx(v,42))), Ret(84), label="basic arr
 # RoundTrip tests; due to bug in CodeTest, use lower-level function directly
 
 TestTools:-SetRecord(false):
-rt1 := Context([x::real], Bind(Gaussian(0,1), x, Ret(0))):
-rt1r := "_Inert_FUNCTION(_Inert_NAME(\"Context\"),_Inert_EXPSEQ(_Inert_LIST(_Inert_EXPSEQ(_Inert_DCOLON(_Inert_NAME(\"x\"),_Inert_NAME(\"real\")))),_Inert_FUNCTION(_Inert_NAME(\"Ret\"),_Inert_EXPSEQ(_Inert_INTPOS(0)))))":
-TestTools:-Try("simple case of RoundTripCLO", RoundTripCLO(rt1), rt1r);
+module()
+  local kb, rt1, rt1r;
+  kb := KB:-assert(x::real,KB:-empty):
+  rt1 := Context(kb, Bind(Gaussian(0,1), x, Ret(0))):
+  rt1r := sprintf("%a", eval(ToInert(Context(kb, Ret(0))), _Inert_ATTRIBUTE=NULL)):
+  TestTools:-Try("simple case of RoundTripCLO", RoundTripCLO(rt1), rt1r);
+end module:
 quit
