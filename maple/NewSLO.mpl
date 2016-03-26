@@ -198,7 +198,12 @@ KB := module ()
       # Reduce (in)equality between exp(a) and exp(b) to between a and b.
       do
         try log_b := map(ln, b) assuming op(as); catch: break; end try;
-        if length(log_b) < length(b) then b := log_b; else break; end if;
+        if length(log_b) < length(b) and
+           and (andmap(is, log_b, real) assuming op(as)) then
+          b := log_b;
+        else
+          break;
+        end if;
       end do;
       # Look through kb for the innermost scope where b makes sense.
       k := select((k -> k :: Introduce(name, anything) and depends(b, op(1,k))),
