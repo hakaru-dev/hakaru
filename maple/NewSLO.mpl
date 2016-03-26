@@ -159,7 +159,7 @@ KB := module ()
         ModuleLoad, ModuleUnload;
   export empty, genLebesgue, genType, assert,
          kb_subtract, simplify_assuming, kb_to_assumptions;
-  global t_kb, t_type, t_datum, t_struct, Bound,
+  global t_kb, t_type, Bound,
          AlmostEveryReal, HReal, HInt, HData, HMeasure, HArray, HFunction,
          Inr, Inl, Et, Done, Konst, Ident;
 
@@ -407,21 +407,15 @@ KB := module ()
     TypeTools[AddType](t_type,
       '{specfunc(Bound(identical(`<`,`<=`,`>`,`>=`), anything),
                  {AlmostEveryReal, HReal, HInt}),
-        HData(anything, t_datum),
+        HData(list(anything, list({Konst(t_type), Ident(t_type)}))),
         HMeasure(t_type),
         HArray(t_type),
         HFunction(t_type, t_type)}');
-    TypeTools[AddType](t_datum,
-      '{Inr(t_datum), Inl(t_struct)}');
-    TypeTools[AddType](t_struct,
-      '{Et({Konst(t_type), Ident(t_type)}, t_struct), identical(Done)}');
   end proc;
 
   ModuleUnload := proc()
     TypeTools[RemoveType](t_kb);
     TypeTools[RemoveType](t_type);
-    TypeTools[RemoveType](t_datum);
-    TypeTools[RemoveType](t_struct);
   end proc;
 
   ModuleLoad();
