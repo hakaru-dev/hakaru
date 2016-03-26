@@ -67,7 +67,7 @@ testSS
     -> Assertion
 testSS nm ts t' = 
      mapM_ (\t -> do p <- simplify t 
-                     assertEqual nm p t')
+                     assertAlphaEq nm p t')
            ts
 
 testSStriv 
