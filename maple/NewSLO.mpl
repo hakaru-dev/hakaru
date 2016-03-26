@@ -183,7 +183,7 @@ KB := module ()
 
   assert_deny := proc(bb, pol::identical(true,false), kb::t_kb)
     # Add `if`(pol,bb,Not(bb)) to kb and return the resulting KB.
-    local as, b, k, x, rel, e, c, y;
+    local as, b, log_b, k, x, rel, e, c, y;
     if bb = pol then
       # Ignore literal true and Not(false).
       kb
@@ -196,9 +196,10 @@ KB := module ()
       as := kb_to_assumptions(kb);
       b := simplify(bb) assuming op(as);
       # Reduce (in)equality between exp(a) and exp(b) to between a and b.
-      while b :: 'relation(exp(anything))'
-        and (is(op([1,1], b), real) and is(op([2,1], b), real) assuming op(as))
-      do b := map2(op, 1, b) end do;
+      do
+        try log_b := map(ln, b) assuming op(as); catch: break; end try;
+        if length(log_b) < length(b) then b := log_b; else break; end if;
+      end do;
       # Look through kb for the innermost scope where b makes sense.
       k := select((k -> k :: Introduce(name, anything) and depends(b, op(1,k))),
                   kb);
@@ -396,7 +397,7 @@ KB := module ()
       'specfunc({
          Introduce(name, t_type),
          Bound(name, identical(`<`,`<=`,`>`,`>=`), anything),
-         Constrain({boolean, specfunc(anything,{Or,Not})})
+         Constrain({`::`, boolean, `in`, specfunc(anything,{Or,Not})})
        }, KB)');
     TypeTools[AddType](t_type,
       '{specfunc(Bound(identical(`<`,`<=`,`>`,`>=`), anything),
@@ -502,7 +503,7 @@ NewSLO := module ()
     StudentT(anything, anything, anything),
     BetaD(anything, anything), GammaD(anything, anything)}':
 
-  integrate := proc(m, h, loops :: list(name = range))
+  integrate := proc(m, h, loops :: list(name = range) := [])
     local x, n, i, res, dens, bds, l;
 
     # FIXME
@@ -797,8 +798,8 @@ NewSLO := module ()
     elif e::`^` then
       inds, rest := get_indicators(op(1,e));
       inds, subsop(1=rest, e)
-    elif e::'Indicator(set)' then
-      op(1,e), 1
+    elif e::'Indicator(anything)' then
+      {op(1,e)}, 1
     else
       {}, e
     end if
@@ -1025,8 +1026,8 @@ NewSLO := module ()
       next_context := context;
       update_context := proc(c)
         local then_context;
-        then_context := assert(    c , op(next_context));
-        next_context := assert(Not(c), op(next_context)); # Mutation!
+        then_context := assert(    c , next_context);
+        next_context := assert(Not(c), next_context); # Mutation!
         then_context
       end proc;
       piecewise(seq(piecewise(i::even,
@@ -1179,8 +1180,8 @@ NewSLO := module ()
       next_context := context;
       update_context := proc(c)
         local then_context;
-        then_context := assert(    c , op(next_context));
-        next_context := assert(Not(c), op(next_context)); # Mutation!
+        then_context := assert(    c , next_context);
+        next_context := assert(Not(c), next_context); # Mutation!
         then_context
       end proc;
       error "need to map into piecewise";
