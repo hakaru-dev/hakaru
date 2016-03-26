@@ -23,7 +23,8 @@ import Language.Hakaru.Types.Sing
 import Test.HUnit
 import Tests.TestTools
 import Tests.Models
-    (uniform_0_1, normal_0_1, gamma_1_1, beta_1_1, t4, t4', norm, unif2)
+    (uniform_0_1, normal_0_1, gamma_1_1,
+     uniformC, normalC, beta_1_1, t4, t4', norm, unif2)
 
 testMeasureUnit :: Test
 testMeasureUnit = test [
@@ -92,26 +93,26 @@ testMeasureReal = test
     , "t51" ~: testStriv t51
     --, "t68" ~: testStriv t68
     --, "t68'" ~: testStriv t68'
-    , "t70a" ~: testSStriv [t70a] (uniform one (real_ 3))
-    , "t71a" ~: testSStriv [t71a] (uniform one (real_ 3))
-    , "t72a" ~: testSStriv [t72a] (withWeight half $ uniform one (real_ 2))
+    , "t70a" ~: testSStriv [t70a] (uniformC one (nat_ 3))
+    , "t71a" ~: testSStriv [t71a] (uniformC one (nat_ 3))
+    , "t72a" ~: testSStriv [t72a] (withWeight (unsafeProb half) $ uniformC one (nat_ 2))
     , "t73a" ~: testSStriv [t73a] (superpose [])
     , "t74a" ~: testSStriv [t74a] (superpose [])
     , "t70b" ~: testSStriv [t70b] (superpose [])
     , "t71b" ~: testSStriv [t71b] (superpose [])
-    , "t72b" ~: testSStriv [t72b] (withWeight half $ uniform (real_ 2) (real_ 3))
-    , "t73b" ~: testSStriv [t73b] (uniform one (real_ 3))
-    , "t74b" ~: testSStriv [t74b] (uniform one (real_ 3))
-    , "t70c" ~: testSStriv [t70c] (uniform one (real_ 3))
-    , "t71c" ~: testSStriv [t71c] (uniform one (real_ 3))
-    , "t72c" ~: testSStriv [t72c] (withWeight half $ uniform one (real_ 2))
+    , "t72b" ~: testSStriv [t72b] (withWeight (unsafeProb half) $ uniformC (nat_ 2) (nat_ 3))
+    , "t73b" ~: testSStriv [t73b] (uniformC one (nat_ 3))
+    , "t74b" ~: testSStriv [t74b] (uniformC one (nat_ 3))
+    , "t70c" ~: testSStriv [t70c] (uniformC one (nat_ 3))
+    , "t71c" ~: testSStriv [t71c] (uniformC one (nat_ 3))
+    , "t72c" ~: testSStriv [t72c] (withWeight (unsafeProb half) $ uniformC one (nat_ 2))
     , "t73c" ~: testSStriv [t73c] (superpose [])
     , "t74c" ~: testSStriv [t74c] (superpose [])
     , "t70d" ~: testSStriv [t70d] (superpose [])
     , "t71d" ~: testSStriv [t71d] (superpose [])
-    , "t72d" ~: testSStriv [t72d] (withWeight half $ uniform (real_ 2) (real_ 3))
-    , "t73d" ~: testSStriv [t73d] (uniform one (real_ 3))
-    , "t74d" ~: testSStriv [t74d] (uniform one (real_ 3))
+    , "t72d" ~: testSStriv [t72d] (withWeight (unsafeProb half) $ uniformC (nat_ 2) (nat_ 3))
+    , "t73d" ~: testSStriv [t73d] (uniformC one (nat_ 3))
+    , "t74d" ~: testSStriv [t74d] (uniformC one (nat_ 3))
     --, "t76" ~: testStriv t76
     , "t78" ~: testSStriv [t78] t78'
     , "t79" ~: testSStriv [t79] (dirac one)
@@ -144,10 +145,13 @@ testMeasurePair = test [
     "t23"           ~: testSStriv [t23] t23',
     --"t48"           ~: testStriv t48,
     "t52"           ~: testSStriv [t52] t52',
-    "dup"           ~: testSStriv [dup normal_0_1] (liftM2 pair normal_0_1 normal_0_1),
+    "dup"           ~: testSStriv [dup normal_0_1] (liftM2 pair
+                                                           (normalC zero one)
+                                                           (normalC zero one)),
     "norm"          ~: testSStriv [] norm,
-    "norm_nox"      ~: testSStriv [norm_nox] (normal zero (sqrt (prob_ 2))),
-    "norm_noy"      ~: testSStriv [norm_noy] normal_0_1,
+    "norm_nox"      ~: testSStriv [norm_nox] (normal (nat2real zero)
+                                                     (nat2prob (nat_ 2) ** real_ 0.5)),
+    "norm_noy"      ~: testSStriv [norm_noy] (normalC zero one),
     "flipped_norm"  ~: testSStriv [swap <$> norm] flipped_norm,
     --"priorProp"     ~: testSStriv [lam (priorAsProposal norm)]
     --                          (lam $ \x -> superpose [(half, normal_0_1         >>= \y -> dirac (pair y (snd x))),

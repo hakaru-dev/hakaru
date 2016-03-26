@@ -33,8 +33,22 @@ import Data.Text
 uniform_0_1 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
 uniform_0_1 = uniform zero one
 
+-- build uniform with nats and coercions
+uniformC :: (ABT Term abt)
+         => abt '[] 'HNat
+         -> abt '[] 'HNat
+         -> abt '[] ('HMeasure 'HReal)
+uniformC lo hi = uniform (nat2real lo) (nat2real hi)
+
 normal_0_1 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
 normal_0_1 = normal zero one
+
+-- build normal with nats and coercions
+normalC  :: (ABT Term abt)
+         => abt '[] 'HNat
+         -> abt '[] 'HNat
+         -> abt '[] ('HMeasure 'HReal)
+normalC mu sd = normal (nat2real mu) (nat2prob sd)
 
 gamma_1_1 :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
 gamma_1_1 = gamma one one

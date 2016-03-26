@@ -38,6 +38,7 @@ symTable =
     , ("BetaD",    "beta")
     , ("GammaD",   "gamma")
     , ("Weight",   "weight")
+    , ("Lebesgue", "lebesgue")
     , ("Uniform",  "uniform")
     , ("Ret",      "dirac")
     , ("Pi",       "pi")
