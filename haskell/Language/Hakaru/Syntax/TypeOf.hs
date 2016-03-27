@@ -157,7 +157,9 @@ getTermSing singify = go
         return . SMeasure . snd $ sing_MeasureOp o
     go (Dirac  :$ r1 :* End)        = SMeasure <$> getSing r1
     go (MBind  :$ _  :* r2 :* End)  = getSing r2
-    go (Expect :$ _)                = return SProb
+    go (Integrate :$  _)            = return SProb
+    go (Summate :$  _)              = return SProb
+    go (Expect :$  _)               = return SProb
     go (NaryOp_  o  _)              = return $ sing_NaryOp o
     go (Literal_ v)                 = return $ sing_Literal v
     go (Empty_   typ)               = return typ
