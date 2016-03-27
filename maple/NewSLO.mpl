@@ -484,14 +484,15 @@ NewSLO := module ()
          TestHakaru, measure, density, bounds,
          unintegrate,
          ReparamDetermined, determined, Reparam, Banish,
-         disint;
+         disint,
+         Datum;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
   global Bind, Weight, Ret, Msum, Integrand, Plate, LO, Indicator, ary,
          Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD, StudentT,
          Context,
          lam,
-         Datum, Inr, Inl, Et, Done, Konst, Ident,
+         Inr, Inl, Et, Done, Konst, Ident,
          Branches, Branch, PWild, PVar, PDatum, PInr, PInl, PEt, PDone, PKonst, PIdent;
   uses KB;
 
@@ -1527,6 +1528,16 @@ NewSLO := module ()
       piecewise(make_piece(e), op([2,2], ret), op([1,2], ret))
     else
       'case'(e, ret)
+    end if
+  end proc;
+
+  Datum := proc(hint, payload)
+    # Further cheating to equate Maple booleans and Hakaru booleans
+    if hint = true and payload = Inl(Done) or
+       hint = false and payload = Inr(Inl(Done)) then
+      hint
+    else
+      'procname(_passed)'
     end if
   end proc;
 
