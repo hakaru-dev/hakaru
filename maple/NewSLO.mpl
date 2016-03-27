@@ -474,7 +474,7 @@ NewSLO := module ()
         avoid_capture, change_var, disint2;
   export Simplify,
      # note that these first few are smart constructors (for themselves):
-         case, app, idx, integrate, applyintegrand,
+         case, app, idx, integrate, applyintegrand, Datum,
      # while these are "proper functions"
          map_piecewise,
          bind, weight,
@@ -484,8 +484,7 @@ NewSLO := module ()
          TestHakaru, TestSimplify, measure, density, bounds,
          unintegrate,
          ReparamDetermined, determined, Reparam, Banish,
-         disint,
-         Datum;
+         disint;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
   global Bind, Weight, Ret, Msum, Integrand, Plate, LO, Indicator, ary,
