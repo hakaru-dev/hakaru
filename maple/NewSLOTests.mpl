@@ -336,6 +336,67 @@ TestHakaru(gamma_gamma, gamma_gamma_s, label="gamma_gamma conjugacy",
 TestHakaru(Bind(Uniform(0,1), x, Uniform(x,1)), label="roundtrip despite banishing failure");
 
 TestHakaru(Bind(Ret(ary(n,i,i*2)), v, Ret(idx(v,42))), Ret(84), label="basic array indexing");
+
+#####################################################################
+#
+# Tests for type-directed simplification
+#
+#####################################################################
+
+module()
+  local hpair, hbool,         heither,       hreal, hprob,
+        ppair, ptrue, pfalse, pleft, pright,
+        dpair, dtrue, dfalse, dleft, dright,
+        unpair;
+  uses CodeTools;
+  hpair   := (t1,t2) -> HData(DatumStruct(pair,[Konst(t1),Konst(t2)])):
+  hbool   := HData(DatumStruct(true,[]),DatumStruct(false,[])):
+  heither := (t1,t2) -> HData(DatumStruct(left,[Konst(t1)]),DatumStruct(right,[Konst(t2)])):
+  hreal   := HReal():
+  hprob   := HReal(Bound(`>=`,0)):
+  ppair   := (p1,p2) -> PDatum(pair,PInl(PEt(p1,PEt(p2,PDone)))):
+  ptrue   := PDatum(true,PInl(PDone)):
+  pfalse  := PDatum(false,PInr(PInl(PDone))):
+  pleft   := p -> PDatum(left,PInl(PEt(p,PDone))):
+  pright  := p -> PDatum(right,PInr(PInl(PEt(p,PDone)))):
+  dpair   := (d1,d2) -> Datum(pair,Inl(Et(d1,Et(d2,Done)))):
+  dtrue   := Datum(true,Inl(Done)):
+  dfalse  := Datum(false,Inr(Inl(Done))):
+  dleft   := d -> Datum(left,Inl(Et(d,Done))):
+  dright  := d -> Datum(right,Inr(Inl(Et(d,Done)))):
+  unpair  := (e1,x,y,e0) -> case(e1,Branches(Branch(ppair(PVar(x),PVar(y)),e0))):
+  # Currently these tests fail simply because verify_measure doesn't understand
+  # alpha-equivalence for lam and case
+  Test(Simplify(lam(pr,unpair(pr,x,y,sqrt(x^2)+y)),
+                HFunction(hpair(hprob,hreal),hreal),
+                KB:-empty),
+       lam(pr,unpair(pr,x,y,x+y)),
+       label="Transfer function argument type to KB");
+  Test(Simplify(lam(b,case(b,Branches(Branch(pfalse,3),Branch(ptrue,4)))),
+                HFunction(hbool,HInt()),
+                KB:-empty),
+       lam(b,case(b,Branches(Branch(ptrue,4),Branch(pfalse,3)))),
+       label="Eta-expand pure function from boolean");
+  Test(Simplify(lam(pr,unpair(pr,x,y,dpair(y,x))),
+                HFunction(hpair(hbool,hbool), hpair(hbool,hbool)),
+                KB:-empty),
+       lam(pr,case(b,Branches(
+         Branch(ppair(ptrue ,ptrue ), dpair(dtrue ,dtrue )),
+         Branch(ppair(ptrue ,pfalse), dpair(dfalse,dtrue )),
+         Branch(ppair(pfalse,ptrue ), dpair(dtrue ,dfalse)),
+         Branch(ppair(pfalse,pfalse), dpair(dfalse,dfalse))))),
+       label="Eta-expand pure function from pair of booleans");
+  Test(Simplify(lam(b,Bind(Uniform(0,1),p,
+                      Weight(case(b,Branches(Branch(pfalse,1-p),
+                                             Branch(ptrue,p))),
+                      Ret(p)))),
+                HFunction(hbool,HMeasure(hreal)),
+                KB:-empty),
+       lam(b,case(b,Branches(Branch(ptrue , Weight(1/2,BetaD(2,1))),
+                             Branch(pfalse, Weight(1/2,BetaD(1,2)))))),
+       label="Eta-expand function from boolean to measure");
+end module:
+
 ###########
 #
 # RoundTrip tests; due to bug in CodeTest, use lower-level function directly

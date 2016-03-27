@@ -158,7 +158,8 @@ KB := module ()
         myexpand_product,
         ModuleLoad, ModuleUnload;
   export empty, genLebesgue, genType, assert,
-         kb_subtract, simplify_assuming, kb_to_assumptions;
+         kb_subtract, simplify_assuming, kb_to_assumptions,
+         htype_patterns;
   global t_kb, t_type, Bound,
          AlmostEveryReal, HReal, HInt, HData, HMeasure, HArray, HFunction,
          DatumStruct, Konst, Ident;
@@ -398,6 +399,36 @@ KB := module ()
     else TopProp end if
   end proc;
 
+  # Enumerate patterns for a given Hakaru type
+  htype_patterns := proc(t::t_type)
+    :: specfunc(Branch(anything, list(t_type)), Branches);
+    local struct;
+    uses StringTools;
+    if t :: specfunc(DatumStruct(anything, list(Konst(anything))), HData) then
+      foldr(proc(struct,ps) Branches(
+              op(map((p -> Branch(PDatum(op(1,struct), PInl(op(1,p))),
+                                  op(2,p))),
+                     foldr(proc(kt,qs)
+                             local p, q;
+                             Branches(seq(seq(Branch(PEt(op(1,p),op(1,q)),
+                                                     [op(op(2,p)),op(op(2,q))]),
+                                              q in qs),
+                                          p in htype_patterns(op(1,kt))))
+                           end proc,
+                           Branches(Branch(PDone, [])), op(op(2,struct))))),
+              op(map[3](applyop, PInr, [1,2], ps)))
+            end proc,
+            Branches(), op(t))
+    else
+      Branches(Branch(PVar(gensym(convert(LowerCase(op(-1, ["x", op(
+                                            `if`(t::function,
+                                              select(IsUpper, Explode(op(0,t))),
+                                              []))])),
+                                          name))),
+                      [t]))
+    end if
+  end proc;
+
   ModuleLoad := proc()
     TypeTools[AddType](t_kb,
       'specfunc({
@@ -465,21 +496,40 @@ NewSLO := module ()
   uses KB;
 
   Simplify := proc(e, t::t_type, kb::t_kb)
-    local x, kb1;
+    local patterns, x, kb1, ex;
     if t :: HMeasure(anything) then
       fromLO(improve(toLO(e), _ctx=kb), _ctx=kb)
     elif t :: HFunction(anything, anything) then
-      # TODO
-      # if op(1,t) :: specfunc(DatumStruct(anything, list(Konst(anything))),
-      #                        HData) then ...
-      if e :: lam(name, anything) then
-        x := op(1,e);
-      elif op(1,t) :: function then
-        x := convert(StringTools:-LowerCase(op(-1, ["x", op(
-          select(StringTools:-IsUpper, StringTools:-Explode(op([1,0],t))))])), name);
-      end if;
-      x, kb1 := genType(x, op(1,t), kb);
-      lam(x, Simplify(app(e,x), op(2,t), kb1))
+      patterns := htype_patterns(op(1,t));
+      if patterns :: Branches(Branch(PVar(name),anything)) then
+        # Eta-expand the function type
+        x := `if`(e::lam(name,anything), op(1,e), op([1,1,1],patterns));
+        x, kb1 := genType(x, op(1,t), kb, e);
+        ex := app(e,x);
+        lam(x, Simplify(ex, op(2,t), kb1))
+      else
+        # Eta-expand the function type and the sum-of-product argument-type
+        x := `if`(e::lam(name,anything), op(1,e), d);
+        if depends([e,t,kb], x) then x := gensym(x) end if;
+        ex := app(e,x);
+        lam(x, 'case'(x,
+          map(proc(branch)
+                local eSubst, pSubst, p1, binds, ys, y, kb1, i, pSubst1;
+                eSubst, pSubst := pattern_match([x,e], x, op(1,branch));
+                p1 := subs(pSubst, op(1,branch));
+                binds := [pattern_binds(p1)];
+                ys := [];
+                kb1 := kb;
+                for i from 1 to nops(binds) do
+                  y, kb1 := genType(op(i,binds), op([2,i],branch), kb1);
+                  ys := [op(ys), y];
+                end do;
+                pSubst1 := zip(`=`, binds, ys);
+                Branch(subs(pSubst1, p1),
+                       Simplify(eval(eval(ex, eSubst), pSubst1), op(2,t), kb1))
+              end proc,
+              patterns)))
+      end if
     else
       simplify_assuming(e, kb)
     end if
