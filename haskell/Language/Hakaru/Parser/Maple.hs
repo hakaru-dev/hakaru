@@ -2,7 +2,7 @@
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Language.Hakaru.Parser.Maple where
 
-import           Language.Hakaru.Parser.AST hiding (Less)
+import           Language.Hakaru.Parser.AST hiding (Less, Equal)
 import           Control.Monad.Identity
 import           Data.Text           (Text)
 import qualified Data.Text           as Text
@@ -57,7 +57,7 @@ data NumOp = Pos | Neg
 data ArgOp
     = Float   | Power  | Rational
     | Func    | ExpSeq | Sum_
-    | Product | Less
+    | Product | Less   | Equal
     deriving (Eq, Show)
 
 data InertExpr
@@ -98,6 +98,8 @@ expr =  try func
     <|> try name
     <|> try assignedname
     <|> try assignedlocalname
+    <|> try lessthan
+    <|> try equal
     <|> try expseq
     <|> try intpos
     <|> try intneg
@@ -145,6 +147,9 @@ rational = InertArgs <$> (text "_Inert_RATIONAL" *> return Rational) <*> arg exp
 
 lessthan :: Parser InertExpr
 lessthan = InertArgs <$> (text "_Inert_LESSTHAN" *> return Less) <*> arg expr
+
+equal :: Parser InertExpr
+equal = InertArgs <$> (text "_Inert_EQUATION" *> return Equal) <*> arg expr
 
 rename :: Text -> Text
 rename x =
@@ -198,6 +203,9 @@ maple2AST (InertArgs Product es) = NaryOp Prod (map maple2AST es)
 maple2AST (InertArgs Less es) =
     foldl App (Var "less") (map maple2AST es)
 
+maple2AST (InertArgs Equal es) =
+    foldl App (Var "equal") (map maple2AST es)
+
 -- Add special case for NatPow for Power
 maple2AST (InertArgs Power [x, y]) =
     App (App (Var "**") (maple2AST x)) (maple2AST y)
@@ -209,6 +217,7 @@ maple2AST x = error $ "Can't handle: " ++ show x
 mapleDatum2AST :: Text -> InertExpr -> AST' Text
 mapleDatum2AST "pair" d = let [x, y] = unPairDatum d in
                           Pair (maple2AST x) (maple2AST y)
+mapleDatum2AST "unit" d = Unit
 mapleDatum2AST h _ = error ("TODO: mapleDatum " ++ Text.unpack h)
     
 maple2Type :: InertExpr -> TypeAST'
@@ -254,6 +263,7 @@ unPairDatum (InertArgs Func [InertName "Inl",
       [InertName "Konst",
        InertArgs ExpSeq [y]],
       InertName "Done"]]]]]]) = [x,y]
+unPairDatum _ = error "pair has malformed constructors"
 
 unpairPat :: InertExpr -> [InertExpr]
 unpairPat (InertArgs Func [InertName "PInl",
