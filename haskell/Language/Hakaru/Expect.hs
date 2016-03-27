@@ -354,7 +354,7 @@ expectMeasure _ Uniform = \(lo :* hi :* End) rho ->
         hi' = substs rho hi
     in
     integrate lo' hi' $ \x ->
-        densityUniform hi' lo' x * substs rho (c x)
+        densityUniform lo' hi' x * substs rho (c x)
 expectMeasure _ Normal = \(mu :* sd :* End) rho ->
     -- N.B., if\/when extending this to higher dimensions, the real equation is @recip (sqrt (2*pi*sd^2) ^ n) * integrate$\x -> c x * exp (negate (norm_n (x - mu) ^ 2) / (2*sd^2))@ for @Real^n@.
     ExpectMeasure $ \c ->
