@@ -86,9 +86,9 @@ assertAlphaEq preface a b =
    unless (alphaEq a b) (assertFailure msg)
  where msg = concat [ p
                     , "expected:\n"
-                    , show (pretty a)
-                    , "\nbut got:\n"
                     , show (pretty b)
+                    , "\nbut got:\n"
+                    , show (pretty a)
                     ]
        p = if null preface then "" else preface ++ "\n"
 
