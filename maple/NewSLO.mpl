@@ -1827,7 +1827,7 @@ NewSLO := module ()
   bounds[BetaD] := proc(nu, loc, scale) 0 .. 1 end proc;
   bounds[GammaD] := proc(a, b) 0 .. infinity end proc;
 
-  RoundTrip := proc(e, t::t_type, {kb :: t_kb := empty})
+  RoundTrip := proc(e, t, {kb :: t_kb := empty})
       lprint(eval(ToInert(Simplify(e,t,kb)),
         _Inert_ATTRIBUTE=NULL))
   end proc;
