@@ -28,7 +28,7 @@ import Tests.Models
 
 testMeasureUnit :: Test
 testMeasureUnit = test [
-    "t1,t5"   ~: testSStriv [t1,t5] (weight half),
+    "t1,t5"   ~: testSStriv [t1,t5] (weight (unsafeProb half)),
     "t10"     ~: testSStriv [t10] (superpose []),
     "t11,t22" ~: testSStriv [t11,t22] (dirac unit),
     "t12"     ~: testSStriv [] t12
@@ -54,7 +54,7 @@ testMeasureUnit = test [
 
 testMeasureProb :: Test
 testMeasureProb = test [
-    "t2"  ~: testSStriv [t2] (unsafeProb <$> uniform_0_1),
+    "t2"  ~: testSStriv [t2] (unsafeProb <$> uniformC zero one),
     "t26" ~: testSStriv [t26] (dirac half),
     "t30" ~: testSStriv [] t30,
     "t33" ~: testSStriv [] t33,
@@ -115,7 +115,7 @@ testMeasureReal = test
     , "t74d" ~: testSStriv [t74d] (uniformC one (nat_ 3))
     --, "t76" ~: testStriv t76
     , "t78" ~: testSStriv [t78] t78'
-    , "t79" ~: testSStriv [t79] (dirac one)
+    , "t79" ~: testSStriv [t79] (dirac (nat2real one))
     , "t80" ~: testStriv t80
     , "t81" ~: testSStriv [] t81
     --, "kalman" ~: testStriv kalman
