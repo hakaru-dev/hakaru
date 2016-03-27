@@ -161,7 +161,7 @@ KB := module ()
          kb_subtract, simplify_assuming, kb_to_assumptions;
   global t_kb, t_type, Bound,
          AlmostEveryReal, HReal, HInt, HData, HMeasure, HArray, HFunction,
-         Inr, Inl, Et, Done, Konst, Ident;
+         DatumStruct, Konst, Ident;
 
   empty := KB();
 
@@ -408,7 +408,8 @@ KB := module ()
     TypeTools[AddType](t_type,
       '{specfunc(Bound(identical(`<`,`<=`,`>`,`>=`), anything),
                  {AlmostEveryReal, HReal, HInt}),
-        HData(list(anything, list({Konst(t_type), Ident(t_type)}))),
+        specfunc(DatumStruct(anything, list({Konst(t_type), Ident(t_type)})),
+                 HData),
         HMeasure(t_type),
         HArray(t_type),
         HFunction(t_type, t_type)}');
