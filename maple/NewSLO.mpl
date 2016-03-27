@@ -441,7 +441,7 @@ NewSLO := module ()
         find_vars, find_constraints, interpret, reconstruct, invert, 
         get_var_pos, get_int_pos,
         avoid_capture, change_var, disint2;
-  export
+  export Simplify,
      # note that these first few are smart constructors (for themselves):
          case, app, idx, integrate, applyintegrand,
      # while these are "proper functions"
@@ -463,6 +463,27 @@ NewSLO := module ()
          Datum, Inr, Inl, Et, Done, Konst, Ident,
          Branches, Branch, PWild, PVar, PDatum, PInr, PInl, PEt, PDone, PKonst, PIdent;
   uses KB;
+
+  Simplify := proc(e, t::t_type, kb::t_kb)
+    local x, kb1;
+    if t :: HMeasure(anything) then
+      fromLO(improve(toLO(e), _ctx=kb), _ctx=kb)
+    elif t :: HFunction(anything, anything) then
+      # TODO
+      # if op(1,t) :: specfunc(DatumStruct(anything, list(Konst(anything))),
+      #                        HData) then ...
+      if e :: lam(name, anything) then
+        x := op(1,e);
+      elif op(1,t) :: function then
+        x := convert(StringTools:-LowerCase(op(-1, ["x", op(
+          select(StringTools:-IsUpper, StringTools:-Explode(op([1,0],t))))])), name);
+      end if;
+      x, kb1 := genType(x, op(1,t), kb);
+      lam(x, Simplify(app(e,x), op(2,t), kb1))
+    else
+      simplify_assuming(e, kb)
+    end if
+  end proc;
 
   t_pw    := 'specfunc(piecewise)';
   t_case  := 'case(anything, specfunc(Branch(anything, anything), Branches))';
