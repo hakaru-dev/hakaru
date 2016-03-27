@@ -731,11 +731,9 @@ NewSLO := module ()
         kb1 := assert(Not(c), kb1); # Mutation!
         kb0
       end proc;
-      e := piecewise(seq(piecewise(i::even,
-                                   reduce(op(i,e), h, update_kb(op(i-1,e))),
-                                   i=n,
-                                   reduce(op(i,e), h, kb1),
-                                   simplify_assuming(op(i,e), kb1)),
+      e := piecewise(seq(`if`(i::even, reduce(op(i,e), h, update_kb(op(i-1,e))),
+                          `if`(i=n,    reduce(op(i,e), h, kb1),
+                            simplify_assuming(op(i,e), kb1))),
                          i=1..n));
       # big hammer: simplify knows about bound variables, amongst many
       # other things
@@ -1111,12 +1109,10 @@ NewSLO := module ()
         kb1 := assert(Not(c), kb1); # Mutation!
         kb0
       end proc;
-      piecewise(seq(piecewise(i::even,
-                              unintegrate(h, op(i,integral),
-                                          update_kb(op(i-1,integral))),
-                              i=n,
-                              unintegrate(h, op(i,integral), kb1),
-                              op(i,integral)),
+      piecewise(seq(`if`(i::even, unintegrate(h, op(i,integral),
+                                              update_kb(op(i-1,integral))),
+                     `if`(i=n,    unintegrate(h, op(i,integral), kb1),
+                      op(i,integral))),
                     i=1..n))
     elif integral :: t_case then
       subsop(2=map(proc(b :: Branch(anything, anything))
