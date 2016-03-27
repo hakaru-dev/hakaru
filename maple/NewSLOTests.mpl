@@ -365,36 +365,30 @@ module()
   dleft   := d -> Datum(left,Inl(Et(d,Done))):
   dright  := d -> Datum(right,Inr(Inl(Et(d,Done)))):
   unpair  := (e1,x,y,e0) -> case(e1,Branches(Branch(ppair(PVar(x),PVar(y)),e0))):
-  # Currently these tests fail simply because verify_measure doesn't understand
-  # alpha-equivalence for lam and case
-  Test(Simplify(lam(pr,unpair(pr,x,y,sqrt(x^2)+y)),
-                HFunction(hpair(hprob,hreal),hreal),
-                KB:-empty),
-       lam(pr,unpair(pr,x,y,x+y)),
-       label="Transfer function argument type to KB");
-  Test(Simplify(lam(b,case(b,Branches(Branch(pfalse,3),Branch(ptrue,4)))),
-                HFunction(hbool,HInt()),
-                KB:-empty),
-       lam(b,case(b,Branches(Branch(ptrue,4),Branch(pfalse,3)))),
-       label="Eta-expand pure function from boolean");
-  Test(Simplify(lam(pr,unpair(pr,x,y,dpair(y,x))),
-                HFunction(hpair(hbool,hbool), hpair(hbool,hbool)),
-                KB:-empty),
-       lam(pr,case(b,Branches(
-         Branch(ppair(ptrue ,ptrue ), dpair(dtrue ,dtrue )),
-         Branch(ppair(ptrue ,pfalse), dpair(dfalse,dtrue )),
-         Branch(ppair(pfalse,ptrue ), dpair(dtrue ,dfalse)),
-         Branch(ppair(pfalse,pfalse), dpair(dfalse,dfalse))))),
-       label="Eta-expand pure function from pair of booleans");
-  Test(Simplify(lam(b,Bind(Uniform(0,1),p,
-                      Weight(case(b,Branches(Branch(pfalse,1-p),
-                                             Branch(ptrue,p))),
-                      Ret(p)))),
-                HFunction(hbool,HMeasure(hreal)),
-                KB:-empty),
-       lam(b,case(b,Branches(Branch(ptrue , Weight(1/2,BetaD(2,1))),
-                             Branch(pfalse, Weight(1/2,BetaD(1,2)))))),
-       label="Eta-expand function from boolean to measure");
+  TestSimplify(lam(pr,unpair(pr,x,y,sqrt(x^2)+y)),
+               HFunction(hpair(hprob,hreal),hreal),
+               lam(pr,unpair(pr,x,y,x+y)),
+               label="Transfer function argument type to KB");
+  TestSimplify(lam(b,case(b,Branches(Branch(pfalse,3),Branch(ptrue,4)))),
+               HFunction(hbool,HInt()),
+               lam(b,case(b,Branches(Branch(ptrue,4),Branch(pfalse,3)))),
+               label="Eta-expand pure function from boolean");
+  TestSimplify(lam(pr,unpair(pr,x,y,dpair(y,x))),
+               HFunction(hpair(hbool,hbool), hpair(hbool,hbool)),
+               lam(pr,case(pr,Branches(
+                 Branch(ppair(ptrue ,ptrue ), dpair(dtrue ,dtrue )),
+                 Branch(ppair(ptrue ,pfalse), dpair(dfalse,dtrue )),
+                 Branch(ppair(pfalse,ptrue ), dpair(dtrue ,dfalse)),
+                 Branch(ppair(pfalse,pfalse), dpair(dfalse,dfalse))))),
+               label="Eta-expand pure function from pair of booleans");
+  TestSimplify(lam(b,Bind(Uniform(0,1),p,
+                     Weight(case(b,Branches(Branch(pfalse,1-p),
+                                            Branch(ptrue,p))),
+                     Ret(p)))),
+               HFunction(hbool,HMeasure(hreal)),
+               lam(b,case(b,Branches(Branch(ptrue , Weight(1/2,BetaD(2,1))),
+                                     Branch(pfalse, Weight(1/2,BetaD(1,2)))))),
+               label="Eta-expand function from boolean to measure");
 end module:
 
 ###########

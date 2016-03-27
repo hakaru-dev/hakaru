@@ -468,7 +468,7 @@ NewSLO := module ()
         reduce_PI, elim_int,
         banish, known_measures,
         piecewise_if, nub_piecewise,
-        ModuleLoad, ModuleUnload, verify_measure,
+        ModuleLoad, ModuleUnload, verify_measure, pattern_equiv,
         find_vars, find_constraints, interpret, reconstruct, invert, 
         get_var_pos, get_int_pos,
         avoid_capture, change_var, disint2;
@@ -481,7 +481,7 @@ NewSLO := module ()
          toLO, fromLO, improve,
          RoundTrip, RoundTripLO, RoundTripCLO,
          toCLO, fromCLO, cimprove,
-         TestHakaru, measure, density, bounds,
+         TestHakaru, TestSimplify, measure, density, bounds,
          unintegrate,
          ReparamDetermined, determined, Reparam, Banish,
          disint,
@@ -1848,6 +1848,10 @@ NewSLO := module ()
       measure(verify), _rest)
   end proc;
 
+  TestSimplify := proc(m,t,n::algebraic:=m,{verify:=simplify,ctx:=empty})
+    CodeTools[Test](Simplify(m,t,ctx), n, measure(verify), _rest)
+  end proc;
+
   verify_measure := proc(m, n, v:='boolean')
     local mv, x, i, j, k;
     mv := measure(v);
@@ -1864,10 +1868,32 @@ NewSLO := module ()
     elif m :: t_pw and n :: t_pw and nops(m) = nops(n) then
       k := nops(m);
       verify(m, n, 'piecewise'(seq(`if`(i::even or i=k, mv, v), i=1..k)))
+    elif verify(m, n, 'case'(v, specfunc(Branch(true, true), Branches))) then
+      # This code unfortunately only handles alpha-equivalence for 'case' along
+      # the control path -- not if 'case' occurs in the argument to 'Ret', say.
+      k := nops(op(2,m));
+      for i from 1 to k do
+        j := pattern_equiv(op([2,i,1],m), op([2,i,1],n));
+        if j = false then return j end if;
+        j := map(proc(eq)
+                   local x;
+                   x := gensym(cat(lhs(eq), "_", rhs(eq), "_"));
+                   [lhs(eq)=x, rhs(eq)=x]
+                 end proc, j);
+        j := thisproc(subs(map2(op,1,j), op([2,i,2],m)),
+                      subs(map2(op,2,j), op([2,i,2],n)), v);
+        if j = false then return j end if;
+      end do;
+      true
     elif m :: 'LO(name, anything)' and n :: 'LO(name, anything)' then
       x := gensym(cat(op(1,m), "_", op(1,n), "_"));
       verify(subs(op(1,m)=x, op(2,m)),
              subs(op(1,n)=x, op(2,n)), v)
+    elif m :: 'lam(name, anything)' and n :: 'lam(name, anything)' then
+      # m and n are not even measures, but we verify them anyway...
+      x := gensym(cat(op(1,m), "_", op(1,n), "_"));
+      thisproc(subs(op(1,m)=x, op(2,m)),
+               subs(op(1,n)=x, op(2,n)), v)
     else
       verify(m, n, {v,
         Lebesgue(),
@@ -1880,6 +1906,31 @@ NewSLO := module ()
         Ret(mv),
         Weight(v, mv)
       })
+    end if
+  end proc;
+
+  pattern_equiv := proc(p, q) :: {identical(false),set(`=`)};
+    local r, s;
+    if ormap((t->andmap(`=`, [p,q], t)), [PWild, PDone]) then
+      {}
+    elif andmap(type, [p,q], PVar(anything)) then
+      {op(1,p)=op(1,q)}
+    elif andmap(type, [p,q], PDatum(anything,anything)) and op(1,p)=op(1,q) then
+      pattern_equiv(op(2,p),op(2,q))
+    elif ormap((t->andmap(type, [p,q], t(anything))),
+               [PInl, PInr, PKonst, PIdent]) then
+      pattern_equiv(op(1,p),op(1,q))
+    elif andmap(type, [p,q], PEt(anything, anything)) then
+      r := pattern_equiv(op(1,p),op(1,q));
+      s := pattern_equiv(op(2,p),op(2,q));
+      if map(lhs,r) intersect map(lhs,s) = {} and
+         map(rhs,r) intersect map(rhs,s) = {} then
+        r union s
+      else
+        false
+      end if
+    else
+      false
     end if
   end proc;
 
