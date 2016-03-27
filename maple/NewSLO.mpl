@@ -479,7 +479,7 @@ NewSLO := module ()
          map_piecewise,
          bind, weight,
          toLO, fromLO, improve,
-         RoundTripLO, RoundTripCLO,
+         RoundTrip, RoundTripLO, RoundTripCLO,
          toCLO, fromCLO, cimprove,
          TestHakaru, measure, density, bounds,
          unintegrate,
@@ -1819,6 +1819,11 @@ NewSLO := module ()
   bounds[StudentT] := proc(mu, sigma) -infinity .. infinity end proc;
   bounds[BetaD] := proc(nu, loc, scale) 0 .. 1 end proc;
   bounds[GammaD] := proc(a, b) 0 .. infinity end proc;
+
+  RoundTrip := proc(e, t::t_type, {kb :: t_kb := empty})
+      lprint(eval(ToInert(Simplify(e,t,kb)),
+        _Inert_ATTRIBUTE=NULL))
+  end proc;
 
   RoundTripLO := proc(m, {ctx :: t_kb := empty})
       lprint(eval(ToInert(fromLO(improve(toLO(m), _ctx = ctx), _ctx = ctx)), 
