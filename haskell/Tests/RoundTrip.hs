@@ -55,7 +55,7 @@ testMeasureUnit = test [
 testMeasureProb :: Test
 testMeasureProb = test [
     "t2"  ~: testSStriv [t2] (unsafeProb <$> uniformC zero one),
-    "t26" ~: testSStriv [t26] (dirac half),
+    "t26" ~: testSStriv [t26] (dirac (unsafeProb half)),
     "t30" ~: testSStriv [] t30,
     "t33" ~: testSStriv [] t33,
     "t34" ~: testSStriv [t34] (dirac (nat2prob (nat_ 3))),
@@ -66,8 +66,8 @@ testMeasureProb = test [
     --"t61" ~: testSStriv [t61] t61',
     "t66" ~: testSStriv [] t66,
     --"t67" ~: testSStriv [] t67,
-    "t69x" ~: testSStriv [t69x] (dirac (fromRational (3/2))),
-    "t69y" ~: testSStriv [t69y] (dirac (fromRational (7/2)))
+    "t69x" ~: testSStriv [t69x] (dirac (unsafeProb . real_ $ 3/2)),
+    "t69y" ~: testSStriv [t69y] (dirac (unsafeProb . real_ $ 7/2))
     ]
 
 testMeasureReal :: Test
