@@ -61,7 +61,7 @@ testMeasureProb = test [
     "t34" ~: testSStriv [t34] (dirac (nat2prob (nat_ 3))),
     --"t35" ~: testSStriv [t35] (lam $ \x -> if_ (x < 4) (dirac 3) (dirac 5)),
     --"t38" ~: testSStriv [] t38,
-    "t42" ~: testSStriv [t42] (dirac one),
+    "t42" ~: testSStriv [t42] (dirac (nat2prob one)),
     "t49" ~: testSStriv [] t49,
     --"t61" ~: testSStriv [t61] t61',
     "t66" ~: testSStriv [] t66,
