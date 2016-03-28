@@ -483,7 +483,7 @@ end module; # KB
 NewSLO := module ()
   option package;
   local t_pw, t_case, p_true, p_false,
-        unweight, factorize, pattern_match, make_piece,
+        unproduct, unweight, factorize, pattern_match, make_piece,
         recognize, get_de, recognize_de, mysolve, Diffop, Recognized,
         reduce,
         reduce_pw, reduce_Int, reduce_wl, reduce_Ints, reduce_prod,
@@ -613,7 +613,7 @@ NewSLO := module ()
       if loops = [] then
         Int(dens(x) * applyintegrand(h, x), x = bds);
       else
-        Ints(foldl(product, dens(mk_idx(x,loops)), op(loops))
+        Ints(foldl(Product, dens(mk_idx(x,loops)), op(loops))
                * applyintegrand(h, x),
              x, bds, loops)
       end if;
@@ -630,7 +630,7 @@ NewSLO := module ()
     elif m :: 'specfunc(Msum)' then
       `+`(op(map(integrate, [op(m)], h, loops)))
     elif m :: 'Weight(anything, anything)' then
-      foldl(product, op(1,m), op(loops)) * integrate(op(2,m), h, loops)
+      foldl(Product, op(1,m), op(loops)) * integrate(op(2,m), h, loops)
     elif m :: t_pw
       and not depends([seq(op(i,m), i=1..nops(m)-1, 2)], map(lhs, loops)) then
       n := nops(m);
@@ -1039,7 +1039,7 @@ NewSLO := module ()
   unintegrate := proc(h :: name, integral, kb :: t_kb)
     local x, c, lo, hi, m, mm, w, w0, recognition, subintegral,
           n, i, k, kb1, update_kb,
-          hh, pp, res, rest;
+          hh, pp, xx, res, rest;
     if integral :: 'And'('specfunc({Int,int})',
                          'anyfunc'('anything','name'='range'('freeof'(h)))) then
       (lo, hi) := op(op([2,2],integral));
@@ -1064,51 +1064,24 @@ NewSLO := module ()
         end if;
         weight(w0, bind(Lebesgue(), x, m))
       end if
-    elif integral :: 'Ints'(list, anything, name, range) then
-      if nops(op(1,integral)) > 1 then error "multi-dimensional array NIY" end if;
-      w := op([1,1],integral);
-      if w :: 'Product'(anything, name = range) then
-        pp := op(1, w);
-        i := op([2,1], w);
-        k := op([2,2,2], w);
-      else
-        error "weights are expected to be a Product"
-      end if;
-      # method: unintegrate 'pp' as if it were a single integral
-      # this code is stolen from the Int code above, and adapted.
-      (lo, hi) := op(op(4,integral));
-      x, kb1 := genLebesgue(op(3,integral), lo, hi, kb);
-      hh := gensym('h');
-      subintegral := eval(pp*applyintegrand(hh,x), idx(op(3,integral), i) = x);
-      # note: we throw away this m term, as we know what it is
-      (w, m) := unweight(unintegrate(hh, subintegral, kb1));
-      # put the dependence back in
-      rest := unintegrate(h, op(2,integral), kb);
-      recognition := recognize(w, x, lo, hi)
-        assuming op(kb_to_assumptions(kb1));
-      if recognition :: 'Recognized(anything, anything)' then
-        # Recognition succeeded
-        (w, w0) := factorize(op(2,recognition), x);
-        res := weight(w, op(1, recognition));
-        res := eval(res, x = idx(op(3,integral),i));
-      else
-        # Recognition failed
-        (w, w0) := factorize(w, x);
-        if hi <> infinity then
-          m := piecewise(x < hi, m, Msum())
-        end if;
-        if lo <> -infinity then
-          m := piecewise(lo < x, m, Msum())
-        end if;
-        res := weight(w, Lebesgue()); # bind(Lebesgue(), x, m);
-        res := eval(res, x = idx(op(3,integral),i));
-      end if;
-      weight(product(w0,i=1..k), bind(Plate(ary(k, i, res)), op(3,integral), rest));
-    # elif integral :: 'ProductIntegral'(anything, name, anything) then
-    #   m := unintegrate(h, op(1, integral), kb);
-    #   (w,m) := unweight(m);
-    #   mm := unintegrate(h, op(3, integral), kb);
-    #   weight(w, bind(Plate(m), op(2,integral), mm));
+    elif integral :: 'Ints'(anything, name, range, list(name=range)) then
+      (lo, hi) := op(op(3,integral));
+      res := HReal(Bound(`>`, lo), Bound(`<`, hi));
+      for i in op(4,integral) do res := HArray(res) end do;
+      x, kb1 := genType(op(2,integral), res, kb);
+      subintegral := eval(op(1,integral), op(2,integral) = x);
+      (w, m) := unweight(unintegrate(h, subintegral, kb1));
+      pp := foldr(unproduct, w, op(op(4,integral)));
+      hh := gensym('ph');
+      xx := gensym('px');
+      pp := eval(pp, mk_idx(x,op(4,integral))=xx);
+      if pp = FAIL or depends(pp,x) then pp := 1; m := weight(w, m); end if;
+      subintegral := Int(pp * applyintegrand(hh,xx), xx=lo..hi);
+      (w0, mm) := unweight(unintegrate(hh, subintegral, kb));
+      weight(foldl(product, w0, op(op(4,integral))),
+        bind(foldl(((mmm,loop) -> Plate(ary(op([2,2],loop),op(1,loop),mmm))),
+                   mm, op(op(4,integral))),
+             x, m))
     elif integral :: 'applyintegrand'('identical'(h), 'freeof'(h)) then
       Ret(op(2,integral))
     elif integral = 0 then
@@ -1161,6 +1134,24 @@ NewSLO := module ()
     else
       # Failure: return residual LO
       LO(h, integral)
+    end if
+  end proc;
+
+  # Try to express w as product(...,loop)
+  unproduct := proc(loop::(name=range), w)
+    if depends(w, indets(op(2,loop), name)) then
+      if w :: `*` then
+        map2(unproduct, loop, w)
+      elif w :: (anything ^ freeof(op(1,loop))) then
+        unproduct(loop, op(1,w)) ^ op(2,w)
+      elif w :: {'product'(anything, identical(loop)),
+                 'Product'(anything, identical(loop))} then
+        op(1,w)
+      else
+        FAIL
+      end if
+    else
+      w^(1/(op([2,2],loop)-op([2,1],loop)+1))
     end if
   end proc;
 
