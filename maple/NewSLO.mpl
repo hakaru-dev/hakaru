@@ -483,7 +483,7 @@ end module; # KB
 NewSLO := module ()
   option package;
   local t_pw, t_case, p_true, p_false,
-        unproduct, unweight, factorize, pattern_match, make_piece,
+        unproduct, unsum, unweight, factorize, pattern_match, make_piece,
         recognize, get_de, recognize_de, mysolve, Diffop, Recognized,
         reduce,
         reduce_pw, reduce_Int, reduce_wl, reduce_Ints, reduce_prod,
@@ -613,7 +613,7 @@ NewSLO := module ()
       if loops = [] then
         Int(dens(x) * applyintegrand(h, x), x = bds);
       else
-        Ints(foldl(Product, dens(mk_idx(x,loops)), op(loops))
+        Ints(foldl(product, dens(mk_idx(x,loops)), op(loops))
                * applyintegrand(h, x),
              x, bds, loops)
       end if;
@@ -630,7 +630,7 @@ NewSLO := module ()
     elif m :: 'specfunc(Msum)' then
       `+`(op(map(integrate, [op(m)], h, loops)))
     elif m :: 'Weight(anything, anything)' then
-      foldl(Product, op(1,m), op(loops)) * integrate(op(2,m), h, loops)
+      foldl(product, op(1,m), op(loops)) * integrate(op(2,m), h, loops)
     elif m :: t_pw
       and not depends([seq(op(i,m), i=1..nops(m)-1, 2)], map(lhs, loops)) then
       n := nops(m);
@@ -1037,7 +1037,7 @@ NewSLO := module ()
   end proc;
 
   unintegrate := proc(h :: name, integral, kb :: t_kb)
-    local x, c, lo, hi, m, mm, w, w0, recognition, subintegral,
+    local x, c, lo, hi, m, mm, w, w0, w1, recognition, subintegral,
           n, i, k, kb1, update_kb,
           hh, pp, xx, res, rest;
     if integral :: 'And'('specfunc({Int,int})',
@@ -1071,14 +1071,19 @@ NewSLO := module ()
       x, kb1 := genType(op(2,integral), res, kb);
       subintegral := eval(op(1,integral), op(2,integral) = x);
       (w, m) := unweight(unintegrate(h, subintegral, kb1));
-      pp := foldr(unproduct, w, op(op(4,integral)));
+      w0 := 1;
+      pp := w;
+      for i from nops(op(4,integral)) to 1 by -1 do
+        (w1, pp) := op(unproduct(op([4,i],integral), x, pp));
+        w0 := w0 * foldl(product, w1, op(i+1..-1, op(4,integral)));
+      end do;
       hh := gensym('ph');
       xx := gensym('px');
       pp := eval(pp, mk_idx(x,op(4,integral))=xx);
-      if pp = FAIL or depends(pp,x) then pp := 1; m := weight(w, m); end if;
+      if depends([w0,pp],x) then w0 := 1; pp := 1; m := weight(w, m); end if;
       subintegral := Int(pp * applyintegrand(hh,xx), xx=lo..hi);
-      (w0, mm) := unweight(unintegrate(hh, subintegral, kb));
-      weight(foldl(product, w0, op(op(4,integral))),
+      (w1, mm) := unweight(unintegrate(hh, subintegral, kb));
+      weight(simplify_assuming(w0 * foldl(product, w1, op(op(4,integral))), kb),
         bind(foldl(((mmm,loop) -> Plate(ary(op([2,2],loop),op(1,loop),mmm))),
                    mm, op(op(4,integral))),
              x, m))
@@ -1137,21 +1142,46 @@ NewSLO := module ()
     end if
   end proc;
 
-  # Try to express w as product(...,loop)
-  unproduct := proc(loop::(name=range), w)
-    if depends(w, indets(op(2,loop), name)) then
+  # Try to express w as ...*product(...,loop), where the second ... uses var
+  unproduct := proc(loop::(name=range), var::name, w)
+    local res;
+    if depends(w, var) then
       if w :: `*` then
-        map2(unproduct, loop, w)
-      elif w :: (anything ^ freeof(op(1,loop))) then
-        unproduct(loop, op(1,w)) ^ op(2,w)
+        res := map[3](unproduct, loop, var, [op(w)]);
+        [`*`(op(map2(op,1,res))), `*`(op(map2(op,2,res)))]
+      elif w :: (anything^freeof(var)) then
+        map(`^`, unproduct(loop, var, op(1,w)), op(2,w))
+      elif w :: exp(anything) then
+        map(exp, unsum(loop, var, op(1,w)))
+      elif w :: (freeof(var)^anything) then
+        map2(`^`, op(1,w), unsum(loop, var, op(2,w)))
       elif w :: {'product'(anything, identical(loop)),
                  'Product'(anything, identical(loop))} then
-        op(1,w)
+        [1, op(1,w)]
       else
-        FAIL
+        [w, 1]
       end if
     else
-      w^(1/(op([2,2],loop)-op([2,1],loop)+1))
+      [w, 1]
+    end if
+  end proc;
+  unsum := proc(loop::(name=range), var::name, w)
+    local res, s, r;
+    if depends(w, var) then
+      if w :: `+` then
+        res := map[3](unproduct, loop, var, [op(w)]);
+        [`+`(op(map2(op,1,res))), `+`(op(map2(op,2,res)))]
+      elif w :: `*` then
+        (s, r) := selectremove(depends, w, var);
+        map(`*`, unsum(loop, var, s), r)
+      elif w :: {'sum'(anything, identical(loop)),
+                 'Sum'(anything, identical(loop))} then
+        [0, op(1,w)]
+      else
+        [w, 0]
+      end if
+    else
+      [w, 0]
     end if
   end proc;
 
