@@ -608,7 +608,7 @@ NewSLO := module ()
     elif m :: 'Bind(anything, name, anything)' then
       res := eval(op(3,m), op(2,m) = mk_idx(op(2,m), loops));
       res := eval(Integrand(op(2,m), 'integrate'(res, x, loops)), x=h);
-      integrate(op(1,m), res , loops);
+      integrate(op(1,m), res, loops);
     elif m :: 'specfunc(Msum)' then
       `+`(op(map(integrate, [op(m)], h, loops)))
     elif m :: 'Weight(anything, anything)' then
@@ -639,6 +639,7 @@ NewSLO := module ()
   mk_idx := proc(nm :: name, loops :: list(name = range))
     foldr((x, y) -> idx(y, op(1,x)), nm, op(loops));
   end proc;
+
 # Step 2 of 3: computer algebra
 
   improve := proc(lo :: LO(name, anything), {_ctx :: t_kb := empty})
@@ -800,7 +801,7 @@ NewSLO := module ()
   end proc;
 
   reduce_Int := proc(ee, h :: name, kb1 :: t_kb, kb0 :: t_kb)
-    local e, dom_spec, w, kb2, rest, var, new_rng, bound, indep, i;
+    local e, dom_spec, w, rest, var, new_rng, i;
 
     # if there are domain restrictions, try to apply them
     (dom_spec, e) := get_indicators(ee);
