@@ -469,7 +469,7 @@ NewSLO := module ()
         banish, known_measures,
         piecewise_if, nub_piecewise,
         ModuleLoad, ModuleUnload, verify_measure, pattern_equiv,
-        find_vars, find_constraints, interpret, reconstruct, invert, 
+        find_vars, kb_from_path, interpret, reconstruct, invert, 
         get_var_pos, get_int_pos,
         avoid_capture, change_var, disint2;
   export Simplify,
@@ -1153,13 +1153,26 @@ NewSLO := module ()
          l);
   end proc;
 
-  find_constraints := proc(l)
-    map(proc(x) 
-          if type(x, specfunc(%int)) then op(1,x)
-          elif type(x, specfunc(%weight)) then NULL
+  # this generates a KB loaded up with the knowledge gathered along
+  # the current path, as well as the (potentially renamed) current path
+  # there should actually not be any renaming, but let's see if that
+  # invariant actually holds.
+  kb_from_path := proc(path)
+    local res;
+    # foldr(((b,kb) -> assert_deny(b, pol, kb)), kb, op(bb))
+    res := foldr(proc(b,info)
+          local x, lo, hi, p, kb;
+          (kb, p) := op(info);
+          if type(b, specfunc(%int)) then 
+            (lo, hi) := op(op([1,2],b));
+            x, kb := genLebesgue(op([1,1], b), lo, hi, kb);
+            [kb, [ %int(x = lo..hi), p]];
+          elif type(b, specfunc(%weight)) then 
+            [kb, [ b, p ]];
           else error "don't know about command (%1)", x
           end if end proc,
-         l);
+         [empty, []], op(path));
+    (res[1], ListTools:-Flatten(res[2]));
   end proc;
 
   # only care about bound variables, not globals
@@ -1169,7 +1182,8 @@ NewSLO := module ()
   end proc;
 
   invert := proc(to_invert, main_var, integral, h, path, t)
-    local sol, dxdt, vars, in_sol, r_in_sol, p_mv, would_capture, flip;
+    local sol, dxdt, vars, in_sol, r_in_sol, p_mv, would_capture, flip, 
+      kb, npath;
     if type(to_invert, 'linear'(main_var)) then
       sol := solve([t = to_invert], {main_var})[1];
 
@@ -1185,15 +1199,17 @@ NewSLO := module ()
     end if;
 
     dxdt := diff(op(2, sol), t);
-    flip := simplify_assuming(signum(dxdt), 
-      [t = -infinity .. infinity, op(find_constraints(path))]);
+    (kb, npath) := kb_from_path(path);
+    kb := assert(t::real, kb);
+    flip := simplify_assuming(signum(dxdt), kb);
+      # [t = -infinity .. infinity, op(kb_from_path(path))]);
     if not member(flip, {1,-1}) then
       error "derivative has symbolic sign (%1), what do we do?", flip
     end if;
 
     # we need to figure out what variables the solution depends on,
     # and what plan that entails
-    vars := find_vars(path);
+    vars := find_vars(npath);
     in_sol := indets(sol, 'name') minus {t, main_var};
 
     member(main_var, vars, 'p_mv');
@@ -1206,7 +1222,7 @@ NewSLO := module ()
       , %Change(main_var, t = to_invert, sol, flip)
       , %ToTop(t)
       , %Drop(t)],
-      path, abs(dxdt) * 'applyintegrand'(h, eval(op([2,2],integral), sol)));
+      npath, abs(dxdt) * 'applyintegrand'(h, eval(op([2,2],integral), sol)));
   end proc;
 
   # basic algorithm:
