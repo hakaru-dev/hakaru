@@ -306,6 +306,7 @@ KB := module ()
       if k :: Introduce(name, anything) then
         x, t := op(k);
         if t :: specfunc(AlmostEveryReal) then
+          t := [op(t), Bound(`>`, -infinity), Bound(`<`, infinity)];
           [genLebesgue, x,
            op([1,2], select(type, t, Bound(identical(`>`), anything))),
            op([1,2], select(type, t, Bound(identical(`<`), anything)))]
