@@ -725,9 +725,14 @@ NewSLO := module ()
       else
         e
       end if;
-    elif e :: 'Ints'(list, anything, name, range) then
-      # TODO: we should have an elim_ints pass first
-      reduce_Ints(op(e), h, kb);
+    #elif e :: 'Ints'(list, anything, name, range) then
+    #  # TODO: we should have an elim_ints pass first
+    #  reduce_Ints(op(e), h, kb);
+    elif e :: 'Ints'(anything, name, range, list(name=range)) then
+      res := HReal(Bound(`>`, op([3,1],e)), Bound(`<`, op([3,2],e)));
+      for i in op(4,e) do res := HArray(res) end do;
+      x, kb1 := genType(op(2,e), res, kb);
+      Ints(reduce(subs(op(2,e)=x, op(1,e)), h, kb1), x, op(3,e), op(4,e))
     elif e :: `+` then
       map(reduce, e, h, kb)
     elif e :: `*` then
