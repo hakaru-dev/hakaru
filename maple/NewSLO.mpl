@@ -355,10 +355,25 @@ KB := module ()
   end proc;
 
   simplify_assuming := proc(ee, kb::t_kb)
-    local e;
-    e := evalindets(ee, 'specfunc({%product, product})', myexpand_product);
+    local e, as;
+    e := ee;
+    as := kb_to_assumptions(kb);
+    e := evalindets(e, {logical,
+                        specfunc({And,Or,Not}),
+                        specop(algebraic,{`<`,`<=`,`=`,`<>`})},
+      proc(b)
+        return b;
+        try
+          if is(b) assuming op(as) then return true
+          elif not coulditbe(b) assuming op(as) then return false
+          end if
+        catch:
+        end try;
+        b
+      end proc);
+    e := evalindets(e, 'specfunc({%product, product})', myexpand_product);
     e := evalindets(e, 'specfunc(sum)', expand);
-    e := simplify(e) assuming op(kb_to_assumptions(kb));
+    e := simplify(e) assuming op(as);
     eval(e, exp = expand @ exp);
   end proc;
 
