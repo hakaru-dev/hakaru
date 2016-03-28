@@ -430,12 +430,6 @@ KB := module ()
   end proc;
 
   ModuleLoad := proc()
-    TypeTools[AddType](t_kb,
-      'specfunc({
-         Introduce(name, t_type),
-         Bound(name, identical(`<`,`<=`,`>`,`>=`), anything),
-         Constrain({`::`, boolean, `in`, specfunc(anything,{Or,Not})})
-       }, KB)');
     TypeTools[AddType](t_type,
       '{specfunc(Bound(identical(`<`,`<=`,`>`,`>=`), anything),
                  {AlmostEveryReal, HReal, HInt}),
@@ -444,6 +438,12 @@ KB := module ()
         HMeasure(t_type),
         HArray(t_type),
         HFunction(t_type, t_type)}');
+    TypeTools[AddType](t_kb,
+      'specfunc({
+         Introduce(name, t_type),
+         Bound(name, identical(`<`,`<=`,`>`,`>=`), anything),
+         Constrain({`::`, boolean, `in`, specfunc(anything,{Or,Not})})
+       }, KB)');
   end proc;
 
   ModuleUnload := proc()
@@ -495,7 +495,7 @@ NewSLO := module ()
          Branches, Branch, PWild, PVar, PDatum, PInr, PInl, PEt, PDone, PKonst, PIdent;
   uses KB;
 
-  Simplify := proc(e, t, kb::t_kb)
+  Simplify := proc(e, t::t_type, kb::t_kb)
     local patterns, x, kb1, ex;
     if t :: HMeasure(anything) then
       fromLO(improve(toLO(e), _ctx=kb), _ctx=kb)
@@ -1826,7 +1826,7 @@ NewSLO := module ()
   bounds[BetaD] := proc(nu, loc, scale) 0 .. 1 end proc;
   bounds[GammaD] := proc(a, b) 0 .. infinity end proc;
 
-  RoundTrip := proc(e, t, {kb :: t_kb := empty})
+  RoundTrip := proc(e, t::t_type, {kb :: t_kb := empty})
       lprint(eval(ToInert(Simplify(e,t,kb)),
         _Inert_ATTRIBUTE=NULL))
   end proc;
@@ -1934,6 +1934,7 @@ NewSLO := module ()
   end proc;
 
   ModuleLoad := proc()
+    KB; # Make sure the KB module is loaded, for the types t_type and t_kb
     VerifyTools[AddVerification](measure = verify_measure);
   end proc;
 
