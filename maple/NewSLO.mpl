@@ -1337,17 +1337,23 @@ NewSLO := module ()
   end proc;
 
   change_var := proc(act, chg, path, part)
-    local bds, new_upper, new_lower, new_path, flip, var, finder, pos,
-       DUMMY;
+    local bds, new_upper, new_lower, np, new_path, flip, var, finder, pos,
+       DUMMY, kb, as;
 
-    # first step, find where the relevant integral is
+    # first step: get ourselves a kb from this path
+    (kb, np) := kb_from_path(path);
+    as := kb_to_assumptions(kb);
+
+    # second step, find where the relevant integral is
     var := op(1,act);
-    pos := get_int_pos(var, path);
-    new_path := eval(subsop(pos=DUMMY, path), op(3,act));
+    pos := get_int_pos(var, np);
+    new_path := eval(subsop(pos=DUMMY, np), op(3,act));
 
     bds := op([pos,1,2], path);
-    new_upper := limit(op([2,2], act), op(1, act) = op(2,bds), left);
-    new_lower := limit(op([2,2], act), op(1, act) = op(1,bds), right);
+    new_upper := limit(op([2,2], act), op(1, act) = op(2,bds), left)
+      assuming op(as);
+    new_lower := limit(op([2,2], act), op(1, act) = op(1,bds), right)
+      assuming op(as);
     flip := op(4,act);
     if flip=-1 then
       (new_lower, new_upper) := (new_upper, new_lower);
