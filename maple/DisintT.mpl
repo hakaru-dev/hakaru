@@ -14,6 +14,7 @@ with(NewSLO):
 #####################################################################
 
 # this uses a *global* variable 't'.
+assume(t::real);
 TestDisint := proc(m,n)
   global t;
   CodeTools[Test](map(fromLO@improve,disint(toLO(m),t)), n, 
