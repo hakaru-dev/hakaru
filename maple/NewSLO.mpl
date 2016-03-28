@@ -285,6 +285,8 @@ KB := module ()
         # Negate b
         if   b :: `=`  then b := `<>`(op(b))
         elif b :: `<>` then b := `=` (op(b))
+        elif b :: `<`  then b := `>=`(op(b))
+        elif b :: `<=` then b := `>`(op(b))
         else b := Not(b) end if
       end if;
       if b :: (anything=name) then b := (rhs(b)=lhs(b)) end if;
