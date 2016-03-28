@@ -357,23 +357,27 @@ KB := module ()
   simplify_assuming := proc(ee, kb::t_kb)
     local e, as;
     e := ee;
-    as := kb_to_assumptions(kb);
-    e := evalindets(e, {logical,
-                        specfunc({And,Or,Not}),
-                        specop(algebraic,{`<`,`<=`,`=`,`<>`})},
-      proc(b)
-        return b;
-        try
-          if is(b) assuming op(as) then return true
-          elif not coulditbe(b) assuming op(as) then return false
-          end if
-        catch:
-        end try;
-        b
-      end proc);
     e := evalindets(e, 'specfunc({%product, product})', myexpand_product);
     e := evalindets(e, 'specfunc(sum)', expand);
-    e := simplify(e) assuming op(as);
+    as := kb_to_assumptions(kb);
+    try
+      e := evalindets(e, {logical,
+                          specfunc({And,Or,Not}),
+                          specop(algebraic,{`<`,`<=`,`=`,`<>`})},
+        proc(b)
+          try
+            if is(b) assuming op(as) then return true
+            elif not coulditbe(b) assuming op(as) then return false
+            end if
+          catch:
+          end try;
+          b
+        end proc);
+      e := simplify(e) assuming op(as);
+    catch "when calling '%1'. Received: 'contradictory assumptions'":
+      # We seem to be on an unreachable control path
+      return 0;
+    end try;
     eval(e, exp = expand @ exp);
   end proc;
 
