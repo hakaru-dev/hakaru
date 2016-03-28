@@ -592,9 +592,9 @@ NewSLO := module ()
       if loops = [] then
         Int(dens(x) * applyintegrand(h, x), x = bds );
       else
-        # Product, not %product, so that 'improve' doesn't get too smart!
-        Ints([seq(Product(dens(idx(x,op(1,l))), l), l in loops)],
-          applyintegrand(h, x), x, bds);
+        Ints(foldl(product, dens(mk_idx(x,loops)), op(loops))
+               * applyintegrand(h, x),
+             x, bds, loops)
       end if;
     elif m :: 'Ret(anything)' then
       if loops = [] then
