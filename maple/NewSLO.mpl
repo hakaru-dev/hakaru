@@ -865,8 +865,14 @@ NewSLO := module ()
     # weights.
     e := reduce(ee, h, kb);
     (e, w0) := reduce_prod(e, var);
+    if e :: 'Ints'(list, anything, name, range) and op(4,e) = rng then
+      # nested Ints on same range, merge
+      error "opportunity - nested Ints";
+    end if;
     (w, wl) := reduce_wl(ww, var, kb);
     simplify_assuming(w*w0, kb) * Ints(wl, e, var, rng);
+    (w, wl) := reduce_wl(ww, var, constraints);
+    simplify_assuming(w*w0, constraints) * Ints(wl, e, var, rng);
   end proc;
 
   get_indicators := proc(e)
@@ -1121,7 +1127,7 @@ NewSLO := module ()
                    end proc,
                    op(2,integral)),
              integral);
-    elif integral :: 'integrate'('freeof'(h), 'anything', []) then
+    elif integral :: 'integrate'('freeof'(h), 'anything', identical([])) then
       x := 'x';
       if op(2,integral) :: 'Integrand(name, anything)' then
         x := op([2,1],integral);
@@ -1269,7 +1275,7 @@ NewSLO := module ()
                               unintegrate(h, op(i,integral), kb1),
                               op(i,integral)),
                     i=1..n))
-    elif integral :: 'integrate'('freeof'(h), 'anything', []) then
+    elif integral :: 'integrate'('freeof'(h), 'anything', identical([])) then
       x := 'x';
       if op(2,integral) :: 'Integrand(name, anything)' then
         x := op([2,1],integral);
