@@ -578,9 +578,6 @@ NewSLO := module ()
   integrate := proc(m, h, loops :: list(name = range) := [])
     local x, n, i, res, dens, bds, l;
 
-    # FIXME
-    if nops(loops)>1 then error "only single loops implemented" end if;
-
     if m :: known_measures then
       x := 'xx';
       if h :: 'Integrand(name, anything)' then
@@ -590,22 +587,18 @@ NewSLO := module ()
       dens := density[op(0,m)](op(m));
       bds := bounds[op(0,m)](op(m));
       if loops = [] then
-        Int(dens(x) * applyintegrand(h, x), x = bds );
+        Int(dens(x) * applyintegrand(h, x), x = bds);
       else
         Ints(foldl(product, dens(mk_idx(x,loops)), op(loops))
                * applyintegrand(h, x),
              x, bds, loops)
       end if;
     elif m :: 'Ret(anything)' then
-      if loops = [] then
-        applyintegrand(h, op(1,m))
-      else
-        res := op(1,m);
-        for i in loops do
-          res := ary(op([2,2],i), op(1, i), res);
-        end do;
-        applyintegrand(h, res);
-      end if
+      res := op(1,m);
+      for i in loops do
+        res := ary(op([2,2],i), op(1, i), res);
+      end do;
+      applyintegrand(h, res);
     elif m :: 'Bind(anything, name, anything)' then
       res := eval(op(3,m), op(2,m) = mk_idx(op(2,m), loops));
       res := eval(Integrand(op(2,m), 'integrate'(res, x, loops)), x=h);
@@ -613,16 +606,13 @@ NewSLO := module ()
     elif m :: 'specfunc(Msum)' then
       `+`(op(map(integrate, [op(m)], h, loops)))
     elif m :: 'Weight(anything, anything)' then
-      if loops = [] then
-        op(1,m) * integrate(op(2,m), h, loops)
-      else
-        product(op(1,m),loops[1]) * integrate(op(2,m), h, loops)
-      end if
-    elif m :: t_pw then
+      foldl(product, op(1,m), op(loops)) * integrate(op(2,m), h, loops)
+    elif m :: t_pw
+      and not depends([seq(op(i,m), i=1..nops(m)-1, 2)], map(lhs, loops)) then
       n := nops(m);
       piecewise(seq(`if`(i::even or i=n, integrate(op(i,m), h, loops), op(i,m)),
                     i=1..n))
-    elif m :: t_case then
+    elif m :: t_case and not depends(op(1,m), map(lhs, loops)) then
       subsop(2=map(proc(b :: Branch(anything, anything))
                      eval(subsop(2='integrate'(op(2,b), x, loops),b), x=h)
                    end proc,
@@ -631,7 +621,7 @@ NewSLO := module ()
     elif m :: 'LO(name, anything)' then
       eval(op(2,m), op(1,m) = h)
     elif m :: 'Plate'('ary'(anything, name, anything)) then
-      integrate(op([1,3],m), h, [op([1,2], m) = 1 .. op([1,1],m)]);
+      integrate(op([1,3],m), h, [op([1,2],m)=1..op([1,1],m), op(loops)]);
     elif h :: procedure then
       x := gensym('xa');
       'integrate'(m, Integrand(x, h(x)), loops)
