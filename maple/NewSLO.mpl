@@ -172,11 +172,15 @@ KB := module ()
     genType(xx, AlmostEveryReal(Bound(`>`,lo), Bound(`<`,hi)), kb, _rest)
   end proc;
 
-  genType := proc(xx::name, t::t_type, kb::t_kb)
+  genType := proc(xx::name, tt::t_type, kb::t_kb)
     # A variable created using genType is a parameter, in the sense that its
     # value is completely respected
-    local x;
+    local x, t;
     x := `if`(depends([t,kb,_rest], xx), gensym(xx), xx);
+    t := evalindets(tt, identical(Bound(`>` , -infinity),
+                                  Bound(`>=`, -infinity),
+                                  Bound(`<` ,  infinity),
+                                  Bound(`<=`,  infinity)), _->NULL);
     x, KB(Introduce(x, t), op(kb));
   end proc;
 
@@ -237,7 +241,9 @@ KB := module ()
                 op(select(type, k , Bound(              c, anything)) )];
           # Compare the new bound rel        (x,e          )
           # against the old bound op([1,1],c)(x,op([1,2],c))
-          if nops(c)>0
+          if rel in {`>`,`>=`} and e = -infinity
+            or rel in {`<`,`<=`} and e = infinity
+            or nops(c)>0
             and (is(rel(y,e)) assuming op([1,1],c)(y,op([1,2],c)),
                    y::htype_to_property(k), op(as)) then
             # The old bound renders the new bound superfluous.
