@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 
-module Language.Hakaru.Pretty.Maple (Maple(..), pretty) where
+module Language.Hakaru.Pretty.Maple (Maple(..), pretty, mapleType) where
 
 import           Data.Number.Nat     (fromNat)
 -- import Data.Number.Natural (fromNatural)
@@ -207,22 +207,29 @@ mapleMeasureOp Gamma    (e1 :* e2 :* End) = app2 "GammaD"   e1 e2
 mapleMeasureOp Beta     (e1 :* e2 :* End) = app2 "BetaD"    e1 e2
 
 mapleType :: Sing (a :: Hakaru) -> String
-mapleType SNat         = "Nat"
-mapleType SInt         = "Int"
-mapleType SProb        = "Prob"
-mapleType SReal        = "Real"
-mapleType (SFun a b)   = "Arrow(" ++ mapleType a ++ "," ++ mapleType b ++ ")"
-mapleType (SArray a)   = "Array(" ++ mapleType a ++ ")"
-mapleType (SMeasure a) = "Measure(" ++ mapleType a ++ ")"
+mapleType SNat         = "HInt(Bound(`>=`,0))"
+mapleType SInt         = "HInt()"
+mapleType SProb        = "HReal(Bound(`>=`,0))"
+mapleType SReal        = "HReal()"
+mapleType (SFun a b)   = "HFunction(" ++ mapleType a ++ "," ++ mapleType b ++ ")"
+mapleType (SMeasure a) = "HMeasure(" ++ mapleType a ++ ")"
 -- Special case pair
-mapleType (SData _ (SPlus (SEt (SKonst a)
-                           (SEt (SKonst b)
-                            SDone))
-                    SVoid))
-    = "Pair(" ++ mapleType a ++ "," ++ mapleType b ++ ")"
+mapleType (SData _ (SPlus x SVoid))
+    = "HData(DatumStruct(pair," ++ mapleTypeDStruct x ++ "))"
 -- Special case bool
 mapleType (SData _ (SPlus SDone (SPlus SDone SVoid)))
-    = "Bool"
+    = "HData(DatumStruct(true,[]),DatumStruct(false,[]))"
+mapleType x = error ("TODO: mapleType" ++ show x)
+
+mapleTypeDStruct :: Sing (a :: [HakaruFun]) -> String
+mapleTypeDStruct SDone      = "[]"
+mapleTypeDStruct (SEt x xs) = "[" ++ mapleTypeDFun x ++ ", op("
+                                  ++ mapleTypeDStruct xs
+                                  ++ ")]"
+
+mapleTypeDFun :: Sing (a :: HakaruFun) -> String
+mapleTypeDFun (SKonst a) = "Konst(" ++ mapleType a ++ ")"
+mapleTypeDFun SIdent     = "Ident"
 
 mapleLiteral :: Literal a -> String
 mapleLiteral (LNat  v) = show v
