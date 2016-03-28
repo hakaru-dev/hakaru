@@ -1097,13 +1097,13 @@ NewSLO := module ()
       Msum(op(map2(unintegrate, h, convert(integral, 'list'), kb)))
     elif integral :: `*` then
       (subintegral, w) := selectremove(depends, integral, h);
-
       if subintegral :: `*` then error "Nonlinear integral %1", integral end if;
-      m := weight(w, unintegrate(h, subintegral, kb));
+      (w0, w) := selectremove(type, convert(w,'list',`*`), Indicator(anything));
+      m := weight(`*`(op(w)), unintegrate(h, subintegral, kb));
       if m :: Weight(anything, anything) then
         m := weight(simplify_assuming(op(1,m), kb), op(2,m));
       end if;
-      m
+      `if`(nops(w0)=0, m, piecewise(And(op(map2(op,1,w0))),m,Msum()))
     elif integral :: t_pw
          and `and`(seq(not (depends(op(i,integral), h)),
                        i=1..nops(integral)-1, 2)) then
