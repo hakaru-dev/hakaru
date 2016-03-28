@@ -495,7 +495,7 @@ NewSLO := module ()
          Branches, Branch, PWild, PVar, PDatum, PInr, PInl, PEt, PDone, PKonst, PIdent;
   uses KB;
 
-  Simplify := proc(e, t::t_type, kb::t_kb)
+  Simplify := proc(e, t, kb::t_kb)
     local patterns, x, kb1, ex;
     if t :: HMeasure(anything) then
       fromLO(improve(toLO(e), _ctx=kb), _ctx=kb)
