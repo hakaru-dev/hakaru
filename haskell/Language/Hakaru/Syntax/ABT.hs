@@ -621,6 +621,22 @@ subst x e = start
             caseBind f $ \_ f' ->
                 bind z' . loop f' . viewABT $ rename z z' f'
 
+{-
+-- called (//) in Jon's abt library. We use this textual name so we can also have 'insts' for the n-ary version, rather than iterating the unary version. Or we could use something like (!) and (!!), albeit those names tend to be used to mean other things. It'd be nice to do (@) and (@@), but the first one is illegal.
+inst
+    :: forall syn abt (a :: k) xs (b :: k)
+    .   ( JmEq1 (Sing :: k -> *)
+        , Show1 (Sing :: k -> *)
+        , Functor21 syn
+        , ABT syn abt
+        )
+    => abt (a ': xs) b
+    -> abt '[] a
+    -> abt xs  b
+inst f e =
+    caseBind f $ \x f' ->
+    subst x e f'
+-}
 
 -- BUG: This appears to have both capture and escape issues as demonstrated by 'Tests.Disintegrate.test0' and commented on at 'Language.Hakaru.Evaluation.Types.runM'.
 -- | The parallel version of 'subst' for performing multiple substitutions at once.

@@ -61,13 +61,14 @@ total m = expect m $ \_ -> prob_ 1
 -- the type explicitly captures that it has to be a measurable
 -- function we're integrating over? (Yes, yes, we want to avoid
 -- administrative redexes; but we can do that ourselves just fine
--- without losing the type safety.) N.B., the residualized 'Expect'
--- is treated as a binding form, rather than taking a second argument
--- of function type. N.B., treating the continuation as either a
--- Hakaru function or as a locally-open term would also let us
--- guarantee that the call to 'runEval' correctly initializes the
--- heap to avoid capturing free variables in the body of the function
--- being integrated!!
+-- without losing the type safety, right?)
+-- N.B., the residualized 'Expect' is treated as a binding form,
+-- rather than taking a second argument of function type, so as to
+-- avoid non-lambda expressions of function type.
+-- N.B., treating the continuation as either a Hakaru function or
+-- as a locally-open term would also let us guarantee that the call
+-- to 'runEval' correctly initializes the heap to avoid capturing
+-- free variables in the body of the function being integrated!!
 --
 -- TODO: is it actually a _measurable_ function from measurable-functions
 -- to probs? If so, shouldn't we also capture that in the types?
