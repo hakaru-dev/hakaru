@@ -586,8 +586,7 @@ inferType = inferType_
           -> TypeCheckMonad (TypedAST abt)
   inferPrimOp U.Not es =
       case es of
-        [e] -> do TypedAST typ e' <- inferType_ e
-                  Refl <- isBool typ 
+        [e] -> do e' <- checkType_ sBool e
                   return . TypedAST sBool $ syn (PrimOp_ Not :$ e' :* End)
         _   -> failwith "Passed wrong number of arguments"
 
