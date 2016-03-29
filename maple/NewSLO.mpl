@@ -376,7 +376,6 @@ KB := module ()
       e := simplify(e) assuming op(as);
     catch "when calling '%1'. Received: 'contradictory assumptions'":
       # We seem to be on an unreachable control path
-      return 0;
     end try;
     eval(e, exp = expand @ exp);
   end proc;
