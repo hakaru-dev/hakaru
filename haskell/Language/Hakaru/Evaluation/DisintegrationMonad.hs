@@ -67,7 +67,6 @@ import qualified Data.Traversable     as T
 import           Data.List.NonEmpty   (NonEmpty(..))
 import           Control.Applicative  (Alternative(..))
 import           Control.Monad        (MonadPlus(..))
-import           Data.Functor.Compose (Compose(..))
 import           Data.Text            (Text)
 import qualified Data.Text            as Text
 
