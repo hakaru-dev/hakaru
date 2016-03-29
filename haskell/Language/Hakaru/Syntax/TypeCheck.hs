@@ -606,8 +606,7 @@ inferType = inferType_
 
   inferPrimOp U.Exp es =
       case es of
-        [e] -> do TypedAST typ e' <- inferType_ e
-                  Refl <- jmEq1_ typ SReal 
+        [e] -> do e' <- checkType_ SReal e
                   return . TypedAST SProb $ syn (PrimOp_ Exp :$ e' :* End)
         _   -> failwith "Passed wrong number of arguments"
 
