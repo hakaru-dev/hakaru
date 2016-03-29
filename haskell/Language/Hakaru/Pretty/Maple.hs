@@ -86,7 +86,9 @@ list1vars (Cons1 x xs) = var1 x : list1vars xs
 mapleSCon :: (ABT Term abt) => SCon args a -> SArgs abt args -> String
 mapleSCon Lam_     (e1 :* End)       =
     caseBind e1 $ \x e1' ->
-        app2 "lam" (var x) e1'
+        "lam(" ++ (var1 x)                  ++ ", " ++
+                  (mapleType . varType $ x) ++ ", " ++
+                   arg e1'                  ++ ")"
 mapleSCon App_     (e1 :* e2 :* End) = app2 "app" e1 e2
 mapleSCon Let_     (e1 :* e2 :* End) =
     caseBind e2 $ \x e2' ->
