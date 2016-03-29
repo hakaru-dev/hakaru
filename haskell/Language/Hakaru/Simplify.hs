@@ -41,8 +41,6 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Syntax.TypeOf
 
-import Language.Hakaru.Types.DataKind
-
 import Data.Typeable (Typeable)
 
 import Data.Text (pack)
@@ -65,8 +63,8 @@ instance Exception MapleException
 
 simplify :: forall abt a
          .  (ABT Term abt) 
-         => abt '[] ('HMeasure a)
-         -> IO (abt '[] ('HMeasure a))
+         => abt '[] a
+         -> IO (abt '[] a)
 simplify e = do
     let slo = Maple.pretty e
     let typ = typeOf e          
@@ -87,7 +85,7 @@ simplify e = do
     leftShow (Left err) = Left (show err)
     leftShow (Right x)  = Right x
 
-    getNames :: abt '[] ('HMeasure a) -> [Name]
+    getNames :: abt '[] a -> [Name]
     getNames = fromVarSet . freeVars
 
 ----------------------------------------------------------------
