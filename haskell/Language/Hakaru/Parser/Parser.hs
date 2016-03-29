@@ -156,7 +156,7 @@ floating = do
 
 inf_ :: Parser (AST' Text)
 inf_ = do
-    s <- option '+' (oneOf "+-")
+    s <- option '+' (oneOf "-")
     reserved "inf" <|> reserved "∞"
     return $
         case s of

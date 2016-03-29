@@ -164,6 +164,7 @@ maple2AST :: InertExpr -> AST' Text
 maple2AST (InertNum Pos i) = ULiteral $ Nat $ fromInteger i
 maple2AST (InertNum Neg i) = ULiteral $ Int $ fromInteger i
 
+maple2AST (InertName "infinity") = Infinity'
 maple2AST (InertName t)    = Var (rename t)
 
 maple2AST (InertArgs Float [InertNum Pos a, InertNum _ b]) = 
