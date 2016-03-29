@@ -1,11 +1,16 @@
 # Teach Maple (through depends and eval) about our new binding forms.
-# Integrand, LO, and lam bind from 1st arg to 2nd arg.
+# Integrand and LO bind from 1st arg to 2nd arg.
+# lam binds from 1st arg to 3rd arg.
 # Branch binds from 1st arg (a pattern) to 2nd arg.
 # Bind and ary bind from 2nd arg to 3rd arg.
 
 `depends/Integrand` := proc(v, e, x) depends(e, x minus {v}) end proc:
 `depends/LO`        := proc(v, e, x) depends(e, x minus {v}) end proc:
-`depends/lam`       := proc(v, e, x) depends(e, x minus {v}) end proc:
+
+# note that v _can_ in principle occur in t.
+`depends/lam` := proc(v::name, t, e, x)
+  depends(t, x) or depends(e, x minus {v})
+end proc:
 
 `depends/Branch`    := proc(p, e, x) depends(e, x minus {pattern_binds(p)}) end proc:
 pattern_binds := proc(p)
@@ -78,9 +83,11 @@ end proc:
 end proc:
 
 `eval/lam` := proc(e, eqs)
-  local v, ee;
-  v, ee := op(e);
-  eval(op(0,e), eqs)(generic_evalat(v, ee, eqs))
+  local v, t, ee;
+  v, t, ee := op(e);
+  v, ee := generic_evalat(v, ee, eqs);
+  t := eval(t, eqs);
+  eval(op(0,e), eqs)(v, t, ee)
 end proc:
 
 `eval/Branch` := proc(e, eqs)
@@ -530,16 +537,16 @@ NewSLO := module ()
       patterns := htype_patterns(op(1,t));
       if patterns :: Branches(Branch(PVar(name),anything)) then
         # Eta-expand the function type
-        x := `if`(e::lam(name,anything), op(1,e), op([1,1,1],patterns));
+        x := `if`(e::lam(name,anything,anything), op(1,e), op([1,1,1],patterns));
         x, kb1 := genType(x, op(1,t), kb, e);
         ex := app(e,x);
-        lam(x, Simplify(ex, op(2,t), kb1))
+        lam(x, op(1,t), Simplify(ex, op(2,t), kb1))
       else
         # Eta-expand the function type and the sum-of-product argument-type
-        x := `if`(e::lam(name,anything), op(1,e), d);
+        x := `if`(e::lam(name,anything,anything), op(1,e), d);
         if depends([e,t,kb], x) then x := gensym(x) end if;
         ex := app(e,x);
-        lam(x, 'case'(x,
+        lam(x, op(1,t), 'case'(x,
           map(proc(branch)
                 local eSubst, pSubst, p1, binds, ys, y, kb1, i, pSubst1;
                 eSubst, pSubst := pattern_match([x,e], x, op(1,branch));
@@ -1613,8 +1620,8 @@ NewSLO := module ()
   end proc;
 
   app := proc (func, argu)
-    if func :: lam(name, anything) then
-      eval(op(2,func), op(1,func)=argu)
+    if func :: lam(name, anything, anything) then
+      eval(op(3,func), op(1,func)=argu)
     elif func :: t_pw then
       map_piecewise(procname, _passed)
     else
@@ -1960,7 +1967,7 @@ NewSLO := module ()
       x := gensym(cat(op(1,m), "_", op(1,n), "_"));
       verify(subs(op(1,m)=x, op(2,m)),
              subs(op(1,n)=x, op(2,n)), v)
-    elif m :: 'lam(name, anything)' and n :: 'lam(name, anything)' then
+    elif verify(m, n, 'lam'(true, v, true)) then
       # m and n are not even measures, but we verify them anyway...
       x := gensym(cat(op(1,m), "_", op(1,n), "_"));
       thisproc(subs(op(1,m)=x, op(2,m)),
