@@ -3,6 +3,7 @@
 # lam binds from 1st arg to 3rd arg.
 # Branch binds from 1st arg (a pattern) to 2nd arg.
 # Bind and ary bind from 2nd arg to 3rd arg.
+# forall bind from 1st arg to 2nd arg.
 
 `depends/Integrand` := proc(v, e, x) depends(e, x minus {v}) end proc:
 `depends/LO`        := proc(v, e, x) depends(e, x minus {v}) end proc:
@@ -38,6 +39,10 @@ end proc:
 # note that i _can_ occur in n.
 `depends/ary` := proc(n, i::name, e, x)
   depends(n, x) or depends(e, x minus {i})
+end proc:
+
+`depends/forall` := proc(bvar, pred, x)
+  depends(pred, x minus convert(bvar, 'set'))
 end proc:
 
 generic_evalat := proc(vv::{name,list(name)}, mm, eqs)
@@ -108,6 +113,12 @@ end proc:
   local n, i, ee;
   n, i, ee := op(e);
   eval(op(0,e), eqs)(eval(n, eqs), generic_evalat(i, ee, eqs))
+end proc:
+
+`eval/forall` := proc(e, eqs)
+  local bvar, pred;
+  bvar, pred := op(e);
+  eval(op(0,e), eqs)(generic_evalat(bvar, pred, eqs))
 end proc:
 
 #############################################################################
@@ -903,7 +914,7 @@ NewSLO := module ()
   banish := proc(m, x :: name, h :: name, g, levels :: extended_numeric)
     # LO(h, banish(m, x, h, g)) should be equivalent to Bind(m, x, LO(h, g))
     # but performs integration over x innermost rather than outermost.
-    local guard, subintegral, w, y, yRename, lo, hi, mm, xx, hh, gg, ll;
+    local guard, subintegral, w, y, yRename, lo, hi, mm, loops, xx, hh, gg, ll;
     guard := proc(m, c) bind(m, x, piecewise(c, Ret(x), Msum())) end proc;
     if g = 0 then
       0
@@ -928,9 +939,36 @@ NewSLO := module ()
         y           := yRename;
       end if;
       mm := m;
-      if depends(lo, x) then mm := guard(mm, lo<y); lo := -infinity end if;
-      if depends(hi, x) then mm := guard(mm, y<hi); hi :=  infinity end if;
+      if depends(lo, x) then
+        mm := guard(mm, lo<y);
+        lo := -infinity;
+      end if;
+      if depends(hi, x) then
+        mm := guard(mm, y<hi);
+        hi := infinity;
+      end if;
       op(0,g)(banish(mm, x, h, subintegral, levels-1), y=lo..hi)
+    elif g :: 'Ints'(anything, name, range, list(name=range)) then
+      subintegral := op(1, g);
+      y           := op(2, g);
+      lo, hi      := op(op(3, g));
+      loops       := op(4, g);
+      xx          := map(lhs, loops);
+      if x = y or depends(m, y) then
+        yRename     := gensym(y);
+        subintegral := subs(y=yRename, subintegral);
+        y           := yRename;
+      end if;
+      mm := m;
+      if depends(lo, x) then
+        mm := guard(mm, forall(xx, lo<mk_idx(y,loops)));
+        lo := -infinity;
+      end if;
+      if depends(hi, x) then
+        mm := guard(mm, forall(xx, mk_idx(y,loops)<hi));
+        hi := infinity;
+      end if;
+      op(0,g)(banish(mm, x, h, subintegral, levels-1), y, lo..hi, op(4,g));
     elif g :: t_pw then
       foldr_piecewise(
         proc(cond, th, el) proc(m)
