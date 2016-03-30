@@ -666,6 +666,23 @@ NewSLO := module ()
              m);
     elif m :: 'LO(name, anything)' then
       eval(op(2,m), op(1,m) = h)
+    elif m :: 'Plate'(nonnegint, name, anything) then
+      # Unroll Plate when the bound is known. We unroll Plate here (instead
+      # of unrolling Ints in reduce, for example) because we have no other
+      # way to integrate certain Plates, namely those whose bodies' control
+      # flows depend on the index.
+      x := 'pp';
+      if h :: 'Integrand(name, anything)' then
+        x := op(1,h);
+      end if;
+      x := [seq(gensym(cat(x,i)), i=1..op(1,m))];
+      res := ary(op(1,m), op(2,m),
+                 piecewise(seq(op([op(2,m)=i, op(i,x)]), i=1..op(1,m))));
+      res := applyintegrand(h, res);
+      for i from op(1,m) to 1 by -1 do
+        res := integrate(op(3,m), Integrand(op(i,x), res));
+      end do;
+      res
     elif m :: 'Plate'(anything, name, anything) then
       integrate(op(3,m), h, [op(2,m)=1..op(1,m), op(loops)]);
     elif h :: procedure then
