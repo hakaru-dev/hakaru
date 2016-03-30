@@ -681,8 +681,9 @@ NewSLO := module ()
       res := 'ary'(op(1,m), op(2,m),
                    piecewise(seq(op([op(2,m)=i-1, op(i,x)]), i=1..op(1,m))));
       res := applyintegrand(h, res);
-      for i from nops(x) to 1 by -1 do
-        res := integrate(op(3,m), Integrand(op(i,x), res));
+      for i from op(1,m) to 1 by -1 do
+        res := integrate(eval(op(3,m), op(2,m)=i-1),
+                         Integrand(op(i,x), res));
       end do;
       res
     elif m :: 'Plate'(anything, name, anything) then
