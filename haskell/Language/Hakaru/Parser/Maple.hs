@@ -173,9 +173,6 @@ maple2AST (InertArgs Float [InertNum Pos a, InertNum _ b]) =
 maple2AST (InertArgs Float [InertNum Neg a, InertNum _ b]) = 
     ULiteral $ Real $ fromInteger a * (10 ** (fromInteger b))
 
-maple2AST (InertArgs Func [InertName "Ann", InertArgs ExpSeq [typ, e]]) =
-    Ann (maple2AST e) (maple2Type typ)
-
 maple2AST (InertArgs Func [InertName "Bind",
                            InertArgs ExpSeq [e1, InertName x, e2]]) =
     Bind x (maple2AST e1) (maple2AST e2)
@@ -183,6 +180,11 @@ maple2AST (InertArgs Func [InertName "Bind",
 maple2AST (InertArgs Func [InertName "Datum",
                            InertArgs ExpSeq [InertName h, d]]) =
     mapleDatum2AST h d
+
+
+maple2AST (InertArgs Func [InertName "lam",
+                           InertArgs ExpSeq [InertName x, typ, e1]]) =
+    Lam x (maple2Type typ) (maple2AST e1)
 
 maple2AST (InertArgs Func [InertName "Msum",
                            InertArgs ExpSeq es]) =
@@ -222,11 +224,11 @@ mapleDatum2AST "unit" d = Unit
 mapleDatum2AST h _ = error ("TODO: mapleDatum " ++ Text.unpack h)
     
 maple2Type :: InertExpr -> TypeAST'
--- TODO: Add Arrow
-maple2Type (InertName t) = TypeVar (rename t)
-maple2Type (InertArgs Func [InertName f, InertArgs ExpSeq args]) =
-    TypeApp (rename f) (map maple2Type args)
-
+maple2Type (InertArgs Func [InertName "HReal",
+                            InertArgs ExpSeq []]) = TypeVar "real"
+maple2Type (InertArgs Func [InertName "HInt",
+                            InertArgs ExpSeq []]) = TypeVar "int"
+maple2Type x = error ("TODO: maple2Type " ++ show x)
 
 branch :: InertExpr -> Branch' Text
 branch (InertArgs Func

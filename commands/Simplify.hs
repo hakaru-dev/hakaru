@@ -38,9 +38,5 @@ runSimplify prog =
         let m = inferType' (resolveAST past) in
         case runTCM m LaxMode of
         Left err                 -> putStrLn err
-        Right (TypedAST typ ast) -> do
-          case typ of
-            SFun _ (SMeasure _) -> underLam simplify ast >>= print . pretty
-            SMeasure _          -> simplify    ast >>= print . pretty
-            _                   -> print (pretty ast)
+        Right (TypedAST typ ast) -> simplify    ast >>= print . pretty
 
