@@ -496,10 +496,10 @@ NewSLO := module ()
         unproduct, unsum, unweight, factorize, pattern_match, make_piece,
         recognize, get_de, recognize_de, mysolve, Diffop, Recognized,
         reduce,
-        reduce_pw, reduce_Int, reduce_wl, reduce_Ints, reduce_prod,
+        reduce_pw, reduce_Int, reduce_Ints, reduce_prod,
         mk_idx,
         get_indicators,
-        reduce_PI, elim_int,
+        elim_int,
         banish, known_measures,
         piecewise_if, nub_piecewise,
         ModuleLoad, ModuleUnload, verify_measure, pattern_equiv,
@@ -735,14 +735,13 @@ NewSLO := module ()
       else
         e
       end if;
-    #elif e :: 'Ints'(list, anything, name, range) then
-    #  # TODO: we should have an elim_ints pass first
-    #  reduce_Ints(op(e), h, kb);
+    # TODO: we should have an elim_ints pass first
     elif e :: 'Ints'(anything, name, range, list(name=range)) then
       res := HReal(Bound(`>`, op([3,1],e)), Bound(`<`, op([3,2],e)));
       for i in op(4,e) do res := HArray(res) end do;
       x, kb1 := genType(op(2,e), res, kb);
-      Ints(reduce(subs(op(2,e)=x, op(1,e)), h, kb1), x, op(3,e), op(4,e))
+      reduce_Ints(reduce(subs(op(2,e)=x, op(1,e)), h, kb1), x, 
+        op(3,e), op(4,e), h, kb1)
     elif e :: `+` then
       map(reduce, e, h, kb)
     elif e :: `*` then
@@ -877,34 +876,13 @@ NewSLO := module ()
     (w1, w2)
   end proc;
 
-  reduce_wl := proc(wl :: list, var :: name, kb :: t_kb)
-    local w, weights;
-    weights := map(simplify_assuming, wl, kb);
-    w := 1;
-    weights := map(proc(ww)
-        local w1, w2;
-        (w1, w2) := reduce_prod(ww, var);
-        w := w * w2;
-        w1
-      end proc, weights);
-    simplify_assuming(w,kb), weights;
-  end proc;
-
-  reduce_Ints := proc(ww, ee, var :: name, rng, h :: name, kb :: t_kb)
-    local w, wl, e, we, w0;
+  reduce_Ints := proc(ee, var :: name, rng, bds, h :: name, kb :: t_kb)
+    local w, e, we, w0;
     # TODO we should do something with domain restrictions (see above) too
     # but right now, that is not needed by the tests, so just deal with
     # weights.
-    e := reduce(ee, h, kb);
-    (e, w0) := reduce_prod(e, var);
-    if e :: 'Ints'(list, anything, name, range) and op(4,e) = rng then
-      # nested Ints on same range, merge
-      error "opportunity - nested Ints";
-    end if;
-    (w, wl) := reduce_wl(ww, var, kb);
-    simplify_assuming(w*w0, kb) * Ints(wl, e, var, rng);
-    (w, wl) := reduce_wl(ww, var, constraints);
-    simplify_assuming(w*w0, constraints) * Ints(wl, e, var, rng);
+    (e, w0) := reduce_prod(ee, var);
+    simplify_assuming(w0, kb) * Ints(e, var, rng, bds);
   end proc;
 
   get_indicators := proc(e)
