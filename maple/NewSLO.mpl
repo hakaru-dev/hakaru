@@ -1337,12 +1337,10 @@ NewSLO := module ()
         kb0
       end proc;
       error "need to map into piecewise";
-      piecewise(seq(piecewise(i::even,
-                              unintegrate(h, op(i,integral),
-                                          update_kb(op(i-1,integral))),
-                              i=n,
-                              unintegrate(h, op(i,integral), kb1),
-                              op(i,integral)),
+      piecewise(seq(`if`(i::even, unintegrate(h, op(i,integral),
+                                              update_kb(op(i-1,integral))),
+                     `if`(i=n,    unintegrate(h, op(i,integral), kb1),
+                      op(i,integral))),
                     i=1..n))
     elif integral :: 'integrate'('freeof'(h), 'anything', identical([])) then
       x := 'x';
