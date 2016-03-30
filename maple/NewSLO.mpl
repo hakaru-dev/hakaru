@@ -718,9 +718,8 @@ NewSLO := module ()
   end proc;
 
   determined := proc(e, h :: name)
-    local ints, i;
-    ints := indets(e, 'specfunc({Int,int})');
-    for i in ints do
+    local i;
+    for i in indets(e, 'specfunc({Int,int})') do
       if hastype(IntegrationTools:-GetIntegrand(i),
            'applyintegrand'('identical'(h),
              'dependent'(IntegrationTools:-GetVariable(i)))) then
