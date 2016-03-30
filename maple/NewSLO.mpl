@@ -520,7 +520,7 @@ NewSLO := module ()
         avoid_capture, change_var, disint2;
   export Simplify,
      # note that these first few are smart constructors (for themselves):
-         case, app, idx, size, integrate, applyintegrand, Datum, ints,
+         case, app, ary, idx, size, integrate, applyintegrand, Datum, ints,
      # while these are "proper functions"
          map_piecewise,
          bind, weight,
@@ -533,7 +533,7 @@ NewSLO := module ()
          disint;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
-  global Bind, Weight, Ret, Msum, Integrand, Plate, LO, Indicator, ary, Ints,
+  global Bind, Weight, Ret, Msum, Integrand, Plate, LO, Indicator, Ints,
          Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD, StudentT,
          Context,
          lam,
@@ -678,8 +678,8 @@ NewSLO := module ()
         x := op(1,h);
       end if;
       x := [seq(gensym(cat(x,i)), i=0..op(1,m)-1)];
-      res := ary(op(1,m), op(2,m),
-                 piecewise(seq(op([op(2,m)=i-1, op(i,x)]), i=1..op(1,m))));
+      res := 'ary'(op(1,m), op(2,m),
+                   piecewise(seq(op([op(2,m)=i-1, op(i,x)]), i=1..op(1,m))));
       res := applyintegrand(h, res);
       for i from nops(x) to 1 by -1 do
         res := integrate(op(3,m), Integrand(op(i,x), res));
@@ -804,15 +804,6 @@ NewSLO := module ()
       # If we had HType information for op(1,e),
       # then we could use it to tell kb about x.
       subsop(2=Integrand(x, reduce(subs(op([2,1],e)=x, op([2,2],e)), h, kb)), e)
-    elif e :: 'ProductIntegral'(anything, name, anything) then
-      error "we should never encounter this now"
-    elif e :: 'applyintegrand'(anything, 'ary'(anything, name, anything)) then
-      # array eta
-      if op([2,3],e) :: 'idx'(anything, name) and (op([2,2],e) = op([2,3,2],e)) then
-        applyintegrand(op(1,e), op([2,3,1], e))
-      else
-        e
-      end if;
     else
       simplify_assuming(e, kb)
     end if;
@@ -1691,6 +1682,16 @@ NewSLO := module ()
       eval(op(3,func), op(1,func)=argu)
     elif func :: t_pw then
       map_piecewise(procname, _passed)
+    else
+      'procname(_passed)'
+    end if
+  end proc;
+
+  ary := proc (n, i, e)
+    if e :: 'idx'('freeof'(i), 'identical'(i)) then
+      # Array eta-reduction. Assume the size matches.  (We should keep array
+      # size information in the KB and use it here, but we don't currently.)
+      op(1,e)
     else
       'procname(_passed)'
     end if

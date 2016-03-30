@@ -39,6 +39,7 @@ ary3  := Bind(Gaussian(0,1), x,
          Ret(zs))):
 TestHakaru(ary3, Weight(ary1w, Plate(n, i, Gaussian(idx(t,i),1))),
   label="Array eta", ctx = KB:-assert(n::nonnegint,KB:-empty));
+TestHakaru(Ret(ary(n,i,idx(f(i),i))), label="Don't overdo array eta");
 
 bry1  := Bind(BetaD(alpha,beta), x,
          Bind(Plate(n, i, Weight(x    ^piecewise(idx(y,i)=true ,1) *
