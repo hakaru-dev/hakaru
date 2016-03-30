@@ -378,7 +378,11 @@ ppPrimOp p (Erf _)     = \(e1 :* End)       -> ppApply1 p "erf"     e1
 ppArrayOp
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => Int -> ArrayOp typs a -> SArgs abt args -> Docs
-ppArrayOp p (Index   _) = \(e1 :* e2 :* End) -> ppBinop "!" 9 LeftAssoc p e1 e2
+ppArrayOp p (Index   _) = \(e1 :* e2 :* End) ->
+    [(toDoc $ ppArg e1) <>
+     PP.text "["        <>
+     (toDoc $ ppArg e2) <>
+     PP.text "]"]
 ppArrayOp p (Size    _) = \(e1 :* End)       -> ppApply1 p "size" e1
 ppArrayOp p (Reduce  _) = \(e1 :* e2 :* e3 :* End) ->
     ppFun p "reduce"
