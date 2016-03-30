@@ -666,8 +666,8 @@ NewSLO := module ()
              m);
     elif m :: 'LO(name, anything)' then
       eval(op(2,m), op(1,m) = h)
-    elif m :: 'Plate'('ary'(anything, name, anything)) then
-      integrate(op([1,3],m), h, [op([1,2],m)=1..op([1,1],m), op(loops)]);
+    elif m :: 'Plate'(anything, name, anything) then
+      integrate(op(3,m), h, [op(2,m)=1..op(1,m), op(loops)]);
     elif h :: procedure then
       x := gensym('xa');
       'integrate'(m, Integrand(x, h(x)), loops)
@@ -1128,7 +1128,7 @@ NewSLO := module ()
       subintegral := Int(pp * applyintegrand(hh,x), x=lo..hi);
       (w1, mm) := unweight(unintegrate(hh, subintegral, kb));
       weight(simplify_assuming(w0 * foldl(product, w1, op(op(4,integral))), kb),
-        bind(foldl(((mmm,loop) -> Plate(ary(op([2,2],loop),op(1,loop),mmm))),
+        bind(foldl(((mmm,loop) -> Plate(op([2,2],loop),op(1,loop),mmm)),
                    mm, op(op(4,integral))),
              x, m))
     elif integral :: 'applyintegrand'('identical'(h), 'freeof'(h)) then
