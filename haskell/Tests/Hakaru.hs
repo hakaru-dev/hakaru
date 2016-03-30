@@ -1,4 +1,7 @@
-{-# LANGUAGE OverloadedStrings, DataKinds, GADTs #-}
+{-# LANGUAGE OverloadedStrings
+           , DataKinds
+           , GADTs
+           , KindSignatures #-}
 
 module Tests.Hakaru where
 
@@ -48,6 +51,10 @@ x = var (Variable "x" 0 SReal)
 inferType' :: U.AST -> TypeCheckMonad (TypedAST (TrivialABT T.Term))
 inferType' = inferType
 
+checkType' :: Sing a
+           -> U.AST
+           -> TypeCheckMonad (TrivialABT T.Term '[] a)
+checkType' = checkType
 
 illustrate :: Sing a -> MWC.GenIO -> Value a -> IO String
 illustrate SNat  g x = return (show x)
@@ -61,7 +68,7 @@ illustrate (SMeasure s) g (VMeasure m) = do
 illustrate s _ _ = return ("<" ++ show s ++ ">")
 
 
-testHakaru :: Text -> TypeCheckMode ->  MWC.GenIO -> IO String
+testHakaru :: Text -> TypeCheckMode -> MWC.GenIO -> IO String
 testHakaru a mode g =
     case parseHakaru a of
     Left err -> return (show err)
@@ -95,3 +102,23 @@ testHakaru a mode g =
     where
     run :: TrivialABT T.Term '[] a -> Value a
     run = runEvaluate
+
+checkHakaru :: Text
+            -> Sing (a :: Hakaru)
+            -> TypeCheckMode
+            -> MWC.GenIO
+            -> IO ()
+checkHakaru a typ mode g =
+    case parseHakaru a of
+    Left err -> putStrLn (show err)
+    Right past ->
+        let m = checkType' typ (resolveAST past) in
+        case runTCM m mode of
+        Left  err -> putStrLn err
+        Right ast -> do
+            putStr   "Type: "
+            putStrLn . show $ prettyType 0 typ
+            putStrLn ""
+            putStrLn "AST:"
+            putStrLn . show $ pretty ast
+            putStrLn ""
