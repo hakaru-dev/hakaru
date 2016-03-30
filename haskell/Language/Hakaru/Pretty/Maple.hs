@@ -214,7 +214,8 @@ mapleType SInt         = "HInt()"
 mapleType SProb        = "HReal(Bound(`>=`,0))"
 mapleType SReal        = "HReal()"
 mapleType (SFun a b)   = "HFunction(" ++ mapleType a ++ "," ++ mapleType b ++ ")"
-mapleType (SMeasure a) = "HMeasure(" ++ mapleType a ++ ")"
+mapleType (SArray a)   = "HArray("    ++ mapleType a ++ ")"
+mapleType (SMeasure a) = "HMeasure("  ++ mapleType a ++ ")"
 -- Special case pair
 mapleType (SData _ (SPlus x SVoid))
     = "HData(DatumStruct(pair," ++ mapleTypeDStruct x ++ "))"
