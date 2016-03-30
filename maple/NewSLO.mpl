@@ -504,13 +504,14 @@ end module; # KB
 NewSLO := module ()
   option package;
   local t_pw, t_case, p_true, p_false,
-        unproduct, unsum, unweight, factorize, pattern_match, make_piece,
+        unproduct, unsum, unproducts,
+        unweight, factorize, pattern_match, make_piece,
         recognize, get_de, recognize_de, mysolve, Diffop, Recognized,
         reduce,
         reduce_pw, reduce_Int, reduce_Ints, reduce_prod,
         mk_idx,
         get_indicators,
-        elim_int,
+        elim_int, do_elim_int,
         banish, known_measures,
         piecewise_if, nub_piecewise,
         ModuleLoad, ModuleUnload, verify_measure, pattern_equiv,
@@ -519,7 +520,7 @@ NewSLO := module ()
         avoid_capture, change_var, disint2;
   export Simplify,
      # note that these first few are smart constructors (for themselves):
-         case, app, idx, integrate, applyintegrand, Datum,
+         case, app, idx, integrate, applyintegrand, Datum, ints,
      # while these are "proper functions"
          map_piecewise,
          bind, weight,
@@ -532,7 +533,7 @@ NewSLO := module ()
          disint;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
-  global Bind, Weight, Ret, Msum, Integrand, Plate, LO, Indicator, ary,
+  global Bind, Weight, Ret, Msum, Integrand, Plate, LO, Indicator, ary, Ints,
          Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD, StudentT,
          Context,
          lam,
@@ -731,22 +732,15 @@ NewSLO := module ()
   reduce := proc(ee, h :: name, kb :: t_kb)
     # option remember, system;
     local e, elim, hh, subintegral, w, ww,
-          n, i, x, c, myint, res, rest, kb1, update_kb;
+          n, i, x, c, res, rest, kb1, update_kb;
     e := ee;
 
-    if e :: Int(anything, name=anything) then
-      e := elim_int(e, h, kb);
-      if e :: Int(anything, name=range) then
-        x, kb1 := genLebesgue(op([2,1],e), op([2,2,1],e),
-                                           op([2,2,2],e), kb);
-        reduce_Int(reduce(subs(op([2,1],e)=x, op(1,e)), h, kb1),
-                 h, kb1, kb)
-      elif e <> ee then
-        reduce(e, h, kb)
-      else
-        e
-      end if;
-    # TODO: we should have an elim_ints pass first
+    e := elim_int(e, h, kb);
+    if e :: Int(anything, name=range) then
+      x, kb1 := genLebesgue(op([2,1],e), op([2,2,1],e),
+                                         op([2,2,2],e), kb);
+      reduce_Int(reduce(subs(op([2,1],e)=x, op(1,e)), h, kb1),
+               h, kb1, kb)
     elif e :: 'Ints'(anything, name, range, list(name=range)) then
       res := HReal(Bound(`>`, op([3,1],e)), Bound(`<`, op([3,2],e)));
       for i in op(4,e) do res := HArray(res) end do;
@@ -806,28 +800,42 @@ NewSLO := module ()
   end proc;
 
   elim_int := proc(ee, h :: name, kb :: t_kb)
-    local e, hh, elim;
+    local e, hh, m, var, elim, my;
 
     e := ee;
-    while e :: Int(anything, name=anything) and not hastype(op(1,e),
-       'applyintegrand'('identical'(h), 'dependent'(op([2,1],e)))) do
+    do
+      if e :: Int(anything, name=anything) and
+         not hastype(op(1,e), 'applyintegrand'('identical'(h),
+                                               'dependent'(op([2,1],e)))) then
+        hh := gensym('h');
+        var := op([2,1],e);
+        m := LO(hh, my(kb, int, applyintegrand(hh,var), op(2,e)));
+      elif e :: Ints(anything, name, range, list(name=range)) and
+           not hastype(op(1,e), 'applyintegrand'('identical'(h),
+                                                 'dependent'(op(2,e)))) then
+        hh := gensym('h');
+        var := op(2,e);
+        m := LO(hh, my(kb, ints, applyintegrand(hh,var), op(2..4,e)));
+      else
+        break;
+      end if;
       # try to eliminate unused var
-      hh := gensym('h');
-      elim := eval(banish(LO(hh, myint(applyintegrand(hh,op([2,1],e)),op(2,e))),
-                          op([2,1],e), h, op(1,e), infinity),
-                   myint = proc(ee,r)
-                     local e;
-                     e := simplify_assuming(ee,kb);
-                     subs(int=Int, simplify_assuming(int(e,r), kb))
-                   end proc);
+      elim := eval(banish(m, var, h, op(1,e), infinity), my=do_elim_int);
       if has(elim, {MeijerG, undefined})
-         or numboccur(elim,Int) >= numboccur(e,Int) then
+         or numboccur(elim,{Int,Ints}) >= numboccur(e,{Int,Ints}) then
         # Maple was too good at integration
         break;
       end if;
       e := elim;
     end do;
     e;
+  end proc;
+
+  do_elim_int := proc(kb, f, ee)
+    local e;
+    e := simplify_assuming(ee,kb);
+    e := simplify_assuming(f(e,_rest), kb);
+    subs(int=Int, ints=Ints, e)
   end proc;
 
   reduce_pw := proc(ee) # ee may or may not be piecewise
@@ -1052,6 +1060,17 @@ NewSLO := module ()
     end if
   end proc;
 
+  ints := proc(e::anything, x::name, r::range, l::list(name=range))
+    local w0, pp;
+    pp := unproducts(l, x, e);
+    if pp <> FAIL then
+      w0, pp := op(pp);
+      w0 * foldl(product, int(pp,x=r), op(l))
+    else
+      'procname(_passed)'
+    end if
+  end proc;
+
 # Step 3 of 3: from Maple LO (linear operator) back to Hakaru
 
   fromLO := proc(lo :: LO(name, anything), {_ctx :: t_kb := empty})
@@ -1067,7 +1086,7 @@ NewSLO := module ()
   unintegrate := proc(h :: name, integral, kb :: t_kb)
     local x, c, lo, hi, m, mm, w, w0, w1, recognition, subintegral,
           n, i, k, kb1, update_kb,
-          hh, pp, xx, res, rest;
+          hh, pp, res, rest;
     if integral :: 'And'('specfunc({Int,int})',
                          'anyfunc'('anything','name'='range'('freeof'(h)))) then
       (lo, hi) := op(op([2,2],integral));
@@ -1099,17 +1118,14 @@ NewSLO := module ()
       x, kb1 := genType(op(2,integral), res, kb);
       subintegral := eval(op(1,integral), op(2,integral) = x);
       (w, m) := unweight(unintegrate(h, subintegral, kb1));
-      w0 := 1;
-      pp := w;
-      for i from nops(op(4,integral)) to 1 by -1 do
-        (w1, pp) := op(unproduct(op([4,i],integral), x, pp));
-        w0 := w0 * foldl(product, w1, op(i+1..-1, op(4,integral)));
-      end do;
+      pp := unproducts(op(4,integral), x, w);
+      if pp = FAIL then
+        w0 := 1; pp := 1; m := weight(w, m);
+      else
+        w0, pp := op(pp);
+      end if;
       hh := gensym('ph');
-      xx := gensym('px');
-      pp := eval(pp, mk_idx(x,op(4,integral))=xx);
-      if depends([w0,pp],x) then w0 := 1; pp := 1; m := weight(w, m); end if;
-      subintegral := Int(pp * applyintegrand(hh,xx), xx=lo..hi);
+      subintegral := Int(pp * applyintegrand(hh,x), x=lo..hi);
       (w1, mm) := unweight(unintegrate(hh, subintegral, kb));
       weight(simplify_assuming(w0 * foldl(product, w1, op(op(4,integral))), kb),
         bind(foldl(((mmm,loop) -> Plate(ary(op([2,2],loop),op(1,loop),mmm))),
@@ -1193,6 +1209,7 @@ NewSLO := module ()
       [w, 1]
     end if
   end proc;
+
   unsum := proc(loop::(name=range), var::name, w)
     local res, s, r;
     if depends(w, var) then
@@ -1211,6 +1228,18 @@ NewSLO := module ()
     else
       [w, 0]
     end if
+  end proc;
+
+  unproducts := proc(loops::list(name=range), x::name, w)
+    local w0, pp, j, w1, xx;
+    w0 := 1;
+    pp := w;
+    for j from nops(loops) to 1 by -1 do
+      (w1, pp) := op(unproduct(op(j,loops), x, pp));
+      w0 := w0 * foldl(product, w1, op(j+1..-1, loops));
+    end do;
+    pp := eval(pp, mk_idx(x,loops)=xx);
+    if depends([w0,pp],x) then FAIL else [w0, subs(xx=x,pp)] end if
   end proc;
 
   ###

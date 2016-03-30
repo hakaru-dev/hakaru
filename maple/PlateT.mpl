@@ -69,7 +69,7 @@ TestHakaru(bry2, bry2s,
 fission     := Bind(Plate(ary(k, i, Gaussian(0,1))), xs, Plate(ary(k, i, Gaussian(idx(xs,i),1)))):
 fusion      := Plate(ary(k, i, Bind(Gaussian(0,1), x, Gaussian(x,1)))):
 conjugacies := Plate(ary(k, i, Gaussian(0, sqrt(2)))):
-TestHakaru(fission, conjugacies, label="Reason for fusion (currently fails)"); # This currently (2016-03-21) fails
+TestHakaru(fission, conjugacies, label="Conjugacy across plates");
 TestHakaru(fusion,  conjugacies, label="Conjugacy in plate");
 
 # Simplifying gmm below is a baby step towards index manipulations we need
