@@ -96,6 +96,7 @@ mapleSCon Let_     (e1 :* e2 :* End) =
 mapleSCon (CoerceTo_   _) (e :* End) = arg e
 mapleSCon (UnsafeFrom_ _) (e :* End) = arg e
 mapleSCon (PrimOp_    o) es          = maplePrimOp o es
+mapleSCon (ArrayOp_   o) es          = mapleArrayOp o es
 mapleSCon (MeasureOp_ o) es          = mapleMeasureOp o es
 mapleSCon Dirac (e1 :* End)          = app1 "Ret" e1
 mapleSCon MBind (e1 :* e2 :* End)    =
@@ -200,6 +201,13 @@ maplePrimOp (NatRoot _)      (e1 :* e2 :* End) =
     app2 "root" e1 e2
 maplePrimOp x                _                 =
     error ("maplePrimOp: TODO: " ++ show x)
+
+mapleArrayOp
+    :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
+    => ArrayOp typs a -> SArgs abt args -> String
+mapleArrayOp (Index _) (e1 :* e2 :* End) = app2 "idx" e1 e2
+mapleArrayOp (Size  _) (e1 :* End)       = app1 "size" e1
+mapleArrayOp _         _                 = error "mapleArrayOp: TODO: Reduce"
 
 mapleMeasureOp
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
