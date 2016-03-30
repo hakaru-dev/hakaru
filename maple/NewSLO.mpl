@@ -520,7 +520,7 @@ NewSLO := module ()
         avoid_capture, change_var, disint2;
   export Simplify,
      # note that these first few are smart constructors (for themselves):
-         case, app, idx, integrate, applyintegrand, Datum, ints,
+         case, app, idx, size, integrate, applyintegrand, Datum, ints,
      # while these are "proper functions"
          map_piecewise,
          bind, weight,
@@ -1678,6 +1678,16 @@ NewSLO := module ()
   idx := proc (a, i)
     if a :: 'ary'(anything, name, anything) then
       eval(op(3,a), op(2,a)=i)
+    elif a :: t_pw then
+      map_piecewise(procname, _passed)
+    else
+      'procname(_passed)'
+    end if
+  end proc;
+
+  size := proc(a)
+    if a :: 'ary'(anything, name, anything) then
+      op(1,a)
     elif a :: t_pw then
       map_piecewise(procname, _passed)
     else
