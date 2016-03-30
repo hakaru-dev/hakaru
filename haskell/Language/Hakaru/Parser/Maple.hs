@@ -196,6 +196,10 @@ maple2AST (InertArgs Func [InertName "case",
                                                 InertArgs ExpSeq bs]]]) =
     Case (maple2AST e1) (map branch bs)
 
+maple2AST (InertArgs Func [InertName "Plate",
+                           InertArgs ExpSeq [e1, InertName x, e2]]) =
+    Plate x (maple2AST e1) (maple2AST e2)
+
 maple2AST (InertArgs Func [f, (InertArgs ExpSeq a)]) =
     foldl App (maple2AST f) (map maple2AST a)
 
@@ -220,7 +224,7 @@ maple2AST x = error $ "Can't handle: " ++ show x
 mapleDatum2AST :: Text -> InertExpr -> AST' Text
 mapleDatum2AST "pair" d = let [x, y] = unPairDatum d in
                           Pair (maple2AST x) (maple2AST y)
-mapleDatum2AST "unit" d = Unit
+mapleDatum2AST "unit" _ = Unit
 mapleDatum2AST h _ = error ("TODO: mapleDatum " ++ Text.unpack h)
     
 maple2Type :: InertExpr -> TypeAST'

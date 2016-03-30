@@ -100,7 +100,10 @@ mapleSCon (MeasureOp_ o) es          = mapleMeasureOp o es
 mapleSCon Dirac (e1 :* End)          = app1 "Ret" e1
 mapleSCon MBind (e1 :* e2 :* End)    =
     caseBind e2 $ \x e2' ->
-        app3 "Bind" e1 (var x) e2'
+        app3 "Bind"  e1 (var x) e2'
+mapleSCon Plate (e1 :* e2 :* End)    =
+    caseBind e2 $ \x e2' ->
+        app3 "Plate" e1 (var x) e2'
 mapleSCon Integrate (e1 :* e2 :* e3 :* End) =
     caseBind e3 $ \x e3' ->
         "int(" ++ arg e3' ++ ", ["

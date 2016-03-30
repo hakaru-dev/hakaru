@@ -256,10 +256,14 @@ ppSCon p Summate = \(e1 :* e2 :* e3 :* End) ->
         ]
 
 ppSCon p Plate = \(e1 :* e2 :* End) -> 
-    ppFun 11 "plate"
-        [ toDoc (ppArg e1) <+> PP.char '$'
-        , toDoc $ ppBinder e2
-        ]
+    let (vars, types, body) = ppBinder2 e2 in
+    [ PP.text "plate"
+      <+> toDoc vars
+      <+> PP.text "of"
+      <+> (toDoc $ ppArg e1)
+      <> PP.colon
+    , PP.nest 1 (toDoc body)
+    ]
 
 ppSCon p Chain = \(e1 :* e2 :* e3 :* End) ->
     ppFun 11 "chain"
