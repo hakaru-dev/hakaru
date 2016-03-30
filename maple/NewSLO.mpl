@@ -805,7 +805,9 @@ NewSLO := module ()
       hh := gensym('h');
       elim := eval(banish(LO(hh, myint(applyintegrand(hh,op([2,1],e)),op(2,e))),
                           op([2,1],e), h, op(1,e), infinity),
-                   myint = proc(e,r)
+                   myint = proc(ee,r)
+                     local e;
+                     e := simplify_assuming(ee,kb);
                      subs(int=Int, simplify_assuming(int(e,r), kb))
                    end proc);
       if has(elim, {MeijerG, undefined})
