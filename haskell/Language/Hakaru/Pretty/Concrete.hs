@@ -198,7 +198,7 @@ ppSCon _ Lam_ = \(e1 :* End) ->
     let (vars, types, body) = ppBinder2 e1 in
     [ PP.text "fn" <+> toDoc vars
                    <+> toDoc types
-                    <> PP.colon
+                    <> PP.colon <> PP.space
     , PP.nest 1 (toDoc body)]
 
 --ppSCon p App_ = \(e1 :* e2 :* End) -> ppArg e1 ++ parens True (ppArg e2)
@@ -261,7 +261,7 @@ ppSCon p Plate = \(e1 :* e2 :* End) ->
       <+> toDoc vars
       <+> PP.text "of"
       <+> (toDoc $ ppArg e1)
-      <> PP.colon
+      <> PP.colon <> PP.space
     , PP.nest 1 (toDoc body)
     ]
 
