@@ -224,10 +224,30 @@ mapleDatum2AST "unit" d = Unit
 mapleDatum2AST h _ = error ("TODO: mapleDatum " ++ Text.unpack h)
     
 maple2Type :: InertExpr -> TypeAST'
-maple2Type (InertArgs Func [InertName "HReal",
-                            InertArgs ExpSeq []]) = TypeVar "real"
-maple2Type (InertArgs Func [InertName "HInt",
-                            InertArgs ExpSeq []]) = TypeVar "int"
+maple2Type (InertArgs Func
+            [InertName "HInt",
+             InertArgs ExpSeq
+             [InertArgs Func
+              [InertName "Bound",
+               InertArgs ExpSeq
+               [InertName ">=",InertNum Pos 0]]]])
+    = TypeVar "nat"
+maple2Type (InertArgs Func
+            [InertName "HInt",
+             InertArgs ExpSeq []])
+    = TypeVar "int"
+maple2Type (InertArgs Func
+            [InertName "HReal",
+             InertArgs ExpSeq
+             [InertArgs Func
+              [InertName "Bound",
+               InertArgs ExpSeq
+               [InertName ">=",InertNum Pos 0]]]])
+    = TypeVar "prob"
+maple2Type (InertArgs Func
+            [InertName "HReal",
+             InertArgs ExpSeq []])
+    = TypeVar "real"
 maple2Type x = error ("TODO: maple2Type " ++ show x)
 
 branch :: InertExpr -> Branch' Text

@@ -7,11 +7,9 @@ import           Language.Hakaru.Parser.Parser
 import           Language.Hakaru.Parser.SymbolResolve (resolveAST)
 import           Language.Hakaru.Pretty.Concrete  
 import qualified Language.Hakaru.Syntax.AST as T
-import           Language.Hakaru.Syntax.AST.Transforms
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.TypeCheck
 
-import           Language.Hakaru.Types.Sing
 import           Language.Hakaru.Simplify
   
 import           Data.Text
