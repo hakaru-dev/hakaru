@@ -896,7 +896,7 @@ NewSLO := module ()
   end proc;
 
   reduce_Ints := proc(ee, var :: name, rng, bds, h :: name, kb :: t_kb)
-    local w, e, we, w0;
+    local w, e, w0;
     # TODO we should do something with domain restrictions (see above) too
     # but right now, that is not needed by the tests, so just deal with
     # weights.
