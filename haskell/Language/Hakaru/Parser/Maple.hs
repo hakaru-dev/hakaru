@@ -17,6 +17,8 @@ import           Text.Parsec.Language
 
 import           Prelude             hiding (sum, product)
 
+--------------------------------------------------------------------------
+
 style :: GenLanguageDef Text st Identity
 style = Token.LanguageDef
     { Token.commentStart   = "(*"
@@ -31,40 +33,6 @@ style = Token.LanguageDef
     , Token.reservedNames  = []
     , Token.caseSensitive  = False
     }
-
-symTable :: [(Text, Text)]
-symTable =
-    [ ("Gaussian", "normal")
-    , ("BetaD",    "beta")
-    , ("GammaD",   "gamma")
-    , ("Weight",   "weight")
-    , ("Lebesgue", "lebesgue")
-    , ("Uniform",  "uniform")
-    , ("Ret",      "dirac")
-    , ("Pi",       "pi")
-    -- Type symbols
-    , ("Real",     "real")
-    , ("Prob",     "prob")
-    , ("Measure",  "measure")
-    , ("Bool",     "bool")
-    ]
-
-type TokenParser a = Token.GenTokenParser Text a Identity
-
-data NumOp = Pos | Neg
-    deriving (Eq, Show)
-
-data ArgOp
-    = Float   | Power  | Rational
-    | Func    | ExpSeq | Sum_
-    | Product | Less   | Equal
-    deriving (Eq, Show)
-
-data InertExpr
-    = InertName Text
-    | InertNum  NumOp Integer
-    | InertArgs ArgOp [InertExpr]
-    deriving (Eq, Show)
 
 lexer :: TokenParser ()
 lexer = Token.makeTokenParser style
@@ -87,11 +55,146 @@ comma = Token.comma lexer
 commaSep :: Parser a -> Parser [a]
 commaSep = Token.commaSep lexer
 
+symTable :: [(Text, Text)]
+symTable =
+    [ ("Gaussian", "normal")
+    , ("BetaD",    "beta")
+    , ("GammaD",   "gamma")
+    , ("Weight",   "weight")
+    , ("Lebesgue", "lebesgue")
+    , ("Uniform",  "uniform")
+    , ("Ret",      "dirac")
+    , ("Pi",       "pi")
+    -- Type symbols
+    , ("Real",     "real")
+    , ("Prob",     "prob")
+    , ("Measure",  "measure")
+    , ("Bool",     "bool")
+    ]
+
+rename :: Text -> Text
+rename x =
+    case lookup x symTable of
+    Just x' -> x'
+    Nothing -> x
+
 arg :: Parser a -> Parser [a]
 arg e = parens (commaSep e)
 
 text :: Text -> Parser Text
 text = liftM Text.pack <$> string <$> Text.unpack
+
+type TokenParser a = Token.GenTokenParser Text a Identity
+
+--------------------------------------------------------------------------
+-- | Grammar of Inert Expressions
+
+data NumOp = Pos | Neg
+    deriving (Eq, Show)
+
+data ArgOp
+    = Float   | Power  | Rational
+    | Func    | ExpSeq | Sum_
+    | Product | Less   | Equal
+    deriving (Eq, Show)
+
+data InertExpr
+    = InertName Text
+    | InertNum  NumOp Integer
+    | InertArgs ArgOp [InertExpr]
+    deriving (Eq, Show)
+
+---------------------------------------------------------------------------
+-- Parsing String into Inert Expression -----------------------------------
+
+func :: Parser InertExpr
+func =
+    InertArgs
+    <$> (text "_Inert_FUNCTION" *> return Func)
+    <*> arg expr
+
+name :: Parser InertExpr
+name =
+    InertName
+    <$> (text "_Inert_NAME" *> parens stringLiteral)
+
+assignedname :: Parser InertExpr
+assignedname =
+    InertName
+    <$> (text "_Inert_ASSIGNEDNAME" *>
+         parens (stringLiteral <*
+                 comma <*
+                 stringLiteral))
+
+assignedlocalname :: Parser InertExpr
+assignedlocalname =
+    InertName
+    <$> (text "_Inert_ASSIGNEDLOCALNAME" *>
+         parens (stringLiteral <*
+                 comma <*
+                 stringLiteral <*
+                 comma <*
+                 integer))
+
+expseq :: Parser InertExpr
+expseq =
+    InertArgs
+    <$> (text "_Inert_EXPSEQ" *> return ExpSeq)
+    <*> arg expr
+
+intpos :: Parser InertExpr
+intpos =
+    InertNum
+    <$> (text "_Inert_INTPOS" *> return Pos)
+    <*> parens integer
+
+intneg :: Parser InertExpr
+intneg =
+    InertNum
+    <$> (text "_Inert_INTNEG" *> return Neg)
+    <*> fmap negate (parens integer)
+
+float :: Parser InertExpr
+float  =
+    InertArgs
+    <$> (text "_Inert_FLOAT" *> return Float)
+    <*> arg expr
+
+power :: Parser InertExpr
+power =
+    InertArgs
+    <$> (text "_Inert_POWER" *> return Power)
+    <*> arg expr
+
+sum :: Parser InertExpr
+sum =
+    InertArgs
+    <$> (text "_Inert_SUM" *> return Sum_)
+    <*> arg expr
+
+product :: Parser InertExpr
+product =
+    InertArgs
+    <$> (text "_Inert_PROD" *> return Product)
+    <*> arg expr
+
+rational :: Parser InertExpr
+rational =
+    InertArgs
+    <$> (text "_Inert_RATIONAL" *> return Rational)
+    <*> arg expr
+
+lessthan :: Parser InertExpr
+lessthan =
+    InertArgs
+    <$> (text "_Inert_LESSTHAN" *> return Less)
+    <*> arg expr
+
+equal :: Parser InertExpr
+equal =
+    InertArgs
+    <$> (text "_Inert_EQUATION" *> return Equal)
+    <*> arg expr
 
 expr :: Parser InertExpr
 expr =  try func
@@ -109,56 +212,11 @@ expr =  try func
     <|> try rational
     <|> float
 
-func :: Parser InertExpr
-func = InertArgs <$> (text "_Inert_FUNCTION" *> return Func) <*> arg expr
-
-name :: Parser InertExpr
-name = InertName <$> (text "_Inert_NAME" *> parens stringLiteral)
-
-assignedname :: Parser InertExpr
-assignedname = InertName <$> (text "_Inert_ASSIGNEDNAME" *> parens (stringLiteral <* comma <* stringLiteral))
-
-assignedlocalname :: Parser InertExpr
-assignedlocalname = InertName <$> (text "_Inert_ASSIGNEDLOCALNAME" *> parens (stringLiteral <* comma <* stringLiteral <* comma <* integer))
-
-expseq :: Parser InertExpr
-expseq = InertArgs <$> (text "_Inert_EXPSEQ" *> return ExpSeq) <*> arg expr
-
-intpos :: Parser InertExpr
-intpos = InertNum <$> (text "_Inert_INTPOS" *> return Pos) <*> parens integer
-
-intneg :: Parser InertExpr
-intneg = InertNum <$> (text "_Inert_INTNEG" *> return Neg) <*> fmap negate (parens integer)
-
-float :: Parser InertExpr
-float  = InertArgs <$> (text "_Inert_FLOAT" *> return Float) <*> arg expr
-
-power :: Parser InertExpr
-power = InertArgs <$> (text "_Inert_POWER" *> return Power) <*> arg expr
-
-sum :: Parser InertExpr
-sum = InertArgs <$> (text "_Inert_SUM" *> return Sum_) <*> arg expr
-
-product :: Parser InertExpr
-product = InertArgs <$> (text "_Inert_PROD" *> return Product) <*> arg expr
-
-rational :: Parser InertExpr
-rational = InertArgs <$> (text "_Inert_RATIONAL" *> return Rational) <*> arg expr
-
-lessthan :: Parser InertExpr
-lessthan = InertArgs <$> (text "_Inert_LESSTHAN" *> return Less) <*> arg expr
-
-equal :: Parser InertExpr
-equal = InertArgs <$> (text "_Inert_EQUATION" *> return Equal) <*> arg expr
-
-rename :: Text -> Text
-rename x =
-    case lookup x symTable of
-    Just x' -> x'
-    Nothing -> x
-
 parseMaple :: Text -> Either ParseError InertExpr
 parseMaple txt = runParser (expr <* eof) () (Text.unpack txt) (Text.filter (/= '\n') txt)
+
+--------------------------------------------------------------------------
+-- Parsing InertExpr to AST' Text ----------------------------------------
 
 maple2AST :: InertExpr -> AST' Text
 maple2AST (InertNum Pos i) = ULiteral $ Nat $ fromInteger i
@@ -207,12 +265,12 @@ maple2AST (InertArgs Func [InertName "Plate",
 maple2AST (InertArgs Func [f, (InertArgs ExpSeq a)]) =
     foldl App (maple2AST f) (map maple2AST a)
 
-maple2AST (InertArgs Sum_ es) = NaryOp Sum (map maple2AST es)
+maple2AST (InertArgs Sum_    es) = NaryOp Sum  (map maple2AST es)
 
 maple2AST (InertArgs Product es) = NaryOp Prod (map maple2AST es)
 
-maple2AST (InertArgs Less es) =
-    foldl App (Var "less") (map maple2AST es)
+maple2AST (InertArgs Less es)  =
+    foldl App (Var "less")  (map maple2AST es)
 
 maple2AST (InertArgs Equal es) =
     foldl App (Var "equal") (map maple2AST es)
@@ -225,11 +283,15 @@ maple2AST (InertArgs Rational [InertNum _ x, InertNum _ y]) =
 
 maple2AST x = error $ "Can't handle: " ++ show x
 
+--------------------------------------------------------------------------
+
 mapleDatum2AST :: Text -> InertExpr -> AST' Text
 mapleDatum2AST "pair" d = let [x, y] = unPairDatum d in
                           Pair (maple2AST x) (maple2AST y)
 mapleDatum2AST "unit" _ = Unit
 mapleDatum2AST h _ = error ("TODO: mapleDatum " ++ Text.unpack h)
+
+
     
 maple2Type :: InertExpr -> TypeAST'
 maple2Type (InertArgs Func
@@ -258,6 +320,7 @@ maple2Type (InertArgs Func
     = TypeVar "real"
 maple2Type x = error ("TODO: maple2Type " ++ show x)
 
+
 branch :: InertExpr -> Branch' Text
 branch (InertArgs Func
         [InertName "Branch",
@@ -277,6 +340,7 @@ maple2Pattern (InertArgs Func
                 [InertName "pair", args]]) =
   PData' (DV "pair" (map maple2Pattern (unpairPat args)))
 maple2Pattern e = error ("TODO: maple2AST{pattern} " ++ show e)
+
 
 unPairDatum :: InertExpr -> [InertExpr]
 unPairDatum (InertArgs Func [InertName "Inl",
