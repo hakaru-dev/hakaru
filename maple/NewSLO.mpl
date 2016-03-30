@@ -642,7 +642,9 @@ NewSLO := module ()
     elif m :: 'Ret(anything)' then
       res := op(1,m);
       for i in loops do
-        res := ary(op([2,2],i), op(1, i), res);
+        res := ary(op([2,2],i) - op([2,1],i) + 1,
+                   op(1,i),
+                   eval(res, op(1,i) = op(1,i) + op([2,1],i)));
       end do;
       applyintegrand(h, res);
     elif m :: 'Bind(anything, name, anything)' then
@@ -675,16 +677,16 @@ NewSLO := module ()
       if h :: 'Integrand(name, anything)' then
         x := op(1,h);
       end if;
-      x := [seq(gensym(cat(x,i)), i=1..op(1,m))];
+      x := [seq(gensym(cat(x,i)), i=0..op(1,m)-1)];
       res := ary(op(1,m), op(2,m),
-                 piecewise(seq(op([op(2,m)=i, op(i,x)]), i=1..op(1,m))));
+                 piecewise(seq(op([op(2,m)=i-1, op(i,x)]), i=1..op(1,m))));
       res := applyintegrand(h, res);
-      for i from op(1,m) to 1 by -1 do
+      for i from nops(x) to 1 by -1 do
         res := integrate(op(3,m), Integrand(op(i,x), res));
       end do;
       res
     elif m :: 'Plate'(anything, name, anything) then
-      integrate(op(3,m), h, [op(2,m)=1..op(1,m), op(loops)]);
+      integrate(op(3,m), h, [op(2,m)=0..op(1,m)-1, op(loops)]);
     elif h :: procedure then
       x := gensym('xa');
       'integrate'(m, Integrand(x, h(x)), loops)
@@ -1145,7 +1147,10 @@ NewSLO := module ()
       subintegral := Int(pp * applyintegrand(hh,x), x=lo..hi);
       (w1, mm) := unweight(unintegrate(hh, subintegral, kb));
       weight(simplify_assuming(w0 * foldl(product, w1, op(op(4,integral))), kb),
-        bind(foldl(((mmm,loop) -> Plate(op([2,2],loop),op(1,loop),mmm)),
+        bind(foldl(((mmm,loop) ->
+                    Plate(op([2,2],loop) - op([2,1],loop) + 1,
+                          op(1,loop),
+                          eval(mmm, op(1,loop) = op(1,loop) - op([2,1],loop)))),
                    mm, op(op(4,integral))),
              x, m))
     elif integral :: 'applyintegrand'('identical'(h), 'freeof'(h)) then

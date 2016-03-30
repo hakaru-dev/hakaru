@@ -22,9 +22,9 @@ TestHakaru(ary0, ary0, label="plate roundtripping", ctx = KB:-assert(k::nonnegin
 ary1  := Bind(Gaussian(0,1), x,
          Bind(Plate(n, i, Weight(density[Gaussian](x,1)(idx(t,i)), Ret(Unit))), ys,
          Ret(x))):
-ary1w := 2^(-(1/2)*n+1/2)*exp((1/2)*((sum(idx(t,i),i=1..n))^2-(sum(idx(t,i)^2,i=1..n))*n-(sum(idx(t,i)^2,i=1..n)))/(n+1))*Pi^(-(1/2)*n)/sqrt(2+2*n):
+ary1w := 2^(-(1/2)*n+1/2)*exp((1/2)*((sum(idx(t,i),i=0..n-1))^2-(sum(idx(t,i)^2,i=0..n-1))*n-(sum(idx(t,i)^2,i=0..n-1)))/(n+1))*Pi^(-(1/2)*n)/sqrt(2+2*n):
 TestHakaru(ary1, 
-  Weight(ary1w, Gaussian((sum(idx(t, i), i = 1 .. n))/(n+1), 1/sqrt(n+1))),
+  Weight(ary1w, Gaussian((sum(idx(t, i), i = 0 .. n-1))/(n+1), 1/sqrt(n+1))),
   label="Wednesday goal", ctx = KB:-assert(n::nonnegint,KB:-empty));
 TestHakaru(Bind(ary1, x, Ret(Unit)), Weight(ary1w, Ret(Unit)), 
   label="Wednesday goal total", ctx = KB:-assert(n::nonnegint,KB:-empty));
@@ -45,10 +45,10 @@ bry1  := Bind(BetaD(alpha,beta), x,
                                  (1-x)^piecewise(idx(y,i)=false,1),
                           Ret(Unit))), ys,
          Ret(x))):
-bry1s := Weight(Beta(alpha+sum(piecewise(idx(y,i)=true ,1), i=1..n),
-                     beta +sum(piecewise(idx(y,i)=false,1), i=1..n))/Beta(alpha,beta),
-         BetaD(alpha+sum(piecewise(idx(y,i)=true ,1), i=1..n),
-               beta +sum(piecewise(idx(y,i)=false,1), i=1..n))):
+bry1s := Weight(Beta(alpha+sum(piecewise(idx(y,i)=true ,1), i=0..n-1),
+                     beta +sum(piecewise(idx(y,i)=false,1), i=0..n-1))/Beta(alpha,beta),
+         BetaD(alpha+sum(piecewise(idx(y,i)=true ,1), i=0..n-1),
+               beta +sum(piecewise(idx(y,i)=false,1), i=0..n-1))):
 TestHakaru(bry1, bry1s, 
   label="first way to express flipping a biased coin many times",
   ctx = KB:-assert(n::nonnegint,KB:-empty));
@@ -58,10 +58,10 @@ bry2  := Bind(BetaD(alpha,beta), x,
                                  (1-x)^(1-idx(y,i)),
                           Ret(Unit))), ys,
          Ret(x))):
-bry2s := Weight(Beta(alpha+  sum(idx(y,i),i=1..n),
-                     beta +n-sum(idx(y,i),i=1..n))/Beta(alpha,beta),
-         BetaD(alpha+  sum(idx(y,i),i=1..n),
-               beta +n-sum(idx(y,i),i=1..n))):
+bry2s := Weight(Beta(alpha+  sum(idx(y,i),i=0..n-1),
+                     beta +n-sum(idx(y,i),i=0..n-1))/Beta(alpha,beta),
+         BetaD(alpha+  sum(idx(y,i),i=0..n-1),
+               beta +n-sum(idx(y,i),i=0..n-1))):
 TestHakaru(bry2, bry2s, 
   label="second way to express flipping a biased coin many times", 
   ctx = KB:-assert(n::nonnegint,KB:-empty));
