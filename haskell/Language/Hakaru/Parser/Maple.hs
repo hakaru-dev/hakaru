@@ -191,6 +191,13 @@ lessthan =
     <$> (text "_Inert_LESSTHAN" *> return Less)
     <*> arg expr
 
+-- BUG: <= does not equal <
+lesseq :: Parser InertExpr
+lesseq =
+    InertArgs
+    <$> (text "_Inert_LESSEQ" *> return Less)
+    <*> arg expr
+
 equal :: Parser InertExpr
 equal =
     InertArgs
@@ -203,6 +210,7 @@ expr =  try func
     <|> try assignedname
     <|> try assignedlocalname
     <|> try lessthan
+    <|> try lesseq
     <|> try equal
     <|> try expseq
     <|> try intpos
@@ -258,9 +266,10 @@ maple2AST (InertArgs Func [InertName "piecewise",
     If (maple2AST e1) (maple2AST e2) rest
 
   where rest = case es of
-                 [e3] -> maple2AST e3
-                 x    -> maple2AST (InertArgs Func [InertName "piecewise",
-                                                    InertArgs ExpSeq x])
+                 [e3]    -> maple2AST e3
+                 [_, e3] -> maple2AST e3
+                 x       -> maple2AST (InertArgs Func [InertName "piecewise",
+                                                       InertArgs ExpSeq x])
 
 maple2AST (InertArgs Func [InertName "case",
                            InertArgs ExpSeq
