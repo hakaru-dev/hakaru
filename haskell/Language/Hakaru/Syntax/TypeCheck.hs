@@ -56,8 +56,8 @@ import Language.Hakaru.Types.DataKind (Hakaru(..), HData', HBool)
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.HClasses
-    ( HOrd, hOrd_Sing, HSemiring, hSemiring_Sing, hRing_Sing, sing_HRing
-    , HFractional, hFractional_Sing, HRadical(..))
+    ( HEq, hEq_Sing, HOrd, hOrd_Sing, HSemiring, hSemiring_Sing
+    , hRing_Sing, sing_HRing, HFractional, hFractional_Sing, HRadical(..))
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.AST
@@ -619,6 +619,18 @@ inferType = inferType_
         [] -> return . TypedAST SReal $ syn (PrimOp_ NegativeInfinity :$ End)
         _  -> failwith "Passed wrong number of arguments"
 
+  inferPrimOp U.Equal es =
+      case es of
+        [_, _] -> do mode <- getMode
+                     TypedASTs typ [e1', e2'] <-
+                         case mode of
+                           StrictMode -> inferOneCheckOthers_ es
+                           _          -> inferLubType es
+                     primop <- Equal <$> getHEq typ
+                     return . TypedAST sBool $
+                            syn (PrimOp_ primop :$ e1' :* e2' :* End)
+        _      -> failwith "Passed wrong number of arguments"
+
   inferPrimOp U.Less es =
       case es of
         [_, _] -> do mode <- getMode
@@ -735,6 +747,12 @@ jmEq1_ typA typB =
     Just proof -> return proof
     Nothing    -> typeMismatch (Right typA) (Right typB)
 
+
+getHEq :: Sing a -> TypeCheckMonad (HEq a)
+getHEq typ =
+    case hEq_Sing typ of
+    Just theEq -> return theEq
+    Nothing    -> missingInstance "HEq" typ
 
 getHOrd :: Sing a -> TypeCheckMonad (HOrd a)
 getHOrd typ =
