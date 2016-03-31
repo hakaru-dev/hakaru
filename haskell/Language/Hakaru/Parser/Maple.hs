@@ -60,6 +60,7 @@ symTable =
     [ ("Gaussian", "normal")
     , ("BetaD",    "beta")
     , ("GammaD",   "gamma")
+    , ("PoissonD", "poisson")
     , ("Weight",   "weight")
     , ("Lebesgue", "lebesgue")
     , ("Uniform",  "uniform")
@@ -251,6 +252,15 @@ maple2AST (InertArgs Func [InertName "Msum",
 maple2AST (InertArgs Func [InertName "idx",
                            InertArgs ExpSeq [e1, e2]]) =
     Index (maple2AST e1) (maple2AST e2)
+
+maple2AST (InertArgs Func [InertName "piecewise",
+                           InertArgs ExpSeq (e1:e2:es)]) =
+    If (maple2AST e1) (maple2AST e2) rest
+
+  where rest = case es of
+                 [e3] -> maple2AST e3
+                 x    -> maple2AST (InertArgs Func [InertName "piecewise",
+                                                    InertArgs ExpSeq x])
 
 maple2AST (InertArgs Func [InertName "case",
                            InertArgs ExpSeq

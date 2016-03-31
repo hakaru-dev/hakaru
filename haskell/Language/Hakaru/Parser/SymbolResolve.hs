@@ -100,6 +100,8 @@ primTable =
                             (U.SealedOp T.Counting) [])
     ,("uniform",     primMeasure2 (U.SealedOp T.Uniform))
     ,("normal",      primMeasure2 (U.SealedOp T.Normal))
+    ,("poisson",     TLam $ \x -> TNeu $ U.MeasureOp_
+                                  (U.SealedOp T.Poisson) [x])
     ,("gamma",       primMeasure2 (U.SealedOp T.Gamma))
     ,("beta",        primMeasure2 (U.SealedOp T.Beta))
     ,("categorical", TLam $ \x -> TNeu $ U.MeasureOp_
@@ -112,6 +114,7 @@ primTable =
     ,("pi",          TNeu $ U.PrimOp_ U.Pi [])
     ,("**",          primPrimOp2 U.RealPow)
     ,("exp",         primPrimOp1 U.Exp)
+    ,("equal",       primPrimOp2 U.Equal)
     ,("less",        primPrimOp2 U.Less)
     ,("negate",      primPrimOp1 U.Negate)
     ,("recip",       primPrimOp1 U.Recip)

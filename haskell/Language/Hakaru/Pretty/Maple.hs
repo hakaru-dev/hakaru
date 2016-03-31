@@ -216,6 +216,7 @@ mapleMeasureOp Lebesgue End               = "Lebesgue()"
 mapleMeasureOp Counting End               = "Counting()"
 mapleMeasureOp Uniform  (e1 :* e2 :* End) = app2 "Uniform"  e1 e2
 mapleMeasureOp Normal   (e1 :* e2 :* End) = app2 "Gaussian" e1 e2
+mapleMeasureOp Poisson  (e1 :* End)       = app1 "PoissonD" e1
 mapleMeasureOp Gamma    (e1 :* e2 :* End) = app2 "GammaD"   e1 e2
 mapleMeasureOp Beta     (e1 :* e2 :* End) = app2 "BetaD"    e1 e2
 
