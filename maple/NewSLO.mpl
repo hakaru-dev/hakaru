@@ -1854,6 +1854,16 @@ NewSLO := module ()
                     'specfunc({%product, product, sum, idx})',
                     'freeof'(x)),
                 proc(e) Constant[e] end);
+    weight := evalindets[flat](weight, {`^`, specfunc(exp)},
+                proc(e)
+                  applyop(proc(e)
+                            evalindets[flat](e,
+                              And({`^`, specfunc(exp)},
+                                  Not(radfun), Not(algfun), 'freeof'(x)),
+                              proc(e) Constant[e] end)
+                          end,
+                          -1, e)
+                  end);
     de := get_de(weight, x, Dx, f);
     if de :: 'Diffop(anything, anything)' then
       res := recognize_de(op(de), Dx, f, x, lo, hi)
