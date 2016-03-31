@@ -560,17 +560,17 @@ NewSLO := module ()
         ex := app(e,x);
         lam(x, op(1,t), 'case'(x,
           map(proc(branch)
-                local eSubst, pSubst, p1, binds, ys, y, kb1, i, pSubst1;
+                local eSubst, pSubst, p1, binds, y, kb1, i, pSubst1;
                 eSubst, pSubst := pattern_match([x,e], x, op(1,branch));
                 p1 := subs(pSubst, op(1,branch));
                 binds := [pattern_binds(p1)];
-                ys := [];
                 kb1 := kb;
+                pSubst1 := table();
                 for i from 1 to nops(binds) do
                   y, kb1 := genType(op(i,binds), op([2,i],branch), kb1);
-                  ys := [op(ys), y];
+                  pSubst1[op(i,binds)] := y;
                 end do;
-                pSubst1 := zip(`=`, binds, ys);
+                pSubst1 := op(op(pSubst1));
                 Branch(subs(pSubst1, p1),
                        Simplify(eval(eval(ex, eSubst), pSubst1), op(2,t), kb1))
               end proc,
@@ -1097,7 +1097,7 @@ NewSLO := module ()
   unintegrate := proc(h :: name, integral, kb :: t_kb)
     local x, c, lo, hi, m, mm, w, w0, w1, recognition, subintegral,
           n, i, k, kb1, update_kb,
-          loops, j, jj, subst, hh, pp, res, rest;
+          loops, j, subst, hh, pp, res, rest;
     if integral :: 'And'('specfunc({Int,int})',
                          'anyfunc'('anything','name'='range'('freeof'(h)))) then
       (lo, hi) := op(op([2,2],integral));
@@ -1131,17 +1131,17 @@ NewSLO := module ()
       subintegral := eval(op(1,integral), op(2,integral) = x);
       (w, m) := unweight(unintegrate(h, subintegral, kb1));
       kb1 := kb;
-      jj := [];
+      subst := table();
       for i from nops(loops) to 1 by -1 do
         j, kb1 := genType(op([i,1],loops),
                           HInt(Bound(`>=`,op([i,2,1],loops)),
                                Bound(`<=`,op([i,2,2],loops))),
                           kb1,
                           w);
-        jj := [j, op(jj)];
+        subst[op([i,1],loops)] := j;
       end do;
-      subst := zip(`=`, map(lhs,loops), jj);
-      loops := zip(`=`, jj, map(rhs,loops));
+      subst := op(op(subst));
+      loops := eval(loops, subst);
       pp := unproducts(loops, x, w);
       if pp = FAIL then
         w0 := 1; pp := 1; m := weight(w, m);
