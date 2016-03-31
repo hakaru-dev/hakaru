@@ -679,7 +679,9 @@ NewSLO := module ()
       end if;
       x := [seq(gensym(cat(x,i)), i=0..op(1,m)-1)];
       res := 'ary'(op(1,m), op(2,m),
-                   piecewise(seq(op([op(2,m)=i-1, op(i,x)]), i=1..op(1,m))));
+                   piecewise(seq(op([`if`(i=op(1,m), NULL, op(2,m)=i-1),
+                                     op(i,x)]),
+                                 i=1..op(1,m))));
       res := applyintegrand(h, res);
       for i from op(1,m) to 1 by -1 do
         res := integrate(eval(op(3,m), op(2,m)=i-1),
@@ -2115,8 +2117,16 @@ NewSLO := module ()
   end proc;
 
   ModuleLoad := proc()
+    local prev;
     KB; # Make sure the KB module is loaded, for the types t_type and t_kb
     VerifyTools[AddVerification](measure = verify_measure);
+    prev := kernelopts(opaquemodules=false);
+    try
+      PiecewiseTools:-InertFunctions := PiecewiseTools:-InertFunctions
+        union '{Integrand,LO,lam,Branch,Bind,ary,forall}';
+    finally
+      kernelopts(opaquemodules=prev);
+    end try;
   end proc;
 
   ModuleUnload := proc()
