@@ -1097,7 +1097,7 @@ NewSLO := module ()
   unintegrate := proc(h :: name, integral, kb :: t_kb)
     local x, c, lo, hi, m, mm, w, w0, w1, recognition, subintegral,
           n, i, k, kb1, update_kb,
-          hh, pp, res, rest;
+          loops, j, jj, subst, hh, pp, res, rest;
     if integral :: 'And'('specfunc({Int,int})',
                          'anyfunc'('anything','name'='range'('freeof'(h)))) then
       (lo, hi) := op(op([2,2],integral));
@@ -1123,27 +1123,40 @@ NewSLO := module ()
         weight(w0, bind(Lebesgue(), x, m))
       end if
     elif integral :: 'Ints'(anything, name, range, list(name=range)) then
+      loops := op(4,integral);
       (lo, hi) := op(op(3,integral));
       res := HReal(Bound(`>`, lo), Bound(`<`, hi));
-      for i in op(4,integral) do res := HArray(res) end do;
+      for i in loops do res := HArray(res) end do;
       x, kb1 := genType(op(2,integral), res, kb);
       subintegral := eval(op(1,integral), op(2,integral) = x);
       (w, m) := unweight(unintegrate(h, subintegral, kb1));
-      pp := unproducts(op(4,integral), x, w);
+      kb1 := kb;
+      jj := [];
+      for i from nops(loops) to 1 by -1 do
+        j, kb1 := genType(op([i,1],loops),
+                          HInt(Bound(`>=`,op([i,2,1],loops)),
+                               Bound(`<=`,op([i,2,2],loops))),
+                          kb1,
+                          w);
+        jj := [j, op(jj)];
+      end do;
+      subst := zip(`=`, map(lhs,loops), jj);
+      loops := zip(`=`, jj, map(rhs,loops));
+      pp := unproducts(loops, x, w);
       if pp = FAIL then
         w0 := 1; pp := 1; m := weight(w, m);
       else
         w0, pp := op(pp);
       end if;
       hh := gensym('ph');
-      subintegral := Int(pp * applyintegrand(hh,x), x=lo..hi);
-      (w1, mm) := unweight(unintegrate(hh, subintegral, kb));
-      weight(simplify_assuming(w0 * foldl(product, w1, op(op(4,integral))), kb),
+      subintegral := Int(pp * applyintegrand(hh,x), x=eval(lo..hi,subst));
+      (w1, mm) := unweight(unintegrate(hh, subintegral, kb1));
+      weight(simplify_assuming(w0 * foldl(product, w1, op(loops)), kb),
         bind(foldl(((mmm,loop) ->
                     Plate(op([2,2],loop) - op([2,1],loop) + 1,
                           op(1,loop),
                           eval(mmm, op(1,loop) = op(1,loop) - op([2,1],loop)))),
-                   mm, op(op(4,integral))),
+                   mm, op(loops)),
              x, m))
     elif integral :: 'applyintegrand'('identical'(h), 'freeof'(h)) then
       Ret(op(2,integral))
