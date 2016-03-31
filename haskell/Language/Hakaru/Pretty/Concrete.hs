@@ -167,10 +167,14 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
         Literal_ v    -> prettyPrec_ p v
         Empty_   _    -> [PP.text "empty"]
         Array_ e1 e2  ->
-            ppFun p "array"
-                [ toDoc $ ppArg e1
-                , toDoc $ ppBinder e2
-                ]
+            let (vars, _, body) = ppBinder2 e2 in
+            [ PP.text "array"
+              <+> toDoc vars
+              <+> PP.text "of"
+              <+> toDoc (ppArg e1)
+              <> PP.colon <> PP.space
+            , PP.nest 1 (toDoc body)]
+
         Datum_ d      -> prettyPrec_ p (fmap11 LC_ d)
         Case_  e1 bs  ->
             -- TODO: should we also add hints to the 'Case_' constructor to know whether it came from 'if_', 'unpair', etc?

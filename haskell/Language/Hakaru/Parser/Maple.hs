@@ -257,6 +257,10 @@ maple2AST (InertArgs Func [InertName "Msum",
                            InertArgs ExpSeq es]) =
     Msum (map maple2AST es)
 
+maple2AST (InertArgs Func [InertName "ary",
+                           InertArgs ExpSeq [e1, InertName x, e2]]) =
+    Array x (maple2AST e1) (maple2AST e2)
+
 maple2AST (InertArgs Func [InertName "idx",
                            InertArgs ExpSeq [e1, e2]]) =
     Index (maple2AST e1) (maple2AST e2)
