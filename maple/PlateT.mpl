@@ -67,11 +67,23 @@ TestHakaru(bry2, bry2s,
   label="second way to express flipping a biased coin many times", 
   ctx = KB:-assert(n::nonnegint,KB:-empty));
 
-fission     := Bind(Plate(k, i, Gaussian(0,1)), xs, Plate(k, i, Gaussian(idx(xs,i),1))):
-fusion      := Plate(k, i, Bind(Gaussian(0,1), x, Gaussian(x,1))):
-conjugacies := Plate(k, i, Gaussian(0, sqrt(2))):
-TestHakaru(fission, conjugacies, label="Conjugacy across plates");
-TestHakaru(fusion,  conjugacies, label="Conjugacy in plate");
+fission     := Bind(Plate(k, i, Gaussian(z^i,1)), xs, Plate(k, i, Gaussian(idx(xs,i),1))):
+fusion      := Plate(k, i, Bind(Gaussian(z^i,1), x, Gaussian(x,1))):
+conjugacies := Plate(k, i, Gaussian(z^i, sqrt(2))):
+conjugacies5:= Bind(Gaussian(z^0, sqrt(2)), x0,
+               Bind(Gaussian(z^1, sqrt(2)), x1,
+               Bind(Gaussian(z^2, sqrt(2)), x2,
+               Bind(Gaussian(z^3, sqrt(2)), x3,
+               Bind(Gaussian(z^4, sqrt(2)), x4,
+               Ret(ary(5, i, piecewise(i=0,x0, i=1,x1, i=2,x2, i=3,x3, i=4,x4)))))))):
+TestHakaru(eval(fission,{    z=1}), eval(conjugacies ,z=1), label="Conjugacy across iid plates");
+TestHakaru(eval(fusion ,{    z=1}), eval(conjugacies ,z=1), label="Conjugacy in iid plate");
+TestHakaru(eval(fission,{k=5,z=1}), eval(conjugacies5,z=1), label="Conjugacy across iid plates unrolled");
+TestHakaru(eval(fusion ,{k=5,z=1}), eval(conjugacies5,z=1), label="Conjugacy in iid plate unrolled");
+TestHakaru(     fission           ,      conjugacies      , label="Conjugacy across plates", ctx=KB:-assert(z>0,KB:-empty));
+TestHakaru(     fusion            ,      conjugacies      , label="Conjugacy in plate", ctx=KB:-assert(z>0,KB:-empty));
+TestHakaru(eval(fission,{k=5    }),      conjugacies5     , label="Conjugacy across plates unrolled", ctx=KB:-assert(z>0,KB:-empty));
+TestHakaru(eval(fusion ,{k=5    }),      conjugacies5     , label="Conjugacy in plate unrolled", ctx=KB:-assert(z>0,KB:-empty));
 
 # Simplifying gmm below is a baby step towards index manipulations we need
 # gmm is not tested?
