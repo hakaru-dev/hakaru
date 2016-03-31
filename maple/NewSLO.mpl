@@ -1213,9 +1213,9 @@ NewSLO := module ()
         map(exp, unsum(loop, var, op(1,w)))
       elif w :: (freeof(var)^anything) then
         map2(`^`, op(1,w), unsum(loop, var, op(2,w)))
-      elif w :: {'product'(anything, identical(loop)),
-                 'Product'(anything, identical(loop))} then
-        [1, op(1,w)]
+      elif w :: {'product'(anything, name=identical(rhs(loop))),
+                 'Product'(anything, name=identical(rhs(loop)))} then
+        [1, eval(op(1,w), op([2,1],w)=lhs(loop))]
       else
         [w, 1]
       end if
@@ -1233,9 +1233,9 @@ NewSLO := module ()
       elif w :: `*` then
         (s, r) := selectremove(depends, w, var);
         map(`*`, unsum(loop, var, s), r)
-      elif w :: {'sum'(anything, identical(loop)),
-                 'Sum'(anything, identical(loop))} then
-        [0, op(1,w)]
+      elif w :: {'sum'(anything, name=identical(rhs(loop))),
+                 'Sum'(anything, name=identical(rhs(loop)))} then
+        [0, eval(op(1,w), op([2,1],w)=lhs(loop))]
       else
         [w, 0]
       end if
