@@ -48,8 +48,11 @@ TestHakaru(model3, Gaussian(0,sqrt(2)),
   i -> subsop(0=int, applyop(ListTools[Reverse], 2, i))))),
   label = "use simplifier to integrate out variable");
 
-TestHakaru(Bind(GammaD(1,1),lambda,PoissonD(lambda)), Geometric(1/2),
-           label = "integrate out GammaD with PoissonD likelihood");
+TestHakaru(Bind(GammaD(1,1),lambda,PoissonD(lambda)), NegativeBinomial(1,1/2),
+           label = "integrate out GammaD with PoissonD likelihood to Geometric");
+TestHakaru(Bind(GammaD(r,1/(1/p-1)),lambda,PoissonD(lambda)), NegativeBinomial(r,p),
+	   ctx = KB:-assert(And(0<p,p<1),KB:-empty),
+           label = "integrate out GammaD with PoissonD likelihood to NegativeBinomial");
 
 # Kalman filter; note the parameter + assumption
 module()
@@ -115,7 +118,7 @@ TestHakaru(StudentT(nu,loc,scale), ctx=KB:-assert(scale>0,KB:-empty), label = "S
 TestHakaru(StudentT(1,loc,scale),Cauchy(loc,scale), ctx = KB:-assert(scale>0,KB:-empty),
   label = "StudentT(1,loc,scale) recog.");
 TestHakaru(Weight(1/26,Counting(17,42)), label="Discrete uniform recog.");
-TestHakaru(Geometric(1-p-q), label="Geometric recog.");
+TestHakaru(NegativeBinomial(r,1-p-q), label="NegativeBinomial recog.");
 TestHakaru(Poisson(foo/exp(bar)), label="Poisson recog.");
 
 # how far does myint get us?

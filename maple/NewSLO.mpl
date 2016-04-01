@@ -622,7 +622,7 @@ NewSLO := module ()
     StudentT(anything, anything, anything),
     BetaD(anything, anything), GammaD(anything, anything)}':
   known_discrete := '{Counting(anything, anything),
-    Geometric(anything), PoissonD(anything)}';
+    NegativeBinomial(anything), PoissonD(anything)}';
 
   integrate := proc(m, h, loops :: list(name = range) := [])
     local x, n, i, res, l;
@@ -1966,22 +1966,21 @@ NewSLO := module ()
   end proc;
 
   recognize_discrete := proc(weight, k, lo, hi)
-    local se, Sk, f, a0, a1, a, p, lambda;
+    local se, Sk, f, a0, a1, lambda, r;
     if lo = 0 and hi = infinity then
       se := get_se(weight, k, Sk, f);
       if se :: 'Shiftop(anything, anything, identical(ogf))' and
          ispoly(op(1,se), 'linear', Sk, 'a0', 'a1') then
-        a := normal(a0/a1);
-        p := normal(a+1);
-        if not depends(p, {k,Sx}) then
-          return Recognized(Geometric(p),
-                            simplify(eval(weight,k=0)/p));
-        end if;
-        lambda := normal(-a*(k+1));
-        if not depends(lambda, {k,Sx}) then
+        lambda := normal(-a0/a1*(k+1));
+        if not depends(lambda, k) then
           return Recognized(PoissonD(lambda),
                             simplify(eval(weight,k=0)/exp(-lambda)));
         end if;
+        if ispoly(lambda, 'linear', k, 'b0', 'b1') then
+          r := b0/b1;
+          return Recognized(NegativeBinomial(r, b1),
+                            simplify(eval(weight,k=0)/(1-b1)^r))
+        end if
       end if;
     end if;
     Recognized(Counting(lo, hi), weight)
@@ -2145,8 +2144,8 @@ NewSLO := module ()
   density[Counting] := proc(lo, hi) proc(k)
     1
   end proc end proc;
-  density[Geometric] := proc(p) proc(k)
-    p * (1-p)^k
+  density[NegativeBinomial] := proc(r,p) proc(k)
+    p^k * (1-p)^r * GAMMA(r+k) / GAMMA(k+1) / GAMMA(r)
   end proc end proc;
   density[PoissonD] := proc(lambda) proc(k)
     lambda^k*exp(-lambda)/k!
@@ -2160,7 +2159,7 @@ NewSLO := module ()
   bounds[BetaD] := proc(a, b) 0 .. 1 end proc;
   bounds[GammaD] := proc(shape, scale) 0 .. infinity end proc;
   bounds[Counting] := `..`;
-  bounds[Geometric] := proc(p) 0 .. infinity end proc;
+  bounds[NegativeBinomial] := proc(r,p) 0 .. infinity end proc;
   bounds[PoissonD] := proc(lambda) 0 .. infinity end proc;
 
   RoundTrip := proc(e, t::t_type, {kb :: t_kb := empty})
