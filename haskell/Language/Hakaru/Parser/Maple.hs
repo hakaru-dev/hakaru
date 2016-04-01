@@ -57,15 +57,17 @@ commaSep = Token.commaSep lexer
 
 symTable :: [(Text, Text)]
 symTable =
-    [ ("Gaussian", "normal")
-    , ("BetaD",    "beta")
-    , ("GammaD",   "gamma")
-    , ("PoissonD", "poisson")
-    , ("Weight",   "weight")
-    , ("Lebesgue", "lebesgue")
-    , ("Uniform",  "uniform")
-    , ("Ret",      "dirac")
-    , ("Pi",       "pi")
+    [ ("Gaussian",  "normal")
+    , ("BetaD",     "beta")
+    , ("GammaD",    "gamma")
+    , ("PoissonD",  "poisson")
+    , ("Weight",    "weight")
+    , ("Lebesgue",  "lebesgue")
+    , ("Counting",  "counting")
+    , ("Uniform",   "uniform")
+    , ("Ret",       "dirac")
+    , ("Geometric", "geometric")
+    , ("Pi",        "pi")
     -- Type symbols
     , ("Real",     "real")
     , ("Prob",     "prob")
@@ -248,6 +250,8 @@ maple2AST (InertArgs Func [InertName "Datum",
                            InertArgs ExpSeq [InertName h, d]]) =
     mapleDatum2AST h d
 
+maple2AST (InertArgs Func [InertName "Counting", _]) =
+    Var "counting"
 
 maple2AST (InertArgs Func [InertName "lam",
                            InertArgs ExpSeq [InertName x, typ, e1]]) =
@@ -363,6 +367,16 @@ maple2Pattern (InertArgs Func
                 InertArgs ExpSeq
                 [InertName "pair", args]]) =
   PData' (DV "pair" (map maple2Pattern (unpairPat args)))
+maple2Pattern (InertArgs Func
+               [InertName "PDatum",
+                InertArgs ExpSeq
+                [InertName "true", _]]) =
+  PData' (DV "true" [])
+maple2Pattern (InertArgs Func
+               [InertName "PDatum",
+                InertArgs ExpSeq
+                [InertName "false", _]]) =
+  PData' (DV "false" [])
 maple2Pattern e = error ("TODO: maple2AST{pattern} " ++ show e)
 
 

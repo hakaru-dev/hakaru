@@ -100,7 +100,7 @@ primTable =
                             (U.SealedOp T.Counting) [])
     ,("uniform",     primMeasure2 (U.SealedOp T.Uniform))
     ,("normal",      primMeasure2 (U.SealedOp T.Normal))
-    ,("poisson",     primMeasure1 (U.SealedOp T.Poisson)
+    ,("poisson",     primMeasure1 (U.SealedOp T.Poisson))
     ,("gamma",       primMeasure2 (U.SealedOp T.Gamma))
     ,("beta",        primMeasure2 (U.SealedOp T.Beta))
     ,("categorical", primMeasure1 (U.SealedOp T.Categorical))
