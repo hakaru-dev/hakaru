@@ -56,6 +56,9 @@ meq x y = arg x ++ "=" ++ arg y
 parens :: String -> String
 parens a = "(" ++ a ++ ")"
 
+commaSep :: Seq String -> String
+commaSep = foldr1 (\a b -> a ++ " , " ++ b)
+
 mapleAST :: (ABT Term abt) => LC_ abt a -> String
 mapleAST (LC_ e) =
     caseVarSyn e var1 $ \t ->
@@ -113,10 +116,14 @@ mapleSCon Integrate (e1 :* e2 :* e3 :* End) =
                ++ arg e2  ++ "])" 
 
 mapleNary :: (ABT Term abt) => NaryOp a -> Seq (abt '[] a) -> String
+mapleNary And      es = parens $ F.foldr1 (\a b -> a ++ " and " ++ b)
+                                 (fmap arg es)
 mapleNary (Sum  _) es = parens $ F.foldr1 (\a b -> a ++ " + " ++ b)
                                  (fmap arg es)
 mapleNary (Prod _) es = parens $ F.foldr1 (\a b -> a ++ " * " ++ b)
                                  (fmap arg es)
+mapleNary (Min _)  es = "min" ++ (parens . commaSep $ fmap arg es)
+mapleNary (Max _)  es = "max" ++ (parens . commaSep $ fmap arg es)
 mapleNary _        _  = "TODO: mapleNary:"
 
 mapleDatum :: (ABT Term abt)

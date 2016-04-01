@@ -2,7 +2,8 @@
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Language.Hakaru.Parser.Maple where
 
-import           Language.Hakaru.Parser.AST hiding (Less, Equal)
+import           Language.Hakaru.Parser.AST
+    hiding (Less, Equal)
 import           Control.Monad.Identity
 import           Data.Text           (Text)
 import qualified Data.Text           as Text
@@ -68,6 +69,7 @@ symTable =
     , ("Ret",       "dirac")
     , ("Geometric", "geometric")
     , ("Pi",        "pi")
+    , ("GAMMA",     "gammaFunc")
     -- Type symbols
     , ("Real",     "real")
     , ("Prob",     "prob")
@@ -99,6 +101,7 @@ data ArgOp
     = Float   | Power  | Rational
     | Func    | ExpSeq | Sum_
     | Product | Less   | Equal
+    | And_
     deriving (Eq, Show)
 
 data InertExpr
@@ -167,6 +170,12 @@ power :: Parser InertExpr
 power =
     InertArgs
     <$> (text "_Inert_POWER" *> return Power)
+    <*> arg expr
+
+and :: Parser InertExpr
+and =
+    InertArgs
+    <$> (text "_Inert_AND" *> return And_)
     <*> arg expr
 
 sum :: Parser InertExpr
@@ -279,6 +288,10 @@ maple2AST (InertArgs Func [InertName "piecewise",
                  x       -> maple2AST (InertArgs Func [InertName "piecewise",
                                                        InertArgs ExpSeq x])
 
+maple2AST (InertArgs Func [InertName "max",
+                           InertArgs ExpSeq es]) =
+    NaryOp Max (map maple2AST es)
+
 maple2AST (InertArgs Func [InertName "case",
                            InertArgs ExpSeq
                            [e1, InertArgs Func [InertName "Branches",
@@ -290,8 +303,10 @@ maple2AST (InertArgs Func [InertName "Plate",
     Plate x (maple2AST e1) (maple2AST e2)
 
 maple2AST (InertArgs Func [f,
-                           InertArgs ExpSeq a]) =
-    foldl App (maple2AST f) (map maple2AST a)
+                           InertArgs ExpSeq es]) =
+    foldl App (maple2AST f) (map maple2AST es)
+
+maple2AST (InertArgs And_    es) = NaryOp And  (map maple2AST es)
 
 maple2AST (InertArgs Sum_    es) = NaryOp Sum  (map maple2AST es)
 
