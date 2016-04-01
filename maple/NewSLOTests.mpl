@@ -48,6 +48,9 @@ TestHakaru(model3, Gaussian(0,sqrt(2)),
   i -> subsop(0=int, applyop(ListTools[Reverse], 2, i))))),
   label = "use simplifier to integrate out variable");
 
+TestHakaru(Bind(GammaD(1,1),lambda,PoissonD(lambda)), Geometric(1/2),
+           label = "integrate out GammaD with PoissonD likelihood");
+
 # Kalman filter; note the parameter + assumption
 module()
   local y, kb, kalman;
@@ -111,6 +114,9 @@ TestHakaru(Cauchy(loc,scale), ctx = KB:-assert(scale>0,KB:-empty), label="Cauchy
 TestHakaru(StudentT(nu,loc,scale), ctx=KB:-assert(scale>0,KB:-empty), label = "StudentT recog.");
 TestHakaru(StudentT(1,loc,scale),Cauchy(loc,scale), ctx = KB:-assert(scale>0,KB:-empty),
   label = "StudentT(1,loc,scale) recog.");
+TestHakaru(Weight(1/26,Counting(17,42)), label="Discrete uniform recog.");
+TestHakaru(Geometric(1-p-q), label="Geometric recog.");
+TestHakaru(Poisson(foo/exp(bar)), label="Poisson recog.");
 
 # how far does myint get us?
 TestHakaru(
@@ -328,6 +334,10 @@ gamma_gamma   := Bind(GammaD(alpha0,1/beta0),beta, Weight(NewSLO:-density[GammaD
 gamma_gamma_s := Weight(beta0^alpha0*x^(alpha-1)*GAMMA(alpha+alpha0)*(beta0+x)^(-alpha-alpha0)/(GAMMA(alpha0)*GAMMA(alpha)), GammaD(alpha+alpha0, 1/(beta0+x))):
 TestHakaru(gamma_gamma, gamma_gamma_s, label="gamma_gamma conjugacy", 
   ctx = KB:-assert(And(alpha0>0, beta0>0, alpha>0, x>0), KB:-empty));
+gamma_poisson   := Bind(GammaD(shape,scale),lambda, Weight(NewSLO:-density[PoissonD](lambda)(k), Ret(lambda))):
+gamma_poisson_s := Weight(scale^k*(scale+1)^(-k-shape)*GAMMA(k+shape)/(GAMMA(shape)*GAMMA(k+1)), GammaD(k+shape, scale/(scale+1))):
+TestHakaru(gamma_poisson, gamma_poisson_s, label="gamma_poisson conjugacy",
+           ctx=KB:-assert(And(shape>0, scale>0, k::nonnegint), KB:-empty));
 
 # For the following test, banishing fails because Maple currently evaluates
 #   int(piecewise(x < y, 1/(1-x), 0), x = 0 .. 1) assuming y<1

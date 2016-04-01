@@ -508,7 +508,8 @@ NewSLO := module ()
         mk_sym, mk_idx,
         unproduct, unsum, unproducts,
         unweight, factorize, pattern_match, make_piece,
-        recognize, get_de, recognize_de, mysolve, Diffop, Recognized,
+        recognize_continuous, recognize_discrete, get_de, get_se,
+        recognize_de, mysolve, Shiftop, Diffop, Recognized,
         reduce,
         reduce_pw, reduce_IntSum, reduce_IntsSums, reduce_prod,
         get_indicators,
@@ -1165,7 +1166,7 @@ NewSLO := module ()
   end proc;
 
   unintegrate := proc(h :: name, integral, kb :: t_kb)
-    local x, c, lo, hi, m, mm, w, w0, w1, recognition, subintegral,
+    local x, c, lo, hi, make, m, mm, w, w0, w1, recognition, subintegral,
           n, i, k, kb1, update_kb,
           loops, j, subst, hh, pp, res, rest;
     if integral :: 'And'('specfunc({Int,int})',
@@ -1174,7 +1175,7 @@ NewSLO := module ()
       x, kb1 := genLebesgue(op([2,1],integral), lo, hi, kb);
       subintegral := eval(op(1,integral), op([2,1],integral) = x);
       (w, m) := unweight(unintegrate(h, subintegral, kb1));
-      recognition := recognize(w, x, lo, hi)
+      recognition := recognize_continuous(w, x, lo, hi)
         assuming op(kb_to_assumptions(kb1));
       if recognition :: 'Recognized(anything, anything)' then
         # Recognition succeeded
@@ -1192,10 +1193,31 @@ NewSLO := module ()
         end if;
         weight(w0, bind(Lebesgue(), x, m))
       end if
-    elif integral :: 'Ints'(anything, name, range, list(name=range)) then
+    elif integral :: 'And'('specfunc({Sum,sum})',
+                           'anyfunc'('anything','name'='range'('freeof'(h)))) then
+      (lo, hi) := op(op([2,2],integral));
+      x, kb1 := genType(op([2,1],integral), HInt(Bound(`>=`,lo),
+                                                 Bound(`<=`,hi)), kb);
+      subintegral := eval(op(1,integral), op([2,1],integral) = x);
+      (w, m) := unweight(unintegrate(h, subintegral, kb1));
+      recognition := recognize_discrete(w, x, lo, hi)
+        assuming op(kb_to_assumptions(kb1));
+      if recognition :: 'Recognized(anything, anything)' then
+        (w, w0) := factorize(op(2,recognition), x);
+        weight(w0, bind(op(1,recognition), x, weight(w, m)))
+      else error "recognize_discrete is never supposed to fail" end if
+    elif integral :: 'And'('specfunc({Ints,ints,Sums,sums})',
+                           'anyfunc'('anything', 'name', 'range'('freeof'(h)),
+                                     'list(name=range)')) then
       loops := op(4,integral);
       (lo, hi) := op(op(3,integral));
-      res := HReal(Bound(`>`, lo), Bound(`<`, hi));
+      if op(0,integral) in {Ints,ints} then
+        res := HReal(Bound(`>`, lo), Bound(`<`, hi));
+        make := Int;
+      else
+        res := HInt(Bound(`>=`, lo), Bound(`<=`, hi));
+        make := Sum;
+      end if;
       for i in loops do res := HArray(res) end do;
       x, kb1 := genType(op(2,integral), res, kb);
       subintegral := eval(op(1,integral), op(2,integral) = x);
@@ -1219,7 +1241,7 @@ NewSLO := module ()
         w0, pp := op(pp);
       end if;
       hh := gensym('ph');
-      subintegral := Int(pp * applyintegrand(hh,x), x=eval(lo..hi,subst));
+      subintegral := make(pp * applyintegrand(hh,x), x=eval(lo..hi,subst));
       (w1, mm) := unweight(unintegrate(hh, subintegral, kb1));
       weight(simplify_assuming(w0 * foldl(product, w1, op(loops)), kb),
         bind(foldl(((mmm,loop) ->
@@ -1898,7 +1920,7 @@ NewSLO := module ()
     end if
   end proc;
 
-  recognize := proc(weight0, x, lo, hi)
+  recognize_continuous := proc(weight0, x, lo, hi)
     local Constant, weight, de, Dx, f, w, res, rng;
     res := FAIL;
     # gfun[holexprtodiffeq] contains a test for {radfun,algfun} that seems like
@@ -1943,6 +1965,28 @@ NewSLO := module ()
     evalindets[flat](res, 'specindex'(anything, Constant), x -> op(1,x))
   end proc;
 
+  recognize_discrete := proc(weight, k, lo, hi)
+    local se, Sk, f, a0, a1, a, p, lambda;
+    if lo = 0 and hi = infinity then
+      se := get_se(weight, k, Sk, f);
+      if se :: 'Shiftop(anything, anything, identical(ogf))' and
+         ispoly(op(1,se), 'linear', Sk, 'a0', 'a1') then
+        a := normal(a0/a1);
+        p := normal(a+1);
+        if not depends(p, {k,Sx}) then
+          return Recognized(Geometric(p),
+                            simplify(eval(weight,k=0)/p));
+        end if;
+        lambda := normal(-a*(k+1));
+        if not depends(lambda, {k,Sx}) then
+          return Recognized(PoissonD(lambda),
+                            simplify(eval(weight,k=0)/exp(-lambda)));
+        end if;
+      end if;
+    end if;
+    Recognized(Counting(lo, hi), weight)
+  end proc;
+
   get_de := proc(dens, var, Dx, f)
     :: Or(Diffop(anything, set(function=anything)), identical(FAIL));
     local de, init;
@@ -1964,6 +2008,44 @@ NewSLO := module ()
                       {0, 1/2, 1})
         end if;
         return Diffop(DEtools[de2diffop](de[1], f(var), [Dx, var]), init)
+      end if
+    catch: # do nothing
+    end try;
+    FAIL
+  end proc;
+
+  get_se := proc(dens, var, Sk, f)
+    :: Or(Shiftop(anything, set(function=anything), name), identical(FAIL));
+    local x, ser, de, gftype, init;
+    try
+      ser := series(sum(dens * x^var, var=0..infinity), x);
+      de := gfun[seriestorec](ser, f(var));
+      de, gftype := op(de);
+      de := gfun[rectohomrec](de, f(var));
+      if not (de :: set) then
+        de := {de}
+      end if;
+      init, de := selectremove(type, de, `=`);
+      if nops(de) = 1 then
+        if nops(init) = 0 then
+          init := {f(0) = eval(dens, var=0)};
+        end if;
+        de := map(proc(t)
+                    local s, r;
+                    s, r := selectremove(type, convert(t, 'list', `*`),
+                                         f(polynom(nonnegint, var)));
+                    if nops(s) <> 1 then
+                      error "rectohomrec result nonhomogeneous";
+                    end if;
+                    s := op([1,1],s) - var;
+                    if s :: nonnegint and r :: list(polynom(anything, var)) then
+                      `*`(op(r), Sk^s);
+                    else
+                      error "unexpected result from rectohomrec"
+                    end if
+                  end proc,
+                  convert(de[1], 'list', `+`));
+        return Shiftop(`+`(op(de)), init, gftype)
       end if
     catch: # do nothing
     end try;
