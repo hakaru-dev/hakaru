@@ -115,5 +115,13 @@ easyRoad = unlines
     ,"return ((m1, m2), (noiseT, noiseE))"
     ]
 
+plate_norm :: Text
+plate_norm = unlines
+    [ "x <~ normal(0,1)"
+    , "y <~ plate _ of 5:"
+    , "       normal(x,1)"
+    , "return (y, x)"
+    ]
+
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
