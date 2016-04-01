@@ -2123,7 +2123,7 @@ NewSLO := module ()
     prev := kernelopts(opaquemodules=false);
     try
       PiecewiseTools:-InertFunctions := PiecewiseTools:-InertFunctions
-        union '{Integrand,LO,lam,Branch,Bind,ary,forall}';
+        union '{Integrand,LO,lam,Branch,Bind,ary,forall,`..`}';
     finally
       kernelopts(opaquemodules=prev);
     end try;
