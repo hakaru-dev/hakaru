@@ -75,7 +75,7 @@ conjugacies5:= Bind(Gaussian(z^0, sqrt(2)), x0,
                Bind(Gaussian(z^2, sqrt(2)), x2,
                Bind(Gaussian(z^3, sqrt(2)), x3,
                Bind(Gaussian(z^4, sqrt(2)), x4,
-               Ret(ary(5, i, piecewise(i=0,x0, i=1,x1, i=2,x2, i=3,x3, x4)))))))):
+               Ret(ary(5, i, piecewise(i=1,x1, i=2,x2, i=3,x3, i=4,x4, x0)))))))):
 TestHakaru(eval(fission,{    z=1}), eval(conjugacies ,z=1), verify=normal, label="Conjugacy across iid plates");
 TestHakaru(eval(fusion ,{    z=1}), eval(conjugacies ,z=1), verify=normal, label="Conjugacy in iid plate");
 TestHakaru(eval(fission,{k=5,z=1}), eval(conjugacies5,z=1), verify=normal, label="Conjugacy across iid plates unrolled");

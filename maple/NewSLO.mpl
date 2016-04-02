@@ -668,9 +668,10 @@ NewSLO := module ()
       x := mk_sym('pp', h);
       x := [seq(cat(x,i), i=0..op(1,m)-1)];
       res := 'ary'(op(1,m), op(2,m),
-                   piecewise(seq(op([`if`(i=op(1,m), NULL, op(2,m)=i-1),
-                                     op(i,x)]),
-                                 i=1..op(1,m))));
+                   `if`(op(1,m)>1,
+                        piecewise(seq(op([op(2,m)=i-1, op(i,x)]), i=2..op(1,m)),
+                                  op(1,x)),
+                        `if`(op(1,m)>0, op(1,x), undefined)));
       res := applyintegrand(h, res);
       for i from op(1,m) to 1 by -1 do
         res := integrate(eval(op(3,m), op(2,m)=i-1),
