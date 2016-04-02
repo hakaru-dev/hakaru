@@ -1983,6 +1983,8 @@ NewSLO := module ()
         end if
       end if;
     end if;
+    # fallthrough here is like recognizing Lebesgue for all continuous
+    # measures.  Ultimately correct, although fairly unsatisfying.
     Recognized(Counting(lo, hi), weight)
   end proc;
 
@@ -2013,26 +2015,28 @@ NewSLO := module ()
     FAIL
   end proc;
 
-  get_se := proc(dens, var, Sk, f)
+  get_se := proc(dens, var, Sk, u)
     :: Or(Shiftop(anything, set(function=anything), name), identical(FAIL));
-    local x, ser, de, gftype, init;
+    local x, de, re, gftype, init, f;
     try
-      ser := series(sum(dens * x^var, var=0..infinity), x);
-      de := gfun[seriestorec](ser, f(var));
-      de, gftype := op(de);
-      de := gfun[rectohomrec](de, f(var));
-      if not (de :: set) then
-        de := {de}
+      # ser := series(sum(dens * x^var, var=0..infinity), x);
+      # re := gfun[seriestorec](ser, f(var));
+      # re, gftype := op(re);
+      de := gfun[holexprtodiffeq](sum(dens*x^var, var=0..infinity), f(x));
+      re := gfun[diffeqtorec](de, f(x), u(var));
+      re := gfun[rectohomrec](re, u(var));
+      if not (re :: set) then
+        re := {re}
       end if;
-      init, de := selectremove(type, de, `=`);
-      if nops(de) = 1 then
+      init, re := selectremove(type, re, `=`);
+      if nops(re) = 1 then
         if nops(init) = 0 then
-          init := {f(0) = eval(dens, var=0)};
+          init := {u(0) = eval(rens, var=0)};
         end if;
-        de := map(proc(t)
+        re := map(proc(t)
                     local s, r;
                     s, r := selectremove(type, convert(t, 'list', `*`),
-                                         f(polynom(nonnegint, var)));
+                                         u(polynom(nonnegint, var)));
                     if nops(s) <> 1 then
                       error "rectohomrec result nonhomogeneous";
                     end if;
@@ -2043,8 +2047,8 @@ NewSLO := module ()
                       error "unexpected result from rectohomrec"
                     end if
                   end proc,
-                  convert(de[1], 'list', `+`));
-        return Shiftop(`+`(op(de)), init, gftype)
+                  convert(re[1], 'list', `+`));
+        return Shiftop(`+`(op(re)), init, 'ogf')
       end if
     catch: # do nothing
     end try;
