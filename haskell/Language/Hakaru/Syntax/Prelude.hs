@@ -1501,10 +1501,10 @@ binomial n p =
 negativeBinomial
     :: (ABT Term abt)
     => abt '[] 'HNat
-    -> abt '[] 'HProb -- N.B., must actually be >= 1
+    -> abt '[] 'HProb -- N.B., must actually be between 0 and 1
     -> abt '[] ('HMeasure 'HNat)
 negativeBinomial r p =
-    gamma (nat2prob r) (recip p `unsafeMinusProb` prob_ 1) >>= poisson
+    gamma (nat2prob r) (recip (recip p `unsafeMinusProb` prob_ 1)) >>= poisson
 
 geometric :: (ABT Term abt) => abt '[] 'HProb -> abt '[] ('HMeasure 'HNat)
 geometric = negativeBinomial (nat_ 1)
