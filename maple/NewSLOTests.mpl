@@ -105,6 +105,7 @@ TestHakaru(Bind(Uniform(0,1),x,Weight(x^alpha*(1-x)^beta,Ret(x))), Weight(Beta(1
 TestHakaru(Bind(Uniform(0,1),x,Weight((1-x)^beta,Ret(x))), Weight(1/(1+beta),BetaD(1,1+beta)));
 
 # tests that basic densities are properly recognized
+# continuous
 TestHakaru(Bind(Uniform(0,1),x,Weight(x*2,Ret(x))), BetaD(2,1),
   label="BetaD(2,1) recog");
 TestHakaru(BetaD(alpha,beta), label="BetaD recog.");
@@ -117,6 +118,7 @@ TestHakaru(Cauchy(loc,scale), ctx = KB:-assert(scale>0,KB:-empty), label="Cauchy
 TestHakaru(StudentT(nu,loc,scale), ctx=KB:-assert(scale>0,KB:-empty), label = "StudentT recog.");
 TestHakaru(StudentT(1,loc,scale),Cauchy(loc,scale), ctx = KB:-assert(scale>0,KB:-empty),
   label = "StudentT(1,loc,scale) recog.");
+# discrete
 TestHakaru(Weight(1/26,Counting(17,42)), label="Discrete uniform recog.");
 TestHakaru(NegativeBinomial(r,1-p-q), label="NegativeBinomial recog.");
 TestHakaru(Poisson(foo/exp(bar)), label="Poisson recog.");
