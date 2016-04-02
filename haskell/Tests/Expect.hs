@@ -1,4 +1,4 @@
-rrr{-# LANGUAGE NoImplicitPrelude, DataKinds, TypeOperators #-}
+{-# LANGUAGE NoImplicitPrelude, DataKinds, TypeOperators #-}
 
 module Tests.Expect where
 
