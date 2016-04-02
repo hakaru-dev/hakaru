@@ -51,7 +51,7 @@ TestHakaru(model3, Gaussian(0,sqrt(2)),
 TestHakaru(Bind(GammaD(1,1),lambda,PoissonD(lambda)), NegativeBinomial(1,1/2),
            label = "integrate out GammaD with PoissonD likelihood to Geometric");
 TestHakaru(Bind(GammaD(r,1/(1/p-1)),lambda,PoissonD(lambda)), NegativeBinomial(r,p),
-	   ctx = KB:-assert(And(0<p,p<1),KB:-empty),
+           ctx = KB:-assert(And(0<p,p<1),KB:-empty),
            label = "integrate out GammaD with PoissonD likelihood to NegativeBinomial");
 
 # Kalman filter; note the parameter + assumption

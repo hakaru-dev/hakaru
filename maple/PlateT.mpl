@@ -113,8 +113,8 @@ end proc:
          Ret(ps)))))),
    Weight(24*Beta(1+idx(t,4), 4+idx(t,0)+idx(t,1)+idx(t,2)+idx(t,3))
             *Beta(1+idx(t,3), 3+idx(t,0)+idx(t,1)+idx(t,2))
-	    *Beta(1+idx(t,2), 2+idx(t,0)+idx(t,1))
-	    *Beta(1+idx(t,0), 1+idx(t,1)),
+            *Beta(1+idx(t,2), 2+idx(t,0)+idx(t,1))
+            *Beta(1+idx(t,0), 1+idx(t,1)),
      fromLO(toLO(dirichlet(ary(5,i,1+idx(t,i)))))),
    measure(simplify),
    label="Dirichlet-multinomial conjugacy when unrolled");
