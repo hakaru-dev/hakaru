@@ -910,6 +910,7 @@ lamWithVar hint typ f = syn (Lam_ :$ binder hint typ f :* End)
 > lam "x" SInt (\x -> lam "y" SInt $ \y -> x < y) :: TrivialABT Term ('HInt ':-> 'HInt ':-> 'HBool)
 -}
 
+-- TODO: make this smarter so that if the @e@ is already a variable then we just plug it into @f@ instead of introducing the trivial let-binding.
 let_
     :: (ABT Term abt)
     => abt '[] a

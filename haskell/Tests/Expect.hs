@@ -67,6 +67,12 @@ test4 :: TrivialABT Term '[] 'HProb
 test4 = total $ if_ true (dirac unit) (weight (prob_ 5) >> dirac unit)
 
 
+-- | This test is similar to 'test4', but with a neutral scrutinee,
+-- so the final weight should depend on what exactly @x@ happens
+-- to be.
+--
+-- BUG: this seems to work fine for the old @Expect.hs@ but it loops
+-- forever with the new @Expect2.hs@.
 test5 :: TrivialABT Term '[] (HEither HUnit HUnit ':-> 'HProb)
 test5 =
     lam $ \x ->

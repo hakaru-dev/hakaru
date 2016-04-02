@@ -14,7 +14,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.02.03
+--                                                    2016.04.02
 -- |
 -- Module      :  Language.Hakaru.Syntax.ABT
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -52,6 +52,7 @@ module Language.Hakaru.Syntax.ABT
     , underBinders
     -- ** Capture avoiding substitution for any 'ABT'
     , rename
+    , inst
     , subst
     , substs
     -- ** Constructing first-order trees with a HOAS-like API
@@ -621,7 +622,7 @@ subst x e = start
             caseBind f $ \_ f' ->
                 bind z' . loop f' . viewABT $ rename z z' f'
 
-{-
+
 -- called (//) in Jon's abt library. We use this textual name so we can also have 'insts' for the n-ary version, rather than iterating the unary version. Or we could use something like (!) and (!!), albeit those names tend to be used to mean other things. It'd be nice to do (@) and (@@), but the first one is illegal.
 inst
     :: forall syn abt (a :: k) xs (b :: k)
@@ -636,7 +637,7 @@ inst
 inst f e =
     caseBind f $ \x f' ->
     subst x e f'
--}
+
 
 -- BUG: This appears to have both capture and escape issues as demonstrated by 'Tests.Disintegrate.test0' and commented on at 'Language.Hakaru.Evaluation.Types.runM'.
 -- | The parallel version of 'subst' for performing multiple substitutions at once.

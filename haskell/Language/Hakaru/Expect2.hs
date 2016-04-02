@@ -54,11 +54,7 @@ normalize m = withWeight (recip $ total m) m
 -- | Compute the total weight\/mass of a measure.
 total :: (ABT Term abt) => abt '[] ('HMeasure a) -> abt '[] 'HProb
 total m =
-    expect m . binder Text.empty (sUnMeasure $ typeOf m) $ \_ -> prob_ 1
-    {-
-    let x = Variable Text.empty 0 (sUnMeasure $ typeOf m)
-    in expect m (bind x one)
-    -}
+    expect m . binder Text.empty (sUnMeasure $ typeOf m) $ \_ -> one
 
 -- TODO: is it actually a _measurable_ function from measurable-functions
 -- to probs? If so, shouldn't we also capture that in the types?
@@ -69,8 +65,8 @@ total m =
 -- '[] (a ':-> 'HProb)@ in order to avoid introducing administrative
 -- redexes. We could, instead, have used a Haskell function @abt
 -- '[] a -> abt '[] 'HProb@ to eliminate the administrative redexes,
--- but this introduces other implementation difficulties we'd rather
--- avoid.
+-- but that would introduce other implementation difficulties we'd
+-- rather avoid.
 expect
     :: (ABT Term abt)
     => abt '[] ('HMeasure a)
@@ -100,14 +96,6 @@ expect e c = runEval (expectTerm e c) [Some2 e, Some2 c]
 -- commute/exchange with one another. More generally, cf. Bhat et
 -- al.'s \"active variables\"
 
--- TODO: actually use the version commented out in ABT.hs
-inst
-    :: (ABT Term abt)
-    => abt '[a] b
-    -> abt '[]  a
-    -> abt '[]  b
-inst = error "TODO: inst"
-
 
 expectTerm
     :: (ABT Term abt)
@@ -124,9 +112,13 @@ expectTerm e c = do
         Head_ (WMeasureOp o es) -> return $ expectMeasureOp o es c
         Head_ (WDirac e1)       -> return $ inst c e1
         Head_ (WMBind e1 e2)    ->
-            error "TODO"
+            -- BUG: does this inversion of the order of calls to 'expectTerm' do the right thing?
+            caseBind e2 $ \x e2' -> do
+            y  <- freshenVar x
+            f2 <- expectTerm (subst x (var y) e2') c
+            expectTerm e1 (bind y f2)
             {-
-            -- BUG: the new continuation we're passing to @expectTerm e1@ has 'Eval' type in the result...
+            -- BUG: the new continuation we're passing to @expectTerm e1@ has 'Eval' type in the result. Really the issue here is that whatever new 'SLet' bindings are introduced in the nested call need to be residualized immediately around the nested call, instead of left on the heap for being residualized further up. Conversely, we cannot allow any 'SLet' bindings in the initial heap given to the nested call to be residualized there; since that would cause hygiene errors.
             caseBind e2 $ \x e2' -> do
             y <- freshenVar x
             expectTerm e1 . bind y $
@@ -152,7 +144,7 @@ expectSuperpose
     -> abt '[a] 'HProb
     -> Eval abt (abt '[] 'HProb)
 expectSuperpose pes c =
-    error "TODO"
+    error "TODO: expectSuperpose"
     {-
     Eval $ \k h -> sum [ p * unEval (expectTerm e c) k h | (p,e) <- pes]
     -- TODO: in the Lazy.tex paper, we use @denotation e1 h@ and guard against that interpretation being negative...
@@ -160,6 +152,7 @@ expectSuperpose pes c =
     -}
 
 
+-- TODO: introduce HProb variants of integrate\/summate so we can avoid the need for 'unsafeProb' here
 expectMeasureOp
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => MeasureOp typs a
@@ -171,21 +164,25 @@ expectMeasureOp Lebesgue = \End c ->
 expectMeasureOp Counting = \End c ->
     summate negativeInfinity infinity (inst c)
 expectMeasureOp Categorical = \(ps :* End) c ->
-    let_ (summateV ps) $ \tot ->
+    let_ ps $ \ps' ->
+    let_ (summateV ps') $ \tot ->
     if_ (zero < tot)
-        (summateV (mapWithIndex (\i p -> p * inst c i) ps) / tot)
+        (summateV (mapWithIndex (\i p -> p * inst c i) ps') / tot)
         zero
 expectMeasureOp Uniform = \(lo :* hi :* End) c ->
-    integrate lo hi $ \x ->
-        densityUniform lo hi x * inst c x
+    let_ lo $ \lo' ->
+    let_ hi $ \hi' ->
+    integrate lo' hi' $ \x ->
+        densityUniform lo' hi' x * inst c x
 expectMeasureOp Normal = \(mu :* sd :* End) c ->
     integrate negativeInfinity infinity $ \x ->
         densityNormal mu sd x * inst c x
 expectMeasureOp Poisson = \(l :* End) c ->
-    if_ (zero < l)
+    let_ l $ \l' ->
+    if_ (zero < l')
         (summate zero infinity $ \x ->
             let x_ = unsafeFrom_ signed x in
-            densityPoisson l x_ * inst c x_)
+            densityPoisson l' x_ * inst c x_)
         zero
 expectMeasureOp Gamma = \(shape :* scale :* End) c ->
     integrate zero infinity $ \x ->
