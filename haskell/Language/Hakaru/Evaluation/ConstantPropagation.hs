@@ -10,7 +10,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.03.29
+--                                                    2016.04.02
 -- |
 -- Module      :  Language.Hakaru.Evaluation.ConstantPropagation
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -25,21 +25,14 @@ module Language.Hakaru.Evaluation.ConstantPropagation
     ( constantPropagation
     ) where
 
-import           Prelude              hiding (id, (.))
-import           Control.Category     (Category(..))
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Functor         ((<$>))
 import           Control.Applicative  (Applicative(..))
 #endif
-import qualified Data.Foldable        as F
 
-import Language.Hakaru.Syntax.IClasses (Traversable21(..), Some2(..))
-import Data.Number.Nat                 (MaxNat(..))
-import Language.Hakaru.Syntax.Variable (memberVarSet)
-import Language.Hakaru.Syntax.ABT      (View(..), ABT(..), subst, cataABT)
+import Language.Hakaru.Syntax.IClasses (Traversable21(..))
+import Language.Hakaru.Syntax.ABT      (View(..), ABT(..), cataABT)
 import Language.Hakaru.Syntax.AST
-import Language.Hakaru.Evaluation.Types
-import Language.Hakaru.Evaluation.Lazy (evaluate, defaultCaseEvaluator)
 import Language.Hakaru.Evaluation.EvalMonad (runPureEvaluate)
 
 ----------------------------------------------------------------
