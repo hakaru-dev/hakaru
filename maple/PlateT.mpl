@@ -94,3 +94,29 @@ gmm_s := Weight(2^(-(1/2)*n)*Pi^(-(1/2)*n)*exp(-(1/2)*(sum(idx(t,i)^2, i=0..n-1)
          Weight(exp(sum(idx(t,i)*idx(xs,idx(cs,i)), i=0..n-1))*exp(-(1/2)*(sum(idx(xs,idx(cs,i))^2, i=0..n-1))),
          Ret(xs)))):
 TestHakaru(gmm, gmm_s, label="gmm");
+
+# Detecting Dirichlet-multinomial conjugacy when unrolled
+dirichlet := proc(as)
+  Bind(Plate(size(as)-1, i, BetaD(sum(idx(as,j), j=0..i), idx(as,i+1))), xs,
+  Ret(ary(size(as), i,
+          product(idx(xs,j), j=i..size(as)-2)
+          * piecewise(0=i, 1, 1-idx(xs,i-1)))))
+end proc:
+categorical := proc(ps)
+  Bind(Counting(0, size(ps)-1), i, Weight(idx(ps,i), Ret(i)))
+end proc:
+# The next line eta-expands CodeTools[Test] so that its arguments get evaluated
+(proc() CodeTools[Test](_passed) end proc)
+  (fromLO(improve(toLO(
+     Bind(dirichlet(ary(5,i,1)),ps,
+       Weight(product(idx(ps,i)^idx(t,i),i=0..size(ps)-1),
+         Ret(ps)))))),
+   Weight(24*Beta(1+idx(t,4), 4+idx(t,0)+idx(t,1)+idx(t,2)+idx(t,3))
+            *Beta(1+idx(t,3), 3+idx(t,0)+idx(t,1)+idx(t,2))
+	    *Beta(1+idx(t,2), 2+idx(t,0)+idx(t,1))
+	    *Beta(1+idx(t,0), 1+idx(t,1)),
+     fromLO(toLO(dirichlet(ary(5,i,1+idx(t,i)))))),
+   measure(simplify),
+   label="Dirichlet-multinomial conjugacy when unrolled");
+# We'd like the test above to pass even if the count 5 becomes symbolic and
+# even if the entire programs get plated.
