@@ -619,6 +619,12 @@ inferType = inferType_
         [] -> return . TypedAST SReal $ syn (PrimOp_ NegativeInfinity :$ End)
         _  -> failwith "Passed wrong number of arguments"
 
+  inferPrimOp U.GammaFunc es =
+      case es of
+        [e] -> do e' <- checkType_ SReal e
+                  return . TypedAST SProb $ syn (PrimOp_ GammaFunc :$ e' :* End)
+        _   -> failwith "Passed wrong number of arguments"
+
   inferPrimOp U.Equal es =
       case es of
         [_, _] -> do mode <- getMode

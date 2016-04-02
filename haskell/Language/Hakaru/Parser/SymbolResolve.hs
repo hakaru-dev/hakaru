@@ -100,12 +100,10 @@ primTable =
                             (U.SealedOp T.Counting) [])
     ,("uniform",     primMeasure2 (U.SealedOp T.Uniform))
     ,("normal",      primMeasure2 (U.SealedOp T.Normal))
-    ,("poisson",     TLam $ \x -> TNeu $ U.MeasureOp_
-                                  (U.SealedOp T.Poisson) [x])
+    ,("poisson",     primMeasure1 (U.SealedOp T.Poisson))
     ,("gamma",       primMeasure2 (U.SealedOp T.Gamma))
     ,("beta",        primMeasure2 (U.SealedOp T.Beta))
-    ,("categorical", TLam $ \x -> TNeu $ U.MeasureOp_
-                                  (U.SealedOp T.Categorical) [x])
+    ,("categorical", primMeasure1 (U.SealedOp T.Categorical))
     ,("bern",        primBern)
     ,("weight",      primWeight)
     ,("dirac",       TLam $ TNeu . U.Dirac_)
@@ -114,6 +112,7 @@ primTable =
     ,("pi",          TNeu $ U.PrimOp_ U.Pi [])
     ,("**",          primPrimOp2 U.RealPow)
     ,("exp",         primPrimOp1 U.Exp)
+    ,("gammaFunc",   primPrimOp1 U.GammaFunc)
     ,("equal",       primPrimOp2 U.Equal)
     ,("less",        primPrimOp2 U.Less)
     ,("negate",      primPrimOp1 U.Negate)
@@ -128,6 +127,9 @@ primTable =
 primPrimOp1, primPrimOp2 :: U.PrimOp -> Symbol U.AST
 primPrimOp1 a = TLam $ \x -> TNeu $ U.PrimOp_ a [x]
 primPrimOp2 a = t2 $ \x y -> U.PrimOp_ a [x, y]
+
+primMeasure1 :: U.SealedOp T.MeasureOp -> Symbol U.AST
+primMeasure1 m = TLam $ \x -> TNeu $ U.MeasureOp_ m [x]
 
 primMeasure2 :: U.SealedOp T.MeasureOp -> Symbol U.AST
 primMeasure2 m = t2 $ \x y -> U.MeasureOp_ m [x, y]

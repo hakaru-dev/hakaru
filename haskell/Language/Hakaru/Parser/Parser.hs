@@ -104,6 +104,7 @@ binop s x y
     | s == "/"  = NaryOp Prod [x, Var "recip" `App` y]
     | s == "<"  = Var "less" `App` x `App` y
     | s == ">"  = Var "less" `App` y `App` x
+    | s == "&&" = NaryOp And  [x, y]
     | otherwise = Var s `App` x `App` y
 
 binary :: String -> Ex.Assoc -> Operator (AST' Text)
@@ -128,7 +129,8 @@ table =
     , [ Ex.Postfix ann_expr ]
     , [ binary "<"  Ex.AssocLeft
       , binary ">"  Ex.AssocLeft
-      , binary "==" Ex.AssocLeft]]
+      , binary "==" Ex.AssocLeft]
+    , [ binary "&&" Ex.AssocLeft]]
 
 unit_ :: Parser (AST' a)
 unit_ = Unit <$ symbol "()"

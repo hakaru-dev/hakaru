@@ -1120,7 +1120,7 @@ constrainOutcomeMeasureOp v0 = go
         lo' <- (emitLet' . fromWhnf) =<< atomize lo
         hi' <- (emitLet' . fromWhnf) =<< atomize hi
         emitGuard (lo' P.<= v0' P.&& v0' P.<= hi')
-        emitWeight  (P.recip (P.unsafeProb (hi' P.- lo')))
+        emitWeight (P.densityUniform lo' hi' v0)
 
     -- TODO: Add fallback handling of Normal that does not atomize mu,sd.
     -- This fallback is as if Normal were defined in terms of Lebesgue
@@ -1135,8 +1135,12 @@ constrainOutcomeMeasureOp v0 = go
         sd' <- (emitLet' . fromWhnf) =<< atomize sd
         emitWeight (P.densityNormal mu' sd' v0)
 
-    go Poisson = \(e1 :* End) ->
-        error "TODO: constrainOutcomeMeasureOp{Poisson}"
+    go Poisson = \(e1 :* End) -> do
+        v0' <- emitLet' v0
+        e1' <- fromWhnf <$> atomize e1
+        emitGuard (P.nat_ 0 P.<= v0' P.&& P.prob_ 0 P.< e1')
+        emitWeight (P.densityPoisson e1' v0')
+
     go Gamma = \(e1 :* e2 :* End) ->
         error "TODO: constrainOutcomeMeasureOp{Gamma}"
     go Beta = \(e1 :* e2 :* End) ->
