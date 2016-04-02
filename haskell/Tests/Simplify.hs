@@ -53,12 +53,12 @@ unifprob' =
 
 testSimplify
     ::  ( ABT Term abt
-        , Show (abt '[] ('HMeasure a))
-        , Eq   (abt '[] ('HMeasure a))
+        , Show (abt '[] a)
+        , Eq   (abt '[] a)
         )
     => String
-    -> abt '[] ('HMeasure a)
-    -> abt '[] ('HMeasure a)
+    -> abt '[] a
+    -> abt '[] a
     -> Assertion
 testSimplify nm x y = do
     x' <- simplify x
