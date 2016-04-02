@@ -1133,23 +1133,21 @@ NewSLO := module ()
 
   ints := proc(e::anything, x::name, r::range, l::list(name=range))
     local w0, pp;
-    pp := unproducts(l, x, e);
-    if pp <> FAIL then
-      w0, pp := op(pp);
-      w0 * foldl(product, int(pp,x=r), op(l))
-    else
+    w0, pp := unproducts(l, x, e);
+    if depends(w0, x) then
       'procname(_passed)'
+    else
+      w0 * foldl(product, int(pp,x=r), op(l))
     end if
   end proc;
 
   sums := proc(e::anything, x::name, r::range, l::list(name=range))
     local w0, pp;
-    pp := unproducts(l, x, e);
-    if pp <> FAIL then
-      w0, pp := op(pp);
-      w0 * foldl(product, sum(pp,x=r), op(l))
-    else
+    w0, pp := unproducts(l, x, e);
+    if depends(w0, x) then
       'procname(_passed)'
+    else
+      w0 * foldl(product, sum(pp,x=r), op(l))
     end if
   end proc;
 
@@ -1234,22 +1232,18 @@ NewSLO := module ()
       end do;
       subst := op(op(subst));
       loops := eval(loops, subst);
-      pp := unproducts(loops, x, w);
-      if pp = FAIL then
-        w0 := 1; pp := 1; m := weight(w, m);
-      else
-        w0, pp := op(pp);
-      end if;
+      w, pp := unproducts(loops, x, w);
+      w, w0 := selectremove(depends, convert(w, 'list', `*`), x);
       hh := gensym('ph');
       subintegral := make(pp * applyintegrand(hh,x), x=eval(lo..hi,subst));
       (w1, mm) := unweight(unintegrate(hh, subintegral, kb1));
-      weight(simplify_assuming(w0 * foldl(product, w1, op(loops)), kb),
+      weight(simplify_assuming(`*`(op(w0)) * foldl(product, w1, op(loops)), kb),
         bind(foldl(((mmm,loop) ->
                     Plate(op([2,2],loop) - op([2,1],loop) + 1,
                           op(1,loop),
                           eval(mmm, op(1,loop) = op(1,loop) - op([2,1],loop)))),
                    mm, op(loops)),
-             x, m))
+             x, weight(`*`(op(w)), m)))
     elif integral :: 'applyintegrand'('identical'(h), 'freeof'(h)) then
       Ret(op(2,integral))
     elif integral = 0 then
@@ -1354,7 +1348,7 @@ NewSLO := module ()
       w0 := w0 * foldl(product, w1, op(j+1..-1, loops));
     end do;
     pp := eval(pp, mk_idx(x,loops)=xx);
-    if depends([w0,pp],x) then FAIL else [w0, subs(xx=x,pp)] end if
+    if depends(pp,x) then w, 1 else w0, subs(xx=x,pp) end if
   end proc;
 
   ###

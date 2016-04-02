@@ -86,7 +86,11 @@ TestHakaru(eval(fission,{k=5    }),      conjugacies5     , verify=normal, label
 TestHakaru(eval(fusion ,{k=5    }),      conjugacies5     , verify=normal, label="Conjugacy in plate unrolled", ctx=KB:-assert(z>0,KB:-empty));
 
 # Simplifying gmm below is a baby step towards index manipulations we need
-# gmm is not tested?
 gmm := Bind(Plate(k, c, Gaussian(0,1)), xs,
        Bind(Plate(n, i, Weight(density[Gaussian](idx(xs,idx(cs,i)),1)(idx(t,i)), Ret(Unit))), ys,
        Ret(xs))):
+gmm_s := Weight(2^(-(1/2)*n)*Pi^(-(1/2)*n)*exp(-(1/2)*(sum(idx(t,i)^2, i=0..n-1))),
+         Bind(Plate(k, c, Gaussian(0, 1)), xs,
+         Weight(exp(sum(idx(t,i)*idx(xs,idx(cs,i)), i=0..n-1))*exp(-(1/2)*(sum(idx(xs,idx(cs,i))^2, i=0..n-1))),
+         Ret(xs)))):
+TestHakaru(gmm, gmm_s, label="gmm");
