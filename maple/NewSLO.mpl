@@ -2148,7 +2148,7 @@ NewSLO := module ()
     p^k * (1-p)^r * GAMMA(r+k) / GAMMA(k+1) / GAMMA(r)
   end proc end proc;
   density[PoissonD] := proc(lambda) proc(k)
-    lambda^k*exp(-lambda)/k!
+    lambda^k/exp(lambda)/k!
   end proc end proc;
 
   bounds[Lebesgue] := proc() -infinity .. infinity end proc;
