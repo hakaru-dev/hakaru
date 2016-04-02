@@ -68,7 +68,7 @@ testSS
 testSS nm ts t' = 
      mapM_ (\t -> do p <- simplify t 
                      assertAlphaEq nm p t')
-           ts
+           (t':ts)
 
 testSStriv 
     :: [(TrivialABT Term '[] a)] 
