@@ -57,7 +57,7 @@ parens :: String -> String
 parens a = "(" ++ a ++ ")"
 
 commaSep :: Seq String -> String
-commaSep = foldr1 (\a b -> a ++ " , " ++ b)
+commaSep = F.foldr1 (\a b -> a ++ " , " ++ b)
 
 mapleAST :: (ABT Term abt) => LC_ abt a -> String
 mapleAST (LC_ e) =
