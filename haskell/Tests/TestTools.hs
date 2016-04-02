@@ -44,26 +44,26 @@ handleException t e = throw (TestSimplifyException t e)
 testS
     :: (ABT Term abt)
     => String
-    -> abt '[] ('HMeasure a)
+    -> abt '[] a
     -> Assertion
 testS p x = do
     _ <- simplify x `catch` handleException (p ++ ": simplify failed")
     return ()
 
 testStriv 
-    :: TrivialABT Term '[] ('HMeasure a)
+    :: TrivialABT Term '[] a
     -> Assertion
 testStriv = testS ""
 
 -- Assert that all the given Hakaru programs simplify to the given one
 testSS 
     ::  ( ABT Term abt
-        , Show (abt '[] ('HMeasure a))
-        , Eq   (abt '[] ('HMeasure a))
+        , Show (abt '[] a)
+        , Eq   (abt '[] a)
         )
     => String
-    -> [(abt '[] ('HMeasure a))] 
-    -> abt '[] ('HMeasure a) 
+    -> [(abt '[] a)] 
+    -> abt '[] a 
     -> Assertion
 testSS nm ts t' = 
      mapM_ (\t -> do p <- simplify t 
@@ -71,8 +71,8 @@ testSS nm ts t' =
            ts
 
 testSStriv 
-    :: [(TrivialABT Term '[] ('HMeasure a))] 
-    -> TrivialABT Term '[] ('HMeasure a) 
+    :: [(TrivialABT Term '[] a)] 
+    -> TrivialABT Term '[] a 
     -> Assertion
 testSStriv = testSS ""
 

@@ -1,5 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude
            , DataKinds
+           , TypeOperators
            , TypeFamilies
            , ScopedTypeVariables
            , FlexibleContexts
@@ -31,8 +32,8 @@ testMeasureUnit = test [
     "t1,t5"   ~: testSStriv [t1,t5] (weight (unsafeProb half)),
     "t10"     ~: testSStriv [t10] (superpose []),
     "t11,t22" ~: testSStriv [t11,t22] (dirac unit),
-    "t12"     ~: testSStriv [] t12
-    --"t20"     ~: testSStriv [t20] (lam $ \y -> weight (y * half)),
+    "t12"     ~: testSStriv [] t12,
+    "t20"     ~: testSStriv [t20] (lam $ \y -> weight (y * half))
     --"t24"     ~: testSStriv [t24] t24',
     --"t25"     ~: testSStriv [t25] t25',
     --"t44Add"  ~: testSStriv [t44Add] t44Add',
@@ -276,8 +277,8 @@ t14' = superpose
     , (fromRational (2/7) , uniform (real_ 14) (real_ 16))
     ]
 
---t20 :: (ABT Term abt) => abt '[] ('HProb ':-> 'HMeasure HUnit)
---t20 = lam $ \y -> uniform_0_1 >>= \x -> weight (unsafeProb x * y)
+t20 :: (ABT Term abt) => abt '[] ('HProb ':-> 'HMeasure HUnit)
+t20 = lam $ \y -> uniform_0_1 >>= \x -> weight (unsafeProb x * y)
 
 --t21 :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure 'HReal)
 --t21 = mcmc (`normal` one) (normal zero 5)
