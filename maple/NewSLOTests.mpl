@@ -183,7 +183,7 @@ t9a := Bind(Lebesgue(), a0,
 t9s := Weight(2, Uniform(3,7)):
 
 #t23, "bayesNet", to show exact inference.  Original used bern, which
-# is here expanded.
+# is here expanded in terms of MSum.
 t23 := 
   Bind(Msum(Weight((1/2), Ret(true)), Weight((1-(1/2)), Ret(false))), a0, 
   Bind(Msum(Weight(piecewise(a0 = true, (9/10), (1/10)), Ret(true)), 
