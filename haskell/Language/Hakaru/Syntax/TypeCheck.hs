@@ -57,7 +57,8 @@ import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.HClasses
     ( HEq, hEq_Sing, HOrd, hOrd_Sing, HSemiring, hSemiring_Sing
-    , hRing_Sing, sing_HRing, HFractional, hFractional_Sing, HRadical(..))
+    , hRing_Sing, sing_HRing, HFractional, hFractional_Sing, HRadical(..)
+    , HContinuous(..))
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.AST
@@ -678,6 +679,7 @@ inferType = inferType_
                   return . TypedAST typ $ syn (PrimOp_ primop :$ e' :* End)
         _   -> failwith "Passed wrong number of arguments"
 
+  -- BUG: Only defined for HRadical_Prob
   inferPrimOp U.NatRoot es =
       case es of
         [e1, e2] -> do e1' <- checkType_ SProb e1
@@ -686,6 +688,16 @@ inferType = inferType_
                               syn (PrimOp_ (NatRoot HRadical_Prob)
                                    :$ e1' :* e2' :* End)
         _   -> failwith "Passed wrong number of arguments"
+
+  -- BUG: Only defined for HContinuous_Real
+  inferPrimOp U.Erf es =
+      case es of
+        [e] -> do e' <- checkType_ SReal e
+                  return . TypedAST SReal $
+                         syn (PrimOp_ (Erf HContinuous_Real)
+                              :$ e' :* End)
+        _   -> failwith "Passed wrong number of arguments"
+
 
   inferPrimOp x _ = error ("TODO: inferPrimOp: " ++ show x)
 
