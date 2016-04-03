@@ -659,15 +659,21 @@ NewSLO := module ()
       # flows depend on the index.
       x := mk_sym('pp', h);
       x := [seq(cat(x,i), i=0..op(1,m)-1)];
-      res := 'ary'(op(1,m), op(2,m),
-                   `if`(op(1,m)>1,
-                        piecewise(seq(op([op(2,m)=i-1, op(i,x)]), i=2..op(1,m)),
-                                  op(1,x)),
-                        `if`(op(1,m)>0, op(1,x), undefined)));
-      res := applyintegrand(h, res);
+      if op(1,m) = 0 then
+        res := undefined;
+      else
+        if op(1,m) = 1 then
+          res := op(1,x);
+        else
+          res := piecewise(seq(op([op(2,m)=i-1, op(i,x)]), i=2..op(1,m)),
+                           op(1,x));
+        end if;
+        res := mk_idx(res, loops);
+      end if;
+      res := applyintegrand(h, mk_ary('ary'(op(1,m), op(2,m), res), loops));
       for i from op(1,m) to 1 by -1 do
         res := integrate(eval(op(3,m), op(2,m)=i-1),
-                         Integrand(op(i,x), res));
+                         Integrand(op(i,x), res), loops);
       end do;
       res
     elif m :: 'Plate'(anything, name, anything) then
