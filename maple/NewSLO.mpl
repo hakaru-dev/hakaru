@@ -507,7 +507,7 @@ NewSLO := module ()
         integrate_known, known_continuous, known_discrete,
         mk_sym, mk_idx,
         unproduct, unsum, unproducts,
-        unweight, factorize, pattern_match, make_piece,
+        bind, weight, factorize, pattern_match, make_piece,
         recognize_continuous, recognize_discrete, get_de, get_se,
         recognize_de, mysolve, Shiftop, Diffop, Recognized,
         reduce,
@@ -523,8 +523,7 @@ NewSLO := module ()
      # note that these first few are smart constructors (for themselves):
          case, app, ary, idx, size, integrate, applyintegrand, Datum, ints, sums,
      # while these are "proper functions"
-         map_piecewise,
-         bind, weight,
+         unweight, map_piecewise,
          toLO, fromLO, improve,
          RoundTrip, RoundTripLO, RoundTripCLO,
          toCLO, fromCLO, cimprove,
