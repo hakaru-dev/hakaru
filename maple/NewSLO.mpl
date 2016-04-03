@@ -510,8 +510,7 @@ NewSLO := module ()
         bind, weight, factorize, pattern_match, make_piece,
         recognize_continuous, recognize_discrete, get_de, get_se,
         recognize_de, mysolve, Shiftop, Diffop, Recognized,
-        reduce,
-        reduce_pw, reduce_IntSum, reduce_IntsSums, reduce_prod,
+        reduce, reduce_pw, reduce_IntSum, reduce_IntsSums, reduce_prod,
         get_indicators,
         elim_intsum, do_elim_intsum, elim_metric, banish,
         piecewise_if, nub_piecewise,
@@ -1569,7 +1568,7 @@ NewSLO := module ()
       # Probably leave that to improve?
       new_path := subsop(pos = %int(t = new_lower.. new_upper), new_path);
       interpret(chg, new_path,
-	piecewise(And(new_lower < t, t < new_upper), part, 0));
+        piecewise(And(new_lower < t, t < new_upper), part, 0));
     end if;
   end proc;
 
@@ -1817,7 +1816,6 @@ NewSLO := module ()
       total := `+`(op(map((mi -> unweight(mi)[1]), m)));
       (total, map((mi -> weight(1/total, mi)), m))
     else
-      # TODO: Better weight estimate for piecewise & density-recognition cases?
       (1, m)
     end if;
   end proc;
