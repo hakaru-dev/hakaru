@@ -1,0 +1,32 @@
+#!/usr/bin/perl -w
+# Quick-and-dirty visualization of the call graph within module NewSLO
+
+use strict;
+
+my %use;
+my $lhs;
+while (<>) {
+    if (/^NewSLO := module\b/../^end module\b/) {
+        s/#.*//;
+        s/^  ?//;
+        if (not defined $lhs and /^(?:(export|global)|(\w+).*?:= *proc)\b/) {
+            $lhs = $+;
+        }
+        if (defined $lhs) {
+            @{$use{$lhs}}{/\w+/g} = ();
+            if ($lhs eq "export" || $lhs eq "global"
+                  ? /[;:]\s*$/
+                  : /^(\S.*)?\bend(\s+proc)?[\s;:]*$/) {
+                undef $lhs;
+            }
+        }
+    }
+}
+print "digraph NewSLO {\n";
+print " rankdir=LR;\n";
+print " node [shape=plaintext];\n";
+foreach my $lhs (keys %use) {
+    my @rhs = grep { $lhs ne $_ && exists $use{$_} } keys %{$use{$lhs}};
+    print " ", $lhs, " -> {", join(" ", @rhs), "};\n" if @rhs;
+}
+print "}\n";
