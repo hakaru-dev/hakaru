@@ -505,7 +505,7 @@ NewSLO := module ()
   option package;
   local t_pw, t_case, p_true, p_false,
         integrate_known, known_continuous, known_discrete,
-        mk_sym, mk_idx,
+        mk_sym, mk_ary, mk_idx,
         unproduct, unsum, unproducts,
         bind, weight, factorize, pattern_match, make_piece,
         recognize_continuous, recognize_discrete, get_de, get_se,
@@ -630,13 +630,7 @@ NewSLO := module ()
     elif m :: known_discrete then
       integrate_known(Sum, Sums, 'kk', m, h, loops)
     elif m :: 'Ret(anything)' then
-      res := op(1,m);
-      for i in loops do
-        res := ary(op([2,2],i) - op([2,1],i) + 1,
-                   op(1,i),
-                   eval(res, op(1,i) = op(1,i) + op([2,1],i)));
-      end do;
-      applyintegrand(h, res);
+      applyintegrand(h, mk_ary(op(1,m), loops))
     elif m :: 'Bind(anything, name, anything)' then
       res := eval(op(3,m), op(2,m) = mk_idx(op(2,m), loops));
       res := eval(Integrand(op(2,m), 'integrate'(res, x, loops)), x=h);
@@ -711,8 +705,16 @@ NewSLO := module ()
     gensym(x)
   end proc;
 
-  mk_idx := proc(nm :: name, loops :: list(name = range))
-    foldr((x, y) -> idx(y, op(1,x)), nm, op(loops));
+  mk_ary := proc(e, loops :: list(name = range))
+    foldl((res, i) -> ary(op([2,2],i) - op([2,1],i) + 1,
+                          op(1,i),
+                          eval(res, op(1,i) = op(1,i) + op([2,1],i))),
+          e, op(loops));
+  end proc;
+
+  mk_idx := proc(e, loops :: list(name = range))
+    foldr((i, res) -> idx(res, op(1,i) - op([2,1],i)),
+          e, op(loops));
   end proc;
 
 # Step 2 of 3: computer algebra
