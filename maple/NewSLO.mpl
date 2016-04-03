@@ -172,11 +172,13 @@ end module: # gensym
 KB := module ()
   option package;
   local KB, Introduce, Constrain,
-        assert_deny, coalesce_bounds, htype_to_property,
+        assert_deny, boolean_if, coalesce_bounds, htype_to_property,
         myexpand_product,
         ModuleLoad, ModuleUnload;
   export empty, genLebesgue, genType, assert,
          kb_subtract, simplify_assuming, kb_to_assumptions,
+         kb_piecewise,
+         closed_bounds, open_bounds,
          htype_patterns;
   global t_kb, t_type, Bound,
          AlmostEveryReal, HReal, HInt, HData, HMeasure, HArray, HFunction,
@@ -278,20 +280,7 @@ KB := module ()
             c := convert(piecewise(b, true, false), 'piecewise', x)
               assuming op(as);
             if c :: specfunc(boolean, piecewise) then
-              c := foldr_piecewise(
-                     proc(cond, th, el)
-                       # cond and th or not cond and el
-                       local a, o, n;
-                       a := (x,y)-> `if`(x=true,y, `if`(x=false,x,
-                                    `if`(y=true,x, `if`(y=false,y, And(x,y)))));
-                       o := (x,y)-> `if`(x=false,y, `if`(x=true,x,
-                                    `if`(y=false,x, `if`(y=true,y, Or (x,y)))));
-                       n := x    -> `if`(x=false,true,
-                                    `if`(x=true,false,             Not(x)));
-                       o(a(cond,th), a(n(cond),el));
-                     end proc,
-                     false,
-                     c);
+              c := foldr_piecewise(boolean_if, false, c);
             end if
           catch: c := b;
           end try;
@@ -312,6 +301,20 @@ KB := module ()
       KB(Constrain(b), op(kb))
     end if
   end proc:
+
+  boolean_if := proc(cond, th, el)
+    # boolean_if should be equivalent to `if`, but it assumes
+    # all its arguments are boolean conditions, so it basically
+    # simplifies "cond and th or not cond and el"
+    local a, o, n;
+    a := (x,y)-> `if`(x=true,y, `if`(x=false,x,
+                 `if`(y=true,x, `if`(y=false,y, And(x,y)))));
+    o := (x,y)-> `if`(x=false,y, `if`(x=true,x,
+                 `if`(y=false,x, `if`(y=true,y, Or (x,y)))));
+    n := x    -> `if`(x=false,true,
+                 `if`(x=true,false,             Not(x)));
+    o(a(cond,th), a(n(cond),el));
+  end proc;
 
   kb_subtract := proc(kb::t_kb, kb0::t_kb)
     local cut;
@@ -444,6 +447,30 @@ KB := module ()
     else TopProp end if
   end proc;
 
+  kb_piecewise := proc(e :: specfunc(piecewise), kb :: t_kb, doIf, doThen)
+    local kb1, update, n, i;
+    kb1 := kb;
+    update := proc(c)
+      local kb0;
+      kb0 := assert(    c , kb1);
+      kb1 := assert(Not(c), kb1); # Mutation!
+      kb0
+    end proc;
+    n := nops(e);
+    piecewise(seq(`if`(i::even, doThen(op(i,e), update(op(i-1,e))),
+                   `if`(i=n,    doThen(op(i,e), kb1),
+                                doIf  (op(i,e), kb1))),
+                  i=1..n))
+  end proc;
+
+  closed_bounds := proc(r::range)
+    Bound(`>=`, lhs(r)), Bound(`<=`, rhs(r))
+  end proc;
+
+  open_bounds := proc(r::range)
+    Bound(`>`, lhs(r)), Bound(`<`, rhs(r))
+  end proc;
+
   # Enumerate patterns for a given Hakaru type
   htype_patterns := proc(t::t_type)
     :: specfunc(Branch(anything, list(t_type)), Branches);
@@ -505,7 +532,7 @@ NewSLO := module ()
   option package;
   local t_pw, t_case, p_true, p_false,
         integrate_known, known_continuous, known_discrete,
-        mk_sym, mk_ary, mk_idx,
+        mk_sym, mk_ary, mk_idx, mk_HArray,
         unproduct, unsum, unproducts,
         bind, weight, factorize, pattern_match, make_piece,
         recognize_continuous, recognize_discrete, get_de, get_se,
@@ -723,6 +750,13 @@ NewSLO := module ()
           e, op(loops));
   end proc;
 
+  mk_HArray := proc(t::t_type, loops::list(name=range))
+    local res, i;
+    res := t;
+    for i in loops do res := HArray(res) end do;
+    res
+  end proc;
+
 # Step 2 of 3: computer algebra
 
   improve := proc(lo :: LO(name, anything), {_ctx :: t_kb := empty})
@@ -772,30 +806,24 @@ NewSLO := module ()
   # h - name of the linear operator above us
   # kb - domain information
   reduce := proc(ee, h :: name, kb :: t_kb)
-    # option remember, system;
-    local e, elim, hh, subintegral, w, ww,
-          n, i, x, c, res, rest, kb1, update_kb;
-    e := ee;
-
-    e := elim_intsum(e, h, kb);
+    local e, subintegral, w, ww, x, c, kb1;
+    e := elim_intsum(ee, h, kb);
     if e :: Int(anything, name=range) then
-      x, kb1 := genLebesgue(op([2,1],e), op([2,2,1],e),
-                                         op([2,2,2],e), kb);
+      x, kb1 := genLebesgue(op([2,1],e), op([2,2,1],e), op([2,2,2],e), kb);
       reduce_IntSum(reduce(subs(op([2,1],e)=x, op(1,e)), h, kb1), h, kb1, kb)
     elif e :: Sum(anything, name=range) then
-      x, kb1 := genType(op([2,1],e), HInt(Bound(`>=`,op([2,2,1],e)),
-                                          Bound(`<=`,op([2,2,2],e))), kb);
+      x, kb1 := genType(op([2,1],e), HInt(closed_bounds(op([2,2],e))), kb);
       reduce_IntSum(reduce(subs(op([2,1],e)=x, op(1,e)), h, kb1), h, kb1, kb)
     elif e :: 'Ints'(anything, name, range, list(name=range)) then
-      res := HReal(Bound(`>`, op([3,1],e)), Bound(`<`, op([3,2],e)));
-      for i in op(4,e) do res := HArray(res) end do;
-      x, kb1 := genType(op(2,e), res, kb);
+      x, kb1 := genType(op(2,e),
+                        mk_HArray(HReal(open_bounds(op(3,e))), op(4,e)),
+                        kb);
       reduce_IntsSums(Ints, reduce(subs(op(2,e)=x, op(1,e)), h, kb1), x,
         op(3,e), op(4,e), h, kb1)
     elif e :: 'Sums'(anything, name, range, list(name=range)) then
-      res := HInt(Bound(`>=`, op([3,1],e)), Bound(`<=`, op([3,2],e)));
-      for i in op(4,e) do res := HArray(res) end do;
-      x, kb1 := genType(op(2,e), res, kb);
+      x, kb1 := genType(op(2,e),
+                        mk_HArray(HInt(closed_bounds(op([3,1],e))), op(4,e)),
+                        kb);
       reduce_IntsSums(Sums, reduce(subs(op(2,e)=x, op(1,e)), h, kb1), x,
         op(3,e), op(4,e), h, kb1)
     elif e :: `+` then
@@ -808,18 +836,8 @@ NewSLO := module ()
       reduce_pw(simplify_assuming(`*`(w, op(ww)), kb))
         * `*`(op(subintegral));
     elif e :: t_pw then
-      n := nops(e);
-      kb1 := kb;
-      update_kb := proc(c)
-        local kb0;
-        kb0 := assert(    c , kb1);
-        kb1 := assert(Not(c), kb1); # Mutation!
-        kb0
-      end proc;
-      e := piecewise(seq(`if`(i::even, %reduce(op(i,e),h,update_kb(op(i-1,e))),
-                          `if`(i=n,    %reduce(op(i,e),h,kb1),
-                            simplify_assuming(op(i,e), kb1))),
-                         i=1..n));
+      e := kb_piecewise(e, kb, simplify_assuming,
+                        ((rhs, kb) -> %reduce(rhs, h, kb)));
       e := eval(e, %reduce=reduce);
       # big hammer: simplify knows about bound variables, amongst many
       # other things
@@ -1151,8 +1169,7 @@ NewSLO := module ()
 
   unintegrate := proc(h :: name, integral, kb :: t_kb)
     local x, c, lo, hi, make, m, mm, w, w0, w1, recognition, subintegral,
-          n, i, k, kb1, update_kb,
-          loops, j, subst, hh, pp, res, rest;
+          i, kb1, loops, subst, hh, pp, res;
     if integral :: 'And'('specfunc({Int,int})',
                          'anyfunc'('anything','name'='range'('freeof'(h)))) then
       (lo, hi) := op(op([2,2],integral));
@@ -1180,8 +1197,7 @@ NewSLO := module ()
     elif integral :: 'And'('specfunc({Sum,sum})',
                            'anyfunc'('anything','name'='range'('freeof'(h)))) then
       (lo, hi) := op(op([2,2],integral));
-      x, kb1 := genType(op([2,1],integral), HInt(Bound(`>=`,lo),
-                                                 Bound(`<=`,hi)), kb);
+      x, kb1 := genType(op([2,1],integral), HInt(closed_bounds(lo..hi)), kb);
       subintegral := eval(op(1,integral), op([2,1],integral) = x);
       (w, m) := unweight(unintegrate(h, subintegral, kb1));
       recognition := recognize_discrete(w, x, lo, hi)
@@ -1196,25 +1212,21 @@ NewSLO := module ()
       loops := op(4,integral);
       (lo, hi) := op(op(3,integral));
       if op(0,integral) in {Ints,ints} then
-        res := HReal(Bound(`>`, lo), Bound(`<`, hi));
+        res := HReal(open_bounds(lo..hi));
         make := Int;
       else
-        res := HInt(Bound(`>=`, lo), Bound(`<=`, hi));
+        res := HInt(closed_bounds(lo..hi));
         make := Sum;
       end if;
-      for i in loops do res := HArray(res) end do;
-      x, kb1 := genType(op(2,integral), res, kb);
+      x, kb1 := genType(op(2,integral), mk_HArray(res, loops), kb);
       subintegral := eval(op(1,integral), op(2,integral) = x);
       (w, m) := unweight(unintegrate(h, subintegral, kb1));
       kb1 := kb;
       subst := table();
       for i from nops(loops) to 1 by -1 do
-        j, kb1 := genType(op([i,1],loops),
-                          HInt(Bound(`>=`,op([i,2,1],loops)),
-                               Bound(`<=`,op([i,2,2],loops))),
-                          kb1,
-                          w);
-        subst[op([i,1],loops)] := j;
+        res := op(i,loops);
+        subst[lhs(res)], kb1
+          := genType(lhs(res), HInt(closed_bounds(rhs(res))), kb1, w);
       end do;
       subst := op(op(subst));
       loops := eval(loops, subst);
@@ -1248,19 +1260,9 @@ NewSLO := module ()
     elif integral :: t_pw
          and `and`(seq(not (depends(op(i,integral), h)),
                        i=1..nops(integral)-1, 2)) then
-      n := nops(integral);
-      kb1 := kb;
-      update_kb := proc(c)
-        local kb0;
-        kb0 := assert(    c , kb1);
-        kb1 := assert(Not(c), kb1); # Mutation!
-        kb0
-      end proc;
-      piecewise(seq(`if`(i::even, unintegrate(h, op(i,integral),
-                                              update_kb(op(i-1,integral))),
-                     `if`(i=n,    unintegrate(h, op(i,integral), kb1),
-                      op(i,integral))),
-                    i=1..n))
+      kb_piecewise(integral, kb,
+                   ((lhs, kb) -> lhs),
+                   ((rhs, kb) -> unintegrate(h, rhs, kb)))
     elif integral :: t_case then
       subsop(2=map(proc(b :: Branch(anything, anything))
                      eval(subsop(2='unintegrate'(x,op(2,b),c),b),
@@ -1434,8 +1436,8 @@ NewSLO := module ()
   # - when we hit a Ret, figure out the change of variables
   # - note that the callee is responsible for "finishing up"
   disint2 := proc(integral, h::name, t::name, path)
-    local x, lo, hi, subintegral, w, n, m, w0, perform, script, vars,
-      to_invert, sol, occurs, dxdt, kb1, update_kb;
+    local x, lo, hi, subintegral, w, m, w0, perform, script, vars,
+      to_invert, sol, occurs, dxdt, update;
     if integral :: 'And'('specfunc({Int,int})',
                          'anyfunc'('anything','name'='range'('freeof'(h)))) then
       x := op([2,1],integral);
@@ -1468,20 +1470,10 @@ NewSLO := module ()
     elif integral :: t_pw
          and `and`(seq(not (depends(op(i,integral), h)),
                        i=1..nops(integral)-1, 2)) then
-      n := nops(integral);
-      kb1 := kb;
-      update_kb := proc(c)
-        local kb0;
-        kb0 := assert(    c , kb1);
-        kb1 := assert(Not(c), kb1); # Mutation!
-        kb0
-      end proc;
       error "need to map into piecewise";
-      piecewise(seq(`if`(i::even, unintegrate(h, op(i,integral),
-                                              update_kb(op(i-1,integral))),
-                     `if`(i=n,    unintegrate(h, op(i,integral), kb1),
-                      op(i,integral))),
-                    i=1..n))
+      kb_piecewise(integral, kb,
+                   ((lhs, kb) -> lhs),
+                   ((rhs, kb) -> unintegrate(h, rhs, kb)))
     elif integral :: 'integrate'('freeof'(h), 'anything', identical([])) then
       x := mk_sym('x', op(2,integral));
       # we would be here mostly if the measure being passed in is
