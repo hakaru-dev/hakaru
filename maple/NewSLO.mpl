@@ -4,6 +4,7 @@
 # Branch binds from 1st arg (a pattern) to 2nd arg.
 # Bind and ary bind from 2nd arg to 3rd arg.
 # forall bind from 1st arg to 2nd arg.
+# Ints,Sums,ints,sums are...tricky.
 
 `depends/Integrand` := proc(v, e, x) depends(e, x minus {v}) end proc:
 `depends/LO`        := proc(v, e, x) depends(e, x minus {v}) end proc:
@@ -44,6 +45,20 @@ end proc:
 `depends/forall` := proc(bvar, pred, x)
   depends(pred, x minus convert(bvar, 'set'))
 end proc:
+
+`depends/Ints` := proc(body, bvar, rng, loops, x)
+  local xx, i;
+  if depends(body, x minus {bvar}) then return true end if;
+  xx := x; # don't remove bvar from xx!
+  for i from nops(loops) to 1 by -1 do
+    if depends(op([i,2],loops), xx) then return true end if;
+    xx := xx minus {op([i,1],loops)};
+  end do;
+  depends(rng, xx)
+end proc:
+`depends/Sums` := `depends/Ints`:
+`depends/ints` := `depends/Ints`:
+`depends/sums` := `depends/Ints`:
 
 generic_evalat := proc(vv::{name,list(name)}, mm, eqs)
   local v, m, eqsRemain, subsEq, eq, rename, funs;
@@ -120,6 +135,50 @@ end proc:
   bvar, pred := op(e);
   eval(op(0,e), eqs)(generic_evalat(bvar, pred, eqs))
 end proc:
+
+generic_evalatstar := proc(body, bound::list, eqs)
+  local indefinite, e, n, b, j;
+  e := foldl(((x,i) -> `if`(i::`=`,
+                            lam(lhs(i), rhs(i), x),
+                            lam(i, indefinite, x))),
+             body, op(bound));
+  e := eval(e, eqs); # Piggyback on `eval/lam`
+  n := nops(bound);
+  b := table();
+  for j from n to 1 by -1 do
+    b[j] := `if`(op(2,e)=indefinite, op(1,e), `=`(op(1..2,e)));
+    e := op(3,e);
+  end do;
+  e, [entries(b, 'nolist', 'indexorder')]
+end proc:
+
+`eval/Ints` := proc(e, eqs)
+  local body, bvar, rng, loops, n, i;
+  body, bvar, rng, loops := op(e);
+  bvar, body := generic_evalat(bvar, body, eqs);
+  eval(op(0,e), eqs)(body, bvar, generic_evalatstar(rng, loops, eqs))
+end proc:
+`eval/Sums` := `eval/Ints`:
+`eval/ints` := `eval/Ints`:
+`eval/sums` := `eval/Ints`:
+
+`eval/Int` := proc(e, eqs)
+  local body, bound, bvar;
+  body, bound := op(1..2, e);
+  if bound :: name then
+    bound, body := generic_evalat(bound, body, eqs);
+  elif bound :: `=` then
+    bvar := lhs(bound);
+    bvar, body := generic_evalat(bvar, body, eqs);
+    bound := bvar = eval(rhs(bound), eqs);
+  else
+    body, bound := generic_evalatstar(body, bound, eqs);
+  end if;
+  eval(op(0,e), eqs)(body, bound, op(eval([op(3..-1,e)], eqs)))
+end proc:
+`eval/Sum` := `eval/Int`:
+`eval/int` := `eval/Int`:
+`eval/sum` := `eval/Int`:
 
 #############################################################################
 
