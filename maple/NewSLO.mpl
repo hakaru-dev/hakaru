@@ -954,30 +954,9 @@ NewSLO := module ()
     e
   end proc;
 
-  reduce_prod := proc(ww, var :: name)
-    local w, w1, w2, i;
-    if type(ww, `*`) then
-      w := map(x -> [reduce_prod(x, var)], convert(ww, 'list'));
-      (w1, w2) := mul(i[1], i=w), mul(i[2], i=w);
-    elif type(ww, 'Product'(anything, name = range)) then
-      (w1, w2) := reduce_prod(op(1,ww), var);
-      w1 := Product(w1, op(2,ww));
-      w2 := product(w2, op(2,ww));
-    elif depends(ww, var) then
-      (w1, w2) := (ww, 1)
-    else
-      (w1, w2) := (1, ww)
-    end if;
-    (w1, w2)
-  end proc;
-
   reduce_IntsSums := proc(makes, ee, var :: name, rng, bds, h :: name, kb :: t_kb)
-    local w, e, w0;
-    # TODO we should do something with domain restrictions (see above) too
-    # but right now, that is not needed by the tests, so just deal with
-    # weights.
-    (e, w0) := reduce_prod(ee, var);
-    simplify_assuming(w0, kb) * makes(e, var, rng, bds);
+    # TODO we should apply domain restrictions like reduce_IntSum does.
+    makes(ee, var, rng, bds);
   end proc;
 
   get_indicators := proc(e)
