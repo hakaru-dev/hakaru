@@ -75,7 +75,7 @@ conjugacies5:= Bind(Gaussian(z^0, sqrt(2)), x0,
                Bind(Gaussian(z^2, sqrt(2)), x2,
                Bind(Gaussian(z^3, sqrt(2)), x3,
                Bind(Gaussian(z^4, sqrt(2)), x4,
-               Ret(ary(5, i, piecewise(i=0,x0, i=1,x1, i=2,x2, i=3,x3, x4)))))))):
+               Ret(ary(5, i, piecewise(i=1,x1, i=2,x2, i=3,x3, i=4,x4, x0)))))))):
 TestHakaru(eval(fission,{    z=1}), eval(conjugacies ,z=1), verify=normal, label="Conjugacy across iid plates");
 TestHakaru(eval(fusion ,{    z=1}), eval(conjugacies ,z=1), verify=normal, label="Conjugacy in iid plate");
 TestHakaru(eval(fission,{k=5,z=1}), eval(conjugacies5,z=1), verify=normal, label="Conjugacy across iid plates unrolled");
@@ -86,7 +86,37 @@ TestHakaru(eval(fission,{k=5    }),      conjugacies5     , verify=normal, label
 TestHakaru(eval(fusion ,{k=5    }),      conjugacies5     , verify=normal, label="Conjugacy in plate unrolled", ctx=KB:-assert(z>0,KB:-empty));
 
 # Simplifying gmm below is a baby step towards index manipulations we need
-# gmm is not tested?
 gmm := Bind(Plate(k, c, Gaussian(0,1)), xs,
        Bind(Plate(n, i, Weight(density[Gaussian](idx(xs,idx(cs,i)),1)(idx(t,i)), Ret(Unit))), ys,
        Ret(xs))):
+gmm_s := Weight(2^(-(1/2)*n)*Pi^(-(1/2)*n)*exp(-(1/2)*(sum(idx(t,i)^2, i=0..n-1))),
+         Bind(Plate(k, c, Gaussian(0, 1)), xs,
+         Weight(exp(sum(idx(t,i)*idx(xs,idx(cs,i)), i=0..n-1))*exp(-(1/2)*(sum(idx(xs,idx(cs,i))^2, i=0..n-1))),
+         Ret(xs)))):
+TestHakaru(gmm, gmm_s, label="gmm");
+
+# Detecting Dirichlet-multinomial conjugacy when unrolled
+dirichlet := proc(as)
+  Bind(Plate(size(as)-1, i, BetaD(sum(idx(as,j), j=0..i), idx(as,i+1))), xs,
+  Ret(ary(size(as), i,
+          product(idx(xs,j), j=i..size(as)-2)
+          * piecewise(0=i, 1, 1-idx(xs,i-1)))))
+end proc:
+categorical := proc(ps)
+  Bind(Counting(0, size(ps)-1), i, Weight(idx(ps,i), Ret(i)))
+end proc:
+# The next line eta-expands CodeTools[Test] so that its arguments get evaluated
+(proc() CodeTools[Test](_passed) end proc)
+  (fromLO(improve(toLO(
+     Bind(dirichlet(ary(5,i,1)),ps,
+       Weight(product(idx(ps,i)^idx(t,i),i=0..size(ps)-1),
+         Ret(ps)))))),
+   Weight(24*Beta(1+idx(t,4), 4+idx(t,0)+idx(t,1)+idx(t,2)+idx(t,3))
+            *Beta(1+idx(t,3), 3+idx(t,0)+idx(t,1)+idx(t,2))
+	    *Beta(1+idx(t,2), 2+idx(t,0)+idx(t,1))
+	    *Beta(1+idx(t,0), 1+idx(t,1)),
+     fromLO(toLO(dirichlet(ary(5,i,1+idx(t,i)))))),
+   measure(simplify),
+   label="Dirichlet-multinomial conjugacy when unrolled");
+# We'd like the test above to pass even if the count 5 becomes symbolic and
+# even if the entire programs get plated.

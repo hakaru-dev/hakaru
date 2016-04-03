@@ -105,6 +105,7 @@ TestHakaru(Bind(Uniform(0,1),x,Weight(x^alpha*(1-x)^beta,Ret(x))), Weight(Beta(1
 TestHakaru(Bind(Uniform(0,1),x,Weight((1-x)^beta,Ret(x))), Weight(1/(1+beta),BetaD(1,1+beta)));
 
 # tests that basic densities are properly recognized
+# continuous
 TestHakaru(Bind(Uniform(0,1),x,Weight(x*2,Ret(x))), BetaD(2,1),
   label="BetaD(2,1) recog");
 TestHakaru(BetaD(alpha,beta), label="BetaD recog.");
@@ -117,6 +118,7 @@ TestHakaru(Cauchy(loc,scale), ctx = KB:-assert(scale>0,KB:-empty), label="Cauchy
 TestHakaru(StudentT(nu,loc,scale), ctx=KB:-assert(scale>0,KB:-empty), label = "StudentT recog.");
 TestHakaru(StudentT(1,loc,scale),Cauchy(loc,scale), ctx = KB:-assert(scale>0,KB:-empty),
   label = "StudentT(1,loc,scale) recog.");
+# discrete
 TestHakaru(Weight(1/26,Counting(17,42)), label="Discrete uniform recog.");
 TestHakaru(NegativeBinomial(r,1-p-q), label="NegativeBinomial recog.");
 TestHakaru(Poisson(foo/exp(bar)), label="Poisson recog.");
@@ -181,7 +183,7 @@ t9a := Bind(Lebesgue(), a0,
 t9s := Weight(2, Uniform(3,7)):
 
 #t23, "bayesNet", to show exact inference.  Original used bern, which
-# is here expanded.
+# is here expanded in terms of MSum.
 t23 := 
   Bind(Msum(Weight((1/2), Ret(true)), Weight((1-(1/2)), Ret(false))), a0, 
   Bind(Msum(Weight(piecewise(a0 = true, (9/10), (1/10)), Ret(true)), 
@@ -323,16 +325,16 @@ gaussian_gaussian_s := Weight((1/2)*sqrt(2)*exp(-(1/2)*(mu0-x)^2/(sigma0^2+sigma
 TestHakaru(gaussian_gaussian, gaussian_gaussian_s, 
   label="gaussian_gaussian conjugacy", 
   ctx = KB:-assert(And(mu0::real, sigma0>0, sigma1>0, x::real), KB:-empty));
-invgamma_gaussian   := Bind(GammaD(alpha,beta),lambda, Weight(NewSLO:-density[Gaussian](mu,lambda^(-1/2))(x), Ret(lambda))):
-invgamma_gaussian_s := Weight(GAMMA(1/2+alpha)*sqrt(beta)*((1/2)*beta*mu^2-beta*mu*x+(1/2)*beta*x^2+1)^(-alpha)/(GAMMA(alpha)*sqrt(beta*mu^2-2*beta*mu*x+beta*x^2+2)*sqrt(Pi)), GammaD(1/2+alpha, 2*beta/(beta*mu^2-2*beta*mu*x+beta*x^2+2))):
+invgamma_gaussian   := Bind(GammaD(shape,scale),lambda, Weight(NewSLO:-density[Gaussian](mu,lambda^(-1/2))(x), Ret(lambda))):
+invgamma_gaussian_s := Weight(GAMMA(1/2+shape)*sqrt(scale)*((1/2)*scale*mu^2-scale*mu*x+(1/2)*scale*x^2+1)^(-shape)/(GAMMA(shape)*sqrt(scale*mu^2-2*scale*mu*x+scale*x^2+2)*sqrt(Pi)), GammaD(1/2+shape, 2*scale/(scale*mu^2-2*scale*mu*x+scale*x^2+2))):
 TestHakaru(invgamma_gaussian, invgamma_gaussian_s, 
   label="invgamma_gaussian conjugacy", 
-  ctx = KB:-assert(And(mu::real, alpha>0, beta>0, x::real), KB:-empty));
-gaussian_invgamma_gaussian   := Bind(GammaD(alpha,beta),tau, Bind(Gaussian(mu0*sqrt(tau),1/sqrt(nu)),mu, Weight(NewSLO:-density[Gaussian](mu*tau^(-1/2),tau^(-1/2))(x), Ret([mu,tau])))):
-gaussian_invgamma_gaussian_s := Weight(GAMMA(1/2+alpha)*sqrt(nu)*sqrt(beta)*(beta*mu0^2*nu-2*beta*mu0*nu*x+beta*nu*x^2+2*nu+2)^(-1/2-alpha)*(2*nu+2)^alpha/(GAMMA(alpha)*sqrt(Pi)), Bind(GammaD(1/2+alpha, 2*beta*(nu+1)/(beta*mu0^2*nu-2*beta*mu0*nu*x+beta*nu*x^2+2*nu+2)),tau, Bind(Gaussian(sqrt(tau)*(mu0*nu+x)/(nu+1), 1/sqrt(nu+1)),mu, Ret([mu,tau])))):
+  ctx = KB:-assert(And(mu::real, shape>0, scale>0, x::real), KB:-empty));
+gaussian_invgamma_gaussian   := Bind(GammaD(shape,scale),tau, Bind(Gaussian(mu0*sqrt(tau),1/sqrt(nu)),mu, Weight(NewSLO:-density[Gaussian](mu*tau^(-1/2),tau^(-1/2))(x), Ret([mu,tau])))):
+gaussian_invgamma_gaussian_s := Weight(GAMMA(1/2+shape)*sqrt(nu)*sqrt(scale)*(scale*mu0^2*nu-2*scale*mu0*nu*x+scale*nu*x^2+2*nu+2)^(-1/2-shape)*(2*nu+2)^shape/(GAMMA(shape)*sqrt(Pi)), Bind(GammaD(1/2+shape, 2*scale*(nu+1)/(scale*mu0^2*nu-2*scale*mu0*nu*x+scale*nu*x^2+2*nu+2)),tau, Bind(Gaussian(sqrt(tau)*(mu0*nu+x)/(nu+1), 1/sqrt(nu+1)),mu, Ret([mu,tau])))):
 TestHakaru(gaussian_invgamma_gaussian, gaussian_invgamma_gaussian_s,
   label="gaussian_invgamma_gaussian conjugacy",
-  ctx = KB:-assert(And(mu0::real, nu>0, alpha>0, beta>0, x::real), KB:-empty));
+  ctx = KB:-assert(And(mu0::real, nu>0, shape>0, scale>0, x::real), KB:-empty));
 gamma_gamma   := Bind(GammaD(alpha0,1/beta0),beta, Weight(NewSLO:-density[GammaD](alpha,1/beta)(x), Ret(beta))):
 gamma_gamma_s := Weight(beta0^alpha0*x^(alpha-1)*GAMMA(alpha+alpha0)*(beta0+x)^(-alpha-alpha0)/(GAMMA(alpha0)*GAMMA(alpha)), GammaD(alpha+alpha0, 1/(beta0+x))):
 TestHakaru(gamma_gamma, gamma_gamma_s, label="gamma_gamma conjugacy", 

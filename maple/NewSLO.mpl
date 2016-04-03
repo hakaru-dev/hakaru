@@ -668,9 +668,10 @@ NewSLO := module ()
       x := mk_sym('pp', h);
       x := [seq(cat(x,i), i=0..op(1,m)-1)];
       res := 'ary'(op(1,m), op(2,m),
-                   piecewise(seq(op([`if`(i=op(1,m), NULL, op(2,m)=i-1),
-                                     op(i,x)]),
-                                 i=1..op(1,m))));
+                   `if`(op(1,m)>1,
+                        piecewise(seq(op([op(2,m)=i-1, op(i,x)]), i=2..op(1,m)),
+                                  op(1,x)),
+                        `if`(op(1,m)>0, op(1,x), undefined)));
       res := applyintegrand(h, res);
       for i from op(1,m) to 1 by -1 do
         res := integrate(eval(op(3,m), op(2,m)=i-1),
@@ -1133,23 +1134,21 @@ NewSLO := module ()
 
   ints := proc(e::anything, x::name, r::range, l::list(name=range))
     local w0, pp;
-    pp := unproducts(l, x, e);
-    if pp <> FAIL then
-      w0, pp := op(pp);
-      w0 * foldl(product, int(pp,x=r), op(l))
-    else
+    w0, pp := unproducts(l, x, e);
+    if depends(w0, x) then
       'procname(_passed)'
+    else
+      w0 * foldl(product, int(pp,x=r), op(l))
     end if
   end proc;
 
   sums := proc(e::anything, x::name, r::range, l::list(name=range))
     local w0, pp;
-    pp := unproducts(l, x, e);
-    if pp <> FAIL then
-      w0, pp := op(pp);
-      w0 * foldl(product, sum(pp,x=r), op(l))
-    else
+    w0, pp := unproducts(l, x, e);
+    if depends(w0, x) then
       'procname(_passed)'
+    else
+      w0 * foldl(product, sum(pp,x=r), op(l))
     end if
   end proc;
 
@@ -1234,22 +1233,18 @@ NewSLO := module ()
       end do;
       subst := op(op(subst));
       loops := eval(loops, subst);
-      pp := unproducts(loops, x, w);
-      if pp = FAIL then
-        w0 := 1; pp := 1; m := weight(w, m);
-      else
-        w0, pp := op(pp);
-      end if;
+      w, pp := unproducts(loops, x, w);
+      w, w0 := selectremove(depends, convert(w, 'list', `*`), x);
       hh := gensym('ph');
       subintegral := make(pp * applyintegrand(hh,x), x=eval(lo..hi,subst));
       (w1, mm) := unweight(unintegrate(hh, subintegral, kb1));
-      weight(simplify_assuming(w0 * foldl(product, w1, op(loops)), kb),
+      weight(simplify_assuming(`*`(op(w0)) * foldl(product, w1, op(loops)), kb),
         bind(foldl(((mmm,loop) ->
                     Plate(op([2,2],loop) - op([2,1],loop) + 1,
                           op(1,loop),
                           eval(mmm, op(1,loop) = op(1,loop) - op([2,1],loop)))),
                    mm, op(loops)),
-             x, m))
+             x, weight(`*`(op(w)), m)))
     elif integral :: 'applyintegrand'('identical'(h), 'freeof'(h)) then
       Ret(op(2,integral))
     elif integral = 0 then
@@ -1354,7 +1349,7 @@ NewSLO := module ()
       w0 := w0 * foldl(product, w1, op(j+1..-1, loops));
     end do;
     pp := eval(pp, mk_idx(x,loops)=xx);
-    if depends([w0,pp],x) then FAIL else [w0, subs(xx=x,pp)] end if
+    if depends(pp,x) then w, 1 else w0, subs(xx=x,pp) end if
   end proc;
 
   ###
@@ -1983,6 +1978,8 @@ NewSLO := module ()
         end if
       end if;
     end if;
+    # fallthrough here is like recognizing Lebesgue for all continuous
+    # measures.  Ultimately correct, although fairly unsatisfying.
     Recognized(Counting(lo, hi), weight)
   end proc;
 
@@ -2013,26 +2010,28 @@ NewSLO := module ()
     FAIL
   end proc;
 
-  get_se := proc(dens, var, Sk, f)
+  get_se := proc(dens, var, Sk, u)
     :: Or(Shiftop(anything, set(function=anything), name), identical(FAIL));
-    local x, ser, de, gftype, init;
+    local x, de, re, gftype, init, f;
     try
-      ser := series(sum(dens * x^var, var=0..infinity), x);
-      de := gfun[seriestorec](ser, f(var));
-      de, gftype := op(de);
-      de := gfun[rectohomrec](de, f(var));
-      if not (de :: set) then
-        de := {de}
+      # ser := series(sum(dens * x^var, var=0..infinity), x);
+      # re := gfun[seriestorec](ser, f(var));
+      # re, gftype := op(re);
+      de := gfun[holexprtodiffeq](sum(dens*x^var, var=0..infinity), f(x));
+      re := gfun[diffeqtorec](de, f(x), u(var));
+      re := gfun[rectohomrec](re, u(var));
+      if not (re :: set) then
+        re := {re}
       end if;
-      init, de := selectremove(type, de, `=`);
-      if nops(de) = 1 then
+      init, re := selectremove(type, re, `=`);
+      if nops(re) = 1 then
         if nops(init) = 0 then
-          init := {f(0) = eval(dens, var=0)};
+          init := {u(0) = eval(rens, var=0)};
         end if;
-        de := map(proc(t)
+        re := map(proc(t)
                     local s, r;
                     s, r := selectremove(type, convert(t, 'list', `*`),
-                                         f(polynom(nonnegint, var)));
+                                         u(polynom(nonnegint, var)));
                     if nops(s) <> 1 then
                       error "rectohomrec result nonhomogeneous";
                     end if;
@@ -2043,8 +2042,8 @@ NewSLO := module ()
                       error "unexpected result from rectohomrec"
                     end if
                   end proc,
-                  convert(de[1], 'list', `+`));
-        return Shiftop(`+`(op(de)), init, gftype)
+                  convert(re[1], 'list', `+`));
+        return Shiftop(`+`(op(re)), init, 'ogf')
       end if
     catch: # do nothing
     end try;
@@ -2148,7 +2147,7 @@ NewSLO := module ()
     p^k * (1-p)^r * GAMMA(r+k) / GAMMA(k+1) / GAMMA(r)
   end proc end proc;
   density[PoissonD] := proc(lambda) proc(k)
-    lambda^k*exp(-lambda)/k!
+    lambda^k/exp(lambda)/k!
   end proc end proc;
 
   bounds[Lebesgue] := proc() -infinity .. infinity end proc;

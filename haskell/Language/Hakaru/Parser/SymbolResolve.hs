@@ -119,6 +119,7 @@ primTable =
     ,("recip",       primPrimOp1 U.Recip)
     ,("^",           primPrimOp2 U.NatPow)
     ,("natroot",     primPrimOp2 U.NatRoot)
+    ,("erf",         primPrimOp1 U.Erf)
     -- ArrayOps
     ,("size",        TLam $ \x -> TNeu $ U.ArrayOp_ U.Size [x])
     ,("reduce",      t3 $ \x y z -> U.ArrayOp_ U.Reduce [x, y, z])
