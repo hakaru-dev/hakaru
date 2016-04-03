@@ -681,7 +681,7 @@ NewSLO := module ()
   applyintegrand := proc(h, x)
     if h :: 'Integrand(name, anything)' then
       eval(op(2,h), op(1,h) = x)
-    elif h :: procedure then
+    elif h :: appliable then
       h(x)
     else
       'procname(_passed)'
@@ -764,7 +764,7 @@ NewSLO := module ()
       res
     elif m :: 'Plate'(anything, name, anything) then
       integrate(op(3,m), h, [op(2,m)=0..op(1,m)-1, op(loops)]);
-    elif h :: procedure then
+    elif h :: appliable then
       x := gensym('xa');
       'integrate'(m, Integrand(x, h(x)), loops)
     else
