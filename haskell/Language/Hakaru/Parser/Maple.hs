@@ -16,7 +16,7 @@ import           Text.Parsec.Text
 import qualified Text.Parsec.Token   as Token
 import           Text.Parsec.Language
 
-import           Prelude             hiding (sum, product)
+import           Prelude             hiding (and, sum, product)
 
 --------------------------------------------------------------------------
 
@@ -101,7 +101,7 @@ data ArgOp
     = Float   | Power  | Rational
     | Func    | ExpSeq | Sum_
     | Product | Less   | Equal
-    | And_
+    | And_    | Range
     deriving (Eq, Show)
 
 data InertExpr
@@ -172,6 +172,12 @@ power =
     <$> (text "_Inert_POWER" *> return Power)
     <*> arg expr
 
+range :: Parser InertExpr
+range =
+    InertArgs
+    <$> (text "_Inert_RANGE" *> return Range)
+    <*> arg expr
+
 and :: Parser InertExpr
 and =
     InertArgs
@@ -218,6 +224,7 @@ equal =
 expr :: Parser InertExpr
 expr =  try func
     <|> try name
+    <|> try and
     <|> try assignedname
     <|> try assignedlocalname
     <|> try lessthan
@@ -226,6 +233,7 @@ expr =  try func
     <|> try expseq
     <|> try intpos
     <|> try intneg
+    <|> try range
     <|> try power
     <|> try sum
     <|> try product
