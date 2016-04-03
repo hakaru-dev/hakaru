@@ -66,6 +66,9 @@ mapleAST (LC_ e) =
         o :$ es        -> mapleSCon o  es
         NaryOp_ op es  -> mapleNary op es
         Literal_ v     -> mapleLiteral v
+        Array_ e1 e2   -> 
+            caseBind e2 $ \x e2' ->
+                app3 "ary" e1 (var x) e2'
         Datum_ (Datum "true"  _typ (Inl Done)      ) -> "true"
         Datum_ (Datum "false" _typ (Inr (Inl Done))) -> "false"
         Datum_ d       -> mapleDatum d
