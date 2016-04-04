@@ -127,7 +127,7 @@ testMeasureReal = test
     , "testexponential" ~: testStriv testexponential
     , "testcauchy" ~: testStriv testCauchy
     , "exceptionLebesgue" ~: testSStriv [lebesgue >>= \x -> dirac (if_ (x == (real_ 3)) one x)] lebesgue
-    , "exceptionUniform"  ~: testSStriv [uniform (real_ 2) (real_ 4) >>= \x -> dirac (if_ (x == (real_ 3)) one x)] (uniform (real_ 2) (real_ 4))
+    , "exceptionUniform"  ~: testSStriv [uniform (real_ 2) (real_ 4) >>= \x -> dirac (if_ (x == (real_ 3)) one x)] (uniform (nat2real . nat_ $ 2) (nat2real . nat_ $ 4))
     -- "two_coins" ~: testStriv two_coins -- needs support for lists
     ]
 
@@ -207,7 +207,7 @@ t2 :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
 t2 = beta_1_1
 
 t3 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-t3 = normal zero (prob_ 10)
+t3 = normal (nat2real zero) (nat2prob . nat_ $ 10)
 
 -- t5 is "the same" as t1.
 t5 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
@@ -256,7 +256,7 @@ t11 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
 t11 = weight one
 
 t12 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
-t12 = weight (prob_ 2)
+t12 = weight (nat2prob . nat_ $ 2)
 
 t13,t13' :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
 t13 = bern (prob_ (3/5)) >>= \b -> dirac (if_ b (real_ 37) (real_ 42))
@@ -327,13 +327,13 @@ t26 :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
 t26 = dirac (total t1)
 
 t28 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-t28 = uniform_0_1
+t28 = uniformC zero one
 
 t30 :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
-t30 = exp <$> uniform_0_1
+t30 = exp <$> uniformC zero one
 
 t31 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-t31 = uniform (negate one) one
+t31 = uniform (fromInt . int_ $ -1) (nat2real one)
 
 t33 :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
 t33 = exp <$> t31
@@ -819,7 +819,7 @@ t80 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
 t80 = gamma_1_1 >>= \t -> normal zero t
 
 t81 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-t81 = uniform zero pi
+t81 = uniform (nat2real zero) pi
 
 -- Testing round-tripping of some other distributions
 testexponential :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
