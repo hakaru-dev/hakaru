@@ -119,8 +119,7 @@ mapleSCon Integrate (e1 :* e2 :* e3 :* End) =
                ++ arg e2  ++ "])" 
 
 mapleNary :: (ABT Term abt) => NaryOp a -> Seq (abt '[] a) -> String
-mapleNary And      es = parens $ F.foldr1 (\a b -> a ++ " and " ++ b)
-                                 (fmap arg es)
+mapleNary And      es = "And" ++ (parens . commaSep $ fmap arg es)
 mapleNary (Sum  _) es = parens $ F.foldr1 (\a b -> a ++ " + " ++ b)
                                  (fmap arg es)
 mapleNary (Prod _) es = parens $ F.foldr1 (\a b -> a ++ " * " ++ b)

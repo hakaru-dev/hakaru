@@ -310,6 +310,10 @@ maple2AST (InertArgs Func [InertName "Plate",
                            InertArgs ExpSeq [e1, InertName x, e2]]) =
     Plate x (maple2AST e1) (maple2AST e2)
 
+maple2AST (InertArgs Func [InertName "And",
+                           InertArgs ExpSeq es]) =
+    NaryOp And (map maple2AST es)
+
 maple2AST (InertArgs Func [f,
                            InertArgs ExpSeq es]) =
     foldl App (maple2AST f) (map maple2AST es)
