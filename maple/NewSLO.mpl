@@ -224,6 +224,7 @@ Hakaru := module ()
      # note that these first few are smart constructors (for themselves):
          case, app, ary, idx, size, Datum,
      # while these are "proper functions"
+         verify_measure, pattern_equiv,
          map_piecewise, foldr_piecewise,
          pattern_match,
          closed_bounds, open_bounds,
@@ -358,6 +359,89 @@ Hakaru := module ()
     end if
   end proc;
 
+  verify_measure := proc(m, n, v:='boolean')
+    local mv, x, i, j, k;
+    mv := measure(v);
+    if verify(m, n, 'Bind'(mv, true, true))
+      or verify(m, n, 'Plate'(v, true, true)) then
+      x := gensym(cat(op(2,m), "_", op(2,n), "_"));
+      thisproc(subs(op(2,m)=x, op(3,m)),
+               subs(op(2,n)=x, op(3,n)), v)
+    elif m :: 'specfunc(Msum)' and n :: 'specfunc(Msum)'
+         and nops(m) = nops(n) then
+      k := nops(m);
+      verify(k, GraphTheory[BipartiteMatching](GraphTheory[Graph]({
+                seq(seq(`if`(thisproc(op(i,m), op(j,n), v), {i,-j}, NULL),
+                        j=1..k), i=1..k)}))[1]);
+    elif andmap(type, [m,n], 'specfunc(piecewise)') and nops(m) = nops(n) then
+      k := nops(m);
+      verify(m, n, 'piecewise'(seq(`if`(i::even or i=k, mv, v), i=1..k)))
+    elif verify(m, n, 'case'(v, specfunc(Branch(true, true), Branches))) then
+      # This code unfortunately only handles alpha-equivalence for 'case' along
+      # the control path -- not if 'case' occurs in the argument to 'Ret', say.
+      k := nops(op(2,m));
+      for i from 1 to k do
+        j := pattern_equiv(op([2,i,1],m), op([2,i,1],n));
+        if j = false then return j end if;
+        j := map(proc(eq)
+                   local x;
+                   x := gensym(cat(lhs(eq), "_", rhs(eq), "_"));
+                   [lhs(eq)=x, rhs(eq)=x]
+                 end proc, j);
+        j := thisproc(subs(map2(op,1,j), op([2,i,2],m)),
+                      subs(map2(op,2,j), op([2,i,2],n)), v);
+        if j = false then return j end if;
+      end do;
+      true
+    elif m :: 'LO(name, anything)' and n :: 'LO(name, anything)' then
+      x := gensym(cat(op(1,m), "_", op(1,n), "_"));
+      verify(subs(op(1,m)=x, op(2,m)),
+             subs(op(1,n)=x, op(2,n)), v)
+    elif verify(m, n, 'lam'(true, v, true)) then
+      # m and n are not even measures, but we verify them anyway...
+      x := gensym(cat(op(1,m), "_", op(1,n), "_"));
+      thisproc(subs(op(1,m)=x, op(2,m)),
+               subs(op(1,n)=x, op(2,n)), v)
+    else
+      verify(m, n, {v,
+        Lebesgue(),
+        Uniform(v, v),
+        Gaussian(v, v),
+        Cauchy(v, v),
+        StudentT(v, v, v),
+        BetaD(v, v),
+        GammaD(v, v),
+        Ret(mv),
+        Weight(v, mv)
+      })
+    end if
+  end proc;
+
+  pattern_equiv := proc(p, q) :: {identical(false),set(`=`)};
+    local r, s;
+    if ormap((t->andmap(`=`, [p,q], t)), [PWild, PDone]) then
+      {}
+    elif andmap(type, [p,q], PVar(anything)) then
+      {op(1,p)=op(1,q)}
+    elif andmap(type, [p,q], PDatum(anything,anything)) and op(1,p)=op(1,q) then
+      pattern_equiv(op(2,p),op(2,q))
+    elif ormap((t->andmap(type, [p,q], t(anything))),
+               [PInl, PInr, PKonst, PIdent]) then
+      pattern_equiv(op(1,p),op(1,q))
+    elif andmap(type, [p,q], PEt(anything, anything)) then
+      r := pattern_equiv(op(1,p),op(1,q));
+      s := pattern_equiv(op(2,p),op(2,q));
+      if map(lhs,r) intersect map(lhs,s) = {} and
+         map(rhs,r) intersect map(rhs,s) = {} then
+        r union s
+      else
+        false
+      end if
+    else
+      false
+    end if
+  end proc;
+
   map_piecewise := proc(f,p) # p may or may not be piecewise
     local i;
     if p :: 'specfunc(piecewise)' then
@@ -467,6 +551,7 @@ Hakaru := module ()
   end proc;
 
   ModuleLoad := proc()
+    VerifyTools[AddVerification](measure = eval(verify_measure));
     TypeTools[AddType](t_type,
       '{specfunc(Bound(identical(`<`,`<=`,`>`,`>=`), anything),
                  {AlmostEveryReal, HReal, HInt}),
@@ -482,6 +567,7 @@ Hakaru := module ()
   ModuleUnload := proc()
     TypeTools[RemoveType](t_case);
     TypeTools[RemoveType](t_type);
+    VerifyTools[RemoveVerification](measure);
   end proc;
 
   ModuleLoad();
@@ -813,7 +899,7 @@ NewSLO := module ()
         get_indicators,
         elim_intsum, do_elim_intsum, elim_metric, banish,
         piecewise_if, nub_piecewise,
-        ModuleLoad, ModuleUnload, verify_measure, pattern_equiv,
+        ModuleLoad, ModuleUnload,
         find_vars, kb_from_path, interpret, reconstruct, invert, 
         get_var_pos, get_int_pos,
         avoid_capture, change_var, disint2;
@@ -2348,93 +2434,10 @@ NewSLO := module ()
     CodeTools[Test](Simplify(m,t,ctx), n, measure(verify), _rest)
   end proc;
 
-  verify_measure := proc(m, n, v:='boolean')
-    local mv, x, i, j, k;
-    mv := measure(v);
-    if verify(m, n, 'Bind'(mv, true, true)) then
-      x := gensym(cat(op(2,m), "_", op(2,n), "_"));
-      thisproc(subs(op(2,m)=x, op(3,m)),
-               subs(op(2,n)=x, op(3,n)), v)
-    elif m :: 'specfunc(Msum)' and n :: 'specfunc(Msum)'
-         and nops(m) = nops(n) then
-      k := nops(m);
-      verify(k, GraphTheory[BipartiteMatching](GraphTheory[Graph]({
-                seq(seq(`if`(thisproc(op(i,m), op(j,n), v), {i,-j}, NULL),
-                        j=1..k), i=1..k)}))[1]);
-    elif m :: t_pw and n :: t_pw and nops(m) = nops(n) then
-      k := nops(m);
-      verify(m, n, 'piecewise'(seq(`if`(i::even or i=k, mv, v), i=1..k)))
-    elif verify(m, n, 'case'(v, specfunc(Branch(true, true), Branches))) then
-      # This code unfortunately only handles alpha-equivalence for 'case' along
-      # the control path -- not if 'case' occurs in the argument to 'Ret', say.
-      k := nops(op(2,m));
-      for i from 1 to k do
-        j := pattern_equiv(op([2,i,1],m), op([2,i,1],n));
-        if j = false then return j end if;
-        j := map(proc(eq)
-                   local x;
-                   x := gensym(cat(lhs(eq), "_", rhs(eq), "_"));
-                   [lhs(eq)=x, rhs(eq)=x]
-                 end proc, j);
-        j := thisproc(subs(map2(op,1,j), op([2,i,2],m)),
-                      subs(map2(op,2,j), op([2,i,2],n)), v);
-        if j = false then return j end if;
-      end do;
-      true
-    elif m :: 'LO(name, anything)' and n :: 'LO(name, anything)' then
-      x := gensym(cat(op(1,m), "_", op(1,n), "_"));
-      verify(subs(op(1,m)=x, op(2,m)),
-             subs(op(1,n)=x, op(2,n)), v)
-    elif verify(m, n, 'lam'(true, v, true)) then
-      # m and n are not even measures, but we verify them anyway...
-      x := gensym(cat(op(1,m), "_", op(1,n), "_"));
-      thisproc(subs(op(1,m)=x, op(2,m)),
-               subs(op(1,n)=x, op(2,n)), v)
-    else
-      verify(m, n, {v,
-        Lebesgue(),
-        Uniform(v, v),
-        Gaussian(v, v),
-        Cauchy(v, v),
-        StudentT(v, v, v),
-        BetaD(v, v),
-        GammaD(v, v),
-        Ret(mv),
-        Weight(v, mv)
-      })
-    end if
-  end proc;
-
-  pattern_equiv := proc(p, q) :: {identical(false),set(`=`)};
-    local r, s;
-    if ormap((t->andmap(`=`, [p,q], t)), [PWild, PDone]) then
-      {}
-    elif andmap(type, [p,q], PVar(anything)) then
-      {op(1,p)=op(1,q)}
-    elif andmap(type, [p,q], PDatum(anything,anything)) and op(1,p)=op(1,q) then
-      pattern_equiv(op(2,p),op(2,q))
-    elif ormap((t->andmap(type, [p,q], t(anything))),
-               [PInl, PInr, PKonst, PIdent]) then
-      pattern_equiv(op(1,p),op(1,q))
-    elif andmap(type, [p,q], PEt(anything, anything)) then
-      r := pattern_equiv(op(1,p),op(1,q));
-      s := pattern_equiv(op(2,p),op(2,q));
-      if map(lhs,r) intersect map(lhs,s) = {} and
-         map(rhs,r) intersect map(rhs,s) = {} then
-        r union s
-      else
-        false
-      end if
-    else
-      false
-    end if
-  end proc;
-
   ModuleLoad := proc()
     local prev;
     Hakaru; # Make sure the KB module is loaded, for the type t_type
     KB;     # Make sure the KB module is loaded, for the type t_kb
-    VerifyTools[AddVerification](measure = verify_measure);
     prev := kernelopts(opaquemodules=false);
     try
       PiecewiseTools:-InertFunctions := PiecewiseTools:-InertFunctions
@@ -2445,7 +2448,6 @@ NewSLO := module ()
   end proc;
 
   ModuleUnload := proc()
-    VerifyTools[RemoveVerification](measure);
   end proc;
 
   ModuleLoad();
