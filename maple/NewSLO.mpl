@@ -1743,10 +1743,10 @@ NewSLO := module ()
   end proc;
 
   statement_info := proc(stmt)
-    local var, bounds, i;
+    local var, bnds, i;
     if stmt :: t_binder then
-      var, bounds := op(op([3,1], stmt));
-      var :: integer, lhs(bounds) <= var, var <= rhs(bounds)
+      var, bnds := op(op([3,1], stmt));
+      var :: integer, lhs(bnds) <= var, var <= rhs(bnds)
     elif stmt :: Stmt(identical(piecewise), list, list) then
       seq(`if`(i::odd, `if`(i=nops(op(2,stmt)),
                             op([2,i],stmt),
@@ -2152,19 +2152,18 @@ NewSLO := module ()
     end if;
   end proc;
 
-  factorize := proc(weight, x)
-    # return (weight, 1); # uncomment this to disable factorization
-    if weight :: `*` then
-      selectremove(depends, weight, x)
-    elif depends(weight, x) then
-      (weight, 1)
+  factorize := proc(w, x)
+    if w :: `*` then
+      selectremove(depends, w, x)
+    elif depends(w, x) then
+      (w, 1)
     else
-      (1, weight)
+      (1, w)
     end if
   end proc;
 
   recognize_continuous := proc(weight0, x, lo, hi)
-    local Constant, weight, de, Dx, f, w, res, rng;
+    local Constant, de, Dx, f, w, res, rng;
     res := FAIL;
     # gfun[holexprtodiffeq] contains a test for {radfun,algfun} that seems like
     # it should test for {radfun(anything,x),algfun(anything,x)} instead.
@@ -2176,29 +2175,29 @@ NewSLO := module ()
     # which we need to handle exp(x*sum(...)) using gfun[holexprtodiffeq].
     # Like sum(...i...), Constant[sum(...i...)] depends on i, which we need so
     # that product(sum(...i...),i=1..m) doesn't simplify to ...^m.
-    weight := subsindets[flat](weight0,
-                And(# Not(radfun), Not(algfun),
-                    'specfunc({%product, product, sum, idx})',
-                    'freeof'(x)),
-                proc(e) Constant[e] end);
-    weight := subsindets[flat](weight, {`^`, specfunc(exp)},
-                proc(e)
-                  applyop(proc(e)
-                            evalindets[flat](e,
-                              And({`^`, specfunc(exp)},
-                                  Not(radfun), Not(algfun), 'freeof'(x)),
-                              proc(e) Constant[e] end)
-                          end,
-                          -1, e)
-                  end);
-    de := get_de(weight, x, Dx, f);
+    w := subsindets[flat](weight0,
+           And(# Not(radfun), Not(algfun),
+               'specfunc({%product, product, sum, idx})',
+               'freeof'(x)),
+           proc(e) Constant[e] end);
+    w := subsindets[flat](w, {`^`, specfunc(exp)},
+           proc(e)
+             applyop(proc(e)
+                       evalindets[flat](e,
+                         And({`^`, specfunc(exp)},
+                             Not(radfun), Not(algfun), 'freeof'(x)),
+                         proc(e) Constant[e] end)
+                     end,
+                     -1, e)
+             end);
+    de := get_de(w, x, Dx, f);
     if de :: 'Diffop(anything, anything)' then
       res := recognize_de(op(de), Dx, f, x, lo, hi)
     end if;
     if res = FAIL then
       rng := hi - lo;
-      w := simplify(weight * (hi - lo));
-      # weight could be piecewise and simplify will hide the problem
+      w := simplify(w * (hi - lo));
+      # w could be piecewise and simplify will hide the problem
       if not (rng :: 'SymbolicInfinity'
               or w :: {'SymbolicInfinity', 'undefined'}) then
         res := Recognized(Uniform(lo, hi), w)
@@ -2208,27 +2207,27 @@ NewSLO := module ()
     subsindets[flat](res, 'specindex'(anything, Constant), x -> op(1,x))
   end proc;
 
-  recognize_discrete := proc(weight, k, lo, hi)
+  recognize_discrete := proc(w, k, lo, hi)
     local se, Sk, f, a0, a1, lambda, r;
     if lo = 0 and hi = infinity then
-      se := get_se(weight, k, Sk, f);
+      se := get_se(w, k, Sk, f);
       if se :: 'Shiftop(anything, anything, identical(ogf))' and
          ispoly(op(1,se), 'linear', Sk, 'a0', 'a1') then
         lambda := normal(-a0/a1*(k+1));
         if not depends(lambda, k) then
           return Recognized(PoissonD(lambda),
-                            simplify(eval(weight,k=0)/exp(-lambda)));
+                            simplify(eval(w,k=0)/exp(-lambda)));
         end if;
         if ispoly(lambda, 'linear', k, 'b0', 'b1') then
           r := b0/b1;
           return Recognized(NegativeBinomial(r, b1),
-                            simplify(eval(weight,k=0)/(1-b1)^r))
+                            simplify(eval(w,k=0)/(1-b1)^r))
         end if
       end if;
     end if;
     # fallthrough here is like recognizing Lebesgue for all continuous
     # measures.  Ultimately correct, although fairly unsatisfying.
-    Recognized(Counting(lo, hi), weight)
+    Recognized(Counting(lo, hi), w)
   end proc;
 
   get_de := proc(dens, var, Dx, f)
