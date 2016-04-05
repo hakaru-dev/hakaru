@@ -590,10 +590,10 @@ end module; # KB
 
 NewSLO := module ()
   option package;
-  local t_pw, t_case, p_true, p_false,
+  local t_pw, t_case, t_binder, p_true, p_false,
         integrate_known, known_continuous, known_discrete,
         mk_sym, mk_ary, mk_idx, mk_HArray,
-        unproduct, unsum, unproducts,
+        unproduct, statement_info, unproducts, wrap, Stmt,
         bind, weight, factorize, pattern_match, make_piece,
         recognize_continuous, recognize_discrete, get_de, get_se,
         recognize_de, mysolve, Shiftop, Diffop, Recognized,
@@ -671,6 +671,7 @@ NewSLO := module ()
 
   t_pw    := 'specfunc(piecewise)';
   t_case  := 'case(anything, specfunc(Branch(anything, anything), Branches))';
+  t_binder:= 'Stmt(identical(product,Product,sum,Sum), [], [name=range])';
   p_true  := 'PDatum(true,PInl(PDone))';
   p_false := 'PDatum(false,PInr(PInl(PDone)))';
 
@@ -1199,7 +1200,7 @@ NewSLO := module ()
 
   ints := proc(e::anything, x::name, r::range, l::list(name=range))
     local w0, pp;
-    w0, pp := unproducts(l, x, e);
+    w0, pp := unproducts(e, x, l);
     if depends(w0, x) then
       'procname(_passed)'
     else
@@ -1209,7 +1210,7 @@ NewSLO := module ()
 
   sums := proc(e::anything, x::name, r::range, l::list(name=range))
     local w0, pp;
-    w0, pp := unproducts(l, x, e);
+    w0, pp := unproducts(e, x, l);
     if depends(w0, x) then
       'procname(_passed)'
     else
@@ -1292,7 +1293,7 @@ NewSLO := module ()
       end do;
       subst := op(op(subst));
       loops := eval(loops, subst);
-      w, pp := unproducts(loops, x, w);
+      w, pp := unproducts(w, x, loops);
       w, w0 := selectremove(depends, convert(w, 'list', `*`), x);
       hh := gensym('ph');
       subintegral := make(pp * applyintegrand(hh,x), x=eval(lo..hi,subst));
@@ -1345,60 +1346,153 @@ NewSLO := module ()
     end if
   end proc;
 
-  # Try to express w as ...*product(...,loop), where the second ... uses var
-  unproduct := proc(loop::(name=range), var::name, w)
-    local res;
-    if depends(w, var) then
-      if w :: `*` then
-        res := map[3](unproduct, loop, var, [op(w)]);
-        [`*`(op(map2(op,1,res))), `*`(op(map2(op,2,res)))]
-      elif w :: (anything^freeof(var)) then
-        map(`^`, unproduct(loop, var, op(1,w)), op(2,w))
+  # Find [w1,pp] so that
+  #   foldl(wrap,w,op(heap)) = w1*product(eval(pp,var=idx(var,lhs(loop))),loop)
+  # making w1 depend on var as little as possible.
+  # The flag "mode" should be `+` if "heap" contains an entry of the form
+  # {Stmt(exp,[],[]), Stmt(`^`,[anything],[])}, or `*` otherwise.
+  unproduct := proc(w, var::name, loop::(name=range),
+                    heap::list(Stmt(anything,list,list)),
+                    mode::identical(`*`,`+`))
+    local ind, x, s, r, narrow, wide, eq, as, res, dummy;
+    if not depends(w, var) then
+      return [foldr(wrap, w, op(heap)), 1]
+    end if;
+    ind := map2(op, 2, indets(w, idx(identical(var), anything)));
+    if nops(ind) = 1 then
+      ind := op(ind);
+      x := indets(ind, name) intersect
+           {op(map2(op, [3,1,1], select(type, heap, t_binder)))};
+      wide := rhs(loop);
+      wide := And(lhs(wide) <= lhs(loop), lhs(loop) <= rhs(wide));
+      if nops(x) = 1 then
+        x := op(x);
+        ind := ind - x;
+        if not depends(ind, x) then
+          for r from 1 to nops(heap) do
+            if op(r,heap)::t_binder and op([r,3,1,1],heap)=x then break end if
+          end do;
+          s := op(r,heap);
+          # We want to change the product/sum over x to a product over
+          # lhs(loop), so we want to set lhs(loop)=x+ind, and we need to
+          # extend the range x=op([3,1,2],s) to match lhs(loop)=rhs(loop).
+          narrow := map(`+`, op([3,1,2],s), ind);
+          narrow := And(lhs(narrow) <= lhs(loop), lhs(loop) <= rhs(narrow));
+          eq := x = lhs(loop) - ind;
+          as := eval(map(statement_info, subsop(r=NULL, heap)), eq);
+          as := foldr(assert, empty, op(as)); # not ideal usage of KB...
+          if true #= simplify_assuming(wide,
+             #assert(And(lhs(loop)::integer, narrow), as))
+             # TODO: The array bounds check above is disabled (i.e., we run the
+             # risk of indexing into an array out of bounds) until we improve
+             # simplify_assumption to handle <> better:
+             # > KB:-simplify_assuming(0<=i, KB:-assert(And(i::integer, -1<=i, -1<>i), KB:-empty))
+             # 0 <= i
+             # > KB:-simplify_assuming(0<=i, KB:-assert(And(i::integer, -1<=i, -1<i), KB:-empty))
+             # true
+             then
+            res := eval(foldr(wrap, w, op(r+1..-1, heap)), eq);
+            res := simplify_assuming(piecewise(narrow, res,
+              `if`(op(1,s) in {product,Product}, 1, 0)),
+              assert(And(lhs(loop)::integer, wide), as));
+            res := foldr(wrap, res, op(1..r-1, heap));
+            res := subs(idx(var,lhs(loop))=dummy, res);
+            if not depends(res, var) then
+              return [1, subs(dummy=var, res)]
+            end if
+          end if
+        end if
+      elif nops(x) = 0 then
+        # Use piecewise to force lhs(loop)=ind
+        as := map(statement_info, heap);
+        as := foldr(assert, empty, op(as)); # not ideal usage of KB...
+        if true = simplify_assuming(eval(wide, lhs(loop)=ind), as) then
+          res := foldr(wrap, w, op(heap));
+          res := piecewise(lhs(loop)=ind, res, 1);
+          res := subs(idx(var,ind)=dummy, res);
+          if not depends(res, var) then
+            return [1, subs(dummy=var, res)]
+          end if
+        end if
+      end if
+    end if;
+    if w :: mode then
+      res := map(unproduct, [op(w)], var, loop, heap, mode);
+      return [`*`(op(map2(op,1,res))), `*`(op(map2(op,2,res)))]
+    end if;
+    if w :: t_pw then
+      res := [seq(`if`(r::even or r=nops(w),
+                       unproduct(op(r,w), var, loop,
+                         [op(heap), Stmt(piecewise,
+                           [seq(`if`(s::even, mode(), op(s,w)), s=1..r-1)],
+                           `if`(r::even, [mode()], []))],
+                         mode),
+                       NULL),
+              r=1..nops(w))];
+      return [`*`(op(map2(op,1,res))), `*`(op(map2(op,2,res)))]
+    end if;
+    if mode = `*` then
+      if w :: (anything^freeof(var)) then
+        return unproduct(op(1,w), var, loop,
+                         [op(heap), Stmt(`^`, [], [op(2,w)])], `*`)
       elif w :: exp(anything) then
-        map(exp, unsum(loop, var, op(1,w)))
+        return unproduct(op(1,w), var, loop,
+                         [op(heap), Stmt(exp, [], [])], `+`)
       elif w :: (freeof(var)^anything) then
-        map2(`^`, op(1,w), unsum(loop, var, op(2,w)))
-      elif w :: {'product'(anything, name=identical(rhs(loop))),
-                 'Product'(anything, name=identical(rhs(loop)))} then
-        [1, eval(op(1,w), op([2,1],w)=lhs(loop))]
-      else
-        [w, 1]
+        return unproduct(op(2,w), var, loop,
+                         [op(heap), Stmt(`^`, [op(1,w)], [])], `+`)
       end if
+    end if;
+    if mode = `+` and w :: `*` then
+      s, r := selectremove(depends, w, var);
+      if s :: `*` then
+        # Nonlinear %1 (time to reread kiselyov-lifted?)
+      else
+        return unproduct(s, var, loop,
+                         [op(heap), Stmt(`*`, [], [r])], `+`)
+      end if
+    end if;
+    if w :: And(specfunc(`if`(mode = `*`, {product, Product}, {sum, Sum})),
+                anyfunc(anything, name=freeof(var))) then
+      x := op([2,1],w);
+      if depends([_passed], x) then x := gensym(x) end if;
+      return unproduct(eval(op(1,w), op([2,1],w)=x), var, loop,
+                       [op(heap), Stmt(op(0,w), [], [x=op([2,2],w)])], mode)
+    end if;
+    return [foldr(wrap, w, op(heap)), 1]
+  end proc;
+
+  statement_info := proc(stmt)
+    local var, bounds, i;
+    if stmt :: t_binder then
+      var, bounds := op(op([3,1], stmt));
+      var :: integer, lhs(bounds) <= var, var <= rhs(bounds)
+    elif stmt :: Stmt(identical(piecewise), list, list) then
+      seq(`if`(i::odd, `if`(i=nops(op(2,stmt)),
+                            op([2,i],stmt),
+                            Not(op([2,i],stmt))),
+               NULL),
+          i=1..nops(op(2,stmt)))
     else
-      [w, 1]
+      NULL
     end if
   end proc;
 
-  unsum := proc(loop::(name=range), var::name, w)
-    local res, s, r;
-    if depends(w, var) then
-      if w :: `+` then
-        res := map[3](unproduct, loop, var, [op(w)]);
-        [`+`(op(map2(op,1,res))), `+`(op(map2(op,2,res)))]
-      elif w :: `*` then
-        (s, r) := selectremove(depends, w, var);
-        map(`*`, unsum(loop, var, s), r)
-      elif w :: {'sum'(anything, name=identical(rhs(loop))),
-                 'Sum'(anything, name=identical(rhs(loop)))} then
-        [0, eval(op(1,w), op([2,1],w)=lhs(loop))]
-      else
-        [w, 0]
-      end if
-    else
-      [w, 0]
-    end if
-  end proc;
-
-  unproducts := proc(loops::list(name=range), x::name, w)
+  unproducts := proc(w, x::name, loops::list(name=range))
     local w0, pp, j, w1, xx;
     w0 := 1;
     pp := w;
     for j from nops(loops) to 1 by -1 do
-      (w1, pp) := op(unproduct(op(j,loops), x, pp));
+      w1, pp := op(unproduct(pp, x, op(j,loops), [], `*`));
       w0 := w0 * foldl(product, w1, op(j+1..-1, loops));
     end do;
-    pp := eval(pp, mk_idx(x,loops)=xx);
-    if depends(pp,x) then w, 1 else w0, subs(xx=x,pp) end if
+    w0, pp
+  end proc;
+
+  wrap := proc(stmt :: Stmt(anything,list,list), w)
+    local arrrgs;
+    arrrgs := op(op(2,stmt)), w, op(op(3,stmt)); # in case op(1,stmt)=piecewise
+    op(1,stmt)(arrrgs);
   end proc;
 
   ###

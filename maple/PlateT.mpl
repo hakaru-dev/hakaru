@@ -117,5 +117,12 @@ end proc:
      Plate(n,k,
        dirichlet(ary(5,i,1+idx(idx(t,k),i)))))),
    measure(simplify),
-   label="Dirichlet-multinomial conjugacy when unrolled");
+   label="Conjugacy between unrolled symmetric Dirichlet and multinomial");
 # We'd like the test above to pass even if the count 5 becomes symbolic.
+# Below is some progress towards this goal:
+TestHakaru(dirichlet(as), label="Dirichlet symbolic prior roundtrip");
+TestHakaru(Bind(dirichlet(as),ps,
+             Weight(product(idx(ps,i)^idx(t,i),i=0..size(ps)-1),
+               Ret(ps))),
+           dirichlet(ary(size(as),i,idx(as,i)+idx(t,i))),
+           label="Conjugacy between rolled Dirichlet and multinomial (currently fails)");
