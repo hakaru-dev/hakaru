@@ -1348,7 +1348,7 @@ NewSLO := module ()
     # LO(h, banish(m, x, h, g)) should be equivalent to Bind(m, x, LO(h, g))
     # but performs integration over x innermost rather than outermost.
     local guard, subintegral, w, y, yRename, lo, hi, mm, loops, xx, hh, gg, ll;
-    guard := proc(m, c) bind(m, x, piecewise(c, Ret(x), Msum())) end proc;
+    guard := proc(m, c) Bind(m, x, piecewise(c, Ret(x), Msum())) end proc;
     if g = 0 then
       0
     elif levels <= 0 then
@@ -1360,7 +1360,7 @@ NewSLO := module ()
     elif g :: `*` then
       (subintegral, w) := selectremove(depends, g, h);
       if subintegral :: `*` then error "Nonlinear integral %1", g end if;
-      banish(bind(m, x, weight(w, Ret(x))), x, h, subintegral, levels)
+      banish(Bind(m, x, Weight(w, Ret(x))), x, h, subintegral, levels)
     elif g :: 'And'('specfunc({Int,int,Sum,sum})',
                     'anyfunc'('anything','name'='range'('freeof'(h)))) then
       subintegral := op(1, g);
