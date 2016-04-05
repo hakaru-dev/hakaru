@@ -33,9 +33,9 @@ testMeasureUnit = test [
     "t10"     ~: testSStriv [t10] (superpose []),
     "t11,t22" ~: testSStriv [t11,t22] (dirac unit),
     "t12"     ~: testSStriv [] t12,
-    "t20"     ~: testSStriv [t20] (lam $ \y -> weight (y * half))
-    --"t24"     ~: testSStriv [t24] t24',
-    --"t25"     ~: testSStriv [t25] t25',
+    "t20"     ~: testSStriv [t20] (lam $ \y -> weight (y * half)),
+    "t24"     ~: testSStriv [t24] t24',
+    "t25"     ~: testSStriv [t25] t25',
     --"t44Add"  ~: testSStriv [t44Add] t44Add',
     --"t44Mul"  ~: testSStriv [t44Mul] t44Mul',
     --"t53"     ~: testSStriv [t53,t53'] t53'',
@@ -50,7 +50,7 @@ testMeasureUnit = test [
     --"t63"     ~: testSStriv [t63] t63',
     --"t64"     ~: testSStriv [t64,t64'] t64'',
     --"t65"     ~: testSStriv [t65] t65',
-    --"t77"     ~: testSStriv [] t77
+    "t77"     ~: testSStriv [] t77
     ]
 
 testMeasureProb :: Test
@@ -300,28 +300,28 @@ t23' = superpose
     , (fromRational (41/100), dirac (pair false false))
     ]
 
---t24,t24' :: (ABT Term abt) => abt '[] ('HProb ':-> 'HMeasure HUnit)
---t24 =
---    lam $ \x ->
---    uniform_0_1 >>= \y ->
---    uniform_0_1 >>= \z ->
---    weight (x * exp (cos y) * unsafeProb z)
---t24' =
---    lam $ \x ->
---    uniform_0_1 >>= \y ->
---    weight (x * exp (cos y) * half)
+t24,t24' :: (ABT Term abt) => abt '[] ('HProb ':-> 'HMeasure HUnit)
+t24 =
+   lam $ \x ->
+   uniform_0_1 >>= \y ->
+   uniform_0_1 >>= \z ->
+   weight (x * exp (cos y) * unsafeProb z)
+t24' =
+   lam $ \x ->
+   uniform_0_1 >>= \y ->
+   weight (x * exp (cos y) * half)
 
---t25,t25' :: (ABT Term abt)
---    => abt '[] ('HProb ':-> 'HReal ':-> 'HMeasure HUnit)
---t25 =
---    lam $ \x ->
---    lam $ \y ->
---    uniform_0_1 >>= \z ->
---    weight (x * exp (cos y) * unsafeProb z)
---t25' =
---    lam $ \x ->
---    lam $ \y ->
---    weight (x * exp (cos y) * half)
+t25,t25' :: (ABT Term abt)
+   => abt '[] ('HProb ':-> 'HReal ':-> 'HMeasure HUnit)
+t25 =
+   lam $ \x ->
+   lam $ \y ->
+   uniform_0_1 >>= \z ->
+   weight (x * exp (cos y) * unsafeProb z)
+t25' =
+   lam $ \x ->
+   lam $ \y ->
+   weight (x * exp (cos y) * half)
 
 t26 :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
 t26 = dirac (total t1)
@@ -800,12 +800,12 @@ t75 = gamma (prob_ 6) one >>= poisson
 --        (superpose [])
 
 ---- the (x * (-1)) below is an unfortunate artifact not worth fixing
---t77 :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure HUnit)
---t77 =
---    lam $ \x ->
---    if_ (x < zero)
---        (weight (exp (negate x)))
---        (weight (exp x))
+t77 :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure HUnit)
+t77 =
+   lam $ \x ->
+   if_ (x < zero)
+       (weight (exp (negate x)))
+       (weight (exp x))
 
 t78, t78' :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
 t78 = uniform zero (real_ 2) >>= \x2 -> withWeight (unsafeProb x2) (dirac x2)
