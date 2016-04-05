@@ -68,10 +68,8 @@ simplify :: forall abt a
 simplify e = do
     let slo = Maple.pretty e
     let typ = typeOf e          
-    hakaru <- maple ("use NewSLO in timelimit(15, RoundTrip(" ++ slo
-                                                              ++ ", " 
-                                                              ++ Maple.mapleType typ
-                                                              ++ ")) end use;")
+    hakaru <- maple ("use Hakaru, NewSLO in timelimit(15, RoundTrip("
+      ++ slo ++ ", " ++ Maple.mapleType typ ++ ")) end use;")
     either (throw . MapleException slo) return $ do
         past <- leftShow $ parseMaple (pack hakaru)
         let m = checkType typ

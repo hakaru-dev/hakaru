@@ -1,6 +1,6 @@
 all: ppaml.mla test call-graph.svg
 
-ppaml.mla: update-archive.mpl NewSLO.mpl
+ppaml.mla: update-archive.mpl BindingTools.mpl Hakaru.mpl KB.mpl NewSLO.mpl
 	maple -q $<
 
 test: ppaml.mla NewSLOTests.mpl PlateT.mpl DisintT.mpl
