@@ -37,7 +37,7 @@ module Language.Hakaru.Syntax.Prelude
     , unsafeFrom_, unsafeProb, unsafeProbFraction, unsafeProbFraction_, unsafeProbSemiring, unsafeProbSemiring_
     -- ** Numeric literals
     , literal_, nat_, int_, prob_, real_
-    , fromRational
+    , fromRational, half, third
     -- ** Booleans
     , true, false, bool_, if_
     , not, (&&), and, (||), or, nand, nor
@@ -360,6 +360,14 @@ fromRational =
     case (hFractional :: HFractional a) of
     HFractional_Prob -> prob_ . unsafeNonNegativeRational
     HFractional_Real -> real_
+
+half :: forall abt a
+     .  (ABT Term abt, HFractional_ a) => abt '[] a
+half = fromRational (1 Prelude./ 2)
+
+third :: (ABT Term abt, HFractional_ a) => abt '[] a
+third = fromRational (1 Prelude./ 3)
+
 
 -- Boolean operators
 true, false :: (ABT Term abt) => abt '[] HBool
