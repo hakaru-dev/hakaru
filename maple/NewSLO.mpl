@@ -895,7 +895,7 @@ NewSLO := module ()
         bind, weight, factorize,
         recognize_continuous, recognize_discrete, get_de, get_se,
         recognize_de, mysolve, Shiftop, Diffop, Recognized,
-        reduce, reduce_pw, reduce_IntSum, reduce_IntsSums, reduce_prod,
+        reduce, reduce_pw, reduce_IntSum, reduce_IntsSums,
         get_indicators,
         elim_intsum, do_elim_intsum, elim_metric, banish,
         piecewise_if, nub_piecewise,
@@ -2121,8 +2121,6 @@ NewSLO := module ()
       m # monad law: right identity
     elif m :: 'Ret(anything)' then
       eval(n, x = op(1,m)) # monad law: left identity
-    elif m :: 'Weight(anything, anything)' then
-      op(1,m)*bind(op(2,m), x, n)
     else
       'Bind(_passed)'
     end if;
