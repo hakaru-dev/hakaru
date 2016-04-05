@@ -4,7 +4,8 @@
 # Branch binds from 1st arg (a pattern) to 2nd arg.
 # Bind and ary bind from 2nd arg to 3rd arg.
 # forall bind from 1st arg to 2nd arg.
-# Ints,Sums,ints,sums are...tricky.
+# Ints,Sums,ints,sums bind from 2nd arg to 1st arg, and also from each element
+#   of the 4th arg to the other elements on the left and to the 3rd arg.
 
 `depends/Integrand` := proc(v, e, x) depends(e, x minus {v}) end proc:
 `depends/LO`        := proc(v, e, x) depends(e, x minus {v}) end proc:
