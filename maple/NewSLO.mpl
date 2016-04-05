@@ -1964,12 +1964,12 @@ NewSLO := module ()
     # which we need to handle exp(x*sum(...)) using gfun[holexprtodiffeq].
     # Like sum(...i...), Constant[sum(...i...)] depends on i, which we need so
     # that product(sum(...i...),i=1..m) doesn't simplify to ...^m.
-    weight := evalindets[flat](weight0,
+    weight := subsindets[flat](weight0,
                 And(# Not(radfun), Not(algfun),
                     'specfunc({%product, product, sum, idx})',
                     'freeof'(x)),
                 proc(e) Constant[e] end);
-    weight := evalindets[flat](weight, {`^`, specfunc(exp)},
+    weight := subsindets[flat](weight, {`^`, specfunc(exp)},
                 proc(e)
                   applyop(proc(e)
                             evalindets[flat](e,
@@ -1993,7 +1993,7 @@ NewSLO := module ()
       end if
     end if;
     # Undo Constant[...] wrapping
-    evalindets[flat](res, 'specindex'(anything, Constant), x -> op(1,x))
+    subsindets[flat](res, 'specindex'(anything, Constant), x -> op(1,x))
   end proc;
 
   recognize_discrete := proc(weight, k, lo, hi)
