@@ -5,6 +5,7 @@ if not (NewSLO :: `module`) then
   `quit`(3);
 end if;
 
+with(Hakaru):
 with(NewSLO):
 
 # covers primitive constructs

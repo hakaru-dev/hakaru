@@ -183,21 +183,8 @@ end proc:
 
 #############################################################################
 
-foldr_piecewise := proc(cons, nil, pw) # pw may or may not be piecewise
-  # View pw as a piecewise and foldr over its arms
-  if pw :: specfunc(piecewise) then
-    foldr(proc(i,x) cons(op(i,pw), op(i+1,pw), x) end proc,
-          `if`(nops(pw)::odd, cons(true, op(-1,pw), nil), nil),
-          seq(1..nops(pw)-1, 2))
-  else
-    cons(true, pw, nil)
-  end if
-end proc;
-
-#############################################################################
-
 # make gensym global, so that it can be shared with other 'global' routines
-gensym := module()
+gensym := module ()
   export ModuleApply;
   local gs_counter, utf8, blocks, radix, unicode;
   gs_counter := -1;
@@ -229,6 +216,280 @@ end module: # gensym
 
 #############################################################################
 
+Hakaru := module ()
+  option package;
+  local p_true, p_false, make_piece,
+        ModuleLoad, ModuleUnload;
+  export
+     # note that these first few are smart constructors (for themselves):
+         case, app, ary, idx, size, Datum,
+     # while these are "proper functions"
+         map_piecewise, foldr_piecewise,
+         pattern_match,
+         closed_bounds, open_bounds,
+         htype_patterns;
+  # these names are not assigned (and should not be).  But they are
+  # used as global names, so document that here.
+  global Bind, Weight, Ret, Msum, Integrand, Plate,
+         Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD, StudentT,
+         lam,
+         Inr, Inl, Et, Done, Konst, Ident,
+         Branches, Branch,
+         PWild, PVar, PDatum, PInr, PInl, PEt, PDone, PKonst, PIdent,
+         measure,
+         t_type, t_case,
+         AlmostEveryReal, HReal, HInt, HData, HMeasure, HArray, HFunction,
+         Bound, DatumStruct;
+
+  p_true  := 'PDatum(true,PInl(PDone))';
+  p_false := 'PDatum(false,PInr(PInl(PDone)))';
+
+  case := proc(e, bs :: specfunc(Branch(anything, anything), Branches))
+    local ret, b, substs, eSubst, pSubst, p, binds, uncertain;
+    ret := Branches();
+    for b in bs do
+      substs := pattern_match(e, e, op(1,b));
+      if substs <> NULL then
+        eSubst, pSubst := substs;
+        p := subs(pSubst, op(1,b));
+        binds := {pattern_binds(p)};
+        uncertain := remove((eq -> lhs(eq) in binds), eSubst);
+        if nops(uncertain) = 0 then p := PWild end if;
+        ret := Branches(op(ret),
+                        Branch(p, eval(eval(op(2,b), pSubst), eSubst)));
+        if nops(uncertain) = 0 then break end if;
+      end if
+    end do;
+    if ret :: Branches(Branch(identical(PWild), anything)) then
+      op([1,2], ret)
+    elif ret :: Branches(Branch(identical(p_true), anything),
+                         Branch({identical(p_false),
+                                 identical(PWild),
+                                 PVar(anything)}, anything)) then
+      piecewise(make_piece(e), op([1,2], ret), op([2,2], ret))
+    elif ret :: Branches(Branch(identical(p_false), anything),
+                         Branch({identical(p_true),
+                                 identical(PWild),
+                                 PVar(anything)}, anything)) then
+      piecewise(make_piece(e), op([2,2], ret), op([1,2], ret))
+    else
+      'case'(e, ret)
+    end if
+  end proc;
+
+  pattern_match := proc(e0, e, p)
+    local x, substs, eSubst, pSubst;
+    if p = PWild then return {}, {}
+    elif p :: PVar(anything) then
+      x := op(1,p);
+      pSubst := {`if`(depends(e0,x), x=gensym(x), NULL)};
+      return {subs(pSubst,x)=e}, pSubst;
+    elif p = p_true then
+      if e = true then return {}, {}
+      elif e = false then return NULL
+      end if
+    elif p = p_false then
+      if e = false then return {}, {}
+      elif e = true then return NULL
+      end if
+    elif p :: PDatum(anything, anything) then
+      if e :: Datum(anything, anything) then
+        if op(1,e) = op(1,p) then return pattern_match(e0, op(2,e), op(2,p))
+        else return NULL
+        end if
+      end if
+    elif p :: PInl(anything) then
+      if e :: Inl(anything) then return pattern_match(e0, op(1,e), op(1,p))
+      elif e :: Inr(anything) then return NULL
+      end if
+    elif p :: PInr(anything) then
+      if e :: Inr(anything) then return pattern_match(e0, op(1,e), op(1,p))
+      elif e :: Inl(anything) then return NULL
+      end if
+    elif p :: PEt(anything, anything) then
+      if e :: Et(anything, anything) then
+        substs := pattern_match(e0, op(1,e), op(1,p));
+        if substs = NULL then return NULL end if;
+        eSubst, pSubst := substs;
+        substs := pattern_match(e0, eval(op(2,e),eSubst), op(2,p));
+        if substs = NULL then return NULL end if;
+        return eSubst union substs[1], pSubst union substs[2];
+      elif e = Done then return NULL
+      end if
+    elif p = PDone then
+      if e = Done then return {}, {}
+      elif e :: Et(anything, anything) then return NULL
+      end if
+    elif p :: PKonst(anything) then
+      if e :: Konst(anything) then return pattern_match(e0, op(1,e), op(1,p))
+      end if
+    elif p :: PIdent(anything) then
+      if e :: Ident(anything) then return pattern_match(e0, op(1,e), op(1,p))
+      end if
+    else
+      error "pattern_match: %1 is not a pattern", p
+    end if;
+    pSubst := map((x -> `if`(depends(e0,x), x=gensym(x), NULL)),
+                  {pattern_binds(p)});
+    eSubst := {e=evalindets(
+                   evalindets[nocache](
+                     subs(pSubst,
+                          p_true=true,
+                          p_false=false,
+                          PDatum=Datum, PInr=Inr, PInl=Inl, PEt=Et, PDone=Done,
+                          PKonst=Konst, PIdent=Ident,
+                          p),
+                     identical(PWild),
+                     p -> gensym(_)),
+                   PVar(anything),
+                   p -> op(1,p))};
+    eSubst, pSubst
+  end proc;
+
+  make_piece := proc(rel)
+    # Try to prevent PiecewiseTools:-Is from complaining
+    # "Wrong kind of parameters in piecewise"
+    if rel :: {specfunc(anything, {And,Or,Not}), `and`, `or`, `not`} then
+      map(make_piece, rel)
+    elif rel :: {'`::`', 'boolean', '`in`'} then
+      rel
+    else
+      rel = true
+    end if
+  end proc;
+
+  map_piecewise := proc(f,p) # p may or may not be piecewise
+    local i;
+    if p :: 'specfunc(piecewise)' then
+      piecewise(seq(`if`(i::even or i=nops(p),f(op(i,p),_rest),op(i,p)),i=1..nops(p)))
+    else
+      f(p,_rest)
+    end if
+  end proc;
+
+  foldr_piecewise := proc(cons, nil, pw) # pw may or may not be piecewise
+    # View pw as a piecewise and foldr over its arms
+    if pw :: 'specfunc(piecewise)' then
+      foldr(proc(i,x) cons(op(i,pw), op(i+1,pw), x) end proc,
+            `if`(nops(pw)::odd, cons(true, op(-1,pw), nil), nil),
+            seq(1..nops(pw)-1, 2))
+    else
+      cons(true, pw, nil)
+    end if
+  end proc;
+
+  app := proc (func, argu)
+    if func :: 'lam(name, anything, anything)' then
+      eval(op(3,func), op(1,func)=argu)
+    elif func :: 'specfunc(piecewise)' then
+      map_piecewise(procname, _passed)
+    else
+      'procname(_passed)'
+    end if
+  end proc;
+
+  ary := proc (n, i, e)
+    if e :: 'idx'('freeof'(i), 'identical'(i)) then
+      # Array eta-reduction. Assume the size matches.  (We should keep array
+      # size information in the KB and use it here, but we don't currently.)
+      op(1,e)
+    else
+      'procname(_passed)'
+    end if
+  end proc;
+
+  idx := proc (a, i)
+    if a :: 'ary(anything, name, anything)' then
+      eval(op(3,a), op(2,a)=i)
+    elif a :: 'specfunc(piecewise)' then
+      map_piecewise(procname, _passed)
+    else
+      'procname(_passed)'
+    end if
+  end proc;
+
+  size := proc(a)
+    if a :: 'ary(anything, name, anything)' then
+      op(1,a)
+    elif a :: 'specfunc(piecewise)' then
+      map_piecewise(procname, _passed)
+    else
+      'procname(_passed)'
+    end if
+  end proc;
+
+  Datum := proc(hint, payload)
+    # Further cheating to equate Maple booleans and Hakaru booleans
+    if hint = true and payload = Inl(Done) or
+       hint = false and payload = Inr(Inl(Done)) then
+      hint
+    else
+      'procname(_passed)'
+    end if
+  end proc;
+
+  closed_bounds := proc(r::range)
+    Bound(`>=`, lhs(r)), Bound(`<=`, rhs(r))
+  end proc;
+
+  open_bounds := proc(r::range)
+    Bound(`>`, lhs(r)), Bound(`<`, rhs(r))
+  end proc;
+
+  # Enumerate patterns for a given Hakaru type
+  htype_patterns := proc(t::t_type)
+    :: specfunc(Branch(anything, list(t_type)), Branches);
+    local struct;
+    uses StringTools;
+    if t :: specfunc(DatumStruct(anything, list(Konst(anything))), HData) then
+      foldr(proc(struct,ps) Branches(
+              op(map((p -> Branch(PDatum(op(1,struct), PInl(op(1,p))),
+                                  op(2,p))),
+                     foldr(proc(kt,qs)
+                             local p, q;
+                             Branches(seq(seq(Branch(PEt(op(1,p),op(1,q)),
+                                                     [op(op(2,p)),op(op(2,q))]),
+                                              q in qs),
+                                          p in htype_patterns(op(1,kt))))
+                           end proc,
+                           Branches(Branch(PDone, [])), op(op(2,struct))))),
+              op(map[3](applyop, PInr, [1,2], ps)))
+            end proc,
+            Branches(), op(t))
+    else
+      Branches(Branch(PVar(gensym(convert(LowerCase(op(-1, ["x", op(
+                                            `if`(t::function,
+                                              select(IsUpper, Explode(op(0,t))),
+                                              []))])),
+                                          name))),
+                      [t]))
+    end if
+  end proc;
+
+  ModuleLoad := proc()
+    TypeTools[AddType](t_type,
+      '{specfunc(Bound(identical(`<`,`<=`,`>`,`>=`), anything),
+                 {AlmostEveryReal, HReal, HInt}),
+        specfunc(DatumStruct(anything, list({Konst(t_type), Ident(t_type)})),
+                 HData),
+        HMeasure(t_type),
+        HArray(t_type),
+        HFunction(t_type, t_type)}');
+    TypeTools[AddType](t_case,
+      'case(anything, specfunc(Branch(anything, anything), Branches))');
+  end proc;
+
+  ModuleUnload := proc()
+    TypeTools[RemoveType](t_case);
+    TypeTools[RemoveType](t_type);
+  end proc;
+
+  ModuleLoad();
+
+end module; # Hakaru
+
+#############################################################################
+
 KB := module ()
   option package;
   local KB, Introduce, Constrain,
@@ -237,12 +498,9 @@ KB := module ()
         ModuleLoad, ModuleUnload;
   export empty, genLebesgue, genType, assert,
          kb_subtract, simplify_assuming, kb_to_assumptions,
-         kb_piecewise,
-         closed_bounds, open_bounds,
-         htype_patterns;
-  global t_kb, t_type, Bound,
-         AlmostEveryReal, HReal, HInt, HData, HMeasure, HArray, HFunction,
-         DatumStruct, Konst, Ident;
+         kb_piecewise;
+  global t_kb;
+  uses Hakaru;
 
   empty := KB();
 
@@ -523,53 +781,8 @@ KB := module ()
                   i=1..n))
   end proc;
 
-  closed_bounds := proc(r::range)
-    Bound(`>=`, lhs(r)), Bound(`<=`, rhs(r))
-  end proc;
-
-  open_bounds := proc(r::range)
-    Bound(`>`, lhs(r)), Bound(`<`, rhs(r))
-  end proc;
-
-  # Enumerate patterns for a given Hakaru type
-  htype_patterns := proc(t::t_type)
-    :: specfunc(Branch(anything, list(t_type)), Branches);
-    local struct;
-    uses StringTools;
-    if t :: specfunc(DatumStruct(anything, list(Konst(anything))), HData) then
-      foldr(proc(struct,ps) Branches(
-              op(map((p -> Branch(PDatum(op(1,struct), PInl(op(1,p))),
-                                  op(2,p))),
-                     foldr(proc(kt,qs)
-                             local p, q;
-                             Branches(seq(seq(Branch(PEt(op(1,p),op(1,q)),
-                                                     [op(op(2,p)),op(op(2,q))]),
-                                              q in qs),
-                                          p in htype_patterns(op(1,kt))))
-                           end proc,
-                           Branches(Branch(PDone, [])), op(op(2,struct))))),
-              op(map[3](applyop, PInr, [1,2], ps)))
-            end proc,
-            Branches(), op(t))
-    else
-      Branches(Branch(PVar(gensym(convert(LowerCase(op(-1, ["x", op(
-                                            `if`(t::function,
-                                              select(IsUpper, Explode(op(0,t))),
-                                              []))])),
-                                          name))),
-                      [t]))
-    end if
-  end proc;
-
   ModuleLoad := proc()
-    TypeTools[AddType](t_type,
-      '{specfunc(Bound(identical(`<`,`<=`,`>`,`>=`), anything),
-                 {AlmostEveryReal, HReal, HInt}),
-        specfunc(DatumStruct(anything, list({Konst(t_type), Ident(t_type)})),
-                 HData),
-        HMeasure(t_type),
-        HArray(t_type),
-        HFunction(t_type, t_type)}');
+    Hakaru; # Make sure the KB module is loaded, for the type t_type
     TypeTools[AddType](t_kb,
       'specfunc({
          Introduce(name, t_type),
@@ -580,7 +793,6 @@ KB := module ()
 
   ModuleUnload := proc()
     TypeTools[RemoveType](t_kb);
-    TypeTools[RemoveType](t_type);
   end proc;
 
   ModuleLoad();
@@ -590,11 +802,11 @@ end module; # KB
 
 NewSLO := module ()
   option package;
-  local t_pw, t_case, t_binder, p_true, p_false,
+  local t_pw, t_binder,
         integrate_known, known_continuous, known_discrete,
         mk_sym, mk_ary, mk_idx, mk_HArray,
         unproduct, statement_info, unproducts, wrap, Stmt,
-        bind, weight, factorize, pattern_match, make_piece,
+        bind, weight, factorize,
         recognize_continuous, recognize_discrete, get_de, get_se,
         recognize_de, mysolve, Shiftop, Diffop, Recognized,
         reduce, reduce_pw, reduce_IntSum, reduce_IntsSums, reduce_prod,
@@ -605,11 +817,12 @@ NewSLO := module ()
         find_vars, kb_from_path, interpret, reconstruct, invert, 
         get_var_pos, get_int_pos,
         avoid_capture, change_var, disint2;
-  export Simplify,
+  export
      # note that these first few are smart constructors (for themselves):
-         case, app, ary, idx, size, integrate, applyintegrand, Datum, ints, sums,
+         integrate, applyintegrand, ints, sums,
      # while these are "proper functions"
-         unweight, map_piecewise,
+         Simplify,
+         unweight,
          toLO, fromLO, improve,
          RoundTrip, RoundTripLO, RoundTripCLO,
          toCLO, fromCLO, cimprove,
@@ -619,15 +832,8 @@ NewSLO := module ()
          disint;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
-  global Bind, Weight, Ret, Msum, Integrand, Plate, LO, Indicator, Ints, Sums,
-         Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD, StudentT,
-         Context,
-         lam,
-         Inr, Inl, Et, Done, Konst, Ident,
-         Branches, Branch,
-         PWild, PVar, PDatum, PInr, PInl, PEt, PDone, PKonst, PIdent,
-         measure;
-  uses KB;
+  global LO, Indicator, Ints, Sums, Context;
+  uses Hakaru, KB;
 
   Simplify := proc(e, t::t_type, kb::t_kb)
     local patterns, x, kb1, ex;
@@ -670,10 +876,7 @@ NewSLO := module ()
   end proc;
 
   t_pw    := 'specfunc(piecewise)';
-  t_case  := 'case(anything, specfunc(Branch(anything, anything), Branches))';
   t_binder:= 'Stmt(identical(product,Product,sum,Sum), [], [name=range])';
-  p_true  := 'PDatum(true,PInl(PDone))';
-  p_false := 'PDatum(false,PInr(PInl(PDone)))';
 
 # An integrand h is either an Integrand (our own binding construct for a
 # measurable function to be integrated) or something that can be applied
@@ -1187,15 +1390,6 @@ NewSLO := module ()
 
   nub_piecewise := proc(pw) # pw may or may not be piecewise
     foldr_piecewise(piecewise_if, 0, pw)
-  end proc;
-
-  map_piecewise := proc(f,p)
-    local i;
-    if p :: t_pw then
-      piecewise(seq(`if`(i::even or i=nops(p),f(op(i,p),_rest),op(i,p)),i=1..nops(p)))
-    else
-      f(p,_rest)
-    end if
   end proc;
 
   ints := proc(e::anything, x::name, r::range, l::list(name=range))
@@ -1860,89 +2054,6 @@ NewSLO := module ()
     end if;
   end proc;
 
-  case := proc(e, bs :: specfunc(Branch(anything, anything), Branches))
-    local ret, b, substs, eSubst, pSubst, p, binds, uncertain;
-    ret := Branches();
-    for b in bs do
-      substs := pattern_match(e, e, op(1,b));
-      if substs <> NULL then
-        eSubst, pSubst := substs;
-        p := subs(pSubst, op(1,b));
-        binds := {pattern_binds(p)};
-        uncertain := remove((eq -> lhs(eq) in binds), eSubst);
-        if nops(uncertain) = 0 then p := PWild end if;
-        ret := Branches(op(ret),
-                        Branch(p, eval(eval(op(2,b), pSubst), eSubst)));
-        if nops(uncertain) = 0 then break end if;
-      end if
-    end do;
-    if ret :: Branches(Branch(identical(PWild), anything)) then
-      op([1,2], ret)
-    elif ret :: Branches(Branch(identical(p_true), anything),
-                         Branch({identical(p_false),
-                                 identical(PWild),
-                                 PVar(anything)}, anything)) then
-      piecewise(make_piece(e), op([1,2], ret), op([2,2], ret))
-    elif ret :: Branches(Branch(identical(p_false), anything),
-                         Branch({identical(p_true),
-                                 identical(PWild),
-                                 PVar(anything)}, anything)) then
-      piecewise(make_piece(e), op([2,2], ret), op([1,2], ret))
-    else
-      'case'(e, ret)
-    end if
-  end proc;
-
-  Datum := proc(hint, payload)
-    # Further cheating to equate Maple booleans and Hakaru booleans
-    if hint = true and payload = Inl(Done) or
-       hint = false and payload = Inr(Inl(Done)) then
-      hint
-    else
-      'procname(_passed)'
-    end if
-  end proc;
-
-  app := proc (func, argu)
-    if func :: lam(name, anything, anything) then
-      eval(op(3,func), op(1,func)=argu)
-    elif func :: t_pw then
-      map_piecewise(procname, _passed)
-    else
-      'procname(_passed)'
-    end if
-  end proc;
-
-  ary := proc (n, i, e)
-    if e :: 'idx'('freeof'(i), 'identical'(i)) then
-      # Array eta-reduction. Assume the size matches.  (We should keep array
-      # size information in the KB and use it here, but we don't currently.)
-      op(1,e)
-    else
-      'procname(_passed)'
-    end if
-  end proc;
-
-  idx := proc (a, i)
-    if a :: 'ary'(anything, name, anything) then
-      eval(op(3,a), op(2,a)=i)
-    elif a :: t_pw then
-      map_piecewise(procname, _passed)
-    else
-      'procname(_passed)'
-    end if
-  end proc;
-
-  size := proc(a)
-    if a :: 'ary'(anything, name, anything) then
-      op(1,a)
-    elif a :: t_pw then
-      map_piecewise(procname, _passed)
-    else
-      'procname(_passed)'
-    end if
-  end proc;
-
   unweight := proc(m)
     local total, ww, mm;
     if m :: 'Weight(anything, anything)' then
@@ -1963,87 +2074,6 @@ NewSLO := module ()
       (weight, 1)
     else
       (1, weight)
-    end if
-  end proc;
-
-  pattern_match := proc(e0, e, p)
-    local x, substs, eSubst, pSubst;
-    if p = PWild then return {}, {}
-    elif p :: PVar(anything) then
-      x := op(1,p);
-      pSubst := {`if`(depends(e0,x), x=gensym(x), NULL)};
-      return {subs(pSubst,x)=e}, pSubst;
-    elif p = p_true then
-      if e = true then return {}, {}
-      elif e = false then return NULL
-      end if
-    elif p = p_false then
-      if e = false then return {}, {}
-      elif e = true then return NULL
-      end if
-    elif p :: PDatum(anything, anything) then
-      if e :: Datum(anything, anything) then
-        if op(1,e) = op(1,p) then return pattern_match(e0, op(2,e), op(2,p))
-        else return NULL
-        end if
-      end if
-    elif p :: PInl(anything) then
-      if e :: Inl(anything) then return pattern_match(e0, op(1,e), op(1,p))
-      elif e :: Inr(anything) then return NULL
-      end if
-    elif p :: PInr(anything) then
-      if e :: Inr(anything) then return pattern_match(e0, op(1,e), op(1,p))
-      elif e :: Inl(anything) then return NULL
-      end if
-    elif p :: PEt(anything, anything) then
-      if e :: Et(anything, anything) then
-        substs := pattern_match(e0, op(1,e), op(1,p));
-        if substs = NULL then return NULL end if;
-        eSubst, pSubst := substs;
-        substs := pattern_match(e0, eval(op(2,e),eSubst), op(2,p));
-        if substs = NULL then return NULL end if;
-        return eSubst union substs[1], pSubst union substs[2];
-      elif e = Done then return NULL
-      end if
-    elif p = PDone then
-      if e = Done then return {}, {}
-      elif e :: Et(anything, anything) then return NULL
-      end if
-    elif p :: PKonst(anything) then
-      if e :: Konst(anything) then return pattern_match(e0, op(1,e), op(1,p))
-      end if
-    elif p :: PIdent(anything) then
-      if e :: Ident(anything) then return pattern_match(e0, op(1,e), op(1,p))
-      end if
-    else
-      error "pattern_match: %1 is not a pattern", p
-    end if;
-    pSubst := map((x -> `if`(depends(e0,x), x=gensym(x), NULL)),
-                  {pattern_binds(p)});
-    eSubst := {e=evalindets(
-                   evalindets[nocache](
-                     subs(pSubst,
-                          p_true=true,
-                          p_false=false,
-                          PDatum=Datum, PInr=Inr, PInl=Inl, PEt=Et, PDone=Done,
-                          PKonst=Konst, PIdent=Ident,
-                          p),
-                     identical(PWild),
-                     p -> gensym(_)),
-                   PVar(anything),
-                   p -> op(1,p))};
-    eSubst, pSubst
-  end proc;
-
-  make_piece := proc(rel)
-    # Try to prevent PiecewiseTools:-Is from complaining
-    # "Wrong kind of parameters in piecewise"
-    if rel :: {specfunc(anything, {And,Or,Not}), `and`, `or`, `not`} then
-      map(make_piece, rel)
-    elif rel :: {'`::`', 'boolean', '`in`'} then
-      rel
-    else
-      rel = true
     end if
   end proc;
 
@@ -2402,7 +2432,8 @@ NewSLO := module ()
 
   ModuleLoad := proc()
     local prev;
-    KB; # Make sure the KB module is loaded, for the types t_type and t_kb
+    Hakaru; # Make sure the KB module is loaded, for the type t_type
+    KB;     # Make sure the KB module is loaded, for the type t_kb
     VerifyTools[AddVerification](measure = verify_measure);
     prev := kernelopts(opaquemodules=false);
     try

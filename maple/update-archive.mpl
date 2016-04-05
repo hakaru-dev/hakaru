@@ -35,5 +35,6 @@ LibraryTools:-Save(`eval/int`, lib):
 LibraryTools:-Save(`eval/sum`, lib):
 LibraryTools:-Save(foldr_piecewise, lib):
 LibraryTools:-Save(`gensym`, lib):
+LibraryTools:-Save('Hakaru', lib):
 LibraryTools:-Save('KB', lib):
 LibraryTools:-Save('NewSLO', lib):
