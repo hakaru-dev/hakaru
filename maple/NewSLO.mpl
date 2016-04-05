@@ -613,7 +613,7 @@ NewSLO := module ()
          toLO, fromLO, improve,
          RoundTrip, RoundTripLO, RoundTripCLO,
          toCLO, fromCLO, cimprove,
-         TestHakaru, TestSimplify, measure, density, bounds,
+         TestHakaru, TestSimplify, density, bounds,
          unintegrate,
          ReparamDetermined, determined, Reparam, Banish,
          disint;
@@ -624,7 +624,9 @@ NewSLO := module ()
          Context,
          lam,
          Inr, Inl, Et, Done, Konst, Ident,
-         Branches, Branch, PWild, PVar, PDatum, PInr, PInl, PEt, PDone, PKonst, PIdent;
+         Branches, Branch,
+         PWild, PVar, PDatum, PInr, PInl, PEt, PDone, PKonst, PIdent,
+         measure;
   uses KB;
 
   Simplify := proc(e, t::t_type, kb::t_kb)
