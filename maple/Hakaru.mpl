@@ -256,17 +256,7 @@ Hakaru := module ()
       thisproc(subs(op(1,m)=x, op(2,m)),
                subs(op(1,n)=x, op(2,n)), v)
     else
-      verify(m, n, {v,
-        Lebesgue(),
-        Uniform(v, v),
-        Gaussian(v, v),
-        Cauchy(v, v),
-        StudentT(v, v, v),
-        BetaD(v, v),
-        GammaD(v, v),
-        Ret(mv),
-        Weight(v, mv)
-      })
+      verify(m, n, {v, Ret(mv), Weight(v, mv)})
     end if
   end proc;
 
