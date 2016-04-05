@@ -19,7 +19,8 @@ while (<>) {
             $lhs = $+;
         }
         if (defined $lhs) {
-            @{$use{$lhs}}{/\w+/g} = ();
+            @{$use{$lhs}}
+             {grep defined, m{([[:alpha:]%]\w+)|`([^`]*?)`|"[^"]*?"}g} = ();
             if (exists $style{$lhs}
                   ? /[;:]\s*$/
                   : /^(\S.*)?\bend(\s+proc)?[\s;:]*$/) {
