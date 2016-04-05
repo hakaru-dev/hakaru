@@ -185,19 +185,6 @@ allTests = test
 --    , testOther
     ]
 
-
-----------------------------------------------------------------
--- Some common subexpressions
-
--- TODO: move to Prelude.hs
--- HACK: will throw errors if the input is negative and the required output is 'HProb'
-
-half :: (ABT Term abt, HFractional_ a) => abt '[] a
-half = fromRational (1/2)
-
-third :: (ABT Term abt, HFractional_ a) => abt '[] a
-third = fromRational (1/3)
-
 ----------------------------------------------------------------
 -- In Maple, should 'evaluate' to "\c -> 1/2*c(Unit)"
 t1 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
