@@ -105,7 +105,7 @@ NewSLO := module ()
          disint;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
-  global LO, Indicator, Ints, Sums, Context;
+  global LO, Integrand, Indicator, Ints, Sums, Context;
   uses Hakaru, KB;
 
   Simplify := proc(e, t::t_type, kb::t_kb)
