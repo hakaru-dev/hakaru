@@ -95,7 +95,7 @@ NewSLO := module ()
          integrate, applyintegrand, ints, sums,
      # while these are "proper functions"
          Simplify,
-         unweight,
+         unweight, superpose,
          toLO, fromLO, improve,
          RoundTrip, RoundTripLO, RoundTripCLO,
          toCLO, fromCLO, cimprove,
@@ -1335,6 +1335,11 @@ NewSLO := module ()
     else
       (1, m)
     end if;
+  end proc;
+
+  # superpose is like Msum, but weights each summand explicitly
+  superpose := proc()
+    map(Weight@unweight, 'procname(_passed)')
   end proc;
 
   factorize := proc(w, x)
