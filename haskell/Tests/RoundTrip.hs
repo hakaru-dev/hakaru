@@ -333,7 +333,7 @@ t35 = lam $ \x -> dirac (if_ ((x `asTypeOf` log one) < (real_ 4)) (prob_ 3) (pro
 
 t36, t36' :: (ABT Term abt) => abt '[] ('HProb ':-> 'HMeasure 'HProb)
 t36 = lam (dirac . sqrt)
-t36' = lam $ \x -> if_ (x < zero) (dirac (prob_ (-337))) (dirac (sqrt x))
+t36' = lam $ \x -> dirac (x ** (prob_ 0.5))
 
 t37 :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure 'HReal)
 t37 = lam (dirac . recip)
