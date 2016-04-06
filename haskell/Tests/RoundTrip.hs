@@ -29,7 +29,7 @@ import Tests.Models
 
 testMeasureUnit :: Test
 testMeasureUnit = test [
-    "t1,t5"   ~: testSStriv [t1,t5] (weight (unsafeProb half)),
+    "t1,t5"   ~: testSStriv [t1,t5] (weight half),
     "t10"     ~: testSStriv [t10] (superpose []),
     "t11,t22" ~: testSStriv [t11,t22] (dirac unit),
     "t12"     ~: testSStriv [] t12,
@@ -56,7 +56,7 @@ testMeasureUnit = test [
 testMeasureProb :: Test
 testMeasureProb = test [
     "t2"  ~: testSStriv [t2] (unsafeProb <$> uniformC zero one),
-    "t26" ~: testSStriv [t26] (dirac (unsafeProb half)),
+    "t26" ~: testSStriv [t26] (dirac half),
     "t30" ~: testSStriv [] t30,
     "t33" ~: testSStriv [] t33,
     "t34" ~: testSStriv [t34] (dirac (nat2prob (nat_ 3))),
@@ -67,8 +67,8 @@ testMeasureProb = test [
     --"t61" ~: testSStriv [t61] t61',
     "t66" ~: testSStriv [] t66,
     --"t67" ~: testSStriv [] t67,
-    "t69x" ~: testSStriv [t69x] (dirac (unsafeProb . real_ $ 3/2)),
-    "t69y" ~: testSStriv [t69y] (dirac (unsafeProb . real_ $ 7/2))
+    "t69x" ~: testSStriv [t69x] (dirac (prob_ $ 3 Prelude./ 2)),
+    "t69y" ~: testSStriv [t69y] (dirac (prob_ $ 7 Prelude./ 2))
     ]
 
 testMeasureReal :: Test
@@ -78,7 +78,7 @@ testMeasureReal = test
     , "t7"  ~: testSStriv [t7] t7'
     , "t7n" ~: testSStriv [t7n] t7n'
     --, "t8'" ~: testSStriv [t8'] (lam $ \s1 -> lam $ \s2 -> normal zero (sqrt (s1 ^ 2 + s2 ^ 2)))
-    , "t9"  ~: testSStriv [t9] (superpose [((prob_ 2), uniform (real_ 3) (real_ 7))])
+    , "t9"  ~: testSStriv [t9] (superpose [((nat2prob . nat_ $ 2), uniformC (nat_ 3) (nat_ 7))])
     , "t13" ~: testSStriv [t13] t13'
     , "t14" ~: testSStriv [t14] t14'
     --, "t21" ~: testStriv t21
@@ -96,22 +96,22 @@ testMeasureReal = test
     --, "t68'" ~: testStriv t68'
     , "t70a" ~: testSStriv [t70a] (uniformC one (nat_ 3))
     , "t71a" ~: testSStriv [t71a] (uniformC one (nat_ 3))
-    , "t72a" ~: testSStriv [t72a] (withWeight (unsafeProb half) $ uniformC one (nat_ 2))
+    , "t72a" ~: testSStriv [t72a] (withWeight half $ uniformC one (nat_ 2))
     , "t73a" ~: testSStriv [t73a] (superpose [])
     , "t74a" ~: testSStriv [t74a] (superpose [])
     , "t70b" ~: testSStriv [t70b] (superpose [])
     , "t71b" ~: testSStriv [t71b] (superpose [])
-    , "t72b" ~: testSStriv [t72b] (withWeight (unsafeProb half) $ uniformC (nat_ 2) (nat_ 3))
+    , "t72b" ~: testSStriv [t72b] (withWeight half $ uniformC (nat_ 2) (nat_ 3))
     , "t73b" ~: testSStriv [t73b] (uniformC one (nat_ 3))
     , "t74b" ~: testSStriv [t74b] (uniformC one (nat_ 3))
     , "t70c" ~: testSStriv [t70c] (uniformC one (nat_ 3))
     , "t71c" ~: testSStriv [t71c] (uniformC one (nat_ 3))
-    , "t72c" ~: testSStriv [t72c] (withWeight (unsafeProb half) $ uniformC one (nat_ 2))
+    , "t72c" ~: testSStriv [t72c] (withWeight half $ uniformC one (nat_ 2))
     , "t73c" ~: testSStriv [t73c] (superpose [])
     , "t74c" ~: testSStriv [t74c] (superpose [])
     , "t70d" ~: testSStriv [t70d] (superpose [])
     , "t71d" ~: testSStriv [t71d] (superpose [])
-    , "t72d" ~: testSStriv [t72d] (withWeight (unsafeProb half) $ uniformC (nat_ 2) (nat_ 3))
+    , "t72d" ~: testSStriv [t72d] (withWeight half $ uniformC (nat_ 2) (nat_ 3))
     , "t73d" ~: testSStriv [t73d] (uniformC one (nat_ 3))
     , "t74d" ~: testSStriv [t74d] (uniformC one (nat_ 3))
     --, "t76" ~: testStriv t76

@@ -333,6 +333,8 @@ maple2AST (InertArgs Equal es) =
 -- Add special case for NatPow for Power
 maple2AST (InertArgs Power [x, y]) =
     App (App (Var "**") (maple2AST x)) (maple2AST y)
+maple2AST (InertArgs Rational [InertNum Pos x, InertNum Pos y]) =
+    ULiteral $ Prob $ fromInteger x / fromInteger y
 maple2AST (InertArgs Rational [InertNum _ x, InertNum _ y]) =
     ULiteral $ Real $ fromInteger x / fromInteger y
 
