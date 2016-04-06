@@ -82,7 +82,7 @@ residualizeExpect
     -> Expect abt (abt '[] a)
 residualizeExpect e =
     var <$> emit Text.empty (sUnMeasure $ typeOf e)
-        (\f -> syn (AST.Expect :$ e :* f :* End))
+        (\c -> syn (AST.Expect :$ e :* c :* End))
 
 -- This version checks whether the first argument is a variable or not, avoiding the extraneous let binding as appropriate. We also avoid using 'binder', which is good because it constructs the term more directly, but is bad because we make no guarantees about hygiene! We expect callers to handle that.
 -- TODO: move this elsewhere, so that 'runExpect' can use it.

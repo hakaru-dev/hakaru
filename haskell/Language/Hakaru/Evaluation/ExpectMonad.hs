@@ -44,7 +44,7 @@ import           Control.Applicative  (Applicative(..))
 import qualified Data.Foldable        as F
 
 import Language.Hakaru.Syntax.IClasses (Some2(..))
-import Language.Hakaru.Syntax.ABT      (ABT(..), maxNextFree)
+import Language.Hakaru.Syntax.ABT      (ABT(..), caseVarSyn, subst, maxNextFree)
 import Language.Hakaru.Syntax.AST      hiding (Expect)
 import Language.Hakaru.Evaluation.Types
 import Language.Hakaru.Evaluation.Lazy (TermEvaluator, evaluate, defaultCaseEvaluator)
@@ -93,9 +93,11 @@ runExpect (Expect m) f es =
     where
     i0   = nextFree f `max` maxNextFree es
     h0   = ListContext i0 []
-    c0 e = residualizePureListContext (syn (Let_ :$ e :* f :* End))
-    -- We could use @inst@ in lieu of 'Let_', though that might cause a loss of sharing.
-    -- TODO: use a smarter let-binding, so that if @e@ is already a variable then we just rename rather than introducing a new let-binding.
+    c0 e =
+        residualizePureListContext $
+        caseVarSyn e
+            (\x -> caseBind f $ \y f' -> subst y (var x) f')
+            (\_ -> syn (Let_ :$ e :* f :* End))
 
 
 ----------------------------------------------------------------
