@@ -13,7 +13,6 @@ import Prelude ((.), ($), asTypeOf)
 
 import Language.Hakaru.Syntax.Prelude
 import Language.Hakaru.Types.DataKind
---import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Syntax.AST (Term)
 import Language.Hakaru.Syntax.ABT (ABT)
 import Language.Hakaru.Expect     (total)
@@ -68,8 +67,8 @@ testMeasureProb = test [
     "t61" ~: testSStriv [t61] t61',
     "t66" ~: testSStriv [] t66,
     "t67" ~: testSStriv [] t67,
-    "t69x" ~: testSStriv [t69x] (dirac $ (prob_ 3)/(prob_ 2)),
-    "t69y" ~: testSStriv [t69y] (dirac $ (prob_ 7)/(prob_ 2))
+    "t69x" ~: testSStriv [t69x] (dirac $ prob_ 1.5),
+    "t69y" ~: testSStriv [t69y] (dirac $ prob_ 3.5)
     ]
 
 testMeasureReal :: Test
@@ -166,12 +165,12 @@ testMeasurePair = test [
 
 testOther :: Test
 testOther = test [
+    "t82" ~: testSStriv [t82] t82',
     "testRoadmapProg1" ~: testStriv rmProg1,
     "testRoadmapProg4" ~: testStriv rmProg4,
-    "testKernel" ~: testSStriv [testKernel] testKernel2,
-    "testFalseDetection" ~: testStriv (lam seismicFalseDetection)
-    --this doesn't typecheck because Either isn't Simplifiable yet:
-    -- TODO "testTrueDetection" ~: testStriv (lam2 seismicTrueDetection)
+    "testKernel" ~: testSStriv [testKernel] testKernel2
+    --"testFalseDetection" ~: testStriv (lam seismicFalseDetection),
+    --"testTrueDetection" ~: testStriv (lam2 seismicTrueDetection)
     --"testTrueDetectionL" ~: testStriv tdl,
     --"testTrueDetectionR" ~: testStriv tdr
     ]
@@ -809,6 +808,12 @@ t80 = gamma_1_1 >>= \t -> normal zero t
 t81 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
 t81 = uniform (nat2real zero) pi
 
+t82 :: (ABT Term abt) => abt '[] ('HReal ':-> 'HProb)
+t82 = lam (densityUniform zero one)
+
+t82' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HProb)
+t82' = lam $ \x -> nat2prob one 
+
 -- Testing round-tripping of some other distributions
 testexponential :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
 testexponential = exponential third
@@ -1242,34 +1247,34 @@ rmProg4 =
 
 
 -- this comes from Examples.Seismic.falseDetection
-seismicFalseDetection
-    :: (ABT Term abt)
-    => abt '[] (HPair 'HReal (HPair 'HReal (HPair 'HReal (HPair 'HReal (HPair 'HReal (HPair 'HProb (HPair 'HProb (HPair 'HProb (HPair 'HReal (HPair 'HReal (HPair 'HReal (HPair 'HProb (HPair 'HProb (HPair 'HReal 'HProb))))))))))))))
-    -> abt '[] ('HMeasure (HPair 'HReal (HPair 'HReal (HPair 'HReal 'HProb))))
-seismicFalseDetection x0 =
-    x0 `unpair` \x1 x2 ->
-    x2 `unpair` \x3 x4 ->
-    x4 `unpair` \x5 x6 ->
-    x6 `unpair` \x7 x8 ->
-    x8 `unpair` \x9 x10 ->
-    x10 `unpair` \x11 x12 ->
-    x12 `unpair` \x13 x14 ->
-    x14 `unpair` \x15 x16 ->
-    x16 `unpair` \x17 x18 ->
-    x18 `unpair` \x19 x20 ->
-    x20 `unpair` \x21 x22 ->
-    x22 `unpair` \x23 x24 ->
-    x24 `unpair` \x25 x26 ->
-    x26 `unpair` \x27 x28 ->
-    uniform zero (real_ 3600) >>= \x29 ->
-    uniform zero (real_ 360) >>= \x30 ->
-    uniform (negate (real_ 23)/(real_ 500) * (real_ 180) + (real_ 107)/(real_ 10)) (negate (real_ 23)/(real_ 500) * zero + (real_ 107)/(real_ 10)) >>= \x31 ->
-    (
-        normal_0_1 >>= \x32 ->
-        normal_0_1 >>= \x33 ->
-        dirac (x27 + fromProb x28 * (x32 / x33))
-    ) >>= \x32 ->
-    dirac (pair x29 (pair x30 (pair x31 (exp x32))))
+-- seismicFalseDetection
+--     :: (ABT Term abt)
+--     => abt '[] (HPair 'HReal (HPair 'HReal (HPair 'HReal (HPair 'HReal (HPair 'HReal (HPair 'HProb (HPair 'HProb (HPair 'HProb (HPair 'HReal (HPair 'HReal (HPair 'HReal (HPair 'HProb (HPair 'HProb (HPair 'HReal 'HProb))))))))))))))
+--     -> abt '[] ('HMeasure (HPair 'HReal (HPair 'HReal (HPair 'HReal 'HProb))))
+-- seismicFalseDetection x0 =
+--     x0 `unpair` \x1 x2 ->
+--     x2 `unpair` \x3 x4 ->
+--     x4 `unpair` \x5 x6 ->
+--     x6 `unpair` \x7 x8 ->
+--     x8 `unpair` \x9 x10 ->
+--     x10 `unpair` \x11 x12 ->
+--     x12 `unpair` \x13 x14 ->
+--     x14 `unpair` \x15 x16 ->
+--     x16 `unpair` \x17 x18 ->
+--     x18 `unpair` \x19 x20 ->
+--     x20 `unpair` \x21 x22 ->
+--     x22 `unpair` \x23 x24 ->
+--     x24 `unpair` \x25 x26 ->
+--     x26 `unpair` \x27 x28 ->
+--     uniform zero (real_ 3600) >>= \x29 ->
+--     uniform zero (real_ 360) >>= \x30 ->
+--     uniform (negate (real_ 23)/(real_ 500) * (real_ 180) + (real_ 107)/(real_ 10)) (negate (real_ 23)/(real_ 500) * zero + (real_ 107)/(real_ 10)) >>= \x31 ->
+--     (
+--         normal_0_1 >>= \x32 ->
+--         normal_0_1 >>= \x33 ->
+--         dirac (x27 + fromProb x28 * (x32 / x33))
+--     ) >>= \x32 ->
+--     dirac (pair x29 (pair x30 (pair x31 (exp x32))))
 
 
 ---- this comes from Examples.Seismic.trueDetection

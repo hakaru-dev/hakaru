@@ -33,12 +33,6 @@ allTests env = test
   , TestLabel "RoundTrip"    (simplifyTests RT.allTests env)
   ]
 
---t1 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
---t1 = uniform_0_1 >>= \x -> factor (unsafeProb x)
-
---t5 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
---t5 = factor half >> dirac unit
-
 main :: IO ()
 main  = do
     env <- lookupEnv "LOCAL_MAPLE"
