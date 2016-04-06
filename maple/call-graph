@@ -4,8 +4,8 @@
 use strict;
 
 my %style = (
-    local  => "shape=oval, style=dotted",
-    export => "shape=oval",
+    local  => "",
+    export => "shape=rect",
 );
 
 my %use;
@@ -34,11 +34,16 @@ foreach my $kind (keys %style) {
     foreach my $name (keys %{$use{$kind}}) { $use{$name}{""} = $kind }
 }
 delete @use{keys %style};
+delete @use{qw(t_pw applyintegrand)};
 
 print <<END;
 digraph NewSLO {
-  rankdir=LR;
-  node [shape=plaintext];
+  rotate=90;
+  size="10,7.5";
+  margin=0.5;
+  rankdir=TB;
+  ratio=fill;
+  node [shape=plaintext, fontsize=24, fontname=Helvetica];
 END
 foreach my $lhs (keys %use) {
     my @rhs = grep { $lhs ne $_ && exists $use{$_} } keys %{$use{$lhs}};
