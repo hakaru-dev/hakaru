@@ -207,4 +207,4 @@ kl :: (ABT Term abt)
 kl p q = do
   dp <- determine $ density p
   dq <- determine $ density q
-  return $ expect p (\i -> log (app dp i / app dq i))
+  return $ expect p (\i -> unsafeProb $ log (app dp i / app dq i))

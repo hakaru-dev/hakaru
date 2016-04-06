@@ -58,7 +58,7 @@ module Language.Hakaru.Syntax.Prelude
     -- ** Continuous
     , RealProb(..)
     , betaFunc
-    , logBase
+    , log, logBase
     , negativeInfinity
     -- *** Trig
     , sin, cos, tan, asin, acos, atan, sinh, cosh, tanh, asinh, acosh, atanh
@@ -636,7 +636,6 @@ summate lo hi f =
 class RealProb (a :: Hakaru) where
     (**) :: (ABT Term abt) => abt '[] 'HProb -> abt '[] a -> abt '[] 'HProb
     exp  :: (ABT Term abt) => abt '[] a -> abt '[] 'HProb
-    log  :: (ABT Term abt) => abt '[] 'HProb -> abt '[] a -- HACK
     erf  :: (ABT Term abt) => abt '[] a -> abt '[] a
     pi   :: (ABT Term abt) => abt '[] a
     infinity :: (ABT Term abt) => abt '[] a
@@ -645,7 +644,6 @@ class RealProb (a :: Hakaru) where
 instance RealProb 'HReal where
     (**)      = primOp2_ RealPow
     exp       = primOp1_ Exp
-    log       = primOp1_ Log
     erf       = primOp1_ $ Erf hContinuous
     pi        = fromProb $ primOp0_ Pi
     infinity  = fromProb $ primOp0_ Infinity
@@ -654,17 +652,19 @@ instance RealProb 'HReal where
 instance RealProb 'HProb where
     x ** y    = primOp2_ RealPow x $ fromProb y
     exp       = primOp1_ Exp . fromProb
-    log       = unsafeProb . primOp1_ Log -- error for inputs in [0,1)
     erf       = primOp1_ $ Erf hContinuous
     pi        = primOp0_ Pi
     infinity  = primOp0_ Infinity
     gammaFunc = primOp1_ GammaFunc . fromProb
 
+log  :: (ABT Term abt) => abt '[] 'HProb -> abt '[] 'HReal
+log = primOp1_ Log
+
 logBase
-    :: (ABT Term abt, RealProb a, HFractional_ a)
+    :: (ABT Term abt)
     => abt '[] 'HProb
     -> abt '[] 'HProb
-    -> abt '[] a
+    -> abt '[] 'HReal
 logBase b x = log x / log b -- undefined when b == 1
 
 sin, cos, tan, asin, acos, atan, sinh, cosh, tanh, asinh, acosh, atanh
