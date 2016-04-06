@@ -133,33 +133,20 @@ expectTerm e = do
         Head_ (WMBind e1 e2)    -> do
             v1 <- expectTerm e1
             expectTerm (let_ v1 e2)
-            {-
-            -- BUG: the new continuation we're passing to @expectTerm e1@ has 'Eval' type in the result. Really the issue here is that whatever new 'SLet' bindings are introduced in the nested call need to be residualized immediately around the nested call, instead of left on the heap for being residualized further up. Conversely, we cannot allow any 'SLet' bindings in the initial heap given to the nested call to be residualized there; since that would cause hygiene errors.
-            caseBind e2 $ \x e2' -> do
-            y <- freshenVar x
-            expectTerm e1 . bind y $
-                -- TODO: store the variable renaming in the 'Eval' monad so as to perform it lazily.
-                expectTerm (subst x (var y) e2') c
-            -}
         Head_ (WPlate _ _)     -> error "TODO: expect{Plate}"
         Head_ (WChain _ _ _)   -> error "TODO: expect{Chain}"
         Head_ (WSuperpose pes) -> expectSuperpose pes
 
 
 -- N.B., we guarantee that each @e@ is called with the same heap
--- @h@ and emission-continuation @k@ (in addition to passing them
--- all the same function being integrated @c@).
---
--- BUG: the result of 'unEval' at @k@ and @h@ is some existential
--- type; not prob. Should we identify @c@ with @k@, or define yet
--- another monad (like 'Eval' but monomorphic at the final return
--- type of Prob)?
+-- @h@ and continuation @c@.
 expectSuperpose
     :: (ABT Term abt)
     => [(abt '[] 'HProb, abt '[] ('HMeasure a))]
     -> Expect abt (abt '[] a)
 expectSuperpose pes =
-    -- BUG: we can't really merge the heaps afterwards... Also, this seems to loop...
+    -- BUG: we can't really merge the heaps afterwards...
+    -- BUG: we assume each @p@ is emissible!
     Expect $ \c h ->
         P.sum [ p P.* unExpect (expectTerm e) c h | (p,e) <- pes]
     -- BUG: in the Lazy.tex paper, we use @denotation p h@. We need that here too since @p@ may use variables bound in @h@!!
@@ -207,8 +194,15 @@ expectMeasureOp Lebesgue = \End ->
     var <$> emitIntegrate P.negativeInfinity P.infinity
 expectMeasureOp Counting = \End ->
     var <$> emitSummate P.negativeInfinity P.infinity
-expectMeasureOp Categorical = \(ps :* End) ->
-    error "TODO: expectMeasureOp{Categorical}"
+expectMeasureOp Categorical = \(ps :* End) -> do
+    ps' <- var <$> emitLet ps
+    tot <- var <$> emitLet (P.summateV ps')
+    emit_ (\c -> P.if_ (P.zero P.< tot) c P.zero)
+    i <- freshVar Text.empty SNat
+    Expect $ \c h ->
+        P.summateV
+            (syn (Array_ (P.size ps') (bind i ((ps' P.! var i) P.* c (var i) h))))
+            P./ tot
     {-
     let_ ps $ \ps' ->
     let_ (summateV ps') $ \tot ->

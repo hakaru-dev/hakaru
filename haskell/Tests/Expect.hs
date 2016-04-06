@@ -26,9 +26,17 @@ import Language.Hakaru.Disintegrate (disintegrateWithVar)
 -- Should return a program equivalent to @lam $ \x -> x@.
 --
 -- BUG: this seems to work fine for the old @Expect.hs@ but it loops
--- forever with the new @Expect2.hs@.
+-- forever with the new @Expect2.hs@. This appears to be due to the
+-- use of 'binder' in 'lam', since 'test1b' works fine...
 test1 :: TrivialABT Term '[] ('HProb ':-> 'HProb)
 test1 = lam $ \x -> total (weight x)
+
+-- | A variant of 'test1' which doesn't use 'binder' but rather
+-- builds the binding structure directly.
+test1b :: TrivialABT Term '[] ('HProb ':-> 'HProb)
+test1b = syn (Lam_ :$ bind x (total (weight (var x))) :* End)
+    where
+    x = Variable (Text.pack "eks") 2 SProb
 
 
 -- | Again the main thing is that this should typecheck and not
@@ -41,7 +49,7 @@ test1 = lam $ \x -> total (weight x)
 test2 :: TrivialABT Term '[] ('HMeasure 'HProb ':-> 'HProb)
 test2 = syn (Lam_ :$ bind x (total (var x)) :* End)
     where
-    x = Variable (Text.pack "x") 2 (SMeasure SProb)
+    x = Variable (Text.pack "eks") 2 (SMeasure SProb)
 -- TODO: Is there any way to work around the problem so we don't
 -- need to manually generate our own variable? Maybe by explicitly
 -- using the 'Expect' primop, and then performing the evaluation
@@ -60,7 +68,7 @@ test2 = syn (Lam_ :$ bind x (total (var x)) :* End)
 test3 :: TrivialABT Term '[] (('HInt ':-> 'HMeasure 'HProb) ':-> 'HProb)
 test3 = syn (Lam_ :$ bind x (total (var x `app` int_ 3)) :* End)
     where
-    x = Variable (Text.pack "x") 2 (SFun SInt $ SMeasure SProb)
+    x = Variable (Text.pack "eks") 2 (SFun SInt $ SMeasure SProb)
 
 
 -- | Should return the same thing as @total (dirac unit)@ (namely

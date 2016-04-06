@@ -98,6 +98,7 @@ runExpect (Expect m) f es =
         caseVarSyn e
             (\x -> caseBind f $ \y f' -> subst y (var x) f')
             (\_ -> syn (Let_ :$ e :* f :* End))
+        -- TODO: make this smarter still, to drop the let-binding entirely if it's not used in @f@.
 
 
 ----------------------------------------------------------------
