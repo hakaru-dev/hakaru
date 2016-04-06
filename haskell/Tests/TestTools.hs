@@ -12,7 +12,6 @@ import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Syntax.AST.AlphaEq
 import Language.Hakaru.Pretty.Concrete
 import Language.Hakaru.Simplify
-import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Syntax.AST.Eq()
 
 import Data.Maybe (isJust)

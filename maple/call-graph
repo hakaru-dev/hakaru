@@ -1,0 +1,53 @@
+#!/usr/bin/perl -w
+# Quick-and-dirty visualization of the call graph within module NewSLO
+
+use strict;
+
+my %style = (
+    local  => "",
+    export => "shape=rect",
+);
+
+my %use;
+my $lhs;
+my $special = join "|", keys %style;
+while (<>) {
+    if (/^NewSLO := module\b/../^end module\b/) {
+        s/#.*//;
+        s/^  ?//;
+        if (not defined $lhs and /^(?:($special)|(\w+).*?:= *proc)\b/) {
+            $lhs = $+;
+        }
+        if (defined $lhs) {
+            @{$use{$lhs}}
+             {grep defined, m{([[:alpha:]%]\w+)|`([^`]*?)`|"[^"]*?"}g} = ();
+            if (exists $style{$lhs}
+                  ? /[;:]\s*$/
+                  : /^(\S.*)?\bend(\s+proc)?[\s;:]*$/) {
+                undef $lhs;
+            }
+        }
+    }
+}
+
+foreach my $kind (keys %style) {
+    foreach my $name (keys %{$use{$kind}}) { $use{$name}{""} = $kind }
+}
+delete @use{keys %style};
+delete @use{qw(t_pw applyintegrand)};
+
+print <<END;
+digraph NewSLO {
+  rotate=90;
+  size="10,7.5";
+  margin=0.5;
+  rankdir=TB;
+  ratio=fill;
+  node [shape=plaintext, fontsize=24, fontname=Helvetica];
+END
+foreach my $lhs (keys %use) {
+    my @rhs = grep { $lhs ne $_ && exists $use{$_} } keys %{$use{$lhs}};
+    print "$lhs [$style{$use{$lhs}{''}}];\n";
+    print "$lhs -> {@rhs};\n" if @rhs;
+}
+print "}\n";

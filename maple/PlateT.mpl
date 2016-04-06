@@ -5,6 +5,7 @@ if not (NewSLO :: `module`) then
   `quit`(3);
 end if;
 
+with(Hakaru):
 with(NewSLO):
 
 #####################################################################
@@ -107,16 +108,22 @@ categorical := proc(ps)
 end proc:
 # The next line eta-expands CodeTools[Test] so that its arguments get evaluated
 (proc() CodeTools[Test](_passed) end proc)
-  (fromLO(improve(toLO(
-     Bind(dirichlet(ary(5,i,1)),ps,
-       Weight(product(idx(ps,i)^idx(t,i),i=0..size(ps)-1),
-         Ret(ps)))))),
-   Weight(24*Beta(1+idx(t,4), 4+idx(t,0)+idx(t,1)+idx(t,2)+idx(t,3))
-            *Beta(1+idx(t,3), 3+idx(t,0)+idx(t,1)+idx(t,2))
-	    *Beta(1+idx(t,2), 2+idx(t,0)+idx(t,1))
-	    *Beta(1+idx(t,0), 1+idx(t,1)),
-     fromLO(toLO(dirichlet(ary(5,i,1+idx(t,i)))))),
+  (op(2, [unweight(
+     fromLO(improve(toLO(
+       Plate(n,k,
+         Bind(dirichlet(ary(5,i,1)),ps,
+           Weight(product(idx(ps,i)^idx(idx(t,k),i),i=0..size(ps)-1),
+             Ret(ps))))))))]),
+   fromLO(toLO(
+     Plate(n,k,
+       dirichlet(ary(5,i,1+idx(idx(t,k),i)))))),
    measure(simplify),
-   label="Dirichlet-multinomial conjugacy when unrolled");
-# We'd like the test above to pass even if the count 5 becomes symbolic and
-# even if the entire programs get plated.
+   label="Conjugacy between unrolled symmetric Dirichlet and multinomial");
+# We'd like the test above to pass even if the count 5 becomes symbolic.
+# Below is some progress towards this goal:
+TestHakaru(dirichlet(as), label="Dirichlet symbolic prior roundtrip");
+TestHakaru(Bind(dirichlet(as),ps,
+             Weight(product(idx(ps,i)^idx(t,i),i=0..size(ps)-1),
+               Ret(ps))),
+           dirichlet(ary(size(as),i,idx(as,i)+idx(t,i))),
+           label="Conjugacy between rolled Dirichlet and multinomial (currently fails)");

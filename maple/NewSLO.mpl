@@ -1,546 +1,56 @@
 # Teach Maple (through depends and eval) about our new binding forms.
 # Integrand and LO bind from 1st arg to 2nd arg.
-# lam binds from 1st arg to 3rd arg.
-# Branch binds from 1st arg (a pattern) to 2nd arg.
-# Bind and ary bind from 2nd arg to 3rd arg.
-# forall bind from 1st arg to 2nd arg.
 
 `depends/Integrand` := proc(v, e, x) depends(e, x minus {v}) end proc:
 `depends/LO`        := proc(v, e, x) depends(e, x minus {v}) end proc:
 
-# note that v _can_ in principle occur in t.
-`depends/lam` := proc(v::name, t, e, x)
-  depends(t, x) or depends(e, x minus {v})
-end proc:
-
-`depends/Branch`    := proc(p, e, x) depends(e, x minus {pattern_binds(p)}) end proc:
-pattern_binds := proc(p)
-  if p = PWild or p = PDone then
-    NULL
-  elif p :: PVar(anything) then
-    op(1,p)
-  elif p :: PDatum(anything, anything) then
-    pattern_binds(op(2,p))
-  elif p :: {PInl(anything), PInr(anything),
-             PKonst(anything), PIdent(anything)} then
-    pattern_binds(op(1,p))
-  elif p :: PEt(anything, anything) then
-    pattern_binds(op(1,p)), pattern_binds(op(2,p))
-  else
-    error "pattern_binds: %1 is not a pattern", p
-  end if
-end proc:
-
-# note that v _can_ occur in m1.
-`depends/Bind` := proc(m1, v::name, m2, x)
-  depends(m1, x) or depends(m2, x minus {v})
-end proc:
-
-# note that i _can_ occur in n.
-`depends/ary` := proc(n, i::name, e, x)
-  depends(n, x) or depends(e, x minus {i})
-end proc:
-
-`depends/forall` := proc(bvar, pred, x)
-  depends(pred, x minus convert(bvar, 'set'))
-end proc:
-
-generic_evalat := proc(vv::{name,list(name)}, mm, eqs)
-  local v, m, eqsRemain, subsEq, eq, rename, funs;
-  funs := map2(op, 0, indets(mm, 'function'));
-  eqsRemain := remove((eq -> op(1,eq) = op(2,eq)), eqs);
-  eqsRemain, subsEq := selectremove((eq -> type(op(1,eq), 'name')), eqsRemain);
-  eqsRemain := select((eq -> not has(op(1,eq), vv) and
-    (depends(mm, op(1,eq)) or member(op(1,eq), funs))), eqsRemain);
-  m := mm;
-  rename := proc(v::name)
-    local vRename;
-    if depends(eqsRemain, v) then
-      vRename := gensym(v);
-      m := subs(v=vRename, m);
-      vRename
-    else
-      v
-    end if
-  end proc;
-  if vv :: name then
-    v := rename(vv)
-  else
-    v := map(rename, vv);
-  end if;
-  m := subs(subsEq,m);
-  if nops(eqsRemain) > 0 then
-    m := eval(m,eqsRemain);
-  end if;
-  v, m;
-end proc:
-
 `eval/Integrand` := proc(e, eqs)
   local v, ee;
   v, ee := op(e);
-  eval(op(0,e), eqs)(generic_evalat(v, ee, eqs))
+  eval(op(0,e), eqs)(BindingTools:-generic_evalat(v, ee, eqs))
 end proc:
 
 `eval/LO` := proc(e, eqs)
   local v, ee;
   v, ee := op(e);
-  eval(op(0,e), eqs)(generic_evalat(v, ee, eqs))
+  eval(op(0,e), eqs)(BindingTools:-generic_evalat(v, ee, eqs))
 end proc:
-
-`eval/lam` := proc(e, eqs)
-  local v, t, ee;
-  v, t, ee := op(e);
-  v, ee := generic_evalat(v, ee, eqs);
-  t := eval(t, eqs);
-  eval(op(0,e), eqs)(v, t, ee)
-end proc:
-
-`eval/Branch` := proc(e, eqs)
-  local p, ee, vBefore, vAfter;
-  p, ee := op(e);
-  vBefore := [pattern_binds(p)];
-  vAfter, ee := generic_evalat(vBefore, ee, eqs);
-  eval(op(0,e), eqs)(subs(op(zip(`=`, vBefore, vAfter)), p), ee)
-end proc:
-
-`eval/Bind` := proc(e, eqs)
-  local m1, v, m2;
-  m1, v, m2 := op(e);
-  eval(op(0,e), eqs)(eval(m1, eqs), generic_evalat(v, m2, eqs))
-end proc:
-
-`eval/ary` := proc(e, eqs)
-  local n, i, ee;
-  n, i, ee := op(e);
-  eval(op(0,e), eqs)(eval(n, eqs), generic_evalat(i, ee, eqs))
-end proc:
-
-`eval/forall` := proc(e, eqs)
-  local bvar, pred;
-  bvar, pred := op(e);
-  eval(op(0,e), eqs)(generic_evalat(bvar, pred, eqs))
-end proc:
-
-#############################################################################
-
-foldr_piecewise := proc(cons, nil, pw) # pw may or may not be piecewise
-  # View pw as a piecewise and foldr over its arms
-  if pw :: specfunc(piecewise) then
-    foldr(proc(i,x) cons(op(i,pw), op(i+1,pw), x) end proc,
-          `if`(nops(pw)::odd, cons(true, op(-1,pw), nil), nil),
-          seq(1..nops(pw)-1, 2))
-  else
-    cons(true, pw, nil)
-  end if
-end proc;
-
-#############################################################################
-
-# make gensym global, so that it can be shared with other 'global' routines
-gensym := module()
-  export ModuleApply;
-  local gs_counter, utf8, blocks, radix, unicode;
-  gs_counter := -1;
-  utf8 := proc(n :: integer)
-    local m;
-    if n<128 then n
-    elif n<2048 then 192+iquo(n,64,'m'), 128+m
-    elif n<65536 then 224+iquo(n,4096,'m'), 128+iquo(m,64,'m'), 128+m
-    elif n<2097152 then 240+iquo(n,262144,'m'), 128+iquo(m,4096,'m'), 128+iquo(m,64,'m'), 128+m
-    elif n<67108864 then 248+iquo(n,16777216,'m'), 128+iquo(m,262144,'m'), 128+iquo(m,4096,'m'), 128+iquo(m,64,'m'), 128+m
-    elif n<2147483648 then 248+iquo(n,1073741824,'m'), 128+iquo(m,16777216,'m'), 128+iquo(m,262144,'m'), 128+iquo(m,4096,'m'), 128+iquo(m,64,'m'), 128+m
-    end if
-  end proc;
-  blocks := map((b -> block(convert(op(0,b), decimal, hex), op(1,b))),
-                ["4e00"(20950)]);
-  radix := `+`(op(map2(op, 2, blocks))) / 2;
-  unicode := proc(nn)
-    local n, b;
-    n := nn;
-    for b in blocks do
-      if n < op(2,b) then return n + op(1,b) else n := n - op(2,b) end if
-    end do
-  end proc;
-  ModuleApply := proc(x::name)
-    gs_counter := gs_counter + 1;
-    cat(x, op(map(StringTools:-Char, map(utf8 @ unicode, applyop(`+`, 1, map(`*`, convert(gs_counter, 'base', radix), 2), 1)))))
-  end proc;
-end module: # gensym
-
-#############################################################################
-
-KB := module ()
-  option package;
-  local KB, Introduce, Constrain,
-        assert_deny, coalesce_bounds, htype_to_property,
-        myexpand_product,
-        ModuleLoad, ModuleUnload;
-  export empty, genLebesgue, genType, assert,
-         kb_subtract, simplify_assuming, kb_to_assumptions,
-         htype_patterns;
-  global t_kb, t_type, Bound,
-         AlmostEveryReal, HReal, HInt, HData, HMeasure, HArray, HFunction,
-         DatumStruct, Konst, Ident;
-
-  empty := KB();
-
-  genLebesgue := proc(xx::name, lo, hi, kb::t_kb)
-    # The value of a variable created using genLebesgue is respected only up to
-    # negligible changes
-    genType(xx, AlmostEveryReal(Bound(`>`,lo), Bound(`<`,hi)), kb, _rest)
-  end proc;
-
-  genType := proc(xx::name, tt::t_type, kb::t_kb)
-    # A variable created using genType is a parameter, in the sense that its
-    # value is completely respected
-    local x, t;
-    x := `if`(depends([t,kb,_rest], xx), gensym(xx), xx);
-    t := evalindets(tt, identical(Bound(`>` , -infinity),
-                                  Bound(`>=`, -infinity),
-                                  Bound(`<` ,  infinity),
-                                  Bound(`<=`,  infinity)), _->NULL);
-    x, KB(Introduce(x, t), op(kb));
-  end proc;
-
-  assert := proc(b, kb::t_kb) assert_deny(b, true, kb) end proc;
-
-  assert_deny := proc(bb, pol::identical(true,false), kb::t_kb)
-    # Add `if`(pol,bb,Not(bb)) to kb and return the resulting KB.
-    local as, b, log_b, k, x, rel, e, c, y;
-    if bb = pol then
-      # Ignore literal true and Not(false).
-      kb
-    elif bb :: `if`(pol, {specfunc(anything, And), `and`},
-                         {specfunc(anything, Or ), `or` }) then
-      foldr(((b,kb) -> assert_deny(b, pol, kb)), kb, op(bb))
-    elif bb :: {specfunc(anything, Not), `not`} then
-      foldr(((b,kb) -> assert_deny(b, not pol, kb)), kb, op(bb))
-    else
-      as := kb_to_assumptions(kb);
-      b := simplify(bb) assuming op(as);
-      # Reduce (in)equality between exp(a) and exp(b) to between a and b.
-      do
-        try log_b := map(ln, b) assuming op(as); catch: break; end try;
-        if length(log_b) < length(b)
-           and (andmap(is, log_b, real) assuming op(as)) then
-          b := log_b;
-        else
-          break;
-        end if;
-      end do;
-      # Look through kb for the innermost scope where b makes sense.
-      k := select((k -> k :: Introduce(name, anything) and depends(b, op(1,k))),
-                  kb);
-      if nops(k) > 0 then
-        x, k := op(op(1,k));
-        # Found the innermost scope where b makes sense.
-        if b :: And(Or(`<`, `<=`),
-                    Or(anyop(identical(x), freeof(x)),
-                       anyop(freeof(x), identical(x)))) then
-          # b is a bound on x, so compare it against the current bound on x.
-          # First, express `if`(pol,b,Not(b)) as rel(x,e)
-          rel := op(0,b);
-          if x = lhs(b) then
-            e := rhs(b);
-          else#x=rhs(b)
-            e := lhs(b);
-            rel := subs({`<`=`>`, `<=`=`>=`}, rel);
-          end if;
-          if not pol then
-            rel := subs({`<`=`>=`, `<=`=`>`, `>`=`<=`, `>=`=`<`}, rel);
-          end if;
-          if k :: specfunc(AlmostEveryReal) then
-            rel := subs({`<=`=`<`, `>=`=`>`}, rel);
-          end if;
-          # Second, look up the current bound on x, if any.
-          c := `if`(rel in {`>`, `>=`}, identical(`>`, `>=`), identical(`<`, `<=`));
-          c := [op(map2(subsop, 1=NULL,
-                   select(type, kb, Bound(identical(x), c, anything)))),
-                op(select(type, k , Bound(              c, anything)) )];
-          # Compare the new bound rel        (x,e          )
-          # against the old bound op([1,1],c)(x,op([1,2],c))
-          if rel in {`>`,`>=`} and e = -infinity
-            or rel in {`<`,`<=`} and e = infinity
-            or nops(c)>0
-            and (is(rel(y,e)) assuming op([1,1],c)(y,op([1,2],c)),
-                   y::htype_to_property(k), op(as)) then
-            # The old bound renders the new bound superfluous.
-            return kb
-          elif nops(c)=0
-            or (is(op([1,1],c)(y,op([1,2],c))) assuming rel(y,e),
-                  y::htype_to_property(k), op(as)) then
-            # The new bound supersedes the old bound.
-            return KB(Bound(x,rel,e), op(kb))
-          end if
-        else
-          # Try to make b about x using convert/piecewise.
-          try
-            c := convert(piecewise(b, true, false), 'piecewise', x)
-              assuming op(as);
-            if c :: specfunc(boolean, piecewise) then
-              c := foldr_piecewise(
-                     proc(cond, th, el)
-                       # cond and th or not cond and el
-                       local a, o, n;
-                       a := (x,y)-> `if`(x=true,y, `if`(x=false,x,
-                                    `if`(y=true,x, `if`(y=false,y, And(x,y)))));
-                       o := (x,y)-> `if`(x=false,y, `if`(x=true,x,
-                                    `if`(y=false,x, `if`(y=true,y, Or (x,y)))));
-                       n := x    -> `if`(x=false,true,
-                                    `if`(x=true,false,             Not(x)));
-                       o(a(cond,th), a(n(cond),el));
-                     end proc,
-                     false,
-                     c);
-            end if
-          catch: c := b;
-          end try;
-          if c <> b then return assert_deny(c, pol, kb) end if
-        end if
-      end if;
-      # Normalize `=` and `<>` constraints a bit.
-      if not pol then
-        # Negate b
-        if   b :: `=`  then b := `<>`(op(b))
-        elif b :: `<>` then b := `=` (op(b))
-        elif b :: `<`  then b := `>=`(op(b))
-        elif b :: `<=` then b := `>`(op(b))
-        else b := Not(b) end if
-      end if;
-      if b :: (anything=name) then b := (rhs(b)=lhs(b)) end if;
-      # Add constraint to KB.
-      KB(Constrain(b), op(kb))
-    end if
-  end proc:
-
-  kb_subtract := proc(kb::t_kb, kb0::t_kb)
-    local cut;
-    cut := nops(kb) - nops(kb0);
-    if cut < 0 or KB(op(cut+1..-1, kb)) <> kb0 then
-      error "%1 is not an extension of %2", kb, kb0;
-    end if;
-    map(proc(k)
-      local x, t;
-      if k :: Introduce(name, anything) then
-        x, t := op(k);
-        if t :: specfunc(AlmostEveryReal) then
-          t := [op(t), Bound(`>`, -infinity), Bound(`<`, infinity)];
-          [genLebesgue, x,
-           op([1,2], select(type, t, Bound(identical(`>`), anything))),
-           op([1,2], select(type, t, Bound(identical(`<`), anything)))]
-        else
-          [genType, x, t]
-        end if
-      elif k :: Bound(name, anything, anything) then
-        [assert, op(2,k)(op(1,k),op(3,k))]
-      elif k :: Constrain(anything) then
-        [assert, op(1,k)]
-      end if
-    end proc, [op(coalesce_bounds(KB(op(1..cut, kb))))])
-  end proc;
-
-  coalesce_bounds := proc(kb::t_kb)
-    local t_intro, t_lo, t_hi, lo, hi, rest, k, x, t, b, s, r;
-    t_intro := 'Introduce(name, specfunc({AlmostEveryReal,HReal,HInt}))';
-    t_lo    := 'identical(`>`,`>=`)';
-    t_hi    := 'identical(`<`,`<=`)';
-    for k in select(type, kb, t_intro) do
-      x, t := op(k);
-      b, t := selectremove(type, t, Bound(t_lo, anything));
-      if nops(b) > 0 then lo[x] := op(1,b) end if;
-      b, t := selectremove(type, t, Bound(t_hi, anything));
-      if nops(b) > 0 then hi[x] := op(1,b) end if;
-      rest[x] := [op(t)];
-    end do;
-    for k in select(type, kb, Bound(name, t_lo, anything)) do
-      lo[op(1,k)] := subsop(1=NULL,k);
-    end do;
-    for k in select(type, kb, Bound(name, t_hi, anything)) do
-      hi[op(1,k)] := subsop(1=NULL,k);
-    end do;
-    map(proc(k)
-      if k :: t_intro then
-        x := op(1,k);
-        subsop(2=op([2,0],k)(op(select(type, [lo[x], hi[x]], specfunc(Bound))),
-                             op(rest[x])),
-               k);
-      elif k :: Bound(name, anything, anything) and rest[op(1,k)] :: list then
-        NULL;
-      else
-        k;
-      end if;
-    end proc, kb);
-  end proc;
-
-  simplify_assuming := proc(ee, kb::t_kb)
-    local e, as;
-    e := ee;
-    e := evalindets(e, 'specfunc({%product, product})', myexpand_product);
-    e := evalindets(e, 'specfunc(sum)', expand);
-    as := kb_to_assumptions(kb);
-    try
-      e := evalindets(e, {logical,
-                          specfunc({And,Or,Not}),
-                          specop(algebraic,{`<`,`<=`,`=`,`<>`})},
-        proc(b)
-          try
-            if is(b) assuming op(as) then return true
-            elif not coulditbe(b) assuming op(as) then return false
-            end if
-          catch:
-          end try;
-          b
-        end proc);
-      e := simplify(e) assuming op(as);
-    catch "when calling '%1'. Received: 'contradictory assumptions'":
-      # We seem to be on an unreachable control path
-    end try;
-    eval(e, exp = expand @ exp);
-  end proc;
-
-  myexpand_product := proc(prod)
-    local x, p, body, quantifier;
-    (body, quantifier) := op(prod);
-    x := op(1, quantifier);
-    p := proc(e)
-      local ee;
-      if e :: 'exp(anything)' then
-        ee := expand(op(1,e));
-        ee := convert(ee, 'list', `+`);
-        `*`(op(map(z -> exp(sum(z, quantifier)), ee)));
-      elif e :: ('freeof'(x) ^ 'anything') then
-        op(1,e) ^ expand(sum(op(2,e), quantifier))
-      elif e :: ('anything' ^ 'freeof'(x)) then
-        p(op(1,e)) ^ op(2,e)
-      else
-        product(e, quantifier)
-      end if
-    end proc;
-    `*`(op(map(p, convert(body, list, `*`))));
-  end proc;
-
-  kb_to_assumptions := proc(kb)
-    local t_intro;
-    t_intro := 'Introduce(name, specfunc({AlmostEveryReal,HReal,HInt}))';
-    map(proc(k)
-      local x;
-      if k :: t_intro then
-        x := op(1,k);
-        (x :: htype_to_property(op(2,k))),
-        op(map((b -> op(1,b)(x, op(2,b))), op(2,k)))
-      elif k :: Bound(anything, anything, anything) then
-        op(2,k)(op(1,k), op(3,k))
-      elif k :: Constrain(anything) then
-        op(1,k)
-      else
-        NULL # Maple doesn't understand our other types
-      end if
-    end proc, [op(coalesce_bounds(kb))])
-  end proc;
-
-  htype_to_property := proc(t::t_type)
-    if t :: specfunc({AlmostEveryReal, HReal}) then real
-    elif t :: specfunc(HInt) then integer
-    else TopProp end if
-  end proc;
-
-  # Enumerate patterns for a given Hakaru type
-  htype_patterns := proc(t::t_type)
-    :: specfunc(Branch(anything, list(t_type)), Branches);
-    local struct;
-    uses StringTools;
-    if t :: specfunc(DatumStruct(anything, list(Konst(anything))), HData) then
-      foldr(proc(struct,ps) Branches(
-              op(map((p -> Branch(PDatum(op(1,struct), PInl(op(1,p))),
-                                  op(2,p))),
-                     foldr(proc(kt,qs)
-                             local p, q;
-                             Branches(seq(seq(Branch(PEt(op(1,p),op(1,q)),
-                                                     [op(op(2,p)),op(op(2,q))]),
-                                              q in qs),
-                                          p in htype_patterns(op(1,kt))))
-                           end proc,
-                           Branches(Branch(PDone, [])), op(op(2,struct))))),
-              op(map[3](applyop, PInr, [1,2], ps)))
-            end proc,
-            Branches(), op(t))
-    else
-      Branches(Branch(PVar(gensym(convert(LowerCase(op(-1, ["x", op(
-                                            `if`(t::function,
-                                              select(IsUpper, Explode(op(0,t))),
-                                              []))])),
-                                          name))),
-                      [t]))
-    end if
-  end proc;
-
-  ModuleLoad := proc()
-    TypeTools[AddType](t_type,
-      '{specfunc(Bound(identical(`<`,`<=`,`>`,`>=`), anything),
-                 {AlmostEveryReal, HReal, HInt}),
-        specfunc(DatumStruct(anything, list({Konst(t_type), Ident(t_type)})),
-                 HData),
-        HMeasure(t_type),
-        HArray(t_type),
-        HFunction(t_type, t_type)}');
-    TypeTools[AddType](t_kb,
-      'specfunc({
-         Introduce(name, t_type),
-         Bound(name, identical(`<`,`<=`,`>`,`>=`), anything),
-         Constrain({`::`, boolean, `in`, specfunc(anything,{Or,Not})})
-       }, KB)');
-  end proc;
-
-  ModuleUnload := proc()
-    TypeTools[RemoveType](t_kb);
-    TypeTools[RemoveType](t_type);
-  end proc;
-
-  ModuleLoad();
-end module; # KB
 
 #############################################################################
 
 NewSLO := module ()
   option package;
-  local t_pw, t_case, p_true, p_false,
+  local t_pw,
         integrate_known, known_continuous, known_discrete,
-        mk_sym, mk_idx,
-        unproduct, unsum, unproducts,
-        unweight, factorize, pattern_match, make_piece,
+        mk_sym, mk_ary, mk_idx, mk_HArray,
+        bind, weight, factorize,
         recognize_continuous, recognize_discrete, get_de, get_se,
         recognize_de, mysolve, Shiftop, Diffop, Recognized,
-        reduce,
-        reduce_pw, reduce_IntSum, reduce_IntsSums, reduce_prod,
+        reduce, reduce_pw, reduce_IntSum, reduce_IntsSums,
         get_indicators,
         elim_intsum, do_elim_intsum, elim_metric, banish,
         piecewise_if, nub_piecewise,
-        ModuleLoad, ModuleUnload, verify_measure, pattern_equiv,
+        ModuleLoad, ModuleUnload,
         find_vars, kb_from_path, interpret, reconstruct, invert, 
         get_var_pos, get_int_pos,
         avoid_capture, change_var, disint2;
-  export Simplify,
-     # note that these first few are smart constructors (for themselves):
-         case, app, ary, idx, size, integrate, applyintegrand, Datum, ints, sums,
+  export
+     # These first few are smart constructors (for themselves):
+         integrate, applyintegrand,
      # while these are "proper functions"
-         map_piecewise,
-         bind, weight,
+         Simplify,
+         unweight, superpose,
          toLO, fromLO, improve,
          RoundTrip, RoundTripLO, RoundTripCLO,
          toCLO, fromCLO, cimprove,
-         TestHakaru, TestSimplify, measure, density, bounds,
+         TestHakaru, TestSimplify, density, bounds,
          unintegrate,
          ReparamDetermined, determined, Reparam, Banish,
          disint;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
-  global Bind, Weight, Ret, Msum, Integrand, Plate, LO, Indicator, Ints, Sums,
-         Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD, StudentT,
-         Context,
-         lam,
-         Inr, Inl, Et, Done, Konst, Ident,
-         Branches, Branch, PWild, PVar, PDatum, PInr, PInl, PEt, PDone, PKonst, PIdent;
-  uses KB;
+  global LO, Integrand, Indicator, Context;
+  uses Hakaru, KB, Loop;
 
   Simplify := proc(e, t::t_type, kb::t_kb)
     local patterns, x, kb1, ex;
@@ -582,10 +92,7 @@ NewSLO := module ()
     end if
   end proc;
 
-  t_pw    := 'specfunc(piecewise)';
-  t_case  := 'case(anything, specfunc(Branch(anything, anything), Branches))';
-  p_true  := 'PDatum(true,PInl(PDone))';
-  p_false := 'PDatum(false,PInr(PInl(PDone)))';
+  t_pw := 'specfunc(piecewise)';
 
 # An integrand h is either an Integrand (our own binding construct for a
 # measurable function to be integrated) or something that can be applied
@@ -597,7 +104,7 @@ NewSLO := module ()
   applyintegrand := proc(h, x)
     if h :: 'Integrand(name, anything)' then
       eval(op(2,h), op(1,h) = x)
-    elif h :: procedure then
+    elif h :: appliable then
       h(x)
     else
       'procname(_passed)'
@@ -632,13 +139,7 @@ NewSLO := module ()
     elif m :: known_discrete then
       integrate_known(Sum, Sums, 'kk', m, h, loops)
     elif m :: 'Ret(anything)' then
-      res := op(1,m);
-      for i in loops do
-        res := ary(op([2,2],i) - op([2,1],i) + 1,
-                   op(1,i),
-                   eval(res, op(1,i) = op(1,i) + op([2,1],i)));
-      end do;
-      applyintegrand(h, res);
+      applyintegrand(h, mk_ary(op(1,m), loops))
     elif m :: 'Bind(anything, name, anything)' then
       res := eval(op(3,m), op(2,m) = mk_idx(op(2,m), loops));
       res := eval(Integrand(op(2,m), 'integrate'(res, x, loops)), x=h);
@@ -667,20 +168,26 @@ NewSLO := module ()
       # flows depend on the index.
       x := mk_sym('pp', h);
       x := [seq(cat(x,i), i=0..op(1,m)-1)];
-      res := 'ary'(op(1,m), op(2,m),
-                   `if`(op(1,m)>1,
-                        piecewise(seq(op([op(2,m)=i-1, op(i,x)]), i=2..op(1,m)),
-                                  op(1,x)),
-                        `if`(op(1,m)>0, op(1,x), undefined)));
-      res := applyintegrand(h, res);
+      if op(1,m) = 0 then
+        res := undefined;
+      else
+        if op(1,m) = 1 then
+          res := op(1,x);
+        else
+          res := piecewise(seq(op([op(2,m)=i-1, op(i,x)]), i=2..op(1,m)),
+                           op(1,x));
+        end if;
+        res := mk_idx(res, loops);
+      end if;
+      res := applyintegrand(h, mk_ary('ary'(op(1,m), op(2,m), res), loops));
       for i from op(1,m) to 1 by -1 do
         res := integrate(eval(op(3,m), op(2,m)=i-1),
-                         Integrand(op(i,x), res));
+                         Integrand(op(i,x), res), loops);
       end do;
       res
     elif m :: 'Plate'(anything, name, anything) then
       integrate(op(3,m), h, [op(2,m)=0..op(1,m)-1, op(loops)]);
-    elif h :: procedure then
+    elif h :: appliable then
       x := gensym('xa');
       'integrate'(m, Integrand(x, h(x)), loops)
     else
@@ -713,8 +220,23 @@ NewSLO := module ()
     gensym(x)
   end proc;
 
-  mk_idx := proc(nm :: name, loops :: list(name = range))
-    foldr((x, y) -> idx(y, op(1,x)), nm, op(loops));
+  mk_ary := proc(e, loops :: list(name = range))
+    foldl((res, i) -> ary(op([2,2],i) - op([2,1],i) + 1,
+                          op(1,i),
+                          eval(res, op(1,i) = op(1,i) + op([2,1],i))),
+          e, op(loops));
+  end proc;
+
+  mk_idx := proc(e, loops :: list(name = range))
+    foldr((i, res) -> idx(res, op(1,i) - op([2,1],i)),
+          e, op(loops));
+  end proc;
+
+  mk_HArray := proc(t::t_type, loops::list(name=range))
+    local res, i;
+    res := t;
+    for i in loops do res := HArray(res) end do;
+    res
   end proc;
 
 # Step 2 of 3: computer algebra
@@ -766,30 +288,24 @@ NewSLO := module ()
   # h - name of the linear operator above us
   # kb - domain information
   reduce := proc(ee, h :: name, kb :: t_kb)
-    # option remember, system;
-    local e, elim, hh, subintegral, w, ww,
-          n, i, x, c, res, rest, kb1, update_kb;
-    e := ee;
-
-    e := elim_intsum(e, h, kb);
+    local e, subintegral, w, ww, x, c, kb1;
+    e := elim_intsum(ee, h, kb);
     if e :: Int(anything, name=range) then
-      x, kb1 := genLebesgue(op([2,1],e), op([2,2,1],e),
-                                         op([2,2,2],e), kb);
+      x, kb1 := genLebesgue(op([2,1],e), op([2,2,1],e), op([2,2,2],e), kb);
       reduce_IntSum(reduce(subs(op([2,1],e)=x, op(1,e)), h, kb1), h, kb1, kb)
     elif e :: Sum(anything, name=range) then
-      x, kb1 := genType(op([2,1],e), HInt(Bound(`>=`,op([2,2,1],e)),
-                                          Bound(`<=`,op([2,2,2],e))), kb);
+      x, kb1 := genType(op([2,1],e), HInt(closed_bounds(op([2,2],e))), kb);
       reduce_IntSum(reduce(subs(op([2,1],e)=x, op(1,e)), h, kb1), h, kb1, kb)
     elif e :: 'Ints'(anything, name, range, list(name=range)) then
-      res := HReal(Bound(`>`, op([3,1],e)), Bound(`<`, op([3,2],e)));
-      for i in op(4,e) do res := HArray(res) end do;
-      x, kb1 := genType(op(2,e), res, kb);
+      x, kb1 := genType(op(2,e),
+                        mk_HArray(HReal(open_bounds(op(3,e))), op(4,e)),
+                        kb);
       reduce_IntsSums(Ints, reduce(subs(op(2,e)=x, op(1,e)), h, kb1), x,
         op(3,e), op(4,e), h, kb1)
     elif e :: 'Sums'(anything, name, range, list(name=range)) then
-      res := HInt(Bound(`>=`, op([3,1],e)), Bound(`<=`, op([3,2],e)));
-      for i in op(4,e) do res := HArray(res) end do;
-      x, kb1 := genType(op(2,e), res, kb);
+      x, kb1 := genType(op(2,e),
+                        mk_HArray(HInt(closed_bounds(op([3,1],e))), op(4,e)),
+                        kb);
       reduce_IntsSums(Sums, reduce(subs(op(2,e)=x, op(1,e)), h, kb1), x,
         op(3,e), op(4,e), h, kb1)
     elif e :: `+` then
@@ -802,18 +318,8 @@ NewSLO := module ()
       reduce_pw(simplify_assuming(`*`(w, op(ww)), kb))
         * `*`(op(subintegral));
     elif e :: t_pw then
-      n := nops(e);
-      kb1 := kb;
-      update_kb := proc(c)
-        local kb0;
-        kb0 := assert(    c , kb1);
-        kb1 := assert(Not(c), kb1); # Mutation!
-        kb0
-      end proc;
-      e := piecewise(seq(`if`(i::even, %reduce(op(i,e),h,update_kb(op(i-1,e))),
-                          `if`(i=n,    %reduce(op(i,e),h,kb1),
-                            simplify_assuming(op(i,e), kb1))),
-                         i=1..n));
+      e := kb_piecewise(e, kb, simplify_assuming,
+                        ((rhs, kb) -> %reduce(rhs, h, kb)));
       e := eval(e, %reduce=reduce);
       # big hammer: simplify knows about bound variables, amongst many
       # other things
@@ -948,30 +454,9 @@ NewSLO := module ()
     e
   end proc;
 
-  reduce_prod := proc(ww, var :: name)
-    local w, w1, w2, i;
-    if type(ww, `*`) then
-      w := map(x -> [reduce_prod(x, var)], convert(ww, 'list'));
-      (w1, w2) := mul(i[1], i=w), mul(i[2], i=w);
-    elif type(ww, 'Product'(anything, name = range)) then
-      (w1, w2) := reduce_prod(op(1,ww), var);
-      w1 := Product(w1, op(2,ww));
-      w2 := product(w2, op(2,ww));
-    elif depends(ww, var) then
-      (w1, w2) := (ww, 1)
-    else
-      (w1, w2) := (1, ww)
-    end if;
-    (w1, w2)
-  end proc;
-
   reduce_IntsSums := proc(makes, ee, var :: name, rng, bds, h :: name, kb :: t_kb)
-    local w, e, w0;
-    # TODO we should do something with domain restrictions (see above) too
-    # but right now, that is not needed by the tests, so just deal with
-    # weights.
-    (e, w0) := reduce_prod(ee, var);
-    simplify_assuming(w0, kb) * makes(e, var, rng, bds);
+    # TODO we should apply domain restrictions like reduce_IntSum does.
+    makes(ee, var, rng, bds);
   end proc;
 
   get_indicators := proc(e)
@@ -993,7 +478,7 @@ NewSLO := module ()
     # LO(h, banish(m, x, h, g)) should be equivalent to Bind(m, x, LO(h, g))
     # but performs integration over x innermost rather than outermost.
     local guard, subintegral, w, y, yRename, lo, hi, mm, loops, xx, hh, gg, ll;
-    guard := proc(m, c) bind(m, x, piecewise(c, Ret(x), Msum())) end proc;
+    guard := proc(m, c) Bind(m, x, piecewise(c, Ret(x), Msum())) end proc;
     if g = 0 then
       0
     elif levels <= 0 then
@@ -1005,7 +490,7 @@ NewSLO := module ()
     elif g :: `*` then
       (subintegral, w) := selectremove(depends, g, h);
       if subintegral :: `*` then error "Nonlinear integral %1", g end if;
-      banish(bind(m, x, weight(w, Ret(x))), x, h, subintegral, levels)
+      banish(Bind(m, x, Weight(w, Ret(x))), x, h, subintegral, levels)
     elif g :: 'And'('specfunc({Int,int,Sum,sum})',
                     'anyfunc'('anything','name'='range'('freeof'(h)))) then
       subintegral := op(1, g);
@@ -1123,35 +608,6 @@ NewSLO := module ()
     foldr_piecewise(piecewise_if, 0, pw)
   end proc;
 
-  map_piecewise := proc(f,p)
-    local i;
-    if p :: t_pw then
-      piecewise(seq(`if`(i::even or i=nops(p),f(op(i,p),_rest),op(i,p)),i=1..nops(p)))
-    else
-      f(p,_rest)
-    end if
-  end proc;
-
-  ints := proc(e::anything, x::name, r::range, l::list(name=range))
-    local w0, pp;
-    w0, pp := unproducts(l, x, e);
-    if depends(w0, x) then
-      'procname(_passed)'
-    else
-      w0 * foldl(product, int(pp,x=r), op(l))
-    end if
-  end proc;
-
-  sums := proc(e::anything, x::name, r::range, l::list(name=range))
-    local w0, pp;
-    w0, pp := unproducts(l, x, e);
-    if depends(w0, x) then
-      'procname(_passed)'
-    else
-      w0 * foldl(product, sum(pp,x=r), op(l))
-    end if
-  end proc;
-
 # Step 3 of 3: from Maple LO (linear operator) back to Hakaru
 
   fromLO := proc(lo :: LO(name, anything), {_ctx :: t_kb := empty})
@@ -1166,8 +622,7 @@ NewSLO := module ()
 
   unintegrate := proc(h :: name, integral, kb :: t_kb)
     local x, c, lo, hi, make, m, mm, w, w0, w1, recognition, subintegral,
-          n, i, k, kb1, update_kb,
-          loops, j, subst, hh, pp, res, rest;
+          i, kb1, loops, subst, hh, pp, res;
     if integral :: 'And'('specfunc({Int,int})',
                          'anyfunc'('anything','name'='range'('freeof'(h)))) then
       (lo, hi) := op(op([2,2],integral));
@@ -1195,8 +650,7 @@ NewSLO := module ()
     elif integral :: 'And'('specfunc({Sum,sum})',
                            'anyfunc'('anything','name'='range'('freeof'(h)))) then
       (lo, hi) := op(op([2,2],integral));
-      x, kb1 := genType(op([2,1],integral), HInt(Bound(`>=`,lo),
-                                                 Bound(`<=`,hi)), kb);
+      x, kb1 := genType(op([2,1],integral), HInt(closed_bounds(lo..hi)), kb);
       subintegral := eval(op(1,integral), op([2,1],integral) = x);
       (w, m) := unweight(unintegrate(h, subintegral, kb1));
       recognition := recognize_discrete(w, x, lo, hi)
@@ -1211,29 +665,25 @@ NewSLO := module ()
       loops := op(4,integral);
       (lo, hi) := op(op(3,integral));
       if op(0,integral) in {Ints,ints} then
-        res := HReal(Bound(`>`, lo), Bound(`<`, hi));
+        res := HReal(open_bounds(lo..hi));
         make := Int;
       else
-        res := HInt(Bound(`>=`, lo), Bound(`<=`, hi));
+        res := HInt(closed_bounds(lo..hi));
         make := Sum;
       end if;
-      for i in loops do res := HArray(res) end do;
-      x, kb1 := genType(op(2,integral), res, kb);
+      x, kb1 := genType(op(2,integral), mk_HArray(res, loops), kb);
       subintegral := eval(op(1,integral), op(2,integral) = x);
       (w, m) := unweight(unintegrate(h, subintegral, kb1));
       kb1 := kb;
       subst := table();
       for i from nops(loops) to 1 by -1 do
-        j, kb1 := genType(op([i,1],loops),
-                          HInt(Bound(`>=`,op([i,2,1],loops)),
-                               Bound(`<=`,op([i,2,2],loops))),
-                          kb1,
-                          w);
-        subst[op([i,1],loops)] := j;
+        res := op(i,loops);
+        subst[lhs(res)], kb1
+          := genType(lhs(res), HInt(closed_bounds(rhs(res))), kb1, w);
       end do;
       subst := op(op(subst));
       loops := eval(loops, subst);
-      w, pp := unproducts(loops, x, w);
+      w, pp := unproducts(w, x, loops);
       w, w0 := selectremove(depends, convert(w, 'list', `*`), x);
       hh := gensym('ph');
       subintegral := make(pp * applyintegrand(hh,x), x=eval(lo..hi,subst));
@@ -1263,19 +713,9 @@ NewSLO := module ()
     elif integral :: t_pw
          and `and`(seq(not (depends(op(i,integral), h)),
                        i=1..nops(integral)-1, 2)) then
-      n := nops(integral);
-      kb1 := kb;
-      update_kb := proc(c)
-        local kb0;
-        kb0 := assert(    c , kb1);
-        kb1 := assert(Not(c), kb1); # Mutation!
-        kb0
-      end proc;
-      piecewise(seq(`if`(i::even, unintegrate(h, op(i,integral),
-                                              update_kb(op(i-1,integral))),
-                     `if`(i=n,    unintegrate(h, op(i,integral), kb1),
-                      op(i,integral))),
-                    i=1..n))
+      kb_piecewise(integral, kb,
+                   ((lhs, kb) -> lhs),
+                   ((rhs, kb) -> unintegrate(h, rhs, kb)))
     elif integral :: t_case then
       subsop(2=map(proc(b :: Branch(anything, anything))
                      eval(subsop(2='unintegrate'(x,op(2,b),c),b),
@@ -1294,62 +734,6 @@ NewSLO := module ()
       # Failure: return residual LO
       LO(h, integral)
     end if
-  end proc;
-
-  # Try to express w as ...*product(...,loop), where the second ... uses var
-  unproduct := proc(loop::(name=range), var::name, w)
-    local res;
-    if depends(w, var) then
-      if w :: `*` then
-        res := map[3](unproduct, loop, var, [op(w)]);
-        [`*`(op(map2(op,1,res))), `*`(op(map2(op,2,res)))]
-      elif w :: (anything^freeof(var)) then
-        map(`^`, unproduct(loop, var, op(1,w)), op(2,w))
-      elif w :: exp(anything) then
-        map(exp, unsum(loop, var, op(1,w)))
-      elif w :: (freeof(var)^anything) then
-        map2(`^`, op(1,w), unsum(loop, var, op(2,w)))
-      elif w :: {'product'(anything, name=identical(rhs(loop))),
-                 'Product'(anything, name=identical(rhs(loop)))} then
-        [1, eval(op(1,w), op([2,1],w)=lhs(loop))]
-      else
-        [w, 1]
-      end if
-    else
-      [w, 1]
-    end if
-  end proc;
-
-  unsum := proc(loop::(name=range), var::name, w)
-    local res, s, r;
-    if depends(w, var) then
-      if w :: `+` then
-        res := map[3](unproduct, loop, var, [op(w)]);
-        [`+`(op(map2(op,1,res))), `+`(op(map2(op,2,res)))]
-      elif w :: `*` then
-        (s, r) := selectremove(depends, w, var);
-        map(`*`, unsum(loop, var, s), r)
-      elif w :: {'sum'(anything, name=identical(rhs(loop))),
-                 'Sum'(anything, name=identical(rhs(loop)))} then
-        [0, eval(op(1,w), op([2,1],w)=lhs(loop))]
-      else
-        [w, 0]
-      end if
-    else
-      [w, 0]
-    end if
-  end proc;
-
-  unproducts := proc(loops::list(name=range), x::name, w)
-    local w0, pp, j, w1, xx;
-    w0 := 1;
-    pp := w;
-    for j from nops(loops) to 1 by -1 do
-      (w1, pp) := op(unproduct(op(j,loops), x, pp));
-      w0 := w0 * foldl(product, w1, op(j+1..-1, loops));
-    end do;
-    pp := eval(pp, mk_idx(x,loops)=xx);
-    if depends(pp,x) then w, 1 else w0, subs(xx=x,pp) end if
   end proc;
 
   ###
@@ -1449,8 +833,8 @@ NewSLO := module ()
   # - when we hit a Ret, figure out the change of variables
   # - note that the callee is responsible for "finishing up"
   disint2 := proc(integral, h::name, t::name, path)
-    local x, lo, hi, subintegral, w, n, m, w0, perform, script, vars,
-      to_invert, sol, occurs, dxdt, kb1, update_kb;
+    local x, lo, hi, subintegral, w, m, w0, perform, script, vars,
+      to_invert, sol, occurs, dxdt, update;
     if integral :: 'And'('specfunc({Int,int})',
                          'anyfunc'('anything','name'='range'('freeof'(h)))) then
       x := op([2,1],integral);
@@ -1483,20 +867,10 @@ NewSLO := module ()
     elif integral :: t_pw
          and `and`(seq(not (depends(op(i,integral), h)),
                        i=1..nops(integral)-1, 2)) then
-      n := nops(integral);
-      kb1 := kb;
-      update_kb := proc(c)
-        local kb0;
-        kb0 := assert(    c , kb1);
-        kb1 := assert(Not(c), kb1); # Mutation!
-        kb0
-      end proc;
       error "need to map into piecewise";
-      piecewise(seq(`if`(i::even, unintegrate(h, op(i,integral),
-                                              update_kb(op(i-1,integral))),
-                     `if`(i=n,    unintegrate(h, op(i,integral), kb1),
-                      op(i,integral))),
-                    i=1..n))
+      kb_piecewise(integral, kb,
+                   ((lhs, kb) -> lhs),
+                   ((rhs, kb) -> unintegrate(h, rhs, kb)))
     elif integral :: 'integrate'('freeof'(h), 'anything', identical([])) then
       x := mk_sym('x', op(2,integral));
       # we would be here mostly if the measure being passed in is
@@ -1570,7 +944,7 @@ NewSLO := module ()
       # Probably leave that to improve?
       new_path := subsop(pos = %int(t = new_lower.. new_upper), new_path);
       interpret(chg, new_path,
-	piecewise(And(new_lower < t, t < new_upper), part, 0));
+        piecewise(And(new_lower < t, t < new_upper), part, 0));
     end if;
   end proc;
 
@@ -1708,8 +1082,6 @@ NewSLO := module ()
       m # monad law: right identity
     elif m :: 'Ret(anything)' then
       eval(n, x = op(1,m)) # monad law: left identity
-    elif m :: 'Weight(anything, anything)' then
-      op(1,m)*bind(op(2,m), x, n)
     else
       'Bind(_passed)'
     end if;
@@ -1727,89 +1099,6 @@ NewSLO := module ()
     end if;
   end proc;
 
-  case := proc(e, bs :: specfunc(Branch(anything, anything), Branches))
-    local ret, b, substs, eSubst, pSubst, p, binds, uncertain;
-    ret := Branches();
-    for b in bs do
-      substs := pattern_match(e, e, op(1,b));
-      if substs <> NULL then
-        eSubst, pSubst := substs;
-        p := subs(pSubst, op(1,b));
-        binds := {pattern_binds(p)};
-        uncertain := remove((eq -> lhs(eq) in binds), eSubst);
-        if nops(uncertain) = 0 then p := PWild end if;
-        ret := Branches(op(ret),
-                        Branch(p, eval(eval(op(2,b), pSubst), eSubst)));
-        if nops(uncertain) = 0 then break end if;
-      end if
-    end do;
-    if ret :: Branches(Branch(identical(PWild), anything)) then
-      op([1,2], ret)
-    elif ret :: Branches(Branch(identical(p_true), anything),
-                         Branch({identical(p_false),
-                                 identical(PWild),
-                                 PVar(anything)}, anything)) then
-      piecewise(make_piece(e), op([1,2], ret), op([2,2], ret))
-    elif ret :: Branches(Branch(identical(p_false), anything),
-                         Branch({identical(p_true),
-                                 identical(PWild),
-                                 PVar(anything)}, anything)) then
-      piecewise(make_piece(e), op([2,2], ret), op([1,2], ret))
-    else
-      'case'(e, ret)
-    end if
-  end proc;
-
-  Datum := proc(hint, payload)
-    # Further cheating to equate Maple booleans and Hakaru booleans
-    if hint = true and payload = Inl(Done) or
-       hint = false and payload = Inr(Inl(Done)) then
-      hint
-    else
-      'procname(_passed)'
-    end if
-  end proc;
-
-  app := proc (func, argu)
-    if func :: lam(name, anything, anything) then
-      eval(op(3,func), op(1,func)=argu)
-    elif func :: t_pw then
-      map_piecewise(procname, _passed)
-    else
-      'procname(_passed)'
-    end if
-  end proc;
-
-  ary := proc (n, i, e)
-    if e :: 'idx'('freeof'(i), 'identical'(i)) then
-      # Array eta-reduction. Assume the size matches.  (We should keep array
-      # size information in the KB and use it here, but we don't currently.)
-      op(1,e)
-    else
-      'procname(_passed)'
-    end if
-  end proc;
-
-  idx := proc (a, i)
-    if a :: 'ary'(anything, name, anything) then
-      eval(op(3,a), op(2,a)=i)
-    elif a :: t_pw then
-      map_piecewise(procname, _passed)
-    else
-      'procname(_passed)'
-    end if
-  end proc;
-
-  size := proc(a)
-    if a :: 'ary'(anything, name, anything) then
-      op(1,a)
-    elif a :: t_pw then
-      map_piecewise(procname, _passed)
-    else
-      'procname(_passed)'
-    end if
-  end proc;
-
   unweight := proc(m)
     local total, ww, mm;
     if m :: 'Weight(anything, anything)' then
@@ -1818,105 +1107,27 @@ NewSLO := module ()
       total := `+`(op(map((mi -> unweight(mi)[1]), m)));
       (total, map((mi -> weight(1/total, mi)), m))
     else
-      # TODO: Better weight estimate for piecewise & density-recognition cases?
       (1, m)
     end if;
   end proc;
 
-  factorize := proc(weight, x)
-    # return (weight, 1); # uncomment this to disable factorization
-    if weight :: `*` then
-      selectremove(depends, weight, x)
-    elif depends(weight, x) then
-      (weight, 1)
-    else
-      (1, weight)
-    end if
+  # superpose is like Msum, but weights each summand explicitly
+  superpose := proc()
+    map(Weight@unweight, 'procname(_passed)')
   end proc;
 
-  pattern_match := proc(e0, e, p)
-    local x, substs, eSubst, pSubst;
-    if p = PWild then return {}, {}
-    elif p :: PVar(anything) then
-      x := op(1,p);
-      pSubst := {`if`(depends(e0,x), x=gensym(x), NULL)};
-      return {subs(pSubst,x)=e}, pSubst;
-    elif p = p_true then
-      if e = true then return {}, {}
-      elif e = false then return NULL
-      end if
-    elif p = p_false then
-      if e = false then return {}, {}
-      elif e = true then return NULL
-      end if
-    elif p :: PDatum(anything, anything) then
-      if e :: Datum(anything, anything) then
-        if op(1,e) = op(1,p) then return pattern_match(e0, op(2,e), op(2,p))
-        else return NULL
-        end if
-      end if
-    elif p :: PInl(anything) then
-      if e :: Inl(anything) then return pattern_match(e0, op(1,e), op(1,p))
-      elif e :: Inr(anything) then return NULL
-      end if
-    elif p :: PInr(anything) then
-      if e :: Inr(anything) then return pattern_match(e0, op(1,e), op(1,p))
-      elif e :: Inl(anything) then return NULL
-      end if
-    elif p :: PEt(anything, anything) then
-      if e :: Et(anything, anything) then
-        substs := pattern_match(e0, op(1,e), op(1,p));
-        if substs = NULL then return NULL end if;
-        eSubst, pSubst := substs;
-        substs := pattern_match(e0, eval(op(2,e),eSubst), op(2,p));
-        if substs = NULL then return NULL end if;
-        return eSubst union substs[1], pSubst union substs[2];
-      elif e = Done then return NULL
-      end if
-    elif p = PDone then
-      if e = Done then return {}, {}
-      elif e :: Et(anything, anything) then return NULL
-      end if
-    elif p :: PKonst(anything) then
-      if e :: Konst(anything) then return pattern_match(e0, op(1,e), op(1,p))
-      end if
-    elif p :: PIdent(anything) then
-      if e :: Ident(anything) then return pattern_match(e0, op(1,e), op(1,p))
-      end if
+  factorize := proc(w, x)
+    if w :: `*` then
+      selectremove(depends, w, x)
+    elif depends(w, x) then
+      (w, 1)
     else
-      error "pattern_match: %1 is not a pattern", p
-    end if;
-    pSubst := map((x -> `if`(depends(e0,x), x=gensym(x), NULL)),
-                  {pattern_binds(p)});
-    eSubst := {e=evalindets(
-                   evalindets[nocache](
-                     subs(pSubst,
-                          p_true=true,
-                          p_false=false,
-                          PDatum=Datum, PInr=Inr, PInl=Inl, PEt=Et, PDone=Done,
-                          PKonst=Konst, PIdent=Ident,
-                          p),
-                     identical(PWild),
-                     p -> gensym(_)),
-                   PVar(anything),
-                   p -> op(1,p))};
-    eSubst, pSubst
-  end proc;
-
-  make_piece := proc(rel)
-    # Try to prevent PiecewiseTools:-Is from complaining
-    # "Wrong kind of parameters in piecewise"
-    if rel :: {specfunc(anything, {And,Or,Not}), `and`, `or`, `not`} then
-      map(make_piece, rel)
-    elif rel :: {'`::`', 'boolean', '`in`'} then
-      rel
-    else
-      rel = true
+      (1, w)
     end if
   end proc;
 
   recognize_continuous := proc(weight0, x, lo, hi)
-    local Constant, weight, de, Dx, f, w, res, rng;
+    local Constant, de, Dx, f, w, res, rng;
     res := FAIL;
     # gfun[holexprtodiffeq] contains a test for {radfun,algfun} that seems like
     # it should test for {radfun(anything,x),algfun(anything,x)} instead.
@@ -1928,59 +1139,59 @@ NewSLO := module ()
     # which we need to handle exp(x*sum(...)) using gfun[holexprtodiffeq].
     # Like sum(...i...), Constant[sum(...i...)] depends on i, which we need so
     # that product(sum(...i...),i=1..m) doesn't simplify to ...^m.
-    weight := evalindets[flat](weight0,
-                And(# Not(radfun), Not(algfun),
-                    'specfunc({%product, product, sum, idx})',
-                    'freeof'(x)),
-                proc(e) Constant[e] end);
-    weight := evalindets[flat](weight, {`^`, specfunc(exp)},
-                proc(e)
-                  applyop(proc(e)
-                            evalindets[flat](e,
-                              And({`^`, specfunc(exp)},
-                                  Not(radfun), Not(algfun), 'freeof'(x)),
-                              proc(e) Constant[e] end)
-                          end,
-                          -1, e)
-                  end);
-    de := get_de(weight, x, Dx, f);
+    w := subsindets[flat](weight0,
+           And(# Not(radfun), Not(algfun),
+               'specfunc({%product, product, sum, idx})',
+               'freeof'(x)),
+           proc(e) Constant[e] end);
+    w := subsindets[flat](w, {`^`, specfunc(exp)},
+           proc(e)
+             applyop(proc(e)
+                       evalindets[flat](e,
+                         And({`^`, specfunc(exp)},
+                             Not(radfun), Not(algfun), 'freeof'(x)),
+                         proc(e) Constant[e] end)
+                     end,
+                     -1, e)
+             end);
+    de := get_de(w, x, Dx, f);
     if de :: 'Diffop(anything, anything)' then
       res := recognize_de(op(de), Dx, f, x, lo, hi)
     end if;
     if res = FAIL then
       rng := hi - lo;
-      w := simplify(weight * (hi - lo));
-      # weight could be piecewise and simplify will hide the problem
+      w := simplify(w * (hi - lo));
+      # w could be piecewise and simplify will hide the problem
       if not (rng :: 'SymbolicInfinity'
               or w :: {'SymbolicInfinity', 'undefined'}) then
         res := Recognized(Uniform(lo, hi), w)
       end if
     end if;
     # Undo Constant[...] wrapping
-    evalindets[flat](res, 'specindex'(anything, Constant), x -> op(1,x))
+    subsindets[flat](res, 'specindex'(anything, Constant), x -> op(1,x))
   end proc;
 
-  recognize_discrete := proc(weight, k, lo, hi)
+  recognize_discrete := proc(w, k, lo, hi)
     local se, Sk, f, a0, a1, lambda, r;
     if lo = 0 and hi = infinity then
-      se := get_se(weight, k, Sk, f);
+      se := get_se(w, k, Sk, f);
       if se :: 'Shiftop(anything, anything, identical(ogf))' and
          ispoly(op(1,se), 'linear', Sk, 'a0', 'a1') then
         lambda := normal(-a0/a1*(k+1));
         if not depends(lambda, k) then
           return Recognized(PoissonD(lambda),
-                            simplify(eval(weight,k=0)/exp(-lambda)));
+                            simplify(eval(w,k=0)/exp(-lambda)));
         end if;
         if ispoly(lambda, 'linear', k, 'b0', 'b1') then
           r := b0/b1;
           return Recognized(NegativeBinomial(r, b1),
-                            simplify(eval(weight,k=0)/(1-b1)^r))
+                            simplify(eval(w,k=0)/(1-b1)^r))
         end if
       end if;
     end if;
     # fallthrough here is like recognizing Lebesgue for all continuous
     # measures.  Ultimately correct, although fairly unsatisfying.
-    Recognized(Counting(lo, hi), weight)
+    Recognized(Counting(lo, hi), w)
   end proc;
 
   get_de := proc(dens, var, Dx, f)
@@ -2186,103 +1397,21 @@ NewSLO := module ()
     CodeTools[Test](Simplify(m,t,ctx), n, measure(verify), _rest)
   end proc;
 
-  verify_measure := proc(m, n, v:='boolean')
-    local mv, x, i, j, k;
-    mv := measure(v);
-    if verify(m, n, 'Bind'(mv, true, true)) then
-      x := gensym(cat(op(2,m), "_", op(2,n), "_"));
-      thisproc(subs(op(2,m)=x, op(3,m)),
-               subs(op(2,n)=x, op(3,n)), v)
-    elif m :: 'specfunc(Msum)' and n :: 'specfunc(Msum)'
-         and nops(m) = nops(n) then
-      k := nops(m);
-      verify(k, GraphTheory[BipartiteMatching](GraphTheory[Graph]({
-                seq(seq(`if`(thisproc(op(i,m), op(j,n), v), {i,-j}, NULL),
-                        j=1..k), i=1..k)}))[1]);
-    elif m :: t_pw and n :: t_pw and nops(m) = nops(n) then
-      k := nops(m);
-      verify(m, n, 'piecewise'(seq(`if`(i::even or i=k, mv, v), i=1..k)))
-    elif verify(m, n, 'case'(v, specfunc(Branch(true, true), Branches))) then
-      # This code unfortunately only handles alpha-equivalence for 'case' along
-      # the control path -- not if 'case' occurs in the argument to 'Ret', say.
-      k := nops(op(2,m));
-      for i from 1 to k do
-        j := pattern_equiv(op([2,i,1],m), op([2,i,1],n));
-        if j = false then return j end if;
-        j := map(proc(eq)
-                   local x;
-                   x := gensym(cat(lhs(eq), "_", rhs(eq), "_"));
-                   [lhs(eq)=x, rhs(eq)=x]
-                 end proc, j);
-        j := thisproc(subs(map2(op,1,j), op([2,i,2],m)),
-                      subs(map2(op,2,j), op([2,i,2],n)), v);
-        if j = false then return j end if;
-      end do;
-      true
-    elif m :: 'LO(name, anything)' and n :: 'LO(name, anything)' then
-      x := gensym(cat(op(1,m), "_", op(1,n), "_"));
-      verify(subs(op(1,m)=x, op(2,m)),
-             subs(op(1,n)=x, op(2,n)), v)
-    elif verify(m, n, 'lam'(true, v, true)) then
-      # m and n are not even measures, but we verify them anyway...
-      x := gensym(cat(op(1,m), "_", op(1,n), "_"));
-      thisproc(subs(op(1,m)=x, op(2,m)),
-               subs(op(1,n)=x, op(2,n)), v)
-    else
-      verify(m, n, {v,
-        Lebesgue(),
-        Uniform(v, v),
-        Gaussian(v, v),
-        Cauchy(v, v),
-        StudentT(v, v, v),
-        BetaD(v, v),
-        GammaD(v, v),
-        Ret(mv),
-        Weight(v, mv)
-      })
-    end if
-  end proc;
-
-  pattern_equiv := proc(p, q) :: {identical(false),set(`=`)};
-    local r, s;
-    if ormap((t->andmap(`=`, [p,q], t)), [PWild, PDone]) then
-      {}
-    elif andmap(type, [p,q], PVar(anything)) then
-      {op(1,p)=op(1,q)}
-    elif andmap(type, [p,q], PDatum(anything,anything)) and op(1,p)=op(1,q) then
-      pattern_equiv(op(2,p),op(2,q))
-    elif ormap((t->andmap(type, [p,q], t(anything))),
-               [PInl, PInr, PKonst, PIdent]) then
-      pattern_equiv(op(1,p),op(1,q))
-    elif andmap(type, [p,q], PEt(anything, anything)) then
-      r := pattern_equiv(op(1,p),op(1,q));
-      s := pattern_equiv(op(2,p),op(2,q));
-      if map(lhs,r) intersect map(lhs,s) = {} and
-         map(rhs,r) intersect map(rhs,s) = {} then
-        r union s
-      else
-        false
-      end if
-    else
-      false
-    end if
-  end proc;
-
   ModuleLoad := proc()
     local prev;
-    KB; # Make sure the KB module is loaded, for the types t_type and t_kb
-    VerifyTools[AddVerification](measure = verify_measure);
+    Hakaru; # Make sure the KB module is loaded, for the type t_type
+    KB;     # Make sure the KB module is loaded, for the type t_kb
     prev := kernelopts(opaquemodules=false);
     try
       PiecewiseTools:-InertFunctions := PiecewiseTools:-InertFunctions
-        union '{Integrand,LO,lam,Branch,Bind,ary,forall,`..`}';
+        union '{Integrand,LO,lam,Branch,Bind,ary,
+                forall,Ints,Sums,ints,sums,`..`}';
     finally
       kernelopts(opaquemodules=prev);
     end try;
   end proc;
 
   ModuleUnload := proc()
-    VerifyTools[RemoveVerification](measure);
   end proc;
 
   ModuleLoad();

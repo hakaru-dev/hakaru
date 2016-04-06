@@ -16,7 +16,7 @@ import           Text.Parsec.Text
 import qualified Text.Parsec.Token   as Token
 import           Text.Parsec.Language
 
-import           Prelude             hiding (sum, product)
+import           Prelude             hiding (and, sum, product)
 
 --------------------------------------------------------------------------
 
@@ -101,7 +101,7 @@ data ArgOp
     = Float   | Power  | Rational
     | Func    | ExpSeq | Sum_
     | Product | Less   | Equal
-    | And_
+    | And_    | Range
     deriving (Eq, Show)
 
 data InertExpr
@@ -172,6 +172,12 @@ power =
     <$> (text "_Inert_POWER" *> return Power)
     <*> arg expr
 
+range :: Parser InertExpr
+range =
+    InertArgs
+    <$> (text "_Inert_RANGE" *> return Range)
+    <*> arg expr
+
 and :: Parser InertExpr
 and =
     InertArgs
@@ -218,6 +224,7 @@ equal =
 expr :: Parser InertExpr
 expr =  try func
     <|> try name
+    <|> try and
     <|> try assignedname
     <|> try assignedlocalname
     <|> try lessthan
@@ -226,6 +233,7 @@ expr =  try func
     <|> try expseq
     <|> try intpos
     <|> try intneg
+    <|> try range
     <|> try power
     <|> try sum
     <|> try product
@@ -302,6 +310,10 @@ maple2AST (InertArgs Func [InertName "Plate",
                            InertArgs ExpSeq [e1, InertName x, e2]]) =
     Plate x (maple2AST e1) (maple2AST e2)
 
+maple2AST (InertArgs Func [InertName "And",
+                           InertArgs ExpSeq es]) =
+    NaryOp And (map maple2AST es)
+
 maple2AST (InertArgs Func [f,
                            InertArgs ExpSeq es]) =
     foldl App (maple2AST f) (map maple2AST es)
@@ -321,6 +333,8 @@ maple2AST (InertArgs Equal es) =
 -- Add special case for NatPow for Power
 maple2AST (InertArgs Power [x, y]) =
     App (App (Var "**") (maple2AST x)) (maple2AST y)
+maple2AST (InertArgs Rational [InertNum Pos x, InertNum Pos y]) =
+    ULiteral $ Prob $ fromInteger x / fromInteger y
 maple2AST (InertArgs Rational [InertNum _ x, InertNum _ y]) =
     ULiteral $ Real $ fromInteger x / fromInteger y
 
