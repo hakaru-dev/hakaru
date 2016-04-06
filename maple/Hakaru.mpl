@@ -57,7 +57,7 @@ Hakaru := module ()
   local p_true, p_false, make_piece,
         ModuleLoad, ModuleUnload;
   export
-     # note that these first few are smart constructors (for themselves):
+     # These first few are smart constructors (for themselves):
          case, app, ary, idx, size, Datum,
      # while these are "proper functions"
          verify_measure, pattern_equiv,
@@ -65,16 +65,26 @@ Hakaru := module ()
          pattern_match, pattern_binds,
          closed_bounds, open_bounds,
          htype_patterns;
-  # these names are not assigned (and should not be).  But they are
+  # These names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
-  global Bind, Weight, Ret, Msum, Integrand, Plate,
+  global
+     # Basic syntax for composing measures
+         Bind, Weight, Ret, Msum, Plate,
+     # Primitive (known) measures
          Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD, StudentT,
+     # Functions, annotated with argument type, applied using "app"
          lam,
+     # Term constructors for Datum (algebraic data type)
          Inr, Inl, Et, Done, Konst, Ident,
+     # The parts of "case" besides the scrutinee
          Branches, Branch,
+     # Pattern constructors
          PWild, PVar, PDatum, PInr, PInl, PEt, PDone, PKonst, PIdent,
+     # Verification of alpha-equivalence among measures
          measure,
+     # Structure types for Hakaru types and Hakaru "case" expressions
          t_type, t_case,
+     # Type constructors for Hakaru
          AlmostEveryReal, HReal, HInt, HData, HMeasure, HArray, HFunction,
          Bound, DatumStruct;
 
