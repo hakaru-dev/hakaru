@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.03.29
+--                                                    2016.04.05
 -- |
 -- Module      :  Language.Hakaru.Evaluation.EvalMonad
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -29,6 +29,7 @@ module Language.Hakaru.Evaluation.EvalMonad
     -- * The pure-evaluation monad
     -- ** List-based version
     , ListContext(..), PureAns, Eval(..), runEval
+    , residualizePureListContext
     -- ** TODO: IntMap-based version
     ) where
 
@@ -41,9 +42,8 @@ import           Control.Applicative  (Applicative(..))
 import qualified Data.Foldable        as F
 
 import Language.Hakaru.Syntax.IClasses (Some2(..))
-import Data.Number.Nat                 (MaxNat(..))
 import Language.Hakaru.Syntax.Variable (memberVarSet)
-import Language.Hakaru.Syntax.ABT      (ABT(..), subst)
+import Language.Hakaru.Syntax.ABT      (ABT(..), subst, maxNextFree)
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Evaluation.Types
 import Language.Hakaru.Evaluation.Lazy (TermEvaluator, evaluate, defaultCaseEvaluator)
@@ -110,8 +110,7 @@ runEval :: (ABT Term abt, F.Foldable f)
     -> f (Some2 abt)
     -> abt '[] a
 runEval (Eval m) es =
-    let i0 = unMaxNat (F.foldMap (\(Some2 e) -> MaxNat $ nextFree e) es)
-    in  m residualizePureListContext (ListContext i0 [])
+    m residualizePureListContext (ListContext (maxNextFree es) [])
     
 
 residualizePureListContext

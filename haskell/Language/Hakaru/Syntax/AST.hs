@@ -544,8 +544,8 @@ data MeasureOp :: [Hakaru] -> Hakaru -> * where
     Gamma       :: MeasureOp '[ 'HProb, 'HProb ] 'HProb
     Beta        :: MeasureOp '[ 'HProb, 'HProb ] 'HProb
 
--- TODO: instance Read (MeasureOp args a)
-deriving instance Show (MeasureOp args a)
+-- TODO: instance Read (MeasureOp typs a)
+deriving instance Show (MeasureOp typs a)
 
 instance JmEq2 MeasureOp where
     jmEq2 Lebesgue    Lebesgue    = Just (Refl, Refl)
@@ -562,10 +562,10 @@ instance JmEq2 MeasureOp where
 instance Eq2 MeasureOp where
     eq2 x y = maybe False (const True) (jmEq2 x y)
 
-instance Eq1 (MeasureOp args) where
+instance Eq1 (MeasureOp typs) where
     eq1 = eq2
 
-instance Eq (MeasureOp args a) where -- This one can be derived
+instance Eq (MeasureOp typs a) where -- This one can be derived
     (==) = eq1
 
 

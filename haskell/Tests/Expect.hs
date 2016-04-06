@@ -12,7 +12,7 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Syntax.Prelude
 import Language.Hakaru.Pretty.Haskell  (pretty)
-import Language.Hakaru.Expect
+import Language.Hakaru.Expect2
 import Language.Hakaru.Evaluation.ConstantPropagation (constantPropagation)
 import Language.Hakaru.Disintegrate (disintegrateWithVar)
 
@@ -24,6 +24,9 @@ import Language.Hakaru.Disintegrate (disintegrateWithVar)
 -- by recognizing that @x * prob_ 1 == x@ for all @x@.
 --
 -- Should return a program equivalent to @lam $ \x -> x@.
+--
+-- BUG: this seems to work fine for the old @Expect.hs@ but it loops
+-- forever with the new @Expect2.hs@.
 test1 :: TrivialABT Term '[] ('HProb ':-> 'HProb)
 test1 = lam $ \x -> total (weight x)
 

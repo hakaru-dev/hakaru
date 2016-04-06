@@ -14,7 +14,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.02
+--                                                    2016.04.05
 -- |
 -- Module      :  Language.Hakaru.Syntax.ABT
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -50,9 +50,10 @@ module Language.Hakaru.Syntax.ABT
     , binds_
     , caseBinds
     , underBinders
+    , maxNextFree
+    , maxNextBind
     -- ** Capture avoiding substitution for any 'ABT'
     , rename
-    , inst
     , subst
     , substs
     -- ** Constructing first-order trees with a HOAS-like API
@@ -295,6 +296,7 @@ caseBinds = go . viewABT
     go (Var  x)   = (Nil1, var x)
     go (Bind x v) = let ~(xs,e) = go v in (Cons1 x xs, e)
 
+
 -- TODO: give better name
 -- | Transform expression under binds
 underBinders
@@ -305,6 +307,17 @@ underBinders
 underBinders f e =
     let (vars, e') = caseBinds e
     in binds_ vars (f e')
+
+
+-- | Call 'nextFree' on all the terms and return the maximum.
+maxNextFree :: (ABT syn abt, F.Foldable f) => f (Some2 abt) -> Nat
+maxNextFree = unMaxNat . F.foldMap (\(Some2 e) -> MaxNat $ nextFree e)
+
+
+-- | Call 'nextBind' on all the terms and return the maximum.
+maxNextBind :: (ABT syn abt, F.Foldable f) => f (Some2 abt) -> Nat
+maxNextBind = unMaxNat . F.foldMap (\(Some2 e) -> MaxNat $ nextBind e)
+
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -623,6 +636,7 @@ subst x e = start
                 bind z' . loop f' . viewABT $ rename z z' f'
 
 
+{-
 -- called (//) in Jon's abt library. We use this textual name so we can also have 'insts' for the n-ary version, rather than iterating the unary version. Or we could use something like (!) and (!!), albeit those names tend to be used to mean other things. It'd be nice to do (@) and (@@), but the first one is illegal.
 inst
     :: forall syn abt (a :: k) xs (b :: k)
@@ -637,6 +651,7 @@ inst
 inst f e =
     caseBind f $ \x f' ->
     subst x e f'
+-}
 
 
 -- BUG: This appears to have both capture and escape issues as demonstrated by 'Tests.Disintegrate.test0' and commented on at 'Language.Hakaru.Evaluation.Types.runM'.

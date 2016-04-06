@@ -248,12 +248,13 @@ runDis :: (ABT Term abt, F.Foldable f)
     => Dis abt (abt '[] a)
     -> f (Some2 abt)
     -> [abt '[] ('HMeasure a)]
-runDis (Dis m) es = m c0 (ListContext i0 [])
+runDis (Dis m) es =
+    m c0 (ListContext i0 [])
     where
     -- TODO: we only use dirac because 'residualizeListContext' requires it to already be a measure; unfortunately this can result in an extraneous @(>>= \x -> dirac x)@ redex at the end of the program. In principle, we should be able to eliminate that redex by changing the type of 'residualizeListContext'...
     c0 e ss = [residualizeListContext ss (syn(Dirac :$ e :* End))]
 
-    i0 = unMaxNat (F.foldMap (\(Some2 e) -> MaxNat $ nextFree e) es)
+    i0 = maxNextFree es
 
 
 instance Functor (Dis abt) where

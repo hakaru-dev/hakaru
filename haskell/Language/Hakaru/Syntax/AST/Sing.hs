@@ -52,7 +52,7 @@ sing_NaryOp (Sum  theSemi) = sing_HSemiring theSemi
 sing_NaryOp (Prod theSemi) = sing_HSemiring theSemi
 
 -- TODO: is there any way to define a @sing_List1@ like @sing@ for automating all these monomorphic cases?
-sing_PrimOp :: PrimOp args a -> (List1 Sing args, Sing a)
+sing_PrimOp :: PrimOp typs a -> (List1 Sing typs, Sing a)
 sing_PrimOp Not        = (sing `Cons1` Nil1, sing)
 sing_PrimOp Impl       = (sing `Cons1` sing `Cons1` Nil1, sing)
 sing_PrimOp Diff       = (sing `Cons1` sing `Cons1` Nil1, sing)
@@ -114,14 +114,14 @@ sing_PrimOp (Erf theCont) =
     in  (a `Cons1` Nil1, a)
 
 
-sing_ArrayOp :: ArrayOp args a -> (List1 Sing args, Sing a)
+sing_ArrayOp :: ArrayOp typs a -> (List1 Sing typs, Sing a)
 sing_ArrayOp (Index  a) = (SArray a `Cons1` SNat `Cons1` Nil1, a)
 sing_ArrayOp (Size   a) = (SArray a `Cons1` Nil1, SNat)
 sing_ArrayOp (Reduce a) =
     ((a `SFun` a `SFun` a) `Cons1` a `Cons1` SArray a `Cons1` Nil1, a)
 
 
-sing_MeasureOp :: MeasureOp args a -> (List1 Sing args, Sing a)
+sing_MeasureOp :: MeasureOp typs a -> (List1 Sing typs, Sing a)
 sing_MeasureOp Lebesgue    = (Nil1, sing)
 sing_MeasureOp Counting    = (Nil1, sing)
 sing_MeasureOp Categorical = (sing `Cons1` Nil1, sing)
