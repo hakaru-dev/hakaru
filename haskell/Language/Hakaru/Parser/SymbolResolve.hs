@@ -111,6 +111,7 @@ primTable =
     -- PrimOps
     ,("pi",          TNeu $ U.PrimOp_ U.Pi [])
     ,("**",          primPrimOp2 U.RealPow)
+    ,("cos",         primPrimOp1 U.Cos)
     ,("exp",         primPrimOp1 U.Exp)
     ,("gammaFunc",   primPrimOp1 U.GammaFunc)
     ,("equal",       primPrimOp2 U.Equal)

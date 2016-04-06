@@ -596,6 +596,12 @@ inferType = inferType_
         [] -> return . TypedAST SProb $ syn (PrimOp_ Pi :$ End)
         _  -> failwith "Passed wrong number of arguments"
 
+  inferPrimOp U.Cos es =
+      case es of
+        [e] -> do e' <- checkType_ SReal e
+                  return . TypedAST SReal $ syn (PrimOp_ Cos :$ e' :* End)
+        _   -> failwith "Passed wrong number of arguments"
+
   inferPrimOp U.RealPow es =
       case es of
         [e1, e2] -> do e1' <- checkType_ SProb e1
