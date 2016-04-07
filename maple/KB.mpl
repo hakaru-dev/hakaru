@@ -1,3 +1,21 @@
+# Date: Thu, 24 Mar 2016 18:55:55 -0400
+# From: Chung-chieh Shan <ccshan@indiana.edu>
+# To: Jacques Carette <carette@mcmaster.ca>
+# Subject: Re: partial implementation
+#
+# Great, let's say a KB means a set of tuples -- in other words, a n-ary
+# relation.  (I'm going to treat all variables as parameters for now.)
+# So "empty" means the singleton set containing unit, and "gen*" means
+# to increment the dimensionality n by 1, such as taking the Cartesian
+# product of a relation with an interval.  And "assert" makes a subset.
+#
+# [...]  let me define subtraction semantically.  Subtraction means
+# coming up with a (hopefully compact) sequence of "gen*" and "assert"
+# operations that take you from one KB to another.  Of course, for that
+# to be possible, the source KB must be a superset of a projection of the
+# destination KB.  (Here by projection I mean in the relational database
+# sense.)
+
 KB := module ()
   option package;
   local KB, Introduce, Constrain,
