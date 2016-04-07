@@ -362,12 +362,14 @@ NewSLO := module ()
            not hastype(op(1,e), 'applyintegrand'('identical'(h),
                                                  'dependent'(op(2,e)))) then
         var := op(2,e);
-        m := LO(hh, my(kb, ints, applyintegrand(hh,var), op(2..4,e)));
+        m := LO(hh, my(kb, ((e,x,r,l)->ints(e,x,r,l,kb)),
+                       applyintegrand(hh,var), op(2..4,e)));
       elif e :: Sums(anything, name, range, list(name=range)) and
            not hastype(op(1,e), 'applyintegrand'('identical'(h),
                                                  'dependent'(op(2,e)))) then
         var := op(2,e);
-        m := LO(hh, my(kb, sums, applyintegrand(hh,var), op(2..4,e)));
+        m := LO(hh, my(kb, ((e,x,r,l)->sums(e,x,r,l,kb)),
+                       applyintegrand(hh,var), op(2..4,e)));
       else
         break;
       end if;
@@ -680,7 +682,7 @@ NewSLO := module ()
       end do;
       subst := op(op(subst));
       loops := eval(loops, subst);
-      w, pp := unproducts(w, x, loops);
+      w, pp := unproducts(w, x, loops, kb1);
       w, w0 := selectremove(depends, convert(w, 'list', `*`), x);
       hh := gensym('ph');
       subintegral := make(pp * applyintegrand(hh,x), x=eval(lo..hi,subst));
