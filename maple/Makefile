@@ -4,7 +4,7 @@ ppaml.mla: update-archive.mpl BindingTools.mpl Hakaru.mpl KB.mpl Loop.mpl NewSLO
 	maple -q $<
 
 test: ppaml.mla NewSLOTests.mpl PlateT.mpl DisintT.mpl
-	for f in $(filter %.mpl,$^); do maple -q "$$f" | grep -v " passed$$"; done 2>&1 | tee $@
+	parallel -j 3 maple -q -- $(filter %.mpl,$^) 2>&1 | tee $@ | grep -v " passed$$"
 
 call-graph.svg: call-graph.dot
 	dot -Tsvg $< > $@
