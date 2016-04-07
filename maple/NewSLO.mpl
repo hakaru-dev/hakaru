@@ -302,7 +302,7 @@ NewSLO := module ()
                         kb);
       reduce_IntsSums(Ints, reduce(subs(op(2,e)=x, op(1,e)), h, kb1), x,
         op(3,e), op(4,e), h, kb1)
-    elif e :: 'Sums'(anything, name, range, list(name=range)) then
+    elif e :: 'Sums(anything, name, range, list(name=range))' then
       x, kb1 := genType(op(2,e),
                         mk_HArray(HInt(closed_bounds(op([3,1],e))), op(4,e)),
                         kb);
@@ -393,11 +393,9 @@ NewSLO := module ()
   end proc;
 
   elim_metric := proc(e, h::name)
-    local i;
-    add(numboccur(e, select(hastype,
-                            indets(e, specfunc(i)),
-                            'applyintegrand'('identical'(h), 'anything'))),
-        i in [{Int,Sum,int,sum}, {Ints,Sums,ints,sums}])
+    numboccur(e, select(hastype,
+      indets(e, specfunc({Int,Sum,int,sum,Ints,Sums,ints,sums})),
+      'applyintegrand'('identical'(h), 'anything')))
   end proc;
 
   reduce_pw := proc(ee) # ee may or may not be piecewise
