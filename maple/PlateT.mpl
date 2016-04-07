@@ -90,11 +90,9 @@ TestHakaru(eval(fusion ,{k=5    }),      conjugacies5     , verify=normal, label
 gmm := Bind(Plate(k, c, Gaussian(0,1)), xs,
        Bind(Plate(n, i, Weight(density[Gaussian](idx(xs,idx(cs,i)),1)(idx(t,i)), Ret(Unit))), ys,
        Ret(xs))):
-gmm_s := Weight(2^(-(1/2)*n)*Pi^(-(1/2)*n)*exp(-(1/2)*(sum(idx(t,i)^2, i=0..n-1))),
-         Bind(Plate(k, c, Gaussian(0, 1)), xs,
-         Weight(exp(sum(idx(t,i)*idx(xs,idx(cs,i)), i=0..n-1))*exp(-(1/2)*(sum(idx(xs,idx(cs,i))^2, i=0..n-1))),
-         Ret(xs)))):
-TestHakaru(gmm, gmm_s, label="gmm");
+gmm_s := Weight(2^(-(1/2)*n)*Pi^(-(1/2)*n)*exp(-(1/2)*(sum(idx(t,i)^2, i=0..n-1)))*exp((1/2)*(sum((sum(piecewise(c=idx(cs,i), idx(t,i), 0), i=0..n-1))^2/(sum(piecewise(c=idx(cs,i), 1, 0), i=0..n-1)+1), c=0..k-1)))*(1/(product(sum(piecewise(c=idx(cs,i), 1, 0), i=0..n-1)+1, c=0..k-1)))^(1/2),
+         Plate(k, c, Gaussian((sum(piecewise(c=idx(cs,i), idx(t,i), 0), i=0..n-1))/(sum(piecewise(c=idx(cs,i), 1, 0), i=0..n-1)+1), (1/(sum(piecewise(c=idx(cs,i), 1, 0), i=0..n-1)+1))^(1/2)))):
+TestHakaru(gmm, gmm_s, label="gmm (currently failing -- due to alpha-equivalence)");
 
 # Detecting Dirichlet-multinomial conjugacy when unrolled
 dirichlet := proc(as)
