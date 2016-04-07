@@ -290,13 +290,13 @@ NewSLO := module ()
   reduce := proc(ee, h :: name, kb :: t_kb)
     local e, subintegral, w, ww, x, c, kb1;
     e := elim_intsum(ee, h, kb);
-    if e :: Int(anything, name=range) then
-      x, kb1 := genLebesgue(op([2,1],e), op([2,2,1],e), op([2,2,2],e), kb);
-      reduce_IntSum(reduce(subs(op([2,1],e)=x, op(1,e)), h, kb1), h, kb1, kb)
-    elif e :: Sum(anything, name=range) then
-      x, kb1 := genType(op([2,1],e), HInt(closed_bounds(op([2,2],e))), kb);
-      reduce_IntSum(reduce(subs(op([2,1],e)=x, op(1,e)), h, kb1), h, kb1, kb)
-    elif e :: 'Ints'(anything, name, range, list(name=range)) then
+    if e :: 'And(specfunc({Int,Sum}), anyfunc(anything,name=range))' then
+      x, kb1 := `if`(op(0,e)=Int,
+        genLebesgue(op([2,1],e), op([2,2,1],e), op([2,2,2],e), kb),
+        genType(op([2,1],e), HInt(closed_bounds(op([2,2],e))), kb));
+      reduce_IntSum(op(0,e),
+        reduce(subs(op([2,1],e)=x, op(1,e)), h, kb1), h, kb1, kb)
+    elif e :: 'Ints(anything, name, range, list(name=range))' then
       x, kb1 := genType(op(2,e),
                         mk_HArray(HReal(open_bounds(op(3,e))), op(4,e)),
                         kb);
@@ -413,32 +413,29 @@ NewSLO := module ()
     return e
   end proc;
 
-  reduce_IntSum := proc(ee, h :: name, kb1 :: t_kb, kb0 :: t_kb)
+  reduce_IntSum := proc(mk :: identical(Int, Sum),
+                        ee, h :: name, kb1 :: t_kb, kb0 :: t_kb)
     local e, dom_spec, w, rest, var, new_rng, make, i;
 
     # if there are domain restrictions, try to apply them
     (dom_spec, e) := get_indicators(ee);
     rest := kb_subtract(foldr(assert, kb1, op(dom_spec)), kb0);
     new_rng, rest := selectremove(type, rest,
-      {[identical(genLebesgue), name, anything, anything],
-       [identical(genType), name, specfunc(HInt)]});
-    new_rng := op(new_rng); # There should be exactly one {genLebesgue,genType}
+      {`if`(mk=Int, [identical(genLebesgue), name, anything, anything], NULL),
+       `if`(mk=Sum, [identical(genType), name, specfunc(HInt)], NULL),
+       [identical(genLet), name, anything]});
+    if not (new_rng :: [list]) then
+      error "kb_subtract should return exactly one gen*"
+    end if;
+    make    := mk;
+    new_rng := op(new_rng);
     var     := op(2,new_rng);
     if op(1,new_rng) = genLebesgue then
-      make := Int;
       new_rng := op(3,new_rng)..op(4,new_rng);
-    else # op(1,new_rng) = genType
-      make := Sum;
-      new_rng := op(1, [op(map((b -> `if`(op(1,b)=`>`, floor(op(2,b))+1,
-                                                       op(2,b))),
-                               select(type, op(3,new_rng),
-                                 Bound(identical(`>`,`>=`),anything)))),
-                        -infinity])
-              .. op(1, [op(map((b -> `if`(op(1,b)=`<`, ceil(op(2,b))-1,
-                                                       op(2,b))),
-                               select(type, op(3,new_rng),
-                                 Bound(identical(`<`,`<=`),anything)))),
-                        infinity]);
+    elif op(1,new_rng) = genType then
+      new_rng := range_of_HInt(op(3,new_rng));
+    else # op(1,new_rng) = genLet
+      if mk=Int then return 0 else make := eval; new_rng := op(3,new_rng) end if
     end if;
     dom_spec, rest := selectremove(depends,
       map(proc(a::[identical(assert),anything]) op(2,a) end proc, rest), var);

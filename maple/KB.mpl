@@ -18,15 +18,19 @@
 
 KB := module ()
   option package;
-  local KB, Introduce, Constrain,
-        assert_deny, boolean_if, coalesce_bounds, htype_to_property,
+  local KB, Introduce, Let, Constrain, t_intro, t_lo, t_hi,
+        assert_deny, chill, boolean_if, coalesce_bounds, htype_to_property,
         myexpand_product,
         ModuleLoad, ModuleUnload;
-  export empty, genLebesgue, genType, assert,
-         kb_subtract, simplify_assuming, kb_to_assumptions,
-         kb_piecewise;
+  export empty, genLebesgue, genType, genLet, assert,
+         kb_subtract, simplify_assuming, kb_to_assumptions, kb_to_equations,
+         kb_piecewise, range_of_HInt;
   global t_kb;
   uses Hakaru;
+
+  t_intro := 'Introduce(name, specfunc({AlmostEveryReal,HReal,HInt}))';
+  t_lo    := 'identical(`>`,`>=`)';
+  t_hi    := 'identical(`<`,`<=`)';
 
   empty := KB();
 
@@ -48,7 +52,16 @@ KB := module ()
     x, KB(Introduce(x, t), op(kb));
   end proc;
 
-  assert := proc(b, kb::t_kb) assert_deny(b, true, kb) end proc;
+  genLet := proc(xx::name, e, kb::t_kb)
+    # A let-binding, assigning a known value to a new variable
+    local x, t;
+    x := `if`(depends([e,kb,_rest], xx), gensym(xx), xx);
+    x, KB(Let(x, e), op(kb));
+  end proc;
+
+  assert := proc(b, kb::t_kb)
+    assert_deny(foldl(eval, b, op(kb_to_equations(kb))), true, kb)
+  end proc;
 
   assert_deny := proc(bb, pol::identical(true,false), kb::t_kb)
     # Add `if`(pol,bb,Not(bb)) to kb and return the resulting KB.
@@ -56,10 +69,10 @@ KB := module ()
     if bb = pol then
       # Ignore literal true and Not(false).
       kb
-    elif bb :: `if`(pol, {specfunc(anything, And), `and`},
-                         {specfunc(anything, Or ), `or` }) then
+    elif bb :: `if`(pol, '{specfunc(anything, And), `and`}',
+                         '{specfunc(anything, Or ), `or` }') then
       foldr(((b,kb) -> assert_deny(b, pol, kb)), kb, op(bb))
-    elif bb :: {specfunc(anything, Not), `not`} then
+    elif bb :: '{specfunc(anything, Not), `not`}' then
       foldr(((b,kb) -> assert_deny(b, not pol, kb)), kb, op(bb))
     else
       as := kb_to_assumptions(kb);
@@ -80,9 +93,8 @@ KB := module ()
       if nops(k) > 0 then
         x, k := op(op(1,k));
         # Found the innermost scope where b makes sense.
-        if b :: And(Or(`<`, `<=`),
-                    Or(anyop(identical(x), freeof(x)),
-                       anyop(freeof(x), identical(x)))) then
+        if b :: And(relation, Or(anyop(identical(x), freeof(x)),
+                                 anyop(freeof(x), identical(x)))) then
           # b is a bound on x, so compare it against the current bound on x.
           # First, express `if`(pol,b,Not(b)) as rel(x,e)
           rel := op(0,b);
@@ -93,28 +105,59 @@ KB := module ()
             rel := subs({`<`=`>`, `<=`=`>=`}, rel);
           end if;
           if not pol then
-            rel := subs({`<`=`>=`, `<=`=`>`, `>`=`<=`, `>=`=`<`}, rel);
+            rel := subs({`<`=`>=`, `<=`=`>`,
+                         `>`=`<=`, `>=`=`<`,
+                         `=`=`<>`, `<>`=`=`}, rel);
           end if;
-          if k :: specfunc(AlmostEveryReal) then
+          if k :: 'specfunc(AlmostEveryReal)' then
             rel := subs({`<=`=`<`, `>=`=`>`}, rel);
           end if;
-          # Second, look up the current bound on x, if any.
-          c := `if`(rel in {`>`, `>=`}, identical(`>`, `>=`), identical(`<`, `<=`));
+          if rel = `=` then
+            # Use equality to supersede Introduce if e is in bounds.
+            if coulditbe(x=chill(e)) assuming
+              op(remove(type, chill(as), `::`))
+              # The line above should be just op(chill(as)), but we remove
+              # `::` because it can confuse Maple's assumptions system:
+              #     > coulditbe(i = 0) assuming 0 <= i, i <= n-1
+              #     true
+              #     > coulditbe(i = 0) assuming i::integer, 0 <= i, i <= n-1
+              #     FAIL
+            then
+              return KB(Bound(x,`=`,e), op(kb))
+            else
+              return KB(Constrain(x=e), op(kb))
+            end if
+          end if;
+          if rel = `<>` then
+            # Refine <> to > or < if possible.
+            if coulditbe(x>chill(e)) assuming op(chill(as)) then
+              if coulditbe(x<chill(e)) assuming op(chill(as)) then
+                return KB(Constrain(x<>e), op(kb))
+              else rel := `>` end if
+            else rel := `<` end if
+          end if;
+          # Strengthen strict inequality on integer variable.
+          if op(0,k) = HInt then
+            if   rel = `>` then rel := `>=`; e := floor(e)+1 assuming op(as)
+            elif rel = `<` then rel := `<=`; e := ceil (e)-1 assuming op(as)
+            end if
+          end if;
+          # Look up the current bound on x, if any.
+          c := `if`(rel :: t_lo, t_lo, t_hi);
           c := [op(map2(subsop, 1=NULL,
                    select(type, kb, Bound(identical(x), c, anything)))),
                 op(select(type, k , Bound(              c, anything)) )];
           # Compare the new bound rel        (x,e          )
           # against the old bound op([1,1],c)(x,op([1,2],c))
-          if rel in {`>`,`>=`} and e = -infinity
-            or rel in {`<`,`<=`} and e = infinity
-            or nops(c)>0
-            and (is(rel(y,e)) assuming op([1,1],c)(y,op([1,2],c)),
-                   y::htype_to_property(k), op(as)) then
+          if e = `if`(rel :: t_lo, -infinity, infinity)
+            or nops(c)>0 and (is(rel(y,e))
+                                assuming op([1,1],c)(y,op([1,2],c)),
+                                         y::htype_to_property(k), op(as)) then
             # The old bound renders the new bound superfluous.
             return kb
-          elif nops(c)=0
-            or (is(op([1,1],c)(y,op([1,2],c))) assuming rel(y,e),
-                  y::htype_to_property(k), op(as)) then
+          elif nops(c)=0 or (is(op([1,1],c)(y,op([1,2],c)))
+                               assuming rel(y,e),
+                                        y::htype_to_property(k), op(as)) then
             # The new bound supersedes the old bound.
             return KB(Bound(x,rel,e), op(kb))
           end if
@@ -123,12 +166,12 @@ KB := module ()
           try
             c := convert(piecewise(b, true, false), 'piecewise', x)
               assuming op(as);
-            if c :: specfunc(boolean, piecewise) then
+            if c :: 'specfunc(boolean, piecewise)' and not has(c, 'RootOf') then
               c := foldr_piecewise(boolean_if, false, c);
+              if c <> b then return assert_deny(c, pol, kb) end if
             end if
-          catch: c := b;
+          catch:
           end try;
-          if c <> b then return assert_deny(c, pol, kb) end if
         end if
       end if;
       # Normalize `=` and `<>` constraints a bit.
@@ -137,27 +180,34 @@ KB := module ()
         if   b :: `=`  then b := `<>`(op(b))
         elif b :: `<>` then b := `=` (op(b))
         elif b :: `<`  then b := `>=`(op(b))
-        elif b :: `<=` then b := `>`(op(b))
+        elif b :: `<=` then b := `>` (op(b))
         else b := Not(b) end if
       end if;
-      if b :: (anything=name) then b := (rhs(b)=lhs(b)) end if;
+      if b :: 'anything=name' then b := (rhs(b)=lhs(b)) end if;
       # Add constraint to KB.
       KB(Constrain(b), op(kb))
     end if
   end proc:
 
+  # Steer away from FAILure modes of the assumptions system
+  chill := proc(e)
+    evalindets(e, 'size(anything)', freeze)
+  end proc;
+
   boolean_if := proc(cond, th, el)
     # boolean_if should be equivalent to `if`, but it assumes
     # all its arguments are boolean conditions, so it basically
     # simplifies "cond and th or not cond and el"
-    local a, o, n;
-    a := (x,y)-> `if`(x=true,y, `if`(x=false,x,
-                 `if`(y=true,x, `if`(y=false,y, And(x,y)))));
-    o := (x,y)-> `if`(x=false,y, `if`(x=true,x,
-                 `if`(y=false,x, `if`(y=true,y, Or (x,y)))));
-    n := x    -> `if`(x=false,true,
-                 `if`(x=true,false,             Not(x)));
-    o(a(cond,th), a(n(cond),el));
+    use
+      a = ((x,y)-> `if`(x=true,y, `if`(x=false,x,
+                   `if`(y=true,x, `if`(y=false,y, And(x,y)))))),
+      o = ((x,y)-> `if`(x=false,y, `if`(x=true,x,
+                   `if`(y=false,x, `if`(y=true,y, Or (x,y)))))),
+      n = (x    -> `if`(x=false,true,
+                   `if`(x=true,false,             Not(x))))
+    in
+      o(a(cond,th), a(n(cond),el))
+    end use
   end proc;
 
   kb_subtract := proc(kb::t_kb, kb0::t_kb)
@@ -168,9 +218,9 @@ KB := module ()
     end if;
     map(proc(k)
       local x, t;
-      if k :: Introduce(name, anything) then
+      if k :: 'Introduce(name, anything)' then
         x, t := op(k);
-        if t :: specfunc(AlmostEveryReal) then
+        if t :: 'specfunc(AlmostEveryReal)' then
           t := [op(t), Bound(`>`, -infinity), Bound(`<`, infinity)];
           [genLebesgue, x,
            op([1,2], select(type, t, Bound(identical(`>`), anything))),
@@ -178,19 +228,18 @@ KB := module ()
         else
           [genType, x, t]
         end if
-      elif k :: Bound(name, anything, anything) then
+      elif k :: 'Let(name, anything)' then
+        [genLet, op(k)]
+      elif k :: 'Bound(name, anything, anything)' then
         [assert, op(2,k)(op(1,k),op(3,k))]
-      elif k :: Constrain(anything) then
+      elif k :: 'Constrain(anything)' then
         [assert, op(1,k)]
       end if
     end proc, [op(coalesce_bounds(KB(op(1..cut, kb))))])
   end proc;
 
   coalesce_bounds := proc(kb::t_kb)
-    local t_intro, t_lo, t_hi, lo, hi, rest, k, x, t, b, s, r;
-    t_intro := 'Introduce(name, specfunc({AlmostEveryReal,HReal,HInt}))';
-    t_lo    := 'identical(`>`,`>=`)';
-    t_hi    := 'identical(`<`,`<=`)';
+    local lo, hi, eq, rest, k, x, t, b, s, r;
     for k in select(type, kb, t_intro) do
       x, t := op(k);
       b, t := selectremove(type, t, Bound(t_lo, anything));
@@ -198,6 +247,9 @@ KB := module ()
       b, t := selectremove(type, t, Bound(t_hi, anything));
       if nops(b) > 0 then hi[x] := op(1,b) end if;
       rest[x] := [op(t)];
+    end do;
+    for k in select(type, kb, Bound(name, identical(`=`), anything)) do
+      eq[op(1,k)] := op(3,k);
     end do;
     for k in select(type, kb, Bound(name, t_lo, anything)) do
       lo[op(1,k)] := subsop(1=NULL,k);
@@ -208,10 +260,15 @@ KB := module ()
     map(proc(k)
       if k :: t_intro then
         x := op(1,k);
-        subsop(2=op([2,0],k)(op(select(type, [lo[x], hi[x]], specfunc(Bound))),
-                             op(rest[x])),
-               k);
-      elif k :: Bound(name, anything, anything) and rest[op(1,k)] :: list then
+        if eq[x] = evaln(eq[x]) then
+          subsop(2=op([2,0],k)(op(select(type, [lo[x],hi[x]], specfunc(Bound))),
+                               op(rest[x])),
+                 k);
+        else
+          Let(x, eq[x]);
+        end if
+      elif k :: 'Bound(name, anything, anything)'
+           and rest[op(1,k)] :: 'list' then
         NULL;
       else
         k;
@@ -221,7 +278,7 @@ KB := module ()
 
   simplify_assuming := proc(ee, kb::t_kb)
     local e, as;
-    e := ee;
+    e := foldl(eval, ee, op(kb_to_equations(kb)));
     e := evalindets(e, 'specfunc({%product, product})', myexpand_product);
     e := evalindets(e, 'specfunc(sum)', expand);
     as := kb_to_assumptions(kb);
@@ -267,17 +324,17 @@ KB := module ()
   end proc;
 
   kb_to_assumptions := proc(kb)
-    local t_intro;
-    t_intro := 'Introduce(name, specfunc({AlmostEveryReal,HReal,HInt}))';
     map(proc(k)
       local x;
       if k :: t_intro then
         x := op(1,k);
         (x :: htype_to_property(op(2,k))),
         op(map((b -> op(1,b)(x, op(2,b))), op(2,k)))
-      elif k :: Bound(anything, anything, anything) then
+      elif k :: 'Let(anything, anything)' then
+        `=`(op(k))
+      elif k :: 'Bound(anything, anything, anything)' then
         op(2,k)(op(1,k), op(3,k))
-      elif k :: Constrain(anything) then
+      elif k :: 'Constrain(anything)' then
         op(1,k)
       else
         NULL # Maple doesn't understand our other types
@@ -285,9 +342,13 @@ KB := module ()
     end proc, [op(coalesce_bounds(kb))])
   end proc;
 
+  kb_to_equations := proc(kb)
+    map2(subsop, 0=`=`, [op(select(type, kb, 'Let(name, anything)'))])
+  end proc;
+
   htype_to_property := proc(t::t_type)
-    if t :: specfunc({AlmostEveryReal, HReal}) then real
-    elif t :: specfunc(HInt) then integer
+    if t :: 'specfunc({AlmostEveryReal, HReal})' then real
+    elif t :: 'specfunc(HInt)' then integer
     else TopProp end if
   end proc;
 
@@ -307,12 +368,22 @@ KB := module ()
                   i=1..n))
   end proc;
 
+  range_of_HInt := proc(t :: And(specfunc(HInt), t_type))
+       op(1, [op(map((b -> `if`(op(1,b)=`>`, floor(op(2,b))+1, op(2,b))),
+                     select(type, t, Bound(t_lo,anything)))),
+              -infinity])
+    .. op(1, [op(map((b -> `if`(op(1,b)=`<`, ceil(op(2,b))-1, op(2,b))),
+                     select(type, t, Bound(t_hi,anything)))),
+              infinity]);
+  end proc;
+
   ModuleLoad := proc()
     Hakaru; # Make sure the KB module is loaded, for the type t_type
     TypeTools[AddType](t_kb,
       'specfunc({
          Introduce(name, t_type),
-         Bound(name, identical(`<`,`<=`,`>`,`>=`), anything),
+         Let(name, anything),
+         Bound(name, identical(`<`,`<=`,`>`,`>=`,`=`), anything),
          Constrain({`::`, boolean, `in`, specfunc(anything,{Or,Not})})
        }, KB)');
   end proc;
