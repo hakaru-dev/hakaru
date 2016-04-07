@@ -619,7 +619,7 @@ NewSLO := module ()
 
   unintegrate := proc(h :: name, integral, kb :: t_kb)
     local x, c, lo, hi, make, m, mm, w, w0, w1, recognition, subintegral,
-          i, kb1, loops, subst, hh, pp, res;
+          i, kb1, loops, subst, hh, pp, t, bnds;
     if integral :: 'And'('specfunc({Int,int})',
                          'anyfunc'('anything','name'='range'('freeof'(h)))) then
       (lo, hi) := op(op([2,2],integral));
@@ -660,30 +660,22 @@ NewSLO := module ()
                            'anyfunc'('anything', 'name', 'range'('freeof'(h)),
                                      'list(name=range)')) then
       loops := op(4,integral);
-      (lo, hi) := op(op(3,integral));
+      bnds  := op(3,integral);
       if op(0,integral) in {Ints,ints} then
-        res := HReal(open_bounds(lo..hi));
+        t := HReal(open_bounds(bnds));
         make := Int;
       else
-        res := HInt(closed_bounds(lo..hi));
+        t := HInt(closed_bounds(bnds));
         make := Sum;
       end if;
-      x, kb1 := genType(op(2,integral), mk_HArray(res, loops), kb);
+      x, kb1 := genType(op(2,integral), mk_HArray(t, loops), kb);
       subintegral := eval(op(1,integral), op(2,integral) = x);
       (w, m) := unweight(unintegrate(h, subintegral, kb1));
-      kb1 := kb;
-      subst := table();
-      for i from nops(loops) to 1 by -1 do
-        res := op(i,loops);
-        subst[lhs(res)], kb1
-          := genType(lhs(res), HInt(closed_bounds(rhs(res))), kb1, w);
-      end do;
-      subst := op(op(subst));
-      loops := eval(loops, subst);
+      bnds, loops, kb1 := genLoop(bnds, loops, kb, 'Integrand'(x,[w,m]));
       w, pp := unproducts(w, x, loops, kb1);
       w, w0 := selectremove(depends, convert(w, 'list', `*`), x);
       hh := gensym('ph');
-      subintegral := make(pp * applyintegrand(hh,x), x=eval(lo..hi,subst));
+      subintegral := make(pp * applyintegrand(hh,x), x=bnds);
       (w1, mm) := unweight(unintegrate(hh, subintegral, kb1));
       weight(simplify_assuming(`*`(op(w0)) * foldl(product, w1, op(loops)), kb),
         bind(foldl(((mmm,loop) ->

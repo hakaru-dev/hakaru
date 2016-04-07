@@ -59,50 +59,49 @@ end proc:
 
 Loop := module ()
   option package;
-  local wrap, Binder, Stmt, t_binder, t_stmt, t_exp;
+  local intssums, wrap, Binder, Stmt, t_binder, t_stmt, t_exp;
   export
      # These first few are smart constructors (for themselves):
-         ints, sums, unproducts, unproduct;
+         ints, sums,
+     # while these are "proper functions"
+         genLoop, unproducts, unproduct;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
   global Ints, Sums;
-  uses KB;
+  uses Hakaru, KB;
 
   t_binder := 'Binder(identical(product, Product, sum, Sum), t_kb)';
   t_stmt   := 'Stmt(anything, list, list)';
   t_exp    := '{Stmt(identical(exp), [], []),
                 Stmt(identical(`^`), [anything], [])}';
 
-  ints := proc(ee::anything, xx::name, rr::range, ll::list(name=range),
-               kb::t_kb:=empty)
-    local dummy, res, e, x, r, l, w0, pp;
-    # First rename ee,xx to avoid clashes with index variables bound in ll
-    res, l := BindingTools:-generic_evalatstar([rr,res], ll, res=[xx,ee]);
-    r, res := op(res);
-    x, e   := op(res);
-    # Now try to unnest the ints
-    w0, pp := unproducts(e, x, l, kb);
-    if depends(w0, x) then
-      'procname'(ee, xx, rr, ll)
-    else
-      w0 * foldl(product, int(pp,x=r), op(l))
-    end if
+  ints := proc() intssums('ints', 'int', _passed) end proc;
+  sums := proc() intssums('sums', 'sum', _passed) end proc;
+
+  intssums := proc(makes::name, make::name,
+                   e::anything, x::name, rr::range, ll::list(name=range),
+                   kb::t_kb:=empty)
+    local r, l, kb1, w0, pp;
+    r, l, kb1 := genLoop(rr, ll, kb, 'Integrand'(x,e));
+    w0, pp := unproducts(e, x, l, kb1);
+    if depends(w0, x) then 'makes'(e, x, rr, ll)
+    else w0 * foldl(product, make(pp,x=r), op(l)) end if
   end proc;
 
-  sums := proc(ee::anything, xx::name, rr::range, ll::list(name=range),
-               kb::t_kb:=empty)
-    local dummy, res, e, x, r, l, w0, pp;
-    # First rename ee,xx to avoid clashes with index variables bound in ll
-    res, l := BindingTools:-generic_evalatstar([rr,res], ll, res=[xx,ee]);
-    r, res := op(res);
-    x, e   := op(res);
-    # Now try to unnest the sums
-    w0, pp := unproducts(e, x, l);
-    if depends(w0, x) then
-      'procname'(ee, xx, rr, ll)
-    else
-      w0 * foldl(product, sum(pp,x=r), op(l))
-    end if
+  genLoop := proc(e, loops::list(name=range), kb::t_kb)
+    local kb1, rng, ind, do_subst, i;
+    kb1 := kb;
+    rng := table();
+    ind := table();
+    do_subst := e -> foldl(((e,eq) -> eval(e, op([lhs(eq),1],loops)=rhs(eq))),
+                           e, entries(ind, 'pairs'));
+    for i from nops(loops) to 1 by -1 do
+      rng[i] := do_subst(op([i,2],loops));
+      ind[i], kb1 := genType(op([i,1],loops), HInt(closed_bounds(rng[i])),
+                               kb1, _rest);
+    end do;
+    do_subst(e), zip(`=`, [entries(ind, 'nolist')],
+                          [entries(rng, 'nolist')]), kb1
   end proc;
 
   unproducts := proc(w, x::name, loops::list(name=range), kb::t_kb)
