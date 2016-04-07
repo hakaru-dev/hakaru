@@ -19,7 +19,7 @@
 KB := module ()
   option package;
   local KB, Introduce, Let, Constrain, t_intro, t_lo, t_hi,
-        assert_deny, chill, boolean_if, coalesce_bounds, htype_to_property,
+        assert_deny, boolean_if, coalesce_bounds, htype_to_property,
         myexpand_product,
         ModuleLoad, ModuleUnload;
   export empty, genLebesgue, genType, genLet, assert,
@@ -113,28 +113,27 @@ KB := module ()
             rel := subs({`<=`=`<`, `>=`=`>`}, rel);
           end if;
           if rel = `=` then
-            # Use equality to supersede Introduce if e is in bounds.
-            if coulditbe(x=chill(e)) assuming
-              op(remove(type, chill(as), `::`))
-              # The line above should be just op(chill(as)), but we remove
-              # `::` because it can confuse Maple's assumptions system:
-              #     > coulditbe(i = 0) assuming 0 <= i, i <= n-1
-              #     true
-              #     > coulditbe(i = 0) assuming i::integer, 0 <= i, i <= n-1
-              #     FAIL
-            then
-              return KB(Bound(x,`=`,e), op(kb))
-            else
-              return KB(Constrain(x=e), op(kb))
-            end if
+            # Check if the equality asserted falls within existing bounds.
+            for c in t_lo, t_hi do
+              c := [op(map2(subsop, 1=NULL,
+                       select(type, kb, Bound(identical(x), c, anything)))),
+                    op(select(type, k , Bound(              c, anything)) )];
+              if nops(c)>0 and not (is(op([1,1],c)(e,op([1,2],c)))
+                                      assuming op(as)) then
+                # No, we're not sure if the equality asserted is in bounds,
+                # so store the assertion as an additional constraint.
+                return KB(Constrain(x=e), op(kb))
+              end if
+            end do;
+            # Yes, we're sure that the equality asserted is in bounds,
+            # so supersede the Introduce binding with a Let binding.
+            return KB(Bound(x,`=`,e), op(kb))
           end if;
           if rel = `<>` then
             # Refine <> to > or < if possible.
-            if coulditbe(x>chill(e)) assuming op(chill(as)) then
-              if coulditbe(x<chill(e)) assuming op(chill(as)) then
-                return KB(Constrain(x<>e), op(kb))
-              else rel := `>` end if
-            else rel := `<` end if
+            if   is(x<=e) assuming op(as) then rel := `<`
+            elif is(x>=e) assuming op(as) then rel := `>`
+            else return KB(Constrain(x<>e), op(kb)) end if
           end if;
           # Strengthen strict inequality on integer variable.
           if op(0,k) = HInt then
@@ -188,11 +187,6 @@ KB := module ()
       KB(Constrain(b), op(kb))
     end if
   end proc:
-
-  # Steer away from FAILure modes of the assumptions system
-  chill := proc(e)
-    evalindets(e, 'size(anything)', freeze)
-  end proc;
 
   boolean_if := proc(cond, th, el)
     # boolean_if should be equivalent to `if`, but it assumes
