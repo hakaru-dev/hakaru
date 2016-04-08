@@ -792,6 +792,7 @@ data Term :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         :: [(abt '[] 'HProb, abt '[] ('HMeasure a))]
         -> Term abt ('HMeasure a)
 
+    Reject :: !(Sing ('HMeasure a)) -> Term abt ('HMeasure a)
 
 ----------------------------------------------------------------
 -- N.B., having a @singTerm :: Term abt a -> Sing a@ doesn't make
