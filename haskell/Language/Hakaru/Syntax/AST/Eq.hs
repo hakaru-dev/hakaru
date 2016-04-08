@@ -49,9 +49,10 @@ import Language.Hakaru.Syntax.TypeOf
 
 -- import Control.Monad.Reader
 
-import qualified Data.Foldable as F
+import qualified Data.Foldable      as F
 import qualified Data.List.NonEmpty as L
-import qualified Data.Sequence as S
+import qualified Data.Sequence      as S
+import qualified Data.Traversable   as T
 
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Traversable
@@ -163,7 +164,7 @@ instance (ABT Term abt, JmEq2 abt) => JmEq1 (Term abt) where
         (Refl, Refl) <- jmEq2 a a'
         jmEq_Branch (zip bs bs')
     jmEq1 (Superpose_ pms) (Superpose_ pms') = do
-      (Refl,Refl) L.:| _ <- sequence $ fmap jmEq_Tuple (L.zip pms pms')
+      (Refl,Refl) L.:| _ <- T.sequence $ fmap jmEq_Tuple (L.zip pms pms')
       return Refl
     jmEq1 _              _              = Nothing
 

@@ -44,7 +44,7 @@ import Language.Hakaru.Syntax.Prelude
 -- | Convert an arbitrary measure into a probability measure; i.e.,
 -- reweight things so that the total weight\/mass is 1.
 normalize
-    :: (ABT Term abt, SingI a)
+    :: (ABT Term abt)
     => abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure a)
 normalize m = withWeight (recip $ total m) m

@@ -168,6 +168,7 @@ getTermSing singify = go
     go (Datum_ (Datum _ typ _))     = return typ
     go (Case_    _  bs) = tryAll "Case_"      getBranchSing   bs
     go (Superpose_ pes) = tryAll "Superpose_" (getSing . snd) pes
+    go (Reject_ typ)    = return typ
     go (_ :$ _) = error "getTermSing: the impossible happened"
 
 
