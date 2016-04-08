@@ -792,7 +792,7 @@ data Term :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         :: [(abt '[] 'HProb, abt '[] ('HMeasure a))]
         -> Term abt ('HMeasure a)
 
-    Reject :: !(Sing ('HMeasure a)) -> Term abt ('HMeasure a)
+    Reject_ :: !(Sing ('HMeasure a)) -> Term abt ('HMeasure a)
 
 ----------------------------------------------------------------
 -- N.B., having a @singTerm :: Term abt a -> Sing a@ doesn't make
@@ -866,6 +866,7 @@ instance Show2 abt => Show1 (Term abt) where
                     (\(e1,e2) -> showTuple [shows2 e1, shows2 e2])
                     pes
                 )
+        Reject_ _     -> showString      "Reject_"
 
 instance Show2 abt => Show (Term abt a) where
     showsPrec = showsPrec1
@@ -882,6 +883,7 @@ instance Functor21 Term where
     fmap21 f (Datum_     d)     = Datum_     (fmap11 f d)
     fmap21 f (Case_      e  bs) = Case_      (f e)  (map (fmap21 f) bs)
     fmap21 f (Superpose_ pes)   = Superpose_ (map (f *** f) pes)
+    fmap21 _ (Reject_ t)        = Reject_ t
 
 
 ----------------------------------------------------------------
@@ -894,6 +896,7 @@ instance Foldable21 Term where
     foldMap21 f (Datum_     d)     = foldMap11 f d
     foldMap21 f (Case_      e  bs) = f e  `mappend` F.foldMap (foldMap21 f) bs
     foldMap21 f (Superpose_ pes)   = foldMapPairs f pes
+    foldMap21 _ (Reject_    _)     = mempty
 
 foldMapPairs
     :: Monoid m
@@ -913,6 +916,7 @@ instance Traversable21 Term where
     traverse21 f (Datum_     d)     = Datum_ <$> traverse11 f d
     traverse21 f (Case_      e  bs) = Case_  <$> f e <*> traverse (traverse21 f) bs
     traverse21 f (Superpose_ pes)   = Superpose_ <$> traversePairs f pes
+    traverse21 _ (Reject_    typ)   = pure $ Reject_  typ
 
 traversePairs
     :: Applicative f
