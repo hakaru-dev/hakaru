@@ -264,6 +264,15 @@ evaluatePrimOp
     -> SArgs abt args
     -> Env
     -> Value a
+evaluatePrimOp Pi  End         _   = VProb . LF.logFloat $ pi
+evaluatePrimOp Cos (e1 :* End) env =
+    case evaluate e1 env of
+      VReal v1 -> VReal . cos $ v1
+      v        -> case v of {}
+evaluatePrimOp Exp (e1 :* End) env =
+    case evaluate e1 env of
+      VReal v1 -> VProb . LF.logToLogFloat $ v1
+      v        -> case v of {}
 evaluatePrimOp Infinity         End _ = VProb $ LF.logFloat LF.infinity
 evaluatePrimOp NegativeInfinity End _ = VReal $ LF.negativeInfinity
 evaluatePrimOp (Less _) (e1 :* e2 :* End) env =
