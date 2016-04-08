@@ -37,7 +37,7 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     -- * Operators on the disintegration monad
     -- ** The \"zero\" and \"one\"
     , bot
-    , reject
+    --, reject
     -- ** Emitting code
     , emit
     , emitMBind
@@ -64,6 +64,7 @@ import           Control.Applicative  (Applicative(..))
 #endif
 import qualified Data.Foldable        as F
 import qualified Data.Traversable     as T
+import           Data.List.NonEmpty   (NonEmpty(..))
 import           Control.Applicative  (Alternative(..))
 import           Control.Monad        (MonadPlus(..))
 import           Data.Functor.Compose (Compose(..))
@@ -73,7 +74,7 @@ import qualified Data.Text            as Text
 import Language.Hakaru.Syntax.IClasses
 import Data.Number.Nat
 import Language.Hakaru.Types.DataKind
-import Language.Hakaru.Types.Sing    (Sing, sUnMeasure, sUnPair)
+import Language.Hakaru.Types.Sing    (Sing, SingI, sUnMeasure, sUnPair)
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.TypeOf
@@ -180,9 +181,9 @@ residualizeListContext =
         SGuard xs pat scrutinee ->
             syn $ Case_ (fromLazy scrutinee)
                 [ Branch pat   (binds_ xs e)
-                , Branch PWild P.reject
+                , Branch PWild (P.reject $ typeOf e)
                 ]
-        SWeight body        -> syn $ Superpose_ [(fromLazy body, e)]
+        SWeight body        -> syn $ Superpose_ ((fromLazy body, e) :| [])
         SIndex x index size ->
             -- The obvious thing to do:
             syn (ArrayOp_ (Index $ typeOf e)
@@ -333,8 +334,8 @@ bot = Dis $ \_ _ -> []
 
 
 -- | The empty measure is a solution to the constraints.
-reject :: (ABT Term abt) => Dis abt a
-reject = Dis $ \_ _ -> [syn (Superpose_ [])]
+-- reject :: (ABT Term abt) => Dis abt a
+-- reject = Dis $ \_ _ -> [syn (Superpose_ [])]
 
 
 -- Something essentially like this function was called @insert_@

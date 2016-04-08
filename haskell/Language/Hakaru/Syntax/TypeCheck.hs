@@ -43,6 +43,7 @@ import           Data.Proxy            (KProxy(..), Proxy(..))
 import           Data.Text             (pack)
 import qualified Data.IntMap           as IM
 import qualified Data.Traversable      as T
+import qualified Data.List.NonEmpty    as L
 import qualified Data.Foldable         as F
 import qualified Data.Sequence         as S
 #if __GLASGOW_HASKELL__ < 710
@@ -575,8 +576,8 @@ inferType = inferType_
             UnsafeMode -> error "TODO: inferType{Superpose_} in UnsafeMode"
         case typ of
             SMeasure _ -> do
-                ps' <- T.traverse (checkType SProb) (map fst pes)
-                return $ TypedAST typ (syn (Superpose_ (zip ps' es')))
+                ps' <- T.traverse (checkType SProb) (fmap fst pes)
+                return $ TypedAST typ (syn (Superpose_ (L.fromList $ zip ps' es')))
             _ -> typeMismatch (Left "HMeasure") (Right typ)
 
     _   | mustCheck e0 -> ambiguousMustCheck
@@ -1157,7 +1158,7 @@ checkType = checkType_
         U.Superpose_ pes ->
             case typ0 of
             SMeasure _ ->
-                fmap (syn . Superpose_) .
+                fmap (syn . Superpose_ . L.fromList) .
                     T.forM pes $ \(p,e) ->
                         (,) <$> checkType_ SProb p <*> checkType_ typ0 e
             _ -> typeMismatch (Right typ0) (Left "HMeasure")

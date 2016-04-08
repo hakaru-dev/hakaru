@@ -84,6 +84,8 @@ import           Control.Applicative  (Alternative(..))
 import           Control.Monad        ((<=<))
 import           Data.Functor.Compose (Compose(..))
 import qualified Data.Traversable     as T
+import           Data.List.NonEmpty   (NonEmpty(..))
+import qualified Data.List.NonEmpty   as L
 import qualified Data.Text            as Text
 import qualified Data.IntMap          as IM
 import           Data.Sequence        (Seq)
@@ -338,7 +340,7 @@ perform = \e0 ->
     performTerm (Superpose_ pes) = do
         -- TODO: we should combine the multiple traversals of @pes@/@pes'@
         pes' <- T.traverse (firstM (fmap fromWhnf . atomize)) pes
-        emitFork_ (P.superpose . getCompose) (perform <$> Compose pes')
+        emitFork_ (P.superpose . L.toList . getCompose) (perform <$> Compose pes')
 
     -- Avoid falling through to the @performWhnf <=< evaluate_@ case
     performTerm (Let_ :$ e1 :* e2 :* End) =
@@ -530,6 +532,7 @@ constrainValue v0 e0 =
         MBind :$ _ :* _ :* End   -> bot -- giving up.
         MeasureOp_ o :$ es       -> constrainValueMeasureOp v0 o es
         Superpose_ pes           -> bot -- giving up.
+        Reject_ _                -> bot -- giving up.
         Let_ :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
                 push (SLet x $ Thunk e1) e2' (constrainValue v0)
@@ -613,7 +616,7 @@ constrainDatum v0 d =
         emit_ $ \body ->
             syn $ Case_ v0
                 [ Branch pat (binds_ xs body)
-                , Branch PWild P.reject
+                , Branch PWild (P.reject $ (typeOf body))
                 ]
         constrainValues xs es
 
@@ -976,7 +979,7 @@ constrainPrimOp v0 = go
                     ])
                 (P.if_ (eq zero x0)
                     (P.dirac zero)
-                    P.reject))
+                    (P.reject . SMeasure . typeOf $ zero)))
         constrainValue v e1
 
     go (Signum theRing) = \(e1 :* End) ->
@@ -1082,14 +1085,14 @@ constrainOutcome v0 e0 =
     go (WChain e1 e2 e3)     = impossible -- TODO: handle this case
     go (WSuperpose pes) =
         case pes of
-        [(p,e)] -> do
+        (p,e) :| [] -> do
             p' <- fromWhnf <$> atomize p
             emitWeight p'
             constrainOutcome v0 e
         _ -> do
             -- TODO: we should combine the multiple traversals of @pes@/@pes'@
             pes' <- T.traverse (firstM (fmap fromWhnf . atomize)) pes
-            emitFork_ (P.superpose . getCompose)
+            emitFork_ (P.superpose . L.toList . getCompose)
                 (constrainOutcome v0 <$> Compose pes')
 
 

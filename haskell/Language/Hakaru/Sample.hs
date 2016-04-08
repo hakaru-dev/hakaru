@@ -23,6 +23,8 @@ import qualified System.Random.MWC.Distributions as MWCD
 import qualified Data.Vector                     as V
 import           Data.Sequence (Seq)
 import qualified Data.Foldable                   as F
+import qualified Data.List.NonEmpty              as L
+import           Data.List.NonEmpty              (NonEmpty(..))
 import           Data.Maybe                      (fromMaybe)
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative   (Applicative(..), (<$>))
@@ -161,6 +163,7 @@ evaluateTerm t env =
     Datum_   d    -> evaluateDatum   d    env
     Case_    o es -> evaluateCase    o es env
     Superpose_ es -> evaluateSuperpose es env
+    Reject_ _     -> VMeasure $ \_ _ -> return Nothing
 
 evaluateScon
     :: (ABT Term abt)
@@ -493,25 +496,25 @@ evaluateCase o es env =
 
 evaluateSuperpose
     :: (ABT Term abt)
-    => [(abt '[] 'HProb, abt '[] ('HMeasure a))]
+    => NonEmpty (abt '[] 'HProb, abt '[] ('HMeasure a))
     -> Env
     -> Value ('HMeasure a)
-evaluateSuperpose []       _   = VMeasure $ \_ _ -> return Nothing
-evaluateSuperpose [(q, m)] env =
+evaluateSuperpose ((q, m) :| []) env =
     case evaluate m env of
     VMeasure m' ->
         let VProb q' = evaluate q env
         in  VMeasure (\(VProb p) g -> m' (VProb $ p * q') g)
         
-evaluateSuperpose pms@((_, m) : _) env =
+evaluateSuperpose pms@((_, m) :| _) env =
     case evaluate m env of
     VMeasure m' ->
-        let weights  = map ((flip evaluate env) . fst) pms
+        let pms'     = L.toList pms
+            weights  = map ((flip evaluate env) . fst) pms'
             (x,y,ys) = normalize weights
         in VMeasure $ \(VProb p) g ->
             if not (y > (0::Double)) then return Nothing else do
             u <- MWC.uniformR (0, y) g
-            case [ m1 | (v,(_,m1)) <- zip (scanl1 (+) ys) pms, u <= v ] of
+            case [ m1 | (v,(_,m1)) <- zip (scanl1 (+) ys) pms', u <= v ] of
                 m2 : _ ->
                     case evaluate m2 env of
                     VMeasure m2' -> m2' (VProb $ p * x * LF.logFloat y) g

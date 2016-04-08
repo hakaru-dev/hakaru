@@ -57,6 +57,7 @@ module Language.Hakaru.Syntax.AST
 
 import           Data.Sequence (Seq)
 import qualified Data.Foldable as F
+import qualified Data.List.NonEmpty as L
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Monoid   (Monoid(..))
 import           Control.Applicative
@@ -789,7 +790,7 @@ data Term :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
 
     -- Linear combinations of measures.
     Superpose_
-        :: [(abt '[] 'HProb, abt '[] ('HMeasure a))]
+        :: L.NonEmpty (abt '[] 'HProb, abt '[] ('HMeasure a))
         -> Term abt ('HMeasure a)
 
     Reject_ :: !(Sing ('HMeasure a)) -> Term abt ('HMeasure a)
@@ -864,7 +865,7 @@ instance Show2 abt => Show1 (Term abt) where
                 ( showString "Superpose_ "
                 . showListWith
                     (\(e1,e2) -> showTuple [shows2 e1, shows2 e2])
-                    pes
+                    (L.toList pes)
                 )
         Reject_ _     -> showString      "Reject_"
 
@@ -882,7 +883,7 @@ instance Functor21 Term where
     fmap21 f (Array_     e1 e2) = Array_     (f e1) (f e2)
     fmap21 f (Datum_     d)     = Datum_     (fmap11 f d)
     fmap21 f (Case_      e  bs) = Case_      (f e)  (map (fmap21 f) bs)
-    fmap21 f (Superpose_ pes)   = Superpose_ (map (f *** f) pes)
+    fmap21 f (Superpose_ pes)   = Superpose_ (L.map (f *** f) pes)
     fmap21 _ (Reject_ t)        = Reject_ t
 
 
@@ -899,9 +900,9 @@ instance Foldable21 Term where
     foldMap21 _ (Reject_    _)     = mempty
 
 foldMapPairs
-    :: Monoid m
+    :: (Monoid m, F.Foldable f)
     => (forall h i. abt h i -> m)
-    -> [(abt xs a, abt ys b)]
+    -> f (abt xs a, abt ys b)
     -> m
 foldMapPairs f = F.foldMap $ \(e1,e2) -> f e1 `mappend` f e2
 
@@ -919,10 +920,10 @@ instance Traversable21 Term where
     traverse21 _ (Reject_    typ)   = pure $ Reject_  typ
 
 traversePairs
-    :: Applicative f
+    :: (Applicative f, Traversable t)
     => (forall h i. abt1 h i -> f (abt2 h i))
-    -> [(abt1 xs a, abt1 ys b)]
-    -> f [(abt2 xs a, abt2 ys b)]
+    -> t (abt1 xs a, abt1 ys b)
+    -> f (t (abt2 xs a, abt2 ys b))
 traversePairs f = traverse $ \(x,y) -> (,) <$> f x <*> f y
 
 ----------------------------------------------------------------

@@ -29,6 +29,7 @@ module Language.Hakaru.Expect
 
 import           Prelude   (($), (.), flip, map, error, Either(..))
 import qualified Data.Text as Text
+import qualified Data.List.NonEmpty as L
 
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
@@ -43,7 +44,9 @@ import Language.Hakaru.Syntax.Prelude
 -- | Convert an arbitrary measure into a probability measure; i.e.,
 -- reweight things so that the total weight\/mass is 1.
 normalize
-    :: (ABT Term abt) => abt '[] ('HMeasure a) -> abt '[] ('HMeasure a)
+    :: (ABT Term abt, SingI a)
+    => abt '[] ('HMeasure a)
+    -> abt '[] ('HMeasure a)
 normalize m = withWeight (recip $ total m) m
 
 
@@ -301,9 +304,11 @@ expectTerm p (MBind :$ es) xs =
 
 expectTerm p (Superpose_ es) xs =
     ExpectMeasure $ \c ->
-    sum [ e1 * (expectSynDir p e2 xs `apM` c) | (e1, e2) <- es ]
+    sum [ e1 * (expectSynDir p e2 xs `apM` c) | (e1, e2) <- L.toList es ]
     -- TODO: in the Lazy.tex paper, we use @denotation e1 xs@ and guard against that interpretation being negative...
     -- TODO: if @es@ is null, then automatically simplify to just 0
+
+expectTerm p (Reject_ _) xs = ExpectMeasure $ \c -> zero
 
 expectTerm p (Expect    :$ _) _ = case p of {}
 expectTerm p (Integrate :$ _) _ = case p of {}

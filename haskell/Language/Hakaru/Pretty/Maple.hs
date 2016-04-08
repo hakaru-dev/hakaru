@@ -17,6 +17,8 @@ import           Data.Number.Nat     (fromNat)
 -- import Data.Number.Natural (fromNatural)
 import           Data.Sequence (Seq)
 import qualified Data.Foldable                   as F
+import qualified Data.List.NonEmpty              as L
+
 
 -- import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.DataKind
@@ -76,7 +78,8 @@ mapleAST (LC_ e) =
                             "Branches(" ++
                               intercalate ", " (map mapleBranch bs) ++ "))"
         Superpose_ pms ->
-            "Msum(" ++ intercalate ", " (map wmtom pms) ++ ")"
+            "Msum(" ++ intercalate ", " (map wmtom (L.toList pms)) ++ ")"
+        Reject_ _      -> "Msum()"
 
 uniqID :: Variable (a :: Hakaru) -> String
 uniqID = show . fromNat . varID

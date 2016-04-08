@@ -107,7 +107,7 @@ primTable =
     ,("bern",        primBern)
     ,("weight",      primWeight)
     ,("dirac",       TLam $ TNeu . U.Dirac_)
-    ,("reject",      TNeu $ U.Superpose_ [])    
+    ,("reject",      TNeu $ U.Reject_)    
     -- PrimOps
     ,("pi",          TNeu $ U.PrimOp_ U.Pi [])
     ,("**",          primPrimOp2 U.RealPow)

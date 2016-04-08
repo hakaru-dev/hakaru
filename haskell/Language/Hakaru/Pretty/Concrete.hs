@@ -35,6 +35,8 @@ import           System.Console.ANSI
 import           Text.PrettyPrint (Doc, (<>), (<+>))
 import qualified Text.PrettyPrint as PP
 import qualified Data.Foldable    as F
+import           Data.List.NonEmpty (NonEmpty(..))
+import qualified Data.List.NonEmpty as L
 import qualified Data.Text        as Text
 import qualified Data.Sequence    as Seq -- Because older versions of "Data.Foldable" do not export 'null' apparently...
 import qualified Data.Vector                     as V
@@ -185,15 +187,15 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
             ]
         Superpose_ pes ->
             case pes of
-              []       -> [ PP.text "reject" ]
-              [(w, m)] -> ppFun p "weight" [pretty w, pretty m]
+              (w, m) :| [] -> ppFun p "weight" [pretty w, pretty m]
               pes      ->
                  ppFun p "superpose"
                  [ toDoc
                  . ppList
                  . map (\(e1,e2) -> ppTuple [pretty e1, pretty e2])
-                 $ pes
+                 $ L.toList pes
                  ]
+        Reject_ typ -> [PP.text "reject." <+> prettyType 0 typ]
 
 
 -- | Pretty-print @(:$)@ nodes in the AST.

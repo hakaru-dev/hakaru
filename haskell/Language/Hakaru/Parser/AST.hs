@@ -196,6 +196,7 @@ data AST
     | Integrate_  Name    AST AST AST
     | Expect_     Name    AST AST
     | Superpose_  [(AST, AST)]
+    | Reject_
 
 ----------------------------------------------------------------
 ---------------------------------------------------------- fin.

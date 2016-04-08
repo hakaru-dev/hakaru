@@ -131,6 +131,7 @@ import qualified Prelude
 import           Data.Sequence    (Seq)
 import qualified Data.Sequence    as Seq
 import qualified Data.Text        as Text
+import           Data.List.NonEmpty (NonEmpty(..))
 import           Control.Category (Category(..))
 
 import Data.Number.Natural
@@ -1158,11 +1159,15 @@ superpose
     :: (ABT Term abt)
     => [(abt '[] 'HProb, abt '[] ('HMeasure a))]
     -> abt '[] ('HMeasure a)
-superpose = syn . Superpose_
+superpose []     = error "Use reject instead"
+superpose (x:xs) = syn $ Superpose_ (x :| xs)
 
 -- | The empty measure. Is called @fail@ in the Core Hakaru paper.
-reject :: (ABT Term abt) => abt '[] ('HMeasure a)
-reject = superpose []
+reject
+    :: (ABT Term abt)
+    => (Sing ('HMeasure a))
+    -> abt '[] ('HMeasure a)
+reject typ = syn $ Reject_ typ
 
 
 -- TODO: define @mplus@ to better mimic Core Hakaru?
@@ -1210,7 +1215,7 @@ withWeight p m = superpose [(p, m)]
 -- >     == weight p *> dirac e
 -- >     == dirac e <* weight p
 weightedDirac
-    :: (ABT Term abt)
+    :: (ABT Term abt, SingI a)
     => abt '[] a
     -> abt '[] 'HProb
     -> abt '[] ('HMeasure a)
@@ -1246,7 +1251,7 @@ withGuard
     => abt '[] HBool
     -> abt '[] ('HMeasure a)
     -> abt '[] ('HMeasure a)
-withGuard b m = if_ b m reject
+withGuard b m = if_ b m (reject (typeOf m))
 
 
 densityCategorical

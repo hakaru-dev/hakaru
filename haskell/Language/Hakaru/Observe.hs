@@ -94,5 +94,5 @@ observeMeasureOp Normal  (mu :* sd :* End) a =
 observeMeasureOp Uniform (lo :* hi :* End) a =
     P.if_ (lo P.<= a P.&& a P.<= hi)
           (P.withWeight (P.unsafeProb $ P.recip $ hi P.- lo) (P.dirac a))
-          P.reject
+          (P.reject (SMeasure SReal))
 observeMeasureOp _ _ _ = error "TODO{Observe:observeMeasureOp}"

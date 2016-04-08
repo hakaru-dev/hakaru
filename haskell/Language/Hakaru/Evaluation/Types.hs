@@ -71,6 +71,7 @@ import           Control.Applicative  (Applicative(..))
 #endif
 import           Control.Arrow        ((***))
 import qualified Data.Foldable        as F
+import           Data.List.NonEmpty   (NonEmpty(..))
 import           Data.Text            (Text)
 
 import Language.Hakaru.Syntax.IClasses
@@ -148,8 +149,10 @@ data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         -> !(abt '[ s ] ('HMeasure (HPair a s)))
         -> Head abt ('HMeasure (HPair ('HArray a) s))
     WSuperpose
-        :: [(abt '[] 'HProb, abt '[] ('HMeasure a))]
+        :: !(NonEmpty (abt '[] 'HProb, abt '[] ('HMeasure a)))
         -> Head abt ('HMeasure a)
+    WReject
+        :: !(Sing ('HMeasure a)) -> Head abt ('HMeasure a)
 
     -- Type coercion stuff. These are transparent re head-ness; that is, they behave more like HNF than WHNF.
     -- TODO: we prolly don't actually want\/need the coercion variants... we'd lose some proven-guarantees about cancellation, but everything should work just fine. The one issue that remains is if we have coercion of 'WIntegrate' or 'WSummate', since without the 'WCoerceTo'\/'WUnsafeFrom' constructors we'd be forced to call the coercion of an integration \"neutral\"--- even though it's not actually a neutral term!
@@ -230,7 +233,7 @@ instance Functor21 Head where
     fmap21 f (WMBind      e1 e2)    = WMBind (f e1) (f e2)
     fmap21 f (WPlate      e1 e2)    = WPlate (f e1) (f e2)
     fmap21 f (WChain      e1 e2 e3) = WChain (f e1) (f e2) (f e3)
-    fmap21 f (WSuperpose  pes)      = WSuperpose (map (f *** f) pes)
+    fmap21 f (WSuperpose  pes)      = WSuperpose (fmap (f *** f) pes)
     fmap21 f (WCoerceTo   c e1)     = WCoerceTo   c (fmap21 f e1)
     fmap21 f (WUnsafeFrom c e1)     = WUnsafeFrom c (fmap21 f e1)
     fmap21 f (WIntegrate  e1 e2 e3) = WIntegrate (f e1) (f e2) (f e3)
