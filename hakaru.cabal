@@ -70,49 +70,25 @@ Library
                        Language.Hakaru.Evaluation.DisintegrationMonad,
                        Language.Hakaru.Disintegrate,
                        Language.Hakaru.Inference,
-                       --Language.Hakaru.Util.Csv,
                        Data.Number.Nat,
                        Data.Number.Natural
 
-    other-modules:     Language.Hakaru.Util.Extras,
-                       Language.Hakaru.Util.Lex,
-                       -- Language.Hakaru.Util.Visual,
-                       System.MapleSSH
-
--- LH == Language.Hakaru
--- primitive is used in LH.Types
--- process is used in System/MapleSSH
--- pretty used in LH.PrettyPrint
--- transformer used in LH.Maple
--- math-functions used in LH.Distributions (and in Maple)
--- vector used in LH.Util.Csv
--- bytestring used in LH.Util.Csv
--- zlib used in LH.Util.Csv
--- cassava used in LH.Util.Csv
--- text used in LH.Util.Visual
--- aeson used in LH.Util.Visual
--- integration used in LH.Sample
--- filepath is used in Examples/Slam
+    other-modules:     System.MapleSSH
 
     build-depends:     base             >= 4.7  && < 5.0, 
                        Cabal            >= 1.16,
                        ghc-prim         >= 0.3  && < 0.6,
                        transformers     >= 0.3  && < 0.6,
-                       containers       >= 0.5  && < 0.6,
+                       containers       >= 0.5  && < 0.6, 
+                       semigroups       >= 0.18, 
                        pretty           >= 1.1  && < 1.2,
                        logfloat         >= 0.13 && < 0.14,
                        math-functions   >= 0.1  && < 0.2,
                        vector           >= 0.10,
                        indentation      >= 0.2.1,
                        ansi-terminal    >= 0.6,
-                       -- cassava       >= 0.4  && < 0.5,
-                       -- zlib          >= 0.5  && < 0.7,
-                       -- bytestring    >= 0.10 && < 0.11,
-                       -- aeson         >= 0.7  && < 0.12,
                        text             >= 0.11 && < 1.3,
-                       -- statistics    >= 0.11 && < 0.14,
                        parsec           >= 3.1  && < 3.2,
-                       -- array         >= 0.4,
                        mwc-random       >= 0.13 && < 0.14,
                        directory        >= 1.2  && < 1.3,
                        integration      >= 0.2.0 && < 0.3.0,
@@ -149,9 +125,6 @@ Test-Suite system-testsuite
                        process          >= 1.1  && < 2.0,
                        mtl              >= 2.1,
                        vector           >= 0.10,
-                       -- cassava       >= 0.4  && < 0.5,
-                       -- zlib          >= 0.5  && < 0.7,
-                       -- bytestring    >= 0.10 && < 0.11,
                        text             >= 0.11 && < 1.3
 
 ----------------------------------------------------------------
