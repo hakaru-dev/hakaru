@@ -59,7 +59,7 @@ end proc:
 
 Loop := module ()
   option package;
-  local intssums, wrap, Binder, Stmt, t_binder, t_stmt, t_exp;
+  local intssums, wrap, Binder, Stmt, t_binder, t_stmt, t_exp, list_of_mul;
   export
      # These first few are smart constructors (for themselves):
          ints, sums,
@@ -145,7 +145,8 @@ Loop := module ()
       end if
     end if;
     if w :: mode then
-      res := map(unproduct, [op(w)], var, loop, heap, mode, kb1, kb0);
+      res := map(unproduct, `if`(mode=`*`, list_of_mul(w,kb1), [op(w)]),
+                 var, loop, heap, mode, kb1, kb0);
       return [`*`(op(map2(op,1,res))), `*`(op(map2(op,2,res)))]
     end if;
     if w :: 'specfunc(piecewise)' then
@@ -260,6 +261,31 @@ Loop := module ()
       e := piecewise(And(op(rest)),e,mode())
     end if;
     e
+  end proc;
+
+  # Like convert(e, 'list', `*`) but tries to keep the elements positive
+  list_of_mul := proc(e, kb::t_kb)
+    local rest, should_negate, can_negate, fsn;
+    rest := convert(e, 'list', `*`);
+    rest := zip(((f,s) -> [f, s, `+`(op(map(`-`, convert(f, 'list', `+`))))]),
+                rest, simplify_assuming(map(''signum'', rest), kb));
+    should_negate, rest := selectremove(type, rest, [anything, -1, Not(`*`)]);
+    if nops(should_negate) :: even then
+      [seq(op(3,fsn), fsn=should_negate),
+       seq(op(1,fsn), fsn=rest)]
+    else
+      can_negate, rest := selectremove(type, rest, [`+`, anything, Not(`*`)]);
+      if nops(can_negate) > 0 then
+        [seq(op(3,fsn), fsn=should_negate),
+         op([1,3], can_negate),
+         seq(op(1,fsn), fsn=subsop(1=NULL, can_negate)),
+         seq(op(1,fsn), fsn=rest)]
+      else
+        [seq(op(3,fsn), fsn=subsop(-1=NULL, should_negate)),
+         op([-1,1], should_negate),
+         seq(op(1,fsn), fsn=rest)]
+      end if
+    end if
   end proc;
 
 end module; # NewSLO
