@@ -80,7 +80,7 @@ Library
                        ghc-prim         >= 0.3  && < 0.6,
                        transformers     >= 0.3  && < 0.6,
                        containers       >= 0.5  && < 0.6, 
-                       semigroups       >= 0.18, 
+                       semigroups       >= 0.16, 
                        pretty           >= 1.1  && < 1.2,
                        logfloat         >= 0.13 && < 0.14,
                        math-functions   >= 0.1  && < 0.2,
