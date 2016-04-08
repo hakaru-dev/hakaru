@@ -147,6 +147,7 @@ evaluate perform evaluateCase = evaluate_
         MBind :$ e1 :* e2 :* End -> return . Head_ $ WMBind e1 e2
         MeasureOp_ o :$ es       -> return . Head_ $ WMeasureOp o es
         Superpose_ pes           -> return . Head_ $ WSuperpose pes
+        Reject_ typ              -> return . Head_ $ WReject typ
         -- We don't bother evaluating these, even though we could...
         Integrate :$ e1 :* e2 :* e3 :* End ->
             return . Head_ $ WIntegrate e1 e2 e3

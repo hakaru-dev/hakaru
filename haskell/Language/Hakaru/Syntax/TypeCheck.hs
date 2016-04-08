@@ -176,6 +176,7 @@ mustCheck = go
     go (U.Chain_  _ _ e2 e3)   = mustCheck e2 && mustCheck e3
     go (U.MeasureOp_ _ _)      = False
     go (U.Integrate_  _ _ _ _) = False
+    go U.Reject_               = True
     go (U.Expect_ _ _ e2)      = mustCheck e2
 
 
@@ -1162,6 +1163,11 @@ checkType = checkType_
                     T.forM pes $ \(p,e) ->
                         (,) <$> checkType_ SProb p <*> checkType_ typ0 e
             _ -> typeMismatch (Right typ0) (Left "HMeasure")
+
+        U.Reject_ ->
+            case typ0 of
+            SMeasure _ -> return $ syn (Reject_ typ0)
+            _          -> typeMismatch (Right typ0) (Left "HMeasure")
 
         _   | inferable e0 -> do
                 TypedAST typ' e0' <- inferType_ e0

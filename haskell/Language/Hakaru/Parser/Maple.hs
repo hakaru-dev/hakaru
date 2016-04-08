@@ -101,7 +101,7 @@ data ArgOp
     = Float   | Power  | Rational
     | Func    | ExpSeq | Sum_
     | Product | Less   | Equal
-    | And_    | Range
+    | And_    | Range  | List
     deriving (Eq, Show)
 
 data InertExpr
@@ -184,6 +184,12 @@ and =
     <$> (text "_Inert_AND" *> return And_)
     <*> arg expr
 
+list :: Parser InertExpr
+list =
+    InertArgs
+    <$> (text "_Inert_LIST" *> return List)
+    <*> arg expr
+
 sum :: Parser InertExpr
 sum =
     InertArgs
@@ -224,6 +230,7 @@ equal =
 expr :: Parser InertExpr
 expr =  try func
     <|> try name
+    <|> try list
     <|> try and
     <|> try assignedname
     <|> try assignedlocalname
@@ -425,6 +432,20 @@ unPairDatum (InertArgs Func [InertName "Inl",
       [InertName "Konst",
        InertArgs ExpSeq [y]],
       InertName "Done"]]]]]]) = [x,y]
+
+-- Why is this triggered? Where are the Konsts?
+unPairDatum (InertArgs Func [InertName "Inl",
+ InertArgs ExpSeq
+ [InertArgs Func
+  [InertName "Et",
+   InertArgs ExpSeq
+   [x,
+    InertArgs Func
+    [InertName "Et",
+     InertArgs ExpSeq
+     [y,
+      InertName "Done"]]]]]]) = [x, y]
+
 unPairDatum _ = error "pair has malformed constructors"
 
 unpairPat :: InertExpr -> [InertExpr]
@@ -443,4 +464,19 @@ unpairPat (InertArgs Func [InertName "PInl",
       [InertName "PKonst",
        InertArgs ExpSeq [y]],
       InertName "PDone"]]]]]]) = [x,y]
-unpairPat _ = error "unpairPat: not InertExpr of a pair pattern"
+
+-- Why is this triggered? Where are the PKonsts?
+unpairPat (InertArgs Func [InertName "PInl",
+ InertArgs ExpSeq
+ [InertArgs Func
+  [InertName "PEt",
+   InertArgs ExpSeq
+   [x,
+    InertArgs Func
+    [InertName "PEt",
+     InertArgs ExpSeq
+     [y,
+      InertName "PDone"]]]]]]) = [x, y]
+
+unpairPat x = error $ "unpairPat: " ++ show x ++ " not InertExpr of a pair pattern"
+
