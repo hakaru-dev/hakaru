@@ -20,7 +20,7 @@ KB := module ()
   option package;
   local KB, Introduce, Let, Constrain, t_intro, t_lo, t_hi,
         assert_deny, boolean_if, coalesce_bounds, htype_to_property,
-        myexpand_product,
+        myexpand_product, chilled, chill, warm,
         ModuleLoad, ModuleUnload;
   export empty, genLebesgue, genType, genLet, assert,
          kb_subtract, simplify_assuming, kb_to_assumptions, kb_to_equations,
@@ -65,7 +65,7 @@ KB := module ()
 
   assert_deny := proc(bb, pol::identical(true,false), kb::t_kb)
     # Add `if`(pol,bb,Not(bb)) to kb and return the resulting KB.
-    local as, b, log_b, k, x, rel, e, c, y;
+    local as, b, log_b, k, x, rel, e, c, kb1, y;
     if bb = pol then
       # Ignore literal true and Not(false).
       kb
@@ -75,9 +75,9 @@ KB := module ()
     elif bb :: '{specfunc(anything, Not), `not`}' then
       foldr(((b,kb) -> assert_deny(b, not pol, kb)), kb, op(bb))
     else
-      as := kb_to_assumptions(kb);
-      b := simplify(bb) assuming op(as);
-      # Reduce (in)equality between exp(a) and exp(b) to between a and b.
+      as := chill(kb_to_assumptions(kb));
+      b := simplify(chill(bb)) assuming op(as);
+      # Reduce (in)equality between exp(A) and exp(B) to between A and B.
       do
         try log_b := map(ln, b) assuming op(as); catch: break; end try;
         if length(log_b) < length(b)
@@ -87,6 +87,7 @@ KB := module ()
           break;
         end if;
       end do;
+      b := warm(b);
       # Look through kb for the innermost scope where b makes sense.
       k := select((k -> k :: Introduce(name, anything) and depends(b, op(1,k))),
                   kb);
@@ -113,32 +114,34 @@ KB := module ()
             rel := subs({`<=`=`<`, `>=`=`>`}, rel);
           end if;
           if rel = `=` then
-            # Check if the equality asserted falls within existing bounds.
+            # To assert that x=e, it's not enough to supersede the Introduce
+            # binding for x with a Let binding.
+            kb1 := KB(Bound(x,`=`,e), op(kb));
+            # We also need to assert that e is in bounds for x.
             for c in t_lo, t_hi do
               c := [op(map2(subsop, 1=NULL,
                        select(type, kb, Bound(identical(x), c, anything)))),
                     op(select(type, k , Bound(              c, anything)) )];
-              if nops(c)>0 and not (is(op([1,1],c)(e,op([1,2],c)))
-                                      assuming op(as)) then
-                # No, we're not sure if the equality asserted is in bounds,
-                # so store the assertion as an additional constraint.
-                return KB(Constrain(x=e), op(kb))
+              if nops(c)>0 then
+                kb1 := assert_deny(op([1,1],c)(e,op([1,2],c)), true, kb1)
               end if
             end do;
-            # Yes, we're sure that the equality asserted is in bounds,
-            # so supersede the Introduce binding with a Let binding.
-            return KB(Bound(x,`=`,e), op(kb))
+            return kb1
           end if;
           if rel = `<>` then
             # Refine <> to > or < if possible.
-            if   is(x<=e) assuming op(as) then rel := `<`
-            elif is(x>=e) assuming op(as) then rel := `>`
+            if   is(x<=chill(e)) assuming op(as) then rel := `<`
+            elif is(x>=chill(e)) assuming op(as) then rel := `>`
             else return KB(Constrain(x<>e), op(kb)) end if
           end if;
           # Strengthen strict inequality on integer variable.
           if op(0,k) = HInt then
-            if   rel = `>` then rel := `>=`; e := floor(e)+1 assuming op(as)
-            elif rel = `<` then rel := `<=`; e := ceil (e)-1 assuming op(as)
+            if rel = `>` then
+              rel := `>=`;
+              e := warm(floor(chill(e))+1 assuming op(as))
+            elif rel = `<` then
+              rel := `<=`;
+              e := warm(ceil(chill(e))-1 assuming op(as))
             end if
           end if;
           # Look up the current bound on x, if any.
@@ -149,24 +152,24 @@ KB := module ()
           # Compare the new bound rel        (x,e          )
           # against the old bound op([1,1],c)(x,op([1,2],c))
           if e = `if`(rel :: t_lo, -infinity, infinity)
-            or nops(c)>0 and (is(rel(y,e))
-                                assuming op([1,1],c)(y,op([1,2],c)),
-                                         y::htype_to_property(k), op(as)) then
+            or nops(c)>0 and (is(rel(y,chill(e))) assuming
+                                op([1,1],c)(y,chill(op([1,2],c))),
+                                y::htype_to_property(k), op(as)) then
             # The old bound renders the new bound superfluous.
             return kb
-          elif nops(c)=0 or (is(op([1,1],c)(y,op([1,2],c)))
-                               assuming rel(y,e),
-                                        y::htype_to_property(k), op(as)) then
+          elif nops(c)=0 or (is(op([1,1],c)(y,chill(op([1,2],c)))) assuming
+                               rel(y,chill(e)),
+                               y::htype_to_property(k), op(as)) then
             # The new bound supersedes the old bound.
             return KB(Bound(x,rel,e), op(kb))
           end if
         else
           # Try to make b about x using convert/piecewise.
           try
-            c := convert(piecewise(b, true, false), 'piecewise', x)
+            c := convert(piecewise(chill(b), true, false), 'piecewise', x)
               assuming op(as);
             if c :: 'specfunc(boolean, piecewise)' and not has(c, 'RootOf') then
-              c := foldr_piecewise(boolean_if, false, c);
+              c := foldr_piecewise(boolean_if, false, warm(c));
               if c <> b then return assert_deny(c, pol, kb) end if
             end if
           catch:
@@ -184,7 +187,7 @@ KB := module ()
       end if;
       if b :: 'anything=name' then b := (rhs(b)=lhs(b)) end if;
       # Add constraint to KB.
-      KB(Constrain(b), op(kb))
+      `if`((is(chill(b)) assuming op(as)), kb, KB(Constrain(b), op(kb)))
     end if
   end proc:
 
@@ -275,7 +278,8 @@ KB := module ()
     e := foldl(eval, ee, op(kb_to_equations(kb)));
     e := evalindets(e, 'specfunc({%product, product})', myexpand_product);
     e := evalindets(e, 'specfunc(sum)', expand);
-    as := kb_to_assumptions(kb);
+    e := chill(e);
+    as := chill(kb_to_assumptions(kb));
     try
       e := evalindets(e, {logical,
                           specfunc({And,Or,Not}),
@@ -283,7 +287,7 @@ KB := module ()
         proc(b)
           try
             if is(b) assuming op(as) then return true
-            elif not coulditbe(b) assuming op(as) then return false
+            elif false = coulditbe(b) assuming op(as) then return false
             end if
           catch:
           end try;
@@ -293,6 +297,7 @@ KB := module ()
     catch "when calling '%1'. Received: 'contradictory assumptions'":
       # We seem to be on an unreachable control path
     end try;
+    e := warm(e);
     eval(e, exp = expand @ exp);
   end proc;
 
@@ -370,6 +375,11 @@ KB := module ()
                      select(type, t, Bound(t_hi,anything)))),
               infinity]);
   end proc;
+
+  # Avoid FAILure modes of the assumption system
+  chilled := '{size, idx}';
+  chill := e -> subsindets(e, specfunc(chilled), c->op(0,c)[op(c)]);
+  warm := e -> subsindets(e, specindex(chilled), c->op(0,c)(op(c)));
 
   ModuleLoad := proc()
     Hakaru; # Make sure the KB module is loaded, for the type t_type
