@@ -384,7 +384,7 @@ Hakaru := module ()
                                   op(2,p))),
                      foldr(proc(kt,qs)
                              local p, q;
-                             Branches(seq(seq(Branch(PEt(op(1,p),op(1,q)),
+                             Branches(seq(seq(Branch(PEt(PKonst(op(1,p)),op(1,q)),
                                                      [op(op(2,p)),op(op(2,q))]),
                                               q in qs),
                                           p in htype_patterns(op(1,kt))))
