@@ -282,6 +282,10 @@ maple2AST (InertArgs Func [InertName "lam",
     Lam x (maple2Type typ) (maple2AST e1)
 
 maple2AST (InertArgs Func [InertName "Msum",
+                           InertArgs ExpSeq []]) =
+    Var "reject"
+
+maple2AST (InertArgs Func [InertName "Msum",
                            InertArgs ExpSeq es]) =
     Msum (map maple2AST es)
 

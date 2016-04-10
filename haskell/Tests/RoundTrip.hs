@@ -97,20 +97,20 @@ testMeasureReal = test
     , "t70a" ~: testSStriv [t70a] (uniformC one (nat_ 3))
     , "t71a" ~: testSStriv [t71a] (uniformC one (nat_ 3))
     , "t72a" ~: testSStriv [t72a] (withWeight half $ uniformC one (nat_ 2))
-    , "t73a" ~: testSStriv [t73a] (superpose [])
-    , "t74a" ~: testSStriv [t74a] (superpose [])
-    , "t70b" ~: testSStriv [t70b] (superpose [])
-    , "t71b" ~: testSStriv [t71b] (superpose [])
+    , "t73a" ~: testSStriv [t73a] (reject sing)
+    , "t74a" ~: testSStriv [t74a] (reject sing)
+    , "t70b" ~: testSStriv [t70b] (reject sing)
+    , "t71b" ~: testSStriv [t71b] (reject sing)
     , "t72b" ~: testSStriv [t72b] (withWeight half $ uniformC (nat_ 2) (nat_ 3))
     , "t73b" ~: testSStriv [t73b] (uniformC one (nat_ 3))
     , "t74b" ~: testSStriv [t74b] (uniformC one (nat_ 3))
     , "t70c" ~: testSStriv [t70c] (uniformC one (nat_ 3))
     , "t71c" ~: testSStriv [t71c] (uniformC one (nat_ 3))
     , "t72c" ~: testSStriv [t72c] (withWeight half $ uniformC one (nat_ 2))
-    , "t73c" ~: testSStriv [t73c] (superpose [])
-    , "t74c" ~: testSStriv [t74c] (superpose [])
-    , "t70d" ~: testSStriv [t70d] (superpose [])
-    , "t71d" ~: testSStriv [t71d] (superpose [])
+    , "t73c" ~: testSStriv [t73c] (reject sing)
+    , "t74c" ~: testSStriv [t74c] (reject sing)
+    , "t70d" ~: testSStriv [t70d] (reject sing)
+    , "t71d" ~: testSStriv [t71d] (reject sing)
     , "t72d" ~: testSStriv [t72d] (withWeight half $ uniformC (nat_ 2) (nat_ 3))
     , "t73d" ~: testSStriv [t73d] (uniformC one (nat_ 3))
     , "t74d" ~: testSStriv [t74d] (uniformC one (nat_ 3))
@@ -121,9 +121,9 @@ testMeasureReal = test
     , "t81" ~: testSStriv [] t81
     -- TODO, "kalman" ~: testStriv kalman
     --, "seismic" ~: testSStriv [] seismic
-    , "lebesgue1" ~: testSStriv [] (lebesgue >>= \x -> if_ ((real_ 42) < x) (dirac x) (superpose []))
-    , "lebesgue2" ~: testSStriv [] (lebesgue >>= \x -> if_ (x < (real_ 42)) (dirac x) (superpose []))
-    , "lebesgue3" ~: testSStriv [lebesgue >>= \x -> if_ (x < (real_ 42) && (real_ 40) < x) (dirac x) (superpose [])] (withWeight (prob_ 2) $ uniform (real_ 40) (real_ 42))
+    , "lebesgue1" ~: testSStriv [] (lebesgue >>= \x -> if_ ((real_ 42) < x) (dirac x) (reject sing))
+    , "lebesgue2" ~: testSStriv [] (lebesgue >>= \x -> if_ (x < (real_ 42)) (dirac x) (reject sing))
+    , "lebesgue3" ~: testSStriv [lebesgue >>= \x -> if_ (x < (real_ 42) && (real_ 40) < x) (dirac x) (reject sing)] (withWeight (prob_ 2) $ uniform (real_ 40) (real_ 42))
     , "testexponential" ~: testStriv testexponential
     , "testcauchy" ~: testStriv testCauchy
     , "exceptionLebesgue" ~: testSStriv [lebesgue >>= \x -> dirac (if_ (x == (real_ 3)) one x)] lebesgue
@@ -375,8 +375,8 @@ t46 = normal (real_ 4) (prob_ 5) >>= \x -> dirac (if_ (x < (real_ 3)) (x*x) (x-o
 
 t47 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
 t47 = superpose
-    [ (one, normal (real_ 4) (prob_ 5) >>= \x -> if_ (x < (real_ 3)) (dirac (x*x)) (superpose []))
-    , (one, normal (real_ 4) (prob_ 5) >>= \x -> if_ (x < (real_ 3)) (superpose []) (dirac (x-one)))
+    [ (one, normal (real_ 4) (prob_ 5) >>= \x -> if_ (x < (real_ 3)) (dirac (x*x)) (reject sing))
+    , (one, normal (real_ 4) (prob_ 5) >>= \x -> if_ (x < (real_ 3)) (reject sing) (dirac (x-one)))
     ]
 
 t48 :: (ABT Term abt) => abt '[] (HPair 'HReal 'HReal ':-> 'HMeasure 'HReal)
@@ -415,23 +415,23 @@ t53 =
         [ (one, superpose
             [ (one,
                 if_ (zero < x)
-                    (if_ (x < one) (dirac unit) (superpose []))
-                    (superpose []))
+                    (if_ (x < one) (dirac unit) (reject sing))
+                    (reject sing))
             ])
-        , (one, if_ false (dirac unit) (superpose []))
+        , (one, if_ false (dirac unit) (reject sing))
         ]
 t53' =
     lam $ \x ->
     superpose
         [ (one,
             if_ (zero < x)
-                (if_ (x < one) (dirac unit) (superpose []))
-                (superpose []))
-        , (one, if_ false (dirac unit) (superpose []))
+                (if_ (x < one) (dirac unit) (reject sing))
+                (reject sing))
+        , (one, if_ false (dirac unit) (reject sing))
         ]
 t53'' =
     lam $ \x ->
-    if_ (zero < x && x < one) (dirac unit) (superpose [])
+    if_ (zero < x && x < one) (dirac unit) (reject sing)
 
 t54 :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure HUnit)
 t54 =
@@ -472,10 +472,10 @@ t55, t55' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure HUnit)
 t55 =
     lam $ \t ->
     uniform_0_1 >>= \x ->
-    if_ (x < t) (dirac unit) (superpose [])
+    if_ (x < t) (dirac unit) (reject sing)
 t55' =
     lam $ \t ->
-    if_ (t < zero) (superpose []) $
+    if_ (t < zero) (reject sing) $
     if_ (t < one) (weight (unsafeProb t)) $
     dirac unit
 
@@ -504,25 +504,25 @@ t56' =
     uniform_0_1 >>= \x1 ->
     if_ (x0 - one < x1 && x1 < x0)
         (dirac unit)
-        (superpose [])
+        (reject sing)
 t56'' =
     lam $ \t ->
-    if_ (t <= zero) (superpose []) $
+    if_ (t <= zero) (reject sing) $
     if_ (t <= one) (weight (unsafeProb t)) $
     if_ (t <= (real_ 2)) (weight (unsafeProb ((real_ 2) + t * negate one))) $
     superpose []
 
 t57, t57' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure HUnit)
 t57 = lam $ \t -> superpose
-    [ (one, if_ (t < one)  (dirac unit) (superpose []))
-    , (one, if_ (zero < t) (dirac unit) (superpose [])) ]
+    [ (one, if_ (t < one)  (dirac unit) (reject sing))
+    , (one, if_ (zero < t) (dirac unit) (reject sing)) ]
 t57' = lam $ \t -> 
     if_ (t < one && zero < t) (weight (prob_ 2)) (dirac unit)
 
 t58, t58' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure HUnit)
 t58 = lam $ \t -> superpose
-    [ (one, if_ (zero < t && t < (real_ 2)) (dirac unit) (superpose []))
-    , (one, if_ (one  < t && t < (real_ 3)) (dirac unit) (superpose [])) ]
+    [ (one, if_ (zero < t && t < (real_ 2)) (dirac unit) (reject sing))
+    , (one, if_ (one  < t && t < (real_ 3)) (dirac unit) (reject sing)) ]
 t58' = lam $ \t ->
     if_ (if_ (zero < t) (t < (real_ 2)) false)
         (if_ (if_ (one < t) (t < (real_ 3)) false)
@@ -530,7 +530,7 @@ t58' = lam $ \t ->
             (dirac unit))
         (if_ (if_ (one < t) (t < (real_ 3)) false)
             (dirac unit)
-            (superpose []))
+            (reject sing))
 
 t59 :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure HUnit)
 t59 =
@@ -595,7 +595,7 @@ t60' =
              (x0 / (x2 + x1) < one)
              false)
         (weight ((unsafeProb (x2 + x1)) ^^ negate one) )
-        (superpose [])
+        (reject sing)
 t60'' =
     lam $ \x0 ->
     uniform_0_1 >>= \x1 ->
@@ -604,7 +604,7 @@ t60'' =
              (x0 / (x2 + x1) < one)
              false)
         (weight (recip (unsafeProb (x2 + x1))) )
-        (superpose [])
+        (reject sing)
 
 t61, t61' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure 'HProb)
 t61 = lam $ \x -> if_ (x < zero) (dirac zero) $ dirac $ unsafeProb $ recip x
@@ -617,10 +617,10 @@ t62 = lam $ \t ->
       uniform_0_1 >>= \y ->
       if_ (zero < t/x - y && t/x - y < one)
           (dirac unit)
-          (superpose [])
+          (reject sing)
 t62'= lam $ \t ->
       lam $ \x ->
-      if_ (t/x <= zero) (superpose []) $
+      if_ (t/x <= zero) (reject sing) $
       if_ (t/x <= one) (weight (unsafeProb (t/x))) $
       if_ (t/x <= (real_ 2)) (weight (unsafeProb ((real_ 2)-t/x))) $
       superpose []
@@ -632,10 +632,10 @@ t63 = lam $ \t ->
       uniform_0_1 >>= \y ->
       if_ (zero < t/x - y && t/x - y < one)
           (weight (recip (unsafeProb x)))
-          (superpose [])
+          (reject sing)
 t63'= lam $ \t ->
       uniform_0_1 >>= \x ->
-      if_ (t/x <= zero) (superpose []) $
+      if_ (t/x <= zero) (reject sing) $
       if_ (t/x <= one) (weight (unsafeProb (t/x) / unsafeProb x)) $
       if_ (t/x <= (real_ 2)) (weight (unsafeProb ((real_ 2)-t/x) / unsafeProb x)) $
       superpose []
@@ -679,8 +679,8 @@ t64''=lam $ \x0 ->
       if_ (zero < x0) 
           (if_ (x0 < one)
                (dirac unit)
-               (superpose []))
-          (superpose [])
+               (reject sing))
+          (reject sing)
 
 -- Density calculation for (Add StdRandom (Exp (Neg StdRandom))).
 -- Maple can integrate this but we don't simplify it for some reason.
@@ -693,10 +693,10 @@ t65 =
         withWeight (recip t_x) $
         (if_ (zero < negate (log t_x) && negate (log t_x) < one)
             (dirac unit)
-            (superpose [])))
-        (superpose [])
+            (reject sing)))
+        (reject sing)
 t65' = lam $ \t ->
-       if_ (t < (fromProb (exp (negate (real_ 1))))) (superpose [])
+       if_ (t < (fromProb (exp (negate (real_ 1))))) (reject sing)
      $ if_ (t < one) (weight (unsafeProb (log (unsafeProb t) + one)))
      $ if_ (t < one + (fromProb (exp (negate (real_ 1))))) (dirac unit)
      $ if_ (t < (fromRational 2)) (weight (unsafeProb (negate (log (unsafeProb (t - one))))))
@@ -738,32 +738,32 @@ t69x = dirac (integrate one (real_ 2) $ \x -> integrate (real_ 3) (real_ 4) $ \_
 t69y = dirac (integrate one (real_ 2) $ \_ -> integrate (real_ 3) (real_ 4) $ \y -> unsafeProb y)
 
 t70a, t71a, t72a, t73a, t74a :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-t70a = uniform one (real_ 3) >>= \x -> if_ ((real_ 4) < x) (superpose []) (dirac x)
-t71a = uniform one (real_ 3) >>= \x -> if_ ((real_ 3) < x) (superpose []) (dirac x)
-t72a = uniform one (real_ 3) >>= \x -> if_ ((real_ 2) < x) (superpose []) (dirac x)
-t73a = uniform one (real_ 3) >>= \x -> if_ (one < x) (superpose []) (dirac x)
-t74a = uniform one (real_ 3) >>= \x -> if_ (zero < x) (superpose []) (dirac x)
+t70a = uniform one (real_ 3) >>= \x -> if_ ((real_ 4) < x) (reject sing) (dirac x)
+t71a = uniform one (real_ 3) >>= \x -> if_ ((real_ 3) < x) (reject sing) (dirac x)
+t72a = uniform one (real_ 3) >>= \x -> if_ ((real_ 2) < x) (reject sing) (dirac x)
+t73a = uniform one (real_ 3) >>= \x -> if_ (one < x) (reject sing) (dirac x)
+t74a = uniform one (real_ 3) >>= \x -> if_ (zero < x) (reject sing) (dirac x)
 
 t70b, t71b, t72b, t73b, t74b :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-t70b = uniform one (real_ 3) >>= \x -> if_ ((real_ 4) < x) (dirac x) (superpose [])
-t71b = uniform one (real_ 3) >>= \x -> if_ ((real_ 3) < x) (dirac x) (superpose [])
-t72b = uniform one (real_ 3) >>= \x -> if_ ((real_ 2) < x) (dirac x) (superpose [])
-t73b = uniform one (real_ 3) >>= \x -> if_ (one < x) (dirac x) (superpose [])
-t74b = uniform one (real_ 3) >>= \x -> if_ (zero < x) (dirac x) (superpose [])
+t70b = uniform one (real_ 3) >>= \x -> if_ ((real_ 4) < x) (dirac x) (reject sing)
+t71b = uniform one (real_ 3) >>= \x -> if_ ((real_ 3) < x) (dirac x) (reject sing)
+t72b = uniform one (real_ 3) >>= \x -> if_ ((real_ 2) < x) (dirac x) (reject sing)
+t73b = uniform one (real_ 3) >>= \x -> if_ (one < x) (dirac x) (reject sing)
+t74b = uniform one (real_ 3) >>= \x -> if_ (zero < x) (dirac x) (reject sing)
 
 t70c, t71c, t72c, t73c, t74c :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-t70c = uniform one (real_ 3) >>= \x -> if_ (x < (real_ 4)) (dirac x) (superpose [])
-t71c = uniform one (real_ 3) >>= \x -> if_ (x < (real_ 3)) (dirac x) (superpose [])
-t72c = uniform one (real_ 3) >>= \x -> if_ (x < (real_ 2)) (dirac x) (superpose [])
-t73c = uniform one (real_ 3) >>= \x -> if_ (x < one) (dirac x) (superpose [])
-t74c = uniform one (real_ 3) >>= \x -> if_ (x < zero) (dirac x) (superpose [])
+t70c = uniform one (real_ 3) >>= \x -> if_ (x < (real_ 4)) (dirac x) (reject sing)
+t71c = uniform one (real_ 3) >>= \x -> if_ (x < (real_ 3)) (dirac x) (reject sing)
+t72c = uniform one (real_ 3) >>= \x -> if_ (x < (real_ 2)) (dirac x) (reject sing)
+t73c = uniform one (real_ 3) >>= \x -> if_ (x < one) (dirac x) (reject sing)
+t74c = uniform one (real_ 3) >>= \x -> if_ (x < zero) (dirac x) (reject sing)
 
 t70d, t71d, t72d, t73d, t74d :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-t70d = uniform one (real_ 3) >>= \x -> if_ (x < (real_ 4)) (superpose []) (dirac x)
-t71d = uniform one (real_ 3) >>= \x -> if_ (x < (real_ 3)) (superpose []) (dirac x)
-t72d = uniform one (real_ 3) >>= \x -> if_ (x < (real_ 2)) (superpose []) (dirac x)
-t73d = uniform one (real_ 3) >>= \x -> if_ (x < one) (superpose []) (dirac x)
-t74d = uniform one (real_ 3) >>= \x -> if_ (x < zero) (superpose []) (dirac x)
+t70d = uniform one (real_ 3) >>= \x -> if_ (x < (real_ 4)) (reject sing) (dirac x)
+t71d = uniform one (real_ 3) >>= \x -> if_ (x < (real_ 3)) (reject sing) (dirac x)
+t72d = uniform one (real_ 3) >>= \x -> if_ (x < (real_ 2)) (reject sing) (dirac x)
+t73d = uniform one (real_ 3) >>= \x -> if_ (x < one) (reject sing) (dirac x)
+t74d = uniform one (real_ 3) >>= \x -> if_ (x < zero) (reject sing) (dirac x)
 
 t75 :: (ABT Term abt) => abt '[] ('HMeasure 'HNat)
 t75 = gamma (prob_ 6) one >>= poisson
@@ -781,10 +781,10 @@ t76 =
             (if_ (x * y < one)
                 (if_ (zero < x * y)
                     (dirac (x * y))
-                    (superpose []))
-                (superpose []))
-            (superpose []))
-        (superpose [])
+                    (reject sing))
+                (reject sing))
+            (reject sing))
+        (reject sing)
 
 -- the (x * (-1)) below is an unfortunate artifact not worth fixing
 t77 :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure HUnit)
@@ -1052,11 +1052,11 @@ rmProg1 =
                                                 (if_ ((real_ 3) < x4)
                                                     (dirac (pair (unsafeProb x4)
                                                         (unsafeProb x5)))
-                                                    (superpose []))
-                                                (superpose []))
+                                                    (reject sing))
+                                                (reject sing))
                                         , (one, superpose [])])
-                                    (superpose []))
-                                (superpose []))
+                                    (reject sing))
+                                (reject sing))
                 , (one, superpose [])])
             , (one, superpose [])])
         , (one, superpose [])]
@@ -1138,14 +1138,14 @@ rmProg4 =
                                                                                                        * (x38 `unpair` \_ x41 ->
                                                                                                           x41)
                                                                                                          `app` x39))
-                                                                                              (pair (superpose [])
+                                                                                              (pair (reject sing)
                                                                                                     (lam $ \x37 ->
                                                                                                      zero)))
-                                                                                         (pair (superpose [])
+                                                                                         (pair (reject sing)
                                                                                                (lam $ \x37 ->
                                                                                                 zero))) $ \x37 ->
                                                                                let_ one $ \x38 ->
-                                                                               let_ (pair (superpose [])
+                                                                               let_ (pair (reject sing)
                                                                                           (lam $ \x39 ->
                                                                                            zero)) $ \x39 ->
                                                                                pair (superpose [(x36,
@@ -1173,12 +1173,12 @@ rmProg4 =
                                                                                  * (x36 `unpair` \x38 x39 ->
                                                                                     x39)
                                                                                    `app` x37))
-                                                                        (pair (superpose [])
+                                                                        (pair (reject sing)
                                                                               (lam $ \x35 -> zero)))
-                                                                   (pair (superpose [])
+                                                                   (pair (reject sing)
                                                                          (lam $ \x35 -> zero))) $ \x35 ->
                                                          let_ one $ \x36 ->
-                                                         let_ (pair (superpose [])
+                                                         let_ (pair (reject sing)
                                                                     (lam $ \x37 -> zero)) $ \x37 ->
                                                          pair (superpose [(x34,
                                                                            x35 `unpair` \x38 x39 ->
@@ -1212,7 +1212,7 @@ rmProg4 =
                                              + x11
                                                * (x12 `unpair` \x14 x15 -> x15) `app` x13)) $ \x11 ->
                                  let_ one $ \x12 ->
-                                 let_ (pair (superpose []) (lam $ \x13 -> zero)) $ \x13 ->
+                                 let_ (pair (reject sing) (lam $ \x13 -> zero)) $ \x13 ->
                                  pair (superpose [(x10, x11 `unpair` \x14 x15 -> x14),
                                                   (x12, x13 `unpair` \x14 x15 -> x14)])
                                       (lam $ \x14 ->
@@ -1222,7 +1222,7 @@ rmProg4 =
                                 (lam $ \x11 ->
                                  zero + x9 * (x10 `unpair` \x12 x13 -> x13) `app` x11)) $ \x9 ->
                      let_ one $ \x10 ->
-                     let_ (pair (superpose []) (lam $ \x11 -> zero)) $ \x11 ->
+                     let_ (pair (reject sing) (lam $ \x11 -> zero)) $ \x11 ->
                      pair (superpose [(x8, x9 `unpair` \x12 x13 -> x12),
                                       (x10, x11 `unpair` \x12 x13 -> x12)])
                           (lam $ \x12 ->
@@ -1422,7 +1422,7 @@ rmProg4 =
 --                         / pi
 --                         + x38
 --                         + 360 * fromInt x39))
---                 (superpose [])) >>= \x39 ->
+--                 (reject sing)) >>= \x39 ->
 --            (gamma_1_1 >>= \x40 ->
 --             normal_0_1 >>= \x41 ->
 --             dirac (-23/500
