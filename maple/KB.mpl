@@ -379,7 +379,7 @@ KB := module ()
   # Avoid FAILure modes of the assumption system
   chilled := '{size, idx}';
   chill := e -> subsindets(e, specfunc(chilled), c->op(0,c)[op(c)]);
-  warm := e -> subsindets(e, specindex(chilled), c->op(0,c)(op(c)));
+  warm := e -> subsindets(e, specindex(chilled), c->map(warm, op(0,c)(op(c))));
 
   ModuleLoad := proc()
     Hakaru; # Make sure the KB module is loaded, for the type t_type
