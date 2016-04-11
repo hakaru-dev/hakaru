@@ -618,7 +618,7 @@ NewSLO := module ()
         op(3,e), op(4,e), h, kb1)
     elif e :: 'Sums(anything, name, range, list(name=range))' then
       x, kb1 := genType(op(2,e),
-                        mk_HArray(HInt(closed_bounds(op([3,1],e))), op(4,e)),
+                        mk_HArray(HInt(closed_bounds(op(3,e))), op(4,e)),
                         kb);
       reduce_IntsSums(Sums, reduce(subs(op(2,e)=x, op(1,e)), h, kb1), x,
         op(3,e), op(4,e), h, kb1)
