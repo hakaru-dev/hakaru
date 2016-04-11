@@ -120,8 +120,13 @@ end proc:
 # We'd like the test above to pass even if the count 5 becomes symbolic.
 # Below is some progress towards this goal:
 TestHakaru(dirichlet(as), label="Dirichlet symbolic prior roundtrip");
-TestHakaru(Bind(dirichlet(as),ps,
-             Weight(product(idx(ps,i)^idx(t,i),i=0..size(ps)-1),
-               Ret(ps))),
-           dirichlet(ary(size(as),i,idx(as,i)+idx(t,i))),
-           label="Conjugacy between rolled Dirichlet and multinomial (currently fails)");
+TestHakaru(Context(size(as)>0,
+             Bind(dirichlet(as),ps,
+               Weight(product(idx(ps,i)^idx(t,i),i=0..size(ps)-1),
+                 Ret(ps)))),
+           Context(size(as)>0,
+             Weight(product(Beta(idx(as,i+1)+idx(t,i+1),idx(t,0)+sum(idx(as,k),k=0..i)+sum(idx(t,k),k=1..i)),i=0..size(as)-2)
+                    /product(Beta(idx(as,i+1),sum(idx(as,k),k=0..i)),i=0..size(as)-2),
+               Bind(Plate(size(as)-1,i,BetaD(idx(t,0)+sum(idx(as,k),k=0..i)+sum(idx(t,k),k=1..i),idx(as,i+1)+idx(t,i+1))),xs,
+                 Ret(ary(size(as),i,piecewise(i=0,product(idx(xs,j),j=0..size(as)-2),product(idx(xs,j),j=i..size(as)-2)*(1-idx(xs,i-1)))))))),
+           label="Conjugacy between rolled Dirichlet and multinomial");
