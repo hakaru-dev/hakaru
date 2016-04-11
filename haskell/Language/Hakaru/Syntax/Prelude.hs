@@ -700,31 +700,22 @@ pair
 pair = (datum_ .) . dPair
 
 
--- BUG: N.B., this doesn't work when @a@ or @b@ are HData, because the SingI instance for Symbol isn't implemented! (But other than that, this seems to work...)
 unpair
     :: forall abt a b c
     .  (ABT Term abt)
     => abt '[] (HPair a b)
     -> (abt '[] a -> abt '[] b -> abt '[] c)
     -> abt '[] c
-unpair e f =
-    let (a,b) = sUnPair $ typeOf e in
-    error "TODO: unpair with the new 'Variable' type"
-{-
-    -- HACK: the current implementation of 'multibinder' requires this explicit type signature.
-    -- BUG: why do we get a warning about the pattern being non-exhaustive?
-    let f' :: List1 abt (a ': b ': '[]) -> abt c
-        f' (Cons x (Cons y Nil)) = f x y
-        f' _ = error "unpair: the impossible happened"
+unpair e hoas =
+    let (aTyp,bTyp) = sUnPair $ typeOf e
+        body        = hoas (var a) (var b)
+        inc x       = 1 Prelude.+ x
+        a           = Variable Text.empty (nextBind body)         aTyp
+        b           = Variable Text.empty (inc . nextBind $ body) bTyp
     in syn $ Case_ e
         [Branch (pPair PVar PVar)
-            $ multibinder
-                ( Cons (Hint Text.empty a)
-                . Cons (Hint Text.empty b)
-                $ Nil)
-                f'
+           (bind a (bind b body))
         ]
--}
 
 fst :: (ABT Term abt)
     => abt '[] (HPair a b)
