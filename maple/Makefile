@@ -1,12 +1,10 @@
-.SUFFIXES: .out .mpl
-
 all: ppaml.mla NewSLOTests.out PlateT.out DisintT.out call-graph.pdf
 
 ppaml.mla: update-archive.mpl BindingTools.mpl Hakaru.mpl KB.mpl Loop.mpl NewSLO.mpl
 	maple -q $<
 
-.mpl.out: ppaml.mla
-	maple -q $< 2>&1 | tee $@ | grep -v " passed$$"
+%.out: %.mpl ppaml.mla
+	maple -q $< 2>&1 | tee $@ | (grep -v " passed$$" || true)
 
 call-graph.svg: call-graph.dot
 	dot -Tsvg $< > $@
