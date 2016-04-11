@@ -37,7 +37,7 @@ NewSLO := module ()
      # These first few are smart constructors (for themselves):
          integrate, applyintegrand,
      # while these are "proper functions"
-         RoundTrip, Simplify, TestSimplify, TestHakaru,
+         RoundTrip, Simplify, SimplifyKB, TestSimplify, TestHakaru,
          toLO, fromLO, unintegrate, unweight, improve, reduce, Banish,
          density, bounds,
          ReparamDetermined, determined, Reparam, disint;
@@ -51,8 +51,11 @@ NewSLO := module ()
   end proc;
 
   Simplify := proc(e, t::t_type, {ctx :: list := []})
-    local kb, patterns, x, kb1, ex;
-    kb := foldr(assert, empty, op(ctx));
+    SimplifyKB(e, t, foldr(assert, empty, op(ctx)))
+  end proc;
+
+  SimplifyKB := proc(e, t::t_type, kb::t_kb)
+    local patterns, x, kb1, ex;
     if t :: HMeasure(anything) then
       fromLO(improve(toLO(e), _ctx=kb), _ctx=kb)
     elif t :: HFunction(anything, anything) then
@@ -62,7 +65,7 @@ NewSLO := module ()
         x := `if`(e::lam(name,anything,anything), op(1,e), op([1,1,1],patterns));
         x, kb1 := genType(x, op(1,t), kb, e);
         ex := app(e,x);
-        lam(x, op(1,t), Simplify(ex, op(2,t), kb1))
+        lam(x, op(1,t), SimplifyKB(ex, op(2,t), kb1))
       else
         # Eta-expand the function type and the sum-of-product argument-type
         x := `if`(e::lam(name,anything,anything), op(1,e), d);
@@ -82,7 +85,7 @@ NewSLO := module ()
                 end do;
                 pSubst1 := op(op(pSubst1));
                 Branch(subs(pSubst1, p1),
-                       Simplify(eval(eval(ex, eSubst), pSubst1), op(2,t), kb1))
+                       SimplifyKB(eval(eval(ex, eSubst), pSubst1), op(2,t), kb1))
               end proc,
               patterns)))
       end if
