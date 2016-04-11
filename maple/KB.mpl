@@ -65,7 +65,7 @@ KB := module ()
 
   assert_deny := proc(bb, pol::identical(true,false), kb::t_kb)
     # Add `if`(pol,bb,Not(bb)) to kb and return the resulting KB.
-    local as, b, log_b, k, x, rel, e, c, kb1, y;
+    local as, b, log_b, k, x, rel, e, ch, c, kb1, y;
     if bb = pol then
       # Ignore literal true and Not(false).
       kb
@@ -76,7 +76,8 @@ KB := module ()
       foldr(((b,kb) -> assert_deny(b, not pol, kb)), kb, op(bb))
     else
       as := chill(kb_to_assumptions(kb));
-      b := simplify(chill(bb)) assuming op(as);
+      b := chill(bb);
+      b := simplify(b) assuming op(as);
       # Reduce (in)equality between exp(A) and exp(B) to between A and B.
       do
         try log_b := map(ln, b) assuming op(as); catch: break; end try;
@@ -128,20 +129,23 @@ KB := module ()
             end do;
             return kb1
           end if;
+          ch := chill(e);
           if rel = `<>` then
             # Refine <> to > or < if possible.
-            if   is(x<=chill(e)) assuming op(as) then rel := `<`
-            elif is(x>=chill(e)) assuming op(as) then rel := `>`
+            if   is(x<=ch) assuming op(as) then rel := `<`
+            elif is(x>=ch) assuming op(as) then rel := `>`
             else return KB(Constrain(x<>e), op(kb)) end if
           end if;
           # Strengthen strict inequality on integer variable.
           if op(0,k) = HInt then
             if rel = `>` then
               rel := `>=`;
-              e := warm(floor(chill(e))+1 assuming op(as))
+              ch  := floor(ch)+1 assuming op(as);
+              e   := warm(ch)
             elif rel = `<` then
               rel := `<=`;
-              e := warm(ceil(chill(e))-1 assuming op(as))
+              ch  := ceil(ch)-1 assuming op(as);
+              e   := warm(ch)
             end if
           end if;
           # Look up the current bound on x, if any.
@@ -149,16 +153,17 @@ KB := module ()
           c := [op(map2(subsop, 1=NULL,
                    select(type, kb, Bound(identical(x), c, anything)))),
                 op(select(type, k , Bound(              c, anything)) )];
+          if nops(c) > 0 then c := chill(op(1,c)) end if;
           # Compare the new bound rel        (x,e          )
           # against the old bound op([1,1],c)(x,op([1,2],c))
           if e = `if`(rel :: t_lo, -infinity, infinity)
-            or nops(c)>0 and (is(rel(y,chill(e))) assuming
-                                op([1,1],c)(y,chill(op([1,2],c))),
+            or nops(c)>0 and (is(rel(y,ch)) assuming
+                                op(1,c)(y,op(2,c)),
                                 y::htype_to_property(k), op(as)) then
             # The old bound renders the new bound superfluous.
             return kb
-          elif nops(c)=0 or (is(op([1,1],c)(y,chill(op([1,2],c)))) assuming
-                               rel(y,chill(e)),
+          elif nops(c)=0 or (is(op(1,c)(y,op(2,c))) assuming
+                               rel(y,ch),
                                y::htype_to_property(k), op(as)) then
             # The new bound supersedes the old bound.
             return KB(Bound(x,rel,e), op(kb))
@@ -166,8 +171,8 @@ KB := module ()
         else
           # Try to make b about x using convert/piecewise.
           try
-            c := convert(piecewise(chill(b), true, false), 'piecewise', x)
-              assuming op(as);
+            c := 'piecewise'(chill(b), true, false);
+            c := convert(c, 'piecewise', x) assuming op(as);
             if c :: 'specfunc(boolean, piecewise)' and not has(c, 'RootOf') then
               c := foldr_piecewise(boolean_if, false, warm(c));
               if c <> b then return assert_deny(c, pol, kb) end if
@@ -187,7 +192,8 @@ KB := module ()
       end if;
       if b :: 'anything=name' then b := (rhs(b)=lhs(b)) end if;
       # Add constraint to KB.
-      `if`((is(chill(b)) assuming op(as)), kb, KB(Constrain(b), op(kb)))
+      ch := chill(b);
+      `if`((is(ch) assuming op(as)), kb, KB(Constrain(b), op(kb)))
     end if
   end proc:
 
