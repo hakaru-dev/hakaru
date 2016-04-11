@@ -69,7 +69,7 @@ Hakaru := module ()
   # used as global names, so document that here.
   global
      # Basic syntax for composing measures
-         Bind, Weight, Ret, Msum, Plate,
+         Bind, Weight, Ret, Msum, Plate, Context,
      # Primitive (known) measures
          Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD, StudentT,
      # Functions, annotated with argument type, applied using "app"
@@ -266,7 +266,7 @@ Hakaru := module ()
       thisproc(subs(op(1,m)=x, op(2,m)),
                subs(op(1,n)=x, op(2,n)), v)
     else
-      verify(m, n, {v, Ret(mv), Weight(v, mv)})
+      verify(m, n, {v, Ret(mv), Weight(v, mv), Context(v, mv)})
     end if
   end proc;
 

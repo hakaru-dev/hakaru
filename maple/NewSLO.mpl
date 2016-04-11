@@ -38,18 +38,17 @@ NewSLO := module ()
      # These first few are smart constructors (for themselves):
          integrate, applyintegrand,
      # while these are "proper functions"
+         RoundTrip,
          Simplify,
          unweight, superpose,
          toLO, fromLO, improve,
-         RoundTrip, RoundTripLO, RoundTripCLO,
-         toCLO, fromCLO, cimprove,
          TestHakaru, TestSimplify, density, bounds,
          unintegrate,
          ReparamDetermined, determined, Reparam, Banish,
          disint;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
-  global LO, Integrand, Indicator, Context;
+  global LO, Integrand, Indicator;
   uses Hakaru, KB, Loop;
 
   Simplify := proc(e, t::t_type, kb::t_kb)
@@ -119,11 +118,6 @@ NewSLO := module ()
     LO(h, integrate(m, h, []))
   end proc;
 
-  # toLO does not use the context, so just map in
-  toCLO := proc(c :: Context(t_kb, anything))
-    Context(op(1,c), toLO(op(2,c)));
-  end proc;
-
   known_continuous := '{Lebesgue(), Uniform(anything, anything),
     Gaussian(anything, anything), Cauchy  (anything, anything),
     StudentT(anything, anything, anything),
@@ -161,7 +155,7 @@ NewSLO := module ()
              m);
     elif m :: 'LO(name, anything)' then
       eval(op(2,m), op(1,m) = h)
-    elif m :: 'Plate'(nonnegint, name, anything) then
+    elif m :: 'Plate(nonnegint, name, anything)' then
       # Unroll Plate when the bound is known. We unroll Plate here (instead
       # of unrolling Ints in reduce, for example) because we have no other
       # way to integrate certain Plates, namely those whose bodies' control
@@ -185,8 +179,10 @@ NewSLO := module ()
                          Integrand(op(i,x), res), loops);
       end do;
       res
-    elif m :: 'Plate'(anything, name, anything) then
-      integrate(op(3,m), h, [op(2,m)=0..op(1,m)-1, op(loops)]);
+    elif m :: 'Plate(anything, name, anything)' then
+      integrate(op(3,m), h, [op(2,m)=0..op(1,m)-1, op(loops)])
+    elif m :: 'Context(anything, anything)' then
+      applyop(integrate, 2, m, h, loops)
     elif h :: appliable then
       x := gensym('xa');
       'integrate'(m, Integrand(x, h(x)), loops)
@@ -243,10 +239,6 @@ NewSLO := module ()
 
   improve := proc(lo :: LO(name, anything), {_ctx :: t_kb := empty})
     LO(op(1,lo), reduce(op(2,lo), op(1,lo), _ctx))
-  end proc;
-
-  cimprove := proc(c :: Context(t_kb, LO(name, anything)))
-    Context(op(1,c), improve(op(2,c), _ctx = op(1,c)))
   end proc;
 
   ReparamDetermined := proc(lo :: LO(name, anything))
@@ -332,6 +324,8 @@ NewSLO := module ()
                    end proc,
                    op(2,e)),
              e);
+    elif e :: 'Context(anything, anything)' then
+      applyop(reduce, 2, e, h, assert(op(1,e), kb))
     elif e :: 'integrate(anything, Integrand(name, anything), list)' then
       x := gensym(op([2,1],e));
       # If we had HType information for op(1,e),
@@ -613,10 +607,6 @@ NewSLO := module ()
     unintegrate(h, eval(op(2,lo), op(1,lo) = h), _ctx)
   end proc;
 
-  fromCLO := proc(c :: Context(t_kb, LO(name, anything)))
-    Context(op(1,c), fromLO(op(2,c), op(1,c)))
-  end proc;
-
   unintegrate := proc(h :: name, integral, kb :: t_kb)
     local x, c, lo, hi, make, m, mm, w, w0, w1, recognition, subintegral,
           i, kb1, loops, subst, hh, pp, t, bnds;
@@ -712,6 +702,9 @@ NewSLO := module ()
                    end proc,
                    op(2,integral)),
              integral);
+    elif integral :: 'Context(anything, anything)' then
+      subsop(2=unintegrate(h, op(2,integral), assert(op(1,integral), kb)),
+             integral)
     elif integral :: 'integrate'('freeof'(h), 'anything', identical([])) then
       x := mk_sym('x', op(2,integral));
       # If we had HType information for op(1,e),
@@ -1364,15 +1357,6 @@ NewSLO := module ()
   RoundTrip := proc(e, t::t_type, {kb :: t_kb := empty})
       lprint(eval(ToInert(Simplify(e,t,kb)),
         _Inert_ATTRIBUTE=NULL))
-  end proc;
-
-  RoundTripLO := proc(m, {ctx :: t_kb := empty})
-      lprint(eval(ToInert(fromLO(improve(toLO(m), _ctx = ctx), _ctx = ctx)), 
-        _Inert_ATTRIBUTE=NULL))
-  end proc;
-
-  RoundTripCLO := proc(m :: Context(t_kb, anything))
-      sprintf("%a",(eval(ToInert(fromCLO(cimprove(toCLO(m)))), _Inert_ATTRIBUTE=NULL)))
   end proc;
 
 # Testing

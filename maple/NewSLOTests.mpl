@@ -419,6 +419,6 @@ module()
   kb := KB:-assert(x::real,KB:-empty):
   rt1 := Context(kb, Bind(Gaussian(0,1), x, Ret(0))):
   rt1r := sprintf("%a", eval(ToInert(Context(kb, Ret(0))), _Inert_ATTRIBUTE=NULL)):
-  TestTools:-Try("simple case of RoundTripCLO", RoundTripCLO(rt1), rt1r);
+  TestTools:-Try("simple case of RoundTrip", RoundTrip(rt1), rt1r);
 end module:
 quit
