@@ -271,7 +271,7 @@ Loop := module ()
   list_of_mul := proc(e, kb::t_kb, $)
     local rest, should_negate, can_negate, fsn;
     rest := convert(e, 'list', `*`);
-    rest := zip(((f,s) -> [f, s, `+`(op(map(`-`, convert(f, 'list', `+`))))]),
+    rest := zip(((f,s) -> [f, s, maptype(`+`, `-`, f)]),
                 rest, simplify_assuming(map(''signum'', rest), kb));
     should_negate, rest := selectremove(type, rest, [anything, -1, Not(`*`)]);
     if nops(should_negate) :: even then

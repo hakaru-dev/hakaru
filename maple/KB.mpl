@@ -325,7 +325,7 @@ KB := module ()
         product(e, quantifier)
       end if
     end proc;
-    `*`(op(map(p, convert(body, list, `*`))));
+    maptype(`*`, p, body)
   end proc;
 
   kb_to_assumptions := proc(kb, $)

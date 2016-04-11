@@ -304,7 +304,7 @@ NewSLO := module ()
     elif e = 0 then
       Msum()
     elif e :: `+` then
-      Msum(op(map2(unintegrate, h, convert(e, 'list'), kb)))
+      map2(unintegrate, h, Msum(op(e)), kb)
     elif e :: `*` then
       (subintegral, w) := selectremove(depends, e, h);
       if subintegral :: `*` then error "Nonlinear integral %1", e end if;
