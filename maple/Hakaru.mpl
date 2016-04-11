@@ -71,7 +71,8 @@ Hakaru := module ()
      # Basic syntax for composing measures
          Bind, Weight, Ret, Msum, Plate, Context,
      # Primitive (known) measures
-         Lebesgue, Uniform, Gaussian, Cauchy, BetaD, GammaD, StudentT,
+         Lebesgue, Uniform, Gaussian, Cauchy, StudentT, BetaD, GammaD,
+         Counting, NegativeBinomial, PoissonD,
      # Functions, annotated with argument type, applied using "app"
          lam,
      # Term constructors for Datum (algebraic data type)
