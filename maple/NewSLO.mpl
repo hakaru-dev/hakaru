@@ -46,10 +46,8 @@ NewSLO := module ()
   global LO, Integrand, Indicator;
   uses Hakaru, KB, Loop;
 
-  RoundTrip := proc(e, t::t_type, {ctx :: list := []})
-    local kb;
-    kb := foldr(assert, empty, op(ctx));
-    lprint(eval(ToInert(Simplify(e,t,kb)), _Inert_ATTRIBUTE=NULL))
+  RoundTrip := proc(e, t::t_type)
+    lprint(eval(ToInert(Simplify(_passed)), _Inert_ATTRIBUTE=NULL))
   end proc;
 
   Simplify := proc(e, t::t_type, {ctx :: list := []})
