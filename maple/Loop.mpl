@@ -3,11 +3,11 @@
 # Ints,Sums,ints,sums bind from 2nd arg to 1st arg, and also from each element
 #   of the 4th arg to the other elements on the left and to the 3rd arg.
 
-`depends/forall` := proc(bvar, pred, x)
+`depends/forall` := proc(bvar, pred, x, $)
   depends(pred, x minus convert(bvar, 'set'))
 end proc:
 
-`depends/Ints` := proc(body, bvar, rng, loops, x)
+`depends/Ints` := proc(body, bvar, rng, loops, x, $)
   local xx, i;
   if depends(body, x minus {bvar}) then return true end if;
   xx := x; # don't remove bvar from xx!
@@ -21,23 +21,24 @@ end proc:
 `depends/ints` := `depends/Ints`:
 `depends/sums` := `depends/Ints`:
 
-`eval/forall` := proc(e, eqs)
+`eval/forall` := proc(e, eqs, $)
   local bvar, pred;
   bvar, pred := op(e);
   eval(op(0,e), eqs)(BindingTools:-generic_evalat(bvar, pred, eqs))
 end proc:
 
-`eval/Ints` := proc(e, eqs)
+`eval/Ints` := proc(e, eqs, $)
   local body, bvar, rng, loops, n, i;
   body, bvar, rng, loops := op(e);
   bvar, body := BindingTools:-generic_evalat(bvar, body, eqs);
-  eval(op(0,e), eqs)(body, bvar, BindingTools:-generic_evalatstar(rng, loops, eqs))
+  eval(op(0,e), eqs)(body, bvar,
+                     BindingTools:-generic_evalatstar(rng, loops, eqs))
 end proc:
 `eval/Sums` := `eval/Ints`:
 `eval/ints` := `eval/Ints`:
 `eval/sums` := `eval/Ints`:
 
-`eval/Int` := proc(e, eqs)
+`eval/Int` := proc(e, eqs, $)
   local body, bound, bvar;
   body, bound := op(1..2, e);
   if bound :: name then
@@ -80,7 +81,7 @@ Loop := module ()
 
   intssums := proc(makes::name, make::name,
                    e::anything, x::name, rr::range, ll::list(name=range),
-                   kb::t_kb:=empty)
+                   kb::t_kb:=empty, $)
     local r, l, kb1, w0, pp;
     r, l, kb1 := genLoop(rr, ll, kb, 'Integrand'(x,e));
     w0, pp := unproducts(e, x, l, kb1);
@@ -104,7 +105,7 @@ Loop := module ()
                           [entries(rng, 'nolist')]), kb1
   end proc;
 
-  unproducts := proc(w, x::name, loops::list(name=range), kb::t_kb)
+  unproducts := proc(w, x::name, loops::list(name=range), kb::t_kb, $)
     local w0, pp, j, w1, xx;
     w0 := 1;
     pp := w;
@@ -122,7 +123,8 @@ Loop := module ()
   # The flag "mode" should be `+` if "heap" contains an entry of the form
   # t_exp, or `*` otherwise.
   unproduct := proc(w, var::name, loop::(name=range),
-                    heap::list, mode::identical(`*`,`+`), kb1::t_kb, kb0::t_kb)
+                    heap::list, mode::identical(`*`,`+`),
+                    kb1::t_kb, kb0::t_kb, $)
     local ind, res, dummy, kb, kbThen, i, w1, pp, s, r, x;
     if not depends(w, var) then
       return [wrap(heap, w, mode, kb1, kb0), 1]
@@ -132,7 +134,7 @@ Loop := module ()
       ind := op(ind);
       # Make sure ind contains no bound variables before lifting it!
       s := indets(ind, 'name');
-      s := map(proc(x) local y; `if`(depends(ind,x), x=y, NULL) end proc, s);
+      s := map(proc(x,$) local y; `if`(depends(ind,x), x=y, NULL) end proc, s);
       if indets(eval(w, s), Hakaru:-idx(identical(var), anything))
          = {Hakaru:-idx(var, eval(ind, s))} then
         kb  := assert(lhs(loop)=ind, kb1);
@@ -196,7 +198,8 @@ Loop := module ()
     return [wrap(heap, w, mode, kb1, kb0), 1]
   end proc;
 
-  wrap := proc(heap::list, e1, mode1::identical(`*`,`+`), kb1::t_kb, kb0::t_kb)
+  wrap := proc(heap::list, e1, mode1::identical(`*`,`+`),
+               kb1::t_kb, kb0::t_kb, $)
     local e, kb, mode, i, entry, rest, var, new_rng, make, dom_spec, w, arrrgs;
     e    := e1;
     kb   := kb1;
@@ -225,7 +228,8 @@ Loop := module ()
           new_rng := op(3,new_rng);
         end if;
         dom_spec, rest := selectremove(depends,
-          map(proc(a::[identical(assert),anything]) op(2,a) end proc, rest), var);
+          map(proc(a::[identical(assert),anything],$) op(2,a) end proc, rest),
+          var);
         if mode = `+` then
           (e, w) := selectremove(depends, convert(e, 'list', `*`), var);
           e := simplify_assuming(`*`(op(e)), kb);
@@ -256,7 +260,7 @@ Loop := module ()
       print("Warning: heap mode inconsistency??", heap, mode1)
     end if;
     rest := kb_subtract(kb, kb0);
-    rest := map(proc(a::[identical(assert),anything]) op(2,a) end proc, rest);
+    rest := map(proc(a::[identical(assert),anything],$) op(2,a) end proc, rest);
     if nops(rest) > 0 then
       e := piecewise(And(op(rest)),e,mode())
     end if;
@@ -264,7 +268,7 @@ Loop := module ()
   end proc;
 
   # Like convert(e, 'list', `*`) but tries to keep the elements positive
-  list_of_mul := proc(e, kb::t_kb)
+  list_of_mul := proc(e, kb::t_kb, $)
     local rest, should_negate, can_negate, fsn;
     rest := convert(e, 'list', `*`);
     rest := zip(((f,s) -> [f, s, `+`(op(map(`-`, convert(f, 'list', `+`))))]),

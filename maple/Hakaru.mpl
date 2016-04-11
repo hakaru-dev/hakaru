@@ -4,25 +4,25 @@
 # Bind and ary bind from 2nd arg to 3rd arg.
 
 # note that v _can_ in principle occur in t.
-`depends/lam` := proc(v::name, t, e, x)
+`depends/lam` := proc(v::name, t, e, x, $)
   depends(t, x) or depends(e, x minus {v})
 end proc:
 
-`depends/Branch` := proc(p, e, x)
+`depends/Branch` := proc(p, e, x, $)
   depends(e, x minus {Hakaru:-pattern_binds(p)})
 end proc:
 
 # note that v _can_ occur in m1.
-`depends/Bind` := proc(m1, v::name, m2, x)
+`depends/Bind` := proc(m1, v::name, m2, x, $)
   depends(m1, x) or depends(m2, x minus {v})
 end proc:
 
 # note that i _can_ occur in n.
-`depends/ary` := proc(n, i::name, e, x)
+`depends/ary` := proc(n, i::name, e, x, $)
   depends(n, x) or depends(e, x minus {i})
 end proc:
 
-`eval/lam` := proc(e, eqs)
+`eval/lam` := proc(e, eqs, $)
   local v, t, ee;
   v, t, ee := op(e);
   v, ee := BindingTools:-generic_evalat(v, ee, eqs);
@@ -30,7 +30,7 @@ end proc:
   eval(op(0,e), eqs)(v, t, ee)
 end proc:
 
-`eval/Branch` := proc(e, eqs)
+`eval/Branch` := proc(e, eqs, $)
   local p, ee, vBefore, vAfter;
   p, ee := op(e);
   vBefore := [Hakaru:-pattern_binds(p)];
@@ -38,13 +38,13 @@ end proc:
   eval(op(0,e), eqs)(subs(op(zip(`=`, vBefore, vAfter)), p), ee)
 end proc:
 
-`eval/Bind` := proc(e, eqs)
+`eval/Bind` := proc(e, eqs, $)
   local m1, v, m2;
   m1, v, m2 := op(e);
   eval(op(0,e), eqs)(eval(m1, eqs), BindingTools:-generic_evalat(v, m2, eqs))
 end proc:
 
-`eval/ary` := proc(e, eqs)
+`eval/ary` := proc(e, eqs, $)
   local n, i, ee;
   n, i, ee := op(e);
   eval(op(0,e), eqs)(eval(n, eqs), BindingTools:-generic_evalat(i, ee, eqs))
@@ -91,7 +91,7 @@ Hakaru := module ()
   p_true  := 'PDatum(true,PInl(PDone))';
   p_false := 'PDatum(false,PInr(PInl(PDone)))';
 
-  case := proc(e, bs :: specfunc(Branch(anything, anything), Branches))
+  case := proc(e, bs :: specfunc(Branch(anything, anything), Branches), $)
     local ret, b, substs, eSubst, pSubst, p, binds, uncertain;
     ret := Branches();
     for b in bs do
@@ -124,7 +124,7 @@ Hakaru := module ()
     end if
   end proc;
 
-  pattern_match := proc(e0, e, p)
+  pattern_match := proc(e0, e, p, $)
     local x, substs, eSubst, pSubst;
     if p = PWild then return {}, {}
     elif p :: PVar(anything) then
@@ -193,7 +193,7 @@ Hakaru := module ()
     eSubst, pSubst
   end proc;
 
-  make_piece := proc(rel)
+  make_piece := proc(rel, $)
     # Try to prevent PiecewiseTools:-Is from complaining
     # "Wrong kind of parameters in piecewise"
     if rel :: {specfunc(anything, {And,Or,Not}), `and`, `or`, `not`} then
@@ -205,7 +205,7 @@ Hakaru := module ()
     end if
   end proc;
 
-  pattern_binds := proc(p)
+  pattern_binds := proc(p, $)
     if p = PWild or p = PDone then
       NULL
     elif p :: PVar(anything) then
@@ -222,7 +222,7 @@ Hakaru := module ()
     end if
   end proc:
 
-  verify_measure := proc(m, n, v:='boolean')
+  verify_measure := proc(m, n, v:='boolean', $)
     local mv, x, i, j, k;
     mv := measure(v);
     if verify(m, n, 'Bind'(mv, true, true))
@@ -246,7 +246,7 @@ Hakaru := module ()
       for i from 1 to k do
         j := pattern_equiv(op([2,i,1],m), op([2,i,1],n));
         if j = false then return j end if;
-        j := map(proc(eq)
+        j := map(proc(eq, $)
                    local x;
                    x := gensym(cat(lhs(eq), "_", rhs(eq), "_"));
                    [lhs(eq)=x, rhs(eq)=x]
@@ -270,7 +270,7 @@ Hakaru := module ()
     end if
   end proc;
 
-  pattern_equiv := proc(p, q) :: {identical(false),set(`=`)};
+  pattern_equiv := proc(p, q, $) :: {identical(false),set(`=`)};
     local r, s;
     if ormap((t->andmap(`=`, [p,q], t)), [PWild, PDone]) then
       {}
@@ -298,13 +298,14 @@ Hakaru := module ()
   map_piecewise := proc(f,p) # p may or may not be piecewise
     local i;
     if p :: 'specfunc(piecewise)' then
-      piecewise(seq(`if`(i::even or i=nops(p),f(op(i,p),_rest),op(i,p)),i=1..nops(p)))
+      piecewise(seq(`if`(i::even or i=nops(p), f(op(i,p),_rest), op(i,p)),
+                    i=1..nops(p)))
     else
       f(p,_rest)
     end if
   end proc;
 
-  foldr_piecewise := proc(cons, nil, pw) # pw may or may not be piecewise
+  foldr_piecewise := proc(cons, nil, pw, $) # pw may or may not be piecewise
     # View pw as a piecewise and foldr over its arms
     if pw :: 'specfunc(piecewise)' then
       foldr(proc(i,x) cons(op(i,pw), op(i+1,pw), x) end proc,
@@ -315,7 +316,7 @@ Hakaru := module ()
     end if
   end proc;
 
-  app := proc (func, argu)
+  app := proc (func, argu, $)
     if func :: 'lam(name, anything, anything)' then
       eval(op(3,func), op(1,func)=argu)
     elif func :: 'specfunc(piecewise)' then
@@ -325,7 +326,7 @@ Hakaru := module ()
     end if
   end proc;
 
-  ary := proc (n, i, e)
+  ary := proc (n, i, e, $)
     if e :: 'idx'('freeof'(i), 'identical'(i)) then
       # Array eta-reduction. Assume the size matches.  (We should keep array
       # size information in the KB and use it here, but we don't currently.)
@@ -335,7 +336,7 @@ Hakaru := module ()
     end if
   end proc;
 
-  idx := proc (a, i)
+  idx := proc (a, i, $)
     if a :: 'ary(anything, name, anything)' then
       eval(op(3,a), op(2,a)=i)
     elif a :: 'specfunc(piecewise)' then
@@ -345,7 +346,7 @@ Hakaru := module ()
     end if
   end proc;
 
-  size := proc(a)
+  size := proc(a, $)
     if a :: 'ary(anything, name, anything)' then
       op(1,a)
     elif a :: 'specfunc(piecewise)' then
@@ -355,7 +356,7 @@ Hakaru := module ()
     end if
   end proc;
 
-  Datum := proc(hint, payload)
+  Datum := proc(hint, payload, $)
     # Further cheating to equate Maple booleans and Hakaru booleans
     if hint = true and payload = Inl(Done) or
        hint = false and payload = Inr(Inl(Done)) then
@@ -365,26 +366,27 @@ Hakaru := module ()
     end if
   end proc;
 
-  closed_bounds := proc(r::range)
+  closed_bounds := proc(r::range, $)
     Bound(`>=`, lhs(r)), Bound(`<=`, rhs(r))
   end proc;
 
-  open_bounds := proc(r::range)
+  open_bounds := proc(r::range, $)
     Bound(`>`, lhs(r)), Bound(`<`, rhs(r))
   end proc;
 
   # Enumerate patterns for a given Hakaru type
-  htype_patterns := proc(t::t_type)
+  htype_patterns := proc(t::t_type, $)
     :: specfunc(Branch(anything, list(t_type)), Branches);
     local struct;
     uses StringTools;
     if t :: specfunc(DatumStruct(anything, list(Konst(anything))), HData) then
-      foldr(proc(struct,ps) Branches(
+      foldr(proc(struct,ps,$) Branches(
               op(map((p -> Branch(PDatum(op(1,struct), PInl(op(1,p))),
                                   op(2,p))),
-                     foldr(proc(kt,qs)
+                     foldr(proc(kt,qs,$)
                              local p, q;
-                             Branches(seq(seq(Branch(PEt(PKonst(op(1,p)),op(1,q)),
+                             Branches(seq(seq(Branch(PEt(PKonst(op(1,p)),
+                                                         op(1,q)),
                                                      [op(op(2,p)),op(op(2,q))]),
                                               q in qs),
                                           p in htype_patterns(op(1,kt))))
@@ -403,7 +405,7 @@ Hakaru := module ()
     end if
   end proc;
 
-  ModuleLoad := proc()
+  ModuleLoad := proc($)
     VerifyTools[AddVerification](measure = eval(verify_measure));
     TypeTools[AddType](t_type,
       '{specfunc(Bound(identical(`<`,`<=`,`>`,`>=`), anything),
@@ -417,7 +419,7 @@ Hakaru := module ()
       'case(anything, specfunc(Branch(anything, anything), Branches))');
   end proc;
 
-  ModuleUnload := proc()
+  ModuleUnload := proc($)
     TypeTools[RemoveType](t_case);
     TypeTools[RemoveType](t_type);
     VerifyTools[RemoveVerification](measure);

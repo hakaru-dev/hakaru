@@ -5,7 +5,7 @@ gensym := module ()
   export ModuleApply;
   local gs_counter, utf8, blocks, radix, unicode;
   gs_counter := -1;
-  utf8 := proc(n :: integer)
+  utf8 := proc(n :: integer, $)
     local m;
     if n<128 then n
     elif n<2048 then 192+iquo(n,64,'m'), 128+m
@@ -18,14 +18,14 @@ gensym := module ()
   blocks := map((b -> block(convert(op(0,b), decimal, hex), op(1,b))),
                 ["4e00"(20950)]);
   radix := `+`(op(map2(op, 2, blocks))) / 2;
-  unicode := proc(nn)
+  unicode := proc(nn, $)
     local n, b;
     n := nn;
     for b in blocks do
       if n < op(2,b) then return n + op(1,b) else n := n - op(2,b) end if
     end do
   end proc;
-  ModuleApply := proc(x::name)
+  ModuleApply := proc(x::name, $)
     gs_counter := gs_counter + 1;
     cat(x, op(map(StringTools:-Char, map(utf8 @ unicode, applyop(`+`, 1, map(`*`, convert(gs_counter, 'base', radix), 2), 1)))))
   end proc;
@@ -37,7 +37,7 @@ BindingTools := module ()
   option package;
   export generic_evalat, generic_evalatstar;
 
-  generic_evalat := proc(vv::{name,list(name)}, mm, eqs)
+  generic_evalat := proc(vv::{name,list(name)}, mm, eqs, $)
     local v, m, eqsRemain, subsEq, eq, rename, funs;
     funs := map2(op, 0, indets(mm, 'function'));
     eqsRemain := remove((eq -> op(1,eq) = op(2,eq)), eqs);
@@ -45,7 +45,7 @@ BindingTools := module ()
     eqsRemain := select((eq -> not has(op(1,eq), vv) and
       (depends(mm, op(1,eq)) or member(op(1,eq), funs))), eqsRemain);
     m := mm;
-    rename := proc(v::name)
+    rename := proc(v::name, $)
       local vRename;
       if depends(eqsRemain, v) then
         vRename := gensym(v);
@@ -67,7 +67,7 @@ BindingTools := module ()
     v, m;
   end proc:
 
-  generic_evalatstar := proc(body, bound::list, eqs)
+  generic_evalatstar := proc(body, bound::list, eqs, $)
     local indefinite, e, n, b, j;
     e := foldl(((x,i) -> `if`(i::`=`,
                               lam(lhs(i), rhs(i), x),

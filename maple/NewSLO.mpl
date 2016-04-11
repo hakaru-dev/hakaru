@@ -32,7 +32,7 @@ NewSLO := module ()
         get_var_pos, get_int_pos,
         avoid_capture, change_var, disint2,
         mk_sym, mk_ary, mk_idx, mk_HArray,
-        ModuleLoad, ModuleUnload;
+        ModuleLoad;
   export
      # These first few are smart constructors (for themselves):
          integrate, applyintegrand,
@@ -50,11 +50,11 @@ NewSLO := module ()
     lprint(eval(ToInert(Simplify(_passed)), _Inert_ATTRIBUTE=NULL))
   end proc;
 
-  Simplify := proc(e, t::t_type, {ctx :: list := []})
+  Simplify := proc(e, t::t_type, {ctx :: list := []}, $)
     SimplifyKB(e, t, foldr(assert, empty, op(ctx)))
   end proc;
 
-  SimplifyKB := proc(e, t::t_type, kb::t_kb)
+  SimplifyKB := proc(e, t::t_type, kb::t_kb, $)
     local patterns, x, kb1, ex;
     if t :: HMeasure(anything) then
       fromLO(improve(toLO(e), _ctx=kb), _ctx=kb)
@@ -62,7 +62,8 @@ NewSLO := module ()
       patterns := htype_patterns(op(1,t));
       if patterns :: Branches(Branch(PVar(name),anything)) then
         # Eta-expand the function type
-        x := `if`(e::lam(name,anything,anything), op(1,e), op([1,1,1],patterns));
+        x := `if`(e::lam(name,anything,anything), op(1,e),
+                  op([1,1,1],patterns));
         x, kb1 := genType(x, op(1,t), kb, e);
         ex := app(e,x);
         lam(x, op(1,t), SimplifyKB(ex, op(2,t), kb1))
@@ -85,7 +86,7 @@ NewSLO := module ()
                 end do;
                 pSubst1 := op(op(pSubst1));
                 Branch(subs(pSubst1, p1),
-                       SimplifyKB(eval(eval(ex, eSubst), pSubst1), op(2,t), kb1))
+                       SimplifyKB(eval(eval(ex,eSubst),pSubst1), op(2,t), kb1))
               end proc,
               patterns)))
       end if
@@ -117,7 +118,7 @@ NewSLO := module ()
 # measurable function to be integrated) or something that can be applied
 # (probably proc, which should be applied immediately, or a generated symbol).
 
-  applyintegrand := proc(h, x)
+  applyintegrand := proc(h, x, $)
     if h :: 'Integrand(name, anything)' then
       eval(op(2,h), op(1,h) = x)
     elif h :: appliable then
@@ -129,13 +130,13 @@ NewSLO := module ()
 
 # Step 1 of 3: from Hakaru to Maple LO (linear operator)
 
-  toLO := proc(m)
+  toLO := proc(m, $)
     local h;
     h := gensym('h');
     LO(h, integrate(m, h, []))
   end proc;
 
-  integrate := proc(m, h, loops :: list(name = range) := [])
+  integrate := proc(m, h, loops :: list(name = range) := [], $)
     local x, n, i, res, l;
 
     if m :: known_continuous then
@@ -201,7 +202,7 @@ NewSLO := module ()
     end if
   end proc;
 
-  integrate_known := proc(make, makes, var, m, h, loops :: list(name = range))
+  integrate_known := proc(make, makes, var, m, h, loops :: list(name=range), $)
     local x, dens, bds;
     x := mk_sym(var, h);
     dens := density[op(0,m)](op(m));
@@ -225,20 +226,20 @@ NewSLO := module ()
 
 # Step 3 of 3: from Maple LO (linear operator) back to Hakaru
 
-  fromLO := proc(lo :: LO(name, anything), {_ctx :: t_kb := empty})
+  fromLO := proc(lo :: LO(name, anything), {_ctx :: t_kb := empty}, $)
     local h;
     h := gensym(op(1,lo));
     unintegrate(h, eval(op(2,lo), op(1,lo) = h), _ctx)
   end proc;
 
-  unintegrate := proc(h :: name, integral, kb :: t_kb)
+  unintegrate := proc(h :: name, e, kb :: t_kb, $)
     local x, c, lo, hi, make, m, mm, w, w0, w1, recognition, subintegral,
           i, kb1, loops, subst, hh, pp, t, bnds;
-    if integral :: 'And'('specfunc({Int,int})',
-                         'anyfunc'('anything','name'='range'('freeof'(h)))) then
-      (lo, hi) := op(op([2,2],integral));
-      x, kb1 := genLebesgue(op([2,1],integral), lo, hi, kb);
-      subintegral := eval(op(1,integral), op([2,1],integral) = x);
+    if e :: 'And'('specfunc({Int,int})',
+                  'anyfunc'('anything','name'='range'('freeof'(h)))) then
+      (lo, hi) := op(op([2,2],e));
+      x, kb1 := genLebesgue(op([2,1],e), lo, hi, kb);
+      subintegral := eval(op(1,e), op([2,1],e) = x);
       (w, m) := unweight(unintegrate(h, subintegral, kb1));
       recognition := recognize_continuous(w, x, lo, hi)
         assuming op(kb_to_assumptions(kb1));
@@ -258,11 +259,11 @@ NewSLO := module ()
         end if;
         weight(w0, bind(Lebesgue(), x, m))
       end if
-    elif integral :: 'And'('specfunc({Sum,sum})',
-                           'anyfunc'('anything','name'='range'('freeof'(h)))) then
-      (lo, hi) := op(op([2,2],integral));
-      x, kb1 := genType(op([2,1],integral), HInt(closed_bounds(lo..hi)), kb);
-      subintegral := eval(op(1,integral), op([2,1],integral) = x);
+    elif e :: 'And'('specfunc({Sum,sum})',
+                    'anyfunc'('anything','name'='range'('freeof'(h)))) then
+      (lo, hi) := op(op([2,2],e));
+      x, kb1 := genType(op([2,1],e), HInt(closed_bounds(lo..hi)), kb);
+      subintegral := eval(op(1,e), op([2,1],e) = x);
       (w, m) := unweight(unintegrate(h, subintegral, kb1));
       recognition := recognize_discrete(w, x, lo, hi)
         assuming op(kb_to_assumptions(kb1));
@@ -270,20 +271,20 @@ NewSLO := module ()
         (w, w0) := factorize(op(2,recognition), x);
         weight(w0, bind(op(1,recognition), x, weight(w, m)))
       else error "recognize_discrete is never supposed to fail" end if
-    elif integral :: 'And'('specfunc({Ints,ints,Sums,sums})',
-                           'anyfunc'('anything', 'name', 'range'('freeof'(h)),
-                                     'list(name=range)')) then
-      loops := op(4,integral);
-      bnds  := op(3,integral);
-      if op(0,integral) in {Ints,ints} then
+    elif e :: 'And'('specfunc({Ints,ints,Sums,sums})',
+                    'anyfunc'('anything', 'name', 'range'('freeof'(h)),
+                              'list(name=range)')) then
+      loops := op(4,e);
+      bnds  := op(3,e);
+      if op(0,e) in {Ints,ints} then
         t := HReal(open_bounds(bnds));
         make := Int;
       else
         t := HInt(closed_bounds(bnds));
         make := Sum;
       end if;
-      x, kb1 := genType(op(2,integral), mk_HArray(t, loops), kb);
-      subintegral := eval(op(1,integral), op(2,integral) = x);
+      x, kb1 := genType(op(2,e), mk_HArray(t, loops), kb);
+      subintegral := eval(op(1,e), op(2,e) = x);
       (w, m) := unweight(unintegrate(h, subintegral, kb1));
       bnds, loops, kb1 := genLoop(bnds, loops, kb, 'Integrand'(x,[w,m]));
       w, pp := unproducts(w, x, loops, kb1);
@@ -298,51 +299,49 @@ NewSLO := module ()
                           eval(mmm, op(1,loop) = op(1,loop) - op([2,1],loop)))),
                    mm, op(loops)),
              x, weight(`*`(op(w)), m)))
-    elif integral :: 'applyintegrand'('identical'(h), 'freeof'(h)) then
-      Ret(op(2,integral))
-    elif integral = 0 then
+    elif e :: 'applyintegrand'('identical'(h), 'freeof'(h)) then
+      Ret(op(2,e))
+    elif e = 0 then
       Msum()
-    elif integral :: `+` then
-      Msum(op(map2(unintegrate, h, convert(integral, 'list'), kb)))
-    elif integral :: `*` then
-      (subintegral, w) := selectremove(depends, integral, h);
-      if subintegral :: `*` then error "Nonlinear integral %1", integral end if;
+    elif e :: `+` then
+      Msum(op(map2(unintegrate, h, convert(e, 'list'), kb)))
+    elif e :: `*` then
+      (subintegral, w) := selectremove(depends, e, h);
+      if subintegral :: `*` then error "Nonlinear integral %1", e end if;
       (w0, w) := selectremove(type, convert(w,'list',`*`), Indicator(anything));
       m := weight(`*`(op(w)), unintegrate(h, subintegral, kb));
       if m :: Weight(anything, anything) then
         m := weight(simplify_assuming(op(1,m), kb), op(2,m));
       end if;
       `if`(nops(w0)=0, m, piecewise(And(op(map2(op,1,w0))),m,Msum()))
-    elif integral :: t_pw
-         and `and`(seq(not (depends(op(i,integral), h)),
-                       i=1..nops(integral)-1, 2)) then
-      kb_piecewise(integral, kb,
-                   ((lhs, kb) -> lhs),
-                   ((rhs, kb) -> unintegrate(h, rhs, kb)))
-    elif integral :: t_case then
+    elif e :: t_pw
+         and `and`(seq(not (depends(op(i,e), h)),
+                       i=1..nops(e)-1, 2)) then
+      kb_piecewise(e, kb, ((lhs, kb) -> lhs),
+                          ((rhs, kb) -> unintegrate(h, rhs, kb)))
+    elif e :: t_case then
       subsop(2=map(proc(b :: Branch(anything, anything))
                      eval(subsop(2='unintegrate'(x,op(2,b),c),b),
                           {x=h, c=kb})
                    end proc,
-                   op(2,integral)),
-             integral);
-    elif integral :: 'Context(anything, anything)' then
-      subsop(2=unintegrate(h, op(2,integral), assert(op(1,integral), kb)),
-             integral)
-    elif integral :: 'integrate'('freeof'(h), 'anything', identical([])) then
-      x := mk_sym('x', op(2,integral));
+                   op(2,e)),
+             e);
+    elif e :: 'Context(anything, anything)' then
+      subsop(2=unintegrate(h, op(2,e), assert(op(1,e), kb)), e)
+    elif e :: 'integrate'('freeof'(h), 'anything', identical([])) then
+      x := mk_sym('x', op(2,e));
       # If we had HType information for op(1,e),
       # then we could use it to tell kb about x.
-      (w, m) := unweight(unintegrate(h, applyintegrand(op(2,integral), x), kb));
+      (w, m) := unweight(unintegrate(h, applyintegrand(op(2,e), x), kb));
       (w, w0) := factorize(w, x);
-      weight(w0, bind(op(1,integral), x, weight(w, m)))
+      weight(w0, bind(op(1,e), x, weight(w, m)))
     else
       # Failure: return residual LO
-      LO(h, integral)
+      LO(h, e)
     end if
   end proc;
 
-  recognize_continuous := proc(weight0, x, lo, hi)
+  recognize_continuous := proc(weight0, x, lo, hi, $)
     local Constant, de, Dx, f, w, res, rng;
     res := FAIL;
     # gfun[holexprtodiffeq] contains a test for {radfun,algfun} that seems like
@@ -387,7 +386,7 @@ NewSLO := module ()
     subsindets[flat](res, 'specindex'(anything, Constant), x -> op(1,x))
   end proc;
 
-  recognize_discrete := proc(w, k, lo, hi)
+  recognize_discrete := proc(w, k, lo, hi, $)
     local se, Sk, f, a0, a1, lambda, r;
     if lo = 0 and hi = infinity then
       se := get_se(w, k, Sk, f);
@@ -410,7 +409,7 @@ NewSLO := module ()
     Recognized(Counting(lo, hi), w)
   end proc;
 
-  get_de := proc(dens, var, Dx, f)
+  get_de := proc(dens, var, Dx, f, $)
     :: Or(Diffop(anything, set(function=anything)), identical(FAIL));
     local de, init;
     try
@@ -437,7 +436,7 @@ NewSLO := module ()
     FAIL
   end proc;
 
-  get_se := proc(dens, var, Sk, u)
+  get_se := proc(dens, var, Sk, u, $)
     :: Or(Shiftop(anything, set(function=anything), name), identical(FAIL));
     local x, de, re, gftype, init, f;
     try
@@ -477,7 +476,7 @@ NewSLO := module ()
     FAIL
   end proc;
 
-  recognize_de := proc(diffop, init, Dx, f, var, lo, hi)
+  recognize_de := proc(diffop, init, Dx, f, var, lo, hi, $)
     local dist, ii, constraints, w, a0, a1, a, b0, b1, c0, c1, c2, loc, nu;
     dist := FAIL;
     if lo = -infinity and hi = infinity
@@ -546,7 +545,7 @@ NewSLO := module ()
     result
   end proc;
 
-  unweight := proc(m)
+  unweight := proc(m, $)
     local total, ww, mm;
     if m :: 'Weight(anything, anything)' then
       op(m)
@@ -558,7 +557,7 @@ NewSLO := module ()
     end if;
   end proc;
 
-  factorize := proc(w, x)
+  factorize := proc(w, x, $)
     if w :: `*` then
       selectremove(depends, w, x)
     elif depends(w, x) then
@@ -571,7 +570,7 @@ NewSLO := module ()
   ###
   # smart constructors for our language
 
-  bind := proc(m, x, n)
+  bind := proc(m, x, n, $)
     if n = 'Ret'(x) then
       m # monad law: right identity
     elif m :: 'Ret(anything)' then
@@ -581,7 +580,7 @@ NewSLO := module ()
     end if;
   end proc;
 
-  weight := proc(p, m)
+  weight := proc(p, m, $)
     if p = 1 then
       m
     elif p = 0 then
@@ -595,14 +594,14 @@ NewSLO := module ()
 
 # Step 2 of 3: computer algebra
 
-  improve := proc(lo :: LO(name, anything), {_ctx :: t_kb := empty})
+  improve := proc(lo :: LO(name, anything), {_ctx :: t_kb := empty}, $)
     LO(op(1,lo), reduce(op(2,lo), op(1,lo), _ctx))
   end proc;
 
   # Walk through integrals and simplify, recursing through grammar
   # h - name of the linear operator above us
   # kb - domain information
-  reduce := proc(ee, h :: name, kb :: t_kb)
+  reduce := proc(ee, h :: name, kb :: t_kb, $)
     local e, subintegral, w, ww, x, c, kb1;
     e := elim_intsum(ee, h, kb);
     if e :: 'And(specfunc({Int,Sum}), anyfunc(anything,name=range))' then
@@ -660,7 +659,7 @@ NewSLO := module ()
   end proc;
 
   reduce_IntSum := proc(mk :: identical(Int, Sum),
-                        ee, h :: name, kb1 :: t_kb, kb0 :: t_kb)
+                        ee, h :: name, kb1 :: t_kb, kb0 :: t_kb, $)
     local e, dom_spec, w, rest, var, new_rng, make, i;
 
     # if there are domain restrictions, try to apply them
@@ -691,18 +690,19 @@ NewSLO := module ()
     else
       w := 1;
     end if;
-    e := make(`if`(dom_spec=[],e,piecewise(And(op(dom_spec)),e,0)), var=new_rng);
+    e := make(`if`(dom_spec=[], e, piecewise(And(op(dom_spec)), e, 0)),
+              var=new_rng);
     e := w*elim_intsum(e, h, kb0);
     e := mul(Indicator(i), i in rest)*e;
     e
   end proc;
 
-  reduce_IntsSums := proc(makes, ee, var :: name, rng, bds, h :: name, kb :: t_kb)
+  reduce_IntsSums := proc(makes, ee, var::name, rng, bds, h::name, kb::t_kb, $)
     # TODO we should apply domain restrictions like reduce_IntSum does.
     makes(ee, var, rng, bds);
   end proc;
 
-  get_indicators := proc(e)
+  get_indicators := proc(e, $)
     local sub, inds, rest;
     if e::`*` then
       sub := map((s -> [get_indicators(s)]), [op(e)]);
@@ -717,7 +717,7 @@ NewSLO := module ()
     end if
   end proc;
 
-  elim_intsum := proc(ee, h :: name, kb :: t_kb)
+  elim_intsum := proc(ee, h :: name, kb :: t_kb, $)
     local e, hh, m, var, elim, my;
 
     e := ee;
@@ -767,14 +767,14 @@ NewSLO := module ()
     subs(int=Int, ints=Ints, sum=Sum, sums=Sums, e)
   end proc;
 
-  elim_metric := proc(e, h::name)
+  elim_metric := proc(e, h::name, $)
     numboccur(e, select(hastype,
       indets(e, specfunc({Int,Sum,int,sum,Ints,Sums,ints,sums})),
       'applyintegrand'('identical'(h), 'anything')))
   end proc;
 
   Banish := proc(e :: Int(anything, name=anything), h :: name,
-                 levels :: extended_numeric := infinity)
+                 levels :: extended_numeric := infinity, $)
     local hh;
     hh := gensym('h');
     subs(int=Int,
@@ -782,7 +782,7 @@ NewSLO := module ()
         op([2,1],e), h, op(1,e), levels));
   end proc;
 
-  banish := proc(m, x :: name, h :: name, g, levels :: extended_numeric)
+  banish := proc(m, x :: name, h :: name, g, levels :: extended_numeric, $)
     # LO(h, banish(m, x, h, g)) should be equivalent to Bind(m, x, LO(h, g))
     # but performs integration over x innermost rather than outermost.
     local guard, subintegral, w, y, yRename, lo, hi, mm, loops, xx, hh, gg, ll;
@@ -869,7 +869,7 @@ NewSLO := module ()
     end if
   end proc;
 
-  reduce_pw := proc(ee) # ee may or may not be piecewise
+  reduce_pw := proc(ee, $) # ee may or may not be piecewise
     local e;
     e := nub_piecewise(ee);
     if e :: t_pw then
@@ -884,11 +884,11 @@ NewSLO := module ()
     return e
   end proc;
 
-  nub_piecewise := proc(pw) # pw may or may not be piecewise
+  nub_piecewise := proc(pw, $) # pw may or may not be piecewise
     foldr_piecewise(piecewise_if, 0, pw)
   end proc;
 
-  piecewise_if := proc(cond, th, el)
+  piecewise_if := proc(cond, th, el, $)
     # piecewise_if should be equivalent to `if`, but it produces
     # 'piecewise' and optimizes for when the 3rd argument is 'piecewise'
     if cond = true then
@@ -1296,49 +1296,49 @@ NewSLO := module ()
     end if;
   end proc;
 
-  density[Lebesgue] := proc() proc(x) 1 end proc end proc;
-  density[Uniform] := proc(a,b) proc(x)
+  density[Lebesgue] := proc($) proc(x,$) 1 end proc end proc;
+  density[Uniform] := proc(a,b,$) proc(x,$)
     1/(b-a)
   end proc end proc;
-  density[Gaussian] := proc(mu, sigma) proc(x)
+  density[Gaussian] := proc(mu, sigma, $) proc(x,$)
     1/sigma/sqrt(2)/sqrt(Pi)*exp(-(x-mu)^2/2/sigma^2)
   end proc end proc;
-  density[Cauchy] := proc(loc, scale) proc(x)
+  density[Cauchy] := proc(loc, scale, $) proc(x,$)
     1/Pi/scale/(1+((x-loc)/scale)^2)
   end proc end proc;
-  density[StudentT] := proc(nu, loc, scale) proc(x)
+  density[StudentT] := proc(nu, loc, scale, $) proc(x,$)
     GAMMA((nu+1)/2) / GAMMA(nu/2) / sqrt(Pi*nu) / scale
     * (1 + ((x-loc)/scale)^2/nu)^(-(nu+1)/2)
   end proc end proc;
-  density[BetaD] := proc(a, b) proc(x)
+  density[BetaD] := proc(a, b, $) proc(x,$)
     x^(a-1)*(1-x)^(b-1)/Beta(a,b)
   end proc end proc;
   # Hakaru uses the alternate definition of gamma, so the args are backwards
-  density[GammaD] := proc(shape, scale) proc(x)
+  density[GammaD] := proc(shape, scale, $) proc(x,$)
     x^(shape-1)/scale^shape*exp(-x/scale)/GAMMA(shape);
   end proc end proc;
-  density[Counting] := proc(lo, hi) proc(k)
+  density[Counting] := proc(lo, hi, $) proc(k,$)
     1
   end proc end proc;
-  density[NegativeBinomial] := proc(r,p) proc(k)
+  density[NegativeBinomial] := proc(r, p, $) proc(k,$)
     p^k * (1-p)^r * GAMMA(r+k) / GAMMA(k+1) / GAMMA(r)
   end proc end proc;
-  density[PoissonD] := proc(lambda) proc(k)
+  density[PoissonD] := proc(lambda, $) proc(k,$)
     lambda^k/exp(lambda)/k!
   end proc end proc;
 
-  bounds[Lebesgue] := proc() -infinity .. infinity end proc;
-  bounds[Uniform] := proc(a, b) a .. b end proc;
-  bounds[Gaussian] := proc(mu, sigma) -infinity .. infinity end proc;
-  bounds[Cauchy] := proc(loc, scale) -infinity .. infinity end proc;
-  bounds[StudentT] := proc(nu, loc, scale) -infinity .. infinity end proc;
-  bounds[BetaD] := proc(a, b) 0 .. 1 end proc;
-  bounds[GammaD] := proc(shape, scale) 0 .. infinity end proc;
+  bounds[Lebesgue] := proc($) -infinity .. infinity end proc;
+  bounds[Uniform] := proc(a, b, $) a .. b end proc;
+  bounds[Gaussian] := proc(mu, sigma, $) -infinity .. infinity end proc;
+  bounds[Cauchy] := proc(loc, scale, $) -infinity .. infinity end proc;
+  bounds[StudentT] := proc(nu, loc, scale, $) -infinity .. infinity end proc;
+  bounds[BetaD] := proc(a, b, $) 0 .. 1 end proc;
+  bounds[GammaD] := proc(shape, scale, $) 0 .. infinity end proc;
   bounds[Counting] := `..`;
-  bounds[NegativeBinomial] := proc(r,p) 0 .. infinity end proc;
-  bounds[PoissonD] := proc(lambda) 0 .. infinity end proc;
+  bounds[NegativeBinomial] := proc(r, p, $) 0 .. infinity end proc;
+  bounds[PoissonD] := proc(lambda, $) 0 .. infinity end proc;
 
-  mk_sym := proc(var :: name, h)
+  mk_sym := proc(var :: name, h, $)
     local x;
     x := var;
     if h :: 'Integrand(name, anything)' then
@@ -1349,26 +1349,26 @@ NewSLO := module ()
     gensym(x)
   end proc;
 
-  mk_ary := proc(e, loops :: list(name = range))
+  mk_ary := proc(e, loops :: list(name = range), $)
     foldl((res, i) -> ary(op([2,2],i) - op([2,1],i) + 1,
                           op(1,i),
                           eval(res, op(1,i) = op(1,i) + op([2,1],i))),
           e, op(loops));
   end proc;
 
-  mk_idx := proc(e, loops :: list(name = range))
+  mk_idx := proc(e, loops :: list(name = range), $)
     foldr((i, res) -> idx(res, op(1,i) - op([2,1],i)),
           e, op(loops));
   end proc;
 
-  mk_HArray := proc(t::t_type, loops::list(name=range))
+  mk_HArray := proc(t::t_type, loops::list(name=range), $)
     local res, i;
     res := t;
     for i in loops do res := HArray(res) end do;
     res
   end proc;
 
-  ModuleLoad := proc()
+  ModuleLoad := proc($)
     local prev;
     Hakaru; # Make sure the KB module is loaded, for the type t_type
     KB;     # Make sure the KB module is loaded, for the type t_kb
@@ -1380,9 +1380,6 @@ NewSLO := module ()
     finally
       kernelopts(opaquemodules=prev);
     end try;
-  end proc;
-
-  ModuleUnload := proc()
   end proc;
 
   ModuleLoad();

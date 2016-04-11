@@ -59,11 +59,11 @@ KB := module ()
     x, KB(Let(x, e), op(kb));
   end proc;
 
-  assert := proc(b, kb::t_kb)
+  assert := proc(b, kb::t_kb, $)
     assert_deny(foldl(eval, b, op(kb_to_equations(kb))), true, kb)
   end proc;
 
-  assert_deny := proc(bb, pol::identical(true,false), kb::t_kb)
+  assert_deny := proc(bb, pol::identical(true,false), kb::t_kb, $)
     # Add `if`(pol,bb,Not(bb)) to kb and return the resulting KB.
     local as, b, log_b, k, x, rel, e, ch, c, kb1, y;
     if bb = pol then
@@ -197,7 +197,7 @@ KB := module ()
     end if
   end proc:
 
-  boolean_if := proc(cond, th, el)
+  boolean_if := proc(cond, th, el, $)
     # boolean_if should be equivalent to `if`, but it assumes
     # all its arguments are boolean conditions, so it basically
     # simplifies "cond and th or not cond and el"
@@ -213,13 +213,13 @@ KB := module ()
     end use
   end proc;
 
-  kb_subtract := proc(kb::t_kb, kb0::t_kb)
+  kb_subtract := proc(kb::t_kb, kb0::t_kb, $)
     local cut;
     cut := nops(kb) - nops(kb0);
     if cut < 0 or KB(op(cut+1..-1, kb)) <> kb0 then
       error "%1 is not an extension of %2", kb, kb0;
     end if;
-    map(proc(k)
+    map(proc(k, $)
       local x, t;
       if k :: 'Introduce(name, anything)' then
         x, t := op(k);
@@ -241,7 +241,7 @@ KB := module ()
     end proc, [op(coalesce_bounds(KB(op(1..cut, kb))))])
   end proc;
 
-  coalesce_bounds := proc(kb::t_kb)
+  coalesce_bounds := proc(kb::t_kb, $)
     local lo, hi, eq, rest, k, x, t, b, s, r;
     for k in select(type, kb, t_intro) do
       x, t := op(k);
@@ -260,7 +260,7 @@ KB := module ()
     for k in select(type, kb, Bound(name, t_hi, anything)) do
       hi[op(1,k)] := subsop(1=NULL,k);
     end do;
-    map(proc(k)
+    map(proc(k, $)
       if k :: t_intro then
         x := op(1,k);
         if eq[x] = evaln(eq[x]) then
@@ -279,7 +279,7 @@ KB := module ()
     end proc, kb);
   end proc;
 
-  simplify_assuming := proc(ee, kb::t_kb)
+  simplify_assuming := proc(ee, kb::t_kb, $)
     local e, as;
     e := foldl(eval, ee, op(kb_to_equations(kb)));
     e := evalindets(e, 'specfunc({%product, product})', myexpand_product);
@@ -290,7 +290,7 @@ KB := module ()
       e := evalindets(e, {logical,
                           specfunc({And,Or,Not}),
                           specop(algebraic,{`<`,`<=`,`=`,`<>`})},
-        proc(b)
+        proc(b, $)
           try
             if is(b) assuming op(as) then return true
             elif false = coulditbe(b) assuming op(as) then return false
@@ -307,11 +307,11 @@ KB := module ()
     eval(e, exp = expand @ exp);
   end proc;
 
-  myexpand_product := proc(prod)
+  myexpand_product := proc(prod, $)
     local x, p, body, quantifier;
     (body, quantifier) := op(prod);
     x := op(1, quantifier);
-    p := proc(e)
+    p := proc(e, $)
       local ee;
       if e :: 'exp(anything)' then
         ee := expand(op(1,e));
@@ -328,8 +328,8 @@ KB := module ()
     `*`(op(map(p, convert(body, list, `*`))));
   end proc;
 
-  kb_to_assumptions := proc(kb)
-    map(proc(k)
+  kb_to_assumptions := proc(kb, $)
+    map(proc(k, $)
       local x;
       if k :: t_intro then
         x := op(1,k);
@@ -347,17 +347,17 @@ KB := module ()
     end proc, [op(coalesce_bounds(kb))])
   end proc;
 
-  kb_to_equations := proc(kb)
+  kb_to_equations := proc(kb, $)
     map2(subsop, 0=`=`, [op(select(type, kb, 'Let(name, anything)'))])
   end proc;
 
-  htype_to_property := proc(t::t_type)
+  htype_to_property := proc(t::t_type, $)
     if t :: 'specfunc({AlmostEveryReal, HReal})' then real
     elif t :: 'specfunc(HInt)' then integer
     else TopProp end if
   end proc;
 
-  kb_piecewise := proc(e :: specfunc(piecewise), kb :: t_kb, doIf, doThen)
+  kb_piecewise := proc(e :: specfunc(piecewise), kb :: t_kb, doIf, doThen, $)
     local kb1, update, n, i;
     kb1 := kb;
     update := proc(c)
@@ -373,7 +373,7 @@ KB := module ()
                   i=1..n))
   end proc;
 
-  range_of_HInt := proc(t :: And(specfunc(HInt), t_type))
+  range_of_HInt := proc(t :: And(specfunc(HInt), t_type), $)
        op(1, [op(map((b -> `if`(op(1,b)=`>`, floor(op(2,b))+1, op(2,b))),
                      select(type, t, Bound(t_lo,anything)))),
               -infinity])
@@ -387,7 +387,7 @@ KB := module ()
   chill := e -> subsindets(e, specfunc(chilled), c->op(0,c)[op(c)]);
   warm := e -> subsindets(e, specindex(chilled), c->map(warm, op(0,c)(op(c))));
 
-  ModuleLoad := proc()
+  ModuleLoad := proc($)
     Hakaru; # Make sure the KB module is loaded, for the type t_type
     TypeTools[AddType](t_kb,
       'specfunc({
@@ -398,7 +398,7 @@ KB := module ()
        }, KB)');
   end proc;
 
-  ModuleUnload := proc()
+  ModuleUnload := proc($)
     TypeTools[RemoveType](t_kb);
   end proc;
 
