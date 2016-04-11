@@ -86,7 +86,7 @@ testMeasureReal = test
     , "t31" ~: testSStriv [] t31
     , "t36" ~: testSStriv [t36] t36'
     , "t37" ~: testSStriv [] t37
-    , "t39" ~: testSStriv [t39] t39'
+    , "t39" ~: testSStriv [] t39
     , "t40" ~: testSStriv [] t40
     , "t43" ~: testSStriv [t43, t43'] t43''
     , "t45" ~: testSStriv [t46,t47] t45
@@ -343,7 +343,6 @@ t38 = lam (dirac . recip)
 
 t39, t39' :: (ABT Term abt) => abt '[] ('HProb ':-> 'HMeasure 'HReal)
 t39 = lam (dirac . log)
-t39' = lam $ \x -> if_ (x < zero) (dirac (real_ (-337))) (dirac (log x))
 
 t40 :: (ABT Term abt) => abt '[] ('HProb ':-> 'HMeasure 'HReal)
 t40 = lam (dirac . log)

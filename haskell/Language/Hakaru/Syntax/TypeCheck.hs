@@ -618,6 +618,12 @@ inferType = inferType_
                   return . TypedAST SProb $ syn (PrimOp_ Exp :$ e' :* End)
         _   -> failwith "Passed wrong number of arguments"
 
+  inferPrimOp U.Log es =
+      case es of
+        [e] -> do e' <- checkType_ SProb e
+                  return . TypedAST SReal $ syn (PrimOp_ Log :$ e' :* End)
+        _   -> failwith "Passed wrong number of arguments"
+
   inferPrimOp U.Infinity es =
       case es of
         [] -> return . TypedAST SProb $ syn (PrimOp_ Infinity :$ End)

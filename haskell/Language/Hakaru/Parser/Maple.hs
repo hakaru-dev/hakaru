@@ -69,6 +69,7 @@ symTable =
     , ("Ret",       "dirac")
     , ("Geometric", "geometric")
     , ("Pi",        "pi")
+    , ("ln",        "log")
     , ("GAMMA",     "gammaFunc")
     -- Type symbols
     , ("Real",     "real")
@@ -280,6 +281,10 @@ maple2AST (InertArgs Func [InertName "Counting", _]) =
 maple2AST (InertArgs Func [InertName "lam",
                            InertArgs ExpSeq [InertName x, typ, e1]]) =
     Lam x (maple2Type typ) (maple2AST e1)
+
+maple2AST (InertArgs Func [InertName "app",
+                           InertArgs ExpSeq [e1, e2]]) =
+    App (maple2AST e1) (maple2AST e2)
 
 maple2AST (InertArgs Func [InertName "Msum",
                            InertArgs ExpSeq []]) =

@@ -197,6 +197,7 @@ maplePrimOp Cos              (e1 :* End)       = app1 "cos" e1
 maplePrimOp RealPow          (e1 :* e2 :* End) =
     parens (arg e1 ++ " ^ " ++ arg e2)
 maplePrimOp Exp              (e1 :* End)       = app1 "exp"  e1
+maplePrimOp Log              (e1 :* End)       = app1 "log"  e1
 maplePrimOp Infinity         End               = "infinity"
 maplePrimOp NegativeInfinity End               = "-infinity"
 maplePrimOp GammaFunc        (e1 :* End)       = app1 "GAMMA" e1
