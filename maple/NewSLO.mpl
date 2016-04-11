@@ -51,8 +51,15 @@ NewSLO := module ()
   global LO, Integrand, Indicator;
   uses Hakaru, KB, Loop;
 
-  Simplify := proc(e, t::t_type, kb::t_kb)
-    local patterns, x, kb1, ex;
+  RoundTrip := proc(e, t::t_type, {ctx :: list := []})
+    local kb;
+    kb := foldr(assert, empty, op(ctx));
+    lprint(eval(ToInert(Simplify(e,t,kb)), _Inert_ATTRIBUTE=NULL))
+  end proc;
+
+  Simplify := proc(e, t::t_type, {ctx :: list := []})
+    local kb, patterns, x, kb1, ex;
+    kb := foldr(assert, empty, op(ctx));
     if t :: HMeasure(anything) then
       fromLO(improve(toLO(e), _ctx=kb), _ctx=kb)
     elif t :: HFunction(anything, anything) then
@@ -1349,20 +1356,21 @@ NewSLO := module ()
   bounds[NegativeBinomial] := proc(r,p) 0 .. infinity end proc;
   bounds[PoissonD] := proc(lambda) 0 .. infinity end proc;
 
-  RoundTrip := proc(e, t::t_type, {kb :: t_kb := empty})
-      lprint(eval(ToInert(Simplify(e,t,kb)),
-        _Inert_ATTRIBUTE=NULL))
-  end proc;
-
 # Testing
 
-  TestHakaru := proc(m,n::algebraic:=m,{simp:=improve,verify:=simplify,ctx:=empty})
-    CodeTools[Test](fromLO(simp(toLO(m), _ctx = ctx), _ctx = ctx), n,
+  TestHakaru := proc(m, n::algebraic:=m,
+                     {simp:=improve, verify:=simplify, ctx::list:=[]})
+    local kb;
+    kb := foldr(assert, empty, op(ctx));
+    CodeTools[Test](fromLO(simp(toLO(m), _ctx=kb), _ctx=kb), n,
       measure(verify), _rest)
   end proc;
 
-  TestSimplify := proc(m,t,n::algebraic:=m,{verify:=simplify,ctx:=empty})
-    CodeTools[Test](Simplify(m,t,ctx), n, measure(verify), _rest)
+  TestSimplify := proc(m, t, n::algebraic:=m, {verify:=simplify})
+    local s, r;
+    # How to pass keyword argument {ctx::list:=[]} on to Simplify?
+    s, r := selectremove(type, [_rest], 'identical(ctx)=anything');
+    CodeTools[Test](Simplify(m,t,op(s)), n, measure(verify), op(r))
   end proc;
 
   ModuleLoad := proc()
