@@ -30,7 +30,7 @@ import Tests.Models
 testMeasureUnit :: Test
 testMeasureUnit = test [
     "t1,t5"   ~: testSStriv [t1,t5] (weight half),
-    "t10"     ~: testSStriv [t10] (superpose []),
+    "t10"     ~: testSStriv [t10] (reject sing),
     "t11,t22" ~: testSStriv [t11,t22] (dirac unit),
     "t12"     ~: testSStriv [] t12,
     "t20"     ~: testSStriv [t20] (lam $ \y -> weight (y * half)),
@@ -510,7 +510,7 @@ t56'' =
     if_ (t <= zero) (reject sing) $
     if_ (t <= one) (weight (unsafeProb t)) $
     if_ (t <= (real_ 2)) (weight (unsafeProb ((real_ 2) + t * negate one))) $
-    superpose []
+    reject sing
 
 t57, t57' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure HUnit)
 t57 = lam $ \t -> superpose
@@ -623,7 +623,7 @@ t62'= lam $ \t ->
       if_ (t/x <= zero) (reject sing) $
       if_ (t/x <= one) (weight (unsafeProb (t/x))) $
       if_ (t/x <= (real_ 2)) (weight (unsafeProb ((real_ 2)-t/x))) $
-      superpose []
+      reject sing
 
 ---- "Scalar multiple" of t62
 t63, t63' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure HUnit)
@@ -638,7 +638,7 @@ t63'= lam $ \t ->
       if_ (t/x <= zero) (reject sing) $
       if_ (t/x <= one) (weight (unsafeProb (t/x) / unsafeProb x)) $
       if_ (t/x <= (real_ 2)) (weight (unsafeProb ((real_ 2)-t/x) / unsafeProb x)) $
-      superpose []
+      reject sing
 
 -- Density calculation for (Exp (Log StdRandom)) and StdRandom
 t64, t64', t64'' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure HUnit)
@@ -700,7 +700,7 @@ t65' = lam $ \t ->
      $ if_ (t < one) (weight (unsafeProb (log (unsafeProb t) + one)))
      $ if_ (t < one + (fromProb (exp (negate (real_ 1))))) (dirac unit)
      $ if_ (t < (fromRational 2)) (weight (unsafeProb (negate (log (unsafeProb (t - one))))))
-     $ superpose []
+     $ reject sing
 
 t66 :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
 t66 = dirac (sqrt ((prob_ 3) + sqrt (prob_ 3)))
@@ -1054,12 +1054,12 @@ rmProg1 =
                                                         (unsafeProb x5)))
                                                     (reject sing))
                                                 (reject sing))
-                                        , (one, superpose [])])
+                                        , (one, reject sing)])
                                     (reject sing))
                                 (reject sing))
-                , (one, superpose [])])
-            , (one, superpose [])])
-        , (one, superpose [])]
+                , (one, reject sing)])
+            , (one, reject sing)])
+        , (one, reject sing)]
 
 -- this comes from Examples.EasierRoadmap.easierRoadmapProg4'.
 rmProg4
@@ -1478,7 +1478,7 @@ rmProg4 =
 --    lam $ \x0 ->
 --    lam $ \x1 -> 
 --    seismicTrueDetection x0 x1 >>= \z -> 
---    uneither z dirac (\_ -> superpose [])
+--    uneither z dirac (\_ -> reject sing)
 --tdr :: (ABT Term abt) => abt '[]
 --    (   (HPair 'HReal
 --        (HPair 'HReal
@@ -1505,7 +1505,7 @@ rmProg4 =
 --    lam $ \x0 ->
 --    lam $ \x1 -> 
 --    seismicTrueDetection x0 x1 >>= \z -> 
---    uneither z (\_ -> superpose []) dirac
+--    uneither z (\_ -> reject sing) dirac
 
 ---- from Examples/HMMContinuous.hs
 --kalman :: (ABT Term abt) => abt '[]
