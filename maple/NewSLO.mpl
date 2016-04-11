@@ -22,30 +22,25 @@ NewSLO := module ()
   option package;
   local t_pw,
         integrate_known, known_continuous, known_discrete,
-        mk_sym, mk_ary, mk_idx, mk_HArray,
-        bind, weight, factorize,
         recognize_continuous, recognize_discrete, get_de, get_se,
         recognize_de, mysolve, Shiftop, Diffop, Recognized,
-        reduce, reduce_pw, reduce_IntSum, reduce_IntsSums,
-        get_indicators,
+        factorize, bind, weight,
+        reduce_IntSum, reduce_IntsSums, get_indicators,
         elim_intsum, do_elim_intsum, elim_metric, banish,
-        piecewise_if, nub_piecewise,
-        ModuleLoad, ModuleUnload,
+        reduce_pw, nub_piecewise, piecewise_if,
         find_vars, kb_from_path, interpret, reconstruct, invert, 
         get_var_pos, get_int_pos,
-        avoid_capture, change_var, disint2;
+        avoid_capture, change_var, disint2,
+        mk_sym, mk_ary, mk_idx, mk_HArray,
+        ModuleLoad, ModuleUnload;
   export
      # These first few are smart constructors (for themselves):
          integrate, applyintegrand,
      # while these are "proper functions"
-         RoundTrip,
-         Simplify,
-         unweight,
-         toLO, fromLO, improve,
-         TestHakaru, TestSimplify, density, bounds,
-         unintegrate,
-         ReparamDetermined, determined, Reparam, Banish,
-         disint;
+         RoundTrip, Simplify, TestSimplify, TestHakaru,
+         toLO, fromLO, unintegrate, unweight, improve, reduce, Banish,
+         density, bounds,
+         ReparamDetermined, determined, Reparam, disint;
   # these names are not assigned (and should not be).  But they are
   # used as global names, so document that here.
   global LO, Integrand, Indicator;
@@ -98,14 +93,28 @@ NewSLO := module ()
     end if
   end proc;
 
+# Testing
+
+  TestSimplify := proc(m, t, n::algebraic:=m, {verify:=simplify})
+    local s, r;
+    # How to pass keyword argument {ctx::list:=[]} on to Simplify?
+    s, r := selectremove(type, [_rest], 'identical(ctx)=anything');
+    CodeTools[Test](Simplify(m,t,op(s)), n, measure(verify), op(r))
+  end proc;
+
+  TestHakaru := proc(m, n::algebraic:=m,
+                     {simp:=improve, verify:=simplify, ctx::list:=[]})
+    local kb;
+    kb := foldr(assert, empty, op(ctx));
+    CodeTools[Test](fromLO(simp(toLO(m), _ctx=kb), _ctx=kb), n,
+      measure(verify), _rest)
+  end proc;
+
   t_pw := 'specfunc(piecewise)';
 
 # An integrand h is either an Integrand (our own binding construct for a
 # measurable function to be integrated) or something that can be applied
 # (probably proc, which should be applied immediately, or a generated symbol).
-
-# TODO evalapply/Integrand instead of applyintegrand?
-# TODO evalapply/{Ret,Bind,...} instead of integrate?!
 
   applyintegrand := proc(h, x)
     if h :: 'Integrand(name, anything)' then
@@ -124,13 +133,6 @@ NewSLO := module ()
     h := gensym('h');
     LO(h, integrate(m, h, []))
   end proc;
-
-  known_continuous := '{Lebesgue(), Uniform(anything, anything),
-    Gaussian(anything, anything), Cauchy  (anything, anything),
-    StudentT(anything, anything, anything),
-    BetaD(anything, anything), GammaD(anything, anything)}':
-  known_discrete := '{Counting(anything, anything),
-    NegativeBinomial(anything), PoissonD(anything)}';
 
   integrate := proc(m, h, loops :: list(name = range) := [])
     local x, n, i, res, l;
@@ -212,399 +214,13 @@ NewSLO := module ()
     end if;
   end proc;
 
-  mk_sym := proc(var :: name, h)
-    local x;
-    x := var;
-    if h :: 'Integrand(name, anything)' then
-      x := op(1,h);
-    elif h :: 'procedure' then
-      x := op(1, [op(1,h), x]);
-    end if;
-    gensym(x)
-  end proc;
+  known_continuous := '{Lebesgue(), Uniform(anything, anything),
+    Gaussian(anything, anything), Cauchy(anything, anything),
+    StudentT(anything, anything, anything),
+    BetaD(anything, anything), GammaD(anything, anything)}':
 
-  mk_ary := proc(e, loops :: list(name = range))
-    foldl((res, i) -> ary(op([2,2],i) - op([2,1],i) + 1,
-                          op(1,i),
-                          eval(res, op(1,i) = op(1,i) + op([2,1],i))),
-          e, op(loops));
-  end proc;
-
-  mk_idx := proc(e, loops :: list(name = range))
-    foldr((i, res) -> idx(res, op(1,i) - op([2,1],i)),
-          e, op(loops));
-  end proc;
-
-  mk_HArray := proc(t::t_type, loops::list(name=range))
-    local res, i;
-    res := t;
-    for i in loops do res := HArray(res) end do;
-    res
-  end proc;
-
-# Step 2 of 3: computer algebra
-
-  improve := proc(lo :: LO(name, anything), {_ctx :: t_kb := empty})
-    LO(op(1,lo), reduce(op(2,lo), op(1,lo), _ctx))
-  end proc;
-
-  ReparamDetermined := proc(lo :: LO(name, anything))
-    local h;
-    h := op(1,lo);
-    LO(h,
-       evalindets(op(2,lo),
-                  'And'('specfunc({Int,int})',
-                        'anyfunc'(anything, 'name=anything')),
-                  g -> `if`(determined(op(1,g),h), Reparam(g,h), g)))
-  end proc;
-
-  determined := proc(e, h :: name)
-    local i;
-    for i in indets(e, 'specfunc({Int,int})') do
-      if hastype(IntegrationTools:-GetIntegrand(i),
-           'applyintegrand'('identical'(h),
-             'dependent'(IntegrationTools:-GetVariable(i)))) then
-        return false
-      end if
-    end do;
-    return true
-  end proc;
-
-  Reparam := proc(e :: Int(anything, name=anything), h :: name)
-    'procname(_passed)' # TODO to be implemented
-  end proc;
-
-  Banish := proc(e :: Int(anything, name=anything), h :: name,
-                 levels :: extended_numeric := infinity)
-    local hh;
-    hh := gensym('h');
-    subs(int=Int,
-      banish(LO(hh, int(applyintegrand(hh,op([2,1],e)), op(2,e))),
-        op([2,1],e), h, op(1,e), levels));
-  end proc;
-
-  # Walk through integrals and simplify, recursing through grammar
-  # h - name of the linear operator above us
-  # kb - domain information
-  reduce := proc(ee, h :: name, kb :: t_kb)
-    local e, subintegral, w, ww, x, c, kb1;
-    e := elim_intsum(ee, h, kb);
-    if e :: 'And(specfunc({Int,Sum}), anyfunc(anything,name=range))' then
-      x, kb1 := `if`(op(0,e)=Int,
-        genLebesgue(op([2,1],e), op([2,2,1],e), op([2,2,2],e), kb),
-        genType(op([2,1],e), HInt(closed_bounds(op([2,2],e))), kb));
-      reduce_IntSum(op(0,e),
-        reduce(subs(op([2,1],e)=x, op(1,e)), h, kb1), h, kb1, kb)
-    elif e :: 'Ints(anything, name, range, list(name=range))' then
-      x, kb1 := genType(op(2,e),
-                        mk_HArray(HReal(open_bounds(op(3,e))), op(4,e)),
-                        kb);
-      reduce_IntsSums(Ints, reduce(subs(op(2,e)=x, op(1,e)), h, kb1), x,
-        op(3,e), op(4,e), h, kb1)
-    elif e :: 'Sums(anything, name, range, list(name=range))' then
-      x, kb1 := genType(op(2,e),
-                        mk_HArray(HInt(closed_bounds(op([3,1],e))), op(4,e)),
-                        kb);
-      reduce_IntsSums(Sums, reduce(subs(op(2,e)=x, op(1,e)), h, kb1), x,
-        op(3,e), op(4,e), h, kb1)
-    elif e :: `+` then
-      map(reduce, e, h, kb)
-    elif e :: `*` then
-      (subintegral, w) := selectremove(depends, e, h);
-      if subintegral :: `*` then error "Nonlinear integral %1", e end if;
-      subintegral := convert(reduce(subintegral, h, kb), 'list', `*`);
-      (subintegral, ww) := selectremove(depends, subintegral, h);
-      reduce_pw(simplify_assuming(`*`(w, op(ww)), kb))
-        * `*`(op(subintegral));
-    elif e :: t_pw then
-      e := kb_piecewise(e, kb, simplify_assuming,
-                        ((rhs, kb) -> %reduce(rhs, h, kb)));
-      e := eval(e, %reduce=reduce);
-      # big hammer: simplify knows about bound variables, amongst many
-      # other things
-      Testzero := x -> evalb(simplify(x) = 0);
-      reduce_pw(e)
-    elif e :: t_case then
-      subsop(2=map(proc(b :: Branch(anything, anything))
-                     eval(subsop(2='reduce'(op(2,b),x,c),b),
-                          {x=h, c=kb})
-                   end proc,
-                   op(2,e)),
-             e);
-    elif e :: 'Context(anything, anything)' then
-      applyop(reduce, 2, e, h, assert(op(1,e), kb))
-    elif e :: 'integrate(anything, Integrand(name, anything), list)' then
-      x := gensym(op([2,1],e));
-      # If we had HType information for op(1,e),
-      # then we could use it to tell kb about x.
-      subsop(2=Integrand(x, reduce(subs(op([2,1],e)=x, op([2,2],e)), h, kb)), e)
-    else
-      simplify_assuming(e, kb)
-    end if;
-  end proc;
-
-  elim_intsum := proc(ee, h :: name, kb :: t_kb)
-    local e, hh, m, var, elim, my;
-
-    e := ee;
-    do
-      hh := gensym('h');
-      if e :: Int(anything, name=anything) and
-         not hastype(op(1,e), 'applyintegrand'('identical'(h),
-                                               'dependent'(op([2,1],e)))) then
-        var := op([2,1],e);
-        m := LO(hh, my(kb, int, applyintegrand(hh,var), op(2,e)));
-      elif e :: Sum(anything, name=anything) and
-         not hastype(op(1,e), 'applyintegrand'('identical'(h),
-                                               'dependent'(op([2,1],e)))) then
-        var := op([2,1],e);
-        m := LO(hh, my(kb, sum, applyintegrand(hh,var), op(2,e)));
-      elif e :: Ints(anything, name, range, list(name=range)) and
-           not hastype(op(1,e), 'applyintegrand'('identical'(h),
-                                                 'dependent'(op(2,e)))) then
-        var := op(2,e);
-        m := LO(hh, my(kb, ((e,x,r,l)->ints(e,x,r,l,kb)),
-                       applyintegrand(hh,var), op(2..4,e)));
-      elif e :: Sums(anything, name, range, list(name=range)) and
-           not hastype(op(1,e), 'applyintegrand'('identical'(h),
-                                                 'dependent'(op(2,e)))) then
-        var := op(2,e);
-        m := LO(hh, my(kb, ((e,x,r,l)->sums(e,x,r,l,kb)),
-                       applyintegrand(hh,var), op(2..4,e)));
-      else
-        break;
-      end if;
-      # try to eliminate unused var
-      elim := eval(banish(m, var, h, op(1,e), infinity), my=do_elim_intsum);
-      if has(elim, {MeijerG, undefined})
-         or elim_metric(elim,h) >= elim_metric(e,h) then
-        # Maple was too good at integration
-        break;
-      end if;
-      e := elim;
-    end do;
-    e;
-  end proc;
-
-  do_elim_intsum := proc(kb, f, ee)
-    local e;
-    e := simplify_assuming(ee,kb);
-    e := simplify_assuming(f(e,_rest), kb);
-    subs(int=Int, ints=Ints, sum=Sum, sums=Sums, e)
-  end proc;
-
-  elim_metric := proc(e, h::name)
-    numboccur(e, select(hastype,
-      indets(e, specfunc({Int,Sum,int,sum,Ints,Sums,ints,sums})),
-      'applyintegrand'('identical'(h), 'anything')))
-  end proc;
-
-  reduce_pw := proc(ee) # ee may or may not be piecewise
-    local e;
-    e := nub_piecewise(ee);
-    if e :: t_pw then
-      if nops(e) = 2 then
-        return Indicator(op(1,e)) * op(2,e)
-      elif nops(e) = 3 and Testzero(op(2,e)) then
-        return Indicator(Not(op(1,e))) * op(3,e)
-      elif nops(e) = 4 and Testzero(op(2,e)) then
-        return Indicator(And(Not(op(1,e)),op(3,e))) * op(4,e)
-      end if
-    end if;
-    return e
-  end proc;
-
-  reduce_IntSum := proc(mk :: identical(Int, Sum),
-                        ee, h :: name, kb1 :: t_kb, kb0 :: t_kb)
-    local e, dom_spec, w, rest, var, new_rng, make, i;
-
-    # if there are domain restrictions, try to apply them
-    (dom_spec, e) := get_indicators(ee);
-    rest := kb_subtract(foldr(assert, kb1, op(dom_spec)), kb0);
-    new_rng, rest := selectremove(type, rest,
-      {`if`(mk=Int, [identical(genLebesgue), name, anything, anything], NULL),
-       `if`(mk=Sum, [identical(genType), name, specfunc(HInt)], NULL),
-       [identical(genLet), name, anything]});
-    if not (new_rng :: [list]) then
-      error "kb_subtract should return exactly one gen*"
-    end if;
-    make    := mk;
-    new_rng := op(new_rng);
-    var     := op(2,new_rng);
-    if op(1,new_rng) = genLebesgue then
-      new_rng := op(3,new_rng)..op(4,new_rng);
-    elif op(1,new_rng) = genType then
-      new_rng := range_of_HInt(op(3,new_rng));
-    else # op(1,new_rng) = genLet
-      if mk=Int then return 0 else make := eval; new_rng := op(3,new_rng) end if
-    end if;
-    dom_spec, rest := selectremove(depends,
-      map(proc(a::[identical(assert),anything]) op(2,a) end proc, rest), var);
-    if type(e, `*`) then
-      (e, w) := selectremove(depends, e, var); # pull out weight
-      w := simplify_assuming(w, kb1);
-    else
-      w := 1;
-    end if;
-    e := make(`if`(dom_spec=[],e,piecewise(And(op(dom_spec)),e,0)), var=new_rng);
-    e := w*elim_intsum(e, h, kb0);
-    e := mul(Indicator(i), i in rest)*e;
-    e
-  end proc;
-
-  reduce_IntsSums := proc(makes, ee, var :: name, rng, bds, h :: name, kb :: t_kb)
-    # TODO we should apply domain restrictions like reduce_IntSum does.
-    makes(ee, var, rng, bds);
-  end proc;
-
-  get_indicators := proc(e)
-    local sub, inds, rest;
-    if e::`*` then
-      sub := map((s -> [get_indicators(s)]), [op(e)]);
-      `union`(op(map2(op,1,sub))), `*`(op(map2(op,2,sub)))
-    elif e::`^` then
-      inds, rest := get_indicators(op(1,e));
-      inds, subsop(1=rest, e)
-    elif e::'Indicator(anything)' then
-      {op(1,e)}, 1
-    else
-      {}, e
-    end if
-  end proc;
-
-  banish := proc(m, x :: name, h :: name, g, levels :: extended_numeric)
-    # LO(h, banish(m, x, h, g)) should be equivalent to Bind(m, x, LO(h, g))
-    # but performs integration over x innermost rather than outermost.
-    local guard, subintegral, w, y, yRename, lo, hi, mm, loops, xx, hh, gg, ll;
-    guard := proc(m, c) Bind(m, x, piecewise(c, Ret(x), Msum())) end proc;
-    if g = 0 then
-      0
-    elif levels <= 0 then
-      integrate(m, Integrand(x, g), []) # is [] right ?
-    elif not depends(g, x) then
-      integrate(m, x->1, []) * g
-    elif g :: `+` then
-      map[4](banish, m, x, h, g, levels)
-    elif g :: `*` then
-      (subintegral, w) := selectremove(depends, g, h);
-      if subintegral :: `*` then error "Nonlinear integral %1", g end if;
-      banish(Bind(m, x, Weight(w, Ret(x))), x, h, subintegral, levels)
-    elif g :: 'And'('specfunc({Int,int,Sum,sum})',
-                    'anyfunc'('anything','name'='range'('freeof'(h)))) then
-      subintegral := op(1, g);
-      y           := op([2,1], g);
-      lo, hi      := op(op([2,2], g));
-      if x = y or depends(m, y) then
-        yRename     := gensym(y);
-        subintegral := subs(y=yRename, subintegral);
-        y           := yRename;
-      end if;
-      mm := m;
-      if depends(lo, x) then
-        mm := guard(mm, lo<y);
-        lo := -infinity;
-      end if;
-      if depends(hi, x) then
-        mm := guard(mm, y<hi);
-        hi := infinity;
-      end if;
-      op(0,g)(banish(mm, x, h, subintegral, levels-1), y=lo..hi)
-    elif g :: 'And'('specfunc({Ints,ints,Sums,sums})',
-                    'anyfunc'('anything', 'name', 'range'('freeof'(h)),
-                              'list(name=range)')) then
-      subintegral := op(1, g);
-      y           := op(2, g);
-      lo, hi      := op(op(3, g));
-      loops       := op(4, g);
-      xx          := map(lhs, loops);
-      if x = y or depends(m, y) then
-        yRename     := gensym(y);
-        subintegral := subs(y=yRename, subintegral);
-        y           := yRename;
-      end if;
-      mm := m;
-      if depends(lo, x) then
-        mm := guard(mm, forall(xx, lo<mk_idx(y,loops)));
-        lo := -infinity;
-      end if;
-      if depends(hi, x) then
-        mm := guard(mm, forall(xx, mk_idx(y,loops)<hi));
-        hi := infinity;
-      end if;
-      op(0,g)(banish(mm, x, h, subintegral, levels-1), y, lo..hi, op(4,g));
-    elif g :: t_pw then
-      foldr_piecewise(
-        proc(cond, th, el) proc(m)
-          if depends(cond, x) then
-            banish(guard(m, cond), x, h, th, levels-1) + el(guard(m, Not(cond)))
-          else
-            piecewise_if(cond, banish(m, x, h, th, levels-1), el(m))
-          end if
-        end proc end proc,
-        proc(m) 0 end proc,
-        g)(m)
-    elif g :: t_case then
-      subsop(2=map(proc(b :: Branch(anything, anything))
-                     eval(subsop(2='banish'(op(2,b),xx,hh,gg,ll),b),
-                          {xx=x, hh=h, gg=g, ll=l})
-                   end proc,
-                   op(2,integral)),
-             integral);
-    elif g :: 'integrate(freeof(x), Integrand(name, anything), list)' then
-      y := gensym(op([2,1],g));
-      subsop(2=Integrand(y, banish(m, x, h,
-        subs(op([2,1],g)=y, op([2,2],g)), levels-1)), g)
-    else
-      integrate(m, Integrand(x, g), [])
-    end if
-  end proc;
-
-  # this code should not currently be used, it is just a snapshot in time
-  Reparam := proc(e::Int(anything,name=range), h::name)
-    local body, var, inds, xx, inv, new_e;
-
-    # TODO improve the checks.
-    if not has(body, {Int,int}) and hastype(e,'specfunc(applyintegrand)') then
-      inds := indets(body, 'applyintegrand'('identical'(h), 'dependent'(var)));
-      if nops(inds)=1 and op(2,inds[1]) :: algebraic and
-         not hastype(body, t_pw) then
-        xx := gensym('xx');
-        inv := solve({op(2,inds[1])=xx}, {var});
-        try
-          new_e := IntegrationTools[Change](e, inv, xx);
-          if not has(new_e,{'limit'}) then e := new_e end if;
-        catch:
-          # this will simply not change e
-        end try;
-      end if;
-    end if;
-
-    e;
-  end proc;
-
-  piecewise_if := proc(cond, th, el)
-    # piecewise_if should be equivalent to `if`, but it produces
-    # 'piecewise' and optimizes for when the 3rd argument is 'piecewise'
-    if cond = true then
-      th
-    elif cond = false or Testzero(th - el) then
-      el
-    elif el :: t_pw then
-      if nops(el) >= 2 and Testzero(th - op(2,el)) then
-        applyop(Or, 1, el, cond)
-      else
-        piecewise(cond, th, op(el))
-      end if
-    elif Testzero(el) then
-      piecewise(cond, th)
-    else
-      piecewise(cond, th, el)
-    end if
-  end proc;
-
-  nub_piecewise := proc(pw) # pw may or may not be piecewise
-    foldr_piecewise(piecewise_if, 0, pw)
-  end proc;
+  known_discrete := '{Counting(anything, anything),
+    NegativeBinomial(anything), PoissonD(anything)}';
 
 # Step 3 of 3: from Maple LO (linear operator) back to Hakaru
 
@@ -723,6 +339,621 @@ NewSLO := module ()
       # Failure: return residual LO
       LO(h, integral)
     end if
+  end proc;
+
+  recognize_continuous := proc(weight0, x, lo, hi)
+    local Constant, de, Dx, f, w, res, rng;
+    res := FAIL;
+    # gfun[holexprtodiffeq] contains a test for {radfun,algfun} that seems like
+    # it should test for {radfun(anything,x),algfun(anything,x)} instead.
+    # Consequently, it issues the error "expression is not holonomic: %1" for
+    # actually holonomic expressions such as exp(x*sum(g(i,j),j=1..n)).
+    # Moreover, mysolve has trouble solve-ing constraints involving sum, etc.
+    # To work around these weaknesses, we wrap sum(...), etc. in Constant[...].
+    # Unlike sum(...), Constant[sum(...)] passes the type test {radfun,algfun},
+    # which we need to handle exp(x*sum(...)) using gfun[holexprtodiffeq].
+    # Like sum(...i...), Constant[sum(...i...)] depends on i, which we need so
+    # that product(sum(...i...),i=1..m) doesn't simplify to ...^m.
+    w := subsindets[flat](weight0,
+           And(# Not(radfun), Not(algfun),
+               'specfunc({%product, product, sum, idx})',
+               'freeof'(x)),
+           proc(e) Constant[e] end);
+    w := subsindets[flat](w, {`^`, specfunc(exp)},
+           proc(e)
+             applyop(proc(e)
+                       evalindets[flat](e,
+                         And({`^`, specfunc(exp)},
+                             Not(radfun), Not(algfun), 'freeof'(x)),
+                         proc(e) Constant[e] end)
+                     end,
+                     -1, e)
+             end);
+    de := get_de(w, x, Dx, f);
+    if de :: 'Diffop(anything, anything)' then
+      res := recognize_de(op(de), Dx, f, x, lo, hi)
+    end if;
+    if res = FAIL then
+      rng := hi - lo;
+      w := simplify(w * (hi - lo));
+      # w could be piecewise and simplify will hide the problem
+      if not (rng :: 'SymbolicInfinity'
+              or w :: {'SymbolicInfinity', 'undefined'}) then
+        res := Recognized(Uniform(lo, hi), w)
+      end if
+    end if;
+    # Undo Constant[...] wrapping
+    subsindets[flat](res, 'specindex'(anything, Constant), x -> op(1,x))
+  end proc;
+
+  recognize_discrete := proc(w, k, lo, hi)
+    local se, Sk, f, a0, a1, lambda, r;
+    if lo = 0 and hi = infinity then
+      se := get_se(w, k, Sk, f);
+      if se :: 'Shiftop(anything, anything, identical(ogf))' and
+         ispoly(op(1,se), 'linear', Sk, 'a0', 'a1') then
+        lambda := normal(-a0/a1*(k+1));
+        if not depends(lambda, k) then
+          return Recognized(PoissonD(lambda),
+                            simplify(eval(w,k=0)/exp(-lambda)));
+        end if;
+        if ispoly(lambda, 'linear', k, 'b0', 'b1') then
+          r := b0/b1;
+          return Recognized(NegativeBinomial(r, b1),
+                            simplify(eval(w,k=0)/(1-b1)^r))
+        end if
+      end if;
+    end if;
+    # fallthrough here is like recognizing Lebesgue for all continuous
+    # measures.  Ultimately correct, although fairly unsatisfying.
+    Recognized(Counting(lo, hi), w)
+  end proc;
+
+  get_de := proc(dens, var, Dx, f)
+    :: Or(Diffop(anything, set(function=anything)), identical(FAIL));
+    local de, init;
+    try
+      de := gfun[holexprtodiffeq](dens, f(var));
+      de := gfun[diffeqtohomdiffeq](de, f(var));
+      if not (de :: set) then
+        de := {de}
+      end if;
+      init, de := selectremove(type, de, `=`);
+      if nops(de) = 1 then
+        if nops(init) = 0 then
+          # TODO: Replace {0, 1/2, 1} by PyMC's distribution-specific "testval"
+          init := map(proc (val)
+                        try f(val) = eval(dens, var=val)
+                        catch: NULL
+                        end try
+                      end proc,
+                      {0, 1/2, 1})
+        end if;
+        return Diffop(DEtools[de2diffop](de[1], f(var), [Dx, var]), init)
+      end if
+    catch: # do nothing
+    end try;
+    FAIL
+  end proc;
+
+  get_se := proc(dens, var, Sk, u)
+    :: Or(Shiftop(anything, set(function=anything), name), identical(FAIL));
+    local x, de, re, gftype, init, f;
+    try
+      # ser := series(sum(dens * x^var, var=0..infinity), x);
+      # re := gfun[seriestorec](ser, f(var));
+      # re, gftype := op(re);
+      de := gfun[holexprtodiffeq](sum(dens*x^var, var=0..infinity), f(x));
+      re := gfun[diffeqtorec](de, f(x), u(var));
+      re := gfun[rectohomrec](re, u(var));
+      if not (re :: set) then
+        re := {re}
+      end if;
+      init, re := selectremove(type, re, `=`);
+      if nops(re) = 1 then
+        if nops(init) = 0 then
+          init := {u(0) = eval(rens, var=0)};
+        end if;
+        re := map(proc(t)
+                    local s, r;
+                    s, r := selectremove(type, convert(t, 'list', `*`),
+                                         u(polynom(nonnegint, var)));
+                    if nops(s) <> 1 then
+                      error "rectohomrec result nonhomogeneous";
+                    end if;
+                    s := op([1,1],s) - var;
+                    if s :: nonnegint and r :: list(polynom(anything, var)) then
+                      `*`(op(r), Sk^s);
+                    else
+                      error "unexpected result from rectohomrec"
+                    end if
+                  end proc,
+                  convert(re[1], 'list', `+`));
+        return Shiftop(`+`(op(re)), init, 'ogf')
+      end if
+    catch: # do nothing
+    end try;
+    FAIL
+  end proc;
+
+  recognize_de := proc(diffop, init, Dx, f, var, lo, hi)
+    local dist, ii, constraints, w, a0, a1, a, b0, b1, c0, c1, c2, loc, nu;
+    dist := FAIL;
+    if lo = -infinity and hi = infinity
+       and ispoly(diffop, 'linear', Dx, 'a0', 'a1') then
+      a := normal(a0/a1);
+      if ispoly(a, 'linear', var, 'b0', 'b1') then
+        dist := Gaussian(-b0/b1, sqrt(1/b1))
+      elif ispoly(numer(a), 'linear', var, 'b0', 'b1') and
+           ispoly(denom(a), 'quadratic', var, 'c0', 'c1', 'c2') then
+        loc := -c1/c2/2;
+        if Testzero(b0 + loc * b1) then
+          nu := b1/c2 - 1;
+          if Testzero(nu - 1) then
+            dist := Cauchy(loc, sqrt(c0/c2-loc^2))
+          else
+            dist := StudentT(nu, loc, sqrt((c0/c2-loc^2)/nu))
+          end if
+        end if
+      end if;
+    elif lo = 0 and hi = 1
+         and ispoly(diffop, 'linear', Dx, 'a0', 'a1')
+         and ispoly(normal(a0*var*(1-var)/a1), 'linear', var, 'b0', 'b1') then
+      dist := BetaD(1-b0, 1+b0+b1)
+    elif lo = 0 and hi = infinity
+         and ispoly(diffop, 'linear', Dx, 'a0', 'a1')
+         and ispoly(normal(a0*var/a1), 'linear', var, 'b0', 'b1') then
+      dist := GammaD(1-b0, 1/b1)
+    end if;
+    if dist <> FAIL then
+      try
+        ii := map(convert, init, 'diff');
+        constraints := eval(ii, f = (x -> w*density[op(0,dist)](op(dist))(x)));
+        w := eval(w, mysolve(simplify(constraints), w));
+        if not (has(w, 'w')) then
+          return Recognized(dist, simplify(w))
+        end if
+      catch: # do nothing
+      end try;
+      WARNING("recognized %1 as %2 but could not solve %3", f, dist, init)
+    end if;
+    FAIL
+  end proc;
+
+  mysolve := proc(constraints)
+    # This wrapper around "solve" works around the problem that Maple sometimes
+    # thinks there is no solution to a set of constraints because it doesn't
+    # recognize the solution to each constraint is the same.  For example--
+    # This fails     : solve({c*2^(-1/2-alpha) = sqrt(2)/2, c*4^(-alpha) = 2^(-alpha)}, {c}) assuming alpha>0;
+    # This also fails: solve(simplify({c*2^(-1/2-alpha) = sqrt(2)/2, c*4^(-alpha) = 2^(-alpha)}), {c}) assuming alpha>0;
+    # But this works : map(solve, {c*2^(-1/2-alpha) = sqrt(2)/2, c*4^(-alpha) = 2^(-alpha)}, {c}) assuming alpha>0;
+    # And the difference of the two solutions returned simplifies to zero.
+
+    local result;
+    if nops(constraints) = 0 then return NULL end if;
+    result := solve(constraints, _rest);
+    if result <> NULL or not (constraints :: {set,list}) then
+      return result
+    end if;
+    result := mysolve(subsop(1=NULL,constraints), _rest);
+    if result <> NULL
+       and op(1,constraints) :: 'anything=anything'
+       and simplify(eval(op([1,1],constraints) - op([1,2],constraints),
+                         result)) <> 0 then
+      return NULL
+    end if;
+    result
+  end proc;
+
+  unweight := proc(m)
+    local total, ww, mm;
+    if m :: 'Weight(anything, anything)' then
+      op(m)
+    elif m :: 'specfunc(Msum)' then
+      total := `+`(op(map((mi -> unweight(mi)[1]), m)));
+      (total, map((mi -> weight(1/total, mi)), m))
+    else
+      (1, m)
+    end if;
+  end proc;
+
+  factorize := proc(w, x)
+    if w :: `*` then
+      selectremove(depends, w, x)
+    elif depends(w, x) then
+      (w, 1)
+    else
+      (1, w)
+    end if
+  end proc;
+
+  ###
+  # smart constructors for our language
+
+  bind := proc(m, x, n)
+    if n = 'Ret'(x) then
+      m # monad law: right identity
+    elif m :: 'Ret(anything)' then
+      eval(n, x = op(1,m)) # monad law: left identity
+    else
+      'Bind(_passed)'
+    end if;
+  end proc;
+
+  weight := proc(p, m)
+    if p = 1 then
+      m
+    elif p = 0 then
+      Msum()
+    elif m :: 'Weight(anything, anything)' then
+      weight(p * op(1,m), op(2,m))
+    else
+      'Weight(_passed)'
+    end if;
+  end proc;
+
+# Step 2 of 3: computer algebra
+
+  improve := proc(lo :: LO(name, anything), {_ctx :: t_kb := empty})
+    LO(op(1,lo), reduce(op(2,lo), op(1,lo), _ctx))
+  end proc;
+
+  # Walk through integrals and simplify, recursing through grammar
+  # h - name of the linear operator above us
+  # kb - domain information
+  reduce := proc(ee, h :: name, kb :: t_kb)
+    local e, subintegral, w, ww, x, c, kb1;
+    e := elim_intsum(ee, h, kb);
+    if e :: 'And(specfunc({Int,Sum}), anyfunc(anything,name=range))' then
+      x, kb1 := `if`(op(0,e)=Int,
+        genLebesgue(op([2,1],e), op([2,2,1],e), op([2,2,2],e), kb),
+        genType(op([2,1],e), HInt(closed_bounds(op([2,2],e))), kb));
+      reduce_IntSum(op(0,e),
+        reduce(subs(op([2,1],e)=x, op(1,e)), h, kb1), h, kb1, kb)
+    elif e :: 'Ints(anything, name, range, list(name=range))' then
+      x, kb1 := genType(op(2,e),
+                        mk_HArray(HReal(open_bounds(op(3,e))), op(4,e)),
+                        kb);
+      reduce_IntsSums(Ints, reduce(subs(op(2,e)=x, op(1,e)), h, kb1), x,
+        op(3,e), op(4,e), h, kb1)
+    elif e :: 'Sums(anything, name, range, list(name=range))' then
+      x, kb1 := genType(op(2,e),
+                        mk_HArray(HInt(closed_bounds(op([3,1],e))), op(4,e)),
+                        kb);
+      reduce_IntsSums(Sums, reduce(subs(op(2,e)=x, op(1,e)), h, kb1), x,
+        op(3,e), op(4,e), h, kb1)
+    elif e :: `+` then
+      map(reduce, e, h, kb)
+    elif e :: `*` then
+      (subintegral, w) := selectremove(depends, e, h);
+      if subintegral :: `*` then error "Nonlinear integral %1", e end if;
+      subintegral := convert(reduce(subintegral, h, kb), 'list', `*`);
+      (subintegral, ww) := selectremove(depends, subintegral, h);
+      reduce_pw(simplify_assuming(`*`(w, op(ww)), kb))
+        * `*`(op(subintegral));
+    elif e :: t_pw then
+      e := kb_piecewise(e, kb, simplify_assuming,
+                        ((rhs, kb) -> %reduce(rhs, h, kb)));
+      e := eval(e, %reduce=reduce);
+      # big hammer: simplify knows about bound variables, amongst many
+      # other things
+      Testzero := x -> evalb(simplify(x) = 0);
+      reduce_pw(e)
+    elif e :: t_case then
+      subsop(2=map(proc(b :: Branch(anything, anything))
+                     eval(subsop(2='reduce'(op(2,b),x,c),b),
+                          {x=h, c=kb})
+                   end proc,
+                   op(2,e)),
+             e);
+    elif e :: 'Context(anything, anything)' then
+      applyop(reduce, 2, e, h, assert(op(1,e), kb))
+    elif e :: 'integrate(anything, Integrand(name, anything), list)' then
+      x := gensym(op([2,1],e));
+      # If we had HType information for op(1,e),
+      # then we could use it to tell kb about x.
+      subsop(2=Integrand(x, reduce(subs(op([2,1],e)=x, op([2,2],e)), h, kb)), e)
+    else
+      simplify_assuming(e, kb)
+    end if;
+  end proc;
+
+  reduce_IntSum := proc(mk :: identical(Int, Sum),
+                        ee, h :: name, kb1 :: t_kb, kb0 :: t_kb)
+    local e, dom_spec, w, rest, var, new_rng, make, i;
+
+    # if there are domain restrictions, try to apply them
+    (dom_spec, e) := get_indicators(ee);
+    rest := kb_subtract(foldr(assert, kb1, op(dom_spec)), kb0);
+    new_rng, rest := selectremove(type, rest,
+      {`if`(mk=Int, [identical(genLebesgue), name, anything, anything], NULL),
+       `if`(mk=Sum, [identical(genType), name, specfunc(HInt)], NULL),
+       [identical(genLet), name, anything]});
+    if not (new_rng :: [list]) then
+      error "kb_subtract should return exactly one gen*"
+    end if;
+    make    := mk;
+    new_rng := op(new_rng);
+    var     := op(2,new_rng);
+    if op(1,new_rng) = genLebesgue then
+      new_rng := op(3,new_rng)..op(4,new_rng);
+    elif op(1,new_rng) = genType then
+      new_rng := range_of_HInt(op(3,new_rng));
+    else # op(1,new_rng) = genLet
+      if mk=Int then return 0 else make := eval; new_rng := op(3,new_rng) end if
+    end if;
+    dom_spec, rest := selectremove(depends,
+      map(proc(a::[identical(assert),anything]) op(2,a) end proc, rest), var);
+    if type(e, `*`) then
+      (e, w) := selectremove(depends, e, var); # pull out weight
+      w := simplify_assuming(w, kb1);
+    else
+      w := 1;
+    end if;
+    e := make(`if`(dom_spec=[],e,piecewise(And(op(dom_spec)),e,0)), var=new_rng);
+    e := w*elim_intsum(e, h, kb0);
+    e := mul(Indicator(i), i in rest)*e;
+    e
+  end proc;
+
+  reduce_IntsSums := proc(makes, ee, var :: name, rng, bds, h :: name, kb :: t_kb)
+    # TODO we should apply domain restrictions like reduce_IntSum does.
+    makes(ee, var, rng, bds);
+  end proc;
+
+  get_indicators := proc(e)
+    local sub, inds, rest;
+    if e::`*` then
+      sub := map((s -> [get_indicators(s)]), [op(e)]);
+      `union`(op(map2(op,1,sub))), `*`(op(map2(op,2,sub)))
+    elif e::`^` then
+      inds, rest := get_indicators(op(1,e));
+      inds, subsop(1=rest, e)
+    elif e::'Indicator(anything)' then
+      {op(1,e)}, 1
+    else
+      {}, e
+    end if
+  end proc;
+
+  elim_intsum := proc(ee, h :: name, kb :: t_kb)
+    local e, hh, m, var, elim, my;
+
+    e := ee;
+    do
+      hh := gensym('h');
+      if e :: Int(anything, name=anything) and
+         not hastype(op(1,e), 'applyintegrand'('identical'(h),
+                                               'dependent'(op([2,1],e)))) then
+        var := op([2,1],e);
+        m := LO(hh, my(kb, int, applyintegrand(hh,var), op(2,e)));
+      elif e :: Sum(anything, name=anything) and
+         not hastype(op(1,e), 'applyintegrand'('identical'(h),
+                                               'dependent'(op([2,1],e)))) then
+        var := op([2,1],e);
+        m := LO(hh, my(kb, sum, applyintegrand(hh,var), op(2,e)));
+      elif e :: Ints(anything, name, range, list(name=range)) and
+           not hastype(op(1,e), 'applyintegrand'('identical'(h),
+                                                 'dependent'(op(2,e)))) then
+        var := op(2,e);
+        m := LO(hh, my(kb, ((e,x,r,l)->ints(e,x,r,l,kb)),
+                       applyintegrand(hh,var), op(2..4,e)));
+      elif e :: Sums(anything, name, range, list(name=range)) and
+           not hastype(op(1,e), 'applyintegrand'('identical'(h),
+                                                 'dependent'(op(2,e)))) then
+        var := op(2,e);
+        m := LO(hh, my(kb, ((e,x,r,l)->sums(e,x,r,l,kb)),
+                       applyintegrand(hh,var), op(2..4,e)));
+      else
+        break;
+      end if;
+      # try to eliminate unused var
+      elim := eval(banish(m, var, h, op(1,e), infinity), my=do_elim_intsum);
+      if has(elim, {MeijerG, undefined})
+         or elim_metric(elim,h) >= elim_metric(e,h) then
+        # Maple was too good at integration
+        break;
+      end if;
+      e := elim;
+    end do;
+    e;
+  end proc;
+
+  do_elim_intsum := proc(kb, f, ee)
+    local e;
+    e := simplify_assuming(ee,kb);
+    e := simplify_assuming(f(e,_rest), kb);
+    subs(int=Int, ints=Ints, sum=Sum, sums=Sums, e)
+  end proc;
+
+  elim_metric := proc(e, h::name)
+    numboccur(e, select(hastype,
+      indets(e, specfunc({Int,Sum,int,sum,Ints,Sums,ints,sums})),
+      'applyintegrand'('identical'(h), 'anything')))
+  end proc;
+
+  Banish := proc(e :: Int(anything, name=anything), h :: name,
+                 levels :: extended_numeric := infinity)
+    local hh;
+    hh := gensym('h');
+    subs(int=Int,
+      banish(LO(hh, int(applyintegrand(hh,op([2,1],e)), op(2,e))),
+        op([2,1],e), h, op(1,e), levels));
+  end proc;
+
+  banish := proc(m, x :: name, h :: name, g, levels :: extended_numeric)
+    # LO(h, banish(m, x, h, g)) should be equivalent to Bind(m, x, LO(h, g))
+    # but performs integration over x innermost rather than outermost.
+    local guard, subintegral, w, y, yRename, lo, hi, mm, loops, xx, hh, gg, ll;
+    guard := proc(m, c) Bind(m, x, piecewise(c, Ret(x), Msum())) end proc;
+    if g = 0 then
+      0
+    elif levels <= 0 then
+      integrate(m, Integrand(x, g), []) # is [] right ?
+    elif not depends(g, x) then
+      integrate(m, x->1, []) * g
+    elif g :: `+` then
+      map[4](banish, m, x, h, g, levels)
+    elif g :: `*` then
+      (subintegral, w) := selectremove(depends, g, h);
+      if subintegral :: `*` then error "Nonlinear integral %1", g end if;
+      banish(Bind(m, x, Weight(w, Ret(x))), x, h, subintegral, levels)
+    elif g :: 'And'('specfunc({Int,int,Sum,sum})',
+                    'anyfunc'('anything','name'='range'('freeof'(h)))) then
+      subintegral := op(1, g);
+      y           := op([2,1], g);
+      lo, hi      := op(op([2,2], g));
+      if x = y or depends(m, y) then
+        yRename     := gensym(y);
+        subintegral := subs(y=yRename, subintegral);
+        y           := yRename;
+      end if;
+      mm := m;
+      if depends(lo, x) then
+        mm := guard(mm, lo<y);
+        lo := -infinity;
+      end if;
+      if depends(hi, x) then
+        mm := guard(mm, y<hi);
+        hi := infinity;
+      end if;
+      op(0,g)(banish(mm, x, h, subintegral, levels-1), y=lo..hi)
+    elif g :: 'And'('specfunc({Ints,ints,Sums,sums})',
+                    'anyfunc'('anything', 'name', 'range'('freeof'(h)),
+                              'list(name=range)')) then
+      subintegral := op(1, g);
+      y           := op(2, g);
+      lo, hi      := op(op(3, g));
+      loops       := op(4, g);
+      xx          := map(lhs, loops);
+      if x = y or depends(m, y) then
+        yRename     := gensym(y);
+        subintegral := subs(y=yRename, subintegral);
+        y           := yRename;
+      end if;
+      mm := m;
+      if depends(lo, x) then
+        mm := guard(mm, forall(xx, lo<mk_idx(y,loops)));
+        lo := -infinity;
+      end if;
+      if depends(hi, x) then
+        mm := guard(mm, forall(xx, mk_idx(y,loops)<hi));
+        hi := infinity;
+      end if;
+      op(0,g)(banish(mm, x, h, subintegral, levels-1), y, lo..hi, op(4,g));
+    elif g :: t_pw then
+      foldr_piecewise(
+        proc(cond, th, el) proc(m)
+          if depends(cond, x) then
+            banish(guard(m, cond), x, h, th, levels-1) + el(guard(m, Not(cond)))
+          else
+            piecewise_if(cond, banish(m, x, h, th, levels-1), el(m))
+          end if
+        end proc end proc,
+        proc(m) 0 end proc,
+        g)(m)
+    elif g :: t_case then
+      subsop(2=map(proc(b :: Branch(anything, anything))
+                     eval(subsop(2='banish'(op(2,b),xx,hh,gg,ll),b),
+                          {xx=x, hh=h, gg=g, ll=l})
+                   end proc,
+                   op(2,integral)),
+             integral);
+    elif g :: 'integrate(freeof(x), Integrand(name, anything), list)' then
+      y := gensym(op([2,1],g));
+      subsop(2=Integrand(y, banish(m, x, h,
+        subs(op([2,1],g)=y, op([2,2],g)), levels-1)), g)
+    else
+      integrate(m, Integrand(x, g), [])
+    end if
+  end proc;
+
+  reduce_pw := proc(ee) # ee may or may not be piecewise
+    local e;
+    e := nub_piecewise(ee);
+    if e :: t_pw then
+      if nops(e) = 2 then
+        return Indicator(op(1,e)) * op(2,e)
+      elif nops(e) = 3 and Testzero(op(2,e)) then
+        return Indicator(Not(op(1,e))) * op(3,e)
+      elif nops(e) = 4 and Testzero(op(2,e)) then
+        return Indicator(And(Not(op(1,e)),op(3,e))) * op(4,e)
+      end if
+    end if;
+    return e
+  end proc;
+
+  nub_piecewise := proc(pw) # pw may or may not be piecewise
+    foldr_piecewise(piecewise_if, 0, pw)
+  end proc;
+
+  piecewise_if := proc(cond, th, el)
+    # piecewise_if should be equivalent to `if`, but it produces
+    # 'piecewise' and optimizes for when the 3rd argument is 'piecewise'
+    if cond = true then
+      th
+    elif cond = false or Testzero(th - el) then
+      el
+    elif el :: t_pw then
+      if nops(el) >= 2 and Testzero(th - op(2,el)) then
+        applyop(Or, 1, el, cond)
+      else
+        piecewise(cond, th, op(el))
+      end if
+    elif Testzero(el) then
+      piecewise(cond, th)
+    else
+      piecewise(cond, th, el)
+    end if
+  end proc;
+
+  # this code should not currently be used, it is just a snapshot in time
+  Reparam := proc(e::Int(anything,name=range), h::name)
+    local body, var, inds, xx, inv, new_e;
+
+    # TODO improve the checks.
+    if not has(body, {Int,int}) and hastype(e,'specfunc(applyintegrand)') then
+      inds := indets(body, 'applyintegrand'('identical'(h), 'dependent'(var)));
+      if nops(inds)=1 and op(2,inds[1]) :: algebraic and
+         not hastype(body, t_pw) then
+        xx := gensym('xx');
+        inv := solve({op(2,inds[1])=xx}, {var});
+        try
+          new_e := IntegrationTools[Change](e, inv, xx);
+          if not has(new_e,{'limit'}) then e := new_e end if;
+        catch:
+          # this will simply not change e
+        end try;
+      end if;
+    end if;
+
+    e;
+  end proc;
+
+  ReparamDetermined := proc(lo :: LO(name, anything))
+    local h;
+    h := op(1,lo);
+    LO(h,
+       evalindets(op(2,lo),
+                  'And'('specfunc({Int,int})',
+                        'anyfunc'(anything, 'name=anything')),
+                  g -> `if`(determined(op(1,g),h), Reparam(g,h), g)))
+  end proc;
+
+  determined := proc(e, h :: name)
+    local i;
+    for i in indets(e, 'specfunc({Int,int})') do
+      if hastype(IntegrationTools:-GetIntegrand(i),
+           'applyintegrand'('identical'(h),
+             'dependent'(IntegrationTools:-GetVariable(i)))) then
+        return false
+      end if
+    end do;
+    return true
+  end proc;
+
+  Reparam := proc(e :: Int(anything, name=anything), h :: name)
+    'procname(_passed)' # TODO to be implemented
   end proc;
 
   ###
@@ -1063,256 +1294,6 @@ NewSLO := module ()
       error "unknown plan step: %1", chg[1]
     end if;
   end proc;
-  ###
-  # smart constructors for our language
-
-  bind := proc(m, x, n)
-    if n = 'Ret'(x) then
-      m # monad law: right identity
-    elif m :: 'Ret(anything)' then
-      eval(n, x = op(1,m)) # monad law: left identity
-    else
-      'Bind(_passed)'
-    end if;
-  end proc;
-
-  weight := proc(p, m)
-    if p = 1 then
-      m
-    elif p = 0 then
-      Msum()
-    elif m :: 'Weight(anything, anything)' then
-      weight(p * op(1,m), op(2,m))
-    else
-      'Weight(_passed)'
-    end if;
-  end proc;
-
-  unweight := proc(m)
-    local total, ww, mm;
-    if m :: 'Weight(anything, anything)' then
-      op(m)
-    elif m :: 'specfunc(Msum)' then
-      total := `+`(op(map((mi -> unweight(mi)[1]), m)));
-      (total, map((mi -> weight(1/total, mi)), m))
-    else
-      (1, m)
-    end if;
-  end proc;
-
-  factorize := proc(w, x)
-    if w :: `*` then
-      selectremove(depends, w, x)
-    elif depends(w, x) then
-      (w, 1)
-    else
-      (1, w)
-    end if
-  end proc;
-
-  recognize_continuous := proc(weight0, x, lo, hi)
-    local Constant, de, Dx, f, w, res, rng;
-    res := FAIL;
-    # gfun[holexprtodiffeq] contains a test for {radfun,algfun} that seems like
-    # it should test for {radfun(anything,x),algfun(anything,x)} instead.
-    # Consequently, it issues the error "expression is not holonomic: %1" for
-    # actually holonomic expressions such as exp(x*sum(g(i,j),j=1..n)).
-    # Moreover, mysolve has trouble solve-ing constraints involving sum, etc.
-    # To work around these weaknesses, we wrap sum(...), etc. in Constant[...].
-    # Unlike sum(...), Constant[sum(...)] passes the type test {radfun,algfun},
-    # which we need to handle exp(x*sum(...)) using gfun[holexprtodiffeq].
-    # Like sum(...i...), Constant[sum(...i...)] depends on i, which we need so
-    # that product(sum(...i...),i=1..m) doesn't simplify to ...^m.
-    w := subsindets[flat](weight0,
-           And(# Not(radfun), Not(algfun),
-               'specfunc({%product, product, sum, idx})',
-               'freeof'(x)),
-           proc(e) Constant[e] end);
-    w := subsindets[flat](w, {`^`, specfunc(exp)},
-           proc(e)
-             applyop(proc(e)
-                       evalindets[flat](e,
-                         And({`^`, specfunc(exp)},
-                             Not(radfun), Not(algfun), 'freeof'(x)),
-                         proc(e) Constant[e] end)
-                     end,
-                     -1, e)
-             end);
-    de := get_de(w, x, Dx, f);
-    if de :: 'Diffop(anything, anything)' then
-      res := recognize_de(op(de), Dx, f, x, lo, hi)
-    end if;
-    if res = FAIL then
-      rng := hi - lo;
-      w := simplify(w * (hi - lo));
-      # w could be piecewise and simplify will hide the problem
-      if not (rng :: 'SymbolicInfinity'
-              or w :: {'SymbolicInfinity', 'undefined'}) then
-        res := Recognized(Uniform(lo, hi), w)
-      end if
-    end if;
-    # Undo Constant[...] wrapping
-    subsindets[flat](res, 'specindex'(anything, Constant), x -> op(1,x))
-  end proc;
-
-  recognize_discrete := proc(w, k, lo, hi)
-    local se, Sk, f, a0, a1, lambda, r;
-    if lo = 0 and hi = infinity then
-      se := get_se(w, k, Sk, f);
-      if se :: 'Shiftop(anything, anything, identical(ogf))' and
-         ispoly(op(1,se), 'linear', Sk, 'a0', 'a1') then
-        lambda := normal(-a0/a1*(k+1));
-        if not depends(lambda, k) then
-          return Recognized(PoissonD(lambda),
-                            simplify(eval(w,k=0)/exp(-lambda)));
-        end if;
-        if ispoly(lambda, 'linear', k, 'b0', 'b1') then
-          r := b0/b1;
-          return Recognized(NegativeBinomial(r, b1),
-                            simplify(eval(w,k=0)/(1-b1)^r))
-        end if
-      end if;
-    end if;
-    # fallthrough here is like recognizing Lebesgue for all continuous
-    # measures.  Ultimately correct, although fairly unsatisfying.
-    Recognized(Counting(lo, hi), w)
-  end proc;
-
-  get_de := proc(dens, var, Dx, f)
-    :: Or(Diffop(anything, set(function=anything)), identical(FAIL));
-    local de, init;
-    try
-      de := gfun[holexprtodiffeq](dens, f(var));
-      de := gfun[diffeqtohomdiffeq](de, f(var));
-      if not (de :: set) then
-        de := {de}
-      end if;
-      init, de := selectremove(type, de, `=`);
-      if nops(de) = 1 then
-        if nops(init) = 0 then
-          # TODO: Replace {0, 1/2, 1} by PyMC's distribution-specific "testval"
-          init := map(proc (val)
-                        try f(val) = eval(dens, var=val)
-                        catch: NULL
-                        end try
-                      end proc,
-                      {0, 1/2, 1})
-        end if;
-        return Diffop(DEtools[de2diffop](de[1], f(var), [Dx, var]), init)
-      end if
-    catch: # do nothing
-    end try;
-    FAIL
-  end proc;
-
-  get_se := proc(dens, var, Sk, u)
-    :: Or(Shiftop(anything, set(function=anything), name), identical(FAIL));
-    local x, de, re, gftype, init, f;
-    try
-      # ser := series(sum(dens * x^var, var=0..infinity), x);
-      # re := gfun[seriestorec](ser, f(var));
-      # re, gftype := op(re);
-      de := gfun[holexprtodiffeq](sum(dens*x^var, var=0..infinity), f(x));
-      re := gfun[diffeqtorec](de, f(x), u(var));
-      re := gfun[rectohomrec](re, u(var));
-      if not (re :: set) then
-        re := {re}
-      end if;
-      init, re := selectremove(type, re, `=`);
-      if nops(re) = 1 then
-        if nops(init) = 0 then
-          init := {u(0) = eval(rens, var=0)};
-        end if;
-        re := map(proc(t)
-                    local s, r;
-                    s, r := selectremove(type, convert(t, 'list', `*`),
-                                         u(polynom(nonnegint, var)));
-                    if nops(s) <> 1 then
-                      error "rectohomrec result nonhomogeneous";
-                    end if;
-                    s := op([1,1],s) - var;
-                    if s :: nonnegint and r :: list(polynom(anything, var)) then
-                      `*`(op(r), Sk^s);
-                    else
-                      error "unexpected result from rectohomrec"
-                    end if
-                  end proc,
-                  convert(re[1], 'list', `+`));
-        return Shiftop(`+`(op(re)), init, 'ogf')
-      end if
-    catch: # do nothing
-    end try;
-    FAIL
-  end proc;
-
-  recognize_de := proc(diffop, init, Dx, f, var, lo, hi)
-    local dist, ii, constraints, w, a0, a1, a, b0, b1, c0, c1, c2, loc, nu;
-    dist := FAIL;
-    if lo = -infinity and hi = infinity
-       and ispoly(diffop, 'linear', Dx, 'a0', 'a1') then
-      a := normal(a0/a1);
-      if ispoly(a, 'linear', var, 'b0', 'b1') then
-        dist := Gaussian(-b0/b1, sqrt(1/b1))
-      elif ispoly(numer(a), 'linear', var, 'b0', 'b1') and
-           ispoly(denom(a), 'quadratic', var, 'c0', 'c1', 'c2') then
-        loc := -c1/c2/2;
-        if Testzero(b0 + loc * b1) then
-          nu := b1/c2 - 1;
-          if Testzero(nu - 1) then
-            dist := Cauchy(loc, sqrt(c0/c2-loc^2))
-          else
-            dist := StudentT(nu, loc, sqrt((c0/c2-loc^2)/nu))
-          end if
-        end if
-      end if;
-    elif lo = 0 and hi = 1
-         and ispoly(diffop, 'linear', Dx, 'a0', 'a1')
-         and ispoly(normal(a0*var*(1-var)/a1), 'linear', var, 'b0', 'b1') then
-      dist := BetaD(1-b0, 1+b0+b1)
-    elif lo = 0 and hi = infinity
-         and ispoly(diffop, 'linear', Dx, 'a0', 'a1')
-         and ispoly(normal(a0*var/a1), 'linear', var, 'b0', 'b1') then
-      dist := GammaD(1-b0, 1/b1)
-    end if;
-    if dist <> FAIL then
-      try
-        ii := map(convert, init, 'diff');
-        constraints := eval(ii, f = (x -> w*density[op(0,dist)](op(dist))(x)));
-        w := eval(w, mysolve(simplify(constraints), w));
-        if not (has(w, 'w')) then
-          return Recognized(dist, simplify(w))
-        end if
-      catch: # do nothing
-      end try;
-      WARNING("recognized %1 as %2 but could not solve %3", f, dist, init)
-    end if;
-    FAIL
-  end proc;
-
-  mysolve := proc(constraints)
-    # This wrapper around "solve" works around the problem that Maple sometimes
-    # thinks there is no solution to a set of constraints because it doesn't
-    # recognize the solution to each constraint is the same.  For example--
-    # This fails     : solve({c*2^(-1/2-alpha) = sqrt(2)/2, c*4^(-alpha) = 2^(-alpha)}, {c}) assuming alpha>0;
-    # This also fails: solve(simplify({c*2^(-1/2-alpha) = sqrt(2)/2, c*4^(-alpha) = 2^(-alpha)}), {c}) assuming alpha>0;
-    # But this works : map(solve, {c*2^(-1/2-alpha) = sqrt(2)/2, c*4^(-alpha) = 2^(-alpha)}, {c}) assuming alpha>0;
-    # And the difference of the two solutions returned simplifies to zero.
-
-    local result;
-    if nops(constraints) = 0 then return NULL end if;
-    result := solve(constraints, _rest);
-    if result <> NULL or not (constraints :: {set,list}) then
-      return result
-    end if;
-    result := mysolve(subsop(1=NULL,constraints), _rest);
-    if result <> NULL
-       and op(1,constraints) :: 'anything=anything'
-       and simplify(eval(op([1,1],constraints) - op([1,2],constraints),
-                         result)) <> 0 then
-      return NULL
-    end if;
-    result
-  end proc;
 
   density[Lebesgue] := proc() proc(x) 1 end proc end proc;
   density[Uniform] := proc(a,b) proc(x)
@@ -1356,21 +1337,34 @@ NewSLO := module ()
   bounds[NegativeBinomial] := proc(r,p) 0 .. infinity end proc;
   bounds[PoissonD] := proc(lambda) 0 .. infinity end proc;
 
-# Testing
-
-  TestHakaru := proc(m, n::algebraic:=m,
-                     {simp:=improve, verify:=simplify, ctx::list:=[]})
-    local kb;
-    kb := foldr(assert, empty, op(ctx));
-    CodeTools[Test](fromLO(simp(toLO(m), _ctx=kb), _ctx=kb), n,
-      measure(verify), _rest)
+  mk_sym := proc(var :: name, h)
+    local x;
+    x := var;
+    if h :: 'Integrand(name, anything)' then
+      x := op(1,h);
+    elif h :: 'procedure' then
+      x := op(1, [op(1,h), x]);
+    end if;
+    gensym(x)
   end proc;
 
-  TestSimplify := proc(m, t, n::algebraic:=m, {verify:=simplify})
-    local s, r;
-    # How to pass keyword argument {ctx::list:=[]} on to Simplify?
-    s, r := selectremove(type, [_rest], 'identical(ctx)=anything');
-    CodeTools[Test](Simplify(m,t,op(s)), n, measure(verify), op(r))
+  mk_ary := proc(e, loops :: list(name = range))
+    foldl((res, i) -> ary(op([2,2],i) - op([2,1],i) + 1,
+                          op(1,i),
+                          eval(res, op(1,i) = op(1,i) + op([2,1],i))),
+          e, op(loops));
+  end proc;
+
+  mk_idx := proc(e, loops :: list(name = range))
+    foldr((i, res) -> idx(res, op(1,i) - op([2,1],i)),
+          e, op(loops));
+  end proc;
+
+  mk_HArray := proc(t::t_type, loops::list(name=range))
+    local res, i;
+    res := t;
+    for i in loops do res := HArray(res) end do;
+    res
   end proc;
 
   ModuleLoad := proc()
