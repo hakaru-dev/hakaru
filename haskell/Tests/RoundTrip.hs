@@ -123,7 +123,7 @@ testMeasureReal = test
     --, "seismic" ~: testSStriv [] seismic
     , "lebesgue1" ~: testSStriv [] (lebesgue >>= \x -> if_ ((real_ 42) < x) (dirac x) (reject sing))
     , "lebesgue2" ~: testSStriv [] (lebesgue >>= \x -> if_ (x < (real_ 42)) (dirac x) (reject sing))
-    , "lebesgue3" ~: testSStriv [lebesgue >>= \x -> if_ (x < (real_ 42) && (real_ 40) < x) (dirac x) (reject sing)] (withWeight (prob_ 2) $ uniform (real_ 40) (real_ 42))
+    , "lebesgue3" ~: testSStriv [lebesgue >>= \x -> if_ (x < (real_ 42) && (real_ 40) < x) (dirac x) (reject sing)] (withWeight (nat2prob . nat_ $ 2) $ uniformC (nat_ 40) (nat_ 42))
     , "testexponential" ~: testStriv testexponential
     , "testcauchy" ~: testStriv testCauchy
     , "exceptionLebesgue" ~: testSStriv [lebesgue >>= \x -> dirac (if_ (x == (real_ 3)) one x)] lebesgue
@@ -151,7 +151,7 @@ testMeasurePair = test [
                                                            (normalC zero one)),
     "norm"          ~: testSStriv [] norm,
     "norm_nox"      ~: testSStriv [norm_nox] (normal (nat2real zero)
-                                                     (nat2prob (nat_ 2) ** real_ 0.5)),
+                                                     (nat2prob (nat_ 2) ** (fromProb . prob_ $ 0.5))),
     "norm_noy"      ~: testSStriv [norm_noy] (normalC zero one),
     "flipped_norm"  ~: testSStriv [swap <$> norm] flipped_norm,
     "priorProp"     ~: testSStriv [lam (priorAsProposal norm)]
