@@ -235,6 +235,7 @@ instance Functor21 Head where
     fmap21 f (WPlate      e1 e2)    = WPlate (f e1) (f e2)
     fmap21 f (WChain      e1 e2 e3) = WChain (f e1) (f e2) (f e3)
     fmap21 f (WSuperpose  pes)      = WSuperpose (fmap (f *** f) pes)
+    fmap21 _ (WReject     typ)      = WReject typ
     fmap21 f (WCoerceTo   c e1)     = WCoerceTo   c (fmap21 f e1)
     fmap21 f (WUnsafeFrom c e1)     = WUnsafeFrom c (fmap21 f e1)
     fmap21 f (WIntegrate  e1 e2 e3) = WIntegrate (f e1) (f e2) (f e3)
@@ -252,6 +253,7 @@ instance Foldable21 Head where
     foldMap21 f (WPlate      e1 e2)    = f e1 `mappend` f e2
     foldMap21 f (WChain      e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
     foldMap21 f (WSuperpose  pes)      = foldMapPairs f pes
+    foldMap21 _ (WReject     typ)      = mempty
     foldMap21 f (WCoerceTo   _ e1)     = foldMap21 f e1
     foldMap21 f (WUnsafeFrom _ e1)     = foldMap21 f e1
     foldMap21 f (WIntegrate  e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
@@ -269,6 +271,7 @@ instance Traversable21 Head where
     traverse21 f (WPlate      e1 e2)    = WPlate <$> f e1 <*> f e2
     traverse21 f (WChain      e1 e2 e3) = WChain <$> f e1 <*> f e2 <*> f e3
     traverse21 f (WSuperpose  pes)      = WSuperpose <$> traversePairs f pes
+    traverse21 _ (WReject     typ)      = pure $ WReject typ
     traverse21 f (WCoerceTo   c e1)     = WCoerceTo   c <$> traverse21 f e1
     traverse21 f (WUnsafeFrom c e1)     = WUnsafeFrom c <$> traverse21 f e1
     traverse21 f (WIntegrate  e1 e2 e3) = WIntegrate <$> f e1 <*> f e2 <*> f e3
