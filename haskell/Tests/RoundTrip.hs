@@ -341,7 +341,7 @@ t37 = lam (dirac . recip)
 t38 :: (ABT Term abt) => abt '[] ('HProb ':-> 'HMeasure 'HProb)
 t38 = lam (dirac . recip)
 
-t39, t39' :: (ABT Term abt) => abt '[] ('HProb ':-> 'HMeasure 'HReal)
+t39 :: (ABT Term abt) => abt '[] ('HProb ':-> 'HMeasure 'HReal)
 t39 = lam (dirac . log)
 
 t40 :: (ABT Term abt) => abt '[] ('HProb ':-> 'HMeasure 'HReal)
