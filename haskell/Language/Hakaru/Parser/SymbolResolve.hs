@@ -450,7 +450,7 @@ resolveAST' syms ast =
                (insertSymbols syms primTable) ast)
               (nextVarID syms)
   where nextVarID [] = N.fromNat 0
-        nextVarID x  = N.fromNat . (+1) . maximum $ map U.nameID x
+        nextVarID x  = N.fromNat . (+1) . F.maximum $ map U.nameID x
 
 makeName :: SomeVariable ('KProxy :: KProxy Hakaru) -> U.Name
 makeName (SomeVariable (Variable hint vID typ)) = U.Name vID hint

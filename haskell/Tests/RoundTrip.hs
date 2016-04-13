@@ -8,8 +8,8 @@
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Tests.RoundTrip where
 
-import Prelude ((.), ($), asTypeOf)
-
+import           Prelude ((.), ($), asTypeOf)
+import qualified Prelude
 
 import Language.Hakaru.Syntax.Prelude
 import Language.Hakaru.Types.DataKind
@@ -136,7 +136,7 @@ testMeasureInt = test
     [ "t75"  ~: testStriv t75
     , "t75'" ~: testStriv t75'
     , "exceptionCounting" ~: testSStriv [] (counting >>= \x -> dirac (if_ (x == (int_ 3)) one x)) -- Jacques wrote: "bug: [simp_pw_equal] implicitly assumes the ambient measure is Lebesgue"
-    , "exceptionSuperpose" ~: testSStriv [(superpose [(third, dirac (int_ 2)), (third, dirac (int_ 3)), (third, dirac (int_ 4))] `asTypeOf` counting) >>= \x -> dirac (if_ (x == (int_ 3)) one x)] (superpose [(third, dirac one), (third, dirac (int_ 2)), (third, dirac (int_ 4))])
+    , "exceptionSuperpose" ~: testSStriv [(superpose [(third, dirac (int_ 2)), (third, dirac (int_ 3)), (third, dirac (int_ 4))] `asTypeOf` counting) >>= \x -> dirac (if_ (x == (int_ 3)) one x)] (superpose [(third, dirac (nat2int . nat_ $ 2)), (third, dirac (nat2int one)), (third, dirac (nat2int . nat_ $ 4))])
     ]
 
 testMeasurePair :: Test
@@ -281,10 +281,10 @@ t23 =
     bern (if_ a ((prob_ 9)/(prob_ 10)) ((prob_ 1)/(prob_ 10))) >>= \c ->
     dirac (pair b c)
 t23' = superpose
-    [ ((prob_ 41)/(prob_ 100), dirac (pair true true))
-    , ((prob_ 9)/(prob_ 100), dirac (pair true false))
-    , ((prob_ 9)/(prob_ 100), dirac (pair false true))
-    , ((prob_ 41)/(prob_ 100), dirac (pair false false))
+    [ ((prob_ $ 41 Prelude./ 100), dirac (pair true true))
+    , ((prob_ $ 9  Prelude./ 100), dirac (pair true false))
+    , ((prob_ $ 9  Prelude./ 100), dirac (pair false true))
+    , ((prob_ $ 41 Prelude./ 100), dirac (pair false false))
     ]
 
 t24,t24' :: (ABT Term abt) => abt '[] ('HProb ':-> 'HMeasure HUnit)
