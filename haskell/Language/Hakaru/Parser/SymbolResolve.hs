@@ -16,6 +16,7 @@ import Control.Monad.Trans.State.Strict (State, state, evalState)
 
 import qualified Data.Number.Nat                 as N
 import qualified Data.IntMap                     as IM
+import           Data.Foldable                   as F
 import           Data.Proxy                      (KProxy(..))
 import           Language.Hakaru.Types.Sing
 import           Language.Hakaru.Types.Coercion
@@ -352,6 +353,15 @@ branchNorm :: U.Branch' (Symbol U.AST) -> U.Branch' (Symbol U.AST)
 branchNorm (U.Branch'  pat e2') = U.Branch'  pat (normAST e2')
 branchNorm (U.Branch'' pat e2') = U.Branch'' pat (normAST e2')
 
+collapseSuperposes :: [U.AST] -> U.AST
+collapseSuperposes es = U.Superpose_ (F.concatMap go es)
+   where go :: U.AST -> [(U.AST, U.AST)]
+         go (U.Superpose_ es') = es'
+         go e'                 = [(prob_ 1, e')]
+
+         prob_ :: Double -> U.AST
+         prob_ = U.Literal_ . U.val . U.Prob
+
 makeType :: U.TypeAST' -> U.SSing
 makeType (U.TypeVar t) =
     case lookup t primTypes of
@@ -423,9 +433,7 @@ makeAST ast =
         U.Integrate_ name (makeAST e1) (makeAST e2) (makeAST e3)
     U.Expect (TNeu (U.Var_ name)) e1 e2 ->
         U.Expect_ name (makeAST e1) (makeAST e2)
-    U.Msum es         -> U.Superpose_ (map (\e -> (U.Literal_ $ U.val $ U.Prob 1,
-                                                   makeAST e))
-                                       es)
+    U.Msum es         -> collapseSuperposes (map makeAST es)
 
 resolveAST :: U.AST' Text -> U.AST
 resolveAST ast = makeAST $
