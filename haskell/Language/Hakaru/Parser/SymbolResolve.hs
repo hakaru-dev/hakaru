@@ -45,7 +45,7 @@ primPat =
             U.PKonst b `U.PEt` U.PDone)
     , ("true",    TNeu' . U.PDatum "true"  . U.PInl $ U.PDone)
     , ("false",   TNeu' . U.PDatum "false" . U.PInr . U.PInl $ U.PDone)
-    , ("pair",    TLam' $ \es -> foldr1 pairPat es)
+    , ("pair",    TLam' $ \es -> F.foldr1 pairPat es)
     , ("just",    TLam' $ \ [a] ->
             U.PDatum "just" . U.PInr . U.PInl $
              U.PKonst a `U.PEt` U.PDone)
@@ -304,7 +304,7 @@ symbolResolvePat U.PWild'        = return (U.PWild', [])
 symbolResolvePat (U.PData' (U.DV name args)) = do
   args' <- mapM symbolResolvePat args
   let (args'', names) = unzip args'
-  return $ (U.PData' (U.DV name args''), concat names)
+  return $ (U.PData' (U.DV name args''), F.concat names)
 
 -- | Make AST and give unique names for variables.
 --

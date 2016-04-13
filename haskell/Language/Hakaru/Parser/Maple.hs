@@ -35,6 +35,8 @@ style = Token.LanguageDef
     , Token.caseSensitive  = False
     }
 
+type TokenParser a = Token.GenTokenParser Text a Identity
+
 lexer :: TokenParser ()
 lexer = Token.makeTokenParser style
 
@@ -89,8 +91,6 @@ arg e = parens (commaSep e)
 
 text :: Text -> Parser Text
 text = liftM Text.pack <$> string <$> Text.unpack
-
-type TokenParser a = Token.GenTokenParser Text a Identity
 
 --------------------------------------------------------------------------
 -- | Grammar of Inert Expressions
