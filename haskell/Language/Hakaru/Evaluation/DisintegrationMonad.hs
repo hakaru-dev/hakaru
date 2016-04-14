@@ -74,7 +74,7 @@ import qualified Data.Text            as Text
 import Language.Hakaru.Syntax.IClasses
 import Data.Number.Nat
 import Language.Hakaru.Types.DataKind
-import Language.Hakaru.Types.Sing    (Sing, SingI, sUnMeasure, sUnPair)
+import Language.Hakaru.Types.Sing    (Sing, sUnMeasure, sUnPair)
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.TypeOf

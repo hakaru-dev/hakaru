@@ -67,7 +67,7 @@ module Language.Hakaru.Syntax.Prelude
     -- ** Abstract nonsense
     , dirac, (<$>), (<*>), (<*), (*>), (>>=), (>>), bindx, liftM2
     -- ** Linear operators
-    , superpose
+    , superpose, (<|>)
     , weight, withWeight, weightedDirac
     , reject, guard, withGuard
     -- ** Measure operators
@@ -126,12 +126,13 @@ module Language.Hakaru.Syntax.Prelude
     ) where
 
 -- TODO: implement and use Prelude's fromInteger and fromRational, so we can use numeric literals!
-import Prelude (Maybe(..), Bool(..), Integer, Rational, ($), flip, const, error)
+import Prelude (Maybe(..), Bool(..), Integer, Rational, ($), (++), flip, const, error)
 import qualified Prelude
-import           Data.Sequence    (Seq)
-import qualified Data.Sequence    as Seq
-import qualified Data.Text        as Text
-import           Data.List.NonEmpty (NonEmpty(..))
+import           Data.Sequence       (Seq)
+import qualified Data.Sequence       as Seq
+import qualified Data.Text           as Text
+import           Data.List.NonEmpty  (NonEmpty(..))
+import qualified Data.List.NonEmpty  as L
 import           Control.Category (Category(..))
 
 import Data.Number.Natural
@@ -1160,8 +1161,32 @@ reject
     -> abt '[] ('HMeasure a)
 reject typ = syn $ Reject_ typ
 
-
 -- TODO: define @mplus@ to better mimic Core Hakaru?
+(<|>) :: (ABT Term abt)
+      => abt '[] ('HMeasure a)
+      -> abt '[] ('HMeasure a)
+      -> abt '[] ('HMeasure a)
+x <|> y =
+    case (matchSuperpose x, matchSuperpose y) of
+    (Just xs, Just ys) -> syn . Superpose_ $ nonEmptyAppend xs ys
+    (Just xs, Nothing) -> superpose $ (one, y) : L.toList xs
+    (Nothing, Just ys) -> superpose $ (one, x) : L.toList ys
+    (Nothing, Nothing) -> superpose [(one, x), (one, y)]
+
+matchSuperpose
+    :: (ABT Term abt) 
+    => abt '[] ('HMeasure a)
+    -> Maybe (NonEmpty (abt '[] 'HProb, abt '[] ('HMeasure a)))
+matchSuperpose e =
+    caseVarSyn e
+        (const Nothing)
+        $ \t ->
+            case t of
+            Superpose_ xs -> Just xs
+            _ -> Nothing
+
+nonEmptyAppend :: NonEmpty a -> NonEmpty a -> NonEmpty a
+nonEmptyAppend (x:|xs) (y:|ys) =  x :| y : (xs ++ ys) 
 
 -- TODO: we should ensure that the following reductions happen:
 -- > (withWeight p m >> n) ---> withWeight p (m >> n)
