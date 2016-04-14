@@ -18,6 +18,7 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.IClasses
 
 import Data.Text
+import Data.Ratio
 import Text.Parsec (SourcePos)
 
 -- N.B., because we're not using the ABT's trick for implementing a HOAS API, we can make the identifier strict.
@@ -56,8 +57,8 @@ data Meta = Meta !SourcePos !SourcePos
 data Literal'
     = Nat  Int
     | Int  Int
-    | Prob Double
-    | Real Double
+    | Prob (Ratio Integer)
+    | Real (Ratio Integer)
     deriving (Eq, Show)
 
 data NaryOp
@@ -108,8 +109,8 @@ data AST' a
 val :: Literal' -> Some1 Literal
 val (Nat  n) = Some1 $ LNat  (N.unsafeNatural $ fromIntegral n) -- TODO: clean up
 val (Int  n) = Some1 $ LInt  (fromIntegral n) -- TODO: clean up
-val (Prob n) = Some1 $ LProb (N.unsafeNonNegativeRational $ toRational n) -- BUG: parse a Rational in the first place!
-val (Real n) = Some1 $ LReal (toRational   n) -- BUG: parse a Rational in the first place!
+val (Prob n) = Some1 $ LProb (N.unsafeNonNegativeRational n)
+val (Real n) = Some1 $ LReal n
 
 data PrimOp
     = Not | Impl | Diff   | Nand | Nor

@@ -9,6 +9,7 @@ import Language.Hakaru.Parser.Parser
 import Language.Hakaru.Parser.AST
 
 import Data.Text
+import Data.Ratio
 import Test.HUnit
 import Test.QuickCheck.Arbitrary
 import Test.QuickCheck
@@ -17,7 +18,7 @@ import Control.Applicative
 arbNat  :: Gen (Positive Int)
 arbNat  = arbitrary
 
-arbProb :: Gen (Positive Double)
+arbProb :: Gen (Positive (Ratio Integer))
 arbProb = arbitrary
 
 instance Arbitrary Text where

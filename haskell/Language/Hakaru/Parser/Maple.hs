@@ -7,6 +7,7 @@ import           Language.Hakaru.Parser.AST
 import           Control.Monad.Identity
 import           Data.Text           (Text)
 import qualified Data.Text           as Text
+import           Data.Ratio
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Functor        ((<$>))
 import           Control.Applicative (Applicative(..))
@@ -262,10 +263,10 @@ maple2AST (InertName "infinity") = Infinity'
 maple2AST (InertName t)    = Var (rename t)
 
 maple2AST (InertArgs Float [InertNum Pos a, InertNum _ b]) = 
-    ULiteral $ Prob $ fromInteger a * (10 ** (fromInteger b))
+    ULiteral $ Prob $ fromInteger a * (10 ^ (fromInteger b))
 
 maple2AST (InertArgs Float [InertNum Neg a, InertNum _ b]) = 
-    ULiteral $ Real $ fromInteger a * (10 ** (fromInteger b))
+    ULiteral $ Real $ fromInteger a * (10 ^ (fromInteger b))
 
 maple2AST (InertArgs Func [InertName "Bind",
                            InertArgs ExpSeq [e1, InertName x, e2]]) =
@@ -350,9 +351,9 @@ maple2AST (InertArgs Equal es) =
 maple2AST (InertArgs Power [x, y]) =
     App (App (Var "**") (maple2AST x)) (maple2AST y)
 maple2AST (InertArgs Rational [InertNum Pos x, InertNum Pos y]) =
-    ULiteral $ Prob $ fromInteger x / fromInteger y
+    ULiteral $ Prob $ fromInteger x % fromInteger y
 maple2AST (InertArgs Rational [InertNum _ x, InertNum _ y]) =
-    ULiteral $ Real $ fromInteger x / fromInteger y
+    ULiteral $ Real $ fromInteger x % fromInteger y
 
 maple2AST x = error $ "Can't handle: " ++ show x
 

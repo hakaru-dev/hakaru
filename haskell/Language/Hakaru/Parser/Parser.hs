@@ -12,6 +12,8 @@ import qualified Control.Monad                 as M
 import           Data.Functor.Identity
 import           Data.Text                     (Text)
 import qualified Data.Text                     as Text
+import           Data.Ratio
+import           Data.Char                     (digitToInt)
 import           Text.Parsec                   hiding (Empty)
 import           Text.Parsec.Text              () -- instances only
 import           Text.Parsec.Indentation
@@ -60,11 +62,50 @@ emptyLine = newline *> return ()
 lexer :: Tok.GenTokenParser ParserStream () Identity
 lexer = ITok.makeTokenParser style
 
+decimal :: Parser Integer
+decimal = Tok.decimal lexer
+
 integer :: Parser Integer
 integer = Tok.integer lexer
 
-float :: Parser Double
-float = Tok.float lexer
+float :: Parser (Ratio Integer)
+float =  decimal >>= fractExponent
+                  
+fractFloat :: Integer -> Parser (Either Integer (Ratio Integer))
+fractFloat n  =  fractExponent n >>= return . Right
+
+fractExponent   :: Integer -> Parser (Ratio Integer)
+fractExponent n =  do{ fract <- fraction
+                     ; expo  <- option 1 exponent'
+                     ; return ((fromInteger n + fract)*expo)
+                     }
+                  <|>
+                  do{ expo <- exponent'
+                    ; return ((fromInteger n)*expo)
+                    }
+
+fraction        :: Parser (Ratio Integer)    
+fraction        =  do{ _ <- char '.'
+                     ; digits <- many1 digit <?> "fraction"
+                     ; return (foldr op 0 digits)
+                     }
+                  <?> "fraction"
+                    where
+                      op d f    = (f + fromIntegral (digitToInt d))/10
+
+exponent'       :: Parser (Ratio Integer)
+exponent'       =  do{ _ <- oneOf "eE"
+                     ; f <- sign
+                     ; e <- decimal <?> "exponent"
+                     ; return (power (f e))
+                     }
+                  <?> "exponent"
+                      where
+                       power e  | e < 0      = 1.0/power(-e)
+                                | otherwise  = fromInteger (10^e)
+                       sign            =   (char '-' >> return negate)
+                                       <|> (char '+' >> return id)
+                                       <|> return id
 
 parens :: Parser a -> Parser a
 parens = Tok.parens lexer . localIndentation Any
@@ -379,6 +420,7 @@ term =  try if_expr
     <|> try floating
     <|> try inf_
     <|> try unit_
+    <|> try empty_
     <|> try int
     <|> try var
     <|> try pairs

@@ -9,7 +9,6 @@
 module Tests.RoundTrip where
 
 import           Prelude ((.), ($), asTypeOf)
-import qualified Prelude
 
 import Language.Hakaru.Syntax.Prelude
 import Language.Hakaru.Types.DataKind
@@ -18,6 +17,8 @@ import Language.Hakaru.Syntax.ABT (ABT)
 import Language.Hakaru.Expect     (total)
 import Language.Hakaru.Inference  (priorAsProposal, mcmc, mh)
 import Language.Hakaru.Types.Sing
+
+import Data.Ratio
 
 -- import qualified Examples.Seismic as SE
 
@@ -248,8 +249,8 @@ t12 = weight (nat2prob . nat_ $ 2)
 t13,t13' :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
 t13 = bern ((prob_ 3)/(prob_ 5)) >>= \b -> dirac (if_ b (real_ 37) (real_ 42))
 t13' = superpose
-    [ ((prob_ 3)/(prob_ 5), dirac (real_ 37))
-    , ((prob_ 2)/(prob_ 5), dirac (real_ 42))
+    [ ((prob_ $ 3 % 5), dirac (nat2real . nat_ $ 37))
+    , ((prob_ $ 2 % 5), dirac (nat2real . nat_ $ 42))
     ]
 
 t14,t14' :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
@@ -258,10 +259,10 @@ t14 =
     if_ b t13 (bern ((prob_ 2)/(prob_ 7)) >>= \b' ->
         if_ b' (uniform (real_ 10) (real_ 12)) (uniform (real_ 14) (real_ 16)))
 t14' = superpose 
-    [ ((prob_ 9)/(prob_ 25), dirac (real_ 37))
-    , ((prob_ 6)/(prob_ 25), dirac (real_ 42))
-    , ((prob_ 4)/(prob_ 35), uniform (real_ 10) (real_ 12))
-    , ((prob_ 2)/(prob_ 7) , uniform (real_ 14) (real_ 16))
+    [ ((prob_ $ 9 % 25), dirac (nat2real . nat_ $ 37))
+    , ((prob_ $ 6 % 25), dirac (nat2real . nat_ $ 42))
+    , ((prob_ $ 4 % 35), uniformC (nat_ 10) (nat_ 12))
+    , ((prob_ $ 2 % 7) , uniformC (nat_ 14) (nat_ 16))
     ]
 
 t20 :: (ABT Term abt) => abt '[] ('HProb ':-> 'HMeasure HUnit)
@@ -281,10 +282,10 @@ t23 =
     bern (if_ a ((prob_ 9)/(prob_ 10)) ((prob_ 1)/(prob_ 10))) >>= \c ->
     dirac (pair b c)
 t23' = superpose
-    [ ((prob_ $ 41 Prelude./ 100), dirac (pair true true))
-    , ((prob_ $ 9  Prelude./ 100), dirac (pair true false))
-    , ((prob_ $ 9  Prelude./ 100), dirac (pair false true))
-    , ((prob_ $ 41 Prelude./ 100), dirac (pair false false))
+    [ ((prob_ $ 41 % 100), dirac (pair true true))
+    , ((prob_ $ 9  % 100), dirac (pair true false))
+    , ((prob_ $ 9  % 100), dirac (pair false true))
+    , ((prob_ $ 41 % 100), dirac (pair false false))
     ]
 
 t24,t24' :: (ABT Term abt) => abt '[] ('HProb ':-> 'HMeasure HUnit)

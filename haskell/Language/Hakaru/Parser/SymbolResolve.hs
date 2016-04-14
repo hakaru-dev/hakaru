@@ -17,6 +17,7 @@ import Control.Monad.Trans.State.Strict (State, state, evalState)
 import qualified Data.Number.Nat                 as N
 import qualified Data.IntMap                     as IM
 import           Data.Foldable                   as F
+import           Data.Ratio
 import           Data.Proxy                      (KProxy(..))
 import           Language.Hakaru.Types.Sing
 import           Language.Hakaru.Types.Coercion
@@ -359,7 +360,7 @@ collapseSuperposes es = U.Superpose_ (F.concatMap go es)
          go (U.Superpose_ es') = es'
          go e'                 = [(prob_ 1, e')]
 
-         prob_ :: Double -> U.AST
+         prob_ :: Ratio Integer -> U.AST
          prob_ = U.Literal_ . U.val . U.Prob
 
 makeType :: U.TypeAST' -> U.SSing
