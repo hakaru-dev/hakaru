@@ -20,8 +20,6 @@ import Language.Hakaru.Simplify
 import Test.HUnit
 import Tests.TestTools
 
-import Control.Exception
-
 v :: (ABT Term abt) => abt '[] ('HMeasure 'HNat)
 v = var (Variable "x" 0 (SMeasure SNat))
 
