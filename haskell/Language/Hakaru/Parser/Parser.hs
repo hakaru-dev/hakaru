@@ -139,13 +139,14 @@ symbol = M.liftM Text.pack . Tok.symbol lexer . Text.unpack
 
 binop :: Text ->  AST' Text ->  AST' Text ->  AST' Text
 binop s x y
-    | s == "+"  = NaryOp Sum  [x, y]
-    | s == "-"  = NaryOp Sum  [x, Var "negate" `App` y]
-    | s == "*"  = NaryOp Prod [x, y]
-    | s == "/"  = NaryOp Prod [x, Var "recip" `App` y]
-    | s == "<"  = Var "less" `App` x `App` y
-    | s == ">"  = Var "less" `App` y `App` x
-    | s == "&&" = NaryOp And  [x, y]
+    | s == "+"   = NaryOp Sum  [x, y]
+    | s == "-"   = NaryOp Sum  [x, Var "negate" `App` y]
+    | s == "*"   = NaryOp Prod [x, y]
+    | s == "/"   = NaryOp Prod [x, Var "recip" `App` y]
+    | s == "<"   = Var "less" `App` x `App` y
+    | s == ">"   = Var "less" `App` y `App` x
+    | s == "&&"  = NaryOp And  [x, y]
+    | s == "<|>" = Msum [x, y]
     | otherwise = Var s `App` x `App` y
 
 binary :: String -> Ex.Assoc -> Operator (AST' Text)
@@ -168,10 +169,11 @@ table =
     -- TODO: add "<=", ">=", "/="
     -- TODO: do you *really* mean AssocLeft? Shouldn't they be non-assoc?
     , [ Ex.Postfix ann_expr ]
-    , [ binary "<"  Ex.AssocLeft
-      , binary ">"  Ex.AssocLeft
-      , binary "==" Ex.AssocLeft]
-    , [ binary "&&" Ex.AssocLeft]]
+    , [ binary "<|>" Ex.AssocRight]
+    , [ binary "<"   Ex.AssocLeft
+      , binary ">"   Ex.AssocLeft
+      , binary "=="  Ex.AssocLeft]
+    , [ binary "&&"  Ex.AssocLeft]]
 
 unit_ :: Parser (AST' a)
 unit_ = Unit <$ symbol "()"
