@@ -26,7 +26,7 @@ import Language.Hakaru.Parser.AST
 
 
 ops, types, names :: [String]
-ops   = ["+","*","-","^", "**", ":",".", "<~","==", "=", "_"]
+ops   = ["+","*","-","^", "**", ":",".", "<~","==", "=", "_", "<|>"]
 types = ["->"]
 names = ["def","fn", "if","else","inf", "∞", "expect",
          "return", "match", "integrate", "data"]
