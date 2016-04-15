@@ -50,14 +50,22 @@ NewSLO := module ()
     lprint(eval(ToInert(Simplify(_passed)), _Inert_ATTRIBUTE=NULL))
   end proc;
 
-  Simplify := proc(e, t::t_type, {ctx :: list := []}, $)
-    SimplifyKB(e, t, foldr(assert, empty, op(ctx)))
+  Simplify := proc(e, t::t_type, {ctx :: list := [],
+                   normalize :: identical(true,false) := false}, $)
+    SimplifyKB(e, t, foldr(assert, empty, op(ctx)), normalize)
   end proc;
 
-  SimplifyKB := proc(e, t::t_type, kb::t_kb, $)
+  SimplifyKB := proc(e, t::t_type, kb::t_kb,
+                     normalize::identical(true,false), $)
     local patterns, x, kb1, ex;
     if t :: HMeasure(anything) then
-      fromLO(improve(toLO(e), _ctx=kb), _ctx=kb)
+      # TODO: remove normalize functionality from the Maple side
+      # once the hygiene bug with expectation is fixed on the Haskell side
+      fromLO(improve(toLO(`if`(normalize,
+                               Weight(1/value(integrate(e,1)), e),
+                               e)),
+                     _ctx=kb),
+             _ctx=kb)
     elif t :: HFunction(anything, anything) then
       patterns := htype_patterns(op(1,t));
       if patterns :: Branches(Branch(PVar(name),anything)) then
@@ -66,7 +74,7 @@ NewSLO := module ()
                   op([1,1,1],patterns));
         x, kb1 := genType(x, op(1,t), kb, e);
         ex := app(e,x);
-        lam(x, op(1,t), SimplifyKB(ex, op(2,t), kb1))
+        lam(x, op(1,t), SimplifyKB(ex, op(2,t), kb1, normalize))
       else
         # Eta-expand the function type and the sum-of-product argument-type
         x := `if`(e::lam(name,anything,anything), op(1,e), d);
@@ -86,7 +94,7 @@ NewSLO := module ()
                 end do;
                 pSubst1 := op(op(pSubst1));
                 Branch(subs(pSubst1, p1),
-                       SimplifyKB(eval(eval(ex,eSubst),pSubst1), op(2,t), kb1))
+                       SimplifyKB(eval(eval(ex,eSubst),pSubst1), op(2,t), kb1, normalize))
               end proc,
               patterns)))
       end if
