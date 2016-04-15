@@ -62,6 +62,9 @@ emptyLine = newline *> return ()
 lexer :: Tok.GenTokenParser ParserStream () Identity
 lexer = ITok.makeTokenParser style
 
+whiteSpace :: Parser ()
+whiteSpace = Tok.whiteSpace lexer
+
 decimal :: Parser Integer
 decimal = Tok.decimal lexer
 
@@ -69,7 +72,7 @@ integer :: Parser Integer
 integer = Tok.integer lexer
 
 float :: Parser (Ratio Integer)
-float =  decimal >>= fractExponent
+float =  (decimal >>= fractExponent) <* whiteSpace
                   
 fractFloat :: Integer -> Parser (Either Integer (Ratio Integer))
 fractFloat n  =  fractExponent n >>= return . Right
