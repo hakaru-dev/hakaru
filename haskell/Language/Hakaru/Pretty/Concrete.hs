@@ -185,10 +185,9 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
               <> PP.colon <> PP.space
             , PP.nest 1 (PP.vcat (map (toDoc . prettyPrec_ 0) bs))
             ]
-        Superpose_ pes ->
-            [toDoc . L.toList $ L.intersperse (PP.text "<|>") $
-               fmap (\(w,m) ->
-                     toDoc $ ppFun p "weight" [pretty w, pretty m]) pes]
+        Superpose_ pes -> 
+            PP.punctuate (PP.text " <|>") $ L.toList $ fmap ppWeight pes
+          where ppWeight (w,m) = toDoc $ ppFun p "weight" [pretty w, pretty m]
 
         Reject_ typ -> [PP.text "reject." <+> prettyType 0 typ]
 

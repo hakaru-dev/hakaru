@@ -71,13 +71,13 @@ decimal = Tok.decimal lexer
 integer :: Parser Integer
 integer = Tok.integer lexer
 
-float :: Parser (Ratio Integer)
+float :: Parser Rational
 float =  (decimal >>= fractExponent) <* whiteSpace
                   
-fractFloat :: Integer -> Parser (Either Integer (Ratio Integer))
+fractFloat :: Integer -> Parser (Either Integer Rational)
 fractFloat n  =  fractExponent n >>= return . Right
 
-fractExponent   :: Integer -> Parser (Ratio Integer)
+fractExponent   :: Integer -> Parser Rational
 fractExponent n =  do{ fract <- fraction
                      ; expo  <- option 1 exponent'
                      ; return ((fromInteger n + fract)*expo)
@@ -87,7 +87,7 @@ fractExponent n =  do{ fract <- fraction
                     ; return ((fromInteger n)*expo)
                     }
 
-fraction        :: Parser (Ratio Integer)    
+fraction        :: Parser Rational
 fraction        =  do{ _ <- char '.'
                      ; digits <- many1 digit <?> "fraction"
                      ; return (foldr op 0 digits)
@@ -96,7 +96,7 @@ fraction        =  do{ _ <- char '.'
                     where
                       op d f    = (f + fromIntegral (digitToInt d))/10
 
-exponent'       :: Parser (Ratio Integer)
+exponent'       :: Parser Rational
 exponent'       =  do{ _ <- oneOf "eE"
                      ; f <- sign
                      ; e <- decimal <?> "exponent"
