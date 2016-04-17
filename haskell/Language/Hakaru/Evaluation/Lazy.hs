@@ -66,7 +66,7 @@ import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
-import Language.Hakaru.Syntax.DatumCase
+import Language.Hakaru.Syntax.DatumCase (DatumEvaluator, MatchResult(..), matchBranches, matchTopPattern)
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Evaluation.Types
 import qualified Language.Hakaru.Syntax.Prelude as P
