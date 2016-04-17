@@ -188,7 +188,7 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
         Superpose_ pes -> 
             PP.punctuate (PP.text " <|> ") $ L.toList $ fmap ppWeight pes
           where ppWeight (w,m)
-                    | pretty w == PP.text "1.0" =
+                    | (PP.render $ pretty w) == "1.0" =
                         pretty m
                     | otherwise                 =
                         toDoc $ ppFun p "weight" [pretty w, pretty m]

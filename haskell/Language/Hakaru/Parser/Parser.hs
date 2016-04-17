@@ -12,7 +12,7 @@ import qualified Control.Monad                 as M
 import           Data.Functor.Identity
 import           Data.Text                     (Text)
 import qualified Data.Text                     as Text
-import           Data.Ratio
+import           Data.Ratio                    ()
 import           Data.Char                     (digitToInt)
 import           Text.Parsec                   hiding (Empty)
 import           Text.Parsec.Text              () -- instances only
