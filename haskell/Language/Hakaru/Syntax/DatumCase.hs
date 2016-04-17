@@ -154,6 +154,8 @@ type DatumEvaluator ast m =
     -> m (Maybe (Datum ast (HData' t)))
 
 
+-- TODO: see the todo for 'matchBranch' about changing the return type. For this function we'd want to return the list of branches including not just the stuck one but all the ones after it too. (Though there's no need to return earlier branches, since we already know they won't match.)
+--
 -- | Walk through a list of branches and try matching against them
 -- in order. We just call 'matchBranches' repeatedly, and return
 -- the first non-failure.
@@ -179,6 +181,8 @@ matchBranches getDatum e = go
             Just _  -> return match
 
 
+-- TODO: change the result type to have values @Nothing@, @Just (GotStuck modifiedScrutinee theStuckBranch)@ and @Just (Matched assocs vars body)@. That is, give more information about getting stuck, and avoid returning stupid stuff when we get stuck. For cleanliness, this'll probably mean distinguishing between the notion of @MatchResult@ used internally in the recursion, vs the notion exposed to clients via the API.
+--
 -- | Try matching against a single branch. This function is a thin
 -- wrapper around 'matchTopPattern'; we just take apart the 'Branch'
 -- to extract the pattern, list of variables to bind, and the body
