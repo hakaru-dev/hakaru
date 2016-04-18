@@ -272,6 +272,10 @@ evaluatePrimOp Cos (e1 :* End) env =
     case evaluate e1 env of
       VReal v1 -> VReal . cos $ v1
       v        -> case v of {}
+evaluatePrimOp RealPow (e1 :* e2 :* End) env =
+    case (evaluate e1 env, evaluate e2 env) of
+      (VProb v1, VReal v2) -> VProb $ LF.pow v1 v2
+      v                    -> case v of {}
 evaluatePrimOp Exp (e1 :* End) env =
     case evaluate e1 env of
       VReal v1 -> VProb . LF.logToLogFloat $ v1
