@@ -24,23 +24,19 @@ import           Text.PrettyPrint
 
 import qualified System.Random.MWC as MWC
 import           System.Environment
-import           System.Posix.Terminal
 
 main :: IO ()
 main = do
   args   <- getArgs
   g      <- MWC.createSystemRandom
-  b      <- queryTerminal 0
-  progs  <- mapM IO.readFile args
-  progs' <- addStdin b progs
-  case progs' of
+  progs  <- mapM readFromFile args
+  case progs of
       [prog] -> runHakaru g prog
       _      -> IO.putStrLn "Usage: hakaru <file>"
 
-addStdin :: Bool -> [Text] -> IO [Text]
-addStdin True  xs = return xs
-addStdin False xs = do x <- IO.getContents
-                       return (x:xs)
+readFromFile :: String -> IO Text
+readFromFile "-" = IO.getContents
+readFromFile x   = IO.readFile x
 
 inferType' :: U.AST -> TypeCheckMonad (TypedAST (TrivialABT T.Term))
 inferType' = inferType
