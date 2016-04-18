@@ -145,6 +145,7 @@ evaluate perform evaluateCase = evaluate_
         Lam_  :$ e1 :* End       -> return . Head_ $ WLam   e1
         Dirac :$ e1 :* End       -> return . Head_ $ WDirac e1
         MBind :$ e1 :* e2 :* End -> return . Head_ $ WMBind e1 e2
+        Plate :$ e1 :* e2 :* End -> return . Head_ $ WPlate e1 e2
         MeasureOp_ o :$ es       -> return . Head_ $ WMeasureOp o es
         Superpose_ pes           -> return . Head_ $ WSuperpose pes
         Reject_ typ              -> return . Head_ $ WReject typ

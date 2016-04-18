@@ -1081,8 +1081,8 @@ constrainOutcome v0 e0 =
     go (WMBind e1 e2)        =
         caseBind e2 $ \x e2' ->
             push (SBind x $ Thunk e1) e2' (constrainOutcome v0)
-    go (WPlate e1 e2)        = impossible -- TODO: handle this case
-    go (WChain e1 e2 e3)     = impossible -- TODO: handle this case
+    go (WPlate e1 e2)        = error "TODO: constrainOutcome{Plate}"
+    go (WChain e1 e2 e3)     = error "TODO: constrainOutcome{Chain}"
     go (WSuperpose pes) =
         case pes of
         (p,e) :| [] -> do
