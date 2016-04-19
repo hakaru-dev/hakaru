@@ -46,8 +46,15 @@ test1b = syn (Lam_ :$ bind x (total (weight (var x))) :* End)
 --
 -- Should do nothing, since there's nothing we can do to a free
 -- variable. Notably, should resizualise the call to 'expect'.
+--
+-- BUG: this version loops, but at least it throws a @<<loop>>@ error immediately.
 test2 :: TrivialABT Term '[] ('HMeasure 'HProb ':-> 'HProb)
-test2 = syn (Lam_ :$ bind x (total (var x)) :* End)
+test2 = lam $ \x -> total x
+
+-- | A variant of 'test2' which doesn't use 'binder' but rather
+-- builds the binding structure directly.
+test2b :: TrivialABT Term '[] ('HMeasure 'HProb ':-> 'HProb)
+test2b = syn (Lam_ :$ bind x (total (var x)) :* End)
     where
     x = Variable (Text.pack "eks") 2 (SMeasure SProb)
 -- TODO: Is there any way to work around the problem so we don't
@@ -91,6 +98,18 @@ test5 =
             uneither x
             (\_ -> dirac unit)
             (\_ -> weight (prob_ 5) >> dirac unit)
+
+-- | A variant of 'test5' which doesn't use 'binder' but rather
+-- builds the binding structure directly.
+test5b :: TrivialABT Term '[] (HEither HUnit HUnit ':-> 'HProb)
+test5b =
+    syn (Lam_ :$ bind x m :* End)
+    where
+    x = Variable (Text.pack "eks") 2 (sEither sUnit sUnit)
+    m = total $
+            uneither (var x)
+                (\_ -> dirac unit)
+                (\_ -> weight (prob_ 5) >> dirac unit)
 
 {-
 total (array (nat_ 1) (\x -> dirac x) ! nat_ 0) :: TrivialABT Term '[] 'HProb

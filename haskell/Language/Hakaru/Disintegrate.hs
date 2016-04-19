@@ -464,13 +464,15 @@ atomizeCore e = do
     disjointVarSet xs ys =
         IM.null (IM.intersection (unVarSet xs) (unVarSet ys))
 
-
+-- TODO: move this to Types.hs
 statementVars :: Statement abt p -> VarSet ('KProxy :: KProxy Hakaru)
 statementVars (SBind x _)     = singletonVarSet x
 statementVars (SLet  x _)     = singletonVarSet x
 statementVars (SIndex x _ _)  = singletonVarSet x
 statementVars (SWeight _)     = emptyVarSet
 statementVars (SGuard xs _ _) = toVarSet1 xs
+statementVars (SStuff0   _)   = emptyVarSet
+statementVars (SStuff1 x _)   = singletonVarSet x
 
 -- HACK: if we really want to go through with this approach, then
 -- we should memoize the set of heap-bound variables in the

@@ -465,7 +465,7 @@ isLazyLiteral = maybe False (const True) . getLazyLiteral
 -- | A kind for indexing 'Statement' to know whether the statement
 -- is pure (and thus can be evaluated in any ambient monad) vs
 -- impure (i.e., must be evaluated in the 'HMeasure' monad).
-data Purity = Pure | Impure
+data Purity = Pure | Impure | ExpectP
     deriving (Eq, Read, Show)
 
 
@@ -493,14 +493,14 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
     -- A variable bound by 'MBind' to a measure expression.
     SBind
         :: forall abt (a :: Hakaru)
-        . {-# UNPACK #-} !(Variable a)
+        .  {-# UNPACK #-} !(Variable a)
         -> !(Lazy abt ('HMeasure a))
         -> Statement abt 'Impure
 
     -- A variable bound by 'Let_' to an expression.
     SLet
         :: forall abt p (a :: Hakaru)
-        . {-# UNPACK #-} !(Variable a)
+        .  {-# UNPACK #-} !(Variable a)
         -> !(Lazy abt a)
         -> Statement abt p
 
@@ -545,6 +545,18 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
         -> !(Lazy abt a)
         -> Statement abt 'Impure
 
+    -- TODO: a real name for this. Also, generalize for all multibinders
+    -- Some arbitrary pure code. This is a statement just so that we can avoid needing to atomize the stuff in the pure code.
+    SStuff0
+        :: forall abt
+        .  (abt '[] 'HProb -> abt '[] 'HProb)
+        -> Statement abt 'ExpectP
+    SStuff1
+        :: forall abt (a :: Hakaru)
+        . {-# UNPACK #-} !(Variable a)
+        -> (abt '[] 'HProb -> abt '[] 'HProb)
+        -> Statement abt 'ExpectP
+
 
 -- | Is the variable bound by the statement?
 --
@@ -563,6 +575,8 @@ x `isBoundBy` SGuard ys _ _ =
     if memberVarSet x (toVarSet1 ys) -- TODO: just check membership directly, rather than going through VarSet
     then Just ()
     else Nothing
+_ `isBoundBy` SStuff0   _   = Nothing
+x `isBoundBy` SStuff1 y _   = const () <$> varEq x y
 
 
 -- TODO: remove this CPP guard, provided we don't end up with a cyclic dependency...
@@ -617,6 +631,14 @@ ppStatement p s =
             [ PP.sep $ ppVariables xs
             , PP.sep $ prettyPrec_ 11 pat
             , PP.sep $ prettyPrec_ 11 e
+            ]
+    SStuff0   _ ->
+        PP.sep $ ppFun p "SStuff0"
+            [ PP.text "TODO: ppStatement{SStuff0}"
+            ]
+    SStuff1 _ _ ->
+        PP.sep $ ppFun p "SStuff1"
+            [ PP.text "TODO: ppStatement{SStuff1}"
             ]
 
 pretty_Statements :: (ABT Term abt) => [Statement abt p] -> PP.Doc
@@ -681,6 +703,8 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
         -> m (Maybe r)
 
 
+-- TODO: for type precision, return @Assocs Variable@ instead of @Assocs (abt '[])@
+--
 -- | Internal function for renaming the variables bound by a
 -- statement. We return the renamed statement along with a substitution
 -- for mapping the old variable names to their new variable names.
@@ -703,6 +727,10 @@ freshenStatement s =
     SIndex x index size -> do
         x' <- freshenVar x
         return (SIndex x' index size, singletonAssocs x (var x'))
+    SStuff0   _ -> return (s, mempty)
+    SStuff1 x f -> do
+        x' <- freshenVar x
+        return (SStuff1 x' f, singletonAssocs x (var x'))
 
 
 -- TODO: define a new NameSupply monad in "Language.Hakaru.Syntax.Variable" for encapsulating these four fresh(en) functions?

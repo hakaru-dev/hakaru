@@ -95,23 +95,26 @@ instance Show1 ast => Show (MatchResult ast vars) where
 ppMatchResult :: Show1 ast => Int -> MatchResult ast vars -> Doc
 ppMatchResult _ GotStuck = PP.text "GotStuck"
 ppMatchResult p (Matched boundVars unboundVars) =
+    let f = "Matched" in
     parens (p > 9)
         (PP.text f <+> PP.nest (1 + length f) (PP.sep
             [ ppList . map prettyPrecAssoc $ boundVars []
             , ppList $ ppVariables unboundVars
             ]))
     where
-    f            = "Matched"
     ppList       = PP.brackets . PP.nest 1 . PP.fsep . PP.punctuate PP.comma
     parens True  = PP.parens   . PP.nest 1
     parens False = id
 
     prettyPrecAssoc :: Show1 ast => Assoc ast -> Doc
     prettyPrecAssoc (Assoc x e) =
-        PP.cat $ ppFun 11 "Assoc"
+        -- PP.cat $ ppFun 11 "Assoc" [ppVariable x, ...]
+        let f = "Assoc" in
+        PP.cat [PP.text f <+> PP.nest (1 + length f) (PP.sep
             [ ppVariable x
             , PP.text $ showsPrec1 11 e ""
-            ]
+            ])]
+            
 
     ppVariables :: List1 Variable xs -> [Doc]
     ppVariables Nil1         = []
@@ -123,10 +126,6 @@ ppMatchResult p (Matched boundVars unboundVars) =
         hint
             | Text.null (varHint x) = PP.char 'x' -- We used to use '_' but...
             | otherwise             = (PP.text . Text.unpack . varHint) x
-
-    ppFun :: Int -> String -> [Doc] -> [Doc]
-    ppFun _ f [] = [PP.text f]
-    ppFun p f ds = [PP.text f <+> PP.nest (1 + length f) (PP.sep ds)]
 
 
 

@@ -27,7 +27,7 @@ module Language.Hakaru.Evaluation.ExpectMonad
     
     -- * The expectation-evaluation monad
     -- ** List-based version
-    , ListContext(..), PureAns, Expect(..), runExpect
+    , ListContext(..), ExpectAns, Expect(..), runExpect
     -- ** TODO: IntMap-based version
     
     -- * ...
@@ -45,14 +45,15 @@ import qualified Data.Foldable        as F
 
 import Language.Hakaru.Syntax.IClasses (Some2(..))
 import Language.Hakaru.Syntax.ABT      (ABT(..), caseVarSyn, subst, maxNextFree)
+import Language.Hakaru.Syntax.Variable (memberVarSet)
 import Language.Hakaru.Syntax.AST      hiding (Expect)
 import Language.Hakaru.Evaluation.Types
 import Language.Hakaru.Evaluation.Lazy (TermEvaluator, evaluate, defaultCaseEvaluator)
-import Language.Hakaru.Evaluation.EvalMonad (ListContext(..), PureAns, residualizePureListContext)
+import Language.Hakaru.Evaluation.EvalMonad (ListContext(..))
 
 
 -- The rest of these are just for the emit code, which isn't currently exported.
-import           Data.Text             (Text)
+import Data.Text                       (Text)
 import Language.Hakaru.Syntax.Variable (Variable())
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing      (Sing)
@@ -62,9 +63,39 @@ import Debug.Trace                     (trace)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
+type ExpectAns abt = ListContext abt 'ExpectP -> abt '[] 'HProb
 
 newtype Expect abt x =
-    Expect { unExpect :: (x -> PureAns abt 'HProb) -> PureAns abt 'HProb }
+    Expect { unExpect :: (x -> ExpectAns abt) -> ExpectAns abt }
+
+residualizeExpectListContext
+    :: forall abt
+    .  (ABT Term abt)
+    => abt '[] 'HProb
+    -> ListContext abt 'ExpectP
+    -> abt '[] 'HProb
+residualizeExpectListContext e0 =
+    foldl step e0 . statements
+    where
+    -- TODO: make paremetric in the purity, so we can combine 'residualizeListContext' with this function.
+    step :: abt '[] 'HProb -> Statement abt 'ExpectP -> abt '[] 'HProb
+    step e s =
+        case s of
+        SIndex  _ _ _ -> error "TODO: residualizeExpectListContext{SIndex}"
+        SLet x body
+            -- BUG: this trick for dropping unused let-bindings doesn't seem to work anymore... (cf., 'Tests.Expect.test4')
+            | not (x `memberVarSet` freeVars e) -> e
+            -- TODO: if used exactly once in @e@, then inline.
+            | otherwise ->
+                case getLazyVariable body of
+                Just y  -> subst x (var y) e
+                Nothing ->
+                    case getLazyLiteral body of
+                    Just v  -> subst x (syn $ Literal_ v) e
+                    Nothing ->
+                        syn (Let_ :$ fromLazy body :* bind x e :* End)
+        SStuff0    f -> f e
+        SStuff1 _x f -> f e
 
 
 pureEvaluate :: (ABT Term abt) => TermEvaluator abt (Expect abt)
@@ -94,7 +125,7 @@ runExpect (Expect m) f es =
     i0   = nextFree f `max` maxNextFree es
     h0   = ListContext i0 []
     c0 e =
-        residualizePureListContext $
+        residualizeExpectListContext $
         caseVarSyn e
             (\x -> caseBind f $ \y f' -> subst y (var x) f')
             (\_ -> syn (Let_ :$ e :* f :* End))
@@ -113,7 +144,7 @@ instance Monad (Expect abt) where
     return         = pure
     Expect m >>= k = Expect $ \c -> m $ \x -> unExpect (k x) c
 
-instance (ABT Term abt) => EvaluationMonad abt (Expect abt) 'Pure where
+instance (ABT Term abt) => EvaluationMonad abt (Expect abt) 'ExpectP where
     freshNat =
         Expect $ \c (ListContext i ss) ->
             c i (ListContext (i+1) ss)
@@ -150,7 +181,7 @@ instance (ABT Term abt) => EvaluationMonad abt (Expect abt) 'Pure where
 
 -- TODO: make paremetric in the purity
 -- | Not exported because we only need it for defining 'select' on 'Expect'.
-unsafePop :: Expect abt (Maybe (Statement abt 'Pure))
+unsafePop :: Expect abt (Maybe (Statement abt 'ExpectP))
 unsafePop =
     Expect $ \c h@(ListContext i ss) ->
         case ss of

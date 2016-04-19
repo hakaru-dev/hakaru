@@ -284,8 +284,9 @@ update perform evaluate_ = \x ->
                 w <- caseLazy e return evaluate_
                 unsafePush (SLet x $ Whnf_ w)
                 return w
-        SWeight _ ->
-            Nothing
+        SWeight   _ -> Nothing
+        SStuff0   _ -> Nothing
+        SStuff1 _ _ -> Nothing
         SGuard ys pat scrutinee ->
             error "TODO: update{SGuard}"
         SIndex y e1 e2 -> do

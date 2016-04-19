@@ -1,4 +1,5 @@
-{-# LANGUAGE GADTs
+{-# LANGUAGE CPP
+           , GADTs
            , EmptyCase
            , KindSignatures
            , DataKinds
@@ -27,9 +28,10 @@ module Language.Hakaru.Expect2
     , expect
     ) where
 
-import           Prelude   (($), (.), error, return)
-import qualified Data.Text as Text
-import Data.Functor ((<$>))
+import           Prelude       (($), (.), error, return, reverse)
+import qualified Data.Text     as Text
+import           Data.Functor  ((<$>))
+import qualified Data.Foldable as F
 
 import Language.Hakaru.Syntax.IClasses (Some2(..))
 import Language.Hakaru.Types.DataKind
@@ -41,7 +43,15 @@ import qualified Language.Hakaru.Syntax.AST as AST
 import Language.Hakaru.Syntax.TypeOf (typeOf)
 import qualified Language.Hakaru.Syntax.Prelude as P
 import Language.Hakaru.Evaluation.Types
-import Language.Hakaru.Evaluation.ExpectMonad (Expect(..), runExpect, pureEvaluate, emit, emit_)
+import Language.Hakaru.Evaluation.ExpectMonad (ListContext(..), Expect(..), runExpect, pureEvaluate)
+
+#ifdef __TRACE_DISINTEGRATE__
+import Prelude                          (show, (++))
+import qualified Text.PrettyPrint       as PP
+import Language.Hakaru.Pretty.Haskell   (pretty)
+import Language.Hakaru.Evaluation.Types (ppStatement)
+import Debug.Trace                      (trace)
+#endif
 
 ----------------------------------------------------------------
 
@@ -80,9 +90,17 @@ residualizeExpect
     :: (ABT Term abt)
     => abt '[] ('HMeasure a)
     -> Expect abt (abt '[] a)
-residualizeExpect e =
+residualizeExpect e = do
+    -- BUG: is this what we really mean? or do we actually mean the old 'emit' version?
+    x <- freshVar Text.empty (sUnMeasure $ typeOf e)
+    unsafePush (SStuff1 x $ \c ->
+        syn (AST.Expect :$ e :* bind x c :* End))
+    return $ var x
+{-
+residualizeExpect e = do
     var <$> emit Text.empty (sUnMeasure $ typeOf e)
         (\c -> syn (AST.Expect :$ e :* c :* End))
+-}
 
 -- This version checks whether the first argument is a variable or not, avoiding the extraneous let binding as appropriate. We also avoid using 'binder', which is good because it constructs the term more directly, but is bad because we make no guarantees about hygiene! We expect callers to handle that.
 -- TODO: move this elsewhere, so that 'runExpect' can use it.
@@ -116,14 +134,28 @@ let_ e f =
 -- commute/exchange with one another. More generally, cf. Bhat et
 -- al.'s \"active variables\"
 
+-- TODO: do we want to move this to the public API of
+-- "Language.Hakaru.Evaluation.DisintegrationMonad"?
+#ifdef __TRACE_DISINTEGRATE__
+getStatements :: Expect abt [Statement abt 'ExpectP]
+getStatements = Expect $ \c h -> c (statements h) h
+#endif
+
 
 expectTerm
     :: (ABT Term abt)
     => abt '[] ('HMeasure a)
     -> Expect abt (abt '[] a)
 expectTerm e = do
+#ifdef __TRACE_DISINTEGRATE__
+    ss <- getStatements
+    trace ("\n-- expectTerm --\n"
+        ++ show (pretty_Statements_withTerm ss e)
+        ++ "\n") $ return ()
+#endif
     w <- pureEvaluate e
     case w of
+        -- TODO: if the neutral term is a 'Case_' then we want to go under it
         Neutral e'              -> residualizeExpect e'
         Head_ (WLiteral    _)   -> error "expect: the impossible happened"
         Head_ (WCoerceTo   _ _) -> error "expect: the impossible happened"
@@ -144,43 +176,90 @@ expectSuperpose
     :: (ABT Term abt)
     => [(abt '[] 'HProb, abt '[] ('HMeasure a))]
     -> Expect abt (abt '[] a)
-expectSuperpose pes =
-    -- BUG: we can't really merge the heaps afterwards...
-    -- BUG: we assume each @p@ is emissible!
+expectSuperpose pes = do
+#ifdef __TRACE_DISINTEGRATE__
+    ss <- getStatements
+    trace ("\n-- expectSuperpose --\n"
+        ++ show (pretty_Statements_withTerm ss (syn $ Superpose_ pes))
+        ++ "\n") $ return ()
+#endif
+    -- First, emit the current heap (so that each @p@ is emissible)
+    emitExpectListContext
+    -- Then emit the 'sum', and call the same continuation on each @e@
     Expect $ \c h ->
         P.sum [ p P.* unExpect (expectTerm e) c h | (p,e) <- pes]
-    -- BUG: in the Lazy.tex paper, we use @denotation p h@. We need that here too since @p@ may use variables bound in @h@!!
+    -- TODO: if @pes@ is null, then automatically simplify to just 0
     -- TODO: in the Lazy.tex paper, we guard against that interpretation being negative...
-    -- TODO: if @es@ is null, then automatically simplify to just 0
+
+emitExpectListContext :: forall abt. (ABT Term abt) => Expect abt ()
+emitExpectListContext = do
+    ss <- Expect $ \c h -> c (statements h) (h {statements = []})
+    F.traverse_ step (reverse ss) -- TODO: use composition tricks to avoid reversing @ss@
+    where
+    step :: Statement abt 'ExpectP -> Expect abt ()
+    step s =
+#ifdef __TRACE_DISINTEGRATE__
+        trace ("\n-- emitExpectListContext: " ++ show (ppStatement 0 s)) $
+#endif
+        case s of
+        SIndex  _ _ _ -> error "TODO: emitExpectListContext{SIndex}"
+        SLet x body ->
+            -- TODO: be smart about dropping unused let-bindings and inlining trivial let-bindings
+            Expect $ \c h ->
+                syn (Let_ :$ fromLazy body :* bind x (c () h) :* End)
+        SStuff0   f -> Expect $ \c h -> f (c () h)
+        SStuff1 _ f -> Expect $ \c h -> f (c () h)
 
 
--- BUG: we assume the arguments are emissible!
-emitIntegrate
+pushIntegrate
     :: (ABT Term abt)
     => abt '[] 'HReal
     -> abt '[] 'HReal
     -> Expect abt (Variable 'HReal)
+pushIntegrate lo hi = do
+    x <- freshVar Text.empty SReal
+    unsafePush (SStuff1 x $ \c ->
+        syn (Integrate :$ lo :* hi :* bind x c :* End))
+    return x
+{-
+-- BUG: we assume the arguments are emissible!
 emitIntegrate lo hi =
     emit Text.empty SReal (\c ->
         syn (Integrate :$ lo :* hi :* c :* End))
+-}
 
--- BUG: we assume the arguments are emissible!
-emitSummate
+pushSummate
     :: (ABT Term abt)
     => abt '[] 'HReal
     -> abt '[] 'HReal
     -> Expect abt (Variable 'HInt)
+pushSummate lo hi = do
+    x <- freshVar Text.empty SInt
+    unsafePush (SStuff1 x $ \c ->
+        syn (Summate :$ lo :* hi :* bind x c :* End))
+    return x
+{-
+-- BUG: we assume the arguments are emissible!
 emitSummate lo hi =
     emit Text.empty SInt (\c ->
         syn (Summate :$ lo :* hi :* c :* End))
+-}
 
 -- TODO: can we / would it help to, reuse 'let_'?
 -- BUG: we assume the argument is emissible!
-emitLet :: (ABT Term abt) => abt '[] a -> Expect abt (Variable a)
+pushLet :: (ABT Term abt) => abt '[] a -> Expect abt (Variable a)
+pushLet e =
+    caseVarSyn e return $ \_ -> do
+        x <- freshVar Text.empty (typeOf e)
+        unsafePush (SStuff1 x $ \c ->
+            syn (Let_ :$ e :* bind x c :* End))
+        return x
+{-
 emitLet e =
     caseVarSyn e return $ \_ ->
         emit Text.empty (typeOf e) $ \f ->
             syn (Let_ :$ e :* f :* End)
+-}
 
 
 -- TODO: introduce HProb variants of integrate\/summate so we can avoid the need for 'unsafeProb' here
@@ -191,13 +270,13 @@ expectMeasureOp
     -> SArgs abt args
     -> Expect abt (abt '[] a)
 expectMeasureOp Lebesgue = \End ->
-    var <$> emitIntegrate P.negativeInfinity P.infinity
+    var <$> pushIntegrate P.negativeInfinity P.infinity
 expectMeasureOp Counting = \End ->
-    var <$> emitSummate P.negativeInfinity P.infinity
+    var <$> pushSummate P.negativeInfinity P.infinity
 expectMeasureOp Categorical = \(ps :* End) -> do
-    ps' <- var <$> emitLet ps
-    tot <- var <$> emitLet (P.summateV ps')
-    emit_ (\c -> P.if_ (P.zero P.< tot) c P.zero)
+    ps' <- var <$> pushLet ps
+    tot <- var <$> pushLet (P.summateV ps')
+    unsafePush (SStuff0 $ \c -> P.if_ (P.zero P.< tot) c P.zero)
     i <- freshVar Text.empty SNat
     Expect $ \c h ->
         P.summateV
@@ -212,10 +291,10 @@ expectMeasureOp Categorical = \(ps :* End) -> do
     -}
 expectMeasureOp Uniform = \(lo :* hi :* End) -> do
     -- BUG: @(let_ zero $ \y -> uniform y one)@ doesn't work as desired; *drops* the @SLet y zero@ binding entirely!!
-    lo' <- var <$> emitLet lo
-    hi' <- var <$> emitLet hi
-    x   <- var <$> emitIntegrate lo' hi'
-    emit_ (P.densityUniform lo' hi' x P.*)
+    lo' <- var <$> pushLet lo
+    hi' <- var <$> pushLet hi
+    x   <- var <$> pushIntegrate lo' hi'
+    unsafePush (SStuff0 $ \c -> P.densityUniform lo' hi' x P.* c)
     return x
     {-
     let_ lo $ \lo' ->
@@ -225,8 +304,8 @@ expectMeasureOp Uniform = \(lo :* hi :* End) -> do
     -}
 expectMeasureOp Normal = \(mu :* sd :* End) -> do
     -- HACK: for some reason w need to break apart the 'emit' and the 'emit_' or else we get a "<<loop>>" exception. Not entirely sure why, but it prolly indicates a bug somewhere.
-    x <- var <$> emitIntegrate P.negativeInfinity P.infinity
-    emit_ (P.densityNormal mu sd x P.*)
+    x <- var <$> pushIntegrate P.negativeInfinity P.infinity
+    unsafePush (SStuff0 $ \c -> P.densityNormal mu sd x P.* c)
     return x
     {-
     \c ->
@@ -234,11 +313,11 @@ expectMeasureOp Normal = \(mu :* sd :* End) -> do
             P.densityNormal mu sd x P.* let_ x c)
     -}
 expectMeasureOp Poisson = \(l :* End) -> do
-    l' <- var <$> emitLet l
-    emit_ (\c -> P.if_ (P.zero P.< l') c P.zero)
-    x  <- var <$> emitSummate P.zero P.infinity
-    x_ <- var <$> emitLet (P.unsafeFrom_ signed x) -- TODO: Or is this small enough that we'd be fine using Haskell's "let" and so duplicating the coercion of a variable however often?
-    emit_ (P.densityPoisson l' x_ P.*)
+    l' <- var <$> pushLet l
+    unsafePush (SStuff0 $ \c -> P.if_ (P.zero P.< l') c P.zero)
+    x  <- var <$> pushSummate P.zero P.infinity
+    x_ <- var <$> pushLet (P.unsafeFrom_ signed x) -- TODO: Or is this small enough that we'd be fine using Haskell's "let" and so duplicating the coercion of a variable however often?
+    unsafePush (SStuff0 $ \c -> P.densityPoisson l' x_ P.* c)
     return x_
     {-
     let_ l $ \l' ->
@@ -249,9 +328,9 @@ expectMeasureOp Poisson = \(l :* End) -> do
         zero
     -}
 expectMeasureOp Gamma = \(shape :* scale :* End) -> do
-    x  <- var <$> emitIntegrate P.zero P.infinity
-    x_ <- var <$> emitLet (P.unsafeProb x) -- TODO: Or is this small enough that we'd be fine using Haskell's "let" and so duplicating the coercion of a variable however often?
-    emit_ (P.densityGamma shape scale x_ P.*)
+    x  <- var <$> pushIntegrate P.zero P.infinity
+    x_ <- var <$> pushLet (P.unsafeProb x) -- TODO: Or is this small enough that we'd be fine using Haskell's "let" and so duplicating the coercion of a variable however often?
+    unsafePush (SStuff0 $ \c -> P.densityGamma shape scale x_ P.* c)
     return x_
     {-
     integrate zero infinity $ \x ->
@@ -259,9 +338,9 @@ expectMeasureOp Gamma = \(shape :* scale :* End) -> do
         densityGamma shape scale x_ * inst c x_
     -}
 expectMeasureOp Beta = \(a :* b :* End) -> do
-    x  <- var <$> emitIntegrate P.zero P.one
-    x_ <- var <$> emitLet (P.unsafeProb x) -- TODO: Or is this small enough that we'd be fine using Haskell's "let" and so duplicating the coercion of a variable however often?
-    emit_ (P.densityBeta a b x_ P.*)
+    x  <- var <$> pushIntegrate P.zero P.one
+    x_ <- var <$> pushLet (P.unsafeProb x) -- TODO: Or is this small enough that we'd be fine using Haskell's "let" and so duplicating the coercion of a variable however often?
+    unsafePush (SStuff0 $ \c -> P.densityBeta a b x_ P.* c)
     return x_
     {-
     integrate zero one $ \x ->

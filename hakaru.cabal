@@ -70,6 +70,8 @@ Library
                        Language.Hakaru.Evaluation.ConstantPropagation,
                        Language.Hakaru.Evaluation.DisintegrationMonad,
                        Language.Hakaru.Disintegrate,
+                       Language.Hakaru.Evaluation.ExpectMonad,
+                       Language.Hakaru.Expect2,
                        Language.Hakaru.Inference,
                        Data.Number.Nat,
                        Data.Number.Natural
