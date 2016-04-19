@@ -151,3 +151,21 @@ test7 =
         syn (MBind :$ normal (var a) (prob_ 2) :* bind b (
         dirac (pair (var b) (var a))
         ) :* End)) :* End)
+
+-- | A variant of 'test7' which doesn't use 'binder' but rather
+-- builds the binding structure directly.
+test7b :: [TrivialABT Term '[] ('HReal ':-> 'HMeasure 'HReal)]
+test7b =
+    [ constantPropagation $
+        syn (Lam_ :$ bind d (normalize (m' `app` var d)) :* End)
+    | m' <- disintegrateWithVar (Text.pack "c") SReal m
+    ]
+    where
+    a = Variable (Text.pack "a") 0 SReal
+    b = Variable (Text.pack "b") 1 SReal
+    d = Variable (Text.pack "d") 2 SReal
+
+    m = syn (MBind :$ normal zero one :* bind a (
+        syn (MBind :$ normal (var a) (prob_ 2) :* bind b (
+        dirac (pair (var b) (var a))
+        ) :* End)) :* End)
