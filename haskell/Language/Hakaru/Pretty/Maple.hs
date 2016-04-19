@@ -192,6 +192,7 @@ wmtom (w, m) = app2 "Weight" w m
 maplePrimOp
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => PrimOp typs a -> SArgs abt args -> String
+maplePrimOp Not              (e1 :* End)       = app1 "Not" e1
 maplePrimOp Pi               End               = "Pi"
 maplePrimOp Cos              (e1 :* End)       = app1 "cos" e1
 maplePrimOp RealPow          (e1 :* e2 :* End) =

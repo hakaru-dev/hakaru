@@ -111,6 +111,7 @@ primTable =
     ,("dirac",       TLam $ TNeu . U.Dirac_)
     ,("reject",      TNeu $ U.Reject_)    
     -- PrimOps
+    ,("not",         primPrimOp1 U.Not)
     ,("pi",          TNeu $ U.PrimOp_ U.Pi [])
     ,("**",          primPrimOp2 U.RealPow)
     ,("cos",         primPrimOp1 U.Cos)

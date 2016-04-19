@@ -57,8 +57,11 @@ parseAndInfer x =
 
 illustrate :: Sing a -> MWC.GenIO -> Value a -> IO ()
 illustrate (SMeasure s) g (VMeasure m) = do
-    Just (samp,_) <- m (VProb 1) g
-    illustrate s g samp
+    x <- m (VProb 1) g
+    case x of
+      Just (samp, _) -> illustrate s g samp
+      Nothing        -> illustrate (SMeasure s) g (VMeasure m)
+
 illustrate _ _ x =   putStrLn
                    . renderStyle style {mode = LeftMode}
                    . prettyValue $ x

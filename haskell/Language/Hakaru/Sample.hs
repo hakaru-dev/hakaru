@@ -267,6 +267,13 @@ evaluatePrimOp
     -> SArgs abt args
     -> Env
     -> Value a
+evaluatePrimOp Not (e1 :* End) env = 
+    case evaluate e1 env of        
+      VDatum a -> if a == dTrue
+                  then VDatum dFalse
+                  else VDatum dTrue
+      v        -> case v of {}
+
 evaluatePrimOp Pi  End         _   = VProb . LF.logFloat $ pi
 evaluatePrimOp Cos (e1 :* End) env =
     case evaluate e1 env of

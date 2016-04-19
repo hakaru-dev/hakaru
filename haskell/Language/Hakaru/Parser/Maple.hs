@@ -71,6 +71,7 @@ symTable =
     , ("Uniform",   "uniform")
     , ("Ret",       "dirac")
     , ("Geometric", "geometric")
+    , ("Not",       "not")
     , ("Pi",        "pi")
     , ("ln",        "log")
     , ("GAMMA",     "gammaFunc")
