@@ -33,6 +33,6 @@ runPretty prog =
     Right past ->
         let m = inferType' (resolveAST past) in
         case runTCM m LaxMode of
-        Left err                 -> putStrLn err
-        Right (TypedAST typ ast) -> print (pretty ast)
+        Left err               -> putStrLn err
+        Right (TypedAST _ ast) -> print (pretty ast)
 
