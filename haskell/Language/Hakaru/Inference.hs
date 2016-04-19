@@ -34,12 +34,15 @@ module Language.Hakaru.Inference
 
 import Prelude (($), (.), error, Maybe(..), return)
 import Language.Hakaru.Types.DataKind
-import Language.Hakaru.Types.Sing (SingI())
+import Language.Hakaru.Types.Sing
 import Language.Hakaru.Syntax.AST (Term)
 import Language.Hakaru.Syntax.ABT (ABT)
 import Language.Hakaru.Syntax.Prelude
+import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Expect (expect, normalize)
 import Language.Hakaru.Disintegrate (determine, density, disintegrate)
+
+import qualified Data.Text as Text
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -65,8 +68,8 @@ priorAsProposal p x =
 --
 -- TODO: the @a@ type should be pure (aka @a ~ Expect' a@ in the old parlance).
 -- BUG: get rid of the SingI requirements due to using 'lam'
-mh  :: (ABT Term abt, SingI a)
-    => (abt '[] a -> abt '[] ('HMeasure a))
+mh  :: (ABT Term abt)
+    => abt '[] (a ':-> 'HMeasure a)
     -> abt '[] ('HMeasure a)
     -> abt '[] (a ':-> 'HMeasure (HPair a 'HProb))
 mh proposal target =
@@ -74,19 +77,20 @@ mh proposal target =
     Nothing -> error "mh: couldn't get density"
     Just theDensity ->
         let_ theDensity $ \mu ->
-        lam $ \old ->
-            proposal old >>= \new ->
-            dirac $ pair new (mu `app` {-pair-} new {-old-} / mu `app` {-pair-} old {-new-})
-
+        lam' $ \old ->
+            app proposal old >>= \new ->
+            dirac $ pair' new (mu `app` {-pair-} new {-old-} / mu `app` {-pair-} old {-new-})
+  where lam' f = lamWithVar Text.empty (sUnMeasure $ typeOf target) f
+        pair'  = pair_ (sUnMeasure $ typeOf target) SProb
 
 -- BUG: get rid of the SingI requirements due to using 'lam' in 'mh'
-mcmc :: (ABT Term abt, SingI a)
-    => (abt '[] a -> abt '[] ('HMeasure a))
+mcmc :: (ABT Term abt)
+    => abt '[] (a ':-> 'HMeasure a)
     -> abt '[] ('HMeasure a)
     -> abt '[] (a ':-> 'HMeasure a)
 mcmc proposal target =
     let_ (mh proposal target) $ \f ->
-    lam $ \old ->
+    lamWithVar Text.empty (sUnMeasure $ typeOf target) $ \old ->
         app f old >>= \new_ratio ->
         new_ratio `unpair` \new ratio ->
         bern (min (prob_ 1) ratio) >>= \accept ->

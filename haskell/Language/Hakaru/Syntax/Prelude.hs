@@ -102,7 +102,7 @@ module Language.Hakaru.Syntax.Prelude
     -- ** HUnit
     , unit
     -- ** HPair
-    , pair, unpair, fst, snd, swap
+    , pair, pair_, unpair, fst, snd, swap
     -- ** HEither
     , left, right, uneither
     -- ** HMaybe
@@ -699,6 +699,16 @@ pair
     :: (ABT Term abt, SingI a, SingI b)
     => abt '[] a -> abt '[] b -> abt '[] (HPair a b)
 pair = (datum_ .) . dPair
+
+
+pair_
+    :: (ABT Term abt)
+    => Sing a
+    -> Sing b
+    -> abt '[] a
+    -> abt '[] b
+    -> abt '[] (HPair a b)
+pair_ a b = (datum_ .) . dPair_ a b
 
 
 unpair
