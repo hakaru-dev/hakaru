@@ -269,7 +269,7 @@ t20 :: (ABT Term abt) => abt '[] ('HProb ':-> 'HMeasure HUnit)
 t20 = lam $ \y -> uniform_0_1 >>= \x -> weight (unsafeProb x * y)
 
 t21 :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure 'HReal)
-t21 = mcmc (`normal` one) (normal zero (prob_ 5))
+t21 = mcmc (lam $ \x -> normal x one) (normal zero (prob_ 5))
 
 t22 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
 t22 = bern half >> dirac unit
@@ -824,14 +824,14 @@ testCauchy = cauchy (real_ 5) (prob_ 3)
 testMCMCPriorProp
     :: (ABT Term abt)
     => abt '[] (HPair 'HReal 'HReal ':-> 'HMeasure (HPair 'HReal 'HReal))
-testMCMCPriorProp = mcmc (priorAsProposal norm) norm
+testMCMCPriorProp = mcmc (lam $ priorAsProposal norm) norm
 
 testMHPriorProp
     :: (ABT Term abt)
     => abt '[]
         (HPair 'HReal 'HReal
         ':-> 'HMeasure (HPair (HPair 'HReal 'HReal) 'HProb))
-testMHPriorProp = mh (priorAsProposal norm) norm
+testMHPriorProp = mh (lam $ priorAsProposal norm) norm
 
 testPriorProp'
     :: (ABT Term abt)
