@@ -146,8 +146,9 @@ binop s x y
     | s == "-"   = NaryOp Sum  [x, Var "negate" `App` y]
     | s == "*"   = NaryOp Prod [x, y]
     | s == "/"   = NaryOp Prod [x, Var "recip" `App` y]
-    | s == "<"   = Var "less" `App` x `App` y
-    | s == ">"   = Var "less" `App` y `App` x
+    | s == "<"   = Var "less"  `App` x `App` y
+    | s == ">"   = Var "less"  `App` y `App` x
+    | s == "=="  = Var "equal" `App` x `App` y
     | s == "&&"  = NaryOp And  [x, y]
     | s == "<|>" = Msum [x, y]
     | otherwise = Var s `App` x `App` y
