@@ -133,6 +133,7 @@ Loop := module ()
     if nops(ind) = 1 then
       ind := op(ind);
       # Make sure ind contains no bound variables before lifting it!
+      # So, check that "extract using indets" and "rename using eval" commute.
       s := indets(ind, 'name');
       s := map(proc(x,$) local y; `if`(depends(ind,x), x=y, NULL) end proc, s);
       if indets(eval(w, s), Hakaru:-idx(identical(var), anything))
