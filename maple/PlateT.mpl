@@ -68,23 +68,27 @@ TestHakaru(bry2, bry2s,
   label="second way to express flipping a biased coin many times", 
   ctx = [n::nonnegint]);
 
-fission     := Bind(Plate(k, i, Gaussian(z^i,1)), xs, Plate(k, i, Gaussian(idx(xs,i),1))):
-fusion      := Plate(k, i, Bind(Gaussian(z^i,1), x, Gaussian(x,1))):
-conjugacies := Plate(k, i, Gaussian(z^i, sqrt(2))):
-conjugacies5:= Bind(Gaussian(z^0, sqrt(2)), x0,
-               Bind(Gaussian(z^1, sqrt(2)), x1,
-               Bind(Gaussian(z^2, sqrt(2)), x2,
-               Bind(Gaussian(z^3, sqrt(2)), x3,
-               Bind(Gaussian(z^4, sqrt(2)), x4,
+fission     := Bind(Plate(k, i, Gaussian(f(i),1)), xs, Plate(k, i, Gaussian(idx(xs,i),1))):
+fusion      := Plate(k, i, Bind(Gaussian(f(i),1), x, Gaussian(x,1))):
+conjugacies := Plate(k, i, Gaussian(f(i), sqrt(2))):
+conjugacies5:= Bind(Gaussian(f(0), sqrt(2)), x0,
+               Bind(Gaussian(f(1), sqrt(2)), x1,
+               Bind(Gaussian(f(2), sqrt(2)), x2,
+               Bind(Gaussian(f(3), sqrt(2)), x3,
+               Bind(Gaussian(f(4), sqrt(2)), x4,
                Ret(ary(5, i, piecewise(i=1,x1, i=2,x2, i=3,x3, i=4,x4, x0)))))))):
-TestHakaru(eval(fission,{    z=1}), eval(conjugacies ,z=1), verify=normal, label="Conjugacy across iid plates");
-TestHakaru(eval(fusion ,{    z=1}), eval(conjugacies ,z=1), verify=normal, label="Conjugacy in iid plate");
-TestHakaru(eval(fission,{k=5,z=1}), eval(conjugacies5,z=1), verify=normal, label="Conjugacy across iid plates unrolled");
-TestHakaru(eval(fusion ,{k=5,z=1}), eval(conjugacies5,z=1), verify=normal, label="Conjugacy in iid plate unrolled");
-TestHakaru(     fission           ,      conjugacies      , verify=normal, label="Conjugacy across plates", ctx=[z>0]);
-TestHakaru(     fusion            ,      conjugacies      , verify=normal, label="Conjugacy in plate", ctx=[z>0]);
-TestHakaru(eval(fission,{k=5    }),      conjugacies5     , verify=normal, label="Conjugacy across plates unrolled", ctx=[z>0]);
-TestHakaru(eval(fusion ,{k=5    }),      conjugacies5     , verify=normal, label="Conjugacy in plate unrolled", ctx=[z>0]);
+TestHakaru(     fission                  ,      conjugacies                   , verify=normal, label="Conjugacy across plates (function)");
+TestHakaru(     fusion                   ,      conjugacies                   , verify=normal, label="Conjugacy in plate (function)");
+TestHakaru(eval(fission,{k=5           }),      conjugacies5                  , verify=normal, label="Conjugacy across plates unrolled (function)");
+TestHakaru(eval(fusion ,{k=5           }),      conjugacies5                  , verify=normal, label="Conjugacy in plate unrolled (function)");
+TestHakaru(eval(fission,{    f=1       }), eval(conjugacies ,{    f=1       }), verify=normal, label="Conjugacy across iid plates");
+TestHakaru(eval(fusion ,{    f=1       }), eval(conjugacies ,{    f=1       }), verify=normal, label="Conjugacy in iid plate");
+TestHakaru(eval(fission,{k=5,f=1       }), eval(conjugacies5,{    f=1       }), verify=normal, label="Conjugacy across iid plates unrolled");
+TestHakaru(eval(fusion ,{k=5,f=1       }), eval(conjugacies5,{    f=1       }), verify=normal, label="Conjugacy in iid plate unrolled");
+TestHakaru(eval(fission,{    f=(i->z^i)}), eval(conjugacies ,{    f=(i->z^i)}), verify=normal, label="Conjugacy across plates", ctx=[z>0]);
+TestHakaru(eval(fusion ,{    f=(i->z^i)}), eval(conjugacies ,{    f=(i->z^i)}), verify=normal, label="Conjugacy in plate", ctx=[z>0]);
+TestHakaru(eval(fission,{k=5,f=(i->z^i)}), eval(conjugacies5,{k=5,f=(i->z^i)}), verify=normal, label="Conjugacy across plates unrolled", ctx=[z>0]);
+TestHakaru(eval(fusion ,{k=5,f=(i->z^i)}), eval(conjugacies5,{k=5,f=(i->z^i)}), verify=normal, label="Conjugacy in plate unrolled", ctx=[z>0]);
 
 # Simplifying gmm below is a baby step towards index manipulations we need
 gmm := Bind(Plate(k, c, Gaussian(0,1)), xs,
