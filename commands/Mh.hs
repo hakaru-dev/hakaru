@@ -22,15 +22,15 @@ import           System.Environment
 
 main :: IO ()
 main = do
-  args <- getArgs
-  case args of
-      [prog2, prog1] -> do x1 <- IO.readFile prog1
-                           x2 <- IO.readFile prog2
-                           runMH x1 x2
+  args  <- getArgs
+  progs <- mapM readFromFile args
+  case progs of
+      [prog2, prog1] -> runMH prog1 prog2
       _              -> IO.putStrLn "Usage: mh <target> <proposal>"
 
-inferType' :: U.AST -> TypeCheckMonad (TypedAST (TrivialABT T.Term))
-inferType' = inferType
+readFromFile :: String -> IO Text
+readFromFile "-" = IO.getContents
+readFromFile x   = IO.readFile x
 
 runMH :: Text -> Text -> IO ()
 runMH prog1 prog2 =
@@ -53,5 +53,5 @@ parseAndInfer x =
     case parseHakaru x of
     Left  err  -> Left (show err)
     Right past ->
-        let m = inferType' (resolveAST past) in
+        let m = inferType (resolveAST past) in
         runTCM m LaxMode
