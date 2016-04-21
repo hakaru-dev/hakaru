@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.02.21
+--                                                    2016.04.21
 -- |
 -- Module      :  Language.Hakaru.Syntax.Datum
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -102,11 +102,10 @@ datumType :: Datum ast (HData' t) -> Sing (HData' t)
 datumType (Datum _ typ _) = typ
 
 instance JmEq1 ast => JmEq1 (Datum ast) where
-    jmEq1 (Datum _ _ d1) (Datum _ _ d2) =
-        error "TODO: JmEq1@Datum"
-        {- BUG: type error due to 'Code' being a typefamily
-        jmEq1 d1 d2
-        -}
+    jmEq1 (Datum _ typ1 d1) (Datum _ typ2 d2) =
+        jmEq1 typ1 typ2 >>= \Refl ->
+        jmEq1 d1   d2   >>= \Refl ->
+        Just Refl
 
 instance Eq1 ast => Eq1 (Datum ast) where
     eq1 (Datum _ _ d1) (Datum _ _ d2) = eq1 d1 d2

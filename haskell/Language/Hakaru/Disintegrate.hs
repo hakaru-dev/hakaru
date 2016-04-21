@@ -16,7 +16,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.03.01
+--                                                    2016.04.21
 -- |
 -- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -1085,6 +1085,7 @@ constrainOutcome v0 e0 =
             push (SBind x $ Thunk e1) e2' (constrainOutcome v0)
     go (WPlate e1 e2)        = error "TODO: constrainOutcome{Plate}"
     go (WChain e1 e2 e3)     = error "TODO: constrainOutcome{Chain}"
+    go (WReject typ)         = error "TODO: constrainOutcome{Reject}"
     go (WSuperpose pes) =
         case pes of
         (p,e) :| [] -> do

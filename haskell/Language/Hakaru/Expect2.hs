@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.05
+--                                                    2016.04.21
 -- |
 -- Module      :  Language.Hakaru.Expect2
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -28,22 +28,25 @@ module Language.Hakaru.Expect2
     , expect
     ) where
 
-import           Prelude       (($), (.), error, return, reverse)
-import qualified Data.Text     as Text
-import           Data.Functor  ((<$>))
-import qualified Data.Foldable as F
+import           Prelude               (($), (.), error, return, reverse)
+import qualified Data.Text             as Text
+import           Data.Functor          ((<$>))
+import qualified Data.Foldable         as F
+import           Data.List.NonEmpty    (NonEmpty(..))
+import qualified Data.List.NonEmpty    as NE
 
 import Language.Hakaru.Syntax.IClasses (Some2(..))
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Syntax.ABT
-import Language.Hakaru.Syntax.AST hiding (Expect)
-import qualified Language.Hakaru.Syntax.AST as AST
-import Language.Hakaru.Syntax.TypeOf (typeOf)
+import Language.Hakaru.Syntax.AST               hiding (Expect)
+import qualified Language.Hakaru.Syntax.AST     as AST
+import Language.Hakaru.Syntax.TypeOf            (typeOf)
 import qualified Language.Hakaru.Syntax.Prelude as P
 import Language.Hakaru.Evaluation.Types
-import Language.Hakaru.Evaluation.ExpectMonad (ListContext(..), Expect(..), runExpect, pureEvaluate)
+import Language.Hakaru.Evaluation.ExpectMonad
+    (ListContext(..), Expect(..), runExpect, pureEvaluate)
 
 #ifdef __TRACE_DISINTEGRATE__
 import Prelude                          (show, (++))
@@ -167,7 +170,8 @@ expectTerm e = do
             expectTerm (let_ v1 e2)
         Head_ (WPlate _ _)     -> error "TODO: expect{Plate}"
         Head_ (WChain _ _ _)   -> error "TODO: expect{Chain}"
-        Head_ (WSuperpose pes) -> expectSuperpose pes
+        Head_ (WReject    typ) -> expectSuperpose []
+        Head_ (WSuperpose pes) -> expectSuperpose (NE.toList pes)
 
 
 -- N.B., we guarantee that each @e@ is called with the same heap

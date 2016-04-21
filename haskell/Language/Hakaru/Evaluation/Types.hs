@@ -15,7 +15,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.02.21
+--                                                    2016.04.21
 -- |
 -- Module      :  Language.Hakaru.Evaluation.Types
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -253,7 +253,7 @@ instance Foldable21 Head where
     foldMap21 f (WPlate      e1 e2)    = f e1 `mappend` f e2
     foldMap21 f (WChain      e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3
     foldMap21 f (WSuperpose  pes)      = foldMapPairs f pes
-    foldMap21 _ (WReject     typ)      = mempty
+    foldMap21 _ (WReject     _)        = mempty
     foldMap21 f (WCoerceTo   _ e1)     = foldMap21 f e1
     foldMap21 f (WUnsafeFrom _ e1)     = foldMap21 f e1
     foldMap21 f (WIntegrate  e1 e2 e3) = f e1 `mappend` f e2 `mappend` f e3

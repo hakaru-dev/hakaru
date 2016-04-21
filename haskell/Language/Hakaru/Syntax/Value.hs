@@ -91,10 +91,8 @@ instance PrimCoerce Value where
         _ -> error "no a defined primitive coercion"
 
 
-lam2 :: Value (a ':-> b ':-> c)
-     -> (Value a -> Value b -> Value c)
-lam2 (VLam f1) = \v1 ->
+lam2 :: Value (a ':-> b ':-> c) -> (Value a -> Value b -> Value c)
+lam2 (VLam f1) v1 =
     case f1 v1 of
-        VLam f2 -> f2
-        v       -> case v of {}
-lam2 v = case v of {}
+    VLam f2 -> f2
+    _       -> error "lam2: the impossible happened"

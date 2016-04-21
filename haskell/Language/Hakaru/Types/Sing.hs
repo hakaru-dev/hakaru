@@ -14,7 +14,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.01.09
+--                                                    2016.04.21
 -- |
 -- Module      :  Language.Hakaru.Types.Sing
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -446,8 +446,8 @@ isCodeFor = error "TODO: isCodeFor"
 toSing_Con
     :: HakaruCon
     -> (forall t. Sing (t :: HakaruCon) -> r) -> r
-toSing_Con (TyCon s)  k = toSing_Symbol s $ \s' -> k (STyCon s')
-toSing_Con (t :@ a) k =
+toSing_Con (TyCon s) k = toSing_Symbol s $ \s' -> k (STyCon s')
+toSing_Con (t :@ a)  k =
     toSing_Con t $ \t' ->
     toSing     a $ \a' ->
     k (STyApp t' a')
