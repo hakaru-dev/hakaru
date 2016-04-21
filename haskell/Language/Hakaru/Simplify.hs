@@ -61,10 +61,11 @@ instance Show MapleException where
 
 instance Exception MapleException
 
-simplify :: forall abt a
-         .  (ABT Term abt) 
-         => abt '[] a
-         -> IO (abt '[] a)
+simplify
+    :: forall abt a
+    .  (ABT Term abt) 
+    => abt '[] a
+    -> IO (abt '[] a)
 simplify e = do
     let slo = Maple.pretty e
     let typ = typeOf e          
@@ -77,9 +78,7 @@ simplify e = do
         leftShow $ unTCM m (freeVars e) UnsafeMode
             
     where
-    leftShow :: forall a b
-             .  Show a
-             => Either a b -> Either String b
+    leftShow :: forall b c. Show b => Either b c -> Either String c
     leftShow (Left err) = Left (show err)
     leftShow (Right x)  = Right x
 
