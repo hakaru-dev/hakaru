@@ -1,12 +1,13 @@
 {-# LANGUAGE DataKinds
            , GADTs
-           , OverloadedStrings
            , FlexibleContexts
+           , KindSignatures
+           , PolyKinds
            #-}
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.15
+--                                                    2016.04.21
 -- |
 -- Module      :  Language.Hakaru.Observe
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -39,6 +40,13 @@ observe
     -> abt '[] ('HMeasure a)
 observe m a = observeAST (LC_ m) (LC_ a)
 
+
+-- TODO: move this to ABT.hs
+freshenVarRe
+    :: ABT syn abt => Variable (a :: k) -> abt '[] (b :: k) -> Variable a
+freshenVarRe x m = x {varID = nextFree m `max` nextBind m}
+
+
 observeAST
     :: (ABT Term abt)
     => LC_ abt ('HMeasure a)
@@ -48,35 +56,25 @@ observeAST (LC_ m) (LC_ a) =
     caseVarSyn m observeVar $ \ast ->
         case ast of
         -- TODO: Add a name supply
-        Let_  :$ e1 :* e2 :* End ->
-            syn (Let_ :$ e1 :*
-                (caseBind e2 $ \x e2' ->
-                          let x' = Variable
-                                     ""
-                                     (nextFree m `max` nextBind m)
-                                     (varType x)
-                          in bind x' $ observe (rename x x' e2') a) :*
-                End)
-        --Dirac :$ e  :* End       -> P.if_ (e P.== a) (P.dirac a) P.reject
+        Let_ :$ e1 :* e2 :* End ->
+            caseBind e2 $ \x e2' ->
+            let x'   = freshenVarRe x m
+                e2'' = rename x x' e2'
+            in syn (Let_ :$ e1 :* bind x' (observe e2'' a) :* End)
+        --Dirac :$ e :* End -> P.if_ (e P.== a) (P.dirac a) P.reject
         -- TODO: Add a name supply
         MBind :$ e1 :* e2 :* End ->
-             syn (MBind :$ e1 :*
-                 (caseBind e2 $ \x e2' ->
-                           let x' = Variable
-                                      ""
-                                      (nextFree m `max` nextBind m)
-                                      (varType x)
-                           in bind x' $ observe (rename x x' e2') a) :*
-                 End)
+            caseBind e2 $ \x e2' ->
+            let x'   = freshenVarRe x m
+                e2'' = rename x x' e2'
+            in syn (MBind :$ e1 :* bind x' (observe e2'' a) :* End)
         Plate :$ e1 :* e2 :* End ->
-            syn (Plate :$ e1 :*
-                (caseBind e2 $ \x e2' ->
-                     bind x $ observe e2'
-                              (syn $ ArrayOp_  (Index (sUnMeasure . typeOf $ e2'))
-                               :$ a
-                               :* (var x) :* End))
-                 :* End)
-        MeasureOp_ op :$ es      -> observeMeasureOp op es a
+            caseBind e2 $ \x e2' ->
+            let a' = syn (ArrayOp_ (Index (sUnMeasure $ typeOf e2'))
+                        :$ a
+                        :* var x :* End)
+            in syn (Plate :$ e1 :* bind x (observe e2' a') :* End)
+        MeasureOp_ op :$ es -> observeMeasureOp op es a
         _ -> error "observe can only be applied to measure primitives"
 
 -- This function can't inspect a variable due to
@@ -89,10 +87,10 @@ observeMeasureOp
     -> SArgs abt args
     -> abt '[] a
     -> abt '[] ('HMeasure a)
-observeMeasureOp Normal  (mu :* sd :* End) a =
+observeMeasureOp Normal = \(mu :* sd :* End) a ->
     P.withWeight (P.densityNormal mu sd a) (P.dirac a)
-observeMeasureOp Uniform (lo :* hi :* End) a =
+observeMeasureOp Uniform = \(lo :* hi :* End) a ->
     P.if_ (lo P.<= a P.&& a P.<= hi)
-          (P.withWeight (P.unsafeProb $ P.recip $ hi P.- lo) (P.dirac a))
-          (P.reject (SMeasure SReal))
-observeMeasureOp _ _ _ = error "TODO{Observe:observeMeasureOp}"
+        (P.withWeight (P.unsafeProb $ P.recip $ hi P.- lo) (P.dirac a))
+        (P.reject (SMeasure SReal))
+observeMeasureOp _ = error "TODO{Observe:observeMeasureOp}"
