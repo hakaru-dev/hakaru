@@ -2,8 +2,7 @@
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 module Language.Hakaru.Parser.Maple where
 
-import           Language.Hakaru.Parser.AST
-    hiding (Less, Equal)
+import           Prelude             hiding (and, sum, product)
 import           Control.Monad.Identity
 import           Data.Text           (Text)
 import qualified Data.Text           as Text
@@ -17,9 +16,9 @@ import           Text.Parsec.Text
 import qualified Text.Parsec.Token   as Token
 import           Text.Parsec.Language
 
-import           Prelude             hiding (and, sum, product)
+import           Language.Hakaru.Parser.AST hiding (Less, Equal)
 
---------------------------------------------------------------------------
+----------------------------------------------------------------
 
 style :: GenLanguageDef Text st Identity
 style = Token.LanguageDef
@@ -94,7 +93,7 @@ arg e = parens (commaSep e)
 text :: Text -> Parser Text
 text = liftM Text.pack <$> string <$> Text.unpack
 
---------------------------------------------------------------------------
+----------------------------------------------------------------
 -- | Grammar of Inert Expressions
 
 data NumOp = Pos | Neg
@@ -113,8 +112,8 @@ data InertExpr
     | InertArgs ArgOp [InertExpr]
     deriving (Eq, Show)
 
----------------------------------------------------------------------------
--- Parsing String into Inert Expression -----------------------------------
+----------------------------------------------------------------
+-- Parsing String into Inert Expression
 
 func :: Parser InertExpr
 func =
@@ -130,20 +129,22 @@ name =
 assignedname :: Parser InertExpr
 assignedname =
     InertName
-    <$> (text "_Inert_ASSIGNEDNAME" *>
-         parens (stringLiteral <*
-                 comma <*
-                 stringLiteral))
+    <$> (text "_Inert_ASSIGNEDNAME"
+        *> parens
+            (  stringLiteral
+            <* comma
+            <* stringLiteral))
 
 assignedlocalname :: Parser InertExpr
 assignedlocalname =
     InertName
-    <$> (text "_Inert_ASSIGNEDLOCALNAME" *>
-         parens (stringLiteral <*
-                 comma <*
-                 stringLiteral <*
-                 comma <*
-                 integer))
+    <$> (text "_Inert_ASSIGNEDLOCALNAME"
+        *> parens
+            (  stringLiteral
+            <* comma
+            <* stringLiteral
+            <* comma
+            <* integer))
 
 expseq :: Parser InertExpr
 expseq =
@@ -251,95 +252,97 @@ expr =  try func
     <|> float
 
 parseMaple :: Text -> Either ParseError InertExpr
-parseMaple txt = runParser (expr <* eof) () (Text.unpack txt) (Text.filter (/= '\n') txt)
+parseMaple txt =
+    runParser (expr <* eof) () (Text.unpack txt) (Text.filter (/= '\n') txt)
 
---------------------------------------------------------------------------
--- Parsing InertExpr to AST' Text ----------------------------------------
+----------------------------------------------------------------
+-- Parsing InertExpr to AST' Text
 
 maple2AST :: InertExpr -> AST' Text
-maple2AST (InertNum Pos i) = ULiteral $ Nat $ fromInteger i
-maple2AST (InertNum Neg i) = ULiteral $ Int $ fromInteger i
-
+maple2AST (InertNum Pos i)       = ULiteral $ Nat $ fromInteger i
+maple2AST (InertNum Neg i)       = ULiteral $ Int $ fromInteger i
 maple2AST (InertName "infinity") = Infinity'
-maple2AST (InertName t)    = Var (rename t)
+maple2AST (InertName t)          = Var (rename t)
 
 maple2AST (InertArgs Float [InertNum Pos a, InertNum _ b]) = 
-    ULiteral $ Prob $ fromInteger a * (10 ^ (fromInteger b))
+    ULiteral . Prob $ fromInteger a * (10 ^ b)
 
 maple2AST (InertArgs Float [InertNum Neg a, InertNum _ b]) = 
-    ULiteral $ Real $ fromInteger a * (10 ^ (fromInteger b))
+    ULiteral . Real $ fromInteger a * (10 ^ b)
 
-maple2AST (InertArgs Func [InertName "Bind",
-                           InertArgs ExpSeq [e1, InertName x, e2]]) =
+maple2AST (InertArgs Func
+        [InertName "Bind", InertArgs ExpSeq [e1, InertName x, e2]]) =
     Bind x (maple2AST e1) (maple2AST e2)
 
-maple2AST (InertArgs Func [InertName "Datum",
-                           InertArgs ExpSeq [InertName h, d]]) =
+maple2AST (InertArgs Func
+        [InertName "Datum", InertArgs ExpSeq [InertName h, d]]) =
     mapleDatum2AST h d
 
 maple2AST (InertArgs Func [InertName "Counting", _]) =
     Var "counting"
 
-maple2AST (InertArgs Func [InertName "lam",
-                           InertArgs ExpSeq [InertName x, typ, e1]]) =
+maple2AST (InertArgs Func
+        [InertName "lam", InertArgs ExpSeq [InertName x, typ, e1]]) =
     Lam x (maple2Type typ) (maple2AST e1)
 
-maple2AST (InertArgs Func [InertName "app",
-                           InertArgs ExpSeq [e1, e2]]) =
+maple2AST (InertArgs Func
+        [InertName "app", InertArgs ExpSeq [e1, e2]]) =
     App (maple2AST e1) (maple2AST e2)
 
-maple2AST (InertArgs Func [InertName "Msum",
-                           InertArgs ExpSeq []]) =
+maple2AST (InertArgs Func
+        [InertName "Msum", InertArgs ExpSeq []]) =
     Var "reject"
 
-maple2AST (InertArgs Func [InertName "Msum",
-                           InertArgs ExpSeq es]) =
+maple2AST (InertArgs Func
+        [InertName "Msum", InertArgs ExpSeq es]) =
     Msum (map maple2AST es)
 
-maple2AST (InertArgs Func [InertName "ary",
-                           InertArgs ExpSeq [e1, InertName x, e2]]) =
+maple2AST (InertArgs Func
+        [InertName "ary", InertArgs ExpSeq [e1, InertName x, e2]]) =
     Array x (maple2AST e1) (maple2AST e2)
 
-maple2AST (InertArgs Func [InertName "idx",
-                           InertArgs ExpSeq [e1, e2]]) =
+maple2AST (InertArgs Func
+        [InertName "idx", InertArgs ExpSeq [e1, e2]]) =
     Index (maple2AST e1) (maple2AST e2)
 
-maple2AST (InertArgs Func [InertName "piecewise",
-                           InertArgs ExpSeq (e1:e2:es)]) =
+maple2AST (InertArgs Func
+        [InertName "piecewise", InertArgs ExpSeq (e1:e2:es)]) =
     If (maple2AST e1) (maple2AST e2) rest
 
-  where rest = case es of
-                 [e3]    -> maple2AST e3
-                 [_, e3] -> maple2AST e3
-                 x       -> maple2AST (InertArgs Func [InertName "piecewise",
+    where
+    rest =
+        case es of
+        [e3]    -> maple2AST e3
+        [_, e3] -> maple2AST e3
+        x       -> maple2AST (InertArgs Func [InertName "piecewise",
                                                        InertArgs ExpSeq x])
 
-maple2AST (InertArgs Func [InertName "max",
-                           InertArgs ExpSeq es]) =
+maple2AST (InertArgs Func
+        [InertName "max", InertArgs ExpSeq es]) =
     NaryOp Max (map maple2AST es)
 
-maple2AST (InertArgs Func [InertName "case",
-                           InertArgs ExpSeq
-                           [e1, InertArgs Func [InertName "Branches",
-                                                InertArgs ExpSeq bs]]]) =
+maple2AST (InertArgs Func
+        [ InertName "case"
+        , InertArgs ExpSeq
+            [e1, InertArgs Func
+                [ InertName "Branches"
+                , InertArgs ExpSeq bs]]]) =
     Case (maple2AST e1) (map branch bs)
 
-maple2AST (InertArgs Func [InertName "Plate",
-                           InertArgs ExpSeq [e1, InertName x, e2]]) =
+maple2AST (InertArgs Func
+        [InertName "Plate", InertArgs ExpSeq [e1, InertName x, e2]]) =
     Plate x (maple2AST e1) (maple2AST e2)
 
-maple2AST (InertArgs Func [InertName "And",
-                           InertArgs ExpSeq es]) =
+maple2AST (InertArgs Func
+        [InertName "And", InertArgs ExpSeq es]) =
     NaryOp And (map maple2AST es)
 
-maple2AST (InertArgs Func [f,
-                           InertArgs ExpSeq es]) =
+maple2AST (InertArgs Func
+        [f, InertArgs ExpSeq es]) =
     foldl App (maple2AST f) (map maple2AST es)
 
 maple2AST (InertArgs And_    es) = NaryOp And  (map maple2AST es)
-
 maple2AST (InertArgs Sum_    es) = NaryOp Sum  (map maple2AST es)
-
 maple2AST (InertArgs Product es) = NaryOp Prod (map maple2AST es)
 
 maple2AST (InertArgs Less es)  =
@@ -352,19 +355,19 @@ maple2AST (InertArgs Equal es) =
 maple2AST (InertArgs Power [x, y]) =
     App (App (Var "**") (maple2AST x)) (maple2AST y)
 maple2AST (InertArgs Rational [InertNum Pos x, InertNum Pos y]) =
-    ULiteral $ Prob $ fromInteger x % fromInteger y
+    ULiteral . Prob $ fromInteger x % fromInteger y
 maple2AST (InertArgs Rational [InertNum _ x, InertNum _ y]) =
-    ULiteral $ Real $ fromInteger x % fromInteger y
+    ULiteral . Real $ fromInteger x % fromInteger y
 
 maple2AST x = error $ "Can't handle: " ++ show x
 
---------------------------------------------------------------------------
+----------------------------------------------------------------
 
 mapleDatum2AST :: Text -> InertExpr -> AST' Text
 mapleDatum2AST "pair" d = let [x, y] = unPairDatum d in
                           Pair (maple2AST x) (maple2AST y)
 mapleDatum2AST "unit" _ = Unit
-mapleDatum2AST h _ = error ("TODO: mapleDatum " ++ Text.unpack h)
+mapleDatum2AST h _ = error $ "TODO: mapleDatum " ++ Text.unpack h
 
 
     
@@ -418,7 +421,7 @@ branch :: InertExpr -> Branch' Text
 branch (InertArgs Func
         [InertName "Branch",
          InertArgs ExpSeq [pat, e]]) =
- Branch' (maple2Pattern pat) (maple2AST e)
+    Branch' (maple2Pattern pat) (maple2AST e)
 
 
 maple2Pattern :: InertExpr -> Pattern' Text
@@ -431,18 +434,18 @@ maple2Pattern (InertArgs Func
                [InertName "PDatum",
                 InertArgs ExpSeq
                 [InertName "pair", args]]) =
-  PData' (DV "pair" (map maple2Pattern (unpairPat args)))
+    PData' (DV "pair" (map maple2Pattern (unpairPat args)))
 maple2Pattern (InertArgs Func
                [InertName "PDatum",
                 InertArgs ExpSeq
                 [InertName "true", _]]) =
-  PData' (DV "true" [])
+    PData' (DV "true" [])
 maple2Pattern (InertArgs Func
                [InertName "PDatum",
                 InertArgs ExpSeq
                 [InertName "false", _]]) =
-  PData' (DV "false" [])
-maple2Pattern e = error ("TODO: maple2AST{pattern} " ++ show e)
+    PData' (DV "false" [])
+maple2Pattern e = error $ "TODO: maple2AST{pattern} " ++ show e
 
 
 unPairDatum :: InertExpr -> [InertExpr]
@@ -481,5 +484,6 @@ unpairPat (InertArgs Func [InertName "PInl",
        InertArgs ExpSeq [y]],
       InertName "PDone"]]]]]]) = [x,y]
  
-unpairPat x = error $ "unpairPat: " ++ show x ++ " not InertExpr of a pair pattern"
+unpairPat x =
+    error $ "unpairPat: " ++ show x ++ " not InertExpr of a pair pattern"
 

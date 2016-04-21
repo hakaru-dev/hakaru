@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.02.21
+--                                                    2016.04.21
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeCheck
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -554,7 +554,6 @@ inferType = inferType_
     U.Integrate_ x e1 e2 e3 -> do
         e1' <- checkType_ SReal e1
         e2' <- checkType_ SReal e2
-        let x' = makeVar x SReal
         e3' <- checkBinder (makeVar x SReal) SProb e3
         return . TypedAST SProb $ 
                syn (Integrate :$ e1' :* e2' :* e3' :* End)
