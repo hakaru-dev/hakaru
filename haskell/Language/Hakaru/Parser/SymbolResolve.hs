@@ -128,6 +128,9 @@ primTable =
     -- ArrayOps
     ,("size",        TLam $ \x -> TNeu $ U.ArrayOp_ U.Size [x])
     ,("reduce",      t3 $ \x y z -> U.ArrayOp_ U.Reduce [x, y, z])
+    -- NaryOps
+    ,("min",         t2 $ \x y -> U.NaryOp_ U.Min [x, y])
+    ,("max",         t2 $ \x y -> U.NaryOp_ U.Max [x, y])
     ]
 
 primPrimOp1, primPrimOp2 :: U.PrimOp -> Symbol U.AST
