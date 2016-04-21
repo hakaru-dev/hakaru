@@ -420,7 +420,7 @@ makeAST ast =
     U.NegInfinity'    -> U.PrimOp_ U.NegativeInfinity []
     U.ULiteral v      -> U.Literal_  (U.val v)
     U.NaryOp op es    -> U.NaryOp_ op (map makeAST es)
-    U.Unit            -> U.Datum_ (U.Datum "unit" . U.Inl $ U.Done)
+    U.Unit            -> U.Ann_ (U.Datum_ (U.Datum "unit" . U.Inl $ U.Done)) (U.SSing sUnit)
     U.Empty           -> U.Empty_
     U.Pair e1 e2      -> U.Pair_ (makeAST e1) (makeAST e2)
     U.Array (TNeu (U.Var_ name)) e1 e2 ->
