@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.02.21
+--                                                    2016.04.22
 -- |
 -- Module      :  Language.Hakaru.Syntax.Prelude
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -1162,7 +1162,7 @@ superpose
     :: (ABT Term abt)
     => [(abt '[] 'HProb, abt '[] ('HMeasure a))]
     -> abt '[] ('HMeasure a)
-superpose []     = error "BUG: Prelude.superpose won't emit a Reject_"
+superpose []     = error "BUG: Prelude.superpose won't construct a Reject_"
 superpose (x:xs) = syn $ Superpose_ (x :| xs)
 
 -- | The empty measure. Is called @fail@ in the Core Hakaru paper.
@@ -1232,7 +1232,7 @@ withWeight
     => abt '[] 'HProb
     -> abt '[] ('HMeasure w)
     -> abt '[] ('HMeasure w)
-withWeight p m = superpose [(p, m)]
+withWeight p m = syn $ Superpose_ ((p, m) :| [])
 
 
 -- | A particularly common use case of 'weight':
