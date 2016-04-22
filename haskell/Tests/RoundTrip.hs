@@ -9,6 +9,8 @@
 module Tests.RoundTrip where
 
 import           Prelude ((.), ($), asTypeOf)
+import qualified Data.List.NonEmpty as L
+import           Data.Ratio
 
 import Language.Hakaru.Syntax.Prelude
 import Language.Hakaru.Types.DataKind
@@ -18,7 +20,6 @@ import Language.Hakaru.Expect     (total)
 import Language.Hakaru.Inference  (priorAsProposal, mcmc, mh)
 import Language.Hakaru.Types.Sing
 
-import Data.Ratio
 
 -- import qualified Examples.Seismic as SE
 
@@ -27,6 +28,12 @@ import Tests.TestTools
 import Tests.Models
     (uniform_0_1, normal_0_1, gamma_1_1,
      uniformC, normalC, beta_1_1, t4, t4', norm, unif2)
+
+unsafeSuperpose
+    :: (ABT Term abt)
+    => [(abt '[] 'HProb, abt '[] ('HMeasure a))]
+    -> abt '[] ('HMeasure a)
+unsafeSuperpose = superpose . L.fromList
 
 testMeasureUnit :: Test
 testMeasureUnit = test [
@@ -79,7 +86,7 @@ testMeasureReal = test
     , "t7"  ~: testSStriv [t7] t7'
     , "t7n" ~: testSStriv [t7n] t7n'
     , "t8'" ~: testSStriv [t8'] (lam $ \s1 -> lam $ \s2 -> normal zero (sqrt (s1 ^ (nat_ 2) + s2 ^ (nat_ 2))))
-    , "t9"  ~: testSStriv [t9] (superpose [((nat2prob . nat_ $ 2), uniformC (nat_ 3) (nat_ 7))])
+    , "t9"  ~: testSStriv [t9] (unsafeSuperpose [((nat2prob . nat_ $ 2), uniformC (nat_ 3) (nat_ 7))])
     , "t13" ~: testSStriv [t13] t13'
     , "t14" ~: testSStriv [t14] t14'
     , "t21" ~: testStriv t21
@@ -137,7 +144,7 @@ testMeasureInt = test
     [ "t75"  ~: testStriv t75
     , "t75'" ~: testStriv t75'
     , "exceptionCounting" ~: testSStriv [] (counting >>= \x -> dirac (if_ (x == (int_ 3)) one x)) -- Jacques wrote: "bug: [simp_pw_equal] implicitly assumes the ambient measure is Lebesgue"
-    , "exceptionSuperpose" ~: testSStriv [(superpose [(third, dirac (int_ 2)), (third, dirac (int_ 3)), (third, dirac (int_ 4))] `asTypeOf` counting) >>= \x -> dirac (if_ (x == (int_ 3)) one x)] (superpose [(third, dirac (nat2int . nat_ $ 2)), (third, dirac (nat2int one)), (third, dirac (nat2int . nat_ $ 4))])
+    , "exceptionSuperpose" ~: testSStriv [(unsafeSuperpose [(third, dirac (int_ 2)), (third, dirac (int_ 3)), (third, dirac (int_ 4))] `asTypeOf` counting) >>= \x -> dirac (if_ (x == (int_ 3)) one x)] (unsafeSuperpose [(third, dirac (nat2int . nat_ $ 2)), (third, dirac (nat2int one)), (third, dirac (nat2int . nat_ $ 4))])
     ]
 
 testMeasurePair :: Test
@@ -156,7 +163,7 @@ testMeasurePair = test [
     "norm_noy"      ~: testSStriv [norm_noy] (normalC zero one),
     "flipped_norm"  ~: testSStriv [swap <$> norm] flipped_norm,
     "priorProp"     ~: testSStriv [lam (priorAsProposal norm)]
-                              (lam $ \x -> superpose [(half, normal_0_1         >>= \y -> dirac (pair y (snd x))),
+                              (lam $ \x -> unsafeSuperpose [(half, normal_0_1         >>= \y -> dirac (pair y (snd x))),
                                                       (half, normal zero (sqrt (prob_ 2)) >>= \y -> dirac (pair (fst x) y))]),
     "mhPriorProp"   ~: testSStriv [testMHPriorProp] testPriorProp',
     "unif2"         ~: testStriv unif2,
@@ -203,18 +210,18 @@ t5 = weight half >> dirac unit
 
 t6, t6' :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
 t6 = dirac (nat2real (nat_ 5))
-t6' = superpose [(one, dirac (real_ 5))]
+t6' = unsafeSuperpose [(one, dirac (real_ 5))]
 
 t7,t7', t7n,t7n' :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
 t7   = uniform_0_1 >>= \x -> weight (unsafeProb (x+one)) >> dirac (x*x)
-t7'  = uniform_0_1 >>= \x -> superpose [(unsafeProb (x+one), dirac (x*x))]
+t7'  = uniform_0_1 >>= \x -> unsafeSuperpose [(unsafeProb (x+one), dirac (x*x))]
 t7n  =
     uniform (negate one) zero >>= \x ->
     weight (unsafeProb (x+one)) >>
     dirac (x*x)
 t7n' =
     uniform (negate one) zero >>= \x ->
-    superpose [(unsafeProb (x + one), dirac (x*x))]
+    unsafeSuperpose [(unsafeProb (x + one), dirac (x*x))]
 
 -- For sampling efficiency (to keep importance weights at or close to 1),
 -- t8 below should read back to uses of "normal", not uses of "lebesgue"
@@ -248,7 +255,7 @@ t12 = weight (nat2prob . nat_ $ 2)
 
 t13,t13' :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
 t13 = bern ((prob_ 3)/(prob_ 5)) >>= \b -> dirac (if_ b (real_ 37) (real_ 42))
-t13' = superpose
+t13' = unsafeSuperpose
     [ ((prob_ $ 3 % 5), dirac (nat2real . nat_ $ 37))
     , ((prob_ $ 2 % 5), dirac (nat2real . nat_ $ 42))
     ]
@@ -258,7 +265,7 @@ t14 =
     bern ((prob_ 3)/(prob_ 5)) >>= \b ->
     if_ b t13 (bern ((prob_ 2)/(prob_ 7)) >>= \b' ->
         if_ b' (uniform (real_ 10) (real_ 12)) (uniform (real_ 14) (real_ 16)))
-t14' = superpose 
+t14' = unsafeSuperpose 
     [ ((prob_ $ 9 % 25), dirac (nat2real . nat_ $ 37))
     , ((prob_ $ 6 % 25), dirac (nat2real . nat_ $ 42))
     , ((prob_ $ 4 % 35), uniformC (nat_ 10) (nat_ 12))
@@ -281,7 +288,7 @@ t23 =
     bern (if_ a ((prob_ 9)/(prob_ 10)) ((prob_ 1)/(prob_ 10))) >>= \b ->
     bern (if_ a ((prob_ 9)/(prob_ 10)) ((prob_ 1)/(prob_ 10))) >>= \c ->
     dirac (pair b c)
-t23' = superpose
+t23' = unsafeSuperpose
     [ ((prob_ $ 41 % 100), dirac (pair true true))
     , ((prob_ $ 9  % 100), dirac (pair true false))
     , ((prob_ $ 9  % 100), dirac (pair false true))
@@ -374,7 +381,7 @@ t46 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
 t46 = normal (real_ 4) (prob_ 5) >>= \x -> dirac (if_ (x < (real_ 3)) (x*x) (x-one))
 
 t47 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-t47 = superpose
+t47 = unsafeSuperpose
     [ (one, normal (real_ 4) (prob_ 5) >>= \x -> if_ (x < (real_ 3)) (dirac (x*x)) (reject sing))
     , (one, normal (real_ 4) (prob_ 5) >>= \x -> if_ (x < (real_ 3)) (reject sing) (dirac (x-one)))
     ]
@@ -399,7 +406,7 @@ t52 =
     dirac (pair (max x y) (pair x y))
 t52' =
     uniform_0_1 >>= \x2 ->
-    superpose
+    unsafeSuperpose
         [   ( unsafeProb (one + (x2 * negate one))
             , uniform x2 one >>= \x4 -> dirac (pair x4 (pair x2 x4))
             )
@@ -411,8 +418,8 @@ t52' =
 t53, t53', t53'' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure HUnit)
 t53 =
     lam $ \x ->
-    superpose
-        [ (one, superpose
+    unsafeSuperpose
+        [ (one, unsafeSuperpose
             [ (one,
                 if_ (zero < x)
                     (if_ (x < one) (dirac unit) (reject sing))
@@ -422,7 +429,7 @@ t53 =
         ]
 t53' =
     lam $ \x ->
-    superpose
+    unsafeSuperpose
         [ (one,
             if_ (zero < x)
                 (if_ (x < one) (dirac unit) (reject sing))
@@ -513,14 +520,14 @@ t56'' =
     reject sing
 
 t57, t57' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure HUnit)
-t57 = lam $ \t -> superpose
+t57 = lam $ \t -> unsafeSuperpose
     [ (one, if_ (t < one)  (dirac unit) (reject sing))
     , (one, if_ (zero < t) (dirac unit) (reject sing)) ]
 t57' = lam $ \t -> 
     if_ (t < one && zero < t) (weight (prob_ 2)) (dirac unit)
 
 t58, t58' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure HUnit)
-t58 = lam $ \t -> superpose
+t58 = lam $ \t -> unsafeSuperpose
     [ (one, if_ (zero < t && t < (real_ 2)) (dirac unit) (reject sing))
     , (one, if_ (one  < t && t < (real_ 3)) (dirac unit) (reject sing)) ]
 t58' = lam $ \t ->
@@ -840,7 +847,7 @@ testPriorProp'
         ':-> 'HMeasure (HPair (HPair 'HReal 'HReal) 'HProb))
 testPriorProp' =
     lam $ \old ->
-    superpose
+    unsafeSuperpose
         [(half,
             normal_0_1 >>= \x1 ->
             dirac (pair (pair x1 (snd old))
@@ -1008,11 +1015,11 @@ rmProg1 =
     x1 `unpair` \x2 x3 ->
     withWeight one $
     withWeight one $
-    superpose
+    unsafeSuperpose
         [(one,
             withWeight one $
             lebesgue >>= \x4 ->
-            superpose
+            unsafeSuperpose
                 [(one,
                     withWeight one $
                     lebesgue >>= \x5 ->
@@ -1041,12 +1048,12 @@ rmProg1 =
                         / unsafeProb x4
                         / (exp (log ((fromRational 2) * pi) * half))) $
                     withWeight (recip (fromRational 3)) $
-                    superpose
+                    unsafeSuperpose
                         [(one,
                             if_ (x5 < (real_ 4))
                                 (if_ (one < x5)
                                     (withWeight (recip (prob_ 5)) $
-                                    superpose
+                                    unsafeSuperpose
                                         [(one,
                                             if_ (x4 < (real_ 8))
                                                 (if_ ((real_ 3) < x4)
@@ -1148,7 +1155,7 @@ rmProg4 =
                                                                                let_ (pair (reject sing)
                                                                                           (lam $ \x39 ->
                                                                                            zero)) $ \x39 ->
-                                                                               pair (superpose [(x36,
+                                                                               pair (unsafeSuperpose [(x36,
                                                                                                  x37 `unpair` \x40 x41 ->
                                                                                                  x40),
                                                                                                 (x38,
@@ -1180,7 +1187,7 @@ rmProg4 =
                                                          let_ one $ \x36 ->
                                                          let_ (pair (reject sing)
                                                                     (lam $ \x37 -> zero)) $ \x37 ->
-                                                         pair (superpose [(x34,
+                                                         pair (unsafeSuperpose [(x34,
                                                                            x35 `unpair` \x38 x39 ->
                                                                            x38),
                                                                           (x36,
@@ -1213,7 +1220,7 @@ rmProg4 =
                                                * (x12 `unpair` \x14 x15 -> x15) `app` x13)) $ \x11 ->
                                  let_ one $ \x12 ->
                                  let_ (pair (reject sing) (lam $ \x13 -> zero)) $ \x13 ->
-                                 pair (superpose [(x10, x11 `unpair` \x14 x15 -> x14),
+                                 pair (unsafeSuperpose [(x10, x11 `unpair` \x14 x15 -> x14),
                                                   (x12, x13 `unpair` \x14 x15 -> x14)])
                                       (lam $ \x14 ->
                                        zero + x10 * (x11 `unpair` \x15 x16 -> x16) `app` x14
@@ -1223,7 +1230,7 @@ rmProg4 =
                                  zero + x9 * (x10 `unpair` \x12 x13 -> x13) `app` x11)) $ \x9 ->
                      let_ one $ \x10 ->
                      let_ (pair (reject sing) (lam $ \x11 -> zero)) $ \x11 ->
-                     pair (superpose [(x8, x9 `unpair` \x12 x13 -> x12),
+                     pair (unsafeSuperpose [(x8, x9 `unpair` \x12 x13 -> x12),
                                       (x10, x11 `unpair` \x12 x13 -> x12)])
                           (lam $ \x12 ->
                            zero + x8 * (x9 `unpair` \x13 x14 -> x14) `app` x12
@@ -1238,7 +1245,7 @@ rmProg4 =
         x3 `app` (lam $ \x4 -> one)) $ \x1 ->
   lam $ \x2 ->
   (x2 `unpair` \x3 x4 ->
-   superpose [(half,
+   unsafeSuperpose [(half,
                uniform (real_ 3) (real_ 8) >>= \x5 -> dirac (pair (unsafeProb x5) x4)),
               (half,
                uniform one (real_ 4) >>= \x5 ->
@@ -1302,7 +1309,7 @@ rmProg4 =
 --    x1 `unpair` \x30 x31 ->
 --    x31 `unpair` \x32 x33 ->
 --    x33 `unpair` \x34 x35 ->
---    superpose
+--    unsafeSuperpose
 --        [(recip (one + exp (negate
 --            ( x6
 --            + x8 * fromProb x34

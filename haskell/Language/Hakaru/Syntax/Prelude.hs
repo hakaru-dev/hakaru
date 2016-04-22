@@ -126,14 +126,15 @@ module Language.Hakaru.Syntax.Prelude
     ) where
 
 -- TODO: implement and use Prelude's fromInteger and fromRational, so we can use numeric literals!
-import Prelude (Maybe(..), Bool(..), Integer, Rational, ($), (++), flip, const, error)
+import Prelude (Maybe(..), Bool(..), Integer, Rational, ($), flip, const, error)
 import qualified Prelude
 import           Data.Sequence       (Seq)
 import qualified Data.Sequence       as Seq
 import qualified Data.Text           as Text
 import           Data.List.NonEmpty  (NonEmpty(..))
 import qualified Data.List.NonEmpty  as L
-import           Control.Category (Category(..))
+import           Data.Semigroup      (Semigroup(..))
+import           Control.Category    (Category(..))
 
 import Data.Number.Natural
 import Language.Hakaru.Types.DataKind
@@ -1158,31 +1159,33 @@ counting :: (ABT Term abt) => abt '[] ('HMeasure 'HInt)
 counting = measure0_ Counting
 
 -- TODO: make this smarter by collapsing nested @Superpose_@ similar to how we collapse nested NaryOps. Though beware, that could cause duplication of the computation for the probabilities\/weights; thus may want to only do it when the weights are constant values, or \"simplify\" things by generating let-bindings in order to share work.
+--
+-- TODO: can we make this smarter enough to handle empty lists?
 superpose
     :: (ABT Term abt)
-    => [(abt '[] 'HProb, abt '[] ('HMeasure a))]
+    => NonEmpty (abt '[] 'HProb, abt '[] ('HMeasure a))
     -> abt '[] ('HMeasure a)
-superpose []     = error "BUG: Prelude.superpose won't construct a Reject_"
-superpose (x:xs) = syn $ Superpose_ (x :| xs)
+superpose = syn . Superpose_
 
 -- | The empty measure. Is called @fail@ in the Core Hakaru paper.
 reject
     :: (ABT Term abt)
     => (Sing ('HMeasure a))
     -> abt '[] ('HMeasure a)
-reject typ = syn $ Reject_ typ
+reject = syn . Reject_
 
--- TODO: define @mplus@ to better mimic Core Hakaru?
+-- | The sum of two measures. Is called @mplus@ in the Core Hakaru paper.
 (<|>) :: (ABT Term abt)
       => abt '[] ('HMeasure a)
       -> abt '[] ('HMeasure a)
       -> abt '[] ('HMeasure a)
 x <|> y =
-    case (matchSuperpose x, matchSuperpose y) of
-    (Just xs, Just ys) -> syn . Superpose_ $ nonEmptyAppend xs ys
-    (Just xs, Nothing) -> superpose $ (one, y) : L.toList xs
-    (Nothing, Just ys) -> superpose $ (one, x) : L.toList ys
-    (Nothing, Nothing) -> superpose [(one, x), (one, y)]
+    superpose $
+        case (matchSuperpose x, matchSuperpose y) of
+        (Just xs, Just ys) -> xs <> ys
+        (Just xs, Nothing) -> (one, y) :| L.toList xs -- HACK: reordering!
+        (Nothing, Just ys) -> (one, x) :| L.toList ys
+        (Nothing, Nothing) -> (one, x) :| [(one, y)]
 
 matchSuperpose
     :: (ABT Term abt) 
@@ -1195,9 +1198,6 @@ matchSuperpose e =
             case t of
             Superpose_ xs -> Just xs
             _ -> Nothing
-
-nonEmptyAppend :: NonEmpty a -> NonEmpty a -> NonEmpty a
-nonEmptyAppend (x:|xs) (y:|ys) =  x :| y : (xs ++ ys) 
 
 -- TODO: we should ensure that the following reductions happen:
 -- > (withWeight p m >> n) ---> withWeight p (m >> n)
@@ -1520,10 +1520,8 @@ weibull b k =
 
 -- BUG: would it be better to 'observe' that @p <= 1@ before doing the superpose? At least that way things would be /defined/ for all inputs...
 bern :: (ABT Term abt) => abt '[] 'HProb -> abt '[] ('HMeasure HBool)
-bern p = superpose
-    [ (p, dirac true)
-    , (prob_ 1 `unsafeMinusProb` p, dirac false)
-    ]
+bern p = weightedDirac true  p
+     <|> weightedDirac false (prob_ 1 `unsafeMinusProb` p)
 
 mix :: (ABT Term abt)
     => abt '[] ('HArray 'HProb) -> abt '[] ('HMeasure 'HNat)

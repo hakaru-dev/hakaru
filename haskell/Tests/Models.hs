@@ -4,7 +4,7 @@
            , FlexibleContexts #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.16
+--                                                    2016.04.22
 -- |
 -- Module      :  Tests.Models
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -21,12 +21,14 @@
 ----------------------------------------------------------------
 module Tests.Models where
 
+import Data.Text
+import qualified Data.List.NonEmpty as L
+
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Syntax.AST (Term)
 import Language.Hakaru.Syntax.ABT (ABT)
 import Language.Hakaru.Syntax.Prelude
 
-import Data.Text
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -68,10 +70,10 @@ t4' :: (ABT Term abt) => abt '[] ('HMeasure (HPair 'HProb HBool))
 t4' =
     uniform zero one >>= \x ->
     let x' = unsafeProb x in
-    superpose
+    superpose (L.fromList
         [ (x'                  , dirac (pair x' true))
         , (unsafeProb (one - x), dirac (pair x' false))
-        ]
+        ])
 
 norm :: (ABT Term abt) => abt '[] ('HMeasure (HPair 'HReal 'HReal))
 norm =

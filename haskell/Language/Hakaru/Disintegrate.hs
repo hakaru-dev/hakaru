@@ -340,7 +340,7 @@ perform = \e0 ->
     performTerm (Superpose_ pes) = do
         -- TODO: we should combine the multiple traversals of @pes@/@pes'@
         pes' <- T.traverse (firstM (fmap fromWhnf . atomize)) pes
-        emitFork_ (P.superpose . L.toList . getCompose) (perform <$> Compose pes')
+        emitFork_ (P.superpose . getCompose) (perform <$> Compose pes')
 
     -- Avoid falling through to the @performWhnf <=< evaluate_@ case
     performTerm (Let_ :$ e1 :* e2 :* End) =
@@ -967,13 +967,10 @@ constrainPrimOp v0 = go
         x0 <- emitLet' (P.coerceTo_ signed v0)
         v  <- var <$> emitMBind
             (P.if_ (lt zero x0)
-                (P.superpose
-                    [ (P.one, P.dirac x0)
-                    , (P.one, P.dirac (neg x0))
-                    ])
+                (P.dirac x0 P.<|> P.dirac (neg x0))
                 (P.if_ (eq zero x0)
                     (P.dirac zero)
-                    (P.reject . SMeasure . typeOf $ zero)))
+                    (P.reject . SMeasure $ typeOf zero)))
         constrainValue v e1
 
     go (Signum theRing) = \(e1 :* End) ->
@@ -1087,7 +1084,7 @@ constrainOutcome v0 e0 =
         _ -> do
             -- TODO: we should combine the multiple traversals of @pes@/@pes'@
             pes' <- T.traverse (firstM (fmap fromWhnf . atomize)) pes
-            emitFork_ (P.superpose . L.toList . getCompose)
+            emitFork_ (P.superpose . getCompose)
                 (constrainOutcome v0 <$> Compose pes')
 
 

@@ -65,6 +65,7 @@ import           Control.Applicative  (Applicative(..))
 import qualified Data.Foldable        as F
 import qualified Data.Traversable     as T
 import           Data.List.NonEmpty   (NonEmpty(..))
+import qualified Data.List.NonEmpty   as L
 import           Control.Applicative  (Alternative(..))
 import           Control.Monad        (MonadPlus(..))
 import           Data.Text            (Text)
@@ -498,14 +499,17 @@ emitSuperpose
     :: (ABT Term abt)
     => [abt '[] ('HMeasure a)]
     -> Dis abt (Variable a)
+emitSuperpose []  = error "TODO: emitSuperpose[]"
 emitSuperpose [e] = emitMBind e
-emitSuperpose es  = emitMBind (P.superpose [(P.prob_ 1, e) | e <- es])
+emitSuperpose es  =
+    emitMBind . P.superpose . L.map ((,) P.one) $ L.fromList es
 
 
 -- | Emit a 'Superpose_' of the alternatives, each with unit weight.
 choose :: (ABT Term abt) => [Dis abt a] -> Dis abt a
+choose []  = error "TODO: choose[]"
 choose [m] = m
-choose ms  = emitFork_ (\es -> P.superpose [(P.prob_ 1, e) | e <- es]) ms
+choose ms  = emitFork_ (P.superpose . L.map ((,) P.one) . L.fromList) ms
 
 
 -- TODO: move this to Datum.hs; also, use it elsewhere as needed to clean up code.
