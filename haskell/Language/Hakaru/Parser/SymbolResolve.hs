@@ -105,6 +105,7 @@ primTable =
     ,("beta",        primMeasure2 (U.SealedOp T.Beta))
     ,("categorical", primMeasure1 (U.SealedOp T.Categorical))
     ,("bern",        primBern)
+    ,("factor",      primFactor)
     ,("weight",      primWeight)
     ,("dirac",       TLam $ TNeu . U.Dirac_)
     ,("reject",      TNeu $ U.Reject_)    
@@ -162,6 +163,11 @@ cFromInt  = continuous
 cNat2Real :: Coercion 'HNat 'HReal
 cNat2Real = CCons (Signed HRing_Int) continuous
 
+unit_ :: U.AST
+unit_ =
+    U.Ann_ (U.Datum_ (U.Datum "unit" . U.Inl $ U.Done))
+         (U.SSing sUnit)
+
 true_, false_ :: U.AST
 true_  =
     U.Ann_ (U.Datum_ . U.Datum "true"  . U.Inl $ U.Done)
@@ -181,8 +187,10 @@ primRight =
     TLam $ TNeu . U.Datum_ .
         U.Datum "right" . U.Inr . U.Inl . (`U.Et` U.Done) . U.Konst
 
-primWeight, primBern :: Symbol U.AST
+primWeight, primFactor, primBern :: Symbol U.AST
 primWeight = t2 $ \w m -> U.Superpose_ [(w, m)]
+primFactor = TLam $ \w -> TNeu $
+              U.Superpose_ [(w, U.Dirac_ unit_)]
 primBern   =
     TLam $ \p -> TNeu (U.Superpose_
         [ (p, U.Dirac_ true_)
@@ -444,8 +452,7 @@ makeAST ast =
     U.NegInfinity'    -> U.PrimOp_ U.NegativeInfinity []
     U.ULiteral v      -> U.Literal_  (U.val v)
     U.NaryOp op es    -> U.NaryOp_ op (map makeAST es)
-    U.Unit            ->
-        U.Ann_ (U.Datum_ (U.Datum "unit" . U.Inl $ U.Done)) (U.SSing sUnit)
+    U.Unit            -> unit_
     U.Empty           -> U.Empty_
     U.Pair e1 e2      -> U.Pair_ (makeAST e1) (makeAST e2)
     U.Array s e1 e2 ->
