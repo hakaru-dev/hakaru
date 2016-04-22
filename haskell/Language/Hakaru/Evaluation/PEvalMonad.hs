@@ -107,12 +107,12 @@ import Debug.Trace (trace)
 -- graph and we may wish to change the topological sorting or remove
 -- \"garbage\" (subject to correctness criteria).
 --
--- TODO: Figure out what to do with 'SWeight' so that we can use
--- an @IntMap (Statement abt)@ in order to speed up the lookup times
--- in 'select'. (Assuming callers don't use 'unsafePush' unsafely:
--- we can recover the order things were inserted from their 'varID'
--- since we've freshened them all and therefore their IDs are
--- monotonic in the insertion order.)
+-- TODO: Figure out what to do with 'SWeight', 'SGuard', 'SStuff',
+-- etc, so that we can use an @IntMap (Statement abt)@ in order to
+-- speed up the lookup times in 'select'. (Assuming callers don't
+-- use 'unsafePush' unsafely: we can recover the order things were
+-- inserted from their 'varID' since we've freshened them all and
+-- therefore their IDs are monotonic in the insertion order.)
 data ListContext (abt :: [Hakaru] -> Hakaru -> *) (p :: Purity) =
     ListContext
     { nextFreshNat :: {-# UNPACK #-} !Nat
@@ -190,15 +190,16 @@ residualizeListContext =
             [ Branch pat   $ binds_ xs e
             , Branch PWild $ P.reject (typeOf e)
             ]
-    step (SWeight body) = mapPImpure $ \e -> P.withWeight (fromLazy body) e
+    step (SWeight body) = mapPImpure $ P.withWeight (fromLazy body)
     step (SStuff0    f) = mapPExpect f
     step (SStuff1 _x f) = mapPExpect f
 
 
+-- TODO: move this to Prelude? Is there anyone else that actually needs these smarts?
 residualizeLet
     :: (ABT Term abt) => Variable a -> Lazy abt a -> abt '[] b -> abt '[] b
 residualizeLet x body scope
-    -- TODO: I think this trick broke somewhere...
+    -- Drop unused bindings
     | not (x `memberVarSet` freeVars scope) = scope
     -- TODO: if used exactly once in @e@, then inline.
     | otherwise =
