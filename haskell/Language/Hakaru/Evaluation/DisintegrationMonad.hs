@@ -16,7 +16,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.03.01
+--                                                    2016.04.22
 -- |
 -- Module      :  Language.Hakaru.Evaluation.DisintegrationMonad
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -182,24 +182,7 @@ residualizeListContext =
                 [ Branch pat   (binds_ xs e)
                 , Branch PWild (P.reject $ typeOf e)
                 ]
-        SWeight body        -> syn $ Superpose_ ((fromLazy body, e) :| [])
-        SIndex x index size ->
-            -- The obvious thing to do:
-            syn (ArrayOp_ (Index $ typeOf e)
-                :$ syn (Array_ (fromLazy size) (bind x e))
-                :* fromLazy index
-                :* End)
-            -- An alternative thing, making it clearer that we've evaluated:
-            {-
-            syn (Let_
-                :$ fromLazy index
-                :* bind x
-                    (P.if_
-                        (P.nat_ 0 P.<= var x P.&& var x P.< fromLazy size)
-                        e
-                        P.reject)
-                :* End)
-            -}
+        SWeight body -> syn $ Superpose_ ((fromLazy body, e) :| [])
 
 ----------------------------------------------------------------
 -- In the paper we say that result must be a 'Whnf'; however, in

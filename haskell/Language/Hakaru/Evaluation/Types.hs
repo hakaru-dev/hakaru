@@ -15,7 +15,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.21
+--                                                    2016.04.22
 -- |
 -- Module      :  Language.Hakaru.Evaluation.Types
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -504,25 +504,6 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
         -> !(Lazy abt a)
         -> Statement abt p
 
-    -- A variable bound by 'Array_' underneath 'Index'. The first
-    -- expression gives the index at which we are evaluating the
-    -- array (i.e., the second argument to 'Index'); the second
-    -- index gives the size of the array (i.e., the first argument
-    -- to 'Array_'). If it turns out that the index expression is
-    -- out of bounds, then evaluation should throw an error or bot
-    -- or something.
-    --
-    -- N.B., although this constructor is defined here, we don't
-    -- actually handle it anywhere. Once Praveen figures out how
-    -- to disintegrate arrays, we'll want to update this constructor
-    -- as appropriate.
-    SIndex
-        :: forall abt p
-        .  {-# UNPACK #-} !(Variable 'HNat)
-        -> !(Lazy abt 'HNat)
-        -> !(Lazy abt 'HNat)
-        -> Statement abt p
-
 
     -- A weight; i.e., the first component of each argument to
     -- 'Superpose_'. This is a statement just so that we can avoid
@@ -569,7 +550,6 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
 isBoundBy :: Variable (a :: Hakaru) -> Statement abt p -> Maybe ()
 x `isBoundBy` SBind  y _    = const () <$> varEq x y
 x `isBoundBy` SLet   y _    = const () <$> varEq x y
-x `isBoundBy` SIndex y _ _  = const () <$> varEq x y
 _ `isBoundBy` SWeight  _    = Nothing
 x `isBoundBy` SGuard ys _ _ =
     if memberVarSet x (toVarSet1 ys) -- TODO: just check membership directly, rather than going through VarSet
@@ -615,12 +595,6 @@ ppStatement p s =
         PP.sep $ ppFun p "SLet"
             [ ppVariable x
             , PP.sep $ prettyPrec_ 11 e
-            ]
-    SIndex x e1 e2 ->
-        PP.sep $ ppFun p "SIndex"
-            [ ppVariable x
-            , PP.sep $ prettyPrec_ 11 e1
-            , PP.sep $ prettyPrec_ 11 e2
             ]
     SWeight e ->
         PP.sep $ ppFun p "SWeight"
@@ -724,9 +698,6 @@ freshenStatement s =
     SGuard xs pat scrutinee -> do
         xs' <- freshenVars xs
         return (SGuard xs' pat scrutinee, toAssocs xs (fmap11 var xs'))
-    SIndex x index size -> do
-        x' <- freshenVar x
-        return (SIndex x' index size, singletonAssocs x (var x'))
     SStuff0   _ -> return (s, mempty)
     SStuff1 x f -> do
         x' <- freshenVar x

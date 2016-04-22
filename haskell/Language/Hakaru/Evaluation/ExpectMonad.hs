@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.05
+--                                                    2016.04.22
 -- |
 -- Module      :  Language.Hakaru.Evaluation.ExpectMonad
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -81,7 +81,6 @@ residualizeExpectListContext e0 =
     step :: abt '[] 'HProb -> Statement abt 'ExpectP -> abt '[] 'HProb
     step e s =
         case s of
-        SIndex  _ _ _ -> error "TODO: residualizeExpectListContext{SIndex}"
         SLet x body
             -- BUG: this trick for dropping unused let-bindings doesn't seem to work anymore... (cf., 'Tests.Expect.test4')
             | not (x `memberVarSet` freeVars e) -> e

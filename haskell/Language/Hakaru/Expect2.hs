@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.21
+--                                                    2016.04.22
 -- |
 -- Module      :  Language.Hakaru.Expect2
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -206,7 +206,6 @@ emitExpectListContext = do
         trace ("\n-- emitExpectListContext: " ++ show (ppStatement 0 s)) $
 #endif
         case s of
-        SIndex  _ _ _ -> error "TODO: emitExpectListContext{SIndex}"
         SLet x body ->
             -- TODO: be smart about dropping unused let-bindings and inlining trivial let-bindings
             Expect $ \c h ->

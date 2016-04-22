@@ -16,7 +16,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.21
+--                                                    2016.04.22
 -- |
 -- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -468,7 +468,6 @@ atomizeCore e = do
 statementVars :: Statement abt p -> VarSet ('KProxy :: KProxy Hakaru)
 statementVars (SBind x _)     = singletonVarSet x
 statementVars (SLet  x _)     = singletonVarSet x
-statementVars (SIndex x _ _)  = singletonVarSet x
 statementVars (SWeight _)     = emptyVarSet
 statementVars (SGuard xs _ _) = toVarSet1 xs
 statementVars (SStuff0   _)   = emptyVarSet
@@ -699,9 +698,6 @@ constrainVariable v0 x =
         SWeight _ -> Nothing
         SGuard ys pat scrutinee ->
             error "TODO: constrainVariable{SGuard}"
-        SIndex y e1 e2 -> do
-            Refl <- varEq x y
-            Just $ error "TODO: constrainVariable{SIndex}"
 
 
 ----------------------------------------------------------------

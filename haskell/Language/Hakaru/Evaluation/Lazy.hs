@@ -13,7 +13,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.03.01
+--                                                    2016.04.22
 -- |
 -- Module      :  Language.Hakaru.Evaluation.Lazy
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -289,26 +289,6 @@ update perform evaluate_ = \x ->
         SStuff1 _ _ -> Nothing
         SGuard ys pat scrutinee ->
             error "TODO: update{SGuard}"
-        SIndex y e1 e2 -> do
-            Refl <- varEq x y
-            Just $ do
-                error "TODO: update{SIndex}"
-                {-
-                w1 <- caseLazy e1 return evaluate_
-                case tryReify w1 of
-                    Just n1 -> do
-                        checkAssert (0 <= n1)
-                        w2 <- caseLazy e2 return evaluate_
-                        case tryReify w2 of
-                            Just n2 -> checkAssert (n1 < n2)
-                            Nothing -> emitAssert (P.nat_ n1 P.< fromWhnf w2)
-                    Nothing -> do
-                        -- if very strict, then force @e2@ too
-                        z <- emitLet (fromWhnf w1)
-                        emitAssert (P.zero P.<= z P.&& z P.< fromLazy e2)
-                unsafePush (SLet x $ Whnf_ w1) -- TODO: maybe save @w2@ too, to minimize work on reentry? Or maybe we should just SLet-bind the @e2@ before we push the original SIndex, so it happens automagically...
-                return w1
-                -}
 
 
 ----------------------------------------------------------------
@@ -562,15 +542,7 @@ evaluateArrayOp evaluate_ = go
             Neutral e1' ->
                 return . Neutral $ syn (ArrayOp_ o :$ e1' :* e2 :* End)
             Head_   v1  ->
-                case head2array v1 of
-                Nothing ->
-                    error "TODO: evaluateArrayOp{Index}: use bot"
-                Just WAEmpty ->
-                    error "evaluate: indexing into empty array!"
-                Just (WAArray e3 e4) ->
-                    -- a call-by-name approach to indexing:
-                    caseBind e4 $ \x e4' ->
-                        push (SIndex x (Thunk e2) (Thunk e3)) e4' evaluate_
+                error "TODO: evaluateArrayOp{Index}{Head_}"
 
     go o@(Size _) = \(e1 :* End) -> do
         w1 <- evaluate_ e1

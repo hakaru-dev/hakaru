@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.05
+--                                                    2016.04.22
 -- |
 -- Module      :  Language.Hakaru.Evaluation.EvalMonad
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -126,7 +126,6 @@ residualizePureListContext e0 =
     step :: abt '[] a -> Statement abt 'Pure -> abt '[] a
     step e s =
         case s of
-        SIndex  _ _ _ -> error "TODO: residualizePureListContext{SIndex}"
         SLet x body
             | not (x `memberVarSet` freeVars e) -> e
             -- TODO: if used exactly once in @e@, then inline.

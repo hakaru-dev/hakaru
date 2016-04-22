@@ -1162,7 +1162,7 @@ superpose
     :: (ABT Term abt)
     => [(abt '[] 'HProb, abt '[] ('HMeasure a))]
     -> abt '[] ('HMeasure a)
-superpose []     = error "Use reject instead"
+superpose []     = error "BUG: Prelude.superpose won't emit a Reject_"
 superpose (x:xs) = syn $ Superpose_ (x :| xs)
 
 -- | The empty measure. Is called @fail@ in the Core Hakaru paper.
