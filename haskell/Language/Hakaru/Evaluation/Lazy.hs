@@ -624,6 +624,15 @@ evaluatePrimOp evaluate_ = go
         -> m (Whnf abt c)
     neu1 f e = (Neutral . f . fromWhnf) <$> evaluate_ e
 
+    neu2 :: forall b c d
+        .  (abt '[] b -> abt '[] c -> abt '[] d)
+        -> abt '[] b
+        -> abt '[] c   
+        -> m (Whnf abt d)
+    neu2 f e1 e2 = do e1' <- fromWhnf <$> evaluate_ e1
+                      e2' <- fromWhnf <$> evaluate_ e2
+                      return . Neutral $ f e1' e2'
+
     rr1 :: forall b b' c c'
         .  (Interp b b', Interp c c')
         => (b' -> c')
@@ -691,9 +700,9 @@ evaluatePrimOp evaluate_ = go
     go Atanh     (e1 :* End)       = neu1 P.atanh e1
 
     -- TODO: deal with how we have better types for these three ops than Haskell does...
-    {-
-    go RealPow   (e1 :* e2 :* End) = rr2 (**) (P.**) e1 e2
-    -}
+    -- go RealPow   (e1 :* e2 :* End) = rr2 (**) (P.**) e1 e2
+    go RealPow   (e1 :* e2 :* End) = neu2 (P.**) e1 e2
+
     -- HACK: these aren't actually neutral!
     -- BUG: we should try to cancel out @(exp . log)@ and @(log . exp)@
     go Exp       (e1 :* End)       = neu1 P.exp e1
