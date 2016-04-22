@@ -683,10 +683,10 @@ evaluatePrimOp evaluate_ = go
     -- HACK: these aren't actually neutral!
     go Infinity         End        = return $ Neutral P.infinity
     go NegativeInfinity End        = return $ Neutral P.negativeInfinity
-    {-
-    go GammaFunc   (e1 :* End)             =
-    go BetaFunc    (e1 :* e2 :* End)       =
-    -}
+    
+    go GammaFunc   (e1 :* End)            = neu1 P.gammaFunc e1
+    go BetaFunc    (e1 :* e2 :* End)      = neu2 P.betaFunc  e1 e2
+
     go (Equal  theEq)   (e1 :* e2 :* End) = rrEqual theEq  e1 e2
     go (Less   theOrd)  (e1 :* e2 :* End) = rrLess  theOrd e1 e2
     go (NatPow theSemi) (e1 :* e2 :* End) =
