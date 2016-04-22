@@ -162,14 +162,14 @@ prefix s f = Ex.Prefix (f <$ reservedOp s)
 table :: OperatorTable (AST' Text)
 table =
     [ [ Ex.Postfix array_index ]
-    , [ prefix "+"  id
-      , prefix "-"  (App (Var "negate"))]
+    , [ prefix "+"  id ]
     , [ binary "^"  Ex.AssocRight
       , binary "**" Ex.AssocRight]
     , [ binary "*"  Ex.AssocLeft
       , binary "/"  Ex.AssocLeft]
     , [ binary "+"  Ex.AssocLeft
-      , binary "-"  Ex.AssocLeft]
+      , binary "-"  Ex.AssocLeft
+      , prefix "-"  (App (Var "negate"))]
     -- TODO: add "<=", ">=", "/="
     -- TODO: do you *really* mean AssocLeft? Shouldn't they be non-assoc?
     , [ Ex.Postfix ann_expr ]
