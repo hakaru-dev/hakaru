@@ -292,6 +292,7 @@ evaluatePrimOp NegativeInfinity End _ = VReal $ LF.negativeInfinity
 evaluatePrimOp (Less _) (e1 :* e2 :* End) env =
     case (evaluate e1 env, evaluate e2 env) of
     (VNat  v1, VNat  v2) -> VDatum $ if v1 < v2 then dTrue else dFalse
+    (VProb v1, VProb v2) -> VDatum $ if v1 < v2 then dTrue else dFalse
     (VReal v1, VReal v2) -> VDatum $ if v1 < v2 then dTrue else dFalse
     v                    -> error "TODO: evaluatePrimOp{Less}"
 evaluatePrimOp (Equal _) (e1 :* e2 :* End) env =
