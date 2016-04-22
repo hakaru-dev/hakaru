@@ -897,37 +897,33 @@ constrainPrimOp v0 = go
     go Asinh     = \(e1 :* End)       -> error_TODO "Asinh"
     go Acosh     = \(e1 :* End)       -> error_TODO "Acosh"
     go Atanh     = \(e1 :* End)       -> error_TODO "Atanh"
-    go RealPow   = \(e1 :* e2 :* End) -> error_TODO "RealPow"
-        {- -- something like:
+    go RealPow   = \(e1 :* e2 :* End) ->
         -- TODO: There's a discrepancy between @(**)@ and @pow_@ in the old code...
         do
-            v1 <- evaluate_ e1
             -- TODO: if @v1@ is 0 or 1 then bot. Maybe the @log v1@ in @w@ takes care of the 0 case?
-            u <- atomize v0
+            u <- emitLet' v0
             -- either this from @(**)@:
-            emitGuard  $ P.zero P.< u
-            w <- atomize $ recip (abs (v0 * log v1))
-            emitWeight $ unsafeProb w
-            constrainValue (logBase v1 v0) e2
+            --   emitGuard  $ P.zero P.< u
+            --   w <- atomize $ P.recip (P.abs (v0 P.* P.log v1))
+            --   emitWeight $ P.unsafeProb (fromWhnf w)
+            --   constrainValue (P.logBase v1 v0) e2
             -- or this from @pow_@:
-            w <- atomize $ recip (u * unsafeProb (abs (log v1))
+            let w = P.recip (u P.* P.unsafeProb (P.abs (P.log e1)))
             emitWeight w
-            constrainValue (log u / log v1) e2
+            constrainValue (P.log u P./ P.log e1) e2
             -- end.
         <|> do
-            v2 <- evaluate_ e2
             -- TODO: if @v2@ is 0 then bot. Maybe the weight @w@ takes care of this case?
-            u <- atomize v0
-            let ex = v0 ** recip v2
+            u <- emitLet' v0
+            let ex = v0 P.** P.recip e2
             -- either this from @(**)@:
-            emitGuard $ P.zero P.< u
-            w <- atomize $ abs (ex / (v2 * v0))
+            --   emitGuard $ P.zero P.< u
+            --   w <- atomize $ abs (ex / (v2 * v0))
             -- or this from @pow_@:
-            let w = abs (fromProb ex / (v2 * fromProb u))
+            let w = P.abs (P.fromProb ex P./ (e2 P.* P.fromProb u))
             -- end.
-            emitWeight $ unsafeProb w
+            emitWeight $ P.unsafeProb w
             constrainValue ex e1
-        -}
     go Exp = \(e1 :* End) -> do
         x0 <- emitLet' v0
         -- TODO: do we still want\/need the @emitGuard (0 < x0)@ which is now equivalent to @emitGuard (0 /= x0)@ thanks to the types?
