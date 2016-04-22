@@ -6,7 +6,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.12.15
+--                                                    2016.04.21
 -- |
 -- Module      :  Language.Hakaru.Inference
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -201,8 +201,8 @@ approxMh proposal prior (_:xs) =
     where
     n   = real_ 2000
     eps = prob_ 0.05
-    udif l u = unsafeProb $ fromProb l - fromProb u
-    l   = \d1 d2 -> prob_ 2 -- determine (density (\theta -> x theta))
+    udif lo hi = unsafeProb $ fromProb lo - fromProb hi
+    l = \_d1 _d2 -> prob_ 2 -- determine (density (\theta -> x theta))
 
 kl :: (ABT Term abt)
    => abt '[] ('HMeasure a)
