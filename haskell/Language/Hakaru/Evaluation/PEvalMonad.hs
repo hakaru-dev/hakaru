@@ -120,24 +120,10 @@ data ListContext (abt :: [Hakaru] -> Hakaru -> *) (p :: Purity) =
     }
 
 
--- BUG: this declaration works fine, but because we can't
--- guarantee\/prove it's injective, it doesn't actually work out
--- in practice. E.g., when we adjust the types of 'residualizeListContext'
--- we start running into abscure \"ambiguity\" issues. If we can
--- get things to work for 'residualizeListContext' then we can
--- generalize 'Ans' to be polymorphic in the purity, and so can
--- generalize 'PEval' to also be polymorphic in the purity; thus
--- allowing us to reuse 'PEval' for constant propagation, rather than
--- needing to copy everything over for the definition of the @Eval@
--- type.
---
--- TODO: how to make it work out? If we had some way of naming the
--- type level identity function (i.e., the actual identity function,
--- not a hack like using the @Identity@ newtype) then we could be
--- parameterized just on @p@ which is what we actually want.
-
 -- HACK: we can't use a type family and do @abt xs (P p a)@ because
--- of non-injectivity. So we make this a GADT instead...
+-- of non-injectivity. So we make this a GADT instead. Because it's
+-- a GADT, there's a bunch of ugly rewrapping required; but everything
+-- seems to work out just fine...
 data P :: Purity -> ([Hakaru] -> Hakaru -> *) -> [Hakaru] -> Hakaru -> *
     where
     PPure   :: !(abt xs a)             -> P 'Pure    abt xs a
