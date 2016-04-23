@@ -322,7 +322,10 @@ prettyType p typ          =
       SData (STyCon sym) _ ->
           case jmEq1 sym (SingSymbol Proxy :: Sing "Bool") of
             Just Refl -> PP.text "bool"
-            Nothing   -> PP.text (showsPrec 11 typ "")
+            Nothing   ->
+                case jmEq1 sym (SingSymbol Proxy :: Sing "Unit") of
+                  Just Refl -> PP.text "unit"
+                  Nothing   -> PP.text (showsPrec 11 typ "")
       _ -> PP.text (showsPrec 11 typ "")
     -- TODO: make this prettier. Add hints to the singletons?typ
 
