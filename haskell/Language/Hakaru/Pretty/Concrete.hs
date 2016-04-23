@@ -234,11 +234,13 @@ ppSCon _ MBind = \(e1 :* e2 :* End) ->
         PP.$$ (toDoc body)]
 
 ppSCon p Expect = \(e1 :* e2 :* End) ->
-    -- N.B., for this to be read back in correctly, "Language.Hakaru.Expect" must be in scope as well as the prelude.
-    parens (p > 0) $
-        adjustHead
-            (PP.text "expect" <+> toDoc (ppArg e1) <+> PP.char '$' <+>)
-            (ppBinder e2)
+    let (vars, types, body) = ppBinder2 e2 in
+    [ PP.text "expect"
+      <+> toDoc vars
+      <+> (toDoc $ ppArg e1)
+      <> PP.colon
+    , PP.nest 1 (toDoc body)
+    ]
 
 ppSCon p Integrate = \(e1 :* e2 :* e3 :* End) ->
     let (vars, types, body) = ppBinder2 e3 in

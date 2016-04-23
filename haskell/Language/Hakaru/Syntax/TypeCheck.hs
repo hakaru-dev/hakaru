@@ -639,6 +639,14 @@ inferType = inferType_
                   return . TypedAST SProb $ syn (PrimOp_ GammaFunc :$ e' :* End)
         _   -> failwith "Passed wrong number of arguments"
 
+  inferPrimOp U.BetaFunc es =
+      case es of
+        [e1, e2] -> do e1' <- checkType_ SProb e1
+                       e2' <- checkType_ SProb e2
+                       return . TypedAST SProb $
+                              syn (PrimOp_ BetaFunc :$ e1' :* e2' :* End)
+        _        -> failwith "Passed wrong number of arguments"
+
   inferPrimOp U.Equal es =
       case es of
         [_, _] -> do mode <- getMode

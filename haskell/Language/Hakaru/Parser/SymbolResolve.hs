@@ -117,6 +117,7 @@ primTable =
     ,("exp",         primPrimOp1 U.Exp)
     ,("log",         primPrimOp1 U.Log)
     ,("gammaFunc",   primPrimOp1 U.GammaFunc)
+    ,("betaFunc",    primPrimOp2 U.BetaFunc)
     ,("equal",       primPrimOp2 U.Equal)
     ,("less",        primPrimOp2 U.Less)
     ,("negate",      primPrimOp1 U.Negate)
