@@ -16,7 +16,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.22
+--                                                    2016.04.24
 -- |
 -- Module      :  Language.Hakaru.Evaluation.PEvalMonad
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -252,7 +252,7 @@ runImpureEval
 runImpureEval m es =
     unPImpure <$> unPEval m c0 h0
     where
-    i0      = maxNextFree es
+    i0      = maxNextFree es -- TODO: is maxNextFreeOrBind better here?
     h0      = ListContext i0 []
     -- TODO: we only use dirac because 'residualizeListContext'
     -- requires it to already be a measure; unfortunately this can
@@ -274,7 +274,7 @@ runPureEval
 runPureEval m es =
     unPPure <$> unPEval m c0 h0
     where
-    i0      = maxNextFree es
+    i0      = maxNextFree es -- TODO: is maxNextFreeOrBind better here?
     h0      = ListContext i0 []
     c0 e ss = pure . residualizeListContext ss $ PPure e
 
@@ -287,7 +287,7 @@ runExpectEval
 runExpectEval m f es =
     unPExpect <$> unPEval m c0 h0
     where
-    i0      = nextFree f `max` maxNextFree es
+    i0      = nextFreeOrBind f `max` maxNextFreeOrBind es
     h0      = ListContext i0 []
     c0 e ss =
         pure

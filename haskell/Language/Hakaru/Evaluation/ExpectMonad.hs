@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.22
+--                                                    2016.04.24
 -- |
 -- Module      :  Language.Hakaru.Evaluation.ExpectMonad
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -44,7 +44,7 @@ import           Control.Applicative  (Applicative(..))
 import qualified Data.Foldable        as F
 
 import Language.Hakaru.Syntax.IClasses (Some2(..))
-import Language.Hakaru.Syntax.ABT      (ABT(..), caseVarSyn, subst, maxNextFree)
+import Language.Hakaru.Syntax.ABT      (ABT(..), caseVarSyn, subst, maxNextFreeOrBind)
 import Language.Hakaru.Syntax.Variable (memberVarSet)
 import Language.Hakaru.Syntax.AST      hiding (Expect)
 import Language.Hakaru.Evaluation.Types
@@ -104,7 +104,11 @@ brokenInvariant :: String -> a
 brokenInvariant loc = error (loc ++ ": Expect's invariant broken")
 
 
--- | Run a computation in the 'Expect' monad, residualizing out all the statements in the final evaluation context. The second argument should include all the terms altered by the 'Eval' expression; this is necessary to ensure proper hygiene; for example(s):
+-- | Run a computation in the 'Expect' monad, residualizing out all
+-- the statements in the final evaluation context. The second
+-- argument should include all the terms altered by the 'Eval'
+-- expression; this is necessary to ensure proper hygiene; for
+-- example(s):
 --
 -- > runExpect (pureEvaluate e) [Some2 e]
 --
@@ -121,7 +125,7 @@ runExpect
 runExpect (Expect m) f es =
     m c0 h0
     where
-    i0   = nextFree f `max` maxNextFree es
+    i0   = nextFreeOrBind f `max` maxNextFreeOrBind es
     h0   = ListContext i0 []
     c0 e =
         residualizeExpectListContext $
@@ -197,7 +201,7 @@ emit
 emit hint typ f = do
     x <- freshVar hint typ
     Expect $ \c h -> (f . bind x) $ c x h
-    
+
 emit_
     :: (ABT Term abt)
     => (abt '[] 'HProb -> abt '[] 'HProb)

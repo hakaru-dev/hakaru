@@ -16,7 +16,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.22
+--                                                    2016.04.24
 -- |
 -- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -149,7 +149,7 @@ disintegrateWithVar
     -> abt '[] ('HMeasure (HPair a b))
     -> [abt '[] (a ':-> 'HMeasure b)]
 disintegrateWithVar hint typ m =
-    let x = Variable hint (nextFree m `max` nextBind m) typ
+    let x = Variable hint (nextFreeOrBind m) typ
     in map (lam_ x) . flip runDis [Some2 m, Some2 (var x)] $ do
         ab <- perform m
 #ifdef __TRACE_DISINTEGRATE__
