@@ -324,6 +324,10 @@ symbolResolveBranch _ _ =
 symbolResolvePat
     :: U.Pattern' Text
     -> State Int (U.Pattern' U.Name, [U.Name])
+symbolResolvePat (U.PVar' "true") =
+    return (U.PData' (U.DV "true" []), [])
+symbolResolvePat (U.PVar' "false") =
+    return (U.PData' (U.DV "false" []), [])
 symbolResolvePat (U.PVar' name)  = do
     name' <- gensym name
     return (U.PVar' name', [name'])
