@@ -15,7 +15,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.22
+--                                                    2016.04.24
 -- |
 -- Module      :  Language.Hakaru.Evaluation.Types
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -670,7 +670,22 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
     --
     -- N.B., the statement @s@ itself is popped! Thus, it is up to
     -- the continuation to make sure to push new statements that
-    -- bind all the variables bound by @s@!
+    -- bind /all/ the variables bound by @s@!
+    --
+    -- TODO: pass the continuation more detail, so it can avoid
+    -- needing to be in the 'Maybe' monad due to the redundant call
+    -- to 'varEq' in the continuation. In particular, we want to
+    -- do this so that we can avoid the return type @m (Maybe (Maybe r))@
+    -- while still correctly handling statements like 'SStuff1'
+    -- which (a) do bind variables and thus should shadow bindings
+    -- further up the 'ListContext', but which (b) offer up no
+    -- expression the variable is bound to, and thus cannot be
+    -- altered by forcing etc. To do all this, we need to pass the
+    -- 'TypeEq' proof from (the 'varEq' call in) the 'isBoundBy'
+    -- call in the instance; but that means we also need some way
+    -- of tying it together with the existential variable in the
+    -- 'Statement'. Perhaps we should have an alternative statement
+    -- type which exposes the existential?
     select
         :: Variable (a :: Hakaru)
         -> (Statement abt p -> Maybe (m r))

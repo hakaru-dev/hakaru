@@ -347,7 +347,7 @@ instance (ABT Term abt) => EvaluationMonad abt (PEval abt p m) p where
                     -- in order to grab the 'Refl' proof we erased;
                     -- but there's nothing to be done for it.
                     case x `isBoundBy` s >> p s of
-                    Nothing -> loop (s:ss)
+                    Nothing -> loop (s:ss) -- BUG: we only want to loop if @x@ isn't bound by @s@; if it is bound but @p@ fails (e.g., because @s@ is 'Stuff1'), then we should fail/stop (thus the return type should be @2+r@ to distinguish no-match = free vs failed-match = bound-but-inalterable)
                     Just mr -> do
                         r <- mr
                         unsafePushes ss
