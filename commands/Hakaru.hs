@@ -6,8 +6,7 @@
 
 module Main where
 
-import qualified Language.Hakaru.Parser.AST as U
-import           Language.Hakaru.Parser.Parser hiding (style)
+import           Language.Hakaru.Parser.Parser (parseHakaru)
 import           Language.Hakaru.Parser.SymbolResolve (resolveAST)
 
 
