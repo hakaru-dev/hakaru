@@ -14,13 +14,11 @@
 module Language.Hakaru.Pretty.Maple (Maple(..), pretty, mapleType) where
 
 import           Data.Number.Nat     (fromNat)
--- import Data.Number.Natural (fromNatural)
 import           Data.Sequence (Seq)
 import qualified Data.Foldable                   as F
 import qualified Data.List.NonEmpty              as L
 
 
--- import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Syntax.AST
@@ -28,12 +26,11 @@ import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.IClasses
 
--- import Control.Monad (liftM, liftM2)
--- import Control.Monad.Trans.State.Strict (State, evalState, state)
+import Language.Hakaru.Expect -- HACK: we want Expect2
+
 import Data.List (intercalate)
 
 import qualified Data.Text as Text
--- import           Data.Number.LogFloat
 import           Data.Ratio
 
 newtype Maple (a :: Hakaru) = Maple {unMaple :: String}
@@ -119,7 +116,10 @@ mapleSCon Integrate (e1 :* e2 :* e3 :* End) =
         "int(" ++ arg e3' ++ ", ["
                ++ var1 x  ++ "="
                ++ arg e1  ++ ".." 
-               ++ arg e2  ++ "])" 
+               ++ arg e2  ++ "])"
+mapleSCon Expect (e1 :* e2 :* End)   =
+    caseBind e2 $ \x e2' ->
+        arg $ expect e1 (\x' -> subst x x' e2')
 
 mapleNary :: (ABT Term abt) => NaryOp a -> Seq (abt '[] a) -> String
 mapleNary And      es = "And" ++ (parens . commaSep $ fmap arg es)
