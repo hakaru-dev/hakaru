@@ -60,7 +60,6 @@ Library
                        Language.Hakaru.Pretty.Concrete,
                        Language.Hakaru.Pretty.Maple,
                        Language.Hakaru.Runtime.Prelude,
-                       Language.Hakaru.Expect,
                        Language.Hakaru.Observe,
                        Language.Hakaru.Simplify,
                        Language.Hakaru.Sample,
@@ -72,7 +71,7 @@ Library
                        Language.Hakaru.Evaluation.DisintegrationMonad,
                        Language.Hakaru.Disintegrate,
                        Language.Hakaru.Evaluation.ExpectMonad,
-                       Language.Hakaru.Expect2,
+                       Language.Hakaru.Expect,
                        Language.Hakaru.Inference,
                        Data.Number.Nat,
                        Data.Number.Natural

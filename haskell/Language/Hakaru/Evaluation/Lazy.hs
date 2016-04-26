@@ -13,7 +13,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.22
+--                                                    2016.04.26
 -- |
 -- Module      :  Language.Hakaru.Evaluation.Lazy
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -70,7 +70,10 @@ import Language.Hakaru.Syntax.DatumCase (DatumEvaluator, MatchResult(..), matchB
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Evaluation.Types
 import qualified Language.Hakaru.Syntax.Prelude as P
+{-
+-- BUG: can't import this because of cyclic dependency
 import qualified Language.Hakaru.Expect         as E
+-}
 
 #ifdef __TRACE_DISINTEGRATE__
 import Language.Hakaru.Pretty.Haskell (pretty)
@@ -185,8 +188,12 @@ evaluate perform evaluateCase = evaluate_
         -- BUG: avoid the chance of looping in case 'E.expect' residualizes!
         -- TODO: use 'evaluate' in 'E.expect' for the evaluation of @e1@
         Expect :$ e1 :* e2 :* End ->
+            error "TODO: evaluate{Expect}: unclear how to handle this without cyclic dependencies"
+        {-
+        -- BUG: can't call E.expect because of cyclic dependency
             evaluate_ . E.expect e1 $ \e3 ->
                 syn (Let_ :$ e3 :* e2 :* End)
+        -}
 
         Case_ e bs -> evaluateCase_ e bs
 
