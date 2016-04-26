@@ -67,6 +67,7 @@ import           Control.Applicative  (Applicative(..))
 import qualified Data.Foldable        as F
 import qualified Data.Traversable     as T
 import           Data.List.NonEmpty   (NonEmpty(..))
+import qualified Data.List.NonEmpty   as NE
 import           Control.Applicative  (Alternative(..))
 import           Control.Monad        (MonadPlus(..))
 import           Data.Text            (Text)
@@ -226,7 +227,7 @@ type PAns p abt m a = ListContext abt p -> m (P p abt '[] a)
 -- updates is emitting something like @[Statement]@ to serve as the
 -- beginning of the final result.
 --
--- TODO: give this a better, more informative name!
+-- | TODO: give this a better, more informative name!
 newtype PEval abt p m x =
     PEval { unPEval :: forall a. (x -> PAns p abt m a) -> PAns p abt m a }
     -- == Codensity (PAns p abt m)
@@ -580,7 +581,8 @@ emitSuperpose
     -> PEval abt 'Impure m (Variable a)
 emitSuperpose []  = error "BUG: emitSuperpose: can't use Prelude.superpose because it'll throw an error"
 emitSuperpose [e] = emitMBind e
-emitSuperpose es  = emitMBind (P.superpose [(P.prob_ 1, e) | e <- es])
+emitSuperpose es  =
+    emitMBind . P.superpose . fmap ((,) P.one) $ NE.fromList es
 
 
 -- | Emit a 'Superpose_' of the alternatives, each with unit weight.
@@ -592,7 +594,7 @@ choose []  = error "BUG: choose: can't use Prelude.superpose because it'll throw
 choose [m] = m
 choose ms  =
     emitFork_
-        (PImpure . (\es -> P.superpose [(P.prob_ 1, e) | PImpure e <- es]))
+        (PImpure . P.superpose . fmap ((,) P.one . unPImpure) . NE.fromList)
         ms
 
 
@@ -647,7 +649,7 @@ instance T.Traversable (GBranch a) where
 -- TODO: capture the emissibility requirement on the second argument
 -- in the types.
 emitCaseWith
-    :: (ABT Term abt)
+    :: (ABT Term abt, Applicative m)
     => (abt '[] b -> PEval abt p m r)
     -> abt '[] a
     -> [Branch a abt b]
@@ -668,6 +670,27 @@ emitCaseWith f e bs = do
                 unPEval m c h))
 {-# INLINE emitCaseWith #-}
 -}
+
+
+-- HACK: to get the one case we really need to work at least.
+emitCaseWith_Impure
+    :: (ABT Term abt, Applicative m)
+    => (abt '[] b -> PEval abt 'Impure m r)
+    -> abt '[] a
+    -> [Branch a abt b]
+    -> PEval abt 'Impure m r
+emitCaseWith_Impure f e bs = do
+    gms <- T.for bs $ \(Branch pat body) ->
+        let (vars, body') = caseBinds body
+        in  (\vars' ->
+                let rho = toAssocs vars (fmap11 var vars')
+                in  GBranch pat vars' (f $ substs rho body')
+            ) <$> freshenVars vars
+    PEval $ \c h ->
+        (PImpure . syn . Case_ e) <$> T.for gms (\gm ->
+            fromGBranch <$> T.for gm (\m ->
+                unPImpure <$> unPEval m c h))
+{-# INLINE emitCaseWith_Impure #-}
 
 
 ----------------------------------------------------------------
