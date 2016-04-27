@@ -49,7 +49,7 @@ import Language.Hakaru.Syntax.Variable (memberVarSet)
 import Language.Hakaru.Syntax.AST      hiding (Expect)
 import Language.Hakaru.Evaluation.Types
 import Language.Hakaru.Evaluation.Lazy (TermEvaluator, evaluate, defaultCaseEvaluator)
-import Language.Hakaru.Evaluation.EvalMonad (ListContext(..))
+import Language.Hakaru.Evaluation.PEvalMonad (ListContext(..))
 
 
 -- The rest of these are just for the emit code, which isn't currently exported.

@@ -390,6 +390,7 @@ perform = \e0 ->
         -> Dis abt (Whnf abt a)
     performMeasureOp = \o es -> nice o es <|> complete o es
         where
+        -- Try to generate nice pretty output.
         nice
             :: MeasureOp typs a
             -> SArgs abt args
@@ -399,6 +400,7 @@ perform = \e0 ->
             x   <- emitMBind $ syn (MeasureOp_ o :$ es')
             return (Neutral $ var x)
 
+        -- Try to be as complete as possible (i.e., 'bot' as little as possible), no matter how ugly the output code gets.
         complete
             :: MeasureOp typs a
             -> SArgs abt args

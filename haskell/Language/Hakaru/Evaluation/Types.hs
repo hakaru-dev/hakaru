@@ -128,7 +128,7 @@ data Head :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
     WArray :: !(abt '[] 'HNat) -> !(abt '[ 'HNat] a) -> Head abt ('HArray a)
     WLam   :: !(abt '[ a ] b) -> Head abt (a ':-> b)
 
-    -- Measure heads (not just anything of 'HMeasure' type)
+    -- Measure heads (N.B., not simply @abt '[] ('HMeasure _)@)
     WMeasureOp
         :: (typs ~ UnLCs args, args ~ LCs typs)
         => !(MeasureOp typs a)
@@ -291,6 +291,8 @@ data Whnf (abt :: [Hakaru] -> Hakaru -> *) (a :: Hakaru)
     | Neutral !(abt '[] a)
     -- TODO: would it be helpful to track which variable it's blocked
     -- on? To do so we'd need 'GotStuck' to return that info...
+    --
+    -- TODO: is there some /clean/ way to ensure that the neutral term is exactly a chain of blocked redexes? That is, we want to be able to pull out neutral 'Case_' terms; so we want to make sure they're not wrapped in let-bindings, coercions, etc.
 
 -- | Forget that something is a WHNF.
 fromWhnf :: (ABT Term abt) => Whnf abt a -> abt '[] a
@@ -360,6 +362,7 @@ instance (ABT Term abt) => Coerce (Whnf abt) where
             Neutral . maybe (P.coerceTo_ c e) id
                 $ caseVarSyn e (const Nothing) $ \t ->
                     case t of
+                    -- BUG: literals should never be neutral in the first place; but even if we got one, we shouldn't call it neutral after coercing it.
                     Literal_ x          -> Just $ P.literal_ (coerceTo c x)
                     -- UnsafeFrom_ c' :$ es' -> TODO: cancellation
                     CoerceTo_ c' :$ es' ->
@@ -380,6 +383,7 @@ instance (ABT Term abt) => Coerce (Whnf abt) where
             Neutral . maybe (P.unsafeFrom_ c e) id
                 $ caseVarSyn e (const Nothing) $ \t ->
                     case t of
+                    -- BUG: literals should never be neutral in the first place; but even if we got one, we shouldn't call it neutral after coercing it.
                     Literal_ x -> Just $ P.literal_ (coerceFrom c x)
                     -- CoerceTo_ c' :$ es' -> TODO: cancellation
                     UnsafeFrom_ c' :$ es' ->
@@ -461,10 +465,11 @@ isLazyLiteral = maybe False (const True) . getLazyLiteral
 
 ----------------------------------------------------------------
 
--- TODO: better names?
 -- | A kind for indexing 'Statement' to know whether the statement
 -- is pure (and thus can be evaluated in any ambient monad) vs
 -- impure (i.e., must be evaluated in the 'HMeasure' monad).
+--
+-- TODO: better names!
 data Purity = Pure | Impure | ExpectP
     deriving (Eq, Read, Show)
 
@@ -526,8 +531,11 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
         -> !(Lazy abt a)
         -> Statement abt 'Impure
 
-    -- TODO: a real name for this. Also, generalize for all multibinders
     -- Some arbitrary pure code. This is a statement just so that we can avoid needing to atomize the stuff in the pure code.
+    --
+    -- TODO: real names for these.
+    -- TODO: generalize to use a 'VarSet' so we can collapse these
+    -- TODO: defunctionalize? These break pretty printing...
     SStuff0
         :: forall abt
         .  (abt '[] 'HProb -> abt '[] 'HProb)

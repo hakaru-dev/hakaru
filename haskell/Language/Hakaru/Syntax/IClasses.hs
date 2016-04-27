@@ -10,7 +10,7 @@
            #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.01.15
+--                                                    2016.04.26
 -- |
 -- Module      :  Language.Hakaru.Syntax.IClasses
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -42,6 +42,7 @@ module Language.Hakaru.Syntax.IClasses
     , showParen_12
     , showParen_22
     , showParen_111
+    , showParen_010
 
     -- * Equality
     , Eq1(..)
@@ -251,6 +252,20 @@ showParen_111 p s e1 e2 e3 =
         . showsPrec1 11 e2
         . showString " "
         . showsPrec1 11 e3
+        )
+
+showParen_010
+    :: (Show a, Show1 b, Show c)
+    => Int -> String -> a -> b i -> c -> ShowS
+showParen_010 p s e1 e2 e3 =
+    showParen (p > 9)
+        ( showString s
+        . showString " "
+        . showsPrec  11 e1
+        . showString " "
+        . showsPrec1 11 e2
+        . showString " "
+        . showsPrec  11 e3
         )
 
 ----------------------------------------------------------------
