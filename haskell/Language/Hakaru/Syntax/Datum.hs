@@ -22,6 +22,15 @@
 -- At present we only support regular-recursive polynomial data
 -- types. Reduction of case analysis on data types is in
 -- "Language.Hakaru.Syntax.Datum".
+--
+-- /Developers note:/ many of the 'JmEq1' instances in this file
+-- don't actually work because of problems with matching existentially
+-- quantified types in the basis cases. For now I've left the
+-- partially-defined code in place, but turned it off with the
+-- @__PARTIAL_DATUM_JMEQ__@ CPP macro. In the future we should
+-- either (a) remove this unused code, or (b) if the instances are
+-- truly necessary then we should add the 'Sing' arguments everywhere
+-- to make things work :(
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.Datum
     (
@@ -102,11 +111,14 @@ datumHint (Datum hint _ _) = hint
 datumType :: Datum ast (HData' t) -> Sing (HData' t)
 datumType (Datum _ typ _) = typ
 
+#if __PARTIAL_DATUM_JMEQ__
+-- This instance works, but recurses into non-working instances.
 instance JmEq1 ast => JmEq1 (Datum ast) where
     jmEq1 (Datum _ typ1 d1) (Datum _ typ2 d2) =
         jmEq1 typ1 typ2 >>= \Refl ->
         jmEq1 d1   d2   >>= \Refl ->
         Just Refl
+#endif
 
 instance Eq1 ast => Eq1 (Datum ast) where
     eq1 (Datum _ _ d1) (Datum _ _ d2) = eq1 d1 d2
@@ -161,10 +173,13 @@ data DatumCode :: [[HakaruFun]] -> (Hakaru -> *) -> Hakaru -> * where
 -- codes, and (2) the code is always getting smaller; so we have
 -- a good enough inductive hypothesis from polymorphism alone.
 
+#if __PARTIAL_DATUM_JMEQ__
+-- This instance works, but recurses into non-working instances.
 instance JmEq1 ast => JmEq1 (DatumCode xss ast) where
     jmEq1 (Inr c) (Inr d) = jmEq1 c d
     jmEq1 (Inl c) (Inl d) = jmEq1 c d
     jmEq1 _       _       = Nothing
+#endif
 
 instance Eq1 ast => Eq1 (DatumCode xss ast) where
     eq1 (Inr c) (Inr d) = eq1 c d
@@ -210,6 +225,7 @@ data DatumStruct :: [HakaruFun] -> (Hakaru -> *) -> Hakaru -> * where
     Done :: DatumStruct '[] abt a
 
 
+#if __PARTIAL_DATUM_JMEQ__
 instance JmEq1 ast => JmEq1 (DatumStruct xs ast) where
     jmEq1 (Et c1 Done) (Et d1 Done) = jmEq1 c1 d1 -- HACK: to handle 'Done' in the cases where we can.
     jmEq1 (Et c1 c2)   (Et d1 d2)   = do
@@ -224,6 +240,7 @@ instance JmEq1 ast => JmEq1 (DatumStruct xs ast) where
         -- 'Done', which is gross overkill. Does anyone actually
         -- use this 'JmEq1' instance?
     jmEq1 _ _ = Nothing
+#endif
 
 instance Eq1 ast => Eq1 (DatumStruct xs ast) where
     eq1 (Et c1 c2) (Et d1 d2) = eq1 c1 d1 && eq1 c2 d2
@@ -267,6 +284,7 @@ data DatumFun :: HakaruFun -> (Hakaru -> *) -> Hakaru -> * where
     Ident :: !(ast a) -> DatumFun 'I     ast a
 
 
+#if __PARTIAL_DATUM_JMEQ__
 instance JmEq1 ast => JmEq1 (DatumFun x ast) where
     jmEq1 (Konst e) (Konst f) =
         error "TODO: JmEq1@DatumFun{Konst}"
@@ -278,6 +296,7 @@ instance JmEq1 ast => JmEq1 (DatumFun x ast) where
         -- instance?
     jmEq1 (Ident e) (Ident f) = jmEq1 e f
     jmEq1 _         _         = Nothing
+#endif
 
 instance Eq1 ast => Eq1 (DatumFun x ast) where
     eq1 (Konst e) (Konst f) = eq1 e f
@@ -419,6 +438,7 @@ data Pattern :: [Hakaru] -> Hakaru -> * where
         -> !(PDatumCode (Code t) vars (HData' t))
         -> Pattern vars (HData' t)
 
+#if __PARTIAL_DATUM_JMEQ__
 instance JmEq1 (Pattern vars) where
     jmEq1 = error "TODO: JmEq1@Pattern"
     {-
@@ -431,6 +451,7 @@ instance JmEq1 (Pattern vars) where
     jmEq1 (PDatum _ d1) (PDatum _ d2) = jmEq1 d1 d2
     jmEq1 _           _               = Nothing
     -}
+#endif
 
 instance Eq1 (Pattern vars) where
     eq1 PWild         PWild         = True
@@ -458,10 +479,13 @@ data PDatumCode :: [[HakaruFun]] -> [Hakaru] -> Hakaru -> * where
     PInr :: !(PDatumCode  xss vars a) -> PDatumCode (xs ': xss) vars a
     PInl :: !(PDatumStruct xs vars a) -> PDatumCode (xs ': xss) vars a
 
+#if __PARTIAL_DATUM_JMEQ__
+-- This instance works, but recurses into non-working instances.
 instance JmEq1 (PDatumCode xss vars) where
     jmEq1 (PInr c) (PInr d) = jmEq1 c d
     jmEq1 (PInl c) (PInl d) = jmEq1 c d
     jmEq1 _        _        = Nothing
+#endif
 
 instance Eq1 (PDatumCode xss vars) where
     eq1 (PInr c) (PInr d) = eq1 c d
@@ -529,6 +553,7 @@ jmEq_PFun (PIdent p1) (PIdent p2) = jmEq_P p1 p2 >>= \Refl -> Just Refl
 jmEq_PFun _           _           = Nothing
 -}
 
+#if __PARTIAL_DATUM_JMEQ__
 instance JmEq1 (PDatumStruct xs vars) where
     jmEq1 = error "TODO: JmEq1@PDatumStruct"
     {-
@@ -543,6 +568,7 @@ instance JmEq1 (PDatumStruct xs vars) where
     jmEq1 PDone       PDone       = Just Refl
     jmEq1 _           _           = Nothing
     -}
+#endif
 
 instance Eq1 (PDatumStruct xs vars) where
     eq1 (PEt c1 c2) (PEt d1 d2) =
@@ -576,6 +602,7 @@ data PDatumFun :: HakaruFun -> [Hakaru] -> Hakaru -> * where
     PKonst :: !(Pattern vars b) -> PDatumFun ('K b) vars a
     PIdent :: !(Pattern vars a) -> PDatumFun 'I     vars a
 
+#if __PARTIAL_DATUM_JMEQ__
 instance JmEq1 (PDatumFun x vars) where
     jmEq1 (PKonst e) (PKonst f) =
         error "TODO: JmEq1@PDatumFun{Konst}"
@@ -587,6 +614,7 @@ instance JmEq1 (PDatumFun x vars) where
         -- instance?
     jmEq1 (PIdent e) (PIdent f) = jmEq1 e f
     jmEq1 _          _          = Nothing
+#endif
 
 instance Eq1 (PDatumFun x vars) where
     eq1 (PKonst e) (PKonst f) = eq1 e f
