@@ -41,8 +41,9 @@ module Language.Hakaru.Syntax.IClasses
     , showParen_11
     , showParen_12
     , showParen_22
-    , showParen_111
     , showParen_010
+    , showParen_011
+    , showParen_111
 
     -- * Equality
     , Eq1(..)
@@ -240,20 +241,6 @@ showParen_22 p s e1 e2 =
         . showsPrec2 11 e2
         )
 
-showParen_111
-    :: (Show1 a, Show1 b, Show1 c)
-    => Int -> String -> a i -> b j -> c k -> ShowS
-showParen_111 p s e1 e2 e3 =
-    showParen (p > 9)
-        ( showString s
-        . showString " "
-        . showsPrec1 11 e1
-        . showString " "
-        . showsPrec1 11 e2
-        . showString " "
-        . showsPrec1 11 e3
-        )
-
 showParen_010
     :: (Show a, Show1 b, Show c)
     => Int -> String -> a -> b i -> c -> ShowS
@@ -266,6 +253,34 @@ showParen_010 p s e1 e2 e3 =
         . showsPrec1 11 e2
         . showString " "
         . showsPrec  11 e3
+        )
+
+showParen_011
+    :: (Show a, Show1 b, Show1 c)
+    => Int -> String -> a -> b i -> c j -> ShowS
+showParen_011 p s e1 e2 e3 =
+    showParen (p > 9)
+        ( showString s
+        . showString " "
+        . showsPrec  11 e1
+        . showString " "
+        . showsPrec1 11 e2
+        . showString " "
+        . showsPrec1 11 e3
+        )
+
+showParen_111
+    :: (Show1 a, Show1 b, Show1 c)
+    => Int -> String -> a i -> b j -> c k -> ShowS
+showParen_111 p s e1 e2 e3 =
+    showParen (p > 9)
+        ( showString s
+        . showString " "
+        . showsPrec1 11 e1
+        . showString " "
+        . showsPrec1 11 e2
+        . showString " "
+        . showsPrec1 11 e3
         )
 
 ----------------------------------------------------------------

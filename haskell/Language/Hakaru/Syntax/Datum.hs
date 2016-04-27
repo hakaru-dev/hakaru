@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.21
+--                                                    2016.04.27
 -- |
 -- Module      :  Language.Hakaru.Syntax.Datum
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -73,8 +73,9 @@ import Language.Hakaru.Types.Sing
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
--- TODO: add @Sing (HData' t)@ to the Datum constructor?
--- TODO: change the kind to @(Hakaru -> *) -> HakaruCon -> *@ so we can avoid the use of GADTs? Would that allow us to actually UNPACK?
+-- TODO: change the kind to @(Hakaru -> *) -> HakaruCon -> *@ so
+-- we can avoid the use of GADTs? Would that allow us to actually
+-- UNPACK?
 --
 -- | A fully saturated data constructor, which recurses as @ast@.
 -- We define this type as separate from 'DatumCode' for two reasons.
@@ -116,9 +117,8 @@ instance Eq1 ast => Eq (Datum ast a) where
 -- TODO: instance Read (Datum ast a)
 
 instance Show1 ast => Show1 (Datum ast) where
-    showsPrec1 p (Datum hint _typ d) =
-        -- TODO: show the type as well...
-        showParen_01 p "Datum" hint d
+    showsPrec1 p (Datum hint typ d) =
+        showParen_011 p "Datum" hint typ d
 
 instance Show1 ast => Show (Datum ast a) where
     showsPrec = showsPrec1
@@ -211,16 +211,19 @@ data DatumStruct :: [HakaruFun] -> (Hakaru -> *) -> Hakaru -> * where
 
 
 instance JmEq1 ast => JmEq1 (DatumStruct xs ast) where
-    jmEq1 (Et c1 c2) (Et d1 d2) = do
+    jmEq1 (Et c1 Done) (Et d1 Done) = jmEq1 c1 d1 -- HACK: to handle 'Done' in the cases where we can.
+    jmEq1 (Et c1 c2)   (Et d1 d2)   = do
         Refl <- jmEq1 c1 d1
         Refl <- jmEq1 c2 d2
         Just Refl
-    jmEq1 Done       Done       =
+    jmEq1 Done Done =
         error "TODO: JmEq1@DatumStruct{Done}"
-        {- BUG: type error due to phantomness of the type index in 'Done'
-        Just Refl
-        -}
-    jmEq1 _          _          = Nothing
+        -- BUG: @Just Refl@ gives a type error due to phantomness
+        -- of the type index in 'Done'. It seems like there's no
+        -- way to avoid this problem except by adding a 'Sing' to
+        -- 'Done', which is gross overkill. Does anyone actually
+        -- use this 'JmEq1' instance?
+    jmEq1 _ _ = Nothing
 
 instance Eq1 ast => Eq1 (DatumStruct xs ast) where
     eq1 (Et c1 c2) (Et d1 d2) = eq1 c1 d1 && eq1 c2 d2
@@ -267,9 +270,12 @@ data DatumFun :: HakaruFun -> (Hakaru -> *) -> Hakaru -> * where
 instance JmEq1 ast => JmEq1 (DatumFun x ast) where
     jmEq1 (Konst e) (Konst f) =
         error "TODO: JmEq1@DatumFun{Konst}"
-        {- BUG: type error due to @TypeEq b1 b2@ not implying @TypeEq a1 a2@
-        jmEq1 e f >>= \Refl -> Just Refl
-        -}
+        -- BUG: @jmEq1 e f >>= \Refl -> Just Refl@ gives a type
+        -- error due to phantomness: @TypeEq b1 b2@ doesn't imply
+        -- @TypeEq a1 a2@. It seems like there's no way to avoid
+        -- this problem except by adding a 'Sing' to 'Konst', which
+        -- is gross overkill. Does anyone actually use this 'JmEq1'
+        -- instance?
     jmEq1 (Ident e) (Ident f) = jmEq1 e f
     jmEq1 _         _         = Nothing
 
@@ -416,7 +422,10 @@ data Pattern :: [Hakaru] -> Hakaru -> * where
 instance JmEq1 (Pattern vars) where
     jmEq1 = error "TODO: JmEq1@Pattern"
     {-
-    -- BUG: neither the 'PWild' nor 'PVar' cases typecheck, due to the phantomness of their indices. And the 'PDatum' case doesn't typecheck because of 'Code' being a typefamily.
+    -- BUG: neither the 'PWild' nor 'PVar' cases typecheck, due to
+    -- the phantomness of their indices. And the 'PDatum' case
+    -- doesn't typecheck because of 'Code' being a typefamily. Does
+    -- anyone actually use this 'JmEq1' instance?
     jmEq1 PWild         PWild         = Just Refl
     jmEq1 PVar          PVar          = Just Refl
     jmEq1 (PDatum _ d1) (PDatum _ d2) = jmEq1 d1 d2
@@ -523,7 +532,10 @@ jmEq_PFun _           _           = Nothing
 instance JmEq1 (PDatumStruct xs vars) where
     jmEq1 = error "TODO: JmEq1@PDatumStruct"
     {-
-    -- BUG: type error due to phantomness of the type index in 'Done'. Also, the 'PEt' case has other issues about ensuring the existentials line up
+    -- BUG: type error due to phantomness of the type index in
+    -- 'Done'. Also, the 'PEt' case has other issues about ensuring
+    -- the existentials line up. Does anyone actually use this
+    -- 'JmEq1' instance?
     jmEq1 (PEt c1 c2) (PEt d1 d2) = do
         Refl <- jmEq1 c1 d1
         Refl <- jmEq1 c2 d2
@@ -536,7 +548,13 @@ instance Eq1 (PDatumStruct xs vars) where
     eq1 (PEt c1 c2) (PEt d1 d2) =
         error "TODO: Eq1{PEt}: make sure existentials match up"
         -- > eq1 c1 d1 && eq1 c2 d2
-        -- BUG: we can't just do it with a 'JmEq1' instance instead, since we can't always return @Just Refl@ for comparing 'PDone' to itself, since they may be at different types. Also, the real problem with doing that is it's not given how we should be splitting @vars@ in two as we recurse... Really, we need @vars1@ and @vars2@ to be considered \"output\" variables...
+        -- BUG: we can't just do it with a 'JmEq1' instance instead,
+        -- since we can't always return @Just Refl@ for comparing
+        -- 'PDone' to itself, since they may be at different types.
+        -- Also, the real problem with doing that is it's not given
+        -- how we should be splitting @vars@ in two as we recurse...
+        -- Really, we need @vars1@ and @vars2@ to be considered
+        -- \"output\" variables...
     eq1 PDone       PDone       = True
     eq1 _           _           = False
 
@@ -561,9 +579,12 @@ data PDatumFun :: HakaruFun -> [Hakaru] -> Hakaru -> * where
 instance JmEq1 (PDatumFun x vars) where
     jmEq1 (PKonst e) (PKonst f) =
         error "TODO: JmEq1@PDatumFun{Konst}"
-        {- BUG: type error due to @TypeEq b1 b2@ not implying @TypeEq a1 a2@
-        jmEq1 e f >>= \Refl -> Just Refl
-        -}
+        -- BUG: @jmEq1 e f >>= \Refl -> Just Refl@ gives a type
+        -- error due to phantomness: @TypeEq b1 b2@ doesn't imply
+        -- @TypeEq a1 a2@. It seems like there's no way to avoid
+        -- this problem except by adding a 'Sing' to 'PKonst', which
+        -- is gross overkill. Does anyone actually use this 'JmEq1'
+        -- instance?
     jmEq1 (PIdent e) (PIdent f) = jmEq1 e f
     jmEq1 _          _          = Nothing
 
@@ -593,7 +614,8 @@ pFalse = PDatum tdFalse . PInr . PInl $ PDone
 pUnit  :: Pattern '[] HUnit
 pUnit  = PDatum tdUnit . PInl $ PDone
 
--- HACK: using undefined like that isn't going to help if we use the variant of eqAppendIdentity that actually needs the Sing...
+-- HACK: using undefined like that isn't going to help if we use
+-- the variant of eqAppendIdentity that actually needs the Sing...
 varsOfPattern :: Pattern vars a -> proxy vars
 varsOfPattern _ = error "TODO: varsOfPattern"
 
