@@ -448,7 +448,7 @@ emitLet' e =
 -- components; otherwise we emit the case-binding and return the
 -- two variables.
 emitUnpair
-    :: (ABT Term abt, Functor m, Applicative m)
+    :: (ABT Term abt, Applicative m)
     => Whnf abt (HPair a b)
     -> PEval abt p m (abt '[] a, abt '[] b)
 emitUnpair (Head_   w) = return $ reifyPair w
@@ -460,7 +460,7 @@ emitUnpair (Neutral e) = do
 
 emitUnpair_
     :: forall abt p m a b
-    .  (ABT Term abt, Functor m, Applicative m)
+    .  (ABT Term abt, Applicative m)
     => Variable a
     -> Variable b
     -> abt '[] (HPair a b)
