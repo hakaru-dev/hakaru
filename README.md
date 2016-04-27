@@ -26,7 +26,7 @@ of Hakaru's program simplifier run
     export LOCAL_MAPLE="`which maple`"
     cd hakaru/maple
     maple update-archive.mpl
-    echo 'libname := "'"$HOME"'/hakaru/maple",libname:' >~/.mapleinit
+    echo 'libname := "/path-to-hakaru/hakaru/maple",libname:' >~/.mapleinit
 
 Installation - Windows
 ------------
