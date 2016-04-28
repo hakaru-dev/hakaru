@@ -36,6 +36,10 @@ import qualified Data.Foldable       as F
 import qualified Data.List.NonEmpty  as L
 import           Control.Monad.State (MonadState(..), State, runState)
 
+#if __GLASGOW_HASKELL__ < 710
+import           Control.Applicative   (Applicative(..), (<$>))
+#endif
+
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Syntax.AST
