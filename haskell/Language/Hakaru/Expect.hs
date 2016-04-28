@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.26
+--                                                    2016.04.28
 -- |
 -- Module      :  Language.Hakaru.Expect
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -32,7 +32,6 @@ import           Prelude               (($), (.), error, return, reverse)
 import qualified Data.Text             as Text
 import           Data.Functor          ((<$>))
 import qualified Data.Foldable         as F
-import           Data.List.NonEmpty    (NonEmpty(..))
 import qualified Data.List.NonEmpty    as NE
 
 import Language.Hakaru.Syntax.IClasses (Some2(..))
@@ -170,7 +169,7 @@ expectTerm e = do
             expectTerm (let_ v1 e2)
         Head_ (WPlate _ _)     -> error "TODO: expect{Plate}"
         Head_ (WChain _ _ _)   -> error "TODO: expect{Chain}"
-        Head_ (WReject    typ) -> expectSuperpose []
+        Head_ (WReject    _)   -> expectSuperpose []
         Head_ (WSuperpose pes) -> expectSuperpose (NE.toList pes)
 
 

@@ -16,7 +16,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.24
+--                                                    2016.04.28
 -- |
 -- Module      :  Language.Hakaru.Evaluation.PEvalMonad
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -66,7 +66,6 @@ import           Control.Applicative  (Applicative(..))
 #endif
 import qualified Data.Foldable        as F
 import qualified Data.Traversable     as T
-import           Data.List.NonEmpty   (NonEmpty(..))
 import qualified Data.List.NonEmpty   as NE
 import           Control.Applicative  (Alternative(..))
 import           Control.Monad        (MonadPlus(..))
@@ -683,7 +682,7 @@ emitCaseWith_Impure f e bs = do
     gms <- T.for bs $ \(Branch pat body) ->
         let (vars, body') = caseBinds body
         in  (\vars' ->
-                let rho = toAssocs vars (fmap11 var vars')
+                let rho = toAssocs1 vars (fmap11 var vars')
                 in  GBranch pat vars' (f $ substs rho body')
             ) <$> freshenVars vars
     PEval $ \c h ->

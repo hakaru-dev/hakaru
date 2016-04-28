@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2015.10.18
+--                                                    2016.04.28
 -- |
 -- Module      :  Language.Hakaru.Simplify
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -34,7 +34,7 @@ import qualified Language.Hakaru.Pretty.Maple as Maple
 
 import Language.Hakaru.Parser.Maple
 import Language.Hakaru.Parser.AST (Name)
-import Language.Hakaru.Parser.SymbolResolve (resolveAST', fromVarSet)
+import qualified Language.Hakaru.Parser.SymbolResolve as SR (resolveAST', fromVarSet)
 
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
@@ -74,7 +74,7 @@ simplify e = do
     either (throw . MapleException slo) return $ do
         past <- leftShow $ parseMaple (pack hakaru)
         let m = checkType typ
-                 (resolveAST' (getNames e) (maple2AST past))
+                 (SR.resolveAST' (getNames e) (maple2AST past))
         leftShow $ unTCM m (freeVars e) UnsafeMode
             
     where
@@ -83,7 +83,7 @@ simplify e = do
     leftShow (Right x)  = Right x
 
     getNames :: abt '[] a -> [Name]
-    getNames = fromVarSet . freeVars
+    getNames = SR.fromVarSet . freeVars
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

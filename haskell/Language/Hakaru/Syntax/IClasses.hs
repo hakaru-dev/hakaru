@@ -10,7 +10,7 @@
            #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.26
+--                                                    2016.04.28
 -- |
 -- Module      :  Language.Hakaru.Syntax.IClasses
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -147,7 +147,7 @@ showList2 = showListWith shows2
 
 ----------------------------------------------------------------
 -- This implementation taken from 'showList' in base-4.8:"GHC.Show",
--- generalizing over the showing function.
+-- generalizing over the showing function. Looks like this is available from base-4.8.2.0:"Text.Show"
 showListWith :: (a -> ShowS) -> [a] -> ShowS
 showListWith f = start
     where

@@ -15,7 +15,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.24
+--                                                    2016.04.28
 -- |
 -- Module      :  Language.Hakaru.Evaluation.Types
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -720,7 +720,7 @@ freshenStatement s =
         return (SLet x' body, singletonAssocs x (var x'))
     SGuard xs pat scrutinee -> do
         xs' <- freshenVars xs
-        return (SGuard xs' pat scrutinee, toAssocs xs (fmap11 var xs'))
+        return (SGuard xs' pat scrutinee, toAssocs1 xs (fmap11 var xs'))
     SStuff0   _ -> return (s, mempty)
     SStuff1 x f -> do
         x' <- freshenVar x

@@ -16,7 +16,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.26
+--                                                    2016.04.28
 -- |
 -- Module      :  Language.Hakaru.Evaluation.DisintegrationMonad
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -72,7 +72,6 @@ import           Data.Text            (Text)
 import qualified Data.Text            as Text
 
 import Language.Hakaru.Syntax.IClasses
-import Data.Number.Nat
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing    (Sing, sUnMeasure, sUnPair)
 import Language.Hakaru.Syntax.AST
@@ -523,7 +522,7 @@ emitCaseWith f e bs = do
     gms <- T.for bs $ \(Branch pat body) ->
         let (vars, body') = caseBinds body
         in  (\vars' ->
-                let rho = toAssocs vars (fmap11 var vars')
+                let rho = toAssocs1 vars (fmap11 var vars')
                 in  GBranch pat vars' (f $ substs rho body')
             ) <$> freshenVars vars
     Dis $ \c h ->

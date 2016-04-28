@@ -16,7 +16,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.24
+--                                                    2016.04.28
 -- |
 -- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -577,10 +577,10 @@ constrainValue v0 e0 =
                         -- that always crashes, instead of throwing a
                         -- Haskell error.
                         error "constrainValue{Case_}: nothing matched!"
-                    Just (GotStuck, _) ->
+                    Just GotStuck ->
                         constrainBranches v0 e bs
-                    Just (Matched ss Nil1, body) ->
-                        pushes (toStatements ss) body (constrainValue v0)
+                    Just (Matched rho body) ->
+                        pushes (toStatements rho) body (constrainValue v0)
             <|> constrainBranches v0 e bs
 
         _ :$ _ -> error "constrainValue: the impossible happened"
