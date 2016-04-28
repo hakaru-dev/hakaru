@@ -65,6 +65,7 @@ mapleAST (LC_ e) =
         o :$ es        -> mapleSCon o  es
         NaryOp_ op es  -> mapleNary op es
         Literal_ v     -> mapleLiteral v
+        Empty_ _       -> error "TODO: mapleAST{Empty}"
         Array_ e1 e2   -> 
             caseBind e2 $ \x e2' ->
                 app3 "ary" e1 (var x) e2'
@@ -90,34 +91,38 @@ list1vars Nil1         = []
 list1vars (Cons1 x xs) = var1 x : list1vars xs
 
 mapleSCon :: (ABT Term abt) => SCon args a -> SArgs abt args -> String
-mapleSCon Lam_     (e1 :* End)       =
+mapleSCon Lam_ = \(e1 :* End) ->
     caseBind e1 $ \x e1' ->
         "lam(" ++ (var1 x)                  ++ ", " ++
                   (mapleType . varType $ x) ++ ", " ++
                    arg e1'                  ++ ")"
-mapleSCon App_     (e1 :* e2 :* End) = app2 "app" e1 e2
-mapleSCon Let_     (e1 :* e2 :* End) =
+mapleSCon App_ = \(e1 :* e2 :* End) -> app2 "app" e1 e2
+mapleSCon Let_ = \(e1 :* e2 :* End) ->
     caseBind e2 $ \x e2' ->
         "eval(" ++ arg e2' ++ ", " ++  (var x `meq` e1) ++ ")"
-mapleSCon (CoerceTo_   _) (e :* End) = arg e
-mapleSCon (UnsafeFrom_ _) (e :* End) = arg e
-mapleSCon (PrimOp_    o) es          = maplePrimOp o es
-mapleSCon (ArrayOp_   o) es          = mapleArrayOp o es
-mapleSCon (MeasureOp_ o) es          = mapleMeasureOp o es
-mapleSCon Dirac (e1 :* End)          = app1 "Ret" e1
-mapleSCon MBind (e1 :* e2 :* End)    =
+mapleSCon (CoerceTo_   _) = \(e :* End) -> arg e
+mapleSCon (UnsafeFrom_ _) = \(e :* End) -> arg e
+mapleSCon (PrimOp_    o) = \es          -> maplePrimOp o es
+mapleSCon (ArrayOp_   o) = \es          -> mapleArrayOp o es
+mapleSCon (MeasureOp_ o) = \es          -> mapleMeasureOp o es
+mapleSCon Dirac          = \(e1 :* End) -> app1 "Ret" e1
+mapleSCon MBind          = \(e1 :* e2 :* End) ->
     caseBind e2 $ \x e2' ->
         app3 "Bind"  e1 (var x) e2'
-mapleSCon Plate (e1 :* e2 :* End)    =
+mapleSCon Plate = \(e1 :* e2 :* End) ->
     caseBind e2 $ \x e2' ->
         app3 "Plate" e1 (var x) e2'
-mapleSCon Integrate (e1 :* e2 :* e3 :* End) =
+mapleSCon Chain = \(e1 :* e2 :* e3 :* End) ->
+    error "TODO: mapleSCon{Chain}"
+mapleSCon Integrate = \(e1 :* e2 :* e3 :* End) ->
     caseBind e3 $ \x e3' ->
         "int(" ++ arg e3' ++ ", ["
                ++ var1 x  ++ "="
                ++ arg e1  ++ ".." 
                ++ arg e2  ++ "])"
-mapleSCon Expect (e1 :* e2 :* End)   =
+mapleSCon Summate = \(e1 :* e2 :* e3 :* End) ->
+    error "TODO: mapleSCon{Summate}"
+mapleSCon Expect = \(e1 :* e2 :* End) ->
     error "TODO: mapleSCon{Expect}"
     {-
     caseBind e2 $ \x e2' ->
@@ -127,6 +132,7 @@ mapleSCon Expect (e1 :* e2 :* End)   =
         $ \x' -> subst x x' e2'
     -}
 
+
 mapleNary :: (ABT Term abt) => NaryOp a -> Seq (abt '[] a) -> String
 mapleNary And      es = "And" ++ (parens . commaSep $ fmap arg es)
 mapleNary (Sum  _) es = parens $ F.foldr1 (\a b -> a ++ " + " ++ b)
@@ -135,41 +141,42 @@ mapleNary (Prod _) es = parens $ F.foldr1 (\a b -> a ++ " * " ++ b)
                                  (fmap arg es)
 mapleNary (Min _)  es = "min" ++ (parens . commaSep $ fmap arg es)
 mapleNary (Max _)  es = "max" ++ (parens . commaSep $ fmap arg es)
-mapleNary _        _  = "TODO: mapleNary:"
+mapleNary _        _  = "TODO: mapleNary"
 
-mapleDatum :: (ABT Term abt)
-           => Datum (abt '[]) t -> String
-mapleDatum (Datum hint _ d) = "Datum(" ++ Text.unpack hint
-                                       ++ ", " ++ mapleDatumCode d
-                                       ++ ")"
-mapleDatumCode :: (ABT Term abt)
-               => DatumCode xss (abt '[]) a -> String
+
+mapleDatum :: (ABT Term abt) => Datum (abt '[]) t -> String
+mapleDatum (Datum hint _ d) =
+    "Datum(" ++ Text.unpack hint ++ ", " ++ mapleDatumCode d ++ ")"
+
+mapleDatumCode :: (ABT Term abt) => DatumCode xss (abt '[]) a -> String
 mapleDatumCode (Inr d) = "Inr(" ++ mapleDatumCode   d ++ ")"
 mapleDatumCode (Inl d) = "Inl(" ++ mapleDatumStruct d ++ ")"
 
-mapleDatumStruct :: (ABT Term abt)
-                 => DatumStruct xs (abt '[]) a -> String
-mapleDatumStruct (Et d1 d2) = "Et(" ++ mapleDatumFun d1 ++ ", "
-                                    ++ mapleDatumStruct d2 ++ ")"
+mapleDatumStruct :: (ABT Term abt) => DatumStruct xs (abt '[]) a -> String
 mapleDatumStruct Done       = "Done"
+mapleDatumStruct (Et d1 d2) =
+    "Et(" ++ mapleDatumFun d1 ++ ", " ++ mapleDatumStruct d2 ++ ")"
 
-mapleDatumFun :: (ABT Term abt)
-              => DatumFun x (abt '[]) a -> String
+mapleDatumFun :: (ABT Term abt) => DatumFun x (abt '[]) a -> String
 mapleDatumFun (Konst a) = app1 "Konst" a
 mapleDatumFun (Ident a) = app1 "Ident" a
 
+
 mapleBranch :: (ABT Term abt) => Branch a abt b -> String
-mapleBranch (Branch pat e) = let (vars, e') = caseBinds e
-                                 (v', _) = maplePattern (list1vars vars) pat
-                             in "Branch(" ++ v' ++
-                                      "," ++ arg e' ++ ")"
+mapleBranch (Branch pat e) =
+    let (vars, e') = caseBinds e
+        (v', _) = maplePattern (list1vars vars) pat
+    in "Branch(" ++ v' ++ "," ++ arg e' ++ ")"
+
 
 maplePattern :: [String] -> Pattern xs a -> (String, [String])
 maplePattern vs     PWild = ("PWild", vs)
 maplePattern (v:vs) PVar  = ("PVar(" ++ v ++ ")", vs)
-maplePattern vars (PDatum hint d) = let (v', res) = maplePDatumCode vars d
-                                    in ("PDatum(" ++ Text.unpack hint ++
-                                        "," ++ v'  ++ ")", res)
+maplePattern []     PVar  = error "maplePattern: missing variable name"
+maplePattern vars (PDatum hint d) =
+    let (v', res) = maplePDatumCode vars d
+    in ("PDatum(" ++ Text.unpack hint ++ "," ++ v'  ++ ")", res)
+
 
 maplePDatumCode :: [String] -> PDatumCode xss vars a -> (String, [String])
 maplePDatumCode vars (PInr x) = let (v', res) = maplePDatumCode vars x
@@ -177,11 +184,13 @@ maplePDatumCode vars (PInr x) = let (v', res) = maplePDatumCode vars x
 maplePDatumCode vars (PInl x) = let (v', res) = maplePDatumStruct vars x
                                 in ("PInl(" ++ v' ++ ")", res)
 
-maplePDatumStruct :: [String] -> PDatumStruct xs vars a -> (String, [String])
-maplePDatumStruct vars (PEt x y) = let (v',  res)  = maplePDatumFun vars x
-                                       (v'', res') = maplePDatumStruct res y
-                                   in ("PEt(" ++ v' ++ "," ++ v'' ++ ")", res')
+maplePDatumStruct
+    :: [String] -> PDatumStruct xs vars a -> (String, [String])
 maplePDatumStruct vars PDone     = ("PDone", vars)
+maplePDatumStruct vars (PEt x y) =
+    let (v',  res)  = maplePDatumFun vars x
+        (v'', res') = maplePDatumStruct res y
+    in ("PEt(" ++ v' ++ "," ++ v'' ++ ")", res')
 
 maplePDatumFun :: [String] -> PDatumFun x vars a -> (String, [String])
 maplePDatumFun vars (PKonst pat) = let (v, res) = maplePattern vars pat
@@ -232,13 +241,15 @@ mapleArrayOp _         _                 = error "mapleArrayOp: TODO: Reduce"
 mapleMeasureOp
     :: (ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
     => MeasureOp typs a -> SArgs abt args -> String
-mapleMeasureOp Lebesgue End               = "Lebesgue()"
-mapleMeasureOp Counting End               = "Counting()"
-mapleMeasureOp Uniform  (e1 :* e2 :* End) = app2 "Uniform"  e1 e2
-mapleMeasureOp Normal   (e1 :* e2 :* End) = app2 "Gaussian" e1 e2
-mapleMeasureOp Poisson  (e1 :* End)       = app1 "PoissonD" e1
-mapleMeasureOp Gamma    (e1 :* e2 :* End) = app2 "GammaD"   e1 e2
-mapleMeasureOp Beta     (e1 :* e2 :* End) = app2 "BetaD"    e1 e2
+mapleMeasureOp Lebesgue    = \End               -> "Lebesgue()"
+mapleMeasureOp Counting    = \End               -> "Counting()"
+mapleMeasureOp Categorical = \(e1 :* End)       ->
+    error "TODO: mapleMeasureOp{Categorical}"
+mapleMeasureOp Uniform     = \(e1 :* e2 :* End) -> app2 "Uniform"  e1 e2
+mapleMeasureOp Normal      = \(e1 :* e2 :* End) -> app2 "Gaussian" e1 e2
+mapleMeasureOp Poisson     = \(e1 :* End)       -> app1 "PoissonD" e1
+mapleMeasureOp Gamma       = \(e1 :* e2 :* End) -> app2 "GammaD"   e1 e2
+mapleMeasureOp Beta        = \(e1 :* e2 :* End) -> app2 "BetaD"    e1 e2
 
 mapleType :: Sing (a :: Hakaru) -> String
 mapleType SNat         = "HInt(Bound(`>=`,0))"
@@ -258,9 +269,8 @@ mapleType x = error ("TODO: mapleType" ++ show x)
 
 mapleTypeDStruct :: Sing (a :: [HakaruFun]) -> String
 mapleTypeDStruct SDone      = "[]"
-mapleTypeDStruct (SEt x xs) = "[" ++ mapleTypeDFun x ++ ", op("
-                                  ++ mapleTypeDStruct xs
-                                  ++ ")]"
+mapleTypeDStruct (SEt x xs) =
+    "[" ++ mapleTypeDFun x ++ ", op(" ++ mapleTypeDStruct xs ++ ")]"
 
 mapleTypeDFun :: Sing (a :: HakaruFun) -> String
 mapleTypeDFun (SKonst a) = "Konst(" ++ mapleType a ++ ")"
