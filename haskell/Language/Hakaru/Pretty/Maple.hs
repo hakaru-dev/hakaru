@@ -3,6 +3,7 @@
            , FlexibleInstances
            , FlexibleContexts
            , ScopedTypeVariables
+           , CPP
            , GADTs
            , TypeFamilies
            , DataKinds
