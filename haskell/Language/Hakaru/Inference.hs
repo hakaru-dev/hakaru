@@ -36,7 +36,7 @@ import Prelude (($), (.), error, Maybe(..), return)
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Syntax.AST (Term)
-import Language.Hakaru.Syntax.ABT (ABT)
+import Language.Hakaru.Syntax.ABT (ABT, binder)
 import Language.Hakaru.Syntax.Prelude
 import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Expect (expect, normalize)
@@ -211,4 +211,7 @@ kl :: (ABT Term abt)
 kl p q = do
   dp <- determine $ density p
   dq <- determine $ density q
-  return $ expect p (\i -> unsafeProb $ log (app dp i / app dq i))
+  return
+    . expect p
+    . binder Text.empty (sUnMeasure $ typeOf p)
+    $ \i -> unsafeProb $ log (app dp i / app dq i)

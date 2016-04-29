@@ -16,7 +16,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.22
+--                                                    2016.04.28
 -- |
 -- Module      :  Language.Hakaru.Evaluation.DisintegrationMonad
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -65,14 +65,13 @@ import           Control.Applicative  (Applicative(..))
 import qualified Data.Foldable        as F
 import qualified Data.Traversable     as T
 import           Data.List.NonEmpty   (NonEmpty(..))
-import qualified Data.List.NonEmpty   as L
+import qualified Data.List.NonEmpty   as NE
 import           Control.Applicative  (Alternative(..))
 import           Control.Monad        (MonadPlus(..))
 import           Data.Text            (Text)
 import qualified Data.Text            as Text
 
 import Language.Hakaru.Syntax.IClasses
-import Data.Number.Nat
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing    (Sing, sUnMeasure, sUnPair)
 import Language.Hakaru.Syntax.AST
@@ -81,6 +80,7 @@ import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.ABT
 import qualified Language.Hakaru.Syntax.Prelude as P
 import Language.Hakaru.Evaluation.Types
+import Language.Hakaru.Evaluation.PEvalMonad (ListContext(..))
 import Language.Hakaru.Evaluation.Lazy (reifyPair)
 
 #ifdef __TRACE_DISINTEGRATE__
@@ -89,61 +89,6 @@ import Debug.Trace (trace)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
--- | An ordered collection of statements representing the context
--- surrounding the current focus of our program transformation.
--- That is, since some transformations work from the bottom up, we
--- need to keep track of the statements we passed along the way
--- when reaching for the bottom.
---
--- The tail of the list takes scope over the head of the list. Thus,
--- the back\/end of the list is towards the top of the program,
--- whereas the front of the list is towards the bottom.
---
--- This type was formerly called @Heap@ (presumably due to the
--- 'Statement' type being called @Binding@) but that seems like a
--- misnomer to me since this really has nothing to do with allocation.
--- However, it is still like a heap inasmuch as it's a dependency
--- graph and we may wish to change the topological sorting or remove
--- \"garbage\" (subject to correctness criteria).
---
--- TODO: Figure out what to do with 'SWeight' so that we can use
--- an @IntMap (Statement abt)@ in order to speed up the lookup times
--- in 'select'. (Assuming callers don't use 'unsafePush' unsafely:
--- we can recover the order things were inserted from their 'varID'
--- since we've freshened them all and therefore their IDs are
--- monotonic in the insertion order.)
-data ListContext (abt :: [Hakaru] -> Hakaru -> *) (p :: Purity) =
-    ListContext
-    { nextFreshNat :: {-# UNPACK #-} !Nat
-    , statements   :: [Statement abt p]
-    }
-
-
-{-
--- BUG: this declaration works fine, but because we can't
--- guarantee\/prove it's injective, it doesn't actually work out
--- in practice. E.g., when we adjust the types of 'residualizeListContext'
--- we start running into abscure \"ambiguity\" issues. If we can
--- get things to work for 'residualizeListContext' then we can
--- generalize 'Ans' to be polymorphic in the purity, and so can
--- generalize 'Dis' to also be polymorphic in the purity; thus
--- allowing us to reuse 'Dis' for constant propagation, rather than
--- needing to copy everything over for the definition of the @Eval@
--- type.
---
--- TODO: how to make it work out? If we had some way of naming the
--- type level identity function (i.e., the actual identity function,
--- not a hack like using the @Identity@ newtype) then we could be
--- parameterized just on @p@ which is what we actually want.
-
-type family PurityMonad (p :: Purity) (a :: Hakaru) :: Hakaru where
-    PurityMonad 'Pure   a = a
-    PurityMonad 'Impure a = 'HMeasure a
--}
-
--- TODO: generalize to non-measure types too! See the note above
--- re the @PurityMonad@ type family.
---
 -- | Plug a term into a context. That is, the 'statements' of the
 -- context specifies a program with a hole in it; so we plug the
 -- given term into that hole, returning the complete program.
@@ -502,17 +447,18 @@ emitSuperpose
 emitSuperpose []  = error "TODO: emitSuperpose[]"
 emitSuperpose [e] = emitMBind e
 emitSuperpose es  =
-    emitMBind . P.superpose . L.map ((,) P.one) $ L.fromList es
+    emitMBind . P.superpose . NE.map ((,) P.one) $ NE.fromList es
 
 
 -- | Emit a 'Superpose_' of the alternatives, each with unit weight.
 choose :: (ABT Term abt) => [Dis abt a] -> Dis abt a
 choose []  = error "TODO: choose[]"
 choose [m] = m
-choose ms  = emitFork_ (P.superpose . L.map ((,) P.one) . L.fromList) ms
+choose ms  = emitFork_ (P.superpose . NE.map ((,) P.one) . NE.fromList) ms
 
 
--- TODO: move this to Datum.hs; also, use it elsewhere as needed to clean up code.
+-- TODO: move this to Datum.hs; also, use it elsewhere as needed to clean up code. N.B., This code depends on ABT.hs whereas the rest of Datum.hs does not.
+--
 -- | A generalization of the 'Branch' type to allow a \"body\" of
 -- any Haskell type.
 data GBranch (a :: Hakaru) (r :: *)
@@ -536,6 +482,10 @@ toGBranch
 toGBranch (Branch pat body) =
     uncurry (GBranch pat) (caseBinds body)
 -}
+
+instance (Show r) => Show (GBranch a r) where
+    showsPrec p (GBranch pat xs r) =
+        showParen_010 p "GBranch" pat xs r
 
 instance Functor (GBranch a) where
     fmap f (GBranch pat vars x) = GBranch pat vars (f x)
@@ -572,7 +522,7 @@ emitCaseWith f e bs = do
     gms <- T.for bs $ \(Branch pat body) ->
         let (vars, body') = caseBinds body
         in  (\vars' ->
-                let rho = toAssocs vars (fmap11 var vars')
+                let rho = toAssocs1 vars (fmap11 var vars')
                 in  GBranch pat vars' (f $ substs rho body')
             ) <$> freshenVars vars
     Dis $ \c h ->

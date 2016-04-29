@@ -95,7 +95,6 @@ primTable =
     ,("nat2real",    primCoerce cNat2Real)
     ,("nat2prob",    primCoerce cNat2Prob)
      -- Measures
-    ,("flat",        TNeu $ U.MeasureOp_ (U.SealedOp T.Lebesgue) [])
     ,("lebesgue",    TNeu $ U.MeasureOp_ (U.SealedOp T.Lebesgue) [])
     ,("counting",    TNeu $ U.MeasureOp_ (U.SealedOp T.Counting) [])
     ,("uniform",     primMeasure2 (U.SealedOp T.Uniform))
@@ -324,6 +323,10 @@ symbolResolveBranch _ _ =
 symbolResolvePat
     :: U.Pattern' Text
     -> State Int (U.Pattern' U.Name, [U.Name])
+symbolResolvePat (U.PVar' "true") =
+    return (U.PData' (U.DV "true" []), [])
+symbolResolvePat (U.PVar' "false") =
+    return (U.PData' (U.DV "false" []), [])
 symbolResolvePat (U.PVar' name)  = do
     name' <- gensym name
     return (U.PVar' name', [name'])

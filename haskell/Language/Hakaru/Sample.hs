@@ -323,22 +323,22 @@ evaluateArrayOp
     -> SArgs abt args
     -> Env
     -> Value a
-evaluateArrayOp (Index _)  (e1 :* e2 :* End) env =
+evaluateArrayOp (Index _) = \(e1 :* e2 :* End) env ->
     case (evaluate e1 env, evaluate e2 env) of
     (VArray v, VNat n) -> v V.! fromNat n
-    v                  -> case v of {}
+    _                  -> error "evaluateArrayOp: the impossible happened"
 
-evaluateArrayOp (Size _)   (e1 :* End) env =
+evaluateArrayOp (Size _) = \(e1 :* End) env ->
     case evaluate e1 env of
     VArray v -> VNat . unsafeNat $ V.length v
-    v        -> case v of {}
+    _        -> error "evaluateArrayOp: the impossible happened"
 
-evaluateArrayOp (Reduce _) (e1 :* e2 :* e3 :* End) env =
+evaluateArrayOp (Reduce _) = \(e1 :* e2 :* e3 :* End) env ->
     case ( evaluate e1 env
          , evaluate e2 env
          , evaluate e3 env) of
     (f, a, VArray v) -> V.foldl' (lam2 f) a v
-    v        -> case v of {}
+    _                -> error "evaluateArrayOp: the impossible happened"
 
 evaluateMeasureOp
     :: ( ABT Term abt
@@ -349,7 +349,7 @@ evaluateMeasureOp
     -> Env
     -> Value ('HMeasure a)
 
-evaluateMeasureOp Lebesgue End _ =
+evaluateMeasureOp Lebesgue = \End _ ->
     VMeasure $ \(VProb p) g -> do
         (u,b) <- MWC.uniform g
         let l = log u
@@ -359,7 +359,7 @@ evaluateMeasureOp Lebesgue End _ =
             , VProb $ p * 2 * LF.logToLogFloat n
             )
 
-evaluateMeasureOp Counting End _ =
+evaluateMeasureOp Counting = \End _ ->
     VMeasure $ \(VProb p) g -> do
         let success = LF.logToLogFloat (-3 :: Double)
         let pow x y = LF.logToLogFloat (LF.logFromLogFloat x *
@@ -370,7 +370,7 @@ evaluateMeasureOp Counting End _ =
             ( VInt  $ if b then -1-u else u
             , VProb $ p * 2 / pow (1-success) u / success)
 
-evaluateMeasureOp Categorical (e1 :* End) env =
+evaluateMeasureOp Categorical = \(e1 :* End) env ->
     VMeasure $ \p g -> do
         let (_,y,ys) = normalizeVector (evaluate e1 env)
         if not (y > (0::Double)) -- TODO: why not use @y <= 0@ ??
@@ -386,40 +386,40 @@ evaluateMeasureOp Categorical (e1 :* End) env =
                 $ ys
                 , p)
 
-evaluateMeasureOp Uniform (e1 :* e2 :* End) env =
+evaluateMeasureOp Uniform = \(e1 :* e2 :* End) env ->
     case (evaluate e1 env, evaluate e2 env) of
     (VReal v1, VReal v2) -> VMeasure $ \p g -> do
         x <- MWC.uniformR (v1, v2) g
         return $ Just (VReal x, p)
-    v -> case v of {}
+    _ -> error "evaluateMeasureOp: the impossible happened"
 
-evaluateMeasureOp Normal (e1 :* e2 :* End) env =
+evaluateMeasureOp Normal = \(e1 :* e2 :* End) env ->
     case (evaluate e1 env, evaluate e2 env) of 
     (VReal v1, VProb v2) -> VMeasure $ \ p g -> do
         x <- MWCD.normal v1 (LF.fromLogFloat v2) g
         return $ Just (VReal x, p)
-    v -> case v of {}
+    _ -> error "evaluateMeasureOp: the impossible happened"
 
-evaluateMeasureOp Poisson (e1 :* End) env =
+evaluateMeasureOp Poisson = \(e1 :* End) env ->
     case evaluate e1 env of
     VProb v1 -> VMeasure $ \ p g -> do
         x <- poisson_rng (LF.fromLogFloat v1) g
         return $ Just (VNat $ unsafeNat x, p)
-    v -> case v of {}
+    _ -> error "evaluateMeasureOp: the impossible happened"
 
-evaluateMeasureOp Gamma (e1 :* e2 :* End) env =
+evaluateMeasureOp Gamma = \(e1 :* e2 :* End) env ->
     case (evaluate e1 env, evaluate e2 env) of 
     (VProb v1, VProb v2) -> VMeasure $ \ p g -> do
         x <- MWCD.gamma (LF.fromLogFloat v1) (LF.fromLogFloat v2) g
         return $ Just (VProb $ LF.logFloat x, p)
-    v -> case v of {}
+    _ -> error "evaluateMeasureOp: the impossible happened"
 
-evaluateMeasureOp Beta (e1 :* e2 :* End) env =
+evaluateMeasureOp Beta = \(e1 :* e2 :* End) env ->
     case (evaluate e1 env, evaluate e2 env) of 
     (VProb v1, VProb v2) -> VMeasure $ \ p g -> do
         x <- MWCD.beta (LF.fromLogFloat v1) (LF.fromLogFloat v2) g
         return $ Just (VProb $ LF.logFloat x, p)
-    v -> case v of {}
+    _ -> error "evaluateMeasureOp: the impossible happened"
 
 evaluateNaryOp
     :: (ABT Term abt)
@@ -480,7 +480,6 @@ evaluateArray n e env =
         VArray $ V.generate (fromNat n') $ \v ->
             let v' = VNat $ unsafeNat v in
             evaluate e' (updateEnv (EAssoc x v') env)
-    v -> case v of {}
 
 evaluateDatum
     :: (ABT Term abt)
@@ -498,14 +497,14 @@ evaluateCase
     -> Value b
 evaluateCase o es env =
     case runIdentity $ matchBranches evaluateDatum' (evaluate o env) es of
-    Just (Matched as Nil1, b) ->
-        evaluate b (extendFromMatch (as []) env)    
+    Just (Matched rho b) ->
+        evaluate b (extendFromMatch (fromAssocs rho) env)
     _ -> error "Missing cases in match expression"
     where
-    extendFromMatch :: [Assoc Value] -> Env -> Env 
+    extendFromMatch :: [Assoc Value] -> Env -> Env
     extendFromMatch []                env' = env'
-    extendFromMatch ((Assoc x v1):as) env' =
-        extendFromMatch as (updateEnv (EAssoc x v1) env')
+    extendFromMatch (Assoc x v : xvs) env' =
+        extendFromMatch xvs (updateEnv (EAssoc x v) env')
 
     evaluateDatum' :: DatumEvaluator Value Identity
     evaluateDatum' = return . Just . getVDatum

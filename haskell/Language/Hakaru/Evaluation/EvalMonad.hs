@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.22
+--                                                    2016.04.28
 -- |
 -- Module      :  Language.Hakaru.Evaluation.EvalMonad
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -47,7 +47,7 @@ import Language.Hakaru.Syntax.ABT      (ABT(..), subst, maxNextFree)
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Evaluation.Types
 import Language.Hakaru.Evaluation.Lazy (TermEvaluator, evaluate, defaultCaseEvaluator)
-import Language.Hakaru.Evaluation.DisintegrationMonad (ListContext(..))
+import Language.Hakaru.Evaluation.PEvalMonad (ListContext(..))
 
 
 -- The rest of these are just for the emit code, which isn't currently exported.
@@ -55,7 +55,7 @@ import           Data.Text             (Text)
 import qualified Data.Text             as Text
 import qualified Data.Traversable      as T
 import Language.Hakaru.Syntax.IClasses (Functor11(..), List1(..))
-import Language.Hakaru.Syntax.Variable (Variable(), toAssocs)
+import Language.Hakaru.Syntax.Variable (Variable(), toAssocs1)
 import Language.Hakaru.Syntax.ABT      (caseVarSyn, caseBinds, binds_, substs)
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing      (Sing, sUnPair)
@@ -360,7 +360,7 @@ emitCaseWith f e bs = do
     gms <- T.for bs $ \(Branch pat body) ->
         let (vars, body') = caseBinds body
         in  (\vars' ->
-                let rho = toAssocs vars (fmap11 var vars')
+                let rho = toAssocs1 vars (fmap11 var vars')
                 in  GBranch pat vars' (f $ substs rho body')
             ) <$> freshenVars vars
     Eval $ \c h ->

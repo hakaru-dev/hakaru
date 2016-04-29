@@ -13,7 +13,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.22
+--                                                    2016.04.28
 -- |
 -- Module      :  Language.Hakaru.Evaluation.Lazy
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -66,11 +66,14 @@ import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
-import Language.Hakaru.Syntax.DatumCase (DatumEvaluator, MatchResult(..), matchBranches, matchTopPattern)
+import Language.Hakaru.Syntax.DatumCase (DatumEvaluator, MatchResult(..), matchBranches, MatchState(..), matchTopPattern)
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Evaluation.Types
 import qualified Language.Hakaru.Syntax.Prelude as P
+{-
+-- BUG: can't import this because of cyclic dependency
 import qualified Language.Hakaru.Expect         as E
+-}
 
 #ifdef __TRACE_DISINTEGRATE__
 import Language.Hakaru.Pretty.Haskell (pretty)
@@ -185,8 +188,12 @@ evaluate perform evaluateCase = evaluate_
         -- BUG: avoid the chance of looping in case 'E.expect' residualizes!
         -- TODO: use 'evaluate' in 'E.expect' for the evaluation of @e1@
         Expect :$ e1 :* e2 :* End ->
+            error "TODO: evaluate{Expect}: unclear how to handle this without cyclic dependencies"
+        {-
+        -- BUG: can't call E.expect because of cyclic dependency
             evaluate_ . E.expect e1 $ \e3 ->
                 syn (Let_ :$ e3 :* e2 :* End)
+        -}
 
         Case_ e bs -> evaluateCase_ e bs
 
@@ -233,16 +240,14 @@ defaultCaseEvaluator evaluate_ = evaluateCase_
                 -- instead capture the possibility of failure in
                 -- the 'EvaluationMonad' monad.
                 error "defaultCaseEvaluator: non-exhaustive patterns in case!"
-            Just (GotStuck, _) ->
+            Just GotStuck ->
                 return . Neutral . syn $ Case_ e bs
-            Just (Matched ss Nil1, body) ->
+            Just (Matched ss body) ->
                 pushes (toStatements ss) body evaluate_
 
 
-type DList a = [a] -> [a]
-
-toStatements :: DList (Assoc (abt '[])) -> [Statement abt p]
-toStatements ss = map (\(Assoc x e) -> SLet x $ Thunk e) (ss [])
+toStatements :: Assocs (abt '[]) -> [Statement abt p]
+toStatements = map (\(Assoc x e) -> SLet x $ Thunk e) . fromAssocs
 
 
 ----------------------------------------------------------------
@@ -335,7 +340,7 @@ instance Interp HUnit () where
     reify v = runIdentity $ do
         match <- matchTopPattern identifyDatum (fromHead v) pUnit Nil1
         case match of
-            Just (Matched _ss Nil1) -> return ()
+            Just (Matched_ _ss Nil1) -> return ()
             _ -> error "reify{HUnit}: the impossible happened"
 
 -- HACK: this requires -XTypeSynonymInstances and -XFlexibleInstances
@@ -345,12 +350,12 @@ instance Interp HBool Bool where
     reify v = runIdentity $ do
         matchT <- matchTopPattern identifyDatum (fromHead v) pTrue Nil1
         case matchT of
-            Just (Matched _ss Nil1) -> return True
-            Just GotStuck -> error "reify{HBool}: the impossible happened"
+            Just (Matched_ _ss Nil1) -> return True
+            Just GotStuck_ -> error "reify{HBool}: the impossible happened"
             Nothing -> do
                 matchF <- matchTopPattern identifyDatum (fromHead v) pFalse Nil1
                 case matchF of
-                    Just (Matched _ss Nil1) -> return False
+                    Just (Matched_ _ss Nil1) -> return False
                     _ -> error "reify{HBool}: the impossible happened"
 
 
@@ -368,7 +373,7 @@ reifyPair v =
     in runIdentity $ do
         match <- matchTopPattern identifyDatum e0 (pPair PVar PVar) (Cons1 x (Cons1 y Nil1))
         case match of
-            Just (Matched ss Nil1) ->
+            Just (Matched_ ss Nil1) ->
                 case ss [] of
                 [Assoc x' e1, Assoc y' e2] ->
                     maybe impossible id $ do

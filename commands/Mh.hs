@@ -2,8 +2,7 @@
 
 module Main where
 
-import qualified Language.Hakaru.Parser.AST as U
-import           Language.Hakaru.Parser.Parser
+import           Language.Hakaru.Parser.Parser (parseHakaru)
 import           Language.Hakaru.Parser.SymbolResolve (resolveAST)
 import           Language.Hakaru.Pretty.Concrete  
 import qualified Language.Hakaru.Syntax.AST as T

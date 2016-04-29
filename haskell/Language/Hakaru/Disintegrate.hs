@@ -16,7 +16,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.22
+--                                                    2016.04.28
 -- |
 -- Module      :  Language.Hakaru.Disintegrate
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -149,7 +149,7 @@ disintegrateWithVar
     -> abt '[] ('HMeasure (HPair a b))
     -> [abt '[] (a ':-> 'HMeasure b)]
 disintegrateWithVar hint typ m =
-    let x = Variable hint (nextFree m `max` nextBind m) typ
+    let x = Variable hint (nextFreeOrBind m) typ
     in map (lam_ x) . flip runDis [Some2 m, Some2 (var x)] $ do
         ab <- perform m
 #ifdef __TRACE_DISINTEGRATE__
@@ -390,6 +390,7 @@ perform = \e0 ->
         -> Dis abt (Whnf abt a)
     performMeasureOp = \o es -> nice o es <|> complete o es
         where
+        -- Try to generate nice pretty output.
         nice
             :: MeasureOp typs a
             -> SArgs abt args
@@ -399,6 +400,7 @@ perform = \e0 ->
             x   <- emitMBind $ syn (MeasureOp_ o :$ es')
             return (Neutral $ var x)
 
+        -- Try to be as complete as possible (i.e., 'bot' as little as possible), no matter how ugly the output code gets.
         complete
             :: MeasureOp typs a
             -> SArgs abt args
@@ -575,10 +577,10 @@ constrainValue v0 e0 =
                         -- that always crashes, instead of throwing a
                         -- Haskell error.
                         error "constrainValue{Case_}: nothing matched!"
-                    Just (GotStuck, _) ->
+                    Just GotStuck ->
                         constrainBranches v0 e bs
-                    Just (Matched ss Nil1, body) ->
-                        pushes (toStatements ss) body (constrainValue v0)
+                    Just (Matched rho body) ->
+                        pushes (toStatements rho) body (constrainValue v0)
             <|> constrainBranches v0 e bs
 
         _ :$ _ -> error "constrainValue: the impossible happened"

@@ -12,7 +12,7 @@ import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.TypeCheck
 import           Language.Hakaru.Types.Sing
 
-import           Language.Hakaru.Expect2 (normalize)
+import           Language.Hakaru.Expect (normalize)
 import           Language.Hakaru.Evaluation.ConstantPropagation
 
 import           Data.Text
