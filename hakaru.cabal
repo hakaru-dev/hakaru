@@ -197,5 +197,21 @@ Executable normalize
                        pretty           >= 1.1  && < 1.2,
                        hakaru           >= 0.3
 
+
+----------------------------------------------------------------
+Executable hkc
+    Main-is:           HKC.hs
+    Hs-Source-Dirs:    commands
+    Default-Language:  Haskell2010
+    GHC-Options:       -O2 -Wall -fwarn-tabs
+
+    build-depends:     base             >= 4.7  && < 5.0, 
+                       -- mwc-random       >= 0.13 && < 0.14,
+                       text             >= 0.11 && < 1.3,
+                       -- mtl              >= 2.1,
+                       -- pretty           >= 1.1  && < 1.2,
+                       hakaru           >= 0.3
+
+
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
