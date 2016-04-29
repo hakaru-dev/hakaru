@@ -1,0 +1,34 @@
+site_name: Hakaru
+repo_url: https://github.com/hakaru-dev/hakaru
+site_author: Hakaru Team
+extra_javascript:
+    - 'https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML'
+    - 'js/mathjaxhelper.js'
+pages:
+- Home: 'index.md'
+- Introduction:
+  - 'What is Probabilistic Programming': 'intro/probprog.md'
+  - 'Installation':  'intro/installation.md'
+  - 'Quick Example': 'intro/quickstart.md'
+- Language Guide:
+  - 'Random Primitives':   'lang/rand.md'
+  - 'Let and Bind':        'index.md'
+  - 'Conditionals':        'index.md'
+  - 'Coercions':           'about.md'
+  - 'Functions and Let':   'about.md'
+  - 'Datatypes and match': 'about.md'
+  - 'Arrays':              'about.md'
+- Transformations:
+  - 'Expect':       'index.md'
+  - 'Disintegrate': 'index.md'
+  - 'Simplify':     'index.md'
+- Internals:
+  - 'AST and Hakaru Datakind':   'index.md'
+  - 'ABT':                       'index.md'
+  - 'Datums':                    'index.md'
+  - 'Coercions':                 'index.md'
+  - 'Transformaitons':           'index.md'
+  - 'Testing':                   'about.md'
+  - 'Adding a Language Feautre': 'about.md'
+- Examples: 'examples.md'
+theme: yeti

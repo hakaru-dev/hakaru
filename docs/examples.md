@@ -1,0 +1,84 @@
+# Examples
+
+### Gaussian Mixture Model
+
+Below is a model for a Gaussian Mixture model. This can be seen
+as a Bayesian version of K-means clustering.
+
+````hakaru
+# Prelude to define dirichlet
+def add(a prob, b prob):
+    a + b
+
+def sum(a array(prob)):
+    reduce(add, 0, a)
+
+def normalize(x array(prob)):
+    total = sum(x)
+    array i of size(x):
+       x[i] / total
+
+def dirichlet(a array(prob)):
+    x <~ plate i of size(a):
+           gamma(a[i], 1)
+    return normalize(x)
+
+# num of clusters
+K = 5
+# num of points
+N = 20
+
+# prior probability of picking cluster K
+pi  <~ dirichlet(array _ of K: 1)
+# prior on mean and precision
+mu  <~ plate _ of K:
+         normal(0, 5e-9)
+tau <~ plate _ of K:
+         gamma(2, 0.05)
+# observed data
+x   <~ plate _ of N:
+         i <~ categorical(pi)
+         normal(mu[i], tau[i])
+
+return (x, mu). pair(array(real), array(real))
+````
+
+### Latent Dirichlet Allocation
+
+Below is the LDA topic model.
+
+````python
+K = 2 # number of topics
+M = 3 # number of docs
+V = 7 # size of vocabulary
+
+# number of words in each document
+doc = [4, 5, 3]
+
+topic_prior = array _ of K: 1
+word_prior  = array _ of V: 1
+
+phi <~ plate _ of K:     # word dist for topic k
+         dirichlet(word_prior)
+
+# likelihood
+z   <~ plate m of M:
+         theta <~ dirichlet(topic_prior)
+         plate _ of doc[m]: # topic marker for word n in doc m
+           categorical(theta)
+
+w   <~ plate m of M: # for doc m
+         plate n of doc[m]: # for word n in doc m
+           categorical(phi[z[m][n]])
+
+return (w, z)
+````
+
+<div class="panel panel-warning">
+    <div class="panel-heading">
+        <h4 class="panel-title">TODO</h4>
+	</div>
+	<div class="panel-body">
+        Make the LDA example parse and sample
+	</div>
+</div>
