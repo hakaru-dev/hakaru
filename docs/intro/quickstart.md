@@ -1,7 +1,7 @@
 # Quickstart
 
 Assuming you have Hakaru [installed](intro/installation), let's
-sample a simple a mixture model.
+sample a simple a model.
 
 ````hakaru
 x <~ bern(0.5)
@@ -23,6 +23,8 @@ The generative model here has us flip a coin with bias 0.5, and then
 have *x* be a draw from that distribution. We then check if *x* is
 true or false. Based on that we either have *y* be a draw from
 a normal or uniform distribution, and then we return both *x* and *y*.
+Because we are choosing between a normal and a uniform distribution,
+programs like these are sometimes called *mixture* models.
 
 Assuming we safe this file to `twomixture.hk` we can sample from it by
 passing it as an argument to the `hakaru` command. 

@@ -5,7 +5,7 @@
 Hakaru is a probabilistic programming language. A probabilistic programming
 language is a language specifically designed for manipulating probability
 distributions. These sorts of languages are great for machine learning and
-stochatic modeling.
+stochastic modeling.
 
 ## Overview
 
@@ -41,7 +41,12 @@ classification.
 
 ## Language Guide
 
+The language section provides an overview of the syntax of Hakaru as
+well as some of the primitives in the language.
+
 ### [Random Primitives](lang/rand)
+
+These are the built-in probability distributions.
 
 ### Let and Bind
 
