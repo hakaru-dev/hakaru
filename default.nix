@@ -1,11 +1,10 @@
 with (import <nixpkgs> {}).pkgs;
-let
-  pkg = haskellPackages.callPackage
+let pkg = haskellPackages.callPackage
             ({ mkDerivation, ansi-terminal, base, Cabal, containers, directory
              , filepath, ghc-prim, HUnit, indentation, integration, logfloat
              , math-functions, mtl, mwc-random, parsec, pretty, primitive
              , process, QuickCheck, semigroups, stdenv, text, transformers
-             , vector
+             , vector, raw-strings-qq
              }:
              mkDerivation {
                pname = "hakaru";
@@ -17,7 +16,7 @@ let
                  ansi-terminal base Cabal containers directory filepath ghc-prim
                  HUnit indentation integration logfloat math-functions mtl
                  mwc-random parsec pretty primitive process semigroups text
-                 transformers vector cabal-install openssh
+                 transformers vector cabal-install raw-strings-qq
                ];
                testDepends = [
                  ansi-terminal base Cabal containers ghc-prim HUnit indentation
