@@ -1,6 +1,6 @@
 # Quickstart
 
-Assuming you have Hakaru [installed](intro/installation), let's
+Assuming you have Hakaru [installed](/intro/installation), let's
 sample a simple a model.
 
 ````hakaru
