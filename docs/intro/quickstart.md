@@ -26,7 +26,7 @@ a normal or uniform distribution, and then we return both *x* and *y*.
 Because we are choosing between a normal and a uniform distribution,
 programs like these are sometimes called *mixture* models.
 
-Assuming we safe this file to `twomixture.hk` we can sample from it by
+Assuming we save this file to `twomixture.hk` we can sample from it by
 passing it as an argument to the `hakaru` command. 
 
 
@@ -34,7 +34,7 @@ passing it as an argument to the `hakaru` command.
 hakaru twomixture.hk
 ````
 
-Hakaru will then produce an infinite stream of sample from the
+Hakaru will then produce an infinite stream of samples from the
 distribution this program represents.
 
 ````bash
@@ -110,7 +110,7 @@ hakaru twomixture2.hk | head -n 1000 | sort | uniq -c
     474 true
 ````
 
-As we can see, as 0.3 the uniform distribution is slightly more
+As we can see, when x2 = 0.3, the uniform distribution is slightly more
 likely. If we change x2 to be 3.0
 
 ````

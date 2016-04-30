@@ -44,11 +44,11 @@ classification.
 The language section provides an overview of the syntax of Hakaru as
 well as some of the primitives in the language.
 
-### [Random Primitives](lang/rand)
+### [Random Primitives](/lang/rand)
 
 These are the built-in probability distributions.
 
-### Let and Bind
+### [Let and Bind](/lang/letbind)
 
 ### Conditionals
 
@@ -64,9 +64,9 @@ Hakaru implements its inference algorithms predominately as
 program transformations. The following are the major ones
 our system provides.
 
-Expect
+[Expect](/transforms/expect)
 
-Disintegrate
+[Disintegrate](/transforms/disintegrate)
 
 Simplify
 
