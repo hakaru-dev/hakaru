@@ -237,7 +237,7 @@ ppSCon p Expect = \(e1 :* e2 :* End) ->
     let (vars, types, body) = ppBinder2 e2 in
     [ PP.text "expect"
       <+> toDoc vars
-      <+> (toDoc $ ppArg e1)
+      <+> (toDoc . parens True $ ppArg e1)
       <> PP.colon
     , PP.nest 1 (toDoc body)
     ]
