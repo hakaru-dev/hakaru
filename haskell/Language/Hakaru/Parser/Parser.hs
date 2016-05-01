@@ -159,9 +159,12 @@ binary s = Ex.Infix (binop (Text.pack s) <$ reservedOp s)
 prefix :: String -> (a -> a) -> Operator a 
 prefix s f = Ex.Prefix (f <$ reservedOp s)
 
+postfix :: Parser (a -> a) -> Operator a
+postfix p = Ex.Postfix . chainl1 p . return $ flip (.)
+
 table :: OperatorTable (AST' Text)
 table =
-    [ [ Ex.Postfix array_index ]
+    [ [ postfix array_index ]
     , [ prefix "+"  id ]
     , [ binary "^"  Ex.AssocRight
       , binary "**" Ex.AssocRight]
@@ -172,7 +175,7 @@ table =
       , prefix "-"  (App (Var "negate"))]
     -- TODO: add "<=", ">=", "/="
     -- TODO: do you *really* mean AssocLeft? Shouldn't they be non-assoc?
-    , [ Ex.Postfix ann_expr ]
+    , [ postfix ann_expr ]
     , [ binary "<|>" Ex.AssocRight]
     , [ binary "<"   Ex.AssocLeft
       , binary ">"   Ex.AssocLeft
