@@ -437,6 +437,7 @@ identityElement (Prod HSemiring_Nat)  = VNat  1
 identityElement (Prod HSemiring_Int)  = VInt  1
 identityElement (Prod HSemiring_Prob) = VProb 1
 identityElement (Prod HSemiring_Real) = VReal 1
+identityElement (Max  HOrd_Real)      = VReal LF.negativeInfinity
 
 
 evalOp
@@ -452,6 +453,7 @@ evalOp (Prod HSemiring_Nat)  (VNat   a) (VNat  b) = VNat  (a * b)
 evalOp (Prod HSemiring_Int)  (VInt   a) (VInt  b) = VInt  (a * b)  
 evalOp (Prod HSemiring_Prob) (VProb  a) (VProb b) = VProb (a * b)  
 evalOp (Prod HSemiring_Real) (VReal  a) (VReal b) = VReal (a * b)
+evalOp (Max  HOrd_Real)      (VReal  a) (VReal b) = VReal (max a b)
 
 mapEvaluate
     :: (ABT Term abt)
