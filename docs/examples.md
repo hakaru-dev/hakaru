@@ -55,8 +55,8 @@ V = 7 # size of vocabulary
 # number of words in each document
 doc = [4, 5, 3]
 
-topic_prior = array _ of K: 1
-word_prior  = array _ of V: 1
+topic_prior = array _ of K: 1.0
+word_prior  = array _ of V: 1.0
 
 phi <~ plate _ of K:     # word dist for topic k
          dirichlet(word_prior)
@@ -73,12 +73,3 @@ w   <~ plate m of M: # for doc m
 
 return (w, z)
 ````
-
-<div class="panel panel-warning">
-    <div class="panel-heading">
-        <h4 class="panel-title">TODO</h4>
-	</div>
-	<div class="panel-body">
-        Make the LDA example parse and sample
-	</div>
-</div>

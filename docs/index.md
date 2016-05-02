@@ -68,7 +68,7 @@ our system provides.
 
 [Disintegrate](/transforms/disintegrate)
 
-Simplify
+[Simplify](/transforms/simplify)
 
 Metropolis Hastings
 
