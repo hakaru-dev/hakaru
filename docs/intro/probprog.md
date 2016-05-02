@@ -54,7 +54,9 @@ probabilistic program. In particular, we will try to predict who will
 win match3 given we have observed who won the first two matches.
 
 We can start by assuming each player's strength comes from a standard
-normal distribution.
+normal distribution. Then we assume the strength they pull with some
+normal distribution centered around their true strength, and the
+person who pulled harder wins.
 
 ````python
 def pulls(strength real):
@@ -74,9 +76,9 @@ match2 <~ winner(bob, carol)
 match3 <~ winner(alice, carol)
 ````
 
-We then check restrict the set of events to only those where bob
-won the first match and carol won the second, and return the
-results of the third match.
+We then check restrict the set of events to only those where alice won
+the first match and bob won the second, and return the results of the
+third match.
 
 ````python
 if match1 && match2:
@@ -85,20 +87,32 @@ else:
    reject. measure(bool)
 ````
 
-We can thenrun the above model using hakaru.
+We can then run the above model using hakaru, which shows that alice
+is likely to win her match against carol.
 
 ````python
 hakaru tugofwar.hk | head -n 10000 | sort | uniq -c
-   6913 false
-   3087 true
+   3060 false
+   6940 true
 ````
 
 ## Simulation vs Inference
 
-Simulation is easier and more natural than performing inference.
-
-## Inference algorithms
+Of course, in the above program we performed inference, by taking
+our model and throwing out all events that didn't agree with
+the data we had. How well would this work if we changed our
+model slightly? Suppose our data wasn't boolean values, but instead
+the difference of strengths, and we want to not just whether alice
+will win, but by how much.
 
 As we pose more complex questions, posing our models as rejection
 samplers because increasing inefficient.
 
+<div class="panel panel-warning">
+    <div class="panel-heading">
+        <h4 class="panel-title">TODO</h4>
+	</div>
+	<div class="panel-body">
+        Explain simply and mh
+	</div>
+</div>
