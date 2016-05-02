@@ -781,6 +781,11 @@ constrainNaryOp v0 o =
             emitWeight $ P.recip (toProb_abs theSemi u')
             v <- evaluate_ $ P.unsafeDiv_ theSemi v0 u'
             constrainValue (fromWhnf v) e
+    Max theOrd ->
+        chooseSeq $ \es1 e es2 -> do
+            u <- atomize $ syn (NaryOp_ (Max theOrd) (es1 S.>< es2))
+            emitGuard $ P.primOp2_ (Less theOrd) (fromWhnf u) v0
+            constrainValue v0 e
     _ -> error $ "TODO: constrainNaryOp{" ++ show o ++ "}"
 
 
@@ -803,6 +808,18 @@ lubSeq f = go S.empty
         case S.viewl ys of
         S.EmptyL   -> empty
         y S.:< ys' -> f xs y ys' <|> go (xs S.|> y) ys'
+
+chooseSeq :: (ABT Term abt)
+          => (Seq a -> a -> Seq a -> Dis abt b)
+          -> Seq a
+          -> Dis abt b
+chooseSeq f = choose  . go S.empty
+    where
+    go xs ys =
+        case S.viewl ys of
+        S.EmptyL   -> []
+        y S.:< ys' -> f xs y ys' : go (xs S.|> y) ys'
+
 
 ----------------------------------------------------------------
 -- HACK: for a lot of these, we can't use the prelude functions
