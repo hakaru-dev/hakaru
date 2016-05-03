@@ -33,3 +33,6 @@ pages:
   - 'Adding a Language Feautre': 'internals/newfeature.md'
 - Examples: 'examples.md'
 theme: yeti
+
+markdown_extensions:
+  - markdown.extensions.smarty

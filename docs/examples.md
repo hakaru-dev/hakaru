@@ -5,7 +5,7 @@
 Below is a model for a Gaussian Mixture model. This can be seen
 as a Bayesian version of K-means clustering.
 
-````hakaru
+````nohighlight
 # Prelude to define dirichlet
 def add(a prob, b prob):
     a + b
@@ -47,7 +47,7 @@ return (x, mu). pair(array(real), array(real))
 
 Below is the LDA topic model.
 
-````python
+````nohighlight
 K = 2 # number of topics
 M = 3 # number of docs
 V = 7 # size of vocabulary

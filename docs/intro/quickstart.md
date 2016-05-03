@@ -3,7 +3,7 @@
 Assuming you have Hakaru [installed](/intro/installation), let's
 sample a simple a model.
 
-````hakaru
+````nohighlight
 x <~ bern(0.5)
 y <~ match x:
       true:  normal(0,1)
@@ -64,7 +64,7 @@ disintegrate twomixture.hk
 
 This returns
 
-````
+````nohighlight
 fn x2 real: 
  weight(0.5,
         weight((exp((negate(((x2 + 0.0) ^ 2)) * 0.5)) * 
@@ -113,7 +113,7 @@ hakaru twomixture2.hk | head -n 1000 | sort | uniq -c
 As we can see, when x2 = 0.3, the uniform distribution is slightly more
 likely. If we change x2 to be 3.0
 
-````
+````nohighlight
 x2 = 3.0
 weight(0.5,
     weight((exp((negate(((x2 + 0.0) ^ 2)) * 0.5)) * 

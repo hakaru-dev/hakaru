@@ -47,7 +47,7 @@ simplified version of the
 example from probmods.org. For this problem we will take a Bayesian
 approach to prediction.
 
-For this problem, we have three friends, Alice Bob and Carol who take
+For this problem, we have three friends, Alice, Bob and Carol who take
 turns playing a tug of war against each other and we'd like to know
 which of them is the strongest. We can pose this problem as a
 probabilistic program. In particular, we will try to predict who will
@@ -58,7 +58,7 @@ normal distribution. Then we assume the strength they pull with some
 normal distribution centered around their true strength, and the
 person who pulled harder wins.
 
-````python
+````nohighlight
 def pulls(strength real):
     normal(strength, 1)
 
@@ -76,21 +76,21 @@ match2 <~ winner(bob, carol)
 match3 <~ winner(alice, carol)
 ````
 
-We then check restrict the set of events to only those where alice won
-the first match and bob won the second, and return the results of the
+We then restrict the set of events to only those where Alice won the
+first match and Bob won the second, and return the results of the
 third match.
 
-````python
+````nohighlight
 if match1 && match2:
    return match3
 else:
    reject. measure(bool)
 ````
 
-We can then run the above model using hakaru, which shows that alice
-is likely to win her match against carol.
+We can then run the above model using hakaru, which shows that Alice
+is likely to win her match against Carol.
 
-````python
+````bash
 hakaru tugofwar.hk | head -n 10000 | sort | uniq -c
    3060 false
    6940 true
@@ -116,3 +116,4 @@ samplers because increasing inefficient.
         Explain simply and mh
 	</div>
 </div>
+
