@@ -36,6 +36,7 @@ module Language.Hakaru.Types.Coercion
     , singCoerceDomCod
 
     -- * The induced coercion hierarchy
+    , CoercionMode(..)
     , findCoercion
     , findEitherCoercion
     , Lub(..)
@@ -276,6 +277,22 @@ findCoercion SNat  SReal = Just (continuous . signed)
 findCoercion a     b     = jmEq1 a b >>= \Refl -> Just CNil
 
 
+-- | Given two types, find a coercion where an unsafe
+-- coercion, followed by a safe coercion are needed to
+-- coerce the first type into the second, return otherwise
+findMixedCoercion
+    :: Sing a
+    -> Sing b
+    -> Maybe (Sing 'HNat, Coercion 'HNat a, Coercion 'HNat b)
+findMixedCoercion SProb SInt  = Just (SNat, continuous, signed)
+findMixedCoercion SInt  SProb = Just (SNat, signed, continuous)
+findMixedCoercion _     _     = Nothing
+
+data CoercionMode a b = 
+              Safe   (Coercion a b)
+  |           Unsafe (Coercion b a)
+  | forall c. Mixed  (Sing c, Coercion c a, Coercion c b)                
+
 -- | Given two types, find either a coercion from the first to the
 -- second or a coercion from the second to the first, or returns
 -- 'Nothing' if there is neither such coercion.
@@ -287,11 +304,14 @@ findCoercion a     b     = jmEq1 a b >>= \Refl -> Just CNil
 findEitherCoercion
     :: Sing a
     -> Sing b
-    -> Maybe (Either (Coercion b a) (Coercion a b))
+    -> Maybe (CoercionMode a b)
 findEitherCoercion a b =
     case findCoercion a b of
-    Just c  -> Just (Right c)
-    Nothing -> Left <$> findCoercion b a
+    Just c  -> Just (Safe c)
+    Nothing -> 
+        case findCoercion b a of
+          Just c  -> Just (Unsafe c)
+          Nothing -> Mixed <$> findMixedCoercion a b
 
 
 -- | An upper bound of two types, with the coercions witnessing its
