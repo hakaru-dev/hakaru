@@ -452,8 +452,10 @@ identityElement (Prod HSemiring_Nat)  = VNat  1
 identityElement (Prod HSemiring_Int)  = VInt  1
 identityElement (Prod HSemiring_Prob) = VProb 1
 identityElement (Prod HSemiring_Real) = VReal 1
+identityElement (Max  HOrd_Prob)      = VProb 0
 identityElement (Max  HOrd_Real)      = VReal LF.negativeInfinity
-identityElement (Min  HOrd_Prob)      = VProb 0
+identityElement (Min  HOrd_Prob)      = VProb (LF.logFloat LF.infinity)
+identityElement (Min  HOrd_Real)      = VReal LF.infinity
 
 
 evalOp
@@ -472,8 +474,9 @@ evalOp (Prod HSemiring_Real) (VReal a) (VReal b) = VReal (a * b)
 evalOp (Max  HOrd_Prob)      (VProb a) (VProb b) = VProb (max a b)
 evalOp (Max  HOrd_Real)      (VReal a) (VReal b) = VReal (max a b)
 evalOp (Min  HOrd_Prob)      (VProb a) (VProb b) = VProb (min a b) 
+evalOp (Min  HOrd_Real)      (VReal a) (VReal b) = VReal (min a b) 
 
-evalOp op                    _          _         =
+evalOp op                    _          _        =
     error ("TODO: evalOp{" ++ show op ++ "}")
 
 mapEvaluate
