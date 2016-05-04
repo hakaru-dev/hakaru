@@ -289,12 +289,6 @@ evaluatePrimOp Exp (e1 :* End) env =
       v        -> case v of {}
 evaluatePrimOp Infinity         End _ = VProb $ LF.logFloat LF.infinity
 evaluatePrimOp NegativeInfinity End _ = VReal $ LF.negativeInfinity
-evaluatePrimOp (Less _) (e1 :* e2 :* End) env =
-    case (evaluate e1 env, evaluate e2 env) of
-    (VNat  v1, VNat  v2) -> VDatum $ if v1 < v2 then dTrue else dFalse
-    (VProb v1, VProb v2) -> VDatum $ if v1 < v2 then dTrue else dFalse
-    (VReal v1, VReal v2) -> VDatum $ if v1 < v2 then dTrue else dFalse
-    v                    -> error "TODO: evaluatePrimOp{Less}"
 evaluatePrimOp (Equal _) (e1 :* e2 :* End) env =
     case (evaluate e1 env, evaluate e2 env) of
     (VNat  v1, VNat  v2) -> VDatum $ if v1 == v2 then dTrue else dFalse
@@ -302,6 +296,22 @@ evaluatePrimOp (Equal _) (e1 :* e2 :* End) env =
     (VProb v1, VProb v2) -> VDatum $ if v1 == v2 then dTrue else dFalse
     (VReal v1, VReal v2) -> VDatum $ if v1 == v2 then dTrue else dFalse
     v                    -> error "TODO: evaluatePrimOp{Equal}"
+evaluatePrimOp (Less _) (e1 :* e2 :* End) env =
+    case (evaluate e1 env, evaluate e2 env) of
+    (VNat  v1, VNat  v2) -> VDatum $ if v1 < v2 then dTrue else dFalse
+    (VProb v1, VProb v2) -> VDatum $ if v1 < v2 then dTrue else dFalse
+    (VReal v1, VReal v2) -> VDatum $ if v1 < v2 then dTrue else dFalse
+    v                    -> error "TODO: evaluatePrimOp{Less}"
+evaluatePrimOp (NatPow _) (e1 :* e2 :* End) env = 
+    case evaluate e2 env of
+    VNat  v2 ->
+        let v2' = fromNat v2 in
+        case evaluate e1 env of
+          VNat  v1 -> VNat  (v1 ^ v2')
+          VInt  v1 -> VInt  (v1 ^ v2')
+          VProb v1 -> VProb (v1 ^ v2')
+          VReal v1 -> VReal (v1 ^ v2')
+    v2       -> case v2 of {}
 evaluatePrimOp (Negate _) (e1 :* End) env = 
     case evaluate e1 env of
     VInt  v -> VInt  (negate v)
@@ -312,6 +322,11 @@ evaluatePrimOp (Recip _) (e1 :* End) env =
     VProb v -> VProb (recip v)
     VReal v -> VReal (recip v)
     v       -> case v of {}
+evaluatePrimOp (NatRoot _) (e1 :* e2 :* End) env =
+    case (evaluate e1 env, evaluate e2 env) of
+    (VProb v1, VNat v2) -> VProb $ LF.pow v1 (recip . fromIntegral $ v2)
+    v                   -> case v of {}    
+
 evaluatePrimOp prim _ _ =
     error ("TODO: evaluatePrimOp{" ++ show prim ++ "}")
 
@@ -438,6 +453,7 @@ identityElement (Prod HSemiring_Int)  = VInt  1
 identityElement (Prod HSemiring_Prob) = VProb 1
 identityElement (Prod HSemiring_Real) = VReal 1
 identityElement (Max  HOrd_Real)      = VReal LF.negativeInfinity
+identityElement (Min  HOrd_Prob)      = VProb 0
 
 
 evalOp
@@ -445,15 +461,20 @@ evalOp
 evalOp And (VDatum a) (VDatum b)        
     | a == dTrue && b == dTrue = VDatum dTrue
     | otherwise = VDatum dFalse
-evalOp (Sum  HSemiring_Nat)  (VNat   a) (VNat  b) = VNat  (a + b)
-evalOp (Sum  HSemiring_Int)  (VInt   a) (VInt  b) = VInt  (a + b)
-evalOp (Sum  HSemiring_Prob) (VProb  a) (VProb b) = VProb (a + b)
-evalOp (Sum  HSemiring_Real) (VReal  a) (VReal b) = VReal (a + b)
-evalOp (Prod HSemiring_Nat)  (VNat   a) (VNat  b) = VNat  (a * b)
-evalOp (Prod HSemiring_Int)  (VInt   a) (VInt  b) = VInt  (a * b)  
-evalOp (Prod HSemiring_Prob) (VProb  a) (VProb b) = VProb (a * b)  
-evalOp (Prod HSemiring_Real) (VReal  a) (VReal b) = VReal (a * b)
-evalOp (Max  HOrd_Real)      (VReal  a) (VReal b) = VReal (max a b)
+evalOp (Sum  HSemiring_Nat)  (VNat  a) (VNat  b) = VNat  (a + b)
+evalOp (Sum  HSemiring_Int)  (VInt  a) (VInt  b) = VInt  (a + b)
+evalOp (Sum  HSemiring_Prob) (VProb a) (VProb b) = VProb (a + b)
+evalOp (Sum  HSemiring_Real) (VReal a) (VReal b) = VReal (a + b)
+evalOp (Prod HSemiring_Nat)  (VNat  a) (VNat  b) = VNat  (a * b)
+evalOp (Prod HSemiring_Int)  (VInt  a) (VInt  b) = VInt  (a * b)  
+evalOp (Prod HSemiring_Prob) (VProb a) (VProb b) = VProb (a * b)  
+evalOp (Prod HSemiring_Real) (VReal a) (VReal b) = VReal (a * b)
+evalOp (Max  HOrd_Prob)      (VProb a) (VProb b) = VProb (max a b)
+evalOp (Max  HOrd_Real)      (VReal a) (VReal b) = VReal (max a b)
+evalOp (Min  HOrd_Prob)      (VProb a) (VProb b) = VProb (min a b) 
+
+evalOp op                    _          _         =
+    error ("TODO: evalOp{" ++ show op ++ "}")
 
 mapEvaluate
     :: (ABT Term abt)
