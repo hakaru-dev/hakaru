@@ -283,9 +283,9 @@ ppCoerceTo =
     -- BUG: this may not work quite right when the coercion isn't one of the special named ones...
     \p c e -> ppFun p (prettyShow c) [toDoc $ ppArg e]
     where
-    prettyShow (CCons (Signed HRing_Real) CNil)           = "fromProb"
+    prettyShow (CCons (Signed HRing_Real) CNil)           = "prob2real"
     prettyShow (CCons (Signed HRing_Int)  CNil)           = "nat2int"
-    prettyShow (CCons (Continuous HContinuous_Real) CNil) = "fromInt"
+    prettyShow (CCons (Continuous HContinuous_Real) CNil) = "int2real"
     prettyShow (CCons (Continuous HContinuous_Prob) CNil) = "nat2prob"
     prettyShow (CCons (Continuous HContinuous_Prob)
         (CCons (Signed HRing_Real) CNil))                 = "nat2real"
@@ -299,8 +299,8 @@ ppUnsafeFrom =
     -- BUG: this may not work quite right when the coercion isn't one of the special named ones...
     \p c e -> ppFun p (prettyShow c) [toDoc $ ppArg e]
     where
-    prettyShow (CCons (Signed HRing_Real) CNil) = "unsafeProb"
-    prettyShow (CCons (Signed HRing_Int)  CNil) = "unsafeNat"
+    prettyShow (CCons (Signed HRing_Real) CNil) = "real2prob"
+    prettyShow (CCons (Signed HRing_Int)  CNil) = "int2nat"
     prettyShow c = "unsafeFrom_ " ++ showsPrec 11 c ""
 
 

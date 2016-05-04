@@ -89,9 +89,9 @@ primTable =
     ,("true",        TNeu $ true_)
     ,("false",       TNeu $ false_)
      -- Coercions
-    ,("fromInt",     primCoerce cFromInt)
-    ,("fromProb",    primCoerce cFromProb)
-    ,("unsafeProb",  primUnsafe cFromProb)
+    ,("int2real",    primCoerce cFromInt)
+    ,("prob2real",   primCoerce cFromProb)
+    ,("real2prob",   primUnsafe cFromProb)
     ,("nat2real",    primCoerce cNat2Real)
     ,("nat2prob",    primCoerce cNat2Prob)
      -- Measures
