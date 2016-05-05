@@ -29,7 +29,7 @@ x
 # Good
 x <~ normal(0,1)
 return x
-```
+````
 
 Because Bind is about draws from a distribution, the rest of the body
 must also denote a probability distribution.
@@ -44,7 +44,7 @@ x
 # Good
 x <~ normal(0,1)
 return x
-```
+````
 
 To help distinguish Let and Bind. Here is a probabilistic program, where we
 let _f_ be equal to the normal distribution, and take draws from _f_.
