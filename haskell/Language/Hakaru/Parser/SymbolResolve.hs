@@ -89,9 +89,10 @@ primTable =
     ,("true",        TNeu $ true_)
     ,("false",       TNeu $ false_)
      -- Coercions
-    ,("int2real",    primCoerce cFromInt)
-    ,("prob2real",   primCoerce cFromProb)
-    ,("real2prob",   primUnsafe cFromProb)
+    ,("int2nat",     primUnsafe cNat2Int)
+    ,("int2real",    primCoerce cInt2Real)
+    ,("prob2real",   primCoerce cProb2Real)
+    ,("real2prob",   primUnsafe cProb2Real)
     ,("nat2real",    primCoerce cNat2Real)
     ,("nat2prob",    primCoerce cNat2Prob)
      -- Measures
@@ -148,8 +149,8 @@ primCoerce c = TLam $ TNeu . U.CoerceTo_  (Some2 c)
 primUnsafe :: Coercion a b -> Symbol U.AST
 primUnsafe c = TLam $ TNeu . U.UnsafeTo_  (Some2 c)
 
-cFromProb :: Coercion 'HProb 'HReal
-cFromProb = signed
+cProb2Real :: Coercion 'HProb 'HReal
+cProb2Real = signed
 
 cNat2Prob :: Coercion 'HNat 'HProb
 cNat2Prob = continuous
@@ -157,8 +158,8 @@ cNat2Prob = continuous
 cNat2Int  :: Coercion 'HNat 'HInt
 cNat2Int  = signed
 
-cFromInt  :: Coercion 'HInt 'HReal
-cFromInt  = continuous
+cInt2Real  :: Coercion 'HInt 'HReal
+cInt2Real  = continuous
 
 cNat2Real :: Coercion 'HNat 'HReal
 cNat2Real = CCons (Signed HRing_Int) continuous
