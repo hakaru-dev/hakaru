@@ -7,7 +7,7 @@ language for describing probability distributions?
 
 The world is intrinsically an uncertain place. When we try to predict
 what will happen in the world given some data we have collected, we
-are inherently engaging in some sort of probabilisitic modeling. In
+are inherently engaging in some sort of probabilistic modeling. In
 probabilistic modeling, we treat the quantity we wish to predict as a
 parameter, and then describe our data as some noisy function of this
 parameter. This function is called *likelihood*, and depending on which
@@ -102,7 +102,7 @@ Of course, in the above program we performed inference, by taking
 our model and throwing out all events that didn't agree with
 the data we had. How well would this work if we changed our
 model slightly? Suppose our data wasn't boolean values, but instead
-the difference of strengths, and we want to not just whether alice
+the difference of strengths, and we want to not just whether Alice
 will win, but by how much.
 
 As we pose more complex questions, posing our models as rejection
