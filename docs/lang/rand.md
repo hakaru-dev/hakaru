@@ -31,3 +31,14 @@ distributions.
 |--------------------------------------------------------------------------- |
 | Dirac distribution                                                         |
 
+The Dirac distribution appears often enough, that we have given an
+additional keyword in our language for it: `return`. The following
+programs are equivalent.
+
+````nohighlight
+dirac(3)
+````
+
+````nohighlight
+return 3
+```
