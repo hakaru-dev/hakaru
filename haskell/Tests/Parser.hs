@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, DataKinds #-}
+{-# LANGUAGE CPP, OverloadedStrings, DataKinds #-}
 {-# OPTIONS_GHC -Wall -fwarn-tabs -fno-warn-orphans #-}
 
 module Tests.Parser where
@@ -13,7 +13,10 @@ import Data.Ratio
 import Test.HUnit
 import Test.QuickCheck.Arbitrary
 import Test.QuickCheck
-import Control.Applicative
+
+#if __GLASGOW_HASKELL__ < 710
+import Control.Applicative   (Applicative(..), (<$>))
+#endif
 
 arbNat  :: Gen (Positive Int)
 arbNat  = arbitrary
@@ -435,9 +438,35 @@ array1AST :: AST' Text
 array1AST = Array "x" (ULiteral (Nat 12))
             (NaryOp Sum [Var "x", ULiteral (Nat 1)])
 
+array2 :: Text
+array2 = "2 + x[3][4]"
+
+array2AST :: AST' Text
+array2AST = NaryOp Sum
+            [ ULiteral (Nat 2)
+            , Index (Index (Var "x")
+                     (ULiteral (Nat 3)))
+              (ULiteral (Nat 4))
+            ]
+
+array3 :: Text
+array3 = "[4, 0, 9]"
+
+array3AST :: AST' Text
+array3AST = Array "" (ULiteral (Nat 3))
+            (If (App (App (Var "equal") (Var ""))
+                 (ULiteral (Nat 0)))
+             (ULiteral (Nat 4))
+             (If (App (App (Var "equal") (Var ""))
+                  (ULiteral (Nat 1)))
+              (ULiteral (Nat 0))
+              (ULiteral (Nat 9))))
+
 testArray :: Test
 testArray = test
     [ testParse array1 array1AST
+    , testParse array2 array2AST
+    , testParse array3 array3AST
     ]
 
 easyRoad1 :: Text

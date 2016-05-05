@@ -159,9 +159,12 @@ binary s = Ex.Infix (binop (Text.pack s) <$ reservedOp s)
 prefix :: String -> (a -> a) -> Operator a 
 prefix s f = Ex.Prefix (f <$ reservedOp s)
 
+postfix :: Parser (a -> a) -> Operator a
+postfix p = Ex.Postfix . chainl1 p . return $ flip (.)
+
 table :: OperatorTable (AST' Text)
 table =
-    [ [ Ex.Postfix array_index ]
+    [ [ postfix array_index ]
     , [ prefix "+"  id ]
     , [ binary "^"  Ex.AssocRight
       , binary "**" Ex.AssocRight]
@@ -172,7 +175,7 @@ table =
       , prefix "-"  (App (Var "negate"))]
     -- TODO: add "<=", ">=", "/="
     -- TODO: do you *really* mean AssocLeft? Shouldn't they be non-assoc?
-    , [ Ex.Postfix ann_expr ]
+    , [ postfix ann_expr ]
     , [ binary "<|>" Ex.AssocRight]
     , [ binary "<"   Ex.AssocLeft
       , binary ">"   Ex.AssocLeft
@@ -328,6 +331,19 @@ array_expr =
 array_index :: Parser (AST' Text -> AST' Text)
 array_index = flip Index <$> brackets expr
 
+array_literal :: Parser (AST' Text)
+array_literal = checkEmpty <$> brackets (commaSep expr)
+  where checkEmpty [] = Empty
+        checkEmpty xs = Array "" (ULiteral . Nat . length $ xs)
+                        (go 0 xs)
+
+        go _ []      = error "the impossible happened"
+        go _ [x]     = x
+        go n (x:xs)  = If (Var "equal" `App` (Var "") `App` (ULiteral $ Nat n))
+                          x
+                          (go (n + 1) xs)
+                
+
 plate_expr :: Parser (AST' Text)
 plate_expr =
     reserved "plate"
@@ -423,6 +439,7 @@ term =  try if_expr
     <|> try let_expr
     <|> try bind_expr
     <|> try call_expr
+    <|> try array_literal
     <|> try floating
     <|> try inf_
     <|> try unit_

@@ -138,16 +138,16 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
         o :$ es      -> ppSCon p o es
         NaryOp_ o es ->
             -- TODO: make sure these ops actually have those precedences in the Prelude!!
-            let prettyNaryOp :: NaryOp a -> (String, Int, Maybe String)
-                prettyNaryOp And  = ("&& ", 3, Just "true")
-                prettyNaryOp Or   = ("||", 2, Just "false")
-                prettyNaryOp Xor  = ("`xor`", 0, Just "false")
+            let prettyNaryOp :: NaryOp a -> (String, Maybe Int, Maybe String)
+                prettyNaryOp And  = ("&& ", Just 3, Just "true")
+                prettyNaryOp Or   = ("|| ", Just 2, Just "false")
+                prettyNaryOp Xor  = ("!= ", Just 0, Just "false")
                 -- BUG: even though 'Iff' is associative (in Boolean algebras), we should not support n-ary uses in our *surface* syntax. Because it's too easy for folks to confuse "a <=> b <=> c" with "(a <=> b) /\ (b <=> c)".
-                prettyNaryOp Iff      = ("`iff`", 0, Just "true")
-                prettyNaryOp (Min  _) = ("`min`", 5, Nothing)
-                prettyNaryOp (Max  _) = ("`max`", 5, Nothing)
-                prettyNaryOp (Sum  _) = ("+ ",     6, Just "zero")
-                prettyNaryOp (Prod _) = ("* ",     7, Just "one")
+                prettyNaryOp Iff      = ("iff", Nothing, Just "true")
+                prettyNaryOp (Min  _) = ("min", Nothing, Nothing)
+                prettyNaryOp (Max  _) = ("max", Nothing, Nothing)
+                prettyNaryOp (Sum  _) = ("+ ",   Just 6, Just "zero")
+                prettyNaryOp (Prod _) = ("* ",   Just 7, Just "one")
             in
             let (opName,opPrec,maybeIdentity) = prettyNaryOp o in
             if Seq.null es
@@ -161,10 +161,14 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
                             , PP.text "(Seq.fromList [])"
                             ]]
             else
-                parens (p > opPrec)
-                    . PP.punctuate (PP.space <> PP.text opName)
-                    . map (prettyPrec opPrec)
-                    $ F.toList es
+                case opPrec of
+                Just opPrec' ->
+                     parens (p > opPrec')
+                     . PP.punctuate (PP.space <> PP.text opName)
+                     . map (prettyPrec opPrec')
+                     $ F.toList es
+                Nothing      -> [F.foldl1 (\a b -> toDoc $ ppFun p opName [a, b])
+                                          (fmap (toDoc . ppArg) es)]
 
         Literal_ v    -> prettyPrec_ p v
         Empty_   _    -> [PP.text "empty"]
@@ -189,7 +193,7 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
             PP.punctuate (PP.text " <|> ") $ L.toList $ fmap ppWeight pes
           where ppWeight (w,m)
                     | (PP.render $ pretty w) == "1.0" =
-                        pretty m
+                        toDoc $ parens True (ppArg m)
                     | otherwise                 =
                         toDoc $ ppFun p "weight" [pretty w, pretty m]
 
@@ -237,7 +241,7 @@ ppSCon p Expect = \(e1 :* e2 :* End) ->
     let (vars, types, body) = ppBinder2 e2 in
     [ PP.text "expect"
       <+> toDoc vars
-      <+> (toDoc $ ppArg e1)
+      <+> (toDoc . parens True $ ppArg e1)
       <> PP.colon
     , PP.nest 1 (toDoc body)
     ]
@@ -283,9 +287,9 @@ ppCoerceTo =
     -- BUG: this may not work quite right when the coercion isn't one of the special named ones...
     \p c e -> ppFun p (prettyShow c) [toDoc $ ppArg e]
     where
-    prettyShow (CCons (Signed HRing_Real) CNil)           = "fromProb"
+    prettyShow (CCons (Signed HRing_Real) CNil)           = "prob2real"
     prettyShow (CCons (Signed HRing_Int)  CNil)           = "nat2int"
-    prettyShow (CCons (Continuous HContinuous_Real) CNil) = "fromInt"
+    prettyShow (CCons (Continuous HContinuous_Real) CNil) = "int2real"
     prettyShow (CCons (Continuous HContinuous_Prob) CNil) = "nat2prob"
     prettyShow (CCons (Continuous HContinuous_Prob)
         (CCons (Signed HRing_Real) CNil))                 = "nat2real"
@@ -299,8 +303,8 @@ ppUnsafeFrom =
     -- BUG: this may not work quite right when the coercion isn't one of the special named ones...
     \p c e -> ppFun p (prettyShow c) [toDoc $ ppArg e]
     where
-    prettyShow (CCons (Signed HRing_Real) CNil) = "unsafeProb"
-    prettyShow (CCons (Signed HRing_Int)  CNil) = "unsafeNat"
+    prettyShow (CCons (Signed HRing_Real) CNil) = "real2prob"
+    prettyShow (CCons (Signed HRing_Int)  CNil) = "int2nat"
     prettyShow c = "unsafeFrom_ " ++ showsPrec 11 c ""
 
 
@@ -507,9 +511,23 @@ type DList a = [a] -> [a]
 
 prettyApps :: (ABT Term abt) => abt '[] (a ':-> b) -> abt '[] a -> Docs
 prettyApps = \ e1 e2 ->
-    let (d, vars) = collectApps e1 (pretty e2 :) in
-    [d <> ppTuple (vars [])]
+    case reduceLams e1 e2 of
+    Just e2' -> ppArg e2'
+    Nothing  ->
+      let (d, vars) = collectApps e1 (pretty e2 :) in
+      [d <> ppTuple (vars [])]
     where
+    reduceLams
+        :: (ABT Term abt)
+        => abt '[] (a ':-> b) -> abt '[] a -> Maybe (abt '[] b)
+    reduceLams e1 e2 =
+        caseVarSyn e1 (const Nothing) $ \t ->
+            case t of
+            Lam_ :$ e1 :* End ->
+              caseBind e1 $ \x e1' ->
+                Just (subst x e2 e1')
+            _                 -> Nothing
+
     collectApps
         :: (ABT Term abt)
         => abt '[] (a ':-> b) -> DList Doc -> (Doc, DList Doc)

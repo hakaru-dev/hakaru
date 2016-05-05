@@ -1,0 +1,38 @@
+site_name: Hakaru
+repo_url: https://github.com/hakaru-dev/hakaru
+site_favicon: favicon.ico
+site_author: Hakaru Team
+extra_javascript:
+    - 'https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML'
+    - 'js/mathjaxhelper.js'
+pages:
+- Home: 'index.md'
+- Introduction:
+  - 'What is Probabilistic Programming': 'intro/probprog.md'
+  - 'Installation':  'intro/installation.md'
+  - 'Quick Example': 'intro/quickstart.md'
+- Language Guide:
+  - 'Random Primitives':   'lang/rand.md'
+  - 'Let and Bind':        'lang/letbind.md'
+  - 'Conditionals':        'lang/cond.md'
+  - 'Coercions':           'lang/coercions.md'
+  - 'Functions and Let':   'lang/functions.md'
+  - 'Datatypes and match': 'lang/datatypes.md'
+  - 'Arrays':              'lang/arrays.md'
+- Transformations:
+  - 'Expect':       'transforms/expect.md'
+  - 'Disintegrate': 'transforms/disintegrate.md'
+  - 'Simplify':     'transforms/simplify.md'
+- Internals:
+  - 'AST and Hakaru Datakind':   'internals/ast.md'
+  - 'ABT':                       'internals/abt.md'
+  - 'Datums':                    'internals/datums.md'
+  - 'Coercions':                 'internals/coercions.md'
+  - 'Transformaitons':           'internals/transforms.md'
+  - 'Testing':                   'internals/testing.md'
+  - 'Adding a Language Feautre': 'internals/newfeature.md'
+- Examples: 'examples.md'
+theme: yeti
+
+markdown_extensions:
+  - markdown.extensions.smarty

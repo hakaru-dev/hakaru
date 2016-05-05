@@ -1196,10 +1196,12 @@ checkType = checkType_
                     Nothing -> typeMismatch (Right typ0) (Right typ')
                   UnsafeMode ->
                     case findEitherCoercion typ' typ0 of
-                    Just (Left  c) ->
+                    Just (Unsafe  c) ->
                         return . unLC_ . coerceFrom c $ LC_ e0'
-                    Just (Right c) ->
+                    Just (Safe    c) ->
                         return . unLC_ . coerceTo c $ LC_ e0'
+                    Just (Mixed   (_, c1, c2)) ->
+                        return . unLC_ . coerceTo c2 . coerceFrom c1 $ LC_ e0'
                     Nothing ->
                         case (typ', typ0) of
                           -- mighty, mighty hack!
