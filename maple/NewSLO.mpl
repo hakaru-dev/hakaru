@@ -120,7 +120,11 @@ NewSLO := module ()
 
   applyintegrand := proc(h, x, $)
     if h :: 'Integrand(name, anything)' then
-      eval(op(2,h), op(1,h) = x)
+      if x :: {`<`,`<=`} then
+        eval(subs((op(1,h)=true) = op(1,h), op(2,h)), op(1,h) = x)
+      else
+        eval(op(2,h), op(1,h) = x)
+      end if;
     elif h :: appliable then
       h(x)
     else
