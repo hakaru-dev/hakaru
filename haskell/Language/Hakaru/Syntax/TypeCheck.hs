@@ -58,8 +58,8 @@ import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.HClasses
     ( HEq, hEq_Sing, HOrd, hOrd_Sing, HSemiring, hSemiring_Sing
-    , hRing_Sing, sing_HRing, HFractional, hFractional_Sing, HRadical(..)
-    , HContinuous(..))
+    , hRing_Sing, sing_HRing, hFractional_Sing, sing_HFractional
+    , HRadical(..), HContinuous(..))
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.AST
@@ -696,8 +696,14 @@ inferType = inferType_
   inferPrimOp U.Recip es =
       case es of
         [e] -> do TypedAST typ e' <- inferType_ e
-                  primop <- Recip <$> getHFractional typ
-                  return . TypedAST typ $ syn (PrimOp_ primop :$ e' :* End)
+                  mode <- getMode
+                  SomeFractional frac c <- getHFractional typ mode
+                  primop <- Recip <$> return frac
+                  let e'' = case c of
+                              CNil -> e'
+                              c'   -> unLC_ . coerceTo c' $ LC_ e'
+                  return . TypedAST (sing_HFractional frac) $
+                         syn (PrimOp_ primop :$ e'' :* End)
         _   -> failwith "Passed wrong number of arguments"
 
   -- BUG: Only defined for HRadical_Prob
@@ -816,11 +822,16 @@ getHRing typ mode =
                     Nothing      -> missingInstance "HRing" typ
     UnsafeMode -> error "TODO: getHRing in UnsafeMode"
 
-getHFractional :: Sing a -> TypeCheckMonad (HFractional a)
-getHFractional typ =
-    case hFractional_Sing typ of
-    Just theFrac -> return theFrac
-    Nothing      -> missingInstance "HFractional" typ
+getHFractional :: Sing a -> TypeCheckMode -> TypeCheckMonad (SomeFractional a)
+getHFractional typ mode =
+    case mode of
+    StrictMode -> case hFractional_Sing typ of
+                    Just theFrac -> return (SomeFractional theFrac CNil)
+                    Nothing      -> missingInstance "HFractional" typ
+    LaxMode    -> case findFractional typ of
+                    Just proof   -> return proof
+                    Nothing      -> missingInstance "HFractional" typ
+    UnsafeMode -> error "TODO: getHFractional in UnsafeMode"
 
 
 ----------------------------------------------------------------
@@ -1082,9 +1093,29 @@ checkType = checkType_
                 Nothing -> typeMismatch (Right typ0) (Right dom)
 
         U.NaryOp_ op es -> do
-            op' <- make_NaryOp typ0 op
-            es' <- T.forM es $ checkType_ typ0
-            return $ syn (NaryOp_ op' (S.fromList es'))
+            mode <- getMode
+            op'  <- make_NaryOp typ0 op
+            es'  <- T.forM es $ checkType_ typ0
+            case mode of
+             StrictMode -> return $ syn (NaryOp_ op' (S.fromList es'))
+             LaxMode    -> return $ syn (NaryOp_ op' (S.fromList es'))
+             UnsafeMode -> do
+              es'  <- tryWith LaxMode (T.forM es $ checkType_ typ0)
+              case es' of
+               Just es'' ->
+                return $ syn (NaryOp_ op' (S.fromList es''))
+               Nothing   -> do
+                TypedASTs typ es'' <- inferLubType es
+                op' <- make_NaryOp typ op
+                let e0' =  syn (NaryOp_ op' (S.fromList es''))
+                case findEitherCoercion typ typ0 of
+                 Just (Unsafe  c) ->
+                     return . unLC_ . coerceFrom c $ LC_ e0'
+                 Just (Safe    c) ->
+                     return . unLC_ . coerceTo c $ LC_ e0'
+                 Just (Mixed   (_, c1, c2)) ->
+                     return . unLC_ . coerceTo c2 . coerceFrom c1 $ LC_ e0'
+
 
         U.Empty_ ->
             case typ0 of

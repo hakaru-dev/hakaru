@@ -43,6 +43,8 @@ module Language.Hakaru.Types.Coercion
     , findLub
     , SomeRing(..)
     , findRing
+    , SomeFractional(..)
+    , findFractional
 
     -- * Experimental optimization functions
     {-
@@ -355,6 +357,19 @@ findRing SInt  = Just (SomeRing HRing_Int  CNil)
 findRing SProb = Just (SomeRing HRing_Real signed)
 findRing SReal = Just (SomeRing HRing_Real CNil)
 findRing _     = Nothing
+
+data SomeFractional (a :: Hakaru)
+    = forall b. SomeFractional !(HFractional b) !(Coercion a b)
+
+-- | Give a type, finds the smallest coercion to another
+-- with a HFractional instance
+findFractional :: Sing a -> Maybe (SomeFractional a)
+findFractional SNat  = Just (SomeFractional HFractional_Prob continuous)
+findFractional SInt  = Just (SomeFractional HFractional_Real continuous)
+findFractional SProb = Just (SomeFractional HFractional_Prob CNil)
+findFractional SReal = Just (SomeFractional HFractional_Real CNil)
+findFractional _     = Nothing
+
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
