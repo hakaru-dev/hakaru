@@ -24,7 +24,7 @@ KB := module ()
         ModuleLoad, ModuleUnload;
   export empty, genLebesgue, genType, genLet, assert,
          kb_subtract, simplify_assuming, kb_to_assumptions, kb_to_equations,
-         kb_piecewise, range_of_HInt;
+         kb_piecewise, list_of_mul, range_of_HInt;
   global t_kb;
   uses Hakaru;
 
@@ -371,6 +371,31 @@ KB := module ()
                    `if`(i=n,    doThen(op(i,e), kb1),
                                 doIf  (op(i,e), kb1))),
                   i=1..n))
+  end proc;
+
+  # Like convert(e, 'list', `*`) but tries to keep the elements positive
+  list_of_mul := proc(e, kb::t_kb, $)
+    local rest, should_negate, can_negate, fsn;
+    rest := convert(e, 'list', `*`);
+    rest := zip(((f,s) -> [f, s, maptype(`+`, `-`, f)]),
+                rest, simplify_assuming(map(''signum'', rest), kb));
+    should_negate, rest := selectremove(type, rest, [anything, -1, Not(`*`)]);
+    if nops(should_negate) :: even then
+      [seq(op(3,fsn), fsn=should_negate),
+       seq(op(1,fsn), fsn=rest)]
+    else
+      can_negate, rest := selectremove(type, rest, [`+`, Not(1), Not(`*`)]);
+      if nops(can_negate) > 0 then
+        [seq(op(3,fsn), fsn=should_negate),
+         op([1,3], can_negate),
+         seq(op(1,fsn), fsn=subsop(1=NULL, can_negate)),
+         seq(op(1,fsn), fsn=rest)]
+      else
+        [seq(op(3,fsn), fsn=subsop(-1=NULL, should_negate)),
+         op([-1,1], should_negate),
+         seq(op(1,fsn), fsn=rest)]
+      end if
+    end if
   end proc;
 
   range_of_HInt := proc(t :: And(specfunc(HInt), t_type), $)

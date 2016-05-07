@@ -60,7 +60,7 @@ end proc:
 
 Loop := module ()
   option package;
-  local intssums, wrap, Binder, Stmt, t_binder, t_stmt, t_exp, list_of_mul;
+  local intssums, wrap, Binder, Stmt, t_binder, t_stmt, t_exp;
   export
      # These first few are smart constructors (for themselves):
          ints, sums,
@@ -266,31 +266,6 @@ Loop := module ()
       e := piecewise(And(op(rest)),e,mode())
     end if;
     e
-  end proc;
-
-  # Like convert(e, 'list', `*`) but tries to keep the elements positive
-  list_of_mul := proc(e, kb::t_kb, $)
-    local rest, should_negate, can_negate, fsn;
-    rest := convert(e, 'list', `*`);
-    rest := zip(((f,s) -> [f, s, maptype(`+`, `-`, f)]),
-                rest, simplify_assuming(map(''signum'', rest), kb));
-    should_negate, rest := selectremove(type, rest, [anything, -1, Not(`*`)]);
-    if nops(should_negate) :: even then
-      [seq(op(3,fsn), fsn=should_negate),
-       seq(op(1,fsn), fsn=rest)]
-    else
-      can_negate, rest := selectremove(type, rest, [`+`, Not(1), Not(`*`)]);
-      if nops(can_negate) > 0 then
-        [seq(op(3,fsn), fsn=should_negate),
-         op([1,3], can_negate),
-         seq(op(1,fsn), fsn=subsop(1=NULL, can_negate)),
-         seq(op(1,fsn), fsn=rest)]
-      else
-        [seq(op(3,fsn), fsn=subsop(-1=NULL, should_negate)),
-         op([-1,1], should_negate),
-         seq(op(1,fsn), fsn=rest)]
-      end if
-    end if
   end proc;
 
 end module; # NewSLO
