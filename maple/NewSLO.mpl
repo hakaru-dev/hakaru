@@ -249,11 +249,11 @@ NewSLO := module ()
         assuming op(kb_to_assumptions(kb1));
       if recognition :: 'Recognized(anything, anything)' then
         # Recognition succeeded
-        (w, w0) := factorize(op(2,recognition), x);
+        (w, w0) := factorize(op(2,recognition), x, kb1);
         weight(w0, bind(op(1,recognition), x, weight(w, m)))
       else
         # Recognition failed
-        (w, w0) := factorize(w, x);
+        (w, w0) := factorize(w, x, kb1);
         m := weight(w, m);
         if hi <> infinity then
           m := piecewise(x < hi, m, Msum())
@@ -272,7 +272,7 @@ NewSLO := module ()
       recognition := recognize_discrete(w, x, lo, hi)
         assuming op(kb_to_assumptions(kb1));
       if recognition :: 'Recognized(anything, anything)' then
-        (w, w0) := factorize(op(2,recognition), x);
+        (w, w0) := factorize(op(2,recognition), x, kb1);
         weight(w0, bind(op(1,recognition), x, weight(w, m)))
       else error "recognize_discrete is never supposed to fail" end if
     elif e :: 'And'('specfunc({Ints,ints,Sums,sums})',
@@ -337,7 +337,7 @@ NewSLO := module ()
       # If we had HType information for op(1,e),
       # then we could use it to tell kb about x.
       (w, m) := unweight(unintegrate(h, applyintegrand(op(2,e), x), kb));
-      (w, w0) := factorize(w, x);
+      (w, w0) := factorize(w, x, kb);
       weight(w0, bind(op(1,e), x, weight(w, m)))
     else
       # Failure: return residual LO
@@ -560,13 +560,20 @@ NewSLO := module ()
     end if;
   end proc;
 
-  factorize := proc(w, x, $)
+  factorize := proc(w, x, kb, $)
+    local s, r;
     if w :: `*` then
-      selectremove(depends, w, x)
+      s, r := selectremove(depends, w, x)
     elif depends(w, x) then
-      (w, 1)
+      s, r := w, 1
     else
-      (1, w)
+      s, r := 1, w
+    end if;
+    # Try to keep s positive, because s is about to become a weight
+    if simplify_assuming('signum'(s), kb) = -1 then
+      -s, -r
+    else
+      s, r
     end if
   end proc;
 
@@ -1100,7 +1107,7 @@ NewSLO := module ()
       # If we had HType information for op(1,e),
       # then we could use it to tell kb about x.
       (w, m) := unweight(unintegrate(h, applyintegrand(op(2,integral), x), kb));
-      (w, w0) := factorize(w, x);
+      (w, w0) := factorize(w, x, kb);
       weight(w0, bind(op(1,integral), x, weight(w, m)))
     else
       # Failure
