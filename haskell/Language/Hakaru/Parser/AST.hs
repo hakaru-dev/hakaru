@@ -55,10 +55,10 @@ data Meta = Meta !SourcePos !SourcePos
     deriving (Eq, Show)
 
 data Literal'
-    = Nat  Int
-    | Int  Int
-    | Prob (Ratio Integer)
-    | Real (Ratio Integer)
+    = Nat  Integer
+    | Int  Integer
+    | Prob Rational
+    | Real Rational
     deriving (Eq, Show)
 
 data NaryOp
@@ -107,8 +107,8 @@ data AST' a
 ----------------------------------------------------------------
 
 val :: Literal' -> Some1 Literal
-val (Nat  n) = Some1 $ LNat  (N.unsafeNatural $ fromIntegral n) -- TODO: clean up
-val (Int  n) = Some1 $ LInt  (fromIntegral n) -- TODO: clean up
+val (Nat  n) = Some1 $ LNat  (N.unsafeNatural n)
+val (Int  n) = Some1 $ LInt  n
 val (Prob n) = Some1 $ LProb (N.unsafeNonNegativeRational n)
 val (Real n) = Some1 $ LReal n
 

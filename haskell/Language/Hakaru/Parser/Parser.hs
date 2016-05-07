@@ -12,7 +12,7 @@ import qualified Control.Monad                 as M
 import           Data.Functor.Identity
 import           Data.Text                     (Text)
 import qualified Data.Text                     as Text
-import           Data.Ratio                    ()
+import           Data.Ratio                    ((%))
 import           Data.Char                     (digitToInt)
 import           Text.Parsec                   hiding (Empty)
 import           Text.Parsec.Text              () -- instances only
@@ -140,12 +140,27 @@ reservedOp = Tok.reservedOp lexer
 symbol :: Text -> Parser Text
 symbol = M.liftM Text.pack . Tok.symbol lexer . Text.unpack
 
+-- | Smart constructor for divide
+divide :: AST' Text -> AST' Text -> AST' Text
+divide (ULiteral x) (ULiteral y) = ULiteral (go x y)
+  where go :: Literal' -> Literal' -> Literal'
+        go (Nat  x) (Nat  y) = Prob (x % y)
+        go x        y        = Real (litToRat x / litToRat y)
+
+        litToRat :: Literal' -> Rational
+        litToRat (Nat  x) = toRational x
+        litToRat (Int  x) = toRational x
+        litToRat (Prob x) = toRational x
+        litToRat (Real x) = toRational x
+divide x y = NaryOp Prod [x, Var "recip" `App` y]
+        
+
 binop :: Text ->  AST' Text ->  AST' Text ->  AST' Text
 binop s x y
     | s == "+"   = NaryOp Sum  [x, y]
     | s == "-"   = NaryOp Sum  [x, Var "negate" `App` y]
     | s == "*"   = NaryOp Prod [x, y]
-    | s == "/"   = NaryOp Prod [x, Var "recip" `App` y]
+    | s == "/"   = x `divide` y
     | s == "<"   = Var "less"  `App` x `App` y
     | s == ">"   = Var "less"  `App` y `App` x
     | s == "=="  = Var "equal" `App` x `App` y
@@ -193,8 +208,8 @@ int = do
     n <- integer
     return $
         if n < 0
-        then ULiteral $ Int (fromInteger n)
-        else ULiteral $ Nat (fromInteger n)
+        then ULiteral $ Int n
+        else ULiteral $ Nat n
 
 floating :: Parser (AST' a)
 floating = do
@@ -334,7 +349,7 @@ array_index = flip Index <$> brackets expr
 array_literal :: Parser (AST' Text)
 array_literal = checkEmpty <$> brackets (commaSep expr)
   where checkEmpty [] = Empty
-        checkEmpty xs = Array "" (ULiteral . Nat . length $ xs)
+        checkEmpty xs = Array "" (ULiteral . Nat . fromIntegral . length $ xs)
                         (go 0 xs)
 
         go _ []      = error "the impossible happened"
