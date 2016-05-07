@@ -360,7 +360,7 @@ KB := module ()
   kb_piecewise := proc(e :: specfunc(piecewise), kb :: t_kb, doIf, doThen, $)
     local kb1, update, n, i;
     kb1 := kb;
-    update := proc(c)
+    update := proc(c, $)
       local kb0;
       kb0 := assert(    c , kb1);
       kb1 := assert(Not(c), kb1); # Mutation!
