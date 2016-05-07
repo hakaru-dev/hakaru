@@ -26,7 +26,7 @@ NewSLO := module ()
         recognize_de, mysolve, Shiftop, Diffop, Recognized,
         factorize, bind, weight,
         reduce_IntSum, reduce_IntsSums, get_indicators,
-        elim_intsum, do_elim_intsum, elim_metric, banish,
+        elim_intsum, do_elim_intsum, banish,
         reduce_pw, nub_piecewise, piecewise_if,
         find_vars, kb_from_path, interpret, reconstruct, invert, 
         get_var_pos, get_int_pos,
@@ -120,7 +120,11 @@ NewSLO := module ()
 
   applyintegrand := proc(h, x, $)
     if h :: 'Integrand(name, anything)' then
-      eval(op(2,h), op(1,h) = x)
+      if x :: {`<`,`<=`} then
+        eval(subs((op(1,h)=true) = op(1,h), op(2,h)), op(1,h) = x)
+      else
+        eval(op(2,h), op(1,h) = x)
+      end if;
     elif h :: appliable then
       h(x)
     else
@@ -736,22 +740,18 @@ NewSLO := module ()
            not hastype(op(1,e), 'applyintegrand'('identical'(h),
                                                  'dependent'(op(2,e)))) then
         var := op(2,e);
-        m := LO(hh, my(kb, ((e,x,r,l)->ints(e,x,r,l,kb)),
-                       applyintegrand(hh,var), op(2..4,e)));
+        m := LO(hh, my(kb, ints, applyintegrand(hh,var), op(2..4,e), kb));
       elif e :: Sums(anything, name, range, list(name=range)) and
            not hastype(op(1,e), 'applyintegrand'('identical'(h),
                                                  'dependent'(op(2,e)))) then
         var := op(2,e);
-        m := LO(hh, my(kb, ((e,x,r,l)->sums(e,x,r,l,kb)),
-                       applyintegrand(hh,var), op(2..4,e)));
+        m := LO(hh, my(kb, sums, applyintegrand(hh,var), op(2..4,e), kb));
       else
         break;
       end if;
       # try to eliminate unused var
       elim := eval(banish(m, var, h, op(1,e), infinity), my=do_elim_intsum);
-      if has(elim, {MeijerG, undefined})
-         or elim_metric(elim,h) >= elim_metric(e,h) then
-        # Maple was too good at integration
+      if has(elim, {MeijerG, undefined, FAIL}) then
         break;
       end if;
       e := elim;
@@ -759,17 +759,17 @@ NewSLO := module ()
     e;
   end proc;
 
-  do_elim_intsum := proc(kb, f, ee)
+  do_elim_intsum := proc(kb, f, ee, v)
     local e;
     e := simplify_assuming(ee,kb);
-    e := simplify_assuming(f(e,_rest), kb);
-    subs(int=Int, ints=Ints, sum=Sum, sums=Sums, e)
-  end proc;
-
-  elim_metric := proc(e, h::name, $)
-    numboccur(e, select(hastype,
-      indets(e, specfunc({Int,Sum,int,sum,Ints,Sums,ints,sums})),
-      'applyintegrand'('identical'(h), 'anything')))
+    e := simplify_assuming(f(e,v,_rest),kb);
+    `if`(hastype(e, And(specfunc(f),
+                        patfunc(anything,
+                                `if`(v::`=`, identical(lhs(v))=anything,
+                                             identical(v)),
+                                anything))),
+         FAIL,
+         e)
   end proc;
 
   Banish := proc(e :: Int(anything, name=anything), h :: name,

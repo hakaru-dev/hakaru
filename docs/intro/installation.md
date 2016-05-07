@@ -56,3 +56,14 @@ should return
 ````bash
 normal(nat2real(0), nat2prob(1))
 ````
+
+If the `LOCAL_MAPLE` environment variable is not set, then `simplify`
+defaults to invoking `ssh` to access a remote installation of Maple.
+The invocation is
+````bash
+"$MAPLE_SSH" -l "$MAPLE_USER" "$MAPLE_SERVER" "$MAPLE_COMMAND -q -t"
+````
+and defaults to
+````bash
+/usr/bin/ssh -l ppaml karst.uits.iu.edu "maple -q -t"
+````

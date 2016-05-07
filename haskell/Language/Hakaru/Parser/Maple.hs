@@ -338,6 +338,15 @@ maple2AST (InertArgs Func
     NaryOp And (map maple2AST es)
 
 maple2AST (InertArgs Func
+        [ InertName "Int"
+        , InertArgs ExpSeq
+           [ f
+           , InertArgs Equal
+             [ InertName x
+             , InertArgs Range [lo, hi]]]]) =
+    Integrate x (maple2AST lo) (maple2AST hi) (maple2AST f)
+
+maple2AST (InertArgs Func
         [f, InertArgs ExpSeq es]) =
     foldl App (maple2AST f) (map maple2AST es)
 
@@ -351,7 +360,8 @@ maple2AST (InertArgs Less es)  =
 maple2AST (InertArgs Equal es) =
     foldl App (Var "equal") (map maple2AST es)
 
--- Add special case for NatPow for Power
+maple2AST (InertArgs Power [x, InertNum Pos y]) =
+    App (App (Var "^")  (maple2AST x)) (maple2AST (InertNum Pos y))
 maple2AST (InertArgs Power [x, y]) =
     App (App (Var "**") (maple2AST x)) (maple2AST y)
 maple2AST (InertArgs Rational [InertNum Pos x, InertNum Pos y]) =
@@ -486,4 +496,3 @@ unpairPat (InertArgs Func [InertName "PInl",
  
 unpairPat x =
     error $ "unpairPat: " ++ show x ++ " not InertExpr of a pair pattern"
-

@@ -50,13 +50,26 @@ These are the built-in probability distributions.
 
 ### [Let and Bind](/lang/letbind)
 
-### Conditionals
+This is how we can give names to subexpressions and a
+draw from a probability distribution.
 
-### Functions
+### [Conditionals](/lang/cond)
 
-### Datatypes and match
+Hakaru supports a restricted `if` expression
 
-### Arrays
+### [Functions](/lang/functions)
+
+Defining and using functions
+
+### [Datatypes and match](/lang/datatypes)
+
+Hakaru supports a few built-in datatypes, and offers functionality for
+taking them apart and reconstructing them.
+
+### [Arrays](/lang/arrays)
+
+We offer special support for arrays, and for probability
+distributions over arrays.
 
 ## Transformations
 

@@ -886,6 +886,12 @@ try m = TCM $ \ctx mode -> Right $
     Left  _ -> Nothing -- Don't worry; no side effects to unwind
     Right e -> Just e
 
+-- | Tries to typecheck in a given mode
+tryWith :: TypeCheckMode -> TypeCheckMonad a -> TypeCheckMonad (Maybe a)
+tryWith mode m = TCM $ \ctx _ -> Right $
+    case unTCM m ctx mode of
+    Left  _ -> Nothing
+    Right e -> Just e
 
 -- | Given a list of terms which must all have the same type, infer
 -- all the terms in order and coerce them to the lub of all their
