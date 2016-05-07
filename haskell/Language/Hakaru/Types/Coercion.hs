@@ -60,8 +60,9 @@ module Language.Hakaru.Types.Coercion
 import Prelude          hiding (id, (.))
 import Control.Category (Category(..))
 #if __GLASGOW_HASKELL__ < 710
-import Data.Functor     ((<$>))
+import Data.Functor        ((<$>))
 #endif
+import Control.Applicative ((<|>))
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.HClasses
@@ -308,12 +309,9 @@ findEitherCoercion
     -> Sing b
     -> Maybe (CoercionMode a b)
 findEitherCoercion a b =
-    case findCoercion a b of
-    Just c  -> Just (Safe c)
-    Nothing -> 
-        case findCoercion b a of
-          Just c  -> Just (Unsafe c)
-          Nothing -> Mixed <$> findMixedCoercion a b
+    (Safe   <$> findCoercion a b) <|>
+    (Unsafe <$> findCoercion b a) <|>
+    (Mixed  <$> findMixedCoercion a b)
 
 
 -- | An upper bound of two types, with the coercions witnessing its
