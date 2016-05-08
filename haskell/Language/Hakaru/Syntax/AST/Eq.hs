@@ -55,7 +55,7 @@ import qualified Data.Sequence      as S
 import qualified Data.Traversable   as T
 
 #if __GLASGOW_HASKELL__ < 710
-import           Data.Function ((<$>))
+import           Data.Functor ((<$>))
 import           Data.Traversable
 #endif
 
