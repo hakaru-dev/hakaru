@@ -74,6 +74,7 @@ symTable =
     , ("Pi",        "pi")
     , ("ln",        "log")
     , ("GAMMA",     "gammaFunc")
+    , ("NegativeBinomial", "neg_binomial")
     -- Type symbols
     , ("Real",     "real")
     , ("Prob",     "prob")

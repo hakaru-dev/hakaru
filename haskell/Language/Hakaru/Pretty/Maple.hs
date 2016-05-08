@@ -296,7 +296,8 @@ maplePrimOp (Less _)         (e1 :* e2 :* End) =
 maplePrimOp (NatPow _)       (e1 :* e2 :* End) =
     parens (arg e1 . showString " ^ " . arg e2)
 maplePrimOp (Negate _)       (e1 :* End)       = parens (app1 "-" e1)
-maplePrimOp (Recip   _)      (e1 :* End)       = app1 "1/" e1
+maplePrimOp (Abs _)          (e1 :* End)       = app1 "abs"  e1
+maplePrimOp (Recip   _)      (e1 :* End)       = app1 "1/"   e1
 maplePrimOp (NatRoot _)      (e1 :* e2 :* End) = app2 "root" e1 e2
 maplePrimOp x                _                 =
     error $ "TODO: maplePrimOp{" ++ show x ++ "}"
