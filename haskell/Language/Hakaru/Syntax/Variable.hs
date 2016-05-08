@@ -455,7 +455,7 @@ emptyAssocs :: Assocs abt
 emptyAssocs = Assocs IM.empty
 
 -- | A single association.
-singletonAssocs :: Variable a -> abt '[] a -> Assocs (abt '[])
+singletonAssocs :: Variable a -> f a -> Assocs f
 singletonAssocs x e =
     Assocs $ IM.singleton (fromNat $ varID x) (Assoc x e)
 
