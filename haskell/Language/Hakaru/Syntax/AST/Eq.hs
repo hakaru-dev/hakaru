@@ -47,7 +47,7 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.TypeOf
 
-import Control.Monad.Reader hiding (sequence)
+import Control.Monad.Reader
 
 import qualified Data.Foldable      as F
 import qualified Data.List.NonEmpty as L
@@ -295,8 +295,8 @@ alphaEq e1 e2 = runReader (go (viewABT e1) (viewABT e2)) emptyAssocs
         case (e1, e2) of
         (o1 :$ es1, o2 :$ es2)             -> sConEq o1 es1 o2 es2
         (NaryOp_ op1 es1, NaryOp_ op2 es2) -> if op1 == op2
-                                              then and <$> (sequence $ S.zipWith go (fmap viewABT es1)
-                                                                                     (fmap viewABT es2))
+                                              then and <$> (T.sequence $ S.zipWith go (fmap viewABT es1)
+                                                                                      (fmap viewABT es2))
                                               else return False
         (Literal_ x, Literal_ y)           -> return (x == y)
         (Empty_ x, Empty_ y)               -> return $ maybe False (const True) (jmEq1 x y)
@@ -308,7 +308,7 @@ alphaEq e1 e2 = runReader (go (viewABT e1) (viewABT e2)) emptyAssocs
                                               Just Refl -> do m1 <- go (viewABT e1) (viewABT e2)
                                                               m2 <- and <$> (zipWithM sBranch bs1 bs2)
                                                               return (m1 && m2)
-        (Superpose_ pms1, Superpose_ pms2) -> and <$> (sequence $ L.zipWith pairEq pms1 pms2)
+        (Superpose_ pms1, Superpose_ pms2) -> and <$> (T.sequence $ L.zipWith pairEq pms1 pms2)
         (Reject_ x, Reject_ y)             -> return $ maybe False (const True) (jmEq1 x y)
         (_, _)                             -> return False
 
