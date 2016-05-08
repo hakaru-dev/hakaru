@@ -18,10 +18,10 @@ import Test.QuickCheck
 import Control.Applicative   (Applicative(..), (<$>))
 #endif
 
-arbNat  :: Gen (Positive Int)
+arbNat  :: Gen (Positive Integer)
 arbNat  = arbitrary
 
-arbProb :: Gen (Positive (Ratio Integer))
+arbProb :: Gen (Positive Rational)
 arbProb = arbitrary
 
 instance Arbitrary Text where
