@@ -1094,28 +1094,21 @@ checkType = checkType_
 
         U.NaryOp_ op es -> do
             mode <- getMode
-            op'  <- make_NaryOp typ0 op
-            es'  <- T.forM es $ checkType_ typ0
             case mode of
-             StrictMode -> return $ syn (NaryOp_ op' (S.fromList es'))
-             LaxMode    -> return $ syn (NaryOp_ op' (S.fromList es'))
-             UnsafeMode -> do
-              es'  <- tryWith LaxMode (T.forM es $ checkType_ typ0)
-              case es' of
-               Just es'' ->
-                return $ syn (NaryOp_ op' (S.fromList es''))
-               Nothing   -> do
-                TypedASTs typ es'' <- inferLubType es
-                op' <- make_NaryOp typ op
-                let e0' =  syn (NaryOp_ op' (S.fromList es''))
-                case findEitherCoercion typ typ0 of
-                 Just (Unsafe  c) ->
-                     return . unLC_ . coerceFrom c $ LC_ e0'
-                 Just (Safe    c) ->
-                     return . unLC_ . coerceTo c $ LC_ e0'
-                 Just (Mixed   (_, c1, c2)) ->
-                     return . unLC_ . coerceTo c2 . coerceFrom c1 $ LC_ e0'
-
+              StrictMode -> safeNaryOp typ0
+              LaxMode    -> safeNaryOp typ0
+              UnsafeMode -> do
+                es'  <- tryWith LaxMode (safeNaryOp typ0)
+                case es' of
+                  Just es'' -> return es''
+                  Nothing   -> do
+                    TypedAST typ e0' <- inferType (U.NaryOp_ op es)
+                    checkOrUnsafeCoerce e0' typ typ0
+            where safeNaryOp :: forall c. Sing c -> TypeCheckMonad (abt '[] c)
+                  safeNaryOp typ = do
+                      op'  <- make_NaryOp typ op
+                      es'  <- T.forM es $ checkType_ typ
+                      return $ syn (NaryOp_ op' (S.fromList es'))
 
         U.Empty_ ->
             case typ0 of
@@ -1227,25 +1220,8 @@ checkType = checkType_
                     case jmEq1 typ0 typ' of
                     Just Refl -> return e0'
                     Nothing   -> typeMismatch (Right typ0) (Right typ')
-                  LaxMode ->
-                    case findCoercion typ' typ0 of
-                    Just c  -> return . unLC_ . coerceTo c $ LC_ e0'
-                    Nothing -> typeMismatch (Right typ0) (Right typ')
-                  UnsafeMode ->
-                    case findEitherCoercion typ' typ0 of
-                    Just (Unsafe  c) ->
-                        return . unLC_ . coerceFrom c $ LC_ e0'
-                    Just (Safe    c) ->
-                        return . unLC_ . coerceTo c $ LC_ e0'
-                    Just (Mixed   (_, c1, c2)) ->
-                        return . unLC_ . coerceTo c2 . coerceFrom c1 $ LC_ e0'
-                    Nothing ->
-                        case (typ', typ0) of
-                          -- mighty, mighty hack!
-                          (SMeasure _, SMeasure _) -> 
-                            let x = U.Name 0 (pack "") in
-                            checkType_ typ0 (U.MBind_ x e0 (U.Dirac_ $ U.Var_ x))
-                          (_ ,  _) -> typeMismatch (Right typ0) (Right typ')
+                  LaxMode    -> checkOrCoerce       e0' typ' typ0
+                  UnsafeMode -> checkOrUnsafeCoerce e0' typ' typ0
             | otherwise -> error "checkType: missing an mustCheck branch!"
 
 
@@ -1414,6 +1390,42 @@ checkPattern = \typA pat ->
                 SP pat1' xs <- checkPattern typ1 pat1
                 return $ SPF (PKonst pat1') xs
             _ -> failwith "expected pattern of `K' type"
+
+checkOrCoerce
+    :: (ABT Term abt)
+    => abt '[] a
+    -> Sing a
+    -> Sing b
+    -> TypeCheckMonad (abt '[] b)
+checkOrCoerce e typA typB =
+    case findCoercion typA typB of
+    Just c  -> return . unLC_ . coerceTo c $ LC_ e
+    Nothing -> typeMismatch (Right typB) (Right typA)
+
+checkOrUnsafeCoerce
+    :: (ABT Term abt)
+    => abt '[] a
+    -> Sing a
+    -> Sing b
+    -> TypeCheckMonad (abt '[] b)
+checkOrUnsafeCoerce e typA typB =
+    case findEitherCoercion typA typB of
+    Just (Unsafe  c) ->
+        return . unLC_ . coerceFrom c $ LC_ e
+    Just (Safe    c) ->
+        return . unLC_ . coerceTo c $ LC_ e
+    Just (Mixed   (_, c1, c2)) ->
+        return . unLC_ . coerceTo c2 . coerceFrom c1 $ LC_ e
+    Nothing ->
+        case (typA, typB) of
+          -- mighty, mighty hack!
+          (SMeasure typ1, SMeasure _) ->
+            let x = U.Name 0 (pack "") in do
+            e2' <- checkBinder (makeVar x typ1) typB (U.Dirac_ $ U.Var_ x)
+            return $ syn (MBind :$ e :* e2' :* End)
+          (_ ,  _) -> typeMismatch (Right typB) (Right typA)
+
+
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
