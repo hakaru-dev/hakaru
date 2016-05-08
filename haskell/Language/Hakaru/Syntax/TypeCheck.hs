@@ -496,7 +496,7 @@ inferType = inferType_
         case mode of
             StrictMode -> inferCaseStrict typ1 e1' branches
             LaxMode    -> inferCaseLax typ1 e1' branches
-            UnsafeMode -> error "TODO: inferType{Case_} in UnsafeMode"
+            UnsafeMode -> inferCaseLax typ1 e1' branches
 
     U.Dirac_ e1 -> do
         TypedAST typ1 e1' <- inferType_ e1

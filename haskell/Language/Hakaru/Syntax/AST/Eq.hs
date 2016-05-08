@@ -47,7 +47,7 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.TypeOf
 
-import Control.Monad.Reader
+import Control.Monad.Reader hiding (sequence)
 
 import qualified Data.Foldable      as F
 import qualified Data.List.NonEmpty as L

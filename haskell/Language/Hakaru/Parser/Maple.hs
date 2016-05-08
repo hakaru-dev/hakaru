@@ -338,6 +338,15 @@ maple2AST (InertArgs Func
     NaryOp And (map maple2AST es)
 
 maple2AST (InertArgs Func
+        [ InertName "int"
+        , InertArgs ExpSeq
+           [ f
+           , InertArgs Equal
+             [ InertName x
+             , InertArgs Range [lo, hi]]]]) =
+    Integrate x (maple2AST lo) (maple2AST hi) (maple2AST f)
+
+maple2AST (InertArgs Func
         [ InertName "Int"
         , InertArgs ExpSeq
            [ f
