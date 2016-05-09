@@ -143,7 +143,7 @@ testMeasureInt :: Test
 testMeasureInt = test
     [ "t75"  ~: testStriv t75
     , "t75'" ~: testStriv t75'
-    , "exceptionCounting" ~: testSStriv [] (counting >>= \x -> dirac (if_ (x == (int_ 3)) one x)) -- Jacques wrote: "bug: [simp_pw_equal] implicitly assumes the ambient measure is Lebesgue"
+    , "exceptionCounting" ~: testSStriv [] (counting >>= \x -> if_ (x == (nat2int $ nat_ 3)) (dirac $ nat2int one) (dirac x)) -- Jacques wrote: "bug: [simp_pw_equal] implicitly assumes the ambient measure is Lebesgue"
     , "exceptionSuperpose" ~: testSStriv [(unsafeSuperpose [(third, dirac (int_ 2)), (third, dirac (int_ 3)), (third, dirac (int_ 4))] `asTypeOf` counting) >>= \x -> dirac (if_ (x == (int_ 3)) one x)] (unsafeSuperpose [(third, dirac (nat2int . nat_ $ 2)), (third, dirac (nat2int one)), (third, dirac (nat2int . nat_ $ 4))])
     ]
 

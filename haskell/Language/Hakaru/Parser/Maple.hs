@@ -74,6 +74,7 @@ symTable =
     , ("Pi",        "pi")
     , ("ln",        "log")
     , ("GAMMA",     "gammaFunc")
+    , ("NegativeBinomial", "neg_binomial")
     -- Type symbols
     , ("Real",     "real")
     , ("Prob",     "prob")
@@ -322,6 +323,18 @@ maple2AST (InertArgs Func
     NaryOp Max (map maple2AST es)
 
 maple2AST (InertArgs Func
+        [InertName "min", InertArgs ExpSeq es]) =
+    NaryOp Min (map maple2AST es)
+
+maple2AST (InertArgs Func
+        [InertName "Ei", InertArgs ExpSeq [e1, e2]]) =
+    Integrate "t" (maple2AST e2) Infinity'
+    (NaryOp Prod [ App (Var "exp")   (App (Var "negate") (Var "t"))
+                 , App (Var "recip")
+                       (App (App (Var "^") (Var "t")) (maple2AST e1))
+                 ])
+
+maple2AST (InertArgs Func
         [ InertName "case"
         , InertArgs ExpSeq
             [e1, InertArgs Func
@@ -336,6 +349,15 @@ maple2AST (InertArgs Func
 maple2AST (InertArgs Func
         [InertName "And", InertArgs ExpSeq es]) =
     NaryOp And (map maple2AST es)
+
+maple2AST (InertArgs Func
+        [ InertName "int"
+        , InertArgs ExpSeq
+           [ f
+           , InertArgs Equal
+             [ InertName x
+             , InertArgs Range [lo, hi]]]]) =
+    Integrate x (maple2AST lo) (maple2AST hi) (maple2AST f)
 
 maple2AST (InertArgs Func
         [ InertName "Int"
@@ -406,6 +428,23 @@ maple2Type (InertArgs Func
             [InertName "HReal",
              InertArgs ExpSeq []])
     = TypeVar "real"
+
+maple2Type (InertArgs Func
+            [InertName "HData",
+             InertArgs ExpSeq
+             [InertArgs Func
+              [InertName "DatumStruct",
+               InertArgs ExpSeq
+               [InertName "true",
+                InertArgs List
+                [InertArgs ExpSeq []]]],
+              InertArgs Func
+              [InertName "DatumStruct",
+               InertArgs ExpSeq
+               [InertName "false",
+                InertArgs List
+                [InertArgs ExpSeq []]]]]])
+     = TypeVar "bool"
 
 maple2Type (InertArgs Func
             [InertName "HData",

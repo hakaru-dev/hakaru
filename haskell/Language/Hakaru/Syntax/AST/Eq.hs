@@ -47,7 +47,7 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.TypeOf
 
--- import Control.Monad.Reader
+import Control.Monad.Reader
 
 import qualified Data.Foldable      as F
 import qualified Data.List.NonEmpty as L
@@ -55,6 +55,7 @@ import qualified Data.Sequence      as S
 import qualified Data.Traversable   as T
 
 #if __GLASGOW_HASKELL__ < 710
+import           Data.Functor ((<$>))
 import           Data.Traversable
 #endif
 
@@ -249,7 +250,7 @@ instance ( Show1 (Sing :: k ->  *)
     where
     (==) = eq1
 
-{-
+
 alphaEq :: forall abt a
          . (ABT Term abt)
         => abt '[] a
@@ -260,10 +261,10 @@ alphaEq e1 e2 = runReader (go (viewABT e1) (viewABT e2)) emptyAssocs
       -- Don't compare @x@ to @y@ directly; instead,
       -- look up whatever @x@ renames to (i.e., @y'@)
       -- and then see whether that is equal to @y@.
-      go :: forall xs a
-          . View (Term abt) xs a
-         -> View (Term abt) xs a
-         -> Reader (Assocs abt) Bool
+      go :: forall xs1 xs2 a
+          . View (Term abt) xs1 a
+         -> View (Term abt) xs2 a
+         -> Reader (Assocs (abt '[])) Bool
       go (Var x) (Var y) = do
           s <- ask
           return $
@@ -276,7 +277,9 @@ alphaEq e1 e2 = runReader (go (viewABT e1) (viewABT e2)) emptyAssocs
 
       -- remember that @x@ renames to @y@ and recurse
       go (Bind x e1) (Bind y e2) =
-          local (insertAssoc (Assoc x (var y))) (go e1 e2)
+         case jmEq1 (varType x) (varType y) of
+          Just Refl -> local (insertAssoc (Assoc x (var y))) (go e1 e2)
+          Nothing   -> return False
 
       -- perform the core comparison for syntactic equality
       go (Syn t1) (Syn t2) = termEq t1 t2
@@ -287,18 +290,32 @@ alphaEq e1 e2 = runReader (go (viewABT e1) (viewABT e2)) emptyAssocs
       termEq :: forall a
              .  Term abt a
              -> Term abt a
-             -> Reader (Assocs abt) Bool
-      termEq e1 e2 = case (e1, e2) of
-                     (o1 :$ es1, o2 :$ es2)     -> sConEq e1 e2
-                     (Literal_ x, Literal_ y)   -> return (x == y)
-                     (Empty_ _, Empty_ _)       -> return True
-                     (Datum_ d1, Datum_ d2)     -> datumEq d1 d2
-                     _ -> error "TODO{alphaEq:termEq}"
+             -> Reader (Assocs (abt '[])) Bool
+      termEq e1 e2 =
+        case (e1, e2) of
+        (o1 :$ es1, o2 :$ es2)             -> sConEq o1 es1 o2 es2
+        (NaryOp_ op1 es1, NaryOp_ op2 es2) -> if op1 == op2
+                                              then F.and <$> (T.sequence $ S.zipWith go (fmap viewABT es1)
+                                                                                        (fmap viewABT es2))
+                                              else return False
+        (Literal_ x, Literal_ y)           -> return (x == y)
+        (Empty_ x, Empty_ y)               -> return $ maybe False (const True) (jmEq1 x y)
+        (Datum_ d1, Datum_ d2)             -> datumEq d1 d2
+        (Array_ n1 e1, Array_ n2 e2)       -> do m1 <- go (viewABT n1) (viewABT n2)
+                                                 m2 <- go (viewABT e1) (viewABT e2)
+                                                 return (m1 && m2)
+        (Case_ e1 bs1, Case_ e2 bs2)       -> case jmEq1 (typeOf e1) (typeOf e2) of
+                                              Just Refl -> do m1 <- go (viewABT e1) (viewABT e2)
+                                                              m2 <- and <$> (zipWithM sBranch bs1 bs2)
+                                                              return (m1 && m2)
+        (Superpose_ pms1, Superpose_ pms2) -> F.and <$> (T.sequence $ L.zipWith pairEq pms1 pms2)
+        (Reject_ x, Reject_ y)             -> return $ maybe False (const True) (jmEq1 x y)
+        (_, _)                             -> return False
 
       sArgsEq :: forall args
                . SArgs abt args
               -> SArgs abt args
-              -> Reader (Assocs abt) Bool
+              -> Reader (Assocs (abt '[])) Bool
       sArgsEq End         End         = return True
       sArgsEq (e1 :* es1) (e2 :* es2) = do
         m  <- go (viewABT e1) (viewABT e2)
@@ -307,51 +324,128 @@ alphaEq e1 e2 = runReader (go (viewABT e1) (viewABT e2)) emptyAssocs
       sArgsEq _ _ = return False
 
       sConEq
-          :: forall a
-          .  Term abt a
-          -> Term abt a
-          -> Reader (Assocs abt) Bool
-      sConEq (Lam_   :$ e1) (Lam_   :$ e2) = sArgsEq e1 e2
-      --sConEq (App_   :$ e1) (App_   :$ e2) = sArgsEq e1 e2
-      --sConEq (Let_   :$ e1) (Let_   :$ e2) = sArgsEq e1 e2
-      sConEq e1@(PrimOp_ o1 :$ es1)
-             e2@(PrimOp_ o2 :$ es2)        = primOpEq e1 e2
-      sConEq e1@(MeasureOp_ o1 :$ es1)
-             e2@(MeasureOp_ o2 :$ es2)     = measureOpEq e1 e2
-      sConEq (Dirac :$ e1)  (Dirac :$ e2)  = sArgsEq e1 e2
-      --sConEq (MBind :$ e1)  (MBind :$ e2)  = sArgsEq e1 e2
-      sConEq _ _ = error "TODO{alphaEq:sConEq}"
+          :: forall a args1 args2
+          .  SCon  args1 a
+          -> SArgs abt args1
+          -> SCon args2 a
+          -> SArgs abt args2
+          -> Reader (Assocs (abt '[])) Bool
+      sConEq Lam_   e1 Lam_   e2 = sArgsEq e1 e2
+
+      sConEq App_   (e1  :* e2  :* End)
+             App_   (e1' :* e2' :* End) = do
+         case jmEq1 (typeOf e2) (typeOf e2') of
+           Just Refl -> do
+             m1 <- go (viewABT e1) (viewABT e1')
+             m2 <- go (viewABT e2) (viewABT e2')
+             return (m1 && m2)
+           Nothing   -> return False
+
+      sConEq Let_   (e1  :* e2  :* End)
+             Let_   (e1' :* e2' :* End) = do
+         case jmEq1 (typeOf e1) (typeOf e1') of
+           Just Refl -> do
+             m1 <- go (viewABT e1) (viewABT e1')
+             m2 <- go (viewABT e2) (viewABT e2')
+             return (m1 && m2)
+           Nothing   -> return False
+
+      sConEq (CoerceTo_ _) (e1 :* End)
+             (CoerceTo_ _) (e2 :* End)    =
+         case jmEq1 (typeOf e1) (typeOf e2) of
+           Just Refl -> return True
+           Nothing   -> return False
+
+      sConEq (UnsafeFrom_ _) (e1 :* End)
+             (UnsafeFrom_ _) (e2 :* End)  =
+         case jmEq1 (typeOf e1) (typeOf e2) of
+           Just Refl -> return True
+           Nothing   -> return False
+
+      sConEq (PrimOp_ o1) es1
+             (PrimOp_ o2) es2             = primOpEq o1 es1 o2 es2
+
+      sConEq (ArrayOp_ o1) es1
+             (ArrayOp_ o2) es2            = arrayOpEq o1 es1 o2 es2
+
+      sConEq (MeasureOp_ o1) es1
+             (MeasureOp_ o2) es2          = measureOpEq o1 es1 o2 es2
+
+      sConEq Dirac e1 Dirac e2            = sArgsEq e1 e2
+
+      sConEq MBind (e1  :* e2  :* End)
+             MBind (e1' :* e2' :* End)    = do
+         case jmEq1 (typeOf e1) (typeOf e1') of
+           Just Refl -> do
+             m1 <- go (viewABT e1) (viewABT e1')
+             m2 <- go (viewABT e2) (viewABT e2')
+             return (m1 && m2)
+           Nothing   -> return False
+
+      sConEq Plate     e1 Plate     e2    = sArgsEq e1 e2
+      sConEq Chain     e1 Chain     e2    = sArgsEq e1 e2
+      sConEq Integrate e1 Integrate e2    = sArgsEq e1 e2
+      sConEq Summate   e1 Summate   e2    = sArgsEq e1 e2
+
+      sConEq Expect (e1  :* e2  :* End)
+             Expect (e1' :* e2' :* End) = do
+         case jmEq1 (typeOf e1) (typeOf e1') of
+           Just Refl -> do
+             m1 <- go (viewABT e1) (viewABT e1')
+             m2 <- go (viewABT e2) (viewABT e2')
+             return (m1 && m2)
+           Nothing   -> return False
+
+      sConEq _ _ _ _ = return False
+
 
       primOpEq
-          :: forall a
-          .  Term abt a
-          -> Term abt a
-          -> Reader (Assocs abt) Bool
-      primOpEq (PrimOp_ Sin :$ e1)
-               (PrimOp_ Sin :$ e2) = sArgsEq e1 e2
-      primOpEq _ _ = error "TODO{alphaEq:primOpEq}"
+          :: forall a typs1 typs2 args1 args2
+           . (typs1 ~ UnLCs args1, args1 ~ LCs typs1,
+              typs2 ~ UnLCs args2, args2 ~ LCs typs2)
+          => PrimOp typs1 a -> SArgs abt args1
+          -> PrimOp typs2 a -> SArgs abt args2
+          -> Reader (Assocs (abt '[])) Bool
+      primOpEq p1 e1 p2 e2 =
+          case jmEq2 p1 p2 of
+             Just (Refl, Refl) -> sArgsEq e1 e2
+             Nothing           -> return False
+
+      arrayOpEq
+          :: forall a typs1 typs2 args1 args2
+           . (typs1 ~ UnLCs args1, args1 ~ LCs typs1,
+              typs2 ~ UnLCs args2, args2 ~ LCs typs2)
+          => ArrayOp typs1 a -> SArgs abt args1
+          -> ArrayOp typs2 a -> SArgs abt args2
+          -> Reader (Assocs (abt '[])) Bool
+      arrayOpEq p1 e1 p2 e2 =
+          case jmEq2 p1 p2 of
+             Just (Refl, Refl) -> sArgsEq e1 e2
+             Nothing           -> return False
 
       measureOpEq
-          :: forall a
-          .  Term abt a
-          -> Term abt a
-          -> Reader (Assocs abt) Bool
-      measureOpEq (MeasureOp_ Normal :$ e1)
-                  (MeasureOp_ Normal :$ e2) = sArgsEq e1 e2
-      measureOpEq _ _ = error "TODO{alphaEq:measureOpEq}"
-
+          :: forall a typs1 typs2 args1 args2
+           . (typs1 ~ UnLCs args1, args1 ~ LCs typs1,
+              typs2 ~ UnLCs args2, args2 ~ LCs typs2)
+          => MeasureOp typs1 a -> SArgs abt args1
+          -> MeasureOp typs2 a -> SArgs abt args2
+          -> Reader (Assocs (abt '[])) Bool
+      measureOpEq m1 e1 m2 e2 =
+          case jmEq2 m1 m2 of
+            Just (Refl,Refl) -> sArgsEq e1 e2
+            Nothing          -> return False
 
       datumEq :: forall a
               .  Datum (abt '[]) a
               -> Datum (abt '[]) a
-              -> Reader (Assocs abt) Bool
+              -> Reader (Assocs (abt '[])) Bool
       datumEq (Datum _ _ d1) (Datum _ _ d2) = datumCodeEq d1 d2
 
       datumCodeEq
           :: forall xss a
           .  DatumCode xss (abt '[]) a
           -> DatumCode xss (abt '[]) a
-          -> Reader (Assocs abt) Bool
+          -> Reader (Assocs (abt '[])) Bool
       datumCodeEq (Inr c) (Inr d) = datumCodeEq c d
       datumCodeEq (Inl c) (Inl d) = datumStructEq c d
       datumCodeEq _       _       = return False
@@ -360,7 +454,7 @@ alphaEq e1 e2 = runReader (go (viewABT e1) (viewABT e2)) emptyAssocs
           :: forall xs a
           .  DatumStruct xs (abt '[]) a
           -> DatumStruct xs (abt '[]) a
-          -> Reader (Assocs abt) Bool
+          -> Reader (Assocs (abt '[])) Bool
       datumStructEq (Et c1 c2) (Et d1 d2) = do
           m  <- datumFunEq c1 d1
           ms <- datumStructEq c2 d2
@@ -372,8 +466,24 @@ alphaEq e1 e2 = runReader (go (viewABT e1) (viewABT e2)) emptyAssocs
           :: forall x a
           .  DatumFun x (abt '[]) a
           -> DatumFun x (abt '[]) a
-          -> Reader (Assocs abt) Bool
+          -> Reader (Assocs (abt '[])) Bool
       datumFunEq (Konst e) (Konst f) = go (viewABT e) (viewABT f) 
       datumFunEq (Ident e) (Ident f) = go (viewABT e) (viewABT f) 
       datumFunEq _          _        = return False
--}
+
+      pairEq
+          :: forall a b
+          .  (abt '[] a, abt '[] b)
+          -> (abt '[] a, abt '[] b)
+          -> Reader (Assocs (abt '[])) Bool
+      pairEq (x1, y1) (x2, y2) = do
+             m1 <- go (viewABT x1) (viewABT x2)
+             m2 <- go (viewABT y1) (viewABT y2)
+             return (m1 && m2)
+
+      sBranch
+          :: forall a b
+          .  Branch a abt b
+          -> Branch a abt b
+          -> Reader (Assocs (abt '[])) Bool
+      sBranch (Branch _ e1) (Branch _ e2) = go (viewABT e1) (viewABT e2)

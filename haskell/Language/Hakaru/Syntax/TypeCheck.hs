@@ -58,8 +58,8 @@ import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Types.HClasses
     ( HEq, hEq_Sing, HOrd, hOrd_Sing, HSemiring, hSemiring_Sing
-    , hRing_Sing, sing_HRing, HFractional, hFractional_Sing, HRadical(..)
-    , HContinuous(..))
+    , hRing_Sing, sing_HRing, hFractional_Sing, sing_HFractional
+    , HRadical(..), HContinuous(..))
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.AST
@@ -496,7 +496,7 @@ inferType = inferType_
         case mode of
             StrictMode -> inferCaseStrict typ1 e1' branches
             LaxMode    -> inferCaseLax typ1 e1' branches
-            UnsafeMode -> error "TODO: inferType{Case_} in UnsafeMode"
+            UnsafeMode -> inferCaseLax typ1 e1' branches
 
     U.Dirac_ e1 -> do
         TypedAST typ1 e1' <- inferType_ e1
@@ -696,8 +696,14 @@ inferType = inferType_
   inferPrimOp U.Recip es =
       case es of
         [e] -> do TypedAST typ e' <- inferType_ e
-                  primop <- Recip <$> getHFractional typ
-                  return . TypedAST typ $ syn (PrimOp_ primop :$ e' :* End)
+                  mode <- getMode
+                  SomeFractional frac c <- getHFractional typ mode
+                  primop <- Recip <$> return frac
+                  let e'' = case c of
+                              CNil -> e'
+                              c'   -> unLC_ . coerceTo c' $ LC_ e'
+                  return . TypedAST (sing_HFractional frac) $
+                         syn (PrimOp_ primop :$ e'' :* End)
         _   -> failwith "Passed wrong number of arguments"
 
   -- BUG: Only defined for HRadical_Prob
@@ -814,13 +820,23 @@ getHRing typ mode =
     LaxMode    -> case findRing typ of
                     Just proof   -> return proof
                     Nothing      -> missingInstance "HRing" typ
-    UnsafeMode -> error "TODO: getHRing in UnsafeMode"
+    UnsafeMode -> case findRing typ of
+                    Just proof   -> return proof
+                    Nothing      -> missingInstance "HRing" typ
 
-getHFractional :: Sing a -> TypeCheckMonad (HFractional a)
-getHFractional typ =
-    case hFractional_Sing typ of
-    Just theFrac -> return theFrac
-    Nothing      -> missingInstance "HFractional" typ
+getHFractional :: Sing a -> TypeCheckMode -> TypeCheckMonad (SomeFractional a)
+getHFractional typ mode =
+    case mode of
+    StrictMode -> case hFractional_Sing typ of
+                    Just theFrac -> return (SomeFractional theFrac CNil)
+                    Nothing      -> missingInstance "HFractional" typ
+    LaxMode    -> case findFractional typ of
+                    Just proof   -> return proof
+                    Nothing      -> missingInstance "HFractional" typ
+    UnsafeMode -> case findFractional typ of
+                    Just proof   -> return proof
+                    Nothing      -> missingInstance "HFractional" typ
+
 
 
 ----------------------------------------------------------------
@@ -1082,9 +1098,22 @@ checkType = checkType_
                 Nothing -> typeMismatch (Right typ0) (Right dom)
 
         U.NaryOp_ op es -> do
-            op' <- make_NaryOp typ0 op
-            es' <- T.forM es $ checkType_ typ0
-            return $ syn (NaryOp_ op' (S.fromList es'))
+            mode <- getMode
+            case mode of
+              StrictMode -> safeNaryOp typ0
+              LaxMode    -> safeNaryOp typ0
+              UnsafeMode -> do
+                es'  <- tryWith LaxMode (safeNaryOp typ0)
+                case es' of
+                  Just es'' -> return es''
+                  Nothing   -> do
+                    TypedAST typ e0' <- inferType (U.NaryOp_ op es)
+                    checkOrUnsafeCoerce e0' typ typ0
+            where safeNaryOp :: forall c. Sing c -> TypeCheckMonad (abt '[] c)
+                  safeNaryOp typ = do
+                      op'  <- make_NaryOp typ op
+                      es'  <- T.forM es $ checkType_ typ
+                      return $ syn (NaryOp_ op' (S.fromList es'))
 
         U.Empty_ ->
             case typ0 of
@@ -1196,25 +1225,8 @@ checkType = checkType_
                     case jmEq1 typ0 typ' of
                     Just Refl -> return e0'
                     Nothing   -> typeMismatch (Right typ0) (Right typ')
-                  LaxMode ->
-                    case findCoercion typ' typ0 of
-                    Just c  -> return . unLC_ . coerceTo c $ LC_ e0'
-                    Nothing -> typeMismatch (Right typ0) (Right typ')
-                  UnsafeMode ->
-                    case findEitherCoercion typ' typ0 of
-                    Just (Unsafe  c) ->
-                        return . unLC_ . coerceFrom c $ LC_ e0'
-                    Just (Safe    c) ->
-                        return . unLC_ . coerceTo c $ LC_ e0'
-                    Just (Mixed   (_, c1, c2)) ->
-                        return . unLC_ . coerceTo c2 . coerceFrom c1 $ LC_ e0'
-                    Nothing ->
-                        case (typ', typ0) of
-                          -- mighty, mighty hack!
-                          (SMeasure _, SMeasure _) -> 
-                            let x = U.Name 0 (pack "") in
-                            checkType_ typ0 (U.MBind_ x e0 (U.Dirac_ $ U.Var_ x))
-                          (_ ,  _) -> typeMismatch (Right typ0) (Right typ')
+                  LaxMode    -> checkOrCoerce       e0' typ' typ0
+                  UnsafeMode -> checkOrUnsafeCoerce e0' typ' typ0
             | otherwise -> error "checkType: missing an mustCheck branch!"
 
 
@@ -1383,6 +1395,42 @@ checkPattern = \typA pat ->
                 SP pat1' xs <- checkPattern typ1 pat1
                 return $ SPF (PKonst pat1') xs
             _ -> failwith "expected pattern of `K' type"
+
+checkOrCoerce
+    :: (ABT Term abt)
+    => abt '[] a
+    -> Sing a
+    -> Sing b
+    -> TypeCheckMonad (abt '[] b)
+checkOrCoerce e typA typB =
+    case findCoercion typA typB of
+    Just c  -> return . unLC_ . coerceTo c $ LC_ e
+    Nothing -> typeMismatch (Right typB) (Right typA)
+
+checkOrUnsafeCoerce
+    :: (ABT Term abt)
+    => abt '[] a
+    -> Sing a
+    -> Sing b
+    -> TypeCheckMonad (abt '[] b)
+checkOrUnsafeCoerce e typA typB =
+    case findEitherCoercion typA typB of
+    Just (Unsafe  c) ->
+        return . unLC_ . coerceFrom c $ LC_ e
+    Just (Safe    c) ->
+        return . unLC_ . coerceTo c $ LC_ e
+    Just (Mixed   (_, c1, c2)) ->
+        return . unLC_ . coerceTo c2 . coerceFrom c1 $ LC_ e
+    Nothing ->
+        case (typA, typB) of
+          -- mighty, mighty hack!
+          (SMeasure typ1, SMeasure _) ->
+            let x = U.Name 0 (pack "") in do
+            e2' <- checkBinder (makeVar x typ1) typB (U.Dirac_ $ U.Var_ x)
+            return $ syn (MBind :$ e :* e2' :* End)
+          (_ ,  _) -> typeMismatch (Right typB) (Right typA)
+
+
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

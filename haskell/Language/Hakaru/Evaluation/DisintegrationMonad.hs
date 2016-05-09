@@ -109,10 +109,10 @@ residualizeListContext =
         -> abt '[] ('HMeasure a)
     step e s =
         case s of
-        SBind x body ->
+        SBind x body _ ->
             -- TODO: if @body@ is dirac, then treat as 'SLet'
             syn (MBind :$ fromLazy body :* bind x e :* End)
-        SLet x body
+        SLet x body _
             | not (x `memberVarSet` freeVars e) -> e
             -- TODO: if used exactly once in @e@, then inline.
             | otherwise ->
@@ -123,14 +123,18 @@ residualizeListContext =
                     Just v  -> subst x (syn $ Literal_ v) e
                     Nothing ->
                         syn (Let_ :$ fromLazy body :* bind x e :* End)
-        SGuard xs pat scrutinee ->
+        SGuard xs pat scrutinee _ ->
             syn $ Case_ (fromLazy scrutinee)
                 [ Branch pat   (binds_ xs e)
                 , Branch PWild (P.reject $ typeOf e)
                 ]
-        SWeight body -> syn $ Superpose_ ((fromLazy body, e) :| [])
+        SWeight body _ -> syn $ Superpose_ ((fromLazy body, e) :| [])
 
 ----------------------------------------------------------------
+-- A location is a variable *use* instantiated at some list of indices.
+data Loc ast a = forall xs. Loc (Variable a) (Indices ast xs)
+
+
 -- In the paper we say that result must be a 'Whnf'; however, in
 -- the paper it's also always @HMeasure a@ and everything of that
 -- type is a WHNF (via 'WMeasure') so that's a trivial statement
@@ -139,7 +143,11 @@ residualizeListContext =
 --
 -- Also, we add the list in order to support "lub" without it living in the AST.
 -- TODO: really we should use LogicT...
-type Ans abt a = ListContext abt 'Impure -> [abt '[] ('HMeasure a)]
+type Ans abt xs a
+  =  ListContext abt 'Impure
+  -> Indices (abt '[]) xs
+  -> Assocs (Loc (abt '[]))
+  -> [abt '[] ('HMeasure a)]
 
 
 ----------------------------------------------------------------
@@ -157,7 +165,7 @@ type Ans abt a = ListContext abt 'Impure -> [abt '[] ('HMeasure a)]
 --
 -- N.B., This monad is used not only for both 'perform' and 'constrainOutcome', but also for 'constrainValue'.
 newtype Dis abt x =
-    Dis { unDis :: forall a. (x -> Ans abt a) -> Ans abt a }
+    Dis { unDis :: forall xs a. (x -> Ans abt xs a) -> Ans abt xs a }
     -- == @Codensity (Ans abt)@, assuming 'Codensity' is poly-kinded like it should be
     -- If we don't want to allow continuations that can make nondeterministic choices, then we should use the right Kan extension itself, rather than the Codensity specialization of it.
 
@@ -178,10 +186,10 @@ runDis :: (ABT Term abt, F.Foldable f)
     -> f (Some2 abt)
     -> [abt '[] ('HMeasure a)]
 runDis (Dis m) es =
-    m c0 (ListContext i0 [])
+    m c0 (ListContext i0 []) Nil1 emptyAssocs
     where
     -- TODO: we only use dirac because 'residualizeListContext' requires it to already be a measure; unfortunately this can result in an extraneous @(>>= \x -> dirac x)@ redex at the end of the program. In principle, we should be able to eliminate that redex by changing the type of 'residualizeListContext'...
-    c0 e ss = [residualizeListContext ss (syn(Dirac :$ e :* End))]
+    c0 e ss _ _ = [residualizeListContext ss (syn(Dirac :$ e :* End))]
 
     i0 = maxNextFree es
 
@@ -198,8 +206,8 @@ instance Monad (Dis abt) where
     Dis m >>= k = Dis $ \c -> m $ \x -> unDis (k x) c
 
 instance Alternative (Dis abt) where
-    empty           = Dis $ \_ _ -> []
-    Dis m <|> Dis n = Dis $ \c h -> m c h ++ n c h
+    empty           = Dis $ \_ _ _ _ -> []
+    Dis m <|> Dis n = Dis $ \c h i l -> m c h i l ++ n c h i l
 
 instance MonadPlus (Dis abt) where
     mzero = empty -- aka "bot"
@@ -243,10 +251,10 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
 -- | Not exported because we only need it for defining 'select' on 'Dis'.
 unsafePop :: Dis abt (Maybe (Statement abt 'Impure))
 unsafePop =
-    Dis $ \c h@(ListContext i ss) ->
+    Dis $ \c h@(ListContext i ss) ind loc ->
         case ss of
-        []    -> c Nothing  h
-        s:ss' -> c (Just s) (ListContext i ss')
+        []    -> c Nothing  h ind loc
+        s:ss' -> c (Just s) (ListContext i ss') ind loc
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -259,7 +267,7 @@ unsafePop =
 -- TODO: add some sort of trace information so we can get a better
 -- idea what caused a disintegration to fail.
 bot :: (ABT Term abt) => Dis abt a
-bot = Dis $ \_ _ -> []
+bot = Dis $ \_ _ _ _ -> []
 
 
 -- | The empty measure is a solution to the constraints.
@@ -281,7 +289,7 @@ emit
     -> Dis abt (Variable a)
 emit hint typ f = do
     x <- freshVar hint typ
-    Dis $ \c h -> (f . bind x) <$> c x h
+    Dis $ \c h i l -> (f . bind x) <$> c x h i l
 
 
 -- This function was called @lift@ in the finally-tagless code.
@@ -348,14 +356,14 @@ emitUnpair_ x y = loop
 #ifdef __TRACE_DISINTEGRATE__
         trace "-- emitUnpair: done (term is not Datum_ nor Case_)" $
 #endif
-        Dis $ \c h ->
+        Dis $ \c h i l ->
             ( syn
             . Case_ e
             . (:[])
             . Branch (pPair PVar PVar)
             . bind x
             . bind y
-            ) <$> c (var x, var y) h
+            ) <$> c (var x, var y) h i l
 
     loop :: abt '[] (HPair a b) -> Dis abt (abt '[] a, abt '[] b)
     loop e0 =
@@ -395,7 +403,7 @@ emit_
     :: (ABT Term abt)
     => (forall r. abt '[] ('HMeasure r) -> abt '[] ('HMeasure r))
     -> Dis abt ()
-emit_ f = Dis $ \c h -> f <$> c () h
+emit_ f = Dis $ \c h i l -> f <$> c () h i l
 
 
 -- | Emit an 'MBind' that discards its result (i.e., \"@m >>@\").
@@ -436,7 +444,7 @@ emitFork_
     => (forall r. t (abt '[] ('HMeasure r)) -> abt '[] ('HMeasure r))
     -> t (Dis abt a)
     -> Dis abt a
-emitFork_ f ms = Dis $ \c h -> f <$> T.traverse (\m -> unDis m c h) ms
+emitFork_ f ms = Dis $ \c h i l -> f <$> T.traverse (\m -> unDis m c h i l) ms
 
 
 -- | Emit a 'Superpose_' of the alternatives, each with unit weight.
@@ -525,10 +533,10 @@ emitCaseWith f e bs = do
                 let rho = toAssocs1 vars (fmap11 var vars')
                 in  GBranch pat vars' (f $ substs rho body')
             ) <$> freshenVars vars
-    Dis $ \c h ->
+    Dis $ \c h i l ->
         (syn . Case_ e) <$> T.for gms (\gm ->
             fromGBranch <$> T.for gm (\m ->
-                unDis m c h))
+                unDis m c h i l))
 {-# INLINE emitCaseWith #-}
 
 

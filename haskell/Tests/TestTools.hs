@@ -9,7 +9,7 @@ import Language.Hakaru.Parser.SymbolResolve (resolveAST)
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.TypeCheck
-import Language.Hakaru.Syntax.AST.AlphaEq
+import Language.Hakaru.Syntax.AST.Eq (alphaEq)
 import Language.Hakaru.Pretty.Concrete
 import Language.Hakaru.Simplify
 import Language.Hakaru.Syntax.AST.Eq()

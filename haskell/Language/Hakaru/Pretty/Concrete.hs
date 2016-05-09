@@ -32,13 +32,16 @@ module Language.Hakaru.Pretty.Concrete
     ) where
 
 import           System.Console.ANSI
-import           Text.PrettyPrint (Doc, (<>), (<+>))
-import qualified Text.PrettyPrint as PP
-import qualified Data.Foldable    as F
-import           Data.List.NonEmpty (NonEmpty(..))
-import qualified Data.List.NonEmpty as L
-import qualified Data.Text        as Text
-import qualified Data.Sequence    as Seq -- Because older versions of "Data.Foldable" do not export 'null' apparently...
+import           Text.PrettyPrint                (Doc, (<>), (<+>))
+import qualified Text.PrettyPrint                as PP
+import qualified Data.Foldable                   as F
+import           Data.List.NonEmpty              (NonEmpty(..))
+import qualified Data.List.NonEmpty              as L
+import qualified Data.Text                       as Text
+
+-- Because older versions of "Data.Foldable" do not export 'null' apparently...
+import qualified Data.Sequence                   as Seq
+
 import qualified Data.Vector                     as V
 import           Data.Proxy
 
@@ -254,7 +257,7 @@ ppSCon p Integrate = \(e1 :* e2 :* e3 :* End) ->
       <+> (toDoc $ ppArg e1)
       <+> PP.text "to"
       <+> (toDoc $ ppArg e2)
-      <> PP.colon
+      <> PP.colon <> PP.space
     , PP.nest 1 (toDoc body)
     ]
 
@@ -322,7 +325,10 @@ prettyType p typ          =
       SData (STyCon sym `STyApp` a `STyApp` b) _ ->
           case jmEq1 sym (SingSymbol Proxy :: Sing "Pair") of
             Just Refl -> toDoc $ ppFun p "pair" [prettyType p a, prettyType p b]
-            Nothing   -> PP.text (showsPrec 11 typ "")
+            Nothing   -> 
+                case jmEq1 sym (SingSymbol Proxy :: Sing "Either") of
+                  Just Refl -> toDoc $ ppFun p "either" [prettyType p a, prettyType p b]
+                  Nothing   -> PP.text (showsPrec 11 typ "")
       SData (STyCon sym) _ ->
           case jmEq1 sym (SingSymbol Proxy :: Sing "Bool") of
             Just Refl -> PP.text "bool"

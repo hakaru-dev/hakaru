@@ -303,7 +303,7 @@ evaluateCase evaluate_ = evaluateCase_
         where
         evaluateBranch (Branch pat body) =
             let (vars,body') = caseBinds body
-            in push (SGuard vars pat (Thunk e)) body' evaluate_
+            in push (SGuard vars pat (Thunk e) Nil1) body' evaluate_
 
 
 evaluateDatum :: (ABT Term abt) => DatumEvaluator (abt '[]) (Dis abt)
@@ -336,7 +336,7 @@ perform = \e0 ->
     performTerm (MeasureOp_ o :$ es)       = performMeasureOp o es
     performTerm (MBind :$ e1 :* e2 :* End) =
         caseBind e2 $ \x e2' ->
-            push (SBind x $ Thunk e1) e2' perform
+            push (SBind x (Thunk e1) Nil1) e2' perform
     performTerm (Superpose_ pes) = do
         -- TODO: we should combine the multiple traversals of @pes@/@pes'@
         pes' <- T.traverse (firstM (fmap fromWhnf . atomize)) pes
@@ -345,7 +345,7 @@ perform = \e0 ->
     -- Avoid falling through to the @performWhnf <=< evaluate_@ case
     performTerm (Let_ :$ e1 :* e2 :* End) =
         caseBind e2 $ \x e2' ->
-            push (SLet x $ Thunk e1) e2' perform
+            push (SLet x (Thunk e1) Nil1) e2' perform
 
     -- TODO: we could optimize this by calling some @evaluateTerm@
     -- directly, rather than calling 'syn' to rebuild @e0@ from
@@ -468,12 +468,12 @@ atomizeCore e = do
 
 -- TODO: move this to Types.hs
 statementVars :: Statement abt p -> VarSet ('KProxy :: KProxy Hakaru)
-statementVars (SBind x _)     = singletonVarSet x
-statementVars (SLet  x _)     = singletonVarSet x
-statementVars (SWeight _)     = emptyVarSet
-statementVars (SGuard xs _ _) = toVarSet1 xs
-statementVars (SStuff0   _)   = emptyVarSet
-statementVars (SStuff1 x _)   = singletonVarSet x
+statementVars (SBind x _ _)     = singletonVarSet x
+statementVars (SLet  x _ _)     = singletonVarSet x
+statementVars (SWeight _ _)     = emptyVarSet
+statementVars (SGuard xs _ _ _) = toVarSet1 xs
+statementVars (SStuff0   _ _)   = emptyVarSet
+statementVars (SStuff1 x _ _)   = singletonVarSet x
 
 -- HACK: if we really want to go through with this approach, then
 -- we should memoize the set of heap-bound variables in the
@@ -538,7 +538,7 @@ constrainValue v0 e0 =
         Reject_ _                -> bot -- giving up.
         Let_ :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
-                push (SLet x $ Thunk e1) e2' (constrainValue v0)
+                push (SLet x (Thunk e1) Nil1) e2' (constrainValue v0)
 
         CoerceTo_   c :$ e1 :* End ->
             -- TODO: we need to insert some kind of guard that says
@@ -607,7 +607,7 @@ constrainBranches v0 e = choose . map constrainBranch
     where
     constrainBranch (Branch pat body) =
         let (vars,body') = caseBinds body
-        in push (SGuard vars pat (Thunk e)) body' (constrainValue v0)
+        in push (SGuard vars pat (Thunk e) Nil1) body' (constrainValue v0)
 
 
 constrainDatum
@@ -687,18 +687,18 @@ constrainVariable v0 x =
     -- return 'bot' for neutral terms
     (maybe bot return =<<) . select x $ \s ->
         case s of
-        SBind y e -> do
+        SBind y e i -> do
             Refl <- varEq x y
             Just $ do
                 constrainOutcome v0 (fromLazy e)
-                unsafePush (SLet x $ Whnf_ (Neutral v0))
-        SLet y e -> do
+                unsafePush (SLet x (Whnf_ (Neutral v0)) i)
+        SLet y e i -> do
             Refl <- varEq x y
             Just $ do
                 constrainValue v0 (fromLazy e)
-                unsafePush (SLet x $ Whnf_ (Neutral v0))
-        SWeight _ -> Nothing
-        SGuard ys pat scrutinee ->
+                unsafePush (SLet x (Whnf_ (Neutral v0)) i)
+        SWeight _ _ -> Nothing
+        SGuard ys pat scrutinee i ->
             error "TODO: constrainVariable{SGuard}"
 
 
@@ -1090,7 +1090,7 @@ constrainOutcome v0 e0 =
     go (WDirac e1)           = constrainValue v0 e1
     go (WMBind e1 e2)        =
         caseBind e2 $ \x e2' ->
-            push (SBind x $ Thunk e1) e2' (constrainOutcome v0)
+            push (SBind x (Thunk e1) Nil1) e2' (constrainOutcome v0)
     go (WPlate e1 e2)        = error "TODO: constrainOutcome{Plate}"
     go (WChain e1 e2 e3)     = error "TODO: constrainOutcome{Chain}"
     go (WReject typ)         = error "TODO: constrainOutcome{Reject}"

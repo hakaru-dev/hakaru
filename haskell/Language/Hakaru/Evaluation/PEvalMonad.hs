@@ -180,19 +180,19 @@ residualizeListContext =
         :: Statement abt p
         -> P p abt '[] a
         -> P p abt '[] a
-    step (SLet  x body) = mapP $ residualizeLet x body
-    step (SBind x body) = mapPImpure $ \e ->
+    step (SLet  x body _)  = mapP $ residualizeLet x body
+    step (SBind x body _) = mapPImpure $ \e ->
         -- TODO: if @body@ is dirac, then treat as 'SLet'
         syn (MBind :$ fromLazy body :* bind x e :* End)
-    step (SGuard xs pat scrutinee) = mapPImpure $ \e ->
+    step (SGuard xs pat scrutinee _) = mapPImpure $ \e ->
         -- TODO: avoid adding the 'PWild' branch if we know @pat@ covers the type
         syn $ Case_ (fromLazy scrutinee)
             [ Branch pat   $ binds_ xs e
             , Branch PWild $ P.reject (typeOf e)
             ]
-    step (SWeight body) = mapPImpure $ P.withWeight (fromLazy body)
-    step (SStuff0    f) = mapPExpect f
-    step (SStuff1 _x f) = mapPExpect f
+    step (SWeight body _) = mapPImpure $ P.withWeight (fromLazy body)
+    step (SStuff0    f _) = mapPExpect f
+    step (SStuff1 _x f _) = mapPExpect f
 
 
 -- TODO: move this to Prelude? Is there anyone else that actually needs these smarts?
