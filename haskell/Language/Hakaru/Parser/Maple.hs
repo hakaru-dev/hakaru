@@ -323,6 +323,18 @@ maple2AST (InertArgs Func
     NaryOp Max (map maple2AST es)
 
 maple2AST (InertArgs Func
+        [InertName "min", InertArgs ExpSeq es]) =
+    NaryOp Min (map maple2AST es)
+
+maple2AST (InertArgs Func
+        [InertName "Ei", InertArgs ExpSeq [e1, e2]]) =
+    Integrate "t" (maple2AST e2) Infinity'
+    (NaryOp Prod [ App (Var "exp")   (App (Var "negate") (Var "t"))
+                 , App (Var "recip")
+                       (App (App (Var "^") (Var "t")) (maple2AST e1))
+                 ])
+
+maple2AST (InertArgs Func
         [ InertName "case"
         , InertArgs ExpSeq
             [e1, InertArgs Func
@@ -416,6 +428,23 @@ maple2Type (InertArgs Func
             [InertName "HReal",
              InertArgs ExpSeq []])
     = TypeVar "real"
+
+maple2Type (InertArgs Func
+            [InertName "HData",
+             InertArgs ExpSeq
+             [InertArgs Func
+              [InertName "DatumStruct",
+               InertArgs ExpSeq
+               [InertName "true",
+                InertArgs List
+                [InertArgs ExpSeq []]]],
+              InertArgs Func
+              [InertName "DatumStruct",
+               InertArgs ExpSeq
+               [InertName "false",
+                InertArgs List
+                [InertArgs ExpSeq []]]]]])
+     = TypeVar "bool"
 
 maple2Type (InertArgs Func
             [InertName "HData",

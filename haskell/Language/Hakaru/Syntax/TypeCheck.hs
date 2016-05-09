@@ -820,7 +820,9 @@ getHRing typ mode =
     LaxMode    -> case findRing typ of
                     Just proof   -> return proof
                     Nothing      -> missingInstance "HRing" typ
-    UnsafeMode -> error "TODO: getHRing in UnsafeMode"
+    UnsafeMode -> case findRing typ of
+                    Just proof   -> return proof
+                    Nothing      -> missingInstance "HRing" typ
 
 getHFractional :: Sing a -> TypeCheckMode -> TypeCheckMonad (SomeFractional a)
 getHFractional typ mode =
@@ -831,7 +833,10 @@ getHFractional typ mode =
     LaxMode    -> case findFractional typ of
                     Just proof   -> return proof
                     Nothing      -> missingInstance "HFractional" typ
-    UnsafeMode -> error "TODO: getHFractional in UnsafeMode"
+    UnsafeMode -> case findFractional typ of
+                    Just proof   -> return proof
+                    Nothing      -> missingInstance "HFractional" typ
+
 
 
 ----------------------------------------------------------------
