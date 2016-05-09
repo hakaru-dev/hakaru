@@ -43,7 +43,7 @@ module Language.Hakaru.Evaluation.Types
     , getLazyLiteral,  isLazyLiteral
 
     -- * The monad for partial evaluation
-    , Purity(..), Statement(..), isBoundBy
+    , Purity(..), Indices, Statement(..), isBoundBy
 #ifdef __TRACE_DISINTEGRATE__
     , ppStatement
     , pretty_Statements
@@ -473,6 +473,7 @@ isLazyLiteral = maybe False (const True) . getLazyLiteral
 data Purity = Pure | Impure | ExpectP
     deriving (Eq, Read, Show)
 
+type Indices (ast :: Hakaru -> *) = List1 (Pair1 Variable ast)
 
 -- | A single statement in some ambient monad (specified by the @p@
 -- type index). In particular, note that the the first argument to
@@ -497,16 +498,18 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
     
     -- A variable bound by 'MBind' to a measure expression.
     SBind
-        :: forall abt (a :: Hakaru)
+        :: forall abt (a :: Hakaru) (xs2 :: [Hakaru])
         .  {-# UNPACK #-} !(Variable a)
         -> !(Lazy abt ('HMeasure a))
+        -> Indices (abt '[]) xs2
         -> Statement abt 'Impure
 
     -- A variable bound by 'Let_' to an expression.
     SLet
-        :: forall abt p (a :: Hakaru)
+        :: forall abt p (a :: Hakaru) (xs2 :: [Hakaru])
         .  {-# UNPACK #-} !(Variable a)
         -> !(Lazy abt a)
+        -> Indices (abt '[]) xs2
         -> Statement abt p
 
 
@@ -514,8 +517,9 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
     -- 'Superpose_'. This is a statement just so that we can avoid
     -- needing to atomize the weight itself.
     SWeight
-        :: forall abt
+        :: forall abt (xs2 :: [Hakaru])
         .  !(Lazy abt 'HProb)
+        -> Indices (abt '[]) xs2
         -> Statement abt 'Impure
 
     -- A monadic guard statement. If the scrutinee matches the
@@ -525,10 +529,11 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
     -- /monadic context/. In pure contexts we should be able to
     -- handle case analysis without putting anything onto the heap.
     SGuard
-        :: forall abt (xs :: [Hakaru]) (a :: Hakaru)
+        :: forall abt (xs :: [Hakaru]) (a :: Hakaru) (xs2 :: [Hakaru])
         .  !(List1 Variable xs)
         -> !(Pattern xs a)
         -> !(Lazy abt a)
+        -> Indices (abt '[]) xs2
         -> Statement abt 'Impure
 
     -- Some arbitrary pure code. This is a statement just so that we can avoid needing to atomize the stuff in the pure code.
@@ -537,13 +542,15 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
     -- TODO: generalize to use a 'VarSet' so we can collapse these
     -- TODO: defunctionalize? These break pretty printing...
     SStuff0
-        :: forall abt
+        :: forall abt (xs2 :: [Hakaru])
         .  (abt '[] 'HProb -> abt '[] 'HProb)
+        -> Indices (abt '[]) xs2
         -> Statement abt 'ExpectP
     SStuff1
-        :: forall abt (a :: Hakaru)
+        :: forall abt (a :: Hakaru) (xs2 :: [Hakaru])
         . {-# UNPACK #-} !(Variable a)
         -> (abt '[] 'HProb -> abt '[] 'HProb)
+        -> Indices (abt '[]) xs2
         -> Statement abt 'ExpectP
 
 
@@ -556,15 +563,15 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
 -- and use some @boolToMaybe@ function to do the coercion wherever
 -- needed.
 isBoundBy :: Variable (a :: Hakaru) -> Statement abt p -> Maybe ()
-x `isBoundBy` SBind  y _    = const () <$> varEq x y
-x `isBoundBy` SLet   y _    = const () <$> varEq x y
-_ `isBoundBy` SWeight  _    = Nothing
-x `isBoundBy` SGuard ys _ _ =
+x `isBoundBy` SBind  y  _ _   = const () <$> varEq x y
+x `isBoundBy` SLet   y  _ _   = const () <$> varEq x y
+_ `isBoundBy` SWeight   _ _   = Nothing
+x `isBoundBy` SGuard ys _ _ _ =
     if memberVarSet x (toVarSet1 ys) -- TODO: just check membership directly, rather than going through VarSet
     then Just ()
     else Nothing
-_ `isBoundBy` SStuff0   _   = Nothing
-x `isBoundBy` SStuff1 y _   = const () <$> varEq x y
+_ `isBoundBy` SStuff0   _ _   = Nothing
+x `isBoundBy` SStuff1 y _ _   = const () <$> varEq x y
 
 
 -- TODO: remove this CPP guard, provided we don't end up with a cyclic dependency...
@@ -594,7 +601,7 @@ parens False ds = ds
 ppStatement :: (ABT Term abt) => Int -> Statement abt p -> PP.Doc
 ppStatement p s =
     case s of
-    SBind x e ->
+    SBind x e _ ->
         PP.sep $ ppFun p "SBind"
             [ ppVariable x
             , PP.sep $ prettyPrec_ 11 e
@@ -711,20 +718,20 @@ freshenStatement
     -> m (Statement abt p, Assocs (abt '[]))
 freshenStatement s =
     case s of
-    SWeight _    -> return (s, mempty)
-    SBind x body -> do
+    SWeight _ _    -> return (s, mempty)
+    SBind x body i -> do
         x' <- freshenVar x
-        return (SBind x' body, singletonAssocs x (var x'))
-    SLet x body -> do
+        return (SBind x' body i, singletonAssocs x (var x'))
+    SLet  x body i -> do
         x' <- freshenVar x
-        return (SLet x' body, singletonAssocs x (var x'))
-    SGuard xs pat scrutinee -> do
+        return (SLet x' body i, singletonAssocs x (var x'))
+    SGuard xs pat scrutinee i -> do
         xs' <- freshenVars xs
-        return (SGuard xs' pat scrutinee, toAssocs1 xs (fmap11 var xs'))
-    SStuff0   _ -> return (s, mempty)
-    SStuff1 x f -> do
+        return (SGuard xs' pat scrutinee i, toAssocs1 xs (fmap11 var xs'))
+    SStuff0   _ _ -> return (s, mempty)
+    SStuff1 x f i -> do
         x' <- freshenVar x
-        return (SStuff1 x' f, singletonAssocs x (var x'))
+        return (SStuff1 x' f i, singletonAssocs x (var x'))
 
 
 -- TODO: define a new NameSupply monad in "Language.Hakaru.Syntax.Variable" for encapsulating these four fresh(en) functions?
