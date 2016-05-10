@@ -129,8 +129,8 @@ testMeasureReal = test
     , "t81" ~: testSStriv [] t81
     -- TODO, "kalman" ~: testStriv kalman
     --, "seismic" ~: testSStriv [] seismic
-    , "lebesgue1" ~: testSStriv [] (lebesgue >>= \x -> if_ ((real_ 42) < x) (dirac x) (reject sing))
-    , "lebesgue2" ~: testSStriv [] (lebesgue >>= \x -> if_ (x < (real_ 42)) (dirac x) (reject sing))
+    , "lebesgue1" ~: testSStriv [] (lebesgue >>= \x -> if_ ((nat2real $ nat_ 42) < x) (dirac x) (reject sing))
+    , "lebesgue2" ~: testSStriv [] (lebesgue >>= \x -> if_ (x < (nat2real $ nat_ 42)) (dirac x) (reject sing))
     , "lebesgue3" ~: testSStriv [lebesgue >>= \x -> if_ (x < (real_ 42) && (real_ 40) < x) (dirac x) (reject sing)] (withWeight (nat2prob . nat_ $ 2) $ uniformC (nat_ 40) (nat_ 42))
     , "testexponential" ~: testStriv testexponential
     , "testcauchy" ~: testStriv testCauchy
@@ -887,8 +887,8 @@ norm_noy =
 
 flipped_norm :: (ABT Term abt) => abt '[] ('HMeasure (HPair 'HReal 'HReal))
 flipped_norm =
-    normal_0_1 >>= \x ->
-    normal x one >>= \y ->
+    normalC zero one >>= \x ->
+    normal x (nat2prob one) >>= \y ->
     dirac (pair y x)
 
 -- pull out some of the intermediate expressions for independent study
