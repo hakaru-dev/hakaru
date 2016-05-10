@@ -227,7 +227,7 @@ t7n' =
 -- t8 below should read back to uses of "normal", not uses of "lebesgue"
 -- then "weight".
 t8 :: (ABT Term abt) => abt '[] ('HMeasure (HPair 'HReal 'HReal))
-t8 = normal zero (prob_ 10) >>= \x -> normal x (prob_ 20) >>= \y -> dirac (pair x y)
+t8 = normalC zero (nat_ 10) >>= \x -> normal x (nat2prob $ nat_ 20) >>= \y -> dirac (pair x y)
 
 -- Normal is conjugate to normal
 t8' :: (ABT Term abt)
