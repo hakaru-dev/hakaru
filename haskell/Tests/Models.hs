@@ -77,8 +77,8 @@ t4' =
 
 norm :: (ABT Term abt) => abt '[] ('HMeasure (HPair 'HReal 'HReal))
 norm =
-    normalC zero one >>= \x ->
-    normal x (nat2prob one) >>= \y ->
+    normal zero one >>= \x ->
+    normal x one >>= \y ->
     dirac (pair x y)
 
 unif2 :: (ABT Term abt) => abt '[] ('HMeasure (HPair 'HReal 'HReal))

@@ -384,6 +384,8 @@ maple2AST (InertArgs Equal es) =
 
 maple2AST (InertArgs Power [x, InertNum Pos y]) =
     App (App (Var "^")  (maple2AST x)) (maple2AST (InertNum Pos y))
+maple2AST (InertArgs Power [x, InertNum Neg (-1)]) =
+    App (Var "recip")  (maple2AST x)
 maple2AST (InertArgs Power [x, y]) =
     App (App (Var "**") (maple2AST x)) (maple2AST y)
 maple2AST (InertArgs Rational [InertNum Pos x, InertNum Pos y]) =

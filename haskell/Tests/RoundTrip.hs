@@ -63,14 +63,14 @@ testMeasureUnit = test [
 
 testMeasureProb :: Test
 testMeasureProb = test [
-    "t2"  ~: testSStriv [t2] (unsafeProb <$> uniformC zero one),
+    "t2"  ~: testSStriv [t2] (unsafeProb <$> uniform zero one),
     "t26" ~: testSStriv [t26] (dirac half),
     "t30" ~: testSStriv [] t30,
     "t33" ~: testSStriv [] t33,
-    "t34" ~: testSStriv [t34] (dirac (nat2prob (nat_ 3))),
+    "t34" ~: testSStriv [t34] (dirac (prob_ 3)),
     "t35" ~: testSStriv [t35] (lam $ \x -> if_ (x < (fromRational 4)) (dirac (fromRational 3)) (dirac (fromRational 5))),
     "t38" ~: testSStriv [] t38,
-    "t42" ~: testSStriv [t42] (dirac (nat2prob one)),
+    "t42" ~: testSStriv [t42] (dirac one),
     "t49" ~: testSStriv [] t49,
     "t61" ~: testSStriv [t61] t61',
     "t66" ~: testSStriv [] t66,
@@ -86,7 +86,7 @@ testMeasureReal = test
     , "t7"  ~: testSStriv [t7] t7'
     , "t7n" ~: testSStriv [t7n] t7n'
     , "t8'" ~: testSStriv [t8'] (lam $ \s1 -> lam $ \s2 -> normal zero (sqrt (s1 ^ (nat_ 2) + s2 ^ (nat_ 2))))
-    , "t9"  ~: testSStriv [t9] (unsafeSuperpose [((nat2prob . nat_ $ 2), uniformC (nat_ 3) (nat_ 7))])
+    , "t9"  ~: testSStriv [t9] (unsafeSuperpose [(prob_ 2, uniform (real_ 3) (real_ 7))])
     , "t13" ~: testSStriv [t13] t13'
     , "t14" ~: testSStriv [t14] t14'
     , "t21" ~: testStriv t21
@@ -102,40 +102,43 @@ testMeasureReal = test
     , "t51" ~: testStriv t51
     , "t68" ~: testStriv t68
     , "t68'" ~: testStriv t68'
-    , "t70a" ~: testSStriv [t70a] (uniformC one (nat_ 3))
-    , "t71a" ~: testSStriv [t71a] (uniformC one (nat_ 3))
-    , "t72a" ~: testSStriv [t72a] (withWeight half $ uniformC one (nat_ 2))
+    , "t70a" ~: testSStriv [t70a] (uniform one (real_ 3))
+    , "t71a" ~: testSStriv [t71a] (uniform one (real_ 3))
+    , "t72a" ~: testSStriv [t72a] (withWeight half $ uniform one (real_ 2))
     , "t73a" ~: testSStriv [t73a] (reject sing)
     , "t74a" ~: testSStriv [t74a] (reject sing)
     , "t70b" ~: testSStriv [t70b] (reject sing)
     , "t71b" ~: testSStriv [t71b] (reject sing)
-    , "t72b" ~: testSStriv [t72b] (withWeight half $ uniformC (nat_ 2) (nat_ 3))
-    , "t73b" ~: testSStriv [t73b] (uniformC one (nat_ 3))
-    , "t74b" ~: testSStriv [t74b] (uniformC one (nat_ 3))
-    , "t70c" ~: testSStriv [t70c] (uniformC one (nat_ 3))
-    , "t71c" ~: testSStriv [t71c] (uniformC one (nat_ 3))
-    , "t72c" ~: testSStriv [t72c] (withWeight half $ uniformC one (nat_ 2))
+    , "t72b" ~: testSStriv [t72b] (withWeight half $ uniform (real_ 2) (real_ 3))
+    , "t73b" ~: testSStriv [t73b] (uniform one (real_ 3))
+    , "t74b" ~: testSStriv [t74b] (uniform one (real_ 3))
+    , "t70c" ~: testSStriv [t70c] (uniform one (real_ 3))
+    , "t71c" ~: testSStriv [t71c] (uniform one (real_ 3))
+    , "t72c" ~: testSStriv [t72c] (withWeight half $ uniform one (real_ 2))
     , "t73c" ~: testSStriv [t73c] (reject sing)
     , "t74c" ~: testSStriv [t74c] (reject sing)
     , "t70d" ~: testSStriv [t70d] (reject sing)
     , "t71d" ~: testSStriv [t71d] (reject sing)
-    , "t72d" ~: testSStriv [t72d] (withWeight half $ uniformC (nat_ 2) (nat_ 3))
-    , "t73d" ~: testSStriv [t73d] (uniformC one (nat_ 3))
-    , "t74d" ~: testSStriv [t74d] (uniformC one (nat_ 3))
+    , "t72d" ~: testSStriv [t72d] (withWeight half $ uniform (real_ 2) (real_ 3))
+    , "t73d" ~: testSStriv [t73d] (uniform one (real_ 3))
+    , "t74d" ~: testSStriv [t74d] (uniform one (real_ 3))
     , "t76" ~: testStriv t76
     , "t78" ~: testSStriv [t78] t78'
-    , "t79" ~: testSStriv [t79] (dirac (nat2real one))
+    , "t79" ~: testSStriv [t79] (dirac one)
     , "t80" ~: testStriv t80
     , "t81" ~: testSStriv [] t81
     -- TODO, "kalman" ~: testStriv kalman
     --, "seismic" ~: testSStriv [] seismic
-    , "lebesgue1" ~: testSStriv [] (lebesgue >>= \x -> if_ ((nat2real $ nat_ 42) < x) (dirac x) (reject sing))
-    , "lebesgue2" ~: testSStriv [] (lebesgue >>= \x -> if_ (x < (nat2real $ nat_ 42)) (dirac x) (reject sing))
-    , "lebesgue3" ~: testSStriv [lebesgue >>= \x -> if_ (x < (real_ 42) && (real_ 40) < x) (dirac x) (reject sing)] (withWeight (nat2prob . nat_ $ 2) $ uniformC (nat_ 40) (nat_ 42))
+    , "lebesgue1" ~: testSStriv [] (lebesgue >>= \x -> if_ ((real_ 42) < x) (dirac x) (reject sing))
+    , "lebesgue2" ~: testSStriv [] (lebesgue >>= \x -> if_ (x < (real_ 42)) (dirac x) (reject sing))
+    , "lebesgue3" ~: testSStriv [lebesgue >>= \x -> if_ (x < (real_ 42) && (real_ 40) < x) (dirac x) (reject sing)]
+                                (withWeight (prob_ $ 2) $ uniform (real_ 40) (real_ 42))
     , "testexponential" ~: testStriv testexponential
     , "testcauchy" ~: testStriv testCauchy
     , "exceptionLebesgue" ~: testSStriv [lebesgue >>= \x -> dirac (if_ (x == (real_ 3)) one x)] lebesgue
-    , "exceptionUniform"  ~: testSStriv [uniform (real_ 2) (real_ 4) >>= \x -> dirac (if_ (x == (real_ 3)) one x)] (uniform (nat2real . nat_ $ 2) (nat2real . nat_ $ 4))
+    , "exceptionUniform"  ~: testSStriv [uniform (real_ 2) (real_ 4) >>= \x ->
+                                         dirac (if_ (x == (real_ 3)) one x)
+                                        ] (uniform (real_ 2) (real_ 4))
     -- TODO "two_coins" ~: testStriv two_coins -- needs support for lists
     ]
 
@@ -143,8 +146,21 @@ testMeasureInt :: Test
 testMeasureInt = test
     [ "t75"  ~: testStriv t75
     , "t75'" ~: testStriv t75'
-    , "exceptionCounting" ~: testSStriv [] (counting >>= \x -> if_ (x == (nat2int $ nat_ 3)) (dirac $ nat2int one) (dirac x)) -- Jacques wrote: "bug: [simp_pw_equal] implicitly assumes the ambient measure is Lebesgue"
-    , "exceptionSuperpose" ~: testSStriv [(unsafeSuperpose [(third, dirac (int_ 2)), (third, dirac (int_ 3)), (third, dirac (int_ 4))] `asTypeOf` counting) >>= \x -> dirac (if_ (x == (int_ 3)) one x)] (unsafeSuperpose [(third, dirac (nat2int . nat_ $ 2)), (third, dirac (nat2int one)), (third, dirac (nat2int . nat_ $ 4))])
+    -- Jacques wrote: "bug: [simp_pw_equal] implicitly assumes the ambient measure is Lebesgue"
+    , "exceptionCounting" ~: testSStriv [] (counting >>= \x ->
+                                            if_ (x == (int_ 3))
+                                                (dirac one)
+                                                (dirac x))
+    , "exceptionSuperpose" ~: testSStriv 
+                                [(unsafeSuperpose [ (third, dirac (int_ 2))
+                                                  , (third, dirac (int_ 3))
+                                                  , (third, dirac (int_ 4))
+                                                  ] `asTypeOf` counting) >>= \x -> 
+                                 dirac (if_ (x == (int_ 3)) one x)]
+                                (unsafeSuperpose [ (third, dirac (int_ 2))
+                                                 , (third, dirac one)
+                                                 , (third, dirac (int_ 4))
+                                                 ])
     ]
 
 testMeasurePair :: Test
@@ -153,18 +169,20 @@ testMeasurePair = test [
     "t8"            ~: testSStriv [] t8,
     "t23"           ~: testSStriv [t23] t23',
     "t48"           ~: testStriv t48,
-    "t52"           ~: testSStriv [t52] t52',
+    "t52"           ~: testSStriv [] t52,
     "dup"           ~: testSStriv [dup normal_0_1] (liftM2 pair
-                                                           (normalC zero one)
-                                                           (normalC zero one)),
+                                                           (normal zero one)
+                                                           (normal zero one)),
     "norm"          ~: testSStriv [] norm,
-    "norm_nox"      ~: testSStriv [norm_nox] (normal (nat2real zero)
-                                                     (nat2prob (nat_ 2) ** (fromProb . prob_ $ 0.5))),
-    "norm_noy"      ~: testSStriv [norm_noy] (normalC zero one),
+    "norm_nox"      ~: testSStriv [norm_nox] (normal zero
+                                                     (prob_ 2 ** (real_ 0.5))),
+    "norm_noy"      ~: testSStriv [norm_noy] (normal zero one),
     "flipped_norm"  ~: testSStriv [swap <$> norm] flipped_norm,
     "priorProp"     ~: testSStriv [lam (priorAsProposal norm)]
-                              (lam $ \x -> unsafeSuperpose [(half, normal_0_1         >>= \y -> dirac (pair y (snd x))),
-                                                      (half, normal zero (sqrt (prob_ 2)) >>= \y -> dirac (pair (fst x) y))]),
+                                  (lam $ \x -> unsafeSuperpose [(half, normal_0_1 >>= \y ->
+                                                                       dirac (pair y (snd x))),
+                                                                (half, normal zero (sqrt (prob_ 2)) >>= \y ->
+                                                                       dirac (pair (fst x) y))]),
     "mhPriorProp"   ~: testSStriv [testMHPriorProp] testPriorProp',
     "unif2"         ~: testStriv unif2,
     "easyHMM"       ~: testStriv easyHMM,
@@ -202,32 +220,32 @@ t2 :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
 t2 = beta_1_1
 
 t3 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-t3 = normal (nat2real zero) (nat2prob . nat_ $ 10)
+t3 = normal zero (prob_ 10)
 
 -- t5 is "the same" as t1.
 t5 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
 t5 = weight half >> dirac unit
 
 t6, t6' :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-t6 = dirac (nat2real (nat_ 5))
+t6 = dirac (real_ 5)
 t6' = unsafeSuperpose [(one, dirac (real_ 5))]
 
 t7,t7', t7n,t7n' :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
 t7   = uniform_0_1 >>= \x -> weight (unsafeProb (x+one)) >> dirac (x*x)
-t7'  = uniform_0_1 >>= \x -> unsafeSuperpose [(unsafeProb (x+one), dirac (x*x))]
+t7'  = uniform_0_1 >>= \x -> unsafeSuperpose [(unsafeProb (x+one), dirac (x^(nat_ 2)))]
 t7n  =
     uniform (negate one) zero >>= \x ->
     weight (unsafeProb (x+one)) >>
     dirac (x*x)
 t7n' =
-    uniform (negate one) zero >>= \x ->
-    unsafeSuperpose [(unsafeProb (x + one), dirac (x*x))]
+    uniform (real_ (-1)) zero >>= \x ->
+    unsafeSuperpose [(unsafeProb (x + one), dirac (x^(nat_ 2)))]
 
 -- For sampling efficiency (to keep importance weights at or close to 1),
 -- t8 below should read back to uses of "normal", not uses of "lebesgue"
 -- then "weight".
 t8 :: (ABT Term abt) => abt '[] ('HMeasure (HPair 'HReal 'HReal))
-t8 = normalC zero (nat_ 10) >>= \x -> normal x (nat2prob $ nat_ 20) >>= \y -> dirac (pair x y)
+t8 = normal zero (prob_ 10) >>= \x -> normal x (prob_ 20) >>= \y -> dirac (pair x y)
 
 -- Normal is conjugate to normal
 t8' :: (ABT Term abt)
@@ -251,13 +269,13 @@ t11 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
 t11 = weight one
 
 t12 :: (ABT Term abt) => abt '[] ('HMeasure HUnit)
-t12 = weight (nat2prob . nat_ $ 2)
+t12 = weight (prob_ 2)
 
 t13,t13' :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
 t13 = bern ((prob_ 3)/(prob_ 5)) >>= \b -> dirac (if_ b (real_ 37) (real_ 42))
 t13' = unsafeSuperpose
-    [ ((prob_ $ 3 % 5), dirac (nat2real . nat_ $ 37))
-    , ((prob_ $ 2 % 5), dirac (nat2real . nat_ $ 42))
+    [ (prob_ $ 3 % 5, dirac (real_ 37))
+    , (prob_ $ 2 % 5, dirac (real_ 42))
     ]
 
 t14,t14' :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
@@ -266,10 +284,10 @@ t14 =
     if_ b t13 (bern ((prob_ 2)/(prob_ 7)) >>= \b' ->
         if_ b' (uniform (real_ 10) (real_ 12)) (uniform (real_ 14) (real_ 16)))
 t14' = unsafeSuperpose 
-    [ ((prob_ $ 9 % 25), dirac (nat2real . nat_ $ 37))
-    , ((prob_ $ 6 % 25), dirac (nat2real . nat_ $ 42))
-    , ((prob_ $ 4 % 35), uniformC (nat_ 10) (nat_ 12))
-    , ((prob_ $ 2 % 7) , uniformC (nat_ 14) (nat_ 16))
+    [ (prob_ $ 9 % 25, dirac (real_ 37))
+    , (prob_ $ 6 % 25, dirac (real_ 42))
+    , (prob_ $ 4 % 35, uniform (real_ 10) (real_ 12))
+    , (prob_ $ 2 % 7 , uniform (real_ 14) (real_ 16))
     ]
 
 t20 :: (ABT Term abt) => abt '[] ('HProb ':-> 'HMeasure HUnit)
@@ -322,13 +340,13 @@ t26 :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
 t26 = dirac (total t1)
 
 t28 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-t28 = uniformC zero one
+t28 = uniform zero one
 
 t30 :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
-t30 = exp <$> uniformC zero one
+t30 = exp <$> uniform zero one
 
 t31 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-t31 = uniform (fromInt . int_ $ -1) (nat2real one)
+t31 = uniform (real_ (-1)) one
 
 t33 :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
 t33 = exp <$> t31
@@ -341,7 +359,7 @@ t35 = lam $ \x -> dirac (if_ ((x `asTypeOf` log one) < (real_ 4)) (prob_ 3) (pro
 
 t36, t36' :: (ABT Term abt) => abt '[] ('HProb ':-> 'HMeasure 'HProb)
 t36 = lam (dirac . sqrt)
-t36' = lam $ \x -> dirac (x ** (prob_ 0.5))
+t36' = lam $ \x -> dirac (x ** (real_ 0.5))
 
 t37 :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure 'HReal)
 t37 = lam (dirac . recip)
@@ -375,7 +393,7 @@ t44Mul' = lam $ \x -> lam $ \y -> weight (unsafeProb $ (x ^ (nat_ 2)) * (y ^ (na
 -- t47 as a sampler varies between 0 and 1 whereas the importance weight generated
 -- by t45 and t46 is always 1.  In general it's good to reduce weight variance.
 t45 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-t45 = normal (real_ 4) (prob_ 5) >>= \x -> if_ (x < (real_ 3)) (dirac (x*x)) (dirac (x-one))
+t45 = normal (real_ 4) (prob_ 5) >>= \x -> if_ (x < (real_ 3)) (dirac (x^(nat_ 2))) (dirac (x+(real_ (-1))))
 
 t46 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
 t46 = normal (real_ 4) (prob_ 5) >>= \x -> dirac (if_ (x < (real_ 3)) (x*x) (x-one))
@@ -399,21 +417,11 @@ t51 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
 t51 = t31 >>= \x -> normal x one
 
 -- Example 1 from Chang & Pollard's Conditioning as Disintegration
-t52, t52' :: (ABT Term abt) => abt '[] ('HMeasure (HPair 'HReal (HPair 'HReal 'HReal)))
+t52 :: (ABT Term abt) => abt '[] ('HMeasure (HPair 'HReal (HPair 'HReal 'HReal)))
 t52 =
     uniform_0_1 >>= \x ->
     uniform_0_1 >>= \y ->
-    dirac (pair (max x y) (pair x y))
-t52' =
-    uniform_0_1 >>= \x2 ->
-    unsafeSuperpose
-        [   ( unsafeProb (one + (x2 * negate one))
-            , uniform x2 one >>= \x4 -> dirac (pair x4 (pair x2 x4))
-            )
-        ,   ( unsafeProb x2
-            , uniform zero x2 >>= \x4 -> dirac (pair x2 (pair x2 x4))
-            )
-        ]
+    dirac (pair (max y x) (pair x y))
 
 t53, t53', t53'' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure HUnit)
 t53 =
@@ -803,7 +811,7 @@ t77 =
 
 t78, t78' :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
 t78 = uniform zero (real_ 2) >>= \x2 -> withWeight (unsafeProb x2) (dirac x2)
-t78' = (fromProb . (*(prob_ 2))) <$> (beta (prob_ 2) one)
+t78' = beta (prob_ 2) one >>= \x -> dirac ((fromProb x) * (real_ 2))
 
 -- what does this simplify to?
 t79 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
@@ -813,13 +821,13 @@ t80 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
 t80 = gamma_1_1 >>= \t -> normal zero t
 
 t81 :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
-t81 = uniform (nat2real zero) pi
+t81 = uniform zero pi
 
 t82 :: (ABT Term abt) => abt '[] ('HReal ':-> 'HProb)
 t82 = lam (densityUniform zero one)
 
 t82' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HProb)
-t82' = lam $ \x -> nat2prob one 
+t82' = lam $ \x -> one 
 
 -- Testing round-tripping of some other distributions
 testexponential :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
@@ -887,8 +895,8 @@ norm_noy =
 
 flipped_norm :: (ABT Term abt) => abt '[] ('HMeasure (HPair 'HReal 'HReal))
 flipped_norm =
-    normalC zero one >>= \x ->
-    normal x (nat2prob one) >>= \y ->
+    normal zero one >>= \x ->
+    normal x one >>= \y ->
     dirac (pair y x)
 
 -- pull out some of the intermediate expressions for independent study
