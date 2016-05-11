@@ -39,6 +39,7 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Syntax.AST.Eq where
 
+import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Syntax.IClasses
@@ -251,6 +252,8 @@ instance ( Show1 (Sing :: k ->  *)
     (==) = eq1
 
 
+type Varmap = Assocs (Variable :: Hakaru -> *)
+
 alphaEq :: forall abt a
          . (ABT Term abt)
         => abt '[] a
@@ -264,21 +267,18 @@ alphaEq e1 e2 = runReader (go (viewABT e1) (viewABT e2)) emptyAssocs
       go :: forall xs1 xs2 a
           . View (Term abt) xs1 a
          -> View (Term abt) xs2 a
-         -> Reader (Assocs (abt '[])) Bool
+         -> Reader Varmap Bool
       go (Var x) (Var y) = do
           s <- ask
           return $
               case lookupAssoc x s of
-                Nothing -> isJust (varEq x y) -- free variables
-                Just e  ->
-                    caseVarSyn e
-                        (\y' -> isJust (varEq y' y))
-                        (error "the impossible happened")
+                Nothing -> isJust (varEq x  y) -- free variables
+                Just y' -> isJust (varEq y' y)
 
       -- remember that @x@ renames to @y@ and recurse
       go (Bind x e1) (Bind y e2) =
          case jmEq1 (varType x) (varType y) of
-          Just Refl -> local (insertAssoc (Assoc x (var y))) (go e1 e2)
+          Just Refl -> local (insertAssoc (Assoc x y)) (go e1 e2)
           Nothing   -> return False
 
       -- perform the core comparison for syntactic equality
@@ -290,7 +290,7 @@ alphaEq e1 e2 = runReader (go (viewABT e1) (viewABT e2)) emptyAssocs
       termEq :: forall a
              .  Term abt a
              -> Term abt a
-             -> Reader (Assocs (abt '[])) Bool
+             -> Reader Varmap Bool
       termEq e1 e2 =
         case (e1, e2) of
         (o1 :$ es1, o2 :$ es2)             -> sConEq o1 es1 o2 es2
@@ -315,7 +315,7 @@ alphaEq e1 e2 = runReader (go (viewABT e1) (viewABT e2)) emptyAssocs
       sArgsEq :: forall args
                . SArgs abt args
               -> SArgs abt args
-              -> Reader (Assocs (abt '[])) Bool
+              -> Reader Varmap Bool
       sArgsEq End         End         = return True
       sArgsEq (e1 :* es1) (e2 :* es2) = do
         m  <- go (viewABT e1) (viewABT e2)
@@ -329,7 +329,7 @@ alphaEq e1 e2 = runReader (go (viewABT e1) (viewABT e2)) emptyAssocs
           -> SArgs abt args1
           -> SCon args2 a
           -> SArgs abt args2
-          -> Reader (Assocs (abt '[])) Bool
+          -> Reader Varmap Bool
       sConEq Lam_   e1 Lam_   e2 = sArgsEq e1 e2
 
       sConEq App_   (e1  :* e2  :* End)
@@ -405,7 +405,7 @@ alphaEq e1 e2 = runReader (go (viewABT e1) (viewABT e2)) emptyAssocs
               typs2 ~ UnLCs args2, args2 ~ LCs typs2)
           => PrimOp typs1 a -> SArgs abt args1
           -> PrimOp typs2 a -> SArgs abt args2
-          -> Reader (Assocs (abt '[])) Bool
+          -> Reader Varmap Bool
       primOpEq p1 e1 p2 e2 =
           case jmEq2 p1 p2 of
              Just (Refl, Refl) -> sArgsEq e1 e2
@@ -417,7 +417,7 @@ alphaEq e1 e2 = runReader (go (viewABT e1) (viewABT e2)) emptyAssocs
               typs2 ~ UnLCs args2, args2 ~ LCs typs2)
           => ArrayOp typs1 a -> SArgs abt args1
           -> ArrayOp typs2 a -> SArgs abt args2
-          -> Reader (Assocs (abt '[])) Bool
+          -> Reader Varmap Bool
       arrayOpEq p1 e1 p2 e2 =
           case jmEq2 p1 p2 of
              Just (Refl, Refl) -> sArgsEq e1 e2
@@ -429,7 +429,7 @@ alphaEq e1 e2 = runReader (go (viewABT e1) (viewABT e2)) emptyAssocs
               typs2 ~ UnLCs args2, args2 ~ LCs typs2)
           => MeasureOp typs1 a -> SArgs abt args1
           -> MeasureOp typs2 a -> SArgs abt args2
-          -> Reader (Assocs (abt '[])) Bool
+          -> Reader Varmap Bool
       measureOpEq m1 e1 m2 e2 =
           case jmEq2 m1 m2 of
             Just (Refl,Refl) -> sArgsEq e1 e2
@@ -438,14 +438,14 @@ alphaEq e1 e2 = runReader (go (viewABT e1) (viewABT e2)) emptyAssocs
       datumEq :: forall a
               .  Datum (abt '[]) a
               -> Datum (abt '[]) a
-              -> Reader (Assocs (abt '[])) Bool
+              -> Reader Varmap Bool
       datumEq (Datum _ _ d1) (Datum _ _ d2) = datumCodeEq d1 d2
 
       datumCodeEq
           :: forall xss a
           .  DatumCode xss (abt '[]) a
           -> DatumCode xss (abt '[]) a
-          -> Reader (Assocs (abt '[])) Bool
+          -> Reader Varmap Bool
       datumCodeEq (Inr c) (Inr d) = datumCodeEq c d
       datumCodeEq (Inl c) (Inl d) = datumStructEq c d
       datumCodeEq _       _       = return False
@@ -454,7 +454,7 @@ alphaEq e1 e2 = runReader (go (viewABT e1) (viewABT e2)) emptyAssocs
           :: forall xs a
           .  DatumStruct xs (abt '[]) a
           -> DatumStruct xs (abt '[]) a
-          -> Reader (Assocs (abt '[])) Bool
+          -> Reader Varmap Bool
       datumStructEq (Et c1 c2) (Et d1 d2) = do
           m  <- datumFunEq c1 d1
           ms <- datumStructEq c2 d2
@@ -466,7 +466,7 @@ alphaEq e1 e2 = runReader (go (viewABT e1) (viewABT e2)) emptyAssocs
           :: forall x a
           .  DatumFun x (abt '[]) a
           -> DatumFun x (abt '[]) a
-          -> Reader (Assocs (abt '[])) Bool
+          -> Reader Varmap Bool
       datumFunEq (Konst e) (Konst f) = go (viewABT e) (viewABT f) 
       datumFunEq (Ident e) (Ident f) = go (viewABT e) (viewABT f) 
       datumFunEq _          _        = return False
@@ -475,7 +475,7 @@ alphaEq e1 e2 = runReader (go (viewABT e1) (viewABT e2)) emptyAssocs
           :: forall a b
           .  (abt '[] a, abt '[] b)
           -> (abt '[] a, abt '[] b)
-          -> Reader (Assocs (abt '[])) Bool
+          -> Reader Varmap Bool
       pairEq (x1, y1) (x2, y2) = do
              m1 <- go (viewABT x1) (viewABT x2)
              m2 <- go (viewABT y1) (viewABT y2)
@@ -485,5 +485,5 @@ alphaEq e1 e2 = runReader (go (viewABT e1) (viewABT e2)) emptyAssocs
           :: forall a b
           .  Branch a abt b
           -> Branch a abt b
-          -> Reader (Assocs (abt '[])) Bool
+          -> Reader Varmap Bool
       sBranch (Branch _ e1) (Branch _ e2) = go (viewABT e1) (viewABT e2)
