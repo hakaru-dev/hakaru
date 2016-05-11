@@ -41,6 +41,8 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.TypeCheck
 import Language.Hakaru.Syntax.TypeOf
 
+import Language.Hakaru.Evaluation.ConstantPropagation
+
 import Data.Typeable (Typeable)
 
 import Data.Text (pack)
@@ -71,7 +73,8 @@ simplify e = do
     let typ = typeOf e          
     hakaru <- maple ("use Hakaru, NewSLO in timelimit(15, RoundTrip("
       ++ slo ++ ", " ++ Maple.mapleType typ ")) end use;")
-    either (throw . MapleException slo) return $ do
+    either (throw  . MapleException slo)
+           (return . constantPropagation) $ do
         past <- leftShow $ parseMaple (pack hakaru)
         let m = checkType typ
                  (SR.resolveAST' (getNames e) (maple2AST past))
