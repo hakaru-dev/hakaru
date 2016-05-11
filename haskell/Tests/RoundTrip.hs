@@ -623,7 +623,7 @@ t60'' =
 
 t61, t61' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure 'HProb)
 t61 = lam $ \x -> if_ (x < zero) (dirac zero) $ dirac $ unsafeProb $ recip x
-t61'= lam $ \x -> if_ (x < zero) (dirac zero) $ dirac $ recip $ unsafeProb x
+t61'= lam $ \x -> if_ (x < zero) (dirac zero) $ dirac $ unsafeProb $ recip x
 
 ---- "Special case" of t56
 t62, t62' :: (ABT Term abt) => abt '[] ('HReal ':-> 'HReal ':-> 'HMeasure HUnit)
@@ -691,10 +691,8 @@ t64' =lam $ \x0 ->
            (dirac zero)) >>= \x1 ->
       weight (unsafeProb x1) 
 t64''=lam $ \x0 ->
-      if_ (zero < x0) 
-          (if_ (x0 < one)
-               (dirac unit)
-               (reject sing))
+      if_ (zero < x0 && x0 < one) 
+          (dirac unit)
           (reject sing)
 
 -- Density calculation for (Add StdRandom (Exp (Neg StdRandom))).
@@ -806,7 +804,7 @@ t77 :: (ABT Term abt) => abt '[] ('HReal ':-> 'HMeasure HUnit)
 t77 =
     lam $ \x ->
     if_ (x < zero)
-        (weight (exp (negate x)))
+        (weight (recip (exp x)))
         (weight (exp x))
 
 t78, t78' :: (ABT Term abt) => abt '[] ('HMeasure 'HReal)
