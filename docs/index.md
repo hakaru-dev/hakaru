@@ -57,6 +57,12 @@ draw from a probability distribution.
 
 Hakaru supports a restricted `if` expression
 
+### [Types and Coercions](/lang/coercions)
+
+Hakaru is a simply-typed language. This section
+describes the types available and functions for
+moving between them.
+
 ### [Functions](/lang/functions)
 
 Defining and using functions
