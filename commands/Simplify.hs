@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, DataKinds, GADTs #-}
+{-# LANGUAGE CPP, OverloadedStrings, DataKinds, GADTs #-}
 
 module Main where
 
@@ -11,30 +11,57 @@ import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.TypeCheck
 
 import           Language.Hakaru.Simplify
-  
+
+
+#if __GLASGOW_HASKELL__ < 710
+import           Control.Applicative   (Applicative(..), (<$>))
+#endif
+
 import           Data.Text
 import qualified Data.Text.IO as IO
 
-import           System.Environment
+import qualified Options.Applicative as O
+
+data Options = Options
+  { program :: String
+  , debug   :: Bool }
+
+options :: O.Parser Options
+options = Options
+  <$> O.strArgument
+      ( O.metavar "PROGRAM" O.<> 
+        O.help "Program to be simplified" )
+  <*> O.switch
+      ( O.long "debug" O.<>
+        O.help "Prints output that is sent to Maple" )
+
+parseOpts :: IO Options
+parseOpts = O.execParser $ O.info (O.helper <*> options)
+      (O.fullDesc O.<> O.progDesc "Simplify a hakaru program")
+
+readFromFile :: String -> IO Text
+readFromFile "-" = IO.getContents
+readFromFile x   = IO.readFile x
 
 main :: IO ()
 main = do
-  args <- getArgs
+  args <- parseOpts
   case args of
-      [prog] -> IO.readFile prog >>= runSimplify
-      []     -> IO.getContents   >>= runSimplify
-      _      -> IO.putStrLn "Usage: simplify <file>"
+   Options file debug -> do
+    prog <- readFromFile file
+    runSimplify prog debug
 
 inferType' :: U.AST -> TypeCheckMonad (TypedAST (TrivialABT T.Term))
 inferType' = inferType
 
-runSimplify :: Text -> IO ()
-runSimplify prog =
+runSimplify :: Text -> Bool -> IO ()
+runSimplify prog debug =
     case parseHakaru prog of
     Left  err  -> print err
     Right past ->
         let m = inferType' (resolveAST past) in
-        case runTCM m LaxMode of
-        Left err               -> putStrLn err
-        Right (TypedAST _ ast) -> simplify    ast >>= print . pretty
+        case (runTCM m LaxMode, debug) of
+        (Left err, _)                   -> putStrLn err
+        (Right (TypedAST _ ast), True)  -> simplifyDebug ast >>= print . pretty
+        (Right (TypedAST _ ast), False) -> simplify      ast >>= print . pretty
 
