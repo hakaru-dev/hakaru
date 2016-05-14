@@ -31,8 +31,8 @@ $$ f(\lambda) = \frac{\lambda^x e^{-\lambda}}{x!} $$
 Under a frequentist regime we perform maximum likelihood, where we find
 the best parameter by finding the $\lambda$ which maximizes $f$.
 
-Under a Bayesian regime, we place don't estimate a single best value
-for the parameter. Instead we place a prior distribution on the paramters and
+Under a Bayesian regime, we don't estimate a single best value for the
+parameter. Instead we place a prior distribution on the parameters and
 estimate that posterior distribution conditioned on our data.
 
 In Hakaru, it is possible to use either regime for solving your
@@ -106,7 +106,7 @@ the difference of strengths, and we want to not just whether Alice
 will win, but by how much.
 
 As we pose more complex questions, posing our models as rejection
-samplers because increasing inefficient.
+samplers becomes increasing inefficient.
 
 <div class="panel panel-warning">
     <div class="panel-heading">
