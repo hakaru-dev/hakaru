@@ -23,17 +23,17 @@ import qualified Data.Text.IO as IO
 import qualified Options.Applicative as O
 
 data Options = Options
-  { program :: String
-  , debug   :: Bool }
+  { debug   :: Bool
+  , program :: String }
 
 options :: O.Parser Options
 options = Options
-  <$> O.strArgument
-      ( O.metavar "PROGRAM" O.<> 
-        O.help "Program to be simplified" )
-  <*> O.switch
+  <$> O.switch
       ( O.long "debug" O.<>
         O.help "Prints output that is sent to Maple" )
+  <*> O.strArgument
+      ( O.metavar "PROGRAM" O.<> 
+        O.help "Program to be simplified" )
 
 parseOpts :: IO Options
 parseOpts = O.execParser $ O.info (O.helper <*> options)
@@ -47,7 +47,7 @@ main :: IO ()
 main = do
   args <- parseOpts
   case args of
-   Options file debug -> do
+   Options debug file -> do
     prog <- readFromFile file
     runSimplify prog debug
 
