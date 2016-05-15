@@ -33,6 +33,7 @@ import qualified Data.Text             as Text
 import           Data.Functor          ((<$>))
 import qualified Data.Foldable         as F
 import qualified Data.List.NonEmpty    as NE
+import           Control.Monad
 
 import Language.Hakaru.Syntax.IClasses (Some2(..), List1(..))
 import Language.Hakaru.Types.DataKind
@@ -120,10 +121,10 @@ expectCase :: (ABT Term abt)
            -> [Branch a abt ('HMeasure b)]
            -> Expect abt (abt '[] b)
 expectCase e1 bs = do
-    bs' <- mapM (\(Branch p e) -> do
+    bs' <- forM bs $ \(Branch p e) -> do
                 let (vars, e') = caseBinds e
                 e'' <- expectTerm e'
-                return . Branch p $ binds_ vars e'') bs
+                return . Branch p $ binds_ vars e''
     return . syn $ Case_ e1 bs'
 
 ----------------------------------------------------------------
