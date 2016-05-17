@@ -28,11 +28,12 @@ module Language.Hakaru.Expect
     , expect
     ) where
 
-import           Prelude               (($), (.), error, return, reverse)
+import           Prelude               (($), (.), error, return, reverse, mapM)
 import qualified Data.Text             as Text
 import           Data.Functor          ((<$>))
 import qualified Data.Foldable         as F
 import qualified Data.List.NonEmpty    as NE
+import           Control.Monad
 
 import Language.Hakaru.Syntax.IClasses (Some2(..), List1(..))
 import Language.Hakaru.Types.DataKind
@@ -40,6 +41,7 @@ import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST               hiding (Expect)
+import Language.Hakaru.Syntax.Datum
 import qualified Language.Hakaru.Syntax.AST     as AST
 import Language.Hakaru.Syntax.TypeOf            (typeOf)
 import qualified Language.Hakaru.Syntax.Prelude as P
@@ -113,6 +115,17 @@ let_ e f =
         (\x -> caseBind f $ \y f' -> subst y (var x) f')
         (\_ -> syn (Let_ :$ e :* f :* End))
             
+-- TODO: Does not emit all the bindings it needs to
+expectCase :: (ABT Term abt)
+           => abt '[] a
+           -> [Branch a abt ('HMeasure b)]
+           -> Expect abt (abt '[] b)
+expectCase e1 bs = do
+    bs' <- forM bs $ \(Branch p e) -> do
+                let (vars, e') = caseBinds e
+                e'' <- expectTerm e'
+                return . Branch p $ binds_ vars e''
+    return . syn $ Case_ e1 bs'
 
 ----------------------------------------------------------------
 -- BUG: really rather than using 'pureEvaluate' itself, we should
@@ -158,7 +171,10 @@ expectTerm e = do
     w <- pureEvaluate e
     case w of
         -- TODO: if the neutral term is a 'Case_' then we want to go under it
-        Neutral e'              -> residualizeExpect e'
+        Neutral e'              -> caseVarSyn e' (residualizeExpect . var) $ \t ->
+                                     case t of
+                                     Case_ e1 bs -> expectCase e1 bs
+                                     _           -> residualizeExpect e'
         Head_ (WLiteral    _)   -> error "expect: the impossible happened"
         Head_ (WCoerceTo   _ _) -> error "expect: the impossible happened"
         Head_ (WUnsafeFrom _ _) -> error "expect: the impossible happened"

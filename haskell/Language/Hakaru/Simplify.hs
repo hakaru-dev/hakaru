@@ -25,6 +25,7 @@
 ----------------------------------------------------------------
 module Language.Hakaru.Simplify
     ( simplify
+    , simplifyDebug
     , MapleException(MapleException)
     ) where
 
@@ -47,6 +48,7 @@ import Data.Typeable (Typeable)
 
 import Data.Text (pack)
 import System.MapleSSH (maple)
+import System.IO
 
 ----------------------------------------------------------------
 
@@ -87,6 +89,36 @@ simplify e = do
 
     getNames :: abt '[] a -> [Name]
     getNames = SR.fromVarSet . freeVars
+
+simplifyDebug
+    :: forall abt a
+    .  (ABT Term abt) 
+    => abt '[] a
+    -> IO (abt '[] a)
+simplifyDebug e = do
+    let slo = Maple.pretty e
+    hPutStrLn stderr ("Sent to Maple: " ++ slo)
+    let typ = typeOf e          
+    hakaru <- maple ("use Hakaru, NewSLO in timelimit(15, RoundTrip("
+      ++ slo ++ ", " ++ Maple.mapleType typ ")) end use;")
+    ret  <- maple ("FromInert(" ++ hakaru ++ ")")
+    hPutStr stderr ("Returning from Maple: " ++ ret) 
+
+    either (throw  . MapleException slo)
+           (return . constantPropagation) $ do
+        past <- leftShow $ parseMaple (pack hakaru)
+        let m = checkType typ
+                 (SR.resolveAST' (getNames e) (maple2AST past))
+        leftShow $ unTCM m (freeVars e) UnsafeMode
+            
+    where
+    leftShow :: forall b c. Show b => Either b c -> Either String c
+    leftShow (Left err) = Left (show err)
+    leftShow (Right x)  = Right x
+
+    getNames :: abt '[] a -> [Name]
+    getNames = SR.fromVarSet . freeVars
+
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

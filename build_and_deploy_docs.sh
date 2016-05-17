@@ -3,17 +3,17 @@ set -e
 
 mkdocs build --clean
 
-REPO="git@github.com:hakaru-dev/hakaru.git"
+REPO="git@github.com:hakaru-dev/hakaru-dev.github.io.git"
 
 git clone $REPO outbound
 pushd outbound
-git checkout gh-pages || git checkout --orphan gh-pages
+git checkout master || git checkout --orphan master
 git rm -rf .
 cp -R ../site/* .
 rm -rf *.pyc __pycache__
 git add .
 git commit -m "Deploy to GitHub Pages"
-git push $REPO gh-pages
+git push $REPO master
 
 popd
 rm -rf outbound site

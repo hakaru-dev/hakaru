@@ -97,7 +97,7 @@ opN fn xs = showString fn . parens (commaSep xs)
 {-# INLINE opN #-}
 
 meq :: (ABT Term abt) => abt '[] a -> abt '[] b -> ShowS
-meq x y = arg x . showChar '=' . arg y
+meq x y = arg x . showChar '=' . parens (arg y)
 {-# INLINE meq #-}
 
 parens :: ShowS -> ShowS
