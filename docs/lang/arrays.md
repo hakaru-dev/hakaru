@@ -6,8 +6,8 @@ is distinct from the other data types.
 ## Array
 
 To construct arrays, we provide an index variable, size argument, and
-an expression body. This body is evaluated for i set to each index of
-the array. For example, to construct the array `[0,1,2,3]`:
+an expression body. This body is evaluated for each index of the
+array. For example, to construct the array `[0,1,2,3]`:
 
 ````nohighlight
 array i of 4: i
