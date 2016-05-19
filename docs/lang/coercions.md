@@ -16,7 +16,6 @@ ones which can be built out of simpler types.
 * prob2real
 * int2real
 * nat2int
-
 * real2prob
 * real2int
 * int2nat
