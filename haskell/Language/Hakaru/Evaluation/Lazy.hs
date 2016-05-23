@@ -716,6 +716,9 @@ evaluatePrimOp evaluate_ = go
         case theFractional of
         HFractional_Prob -> rr1 recip  P.recip  e1
         HFractional_Real -> rr1 recip  P.recip  e1
+    go (NatRoot theRadical) (e1 :* e2 :* End) =
+        case theRadical of
+        HRadical_Prob -> neu2 (flip P.thRootOf) e1 e2
     {-
     go (NatRoot theRadical) (e1 :* e2 :* End) =
         case theRadical of
