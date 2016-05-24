@@ -32,10 +32,11 @@ import           Prelude               (($), (.), error, return, reverse, mapM)
 import qualified Data.Text             as Text
 import           Data.Functor          ((<$>))
 import qualified Data.Foldable         as F
+import qualified Data.Traversable      as T
 import qualified Data.List.NonEmpty    as NE
 import           Control.Monad
 
-import Language.Hakaru.Syntax.IClasses (Some2(..), List1(..))
+import Language.Hakaru.Syntax.IClasses (Some2(..), List1(..), Functor11(..))
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
@@ -47,7 +48,6 @@ import Language.Hakaru.Syntax.TypeOf            (typeOf)
 import qualified Language.Hakaru.Syntax.Prelude as P
 import Language.Hakaru.Evaluation.Types
 import Language.Hakaru.Evaluation.ExpectMonad
-    (ListContext(..), Expect(..), runExpect, pureEvaluate)
 
 #ifdef __TRACE_DISINTEGRATE__
 import Prelude                          (show, (++))
@@ -114,18 +114,62 @@ let_ e f =
     caseVarSyn e
         (\x -> caseBind f $ \y f' -> subst y (var x) f')
         (\_ -> syn (Let_ :$ e :* f :* End))
-            
--- TODO: Does not emit all the bindings it needs to
-expectCase :: (ABT Term abt)
-           => abt '[] a
-           -> [Branch a abt ('HMeasure b)]
-           -> Expect abt (abt '[] b)
-expectCase e1 bs = do
-    bs' <- forM bs $ \(Branch p e) -> do
-                let (vars, e') = caseBinds e
-                e'' <- expectTerm e'
-                return . Branch p $ binds_ vars e''
-    return . syn $ Case_ e1 bs'
+
+
+data GBranch (a :: Hakaru) (r :: *)
+    = forall xs. GBranch
+        !(Pattern xs a)
+        !(List1 Variable xs)
+        r
+
+fromGBranch
+    :: (ABT Term abt)
+    => GBranch a (abt '[] b)
+    -> Branch a abt b
+fromGBranch (GBranch pat vars e) =
+    Branch pat (binds_ vars e)
+
+{-
+toGBranch
+    :: (ABT Term abt)
+    => Branch a abt b
+    -> GBranch a (abt '[] b)
+toGBranch (Branch pat body) =
+    uncurry (GBranch pat) (caseBinds body)
+-}
+
+instance Functor (GBranch a) where
+    fmap f (GBranch pat vars x) = GBranch pat vars (f x)
+
+instance F.Foldable (GBranch a) where
+    foldMap f (GBranch _ _ x) = f x
+
+instance T.Traversable (GBranch a) where
+    traverse f (GBranch pat vars x) = GBranch pat vars <$> f x
+
+    
+expectCase
+    :: (ABT Term abt)
+    => abt '[] a
+    -> [Branch a abt ('HMeasure b)]
+    -> Expect abt (abt '[] b)
+expectCase scrutinee bs = do
+    -- Get the current context and then clear it.
+    ctx <- Expect $ \c h -> c h (h {statements = []})
+    -- Emit the old "current" context.
+    Expect $ \c h -> residualizeExpectListContext (c () h) ctx
+    -- @emitCaseWith@
+    gms <- T.for bs $ \(Branch pat body) ->
+        let (vars, body') = caseBinds body
+        in  (\vars' ->
+                let rho = toAssocs1 vars (fmap11 var vars')
+                in  GBranch pat vars' (expectTerm $ substs rho body')
+            ) <$> freshenVars vars
+    Expect $ \c h ->
+        syn $ Case_ scrutinee
+            [ fromGBranch $ fmap (\m -> unExpect m c h) gm
+            | gm <- gms
+            ]
 
 ----------------------------------------------------------------
 -- BUG: really rather than using 'pureEvaluate' itself, we should
@@ -171,10 +215,11 @@ expectTerm e = do
     w <- pureEvaluate e
     case w of
         -- TODO: if the neutral term is a 'Case_' then we want to go under it
-        Neutral e'              -> caseVarSyn e' (residualizeExpect . var) $ \t ->
-                                     case t of
-                                     Case_ e1 bs -> expectCase e1 bs
-                                     _           -> residualizeExpect e'
+        Neutral e'              ->
+            caseVarSyn e' (residualizeExpect . var) $ \t ->
+                case t of
+                Case_ e1 bs -> expectCase e1 bs
+                _           -> residualizeExpect e'
         Head_ (WLiteral    _)   -> error "expect: the impossible happened"
         Head_ (WCoerceTo   _ _) -> error "expect: the impossible happened"
         Head_ (WUnsafeFrom _ _) -> error "expect: the impossible happened"

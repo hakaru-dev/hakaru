@@ -289,11 +289,12 @@ update perform evaluate_ = \x ->
                 w <- caseLazy e return evaluate_
                 unsafePush (SLet x (Whnf_ w) i)
                 return w
+        -- These two don't bind any variables, so they definitely can't match.
         SWeight   _ _ -> Nothing
         SStuff0   _ _ -> Nothing
-        SStuff1 _ _ _ -> Nothing
-        SGuard ys pat scrutinee i ->
-            error "TODO: update{SGuard}"
+        -- These two do bind variables, but there's no expression we can return for them because the variables are untouchable\/abstract.
+        SStuff1 _ _ _ -> Just . return . Neutral $ var x
+        SGuard ys pat scrutinee i -> Just . return . Neutral $ var x
 
 
 ----------------------------------------------------------------
