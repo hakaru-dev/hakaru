@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.27
+--                                                    2016.05.24
 -- |
 -- Module      :  Language.Hakaru.Syntax.Datum
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -65,6 +65,8 @@ module Language.Hakaru.Syntax.Datum
     , pLeft, pRight
     , pNil, pCons
     , pNothing, pJust
+    -- ** Generalized branches
+    , GBranch(..)
     ) where
 
 import qualified Data.Text     as Text
@@ -73,8 +75,11 @@ import           Data.Text     (Text)
 import Data.Monoid             (Monoid(..))
 import Control.Applicative
 #endif
+import qualified Data.Foldable    as F
+import qualified Data.Traversable as T
 
 import Language.Hakaru.Syntax.IClasses
+import Language.Hakaru.Syntax.Variable (Variable(..))
 -- TODO: make things polykinded so we can make our ABT implementation
 -- independent of Hakaru's type system.
 import Language.Hakaru.Types.DataKind
@@ -769,6 +774,24 @@ instance Foldable21 (Branch a) where
 
 instance Traversable21 (Branch a) where
     traverse21 f (Branch pat e) = Branch pat <$> f e
+
+----------------------------------------------------------------
+-- | A generalization of the 'Branch' type to allow a \"body\" of
+-- any Haskell type.
+data GBranch (a :: Hakaru) (r :: *)
+    = forall xs. GBranch
+        !(Pattern xs a)
+        !(List1 Variable xs)
+        r
+
+instance Functor (GBranch a) where
+    fmap f (GBranch pat vars x) = GBranch pat vars (f x)
+
+instance F.Foldable (GBranch a) where
+    foldMap f (GBranch _ _ x) = f x
+
+instance T.Traversable (GBranch a) where
+    traverse f (GBranch pat vars x) = GBranch pat vars <$> f x
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

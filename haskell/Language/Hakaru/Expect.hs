@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.28
+--                                                    2016.05.24
 -- |
 -- Module      :  Language.Hakaru.Expect
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -28,7 +28,7 @@ module Language.Hakaru.Expect
     , expect
     ) where
 
-import           Prelude               (($), (.), error, return, reverse, mapM)
+import           Prelude               (($), (.), error, reverse)
 import qualified Data.Text             as Text
 import           Data.Functor          ((<$>))
 import qualified Data.Foldable         as F
@@ -41,8 +41,9 @@ import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Syntax.ABT
-import Language.Hakaru.Syntax.AST               hiding (Expect)
 import Language.Hakaru.Syntax.Datum
+import Language.Hakaru.Syntax.DatumABT
+import Language.Hakaru.Syntax.AST               hiding (Expect)
 import qualified Language.Hakaru.Syntax.AST     as AST
 import Language.Hakaru.Syntax.TypeOf            (typeOf)
 import qualified Language.Hakaru.Syntax.Prelude as P
@@ -114,38 +115,6 @@ let_ e f =
     caseVarSyn e
         (\x -> caseBind f $ \y f' -> subst y (var x) f')
         (\_ -> syn (Let_ :$ e :* f :* End))
-
-
-data GBranch (a :: Hakaru) (r :: *)
-    = forall xs. GBranch
-        !(Pattern xs a)
-        !(List1 Variable xs)
-        r
-
-fromGBranch
-    :: (ABT Term abt)
-    => GBranch a (abt '[] b)
-    -> Branch a abt b
-fromGBranch (GBranch pat vars e) =
-    Branch pat (binds_ vars e)
-
-{-
-toGBranch
-    :: (ABT Term abt)
-    => Branch a abt b
-    -> GBranch a (abt '[] b)
-toGBranch (Branch pat body) =
-    uncurry (GBranch pat) (caseBinds body)
--}
-
-instance Functor (GBranch a) where
-    fmap f (GBranch pat vars x) = GBranch pat vars (f x)
-
-instance F.Foldable (GBranch a) where
-    foldMap f (GBranch _ _ x) = f x
-
-instance T.Traversable (GBranch a) where
-    traverse f (GBranch pat vars x) = GBranch pat vars <$> f x
 
     
 expectCase

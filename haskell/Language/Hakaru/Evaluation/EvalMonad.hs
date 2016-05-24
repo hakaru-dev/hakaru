@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.28
+--                                                    2016.05.24
 -- |
 -- Module      :  Language.Hakaru.Evaluation.EvalMonad
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -44,6 +44,8 @@ import qualified Data.Foldable        as F
 import Language.Hakaru.Syntax.IClasses (Some2(..))
 import Language.Hakaru.Syntax.Variable (memberVarSet)
 import Language.Hakaru.Syntax.ABT      (ABT(..), subst, maxNextFree)
+import Language.Hakaru.Syntax.Datum    (GBranch(..))
+import Language.Hakaru.Syntax.DatumABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Evaluation.Types
 import Language.Hakaru.Evaluation.Lazy (TermEvaluator, evaluate, defaultCaseEvaluator)
@@ -315,40 +317,6 @@ emitFork_
 emitFork_ f ms =
     Eval $ \c h -> f $ fmap (\m -> unEval m c h) ms
 
-
--- TODO: move this to Datum.hs; also, use it elsewhere as needed to clean up code.
--- | A generalization of the 'Branch' type to allow a \"body\" of
--- any Haskell type.
-data GBranch (a :: Hakaru) (r :: *)
-    = forall xs. GBranch
-        !(Pattern xs a)
-        !(List1 Variable xs)
-        r
-
-fromGBranch
-    :: (ABT Term abt)
-    => GBranch a (abt '[] b)
-    -> Branch a abt b
-fromGBranch (GBranch pat vars e) =
-    Branch pat (binds_ vars e)
-
-{-
-toGBranch
-    :: (ABT Term abt)
-    => Branch a abt b
-    -> GBranch a (abt '[] b)
-toGBranch (Branch pat body) =
-    uncurry (GBranch pat) (caseBinds body)
--}
-
-instance Functor (GBranch a) where
-    fmap f (GBranch pat vars x) = GBranch pat vars (f x)
-
-instance F.Foldable (GBranch a) where
-    foldMap f (GBranch _ _ x) = f x
-
-instance T.Traversable (GBranch a) where
-    traverse f (GBranch pat vars x) = GBranch pat vars <$> f x
 
 emitCaseWith
     :: (ABT Term abt)
