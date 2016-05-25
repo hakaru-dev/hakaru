@@ -54,6 +54,7 @@ primPat =
         U.PDatum "nothing" . U.PInl $ U.PDone)
     ]
 
+pairPat :: U.Pattern -> U.Pattern -> U.Pattern
 pairPat a b =
     U.PDatum "pair" .  U.PInl $
     U.PKonst a `U.PEt` U.PKonst b `U.PEt` U.PDone
@@ -302,6 +303,9 @@ symbolResolution symbols ast =
             <$> symbolResolution symbols e1
             <*> symbolResolution symbols e2
             <*> symbolResolution (insertSymbol name' symbols) e3     
+    U.Observe e1 e2        -> U.Observe
+        <$> symbolResolution symbols e1
+        <*> symbolResolution symbols e2
 
     U.Msum es -> U.Msum <$> mapM (symbolResolution symbols) es
 
@@ -378,6 +382,7 @@ normAST ast =
     U.Plate  name e1 e2       -> U.Plate  name (normAST e1) (normAST e2)
     U.Chain  name e1 e2 e3    -> U.Chain  name (normAST e1) (normAST e2) (normAST e3)
     U.Expect name e1 e2       -> U.Expect name (normAST e1) (normAST e2)
+    U.Observe     e1 e2       -> U.Observe (normAST e1) (normAST e2)
     U.Msum es                 -> U.Msum (map normAST es)
     U.Data name typ           -> U.Data name typ
     U.WithMeta a meta         -> U.WithMeta (normAST a) meta
@@ -481,6 +486,7 @@ makeAST ast =
     U.Expect s e1 e2 ->
         withName "U.Expect" s $ \name ->
             U.Expect_ name (makeAST e1) (makeAST e2)
+    U.Observe e1 e2  -> U.Observe_ (makeAST e1) (makeAST e2)
     U.Msum es -> collapseSuperposes (map makeAST es)
     
     U.Data   _name _typ -> error "TODO: makeAST{U.Data}"
@@ -506,10 +512,10 @@ resolveAST' syms ast =
     normAST $
     evalState (symbolResolution
         (insertSymbols syms primTable) ast)
-        (nextVarID syms)
+        (nextVarID_ syms)
     where
-    nextVarID [] = N.fromNat 0
-    nextVarID xs = N.fromNat . (1+) . F.maximum $ map U.nameID xs
+    nextVarID_ [] = N.fromNat 0
+    nextVarID_ xs = N.fromNat . (1+) . F.maximum $ map U.nameID xs
 
 makeName :: SomeVariable ('KProxy :: KProxy Hakaru) -> U.Name
 makeName (SomeVariable (Variable hint vID _)) = U.Name vID hint

@@ -178,6 +178,7 @@ mustCheck = go
     go (U.Integrate_  _ _ _ _) = False
     go U.Reject_               = True
     go (U.Expect_ _ _ e2)      = mustCheck e2
+    go (U.Observe_ e1  _)      = mustCheck e1
 
 
 ----------------------------------------------------------------
@@ -564,6 +565,14 @@ inferType = inferType_
             SMeasure typ2 -> do
                 e2' <- checkBinder (makeVar x typ2) SProb e2
                 return . TypedAST SProb $ syn (Expect :$ e1' :* e2' :* End)
+            _ -> typeMismatch (Left "HMeasure") (Right typ1)
+
+    U.Observe_ e1 e2 -> do
+        TypedAST typ1 e1' <- inferType_ e1
+        case typ1 of
+            SMeasure typ2 -> do
+                e2' <- checkType_ typ2 e2
+                return . TypedAST typ1 $ syn (Observe :$ e1' :* e2' :* End)
             _ -> typeMismatch (Left "HMeasure") (Right typ1)
 
     U.Superpose_ pes -> do
@@ -1203,6 +1212,14 @@ checkType = checkType_
                         return $ syn (Expect :$ e1' :* e2' :* End)
                     _ -> typeMismatch (Left "HMeasure") (Right typ1)
             _ -> typeMismatch (Right typ0) (Left "HProb")
+
+        U.Observe_ e1 e2 ->
+            case typ0 of
+            SMeasure typ2 -> do
+                e1' <- checkType_ typ0 e1
+                e2' <- checkType_ typ2 e2
+                return $ syn (Observe :$ e1' :* e2' :* End)
+            _ -> typeMismatch (Right typ0) (Left "HMeasure")
 
         U.Superpose_ pes ->
             case typ0 of

@@ -97,6 +97,7 @@ data AST' a
     | Chain a  (AST' a) (AST' a) (AST' a)
     | Integrate a (AST' a) (AST' a) (AST' a)
     | Expect a (AST' a) (AST' a)
+    | Observe  (AST' a) (AST' a)
     | Msum  [AST' a]
     | Data  a [TypeAST']
     | WithMeta (AST' a) Meta
@@ -195,6 +196,7 @@ data AST
     | Chain_      Name    AST AST AST
     | Integrate_  Name    AST AST AST
     | Expect_     Name    AST AST
+    | Observe_            AST AST
     | Superpose_  [(AST, AST)]
     | Reject_
 

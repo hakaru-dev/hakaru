@@ -240,14 +240,22 @@ ppSCon _ MBind = \(e1 :* e2 :* End) ->
     [toDoc vars <+> PP.text "<~" <+> toDoc (ppArg e1)
         PP.$$ (toDoc body)]
 
-ppSCon p Expect = \(e1 :* e2 :* End) ->
+ppSCon p Plate = \(e1 :* e2 :* End) -> 
     let (vars, types, body) = ppBinder2 e2 in
-    [ PP.text "expect"
+    [ PP.text "plate"
       <+> toDoc vars
-      <+> (toDoc . parens True $ ppArg e1)
-      <> PP.colon
+      <+> PP.text "of"
+      <+> (toDoc $ ppArg e1)
+      <> PP.colon <> PP.space
     , PP.nest 1 (toDoc body)
     ]
+
+ppSCon p Chain = \(e1 :* e2 :* e3 :* End) ->
+    ppFun 11 "chain"
+        [ toDoc (ppArg e1)
+        , toDoc (ppArg e2) <+> PP.char '$'
+        , toDoc $ ppBinder e2
+        ]
 
 ppSCon p Integrate = \(e1 :* e2 :* e3 :* End) ->
     let (vars, types, body) = ppBinder2 e3 in
@@ -268,22 +276,21 @@ ppSCon p Summate = \(e1 :* e2 :* e3 :* End) ->
         , toDoc $ parens True (ppBinder e3)
         ]
 
-ppSCon p Plate = \(e1 :* e2 :* End) -> 
+ppSCon p Expect = \(e1 :* e2 :* End) ->
     let (vars, types, body) = ppBinder2 e2 in
-    [ PP.text "plate"
+    [ PP.text "expect"
       <+> toDoc vars
-      <+> PP.text "of"
-      <+> (toDoc $ ppArg e1)
-      <> PP.colon <> PP.space
+      <+> (toDoc . parens True $ ppArg e1)
+      <> PP.colon
     , PP.nest 1 (toDoc body)
     ]
 
-ppSCon p Chain = \(e1 :* e2 :* e3 :* End) ->
-    ppFun 11 "chain"
-        [ toDoc (ppArg e1)
-        , toDoc (ppArg e2) <+> PP.char '$'
-        , toDoc $ ppBinder e2
-        ]
+ppSCon p Observe = \(e1 :* e2 :* End) -> 
+    [ PP.text "observe"
+      <+> (toDoc $ ppArg e1)
+      <+> (toDoc $ ppArg e2)
+    ]
+
 
 ppCoerceTo :: ABT Term abt => Int -> Coercion a b -> abt '[] a -> Docs
 ppCoerceTo =

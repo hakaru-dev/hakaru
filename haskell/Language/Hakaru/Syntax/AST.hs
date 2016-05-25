@@ -685,6 +685,7 @@ data SCon :: [([Hakaru], Hakaru)] -> Hakaru -> * where
     -- Or, perhaps rather, transform it into @Lam_ x. App_ (Lam_ x'. blah x') (Expect x)@.
 
     -- TODO: add the four ops for disintegration
+    Observe :: SCon '[ LC ('HMeasure a), LC a ] ('HMeasure a)
 
 
 deriving instance Eq   (SCon args a)

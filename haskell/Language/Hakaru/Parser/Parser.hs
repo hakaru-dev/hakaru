@@ -28,7 +28,7 @@ import Language.Hakaru.Parser.AST
 ops, types, names :: [String]
 ops   = ["+","*","-","^", "**", ":",".", "<~","==", "=", "_", "<|>"]
 types = ["->"]
-names = ["def","fn", "if","else","inf", "∞", "expect",
+names = ["def","fn", "if","else","inf", "∞", "expect", "observe",
          "return", "match", "integrate", "data"]
 
 type ParserStream    = IndentStream (CharIndentStream Text)
@@ -333,6 +333,14 @@ expect_expr =
         <*> semiblockExpr
         )
 
+observe_expr :: Parser (AST' Text)
+observe_expr =
+    reserved "observe"
+    *> (Observe
+        <$> expr
+        <*> expr
+        )
+
 array_expr :: Parser (AST' Text)
 array_expr =
     reserved "array"
@@ -448,6 +456,7 @@ term =  try if_expr
     -- <|> try data_expr
     <|> try integrate_expr
     <|> try expect_expr
+    <|> try observe_expr
     <|> try array_expr
     <|> try plate_expr
     <|> try chain_expr
