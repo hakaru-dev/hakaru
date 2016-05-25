@@ -9,12 +9,9 @@ import Prelude hiding ((>>=))
 
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
-import Language.Hakaru.Types.Coercion
-import Language.Hakaru.Types.HClasses
 import Language.Hakaru.Syntax.ABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Prelude
-import Language.Hakaru.Syntax.AST.Eq()
 import Language.Hakaru.Simplify
 
 import Test.HUnit

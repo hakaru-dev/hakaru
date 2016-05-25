@@ -18,7 +18,6 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.IClasses
 
 import Data.Text
-import Data.Ratio
 import Text.Parsec (SourcePos)
 
 -- N.B., because we're not using the ABT's trick for implementing a HOAS API, we can make the identifier strict.

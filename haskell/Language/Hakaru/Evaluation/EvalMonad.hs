@@ -44,7 +44,6 @@ import qualified Data.Foldable        as F
 import Language.Hakaru.Syntax.IClasses (Some2(..))
 import Language.Hakaru.Syntax.Variable (memberVarSet)
 import Language.Hakaru.Syntax.ABT      (ABT(..), subst, maxNextFree)
-import Language.Hakaru.Syntax.Datum    (GBranch(..))
 import Language.Hakaru.Syntax.DatumABT
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Evaluation.Types
@@ -56,9 +55,9 @@ import Language.Hakaru.Evaluation.PEvalMonad (ListContext(..))
 import           Data.Text             (Text)
 import qualified Data.Text             as Text
 import qualified Data.Traversable      as T
-import Language.Hakaru.Syntax.IClasses (Functor11(..), List1(..))
+import Language.Hakaru.Syntax.IClasses (Functor11(..))
 import Language.Hakaru.Syntax.Variable (Variable(), toAssocs1)
-import Language.Hakaru.Syntax.ABT      (caseVarSyn, caseBinds, binds_, substs)
+import Language.Hakaru.Syntax.ABT      (caseVarSyn, caseBinds, substs)
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing      (Sing, sUnPair)
 import Language.Hakaru.Syntax.TypeOf   (typeOf)
