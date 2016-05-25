@@ -213,7 +213,7 @@ expectSuperpose pes = do
 #ifdef __TRACE_DISINTEGRATE__
     ss <- getStatements
     trace ("\n-- expectSuperpose --\n"
-        ++ show (pretty_Statements_withTerm ss (syn $ Superpose_ pes))
+        ++ show (pretty_Statements_withTerm ss (syn $ Superpose_ (NE.fromList pes)))
         ++ "\n") $ return ()
 #endif
     -- First, emit the current heap (so that each @p@ is emissible)

@@ -279,7 +279,7 @@ update perform evaluate_ = \x ->
                 trace ("-- updated "
                     ++ show (ppStatement 11 s)
                     ++ " to "
-                    ++ show (ppStatement 11 (SLet x $ Whnf_ w))
+                    ++ show (ppStatement 11 (SLet x (Whnf_ w) i))
                     ) $ return ()
 #endif
                 return w

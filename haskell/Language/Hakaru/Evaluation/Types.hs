@@ -606,26 +606,26 @@ ppStatement p s =
             [ ppVariable x
             , PP.sep $ prettyPrec_ 11 e
             ]
-    SLet x e ->
+    SLet x e _ ->
         PP.sep $ ppFun p "SLet"
             [ ppVariable x
             , PP.sep $ prettyPrec_ 11 e
             ]
-    SWeight e ->
+    SWeight e _ ->
         PP.sep $ ppFun p "SWeight"
             [ PP.sep $ prettyPrec_ 11 e
             ]
-    SGuard xs pat e ->
+    SGuard xs pat e _ ->
         PP.sep $ ppFun p "SGuard"
             [ PP.sep $ ppVariables xs
             , PP.sep $ prettyPrec_ 11 pat
             , PP.sep $ prettyPrec_ 11 e
             ]
-    SStuff0   _ ->
+    SStuff0   _ _ ->
         PP.sep $ ppFun p "SStuff0"
             [ PP.text "TODO: ppStatement{SStuff0}"
             ]
-    SStuff1 _ _ ->
+    SStuff1 _ _ _ ->
         PP.sep $ ppFun p "SStuff1"
             [ PP.text "TODO: ppStatement{SStuff1}"
             ]
