@@ -135,7 +135,7 @@ mapleAST (LC_ e) =
 
 mapleLiteral :: Literal a -> ShowS
 mapleLiteral (LNat  v) = shows v
-mapleLiteral (LInt  v) = shows v
+mapleLiteral (LInt  v) = parens (shows v)
 mapleLiteral (LProb v) = showsRational v
 mapleLiteral (LReal v) = showsRational v
 
