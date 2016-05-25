@@ -9,7 +9,6 @@ import Language.Hakaru.Parser.Parser
 import Language.Hakaru.Parser.AST
 
 import Data.Text
-import Data.Ratio
 import Test.HUnit
 import Test.QuickCheck.Arbitrary
 import Test.QuickCheck

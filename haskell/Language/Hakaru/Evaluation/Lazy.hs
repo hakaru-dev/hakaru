@@ -279,7 +279,7 @@ update perform evaluate_ = \x ->
                 trace ("-- updated "
                     ++ show (ppStatement 11 s)
                     ++ " to "
-                    ++ show (ppStatement 11 (SLet x $ Whnf_ w))
+                    ++ show (ppStatement 11 (SLet x (Whnf_ w) i))
                     ) $ return ()
 #endif
                 return w
@@ -289,11 +289,12 @@ update perform evaluate_ = \x ->
                 w <- caseLazy e return evaluate_
                 unsafePush (SLet x (Whnf_ w) i)
                 return w
+        -- These two don't bind any variables, so they definitely can't match.
         SWeight   _ _ -> Nothing
         SStuff0   _ _ -> Nothing
-        SStuff1 _ _ _ -> Nothing
-        SGuard ys pat scrutinee i ->
-            error "TODO: update{SGuard}"
+        -- These two do bind variables, but there's no expression we can return for them because the variables are untouchable\/abstract.
+        SStuff1 _ _ _ -> Just . return . Neutral $ var x
+        SGuard ys pat scrutinee i -> Just . return . Neutral $ var x
 
 
 ----------------------------------------------------------------
@@ -716,6 +717,9 @@ evaluatePrimOp evaluate_ = go
         case theFractional of
         HFractional_Prob -> rr1 recip  P.recip  e1
         HFractional_Real -> rr1 recip  P.recip  e1
+    go (NatRoot theRadical) (e1 :* e2 :* End) =
+        case theRadical of
+        HRadical_Prob -> neu2 (flip P.thRootOf) e1 e2
     {-
     go (NatRoot theRadical) (e1 :* e2 :* End) =
         case theRadical of

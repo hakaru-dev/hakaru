@@ -75,7 +75,7 @@ module Language.Hakaru.Syntax.ABT
     ) where
 
 import           Data.Text         (Text)
-import qualified Data.IntMap       as IM
+--import qualified Data.IntMap       as IM
 import qualified Data.Foldable     as F
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Monoid       (Monoid(..))

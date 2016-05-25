@@ -11,7 +11,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.28
+--                                                    2016.05.24
 -- |
 -- Module      :  Language.Hakaru.Expect
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -28,26 +28,27 @@ module Language.Hakaru.Expect
     , expect
     ) where
 
-import           Prelude               (($), (.), error, return, reverse, mapM)
+import           Prelude               (($), (.), error, reverse)
 import qualified Data.Text             as Text
 import           Data.Functor          ((<$>))
 import qualified Data.Foldable         as F
+import qualified Data.Traversable      as T
 import qualified Data.List.NonEmpty    as NE
 import           Control.Monad
 
-import Language.Hakaru.Syntax.IClasses (Some2(..), List1(..))
+import Language.Hakaru.Syntax.IClasses (Some2(..), List1(..), Functor11(..))
 import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Syntax.ABT
-import Language.Hakaru.Syntax.AST               hiding (Expect)
 import Language.Hakaru.Syntax.Datum
+import Language.Hakaru.Syntax.DatumABT
+import Language.Hakaru.Syntax.AST               hiding (Expect)
 import qualified Language.Hakaru.Syntax.AST     as AST
 import Language.Hakaru.Syntax.TypeOf            (typeOf)
 import qualified Language.Hakaru.Syntax.Prelude as P
 import Language.Hakaru.Evaluation.Types
 import Language.Hakaru.Evaluation.ExpectMonad
-    (ListContext(..), Expect(..), runExpect, pureEvaluate)
 
 #ifdef __TRACE_DISINTEGRATE__
 import Prelude                          (show, (++))
@@ -114,18 +115,30 @@ let_ e f =
     caseVarSyn e
         (\x -> caseBind f $ \y f' -> subst y (var x) f')
         (\_ -> syn (Let_ :$ e :* f :* End))
-            
--- TODO: Does not emit all the bindings it needs to
-expectCase :: (ABT Term abt)
-           => abt '[] a
-           -> [Branch a abt ('HMeasure b)]
-           -> Expect abt (abt '[] b)
-expectCase e1 bs = do
-    bs' <- forM bs $ \(Branch p e) -> do
-                let (vars, e') = caseBinds e
-                e'' <- expectTerm e'
-                return . Branch p $ binds_ vars e''
-    return . syn $ Case_ e1 bs'
+
+    
+expectCase
+    :: (ABT Term abt)
+    => abt '[] a
+    -> [Branch a abt ('HMeasure b)]
+    -> Expect abt (abt '[] b)
+expectCase scrutinee bs = do
+    -- Get the current context and then clear it.
+    ctx <- Expect $ \c h -> c h (h {statements = []})
+    -- Emit the old "current" context.
+    Expect $ \c h -> residualizeExpectListContext (c () h) ctx
+    -- @emitCaseWith@
+    gms <- T.for bs $ \(Branch pat body) ->
+        let (vars, body') = caseBinds body
+        in  (\vars' ->
+                let rho = toAssocs1 vars (fmap11 var vars')
+                in  GBranch pat vars' (expectTerm $ substs rho body')
+            ) <$> freshenVars vars
+    Expect $ \c h ->
+        syn $ Case_ scrutinee
+            [ fromGBranch $ fmap (\m -> unExpect m c h) gm
+            | gm <- gms
+            ]
 
 ----------------------------------------------------------------
 -- BUG: really rather than using 'pureEvaluate' itself, we should
@@ -171,10 +184,11 @@ expectTerm e = do
     w <- pureEvaluate e
     case w of
         -- TODO: if the neutral term is a 'Case_' then we want to go under it
-        Neutral e'              -> caseVarSyn e' (residualizeExpect . var) $ \t ->
-                                     case t of
-                                     Case_ e1 bs -> expectCase e1 bs
-                                     _           -> residualizeExpect e'
+        Neutral e'              ->
+            caseVarSyn e' (residualizeExpect . var) $ \t ->
+                case t of
+                Case_ e1 bs -> expectCase e1 bs
+                _           -> residualizeExpect e'
         Head_ (WLiteral    _)   -> error "expect: the impossible happened"
         Head_ (WCoerceTo   _ _) -> error "expect: the impossible happened"
         Head_ (WUnsafeFrom _ _) -> error "expect: the impossible happened"
@@ -199,7 +213,7 @@ expectSuperpose pes = do
 #ifdef __TRACE_DISINTEGRATE__
     ss <- getStatements
     trace ("\n-- expectSuperpose --\n"
-        ++ show (pretty_Statements_withTerm ss (syn $ Superpose_ pes))
+        ++ show (pretty_Statements_withTerm ss (syn $ Superpose_ (NE.fromList pes)))
         ++ "\n") $ return ()
 #endif
     -- First, emit the current heap (so that each @p@ is emissible)

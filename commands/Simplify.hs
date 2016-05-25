@@ -47,20 +47,20 @@ main :: IO ()
 main = do
   args <- parseOpts
   case args of
-   Options debug file -> do
+   Options debug_ file -> do
     prog <- readFromFile file
-    runSimplify prog debug
+    runSimplify prog debug_
 
 inferType' :: U.AST -> TypeCheckMonad (TypedAST (TrivialABT T.Term))
 inferType' = inferType
 
 runSimplify :: Text -> Bool -> IO ()
-runSimplify prog debug =
+runSimplify prog debug_ =
     case parseHakaru prog of
     Left  err  -> print err
     Right past ->
         let m = inferType' (resolveAST past) in
-        case (runTCM m LaxMode, debug) of
+        case (runTCM m LaxMode, debug_) of
         (Left err, _)                   -> putStrLn err
         (Right (TypedAST _ ast), True)  -> simplifyDebug ast >>= print . pretty
         (Right (TypedAST _ ast), False) -> simplify      ast >>= print . pretty

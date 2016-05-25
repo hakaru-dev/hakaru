@@ -28,6 +28,7 @@ module Language.Hakaru.Evaluation.ExpectMonad
     -- * The expectation-evaluation monad
     -- ** List-based version
     , ListContext(..), ExpectAns, Expect(..), runExpect
+    , residualizeExpectListContext
     -- ** TODO: IntMap-based version
     
     -- * ...

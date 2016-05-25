@@ -16,7 +16,7 @@
 -- itself which are morally suspect outside of testing.)
 {-# OPTIONS_GHC -Wall -fwarn-tabs -fno-warn-orphans #-}
 ----------------------------------------------------------------
---                                                    2016.02.21
+--                                                    2016.05.24
 -- |
 -- Module      :  Language.Hakaru.Syntax.ABT.Eq
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -254,236 +254,224 @@ instance ( Show1 (Sing :: k ->  *)
 
 type Varmap = Assocs (Variable :: Hakaru -> *)
 
-alphaEq :: forall abt a
-         . (ABT Term abt)
-        => abt '[] a
-        -> abt '[] a
-        -> Bool
-alphaEq e1 e2 = runReader (go (viewABT e1) (viewABT e2)) emptyAssocs
+void_jmEq1 x y = lift (jmEq1 x y) >> return ()
+
+void_varEq x y = lift (varEq x y) >> return ()
+
+try_bool b = lift $ if b then Just () else Nothing
+
+alphaEq
+    :: forall abt a
+    .  (ABT Term abt)
+    => abt '[] a
+    -> abt '[] a
+    -> Bool
+alphaEq e1 e2 =
+    maybe False (const True)
+        $ runReaderT (go (viewABT e1) (viewABT e2)) emptyAssocs
     where
-      -- Don't compare @x@ to @y@ directly; instead,
-      -- look up whatever @x@ renames to (i.e., @y'@)
-      -- and then see whether that is equal to @y@.
-      go :: forall xs1 xs2 a
-          . View (Term abt) xs1 a
-         -> View (Term abt) xs2 a
-         -> Reader Varmap Bool
-      go (Var x) (Var y) = do
-          s <- ask
-          return $
-              case lookupAssoc x s of
-                Nothing -> isJust (varEq x  y) -- free variables
-                Just y' -> isJust (varEq y' y)
+    -- Don't compare @x@ to @y@ directly; instead,
+    -- look up whatever @x@ renames to (i.e., @y'@)
+    -- and then see whether that is equal to @y@.
+    go  :: forall xs1 xs2 a
+        .  View (Term abt) xs1 a
+        -> View (Term abt) xs2 a
+        -> ReaderT Varmap Maybe ()
+    go (Var x) (Var y) = do
+        s <- ask
+        case lookupAssoc x s of
+            Nothing -> void_varEq x  y -- free variables
+            Just y' -> void_varEq y' y
 
-      -- remember that @x@ renames to @y@ and recurse
-      go (Bind x e1) (Bind y e2) =
-         case jmEq1 (varType x) (varType y) of
-          Just Refl -> local (insertAssoc (Assoc x y)) (go e1 e2)
-          Nothing   -> return False
+    -- remember that @x@ renames to @y@ and recurse
+    go (Bind x e1) (Bind y e2) = do
+        Refl <- lift $ jmEq1 (varType x) (varType y)
+        local (insertAssoc (Assoc x y)) (go e1 e2)
 
-      -- perform the core comparison for syntactic equality
-      go (Syn t1) (Syn t2) = termEq t1 t2
+    -- perform the core comparison for syntactic equality
+    go (Syn t1) (Syn t2) = termEq t1 t2
 
-      -- if the views don't match, then clearly they are not equal.
-      go _ _ = return False
+    -- if the views don't match, then clearly they are not equal.
+    go _ _ = lift Nothing
 
-      termEq :: forall a
-             .  Term abt a
-             -> Term abt a
-             -> Reader Varmap Bool
-      termEq e1 e2 =
+    termEq :: forall a
+        .  Term abt a
+        -> Term abt a
+        -> ReaderT Varmap Maybe ()
+    termEq e1 e2 =
         case (e1, e2) of
         (o1 :$ es1, o2 :$ es2)             -> sConEq o1 es1 o2 es2
-        (NaryOp_ op1 es1, NaryOp_ op2 es2) -> if op1 == op2
-                                              then F.and <$> (T.sequence $ S.zipWith go (fmap viewABT es1)
-                                                                                        (fmap viewABT es2))
-                                              else return False
-        (Literal_ x, Literal_ y)           -> return (x == y)
-        (Empty_ x, Empty_ y)               -> return $ maybe False (const True) (jmEq1 x y)
+        (NaryOp_ op1 es1, NaryOp_ op2 es2) -> do
+            try_bool (op1 == op2)
+            F.sequence_ $ S.zipWith go (viewABT <$> es1) (viewABT <$> es2)
+        (Literal_ x, Literal_ y)           -> try_bool (x == y)
+        (Empty_ x, Empty_ y)               -> void_jmEq1 x y
         (Datum_ d1, Datum_ d2)             -> datumEq d1 d2
-        (Array_ n1 e1, Array_ n2 e2)       -> do m1 <- go (viewABT n1) (viewABT n2)
-                                                 m2 <- go (viewABT e1) (viewABT e2)
-                                                 return (m1 && m2)
-        (Case_ e1 bs1, Case_ e2 bs2)       -> case jmEq1 (typeOf e1) (typeOf e2) of
-                                              Just Refl -> do m1 <- go (viewABT e1) (viewABT e2)
-                                                              m2 <- and <$> (zipWithM sBranch bs1 bs2)
-                                                              return (m1 && m2)
-        (Superpose_ pms1, Superpose_ pms2) -> F.and <$> (T.sequence $ L.zipWith pairEq pms1 pms2)
-        (Reject_ x, Reject_ y)             -> return $ maybe False (const True) (jmEq1 x y)
-        (_, _)                             -> return False
+        (Array_ n1 e1, Array_ n2 e2)       -> do
+            go (viewABT n1) (viewABT n2)
+            go (viewABT e1) (viewABT e2)
+        (Case_ e1 bs1, Case_ e2 bs2)       -> do
+            Refl <- lift $ jmEq1 (typeOf e1) (typeOf e2)
+            go (viewABT e1) (viewABT e2)
+            zipWithM_ sBranch bs1 bs2
+        (Superpose_ pms1, Superpose_ pms2) ->
+            F.sequence_ $ L.zipWith pairEq pms1 pms2
+        (Reject_ x, Reject_ y)             -> void_jmEq1 x y
+        (_, _)                             -> lift Nothing
 
-      sArgsEq :: forall args
-               . SArgs abt args
-              -> SArgs abt args
-              -> Reader Varmap Bool
-      sArgsEq End         End         = return True
-      sArgsEq (e1 :* es1) (e2 :* es2) = do
-        m  <- go (viewABT e1) (viewABT e2)
-        ms <- sArgsEq es1 es2
-        return (m && ms)
-      sArgsEq _ _ = return False
+    sArgsEq
+        :: forall args
+        .  SArgs abt args
+        -> SArgs abt args
+        -> ReaderT Varmap Maybe ()
+    sArgsEq End         End         = return ()
+    sArgsEq (e1 :* es1) (e2 :* es2) = do
+        go (viewABT e1) (viewABT e2)
+        sArgsEq es1 es2
+    sArgsEq _ _ = lift Nothing
 
-      sConEq
-          :: forall a args1 args2
-          .  SCon  args1 a
-          -> SArgs abt args1
-          -> SCon args2 a
-          -> SArgs abt args2
-          -> Reader Varmap Bool
-      sConEq Lam_   e1 Lam_   e2 = sArgsEq e1 e2
+    sConEq
+        :: forall a args1 args2
+        .  SCon  args1 a
+        -> SArgs abt args1
+        -> SCon args2 a
+        -> SArgs abt args2
+        -> ReaderT Varmap Maybe ()
+    sConEq Lam_   e1
+           Lam_   e2 = sArgsEq e1 e2
 
-      sConEq App_   (e1  :* e2  :* End)
-             App_   (e1' :* e2' :* End) = do
-         case jmEq1 (typeOf e2) (typeOf e2') of
-           Just Refl -> do
-             m1 <- go (viewABT e1) (viewABT e1')
-             m2 <- go (viewABT e2) (viewABT e2')
-             return (m1 && m2)
-           Nothing   -> return False
+    sConEq App_   (e1  :* e2  :* End)
+           App_   (e1' :* e2' :* End) = do
+        Refl <- lift $ jmEq1 (typeOf e2) (typeOf e2')
+        go (viewABT e1) (viewABT e1')
+        go (viewABT e2) (viewABT e2')
 
-      sConEq Let_   (e1  :* e2  :* End)
-             Let_   (e1' :* e2' :* End) = do
-         case jmEq1 (typeOf e1) (typeOf e1') of
-           Just Refl -> do
-             m1 <- go (viewABT e1) (viewABT e1')
-             m2 <- go (viewABT e2) (viewABT e2')
-             return (m1 && m2)
-           Nothing   -> return False
+    sConEq Let_   (e1  :* e2  :* End)
+           Let_   (e1' :* e2' :* End) = do
+        Refl <- lift $ jmEq1 (typeOf e1) (typeOf e1')
+        go (viewABT e1) (viewABT e1')
+        go (viewABT e2) (viewABT e2')
 
-      sConEq (CoerceTo_ _) (e1 :* End)
-             (CoerceTo_ _) (e2 :* End)    =
-         case jmEq1 (typeOf e1) (typeOf e2) of
-           Just Refl -> return True
-           Nothing   -> return False
+    sConEq (CoerceTo_ _) (e1 :* End)
+           (CoerceTo_ _) (e2 :* End) =
+        void_jmEq1 (typeOf e1) (typeOf e2)
 
-      sConEq (UnsafeFrom_ _) (e1 :* End)
-             (UnsafeFrom_ _) (e2 :* End)  =
-         case jmEq1 (typeOf e1) (typeOf e2) of
-           Just Refl -> return True
-           Nothing   -> return False
+    sConEq (UnsafeFrom_ _) (e1 :* End)
+           (UnsafeFrom_ _) (e2 :* End) =
+        void_jmEq1 (typeOf e1) (typeOf e2)
 
-      sConEq (PrimOp_ o1) es1
-             (PrimOp_ o2) es2             = primOpEq o1 es1 o2 es2
+    sConEq (PrimOp_ o1) es1
+           (PrimOp_ o2) es2    = primOpEq o1 es1 o2 es2
 
-      sConEq (ArrayOp_ o1) es1
-             (ArrayOp_ o2) es2            = arrayOpEq o1 es1 o2 es2
+    sConEq (ArrayOp_ o1) es1
+           (ArrayOp_ o2) es2   = arrayOpEq o1 es1 o2 es2
 
-      sConEq (MeasureOp_ o1) es1
-             (MeasureOp_ o2) es2          = measureOpEq o1 es1 o2 es2
+    sConEq (MeasureOp_ o1) es1
+           (MeasureOp_ o2) es2 = measureOpEq o1 es1 o2 es2
 
-      sConEq Dirac e1 Dirac e2            = sArgsEq e1 e2
+    sConEq Dirac e1
+           Dirac e2            = sArgsEq e1 e2
 
-      sConEq MBind (e1  :* e2  :* End)
-             MBind (e1' :* e2' :* End)    = do
-         case jmEq1 (typeOf e1) (typeOf e1') of
-           Just Refl -> do
-             m1 <- go (viewABT e1) (viewABT e1')
-             m2 <- go (viewABT e2) (viewABT e2')
-             return (m1 && m2)
-           Nothing   -> return False
+    sConEq MBind (e1  :* e2  :* End)
+           MBind (e1' :* e2' :* End) = do
+        Refl <- lift $ jmEq1 (typeOf e1) (typeOf e1')
+        go (viewABT e1) (viewABT e1')
+        go (viewABT e2) (viewABT e2')
 
-      sConEq Plate     e1 Plate     e2    = sArgsEq e1 e2
-      sConEq Chain     e1 Chain     e2    = sArgsEq e1 e2
-      sConEq Integrate e1 Integrate e2    = sArgsEq e1 e2
-      sConEq Summate   e1 Summate   e2    = sArgsEq e1 e2
+    sConEq Plate     e1 Plate     e2    = sArgsEq e1 e2
+    sConEq Chain     e1 Chain     e2    = sArgsEq e1 e2
+    sConEq Integrate e1 Integrate e2    = sArgsEq e1 e2
+    sConEq Summate   e1 Summate   e2    = sArgsEq e1 e2
 
-      sConEq Expect (e1  :* e2  :* End)
-             Expect (e1' :* e2' :* End) = do
-         case jmEq1 (typeOf e1) (typeOf e1') of
-           Just Refl -> do
-             m1 <- go (viewABT e1) (viewABT e1')
-             m2 <- go (viewABT e2) (viewABT e2')
-             return (m1 && m2)
-           Nothing   -> return False
+    sConEq Expect (e1  :* e2  :* End)
+           Expect (e1' :* e2' :* End) = do
+        Refl <- lift $ jmEq1 (typeOf e1) (typeOf e1')
+        go (viewABT e1) (viewABT e1')
+        go (viewABT e2) (viewABT e2')
 
-      sConEq _ _ _ _ = return False
+    sConEq _ _ _ _ = lift Nothing
 
 
-      primOpEq
-          :: forall a typs1 typs2 args1 args2
-           . (typs1 ~ UnLCs args1, args1 ~ LCs typs1,
-              typs2 ~ UnLCs args2, args2 ~ LCs typs2)
-          => PrimOp typs1 a -> SArgs abt args1
-          -> PrimOp typs2 a -> SArgs abt args2
-          -> Reader Varmap Bool
-      primOpEq p1 e1 p2 e2 =
-          case jmEq2 p1 p2 of
-             Just (Refl, Refl) -> sArgsEq e1 e2
-             Nothing           -> return False
+    primOpEq
+        :: forall a typs1 typs2 args1 args2
+        .  (typs1 ~ UnLCs args1, args1 ~ LCs typs1,
+            typs2 ~ UnLCs args2, args2 ~ LCs typs2)
+        => PrimOp typs1 a -> SArgs abt args1
+        -> PrimOp typs2 a -> SArgs abt args2
+        -> ReaderT Varmap Maybe ()
+    primOpEq p1 e1 p2 e2 = do
+        (Refl, Refl) <- lift $ jmEq2 p1 p2
+        sArgsEq e1 e2
 
-      arrayOpEq
-          :: forall a typs1 typs2 args1 args2
-           . (typs1 ~ UnLCs args1, args1 ~ LCs typs1,
-              typs2 ~ UnLCs args2, args2 ~ LCs typs2)
-          => ArrayOp typs1 a -> SArgs abt args1
-          -> ArrayOp typs2 a -> SArgs abt args2
-          -> Reader Varmap Bool
-      arrayOpEq p1 e1 p2 e2 =
-          case jmEq2 p1 p2 of
-             Just (Refl, Refl) -> sArgsEq e1 e2
-             Nothing           -> return False
+    arrayOpEq
+        :: forall a typs1 typs2 args1 args2
+        .  (typs1 ~ UnLCs args1, args1 ~ LCs typs1,
+            typs2 ~ UnLCs args2, args2 ~ LCs typs2)
+        => ArrayOp typs1 a -> SArgs abt args1
+        -> ArrayOp typs2 a -> SArgs abt args2
+        -> ReaderT Varmap Maybe ()
+    arrayOpEq p1 e1 p2 e2 = do
+        (Refl, Refl) <- lift $ jmEq2 p1 p2
+        sArgsEq e1 e2
 
-      measureOpEq
-          :: forall a typs1 typs2 args1 args2
-           . (typs1 ~ UnLCs args1, args1 ~ LCs typs1,
-              typs2 ~ UnLCs args2, args2 ~ LCs typs2)
-          => MeasureOp typs1 a -> SArgs abt args1
-          -> MeasureOp typs2 a -> SArgs abt args2
-          -> Reader Varmap Bool
-      measureOpEq m1 e1 m2 e2 =
-          case jmEq2 m1 m2 of
-            Just (Refl,Refl) -> sArgsEq e1 e2
-            Nothing          -> return False
+    measureOpEq
+        :: forall a typs1 typs2 args1 args2
+        . (typs1 ~ UnLCs args1, args1 ~ LCs typs1,
+            typs2 ~ UnLCs args2, args2 ~ LCs typs2)
+        => MeasureOp typs1 a -> SArgs abt args1
+        -> MeasureOp typs2 a -> SArgs abt args2
+        -> ReaderT Varmap Maybe ()
+    measureOpEq m1 e1 m2 e2 = do
+        (Refl,Refl) <- lift $ jmEq2 m1 m2
+        sArgsEq e1 e2
 
-      datumEq :: forall a
-              .  Datum (abt '[]) a
-              -> Datum (abt '[]) a
-              -> Reader Varmap Bool
-      datumEq (Datum _ _ d1) (Datum _ _ d2) = datumCodeEq d1 d2
+    datumEq :: forall a
+        .  Datum (abt '[]) a
+        -> Datum (abt '[]) a
+        -> ReaderT Varmap Maybe ()
+    datumEq (Datum _ _ d1) (Datum _ _ d2) = datumCodeEq d1 d2
 
-      datumCodeEq
-          :: forall xss a
-          .  DatumCode xss (abt '[]) a
-          -> DatumCode xss (abt '[]) a
-          -> Reader Varmap Bool
-      datumCodeEq (Inr c) (Inr d) = datumCodeEq c d
-      datumCodeEq (Inl c) (Inl d) = datumStructEq c d
-      datumCodeEq _       _       = return False
+    datumCodeEq
+        :: forall xss a
+        .  DatumCode xss (abt '[]) a
+        -> DatumCode xss (abt '[]) a
+        -> ReaderT Varmap Maybe ()
+    datumCodeEq (Inr c) (Inr d) = datumCodeEq c d
+    datumCodeEq (Inl c) (Inl d) = datumStructEq c d
+    datumCodeEq _       _       = lift Nothing
 
-      datumStructEq
-          :: forall xs a
-          .  DatumStruct xs (abt '[]) a
-          -> DatumStruct xs (abt '[]) a
-          -> Reader Varmap Bool
-      datumStructEq (Et c1 c2) (Et d1 d2) = do
-          m  <- datumFunEq c1 d1
-          ms <- datumStructEq c2 d2
-          return (m && ms)
-      datumStructEq Done       Done       = return True
-      datumStructEq _          _          = return False
+    datumStructEq
+        :: forall xs a
+        .  DatumStruct xs (abt '[]) a
+        -> DatumStruct xs (abt '[]) a
+        -> ReaderT Varmap Maybe ()
+    datumStructEq (Et c1 c2) (Et d1 d2) = do
+        datumFunEq c1 d1
+        datumStructEq c2 d2
+    datumStructEq Done       Done       = return ()
+    datumStructEq _          _          = lift Nothing
+    
+    datumFunEq
+        :: forall x a
+        .  DatumFun x (abt '[]) a
+        -> DatumFun x (abt '[]) a
+        -> ReaderT Varmap Maybe ()
+    datumFunEq (Konst e) (Konst f) = go (viewABT e) (viewABT f) 
+    datumFunEq (Ident e) (Ident f) = go (viewABT e) (viewABT f) 
+    datumFunEq _          _        = lift Nothing
+    
+    pairEq
+        :: forall a b
+        .  (abt '[] a, abt '[] b)
+        -> (abt '[] a, abt '[] b)
+        -> ReaderT Varmap Maybe ()
+    pairEq (x1, y1) (x2, y2) = do
+        go (viewABT x1) (viewABT x2)
+        go (viewABT y1) (viewABT y2)
 
-      datumFunEq
-          :: forall x a
-          .  DatumFun x (abt '[]) a
-          -> DatumFun x (abt '[]) a
-          -> Reader Varmap Bool
-      datumFunEq (Konst e) (Konst f) = go (viewABT e) (viewABT f) 
-      datumFunEq (Ident e) (Ident f) = go (viewABT e) (viewABT f) 
-      datumFunEq _          _        = return False
-
-      pairEq
-          :: forall a b
-          .  (abt '[] a, abt '[] b)
-          -> (abt '[] a, abt '[] b)
-          -> Reader Varmap Bool
-      pairEq (x1, y1) (x2, y2) = do
-             m1 <- go (viewABT x1) (viewABT x2)
-             m2 <- go (viewABT y1) (viewABT y2)
-             return (m1 && m2)
-
-      sBranch
-          :: forall a b
-          .  Branch a abt b
-          -> Branch a abt b
-          -> Reader Varmap Bool
-      sBranch (Branch _ e1) (Branch _ e2) = go (viewABT e1) (viewABT e2)
+    sBranch
+        :: forall a b
+        .  Branch a abt b
+        -> Branch a abt b
+        -> ReaderT Varmap Maybe ()
+    sBranch (Branch _ e1) (Branch _ e2) = go (viewABT e1) (viewABT e2)

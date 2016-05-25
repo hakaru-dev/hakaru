@@ -16,7 +16,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.28
+--                                                    2016.05.24
 -- |
 -- Module      :  Language.Hakaru.Evaluation.DisintegrationMonad
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -76,6 +76,7 @@ import Language.Hakaru.Types.DataKind
 import Language.Hakaru.Types.Sing    (Sing, sUnMeasure, sUnPair)
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
+import Language.Hakaru.Syntax.DatumABT
 import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.ABT
 import qualified Language.Hakaru.Syntax.Prelude as P
@@ -463,46 +464,6 @@ choose :: (ABT Term abt) => [Dis abt a] -> Dis abt a
 choose []  = error "TODO: choose[]"
 choose [m] = m
 choose ms  = emitFork_ (P.superpose . NE.map ((,) P.one) . NE.fromList) ms
-
-
--- TODO: move this to Datum.hs; also, use it elsewhere as needed to clean up code. N.B., This code depends on ABT.hs whereas the rest of Datum.hs does not.
---
--- | A generalization of the 'Branch' type to allow a \"body\" of
--- any Haskell type.
-data GBranch (a :: Hakaru) (r :: *)
-    = forall xs. GBranch
-        !(Pattern xs a)
-        !(List1 Variable xs)
-        r
-
-fromGBranch
-    :: (ABT Term abt)
-    => GBranch a (abt '[] b)
-    -> Branch a abt b
-fromGBranch (GBranch pat vars e) =
-    Branch pat (binds_ vars e)
-
-{-
-toGBranch
-    :: (ABT Term abt)
-    => Branch a abt b
-    -> GBranch a (abt '[] b)
-toGBranch (Branch pat body) =
-    uncurry (GBranch pat) (caseBinds body)
--}
-
-instance (Show r) => Show (GBranch a r) where
-    showsPrec p (GBranch pat xs r) =
-        showParen_010 p "GBranch" pat xs r
-
-instance Functor (GBranch a) where
-    fmap f (GBranch pat vars x) = GBranch pat vars (f x)
-
-instance F.Foldable (GBranch a) where
-    foldMap f (GBranch _ _ x) = f x
-
-instance T.Traversable (GBranch a) where
-    traverse f (GBranch pat vars x) = GBranch pat vars <$> f x
 
 
 -- | Given some function we can call on the bodies of the branches,
