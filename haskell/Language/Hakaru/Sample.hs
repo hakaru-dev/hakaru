@@ -155,7 +155,7 @@ evaluateTerm
     -> Value a
 evaluateTerm t env =
     case t of
-    o :$ es       -> evaluateScon    o es env
+    o :$ es       -> evaluateSCon    o es env
     NaryOp_  o es -> evaluateNaryOp  o es env
     Literal_ v    -> evaluateLiteral v
     Empty_   _    -> evaluateEmpty
@@ -165,33 +165,33 @@ evaluateTerm t env =
     Superpose_ es -> evaluateSuperpose es env
     Reject_ _     -> VMeasure $ \_ _ -> return Nothing
 
-evaluateScon
+evaluateSCon
     :: (ABT Term abt)
     => SCon args a
     -> SArgs abt args
     -> Env
     -> Value a
-evaluateScon Lam_ (e1 :* End) env =
+evaluateSCon Lam_ (e1 :* End) env =
     caseBind e1 $ \x e1' ->
         VLam $ \v -> evaluate e1' (updateEnv (EAssoc x v) env)
-evaluateScon App_ (e1 :* e2 :* End) env =
+evaluateSCon App_ (e1 :* e2 :* End) env =
     case evaluate e1 env of
     VLam f -> f (evaluate e2 env)
     v      -> case v of {}
-evaluateScon Let_ (e1 :* e2 :* End) env =
+evaluateSCon Let_ (e1 :* e2 :* End) env =
     let v = evaluate e1 env
     in caseBind e2 $ \x e2' ->
         evaluate e2' (updateEnv (EAssoc x v) env)
-evaluateScon (CoerceTo_   c) (e1 :* End) env =
+evaluateSCon (CoerceTo_   c) (e1 :* End) env =
     coerceTo c $ evaluate e1 env
-evaluateScon (UnsafeFrom_ c) (e1 :* End) env =
+evaluateSCon (UnsafeFrom_ c) (e1 :* End) env =
     coerceFrom c $ evaluate e1 env
-evaluateScon (PrimOp_ o)     es env = evaluatePrimOp    o es env
-evaluateScon (ArrayOp_ o)    es env = evaluateArrayOp   o es env
-evaluateScon (MeasureOp_  m) es env = evaluateMeasureOp m es env
-evaluateScon Dirac           (e1 :* End) env =
+evaluateSCon (PrimOp_ o)     es env = evaluatePrimOp    o es env
+evaluateSCon (ArrayOp_ o)    es env = evaluateArrayOp   o es env
+evaluateSCon (MeasureOp_  m) es env = evaluateMeasureOp m es env
+evaluateSCon Dirac           (e1 :* End) env =
     VMeasure $ \p _ -> return $ Just (evaluate e1 env, p)
-evaluateScon MBind (e1 :* e2 :* End) env =
+evaluateSCon MBind (e1 :* e2 :* End) env =
     case evaluate e1 env of
     VMeasure m1 -> VMeasure $ \ p g -> do
         x <- m1 p g
@@ -204,7 +204,7 @@ evaluateScon MBind (e1 :* e2 :* End) env =
                     v          -> case v of {}
     v -> case v of {}
 
-evaluateScon Plate (n :* e2 :* End) env =
+evaluateSCon Plate (n :* e2 :* End) env =
     case evaluate n env of
     VNat n' -> caseBind e2 $ \x e' ->
         VMeasure $ \(VProb p) g -> runMaybeT $ do
@@ -224,7 +224,7 @@ evaluateScon Plate (n :* e2 :* End) env =
         -> MaybeT IO (Value a, Value 'HProb)
     performMaybe g (VMeasure m) = MaybeT $ m (VProb 1) g
 
-evaluateScon Chain (n :* s :* e :* End) env =
+evaluateSCon Chain (n :* s :* e :* End) env =
     case (evaluate n env, evaluate s env) of
     (VNat n', start) ->
         caseBind e $ \x e' ->
@@ -259,7 +259,7 @@ evaluateScon Chain (n :* s :* e :* End) env =
             (Et (Konst b) Done))))) = (a, b)
     unPair x = case x of {}
 
-
+evaluateSCon s _ _ = error $ "TODO: evaluateSCon{" ++ show s ++ "}"
 
 evaluatePrimOp
     ::  ( ABT Term abt, typs ~ UnLCs args, args ~ LCs typs)
