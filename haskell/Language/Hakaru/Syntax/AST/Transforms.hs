@@ -1,5 +1,7 @@
 {-# LANGUAGE FlexibleContexts
            , GADTs
+           , Rank2Types
+           , ScopedTypeVariables
            , DataKinds
            , TypeOperators
            #-}
@@ -14,6 +16,9 @@ import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.DataKind
 
+import Language.Hakaru.Expect       (expect)
+import Language.Hakaru.Disintegrate (determine, observe)
+
 underLam
     :: (ABT Term abt, Monad m)
     => (abt '[] b -> m (abt '[] b))
@@ -21,7 +26,7 @@ underLam
     -> m (abt '[] (a ':-> b))
 underLam f e = caseVarSyn e (return . var) $ \t ->
                    case t of
-                   Lam_ :$ (e1 :* End) ->
+                   Lam_ :$ e1 :* End ->
                        caseBind e1 $ \x e1' -> do
                            e1'' <- f e1'
                            return . syn $
@@ -39,3 +44,22 @@ underLam f e = caseVarSyn e (return . var) $ \t ->
                                                 Let_ :$ e1 :* (bind x e2'') :* End
 
                    _ -> error "TODO: underLam"
+
+
+expandTransformations
+    :: forall abt a
+    . (ABT Term abt)
+    => abt '[] a -> abt '[] a
+expandTransformations =
+    cataABT var bind alg
+    where 
+    alg :: forall b. Term abt b -> abt '[] b
+    alg t =
+        case t of
+        Expect  :$ e1 :* e2 :* End -> expect  e1 e2
+        Observe :$ e1 :* e2 :* End ->
+          case determine (observe e1 e2) of
+          Just t' -> t'
+          Nothing -> syn t
+        _                         -> syn t
+        
