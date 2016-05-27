@@ -220,10 +220,9 @@ push
     -> Dis abt r               
 push s e k = do
     rho <- push_ s
-    F.forM_ (fromAssocs rho) $ \(Assoc _ a) ->
-       caseVarSyn a (\x ->
-           updateLocs x (Loc Nil1)) undefined
-    k (substs rho e)
+    F.forM_ (fromAssocs rho) $ \(Assoc _ x) ->
+        updateLocs x (Loc Nil1)
+    k (renames rho e)
 
 -- | Modified version of pushes from Types which also updates Loc
 pushes
@@ -235,10 +234,9 @@ pushes
 pushes ss e k = do
     -- TODO: is 'foldlM' the right one? or do we want 'foldrM'?
     rho <- F.foldlM (\rho s -> mappend rho <$> push_ s) mempty ss
-    F.forM_ (fromAssocs rho) $ \(Assoc _ a) ->
-       caseVarSyn a (\x ->
-           updateLocs x (Loc Nil1)) undefined
-    k (substs rho e)
+    F.forM_ (fromAssocs rho) $ \(Assoc _ x) ->
+        updateLocs x (Loc Nil1)
+    k (renames rho e)
 
 
 instance Functor (Dis abt) where
