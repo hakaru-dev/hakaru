@@ -48,13 +48,13 @@ echo libname := "C:\\<path to hakaru>\\hakaru\\maple",libname: > "C:\<path to ma
 If the Maple extension has been properly installed running
 
 ````bash
-echo "normal(0,1)" | simplify
+echo "normal(0,1)" | simplify -
 ````
 
 should return
 
 ````bash
-normal(nat2real(0), nat2prob(1))
+normal(0, 1)
 ````
 
 If the `LOCAL_MAPLE` environment variable is not set, then `simplify`
