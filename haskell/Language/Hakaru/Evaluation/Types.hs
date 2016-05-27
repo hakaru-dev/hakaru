@@ -473,6 +473,7 @@ isLazyLiteral = maybe False (const True) . getLazyLiteral
 data Purity = Pure | Impure | ExpectP
     deriving (Eq, Read, Show)
 
+-- Could it be a [(Variable 'HInd, ast 'HNat)] ?
 type Indices (ast :: Hakaru -> *) = List1 (Pair1 Variable ast)
 
 -- | A single statement in some ambient monad (specified by the @p@
