@@ -102,7 +102,7 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumCase (DatumEvaluator, MatchResult(..), matchBranches)
 import Language.Hakaru.Syntax.ABT
-import Language.Hakaru.Evaluation.Types
+import Language.Hakaru.Evaluation.Types hiding (push, pushes)
 import Language.Hakaru.Evaluation.Lazy
 import Language.Hakaru.Evaluation.DisintegrationMonad
 import qualified Language.Hakaru.Syntax.Prelude as P

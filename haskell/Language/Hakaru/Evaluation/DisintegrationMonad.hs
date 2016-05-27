@@ -53,6 +53,9 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     , emitFork_
     , emitSuperpose
     , choose
+    -- * Overrides from Evaluation.Types
+    , push
+    , pushes
     ) where
 
 import           Prelude              hiding (id, (.))
@@ -80,7 +83,7 @@ import Language.Hakaru.Syntax.DatumABT
 import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.ABT
 import qualified Language.Hakaru.Syntax.Prelude as P
-import Language.Hakaru.Evaluation.Types
+import Language.Hakaru.Evaluation.Types hiding (push, pushes)
 import Language.Hakaru.Evaluation.PEvalMonad (ListContext(..))
 import Language.Hakaru.Evaluation.Lazy (reifyPair)
 
@@ -133,7 +136,9 @@ residualizeListContext =
 
 ----------------------------------------------------------------
 -- A location is a variable *use* instantiated at some list of indices.
-data Loc ast a = forall xs. Loc (Variable a) (Indices ast xs)
+--
+-- Note: I don't think we need to store the Variable
+data Loc ast (a :: Hakaru) = forall xs. Loc (Indices ast xs)
 
 
 -- In the paper we say that result must be a 'Whnf'; however, in
@@ -194,6 +199,47 @@ runDis (Dis m) es =
 
     i0 = maxNextFree es
 
+getLocs :: (ABT Term abt)
+        => Dis abt (Assocs (Loc (abt '[])))
+getLocs = Dis $ \c h i l -> c l h i l
+
+updateLocs :: (ABT Term abt)
+           => Variable a
+           -> Loc (abt '[]) a
+           -> Dis abt ()
+updateLocs v loc = 
+  Dis $ \c h i l -> c () h i $
+    insertAssoc (Assoc v loc) l
+
+-- | Modified version of push from Types which also updates Loc
+push
+    :: (ABT Term abt, EvaluationMonad abt (Dis abt) p)
+    => Statement abt p   
+    -> abt xs a          
+    -> (abt xs a -> Dis abt r) 
+    -> Dis abt r               
+push s e k = do
+    rho <- push_ s
+    F.forM_ (fromAssocs rho) $ \(Assoc _ a) ->
+       caseVarSyn a (\x ->
+           updateLocs x (Loc Nil1)) undefined
+    k (substs rho e)
+
+-- | Modified version of pushes from Types which also updates Loc
+pushes
+    :: (ABT Term abt, EvaluationMonad abt (Dis abt) p)
+    => [Statement abt p] 
+    -> abt xs a          
+    -> (abt xs a -> Dis abt r) 
+    -> Dis abt r               
+pushes ss e k = do
+    -- TODO: is 'foldlM' the right one? or do we want 'foldrM'?
+    rho <- F.foldlM (\rho s -> mappend rho <$> push_ s) mempty ss
+    F.forM_ (fromAssocs rho) $ \(Assoc _ a) ->
+       caseVarSyn a (\x ->
+           updateLocs x (Loc Nil1)) undefined
+    k (substs rho e)
+
 
 instance Functor (Dis abt) where
     fmap f (Dis m)  = Dis $ \c -> m (c . f)
@@ -229,7 +275,13 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
         Dis $ \c (ListContext i ss') ->
             c () (ListContext i (reverse ss ++ ss'))
 
-    select x p = loop []
+    select x p = do
+        locs <- getLocs
+        let mx = lookupAssoc x locs
+        case mx of
+          Just (Loc is) -> loop [] 
+          Nothing       -> return Nothing
+
         where
         -- TODO: use a DList to avoid reversing inside 'unsafePushes'
         loop ss = do

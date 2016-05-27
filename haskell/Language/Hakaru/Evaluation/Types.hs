@@ -56,8 +56,8 @@ module Language.Hakaru.Evaluation.Types
     , freshenVars
     {- TODO: should we expose these?
     , freshenStatement
-    , push_
     -}
+    , push_
     , push
     , pushes
     ) where
