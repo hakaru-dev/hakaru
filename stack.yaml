@@ -1,4 +1,4 @@
-resolver: lts-5.14
+resolver: lts-6.0
 
 # Local packages, usually specified by relative directory name
 packages:
@@ -8,7 +8,6 @@ packages:
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
  - indentation-0.2.1.2
- - logfloat-0.13.3.3
  - pretty-1.1.3.2
 
 flags:

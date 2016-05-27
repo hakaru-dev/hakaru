@@ -34,6 +34,9 @@ matrix:
   - env: BUILD=cabal GHCVER=7.10.3 CABALVER=1.22
     compiler: ": #GHC 7.10.3"
     addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.3], sources: [hvr-ghc]}}
+  - env: CABALVER=1.24 GHCVER=8.0.1
+    compiler: ": #GHC 8.0.1"
+    addons: {apt: {packages: [cabal-install-1.24,ghc-8.0.1], sources: [hvr-ghc]}}
 
   # Build with the newest GHC and cabal-install. This is an accepted failure,
   # see below.
@@ -51,7 +54,7 @@ matrix:
     compiler: ": #stack 7.10.2"
     addons: {apt: {packages: [ghc-7.10.2], sources: [hvr-ghc]}}
 
-  - env: BUILD=stack ARGS="--resolver lts-5"
+  - env: BUILD=stack ARGS="--resolver lts-6"
     compiler: ": #stack 7.10.3"
     addons: {apt: {packages: [ghc-7.10.3], sources: [hvr-ghc]}}
 
@@ -69,7 +72,7 @@ matrix:
     compiler: ": #stack 7.10.2 osx"
     os: osx
 
-  - env: BUILD=stack ARGS="--resolver lts-5"
+  - env: BUILD=stack ARGS="--resolver lts-6"
     compiler: ": #stack 7.10.3 osx"
     os: osx
 
