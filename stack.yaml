@@ -9,6 +9,7 @@ packages:
 extra-deps:
  - indentation-0.2.1.2
  - pretty-1.1.3.2
+ - logfloat-0.13.3.3
 
 flags:
   indentation:
