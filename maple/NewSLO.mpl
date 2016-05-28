@@ -153,7 +153,7 @@ NewSLO := module ()
       res := eval(op(3,m), op(2,m) = mk_idx(op(2,m), loops));
       res := eval(Integrand(op(2,m), 'integrate'(res, x, loops)), x=h);
       integrate(op(1,m), res, loops);
-    elif m :: 'specfunc(Msum)' and nops(loops) = 0 then
+    elif m :: 'specfunc(Msum)' and (nops(loops) = 0 or nops(m) = 1) then
       `+`(op(map(integrate, [op(m)], h, loops)))
     elif m :: 'Weight(anything, anything)' then
       foldl(product, op(1,m), op(loops)) * integrate(op(2,m), h, loops)
