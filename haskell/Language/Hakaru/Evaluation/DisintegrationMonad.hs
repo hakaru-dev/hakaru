@@ -138,7 +138,7 @@ residualizeListContext =
 -- A location is a variable *use* instantiated at some list of indices.
 --
 -- Note: I don't think we need to store the Variable
-data Loc ast (a :: Hakaru) = forall xs. Loc (Indices ast xs)
+data Loc ast (a :: Hakaru) = Loc (Indices ast)
 
 
 -- In the paper we say that result must be a 'Whnf'; however, in
@@ -149,9 +149,9 @@ data Loc ast (a :: Hakaru) = forall xs. Loc (Indices ast xs)
 --
 -- Also, we add the list in order to support "lub" without it living in the AST.
 -- TODO: really we should use LogicT...
-type Ans abt xs a
+type Ans abt a
   =  ListContext abt 'Impure
-  -> Indices (abt '[]) xs
+  -> Indices (abt '[])
   -> Assocs (Loc (abt '[]))
   -> [abt '[] ('HMeasure a)]
 
@@ -171,7 +171,7 @@ type Ans abt xs a
 --
 -- N.B., This monad is used not only for both 'perform' and 'constrainOutcome', but also for 'constrainValue'.
 newtype Dis abt x =
-    Dis { unDis :: forall xs a. (x -> Ans abt xs a) -> Ans abt xs a }
+    Dis { unDis :: forall a. (x -> Ans abt a) -> Ans abt a }
     -- == @Codensity (Ans abt)@, assuming 'Codensity' is poly-kinded like it should be
     -- If we don't want to allow continuations that can make nondeterministic choices, then we should use the right Kan extension itself, rather than the Codensity specialization of it.
 
@@ -192,12 +192,16 @@ runDis :: (ABT Term abt, F.Foldable f)
     -> f (Some2 abt)
     -> [abt '[] ('HMeasure a)]
 runDis (Dis m) es =
-    m c0 (ListContext i0 []) Nil1 emptyAssocs
+    m c0 (ListContext i0 []) [] emptyAssocs
     where
     -- TODO: we only use dirac because 'residualizeListContext' requires it to already be a measure; unfortunately this can result in an extraneous @(>>= \x -> dirac x)@ redex at the end of the program. In principle, we should be able to eliminate that redex by changing the type of 'residualizeListContext'...
     c0 e ss _ _ = [residualizeListContext ss (syn(Dirac :$ e :* End))]
 
     i0 = maxNextFree es
+
+getIndices :: (ABT Term abt)
+           => Dis abt (Indices (abt '[]))
+getIndices =  Dis $ \c h i l -> c i h i l
 
 getLocs :: (ABT Term abt)
         => Dis abt (Assocs (Loc (abt '[])))
@@ -221,7 +225,7 @@ push
 push s e k = do
     rho <- push_ s
     F.forM_ (fromAssocs rho) $ \(Assoc _ x) ->
-        updateLocs x (Loc Nil1)
+        updateLocs x (Loc [])
     k (renames rho e)
 
 -- | Modified version of pushes from Types which also updates Loc
@@ -235,7 +239,7 @@ pushes ss e k = do
     -- TODO: is 'foldlM' the right one? or do we want 'foldrM'?
     rho <- F.foldlM (\rho s -> mappend rho <$> push_ s) mempty ss
     F.forM_ (fromAssocs rho) $ \(Assoc _ x) ->
-        updateLocs x (Loc Nil1)
+        updateLocs x (Loc [])
     k (renames rho e)
 
 

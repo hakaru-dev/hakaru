@@ -473,8 +473,8 @@ isLazyLiteral = maybe False (const True) . getLazyLiteral
 data Purity = Pure | Impure | ExpectP
     deriving (Eq, Read, Show)
 
--- Could it be a [(Variable 'HInd, ast 'HNat)] ?
-type Indices (ast :: Hakaru -> *) = List1 (Pair1 Variable ast)
+-- Could it be a [(Variable 'HNat, ast 'HNat)] ?
+type Indices ast = [(Variable 'HNat, ast 'HNat)]
 
 -- | A single statement in some ambient monad (specified by the @p@
 -- type index). In particular, note that the the first argument to
@@ -499,18 +499,18 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
     
     -- A variable bound by 'MBind' to a measure expression.
     SBind
-        :: forall abt (a :: Hakaru) (xs2 :: [Hakaru])
+        :: forall abt (a :: Hakaru)
         .  {-# UNPACK #-} !(Variable a)
         -> !(Lazy abt ('HMeasure a))
-        -> Indices (abt '[]) xs2
+        -> Indices (abt '[])
         -> Statement abt 'Impure
 
     -- A variable bound by 'Let_' to an expression.
     SLet
-        :: forall abt p (a :: Hakaru) (xs2 :: [Hakaru])
+        :: forall abt p (a :: Hakaru)
         .  {-# UNPACK #-} !(Variable a)
         -> !(Lazy abt a)
-        -> Indices (abt '[]) xs2
+        -> Indices (abt '[])
         -> Statement abt p
 
 
@@ -518,9 +518,9 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
     -- 'Superpose_'. This is a statement just so that we can avoid
     -- needing to atomize the weight itself.
     SWeight
-        :: forall abt (xs2 :: [Hakaru])
+        :: forall abt
         .  !(Lazy abt 'HProb)
-        -> Indices (abt '[]) xs2
+        -> Indices (abt '[])
         -> Statement abt 'Impure
 
     -- A monadic guard statement. If the scrutinee matches the
@@ -530,11 +530,11 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
     -- /monadic context/. In pure contexts we should be able to
     -- handle case analysis without putting anything onto the heap.
     SGuard
-        :: forall abt (xs :: [Hakaru]) (a :: Hakaru) (xs2 :: [Hakaru])
+        :: forall abt (xs :: [Hakaru]) (a :: Hakaru)
         .  !(List1 Variable xs)
         -> !(Pattern xs a)
         -> !(Lazy abt a)
-        -> Indices (abt '[]) xs2
+        -> Indices (abt '[])
         -> Statement abt 'Impure
 
     -- Some arbitrary pure code. This is a statement just so that we can avoid needing to atomize the stuff in the pure code.
@@ -543,15 +543,15 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
     -- TODO: generalize to use a 'VarSet' so we can collapse these
     -- TODO: defunctionalize? These break pretty printing...
     SStuff0
-        :: forall abt (xs2 :: [Hakaru])
+        :: forall abt
         .  (abt '[] 'HProb -> abt '[] 'HProb)
-        -> Indices (abt '[]) xs2
+        -> Indices (abt '[])
         -> Statement abt 'ExpectP
     SStuff1
-        :: forall abt (a :: Hakaru) (xs2 :: [Hakaru])
+        :: forall abt (a :: Hakaru)
         . {-# UNPACK #-} !(Variable a)
         -> (abt '[] 'HProb -> abt '[] 'HProb)
-        -> Indices (abt '[]) xs2
+        -> Indices (abt '[])
         -> Statement abt 'ExpectP
 
 
