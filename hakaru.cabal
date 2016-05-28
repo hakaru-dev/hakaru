@@ -88,7 +88,8 @@ Library
                        logfloat         >= 0.13 && < 0.14,
                        math-functions   >= 0.1  && < 0.2,
                        vector           >= 0.10,
-                       indentation      >= 0.2.1,
+                       indentation-parsec
+                                        >= 0.0,
                        ansi-terminal    >= 0.6,
                        text             >= 0.11 && < 1.3,
                        parsec           >= 3.1  && < 3.2,
@@ -112,7 +113,8 @@ Test-Suite system-testsuite
     Build-Depends:     base             >= 4.6  && < 5.0, 
                        Cabal            >= 1.16, 
                        ghc-prim         >= 0.3  && < 0.6,
-                       indentation      >= 0.2.1,
+                       indentation-parsec
+                                        >= 0.0,
                        transformers     >= 0.3  && < 0.6,
                        containers       >= 0.5  && < 0.6,
                        semigroups       >= 0.16, 
