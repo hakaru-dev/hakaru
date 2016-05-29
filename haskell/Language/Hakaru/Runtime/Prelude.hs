@@ -13,6 +13,8 @@ import qualified Control.Monad                   as M
 import           Prelude hiding ((>>=))
 
 
+let_ :: a -> (a -> b) -> b
+let_ x f = let x1 = x in f x1
 
 normal :: Double -> Double -> MWC.GenIO -> IO Double
 normal mu sd g = MWCD.normal mu sd g

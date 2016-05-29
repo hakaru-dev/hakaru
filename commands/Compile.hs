@@ -47,7 +47,7 @@ parseAndInfer x =
 
 prettyProg :: (ABT T.Term abt)
            => abt '[] a -> String
-prettyProg ast = renderStyle style {mode = LeftMode}
+prettyProg ast = renderStyle style
                  (cat [ text "prog = "
                       , nest 2 (pretty ast)
                       ])
