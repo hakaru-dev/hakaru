@@ -8,13 +8,9 @@
            , UndecidableInstances
            #-}
 
-{- -- DEBUG
-{-# OPTIONS_GHC -ddump-splices #-}
--}
-
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.21
+--                                                    2016.05.28
 -- |
 -- Module      :  Language.Hakaru.Types.Sing
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -45,13 +41,18 @@ module Language.Hakaru.Types.Sing
     , sUnEither
     , sUnList
     , sUnMaybe
+    -- ** Singletons for `Symbol`
+    , sSymbol_Bool
+    , sSymbol_Unit
+    , sSymbol_Pair
+    , sSymbol_Either
+    , sSymbol_List
+    , sSymbol_Maybe
     ) where
 
 import qualified GHC.TypeLits as TL
--- TODO: should we use 'GHC.Prim.Proxy#' instead?
-import Data.Proxy (Proxy(Proxy))
--- TODO: should we just use @(TE.:~:)@ everywhere instead of our own 'TypeEq'?
-import qualified Data.Type.Equality as TE
+-- TODO: should we use @(Data.Type.Equality.:~:)@ everywhere instead of our own 'TypeEq'?
+import Unsafe.Coerce
 
 import Language.Hakaru.Syntax.IClasses
 import Language.Hakaru.Types.DataKind
@@ -248,10 +249,8 @@ instance Show (Sing (a :: HakaruCon)) where
     showsPrec = showsPrec1
     show      = show1
 instance Show1 (Sing :: HakaruCon -> *) where
-    showsPrec1 p s =
-        case s of
-        STyCon s1    -> showParen_1  p "STyCon" s1
-        STyApp s1 s2 -> showParen_11 p "STyApp" s1 s2
+    showsPrec1 p (STyCon s1)    = showParen_1  p "STyCon" s1
+    showsPrec1 p (STyApp s1 s2) = showParen_11 p "STyApp" s1 s2
 
 
 instance TL.KnownSymbol s => SingI ('TyCon s :: HakaruCon) where
@@ -261,21 +260,27 @@ instance (SingI a, SingI b) => SingI ((a ':@ b) :: HakaruCon) where
 
 
 ----------------------------------------------------------------
+-- | N.B., in order to bring the 'TL.KnownSymbol' dictionary into
+-- scope, you need to pattern match on the 'SingSymbol' constructor
+-- (similar to when we need to match on 'Refl' explicitly). In
+-- general you'll want to do this with an at-pattern so that you
+-- can also have a variable name for passing the value around (e.g.
+-- to be used as an argument to 'TL.symbolVal').
 data instance Sing (s :: Symbol) where
-    SingSymbol :: TL.KnownSymbol s => Proxy s -> Sing (s :: Symbol)
+    SingSymbol :: TL.KnownSymbol s => Sing (s :: Symbol)
 
 sSymbol_Bool   :: Sing "Bool"
-sSymbol_Bool   = SingSymbol Proxy
+sSymbol_Bool   = SingSymbol
 sSymbol_Unit   :: Sing "Unit"
-sSymbol_Unit   = SingSymbol Proxy
+sSymbol_Unit   = SingSymbol
 sSymbol_Pair   :: Sing "Pair"
-sSymbol_Pair   = SingSymbol Proxy
+sSymbol_Pair   = SingSymbol
 sSymbol_Either :: Sing "Either"
-sSymbol_Either = SingSymbol Proxy
+sSymbol_Either = SingSymbol
 sSymbol_List   :: Sing "List"
-sSymbol_List   = SingSymbol Proxy
+sSymbol_List   = SingSymbol
 sSymbol_Maybe  :: Sing "Maybe"
-sSymbol_Maybe  = SingSymbol Proxy
+sSymbol_Maybe  = SingSymbol
 
 
 instance Eq (Sing (s :: Symbol)) where
@@ -283,9 +288,9 @@ instance Eq (Sing (s :: Symbol)) where
 instance Eq1 (Sing :: Symbol -> *) where
     eq1 x y = maybe False (const True) (jmEq1 x y)
 instance JmEq1 (Sing :: Symbol -> *) where
-     jmEq1 (SingSymbol p1) (SingSymbol p2) = do
-        TE.Refl <- TL.sameSymbol p1 p2
-        return Refl
+     jmEq1 x@SingSymbol y@SingSymbol
+        | TL.symbolVal x == TL.symbolVal y = Just (unsafeCoerce Refl)
+        | otherwise                        = Nothing
 
 -- TODO: is any meaningful Read (Sing (a :: Symbol)) instance possible?
 
@@ -293,15 +298,15 @@ instance Show (Sing (s :: Symbol)) where
     showsPrec = showsPrec1
     show      = show1
 instance Show1 (Sing :: Symbol -> *) where
-    showsPrec1 _ (SingSymbol s) =
+    showsPrec1 _ s@SingSymbol =
         showParen True
-            ( showString "SingSymbol Proxy :: Sing "
+            ( showString "SingSymbol :: Sing "
             . showString (show $ TL.symbolVal s)
             )
 
 -- Alas, this requires UndecidableInstances
 instance TL.KnownSymbol s => SingI (s :: Symbol) where
-    sing = SingSymbol Proxy
+    sing = SingSymbol
 
 
 ----------------------------------------------------------------
@@ -333,10 +338,8 @@ instance Show (Sing (a :: [[HakaruFun]])) where
     showsPrec = showsPrec1
     show      = show1
 instance Show1 (Sing :: [[HakaruFun]] -> *) where
-    showsPrec1 p s =
-        case s of
-        SVoid       -> showString     "SVoid"
-        SPlus s1 s2 -> showParen_11 p "SPlus" s1 s2
+    showsPrec1 _ SVoid         = showString     "SVoid"
+    showsPrec1 p (SPlus s1 s2) = showParen_11 p "SPlus" s1 s2
 
 
 instance SingI ('[] :: [[HakaruFun]]) where
@@ -371,10 +374,8 @@ instance Show (Sing (a :: [HakaruFun])) where
     showsPrec = showsPrec1
     show      = show1
 instance Show1 (Sing :: [HakaruFun] -> *) where
-    showsPrec1 p s =
-        case s of
-        SDone     -> showString     "SDone"
-        SEt s1 s2 -> showParen_11 p "SEt" s1 s2
+    showsPrec1 _ SDone       = showString     "SDone"
+    showsPrec1 p (SEt s1 s2) = showParen_11 p "SEt" s1 s2
 
 
 instance SingI ('[] :: [HakaruFun]) where
@@ -406,10 +407,8 @@ instance Show (Sing (a :: HakaruFun)) where
     showsPrec = showsPrec1
     show      = show1
 instance Show1 (Sing :: HakaruFun -> *) where
-    showsPrec1 p s =
-        case s of
-        SIdent    -> showString    "SIdent"
-        SKonst s1 -> showParen_1 p "SKonst" s1
+    showsPrec1 _ SIdent      = showString    "SIdent"
+    showsPrec1 p (SKonst s1) = showParen_1 p "SKonst" s1
 
 instance SingI 'I where
     sing = SIdent
@@ -460,7 +459,11 @@ toSing_Symbol
 toSing_Symbol s k = error "TODO: toSing_Symbol"
     {-
     case TL.someSymbolVal s of
-    TL.SomeSymbol p -> k (SingSymbol p)
+    TL.SomeSymbol p -> k (proxy2sing p)
+    where
+    proxy2sing
+        :: forall (s :: Symbol) => TL.KnownSymbol s -> Proxy s -> Sing s
+    proxy2sing _ = SingSymbol
     -}
 
 

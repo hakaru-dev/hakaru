@@ -12,7 +12,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.04.21
+--                                                    2016.05.28
 -- |
 -- Module      :  Language.Hakaru.Syntax.TypeCheck
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -39,7 +39,7 @@ module Language.Hakaru.Syntax.TypeCheck
 
 import           Prelude hiding (id, (.))
 import           Control.Category
-import           Data.Proxy            (KProxy(..), Proxy(..))
+import           Data.Proxy            (KProxy(..))
 import           Data.Text             (pack)
 import qualified Data.IntMap           as IM
 import qualified Data.Traversable      as T
@@ -544,8 +544,7 @@ inferType = inferType_
             TypedAST typ3 e3' <- inferType_ e3
             case typ3 of
                 SMeasure (SData (STyCon sym `STyApp` a `STyApp` b) _) ->
-                    case ( jmEq1 sym (SingSymbol Proxy :: Sing "Pair")
-                         , jmEq1 b typ2) of
+                    case (jmEq1 sym sSymbol_Pair, jmEq1 b typ2) of
                     (Just Refl, Just Refl) ->
                         return . TypedAST (SMeasure $ sPair (SArray a) typ2) $
                                syn (Chain :$ e1' :* e2' :* bind x' e3' :* End)
@@ -1112,17 +1111,18 @@ checkType = checkType_
               StrictMode -> safeNaryOp typ0
               LaxMode    -> safeNaryOp typ0
               UnsafeMode -> do
-                es'  <- tryWith LaxMode (safeNaryOp typ0)
+                es' <- tryWith LaxMode (safeNaryOp typ0)
                 case es' of
                   Just es'' -> return es''
                   Nothing   -> do
                     TypedAST typ e0' <- inferType (U.NaryOp_ op es)
                     checkOrUnsafeCoerce e0' typ typ0
-            where safeNaryOp :: forall c. Sing c -> TypeCheckMonad (abt '[] c)
-                  safeNaryOp typ = do
-                      op'  <- make_NaryOp typ op
-                      es'  <- T.forM es $ checkType_ typ
-                      return $ syn (NaryOp_ op' (S.fromList es'))
+            where
+            safeNaryOp :: forall c. Sing c -> TypeCheckMonad (abt '[] c)
+            safeNaryOp typ = do
+                op'  <- make_NaryOp typ op
+                es'  <- T.forM es $ checkType_ typ
+                return $ syn (NaryOp_ op' (S.fromList es'))
 
         U.Empty_ ->
             case typ0 of
@@ -1132,13 +1132,13 @@ checkType = checkType_
         U.Pair_ e1 e2 ->
             case typ0 of
             SData (STyCon sym `STyApp` a `STyApp` b) _ ->
-                case jmEq1 sym (SingSymbol Proxy :: Sing "Pair") of
-                  Just Refl  -> do
+                case jmEq1 sym sSymbol_Pair of
+                Just Refl  -> do
                     e1' <- checkType_ a e1
                     e2' <- checkType_ b e2
                     return $ syn (Datum_ $ dPair_ a b e1' e2')
-                  Nothing    -> typeMismatch (Right typ0) (Left "HPair")
-            _                -> typeMismatch (Right typ0) (Left "HPair")
+                Nothing    -> typeMismatch (Right typ0) (Left "HPair")
+            _              -> typeMismatch (Right typ0) (Left "HPair")
 
         U.Array_ e1 x e2 ->
             case typ0 of
@@ -1192,12 +1192,12 @@ checkType = checkType_
         U.Chain_ x e1 e2 e3 ->
             case typ0 of
             SMeasure (SData (STyCon sym `STyApp` (SArray a) `STyApp` s) _) ->
-                case jmEq1 sym (SingSymbol Proxy :: Sing "Pair") of
+                case jmEq1 sym sSymbol_Pair of
                 Just Refl -> do
-                  e1' <- checkType_ SNat e1
-                  e2' <- checkType_ s e2
-                  e3' <- checkBinder (makeVar x s) (SMeasure $ sPair a s) e3
-                  return $ syn (Chain :$ e1' :* e2' :* e3' :* End)
+                    e1' <- checkType_ SNat e1
+                    e2' <- checkType_ s e2
+                    e3' <- checkBinder (makeVar x s) (SMeasure $ sPair a s) e3
+                    return $ syn (Chain :$ e1' :* e2' :* e3' :* End)
                 Nothing -> typeMismatch (Right typ0) (Left "HMeasure(HPair(HArray, s)")
             _           -> typeMismatch (Right typ0) (Left "HMeasure(HPair(HArray, s)")
 
