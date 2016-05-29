@@ -25,7 +25,6 @@
 module Language.Hakaru.Types.Sing
     ( Sing(..)
     , SingI(..)
-    , toSing
     -- * Some helpful shorthands for \"built-in\" datatypes
     -- ** Constructing singletons
     , sBool
@@ -414,84 +413,6 @@ instance SingI 'I where
     sing = SIdent
 instance (SingI a) => SingI ('K a) where
     sing = SKonst sing
-
-----------------------------------------------------------------
-----------------------------------------------------------------
-toSing :: Hakaru -> (forall a. Sing (a :: Hakaru) -> r) -> r
-toSing HNat         k = k SNat
-toSing HInt         k = k SInt
-toSing HProb        k = k SProb
-toSing HReal        k = k SReal
-toSing (HMeasure a) k = toSing a $ \a' -> k (SMeasure a')
-toSing (HArray   a) k = toSing a $ \a' -> k (SArray   a')
-toSing (a :-> b)    k =
-    toSing a $ \a' ->
-    toSing b $ \b' ->
-    k (SFun a' b')
-toSing (HData t xss) k =
-    toSing_Con  t  $ \t' ->
-    toSing_Code xss $ \xss' ->
-    case xss' `isCodeFor` t' of
-    Just Refl -> k (SData t' xss')
-    Nothing   -> error "TODO: toSing{HData}: mismatch between Con and Code"
-
-isCodeFor
-    :: Sing (xss :: [[HakaruFun]])
-    -> Sing (t :: HakaruCon)
-    -> Maybe (TypeEq xss (Code t))
-isCodeFor = error "TODO: isCodeFor"
-    -- Potential approach: define @toCodeSing :: Sing t -> Sing (Code t)@ and then use 'jmEq1'.
-
-toSing_Con
-    :: HakaruCon
-    -> (forall t. Sing (t :: HakaruCon) -> r) -> r
-toSing_Con (TyCon s) k = toSing_Symbol s $ \s' -> k (STyCon s')
-toSing_Con (t :@ a)  k =
-    toSing_Con t $ \t' ->
-    toSing     a $ \a' ->
-    k (STyApp t' a')
-
-
--- BUG: The first argument must be of (the uninhabited) type 'Symbol' for 'toSing_Con' to use it; however, it only makes sense as being type 'String' (for which the given definition does what we want).
-toSing_Symbol
-    :: Symbol
-    -> (forall (s :: Symbol). Sing s -> r) -> r
-toSing_Symbol s k = error "TODO: toSing_Symbol"
-    {-
-    case TL.someSymbolVal s of
-    TL.SomeSymbol p -> k (proxy2sing p)
-    where
-    proxy2sing
-        :: forall (s :: Symbol) => TL.KnownSymbol s -> Proxy s -> Sing s
-    proxy2sing _ = SingSymbol
-    -}
-
-
-toSing_Code
-    :: [[HakaruFun]]
-    -> (forall xss. Sing (xss :: [[HakaruFun]]) -> r) -> r
-toSing_Code []       k = k SVoid
-toSing_Code (xs:xss) k =
-    toSing_Struct xs  $ \xs'  ->
-    toSing_Code   xss $ \xss' ->
-    k (SPlus xs' xss')
-
-
-toSing_Struct
-    :: [HakaruFun]
-    -> (forall xs. Sing (xs :: [HakaruFun]) -> r) -> r
-toSing_Struct []     k = k SDone
-toSing_Struct (x:xs) k =
-    toSing_Fun    x  $ \x'  ->
-    toSing_Struct xs $ \xs' ->
-    k (SEt x' xs')
-
-
-toSing_Fun
-    :: HakaruFun
-    -> (forall x. Sing (x :: HakaruFun) -> r) -> r
-toSing_Fun I     k = k SIdent
-toSing_Fun (K a) k = toSing a $ \a' -> k (SKonst a')
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.
