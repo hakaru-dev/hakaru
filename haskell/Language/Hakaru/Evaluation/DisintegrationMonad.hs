@@ -56,6 +56,8 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     -- * Overrides from Evaluation.Types
     , push
     , pushes
+    -- * For Arrays/Plate
+    , getIndices
     ) where
 
 import           Prelude              hiding (id, (.))
