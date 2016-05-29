@@ -190,7 +190,16 @@ mapleSCon Integrate = \(e1 :* e2 :* e3 :* End) ->
         . arg e2
         . showString "])"
 mapleSCon Summate = \(e1 :* e2 :* e3 :* End) ->
-    error "TODO: mapleSCon{Summate}"
+    caseBind e3 $ \x e3' ->
+        showString "sum("
+        . arg e3'
+        . showString ", "
+        . var1 x
+        . showChar '='
+        . arg e1
+        . showString ".."
+        . arg e2
+        . showString ")"
 mapleSCon Expect = \(e1 :* e2 :* End) ->
     error "TODO: mapleSCon{Expect}"
     {-

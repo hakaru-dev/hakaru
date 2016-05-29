@@ -96,6 +96,7 @@ primTable =
     ,("real2prob",   primUnsafe cProb2Real)
     ,("nat2real",    primCoerce cNat2Real)
     ,("nat2prob",    primCoerce cNat2Prob)
+    ,("nat2int",     primCoerce cNat2Int)
      -- Measures
     ,("lebesgue",    TNeu $ U.MeasureOp_ (U.SealedOp T.Lebesgue) [])
     ,("counting",    TNeu $ U.MeasureOp_ (U.SealedOp T.Counting) [])
@@ -122,6 +123,7 @@ primTable =
     ,("equal",       primPrimOp2 U.Equal)
     ,("less",        primPrimOp2 U.Less)
     ,("negate",      primPrimOp1 U.Negate)
+    ,("signum",      primPrimOp1 U.Signum)
     ,("recip",       primPrimOp1 U.Recip)
     ,("^",           primPrimOp2 U.NatPow)
     ,("natroot",     primPrimOp2 U.NatRoot)
@@ -274,6 +276,13 @@ symbolResolution symbols ast =
             <*> symbolResolution symbols e2
             <*> symbolResolution (insertSymbol name' symbols) e3     
 
+    U.Summate    name e1 e2 e3 -> do       
+        name' <- gensym name
+        U.Summate (mkSym name')
+            <$> symbolResolution symbols e1
+            <*> symbolResolution symbols e2
+            <*> symbolResolution (insertSymbol name' symbols) e3     
+
     U.NaryOp op es      -> U.NaryOp op
         <$> mapM (symbolResolution symbols) es
 
@@ -369,6 +378,7 @@ normAST ast =
     U.Infinity'               -> U.Infinity'
     U.NegInfinity'            -> U.NegInfinity'
     U.Integrate name e1 e2 e3 -> U.Integrate name (normAST e1) (normAST e2) (normAST e3)
+    U.Summate   name e1 e2 e3 -> U.Summate   name (normAST e1) (normAST e2) (normAST e3)
     U.ULiteral v              -> U.ULiteral v
     U.NaryOp op es            -> U.NaryOp op (map normAST es)
     U.Unit                    -> U.Unit
@@ -483,6 +493,9 @@ makeAST ast =
     U.Integrate s e1 e2 e3 ->
         withName "U.Integrate" s $ \name ->
             U.Integrate_ name (makeAST e1) (makeAST e2) (makeAST e3)
+    U.Summate s e1 e2 e3 ->
+        withName "U.Summate" s $ \name ->
+            U.Summate_ name (makeAST e1) (makeAST e2) (makeAST e3)
     U.Expect s e1 e2 ->
         withName "U.Expect" s $ \name ->
             U.Expect_ name (makeAST e1) (makeAST e2)
@@ -493,7 +506,7 @@ makeAST ast =
     U.WithMeta _a _meta -> error "TODO: makeAST{U.WithMeta}"
 
     where
-    withName :: [Char] -> Symbol U.AST -> (U.Name -> r) -> r
+    withName :: String -> Symbol U.AST -> (U.Name -> r) -> r
     withName fun s k =
         case s of
         TNeu (U.Var_ name) -> k name

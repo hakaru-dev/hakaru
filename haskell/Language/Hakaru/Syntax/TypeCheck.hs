@@ -176,6 +176,7 @@ mustCheck = go
     go (U.Chain_  _ _ e2 e3)   = mustCheck e2 && mustCheck e3
     go (U.MeasureOp_ _ _)      = False
     go (U.Integrate_  _ _ _ _) = False
+    go (U.Summate_    _ _ _ _) = False
     go U.Reject_               = True
     go (U.Expect_ _ _ e2)      = mustCheck e2
     go (U.Observe_ e1  _)      = mustCheck e1
@@ -558,6 +559,13 @@ inferType = inferType_
         return . TypedAST SProb $ 
                syn (Integrate :$ e1' :* e2' :* e3' :* End)
 
+    U.Summate_ x e1 e2 e3 -> do
+        e1' <- checkType_ SReal e1
+        e2' <- checkType_ SReal e2
+        e3' <- checkBinder (makeVar x SInt) SProb e3
+        return . TypedAST SProb $ 
+               syn (Summate :$ e1' :* e2' :* e3' :* End)
+
     U.Expect_ x e1 e2 -> do
         TypedAST typ1 e1' <- inferType_ e1
         case typ1 of
@@ -694,6 +702,19 @@ inferType = inferType_
                   mode <- getMode
                   SomeRing ring c <- getHRing typ mode
                   primop <- Negate <$> return ring
+                  let e'' = case c of
+                              CNil -> e'
+                              c'   -> unLC_ . coerceTo c' $ LC_ e'
+                  return . TypedAST (sing_HRing ring) $
+                         syn (PrimOp_ primop :$ e'' :* End)
+        _   -> failwith "Passed wrong number of arguments"
+
+  inferPrimOp U.Signum es =
+      case es of
+        [e] -> do TypedAST typ e' <- inferType_ e
+                  mode <- getMode
+                  SomeRing ring c <- getHRing typ mode
+                  primop <- Signum <$> return ring
                   let e'' = case c of
                               CNil -> e'
                               c'   -> unLC_ . coerceTo c' $ LC_ e'

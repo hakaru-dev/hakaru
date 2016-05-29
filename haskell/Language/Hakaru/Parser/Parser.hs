@@ -29,7 +29,7 @@ ops, types, names :: [String]
 ops   = ["+","*","-","^", "**", ":",".", "<~","==", "=", "_", "<|>"]
 types = ["->"]
 names = ["def","fn", "if","else","inf", "∞", "expect", "observe",
-         "return", "match", "integrate", "data"]
+         "return", "match", "integrate", "summate", "data"]
 
 type ParserStream    = IndentStream (CharIndentStream Text)
 type Parser          = ParsecT     ParserStream () Identity
@@ -324,6 +324,18 @@ integrate_expr =
         <*> semiblockExpr
         )
 
+summate_expr :: Parser (AST' Text)
+summate_expr =
+    reserved "summate"
+    *> (Summate
+        <$> identifier
+        <*  symbol "from"        
+        <*> expr
+        <*  symbol "to"
+        <*> expr     
+        <*> semiblockExpr
+        )
+
 expect_expr :: Parser (AST' Text)
 expect_expr =
     reserved "expect"
@@ -455,6 +467,7 @@ term =  try if_expr
     <|> try match_expr
     -- <|> try data_expr
     <|> try integrate_expr
+    <|> try summate_expr
     <|> try expect_expr
     <|> try observe_expr
     <|> try array_expr

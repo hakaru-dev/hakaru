@@ -269,11 +269,16 @@ ppSCon p Integrate = \(e1 :* e2 :* e3 :* End) ->
     ]
 
 ppSCon p Summate = \(e1 :* e2 :* e3 :* End) ->
-    ppFun p "summate"
-        [ toDoc $ ppArg e1
-        , toDoc $ ppArg e2
-        , toDoc $ parens True (ppBinder e3)
-        ]
+    let (vars, types, body) = ppBinder2 e3 in
+    [ PP.text "summate"
+      <+> toDoc vars
+      <+> PP.text "from"
+      <+> (toDoc $ ppArg e1)
+      <+> PP.text "to"
+      <+> (toDoc $ ppArg e2)
+      <> PP.colon <> PP.space
+    , PP.nest 1 (toDoc body)
+    ]
 
 ppSCon p Expect = \(e1 :* e2 :* End) ->
     let (vars, types, body) = ppBinder2 e2 in
