@@ -23,6 +23,15 @@ normal mu sd g = MWCD.normal mu sd g
       -> IO b
 m >>= f = \g -> m g M.>>= flip f g
 
+nat_ :: Integer -> Integer
+nat_ = id
+
+nat2prob :: Integer -> Double
+nat2prob = fromIntegral
+
+nat2real :: Integer -> Double
+nat2real = fromIntegral
+
 real_ :: Rational -> Double
 real_ = fromRational
 
