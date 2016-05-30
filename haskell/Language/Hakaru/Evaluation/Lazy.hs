@@ -556,7 +556,7 @@ evaluateArrayOp evaluate_ = go
             Neutral e1' -> return . Neutral $ syn (ArrayOp_ o :$ e1' :* End)
             Head_   v1  ->
                 case head2array v1 of
-                Nothing             -> error "TODO: evaluateArrayOp{Size}: use bot"
+                Nothing             -> error "evaluateArrayOp{Size}: the impossible happened"
                 Just WAEmpty        -> return . Head_ $ WLiteral (LNat 0)
                 Just (WAArray e3 _) -> evaluate_ e3
 

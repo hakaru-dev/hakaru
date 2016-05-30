@@ -138,8 +138,6 @@ residualizeListContext =
 
 ----------------------------------------------------------------
 -- A location is a variable *use* instantiated at some list of indices.
---
--- Note: I don't think we need to store the Variable
 data Loc ast (a :: Hakaru) = Loc (Indices ast)
 
 
@@ -204,6 +202,15 @@ runDis (Dis m) es =
 getIndices :: (ABT Term abt)
            => Dis abt (Indices (abt '[]))
 getIndices =  Dis $ \c h i l -> c i h i l
+
+extendIndices
+    :: (ABT Term abt)
+    => Variable 'HNat
+    -> abt '[] 'HNat
+    -> Indices (abt '[])
+    -> Indices (abt '[])
+-- TODO: check all Indices are unique
+extendIndices x s inds = (x, s) : inds
 
 getLocs :: (ABT Term abt)
         => Dis abt (Assocs (Loc (abt '[])))
@@ -291,10 +298,10 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
         loop ss = do
             ms <- unsafePop
             case ms of
-                Nothing -> do
+                Nothing      -> do
                     unsafePushes ss
                     return Nothing
-                Just s  ->
+                Just (s, js) ->
                     -- Alas, @p@ will have to recheck 'isBoundBy'
                     -- in order to grab the 'Refl' proof we erased;
                     -- but there's nothing to be done for it.
@@ -306,12 +313,12 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
                         return (Just r)
 
 -- | Not exported because we only need it for defining 'select' on 'Dis'.
-unsafePop :: Dis abt (Maybe (Statement abt 'Impure))
+unsafePop :: Dis abt (Maybe (Statement abt 'Impure, Indices (abt '[])))
 unsafePop =
     Dis $ \c h@(ListContext i ss) ind loc ->
         case ss of
         []    -> c Nothing  h ind loc
-        s:ss' -> c (Just s) (ListContext i ss') ind loc
+        s:ss' -> c (Just (s, ind)) (ListContext i ss') ind loc
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
