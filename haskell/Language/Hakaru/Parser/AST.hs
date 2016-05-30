@@ -120,8 +120,7 @@ data PrimOp
     | Sinh       | Cosh   | Tanh
     | Asinh      | Acosh  | Atanh
     | RealPow    | NatPow
-    | Exp        | Log
-    | Infinity   | NegativeInfinity
+    | Exp        | Log    | Infinity
     | GammaFunc  | BetaFunc
     | Equal      | Less
     | Negate     | Recip
