@@ -82,7 +82,6 @@ data AST' a
     | If  (AST' a) (AST' a) (AST' a)
     | Ann (AST' a) TypeAST'
     | Infinity'
-    | NegInfinity'
     | ULiteral Literal'
     | NaryOp NaryOp [AST' a]
     | Unit

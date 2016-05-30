@@ -266,7 +266,6 @@ symbolResolution symbols ast =
 
     U.Ann e typ         -> (`U.Ann` typ) <$> symbolResolution symbols e
     U.Infinity'         -> return $ U.Infinity'
-    U.NegInfinity'      -> return $ U.NegInfinity'
     U.ULiteral v        -> return $ U.ULiteral v
 
     U.Integrate  name e1 e2 e3 -> do       
@@ -376,7 +375,6 @@ normAST ast =
     U.If e1 e2 e3             -> U.If (normAST e1) (normAST e2) (normAST e3)
     U.Ann e typ1              -> U.Ann (normAST e) typ1
     U.Infinity'               -> U.Infinity'
-    U.NegInfinity'            -> U.NegInfinity'
     U.Integrate name e1 e2 e3 -> U.Integrate name (normAST e1) (normAST e2) (normAST e3)
     U.Summate   name e1 e2 e3 -> U.Summate   name (normAST e1) (normAST e2) (normAST e3)
     U.ULiteral v              -> U.ULiteral v
@@ -469,7 +467,6 @@ makeAST ast =
         U.Case_ (makeAST e1) [(makeTrue e2), (makeFalse e3)]
     U.Ann e typ       -> U.Ann_ (makeAST e) (makeType typ)
     U.Infinity'       -> U.PrimOp_ U.Infinity []
-    U.NegInfinity'    -> U.PrimOp_ U.NegativeInfinity []
     U.ULiteral v      -> U.Literal_  (U.val v)
     U.NaryOp op es    -> U.NaryOp_ op (map makeAST es)
     U.Unit            -> unit_

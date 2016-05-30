@@ -556,9 +556,8 @@ evaluateArrayOp evaluate_ = go
             Neutral e1' -> return . Neutral $ syn (ArrayOp_ o :$ e1' :* End)
             Head_   v1  ->
                 case head2array v1 of
-                Nothing             -> error "evaluateArrayOp{Size}: the impossible happened"
-                Just WAEmpty        -> return . Head_ $ WLiteral (LNat 0)
-                Just (WAArray e3 _) -> evaluate_ e3
+                WAEmpty      -> return . Head_ $ WLiteral (LNat 0)
+                WAArray e3 _ -> evaluate_ e3
 
     go (Reduce _) = \(e1 :* e2 :* e3 :* End) ->
         error "TODO: evaluateArrayOp{Reduce}"
@@ -571,10 +570,9 @@ data ArrayHead :: ([Hakaru] -> Hakaru -> *) -> Hakaru -> * where
         -> !(abt '[ 'HNat] a)
         -> ArrayHead abt a
 
-head2array :: Head abt ('HArray a) -> Maybe (ArrayHead abt a)
-head2array (WEmpty _)     = Just WAEmpty
-head2array (WArray e1 e2) = Just (WAArray e1 e2)
-head2array _              = error "head2array: the impossible happened"
+head2array :: Head abt ('HArray a) -> ArrayHead abt a
+head2array (WEmpty _)     = WAEmpty
+head2array (WArray e1 e2) = WAArray e1 e2
 
 
 ----------------------------------------------------------------
@@ -688,7 +686,6 @@ evaluatePrimOp evaluate_ = go
 
     -- HACK: these aren't actually neutral!
     go Infinity         End        = return $ Neutral P.infinity
-    go NegativeInfinity End        = return $ Neutral P.negativeInfinity
     
     go GammaFunc   (e1 :* End)            = neu1 P.gammaFunc e1
     go BetaFunc    (e1 :* e2 :* End)      = neu2 P.betaFunc  e1 e2

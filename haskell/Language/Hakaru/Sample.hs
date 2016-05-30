@@ -288,7 +288,6 @@ evaluatePrimOp Exp (e1 :* End) env =
       VReal v1 -> VProb . LF.logToLogFloat $ v1
       v        -> case v of {}
 evaluatePrimOp Infinity         End _ = VProb $ LF.logFloat LF.infinity
-evaluatePrimOp NegativeInfinity End _ = VReal $ LF.negativeInfinity
 evaluatePrimOp (Equal _) (e1 :* e2 :* End) env =
     case (evaluate e1 env, evaluate e2 env) of
     (VNat  v1, VNat  v2) -> VDatum $ if v1 == v2 then dTrue else dFalse

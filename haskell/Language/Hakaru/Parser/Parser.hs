@@ -227,7 +227,7 @@ inf_ = do
     reserved "inf" <|> reserved "∞"
     return $
         case s of
-        '-' -> NegInfinity'
+        '-' -> App (Var "negate") Infinity'
         '+' -> Infinity'
         _   -> error "inf_: the impossible happened"
 

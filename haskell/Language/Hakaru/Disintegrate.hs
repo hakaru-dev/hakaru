@@ -954,7 +954,6 @@ constrainPrimOp v0 = go
         constrainValue exp_x0 e1
 
     go Infinity         = \End               -> error_TODO "Infinity" -- scalar0
-    go NegativeInfinity = \End               -> error_TODO "NegativeInfinity" -- scalar0
     go GammaFunc        = \(e1 :* End)       -> error_TODO "GammaFunc" -- scalar1
     go BetaFunc         = \(e1 :* e2 :* End) -> error_TODO "BetaFunc" -- scalar2
     go (Equal  theOrd)  = \(e1 :* e2 :* End) -> error_TODO "Equal"

@@ -388,8 +388,7 @@ ppPrimOp p Atanh     = \(e1 :* End)       -> ppApply1 p "atanh" e1
 ppPrimOp p RealPow   = \(e1 :* e2 :* End) -> ppBinop "**" 8 RightAssoc p e1 e2
 ppPrimOp p Exp       = \(e1 :* End)       -> ppApply1 p "exp"   e1
 ppPrimOp p Log       = \(e1 :* End)       -> ppApply1 p "log"   e1
-ppPrimOp _ Infinity         = \End        -> [PP.text "∞"]
-ppPrimOp _ NegativeInfinity = \End        -> [PP.text "-∞"]
+ppPrimOp _ Infinity  = \End               -> [PP.text "∞"]
 ppPrimOp p GammaFunc = \(e1 :* End)       -> ppApply1 p "gammaFunc" e1
 ppPrimOp p BetaFunc  = \(e1 :* e2 :* End) -> ppApply2 p "betaFunc" e1 e2
 
