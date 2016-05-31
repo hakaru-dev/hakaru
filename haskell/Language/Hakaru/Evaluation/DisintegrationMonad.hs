@@ -138,7 +138,7 @@ residualizeListContext =
 
 ----------------------------------------------------------------
 -- A location is a variable *use* instantiated at some list of indices.
-data Loc ast (a :: Hakaru) = Loc (Indices ast)
+data Loc ast (a :: Hakaru) = Loc [Index ast]
 
 
 -- In the paper we say that result must be a 'Whnf'; however, in
@@ -151,7 +151,7 @@ data Loc ast (a :: Hakaru) = Loc (Indices ast)
 -- TODO: really we should use LogicT...
 type Ans abt a
   =  ListContext abt 'Impure
-  -> Indices (abt '[])
+  -> [Index (abt '[])]
   -> Assocs (Loc (abt '[]))
   -> [abt '[] ('HMeasure a)]
 
@@ -200,15 +200,15 @@ runDis (Dis m) es =
     i0 = maxNextFree es
 
 getIndices :: (ABT Term abt)
-           => Dis abt (Indices (abt '[]))
+           => Dis abt [Index (abt '[])]
 getIndices =  Dis $ \c h i l -> c i h i l
 
 extendIndices
     :: (ABT Term abt)
     => Variable 'HNat
     -> abt '[] 'HNat
-    -> Indices (abt '[])
-    -> Indices (abt '[])
+    -> [Index (abt '[])]
+    -> [Index (abt '[])]
 -- TODO: check all Indices are unique
 extendIndices x s inds = (x, s) : inds
 
@@ -313,7 +313,7 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
                         return (Just r)
 
 -- | Not exported because we only need it for defining 'select' on 'Dis'.
-unsafePop :: Dis abt (Maybe (Statement abt 'Impure, Indices (abt '[])))
+unsafePop :: Dis abt (Maybe (Statement abt 'Impure, [Index (abt '[])]))
 unsafePop =
     Dis $ \c h@(ListContext i ss) ind loc ->
         case ss of

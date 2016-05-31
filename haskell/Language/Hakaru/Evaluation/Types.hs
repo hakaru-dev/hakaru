@@ -43,7 +43,7 @@ module Language.Hakaru.Evaluation.Types
     , getLazyLiteral,  isLazyLiteral
 
     -- * The monad for partial evaluation
-    , Purity(..), Indices, Statement(..), isBoundBy
+    , Purity(..), Index, Statement(..), isBoundBy
 #ifdef __TRACE_DISINTEGRATE__
     , ppStatement
     , pretty_Statements
@@ -473,8 +473,7 @@ isLazyLiteral = maybe False (const True) . getLazyLiteral
 data Purity = Pure | Impure | ExpectP
     deriving (Eq, Read, Show)
 
--- Could it be a [(Variable 'HNat, ast 'HNat)] ?
-type Indices ast = [(Variable 'HNat, ast 'HNat)]
+type Index ast = (Variable 'HNat, ast 'HNat)
 
 -- | A single statement in some ambient monad (specified by the @p@
 -- type index). In particular, note that the the first argument to
@@ -502,7 +501,7 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
         :: forall abt (a :: Hakaru)
         .  {-# UNPACK #-} !(Variable a)
         -> !(Lazy abt ('HMeasure a))
-        -> Indices (abt '[])
+        -> [Index (abt '[])]
         -> Statement abt 'Impure
 
     -- A variable bound by 'Let_' to an expression.
@@ -510,7 +509,7 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
         :: forall abt p (a :: Hakaru)
         .  {-# UNPACK #-} !(Variable a)
         -> !(Lazy abt a)
-        -> Indices (abt '[])
+        -> [Index (abt '[])]
         -> Statement abt p
 
 
@@ -520,7 +519,7 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
     SWeight
         :: forall abt
         .  !(Lazy abt 'HProb)
-        -> Indices (abt '[])
+        -> [Index (abt '[])]
         -> Statement abt 'Impure
 
     -- A monadic guard statement. If the scrutinee matches the
@@ -534,7 +533,7 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
         .  !(List1 Variable xs)
         -> !(Pattern xs a)
         -> !(Lazy abt a)
-        -> Indices (abt '[])
+        -> [Index (abt '[])]
         -> Statement abt 'Impure
 
     -- Some arbitrary pure code. This is a statement just so that we can avoid needing to atomize the stuff in the pure code.
@@ -545,13 +544,13 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
     SStuff0
         :: forall abt
         .  (abt '[] 'HProb -> abt '[] 'HProb)
-        -> Indices (abt '[])
+        -> [Index (abt '[])]
         -> Statement abt 'ExpectP
     SStuff1
         :: forall abt (a :: Hakaru)
         . {-# UNPACK #-} !(Variable a)
         -> (abt '[] 'HProb -> abt '[] 'HProb)
-        -> Indices (abt '[])
+        -> [Index (abt '[])]
         -> Statement abt 'ExpectP
 
 
