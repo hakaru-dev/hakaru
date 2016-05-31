@@ -113,11 +113,12 @@ primTable =
     ,("reject",      TNeu $ U.Reject_)    
     -- PrimOps
     ,("not",         primPrimOp1 U.Not)
-    ,("pi",          TNeu $ U.PrimOp_ U.Pi [])
+    ,("pi",          primPrimOp0 U.Pi)
     ,("**",          primPrimOp2 U.RealPow)
     ,("cos",         primPrimOp1 U.Cos)
     ,("exp",         primPrimOp1 U.Exp)
     ,("log",         primPrimOp1 U.Log)
+    ,("inf",         primPrimOp0 U.Infinity)
     ,("gammaFunc",   primPrimOp1 U.GammaFunc)
     ,("betaFunc",    primPrimOp2 U.BetaFunc)
     ,("equal",       primPrimOp2 U.Equal)
@@ -136,7 +137,8 @@ primTable =
     ,("max",         t2 $ \x y -> U.NaryOp_ U.Max [x, y])
     ]
 
-primPrimOp1, primPrimOp2 :: U.PrimOp -> Symbol U.AST
+primPrimOp0, primPrimOp1, primPrimOp2 :: U.PrimOp -> Symbol U.AST
+primPrimOp0 a = TNeu $ U.PrimOp_ a []
 primPrimOp1 a = TLam $ \x -> TNeu $ U.PrimOp_ a [x]
 primPrimOp2 a = t2 $ \x y -> U.PrimOp_ a [x, y]
 

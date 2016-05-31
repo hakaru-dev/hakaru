@@ -28,7 +28,7 @@ import Language.Hakaru.Parser.AST
 ops, types, names :: [String]
 ops   = ["+","*","-","^", "**", ":",".", "<~","==", "=", "_", "<|>"]
 types = ["->"]
-names = ["def","fn", "if","else","inf", "∞", "expect", "observe",
+names = ["def","fn", "if", "else", "∞", "expect", "observe",
          "return", "match", "integrate", "summate", "data"]
 
 type ParserStream    = IndentStream (CharIndentStream Text)
@@ -222,14 +222,7 @@ floating = do
         _   -> error "floating: the impossible happened"
 
 inf_ :: Parser (AST' Text)
-inf_ = do
-    s <- option '+' (oneOf "-")
-    reserved "inf" <|> reserved "∞"
-    return $
-        case s of
-        '-' -> App (Var "negate") Infinity'
-        '+' -> Infinity'
-        _   -> error "inf_: the impossible happened"
+inf_ = reserved "∞" *> return Infinity'
 
 var :: Parser (AST' Text)
 var = Var <$> identifier
