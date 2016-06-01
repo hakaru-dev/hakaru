@@ -25,6 +25,9 @@ normal mu sd g = MWCD.normal mu sd g
       -> IO b
 m >>= f = \g -> m g M.>>= flip f g
 
+dirac :: a -> MWC.GenIO -> IO a
+dirac x _ = return x
+
 nat_ :: Integer -> Integer
 nat_ = id
 

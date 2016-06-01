@@ -67,9 +67,10 @@ header :: [Text]
 header =
   [ "module Main where"
   , ""
+  , "import           Prelude                          hiding ((>>=))"
   , "import           Language.Hakaru.Runtime.Prelude"
-  , "import qualified System.Random.MWC               as MWC"
-  , "import           Control.Monad"
+  , "import qualified System.Random.MWC                as MWC"
+  , "import           Control.Monad                    hiding ((>>=))"
   , ""
   ]
 
