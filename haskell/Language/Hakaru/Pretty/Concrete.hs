@@ -8,7 +8,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.01.15
+--                                                    2016.05.28
 -- |
 -- Module      :  Language.Hakaru.Pretty.Concrete
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -43,7 +43,6 @@ import qualified Data.Text                       as Text
 import qualified Data.Sequence                   as Seq
 
 import qualified Data.Vector                     as V
-import           Data.Proxy
 
 import           Data.Number.Natural  (fromNatural, fromNonNegativeRational)
 import           Data.Number.Nat
@@ -136,7 +135,7 @@ ppBinder2 e = unpackVarTypes $ go [] (viewABT e)
 -- BUG: since switching to ABT2, this instance requires -XUndecidableInstances; must be fixed!
 instance (ABT Term abt) => Pretty (LC_ abt) where
   prettyPrec_ p (LC_ e) =
-    caseVarSyn e ((:[]) . ppVariable) $ \t -> 
+    caseVarSyn e ((:[]) . ppVariable) $ \t ->
         case t of
         o :$ es      -> ppSCon p o es
         NaryOp_ o es ->
@@ -192,7 +191,7 @@ instance (ABT Term abt) => Pretty (LC_ abt) where
               <> PP.colon <> PP.space
             , PP.nest 1 (PP.vcat (map (toDoc . prettyPrec_ 0) bs))
             ]
-        Superpose_ pes -> 
+        Superpose_ pes ->
             PP.punctuate (PP.text " <|> ") $ L.toList $ fmap ppWeight pes
           where ppWeight (w,m)
                     | (PP.render $ pretty w) == "1.0" =
@@ -240,7 +239,7 @@ ppSCon _ MBind = \(e1 :* e2 :* End) ->
     [toDoc vars <+> PP.text "<~" <+> toDoc (ppArg e1)
         PP.$$ (toDoc body)]
 
-ppSCon p Plate = \(e1 :* e2 :* End) -> 
+ppSCon p Plate = \(e1 :* e2 :* End) ->
     let (vars, types, body) = ppBinder2 e2 in
     [ PP.text "plate"
       <+> toDoc vars
@@ -270,11 +269,16 @@ ppSCon p Integrate = \(e1 :* e2 :* e3 :* End) ->
     ]
 
 ppSCon p Summate = \(e1 :* e2 :* e3 :* End) ->
-    ppFun p "summate"
-        [ toDoc $ ppArg e1
-        , toDoc $ ppArg e2
-        , toDoc $ parens True (ppBinder e3)
-        ]
+    let (vars, types, body) = ppBinder2 e3 in
+    [ PP.text "summate"
+      <+> toDoc vars
+      <+> PP.text "from"
+      <+> (toDoc $ ppArg e1)
+      <+> PP.text "to"
+      <+> (toDoc $ ppArg e2)
+      <> PP.colon <> PP.space
+    , PP.nest 1 (toDoc body)
+    ]
 
 ppSCon p Expect = \(e1 :* e2 :* End) ->
     let (vars, types, body) = ppBinder2 e2 in
@@ -285,7 +289,7 @@ ppSCon p Expect = \(e1 :* e2 :* End) ->
     , PP.nest 1 (toDoc body)
     ]
 
-ppSCon p Observe = \(e1 :* e2 :* End) -> 
+ppSCon p Observe = \(e1 :* e2 :* End) ->
     [ PP.text "observe"
       <+> (toDoc $ ppArg e1)
       <+> (toDoc $ ppArg e2)
@@ -329,21 +333,21 @@ prettyType p (SArray   a) = PP.text "array" <> PP.parens (prettyType p a)
 prettyType p (SFun   a b) = prettyType p a <+> PP.text "->" <+> prettyType p b  
 prettyType p typ          =
     case typ of
-      SData (STyCon sym `STyApp` a `STyApp` b) _ ->
-          case jmEq1 sym (SingSymbol Proxy :: Sing "Pair") of
-            Just Refl -> toDoc $ ppFun p "pair" [prettyType p a, prettyType p b]
-            Nothing   -> 
-                case jmEq1 sym (SingSymbol Proxy :: Sing "Either") of
-                  Just Refl -> toDoc $ ppFun p "either" [prettyType p a, prettyType p b]
-                  Nothing   -> PP.text (showsPrec 11 typ "")
-      SData (STyCon sym) _ ->
-          case jmEq1 sym (SingSymbol Proxy :: Sing "Bool") of
-            Just Refl -> PP.text "bool"
-            Nothing   ->
-                case jmEq1 sym (SingSymbol Proxy :: Sing "Unit") of
-                  Just Refl -> PP.text "unit"
-                  Nothing   -> PP.text (showsPrec 11 typ "")
-      _ -> PP.text (showsPrec 11 typ "")
+    SData (STyCon sym `STyApp` a `STyApp` b) _ ->
+        case jmEq1 sym sSymbol_Pair of
+        Just Refl -> toDoc $ ppFun p "pair" [prettyType p a, prettyType p b]
+        Nothing   ->
+            case jmEq1 sym sSymbol_Either of
+            Just Refl -> toDoc $ ppFun p "either" [prettyType p a, prettyType p b]
+            Nothing   -> PP.text (showsPrec 11 typ "")
+    SData (STyCon sym) _ ->
+        case jmEq1 sym sSymbol_Bool of
+        Just Refl -> PP.text "bool"
+        Nothing   ->
+            case jmEq1 sym sSymbol_Unit of
+            Just Refl -> PP.text "unit"
+            Nothing   -> PP.text (showsPrec 11 typ "")
+    _ -> PP.text (showsPrec 11 typ "")
     -- TODO: make this prettier. Add hints to the singletons?typ
 
 
@@ -384,8 +388,7 @@ ppPrimOp p Atanh     = \(e1 :* End)       -> ppApply1 p "atanh" e1
 ppPrimOp p RealPow   = \(e1 :* e2 :* End) -> ppBinop "**" 8 RightAssoc p e1 e2
 ppPrimOp p Exp       = \(e1 :* End)       -> ppApply1 p "exp"   e1
 ppPrimOp p Log       = \(e1 :* End)       -> ppApply1 p "log"   e1
-ppPrimOp _ Infinity         = \End        -> [PP.text "∞"]
-ppPrimOp _ NegativeInfinity = \End        -> [PP.text "-∞"]
+ppPrimOp _ Infinity  = \End               -> [PP.text "∞"]
 ppPrimOp p GammaFunc = \(e1 :* End)       -> ppApply1 p "gammaFunc" e1
 ppPrimOp p BetaFunc  = \(e1 :* e2 :* End) -> ppApply2 p "betaFunc" e1 e2
 
@@ -608,7 +611,7 @@ ppBinop op p0 assoc =
             LeftAssoc  -> (p0, 1 + p0)
             RightAssoc -> (1 + p0, p0)
             NonAssoc   -> (1 + p0, 1 + p0)
-    in \p e1 e2 -> 
+    in \p e1 e2 ->
         parens (p > p0)
             [ prettyPrec p1 e1
             , PP.space <> PP.text op <> PP.space

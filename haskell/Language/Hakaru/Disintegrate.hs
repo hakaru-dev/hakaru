@@ -102,7 +102,7 @@ import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
 import Language.Hakaru.Syntax.DatumCase (DatumEvaluator, MatchResult(..), matchBranches)
 import Language.Hakaru.Syntax.ABT
-import Language.Hakaru.Evaluation.Types
+import Language.Hakaru.Evaluation.Types hiding (push, pushes)
 import Language.Hakaru.Evaluation.Lazy
 import Language.Hakaru.Evaluation.DisintegrationMonad
 import qualified Language.Hakaru.Syntax.Prelude as P
@@ -303,7 +303,8 @@ evaluateCase evaluate_ = evaluateCase_
         where
         evaluateBranch (Branch pat body) =
             let (vars,body') = caseBinds body
-            in push (SGuard vars pat (Thunk e) Nil1) body' evaluate_
+            in getIndices >>= \i ->
+                push (SGuard vars pat (Thunk e) i) body' evaluate_
 
 
 evaluateDatum :: (ABT Term abt) => DatumEvaluator (abt '[]) (Dis abt)
@@ -335,8 +336,9 @@ perform = \e0 ->
     performTerm (Dirac :$ e1 :* End)       = evaluate_ e1
     performTerm (MeasureOp_ o :$ es)       = performMeasureOp o es
     performTerm (MBind :$ e1 :* e2 :* End) =
-        caseBind e2 $ \x e2' ->
-            push (SBind x (Thunk e1) Nil1) e2' perform
+        caseBind e2 $ \x e2' -> do
+            i <- getIndices
+            push (SBind x (Thunk e1) i) e2' perform
     performTerm (Superpose_ pes) = do
         -- TODO: we should combine the multiple traversals of @pes@/@pes'@
         pes' <- T.traverse (firstM (fmap fromWhnf . atomize)) pes
@@ -344,8 +346,9 @@ perform = \e0 ->
 
     -- Avoid falling through to the @performWhnf <=< evaluate_@ case
     performTerm (Let_ :$ e1 :* e2 :* End) =
-        caseBind e2 $ \x e2' ->
-            push (SLet x (Thunk e1) Nil1) e2' perform
+        caseBind e2 $ \x e2' -> do
+            i <- getIndices
+            push (SLet x (Thunk e1) i) e2' perform
 
     -- TODO: we could optimize this by calling some @evaluateTerm@
     -- directly, rather than calling 'syn' to rebuild @e0@ from
@@ -538,7 +541,7 @@ constrainValue v0 e0 =
         Reject_ _                -> bot -- giving up.
         Let_ :$ e1 :* e2 :* End ->
             caseBind e2 $ \x e2' ->
-                push (SLet x (Thunk e1) Nil1) e2' (constrainValue v0)
+                push (SLet x (Thunk e1) []) e2' (constrainValue v0)
 
         CoerceTo_   c :$ e1 :* End ->
             -- TODO: we need to insert some kind of guard that says
@@ -607,7 +610,7 @@ constrainBranches v0 e = choose . map constrainBranch
     where
     constrainBranch (Branch pat body) =
         let (vars,body') = caseBinds body
-        in push (SGuard vars pat (Thunk e) Nil1) body' (constrainValue v0)
+        in push (SGuard vars pat (Thunk e) []) body' (constrainValue v0)
 
 
 constrainDatum
@@ -951,7 +954,6 @@ constrainPrimOp v0 = go
         constrainValue exp_x0 e1
 
     go Infinity         = \End               -> error_TODO "Infinity" -- scalar0
-    go NegativeInfinity = \End               -> error_TODO "NegativeInfinity" -- scalar0
     go GammaFunc        = \(e1 :* End)       -> error_TODO "GammaFunc" -- scalar1
     go BetaFunc         = \(e1 :* e2 :* End) -> error_TODO "BetaFunc" -- scalar2
     go (Equal  theOrd)  = \(e1 :* e2 :* End) -> error_TODO "Equal"
@@ -1089,8 +1091,9 @@ constrainOutcome v0 e0 =
     go (WMeasureOp o es)     = constrainOutcomeMeasureOp v0 o es
     go (WDirac e1)           = constrainValue v0 e1
     go (WMBind e1 e2)        =
-        caseBind e2 $ \x e2' ->
-            push (SBind x (Thunk e1) Nil1) e2' (constrainOutcome v0)
+        caseBind e2 $ \x e2' -> do
+            i <- getIndices
+            push (SBind x (Thunk e1) i) e2' (constrainOutcome v0)
     go (WPlate e1 e2)        = error "TODO: constrainOutcome{Plate}"
     go (WChain e1 e2 e3)     = error "TODO: constrainOutcome{Chain}"
     go (WReject typ)         = error "TODO: constrainOutcome{Reject}"

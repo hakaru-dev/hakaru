@@ -1,4 +1,3 @@
---module Language.Hakaru.Runtime.NormTest where
 module Main where
 
 import           Language.Hakaru.Runtime.Prelude

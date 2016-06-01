@@ -43,7 +43,7 @@ module Language.Hakaru.Evaluation.Types
     , getLazyLiteral,  isLazyLiteral
 
     -- * The monad for partial evaluation
-    , Purity(..), Indices, Statement(..), isBoundBy
+    , Purity(..), Index, Statement(..), isBoundBy
 #ifdef __TRACE_DISINTEGRATE__
     , ppStatement
     , pretty_Statements
@@ -56,8 +56,8 @@ module Language.Hakaru.Evaluation.Types
     , freshenVars
     {- TODO: should we expose these?
     , freshenStatement
-    , push_
     -}
+    , push_
     , push
     , pushes
     ) where
@@ -473,7 +473,7 @@ isLazyLiteral = maybe False (const True) . getLazyLiteral
 data Purity = Pure | Impure | ExpectP
     deriving (Eq, Read, Show)
 
-type Indices (ast :: Hakaru -> *) = List1 (Pair1 Variable ast)
+type Index ast = (Variable 'HNat, ast 'HNat)
 
 -- | A single statement in some ambient monad (specified by the @p@
 -- type index). In particular, note that the the first argument to
@@ -498,18 +498,18 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
     
     -- A variable bound by 'MBind' to a measure expression.
     SBind
-        :: forall abt (a :: Hakaru) (xs2 :: [Hakaru])
+        :: forall abt (a :: Hakaru)
         .  {-# UNPACK #-} !(Variable a)
         -> !(Lazy abt ('HMeasure a))
-        -> Indices (abt '[]) xs2
+        -> [Index (abt '[])]
         -> Statement abt 'Impure
 
     -- A variable bound by 'Let_' to an expression.
     SLet
-        :: forall abt p (a :: Hakaru) (xs2 :: [Hakaru])
+        :: forall abt p (a :: Hakaru)
         .  {-# UNPACK #-} !(Variable a)
         -> !(Lazy abt a)
-        -> Indices (abt '[]) xs2
+        -> [Index (abt '[])]
         -> Statement abt p
 
 
@@ -517,9 +517,9 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
     -- 'Superpose_'. This is a statement just so that we can avoid
     -- needing to atomize the weight itself.
     SWeight
-        :: forall abt (xs2 :: [Hakaru])
+        :: forall abt
         .  !(Lazy abt 'HProb)
-        -> Indices (abt '[]) xs2
+        -> [Index (abt '[])]
         -> Statement abt 'Impure
 
     -- A monadic guard statement. If the scrutinee matches the
@@ -529,11 +529,11 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
     -- /monadic context/. In pure contexts we should be able to
     -- handle case analysis without putting anything onto the heap.
     SGuard
-        :: forall abt (xs :: [Hakaru]) (a :: Hakaru) (xs2 :: [Hakaru])
+        :: forall abt (xs :: [Hakaru]) (a :: Hakaru)
         .  !(List1 Variable xs)
         -> !(Pattern xs a)
         -> !(Lazy abt a)
-        -> Indices (abt '[]) xs2
+        -> [Index (abt '[])]
         -> Statement abt 'Impure
 
     -- Some arbitrary pure code. This is a statement just so that we can avoid needing to atomize the stuff in the pure code.
@@ -542,15 +542,15 @@ data Statement :: ([Hakaru] -> Hakaru -> *) -> Purity -> * where
     -- TODO: generalize to use a 'VarSet' so we can collapse these
     -- TODO: defunctionalize? These break pretty printing...
     SStuff0
-        :: forall abt (xs2 :: [Hakaru])
+        :: forall abt
         .  (abt '[] 'HProb -> abt '[] 'HProb)
-        -> Indices (abt '[]) xs2
+        -> [Index (abt '[])]
         -> Statement abt 'ExpectP
     SStuff1
-        :: forall abt (a :: Hakaru) (xs2 :: [Hakaru])
+        :: forall abt (a :: Hakaru)
         . {-# UNPACK #-} !(Variable a)
         -> (abt '[] 'HProb -> abt '[] 'HProb)
-        -> Indices (abt '[]) xs2
+        -> [Index (abt '[])]
         -> Statement abt 'ExpectP
 
 
@@ -715,23 +715,23 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
 freshenStatement
     :: (ABT Term abt, EvaluationMonad abt m p)
     => Statement abt p
-    -> m (Statement abt p, Assocs (abt '[]))
+    -> m (Statement abt p, Assocs (Variable :: Hakaru -> *))
 freshenStatement s =
     case s of
     SWeight _ _    -> return (s, mempty)
     SBind x body i -> do
         x' <- freshenVar x
-        return (SBind x' body i, singletonAssocs x (var x'))
+        return (SBind x' body i, singletonAssocs x x')
     SLet  x body i -> do
         x' <- freshenVar x
-        return (SLet x' body i, singletonAssocs x (var x'))
+        return (SLet x' body i, singletonAssocs x x')
     SGuard xs pat scrutinee i -> do
         xs' <- freshenVars xs
-        return (SGuard xs' pat scrutinee i, toAssocs1 xs (fmap11 var xs'))
+        return (SGuard xs' pat scrutinee i, toAssocs1 xs xs')
     SStuff0   _ _ -> return (s, mempty)
     SStuff1 x f i -> do
         x' <- freshenVar x
-        return (SStuff1 x' f i, singletonAssocs x (var x'))
+        return (SStuff1 x' f i, singletonAssocs x x')
 
 
 -- TODO: define a new NameSupply monad in "Language.Hakaru.Syntax.Variable" for encapsulating these four fresh(en) functions?
@@ -806,7 +806,7 @@ freshenVars = go dnil1
 push_
     :: (ABT Term abt, EvaluationMonad abt m p)
     => Statement abt p
-    -> m (Assocs (abt '[]))
+    -> m (Assocs (Variable :: Hakaru -> *))
 push_ s = do
     (s',rho) <- freshenStatement s
     unsafePush s'
@@ -831,7 +831,7 @@ push
     -> m r               -- ^ the final result
 push s e k = do
     rho <- push_ s
-    k (substs rho e)
+    k (renames rho e)
 
 
 -- | Call 'push' repeatedly. (N.B., is more efficient than actually
@@ -847,7 +847,7 @@ pushes
 pushes ss e k = do
     -- TODO: is 'foldlM' the right one? or do we want 'foldrM'?
     rho <- F.foldlM (\rho s -> mappend rho <$> push_ s) mempty ss
-    k (substs rho e)
+    k (renames rho e)
 
 ----------------------------------------------------------------
 ----------------------------------------------------------- fin.

@@ -55,6 +55,7 @@ module Language.Hakaru.Syntax.ABT
     , maxNextFreeOrBind
     -- ** Capture avoiding substitution for any 'ABT'
     , rename
+    , renames
     , subst
     , substs
     -- ** Constructing first-order trees with a HOAS-like API
@@ -670,6 +671,24 @@ subst x e = start
             caseBind f $ \_ f' ->
                 bind z' . loop f' . viewABT $ rename z z' f'
 
+
+renames
+    :: forall
+        (syn :: ([k] -> k -> *) -> k -> *)
+        (abt :: [k] -> k -> *)
+        (xs  :: [k])
+        (a   :: k)
+    .   ( ABT syn abt
+        , JmEq1 (Sing :: k -> *)
+        , Show1 (Sing :: k -> *)
+        , Functor21 syn
+        )
+    => Assocs (Variable :: k -> *)
+    -> abt xs a
+    -> abt xs a
+renames rho0 =
+    -- Guaranteed correct (since 'subst' is correct) but very inefficient
+    \e0 -> F.foldl (\e (Assoc x v) -> rename x v e) e0 (unAssocs rho0)
 
 {-
 -- called (//) in Jon's abt library. We use this textual name so we can also have 'insts' for the n-ary version, rather than iterating the unary version. Or we could use something like (!) and (!!), albeit those names tend to be used to mean other things. It'd be nice to do (@) and (@@), but the first one is illegal.

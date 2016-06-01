@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -Wall -fwarn-tabs #-}
 ----------------------------------------------------------------
---                                                    2016.01.09
+--                                                    2016.05.28
 -- |
 -- Module      :  Language.Hakaru.Types.DataKind
 -- Copyright   :  Copyright (c) 2016 the Hakaru team
@@ -38,18 +38,6 @@ module Language.Hakaru.Types.DataKind
 
 import Data.Typeable (Typeable)
 import GHC.TypeLits (Symbol)
-import Unsafe.Coerce
-
-----------------------------------------------------------------
--- HACK: there is no way to produce a value level term of type
--- Symbol other than through the fromSing function in TypeEq, so
--- this should be safe.
-instance Show Symbol where
-    show x = show (unsafeCoerce x :: String)
-
-instance Read Symbol where
-    readsPrec = unsafeCoerce (readsPrec :: Int -> ReadS String)
-
 
 ----------------------------------------------------------------
 -- BUG: can't define the fixity of @(':->)@
@@ -86,8 +74,6 @@ data Hakaru
     -- specified by a \"tag\" (the @HakaruCon@) which names the type, and a sum-of-product representation of the type itself.
     | HData !HakaruCon [[HakaruFun]]
 
-    deriving (Read, Show)
-
 
 -- N.B., The @Proxy@ type from "Data.Proxy" is polykinded, so it
 -- works for @Hakaru@ too. However, it is _not_ Typeable!
@@ -120,7 +106,6 @@ deriving instance Typeable 'HData
 -- Products and sums are represented as lists in the 'Hakaru'
 -- data-kind itself, so they aren't in this datatype.
 data HakaruFun = I | K !Hakaru
-    deriving (Read, Show)
 
 deriving instance Typeable 'I
 deriving instance Typeable 'K
@@ -136,7 +121,6 @@ deriving instance Typeable 'K
 -- variable binding in Code. 'Symbol' is the kind of \"type level
 -- strings\".
 data HakaruCon = TyCon !Symbol | HakaruCon :@ Hakaru
-    deriving (Read, Show)
 infixl 0 :@
 
 deriving instance Typeable 'TyCon

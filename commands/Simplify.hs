@@ -7,6 +7,7 @@ import           Language.Hakaru.Parser.Parser
 import           Language.Hakaru.Parser.SymbolResolve (resolveAST)
 import           Language.Hakaru.Pretty.Concrete  
 import qualified Language.Hakaru.Syntax.AST as T
+import           Language.Hakaru.Syntax.AST.Transforms
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.TypeCheck
 
@@ -43,6 +44,8 @@ readFromFile :: String -> IO Text
 readFromFile "-" = IO.getContents
 readFromFile x   = IO.readFile x
 
+et = expandTransformations
+
 main :: IO ()
 main = do
   args <- parseOpts
@@ -62,6 +65,6 @@ runSimplify prog debug_ =
         let m = inferType' (resolveAST past) in
         case (runTCM m LaxMode, debug_) of
         (Left err, _)                   -> putStrLn err
-        (Right (TypedAST _ ast), True)  -> simplifyDebug ast >>= print . pretty
-        (Right (TypedAST _ ast), False) -> simplify      ast >>= print . pretty
+        (Right (TypedAST _ ast), True)  -> (simplifyDebug . et) ast >>= print . pretty
+        (Right (TypedAST _ ast), False) -> (simplify      . et) ast >>= print . pretty
 

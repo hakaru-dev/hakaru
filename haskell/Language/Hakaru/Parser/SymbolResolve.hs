@@ -96,6 +96,7 @@ primTable =
     ,("real2prob",   primUnsafe cProb2Real)
     ,("nat2real",    primCoerce cNat2Real)
     ,("nat2prob",    primCoerce cNat2Prob)
+    ,("nat2int",     primCoerce cNat2Int)
      -- Measures
     ,("lebesgue",    TNeu $ U.MeasureOp_ (U.SealedOp T.Lebesgue) [])
     ,("counting",    TNeu $ U.MeasureOp_ (U.SealedOp T.Counting) [])
@@ -112,16 +113,18 @@ primTable =
     ,("reject",      TNeu $ U.Reject_)    
     -- PrimOps
     ,("not",         primPrimOp1 U.Not)
-    ,("pi",          TNeu $ U.PrimOp_ U.Pi [])
+    ,("pi",          primPrimOp0 U.Pi)
     ,("**",          primPrimOp2 U.RealPow)
     ,("cos",         primPrimOp1 U.Cos)
     ,("exp",         primPrimOp1 U.Exp)
     ,("log",         primPrimOp1 U.Log)
+    ,("inf",         primPrimOp0 U.Infinity)
     ,("gammaFunc",   primPrimOp1 U.GammaFunc)
     ,("betaFunc",    primPrimOp2 U.BetaFunc)
     ,("equal",       primPrimOp2 U.Equal)
     ,("less",        primPrimOp2 U.Less)
     ,("negate",      primPrimOp1 U.Negate)
+    ,("signum",      primPrimOp1 U.Signum)
     ,("recip",       primPrimOp1 U.Recip)
     ,("^",           primPrimOp2 U.NatPow)
     ,("natroot",     primPrimOp2 U.NatRoot)
@@ -134,7 +137,8 @@ primTable =
     ,("max",         t2 $ \x y -> U.NaryOp_ U.Max [x, y])
     ]
 
-primPrimOp1, primPrimOp2 :: U.PrimOp -> Symbol U.AST
+primPrimOp0, primPrimOp1, primPrimOp2 :: U.PrimOp -> Symbol U.AST
+primPrimOp0 a = TNeu $ U.PrimOp_ a []
 primPrimOp1 a = TLam $ \x -> TNeu $ U.PrimOp_ a [x]
 primPrimOp2 a = t2 $ \x y -> U.PrimOp_ a [x, y]
 
@@ -264,12 +268,18 @@ symbolResolution symbols ast =
 
     U.Ann e typ         -> (`U.Ann` typ) <$> symbolResolution symbols e
     U.Infinity'         -> return $ U.Infinity'
-    U.NegInfinity'      -> return $ U.NegInfinity'
     U.ULiteral v        -> return $ U.ULiteral v
 
     U.Integrate  name e1 e2 e3 -> do       
         name' <- gensym name
         U.Integrate (mkSym name')
+            <$> symbolResolution symbols e1
+            <*> symbolResolution symbols e2
+            <*> symbolResolution (insertSymbol name' symbols) e3     
+
+    U.Summate    name e1 e2 e3 -> do       
+        name' <- gensym name
+        U.Summate (mkSym name')
             <$> symbolResolution symbols e1
             <*> symbolResolution symbols e2
             <*> symbolResolution (insertSymbol name' symbols) e3     
@@ -367,8 +377,8 @@ normAST ast =
     U.If e1 e2 e3             -> U.If (normAST e1) (normAST e2) (normAST e3)
     U.Ann e typ1              -> U.Ann (normAST e) typ1
     U.Infinity'               -> U.Infinity'
-    U.NegInfinity'            -> U.NegInfinity'
     U.Integrate name e1 e2 e3 -> U.Integrate name (normAST e1) (normAST e2) (normAST e3)
+    U.Summate   name e1 e2 e3 -> U.Summate   name (normAST e1) (normAST e2) (normAST e3)
     U.ULiteral v              -> U.ULiteral v
     U.NaryOp op es            -> U.NaryOp op (map normAST es)
     U.Unit                    -> U.Unit
@@ -459,7 +469,6 @@ makeAST ast =
         U.Case_ (makeAST e1) [(makeTrue e2), (makeFalse e3)]
     U.Ann e typ       -> U.Ann_ (makeAST e) (makeType typ)
     U.Infinity'       -> U.PrimOp_ U.Infinity []
-    U.NegInfinity'    -> U.PrimOp_ U.NegativeInfinity []
     U.ULiteral v      -> U.Literal_  (U.val v)
     U.NaryOp op es    -> U.NaryOp_ op (map makeAST es)
     U.Unit            -> unit_
@@ -483,6 +492,9 @@ makeAST ast =
     U.Integrate s e1 e2 e3 ->
         withName "U.Integrate" s $ \name ->
             U.Integrate_ name (makeAST e1) (makeAST e2) (makeAST e3)
+    U.Summate s e1 e2 e3 ->
+        withName "U.Summate" s $ \name ->
+            U.Summate_ name (makeAST e1) (makeAST e2) (makeAST e3)
     U.Expect s e1 e2 ->
         withName "U.Expect" s $ \name ->
             U.Expect_ name (makeAST e1) (makeAST e2)
@@ -493,7 +505,7 @@ makeAST ast =
     U.WithMeta _a _meta -> error "TODO: makeAST{U.WithMeta}"
 
     where
-    withName :: [Char] -> Symbol U.AST -> (U.Name -> r) -> r
+    withName :: String -> Symbol U.AST -> (U.Name -> r) -> r
     withName fun s k =
         case s of
         TNeu (U.Var_ name) -> k name

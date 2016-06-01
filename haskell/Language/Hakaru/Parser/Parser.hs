@@ -28,8 +28,8 @@ import Language.Hakaru.Parser.AST
 ops, types, names :: [String]
 ops   = ["+","*","-","^", "**", ":",".", "<~","==", "=", "_", "<|>"]
 types = ["->"]
-names = ["def","fn", "if","else","inf", "∞", "expect", "observe",
-         "return", "match", "integrate", "data"]
+names = ["def","fn", "if", "else", "∞", "expect", "observe",
+         "return", "match", "integrate", "summate", "data"]
 
 type ParserStream    = IndentStream (CharIndentStream Text)
 type Parser          = ParsecT     ParserStream () Identity
@@ -222,14 +222,7 @@ floating = do
         _   -> error "floating: the impossible happened"
 
 inf_ :: Parser (AST' Text)
-inf_ = do
-    s <- option '+' (oneOf "-")
-    reserved "inf" <|> reserved "∞"
-    return $
-        case s of
-        '-' -> NegInfinity'
-        '+' -> Infinity'
-        _   -> error "inf_: the impossible happened"
+inf_ = reserved "∞" *> return Infinity'
 
 var :: Parser (AST' Text)
 var = Var <$> identifier
@@ -316,6 +309,18 @@ integrate_expr :: Parser (AST' Text)
 integrate_expr =
     reserved "integrate"
     *> (Integrate
+        <$> identifier
+        <*  symbol "from"        
+        <*> expr
+        <*  symbol "to"
+        <*> expr     
+        <*> semiblockExpr
+        )
+
+summate_expr :: Parser (AST' Text)
+summate_expr =
+    reserved "summate"
+    *> (Summate
         <$> identifier
         <*  symbol "from"        
         <*> expr
@@ -455,6 +460,7 @@ term =  try if_expr
     <|> try match_expr
     -- <|> try data_expr
     <|> try integrate_expr
+    <|> try summate_expr
     <|> try expect_expr
     <|> try observe_expr
     <|> try array_expr

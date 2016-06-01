@@ -65,7 +65,6 @@ instance Arbitrary a => Arbitrary (AST' a) where
         , ( 1, If  <$> arbitrary <*> arbitrary <*> arbitrary)
         , ( 1, Ann <$> arbitrary <*> arbitrary)
         , ( 1, return Infinity')
-        , ( 1, return NegInfinity')
         , ( 1, ULiteral <$> arbitrary)
         --, ( 1, NaryOp <$> arbitrary)
         , ( 1, return Empty)

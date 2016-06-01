@@ -53,6 +53,11 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     , emitFork_
     , emitSuperpose
     , choose
+    -- * Overrides from Evaluation.Types
+    , push
+    , pushes
+    -- * For Arrays/Plate
+    , getIndices
     ) where
 
 import           Prelude              hiding (id, (.))
@@ -80,7 +85,7 @@ import Language.Hakaru.Syntax.DatumABT
 import Language.Hakaru.Syntax.TypeOf
 import Language.Hakaru.Syntax.ABT
 import qualified Language.Hakaru.Syntax.Prelude as P
-import Language.Hakaru.Evaluation.Types
+import Language.Hakaru.Evaluation.Types hiding (push, pushes)
 import Language.Hakaru.Evaluation.PEvalMonad (ListContext(..))
 import Language.Hakaru.Evaluation.Lazy (reifyPair)
 
@@ -133,7 +138,7 @@ residualizeListContext =
 
 ----------------------------------------------------------------
 -- A location is a variable *use* instantiated at some list of indices.
-data Loc ast a = forall xs. Loc (Variable a) (Indices ast xs)
+data Loc ast (a :: Hakaru) = Loc [Index ast]
 
 
 -- In the paper we say that result must be a 'Whnf'; however, in
@@ -144,9 +149,9 @@ data Loc ast a = forall xs. Loc (Variable a) (Indices ast xs)
 --
 -- Also, we add the list in order to support "lub" without it living in the AST.
 -- TODO: really we should use LogicT...
-type Ans abt xs a
+type Ans abt a
   =  ListContext abt 'Impure
-  -> Indices (abt '[]) xs
+  -> [Index (abt '[])]
   -> Assocs (Loc (abt '[]))
   -> [abt '[] ('HMeasure a)]
 
@@ -166,7 +171,7 @@ type Ans abt xs a
 --
 -- N.B., This monad is used not only for both 'perform' and 'constrainOutcome', but also for 'constrainValue'.
 newtype Dis abt x =
-    Dis { unDis :: forall xs a. (x -> Ans abt xs a) -> Ans abt xs a }
+    Dis { unDis :: forall a. (x -> Ans abt a) -> Ans abt a }
     -- == @Codensity (Ans abt)@, assuming 'Codensity' is poly-kinded like it should be
     -- If we don't want to allow continuations that can make nondeterministic choices, then we should use the right Kan extension itself, rather than the Codensity specialization of it.
 
@@ -187,12 +192,64 @@ runDis :: (ABT Term abt, F.Foldable f)
     -> f (Some2 abt)
     -> [abt '[] ('HMeasure a)]
 runDis (Dis m) es =
-    m c0 (ListContext i0 []) Nil1 emptyAssocs
+    m c0 (ListContext i0 []) [] emptyAssocs
     where
     -- TODO: we only use dirac because 'residualizeListContext' requires it to already be a measure; unfortunately this can result in an extraneous @(>>= \x -> dirac x)@ redex at the end of the program. In principle, we should be able to eliminate that redex by changing the type of 'residualizeListContext'...
     c0 e ss _ _ = [residualizeListContext ss (syn(Dirac :$ e :* End))]
 
     i0 = maxNextFree es
+
+getIndices :: (ABT Term abt)
+           => Dis abt [Index (abt '[])]
+getIndices =  Dis $ \c h i l -> c i h i l
+
+extendIndices
+    :: (ABT Term abt)
+    => Variable 'HNat
+    -> abt '[] 'HNat
+    -> [Index (abt '[])]
+    -> [Index (abt '[])]
+-- TODO: check all Indices are unique
+extendIndices x s inds = (x, s) : inds
+
+getLocs :: (ABT Term abt)
+        => Dis abt (Assocs (Loc (abt '[])))
+getLocs = Dis $ \c h i l -> c l h i l
+
+updateLocs :: (ABT Term abt)
+           => Variable a
+           -> Loc (abt '[]) a
+           -> Dis abt ()
+updateLocs v loc = 
+  Dis $ \c h i l -> c () h i $
+    insertAssoc (Assoc v loc) l
+
+-- | Modified version of push from Types which also updates Loc
+push
+    :: (ABT Term abt, EvaluationMonad abt (Dis abt) p)
+    => Statement abt p   
+    -> abt xs a          
+    -> (abt xs a -> Dis abt r) 
+    -> Dis abt r               
+push s e k = do
+    rho <- push_ s
+    F.forM_ (fromAssocs rho) $ \(Assoc _ x) ->
+        updateLocs x (Loc [])
+    k (renames rho e)
+
+-- | Modified version of pushes from Types which also updates Loc
+pushes
+    :: (ABT Term abt, EvaluationMonad abt (Dis abt) p)
+    => [Statement abt p] 
+    -> abt xs a          
+    -> (abt xs a -> Dis abt r) 
+    -> Dis abt r               
+pushes ss e k = do
+    -- TODO: is 'foldlM' the right one? or do we want 'foldrM'?
+    rho <- F.foldlM (\rho s -> mappend rho <$> push_ s) mempty ss
+    F.forM_ (fromAssocs rho) $ \(Assoc _ x) ->
+        updateLocs x (Loc [])
+    k (renames rho e)
 
 
 instance Functor (Dis abt) where
@@ -229,16 +286,22 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
         Dis $ \c (ListContext i ss') ->
             c () (ListContext i (reverse ss ++ ss'))
 
-    select x p = loop []
+    select x p = do
+        locs <- getLocs
+        let mx = lookupAssoc x locs
+        case mx of
+          Just (Loc is) -> loop [] 
+          Nothing       -> return Nothing
+
         where
         -- TODO: use a DList to avoid reversing inside 'unsafePushes'
         loop ss = do
             ms <- unsafePop
             case ms of
-                Nothing -> do
+                Nothing      -> do
                     unsafePushes ss
                     return Nothing
-                Just s  ->
+                Just (s, js) ->
                     -- Alas, @p@ will have to recheck 'isBoundBy'
                     -- in order to grab the 'Refl' proof we erased;
                     -- but there's nothing to be done for it.
@@ -250,12 +313,12 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
                         return (Just r)
 
 -- | Not exported because we only need it for defining 'select' on 'Dis'.
-unsafePop :: Dis abt (Maybe (Statement abt 'Impure))
+unsafePop :: Dis abt (Maybe (Statement abt 'Impure, [Index (abt '[])]))
 unsafePop =
     Dis $ \c h@(ListContext i ss) ind loc ->
         case ss of
         []    -> c Nothing  h ind loc
-        s:ss' -> c (Just s) (ListContext i ss') ind loc
+        s:ss' -> c (Just (s, ind)) (ListContext i ss') ind loc
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------

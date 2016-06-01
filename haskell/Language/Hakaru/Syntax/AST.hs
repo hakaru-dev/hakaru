@@ -336,7 +336,6 @@ data PrimOp :: [Hakaru] -> Hakaru -> * where
     Log       :: PrimOp '[ 'HProb ] 'HReal
     -- TODO: Log1p, Expm1
     Infinity  :: PrimOp '[] 'HProb -- TODO: maybe make this HContinuous polymorphic?
-    NegativeInfinity :: PrimOp '[] 'HReal -- TODO: maybe replace this by @negate (coerceTo signed $ Infinity)@ ?
     -- TODO: add Factorial as the appropriate type restriction of GammaFunc?
     GammaFunc :: PrimOp '[ 'HReal ] 'HProb
     BetaFunc  :: PrimOp '[ 'HProb, 'HProb ] 'HProb
@@ -444,7 +443,6 @@ instance JmEq2 PrimOp where
     jmEq2 Exp         Exp         = Just (Refl, Refl)
     jmEq2 Log         Log         = Just (Refl, Refl)
     jmEq2 Infinity    Infinity    = Just (Refl, Refl)
-    jmEq2 NegativeInfinity NegativeInfinity = Just (Refl, Refl)
     jmEq2 GammaFunc   GammaFunc   = Just (Refl, Refl)
     jmEq2 BetaFunc    BetaFunc    = Just (Refl, Refl)
     jmEq2 (Equal a)   (Equal b)   =

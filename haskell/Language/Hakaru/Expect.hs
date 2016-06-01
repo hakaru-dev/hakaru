@@ -99,7 +99,7 @@ residualizeExpect e = do
     -- BUG: is this what we really mean? or do we actually mean the old 'emit' version?
     x <- freshVar Text.empty (sUnMeasure $ typeOf e)
     unsafePush (SStuff1 x (\c ->
-        syn (AST.Expect :$ e :* bind x c :* End)) Nil1)
+        syn (AST.Expect :$ e :* bind x c :* End)) [])
     return $ var x
 {-
 residualizeExpect e = do
@@ -251,7 +251,7 @@ pushIntegrate
 pushIntegrate lo hi = do
     x <- freshVar Text.empty SReal
     unsafePush (SStuff1 x (\c ->
-        syn (Integrate :$ lo :* hi :* bind x c :* End)) Nil1)
+        syn (Integrate :$ lo :* hi :* bind x c :* End)) [])
     return x
 {-
 -- BUG: we assume the arguments are emissible!
@@ -268,7 +268,7 @@ pushSummate
 pushSummate lo hi = do
     x <- freshVar Text.empty SInt
     unsafePush (SStuff1 x (\c ->
-        syn (Summate :$ lo :* hi :* bind x c :* End)) Nil1)
+        syn (Summate :$ lo :* hi :* bind x c :* End)) [])
     return x
 {-
 -- BUG: we assume the arguments are emissible!
@@ -284,7 +284,7 @@ pushLet e =
     caseVarSyn e return $ \_ -> do
         x <- freshVar Text.empty (typeOf e)
         unsafePush (SStuff1 x (\c ->
-            syn (Let_ :$ e :* bind x c :* End)) Nil1)
+            syn (Let_ :$ e :* bind x c :* End)) [])
         return x
 {-
 emitLet e =
@@ -308,7 +308,7 @@ expectMeasureOp Counting = \End ->
 expectMeasureOp Categorical = \(ps :* End) -> do
     ps' <- var <$> pushLet ps
     tot <- var <$> pushLet (P.summateV ps')
-    unsafePush (SStuff0 (\c -> P.if_ (P.zero P.< tot) c P.zero) Nil1)
+    unsafePush (SStuff0 (\c -> P.if_ (P.zero P.< tot) c P.zero) [])
     i <- freshVar Text.empty SNat
     Expect $ \c h ->
         P.summateV
@@ -326,7 +326,7 @@ expectMeasureOp Uniform = \(lo :* hi :* End) -> do
     lo' <- var <$> pushLet lo
     hi' <- var <$> pushLet hi
     x   <- var <$> pushIntegrate lo' hi'
-    unsafePush (SStuff0 (\c -> P.densityUniform lo' hi' x P.* c) Nil1)
+    unsafePush (SStuff0 (\c -> P.densityUniform lo' hi' x P.* c) [])
     return x
     {-
     let_ lo $ \lo' ->
@@ -337,7 +337,7 @@ expectMeasureOp Uniform = \(lo :* hi :* End) -> do
 expectMeasureOp Normal = \(mu :* sd :* End) -> do
     -- HACK: for some reason w need to break apart the 'emit' and the 'emit_' or else we get a "<<loop>>" exception. Not entirely sure why, but it prolly indicates a bug somewhere.
     x <- var <$> pushIntegrate P.negativeInfinity P.infinity
-    unsafePush (SStuff0 (\c -> P.densityNormal mu sd x P.* c) Nil1)
+    unsafePush (SStuff0 (\c -> P.densityNormal mu sd x P.* c) [])
     return x
     {-
     \c ->
@@ -346,10 +346,10 @@ expectMeasureOp Normal = \(mu :* sd :* End) -> do
     -}
 expectMeasureOp Poisson = \(l :* End) -> do
     l' <- var <$> pushLet l
-    unsafePush (SStuff0 (\c -> P.if_ (P.zero P.< l') c P.zero) Nil1)
+    unsafePush (SStuff0 (\c -> P.if_ (P.zero P.< l') c P.zero) [])
     x  <- var <$> pushSummate P.zero P.infinity
     x_ <- var <$> pushLet (P.unsafeFrom_ signed x) -- TODO: Or is this small enough that we'd be fine using Haskell's "let" and so duplicating the coercion of a variable however often?
-    unsafePush (SStuff0 (\c -> P.densityPoisson l' x_ P.* c) Nil1)
+    unsafePush (SStuff0 (\c -> P.densityPoisson l' x_ P.* c) [])
     return x_
     {-
     let_ l $ \l' ->
@@ -362,7 +362,7 @@ expectMeasureOp Poisson = \(l :* End) -> do
 expectMeasureOp Gamma = \(shape :* scale :* End) -> do
     x  <- var <$> pushIntegrate P.zero P.infinity
     x_ <- var <$> pushLet (P.unsafeProb x) -- TODO: Or is this small enough that we'd be fine using Haskell's "let" and so duplicating the coercion of a variable however often?
-    unsafePush (SStuff0 (\c -> P.densityGamma shape scale x_ P.* c) Nil1)
+    unsafePush (SStuff0 (\c -> P.densityGamma shape scale x_ P.* c) [])
     return x_
     {-
     integrate zero infinity $ \x ->
@@ -372,7 +372,7 @@ expectMeasureOp Gamma = \(shape :* scale :* End) -> do
 expectMeasureOp Beta = \(a :* b :* End) -> do
     x  <- var <$> pushIntegrate P.zero P.one
     x_ <- var <$> pushLet (P.unsafeProb x) -- TODO: Or is this small enough that we'd be fine using Haskell's "let" and so duplicating the coercion of a variable however often?
-    unsafePush (SStuff0 (\c -> P.densityBeta a b x_ P.* c) Nil1)
+    unsafePush (SStuff0 (\c -> P.densityBeta a b x_ P.* c) [])
     return x_
     {-
     integrate zero one $ \x ->

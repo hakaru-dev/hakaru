@@ -284,8 +284,10 @@ KB := module ()
     e := foldl(eval, ee, op(kb_to_equations(kb)));
     e := evalindets(e, 'specfunc({%product, product})', myexpand_product);
     e := evalindets(e, 'specfunc(sum)', expand);
+    as := [op(kb_to_assumptions(kb)),
+           op(map(`::`, indets(e, 'specfunc(size)'), nonnegint))];
     e := chill(e);
-    as := chill(kb_to_assumptions(kb));
+    as := chill(as);
     try
       e := evalindets(e, {logical,
                           specfunc({And,Or,Not}),

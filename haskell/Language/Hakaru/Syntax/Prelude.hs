@@ -874,7 +874,7 @@ unsafeProbSemiring_ HSemiring_Real = unsafeProb
 
 
 negativeInfinity :: (ABT Term abt) => abt '[] 'HReal
-negativeInfinity = primOp0_ NegativeInfinity
+negativeInfinity = negate infinity
 
 -- instance (ABT Term abt) => Lambda abt where
 -- 'app' already defined

@@ -11,6 +11,7 @@ import           Language.Hakaru.Parser.SymbolResolve (resolveAST)
 
 
 import qualified Language.Hakaru.Syntax.AST as T
+import           Language.Hakaru.Syntax.AST.Transforms
 import           Language.Hakaru.Syntax.ABT
 import           Language.Hakaru.Syntax.TypeCheck
 import           Language.Hakaru.Syntax.Value
@@ -75,7 +76,7 @@ runHakaru g prog =
           _          -> illustrate typ g $ run ast
     where
     run :: TrivialABT T.Term '[] a -> Value a
-    run = runEvaluate
+    run = runEvaluate . expandTransformations
 
 randomWalk ::MWC.GenIO -> Text -> Text -> IO ()
 randomWalk g p1 p2 =
@@ -93,7 +94,7 @@ randomWalk g p1 p2 =
       (_, Left err) -> print err
     where
     run :: TrivialABT T.Term '[] a -> Value a
-    run = runEvaluate
+    run = runEvaluate . expandTransformations
 
     chain :: Value (a ':-> b) -> Value ('HMeasure a) -> IO (Value b)
     chain (VLam f) (VMeasure m) = do

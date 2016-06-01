@@ -190,7 +190,16 @@ mapleSCon Integrate = \(e1 :* e2 :* e3 :* End) ->
         . arg e2
         . showString "])"
 mapleSCon Summate = \(e1 :* e2 :* e3 :* End) ->
-    error "TODO: mapleSCon{Summate}"
+    caseBind e3 $ \x e3' ->
+        showString "sum("
+        . arg e3'
+        . showString ", "
+        . var1 x
+        . showChar '='
+        . arg e1
+        . showString ".."
+        . arg e2
+        . showString ")"
 mapleSCon Expect = \(e1 :* e2 :* End) ->
     error "TODO: mapleSCon{Expect}"
     {-
@@ -286,7 +295,6 @@ maplePrimOp RealPow          (e1 :* e2 :* End) =
 maplePrimOp Exp              (e1 :* End)       = app1 "exp"  e1
 maplePrimOp Log              (e1 :* End)       = app1 "log"  e1
 maplePrimOp Infinity         End               = showString "infinity"
-maplePrimOp NegativeInfinity End               = showString "-infinity"
 maplePrimOp GammaFunc        (e1 :* End)       = app1 "GAMMA" e1
 maplePrimOp BetaFunc         (e1 :* e2 :* End) = app2 "Beta" e1 e2
 maplePrimOp (Equal _)        (e1 :* e2 :* End) =

@@ -74,6 +74,7 @@ symTable =
     , ("Pi",        "pi")
     , ("ln",        "log")
     , ("GAMMA",     "gammaFunc")
+    , ("csgn",      "signum")
     , ("NegativeBinomial", "neg_binomial")
     -- Type symbols
     , ("Real",     "real")
@@ -369,6 +370,15 @@ maple2AST (InertArgs Func
     Integrate x (maple2AST lo) (maple2AST hi) (maple2AST f)
 
 maple2AST (InertArgs Func
+        [ InertName "sum"
+        , InertArgs ExpSeq
+           [ f
+           , InertArgs Equal
+             [ InertName x
+             , InertArgs Range [lo, hi]]]]) =
+    Summate x (maple2AST lo) (maple2AST hi) (maple2AST f)
+
+maple2AST (InertArgs Func
         [f, InertArgs ExpSeq es]) =
     foldl App (maple2AST f) (map maple2AST es)
 
@@ -464,6 +474,18 @@ maple2Type (InertArgs Func
                   [InertName "Konst",
                    InertArgs ExpSeq [y]]]]]]]])
      = TypeApp "pair" (map maple2Type [x, y])
+
+maple2Type (InertArgs Func
+            [InertName "HArray",
+             InertArgs ExpSeq
+             [x]])
+     = TypeApp "array" [maple2Type x]
+
+maple2Type (InertArgs Func
+            [InertName "HMeasure",
+             InertArgs ExpSeq
+             [x]])
+     = TypeApp "measure" [maple2Type x]
 
 maple2Type x = error ("TODO: maple2Type " ++ show x)
 
