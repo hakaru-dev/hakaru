@@ -31,7 +31,8 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     (
     -- * The disintegration monad
     -- ** List-based version
-      ListContext(..), Ans, Dis(..), runDis
+      getStatements
+    , ListContext(..), Ans, Dis(..), runDis
     -- ** TODO: IntMap-based version
     
     -- * Operators on the disintegration monad
@@ -58,6 +59,14 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     , pushes
     -- * For Arrays/Plate
     , getIndices
+    , extendIndices
+    , statementInds
+    -- * Locs
+    , Loc(..)
+    , getLocs
+    , putLocs
+    , insertLoc
+    , adjustLoc
     ) where
 
 import           Prelude              hiding (id, (.))
@@ -92,6 +101,9 @@ import Language.Hakaru.Evaluation.Lazy (reifyPair)
 #ifdef __TRACE_DISINTEGRATE__
 import Debug.Trace (trace)
 #endif
+
+getStatements :: Dis abt [Statement abt 'Impure]
+getStatements = Dis $ \c h -> c (statements h) h
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -205,24 +217,40 @@ getIndices =  Dis $ \c h i l -> c i h i l
 
 extendIndices
     :: (ABT Term abt)
-    => Variable 'HNat
-    -> abt '[] 'HNat
+    => Index (abt '[])
     -> [Index (abt '[])]
     -> [Index (abt '[])]
 -- TODO: check all Indices are unique
-extendIndices x s inds = (x, s) : inds
+extendIndices = (:)
+
+-- give better name
+statementInds :: Statement abt p -> [Index (abt '[])]
+statementInds = undefined
 
 getLocs :: (ABT Term abt)
         => Dis abt (Assocs (Loc (abt '[])))
 getLocs = Dis $ \c h i l -> c l h i l
 
-updateLocs :: (ABT Term abt)
-           => Variable a
-           -> Loc (abt '[]) a
-           -> Dis abt ()
-updateLocs v loc = 
+putLocs :: (ABT Term abt)
+        => Assocs (Loc (abt '[]))
+        -> Dis abt ()
+putLocs l = Dis $ \c h i _ -> c () h i l
+
+insertLoc :: (ABT Term abt)
+          => Variable a
+          -> Loc (abt '[]) a
+          -> Dis abt ()
+insertLoc v loc = 
   Dis $ \c h i l -> c () h i $
     insertAssoc (Assoc v loc) l
+
+adjustLoc :: (ABT Term abt)
+          => Variable (a :: Hakaru)
+          -> (Assoc (Loc (abt '[])) -> Assoc (Loc (abt '[])))
+          -> Dis abt ()
+adjustLoc x f = do
+    locs <- getLocs
+    putLocs $ adjustAssoc x f locs
 
 -- | Modified version of push from Types which also updates Loc
 push
@@ -234,7 +262,7 @@ push
 push s e k = do
     rho <- push_ s
     F.forM_ (fromAssocs rho) $ \(Assoc _ x) ->
-        updateLocs x (Loc [])
+        insertLoc x (Loc (statementInds s))
     k (renames rho e)
 
 -- | Modified version of pushes from Types which also updates Loc
@@ -248,7 +276,7 @@ pushes ss e k = do
     -- TODO: is 'foldlM' the right one? or do we want 'foldrM'?
     rho <- F.foldlM (\rho s -> mappend rho <$> push_ s) mempty ss
     F.forM_ (fromAssocs rho) $ \(Assoc _ x) ->
-        updateLocs x (Loc [])
+        insertLoc x (Loc [])
     k (renames rho e)
 
 

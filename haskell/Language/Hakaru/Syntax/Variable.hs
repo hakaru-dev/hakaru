@@ -53,6 +53,7 @@ module Language.Hakaru.Syntax.Variable
     , toAssocs1
     , insertAssoc
     , lookupAssoc
+    , adjustAssoc
     ) where
 
 import           Data.Proxy        (KProxy(..))
@@ -508,12 +509,20 @@ instance Monoid (Assocs abt) where
 -- sort of continuation to decide between (a) replacing the old
 -- binding, (b) throwing an exception, or (c) safely wrapping the
 -- result up with 'Maybe'
-insertAssoc :: Assoc abt -> Assocs abt -> Assocs abt
+insertAssoc :: Assoc ast -> Assocs ast -> Assocs ast
 insertAssoc v@(Assoc x _) (Assocs xs) =
     case IM.insertLookupWithKey (\_ v' _ -> v') (fromNat $ varID x) v xs of
     (Nothing, xs') -> Assocs xs'
     (Just _,  _)   -> error "insertAssoc: variable is already assigned!"
 
+-- | Adjust an association so existing variable refers to different
+-- value. Does nothing if variable not present.
+adjustAssoc :: Variable (a :: k)
+            -> (Assoc ast -> Assoc ast)
+            -> Assocs ast
+            -> Assocs ast
+adjustAssoc x f (Assocs xs) =
+    Assocs $ IM.adjust f (fromNat $ varID x) xs
 
 -- | Look up a variable and return the associated term.
 --

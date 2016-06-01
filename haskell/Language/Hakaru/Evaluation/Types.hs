@@ -54,6 +54,7 @@ module Language.Hakaru.Evaluation.Types
     , freshenVar
     , Hint(..), freshVars
     , freshenVars
+    , freshInd
     {- TODO: should we expose these?
     , freshenStatement
     -}
@@ -72,12 +73,13 @@ import           Control.Applicative  (Applicative(..))
 import           Control.Arrow        ((***))
 import qualified Data.Foldable        as F
 import           Data.List.NonEmpty   (NonEmpty(..))
+import qualified Data.Text            as T
 import           Data.Text            (Text)
 
 import Language.Hakaru.Syntax.IClasses
 import Data.Number.Nat
 import Language.Hakaru.Types.DataKind
-import Language.Hakaru.Types.Sing    (Sing)
+import Language.Hakaru.Types.Sing    (Sing(..))
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
@@ -794,6 +796,14 @@ freshenVars = go dnil1
         x' <- freshenVar x
         go (k `dsnoc1` x') xs -- BUG: type error....
 -}
+
+-- | Given a size, generate a fresh Index
+freshInd :: (EvaluationMonad abt m p)
+         => abt '[] 'HNat
+         -> m (Index (abt '[]))
+freshInd s = do
+  x <- freshVar T.empty SNat
+  return (x, s)
 
 
 -- | Add a statement to the top of the context, renaming any variables
