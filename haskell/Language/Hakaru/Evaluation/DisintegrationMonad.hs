@@ -76,6 +76,7 @@ import           Data.Monoid          (Monoid(..))
 import           Data.Functor         ((<$>))
 import           Control.Applicative  (Applicative(..))
 #endif
+import           Data.Maybe
 import qualified Data.Foldable        as F
 import qualified Data.Traversable     as T
 import           Data.List.NonEmpty   (NonEmpty(..))
@@ -263,13 +264,9 @@ checkIfMultiLoc x = do
   case lookupAssoc x locs of
     Just (Loc is) -> do 
         ss <- getStatements
-        return $ foldl sizeInnermost Nothing ss
-    Nothing       -> return Nothing
-  where sizeInnermost mn s =
-            case mn of
-              Nothing -> x `isBoundBy` s >> 
-                         Just (snd (head (statementInds s)))
-              _ -> mn
+        return . listToMaybe . flip mapMaybe ss $ \s -> do
+                     x `isBoundBy` s
+                     return . indSize . head $ statementInds s
 
 -- | Modified version of push from Types which also updates Loc
 push

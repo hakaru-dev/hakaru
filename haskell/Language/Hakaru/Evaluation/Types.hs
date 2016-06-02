@@ -44,7 +44,7 @@ module Language.Hakaru.Evaluation.Types
 
     -- * The monad for partial evaluation
     , Purity(..), Statement(..), isBoundBy
-    , Index, indVar
+    , Index, indVar, indSize
 #ifdef __TRACE_DISINTEGRATE__
     , ppStatement
     , pretty_Statements
@@ -480,6 +480,9 @@ type Index ast = (Variable 'HNat, ast 'HNat)
 
 indVar :: Index ast -> Variable 'HNat
 indVar = fst
+
+indSize :: Index ast -> ast 'HNat
+indSize = snd
 
 -- | A single statement in some ambient monad (specified by the @p@
 -- type index). In particular, note that the the first argument to
