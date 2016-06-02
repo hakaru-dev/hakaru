@@ -31,7 +31,8 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     (
     -- * The disintegration monad
     -- ** List-based version
-      ListContext(..), Ans, Dis(..), runDis
+      getStatements
+    , ListContext(..), Ans, Dis(..), runDis
     -- ** TODO: IntMap-based version
     
     -- * Operators on the disintegration monad
@@ -53,11 +54,19 @@ module Language.Hakaru.Evaluation.DisintegrationMonad
     , emitFork_
     , emitSuperpose
     , choose
-    -- * Overrides from Evaluation.Types
+    -- * Overrides for original in Evaluation.Types
     , push
     , pushes
     -- * For Arrays/Plate
     , getIndices
+    , extendIndices
+    , statementInds
+    -- * Locs
+    , Loc(..)
+    , getLocs
+    , putLocs
+    , insertLoc
+    , adjustLoc
     ) where
 
 import           Prelude              hiding (id, (.))
@@ -67,6 +76,7 @@ import           Data.Monoid          (Monoid(..))
 import           Data.Functor         ((<$>))
 import           Control.Applicative  (Applicative(..))
 #endif
+import           Data.Maybe
 import qualified Data.Foldable        as F
 import qualified Data.Traversable     as T
 import           Data.List.NonEmpty   (NonEmpty(..))
@@ -92,6 +102,9 @@ import Language.Hakaru.Evaluation.Lazy (reifyPair)
 #ifdef __TRACE_DISINTEGRATE__
 import Debug.Trace (trace)
 #endif
+
+getStatements :: Dis abt [Statement abt 'Impure]
+getStatements = Dis $ \c h -> c (statements h) h
 
 ----------------------------------------------------------------
 ----------------------------------------------------------------
@@ -199,30 +212,61 @@ runDis (Dis m) es =
 
     i0 = maxNextFree es
 
-getIndices :: (ABT Term abt)
-           => Dis abt [Index (abt '[])]
-getIndices =  Dis $ \c h i l -> c i h i l
-
 extendIndices
     :: (ABT Term abt)
-    => Variable 'HNat
-    -> abt '[] 'HNat
+    => Index (abt '[])
     -> [Index (abt '[])]
     -> [Index (abt '[])]
 -- TODO: check all Indices are unique
-extendIndices x s inds = (x, s) : inds
+extendIndices = (:)
+
+-- give better name
+statementInds :: Statement abt p -> [Index (abt '[])]
+statementInds (SBind   _ _   i) = i
+statementInds (SLet    _ _   i) = i
+statementInds (SWeight _     i) = i
+statementInds (SGuard  _ _ _ i) = i
+statementInds (SStuff0 _     i) = i
+statementInds (SStuff1 _ _   i) = i
 
 getLocs :: (ABT Term abt)
         => Dis abt (Assocs (Loc (abt '[])))
 getLocs = Dis $ \c h i l -> c l h i l
 
-updateLocs :: (ABT Term abt)
-           => Variable a
-           -> Loc (abt '[]) a
-           -> Dis abt ()
-updateLocs v loc = 
+putLocs :: (ABT Term abt)
+        => Assocs (Loc (abt '[]))
+        -> Dis abt ()
+putLocs l = Dis $ \c h i _ -> c () h i l
+
+insertLoc :: (ABT Term abt)
+          => Variable a
+          -> Loc (abt '[]) a
+          -> Dis abt ()
+insertLoc v loc = 
   Dis $ \c h i l -> c () h i $
     insertAssoc (Assoc v loc) l
+
+adjustLoc :: (ABT Term abt)
+          => Variable (a :: Hakaru)
+          -> (Assoc (Loc (abt '[])) -> Assoc (Loc (abt '[])))
+          -> Dis abt ()
+adjustLoc x f = do
+    locs <- getLocs
+    putLocs $ adjustAssoc x f locs
+
+-- possibly cleanup
+checkIfMultiLoc
+    :: (ABT Term abt)
+    => Variable ('HArray a)
+    -> Dis abt (Maybe (abt '[] 'HNat))
+checkIfMultiLoc x = do
+  locs <- getLocs
+  case lookupAssoc x locs of
+    Just (Loc is) -> do 
+        ss <- getStatements
+        return . listToMaybe . flip mapMaybe ss $ \s -> do
+                     x `isBoundBy` s
+                     return . indSize . head $ statementInds s
 
 -- | Modified version of push from Types which also updates Loc
 push
@@ -234,7 +278,7 @@ push
 push s e k = do
     rho <- push_ s
     F.forM_ (fromAssocs rho) $ \(Assoc _ x) ->
-        updateLocs x (Loc [])
+        insertLoc x (Loc (statementInds s))
     k (renames rho e)
 
 -- | Modified version of pushes from Types which also updates Loc
@@ -248,7 +292,7 @@ pushes ss e k = do
     -- TODO: is 'foldlM' the right one? or do we want 'foldrM'?
     rho <- F.foldlM (\rho s -> mappend rho <$> push_ s) mempty ss
     F.forM_ (fromAssocs rho) $ \(Assoc _ x) ->
-        updateLocs x (Loc [])
+        insertLoc x (Loc [])
     k (renames rho e)
 
 
@@ -276,6 +320,8 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
         Dis $ \c (ListContext i ss) ->
             c i (ListContext (i+1) ss)
 
+    getIndices =  Dis $ \c h i l -> c i h i l
+
     unsafePush s =
         Dis $ \c (ListContext i ss) ->
             c () (ListContext i (s:ss))
@@ -286,13 +332,16 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
         Dis $ \c (ListContext i ss') ->
             c () (ListContext i (reverse ss ++ ss'))
 
-    select x p = do
-        locs <- getLocs
-        let mx = lookupAssoc x locs
-        case mx of
-          Just (Loc is) -> loop [] 
-          Nothing       -> return Nothing
+    select x p = loop []
+        {-  -- The following causes snippet causes programs
+            -- which bot to instead infinite loop
 
+        do locs <- getLocs
+           let mx = lookupAssoc x locs
+           case mx of
+             Just (Loc is) -> loop [] 
+             Nothing       -> return Nothing
+        -}
         where
         -- TODO: use a DList to avoid reversing inside 'unsafePushes'
         loop ss = do

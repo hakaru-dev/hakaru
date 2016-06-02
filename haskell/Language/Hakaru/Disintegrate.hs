@@ -310,14 +310,6 @@ evaluateCase evaluate_ = evaluateCase_
 evaluateDatum :: (ABT Term abt) => DatumEvaluator (abt '[]) (Dis abt)
 evaluateDatum e = viewWhnfDatum <$> evaluate_ e
 
-
--- TODO: do we want to move this to the public API of
--- "Language.Hakaru.Evaluation.DisintegrationMonad"?
-#ifdef __TRACE_DISINTEGRATE__
-getStatements :: Dis abt [Statement abt 'Impure]
-getStatements = Dis $ \c h -> c (statements h) h
-#endif
-
 -- | Simulate performing 'HMeasure' actions by simply emiting code
 -- for those actions, returning the bound variable.
 --
@@ -339,6 +331,18 @@ perform = \e0 ->
         caseBind e2 $ \x e2' -> do
             i <- getIndices
             push (SBind x (Thunk e1) i) e2' perform
+
+    performTerm (Plate :$ e1 :* e2 :* End) =  do
+        caseBind e2 $ \x e2' -> do
+            inds <- getIndices
+            p    <- freshVar Text.empty (sUnMeasure $ typeOf e2')
+            i    <- freshInd e1
+            push (SBind p (Thunk $ rename x (indVar i) e2')
+                            (extendIndices i inds)) (var p) $ \x' ->
+               caseVarSyn x' (\x1 ->  let x2 = x1 {varType = SArray (varType x1)}
+                                      in  return (Neutral (var x2)))
+                             (error "performTerm{Plate} was not given a variable")
+
     performTerm (Superpose_ pes) = do
         -- TODO: we should combine the multiple traversals of @pes@/@pes'@
         pes' <- T.traverse (firstM (fmap fromWhnf . atomize)) pes
@@ -689,21 +693,20 @@ constrainVariable v0 x =
     -- If @x@ is a free variable, then it's a neutral term; and we
     -- return 'bot' for neutral terms
     (maybe bot return =<<) . select x $ \s ->
-        case s of
-        SBind y e i -> do
-            Refl <- varEq x y
-            Just $ do
-                constrainOutcome v0 (fromLazy e)
-                unsafePush (SLet x (Whnf_ (Neutral v0)) i)
-        SLet y e i -> do
-            Refl <- varEq x y
-            Just $ do
-                constrainValue v0 (fromLazy e)
-                unsafePush (SLet x (Whnf_ (Neutral v0)) i)
-        SWeight _ _ -> Nothing
-        SGuard ys pat scrutinee i ->
-            error "TODO: constrainVariable{SGuard}"
-
+         case s of
+           SBind y e i -> do
+                Refl <- varEq x y
+                Just $ do
+                    constrainOutcome v0 (fromLazy e)
+                    unsafePush (SLet x (Whnf_ (Neutral v0)) i)
+           SLet y e i -> do
+                Refl <- varEq x y
+                Just $ do
+                    constrainValue v0 (fromLazy e)
+                    unsafePush (SLet x (Whnf_ (Neutral v0)) i)
+           SWeight _ _ -> Nothing
+           SGuard ys pat scrutinee i ->
+                error "TODO: constrainVariable{SGuard}"
 
 ----------------------------------------------------------------
 -- | N.B., as with 'constrainValue', we assume that the first
@@ -1094,9 +1097,17 @@ constrainOutcome v0 e0 =
         caseBind e2 $ \x e2' -> do
             i <- getIndices
             push (SBind x (Thunk e1) i) e2' (constrainOutcome v0)
-    go (WPlate e1 e2)        = error "TODO: constrainOutcome{Plate}"
+    go (WPlate e1 e2)        = do
+        caseBind e2 $ \x e2' -> do
+            inds <- getIndices
+            p    <- freshVar Text.empty (sUnMeasure $ typeOf e2')
+            i    <- freshInd e1
+            push (SBind p (Thunk $ rename x (indVar i) e2')
+                            (extendIndices i inds)) (var p) $
+              constrainValue (v0 P.! var (indVar i))
+
     go (WChain e1 e2 e3)     = error "TODO: constrainOutcome{Chain}"
-    go (WReject typ)         = error "TODO: constrainOutcome{Reject}"
+    go (WReject typ)         = emit_ $ \m -> P.reject (typeOf m)
     go (WSuperpose pes) =
         case pes of
         (p,e) :| [] -> do
@@ -1108,7 +1119,6 @@ constrainOutcome v0 e0 =
             pes' <- T.traverse (firstM (fmap fromWhnf . atomize)) pes
             emitFork_ (P.superpose . getCompose)
                 (constrainOutcome v0 <$> Compose pes')
-
 
 -- TODO: should this really be different from 'constrainValueMeasureOp'?
 --

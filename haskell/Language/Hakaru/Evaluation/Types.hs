@@ -43,7 +43,8 @@ module Language.Hakaru.Evaluation.Types
     , getLazyLiteral,  isLazyLiteral
 
     -- * The monad for partial evaluation
-    , Purity(..), Index, Statement(..), isBoundBy
+    , Purity(..), Statement(..), isBoundBy
+    , Index, indVar, indSize
 #ifdef __TRACE_DISINTEGRATE__
     , ppStatement
     , pretty_Statements
@@ -54,6 +55,7 @@ module Language.Hakaru.Evaluation.Types
     , freshenVar
     , Hint(..), freshVars
     , freshenVars
+    , freshInd
     {- TODO: should we expose these?
     , freshenStatement
     -}
@@ -72,12 +74,13 @@ import           Control.Applicative  (Applicative(..))
 import           Control.Arrow        ((***))
 import qualified Data.Foldable        as F
 import           Data.List.NonEmpty   (NonEmpty(..))
+import qualified Data.Text            as T
 import           Data.Text            (Text)
 
 import Language.Hakaru.Syntax.IClasses
 import Data.Number.Nat
 import Language.Hakaru.Types.DataKind
-import Language.Hakaru.Types.Sing    (Sing)
+import Language.Hakaru.Types.Sing    (Sing(..))
 import Language.Hakaru.Types.Coercion
 import Language.Hakaru.Syntax.AST
 import Language.Hakaru.Syntax.Datum
@@ -475,6 +478,12 @@ data Purity = Pure | Impure | ExpectP
 
 type Index ast = (Variable 'HNat, ast 'HNat)
 
+indVar :: Index ast -> Variable 'HNat
+indVar = fst
+
+indSize :: Index ast -> ast 'HNat
+indSize = snd
+
 -- | A single statement in some ambient monad (specified by the @p@
 -- type index). In particular, note that the the first argument to
 -- 'MBind' (or 'Let_') together with the variable bound in the
@@ -658,6 +667,13 @@ class (Functor m, Applicative m, Monad m, ABT Term abt)
     -- interest, and isn't a number we've returned previously.
     freshNat :: m Nat
 
+    -- | Returns the current Indices. Currently, this is only
+    -- applicable to the Disintegration Monad, but could be
+    -- relevant as other partial evaluators begin to handle
+    -- Plate and Array
+    getIndices :: m [Index (abt '[])]
+    getIndices =  return []
+
     -- | Add a statement to the top of the context. This is unsafe
     -- because it may allow confusion between variables with the
     -- same name but different scopes (thus, may allow variable
@@ -794,6 +810,14 @@ freshenVars = go dnil1
         x' <- freshenVar x
         go (k `dsnoc1` x') xs -- BUG: type error....
 -}
+
+-- | Given a size, generate a fresh Index
+freshInd :: (EvaluationMonad abt m p)
+         => abt '[] 'HNat
+         -> m (Index (abt '[]))
+freshInd s = do
+  x <- freshVar T.empty SNat
+  return (x, s)
 
 
 -- | Add a statement to the top of the context, renaming any variables
