@@ -332,13 +332,16 @@ instance (ABT Term abt) => EvaluationMonad abt (Dis abt) 'Impure where
         Dis $ \c (ListContext i ss') ->
             c () (ListContext i (reverse ss ++ ss'))
 
-    select x p = do
-        locs <- getLocs
-        let mx = lookupAssoc x locs
-        case mx of
-          Just (Loc is) -> loop [] 
-          Nothing       -> return Nothing
+    select x p = loop []
+        {-  -- The following causes snippet causes programs
+            -- which bot to instead infinite loop
 
+        do locs <- getLocs
+           let mx = lookupAssoc x locs
+           case mx of
+             Just (Loc is) -> loop [] 
+             Nothing       -> return Nothing
+        -}
         where
         -- TODO: use a DList to avoid reversing inside 'unsafePushes'
         loop ss = do
