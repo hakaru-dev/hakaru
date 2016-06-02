@@ -36,6 +36,7 @@ import           Data.Sequence       (Seq)
 import qualified Data.Foldable       as F
 import qualified Data.List.NonEmpty  as L
 import           Control.Monad.State (MonadState(..), State, runState)
+import           Data.Maybe          (isJust)
 
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative   (Applicative(..), (<$>))
@@ -341,23 +342,27 @@ mapleType (SFun a b)   = op2 "HFunction" (mapleType a) (mapleType b)
 mapleType (SArray a)   = op1 "HArray"    (mapleType a)
 mapleType (SMeasure a) = op1 "HMeasure"  (mapleType a)
 -- Special case pair
-mapleType (SData _ (SPlus x SVoid))
-    = showString "HData(DatumStruct(pair,"
+mapleType (SData (STyCon c `STyApp` _ `STyApp` _) (SPlus x SVoid))
+    | isJust (jmEq1 c sSymbol_Pair)
+    = showString "HData(DatumStruct(pair,["
     . mapleTypeDStruct x
-    . showString "))"
+    . showString "]))"
+-- Special case unit
+mapleType (SData (STyCon c) (SPlus SDone SVoid))
+    | isJust (jmEq1 c sSymbol_Unit)
+    = showString "HData(DatumStruct(unit,[]))"
 -- Special case bool
-mapleType (SData _ (SPlus SDone (SPlus SDone SVoid)))
+mapleType (SData (STyCon c) (SPlus SDone (SPlus SDone SVoid)))
+    | isJust (jmEq1 c sSymbol_Bool)
     = showString "HData(DatumStruct(true,[]),DatumStruct(false,[]))"
 mapleType x = error $ "TODO: mapleType{" ++ show x ++ "}"
 
 mapleTypeDStruct :: Sing (a :: [HakaruFun]) -> ShowS
-mapleTypeDStruct SDone      = showString "[]"
+mapleTypeDStruct SDone      = showString "NULL"
 mapleTypeDStruct (SEt x xs) =
-    showString "["
-    . mapleTypeDFun x
-    . showString ", op("
+      mapleTypeDFun x
+    . showString ","
     . mapleTypeDStruct xs
-    . showString ")]"
 
 mapleTypeDFun :: Sing (a :: HakaruFun) -> ShowS
 mapleTypeDFun (SKonst a) = op1 "Konst" (mapleType a)
