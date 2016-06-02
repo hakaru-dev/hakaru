@@ -709,10 +709,10 @@ t65 =
             (reject sing)))
         (reject sing)
 t65' = lam $ \t ->
-       if_ (t < (fromProb (exp (negate (real_ 1))))) (reject sing)
+       if_ (t < (fromProb (exp (real_ (-1))))) (reject sing)
      $ if_ (t < one) (weight (unsafeProb (log (unsafeProb t) + one)))
-     $ if_ (t < one + (fromProb (exp (negate (real_ 1))))) (dirac unit)
-     $ if_ (t < (fromRational 2)) (weight (unsafeProb (negate (log (unsafeProb (t - one))))))
+     $ if_ (t < one + (fromProb (exp (real_ (-1))))) (dirac unit)
+     $ if_ (t < (fromRational 2)) (weight (unsafeProb (negate (log (unsafeProb (t + real_ (-1)))))))
      $ reject sing
 
 t66 :: (ABT Term abt) => abt '[] ('HMeasure 'HProb)
