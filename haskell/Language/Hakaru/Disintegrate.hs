@@ -344,9 +344,11 @@ perform = \e0 ->
                              (error "performTerm{Plate} was not given a variable")
 
     performTerm (Superpose_ pes) = do
-        -- TODO: we should combine the multiple traversals of @pes@/@pes'@
-        pes' <- T.traverse (firstM (fmap fromWhnf . atomize)) pes
-        emitFork_ (P.superpose . getCompose) (perform <$> Compose pes')
+        i <- getIndices
+        if not (null i) && L.length pes > 1 then bot else
+          emitFork_ (P.superpose . fmap ((,) P.one))
+                    (fmap (\(p,e) -> push (SWeight (Thunk p) i) e perform)
+                          pes)
 
     -- Avoid falling through to the @performWhnf <=< evaluate_@ case
     performTerm (Let_ :$ e1 :* e2 :* End) =
@@ -1108,17 +1110,12 @@ constrainOutcome v0 e0 =
 
     go (WChain e1 e2 e3)     = error "TODO: constrainOutcome{Chain}"
     go (WReject typ)         = emit_ $ \m -> P.reject (typeOf m)
-    go (WSuperpose pes) =
-        case pes of
-        (p,e) :| [] -> do
-            p' <- fromWhnf <$> atomize p
-            emitWeight p'
-            constrainOutcome v0 e
-        _ -> do
-            -- TODO: we should combine the multiple traversals of @pes@/@pes'@
-            pes' <- T.traverse (firstM (fmap fromWhnf . atomize)) pes
-            emitFork_ (P.superpose . getCompose)
-                (constrainOutcome v0 <$> Compose pes')
+    go (WSuperpose pes) = do
+        i <- getIndices
+        if not (null i) && L.length pes > 1 then bot else
+          emitFork_ (P.superpose . fmap ((,) P.one))
+                    (fmap (\(p,e) -> push (SWeight (Thunk p) i) e (constrainOutcome v0))
+                          pes)
 
 -- TODO: should this really be different from 'constrainValueMeasureOp'?
 --
